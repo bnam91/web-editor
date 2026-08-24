@@ -1797,3 +1797,19 @@ body.preview-mode #preview-navigator { display: flex; }
 .spl-ic:hover { background: var(--ui-border, #dfe4ea); }
 /* 연결 모드: 섹션 클릭 가능 표시(P3에서 body.spl-linking 토글) */
 body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed); outline-offset: 2px; cursor: pointer; }
+
+/* #16 P3 — 연결 UX: 스크래치 아이템 🔗버튼 + 연결모드 배너 */
+.scratch-item > .spl-link-btn {
+  position: absolute; bottom: 4px; right: 4px; z-index: 11;
+  width: 24px; height: 24px; border: none; border-radius: 6px;
+  background: rgba(0,0,0,.62); color: #fff; cursor: pointer; font-size: 12px;
+  line-height: 1; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .12s;
+}
+.scratch-item:hover > .spl-link-btn, .scratch-item.scratch-selected > .spl-link-btn { opacity: 1; }
+.scratch-item > .spl-link-btn:hover { background: var(--ui-accent, #4f6bed); }
+.spl-banner {
+  position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 9999;
+  background: var(--ui-bg-card, #fff); border: 1px solid var(--ui-accent, #4f6bed);
+  color: var(--ui-accent, #4f6bed); border-radius: 9px; padding: 9px 16px;
+  font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px rgba(20,25,40,.18); display: none;
+}

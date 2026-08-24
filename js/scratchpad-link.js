@@ -262,6 +262,7 @@
   function __spLinkRerender() {
     try {
       _filterScratchPane();
+      _ensureLinkButtons();
       _renderSidecar();
       _relayout();
     } catch (e) { console.warn('[spl] rerender err:', e); }
@@ -278,9 +279,13 @@
     window.addEventListener('resize', _scheduleRelayout, { passive: true });
     const scaler = _scaler();
     if (scaler) {
-      // 줌/팬 = #canvas-scaler style.transform 변경 → 감지해 추종
-      const mo = new MutationObserver(_scheduleRelayout);
-      mo.observe(scaler, { attributes: true, attributeFilter: ['style'] });
+      // style(줌/팬 transform) 변경 → relayout / childList(스크래치 아이템 추가·제거) → 전체 재렌더(버튼 주입·필터).
+      const mo = new MutationObserver(muts => {
+        let child = false;
+        for (const m of muts) if (m.type === 'childList') { child = true; break; }
+        if (child) _scheduleRerender(); else _scheduleRelayout();
+      });
+      mo.observe(scaler, { attributes: true, attributeFilter: ['style'], childList: true });
     }
     return true;
   }
@@ -304,8 +309,80 @@
     return true;
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // [P3 = 연결 UX]  스크래치 이미지 «선택/버튼» → [노드연결] → 섹션 클릭 → 연결.
+  //   · 각 «미연결» .scratch-item 에 🔗 버튼 주입(scratch-pad.js 무편집). 클릭 시 링크 모드.
+  //   · 링크 모드: body.spl-linking(섹션 점선=CSS 준비됨) + 배너. 섹션 클릭 → addLink → 종료.
+  //     여러 개 선택(scratch-selected)돼 있으면 일괄 연결. Esc/빈 곳 클릭 = 취소.
+  // ═══════════════════════════════════════════════════════════════════
+  let _linkMode = null; // 연결 대기 중인 scratchId 배열 or null
+
+  function _ensureLinkButtons() {
+    document.querySelectorAll('.scratch-item').forEach(el => {
+      if (el.dataset.splHidden) return;                 // 연결된(숨김) 아이템엔 불필요
+      if (el.querySelector(':scope > .spl-link-btn')) return;
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'spl-link-btn'; b.innerHTML = '🔗'; b.title = '섹션에 노드연결';
+      b.addEventListener('mousedown', e => e.stopPropagation()); // 드래그 방해 금지
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        const id = el.dataset.scratchId;
+        // 선택셋에 이 아이템 포함 다중선택이면 선택셋 전체, 아니면 이 아이템만
+        const selIds = [...document.querySelectorAll('.scratch-item.scratch-selected')].map(x => x.dataset.scratchId);
+        const ids = (selIds.length > 1 && selIds.includes(id)) ? selIds : [id];
+        startLinkMode(ids);
+      });
+      el.appendChild(b);
+    });
+  }
+
+  function _banner(on) {
+    let el = document.getElementById('spl-banner');
+    if (on) {
+      if (!el) { el = document.createElement('div'); el.id = 'spl-banner'; el.className = 'spl-banner'; document.body.appendChild(el); }
+      el.textContent = '🔗 연결 모드 — 캔버스에서 «섹션»을 클릭하세요 (취소: Esc)';
+      el.style.display = 'block';
+    } else if (el) { el.style.display = 'none'; }
+  }
+
+  function startLinkMode(ids) {
+    if (!ids || !ids.length) return;
+    _linkMode = ids.slice();
+    document.body.classList.add('spl-linking');
+    _banner(true);
+  }
+  function endLinkMode() {
+    _linkMode = null;
+    document.body.classList.remove('spl-linking');
+    _banner(false);
+  }
+  // 링크 모드 중 섹션 클릭 가로채기(capture) → 연결. 다른 클릭=취소.
+  function _onDocClickCapture(e) {
+    if (!_linkMode) return;
+    const sec = e.target.closest && e.target.closest('.section-block');
+    if (sec) {
+      e.preventDefault(); e.stopPropagation();  // 일반 섹션 선택 차단
+      const ids = _linkMode; endLinkMode();
+      let any = false;
+      ids.forEach(id => { if (addLink(sec.id, id)) any = true; });
+      if (any) window.showToast?.('🔗 참고이미지 ' + ids.length + '개 연결됨');
+    } else {
+      // 배너/링크버튼 클릭이 아니면 취소
+      if (!e.target.closest('#spl-banner') && !e.target.closest('.spl-link-btn')) endLinkMode();
+    }
+  }
+  function _onKeyDown(e) { if (e.key === 'Escape' && _linkMode) { e.stopPropagation(); endLinkMode(); } }
+
+  function _installLinkUX() {
+    if (window.__splLinkUX) return;
+    document.addEventListener('click', _onDocClickCapture, true); // capture: 섹션 핸들러보다 먼저
+    document.addEventListener('keydown', _onKeyDown, true);
+    window.__splLinkUX = true;
+  }
+
   function _boot() {
     _installFollow();
+    _installLinkUX();
     if (!_installSectionHook()) setTimeout(_installSectionHook, 300);
     __spLinkRerender();
   }
@@ -315,6 +392,7 @@
   window.SPLink = {
     linksForSection, sectionIdOf, isLinked, linkedScratchIds, allLinks,
     addLink, removeLink, setCollapsed, setShowEdges,
+    startLinkMode, endLinkMode,
     rerender: __spLinkRerender,
     // 내부 유틸(P2 렌더/테스트용)
     _parse, _write,
