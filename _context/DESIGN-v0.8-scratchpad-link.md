@@ -9,6 +9,8 @@
 - **섹션**: `.section-block`, 안정 id=`sec.id`. `deleteSection(secIdOrEl)`(editor.js:2436) = pushHistory→`sec.remove()`→deselectAll→buildLayerPanel→triggerAutoSave.
 - **캔버스**: `#canvas-wrap > #scaler(transform: translate(pan) scale(zoom)) > #canvas`. 줌=currentZoom, 팬=panOffsetX/Y. #canvas가 스케일러 «안».
 - **직렬화**: `serializeCleanRoot(clone)`(section-serialize.js)가 #canvas HTML 세척. proj.json = `{version:2, currentPageId, pages:[{id,name,label,pageSettings,canvas}], checklistItems, imageGallery, assetsTree}`. ★`pages: state.pages` 통째 저장 → 페이지 객체에 필드 추가 시 «자동 직렬화».
+- ★**스크래치패드 = «캔버스 위»**: `_createItem`이 `#canvas-scaler`(줌/팬 레이어)에 `.scratch-item`(dataset.scratchId, 절대배치 x/y/w) append. 데모의 «tray»=GODITOR에선 캔버스 위 스크래치 아이템. → «연결»=그 아이템을 캔버스에서 빼고 사이드카로 / «복귀»=`_scratchAddAndSave(src,x,y,w,g,id)`로 캔버스 재생성(기존 add 경로).
+- ★**undo/redo = `pushHistory(action, sideEffects)` 존재**: sideEffects=`{onUndo,onRedo}`가 «DOM 외 상태(스크래치 IDB 등) 복원용»으로 이미 설계됨. imageLinks는 canvas HTML 밖(페이지객체)이라 canvas 스냅에 안 잡히지만, **sideEffects 훅으로 imageLinks 스냅/복원**(정석 경로). scratch-pad.js가 이미 이 패턴 사용.
 - **재렌더 훅**: `rebindAll`(save-load)이 로드/undo·redo/협업마다 `bindSectionHitzone(sec)` 호출. template-system.js가 이 래퍼로 태그칩 재생성(검증된 패턴) → 사이드카 재렌더도 동일 패턴 재사용.
 
 ## 1. ★데이터 모델 & 직렬화 스키마 (지디 명시 요청)
@@ -19,7 +21,7 @@
   ```
   - 페이지 스코프(섹션·스크래치 둘 다 페이지 소속이라 자연 정합). `pages: state.pages` 경유 proj.json 자동 보존.
   - 이미지 데이터는 ScratchPadDB에 그대로. imageLinks는 scratchId로 «참조».
-- **뷰 분리(단일 데이터, 2뷰)**: 스크래치 pane = «미연결»만 표시(scratchId가 imageLinks에 없는 것) / 사이드카 = «연결»된 것. → 연결 시 pane에서 빠지고 사이드카로, 해제/삭제 시 pane 복귀. (데모 tray/sidecar 모델과 동일.)
+- **뷰 분리(단일 데이터, 2뷰)**: 캔버스 스크래치(미연결=`.scratch-item` on canvas-scaler) / 사이드카(연결=canvas-wrap 스크린좌표). ★스크래치 로드(`_loadScratch`)/렌더가 imageLinks에 있는 scratchId는 «캔버스 아이템 생성 skip»(데이터는 로드하되 사이드카로), 미연결만 캔버스에. 해제/삭제 시 캔버스 복귀. 데이터는 ScratchPadDB 단일원(참조).
 - **하위호환**: `page.imageLinks` 없으면 = 링크 0(기존 저장본 무변·회귀0). 로드 시 imageLinks의 scratchId가 현 스크래치에 없으면(이미지 삭제됨) 그 링크 skip+정리(고아 안전).
 
 ## 2. 렌더 아키텍처 (오버레이)
@@ -41,7 +43,7 @@
 ## 5. ★섹션 삭제 → 스크래치 복귀 (지디 명시 요청)
 - `deleteSection`에 훅: `sec.remove()` «전», `page.imageLinks`에서 sectionId===sec.id 항목 제거. 
 - ★이미지 데이터는 ScratchPadDB에 그대로 → 링크만 사라져 스크래치 pane에 «자동 복귀». `_scratchRemoveById` 절대 호출 안 함(이미지 삭제 금지).
-- pushHistory가 링크 제거까지 캡처 → ⌘Z로 섹션+링크 동시 복원. (섹션 삭제 undo가 canvas HTML 복원 + imageLinks 복원 둘 다 되도록 스냅샷 포함 확인.)
+- ★undo = `pushHistory('섹션 삭제 전', {onUndo:복원 imageLinks, onRedo:재제거})` sideEffects로 링크 복원(canvas HTML 스냅은 섹션 DOM, sideEffects는 imageLinks). 검증된 패턴(scratch-pad.js 사용).
 - 동일 로직 재사용: 개별 ⛌ 해제 = 그 링크 1개 제거.
 
 ## 6. P0 데이터손실/회귀 시나리오 (고QA + fresh agent 적대리뷰)
