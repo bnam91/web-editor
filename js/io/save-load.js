@@ -175,6 +175,10 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       const _externAll = opts.externalizeAll === true || window.GOEDITOR_AUTO_EXTERNALIZE_LEGACY === true;
       try { await externalizeProjectData(proj, targetId, { all: _externAll }); }
       catch (e) { console.warn('[save-load] 이미지 외부화 건너뜀:', e && e.message); }
+      // #16 이식성: 스크래치패드 전체 페이지를 goya-asset로 외부화 + proj.pages[].scratchpad 매니페스트 기록
+      //   (다른 맥에서 하이드레이션 원본). 비파괴·hash 증분·실패 시 원본 유지. proj 객체에 scratchpad 필드 주입.
+      try { await window.externalizeScratchpad?.(proj, targetId); }
+      catch (e) { console.warn('[save-load] 스크래치 외부화 건너뜀:', e && e.message); }
       const saveResult = await window.electronAPI.saveProject(proj);
       // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
       if (saveResult && saveResult.ok === false) {
@@ -1446,7 +1450,14 @@ function initApp() {
     };
     async function applyAndFinish(data) {
       if (_bootStale()) { _endLoadingOverlay(); return; }
-      try { applyProjectData(data); } catch(e) {
+      try {
+        applyProjectData(data);
+        // #16 이식성: state.pages(scratchpad 매니페스트 포함)가 세팅된 «후» 스크래치 로드/하이드레이션을
+        //   재실행한다. 아래 부트 initScratchPad(초기화 섹션)는 async loadProject보다 «먼저» sync 발화하는
+        //   레이스라 매니페스트를 못 봐 다른 맥에서 하이드레이션이 누락된다(계측 확인). _loadScratch는
+        //   idempotent(gen 토큰으로 늦은 것이 승리)라 재호출 안전.
+        window.initScratchPad?.(activeProjectId, state.currentPageId);
+      } catch(e) {
         console.error('[initApp] applyProjectData 실패, initEmpty fallback:', e);
         initEmpty();
       } finally {

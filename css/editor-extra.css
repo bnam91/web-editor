@@ -1813,3 +1813,19 @@ body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed);
   color: var(--ui-accent, #4f6bed); border-radius: 9px; padding: 9px 16px;
   font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px rgba(20,25,40,.18); display: none;
 }
+
+/* #16 D4 — goya-asset 실체 누락 플레이스홀더(링크/데이터 유지, 실체만 누락 표시) */
+.scratch-item.scratch-missing > img { display: none; }
+.scratch-item.scratch-missing {
+  min-height: 80px; background: repeating-linear-gradient(45deg, #f0f2f6, #f0f2f6 8px, #e6e9ef 8px, #e6e9ef 16px);
+  border: 1px dashed var(--ui-border, #c9d0da);
+}
+.scratch-item.scratch-missing::after {
+  content: '⚠ 참고이미지 누락'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: var(--ui-text-dim, #6b7280); font-weight: 600; pointer-events: none; text-align: center; padding: 6px;
+}
+.spl-refimg.spl-missing .spl-thumb { min-height: 60px; background: repeating-linear-gradient(45deg, #f0f2f6, #f0f2f6 8px, #e6e9ef 8px, #e6e9ef 16px); position: relative; }
+.spl-refimg.spl-missing .spl-thumb::after {
+  content: '⚠ 누락'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: var(--ui-text-dim, #6b7280); font-weight: 600;
+}

@@ -191,7 +191,7 @@
         card.className = 'spl-refimg' + (l.collapsed ? ' collapsed' : '');
         const src = _scratchSrc(l.scratchId) || '';
         card.innerHTML =
-          '<div class="spl-thumb"><img src="' + src.replace(/"/g, '&quot;') + '" draggable="false"></div>' +
+          '<div class="spl-thumb"><img src="' + src.replace(/"/g, '&quot;') + '" draggable="false" onerror="var c=this.closest(&quot;.spl-refimg&quot;);if(c)c.classList.add(&quot;spl-missing&quot;)"></div>' +
           '<div class="spl-cap">' +
             '<button class="spl-ic" data-a="fold" title="' + (l.collapsed ? '펼치기' : '접기') + '">' + (l.collapsed ? '＋' : '－') + '</button>' +
             '<button class="spl-ic" data-a="unlink" title="연결 해제(스크래치로 복귀)">⛌</button>' +

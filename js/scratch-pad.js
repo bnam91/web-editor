@@ -90,6 +90,69 @@ async function _saveScratch() {
   });
 }
 
+// #16 이식성 — 저장 시 스크래치 «전체 페이지» 외부화 + proj.json 매니페스트 기록.
+//   · 각 페이지 IndexedDB(scratch-pad-<pid>-<pageId>)를 읽어 base64 src를 goya-asset asset으로 외부화
+//     (assetsSaveCanvasImage = content-hash addressed → 이미 goya-asset인 src는 통과=증분 skip).
+//   · page.scratchpad = [{id,src(goya-asset),x,y,w,g}] 경량 매니페스트 기록(다른 맥 하이드레이션 원본).
+//   · IndexedDB src도 goya-asset로 갱신(같은 맥 재로드도 asset 렌더·중복외부화 방지).
+//   ★비파괴: 외부화=복사(원본 base64는 asset로 보존). 실패 시 원본 유지(데이터손실0).
+//   ★IndexedDB에 키 없음(undefined)=그 페이지 스크래치 없음/미로드 → 매니페스트 무접촉(보존).
+//     빈 배열([])=사용자가 비움 → 매니페스트도 []로 동기화.
+async function externalizeScratchpad(proj, projectId) {
+  if (!proj || !Array.isArray(proj.pages) || !projectId) return;
+  if (!window.electronAPI || !window.electronAPI.assetsSaveCanvasImage) return; // 웹/미가용 no-op
+  let db;
+  try { db = await _openDB(); } catch (_) { return; }
+  const readRaw = (key) => new Promise((res, rej) => {
+    const tx = db.transaction(SCRATCH_STORE, 'readonly');
+    const rq = tx.objectStore(SCRATCH_STORE).get(key);
+    rq.onsuccess = e => res(e.target.result);   // undefined 그대로(키 없음 판별)
+    rq.onerror   = e => rej(e.target.error);
+  });
+  const writeRaw = (key, data) => new Promise((res, rej) => {
+    const tx = db.transaction(SCRATCH_STORE, 'readwrite');
+    tx.objectStore(SCRATCH_STORE).put(data, key);
+    tx.oncomplete = res; tx.onerror = e => rej(e.target.error);
+  });
+  const cache = new Map(); // dataUri → goya-asset URL (동일 세이브 내 dedup)
+  for (const page of proj.pages) {
+    if (!page || !page.id) continue;
+    const key = `scratch-pad-${projectId}-${page.id}`;
+    let data;
+    try { data = await readRaw(key); } catch (_) { continue; }
+    if (data === undefined) continue;              // 키 없음 = 스크래치 없음/미로드 → 매니페스트 보존
+    if (!Array.isArray(data) || data.length === 0) { page.scratchpad = []; continue; } // 비움 동기화
+    let changed = false;
+    const manifest = [];
+    for (const it of data) {
+      let src = it.src;
+      if (typeof src === 'string' && src.startsWith('data:image')) {
+        let url = cache.get(src);
+        if (!url) {
+          const m = /^data:(image\/[^;]+);base64,(.+)$/.exec(src);
+          if (m) {
+            try {
+              const r = await window.electronAPI.assetsSaveCanvasImage({ projectId, b64: m[2], mime: m[1] });
+              if (r && r.ok && r.url) { url = r.url; cache.set(src, url); }
+            } catch (_) { /* 실패 → 원본 base64 유지(손실0) */ }
+          }
+        }
+        if (url) { src = url; changed = true; }
+      }
+      manifest.push({ id: it.id, src, x: it.x, y: it.y, w: it.w, g: it.g });
+    }
+    page.scratchpad = manifest; // URL+좌표 경량(base64 인라인 아님)
+    if (changed) {
+      const newData = data.map((it, i) => ({ ...it, src: manifest[i].src }));
+      try { await writeRaw(key, newData); } catch (_) {}
+      if (projectId === _currentProjectId && page.id === _currentPageId) {
+        _scratchItems.forEach(s => { const mm = manifest.find(x => x.id === s.id); if (mm && mm.src !== s.src) { s.src = mm.src; const im = s.el.querySelector('img'); if (im) im.src = mm.src; } });
+      }
+    }
+  }
+}
+window.externalizeScratchpad = externalizeScratchpad;
+
 // 탭 전환 즉시 호출: 이전 프로젝트 스크래치를 '동기 DOM 제거' 후 백그라운드 저장 (잔상 방지).
 // switchScratch는 currentPageId 확정(applyProjectData 이후)까지 미뤄지지만, 이전 프로젝트의
 // 저장/제거에는 새 pageId가 필요 없으므로 여기서 분리 수행한다.
@@ -501,8 +564,10 @@ function _createItem(src, x, y, w = 220, idArg, gArg) {
   el.style.cssText = `left:${x}px; top:${y}px; width:${w}px;`;
 
   const img = document.createElement('img');
-  img.src = src;
   img.draggable = false;
+  // #16 D4: goya-asset 실체 누락(다른 맥·폴더 미동반 등) → 플레이스홀더 표시(링크/데이터는 유지, 추적가능).
+  img.onerror = () => { el.classList.add('scratch-missing'); };
+  img.src = src;
   el.appendChild(img);
 
   const closeBtn = document.createElement('button');
@@ -1041,13 +1106,26 @@ async function _loadScratch(projectId, pageId) {
       req.onerror   = e => reject(e.target.error);
     });
     if (gen !== _scratchLoadGen) return; // ★stale — DOM/배열 오염·엉뚱한 키 저장 금지
+    // #16 이식성 — 하이드레이션: IndexedDB가 «비었고» 프로젝트 매니페스트(page.scratchpad)가 있으면
+    //   매니페스트로 재채움(다른 맥 = IndexedDB 빔 → 프로젝트에 딸려온 goya-asset URL+좌표로 복원).
+    //   ★«비었을 때만» = 같은 맥 로컬 편집 보존(로컬 IndexedDB 우선·덮어쓰기 금지·회귀0).
+    let items = data;
+    let hydrated = false;
+    if (!items || !items.length) {
+      const pg = (window.state && Array.isArray(window.state.pages)) ? window.state.pages.find(p => p.id === pageId) : null;
+      const manifest = pg && Array.isArray(pg.scratchpad) ? pg.scratchpad : null;
+      if (manifest && manifest.length) {
+        items = manifest.map(m => ({ src: m.src, x: m.x, y: m.y, w: m.w, id: m.id, g: m.g }));
+        hydrated = true;
+      }
+    }
     let migrated = false;
-    data.forEach(({ src, x, y, w, id, g }) => {
+    items.forEach(({ src, x, y, w, id, g }) => {
       if (!id) migrated = true; // 구 데이터엔 id 없음 — 자동 생성 후 재저장 트리거
       _createItem(src, x, y, w, id, g);
     });
     _scratchLoaded = true; // migrated 재저장 전에 완료 마킹 (_saveScratch가 가드하므로)
-    if (migrated) _saveScratch();
+    if (migrated || hydrated) _saveScratch(); // 하이드레이션분을 로컬 IndexedDB에 영속
     // #16: 스크래치 로드 완료 → 연결(refLinks)된 아이템 pane 필터 + 사이드카 재렌더(P2 오버레이).
     try { window.__spLinkRerender && window.__spLinkRerender(); } catch (_) {}
   } catch(e) {
