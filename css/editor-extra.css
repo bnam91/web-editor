@@ -1206,12 +1206,21 @@ body.preview-mode #preview-navigator { display: flex; }
 .tb-card {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;          /* #11: 태그 칩행을 카드 2번째 줄로 흘림(태그 없으면 미생성=단일행 유지) */
   gap: 8px;
   padding: 7px 8px;
   border-radius: var(--ui-radius-md);
   cursor: pointer;
   transition: background 0.1s;
   user-select: none;
+}
+/* #11: 템플릿 카드마다 «자기 tpl.tags» 상시 표시(모달에서 각 블럭/섹션 태그 미리보기). 기존 .section-tag-chip 재사용. */
+.tb-card-tags {
+  flex: 0 0 100%;            /* 카드 하단 전용 행 */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-left: 36px;       /* thumb(28)+gap(8) 만큼 들여써 info 열 아래 정렬 */
 }
 .tb-card:hover { background: #222; }
 .tb-card.selected { background: rgba(45,111,232,0.15); }

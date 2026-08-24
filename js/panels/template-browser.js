@@ -249,6 +249,7 @@ function _renderBrowserCards() {
             </svg>
           </button>
         </div>
+        ${(tpl.tags && tpl.tags.length) ? `<div class="tb-card-tags">${tpl.tags.map(t => `<span class="section-tag-chip">${_esc(t)}</span>`).join('')}</div>` : ''}
       </div>`;
   }).join('');
 
