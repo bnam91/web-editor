@@ -20,6 +20,19 @@ export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
         if (itbText) itbText.style.flex = btn.dataset.align === 'left' ? '1' : '0 1 auto';
       } else {
         ctx.contentEl.style.textAlign = btn.dataset.align;
+        // U10: 커스텀 폭(width≠100%) 블록은 contentEl text-align만으론 박스가 좌측 고정
+        //  → section-inner{flex-direction:column}이라 자식 가로위치는 align-self가 지배.
+        //    박스 자체(폭을 보유한 flex 자식 = text-frame 래퍼 또는 tb)를 정렬한다.
+        //    규약은 #13 alignSelectedToParent(editor.js)와 동일: left→flex-start / center→center / right→flex-end.
+        //    기본폭(100%) 블록은 alignSelf 미설정 유지 → 기존 저장본(align-self 없이 text-align만) 회귀 방어.
+        const layoutEl = tb.closest('.frame-block[data-text-frame="true"]') || tb;
+        const w = layoutEl.style.width;
+        const isCustomWidth = !!w && w !== '100%' && w !== 'auto';
+        if (isCustomWidth) {
+          const asMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
+          layoutEl.style.alignSelf = asMap[btn.dataset.align] || 'flex-start';
+          window.scheduleAutoSave?.();
+        }
       }
       propPanel.querySelectorAll('.prop-align-btn[data-align]').forEach(b => b.classList.toggle('active', b===btn));
     });
