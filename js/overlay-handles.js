@@ -156,8 +156,7 @@ function _onFrameRotateMouseDown(e, ss) {
   function onMove(ev) {
     const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
     let deg = init + (a - startA);
-    if (ev.shiftKey) deg = Math.round(deg / 15) * 15; // 15도 스냅
-    else deg = Math.round(deg);
+    deg = window._snapRotate(deg, ev.shiftKey); // Shift = 45° 스냅(공유)
     deg = ((deg % 360) + 360) % 360;
     if (deg > 180) deg -= 360; // -180..180
     ss.dataset.rotateDeg = String(deg);

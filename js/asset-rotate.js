@@ -7,6 +7,16 @@
 //     이건 ab 컨테이너 전체 회전이라 별도 키(dataset.rotation) 사용.
 //   - selected/deselect는 block-drag.js가 .selected 클래스로 관리 → MutationObserver로 감시.
 
+// ── 회전 스냅(공유) ──────────────────────────────────────────────
+// Shift 드래그 시 ROTATE_SNAP_STEP° 단위로 «턱턱» 스냅(기본 45°: 0/45/90/135/180/225/270/315),
+// Shift 아니면 1° 반올림. 전 회전대상(asset/shape/frame/#14b 텍스트·컴포넌트/스티커)이 이 하나를 공유.
+// ★15°로 되돌리려면 아래 상수만 45→15 (지디: 15°는 옵션 여지·기본 45°). 런타임(mousedown) 참조라 로드순서 무관.
+window._ROTATE_SNAP_STEP = 45;
+window._snapRotate = function (deg, shift) {
+  const step = window._ROTATE_SNAP_STEP || 45;
+  return shift ? Math.round(deg / step) * step : Math.round(deg);
+};
+
 // shape-rotate-zone은 «선택 중»에만 히트영역을 갖는다 — 저장 HTML에 잔존하더라도
 // 선택 전에는 display:none 이라 미선택 shape의 코너 클릭을 가로채지 않는다.
 (function _injectRotateZoneCSS() {
@@ -65,9 +75,7 @@ function _bindAbRotateDrag(zone, block) {
     const onMove = (ev) => {
       const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
       let deg = init + (a - startA);
-      // Shift = 15도 스냅
-      if (ev.shiftKey) deg = Math.round(deg / 15) * 15;
-      else deg = Math.round(deg);
+      deg = window._snapRotate(deg, ev.shiftKey); // Shift = 45° 스냅(공유)
       deg = ((deg % 360) + 360) % 360;
       if (deg > 180) deg -= 360; // -180..180
       block.style.transform = `rotate(${deg}deg)`;
@@ -136,8 +144,7 @@ function _bindShapeRotateDrag(zone, block) {
     const onMove = (ev) => {
       const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
       let deg = init + (a - startA);
-      if (ev.shiftKey) deg = Math.round(deg / 15) * 15; // Shift = 15도 스냅
-      else deg = Math.round(deg);
+      deg = window._snapRotate(deg, ev.shiftKey); // Shift = 45° 스냅(공유)
       deg = ((deg % 360) + 360) % 360;
       if (deg > 180) deg -= 360; // -180..180 (prop-shape 슬라이더 범위와 일치)
       window.applyShapeRotation?.(block, deg);
@@ -264,8 +271,7 @@ function _bindGenericRotateDrag(zone, block, cfg, hostFor) {
     const onMove = (ev) => {
       const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
       let deg = init + (a - startA);
-      if (ev.shiftKey) deg = Math.round(deg / 15) * 15; // Shift = 15° 스냅
-      else deg = Math.round(deg);
+      deg = window._snapRotate(deg, ev.shiftKey); // Shift = 45° 스냅(공유)
       deg = ((deg % 360) + 360) % 360;
       if (deg > 180) deg -= 360; // -180..180
       cfg.applyDeg(block, host, deg);

@@ -205,7 +205,7 @@ function _bindRotateDrag(zone, block) {
     const startA = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
     const onMove = (ev) => {
       const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
-      let deg = Math.round(init + (a - startA));
+      let deg = window._snapRotate(init + (a - startA), ev.shiftKey); // Shift = 45° 스냅(공유·기존 스티커엔 스냅 없었음)
       deg = ((deg % 360) + 360) % 360;
       if (deg > 180) deg -= 360; // -180..180 (패널 슬라이더와 동일 범위)
       block.style.transform = `rotate(${deg}deg)`;
