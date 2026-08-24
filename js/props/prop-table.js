@@ -264,6 +264,29 @@ export function showTableProperties(block) {
   const curColBgs      = (block.dataset.colBgs || '').split(',').map(s => s.trim()).filter(Boolean);
   const curColFgs      = (block.dataset.colFgs || '').split(',').map(s => s.trim()).filter(Boolean);
 
+  // ── 행별 높이(U5a) ──────────────────────────────────────────────
+  // 진실원 = 각 tbody tr 의 인라인 style.height (0/빈값=auto). dataset 배열을 두지 않는 이유:
+  //   테이블 블록은 dataset→재렌더가 아니라 «라이브 DOM 을 innerHTML 로 직렬화»하므로 인라인
+  //   height 가 저장/로드에 그대로 왕복하고(serializeCleanRoot 가 tr height 를 벗기지 않음),
+  //   행 추가/삭제 시 배열 인덱스 정합을 맞출 필요가 없다(높이가 tr 과 함께 이동/소멸).
+  //   기존 일괄 rowH 저장본도 이미 모든 tr 이 동일 인라인 height 라 그대로 하위호환된다.
+  const _perRowHeightHTML = () => {
+    const rows = [...(tbody?.querySelectorAll('tr') || [])];
+    if (!rows.length) return '';
+    const items = rows.map((tr, ri) => {
+      const h = parseInt(tr.style.height) || 0;
+      return `<div class="tbl-rowh-item-row" style="display:flex;align-items:center;gap:6px;">
+        <span class="prop-sublabel" style="width:40px;font-size:11px;color:#888;">행 ${ri + 1}</span>
+        <input type="number" class="prop-number tbl-row-h-item" data-ri="${ri}" min="0" max="400"
+               placeholder="${curRowH || 'auto'}" value="${h > 0 ? h : ''}" title="이 행 높이(px). 비우면 자동" style="width:60px;">
+      </div>`;
+    }).join('');
+    return `<div class="prop-row" style="align-items:flex-start;">
+      <span class="prop-label">행별 높이</span>
+      <div class="tbl-rowh-list" style="display:flex;flex-direction:column;gap:4px;flex:1;">${items}</div>
+    </div>`;
+  };
+
   const rebuildTable = () => {
     const cols = table.querySelector('tr')?.querySelectorAll('th,td').length || 2;
     const rows = [...(tbody?.querySelectorAll('tr') || [])];
@@ -475,6 +498,7 @@ export function showTableProperties(block) {
         <input type="range" class="prop-slider" id="tbl-rowh-slider" min="0" max="160" step="2" value="${curRowH}">
         <input type="number" class="prop-number"  id="tbl-rowh-number" min="0" max="160" value="${curRowH}">
       </div>
+      ${_perRowHeightHTML()}
       <div class="prop-row">
         <span class="prop-label">좌우 여백</span>
         <input type="range" class="prop-slider" id="tbl-padx-slider" min="0" max="120" step="2" value="${curTablePadX}">
@@ -561,12 +585,14 @@ export function showTableProperties(block) {
     tbody.appendChild(tr);
     document.getElementById('tbl-row-count').textContent = tbody.querySelectorAll('tr').length;
     window.pushHistory();
+    showTableProperties(block); // 행별 높이 리스트를 새 행 포함해 재생성
   });
   document.getElementById('tbl-row-minus').addEventListener('click', () => {
     const rows = tbody.querySelectorAll('tr');
     if (rows.length > 1) { rows[rows.length - 1].remove(); }
     document.getElementById('tbl-row-count').textContent = tbody.querySelectorAll('tr').length;
     window.pushHistory();
+    showTableProperties(block); // 행별 높이 리스트를 삭제 반영해 재생성
   });
 
   /* 열 추가/삭제 — v1: 열 갯수가 바뀌면 header merge 정합성이 깨질 위험이 있어 자동 clear */
@@ -773,10 +799,26 @@ export function showTableProperties(block) {
     });
     document.getElementById('tbl-rowh-slider').value = v;
     document.getElementById('tbl-rowh-number').value = v;
+    // 일괄 설정은 전 행의 인라인 height 를 v 로 덮어씀 → 행별 입력도 동기화(개별값 무효화)
+    propPanel.querySelectorAll('.tbl-row-h-item').forEach(inp => { inp.value = v > 0 ? v : ''; });
   };
   document.getElementById('tbl-rowh-slider').addEventListener('input',  e => applyRowH(parseInt(e.target.value)));
   document.getElementById('tbl-rowh-number').addEventListener('change', e => { applyRowH(parseInt(e.target.value)); window.pushHistory(); });
   document.getElementById('tbl-rowh-slider').addEventListener('change', () => window.pushHistory());
+
+  /* 행별 높이 — 각 tbody tr 의 인라인 height 개별 조정 (진실원=인라인 style.height) */
+  propPanel.querySelectorAll('.tbl-row-h-item').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const ri = parseInt(e.target.dataset.ri);
+      const rows = tbody.querySelectorAll('tr');
+      const tr = rows[ri];
+      if (!tr) return;
+      let v = parseInt(e.target.value);
+      if (!Number.isFinite(v) || v <= 0) { tr.style.height = ''; e.target.value = ''; }
+      else { v = Math.min(400, v); tr.style.height = v + 'px'; e.target.value = v; }
+      window.pushHistory();
+    });
+  });
 
   /* 세로선 / 수평선 / 외곽 좌우 / 외곽 상하 토글 */
   const bindLineToggle = (id, dataKey) => {
