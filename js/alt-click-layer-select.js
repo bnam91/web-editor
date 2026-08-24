@@ -15,8 +15,11 @@
   'use strict';
 
   // 선택 가능한 블록 클래스 (위→아래 우선순위는 z-index 기준 자연스럽게 결정됨)
+  // ★하이라이트 라인(선 형광펜)은 makeStickerBlock({shape:'highlightB'}) 산출물 =
+  //   data-shape="highlightB" 인 .sticker-block 이라 아래 '.sticker-block'가 이미 포함한다.
+  //   (bbox pointer-events:auto 라 elementsFromPoint 스택에 이미 잡힘 — 별도 셀렉터 불필요)
   const SELECTABLE_BLOCK_SELECTOR = [
-    '.sticker-block',
+    '.sticker-block',   // ← highlightB(하이라이트 라인) 포함
     '.text-block',
     '.asset-block',
     '.gap-block',
@@ -42,6 +45,11 @@
     '.joker-block',
     '.annotation-block',
   ].join(', ');
+
+  // U12: 섹션 자체도 드릴 대상. 섹션은 큰 컨테이너라 스택 «최하단»(자식 블록 다음)에 오게 정렬한다.
+  const SECTION_SELECTOR = '.section-block';
+  // _collectStack이 elementsFromPoint 결과를 필터할 통합 셀렉터 (블록 + 섹션)
+  const SELECTABLE_SELECTOR = SELECTABLE_BLOCK_SELECTOR + ', ' + SECTION_SELECTOR;
 
   // cycle 추적: 짧은 시간 안에 같은 위치 Alt+click 시 더 아래 layer로
   let _cycleState = { x: 0, y: 0, t: 0, skipped: [] };
@@ -71,8 +79,8 @@
         el.classList.contains('shape-handle') ||
         el.classList.contains('drop-indicator')
       )) continue;
-      // 블록까지 올라가서 매칭
-      const block = el.closest && el.closest(SELECTABLE_BLOCK_SELECTOR);
+      // 블록(또는 섹션)까지 올라가서 매칭
+      const block = el.closest && el.closest(SELECTABLE_SELECTOR);
       if (!block) continue;
       if (seen.has(block)) continue;
       seen.add(block);
@@ -80,12 +88,22 @@
       if (!block.closest('#canvas')) continue;
       out.push(block);
     }
-    return out;
+    // U12: 섹션은 항상 스택 최하단으로. elementsFromPoint는 조상(섹션)을 자식 블록 뒤에
+    // 반환하므로 out 순서상 이미 뒤에 오지만, z-index 예외로 앞설 수 있어 명시적으로 보장한다.
+    // (stable partition: 비섹션 블록 먼저 → 섹션 나중. 순환 순서 = 위 블록 → 아래 블록 → 섹션)
+    const _blocks = out.filter(b => !b.classList.contains('section-block'));
+    const _sections = out.filter(b => b.classList.contains('section-block'));
+    return _blocks.concat(_sections);
   }
 
   // 현재 selected인 블록 (canvas 안)
+  // ★블록 선택을 섹션보다 «우선»한다: freeLayout 복제 등에서 블록과 섹션이 동시에 .selected가
+  //   될 수 있는데, 섹션은 DOM상 자식 블록보다 앞이라 querySelector가 섹션을 먼저 잡아버리면
+  //   드릴 기준점(cur)이 섹션이 되어 자식 블록 순환을 건너뛴다. 블록을 먼저 조회.
   function _currentSelected() {
-    return document.querySelector('#canvas ' + SELECTABLE_BLOCK_SELECTOR.split(', ').map(s => s + '.selected').join(', '));
+    const blockSel = '#canvas ' + SELECTABLE_BLOCK_SELECTOR.split(', ').map(s => s + '.selected').join(', ');
+    return document.querySelector(blockSel)
+        || document.querySelector('#canvas ' + SECTION_SELECTOR + '.selected');
   }
 
   // 합성 click 이벤트로 블록의 자체 핸들러 호출 (sticker는 capture, 다른 블록은 bubble)
@@ -173,7 +191,10 @@
         if (target === cur) target = null;
       } else {
         // 현재 선택이 stack 밖이거나 없음 → 텍스트(맨 위) skip하고 아래 layer (없으면 맨 위)
-        target = stack[1] || stack[0];
+        // ★섹션은 이 fallback에서 제외 — 기존 «블록» 드릴 동작 불변(단독 블록은 그 블록 선택).
+        //   블록이 하나도 없을 때만 섹션(stack[0])으로 떨어진다.
+        const _blks = stack.filter(b => !b.classList.contains('section-block'));
+        target = _blks[1] || _blks[0] || stack[0];
       }
     }
 
@@ -192,8 +213,14 @@
     }
     _cycleState.t = Date.now();
 
-    // 합성 click 으로 블록 자체 select 핸들러 호출
-    _dispatchSelectClick(target, e);
+    // 섹션은 전용 선택 경로(editor.js가 window에 노출한 selectSection) 재사용,
+    // 블록은 기존대로 합성 click으로 블록 자체 select 핸들러 호출.
+    if (target.classList.contains('section-block')) {
+      if (typeof window.selectSection === 'function') window.selectSection(target);
+      else _dispatchSelectClick(target, e); // 폴백: 섹션 hitzone click 핸들러 경유
+    } else {
+      _dispatchSelectClick(target, e);
+    }
   }
 
   // capture-phase로 가장 먼저 받기 — sticker-select 등 capture 핸들러보다 앞서 실행
