@@ -1406,6 +1406,8 @@ document.addEventListener('keydown', e => {
             textTargets.forEach(tb => window.applyTextBlockColor?.(tb, hex));
           } else if (shapeTargets.length) {
             // prop-shape.js applyColor 규약과 동일: dataset.shapeColor + 그라데이션 해제 + svg.style.color(currentColor fill)
+            // ★changed로 조건화 — 동일색 재추출(전건 스킵)에 빈 undo 스텝이 쌓이던 것 방지(고디터QA LOW).
+            let changed = 0;
             shapeTargets.forEach(sb => {
               if (sb.dataset.shapeColor === hex && !sb.dataset.shapeGradient) return;
               sb.dataset.shapeColor = hex;
@@ -1414,18 +1416,21 @@ document.addEventListener('keydown', e => {
                 if (sb.dataset.shapeGradient) window._clearShapeGradient?.(sb);
                 svg.style.color = hex;
               }
+              changed++;
             });
-            window.pushHistory?.('쉐이프 색 추출');
-            window.scheduleAutoSave?.();
+            if (changed) { window.pushHistory?.('쉐이프 색 추출'); window.scheduleAutoSave?.(); }
           } else {
             // prop-section.js 색 규약과 동일: dataset.bg + 인라인 배경(이미지 해제)
+            // ★동일색 가드 + changed 조건화(고디터QA LOW — 섹션 분기는 가드 자체가 없어 빈 undo가 쌓였다).
+            let changed = 0;
             sectionTargets.forEach(sec => {
+              if (sec.dataset.bg === hex && sec.style.backgroundImage === 'none') return;
               sec.dataset.bg = hex;
               sec.style.backgroundImage = 'none';
               sec.style.backgroundColor = hex;
+              changed++;
             });
-            window.pushHistory?.('섹션 배경 추출');
-            window.scheduleAutoSave?.();
+            if (changed) { window.pushHistory?.('섹션 배경 추출'); window.scheduleAutoSave?.(); }
           }
         } catch (_) { /* 사용자 취소 — 조용히 무시 */ }
       })();
