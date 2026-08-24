@@ -1285,14 +1285,17 @@ document.addEventListener('keydown', e => {
       return;
     }
   }
-  // 스포이드 (i) — 편집 아님 + 텍스트블럭 선택 상태에서 화면 픽셀 색을 글자색 전체에 추출 적용.
+  // 스포이드 (i) — 편집 아님 + 블록 선택 상태에서 화면 픽셀 색을 대상에 추출 적용.
+  // #9 대상 확장: 텍스트(글자색) > 쉐이프(fill) > 섹션(배경색), 우선순위 단일 대상.
   // ⌘I(이탤릭)는 위 metaKey 분기에서 이미 소진되므로 여기는 modifier 없는 순수 i만 처리.
   if (e.code === 'KeyI' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
     if (document.querySelector('.text-block.editing')) return;
-    const eyedropTargets = Array.from(document.querySelectorAll('.text-block.selected'));
-    if (eyedropTargets.length) {
+    const textTargets  = Array.from(document.querySelectorAll('.text-block.selected'));
+    const shapeTargets = textTargets.length ? [] : Array.from(document.querySelectorAll('.shape-block.selected'));
+    const sectionTargets = (textTargets.length || shapeTargets.length) ? [] : Array.from(document.querySelectorAll('.section-block.selected'));
+    if (textTargets.length || shapeTargets.length || sectionTargets.length) {
       e.preventDefault();
       if (!window.EyeDropper) { window.showToast?.('이 브라우저는 스포이드 미지원'); return; }
       (async () => {
@@ -1300,7 +1303,32 @@ document.addEventListener('keydown', e => {
           const res = await new window.EyeDropper().open();
           const hex = res?.sRGBHex;
           if (!hex) return;
-          eyedropTargets.forEach(tb => window.applyTextBlockColor?.(tb, hex));
+          if (textTargets.length) {
+            // applyTextBlockColor가 내부에서 pushHistory+autosave 수행 → 여기서 중복 호출 안 함
+            textTargets.forEach(tb => window.applyTextBlockColor?.(tb, hex));
+          } else if (shapeTargets.length) {
+            // prop-shape.js applyColor 규약과 동일: dataset.shapeColor + 그라데이션 해제 + svg.style.color(currentColor fill)
+            shapeTargets.forEach(sb => {
+              if (sb.dataset.shapeColor === hex && !sb.dataset.shapeGradient) return;
+              sb.dataset.shapeColor = hex;
+              const svg = sb.querySelector('svg');
+              if (svg) {
+                if (sb.dataset.shapeGradient) window._clearShapeGradient?.(sb);
+                svg.style.color = hex;
+              }
+            });
+            window.pushHistory?.('쉐이프 색 추출');
+            window.scheduleAutoSave?.();
+          } else {
+            // prop-section.js 색 규약과 동일: dataset.bg + 인라인 배경(이미지 해제)
+            sectionTargets.forEach(sec => {
+              sec.dataset.bg = hex;
+              sec.style.backgroundImage = 'none';
+              sec.style.backgroundColor = hex;
+            });
+            window.pushHistory?.('섹션 배경 추출');
+            window.scheduleAutoSave?.();
+          }
         } catch (_) { /* 사용자 취소 — 조용히 무시 */ }
       })();
       return;
@@ -1483,6 +1511,9 @@ document.addEventListener('keydown', e => {
           const nb = document.getElementById('gap-number');
           if (sl) sl.value = h;
           if (nb) nb.value = h;
+          // #15 프로퍼티 패널 갭 프리셋 버튼 active를 높이에 맞춰 동기화 (패널 미개방 시 0개 → 무해)
+          const pp = document.getElementById('propPanel') || document;
+          pp.querySelectorAll('.gap-preset-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.h) === h));
           window.scheduleAutoSave?.();
           pushHistory();
           return;

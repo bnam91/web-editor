@@ -39,6 +39,7 @@ export function showGapProperties(gb) {
   slider.addEventListener('input', () => {
     gb.style.height = slider.value + 'px';
     number.value = slider.value;
+    updatePresetActive(parseInt(slider.value)); // #15 슬라이더 드래그 시에도 프리셋 active 추종
     window.scheduleAutoSave?.();
   });
   number.addEventListener('change', () => { window.pushHistory?.(); });
