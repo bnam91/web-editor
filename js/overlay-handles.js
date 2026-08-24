@@ -16,6 +16,59 @@ function _getOverlay() {
   return document.getElementById('ss-handles-overlay');
 }
 
+/* ═══════════════════════════════════
+   회전 인식 좌표 헬퍼 (U14 — 회전 후 리사이즈 핸들 좌표 보정)
+   블록이 transform:rotate 된 상태에서 getBoundingClientRect()는 «회전된 요소의
+   축정렬 바운딩박스(AABB)»를 돌려주므로, 코너 핸들을 rect 모서리에 두면
+   실제 회전된 코너와 어긋난다. 회전각을 반영해 «진짜 회전된 코너»의 스크린
+   좌표를 계산한다. 회전이 0이면 기존 rect 모서리 경로와 «완전 동일»(회귀 0).
+═══════════════════════════════════ */
+function _canvasScaleNow() {
+  const s = document.getElementById('canvas-scaler');
+  return s ? parseFloat(s.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+}
+// 블록이 어떤 규약으로 회전값을 갖든(프레임 rotateDeg / asset rotation / shape shapeRotation)
+// 화면상 회전각(deg)을 반환. 없으면 0.
+function _blockRotationDeg(el) {
+  if (!(el instanceof HTMLElement)) return 0;
+  const d = el.dataset;
+  let v = d.rotateDeg;
+  if (v == null || v === '') v = d.rotation;
+  if (v == null || v === '') v = d.shapeRotation;
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+}
+// 코너 dir('nw'|'ne'|'sw'|'se')의 스크린 좌표.
+// inset>0 이면 코너에서 안쪽으로(코너반경 핸들), inset<0 이면 바깥쪽으로(회전 핫존).
+function _cornerScreen(el, dir, inset = 0) {
+  const rect = el.getBoundingClientRect();
+  const deg = _blockRotationDeg(el);
+  if (!deg) {
+    // 회귀 0: 기존과 완전히 동일한 rect 모서리 기반 계산
+    const x = dir.includes('w') ? rect.left + inset : rect.right  - inset;
+    const y = dir.includes('n') ? rect.top  + inset : rect.bottom - inset;
+    return { x, y };
+  }
+  const cx = rect.left + rect.width  / 2;   // 중심은 회전 불변
+  const cy = rect.top  + rect.height / 2;
+  const scale = _canvasScaleNow();
+  const hw = el.offsetWidth  * scale / 2 - inset; // 미회전 반폭(스크린px) - inset
+  const hh = el.offsetHeight * scale / 2 - inset;
+  const sx = dir.includes('w') ? -1 : 1;
+  const sy = dir.includes('n') ? -1 : 1;
+  const lx = sx * hw, ly = sy * hh;
+  const th = deg * Math.PI / 180, cos = Math.cos(th), sin = Math.sin(th);
+  return { x: cx + lx * cos - ly * sin, y: cy + lx * sin + ly * cos };
+}
+// 스크린 델타(dx,dy)를 블록 로컬축으로 역회전 — 회전된 블록 리사이즈 시 W/H가
+// 블록 자신의 축을 따라 반응하게 한다. 회전 0이면 그대로 반환.
+function _unrotateDelta(el, dx, dy) {
+  const deg = _blockRotationDeg(el);
+  if (!deg) return { dx, dy };
+  const th = -deg * Math.PI / 180, cos = Math.cos(th), sin = Math.sin(th);
+  return { dx: dx * cos - dy * sin, dy: dx * sin + dy * cos };
+}
+
 function showFrameHandles(ss) {
   if (_overlayFrame === ss) return; // already showing
   hideFrameHandles();
@@ -42,6 +95,25 @@ function showFrameHandles(ss) {
     r.addEventListener('mousedown', e => _onRadiusHandleMouseDown(e, ss, dir));
   });
 
+  // U14 회전 핫존 (코너 바깥) — 프레임 회전은 dataset.rotateDeg 규약(prop-frame과 공유)
+  // 도형·텍스트 래퍼 프레임엔 부착하지 않는다(각자 전용 회전 핸들/제외 대상):
+  //  - shape frame: shape-block 자체 회전(shape-rotate-zone, asset-rotate.js)
+  //  - text frame : 텍스트 회전 상신 대상(보고 참조)
+  const _hasShape = !!ss.querySelector(':scope > .shape-block');
+  const _isTextFrame = ss.dataset.textFrame === 'true';
+  if (!_hasShape && !_isTextFrame) {
+    dirs.forEach(dir => {
+      const z = document.createElement('div');
+      z.className = `ss-rotate-handle ${dir}`;
+      z.dataset.rotDir = dir;
+      z.title = '회전 (Shift=15° 스냅)';
+      z.style.cssText = 'position:fixed;width:20px;height:20px;z-index:98;pointer-events:auto;'
+        + 'border-radius:50%;cursor:' + _FRAME_ROTATE_CURSOR + ';';
+      overlay.appendChild(z);
+      z.addEventListener('mousedown', e => _onFrameRotateMouseDown(e, ss));
+    });
+  }
+
   _updateHandlePositions();
   _startHandleRaf();
 }
@@ -51,8 +123,57 @@ function hideFrameHandles() {
   _overlayFrame = null;
   const overlay = _getOverlay();
   if (overlay) {
-    overlay.querySelectorAll('.ss-resize-handle, .ss-radius-handle').forEach(h => h.remove());
+    overlay.querySelectorAll('.ss-resize-handle, .ss-radius-handle, .ss-rotate-handle').forEach(h => h.remove());
   }
+}
+
+// 피그마식 회전 커서 (asset-rotate.js와 동일 SVG)
+const _FRAME_ROTATE_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 12a8 8 0 1 1-2.3-5.6' stroke='white' stroke-width='4'/%3E%3Cpolyline points='20 3 20 7 16 7' stroke='white' stroke-width='4'/%3E%3Cpath d='M20 12a8 8 0 1 1-2.3-5.6' stroke='%23222' stroke-width='2'/%3E%3Cpolyline points='20 3 20 7 16 7' stroke='%23222' stroke-width='2'/%3E%3C/svg%3E\") 12 12, grab";
+
+// 프레임 회전 드래그 — 중심 기준 atan2 자유회전, Shift=15° 스냅.
+// dataset.rotateDeg + 합성 transform(translate·rotate·scale) 규약(prop-frame·save-load과 동일).
+function _composeFrameTransform(ss) {
+  const tx = parseInt(ss.dataset.translateX) || 0;
+  const ty = parseInt(ss.dataset.translateY) || 0;
+  const rd = parseFloat(ss.dataset.rotateDeg) || 0;
+  const fx = ss.dataset.flipH === '1' ? -1 : 1;
+  const fy = ss.dataset.flipV === '1' ? -1 : 1;
+  if (!tx && !ty && !rd && fx === 1 && fy === 1) {
+    ss.style.removeProperty('transform');
+  } else {
+    ss.style.transform = `translate(${tx}px,${ty}px) rotate(${rd}deg) scale(${fx},${fy})`;
+  }
+}
+function _onFrameRotateMouseDown(e, ss) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const br = ss.getBoundingClientRect();
+  const cx = br.left + br.width  / 2;
+  const cy = br.top  + br.height / 2;
+  const init   = parseFloat(ss.dataset.rotateDeg) || 0;
+  const startA = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+  function onMove(ev) {
+    const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
+    let deg = init + (a - startA);
+    if (ev.shiftKey) deg = Math.round(deg / 15) * 15; // 15도 스냅
+    else deg = Math.round(deg);
+    deg = ((deg % 360) + 360) % 360;
+    if (deg > 180) deg -= 360; // -180..180
+    ss.dataset.rotateDeg = String(deg);
+    _composeFrameTransform(ss);
+    // 프로퍼티 패널 회전 입력 동기화 (열려 있으면)
+    const inp = document.getElementById('ss-rotate-deg');
+    if (inp) inp.value = String(deg);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.pushHistory?.('프레임 회전');
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 }
 
 function _startHandleRaf() {
@@ -72,15 +193,13 @@ function _startHandleRaf() {
 function _updateHandlePositions() {
   const overlay = _getOverlay();
   if (!overlay || !_overlayFrame) return;
-  const rect = _overlayFrame.getBoundingClientRect();
   const HALF = 3.5;
+  // 회전 인식: 회전된 프레임이면 실제 회전된 코너에 핸들 배치(회전 0이면 기존과 동일)
   const handles = overlay.querySelectorAll('.ss-resize-handle');
   handles.forEach(h => {
-    const dir = h.dataset.dir;
-    const top  = dir.includes('n') ? rect.top  - HALF : rect.bottom - HALF;
-    const left = dir.includes('w') ? rect.left - HALF : rect.right  - HALF;
-    h.style.top  = top  + 'px';
-    h.style.left = left + 'px';
+    const c = _cornerScreen(_overlayFrame, h.dataset.dir);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
   });
 
   // 코너 반경 핸들 위치 (프레임 안쪽 코너에서 INSET만큼 안쪽)
@@ -88,11 +207,18 @@ function _updateHandlePositions() {
   const RADIUS_HALF = 3.5; // 7px 핸들 중앙 정렬 (= 7/2)
   const rHandles = overlay.querySelectorAll('.ss-radius-handle');
   rHandles.forEach(h => {
-    const dir = h.dataset.radiusDir;
-    const top  = dir.includes('n') ? rect.top  + INSET - RADIUS_HALF : rect.bottom - INSET - RADIUS_HALF;
-    const left = dir.includes('w') ? rect.left + INSET - RADIUS_HALF : rect.right  - INSET - RADIUS_HALF;
-    h.style.top  = top  + 'px';
-    h.style.left = left + 'px';
+    const c = _cornerScreen(_overlayFrame, h.dataset.radiusDir, INSET);
+    h.style.top  = (c.y - RADIUS_HALF) + 'px';
+    h.style.left = (c.x - RADIUS_HALF) + 'px';
+  });
+
+  // 회전 핫존 위치 (코너 리사이즈 핸들 바깥쪽) — U14 프레임 핸들 회전
+  const ROT_OUT  = 16; // 코너에서 바깥으로 (스크린px)
+  const ROT_HALF = 10; // 20px 핫존 중앙 정렬
+  overlay.querySelectorAll('.ss-rotate-handle').forEach(h => {
+    const c = _cornerScreen(_overlayFrame, h.dataset.rotDir, -ROT_OUT); // 음수 inset = 바깥
+    h.style.top  = (c.y - ROT_HALF) + 'px';
+    h.style.left = (c.x - ROT_HALF) + 'px';
   });
 }
 
@@ -105,8 +231,10 @@ function _onHandleMouseDown(e, ss, dir) {
   const ssRect = ss.getBoundingClientRect();
   const scaler0 = document.getElementById('canvas-scaler');
   const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-  const startW = Math.round(ssRect.width / scale0);
-  const startH = Math.round(ssRect.height / scale0);
+  // 회전 시 getBoundingClientRect는 AABB(부풀림) → 미회전 layout 크기(offset*)를 기준으로.
+  const _rotStart = _blockRotationDeg(ss);
+  const startW = _rotStart ? Math.round(ss.offsetWidth)  : Math.round(ssRect.width  / scale0);
+  const startH = _rotStart ? Math.round(ss.offsetHeight) : Math.round(ssRect.height / scale0);
   const secInner = ss.closest('.section-inner') || ss.closest('.section-block');
   const secInnerCS = secInner ? getComputedStyle(secInner) : null;
   const paddingH = secInnerCS ? parseFloat(secInnerCS.paddingLeft) + parseFloat(secInnerCS.paddingRight) : 0;
@@ -148,8 +276,10 @@ function _onHandleMouseDown(e, ss, dir) {
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-    const dx = (ev.clientX - startX) / scale;
-    const dy = (ev.clientY - startY) / scale;
+    // 회전된 프레임: 스크린 델타를 블록 로컬축으로 역회전(회전 0이면 그대로 → 회귀 0)
+    const _rd = _unrotateDelta(ss, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
+    const dx = _rd.dx;
+    const dy = _rd.dy;
     let newW = startW, newH = startH;
     if (dir.includes('e')) newW = Math.min(maxW, Math.max(60, startW + dx));
     if (dir.includes('w')) newW = Math.min(maxW, Math.max(60, startW - dx));
@@ -468,15 +598,12 @@ function hideAssetRadiusHandles() {
 function _updateAssetRadiusHandlePositions() {
   const overlay = _getOverlay();
   if (!overlay || !_assetRadiusBlock) return;
-  const rect = _assetRadiusBlock.getBoundingClientRect();
   const INSET = 10;
   const HALF  = 3.5; // 7px 핸들 중앙 정렬
   overlay.querySelectorAll('.asset-radius-handle').forEach(h => {
-    const dir = h.dataset.assetRadiusDir;
-    const top  = dir.includes('n') ? rect.top  + INSET - HALF : rect.bottom - INSET - HALF;
-    const left = dir.includes('w') ? rect.left + INSET - HALF : rect.right  - INSET - HALF;
-    h.style.top  = top  + 'px';
-    h.style.left = left + 'px';
+    const c = _cornerScreen(_assetRadiusBlock, h.dataset.assetRadiusDir, INSET);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
   });
 }
 
@@ -569,12 +696,11 @@ function hideAssetResizeHandles() {
 function _updateAssetResizeHandlePositions() {
   const overlay = _getOverlay();
   if (!overlay || !_assetResizeBlock) return;
-  const rect = _assetResizeBlock.getBoundingClientRect();
   const HALF = 3.5;
   overlay.querySelectorAll('.asset-overlay-handle').forEach(h => {
-    const dir = h.dataset.assetResizeDir;
-    const top  = dir.includes('n') ? rect.top  - HALF : rect.bottom - HALF;
-    const left = dir.includes('w') ? rect.left - HALF : rect.right  - HALF;
+    const c = _cornerScreen(_assetResizeBlock, h.dataset.assetResizeDir);
+    const top  = c.y - HALF;
+    const left = c.x - HALF;
     h.style.top  = top  + 'px';
     h.style.left = left + 'px';
   });
@@ -602,16 +728,20 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
   const rect = ab.getBoundingClientRect();
   const scaler0 = document.getElementById('canvas-scaler');
   const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-  const startW = Math.round(rect.width  / scale0);
-  const startH = Math.round(rect.height / scale0);
+  // 회전 시 rect는 AABB(부풀림) → 미회전 layout 크기를 기준으로 (회전 0이면 기존과 동일)
+  const _rotStart = _blockRotationDeg(ab);
+  const startW = _rotStart ? Math.round(ab.offsetWidth)  : Math.round(rect.width  / scale0);
+  const startH = _rotStart ? Math.round(ab.offsetHeight) : Math.round(rect.height / scale0);
 
   const aspectRatio = startW / startH;
 
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-    const dx = (ev.clientX - startX) / scale;
-    const dy = (ev.clientY - startY) / scale;
+    // 회전된 에셋: 스크린 델타를 로컬축으로 역회전 (회전 0이면 그대로 → 회귀 0)
+    const _rd = _unrotateDelta(ab, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
+    const dx = _rd.dx;
+    const dy = _rd.dy;
     let newW = startW, newH = startH;
 
     if (ev.shiftKey) {

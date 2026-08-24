@@ -265,26 +265,11 @@ export function showShapeProperties(block) {
     if (frame.style.minHeight) frame.style.removeProperty('min-height');
     if (frame.style.minWidth)  frame.style.removeProperty('min-width');
   }
+  // 회전 적용은 공유 함수(applyShapeRotation)로 위임 — 프로퍼티 슬라이더와
+  // 코너 회전 핸들(asset-rotate.js)이 동일한 경로를 쓰도록 통일한다.
   function applyRotation(deg) {
-    const d = Math.max(-180, Math.min(180, parseInt(deg) || 0));
-    // 기존 transform에서 rotate만 갱신 (translate, scale 등 다른 transform 보존)
-    const existing = block.style.transform || '';
-    const stripped = existing.replace(/rotate\([^)]*\)\s*/g, '').trim();
-    if (d === 0) {
-      // 회전 해제: transform/transform-origin/dataset 잔존을 깨끗이 정리
-      block.style.transform = stripped;
-      if (!block.style.transform) {
-        block.style.removeProperty('transform');
-        block.style.removeProperty('transform-origin');
-      }
-      delete block.dataset.shapeRotation;
-    } else {
-      block.dataset.shapeRotation = String(d);
-      block.style.transform = stripped ? `${stripped} rotate(${d}deg)` : `rotate(${d}deg)`;
-      block.style.transformOrigin = 'center center';
-    }
-    _updateFrameForRotation(d);
-    window.scheduleAutoSave?.();
+    applyShapeRotation(block, deg);
+    _updateFrameForRotation(parseInt(block.dataset.shapeRotation || '0'));
   }
   const rotSlider = document.getElementById('shape-rot-slider');
   const rotNum    = document.getElementById('shape-rot-num');
@@ -300,6 +285,49 @@ export function showShapeProperties(block) {
 }
 
 window.showShapeProperties = showShapeProperties;
+
+/* ── 공유 회전 적용/동기화 ──
+ * 프로퍼티 패널 슬라이더와 코너 회전 핸들(asset-rotate.js의 shape-rotate-zone)이
+ * 같은 상태(dataset.shapeRotation + transform:rotate)를 쓰도록 단일 진입점으로 통일.
+ * transform 문자열에서 rotate()만 치환 → translate/scale 등 다른 transform 보존.
+ */
+export function applyShapeRotation(block, deg) {
+  if (!block) return;
+  const d = Math.max(-180, Math.min(180, parseInt(deg) || 0));
+  const existing = block.style.transform || '';
+  const stripped = existing.replace(/rotate\([^)]*\)\s*/g, '').trim();
+  if (d === 0) {
+    // 회전 해제: transform/transform-origin/dataset 잔존을 깨끗이 정리
+    block.style.transform = stripped;
+    if (!block.style.transform) {
+      block.style.removeProperty('transform');
+      block.style.removeProperty('transform-origin');
+    }
+    delete block.dataset.shapeRotation;
+  } else {
+    block.dataset.shapeRotation = String(d);
+    block.style.transform = stripped ? `${stripped} rotate(${d}deg)` : `rotate(${d}deg)`;
+    block.style.transformOrigin = 'center center';
+  }
+  // 구버전이 남긴 frame min-width/height 보정값 정리 (회전 시 크기 불변 정책)
+  const frame = block.closest('.frame-block');
+  if (frame) {
+    if (frame.style.minHeight) frame.style.removeProperty('min-height');
+    if (frame.style.minWidth)  frame.style.removeProperty('min-width');
+  }
+  window.scheduleAutoSave?.();
+}
+window.applyShapeRotation = applyShapeRotation;
+
+// 핸들 회전 → 프로퍼티 패널 슬라이더/숫자 입력 동기화 (패널은 선택된 shape만 표시)
+export function syncShapeRotationUI(deg) {
+  const d = Math.max(-180, Math.min(180, Math.round(parseFloat(deg) || 0)));
+  const slider = document.getElementById('shape-rot-slider');
+  const num    = document.getElementById('shape-rot-num');
+  if (slider) slider.value = String(d);
+  if (num)    num.value    = String(d);
+}
+window.syncShapeRotationUI = syncShapeRotationUI;
 
 /* ── SVG 그라데이션 적용 헬퍼 ──
  * shape SVG 내부에 <defs><linearGradient|radialGradient> 를 동적 inject 하고
