@@ -1072,7 +1072,8 @@ document.addEventListener('keyup', e => {
   if (document.querySelector('.gap-block.selected')) pushHistory();
 });
 
-/* #13 ⌥+숫자: 현재 선택 블록들을 «부모 섹션(section-inner) 기준»으로 좌/중/우 정렬.
+/* #13 ⌥+a/s/d: 현재 선택 블록들을 «부모 섹션(section-inner) 기준»으로 좌/중/우 정렬(a=좌·s=중·d=우).
+   (구 ⌥+숫자에서 이전 — 숫자 네임스페이스 갭/텍스트타입 충돌 회피, 현빈 지시.)
    ⌥의 기준은 항상 «블록이 속한 부모 섹션»이다(페이지/캔버스 아님).
    section-inner는 flex-direction:column이라 자식의 가로 위치는 align-self가 지배(#10 prop-text-wireup-align 참고):
    left→flex-start, center→center, right→flex-end.
