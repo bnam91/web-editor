@@ -414,12 +414,12 @@ function hideMockupHandles() {
 function _updateMockupHandlePositions() {
   const overlay = _getOverlay();
   if (!overlay || !_overlayMockup) return;
-  const rect = _overlayMockup.getBoundingClientRect();
   const HALF = 3.5;
   overlay.querySelectorAll('.ss-resize-handle.mockup-handle').forEach(h => {
     const dir = h.dataset.dir;
-    h.style.top  = (dir.includes('n') ? rect.top - HALF : rect.bottom - HALF) + 'px';
-    h.style.left = (dir.includes('w') ? rect.left - HALF : rect.right - HALF) + 'px';
+    const c = _cornerScreen(_overlayMockup, dir); // #14b 회전 인식(회전0=rect 모서리 동일)
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
   });
 }
 
@@ -428,6 +428,7 @@ function _onMockupHandleMouseDown(e, block, dir) {
   e.stopPropagation();
   e.preventDefault();
   const startX  = e.clientX;
+  const startY  = e.clientY;
   const scaler0 = document.getElementById('canvas-scaler');
   const scale0  = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
   const startW  = parseInt(block.dataset.width) || parseInt(block.style.width) || 280;
@@ -435,7 +436,8 @@ function _onMockupHandleMouseDown(e, block, dir) {
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale  = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-    const dx = (ev.clientX - startX) / scale;
+    // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로) 후 width축(dx) 사용
+    const dx = _unrotateDelta(block, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale).dx;
     let newW = dir.includes('e') ? startW + dx : startW - dx;
     newW = Math.round(Math.min(860, Math.max(100, newW)));
     block.dataset.width = String(newW);
@@ -505,12 +507,12 @@ function hideIconHandles() {
 function _updateIconHandlePositions() {
   const overlay = _getOverlay();
   if (!overlay || !_overlayIcon) return;
-  const rect = _overlayIcon.getBoundingClientRect();
   const HALF = 3.5;
   overlay.querySelectorAll('.ss-resize-handle.icon-handle').forEach(h => {
     const dir = h.dataset.dir;
-    h.style.top  = (dir.includes('n') ? rect.top - HALF : rect.bottom - HALF) + 'px';
-    h.style.left = (dir.includes('w') ? rect.left - HALF : rect.right - HALF) + 'px';
+    const c = _cornerScreen(_overlayIcon, dir); // #14b 회전 인식(회전0=rect 모서리 동일)
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
   });
 }
 
@@ -527,9 +529,10 @@ function _onIconHandleMouseDown(e, block, dir) {
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale  = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-    // 대각선 핸들 — dx/dy 중 큰 쪽으로 크기 결정
-    const dx = (ev.clientX - startX) / scale;
-    const dy = (ev.clientY - startY) / scale;
+    // 대각선 핸들 — dx/dy 중 큰 쪽으로 크기 결정.
+    // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로) 후 판정
+    const _ud = _unrotateDelta(block, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
+    const dx = _ud.dx, dy = _ud.dy;
     const delta = (Math.abs(dx) > Math.abs(dy) ? dx : dy);
     let newSize = Math.round(Math.min(512, Math.max(16,
       dir === 'nw' || dir === 'sw' ? startSize - delta : startSize + delta
@@ -815,8 +818,9 @@ function showIconCircleResizeHandle(block) {
     function onMove(ev) {
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-      const dx = (ev.clientX - startX) / scale;
-      const dy = (ev.clientY - startY) / scale;
+      // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로)
+      const _ud = _unrotateDelta(block, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
+      const dx = _ud.dx, dy = _ud.dy;
       const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
       const newSize = Math.min(860, Math.max(40, Math.round(startSize + delta)));
       const circle = block.querySelector('.icb-circle');
@@ -996,14 +1000,12 @@ function hideCanvasResizeHandles() {
 function _updateCanvasResizeHandlePositions() {
   const overlay = _getOverlay();
   if (!overlay || !_canvasResizeBlock) return;
-  const rect = _canvasResizeBlock.getBoundingClientRect();
   const HALF = 3.5;
   overlay.querySelectorAll('.canvas-overlay-handle').forEach(h => {
     const dir = h.dataset.canvasResizeDir;
-    const top  = dir.includes('n') ? rect.top    - HALF : rect.bottom - HALF;
-    const left = dir.includes('w') ? rect.left   - HALF : rect.right  - HALF;
-    h.style.top  = top  + 'px';
-    h.style.left = left + 'px';
+    const c = _cornerScreen(_canvasResizeBlock, dir); // #14b 회전 인식(회전0=rect 모서리 동일)
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
   });
 }
 
@@ -1043,8 +1045,9 @@ function _onCanvasResizeHandleMouseDown(e, cb, dir) {
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-    const dx = (ev.clientX - startX) / scale;
-    const dy = (ev.clientY - startY) / scale;
+    // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로)
+    const _ud = _unrotateDelta(cb, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
+    const dx = _ud.dx, dy = _ud.dy;
     let newW = startW, newH = startH;
     if (dir.includes('e')) newW = Math.min(maxW, Math.max(100, startW + dx));
     if (dir.includes('w')) newW = Math.min(maxW, Math.max(100, startW - dx));
@@ -1105,14 +1108,12 @@ function hideVectorResizeHandles() {
 function _updateVectorResizeHandlePositions() {
   const overlay = _getOverlay();
   if (!overlay || !_vectorResizeBlock) return;
-  const rect = _vectorResizeBlock.getBoundingClientRect();
   const HALF = 3.5;
   overlay.querySelectorAll('.vector-overlay-handle').forEach(h => {
     const dir = h.dataset.vectorResizeDir;
-    const top  = dir.includes('n') ? rect.top    - HALF : rect.bottom - HALF;
-    const left = dir.includes('w') ? rect.left   - HALF : rect.right  - HALF;
-    h.style.top  = top  + 'px';
-    h.style.left = left + 'px';
+    const c = _cornerScreen(_vectorResizeBlock, dir); // #14b 회전 인식(회전0=rect 모서리 동일)
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
   });
 }
 
@@ -1141,8 +1142,9 @@ function _onVectorResizeHandleMouseDown(e, vb, dir) {
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-    const dx = (ev.clientX - startX) / scale;
-    const dy = (ev.clientY - startY) / scale;
+    // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로)
+    const _ud = _unrotateDelta(vb, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
+    const dx = _ud.dx, dy = _ud.dy;
     let newW = startW, newH = startH;
     if (dir.includes('e')) newW = Math.max(20, startW + dx);
     if (dir.includes('w')) newW = Math.max(20, startW - dx);

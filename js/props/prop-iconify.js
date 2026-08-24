@@ -82,6 +82,11 @@ export function showIconifyProperties(block) {
         <button class="prop-align-btn${rotation === 180 ? ' active' : ''}" data-deg="180">180°</button>
         <button class="prop-align-btn${rotation === 270 ? ' active' : ''}" data-deg="270">270°</button>
       </div>
+      <div class="prop-row" style="margin-top:4px;">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="icn-rot-slider" min="-180" max="180" step="1" value="${rotation > 180 ? rotation - 360 : rotation}">
+        <input type="number" class="prop-number" id="icn-rot-number" min="-180" max="180" value="${rotation > 180 ? rotation - 360 : rotation}">
+      </div>
     </div>
 
     <div class="prop-section">
@@ -317,18 +322,36 @@ export function showIconifyProperties(block) {
     });
   }
 
-  // 회전
-  const applyRotation = deg => {
-    block.dataset.rotation = deg;
-    block.style.transform  = deg > 0 ? `rotate(${deg}deg)` : '';
+  // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 통일. 프리셋 버튼(0/90/180/270)·
+  // 자유 슬라이더/숫자(icn-rot-*)·코너 핫존(asset-rotate.js)이 같은 상태를 쓴다.
+  const _icnRotS = propPanel.querySelector('#icn-rot-slider');
+  const _icnRotN = propPanel.querySelector('#icn-rot-number');
+  const _icnSyncUI = deg => {
+    const norm = ((deg % 360) + 360) % 360;         // 프리셋 버튼은 0/90/180/270 표기
+    const signed = deg > 180 ? deg - 360 : deg;     // 슬라이더는 -180..180
     propPanel.querySelectorAll('#icn-rotation-group .prop-align-btn').forEach(b => {
-      b.classList.toggle('active', parseInt(b.dataset.deg) === deg);
+      b.classList.toggle('active', parseInt(b.dataset.deg) === norm);
     });
+    if (_icnRotS) _icnRotS.value = signed;
+    if (_icnRotN) _icnRotN.value = signed;
+  };
+  const applyRotation = deg => {
+    window.applyRotationDeg?.(block, deg);
+    _icnSyncUI(parseInt(deg) || 0);
     window.pushHistory?.();
   };
   propPanel.querySelectorAll('#icn-rotation-group .prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => applyRotation(parseInt(btn.dataset.deg)));
   });
+  const _icnFree = v => {
+    v = Math.min(180, Math.max(-180, parseInt(v) || 0));
+    window.applyRotationDeg?.(block, v);
+    _icnSyncUI(v);
+  };
+  _icnRotS?.addEventListener('input',  () => _icnFree(_icnRotS.value));
+  _icnRotN?.addEventListener('input',  () => _icnFree(_icnRotN.value));
+  _icnRotS?.addEventListener('change', () => window.pushHistory?.());
+  _icnRotN?.addEventListener('change', () => window.pushHistory?.());
 
   // 교체 버튼
   const openModal = () => window.openIconifyModal?.();

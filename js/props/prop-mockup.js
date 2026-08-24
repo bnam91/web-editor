@@ -50,6 +50,15 @@ export function showMockupProperties(block) {
       </div>
     </div>
 
+    <div class="prop-section">
+      <div class="prop-section-title">Rotation</div>
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="mkp-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
+        <input type="number" class="prop-number" id="mkp-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
+      </div>
+    </div>
+
     <!-- 화면 이미지 -->
     <div class="prop-section">
       <div class="prop-section-title">Screen Image</div>
@@ -108,6 +117,19 @@ export function showMockupProperties(block) {
   wSlider.addEventListener('input',  () => applyWidth(parseInt(wSlider.value)));
   wSlider.addEventListener('change', () => window.pushHistory?.());
   wNumber.addEventListener('change', () => { window.pushHistory?.(); applyWidth(parseInt(wNumber.value)); });
+
+  // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 핫존(asset-rotate.js)과 동기
+  const mRotS = propPanel.querySelector('#mkp-rot-slider');
+  const mRotN = propPanel.querySelector('#mkp-rot-number');
+  const _mkpRot = v => {
+    v = Math.min(180, Math.max(-180, parseInt(v) || 0));
+    window.applyRotationDeg?.(block, v);
+    mRotS.value = v; mRotN.value = v;
+  };
+  mRotS.addEventListener('input',  () => _mkpRot(mRotS.value));
+  mRotN.addEventListener('input',  () => _mkpRot(mRotN.value));
+  mRotS.addEventListener('change', () => window.pushHistory?.());
+  mRotN.addEventListener('change', () => window.pushHistory?.());
 
   // 캡처 버튼
   const secIdInput = propPanel.querySelector('#mkp-sec-id-input');

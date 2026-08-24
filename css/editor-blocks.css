@@ -997,6 +997,13 @@
   overflow: visible;
 }
 
+/* #14b 회전 확장: text-frame(투명 래퍼, overflow:hidden)이 회전 핫존(.tb-rotate-zone,
+   코너 바깥)을 잘라내지 않도록 — 텍스트 선택 시 overflow 해제(shape 선택 시 해제와 동일 정책).
+   비선택 시엔 핫존이 제거되므로 overflow:hidden 유지 → 레이아웃 영향 없음. */
+.frame-block[data-text-frame="true"]:has(.text-block.selected) {
+  overflow: visible;
+}
+
 /* shape 리사이즈 핸들 — --inv-zoom calc()로 캔버스 배율 무관하게 고정 크기 유지 */
 .shape-handle {
   position: absolute;

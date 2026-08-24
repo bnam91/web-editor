@@ -41,6 +41,14 @@ export function showIconCircleProperties(block) {
         <input type="number" class="prop-number" id="icb-padx-number" min="0" max="200" value="${padX}">
       </div>
     </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Rotation</div>
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="icb-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
+        <input type="number" class="prop-number" id="icb-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
+      </div>
+    </div>
     ${hasImage ? `
     <div class="prop-section">
       <div class="prop-section-title">Image</div>
@@ -106,6 +114,18 @@ export function showIconCircleProperties(block) {
   propPanel.querySelector('#icb-padx-slider').addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
   propPanel.querySelector('#icb-padx-number').addEventListener('change', e => { applyPadX(parseInt(e.target.value)); window.pushHistory(); });
   propPanel.querySelector('#icb-padx-slider').addEventListener('change', () => window.pushHistory());
+
+  // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 핫존(asset-rotate.js)과 동기
+  const _icbRot = v => {
+    v = Math.min(180, Math.max(-180, parseInt(v) || 0));
+    window.applyRotationDeg?.(block, v);
+    propPanel.querySelector('#icb-rot-slider').value = v;
+    propPanel.querySelector('#icb-rot-number').value = v;
+  };
+  propPanel.querySelector('#icb-rot-slider').addEventListener('input',  e => _icbRot(e.target.value));
+  propPanel.querySelector('#icb-rot-number').addEventListener('input',  e => _icbRot(e.target.value));
+  propPanel.querySelector('#icb-rot-slider').addEventListener('change', () => window.pushHistory());
+  propPanel.querySelector('#icb-rot-number').addEventListener('change', () => window.pushHistory());
 
   wireColorField('icb-bg', {
     initialAlpha: bgAlpha,

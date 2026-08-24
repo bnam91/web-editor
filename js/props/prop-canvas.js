@@ -80,6 +80,11 @@ export function showCanvasProperties(block) {
         <input type="range" class="prop-slider" id="cvb-img-ratio-slider" min="0" max="100" step="1" value="${imgRatio}">
         <input type="number" class="prop-number" id="cvb-img-ratio-number" min="0" max="100" value="${imgRatio}">
       </div>
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="cvb-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
+        <input type="number" class="prop-number" id="cvb-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
+      </div>
     </div>
 
     <div class="prop-section">
@@ -188,6 +193,21 @@ export function showCanvasProperties(block) {
     irSlider.addEventListener('input',  () => applyImgRatio(parseInt(irSlider.value)));
     irNumber.addEventListener('change', () => { applyImgRatio(parseInt(irNumber.value)); window.pushHistory?.(); });
     irSlider.addEventListener('change', () => window.pushHistory?.());
+  }
+
+  // ── 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 핫존과 동기 ──
+  const cRotS = document.getElementById('cvb-rot-slider');
+  const cRotN = document.getElementById('cvb-rot-number');
+  if (cRotS && cRotN) {
+    const _cvbRot = v => {
+      v = Math.min(180, Math.max(-180, parseInt(v) || 0));
+      window.applyRotationDeg?.(block, v);
+      cRotS.value = v; cRotN.value = v;
+    };
+    cRotS.addEventListener('input',  () => _cvbRot(cRotS.value));
+    cRotN.addEventListener('input',  () => _cvbRot(cRotN.value));
+    cRotS.addEventListener('change', () => window.pushHistory?.());
+    cRotN.addEventListener('change', () => window.pushHistory?.());
   }
 
   // ── 배경 ──────────────────────────────────────────────────────────────────

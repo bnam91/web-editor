@@ -164,13 +164,221 @@ function _applyAbRotation(block) {
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// #14b 회전 확장 — 텍스트·컴포넌트 범용 회전 인프라
+//   asset(child-hotzone) 패턴을 «범용 헬퍼»로 일반화한다. 신규 대상은 전부
+//   dataset.rotation 규약으로 통일(벡터만 예외 — 아래 참조). 기존 asset/shape/frame
+//   3규약과 그 핸들러(_addAbRotateHandles·_addShapeRotateHandles·overlay-handles)는
+//   문자 그대로 무접촉 — 여기 추가되는 코드는 신규 타입 전용 별도 경로다.
+//
+//   핫존 트랙 선택 근거: 신규 대상 블록(.text-block/.icon-block/.mockup-block/
+//   .canvas-block/.vector-block/.icon-circle-block)은 모두 block 레벨에서
+//   overflow:visible + position:relative 이고, 회전 transform 을 «블록 자신»이 받는다.
+//   따라서 asset 과 동일한 «자식 핫존 트랙»(블록 자식으로 부착 → 회전 함께 돎)이
+//   적용된다. overflow:hidden 오버레이 트랙(frame 전용)은 신규 타입엔 불필요.
+//   (내부 .cvb-inner/.vb-inner/.mkp-screen/.icb-circle 만 overflow:hidden 이고
+//    블록 자체는 자르지 않음 — CSS 확인 완료.)
+// ══════════════════════════════════════════════════════════════
+
+// 범용 각도 적용(transform-preserving, dataset.rotation) — applyShapeRotation 미러.
+// 회전0이면 rotate()만 제거하고 다른 transform(translate 등)은 보존.
+function _applyRotationDeg(host, deg) {
+  if (!host) return;
+  const d = Math.max(-180, Math.min(180, Math.round(parseFloat(deg) || 0)));
+  const existing = host.style.transform || '';
+  const stripped = existing.replace(/rotate\([^)]*\)\s*/g, '').trim();
+  if (d === 0) {
+    host.style.transform = stripped;
+    if (!host.style.transform) {
+      host.style.removeProperty('transform');
+      host.style.removeProperty('transform-origin');
+    }
+    delete host.dataset.rotation;
+  } else {
+    host.dataset.rotation = String(d);
+    host.style.transform = stripped ? `${stripped} rotate(${d}deg)` : `rotate(${d}deg)`;
+    host.style.transformOrigin = 'center center';
+  }
+  window.scheduleAutoSave?.();
+}
+window.applyRotationDeg = _applyRotationDeg;
+
+// 프로퍼티 패널 슬라이더/숫자 필드 동기(있을 때만) — id 접두사 규약(<prefix>-slider/-number)
+function _syncNumSlider(prefix, deg) {
+  const s = document.getElementById(`${prefix}-slider`);
+  const n = document.getElementById(`${prefix}-number`);
+  if (s) s.value = String(deg);
+  if (n) n.value = String(deg);
+}
+
+// 범용 핫존 add/remove 팩토리. cfg:
+//   zoneClass, hostFor(block)=host, guard(block)=편집중 등 스킵, readDeg(block,host),
+//   applyDeg(block,host,deg), syncUI(block,host,deg), historyLabel, sz, out
+function _makeRotateType(cfg) {
+  const hostFor = cfg.hostFor || (b => b);
+  const ROT_SZ = cfg.sz || 22;
+  const OUT    = cfg.out ?? 4;
+  function remove(block) {
+    if (!block) return;
+    const host = hostFor(block);
+    if (host) host.querySelectorAll(`:scope > .${cfg.zoneClass}`).forEach(z => z.remove());
+  }
+  function add(block) {
+    remove(block);
+    if (!block) return;
+    if (cfg.guard && cfg.guard(block)) return;   // 예) 텍스트 편집 중 → 핫존 숨김
+    const host = hostFor(block);
+    if (!host) return;
+    const neg = `calc(-${ROT_SZ + OUT}px * var(--inv-zoom, 1))`;
+    const sz  = `calc(${ROT_SZ}px * var(--inv-zoom, 1))`;
+    ['tl', 'tr', 'bl', 'br'].forEach(id => {
+      const z = document.createElement('div');
+      z.className = `${cfg.zoneClass} ${id}`;
+      z.dataset.corner = id;
+      const pos = id === 'tl' ? `top:${neg};left:${neg};`
+                : id === 'tr' ? `top:${neg};right:${neg};`
+                : id === 'bl' ? `bottom:${neg};left:${neg};`
+                :               `bottom:${neg};right:${neg};`;
+      z.style.cssText = `position:absolute;${pos}width:${sz};height:${sz};z-index:97;pointer-events:auto;cursor:${_AB_ROTATE_CURSOR};`;
+      host.appendChild(z);
+      _bindGenericRotateDrag(z, block, cfg, hostFor);
+    });
+  }
+  return { add, remove, restore: cfg.restore };
+}
+
+function _bindGenericRotateDrag(zone, block, cfg, hostFor) {
+  zone.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.stopImmediatePropagation();
+    e.stopPropagation();
+    e.preventDefault();
+    const host = hostFor(block);
+    if (!host) return;
+    const br = host.getBoundingClientRect();
+    const cx = br.left + br.width / 2;
+    const cy = br.top  + br.height / 2;
+    const init   = cfg.readDeg ? (parseFloat(cfg.readDeg(block, host)) || 0)
+                               : (parseFloat(host.dataset.rotation) || 0);
+    const startA = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    const onMove = (ev) => {
+      const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
+      let deg = init + (a - startA);
+      if (ev.shiftKey) deg = Math.round(deg / 15) * 15; // Shift = 15° 스냅
+      else deg = Math.round(deg);
+      deg = ((deg % 360) + 360) % 360;
+      if (deg > 180) deg -= 360; // -180..180
+      cfg.applyDeg(block, host, deg);
+      cfg.syncUI?.(block, host, deg);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      window.pushHistory?.(cfg.historyLabel || '회전');
+      window.scheduleAutoSave?.();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// 로드 복원(belt-and-suspenders) — 직렬화는 outerHTML로 inline transform을 보존하므로
+// 대개 불필요하나, 재렌더 경로 대비 dataset.rotation → transform 을 idempotent 적용.
+function _restoreDatasetRotation(block) {
+  if (!block) return;
+  const d = parseFloat(block.dataset.rotation);
+  if (Number.isFinite(d) && d !== 0 && !/rotate\(/.test(block.style.transform || '')) {
+    const existing = (block.style.transform || '').trim();
+    block.style.transform = existing ? `${existing} rotate(${d}deg)` : `rotate(${d}deg)`;
+    block.style.transformOrigin = 'center center';
+  }
+}
+
+// ── 텍스트: 회전 host = text-frame(자유배치) 또는 text-block(플로우). 편집중 핫존 숨김.
+//    dataset.rotation 규약. prop 슬라이더(txt-rot-slider/number)와 동기.
+//    회전(transform)과 정렬(#10 align-self / #13 정렬)은 독립축 — transform-origin
+//    center center 로 «블록 자체 중심» 회전이라 align-self 배치와 충돌하지 않는다.
+const _textFrameHost = b => b.closest('.frame-block[data-text-frame="true"]') || b;
+const _TEXT_ROT = _makeRotateType({
+  zoneClass: 'tb-rotate-zone',
+  hostFor: _textFrameHost,
+  guard: b => b.classList.contains('editing'),  // contenteditable 편집 중 → 캐럿 우선
+  applyDeg: (b, host, deg) => _applyRotationDeg(host, deg),
+  syncUI: (b, host, deg) => _syncNumSlider('txt-rot', deg),
+  historyLabel: '텍스트 회전',
+  restore: b => _restoreDatasetRotation(_textFrameHost(b)),
+});
+
+// ── iconify(.icon-block): dataset.rotation. 기존 90° 프리셋 버튼(#icn-rotation-group)과
+//    새 숫자필드(#icn-rot-number, 프리셋 있으면 추가)를 함께 동기.
+const _ICONIFY_ROT = _makeRotateType({
+  zoneClass: 'icn-rotate-zone',
+  applyDeg: (b, host, deg) => _applyRotationDeg(host, deg),
+  syncUI: (b, host, deg) => {
+    const n = document.getElementById('icn-rot-number');
+    if (n) n.value = String(deg);
+    const norm = ((deg % 360) + 360) % 360;
+    document.querySelectorAll('#icn-rotation-group .prop-align-btn').forEach(x =>
+      x.classList.toggle('active', parseInt(x.dataset.deg) === norm));
+  },
+  historyLabel: '아이콘 회전',
+  restore: _restoreDatasetRotation,
+});
+
+const _MOCKUP_ROT = _makeRotateType({
+  zoneClass: 'mkp-rotate-zone',
+  applyDeg: (b, host, deg) => _applyRotationDeg(host, deg),
+  syncUI: (b, host, deg) => _syncNumSlider('mkp-rot', deg),
+  historyLabel: '목업 회전',
+  restore: _restoreDatasetRotation,
+});
+const _CANVAS_ROT = _makeRotateType({
+  zoneClass: 'cvb-rotate-zone',
+  applyDeg: (b, host, deg) => _applyRotationDeg(host, deg),
+  syncUI: (b, host, deg) => _syncNumSlider('cvb-rot', deg),
+  historyLabel: '캔버스 회전',
+  restore: _restoreDatasetRotation,
+});
+const _ICB_ROT = _makeRotateType({
+  zoneClass: 'icb-rotate-zone',
+  applyDeg: (b, host, deg) => _applyRotationDeg(host, deg),
+  syncUI: (b, host, deg) => _syncNumSlider('icb-rot', deg),
+  historyLabel: '아이콘써클 회전',
+  restore: _restoreDatasetRotation,
+});
+
+// ── vector(.vector-block): ★기존 dataset.rotateDeg + flip scale 규약 «유지»(dataset.rotation
+//    으로 바꾸면 저장된 벡터의 각도가 유실 → 회귀). prop-vector 의 transform 합성
+//    (rotate scale)과 동일 경로로 적용. _cornerScreen 의 _blockRotationDeg 는 rotateDeg 를
+//    이미 인식하므로 회전후 리사이즈 좌표보정도 자동 커버.
+const _VECTOR_ROT = _makeRotateType({
+  zoneClass: 'vb-rotate-zone',
+  readDeg: b => parseFloat(b.dataset.rotateDeg) || 0,
+  applyDeg: (b, host, deg) => {
+    b.dataset.rotateDeg = String(deg);
+    const fx = b.dataset.flipH === '1' ? -1 : 1;
+    const fy = b.dataset.flipV === '1' ? -1 : 1;
+    b.style.transform = `rotate(${deg}deg) scale(${fx},${fy})`;
+    window.scheduleAutoSave?.();
+  },
+  syncUI: (b, host, deg) => { const n = document.getElementById('vb-rotate-deg'); if (n) n.value = String(deg); },
+  historyLabel: '벡터 회전',
+});
+
 // ── 회전 대상 타입별 핸들 add/remove 라우팅 ──
-// 자유배치/독립 블록만 대상. asset·shape 확정. ★표(.table-block)·그래프(.graph-block)는
-// 회전이 내부 셀/바 히트영역·레이아웃 좌표를 깨므로 «제외»(핫존 미부착) — 아래 registry에
-// 항목 자체를 두지 않는다(상신 근거: 보고 참조).
+// 자유배치/독립 블록만 대상. asset·shape 확정 + #14b 텍스트·컴포넌트 확장.
+// ★표(.table-block)·그래프(.graph-block)는 회전이 내부 셀/바 히트영역·레이아웃 좌표를
+// 깨므로 «제외»(핫존 미부착) — registry에 항목 자체를 두지 않는다(상신 근거: 보고 참조).
+// ★스티커(.sticker-block)는 sticker-select.js가 이미 회전 담당 → 여기 미등록(중복 방지).
 const _ROTATE_HANDLERS = {
-  'asset-block': { add: _addAbRotateHandles,    remove: _removeAbRotateHandles },
-  'shape-block': { add: _addShapeRotateHandles, remove: _removeShapeRotateHandles },
+  'asset-block':       { add: _addAbRotateHandles,    remove: _removeAbRotateHandles },
+  'shape-block':       { add: _addShapeRotateHandles, remove: _removeShapeRotateHandles },
+  'text-block':        _TEXT_ROT,
+  'icon-block':        _ICONIFY_ROT,
+  'mockup-block':      _MOCKUP_ROT,
+  'canvas-block':      _CANVAS_ROT,
+  'icon-circle-block': _ICB_ROT,
+  'vector-block':      _VECTOR_ROT,
 };
 function _rotateHandlerFor(el) {
   if (!(el instanceof HTMLElement)) return null;
@@ -202,8 +410,10 @@ function _observeRotatable(block) {
   _abRotateObserver.observe(block, { attributes: true, attributeFilter: ['class'] });
   // 이미 selected 상태로 로드됐으면 즉시 핸들 추가
   if (block.classList.contains('selected')) h.add(block);
-  // 저장된 rotation 복원 (asset 전용 — shape/frame은 save-load가 복원)
+  // 저장된 rotation 복원: asset 전용 기존 경로 유지, 신규 타입은 각 handler.restore.
+  // (shape/frame은 종전대로 save-load가 복원 — 무접촉)
   if (block.classList.contains('asset-block')) _applyAbRotation(block);
+  else if (typeof h.restore === 'function') h.restore(block);
 }
 
 // 기존 + 신규 회전대상 블록 모두 observe
