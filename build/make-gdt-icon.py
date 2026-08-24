@@ -20,7 +20,7 @@
 재생성: python3 build/make-gdt-icon.py
 """
 import os, subprocess, shutil, sys
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageChops
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 os.chdir(HERE)
@@ -75,6 +75,56 @@ def page_mask():
     d.rectangle([X2 - FOLD, Y1 + FOLD, X2, Y2 - RAD], fill=255)
     return m
 
+def card_mask():
+    """페이지 실루엣 — 라운드 3코너(좌상·좌하·우하) + 우상단 «대각 실제 컷(노치)».
+    ★옛 page_mask는 우상단에 온전한 모서리가 남아 접힘 flap과 «두 겹»으로 보였다(현빈 지적).
+      → rounded_rectangle 위에 우상 삼각을 «빼서» 뒤 모서리를 없앤다(계단 없이 한 대각선)."""
+    m = Image.new('L', (S, S), 0)
+    ImageDraw.Draw(m).rounded_rectangle([X1, Y1, X2, Y2], radius=RAD, fill=255)
+    cut = Image.new('L', (S, S), 0)
+    ImageDraw.Draw(cut).polygon([(X2 - FOLD, Y1), (X2 + 2, Y1 - 2), (X2 + 2, Y1 + FOLD)], fill=255)
+    return ImageChops.subtract(m, cut)
+
+def emboss_mark(mark):
+    """마크를 «밝은 흰 그대로»가 아니라 «배경에 눌린 음각(debossed)»으로(현빈 지적: 대비 강함).
+    배경 근접톤 채움 + 상단 안쪽 그림자·하단 안쪽 하이라이트(빛 위에서) + opacity 0.62."""
+    a = mark.split()[3]
+    flat = Image.new('RGBA', mark.size, (0, 0, 0, 0))
+    flat.paste(Image.new('RGBA', mark.size, (66, 66, 70, 255)), (0, 0), a)
+    def _sh(al, dy):
+        s = Image.new('L', al.size, 0); s.paste(al, (0, dy)); return s
+    OFF = 9
+    tb = ImageChops.subtract(a, _sh(a, OFF)).filter(ImageFilter.GaussianBlur(3))
+    bb = ImageChops.subtract(a, _sh(a, -OFF)).filter(ImageFilter.GaussianBlur(3))
+    emb = flat.copy()
+    emb.paste(Image.new('RGBA', mark.size, (150, 150, 156, 255)), (0, 0), bb)
+    emb.paste(Image.new('RGBA', mark.size, (18, 18, 20, 255)), (0, 0), tb)
+    r, g, b, a2 = emb.split(); a2 = a2.point(lambda v: int(v * 0.62))
+    return Image.merge('RGBA', (r, g, b, a2))
+
+def draw_fold(img):
+    """노치를 덮는 «접힌 뒷면 삼각» — B-soft(현빈 확정: B 방향·날카로움만 완화).
+    flap 위→아래 밝음 그라데 + 능선 크리스(부드럽게)·하이라이트 + flap이 카드에 드리우는 drop shadow."""
+    tri = Image.new('L', (S, S), 0)
+    ImageDraw.Draw(tri).polygon([(X2 - FOLD, Y1), (X2, Y1 + FOLD), (X2 - FOLD, Y1 + FOLD)], fill=255)
+    ftop, fbot, crease, hl, shadow = (100, 100, 104), (56, 56, 60), (34, 34, 37), (150, 150, 156), 100
+    fg = Image.new('RGB', (S, S), fbot); pg = fg.load()
+    for y in range(Y1, Y1 + FOLD + 2):
+        t = min(1.0, (y - Y1) / FOLD); c = lerp(ftop, fbot, t)
+        for x in range(X2 - FOLD, X2 + 2):
+            if 0 <= x < S and 0 <= y < S: pg[x, y] = c
+    img.paste(fg, (0, 0), tri)
+    rd = Image.new('L', (S, S), 0)
+    ImageDraw.Draw(rd).line([(X2 - FOLD, Y1), (X2, Y1 + FOLD)], fill=255, width=20)
+    rd = ImageChops.subtract(rd.filter(ImageFilter.GaussianBlur(12)), tri.point(lambda v: 255 if v > 0 else 0))
+    img.paste(Image.new('RGBA', (S, S), (0, 0, 0, shadow)), (0, 0), rd)
+    cm = Image.new('L', (S, S), 0)
+    ImageDraw.Draw(cm).line([(X2 - FOLD, Y1), (X2, Y1 + FOLD)], fill=255, width=5)
+    img.paste(Image.new('RGBA', (S, S), crease + (190,)), (0, 0), cm.filter(ImageFilter.GaussianBlur(2)))
+    hm = Image.new('L', (S, S), 0)
+    ImageDraw.Draw(hm).line([(X2 - FOLD - 2, Y1 - 2), (X2 - 2, Y1 + FOLD - 2)], fill=255, width=2)
+    img.paste(Image.new('RGBA', (S, S), hl + (150,)), (0, 0), hm.filter(ImageFilter.GaussianBlur(1)))
+
 def extract_mark():
     """앱 아이콘에서 «별 픽셀 그대로» 오려낸다 — 베지어로 다시 그리지 않는다."""
     src = Image.open(MASTER).convert('RGBA')
@@ -96,7 +146,7 @@ def main():
     if not os.path.exists(MASTER):
         sys.exit(f'{MASTER} 가 없다 — 앱 아이콘 원본이 있어야 마크를 오려낸다')
 
-    mask = page_mask()
+    mask = card_mask()   # ★우상 대각 노치(뒤 온전한 모서리 없음)
     # ★그라데이션은 «페이지 범위»에 깐다. 캔버스 전체에 깔면 페이지가 가운데 구간만 써서
     #   명암 폭이 절반으로 줄고(실측: 앱 54→16 vs 문서 44→30) 다시 평면처럼 보인다.
     pw, ph = X2 - X1, Y2 - Y1
@@ -105,22 +155,18 @@ def main():
     body.paste(diagonal_gradient((pw, ph), TOP_L, BOT_R), (X1, Y1))
     img.paste(body, (0, 0), mask)
 
-    d = ImageDraw.Draw(img)
-    # 접힘면 — 본체보다 밝게 «꺾인 면이 빛을 더 받는다». 평면 단색이면 종이가 아니라 스티커로 읽힌다.
-    fold = diagonal_gradient((FOLD, FOLD), FOLD_L, FOLD_D)
-    fm = Image.new('L', (FOLD, FOLD), 0)
-    ImageDraw.Draw(fm).polygon([(0, 0), (FOLD, FOLD), (0, FOLD)], fill=255)
-    img.paste(fold, (X2 - FOLD, Y1), fm)
-    d.line([(X2 - FOLD, Y1), (X2, Y1 + FOLD)], fill=EDGE, width=5)
+    # 접힘 — 노치를 덮는 접힌 뒷면 삼각(B-soft)
+    draw_fold(img)
 
     # 외곽선 — 어두운 배경(다크모드 파인더)에서도 실루엣이 남게
     edge = mask.filter(ImageFilter.FIND_EDGES).point(lambda v: 255 if v > 40 else 0)
     img.paste(Image.new('RGBA', (S, S), EDGE), (0, 0), edge)
 
-    # 마크 — 앱 아이콘 픽셀 그대로
+    # 마크 — 앱 아이콘 픽셀을 오려 «음각(debossed)»으로
     mark = extract_mark()
     mw = 430
     mark = mark.resize((mw, int(mark.height * mw / mark.width)), Image.LANCZOS)
+    mark = emboss_mark(mark)
     img.paste(mark, ((S - mark.width) // 2, 560 - mark.height // 2), mark)
 
     img.save(OUT)
