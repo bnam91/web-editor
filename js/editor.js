@@ -1092,6 +1092,72 @@ function alignSelectedToParent(dir) {
   window.scheduleAutoSave?.();
 }
 
+/* ═══════════════════════════════════
+   #8 갭 병합 (⌘M) — «연속(인접)»만 병합
+   선택된 .gap-block 들을 같은 부모(section-inner/frame-block/row) 안에서
+   DOM상 «바로 이웃한» 런(run)으로 묶어, 각 런의 높이를 합쳐 첫 갭에 몰고
+   나머지 갭은 제거한다. 사이에 다른 블록(비선택·비갭)이 낀 갭은 다른 런.
+   떨어진 선택은 각 연속 런만 병합하고 나머지는 그대로 둔다.
+═══════════════════════════════════ */
+function mergeSelectedGaps() {
+  const gaps = [...document.querySelectorAll('.gap-block.selected')];
+  if (gaps.length < 2) return; // 1개/무선택 → no-op
+
+  // 부모(=section-inner/frame-block/row) 기준 그룹화. 다른 부모 = 다른 컨텍스트(타 섹션 등)
+  const byParent = new Map();
+  for (const g of gaps) {
+    const p = g.parentElement;
+    if (!p) continue;
+    if (!byParent.has(p)) byParent.set(p, []);
+    byParent.get(p).push(g);
+  }
+
+  let merged = false;
+  let firstKept = null; // 병합 후 선택 유지할 대표 갭
+
+  for (const [parent, groupGaps] of byParent) {
+    if (groupGaps.length < 2) continue;
+    const kids = [...parent.children];
+    // DOM 순서 정렬
+    groupGaps.sort((a, b) => kids.indexOf(a) - kids.indexOf(b));
+    // 연속(인접 element sibling) 런으로 분해: 인덱스 차 1이면 같은 런
+    const runs = [];
+    let run = [groupGaps[0]];
+    for (let i = 1; i < groupGaps.length; i++) {
+      if (kids.indexOf(groupGaps[i]) === kids.indexOf(groupGaps[i - 1]) + 1) {
+        run.push(groupGaps[i]);
+      } else {
+        runs.push(run);
+        run = [groupGaps[i]];
+      }
+    }
+    runs.push(run);
+
+    for (const r of runs) {
+      if (r.length < 2) continue; // 길이 1은 병합 대상 아님(그대로 둠)
+      // 각 갭의 실제 렌더 높이 합산(offsetHeight = CSS/inline 반영된 실측)
+      const total = r.reduce((sum, g) => sum + (g.offsetHeight || parseInt(g.style.height, 10) || 0), 0);
+      const head = r[0];
+      head.style.height = total + 'px';
+      // 나머지 갭 제거(선택 해제 후 DOM 제거). 갭은 section-inner/row 직속이라 갭만 제거하면 됨
+      for (let i = 1; i < r.length; i++) {
+        r[i].classList.remove('selected');
+        r[i].remove();
+      }
+      merged = true;
+      if (!firstKept) firstKept = head; // 첫 병합 런의 대표 갭
+    }
+  }
+
+  if (!merged) return; // 연속 런(길이≥2)이 하나도 없으면 no-op
+
+  window.pushHistory?.('갭 병합');
+  window.scheduleAutoSave?.();
+  window.buildLayerPanel?.();
+  // 레이어 갱신으로 소실될 수 있는 선택 상태 복원(대표 갭 1개 유지)
+  if (firstKept) firstKept.classList.add('selected');
+}
+
 document.addEventListener('keydown', e => {
   // contenteditable 편집 중: 에디터 전역 단축키 차단
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
@@ -1119,6 +1185,18 @@ document.addEventListener('keydown', e => {
       window.toggleRightPanel?.();
     } else {
       window.toggleLeftPanel?.();
+    }
+    return;
+  }
+
+  // ⌘M — 병합. ★preventDefault 필수(Electron '창 최소화' 가속기와 충돌).
+  //   컨텍스트 분기: 갭 선택 → #8 갭 병합 / 테이블 셀 선택 → #5-b(Phase3, 미구현) / 둘 다 아니면 no-op.
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyM' && !e.shiftKey && !e.altKey) {
+    e.preventDefault();
+    if (document.querySelector('.gap-block.selected')) {
+      mergeSelectedGaps();
+    } else if (document.querySelector('.table-block td.selected, .table-block th.selected')) {
+      /* #5-b 셀 병합 — Phase3에서 구현. 지금은 no-op(갭 병합 로직 미실행). */
     }
     return;
   }
