@@ -13,6 +13,118 @@
 
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 
+/* ─────────────────────────────────────────────────────────────
+ * 전역 색상 적용 헬퍼 (text-block content + 테이블 셀 공용)
+ * ─────────────────────────────────────────────────────────────
+ * applyColorToSel/_lastSelRange 로직을 wireup 클로저 밖 전역으로 승격.
+ * text-block(prop-text-wireup)과 테이블 셀(prop-table)이 동일 primitive를
+ * 공유해 부분 색상 <span style="color:..."> 배선을 재사용한다.
+ * ★text-block 동작은 완전 불변(아래 applyColorToSel 이 이 헬퍼로 위임). */
+
+// host 를 경계로, 새 span 의 조상 중 같은 style prop 을 가진 span 을 평탄화(외부 중첩 방지)
+function _flattenAncestorWithPropIn(newSpan, prop, host) {
+  let cur = newSpan.parentNode;
+  while (cur && cur !== host && cur.nodeType === 1) {
+    if (cur.tagName === 'SPAN' && cur.style && cur.style[prop]) {
+      cur.style[prop] = '';
+      const styleStr = cur.getAttribute('style') || '';
+      if (!styleStr.replace(/;|\s/g, '')) {
+        const p = cur.parentNode;
+        while (cur.firstChild) p.insertBefore(cur.firstChild, cur);
+        p.removeChild(cur);
+        cur = p;
+        continue;
+      }
+    }
+    cur = cur.parentNode;
+  }
+}
+
+// 선택 없음: host(contentEl or 셀) 전체에 색 일괄 — 내부 color span 정리 후 host.style.color
+function _applyColorWholeEditable(color, host) {
+  if (!host) return;
+  host.querySelectorAll('span[style*="color"]').forEach(s => {
+    s.style.color = '';
+    const styleStr = s.getAttribute('style') || '';
+    if (!styleStr.replace(/;|\s/g, '')) {
+      const parent = s.parentNode;
+      while (s.firstChild) parent.insertBefore(s.firstChild, s);
+      parent.removeChild(s);
+    }
+  });
+  host.style.color = color;
+}
+
+// 선택 있음: savedRange 영역을 color span 으로 감싼다.
+// prevSpan(연결됨) 재사용 → 연속 input 중복 wrap 방지.
+// 반환 { span, range } — 호출측이 다음 input 시퀀스를 위해 보존.
+function _applyColorSpanToRange(color, host, savedRange, prevSpan) {
+  if (!host || !savedRange) return { span: null, range: savedRange || null };
+  if (prevSpan && prevSpan.isConnected) {
+    prevSpan.style.color = color;
+    return { span: prevSpan, range: savedRange };
+  }
+  const r = savedRange.cloneRange();
+  const frag = r.extractContents();
+  // frag 내부의 기존 color span 정리(이중 중첩 방지)
+  frag.querySelectorAll('span').forEach(s => {
+    if (s.style && s.style.color) {
+      s.style.color = '';
+      const styleStr = s.getAttribute('style') || '';
+      if (!styleStr.replace(/;|\s/g, '')) {
+        const parent = s.parentNode;
+        while (s.firstChild) parent.insertBefore(s.firstChild, s);
+        parent.removeChild(s);
+      }
+    }
+  });
+  const span = document.createElement('span');
+  span.style.color = color;
+  span.appendChild(frag);
+  r.insertNode(span);
+  _flattenAncestorWithPropIn(span, 'color', host);
+  const newRange = document.createRange();
+  newRange.selectNodeContents(span);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(newRange);
+  return { span, range: newRange.cloneRange() };
+}
+
+/* 전역 진입점: savedRange(비-collapsed) 있으면 부분 span, 없으면 host 전체.
+   반환 {span, range} (부분 적용 시 연속 input 재사용용 — prevSpan 으로 다시 넘길 것). */
+export function applyColorToSelection(color, host, savedRange = null, prevSpan = null) {
+  if (savedRange && !savedRange.collapsed) {
+    return _applyColorSpanToRange(color, host, savedRange, prevSpan);
+  }
+  _applyColorWholeEditable(color, host);
+  return { span: null, range: null };
+}
+if (typeof window !== 'undefined') window.applyColorToSelection = applyColorToSelection;
+
+/* ── 전역 셀 selection 캐시 (document 레벨 selectionchange) ──
+   테이블 셀(td/th contenteditable=true) 안의 마지막 비-collapsed selection 을 캐시.
+   우측 색 피커 클릭으로 셀이 blur 돼도 마지막 유효 셀 선택을 복원하기 위함.
+   ★text-block 자체 캐시(_onSelChange/_lastSelRange)와 완전 분리 — 회귀 방지.
+   ★셀은 편집 중(contenteditable=true)일 때만 기록 → 스테일 선택 오적용 방지. */
+if (typeof window !== 'undefined' && !window.__cellSelCacheInstalled) {
+  window.__cellSelCacheInstalled = true;
+  window.__lastCellSel = null; // { range, cell }
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    const a = sel.anchorNode, f = sel.focusNode;
+    if (!a || !f) return;
+    const start = a.nodeType === 1 ? a : a.parentElement;
+    const cell = start && start.closest
+      ? start.closest('td[contenteditable="true"], th[contenteditable="true"]')
+      : null;
+    if (cell && cell.contains(f)) {
+      window.__lastCellSel = { range: sel.getRangeAt(0).cloneRange(), cell };
+    }
+  });
+}
+
 export function wireTextEditSection({ ctx, currentColorAlpha }) {
   let _savedColorSel = null;
   let _colorSpan = null; // 색상 적용 시 생성한 span (input 반복 호출에 재사용)
@@ -47,29 +159,8 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
   };
 
   // 새로 만든 span의 ancestor 중 같은 style prop을 가진 span을 평탄화 (외부 중첩 방지)
-  // 단, ancestor 의 range 가 새 span 외 다른 영역을 덮으면 안 되므로,
-  // ancestor 가 정확히 새 span 한 자식만 갖는 경우에만 평탄화 (안전 case),
-  // 그 외에는 ancestor 의 prop 만 제거 (외부의 다른 텍스트는 영향 X).
-  const _flattenAncestorWithProp = (newSpan, prop) => {
-    let cur = newSpan.parentNode;
-    while (cur && cur !== ctx.contentEl && cur.nodeType === 1) {
-      if (cur.tagName === 'SPAN' && cur.style && cur.style[prop]) {
-        // 같은 prop 가진 부모 span 발견
-        // 부모 span 이 newSpan 외 다른 형제를 갖고 있으면 prop만 제거(상속 차단)하면 안 됨
-        // — 차라리 newSpan을 부모 밖으로 끌어내야 함. 단순화를 위해 prop만 제거.
-        cur.style[prop] = '';
-        const styleStr = cur.getAttribute('style') || '';
-        if (!styleStr.replace(/;|\s/g, '')) {
-          const p = cur.parentNode;
-          while (cur.firstChild) p.insertBefore(cur.firstChild, cur);
-          p.removeChild(cur);
-          cur = p;
-          continue;
-        }
-      }
-      cur = cur.parentNode;
-    }
-  };
+  // ctx.contentEl 을 경계로 전역 헬퍼에 위임 (size 경로에서 사용, 동작 불변).
+  const _flattenAncestorWithProp = (newSpan, prop) => _flattenAncestorWithPropIn(newSpan, prop, ctx.contentEl);
 
   const applyExecCmd = (savedSel, cmd, val = null) => {
     if (!savedSel) return false;
@@ -186,53 +277,13 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
     if (!_savedColorSel) {
       // selection 없으면 전체 contentEl에 일괄 적용
       // mix 상태(내부 span별 부분 색)를 풀어줘야 contentEl.style.color가 우선됨
-      if (ctx.contentEl) {
-        ctx.contentEl.querySelectorAll('span[style*="color"]').forEach(s => {
-          s.style.color = '';
-          const styleStr = s.getAttribute('style') || '';
-          if (!styleStr.replace(/;|\s/g, '')) {
-            const parent = s.parentNode;
-            while (s.firstChild) parent.insertBefore(s.firstChild, s);
-            parent.removeChild(s);
-          }
-        });
-        ctx.contentEl.style.color = color;
-      }
+      _applyColorWholeEditable(color, ctx.contentEl);
       return;
     }
-    // 같은 input 시퀀스 — 이미 만든 span의 color만 갱신 (중복 wrap 방지)
-    if (_colorSpan && _colorSpan.isConnected) {
-      _colorSpan.style.color = color;
-      return;
-    }
-    // 새 적용: 기존 selection 영역을 새 span으로 감싸기 + 내부 기존 color span 정리
-    const r = _savedColorSel.cloneRange();
-    const frag = r.extractContents();
-    // frag 내부의 기존 color 적용 span들을 풀어줌 (이중 중첩 방지)
-    frag.querySelectorAll('span').forEach(s => {
-      if (s.style && s.style.color) {
-        s.style.color = '';
-        // style 속성이 비었으면 span을 평탄화 (children만 남기고 span 제거)
-        const styleStr = s.getAttribute('style') || '';
-        if (!styleStr.replace(/;|\s/g, '')) {
-          const parent = s.parentNode;
-          while (s.firstChild) parent.insertBefore(s.firstChild, s);
-          parent.removeChild(s);
-        }
-      }
-    });
-    _colorSpan = document.createElement('span');
-    _colorSpan.style.color = color;
-    _colorSpan.appendChild(frag);
-    r.insertNode(_colorSpan);
-    _flattenAncestorWithProp(_colorSpan, 'color');
-    // selection을 새 span 내부로 복원 → 추가 input 시 같은 영역 유지
-    const newRange = document.createRange();
-    newRange.selectNodeContents(_colorSpan);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(newRange);
-    _savedColorSel = newRange.cloneRange();
+    // 부분 선택 — 전역 primitive 로 위임(연속 input 은 _colorSpan 재사용).
+    const res = _applyColorSpanToRange(color, ctx.contentEl, _savedColorSel, _colorSpan);
+    _colorSpan = res.span;
+    if (res.range) _savedColorSel = res.range;
   };
 
   colorPicker.addEventListener('input', () => {
