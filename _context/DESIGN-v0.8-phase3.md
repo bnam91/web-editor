@@ -53,3 +53,15 @@
 
 ## 5. 완료 정의
 - 유닛: 착수 전 게이트 통과 + 코드 + 1차 격리 CDP QA + **P0 데이터손실 고QA 무손실 실증** + 디자인 일관성 + 트래킹. 전체: 현빈 사후검수·배포 게이트. ⛔머지 금지.
+
+## 6. #14b — 회전 확장(표·그래프 제외 전 블록) · ★착수 대기(현빈 최종 GO)
+원 16건 밖의 «신규 확장». 지디 «기술 승인»(2026-08-24)·구현 착수는 현빈 «표·그래프 빼고 전부 회전» 최종 GO를 지디 경유 받은 뒤. 그전엔 문서·트래킹만.
+### 6-1 설계 요지
+- (a) 각도 저장 통일: 신규 대상(텍스트·iconify·mockup·canvas·vector·icon-circle 등)에 **dataset.rotation 신규 부여**(asset 규약 재사용). 기존 3규약(asset=rotation·shape=shapeRotation·frame=rotateDeg) 무접촉. asset-rotate.js `_restoreRotation`이 신규 타입 자동 복원(save-load 추가 불요). `_ROTATE_HANDLERS`에 신규 타입 add/remove 핫존 등록(자유배치=자식 핫존 / overflow:hidden=오버레이 트랙, U14 2트랙). prop 각도필드=공유 회전 헬퍼를 각 prop-*.js.
+- (b) 회전후 리사이즈 좌표보정: `_cornerScreen`·`_unrotateDelta` 범용 재사용(회전0=픽셀동일).
+- (c) 자유배치/편집 충돌: 텍스트 편집 중 회전 핫존 숨김·회전+정렬(#13/#10 align-self)+transform 조합. 컴포넌트=절대배치 회전 or 오버레이 트랙.
+### 6-2 ★착수 시 게이트 조건 (지디 확정 — 통과 못하면 그 타입 멈춤·상신)
+1. 기존 asset/shape/frame 회전·리사이즈·편집 **회귀0**(registry 확장이 기존 2타입 동작 불변 실증).
+2. 신규 dataset.rotation **저장 왕복**(디스크 재조회로 각도 생존).
+3. **회전0 = 픽셀동일**(신규 타입 전부).
+4. ★텍스트: 회전 + 정렬(#13/#10) + 편집 캐럿 조합 «안 깨짐» 집중검증(가장 까다로운 지점).
