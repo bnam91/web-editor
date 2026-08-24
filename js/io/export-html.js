@@ -93,6 +93,9 @@ async function exportHTMLFile() {
   clone.querySelectorAll('.label-item-delete-btn, .label-group-add-btn').forEach(el => el.remove());
   clone.querySelectorAll('.item-selected').forEach(el => el.classList.remove('item-selected'));
   clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+  // #16: 참고이미지 연결(data-ref-links)은 ScratchPadDB 참조 «기획 메타» — export엔 그 DB가 없어 死참조.
+  //   배송본에서 제거(저장 경로 serializeCleanRoot에선 유지 → 로드 복원 가능).
+  clone.querySelectorAll('[data-ref-links]').forEach(el => el.removeAttribute('data-ref-links'));
   clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
   clone.querySelectorAll('.cell-selected').forEach(el => el.classList.remove('cell-selected')); // #5-b 테이블 셀 선택 마킹 (UI 상태 — export 유출 방지). rowspan/colspan은 HTML 속성이라 그대로 보존.
   clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));

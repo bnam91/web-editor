@@ -1,5 +1,13 @@
 # DESIGN — #16 스크래치패드 ↔ 섹션 노드연결 (울트라플랜)
 
+> ★**P1 스키마 피벗(2026-08-25, 지디 승인)**: 연결정보를 «page.imageLinks(외부필드)+history sideEffects»로 두려던 초안은 폐기.
+> 실측 결과 undo()의 ensureHistoryCheckpoint가 «섹션삭제(캔버스 변경)» 시 SE-없는 '현재상태'를 leaving snap으로 끼워넣어 onUndo 미발화.
+> → **연결정보 = 섹션 DOM data 속성 `sec.dataset.refLinks="s_1:0,s_2:1"`(scratchId:collapsed)**로 확정. canvas HTML에 실려
+> serializeCleanRoot/undo/redo/save/load/협업이 «기존 캔버스 스냅샷 기계»로 자동 처리(undo 네이티브). #11 태그와 동일 검증패턴.
+> 섹션삭제=sec.remove() 하나로 refLinks 동반삭제+undo 동시복원(특수훅 불필요). export(HTML)에서 strip·저장엔 유지. .gdt는 inert 유지(프로젝트 전송포맷·고아안전).
+> 아래 본문의 «page.imageLinks» 표현은 이 피벗으로 대체됨(개념/게이트/시나리오는 유효).
+
+
 - 작성: 태양 2026-08-25 · worktree `/Users/a1/web-editor-s16` · 브랜치 `feature/v0.8-scratchpad-link`(base=v0.8-improvements HEAD 919dc97) · ⛔머지·배포 현빈 게이트
 - 기준 스펙 = 데모 `goditor-scratchpad-link-demo-v2.html`(합의된 동작) 포팅. 현빈 4대 확정동작.
 - ★게이트: 착수 전 지디 승인(이 문서). 데이터손실0(연결끊김≠이미지소실)·회귀0·디자인일관성. fresh agent 적대리뷰 라운드 필수.

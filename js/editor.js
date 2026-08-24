@@ -2447,6 +2447,11 @@ function deleteSection(secIdOrEl) {
     console.warn('[deleteSection] 마지막 섹션은 삭제할 수 없습니다.');
     return false;
   }
+  // #16: 이 섹션에 연결된 참고이미지 링크를 캡처 → «링크만» 해제(이미지는 스크래치에 그대로 = 데이터손실0).
+  //   섹션 삭제와 «같은 히스토리 1건»으로 묶어(단일 ⌘Z 복원), 링크 복원은 sideEffects 로 처리한다
+  //   (imageLinks 는 canvas HTML 밖이라 캔버스 스냅샷에 안 잡힘). onUndo=링크 복원 / onRedo=재해제.
+  // #16: 섹션에 참고이미지가 연결돼 있어도 특수 처리 불필요 — sec.dataset.refLinks 가 섹션과 함께
+  //   제거되고, canvas 스냅샷 기반 undo 가 섹션+refLinks 를 동시 복원한다(이미지는 ScratchPadDB 무접촉).
   pushHistory('섹션 삭제 전');
   sec.remove();
   deselectAll();
