@@ -32,6 +32,7 @@
     root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay').forEach(el => el.remove());
     // UI 상태 클래스 전면 제거 — selected 잔존이 독립렌더/export 에 파란 아웃라인 유출
     root.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+    root.querySelectorAll('.cell-selected').forEach(el => el.classList.remove('cell-selected')); // #5-b 테이블 셀 선택 마킹 (UI 상태 — 저장본 유출 방지)
     root.querySelectorAll('.editing').forEach(el => el.classList.remove('editing'));
     root.querySelectorAll('.row-active').forEach(el => el.classList.remove('row-active'));
     root.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));

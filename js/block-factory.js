@@ -4418,11 +4418,13 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
   if (!menu) return;
 
   let _targetBlock = null;
+  let _targetCell = null; // #5-b: 우클릭한 테이블 바디셀 (병합/해제 대상)
 
   // 메뉴 닫기
   function closeMenu() {
     menu.style.display = 'none';
     _targetBlock = null;
+    _targetCell = null;
   }
 
   // 메뉴 열기
@@ -4453,6 +4455,25 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     if (iconStickerItem) {
       const isIcon = block.classList.contains('icon-block');
       iconStickerItem.style.display = isIcon ? 'flex' : 'none';
+    }
+
+    // #5-b: 테이블 바디셀 우클릭 → 셀 병합(사각 선택 2개+) / 병합 해제(병합셀 위)
+    _targetCell = block.classList.contains('table-block')
+      ? (e.target.closest && e.target.closest('.tb-table tbody td'))
+      : null;
+    const cellMergeItem = document.getElementById('bcm-cell-merge');
+    if (cellMergeItem) {
+      const tb = _targetCell && _targetCell.closest('tbody');
+      const selCount = tb ? tb.querySelectorAll('td.cell-selected').length : 0;
+      cellMergeItem.style.display = (_targetCell && selCount >= 2) ? 'flex' : 'none';
+    }
+    const cellUnmergeItem = document.getElementById('bcm-cell-unmerge');
+    if (cellUnmergeItem) {
+      const merged = !!_targetCell && (
+        (parseInt(_targetCell.getAttribute('rowspan') || '1', 10) || 1) > 1 ||
+        (parseInt(_targetCell.getAttribute('colspan') || '1', 10) || 1) > 1
+      );
+      cellUnmergeItem.style.display = merged ? 'flex' : 'none';
     }
 
     const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
@@ -4512,6 +4533,19 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     try { window.selectBlock?.(block.id); } catch (_) {}
     window.addStickerBlock?.({ shape: 'icon', iconName, svg, size, iconColor });
     window.showToast?.('스티커로 변환됨');
+  });
+
+  // #5-b: 셀 병합 / 병합 해제
+  document.getElementById('bcm-cell-merge')?.addEventListener('click', e => {
+    e.stopPropagation();
+    closeMenu();
+    window.mergeSelectedCells?.();
+  });
+  document.getElementById('bcm-cell-unmerge')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const cell = _targetCell;
+    closeMenu();
+    window.unmergeCell?.(cell);
   });
 
   nameConfirm?.addEventListener('click', e => {

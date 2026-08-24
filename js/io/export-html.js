@@ -94,6 +94,7 @@ async function exportHTMLFile() {
   clone.querySelectorAll('.item-selected').forEach(el => el.classList.remove('item-selected'));
   clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
   clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+  clone.querySelectorAll('.cell-selected').forEach(el => el.classList.remove('cell-selected')); // #5-b 테이블 셀 선택 마킹 (UI 상태 — export 유출 방지). rowspan/colspan은 HTML 속성이라 그대로 보존.
   clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
 
   // goya-asset:// 참조를 base64로 재인라인 → 내보낸 HTML이 일반 브라우저에서도 portable

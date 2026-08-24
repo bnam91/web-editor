@@ -633,6 +633,13 @@
   color: var(--tbl-text-color, inherit);
   font-family: var(--tbl-font-family, inherit);
 }
+/* #5-b 셀 선택 마킹 — 병합 대상 사각 범위 하이라이트 (기존 배경색 위에 틴트 + 선택색 아웃라인) */
+.table-block .tb-table td.cell-selected,
+.table-block .tb-table th.cell-selected {
+  outline: 2px solid var(--sel-color, #2b8aff);
+  outline-offset: -2px;
+  background-image: linear-gradient(var(--sel-color-fill, rgba(43,138,255,0.16)), var(--sel-color-fill, rgba(43,138,255,0.16)));
+}
 .tb-table {
   width: 100%;
   border-collapse: collapse;

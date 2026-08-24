@@ -1190,13 +1190,14 @@ document.addEventListener('keydown', e => {
   }
 
   // ⌘M — 병합. ★preventDefault 필수(Electron '창 최소화' 가속기와 충돌).
-  //   컨텍스트 분기: 갭 선택 → #8 갭 병합 / 테이블 셀 선택 → #5-b(Phase3, 미구현) / 둘 다 아니면 no-op.
+  //   컨텍스트 분기: 갭 선택 → #8 갭 병합 / 테이블 셀 선택 → #5-b 셀 병합 / 둘 다 아니면 no-op.
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyM' && !e.shiftKey && !e.altKey) {
     e.preventDefault();
     if (document.querySelector('.gap-block.selected')) {
       mergeSelectedGaps();
-    } else if (document.querySelector('.table-block td.selected, .table-block th.selected')) {
-      /* #5-b 셀 병합 — Phase3에서 구현. 지금은 no-op(갭 병합 로직 미실행). */
+    } else if (document.querySelector('.table-block .tb-table td.cell-selected')) {
+      /* #5-b 테이블 바디셀 병합 (table-cell-select.js) */
+      window.mergeSelectedCells?.();
     }
     return;
   }
@@ -2137,7 +2138,10 @@ function deselectAll() {
   canvas.querySelectorAll('.table-block').forEach(b => {
     b.classList.remove('selected');
     b.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable','false'));
+    // #5-b: 셀 선택 마킹도 함께 해제
+    b.querySelectorAll('td.cell-selected, th.cell-selected').forEach(c => c.classList.remove('cell-selected'));
   });
+  if (window._tblSel) window._tblSel = null;
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
 
   // 레이어 패널 선택 해제

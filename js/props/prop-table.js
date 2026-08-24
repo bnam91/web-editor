@@ -15,26 +15,49 @@ function _rgbToHex(rgb) {
   return '#' + m.slice(0, 3).map(n => parseInt(n).toString(16).padStart(2, '0')).join('');
 }
 
+/* #5-b: 논리 그리드(thead+tbody 전체, rowspan/colspan 반영) — 열 정합 계산 공용.
+   grid[r][c] = { cell, ac(앵커 논리열), isAnchor }. 병합 없으면 물리열=논리열이라 기존과 동일. */
+function _tblGrid(table) {
+  const g = [];
+  [...table.querySelectorAll('tr')].forEach((tr, r) => {
+    g[r] = g[r] || [];
+    let c = 0;
+    [...tr.children].forEach(cell => {
+      if (cell.tagName !== 'TD' && cell.tagName !== 'TH') return;
+      while (g[r][c] !== undefined) c++;
+      const rs = Math.max(1, parseInt(cell.getAttribute('rowspan') || '1', 10) || 1);
+      const cs = Math.max(1, parseInt(cell.getAttribute('colspan') || '1', 10) || 1);
+      for (let dr = 0; dr < rs; dr++) for (let dc = 0; dc < cs; dc++) {
+        g[r + dr] = g[r + dr] || [];
+        g[r + dr][c + dc] = { cell, ac: c, isAnchor: dr === 0 && dc === 0 };
+      }
+      c += cs;
+    });
+  });
+  return g;
+}
+function _tblLogicalColCount(table) {
+  const g = _tblGrid(table);
+  let m = 0; g.forEach(row => { if (row) m = Math.max(m, row.length); });
+  return m;
+}
+// tbody 바디셀에 rowspan/colspan(>1) 병합이 있는지 — 열 추가/삭제 가드용
+function _tblBodyHasMerge(table) {
+  const tb = table.querySelector('tbody'); if (!tb) return false;
+  return [...tb.querySelectorAll('td,th')].some(c =>
+    (parseInt(c.getAttribute('rowspan') || '1', 10) || 1) > 1 ||
+    (parseInt(c.getAttribute('colspan') || '1', 10) || 1) > 1);
+}
+window.__tableBodyHasMerge = _tblBodyHasMerge;
+
 /* 비율 문자열("1:1:2") → 정규화 % colgroup 적용 + dataset.colWidths 저장.
    부족하면 1로 패딩, 넘치면 자른다. table-layout: fixed로 고정해 비율이 정확히 반영되도록.
    ※ colCount는 logical(병합 포함 합산) 기준. 우선순위: tbody 첫 tr(td 갯수) > thead 첫 tr(colspan 합산). */
 function _applyColRatio(block, rawRatio) {
   const table = block?.querySelector('.tb-table');
   if (!table) return;
-  const _logicalCount = (tr) => {
-    if (!tr) return 0;
-    let n = 0;
-    tr.querySelectorAll('th,td').forEach(c => {
-      const cs = parseInt(c.getAttribute('colspan') || '1', 10) || 1;
-      n += cs;
-    });
-    return n;
-  };
-  const bodyTr = table.querySelector('tbody > tr');
-  const headTr = table.querySelector('thead > tr');
-  const colCount = bodyTr
-    ? bodyTr.querySelectorAll('th,td').length
-    : _logicalCount(headTr) || _logicalCount(table.querySelector('tr'));
+  // #5-b: 논리 colCount(rowspan/colspan 반영). 병합 없으면 기존 결과와 동일.
+  const colCount = _tblLogicalColCount(table);
   if (!colCount) return;
   let parts = String(rawRatio || '').split(/[:,\s]+/).filter(Boolean).map(Number).filter(n => !isNaN(n) && n > 0);
   while (parts.length < colCount) parts.push(1);
@@ -62,20 +85,8 @@ window.__applyTableColRatio = _applyColRatio;
 function _applyColColors(block, bgList, fgList) {
   const table = block?.querySelector('.tb-table');
   if (!table) return;
-  const _logicalCount = (tr) => {
-    if (!tr) return 0;
-    let n = 0;
-    tr.querySelectorAll('th,td').forEach(c => {
-      const cs = parseInt(c.getAttribute('colspan') || '1', 10) || 1;
-      n += cs;
-    });
-    return n;
-  };
-  const bodyTr = table.querySelector('tbody > tr');
-  const headTr = table.querySelector('thead > tr');
-  const colCount = bodyTr
-    ? bodyTr.querySelectorAll('th,td').length
-    : _logicalCount(headTr) || _logicalCount(table.querySelector('tr'));
+  // #5-b: 논리 colCount(rowspan/colspan 반영). 병합 없으면 기존 결과와 동일.
+  const colCount = _tblLogicalColCount(table);
   if (!colCount) return;
   const isColored = block.dataset.style === 'colored';
   // 컬럼별 색 cleanup (모든 td/th에서 inline bg/color 제거)
@@ -94,14 +105,17 @@ function _applyColColors(block, bgList, fgList) {
   while (fgs.length < colCount) fgs.push(_tblTok('--preset-table-text', '#222222'));
   bgs = bgs.slice(0, colCount);
   fgs = fgs.slice(0, colCount);
-  table.querySelectorAll('tr').forEach(tr => {
-    let logicalIdx = 0;
-    tr.querySelectorAll('th, td').forEach(cell => {
-      const span = parseInt(cell.getAttribute('colspan') || '1', 10) || 1;
-      const i = logicalIdx;
-      if (bgs[i]) cell.style.backgroundColor = bgs[i];
-      if (fgs[i]) cell.style.color = fgs[i];
-      logicalIdx += span;
+  // #5-b: 그리드 기반 — 각 셀의 «논리 시작열»(ac) 색을 사용(rowspan carry-over 정합).
+  const _g = _tblGrid(table);
+  const _done = new Set();
+  _g.forEach(row => {
+    if (!row) return;
+    row.forEach(slot => {
+      if (!slot || !slot.isAnchor || _done.has(slot.cell)) return;
+      _done.add(slot.cell);
+      const i = slot.ac;
+      if (bgs[i]) slot.cell.style.backgroundColor = bgs[i];
+      if (fgs[i]) slot.cell.style.color = fgs[i];
     });
   });
   block.dataset.colBgs = bgs.join(',');
@@ -210,20 +224,8 @@ export function showTableProperties(block) {
   const table    = block.querySelector('.tb-table');
   const thead    = table.querySelector('thead');
   const tbody    = table.querySelector('tbody');
-  // logical col count = (a) tbody 첫 td 갯수 (b) thead colspan 합산 (c) 첫 tr 단순 카운트(폴백)
-  const _logicalColCount = () => {
-    const bodyTr = tbody?.querySelector('tr');
-    if (bodyTr) return bodyTr.querySelectorAll('th,td').length;
-    const headTr = thead?.querySelector('tr');
-    if (headTr) {
-      let n = 0;
-      headTr.querySelectorAll('th,td').forEach(c => {
-        n += parseInt(c.getAttribute('colspan') || '1', 10) || 1;
-      });
-      return n;
-    }
-    return table.querySelector('tr')?.querySelectorAll('th,td').length || 2;
-  };
+  // #5-b: logical col count = 논리 그리드 폭(rowspan/colspan 반영). 병합 없으면 기존과 동일.
+  const _logicalColCount = () => _tblLogicalColCount(table) || 2;
   const colCount = _logicalColCount();
   const rowCount = tbody?.querySelectorAll('tr').length || 0;
 
@@ -588,6 +590,8 @@ export function showTableProperties(block) {
     showTableProperties(block); // 행별 높이 리스트를 새 행 포함해 재생성
   });
   document.getElementById('tbl-row-minus').addEventListener('click', () => {
+    // #5-b: 바디셀 병합이 있으면 마지막 행 삭제가 rowspan 정합을 깰 수 있어 거부(무손실 우선)
+    if (_tblBodyHasMerge(table)) { window.showToast?.('셀 병합을 해제한 뒤 행을 삭제하세요'); return; }
     const rows = tbody.querySelectorAll('tr');
     if (rows.length > 1) { rows[rows.length - 1].remove(); }
     document.getElementById('tbl-row-count').textContent = tbody.querySelectorAll('tr').length;
@@ -604,6 +608,8 @@ export function showTableProperties(block) {
     block.querySelectorAll('.tb-table > thead th[colspan]').forEach(th => th.removeAttribute('colspan'));
   };
   document.getElementById('tbl-col-plus').addEventListener('click', () => {
+    // #5-b: 바디셀 병합이 있으면 열 추가는 그리드 정합을 깨므로 거부(무손실 우선)
+    if (_tblBodyHasMerge(table)) { window.showToast?.('셀 병합을 해제한 뒤 열을 추가하세요'); return; }
     _clearMergesIfAny();
     table.querySelectorAll('tr').forEach(tr => {
       const isHead = tr.closest('thead');
@@ -632,6 +638,8 @@ export function showTableProperties(block) {
     if (block.dataset.style === 'colored') { _applyColColors(block); showTableProperties(block); }
   });
   document.getElementById('tbl-col-minus').addEventListener('click', () => {
+    // #5-b: 바디셀 병합이 있으면 열 삭제는 그리드 정합을 깨므로 거부(무손실 우선)
+    if (_tblBodyHasMerge(table)) { window.showToast?.('셀 병합을 해제한 뒤 열을 삭제하세요'); return; }
     _clearMergesIfAny();
     const cols = table.querySelector('tr')?.querySelectorAll('th,td').length || 0;
     if (cols > 1) {

@@ -405,21 +405,59 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       // 라이브 DOM 테이블(computed-style용) — el은 detached라 getComputedStyle 빈값(회차12 table fix)
       const _liveTbl = (el.id && document.getElementById(el.id)?.querySelector('.tb-table')) || table;
       const _liveTrs = _liveTbl ? [..._liveTbl.querySelectorAll('tr')] : [];
-      const rows = trEls.map((tr, ri) => ({
-        header: !!(tr.parentElement && tr.parentElement.tagName === 'THEAD'),
-        cells:  [...tr.querySelectorAll('th,td')].map((c, ci) => {
-          const lc = _liveTrs[ri] ? [..._liveTrs[ri].querySelectorAll('th,td')][ci] : null;
-          let cs; try { cs = lc ? window.getComputedStyle(lc) : null; } catch { cs = null; }
-          return {
-            text:     (c.innerText || '').trim(),
-            align:    (cs && cs.textAlign) || c.style.textAlign || el.dataset.cellAlign || 'center',
-            color:    (cs && _rgbToHex(cs.color)) || null,
-            weight:   (cs && parseInt(cs.fontWeight)) || null,
-            fontSize: (cs && Math.round(parseFloat(cs.fontSize))) || null,
-          };
-        }),
-      }));
-      const colCount = rows.length ? Math.max(...rows.map(r => r.cells.length)) : 2;
+      // #5-b: 논리 그리드 «평면화 복원» — rowspan/colspan을 풀어 모든 행의 열수를 논리 colCount로 정합.
+      //   앵커 셀에 내용, 가려진(spanned) 위치는 빈 셀로 채워 «열 밀림 0».
+      //   병합 없는 표는 각 셀이 물리 위치=논리 위치 → 기존과 동일 결과(회귀 0).
+      const _buildGrid = (trs) => {
+        const g = [];
+        trs.forEach((tr, r) => {
+          g[r] = g[r] || [];
+          let c = 0, phys = 0;
+          [...tr.children].forEach(cell => {
+            if (cell.tagName !== 'TD' && cell.tagName !== 'TH') return;
+            while (g[r][c] !== undefined) c++;
+            const rs = Math.max(1, parseInt(cell.getAttribute('rowspan') || '1', 10) || 1);
+            const cs = Math.max(1, parseInt(cell.getAttribute('colspan') || '1', 10) || 1);
+            for (let dr = 0; dr < rs; dr++) for (let dc = 0; dc < cs; dc++) {
+              g[r + dr] = g[r + dr] || [];
+              g[r + dr][c + dc] = { cell, isAnchor: dr === 0 && dc === 0, phys, rs, cs };
+            }
+            c += cs; phys++;
+          });
+        });
+        return g;
+      };
+      const _grid = _buildGrid(trEls);
+      let colCount = 0; _grid.forEach(row => { if (row) colCount = Math.max(colCount, row.length); });
+      if (!colCount) colCount = trEls.length ? Math.max(...trEls.map(tr => tr.querySelectorAll('th,td').length)) : 2;
+      const rows = trEls.map((tr, ri) => {
+        const cells = [];
+        for (let c = 0; c < colCount; c++) {
+          const slot = _grid[ri] && _grid[ri][c];
+          if (slot && slot.isAnchor) {
+            const cCell = slot.cell;
+            const lc = _liveTrs[ri] ? [..._liveTrs[ri].querySelectorAll('th,td')][slot.phys] : null;
+            let cs; try { cs = lc ? window.getComputedStyle(lc) : null; } catch { cs = null; }
+            const obj = {
+              text:     (cCell.innerText || '').trim(),
+              align:    (cs && cs.textAlign) || cCell.style.textAlign || el.dataset.cellAlign || 'center',
+              color:    (cs && _rgbToHex(cs.color)) || null,
+              weight:   (cs && parseInt(cs.fontWeight)) || null,
+              fontSize: (cs && Math.round(parseFloat(cs.fontSize))) || null,
+            };
+            if (slot.cs > 1) obj.colSpan = slot.cs;   // 메타(빌더가 무시해도 무방)
+            if (slot.rs > 1) obj.rowSpan = slot.rs;
+            cells.push(obj);
+          } else {
+            // 가려진 위치(spanned) 또는 그리드 밖 → 빈 셀로 채워 열 정합
+            cells.push({ text: '', align: el.dataset.cellAlign || 'center', color: null, weight: null, fontSize: null, _spanned: !!slot });
+          }
+        }
+        return {
+          header: !!(tr.parentElement && tr.parentElement.tagName === 'THEAD'),
+          cells,
+        };
+      });
       const firstCell = table?.querySelector('td,th');
       let fontSize = 28;
       try { if (firstCell) fontSize = Math.round(parseFloat(window.getComputedStyle(firstCell).fontSize)) || 28; } catch {}
