@@ -7,6 +7,7 @@ export function showIconifyProperties(block) {
   const rotation = parseInt(block.dataset.rotation) || 0;
   const color    = block.dataset.iconColor || '#000000';
   const colorAlpha = parseAlphaFromColor(color);
+  const isRaster = block.dataset.raster === '1'; // PNG/JPG(<img>) — currentColor 착색 불가 → 색 UI 비활성
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -32,9 +33,9 @@ export function showIconifyProperties(block) {
         <span class="prop-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#888;" title="${iconName}">${iconName || '(없음)'}</span>
         <button class="prop-btn" id="icn-replace-btn" title="Iconify에서 교체"
           style="width:auto;height:auto;padding:3px 8px;font-size:10px;">교체</button>
-        <button class="prop-btn" id="icn-svg-file-btn" title="로컬 SVG 파일 불러오기"
-          style="width:auto;height:auto;padding:3px 8px;font-size:10px;">SVG 파일</button>
-        <input type="file" id="icn-svg-file-input" accept=".svg,image/svg+xml" style="display:none">
+        <button class="prop-btn" id="icn-svg-file-btn" title="로컬 이미지 파일 불러오기 (SVG·PNG·JPG)"
+          style="width:auto;height:auto;padding:3px 8px;font-size:10px;">이미지 파일</button>
+        <input type="file" id="icn-svg-file-input" accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg" style="display:none">
       </div>
     </div>
 
@@ -63,10 +64,14 @@ export function showIconifyProperties(block) {
 
     <div class="prop-section">
       <div class="prop-section-title">Color</div>
+      ${isRaster ? `
+      <div class="prop-row">
+        <span class="prop-label" style="font-size:10px;color:#888;line-height:1.4;">이미지(PNG/JPG)는 색을 바꿀 수 없어요</span>
+      </div>` : `
       <div class="prop-color-row">
         <span class="prop-label">Color</span>
         ${colorFieldHTML({ idPrefix: 'icn-color', hex: color, alpha: colorAlpha })}
-      </div>
+      </div>`}
     </div>
 
     <div class="prop-section">
@@ -139,6 +144,8 @@ export function showIconifyProperties(block) {
         const svg = res.svg.trim();
         const existingSvg = block.querySelector('svg');
         if (existingSvg) existingSvg.remove();
+        const existingImg = block.querySelector('img'); // 래스터(PNG)였다면 <img> 제거
+        if (existingImg) existingImg.remove();
         block.insertAdjacentHTML('beforeend', svg);
         const newSvg = block.querySelector('svg');
         if (newSvg) {
@@ -146,6 +153,8 @@ export function showIconifyProperties(block) {
           newSvg.setAttribute('width', sz);
           newSvg.setAttribute('height', sz);
         }
+        delete block.dataset.raster;   // 래스터 → 벡터 전환: 마커/URL 정리
+        delete block.dataset.iconSrc;
         block.dataset.iconName = `preset:${catName}/${it.name}`;
         block.dataset.iconSvg = svg;
         if (block.dataset.iconColor) block.style.color = block.dataset.iconColor;
@@ -296,15 +305,17 @@ export function showIconifyProperties(block) {
   sNumber.addEventListener('change', () => { window.pushHistory?.(); applySize(parseInt(sNumber.value)); });
   sSlider.addEventListener('change', () => window.pushHistory?.());
 
-  // 색상 (SVG currentColor 활용)
-  wireColorField('icn-color', {
-    initialAlpha: colorAlpha,
-    onApply: (c) => {
-      block.dataset.iconColor = c;
-      block.style.color = c;
-    },
-    onCommit: () => window.pushHistory?.(),
-  });
+  // 색상 (SVG currentColor 활용) — 래스터(PNG/JPG)는 색 UI 자체가 렌더되지 않으므로 wire 생략
+  if (!isRaster) {
+    wireColorField('icn-color', {
+      initialAlpha: colorAlpha,
+      onApply: (c) => {
+        block.dataset.iconColor = c;
+        block.style.color = c;
+      },
+      onCommit: () => window.pushHistory?.(),
+    });
+  }
 
   // 회전
   const applyRotation = deg => {
@@ -332,19 +343,61 @@ export function showIconifyProperties(block) {
     const file = e.target.files?.[0];
     e.target.value = ''; // 같은 파일 재선택 허용
     if (!file) return;
-    if (!/\.svg$/i.test(file.name) && !/svg/i.test(file.type)) {
-      window.showToast?.('⚠️ SVG 파일만 지원합니다'); return;
+    const isSvg    = /\.svg$/i.test(file.name) || /svg/i.test(file.type);
+    const isRasterFile = /\.(png|jpe?g)$/i.test(file.name) || /^image\/(png|jpe?g)$/i.test(file.type);
+    if (!isSvg && !isRasterFile) {
+      window.showToast?.('⚠️ SVG·PNG·JPG 파일만 지원합니다'); return;
     }
-    if (file.size > 3000000) { window.showToast?.('⚠️ SVG가 너무 큽니다(3MB 초과)'); return; }
-    let text = await file.text();
-    // 보안 소독(script·on*·javascript: 제거) — 아이콘 블록은 raw SVG를 innerHTML로 렌더하므로 필수
-    text = window.sanitizeCanvasHtml ? window.sanitizeCanvasHtml(text) : text;
-    if (!/<svg[\s>]/i.test(text)) { window.showToast?.('⚠️ 유효한 SVG가 아닙니다'); return; }
-    const nm = 'local:' + file.name.replace(/\.svg$/i, '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
-    const r = window.updateIconifyBlock?.(block.id, { iconName: nm, svg: text });
+
+    // ── SVG(벡터): 기존 경로 — 텍스트 읽어 소독 후 raw SVG innerHTML 렌더 ──
+    if (isSvg) {
+      if (file.size > 3000000) { window.showToast?.('⚠️ SVG가 너무 큽니다(3MB 초과)'); return; }
+      let text = await file.text();
+      // 보안 소독(script·on*·javascript: 제거) — 아이콘 블록은 raw SVG를 innerHTML로 렌더하므로 필수
+      text = window.sanitizeCanvasHtml ? window.sanitizeCanvasHtml(text) : text;
+      if (!/<svg[\s>]/i.test(text)) { window.showToast?.('⚠️ 유효한 SVG가 아닙니다'); return; }
+      const nm = 'local:' + file.name.replace(/\.svg$/i, '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
+      const r = window.updateIconifyBlock?.(block.id, { iconName: nm, svg: text });
+      if (r && r.ok === false) { window.showToast?.('⚠️ 불러오기 실패: ' + (r.message || r.code)); return; }
+      window.showToast?.('✅ SVG 불러옴: ' + file.name);
+      window.showIconifyProperties?.(block); // 패널 갱신(iconName 표시)
+      return;
+    }
+
+    // ── 래스터(PNG/JPG): ★외부화 경로 — data-URL을 dataset/canvas에 인라인하지 않고
+    //    assetsSaveCanvasImage(IPC)로 goya-asset:// 에셋 저장 → URL만 블록에 세팅(proj.json 비대화 방지) ──
+    if (file.size > 8000000) { window.showToast?.('⚠️ 이미지가 너무 큽니다(8MB 초과)'); return; }
+    if (!window.electronAPI?.assetsSaveCanvasImage) {
+      window.showToast?.('⚠️ 이미지 아이콘은 데스크톱 앱에서만 지원합니다'); return;
+    }
+    const projectId = window.activeProjectId
+      || new URLSearchParams(window.location.search).get('project')
+      || null;
+    if (!projectId) { window.showToast?.('⚠️ 프로젝트를 먼저 저장/선택해주세요'); return; }
+    // FileReader로 data URL → 순수 base64(콤마 뒤)만 추출
+    let dataUrl;
+    try {
+      dataUrl = await new Promise((res, rej) => {
+        const rd = new FileReader();
+        rd.onload = () => res(rd.result);
+        rd.onerror = () => rej(rd.error || new Error('read error'));
+        rd.readAsDataURL(file);
+      });
+    } catch (err) { window.showToast?.('⚠️ 이미지 읽기 실패: ' + (err?.message || '')); return; }
+    const comma = String(dataUrl).indexOf(',');
+    const b64 = comma >= 0 ? String(dataUrl).slice(comma + 1) : '';
+    if (!b64) { window.showToast?.('⚠️ 이미지 읽기 실패'); return; }
+    const mime = /png/i.test(file.type) || /\.png$/i.test(file.name) ? 'image/png' : 'image/jpeg';
+    let saved;
+    try {
+      saved = await window.electronAPI.assetsSaveCanvasImage({ projectId, b64, mime });
+    } catch (err) { window.showToast?.('⚠️ 이미지 저장 실패: ' + (err?.message || '')); return; }
+    if (!saved?.ok || !saved.url) { window.showToast?.('⚠️ 이미지 저장 실패: ' + (saved?.error || '')); return; }
+    const nm = 'img:' + file.name.replace(/\.(png|jpe?g)$/i, '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
+    const r = window.updateIconifyBlock?.(block.id, { iconName: nm, src: saved.url, raster: true });
     if (r && r.ok === false) { window.showToast?.('⚠️ 불러오기 실패: ' + (r.message || r.code)); return; }
-    window.showToast?.('✅ SVG 불러옴: ' + file.name);
-    window.showIconifyProperties?.(block); // 패널 갱신(iconName 표시)
+    window.showToast?.('✅ 이미지 불러옴: ' + file.name);
+    window.showIconifyProperties?.(block); // 패널 갱신(색 UI 비활성 반영)
   });
 
   // 초기 색상 적용

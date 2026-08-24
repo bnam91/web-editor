@@ -28,16 +28,32 @@ function makeIconifyBlock(iconName = '', svgContent = '', size = 64) {
   return { row, block };
 }
 
-function _applyIconifyBlockStyle(block, svgContent, size, rotation) {
+function _applyIconifyBlockStyle(block, content, size, rotation) {
   block.style.cssText = `width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-sizing:content-box;`;
   if (rotation) block.style.transform = `rotate(${rotation}deg)`;
-  if (svgContent) {
-    block.innerHTML = svgContent;
+  // 래스터(PNG/JPG): 외부화된 goya-asset:// URL을 <img>로 렌더. currentColor 착색 불가 → 색 UI는 prop에서 비활성.
+  // dataset에는 URL만 보관(data-URL 인라인 금지) — content 인자로 URL을 받고, 없으면 dataset.iconSrc 폴백.
+  if (block.dataset.raster === '1') {
+    const src = content || block.dataset.iconSrc || '';
+    if (src) {
+      const safe = String(src).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      block.innerHTML = `<img src="${safe}" width="${size}" height="${size}" style="width:${size}px;height:${size}px;object-fit:contain;display:block;pointer-events:none;" draggable="false" alt="">`;
+    } else {
+      block.innerHTML = _iconifyPlaceholderSvg(size);
+    }
+    return;
+  }
+  if (content) {
+    block.innerHTML = content;
     const svg = block.querySelector('svg');
     if (svg) { svg.setAttribute('width', size); svg.setAttribute('height', size); svg.style.display = 'block'; }
   } else {
-    block.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+    block.innerHTML = _iconifyPlaceholderSvg(size);
   }
+}
+
+function _iconifyPlaceholderSvg(size) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
 }
 
 function addIconifyBlock(iconName, svgContent, size = 64) {
@@ -87,7 +103,7 @@ function updateIconifyBlock(blockId, partial = {}) {
   }
 
   // 알 수 없는 키 차단 (오타 방지)
-  const ALLOWED_KEYS = new Set(['layerName', 'size', 'rotation', 'iconColor', 'iconName', 'svg']);
+  const ALLOWED_KEYS = new Set(['layerName', 'size', 'rotation', 'iconColor', 'iconName', 'svg', 'src', 'raster']);
   for (const k of Object.keys(partial)) {
     if (!ALLOWED_KEYS.has(k)) {
       return { ok: false, code: 'INVALID', message: `unknown field: ${k}. allowed: ${[...ALLOWED_KEYS].join('|')}` };
@@ -95,7 +111,7 @@ function updateIconifyBlock(blockId, partial = {}) {
   }
 
   // 적어도 한 개 필드 — svg 단독은 의미 없으므로 dataset 변경 필드 1개 이상 요구
-  const meaningfulKeys = ['layerName', 'size', 'rotation', 'iconColor', 'iconName'];
+  const meaningfulKeys = ['layerName', 'size', 'rotation', 'iconColor', 'iconName', 'src'];
   const hasMeaningful = meaningfulKeys.some(k => partial[k] !== undefined);
   if (!hasMeaningful) {
     return { ok: false, code: 'INVALID', message: 'no fields to update — provide at least one of: ' + meaningfulKeys.join('|') };
@@ -186,9 +202,30 @@ function updateIconifyBlock(blockId, partial = {}) {
     nextSvg = partial.svg;
   }
 
-  // iconName 변경했는데 svg가 없으면 거절 — fetch 책임은 main에 있음.
-  if (nextIconName !== undefined && nextSvg === undefined) {
-    return { ok: false, code: 'INVALID', message: 'iconName change requires accompanying svg (main fetch must run first)' };
+  // 7) src (래스터 외부화 URL — goya-asset:// | http(s)://). ★data-URL 인라인 금지(외부화 경로 강제).
+  let nextSrc;
+  if (partial.src !== undefined && partial.src !== null) {
+    if (typeof partial.src !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'src must be string' };
+    }
+    const s = partial.src.trim();
+    if (s.length === 0) return { ok: false, code: 'INVALID', message: 'src empty' };
+    if (s.length > 2048) return { ok: false, code: 'INVALID', message: 'src too long' };
+    if (!/^(goya-asset:\/\/|https?:\/\/)/i.test(s)) {
+      return { ok: false, code: 'INVALID', message: 'src must be goya-asset:// or http(s):// URL (data-URL 금지 — 외부화 경로 사용)' };
+    }
+    nextSrc = s;
+  }
+
+  // 8) raster (마커) — 래스터 렌더 분기 플래그. 명시 true일 때만 켠다.
+  let nextRaster;
+  if (partial.raster !== undefined && partial.raster !== null) {
+    nextRaster = partial.raster === true || partial.raster === '1' || partial.raster === 1;
+  }
+
+  // iconName 변경했는데 svg도 src도 없으면 거절 — 벡터는 main fetch(svg), 래스터는 외부화(src)가 선행돼야 함.
+  if (nextIconName !== undefined && nextSvg === undefined && nextSrc === undefined) {
+    return { ok: false, code: 'INVALID', message: 'iconName change requires accompanying svg (vector) or src (raster)' };
   }
 
   // ── 모든 검증 통과 — 이제 변경 시작 ──
@@ -216,6 +253,18 @@ function updateIconifyBlock(blockId, partial = {}) {
     block.dataset.iconColor = nextColor;
     applied.iconColor = nextColor;
   }
+  // 래스터 ↔ 벡터 표현 전환 — 한쪽을 켜면 다른 쪽 dataset을 정리해 렌더 분기가 어긋나지 않게 한다.
+  if (nextSrc !== undefined || nextRaster === true) {
+    block.dataset.raster = '1';
+    if (nextSrc !== undefined) { block.dataset.iconSrc = nextSrc; applied.src = nextSrc; }
+    delete block.dataset.iconSvg; // 벡터 잔재 제거
+    applied.raster = true;
+  }
+  if (nextSvg !== undefined) {
+    // 새 SVG(벡터)로 전환 — 래스터 마커/URL 정리
+    delete block.dataset.raster;
+    delete block.dataset.iconSrc;
+  }
 
   // ── DOM 반영 ──
   // size/rotation/svg 중 하나라도 바뀌면 _applyIconifyBlockStyle 재호출 (svg 인자 우선, 없으면 현재 innerHTML 유지)
@@ -226,6 +275,9 @@ function updateIconifyBlock(blockId, partial = {}) {
     if (nextSvg !== undefined) {
       // 새 SVG로 완전 재렌더 (size/rotation 동시 반영)
       window._applyIconifyBlockStyle?.(block, nextSvg, effectiveSize, effectiveRotation);
+    } else if (nextSrc !== undefined) {
+      // 새 래스터 URL로 <img> 재렌더 (dataset.raster='1' 선반영됨 → _applyIconifyBlockStyle이 img 분기)
+      window._applyIconifyBlockStyle?.(block, nextSrc, effectiveSize, effectiveRotation);
     } else if (nextSize !== undefined || nextRotation !== undefined) {
       // svg 변경 없이 size/rotation만 — 기존 svg DOM을 유지하면서 attr만 동기화 (innerHTML 재할당 비용 회피)
       block.style.width  = effectiveSize + 'px';
