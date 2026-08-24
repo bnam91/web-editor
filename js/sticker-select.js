@@ -509,6 +509,12 @@ function _enterStickerEdit(block, ev) {
       .trim();
     const fallback = block.dataset.shape === 'text' ? 'Text' : 'NEW';
     block.dataset.text = t || fallback;
+    // U6b: 부분 서식 보존 — innerHTML을 sanitize해 실제 인라인 서식이 있으면 dataset.textHtml에 저장,
+    //   서식이 없으면(=평문 동치) textHtml 제거해 옛 평문 렌더 경로 유지(무회귀).
+    //   ★textContent 리셋(아래) 전에 innerHTML을 읽어야 함.
+    const _stkHtml = t ? (window._sanitizeStickerHtml?.(textEl.innerHTML) ?? '') : '';
+    if (_stkHtml && window._stickerHtmlHasFormatting?.(_stkHtml)) block.dataset.textHtml = _stkHtml;
+    else delete block.dataset.textHtml;
     if (!t) textEl.textContent = fallback;
     // 우측 prop 패널의 #stk-text textarea도 sync (textarea.value 할당은 \n 보존)
     const propInp = document.querySelector('#stk-text');
@@ -521,6 +527,18 @@ function _enterStickerEdit(block, ev) {
     textEl.removeEventListener('keydown', onKey);
   };
   const onKey = (ev) => {
+    // U6b: 인라인 서식 — ⌘/Ctrl + B/I/U. preventDefault로 브라우저 기본 execCommand와 이중토글 방지·단일 적용 보장.
+    //   결과 마크업(b/strong/span[style])은 finish()에서 sanitize되어 dataset.textHtml로 커밋됨.
+    //   (부분 색상은 #6a window.applyColorToSelection 헬퍼가 sanitize 화이트리스트에 부합 — prop 패널 버튼 연동은 후속)
+    if ((ev.metaKey || ev.ctrlKey) && !ev.altKey) {
+      const k = (ev.key || '').toLowerCase();
+      if (k === 'b' || k === 'i' || k === 'u') {
+        ev.preventDefault();
+        const cmd = k === 'b' ? 'bold' : k === 'i' ? 'italic' : 'underline';
+        try { document.execCommand(cmd, false, null); } catch (_) {}
+        return;
+      }
+    }
     if (ev.key === 'Enter' && !ev.shiftKey) {
       if (block.dataset.shape === 'text') {
         // 텍스트 스티커는 Enter = 줄바꿈 (renderer가 white-space:pre-wrap이라 \n 그대로 렌더).

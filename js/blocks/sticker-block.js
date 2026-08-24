@@ -31,6 +31,90 @@ function _stripCtlChars(s) {
   return String(s).replace(_CTL_CHARS_RE, '');
 }
 
+// ── U6b: 스티커 리치텍스트 sanitizer ──────────────────────────────────────
+// dataset.textHtml(부분 서식 HTML)을 렌더·로드 때마다 재-sanitize한다(저장본/.gdt 변조 대비).
+// ★정규식 아님 — DOM 순회. template 파싱이라 실행 컨텍스트 없음(img 로드·이벤트 미발생).
+//   허용 태그만 재구성, span은 style만·style도 프로퍼티/값 화이트리스트, 그 외 전부 제거.
+const _STK_ALLOWED_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'BR', 'SPAN']);
+const _STK_ALLOWED_STYLE_PROPS = new Set(['color', 'font-weight', 'font-style', 'text-decoration', 'background-color']);
+// 값 화이트리스트 — hex / 함수형색(rgb·hsl, 내부 charset 잠금) / 명명색·키워드(bold·italic·underline·line-through·normal) / 정수(font-weight).
+//   함수형색 내부는 [0-9.,\s%/]만 허용 → url(·javascript: 등 침투 불가.
+const _STK_VAL_HEX  = /^#[0-9a-fA-F]{3,8}$/;
+const _STK_VAL_FUNC = /^(?:rgb|rgba|hsl|hsla)\(\s*[0-9.,\s%/]+\)$/i;
+const _STK_VAL_WORD = /^[a-z]+(?:[ -][a-z]+)*$/i;
+const _STK_VAL_NUM  = /^[0-9]{1,3}$/;
+
+function _stkSafeStyleValue(rawVal) {
+  const v = String(rawVal).trim();
+  if (!v) return null;
+  if (_STK_VAL_HEX.test(v) || _STK_VAL_FUNC.test(v) || _STK_VAL_WORD.test(v) || _STK_VAL_NUM.test(v)) return v;
+  return null; // url(...)·expression(...)·javascript:·기타 함수/특수문자 = 그 선언 제거 (#4 교훈)
+}
+
+function _stkSanitizeStyle(styleStr) {
+  if (!styleStr) return '';
+  const kept = [];
+  for (const decl of String(styleStr).split(';')) {
+    const idx = decl.indexOf(':');
+    if (idx < 0) continue;
+    const prop = decl.slice(0, idx).trim().toLowerCase();
+    const val  = decl.slice(idx + 1).trim();
+    if (!_STK_ALLOWED_STYLE_PROPS.has(prop)) continue;
+    const safe = _stkSafeStyleValue(val);
+    if (safe == null) continue;
+    kept.push(`${prop}:${safe}`);
+  }
+  return kept.join(';');
+}
+
+function _stkSanitizeInto(srcParent, dstParent) {
+  const doc = dstParent.ownerDocument || document;
+  srcParent.childNodes.forEach((node) => {
+    if (node.nodeType === 3) { // 텍스트 — 제어문자만 정화(\t·\n 보존), esc는 innerHTML 직렬화가 담당
+      dstParent.appendChild(doc.createTextNode(_stripCtlChars(node.nodeValue)));
+      return;
+    }
+    if (node.nodeType !== 1) return; // 주석/기타 노드 제거
+    const tag = node.tagName ? node.tagName.toUpperCase() : '';
+    if (tag === 'SCRIPT' || tag === 'STYLE') return; // 자식까지 통째 제거
+    if (_STK_ALLOWED_TAGS.has(tag)) {
+      const clean = doc.createElement(tag.toLowerCase());
+      if (tag === 'SPAN') {
+        const safeStyle = _stkSanitizeStyle(node.getAttribute('style'));
+        if (safeStyle) clean.setAttribute('style', safeStyle);
+      }
+      if (tag !== 'BR') _stkSanitizeInto(node, clean); // 그 외 속성(on*/href/src/class/id/data-*)은 미복사=제거
+      dstParent.appendChild(clean);
+    } else {
+      _stkSanitizeInto(node, dstParent); // 비허용 태그 = 언랩(자식만 재귀 편입)
+    }
+  });
+}
+
+// 문자열 HTML → sanitize된 문자열 HTML. template.content(inert DocumentFragment)에서 파싱.
+function _sanitizeStickerHtml(html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = String(html == null ? '' : html);
+  const out = document.createElement('div');
+  _stkSanitizeInto(tpl.content, out);
+  return out.innerHTML;
+}
+window._sanitizeStickerHtml = _sanitizeStickerHtml;
+
+// sanitize된 html에 «실제 인라인 서식»이 있는지 판정 — 서식 태그(b/strong/i/em/u/s)나 style 달린 span.
+//   <br>(줄바꿈)만 있는 건 서식 아님(평문 경로 유지). finish()의 textHtml 생성 여부 판정에 사용.
+function _stickerHtmlHasFormatting(html) {
+  if (!html) return false;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = String(html);
+  if (tpl.content.querySelector('b,strong,i,em,u,s')) return true;
+  for (const s of tpl.content.querySelectorAll('span')) {
+    if (s.getAttribute('style')) return true;
+  }
+  return false;
+}
+window._stickerHtmlHasFormatting = _stickerHtmlHasFormatting;
+
 function renderStickerBlock(block) {
   _renderStickerBlockInner(block);
   // 섹션 밖 크롭(--sec-clip) 재계산 — 렌더 branch들의 cssText 대입이 인라인 스타일을 통째로
@@ -141,7 +225,10 @@ function _renderStickerBlockInner(block) {
     // (block 인라인-블럭에 상속만 의존하면 일부 환경에서 paint-order가 무시됨)
     // text-decoration도 span에 직접 — span이 inline-block이라 부모 장식이 전파되지 않음.
     const spanStyle = `display:inline-block;outline:none;text-decoration:${tTextDeco};${strokeCss}`;
-    block.innerHTML = `<span class="sticker-text" style="${spanStyle}">${safeText}</span>`;
+    // U6b: dataset.textHtml(부분 서식)이 있으면 재-sanitize한 HTML을, 없으면 기존 평문 safeText 그대로.
+    //   ⇒ 옛 저장본(textHtml 없음) 완전 무변·무회귀.
+    const tInner = block.dataset.textHtml ? _sanitizeStickerHtml(block.dataset.textHtml) : safeText;
+    block.innerHTML = `<span class="sticker-text" style="${spanStyle}">${tInner}</span>`;
     return;
   }
 
@@ -296,7 +383,10 @@ function _renderStickerBlockInner(block) {
     // outline:none — 더블클릭 편집(contenteditable+focus) 시 브라우저 기본 포커스링(주황 auto) 억제.
     //   text 스티커 span(:115)과 동일 컨벤션 → 편집 중 시각 = 블럭 레벨 선택 아웃라인만 (타 블럭과 정합).
     // text-decoration은 span에 직접 — flex 자식이라 부모 장식 전파에 의존하지 않음.
-    block.innerHTML = `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};">${text}</span>`;
+    // U6b: circle/square 뱃지도 편집 시 부분 서식이 붙을 수 있어 동일 분기(silent loss 방지).
+    //   textHtml 있으면 재-sanitize, 없으면 기존 평문 text 그대로(무회귀).
+    const bInner = block.dataset.textHtml ? _sanitizeStickerHtml(block.dataset.textHtml) : text;
+    block.innerHTML = `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};">${bInner}</span>`;
   }
 }
 
@@ -695,6 +785,8 @@ function updateStickerBlock(blockId, partial = {}) {
 
   // 4) text content
   _applyStr('text', 'text', 500);
+  // U6b: MCP 텍스트 수정은 평문 → 잔존 textHtml이 새 text를 가리지 않도록 제거(렌더 우선순위 정합).
+  if (applied.text !== undefined) delete block.dataset.textHtml;
 
   // 5) layerName
   _applyStr('layerName', 'layerName', 200);

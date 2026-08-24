@@ -521,6 +521,9 @@ export function showStickerProperties(block) {
   });
   txt.addEventListener('input', () => {
     block.dataset.text = txt.value;
+    // [v0.8 #6b] 패널 텍스트박스로 «평문» 편집 시 리치텍스트(dataset.textHtml)를 지운다 —
+    //   안 지우면 다음 renderStickerBlock(리로드·리사이즈)에서 stale textHtml이 되살아나 이 편집을 shadow(U6b 지적).
+    delete block.dataset.textHtml;
     const t = block.querySelector('.sticker-text');
     if (t) t.textContent = txt.value;
   });
