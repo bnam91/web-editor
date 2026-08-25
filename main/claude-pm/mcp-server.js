@@ -35,6 +35,13 @@ let _projectOps = null;
 
 const tools = new Map();
 const toolSchemas = new Map();
+/* «토큰 다이어트»(2026-08-25) — tools/list 에서만 감출 도구 이름.
+ *   숨김 = 목록 미노출이지 «제거가 아니다». 핸들러는 그대로라 기존 대화/문서/docs 가
+ *   부르던 add_*_block · update_*_block 51개는 별칭으로 계속 동작한다.
+ *   이유: tools/list 는 매 요청마다 실리는 고정비다(실측 108,801자≈34,000토큰).
+ *         요금제가 작은 사용자는 그것만으로 대화창이 반쯤 차버린다. */
+const hiddenTools = new Set();
+function hideTool(name, on = true) { if (on) hiddenTools.add(name); else hiddenTools.delete(name); }
 
 const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_INFO = { name: 'goditor-claude-pm', version: '0.1.0' };
@@ -276,6 +283,62 @@ function _enrichApiMissing(result) {
     }
   } catch (_) {}
   return result;
+}
+
+/* ── 응답 다이어트 (2026-08-25) ──
+ *   도구 «출력»도 유저 토큰이다. get_canvas_state 는 빈 스타일 필드("color":"","fontSize":"",
+ *   "align":"")를 블록마다 실어 보냈다 — 정보 0에 블록당 ~45자. 섹션 100개짜리 실프로젝트면
+ *   그것만으로 수만 자다. ⇒ 빈 값은 빼고, 텍스트는 120자로 자른다(잘랐다는 사실은 표시).
+ *   ⚠️세이프본 캔버스 실측 39,041,257자 — 어떤 경로로도 원문이 응답에 실리면 안 된다.
+ *      그래서 «자동 폴백»을 둔다: 다이어트 후에도 큰 페이지는 summary 로 내려간다. */
+const _CANVAS_TEXT_CAP = 120;
+const _CANVAS_AUTO_SUMMARY_CHARS = 24000; // 이 이상이면 summary 로 자동 폴백(≈6~7k토큰)
+function _slimCanvasState(raw, detail) {
+  if (!raw || raw.ok !== true || !Array.isArray(raw.sections)) return raw;
+  if (detail === 'full') return raw;
+  const MAX_SECTIONS = 150; // 요약조차 무한정 커지면 안 된다(섹션 수엔 상한이 없다)
+  const summarize = () => {
+    const shown = raw.sections.slice(0, MAX_SECTIONS);
+    const rest = raw.sections.length - shown.length;
+    return {
+      ok: true,
+      detail: 'summary',
+      sections: shown.map(s => ({
+        sectionId: s.sectionId,
+        ...(s.name ? { name: s.name } : {}),
+        blocks: (s.blocks || []).length,
+        ...((s.blocks || []).length ? { first: String((s.blocks[0] || {}).text || '').slice(0, 40) } : {})
+      })),
+      ...(rest > 0 ? { omittedSections: rest } : {}),
+      note: 'summary only — call get_canvas_state(sectionId) for one section\'s blocks.'
+    };
+  };
+  if (detail === 'summary') return summarize();
+
+  const slim = {
+    ok: true,
+    sections: raw.sections.map(s => ({
+      sectionId: s.sectionId,
+      ...(s.name ? { name: s.name } : {}),
+      blocks: (s.blocks || []).map(b => {
+        const o = { blockId: b.blockId, type: b.type };
+        const t = String(b.text == null ? '' : b.text);
+        if (t) o.text = t.length > _CANVAS_TEXT_CAP ? t.slice(0, _CANVAS_TEXT_CAP) + '…' : t;
+        if (b.color) o.color = b.color;
+        if (b.fontSize) o.fontSize = b.fontSize;
+        if (b.align) o.align = b.align;
+        return o;
+      })
+    }))
+  };
+  const size = JSON.stringify(slim).length;
+  if (size > _CANVAS_AUTO_SUMMARY_CHARS) {
+    const s = summarize();
+    s.note = `page too large for a full listing (${size} chars) — showing counts only. `
+      + 'Call get_canvas_state(sectionId) for one section, or detail:"full" if you really need everything.';
+    return s;
+  }
+  return slim;
 }
 
 function _registerDefaultTools() {
@@ -727,7 +790,7 @@ function _registerDefaultTools() {
   // PM get_canvas_state — 캔버스를 구조화 데이터로 조회 (READ-ONLY, mutation 없음 → USER_BUSY 불필요).
   registerTool(
     'get_canvas_state',
-    async ({ sectionId } = {}) => {
+    async ({ sectionId, detail = 'blocks' } = {}) => {
       if (!_rendererInvoker || typeof _rendererInvoker.getCanvasState !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
@@ -736,14 +799,21 @@ function _registerDefaultTools() {
           throw new Error(`invalid sectionId: ${sectionId} (expected string starting with "sec_")`);
         }
       }
-      return await _rendererInvoker.getCanvasState({ sectionId });
+      if (!['summary', 'blocks', 'full'].includes(detail)) {
+        throw new Error(`invalid detail: ${detail} (summary|blocks|full)`);
+      }
+      const raw = await _rendererInvoker.getCanvasState({ sectionId });
+      return _slimCanvasState(raw, detail);
     },
     {
-      description: 'Read the canvas as structured data: every section with its blocks (blockId, type, text, color, fontSize, align). Use to find the blockId of a specific text before calling update_block. Read-only.',
+      description: 'Read the canvas as structured data: sections with their text blocks (blockId, type, text, color, fontSize, align). Use it to find the blockId to pass to update_block. Read-only. '
+        + 'detail: "blocks"(default) = blocks with text trimmed to 120 chars and empty style fields dropped; "summary" = per-section block counts only (cheap on huge pages); "full" = untrimmed. '
+        + 'Big pages auto-fall back to summary (a note says so) so one call can never blow up the context.',
       inputSchema: {
         type: 'object',
         properties: {
-          sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, returns all sections on the active page' }
+          sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, returns all sections on the active page' },
+          detail: { type: 'string', enum: ['summary', 'blocks', 'full'], description: 'response size. default "blocks"' }
         },
         required: []
       }
@@ -3533,6 +3603,13 @@ function _registerDefaultTools() {
       }
     }
   );
+
+  /* ── ★토큰 다이어트 (2026-08-25) ───────────────────────────────────────
+   *   위에서 등록한 add_*_block(26) + update_*_block(25) = 51개를 표면에서
+   *   add_block / update_block / get_block_schema 3개로 접는다.
+   *   51개는 «별칭»으로 남아 계속 호출 가능(목록에서만 숨김) → 하위호환 100%.
+   *   ⚠️반드시 «모든» 블록 도구 등록 뒤에 와야 한다(그 이름들을 감싸기 때문). */
+  require('./mcp-block-tools').install({ tools, toolSchemas, registerTool, hide: hideTool });
 }
 
 // ─── iconify: 화이트리스트 + 색상 검증 ──────────────────────────────────────
@@ -6006,12 +6083,17 @@ async function _handleRpc(msg) {
 
     if (method === 'tools/list') {
       const list = [];
+      // includeHidden=true 는 «문서 생성기» 전용 통로다(docs/goditor-api.md 가 별칭까지 실어야
+      // 한다). MCP 클라이언트는 이 파라미터를 보내지 않으므로 사용자 컨텍스트 비용은 그대로다.
+      const includeHidden = params && params.includeHidden === true;
       for (const [name] of tools) {
+        if (!includeHidden && hiddenTools.has(name)) continue; // 다이어트: 별칭은 호출 가능하되 목록엔 안 싣는다
         const schema = toolSchemas.get(name) || {};
         list.push({
           name,
           description: schema.description || '',
-          inputSchema: schema.inputSchema || { type: 'object', properties: {} }
+          inputSchema: schema.inputSchema || { type: 'object', properties: {} },
+          ...(includeHidden && hiddenTools.has(name) ? { hidden: true } : {})
         });
       }
       return ok({ tools: list });
@@ -6022,8 +6104,10 @@ async function _handleRpc(msg) {
       const handler = tools.get(name);
       if (!handler) return err(-32601, `tool not found: ${name}`);
       const result = _enrichApiMissing(await handler(args));
+      /* ★응답도 «유저 토큰»이다. pretty-print(들여쓰기 2칸)는 같은 정보에 15~25% 를 더 물린다.
+       *   compact JSON 은 정보 손실 0 이라 그냥 이득이다(클라이언트는 JSON 으로 파싱한다). */
       return ok({
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(result) }],
         isError: false
       });
     }

@@ -27,7 +27,10 @@ function extractTools() {
   const input = [
     JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize',
       params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'gen-api-doc', version: '1' } } }),
-    JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
+    /* ★includeHidden — 2026-08-25 토큰 다이어트 이후 add_*_block·update_*_block 51개는
+       tools/list 에서 «숨겨져»(별칭으로만 생존) 있다. 문서는 별칭까지 실어야 하므로
+       생성기만 이 플래그를 준다(MCP 클라이언트는 안 준다 = 사용자 컨텍스트 비용 그대로). */
+    JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: { includeHidden: true } }),
   ].join('\n') + '\n';
   const r = spawnSync(process.execPath, [bridge], { input, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
   if (r.error) throw new Error(`브리지 실행 실패: ${r.error.message}`);
@@ -56,6 +59,7 @@ function extractTools() {
       desc: t.description || '',
       params: props,
       required: props.filter(p => required.has(p)),
+      hidden: !!t.hidden,
     };
   });
 }
@@ -92,6 +96,12 @@ Goditor(Goya Web Design Editor)를 **프로그래밍으로 제어**하는 두 �
 
 \`registerTool(name, handler, {description, inputSchema})\`. 호출: claude-pm MCP 서버.
 
+**🔒 표시 = «별칭»** — 2026-08-25 «토큰 다이어트» 이후 \`add_*_block\`(26)·\`update_*_block\`(25) 51개는
+\`tools/list\` 에 **안 실린다**(목록만 봤을 때 도구 ${tools.filter(t => !t.hidden).length}개). 이유: tools/list 는 매 요청마다 클라이언트 컨텍스트에
+실리는 고정비라, 51개 스키마(≈95,600자)를 매번 실으면 요금제가 작은 사용자는 그것만으로 대화창이 찬다.
+**호출은 그대로 된다** — 기존 대화·문서·스크립트는 안 깨진다. 새 작업은 \`add_block(type, props)\` /
+\`update_block(blockId, props)\` / \`get_block_schema(type)\` 3개를 쓴다.
+
 **응답 형태** — 도구는 대체로 \`{ok:true, …}\` / 실패 시 \`{ok:false, code, message}\` 를 준다. 예외가 둘 있다:
 - \`list_scratch_items\` 는 **\`{ok:…}\` 가 아니라 맨 배열**을 반환한다(기존 사용처 호환 때문에 유지). \`ok\` 를 먼저 보면 안 된다.
 - \`goditor_which_instance\` 는 서버가 아니라 **stdio 브리지가 직접 답한다**(앱을 여러 개 띄웠을 때 어느 인스턴스에 붙었는지 알려주는 도구). HTTP 로 \`/mcp\` 를 직접 부르면 이 도구는 없다.
@@ -107,7 +117,8 @@ for (const cat of ORDER) {
     const req = t.required;
     const opt = t.params.filter(p => !req.includes(p));
     const fmt = (a) => a.length ? '`' + a.join('`, `') + '`' : '—';
-    md += `| **${t.name}** | ${t.desc.replace(/\|/g, '\\|')} | ${fmt(req)} | ${fmt(opt)} |\n`;
+    const tag = t.hidden ? '🔒' : '';
+    md += `| **${t.name}**${tag} | ${t.desc.replace(/\|/g, '\\|')} | ${fmt(req)} | ${fmt(opt)} |\n`;
   }
 }
 
