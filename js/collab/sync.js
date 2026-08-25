@@ -65,6 +65,11 @@
   let _servedAt = Object.create(null); // sectionId → 마지막 재푸시 시각(오너측 쿨다운)
   let _asked = Object.create(null);    // sectionId → 내가 요청한 횟수(합류자측 포기 판정)
   let _gaveUp = new Set();             // 끝내 못 받은 섹션(사용자에게 «말한» 것)
+  /* ★결손 판정은 «부트스트랩 창»에서만 한다(seq 0 으로 붙은 합류자).
+   *   이미 따라잡은 멤버에게 켜두면 «내가 지운 섹션»을 결손으로 오판한다 —
+   *   서버 목차(sections)는 삭제를 반영하지 않기 때문이다(mergeSections 는 합집합, 삭제 경로 없음).
+   *   그러면 없는 사실을 경고하고, 남의 화면에 편집중 표시를 가리게 된다. */
+  let _bootstrap = false;
   let _seedRepushes = 0;              // 계측용 — 내가 재푸시를 «몇 번» 태웠나
   let _timer = null;
   let _sent = Object.create(null);    // 'pageId::secId' → «서버가 아는» hash(목차·수신분 포함)
@@ -184,13 +189,15 @@
 
   /** 서버 목차 대비 «내게 없는» 섹션을 다시 센다. 패치가 붙을 때마다 줄어든다. */
   function refreshNeeds() {
-    if (!_cfg || !Array.isArray(_serverSections)) return;
+    if (!_cfg || !_bootstrap || !Array.isArray(_serverSections)) return;
     const have = localSectionIdSet();
     const before = _needIds.length;
     _needIds = _serverSections
       .filter(s => s && s.sectionId && !have.has(s.sectionId) && !_gaveUp.has(s.sectionId))
       .map(s => s.sectionId);
     if (before !== _needIds.length) emit({ type: 'seed_needs', missing: _needIds.length });
+    // ★목차를 한 번 받아봤고 결손이 0 이면 부트스트랩은 끝났다 — 더는 훑지 않는다.
+    if (!_needIds.length) { _bootstrap = false; emit({ type: 'seed_done' }); }
   }
 
   /** presence 하트비트에 실어보낼 «재푸시 요청» 문자열(없으면 null). */
@@ -537,6 +544,9 @@
     _deferred = new Map();
     _serverSections = null; _needIds = []; _needTicks = 0;
     _servedAt = Object.create(null); _asked = Object.create(null); _gaveUp = new Set();
+    /* ★seq 0 = 「이 방의 문서를 처음부터 쌓아올리는 중」 = 결손이 생길 수 있는 유일한 구간.
+     *   이미 진도가 있는 멤버는 목차 대조를 아예 안 한다(위 주석의 오판 방지). */
+    _bootstrap = (ref.seq || 0) === 0;
     await resumeSafely();                         // ★먼저 내 것을 올리고, 그 다음에 남의 것을 받는다
     _timer = setInterval(tick, POLL_MS);
     _seqTimer = setInterval(flushSeq, 10000);
@@ -611,7 +621,7 @@
     status: () => ({
       ..._cfg, deferred: _deferred.size, lastError: _lastError,
       // ★시드 재푸시를 «기계로» 판정하기 위한 창구(추측 금지 — 상태를 보고 판단한다)
-      missing: _needIds.length, missingIds: [..._needIds],
+      bootstrap: _bootstrap, missing: _needIds.length, missingIds: [..._needIds],
       serverSections: Array.isArray(_serverSections) ? _serverSections.length : null,
       seedRepushes: _seedRepushes,
     }),
