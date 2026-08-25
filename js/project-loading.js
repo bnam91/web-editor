@@ -106,7 +106,12 @@ function getProjectLoadState() {
   //   그 다음 mutation 하나가 들어오자마자 기록됨). 「적용됨」과 「저장이 살아있음」은 다른 사실이다.
   let armed = true;
   try { armed = !(window.state && window.state._suppressAutoSave); } catch (_) {}
-  return { ..._plRec, urlProject, activeProjectId: active, autosaveArmed: armed };
+  // ★docOrigin = 이 «문서»의 신원(performance.timeOrigin 은 문서마다 고유).
+  //   대기자(main open_project)가 「내가 방금 시킨 navigate 의 문서인가」를 대조하는 데 쓴다.
+  //   이게 없으면 «이전 문서에 남아 있던 ready» 를 보고 즉시 통과할 수 있다(거짓양성).
+  let docOrigin = null;
+  try { docOrigin = (performance && performance.timeOrigin) || null; } catch (_) {}
+  return { ..._plRec, urlProject, activeProjectId: active, autosaveArmed: armed, docOrigin };
 }
 
 /** 「지금 이 프로젝트를 편집해도 되나」 — 확정·URL·활성·autosave 무장이 모두 참일 때만. */

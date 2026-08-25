@@ -1544,7 +1544,7 @@ async function _createProjectImpl({ name } = {}) {
  * ⛔setTimeout 고정 대기 금지 — 로드 시간은 프로젝트 크기에 비례한다(수십ms~수초). 임의 상수는 깨진다.
  */
 const OPEN_READY_TIMEOUT_MS = 120000;   // 39MB급도 통과하는 상한. 초과 = 정직한 load_timeout.
-async function _waitProjectReady(wc, projectId, timeoutMs) {
+async function _waitProjectReady(wc, projectId, timeoutMs, prevDocOrigin) {
   const t0 = Date.now();
   const deadline = t0 + timeoutMs;
   let interval = 25;
@@ -1579,12 +1579,15 @@ async function _waitProjectReady(wc, projectId, timeoutMs) {
         }
       } else {
         mismatchSince = 0;
+        // ★«이번 navigate 에 대응하는» 문서인가 — 이전 문서에 남아 있던 ready 를 보고 통과하면
+        //   거짓양성이다(begin 없는 상태/지난 로드의 잔여 settle). 문서 신원으로 못 박는다.
+        const freshDoc = (prevDocOrigin == null) || (s.docOrigin != null && s.docOrigin !== prevDocOrigin);
         // ★'ready'(적용 완료) 만으로는 부족하다 — autosave 억제가 아직 안 풀렸으면 그 편집은
         //   MutationObserver 에 삼켜져 저장이 «예약조차» 안 된다(project-loading.js 주석의 실측).
-        if (s.projectId === projectId && s.phase === 'ready' && s.autosaveArmed === true) {
+        if (freshDoc && s.projectId === projectId && s.phase === 'ready' && s.autosaveArmed === true) {
           return { ok: true, waitedMs: Date.now() - t0, state: s };
         }
-        if (s.projectId === projectId && s.phase === 'error') {
+        if (freshDoc && s.projectId === projectId && s.phase === 'error') {
           return { ok: false, code: 'load_error', waitedMs: Date.now() - t0, state: s };
         }
       }
@@ -1612,11 +1615,24 @@ async function _openProjectImpl({ projectId, timeoutMs } = {}) {
     if (!_editorAccessGranted && !isAdminAuthorized()) return { ok: false, error: '라이선스 미인증 — 에디터 접근 불가', code: 'no_access' };
     if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) return { ok: false, error: 'window not ready', code: 'no_window' };
     let previousProject = null;
+    let previousScreen = null;
     try {
       const u = mainWindow.webContents.getURL();
       const m = u && u.match(/[?&]project=([^&#]+)/);
       if (m) previousProject = decodeURIComponent(m[1]);
+      // ★previousProject:null 은 «못 읽었다»가 아니라 «편집기가 아니었다»일 수 있다(갤러리/라이선스
+      //   화면엔 ?project= 가 없다). 둘을 구분 못 하면 정상 동작이 이상 신호로 오독된다.
+      const mm = u && u.match(/\/([^/?#]+\.html)/);
+      previousScreen = mm ? mm[1] : (u ? 'unknown' : 'none');
     } catch (_) {}
+    // 이번 navigate «전»의 문서 신원 — 아래 대기가 「새 문서인가」를 대조하는 기준.
+    let prevDocOrigin = null;
+    try {
+      prevDocOrigin = await Promise.race([
+        mainWindow.webContents.executeJavaScript('(performance && performance.timeOrigin) || null').catch(() => null),
+        new Promise(r => setTimeout(() => r(null), 1500)),
+      ]);
+    } catch (_) { prevDocOrigin = null; }
     const tmo = Number.isInteger(timeoutMs) && timeoutMs >= 1000 && timeoutMs <= 600000
       ? timeoutMs : OPEN_READY_TIMEOUT_MS;
     const deadline = Date.now() + tmo;
@@ -1630,18 +1646,18 @@ async function _openProjectImpl({ projectId, timeoutMs } = {}) {
     if (navTimer) clearTimeout(navTimer);
     if (navResult === navTimedOut) {
       return {
-        ok: false, code: 'load_timeout', projectId, previousProject,
+        ok: false, code: 'load_timeout', projectId, previousProject, previousScreen,
         waitedMs: tmo, timeoutMs: tmo, stage: 'navigate',
         error: `프로젝트 창 이동이 ${tmo}ms 안에 끝나지 않았습니다 — 편집 도구를 쓰면 유실될 수 있습니다.`,
       };
     }
     // ⛔여기서 곧바로 ok 를 돌려주면 «조용한 데이터 유실»이다(위 _waitProjectReady 주석의 실측).
     //   렌더러가 「이 프로젝트를 적용했다」고 확정할 때까지 기다린다.
-    const w = await _waitProjectReady(mainWindow.webContents, projectId, Math.max(0, deadline - Date.now()));
+    const w = await _waitProjectReady(mainWindow.webContents, projectId, Math.max(0, deadline - Date.now()), prevDocOrigin);
     if (!w.ok) {
       // 「일단 ok」 금지 — 못 기다렸으면 못 기다렸다고 말한다.
       return {
-        ok: false, code: w.code, projectId, previousProject,
+        ok: false, code: w.code, projectId, previousProject, previousScreen,
         waitedMs: w.waitedMs, timeoutMs: tmo,
         error: w.code === 'load_timeout'
           ? `프로젝트가 ${tmo}ms 안에 열리지 않았습니다 — 편집 도구를 쓰면 유실될 수 있습니다.`
@@ -1651,7 +1667,7 @@ async function _openProjectImpl({ projectId, timeoutMs } = {}) {
     }
     // 호출자가 «무엇이 열렸는지» 대조할 수 있게 확인값을 싣는다(응답 ok 만 보고 넘어가지 않도록).
     return {
-      ok: true, projectId, previousProject,
+      ok: true, projectId, previousProject, previousScreen,
       activeProjectId: (w.state && w.state.urlProject) || projectId,
       ready: true, waitedMs: w.waitedMs,
       sections: (w.state && typeof w.state.sections === 'number') ? w.state.sections : null,

@@ -470,6 +470,7 @@ function _registerDefaultTools() {
           return {
             ok: false, code: r.code, projectId,
             previousProject: r.previousProject != null ? r.previousProject : null,
+            previousScreen: r.previousScreen != null ? r.previousScreen : null,
             waitedMs: r.waitedMs, timeoutMs: r.timeoutMs,
             error: r.error || `open not confirmed (${r.code})`,
             hint: 'The editor did NOT confirm the project is applied. DO NOT run editing tools now — writes would land on a canvas that is about to be replaced and vanish silently. Retry open_project (optionally with a larger timeoutMs), or check the app window.',
@@ -480,6 +481,8 @@ function _registerDefaultTools() {
       return {
         ok: true, projectId: r.projectId,
         previousProject: r.previousProject != null ? r.previousProject : null,
+        // previousProject:null 이 «갤러리였다»인지 «못 읽었다»인지 구분되게 화면 이름을 같이 준다.
+        previousScreen: r.previousScreen != null ? r.previousScreen : null,
         // 호출자 대조용 확인값 — 「무엇이 열렸나」를 응답만 보고 알 수 있게.
         activeProjectId: r.activeProjectId != null ? r.activeProjectId : r.projectId,
         ready: r.ready === true,
