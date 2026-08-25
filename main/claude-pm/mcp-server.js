@@ -264,6 +264,86 @@ function _assertExpectedProject(expectedProject) {
   }
 }
 
+/* ── 프로젝트 «전환 ↔ 편집» 상호배제 (2026-08-25, 병렬 호출 유실 봉합) ──────────
+ * ★대기만으로는 못 막는다. MCP 서버/브리지는 요청을 «직렬화하지 않는다» —
+ *   한 stdio 세션에 open_project 와 편집 도구를 «응답을 안 기다리고» 연달아 써 넣으면
+ *   (클로드가 도구를 «병렬 호출»할 때가 정확히 이 모양) 둘이 동시에 실행된다.
+ *   실증(병렬 발사 하네스, 3/3 FAIL · 응답 순서 역전 6건):
+ *     ⑴ 아직 갤러리인 «옛» 문서에 떨어져 API_MISSING 이 되거나
+ *     ⑵ 곧 교체될 «옛» 문서에 ok 로 들어갔다가 통째로 증발한다(DOM 0·디스크 0·에러 0).
+ *   open_project 가 아무리 정확히 기다려도, 그 대기가 끝나기 «전»에 편집이 들어가면 소용없다.
+ * ⇒ 서버 레벨에서 「전환 중에는 활성 프로젝트에 기대는 도구를 실행하지 않는다」를 강제한다.
+ *   기본은 «큐잉»(전환이 끝나면 이어서 실행) — 조용한 유실보다 잠깐 기다리는 쪽이 낫다.
+ *   한계를 넘기면 {ok:false, code:'project_switching'} 으로 «정직하게» 거부한다(실행 안 함).
+ */
+let _switchGate = null;   // 진행 중인 «활성 프로젝트 전환» (Promise)
+let _switchMeta = null;   // { projectId, startedAt }
+
+/** 전환을 배타 구간에서 실행한다. 전환끼리도 직렬 — 두 open 이 겹치면 서로의 문서를 덮는다. */
+async function _runExclusiveSwitch(meta, fn) {
+  while (_switchGate) { try { await _switchGate; } catch (_) {} }
+  let release;
+  _switchGate = new Promise(r => { release = r; });
+  _switchMeta = { ...(meta || {}), startedAt: Date.now() };
+  try {
+    return await fn();
+  } finally {
+    _switchMeta = null;
+    _switchGate = null;
+    release();
+  }
+}
+
+/** 전환이 끝날 때까지 «큐잉». 시간 초과면 실행하지 않고 project_switching 으로 거부. */
+async function _awaitSwitchIdle(toolName, maxWaitMs) {
+  if (!_switchGate) return null;
+  const t0 = Date.now();
+  while (_switchGate) {
+    const remain = maxWaitMs - (Date.now() - t0);
+    if (remain <= 0) break;
+    const g = _switchGate;
+    const r = await Promise.race([
+      g.then(() => 'done', () => 'done'),
+      new Promise(res => setTimeout(() => res('timeout'), remain)),
+    ]);
+    if (r === 'timeout') break;
+  }
+  if (_switchGate) {
+    const m = _switchMeta || {};
+    return {
+      ok: false, code: 'project_switching',
+      switchingTo: m.projectId || null, waitedMs: Date.now() - t0,
+      error: `open_project(${m.projectId || '?'}) 가 아직 진행 중이라 ${toolName} 을(를) 실행하지 않았습니다.`,
+      hint: 'A project switch is still in progress, so this tool was NOT executed (running it now would write into a canvas that is about to be replaced, and the edit would vanish silently). Wait for open_project to return, then retry.',
+    };
+  }
+  return null;
+}
+
+/* 전환 중에도 «안전하게» 돌아도 되는 도구 — 활성 프로젝트의 캔버스에 기대지 않는 것들만.
+ * (open_project 자체는 _runExclusiveSwitch 가 따로 다룬다.) */
+const _SWITCH_EXEMPT = new Set([
+  'open_project',            // 전환 본인
+  'goditor_which_instance',  // 진단 — 전환 중에도 답해야 한다
+  'get_block_schema',        // 순수 스키마
+  'create_project',          // 새 파일 생성 (활성 캔버스 무관)
+  'search_iconify',          // 외부 조회
+]);
+const _SWITCH_QUEUE_MAX_MS = 130000;  // open_project 기본 타임아웃(120s)보다 넉넉히
+
+/* ★활성 프로젝트에 기대는 도구는 «한 번에 하나»만 돈다(도착 순 FIFO).
+ *   브리지는 stdin 의 요청들을 handle(msg) 로 «await 없이» 던진다(주석: "비동기 동시 처리").
+ *   그래서 서버가 안 막으면 두 도구가 같은 렌더러를 동시에 만진다 — 전환 ↔ 편집뿐 아니라
+ *   duplicate/import 같은 «캔버스 통째 교체» 계열과 편집 사이에도 같은 창이 생긴다.
+ *   직렬화는 그 창을 한 곳에서 통째로 닫는다. 면제 목록(_SWITCH_EXEMPT)은 이 줄을 안 선다. */
+let _callChain = Promise.resolve();
+function _serializeCall(fn) {
+  const run = () => fn();
+  const p = _callChain.then(run, run);   // 앞 호출이 실패해도 줄은 계속 흐른다
+  _callChain = p.then(() => {}, () => {});
+  return p;
+}
+
 /* API_MISSING = 렌더러에 해당 window.* API가 없다. 대부분 «편집기(index.html)가 안 열려
  * 있어서»다 — 갤러리(projects.html)엔 캔버스 API가 없다(08-25 시연: add_section이
  * 'window.addSection not found'만 내서 원인을 못 알렸다). 원인(화면 상태)+우회(open_project)를
@@ -461,7 +541,9 @@ function _registerDefaultTools() {
       }
       if (!_projectOps || typeof _projectOps.open !== 'function')
         throw new Error('project ops not initialized (setProjectOps not called — app version too old?)');
-      const r = await _projectOps.open({ projectId, timeoutMs });
+      // ★전환 전체를 배타 구간에 넣는다 — 이 구간 동안 편집 도구는 디스패처에서 큐잉된다.
+      //   (전환끼리도 직렬: 두 open 이 겹치면 서로의 문서를 덮는다.)
+      const r = await _runExclusiveSwitch({ projectId }, () => _projectOps.open({ projectId, timeoutMs }));
       if (!r) throw new Error('open failed');
       // ★로드 대기 실패(load_timeout/load_error/navigated_away)는 «구조화된 실패»로 돌려준다 —
       //   code 없이 throw 하면 호출자가 「왜」를 모르고, 「일단 ok」로 덮으면 편집이 조용히 사라진다.
@@ -6134,12 +6216,19 @@ async function _handleRpc(msg) {
       const { name, arguments: args = {} } = params || {};
       const handler = tools.get(name);
       if (!handler) return err(-32601, `tool not found: ${name}`);
-      const result = _enrichApiMissing(await handler(args));
+      /* ★프로젝트 전환 중이면 «실행하지 않고» 기다린다(큐잉). 병렬 호출로 들어온 편집이
+       *   곧 교체될 옛 문서에 떨어져 조용히 증발하는 것을 여기서 한 곳으로 막는다.
+       *   개별 도구 문자열은 손대지 않는다(다이어트 때와 같은 «디스패처 일괄» 패턴). */
       /* ★응답도 «유저 토큰»이다. pretty-print(들여쓰기 2칸)는 같은 정보에 15~25% 를 더 물린다.
        *   compact JSON 은 정보 손실 0 이라 그냥 이득이다(클라이언트는 JSON 으로 파싱한다). */
-      return ok({
-        content: [{ type: 'text', text: JSON.stringify(result) }],
-        isError: false
+      const _reply = (r) => ok({ content: [{ type: 'text', text: JSON.stringify(r) }], isError: false });
+      if (_SWITCH_EXEMPT.has(name)) {
+        return _reply(_enrichApiMissing(await handler(args)));
+      }
+      return await _serializeCall(async () => {
+        const blocked = await _awaitSwitchIdle(name, _SWITCH_QUEUE_MAX_MS);
+        if (blocked) return _reply(blocked);
+        return _reply(_enrichApiMissing(await handler(args)));
       });
     }
 
