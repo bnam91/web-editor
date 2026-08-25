@@ -1774,7 +1774,8 @@ body.preview-mode #preview-navigator { display: flex; }
    · #canvas-wrap 안·#canvas-scaler 밖 = 스크린/콘텐츠 좌표(줌 transform 미적용). export 오염0.
    · 사이드카 컨테이너는 pointer-events:none, 카드/그룹만 auto(캔버스 클릭 방해 금지).
 ═══════════════════════════════════════════════ */
-.spl-edges { position: absolute; top: 0; left: 0; z-index: 6; pointer-events: none; }
+/* #16: 연결선 SVG는 #canvas-scaler 안. z-index=90 → 섹션 «앞» + 스크래치아이템(z:100) «뒤»(현빈). */
+.spl-edges { position: absolute; top: 0; left: 0; z-index: 90; pointer-events: none; }
 .spl-edges line { stroke: var(--ui-accent, #4f6bed); stroke-width: 2; stroke-dasharray: 5 5; opacity: .55; }
 .spl-sidecar { position: absolute; top: 0; left: 0; z-index: 7; pointer-events: none; }
 .spl-note-group {
@@ -1798,15 +1799,7 @@ body.preview-mode #preview-navigator { display: flex; }
 /* 연결 모드: 섹션 클릭 가능 표시(P3에서 body.spl-linking 토글) */
 body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed); outline-offset: 2px; cursor: pointer; }
 
-/* #16 P3 — 연결 UX: 스크래치 아이템 🔗버튼 + 연결모드 배너 */
-.scratch-item > .spl-link-btn {
-  position: absolute; bottom: 4px; right: 4px; z-index: 11;
-  width: 24px; height: 24px; border: none; border-radius: 6px;
-  background: rgba(0,0,0,.62); color: #fff; cursor: pointer; font-size: 12px;
-  line-height: 1; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .12s;
-}
-.scratch-item:hover > .spl-link-btn, .scratch-item.scratch-selected > .spl-link-btn { opacity: 1; }
-.scratch-item > .spl-link-btn:hover { background: var(--ui-accent, #4f6bed); }
+/* #16 연결모드 배너 (구 .spl-link-btn은 .spl-btns로 통일·제거됨) */
 .spl-banner {
   position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 9999;
   background: var(--ui-bg-card, #fff); border: 1px solid var(--ui-accent, #4f6bed);

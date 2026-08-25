@@ -133,17 +133,20 @@
 
   // 오버레이 = 연결선 SVG만(#link-edges). canvas-wrap 안·canvas-scaler «밖»(스크린좌표·export오염0).
   //   ★사이드카(#link-sidecar) 폐기(현빈 재설계) — 참고이미지는 스크래치 «제자리·비율 그대로», 연결은 «선»만.
+  // ★edges는 «#canvas-scaler 안»에 둔다 — 섹션·스크래치와 같은 스택컨텍스트라 z로 층위 제어
+  //   (섹션 < 선 < 스크래치). scaler transform(줌/팬)이 SVG에도 적용돼 «줌팬 자동 추종».
+  //   좌표는 scaler-local(줌 전) = (elRect - scalerRect)/scale.
   function _ensureEdges() {
-    const wrap = _wrap();
-    if (!wrap) return null;
-    // 구설계 사이드카 잔재 제거(리워크 후 남아있을 수 있음)
-    const stale = document.getElementById('link-sidecar');
-    if (stale) stale.remove();
+    const scaler = _scaler();
+    if (!scaler) return null;
+    const stale = document.getElementById('link-sidecar'); if (stale) stale.remove(); // 구 사이드카 잔재 제거
     let edges = document.getElementById('link-edges');
     if (!edges) {
       edges = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       edges.id = 'link-edges'; edges.setAttribute('class', 'spl-edges');
-      wrap.appendChild(edges);
+      scaler.insertBefore(edges, scaler.firstChild); // 이른 DOM(z-index로 층위 제어)
+    } else if (edges.parentElement !== scaler) {
+      scaler.insertBefore(edges, scaler.firstChild); // 구설계(wrap 소속)에서 이동
     }
     return edges;
   }
@@ -163,67 +166,75 @@
     }
   }
 
-  // 연결선: 스크래치 아이템(중심) → 연결된 섹션(가까운 세로변 중앙). 둘 다 #canvas-scaler(줌/팬) 안이라
-  //   getBoundingClientRect(post-transform)로 스크린좌표 일관. edges는 wrap(스크린) → 일치·줌팬 자동추종.
+  let _lastEdgePath = null; // diff-skip 캐시(좌표 불변 시 DOM 미변경)
+
+  // 연결선(scaler-local 좌표): 스크래치 아이템 중심 → 섹션 가까운 세로변 중앙. SVG가 scaler 안이라
+  //   좌표는 (elRect - scalerRect)/scale (줌 전). 줌/팬은 scaler transform이 SVG째 적용→자동 추종.
   function _drawEdges() {
-    const wrap = _wrap(); const edges = _ensureEdges();
-    if (!wrap || !edges) return;
-    const wrapRect = wrap.getBoundingClientRect();
-    const W = Math.max(wrap.scrollWidth, wrapRect.width), H = Math.max(wrap.scrollHeight, wrapRect.height);
-    edges.setAttribute('width', W); edges.setAttribute('height', H);
-    edges.style.width = W + 'px'; edges.style.height = H + 'px';
-    if (!_showEdges) { edges.innerHTML = ''; return; }
+    const scaler = _scaler(); const edges = _ensureEdges();
+    if (!scaler || !edges) return;
+    const scale = (window.currentZoom || 100) / 100 || 1;
+    const scRect = scaler.getBoundingClientRect();
+    const W = Math.max(scaler.scrollWidth, scRect.width / scale), H = Math.max(scaler.scrollHeight, scRect.height / scale);
+    const toLocalX = (clientX) => (clientX - scRect.left) / scale;
+    const toLocalY = (clientY) => (clientY - scRect.top) / scale;
     let s = '';
-    for (const { sectionId, scratchId } of allLinks()) {
-      const sec = document.getElementById(sectionId);
-      const item = _scEl(scratchId);
-      if (!sec || !item) continue;
-      const ir = item.getBoundingClientRect(), sr = sec.getBoundingClientRect();
-      const ix = ir.left + ir.width / 2 - wrapRect.left + wrap.scrollLeft;   // 스크래치 아이템 중심
-      const iy = ir.top + ir.height / 2 - wrapRect.top + wrap.scrollTop;
-      const attachRight = (ir.left + ir.width / 2) > (sr.left + sr.width / 2); // 아이템이 섹션 오른쪽이면 우변에
-      const sx = (attachRight ? sr.right : sr.left) - wrapRect.left + wrap.scrollLeft;
-      const sy = sr.top + sr.height / 2 - wrapRect.top + wrap.scrollTop;      // 섹션 세로 중앙
-      s += '<line x1="' + ix + '" y1="' + iy + '" x2="' + sx + '" y2="' + sy + '"/>' +
-           '<circle cx="' + ix + '" cy="' + iy + '" r="3.5" class="spl-edge-dot"/>';
+    if (_showEdges) {
+      for (const { sectionId, scratchId } of allLinks()) {
+        const sec = document.getElementById(sectionId);
+        const item = _scEl(scratchId);
+        if (!sec || !item) continue;
+        const ir = item.getBoundingClientRect(), sr = sec.getBoundingClientRect();
+        const ix = toLocalX(ir.left + ir.width / 2), iy = toLocalY(ir.top + ir.height / 2); // 스크래치 중심
+        const attachRight = (ir.left + ir.width / 2) > (sr.left + sr.width / 2);
+        const sx = toLocalX(attachRight ? sr.right : sr.left), sy = toLocalY(sr.top + sr.height / 2);
+        s += '<line x1="' + ix.toFixed(1) + '" y1="' + iy.toFixed(1) + '" x2="' + sx.toFixed(1) + '" y2="' + sy.toFixed(1) + '"/>' +
+             '<circle cx="' + ix.toFixed(1) + '" cy="' + iy.toFixed(1) + '" r="3.5" class="spl-edge-dot"/>';
+      }
     }
-    edges.innerHTML = s;
+    const sizeKey = W.toFixed(0) + 'x' + H.toFixed(0);
+    if (edges.dataset.size !== sizeKey) {
+      edges.setAttribute('width', W); edges.setAttribute('height', H);
+      edges.style.width = W + 'px'; edges.style.height = H + 'px';
+      edges.dataset.size = sizeKey;
+    }
+    if (s !== _lastEdgePath) { edges.innerHTML = s; _lastEdgePath = s; } // 좌표 불변 시 DOM 미변경
   }
 
-  function _relayout() { _drawEdges(); }
-  function _scheduleRelayout() {
-    if (_relayoutRAF) return;
-    _relayoutRAF = requestAnimationFrame(() => { _relayoutRAF = null; _relayout(); });
+  // ★A: 연결이 있으면 rAF 상시 루프로 선을 재계산(섹션 드래그/재정렬/높이변경/블록추가삭제 «모든» 경로 추종).
+  //   diff-skip이라 좌표 불변 프레임은 DOM 미변경(비용 낮음). 연결 0이면 루프 정지.
+  function _edgeLoop() {
+    _drawEdges();
+    if (allLinks().length > 0) _relayoutRAF = requestAnimationFrame(_edgeLoop);
+    else { _relayoutRAF = null; }
+  }
+  function _ensureEdgeLoop() {
+    if (allLinks().length > 0) { if (!_relayoutRAF) _relayoutRAF = requestAnimationFrame(_edgeLoop); }
+    else if (_relayoutRAF) { cancelAnimationFrame(_relayoutRAF); _relayoutRAF = null; _drawEdges(); } // 마지막 1회로 선 제거
   }
 
-  // 전체 재렌더(CRUD·로드·undo/redo·협업 호출) — 상태별 버튼 + 접힘 + 연결선. ★사이드카/pane필터 폐기.
+  // 전체 재렌더(CRUD·로드·undo/redo·협업 호출) — 상태별 버튼 + 접힘 + 연결선 루프. ★사이드카/pane필터 폐기.
   function __spLinkRerender() {
     try {
       _ensureLinkButtons();
       _applyCollapsed();
       _drawEdges();
+      _ensureEdgeLoop();
     } catch (e) { console.warn('[spl] rerender err:', e); }
   }
   window.__spLinkRerender = __spLinkRerender;
-  window.__spLinkRelayout = _scheduleRelayout; // 줌/팬 코드가 호출 가능
-  function setShowEdges(v) { _showEdges = !!v; _drawEdges(); }
+  window.__spLinkRelayout = () => { _lastEdgePath = null; _drawEdges(); };
+  function setShowEdges(v) { _showEdges = !!v; _lastEdgePath = null; _drawEdges(); }
 
   // ── 추종 트리거: 스크롤/리사이즈/스케일러 transform 변화 → rAF 스로틀 relayout ──
   function _installFollow() {
-    const wrap = _wrap(); if (!wrap || wrap.__splFollow) return true;
-    wrap.__splFollow = true;
-    wrap.addEventListener('scroll', _scheduleRelayout, { passive: true });
-    window.addEventListener('resize', _scheduleRelayout, { passive: true });
-    const scaler = _scaler();
-    if (scaler) {
-      // style(줌/팬 transform) 변경 → relayout / childList(스크래치 아이템 추가·제거) → 전체 재렌더(버튼 주입·필터).
-      const mo = new MutationObserver(muts => {
-        let child = false;
-        for (const m of muts) if (m.type === 'childList') { child = true; break; }
-        if (child) _scheduleRerender(); else _scheduleRelayout();
-      });
-      mo.observe(scaler, { attributes: true, attributeFilter: ['style'], childList: true });
-    }
+    const scaler = _scaler(); if (!scaler || scaler.__splFollow) return true;
+    scaler.__splFollow = true;
+    // 스크래치 아이템 추가/제거(childList) → 버튼 주입·상태 갱신. (선 위치 추종은 rAF 루프가·줌팬은 scaler transform이 담당)
+    const mo = new MutationObserver(muts => {
+      for (const m of muts) if (m.type === 'childList') { _scheduleRerender(); break; }
+    });
+    mo.observe(scaler, { childList: true });
     return true;
   }
 
