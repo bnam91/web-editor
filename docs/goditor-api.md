@@ -5,13 +5,13 @@
 > 인자는 `inputSchema` 의 **top-level 속성만** 싣는다 — 배열/객체 인자의 하위 필드는 각 도구 설명을 보라.
 
 Goditor(Goya Web Design Editor)를 **프로그래밍으로 제어**하는 두 경로:
-1. **claude-pm MCP** — AI/자동화가 호출하는 공식 도구 API (아래 §1, 71개). 에디터 미실행/사용자 편집 중이면 `{ok:false, code:"USER_BUSY"}` 등 반환.
+1. **claude-pm MCP** — AI/자동화가 호출하는 공식 도구 API (아래 §1, 73개). 에디터 미실행/사용자 편집 중이면 `{ok:false, code:"USER_BUSY"}` 등 반환.
 2. **CDP(포트 9334) + window.* 자동화 API** — 렌더러 직접 제어 (§2).
 3. **직렬화/저장 포맷** (§3).
 
 ---
 
-## §1. claude-pm MCP 제어 API (71 tools)
+## §1. claude-pm MCP 제어 API (73 tools)
 
 `registerTool(name, handler, {description, inputSchema})`. 호출: claude-pm MCP 서버.
 
@@ -38,7 +38,7 @@ Goditor(Goya Web Design Editor)를 **프로그래밍으로 제어**하는 두 �
 |---|---|---|---|
 | **add_section** | Add a new section. Default = appended after selected (or canvas end). Use beforeId/afterId to insert at a specific position. Default body = gap + h2 placeholder + gap. empty:true = only top/bottom gaps. sourceScratchIds: optional sp_xxx[] — auto-records "출처: sp_aa, sp_bb" line into dataset.memo for traceability. | — | `empty`, `bg`, `beforeId`, `afterId`, `sourceScratchIds` |
 | **build_basic_section** | Build a basic section in one call: main copy (h1, 100px) + body (30px) + asset placeholder (img1). Optional label (small bold). Gaps follow standard tokens (100/50/30). Text centered by default (align). Use when user says "기본 섹션 만들어줘" or gives content for a single section without specifying layout. sourceScratchIds: optional sp_xxx[] — auto-records "출처: sp_aa, sp_bb" line into the new section dataset.memo (same shape as add_section). | `mainCopy` | `body`, `label`, `assetPreset`, `align`, `sourceScratchIds` |
-| **delete_section** | Delete a section by id. Last section is protected (will return code:DELETE_FAILED). | `sectionId` | — |
+| **delete_section** | Delete a section by id — DESTRUCTIVE, acts on the ACTIVE project. Last section is protected (will return code:DELETE_FAILED). Safety: pass expectedProject (proj_xxx you intend to modify); if it does not match the currently open project the call is refused with PROJECT_MISMATCH. Strongly recommended whenever multiple projects are involved. | `sectionId` | `expectedProject` |
 | **move_section** | Move an existing section to a new position relative to another section (beforeId or afterId, mutually exclusive). | `sectionId` | `beforeId`, `afterId` |
 | **set_section_memo** | Write/replace the memo string attached to a section (dataset.memo, persisted in proj.json via innerHTML). Use to record source scratch ids, hypotheses, todo notes per section. Max 2000 code points. Pass "" to clear. If user is currently editing the same section memo textarea, returns USER_BUSY. | `sectionId`, `memo` | — |
 | **update_section** | Update section properties (bg color, etc.). Use for changing existing section background. bg: hex color (#000, #ffffff) or "transparent". | `sectionId` | `bg` |
@@ -110,15 +110,17 @@ Goditor(Goya Web Design Editor)를 **프로그래밍으로 제어**하는 두 �
 
 | 도구 | 설명 | 필수 인자 | 선택 인자 |
 |---|---|---|---|
-| **delete_block** | Delete a non-section block by id (tb_/ab_/gb_/cvb_/ss_ etc.). For sections use delete_section. | `blockId` | — |
+| **delete_block** | Delete a non-section block by id (tb_/ab_/gb_/cvb_/ss_ etc.) — DESTRUCTIVE, acts on the ACTIVE project. For sections use delete_section. Safety: pass expectedProject (proj_xxx you intend to modify); mismatch with the currently open project ⇒ refused with PROJECT_MISMATCH. | `blockId` | `expectedProject` |
 | **insert_gap_after_block** | Insert a gap (spacer) block immediately AFTER the specified block. Useful for fine-tuning vertical spacing between existing blocks (add_gap_block only appends at section end). | `blockId` | `height` |
 
-### 기타 (2)
+### 기타 (4)
 
 | 도구 | 설명 | 필수 인자 | 선택 인자 |
 |---|---|---|---|
+| **create_project** | Create a NEW empty Goditor project (same format as the gallery "새 프로젝트" button: 1 empty page, main/dev branches). Returns {projectId, name}. Does NOT open it — call open_project(projectId) to make it the active project before editing. | — | `name` |
 | **duplicate_project** | Duplicate a Goditor project — full copy (proj.json + assets/images + claude-pm folder), re-keyed to a fresh project id. sourceProjectId optional (defaults to the active project). Use to branch a base template into a new product project. Returns {newProjectId, newName}. Does NOT open it; the user opens it in the editor. | — | `sourceProjectId`, `newName` |
 | **goditor_which_instance** | 이 MCP 연결이 붙어 있는 goditor 인스턴스(포트·pid·userData)와, 지금 떠 있는 다른 인스턴스 목록을 알려준다. | — | — |
+| **open_project** | Open a project in the editor window = switch the ACTIVE project that all editing tools target. Unsaved changes of the previous project are flushed by the same sync-save used on page refresh. Returns {projectId, previousProject}. Use after create_project/duplicate_project, or when tools fail with "editor not open". | `projectId` | — |
 
 
 ---

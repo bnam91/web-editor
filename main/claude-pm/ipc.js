@@ -641,6 +641,8 @@ module.exports = {
   registerClaudePMIPC,
   setActualMcpPort,
   syncClaudePmTitle,
+  // MCP create_project(main.js _createProjectImpl)가 갤러리와 동일하게 PM 폴더를 보장할 때 직접 호출.
+  handleEnsureClaudePMFolder,
   // 테스트/디버깅용 export
   _internal: {
     expandHome,

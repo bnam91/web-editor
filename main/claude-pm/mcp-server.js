@@ -197,17 +197,23 @@ function _getProjectsDir() {
 }
 
 function _readProjectFile(projectId) {
-  const dir = _getProjectsDir();
-  const file = path.join(dir, `${projectId}.json`);
-  if (!fs.existsSync(file)) {
-    // fallback: 단독 실행/개발용
-    const alt = path.join(__dirname, '..', '..', 'projects', `${projectId}.json`);
-    if (fs.existsSync(alt)) {
-      return JSON.parse(fs.readFileSync(alt, 'utf8'));
-    }
-    throw new Error(`project not found: ${projectId}`);
+  // projectId는 경로 세그먼트로 쓰인다 — traversal 가드(main.js _safeSeg와 같은 취지).
+  const pid = String(projectId || '');
+  if (!/^[A-Za-z0-9_-]+$/.test(pid)) throw new Error(`invalid projectId: ${projectId}`);
+  /* ★현행 저장 구조는 «폴더»다: projects/<id>/proj.json (main.js _resolveProjectJsonPath 참조).
+   *   예전엔 flat(projects/<id>.json)이었고, 이 헬퍼가 flat만 봐서 read_project가
+   *   현행 프로젝트에 전부 'project not found'를 냈다(08-25 클로드앱 시연 실측).
+   *   ⇒ 폴더 우선 + flat 폴백(구프로젝트 호환) — main.js와 같은 dual-read 순서. */
+  const roots = [_getProjectsDir(), path.join(__dirname, '..', '..', 'projects')]; // 후자=단독 실행/개발 폴백
+  const candidates = [];
+  for (const dir of roots) {
+    candidates.push(path.join(dir, pid, 'proj.json')); // 신 레이아웃(폴더)
+    candidates.push(path.join(dir, `${pid}.json`));    // 구 레이아웃(flat)
   }
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  for (const file of candidates) {
+    if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8'));
+  }
+  throw new Error(`project not found: ${pid}`);
 }
 
 // ─────────────────────────────────────────────
@@ -229,6 +235,47 @@ function _activeProjectId() {
     }
   } catch (_) {}
   return null;
+}
+
+/* ── 파괴적 도구 안전 가드 (08-25 실사용 방어) ──
+ *   시나리오: 「복제본을 지운다」는 의도로 delete_*를 불렀는데, 도구는 항상 «활성 프로젝트»에
+ *   작용하므로 원본(열려 있던 쪽)이 지워질 뻔했다. expectedProject(선택 인자)가 주어지면
+ *   활성 프로젝트와 대조해 불일치 시 «어느 프로젝트가 열려 있는지»를 담아 거부한다.
+ *   인자 없으면 아무것도 안 한다(하위호환 — 기존 호출 동일 동작). */
+function _assertExpectedProject(expectedProject) {
+  if (expectedProject === undefined || expectedProject === null || expectedProject === '') return;
+  if (typeof expectedProject !== 'string' || !/^proj_\d+$/.test(expectedProject)) {
+    throw new Error(`invalid expectedProject: ${expectedProject} (must be proj_<digits>)`);
+  }
+  const active = _activeProjectId();
+  if (active !== expectedProject) {
+    throw new Error(
+      `PROJECT_MISMATCH: this destructive tool acts on the ACTIVE project (currently open: ${active || '(none — editor not open)'}), `
+      + `but expectedProject=${expectedProject}. Refusing to protect the open project. `
+      + `Call open_project("${expectedProject}") first (or pass the active project id if that is really the intent).`
+    );
+  }
+}
+
+/* API_MISSING = 렌더러에 해당 window.* API가 없다. 대부분 «편집기(index.html)가 안 열려
+ * 있어서»다 — 갤러리(projects.html)엔 캔버스 API가 없다(08-25 시연: add_section이
+ * 'window.addSection not found'만 내서 원인을 못 알렸다). 원인(화면 상태)+우회(open_project)를
+ * 담아준다. tools/call 결과에 일괄 적용 — 개별 executeJavaScript 문자열은 안 건드린다. */
+function _enrichApiMissing(result) {
+  try {
+    if (!result || result.ok !== false || result.code !== 'API_MISSING') return result;
+    const active = _activeProjectId();
+    if (!active) {
+      result.reason = 'editor_not_open';
+      result.message = (result.message ? result.message + ' — ' : '')
+        + '편집기가 열려 있지 않습니다(갤러리/기타 화면). open_project로 프로젝트를 먼저 여세요.';
+      result.hint = 'The editor window is not showing a project (likely the gallery screen, which has no canvas APIs). '
+        + 'Call open_project(projectId) to open a project in the editor, then retry this tool.';
+    } else {
+      result.hint = `Editor seems open on ${active} but the API is missing — the page may still be loading. Retry shortly.`;
+    }
+  } catch (_) {}
+  return result;
 }
 
 function _registerDefaultTools() {
@@ -304,6 +351,60 @@ function _registerDefaultTools() {
           newName: { type: 'string', description: '새 프로젝트 이름(생략 시 "원본명 (사본)").' }
         },
         required: []
+      }
+    }
+  );
+
+  // 08-25 실사용 구멍 #1 — 프로젝트 «생성» 도구가 duplicate뿐이라 빈 프로젝트를 못 만들었다.
+  // 생성 로직은 main.js _createProjectImpl(갤러리 「새 프로젝트」와 같은 포맷 + projects:save 코어 재사용).
+  registerTool(
+    'create_project',
+    async ({ name } = {}) => {
+      if (!_projectOps || typeof _projectOps.create !== 'function')
+        throw new Error('project ops not initialized (setProjectOps not called — app version too old?)');
+      if (name !== undefined && name !== null && typeof name !== 'string') throw new Error('name must be a string');
+      const r = await _projectOps.create({ name });
+      if (!r || r.ok === false) throw new Error((r && r.error) || 'create failed');
+      return {
+        ok: true, projectId: r.projectId, name: r.name,
+        hint: 'Project created but NOT opened — editing tools act on the active project. Call open_project to switch the editor to it.',
+      };
+    },
+    {
+      description: 'Create a NEW empty Goditor project (same format as the gallery "새 프로젝트" button: 1 empty page, main/dev branches). Returns {projectId, name}. Does NOT open it — call open_project(projectId) to make it the active project before editing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: '프로젝트 이름(≤100자). 생략 시 "Untitled".' }
+        },
+        required: []
+      }
+    }
+  );
+
+  // 08-25 실사용 구멍 #2 — 편집 도구 전부가 «활성 프로젝트» 대상인데 전환 수단이 없었다
+  // (duplicate가 만든 복제본을 MCP로 만질 방법이 없었다). navigate = 전환:
+  // _activeProjectId()가 편집기 창 URL(?project=)을 읽으므로, 창을 그 프로젝트로 이동시키면 곧 전환이다.
+  registerTool(
+    'open_project',
+    async ({ projectId } = {}) => {
+      if (!projectId || typeof projectId !== 'string' || !/^proj_\d+$/.test(projectId)) {
+        throw new Error('projectId required (proj_<digits>)');
+      }
+      if (!_projectOps || typeof _projectOps.open !== 'function')
+        throw new Error('project ops not initialized (setProjectOps not called — app version too old?)');
+      const r = await _projectOps.open({ projectId });
+      if (!r || r.ok === false) throw new Error((r && r.error) || 'open failed');
+      return { ok: true, projectId: r.projectId, previousProject: r.previousProject != null ? r.previousProject : null };
+    },
+    {
+      description: 'Open a project in the editor window = switch the ACTIVE project that all editing tools target. Unsaved changes of the previous project are flushed by the same sync-save used on page refresh. Returns {projectId, previousProject}. Use after create_project/duplicate_project, or when tools fail with "editor not open".',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string', description: '열 프로젝트 id (proj_<digits>)' }
+        },
+        required: ['projectId']
       }
     }
   );
@@ -897,18 +998,23 @@ function _registerDefaultTools() {
   // PM delete_section — 섹션 삭제 (마지막 섹션은 삭제 불가)
   registerTool(
     'delete_section',
-    async ({ sectionId } = {}) => {
+    async ({ sectionId, expectedProject } = {}) => {
       if (!sectionId || typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
         throw new Error('sectionId required (sec_xxx)');
       }
+      _assertExpectedProject(expectedProject); // 미지정 시 no-op(하위호환)
       if (!_rendererInvoker?.deleteSection) throw new Error('renderer bridge not ready');
       return await _rendererInvoker.deleteSection({ sectionId });
     },
     {
-      description: 'Delete a section by id. Last section is protected (will return code:DELETE_FAILED).',
+      description: 'Delete a section by id — DESTRUCTIVE, acts on the ACTIVE project. Last section is protected (will return code:DELETE_FAILED). '
+        + 'Safety: pass expectedProject (proj_xxx you intend to modify); if it does not match the currently open project the call is refused with PROJECT_MISMATCH. Strongly recommended whenever multiple projects are involved.',
       inputSchema: {
         type: 'object',
-        properties: { sectionId: { type: 'string', description: 'sec_xxx to remove' } },
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx to remove' },
+          expectedProject: { type: 'string', description: 'optional proj_<digits> — the project you INTEND to modify. Mismatch with the active project ⇒ refused (protects the open project). Omit = legacy behavior.' }
+        },
         required: ['sectionId']
       }
     }
@@ -917,16 +1023,21 @@ function _registerDefaultTools() {
   // PM delete_block — 일반 블록 삭제 (text/asset/gap/frame 등). section은 delete_section 사용.
   registerTool(
     'delete_block',
-    async ({ blockId } = {}) => {
+    async ({ blockId, expectedProject } = {}) => {
       if (!blockId || typeof blockId !== 'string') throw new Error('blockId required');
+      _assertExpectedProject(expectedProject); // 미지정 시 no-op(하위호환)
       if (!_rendererInvoker?.deleteBlock) throw new Error('renderer bridge not ready');
       return await _rendererInvoker.deleteBlock({ blockId });
     },
     {
-      description: 'Delete a non-section block by id (tb_/ab_/gb_/cvb_/ss_ etc.). For sections use delete_section.',
+      description: 'Delete a non-section block by id (tb_/ab_/gb_/cvb_/ss_ etc.) — DESTRUCTIVE, acts on the ACTIVE project. For sections use delete_section. '
+        + 'Safety: pass expectedProject (proj_xxx you intend to modify); mismatch with the currently open project ⇒ refused with PROJECT_MISMATCH.',
       inputSchema: {
         type: 'object',
-        properties: { blockId: { type: 'string', description: 'block id to remove (any prefix except sec_)' } },
+        properties: {
+          blockId: { type: 'string', description: 'block id to remove (any prefix except sec_)' },
+          expectedProject: { type: 'string', description: 'optional proj_<digits> — the project you INTEND to modify. Mismatch with the active project ⇒ refused. Omit = legacy behavior.' }
+        },
         required: ['blockId']
       }
     }
@@ -5910,7 +6021,7 @@ async function _handleRpc(msg) {
       const { name, arguments: args = {} } = params || {};
       const handler = tools.get(name);
       if (!handler) return err(-32601, `tool not found: ${name}`);
-      const result = await handler(args);
+      const result = _enrichApiMissing(await handler(args));
       return ok({
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         isError: false

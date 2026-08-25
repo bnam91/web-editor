@@ -63,7 +63,7 @@ const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
-const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle } = require('./main/claude-pm/ipc');
+const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle, handleEnsureClaudePMFolder } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
 const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
 // Unit B — MCP 접속 토큰(메모리 보관, 화면표시/IPC용). 파일/레포 저장 금지.
@@ -1242,7 +1242,9 @@ function _guardProjectName(incomingProject, prevPath) {
   return incomingProject;
 }
 
-ipcMain.handle('projects:save', async (event, project) => {
+// 저장 코어 — ipcMain.handle('projects:save')(렌더러)와 MCP create_project(main)가 공용.
+// (_duplicateProjectImpl과 같은 패턴 — 핸들러 본문을 함수로 추출했을 뿐 로직 무변경.)
+async function _saveProjectImpl(project) {
   // write는 항상 신 위치. read(백업 직전 상태)는 dual fallback.
   const paths = _ensureNewLayoutPaths(project.id);
   const filePath = paths.proj;
@@ -1288,7 +1290,8 @@ ipcMain.handle('projects:save', async (event, project) => {
   // claude-pm/project.meta.json title 동기화 (PM 폴더 있을 때만, best-effort)
   try { await syncClaudePmTitle(PROJECTS_DIR, project.id, project.name); } catch {}
   return { ok: true };
-});
+}
+ipcMain.handle('projects:save', (event, project) => _saveProjectImpl(project));
 
 // BUG-44: 새로고침/탭 닫기 시 동기 저장 — beforeunload는 async를 await할 수 없어
 // 1.5초 debounce가 끝나기 전 새로고침 시 이미지·텍스트 변경분이 파일에 누락되던 문제 해결
@@ -1481,6 +1484,78 @@ async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
   }
 }
 ipcMain.handle('projects:duplicate', (_e, args = {}) => _duplicateProjectImpl(args));
+
+// 프로젝트 생성 코어 — MCP create_project 도구가 사용.
+// ⚠️빈 프로젝트 «포맷»은 갤러리 「새 프로젝트」(pages/projects.html createProject())와 동일해야
+//   한다 — 저쪽 스냅샷 구조를 바꾸면 여기도 같이 바꿀 것. 저장은 렌더러와 «같은 경로»
+//   (_saveProjectImpl = projects:save 코어)를 그대로 탄다(새 포맷을 손으로 빚지 않는다).
+async function _createProjectImpl({ name } = {}) {
+  try {
+    const projName = (name && String(name).trim()) || 'Untitled';
+    if (projName.length > 100) return { ok: false, error: 'name too long (>100)', code: 'invalid' };
+    // 새 ID — _duplicateProjectImpl과 동일한 충돌 방어(신 디렉터리/flat 잔재 모두 체크)
+    let id, t = Date.now();
+    do { id = `proj_${t}`; t++; }
+    while (
+      fs.existsSync(path.join(PROJECTS_DIR, id)) ||
+      fs.existsSync(path.join(PROJECTS_DIR, `${id}.json`))
+    );
+    const now = new Date().toISOString();
+    const emptySnap = JSON.stringify({
+      version: 2, currentPageId: 'page_1',
+      pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }]
+    });
+    const proj = {
+      id, name: projName,
+      createdAt: now, updatedAt: now,
+      version: 2,
+      currentPageId: 'page_1',
+      pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }],
+      currentBranch: 'dev',
+      branches: {
+        main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },
+        dev:  { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() }
+      }
+    };
+    const r = await _saveProjectImpl(proj);
+    if (!r || r.ok !== true) return { ok: false, error: 'save failed', code: 'io' };
+    // PM 폴더 보장 — 갤러리 createProject()와 동일하게 best-effort(실패해도 생성은 성공).
+    try { await handleEnsureClaudePMFolder(null, { projectId: id, projectName: projName }); } catch (_) {}
+    return { ok: true, projectId: id, name: projName };
+  } catch (e) {
+    console.error('[projects:create] 예외:', e);
+    return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
+  }
+}
+
+// 활성 프로젝트 «전환» 코어 — MCP open_project 도구가 사용.
+// 갤러리 openProject()(location.href='../index.html?project=<id>')와 같은 목적지로 mainWindow를
+// navigate한다. mcp-server._activeProjectId()가 창 URL(?project=)을 읽으므로 navigate = 전환.
+// ⚠️main의 loadFile은 will-navigate(GAP-008 라이선스 가드)를 «안» 타므로 같은 조건을 여기서
+//   직접 검사한다 — 미인증 상태에서 MCP로 게이트를 우회해 에디터에 진입하는 구멍 방지.
+// 이전 프로젝트의 미저장 변경분은 렌더러 beforeunload의 projects:save-sync(새로고침과 동일
+// 경로)가 flush한다.
+async function _openProjectImpl({ projectId } = {}) {
+  try {
+    if (!projectId || typeof projectId !== 'string') return { ok: false, error: 'projectId 필수', code: 'invalid' };
+    if (!/^proj_\d+$/.test(projectId)) return { ok: false, error: 'proj_* 만 열 수 있습니다', code: 'not_proj' };
+    const projPath = _resolveProjectJsonPath(projectId);
+    if (!projPath || !fs.existsSync(projPath)) return { ok: false, error: `project not found: ${projectId}`, code: 'not_found' };
+    if (!_editorAccessGranted && !isAdminAuthorized()) return { ok: false, error: '라이선스 미인증 — 에디터 접근 불가', code: 'no_access' };
+    if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) return { ok: false, error: 'window not ready', code: 'no_window' };
+    let previousProject = null;
+    try {
+      const u = mainWindow.webContents.getURL();
+      const m = u && u.match(/[?&]project=([^&#]+)/);
+      if (m) previousProject = decodeURIComponent(m[1]);
+    } catch (_) {}
+    await mainWindow.loadFile('index.html', { query: { project: projectId } });
+    return { ok: true, projectId, previousProject };
+  } catch (e) {
+    console.error('[projects:open] 예외:', e);
+    return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
+  }
+}
 
 /* ── IPC: Projects Meta (branches/commits/thumbnail 분리 저장) ── */
 ipcMain.handle('projects:save-meta', (event, projectId, metaData) => {
@@ -2180,9 +2255,9 @@ app.whenReady().then(async () => {
     if (typeof setMcpIconifyApi === 'function') {
       setMcpIconifyApi({ search: _doIconifySearch, fetchSvg: _fetchIconifySvg });
     }
-    // 프로젝트 복제 코어 주입 — MCP duplicate_project 도구가 사용.
+    // 프로젝트 단위 코어 주입 — MCP duplicate_project/create_project/open_project 도구가 사용.
     if (typeof setMcpProjectOps === 'function') {
-      setMcpProjectOps({ duplicate: _duplicateProjectImpl });
+      setMcpProjectOps({ duplicate: _duplicateProjectImpl, create: _createProjectImpl, open: _openProjectImpl });
     }
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
