@@ -1834,9 +1834,11 @@ body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed);
   transform: scale(var(--inv-zoom, 1)); transform-origin: top right;
   display: flex; gap: 4px; z-index: 10; opacity: 0; transition: opacity .15s;
 }
-.scratch-item:hover > .spl-btns,
-.scratch-item.scratch-selected > .spl-btns,
-.scratch-item.spl-collapsed > .spl-btns { opacity: 1; }
+/* ★가시성은 ✕✨✂ 클러스터와 «완전 동일»하게 hover 전용(현빈 2026-08-25 지시).
+   같은 자리에 붙은 버튼이 저 혼자 남으면 그 자체가 버그로 보인다.
+   접힘도 예외 두지 않는다 — .spl-collapsed 는 «🔗 연결됨 · 접힘» 바(min-height:26px)가
+   그대로 hover 대상이라 버튼 도달성이 안 죽는다. */
+.scratch-item:hover > .spl-btns { opacity: 1; }
 .spl-btn {
   width: 18px; height: 18px; padding: 0; line-height: 1;
   background: rgba(28,28,28,0.88); color: #fff;
