@@ -131,140 +131,77 @@
   function _wrap()    { return document.getElementById('canvas-wrap'); }
   function _scaler()  { return document.getElementById('canvas-scaler'); }
 
-  function _ensureOverlay() {
+  // 오버레이 = 연결선 SVG만(#link-edges). canvas-wrap 안·canvas-scaler «밖»(스크린좌표·export오염0).
+  //   ★사이드카(#link-sidecar) 폐기(현빈 재설계) — 참고이미지는 스크래치 «제자리·비율 그대로», 연결은 «선»만.
+  function _ensureEdges() {
     const wrap = _wrap();
     if (!wrap) return null;
+    // 구설계 사이드카 잔재 제거(리워크 후 남아있을 수 있음)
+    const stale = document.getElementById('link-sidecar');
+    if (stale) stale.remove();
     let edges = document.getElementById('link-edges');
-    let side  = document.getElementById('link-sidecar');
     if (!edges) {
       edges = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       edges.id = 'link-edges'; edges.setAttribute('class', 'spl-edges');
       wrap.appendChild(edges);
     }
-    if (!side) {
-      side = document.createElement('div');
-      side.id = 'link-sidecar'; side.className = 'spl-sidecar';
-      wrap.appendChild(side);
+    return edges;
+  }
+
+  function _scEl(scratchId) {
+    return document.querySelector('.scratch-item[data-scratch-id="' + (window.CSS && CSS.escape ? CSS.escape(scratchId) : scratchId) + '"]');
+  }
+
+  // 연결된 스크래치 아이템에 접힘(spl-collapsed) 적용(refLinks의 collapsed). 선은 유지(아이템 위치 존재).
+  function _applyCollapsed() {
+    document.querySelectorAll('.scratch-item.spl-collapsed').forEach(el => {
+      if (!isLinked(el.dataset.scratchId)) el.classList.remove('spl-collapsed'); // 해제된 것 복구
+    });
+    for (const { scratchId, collapsed } of allLinks()) {
+      const el = _scEl(scratchId);
+      if (el) el.classList.toggle('spl-collapsed', !!collapsed);
     }
-    return { edges, side };
   }
 
-  // 라이브 스크래치 아이템의 이미지 src(참조). 없으면 null.
-  function _scratchSrc(scratchId) {
-    const it = document.querySelector('.scratch-item[data-scratch-id="' + (window.CSS && CSS.escape ? CSS.escape(scratchId) : scratchId) + '"] img');
-    return it ? it.getAttribute('src') : null;
-  }
-
-  // 스크래치 pane 필터 — 연결된 아이템은 캔버스에서 숨김(데이터 무손상).
-  function _filterScratchPane() {
-    const linked = new Set(linkedScratchIds());
-    document.querySelectorAll('.scratch-item').forEach(el => {
-      const id = el.dataset.scratchId;
-      if (linked.has(id)) { if (el.style.display !== 'none') { el.dataset.splHidden = '1'; el.style.display = 'none'; } }
-      else if (el.dataset.splHidden) { el.style.display = ''; delete el.dataset.splHidden; } // 우리가 숨긴 것만 복구
-    });
-  }
-
-  // 사이드카 카드/그룹 재구성(데모 reconcile 포팅). 그룹=섹션별, 카드=refimg.
-  function _renderSidecar() {
-    const ov = _ensureOverlay(); if (!ov) return;
-    const side = ov.side;
-    const bySec = new Map(); // secId → [{scratchId,collapsed}]
-    for (const sec of _allSecs()) {
-      const ls = _parse(sec);
-      if (ls.length) bySec.set(sec.id, ls);
-    }
-    const wantG = new Set();
-    bySec.forEach((ls, secId) => {
-      wantG.add(secId);
-      let g = side.querySelector(':scope > .spl-note-group[data-sec="' + secId + '"]');
-      if (!g) { g = document.createElement('div'); g.className = 'spl-note-group'; g.dataset.sec = secId; side.appendChild(g); }
-      const wantC = new Set();
-      ls.forEach(l => {
-        wantC.add(l.scratchId);
-        let card = g.querySelector(':scope > .spl-refimg[data-scratch-id="' + l.scratchId + '"]');
-        if (!card) {
-          card = document.createElement('div');
-          card.dataset.scratchId = l.scratchId;
-          g.appendChild(card);
-        }
-        card.className = 'spl-refimg' + (l.collapsed ? ' collapsed' : '');
-        const src = _scratchSrc(l.scratchId) || '';
-        card.innerHTML =
-          '<div class="spl-thumb"><img src="' + src.replace(/"/g, '&quot;') + '" draggable="false" onerror="var c=this.closest(&quot;.spl-refimg&quot;);if(c)c.classList.add(&quot;spl-missing&quot;)"></div>' +
-          '<div class="spl-cap">' +
-            '<button class="spl-ic" data-a="fold" title="' + (l.collapsed ? '펼치기' : '접기') + '">' + (l.collapsed ? '＋' : '－') + '</button>' +
-            '<button class="spl-ic" data-a="unlink" title="연결 해제(스크래치로 복귀)">⛌</button>' +
-          '</div>';
-        card.querySelector('[data-a=fold]').onclick   = e => { e.stopPropagation(); setCollapsed(l.scratchId, !l.collapsed); };
-        card.querySelector('[data-a=unlink]').onclick = e => { e.stopPropagation(); removeLink(l.scratchId); };
-      });
-      // 사라진 카드 제거
-      g.querySelectorAll(':scope > .spl-refimg').forEach(card => { if (!wantC.has(card.dataset.scratchId)) card.remove(); });
-    });
-    // 사라진 그룹 제거
-    side.querySelectorAll(':scope > .spl-note-group').forEach(g => { if (!wantG.has(g.dataset.sec)) g.remove(); });
-  }
-
-  // 댓글 레일 push-down(데모 positionTops 포팅) — 섹션 top에 붙되 위 그룹과 안 겹치게 밀어냄.
-  function _positionTops() {
-    const wrap = _wrap(); const side = document.getElementById('link-sidecar');
-    if (!wrap || !side) return;
-    const wrapRect = wrap.getBoundingClientRect();
-    const scaler = _scaler();
-    // 사이드카 x = 캔버스(#canvas) 우변 + gap (스크린 좌표를 wrap 기준 상대로)
-    const canvas = document.getElementById('canvas');
-    const cRect = (canvas || scaler || wrap).getBoundingClientRect();
-    const leftPx = Math.round(cRect.right - wrapRect.left + wrap.scrollLeft + 16); // content-space
-
-    let minTop = -1e9;
-    // DOM 순서(=섹션 순서)대로 그룹 배치
-    _allSecs().forEach(sec => {
-      const g = side.querySelector(':scope > .spl-note-group[data-sec="' + sec.id + '"]');
-      if (!g) return;
-      const secRect = sec.getBoundingClientRect();
-      const secTop = secRect.top - wrapRect.top + wrap.scrollTop;
-      const top = Math.max(secTop, minTop);
-      g.style.left = leftPx + 'px';
-      g.style.top  = top + 'px';
-      minTop = top + g.offsetHeight + 12;
-    });
-  }
-
+  // 연결선: 스크래치 아이템(중심) → 연결된 섹션(가까운 세로변 중앙). 둘 다 #canvas-scaler(줌/팬) 안이라
+  //   getBoundingClientRect(post-transform)로 스크린좌표 일관. edges는 wrap(스크린) → 일치·줌팬 자동추종.
   function _drawEdges() {
-    const wrap = _wrap(); const edges = document.getElementById('link-edges');
+    const wrap = _wrap(); const edges = _ensureEdges();
     if (!wrap || !edges) return;
     const wrapRect = wrap.getBoundingClientRect();
-    const W = Math.max(wrap.scrollWidth, wrapRect.width), H = Math.max(wrap.scrollHeight, wrapRect.height); // content-space 전체
+    const W = Math.max(wrap.scrollWidth, wrapRect.width), H = Math.max(wrap.scrollHeight, wrapRect.height);
     edges.setAttribute('width', W); edges.setAttribute('height', H);
     edges.style.width = W + 'px'; edges.style.height = H + 'px';
     if (!_showEdges) { edges.innerHTML = ''; return; }
     let s = '';
     for (const { sectionId, scratchId } of allLinks()) {
       const sec = document.getElementById(sectionId);
-      const card = document.querySelector('#link-sidecar .spl-refimg[data-scratch-id="' + scratchId + '"]');
-      if (!sec || !card) continue;
-      const sr = sec.getBoundingClientRect(), nr = card.getBoundingClientRect();
-      const x1 = sr.right - wrapRect.left + wrap.scrollLeft, y1 = sr.top + sr.height / 2 - wrapRect.top + wrap.scrollTop;
-      const x2 = nr.left - wrapRect.left + wrap.scrollLeft,  y2 = nr.top + Math.min(nr.height, 52) / 2 + 2 - wrapRect.top + wrap.scrollTop;
-      s += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '"/>';
+      const item = _scEl(scratchId);
+      if (!sec || !item) continue;
+      const ir = item.getBoundingClientRect(), sr = sec.getBoundingClientRect();
+      const ix = ir.left + ir.width / 2 - wrapRect.left + wrap.scrollLeft;   // 스크래치 아이템 중심
+      const iy = ir.top + ir.height / 2 - wrapRect.top + wrap.scrollTop;
+      const attachRight = (ir.left + ir.width / 2) > (sr.left + sr.width / 2); // 아이템이 섹션 오른쪽이면 우변에
+      const sx = (attachRight ? sr.right : sr.left) - wrapRect.left + wrap.scrollLeft;
+      const sy = sr.top + sr.height / 2 - wrapRect.top + wrap.scrollTop;      // 섹션 세로 중앙
+      s += '<line x1="' + ix + '" y1="' + iy + '" x2="' + sx + '" y2="' + sy + '"/>' +
+           '<circle cx="' + ix + '" cy="' + iy + '" r="3.5" class="spl-edge-dot"/>';
     }
     edges.innerHTML = s;
   }
 
-  function _relayout() { _positionTops(); _drawEdges(); }
+  function _relayout() { _drawEdges(); }
   function _scheduleRelayout() {
     if (_relayoutRAF) return;
     _relayoutRAF = requestAnimationFrame(() => { _relayoutRAF = null; _relayout(); });
   }
 
-  // 전체 재렌더(P1 CRUD·로드·undo/redo·협업이 호출) — 필터 + 사이드카 + 레이아웃.
+  // 전체 재렌더(CRUD·로드·undo/redo·협업 호출) — 상태별 버튼 + 접힘 + 연결선. ★사이드카/pane필터 폐기.
   function __spLinkRerender() {
     try {
-      _filterScratchPane();
       _ensureLinkButtons();
-      _renderSidecar();
-      _relayout();
+      _applyCollapsed();
+      _drawEdges();
     } catch (e) { console.warn('[spl] rerender err:', e); }
   }
   window.__spLinkRerender = __spLinkRerender;
@@ -317,22 +254,39 @@
   // ═══════════════════════════════════════════════════════════════════
   let _linkMode = null; // 연결 대기 중인 scratchId 배열 or null
 
+  // 스크래치 아이템 버튼그룹(기존 ✕✨✂ 옆). 상태별: 미연결=🔗링크 / 연결=접기(－/＋)+끊기(⛓).
   function _ensureLinkButtons() {
+    const linkMap = new Map(); // scratchId → collapsed
+    for (const l of allLinks()) linkMap.set(l.scratchId, !!l.collapsed);
     document.querySelectorAll('.scratch-item').forEach(el => {
-      if (el.dataset.splHidden) return;                 // 연결된(숨김) 아이템엔 불필요
-      if (el.querySelector(':scope > .spl-link-btn')) return;
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'spl-link-btn'; b.innerHTML = '🔗'; b.title = '섹션에 노드연결';
-      b.addEventListener('mousedown', e => e.stopPropagation()); // 드래그 방해 금지
-      b.addEventListener('click', e => {
-        e.stopPropagation();
-        const id = el.dataset.scratchId;
-        // 선택셋에 이 아이템 포함 다중선택이면 선택셋 전체, 아니면 이 아이템만
-        const selIds = [...document.querySelectorAll('.scratch-item.scratch-selected')].map(x => x.dataset.scratchId);
-        const ids = (selIds.length > 1 && selIds.includes(id)) ? selIds : [id];
-        startLinkMode(ids);
-      });
-      el.appendChild(b);
+      const id = el.dataset.scratchId;
+      let grp = el.querySelector(':scope > .spl-btns');
+      if (!grp) {
+        grp = document.createElement('div'); grp.className = 'spl-btns';
+        grp.addEventListener('mousedown', e => e.stopPropagation()); // 드래그 방해 금지
+        el.appendChild(grp);
+      }
+      const linked = linkMap.has(id);
+      const collapsed = linked && linkMap.get(id);
+      const want = linked ? ('L' + (collapsed ? 'c' : 'e')) : 'U';
+      if (grp.dataset.state === want) return; // 상태 불변 → 재빌드 skip
+      grp.dataset.state = want;
+      grp.innerHTML = '';
+      const mk = (cls, html, title, fn) => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'spl-btn ' + cls;
+        b.innerHTML = html; b.title = title; b.onclick = e => { e.stopPropagation(); fn(); };
+        grp.appendChild(b);
+      };
+      if (!linked) {
+        mk('spl-btn-link', '🔗', '섹션에 연결', () => {
+          const selIds = [...document.querySelectorAll('.scratch-item.scratch-selected')].map(x => x.dataset.scratchId);
+          const ids = (selIds.length > 1 && selIds.includes(id)) ? selIds : [id];
+          startLinkMode(ids);
+        });
+      } else {
+        mk('spl-btn-fold', collapsed ? '＋' : '－', collapsed ? '펼치기' : '접기(최소화)', () => setCollapsed(id, !collapsed));
+        mk('spl-btn-cut', '⛓', '연결 끊기(이미지는 스크래치에 남음)', () => removeLink(id));
+      }
     });
   }
 
@@ -368,7 +322,7 @@
       if (any) window.showToast?.('🔗 참고이미지 ' + ids.length + '개 연결됨');
     } else {
       // 배너/링크버튼 클릭이 아니면 취소
-      if (!e.target.closest('#spl-banner') && !e.target.closest('.spl-link-btn')) endLinkMode();
+      if (!e.target.closest('#spl-banner') && !e.target.closest('.spl-btns')) endLinkMode();
     }
   }
   function _onKeyDown(e) { if (e.key === 'Escape' && _linkMode) { e.stopPropagation(); endLinkMode(); } }

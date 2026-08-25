@@ -1829,3 +1829,38 @@ body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed);
   content: '⚠ 누락'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   font-size: 10px; color: var(--ui-text-dim, #6b7280); font-weight: 600;
 }
+
+/* ═══════════════════════════════════════════════
+   #16 재설계(현빈) — 참고이미지 «제자리», 연결은 «선»만. 사이드카 폐기.
+   스크래치 아이템 버튼그룹(가위 옆)·접힘·연결선 dot.
+═══════════════════════════════════════════════ */
+/* 버튼그룹: 기존 close(+4)·slice(+26) 클러스터 왼쪽(가위 옆). inv-zoom로 화면크기 고정. */
+.scratch-item > .spl-btns {
+  position: absolute; top: 4px;
+  right: calc(4px + 44px * var(--inv-zoom, 1));
+  transform: scale(var(--inv-zoom, 1)); transform-origin: top right;
+  display: flex; gap: 4px; z-index: 10; opacity: 0; transition: opacity .15s;
+}
+.scratch-item:hover > .spl-btns,
+.scratch-item.scratch-selected > .spl-btns,
+.scratch-item.spl-collapsed > .spl-btns { opacity: 1; }
+.spl-btn {
+  width: 18px; height: 18px; padding: 0; line-height: 1;
+  background: rgba(28,28,28,0.88); color: #fff;
+  border: 1.5px solid rgba(255,255,255,0.18); border-radius: 50%;
+  font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.spl-btn-link:hover, .spl-btn-fold:hover { background: var(--ui-accent, #4f6bed); border-color: var(--ui-accent, #4f6bed); }
+.spl-btn-cut:hover  { background: var(--ui-danger-hover, #d9463e); border-color: var(--ui-danger-hover, #d9463e); }
+
+/* 접힘(최소화): 이미지 숨기고 «연결됨» 바만. 선은 유지(아이템 위치 존재). */
+.scratch-item.spl-collapsed > img { display: none; }
+.scratch-item.spl-collapsed { min-height: 26px; }
+.scratch-item.spl-collapsed::before {
+  content: '🔗 연결됨 · 접힘'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: #e7ebf3; background: rgba(40,44,58,.92);
+  border: 1px dashed var(--ui-accent, #4f6bed); border-radius: 6px; pointer-events: none; padding: 4px; text-align: center;
+}
+
+/* 연결선 출발점 dot */
+.spl-edges .spl-edge-dot { fill: var(--ui-accent, #4f6bed); }
