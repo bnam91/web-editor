@@ -81,7 +81,7 @@ async function _saveScratch() {
   if (!key) return; // projectId 없으면 저장 스킵
   const db   = await _openDB();
   // 스냅샷을 await 전에 미리 찍어서 비동기 구간 중 배열 변경 영향 차단
-  const data = _scratchItems.map(({ src, x, y, w, id, g }) => ({ src, x, y, w, id, g }));
+  const data = _scratchItems.map(({ src, x, y, w, id, g, linkDy }) => ({ src, x, y, w, id, g, linkDy }));
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
     tx.objectStore(SCRATCH_STORE).put(data, key);
@@ -139,7 +139,7 @@ async function externalizeScratchpad(proj, projectId) {
         }
         if (url) { src = url; changed = true; }
       }
-      manifest.push({ id: it.id, src, x: it.x, y: it.y, w: it.w, g: it.g });
+      manifest.push({ id: it.id, src, x: it.x, y: it.y, w: it.w, g: it.g, linkDy: it.linkDy });
     }
     page.scratchpad = manifest; // URL+좌표 경량(base64 인라인 아님)
     if (changed) {
@@ -163,7 +163,7 @@ async function flushScratchForSwitch() {
   const wasLoaded = _scratchLoaded;
   const key  = _getScratchKey(_currentProjectId, _currentPageId);
   // ★스냅샷은 배열 클리어 '전에' 동기 확보 — 안 그러면 빈 배열이 저장돼 데이터 유실
-  const data = _scratchItems.map(({ src, x, y, w, id, g }) => ({ src, x, y, w, id, g }));
+  const data = _scratchItems.map(({ src, x, y, w, id, g, linkDy }) => ({ src, x, y, w, id, g, linkDy }));
   _clearSelection();
   _scratchItems.forEach(s => s.el.remove()); // 동기 제거 — 캔버스 클리어와 같은 턴에 잔상 소멸
   _scratchItems = [];
@@ -552,7 +552,7 @@ async function _srcToPngDataUrl(src) {
   });
 }
 
-function _createItem(src, x, y, w = 220, idArg, gArg) {
+function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg) {
   const scaler = document.getElementById('canvas-scaler');
   if (!scaler) return null;
 
@@ -1077,7 +1077,10 @@ function _createItem(src, x, y, w = 220, idArg, gArg) {
 
   scaler.appendChild(el);
 
-  const item = { el, src, x, y, w, id, g: gArg || undefined };
+  // #16 follow — linkDy = 연결된 섹션 top(scaler-local) 기준 y 오프셋. 미연결/미앵커면 undefined.
+  //   (refLinks dataset 포맷은 «건드리지 않는다» — 오프셋은 스크래치 아이템 레코드에만 둔다.)
+  const item = { el, src, x, y, w, id, g: gArg || undefined,
+                 linkDy: (typeof linkDyArg === 'number' && isFinite(linkDyArg)) ? linkDyArg : undefined };
   _scratchItems.push(item);
 
   // native HTML5 DnD 사용 안 함 — mousedown/move/up 흐름 안에서 모두 처리 (canvas-scratch-drop.js의 export API 호출)
@@ -1115,14 +1118,14 @@ async function _loadScratch(projectId, pageId) {
       const pg = (window.state && Array.isArray(window.state.pages)) ? window.state.pages.find(p => p.id === pageId) : null;
       const manifest = pg && Array.isArray(pg.scratchpad) ? pg.scratchpad : null;
       if (manifest && manifest.length) {
-        items = manifest.map(m => ({ src: m.src, x: m.x, y: m.y, w: m.w, id: m.id, g: m.g }));
+        items = manifest.map(m => ({ src: m.src, x: m.x, y: m.y, w: m.w, id: m.id, g: m.g, linkDy: m.linkDy }));
         hydrated = true;
       }
     }
     let migrated = false;
-    items.forEach(({ src, x, y, w, id, g }) => {
+    items.forEach(({ src, x, y, w, id, g, linkDy }) => {
       if (!id) migrated = true; // 구 데이터엔 id 없음 — 자동 생성 후 재저장 트리거
-      _createItem(src, x, y, w, id, g);
+      _createItem(src, x, y, w, id, g, linkDy);
     });
     _scratchLoaded = true; // migrated 재저장 전에 완료 마킹 (_saveScratch가 가드하므로)
     if (migrated || hydrated) _saveScratch(); // 하이드레이션분을 로컬 IndexedDB에 영속
@@ -1479,6 +1482,17 @@ window._scratchGetItemById = id => {
   return it ? { id: it.id, src: it.src } : null;
 };
 
+// ── #16 follow(연결된 참고이미지가 섹션을 따라 y 이동) 용 최소 접근자 ──
+//   추종 «로직»은 scratchpad-link.js 소관. 여기선 모델 접근 + 디바운스 저장만 내준다.
+//   ★프레임마다 _saveScratch()를 부르면 IndexedDB가 폭주 → 반드시 디바운스 경유.
+window._scratchItemById = id => _scratchItems.find(s => s.id === id) || null;
+
+let _saveSoonTimer = null;
+window._scratchSaveSoon = (delay = 400) => {
+  if (_saveSoonTimer) clearTimeout(_saveSoonTimer);
+  _saveSoonTimer = setTimeout(() => { _saveSoonTimer = null; try { _saveScratch(); } catch (_) {} }, delay);
+};
+
 // ── Phase 1(마켓 동기화): 프로젝트 전 페이지 스크래치 export/import ──
 // export: 현재 페이지 미저장분 flush 후, pageIds를 진실소스로 전 페이지 IndexedDB 항목 수집.
 //   반환 [{ pageId, items:[{src,x,y,w,id}] }] (빈 페이지 제외). pageIds 미지정 시 현재 페이지만.
@@ -1528,12 +1542,15 @@ window._scratchHasSelection = () => _selectedItems.size >= 2;
 
 // 그룹/언그룹 undo·redo용 지오메트리 스냅샷 헬퍼 (Codex 리뷰 — Cmd+G가 history에 안 남던 버그)
 // snap = [{id, x, y, w, g}] — id로 살아있는 아이템을 찾아 x/y/w/g + DOM 스타일 복원 후 저장
-const _scratchGeomSnapshot = items => items.map(it => ({ id: it.id, x: it.x, y: it.y, w: it.w, g: it.g }));
+const _scratchGeomSnapshot = items => items.map(it => ({ id: it.id, x: it.x, y: it.y, w: it.w, g: it.g, linkDy: it.linkDy }));
 function _applyScratchGeomSnapshot(snaps) {
   snaps.forEach(s => {
     const it = _scratchItems.find(i => i.id === s.id);
     if (!it) return; // 이후 삭제된 아이템은 스킵
     it.x = s.x; it.y = s.y; it.w = s.w;
+    // #16 follow — 연결 오프셋도 스냅샷 단위로 복원. 안 하면 undo가 좌표만 되돌리고
+    //   linkDy는 새 값으로 남아 «다음 섹션 이동»에 엉뚱한 위치로 튄다.
+    if (s.linkDy === undefined) delete it.linkDy; else it.linkDy = s.linkDy;
     if (s.g === undefined) { delete it.g; if (it.el) delete it.el.dataset.scratchGroup; }
     else { it.g = s.g; if (it.el) it.el.dataset.scratchGroup = s.g; }
     if (it.el) {
@@ -1543,6 +1560,8 @@ function _applyScratchGeomSnapshot(snaps) {
     }
   });
   _saveScratch();
+  // #16 follow — 복원된 좌표/오프셋을 추종루프의 기준선으로 재동기화(루프가 재앵커로 오인하지 않게)
+  try { window.SPLink && window.SPLink.resyncFollow && window.SPLink.resyncFollow(); } catch (_) {}
 }
 
 window._scratchGroupAndAlign = () => {
