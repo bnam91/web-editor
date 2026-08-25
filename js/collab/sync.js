@@ -29,7 +29,43 @@
   const POLL_MS = 2000;
   const BUSY_KEY_WINDOW_MS = 1200;   // 마지막 키 입력 후 이 시간 안이면 「편집 중」
 
-  let _cfg = null;                    // { projectId, collabId, actorId, seq }
+  /* ── 시드 재푸시 (U6-③ · §4-발견1 해소) ──────────────────────────────────
+   * ★고치는 구멍: 서버엔 «스냅샷»이 없다. 문서는 패치 재생으로만 쌓이는데 패치는
+   *   프로젝트당 500개 + TTL 7일로 잘린다. 그런데 resync 감지는 sinceSeq>0 일 때만이라
+   *   («sinceSeq=0 인» 신규 합류자는 잘린 걸 «영영 모른 채» 이빨 빠진 문서를 받는다.
+   *   목차(sections)는 오는데 내용을 받을 길이 없다 — 조용한 데이터 불완전.
+   *
+   * ★서버 무변경으로 성립시킨다. 클라 사이의 유일한 통로는 presence 다:
+   *   pull 이 보내는 editingSectionId 는 서버가 «그대로 보관»했다가 다른 멤버의 pull 응답
+   *   presence[] 에 실어준다(_lib/collab.presenceList). 즉 이미 있는 «종»이다.
+   *   ⇒ 못 받은 섹션 id 를 그 칸에 «요청 마커»로 실어 보낸다. 오너가 그걸 보면
+   *     해당 key 의 _sent 만 비우고 기존 pushChanged 가 알아서 다시 올린다.
+   *     서버 저장소·엔드포인트 신설 0. 종을 놓쳐도 다음 폴링이 다시 울린다.
+   *
+   * ⚠️경계
+   *   - 마커는 «편집 중이 아닐 때만» 보낸다. 진짜 편집표시를 덮지 않는다.
+   *   - 받는 쪽은 마커를 «편집 중»으로 그리지 않는다(paintPresence 에서 걸러낸다).
+   *   - 구버전 클라(≤v0.8.1-collab)는 마커를 모른다 → 툴팁에 마커 문자열이 잠깐 보일 뿐
+   *     기능·데이터에 영향 0(하위호환 무해).
+   *   - 서버 editingSectionId 는 100자로 잘린다 → 한 번에 담을 만큼만 담고 나머지는 다음 턴에. */
+  const NEED_PREFIX = '!gd-need:';
+  const NEED_FIELD_MAX = 100;        // 서버(pull.js)가 editingSectionId 를 자르는 길이
+  const NEED_RESCAN_TICKS = 5;       // 결손이 남아 있는 동안 목차를 다시 받아오는 주기(틱)
+  const NEED_SERVE_COOLDOWN_MS = 15000;  // 같은 섹션을 되풀이해 재푸시하지 않는다
+  /* ★영원히 조르지 않는다. 못 받는 «구조적» 이유가 있을 수 있다 —
+   *   대표적으로 그 섹션이 «내 프로젝트에 없는 페이지»에 속한 경우(페이지 생성은 아직 동기화 대상이 아니다).
+   *   그때 요청을 무한 반복하면 오너가 15초마다 그 섹션을 통째로 다시 올린다(무의미한 트래픽).
+   *   ⇒ 이 횟수만큼 물어보고 포기한다. 「조용히 어긋난 채로」가 아니라 «말하고» 포기한다. */
+  const NEED_MAX_ASKS = 12;
+
+  let _cfg = null;                    // { projectId, collabId, actorId, seq, role }
+  let _serverSections = null;         // 마지막으로 받은 서버 목차(결손 판정의 기준)
+  let _needIds = [];                  // «목차엔 있는데 나한테 없는» sectionId 들
+  let _needTicks = 0;
+  let _servedAt = Object.create(null); // sectionId → 마지막 재푸시 시각(오너측 쿨다운)
+  let _asked = Object.create(null);    // sectionId → 내가 요청한 횟수(합류자측 포기 판정)
+  let _gaveUp = new Set();             // 끝내 못 받은 섹션(사용자에게 «말한» 것)
+  let _seedRepushes = 0;              // 계측용 — 내가 재푸시를 «몇 번» 태웠나
   let _timer = null;
   let _sent = Object.create(null);    // 'pageId::secId' → «서버가 아는» hash(목차·수신분 포함)
   let _localSnap = Object.create(null); // 'pageId::secId' → «마지막 자동저장 스냅샷»의 hash
@@ -123,6 +159,105 @@
       });
     }
     return out;
+  }
+
+  /* ── 시드 재푸시: 결손 감지 ──────────────────────────────────────────────
+   * 「내가 지금 가진 섹션 id 전부」. ⛔serializeProject() 를 쓰지 않는다 —
+   * 인라인 base64 가 박힌 프로젝트에서 수십 MB 문자열을 10초마다 만들 이유가 없다.
+   * 현재 페이지는 DOM 이 정본, 나머지 페이지는 state 의 canvas 문자열이 정본이다. */
+  function localSectionIdSet() {
+    const set = new Set();
+    const st = window.state;
+    const canvas = document.getElementById('canvas');
+    if (canvas) canvas.querySelectorAll('.section-block').forEach(el => { if (el.id) set.add(el.id); });
+    if (st && Array.isArray(st.pages)) {
+      const parser = new DOMParser();
+      for (const pg of st.pages) {
+        if (!pg || pg.id === st.currentPageId) continue;
+        const doc = parser.parseFromString(`<div id="c">${pg.canvas || ''}</div>`, 'text/html');
+        const root = doc.getElementById('c');
+        if (root) root.querySelectorAll('.section-block').forEach(el => { if (el.id) set.add(el.id); });
+      }
+    }
+    return set;
+  }
+
+  /** 서버 목차 대비 «내게 없는» 섹션을 다시 센다. 패치가 붙을 때마다 줄어든다. */
+  function refreshNeeds() {
+    if (!_cfg || !Array.isArray(_serverSections)) return;
+    const have = localSectionIdSet();
+    const before = _needIds.length;
+    _needIds = _serverSections
+      .filter(s => s && s.sectionId && !have.has(s.sectionId) && !_gaveUp.has(s.sectionId))
+      .map(s => s.sectionId);
+    if (before !== _needIds.length) emit({ type: 'seed_needs', missing: _needIds.length });
+  }
+
+  /** presence 하트비트에 실어보낼 «재푸시 요청» 문자열(없으면 null). */
+  function needMarker() {
+    if (!_needIds.length) return null;
+    if (currentEditingSectionId()) return null;   // 진짜 편집표시가 우선 — 다음 틱에 보낸다
+    const picked = [];
+    for (const id of _needIds) {
+      const next = NEED_PREFIX + picked.concat(id).join(',');
+      if (next.length > NEED_FIELD_MAX) break;
+      picked.push(id);
+    }
+    if (!picked.length) return null;
+    /* 물어본 횟수를 센다. 한도를 넘긴 건 포기하고 «사용자에게 말한다» —
+     * 조용히 이빨 빠진 문서를 쓰게 두는 게 이 유닛이 고치려던 바로 그 문제다. */
+    const done = [];
+    for (const id of picked) {
+      _asked[id] = (_asked[id] || 0) + 1;
+      if (_asked[id] > NEED_MAX_ASKS) { _gaveUp.add(id); done.push(id); }
+    }
+    if (done.length) {
+      refreshNeeds();
+      const msg = `⚠️ 이 공동작업본의 일부 섹션(${done.slice(0, 3).join(', ')}${done.length > 3 ? ' 외 ' + (done.length - 3) : ''})을 받지 못했습니다 — 상대가 접속했을 때 다시 시도됩니다.`;
+      if (typeof window.showToast === 'function') { try { window.showToast(msg); } catch (_) {} }
+      console.warn('[collab]', msg);
+      emit({ type: 'seed_giveup', sections: done });
+    }
+    return NEED_PREFIX + picked.join(',');
+  }
+
+  const isNeedMarker = (v) => typeof v === 'string' && v.indexOf(NEED_PREFIX) === 0;
+
+  /* ── 시드 재푸시: 응답(오너) ─────────────────────────────────────────────
+   * ⛔로컬 문서는 «하나도» 안 건드린다. 서버가 아는 해시 기록(_sent)만 지운다 →
+   *   기존 pushChanged 가 「바뀐 섹션」으로 보고 지금 내용을 그대로 다시 올린다.
+   * ★오너만 응답한다. 아무나 응답하면 같은 섹션이 여러 사람에게서 동시에 올라와
+   *   서버 충돌 판정(keep-both)이 헛돌고 경고 토스트가 튄다. */
+  function serveNeeds(presence) {
+    if (!_cfg || _cfg.role !== 'owner') return;
+    const now = Date.now();
+    const wanted = new Set();
+    for (const p of (presence || [])) {
+      if (!p || !isNeedMarker(p.editingSectionId)) continue;
+      for (const raw of p.editingSectionId.slice(NEED_PREFIX.length).split(',')) {
+        const sid = raw.trim();
+        if (!sid) continue;
+        if (_servedAt[sid] && now - _servedAt[sid] < NEED_SERVE_COOLDOWN_MS) continue;
+        wanted.add(sid);
+      }
+    }
+    if (!wanted.size) return;
+    const mine = localSectionIdSet();
+    let hit = 0;
+    for (const sid of wanted) {
+      _servedAt[sid] = now;                        // 응답 여부와 무관하게 쿨다운(요청 폭주 방어)
+      if (!mine.has(sid)) continue;                // 나도 없는 섹션은 내가 못 준다
+      hit++;
+      for (const key of Object.keys(_sent)) {
+        if (key.slice(key.indexOf('::') + 2) === sid) delete _sent[key];
+      }
+    }
+    if (!hit) return;
+    _seedRepushes++;
+    emit({ type: 'seed_repush', sections: [...wanted], count: hit });
+    if (typeof window.serializeProject === 'function') {
+      try { pushChanged(window.serializeProject()); } catch (_) {}
+    }
   }
 
   /* ★충돌은 «반드시 보여야» 한다.
@@ -290,11 +425,16 @@
     if (!_cfg) return;
     const c = api(); if (!c) return;
     flushDeferred();                              // ★손 뗀 섹션부터 먼저 갚는다
+    /* ★결손이 남아 있는 동안만 목차를 다시 받는다(10초에 한 번). 매 틱마다 실으면
+     *   2초 폴링에 목차가 계속 따라와 응답이 무거워진다(pull.js 주석의 그 이유). */
+    const wantSections = _needIds.length > 0 && (_needTicks++ % NEED_RESCAN_TICKS === 0);
+    const marker = needMarker();
     const r = await c.pull({
       collabId: _cfg.collabId,
       sinceSeq: _cfg.seq,
       actorId: _cfg.actorId,
-      editingSectionId: currentEditingSectionId(),
+      editingSectionId: marker || currentEditingSectionId(),
+      ...(wantSections ? { wantSections: true } : {}),
     });
     if (!r || !r.ok) { _lastError = (r && r.reason) || 'unknown'; emit({ type: 'pull_error', reason: _lastError }); return; }
     _lastError = null;
@@ -309,6 +449,8 @@
       _sent = Object.create(null);
       _localSnap = Object.create(null);
       _cfg.seq = typeof r.serverSeq === 'number' ? r.serverSeq : _cfg.seq;
+      // ★resync 응답엔 목차가 함께 온다(pull.js: gapLost → wantSections). 결손 판정 기준을 갈아둔다.
+      if (Array.isArray(r.sections)) { _serverSections = r.sections; refreshNeeds(); }
       emit({ type: 'resync_required', reason: r.reason || 'patches_pruned', patchFloorSeq: r.patchFloorSeq });
       console.warn('[collab] 서버가 오래된 변경분을 정리했다 — 내 섹션은 다시 올리고, 못 받은 남의 변경은 되찾을 수 없다.');
       return;
@@ -324,8 +466,13 @@
       if (applied && p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;
     }
     if (typeof r.seq === 'number') _cfg.seq = r.seq;
+    /* ★시드 재푸시 — 목차가 왔으면 기준을 갈고, 패치가 붙었으면 결손을 다시 센다.
+     *   그리고 «내가 오너면» 남이 올린 요청 마커에 답한다. */
+    if (Array.isArray(r.sections)) _serverSections = r.sections;
+    refreshNeeds();
+    serveNeeds(r.presence || []);
     paintPresence(r.presence || []);
-    emit({ type: 'pulled', presence: r.presence || [], applied: (r.patches || []).length, deferred: _deferred.size });
+    emit({ type: 'pulled', presence: r.presence || [], applied: (r.patches || []).length, deferred: _deferred.size, missing: _needIds.length });
     // ★서버가 한 번에 주는 양엔 천장이 있다(hasMore). 남았으면 2초를 기다리지 않는다 —
     //   밀린 상태에서 2초씩 쉬면 따라잡는 데 분 단위가 걸린다.
     if (r.hasMore) setTimeout(tick, 0);
@@ -365,6 +512,11 @@
       if (p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;
     }
     if (typeof r.seq === 'number') _cfg.seq = r.seq;
+    /* ★합류 직후가 결손이 가장 크게 벌어지는 순간이다 — 여기서 «목차 대 내 문서»를 처음 맞춰본다.
+     *   (패치가 prune 돼 목차만 있고 내용이 없는 섹션이 여기서 잡힌다 — §4-발견1) */
+    if (Array.isArray(r.sections)) _serverSections = r.sections;
+    refreshNeeds();
+    serveNeeds(r.presence || []);
     paintPresence(r.presence || []);
   }
 
@@ -376,11 +528,15 @@
     const r = await c.ref({ projectId });
     const ref = r && r.ref;
     if (!ref || !ref.collabId) return { ok: false, reason: 'not_linked' };
-    _cfg = { projectId, collabId: ref.collabId, actorId: actorId(), seq: ref.seq || 0 };
+    /* ★role 을 싣는다 — 시드 재푸시에 «오너만» 응답한다(serveNeeds).
+     *   register 가 심는 collabRef.role='owner', 수락 경로(collab/accept.js)는 'member'. */
+    _cfg = { projectId, collabId: ref.collabId, actorId: actorId(), seq: ref.seq || 0, role: ref.role || '' };
     _seqSaved = ref.seq || 0;
     _sent = Object.create(null);
     _localSnap = Object.create(null);
     _deferred = new Map();
+    _serverSections = null; _needIds = []; _needTicks = 0;
+    _servedAt = Object.create(null); _asked = Object.create(null); _gaveUp = new Set();
     await resumeSafely();                         // ★먼저 내 것을 올리고, 그 다음에 남의 것을 받는다
     _timer = setInterval(tick, POLL_MS);
     _seqTimer = setInterval(flushSeq, 10000);
@@ -419,7 +575,10 @@
     const me = _cfg && _cfg.actorId;
     const now = Date.now();
     const others = (presence || []).filter(p => p.actorId && p.actorId !== me
-      && (now - new Date(p.lastSeenAt || 0).getTime()) < PRESENCE_STALE_MS);
+      && (now - new Date(p.lastSeenAt || 0).getTime()) < PRESENCE_STALE_MS)
+      /* ★시드 재푸시 요청 마커는 «편집 중»이 아니다 — 그렇게 그리면 없는 사실을 지어낸다.
+       *   원본을 고치지 않고 «표시용 사본»을 만든다(serveNeeds 가 원본 마커를 봐야 한다). */
+      .map(p => (isNeedMarker(p.editingSectionId) ? { ...p, editingSectionId: null } : p));
     if (!_cfg || !others.length) { el.style.display = 'none'; el.textContent = ''; return; }
     const editing = others.filter(p => p.editingSectionId);
     el.textContent = editing.length
@@ -449,10 +608,21 @@
   window.collabSync = {
     start, stop, tick, autoStart,
     isActive: () => !!_cfg,
-    status: () => ({ ..._cfg, deferred: _deferred.size, lastError: _lastError }),
+    status: () => ({
+      ..._cfg, deferred: _deferred.size, lastError: _lastError,
+      // ★시드 재푸시를 «기계로» 판정하기 위한 창구(추측 금지 — 상태를 보고 판단한다)
+      missing: _needIds.length, missingIds: [..._needIds],
+      serverSections: Array.isArray(_serverSections) ? _serverSections.length : null,
+      seedRepushes: _seedRepushes,
+    }),
     onEvent: (fn) => { _listeners.add(fn); return () => _listeners.delete(fn); },
     // 검증용 — 테스트에서 폴링을 기다리지 않고 즉시 한 바퀴 돌린다.
     // 검증용 — 「왜 경고가 안 떴나」를 추측하지 않고 «상태를 보고» 판정하기 위한 창구.
-    _internals: { collectSections, applyPatch, isUserBusyIn, maps: () => ({ sent: { ..._sent }, localSnap: { ..._localSnap } }) },
+    _internals: {
+      collectSections, applyPatch, isUserBusyIn,
+      maps: () => ({ sent: { ..._sent }, localSnap: { ..._localSnap } }),
+      // 시드 재푸시 검증용 — 마커 생성/결손 계산을 «직접» 재보기 위한 창구
+      needMarker, refreshNeeds, localSectionIdSet, NEED_PREFIX,
+    },
   };
 })();
