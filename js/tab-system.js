@@ -359,22 +359,19 @@ async function openTabForProject(id) {
   await switchTab(id);
 }
 
-/* ── 새 프로젝트를 직접 생성하고 탭으로 열기 ── */
-async function createNewProjectTab() {
-  document.getElementById('tab-add-wrap').classList.remove('open');
-  if (_getTabs().length >= MAX_TABS) {
-    window.showToast?.(`탭은 최대 ${MAX_TABS}개까지 열 수 있어요`);
-    return;
-  }
-  const PROJECTS_KEY = 'sangpe-projects';
-  const id = 'proj_' + Date.now();
+/* ── 빈 프로젝트 «한 벌» — 신규 생성의 정본 모양 ──
+   ★여기가 유일한 정본이다. 예전엔 「새 프로젝트」 경로마다 이 리터럴을 복사해 뒀는데,
+     복사본이 갈리면 «어느 경로로 만들었느냐»에 따라 에디터가 다르게 군다
+     (실제로 projects.html 복사본은 bg 가 다르다). 새 경로(초대 수락 = js/collab/accept.js)는
+     복사하지 말고 이 함수를 부른다. */
+function buildEmptyProject(id, name) {
   const now = new Date().toISOString();
   const emptySnap = JSON.stringify({
     version: 2, currentPageId: 'page_1',
     pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }]
   });
   const proj = {
-    id, name: 'Untitled',
+    id, name: name || 'Untitled',
     createdAt: now, updatedAt: now,
     version: 2,
     currentPageId: 'page_1',
@@ -385,6 +382,19 @@ async function createNewProjectTab() {
       dev:  { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() }
     }
   };
+  return proj;
+}
+
+/* ── 새 프로젝트를 직접 생성하고 탭으로 열기 ── */
+async function createNewProjectTab() {
+  document.getElementById('tab-add-wrap').classList.remove('open');
+  if (_getTabs().length >= MAX_TABS) {
+    window.showToast?.(`탭은 최대 ${MAX_TABS}개까지 열 수 있어요`);
+    return;
+  }
+  const PROJECTS_KEY = 'sangpe-projects';
+  const id = 'proj_' + Date.now();
+  const proj = buildEmptyProject(id, 'Untitled');
   if (window.IS_ELECTRON) {
     await window.electronAPI.saveProject(proj);
   } else {
@@ -454,6 +464,7 @@ window.closeTab             = closeTab;
 window.openTabForProject    = openTabForProject;
 window.toggleTabAddMenu     = toggleTabAddMenu;
 window.createNewProjectTab  = createNewProjectTab;
+window.buildEmptyProject    = buildEmptyProject;   // 초대 수락 경로(js/collab/accept.js)가 «같은 모양»을 쓰게
 
 export {
   saveTabState,
@@ -467,4 +478,5 @@ export {
   openTabForProject,
   toggleTabAddMenu,
   createNewProjectTab,
+  buildEmptyProject,
 };

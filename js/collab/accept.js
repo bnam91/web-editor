@@ -57,28 +57,13 @@
     return taken.has(id) ? null : id;
   }
 
-  /** 빈 프로젝트 한 벌. tab-system.createNewProjectTab 과 «같은 모양»이다 —
-   *  모양이 갈리면 어떤 경로로 만든 프로젝트냐에 따라 에디터가 다르게 군다. */
+  /** 빈 프로젝트 한 벌 — ⛔여기서 «새로 만들지» 않는다.
+   *  「새 프로젝트」의 정본 모양은 tab-system.js buildEmptyProject 하나뿐이다.
+   *  복사해 두면 언젠가 갈린다(실제로 projects.html 복사본은 배경색이 이미 다르다).
+   *  없으면 만들지 «않고» 실패로 답한다 — 조용히 다른 모양을 만드느니 낫다. */
   function emptyProject(id, name) {
-    const now = new Date().toISOString();
-    const page = {
-      id: 'page_1', name: 'Page 1', label: '',
-      pageSettings: { bg: '#9b9b9b', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true },
-      canvas: '',
-    };
-    const emptySnap = JSON.stringify({ version: 2, currentPageId: 'page_1', pages: [page] });
-    return {
-      id, name: name || '공동작업',
-      createdAt: now, updatedAt: now,
-      version: 2,
-      currentPageId: 'page_1',
-      pages: [JSON.parse(JSON.stringify(page))],
-      currentBranch: 'dev',
-      branches: {
-        main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },
-        dev:  { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },
-      },
-    };
+    if (typeof window.buildEmptyProject !== 'function') return null;
+    return window.buildEmptyProject(id, name || '공동작업');
   }
 
   /**
@@ -103,6 +88,7 @@
       if (!id) return { ok: false, reason: 'id_collision' };
 
       const proj = emptyProject(id, resp.name);
+      if (!proj) return { ok: false, reason: 'no_project_factory' };
       const sr = await a.saveProject(proj);
       if (sr && sr.ok === false) return { ok: false, reason: sr.reason || 'save_failed' };
 
