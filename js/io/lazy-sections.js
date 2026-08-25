@@ -35,21 +35,30 @@ function _ioSupported() {
   return typeof IntersectionObserver === 'function';
 }
 
-/* 자동저장 억제 래퍼 — 언로드/복원의 DOM 변경이 MutationObserver→autosave를
-   유발하지 않도록 한다. 기존 억제 상태를 보존했다가 복구(중첩 안전). */
+/* 자동저장 «표식» 래퍼 — 언로드/복원의 DOM 변경이 MutationObserver→autosave를
+   유발하지 않도록 한다. 기존 표식 상태를 보존했다가 복구(중첩 안전).
+   ★2026-08-25 변경: 예전엔 state._suppressAutoSave 를 통째로 켰다. 그런데 이 창은
+     «남의 편집»까지 삼킨다 — 억제 중에 들어온 변경은 scheduleAutoSave 가 조용히 버리고
+     그 뒤 아무도 다시 예약하지 않는다(실측: 39MB 프로젝트에서 lazy 패스와 겹친 MCP
+     build_basic_section 이 DOM 에는 있는데 «저장 예약조차» 안 돼 120초 동안 디스크 0건).
+     IntersectionObserver 는 스크롤·레이아웃·이미지 로드마다 수시로 도는데, 그 창이
+     전면 억제라면 「언제 편집해도 안전」이 성립하지 않는다.
+   ⇒ 이제는 «내 mutation 만» 무시하게 표식(_lazyRenderPass)만 세우고, 실제 필터는
+     save-load.js 의 autoSaveObserver 가 «lazy 가 만지는 속성»(style/data-lazy-bg/class)에
+     한정해 적용한다. childList(=섹션/블록 추가) 같은 진짜 편집은 그대로 통과한다. */
 function _withSuppressAutoSave(fn) {
-  const prev = state._suppressAutoSave;
-  state._suppressAutoSave = true;
+  const prev = state._lazyRenderPass;
+  state._lazyRenderPass = true;
   try {
     fn();
   } finally {
-    // 이전 값이 false였을 때만 해제(상위에서 억제 중이면 그대로 유지)
+    // 이전 값이 true였으면(중첩) 그대로 두고, 아니면 한 프레임 뒤 해제.
     if (prev !== true) {
       // MutationObserver는 microtask 후 발화 — 잔여 mutation까지 흡수 후 해제
       if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(() => { state._suppressAutoSave = prev; });
+        requestAnimationFrame(() => { state._lazyRenderPass = prev; });
       } else {
-        state._suppressAutoSave = prev;
+        state._lazyRenderPass = prev;
       }
     }
   }

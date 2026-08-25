@@ -261,6 +261,12 @@ async function switchTab(id) {
   _setActId(id);
   _viewRestoreGen++; // 활성 탭 변경 즉시 이전 탭의 pending 스크롤 재시도 무효화 (proj 없는 분기 포함)
   history.replaceState(null, '', '?project=' + id);
+  // ★여기서 URL·activeProjectId 는 벌써 «새 프로젝트»인데 캔버스는 아직 비어 있다(아래 await 구간).
+  //   부트 경로와 «같은 구멍»이라 같은 레지스트리로 닫는다 — 대기자는 settle 만 본다.
+  const _loadSeq = window.gdtProjectReady?.begin(id, 'tab');
+  const _settle = (detail) => { window.gdtProjectReady?.settle(_loadSeq, 'ready', detail); };
+  // 던지고 끝나면 phase 가 'loading' 으로 굳어 대기자가 영원히 매달린다 — 실패도 «닫는다».
+  const _settleErr = (detail) => { window.gdtProjectReady?.settle(_loadSeq, 'error', detail); };
 
   // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
   const canvasEl = document.getElementById('canvas');
@@ -297,14 +303,16 @@ async function switchTab(id) {
     _restoreViewState(targetTab);
     requestAnimationFrame(() => { if (window.buildLayerPanel) window.buildLayerPanel(); });
     // currentPageId 정해진 시점에 스크래치패드 전환 (await로 race 방지)
-    await window.switchScratch?.(id, window.state?.currentPageId);
+    try { await window.switchScratch?.(id, window.state?.currentPageId); }
+    finally { _settle('tab-cache'); }
     return;
   }
 
   // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
   let proj = null;
   if (window.IS_ELECTRON) {
-    proj = await window.electronAPI.loadProject(id, { open: true });
+    proj = await window.electronAPI.loadProject(id, { open: true })
+      .catch(e => { _settleErr('tab-load-failed:' + ((e && e.message) || e)); throw e; });
     if (targetTab && proj?.name) targetTab.name = proj.name;
     renderTabBar();
   } else {
@@ -324,7 +332,8 @@ async function switchTab(id) {
   window.state._suppressAutoSave = false;
   window.initBranchStore();
   // 파일 로드 분기에서도 스크래치 전환 (currentPageId는 applyProjectData가 set한 후)
-  await window.switchScratch?.(id, window.state?.currentPageId);
+  try { await window.switchScratch?.(id, window.state?.currentPageId); }
+  finally { _settle(proj ? 'tab-file' : 'tab-missing'); }
 }
 
 async function closeTab(id) {

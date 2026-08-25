@@ -450,22 +450,50 @@ function _registerDefaultTools() {
   // _activeProjectId()가 편집기 창 URL(?project=)을 읽으므로, 창을 그 프로젝트로 이동시키면 곧 전환이다.
   registerTool(
     'open_project',
-    async ({ projectId } = {}) => {
+    async ({ projectId, timeoutMs } = {}) => {
       if (!projectId || typeof projectId !== 'string' || !/^proj_\d+$/.test(projectId)) {
         throw new Error('projectId required (proj_<digits>)');
       }
+      if (timeoutMs !== undefined && timeoutMs !== null) {
+        if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 600000) {
+          throw new Error(`invalid timeoutMs: ${timeoutMs} (integer 1000~600000)`);
+        }
+      }
       if (!_projectOps || typeof _projectOps.open !== 'function')
         throw new Error('project ops not initialized (setProjectOps not called — app version too old?)');
-      const r = await _projectOps.open({ projectId });
-      if (!r || r.ok === false) throw new Error((r && r.error) || 'open failed');
-      return { ok: true, projectId: r.projectId, previousProject: r.previousProject != null ? r.previousProject : null };
+      const r = await _projectOps.open({ projectId, timeoutMs });
+      if (!r) throw new Error('open failed');
+      // ★로드 대기 실패(load_timeout/load_error/navigated_away)는 «구조화된 실패»로 돌려준다 —
+      //   code 없이 throw 하면 호출자가 「왜」를 모르고, 「일단 ok」로 덮으면 편집이 조용히 사라진다.
+      if (r.ok === false) {
+        if (r.code === 'load_timeout' || r.code === 'load_error' || r.code === 'navigated_away') {
+          return {
+            ok: false, code: r.code, projectId,
+            previousProject: r.previousProject != null ? r.previousProject : null,
+            waitedMs: r.waitedMs, timeoutMs: r.timeoutMs,
+            error: r.error || `open not confirmed (${r.code})`,
+            hint: 'The editor did NOT confirm the project is applied. DO NOT run editing tools now — writes would land on a canvas that is about to be replaced and vanish silently. Retry open_project (optionally with a larger timeoutMs), or check the app window.',
+          };
+        }
+        throw new Error(r.error || 'open failed');
+      }
+      return {
+        ok: true, projectId: r.projectId,
+        previousProject: r.previousProject != null ? r.previousProject : null,
+        // 호출자 대조용 확인값 — 「무엇이 열렸나」를 응답만 보고 알 수 있게.
+        activeProjectId: r.activeProjectId != null ? r.activeProjectId : r.projectId,
+        ready: r.ready === true,
+        waitedMs: r.waitedMs != null ? r.waitedMs : null,
+        sections: r.sections != null ? r.sections : null,
+      };
     },
     {
-      description: 'Open a project in the editor window = switch the ACTIVE project that all editing tools target. Unsaved changes of the previous project are flushed by the same sync-save used on page refresh. Returns {projectId, previousProject}. Use after create_project/duplicate_project, or when tools fail with "editor not open".',
+      description: 'Open a project in the editor = switch the ACTIVE project all editing tools target. Waits until the editor has APPLIED it, so editing right after ok:true is safe. Returns {projectId, activeProjectId, ready, sections, waitedMs, previousProject}. ok:false + code:"load_timeout" means NOT open — do not edit, retry. Unsaved changes of the previous project are flushed as on refresh. Use after create_project/duplicate_project, or when tools fail with "editor not open".',
       inputSchema: {
         type: 'object',
         properties: {
-          projectId: { type: 'string', description: '열 프로젝트 id (proj_<digits>)' }
+          projectId: { type: 'string', description: '열 프로젝트 id (proj_<digits>)' },
+          timeoutMs: { type: 'integer', description: 'max wait for the editor to confirm (1000~600000, default 120000)' }
         },
         required: ['projectId']
       }

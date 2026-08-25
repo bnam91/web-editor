@@ -18,6 +18,9 @@ export const state = {
   // Assets 트리 — 폴더/이미지/URL 노드 (프로젝트 전역 자산)
   assetsTree: [],
   _suppressAutoSave: false,
+  // lazy 렌더 패스(뷰포트 밖 배경 언로드/복원) 진행 표식 — «그 패스가 만지는 속성만»
+  // autosave dirty 판정에서 제외하려고 쓴다(전면 억제가 남의 편집까지 삼키던 문제 해소).
+  _lazyRenderPass: false,
 };
 window.state = state;
 

@@ -1376,6 +1376,12 @@ if (IS_ELECTRON) {
 const autoSaveObserver = new MutationObserver(mutations => {
   const meaningful = mutations.some(m => {
     if (m.type === 'attributes' && m.attributeName === 'class') return false;
+    // lazy 렌더 패스(뷰포트 밖 배경 언로드/복원)가 «자기 mutation 만» 무시하게 한다.
+    //   예전엔 lazy-sections 가 _suppressAutoSave 를 통째로 켜서, 그 창에 들어온 «진짜 편집»까지
+    //   조용히 버려졌다(저장 예약조차 안 됨). lazy 가 만지는 건 style / data-lazy-bg / class 뿐이라
+    //   그 셋만 걸러내면 childList(섹션·블록 추가) 같은 편집은 정상 통과한다.
+    if (state._lazyRenderPass && m.type === 'attributes'
+        && (m.attributeName === 'style' || m.attributeName === 'data-lazy-bg')) return false;
     // DEF-03: 콘텐츠가 아닌 코스메틱 mutation은 dirty로 치지 않음 —
     // 로드 직후 늦게 도착하는 섹션 툴바 장식·#canvas 자체 attr 변경이
     // 무편집 방문마다 autosave를 유발해 파일을 재기록(updatedAt 오염)하던 문제.
@@ -1431,6 +1437,7 @@ function initApp() {
   });
 
   // 프로젝트 로드 (Electron: 파일, 브라우저: localStorage)
+  let _loadSeq = null;   // 열림 «확정» 토큰 — 아래 IIFE가 채우고, 실패 catch도 이걸로 닫는다
   (async function initLoad() {
     // [b7] 로딩 오버레이 = index.html의 정적 #proj-loading-overlay(기본 표시). 에디터 첫 페인트(~+0.4s)에
     //   함께 그려져 무거운 로드 전 구간을 덮는다. JS가 show하는 방식(b4/b6)은 무거운 로드 중 새로 추가한
@@ -1448,6 +1455,10 @@ function initApp() {
       console.warn(`[initLoad] 부트 대상 변경 감지 (boot=${_bootProjectId} now=${activeProjectId}) — 늦은 apply 중단`);
       return true;
     };
+    // 열림 «확정» 신호 — 여기서부터가 로드 구간이고, 아래 terminal 경로들이 settle 로 닫는다.
+    //   (main 의 open_project 가 이 확정만 기다린다. project-loading.js 헤더 주석의 실측 참조)
+    _loadSeq = window.gdtProjectReady?.begin(_bootProjectId, 'boot');
+    let _settleDetail = null;
     async function applyAndFinish(data) {
       if (_bootStale()) { _endLoadingOverlay(); return; }
       try {
@@ -1459,18 +1470,23 @@ function initApp() {
         window.initScratchPad?.(activeProjectId, state.currentPageId);
       } catch(e) {
         console.error('[initApp] applyProjectData 실패, initEmpty fallback:', e);
-        initEmpty();
+        initEmpty('apply-error');
       } finally {
         _endLoadingOverlay();
+        // ★확정 — 이 시점의 DOM 이 «그 프로젝트»다. 여기 전에 들어온 편집은 방금 교체돼 사라졌다.
+        window.gdtProjectReady?.settle(_loadSeq, 'ready', _settleDetail || 'applied');
       }
     }
-    function initEmpty() {
+    function initEmpty(reason) {
       _endLoadingOverlay(); // 로드 실패/빈 프로젝트 폴백 — 오버레이 닫기
       if (_bootStale()) return; // 다른 프로젝트가 이미 활성 — 그 상태를 빈 페이지로 리셋하면 안 됨
       state.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
       state.currentPageId = 'page_1';
       window.buildLayerPanel();
       window.showPageProperties();
+      // 빈 프로젝트/폴백도 «편집 가능»한 terminal 상태다 — 확정한다(무엇으로 닫혔는지는 detail 에).
+      _settleDetail = 'empty:' + (reason || 'no-data');
+      window.gdtProjectReady?.settle(_loadSeq, 'ready', _settleDetail);
     }
 
     // localStorage에서 이전 탭 상태 즉시 복원 (await 전에 탭바 표시)
@@ -1636,6 +1652,8 @@ function initApp() {
     //   닫지만, 미처리 예외 시에도 반드시 닫는다.
     console.error('[initLoad] 처리되지 않은 오류 — 로딩 오버레이 강제 종료:', e);
     window.hideProjectLoadingOverlay?.();
+    // 대기자(main open_project)를 영원히 매달아 두지 않는다 — «실패»로 정직하게 닫는다.
+    window.gdtProjectReady?.settle(_loadSeq, 'error', 'initLoad-threw:' + ((e && e.message) || e));
   });
 
   // class 변경은 콜백에서 필터링, data-* 등 실제 속성 변경은 감지 (DBG-11 해소)

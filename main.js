@@ -1528,6 +1528,74 @@ async function _createProjectImpl({ name } = {}) {
   }
 }
 
+/* ── 열림 «확정» 대기 (2026-08-25, 조용한 데이터 유실 봉합) ────────────────────
+ * ⛔loadFile 은 «문서 로드»까지만 기다린다. 그 뒤 렌더러가 프로젝트를 읽어 캔버스를 복원하는
+ *   구간은 안 기다린다. 실측(39MB 세이프본, open_project 응답 t0 기준):
+ *     t0+87ms    응답 ok
+ *     t0+782ms   URL·window.activeProjectId·readyState('complete')·window.addSection ← 넷 다 «목적지 값»
+ *                인데 캔버스 섹션 0개(=아직 옛/빈 DOM)
+ *     t0+1,782ms 섹션 22개 적용 완료
+ *   그 1.7초 창에 들어온 편집은 곧 교체될 DOM 에 쓰이고 «에러 없이» 사라진다.
+ * ⇒ 위 넷은 전부 거짓말한다. 기다릴 수 있는 유일한 진실은 렌더러가 스스로 찍는 «적용 완료 확정»
+ *   (js/project-loading.js 의 gdtProjectReady) 뿐이다.
+ * ⇒ 그리고 «적용 완료»만으로도 부족했다(2차 실측) — applyProjectData 는 autosave 억제를
+ *   rAF 한 프레임 뒤에 푸는데, 39MB 는 그 프레임이 늦어 적용 직후 편집이 «저장 예약조차» 안 됐다.
+ *   그래서 대기 조건은 «적용 확정 + autosave 무장(autosaveArmed)» 둘 다이다.
+ * ⛔setTimeout 고정 대기 금지 — 로드 시간은 프로젝트 크기에 비례한다(수십ms~수초). 임의 상수는 깨진다.
+ */
+const OPEN_READY_TIMEOUT_MS = 120000;   // 39MB급도 통과하는 상한. 초과 = 정직한 load_timeout.
+async function _waitProjectReady(wc, projectId, timeoutMs) {
+  const t0 = Date.now();
+  const deadline = t0 + timeoutMs;
+  let interval = 25;
+  let last = null;
+  let mismatchSince = 0;
+  const EXPR = '(window.gdtProjectReady && window.gdtProjectReady.get) ? window.gdtProjectReady.get() : null';
+  for (;;) {
+    if (!mainWindow || mainWindow.isDestroyed() || !wc || wc.isDestroyed()) {
+      return { ok: false, code: 'no_window', waitedMs: Date.now() - t0, state: last };
+    }
+    let s = null;
+    // 네비게이션 중엔 컨텍스트가 파괴돼 throw 한다 — 그건 «아직»이라는 뜻이지 실패가 아니다.
+    // ⚠️렌더러가 «완전히» 멈추면(무거운 동기 작업·디버거 정지) executeJavaScript 는 영원히
+    //   안 돌아온다 → 여기서 await 로 굳으면 deadline 검사에 도달조차 못 해 타임아웃이 «안 난다».
+    //   그래서 매 폴에 상한을 건다(무응답 = 아직, 다음 폴에서 다시 본다).
+    //   ★상한은 «남은 예산»으로 잡는다 — 고정 1초로 잡으면 예산이 끝난 뒤 도착한 응답을 보고
+    //     timeoutMs 를 넘겨 ok 를 돌려주게 된다(실측: timeoutMs=1000 인데 1,404ms 에 ok).
+    const cap = Math.min(1000, Math.max(50, deadline - Date.now()));
+    try {
+      s = await Promise.race([
+        wc.executeJavaScript(EXPR).catch(() => null),
+        new Promise(r => setTimeout(() => r(null), cap)),
+      ]);
+    } catch (_) { s = null; }
+    if (s) {
+      last = s;
+      if (s.urlProject !== projectId) {
+        // 누군가 그 사이 다른 곳으로 이동시켰다. 계속 기다려봐야 영영 안 온다.
+        if (!mismatchSince) mismatchSince = Date.now();
+        else if (Date.now() - mismatchSince > 2000) {
+          return { ok: false, code: 'navigated_away', waitedMs: Date.now() - t0, state: s };
+        }
+      } else {
+        mismatchSince = 0;
+        // ★'ready'(적용 완료) 만으로는 부족하다 — autosave 억제가 아직 안 풀렸으면 그 편집은
+        //   MutationObserver 에 삼켜져 저장이 «예약조차» 안 된다(project-loading.js 주석의 실측).
+        if (s.projectId === projectId && s.phase === 'ready' && s.autosaveArmed === true) {
+          return { ok: true, waitedMs: Date.now() - t0, state: s };
+        }
+        if (s.projectId === projectId && s.phase === 'error') {
+          return { ok: false, code: 'load_error', waitedMs: Date.now() - t0, state: s };
+        }
+      }
+    }
+    if (Date.now() >= deadline) break;
+    await new Promise(r => setTimeout(r, Math.min(interval, Math.max(1, deadline - Date.now()))));
+    if (interval < 250) interval = Math.min(250, Math.round(interval * 1.6));
+  }
+  return { ok: false, code: 'load_timeout', waitedMs: Date.now() - t0, state: last };
+}
+
 // 활성 프로젝트 «전환» 코어 — MCP open_project 도구가 사용.
 // 갤러리 openProject()(location.href='../index.html?project=<id>')와 같은 목적지로 mainWindow를
 // navigate한다. mcp-server._activeProjectId()가 창 URL(?project=)을 읽으므로 navigate = 전환.
@@ -1535,7 +1603,7 @@ async function _createProjectImpl({ name } = {}) {
 //   직접 검사한다 — 미인증 상태에서 MCP로 게이트를 우회해 에디터에 진입하는 구멍 방지.
 // 이전 프로젝트의 미저장 변경분은 렌더러 beforeunload의 projects:save-sync(새로고침과 동일
 // 경로)가 flush한다.
-async function _openProjectImpl({ projectId } = {}) {
+async function _openProjectImpl({ projectId, timeoutMs } = {}) {
   try {
     if (!projectId || typeof projectId !== 'string') return { ok: false, error: 'projectId 필수', code: 'invalid' };
     if (!/^proj_\d+$/.test(projectId)) return { ok: false, error: 'proj_* 만 열 수 있습니다', code: 'not_proj' };
@@ -1549,8 +1617,46 @@ async function _openProjectImpl({ projectId } = {}) {
       const m = u && u.match(/[?&]project=([^&#]+)/);
       if (m) previousProject = decodeURIComponent(m[1]);
     } catch (_) {}
-    await mainWindow.loadFile('index.html', { query: { project: projectId } });
-    return { ok: true, projectId, previousProject };
+    const tmo = Number.isInteger(timeoutMs) && timeoutMs >= 1000 && timeoutMs <= 600000
+      ? timeoutMs : OPEN_READY_TIMEOUT_MS;
+    const deadline = Date.now() + tmo;
+    // loadFile 자체도 «영원히» 안 돌아올 수 있다(렌더러가 통째로 멈춘 경우) — 예산 안에서만 기다린다.
+    const navTimedOut = Symbol('nav-timeout');
+    let navTimer = null;
+    const navResult = await Promise.race([
+      mainWindow.loadFile('index.html', { query: { project: projectId } }).then(() => null),
+      new Promise(r => { navTimer = setTimeout(() => r(navTimedOut), tmo); }),
+    ]);
+    if (navTimer) clearTimeout(navTimer);
+    if (navResult === navTimedOut) {
+      return {
+        ok: false, code: 'load_timeout', projectId, previousProject,
+        waitedMs: tmo, timeoutMs: tmo, stage: 'navigate',
+        error: `프로젝트 창 이동이 ${tmo}ms 안에 끝나지 않았습니다 — 편집 도구를 쓰면 유실될 수 있습니다.`,
+      };
+    }
+    // ⛔여기서 곧바로 ok 를 돌려주면 «조용한 데이터 유실»이다(위 _waitProjectReady 주석의 실측).
+    //   렌더러가 「이 프로젝트를 적용했다」고 확정할 때까지 기다린다.
+    const w = await _waitProjectReady(mainWindow.webContents, projectId, Math.max(0, deadline - Date.now()));
+    if (!w.ok) {
+      // 「일단 ok」 금지 — 못 기다렸으면 못 기다렸다고 말한다.
+      return {
+        ok: false, code: w.code, projectId, previousProject,
+        waitedMs: w.waitedMs, timeoutMs: tmo,
+        error: w.code === 'load_timeout'
+          ? `프로젝트가 ${tmo}ms 안에 열리지 않았습니다 — 편집 도구를 쓰면 유실될 수 있습니다.`
+          : `프로젝트 열기 실패(${w.code})`,
+        rendererState: w.state || null,
+      };
+    }
+    // 호출자가 «무엇이 열렸는지» 대조할 수 있게 확인값을 싣는다(응답 ok 만 보고 넘어가지 않도록).
+    return {
+      ok: true, projectId, previousProject,
+      activeProjectId: (w.state && w.state.urlProject) || projectId,
+      ready: true, waitedMs: w.waitedMs,
+      sections: (w.state && typeof w.state.sections === 'number') ? w.state.sections : null,
+      loadDetail: (w.state && w.state.detail) || '',
+    };
   } catch (e) {
     console.error('[projects:open] 예외:', e);
     return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };

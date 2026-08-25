@@ -149,7 +149,7 @@ Other types: get_block_schema(type). id prefixes: tb_text gb_gap ab_asset ss_fra
 | **create_project** | Create a NEW empty Goditor project (same format as the gallery "새 프로젝트" button: 1 empty page, main/dev branches). Returns {projectId, name}. Does NOT open it — call open_project(projectId) to make it the active project before editing. | — | `name` |
 | **duplicate_project** | Duplicate a Goditor project — full copy (proj.json + assets/images + claude-pm folder), re-keyed to a fresh project id. sourceProjectId optional (defaults to the active project). Use to branch a base template into a new product project. Returns {newProjectId, newName}. Does NOT open it; the user opens it in the editor. | — | `sourceProjectId`, `newName` |
 | **goditor_which_instance** | 이 MCP 연결이 붙어 있는 goditor 인스턴스(포트·pid·userData)와, 지금 떠 있는 다른 인스턴스 목록을 알려준다. | — | — |
-| **open_project** | Open a project in the editor window = switch the ACTIVE project that all editing tools target. Unsaved changes of the previous project are flushed by the same sync-save used on page refresh. Returns {projectId, previousProject}. Use after create_project/duplicate_project, or when tools fail with "editor not open". | `projectId` | — |
+| **open_project** | Open a project in the editor = switch the ACTIVE project all editing tools target. Waits until the editor has APPLIED it, so editing right after ok:true is safe. Returns {projectId, activeProjectId, ready, sections, waitedMs, previousProject}. ok:false + code:"load_timeout" means NOT open — do not edit, retry. Unsaved changes of the previous project are flushed as on refresh. Use after create_project/duplicate_project, or when tools fail with "editor not open". | `projectId` | `timeoutMs` |
 
 
 ---
