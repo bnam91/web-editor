@@ -97,13 +97,35 @@ body {
   display: flex; align-items: center; gap: 8px;
 }
 
-/* ── 내 계정 — 기존 헤더 버튼(높이 32 · radius 7 · 12px) 규격을 그대로 쓴다 ── */
-#acct {
-  display: none; align-items: center; gap: 8px;
-  height: 32px; padding: 0 10px 0 8px;
-  background: #2a2a2a; border: 1px solid #444; border-radius: 7px;
-  font-size: 12px; color: #aaa;
+/* ── 내 계정 ─────────────────────────────────────────────────────────────
+ * ★평소엔 «[아바타] 이메일 [등급배지]» 한 줄뿐이다. 이용기간·동작 버튼은 접는다 —
+ *   헤더에 설명이 너무 많다는 지적(2026-08-26)의 근원이 그 두 줄이었다.
+ * ★메뉴 «행»은 새로 만들지 않는다 — editor-base.css 의 공용 .tab-add-item 을 그대로 쓴다
+ *   (이 페이지가 이미 그 파일을 로드한다). 껍데기(#acct-menu)만 #tab-add-menu 를 본떴다.
+ * ★색은 전부 --ui-* 토큰. (이 파일의 «기존» 줄들은 하드코딩 관례가 남아 있으나 별건.)
+ * ── */
+#acct { display: none; position: relative; }
+
+#acct-trigger {
+  display: flex; align-items: center; gap: 7px;
+  height: 32px; padding: 0 8px 0 5px;
+  background: var(--ui-bg-input); border: 1px solid var(--ui-border-strong); border-radius: 7px;
+  font-family: inherit; font-size: var(--ui-fs-12); color: var(--ui-text-sub);
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
 }
+#acct-trigger:hover { background: var(--ui-bg-hover); border-color: var(--ui-divider); }
+/* 아바타 = 이메일 첫 글자 원형. ★외부 이미지를 쓰지 않는다(CSP·오프라인). */
+.acct-avatar {
+  width: 22px; height: 22px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--ui-accent-primary); color: var(--ui-text);
+  font-size: var(--ui-fs-base); font-weight: var(--ui-fw-bold); line-height: 1;
+}
+/* 열림 표시 — #publish-dropdown-wrap.open .publish-dd-chevron 과 «같은» 회전 규칙 */
+.acct-chevron { flex-shrink: 0; opacity: 0.55; transition: transform 0.15s; }
+#acct.open .acct-chevron { transform: rotate(180deg); }
+
 #acct-mail  { color: #e0e0e0; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #acct-until { color: #9e9e9e; }
 /* 배지는 이 파일의 .planning-badge 와 같은 꼴을 따른다 — 새 룩을 만들지 않는다 */
@@ -115,13 +137,82 @@ body {
 }
 .acct-badge.is-beta { color: #6fa3f7; background: rgba(45,111,232,0.18); border-color: rgba(45,111,232,0.45); }
 .acct-badge.is-paid { color: #7fc87f; background: rgba(127,200,127,0.15); border-color: rgba(127,200,127,0.40); }
-#acct button {
-  height: 22px; padding: 0 9px;
-  background: #333; border: 1px solid #4a4a4a; border-radius: 5px;
-  color: #ddd; font-size: 11px; cursor: pointer;
+
+/* 드롭다운 껍데기 — editor-base.css #tab-add-menu 와 «같은» 규격(카드배경·1px·radius 8·shadow-lg) */
+#acct-menu {
+  display: none;
+  position: absolute; top: calc(100% + 6px); right: 0;
+  min-width: 244px;
+  background: var(--ui-bg-card); border: 1px solid var(--ui-border-mid);
+  border-radius: 8px; padding: 6px 0;
+  box-shadow: var(--ui-shadow-lg);
+  z-index: 9999;
 }
-#acct button:hover    { background: #3d3d3d; border-color: #5a5a5a; }
-#acct button:disabled { opacity: .5; cursor: default; }
+#acct.open #acct-menu { display: block; }
+.acct-dd-head { padding: 7px 14px 6px; }
+.acct-dd-mail {
+  font-size: var(--ui-fs-12); color: var(--ui-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 「BETA · 2026-12-31 까지」 + (상태문구) + 새로고침 아이콘 — 한 줄 */
+.acct-dd-meta {
+  display: flex; align-items: center; gap: 6px; margin-top: 5px;
+  font-size: var(--ui-fs-10); color: var(--ui-text-muted);
+}
+/* editor-panels.css .pub-dd-divider 와 같은 값 — 그 파일은 이 페이지가 로드하지 않는다 */
+.acct-dd-divider { height: 1px; background: var(--ui-border); margin: 5px 0; }
+/* 공용 .tab-add-item 을 <button> 으로 쓰기 위한 «중화»만 한다(룩은 그대로 물려받는다) */
+#acct-menu .tab-add-item {
+  width: 100%; background: transparent; border: none;
+  font-family: inherit; text-align: left;
+}
+/* ★새로고침 = 아이콘 버튼(회전 화살표). 라벨 텍스트 없음 · title/aria-label 로 뜻을 남긴다 */
+#acct-refresh {
+  width: 22px; height: 22px; margin-left: auto; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid transparent; border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-sub); cursor: pointer; transition: all 0.12s;
+}
+#acct-refresh:hover    { background: var(--ui-bg-hover); border-color: var(--ui-border); color: var(--ui-text); }
+#acct-refresh:disabled { opacity: var(--ui-disabled-opacity); cursor: default; }
+#acct-refresh.is-busy svg { animation: acct-spin 0.9s linear infinite; }
+@keyframes acct-spin { to { transform: rotate(360deg); } }
+/* 상태문구(확인 중…/갱신됨/오프라인/기간만료/다시 로그인) — 아이콘 «옆» 임시 텍스트.
+   아이콘만 남기면 눌러도 아무 일이 없어 보인다. 툴팁은 마우스를 다시 올려야 보이고,
+   이 페이지엔 토스트 기반이 없다(editor-toast.css 미로드) → 제자리 텍스트가 정답. */
+#acct-refresh-state { flex-shrink: 0; color: var(--ui-text-sub); }
+
+/* ── 보기 전환(그리드 / 리스트) ──
+ * 껍데기 규격은 #acct-trigger 와 같다(높이 32 · radius 7 · 같은 배경/보더 토큰).
+ * 버튼 자체는 editor-base.css 의 공용 .tb-btn 을 쓴다 — 선택 상태(.active)도 그 파일 것 그대로.
+ * (.tb-btn--icon 은 «커밋 없음»이면 pointer-events:none 이라 여기선 못 쓴다 — 크기만 재정의) */
+#view-toggle {
+  display: flex; align-items: center; gap: 2px;
+  height: 32px; padding: 0 3px;
+  background: var(--ui-bg-input); border: 1px solid var(--ui-border-strong); border-radius: 7px;
+}
+#view-toggle .tb-btn { width: 26px; height: 24px; padding: 0; border-radius: var(--ui-radius-sm); }
+
+/* ── 리스트 보기 — «같은 카드 DOM»을 한 줄 행으로 접는다(렌더러 분기 없음) ── */
+#project-grid.is-list { display: flex; flex-direction: column; gap: 4px; }
+#project-grid.is-list .project-card { display: flex; align-items: center; border-radius: var(--ui-radius-md); }
+#project-grid.is-list .project-card:hover { transform: none; }
+#project-grid.is-list .card-thumb {
+  width: 46px; height: 30px; flex-shrink: 0;
+  border-bottom: none; border-right: 1px solid var(--ui-bg-hover);
+}
+#project-grid.is-list .card-thumb svg { width: 16px; height: 16px; }
+#project-grid.is-list .card-body {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 76px 6px 12px;   /* 오른쪽 = hover 시 뜨는 .card-actions 자리 */
+}
+#project-grid.is-list .card-name { flex: 1; min-width: 0; margin-bottom: 0; }
+#project-grid.is-list .card-date { flex-shrink: 0; }
+#project-grid.is-list .planning-badge,
+#project-grid.is-list .collab-badge   { margin-bottom: 0; flex-shrink: 0; order: -1; }
+#project-grid.is-list .fsub-card-badge { margin-top: 0; flex-shrink: 0; }
+#project-grid.is-list .card-actions { top: 50%; transform: translateY(-50%); right: 10px; }
 
 /* ── Grid ── */
 #project-grid {
@@ -234,29 +325,79 @@ body {
   <div id="header">
     <h1>프로젝트</h1>
     <div class="header-actions">
-      <button id="btn-new-planning" onclick="createPlanningProject()" style="display:none">
+      <!-- ★보기 전환 — 두 아이콘 토글(radiogroup). 선택값은 다음 실행에도 남는다. -->
+      <div id="view-toggle" role="radiogroup" aria-label="보기 방식">
+        <button type="button" class="tb-btn" data-view="grid" role="radio" aria-checked="true"
+                title="바둑판으로 보기" aria-label="바둑판으로 보기">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </button>
+        <button type="button" class="tb-btn" data-view="list" role="radio" aria-checked="false"
+                title="목록으로 보기" aria-label="목록으로 보기">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/>
+            <line x1="4" y1="6" x2="4.01" y2="6"/><line x1="4" y1="12" x2="4.01" y2="12"/><line x1="4" y1="18" x2="4.01" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <!-- ★라벨은 «한 곳»에만 있다(<span id="btn-*-label">) — 문구가 정해지면 그 한 줄만 갈아끼운다.
+           아이콘+라벨 구조라 라벨이 짧아져도(예: Design) 버튼이 그대로 줄어든다. -->
+      <button id="btn-new-planning" onclick="createPlanningProject()" style="display:none" title="기획 프로젝트 만들기">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="3" width="18" height="18" rx="2"/>
           <line x1="9" y1="8" x2="15" y2="8"/>
           <line x1="9" y1="12" x2="15" y2="12"/>
           <line x1="9" y1="16" x2="12" y2="16"/>
         </svg>
-        기획 프로젝트 만들기
+        <span id="btn-new-planning-label">기획 프로젝트 만들기</span>
       </button>
-      <button id="btn-new" onclick="createProject()">
+      <button id="btn-new" onclick="createProject()" title="디자인 프로젝트 만들기">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/>
         </svg>
-        디자인 프로젝트 만들기
+        <span id="btn-new-label">디자인 프로젝트 만들기</span>
       </button>
       <!-- ★내 계정 — 지금 앱엔 자기 등급을 볼 방법이 «아예 없다».
-           등급은 앱 «밖»(입금 승인·베타 종료)에서 바뀌므로 [새로고침]이 함께 있어야 한다. -->
+           등급은 앱 «밖»(입금 승인·베타 종료)에서 바뀌므로 [새로고침]이 함께 있어야 한다.
+           ★그 새로고침은 «서버에 물어 등급을 다시 받는» 유일한 경로다 —
+             이 앱엔 사용자용 리로드(⌘R)·메뉴가 없어서 지우면 등급이 영영 안 바뀐다.
+           평소엔 아바타+이메일+배지 한 줄만 두고, 나머지는 이 드롭다운 안에 접었다. -->
       <div id="acct" title="내 계정">
-        <span id="acct-plan" class="acct-badge"></span>
-        <span id="acct-mail"></span>
-        <span id="acct-until"></span>
-        <button id="acct-refresh" title="서버에서 등급을 다시 읽는다">새로고침</button>
-        <button id="acct-upgrade" title="요금제를 브라우저로 연다">등급 올리기</button>
+        <button type="button" id="acct-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="acct-menu">
+          <span class="acct-avatar" id="acct-avatar" aria-hidden="true"></span>
+          <span id="acct-mail"></span>
+          <span id="acct-plan" class="acct-badge"></span>
+          <svg class="acct-chevron" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <div id="acct-menu" role="menu" aria-label="내 계정">
+          <div class="acct-dd-head">
+            <div class="acct-dd-mail" id="acct-menu-mail"></div>
+            <div class="acct-dd-meta">
+              <span id="acct-until"></span>
+              <span id="acct-refresh-state" role="status" aria-live="polite"></span>
+              <button type="button" id="acct-refresh" role="menuitem" data-acct-item
+                      title="등급 새로고침 — 서버에서 등급을 다시 읽습니다" aria-label="등급 새로고침">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="acct-dd-divider"></div>
+          <button type="button" class="tab-add-item" id="acct-upgrade" role="menuitem" data-acct-item
+                  title="요금제를 브라우저로 연다">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            <span class="tab-add-item-name">등급 올리기</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -732,13 +873,19 @@ const PLAN_CLASS = { beta: 'is-beta', event_free: 'is-beta', starter: 'is-paid',
 function paintAcct(st) {
   const box = document.getElementById('acct');
   if (!box) return;
-  if (!st || !st.signedIn) { box.style.display = 'none'; return; }
+  if (!st || !st.signedIn) { box.style.display = 'none'; closeAcctMenu(); return; }
   const code = String(st.plan || '').toLowerCase();
   const badge = document.getElementById('acct-plan');
   // ★모르는 코드값이면 «그 값을 그대로» 보여준다. 빈칸으로 두면 서버가 뭘 줬는지 알 수 없다.
-  badge.textContent = PLAN_LABEL[code] || (code ? code.toUpperCase() : '—');
+  const planLabel = PLAN_LABEL[code] || (code ? code.toUpperCase() : '—');
+  badge.textContent = planLabel;
   badge.className = 'acct-badge ' + (PLAN_CLASS[code] || '');
-  document.getElementById('acct-mail').textContent = st.email || '';
+  const email = st.email || '';
+  document.getElementById('acct-mail').textContent = email;
+  document.getElementById('acct-menu-mail').textContent = email;
+  // 아바타는 이니셜 한 글자 — 외부 이미지를 부르지 않는다(CSP img-src·오프라인).
+  const av = document.getElementById('acct-avatar');
+  if (av) av.textContent = (email.trim().charAt(0) || '?').toUpperCase();
   let until = '';
   if (st.accessUntil) {
     const d = new Date(st.accessUntil);
@@ -747,43 +894,155 @@ function paintAcct(st) {
       until = d.toISOString().slice(0, 10) + ' 까지' + (left >= 0 && left <= 30 ? ' · ' + left + '일 남음' : '');
     }
   }
-  document.getElementById('acct-until').textContent = until;
-  box.style.display = 'flex';
+  // ★기간은 «평소엔 안 보인다» — 드롭다운 안에서만 「BETA · 2026-12-31 까지」 한 줄로.
+  document.getElementById('acct-until').textContent = until ? (planLabel + ' · ' + until) : planLabel;
+  box.style.display = 'block';
 }
 
-(async () => {
-  const api = window.electronAPI;
-  if (!api || !api.getAuthState) return;          // 브라우저에서 열었을 때 — 조용히 생략
-  paintAcct(await api.getAuthState());
+/* ── 계정 드롭다운 ───────────────────────────────────────────────────────
+ * ★리스너는 «한 번만» 묶는다(acctWired). 이 페이지는 renderGrid()를 여러 번 도는데,
+ *   그때마다 묶으면 클릭 한 번이 두 번 나간다 — 2026-08-15 설정 pane 이 두 번 그려져
+ *   「클릭 한 번에 초대 두 번」이 나갔던 사고와 같은 계열이다.
+ * ★키보드: Enter/Space(버튼 기본) 열기 · Esc 닫고 트리거로 복귀 · ↑↓ 항목 이동.
+ */
+let acctWired = false;
+function acctItems() {
+  return Array.from(document.querySelectorAll('#acct-menu [data-acct-item]'))
+              .filter(el => !el.disabled);
+}
+function openAcctMenu(focusFirst) {
+  const box = document.getElementById('acct');
+  if (!box || box.style.display === 'none') return;
+  box.classList.add('open');
+  document.getElementById('acct-trigger')?.setAttribute('aria-expanded', 'true');
+  if (focusFirst) acctItems()[0]?.focus();
+}
+function closeAcctMenu(focusTrigger) {
+  const box = document.getElementById('acct');
+  if (!box || !box.classList.contains('open')) return;
+  box.classList.remove('open');
+  const tr = document.getElementById('acct-trigger');
+  tr?.setAttribute('aria-expanded', 'false');
+  if (focusTrigger) tr?.focus();
+}
+function wireAcctMenu(api) {
+  if (acctWired) return;                 // ★이중 결선 금지
+  acctWired = true;
 
+  const box  = document.getElementById('acct');
+  const tr   = document.getElementById('acct-trigger');
+  const menu = document.getElementById('acct-menu');
+  if (!box || !tr || !menu) return;
+
+  tr.addEventListener('click', (e) => {
+    e.stopPropagation();
+    box.classList.contains('open') ? closeAcctMenu() : openAcctMenu(false);
+  });
+  tr.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); openAcctMenu(true); }
+  });
+  // 바깥 클릭 — 문서에 «하나»만 건다
+  document.addEventListener('click', (e) => {
+    if (box.classList.contains('open') && !e.target.closest('#acct')) closeAcctMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && box.classList.contains('open')) { e.preventDefault(); closeAcctMenu(true); }
+  });
+  menu.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const items = acctItems();
+    if (!items.length) return;
+    const i = items.indexOf(document.activeElement);
+    const n = e.key === 'ArrowDown' ? (i + 1) % items.length : (i - 1 + items.length) % items.length;
+    items[n < 0 ? 0 : n].focus();
+  });
+
+  /* ★새로고침 = «서버에 물어 plan·accessUntil 을 새로 받는» 유일한 경로다.
+   *   (auth:state 는 로컬 auth.json 을 다시 그릴 뿐이고, 이 앱엔 사용자용 ⌘R·리로드 메뉴가 없다.)
+   *   아이콘 버튼으로 바뀌었을 뿐 분기(오프라인/기간만료/invalid_session)는 그대로 산다. */
   const rf = document.getElementById('acct-refresh');
-  if (rf) rf.addEventListener('click', async () => {
-    rf.disabled = true; const was = rf.textContent; rf.textContent = '확인 중…';
+  const rs = document.getElementById('acct-refresh-state');
+  const setState = (t) => { if (rs) rs.textContent = t || ''; };
+  if (rf) rf.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (rf.disabled) return;
+    rf.disabled = true; rf.classList.add('is-busy'); setState('확인 중…');
     try {
       const r = await (api.refreshAuth ? api.refreshAuth() : null);
       // ★세션이 폐기됐으면(다른 기기 로그인 등) 이 화면에 머물게 두면 안 된다 —
       //   등급 표시가 사라진 채 「왜 안 되지」로 남는다. 만료 화면으로 넘겨서 다시 로그인하게 한다.
       if (r && r.reason === 'invalid_session') {
-        rf.textContent = '다시 로그인';
+        rf.classList.remove('is-busy');
+        setState('다시 로그인');
         setTimeout(() => { window.location.href = 'license.html'; }, 900);
         return;
       }
       paintAcct(await api.getAuthState());
       // ★오프라인이면 «조용히 실패»하면 안 된다 — 눌렀는데 아무 일도 안 일어난 걸로 보인다.
       //   만료도 마찬가지다 — 서버는 대답했는데 「갱신됨」이라고 쓰면 거짓말이 된다.
-      rf.textContent = (r && r.ok) ? '갱신됨'
-                     : (r && r.reason === 'offline') ? '오프라인'
-                     : (r && r.reason === 'expired') ? '기간만료'
-                     : was;
-    } catch (_) { rf.textContent = was; }
-    setTimeout(() => { rf.textContent = was; rf.disabled = false; }, 1600);
+      setState((r && r.ok) ? '갱신됨'
+             : (r && r.reason === 'offline') ? '오프라인'
+             : (r && r.reason === 'expired') ? '기간만료'
+             : '');
+    } catch (_) { setState(''); }
+    rf.classList.remove('is-busy');
+    setTimeout(() => { setState(''); rf.disabled = false; }, 1600);
   });
 
   const up = document.getElementById('acct-upgrade');
-  if (up) up.addEventListener('click', async () => {
+  if (up) up.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    closeAcctMenu();
     const st = await api.getAuthState();
     if (st && st.purchaseUrl && api.openExternalUrl) await api.openExternalUrl(st.purchaseUrl);
   });
+}
+
+(async () => {
+  const api = window.electronAPI;
+  if (!api || !api.getAuthState) return;          // 브라우저에서 열었을 때 — 조용히 생략
+  paintAcct(await api.getAuthState());
+  wireAcctMenu(api);
+})();
+
+/* ── 보기 전환(그리드 / 리스트) ──────────────────────────────────────────
+ * ★렌더러를 새로 만들지 않는다 — 카드 DOM 은 그대로 두고 #project-grid 의 클래스만 바꿔
+ *   같은 카드를 한 줄 행으로 «접는다». 그래서 카드 열기·삭제·이름변경·배지·글꼴배지가
+ *   두 보기에서 «같은 코드»로 돈다(분기 = 클래스 하나).
+ * ★저장은 이 페이지가 이미 쓰는 localStorage 를 그대로 쓴다(새 저장소 신설 금지 —
+ *   web-editor-open-tabs·claudePM:folderMap 과 같은 자리, Electron 이 ud 에 디스크로 남긴다).
+ */
+const VIEW_KEY = 'goditor_projects_view';
+function getViewMode() {
+  try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid'; } catch (_) { return 'grid'; }
+}
+function applyViewMode(mode, persist) {
+  const m = (mode === 'list') ? 'list' : 'grid';
+  document.getElementById('project-grid')?.classList.toggle('is-list', m === 'list');
+  document.querySelectorAll('#view-toggle [data-view]').forEach(b => {
+    const on = b.dataset.view === m;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+    b.tabIndex = on ? 0 : -1;            // radiogroup: 그룹 전체가 탭정지 «하나»
+  });
+  if (persist) { try { localStorage.setItem(VIEW_KEY, m); } catch (_) {} }
+}
+(function wireViewToggle() {
+  const wrap = document.getElementById('view-toggle');
+  if (!wrap) return;
+  const btns = Array.from(wrap.querySelectorAll('[data-view]'));
+  btns.forEach(b => b.addEventListener('click', () => applyViewMode(b.dataset.view, true)));
+  wrap.addEventListener('keydown', (e) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+    e.preventDefault();
+    const i = btns.indexOf(document.activeElement);
+    const d = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : -1;
+    const nxt = btns[((i < 0 ? 0 : i) + d + btns.length) % btns.length];
+    applyViewMode(nxt.dataset.view, true);
+    nxt.focus();
+  });
+  applyViewMode(getViewMode(), false);   // 저장된 값으로 복원(첫 렌더 전에 켜도 무해)
 })();
 </script>
 <script src="../js/io/gdt-import.js"></script>
