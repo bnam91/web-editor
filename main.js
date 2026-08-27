@@ -749,7 +749,7 @@ function _SS() {
   return _ssMod || _SS_FALLBACK;
 }
 // 모듈이 없으면 «스냅샷을 안 만들고 폴백 후보도 안 준다» — 저장·로드 자체는 계속 되게(현행과 동일한 안전 성향).
-const _SS_FALLBACK = { planLegacySlots: () => ({ create: false, newName: null, deletions: [] }), loadFallbackCandidates: () => [] };
+const _SS_FALLBACK = { writeSnapshot: () => ({ ok: false, skipped: 'module_missing' }), pruneVersions: () => ({ kept: 0, deleted: [] }), loadFallbackCandidates: () => [] };
 
 function _resolveProjectJsonPath(id) {
   id = _safeSeg(id); // GAP-009
@@ -1251,27 +1251,20 @@ async function _saveProjectImpl(project) {
       // 롤링 백업: 정상 저장 전 직전 버전 보존 — 신 위치에만 작성
       try { fs.copyFileSync(prevPath, paths.backup); } catch (_) {}
 
-      // 다중 백업: 시간 기반 슬롯 — 신 위치 디렉터리 안 proj_history/.
-      // 정책(간격 게이트·슬롯 상한·제거 순서)은 snapshot-store 가 «계획»으로 답하고 여기선 그대로 집행만 한다.
-      try {
-        const histDir = paths.history;
-        if (!fs.existsSync(histDir)) fs.mkdirSync(histDir, { recursive: true });
-        const plan = _SS().planLegacySlots(histDir, Date.now());
-        if (plan.create) {
-          fs.copyFileSync(prevPath, path.join(histDir, plan.newName));
-          for (const oldest of plan.deletions) {
-            try { fs.unlinkSync(path.join(histDir, oldest)); } catch {}
-          }
-        }
-      } catch (e) {
-        console.warn('[projects:save] 다중 백업 슬롯 갱신 실패:', e.message);
-      }
+      // (버전 스냅샷은 proj.json 을 «쓴 뒤» 아래에서 만든다 — 재료가 파일이 아니라 메모리의 객체다)
     } catch {}
   }
 
   _atomicWriteFileSync(filePath, JSON.stringify(project, null, 2));
   // [b8] 목록 메타 캐시 갱신 — proj.json 직후 기록해 meta.mtime >= proj.mtime 불변식 유지(목록 풀파싱 회피)
   _refreshListMeta(project.id, project);
+  // [version-history] 버전 스냅샷 — «지금 저장되는 객체»를 정규형(goya-asset)으로 기록 + 계층 프룬.
+  //   ★proj.json 을 «쓴 뒤»여야 한다: updateCurrent 가 새 mtime/size 를 읽어 목록 신선도 판정에 쓴다.
+  //   ★스냅샷 실패가 저장 실패로 번지면 안 된다 — 전체를 삼킨다(현행 백업 로직과 같은 규율).
+  try {
+    _SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'auto' });
+    _SS().pruneVersions(PROJECTS_DIR, project.id);
+  } catch (e) { console.warn('[projects:save] 버전 스냅샷 실패(저장은 정상):', e.message); }
   // claude-pm/project.meta.json title 동기화 (PM 폴더 있을 때만, best-effort)
   try { await syncClaudePmTitle(PROJECTS_DIR, project.id, project.name); } catch {}
   return { ok: true };
