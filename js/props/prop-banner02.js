@@ -120,8 +120,8 @@ export function showBanner02Properties(block, activeIdxArg) {
     <div class="prop-section">
       <div class="prop-section-title">Text Lines</div>
       <div class="prop-align-group" id="bn2-line-chips">
-        ${lines.map((l, i) => `<button class="prop-align-btn${activeIdx === i ? ' active' : ''}" data-line-chip="${i}" style="flex:1;font-size:11px;">${KIND_LABELS[l.kind] || l.kind}</button>`).join('')}
-        <button class="prop-align-btn${activeIdx === null ? ' active' : ''}" data-line-chip="all" style="flex:1;font-size:11px;" title="모든 줄을 한꺼번에 펼칩니다">전체</button>
+        ${lines.map((l, i) => `<button class="prop-align-btn${activeIdx === i ? ' active' : ''}" data-line-chip="${i}" style="flex:0 0 auto;font-size:11px;padding:2px 8px;" title="${(l.text || '').replace(/"/g, '&quot;').slice(0, 40) || '(빈 줄)'}">${KIND_LABELS[l.kind] || l.kind} ${i + 1}</button>`).join('')}
+        <button class="prop-align-btn${activeIdx === null ? ' active' : ''}" data-line-chip="all" style="flex:0 0 auto;font-size:11px;padding:2px 8px;" title="모든 줄을 한꺼번에 펼칩니다">전체</button>
       </div>
     </div>` : '';
 
@@ -147,12 +147,32 @@ export function showBanner02Properties(block, activeIdxArg) {
     </div>
 
     <div class="prop-section">
+      <!-- ⑺ 좌우 바꾸기는 «이미지 속성»이 아니라 배치 구조다(텍스트 위치도 같이 바뀐다) → Variant 와 같은 층.
+           단 Variant 는 «형태 선택»(2택 토글)이고 이건 «지금 형태를 뒤집기»(1회 동작)라 성격이 달라,
+           같은 섹션에 넣지 않고 제목 없는 prop-section 으로 층을 나눈다(새 CSS·새 마진 규약 0). -->
+      <button class="prop-btn" id="bn2-swap" style="width:100%;">↔ 이미지·텍스트 좌우 바꾸기</button>
+    </div>
+
+    <div class="prop-section">
       <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="number" class="prop-number" id="bn2-w" value="${parseInt(d.bannerW) || 780}" min="100" max="1600">
         <span class="prop-label" style="margin-left:8px">H</span>
-        <input type="number" class="prop-number" id="bn2-h" value="${parseInt(d.bannerH) || 260}" min="40" max="1200">
+        <input type="number" class="prop-number" id="bn2-h" value="${d.autoHeight === 'false' ? (parseInt(d.bannerH) || 260) : ''}" placeholder="${parseInt(d.bannerH) || 260}" min="40" max="1200" title="비우면 내용에 맞춰 자동">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">텍스트 X</span>
+        <input type="number" class="prop-number" id="bn2-tx" value="${d.textTuned === '1' ? (parseInt(d.textX) || 0) : ''}" placeholder="${parseInt(d.textX) || 0}" min="0" max="1600" title="비우면 프리셋 기본값">
+        <span class="prop-label" style="margin-left:8px">폭</span>
+        <input type="number" class="prop-number" id="bn2-tw" value="${d.textTuned === '1' ? (parseInt(d.textW) || 0) : ''}" placeholder="${parseInt(d.textW) || 0}" min="20" max="1600" title="비우면 프리셋 기본값">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">텍스트 Y</span>
+        <input type="number" class="prop-number" id="bn2-ty" value="${d.textTuned === '1' ? (parseInt(d.textY) || 0) : ''}" placeholder="${parseInt(d.textY) || 0}" min="0" max="1200" title="비우면 프리셋 기본값">
+      </div>
+      <div class="prop-row" id="bn2-hint-row" style="display:none">
+        <span class="prop-hint" id="bn2-hint"></span>
       </div>
     </div>
 
@@ -181,15 +201,29 @@ export function showBanner02Properties(block, activeIdxArg) {
         <button class="prop-align-btn${(d.imgFit || 'cover') === 'cover' ? ' active' : ''}" data-fit="cover" style="flex:1;font-size:11px;">꽉 채우기</button>
         <button class="prop-align-btn${d.imgFit === 'contain' ? ' active' : ''}" data-fit="contain" style="flex:1;font-size:11px;">원본 비율</button>
       </div>
-      <button class="prop-btn" id="bn2-swap" style="width:100%;margin-top:6px;">↔ 이미지·텍스트 좌우 바꾸기</button>
     </div>
 
     <div class="prop-section">
       <div class="prop-section-title">Text Align</div>
-      <div class="prop-align-group" id="bn2-align-group" style="display:flex;gap:4px;">
-        <button class="prop-align-btn${(d.align || 'left') === 'left' ? ' active' : ''}" data-align="left" style="flex:1;">좌</button>
-        <button class="prop-align-btn${d.align === 'center' ? ' active' : ''}" data-align="center" style="flex:1;">중앙</button>
-        <button class="prop-align-btn${d.align === 'right' ? ' active' : ''}" data-align="right" style="flex:1;">우</button>
+      <div class="prop-align-group" id="bn2-align-group">
+        <button class="prop-align-btn${(d.align || 'left') === 'left' ? ' active' : ''}" data-align="left" title="왼쪽 정렬">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+            <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
+              <line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/>
+          </svg>
+        </button>
+        <button class="prop-align-btn${d.align === 'center' ? ' active' : ''}" data-align="center" title="가운데 정렬">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+            <line x1="1" y1="3" x2="13" y2="3"/><line x1="3" y1="6" x2="11" y2="6"/>
+              <line x1="2" y1="9" x2="12" y2="9"/><line x1="4" y1="12" x2="10" y2="12"/>
+          </svg>
+        </button>
+        <button class="prop-align-btn${d.align === 'right' ? ' active' : ''}" data-align="right" title="오른쪽 정렬">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+            <line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/>
+              <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
+          </svg>
+        </button>
       </div>
     </div>`;
 
@@ -206,10 +240,16 @@ export function showBanner02Properties(block, activeIdxArg) {
       if (!v) return;
       block.dataset.variant = btn.dataset.variant;
       // 기하/크기만 variant로 갱신 (텍스트·이미지 내용 보존)
+      // ★사람이 텍스트 박스를 손으로 맞췄으면(textTuned) variant 전환이 그걸 덮지 않는다.
+      //   ⑸의 autoHeight 와 같은 규약 — 「사람이 만진 값은 안 덮는다」가 이 패널에서 하나로 유지된다.
+      //   되돌리려면 그 입력칸을 «비우면» 된다(빈 값 = 프리셋 복귀).
+      const _keepText = block.dataset.textTuned === '1';
       ['width:bannerW', 'height:bannerH', 'radius:radius', 'textX:textX', 'textY:textY', 'textW:textW',
        'labelSize:labelSize', 'titleSize:titleSize', 'subSize:subSize', 'gap1:gap1', 'gap2:gap2',
        'imgX:imgX', 'imgY:imgY', 'imgW:imgW', 'imgH:imgH'].forEach(m => {
-        const [vk, dk] = m.split(':'); if (v[vk] !== undefined) block.dataset[dk] = v[vk];
+        const [vk, dk] = m.split(':');
+        if (_keepText && (dk === 'textX' || dk === 'textY' || dk === 'textW')) return;
+        if (v[vk] !== undefined) block.dataset[dk] = v[vk];
       });
       rerender(); commit(); showBanner02Properties(block);
     });
@@ -218,9 +258,72 @@ export function showBanner02Properties(block, activeIdxArg) {
   // Size
   const bindNum = (id, dk, render = true) => {
     const el = propPanel.querySelector('#' + id);
-    el?.addEventListener('change', () => { block.dataset[dk] = el.value; if (render) rerender(); commit(); });
+    el?.addEventListener('change', () => { block.dataset[dk] = el.value; if (render) rerender(); commit(); refreshHint(); });
   };
-  bindNum('bn2-w', 'bannerW'); bindNum('bn2-h', 'bannerH');
+  bindNum('bn2-w', 'bannerW');
+
+  /* ★「빈 값 = 자동」 — prop-table 의 «행별 높이»(placeholder="auto" · 비우면 자동복귀)와 같은 관용구.
+     값을 넣으면 «사람이 만졌다» 플래그를 세우고, 비우면 플래그를 걷어 프리셋/자동값으로 돌아간다.
+     ⇒ 리셋 경로가 새 버튼 없이 생기고, autoHeight 와 textTuned 가 같은 세움/해제 시점을 쓴다. */
+  const bindAutoNum = (id, dk, flagKey, flagOnValue, presetKey = null) => {
+    const el = propPanel.querySelector('#' + id);
+    el?.addEventListener('change', () => {
+      const v = parseInt(el.value, 10);
+      if (!Number.isFinite(v) || el.value.trim() === '') {
+        delete block.dataset[flagKey];          // 자동으로 복귀
+        el.value = '';
+        // ⚠️bannerH 는 렌더가 «자동 계산»으로 되돌려주지만, textX/Y/W 는 자동 계산이 없다.
+        //   플래그만 걷으면 값이 그대로 남아 「비웠는데 안 돌아온다」가 된다 → variant 프리셋 값으로 되돌린다.
+        if (presetKey) {
+          const pv = window.BANNER02_VARIANTS?.[block.dataset.variant]?.[presetKey];
+          if (pv !== undefined) block.dataset[dk] = String(pv);
+        }
+      } else {
+        block.dataset[dk] = String(v);
+        block.dataset[flagKey] = flagOnValue;   // 수동 고정
+      }
+      rerender(); commit(); showBanner02Properties(block);
+    });
+  };
+  bindAutoNum('bn2-h',  'bannerH', 'autoHeight', 'false');
+  bindAutoNum('bn2-tx', 'textX',   'textTuned',  '1', 'textX');
+  bindAutoNum('bn2-ty', 'textY',   'textTuned',  '1', 'textY');
+  bindAutoNum('bn2-tw', 'textW',   'textTuned',  '1', 'textW');
+
+  /* 조건부 힌트 — 평소 0줄, «문제가 있을 때만» 한 줄. 넘침이 겹침보다 급하므로 넘침 우선.
+     (겹침은 풀블리드 이미지 위 글씨처럼 «정상 상태로 계속 참»일 수 있어 항상 떠 있을 수 있다.) */
+  function refreshHint() {
+    const row = propPanel.querySelector('#bn2-hint-row');
+    const out = propPanel.querySelector('#bn2-hint');
+    if (!row || !out) return;
+    const over = window.bn2OverflowInfo?.(block);
+    const tX = parseInt(block.dataset.textX) || 0, tW = parseInt(block.dataset.textW) || 0;
+    const iX = parseInt(block.dataset.imgX) || 0;
+    if (over && over.overflow) {
+      out.textContent = `내용이 넘칩니다 (${over.need}px 필요)`;
+      row.style.display = '';
+      if (!row.querySelector('#bn2-fit-h')) {
+        const b = document.createElement('button');
+        b.className = 'prop-btn'; b.id = 'bn2-fit-h'; b.textContent = '맞추기';
+        b.addEventListener('click', () => {
+          delete block.dataset.autoHeight;      // 자동으로 되돌리면 렌더가 알아서 키운다
+          block.dataset.bannerH = String(over.need);
+          rerender(); commit(); showBanner02Properties(block);
+        });
+        row.appendChild(b);
+      }
+    } else if (tW && tX + tW > iX) {
+      // ⚠️imgSrc 유무로 가르지 않는다 — 이미지가 비어도 «슬롯»(체커보드)은 그대로 그려지므로
+      //   겹치면 시각적으로 똑같이 틀어진다. 실측에서 이 가드 때문에 경고가 안 떴다.
+      out.textContent = '텍스트가 이미지와 겹칩니다';
+      row.style.display = '';
+      row.querySelector('#bn2-fit-h')?.remove();
+    } else {
+      row.style.display = 'none';
+      row.querySelector('#bn2-fit-h')?.remove();
+    }
+  }
+  refreshHint();
 
   // Background color/gradient
   wireColorField('bn2-bg', {
