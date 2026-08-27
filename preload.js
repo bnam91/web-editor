@@ -109,6 +109,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   historyDiffPayload: ({ projectId, ts })  => ipcRenderer.invoke('projects:history-diff-payload', { projectId, ts }),
   // 사본으로 열기 — 비파괴(새 프로젝트를 만들 뿐 기존 것을 안 건드린다). 되돌리기(파괴)는 아직 없다.
   historyOpenCopy:    ({ projectId, ts, newName }) => ipcRenderer.invoke('projects:history-open-copy', { projectId, ts, newName }),
+  // ★파괴 경로 — 「이 버전으로 교체」. openProjectIds 는 «이 창이 연 탭 목록»이다.
+  //   안 넘기면 main 이 «판별 불가»로 보고 거부한다(다른 창에서 열려 있을 수 있으므로).
+  historyRestore:     ({ projectId, ts, openProjectIds, currentData }) =>
+    ipcRenderer.invoke('projects:history-restore', { projectId, ts, openProjectIds, currentData }),
 
   // 사용자별 Preferences (API 키 + 단축키)
   getSettings:  ()              => ipcRenderer.invoke('settings:get'),

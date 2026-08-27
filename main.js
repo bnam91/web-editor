@@ -1553,6 +1553,70 @@ ipcMain.handle('projects:duplicate', (_e, args = {}) => _duplicateProjectImpl(ar
  * 읽기전용 뷰어 대신 사본을 주는 이유: 사용자는 만져보고 판단해야 하는데, 원본은 안전해야 한다.
  * ★반드시 _duplicateProjectImpl 을 탄다 — goya-asset URL 이 hostname 에 projectId 를 박고 있어서
  *   URL 치환 + 에셋 하드링크를 안 하면 사본이 원본 폴더를 몰래 참조한다(원본 삭제 시 404). */
+/* ── [version-history] U6b «이 버전으로 교체» — ★파괴 경로 ────────────────
+ * 현빈 확정(Q2): 교체가 «기본», 교체 «직전» 자동 스냅샷, 다른 창에 열려 있으면 거부 + 새 프로젝트만.
+ *
+ * ★안전판이 «먼저» 박히는 순서를 코드가 강제한다 — snapshot-store.prepareRestore 가
+ *   ①안전판 강제 스냅샷 → ②실패하면 data 조차 «안 넘기고» 종료 → ③성공해야 데이터를 준다.
+ *   그래서 이 핸들러는 「안전판을 잊는」 실수를 할 수 없다(잊으면 덮을 데이터 자체가 없다).
+ *
+ * ★★autosave 경합 — 이 유닛의 진짜 난점(설계 §D10)
+ *   그 프로젝트가 «에디터에 열려 있는데» main 이 proj.json 을 직접 쓰면,
+ *   1.5초 뒤 autosave 가 옛 DOM 으로 «되돌린 것을 되돌린다».
+ *   ⇒ 열려 있으면 main 은 «쓰지 않고» 데이터만 준다. 적용은 렌더러가
+ *     state._suppressAutoSave + applyProjectData 로 한다(commit-system.js:269 가 세운 정본).
+ *
+ * ★다중 인스턴스 — main.js 에 requestSingleInstanceLock 이 «없다». 즉 두 번째 앱이 실제로 뜰 수 있고,
+ *   그쪽이 같은 프로젝트를 열고 있는지 이 프로세스는 «알 수 없다».
+ *   판별 불가일 때 덮어쓰면 남의 편집을 조용히 날린다 ⇒ 거부하고 «왜»를 화면에 말한다(설계 §7-4).
+ *   호출측은 openProjectIds(이 창이 연 탭 목록)를 «반드시» 넘겨야 한다 — 안 넘기면 판별 불가로 본다.
+ */
+ipcMain.handle('projects:history-restore', async (_e, { projectId, ts, openProjectIds, currentData } = {}) => {
+  const SS = _SS();
+  if (!projectId || typeof SS.prepareRestore !== 'function') return { ok: false, reason: 'unavailable' };
+  const pid = _safeSeg(projectId);
+
+  // ★「열려 있나」를 main 이 «추측하지 않는다» — 렌더러가 답한다(설계 §D10).
+  if (!Array.isArray(openProjectIds)) {
+    return { ok: false, reason: 'unknown_open_state',
+      message: '다른 창에서 열려 있을 수 있어 교체할 수 없습니다 — 새 프로젝트로 복원하세요.' };
+  }
+  // ★«다른 창»은 main 이 실제로 셀 수 있다. 창이 둘 이상이면 이 창의 탭 목록은 «전체 지식»이 아니다
+  //   → 덮어쓰면 다른 창의 편집을 조용히 날린다. 거부하고 이유를 말한다.
+  //   ⚠️ 별도 «프로세스»(두 번째 앱 실행)는 이걸로도 못 잡는다 — main.js 에 requestSingleInstanceLock 이
+  //     없어 실제로 가능하다. 그건 이 유닛이 못 덮는 구멍이라 설계에 남긴다(§D10 잔여 위험).
+  let windowCount = 1;
+  try { windowCount = BrowserWindow.getAllWindows().filter(w => !w.isDestroyed()).length || 1; } catch (_) {}
+  if (windowCount > 1) {
+    return { ok: false, reason: 'multiple_windows', windowCount,
+      message: `창이 ${windowCount}개 열려 있어 교체할 수 없습니다(다른 창에서 이 프로젝트를 편집 중일 수 있습니다) — 새 프로젝트로 복원하세요.` };
+  }
+  const isOpenHere = openProjectIds.includes(pid);
+
+  let r;
+  try { r = SS.prepareRestore(PROJECTS_DIR, pid, ts, { currentData: isOpenHere ? currentData : null }); }
+  catch (e) { console.error('[history:restore] prepareRestore 예외:', e); return { ok: false, reason: 'exception', message: e.message }; }
+  if (!r.ok) return r;   // ★안전판이 없으면 여기서 끝. 아래로 내려가지 않는다.
+
+  // 열려 있으면 «쓰지 않는다» — 렌더러가 적용한다(autosave 경합 회피)
+  if (isOpenHere) {
+    return { ok: true, applyInRenderer: true, preRestoreTs: r.preRestoreTs, ts: r.ts,
+             data: r.data, source: r.source, missingAssets: r.missingAssets };
+  }
+  // 안 열려 있으면 main 이 직접 쓴다
+  try {
+    const paths = _ensureNewLayoutPaths(pid);
+    _atomicWriteFileSync(paths.proj, JSON.stringify(r.data, null, 2));
+    _refreshListMeta(pid, r.data);
+  } catch (e) {
+    // ★여기서 실패해도 «안전판은 이미 있다» — 사용자는 아무것도 잃지 않았다.
+    console.error('[history:restore] 쓰기 실패:', e);
+    return { ok: false, reason: 'write_failed', message: e.message, preRestoreTs: r.preRestoreTs };
+  }
+  return { ok: true, applyInRenderer: false, preRestoreTs: r.preRestoreTs, ts: r.ts,
+           source: r.source, missingAssets: r.missingAssets };
+});
+
 ipcMain.handle('projects:history-open-copy', async (_e, { projectId, ts, newName } = {}) => {
   const SS = _SS();
   if (!projectId || typeof SS.readVersion !== 'function') return { ok: false, error: 'unavailable', code: 'unavailable' };

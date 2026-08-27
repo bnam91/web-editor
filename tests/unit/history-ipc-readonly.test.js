@@ -143,13 +143,18 @@ test('RO6 ★main.js 의 history IPC 블록에 «쓰기» 호출이 문자로도
   }
 });
 
-test('RO7 ★«파괴» 채널은 아직 노출되지 않았다 (U6 은 현빈 Q2 답 뒤)', () => {
+test('RO7 «승인된» 채널만 노출된다 — 파괴 경로는 U6a 초록 + 현빈 Q2 답 뒤에 열렸다', () => {
   const src = fs.readFileSync(path.join(__dirname, '../../preload.js'), 'utf8');
   for (const ch of ['historyList', 'historyRead', 'historyDiffPayload']) assert.ok(src.includes(ch), `${ch} 누락`);
-  // historyOpenCopy 는 «비파괴»다 — 새 프로젝트를 만들 뿐 기존 것을 안 건드린다(U5 승인분).
-  assert.ok(src.includes('historyOpenCopy'), 'U5 채널이 있어야 한다');
-  for (const ch of ['historyRestore', 'historySnapshotNow', 'historyPrune', 'historyDelete']) {
-    assert.ok(!src.includes(ch), `★${ch} — 파괴 경로는 «되돌리기 직전 스냅샷»(U6a)이 초록이 된 뒤에만 온다`);
+  assert.ok(src.includes('historyOpenCopy'), 'U5 비파괴 채널');
+  // ★2026-08-28 현빈 Q2 확정 + U6a 단독 초록 → historyRestore 개방(교체가 기본).
+  assert.ok(src.includes('historyRestore'), 'U6b 채널이 있어야 한다');
+  // ★교체는 «판별 불가면 거부»가 계약이다 — 그래서 openProjectIds 를 반드시 실어 보낸다.
+  assert.match(src, /historyRestore[\s\S]{0,240}openProjectIds/,
+    '★openProjectIds 를 안 넘기면 main 이 판별 불가로 거부한다 — 브리지가 그걸 실어야 한다');
+  // ⛔아직 승인 안 된 것: 수동 스냅샷은 현빈이 «안 한다»고 확정(Q3 구간), 프룬·삭제는 노출 대상이 아니다
+  for (const ch of ['historySnapshotNow', 'historyPrune', 'historyDelete']) {
+    assert.ok(!src.includes(ch), `★${ch} 는 승인된 적이 없다`);
   }
 });
 

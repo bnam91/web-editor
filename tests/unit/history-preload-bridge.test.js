@@ -107,10 +107,19 @@ test('BR4 ★사본으로 열기도 브리지를 타고 «끝까지» 간다 —
   assert.ok(list.some(p => p.id === r.newProjectId), '★사본이 프로젝트 목록에 안 보이면 사용자는 못 찾는다');
 });
 
-test('BR5 ★파괴 채널은 브리지에 «없다» — U6 은 현빈 Q2 답 뒤다', () => {
-  for (const k of ['historyRestore', 'historySnapshotNow', 'historyPrune', 'historyDelete']) {
-    assert.equal(API[k], undefined, `★${k} 가 승인 전에 렌더러로 새어나갔다`);
+test('BR5 파괴 채널이 열렸고, «판별 불가면 거부»가 브리지에서도 성립한다', async () => {
+  assert.equal(typeof API.historyRestore, 'function', 'U6b 채널(현빈 Q2 확정 + U6a 초록 뒤 개방)');
+  for (const k of ['historySnapshotNow', 'historyPrune', 'historyDelete']) {
+    assert.equal(API[k], undefined, `★${k} 는 승인된 적이 없다`);
   }
+  // ★브리지를 타고도 «추측하고 덮지» 않는다 — openProjectIds 없이 부르면 거부여야 한다
+  const id = await mkProject(sec('sec_a', 'A') + sec('sec_b', 'B'));
+  const ts = (await API.historyList({ projectId: id })).entries[0].ts;
+  const before = fs.readFileSync(path.join(DIR, id, 'proj.json'));
+  const r = await API.historyRestore({ projectId: id, ts });
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'unknown_open_state');
+  assert.ok(before.equals(fs.readFileSync(path.join(DIR, id, 'proj.json'))), '거부했는데 파일이 바뀌었다');
 });
 
 test('BR6 창이 «이» preload 를 물고 있다 (정적 확인 — 이건 node 에서 실행으로 못 잰다)', () => {
