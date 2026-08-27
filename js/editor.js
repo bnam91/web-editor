@@ -61,7 +61,9 @@ document.addEventListener('focusin', (e) => {
   const el = e.target;
   if (!el.matches?.(_AUTO_SELECT_SEL)) return;
   // mousedown 이후에 select() 호출되도록 한 틱 지연
-  setTimeout(() => { if (document.activeElement === el) el.select(); }, 0);
+  // ⚠️`<select class="prop-number">` 처럼 select() 가 «없는» 요소도 이 셀렉터에 걸린다
+  //   (prop-banner02 줄 kind · prop-iconify). 가드 없으면 클릭할 때마다 uncaught TypeError.
+  setTimeout(() => { if (document.activeElement === el && typeof el.select === 'function') el.select(); }, 0);
 });
 document.addEventListener('mouseup', (e) => {
   const el = e.target;
@@ -1233,7 +1235,9 @@ document.addEventListener('keydown', e => {
     }
     if (e.key === '0')                  { e.preventDefault(); applyZoom(100); }
     if (e.key === 'z' && !e.shiftKey)   { if (document.activeElement?.isContentEditable) return; e.preventDefault(); undo(); return; }
-    if (e.key === 'z' && e.shiftKey)    { if (document.activeElement?.isContentEditable) return; e.preventDefault(); redo(); return; }
+    // ★Shift+z 는 브라우저가 key:'Z'(대문자)로 준다 — 소문자만 검사하면 ⌘⇧Z redo 가 «전혀» 안 먹는다.
+    //   바로 아래 취소선(⌘⇧X)이 (e.key==='x'||e.key==='X') 로 둘 다 받는 것과 같은 규약으로 맞춘다.
+    if ((e.key === 'z' || e.key === 'Z') && e.shiftKey) { if (document.activeElement?.isContentEditable) return; e.preventDefault(); redo(); return; }
     if (e.code === 'KeyF' && !e.shiftKey && !e.altKey) {
       // ⌘F — 섹션 검색이동 팔레트. 편집/입력 중엔 양보(기본 동작도 막지 않음).
       if (document.querySelector('.text-block.editing')) return;
