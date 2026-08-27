@@ -199,3 +199,61 @@ test('U5-6 없는 버전을 열려 하면 정직하게 실패한다 — 빈 프�
   assert.equal(r.ok, false);
   assert.equal(fs.readdirSync(DIR).length, beforeDirs, '★실패했는데 프로젝트가 늘었다');
 });
+
+/* ═══ U7 기준선 — 현행 삭제가 «무엇을 파괴하는지» 사진 찍어 둔다 ══════════
+ * ★U7 이 fs.rmSync → shell.trashItem 으로 바꿀 때, 무엇이 어떻게 달라졌는지가 이 테스트의 diff 로 보인다.
+ *   U0 에서 쓴 것과 같은 패턴이다(기준선 없이 낸 초록은 가짜다).
+ * ⚠️ 이 테스트들이 «초록»이라는 건 현행이 옳다는 뜻이 «아니다» — 현행이 이렇다는 기록일 뿐이다.
+ *   설계 §8-0 이 이걸 설계 결함으로 규정했고 §12-C(U7)가 고친다.
+ */
+
+test('DEL0-a ★현행: 삭제가 «복구 수단까지 같은 봉투로» 지운다 (U7 이 고칠 대상)', async () => {
+  const id = await mkProject(sec('sec_a', '혜택정리', `<img src="${PNG}">`));
+  await H.invoke('projects:save', proj(id, sec('sec_a', '혜택정리') + sec('sec_b', 'FAQ')));
+  const dir = path.join(DIR, id);
+  // 삭제 «전»에 이 봉투 안에 무엇이 있는지 — 전부 복구 재료다
+  const had = {
+    proj:    fs.existsSync(path.join(dir, 'proj.json')),
+    backup:  fs.existsSync(path.join(dir, 'proj_backup.json')),
+    history: fs.existsSync(path.join(dir, 'proj_history')),
+    slots:   fs.readdirSync(path.join(dir, 'proj_history')).filter(f => /^\d+\.json$/.test(f)).length,
+    assets:  fs.readdirSync(path.join(dir, 'assets')).length,
+  };
+  assert.equal(had.proj && had.backup && had.history, true);
+  assert.ok(had.slots >= 1 && had.assets >= 1, '기준선이 성립하려면 복구 재료가 있어야 한다');
+
+  const r = await H.invoke('projects:delete', id);
+  assert.equal(r, true, '현행 반환은 boolean 이다 — U7 이 { ok, trashed, reason } 으로 바꾼다');
+  assert.equal(fs.existsSync(dir), false,
+    '★현행은 봉투를 통째로 없앤다 — proj.json·백업·히스토리 스냅샷·에셋이 «동시에» 사라진다(설계 §8-0)');
+});
+
+test('DEL0-b ★현행: 구 flat 레이아웃의 «복구 재료»도 같이 영구 소멸한다', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  // 폴백 체인(§D3)이 읽는 구 flat 잔재를 만든다 — loadFallbackCandidates 가 실제로 후보로 삼는 것들
+  fs.writeFileSync(path.join(DIR, `${id}.json`), '{}');
+  fs.writeFileSync(path.join(DIR, `${id}_backup.json`), '{}');
+  fs.mkdirSync(path.join(DIR, `${id}_history`), { recursive: true });
+  fs.writeFileSync(path.join(DIR, `${id}_history`, '1787700000000.json'), '{}');
+
+  await H.invoke('projects:delete', id);
+  for (const p of [`${id}.json`, `${id}_backup.json`, `${id}_history`]) {
+    assert.equal(fs.existsSync(path.join(DIR, p)), false,
+      `★${p} 도 영구 소멸한다 — 이건 폴백 체인이 읽는 복구 재료다(U7 D-U7-2 가 휴지통으로 보낸다)`);
+  }
+});
+
+test('DEL0-c ★현행: 삭제는 «동기»라 반쯤 지워진 상태가 없다 — U7 의 async 전환이 깨면 안 되는 성질', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  const dir = path.join(DIR, id);
+  const r = H.invoke('projects:delete', id); // await 하기 «전»에 이미 끝나 있어야 한다
+  assert.equal(fs.existsSync(dir), false,
+    '★현행은 반환 시점에 이미 완료다. trashItem(Promise)로 바꾸면 그 사이 autosave 가 끼어들 수 있다(D-U7-4)');
+  await r;
+});
+
+test('DEL0-d ★현행: 없는 프로젝트를 지워도 «성공»으로 답한다(구분 불가) — U7 이 정직하게 나눈다', async () => {
+  const r = await H.invoke('projects:delete', 'proj_9999999999999');
+  assert.equal(r, true,
+    '★「지웠다」와 「지울 게 없었다」가 같은 값이다. U7 의 { ok, trashed, reason } 이 이걸 나눈다');
+});
