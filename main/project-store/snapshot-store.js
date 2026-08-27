@@ -629,6 +629,51 @@ function readVersion(projectsDir, projectId, ts) {
   return { ok: true, ts: parseInt(ts), data, bytes: fs.statSync(full).size };
 }
 
+/* ── U6a: 되돌리기 «안전판» ──────────────────────────────────────────────── */
+/**
+ * 되돌리기 «직전» 안전판을 박는다. ★실제 교체는 하지 «않는다»(그건 U6b).
+ *
+ * 이 유닛이 약속하는 문장은 하나다 —
+ *   ★「되돌렸는데 잘못 골랐어도 «다시 돌아올 수» 있다」
+ * 그래서 순서가 곧 계약이다:
+ *   ① 지금 상태를 pre-restore 로 «강제» 스냅샷(간격 게이트 무시·pinned)
+ *   ② ①이 실패하면 **아무것도 하지 않고 실패를 돌려준다** — 안전판 없는 파괴는 시작조차 안 한다
+ *   ③ 성공해야만 «되돌릴 데이터»를 호출측에 넘긴다
+ *
+ * @param {object} [opts.currentData] ★에디터에 열려 있으면 «화면의 최신 상태»를 넘겨라.
+ *   안 넘기면 디스크(proj.json)를 읽는데, 미저장 편집분이 안전판에서 빠진다 —
+ *   그러면 「되돌리기를 취소」해도 그 편집분은 못 돌아온다.
+ * @returns {{ok:true, preRestoreTs:number, data:object, ts:number}
+ *          |{ok:false, reason:string, error?:string}}
+ */
+function prepareRestore(projectsDir, projectId, ts, opts = {}) {
+  const pid = safeSeg(projectId);
+  const target = readVersion(projectsDir, pid, ts);
+  if (!target.ok) return { ok: false, reason: target.reason };   // 되돌릴 대상부터 없으면 시작 안 한다
+
+  const p = pathsFor(projectsDir, pid);
+  let current = opts.currentData;
+  if (!current) current = readJsonOrNull(p.proj);
+  // ★지금 상태를 못 읽으면 «안전판을 못 만든다» → 파괴를 시작하지 않는다.
+  //   여기서 「어차피 깨진 파일이니 그냥 덮자」로 가면, 사용자가 되돌리기를 잘못 골랐을 때 갈 곳이 없다.
+  if (!current || typeof current !== 'object') return { ok: false, reason: 'current_unreadable' };
+
+  let snap;
+  try {
+    snap = writeSnapshot(projectsDir, pid, current, {
+      reason: 'pre-restore', force: true, now: opts.now || Date.now(),
+    });
+  } catch (e) { return { ok: false, reason: 'pre_restore_failed', error: e.message }; }
+  if (!snap || !snap.ok) return { ok: false, reason: 'pre_restore_failed', error: (snap && (snap.skipped || snap.error)) || 'unknown' };
+
+  // ★안전판이 «핀»으로 박혔는지 확인하고 넘긴다. 핀이 아니면 다음 프룬에 날아가
+  //   「되돌리기 취소」 지점이 사라진다 — 약속이 깨진다.
+  const e = (readIndex(projectsDir, pid) || { entries: [] }).entries.find(x => x.ts === snap.ts);
+  if (!e || e.pinned !== true) return { ok: false, reason: 'pre_restore_not_pinned', error: `ts=${snap.ts}` };
+
+  return { ok: true, preRestoreTs: snap.ts, ts: target.ts, data: target.data };
+}
+
 /* ── ★GC 계약 ───────────────────────────────────────────────────────────── */
 /**
  * 이 프로젝트에서 «살아 있는» 에셋 파일명 전체.
@@ -701,7 +746,7 @@ module.exports = {
   SCHEMA, MIN_GAP_MS, RECENT_KEEP, DAILY_DAYS, PINNED_MAX, BUDGET_BYTES, INDEX_NAME, CURRENT_REFRESH_MS,
   canonicalize, fingerprint,
   readIndex, writeIndex, rebuildIndex, ensureIndex, updateCurrent,
-  writeSnapshot, pruneVersions, listVersions, readVersion,
+  writeSnapshot, pruneVersions, listVersions, readVersion, prepareRestore,
   listReferencedAssets, loadFallbackCandidates,
   _internal: { safeSeg, pathsFor, canvasStrings, mapCanvas, assetNameFor, slotFiles, dayKey, isValidTs,
                canonOf, assetsFromRaw, fingerprintRaw, readPins, writePins },
