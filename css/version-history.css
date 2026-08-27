@@ -1,0 +1,121 @@
+/* version-history.css — 「버전 기록」 모달
+ *
+ * ★껍데기·버튼은 «기존 공용 클래스 그대로»다 (css/font-substitute.css 와 같은 규율):
+ *     .settings-modal-overlay / -shell / -header / -title / -close / -body / -footer  (settings-modal.css)
+ *     .settings-btn / .settings-btn-primary / .settings-btn-secondary                 (settings-modal.css)
+ *   여기 있는 건 «새 내용의 행 배치»뿐이다. 룩어라이크를 새로 짓지 않는다.
+ * ★색·크기는 전부 --ui-* 토큰. 폴백 hex 를 병기하지 «않는다» — 토큰이 바뀌면 같이 바뀌어야 한다.
+ *   (이 파일을 쓰는 페이지는 editor-base.css 를 반드시 물어야 한다: index.html · pages/projects.html 둘 다 링크됨)
+ *
+ * ★행의 «시선 순서»가 이 기능의 전부다(설계 §1·§7-3):
+ *     ① 시각  ② 숫자(섹션·블록·이미지·용량)  ③ ★손실 — 「지금은 없는 섹션 N」
+ *   손실이 0 이면 ③ 줄을 아예 안 그린다. 사고 직후 화면에서 노이즈가 제일 해롭다.
+ */
+
+.vhist-shell { width: 660px; max-height: 580px; }
+
+/* .settings-modal-body 는 탭 배치(가로 flex)라 세로/스크롤로 되돌린다 */
+.vhist-body {
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 18px 18px;
+  gap: 10px;
+}
+
+.vhist-intro {
+  font-size: var(--ui-fs-12);
+  color: var(--ui-text-sub);
+  line-height: var(--ui-lh-relaxed);
+}
+
+.vhist-list { display: flex; flex-direction: column; gap: 8px; }
+
+.vhist-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 14px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--ui-bg-app);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+}
+/* 비교 «기준»인 지금 상태 — 목록 맨 위에 고정. 버전이 아니므로 액션이 없다. */
+.vhist-row.is-current {
+  background: var(--ui-bg-elevated);
+  border-color: var(--ui-border-strong);
+}
+
+.vhist-when {
+  font-size: var(--ui-fs-13);
+  font-weight: var(--ui-fw-medium);
+  color: var(--ui-text);
+}
+.vhist-ago { color: var(--ui-text-muted); font-weight: 400; margin-left: 6px; }
+
+.vhist-meta {
+  grid-column: 1 / -1;
+  font-size: var(--ui-fs-10);
+  color: var(--ui-text-muted);
+}
+
+/* ★손실 줄 — 이 모달에서 제일 먼저 눈에 들어와야 한다 */
+.vhist-loss {
+  grid-column: 1 / -1;
+  font-size: var(--ui-fs-base);
+  color: var(--ui-danger);
+  background: var(--ui-danger-bg);
+  border-radius: var(--ui-radius-sm);
+  padding: 4px 8px;
+}
+/* 「비교 불가 / 아직 분석 안 함」 — 손실이 아니라 «모름»이다. 빨강으로 겁주지 않는다. */
+.vhist-loss.is-unknown {
+  color: var(--ui-text-muted);
+  background: transparent;
+  padding: 0;
+}
+
+.vhist-actions { display: flex; gap: 4px; align-items: center; }
+
+/* 상태 배지 — 크기·모양은 .fsub-count(font-substitute.css) 와 같은 어휘 */
+.vhist-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  font-size: var(--ui-fs-10);
+  font-weight: var(--ui-fw-semibold);
+  color: var(--ui-text-sub);
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+}
+.vhist-badge.is-pinned {
+  color: var(--ui-accent-text);
+  border-color: var(--ui-accent-primary);
+  background: var(--ui-accent-fill);
+}
+
+.vhist-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-fs-12);
+  line-height: var(--ui-lh-relaxed);
+}
+
+/* 갤러리 카드의 「버전 기록」 진입 배지 — .card-body 안에 붙는다.
+   .fsub-card-badge(pages/projects.html) 와 같은 자리·같은 어휘를 쓴다. */
+.vhist-card-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  font-size: var(--ui-fs-10);
+  font-weight: var(--ui-fw-semibold);
+  color: var(--ui-text-sub);
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+  cursor: pointer;
+}
+.vhist-card-badge:hover { color: var(--ui-text); border-color: var(--ui-border-strong); }

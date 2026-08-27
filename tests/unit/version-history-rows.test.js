@@ -96,6 +96,15 @@ test('VH8 경과 표기는 commit-system 과 같은 말투다 — 앱 안에서 
   assert.equal(VH.formatTimeAgo(NOW - 3 * 86400000, NOW), '3일 전');
 });
 
+test('VH8b ★8일이 넘어도 «날짜로 바꾸지 않는다» — 옆에 절대 날짜가 이미 있어 두 번 찍힌다', () => {
+  // 화면이 「8월 19일 08:17  8월 19일」로 나오던 것. 스크린샷에서만 잡혔다(숫자 검사로는 안 잡힌다).
+  assert.equal(VH.formatTimeAgo(NOW - 9 * 86400000, NOW), '9일 전');
+  assert.equal(VH.formatTimeAgo(NOW - 40 * 86400000, NOW), '40일 전');
+  const r = VH.buildRows(listOf([entry({ ts: NOW - 40 * 86400000 })], current()), { now: NOW });
+  assert.ok(!r.rows[0].agoText.includes('월'), `상대표기에 날짜가 들어갔다: ${r.rows[0].agoText}`);
+  assert.notEqual(r.rows[0].whenText, r.rows[0].agoText, '★절대·상대 표기가 같은 말을 하면 안 된다');
+});
+
 test('VH9 pre-restore 행은 «되돌리기 직전»으로 보인다 — 취소 지점을 찾을 수 있어야 한다', () => {
   const r = VH.buildRows(listOf([entry({ reason: 'pre-restore', pinned: true })], current()), { now: NOW });
   assert.equal(r.rows[0].badgeText, '되돌리기 직전');

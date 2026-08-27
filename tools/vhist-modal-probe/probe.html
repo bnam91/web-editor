@@ -1,0 +1,137 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>버전 기록 모달 — 렌더 실측</title>
+<link rel="stylesheet" href="../../css/editor-base.css">
+<link rel="stylesheet" href="../../css/settings-modal.css">
+<link rel="stylesheet" href="../../css/version-history.css">
+<body style="margin:0;background:#1a1a1a">
+<script src="../../js/version-diff.js"></script>
+<script src="../../js/version-history.js"></script>
+<script>
+// ── main 의 projects:history-list 응답을 «실제 모양 그대로» 흉내낸다 ─────────
+const NOW = Date.now();
+const S = (k, n) => ({ k, n });
+window.electronAPI = {
+  historyList: async () => ({
+    ok: true,
+    current: { ts: NOW, bytes: 41_500_000, projMtimeMs: 1, name: '세이프본 무릎보호대',
+      counts: { pages: 1, sections: 21, blocks: 187, images: 7 },
+      secs: [S('page_1::sec_a', '메인비주얼'), S('page_1::sec_b', '상세컷')] },
+    entries: [
+      { ts: NOW - 3 * 3600e3, file: 'a.json', reason: 'auto', pinned: false, canon: 1, bytes: 248_000,
+        counts: { pages: 1, sections: 24, blocks: 203, images: 7 },
+        secs: [S('page_1::sec_a', '메인비주얼'), S('page_1::sec_b', '상세컷'),
+               S('page_1::sec_c', '혜택정리'), S('page_1::sec_d', 'FAQ'), S('page_1::sec_e', '배송안내')] },
+      { ts: NOW - 26 * 3600e3, file: 'b.json', reason: 'pre-restore', pinned: true, canon: 1, bytes: 244_000,
+        counts: { pages: 1, sections: 22, blocks: 190, images: 7 },
+        secs: [S('page_1::sec_a', '메인비주얼'), S('page_1::sec_b', '상세컷'), S('page_1::sec_c', '혜택정리')] },
+      { ts: NOW - 9 * 86400e3, file: 'c.json', reason: 'unload', pinned: false, canon: 1, bytes: 240_000,
+        counts: { pages: 1, sections: 21, blocks: 185, images: 7 },
+        secs: [S('page_1::sec_a', '메인비주얼'), S('page_1::sec_b', '상세컷')] },
+      { ts: NOW - 40 * 86400e3, file: 'd.json', reason: 'auto', pinned: false, canon: 0, bytes: 41_500_000,
+        counts: null, secs: [], pending: true },
+    ],
+    legacyCount: 1, pendingCount: 1, totalBytes: 42_232_000,
+  }),
+  historyOpenCopy: async () => ({ ok: true, newProjectId: 'proj_x', newName: '사본' }),
+};
+window.showToast = (m) => { window.__toast = m; };
+</script>
+<script src="../../js/version-history-ui.js"></script>
+<script>
+(async function () {
+  const R = { ok: true, problems: [], env: {} };
+  const P = (m) => R.problems.push(m);
+
+  await window.openVersionHistory({ projectId: 'proj_1', projectName: '세이프본 무릎보호대' });
+  await new Promise(r => setTimeout(r, 60));
+
+  const ov = document.getElementById('vhist-overlay');
+  if (!ov) { P('모달이 안 생겼다'); window.__RESULT = R; return; }
+  R.env.display = getComputedStyle(ov).display;
+  if (R.env.display !== 'flex') P(`모달이 안 열렸다 (display=${R.env.display})`);
+
+  const rows = [...ov.querySelectorAll('.vhist-row')];
+  R.env.rowCount = rows.length;
+  if (rows.length !== 5) P(`행 수가 5(지금 1 + 버전 4)가 아니다: ${rows.length}`);
+
+  // ★손실 줄 — 3시간 전 버전에는 «혜택정리·FAQ·배송안내»가 있고 지금은 없다
+  const losses = [...ov.querySelectorAll('.vhist-loss')].map(e => e.textContent.trim());
+  R.env.losses = losses;
+  if (!losses.some(t => t.includes('지금은 없는 섹션 3') && t.includes('혜택정리')))
+    P('★손실 줄이 「지금은 없는 섹션 3 — 혜택정리…」를 못 보여준다 — 이 기능의 헤드라인이다');
+  if (!losses.some(t => t.includes('아직 분석 안 함')))
+    P('미분석(pending) 행이 «모른다»고 말하지 않는다 — 숫자를 지어내면 안 된다');
+  // 손실 0 인 행은 손실 줄 자체가 없어야 한다(노이즈 제거)
+  const noLossRows = rows.filter(r => !r.querySelector('.vhist-loss')).length;
+  R.env.rowsWithoutLossLine = noLossRows;
+  if (noLossRows < 2) P('손실 0 인 행에도 손실 줄이 그려졌다 — 사고 직후 노이즈가 제일 해롭다');
+
+  // 배지
+  const badges = [...ov.querySelectorAll('.vhist-badge')].map(e => e.textContent.trim());
+  R.env.badges = badges;
+  if (!badges.includes('되돌리기 직전')) P('pre-restore 행이 「되돌리기 직전」으로 안 보인다');
+  if (!badges.some(b => b.includes('옛 형식'))) P('레거시 행이 「옛 형식」으로 안 보인다');
+
+  // ★파괴 채널이 화면에 없어야 한다(U6 은 아직)
+  const btnLabels = [...ov.querySelectorAll('button')].map(b => b.textContent.trim());
+  R.env.buttons = [...new Set(btnLabels)];
+  for (const bad of ['되돌리기', '교체', '삭제']) {
+    if (btnLabels.some(t => t.includes(bad))) P(`★파괴 버튼 「${bad}」이 U6 승인 전에 화면에 나왔다`);
+  }
+  if (!btnLabels.some(t => t.includes('사본으로 열기'))) P('비파괴 액션(사본으로 열기)이 없다');
+  // 「지금」 행에는 액션이 없어야 한다(버전이 아니다)
+  const curActions = ov.querySelector('.vhist-row.is-current .vhist-actions');
+  if (curActions && curActions.children.length) P('「지금」 행에 액션 버튼이 붙었다 — 되돌릴 대상이 아니다');
+
+  /* ★디자인 일관성 — 감이 아니라 측정
+   *  ① 껍데기가 공용 클래스인가  ② 신작 클래스가 .vhist-* 로만 제한되나
+   *  ③ 하드코딩 색이 없나(토큰만) */
+  R.env.usesSharedShell = !!(ov.classList.contains('settings-modal-overlay')
+    && ov.querySelector('.settings-modal-shell') && ov.querySelector('.settings-modal-footer'));
+  if (!R.env.usesSharedShell) P('★공용 모달 껍데기(.settings-modal-*)를 안 쓴다 — 룩어라이크 신작이다');
+  const allCls = new Set();
+  ov.querySelectorAll('*').forEach(e => e.classList.forEach(c => allCls.add(c)));
+  const foreign = [...allCls].filter(c => !/^(settings-|vhist-|is-)/.test(c));
+  R.env.foreignClasses = foreign;
+  if (foreign.length) P(`공용/전용 밖 클래스가 섞였다: ${foreign.join(', ')}`);
+
+  // 버튼이 공용 .settings-btn 을 쓰는가
+  const nonShared = [...ov.querySelectorAll('button')].filter(b =>
+    !b.classList.contains('settings-btn') && !b.classList.contains('settings-modal-close'));
+  R.env.nonSharedButtons = nonShared.map(b => b.className);
+  if (nonShared.length) P(`공용 버튼 클래스를 안 쓰는 버튼: ${R.env.nonSharedButtons.join(' | ')}`);
+
+  // ★글자 잘림 — panel-clip-probe 에서 배운 판정식(자연 폭을 따로 잰다)
+  const ruler = document.createElement('span');
+  ruler.style.cssText = 'position:absolute;left:-9999px;white-space:pre;visibility:hidden';
+  document.body.appendChild(ruler);
+  const clipped = [];
+  ov.querySelectorAll('.vhist-when, .vhist-meta, .vhist-loss, button').forEach(e => {
+    if (e.children.length) return;
+    const cs = getComputedStyle(e);
+    ruler.style.font = cs.font; ruler.style.letterSpacing = cs.letterSpacing;
+    ruler.textContent = e.textContent;
+    const inner = e.getBoundingClientRect().width
+      - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)
+      - (parseFloat(cs.borderLeftWidth) || 0) - (parseFloat(cs.borderRightWidth) || 0);
+    if (ruler.getBoundingClientRect().width > inner + 0.5)
+      clipped.push(`${e.className || e.tagName}: «${e.textContent.slice(0, 24)}»`);
+  });
+  R.env.clipped = clipped;
+  if (clipped.length) P(`글자 잘림 ${clipped.length}건: ${clipped.slice(0, 3).join(' / ')}`);
+  // 검출기 자가시험 — 일부러 좁힌 것이 잡히는가(「검출 0」이 «무딤»일 수 있다)
+  const t = document.createElement('button');
+  t.className = 'settings-btn'; t.style.cssText = 'width:20px;overflow:hidden;white-space:nowrap';
+  t.textContent = '아주 긴 라벨입니다';
+  ov.querySelector('.settings-modal-footer').appendChild(t);
+  const cs2 = getComputedStyle(t);
+  ruler.style.font = cs2.font; ruler.textContent = t.textContent;
+  R.env.selftestDetected = ruler.getBoundingClientRect().width > t.getBoundingClientRect().width;
+  t.remove();
+  if (!R.env.selftestDetected) P('★잘림 검출기가 강제 케이스를 못 잡았다 — 위 「잘림 0」은 무효다');
+
+  R.ok = R.problems.length === 0;
+  window.__RESULT = R;
+})();
+</script>

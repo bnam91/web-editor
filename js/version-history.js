@@ -18,19 +18,20 @@
 
   const KB = 1024, MB = KB * 1024;
 
-  /** 「3시간 전」 — commit-system.js:69 _formatTimeAgo 와 «같은 말투»를 쓴다(앱 안에서 표기가 갈리면 안 된다). */
+  /** 「3시간 전」 — commit-system.js:69 _formatTimeAgo 와 «같은 말투»를 쓴다(앱 안에서 표기가 갈리면 안 된다).
+   * ★단 한 곳만 다르다: 8일이 넘어도 «날짜로 바꾸지 않고» 계속 「N일 전」을 센다.
+   *   저쪽은 이 값만 단독으로 쓰지만, 여기선 바로 옆에 formatWhen 의 «절대 날짜»가 이미 있다.
+   *   그대로 뒀더니 화면이 「8월 19일 08:17  8월 19일」로 날짜를 두 번 찍었다(스크린샷에서 잡혔다 —
+   *   숫자 검사로는 안 잡히는 부류다). 복구 도구에선 「40일 전」이 날짜 반복보다 쓸모 있다. */
   function formatTimeAgo(ts, now) {
     const base = now == null ? Date.now() : now;
     const diff = base - new Date(ts).getTime();
     const m = Math.floor(diff / 60000);
-    if (m < 0)  return '방금 전';
     if (m < 1)  return '방금 전';
     if (m < 60) return `${m}분 전`;
     const h = Math.floor(m / 60);
     if (h < 24) return `${h}시간 전`;
-    const d = Math.floor(h / 24);
-    if (d < 8)  return `${d}일 전`;
-    return new Date(ts).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+    return `${Math.floor(h / 24)}일 전`;
   }
 
   /** 「오늘 14:22」 / 「어제 09:05」 / 「8월 12일 09:05」 — 복구는 «시각»으로 찾는다. */
