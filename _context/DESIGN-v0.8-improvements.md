@@ -15,7 +15,7 @@
 
 ## 1. 잠금 결정 (지디 확정 — 코드 반영)
 - **#12** = ⌥+click, `js/alt-click-layer-select.js` 확장(SELECTABLE에 `.section-block`·하이라이트). capture 순서·`_altLayerSelect` 재진입 마커 주의.
-- **#13** = ⌥+숫자(1/2/3) 부모섹션 기준 정렬. ★기존 digit 핸들러(editor.js 갭 프리셋·텍스트타입)에 **`!e.altKey` 가드** 후 alt 분기를 «더 앞에서» preventDefault+return.
+- **#13** = ⌥+**A/S/D**(a=좌·s=중·d=우) 부모섹션 기준 정렬. ★2026-08-27 정정: 옛 안은 ⌥+숫자(1/2/3)였으나 «숫자 네임스페이스 충돌»(갭 프리셋 1~8·텍스트타입 1~4)로 현빈 지시에 따라 글자로 이전됐다. 구현·동작 중(editor.js:1613). ★기존 digit 핸들러(editor.js 갭 프리셋·텍스트타입)에 **`!e.altKey` 가드** 후 alt 분기를 «더 앞에서» preventDefault+return.
 - **병합 = ⌘M(빈 키)** · `preventDefault`(Electron 최소화 충돌) · 갭선택→#8 / 셀선택→#5-b 분기.
 - **#2 dev-gate** = 기존 admin IPC(`preload.js isAdmin()`·`main.js app:is-admin`) 재사용. 기본 `#ai-btn.fp-btn-ai`·`#claude-pm-btn`만 숨김. **그 외 `.fp-btn`은 목록 뽑아 지디→현빈 확인 후 결정**(임의 숨김 금지).
 
@@ -60,7 +60,7 @@
 - 검증: H2 위/아래 여백 시각 대칭(스크린샷 픽셀 측정) · 다른 텍스트타입 불변.
 
 ### Phase 2 (요지 — 유닛 착수 시 상세 서브브리프 발부)
-- **U13** digit `!e.altKey` 가드(#15·텍스트타입·갭 전부) + `alignToParent(block, dir)` 신규(`closest('.section-block')` rect 기준 left/center/right, ⌥+1/2/3). ★가드 없으면 이중발동 — 회귀 테스트 필수.
+- **U13** digit `!e.altKey` 가드(#15·텍스트타입·갭 전부) + `alignToParent(block, dir)` 신규(`closest('.section-block')` rect 기준 left/center/right, ⌥+A/S/D). ★가드 없으면 이중발동 — 회귀 테스트 필수. ★2026-08-27 정정: ⌥+숫자는 채택되지 않았다(오발동·맥 Option+숫자 특수문자) — `!e.altKey` 가드로 «양쪽 다 inert» 처리하고 ⌥+A/S/D를 쓴다.
 - **U12** `alt-click-layer-select.js` SELECTABLE += `.section-block`·하이라이트 라인, `_collectStack` 재사용. 합성클릭 재진입 마커 유지.
 - **U8** ⌘M keydown 프레임(preventDefault) + 컨텍스트 분기(갭선택→합산 병합: offsetHeight 합→첫 블록 height·나머지 row 제거·pushHistory·autosave·buildLayerPanel). 비인접/타섹션 규칙 정의(같은 section-inner 연속만 or 전체 합산 정책 — 서브브리프서 확정).
 - **U10** `prop-text-wireup-align.js` 정렬 시 폭≠100%면 `alignSelf`(or margin auto) 동기. 저장본 회귀(기존 좌정렬) 방어.
