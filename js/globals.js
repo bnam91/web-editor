@@ -30,5 +30,5 @@ window.state = state;
  *   feat/collab-undo-op 브랜치. 그 완성·머지 전까지 배포용으로 협업을 «안 켠다».
  * ★되돌리기 = true 하나. (collabRef 포함 proj_meta 전수 스캔 0 → 데이터 영향 없음)
  * ★true로 두면 아래 진입점 가드가 전부 통과해 기존 협업 동작이 그대로 복원된다. */
-export const COLLAB_ENABLED = false;
+export const COLLAB_ENABLED = true;
 window.COLLAB_ENABLED = COLLAB_ENABLED;
