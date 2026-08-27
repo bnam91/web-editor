@@ -325,7 +325,8 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
    * 형광펜 기본색은 앱에 이미 있는 텍스트 하이라이트 값(prop-text.js currentHighlightColor 기본값)
    * 을 그대로 쓴다 — 새 색을 만들지 않는다.
    */
-  const HL_COLOR = '#ffeb3b';
+  // 색 리터럴을 JS에 두지 않는다 — 정본은 --ui-highlight 토큰(editor-base.css).
+  const HL_COLOR = (getComputedStyle(document.documentElement).getPropertyValue('--ui-highlight') || '').trim() || 'yellow';
 
   // 부분서식 잔재 정리: 지정 태그를 언랩하고, 지정 style prop 을 가진 span 을 벗긴다.
   const _stripInlineResidue = (el, tagSel, styleProp) => {

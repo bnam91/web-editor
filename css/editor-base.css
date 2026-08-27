@@ -58,6 +58,7 @@
   --ui-accent:        #7cb8ff;   /* 강조/편집 (브랜치, focus, edit 계열) */
   --ui-accent-primary: #2d6fe8; /* 주요 액션/활성 색상 (파랑 정본 — fill/보더/배경용. #6b9eff/#6cf 등 우회 폐기 대상) */
   --ui-accent-primary-hover: #3a7df0; /* 주요 액션 hover */
+  --ui-highlight: #ffeb3b; /* 형광펜(텍스트 배경칠) 정본 — prop-text의 기존 highlightColor 기본값과 동일 값 */
   --ui-accent-text:    #6fa3f7;  /* 다크배경 활성 텍스트 전용 액센트 (accent-primary는 텍스트로 쓰면 3.3:1 AA미달 → 6.8:1 가독판) */
 
   /* ── 선택/AI 어포던스 보라 패밀리 토큰 (DS-10, 2026-06-14) — 일반 파랑선택(--sel-color)과 별개 패밀리. 비텍스트 장식이라 대비 무관 ── */

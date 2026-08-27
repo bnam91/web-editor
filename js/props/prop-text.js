@@ -116,7 +116,7 @@ export function showTextProperties(tb) {
   const isItalic      = contentEl.style.fontStyle  === 'italic';
   const isStrike      = (contentEl.style.textDecorationLine || contentEl.style.textDecoration || '').includes('line-through');
   const currentHighlight      = tb.dataset.highlight || 'none';
-  const currentHighlightColor = tb.dataset.highlightColor || '#ffeb3b';
+  const currentHighlightColor = tb.dataset.highlightColor || getComputedStyle(document.documentElement).getPropertyValue('--ui-highlight').trim();
   // ⑨ 서식 버튼 — 블록 전체에 걸린 인라인 서식 여부(부분 서식은 selection 기준이라 여기서 안 본다)
   const isHighlight   = !!(contentEl.style.backgroundColor && contentEl.style.backgroundColor !== 'transparent');
 
