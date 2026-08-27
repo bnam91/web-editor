@@ -1225,7 +1225,10 @@ function bindBlock(block) {
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
-      window.showBanner02Properties?.(block);
+      // ⑧ 배너 «안의 줄»을 눌렀으면 그 줄만 우측 패널에 펼친다(label-group 의 .label-item 선례와 동일).
+      const _bn2Line = e.target.closest?.('[data-line-idx]');
+      const _bn2Idx = (_bn2Line && block.contains(_bn2Line)) ? parseInt(_bn2Line.dataset.lineIdx, 10) : undefined;
+      window.showBanner02Properties?.(block, Number.isFinite(_bn2Idx) ? _bn2Idx : undefined);
     });
   }
 

@@ -1139,6 +1139,12 @@
 
 /* banner02 — 컴포넌트 선택 표준 (배경이 가장자리까지 차므로 outline 바깥으로) */
 .banner02-block { display:block; position:relative; margin:0 auto; cursor:pointer; box-sizing:border-box; user-select:none; }
+/* ⑧ 배너 안에서 «지금 우측 패널이 보고 있는 줄» 표시 — 선택 토큰 재사용(신규 색·룩 없음) */
+.banner02-block .bn2-line-selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
 .banner02-block.selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: var(--ui-sel-outline-offset-out, calc(1px * var(--inv-zoom, 1)));

@@ -2,7 +2,25 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 
-export function showBanner02Properties(block) {
+// ⑧ 줄 선택 상태 — 배너 안 «어느 줄»을 보고 있는지. 블록별로 기억한다(패널 재생성에도 유지).
+//   activeIdx = null 이면 «전체 보기»(옛 동작: 모든 줄을 한꺼번에 펼침).
+const _bn2ActiveLine = new WeakMap();
+export function bn2SetActiveLine(block, idx) { _bn2ActiveLine.set(block, idx); }
+export function bn2GetActiveLine(block) { return _bn2ActiveLine.has(block) ? _bn2ActiveLine.get(block) : 0; }
+if (typeof window !== 'undefined') {
+  window.bn2SetActiveLine = bn2SetActiveLine;
+  window.bn2GetActiveLine = bn2GetActiveLine;
+}
+
+// 캔버스에서 선택된 줄에 아웃라인 — 기존 선택 토큰(--sel-color/--sel-outline-w)만 쓴다.
+function _bn2SyncLineMark(block, activeIdx) {
+  document.querySelectorAll('.bn2-line-selected').forEach(el => el.classList.remove('bn2-line-selected'));
+  if (activeIdx == null) return;
+  block.querySelector(`[data-line-idx="${activeIdx}"]`)?.classList.add('bn2-line-selected');
+}
+if (typeof window !== 'undefined') window._bn2SyncLineMark = _bn2SyncLineMark;
+
+export function showBanner02Properties(block, activeIdxArg) {
   const d = block.dataset;
   const bgIsGrad = /gradient\(/.test(d.bg || '');
   const variants = window.BANNER02_VARIANTS || { frame_8: {}, wide_4x1: {} };
@@ -88,7 +106,26 @@ export function showBanner02Properties(block) {
       </div>
     </div>`;
   };
-  const linesHTML = lines.map(lineRow).join('') + `
+  // ⑧ 어느 줄을 펼칠지 — 인자 > 기억값 > 0번. 줄이 삭제돼 범위를 벗어나면 보정한다.
+  let activeIdx = (activeIdxArg !== undefined) ? activeIdxArg : bn2GetActiveLine(block);
+  if (activeIdx != null) {
+    if (!lines.length) activeIdx = null;
+    else if (activeIdx < 0 || activeIdx >= lines.length) activeIdx = lines.length - 1;
+  }
+  bn2SetActiveLine(block, activeIdx);
+  _bn2SyncLineMark(block, activeIdx);
+
+  // 줄 선택 칩 — 기존 정렬 세그먼트(.prop-align-group/.prop-align-btn)를 그대로 쓴다(신규 룩 없음).
+  const chipStrip = lines.length ? `
+    <div class="prop-section">
+      <div class="prop-section-title">Text Lines</div>
+      <div class="prop-align-group" id="bn2-line-chips">
+        ${lines.map((l, i) => `<button class="prop-align-btn${activeIdx === i ? ' active' : ''}" data-line-chip="${i}" style="flex:1;font-size:11px;">${KIND_LABELS[l.kind] || l.kind}</button>`).join('')}
+        <button class="prop-align-btn${activeIdx === null ? ' active' : ''}" data-line-chip="all" style="flex:1;font-size:11px;" title="모든 줄을 한꺼번에 펼칩니다">전체</button>
+      </div>
+    </div>` : '';
+
+  const linesHTML = chipStrip + lines.map((l, i) => (activeIdx === null || activeIdx === i) ? lineRow(l, i) : '').join('') + `
     <div class="prop-section">
       <button class="prop-btn" id="bn2-line-add" style="width:100%;">+ 텍스트 줄 추가</button>
     </div>`;
@@ -157,7 +194,9 @@ export function showBanner02Properties(block) {
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
-  const rerender = () => window.renderBanner02?.(block);
+  // ⚠️renderBanner02 는 배너 내부를 새로 그린다 → 선택 줄 아웃라인 마커도 같이 날아간다.
+  //   모든 재렌더 경로가 이 헬퍼를 통과하므로 여기서 한 번만 복구한다.
+  const rerender = () => { window.renderBanner02?.(block); _bn2SyncLineMark(block, activeIdx); };
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
 
   // Variant
@@ -269,7 +308,16 @@ export function showBanner02Properties(block) {
       if (lines.length <= 1) return;
       mutLines(arr => arr.splice(idx, 1));
       commit();
-      showBanner02Properties(block); // 인덱스 변경되니 패널 재생성
+      // 삭제된 줄이 보고 있던 줄이면 한 칸 앞으로 — 범위 보정은 렌더 진입부가 한 번 더 한다.
+      showBanner02Properties(block, activeIdx === null ? null : Math.max(0, idx - 1)); // 인덱스 변경되니 패널 재생성
+    });
+  });
+
+  // ⑧ 줄 선택 칩
+  propPanel.querySelectorAll('[data-line-chip]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const v = chip.dataset.lineChip;
+      showBanner02Properties(block, v === 'all' ? null : parseInt(v, 10));
     });
   });
 
@@ -278,7 +326,8 @@ export function showBanner02Properties(block) {
     const v = window.BANNER02_VARIANTS?.[block.dataset.variant] || window.BANNER02_VARIANTS?.frame_8 || {};
     mutLines(arr => arr.push(window._bn2Lines.normalize({ kind: 'sub', text: '새 줄', size: v.subSize || 16, color: '#000000', gapTop: v.gap2 || 10 })));
     commit();
-    showBanner02Properties(block);
+    // 새로 추가한 줄을 바로 펼쳐준다(전체 보기 중이면 전체 유지).
+    showBanner02Properties(block, activeIdx === null ? null : (window._bn2Lines.read(block).length - 1));
   });
 
   // Image upload/clear/fit

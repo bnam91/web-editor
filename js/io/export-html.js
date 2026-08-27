@@ -92,6 +92,7 @@ async function exportHTMLFile() {
   // 버튼 노드가 저장 HTML에 남아 export에서 그대로 노출됐음. 노드 자체를 제거한다.
   clone.querySelectorAll('.label-item-delete-btn, .label-group-add-btn').forEach(el => el.remove());
   clone.querySelectorAll('.item-selected').forEach(el => el.classList.remove('item-selected'));
+  clone.querySelectorAll('.bn2-line-selected').forEach(el => el.classList.remove('bn2-line-selected')); // ⑧ 편집용 마커
   clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
   // #16: 참고이미지 연결(data-ref-links)은 ScratchPadDB 참조 «기획 메타» — export엔 그 DB가 없어 死참조.
   //   배송본에서 제거(저장 경로 serializeCleanRoot에선 유지 → 로드 복원 가능).

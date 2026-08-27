@@ -2169,6 +2169,8 @@ function deselectAll() {
     b.querySelectorAll('td.cell-selected, th.cell-selected').forEach(c => c.classList.remove('cell-selected'));
   });
   if (window._tblSel) window._tblSel = null;
+  // ⑧ 배너02 줄 선택 아웃라인도 함께 해제 (label-item 처리와 같은 자리)
+  canvas.querySelectorAll('.bn2-line-selected').forEach(el => el.classList.remove('bn2-line-selected'));
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
 
   // 레이어 패널 선택 해제
