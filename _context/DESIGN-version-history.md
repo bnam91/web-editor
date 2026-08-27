@@ -296,25 +296,27 @@ listReferencedAssets(projectsDir, projectId)     // ★§8-1 GC 제외 목록. �
 게이트 때문에 10분에 한 번뿐이지만 체감 리스크라 **현빈 확인 후 결정**(§11 Q4). 기본값은 «넣는다».
 
 ### 5-4. IPC (main) — 신규 5개
+★채널 접두사는 기존 `projects:externalize` / `projects:externalize-rollback` / `projects:externalize-scan` 관례를 따라
+`projects:history-*` 로 한다(지디 제안 채택 — 초안의 `history:*` 는 앱 관례에서 혼자 튄다).
 | 채널 | 인자 | 반환 |
 |---|---|---|
-| `history:list` | `{projectId}` | `{ok, current, entries[], legacyCount, totalBytes}` |
-| `history:read` | `{projectId, ts}` | `{ok, data}` |
-| `history:diff-payload` | `{projectId, ts}` | `{ok, snapCanvas:{pageId:html}, curCanvas:{...}}` — 둘 다 **정규화 완료**(§6-2) |
-| `history:open-copy` | `{projectId, ts, newName?}` | `{ok, newProjectId, newName}` |
-| `history:restore` | `{projectId, ts, mode, isOpenInEditor}` | `mode:'inplace'` & 열림 → `{ok, data, preRestoreTs}` (렌더러가 적용) / 아니면 `{ok, preRestoreTs}` |
+| `projects:history-list` | `{projectId}` | `{ok, current, entries[], legacyCount, totalBytes}` |
+| `projects:history-read` | `{projectId, ts}` | `{ok, data}` |
+| `projects:history-diff-payload` | `{projectId, ts}` | `{ok, snapCanvas:{pageId:html}, curCanvas:{...}}` — 둘 다 **정규화 완료**(§6-2) |
+| `projects:history-open-copy` | `{projectId, ts, newName?}` | `{ok, newProjectId, newName}` |
+| `projects:history-restore` | `{projectId, ts, mode, isOpenInEditor}` | `mode:'inplace'` & 열림 → `{ok, data, preRestoreTs}` (렌더러가 적용) / 아니면 `{ok, preRestoreTs}` |
 
 - `projectId` 는 전부 `_safeSeg`, `ts` 는 **정수만** 허용(`/^\d+$/`) — 경로 조작 차단.
-- `history:diff-payload` 는 크기 가드: 어느 쪽이든 8MB 초과면 `{ok:false, reason:'too_large'}`
+- `projects:history-diff-payload` 는 크기 가드: 어느 쪽이든 8MB 초과면 `{ok:false, reason:'too_large'}`
   → UI 는 「옛 형식이라 상세 비교를 건너뜁니다」. 목록의 숫자·사라진 섹션은 **그래도 나온다**(인덱스 기반).
 
 ### 5-5. preload
 ```js
-historyList:      ({projectId})           => invoke('history:list', …),
-historyRead:      ({projectId, ts})       => invoke('history:read', …),
-historyDiffPayload:({projectId, ts})      => invoke('history:diff-payload', …),
-historyOpenCopy:  ({projectId, ts, newName}) => invoke('history:open-copy', …),
-historyRestore:   ({projectId, ts, mode, isOpenInEditor}) => invoke('history:restore', …),
+historyList:      ({projectId})           => invoke('projects:history-list', …),
+historyRead:      ({projectId, ts})       => invoke('projects:history-read', …),
+historyDiffPayload:({projectId, ts})      => invoke('projects:history-diff-payload', …),
+historyOpenCopy:  ({projectId, ts, newName}) => invoke('projects:history-open-copy', …),
+historyRestore:   ({projectId, ts, mode, isOpenInEditor}) => invoke('projects:history-restore', …),
 ```
 기존 `externalize*` 5줄 바로 아래에 같은 형식으로 붙인다.
 
@@ -551,26 +553,100 @@ changeDiff(snapCanvasMap, curCanvasMap)      // L2, DOMParser 필요
 
 ---
 
-## §12. 단계 분해
+## §12. PGE 유닛 분해 — 유닛마다 Planner→Generator→Evaluator
 
-### P1 — 「쓸 수 있는 것」까지
-| # | 유닛 | 산출 |
+지디 안(U1~U6)을 기준으로 **3곳을 다시 잘랐다. 근거는 각 항에.**
+
+| 유닛 | 내용 | 의존 |
 |---|---|---|
-| 1 | `snapshot-store.js` — canonicalize / writeSnapshot / index / prune / listReferencedAssets | 신규 모듈 + 단위테스트 9종 |
-| 2 | `_saveProjectImpl` 교체 + `save-sync` 스냅샷(Q4) | main.js diff 최소 |
-| 3 | IPC 5채널 + preload 5줄 | 노출 |
-| 4 | `version-diff.js` — lossDiff / changeDiff | 순수 함수 + 테스트 |
-| 5 | `version-history.js` + `version-history.css` + 진입점 2곳 | UI (§7 게이트 통과) |
-| 6 | 되돌리기 — 새 프로젝트(기본) / 교체(2차 확인) + **pre-restore 강제 스냅샷** | `_duplicateProjectImpl(sourceData)` |
-| 7 | 검증 — 단위 + 통합 + 실앱 인터랙션 + 디자인 대조 | §9 전량 |
+| **U0 회귀 안전망** ★신설 | 현행 저장 경로의 동작을 «먼저» 테스트로 고정 — 10분 게이트 · 5슬롯 롤링 · `proj_backup.json` 갱신 · GAP-004 폴백 체인(백업→히스토리→pre-externalize 순서와 자가치유) | — |
+| **U1 스냅샷 경량화 + 인덱스** | `snapshot-store.js`(canonicalize/writeSnapshot/**index.json**/prune/listReferencedAssets) + `_saveProjectImpl` 교체 + 레거시 호환 | U0 |
+| **U2 노출(읽기 전용)** | `projects:history-list` / `-read` / `-diff-payload` + preload 3줄. **쓰기 채널 없음** | U1 |
+| **U4 손실 중심 diff** | `version-diff.js` lossDiff/changeDiff (순수함수) | **U1** (U2 아님) |
+| **U3 목록 UI** | 진입점 2곳 + 모달 + 행(숫자 메타 + 손실 줄). 디자인 게이트 | U2, U4 |
+| **U5 열람(사본 새 프로젝트)** | `_duplicateProjectImpl(sourceData)` + `projects:history-open-copy` | U3 |
+| **U6a 되돌리기 «취소 가능성»** ★분리 | pre-restore 강제 스냅샷(간격게이트 무시·pinned) + **되돌린 뒤 다시 되돌릴 수 있음**을 단독 증명 | U5 |
+| **U6b 덮어쓰기 되돌리기** | `applyProjectData` + `_suppressAutoSave` 경로. **U6a 초록 없이는 착수 금지** | U6a |
 
-의존: 1 → 2 → 3 → (4 ∥ 5) → 6 → 7. 4 와 5 는 병렬.
+**의존 그래프**: `U0 → U1 → (U2 ∥ U4) → U3 → U5 → U6a → U6b`
+병렬 가능한 건 **U2 ∥ U4** 한 쌍뿐이다.
 
-### P2
-계층 보관 튜닝 · 「옛 스냅샷 경량화」 버튼(2.4GB 회수) · L2 변경 상세 고도화
+### 지디 안에서 바꾼 3가지 (근거)
 
-### P3
-부분 가져오기 — 섹션 단위로 과거 버전에서 «이것만» 끌어오기
+**① U0(회귀 안전망)을 신설했다 — U1 앞에.**
+U1 은 `_saveProjectImpl` 을 건드린다. **앱 전체의 저장 경로**다. 손대기 전에 현행 동작이 테스트로
+고정돼 있지 않으면 U1 의 Evaluator 가 「내가 안 깼다」를 **증명할 수단이 없다** — 「코드를 읽어보니
+안 깨진다」는 증거가 아니다. 특히 지디가 요구한 «기존 무거운 슬롯이 안 깨지나»는 U0 없이는 못 잰다.
+> 이 팀의 08-25 교훈: **「검증 방식이 버그를 가렸다」.** 하네스가 못 만드는 상황은 영원히 초록이다.
+
+**② U4 는 U2 에 의존하지 «않는다» — U1 직후 U2 와 병렬이다.**
+`lossDiff` 의 재료는 IPC 가 아니라 **U1 이 만드는 `index.json` 의 `secs` 배열**이다(순수함수).
+앞당겨야 하는 적극적 이유가 있다 — U4 의 **양성대조(섹션을 일부러 지운 사본)** 가 U1 의 인덱스
+스키마를 검증하는 **가장 강한 수단**이다. U4 를 뒤로 미루면 스키마 결함이 IPC·UI 를 다 짠 뒤에 드러난다.
+
+**③ U6 을 U6a/U6b 로 쪼갰다 — 지디의 「pre-restore 없으면 착수 금지」를 하네스로 «강제»한다.**
+한 유닛이면 Generator 가 되돌리기와 pre-restore 를 같이 짜고 Evaluator 가 둘을 같이 본다 →
+pre-restore 가 «반쯤» 되는 상태로도 전체가 초록일 수 있다.
+쪼개면 **U6a 가 단독으로 초록이어야만 U6b 가 시작된다** — 지시가 절차가 된다.
+부수효과: U5 를 하면 U6 의 «새 프로젝트로» 절반은 이미 끝난다(같은 `_duplicateProjectImpl(sourceData)`).
+U6 에 실제로 남는 건 **덮어쓰기 + 취소 가능성**뿐이라 이 분할이 자연스럽다.
+
+---
+
+## §12-B. 각 유닛 Evaluator 인수 기준 (지디 요구 + 내 보강)
+
+공통 규율
+- ⛔ **실 프로젝트 디렉터리 무접촉.** 전부 스크래치패드 사본으로.
+- ★ **고디터는 한 번에 하나** — 내 격리 인스턴스만. 9334/9335 미접촉.
+- ★ **저장 → 앱 완전 재기동 → 재오픈 왕복**이 전 유닛 인수 조건(지디 지시).
+- ★ **단위테스트 초록만으로 통과시키지 않는다** — 실데이터 재현이 있어야 한다.
+
+**U0** — 현행 4항(10분 게이트/5슬롯/롤링백업/폴백체인)이 **수정 전 코드에서 전부 초록**. 초록이 아니면
+그건 테스트가 틀린 것이므로 U1 착수 금지(가짜 기준선으로 출발하면 U1 의 초록도 가짜다).
+
+**U1** (지디 3항 + 보강 3항)
+- ✅ 경량화 전후 바이트 — **실데이터 재현이 인수 기준**: 39.6MB 프로젝트 사본에 저장 6회 →
+  §2-3 의 `237.5MB → 3.9MB` 를 다시 낸다. 단위테스트 초록으로 대체 불가.
+- ✅ **원본 `proj.json` 불변** — 스냅샷 전후 원본의 **바이트 해시 동일**.
+- ✅ 기존 무거운 슬롯 무손상 — U0 의 폴백 체인 테스트가 계속 초록.
+- ★보강 **«입력 객체» 불변** — 파일이 아니라 **메모리** 축. `canonicalize` 가 저장 직전 객체를
+  변형하면 그 오염이 **그대로 proj.json 에 나간다.** 위 3항 전부 초록이어도 이건 통과 못 할 수 있다.
+- ★보강 **dedup 실증** — 같은 이미지로 2회 스냅샷 → 두 번째 `bytesWritten === 0`.
+- ★보강 **스냅샷 실패가 저장 실패로 안 번진다** — 에셋 쓰기를 강제 실패시켜도 `projects:save` 는 `ok`.
+
+**U2** (지디 1항의 «정직한 측정법»)
+- ✅ 읽기 API 가 쓰기를 못 하나 — ⚠️ 이건 **음성 실험이 되기 쉽다.**
+  > 교훈: contextBridge 몽키패치로 IPC 실패를 «흉내»낸 실험이 조용히 무시돼 헛실험이 됐다.
+  > **「막았다」고 믿기 전에 막혔는지부터 재라.**
+  ⇒ 정직한 측정: 각 읽기 IPC 호출 **전후로 프로젝트 디렉터리 전체의 (경로, mtime, size) 스냅샷**을
+    떠서 **diff 가 0** 임을 확인. 「소스를 읽어보니 write 가 없다」는 증거로 안 친다.
+- ★보강 경로 조작 — `ts` 에 `../`·비정수, `projectId` 에 슬래시를 넣어 **거부**되는지.
+- ★보강 `too_large` 가드가 레거시 39MB 에서 실제로 발동하고, 그때도 **목록의 숫자·손실 줄은 나온다.**
+
+**U4** (지디 양성대조 + 내 보강 2항 — ★두 번째가 이 유닛의 진짜 함정)
+- ✅ **양성대조** — 섹션을 일부러 지운 사본을 태워 «사라진 섹션»을 **실제로 집어낸다**.
+- ★보강 **음성대조** — 아무것도 안 지운 사본에서 **「사라진 섹션 0」**. 양성만 있으면
+  «항상 뭔가 사라졌다고 말하는» 구현도 통과한다.
+- ★★보강 **정규화 대조** — **미외부화(base64) 현재본 vs 정규형 스냅샷**에서 **「변경 0」**.
+  §6-2 를 빠뜨리면 여기서 **이미지 가진 모든 섹션이 「변경」**으로 떠 목록이 통째로 쓸모없어진다.
+  이 케이스가 없으면 U4 의 초록은 실사용에서 의미가 없다.
+- ★보강 섹션 **이름 변경만** / **순서 변경만** 은 «사라짐»이 아니다.
+
+**U3** — 디자인 게이트(§7-5): 인접 동종 UI(`.fsub-*` 모달 · `.card-action` 3형제)와 두께/색/반경/여백
+**스크린샷 대조**. `computed style` 만 믿지 않는다. 정적 캡처로 끝내지 않고 **열기·펼치기·hover·스크롤을
+직접 눌러본다.** 신작 CSS 가 4클래스를 넘으면 그 자체가 FAIL.
+
+**U5** — 사본의 **이미지가 실제로 보인다**(goya-asset URL 이 새 id 로 치환 + 에셋 하드링크 존재).
+★원본 프로젝트를 지워도 사본이 **안 깨진다**(§8-2 결합 버그의 역검증). ★사본에 `collabRef` 가 **없다**.
+
+**U6a** — ★**되돌린 뒤 다시 되돌릴 수 있나**(지디 요구). 즉 pre-restore 스냅샷이 **실제로 박혔고**
+목록 맨 위에 **pinned** 로 보이고 **그걸로 원상복구가 성립**한다. 원본 프로젝트 무손상.
+★pre-restore 쓰기를 강제 실패시키면 **되돌리기가 실행되지 않는다**(P-2 의 기계적 증명).
+
+**U6b** — ★**그 프로젝트를 앱에서 «열어둔 채»** 재현한다. 안 열려 있으면 autosave 경합 자체가
+안 일어나 **가짜 초록**이 난다(§D10). 덮어쓰기 후 **1.5초 debounce 를 지나서도** 되돌린 내용이 유지되는지
+확인한다(그전에 재면 아직 안 덮인 상태를 본다).
+★타 인스턴스에서 열린 경우 **덮어쓰기가 거부**되고 «새 프로젝트로»만 허용되는지.
 
 ---
 
