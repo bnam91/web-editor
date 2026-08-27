@@ -249,18 +249,29 @@
   //   끊겨(실측: mousemove 2 · dragstart 1 · dragover 14) 사각 선택이 «첫 셀 1개»에서 멈춘다.
   //   block-drag.js 의 프레임 pointerdown 선례와 같은 패턴. thead 셀·블록 여백은 이 경로를
   //   타지 않고, 테이블 미선택 상태에선 애초에 여기 못 오므로 테이블 이동은 그대로 가능하다.
+  // ★★draggable 조상은 «하나가 아니다» — closest() 로 «가장 가까운» 하나만 끄면
+  //   브라우저가 그 위로 올라가 다음 draggable 에서 dragstart 를 다시 잡는다.
+  //   실제로 둘이 겹치는 경로: 테이블이 프레임 안에 있으면
+  //     td → .row(block-drag.js:1539 draggable=true) → .frame-block(block-drag.js:1759 draggable=true)
+  //   ⇒ 체인 «전부» 끄고 «전부» 원래 값으로 되돌린다. (block 자신도 dragTarget 이 될 수 있어 포함)
+  //   ⚠️원래 값 보존이 중요하다 — block-drag.js:1962 가 pointerup 에서 프레임 draggable 을
+  //     다시 'true' 로 박는 경로가 있어, 복구를 틀리면 프레임 드래그가 죽거나 반대로 잔류한다.
   function suppressAncestorDrag(block) {
-    const host = block.closest('[draggable="true"]');
-    if (!host) return () => {};
-    const was = host.getAttribute('draggable');
-    host.setAttribute('draggable', 'false');
+    const hosts = [];
+    for (let el = block; el && el !== document.body; el = el.parentElement) {
+      if (el.getAttribute && el.getAttribute('draggable') === 'true') hosts.push([el, el.getAttribute('draggable')]);
+    }
+    if (!hosts.length) return () => {};
+    hosts.forEach(([el]) => el.setAttribute('draggable', 'false'));
     let done = false;
     const restore = () => {
       if (done) return;
       done = true;
       window.removeEventListener('blur', restore); // 리스너 누적 방지(셀 mousedown 마다 등록됨)
-      if (was === null) host.removeAttribute('draggable');
-      else host.setAttribute('draggable', was);
+      hosts.forEach(([el, was]) => {
+        if (was === null) el.removeAttribute('draggable');
+        else el.setAttribute('draggable', was);
+      });
     };
     // 안전망: mouseup 을 못 받는 경우(창 포커스 이탈 등)에도 복구
     window.addEventListener('blur', restore);
