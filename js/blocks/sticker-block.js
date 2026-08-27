@@ -35,7 +35,10 @@ function _stripCtlChars(s) {
 // dataset.textHtml(부분 서식 HTML)을 렌더·로드 때마다 재-sanitize한다(저장본/.gdt 변조 대비).
 // ★정규식 아님 — DOM 순회. template 파싱이라 실행 컨텍스트 없음(img 로드·이벤트 미발생).
 //   허용 태그만 재구성, span은 style만·style도 프로퍼티/값 화이트리스트, 그 외 전부 제거.
-const _STK_ALLOWED_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'BR', 'SPAN']);
+// ⚠️STRIKE 는 «레거시지만 execCommand 가 실제로 만드는» 태그다 — Chrome 의
+//   execCommand('strikeThrough') 산출물이 <strike> 라, 허용목록에 없으면 ⌘⇧X 로 그은 취소선이
+//   커밋(sanitize) 순간 언랩돼 «되는 척»만 하고 사라진다(실측: live 엔 <strike>, textHtml 엔 없음).
+const _STK_ALLOWED_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'BR', 'SPAN']);
 const _STK_ALLOWED_STYLE_PROPS = new Set(['color', 'font-weight', 'font-style', 'text-decoration', 'background-color']);
 // 값 화이트리스트 — hex / 함수형색(rgb·hsl, 내부 charset 잠금) / 명명색·키워드(bold·italic·underline·line-through·normal) / 정수(font-weight).
 //   함수형색 내부는 [0-9.,\s%/]만 허용 → url(·javascript: 등 침투 불가.
@@ -107,7 +110,7 @@ function _stickerHtmlHasFormatting(html) {
   if (!html) return false;
   const tpl = document.createElement('template');
   tpl.innerHTML = String(html);
-  if (tpl.content.querySelector('b,strong,i,em,u,s')) return true;
+  if (tpl.content.querySelector('b,strong,i,em,u,s,strike')) return true;
   for (const s of tpl.content.querySelectorAll('span')) {
     if (s.getAttribute('style')) return true;
   }
