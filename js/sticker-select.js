@@ -534,6 +534,11 @@ function _enterStickerEdit(block, ev) {
       const k = (ev.key || '').toLowerCase();
       if (k === 'b' || k === 'i' || k === 'u') {
         ev.preventDefault();
+        // ★stopPropagation 필수 — 안 하면 document 레벨 ⌘B/⌘I 핸들러(editor.js)까지 올라가
+        //   같은 키 한 번에 execCommand 가 «두 번» 돌고 토글이 상쇄돼 «아무 일도 안 일어난다».
+        //   (실측: execCommand 래퍼에 bold 호출 2건 — sticker-select onKey + editor.js.)
+        //   스티커 편집 중이라는 가장 «구체적인 맥락»을 아는 이쪽이 정본.
+        ev.stopPropagation();
         const cmd = k === 'b' ? 'bold' : k === 'i' ? 'italic' : 'underline';
         try { document.execCommand(cmd, false, null); } catch (_) {}
         return;
