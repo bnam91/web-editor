@@ -203,3 +203,64 @@ test('ⓓ 청크 경계: 토큰이 어느 오프셋에서 잘려도 결과가 1M
     assert.deepEqual(r.t.missingAssets, ref.t.missingAssets, `chunkSize=${cs} missing 불일치`);
   }
 });
+
+/* ⓔ #16 스크래치패드 이식성 — 참고이미지 참조는 «캔버스 HTML 밖»(page.scratchpad 매니페스트)에도 산다.
+ *   스캐너가 proj.json 을 «바이트로» 훑으니 원리상 잡히지만, 이 경로가 깨지면
+ *   「참고이미지만 빠진 .gdt」가 나오고 그건 캔버스 이미지가 멀쩡해서 «눈에 안 띈다».
+ *   ⇒ 매니페스트 «전용» 참조(캔버스엔 없음) + 좌표·그룹·linkDy 보존을 여기서 못 박는다.
+ */
+test('ⓔ page.scratchpad 매니페스트의 goya 참조도 동봉·복원되고 좌표/링크가 보존된다', async () => {
+  const root = mkRoot();
+  const dir = path.join(root, PID);
+  fs.mkdirSync(path.join(dir, 'assets'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'assets', 'aaaaaaaaaaaaaaaa.png'), PNG);
+  fs.writeFileSync(path.join(dir, 'assets', 'bbbbbbbbbbbbbbbb.gif'), GIF);
+  // ★캔버스엔 참조가 «없다» — 매니페스트만으로 동봉되는지 보는 게 이 테스트의 요점
+  const proj = {
+    version: 2, id: PID, name: 't-scratch', currentPageId: 'p1',
+    pages: [{
+      id: 'p1', name: 'Page 1', canvas: '<div class="section-block"><p>참고이미지 없음</p></div>',
+      scratchpad: [
+        { id: 's_1', src: A, x: 10, y: 20, w: 300, g: null, linkDy: 0 },
+        { id: 's_2', src: B, x: -40, y: 90, w: 200, g: 'g1', linkDy: 12 },
+      ],
+    }],
+    checklistItems: [],
+  };
+  const src = path.join(dir, 'proj.json');
+  fs.writeFileSync(src, JSON.stringify(proj, null, 2));
+  const out = path.join(root, 'scratch.gdt');
+
+  const r = await exportGdt({ srcProjJson: src, outPath: out, projectsDir: root, meta: { name: 't', sourceId: PID } });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.goyaAssets, 2);
+  assert.equal(r.images, 2);
+  assert.deepEqual(r.missingAssets, []);
+
+  const z = await readZip(out);
+  assert.equal(sha(z['images/img_0001.png']), sha(PNG));
+  assert.equal(sha(z['images/img_0002.gif']), sha(GIF));
+
+  // 「다른 PC」 모사 — 완전히 다른 projectsDir 로 불러온다(원본 assets/ 가 없는 곳)
+  const importRoot = mkRoot();
+  const ir = await importGdt({ gdtPath: out, projectsDir: importRoot });
+  assert.equal(ir.ok, true, JSON.stringify(ir));
+  assert.equal(ir.images, 2);
+  const restoredPath = path.join(importRoot, ir.projectId, 'proj.json');
+  const restored = fs.readFileSync(restoredPath, 'utf8');
+  // 깨진 참조가 하나도 없어야 한다 — 남으면 그 참고이미지는 다른 PC 에서 «안 보인다»
+  assert.equal((restored.match(/goya-asset:\/\//g) || []).length, 0);
+  assert.equal((restored.match(/gdt:\/\//g) || []).length, 0);
+
+  const sp = JSON.parse(restored).pages[0].scratchpad;
+  assert.equal(sp.length, 2);
+  // 바이트 동일 — 재인코딩 없음
+  assert.deepEqual(sp.map(s => sha(Buffer.from(String(s.src).split(';base64,')[1], 'base64'))), [sha(PNG), sha(GIF)]);
+  assert.ok(sp[0].src.startsWith('data:image/png;base64,'));
+  assert.ok(sp[1].src.startsWith('data:image/gif;base64,'));
+  // 좌표·그룹·링크 오프셋은 손대지 않는다(하이드레이션이 이걸로 배치를 되살린다)
+  assert.deepEqual(sp.map(({ id, x, y, w, g, linkDy }) => ({ id, x, y, w, g, linkDy })), [
+    { id: 's_1', x: 10, y: 20, w: 300, g: null, linkDy: 0 },
+    { id: 's_2', x: -40, y: 90, w: 200, g: 'g1', linkDy: 12 },
+  ]);
+});
