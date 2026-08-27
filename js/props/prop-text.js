@@ -117,6 +117,8 @@ export function showTextProperties(tb) {
   const isStrike      = (contentEl.style.textDecorationLine || contentEl.style.textDecoration || '').includes('line-through');
   const currentHighlight      = tb.dataset.highlight || 'none';
   const currentHighlightColor = tb.dataset.highlightColor || '#ffeb3b';
+  // ⑨ 서식 버튼 — 블록 전체에 걸린 인라인 서식 여부(부분 서식은 selection 기준이라 여기서 안 본다)
+  const isHighlight   = !!(contentEl.style.backgroundColor && contentEl.style.backgroundColor !== 'transparent');
 
   // 위치/크기 — text-frame(래퍼)이 position/size를 보유
   const _tf         = tb.closest('.frame-block[data-text-frame="true"]');
@@ -147,6 +149,9 @@ export function showTextProperties(tb) {
     shadow,
     isLiner,
     isStrike,
+    isBold,
+    isItalic,
+    isHighlight,
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(tb.id || null);

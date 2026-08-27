@@ -316,6 +316,103 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
   colorAlpha.addEventListener('blur', () => { colorAlpha.value = String(_txtAlpha); });
   colorAlpha.addEventListener('change', () => { window.pushHistory?.(); });
 
+  /* ── ⑨ 인라인 서식 버튼 (굵게 / 기울임 / 형광펜) ──
+   * 규약은 취소선 버튼과 동일: 부분 선택이 있으면 그 영역만(execCommand), 없으면 블록 전체 토글.
+   *   ⚠️버튼을 누르면 contentEl 이 blur 되므로 «mousedown 시점»에 selection 을 스냅샷해야 한다
+   *     (click 때 읽으면 이미 사라진 뒤다 — 취소선이 쓰던 것과 같은 함정).
+   *   ⚠️블록 전체로 켤 땐 내부 부분서식 잔재를 먼저 걷어내야 «블록 스타일이 단일 소스»가 된다.
+   *     (안 걷어내면 껐는데도 일부 글자만 굵게 남는다.)
+   * 형광펜 기본색은 앱에 이미 있는 텍스트 하이라이트 값(prop-text.js currentHighlightColor 기본값)
+   * 을 그대로 쓴다 — 새 색을 만들지 않는다.
+   */
+  const HL_COLOR = '#ffeb3b';
+
+  // 부분서식 잔재 정리: 지정 태그를 언랩하고, 지정 style prop 을 가진 span 을 벗긴다.
+  const _stripInlineResidue = (el, tagSel, styleProp) => {
+    if (!el) return;
+    if (tagSel) {
+      el.querySelectorAll(tagSel).forEach(n => {
+        const parent = n.parentNode;
+        while (n.firstChild) parent.insertBefore(n.firstChild, n);
+        parent.removeChild(n);
+      });
+    }
+    if (styleProp) {
+      el.querySelectorAll(`span[style*="${styleProp}"]`).forEach(sp => {
+        sp.style.removeProperty(styleProp);
+        const styleStr = sp.getAttribute('style') || '';
+        if (!styleStr.replace(/;|\s/g, '')) {
+          const parent = sp.parentNode;
+          while (sp.firstChild) parent.insertBefore(sp.firstChild, sp);
+          parent.removeChild(sp);
+        }
+      });
+    }
+  };
+
+  // btnId 버튼 하나를 «부분=execCommand / 전체=블록 인라인 스타일» 규약으로 배선한다.
+  const wireInlineStyleBtn = ({ btnId, cmd, cmdVal = null, tagSel, styleProp, isOn, setOn, setOff }) => {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    let saved = null;
+    const save = () => { saved = hasSel() ? _lastSelRange.cloneRange() : null; };
+    btn.addEventListener('mousedown', save);
+    btn.addEventListener('pointerdown', save);
+    btn.addEventListener('click', () => {
+      if (saved) {
+        applyExecCmd(saved, cmd, cmdVal);
+        saved = null;
+        window.pushHistory?.();
+        window.scheduleAutoSave?.();
+        return;
+      }
+      const el = ctx.contentEl;
+      if (!el) return;
+      const nowOn = !isOn(el);
+      if (nowOn) {
+        _stripInlineResidue(el, tagSel, styleProp);
+        setOn(el);
+      } else {
+        _stripInlineResidue(el, tagSel, styleProp);
+        setOff(el);
+      }
+      btn.classList.toggle('active', nowOn);
+      window.pushHistory?.();
+      window.scheduleAutoSave?.();
+    });
+  };
+
+  wireInlineStyleBtn({
+    btnId: 'txt-bold-btn', cmd: 'bold', tagSel: 'b, strong', styleProp: 'font-weight',
+    isOn: el => { const w = el.style.fontWeight; return w === 'bold' || parseInt(w, 10) >= 600; },
+    setOn: el => {
+      el.style.fontWeight = '700';
+      // 블록 굵기의 단일 소스는 weight select 다 — 표시를 어긋나게 두지 않는다.
+      const sel = document.getElementById('txt-font-weight');
+      if (sel) sel.value = '700';
+    },
+    setOff: el => {
+      el.style.fontWeight = '400';
+      const sel = document.getElementById('txt-font-weight');
+      if (sel) sel.value = '400';
+    },
+  });
+
+  wireInlineStyleBtn({
+    btnId: 'txt-italic-btn', cmd: 'italic', tagSel: 'i, em', styleProp: 'font-style',
+    isOn: el => el.style.fontStyle === 'italic',
+    setOn: el => { el.style.fontStyle = 'italic'; },
+    setOff: el => { el.style.fontStyle = ''; },
+  });
+
+  wireInlineStyleBtn({
+    btnId: 'txt-highlight-btn', cmd: 'hiliteColor', cmdVal: HL_COLOR,
+    tagSel: null, styleProp: 'background-color',
+    isOn: el => !!(el.style.backgroundColor && el.style.backgroundColor !== 'transparent'),
+    setOn: el => { el.style.backgroundColor = HL_COLOR; },
+    setOff: el => { el.style.backgroundColor = ''; },
+  });
+
   /* ── 취소선 토글 ──
    * 부분 선택 시: Cmd+B/I 와 동일한 execCommand 계열('strikeThrough')을 selection 복원 후 실행
    * 무선택 시: 블록(contentEl) 전체 토글 — 인라인 textDecorationLine 기준, 내부 부분 적용 잔재는 정리 */

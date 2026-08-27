@@ -15,6 +15,9 @@ export function buildTextPropsHtml(state) {
     shadow,
     isLiner,
     isStrike,
+    isBold,
+    isItalic,
+    isHighlight,
   } = state;
 
   // Shadow defaults (prop-text-wireup-shadow.js SHADOW_DEFAULTS와 동기화)
@@ -147,7 +150,10 @@ export function buildTextPropsHtml(state) {
       </div>
 
       <div class="prop-style-group" id="txt-style-group" style="margin-top:6px;display:${isLiner?'none':'flex'}">
+        <button class="prop-style-btn ${isBold?'active':''}" id="txt-bold-btn" title="굵게 (⌘B)"><b>B</b></button>
+        <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (⌘I)"><i>I</i></button>
         <button class="prop-style-btn ${isStrike?'active':''}" id="txt-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>
+        <button class="prop-style-btn ${isHighlight?'active':''}" id="txt-highlight-btn" title="형광펜 (선택 영역 배경칠)">H</button>
       </div>
 
       <div class="prop-lhls-row">
