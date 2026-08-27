@@ -1143,7 +1143,6 @@
 .banner02-block .bn2-line-selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: 2px;
-  border-radius: 2px;
 }
 .banner02-block.selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
