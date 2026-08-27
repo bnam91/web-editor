@@ -130,26 +130,27 @@
     target.dispatchEvent(evt);
   }
 
-  function handleAltClick(e) {
-    if (!e.altKey) return;
-    if (e.button !== 0) return;
+  // 대상 결정 + cycle 갱신. 반환 null = 처리하지 않음(원본 이벤트 그대로 흘려보냄).
+  function _resolveAltTarget(e) {
+    if (!e.altKey) return null;
+    if (e.button !== 0) return null;
     // 합성 이벤트는 무시 (무한 재진입 방지)
-    if (e._altLayerSelect) return;
+    if (e._altLayerSelect) return null;
 
     // 텍스트 편집 모드 중인 contenteditable 내부 클릭은 기본 동작 유지
     // (단어 선택 등 OS 기본 Alt+click 허용)
     const t = e.target;
     if (t && t.closest) {
-      if (t.closest('.text-block.editing')) return;
-      if (t.closest('.icon-text-block.editing')) return;
-      if (t.closest('.label-group-block.editing')) return;
-      if (t.closest('[contenteditable="true"]')) return;
+      if (t.closest('.text-block.editing')) return null;
+      if (t.closest('.icon-text-block.editing')) return null;
+      if (t.closest('.label-group-block.editing')) return null;
+      if (t.closest('[contenteditable="true"]')) return null;
       // 우측/좌측 패널은 무시
-      if (!t.closest('#canvas')) return;
+      if (!t.closest('#canvas')) return null;
     }
 
     const stack = _collectStack(e.clientX, e.clientY);
-    if (stack.length === 0) return;
+    if (stack.length === 0) return null;
 
     // cycle 상태 확인
     const sameSpot = _isNearLast(e.clientX, e.clientY);
@@ -198,12 +199,7 @@
       }
     }
 
-    if (!target) return;
-
-    // 원본 Alt+click 차단 (텍스트 편집 진입, 드래그 시작 등 막음)
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    e.preventDefault();
+    if (!target) return null;
 
     // cycle 기록 — 다음 Alt+click이 같은 좌표면 이번 target을 skip
     if (sameSpot) {
@@ -212,9 +208,12 @@
       _cycleState.skipped = [target];
     }
     _cycleState.t = Date.now();
+    return target;
+  }
 
-    // 섹션은 전용 선택 경로(editor.js가 window에 노출한 selectSection) 재사용,
-    // 블록은 기존대로 합성 click으로 블록 자체 select 핸들러 호출.
+  // 대상 «선택». 섹션은 전용 경로(editor.js가 window에 노출한 selectSection),
+  // 블록은 기존대로 합성 click으로 블록 자체 select 핸들러 호출.
+  function _selectTarget(target, e) {
     if (target.classList.contains('section-block')) {
       if (typeof window.selectSection === 'function') window.selectSection(target);
       else _dispatchSelectClick(target, e); // 폴백: 섹션 hitzone click 핸들러 경유
@@ -223,33 +222,71 @@
     }
   }
 
+  // ★⑥ 아래 레이어를 «누른 채로» 끌기 —
+  //   선택은 원래 click(=mouseup 뒤)에 일어나서, 그 시점엔 버튼이 이미 떨어져 있어
+  //   드래그가 구조적으로 시작될 수 없었다(옛 mousedown 핸들러 주석: "드래그 시작 방지가 목적").
+  //   → mousedown 에서 선택까지 끝내고, «수식키를 뗀» 합성 mousedown 을 대상 블록에 다시 쏴서
+  //     그 블록 자신의 드래그 핸들러가 document mousemove/mouseup 을 물게 한다.
+  //     이후 실제 mousemove 는 우리가 안 막으므로 옵션을 누른 채로도 그대로 따라 움직인다.
+  //   ⚠️절대배치 블록(스티커·free-layout 프레임·shape)은 커스텀 mousemove 드래그라 이 방식으로 산다.
+  //     플로우 블록은 네이티브 HTML5 드래그라 «합성 mousedown 으로는 시작할 수 없다»(브라우저 제약).
+  //     대신 플로우 블록은 애초에 서로 겹치지 않아 아래 레이어를 끌 일이 없다.
+  function _forwardMouseDown(target, srcEvent) {
+    const evt = new MouseEvent('mousedown', {
+      bubbles: true, cancelable: true, composed: true, view: window,
+      clientX: srcEvent.clientX, clientY: srcEvent.clientY,
+      screenX: srcEvent.screenX, screenY: srcEvent.screenY,
+      button: 0, buttons: 1,
+      altKey: false, shiftKey: false, ctrlKey: false, metaKey: false,
+    });
+    evt._altLayerSelect = true;
+    target.dispatchEvent(evt);
+  }
+
+  // 이번 제스처를 mousedown 에서 이미 처리했는지 — click 이 같은 좌표에서 «한 번 더» 드릴하는 것을 막는다.
+  let _handledOnDown = false;
+
   // capture-phase로 가장 먼저 받기 — sticker-select 등 capture 핸들러보다 앞서 실행
   // (document는 트리 최상위라 capture-phase가 elements보다 먼저 실행됨)
-  document.addEventListener('click', handleAltClick, true);
-  // mousedown도 차단 — 일부 블록(sticker, shape)이 mousedown으로 드래그/선택 시작함
   document.addEventListener('mousedown', function (e) {
-    if (!e.altKey) return;
-    if (e.button !== 0) return;
-    if (e._altLayerSelect) return;
-    const t = e.target;
-    if (t && t.closest) {
-      if (t.closest('.text-block.editing')) return;
-      if (t.closest('.icon-text-block.editing')) return;
-      if (t.closest('.label-group-block.editing')) return;
-      if (t.closest('[contenteditable="true"]')) return;
-      if (!t.closest('#canvas')) return;
-    }
-    // mousedown만 차단하고 click에서 처리 — 드래그 시작 방지가 목적
-    const stack = _collectStack(e.clientX, e.clientY);
-    if (stack.length === 0) return;
+    const target = _resolveAltTarget(e);
+    if (!target) return;
+    // 원본 Alt+mousedown 차단 — «위» 레이어가 드래그/편집을 시작하지 못하게.
     e.stopPropagation();
     e.stopImmediatePropagation();
     e.preventDefault();
+    _handledOnDown = true;
+    _selectTarget(target, e);
+    // 섹션은 드래그 대상이 아니다(섹션 이동은 별도 경로) → 합성 mousedown 미전달.
+    if (!target.classList.contains('section-block')) _forwardMouseDown(target, e);
+  }, true);
+
+  document.addEventListener('click', function (e) {
+    if (!e.altKey || e.button !== 0 || e._altLayerSelect) return;
+    if (_handledOnDown) {
+      // 선택은 mousedown 에서 끝났다. 이 click 은 삼키기만 한다
+      // (안 삼키면 block-drag click → deselectAll 로 방금 고른 아래 레이어가 풀린다).
+      _handledOnDown = false;
+      const t = e.target;
+      if (t && t.closest && t.closest('#canvas')) {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+      return;
+    }
+    // mousedown 이 없었던 경로(합성 click 등) 폴백 — 기존 동작 유지
+    const target = _resolveAltTarget(e);
+    if (!target) return;
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    _selectTarget(target, e);
   }, true);
 
   // 디버그용 노출
   window._altLayerSelect = {
     collectStack: _collectStack,
-    handleAltClick,
+    resolveTarget: _resolveAltTarget,
   };
 })();
