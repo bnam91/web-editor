@@ -2513,8 +2513,13 @@ function updateAssetBlock(blockId, partial = {}) {
     } else {
       block.style.marginLeft = '';
       block.style.marginRight = '';
-      // partial.width로 명시 지정된 경우엔 유지, 그 외엔 초기화
-      if (partial.width === undefined || partial.width === null) {
+      // partial.width로 명시 지정된 경우엔 유지, 그 외엔 초기화.
+      // ★단 calc()는 «패딩제외» 산물이라 usePadx='false'와 양립 불가 → 명시 width가 있어도 제거한다.
+      //   (위 width 분기가 >=860일 때 assetFullBleedWidth로 calc을 넣으므로, 한 호출에 usePadx:'false'가
+      //    섞이면 «음수마진 없는 calc»만 남는다 — 폭 860인데 콘텐츠폭은 716이라 align=left면 섹션
+      //    우측으로 넘쳐 잘리고 align=right면 좌측이 잘린다. 08-27 실측)
+      if (partial.width === undefined || partial.width === null
+          || String(block.style.width).includes('calc(')) {
         block.style.width = '';
       }
     }

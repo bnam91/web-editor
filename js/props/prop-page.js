@@ -23,10 +23,19 @@ function assetFullBleedWidth(ab) {
   if (!ab || !getEffectiveUsePadx(ab)) return '';
   // free-layout 프레임 내부 에셋은 절대배치 → full-bleed 무의미 (applyExcludePadX 가드 미러)
   if (ab.closest('.frame-block[data-free-layout="true"]')) return '';
+  // preset 고정폭(logo·a4 등)은 그 사이즈를 지켜야 한다 — applyExcludePadX와 같은 가드.
+  // ⚠️ ②width 분기의 `preset !== 'logo'` 만으론 a4가 안 걸린다(08-27 태양 지적).
+  if (window.ASSET_PRESETS?.[ab.dataset.preset]?.width) return '';
   const row = ab.parentElement;
   let padX;
-  if (row && row.classList.contains('row') && row.dataset.padX !== undefined && row.dataset.padX !== '') {
-    padX = parseInt(row.dataset.padX);          // row 직속 ab는 row의 padX가 지배 (prop-row.applyPadX)
+  // ⚠️ row의 패딩 키가 «두 가지»다: 생성 경로(block-factory.applyRowPaddingX)는 `paddingX`,
+  //    패널 슬라이더(prop-row.applyPadX)는 `padX`. 둘 다 읽어야 한다 — 하나만 보면 조용히 글로벌로 샌다.
+  const rowPadX = row && row.classList.contains('row')
+    ? (row.dataset.padX !== undefined && row.dataset.padX !== '' ? row.dataset.padX
+       : (row.dataset.paddingX !== undefined && row.dataset.paddingX !== '' ? row.dataset.paddingX : undefined))
+    : undefined;
+  if (rowPadX !== undefined) {
+    padX = parseInt(rowPadX);                   // row 직속 ab는 row의 패딩이 지배
   } else {
     const inner = ab.closest('.section-inner');
     const hasOverride = inner && inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
