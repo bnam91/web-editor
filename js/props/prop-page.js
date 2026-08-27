@@ -46,6 +46,26 @@ function assetFullBleedWidth(ab) {
 }
 window.assetFullBleedWidth = assetFullBleedWidth;
 
+/* ── 헬퍼: 패딩제외 폭을 «마진과 세트로» 적용 ──
+   ⚠️ width 만 쓰면 폭은 커지는데 위치가 안 밀려 «우측 padX 만큼 섹션 밖으로 넘쳐 잘린다»
+   (`.section-inner{overflow-x:hidden}`). 정본 3곳(applyPadXToSection·prop-row.applyPadX·
+   block-factory.applyExcludePadX)이 전부 width+marginLeft+marginRight 를 «항상 세트로» 쓰는 이유다.
+   2026-08-27 회귀: 신설 경로만 width 단독이라, «음수마진이 없는» usePadx 에셋을 최대폭으로 키우면
+   실데이터 15개 중 4개가 잘렸다. 호출부가 이 함수를 쓰면 세트 규약을 못 어긴다.
+   반환: 적용한 width 문자열(패딩제외 아니면 ''). */
+function applyAssetFullBleed(ab) {
+  const w = assetFullBleedWidth(ab);
+  ab.style.width = w;
+  if (w) {
+    const m = w.match(/\+\s*(\d+(?:\.\d+)?)px/);
+    const padX = m ? parseFloat(m[1]) / 2 : 0;
+    if (padX > 0) { ab.style.marginLeft = -padX + 'px'; ab.style.marginRight = -padX + 'px'; }
+  }
+  // w === '' 이면 마진은 «건드리지 않는다» — usePadx=false 경로가 이미 각자 정리한다(회귀 0).
+  return w;
+}
+window.applyAssetFullBleed = applyAssetFullBleed;
+
 /* ── 헬퍼: section-inner 하나에 padX 적용 ── */
 function applyPadXToSection(inner, padX) {
   inner.style.paddingLeft  = padX ? padX + 'px' : '';

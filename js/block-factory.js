@@ -2461,8 +2461,8 @@ function updateAssetBlock(blockId, partial = {}) {
     const r = _intRange('width', 100, 860);
     if (r.ok === false) return r;
     if (r.value >= 860) {
-      // full bleed — 패딩제외면 calc() 복원, 아니면 inline width 제거 (prop-asset.applyW와 동일 규약)
-      block.style.width = window.assetFullBleedWidth?.(block) ?? '';
+      // full bleed — 패딩제외면 calc()+음수마진 세트 복원, 아니면 inline width 제거 (prop-asset.applyW와 동일 규약)
+      if (window.applyAssetFullBleed) window.applyAssetFullBleed(block); else block.style.width = '';
     } else {
       block.style.width = r.value + 'px';
       // align에 맞춰 alignSelf 재정렬 (prop-asset의 applyW 패턴)
