@@ -182,16 +182,45 @@ body {
    이 페이지엔 토스트 기반이 없다(editor-toast.css 미로드) → 제자리 텍스트가 정답. */
 #acct-refresh-state { flex-shrink: 0; color: var(--ui-text-sub); }
 
-/* ── 보기 전환(그리드 / 리스트) ──
+/* ── 보기 전환(그리드 / 리스트) ──────────────────────────────────────────
  * 껍데기 규격은 #acct-trigger 와 같다(높이 32 · radius 7 · 같은 배경/보더 토큰).
- * 버튼 자체는 editor-base.css 의 공용 .tb-btn 을 쓴다 — 선택 상태(.active)도 그 파일 것 그대로.
- * (.tb-btn--icon 은 «커밋 없음»이면 pointer-events:none 이라 여기선 못 쓴다 — 크기만 재정의) */
+ * ★**선택 표시에 파랑(액센트)을 쓰지 않는다**(현빈 지시 2026-08-27).
+ *   구분은 «눌린 면(배경 칩) + 아이콘 밝기» 둘로만 낸다 —
+ *   선택   = 칩 var(--ui-border-mid) #3a3a3a + 아이콘 var(--ui-text) #e0e0e0
+ *   비선택 = 칩 없음(투명)          + 아이콘 var(--ui-text-dim) #969696
+ *   (#zoom-ctrl 의 «가라앉은 통 + 밝은 칩» 패턴과 같은 뼈대. .tb-btn 은 .active 가
+ *    accent-primary 파랑이라 이번엔 쓰지 않는다.)
+ * ★진짜 radio 를 쓴다(시각적으로만 숨김) — 방향키 전환·그룹 시맨틱을 브라우저가 준다.
+ * ── */
 #view-toggle {
   display: flex; align-items: center; gap: 2px;
   height: 32px; padding: 0 3px;
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-strong); border-radius: 7px;
+  margin: 0;   /* fieldset 기본 여백 제거 */
 }
-#view-toggle .tb-btn { width: 26px; height: 24px; padding: 0; border-radius: var(--ui-radius-sm); }
+.vt-item {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 24px; border-radius: var(--ui-radius-sm);
+  cursor: pointer; position: relative;
+  color: var(--ui-text-dim);
+  transition: background 0.12s, color 0.12s;
+}
+.vt-item:hover { color: var(--ui-text-sub); }
+/* 선택 = 칩 + 밝은 아이콘 (색상 액센트 없음) */
+.vt-item:has(.vt-radio:checked) { background: var(--ui-border-mid); color: var(--ui-text); }
+/* radio 는 «화면에서만» 숨긴다 — display:none 이면 포커스·방향키가 죽는다 */
+.vt-radio {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+/* 라벨은 스크린리더 전용 — 화면엔 title(툴팁)로만 뜬다 */
+.vt-sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+/* 키보드 포커스는 «보여야» 한다 — radio 를 숨겼으니 칩에 링을 그린다 */
+.vt-radio:focus-visible ~ .vt-ico { outline: 1px solid var(--ui-text-sub); outline-offset: 2px; border-radius: 2px; }
+.vt-ico { display: flex; }
 
 /* ── 리스트 보기 — «같은 카드 DOM»을 한 줄 행으로 접는다(렌더러 분기 없음) ── */
 #project-grid.is-list { display: flex; flex-direction: column; gap: 4px; }
@@ -325,23 +354,30 @@ body {
   <div id="header">
     <h1>프로젝트</h1>
     <div class="header-actions">
-      <!-- ★보기 전환 — 두 아이콘 토글(radiogroup). 선택값은 다음 실행에도 남는다. -->
-      <div id="view-toggle" role="radiogroup" aria-label="보기 방식">
-        <button type="button" class="tb-btn" data-view="grid" role="radio" aria-checked="true"
-                title="바둑판으로 보기" aria-label="바둑판으로 보기">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-            <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-          </svg>
-        </button>
-        <button type="button" class="tb-btn" data-view="list" role="radio" aria-checked="false"
-                title="목록으로 보기" aria-label="목록으로 보기">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/>
-            <line x1="4" y1="6" x2="4.01" y2="6"/><line x1="4" y1="12" x2="4.01" y2="12"/><line x1="4" y1="18" x2="4.01" y2="18"/>
-          </svg>
-        </button>
-      </div>
+      <!-- ★보기 전환 — 진짜 radio 그룹(시각적으로만 숨김). 선택값은 다음 실행에도 남는다.
+           선택 표시는 «색»이 아니라 «눌린 칩 + 아이콘 밝기»다(파란 액센트 금지). -->
+      <fieldset id="view-toggle" role="radiogroup" aria-label="보기 방식">
+        <label class="vt-item" title="바둑판으로 보기">
+          <input type="radio" class="vt-radio" name="projects-view" value="grid" data-view="grid" checked>
+          <span class="vt-ico" aria-hidden="true">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+          </span>
+          <span class="vt-sr">바둑판으로 보기</span>
+        </label>
+        <label class="vt-item" title="목록으로 보기">
+          <input type="radio" class="vt-radio" name="projects-view" value="list" data-view="list">
+          <span class="vt-ico" aria-hidden="true">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/>
+              <line x1="4" y1="6" x2="4.01" y2="6"/><line x1="4" y1="12" x2="4.01" y2="12"/><line x1="4" y1="18" x2="4.01" y2="18"/>
+            </svg>
+          </span>
+          <span class="vt-sr">목록으로 보기</span>
+        </label>
+      </fieldset>
       <!-- ★라벨은 «한 곳»에만 있다(<span id="btn-*-label">) — 문구가 정해지면 그 한 줄만 갈아끼운다.
            아이콘+라벨 구조라 라벨이 짧아져도(예: Design) 버튼이 그대로 줄어든다. -->
       <button id="btn-new-planning" onclick="createPlanningProject()" style="display:none" title="기획 프로젝트 만들기">
@@ -1020,27 +1056,18 @@ function getViewMode() {
 function applyViewMode(mode, persist) {
   const m = (mode === 'list') ? 'list' : 'grid';
   document.getElementById('project-grid')?.classList.toggle('is-list', m === 'list');
-  document.querySelectorAll('#view-toggle [data-view]').forEach(b => {
-    const on = b.dataset.view === m;
-    b.classList.toggle('active', on);
-    b.setAttribute('aria-checked', on ? 'true' : 'false');
-    b.tabIndex = on ? 0 : -1;            // radiogroup: 그룹 전체가 탭정지 «하나»
-  });
+  // ★선택 표시는 radio 의 checked 하나로 끝난다 — 클래스 토글을 따로 두지 않는다
+  //   (두 개면 반드시 어긋난다). CSS 가 :has(.vt-radio:checked) 로 칩을 그린다.
+  document.querySelectorAll('#view-toggle .vt-radio').forEach(r => { r.checked = (r.dataset.view === m); });
   if (persist) { try { localStorage.setItem(VIEW_KEY, m); } catch (_) {} }
 }
 (function wireViewToggle() {
   const wrap = document.getElementById('view-toggle');
   if (!wrap) return;
-  const btns = Array.from(wrap.querySelectorAll('[data-view]'));
-  btns.forEach(b => b.addEventListener('click', () => applyViewMode(b.dataset.view, true)));
-  wrap.addEventListener('keydown', (e) => {
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
-    e.preventDefault();
-    const i = btns.indexOf(document.activeElement);
-    const d = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : -1;
-    const nxt = btns[((i < 0 ? 0 : i) + d + btns.length) % btns.length];
-    applyViewMode(nxt.dataset.view, true);
-    nxt.focus();
+  // 클릭도 방향키도 결국 radio 의 change 로 모인다 — 결선은 «한 곳»뿐이다.
+  wrap.addEventListener('change', (e) => {
+    const r = e.target.closest('.vt-radio');
+    if (r) applyViewMode(r.dataset.view, true);
   });
   applyViewMode(getViewMode(), false);   // 저장된 값으로 복원(첫 렌더 전에 켜도 무해)
 })();
