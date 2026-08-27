@@ -149,7 +149,47 @@ function renderBanner02(block) {
       e.stopPropagation();
       el.setAttribute('contenteditable', 'true'); el.focus();
     });
+    // ★⑶ 빈 줄에서 백스페이스 한 번 더 → 그 줄 삭제 + 이전 줄 끝으로 캐럿.
+    //   지금까지 줄 삭제는 우측 × 버튼이 유일했다(캔버스 경로 0건).
+    el.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Backspace') return;
+      // ⚠️IME: 한글 조합 중 백스페이스는 «조합 버퍼»를 지우는 것이지 줄 삭제가 아니다.
+      //   checklist-panel.js 의 기존 규약과 동일한 형태로 막는다.
+      if (ev.isComposing || ev.keyCode === 229) return;
+      if (String(el.textContent || '').length !== 0) return;   // 글자가 남아 있으면 일반 삭제
+      const cur = _readLines(block);
+      if (cur.length <= 1) return;                             // 마지막 1줄은 못 지운다(× 버튼 규약과 동일)
+      const i = parseInt(el.dataset.lineIdx, 10);
+      if (!Number.isInteger(i) || !cur[i]) return;
+      ev.preventDefault();
+      // ⚠️요소를 DOM 에서 빼면 blur 가 발화한다. 그 핸들러는 «옛 인덱스»로 텍스트를 쓰므로
+      //   삭제로 인덱스가 밀린 뒤엔 «엉뚱한 줄»을 덮어쓴다(화면엔 안 보이고 저장본만 틀어진다).
+      //   → 삭제 중 표시를 세워 blur 를 no-op 시킨다.
+      el.dataset.removing = '1';
+      window.pushHistory?.();                                  // 변형 «전»에 — ⌘Z 로 되살아나야 한다
+      cur.splice(i, 1);
+      _writeLines(block, cur);
+      renderBanner02(block);
+      window.scheduleAutoSave?.();
+      const prev = Math.max(0, i - 1);
+      if (block.classList.contains('selected')) {
+        window.bn2SetActiveLine?.(block, prev);
+        window.showBanner02Properties?.(block, prev);
+      }
+      // ⚠️재렌더로 요소가 새로 그려졌다 — 옛 참조는 detached 다. 새로 조회해서 캐럿을 끝에 놓는다.
+      const target = block.querySelector(`[data-line-idx="${prev}"]`);
+      if (target) {
+        target.setAttribute('contenteditable', 'true');
+        target.focus();
+        const r = document.createRange();
+        r.selectNodeContents(target);
+        r.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges(); sel.addRange(r);
+      }
+    });
     el.addEventListener('blur', () => {
+      if (el.dataset.removing === '1') return;   // ⑶ 삭제 중 — 옛 인덱스로 덮어쓰지 않는다
       el.setAttribute('contenteditable', 'false');
       const cur = _readLines(block);
       const i = parseInt(el.dataset.lineIdx);

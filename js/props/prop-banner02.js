@@ -5,6 +5,12 @@ import { colorFieldHTML, wireColorField } from './color-picker.js';
 // ⑧ 줄 선택 상태 — 배너 안 «어느 줄»을 보고 있는지. 블록별로 기억한다(패널 재생성에도 유지).
 //   activeIdx = null 이면 «전체 보기»(옛 동작: 모든 줄을 한꺼번에 펼침).
 const _bn2ActiveLine = new WeakMap();
+// ⑴⑵ 줄 편집칸 펼침 상태 — 블록별 «펼친 줄 인덱스» 집합. 디스크에 안 남긴다(UI 상태).
+const _bn2ExpandedLines = new WeakMap();
+function _bn2Expanded(block) {
+  if (!_bn2ExpandedLines.has(block)) _bn2ExpandedLines.set(block, new Set());
+  return _bn2ExpandedLines.get(block);
+}
 export function bn2SetActiveLine(block, idx) { _bn2ActiveLine.set(block, idx); }
 export function bn2GetActiveLine(block) { return _bn2ActiveLine.has(block) ? _bn2ActiveLine.get(block) : 0; }
 if (typeof window !== 'undefined') {
@@ -63,18 +69,37 @@ export function showBanner02Properties(block, activeIdxArg) {
     const weightOptsHtml = WEIGHT_OPTS.map(([v, lbl]) =>
       `<option value="${v}"${curWeight === v ? ' selected' : ''}>${lbl}</option>`
     ).join('');
+    // ★캔버스에서 바로 고칠 수 있으니(더블클릭 편집) 우측 입력칸은 «두 번째 입구»다 → 기본 접힘.
+    //   ⚠️단 «빈 줄»은 자동으로 펼친다 — 글자가 없으면 캔버스에서 겨냥하기 어려워
+    //     우측이 사실상 유일한 복구 수단이 되는 순간이 있다(⑸의 min-height 와 한 쌍).
+    const _isEmpty = !String(line.text || '').trim();
+    const _open = _isEmpty || _bn2Expanded(block).has(idx);
+    const _preview = _isEmpty ? '(빈 줄)' : String(line.text).replace(/\s+/g, ' ').slice(0, 24);
     return `
     <div class="prop-section" data-line-row="${idx}">
       <div class="prop-section-title" style="display:flex;align-items:center;gap:6px;justify-content:space-between;">
         <span style="display:flex;align-items:center;gap:6px;">
-          <select class="prop-number" data-line-kind="${idx}" style="font-size:11px;padding:1px 4px;">
-            ${KIND_OPTS.map(k => `<option value="${k}"${line.kind === k ? ' selected' : ''}>${KIND_LABELS[k] || k}</option>`).join('')}
-          </select>
+          <span style="font-size:11px;">${KIND_LABELS[line.kind] || line.kind}</span>
           <span style="font-size:10px;color:#888;">#${idx + 1}</span>
         </span>
         <button class="prop-btn prop-btn-danger" data-line-remove="${idx}" title="줄 삭제" style="padding:2px 8px;font-size:11px;${lines.length <= 1 ? 'opacity:0.4;pointer-events:none;' : ''}">×</button>
       </div>
+      <div class="prop-row" data-line-toggle="${idx}" style="cursor:pointer;" title="${_open ? '접기' : '펼쳐서 문구·종류 수정'}">
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
+             style="flex:0 0 auto;transform:rotate(${_open ? 90 : 0}deg);transition:transform .12s;">
+          <polyline points="2,2 6,4 2,6"/>
+        </svg>
+        <span class="prop-hint" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escAttr(_preview)}</span>
+      </div>
+      <div data-line-editor="${idx}" style="display:${_open ? 'block' : 'none'};">
+      <div class="prop-row">
+        <span class="prop-label">종류</span>
+        <select class="prop-select" data-line-kind="${idx}" style="flex:1;min-width:0;font-size:11px;">
+          ${KIND_OPTS.map(k => `<option value="${k}"${line.kind === k ? ' selected' : ''}>${KIND_LABELS[k] || k}</option>`).join('')}
+        </select>
+      </div>
       <textarea class="prop-textarea" data-line-text="${idx}" rows="2" style="width:100%;box-sizing:border-box;resize:vertical;">${(line.text || '').replace(/</g, '&lt;')}</textarea>
+      </div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
         <input type="range" class="prop-slider" data-line-size="${idx}" min="8" max="120" step="1" value="${Math.min(120, line.size)}">
@@ -413,6 +438,16 @@ export function showBanner02Properties(block, activeIdxArg) {
       commit();
       // 삭제된 줄이 보고 있던 줄이면 한 칸 앞으로 — 범위 보정은 렌더 진입부가 한 번 더 한다.
       showBanner02Properties(block, activeIdx === null ? null : Math.max(0, idx - 1)); // 인덱스 변경되니 패널 재생성
+    });
+  });
+
+  // ⑴⑵ 요약 줄 클릭 → 편집칸 펼침/접힘 (빈 줄은 항상 펼침이라 접어도 다시 열린다 — 의도)
+  propPanel.querySelectorAll('[data-line-toggle]').forEach(el => {
+    el.addEventListener('click', () => {
+      const i = parseInt(el.dataset.lineToggle, 10);
+      const set = _bn2Expanded(block);
+      set.has(i) ? set.delete(i) : set.add(i);
+      showBanner02Properties(block);
     });
   });
 
