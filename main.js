@@ -742,6 +742,15 @@ const _safeSeg = s => {
 
 // proj.json 경로 dual-resolve: 신 우선 → flat fallback.
 // migrator 모듈이 있으면 그쪽 사용, 없으면 동일 로직 인라인.
+// snapshot-store 지연 로더 — _getExternalizer/_getMigrator 와 같은 패턴(모듈 부재 시 앱은 계속 뜬다).
+let _ssMod = null, _ssTried = false;
+function _SS() {
+  if (!_ssTried) { _ssTried = true; try { _ssMod = require('./main/project-store/snapshot-store'); } catch (e) { console.warn('[snapshot-store] 로드 실패:', e.message); } }
+  return _ssMod || _SS_FALLBACK;
+}
+// 모듈이 없으면 «스냅샷을 안 만들고 폴백 후보도 안 준다» — 저장·로드 자체는 계속 되게(현행과 동일한 안전 성향).
+const _SS_FALLBACK = { planLegacySlots: () => ({ create: false, newName: null, deletions: [] }), loadFallbackCandidates: () => [] };
+
 function _resolveProjectJsonPath(id) {
   id = _safeSeg(id); // GAP-009
   const m = _getMigrator();
@@ -1132,26 +1141,10 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   // 2) GAP-004 폴백 체인: proj_backup.json → proj_history 최신→오래된 순.
   //    백업 인프라(롤링백업·히스토리 5슬롯)가 옆에 유효본을 둬도 손상 시 빈 프로젝트로
   //    로드되던 데이터손실을 차단. 첫 유효본을 반환하고 proj.json으로 자가치유 재기록.
-  const candidates = [];
-  const backupPath = _resolveBackupJsonPath(id);
-  if (backupPath) candidates.push({ path: backupPath, from: 'backup' });
-  for (const histDir of [path.join(PROJECTS_DIR, id, 'proj_history'), path.join(PROJECTS_DIR, `${id}_history`)]) {
-    try {
-      if (fs.existsSync(histDir)) {
-        const slots = fs.readdirSync(histDir).filter(f => f.endsWith('.json'))
-          .sort((a, b) => (parseInt(b) || 0) - (parseInt(a) || 0)); // 최신 우선
-        for (const s of slots) candidates.push({ path: path.join(histDir, s), from: 'history' });
-      }
-    } catch (_) {}
-  }
-  // [externalize] 최후 보루: 일괄 외부화 직전 원본(rename 보존본). ★반드시 체인 «맨 끝»(DESIGN §3-1) —
-  //   pre-externalize는 변환 시점에 고정돼 갱신되지 않으므로(늙는다), backup·history보다 앞에 두면
-  //   한 달 늙은 원본이 최신 백업/히스토리를 이겨 덮어쓰는 데이터손실(F1)이 난다. 롤링·히스토리가 다
-  //   죽었을 때만 쓰는 절대 최후 보루로만 남긴다.
-  try {
-    const preExt = path.join(PROJECTS_DIR, _safeSeg(id), 'proj_pre-externalize.json');
-    if (fs.existsSync(preExt)) candidates.push({ path: preExt, from: 'pre-externalize' });
-  } catch (_) {}
+  //   후보 «순서 자체»가 계약이다 — backup → history(최신→오래된) → pre-externalize(★맨 끝).
+  //   pre-externalize는 변환 시점에 고정돼 늙으므로 앞에 두면 한 달 늙은 원본이 최신 백업/히스토리를
+  //   이겨 덮어쓰는 데이터손실(F1)이 난다. 이 순서는 snapshot-store 에서 특성화 테스트로 고정돼 있다.
+  const candidates = _SS().loadFallbackCandidates(PROJECTS_DIR, id, _resolveBackupJsonPath);
   for (const c of candidates) {
     let proj;
     try { proj = JSON.parse(fs.readFileSync(c.path, 'utf8')); }
@@ -1258,23 +1251,15 @@ async function _saveProjectImpl(project) {
       // 롤링 백업: 정상 저장 전 직전 버전 보존 — 신 위치에만 작성
       try { fs.copyFileSync(prevPath, paths.backup); } catch (_) {}
 
-      // 다중 백업: 시간 기반 5개 슬롯 — 신 위치 디렉터리 안 history/
+      // 다중 백업: 시간 기반 슬롯 — 신 위치 디렉터리 안 proj_history/.
+      // 정책(간격 게이트·슬롯 상한·제거 순서)은 snapshot-store 가 «계획»으로 답하고 여기선 그대로 집행만 한다.
       try {
         const histDir = paths.history;
         if (!fs.existsSync(histDir)) fs.mkdirSync(histDir, { recursive: true });
-        const slots = fs.readdirSync(histDir).filter(f => f.endsWith('.json')).sort();
-        const now = Date.now();
-        const lastSlotTs = slots.length > 0
-          ? parseInt(slots[slots.length - 1].replace('.json','')) || 0
-          : 0;
-        // 직전 슬롯과 10분 이상 차이날 때만 새 스냅샷 추가 (저장 폭주 방지)
-        if (now - lastSlotTs > 10 * 60 * 1000) {
-          const newSlot = path.join(histDir, `${now}.json`);
-          fs.copyFileSync(prevPath, newSlot);
-          // 5개 초과 시 가장 오래된 슬롯 제거
-          const refreshed = fs.readdirSync(histDir).filter(f => f.endsWith('.json')).sort();
-          while (refreshed.length > 5) {
-            const oldest = refreshed.shift();
+        const plan = _SS().planLegacySlots(histDir, Date.now());
+        if (plan.create) {
+          fs.copyFileSync(prevPath, path.join(histDir, plan.newName));
+          for (const oldest of plan.deletions) {
             try { fs.unlinkSync(path.join(histDir, oldest)); } catch {}
           }
         }
