@@ -41,6 +41,18 @@ const BUDGET_BYTES  = 200 * 1024 * 1024;// 프로젝트당 스냅샷 예산(안�
 //   재고 낡았으면 그때 한 번 다시 재므로(≈80ms, 모달 열 때 1회), 스로틀을 걸어도 «정확도 손실이 없다».
 const CURRENT_REFRESH_MS = 30 * 1000;
 const INDEX_NAME    = 'index.json';
+// [F2] ★핀 사이드카. reason/pinned 는 스냅샷 파일에서 «유도할 수 없다» — index.json 만 믿으면
+//   인덱스를 잃는 순간 pre-restore 핀이 조용히 풀리고 다음 프룬이 «되돌리기 취소 지점»을 지운다.
+//   「인덱스는 파생 데이터라 잃어도 손실이 아니다」가 참이 되려면 유도 불가 정보는 별도 파일에 있어야 한다.
+const PINS_NAME     = 'pins.json';
+// [F7] 이 크기를 넘는 레거시 슬롯은 JSON.parse 대신 raw 정규식으로 지문을 낸다(실측 8배).
+//   사고 직후 «39MB 파싱»을 시키지 않는다는 설계 P-3 을 레거시에서도 지키기 위한 조치.
+const LEGACY_RAW_MAX = 8 * 1024 * 1024;
+// [F7] ★인덱스 1회 빌드에서 «읽을» 총 바이트 상한. raw 정규식으로 파싱을 없애도 515MB 프로젝트는
+//   디스크 I/O 만으로 2.4초가 걸린다(실측) — 사고 직후 그만큼 얼면 그 자체로 실패다.
+//   최신 슬롯부터 예산만큼만 분석하고 나머지는 pending 으로 둔다. 다음 열람 때 이어서 채운다
+//   (이미 분석된 항목은 재사용하므로 자동으로 완성된다). 목록은 그 사이에도 시각·용량으로 답한다.
+const REBUILD_BYTE_BUDGET = 120 * 1024 * 1024;
 const PINNED_REASONS = new Set(['pre-restore', 'manual']);
 
 /* ── 지문 정규식 — «싸구려»가 요구사항이다(저장 경로에 얹힌다) ─────────────
@@ -74,16 +86,35 @@ function pathsFor(projectsDir, projectId) {
     assets:  path.join(dir, 'assets'),
     history: path.join(dir, 'proj_history'),
     index:   path.join(dir, 'proj_history', INDEX_NAME),
+    pins:    path.join(dir, 'proj_history', PINS_NAME),
   };
 }
 function atomicWrite(filePath, data) {
   const tmp = filePath + '.tmp';
-  fs.writeFileSync(tmp, data);
+  // [F10] 쓰기 «도중» 실패(ENOSPC 등)에도 tmp 를 치운다. 초판은 rename 실패만 정리해서,
+  //   디스크가 찬 상황에서 부분 tmp 가 계속 쌓였다(적대검수 지적).
+  try { fs.writeFileSync(tmp, data); }
+  catch (e) { try { fs.unlinkSync(tmp); } catch (_) {} throw e; }
   try { fs.renameSync(tmp, filePath); }
   catch (e) { try { fs.unlinkSync(tmp); } catch (_) {} throw e; }
 }
 function readJsonOrNull(p) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { return null; }
+}
+/** [F6] canon 판정의 «유일한» 정의. write/rebuild 두 곳이 각자 계산하면 같은 파일에 다른 답이 나온다.
+ *  ★캔버스 «안» base64 로만 판정한다 — assetsTree 썸네일 같은 캔버스 밖 base64 는 canonicalize 의
+ *  대상이 아니므로 raw 전체로 재면 정규형 스냅샷이 레거시로 오분류된다. */
+function canonOf(data) {
+  return canvasStrings(data).some(c => c.html.indexOf('data:image') !== -1) ? 0 : 1;
+}
+/** [F4] 문자열 전체에서 goya-asset 파일명을 긁는다 — 캔버스 밖(scratchpad 매니페스트 등)도 잡아야 한다. */
+function assetsFromRaw(raw) {
+  const out = new Set();
+  if (typeof raw !== 'string' || raw.indexOf('goya-asset://') === -1) return out;
+  GOYA_ONE.lastIndex = 0;
+  let m;
+  while ((m = GOYA_ONE.exec(raw)) !== null) out.add(m[2]);
+  return out;
 }
 function countMatches(str, re) {
   if (typeof str !== 'string') return 0;
@@ -141,7 +172,9 @@ function parseDataUri(uri) {
  * 캔버스의 인라인 base64 를 goya-asset:// 정규형으로 접는다.
  * @param {{write?:boolean}} opts write=true 면 에셋 바이트를 실제로 저장(dedup), false 면 해시만 계산.
  * @returns {{data:object, changed:boolean, images:number, reused:number, skipped:number, bytesWritten:number}}
- *   ★data 는 «새 객체»다. 입력은 한 필드도 안 바뀐다.
+ *   ★입력은 한 필드도 안 바뀐다(이게 계약이다).
+ *   ⚠️ 반환된 data 는 «얕은 복제»이고, 바꿀 게 없으면 «입력 그 자체»다(changed:false).
+ *      받은 쪽이 그걸 변형하면 곧바로 원본 오염이다 — 변형하려면 호출측이 명시적으로 복제할 것.
  */
 function canonicalize(projectsDir, projectId, data, opts = {}) {
   const write = opts.write === true;
@@ -247,7 +280,52 @@ function fingerprint(data) {
   };
 }
 
+/* ── [F7] raw 지문 — 대형 레거시 슬롯을 JSON.parse 없이 훑는다 ────────────
+ * JSON 안에서 캔버스의 " 는 \" 로 이스케이프돼 있다. 그걸 그대로 노린다.
+ * ⚠️ 정규 경로(fingerprint)와 «두 구현»이 되므로 드리프트 위험이 있다 → 8MB 초과 슬롯에만 쓰고,
+ *    단위테스트가 두 경로의 동치를 대조한다(실슬롯 15개 차분검증 통과). */
+const SEC_OPEN_ESC  = /<div class=\\"section-block\\"[^>]*>/g;
+const ATTR_ID_ESC   = / id=\\"([^\\"]*)\\"/;
+const ATTR_NAME_ESC = / data-name=\\"([^\\"]*)\\"/;
+// ⚠️ JSON 은 «/ 를 이스케이프하지 않는다» — 닫는 태그는 </span> 그대로다.
+//    초판이 <\/span> 를 기대해 라벨 폴백이 통째로 헛돌았다(실슬롯 대조에서 15개 중 3개 불일치로 드러남).
+const LABEL_ESC     = /<span class=\\"section-label\\"[^>]*>([^<]*)<\/span>/;
+const BLOCK_ID_ESC  = / id=\\"([a-z0-9]{1,6}_[a-z0-9]{4,})\\"/gi;
+function fingerprintRaw(raw) {
+  const secs = [];
+  const secIds = new Set();
+  let sections = 0, blockCount = 0;
+  SEC_OPEN_ESC.lastIndex = 0;
+  let m;
+  while ((m = SEC_OPEN_ESC.exec(raw)) !== null) {
+    const tag = m[0];
+    const id = (tag.match(ATTR_ID_ESC) || [])[1] || '';
+    let name = (tag.match(ATTR_NAME_ESC) || [])[1] || '';
+    if (!name) name = (raw.slice(SEC_OPEN_ESC.lastIndex, SEC_OPEN_ESC.lastIndex + LABEL_WINDOW * 2).match(LABEL_ESC) || [])[1] || '';
+    if (id) secIds.add(id);
+    // ★페이지 경계를 raw 에서 못 가르므로 키 앞을 '?' 로 둔다. 손실 diff 는 «섹션 id» 로 맞추므로
+    //   섹션 이동/삭제 판정은 정확하고, 여러 페이지일 때 «어느 페이지였나»만 모른다(approx 로 표시).
+    secs.push({ k: `?::${id || `noid_${sections}`}`, n: name || id || '(이름 없음)' });
+    sections++;
+  }
+  BLOCK_ID_ESC.lastIndex = 0;
+  while ((m = BLOCK_ID_ESC.exec(raw)) !== null) if (!secIds.has(m[1])) blockCount++;
+  return {
+    counts: { pages: 0, sections, blocks: blockCount, images: countMatches(raw, B64_HEAD) + countMatches(raw, GOYA_ONE) },
+    secs, assets: [...assetsFromRaw(raw)], approx: true,
+  };
+}
+
 /* ── 사이드카 인덱스 ─────────────────────────────────────────────────────── */
+function readPins(projectsDir, projectId) {
+  const o = readJsonOrNull(pathsFor(projectsDir, projectId).pins);
+  return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+}
+function writePins(projectsDir, projectId, pins) {
+  const p = pathsFor(projectsDir, projectId);
+  try { fs.mkdirSync(p.history, { recursive: true }); } catch (_) {}
+  atomicWrite(p.pins, JSON.stringify(pins, null, 2));
+}
 function emptyIndex(projectId) { return { v: SCHEMA, projectId: safeSeg(projectId), current: null, entries: [] }; }
 
 function readIndex(projectsDir, projectId) {
@@ -267,30 +345,62 @@ function writeIndex(projectsDir, projectId, idx) {
  * 디스크의 슬롯을 훑어 인덱스를 다시 만든다. ★인덱스는 «파생 데이터»다 — 잃어도 손실이 아니다.
  * 레거시(base64) 슬롯은 canon:0 으로 표시하고 그대로 목록에 남긴다(P1 무접촉 정책).
  */
-function rebuildIndex(projectsDir, projectId) {
+function rebuildIndex(projectsDir, projectId, opts = {}) {
   const p = pathsFor(projectsDir, projectId);
   const idx = emptyIndex(projectId);
-  const prev = readJsonOrNull(p.index); // reason/pinned 같은 «디스크에서 못 뽑는» 정보는 살려 옮긴다
+  const prev = readJsonOrNull(p.index);
   const prevByTs = new Map(((prev && prev.entries) || []).map(e => [e.ts, e]));
-  for (const file of slotFiles(p.history)) {
+  const pins = readPins(projectsDir, projectId); // [F2] 인덱스를 잃어도 핀은 여기서 되살아난다
+  // [F7] ★최신 슬롯부터 예산만큼만 «읽는다». 이미 분석된 항목은 다시 읽지 않는다.
+  const newestFirst = slotFiles(p.history).slice().reverse();
+  let budget = opts.byteBudget != null ? opts.byteBudget : REBUILD_BYTE_BUDGET;
+  for (const file of newestFirst) {
     const full = path.join(p.history, file);
-    let raw;
-    try { raw = fs.readFileSync(full, 'utf8'); } catch (_) { continue; }
-    let data;
-    try { data = JSON.parse(raw); } catch (_) { continue; } // 손상 슬롯은 인덱스에서 뺀다(폴백 체인은 그대로 씀)
-    const fp = fingerprint(data);
+    let st;
+    try { st = fs.statSync(full); } catch (_) { continue; }
     const ts = parseInt(file);
     const old = prevByTs.get(ts) || {};
+    const pinReason0 = pins[String(ts)] || (PINNED_REASONS.has(old.reason) ? old.reason : null);
+
+    // 이미 분석된 항목은 그대로 승계(핀만 최신화) — 읽지 않는다.
+    if (old.counts && old.pending !== true && old.bytes === st.size) {
+      idx.entries.push({ ...old, reason: pinReason0 || old.reason || 'auto', pinned: !!pinReason0 });
+      continue;
+    }
+    // 예산 소진 → 시각·용량만 기록하고 미룬다. 목록은 그래도 «그 버전이 있다»를 보여준다.
+    if (budget - st.size < 0 && st.size > LEGACY_RAW_MAX) {
+      idx.entries.push({
+        ts, file, reason: pinReason0 || old.reason || 'auto', pinned: !!pinReason0,
+        canon: 0, bytes: st.size, name: old.name || null,
+        counts: null, secs: [], assets: old.assets || [], pending: true,
+      });
+      continue;
+    }
+    budget -= st.size;
+    let raw;
+    try { raw = fs.readFileSync(full, 'utf8'); } catch (_) { continue; }
+    // [F7] 대형 레거시 슬롯은 JSON.parse 를 건너뛴다 — 사고 직후 초 단위 블록을 만들지 않기 위해.
+    let fp, canon, name;
+    if (st.size > LEGACY_RAW_MAX) {
+      fp = fingerprintRaw(raw);
+      canon = raw.indexOf('data:image') === -1 ? 1 : 0; // 대형은 캔버스/비캔버스를 못 가른다 → 보수적
+      name = (raw.match(/"name"\s*:\s*"([^"]*)"/) || [])[1] || null;
+    } else {
+      let data;
+      try { data = JSON.parse(raw); } catch (_) { continue; } // 손상 슬롯은 인덱스에서 빼되 «파일은 안 지운다»
+      fp = fingerprint(data);
+      canon = canonOf(data);
+      name = data.name || null;
+    }
     idx.entries.push({
       ts, file,
-      reason: old.reason || 'auto',
-      pinned: old.pinned === true,
-      // ★canon 판정은 «캔버스 안» base64 로만 한다. assetsTree 썸네일 같은 캔버스 밖 소형 base64는
-      //   canonicalize 의 대상이 아니므로, raw 전체로 재면 정규형 스냅샷이 레거시로 오분류된다.
-      canon: canvasStrings(data).some(c => c.html.indexOf('data:image') !== -1) ? 0 : 1,
+      reason: pinReason0 || old.reason || 'auto',
+      pinned: !!pinReason0,
+      canon,
       bytes: Buffer.byteLength(raw),
-      name: data.name || null,
-      counts: fp.counts, secs: fp.secs, assets: fp.assets,
+      name,
+      counts: fp.counts, secs: fp.secs, assets: [...assetsFromRaw(raw)], // [F4] 캔버스 밖 참조도 잡는다
+      ...(fp.approx ? { approx: true } : {}),
     });
   }
   idx.entries.sort((a, b) => a.ts - b.ts);
@@ -347,12 +457,23 @@ function writeSnapshot(projectsDir, projectId, data, opts = {}) {
 
   try { fs.mkdirSync(p.history, { recursive: true }); } catch (_) {}
 
-  const canon = canonicalize(projectsDir, projectId, data, { write: true });
+  // [F5] ★협업 등록 프로젝트는 정규화하지 «않는다».
+  //   손상 폴백(projects:load)이 히스토리 슬롯을 proj.json 으로 자가치유 재기록하는데, 협업에서
+  //   proj.json 은 «동기화되는 산출물»이다. 정규형이 그리로 올라가면 상대 디스크엔 assets/ 가 없어
+  //   깨진 이미지가 간다. 설계 §8-4 가 「스냅샷은 로컬 전용」을 전제로 허용했던 구멍(적대검수 지적).
+  const isCollab = (() => {
+    try { const m = readJsonOrNull(p.meta); return !!(m && m.collabRef); } catch (_) { return false; }
+  })();
+  const canon = isCollab
+    ? { data, changed: false, images: 0, reused: 0, skipped: 0, bytesWritten: 0 }
+    : canonicalize(projectsDir, projectId, data, { write: true });
   const out = JSON.stringify(canon.data, null, 2);
 
-  // ts 충돌 회피(force 연타) — 파일명이 곧 키다.
+  // [F11] ts 충돌 회피 — 디스크«와» 인덱스 양쪽을 본다. 파일만 보면 슬롯이 밖에서 사라진 뒤
+  //   같은 ts 가 인덱스에 두 번 들어가 목록에 유령 행이 생긴다.
   let ts = now;
-  while (fs.existsSync(path.join(p.history, `${ts}.json`))) ts++;
+  const taken = new Set(idx.entries.map(e => e.ts));
+  while (fs.existsSync(path.join(p.history, `${ts}.json`)) || taken.has(ts)) ts++;
   const file = `${ts}.json`;
   try { atomicWrite(path.join(p.history, file), out); }
   catch (e) { return { ok: false, skipped: 'write_failed', error: e.message }; }
@@ -361,16 +482,25 @@ function writeSnapshot(projectsDir, projectId, data, opts = {}) {
   idx.entries.push({
     ts, file, reason,
     pinned: PINNED_REASONS.has(reason),
-    canon: 1,
+    canon: canonOf(canon.data), // [F6] write/rebuild 가 같은 정의를 쓴다. 하드코딩 1 은 절단 base64 를 거짓말했다
     bytes: Buffer.byteLength(out),
     name: (data && data.name) || null,
-    counts: fp.counts, secs: fp.secs, assets: fp.assets,
+    counts: fp.counts, secs: fp.secs,
+    assets: [...assetsFromRaw(out)], // [F4] 캔버스 밖(scratchpad 매니페스트 등) 참조도 GC 근거에 넣는다
   });
   idx.entries.sort((a, b) => a.ts - b.ts);
-  writeIndex(projectsDir, projectId, idx);
-  updateCurrent(projectsDir, projectId, data, { now });
+  // [F2] 핀은 사이드카에 «먼저» 박는다 — 인덱스만 남기면 인덱스 유실이 곧 핀 유실이다.
+  if (PINNED_REASONS.has(reason)) {
+    try { const pins = readPins(projectsDir, projectId); pins[String(ts)] = reason; writePins(projectsDir, projectId, pins); }
+    catch (_) { /* 핀 기록 실패는 스냅샷 자체를 무르지 않는다 — 아래 pinsAtRisk 로 정직하게 알린다 */ }
+  }
+  // [F10] 인덱스 기록 실패가 «throw» 로 나가면 호출측이 스냅샷이 없다고 오해한다. 정직하게 돌려준다.
+  try { writeIndex(projectsDir, projectId, idx); }
+  catch (e) { return { ok: true, ts, indexFailed: e.message, bytes: Buffer.byteLength(out) }; }
+  try { updateCurrent(projectsDir, projectId, data, { now }); } catch (_) {}
 
-  return { ok: true, ts, bytes: Buffer.byteLength(out), images: canon.images, reused: canon.reused, bytesWritten: canon.bytesWritten };
+  return { ok: true, ts, bytes: Buffer.byteLength(out), images: canon.images, reused: canon.reused,
+           bytesWritten: canon.bytesWritten, ...(isCollab ? { collabVerbatim: true } : {}) };
 }
 
 /* ── 프룬 ────────────────────────────────────────────────────────────────── */
@@ -399,6 +529,10 @@ function pruneVersions(projectsDir, projectId, opts = {}) {
     if (e.pinned) keep.add(e.ts);
     if (e.canon === 0) keep.add(e.ts); // ★레거시 무접촉
   }
+  // [F1 치명] ★«가장 최신» 스냅샷은 무슨 일이 있어도 남긴다.
+  //   방금 만든 스냅샷을 몇 마이크로초 뒤 프룬이 지우는 일이 실제로 있었다(적대검수 재현).
+  //   그러면 다음 저장의 간격 게이트가 옛 슬롯을 보고 통과해 «매 저장마다» 재스냅샷하는 무한루프가 된다.
+  if (all.length) keep.add(all[0].ts);
   // 최근 N
   let n = 0;
   for (const e of all) { if (keep.has(e.ts)) continue; if (n++ < RECENT_KEEP) keep.add(e.ts); }
@@ -411,38 +545,66 @@ function pruneVersions(projectsDir, projectId, opts = {}) {
     if (seenDay.has(k)) continue;
     seenDay.add(k); keep.add(e.ts);
   }
-  // 예산 안전판 — 초과하면 «핀도 레거시도 아닌» 가장 오래된 것부터 뺀다.
-  let total = all.filter(e => keep.has(e.ts)).reduce((s, e) => s + (e.bytes || 0), 0);
+  // [F1 치명] 예산 안전판 — ★«회수 가능한 것»만 예산에 센다.
+  //   초판은 total 에 레거시(canon:0)까지 넣었는데 레거시는 애초에 회수 대상이 아니다. 실프로젝트 5개가
+  //   이미 레거시만으로 200MB 를 넘겨서, total 이 영원히 예산 위에 있고 → 드롭 루프가 canon:1 을
+  //   «전부» 지웠다(방금 만든 것 포함). 버전 히스토리가 필요한 바로 그 프로젝트들에서 0개가 남는다.
+  const reclaimable = (e) => keep.has(e.ts) && !e.pinned && e.canon !== 0 && e.ts !== (all[0] && all[0].ts);
+  let total = all.filter(reclaimable).reduce((s, e) => s + (e.bytes || 0), 0);
   if (total > BUDGET_BYTES) {
-    const droppable = all.filter(e => keep.has(e.ts) && !e.pinned && e.canon !== 0).sort((a, b) => a.ts - b.ts);
+    const droppable = all.filter(reclaimable).sort((a, b) => a.ts - b.ts);
     for (const e of droppable) {
       if (total <= BUDGET_BYTES) break;
       keep.delete(e.ts); total -= (e.bytes || 0);
     }
   }
 
-  const deleted = [];
+  const deleted = [], refused = [];
   for (const e of all) {
     if (keep.has(e.ts)) continue;
+    // [F3] ★unlink 대상은 «이 모듈이 만든 이름»이어야 한다. 인덱스는 파일이라 손상·조작될 수 있는데,
+    //   초판은 entry.file 을 그대로 unlink 해서 '../proj.json' 한 줄이면 원본과 롤링백업이 사라졌다.
+    if (!/^\d+\.json$/.test(String(e.file)) || e.file !== `${e.ts}.json`) { refused.push(e.file); keep.add(e.ts); continue; }
     try { fs.unlinkSync(path.join(p.history, e.file)); deleted.push(e.file); } catch (_) {}
   }
   idx.entries = idx.entries.filter(e => keep.has(e.ts)).sort((a, b) => a.ts - b.ts);
+  // [F2] 핀 사이드카를 인덱스와 맞춘다 — 지워진/해제된 항목은 사이드카에서도 뺀다.
+  try {
+    const pins = readPins(projectsDir, projectId);
+    const live = new Set(idx.entries.filter(e => e.pinned).map(e => String(e.ts)));
+    let dirty = false;
+    for (const k of Object.keys(pins)) if (!live.has(k)) { delete pins[k]; dirty = true; }
+    if (dirty) writePins(projectsDir, projectId, pins);
+  } catch (_) {}
   writeIndex(projectsDir, projectId, idx);
-  return { kept: idx.entries.length, deleted, unpinned };
+  return { kept: idx.entries.length, deleted, unpinned, ...(refused.length ? { refused } : {}) };
 }
 
 /* ── 조회 ────────────────────────────────────────────────────────────────── */
 /** 목록 — ★파일을 한 개도 안 읽는다(인덱스가 최신이면). current 가 낡았으면 그때만 proj.json 1회 파싱. */
 function listVersions(projectsDir, projectId) {
   const p = pathsFor(projectsDir, projectId);
-  let idx = ensureIndex(projectsDir, projectId);
+  // [F7] 인덱스가 이미 있고 미분석分이 남았으면 «이번 열람에서» 예산만큼 더 채운다 — 열 때마다 완성된다.
+  //   ⚠️ ensureIndex 가 방금 빌드한 경우엔 다시 부르지 않는다(초판이 그래서 첫 열람에 예산을 두 번 썼다).
+  let idx = readIndex(projectsDir, projectId);
+  if (!idx) idx = rebuildIndex(projectsDir, projectId);
+  else if (idx.entries.some(e => e.pending)) { try { idx = rebuildIndex(projectsDir, projectId); } catch (_) {} }
   let stale = !idx.current;
   if (!stale) {
     try { stale = fs.statSync(p.proj).mtimeMs > (idx.current.projMtimeMs || 0); } catch (_) { stale = false; }
   }
   if (stale) {
+    // [F7] ★목록은 «사고 직후» 열리는 화면이다. 디스크가 읽기전용이거나 꽉 차서 인덱스를 못 써도
+    //   목록이 죽으면 안 된다 — 기록에 실패하면 «메모리에서만» 계산해 돌려준다.
     const cur = readJsonOrNull(p.proj);
-    if (cur) idx = updateCurrent(projectsDir, projectId, cur);
+    if (cur) {
+      try { idx = updateCurrent(projectsDir, projectId, cur); }
+      catch (_) {
+        const fp = fingerprint(cur);
+        let bytes = 0; try { bytes = fs.statSync(p.proj).size; } catch (_2) {}
+        idx = { ...idx, current: { ts: Date.now(), bytes, projMtimeMs: 0, name: cur.name || null, counts: fp.counts, secs: fp.secs } };
+      }
+    }
   }
   const entries = [...idx.entries].sort((a, b) => b.ts - a.ts); // 최신 우선(UI 순서)
   return {
@@ -450,6 +612,7 @@ function listVersions(projectsDir, projectId) {
     current: idx.current,
     entries,
     legacyCount: entries.filter(e => e.canon === 0).length,
+    pendingCount: entries.filter(e => e.pending).length, // [F7] 아직 안 읽은 대형 레거시 — UI 가 정직하게 표시
     totalBytes: entries.reduce((s, e) => s + (e.bytes || 0), 0),
   };
 }
@@ -483,15 +646,19 @@ function listReferencedAssets(projectsDir, projectId) {
     let m;
     while ((m = GOYA_ONE.exec(raw)) !== null) out.add(m[2]);
   };
-  // 히스토리는 인덱스에 이미 집계돼 있으면 그걸 쓴다(파싱 회피). 없으면 파일을 직접 읽는다.
+  // [F4] ★인덱스를 «정답»으로 믿지 않는다. 인덱스의 assets 는 스냅샷 시점의 집계일 뿐이고,
+  //   초판은 그게 캔버스만 훑어서 page.scratchpad[].src 의 goya-asset 참조를 통째로 놓쳤다
+  //   (js/scratch-pad.js:96 · js/io/save-load.js:178 — 출시된 기능이다). GC 답을 낼 때는 파일을 직접 읽는다.
+  //   인덱스 값은 «추가»로만 합친다(파일이 이미 사라진 과거 항목의 흔적도 보존).
   const idx = readIndex(projectsDir, projectId);
-  const indexed = new Set();
-  if (idx) for (const e of idx.entries) { indexed.add(e.file); for (const a of (e.assets || [])) out.add(a); }
-  for (const f of slotFiles(p.history)) {
-    if (indexed.has(f)) continue;
-    try { addFromRaw(fs.readFileSync(path.join(p.history, f), 'utf8')); } catch (_) {}
+  if (idx) for (const e of idx.entries) for (const a of (e.assets || [])) out.add(a);
+  const histDirs = [p.history, path.join(projectsDir, `${p.id}_history`)]; // 구 flat 레이아웃도 폴백이 읽는다
+  for (const hd of histDirs) {
+    for (const f of slotFiles(hd)) { try { addFromRaw(fs.readFileSync(path.join(hd, f), 'utf8')); } catch (_) {} }
   }
-  const others = [p.proj, p.backup];
+  // 신 레이아웃 + ★구 flat 레이아웃(main.js _resolveProjectJsonPath / _resolveBackupJsonPath 가 폴백한다)
+  const others = [p.proj, p.backup,
+                  path.join(projectsDir, `${p.id}.json`), path.join(projectsDir, `${p.id}_backup.json`)];
   try {
     for (const f of fs.readdirSync(p.dir)) {
       if (/^proj_pre-(externalize|rollback)(\.\d+)?\.json$/.test(f)) others.push(path.join(p.dir, f));
@@ -509,8 +676,10 @@ function listReferencedAssets(projectsDir, projectId) {
  * 이겨 덮어쓰는 데이터손실(F1)이 난다.
  */
 function loadFallbackCandidates(projectsDir, id, resolveBackupPath) {
+  const rawId = id;
+  id = safeSeg(id); // [F9] 초판은 여기만 빼먹어 ../ 로 PROJECTS_DIR 밖 JSON 을 후보에 넣을 수 있었다
   const candidates = [];
-  const backupPath = typeof resolveBackupPath === 'function' ? resolveBackupPath(id) : null;
+  const backupPath = typeof resolveBackupPath === 'function' ? resolveBackupPath(rawId) : null;
   if (backupPath) candidates.push({ path: backupPath, from: 'backup' });
   for (const histDir of [path.join(projectsDir, id, 'proj_history'), path.join(projectsDir, `${id}_history`)]) {
     try {
@@ -534,5 +703,6 @@ module.exports = {
   readIndex, writeIndex, rebuildIndex, ensureIndex, updateCurrent,
   writeSnapshot, pruneVersions, listVersions, readVersion,
   listReferencedAssets, loadFallbackCandidates,
-  _internal: { safeSeg, pathsFor, canvasStrings, mapCanvas, assetNameFor, slotFiles, dayKey, isValidTs },
+  _internal: { safeSeg, pathsFor, canvasStrings, mapCanvas, assetNameFor, slotFiles, dayKey, isValidTs,
+               canonOf, assetsFromRaw, fingerprintRaw, readPins, writePins },
 };
