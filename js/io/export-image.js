@@ -401,7 +401,15 @@ async function exportSection(sec, format, width, opts) {
 
   // banner02-block: canvas-block과 동일한 transform:scale() 트릭 → export 시 px 평탄화 + bg-image→canvas
   for (const bn of clone.querySelectorAll('.banner02-block')) {
-    if (window.renderBanner02) { window.renderBanner02(bn); if (bn._bn2RO) { bn._bn2RO.disconnect(); bn._bn2RO = null; } }
+    if (window.renderBanner02) {
+      window.renderBanner02(bn);
+      if (bn._bn2RO) { bn._bn2RO.disconnect(); bn._bn2RO = null; }
+      // ★재렌더가 편집용 마커를 «되붙인다» — 위(:247)의 일괄 스트립은 이 줄보다 앞이라 소용없다.
+      //   그래서 PNG 엔 점선이 찍히고 export-html(재렌더 없음)엔 안 찍혔다(QA BUG-2).
+      //   ⇒ 마커 제거는 «재렌더 뒤»에 한 번 더. 스트립 목록을 늘릴 땐 이 줄도 같이 봐야 한다.
+      bn.querySelectorAll('.bn2-line-selected, .bn2-line-empty').forEach(el =>
+        el.classList.remove('bn2-line-selected', 'bn2-line-empty'));
+    }
     const inner = bn.querySelector('.bn2-inner');
     if (!inner) continue;
     const m = (inner.style.transform || '').match(/scale\(([^)]+)\)/);

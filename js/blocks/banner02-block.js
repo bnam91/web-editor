@@ -133,10 +133,11 @@ function renderBanner02(block) {
     // ★빈 줄은 «높이 0» 이라 캔버스에서 더블클릭할 자리가 아예 없다 → 우측 패널이 유일한 복구
     //   수단이 되는 갇힘이 생긴다. 최소 높이를 줘서 클릭 대상이 «항상» 존재하게 한다.
     //   .bn2-line-empty 는 편집용 마커 — serialize/export 세 경로에서 벗긴다.
-    if (!String(line.text || '').trim()) {
-      styleParts.push(`min-height:${Math.max(12, Math.round(line.size * 0.8))}px`);
-      el.classList.add('bn2-line-empty');
-    }
+    // ★min-height 는 «인라인으로 주지 않는다» — 인라인이면 저장본·.gdt·export-html 에 다 실리고,
+    //   무엇보다 neededHeight() 의 입력이 되어 «원래 안 넘치던 배너»를 열기만 해도 자라게 만든다
+    //   (QA BUG-1: bn2_84a7j_bgcvdp1 260→294). 클릭영역은 «화면에서만» 필요하지 높이 계산의 입력이 아니다.
+    //   → CSS(.bn2-line-empty)로만 주고, neededHeight 는 그 몫을 도로 빼서 «실제 글자 높이»로 잰다.
+    if (!String(line.text || '').trim()) el.classList.add('bn2-line-empty');
     if (line.gapTop)                                  styleParts.push(`margin-top:${line.gapTop}px`);
     if (line.fontFamily)                              styleParts.push(`font-family:${line.fontFamily}`);
     if (line.fontWeight && line.fontWeight !== 400)   styleParts.push(`font-weight:${line.fontWeight}`);
@@ -194,6 +195,10 @@ function renderBanner02(block) {
       const cur = _readLines(block);
       const i = parseInt(el.dataset.lineIdx);
       if (Number.isInteger(i) && cur[i]) {
+        // ★변경이 «있을 때만» 커밋한다 — 예전엔 편집 없이 들어갔다 나오기만 해도 pushHistory 가
+        //   돌아 no-op 스텝이 쌓였고, 그게 ⑶ 줄삭제와 겹쳐 사용자 체감이 「⌘Z 두 번」이 됐다(QA BUG-6).
+        //   저장도 같이 아꼈다(불필요한 autosave 억제).
+        if (cur[i].text === el.textContent) return;
         cur[i].text = el.textContent;
         _writeLines(block, cur);
         window.pushHistory?.(); window.scheduleAutoSave?.();
@@ -229,7 +234,7 @@ function renderBanner02(block) {
   //     기존 저장본은 «늘리기만» 한다 — 로드만으로 기존 배너 높이가 바뀌는 게 제일 비싼 회귀다.
   const BN2_BOTTOM_PAD = 24;
   const neededHeight = () => {
-    const th = tx.offsetHeight;
+    const th = _bn2TextHeight(tx);
     if (!th) return 0;
     let need = (parseInt(d.textY) || 0) + th + BN2_BOTTOM_PAD;
     // 축소 시 이미지가 잘리지 않게 하한 — 이미지는 absolute 라 높이를 줄여도 안 밀린다.
@@ -557,13 +562,29 @@ window.makeBanner02Block   = makeBanner02Block;
 /* ⑸ 넘침 판정 — 패널 힌트가 쓰는 «단 하나»의 계산. renderBanner02 의 neededHeight 와 같은 식이며
    살아 있는 DOM(.bn2-text)을 재므로 새 계산을 만들지 않는다.
    ⚠️offsetHeight 는 transform 前 값 — inner 의 scale() 과 섞이지 않는다. */
+/* ★빈 줄의 «클릭영역용» min-height 는 높이 계산에서 뺀다 — 그게 계산에 들어가면
+   원래 안 넘치던 배너가 열기만 해도 자란다(QA BUG-1). 빈 줄의 «글자» 높이는 0 이므로
+   computed min-height 를 그대로 차감하면 정확하다. CSS 값과 JS 상수를 이중으로 두지 않으려고
+   실제 computed 를 읽는다. */
+function _bn2TextHeight(tx) {
+  if (!tx) return 0;
+  let h = tx.offsetHeight;
+  const empties = tx.querySelectorAll('.bn2-line-empty');
+  if (empties.length) {
+    const mh = parseFloat(getComputedStyle(empties[0]).minHeight) || 0;
+    h -= mh * empties.length;
+  }
+  return Math.max(0, h);
+}
+
 function bn2OverflowInfo(block) {
   if (!block) return null;
   const tx = block.querySelector('.bn2-text');
-  if (!tx || !tx.offsetHeight) return null;
+  const th = _bn2TextHeight(tx);
+  if (!th) return null;
   const d = block.dataset;
   const cur = parseInt(d.bannerH) || 260;
-  let need = (parseInt(d.textY) || 0) + tx.offsetHeight + 24;
+  let need = (parseInt(d.textY) || 0) + th + 24;
   if (d.imgSrc) need = Math.max(need, (parseInt(d.imgY) || 0) + (parseInt(d.imgH) || 0));
   need = Math.round(need);
   return { need, cur, overflow: need > cur };

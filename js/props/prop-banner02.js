@@ -84,12 +84,13 @@ export function showBanner02Properties(block, activeIdxArg) {
         </span>
         <button class="prop-btn prop-btn-danger" data-line-remove="${idx}" title="줄 삭제" style="padding:2px 8px;font-size:11px;${lines.length <= 1 ? 'opacity:0.4;pointer-events:none;' : ''}">×</button>
       </div>
-      <div class="prop-row" data-line-toggle="${idx}" style="cursor:pointer;" title="${_open ? '접기' : '펼쳐서 문구·종류 수정'}">
+      <div class="prop-row" data-line-toggle="${idx}" style="cursor:pointer;gap:6px;justify-content:flex-start;" title="${_open ? '접기' : '펼쳐서 문구·종류 수정'}">
+        <!-- 셰브런과 미리보기는 «한 덩어리»로 왼쪽에 — prop-label 자리에 아이콘만 두면 둘이 양끝으로 벌어진다 -->
         <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
              style="flex:0 0 auto;transform:rotate(${_open ? 90 : 0}deg);transition:transform .12s;">
           <polyline points="2,2 6,4 2,6"/>
         </svg>
-        <span class="prop-hint" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escAttr(_preview)}</span>
+        <span class="prop-hint" style="flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escAttr(_preview)}</span>
       </div>
       <div data-line-editor="${idx}" style="display:${_open ? 'block' : 'none'};">
       <div class="prop-row">
@@ -145,8 +146,20 @@ export function showBanner02Properties(block, activeIdxArg) {
     <div class="prop-section">
       <div class="prop-section-title">Text Lines</div>
       <div class="prop-align-group" id="bn2-line-chips">
-        ${lines.map((l, i) => `<button class="prop-align-btn${activeIdx === i ? ' active' : ''}" data-line-chip="${i}" style="flex:0 0 auto;font-size:11px;padding:2px 8px;" title="${(l.text || '').replace(/"/g, '&quot;').slice(0, 40) || '(빈 줄)'}">${KIND_LABELS[l.kind] || l.kind} ${i + 1}</button>`).join('')}
-        <button class="prop-align-btn${activeIdx === null ? ' active' : ''}" data-line-chip="all" style="flex:0 0 auto;font-size:11px;padding:2px 8px;" title="모든 줄을 한꺼번에 펼칩니다">전체</button>
+        ${(() => {
+          // 칩 라벨은 «짧게» — 흔한 3줄(Label/Title/Sub)에서 한 행에 들어가야 한다(4칩이 두 행이면
+          // 「덜 복잡해 보이게」라는 목적과 어긋난다). 번호는 «같은 kind 가 둘 이상일 때만» 붙인다
+          // — Subtitle 이 6개면 kind 만으론 구분이 안 되지만, 겹치지 않으면 번호는 소음이다.
+          const SHORT = { label: 'Label', title: 'Title', sub: 'Sub' };
+          const dup = {};
+          lines.forEach(l => { dup[l.kind] = (dup[l.kind] || 0) + 1; });
+          return lines.map((l, i) => {
+            const nm = SHORT[l.kind] || KIND_LABELS[l.kind] || l.kind;
+            const lbl = dup[l.kind] > 1 ? `${nm} ${i + 1}` : nm;
+            return `<button class="prop-align-btn${activeIdx === i ? ' active' : ''}" data-line-chip="${i}" style="flex:0 1 auto;min-width:0;font-size:11px;padding:2px 8px;white-space:nowrap;" title="${(l.text || '').replace(/"/g, '&quot;').slice(0, 40) || '(빈 줄)'}">${lbl}</button>`;
+          }).join('');
+        })()}
+        <button class="prop-align-btn${activeIdx === null ? ' active' : ''}" data-line-chip="all" style="flex:0 1 auto;min-width:0;font-size:11px;padding:2px 8px;white-space:nowrap;" title="모든 줄을 한꺼번에 펼칩니다">전체</button>
       </div>
     </div>` : '';
 
@@ -188,13 +201,13 @@ export function showBanner02Properties(block, activeIdxArg) {
       </div>
       <div class="prop-row">
         <span class="prop-label">텍스트 X</span>
-        <input type="number" class="prop-number" id="bn2-tx" value="${d.textTuned === '1' ? (parseInt(d.textX) || 0) : ''}" placeholder="${parseInt(d.textX) || 0}" min="0" max="1600" title="비우면 프리셋 기본값">
+        <input type="number" class="prop-number" id="bn2-tx" value="${d.textXTuned === '1' ? (parseInt(d.textX) || 0) : ''}" placeholder="${parseInt(d.textX) || 0}" min="0" max="1600" title="비우면 프리셋 기본값">
         <span class="prop-label" style="margin-left:8px">폭</span>
-        <input type="number" class="prop-number" id="bn2-tw" value="${d.textTuned === '1' ? (parseInt(d.textW) || 0) : ''}" placeholder="${parseInt(d.textW) || 0}" min="20" max="1600" title="비우면 프리셋 기본값">
+        <input type="number" class="prop-number" id="bn2-tw" value="${d.textWTuned === '1' ? (parseInt(d.textW) || 0) : ''}" placeholder="${parseInt(d.textW) || 0}" min="20" max="1600" title="비우면 프리셋 기본값">
       </div>
       <div class="prop-row">
         <span class="prop-label">텍스트 Y</span>
-        <input type="number" class="prop-number" id="bn2-ty" value="${d.textTuned === '1' ? (parseInt(d.textY) || 0) : ''}" placeholder="${parseInt(d.textY) || 0}" min="0" max="1200" title="비우면 프리셋 기본값">
+        <input type="number" class="prop-number" id="bn2-ty" value="${d.textYTuned === '1' ? (parseInt(d.textY) || 0) : ''}" placeholder="${parseInt(d.textY) || 0}" min="0" max="1200" title="비우면 프리셋 기본값">
       </div>
       <div class="prop-row" id="bn2-hint-row" style="display:none">
         <span class="prop-hint" id="bn2-hint"></span>
@@ -268,12 +281,12 @@ export function showBanner02Properties(block, activeIdxArg) {
       // ★사람이 텍스트 박스를 손으로 맞췄으면(textTuned) variant 전환이 그걸 덮지 않는다.
       //   ⑸의 autoHeight 와 같은 규약 — 「사람이 만진 값은 안 덮는다」가 이 패널에서 하나로 유지된다.
       //   되돌리려면 그 입력칸을 «비우면» 된다(빈 값 = 프리셋 복귀).
-      const _keepText = block.dataset.textTuned === '1';
+      const _keep = { textX: block.dataset.textXTuned === '1', textY: block.dataset.textYTuned === '1', textW: block.dataset.textWTuned === '1' };
       ['width:bannerW', 'height:bannerH', 'radius:radius', 'textX:textX', 'textY:textY', 'textW:textW',
        'labelSize:labelSize', 'titleSize:titleSize', 'subSize:subSize', 'gap1:gap1', 'gap2:gap2',
        'imgX:imgX', 'imgY:imgY', 'imgW:imgW', 'imgH:imgH'].forEach(m => {
         const [vk, dk] = m.split(':');
-        if (_keepText && (dk === 'textX' || dk === 'textY' || dk === 'textW')) return;
+        if (_keep[dk]) return;   // 사람이 «그 칸»을 만졌으면 그 칸만 보존
         if (v[vk] !== undefined) block.dataset[dk] = v[vk];
       });
       rerender(); commit(); showBanner02Properties(block);
@@ -311,9 +324,11 @@ export function showBanner02Properties(block, activeIdxArg) {
     });
   };
   bindAutoNum('bn2-h',  'bannerH', 'autoHeight', 'false');
-  bindAutoNum('bn2-tx', 'textX',   'textTuned',  '1', 'textX');
-  bindAutoNum('bn2-ty', 'textY',   'textTuned',  '1', 'textY');
-  bindAutoNum('bn2-tw', 'textW',   'textTuned',  '1', 'textW');
+  // ⚠️플래그는 «필드별»이다 — 하나로 묶으면 한 칸을 비웠을 때 옆 칸까지 「자동」으로 표시되는데
+  //   값은 안 돌아가서 「비웠는데 안 돌아온다」가 된다(QA BUG-5). 「빈 값=자동」은 칸마다 온전해야 한다.
+  bindAutoNum('bn2-tx', 'textX',   'textXTuned', '1', 'textX');
+  bindAutoNum('bn2-ty', 'textY',   'textYTuned', '1', 'textY');
+  bindAutoNum('bn2-tw', 'textW',   'textWTuned', '1', 'textW');
 
   /* 조건부 힌트 — 평소 0줄, «문제가 있을 때만» 한 줄. 넘침이 겹침보다 급하므로 넘침 우선.
      (겹침은 풀블리드 이미지 위 글씨처럼 «정상 상태로 계속 참»일 수 있어 항상 떠 있을 수 있다.) */
@@ -324,6 +339,7 @@ export function showBanner02Properties(block, activeIdxArg) {
     const over = window.bn2OverflowInfo?.(block);
     const tX = parseInt(block.dataset.textX) || 0, tW = parseInt(block.dataset.textW) || 0;
     const iX = parseInt(block.dataset.imgX) || 0;
+    const iW = parseInt(block.dataset.imgW) || 0;
     if (over && over.overflow) {
       out.textContent = `내용이 넘칩니다 (${over.need}px 필요)`;
       row.style.display = '';
@@ -337,9 +353,11 @@ export function showBanner02Properties(block, activeIdxArg) {
         });
         row.appendChild(b);
       }
-    } else if (tW && tX + tW > iX) {
+    } else if (tW && iW && !(tX + tW <= iX || iX + iW <= tX)) {
       // ⚠️imgSrc 유무로 가르지 않는다 — 이미지가 비어도 «슬롯»(체커보드)은 그대로 그려지므로
       //   겹치면 시각적으로 똑같이 틀어진다. 실측에서 이 가드 때문에 경고가 안 떴다.
+      // ★«구간» 겹침으로 판정한다 — tX+tW > iX 만 보면 「이미지가 항상 오른쪽」을 가정하는 것이라
+      //   swap 으로 좌우가 뒤집힌 뒤엔 «항상 참»이 돼 정상 배치에도 경고가 상주한다(QA BUG-3).
       out.textContent = '텍스트가 이미지와 겹칩니다';
       row.style.display = '';
       row.querySelector('#bn2-fit-h')?.remove();
@@ -494,6 +512,7 @@ export function showBanner02Properties(block, activeIdxArg) {
     block.dataset.textX = Math.round(W - (tX + tW));
     block.dataset.imgX  = Math.round(W - (iX + iW));
     rerender(); commit();
+    showBanner02Properties(block);   // 좌우가 바뀌면 겹침 판정도 바뀐다 — 힌트 재계산(QA BUG-4)
   });
 
   // Align
