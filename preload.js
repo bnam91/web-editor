@@ -103,6 +103,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onProjectExternalized:  (cb) => ipcRenderer.on('projects:externalized', (_e, p) => cb(p)),
   onExternalizeHint:      (cb) => ipcRenderer.on('projects:externalize-hint', (_e, p) => cb(p)),
 
+  // [version-history] 버전 기록 — ★읽기 전용 3채널. 되돌리기·사본생성은 아직 노출하지 않는다.
+  historyList:        ({ projectId })      => ipcRenderer.invoke('projects:history-list', { projectId }),
+  historyRead:        ({ projectId, ts })  => ipcRenderer.invoke('projects:history-read', { projectId, ts }),
+  historyDiffPayload: ({ projectId, ts })  => ipcRenderer.invoke('projects:history-diff-payload', { projectId, ts }),
+  // 사본으로 열기 — 비파괴(새 프로젝트를 만들 뿐 기존 것을 안 건드린다). 되돌리기(파괴)는 아직 없다.
+  historyOpenCopy:    ({ projectId, ts, newName }) => ipcRenderer.invoke('projects:history-open-copy', { projectId, ts, newName }),
+
   // 사용자별 Preferences (API 키 + 단축키)
   getSettings:  ()              => ipcRenderer.invoke('settings:get'),
   setSettings:  (patch)         => ipcRenderer.invoke('settings:set', patch),

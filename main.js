@@ -1195,6 +1195,65 @@ ipcMain.handle('projects:externalize-scan', (_e, { projectId } = {}) => {
   try { return X.scanProjectFile(PROJECTS_DIR, _safeSeg(projectId)); } catch (_) { return null; }
 });
 
+/* ── [version-history] 버전 기록 조회 (U2 — ★읽기 전용) ─────────────────────
+ * ⛔이 블록에는 «쓰기» 채널이 없다. 되돌리기·사본생성은 U5/U6 에서 별도로 온다.
+ *   복구 기능이 조회만으로 사용자 데이터를 바꾸면 안 된다.
+ *   ⚠️ 단 하나의 예외는 사이드카(proj_history/index.json · pins.json)다 — «파생 캐시»이고
+ *      잃어도 재빌드된다. 프로젝트 데이터(proj.json/백업/슬롯/에셋)는 한 바이트도 안 바뀐다.
+ *      단위테스트가 그 경계를 (경로,크기,해시) 스냅샷 대조로 못 박는다.
+ * ★DIFF_PAYLOAD_MAX: 정규화 «후»에도 이만큼 크면 렌더러로 안 보낸다. 목록의 숫자와 손실 요약은
+ *   인덱스에서 나오므로 그래도 답이 나온다 — 상세 비교만 건너뛴다(P-1 정직). */
+const DIFF_PAYLOAD_MAX = 8 * 1024 * 1024;
+
+ipcMain.handle('projects:history-list', (_e, { projectId } = {}) => {
+  const SS = _SS();
+  if (!projectId || typeof SS.listVersions !== 'function') return { ok: false, reason: 'unavailable' };
+  try { return SS.listVersions(PROJECTS_DIR, _safeSeg(projectId)); }
+  catch (e) { console.warn('[history:list] 실패:', e.message); return { ok: false, reason: 'exception', message: e.message }; }
+});
+
+ipcMain.handle('projects:history-read', (_e, { projectId, ts } = {}) => {
+  const SS = _SS();
+  if (!projectId || typeof SS.readVersion !== 'function') return { ok: false, reason: 'unavailable' };
+  try { return SS.readVersion(PROJECTS_DIR, _safeSeg(projectId), ts); }
+  catch (e) { return { ok: false, reason: 'exception', message: e.message }; }
+});
+
+/* 손실/변경 비교용 재료 — ★«양쪽을 같은 좌표계로» 몰아서 준다.
+ * 스냅샷은 정규형인데 현재본이 base64 면 이미지가 든 모든 섹션이 「변경」으로 떠서 목록이 무용해진다.
+ * 렌더러는 40MB base64 를 해싱할 수 없으므로(동기 crypto 없음) 여기서 접어 보낸다.
+ * canonicalize(write:false) = 해시만 계산, 디스크 무접촉. */
+ipcMain.handle('projects:history-diff-payload', (_e, { projectId, ts } = {}) => {
+  const SS = _SS();
+  if (!projectId || typeof SS.readVersion !== 'function') return { ok: false, reason: 'unavailable' };
+  const pid = _safeSeg(projectId);
+  try {
+    const snap = SS.readVersion(PROJECTS_DIR, pid, ts);
+    if (!snap.ok) return snap;
+    const curPath = _resolveProjectJsonPath(pid);
+    if (!curPath) return { ok: false, reason: 'no_current' };
+    let cur;
+    try { cur = JSON.parse(fs.readFileSync(curPath, 'utf8')); }
+    catch (e) { return { ok: false, reason: 'current_corrupt', message: e.message }; }
+
+    const toMap = (data) => {
+      const canon = SS.canonicalize(PROJECTS_DIR, pid, data, { write: false });
+      const out = {};
+      for (const c of SS._internal.canvasStrings(canon.data)) out[c.key] = c.html;
+      return out;
+    };
+    const snapCanvas = toMap(snap.data);
+    const curCanvas = toMap(cur);
+    const size = Object.values(snapCanvas).reduce((a, h) => a + h.length, 0)
+               + Object.values(curCanvas).reduce((a, h) => a + h.length, 0);
+    if (size > DIFF_PAYLOAD_MAX) return { ok: false, reason: 'too_large', bytes: size };
+    return { ok: true, ts: snap.ts, snapCanvas, curCanvas, bytes: size };
+  } catch (e) {
+    console.warn('[history:diff-payload] 실패:', e.message);
+    return { ok: false, reason: 'exception', message: e.message };
+  }
+});
+
 // 섹션 수 합산 헬퍼 — 모든 페이지의 canvas HTML에서 section-block 카운트
 function _countSections(proj) {
   if (!proj) return 0;
@@ -1335,7 +1394,18 @@ ipcMain.handle('projects:delete', (event, id) => {
 });
 
 // 프로젝트 복제 코어 — ipcMain.handle(렌더러)와 MCP 도구(duplicate_project)가 공용.
-async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
+/**
+ * 프로젝트 복제.
+ * @param {object} args
+ * @param {string} args.sourceProjectId 원본 id — 에셋 폴더·meta·goya-asset URL 재매핑의 «기준»이다.
+ * @param {string} [args.newName]
+ * @param {object} [args.sourceData] ★내용을 «다른 것»으로 바꿔 복제한다(버전 히스토리의 「사본으로 열기」).
+ *   안 주면 원본 proj.json 을 읽는다(기존 동작 그대로). 주면 그 객체가 내용이 되고,
+ *   에셋 하드링크·goya-asset URL 치환·meta 처리 등 «나머지 전부»는 동일한 경로를 탄다.
+ *   ⇒ 복제 로직을 두 벌 만들지 않는다. js/market.js 가 saveProject 로 직접 만들다가 에셋을 통째로
+ *     빠뜨린 전례가 있다(사본이 원본 폴더를 몰래 참조 → 원본 삭제 시 404).
+ */
+async function _duplicateProjectImpl({ sourceProjectId, newName, sourceData } = {}) {
   try {
     if (!sourceProjectId || typeof sourceProjectId !== 'string')
       return { ok: false, error: 'sourceProjectId 필수', code: 'invalid' };
@@ -1354,9 +1424,11 @@ async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
       fs.existsSync(path.join(PROJECTS_DIR, `${newId}.json`))        // flat 잔재
     );
 
-    // JSON 복사 + 메타 갱신
-    const src = JSON.parse(fs.readFileSync(srcJsonPath, 'utf8'));
-    const dup = JSON.parse(JSON.stringify(src));
+    // JSON 복사 + 메타 갱신. sourceData 가 오면 «내용만» 그것으로 바꾼다(기준 id 는 그대로 원본).
+    const src = sourceData && typeof sourceData === 'object'
+      ? sourceData
+      : JSON.parse(fs.readFileSync(srcJsonPath, 'utf8'));
+    const dup = JSON.parse(JSON.stringify(src)); // 깊은 복제 — 호출측 객체를 절대 변형하지 않는다
     const now = new Date().toISOString();
     const baseName = (newName && String(newName).trim()) || `${src.name || '이름 없음'} (사본)`;
     dup.id = newId; dup.name = baseName; dup.createdAt = now; dup.updatedAt = now;
@@ -1448,6 +1520,11 @@ async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
       try {
         const meta = JSON.parse(fs.readFileSync(srcMeta, 'utf8'));
         meta.id = newId; meta.name = baseName; meta.updatedAt = now;
+        // ★collabRef 는 «이 문서»가 아니라 «이 설치의 원격 연결 상태»다(main.js:852). 사본에 딸려가면
+        //   두 프로젝트가 같은 협업방을 가리켜 서로의 편집을 덮어쓴다 — 그건 데이터 사고다.
+        //   externalized 마커도 사본에는 의미가 없다(사본의 pre-externalize 원본이 없으므로 되돌리기 불가).
+        delete meta.collabRef;
+        delete meta.externalized;
         _atomicWriteFileSync(targetPaths.meta, JSON.stringify(meta, null, 2));
       } catch (e) { console.warn('[projects:duplicate] meta 복사 실패:', e.message); }
     }
@@ -1462,6 +1539,33 @@ async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
   }
 }
 ipcMain.handle('projects:duplicate', (_e, args = {}) => _duplicateProjectImpl(args));
+
+/* ── [version-history] U5 «사본으로 열기» — 비파괴 ─────────────────────────
+ * 옛 버전을 «새 프로젝트»로 만든다. 원본 프로젝트는 한 바이트도 안 바뀐다.
+ * 읽기전용 뷰어 대신 사본을 주는 이유: 사용자는 만져보고 판단해야 하는데, 원본은 안전해야 한다.
+ * ★반드시 _duplicateProjectImpl 을 탄다 — goya-asset URL 이 hostname 에 projectId 를 박고 있어서
+ *   URL 치환 + 에셋 하드링크를 안 하면 사본이 원본 폴더를 몰래 참조한다(원본 삭제 시 404). */
+ipcMain.handle('projects:history-open-copy', async (_e, { projectId, ts, newName } = {}) => {
+  const SS = _SS();
+  if (!projectId || typeof SS.readVersion !== 'function') return { ok: false, error: 'unavailable', code: 'unavailable' };
+  const pid = _safeSeg(projectId);
+  try {
+    const snap = SS.readVersion(PROJECTS_DIR, pid, ts);
+    if (!snap.ok) return { ok: false, error: snap.reason, code: snap.reason };
+    let base = pid;
+    try { const cur = JSON.parse(fs.readFileSync(_resolveProjectJsonPath(pid), 'utf8')); base = cur.name || base; }
+    catch (_) { base = (snap.data && snap.data.name) || base; }
+    const d = new Date(snap.ts);
+    const stamp = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} `
+                + `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const name = (newName && String(newName).trim()) || `${base} (v ${stamp})`;
+    const r = await _duplicateProjectImpl({ sourceProjectId: pid, newName: name, sourceData: snap.data });
+    return r.ok ? { ...r, fromTs: snap.ts } : r;
+  } catch (e) {
+    console.error('[history:open-copy] 예외:', e);
+    return { ok: false, error: e.message, code: 'io' };
+  }
+});
 
 // 프로젝트 생성 코어 — MCP create_project 도구가 사용.
 // ⚠️빈 프로젝트 «포맷»은 갤러리 「새 프로젝트」(pages/projects.html createProject())와 동일해야
