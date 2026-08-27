@@ -1140,6 +1140,11 @@
 /* banner02 — 컴포넌트 선택 표준 (배경이 가장자리까지 차므로 outline 바깥으로) */
 .banner02-block { display:block; position:relative; margin:0 auto; cursor:pointer; box-sizing:border-box; user-select:none; }
 /* ⑧ 배너 안에서 «지금 우측 패널이 보고 있는 줄» 표시 — 선택 토큰 재사용(신규 색·룩 없음) */
+/* ⑸ 빈 줄 — 캔버스에서 «클릭할 자리»가 있음을 보여주는 편집 전용 표시(저장·내보내기에선 제거) */
+.banner02-block .bn2-line-empty {
+  outline: 1px dashed var(--ui-border-mid);
+  outline-offset: 1px;
+}
 .banner02-block .bn2-line-selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: 2px;

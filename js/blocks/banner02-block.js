@@ -91,7 +91,7 @@ function _writeLines(block, lines) {
 function renderBanner02(block) {
   const d = block.dataset;
   const designW = parseInt(d.bannerW) || 780;
-  const designH = parseInt(d.bannerH) || 260;
+  let   designH = parseInt(d.bannerH) || 260;   // ⑸ 자동 높이에서 재대입될 수 있다
   const radius  = parseInt(d.radius) || 0;
   const bg      = d.bg || '#f3f4f6';
   const align   = d.align || 'left';
@@ -130,6 +130,13 @@ function renderBanner02(block) {
       'white-space:pre-wrap',
       'word-break:break-word',
     ];
+    // ★빈 줄은 «높이 0» 이라 캔버스에서 더블클릭할 자리가 아예 없다 → 우측 패널이 유일한 복구
+    //   수단이 되는 갇힘이 생긴다. 최소 높이를 줘서 클릭 대상이 «항상» 존재하게 한다.
+    //   .bn2-line-empty 는 편집용 마커 — serialize/export 세 경로에서 벗긴다.
+    if (!String(line.text || '').trim()) {
+      styleParts.push(`min-height:${Math.max(12, Math.round(line.size * 0.8))}px`);
+      el.classList.add('bn2-line-empty');
+    }
     if (line.gapTop)                                  styleParts.push(`margin-top:${line.gapTop}px`);
     if (line.fontFamily)                              styleParts.push(`font-family:${line.fontFamily}`);
     if (line.fontWeight && line.fontWeight !== 400)   styleParts.push(`font-weight:${line.fontWeight}`);
@@ -173,13 +180,46 @@ function renderBanner02(block) {
   }
   inner.appendChild(img);
 
+  // ★⑸ 내용에 맞춘 자동 높이 —
+  //   designH 는 프리셋 고정값이고 block.overflow 가 hidden 이라, 줄을 늘리면 넘친 글자가
+  //   «그냥 사라진다». 텍스트 스택 실제 높이를 재서 필요한 만큼 designH 를 키운다.
+  //   ⚠️.bn2-tx 는 position:absolute 라 inner 레이아웃 높이에 기여하지 않는다 → offsetHeight 를 직접 잰다.
+  //     offsetHeight 는 transform «전» 레이아웃 값이라 inner 의 scale() 과 섞이지 않는다(rect 를 쓰면 섞인다).
+  //   규약: 사람이 H 를 만진 배너(autoHeight==='false')는 건드리지 않는다. 플래그가 «없는»
+  //     기존 저장본은 «늘리기만» 한다 — 로드만으로 기존 배너 높이가 바뀌는 게 제일 비싼 회귀다.
+  const BN2_BOTTOM_PAD = 24;
+  const neededHeight = () => {
+    const th = tx.offsetHeight;
+    if (!th) return 0;
+    let need = (parseInt(d.textY) || 0) + th + BN2_BOTTOM_PAD;
+    // 축소 시 이미지가 잘리지 않게 하한 — 이미지는 absolute 라 높이를 줄여도 안 밀린다.
+    if (d.imgSrc) need = Math.max(need, (parseInt(d.imgY) || 0) + (parseInt(d.imgH) || 0));
+    return Math.round(need);
+  };
+  const autoMode = d.autoHeight;                 // 'true' | 'false' | undefined(레거시)
+  if (autoMode !== 'false') {
+    const need = neededHeight();
+    if (need > 0) {
+      const grewOnly = (autoMode !== 'true');    // 레거시 저장본 = 늘리기만
+      const next = grewOnly ? Math.max(designH, need) : need;
+      if (next !== designH) {
+        designH = next;
+        block.dataset.bannerH = String(designH);
+        inner.style.height = designH + 'px';
+      }
+    }
+  }
+
   // scale-to-fit (canvas-block 패턴)
+  // ⚠️applyScale 이 block.style.height 를 쓰는데 그 block 을 ResizeObserver 가 보고 있다
+  //   → 같은 값을 다시 써도 RO 가 또 돌 수 있다. «값이 바뀔 때만» 쓰기로 루프를 끊는다.
   const applyScale = () => {
     const aw = block.offsetWidth;
     if (aw <= 0) return;
     const scale = aw / designW;
-    inner.style.transform = `scale(${scale})`;
-    block.style.height = (designH * scale) + 'px';
+    const h = (designH * scale) + 'px';
+    if (inner.style.transform !== `scale(${scale})`) inner.style.transform = `scale(${scale})`;
+    if (block.style.height !== h) block.style.height = h;
     block._bn2Scale = scale;
   };
   applyScale();
@@ -474,6 +514,21 @@ function updateBanner02Block(blockId, partial = {}) {
 }
 
 window.makeBanner02Block   = makeBanner02Block;
+/* ⑸ 넘침 판정 — 패널 힌트가 쓰는 «단 하나»의 계산. renderBanner02 의 neededHeight 와 같은 식이며
+   살아 있는 DOM(.bn2-text)을 재므로 새 계산을 만들지 않는다.
+   ⚠️offsetHeight 는 transform 前 값 — inner 의 scale() 과 섞이지 않는다. */
+function bn2OverflowInfo(block) {
+  if (!block) return null;
+  const tx = block.querySelector('.bn2-text');
+  if (!tx || !tx.offsetHeight) return null;
+  const d = block.dataset;
+  const cur = parseInt(d.bannerH) || 260;
+  let need = (parseInt(d.textY) || 0) + tx.offsetHeight + 24;
+  if (d.imgSrc) need = Math.max(need, (parseInt(d.imgY) || 0) + (parseInt(d.imgH) || 0));
+  need = Math.round(need);
+  return { need, cur, overflow: need > cur };
+}
+window.bn2OverflowInfo     = bn2OverflowInfo;
 window.addBanner02Block    = addBanner02Block;
 window.updateBanner02Block = updateBanner02Block;
 window.renderBanner02      = renderBanner02;

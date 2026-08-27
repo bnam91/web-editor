@@ -93,6 +93,7 @@ async function exportHTMLFile() {
   clone.querySelectorAll('.label-item-delete-btn, .label-group-add-btn').forEach(el => el.remove());
   clone.querySelectorAll('.item-selected').forEach(el => el.classList.remove('item-selected'));
   clone.querySelectorAll('.bn2-line-selected').forEach(el => el.classList.remove('bn2-line-selected')); // ⑧ 편집용 마커
+  clone.querySelectorAll('.bn2-line-empty').forEach(el => el.classList.remove('bn2-line-empty'));       // ⑸ 빈 줄 플레이스홀더
   clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
   // #16: 참고이미지 연결(data-ref-links)은 ScratchPadDB 참조 «기획 메타» — export엔 그 DB가 없어 死참조.
   //   배송본에서 제거(저장 경로 serializeCleanRoot에선 유지 → 로드 복원 가능).
