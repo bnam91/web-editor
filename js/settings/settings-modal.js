@@ -553,6 +553,9 @@
         </div>
       </div>
       <div class="settings-api-status" id="collab-status" style="margin-top:12px"></div>
+      <!-- U6: 수락 직후의 「열기」 CTA. ★load() 가 다시 그리는 영역(#collab-invites/#collab-projects)
+           «밖»에 둔다 — 안에 두면 수락 직후 목록 재조회가 방금 만든 버튼을 지운다. -->
+      <div class="settings-api-list" id="collab-cta" style="margin-top:10px;display:none"></div>
     `;
 
     const $ = (id) => pane.querySelector('#' + id);
@@ -571,6 +574,12 @@
       already_member: '이미 참여 중인 사람입니다.',
       self_invite: '자기 자신은 초대할 수 없습니다.',
       not_linked: '이 프로젝트는 아직 원격으로 올리지 않았습니다.',
+      // U6 — 서버가 아니라 «이 컴퓨터»에서 실패한 것들. 원인이 다르니 문장도 다르다.
+      unavailable: '이 화면에서는 로컬 프로젝트를 만들 수 없습니다(데스크탑 앱에서 열어 주세요).',
+      no_project_factory: '앱 초기화가 끝나지 않았습니다. 잠시 후 다시 시도해 주세요.',
+      id_collision: '프로젝트 번호가 겹쳤습니다. 잠시 후 다시 시도해 주세요.',
+      save_failed: '로컬 프로젝트 파일을 만들지 못했습니다(디스크 권한·용량 확인).',
+      ref_not_saved: '연결 정보를 저장하지 못했습니다(디스크 권한·용량 확인).',
     }[r] || r || '알 수 없는 오류');
 
     const row = (label, help, buttons) => `
@@ -581,6 +590,28 @@
           ${buttons}
         </div>
       </div>`;
+
+    /* ★U6 — 「수락했으니 이제 뭘 하면 되나」에 답하는 한 칸.
+     *   버튼을 안 주면 사용자는 환경설정을 닫고 프로젝트 목록에서 «찾아» 열어야 한다.
+     *   새 CSS 0줄 — 이 pane 이 이미 쓰는 공용 클래스(settings-api-list/row/test)만 쓴다. */
+    function showOpenCta(projectId, name, reused) {
+      const cta = $('collab-cta');
+      if (!cta || !projectId) return;
+      cta.innerHTML = row(
+        name || '공동작업',
+        reused ? '이미 연결돼 있던 프로젝트입니다' : '방금 연결한 프로젝트입니다',
+        '<button class="settings-api-test" id="collab-open-btn">열기</button>',
+      );
+      cta.style.display = '';
+      const b = cta.querySelector('#collab-open-btn');
+      if (!b) return;
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        try { closeSettingsModal(); } catch (_) {}
+        if (window.collabAccept) await window.collabAccept.open(projectId);
+        else location.href = 'index.html?project=' + encodeURIComponent(projectId);
+      });
+    }
 
     async function load() {
       const r = await api.invites({});
@@ -616,7 +647,26 @@
             const accept = !!btn.dataset.accept;
             lock();
             const rr = await api.respond({ inviteId: btn.dataset.accept || btn.dataset.decline, action: accept ? 'accept' : 'decline' });
-            setStatus(rr && rr.ok ? (accept ? '✓ 참여했습니다' : '거절했습니다') : '✗ ' + reasonText(rr && rr.reason), rr && rr.ok ? 'ok' : 'err');
+            if (!rr || !rr.ok) { setStatus('✗ ' + reasonText(rr && rr.reason), 'err'); }
+            else if (!accept) { setStatus('거절했습니다', 'ok'); }
+            else {
+              /* ★U6 — 여기서 응답을 «버리지 않는다».
+               *   예전엔 collabId·name 을 상태문구로만 쓰고 흘려서, 수락한 사람이
+               *   로컬 프로젝트 생성 + collabRef 주입을 손으로 해야 편집이 시작됐다(버그⑦). */
+              setStatus('✓ 참여했습니다 — 프로젝트를 준비하는 중…', 'ok');
+              const lk = window.collabAccept
+                ? await window.collabAccept.link(rr)
+                : { ok: false, reason: 'unavailable' };
+              if (lk && lk.ok) {
+                setStatus(lk.reused
+                  ? '✓ 참여했습니다 — 이미 연결된 프로젝트가 있어 그것을 씁니다'
+                  : '✓ 참여했습니다 — 로컬 프로젝트를 만들었습니다', 'ok');
+                showOpenCta(lk.projectId, lk.name || rr.name || '', lk.reused);
+              } else {
+                // 서버 수락은 «됐다». 로컬 연결만 실패한 것이라 그 구분을 분명히 말한다.
+                setStatus('✓ 참여했지만 로컬 프로젝트 연결에 실패했습니다 — ' + reasonText(lk && lk.reason), 'err');
+              }
+            }
           }
           load();                                   // 낙관적으로 그리지 않는다 — 서버에 다시 물어본다
           if (window.collabInvites) window.collabInvites.refresh();
