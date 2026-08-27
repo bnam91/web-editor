@@ -65,7 +65,16 @@
    *   [{ k: 'pageId::sectionId', n: '사람이 읽는 섹션 이름' }]
    * 그래서 **모든 버전의 손실을 모달 열 때 한 번에** 계산할 수 있다(§6-1 L1).
    *
-   * ★키 규약 — `pageId::sectionId`. sec_* id 는 재발급되지 않으므로(§6-3) 그대로 «신원»이다.
+   * ★★신원은 «섹션 id»다 — 페이지 부분은 «신원»이 아니라 «위치»다.
+   *   sec_* id 는 genId 로 만들어져 프로젝트 안에서 고유하고 재발급되지 않는다(§6-3). 그래서 두 가지가 따라온다:
+   *   ⒜ **섹션이 다른 페이지로 «옮겨간» 것은 손실이 아니다.** 키 전체(`pageId::secId`)로 비교하면
+   *      멀쩡히 살아 있는 섹션을 「사라졌다」고 말한다 — 복구 도구에서 그건 거짓 경보다.
+   *   ⒝ 대형 레거시 스냅샷은 JSON.parse 없이 raw 로 훑기 때문에 페이지 경계를 못 갈라 `?::secId` 로
+   *      온다(snapshot-store.fingerprintRaw). 키 전체로 비교하면 **모든 섹션이 「사라졌다」**가 된다.
+   *   ★실측으로 드러났다: 실프로젝트 60개 218버전 전수 스윕에서 **66건이 «전량 손실»**로 나왔는데
+   *     섹션 id 만 비교하면 교집합이 17/17·2/2 였다. 합성 픽스처로는 절대 안 나오는 종류의 버그다.
+   *   ⇒ **비교는 섹션 id 로 한다.** 페이지는 표시용으로만 남긴다(k 는 그대로 돌려준다).
+   * 옛 키 규약 — `pageId::sectionId`.
    *   id 없는 섹션만 `noid_<전역인덱스>` 로 폴백한다. 이 폴백 키는 «위치»라서 섹션이 증감하면
    *   같은 물리 섹션이 다른 키가 된다 — 그러면 여기선 lost + gained 로 «드러난다».
    *   history-diff.js R6 과 같은 판단이다: 조용히 「같음」으로 접는 것보다 드러내는 쪽이 안전하다
@@ -81,22 +90,37 @@
   function lossDiff(entrySecs, currentSecs) {
     const E = _secMap(entrySecs);
     const C = _secMap(currentSecs);
+    // 신원 = 섹션 id. 같은 id 가 양쪽에 있으면 «살아 있다» — 페이지가 어디든.
+    const cById = new Map();
+    for (const [k, n] of C) { const id = _idOf(k); if (!cById.has(id)) cById.set(id, { k, n }); }
 
     const lost = [], renamed = [];
+    const matched = new Set();
     let keptCount = 0;
     for (const [k, n] of E) {
-      if (C.has(k)) {
+      const hit = cById.get(_idOf(k));
+      if (hit) {
         keptCount++;
-        const to = C.get(k);
-        if (to !== n) renamed.push({ k, from: n, to });
+        matched.add(hit.k);
+        if (hit.n !== n) renamed.push({ k, from: n, to: hit.n });
       } else {
         lost.push({ k, n });
       }
     }
     const gained = [];
-    for (const [k, n] of C) if (!E.has(k)) gained.push({ k, n });
+    for (const [k, n] of C) if (!matched.has(k)) gained.push({ k, n });
 
     return { lost, gained, renamed, keptCount };
+  }
+
+  /* 키에서 «신원»(섹션 id)만 뽑는다. `pageId::secId` → `secId`, `::` 없으면 키 그대로.
+   * ★noid_* 폴백은 «위치»라 신원이 아니다 — 페이지가 다르면 다른 섹션일 수 있으므로 키 전체를 쓴다
+   *   (조용히 「같음」으로 접으면 사용자가 살릴 수 있었던 걸 못 살린다 — history-diff.js R6 과 같은 판단). */
+  function _idOf(k) {
+    const i = String(k).indexOf('::');
+    if (i === -1) return String(k);
+    const id = String(k).slice(i + 2);
+    return id.startsWith('noid_') ? String(k) : id;
   }
 
   /* secs 배열 → Map(k → n). 입력 순서 보존(Map 은 삽입 순서를 지킨다).

@@ -494,3 +494,55 @@ test('SY1 ★로컬 사본이 market-merge.normSection 과 «같은 답»을 낸
     assert.equal(verdict(local, a, b), 1, `로컬 사본이 표준과 갈렸다: ${b.slice(0, 60)}`);
   }
 });
+
+/* ═══ 실데이터 스윕이 잡은 것 — 신원은 «섹션 id»다 (페이지는 위치일 뿐) ═══════
+ * 실프로젝트 60개 218버전 전수에서 66건이 «전량 손실»로 나왔는데, 섹션 id 만 비교하면
+ * 교집합이 17/17·2/2 였다. 합성 픽스처로는 절대 안 나오는 종류의 버그다. */
+
+test('ID1 ★대형 레거시의 `?::` 키가 `page_1::` 와 «맞물린다» — 안 맞물리면 전량 손실로 거짓말한다', () => {
+  const snap = [{ k: '?::sec_tgypj12', n: '혜택정리' }, { k: '?::sec_jac4tmj', n: 'FAQ' }];
+  const cur  = [{ k: 'page_1::sec_tgypj12', n: '혜택정리' }, { k: 'page_1::sec_jac4tmj', n: 'FAQ' }];
+  const r = VD.lossDiff(snap, cur);
+  assert.deepEqual(r.lost, [], '★페이지를 못 가른 스냅샷이 「전부 사라졌다」고 말하면 헤드라인이 통째로 노이즈가 된다');
+  assert.deepEqual(r.gained, []);
+  assert.equal(r.keptCount, 2);
+});
+
+test('ID2 ★다른 페이지로 «옮긴» 섹션은 손실이 아니다 — 멀쩡히 살아 있다', () => {
+  const snap = [{ k: 'page_1::sec_a', n: 'A' }, { k: 'page_1::sec_b', n: 'B' }];
+  const cur  = [{ k: 'page_1::sec_a', n: 'A' }, { k: 'page_2::sec_b', n: 'B' }];
+  const r = VD.lossDiff(snap, cur);
+  assert.deepEqual(r.lost, []);
+  assert.deepEqual(r.gained, []);
+  assert.equal(r.keptCount, 2);
+});
+
+test('ID3 ★진짜로 사라진 것은 여전히 잡는다 (양성대조 — ID1/ID2 로 느슨해지지 않았나)', () => {
+  const snap = [{ k: '?::sec_a', n: 'A' }, { k: '?::sec_b', n: 'B' }, { k: '?::sec_c', n: 'C' }];
+  const cur  = [{ k: 'page_1::sec_a', n: 'A' }];
+  const r = VD.lossDiff(snap, cur);
+  assert.deepEqual(r.lost.map(x => x.n), ['B', 'C']);
+  assert.equal(r.keptCount, 1);
+});
+
+test('ID4 ★noid 폴백은 «위치»라 신원이 아니다 — 페이지째 접지 않는다', () => {
+  const snap = [{ k: 'page_1::noid_0', n: '(이름 없음)' }];
+  const cur  = [{ k: 'page_2::noid_0', n: '(이름 없음)' }];
+  const r = VD.lossDiff(snap, cur);
+  assert.equal(r.lost.length, 1, '★조용히 「같음」으로 접으면 살릴 수 있었던 걸 못 살린다(history-diff R6 과 같은 판단)');
+  assert.equal(r.gained.length, 1);
+});
+
+test('ID5 이름 변경은 페이지가 달라도 renamed 로 잡힌다 — 손실 아님', () => {
+  const r = VD.lossDiff([{ k: '?::sec_a', n: '옛이름' }], [{ k: 'page_1::sec_a', n: '새이름' }]);
+  assert.deepEqual(r.lost, []);
+  assert.deepEqual(r.renamed, [{ k: '?::sec_a', from: '옛이름', to: '새이름' }]);
+});
+
+test('ID6 gained 가 «두 번 세지» 않는다 — 맞물린 현재 섹션은 gained 에서 빠져야 한다', () => {
+  const snap = [{ k: '?::sec_a', n: 'A' }];
+  const cur  = [{ k: 'page_1::sec_a', n: 'A' }, { k: 'page_1::sec_new', n: '새섹션' }];
+  const r = VD.lossDiff(snap, cur);
+  assert.deepEqual(r.gained.map(x => x.n), ['새섹션']);
+  assert.equal(r.keptCount, 1);
+});
