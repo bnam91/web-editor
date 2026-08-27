@@ -65,8 +65,13 @@ export function showComparisonProperties(block) {
       </div>`;
   };
 
+  // ★flex:1 은 basis 0 이라 «축소»가 아니라 «균등분배»를 한다 — 칼럼이 7개를 넘으면 각자 몫이
+  //   글자보다 좁아져 「칼럼 N」이 잘린다(comparison-block.js:480 이 상한을 8 로 허용한다).
+  //   basis 를 auto(내용 폭)로 두면 넘칠 때 축소 대신 «줄바꿈»이 일어난다(.prop-align-group 이 flex-wrap:wrap).
+  //   공용 클래스의 `flex: 1 0 28px` 에서 basis 만 내용에 맞춘 형태 — grow/no-shrink 의도는 그대로다.
+  //   실측(240px 패널): N=2~6 은 전 형태가 동일, N=7·8 은 이 형태만 잘림 0.
   const featBtns = cols.map((c, i) =>
-    `<button class="prop-align-btn${i === featuredIdx ? ' active' : ''}" data-feat="${i}" style="flex:1;">칼럼 ${i + 1}</button>`).join('');
+    `<button class="prop-align-btn${i === featuredIdx ? ' active' : ''}" data-feat="${i}" style="flex:1 0 auto;">칼럼 ${i + 1}</button>`).join('');
 
   propPanel.innerHTML = `
     <div class="prop-section">
