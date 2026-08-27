@@ -72,11 +72,16 @@ check(has(0, 0.5),  '① «오늘» 복구 지점이 있다');
 check(has(0.5, 1.6), '② ★«어제» 복구 지점이 있다 — 이게 복구의 실제 단위다(§1)');
 check(has(2.5, 3.6), '③ «3일 전» 복구 지점이 있다');
 check(has(6.5, 7.6), '④ «1주 전» 복구 지점이 있다');
-check(has(13, 14.6), '⑤ ★«2주 전» 복구 지점이 있다 — 보관 상한(14일)의 경계');
+check(has(13, 14.6), '⑤ «2주 전» 복구 지점이 있다');
+// ★상한 «경계»는 상수에서 끌어온다 — 상수를 바꾸고 검사 문구가 안 따라오면 그게 가짜 초록이다
+const D = SS.DAILY_DAYS;
+check(has(D - 2, D + 0.6), `⑥ ★보관 상한 경계(${D}일)에 복구 지점이 있다 — 중간만 재면 상한이 실제로 서는지 모른다`);
+check(!has(D + 2, 9999), `⑦ 상한(${D}일)을 «넘는» 슬롯은 남지 않는다(핀·레거시 제외)`);
 check(files.length <= SS.RECENT_KEEP + SS.DAILY_DAYS + SS.PINNED_MAX + 2,
-  `⑥ 슬롯 수가 정책 상한 안이다 (${files.length} ≤ ${SS.RECENT_KEEP}+${SS.DAILY_DAYS}+여유)`);
-check(totalBytes + assetBytes < 200 * 1024 * 1024, `⑦ 총량이 예산(200MB) 안이다 (${MB(totalBytes + assetBytes)}MB)`);
-check(idxBytes < 2 * 1024 * 1024, `⑧ 인덱스가 «가볍다» — 목록이 파일 0개로 뜨는 전제 (${(idxBytes / 1024).toFixed(0)}KB)`);
+  `⑧ 슬롯 수가 정책 상한 안이다 (${files.length} ≤ ${SS.RECENT_KEEP}+${SS.DAILY_DAYS}+여유)`);
+check(totalBytes + assetBytes < SS.BUDGET_BYTES,
+  `⑨ 총량이 예산 안이다 (${MB(totalBytes + assetBytes)}MB / ${MB(SS.BUDGET_BYTES)}MB = ${((totalBytes + assetBytes) / SS.BUDGET_BYTES * 100).toFixed(1)}%)`);
+check(idxBytes < 2 * 1024 * 1024, `⑩ 인덱스가 «가볍다» — 목록이 파일 0개로 뜨는 전제 (${(idxBytes / 1024).toFixed(0)}KB)`);
 
 // ③ 대조군 — 구정책(5슬롯 × 10분)이었다면?
 const oldPolicyOldest = 5 * 10 * MIN / DAY;

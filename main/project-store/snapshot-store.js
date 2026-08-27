@@ -33,7 +33,7 @@ const X = require('./externalizer');
 const SCHEMA        = 1;
 const MIN_GAP_MS    = 10 * 60 * 1000;   // 자동 스냅샷 간격 게이트(저장 폭주 방지)
 const RECENT_KEEP   = 20;               // 최근 N개는 무조건 보존
-const DAILY_DAYS    = 14;               // 최근 D일, 각 날짜의 «마지막» 1개 보존
+const DAILY_DAYS    = 30;               // 최근 D일, 각 날짜의 «마지막» 1개 보존 (Q5 현빈 확정: 14→30)
 const PINNED_MAX    = 10;               // 핀 상한(초과 시 오래된 핀부터 해제)
 const BUDGET_BYTES  = 200 * 1024 * 1024;// 프로젝트당 스냅샷 예산(안전판)
 // ★current 지문 갱신 스로틀. 지문 계산은 39.6MB 프로젝트에서 32ms 인데 «매 저장»(1.5초 debounce)마다

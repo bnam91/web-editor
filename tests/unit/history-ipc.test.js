@@ -257,3 +257,34 @@ test('DEL0-d ★현행: 없는 프로젝트를 지워도 «성공»으로 답한
   assert.equal(r, true,
     '★「지웠다」와 「지울 게 없었다」가 같은 값이다. U7 의 { ok, trashed, reason } 이 이걸 나눈다');
 });
+
+/* ═══ Q4 — 새로고침·탭닫기(save-sync) 순간에도 버전이 남는가 ══════════════
+ * 사고가 제일 잦은 순간인데 여태 이 경로엔 슬롯이 «전혀» 안 생겼다(롤링 백업만).
+ * ipcMain.on 등록이라 invoke 가 아니다 — 하네스의 sync 경로로 부른다. */
+
+test('Q4-1 ★save-sync(새로고침·탭닫기)도 스냅샷을 남긴다 — reason=unload', async () => {
+  const id = await mkProject(sec('sec_a', '혜택정리') + sec('sec_b', 'FAQ'));
+  // 첫 저장이 스냅샷을 만들었으니 간격 게이트를 넘겨 unload 를 태운다
+  const idx0 = JSON.parse(fs.readFileSync(path.join(DIR, id, 'proj_history', 'index.json'), 'utf8'));
+  assert.equal(idx0.entries.length, 1);
+
+  const SS = require('../../main/project-store/snapshot-store');
+  const later = idx0.entries[0].ts + 11 * 60000;
+  const r = SS.writeSnapshot(DIR, id, proj(id, sec('sec_a', '혜택정리')), { now: later, reason: 'unload' });
+  assert.equal(r.ok, true);
+  const e = SS.readIndex(DIR, id).entries.find(x => x.ts === r.ts);
+  assert.equal(e.reason, 'unload', '★어느 경로에서 생긴 버전인지 목록이 말할 수 있어야 한다');
+  assert.equal(e.pinned, false, 'unload 는 핀이 아니다(자동 스냅샷과 같은 취급)');
+});
+
+test('Q4-2 ★save-sync 경로가 실제로 스냅샷을 «부른다» — 배선 확인(문자 아니라 구조)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../../main.js'), 'utf8');
+  const start = src.indexOf("ipcMain.on('projects:save-sync'");
+  assert.ok(start > 0);
+  const end = src.indexOf("ipcMain.handle('projects:delete'", start);
+  const block = src.slice(start, end);
+  assert.ok(block.includes("writeSnapshot"), '★save-sync 가 스냅샷을 안 부른다 — Q4 미적용');
+  assert.ok(block.includes("reason: 'unload'"), 'reason 이 unload 여야 목록에서 구분된다');
+  assert.ok(/catch\s*\(e\)[^]{0,200}스냅샷 실패/.test(block),
+    '★스냅샷 실패가 «종료 저장»을 막으면 안 된다 — try/catch 로 삼켜야 한다');
+});

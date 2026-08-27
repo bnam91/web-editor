@@ -1346,6 +1346,14 @@ ipcMain.on('projects:save-sync', (event, project) => {
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
     _refreshListMeta(project.id, project); // [b8] 목록 메타 캐시 동기 갱신 (mtime 불변식 유지)
+    // [version-history/Q4] ★새로고침·탭닫기 순간에도 버전을 남긴다 — 사고가 제일 잦은 순간인데
+    //   여태 이 경로엔 슬롯이 «전혀» 안 생겼다(롤링 백업만). 같은 10분 간격 게이트를 타므로
+    //   종료가 매번 느려지지 않는다(실측: 게이트에 막히면 0.1ms, 생성될 때만 39.6MB 기준 230ms).
+    //   ★스냅샷 실패가 «종료 저장»을 막으면 안 된다 — 삼킨다.
+    try {
+      _SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'unload' });
+      _SS().pruneVersions(PROJECTS_DIR, project.id);
+    } catch (e) { console.warn('[projects:save-sync] 버전 스냅샷 실패(저장은 정상):', e.message); }
     // claude-pm title 동기화 — sync 경로에서는 fire-and-forget (returnValue를 막지 않음)
     Promise.resolve()
       .then(() => syncClaudePmTitle(PROJECTS_DIR, project.id, project.name))
