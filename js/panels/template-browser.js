@@ -58,6 +58,19 @@ function toggleTemplateBrowser() {
   _browserOpen ? closeTemplateBrowser() : openTemplateBrowser();
 }
 
+/* ── 검색 상태 ──
+   트리 카운트는 «전체 재고» 기준이고 카드만 검색으로 걸러진다. 검색 중이라는 사실이
+   화면에 없으면 그 차이가 「트리 14인데 목록 0」이라는 버그로 읽힌다.
+   → ⑴검색 중임을 카드 영역 맨 위에 명시 ⑵트리 항목을 고르면 검색을 자동 해제.
+   (트리 카운트 산출 방식 자체는 바꾸지 않는다 — 타이핑마다 트리가 흔들리는 UX 회피.) */
+function _clearBrowserSearch() {
+  if (!_browserSearchQ) return false;
+  _browserSearchQ = '';
+  const input = document.getElementById('tpl-browser-search');
+  if (input) input.value = '';
+  return true;
+}
+
 /* ── 트리 렌더 ── */
 function _renderBrowserTree() {
   const tree = document.getElementById('tpl-browser-tree');
@@ -134,6 +147,7 @@ function _renderBrowserTree() {
   // 즐겨찾기 항목 클릭
   tree.querySelector('.tb-tree-starred')?.addEventListener('click', e => {
     e.stopPropagation();
+    _clearBrowserSearch();   // 트리로 이동 = 검색 종료(남은 검색어가 결과를 0으로 만드는 것 방지)
     _browserFilter = { folder: '전체', category: '전체', tag: null, starred: true };
     _browserSelected = null;
     _hidePreview();
@@ -145,6 +159,7 @@ function _renderBrowserTree() {
   tree.querySelectorAll('.tb-tree-all, .tb-tree-cat').forEach(el => {
     el.addEventListener('click', e => {
       e.stopPropagation();
+      _clearBrowserSearch();
       _browserFilter = { folder: el.dataset.folder, category: el.dataset.cat, tag: null, starred: false };
       _browserSelected = null;
       _hidePreview();
@@ -159,6 +174,7 @@ function _renderBrowserTree() {
       e.stopPropagation();
       const folderEl = header.closest('.tb-tree-folder');
       folderEl?.classList.toggle('expanded');
+      _clearBrowserSearch();
       // 폴더 선택도 적용
       _browserFilter = { folder: header.dataset.folder, category: '전체', tag: null, starred: false };
       _browserSelected = null;
@@ -171,11 +187,19 @@ function _renderBrowserTree() {
   });
 }
 
+function _wireSearchClear(container) {
+  container.querySelector('#tb-search-clear')?.addEventListener('click', e => {
+    e.stopPropagation();
+    if (_clearBrowserSearch()) _renderBrowserCards();
+  });
+}
+
 /* ── 카드 렌더 ── */
 function _renderBrowserCards() {
   const container = document.getElementById('tpl-browser-cards');
   if (!container) return;
   let templates = loadTemplates();
+  const _totalCount = templates.length;   // 배지의 「N개 중」 분모 = 트리가 세는 것과 같은 전수
 
   // 즐겨찾기 필터
   if (_browserFilter.starred) {
@@ -210,8 +234,18 @@ function _renderBrowserCards() {
     templates = templates.filter(t => (t.tags || []).includes(_browserFilter.tag));
   }
 
+  // 검색 중 배지 — 트리 카운트(전수)와 카드 개수가 왜 다른지 화면에 글자로 남긴다.
+  // 기존 태그칩 바(.tpl-browser-tag-chips)와 칩(.tb-tag-chip)을 그대로 재사용 — 새 CSS 없음.
+  const _searchBadge = _browserSearchQ.trim()
+    ? `<div class="tpl-browser-tag-chips" style="display:flex">
+         <span class="tb-tag-chip active">"${_esc(_browserSearchQ.trim())}" 검색 중 · ${_totalCount}개 중 ${templates.length}개</span>
+         <span class="tb-tag-chip" id="tb-search-clear" title="검색어를 지우고 전체를 다시 봅니다">해제</span>
+       </div>`
+    : '';
+
   if (!templates.length) {
-    container.innerHTML = '<div class="tb-cards-empty">템플릿이 없습니다</div>';
+    container.innerHTML = _searchBadge + '<div class="tb-cards-empty">템플릿이 없습니다</div>';
+    _wireSearchClear(container);
     return;
   }
 
@@ -223,7 +257,7 @@ function _renderBrowserCards() {
   }
 
   const starred = _getStarred();
-  container.innerHTML = templates.map(tpl => {
+  container.innerHTML = _searchBadge + templates.map(tpl => {
     const isSelected = _browserSelected === tpl.id;
     const isStarred  = starred.has(tpl.id);
     const thumbColor = (tpl.type === 'section' || tpl.type === 'subsection') ? '#8B5CF6'
@@ -258,6 +292,8 @@ function _renderBrowserCards() {
         ${(tpl.tags && tpl.tags.length) ? `<div class="tb-card-tags">${tpl.tags.map(t => `<span class="section-tag-chip">${_esc(t)}</span>`).join('')}</div>` : ''}
       </div>`;
   }).join('');
+
+  _wireSearchClear(container);
 
   container.querySelectorAll('.tb-card').forEach(card => {
     card.addEventListener('click', e => {
