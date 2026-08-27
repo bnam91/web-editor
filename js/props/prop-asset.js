@@ -193,7 +193,8 @@ export function showAssetProperties(ab) {
   const wNumber = document.getElementById('asset-w-number');
   const applyW = v => {
     if (v >= 860) {
-      ab.style.width = '';
+      // 패딩제외면 calc() 복원, 아니면 제거 (overlay-handles 리사이즈와 동일 규약)
+      ab.style.width = window.assetFullBleedWidth?.(ab) ?? '';
     } else {
       ab.style.width = v + 'px';
       ab.style.alignSelf = ab.dataset.align === 'left' ? 'flex-start'

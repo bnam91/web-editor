@@ -14,6 +14,29 @@ function getEffectiveUsePadx(ab) {
 }
 window.getEffectiveUsePadx = getEffectiveUsePadx;
 
+/* ── 헬퍼: ab의 «패딩 제외(full-bleed)» 폭 문자열 ──
+   패딩제외 상태면 `calc(100% + 2*padX px)`, 아니면 '' (= inline width 제거).
+   ⚠️ 리사이즈/슬라이더/MCP가 최대폭에서 width를 ''로 지우면 calc()가 사라져 «패딩제외가 영구히 풀린다»
+   (현빈 08-27 제보: 우측하단 핸들로 줄였다 늘리면 패딩제외 안 먹음). 그 세 곳이 이 헬퍼를 공유한다.
+   padX 출처 규약은 applyPadXToSection(아래)·prop-row.applyPadX·block-factory.applyExcludePadX와 동일. */
+function assetFullBleedWidth(ab) {
+  if (!ab || !getEffectiveUsePadx(ab)) return '';
+  // free-layout 프레임 내부 에셋은 절대배치 → full-bleed 무의미 (applyExcludePadX 가드 미러)
+  if (ab.closest('.frame-block[data-free-layout="true"]')) return '';
+  const row = ab.parentElement;
+  let padX;
+  if (row && row.classList.contains('row') && row.dataset.padX !== undefined && row.dataset.padX !== '') {
+    padX = parseInt(row.dataset.padX);          // row 직속 ab는 row의 padX가 지배 (prop-row.applyPadX)
+  } else {
+    const inner = ab.closest('.section-inner');
+    const hasOverride = inner && inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
+    padX = inner && hasOverride ? parseInt(inner.dataset.paddingX) : state.pageSettings.padX;
+  }
+  padX = parseInt(padX) || 0;
+  return padX > 0 ? `calc(100% + ${padX * 2}px)` : '';
+}
+window.assetFullBleedWidth = assetFullBleedWidth;
+
 /* ── 헬퍼: section-inner 하나에 padX 적용 ── */
 function applyPadXToSection(inner, padX) {
   inner.style.paddingLeft  = padX ? padX + 'px' : '';

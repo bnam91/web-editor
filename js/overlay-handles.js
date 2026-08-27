@@ -764,7 +764,8 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
       if (dir.includes('n')) newH = Math.max(40, startH - dy);
     }
     newW = Math.round(newW); newH = Math.round(newH);
-    ab.style.width  = newW >= 860 ? '' : newW + 'px';
+    // 최대폭 복귀 시 ''로 지우면 패딩제외(full-bleed)의 calc()가 사라진다 → 공유 헬퍼로 복원 (08-27)
+    ab.style.width  = newW >= 860 ? (window.assetFullBleedWidth?.(ab) ?? '') : newW + 'px';
     ab.style.height = newH + 'px';
     // 우측 패널 슬라이더 동기화
     const wNum = document.getElementById('asset-w-number');
