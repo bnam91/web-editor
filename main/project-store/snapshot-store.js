@@ -104,6 +104,13 @@ function readJsonOrNull(p) {
 /** [F6] canon 판정의 «유일한» 정의. write/rebuild 두 곳이 각자 계산하면 같은 파일에 다른 답이 나온다.
  *  ★캔버스 «안» base64 로만 판정한다 — assetsTree 썸네일 같은 캔버스 밖 base64 는 canonicalize 의
  *  대상이 아니므로 raw 전체로 재면 정규형 스냅샷이 레거시로 오분류된다. */
+/** ★[R3/R4] 「프로젝트로 읽히는가」 — 안전판/되돌리기 대상의 최소 형태.
+ *  객체이기만 하면 통과시키면 `{}` 가 «안전판»이 되고 `[]` 가 «되돌릴 데이터»가 된다.
+ *  둘 다 ok:true 로 보고돼서 사용자는 안전하다고 믿는다. 그게 최악이다. */
+function isProjectShaped(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return false;
+  return Array.isArray(d.pages) || typeof d.canvas === 'string';
+}
 function canonOf(data) {
   return canvasStrings(data).some(c => c.html.indexOf('data:image') !== -1) ? 0 : 1;
 }
@@ -490,9 +497,19 @@ function writeSnapshot(projectsDir, projectId, data, opts = {}) {
   });
   idx.entries.sort((a, b) => a.ts - b.ts);
   // [F2] 핀은 사이드카에 «먼저» 박는다 — 인덱스만 남기면 인덱스 유실이 곧 핀 유실이다.
+  // ★[R1] 실패를 «삼키지 않는다». 초판은 catch(_){} 로 조용히 넘어가서, 사이드카가 안 써졌는데도
+  //   prepareRestore 가 ok:true 를 냈다(인덱스만 보고 판정했으므로). 그러면 인덱스를 잃는 순간
+  //   「되돌리기 취소 지점」이 사라지는데 사용자는 «돌아갈 수 있다»고 들은 뒤다.
+  //   ⇒ 쓰고 «다시 읽어» 확인한 결과를 pinsOk 로 돌려준다. 판정은 호출측이 한다.
+  let pinsOk = null;
   if (PINNED_REASONS.has(reason)) {
-    try { const pins = readPins(projectsDir, projectId); pins[String(ts)] = reason; writePins(projectsDir, projectId, pins); }
-    catch (_) { /* 핀 기록 실패는 스냅샷 자체를 무르지 않는다 — 아래 pinsAtRisk 로 정직하게 알린다 */ }
+    pinsOk = false;
+    try {
+      const pins = readPins(projectsDir, projectId);
+      pins[String(ts)] = reason;
+      writePins(projectsDir, projectId, pins);
+      pinsOk = readPins(projectsDir, projectId)[String(ts)] === reason;   // 읽어서 확인
+    } catch (_) { pinsOk = false; }
   }
   // [F10] 인덱스 기록 실패가 «throw» 로 나가면 호출측이 스냅샷이 없다고 오해한다. 정직하게 돌려준다.
   try { writeIndex(projectsDir, projectId, idx); }
@@ -500,7 +517,8 @@ function writeSnapshot(projectsDir, projectId, data, opts = {}) {
   try { updateCurrent(projectsDir, projectId, data, { now }); } catch (_) {}
 
   return { ok: true, ts, bytes: Buffer.byteLength(out), images: canon.images, reused: canon.reused,
-           bytesWritten: canon.bytesWritten, ...(isCollab ? { collabVerbatim: true } : {}) };
+           bytesWritten: canon.bytesWritten, ...(pinsOk === null ? {} : { pinsOk }),
+           ...(isCollab ? { collabVerbatim: true } : {}) };
 }
 
 /* ── 프룬 ────────────────────────────────────────────────────────────────── */
@@ -520,9 +538,14 @@ function pruneVersions(projectsDir, projectId, opts = {}) {
   const all = [...idx.entries].sort((a, b) => b.ts - a.ts); // 최신 우선
 
   // 핀 상한 — 초과분은 오래된 핀부터 «해제»(지우지는 않는다. 이후 일반 규칙을 탄다).
+  // ★[R2] 단 «안전판»(pre-restore)은 이 상한에서 제외한다.
+  //   초판은 newest-first 목록을 slice 해서 «가장 오래된» 핀을 해제했는데, 되돌리기를 연달아 한
+  //   패닉 세션에서 가장 오래된 안전판은 «그 소동 이전»으로 가는 유일한 길이다. 그걸 먼저 버렸다.
+  //   그리고 prepareRestore 가 이미 ok:true 로 「돌아갈 수 있다」고 말한 뒤라, 조용한 철회다.
+  //   상한은 사용자 «선호»로 찍는 핀(manual)에만 건다.
   let unpinned = 0;
-  const pinnedDesc = all.filter(e => e.pinned);
-  for (const e of pinnedDesc.slice(PINNED_MAX)) { e.pinned = false; unpinned++; }
+  const cappedPins = all.filter(e => e.pinned && e.reason !== 'pre-restore');
+  for (const e of cappedPins.slice(PINNED_MAX)) { e.pinned = false; unpinned++; }
 
   const keep = new Set();
   for (const e of all) {
@@ -556,6 +579,17 @@ function pruneVersions(projectsDir, projectId, opts = {}) {
     for (const e of droppable) {
       if (total <= BUDGET_BYTES) break;
       keep.delete(e.ts); total -= (e.bytes || 0);
+    }
+  }
+  // ★[R2] 안전판이 예산을 통째로 먹는 극단(되돌리기를 수백 번)에서만 도는 최후 안전판.
+  //   버릴 때는 «가장 새것»부터 — 새 안전판은 지금 상태와 거의 같아 재구성 가능하지만,
+  //   가장 오래된 것은 그 소동 이전으로 가는 유일한 길이라 대체 불가다.
+  let pinTotal = all.filter(e => keep.has(e.ts) && e.reason === 'pre-restore').reduce((s, e) => s + (e.bytes || 0), 0);
+  if (pinTotal > BUDGET_BYTES) {
+    const safety = all.filter(e => keep.has(e.ts) && e.reason === 'pre-restore').sort((a, b) => b.ts - a.ts); // 새것 먼저
+    for (const e of safety) {
+      if (pinTotal <= BUDGET_BYTES || safety.indexOf(e) === safety.length - 1) break;  // 가장 오래된 하나는 남긴다
+      keep.delete(e.ts); pinTotal -= (e.bytes || 0);
     }
   }
 
@@ -625,8 +659,14 @@ function readVersion(projectsDir, projectId, ts) {
   if (!full.startsWith(p.history + path.sep)) return { ok: false, reason: 'bad_ts' };
   if (!fs.existsSync(full)) return { ok: false, reason: 'not_found' };
   const data = readJsonOrNull(full);
-  if (!data) return { ok: false, reason: 'corrupt' };
-  return { ok: true, ts: parseInt(ts), data, bytes: fs.statSync(full).size };
+  // ★[R4] `!data` 는 null/0/"" 만 거른다. 초판은 `[]`·숫자·문자열·{pages:"x"} 를 그대로 넘겨서,
+  //   호출측이 그걸로 proj.json 을 덮으면 프로젝트가 «형태부터» 깨진다. 「프로젝트로 읽히는가」를 본다.
+  if (!isProjectShaped(data)) return { ok: false, reason: 'corrupt' };
+  // ★[R6] existsSync 뒤 statSync 는 그 사이 파일이 사라지면 던진다(동기화 폴더·외부 삭제).
+  //   조회 함수가 «던지면» 호출측 계약(ok:false)이 깨진다.
+  let bytes = 0;
+  try { bytes = fs.statSync(full).size; } catch (_) {}
+  return { ok: true, ts: parseInt(ts), data, bytes };
 }
 
 /* ── U6a: 되돌리기 «안전판» ──────────────────────────────────────────────── */
@@ -648,15 +688,22 @@ function readVersion(projectsDir, projectId, ts) {
  */
 function prepareRestore(projectsDir, projectId, ts, opts = {}) {
   const pid = safeSeg(projectId);
-  const target = readVersion(projectsDir, pid, ts);
+  // ★[R6] 조회가 던지면 호출측은 «실패»가 아니라 «예외»를 받는다 — 계약이 깨진다.
+  let target;
+  try { target = readVersion(projectsDir, pid, ts); }
+  catch (e) { return { ok: false, reason: 'target_unreadable', error: e.message }; }
   if (!target.ok) return { ok: false, reason: target.reason };   // 되돌릴 대상부터 없으면 시작 안 한다
 
   const p = pathsFor(projectsDir, pid);
+  // ★[R7] 안전판을 «어디서» 떴는지 호출측이 알아야 한다 — 디스크에서 떴으면 미저장 편집분이 빠진다.
+  const source = opts.currentData ? 'live' : 'disk';
   let current = opts.currentData;
   if (!current) current = readJsonOrNull(p.proj);
   // ★지금 상태를 못 읽으면 «안전판을 못 만든다» → 파괴를 시작하지 않는다.
   //   여기서 「어차피 깨진 파일이니 그냥 덮자」로 가면, 사용자가 되돌리기를 잘못 골랐을 때 갈 곳이 없다.
-  if (!current || typeof current !== 'object') return { ok: false, reason: 'current_unreadable' };
+  if (!current) return { ok: false, reason: 'current_unreadable' };
+  // ★[R3] «객체이기만 하면» 통과시키면 `{}` 가 안전판이 된다 — 없느니만 못하다(성공했다고 말하므로).
+  if (!isProjectShaped(current)) return { ok: false, reason: 'current_unusable' };
 
   let snap;
   try {
@@ -670,8 +717,22 @@ function prepareRestore(projectsDir, projectId, ts, opts = {}) {
   //   「되돌리기 취소」 지점이 사라진다 — 약속이 깨진다.
   const e = (readIndex(projectsDir, pid) || { entries: [] }).entries.find(x => x.ts === snap.ts);
   if (!e || e.pinned !== true) return { ok: false, reason: 'pre_restore_not_pinned', error: `ts=${snap.ts}` };
+  // ★[R1] 인덱스는 «파생 데이터»다 — 그것만 보고 「핀 됐다」고 하면 인덱스 유실이 곧 취소지점 유실이다.
+  //   유도 불가 정보의 정본은 사이드카(pins.json)이므로 «거기 써졌는지»를 본다.
+  if (snap.pinsOk !== true) return { ok: false, reason: 'pre_restore_pin_unverified', error: `ts=${snap.ts}` };
 
-  return { ok: true, preRestoreTs: snap.ts, ts: target.ts, data: target.data };
+  // ★[R5] 되돌릴 «대상»의 이미지가 디스크에 없으면, 되돌아간 화면에서 그림만 빈다 —
+  //   파일 헤더가 경고한 「조용히 깨진 복구」다. 막지는 않되(사용자가 텍스트만 원할 수 있다)
+  //   호출측이 «경고할 수 있게» 알려준다.
+  const missingAssets = [];
+  try {
+    for (const name of assetsFromRaw(JSON.stringify(target.data))) {
+      if (!fs.existsSync(path.join(p.assets, name))) missingAssets.push(name);
+    }
+  } catch (_) {}
+
+  return { ok: true, preRestoreTs: snap.ts, ts: target.ts, data: target.data, source,
+           ...(missingAssets.length ? { missingAssets } : {}) };
 }
 
 /* ── ★GC 계약 ───────────────────────────────────────────────────────────── */
@@ -749,5 +810,5 @@ module.exports = {
   writeSnapshot, pruneVersions, listVersions, readVersion, prepareRestore,
   listReferencedAssets, loadFallbackCandidates,
   _internal: { safeSeg, pathsFor, canvasStrings, mapCanvas, assetNameFor, slotFiles, dayKey, isValidTs,
-               canonOf, assetsFromRaw, fingerprintRaw, readPins, writePins },
+               canonOf, assetsFromRaw, fingerprintRaw, readPins, writePins, isProjectShaped },
 };

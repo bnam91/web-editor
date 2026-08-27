@@ -441,17 +441,33 @@ test('PR4 ★레거시(canon:0)는 P1 에서 «절대» 안 지운다 — 복구
   assert.ok(SS.readIndex(root, 'p').entries.some(e => e.ts === legacyTs));
 });
 
-test('PR5 핀 상한 초과분은 «해제»될 뿐 즉시 삭제되지 않는다', () => {
+test('PR5 핀 상한은 «사용자 선호» 핀(manual)에만 걸린다 — 초과분은 해제될 뿐 즉시 삭제 안 됨', () => {
   const root = mkRoot();
   writeProjFile(root, 'p', proj('p', [{ id: 'page_1', canvas: sec('sec_a', 'A') }]));
   for (let i = 0; i < 15; i++) {
     SS.writeSnapshot(root, 'p', proj('p', [{ id: 'page_1', canvas: sec('sec_a', 'A') }]),
-      { now: NOW + i * 11 * MIN, force: true, reason: 'pre-restore' });
+      { now: NOW + i * 11 * MIN, force: true, reason: 'manual' });
   }
   const r = SS.pruneVersions(root, 'p', { now: NOW + 15 * 11 * MIN });
   assert.equal(r.unpinned, 5, `15개 중 ${SS.PINNED_MAX}개만 핀으로 남아야 한다`);
   assert.equal(SS.readIndex(root, 'p').entries.filter(e => e.pinned).length, SS.PINNED_MAX);
   assert.equal(r.deleted.length, 0, '해제된 것도 최근 20 안이면 아직 남는다');
+});
+
+test('PR5b ★«안전판»(pre-restore)은 핀 상한에서 제외된다 — 상한이 약속을 조용히 철회하면 안 된다', () => {
+  const root = mkRoot();
+  writeProjFile(root, 'p', proj('p', [{ id: 'page_1', canvas: sec('sec_a', 'A') }]));
+  const ts = [];
+  for (let i = 0; i < 15; i++) {
+    const r = SS.writeSnapshot(root, 'p', proj('p', [{ id: 'page_1', canvas: sec('sec_a', 'A') }]),
+      { now: NOW + i * 11 * MIN, force: true, reason: 'pre-restore' });
+    ts.push(r.ts);
+  }
+  const r = SS.pruneVersions(root, 'p', { now: NOW + 15 * 11 * MIN });
+  assert.equal(r.unpinned, 0, '★안전판을 해제하면 그 되돌리기는 취소 불가가 된다');
+  assert.equal(SS.readIndex(root, 'p').entries.filter(e => e.pinned).length, 15);
+  // ★특히 «가장 오래된» 것 — 패닉 세션에서 그 소동 이전으로 가는 유일한 길이다
+  assert.ok(SS.readVersion(root, 'p', ts[0]).ok, '★가장 오래된 안전판이 사라졌다');
 });
 
 test('PR6 프룬은 «빈 히스토리»에서도 던지지 않는다', () => {

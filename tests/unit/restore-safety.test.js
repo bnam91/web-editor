@@ -107,27 +107,88 @@ test('RS-NEG2 ★지금 상태를 «못 읽으면» 되돌리기를 시작하지
   assert.ok(!r.data);
 });
 
-test('RS-NEG3 ★안전판이 «핀»으로 안 박히면 실패로 답한다 — 핀이 아니면 프룬에 날아간다', () => {
+/* ★적대검수가 잡은 것: 초판 RS-NEG3 는 pins.json 무력화 + index 조작을 «동시에» 걸어서,
+ *   정작 광고한 팔(사이드카 유실)이 아무것도 안 해도 초록이었다.
+ *   ⇒ 팔을 갈라서 «각각이» 빨강을 내는지 확인한다. 복합 fault 는 어느 팔이 일했는지 안 알려준다. */
+
+test('RS-NEG3a ★핀 «사이드카»만 못 써도 실패로 답한다 — 인덱스는 파생이라 그것만 믿으면 안 된다', () => {
   const root = mkRoot();
   const v1 = proj('p', sec('sec_a', 'A'));
   write(root, 'p', v1);
   const s1 = SS.writeSnapshot(root, 'p', v1, { now: NOW });
+  write(root, 'p', proj('p', sec('sec_a', 'A') + sec('sec_b', 'B')));
 
-  // 핀 사이드카·인덱스 기록을 무력화해 «핀 안 붙은» 상태를 만든다
-  const origWrite = fs.writeFileSync;
-  fs.writeFileSync = function (f, d) {
-    if (String(f).includes('pins.json')) return;                       // 사이드카 유실
-    if (String(f).includes('index.json')) {
-      try { const o = JSON.parse(d); (o.entries || []).forEach(e => { e.pinned = false; }); d = JSON.stringify(o); } catch (_) {}
-    }
-    return origWrite.call(fs, f, d);
+  const orig = fs.writeFileSync;
+  let hits = 0;
+  fs.writeFileSync = function (f) {
+    if (String(f).includes('pins.json')) { hits++; const e = new Error('EACCES'); e.code = 'EACCES'; throw e; }
+    return orig.apply(fs, arguments);
   };
   let r;
   try { r = SS.prepareRestore(root, 'p', s1.ts, { now: NOW + 40 * MIN }); }
-  finally { fs.writeFileSync = origWrite; }
+  finally { fs.writeFileSync = orig; }
+  assert.ok(hits > 0, '★fault 가 실제로 발동해야 이 실험이 성립한다(0이면 헛돈 것)');
+  assert.equal(r.ok, false, '★사이드카가 안 써졌는데 「돌아갈 수 있다」고 답했다');
+  assert.equal(r.reason, 'pre_restore_pin_unverified');
+  assert.ok(!r.data);
+});
+
+test('RS-NEG3b 인덱스에 핀이 안 붙어도 실패로 답한다', () => {
+  const root = mkRoot();
+  const v1 = proj('p', sec('sec_a', 'A'));
+  write(root, 'p', v1);
+  const s1 = SS.writeSnapshot(root, 'p', v1, { now: NOW });
+  write(root, 'p', proj('p', sec('sec_a', 'A') + sec('sec_b', 'B')));
+
+  const orig = fs.writeFileSync;
+  let hits = 0;
+  fs.writeFileSync = function (f, d) {
+    if (String(f).includes('index.json')) {
+      hits++;
+      try { const o = JSON.parse(d); (o.entries || []).forEach(e => { e.pinned = false; }); d = JSON.stringify(o); } catch (_) {}
+      return orig.call(fs, f, d);
+    }
+    return orig.apply(fs, arguments);
+  };
+  let r;
+  try { r = SS.prepareRestore(root, 'p', s1.ts, { now: NOW + 40 * MIN }); }
+  finally { fs.writeFileSync = orig; }
+  assert.ok(hits > 0, '★fault 가 실제로 발동해야 한다');
   assert.equal(r.ok, false);
   assert.equal(r.reason, 'pre_restore_not_pinned');
   assert.ok(!r.data);
+});
+
+test('RS-NEG5 ★«프로젝트로 안 읽히는» 지금 상태는 안전판이 될 수 없다 — {} 가 안전판이면 없느니만 못하다', () => {
+  const root = mkRoot();
+  const v1 = proj('p', sec('sec_a', 'A'));
+  write(root, 'p', v1);
+  const s1 = SS.writeSnapshot(root, 'p', v1, { now: NOW });
+  write(root, 'p', proj('p', sec('sec_a', 'A') + sec('sec_b', 'B') + sec('sec_c', 'C')));
+
+  for (const bad of [{}, [], { id: 'p' }, { pages: 'not-an-array' }, { id: 'p', name: 'T', version: 2 }]) {
+    const r = SS.prepareRestore(root, 'p', s1.ts, { now: NOW + 40 * MIN, currentData: bad });
+    assert.equal(r.ok, false, `★${JSON.stringify(bad)} 를 안전판으로 받았다 — «성공했다»고 말해서 더 나쁘다`);
+    assert.equal(r.reason, 'current_unusable');
+    assert.ok(!r.data);
+  }
+  // pages 가 있으면 통과(v2) · canvas 가 있으면 통과(v1)
+  assert.equal(SS.prepareRestore(root, 'p', s1.ts, { now: NOW + 41 * MIN, currentData: proj('p', sec('sec_x', 'X')) }).ok, true);
+  assert.equal(SS.prepareRestore(root, 'p', s1.ts, { now: NOW + 42 * MIN, currentData: { id: 'p', canvas: sec('sec_y', 'Y') } }).ok, true);
+});
+
+test('RS-NEG6 ★«프로젝트로 안 읽히는» 버전은 되돌릴 대상이 될 수 없다', () => {
+  const root = mkRoot();
+  write(root, 'p', proj('p', sec('sec_a', 'A')));
+  SS.writeSnapshot(root, 'p', proj('p', sec('sec_a', 'A')), { now: NOW });
+  const hd = path.join(root, 'p', 'proj_history');
+  for (const [i, bad] of [[], 12345, 'just a string', true, { pages: 'x' }].entries()) {
+    const ts = NOW + (i + 1) * 1000;
+    fs.writeFileSync(path.join(hd, `${ts}.json`), JSON.stringify(bad));
+    const r = SS.readVersion(root, 'p', ts);
+    assert.equal(r.ok, false, `★${JSON.stringify(bad)} 를 되돌릴 데이터로 넘겼다 — 덮으면 프로젝트가 형태부터 깨진다`);
+    assert.equal(r.reason, 'corrupt');
+  }
 });
 
 test('RS-NEG4 없는 버전으로 되돌리려 하면 «안전판도 안 만든다»', () => {
@@ -215,20 +276,57 @@ test('RS-POS5 안전판은 «지금 상태»를 담되 원본 proj.json 은 한 
     '★U6a 는 «준비»만 한다 — 교체는 U6b 의 몫이다');
 });
 
-test('RS-POS6 ★안전판은 오래돼도 프룬에 안 날아간다 — 취소 지점이 사라지면 약속이 깨진다', () => {
+test('RS-POS6 ★안전판은 오래돼도·많아도 살아남는다 — PINNED_MAX 분기를 «실제로» 탄다', () => {
+  // 초판은 핀을 1개만 만들어 PINNED_MAX 분기에 들어가지도 않았다(적대검수 지적).
+  // 11개(상한 10 초과)를 만들어 «가장 오래된» 것이 살아남는지 본다.
   const root = mkRoot();
   const DAY = 86400000;
   const v1 = proj('p', sec('sec_a', 'A'));
   write(root, 'p', v1);
   const s1 = SS.writeSnapshot(root, 'p', v1, { now: NOW - 200 * DAY });
-  write(root, 'p', proj('p', sec('sec_a', 'A') + sec('sec_b', 'B')));
-  const r = SS.prepareRestore(root, 'p', s1.ts, { now: NOW - 200 * DAY + MIN });
-  assert.equal(r.ok, true);
+
+  const safety = [];
+  for (let i = 0; i < 11; i++) {
+    write(root, 'p', proj('p', sec('sec_a', 'A') + sec('sec_' + i, '작업' + i)));
+    const r = SS.prepareRestore(root, 'p', s1.ts, { now: NOW - (200 - i) * DAY });
+    assert.equal(r.ok, true, `${i}번째 안전판이 안 박혔다`);
+    safety.push(r.preRestoreTs);
+  }
+  const pr = SS.pruneVersions(root, 'p', { now: NOW - 180 * DAY });
+  assert.equal(pr.unpinned, 0, `★상한(${SS.PINNED_MAX})이 안전판을 해제했다 — 그 되돌리기는 취소 불가가 된다`);
 
   for (let i = 0; i < 40; i++) {
     SS.writeSnapshot(root, 'p', proj('p', sec('sec_a', 'A')), { now: NOW + i * 11 * MIN, force: true });
   }
   SS.pruneVersions(root, 'p', { now: NOW + 40 * 11 * MIN });
-  assert.ok(SS.readVersion(root, 'p', r.preRestoreTs).ok,
-    '★200일 된 안전판이 프룬에 날아갔다 — 그날의 되돌리기는 영영 취소 불가가 된다');
+  // ★가장 오래된 것이 제일 중요하다 — 그 소동 «이전»으로 가는 유일한 길이다
+  assert.ok(SS.readVersion(root, 'p', safety[0]).ok,
+    '★가장 오래된 안전판이 날아갔다 — 패닉 세션 이전으로 돌아갈 길이 사라진다');
+  assert.equal(safety.filter(t => SS.readVersion(root, 'p', t).ok).length, 11, '안전판 11개가 모두 살아 있어야 한다');
+});
+
+test('RS-POS7 ★되돌릴 대상의 이미지가 «디스크에 없으면» 알려준다 — 막지는 않되 조용하지도 않게', () => {
+  const root = mkRoot();
+  const withImg = proj('p', sec('sec_a', 'A', `<img src="${PNG}">`));
+  write(root, 'p', withImg);
+  const s1 = SS.writeSnapshot(root, 'p', withImg, { now: NOW });
+  write(root, 'p', proj('p', sec('sec_a', 'A')));
+  // 에셋이 밖에서 사라진 상황(휴지통 비우기·동기화 사고 등)
+  const ad = path.join(root, 'p', 'assets');
+  for (const f of fs.readdirSync(ad)) fs.unlinkSync(path.join(ad, f));
+
+  const r = SS.prepareRestore(root, 'p', s1.ts, { now: NOW + 40 * MIN });
+  assert.equal(r.ok, true, '되돌리기 자체를 막지는 않는다 — 텍스트만 원할 수도 있다');
+  assert.ok(Array.isArray(r.missingAssets) && r.missingAssets.length === 1,
+    '★그림이 빌 거라는 걸 호출측이 «알아야» 경고할 수 있다 — 「조용히 깨진 복구」가 제일 나쁘다');
+});
+
+test('RS-POS8 안전판을 «어디서» 떴는지 알려준다 — 디스크면 미저장 편집분이 빠졌다는 뜻이다', () => {
+  const root = mkRoot();
+  const v1 = proj('p', sec('sec_a', 'A'));
+  write(root, 'p', v1);
+  const s1 = SS.writeSnapshot(root, 'p', v1, { now: NOW });
+  write(root, 'p', proj('p', sec('sec_a', 'A') + sec('sec_b', 'B')));
+  assert.equal(SS.prepareRestore(root, 'p', s1.ts, { now: NOW + 40 * MIN }).source, 'disk');
+  assert.equal(SS.prepareRestore(root, 'p', s1.ts, { now: NOW + 41 * MIN, currentData: proj('p', sec('sec_z', 'Z')) }).source, 'live');
 });
