@@ -227,6 +227,46 @@
     window.showToast?.('병합 해제됨');
   };
 
+  // 이 mousedown 에서 «실제로 드래그가 일어났을 때만» 직후 click 1회를 삼킨다.
+  // (편집 중 셀의 텍스트 부분선택 보존용 — 순수 클릭은 일반 흐름 유지)
+  function swallowClickIfDragged(downEv) {
+    const sx = downEv.clientX, sy = downEv.clientY;
+    let moved = false;
+    const onMove = (ev) => {
+      if (Math.abs(ev.clientX - sx) >= DRAG_THRESH || Math.abs(ev.clientY - sy) >= DRAG_THRESH) moved = true;
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('mouseup', onUp, true);
+      if (moved) armClickSwallow();
+    };
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('mouseup', onUp, true);
+  }
+
+  // 셀에서 시작한 드래그 동안만 조상의 HTML5 드래그를 끈다.
+  // ⚠️조상 .row 가 draggable="true" 라 press+move 가 dragstart 로 넘어가면 mousemove 가
+  //   끊겨(실측: mousemove 2 · dragstart 1 · dragover 14) 사각 선택이 «첫 셀 1개»에서 멈춘다.
+  //   block-drag.js 의 프레임 pointerdown 선례와 같은 패턴. thead 셀·블록 여백은 이 경로를
+  //   타지 않고, 테이블 미선택 상태에선 애초에 여기 못 오므로 테이블 이동은 그대로 가능하다.
+  function suppressAncestorDrag(block) {
+    const host = block.closest('[draggable="true"]');
+    if (!host) return () => {};
+    const was = host.getAttribute('draggable');
+    host.setAttribute('draggable', 'false');
+    let done = false;
+    const restore = () => {
+      if (done) return;
+      done = true;
+      window.removeEventListener('blur', restore); // 리스너 누적 방지(셀 mousedown 마다 등록됨)
+      if (was === null) host.removeAttribute('draggable');
+      else host.setAttribute('draggable', was);
+    };
+    // 안전망: mouseup 을 못 받는 경우(창 포커스 이탈 등)에도 복구
+    window.addEventListener('blur', restore);
+    return restore;
+  }
+
   // ── 셀 선택 입력(mousedown: shift-click / 드래그 사각) ──────────
   document.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
@@ -234,8 +274,13 @@
     if (!cell) return;
     const block = cell.closest('.table-block');
     if (!block || !block.classList.contains('selected')) return;
-    // 편집 중이면 셀 선택 안 함 (편집과 배타)
-    if (cell.getAttribute('contenteditable') === 'true') return;
+    // 편집 중이면 셀«선택»은 안 한다(편집과 배타). 단 그냥 return 하면
+    // 이 mousedown 으로 시작된 «텍스트 부분선택»이 직후 click → block-drag → deselectAll
+    // (editor.js: 테이블의 모든 [contenteditable="true"] 를 false 로 되돌림)로 새면서
+    // 방금 만든 선택이 통째로 사라진다. (실측: mouseup 시점엔 sel 이 살아 있고 click 직후 소멸.)
+    // → 실제로 드래그가 일어났을 때만 그 click 1회를 삼켜 부분선택을 보존한다.
+    //   (순수 클릭=캐럿 이동은 삼키지 않아 기존 동작 그대로.)
+    if (cell.getAttribute('contenteditable') === 'true') { swallowClickIfDragged(e); return; }
     if (document.activeElement && document.activeElement.isContentEditable) return;
     const tbody = cell.closest('tbody');
     if (!tbody) return;
@@ -252,6 +297,8 @@
     }
 
     // 드래그 사각 선택 — threshold 넘으면 시작(순수 클릭은 일반 흐름 유지)
+    // dragstart 는 threshold(3px)보다 «먼저» 뜰 수 있으므로 mousedown 시점에 미리 끈다.
+    const restoreAncestorDrag = suppressAncestorDrag(block);
     let started = false;
     const sx = e.clientX, sy = e.clientY;
     const onMove = (ev) => {
@@ -269,6 +316,7 @@
     const onUp = () => {
       document.removeEventListener('mousemove', onMove, true);
       document.removeEventListener('mouseup', onUp, true);
+      restoreAncestorDrag();
       // 드래그로 셀을 선택한 경우 직후 click을 삼켜 block-drag click(→deselectAll)이
       // 방금 만든 셀 선택을 지우지 못하게 한다. 순수 클릭(미시작)은 일반 흐름 유지.
       if (started) armClickSwallow();
