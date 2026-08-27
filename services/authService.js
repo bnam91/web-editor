@@ -12,7 +12,13 @@
  *   throw/네트워크 오류와 구분해서 "이벤트 종료 → 구매 안내"로 분기해야 한다.
  */
 
-const API_BASE      = 'https://blacksheepwall.kr';
+// ★2026-08-18 도메인 통일(현빈 승인): 라이브 백엔드는 blacksheepwall.kr(EC2)다.
+//   옛 hompageapp.vercel.app은 「개발용」으로 내려간다 — 여기 기본값이 그걸 가리키면
+//   새 릴리스가 개발 서버로 로그인하러 간다. 자동 폴백은 «두지 않는다»: 주소가 둘이면
+//   어느 쪽이 응답했는지 모른 채 통과해 버려, 장애를 조용히 감춘다(확장 쪽 폴백은
+//   웹스토어 재심사 때문에 남긴 예외).
+//   ⇒ 다른 주소를 봐야 할 때는 env로 명시한다(개발용 Vercel 확인 등).
+const API_BASE      = process.env.GODITOR_LICENSE_API || 'https://blacksheepwall.kr';
 const LOGIN_URL     = `${API_BASE}/api/license/login`;
 // 세션 조용한 갱신용. 2026-08-06 현재 백엔드 미구현(404) — 응답을 못 받으면
 // "판단 불가"로 처리하고 로컬 캐시를 그대로 신뢰한다(=오프라인 유예와 동일 경로).
