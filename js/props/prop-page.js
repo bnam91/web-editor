@@ -21,8 +21,13 @@ window.getEffectiveUsePadx = getEffectiveUsePadx;
    padX 출처 규약은 applyPadXToSection(아래)·prop-row.applyPadX·block-factory.applyExcludePadX와 동일. */
 function assetFullBleedWidth(ab) {
   if (!ab || !getEffectiveUsePadx(ab)) return '';
-  // free-layout 프레임 내부 에셋은 절대배치 → full-bleed 무의미 (applyExcludePadX 가드 미러)
-  if (ab.closest('.frame-block[data-free-layout="true"]')) return '';
+  // ★프레임 «전체» 안의 에셋은 full-bleed 대상이 아니다.
+  //   ⑴free-layout 프레임 = 절대배치라 무의미(applyExcludePadX 가드 미러)
+  //   ⑵flow 프레임도 마찬가지 — `.frame-block{overflow:hidden}`(css/editor-blocks.css:10)이라
+  //     프레임 밖으로 나가는 폭은 «어떤 계산으로도 안 보이고 잘리기만» 한다. 헬퍼는 프레임이 아니라
+  //     «섹션» padX 로 계산하므로 좌우 padX 만큼 클립됐다(2026-08-27 goditor-qa BUG-2, 4b5c812 유래).
+  //     도달경로 = banner-block.js:54 가 배너 프리셋 stack-inner 를 fullWidth 프레임으로 만든다.
+  if (ab.closest('.frame-block')) return '';
   // preset 고정폭(logo·a4 등)은 그 사이즈를 지켜야 한다 — applyExcludePadX와 같은 가드.
   // ⚠️ ②width 분기의 `preset !== 'logo'` 만으론 a4가 안 걸린다(08-27 태양 지적).
   if (window.ASSET_PRESETS?.[ab.dataset.preset]?.width) return '';
