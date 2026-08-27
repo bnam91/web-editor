@@ -31,6 +31,12 @@ function openTemplateBrowser() {
   }
   requestAnimationFrame(() => panel.classList.add('open'));
   document.getElementById('templates-section-header')?.classList.add('browser-open');
+  // 검색어 초기화 — _browserSearchQ는 모듈 전역이라 닫아도 살아남는다. 초기화하지 않으면
+  // 다음에 열었을 때 «검색창은 비어 보이는데» 카드만 걸러져 「트리 14인데 목록 0」이 된다.
+  // (트리는 검색을 무시하고 세므로 숫자가 어긋나 보이는 그 증상.)
+  _browserSearchQ = '';
+  const _searchInput = document.getElementById('tpl-browser-search');
+  if (_searchInput) _searchInput.value = '';
   _renderBrowserTree();
   _renderBrowserCards();
   _syncInsertBtn();
