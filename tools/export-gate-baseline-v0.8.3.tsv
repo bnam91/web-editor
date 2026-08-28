@@ -1,0 +1,8 @@
+proj_1781053545182	sec_9tdz3ke	PASS	0	0	|
+proj_1781053545182	sec_rzu35th	FAIL	4953	80	전역 diff 4953 >= 600 / 국소 뭉침 80/256 @ [160, 240] >= 60|중앙/전면 — background-size·position 또는 기하 이동 계열
+proj_1781053545182	sec_fbk3rzi	PASS	0	0	|
+proj_1781053545182	sec_uk8ggh2	PASS	0	0	|
+proj_1787627353838	sec_84a7j_uscssba	PASS	0	0	|
+proj_1787627353838	sec_84a7j_joz65g3	PASS	0	0	|
+proj_1787627353838	sec_84a7j_rto5c9n	FAIL	22972	197	전역 diff 22972 >= 600 / 국소 뭉침 197/256 @ [208, 1696] >= 60|중앙/전면 — background-size·position 또는 기하 이동 계열
+proj_1787627353838	sec_84a7j_ei734c1	PASS	0	0	|
