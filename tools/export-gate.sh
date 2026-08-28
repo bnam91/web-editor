@@ -27,7 +27,7 @@ if [ "$1" = "--width" ]; then WIDTH="$2"; shift 2; fi
 OUT="${EXPORT_GATE_OUT:-${TMPDIR:-/tmp}/export-gate-$$}"
 OUT="$OUT/w$WIDTH"
 mkdir -p "$OUT"
-PASS=0; FAIL=0; ERR=0
+PASS=0; FAIL=0; ERR=0; SKIP=0
 RESULTS="$OUT/results.tsv"; : > "$RESULTS"
 
 free_gb=$(df -g / | tail -1 | awk '{print $4}')
@@ -39,42 +39,123 @@ open_project() {   # $1=projectId
   node "$SK/cdp-eval.js" "$PORT" '(async()=>{ await window.electronAPI.navigateToProjects(); return 1; })()' >/dev/null 2>&1
   sleep 3
   node "$SK/cdp-eval.js" "$PORT" '(()=>{const c=[...document.querySelectorAll(".project-card")].find(e=>e.dataset.id==="'"$1"'");if(!c)return "no";c.click();return "ok"})()' >/dev/null 2>&1
-  sleep 7
+  # ★고정 sleep 7 은 «작은 프로젝트 기준»이었다 — 80MB 급은 그 안에 안 열린다.
+  #   그러면 「섹션 0개」로 나와 ERROR 가 되는데, 원인은 앱이 아니라 «우리가 안 기다린 것»이다.
+  #   ⇒ 섹션이 «생길 때까지» 폴링하고, 상한을 넘으면 그때 못 쟀다고 말한다.
+  # ⚠️변수명은 «반드시» local — 처음에 `n=` 을 썼다가 바깥 루프의 «섹션 개수 n(=3)» 을 덮어써서
+  #   3개만 볼 자리에서 102개를 다 돌았다. 조용히 «더 많이» 도는 버그라 결과만 보면 안 보인다.
+  local waited=0 _cnt=0
+  while [ "$waited" -lt "${OPEN_TIMEOUT:-90}" ]; do
+    sleep 2; waited=$((waited+2))
+    _cnt=$(node "$SK/cdp-eval.js" "$PORT" '(()=>document.querySelectorAll(".section-block").length)()' 2>/dev/null | tr -dc '0-9')
+    [ "${_cnt:-0}" -gt 0 ] && { sleep 3; return 0; }   # 마지막 3초는 이미지 디코드 여유
+  done
+  return 1
 }
 section_ids() {    # $1=개수
-  node "$SK/cdp-eval.js" "$PORT" '(()=>JSON.stringify([...document.querySelectorAll(".section-block")].slice(0,'"$1"').map(e=>e.id)))()' 2>/dev/null \
-    | sed 's/^"//; s/"$//; s/\\"/"/g' | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{JSON.parse(s).forEach(x=>console.log(x))}catch(e){}})'
+  # ★표본 고르기 — 기본은 «앞에서 N개»(기준선 22섹션과 호환 유지).
+  #   EXPORT_GATE_TALLEST=1 이면 «높이 큰 순»으로 N개 — 전수 표본은 긴 섹션이 정보가 많다.
+  #   ⚠️고르는 방식이 바뀌면 섹션 id 가 달라져 기준선 대조가 「기준선에 없는 섹션」으로 나온다.
+  #     둘을 섞어 쓰지 마라 — 표본 방식마다 기준선을 따로 둔다.
+  if [ "${EXPORT_GATE_TALLEST:-0}" = "1" ]; then
+    node "$SK/cdp-eval.js" "$PORT" '(()=>JSON.stringify([...document.querySelectorAll(".section-block")].map(e=>[e.id,e.offsetHeight]).sort((a,b)=>b[1]-a[1]).slice(0,'"$1"').map(x=>x[0])))()' 2>/dev/null \
+      | sed 's/^"//; s/"$//; s/\\"/"/g' | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{JSON.parse(s).forEach(x=>console.log(x))}catch(e){}})'
+  else
+    node "$SK/cdp-eval.js" "$PORT" '(()=>JSON.stringify([...document.querySelectorAll(".section-block")].slice(0,'"$1"').map(e=>e.id)))()' 2>/dev/null \
+      | sed 's/^"//; s/"$//; s/\\"/"/g' | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{JSON.parse(s).forEach(x=>console.log(x))}catch(e){}})'
+  fi
 }
 
 for spec in "$@"; do
   pid="${spec%%:*}"; n="${spec##*:}"; [ "$n" = "$pid" ] && n=5
-  echo "── $pid (섹션 $n개 · 폭 ${WIDTH}px)"
-  open_project "$pid"
+  echo "── $pid (섹션 ${n}개 · 폭 ${WIDTH}px)"
+  # ★디스크는 «도는 중에» 찬다 — 시작 전 한 번만 재면 전수 중반에 다른 세션까지 멈춘다(2026-08-21 30GB 사고).
+  gb=$(df -g / | tail -1 | awk '{print $4}')
+  if [ "${gb:-0}" -lt 3 ]; then echo "⛔디스크 여유 ${gb}GB — 중단한다. 산출물: $OUT"; exit 2; fi
+  if ! open_project "$pid"; then echo "  ⛔프로젝트가 안 열렸다(${OPEN_TIMEOUT:-90}s 대기) — «못 쟀다»"; ERR=$((ERR+1)); printf '%s\t-\t%s\tERROR\t열기실패\t\t\n' "$pid" "$WIDTH" >> "$RESULTS"; continue; fi
+  first_of_proj=1
   ids=$(section_ids "$n")
-  if [ -z "$ids" ]; then echo "  ⛔섹션을 못 읽었다 — 프로젝트가 안 열렸다"; ERR=$((ERR+1)); continue; fi
+  if [ -z "$ids" ]; then echo "  ⛔섹션을 못 읽었다 — 프로젝트가 안 열렸다"; ERR=$((ERR+1)); printf '%s\t-\t%s\tERROR\t섹션읽기실패\t\t\n' "$pid" "$WIDTH" >> "$RESULTS"; continue; fi
   for sid in $ids; do
-    e="$OUT/$sid.w$WIDTH.export.png"; t="$OUT/$sid.w$WIDTH.truth.png"
-    node "$SK/cdp-eval.js" "$PORT" '(async()=>{var s=document.getElementById("'"$sid"'");if(!s)return "NOSEC";return await window.exportSection(s,"png",'"$WIDTH"',{returnDataUrl:true});})()' > "$OUT/$sid.w$WIDTH.txt" 2>&1
-    if ! grep -q '^"data:image' "$OUT/$sid.w$WIDTH.txt"; then
-      echo "  ⛔ $sid  export 실패 — $(head -c 60 "$OUT/$sid.w$WIDTH.txt")"; ERR=$((ERR+1))
+    # ★파일명에 «프로젝트 id» 를 넣는다 — 섹션 id 는 프로젝트 사이에서 «겹친다».
+    #   실측(2026-08-28 전수): 223행 중 고유 섹션 id 가 163개. sec_rbvkmpj 하나가 프로젝트 7개에 있다
+    #   (복제 프로젝트끼리 섹션 id 를 공유한다). 겹치면 나중 캡처가 앞 캡처를 «조용히» 덮어써
+    #   증거 60건이 사라진다 — 판정값은 남지만 그 판정의 «근거 그림»이 없어진다.
+    e="$OUT/$pid.$sid.w$WIDTH.export.png"; t="$OUT/$pid.$sid.w$WIDTH.truth.png"
+    node "$SK/cdp-eval.js" "$PORT" '(async()=>{var s=document.getElementById("'"$sid"'");if(!s)return "NOSEC";return await window.exportSection(s,"png",'"$WIDTH"',{returnDataUrl:true});})()' > "$OUT/$pid.$sid.w$WIDTH.txt" 2>&1
+    if ! grep -q '^"data:image' "$OUT/$pid.$sid.w$WIDTH.txt"; then
+      echo "  ⛔ $sid  export 실패 — $(head -c 60 "$OUT/$pid.$sid.w$WIDTH.txt")"; ERR=$((ERR+1))
       printf '%s\t%s\t%s\tERROR\texport실패\t\t\n' "$pid" "$sid" "$WIDTH" >> "$RESULTS"; continue
     fi
     arch -arm64 python3 -c "
 import base64,sys
-s=open('$OUT/$sid.w$WIDTH.txt').read().strip().strip('\"')
+s=open('$OUT/$pid.$sid.w$WIDTH.txt').read().strip().strip('\"')
 open('$e','wb').write(base64.b64decode(s.split(',',1)[1]))" 2>/dev/null
     node "$SK/truth-capture.js" "$PORT" "$sid" "$t" "$WIDTH" >/dev/null 2>&1   # ★폭을 truth 에도 넘긴다
-    if [ ! -s "$t" ] || [ ! -s "$e" ]; then
-      echo "  ⛔ $sid  캡처 없음/빈 파일 — «못 쟀다»(PASS 아님)"; ERR=$((ERR+1))
-      printf '%s\t%s\t%s\tERROR\t캡처실패\t\t\n' "$pid" "$sid" "$WIDTH" >> "$RESULTS"; continue
+    # ★어느 쪽이 없는지 «반드시» 말한다 — 2026-08-29 실측: 「캡처 없음/빈 파일」 한 마디가
+    #   export·truth 둘을 동시에 가리켜서, 실제로는 export 가 안 만들어지고 있는데 truth 를
+    #   한참 팠다(앱 재시작 2회·수동 재현 3회). 둘을 가리키는 메시지는 진단을 엉뚱한 데로 보낸다.
+    miss=""
+    [ ! -s "$e" ] && miss="export"
+    [ ! -s "$t" ] && miss="${miss:+$miss+}truth"
+    if [ -n "$miss" ]; then
+      echo "  ⛔ $sid  ★«$miss» 캡처가 없다/비었다 — «못 쟀다»(PASS 아님)"; ERR=$((ERR+1))
+      printf '%s\t%s\t%s\tERROR\t캡처실패(%s)\t\t\n' "$pid" "$sid" "$WIDTH" "$miss" >> "$RESULTS"; continue
     fi
+
+    # ★★재현성 자가검사 — truth 를 «두 번» 떠서 서로 0 이 아니면 그 실행은 못 믿는다.
+    #   2026-08-28 실측: truth 가 이미지 로드를 안 기다려 «사진 있는 truth» 와 «없는 truth» 가
+    #   번갈아 나왔다(sec_wpbbt49: 158,859B vs 928,121B → 거짓 FAIL 474,703).
+    #   ⇒ 「한 섹션이 틀렸다」보다 나쁘다 — 게이트가 실행마다 다른 답을 내면 «통과»도 «실패»도 못 믿는다.
+    #   ⇒ 재현 안 되면 FAIL 이 아니라 ★ERROR 다. export 와 비교할 자격이 없는 측정이다.
+    #   비용이 두 배라 «표본»으로만 건다: 프로젝트당 첫 섹션 + FAIL 난 섹션은 «반드시».
+    #     (EXPORT_GATE_REPRO=all 이면 전부, off 면 끄지만 «껐다는 걸 결과에 남긴다».)
+    repro_check() {
+      local t2="${t%.truth.png}.truth2.png"
+      node "$SK/truth-capture.js" "$PORT" "$sid" "$t2" "$WIDTH" >/dev/null 2>&1
+      if [ ! -s "$t2" ]; then echo "재현성: 2회차 캡처 실패"; return 1; fi
+      local d
+      d=$(arch -arm64 python3 "$CMP" "$t" "$t2" --json 2>/dev/null \
+          | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const o=JSON.parse(s);console.log(o.sizeMismatch?"SIZE":String(o.total))}catch(e){console.log("ERR")}})')
+      rm -f "$t2"
+      [ "$d" = "0" ] && return 0
+      echo "재현성: truth 두 번이 서로 다르다(diff=$d)"; return 1
+    }
+    # ★세션 간 «흔들리는» 섹션 — TOTAL 비교에서 빼되 «조용히» 빼지 않는다. 빠진 게 안 보이면
+    #   다음 사람이 「223개 다 본다」고 믿는다. 구조 층(크기·밴드개수)은 그대로 적용한다.
+    #   실측(2026-08-29): 전수 223섹션을 재시작+새 프로필로 2회 측정 → 221 동일, 흔들린 건 이거 하나.
+    #     sec_0g02j5t  TOTAL 1,476 ↔ 15,585 (cvb 카드가 세로 2px). export 는 안 흔들린다(바이트 동일 3회).
+    case " ${EXPORT_GATE_FLAKY_SECTIONS:-sec_0g02j5t} " in
+      *" $sid "*) echo "  ⚠️ $sid  ★흔들림 목록에 있다 — TOTAL 비교 제외, 구조 층만 본다(원인 미상·백로그)";;
+    esac
     j=$(arch -arm64 python3 "$CMP" "$e" "$t" --json 2>/dev/null)
     if [ -z "$j" ]; then echo "  ⛔ $sid  비교기 실패"; ERR=$((ERR+1)); continue; fi
     v=$(echo "$j" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const o=JSON.parse(s);console.log([o.verdict,o.total,o.maxCell,(o.reasons||[]).join(" / "),o.guess||""].join("\t"))})')
     verdict=$(echo "$v" | cut -f1); total=$(echo "$v" | cut -f2); cell=$(echo "$v" | cut -f3)
     reason=$(echo "$v" | cut -f4); guess=$(echo "$v" | cut -f5)
+    case " ${EXPORT_GATE_FLAKY_SECTIONS:-sec_0g02j5t} " in
+      *" $sid "*) struct=$(echo "$j" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).struct)}catch(e){console.log("?")}})')
+                  if [ "$struct" = "FAIL" ]; then verdict=FAIL; reason="구조 층 위반(TOTAL 은 흔들림으로 제외)"
+                  else verdict=FLAKY_SKIP; reason="세션 간 흔들림 — TOTAL 비교 제외(구조 층 통과)"; fi;;
+    esac
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$sid" "$WIDTH" "$verdict" "$total" "$cell" "$reason|$guess" >> "$RESULTS"
-    if [ "$verdict" = "PASS" ]; then PASS=$((PASS+1)); printf "  ✅ %-22s TOTAL=%-6s cell=%s\n" "$sid" "$total" "$cell"
+    # ★재현성을 «판정을 확정하기 전»에 묻는다 — FAIL 을 보고하기 전에 「이 측정이 재현되나」부터다.
+    need_repro=0
+    [ "$verdict" = "FAIL" ] && need_repro=1
+    [ "$first_of_proj" = "1" ] && need_repro=1
+    [ "${EXPORT_GATE_REPRO:-sample}" = "all" ] && need_repro=1
+    [ "${EXPORT_GATE_REPRO:-sample}" = "off" ] && need_repro=0
+    first_of_proj=0
+    if [ "$need_repro" = "1" ]; then
+      if ! rmsg=$(repro_check); then
+        echo "  ⛔ $sid  ★$rmsg — «못 쟀다»(FAIL 아님)"; ERR=$((ERR+1))
+        sed -i '' -e '$d' "$RESULTS"
+        printf '%s\t%s\t%s\tERROR\t재현실패\t\t%s\n' "$pid" "$sid" "$WIDTH" "$rmsg" >> "$RESULTS"
+        continue
+      fi
+    fi
+    if [ "$verdict" = "FLAKY_SKIP" ]; then SKIP=$((SKIP+1)); printf "  ⚠️  %-22s TOTAL=%-6s ★흔들림 제외(PASS 로 안 센다)\n" "$sid" "$total"
+    elif [ "$verdict" = "PASS" ]; then PASS=$((PASS+1)); printf "  ✅ %-22s TOTAL=%-6s cell=%s\n" "$sid" "$total" "$cell"
     else FAIL=$((FAIL+1)); printf "  ❌ %-22s TOTAL=%-6s cell=%-4s %s\n" "$sid" "$total" "$cell" "$reason"; [ -n "$guess" ] && echo "        추정: $guess"; fi
   done
 done
@@ -88,18 +169,39 @@ if [ -n "$EXPORT_GATE_BASELINE" ] && [ -f "$EXPORT_GATE_BASELINE" ]; then
   while IFS=$'\t' read -r bp bs bw bv bt bc brest; do
     [ "$bv" = "FAIL" ] || continue
     # ★폭이 «같은» 행만 본다 — 860 기준선으로 780 을 재면 전부 「신규」로 나온다
-    prev=$(awk -F'\t' -v s="$bs" -v w="$bw" '$2==s && $3==w{print $4"|"$5}' "$EXPORT_GATE_BASELINE" 2>/dev/null)
-    if [ "${prev%%|*}" = "FAIL" ]; then KNOWN=$((KNOWN+1)); echo "  ○ 기존 $bs (기준선도 FAIL, TOTAL ${prev##*|})"
-    else NEW=$((NEW+1)); echo "  ★신규 $bs (기준선 ${prev:-없음})"; fi
+    # ★키는 «프로젝트+섹션+폭» 셋 다다 — 섹션 id 만으로는 프로젝트가 겹쳐 엉뚱한 행과 비교한다.
+    prev=$(awk -F'\t' -v p="$bp" -v s="$bs" -v w="$bw" '$1==p && $2==s && $3==w{print $4"|"$5"|"$6"|"$7}' "$EXPORT_GATE_BASELINE" 2>/dev/null)
+    if [ -z "$prev" ]; then
+      NEW=$((NEW+1)); echo "  ★신규 $bs (기준선에 없는 섹션)"; continue
+    fi
+    pv=$(echo "$prev" | cut -d'|' -f1); pt=$(echo "$prev" | cut -d'|' -f2); pc=$(echo "$prev" | cut -d'|' -f3)
+    # ★«규칙»이 아니라 «숫자»로 가른다 — 2026-08-28 지디 판정.
+    #   「이 부류(banner02 평탄화)는 봐준다」는 예외 규칙을 넣으면 그 부류의 «진짜 회귀»도 같이 봐주게 된다.
+    #   ⇒ 기준선의 그 섹션 값을 «기존값»으로 두고, 게이트는 「그 값보다 커졌나」만 본다.
+    #     다음 사람이 근거(숫자)를 눈으로 볼 수 있고, 새 결함이 생기면 값이 커져서 잡힌다.
+    #   ⚠️크기 불일치는 값 비교와 «별도로» 본다 — 잘림은 total 이 우연히 안 커져도 그 자체로 신규다.
+    cur_sz=0; prev_sz=0
+    case "$brest" in *"크기 불일치"*) cur_sz=1;; esac
+    case "$prev"  in *"크기 불일치"*) prev_sz=1;; esac
+    if [ "$cur_sz" -gt "$prev_sz" ]; then
+      NEW=$((NEW+1)); echo "  ★신규 $bs (기준선엔 없던 «크기 불일치»)"
+    elif [ "${bt:-0}" -gt "${pt:-0}" ] || [ "${bc:-0}" -gt "${pc:-0}" ]; then
+      NEW=$((NEW+1)); echo "  ★신규 $bs (기준선 TOTAL $pt/cell $pc → 지금 TOTAL $bt/cell $bc — «커졌다»)"
+    else
+      KNOWN=$((KNOWN+1)); echo "  ○ 기존 $bs (기준선 TOTAL $pt/cell $pc ≥ 지금 TOTAL $bt/cell $bc)"
+    fi
   done < "$RESULTS"
   echo "   ⇒ 신규 FAIL $NEW · 기존 FAIL $KNOWN"
   if [ "$NEW" -eq 0 ] && [ "$FAIL" -gt 0 ]; then
-    echo "══ export 게이트 결과(폭 ${WIDTH}px) ══  PASS $PASS · FAIL $FAIL(전부 기존) · ERROR $ERR"
+    echo "══ export 게이트 결과(폭 ${WIDTH}px) ══  PASS $PASS · FAIL $FAIL(전부 기존값 이하) · ERROR $ERR"
     echo "✅ ★«신규» 회귀 0 — 이 릴리스가 내보내기를 깨뜨리지 않았다(기존 FAIL 은 별건으로 남긴다)."
     [ "$ERR" -gt 0 ] && exit 2; exit 0
   fi
 fi
-echo "══ export 게이트 결과(폭 ${WIDTH}px) ══  PASS $PASS · FAIL $FAIL · ERROR $ERR"
+echo "══ export 게이트 결과(폭 ${WIDTH}px) ══  PASS $PASS · FAIL $FAIL · ERROR $ERR · 흔들림제외 $SKIP"
+[ "$SKIP" -gt 0 ] && echo "   ⚠️★흔들림 제외 $SKIP 건 — PASS 가 아니다. 구조 층만 봤다(EXPORT_GATE_FLAKY_SECTIONS)."
+echo "   재현성 자가검사: ${EXPORT_GATE_REPRO:-sample}  (sample=프로젝트당 첫 섹션+FAIL 전건 / all / off)"
+[ "${EXPORT_GATE_REPRO:-sample}" = "off" ] && echo "   ⚠️★재현성 검사를 «껐다» — 이 결과는 「실행마다 같은 답인지」를 확인하지 않았다."
 echo "   산출물: $OUT   (결과표: $RESULTS)"
 if [ "$ERR" -gt 0 ]; then echo "⛔ERROR 가 있다 — «못 쟀다»는 PASS 가 아니다. 원인을 풀고 다시 돌려라."; exit 2; fi
 if [ "$FAIL" -gt 0 ]; then echo "⛔FAIL — 릴리스 차단."; exit 1; fi

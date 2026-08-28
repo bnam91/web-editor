@@ -1,0 +1,36 @@
+# export 게이트 기준선 — v0.8.4+da1ef6d · 폭 860px · 2026-08-28 재생성
+# ★재생성 이유 둘: ⑴ da1ef6d(banner02 자간 평탄화 누락) 반영 — 결함 있는 상태를 기준으로 굳히면 안 된다.
+#   ⑵ truth 하네스에 컴포넌트 자기 렌더(renderBanner02/renderComparison/renderCanvas)를 넣었다.
+#      그전 w780 기준선의 «크기 불일치»는 앱 결함이 아니라 하네스가 못 잰 것이었다(지금은 0건).
+# ⚠️truth@780 은 «관측»이 아니라 «구성물»이다 — 캔버스는 780 을 보여준 적이 없다.
+# 남은 FAIL 2건 = banner02 평탄화(scale→px)의 «래스터화 고유차». 값이 «커지면» 신규 회귀로 잡힌다.
+# ★2026-08-29 재검증: 이미지 대기·재현성 자가검사·프로젝트 키·transform:none 삭제를 «전부 넣은 뒤»
+#   같은 22행을 다시 떠서 판정·TOTAL·maxCell 이 자릿수까지 동일함을 확인했다(값 변경 없음).
+# ★세션 간 재현성 실측(2026-08-29): 전수 223섹션을 «앱 재시작 + 새 userData 사본»으로 2회차 측정
+#   → 221/223 이 판정·TOTAL·maxCell «자릿수까지» 동일. 누락/추가 0행.
+#   차이 2건 = ⑴ sec_wpbbt49 하네스 이미지대기 수정(474,703→0, 예측한 방향·예측한 섹션)
+#              ⑵ sec_0g02j5t 세션 간 흔들림(1,476↔15,585, 원인 미상 — 게이트에서 표시하고 제외)
+#   ⇒ ★이 기준선 44행에는 «흔들리는 섹션이 없다». TOTAL 비교는 «이 조건에서» 유효하다.
+#     조건: 같은 머신·같은 브랜치·같은 하네스. 조건이 바뀌면 이 유효성도 다시 재야 한다.
+proj_1783085582212	sec_g3p7ne6	860	PASS	0	0	|
+proj_1783085582212	sec_sy8vfx0	860	PASS	0	0	|
+proj_1783085582212	sec_2vpa3ix	860	PASS	0	0	|
+proj_1783085582212	sec_5qzzo8x	860	PASS	0	0	|
+proj_1783085582212	sec_58rpklq	860	PASS	0	0	|
+proj_1783049016508	sec_se4yn5d	860	PASS	0	0	|
+proj_1783049016508	sec_mnfdena	860	PASS	0	0	|
+proj_1783049016508	sec_s4cxvp8	860	PASS	0	0	|
+proj_1783049016508	sec_f5qa114	860	PASS	0	0	|
+proj_1783049016508	sec_lb9k15q	860	PASS	0	0	|
+proj_1781053545182	sec_9tdz3ke	860	PASS	0	0	|
+proj_1781053545182	sec_rzu35th	860	FAIL	3960	114	다른 픽셀 3960개(밝기차 40 초과) — 오차 0 기준 / 국소 뭉침 114/256 @ [200, 424] >= 60|중앙/전면 — background-size·position 또는 기하 이동 계열
+proj_1781053545182	sec_fbk3rzi	860	PASS	0	0	|
+proj_1781053545182	sec_uk8ggh2	860	PASS	0	0	|
+proj_1781455176984	sec_m524hxg_1	860	PASS	0	0	|
+proj_1781455176984	sec_m524hxg_2	860	PASS	0	0	|
+proj_1781455176984	sec_m524hxg_3	860	PASS	0	0	|
+proj_1781455176984	sec_m524hxg_4	860	PASS	0	0	|
+proj_1787627353838	sec_84a7j_uscssba	860	PASS	0	0	|
+proj_1787627353838	sec_84a7j_joz65g3	860	PASS	0	0	|
+proj_1787627353838	sec_84a7j_rto5c9n	860	FAIL	19972	220	다른 픽셀 19972개(밝기차 40 초과) — 오차 0 기준 / 국소 뭉침 220/256 @ [200, 1696] >= 60|중앙/전면 — background-size·position 또는 기하 이동 계열
+proj_1787627353838	sec_84a7j_ei734c1	860	PASS	0	0	|
