@@ -98,8 +98,8 @@
   {
     "name": "C3: changeDiff 예외를 «생략»으로",
     "file": "js/version-history-ui.js",
-    "find": "    } catch (e) {\n      html = _skipHtml(e && e.message ? e.message : '비교 중 오류가 났습니다');\n    } finally {",
-    "replace": "    } catch (e) {\n      html = '';\n    } finally {"
+    "find": "      html = _skipHtml(e && e.message ? e.message : '비교 중 오류가 났습니다');\n      cacheable = false;",
+    "replace": "      html = '';"
   },
   {
     "name": "C3: 상세 캐시(같은 행 재요청 방지)",
@@ -124,5 +124,83 @@
     "file": "js/version-history-ui.js",
     "find": "    too_large: '이 버전이 너무 커서 섹션 단위 비교를 건너뜁니다',",
     "replace": "    too_large: '',"
+  },
+  {
+    "name": "M1 긍정 안심 문구 통째로",
+    "file": "js/version-history-ui.js",
+    "find": "      rows.push('<div class=\"vhist-detail-note\">이 버전과 「지금」의 섹션 내용이 같습니다.</div>');",
+    "replace": "      /* MUTANT */"
+  },
+  {
+    "name": "M-치명② total===0 가드",
+    "file": "js/version-history-ui.js",
+    "find": "    if (!d || !d.summary || d.summary.total === 0) {",
+    "replace": "    if (false) {"
+  },
+  {
+    "name": "M6 await 뒤 재진입 확인",
+    "file": "js/version-history-ui.js",
+    "find": "    if (!_ctx || _ctx.projectId !== targetId) return;\n    const liveBox",
+    "replace": "    const liveBox"
+  },
+  {
+    "name": "M-중대⑥ 실패 비캐시",
+    "file": "js/version-history-ui.js",
+    "find": "    if (cacheable) _detailCache.set(ts, html);",
+    "replace": "    _detailCache.set(ts, html);"
+  },
+  {
+    "name": "M8 too_large 용량 병기",
+    "file": "js/version-history-ui.js",
+    "find": "          html = _skipHtml(r && r.reason === 'too_large' && r.bytes\n            ? `${why} (${formatBytesLocal(r.bytes)})` : why);",
+    "replace": "          html = _skipHtml(why);"
+  },
+  {
+    "name": "M10 비교 중 버튼 잠금",
+    "file": "js/version-history-ui.js",
+    "find": "    btn.disabled = true;\n    btn.textContent = '비교 중…';",
+    "replace": "    btn.textContent = '비교 중…';"
+  },
+  {
+    "name": "M12 손실 줄 is-lost",
+    "file": "js/version-history-ui.js",
+    "find": "`<div class=\"vhist-detail-line is-lost\">− 지금은 없는 섹션",
+    "replace": "`<div class=\"vhist-detail-line\">− 지금은 없는 섹션"
+  },
+  {
+    "name": "M13 「지금」 행 상세 억제",
+    "file": "js/version-history-ui.js",
+    "find": "    const actions = r.isCurrent ? '<div class=\"vhist-actions\"></div>'",
+    "replace": "    const actions = false ? '<div class=\"vhist-actions\"></div>'"
+  },
+  {
+    "name": "M14 섹션 이름 이스케이프",
+    "file": "js/version-history-ui.js",
+    "find": "    const names = items.slice(0, max).map(x => _esc(x.n || x.k));",
+    "replace": "    const names = items.slice(0, max).map(x => String(x.n || x.k));"
+  },
+  {
+    "name": "M-중대⑤ 혼재 판정(base64 규약)",
+    "file": "js/version-diff.js",
+    "find": "      if (typeof v === 'string' && FOLDABLE_B64.test(v)) return true;",
+    "replace": "      if (typeof v === 'string' && v.indexOf('data:image') !== -1) return true;"
+  },
+  {
+    "name": "M-중대③ L1/L2 신원 통일",
+    "file": "js/version-diff.js",
+    "find": "      for (const [k, v] of m) { const id = _idOf(k); if (!o.has(id)) o.set(id, v); }",
+    "replace": "      for (const [k, v] of m) { if (!o.has(k)) o.set(k, v); }"
+  },
+  {
+    "name": "M-경미⑦ reason 사전",
+    "file": "js/version-history-ui.js",
+    "find": "    no_current: '「지금」 상태 파일을 찾을 수 없습니다',      // main.js:1243",
+    "replace": "    // MUTANT: no_current 키 제거"
+  },
+  {
+    "name": "M-경미⑧ 인라인 display 로 CSS 죽이기",
+    "file": "js/version-history-ui.js",
+    "find": "    liveBox.style.display = '';   // ★[경미⑧] CSS(.vhist-detail{display:flex;gap})가 살도록 인라인을 지운다",
+    "replace": "    liveBox.style.display = 'block';"
   }
 ]
