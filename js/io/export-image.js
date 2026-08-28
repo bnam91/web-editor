@@ -419,8 +419,24 @@ async function exportSection(sec, format, width, opts) {
       const scalePx = (st, props) => props.forEach(p => {
         if (st[p] && /^[\d.]+px$/.test(st[p].trim())) st[p] = (parseFloat(st[p]) * s) + 'px';
       });
-      inner.querySelectorAll('[style]').forEach(el =>
-        scalePx(el.style, ['left', 'top', 'width', 'height', 'fontSize', 'marginTop', 'borderRadius']));
+      /* ★letterSpacing 이 «빠져 있었다» — fontSize 는 s 배로 줄이는데 자간은 원본 px 로 남는다.
+       *   그러면 글자만 작아지고 간격은 그대로라 «자간이 어긋난 채» 내보내진다.
+       *   실측(2026-08-28, sec_84a7j_rto5c9n · 860px):
+       *     같은 실행 안에서 export↔truth  22972 → 19972
+       *     ★대조군 — 두 실행의 truth 는 «완전 동일»(0). 바뀐 건 export 뿐(3415px).
+       *   ⚠️처음엔 「이 분기가 안 탄다」고 스스로 «잘못 정정»했다. 맨 배너를 따로 클론해 재보니
+       *     renderBanner02 가 s=1 로 만들어서였는데, 진짜 export 는 «섹션 통째» 클론이라
+       *     scale(0.97948) 이 살아 있고 분기가 «탄다»(계측으로 확인: 평탄화 후 transform=none,
+       *     fontSize 26px→25.4665px = ×0.97948). ⇒ 대표성 없는 축소재현이 반증을 만들어냈다.
+       *   ⚠️음수 자간(-0.5px 실재)도 있어 정규식이 부호를 받아야 한다 — 기존 /^[\d.]+px$/ 는 못 받는다. */
+      const scaleSigned = (st, props) => props.forEach(p => {
+        const v = st[p] && st[p].trim();
+        if (v && /^-?[\d.]+px$/.test(v)) st[p] = (parseFloat(v) * s) + 'px';
+      });
+      inner.querySelectorAll('[style]').forEach(el => {
+        scalePx(el.style, ['left', 'top', 'width', 'height', 'fontSize', 'marginTop', 'borderRadius']);
+        scaleSigned(el.style, ['letterSpacing']);
+      });
       inner.style.width  = (parseFloat(inner.style.width)  * s) + 'px';
       inner.style.height = (parseFloat(inner.style.height) * s) + 'px';
       inner.style.transform = 'none';
@@ -457,8 +473,20 @@ async function exportSection(sec, format, width, opts) {
       const scalePx = (st, props) => props.forEach(p => {
         if (st[p] && /^[\d.]+px$/.test(st[p].trim())) st[p] = (parseFloat(st[p]) * s) + 'px';
       });
-      inner.querySelectorAll('[style]').forEach(el =>
-        scalePx(el.style, ['left', 'top', 'width', 'height', 'fontSize', 'marginTop', 'borderRadius']));
+      /* ★[잠복] letterSpacing 이 «빠져 있다» — fontSize 는 s 배로 줄이는데 자간은 원본 px 로 남는다.
+       *   그러면 글자만 작아지고 간격은 그대로라 «자간이 어긋난 채» 내보내진다.
+       *   ⚠️2026-08-28 실측: 지금 표본에선 이 분기가 «안 탄다»(renderBanner02 뒤 s=1 이라 건너뛴다).
+       *     즉 재현된 결함이 아니라 «논리 불일치»다 — 고쳐두되 「이걸 고쳐서 무엇이 나아졌다」고 말하지 않는다.
+       *     s≠1 이 남는 배너(더 좁은 폭·더 긴 글)에서 발화할 수 있다.
+       *   ⚠️음수 자간(-0.5px 실재)도 있어 정규식이 부호를 받아야 한다 — 기존 /^[\d.]+px$/ 는 못 받는다. */
+      const scaleSigned = (st, props) => props.forEach(p => {
+        const v = st[p] && st[p].trim();
+        if (v && /^-?[\d.]+px$/.test(v)) st[p] = (parseFloat(v) * s) + 'px';
+      });
+      inner.querySelectorAll('[style]').forEach(el => {
+        scalePx(el.style, ['left', 'top', 'width', 'height', 'fontSize', 'marginTop', 'borderRadius']);
+        scaleSigned(el.style, ['letterSpacing']);
+      });
       inner.style.width  = (parseFloat(inner.style.width)  * s) + 'px';
       inner.style.height = (parseFloat(inner.style.height) * s) + 'px';
       inner.style.transform = 'none';
