@@ -73,30 +73,69 @@ for spec in "$@"; do
   gb=$(df -g / | tail -1 | awk '{print $4}')
   if [ "${gb:-0}" -lt 3 ]; then echo "⛔디스크 여유 ${gb}GB — 중단한다. 산출물: $OUT"; exit 2; fi
   if ! open_project "$pid"; then echo "  ⛔프로젝트가 안 열렸다(${OPEN_TIMEOUT:-90}s 대기) — «못 쟀다»"; ERR=$((ERR+1)); printf '%s\t-\t%s\tERROR\t열기실패\t\t\n' "$pid" "$WIDTH" >> "$RESULTS"; continue; fi
+  first_of_proj=1
   ids=$(section_ids "$n")
   if [ -z "$ids" ]; then echo "  ⛔섹션을 못 읽었다 — 프로젝트가 안 열렸다"; ERR=$((ERR+1)); printf '%s\t-\t%s\tERROR\t섹션읽기실패\t\t\n' "$pid" "$WIDTH" >> "$RESULTS"; continue; fi
   for sid in $ids; do
-    e="$OUT/$sid.w$WIDTH.export.png"; t="$OUT/$sid.w$WIDTH.truth.png"
-    node "$SK/cdp-eval.js" "$PORT" '(async()=>{var s=document.getElementById("'"$sid"'");if(!s)return "NOSEC";return await window.exportSection(s,"png",'"$WIDTH"',{returnDataUrl:true});})()' > "$OUT/$sid.w$WIDTH.txt" 2>&1
-    if ! grep -q '^"data:image' "$OUT/$sid.w$WIDTH.txt"; then
-      echo "  ⛔ $sid  export 실패 — $(head -c 60 "$OUT/$sid.w$WIDTH.txt")"; ERR=$((ERR+1))
+    # ★파일명에 «프로젝트 id» 를 넣는다 — 섹션 id 는 프로젝트 사이에서 «겹친다».
+    #   실측(2026-08-28 전수): 223행 중 고유 섹션 id 가 163개. sec_rbvkmpj 하나가 프로젝트 7개에 있다
+    #   (복제 프로젝트끼리 섹션 id 를 공유한다). 겹치면 나중 캡처가 앞 캡처를 «조용히» 덮어써
+    #   증거 60건이 사라진다 — 판정값은 남지만 그 판정의 «근거 그림»이 없어진다.
+    e="$OUT/$pid.$sid.w$WIDTH.export.png"; t="$OUT/$pid.$sid.w$WIDTH.truth.png"
+    node "$SK/cdp-eval.js" "$PORT" '(async()=>{var s=document.getElementById("'"$sid"'");if(!s)return "NOSEC";return await window.exportSection(s,"png",'"$WIDTH"',{returnDataUrl:true});})()' > "$OUT/$pid.$sid.w$WIDTH.txt" 2>&1
+    if ! grep -q '^"data:image' "$OUT/$pid.$sid.w$WIDTH.txt"; then
+      echo "  ⛔ $sid  export 실패 — $(head -c 60 "$OUT/$pid.$sid.w$WIDTH.txt")"; ERR=$((ERR+1))
       printf '%s\t%s\t%s\tERROR\texport실패\t\t\n' "$pid" "$sid" "$WIDTH" >> "$RESULTS"; continue
     fi
     arch -arm64 python3 -c "
 import base64,sys
-s=open('$OUT/$sid.w$WIDTH.txt').read().strip().strip('\"')
+s=open('$OUT/$pid.$sid.w$WIDTH.txt').read().strip().strip('\"')
 open('$e','wb').write(base64.b64decode(s.split(',',1)[1]))" 2>/dev/null
     node "$SK/truth-capture.js" "$PORT" "$sid" "$t" "$WIDTH" >/dev/null 2>&1   # ★폭을 truth 에도 넘긴다
     if [ ! -s "$t" ] || [ ! -s "$e" ]; then
       echo "  ⛔ $sid  캡처 없음/빈 파일 — «못 쟀다»(PASS 아님)"; ERR=$((ERR+1))
       printf '%s\t%s\t%s\tERROR\t캡처실패\t\t\n' "$pid" "$sid" "$WIDTH" >> "$RESULTS"; continue
     fi
+
+    # ★★재현성 자가검사 — truth 를 «두 번» 떠서 서로 0 이 아니면 그 실행은 못 믿는다.
+    #   2026-08-28 실측: truth 가 이미지 로드를 안 기다려 «사진 있는 truth» 와 «없는 truth» 가
+    #   번갈아 나왔다(sec_wpbbt49: 158,859B vs 928,121B → 거짓 FAIL 474,703).
+    #   ⇒ 「한 섹션이 틀렸다」보다 나쁘다 — 게이트가 실행마다 다른 답을 내면 «통과»도 «실패»도 못 믿는다.
+    #   ⇒ 재현 안 되면 FAIL 이 아니라 ★ERROR 다. export 와 비교할 자격이 없는 측정이다.
+    #   비용이 두 배라 «표본»으로만 건다: 프로젝트당 첫 섹션 + FAIL 난 섹션은 «반드시».
+    #     (EXPORT_GATE_REPRO=all 이면 전부, off 면 끄지만 «껐다는 걸 결과에 남긴다».)
+    repro_check() {
+      local t2="${t%.truth.png}.truth2.png"
+      node "$SK/truth-capture.js" "$PORT" "$sid" "$t2" "$WIDTH" >/dev/null 2>&1
+      if [ ! -s "$t2" ]; then echo "재현성: 2회차 캡처 실패"; return 1; fi
+      local d
+      d=$(arch -arm64 python3 "$CMP" "$t" "$t2" --json 2>/dev/null \
+          | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const o=JSON.parse(s);console.log(o.sizeMismatch?"SIZE":String(o.total))}catch(e){console.log("ERR")}})')
+      rm -f "$t2"
+      [ "$d" = "0" ] && return 0
+      echo "재현성: truth 두 번이 서로 다르다(diff=$d)"; return 1
+    }
     j=$(arch -arm64 python3 "$CMP" "$e" "$t" --json 2>/dev/null)
     if [ -z "$j" ]; then echo "  ⛔ $sid  비교기 실패"; ERR=$((ERR+1)); continue; fi
     v=$(echo "$j" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const o=JSON.parse(s);console.log([o.verdict,o.total,o.maxCell,(o.reasons||[]).join(" / "),o.guess||""].join("\t"))})')
     verdict=$(echo "$v" | cut -f1); total=$(echo "$v" | cut -f2); cell=$(echo "$v" | cut -f3)
     reason=$(echo "$v" | cut -f4); guess=$(echo "$v" | cut -f5)
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$sid" "$WIDTH" "$verdict" "$total" "$cell" "$reason|$guess" >> "$RESULTS"
+    # ★재현성을 «판정을 확정하기 전»에 묻는다 — FAIL 을 보고하기 전에 「이 측정이 재현되나」부터다.
+    need_repro=0
+    [ "$verdict" = "FAIL" ] && need_repro=1
+    [ "$first_of_proj" = "1" ] && need_repro=1
+    [ "${EXPORT_GATE_REPRO:-sample}" = "all" ] && need_repro=1
+    [ "${EXPORT_GATE_REPRO:-sample}" = "off" ] && need_repro=0
+    first_of_proj=0
+    if [ "$need_repro" = "1" ]; then
+      if ! rmsg=$(repro_check); then
+        echo "  ⛔ $sid  ★$rmsg — «못 쟀다»(FAIL 아님)"; ERR=$((ERR+1))
+        sed -i '' -e '$d' "$RESULTS"
+        printf '%s\t%s\t%s\tERROR\t재현실패\t\t%s\n' "$pid" "$sid" "$WIDTH" "$rmsg" >> "$RESULTS"
+        continue
+      fi
+    fi
     if [ "$verdict" = "PASS" ]; then PASS=$((PASS+1)); printf "  ✅ %-22s TOTAL=%-6s cell=%s\n" "$sid" "$total" "$cell"
     else FAIL=$((FAIL+1)); printf "  ❌ %-22s TOTAL=%-6s cell=%-4s %s\n" "$sid" "$total" "$cell" "$reason"; [ -n "$guess" ] && echo "        추정: $guess"; fi
   done
@@ -111,7 +150,8 @@ if [ -n "$EXPORT_GATE_BASELINE" ] && [ -f "$EXPORT_GATE_BASELINE" ]; then
   while IFS=$'\t' read -r bp bs bw bv bt bc brest; do
     [ "$bv" = "FAIL" ] || continue
     # ★폭이 «같은» 행만 본다 — 860 기준선으로 780 을 재면 전부 「신규」로 나온다
-    prev=$(awk -F'\t' -v s="$bs" -v w="$bw" '$2==s && $3==w{print $4"|"$5"|"$6"|"$7}' "$EXPORT_GATE_BASELINE" 2>/dev/null)
+    # ★키는 «프로젝트+섹션+폭» 셋 다다 — 섹션 id 만으로는 프로젝트가 겹쳐 엉뚱한 행과 비교한다.
+    prev=$(awk -F'\t' -v p="$bp" -v s="$bs" -v w="$bw" '$1==p && $2==s && $3==w{print $4"|"$5"|"$6"|"$7}' "$EXPORT_GATE_BASELINE" 2>/dev/null)
     if [ -z "$prev" ]; then
       NEW=$((NEW+1)); echo "  ★신규 $bs (기준선에 없는 섹션)"; continue
     fi
@@ -140,6 +180,8 @@ if [ -n "$EXPORT_GATE_BASELINE" ] && [ -f "$EXPORT_GATE_BASELINE" ]; then
   fi
 fi
 echo "══ export 게이트 결과(폭 ${WIDTH}px) ══  PASS $PASS · FAIL $FAIL · ERROR $ERR"
+echo "   재현성 자가검사: ${EXPORT_GATE_REPRO:-sample}  (sample=프로젝트당 첫 섹션+FAIL 전건 / all / off)"
+[ "${EXPORT_GATE_REPRO:-sample}" = "off" ] && echo "   ⚠️★재현성 검사를 «껐다» — 이 결과는 「실행마다 같은 답인지」를 확인하지 않았다."
 echo "   산출물: $OUT   (결과표: $RESULTS)"
 if [ "$ERR" -gt 0 ]; then echo "⛔ERROR 가 있다 — «못 쟀다»는 PASS 가 아니다. 원인을 풀고 다시 돌려라."; exit 2; fi
 if [ "$FAIL" -gt 0 ]; then echo "⛔FAIL — 릴리스 차단."; exit 1; fi

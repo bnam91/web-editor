@@ -254,11 +254,15 @@ async function exportSection(sec, format, width, opts) {
   const useNative = !(opts && opts.forceH2C) && !!window.electronAPI?.captureSection;
   clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + w + 'px;margin:0;outline:none;';
 
-  // P1 우회 부수 안정성: clone 자체를 stacking context로 격리 + 부모 transform 영향 차단
+  // P1 우회 부수 안정성: clone 자체를 stacking context로 격리
   // (sec_fdm1dzu처럼 자체 stacking context인 섹션 외에도 일관성 보장)
+  // ★`transform: 'none'` 은 «지웠다»(2026-08-28) — 의도는 「부모 transform 영향 차단」이었는데
+  //   clone 은 position:fixed 로 body 에 붙는다. 즉 `#canvas-scaler` 의 matrix(0.4,…) 조상
+  //   «밖»에 이미 있어서 차단할 부모 transform 이 없다. 효과가 없는 채로 남아 있으면 다음 사람이
+  //   「여기서 transform 을 다루고 있구나」로 읽고 헛짚는다.
+  //   실증: 이 줄이 있을 때와 없을 때 export PNG 가 «바이트 동일»(15섹션 실측).
   if (useNative) {
     clone.style.isolation = clone.style.isolation || 'isolate';
-    clone.style.transform = 'none';
   }
 
   document.body.appendChild(clone);
