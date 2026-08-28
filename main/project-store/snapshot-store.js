@@ -33,7 +33,7 @@ const X = require('./externalizer');
 // ★[C1] 2 로 올린다 — v1 인덱스는 «깨진 정규식으로 계산된 지문»을 담고 있다.
 //   그대로 두면 옛 스냅샷들이 계속 거짓말한다(지운 섹션이 손실에 안 뜨고, 안 지운 게 뜬다).
 //   readIndex 가 v!==SCHEMA 를 거부하므로, 다음 접근에서 «자동 재빌드»된다(읽기 예산제가 비용을 묶는다).
-const SCHEMA        = 2;
+const SCHEMA        = 3;   // ★2→3: legacy 필드 신설([C④]). 옛 인덱스엔 없어서 «보호 대상»을 못 가른다 → 강제 재빌드
 const MIN_GAP_MS    = 10 * 60 * 1000;   // 자동 스냅샷 간격 게이트(저장 폭주 방지)
 const RECENT_KEEP   = 20;               // 최근 N개는 무조건 보존
 const DAILY_DAYS    = 30;               // 최근 D일, 각 날짜의 «마지막» 1개 보존 (Q5 현빈 확정: 14→30)
@@ -129,6 +129,21 @@ function isAllCanvasEmpty(d) {
 function isProjectShaped(d) {
   if (!d || typeof d !== 'object' || Array.isArray(d)) return false;
   return Array.isArray(d.pages) || typeof d.canvas === 'string';
+}
+/**
+ * 이 프로젝트가 «협업 등록»인가. ★모르면 «협업»이라고 답한다(fail-closed).
+ * ⛔초판은 meta 를 못 읽으면 false(=비협업)를 돌려줬다 — 그러면 외부화가 돌아 상대 디스크에 없는
+ *   goya-asset:// 참조가 나가고 깨진 이미지가 간다. main.js 의 _externalizeOnOpen 은 같은 상황을
+ *   「불명 → 보수적으로 협업 간주」로 막는데([F5]), 그 규율이 여기선 옆문으로 열려 있었다(3차 검수 ⑤).
+ *   ⇒ meta 파일이 «있는데» 못 읽으면 협업으로 본다. 아예 없으면 비협업이 맞다(등록된 적이 없다).
+ */
+function isCollabProject(p) {
+  try {
+    if (!fs.existsSync(p.meta)) return false;      // 등록된 적 없음 — 이건 «앎»이다
+    const m = readJsonOrNull(p.meta);
+    if (m === null) return true;                   // 있는데 못 읽음 = 불명 → 보수적으로 협업
+    return !!m.collabRef;
+  } catch (_) { return true; }                     // stat 조차 실패 = 불명
 }
 function canonOf(data) {
   // ★[M4] 「data:image 가 있나」가 아니라 «우리가 접는 것이 남았나»로 판정한다.
@@ -391,6 +406,10 @@ function rebuildIndex(projectsDir, projectId, opts = {}) {
   const prevByTs = new Map(((prev && prev.entries) || []).map(e => [e.ts, e]));
   const pins = readPins(projectsDir, projectId); // [F2] 인덱스를 잃어도 핀은 여기서 되살아난다
   const schemaSame = !!(prev && prev.v === SCHEMA);   // ★[C1] 스키마가 다르면 옛 계산을 못 믿는다
+  // ★[C④] 재빌드는 「누가 썼는지」를 모른다 — canon=0 이 «기능 이전의 레거시»인지 «협업 verbatim»인지.
+  //   협업 프로젝트의 canon=0 은 후자다(외부화가 금지돼 있으니 당연히 안 접혀 있다).
+  //   그걸 레거시로 보면 인덱스를 한 번 잃는 순간 다시 «영원히 안 지워지는» 상태로 돌아간다.
+  const collabHere = isCollabProject(p);
   // [F7] ★최신 슬롯부터 예산만큼만 «읽는다». 이미 분석된 항목은 다시 읽지 않는다.
   const newestFirst = slotFiles(p.history).slice().reverse();
   let budget = opts.byteBudget != null ? opts.byteBudget : REBUILD_BYTE_BUDGET;
@@ -413,7 +432,7 @@ function rebuildIndex(projectsDir, projectId, opts = {}) {
     if (budget - st.size < 0 && st.size > LEGACY_RAW_MAX) {
       idx.entries.push({
         ts, file, reason: pinReason0 || old.reason || 'auto', pinned: !!pinReason0,
-        canon: 0, bytes: st.size, name: old.name || null,
+        canon: 0, legacy: collabHere ? 0 : 1, bytes: st.size, name: old.name || null,
         counts: null, secs: [], assets: old.assets || [], pending: true,
       });
       continue;
@@ -441,6 +460,7 @@ function rebuildIndex(projectsDir, projectId, opts = {}) {
       reason: pinReason0 || old.reason || 'auto',
       pinned: !!pinReason0,
       canon,
+      legacy: (canon === 0 && !collabHere) ? 1 : 0,
       bytes: Buffer.byteLength(raw),
       name,
       counts: fp.counts, secs: fp.secs, assets: [...assetsFromRaw(raw)], // [F4] 캔버스 밖 참조도 잡는다
@@ -487,24 +507,37 @@ function writeSnapshot(projectsDir, projectId, data, opts = {}) {
   const now = opts.now || Date.now();
   if (!data || typeof data !== 'object') return { ok: false, skipped: 'no_data' };
 
-  const idx = ensureIndex(projectsDir, projectId);
+  /* ★[C⑥] 게이트를 «싸게» 판정한다 — 인덱스가 없다고 여기서 재빌드하지 않는다.
+   *   초판은 ensureIndex 를 게이트 «앞»에 뒀다. 인덱스가 없으면 그게 곧 rebuildIndex 라
+   *   최대 120MB 를 읽는다. 주석엔 "게이트에 막히면 0.1ms"라 적었는데 실측 247ms 였다(3차 검수 ⑥).
+   *   ⇒ 디스크가 차서 인덱스 기록이 계속 실패하면 «1.5초 debounce 마다» 이 값을 낸다 —
+   *     사고 상황에서 앱을 더 느리게 만드는, 정확히 거꾸로 된 비용이다.
+   *   ⇒ 슬롯 «파일명»만으로 마지막 시각을 알 수 있다(파일명이 ts 다, 0바이트 읽기).
+   *     인덱스는 게이트를 «통과한 뒤에만» 만든다 — 어차피 그때 스냅샷을 쓴다.
+   *   ★저장 경로는 인덱스를 «만들지» 않는다. 만드는 건 열람(listVersions) 쪽 일이다. */
+  const idxCheap = readIndex(projectsDir, projectId);   // 없으면 null — 재빌드 안 한다
 
-  // 간격 게이트 — force 면 무시. ★게이트에 막혀도 current 지문은 갱신한다(목록이 늘 최신을 보게).
+  // 간격 게이트 — force 면 무시.
   if (opts.force !== true) {
     // ★[M5] «내 시간선의» 최신을 본다 — 미래 ts 를 기준으로 잡으면 게이트가 영원히 안 열린다.
     //   미래 엔트리는 실제로 생긴다: NTP 보정 · 드라이브 동기화로 넘어온 폴더 · 백업 복원.
     //   실측: 미래 엔트리 1개면 정상 시계로 12회 저장해도 «성공 0» — 그리고 「안 쌓이고 있다」는
     //   신호가 어디에도 없어서 사고가 나야 안다. 그건 이 기능이 «있으나 마나»가 되는 실패다.
     let last = 0;
-    for (const e of idx.entries) if (e.ts <= now && e.ts > last) last = e.ts;
+    if (idxCheap) { for (const e of idxCheap.entries) if (e.ts <= now && e.ts > last) last = e.ts; }
+    else { for (const f of slotFiles(p.history)) { const t = parseInt(f); if (t <= now && t > last) last = t; } }
     if (!(now - last > MIN_GAP_MS)) {
       // 게이트에 막혀도 current 는 «가끔» 갱신한다 — 매번 하면 저장 경로에 32ms 회귀.
       // 건너뛴 사이의 정확도는 listVersions 의 mtime 신선도 판정이 메운다.
-      const curTs = (idx.current && idx.current.ts) || 0;
-      if (now - curTs > CURRENT_REFRESH_MS) updateCurrent(projectsDir, projectId, data, { now });
+      // ★인덱스가 없으면 여기서도 «안» 만든다 — 위와 같은 이유다(그 비용이 나는 자리가 바로 여기였다).
+      if (idxCheap) {
+        const curTs = (idxCheap.current && idxCheap.current.ts) || 0;
+        if (now - curTs > CURRENT_REFRESH_MS) updateCurrent(projectsDir, projectId, data, { now });
+      }
       return { ok: false, skipped: 'interval' };
     }
   }
+  const idx = ensureIndex(projectsDir, projectId);   // ★게이트를 통과한 뒤에만(10분에 한 번)
 
   try { fs.mkdirSync(p.history, { recursive: true }); } catch (_) {}
 
@@ -512,9 +545,7 @@ function writeSnapshot(projectsDir, projectId, data, opts = {}) {
   //   손상 폴백(projects:load)이 히스토리 슬롯을 proj.json 으로 자가치유 재기록하는데, 협업에서
   //   proj.json 은 «동기화되는 산출물»이다. 정규형이 그리로 올라가면 상대 디스크엔 assets/ 가 없어
   //   깨진 이미지가 간다. 설계 §8-4 가 「스냅샷은 로컬 전용」을 전제로 허용했던 구멍(적대검수 지적).
-  const isCollab = (() => {
-    try { const m = readJsonOrNull(p.meta); return !!(m && m.collabRef); } catch (_) { return false; }
-  })();
+  const isCollab = isCollabProject(p);
   const canon = isCollab
     ? { data, changed: false, images: 0, reused: 0, skipped: 0, bytesWritten: 0 }
     : canonicalize(projectsDir, projectId, data, { write: true });
@@ -534,6 +565,12 @@ function writeSnapshot(projectsDir, projectId, data, opts = {}) {
     ts, file, reason,
     pinned: PINNED_REASONS.has(reason),
     canon: canonOf(canon.data), // [F6] write/rebuild 가 같은 정의를 쓴다. 하드코딩 1 은 절단 base64 를 거짓말했다
+    // ★[C④] «형식»과 «출처»를 가른다. canon 은 「접을 base64 가 남았나」(=무겁나)이고,
+    //   legacy 는 「이 기능 이전부터 있던 것이라 손대면 안 되나」다. 초판은 둘을 canon 하나로 묶어서
+    //   협업 verbatim 스냅샷(외부화 금지 → canon=0)이 «레거시 보호 + 예산 제외»를 통째로 물려받았다.
+    //   결과: 상한이 «세 겹으로» 사라져 720슬롯/281MB/삭제 0 (실행 결과). 39.59MB 로 환산하면 1.9GB/일.
+    //   ⇒ 우리가 방금 쓴 것은 무슨 형식이든 레거시가 «아니다». 정상 보관정책을 탄다.
+    legacy: 0,
     bytes: Buffer.byteLength(out),
     name: (data && data.name) || null,
     counts: fp.counts, secs: fp.secs,
@@ -594,7 +631,7 @@ function pruneVersions(projectsDir, projectId, opts = {}) {
   const keep = new Set();
   for (const e of all) {
     if (e.pinned) keep.add(e.ts);
-    if (e.canon === 0) keep.add(e.ts); // ★레거시 무접촉
+    if (e.legacy === 1) keep.add(e.ts); // ★레거시 무접촉
   }
   // [F1 치명] ★«가장 최신» 스냅샷은 무슨 일이 있어도 남긴다.
   //   방금 만든 스냅샷을 몇 마이크로초 뒤 프룬이 지우는 일이 실제로 있었다(적대검수 재현).
@@ -616,7 +653,7 @@ function pruneVersions(projectsDir, projectId, opts = {}) {
   //   초판은 total 에 레거시(canon:0)까지 넣었는데 레거시는 애초에 회수 대상이 아니다. 실프로젝트 5개가
   //   이미 레거시만으로 200MB 를 넘겨서, total 이 영원히 예산 위에 있고 → 드롭 루프가 canon:1 을
   //   «전부» 지웠다(방금 만든 것 포함). 버전 히스토리가 필요한 바로 그 프로젝트들에서 0개가 남는다.
-  const reclaimable = (e) => keep.has(e.ts) && !e.pinned && e.canon !== 0 && e.ts !== (all[0] && all[0].ts);
+  const reclaimable = (e) => keep.has(e.ts) && !e.pinned && e.legacy !== 1 && e.ts !== (all[0] && all[0].ts);
   let total = all.filter(reclaimable).reduce((s, e) => s + (e.bytes || 0), 0);
   if (total > BUDGET_BYTES) {
     /* ★[P4] «오래된 것부터»가 아니다 — «중복이 많은 것부터»다.

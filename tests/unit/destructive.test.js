@@ -86,3 +86,187 @@ test('A1d 안전판이 2개뿐이면 예산을 넘겨도 «하나도» 안 버�
     '★안전판이 둘뿐인데 하나를 버렸다 — 둘 중 하나는 반드시 «약속한 취소 지점»이다');
   assert.equal(pr.deleted.length, 0);
 });
+
+/* ═══ C④ (중대) — 협업 스냅샷이 «영원히» 안 지워진다 ═════════════════════ */
+
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+function mkCollab(root, id) {
+  fs.mkdirSync(path.join(root, id), { recursive: true });
+  fs.writeFileSync(path.join(root, id, 'proj_meta.json'),
+    JSON.stringify({ collabRef: { roomId: 'room_1' } }));
+}
+/** 협업 프로젝트에 스냅샷 n개를 «하루 간격»으로 쌓는다(외부화 금지 → verbatim, canon=0). */
+function seedCollabSnaps(root, id, n, startTs) {
+  const canvas = sec('sec_a', 'A') + `<img src="${PNG}">`;
+  for (let i = 0; i < n; i++) {
+    const now = startTs + i * DAY;
+    writeProjFile(root, id, proj(id, canvas + `<!--${i}-->`));
+    const w = SS.writeSnapshot(root, id, proj(id, canvas + `<!--${i}-->`), { now });
+    assert.equal(w.ok, true, `${i}: ${JSON.stringify(w)}`);
+    assert.equal(w.collabVerbatim, true, `${i}: 협업인데 외부화가 돌았다(전제 실패)`);
+  }
+}
+
+test('C4a ★협업 스냅샷도 보관정책을 «탄다» — 상한 없이 쌓이지 않는다', () => {
+  const root = mkRoot();
+  mkCollab(root, 'c');
+  const n = 90;
+  seedCollabSnaps(root, 'c', n, NOW - (n - 1) * DAY);   // 90일치, 오늘까지
+  const before = SS.readIndex(root, 'c').entries.length;
+  assert.equal(before, n, '전제 실패: 90개가 안 쌓였다');
+  assert.ok(SS.readIndex(root, 'c').entries.every(e => e.canon === 0),
+    '전제 실패: 협업인데 canon=1 이다(외부화가 돌았다)');
+
+  const pr = SS.pruneVersions(root, 'c', { now: NOW });
+  assert.ok(pr.deleted.length > 0,
+    '★삭제 0 — 협업 프로젝트에서 보관정책이 통째로 꺼져 있다(실행: 720슬롯/281MB/삭제 0, 최대 1.9GB/일)');
+  const kept = SS.readIndex(root, 'c').entries;
+  // ★계층 보관의 «상한»이 이 기능의 약속이다: 최근 N + 하루 1개 × D일 + 핀.
+  //   (RECENT_KEEP 은 «개수» 기준이라 30일 밖도 남을 수 있다 — 그게 설계다. 상한이 있다는 게 요점.)
+  const bound = SS.RECENT_KEEP + SS.DAILY_DAYS + 1;
+  assert.ok(kept.length <= bound,
+    `★상한을 넘었다 kept=${kept.length} > ${bound} — 협업에서 보관정책이 반만 돈다`);
+  assert.ok(kept.length < before);
+});
+
+test('C4b ★그래도 «진짜 레거시»(기능 이전 슬롯)는 무접촉이다 — 한 뿌리를 갈랐지 보호를 없앤 게 아니다', () => {
+  const root = mkRoot();
+  const hd = path.join(root, 'L', 'proj_history');
+  fs.mkdirSync(hd, { recursive: true });
+  for (let i = 0; i < 40; i++) {   // 비협업 프로젝트의 옛 무거운 슬롯 40개(60일 전부터)
+    fs.writeFileSync(path.join(hd, `${NOW - (60 - i) * DAY}.json`),
+      JSON.stringify(proj('L', sec('sec_a', 'A') + `<img src="${PNG}"><!--${i}-->`)));
+  }
+  const idx = SS.ensureIndex(root, 'L');
+  assert.ok(idx.entries.every(e => e.canon === 0 && e.legacy === 1),
+    '★비협업의 canon=0 은 legacy=1 이어야 한다');
+  writeProjFile(root, 'L', proj('L', sec('sec_a', 'A')));
+  SS.pruneVersions(root, 'L', { now: NOW });
+  assert.equal(SS.readIndex(root, 'L').entries.length, 40,
+    '★기능 이전 레거시를 지웠다 — 복구 도구가 사용자 데이터를 지우고 시작하면 안 된다(P-2)');
+});
+
+test('C4c ★인덱스를 잃어도 협업 스냅샷이 다시 «영구 보존»으로 돌아가지 않는다', () => {
+  const root = mkRoot();
+  mkCollab(root, 'c');
+  seedCollabSnaps(root, 'c', 40, NOW - 120 * DAY);
+  fs.unlinkSync(path.join(root, 'c', 'proj_history', 'index.json'));   // 인덱스 유실
+  const rebuilt = SS.ensureIndex(root, 'c');
+  assert.ok(rebuilt.entries.every(e => e.canon === 0), '전제: 여전히 verbatim');
+  assert.ok(rebuilt.entries.every(e => e.legacy === 0),
+    '★재빌드가 협업 verbatim 을 «레거시»로 오인했다 — 인덱스 한 번 잃으면 상한이 사라진다');
+  assert.ok(SS.pruneVersions(root, 'c', { now: NOW }).deleted.length > 0);
+});
+
+/* ═══ C⑤ (중대) — isCollab fail-open ═══════════════════════════════════ */
+
+test('C5a ★meta 를 «못 읽으면» 협업으로 본다 — [F5] 규율이 옆문으로 열려 있었다', () => {
+  const root = mkRoot();
+  fs.mkdirSync(path.join(root, 'x'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'x', 'proj_meta.json'), '{"collabRef":{"roomI');  // 잘린 meta
+  const data = proj('x', sec('sec_a', 'A') + `<img src="${PNG}">`);
+  writeProjFile(root, 'x', data);
+  const w = SS.writeSnapshot(root, 'x', data, { now: NOW });
+  assert.equal(w.ok, true);
+  assert.equal(w.collabVerbatim, true,
+    '★불명인데 «비협업»으로 단정하고 외부화했다 — 상대 디스크에 없는 goya-asset:// 이 나간다');
+});
+
+test('C5b meta 가 «아예 없으면» 비협업이 맞다 — 불명과 부재는 다르다(양성대조)', () => {
+  const root = mkRoot();
+  const data = proj('y', sec('sec_a', 'A') + `<img src="${PNG}">`);
+  writeProjFile(root, 'y', data);
+  const w = SS.writeSnapshot(root, 'y', data, { now: NOW });
+  assert.equal(w.ok, true);
+  assert.ok(!w.collabVerbatim, '★등록된 적 없는 프로젝트까지 협업으로 보면 외부화가 영영 안 돈다');
+  assert.ok(w.images > 0, '전제: 외부화가 실제로 돌았다');
+});
+
+test('C4d ★협업 스냅샷이 «예산»에도 잡힌다 — 세 겹 중 마지막 겹', () => {
+  /* ⚠️C4a/C4c 만으로는 부족했다: 계층 보관(개수·날짜)만 재고 «예산»은 안 재서,
+   *   「예산 제외를 canon 으로 되돌림」 변이가 살아남았다(3차 검수 스윕이 짚은 바로 그 항목).
+   *   협업은 외부화가 금지돼 스냅샷 하나가 통째로 39MB 다 — 예산이 마지막 방어선이다. */
+  const root = mkRoot();
+  mkCollab(root, 'c');
+  const n = 25;
+  seedCollabSnaps(root, 'c', n, NOW - (n - 1) * DAY);   // 전부 30일 안 → 계층 규칙만으론 다 남는다
+  const idx = SS.readIndex(root, 'c');
+  assert.equal(idx.entries.length, n);
+  const each = Math.ceil(SS.BUDGET_BYTES / 5);          // 25개 = 예산의 5배
+  idx.entries.forEach(e => { e.bytes = each; });
+  SS.writeIndex(root, 'c', idx);
+
+  SS.pruneVersions(root, 'c', { now: NOW });
+  const kept = SS.readIndex(root, 'c').entries;
+  const total = kept.reduce((s, e) => s + (e.bytes || 0), 0);
+  assert.ok(total <= SS.BUDGET_BYTES + each,
+    `★예산을 넘겨서 남았다 total=${(total / 1048576) | 0}MB 예산=${(SS.BUDGET_BYTES / 1048576) | 0}MB `
+    + `kept=${kept.length}/${n} — 협업 프로젝트에서 예산 가드가 안 돈다`);
+  assert.ok(kept.length >= 1 && kept.some(e => e.ts === Math.max(...idx.entries.map(x => x.ts))),
+    '★최신은 무슨 일이 있어도 남는다([F1])');
+});
+
+/* ═══ C⑥ (중대) — 저장 경로가 «인덱스를 만드느라» 120MB 를 읽는다 ═══════ */
+
+test('C6a ★게이트에 막히는 저장은 슬롯을 «한 바이트도» 안 읽는다', () => {
+  /* 시간으로 재면 흔들린다 — «읽은 바이트»로 잰다(결정적).
+   * 실측 참고: 126MB 슬롯 9개에서 초판 760ms → 픽스 0.1ms. */
+  const root = mkRoot();
+  const hd = path.join(root, 'p', 'proj_history');
+  fs.mkdirSync(hd, { recursive: true });
+  const body = 'x'.repeat(200000);
+  for (let i = 0; i < 6; i++) {
+    fs.writeFileSync(path.join(hd, `${NOW - i * 1000}.json`),
+      JSON.stringify(proj('p', sec('s' + i, 'A') + body)));
+  }
+  const data = proj('p', sec('s0', 'A'));
+  writeProjFile(root, 'p', data);
+  assert.ok(!fs.existsSync(path.join(hd, 'index.json')), '전제: 인덱스가 없다');
+
+  const orig = fs.readFileSync;
+  let slotBytes = 0, slotReads = 0;
+  fs.readFileSync = function (f, ...a) {
+    const r = orig.call(this, f, ...a);
+    if (typeof f === 'string' && /proj_history[\\/]\d+\.json$/.test(f)) {
+      slotReads++; slotBytes += Buffer.byteLength(r);
+    }
+    return r;
+  };
+  let res;
+  try { res = SS.writeSnapshot(root, 'p', data, { now: NOW + 1000 }); }
+  finally { fs.readFileSync = orig; }
+
+  assert.equal(res.skipped, 'interval', '전제: 간격 게이트에 막혀야 한다');
+  assert.equal(slotReads, 0,
+    `★게이트에 막힌 저장이 슬롯 ${slotReads}개(${slotBytes}B)를 읽었다 — 1.5초 debounce 마다 이 비용이 난다. `
+    + '인덱스는 게이트를 «통과한 뒤에» 만들면 된다');
+});
+
+test('C6b ★그래도 게이트가 «열리면» 인덱스를 만든다 — 미루기가 곧 포기는 아니다(양성대조)', () => {
+  const root = mkRoot();
+  const hd = path.join(root, 'p', 'proj_history');
+  fs.mkdirSync(hd, { recursive: true });
+  fs.writeFileSync(path.join(hd, `${NOW - 2 * SS.MIN_GAP_MS}.json`),
+    JSON.stringify(proj('p', sec('s_old', '옛것'))));
+  const data = proj('p', sec('s_new', '새것'));
+  writeProjFile(root, 'p', data);
+  const res = SS.writeSnapshot(root, 'p', data, { now: NOW });
+  assert.equal(res.ok, true, JSON.stringify(res));
+  const idx = SS.readIndex(root, 'p');
+  assert.ok(idx, '★게이트가 열렸는데 인덱스가 안 생겼다');
+  assert.equal(idx.entries.length, 2, '★옛 슬롯이 인덱스에서 사라졌다');
+  assert.ok(idx.current, '★current 지문이 없다 — 손실 diff 가 「비교 불가」로 죽는다');
+});
+
+test('C6c ★인덱스가 «있으면» current 갱신은 그대로 돈다 — 최적화가 기능을 끄지 않았다', () => {
+  const root = mkRoot();
+  const data = proj('p', sec('s0', 'A'));
+  writeProjFile(root, 'p', data);
+  assert.equal(SS.writeSnapshot(root, 'p', data, { now: NOW }).ok, true);   // 인덱스 생성
+  const d2 = proj('p', sec('s0', 'A') + sec('s1', 'B'));
+  writeProjFile(root, 'p', d2);
+  const r = SS.writeSnapshot(root, 'p', d2, { now: NOW + SS.CURRENT_REFRESH_MS + 1 });
+  assert.equal(r.skipped, 'interval', '전제: 간격 게이트에 막힌다');
+  const cur = SS.readIndex(root, 'p').current;
+  assert.equal(cur.counts.sections, 2, '★게이트에 막힌 사이 current 지문이 안 따라왔다');
+});
