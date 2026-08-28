@@ -231,19 +231,23 @@ test('D2 ★종료(save-sync) 경로도 스냅샷을 남기고 프룬을 돌린�
 test('D3 ★예산 드롭도 «최신»은 건너뛴다 — 방금 만든 것을 몇 마이크로초 뒤 지우지 않는다', async () => {
   const id = await mkProject(sec('sec_a', 'A'));
   const SS = require('../../main/project-store/snapshot-store');
-  seedOldSlots(id, 6, Date.now() - 60 * 60 * 1000);
+  /* ⚠️첫 판은 슬롯 6개를 같은 크기로 놓았는데, 그러면 «드롭 순서»(dense→sparse, 오래된 순)가
+   *   우연히 최신을 마지막에 두고 그 전에 예산을 맞춰 루프가 끝난다 — 즉 «가드가 아니라 순서»가
+   *   최신을 지켜서, 가드를 지워도 초록이었다(최종 스윕에서 유일하게 살아남은 변이).
+   *   ⇒ 가드 말고는 최신을 지킬 방법이 «없는» 배치를 만든다: 최신 «혼자서» 예산을 넘긴다.
+   *     그러면 다른 걸 다 버려도 여전히 초과라 루프가 최신까지 온다. */
+  seedOldSlots(id, 2, Date.now() - 60 * 60 * 1000);
   const idx = SS.ensureIndex(DIR, id);
-  // 전부 canon:1(정규형) · 비핀 → 예산 루프의 «회수 대상»이다. 최신 보호가 없으면 최신도 지워진다.
-  idx.entries.forEach(e => { e.bytes = SS.BUDGET_BYTES; e.canon = 1; e.legacy = 0; e.pinned = false; });
+  idx.entries.forEach(e => { e.bytes = SS.BUDGET_BYTES + 1; e.canon = 1; e.legacy = 0; e.pinned = false; });
   SS.writeIndex(DIR, id, idx);
   const newest = Math.max(...idx.entries.map(e => e.ts));
 
   SS.pruneVersions(DIR, id, { now: Date.now() });
   const live = SS.readIndex(DIR, id).entries.map(e => e.ts);
   assert.ok(live.includes(newest),
-    '★예산 압박에서 «가장 최신»을 지웠다 — 다음 저장의 간격 게이트가 옛 슬롯을 보고 통과해 '
-    + '«매 저장마다» 재스냅샷하는 무한루프가 된다([F1])');
-  assert.ok(live.length < 6, '양성대조 — 예산 루프가 실제로 돌아야 한다');
+    '★예산 압박에서 «가장 최신»을 지웠다 — 슬롯이 0개가 되고, 다음 저장의 간격 게이트가 '
+    + '옛 슬롯을 보고 통과해 «매 저장마다» 재스냅샷하는 무한루프가 된다([F1])');
+  assert.equal(live.length, 1, '양성대조 — 예산 루프는 실제로 돌아서 나머지를 버려야 한다');
 });
 
 test('D4 ★diff 페이로드 상한이 «실제로» 선다 — 39MB 를 렌더러로 보내면 앱이 멈춘다', async () => {
