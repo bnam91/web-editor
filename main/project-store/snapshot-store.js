@@ -638,14 +638,25 @@ function pruneVersions(projectsDir, projectId, opts = {}) {
       keep.delete(e.ts); total -= (e.bytes || 0);
     }
   }
-  // ★[R2] 안전판이 예산을 통째로 먹는 극단(되돌리기를 수백 번)에서만 도는 최후 안전판.
-  //   버릴 때는 «가장 새것»부터 — 새 안전판은 지금 상태와 거의 같아 재구성 가능하지만,
-  //   가장 오래된 것은 그 소동 이전으로 가는 유일한 길이라 대체 불가다.
-  let pinTotal = all.filter(e => keep.has(e.ts) && e.reason === 'pre-restore').reduce((s, e) => s + (e.bytes || 0), 0);
+  // ★[A1 치명] 안전판이 예산을 통째로 먹는 극단(되돌리기를 연달아)에서만 도는 최후 안전판.
+  //   ⛔초판은 «가장 새것부터» 버렸다. 근거로 「새 안전판은 지금 상태와 거의 같아 재구성 가능」이라
+  //   적었는데 ★그 전제가 틀렸다 — 되돌리기 «직후»의 현재 상태는 «되돌아간 옛 버전»이고,
+  //   가장 새 안전판은 «교체 직전의 내 작업»이다. 둘은 서로 다르고, 후자는 어디에도 없다.
+  //   즉 재구성 «불가능»한 쪽을 맨 먼저 버리고 있었다. 3차 적대검수 재현: 36MB×6회 되돌리기에서
+  //   6회차 prepareRestore 가 ok:true 를 낸 «같은 트랜잭션»의 프룬이 그 안전판을 지웠고,
+  //   UI 는 그 뒤에도 「직전 상태는 목록 맨 위에 있어요」를 띄웠다. 조용한 거짓말이다.
+  //   ⇒ 양 끝을 «둘 다» 지킨다:
+  //     ⓐ 가장 «새» 안전판 = 방금 확인창에서 약속한 되돌리기의 취소 지점
+  //     ⓑ 가장 «오래된» 안전판 = 그 소동 «이전»으로 가는 유일한 길
+  //   버리는 건 중간뿐이다(그 사이 상태들은 대개 목록에 옛 버전으로 «따로» 남아 있다).
+  //   ★양 끝밖에 없으면(안전판 2개 이하) 아무것도 안 버린다 — 예산 초과를 감수한다.
+  //     약속을 지키는 것이 예산보다 우선이다(P-2: 복구 도구가 데이터를 지우고 시작하지 않는다).
+  const safetyOf = () => all.filter(e => keep.has(e.ts) && e.reason === 'pre-restore').sort((a, b) => b.ts - a.ts);
+  let pinTotal = safetyOf().reduce((s, e) => s + (e.bytes || 0), 0);
   if (pinTotal > BUDGET_BYTES) {
-    const safety = all.filter(e => keep.has(e.ts) && e.reason === 'pre-restore').sort((a, b) => b.ts - a.ts); // 새것 먼저
-    for (const e of safety) {
-      if (pinTotal <= BUDGET_BYTES || safety.indexOf(e) === safety.length - 1) break;  // 가장 오래된 하나는 남긴다
+    const middles = safetyOf().slice(1, -1);   // 새것 먼저 정렬 → 양 끝(최신·최고참)을 잘라낸 «중간»만
+    for (const e of middles) {
+      if (pinTotal <= BUDGET_BYTES) break;
       keep.delete(e.ts); pinTotal -= (e.bytes || 0);
     }
   }
