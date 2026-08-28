@@ -106,3 +106,32 @@
   font-size: var(--ui-fs-12);
   line-height: var(--ui-lh-relaxed);
 }
+
+/* ★[C3] 상세 비교(L2) — 접혀 있다가 「펼치기」로 열리는 영역.
+ *   신작은 이 블록뿐이고, 어휘는 위의 .vhist-meta / .vhist-loss 를 그대로 잇는다:
+ *   본문보다 작고(10px), 색은 --ui-text-sub, 손실만 --ui-danger. 새 색·새 모양을 만들지 않는다.
+ *   ⛔[hidden] 으로 감추지 않는다 — display 를 주는 클래스에 지므로, 여닫기는 style.display 로 한다. */
+.vhist-detail {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  padding: 8px 10px;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vhist-detail-line {
+  font-size: var(--ui-fs-12);
+  color: var(--ui-text-sub);
+  line-height: var(--ui-lh-relaxed);
+  word-break: break-word;
+}
+.vhist-detail-line.is-lost { color: var(--ui-danger); }
+/* 「생략했다」·집계 — 사실이 아니라 «메모»다. 제일 약하게. */
+.vhist-detail-note {
+  font-size: var(--ui-fs-10);
+  color: var(--ui-text-muted);
+  line-height: var(--ui-lh-relaxed);
+}

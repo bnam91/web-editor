@@ -88,5 +88,41 @@
     "file": "main/project-store/snapshot-store.js",
     "find": "  try { return writeIndex(projectsDir, projectId, idx); }\n  catch (e) { idx.indexUnwritable = e.message; return idx; }",
     "replace": "  return writeIndex(projectsDir, projectId, idx);"
+  },
+  {
+    "name": "C3: mixedEncoding 경고(가짜 변경의 벽)",
+    "file": "js/version-history-ui.js",
+    "find": "    if (d.mixedEncoding) {\n      rows.push(_skipHtml('저장 형식이 섞여 있어 «바뀐 섹션»은 판별할 수 없습니다(없어진/새로 생긴 섹션만 표시)'));\n    } else if (d.changed.length) {",
+    "replace": "    if (false) {\n    } else if (d.changed.length) {"
+  },
+  {
+    "name": "C3: changeDiff 예외를 «생략»으로",
+    "file": "js/version-history-ui.js",
+    "find": "    } catch (e) {\n      html = _skipHtml(e && e.message ? e.message : '비교 중 오류가 났습니다');\n    } finally {",
+    "replace": "    } catch (e) {\n      html = '';\n    } finally {"
+  },
+  {
+    "name": "C3: 상세 캐시(같은 행 재요청 방지)",
+    "file": "js/version-history-ui.js",
+    "find": "    if (_detailCache.has(ts)) {",
+    "replace": "    if (false) {"
+  },
+  {
+    "name": "C3: 닫을 때 상세 캐시 폐기",
+    "file": "js/version-history-ui.js",
+    "find": "    _detailCache.clear();   // ★다음에 열 땐 «지금»이 달라져 있다 — 옛 비교를 그대로 보여주면 거짓말이다",
+    "replace": "    /* MUTANT */"
+  },
+  {
+    "name": "C3: versionDiff 부재 방어",
+    "file": "js/version-history-ui.js",
+    "find": "      } else if (!window.versionDiff || typeof window.versionDiff.changeDiff !== 'function') {\n        html = _skipHtml('비교 모듈이 로드되지 않았습니다');",
+    "replace": "      } else if (false) {\n        html = '';"
+  },
+  {
+    "name": "C3: too_large 이유 문구",
+    "file": "js/version-history-ui.js",
+    "find": "    too_large: '이 버전이 너무 커서 섹션 단위 비교를 건너뜁니다',",
+    "replace": "    too_large: '',"
   }
 ]

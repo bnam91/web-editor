@@ -66,6 +66,7 @@
     const ov = _el(OVERLAY_ID);
     if (ov) ov.style.display = 'none';
     if (_escHandler) { document.removeEventListener('keydown', _escHandler, true); _escHandler = null; }
+    _detailCache.clear();   // ★다음에 열 땐 «지금»이 달라져 있다 — 옛 비교를 그대로 보여주면 거짓말이다
     _ctx = null;
   }
 
@@ -87,12 +88,20 @@
       ? `<div class="vhist-loss${unknown ? ' is-unknown' : ''}">${unknown ? '' : '⚠️ '}${_esc(r.lostText)}</div>` : '';
     // ★현빈 확정(Q2): 「이 버전으로 교체」가 «기본»(primary). 사본은 보조.
     //   교체 «직전» 지금 상태가 자동으로 안전판에 박히므로 파괴적이지 않다 — 그걸 확인창에서 말해준다.
+    /* ★[C3] «상세 비교»는 접어 둔다 — 목록의 시선 순서(시각→숫자→손실)를 흐리지 않기 위해서다.
+     *   L1(손실)은 인덱스만으로 «파일 0개 읽고» 나오지만, L2(무엇이 바뀌었나)는 캔버스 두 벌을
+     *   실제로 파싱해야 한다. 39MB 두 벌을 목록 그릴 때마다 하면 사고 직후 화면이 멈춘다.
+     *   ⇒ 사용자가 «그 행»을 물었을 때만 그 행에 대해 한 번 계산하고, 결과는 캐시한다. */
     const actions = r.isCurrent ? '<div class="vhist-actions"></div>'
       : `<div class="vhist-actions">
+           <button class="settings-btn settings-btn-secondary" data-vh-detail="${r.ts}">펼치기</button>
            <button class="settings-btn settings-btn-secondary" data-vh-open="${r.ts}">사본으로</button>
            <button class="settings-btn settings-btn-primary" data-vh-restore="${r.ts}">이 버전으로 교체</button>
          </div>`;
-    return `<div class="vhist-row${r.isCurrent ? ' is-current' : ''}">${when}${actions}${meta}${loss}</div>`;
+    // ⛔hidden 속성으로 감추지 «않는다» — display 를 주는 클래스에 진다(팀 교훈). style.display 로 잰다.
+    const detail = r.isCurrent ? ''
+      : `<div class="vhist-detail" id="vhist-detail-${r.ts}" style="display:none"></div>`;
+    return `<div class="vhist-row${r.isCurrent ? ' is-current' : ''}">${when}${actions}${meta}${loss}${detail}</div>`;
   }
 
   function _render(view) {
@@ -117,12 +126,123 @@
     if (view.pendingCount) bits.push(`미분석 ${view.pendingCount}`);
     status.textContent = bits.join(' · ');
 
+    list.querySelectorAll('[data-vh-detail]').forEach((b) => {
+      b.addEventListener('click', () => _toggleDetail(Number(b.dataset.vhDetail), b));
+    });
     list.querySelectorAll('[data-vh-open]').forEach((b) => {
       b.addEventListener('click', () => _openCopy(Number(b.dataset.vhOpen), b));
     });
     list.querySelectorAll('[data-vh-restore]').forEach((b) => {
       b.addEventListener('click', () => _restore(Number(b.dataset.vhRestore), b, view));
     });
+  }
+
+  /* ── [C3] 상세 비교(L2) ────────────────────────────────────────────────
+   * 「이 버전에는 있는데 지금은 없는 섹션」(L1)까지는 인덱스만으로 나온다.
+   * 여기서 더 나가는 건 «이 버전과 지금 사이에 무엇이 달라졌나»다 — 그건 캔버스를 파싱해야 안다.
+   * ★못 하는 경우를 «변경 0» 으로 답하지 않는다. 그건 「달라진 게 없다」는 거짓말이고,
+   *   사고 직후에 사용자를 「이 버전은 볼 필요 없구나」로 민다(§P-1). 「생략했다」고 말한다.
+   */
+  const _detailCache = new Map();   // ts → {html} (모달이 닫히면 버린다)
+
+  function _sectionList(items, max) {
+    const names = items.slice(0, max).map(x => _esc(x.n || x.k));
+    const rest = items.length - names.length;
+    return names.join(' · ') + (rest > 0 ? ` 외 ${rest}` : '');
+  }
+
+  /** 「상세 비교 생략」 — 왜 생략하는지까지 말한다. 이유 없는 생략은 고장으로 읽힌다. */
+  function _skipHtml(why) {
+    return `<div class="vhist-detail-note">상세 비교 생략 — ${_esc(why)}</div>`;
+  }
+
+  function _detailHtml(d) {
+    const rows = [];
+    // ★mixedEncoding: 한쪽만 인라인 base64 면 이미지 있는 섹션이 «전부» 바뀐 것으로 보인다(가짜 변경의 벽).
+    //   그 목록을 그대로 보여주면 「전부 바뀌었다」는 잘못된 인상을 준다 — «바뀐 섹션»만 생략한다.
+    //   없어진/새로 생긴 섹션은 id 로 판별하므로 저장 형식과 무관하다. 그건 그대로 보여준다.
+    if (d.mixedEncoding) {
+      rows.push(_skipHtml('저장 형식이 섞여 있어 «바뀐 섹션»은 판별할 수 없습니다(없어진/새로 생긴 섹션만 표시)'));
+    } else if (d.changed.length) {
+      rows.push(`<div class="vhist-detail-line">✎ 달라진 섹션 ${d.changed.length} — ${_sectionList(d.changed, 6)}</div>`);
+    }
+    if (d.lost.length) {
+      rows.push(`<div class="vhist-detail-line is-lost">− 지금은 없는 섹션 ${d.lost.length} — ${_sectionList(d.lost, 6)}</div>`);
+    }
+    if (d.gained.length) {
+      rows.push(`<div class="vhist-detail-line">+ 그 뒤에 생긴 섹션 ${d.gained.length} — ${_sectionList(d.gained, 6)}</div>`);
+    }
+    if (!rows.length || (!d.mixedEncoding && !d.changed.length && !d.lost.length && !d.gained.length)) {
+      rows.push('<div class="vhist-detail-note">이 버전과 「지금」의 섹션 내용이 같습니다.</div>');
+    }
+    rows.push(`<div class="vhist-detail-note">같음 ${d.summary.same} · 전체 ${d.summary.total} 섹션</div>`);
+    return rows.join('');
+  }
+
+  const _SKIP_REASON = {
+    too_large: '이 버전이 너무 커서 섹션 단위 비교를 건너뜁니다',
+    current_corrupt: '「지금」 상태를 읽을 수 없습니다',
+    current_missing: '「지금」 상태 파일이 없습니다',
+    corrupt: '이 버전 파일이 손상됐습니다',
+    not_found: '이 버전 파일을 찾을 수 없습니다',
+    unavailable: '이 기능은 데스크탑 앱에서만 동작합니다',
+  };
+
+  async function _toggleDetail(ts, btn) {
+    if (!_ctx) return;
+    const targetId = _ctx.projectId;   // ★await 를 건너는 동안 close() 가 _ctx 를 null 로 만든다
+    const box = _el(`vhist-detail-${ts}`);
+    if (!box) return;
+    if (box.style.display !== 'none') {   // 접기
+      box.style.display = 'none';
+      btn.textContent = '펼치기';
+      return;
+    }
+    if (_detailCache.has(ts)) {
+      box.innerHTML = _detailCache.get(ts);
+      box.style.display = 'block';
+      btn.textContent = '접기';
+      return;
+    }
+    const api = _api();
+    btn.disabled = true;
+    const prev = btn.textContent;
+    btn.textContent = '비교 중…';
+    let html;
+    try {
+      if (!api || typeof api.historyDiffPayload !== 'function') {
+        html = _skipHtml(_SKIP_REASON.unavailable);
+      } else if (!window.versionDiff || typeof window.versionDiff.changeDiff !== 'function') {
+        html = _skipHtml('비교 모듈이 로드되지 않았습니다');
+      } else {
+        const r = await api.historyDiffPayload({ projectId: targetId, ts });
+        if (!r || !r.ok) {
+          const why = _SKIP_REASON[r && r.reason]
+            || `${(r && (r.message || r.reason)) || '알 수 없는 이유'}`;
+          html = _skipHtml(r && r.reason === 'too_large' && r.bytes
+            ? `${why} (${formatBytesLocal(r.bytes)})` : why);
+        } else {
+          // ★DOMParser 가 없으면 changeDiff 는 «던진다» — 조용한 0 을 안 내려고 그렇게 설계했다.
+          //   여기서 잡아 「생략」으로 말한다. 값을 지어내지 않는다.
+          html = _detailHtml(window.versionDiff.changeDiff(r.snapCanvas, r.curCanvas));
+        }
+      }
+    } catch (e) {
+      html = _skipHtml(e && e.message ? e.message : '비교 중 오류가 났습니다');
+    } finally {
+      btn.disabled = false;
+    }
+    _detailCache.set(ts, html);
+    box.innerHTML = html;
+    box.style.display = 'block';
+    btn.textContent = '접기';
+    void prev;
+  }
+
+  function formatBytesLocal(n) {
+    const VH = window.versionHistory;
+    if (VH && typeof VH.formatBytes === 'function') return VH.formatBytes(n);
+    return `${Math.round(n / 1048576)}MB`;
   }
 
   async function _openCopy(ts, btn) {
