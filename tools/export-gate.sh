@@ -39,19 +39,42 @@ open_project() {   # $1=projectId
   node "$SK/cdp-eval.js" "$PORT" '(async()=>{ await window.electronAPI.navigateToProjects(); return 1; })()' >/dev/null 2>&1
   sleep 3
   node "$SK/cdp-eval.js" "$PORT" '(()=>{const c=[...document.querySelectorAll(".project-card")].find(e=>e.dataset.id==="'"$1"'");if(!c)return "no";c.click();return "ok"})()' >/dev/null 2>&1
-  sleep 7
+  # ★고정 sleep 7 은 «작은 프로젝트 기준»이었다 — 80MB 급은 그 안에 안 열린다.
+  #   그러면 「섹션 0개」로 나와 ERROR 가 되는데, 원인은 앱이 아니라 «우리가 안 기다린 것»이다.
+  #   ⇒ 섹션이 «생길 때까지» 폴링하고, 상한을 넘으면 그때 못 쟀다고 말한다.
+  # ⚠️변수명은 «반드시» local — 처음에 `n=` 을 썼다가 바깥 루프의 «섹션 개수 n(=3)» 을 덮어써서
+  #   3개만 볼 자리에서 102개를 다 돌았다. 조용히 «더 많이» 도는 버그라 결과만 보면 안 보인다.
+  local waited=0 _cnt=0
+  while [ "$waited" -lt "${OPEN_TIMEOUT:-90}" ]; do
+    sleep 2; waited=$((waited+2))
+    _cnt=$(node "$SK/cdp-eval.js" "$PORT" '(()=>document.querySelectorAll(".section-block").length)()' 2>/dev/null | tr -dc '0-9')
+    [ "${_cnt:-0}" -gt 0 ] && { sleep 3; return 0; }   # 마지막 3초는 이미지 디코드 여유
+  done
+  return 1
 }
 section_ids() {    # $1=개수
-  node "$SK/cdp-eval.js" "$PORT" '(()=>JSON.stringify([...document.querySelectorAll(".section-block")].slice(0,'"$1"').map(e=>e.id)))()' 2>/dev/null \
-    | sed 's/^"//; s/"$//; s/\\"/"/g' | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{JSON.parse(s).forEach(x=>console.log(x))}catch(e){}})'
+  # ★표본 고르기 — 기본은 «앞에서 N개»(기준선 22섹션과 호환 유지).
+  #   EXPORT_GATE_TALLEST=1 이면 «높이 큰 순»으로 N개 — 전수 표본은 긴 섹션이 정보가 많다.
+  #   ⚠️고르는 방식이 바뀌면 섹션 id 가 달라져 기준선 대조가 「기준선에 없는 섹션」으로 나온다.
+  #     둘을 섞어 쓰지 마라 — 표본 방식마다 기준선을 따로 둔다.
+  if [ "${EXPORT_GATE_TALLEST:-0}" = "1" ]; then
+    node "$SK/cdp-eval.js" "$PORT" '(()=>JSON.stringify([...document.querySelectorAll(".section-block")].map(e=>[e.id,e.offsetHeight]).sort((a,b)=>b[1]-a[1]).slice(0,'"$1"').map(x=>x[0])))()' 2>/dev/null \
+      | sed 's/^"//; s/"$//; s/\\"/"/g' | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{JSON.parse(s).forEach(x=>console.log(x))}catch(e){}})'
+  else
+    node "$SK/cdp-eval.js" "$PORT" '(()=>JSON.stringify([...document.querySelectorAll(".section-block")].slice(0,'"$1"').map(e=>e.id)))()' 2>/dev/null \
+      | sed 's/^"//; s/"$//; s/\\"/"/g' | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{JSON.parse(s).forEach(x=>console.log(x))}catch(e){}})'
+  fi
 }
 
 for spec in "$@"; do
   pid="${spec%%:*}"; n="${spec##*:}"; [ "$n" = "$pid" ] && n=5
-  echo "── $pid (섹션 $n개 · 폭 ${WIDTH}px)"
-  open_project "$pid"
+  echo "── $pid (섹션 ${n}개 · 폭 ${WIDTH}px)"
+  # ★디스크는 «도는 중에» 찬다 — 시작 전 한 번만 재면 전수 중반에 다른 세션까지 멈춘다(2026-08-21 30GB 사고).
+  gb=$(df -g / | tail -1 | awk '{print $4}')
+  if [ "${gb:-0}" -lt 3 ]; then echo "⛔디스크 여유 ${gb}GB — 중단한다. 산출물: $OUT"; exit 2; fi
+  if ! open_project "$pid"; then echo "  ⛔프로젝트가 안 열렸다(${OPEN_TIMEOUT:-90}s 대기) — «못 쟀다»"; ERR=$((ERR+1)); printf '%s\t-\t%s\tERROR\t열기실패\t\t\n' "$pid" "$WIDTH" >> "$RESULTS"; continue; fi
   ids=$(section_ids "$n")
-  if [ -z "$ids" ]; then echo "  ⛔섹션을 못 읽었다 — 프로젝트가 안 열렸다"; ERR=$((ERR+1)); continue; fi
+  if [ -z "$ids" ]; then echo "  ⛔섹션을 못 읽었다 — 프로젝트가 안 열렸다"; ERR=$((ERR+1)); printf '%s\t-\t%s\tERROR\t섹션읽기실패\t\t\n' "$pid" "$WIDTH" >> "$RESULTS"; continue; fi
   for sid in $ids; do
     e="$OUT/$sid.w$WIDTH.export.png"; t="$OUT/$sid.w$WIDTH.truth.png"
     node "$SK/cdp-eval.js" "$PORT" '(async()=>{var s=document.getElementById("'"$sid"'");if(!s)return "NOSEC";return await window.exportSection(s,"png",'"$WIDTH"',{returnDataUrl:true});})()' > "$OUT/$sid.w$WIDTH.txt" 2>&1
@@ -88,13 +111,30 @@ if [ -n "$EXPORT_GATE_BASELINE" ] && [ -f "$EXPORT_GATE_BASELINE" ]; then
   while IFS=$'\t' read -r bp bs bw bv bt bc brest; do
     [ "$bv" = "FAIL" ] || continue
     # ★폭이 «같은» 행만 본다 — 860 기준선으로 780 을 재면 전부 「신규」로 나온다
-    prev=$(awk -F'\t' -v s="$bs" -v w="$bw" '$2==s && $3==w{print $4"|"$5}' "$EXPORT_GATE_BASELINE" 2>/dev/null)
-    if [ "${prev%%|*}" = "FAIL" ]; then KNOWN=$((KNOWN+1)); echo "  ○ 기존 $bs (기준선도 FAIL, TOTAL ${prev##*|})"
-    else NEW=$((NEW+1)); echo "  ★신규 $bs (기준선 ${prev:-없음})"; fi
+    prev=$(awk -F'\t' -v s="$bs" -v w="$bw" '$2==s && $3==w{print $4"|"$5"|"$6"|"$7}' "$EXPORT_GATE_BASELINE" 2>/dev/null)
+    if [ -z "$prev" ]; then
+      NEW=$((NEW+1)); echo "  ★신규 $bs (기준선에 없는 섹션)"; continue
+    fi
+    pv=$(echo "$prev" | cut -d'|' -f1); pt=$(echo "$prev" | cut -d'|' -f2); pc=$(echo "$prev" | cut -d'|' -f3)
+    # ★«규칙»이 아니라 «숫자»로 가른다 — 2026-08-28 지디 판정.
+    #   「이 부류(banner02 평탄화)는 봐준다」는 예외 규칙을 넣으면 그 부류의 «진짜 회귀»도 같이 봐주게 된다.
+    #   ⇒ 기준선의 그 섹션 값을 «기존값»으로 두고, 게이트는 「그 값보다 커졌나」만 본다.
+    #     다음 사람이 근거(숫자)를 눈으로 볼 수 있고, 새 결함이 생기면 값이 커져서 잡힌다.
+    #   ⚠️크기 불일치는 값 비교와 «별도로» 본다 — 잘림은 total 이 우연히 안 커져도 그 자체로 신규다.
+    cur_sz=0; prev_sz=0
+    case "$brest" in *"크기 불일치"*) cur_sz=1;; esac
+    case "$prev"  in *"크기 불일치"*) prev_sz=1;; esac
+    if [ "$cur_sz" -gt "$prev_sz" ]; then
+      NEW=$((NEW+1)); echo "  ★신규 $bs (기준선엔 없던 «크기 불일치»)"
+    elif [ "${bt:-0}" -gt "${pt:-0}" ] || [ "${bc:-0}" -gt "${pc:-0}" ]; then
+      NEW=$((NEW+1)); echo "  ★신규 $bs (기준선 TOTAL $pt/cell $pc → 지금 TOTAL $bt/cell $bc — «커졌다»)"
+    else
+      KNOWN=$((KNOWN+1)); echo "  ○ 기존 $bs (기준선 TOTAL $pt/cell $pc ≥ 지금 TOTAL $bt/cell $bc)"
+    fi
   done < "$RESULTS"
   echo "   ⇒ 신규 FAIL $NEW · 기존 FAIL $KNOWN"
   if [ "$NEW" -eq 0 ] && [ "$FAIL" -gt 0 ]; then
-    echo "══ export 게이트 결과(폭 ${WIDTH}px) ══  PASS $PASS · FAIL $FAIL(전부 기존) · ERROR $ERR"
+    echo "══ export 게이트 결과(폭 ${WIDTH}px) ══  PASS $PASS · FAIL $FAIL(전부 기존값 이하) · ERROR $ERR"
     echo "✅ ★«신규» 회귀 0 — 이 릴리스가 내보내기를 깨뜨리지 않았다(기존 FAIL 은 별건으로 남긴다)."
     [ "$ERR" -gt 0 ] && exit 2; exit 0
   fi

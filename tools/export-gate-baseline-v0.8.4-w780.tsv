@@ -1,0 +1,28 @@
+# export 게이트 기준선 — v0.8.4+da1ef6d · 폭 780px · 2026-08-28 재생성
+# ★재생성 이유 둘: ⑴ da1ef6d(banner02 자간 평탄화 누락) 반영 — 결함 있는 상태를 기준으로 굳히면 안 된다.
+#   ⑵ truth 하네스에 컴포넌트 자기 렌더(renderBanner02/renderComparison/renderCanvas)를 넣었다.
+#      그전 w780 기준선의 «크기 불일치»는 앱 결함이 아니라 하네스가 못 잰 것이었다(지금은 0건).
+# ⚠️truth@780 은 «관측»이 아니라 «구성물»이다 — 캔버스는 780 을 보여준 적이 없다.
+# 남은 FAIL 2건 = banner02 평탄화(scale→px)의 «래스터화 고유차». 값이 «커지면» 신규 회귀로 잡힌다.
+proj_1783085582212	sec_g3p7ne6	780	PASS	0	0	|
+proj_1783085582212	sec_sy8vfx0	780	PASS	0	0	|
+proj_1783085582212	sec_2vpa3ix	780	PASS	0	0	|
+proj_1783085582212	sec_5qzzo8x	780	PASS	0	0	|
+proj_1783085582212	sec_58rpklq	780	PASS	0	0	|
+proj_1783049016508	sec_se4yn5d	780	PASS	0	0	|
+proj_1783049016508	sec_mnfdena	780	PASS	0	0	|
+proj_1783049016508	sec_s4cxvp8	780	PASS	0	0	|
+proj_1783049016508	sec_f5qa114	780	PASS	0	0	|
+proj_1783049016508	sec_lb9k15q	780	PASS	0	0	|
+proj_1781053545182	sec_9tdz3ke	780	PASS	0	0	|
+proj_1781053545182	sec_rzu35th	780	FAIL	3670	116	다른 픽셀 3670개(밝기차 40 초과) — 오차 0 기준 / 국소 뭉침 116/256 @ [216, 392] >= 60|중앙/전면 — background-size·position 또는 기하 이동 계열
+proj_1781053545182	sec_fbk3rzi	780	PASS	0	0	|
+proj_1781053545182	sec_uk8ggh2	780	PASS	0	0	|
+proj_1781455176984	sec_m524hxg_1	780	PASS	0	0	|
+proj_1781455176984	sec_m524hxg_2	780	PASS	0	0	|
+proj_1781455176984	sec_m524hxg_3	780	PASS	0	0	|
+proj_1781455176984	sec_m524hxg_4	780	PASS	0	0	|
+proj_1787627353838	sec_84a7j_uscssba	780	PASS	0	0	|
+proj_1787627353838	sec_84a7j_joz65g3	780	PASS	0	0	|
+proj_1787627353838	sec_84a7j_rto5c9n	780	FAIL	15905	154	다른 픽셀 15905개(밝기차 40 초과) — 오차 0 기준 / 국소 뭉침 154/256 @ [104, 2224] >= 60|중앙/전면 — background-size·position 또는 기하 이동 계열
+proj_1787627353838	sec_84a7j_ei734c1	780	PASS	0	0	|
