@@ -15,7 +15,7 @@
 # ══════════════════════════════════════════════════════════════════════════
 set -o pipefail
 SK=~/.claude/skills/goditor-export-qa/scripts
-CMP="$(cd "$(dirname "$0")" && pwd)/export-compare.py"
+CMP="$SK/pixdiff.py"   # ★스킬 것을 쓴다 — 병렬 도구를 두지 않는다
 PORT="${1:?포트가 필요하다}"; shift
 OUT="${EXPORT_GATE_OUT:-${TMPDIR:-/tmp}/export-gate-$$}"
 mkdir -p "$OUT"
