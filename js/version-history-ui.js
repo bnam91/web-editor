@@ -20,6 +20,11 @@
   let _escHandler = null;
 
   const _el = (id) => document.getElementById(id);
+  /** 이 버튼이 속한 «행»의 상세 박스. 문서 전역에서 찾지 않는다(중복 마운트 안전). */
+  const _boxFor = (btn) => {
+    const row = btn && btn.closest && btn.closest('.vhist-row');
+    return row ? row.querySelector('[data-vh-detail-box]') : null;
+  };
   const _esc = (s) => String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -46,11 +51,11 @@
           <button class="settings-modal-close" id="vhist-close" title="닫기 (Esc)">×</button>
         </div>
         <div class="settings-modal-body vhist-body">
-          <div class="vhist-intro" id="vhist-intro"></div>
-          <div class="vhist-list" id="vhist-list"></div>
+          <div class="vhist-intro vhist-intro-text"></div>
+          <div class="vhist-list"></div>
         </div>
         <div class="settings-modal-footer">
-          <div class="vhist-intro" id="vhist-status"></div>
+          <div class="vhist-intro vhist-status-text"></div>
           <div style="flex:1"></div>
           <button class="settings-btn settings-btn-secondary" id="vhist-done">닫기</button>
         </div>
@@ -67,7 +72,9 @@
     if (ov) ov.style.display = 'none';
     if (_escHandler) { document.removeEventListener('keydown', _escHandler, true); _escHandler = null; }
     _detailCache.clear();   // ★다음에 열 땐 «지금»이 달라져 있다 — 옛 비교를 그대로 보여주면 거짓말이다
-    _ctx = null;
+    // ★«모달의» 컨텍스트일 때만 지운다 — 설정 페인이 마운트돼 있는데 여기서 지우면
+    //   그쪽 행의 버튼이 「_ctx 없음」으로 조용히 죽는다(같은 코드를 두 표면이 쓰기 때문).
+    if (!_ctx || !ov || _ctx.root === ov.querySelector('.vhist-shell')) _ctx = null;
   }
 
   /* ── 행 그리기 — 계산은 version-history.js 가 이미 했다 ─────────────────── */
@@ -99,18 +106,25 @@
            <button class="settings-btn settings-btn-primary" data-vh-restore="${r.ts}">이 버전으로 교체</button>
          </div>`;
     // ⛔hidden 속성으로 감추지 «않는다» — display 를 주는 클래스에 진다(팀 교훈). style.display 로 잰다.
+    // ⛔전역 id 를 쓰지 «않는다» — 모달과 설정 페인이 «동시에» DOM 에 있을 수 있고,
+    //   그러면 같은 id 가 둘이라 getElementById 가 남의 것을 집는다. 행 안에서 찾는다.
     const detail = r.isCurrent ? ''
-      : `<div class="vhist-detail" id="vhist-detail-${r.ts}" style="display:none"></div>`;
+      : `<div class="vhist-detail" data-vh-detail-box="${r.ts}" style="display:none"></div>`;
     return `<div class="vhist-row${r.isCurrent ? ' is-current' : ''}">${when}${actions}${meta}${loss}${detail}</div>`;
   }
 
-  function _render(view) {
-    const list = _el('vhist-list');
-    const intro = _el('vhist-intro');
-    const status = _el('vhist-status');
+  /* ★루트를 받는다 — 모달과 설정 페인이 «같은 함수»를 쓴다.
+   *   ⛔두 번째 구현을 만들지 않는다: 행 안의 파괴적 동작(교체)까지 한 코드여야
+   *     안전판·거부 경로가 두 표면에서 갈리지 않는다. */
+  function _render(view, root) {
+    const R = root || document;
+    const list = R.querySelector('.vhist-list');
+    const intro = R.querySelector('.vhist-intro-text');
+    const status = R.querySelector('.vhist-status-text');
     if (!view.ok) {
       list.innerHTML = `<div class="vhist-empty">버전 기록을 읽을 수 없습니다.<br>${_esc(view.reason || '')}</div>`;
-      intro.textContent = ''; status.textContent = '';
+      if (intro) intro.textContent = '';
+      if (status) status.textContent = '';
       return;
     }
     if (!view.rows.length) {
@@ -120,11 +134,11 @@
       list.innerHTML = (view.currentRow ? _rowHtml(view.currentRow) : '')
         + view.rows.map(_rowHtml).join('');
     }
-    intro.textContent = '「지금」과 비교해 «이 버전에는 있는데 지금은 없는» 섹션을 먼저 보여줍니다.';
+    if (intro) intro.textContent = '「지금」과 비교해 «이 버전에는 있는데 지금은 없는» 섹션을 먼저 보여줍니다.';
     const bits = [`버전 ${view.rows.length}개`, `총 ${view.totalText}`];
     if (view.legacyCount) bits.push(`옛 형식 ${view.legacyCount}`);
     if (view.pendingCount) bits.push(`미분석 ${view.pendingCount}`);
-    status.textContent = bits.join(' · ');
+    if (status) status.textContent = bits.join(' · ');
 
     list.querySelectorAll('[data-vh-detail]').forEach((b) => {
       b.addEventListener('click', () => _toggleDetail(Number(b.dataset.vhDetail), b));
@@ -208,7 +222,7 @@
   async function _toggleDetail(ts, btn) {
     if (!_ctx) return;
     const targetId = _ctx.projectId;   // ★await 를 건너는 동안 close() 가 _ctx 를 null 로 만든다
-    const box = _el(`vhist-detail-${ts}`);
+    const box = _boxFor(btn);
     if (!box) return;
     if (box.style.display !== 'none') {   // 접기
       box.style.display = 'none';
@@ -263,7 +277,7 @@
      *     한쪽을 지워도 다른 쪽이 가려 «변이가 살아남는다»(스윕 M6 생존). 겹친 방어는 각 겹을
      *     따로 잴 수 있을 때만 값이 있고, 여기선 안쪽 검사가 순수 중복이었다. */
     if (!_ctx || _ctx.projectId !== targetId) return;
-    const liveBox = _el(`vhist-detail-${ts}`);          // ★재렌더로 노드가 바뀌었을 수 있다
+    const liveBox = _boxFor(btn);                       // ★재렌더로 노드가 바뀌었을 수 있다
     if (!liveBox) return;
     if (cacheable) _detailCache.set(ts, html);
     liveBox.innerHTML = html;
@@ -436,20 +450,21 @@
 
   /* ── 진입점 ─────────────────────────────────────────────────────────────
    * @param {{projectId:string, projectName?:string}} opts */
-  async function openVersionHistory(opts) {
+  /* ── ★공용 마운트 — 「목록을 어디에 그리든」 이 함수 하나를 지난다 ────────
+   * 모달(에디터 상단바 배지)과 설정 「버전 기록」 탭이 «같은» 코드를 쓴다.
+   * ⛔두 번째 구현 금지: 행 안의 파괴적 동작(「이 버전으로 교체」)이 두 표면에서 갈리면
+   *   안전판·거부 경로가 한쪽에만 있는 상태가 만들어진다 — 그게 이 유닛이 막으려던 사고다.
+   * @param {Element} root  .vhist-list / .vhist-intro-text / .vhist-status-text 를 품은 컨테이너
+   */
+  async function mountVersionHistory(root, opts) {
     const projectId = opts && opts.projectId;
-    if (!projectId) return;
-    _ctx = { projectId, projectName: (opts && opts.projectName) || '' };
+    if (!root || !projectId) return;
+    _ctx = { projectId, projectName: (opts && opts.projectName) || '', root };
 
-    const ov = _ensureModal();
-    _el('vhist-title').textContent = _ctx.projectName ? `버전 기록 — ${_ctx.projectName}` : '버전 기록';
-    _el('vhist-list').innerHTML = '<div class="vhist-empty">불러오는 중…</div>';
-    _el('vhist-status').textContent = '';
-    ov.style.display = 'flex';
-    if (!_escHandler) {
-      _escHandler = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
-      document.addEventListener('keydown', _escHandler, true);
-    }
+    const listEl = root.querySelector('.vhist-list');
+    if (listEl) listEl.innerHTML = '<div class="vhist-empty">불러오는 중…</div>';
+    const st = root.querySelector('.vhist-status-text');
+    if (st) st.textContent = '';
 
     const api = _api();
     let list = { ok: false, reason: 'unavailable' };
@@ -461,12 +476,30 @@
     const view = (window.versionHistory && window.versionHistory.buildRows)
       ? window.versionHistory.buildRows(list)
       : { ok: false, reason: 'version-history.js 미로드', rows: [], currentRow: null, totalText: '—' };
-    if (_ctx && _ctx.projectId === projectId) _render(view);
+    // ★await 사이에 다른 곳이 마운트했을 수 있다 — 그럼 이 결과는 «남의 화면»에 그릴 것이다.
+    if (!_ctx || _ctx.projectId !== projectId || _ctx.root !== root) return;
+    _render(view, root);
   }
 
-  /* ── 진입점 «해석기» — 세 진입점이 한 함수를 지난다 ────────────────────
-   * ① 갤러리 카드 🕐 → id 를 «자기가» 안다(카드가 그 프로젝트다) → 이 함수를 안 탄다
-   * ② 에디터 상단바 배지 · ③ 환경설정 「버전 기록」 탭 → 「지금 어느 프로젝트냐」를 여기서 답한다
+  async function openVersionHistory(opts) {
+    const projectId = opts && opts.projectId;
+    if (!projectId) return;
+    const ov = _ensureModal();
+    const shell = ov.querySelector('.vhist-shell');
+    _el('vhist-title').textContent = (opts && opts.projectName)
+      ? `버전 기록 — ${opts.projectName}` : '버전 기록';
+    ov.style.display = 'flex';
+    if (!_escHandler) {
+      _escHandler = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+      document.addEventListener('keydown', _escHandler, true);
+    }
+    return mountVersionHistory(shell, opts);
+  }
+
+  /* ── 진입점 «해석기» — 두 진입점이 한 함수를 지난다 ────────────────────
+   * ① 에디터 상단바 [🕐 버전] 배지 · ② 환경설정 「버전 기록」 탭
+   * ⚠️2026-08-28 현빈 시연 피드백으로 «갤러리 카드 🕐»을 걷어냈다 — 입구를 에디터 안으로 통일했다.
+   *   («기능은 다 되는데 내가 원한 플로우가 아니다»)
    *
    * ⛔«아무 프로젝트나»로 폴백하지 않는다. 복구 도구가 엉뚱한 프로젝트의 과거를 보여주면 그게 최악이다.
    *   못 정하면 «못 정한다»고 말하고 «대안»을 알려준다(설계 §7-4: 이유 없는 거부가 제일 나쁘다).
@@ -476,7 +509,8 @@
     const id = (typeof window !== 'undefined') && window.activeProjectId;
     if (!id) {
       return { ok: false, reason: 'no_active_project',
-        message: '열린 프로젝트가 없습니다. 프로젝트를 연 뒤 다시 열거나, 갤러리에서 카드의 🕐 를 누르세요.' };
+        // ★없어진 길을 대안으로 안내하지 않는다 — 갤러리 카드 아이콘은 제거됐다.
+        message: '열린 프로젝트가 없습니다. 프로젝트를 연 뒤 상단바의 [🕐 버전] 을 누르세요.' };
     }
     let name = '';
     try {
@@ -494,6 +528,7 @@
   }
 
   window.openVersionHistory = openVersionHistory;
+  window.mountVersionHistory = mountVersionHistory;
   window.openVersionHistoryHere = openVersionHistoryHere;
   window.resolveVersionHistoryTarget = resolveVersionHistoryTarget;
   window.closeVersionHistory = close;

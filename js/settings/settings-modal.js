@@ -281,47 +281,45 @@
    *   ⛔「아무 프로젝트나」로 폴백하지 «않는다» — 복구 도구가 엉뚱한 프로젝트의 과거를 보여주면 그게 최악이다.
    *   대신 «비활성 + 이유 + 대안»을 말한다. ⛔hidden 속성은 쓰지 않는다(display 클래스에 져서
    *   「죽은 버튼」이 라이브 직전까지 간 전례가 있다) — disabled 로 하고 computed 로 판정한다. */
+  /* ★[현빈 시연 피드백] 「버전 기록 열기」 버튼을 «없앤다» — 탭을 누르면 목록이 바로 나온다.
+   *   버튼이 있던 이유는 「모달 위 모달을 피한다」였는데, 그건 «내 구현 사정»이지 쓰는 사람 사정이 아니다.
+   *   겹침을 피하려고 클릭을 하나 더 시킨 건 잘못된 거래다. 페인 안에 그리면 겹침도 사라지고 클릭도 없다.
+   *   ⛔목록·행·파괴적 동작은 version-history-ui 의 mountVersionHistory 를 «그대로» 쓴다(두 번째 구현 금지).
+   *   지연 로드: 탭을 «누를 때» 부른다(마켓·협업과 같은 규약). 283MB 첫 열람 0.7초가 여기서도 난다. */
   async function renderVersionPane() {
     const pane = document.querySelector('.settings-pane-version');
     if (!pane) return;
-    pane.innerHTML = `
-      <div class="settings-section-title">버전 기록</div>
-      <div class="settings-help">저장할 때마다 이 프로젝트의 상태가 «버전»으로 쌓입니다. 사고가 났을 때 「이 버전에는 있는데 지금은 없는 섹션」을 먼저 보여주고, 사본으로 열어보거나 그 버전으로 되돌릴 수 있습니다. 되돌리기 직전 상태도 자동으로 버전에 저장되므로 잘못 골라도 다시 돌아올 수 있습니다.</div>
-      <div class="settings-help" id="settings-vhist-state" style="margin-top:12px"></div>
-      <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
-        <button class="settings-btn settings-btn-primary" id="settings-vhist-open">버전 기록 열기</button>
-        <span class="settings-api-status" id="settings-vhist-status"></span>
-      </div>
-    `;
-    const stateEl = pane.querySelector('#settings-vhist-state');
-    const btn = pane.querySelector('#settings-vhist-open');
-    const status = pane.querySelector('#settings-vhist-status');
 
     const target = (typeof window.resolveVersionHistoryTarget === 'function')
       ? window.resolveVersionHistoryTarget() : { ok: false, reason: 'unavailable' };
+
     if (!target.ok) {
-      btn.disabled = true;                     // ⛔hidden 아님 — disabled 로 «죽은 버튼»을 만들지 않는다
-      stateEl.textContent = target.message || '버전 기록을 열 수 없습니다.';
-      status.textContent = '';
+      // ⛔「아무 프로젝트나」로 폴백하지 않는다 — 복구 도구가 엉뚱한 과거를 보여주면 그게 최악이다.
+      pane.innerHTML = `
+        <div class="settings-section-title">버전 기록</div>
+        <div class="settings-help">${_escapeHtml(target.message || '버전 기록을 열 수 없습니다.')}</div>`;
       return;
     }
-    stateEl.textContent = `현재 프로젝트: ${target.projectName || target.projectId}`;
-    btn.addEventListener('click', () => {
-      // ★모달 위에 모달을 겹치지 «않는다» — 설정을 닫고 연다.
-      //   두 모달이 같은 .settings-modal-overlay(z-index 10000)를 쓰므로 겹치면 순서가 모호해지고,
-      //   Esc 가 어느 쪽을 닫는지도 불분명해진다. 버전 기록은 «목적지»지 하위 대화상자가 아니다.
-      if (typeof window.closeSettingsModal === 'function') window.closeSettingsModal();
-      window.openVersionHistory({ projectId: target.projectId, projectName: target.projectName });
-    });
 
-    // 몇 개 쌓였는지 — 「있다」는 걸 눈으로 확인시켜 준다(성능 탭의 상태 줄과 같은 어휘)
-    try {
-      const l = await window.electronAPI?.historyList?.({ projectId: target.projectId });
-      if (l && l.ok) {
-        const mb = (l.totalBytes / 1024 / 1024);
-        status.textContent = `버전 ${l.entries.length}개 · ${mb < 1 ? (l.totalBytes / 1024).toFixed(0) + 'KB' : mb.toFixed(1) + 'MB'}`;
-      }
-    } catch (_) {}
+    pane.innerHTML = `
+      <div class="settings-section-title">버전 기록 — ${_escapeHtml(target.projectName || target.projectId)}</div>
+      <div class="settings-help vhist-intro-text"></div>
+      <div class="vhist-list vhist-in-settings"></div>
+      <div class="settings-help vhist-status-text" style="margin-top:10px"></div>`;
+
+    if (typeof window.mountVersionHistory !== 'function') {
+      pane.querySelector('.vhist-list').innerHTML =
+        '<div class="vhist-empty">버전 기록은 데스크탑 앱에서만 사용할 수 있습니다.</div>';
+      return;
+    }
+    await window.mountVersionHistory(pane, {
+      projectId: target.projectId, projectName: target.projectName,
+    });
+  }
+
+  function _escapeHtml(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   function renderPerfPane() {
