@@ -76,15 +76,53 @@ try {
   const fieldLabels = [...r0.querySelectorAll('.prop-field-label')].map(e => e.textContent.trim());
   const rowLabels = [...r0.querySelectorAll('.prop-label')].map(e => e.textContent.trim());
   R.env.sectionTitles = titles; R.env.fieldLabels = fieldLabels; R.env.rowLabels = rowLabels;
-  for (const t of ['Content', 'Typography', 'Fill'])
+  for (const t of ['Typography', 'Fill'])
     if (!titles.includes(t)) P(`★절 「${t}」이 없다 — 텍스트 패널 어휘와 안 맞는다`);
+  if (titles.includes('Content')) P('★「Content」 절이 남아 있다 — 종류만 남으니 절을 유지할 이유가 없다');
+  // ★textarea 는 «없어야» 한다 — 캔버스 편집이 정본이다
+  if (r0.querySelector('[data-line-text]')) P('★문구 입력칸(textarea)이 남아 있다 — 같은 일을 두 곳에서 한다');
+  if (r0.querySelector('.prop-textarea')) P('★.prop-textarea 가 남아 있다');
   for (const f of ['Font', 'Letter Spacing', 'Line Spacing'])
     if (!fieldLabels.includes(f)) P(`★소제목 「${f}」이 없다`);
   if (rowLabels.includes('색')) P('★행 라벨이 아직 「색」이다 — 텍스트 패널은 「글자색」이다');
+  if (rowLabels.includes('종류')) P('★「종류」가 아직 행에 있다 — 줄 머리로 옮겼어야 한다');
   if (!rowLabels.includes('글자색')) P('★「글자색」이 없다');
   const oi = n => rowLabels.indexOf(n);
   if (!(oi('폰트') < oi('굵기') && oi('굵기') < oi('크기')))
     P(`★Typography 순서가 폰트→굵기→크기가 아니다: ${rowLabels.join(' / ')}`);
+
+  /* ⑴-b ★줄 머리에 «역할·번호·미리보기·삭제»가 한 줄로 모였나 + 가로가 안 밀리나 */
+  const head = r0.querySelector('.prop-section-title[data-line-toggle]');
+  if (!head) P('★줄 머리에 접기(data-line-toggle)가 없다');
+  else {
+    const kindInHead = !!head.querySelector('[data-line-kind]');
+    const previewInHead = !!head.querySelector('.prop-hint');
+    const delInHead = !!head.querySelector('[data-line-remove]');
+    R.env.head = { kind: kindInHead, preview: previewInHead, del: delInHead,
+                   overflowX: head.scrollWidth - head.clientWidth,
+                   previewText: (head.querySelector('.prop-hint') || {}).textContent };
+    if (!kindInHead) P('★「종류」가 줄 머리에 없다 — 줄의 역할이고 캔버스에 대응 경로가 없어 지우면 안 된다');
+    if (!previewInHead) P('★미리보기가 줄 머리에 없다 — 같은 kind 가 여럿이면 구분이 안 된다');
+    if (!delInHead) P('★삭제(×)가 줄 머리에 없다');
+    if (head.scrollWidth - head.clientWidth > 1) P(`★줄 머리가 가로로 ${head.scrollWidth - head.clientWidth}px 밀렸다`);
+    const hint = head.querySelector('.prop-hint');
+    if (hint && getComputedStyle(hint).textOverflow !== 'ellipsis') P('★미리보기에 ellipsis 가 없다 — 긴 문구가 패널을 민다');
+  }
+  // ★긴 문구로 «실제로» 밀리는지 — ellipsis 가 도는지 확인
+  {
+    const long = JSON.parse(block.dataset.lines);
+    long[0].text = '아주 긴 문구입니다 '.repeat(6);
+    block.dataset.lines = JSON.stringify(long);
+    showBanner02Properties(block, 0);
+    await new Promise(r => setTimeout(r, 40));
+    const h2 = panel.querySelector('.prop-section-title[data-line-toggle]');
+    const pb = document.querySelector('#panel-right .panel-body');
+    R.env.longTextOverflow = { head: h2 ? h2.scrollWidth - h2.clientWidth : -1, panel: pb.scrollWidth - pb.clientWidth };
+    if (h2 && h2.scrollWidth - h2.clientWidth > 1) P('★긴 문구에서 줄 머리가 가로로 밀린다');
+    if (pb.scrollWidth - pb.clientWidth > 1) P('★긴 문구에서 패널이 가로로 밀린다');
+    long[0].text = '한정 수량'; block.dataset.lines = JSON.stringify(long);
+    showBanner02Properties(block, 0); await new Promise(r => setTimeout(r, 40));
+  }
 
   /* ⑵ ★각 컨트롤이 «자기 줄»을 고치나 — 칩으로 열고 실제로 조작한다 */
   const readLines = () => JSON.parse(block.dataset.lines || '[]');
@@ -111,14 +149,32 @@ try {
 
   await openLine(2);
   set('data-line-kind', 2, 'label');
-  const t2 = panel.querySelector('[data-line-text="2"]');
-  if (!t2) P('★텍스트 입력칸이 없다(접혀 있나)');
-  else { t2.value = '바뀐 문구'; fire(t2, 'input'); fire(t2, 'change'); }
   await new Promise(r => setTimeout(r, 40));
   L = readLines();
   if (L[2].kind !== 'label') P(`★종류가 2번 줄에 안 들어갔다 (${L[2].kind})`);
-  if (!/바뀐 문구/.test(L[2].text || '')) P(`★문구가 안 들어갔다 (${L[2].text})`);
   if (L[1].kind !== 'title') P('★1번 줄 종류가 같이 바뀌었다');
+
+  /* ★문구는 이제 «캔버스»가 유일한 입구다 — 그게 살아 있는지 여기서 잰다.
+   *   textarea 를 뺐으니 이 경로가 죽으면 «글자를 고칠 방법이 없어진다». */
+  {
+    const el = block.querySelector('[data-line-idx="2"]');
+    if (!el) P('★캔버스에 줄 요소(data-line-idx)가 없다 — 편집 경로 자체가 없다');
+    else {
+      if (el.getAttribute('contenteditable') !== 'false') P('★평소에 contenteditable 이 true 다(오편집 위험)');
+      el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 20));
+      R.env.canvasEditable = el.getAttribute('contenteditable');
+      if (el.getAttribute('contenteditable') !== 'true')
+        P('★더블클릭해도 캔버스 편집이 안 켜진다 — textarea 를 뺐는데 이게 죽으면 글자를 못 고친다');
+      el.textContent = '캔버스에서 고침';
+      el.dispatchEvent(new Event('blur', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 40));
+      const z = readLines();
+      R.env.canvasEditResult = z[2] && z[2].text;
+      if (!/캔버스에서 고침/.test((z[2] && z[2].text) || ''))
+        P(`★캔버스 편집이 dataset 에 «반영되지 않는다» (${z[2] && z[2].text}) — 유일한 입구가 끊겼다`);
+    }
+  }
 
   /* ⑶ ★줄을 지운 뒤 — 남은 줄의 컨트롤이 여전히 «자기 줄»을 고치나(인덱스 재계산) */
   await openLine(0);
@@ -146,10 +202,17 @@ try {
    *   줄 머리까지 .prop-section-title 이라 4개가 같은 굵기로 쌓이면 「제목이 내용보다 많다」가 된다. */
   await openLine(0);
   const ed = editors()[0];
+  // ★접힘 상태에서 재면 «줄 머리만» 재는 것이다 — 펼친 상태의 높이를 잰다.
+  const edBody = ed.querySelector('[data-line-editor]');
+  R.env.editorOpen = edBody ? getComputedStyle(edBody).display !== 'none' : null;
+  if (edBody && getComputedStyle(edBody).display === 'none') {
+    ed.querySelector('[data-line-toggle]').click();
+    await new Promise(r => setTimeout(r, 40));
+  }
   const rowsN = ed.querySelectorAll('.prop-row, .prop-color-row').length;
   const titleN = ed.querySelectorAll('.prop-section-title').length;
   const fieldN = ed.querySelectorAll('.prop-field-label').length;
-  R.env.weight = { titles: titleN, fieldLabels: fieldN, rows: rowsN, editorH: Math.round(ed.getBoundingClientRect().height) };
+  R.env.weight = { titles: titleN, fieldLabels: fieldN, rows: rowsN, editorH: Math.round(editors()[0].getBoundingClientRect().height) };
   if (titleN + fieldN > rowsN) P(`★제목(${titleN}+${fieldN})이 내용(${rowsN})보다 많다 — 화면이 무거워 보인다`);
   const panelBody = document.querySelector('#panel-right .panel-body');
   R.env.panelOverflowX = panelBody.scrollWidth - panelBody.clientWidth;
