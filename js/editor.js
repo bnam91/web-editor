@@ -159,6 +159,11 @@ function applyZoom(z) {
   // - zoom < 80%: 점진적으로 키워서 가독성 유지, 최대 1.6 cap (겹침 방지는 max-width+ellipsis가 담당)
   const uiScale = currentZoom >= 80 ? 1 : Math.min(1.6, 100 / currentZoom * 0.8);
   document.documentElement.style.setProperty('--ui-scale', uiScale.toFixed(4));
+  /* ★[적대검수 중대②] 꼬리 여백은 selectSection 안에서만 «부여»되고 아무도 안 되돌렸다.
+   *   배율만 바꿔도 465px 짜리 죽은 회색이 그대로 남았다(실측 4회 연속 425px 유지).
+   *   여백은 «그 순간의 스크롤을 위한 것»이라 상태가 바뀌면 미련 없이 버린다.
+   *   다시 필요하면 다음 selectSection 이 «모자란 만큼» 다시 준다. */
+  window.resetCanvasTail?.();
 }
 
 function _applyScalerTransform() {
@@ -2686,6 +2691,15 @@ const CANVAS_TAIL_GAP = 40;   // 섹션 위에 남길 여유
      토글 이벤트에 갈고리를 걸면 새 토글 경로가 생길 때마다 빠뜨린다.
    ※좁을 때(바 400px > 캔버스 영역) 양옆이 패널 위로 삐져나오는 건 현빈 확인 후 «그대로 둔다».
      「실제로 문제가 보이면 그때 잡자」 — 지금 clamp 를 넣으면 그 자체로 중앙에서 벗어난다. */
+/** 꼬리 여백을 버린다 — 배율변경·페이지전환·섹션삭제 등 «상태가 바뀌면» 남겨두지 않는다. */
+function resetCanvasTail() {
+  const sc = document.getElementById('canvas-scaler');
+  if (sc && sc.style.marginBottom && sc.style.marginBottom !== '0px') sc.style.marginBottom = '0px';
+}
+window.resetCanvasTail = resetCanvasTail;
+
+/** 플로팅 바와 «같이» 움직여야 하는 fixed 팝업들. absolute 인 것은 바를 따라가므로 넣지 않는다. */
+const FP_FIXED_POPUPS = ['#fp-plugin-panel'];
 {
   const fp   = document.getElementById('floating-panel');
   const area = document.getElementById('canvas-area');
@@ -2693,7 +2707,17 @@ const CANVAS_TAIL_GAP = 40;   // 섹션 위에 남길 여유
     const syncFloatingPanelCenter = () => {
       const r = area.getBoundingClientRect();
       if (r.width <= 0) return;                       // 숨겨진 순간엔 건드리지 않는다
-      fp.style.left = (r.left + r.width / 2) + 'px';  // transform: translateX(-50%) 는 CSS 그대로
+      const cx = (r.left + r.width / 2) + 'px';
+      fp.style.left = cx;                             // transform: translateX(-50%) 는 CSS 그대로
+      /* ★[적대검수 중대①] 바만 옮기면 «그 바에서 뜨는 팝업»이 창 중앙에 남는다.
+       *   #fp-plugin-panel 은 position: fixed; left: 50% 라 바와 «따로» 논다(실측 120px 어긋남).
+       *   스티커 드롭다운(.fp-dropdown-menu)은 position: absolute 라 바를 따라가므로 대상 아님.
+       *   ⇒ fixed 로 뜨는 형제를 «같이» 옮긴다. 새로 생기면 여기 추가해야 한다 —
+       *     그래서 셀렉터를 «한 곳»에 모아 둔다. */
+      for (const sel of FP_FIXED_POPUPS) {
+        const el = document.querySelector(sel);
+        if (el) el.style.left = cx;
+      }
     };
     syncFloatingPanelCenter();
     /* ⚠️관찰자 «참조»를 붙잡아 둔다 — 변수 없이 new 하면 수거되어 콜백이 조용히 안 울린다.

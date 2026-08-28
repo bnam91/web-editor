@@ -1222,6 +1222,10 @@
     const isAdmin = await api.isAdmin();
     if (!isAdmin) return;
     const badge = document.getElementById('mcp-token-badge');
+    /* ★[적대검수 중대③] 상단바는 -webkit-app-region: drag 라 그 위 요소는 마우스 이벤트가 안 간다.
+       mcp-info-badge 에만 no-drag 를 주고 «형제인 이 뱃지를 빠뜨렸다» — admin 빌드에서
+       토큰 복사·재발급이 통째로 안 눌렸다. */
+    if (badge) badge.style.webkitAppRegion = 'no-drag';
     if (!badge) return;
     const render = (tok) => {
       if (!tok) { badge.style.display = 'none'; return; }
