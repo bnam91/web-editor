@@ -29,7 +29,13 @@ function makeDom() {
       appendChild(c) { this.children.push(c); if (c.id) byId.set(c.id, c); return c; },
       addEventListener(t, fn) { (this._listeners[t] = this._listeners[t] || []).push(fn); },
       removeEventListener() {},
-      click() { return Promise.all((this._listeners.click || []).map(fn => fn({ target: this }))); },
+      /* ★가짜 DOM 이 disabled 를 무시하면 «연타 방어»를 잴 수 없다 — 버튼을 잠가도 클릭이 들어가서
+       *   「disabled 를 켠 적 없어도 초록」이 된다(C3 적대검수 M10: 「가짜 DOM 이 스텁을 잰다」 재발).
+       *   진짜 브라우저는 disabled 버튼에 click 이벤트를 «안» 보낸다. 그대로 흉내낸다. */
+      click() {
+        if (this.disabled) return Promise.resolve([]);
+        return Promise.all((this._listeners.click || []).map(fn => fn({ target: this })));
+      },
       querySelector() { return null; },
       querySelectorAll(sel) {
         const m = /^\[data-vh-([a-z]+)\]$/.exec(sel);
@@ -116,7 +122,9 @@ test('C3-1 ★「펼치기」를 누르면 그 버전 ts 로 diff 페이로드�
   const { btn, box } = await openAndExpand(env);
   assert.deepEqual(env.calls.diffArgs, [{ projectId: 'proj_1', ts: ENTRY.ts }],
     '★목록을 그릴 때가 아니라 «누를 때» 한 번, 그 행의 ts 로 불러야 한다');
-  assert.equal(box.style.display, 'block', '★펼쳤는데 안 보인다');
+  assert.notEqual(box.style.display, 'none', '★펼쳤는데 안 보인다');
+  assert.equal(box.style.display, '',
+    '★인라인 display 를 박으면 CSS 의 .vhist-detail{display:flex;gap:4px} 이 죽는다(경미⑧) — 인라인은 «지운다»');
   assert.equal(btn.textContent, '접기', '★상태가 버튼에 안 비친다');
 });
 
@@ -127,7 +135,7 @@ test('C3-2 ★다시 누르면 접힌다 — 그리고 두 번 부르지 않는�
   assert.equal(box.style.display, 'none');
   assert.equal(btn.textContent, '펼치기');
   await btn.click();
-  assert.equal(box.style.display, 'block');
+  assert.notEqual(box.style.display, 'none');
   assert.equal(env.calls.diffArgs.length, 1,
     `★같은 행을 여닫을 때마다 39MB 를 다시 읽고 있다(호출 ${env.calls.diffArgs.length}회)`);
 });
@@ -208,4 +216,144 @@ test('C3-9 ★상세 영역을 [hidden] 으로 감추지 않는다 — display �
   const fn = src.slice(src.indexOf('function _toggleDetail'), src.indexOf('function formatBytesLocal'));
   assert.ok(!/\.hidden\s*=/.test(fn), '★el.hidden 으로 여닫고 있다 — 화면엔 보이는데 코드는 감췄다고 믿는다');
   assert.match(fn, /style\.display/);
+});
+
+/* ═══ [C3검수] 생존 변이 사살 + 「모르면 모른다」 반대편 잠그기 ═══════════ */
+
+test('C3-10 ★«비교 재료 0개»를 「내용이 같습니다」로 답하지 않는다 (치명②)', async () => {
+  const env = loadUI({
+    diffReply: { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 0 },
+    versionDiff: { changeDiff: () => ({ changed: [], lost: [], gained: [],
+      summary: { same: 0, changed: 0, lost: 0, gained: 0, total: 0 } }) },
+  });
+  const { box } = await openAndExpand(env);
+  assert.ok(!/같습니다/.test(box.innerHTML),
+    '★잰 섹션이 0개인데 «유일한 긍정 안심 문구»를 냈다 — 복구하러 온 사용자를 「볼 필요 없다」로 민다');
+  assert.match(box.innerHTML, /상세 비교 생략/);
+  assert.ok(!/같음 0 · 전체 0/.test(box.innerHTML), '★0/0 집계를 근거처럼 보여주지 않는다');
+});
+
+test('C3-11 ★섹션이 «있고» 정말 같을 때만 「같습니다」라고 한다(양성대조 — 문구를 통째로 지우면 빨강)', async () => {
+  const env = loadUI({
+    diffReply: { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 10 },
+    versionDiff: { changeDiff: () => ({ changed: [], lost: [], gained: [],
+      summary: { same: 4, changed: 0, lost: 0, gained: 0, total: 4 } }) },
+  });
+  const { box } = await openAndExpand(env);
+  assert.match(box.innerHTML, /같습니다/, '★잰 게 있고 전부 같은데 «같다»고 말하지 않으면 답을 안 준 것이다');
+  assert.match(box.innerHTML, /같음 4 · 전체 4/);
+});
+
+test('C3-12 ★「닫는 중」 도착한 응답이 «폐기한 캐시»를 되살리지 않는다 (치명①)', async () => {
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const env = loadUI({ diffReply: { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 } });
+  env.win.electronAPI.historyDiffPayload = async (a) => {
+    env.calls.diffArgs.push(a); await gate;
+    return { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 };
+  };
+  await env.win.openVersionHistory({ projectId: 'proj_1', projectName: 'T' });
+  const btn = env.doc.getElementById('vhist-list').querySelectorAll('[data-vh-detail]')[0];
+  const p = btn.click();
+  env.win.closeVersionHistory();      // 응답 «전에» 닫는다
+  release(); await p; await new Promise(r => setTimeout(r, 10));
+
+  // 다시 열어 펼치면 «새로» 물어봐야 한다 — 그 사이 편집·저장이 있었을 수 있다
+  await openAndExpand(env);
+  assert.equal(env.calls.diffArgs.length, 2,
+    '★닫는 중 도착한 응답이 캐시를 되살렸다 — 편집분이 전혀 반영 안 된 옛 결과를 「같습니다」로 말한다');
+});
+
+test('C3-13 ★일시적 실패는 캐시하지 않는다 — 「한 번 더 눌러보기」가 통해야 한다 (중대⑥)', async () => {
+  let n = 0;
+  const env = loadUI({ diffReply: null });
+  env.win.electronAPI.historyDiffPayload = async (a) => {
+    env.calls.diffArgs.push(a); n++;
+    if (n === 1) return { ok: false, reason: 'exception', message: 'EBUSY: resource busy' };
+    return { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 };
+  };
+  const { btn, box } = await openAndExpand(env);
+  assert.match(box.innerHTML, /상세 비교 생략/);
+  await btn.click();                    // 접기
+  await btn.click();                    // 다시 펼치기 → 재시도해야 한다
+  await new Promise(r => setTimeout(r, 20));
+  assert.equal(env.calls.diffArgs.length, 2,
+    '★한 번 실패한 문구가 캐시로 박혀서, 접었다 펴도 다시 물어보지 않는다(사고 직후에 재시도가 안 통한다)');
+  assert.ok(!/상세 비교 생략/.test(box.innerHTML), '★재시도가 성공했는데 옛 실패 문구가 남았다');
+});
+
+test('C3-14 ★영구 조건(too_large)은 캐시한다 — 재시도 허용이 «매번 39MB 읽기»가 되면 안 된다', async () => {
+  const env = loadUI({ diffReply: { ok: false, reason: 'too_large', bytes: 40 * 1024 * 1024 } });
+  const { btn } = await openAndExpand(env);
+  await btn.click(); await btn.click();
+  await new Promise(r => setTimeout(r, 20));
+  assert.equal(env.calls.diffArgs.length, 1, '★용량은 다시 물어도 답이 같다 — 캐시가 맞다');
+});
+
+test('C3-15 ★비교 중엔 버튼이 잠긴다 — 연타로 IPC 가 두 번 나가지 않는다 (M10)', async () => {
+  let release; const gate = new Promise(r => { release = r; });
+  const env = loadUI({ diffReply: null });
+  env.win.electronAPI.historyDiffPayload = async (a) => {
+    env.calls.diffArgs.push(a); await gate; return { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 };
+  };
+  await env.win.openVersionHistory({ projectId: 'proj_1', projectName: 'T' });
+  const btn = env.doc.getElementById('vhist-list').querySelectorAll('[data-vh-detail]')[0];
+  const p = btn.click();
+  assert.equal(btn.disabled, true, '★비교 중인데 버튼이 안 잠겼다');
+  await btn.click();                    // 연타 — 잠겼으면 안 들어간다
+  release(); await p; await new Promise(r => setTimeout(r, 10));
+  assert.equal(env.calls.diffArgs.length, 1, `★연타로 IPC 가 ${env.calls.diffArgs.length}번 나갔다`);
+  assert.equal(btn.disabled, false, '★끝났는데 버튼이 잠긴 채다 — 다시 펼칠 수 없다');
+});
+
+test('C3-16 ★too_large 는 «용량»을 같이 말한다 — 숫자가 없으면 사용자가 판단할 수 없다 (M8)', async () => {
+  const env = loadUI({ diffReply: { ok: false, reason: 'too_large', bytes: 41 * 1024 * 1024 } });
+  const { box } = await openAndExpand(env);
+  assert.match(box.innerHTML, /4[01](\.\d+)?MB/, `★용량이 안 붙었다: ${box.innerHTML}`);
+});
+
+test('C3-17 ★손실 줄은 «빨강»으로 구분된다 — 다른 줄과 같은 색이면 헤드라인이 아니다 (M12)', async () => {
+  const env = loadUI({
+    diffReply: { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 },
+    versionDiff: { changeDiff: () => ({ changed: [{ k: 'p::a', n: '배너' }], lost: [{ k: 'p::z', n: '상세컷' }],
+      gained: [{ k: 'p::y', n: '새것' }], summary: { same: 1, changed: 1, lost: 1, gained: 1, total: 4 } }) },
+  });
+  const { box } = await openAndExpand(env);
+  const lostLine = box.innerHTML.split('\n').find(l => /지금은 없는 섹션/.test(l)) || box.innerHTML;
+  assert.match(lostLine, /is-lost/, '★손실 줄에 is-lost 가 없다 — CSS 가 --ui-danger 를 못 준다');
+  assert.ok(!/is-lost[^>]*>[+✎]/.test(box.innerHTML), '★손실이 아닌 줄에 is-lost 가 붙었다');
+});
+
+test('C3-18 ★「지금」 행에는 상세 버튼이 없다 — 자기 자신과 비교할 것이 없다 (M13)', async () => {
+  const env = loadUI({ diffReply: { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 } });
+  await env.win.openVersionHistory({ projectId: 'proj_1', projectName: 'T' });
+  const html = env.doc.getElementById('vhist-list').innerHTML;
+  const currentRow = html.slice(0, html.indexOf('data-vh-detail') === -1 ? html.length : html.indexOf('vhist-row', 10));
+  assert.ok(!/is-current[\s\S]*?data-vh-detail/.test(currentRow),
+    '★「지금」 행에 펼치기가 붙었다 — 누르면 자기 자신과 비교하게 된다');
+  assert.equal((html.match(/data-vh-detail/g) || []).length, 1, '버전 행에는 붙어야 한다(양성대조)');
+});
+
+test('C3-19 ★섹션 이름을 «이스케이프»한다 — data-name 은 사용자 입력이다 (M14/M15)', async () => {
+  const env = loadUI({
+    diffReply: { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 },
+    versionDiff: { changeDiff: () => ({
+      changed: [{ k: 'p::a', n: '<img src=x onerror=alert(1)>' }],
+      lost: [{ k: 'p::z', n: '<script>bad()</script>' }], gained: [],
+      summary: { same: 0, changed: 1, lost: 1, gained: 0, total: 2 } }) },
+  });
+  const { box } = await openAndExpand(env);
+  assert.ok(!/<img src=x/.test(box.innerHTML), '★섹션 이름의 태그가 «날것»으로 들어갔다');
+  assert.ok(!/<script>/.test(box.innerHTML), '★스크립트 태그가 날것으로 들어갔다');
+  assert.match(box.innerHTML, /&lt;img/, '이스케이프된 형태로는 보여야 한다');
+});
+
+test('C3-20 ★main 이 내는 reason 이 «영어 토큰»으로 화면에 나가지 않는다 (경미⑦)', async () => {
+  for (const reason of ['no_current', 'current_corrupt', 'corrupt', 'not_found', 'exception', 'unavailable']) {
+    const env = loadUI({ diffReply: { ok: false, reason } });
+    const { box } = await openAndExpand(env);
+    assert.ok(!new RegExp(reason).test(box.innerHTML),
+      `★「상세 비교 생략 — ${reason}」이 그대로 나간다`);
+    assert.match(box.innerHTML, /상세 비교 생략 — .*[가-힣]/, `${reason} 에 한국어 사유가 없다`);
+  }
 });

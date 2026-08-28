@@ -158,9 +158,21 @@
 
   function _detailHtml(d) {
     const rows = [];
+    /* ★[치명②] «비교 재료가 0개»인 것과 «비교했더니 같더라»는 완전히 다른 말이다.
+     *   섹션이 하나도 안 잡히면(빈 캔버스·파싱 실패·페이로드 이상) total 은 0 이고,
+     *   초판은 그걸 「내용이 같습니다」라는 «유일한 긍정 안심 문구»로 답했다.
+     *   복구하러 온 사용자에게 「이 버전은 볼 필요 없다」고 미는 셈이다 — §P-1 의 반대편이다.
+     *   ⇒ 잰 게 없으면 «못 쟀다»고 말한다. ②(재진입)와 같은 병의 양면이다: 모르면 모른다고 한다. */
+    if (!d || !d.summary || d.summary.total === 0) {
+      return _skipHtml('비교할 섹션을 찾지 못했습니다(이 버전이나 「지금」이 비어 있을 수 있습니다)');
+    }
     // ★mixedEncoding: 한쪽만 인라인 base64 면 이미지 있는 섹션이 «전부» 바뀐 것으로 보인다(가짜 변경의 벽).
     //   그 목록을 그대로 보여주면 「전부 바뀌었다」는 잘못된 인상을 준다 — «바뀐 섹션»만 생략한다.
-    //   없어진/새로 생긴 섹션은 id 로 판별하므로 저장 형식과 무관하다. 그건 그대로 보여준다.
+    //   ★[중대④] 없어진/새로 생긴 섹션은 «섹션 id»(_idOf) 로 판별하므로 저장 형식과 무관하다.
+    //   ⚠️초판 주석도 결론은 같았지만 근거가 «거짓»이었다 — 그때 lost/gained 는 pageId::id 였다.
+    //     그래서 페이지를 옮기기만 해도 살아있는 섹션이 빨간 줄로 실렸다(중대③).
+    //     ★옳은 결론을 틀린 근거로 지키면, 근거가 깨질 때 결론도 조용히 깨진다.
+    //     지금은 changeDiff 가 L1 과 같은 신원 규약을 쓰므로 이 문장이 «참»이다.
     if (d.mixedEncoding) {
       rows.push(_skipHtml('저장 형식이 섞여 있어 «바뀐 섹션»은 판별할 수 없습니다(없어진/새로 생긴 섹션만 표시)'));
     } else if (d.changed.length) {
@@ -172,20 +184,25 @@
     if (d.gained.length) {
       rows.push(`<div class="vhist-detail-line">+ 그 뒤에 생긴 섹션 ${d.gained.length} — ${_sectionList(d.gained, 6)}</div>`);
     }
-    if (!rows.length || (!d.mixedEncoding && !d.changed.length && !d.lost.length && !d.gained.length)) {
+    // ★여기 오면 «잰 섹션이 1개 이상»이다(위에서 total 0 을 걸렀다) — 그때만 「같다」고 말할 자격이 있다.
+    if (!rows.length) {
       rows.push('<div class="vhist-detail-note">이 버전과 「지금」의 섹션 내용이 같습니다.</div>');
     }
     rows.push(`<div class="vhist-detail-note">같음 ${d.summary.same} · 전체 ${d.summary.total} 섹션</div>`);
     return rows.join('');
   }
 
+  /* ★사전의 키는 main 이 «실제로 내는» reason 이어야 한다 — 없으면 화면에 영어 토큰이 그대로 나간다
+   *   (「상세 비교 생략 — no_current」). _restore 에서 세운 규율을 여기서도 지킨다.
+   *   ⛔없는 키를 넣어두지도 않는다 — 죽은 키는 「덮었다」는 착각만 준다(current_missing 이 그랬다). */
   const _SKIP_REASON = {
     too_large: '이 버전이 너무 커서 섹션 단위 비교를 건너뜁니다',
-    current_corrupt: '「지금」 상태를 읽을 수 없습니다',
-    current_missing: '「지금」 상태 파일이 없습니다',
+    no_current: '「지금」 상태 파일을 찾을 수 없습니다',      // main.js:1243
+    current_corrupt: '「지금」 상태를 읽을 수 없습니다',        // main.js:1247
     corrupt: '이 버전 파일이 손상됐습니다',
     not_found: '이 버전 파일을 찾을 수 없습니다',
-    unavailable: '이 기능은 데스크탑 앱에서만 동작합니다',
+    exception: '비교 중 오류가 났습니다',                     // main.js diff-payload catch
+    unavailable: '버전 기록 모듈을 불러오지 못했습니다',       // main 이 내는 것 — 「데스크탑 앱」과 다른 뜻이다
   };
 
   async function _toggleDetail(ts, btn) {
@@ -200,20 +217,21 @@
     }
     if (_detailCache.has(ts)) {
       box.innerHTML = _detailCache.get(ts);
-      box.style.display = 'block';
+      box.style.display = '';       // ★인라인을 «지운다» — 'block' 을 넣으면 CSS 의 flex/gap 이 죽는다
       btn.textContent = '접기';
       return;
     }
     const api = _api();
     btn.disabled = true;
-    const prev = btn.textContent;
     btn.textContent = '비교 중…';
     let html;
+    let cacheable = true;   // ★[중대⑥] 일시적 실패는 캐시하지 않는다 — 다시 눌러볼 수 있어야 한다
     try {
       if (!api || typeof api.historyDiffPayload !== 'function') {
-        html = _skipHtml(_SKIP_REASON.unavailable);
+        html = _skipHtml('이 기능은 데스크탑 앱에서만 동작합니다');   // 렌더러 쪽 판정 — main 의 unavailable 과 다른 사유다
       } else if (!window.versionDiff || typeof window.versionDiff.changeDiff !== 'function') {
         html = _skipHtml('비교 모듈이 로드되지 않았습니다');
+        cacheable = false;              // 모듈이 늦게 붙을 수 있다
       } else {
         const r = await api.historyDiffPayload({ projectId: targetId, ts });
         if (!r || !r.ok) {
@@ -221,6 +239,9 @@
             || `${(r && (r.message || r.reason)) || '알 수 없는 이유'}`;
           html = _skipHtml(r && r.reason === 'too_large' && r.bytes
             ? `${why} (${formatBytesLocal(r.bytes)})` : why);
+          // ★[중대⑥] «영구 조건»만 캐시한다. 나머지(EBUSY·일시 오류)는 다시 눌러 재시도할 수 있어야 한다.
+          //   사고 직후에 「한 번 더 눌러보기」가 안 통하면 사용자는 기능이 죽었다고 판단한다.
+          cacheable = r && (r.reason === 'too_large' || r.reason === 'corrupt' || r.reason === 'not_found');
         } else {
           // ★DOMParser 가 없으면 changeDiff 는 «던진다» — 조용한 0 을 안 내려고 그렇게 설계했다.
           //   여기서 잡아 「생략」으로 말한다. 값을 지어내지 않는다.
@@ -229,14 +250,25 @@
       }
     } catch (e) {
       html = _skipHtml(e && e.message ? e.message : '비교 중 오류가 났습니다');
+      cacheable = false;                // 예외는 «일시적»일 수 있다
     } finally {
       btn.disabled = false;
     }
-    _detailCache.set(ts, html);
-    box.innerHTML = html;
-    box.style.display = 'block';
+    /* ★★[치명①] await 를 건너는 동안 사용자가 «닫았을» 수 있다. close() 는 캐시를 비우는데,
+     *   그대로 set 하면 «폐기한 캐시가 되살아난다». 그 뒤 편집·저장하고 다시 열어 펼치면
+     *   IPC 를 한 번도 안 부르고 옛 결과를 「내용이 같습니다」로 답한다 — 편집분이 통째로 빠진다.
+     *   ⇒ 값 포착(targetId)만으론 부족하다. «돌아왔을 때 그 화면이 아직 그 화면인지»를 확인한다.
+     *   ⚠️_openCopy/_restore 에서 이미 잡았던 그 자리인데 여기선 확인을 뺐었다.
+     *   ★가드는 «한 곳»에만 둔다 — 초판 픽스는 await 안쪽에도 같은 검사를 넣었는데, 그러면
+     *     한쪽을 지워도 다른 쪽이 가려 «변이가 살아남는다»(스윕 M6 생존). 겹친 방어는 각 겹을
+     *     따로 잴 수 있을 때만 값이 있고, 여기선 안쪽 검사가 순수 중복이었다. */
+    if (!_ctx || _ctx.projectId !== targetId) return;
+    const liveBox = _el(`vhist-detail-${ts}`);          // ★재렌더로 노드가 바뀌었을 수 있다
+    if (!liveBox) return;
+    if (cacheable) _detailCache.set(ts, html);
+    liveBox.innerHTML = html;
+    liveBox.style.display = '';   // ★[경미⑧] CSS(.vhist-detail{display:flex;gap})가 살도록 인라인을 지운다
     btn.textContent = '접기';
-    void prev;
   }
 
   function formatBytesLocal(n) {

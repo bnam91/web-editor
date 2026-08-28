@@ -109,7 +109,7 @@
 
 /* ★[C3] 상세 비교(L2) — 접혀 있다가 「펼치기」로 열리는 영역.
  *   신작은 이 블록뿐이고, 어휘는 위의 .vhist-meta / .vhist-loss 를 그대로 잇는다:
- *   본문보다 작고(10px), 색은 --ui-text-sub, 손실만 --ui-danger. 새 색·새 모양을 만들지 않는다.
+ *   본문보다 작고(줄=fs-12 · 메모=fs-10), 색은 --ui-text-sub, 손실만 --ui-danger. 새 색·새 모양을 만들지 않는다.
  *   ⛔[hidden] 으로 감추지 않는다 — display 를 주는 클래스에 지므로, 여닫기는 style.display 로 한다. */
 .vhist-detail {
   grid-column: 1 / -1;
@@ -134,4 +134,7 @@
   font-size: var(--ui-fs-10);
   color: var(--ui-text-muted);
   line-height: var(--ui-lh-relaxed);
+  /* ★[경미⑩] 생략 사유엔 파일 경로·예외 메시지가 들어온다 — 안 끊으면 모달이 가로로 밀린다.
+     이 모달의 규율은 「가로 스크롤 금지」다(행 배치가 grid 라 한 칸만 넘쳐도 전체가 밀린다). */
+  word-break: break-word;
 }
