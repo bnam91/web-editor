@@ -145,12 +145,16 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
     data = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
   } catch {
     console.warn('[save-load] saveProjectToFile: 손상된 snapshot, 저장 취소');
-    return;
+    // ★[1차검수 M5] «명시 반환». 초판은 bare return(=undefined)이라 호출측이 「큐잉」과 구분할 수 없었고,
+    //   그래서 버전 되돌리기가 저장 실패를 못 보고 「교체됨」이라고 말했다.
+    return { ok: false, reason: 'corrupt_snapshot' };
   }
   // S11: 빈 canvas 저장 방지 — 모든 페이지의 canvas가 비어있으면 기존 파일 데이터 보호
   if (_isAllCanvasEmpty(data)) {
     console.warn('[save-load] saveProjectToFile: 모든 페이지 canvas가 비어있어 저장 건너뜀 (기존 데이터 보호)');
-    return;
+    // ★skipped:true — «보호성 스킵»이지 실패가 아니다. 자동저장 인디케이터는 빨갛게 만들지 않되,
+    //   「저장했다」고 믿으면 안 되는 호출측(버전 되돌리기)은 이걸 보고 정직하게 알린다.
+    return { ok: false, skipped: true, reason: 'empty_canvas_skipped' };
   }
   const thumbnail = opts.skipThumbnail ? null : await captureThumbnail();
 
@@ -1290,7 +1294,8 @@ function scheduleAutoSave() {
     // "저장 시점 activeProjectId 재읽기"에 의존하지 않는다(비동기 큐잉 중 전환 대비).
     Promise.resolve(saveProjectToFile(snap, { skipThumbnail: true, projectId: _saveTargetId })) // 자동저장은 썸네일 캡처 생략
       .then(r => {
-        _setAutosaveIndicator(r && r.ok === false ? 'error' : 'saved');
+        // ★보호성 스킵(빈 캔버스)은 «실패»가 아니다 — 새 프로젝트에서 매번 빨강이 되면 신호가 죽는다.
+        _setAutosaveIndicator(r && r.ok === false && !r.skipped ? 'error' : 'saved');
         // ★협업 동기화 훅 — 저장이 «끝난 뒤»에만 알린다. 저장 전에 쏘면 내 디스크에도
         //   없는 것을 남에게 주게 된다. 실패했으면 안 쏜다(공유는 저장의 «다음» 단계다).
         //   이벤트로 가른 이유: save-load 가 협업을 몰라도 되게 — 협업이 없으면 아무도 안 듣는다.

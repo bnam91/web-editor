@@ -72,6 +72,7 @@
             <button class="settings-tab" data-tab="shortcuts">단축키</button>
             <button class="settings-tab" data-tab="easter">이스터에그</button>
             <button class="settings-tab" data-tab="perf">성능</button>
+            <button class="settings-tab" data-tab="version">버전 기록</button>
             ${window.MARKET_ENABLED ? '<button class="settings-tab" data-tab="market">마켓</button>' : ''}
             ${window.COLLAB_ENABLED ? '<button class="settings-tab" data-tab="collab">협업</button>' : ''}
             <button class="settings-tab" data-tab="dev">개발자</button>
@@ -81,6 +82,7 @@
             <div class="settings-pane settings-pane-shortcuts" data-pane="shortcuts" style="display:none"></div>
             <div class="settings-pane settings-pane-easter" data-pane="easter" style="display:none"></div>
             <div class="settings-pane settings-pane-perf" data-pane="perf" style="display:none"></div>
+            <div class="settings-pane settings-pane-version" data-pane="version" style="display:none"></div>
             ${window.MARKET_ENABLED ? '<div class="settings-pane settings-pane-market" data-pane="market" style="display:none"></div>' : ''}
             ${window.COLLAB_ENABLED ? '<div class="settings-pane settings-pane-collab" data-pane="collab" style="display:none"></div>' : ''}
             <div class="settings-pane settings-pane-dev" data-pane="dev" style="display:none"></div>
@@ -119,6 +121,8 @@
         }
         // 협업 탭도 같은 이유로 진입 시 다시 읽는다 — 초대는 «지금» 와 있을 수 있다.
         if (tab === 'collab') renderCollabPane();
+        // 버전 기록도 같은 이유 — 저장할 때마다 늘어나므로 «진입 시» 다시 읽는다
+        if (tab === 'version') renderVersionPane();
       });
     });
 
@@ -269,6 +273,55 @@
   //   용량·백업 유무) + 「변환 되돌리기」(proj_pre-externalize.json이 있을 때만 표시).
   //   공용 클래스 재사용(settings-section-title/help/btn-primary/api-status/egg-row/egg-toggle) → 새 CSS 없음.
   const _fmtMB = (n) => (Number(n || 0) / 1024 / 1024).toFixed(1) + 'MB';
+  /* [version-history] 톱니바퀴에서도 버전 기록으로 갈 수 있게 (현빈 요청).
+   * ★새 CSS 0 — .settings-section-title / .settings-help / .settings-btn / .settings-api-status 재사용.
+   *   .vhist-* 룩을 설정 안에 새로 만들지 않는다(디자인 게이트).
+   * ★컨텍스트: settings-modal.js 는 «index.html 에서만» 로드된다(projects.html 은 CSS 만 링크).
+   *   즉 이 모달은 에디터에만 있고 activeProjectId 가 있는 게 정상이다. 그래도 없을 때를 대비해
+   *   ⛔「아무 프로젝트나」로 폴백하지 «않는다» — 복구 도구가 엉뚱한 프로젝트의 과거를 보여주면 그게 최악이다.
+   *   대신 «비활성 + 이유 + 대안»을 말한다. ⛔hidden 속성은 쓰지 않는다(display 클래스에 져서
+   *   「죽은 버튼」이 라이브 직전까지 간 전례가 있다) — disabled 로 하고 computed 로 판정한다. */
+  /* ★[현빈 시연 피드백] 「버전 기록 열기」 버튼을 «없앤다» — 탭을 누르면 목록이 바로 나온다.
+   *   버튼이 있던 이유는 「모달 위 모달을 피한다」였는데, 그건 «내 구현 사정»이지 쓰는 사람 사정이 아니다.
+   *   겹침을 피하려고 클릭을 하나 더 시킨 건 잘못된 거래다. 페인 안에 그리면 겹침도 사라지고 클릭도 없다.
+   *   ⛔목록·행·파괴적 동작은 version-history-ui 의 mountVersionHistory 를 «그대로» 쓴다(두 번째 구현 금지).
+   *   지연 로드: 탭을 «누를 때» 부른다(마켓·협업과 같은 규약). 283MB 첫 열람 0.7초가 여기서도 난다. */
+  async function renderVersionPane() {
+    const pane = document.querySelector('.settings-pane-version');
+    if (!pane) return;
+
+    const target = (typeof window.resolveVersionHistoryTarget === 'function')
+      ? window.resolveVersionHistoryTarget() : { ok: false, reason: 'unavailable' };
+
+    if (!target.ok) {
+      // ⛔「아무 프로젝트나」로 폴백하지 않는다 — 복구 도구가 엉뚱한 과거를 보여주면 그게 최악이다.
+      pane.innerHTML = `
+        <div class="settings-section-title">버전 기록</div>
+        <div class="settings-help">${_escapeHtml(target.message || '버전 기록을 열 수 없습니다.')}</div>`;
+      return;
+    }
+
+    pane.innerHTML = `
+      <div class="settings-section-title">버전 기록 — ${_escapeHtml(target.projectName || target.projectId)}</div>
+      <div class="settings-help vhist-intro-text"></div>
+      <div class="vhist-list vhist-in-settings"></div>
+      <div class="settings-help vhist-status-text" style="margin-top:10px"></div>`;
+
+    if (typeof window.mountVersionHistory !== 'function') {
+      pane.querySelector('.vhist-list').innerHTML =
+        '<div class="vhist-empty">버전 기록은 데스크탑 앱에서만 사용할 수 있습니다.</div>';
+      return;
+    }
+    await window.mountVersionHistory(pane, {
+      projectId: target.projectId, projectName: target.projectName,
+    });
+  }
+
+  function _escapeHtml(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   function renderPerfPane() {
     const pane = document.querySelector('.settings-pane-perf');
     if (!pane) return;

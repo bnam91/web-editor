@@ -8,7 +8,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveProject:    (project) => ipcRenderer.invoke('projects:save', project),
   // BUG-44: beforeunload용 동기 저장 — async를 await할 수 없는 새로고침/탭닫기 시점에 호출
   saveProjectSync:(project) => ipcRenderer.sendSync('projects:save-sync', project),
-  deleteProject:  (id)      => ipcRenderer.invoke('projects:delete', id),
+  // [U7] 삭제 = «휴지통으로 이동»이 기본. permanent:true 는 휴지통이 실패해 사용자가 «2차 확인으로 선택»했을 때만.
+  //   반환은 { ok, trashed, reason } — 「지웠나」와 「휴지통이냐 영구냐」를 구분한다(구 boolean 은 못 나눴다).
+  deleteProject:  (id, opts) => ipcRenderer.invoke('projects:delete', id, opts || {}),
   duplicateProject: ({ sourceProjectId, newName }) =>
     ipcRenderer.invoke('projects:duplicate', { sourceProjectId, newName }),
 
@@ -102,6 +104,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   externalizeScan:        ({ projectId }) => ipcRenderer.invoke('projects:externalize-scan', { projectId }),
   onProjectExternalized:  (cb) => ipcRenderer.on('projects:externalized', (_e, p) => cb(p)),
   onExternalizeHint:      (cb) => ipcRenderer.on('projects:externalize-hint', (_e, p) => cb(p)),
+
+  // [version-history] 버전 기록 — ★읽기 전용 3채널. 되돌리기·사본생성은 아직 노출하지 않는다.
+  historyList:        ({ projectId })      => ipcRenderer.invoke('projects:history-list', { projectId }),
+  historyRead:        ({ projectId, ts })  => ipcRenderer.invoke('projects:history-read', { projectId, ts }),
+  historyDiffPayload: ({ projectId, ts })  => ipcRenderer.invoke('projects:history-diff-payload', { projectId, ts }),
+  // 사본으로 열기 — 비파괴(새 프로젝트를 만들 뿐 기존 것을 안 건드린다). 되돌리기(파괴)는 아직 없다.
+  historyOpenCopy:    ({ projectId, ts, newName }) => ipcRenderer.invoke('projects:history-open-copy', { projectId, ts, newName }),
+  // ★파괴 경로 — 「이 버전으로 교체」. openProjectIds 는 «이 창이 연 탭 목록»이다.
+  //   안 넘기면 main 이 «판별 불가»로 보고 거부한다(다른 창에서 열려 있을 수 있으므로).
+  historyRestore:     ({ projectId, ts, openProjectIds, activeProjectId, currentData }) =>
+    ipcRenderer.invoke('projects:history-restore', { projectId, ts, openProjectIds, activeProjectId, currentData }),
 
   // 사용자별 Preferences (API 키 + 단축키)
   getSettings:  ()              => ipcRenderer.invoke('settings:get'),
