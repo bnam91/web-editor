@@ -275,6 +275,37 @@
     if (_ctx && _ctx.projectId === projectId) _render(view);
   }
 
+  /* ── 진입점 «해석기» — 세 진입점이 한 함수를 지난다 ────────────────────
+   * ① 갤러리 카드 🕐 → id 를 «자기가» 안다(카드가 그 프로젝트다) → 이 함수를 안 탄다
+   * ② 에디터 상단바 배지 · ③ 환경설정 「버전 기록」 탭 → 「지금 어느 프로젝트냐」를 여기서 답한다
+   *
+   * ⛔«아무 프로젝트나»로 폴백하지 않는다. 복구 도구가 엉뚱한 프로젝트의 과거를 보여주면 그게 최악이다.
+   *   못 정하면 «못 정한다»고 말하고 «대안»을 알려준다(설계 §7-4: 이유 없는 거부가 제일 나쁘다).
+   * @returns {{ok:true, projectId:string, projectName:string}|{ok:false, reason:string, message:string}}
+   */
+  function resolveVersionHistoryTarget() {
+    const id = (typeof window !== 'undefined') && window.activeProjectId;
+    if (!id) {
+      return { ok: false, reason: 'no_active_project',
+        message: '열린 프로젝트가 없습니다. 프로젝트를 연 뒤 다시 열거나, 갤러리에서 카드의 🕐 를 누르세요.' };
+    }
+    let name = '';
+    try {
+      const tabs = window.openTabs;
+      if (Array.isArray(tabs)) name = (tabs.find(t => t && t.id === id) || {}).name || '';
+    } catch (_) {}
+    return { ok: true, projectId: id, projectName: name };
+  }
+
+  /** 상단바 배지·설정 탭이 쓰는 «한 경로». 못 정하면 이유를 말한다. */
+  function openVersionHistoryHere() {
+    const t = resolveVersionHistoryTarget();
+    if (!t.ok) { if (typeof window.alert === 'function') window.alert(t.message); return; }
+    return openVersionHistory({ projectId: t.projectId, projectName: t.projectName });
+  }
+
   window.openVersionHistory = openVersionHistory;
+  window.openVersionHistoryHere = openVersionHistoryHere;
+  window.resolveVersionHistoryTarget = resolveVersionHistoryTarget;
   window.closeVersionHistory = close;
 })();

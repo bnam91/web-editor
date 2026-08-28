@@ -96,7 +96,7 @@
 <span id="collab-invite-badge" class="tb-badge" style="display:none;cursor:pointer;" title="받은 공동작업 초대"></span>
 <!-- [version-history] 이 프로젝트의 버전 기록. 상단바 공용 .tb-badge 재사용(fsub 배지와 같은 어휘) -->
   <span id="vhist-topbar-badge" class="tb-badge" style="cursor:pointer;" title="버전 기록 — 저장할 때마다 쌓입니다"
-        onclick="openVersionHistory({ projectId: window.activeProjectId, projectName: (window.__tabs||[]).find(t=>t.id===window.activeProjectId)?.name })">🕐 버전</span>
+        onclick="openVersionHistoryHere()">🕐 버전</span>
   <span id="debug-port-badge" class="tb-badge" style="display:none;"></span>
 <span id="mcp-info-badge" class="tb-badge" style="display:none;cursor:pointer;" title="클릭하면 MCP 주소 복사"></span>
 <span id="mcp-token-badge" class="tb-badge" style="display:none;cursor:pointer;" title="클릭하면 MCP 접속 토큰 복사 / Alt+클릭 재발급"></span>
