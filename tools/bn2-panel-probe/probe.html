@@ -142,7 +142,20 @@ try {
     }
   }
 
-  /* ⑷ 디자인 게이트 — 신작 클래스 0 */
+  /* ⑷ ★화면이 «무거워 보이지» 않나 — 절이 늘었으니 숫자로 잰다.
+   *   줄 머리까지 .prop-section-title 이라 4개가 같은 굵기로 쌓이면 「제목이 내용보다 많다」가 된다. */
+  await openLine(0);
+  const ed = editors()[0];
+  const rowsN = ed.querySelectorAll('.prop-row, .prop-color-row').length;
+  const titleN = ed.querySelectorAll('.prop-section-title').length;
+  const fieldN = ed.querySelectorAll('.prop-field-label').length;
+  R.env.weight = { titles: titleN, fieldLabels: fieldN, rows: rowsN, editorH: Math.round(ed.getBoundingClientRect().height) };
+  if (titleN + fieldN > rowsN) P(`★제목(${titleN}+${fieldN})이 내용(${rowsN})보다 많다 — 화면이 무거워 보인다`);
+  const panelBody = document.querySelector('#panel-right .panel-body');
+  R.env.panelOverflowX = panelBody.scrollWidth - panelBody.clientWidth;
+  if (R.env.panelOverflowX > 1) P(`★패널이 가로로 ${R.env.panelOverflowX}px 밀렸다`);
+
+  /* ⑸ 디자인 게이트 — 신작 클래스 0 */
   const cls = new Set();
   panel.querySelectorAll('[data-line-row] *').forEach(e => e.classList.forEach(c => cls.add(c)));
   const foreign = [...cls].filter(c => !/^(prop-|cv-|font-picker|is-|active)/.test(c));
