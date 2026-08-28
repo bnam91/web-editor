@@ -2626,6 +2626,42 @@ document.addEventListener('click', e => {
 }
 
 /* ═══════════════════════════════════
+   FLOATING PANEL — 캔버스 중앙 추종
+   ★문제: 좌우 패널을 접었다 펴면 «캔버스 영역»의 중심이 움직이는데,
+     상단 노치는 따라가고 하단 플로팅 바는 «창 한가운데»에 고정돼 있었다.
+       #canvas-notch-bar  position: absolute  → #canvas-area 안에서 가운데 (따라간다)
+       #floating-panel    position: fixed     → 창 전체에서 가운데 (안 따라간다)
+     실측(2026-08-28): 좌패널 237px 접으면 캔버스 중심 776 → 657 인데 플로팅은 777 그대로 = 120px 어긋남.
+
+   ★왜 DOM 을 #canvas-area 안으로 «옮기지 않았나»:
+     #canvas-area 는 overflow:hidden 이다. 플로팅 바 안의 드롭다운(스티커·플러그인 등)이
+     영역 밖으로 펼쳐지면 «잘린다». 위치만 따라가게 하는 편이 부작용이 없다.
+
+   ★ResizeObserver 를 쓴다 — 패널 토글·창 크기변경·애니메이션 «중»에도 매 프레임 따라온다.
+     토글 이벤트에 갈고리를 걸면 새 토글 경로가 생길 때마다 빠뜨린다.
+   ※좁을 때(바 400px > 캔버스 영역) 양옆이 패널 위로 삐져나오는 건 현빈 확인 후 «그대로 둔다».
+     「실제로 문제가 보이면 그때 잡자」 — 지금 clamp 를 넣으면 그 자체로 중앙에서 벗어난다. */
+{
+  const fp   = document.getElementById('floating-panel');
+  const area = document.getElementById('canvas-area');
+  if (fp && area) {
+    const syncFloatingPanelCenter = () => {
+      const r = area.getBoundingClientRect();
+      if (r.width <= 0) return;                       // 숨겨진 순간엔 건드리지 않는다
+      fp.style.left = (r.left + r.width / 2) + 'px';  // transform: translateX(-50%) 는 CSS 그대로
+    };
+    syncFloatingPanelCenter();
+    /* ⚠️관찰자 «참조»를 붙잡아 둔다 — 변수 없이 new 하면 수거되어 콜백이 조용히 안 울린다.
+       (실측: 참조 없이 두면 패널 토글에 반응 0. 함수 자체는 정상이라 진단이 어렵다.) */
+    const _fpRO = new ResizeObserver(syncFloatingPanelCenter);
+    _fpRO.observe(area);
+    window._fpResizeObserver = _fpRO;
+    window.addEventListener('resize', syncFloatingPanelCenter);
+    window.syncFloatingPanelCenter = syncFloatingPanelCenter;   // 테스트/프로브용
+  }
+}
+
+/* ═══════════════════════════════════
    CENTER NOTCH BAR
 ═══════════════════════════════════ */
 {

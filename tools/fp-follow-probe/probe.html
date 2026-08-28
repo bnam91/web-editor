@@ -1,0 +1,14 @@
+<meta charset="utf-8">
+<style>
+  body{margin:0;display:flex;height:400px}
+  #panel-left{width:237px;background:#333;transition:width .2s}
+  #panel-left.collapsed{width:0}
+  #canvas-area{flex:1;position:relative;overflow:hidden;background:#222}
+  #canvas-notch-bar{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:80px;height:20px;background:#666}
+  #floating-panel{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);width:400px;height:40px;background:#0a6}
+  #panel-right{width:240px;background:#333}
+</style>
+<div id="panel-left"></div>
+<div id="canvas-area"><div id="canvas-notch-bar"></div></div>
+<div id="panel-right"></div>
+<div id="floating-panel"></div>
