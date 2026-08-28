@@ -2120,9 +2120,19 @@ if (window.electronAPI) {
   });
 }
 
-// 버전 배지 — BETA 표기
+/* 버전 배지 — 「BETA」 옆에 «실제 버전»을 같이 보인다(현빈 2026-08-28).
+ * ★왜: 앱 안에서 「내가 지금 몇 버전을 쓰는지」 알 방법이 없었다.
+ *   오늘 실제로 문제가 됐다 — 현빈은 0.8.3, 수지맥은 0.8.2 인데 둘 다 화면엔 「BETA」만 떴다.
+ *   버그 신고를 받아도 «어느 버전에서» 난 건지 되물어야 한다.
+ * ⚠️getVersion 은 IPC(비동기)라 실패할 수 있다 — 그때는 「BETA」로 남긴다.
+ *   ⛔실패를 «빈 배지»로 두지 않는다. 로고 옆이 비면 «망가진 화면»으로 읽힌다. */
 const _verBadge = document.getElementById('logo-version-badge');
-if (_verBadge) _verBadge.textContent = 'BETA';
+if (_verBadge) {
+  _verBadge.textContent = 'BETA';
+  window.electronAPI?.getVersion?.()
+    .then(v => { if (v) _verBadge.textContent = `BETA v${v}`; })
+    .catch(() => {});
+}
 
 // Electron 환경이면 JSON 파일에서 프리셋 로드.
 // _presetsReady: race condition 방지용 Promise — showSectionProperties 등에서 await 후 UI 렌더.
