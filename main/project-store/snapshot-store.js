@@ -471,7 +471,13 @@ function rebuildIndex(projectsDir, projectId, opts = {}) {
   // ★[C1] 스키마가 바뀐 인덱스의 current 는 «옛 계산»이라 그대로 이어받으면 안 된다.
   //   mtime 은 안 바뀌어 listVersions 의 신선도 판정에도 안 걸리므로, 여기서 명시적으로 버린다.
   if (prev && prev.current && prev.v === SCHEMA) idx.current = prev.current;
-  return writeIndex(projectsDir, projectId, idx);
+  // ★[D9] 기록 실패로 «던지지» 않는다. 인덱스는 파생 데이터고, 못 쓰는 이유는 대개 디스크가 찼거나
+  //   읽기전용이라서다 — 그게 곧 「버전 목록을 못 연다」가 되면 안 된다. 사고 직후가 정확히 그 상황이다.
+  //   ⇒ 메모리 인덱스를 그대로 돌려준다(그 호출에서만 유효). 호출측은 목록을 정상적으로 그린다.
+  //   ⚠️초판은 여기서 throw 가 나가 writeSnapshot 이 통째로 죽었고, 그래서 「인덱스 실패를 정직하게
+  //     보고한다」는 아래 계약이 «도달조차 못 하는» 죽은 코드였다(변이 스윕이 짚었다).
+  try { return writeIndex(projectsDir, projectId, idx); }
+  catch (e) { idx.indexUnwritable = e.message; return idx; }
 }
 
 /** 인덱스를 얻는다 — 없으면 재빌드. 항상 유효한 인덱스를 돌려준다. */

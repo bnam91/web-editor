@@ -268,12 +268,22 @@ test('F7c raw 지문의 이름 폴백(.section-label)이 실제로 동작한다'
 /* ═══ F9 / F10 / F11 ═══════════════════════════════════════════════════ */
 
 test('F9 폴백 후보 생성도 projectId 를 sanitize 한다', () => {
-  const root = mkRoot();
-  fs.mkdirSync(path.join(root, 'elsewhere', 'proj_history'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'elsewhere', 'proj_history', `${NOW}.json`), '{}');
+  /* ⚠️초판 픽스처는 «탈출 지점이 아닌 곳»에 파일을 놨다 — root/elsewhere 를 만들어 놓고
+   *   '../elsewhere' 를 넘겼는데, 그 경로가 실제로 가리키는 곳은 root 의 «형제»다.
+   *   그래서 분기가 아예 안 돌았고 safeSeg 를 지워도 초록이었다(3차 검수 지적).
+   *   ⇒ 진짜 탈출 지점에 «실물 슬롯»을 두고, 그게 후보로 나오는지 본다. */
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-esc-'));
+  const root = path.join(base, 'projects');
+  const escapeDir = path.join(base, 'elsewhere');            // = root/../elsewhere ★진짜 탈출 지점
+  fs.mkdirSync(path.join(escapeDir, 'proj_history'), { recursive: true });
+  fs.writeFileSync(path.join(escapeDir, 'proj_history', `${NOW}.json`), '{"pages":[]}');
+  fs.writeFileSync(path.join(escapeDir, 'proj_backup.json'), '{"pages":[]}');
+  fs.mkdirSync(root, { recursive: true });
+  assert.ok(fs.existsSync(path.join(escapeDir, 'proj_history', `${NOW}.json`)), '전제: 탈출 지점에 실물이 있다');
+
   const c = SS.loadFallbackCandidates(root, '../elsewhere', () => null);
   for (const x of c) {
-    assert.ok(!path.resolve(x.path).includes(`${path.sep}elsewhere${path.sep}`),
+    assert.ok(path.resolve(x.path).startsWith(path.resolve(root) + path.sep),
       `★PROJECTS_DIR 밖을 복구 후보로 삼았다: ${x.path}`);
   }
 });

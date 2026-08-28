@@ -169,3 +169,117 @@ test('A3c 양성대조 — 실패가 없으면 «전부» 휴지통으로 간다
   assert.ok(!fs.existsSync(path.join(DIR, id)), '번들이 안 갔다');
   assert.ok(!fs.existsSync(path.join(DIR, `${id}.json`)), '잔재가 안 갔다');
 });
+
+/* ═══ [D] 변이 스윕이 「지워도 전부 초록」이라 짚은 자리들 ════════════════
+ * ★여기 있는 건 결함이 아니라 «구멍»이다 — 코드는 맞는데 아무도 안 재고 있었다.
+ *   보관정책이 0회 돌아도, 종료 스냅샷이 통째로 사라져도(현빈 Q4 확정 기능!) 스위트가 전부 초록이었다.
+ */
+
+/** 히스토리에 «10분보다 오래된» 슬롯 n개를 직접 심는다(게이트를 열어두기 위해). */
+function seedOldSlots(id, n, baseTs) {
+  const hd = histDir(id);
+  fs.mkdirSync(hd, { recursive: true });
+  // ★기존 슬롯을 먼저 치운다 — 안 그러면 mkProject 가 «방금» 만든 슬롯이 최신이라
+  //   간격 게이트가 닫힌 채로 남아, 「새 스냅샷이 안 생긴다」를 코드 탓으로 오판한다.
+  for (const f of fs.readdirSync(hd)) if (/^\d+\.json$/.test(f)) fs.unlinkSync(path.join(hd, f));
+  for (let i = 0; i < n; i++) {
+    fs.writeFileSync(path.join(hd, `${baseTs + i * 1000}.json`),
+      JSON.stringify(proj(id, sec('sec_' + i, 'S' + i))));
+  }
+  try { fs.unlinkSync(path.join(hd, 'index.json')); } catch (_) {}
+}
+
+test('D1 ★저장 경로가 보관정책을 «실제로» 돌린다 — 프룬이 0회 돌아도 아무도 몰랐다', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  // 최근 N(20) + 하루 1개를 «넘기는» 양을 하루 안에 심는다 → 프룬이 돌면 반드시 줄어든다.
+  const base = Date.now() - 40 * 60 * 1000;
+  seedOldSlots(id, 40, base);
+  const before = fs.readdirSync(histDir(id)).filter(f => /^\d+\.json$/.test(f)).length;
+  assert.ok(before >= 40, `전제 실패 before=${before}`);
+
+  assert.equal((await H.invoke('projects:save', proj(id, sec('sec_b', 'B')))).ok, true);
+
+  const after = fs.readdirSync(histDir(id)).filter(f => /^\d+\.json$/.test(f)).length;
+  assert.ok(after < before,
+    `★저장 후에도 슬롯이 안 줄었다(${before}→${after}) — 보관정책이 «호출되지 않는다». `
+    + '상한이 없으면 이 기능은 디스크를 먹기만 한다');
+  assert.ok(after <= 41, `★상한을 못 지켰다 after=${after}`);
+});
+
+test('D2 ★종료(save-sync) 경로도 스냅샷을 남기고 프룬을 돌린다 — 현빈 Q4 확정 기능', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  const base = Date.now() - 40 * 60 * 1000;
+  seedOldSlots(id, 40, base);
+  const before = fs.readdirSync(histDir(id)).filter(f => /^\d+\.json$/.test(f));
+  const maxBefore = Math.max(...before.map(f => parseInt(f)));
+
+  // save-sync 는 ipcMain.on(동기) — 하네스의 invoke 는 handle 만 본다. 동기 채널로 부른다.
+  const ev = { returnValue: null };
+  H.invokeSync('projects:save-sync', ev, proj(id, sec('sec_close', '닫기 직전 작업')));
+  assert.deepEqual(ev.returnValue, { ok: true }, '전제: 종료 저장 자체는 성공해야 한다');
+
+  const after = fs.readdirSync(histDir(id)).filter(f => /^\d+\.json$/.test(f));
+  const maxAfter = Math.max(...after.map(f => parseInt(f)));
+  assert.ok(maxAfter > maxBefore,
+    '★새로고침·탭닫기 순간에 버전이 «안» 남는다 — 사고가 제일 잦은 순간인데 슬롯이 0개다(Q4 위반)');
+  const added = JSON.parse(fs.readFileSync(path.join(histDir(id), `${maxAfter}.json`), 'utf8'));
+  assert.match(added.pages[0].canvas, /sec_close/, '★남긴 건 «닫기 직전 상태»여야 한다');
+  assert.ok(after.length < before.length + 1,
+    `★종료 경로에서 프룬이 안 돈다(${before.length}→${after.length})`);
+});
+
+test('D3 ★예산 드롭도 «최신»은 건너뛴다 — 방금 만든 것을 몇 마이크로초 뒤 지우지 않는다', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  const SS = require('../../main/project-store/snapshot-store');
+  seedOldSlots(id, 6, Date.now() - 60 * 60 * 1000);
+  const idx = SS.ensureIndex(DIR, id);
+  // 전부 canon:1(정규형) · 비핀 → 예산 루프의 «회수 대상»이다. 최신 보호가 없으면 최신도 지워진다.
+  idx.entries.forEach(e => { e.bytes = SS.BUDGET_BYTES; e.canon = 1; e.legacy = 0; e.pinned = false; });
+  SS.writeIndex(DIR, id, idx);
+  const newest = Math.max(...idx.entries.map(e => e.ts));
+
+  SS.pruneVersions(DIR, id, { now: Date.now() });
+  const live = SS.readIndex(DIR, id).entries.map(e => e.ts);
+  assert.ok(live.includes(newest),
+    '★예산 압박에서 «가장 최신»을 지웠다 — 다음 저장의 간격 게이트가 옛 슬롯을 보고 통과해 '
+    + '«매 저장마다» 재스냅샷하는 무한루프가 된다([F1])');
+  assert.ok(live.length < 6, '양성대조 — 예산 루프가 실제로 돌아야 한다');
+});
+
+test('D4 ★diff 페이로드 상한이 «실제로» 선다 — 39MB 를 렌더러로 보내면 앱이 멈춘다', async () => {
+  const big = '가'.repeat(5 * 1024 * 1024);   // 5MB × 2(스냅샷+현재) > 8MB 상한
+  const id = await mkProject(sec('sec_a', 'A') + big);
+  const list = await H.invoke('projects:history-list', { projectId: id });
+  const ts = list.entries[0].ts;
+  const r = await H.invoke('projects:history-diff-payload', { projectId: id, ts });
+  assert.equal(r.ok, false, '★상한 없이 통째로 보냈다');
+  assert.equal(r.reason, 'too_large');
+  assert.ok(r.bytes > 8 * 1024 * 1024, `bytes=${r.bytes}`);
+});
+
+test('D5 ★작은 프로젝트는 그대로 보낸다 — 상한이 diff 를 통째로 끄지 않았다(양성대조)', async () => {
+  const id = await mkProject(sec('sec_a', 'A') + sec('sec_b', 'B'));
+  const list = await H.invoke('projects:history-list', { projectId: id });
+  const r = await H.invoke('projects:history-diff-payload', { projectId: id, ts: list.entries[0].ts });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(r.snapCanvas && r.curCanvas, '★페이로드가 비었다');
+});
+
+test('D6 ★되돌리기 안전판에 «신원»이 들어간다 — 없으면 「교체 취소」가 프로젝트를 갤러리에서 지운다', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  const list = await H.invoke('projects:history-list', { projectId: id });
+  const ts = list.entries[0].ts;
+  // 렌더러의 serializeProject() 산출물 형태 — id·name·createdAt 이 «없다»(js/io/save-load.js:378)
+  const live = { version: 2, currentPageId: 'page_1',
+                 pages: [{ id: 'page_1', name: 'Page 1', canvas: sec('sec_live', '살아있는 작업') }],
+                 checklistItems: [] };
+  const r = await H.invoke('projects:history-restore',
+    { projectId: id, ts, openProjectIds: [id], activeProjectId: id, currentData: live });
+  assert.equal(r.ok, true, JSON.stringify(r));
+
+  const safety = await H.invoke('projects:history-read', { projectId: id, ts: r.preRestoreTs });
+  assert.equal(safety.ok, true, JSON.stringify(safety));
+  assert.equal(safety.data.id, id,
+    '★안전판에 id 가 없다 — 그걸로 되돌리면 proj.json 에 id 가 없고, 목록이 그 프로젝트를 통째로 뺀다');
+  assert.ok(safety.data.name, '★name 도 없으면 목록에 「Untitled」로 뜬다');
+});

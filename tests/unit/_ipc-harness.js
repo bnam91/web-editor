@@ -100,7 +100,20 @@ function loadMain(opts) {
       if (!h) throw new Error(`IPC 채널 없음: ${channel}`);
       return h({ sender: webContents }, ...args);
     },
+    /** ipcMain.on 으로 등록된 «동기» 채널을 부른다(projects:save-sync 등).
+     * ★handle 만 부르는 invoke 로는 종료 경로를 «영영» 못 잰다 — Q4 확정 기능이 그 경로에 있다. */
+    invokeSync: (channel, event, ...args) => {
+      const h = syncHandlers.get(channel);
+      if (!h) throw new Error(`동기 IPC 채널 없음: ${channel}`);
+      // ★event 를 «복사하지 않는다» — 동기 IPC 의 결과는 event.returnValue «그 객체»에 쓰인다.
+      //   복사본을 넘기면 호출측 ev.returnValue 는 영원히 null 이고, 테스트는 「전제 실패」로 죽는다.
+      const ev = event || {};
+      ev.sender = webContents;
+      h(ev, ...args);
+      return ev.returnValue;
+    },
     has: (channel) => handlers.has(channel),
+    hasSync: (channel) => syncHandlers.has(channel),
     channels: () => [...handlers.keys()],
   };
 }

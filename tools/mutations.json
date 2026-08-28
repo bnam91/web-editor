@@ -1,0 +1,92 @@
+[
+  {
+    "name": "prune: pruneVersions 호출 자체(저장경로)",
+    "file": "main.js",
+    "find": "    _SS().pruneVersions(PROJECTS_DIR, project.id);\n  } catch",
+    "replace": "    /* MUTANT: 프룬 미호출 */\n  } catch"
+  },
+  {
+    "name": "prune: pruneVersions 호출 자체(종료경로)",
+    "file": "main.js",
+    "find": "      _SS().pruneVersions(PROJECTS_DIR, project.id);",
+    "replace": "      /* MUTANT: 프룬 미호출 */"
+  },
+  {
+    "name": "Q4: 종료 시점 스냅샷 통째로",
+    "file": "main.js",
+    "find": "      _SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'unload' });",
+    "replace": "      /* MUTANT: 종료 스냅샷 제거 */"
+  },
+  {
+    "name": "prune: 보관 30일 컷오프",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "    if (e.ts < cutoff) continue;",
+    "replace": "    /* MUTANT: 컷오프 무시 */"
+  },
+  {
+    "name": "prune: 예산 드롭에서 최신 제외",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "&& e.legacy !== 1 && e.ts !== (all[0] && all[0].ts);",
+    "replace": "&& e.legacy !== 1;"
+  },
+  {
+    "name": "prune: 예산 legacy 제외",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "&& e.legacy !== 1 && e.ts !==",
+    "replace": "&& e.canon !== 0 && e.ts !=="
+  },
+  {
+    "name": "prune: 최근 N 보존",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "if (n++ < RECENT_KEEP) keep.add(e.ts); }",
+    "replace": "if (false) keep.add(e.ts); }"
+  },
+  {
+    "name": "restore: 복원본 신원 병합([C1] 근본처방)",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "    if (Object.keys(identity).length) current = { ...current, ...identity };",
+    "replace": "    /* MUTANT: 신원 병합 제거 */"
+  },
+  {
+    "name": "diff: DIFF_PAYLOAD_MAX 상한",
+    "file": "main.js",
+    "find": "    if (size > DIFF_PAYLOAD_MAX) return { ok: false, reason: 'too_large', bytes: size };",
+    "replace": "    /* MUTANT: 상한 제거 */"
+  },
+  {
+    "name": "pins: 되읽기 검증",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "      pinsOk = readPins(projectsDir, projectId)[String(ts)] === reason;   // 읽어서 확인",
+    "replace": "      pinsOk = true;  /* MUTANT: 되읽기 없이 성공으로 */"
+  },
+  {
+    "name": "index: 기록 실패 정직보고",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "  catch (e) { return { ok: true, ts, indexFailed: e.message, bytes: Buffer.byteLength(out) }; }",
+    "replace": "  catch (e) { return { ok: true, ts, bytes: Buffer.byteLength(out) }; }"
+  },
+  {
+    "name": "assets: [F4] 캔버스 밖 참조 수집",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "    assets: [...assetsFromRaw(out)], // [F4] 캔버스 밖(scratchpad 매니페스트 등) 참조도 GC 근거에 넣는다",
+    "replace": "    assets: [], /* MUTANT: 캔버스 밖 참조 무시 */"
+  },
+  {
+    "name": "path: safeSeg (경로 탈출 봉쇄)",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "  id = safeSeg(id); // [F9] 초판은 여기만 빼먹어 ../ 로 PROJECTS_DIR 밖 JSON 을 후보에 넣을 수 있었다",
+    "replace": "  /* MUTANT: safeSeg 제거 */"
+  },
+  {
+    "name": "delete: 마커 realpath 봉쇄(symlink)",
+    "file": "main.js",
+    "find": "    try { realOk = fs.realpathSync(dirPath).startsWith(fs.realpathSync(projectsBase) + path.sep); } catch (_) {}",
+    "replace": "    realOk = true;  /* MUTANT: realpath 가드 제거 */"
+  },
+  {
+    "name": "index: rebuild 실패 시 던지지 않는다",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "  try { return writeIndex(projectsDir, projectId, idx); }\n  catch (e) { idx.indexUnwritable = e.message; return idx; }",
+    "replace": "  return writeIndex(projectsDir, projectId, idx);"
+  }
+]

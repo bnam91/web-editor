@@ -436,10 +436,23 @@ test('U7-15 ★마커 쓰기가 PROJECTS_DIR «밖»으로 새지 않는다 (sym
   const linkId = 'proj_1799999999999';
   try { fs.symlinkSync(outside, path.join(DIR, linkId)); }
   catch (_) { return; }   // symlink 불가 환경이면 건너뛴다
-  H.failTrash('EACCES');
-  try { await H.invoke('projects:delete', linkId); } finally { H.failTrash(null); }
+  /* ⚠️초판은 여기서 failTrash 로 «실패»를 만들었다. 그런데 실패 경로는 markerPath 를 «unlink 한 뒤»라
+   *   마커가 항상 없다 — realpath 가드를 지워도 초록이었다(3차 검수 지적).
+   *   ⇒ 삭제를 «성공»시킨다. 심링크 자체만 휴지통으로 가고 outside/ 는 그대로 남으므로,
+   *     가드가 없으면 PROJECTS_DIR 밖에 마커가 «남아 있는 채로» 발견된다. */
+  const r = await H.invoke('projects:delete', linkId);
+  assert.equal(r.ok, true, `전제: 삭제가 성공해야 마커가 지워지지 않는다 ${JSON.stringify(r)}`);
   assert.equal(fs.existsSync(path.join(outside, '_deleted-info.json')), false,
     '★realpath 봉쇄가 없으면 PROJECTS_DIR 밖에 파일을 쓴다');
+
+  // ★양성대조 — 정상 프로젝트에는 마커를 «실제로» 쓴다(마커 기능 자체가 죽어서 초록인 게 아님)
+  const normal = await mkProject(sec('sec_a', 'A'));
+  const r2 = await H.invoke('projects:delete', normal);
+  assert.equal(r2.ok, true);
+  const trashed = fs.readdirSync(H.trashDir).filter(f => f.startsWith(normal));
+  assert.ok(trashed.some(d => fs.existsSync(path.join(H.trashDir, d, '_deleted-info.json'))),
+    '★마커가 아예 안 써지고 있다 — 위 단언이 「기능이 죽어서」 초록이다');
+
   try { fs.unlinkSync(path.join(DIR, linkId)); } catch (_) {}
   fs.rmSync(outside, { recursive: true, force: true });
 });

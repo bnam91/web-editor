@@ -270,3 +270,85 @@ test('C6c ★인덱스가 «있으면» current 갱신은 그대로 돈다 — �
   const cur = SS.readIndex(root, 'p').current;
   assert.equal(cur.counts.sections, 2, '★게이트에 막힌 사이 current 지문이 안 따라왔다');
 });
+
+/* ═══ [D] 「실패했는데 성공이라 말한다」 두 자리 ═══════════════════════════
+ * ★둘 다 «조용히 실패하는 쓰기»가 재료다. 던지는 실패는 이미 잡히고 있었다 —
+ *   안 던지고 실패하는 쓰기(네트워크·동기화 폴더·꽉 찬 디스크)가 안 잡혔다.
+ */
+
+test('D7 ★핀 사이드카가 «조용히» 안 써지면 pinsOk:false 로 답한다 — 되읽어 확인해야 안다', () => {
+  const root = mkRoot();
+  const data = proj('p', sec('sec_a', 'A'));
+  writeProjFile(root, 'p', data);
+
+  // 던지지 «않는» 실패를 만든다: pins.json 최종 rename 만 조용히 삼킨다.
+  const origRename = fs.renameSync, origWrite = fs.writeFileSync;
+  fs.renameSync = function (a, b) { if (/pins\.json$/.test(String(b))) return; return origRename.apply(fs, arguments); };
+  fs.writeFileSync = function (f) { if (/pins\.json$/.test(String(f))) return; return origWrite.apply(fs, arguments); };
+  let r;
+  try { r = SS.writeSnapshot(root, 'p', data, { reason: 'pre-restore', force: true, now: NOW }); }
+  finally { fs.renameSync = origRename; fs.writeFileSync = origWrite; }
+
+  assert.equal(r.ok, true, '스냅샷 자체는 성공해야 한다');
+  assert.equal(r.pinsOk, false,
+    '★핀이 «안 써졌는데» 성공이라 답했다 — 인덱스를 잃는 순간 「되돌리기 취소 지점」이 사라지는데 '
+    + '사용자는 「돌아갈 수 있다」고 들은 뒤다');
+});
+
+test('D8 정상일 땐 pinsOk:true — 되읽기 검증이 늘 false 를 내는 게 아니다(양성대조)', () => {
+  const root = mkRoot();
+  const data = proj('p', sec('sec_a', 'A'));
+  writeProjFile(root, 'p', data);
+  const r = SS.writeSnapshot(root, 'p', data, { reason: 'pre-restore', force: true, now: NOW });
+  assert.equal(r.pinsOk, true);
+  assert.equal(SS._internal.readPins(root, 'p')[String(r.ts)], 'pre-restore');
+});
+
+test('D9 ★인덱스 기록에 실패하면 «그렇다고 말한다» — 스냅샷은 있는데 목록이 못 따라온 상태다', () => {
+  const root = mkRoot();
+  const data = proj('p', sec('sec_a', 'A'));
+  writeProjFile(root, 'p', data);
+  assert.equal(SS.writeSnapshot(root, 'p', data, { now: NOW }).ok, true);   // 인덱스가 «이미» 있는 상태로
+  const origRename = fs.renameSync;
+  fs.renameSync = function (a, b) {
+    if (/index\.json$/.test(String(b))) { const e = new Error('ENOSPC: no space left'); e.code = 'ENOSPC'; throw e; }
+    return origRename.apply(fs, arguments);
+  };
+  let r;
+  try { r = SS.writeSnapshot(root, 'p', proj('p', sec('sec_a', 'A') + sec('sec_b', 'B')),
+                             { now: NOW + SS.MIN_GAP_MS + 1000 }); }
+  finally { fs.renameSync = origRename; }
+
+  assert.equal(r.ok, true, '★스냅샷 파일은 실제로 써졌다 — 없다고 말하면 그게 더 나쁜 거짓말이다');
+  assert.ok(r.indexFailed, '★인덱스가 안 써졌는데 아무 말이 없다 — 호출측이 「정상」으로 안다');
+  assert.match(String(r.indexFailed), /ENOSPC/);
+});
+
+test('D10 정상일 땐 indexFailed 가 없다(양성대조)', () => {
+  const root = mkRoot();
+  const data = proj('p', sec('sec_a', 'A'));
+  writeProjFile(root, 'p', data);
+  const r = SS.writeSnapshot(root, 'p', data, { now: NOW });
+  assert.equal(r.ok, true);
+  assert.ok(!r.indexFailed);
+  assert.ok(SS.readIndex(root, 'p'));
+});
+
+test('D11 ★인덱스를 «쓸 수 없어도» 목록이 죽지 않는다 — 사고 직후가 정확히 그 상황이다', () => {
+  const root = mkRoot();
+  const hd = path.join(root, 'p', 'proj_history');
+  fs.mkdirSync(hd, { recursive: true });
+  for (let i = 0; i < 3; i++) {
+    fs.writeFileSync(path.join(hd, `${NOW - i * DAY}.json`), JSON.stringify(proj('p', sec('s' + i, 'S'))));
+  }
+  writeProjFile(root, 'p', proj('p', sec('s0', 'S')));
+  const origRename = fs.renameSync;
+  fs.renameSync = function (a, b) {
+    if (/index\.json$/.test(String(b))) { const e = new Error('EROFS: read-only file system'); throw e; }
+    return origRename.apply(fs, arguments);
+  };
+  let list;
+  try { list = SS.listVersions(root, 'p'); } finally { fs.renameSync = origRename; }
+  assert.equal(list.ok, true, '★인덱스를 못 쓴다고 목록이 죽었다 — 복구하러 온 사용자가 아무것도 못 본다');
+  assert.equal(list.entries.length, 3, '★슬롯이 3개인데 목록이 비었다');
+});

@@ -80,9 +80,21 @@ test('A5 아무것도 없으면 빈 배열 — 던지지 않는다', () => {
 });
 
 test('A6 projectId 에 경로조각이 들어와도 base 밖을 가리키지 않는다', () => {
-  const root = mkRoot();
-  const c = SS.loadFallbackCandidates(root, '../../etc', () => null);
-  for (const x of c) assert.ok(path.resolve(x.path).startsWith(path.resolve(root)), x.path);
+  /* ⚠️초판은 존재하지도 않는 곳('../../etc')을 넘겨서 후보가 «항상 빈 배열»이었다 —
+   *   빈 배열에 대고 for 를 돌면 무엇을 지워도 초록이다(3차 검수: safeSeg 를 지워도 초록).
+   *   ⇒ 탈출 지점에 실물을 놓고, ★후보가 나왔다는 것 자체도 확인한다(양성대조). */
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-esc2-'));
+  const root = path.join(base, 'projects');
+  const escapeDir = path.join(base, 'secret');
+  fs.mkdirSync(path.join(escapeDir, 'proj_history'), { recursive: true });
+  fs.writeFileSync(path.join(escapeDir, 'proj_history', '1787700000000.json'), '{"pages":[]}');
+  // sanitize 되면 '.._secret' 이라는 «평범한 이름»이 되므로 그 자리에도 실물을 둬서 후보가 생기게 한다
+  fs.mkdirSync(path.join(root, '.._secret', 'proj_history'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.._secret', 'proj_history', '1787700000000.json'), '{"pages":[]}');
+
+  const c = SS.loadFallbackCandidates(root, '../secret', () => null);
+  assert.ok(c.length > 0, '★후보가 0개면 아래 루프가 아무것도 검사하지 않는다(양성대조)');
+  for (const x of c) assert.ok(path.resolve(x.path).startsWith(path.resolve(root) + path.sep), x.path);
 });
 
 test('A7 ★U1 이 새로 넣은 index.json 이 폴백 후보에 섞이면 안 된다', () => {
