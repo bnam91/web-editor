@@ -125,13 +125,14 @@
 
   async function _openCopy(ts, btn) {
     if (!_ctx) return;
+    const targetId = _ctx.projectId;   // ★await 중 close() 가 _ctx 를 null 로 만든다(중대3과 같은 자리)
     const api = _api();
     if (!api || typeof api.historyOpenCopy !== 'function') { _toast('⚠️ 데스크탑 앱에서만 사용할 수 있습니다'); return; }
     btn.disabled = true;
     const prev = btn.textContent;
     btn.textContent = '만드는 중…';
     try {
-      const r = await api.historyOpenCopy({ projectId: _ctx.projectId, ts });
+      const r = await api.historyOpenCopy({ projectId: targetId, ts });
       if (!r || !r.ok) { _toast(`⚠️ 사본을 만들지 못했습니다 — ${(r && (r.error || r.code)) || '알 수 없는 오류'}`); return; }
       // ★원본은 그대로 두고 «사본»이 생긴다 — 만져보고 판단하되 원본은 안전하다(설계 §D8)
       _toast(`✅ 「${r.newName}」 사본을 만들었습니다`);
@@ -157,6 +158,13 @@
 
   async function _restore(ts, btn, view) {
     if (!_ctx) return;
+    /* ★[1차검수 중대3] «await 를 건너는 동안 _ctx 가 null 이 될 수 있다» — close() 가 그렇게 만든다.
+     * 40MB 프로젝트의 안전판 스냅샷은 초 단위라, 응답을 기다리다 Esc/닫기를 누르는 건 현실적 조작이다.
+     * 그때 _ctx.projectId 가 NPE → catch → 「저장에 실패했습니다」 알럿이 뜨는데
+     * 실제로는 saveProjectToFile 이 «호출조차» 안 됐고, 억제가 한 프레임 뒤 풀려
+     * 다음 autosave 가 그 화면을 확정한다 — 안내문과 결과가 «반대»다.
+     * ⇒ 시작 시점에 id 를 «값으로» 잡아 두고 이후로는 _ctx 를 안 읽는다. */
+    const targetId = _ctx.projectId;
     const api = _api();
     if (!api || typeof api.historyRestore !== 'function') { _toast('⚠️ 데스크탑 앱에서만 사용할 수 있습니다'); return; }
     const row = (view.rows || []).find(r => r.ts === ts);
@@ -167,12 +175,12 @@
     if (!confirm(`「${when}」 상태로 교체할까요?${emptyWarn}\n\n지금 상태는 교체 «직전»에 자동으로 버전으로 저장됩니다.\n잘못 골랐으면 그걸로 다시 되돌릴 수 있습니다.`)) return;
 
     const openIds = _openProjectIds();
-    const isOpenHere = openIds.includes(_ctx.projectId);
+    const isOpenHere = openIds.includes(targetId);
     // 열려 있으면 «화면의 최신 상태»를 같이 넘긴다 — 디스크만 뜨면 미저장 편집분이 안전판에서 빠진다
     // ⚠️serializeProject() 는 «활성 탭»의 DOM 을 직렬화한다 — 대상이 활성 탭이 아니면
     //   A 프로젝트 내용이 B 의 안전판으로 박힌다. 활성일 때만 넘기고, 아니면 main 이 디스크를 뜨게 둔다.
     let currentData = null;
-    if (isOpenHere && window.activeProjectId === _ctx.projectId
+    if (isOpenHere && window.activeProjectId === targetId
         && typeof window.serializeProject === 'function') {
       try { currentData = JSON.parse(window.serializeProject()); } catch (_) {}
     }
@@ -181,10 +189,26 @@
     const prev = btn.textContent;
     btn.textContent = '교체 중…';
     try {
-      const r = await api.historyRestore({ projectId: _ctx.projectId, ts, openProjectIds: openIds, currentData });
+      const r = await api.historyRestore({ projectId: targetId, ts, openProjectIds: openIds,
+        activeProjectId: window.activeProjectId, currentData });
       if (!r || !r.ok) {
         // ★거부할 땐 «왜»를 말한다 — 이유 없는 거부가 제일 나쁘다(설계 §7-4)
-        const msg = (r && r.message) || `교체하지 못했습니다 — ${(r && r.reason) || '알 수 없는 오류'}`;
+        // ★사람이 읽는 문구(message)가 있으면 그걸 쓴다. 없으면 reason 을 «번역»한다 —
+        //   'exception' 같은 영어 토큰만 던지면 사용자가 뭘 해야 할지 모른다.
+        const REASON_KO = {
+          unknown_open_state: '다른 창에서 열려 있을 수 있어 교체할 수 없습니다.',
+          multiple_windows: '창이 여러 개 열려 있어 교체할 수 없습니다.',
+          pre_restore_failed: '되돌리기 «직전» 상태를 저장하지 못해 교체를 중단했습니다.',
+          pre_restore_pin_unverified: '되돌리기 취소 지점을 확실히 남기지 못해 교체를 중단했습니다.',
+          current_unreadable: '지금 프로젝트 파일을 읽지 못해 교체를 중단했습니다.',
+          current_unusable: '지금 상태가 온전하지 않아 교체를 중단했습니다.',
+          not_found: '그 버전을 찾을 수 없습니다.', corrupt: '그 버전 파일이 손상됐습니다.',
+          write_failed: '파일을 쓰지 못했습니다.', unavailable: '데스크탑 앱에서만 사용할 수 있습니다.',
+        };
+        const rr = (r && r.reason) || '';
+        const msg = (r && r.message)
+          || REASON_KO[rr]
+          || `교체하지 못했습니다${rr ? ` (${rr})` : ''}`;
         alert(msg + (r && (r.reason === 'multiple_windows' || r.reason === 'unknown_open_state')
           ? '\n\n대신 「사본으로」를 누르면 새 프로젝트로 복원됩니다.' : ''));
         return;
@@ -205,6 +229,9 @@
         } catch (e) {
           // ★적용이 도중에 던지면 DOM 은 «반쯤» 바뀐 상태다. 억제를 그대로 두면 그게 저장되지 않지만,
           //   사용자에겐 실패를 알려야 한다. 억제는 아래 rAF 가 원래 값으로 되돌린다.
+          // ⚠️여기서 alert 후 throw 하면 바깥 catch 가 «또» alert 한다 — 같은 사고에 창이 두 번 뜬다.
+          //   표시했다는 표를 달아 바깥이 중복하지 않게 한다.
+          e.__vhAlerted = true;
           alert(`교체하지 못했습니다 — ${e.message}\n\n화면이 중간 상태일 수 있으니 새로고침하세요.\n지금 상태는 버전 목록 맨 위에 저장돼 있습니다.`);
           throw e;
         } finally {
@@ -219,10 +246,15 @@
         let saveOk = true;
         try {
           if (typeof window.saveProjectToFile === 'function') {
-            const res = await window.saveProjectToFile(JSON.stringify(r.data), { projectId: _ctx.projectId });
-            if (res === false) saveOk = false;      // undefined = 큐잉(미확정) — 실패로 보지 않는다
+            const res = await window.saveProjectToFile(JSON.stringify(r.data), { projectId: targetId });
+            // ★[치명] 초판은 `res === false` 였는데 save-load 는 «불리언 false 를 반환하지 않는다».
+            //   가드가 «글자만 남고» 죽어 있었다 — EACCES·디스크풀은 물론, 하필 「이 버전은 내용이
+            //   비어 있습니다」라고 스스로 경고하는 그 케이스(S11 빈 캔버스 스킵)까지 조용히 통과했다.
+            //   화면만 옛 버전, 디스크는 그대로 → 앱 닫으면 「교체가 안 먹었다」.
+            //   ★주석은 가드가 아니다. 계약(`{ok:false}` / undefined=큐잉)에 맞춘다.
+            if (res && res.ok === false) saveOk = false;
           } else {
-            const res = await api.saveProject({ ...r.data, id: _ctx.projectId });
+            const res = await api.saveProject({ ...r.data, id: targetId });
             saveOk = !!(res && res.ok);
           }
         } catch (_) { saveOk = false; }
@@ -232,14 +264,17 @@
           return;
         }
       }
-      if (r.missingAssets && r.missingAssets.length) {
-        _toast(`⚠️ 이미지 ${r.missingAssets.length}개가 없어 비어 보일 수 있습니다`);
-      }
-      _toast('↩ 교체됨 — 직전 상태는 버전 목록 맨 위에 있어요');
+      /* ★[1차검수 중대2] showToast 는 «단일 슬롯»이라 같은 tick 에 두 번 부르면 앞의 것이 0ms 만에 덮인다.
+       * 그런데 「이미지 N개 없음」은 복구 도구에서 «비어 보이는 게 사고인지»를 알려주는 유일한 자리다.
+       * ⇒ 겹치면 한 줄로 합친다. 토스트를 두 번 부르지 «않는다». */
+      const missing = (r.missingAssets && r.missingAssets.length) || 0;
+      _toast(missing
+        ? `↩ 교체됨 — ⚠️ 이미지 ${missing}개가 없어 비어 보일 수 있어요 · 직전 상태는 목록 맨 위에`
+        : '↩ 교체됨 — 직전 상태는 버전 목록 맨 위에 있어요');
       close();
       if (typeof window.renderGrid === 'function') { try { await window.renderGrid(); } catch (_) {} }
     } catch (e) {
-      alert(`교체하지 못했습니다 — ${e.message}`);
+      if (!e || !e.__vhAlerted) alert(`교체하지 못했습니다 — ${e && e.message ? e.message : e}`);
     } finally {
       btn.disabled = false; btn.textContent = prev;
     }

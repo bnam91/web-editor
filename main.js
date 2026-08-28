@@ -1638,7 +1638,7 @@ ipcMain.handle('projects:duplicate', (_e, args = {}) => _duplicateProjectImpl(ar
  *   판별 불가일 때 덮어쓰면 남의 편집을 조용히 날린다 ⇒ 거부하고 «왜»를 화면에 말한다(설계 §7-4).
  *   호출측은 openProjectIds(이 창이 연 탭 목록)를 «반드시» 넘겨야 한다 — 안 넘기면 판별 불가로 본다.
  */
-ipcMain.handle('projects:history-restore', async (_e, { projectId, ts, openProjectIds, currentData } = {}) => {
+ipcMain.handle('projects:history-restore', async (_e, { projectId, ts, openProjectIds, activeProjectId, currentData } = {}) => {
   const SS = _SS();
   if (!projectId || typeof SS.prepareRestore !== 'function') return { ok: false, reason: 'unavailable' };
   const pid = _safeSeg(projectId);
@@ -1658,7 +1658,13 @@ ipcMain.handle('projects:history-restore', async (_e, { projectId, ts, openProje
     return { ok: false, reason: 'multiple_windows', windowCount,
       message: `창이 ${windowCount}개 열려 있어 교체할 수 없습니다(다른 창에서 이 프로젝트를 편집 중일 수 있습니다) — 새 프로젝트로 복원하세요.` };
   }
-  const isOpenHere = openProjectIds.includes(pid);
+  /* ★[1차검수 잠복] «열려 있다»만으로 렌더러 적용을 켜면 안 된다.
+   * applyProjectData 는 «활성 탭»의 화면을 바꾼다 — 비활성 탭의 projectId 로 부르면
+   * A 의 데이터가 활성 탭 B 화면에 적용된다. 현 진입점 조합에선 도달 불가지만,
+   * ★진입점이 하나만 늘면 바로 터진다(방금 톱니바퀴를 늘렸다). 구조로 막는다.
+   * ⇒ 렌더러가 「이게 활성 탭이다」를 명시(activeProjectId)해야만 적용 경로를 연다.
+   *   아니면 main 이 직접 쓴다 — 화면이 안 바뀌니 경합도 없다. */
+  const isOpenHere = openProjectIds.includes(pid) && activeProjectId === pid;
 
   let r;
   try { r = SS.prepareRestore(PROJECTS_DIR, pid, ts, { currentData: isOpenHere ? currentData : null }); }

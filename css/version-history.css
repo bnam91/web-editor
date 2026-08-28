@@ -61,9 +61,12 @@
 }
 
 /* ★손실 줄 — 이 모달에서 제일 먼저 눈에 들어와야 한다 */
+/* ★손실이 «헤드라인»이다(§1) — 시각(.vhist-when 13px)보다 작으면 서열이 반대가 된다.
+   숫자·용량 줄(.vhist-meta 10px)보다는 확실히 크게, 시각과 같은 무게로 둔다. */
 .vhist-loss {
   grid-column: 1 / -1;
-  font-size: var(--ui-fs-base);
+  font-size: var(--ui-fs-13);
+  font-weight: var(--ui-fw-medium);
   color: var(--ui-danger);
   background: var(--ui-danger-bg);
   border-radius: var(--ui-radius-sm);
@@ -103,19 +106,3 @@
   font-size: var(--ui-fs-12);
   line-height: var(--ui-lh-relaxed);
 }
-
-/* 갤러리 카드의 「버전 기록」 진입 배지 — .card-body 안에 붙는다.
-   .fsub-card-badge(pages/projects.html) 와 같은 자리·같은 어휘를 쓴다. */
-.vhist-card-badge {
-  display: inline-block;
-  margin-top: 4px;
-  padding: 1px 7px;
-  border-radius: 9px;
-  font-size: var(--ui-fs-10);
-  font-weight: var(--ui-fw-semibold);
-  color: var(--ui-text-sub);
-  background: var(--ui-bg-input);
-  border: 1px solid var(--ui-border);
-  cursor: pointer;
-}
-.vhist-card-badge:hover { color: var(--ui-text); border-color: var(--ui-border-strong); }

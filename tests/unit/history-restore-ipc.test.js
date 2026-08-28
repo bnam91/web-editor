@@ -65,7 +65,7 @@ test('RB-RACE1 ★열려 있으면 main 이 proj.json 을 «한 바이트도» �
   const { id, ts } = await setup();
   const before = fs.readFileSync(path.join(DIR, id, 'proj.json'));
 
-  const r = await H.invoke('projects:history-restore', { projectId: id, ts, openProjectIds: [id] });
+  const r = await H.invoke('projects:history-restore', { projectId: id, ts, openProjectIds: [id], activeProjectId: id });
   assert.equal(r.ok, true);
   assert.equal(r.applyInRenderer, true, '★렌더러가 적용해야 한다고 답해야 한다');
   assert.ok(before.equals(fs.readFileSync(path.join(DIR, id, 'proj.json'))),
@@ -75,7 +75,7 @@ test('RB-RACE1 ★열려 있으면 main 이 proj.json 을 «한 바이트도» �
 
 test('RB-RACE2 ★열려 있어도 «안전판»은 박힌다 — 안 박히면 렌더러 적용을 취소할 수 없다', async () => {
   const { id, ts } = await setup();
-  const r = await H.invoke('projects:history-restore', { projectId: id, ts, openProjectIds: [id] });
+  const r = await H.invoke('projects:history-restore', { projectId: id, ts, openProjectIds: [id], activeProjectId: id });
   assert.equal(r.ok, true);
   const saved = SS.readVersion(DIR, id, r.preRestoreTs);
   assert.equal(saved.ok, true, '★안전판이 없으면 렌더러가 적용한 뒤 돌아갈 곳이 없다');
@@ -94,7 +94,7 @@ const serializeShape = (canvas) => ({
 test('RB-RACE3 ★열려 있으면 «화면의 최신 상태»가 안전판에 담긴다 — 미저장 편집분이 빠지면 못 돌아온다', async () => {
   const { id, ts } = await setup();
   const live = serializeShape(sec('sec_a', '혜택정리') + sec('sec_new', '방금 만든 것'));
-  const r = await H.invoke('projects:history-restore', { projectId: id, ts, openProjectIds: [id], currentData: live });
+  const r = await H.invoke('projects:history-restore', { projectId: id, ts, openProjectIds: [id], activeProjectId: id, currentData: live });
   assert.equal(r.ok, true);
   assert.equal(r.source, 'live');
   assert.ok(names(SS.readVersion(DIR, id, r.preRestoreTs).data).includes('방금 만든 것'),
@@ -228,7 +228,7 @@ test('RB-C1 ★「교체 취소」 뒤에도 프로젝트가 목록에 «남아 
   // ★렌더러가 «실제로» 보내는 모양(id·name·createdAt·marketRef 없음)으로 교체
   const live = serializeShape(sec('sec_a', '혜택정리'));
   const r1 = await H.invoke('projects:history-restore',
-    { projectId: id, ts, openProjectIds: [id], currentData: live });
+    { projectId: id, ts, openProjectIds: [id], activeProjectId: id, currentData: live });
   assert.equal(r1.ok, true);
 
   // 「잘못 골랐다」 — 안전판으로 되돌린다(갤러리에서 = 안 열린 상태)
@@ -283,8 +283,26 @@ test('RB-C2b 지금이 비어 있어도 «복구»는 된다 — 이 기능의 �
   const good = (await H.invoke('projects:history-list', { projectId: id })).entries[0].ts;
   // 사고: 로드 실패 폴백 등으로 화면이 빈 상태
   const r = await H.invoke('projects:history-restore',
-    { projectId: id, ts: good, openProjectIds: [id], currentData: serializeShape('') });
+    { projectId: id, ts: good, openProjectIds: [id], activeProjectId: id, currentData: serializeShape('') });
   assert.equal(r.ok, true, '★지금이 비었다고 복구를 막으면 이 기능이 존재할 이유가 없다');
   assert.equal(r.currentEmpty, true, '다만 «지금이 비었다»는 알려준다');
   assert.deepEqual(names(r.data), ['혜택정리', 'FAQ']);
+});
+
+test('RB-LATENT ★«활성 탭이 아니면» 렌더러 적용 경로를 안 연다 — A 데이터가 B 화면에 적용된다', async () => {
+  const { id, ts } = await setup();
+  // 탭에는 열려 있지만 «활성»은 다른 프로젝트인 상황(진입점이 하나만 늘면 도달한다)
+  const r = await H.invoke('projects:history-restore',
+    { projectId: id, ts, openProjectIds: [id, 'proj_other'], activeProjectId: 'proj_other' });
+  assert.equal(r.ok, true);
+  assert.equal(r.applyInRenderer, false,
+    '★applyProjectData 는 «활성 탭»의 화면을 바꾼다 — 비활성 대상에 켜면 엉뚱한 화면이 덮인다');
+  assert.deepEqual(names(readProj(id)), ['혜택정리', 'FAQ', '배송안내'], 'main 이 직접 써야 한다(화면 무변화라 경합 없음)');
+});
+
+test('RB-LATENT2 activeProjectId 를 «안 넘기면» 적용 경로가 안 열린다 — 구 호출자도 안전하게 떨어진다', async () => {
+  const { id, ts } = await setup();
+  const r = await H.invoke('projects:history-restore', { projectId: id, ts, openProjectIds: [id] });
+  assert.equal(r.ok, true);
+  assert.equal(r.applyInRenderer, false, '★모르면 «화면을 안 건드리는» 쪽으로 떨어져야 한다');
 });

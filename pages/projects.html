@@ -236,7 +236,10 @@ body {
 #project-grid.is-list .card-body {
   flex: 1; min-width: 0;
   display: flex; align-items: center; gap: 10px;
-  padding: 6px 76px 6px 12px;   /* 오른쪽 = hover 시 뜨는 .card-actions 자리 */
+  /* 오른쪽 = hover 시 뜨는 .card-actions 자리.
+     ★버튼이 3개일 때 76px 이었는데 「버전 기록(🕐)」이 붙어 4개가 됐다 — 그대로 두면 날짜와 겹친다.
+     계산: 4×22(버튼) + 3×4(gap) + 10(right) + 여유 = 110px. 버튼을 또 늘리면 여기도 같이 늘려라. */
+  padding: 6px 110px 6px 12px;
 }
 #project-grid.is-list .card-name { flex: 1; min-width: 0; margin-bottom: 0; }
 #project-grid.is-list .card-date { flex-shrink: 0; }
@@ -1117,7 +1120,7 @@ function applyViewMode(mode, persist) {
 <script src="../js/io/gdt-import.js"></script>
 <script src="../js/io/font-substitute.js"></script>
 <!-- [version-history] 이 인라인 스크립트보다 «뒤»에 로드된다 → 첫 renderGrid() 때는 아직 없다.
-     그래서 fsub 와 같은 방식으로 window load 에서 한 번 더 칠한다(paintVhistBadges). -->
+     카드의 🕐 버튼은 renderGrid() 가 «인라인 onclick» 으로 그리므로 별도 후처리가 필요 없다. -->
 <script src="../js/version-diff.js"></script>
 <script src="../js/version-history.js"></script>
 <script src="../js/version-history-ui.js"></script>

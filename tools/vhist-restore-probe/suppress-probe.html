@@ -29,7 +29,10 @@ window.openTabs = [{ id: 'proj_1', name: 'T' }];
 window.activeProjectId = 'proj_1';
 window.serializeProject = () => JSON.stringify({ version: 2, currentPageId: 'page_1',
   pages: [{ id: 'page_1', canvas: canvasEl.innerHTML }] });
-window.saveProjectToFile = async () => { R.saved = true; return true; };
+// ★스텁은 «실계약»만 돌려준다 — js/io/save-load.js 는 { ok:true } / { ok:false, reason } /
+//   { ok:false, skipped:true } / undefined(큐잉) 넷뿐이고 «불리언을 반환하지 않는다».
+//   초판이 `true` 를 돌려주는 바람에 하필 죽은 `res === false` 가드만 통과시켜 치명을 가렸다.
+window.saveProjectToFile = async () => { R.saved = true; return { ok: true }; };
 window.showToast = () => {};
 window.confirm = () => true;
 window.alert = (m) => { (R.alerts = R.alerts || []).push(m); };
