@@ -290,7 +290,14 @@ function migrateLegacyGradientBlocks(canvasEl) {
       // .section-inner 안에 있거나 다른 컨테이너 — 섹션 직속으로 이동
       sec.appendChild(block);
     }
-    // legacy data 정리
+    /* legacy data 정리 — ★이 delete 는 «상태 버리기»가 아니라 «읽히지 않는 잔재 치우기»다.
+     *   .gradient-block 은 prop-page.js:92 의 하드 정책상 «항상» 패딩 제외라, usePadx 를
+     *   읽는 곳이 0 이다(전수 확인 2026-08-28: usePadx 독자 4곳 전부 .asset-block 스코프 —
+     *   prop-page getEffectiveUsePadx · save-load:716 · export-figma-json:347 · block-factory:2397).
+     *   그라디언트 → 일반으로 «되돌리는» 경로도 없다(makeGradientBlock 은 새 노드를 만든다).
+     *   실데이터 70개 전수: gradient-block 2개 · 그중 usePadx 보유 0개(대조군 asset-block 116개로 검출기 자기시험).
+     * ⚠️★단 «그라디언트가 usePadx 를 존중하게» 정책이 바뀌면, 그 순간 이 줄은 «진짜 손실»이 된다.
+     *   그때는 여기도 같이 고쳐라 — 지우지 말고 보존하는 쪽으로. */
     delete block.dataset.usePadx;
     // x/y 기본값 보장
     if (!block.dataset.x) block.dataset.x = '0';

@@ -262,5 +262,11 @@
     "file": "index.html",
     "find": "      el.querySelectorAll('input').forEach(i => { i.disabled = true; });   // <label> 안의 file input\n",
     "replace": ""
+  },
+  {
+    "name": "FIGMA-d 모듈 안 가드(1cf854b) 제거",
+    "file": "js/io/figma-publish.js",
+    "find": "  if (!window.FIGMA_ENABLED) return;",
+    "replace": "  /* MUTANT */"
   }
 ]
