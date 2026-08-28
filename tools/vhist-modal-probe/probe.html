@@ -166,7 +166,7 @@ window.showToast = (m) => { window.__toast = m; };
 
   // ⒜ 정상 비교 — 펼쳐서 «내용»이 나오는가
   const b0 = dbtns[0];
-  const box0 = document.getElementById('vhist-detail-' + b0.dataset.vhDetail);
+  const box0 = b0.closest('.vhist-row').querySelector('[data-vh-detail-box]');
   b0.click();
   // ★연타 — disabled 가 진짜로 클릭을 막는가(가짜 DOM 이 못 재는 자리)
   b0.click(); b0.click();
@@ -209,7 +209,7 @@ window.showToast = (m) => { window.__toast = m; };
   const bm = dbtns.find(b => Number(b.dataset.vhDetail) === window.__TS.moved);
   if (!bm) P('중대③ 재현 대상 행을 못 찾았다(프로브 픽스처 문제)');
   else {
-    const bmBox = document.getElementById('vhist-detail-' + bm.dataset.vhDetail);
+    const bmBox = bm.closest('.vhist-row').querySelector('[data-vh-detail-box]');
     bm.click(); await new Promise(r => setTimeout(r, 120));
     R.env.movedDetail = bmBox.textContent.trim();
     if (/지금은 없는 섹션/.test(bmBox.textContent))
@@ -221,7 +221,7 @@ window.showToast = (m) => { window.__toast = m; };
   // ⒠ too_large — 「생략」이라고 말하고 «이유+용량»을 준다
   const bl = dbtns.find(b => Number(b.dataset.vhDetail) === window.__TS.tooLarge);
   if (bl) {
-    const blBox = document.getElementById('vhist-detail-' + bl.dataset.vhDetail);
+    const blBox = bl.closest('.vhist-row').querySelector('[data-vh-detail-box]');
     bl.click(); await new Promise(r => setTimeout(r, 120));
     R.env.tooLargeDetail = blBox.textContent.trim();
     if (!/상세 비교 생략/.test(blBox.textContent)) P('★too_large 를 「생략」이라 말하지 않는다');

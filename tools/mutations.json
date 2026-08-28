@@ -202,5 +202,35 @@
     "file": "js/version-history-ui.js",
     "find": "    liveBox.style.display = '';   // ★[경미⑧] CSS(.vhist-detail{display:flex;gap})가 살도록 인라인을 지운다",
     "replace": "    liveBox.style.display = 'block';"
+  },
+  {
+    "name": "FLOW-a 설정 탭에 목록 대신 «열기 버튼»",
+    "file": "js/settings/settings-modal.js",
+    "find": "    await window.mountVersionHistory(pane, {",
+    "replace": "    pane.innerHTML += '<button class=\"settings-btn\">버전 기록 열기</button>'; if (false) await window.mountVersionHistory(pane, {"
+  },
+  {
+    "name": "FLOW-b 공용 마운트 미노출(두 번째 구현 유도)",
+    "file": "js/version-history-ui.js",
+    "find": "  window.mountVersionHistory = mountVersionHistory;",
+    "replace": "  /* MUTANT */"
+  },
+  {
+    "name": "FLOW-c 카드 🕐 되살리기",
+    "file": "pages/projects.html",
+    "find": "      <div class=\"card-actions\">\n        ${shareBtnHtml}",
+    "replace": "      <div class=\"card-actions\">\n        <button class=\"card-action card-history\" onclick=\"openVersionHistoryUI(event, '${proj.id}')\">🕐</button>\n        ${shareBtnHtml}"
+  },
+  {
+    "name": "FLOW-d 리스트 예약폭을 옛 값(76px)으로",
+    "file": "pages/projects.html",
+    "find": "  padding: 6px 84px 6px 12px;",
+    "replace": "  padding: 6px 76px 6px 12px;"
+  },
+  {
+    "name": "FLOW-e 상세 박스를 전역 id 로 되돌림",
+    "file": "js/version-history-ui.js",
+    "find": "      : `<div class=\"vhist-detail\" data-vh-detail-box=\"${r.ts}\" style=\"display:none\"></div>`;",
+    "replace": "      : `<div class=\"vhist-detail\" id=\"vhist-detail-${r.ts}\" style=\"display:none\"></div>`;"
   }
 ]

@@ -13,15 +13,23 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-/* ── 최소 DOM — innerHTML 문자열에서 «이 파일이 실제로 찾는 것»만 되살린다 ─── */
+/* ── 최소 DOM — «이 파일이 실제로 찾는 것»만 되살린다 ────────────────────
+ * ★2026-08-28 구조 변경: 목록이 «루트 기준»(root.querySelector('.vhist-list'))으로 그려지고,
+ *   상세 박스는 전역 id 가 아니라 «행 안»(btn.closest('.vhist-row').querySelector(...))에서 찾는다.
+ *   두 표면(모달·설정 페인)이 동시에 DOM 에 있어도 안 부딪히게 한 변경이라, 가짜도 그 구조를 흉내낸다.
+ */
 function makeDom() {
   const byId = new Map();
+  const byClass = new Map();   // '.vhist-list' 같은 훅 → 노드
+  const boxes = new Map();     // ts → 상세 박스
+  const HOOKS = ['vhist-shell', 'vhist-list', 'vhist-intro-text', 'vhist-status-text'];
+
   function mkEl(tag) {
     const el = {
       tagName: tag, children: [], _text: '', _html: '', className: '', id: '',
       disabled: false, style: { display: '' }, dataset: {},
       classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, contains(c) { return this._s.has(c); } },
-      _listeners: {},
+      _listeners: {}, _row: null, _box: null, _made: [],
       set textContent(v) { this._text = String(v); },
       get textContent() { return this._text; },
       set innerHTML(v) { this._html = String(v); el._hydrate(); },
@@ -29,37 +37,56 @@ function makeDom() {
       appendChild(c) { this.children.push(c); if (c.id) byId.set(c.id, c); return c; },
       addEventListener(t, fn) { (this._listeners[t] = this._listeners[t] || []).push(fn); },
       removeEventListener() {},
-      /* ★가짜 DOM 이 disabled 를 무시하면 «연타 방어»를 잴 수 없다 — 버튼을 잠가도 클릭이 들어가서
-       *   「disabled 를 켠 적 없어도 초록」이 된다(C3 적대검수 M10: 「가짜 DOM 이 스텁을 잰다」 재발).
-       *   진짜 브라우저는 disabled 버튼에 click 이벤트를 «안» 보낸다. 그대로 흉내낸다. */
       click() {
+        // ★진짜 브라우저는 disabled 버튼에 click 을 «안» 보낸다 — 연타 방어를 재려면 이게 필요하다.
         if (this.disabled) return Promise.resolve([]);
         return Promise.all((this._listeners.click || []).map(fn => fn({ target: this })));
       },
-      querySelector() { return null; },
+      closest(sel) { return (sel === '.vhist-row' && this._row) ? this._row : null; },
+      querySelector(sel) {
+        if (sel === '[data-vh-detail-box]' && this._box) return this._box;
+        if (byClass.has(sel)) return byClass.get(sel);
+        return null;
+      },
       querySelectorAll(sel) {
         const m = /^\[data-vh-([a-z]+)\]$/.exec(sel);
         if (!m) return [];
-        return (this._made || []).filter(b => b.dataset[`vh${m[1][0].toUpperCase()}${m[1].slice(1)}`] !== undefined);
+        const key = `vh${m[1][0].toUpperCase()}${m[1].slice(1)}`;
+        return (this._made || []).filter(b => b.dataset[key] !== undefined);
       },
-      /* innerHTML 에 «심어둔» 버튼/영역을 실제 노드로 되살린다 —
-       * 이 파일이 하는 일이 정확히 그것(문자열로 그리고, 그린 걸 다시 찾아 핸들러를 건다)이기 때문이다. */
       _hydrate() {
         this._made = [];
+        /* ★상세 박스는 «마크업에 실제로 있을 때만» 만든다.
+         *   초판은 버튼(data-vh-detail)만 보고 박스를 «지어냈다» — 그래서 소스가 전역 id 로
+         *   되돌아가도(=마크업에 data-vh-detail-box 가 없어져도) 가짜는 박스를 계속 만들어
+         *   변이가 살아남았다. 가짜가 실제보다 관대하면 그 초록은 아무 뜻이 없다. */
+        const boxTs = new Set([...this._html.matchAll(/data-vh-detail-box="(\d+)"/g)].map(m => m[1]));
         for (const mm of this._html.matchAll(/data-vh-(detail|open|restore)="(\d+)"/g)) {
           const b = mkEl('button');
           b.dataset[`vh${mm[1][0].toUpperCase()}${mm[1].slice(1)}`] = mm[2];
           b.textContent = mm[1] === 'detail' ? '펼치기' : '';
+          if (mm[1] === 'detail') {
+            const row = mkEl('div'); row.className = 'vhist-row';
+            b._row = row;
+            if (boxTs.has(mm[2])) {          // 마크업에 있을 때만
+              const box = mkEl('div');
+              box.style.display = 'none';
+              box.dataset.vhDetailBox = mm[2];
+              row._box = box;
+              boxes.set(mm[2], box);
+            }
+          }
           this._made.push(b);
         }
-        // id 를 가진 노드는 «전부» 되살린다 — 이 파일은 그린 뒤 getElementById 로 다시 찾는다.
-        // ★innerHTML 을 다시 넣으면 «새 노드»다 — 옛 노드를 재사용하면 display 같은 상태가
-        //   실제 DOM 과 달리 살아남아, 테스트가 있지도 않은 동작을 재게 된다(실제로 C3-8 이 그랬다).
         for (const mm of this._html.matchAll(/id="([^"]+)"/g)) {
-          const d = mkEl('div');
-          d.id = mm[1];
-          if (/^vhist-detail-\d+$/.test(mm[1])) d.style.display = 'none';
-          byId.set(mm[1], d);
+          const d = mkEl('div'); d.id = mm[1]; byId.set(mm[1], d);
+        }
+        for (const mm of this._html.matchAll(/class="([^"]+)"/g)) {
+          for (const c of mm[1].split(/\s+/)) {
+            if (!HOOKS.includes(c)) continue;
+            const d = mkEl('div'); d.className = mm[1];
+            byClass.set('.' + c, d);   // 나중 것이 이긴다 = 마지막 렌더가 유효
+          }
         }
       },
     };
@@ -70,7 +97,7 @@ function makeDom() {
     getElementById: (id) => byId.get(id) || null,
     addEventListener() {}, removeEventListener() {},
   };
-  return { doc, byId, mkEl };
+  return { doc, byId, byClass, boxes, mkEl };
 }
 
 const ENTRY = { ts: 1787700000000, file: '1787700000000.json', reason: 'auto', pinned: false,
@@ -81,7 +108,7 @@ const CURRENT = { ts: 1787700100000, bytes: 900, projMtimeMs: 1, name: 'T',
   secs: [{ k: 'page_1::sec_a', n: 'A' }, { k: 'page_1::sec_b', n: 'B' }] };
 
 function loadUI(o = {}) {
-  const { doc, byId } = makeDom();
+  const { doc, byId, byClass, boxes } = makeDom();
   const calls = { diffArgs: [], toasts: [] };
   const win = {
     document: doc,
@@ -102,17 +129,17 @@ function loadUI(o = {}) {
   // 데이터 계층(순수)은 진짜를 얹는다 — 행 모델을 흉내내면 그건 내 흉내를 재는 것이다.
   new Function('window', fs.readFileSync(path.join(__dirname, '../../js/version-history.js'), 'utf8'))(win);
   new Function('window', 'document', fs.readFileSync(path.join(__dirname, '../../js/version-history-ui.js'), 'utf8'))(win, doc);
-  return { win, doc, byId, calls };
+  return { win, doc, byId, byClass, boxes, calls };
 }
 
 /** 모달을 열고 «펼치기» 버튼을 실제로 누른다. */
 async function openAndExpand(env) {
   await env.win.openVersionHistory({ projectId: 'proj_1', projectName: 'T' });
-  const list = env.doc.getElementById('vhist-list');
+  const list = env.byClass.get('.vhist-list');
   const btn = list.querySelectorAll('[data-vh-detail]')[0];
   assert.ok(btn, '★「펼치기」 버튼이 그려지지 않았다');
   await btn.click();
-  return { btn, box: env.doc.getElementById(`vhist-detail-${ENTRY.ts}`) };
+  return { btn, box: env.boxes.get(String(ENTRY.ts)) };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════ */
@@ -253,7 +280,7 @@ test('C3-12 ★「닫는 중」 도착한 응답이 «폐기한 캐시»를 되�
     return { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 };
   };
   await env.win.openVersionHistory({ projectId: 'proj_1', projectName: 'T' });
-  const btn = env.doc.getElementById('vhist-list').querySelectorAll('[data-vh-detail]')[0];
+  const btn = env.byClass.get('.vhist-list').querySelectorAll('[data-vh-detail]')[0];
   const p = btn.click();
   env.win.closeVersionHistory();      // 응답 «전에» 닫는다
   release(); await p; await new Promise(r => setTimeout(r, 10));
@@ -297,7 +324,7 @@ test('C3-15 ★비교 중엔 버튼이 잠긴다 — 연타로 IPC 가 두 번 �
     env.calls.diffArgs.push(a); await gate; return { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 };
   };
   await env.win.openVersionHistory({ projectId: 'proj_1', projectName: 'T' });
-  const btn = env.doc.getElementById('vhist-list').querySelectorAll('[data-vh-detail]')[0];
+  const btn = env.byClass.get('.vhist-list').querySelectorAll('[data-vh-detail]')[0];
   const p = btn.click();
   assert.equal(btn.disabled, true, '★비교 중인데 버튼이 안 잠겼다');
   await btn.click();                    // 연타 — 잠겼으면 안 들어간다
@@ -327,11 +354,14 @@ test('C3-17 ★손실 줄은 «빨강»으로 구분된다 — 다른 줄과 같
 test('C3-18 ★「지금」 행에는 상세 버튼이 없다 — 자기 자신과 비교할 것이 없다 (M13)', async () => {
   const env = loadUI({ diffReply: { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 } });
   await env.win.openVersionHistory({ projectId: 'proj_1', projectName: 'T' });
-  const html = env.doc.getElementById('vhist-list').innerHTML;
-  const currentRow = html.slice(0, html.indexOf('data-vh-detail') === -1 ? html.length : html.indexOf('vhist-row', 10));
-  assert.ok(!/is-current[\s\S]*?data-vh-detail/.test(currentRow),
+  const html = env.byClass.get('.vhist-list').innerHTML;
+  // 「지금」 행은 is-current 다. 그 행이 끝나기 «전»에 상세 버튼이 나오면 안 된다.
+  const curStart = html.indexOf('is-current');
+  const nextRow = html.indexOf('<div class="vhist-row', curStart + 1);
+  const currentRow = curStart === -1 ? '' : html.slice(curStart, nextRow === -1 ? html.length : nextRow);
+  assert.ok(!/data-vh-detail/.test(currentRow),
     '★「지금」 행에 펼치기가 붙었다 — 누르면 자기 자신과 비교하게 된다');
-  assert.equal((html.match(/data-vh-detail/g) || []).length, 1, '버전 행에는 붙어야 한다(양성대조)');
+  assert.equal((html.match(/data-vh-detail="/g) || []).length, 1, '버전 행에는 붙어야 한다(양성대조)');
 });
 
 test('C3-19 ★섹션 이름을 «이스케이프»한다 — data-name 은 사용자 입력이다 (M14/M15)', async () => {
@@ -356,4 +386,44 @@ test('C3-20 ★main 이 내는 reason 이 «영어 토큰»으로 화면에 나�
       `★「상세 비교 생략 — ${reason}」이 그대로 나간다`);
     assert.match(box.innerHTML, /상세 비교 생략 — .*[가-힣]/, `${reason} 에 한국어 사유가 없다`);
   }
+});
+
+/* ═══ [진입점 재설계] 두 표면이 «동시에» DOM 에 있어도 안 부딪힌다 ════════
+ * 설정 페인과 모달이 같은 목록을 그린다. 상세 박스를 전역 id 로 찾으면 같은 id 가 둘이 되고,
+ * getElementById 는 «먼저 그려진 쪽»을 집는다 — 설정에서 펼쳤는데 모달 쪽에 그려진다.
+ */
+
+test('C3-21 ★두 곳에 마운트해도 «자기 행»의 상세에만 그린다 (전역 id 금지)', async () => {
+  const env = loadUI({ diffReply: { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 } });
+  // ⒜ 첫 번째 표면(모달)
+  await env.win.openVersionHistory({ projectId: 'proj_1', projectName: 'T' });
+  const listA = env.byClass.get('.vhist-list');
+  const btnA = listA.querySelectorAll('[data-vh-detail]')[0];
+  const boxA = btnA.closest('.vhist-row').querySelector('[data-vh-detail-box]');
+
+  // ⒝ 두 번째 표면(설정 페인) — 같은 프로젝트·같은 ts 로 «또» 그린다
+  const pane = env.doc.createElement('div');
+  pane.innerHTML = '<div class="vhist-intro-text"></div><div class="vhist-list"></div><div class="vhist-status-text"></div>';
+  env.doc.body.appendChild(pane);
+  await env.win.mountVersionHistory(pane, { projectId: 'proj_1', projectName: 'T' });
+  const listB = env.byClass.get('.vhist-list');
+  const btnB = listB.querySelectorAll('[data-vh-detail]')[0];
+  const boxB = btnB.closest('.vhist-row').querySelector('[data-vh-detail-box]');
+  assert.notEqual(boxA, boxB, '전제: 두 표면의 상세 박스는 «다른 노드»다');
+
+  await btnB.click();
+  await new Promise(r => setTimeout(r, 20));
+  assert.notEqual(boxB.style.display, 'none', '★누른 쪽이 안 열렸다');
+  assert.ok(boxB.innerHTML.length > 0, '★누른 쪽에 내용이 없다');
+  assert.equal(boxA.style.display, 'none',
+    '★안 누른 표면의 상세가 열렸다 — 전역 id 로 찾으면 먼저 그려진 쪽을 집는다');
+  assert.equal(boxA.innerHTML, '', '★남의 상세 박스에 내용을 썼다');
+});
+
+test('C3-22 ★상세 박스를 «문서 전역»에서 찾지 않는다(코드 규약)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../../js/version-history-ui.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  assert.ok(!/getElementById\(`vhist-detail-/.test(src) && !/getElementById\('vhist-detail-/.test(src),
+    '★전역 id 로 상세 박스를 찾고 있다 — 두 표면이 같은 id 를 갖는다');
+  assert.match(src, /closest\('\.vhist-row'\)/, '★행 안에서 찾아야 한다');
 });
