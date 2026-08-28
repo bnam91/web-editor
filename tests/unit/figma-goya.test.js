@@ -6,6 +6,8 @@
  */
 'use strict';
 const test = require('node:test');
+const { mkTmpRoot } = require('./_tmproot.js');
+
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
@@ -16,7 +18,7 @@ const SRC = path.resolve(__dirname, '../../js/io/goya-asset-inline.js');
 let _modP = null;
 function load() {
   if (!_modP) {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-figma-'));
+    const dir = mkTmpRoot('goya-figma-');
     const mjs = path.join(dir, 'goya-asset-inline.mjs');
     fs.copyFileSync(SRC, mjs);
     _modP = import(pathToFileURL(mjs).href);
