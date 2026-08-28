@@ -736,7 +736,12 @@ function listVersions(projectsDir, projectId) {
   else if (idx.entries.some(e => e.pending)) { try { idx = rebuildIndex(projectsDir, projectId); } catch (_) {} }
   let stale = !idx.current;
   if (!stale) {
-    try { stale = fs.statSync(p.proj).mtimeMs > (idx.current.projMtimeMs || 0); } catch (_) { stale = false; }
+    /* ★[QA] «>» 가 아니라 «!==» 다 — mtime 은 «뒤로도» 간다.
+     *   userData 를 통째로 복사한 프로필(시연·이관·백업 복원)에서 mtime 이 보존되거나 되돌아가면,
+     *   «더 크지 않다»는 이유로 옛 current 를 그대로 쓴다 → 손실 diff 가 조용히 거짓이 된다.
+     *   파일이 «달라졌나»를 묻는 자리이므로 방향이 아니라 «같은가»가 옳은 질문이다.
+     *   (비용은 그대로 — 다르면 proj.json 을 한 번 파싱하는 그 경로다.) */
+    try { stale = fs.statSync(p.proj).mtimeMs !== (idx.current.projMtimeMs || 0); } catch (_) { stale = false; }
   }
   // ★[C2] proj.json 을 못 읽으면 «옛 current 를 그대로 들고 나가지 않는다».
   //   그러면 프로젝트가 없는데 「지금 섹션 3」이라 표시하고 모든 버전이 「같다」고 답한다 —

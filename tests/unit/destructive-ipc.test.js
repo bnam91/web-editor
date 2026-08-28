@@ -287,3 +287,82 @@ test('D6 ★되돌리기 안전판에 «신원»이 들어간다 — 없으면 �
     '★안전판에 id 가 없다 — 그걸로 되돌리면 proj.json 에 id 가 없고, 목록이 그 프로젝트를 통째로 뺀다');
   assert.ok(safety.data.name, '★name 도 없으면 목록에 「Untitled」로 뜬다');
 });
+
+/* ═══ [QA] «복사본에서도 똑같이 동작해야 한다» ═════════════════════════════
+ * 시연·이관·백업복원은 전부 «userData 통째 복사»다. 절대경로·머신 고정 가정이 하나라도 있으면
+ * 거기서 깨지는데, 깨지는 자리가 하필 「복구 도구」라 «조용히 틀린 답»이 나온다.
+ */
+
+test('Q1 ★프로필을 통째로 복사해도 목록·손실·상세가 같다 — 절대경로 가정 0', async () => {
+  const id = await mkProject(sec('sec_hero', '배너') + sec('sec_detail', '상세컷') + sec('sec_foot', '푸터'));
+  // 「지금」을 스냅샷과 다르게 만든다 — 손실 1 + 추가 1 이 나오도록
+  await H.invoke('projects:save', proj(id, sec('sec_hero', '배너') + sec('sec_foot', '푸터') + sec('sec_new', '새것')));
+  const before = await H.invoke('projects:history-list', { projectId: id });
+  assert.equal(before.ok, true);
+
+  // ★프로필 복사 — «다른 경로»로 옮긴다. 그리고 mtime 을 «되돌린다»(rsync/아카이브 복원 재현).
+  const copy = path.join(require('os').tmpdir(), `goya-copy-${Date.now()}`);
+  fs.cpSync(path.dirname(DIR), copy, { recursive: true });
+  const copiedProj = path.join(copy, 'projects', id, 'proj.json');
+  assert.ok(fs.existsSync(copiedProj), '전제: 복사가 됐다');
+  const old = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+  fs.utimesSync(copiedProj, old, old);
+
+  // 복사본을 «새 앱 인스턴스»로 연다(하네스는 프로세스당 하나라 스토어를 직접 태운다 —
+  // main 의 핸들러가 하는 일이 정확히 이 두 줄이다).
+  const SS = require('../../main/project-store/snapshot-store');
+  const copiedDir = path.join(copy, 'projects');
+  const after = SS.listVersions(copiedDir, id);
+
+  assert.equal(after.ok, true, '★복사본에서 목록이 안 열린다');
+  assert.equal(after.entries.length, before.entries.length, '★버전 개수가 다르다');
+  assert.deepEqual(after.entries.map(e => e.ts), before.entries.map(e => e.ts), '★버전 시각이 다르다');
+  assert.ok(after.current, '★복사본에서 «지금»을 못 읽는다 — 모든 행이 「비교 불가」가 된다');
+  assert.deepEqual(after.current.secs.map(s => s.k), before.current.secs.map(s => s.k),
+    '★mtime 이 되돌아갔다고 «옛 지문»을 그대로 썼다 — 손실 diff 가 조용히 거짓이 된다');
+  assert.deepEqual(after.entries[0].secs, before.entries[0].secs, '★스냅샷 지문이 다르다');
+  fs.rmSync(copy, { recursive: true, force: true });
+});
+
+test('Q2 ★복사본에서 «되돌리기»까지 된다 — 시연의 마지막 단계가 거기서 깨지면 안 된다', async () => {
+  const id = await mkProject(sec('sec_a', '원래 작업'));
+  const copy = path.join(require('os').tmpdir(), `goya-copy2-${Date.now()}`);
+  fs.cpSync(path.dirname(DIR), copy, { recursive: true });
+  const copiedDir = path.join(copy, 'projects');
+
+  const SS = require('../../main/project-store/snapshot-store');
+  const list = SS.listVersions(copiedDir, id);
+  const ts = list.entries[0].ts;
+  const r = SS.prepareRestore(copiedDir, id, ts, {});
+  assert.equal(r.ok, true, `★복사본에서 되돌리기 준비가 실패했다: ${JSON.stringify(r)}`);
+  assert.ok(r.preRestoreTs, '★안전판이 안 생겼다');
+  assert.equal(r.data.id, id, '★복원 데이터에 신원이 없다');
+  // 안전판이 «복사본 안»에 생겼는지 — 원본 경로에 쓰면 시연이 실데이터를 건드린다
+  assert.ok(fs.existsSync(path.join(copiedDir, id, 'proj_history', `${r.preRestoreTs}.json`)),
+    '★안전판이 복사본 밖에 생겼다');
+  assert.ok(!fs.existsSync(path.join(DIR, id, 'proj_history', `${r.preRestoreTs}.json`)),
+    '★★복사본에서 한 작업이 «원본»에 썼다 — 격리가 깨졌다');
+  fs.rmSync(copy, { recursive: true, force: true });
+});
+
+test('Q3 ★mtime 이 «뒤로» 간 proj.json 도 다시 읽는다 — 백업 복원이 정확히 그 모양이다', async () => {
+  /* ⚠️Q1(단순 복사)만으로는 부족했다 — 복사본의 옛 current 가 «마침 맞는 값»이라
+   *   신선도 판정을 «>» 로 되돌려도 초록이었다. 판정이 실제로 갈리는 배치를 만든다:
+   *   인덱스의 current 는 새 내용을 가리키는데, 디스크의 proj.json 은 «옛 내용 + 옛 mtime».
+   *   (사용자 시나리오: 프로젝트만 백업본으로 되돌려 놓고 버전 기록을 연다.) */
+  const id = await mkProject(sec('sec_a', 'A') + sec('sec_b', 'B') + sec('sec_c', 'C'));
+  const list0 = await H.invoke('projects:history-list', { projectId: id });
+  assert.equal(list0.current.secs.length, 3, '전제: current 가 3섹션으로 잡혀 있다');
+
+  // proj.json 만 «옛 내용»으로 되돌리고 mtime 도 과거로 — 인덱스는 그대로 3섹션을 기억한다
+  const projPath = path.join(DIR, id, 'proj.json');
+  fs.writeFileSync(projPath, JSON.stringify(proj(id, sec('sec_a', 'A')), null, 2));
+  const old = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+  fs.utimesSync(projPath, old, old);
+
+  const list1 = await H.invoke('projects:history-list', { projectId: id });
+  assert.equal(list1.current.secs.length, 1,
+    `★디스크엔 1섹션인데 「지금 섹션 ${list1.current.secs.length}」이라고 답했다 — mtime 이 «뒤로» 갔다고 `
+    + '옛 지문을 그대로 썼다. 그러면 실제로 없어진 섹션 2개가 손실 목록에 «안» 뜬다(거짓 안심)');
+  assert.deepEqual(list1.current.secs.map(s => s.n), ['A']);
+});
