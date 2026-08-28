@@ -232,5 +232,35 @@
     "file": "js/version-history-ui.js",
     "find": "      : `<div class=\"vhist-detail\" data-vh-detail-box=\"${r.ts}\" style=\"display:none\"></div>`;",
     "replace": "      : `<div class=\"vhist-detail\" id=\"vhist-detail-${r.ts}\" style=\"display:none\"></div>`;"
+  },
+  {
+    "name": "LOGO-a 무조건 delete(초판)",
+    "file": "js/props/prop-asset.js",
+    "find": "    const wasLogo = ab.dataset.preset === 'logo';\n    if (!wasLogo) delete ab.dataset.preset;",
+    "replace": "    const wasLogo = false;\n    delete ab.dataset.preset;"
+  },
+  {
+    "name": "LOGO-b 합집합에서 규격 갈래 제거",
+    "file": "js/inspector.js",
+    "find": "ab.dataset.preset === 'logo' || _isLogoSized(ab)",
+    "replace": "ab.dataset.preset === 'logo'"
+  },
+  {
+    "name": "FIGMA-a capture 클릭차단 제거",
+    "file": "index.html",
+    "find": "      el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); }, true);\n",
+    "replace": ""
+  },
+  {
+    "name": "FIGMA-b capture→bubbling(onclick 은 못 막는다)",
+    "file": "index.html",
+    "find": "e.preventDefault(); e.stopPropagation(); }, true);",
+    "replace": "e.preventDefault(); e.stopPropagation(); }, false);"
+  },
+  {
+    "name": "FIGMA-c file input disabled 제거",
+    "file": "index.html",
+    "find": "      el.querySelectorAll('input').forEach(i => { i.disabled = true; });   // <label> 안의 file input\n",
+    "replace": ""
   }
 ]

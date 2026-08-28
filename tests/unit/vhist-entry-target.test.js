@@ -64,17 +64,23 @@ test('EN5 openTabs 가 이상해도 던지지 않는다', () => {
   }
 });
 
-test('EN6 ★두 진입점이 «한 함수»를 지난다 — 중복 구현이 생기면 규칙이 갈린다', () => {
-  /* ⚠️2026-08-28 현빈 시연 피드백으로 진입점이 «셋 → 둘»이 됐다.
-   *   갤러리 카드 🕐 제거 · 설정 탭은 버튼 없이 목록을 바로 그린다.
-   *   ⇒ 남은 둘(상단바 배지 · 설정 탭)이 여전히 «한 함수»(resolveVersionHistoryTarget)를 지나야 한다. */
+test('EN6 ★진입점이 «하나»다 — 설정 탭. 그리고 그 하나가 해석기를 지난다', () => {
+  /* ⚠️진입점은 셋 → 둘 → «하나»로 줄었다(현빈 지시 2회).
+   *   ① 갤러리 카드 🕐 제거      「카드에서는 아이콘으로 안보여도돼」
+   *   ② 상단바 [🕐 버전] 제거    「환경설정쪽에만 있으면 되지 않나?」
+   *   ⇒ 남은 문은 환경설정 「버전 기록」 탭 하나. 그 하나가 resolveVersionHistoryTarget 을 지나야 한다.
+   *   ★코드(openVersionHistoryHere)는 남아 있다 — 다시 켤 때 쓴다. «배선»만 없다. */
   const root = path.join(__dirname, '../..');
   const idx = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   const set = fs.readFileSync(path.join(root, 'js/settings/settings-modal.js'), 'utf8');
-  assert.match(idx, /onclick="openVersionHistoryHere\(\)"/, '★배지가 자체 로직으로 프로젝트를 고르면 안 된다');
-  assert.ok(!/activeProjectId/.test(idx.slice(idx.indexOf('vhist-topbar-badge'), idx.indexOf('vhist-topbar-badge') + 400)),
-    '★배지 onclick 이 직접 activeProjectId 를 읽으면 그게 두 번째 구현이다');
-  assert.match(set, /resolveVersionHistoryTarget\(\)/, '★설정 탭도 해석기를 써야 한다');
+  assert.match(set, /resolveVersionHistoryTarget\(\)/, '★설정 탭이 해석기를 써야 한다');
+  assert.ok(!/onclick="openVersionHistoryHere\(\)"/.test(idx),
+    '★상단바 배지가 되살아났다 — 진입점은 설정 탭 하나로 통일했다(현빈 지시)');
+  assert.ok(!/id="vhist-topbar-badge"/.test(idx), '★배지 노드가 남아 있다');
+  // 해석기 자체는 남아 있어야 한다 — 다시 켤 때 그걸 쓴다
+  const ui = fs.readFileSync(path.join(root, 'js/version-history-ui.js'), 'utf8');
+  assert.match(ui, /window\.openVersionHistoryHere = openVersionHistoryHere/,
+    '★코드까지 지우면 다시 켤 때 두 번째 구현이 생긴다');
 });
 
 test('EN6b ★갤러리 카드에 버전 기록 진입점이 «없다» (현빈 시연 피드백)', () => {
