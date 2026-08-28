@@ -215,8 +215,33 @@ export function showAssetProperties(ab) {
 
   document.getElementById('asset-padx-toggle').addEventListener('change', e => {
     ab.dataset.usePadx = e.target.checked ? 'true' : 'false';
-    // 패딩 토글로 폭이 재계산되면 고정폭 프리셋(a4/logo) 상태와 어긋나므로 preset 해제 (코덱스리뷰 b2-6)
-    delete ab.dataset.preset;
+    /* ★[로고 표식 유실] 패딩 토글로 폭이 재계산되면 고정폭 프리셋 상태와 어긋나므로 preset 을
+     *   해제한다(코덱스리뷰 b2-6). ⛔그런데 초판은 그걸 «조건 없이» 했다.
+     *   Logo 프리셋은 정의부터 「200x64 고정, usePadx 무시」다(:293 아래) — 폭이 «재계산되지 않는다».
+     *   그래서 로고에서는 해제할 이유가 없는데도 표식만 사라졌다:
+     *     크기는 200x64 그대로 · data-preset 만 소실 ⇒ 「로고인데 로고로 안 세어진다」
+     *   실측(프로젝트 70개 전수, 에셋 934개): 표식 1 / 200x64 규격 7 — 6개가 이렇게 잃었다.
+     *   ★현빈이 신고한 「리사이즈하면 패딩제외가 풀린다」와 같은 뿌리다 — 상태가 조용히 버려진다.
+     *   ⇒ 로고는 표식을 지키고, «폭도 다시 잡는다»(아래 재계산 구간을 아예 안 타게 한다).
+     *     a4 는 실제로 폭이 재계산되므로 기존 동작(해제)을 그대로 둔다. */
+    const wasLogo = ab.dataset.preset === 'logo';
+    if (!wasLogo) delete ab.dataset.preset;
+    if (wasLogo) {
+      // 표식만 지키는 게 아니라 «고정 규격»도 다시 못 박는다 — 표식과 크기가 어긋나면
+      // 개수 근사(표식 ∪ 200x64)가 다음에 또 틀린다.
+      ab.style.width = '200px';
+      ab.style.height = '64px';
+      ab.style.marginLeft = '';
+      ab.style.marginRight = '';
+      if (wNumber) wNumber.value = 200;
+      if (wSlider) wSlider.value = 200;
+      const hS = document.getElementById('asset-h-slider');
+      const hN = document.getElementById('asset-h-number');
+      if (hS) hS.value = 64;
+      if (hN) hN.value = 64;
+      window.pushHistory();
+      return;                         // ★아래 폭·높이 재계산을 «안» 탄다(usePadx 무시가 정의다)
+    }
     // 이 블록이 속한 section-inner의 padX 값 결정
     const inner = ab.closest('.section-inner');
     const hasPadXOverride = inner?.dataset.paddingX !== '' && inner?.dataset.paddingX !== undefined;

@@ -5,6 +5,32 @@
 // FIX: buildLayerPanel() 마지막에 Inspector 탭 활성 시 자동 갱신 추가 (layer-panel.js)
 // FIX: step-block, canvas-block, shape-block 카운트 추가
 
+/* ── Logo 개수 판정 ── ★이건 «근사»다. 근사인 이유와 걷어낼 조건을 여기 적어 둔다.
+ *
+ * 정본은 data-preset="logo" 표식이다. 그런데 옛 블록들은 그 표식을 «이미 잃었다» —
+ * 패딩제외 토글이 preset 을 조건 없이 지웠기 때문이다(prop-asset.js, 2026-08-28 수정).
+ *   실측(프로젝트 70개 «전수», 에셋 블록 934개):
+ *     표식有 1 · 200x64 규격 7 · 둘 다 1 ⇒ ★표식有인데 200x64 아님 = 0 / 200x64인데 표식 없음 = 6
+ *   ⇒ 표식만 세면 «6개를 놓친다». 그래서 「표식 ∪ 200x64」로 센다.
+ *
+ * ⚠️오탐: 우연히 200x64 인 일반 이미지가 로고로 잡힌다. 원리적으로 크기만으론 못 가른다.
+ *   근거는 «위험이 낮다»지 «없다»가 아니다 — 에셋 934개 중 200x64 는 7개(0.7%)이고
+ *   크기 상위 12위 안에 없다. 대부분 에셋은 height 만 잡혀 있는데 200x64 는 둘 다 명시라 드물다.
+ *
+ * ★★파일에는 «아무것도 안 쓴다» — 표시 전용이다.
+ *   같은 오탐률이면 사용자 프로젝트 파일에 박는 쪽이 아니라 화면에만 있는 쪽을 고른다.
+ *   화면은 틀려도 코드 한 줄로 걷어내지만, 파일에 박힌 오탐은 사용자가 발견할 방법이 없다.
+ *
+ * ⇒ 걷어낼 조건: 「표식만으로 세도 같은 수가 나오는 날」. 그때 || _isLogoSized 절을 지운다.
+ * ★export 인 이유: 프로브가 이 술어를 «재구현»하면 여기를 고쳐도 프로브가 안 죽는다. */
+export const LOGO_W = 200, LOGO_H = 64;
+export const _isLogoSized = (ab) =>
+  parseInt(ab.style.width) === LOGO_W && parseInt(ab.style.height) === LOGO_H;
+/** 에셋 블록 목록에서 «로고로 셀 것»을 고른다(표식 ∪ 규격). 파일은 안 건드린다. */
+export function logoBlocksOf(assetBlocks) {
+  return [...assetBlocks].filter(ab => ab.dataset.preset === 'logo' || _isLogoSized(ab));
+}
+
 function renderInspectorPanel() {
   const panel = document.getElementById('inspector-stats-body');
   if (!panel) return;
@@ -23,6 +49,8 @@ function renderInspectorPanel() {
   const stepBlocks        = [...document.querySelectorAll('.step-block')];
   const canvasBlocks      = [...document.querySelectorAll('.canvas-block')];
   const shapeBlocks       = [...document.querySelectorAll('.shape-block')];
+
+  const logoBlocks = logoBlocksOf(assetBlocks);
 
   // 텍스트 variant 카운트
   const variantCount = { heading: 0, subheading: 0, body: 0, caption: 0, label: 0 };
@@ -105,6 +133,8 @@ function renderInspectorPanel() {
     stepBlocks.length       ? `<div class="insp-stat-row"><span class="insp-stat-label">Step</span><span class="insp-stat-value">${stepBlocks.length}</span></div>` : '',
     canvasBlocks.length     ? `<div class="insp-stat-row"><span class="insp-stat-label">Canvas</span><span class="insp-stat-value">${canvasBlocks.length}</span></div>` : '',
     shapeBlocks.length      ? `<div class="insp-stat-row"><span class="insp-stat-label">Shape</span><span class="insp-stat-value">${shapeBlocks.length}</span></div>` : '',
+    // 0개면 «안 그린다» — 다른 줄과 같은 규율(없는 걸 0 으로 늘어놓지 않는다)
+    logoBlocks.length       ? `<div class="insp-stat-row"><span class="insp-stat-label">Logo</span><span class="insp-stat-value">${logoBlocks.length}</span></div>` : '',
   ].join('');
 
   const colorSwatches = colors.length
