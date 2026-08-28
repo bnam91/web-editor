@@ -93,19 +93,18 @@ export function showBanner02Properties(block, activeIdxArg) {
         <span class="prop-hint" style="flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escAttr(_preview)}</span>
       </div>
       <div data-line-editor="${idx}" style="display:${_open ? 'block' : 'none'};">
-      <div class="prop-row">
-        <span class="prop-label">종류</span>
-        <select class="prop-select" data-line-kind="${idx}" style="flex:1;min-width:0;font-size:11px;">
-          ${KIND_OPTS.map(k => `<option value="${k}"${line.kind === k ? ' selected' : ''}>${KIND_LABELS[k] || k}</option>`).join('')}
-        </select>
+        <div class="prop-section-title">Content</div>
+        <div class="prop-row">
+          <span class="prop-label">종류</span>
+          <select class="prop-select" data-line-kind="${idx}" style="flex:1;min-width:0;font-size:11px;">
+            ${KIND_OPTS.map(k => `<option value="${k}"${line.kind === k ? ' selected' : ''}>${KIND_LABELS[k] || k}</option>`).join('')}
+          </select>
+        </div>
+        <textarea class="prop-textarea" data-line-text="${idx}" rows="2" style="width:100%;box-sizing:border-box;resize:vertical;">${(line.text || '').replace(/</g, '&lt;')}</textarea>
       </div>
-      <textarea class="prop-textarea" data-line-text="${idx}" rows="2" style="width:100%;box-sizing:border-box;resize:vertical;">${(line.text || '').replace(/</g, '&lt;')}</textarea>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" data-line-size="${idx}" min="8" max="120" step="1" value="${Math.min(120, line.size)}">
-        <input type="number" class="prop-number" data-line-size-num="${idx}" min="8" max="200" value="${line.size}">
-      </div>
+
+      <div class="prop-section-title">Typography</div>
+      <span class="prop-field-label">Font</span>
       <div class="prop-row">
         <span class="prop-label">폰트</span>
         <select class="prop-select" data-line-font="${idx}" style="flex:1;min-width:0;font-size:11px;">
@@ -119,15 +118,24 @@ export function showBanner02Properties(block, activeIdxArg) {
         </select>
       </div>
       <div class="prop-row">
+        <span class="prop-label">크기</span>
+        <input type="range" class="prop-slider" data-line-size="${idx}" min="8" max="120" step="1" value="${Math.min(120, line.size)}">
+        <input type="number" class="prop-number" data-line-size-num="${idx}" min="8" max="200" value="${line.size}">
+      </div>
+      <span class="prop-field-label">Letter Spacing</span>
+      <div class="prop-row">
         <span class="prop-label">자간</span>
         <input type="number" class="prop-number" data-line-ls="${idx}" min="-20" max="50" step="0.5" value="${line.letterSpacing || 0}">
       </div>
+      <span class="prop-field-label">Line Spacing</span>
       <div class="prop-row">
         <span class="prop-label">여백위</span>
         <input type="number" class="prop-number" data-line-gap="${idx}" min="0" max="400" value="${line.gapTop}">
       </div>
+
+      <div class="prop-section-title">Fill</div>
       <div class="prop-color-row">
-        <span class="prop-label">색</span>
+        <span class="prop-label">글자색</span>
         ${colorFieldHTML({ idPrefix: 'bn2-line-' + idx + '-col', hex: line.color || '#000000' })}
       </div>
     </div>`;
