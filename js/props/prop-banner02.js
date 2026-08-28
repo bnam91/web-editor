@@ -77,35 +77,33 @@ export function showBanner02Properties(block, activeIdxArg) {
     const _preview = _isEmpty ? '(빈 줄)' : String(line.text).replace(/\s+/g, ' ').slice(0, 24);
     return `
     <div class="prop-section" data-line-row="${idx}">
-      <div class="prop-section-title" style="display:flex;align-items:center;gap:6px;justify-content:space-between;">
-        <span style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:11px;">${KIND_LABELS[line.kind] || line.kind}</span>
-          <span style="font-size:10px;color:#888;">#${idx + 1}</span>
-        </span>
-        <button class="prop-btn prop-btn-danger" data-line-remove="${idx}" title="줄 삭제" style="padding:2px 8px;font-size:11px;${lines.length <= 1 ? 'opacity:0.4;pointer-events:none;' : ''}">×</button>
-      </div>
-      <div class="prop-row" data-line-toggle="${idx}" style="cursor:pointer;gap:6px;justify-content:flex-start;" title="${_open ? '접기' : '펼쳐서 문구·종류 수정'}">
-        <!-- 셰브런과 미리보기는 «한 덩어리»로 왼쪽에 — prop-label 자리에 아이콘만 두면 둘이 양끝으로 벌어진다 -->
+      <!-- ★줄 머리 한 줄에 «역할 · 번호 · 미리보기 · 삭제» 를 모은다.
+           ⑴ textarea 는 뺐다 — 캔버스에서 더블클릭으로 «이미» 편집된다(banner02-block.js:149).
+              같은 일을 두 곳에서 하면 패널만 길어진다. 「뭐라고 쓰나」는 캔버스, 「어떻게 보이나」는 패널.
+           ⑵ 「종류」는 «글자 내용»이 아니라 «줄의 역할»(Label/Title/Subtitle)이고 ★캔버스에 대응 경로가
+              없다 — 지우면 한번 만든 줄의 역할을 영영 못 바꾼다. 그래서 남기되, 역할이니 자리는 줄 머리다.
+           ⑶ 미리보기도 남긴다 — 줄 3개가 전부 Label 이면 「Label #1」만으론 «구분이 안 된다».
+              폭이 모자라면 ellipsis 로 줄인다(min-width:0 이 있어야 flex 안에서 실제로 줄어든다). -->
+      <div class="prop-section-title" data-line-toggle="${idx}"
+           style="display:flex;align-items:center;gap:6px;cursor:pointer;"
+           title="${_open ? '접기' : '펼치기'}">
         <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
              style="flex:0 0 auto;transform:rotate(${_open ? 90 : 0}deg);transition:transform .12s;">
           <polyline points="2,2 6,4 2,6"/>
         </svg>
-        <span class="prop-hint" style="flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escAttr(_preview)}</span>
-      </div>
-      <div data-line-editor="${idx}" style="display:${_open ? 'block' : 'none'};">
-      <div class="prop-row">
-        <span class="prop-label">종류</span>
-        <select class="prop-select" data-line-kind="${idx}" style="flex:1;min-width:0;font-size:11px;">
+        <select class="prop-select" data-line-kind="${idx}" onclick="event.stopPropagation()"
+                style="flex:0 0 auto;width:auto;font-size:11px;padding:1px 4px;">
           ${KIND_OPTS.map(k => `<option value="${k}"${line.kind === k ? ' selected' : ''}>${KIND_LABELS[k] || k}</option>`).join('')}
         </select>
+        <span style="flex:0 0 auto;font-size:10px;color:var(--ui-text-muted);">#${idx + 1}</span>
+        <span class="prop-hint" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escAttr(_preview)}</span>
+        <button class="prop-btn prop-btn-danger" data-line-remove="${idx}" title="줄 삭제"
+                onclick="event.stopPropagation()"
+                style="flex:0 0 auto;padding:2px 8px;font-size:11px;${lines.length <= 1 ? 'opacity:0.4;pointer-events:none;' : ''}">×</button>
       </div>
-      <textarea class="prop-textarea" data-line-text="${idx}" rows="2" style="width:100%;box-sizing:border-box;resize:vertical;">${(line.text || '').replace(/</g, '&lt;')}</textarea>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" data-line-size="${idx}" min="8" max="120" step="1" value="${Math.min(120, line.size)}">
-        <input type="number" class="prop-number" data-line-size-num="${idx}" min="8" max="200" value="${line.size}">
-      </div>
+      <div data-line-editor="${idx}" style="display:${_open ? 'block' : 'none'};">
+      <div class="prop-section-title">Typography</div>
+      <span class="prop-field-label">Font</span>
       <div class="prop-row">
         <span class="prop-label">폰트</span>
         <select class="prop-select" data-line-font="${idx}" style="flex:1;min-width:0;font-size:11px;">
@@ -119,16 +117,26 @@ export function showBanner02Properties(block, activeIdxArg) {
         </select>
       </div>
       <div class="prop-row">
+        <span class="prop-label">크기</span>
+        <input type="range" class="prop-slider" data-line-size="${idx}" min="8" max="120" step="1" value="${Math.min(120, line.size)}">
+        <input type="number" class="prop-number" data-line-size-num="${idx}" min="8" max="200" value="${line.size}">
+      </div>
+      <span class="prop-field-label">Letter Spacing</span>
+      <div class="prop-row">
         <span class="prop-label">자간</span>
         <input type="number" class="prop-number" data-line-ls="${idx}" min="-20" max="50" step="0.5" value="${line.letterSpacing || 0}">
       </div>
+      <span class="prop-field-label">Line Spacing</span>
       <div class="prop-row">
         <span class="prop-label">여백위</span>
         <input type="number" class="prop-number" data-line-gap="${idx}" min="0" max="400" value="${line.gapTop}">
       </div>
+
+      <div class="prop-section-title">Fill</div>
       <div class="prop-color-row">
-        <span class="prop-label">색</span>
+        <span class="prop-label">글자색</span>
         ${colorFieldHTML({ idPrefix: 'bn2-line-' + idx + '-col', hex: line.color || '#000000' })}
+      </div>
       </div>
     </div>`;
   };
@@ -398,9 +406,12 @@ export function showBanner02Properties(block, activeIdxArg) {
       mutLines(arr => { if (arr[idx]) arr[idx].kind = kindSel.value; });
       commit();
     });
-    const ta = propPanel.querySelector(`[data-line-text="${idx}"]`);
-    ta?.addEventListener('input',  () => mutLines(arr => { if (arr[idx]) arr[idx].text = ta.value; }));
-    ta?.addEventListener('change', commit);
+    /* ★문구 입력칸(textarea)은 걷어냈다 — 캔버스에서 더블클릭으로 «이미» 편집된다
+     *   (banner02-block.js:149 contenteditable · :156 백스페이스 줄 삭제).
+     *   ⛔배선도 같이 지운다: 마크업만 빼고 리스너를 남기면 «아무 데도 안 닿는 죽은 배선»이 되고,
+     *     다음 사람이 「여기서 텍스트를 고칠 수 있나 보다」로 읽는다.
+     *   전수 확인: data-line-text 를 쓰는 다른 경로 0건(laurel 의 .lrl-line-text 는 별개 클래스).
+     *   ※laurel 도 같은 길을 먼저 갔다 — laurel-block.js:234 「우측 입력으로만 수정은 다른 컴포넌트와 불일치」 */
 
     const sl = propPanel.querySelector(`[data-line-size="${idx}"]`);
     const sn = propPanel.querySelector(`[data-line-size-num="${idx}"]`);

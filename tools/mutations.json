@@ -1,0 +1,272 @@
+[
+  {
+    "name": "prune: pruneVersions 호출 자체(저장경로)",
+    "file": "main.js",
+    "find": "    _SS().pruneVersions(PROJECTS_DIR, project.id);\n  } catch",
+    "replace": "    /* MUTANT: 프룬 미호출 */\n  } catch"
+  },
+  {
+    "name": "prune: pruneVersions 호출 자체(종료경로)",
+    "file": "main.js",
+    "find": "      _SS().pruneVersions(PROJECTS_DIR, project.id);",
+    "replace": "      /* MUTANT: 프룬 미호출 */"
+  },
+  {
+    "name": "Q4: 종료 시점 스냅샷 통째로",
+    "file": "main.js",
+    "find": "      _SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'unload' });",
+    "replace": "      /* MUTANT: 종료 스냅샷 제거 */"
+  },
+  {
+    "name": "prune: 보관 30일 컷오프",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "    if (e.ts < cutoff) continue;",
+    "replace": "    /* MUTANT: 컷오프 무시 */"
+  },
+  {
+    "name": "prune: 예산 드롭에서 최신 제외",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "&& e.legacy !== 1 && e.ts !== (all[0] && all[0].ts);",
+    "replace": "&& e.legacy !== 1;"
+  },
+  {
+    "name": "prune: 예산 legacy 제외",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "&& e.legacy !== 1 && e.ts !==",
+    "replace": "&& e.canon !== 0 && e.ts !=="
+  },
+  {
+    "name": "prune: 최근 N 보존",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "if (n++ < RECENT_KEEP) keep.add(e.ts); }",
+    "replace": "if (false) keep.add(e.ts); }"
+  },
+  {
+    "name": "restore: 복원본 신원 병합([C1] 근본처방)",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "    if (Object.keys(identity).length) current = { ...current, ...identity };",
+    "replace": "    /* MUTANT: 신원 병합 제거 */"
+  },
+  {
+    "name": "diff: DIFF_PAYLOAD_MAX 상한",
+    "file": "main.js",
+    "find": "    if (size > DIFF_PAYLOAD_MAX) return { ok: false, reason: 'too_large', bytes: size };",
+    "replace": "    /* MUTANT: 상한 제거 */"
+  },
+  {
+    "name": "pins: 되읽기 검증",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "      pinsOk = readPins(projectsDir, projectId)[String(ts)] === reason;   // 읽어서 확인",
+    "replace": "      pinsOk = true;  /* MUTANT: 되읽기 없이 성공으로 */"
+  },
+  {
+    "name": "index: 기록 실패 정직보고",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "  catch (e) { return { ok: true, ts, indexFailed: e.message, bytes: Buffer.byteLength(out) }; }",
+    "replace": "  catch (e) { return { ok: true, ts, bytes: Buffer.byteLength(out) }; }"
+  },
+  {
+    "name": "assets: [F4] 캔버스 밖 참조 수집",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "    assets: [...assetsFromRaw(out)], // [F4] 캔버스 밖(scratchpad 매니페스트 등) 참조도 GC 근거에 넣는다",
+    "replace": "    assets: [], /* MUTANT: 캔버스 밖 참조 무시 */"
+  },
+  {
+    "name": "path: safeSeg (경로 탈출 봉쇄)",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "  id = safeSeg(id); // [F9] 초판은 여기만 빼먹어 ../ 로 PROJECTS_DIR 밖 JSON 을 후보에 넣을 수 있었다",
+    "replace": "  /* MUTANT: safeSeg 제거 */"
+  },
+  {
+    "name": "delete: 마커 realpath 봉쇄(symlink)",
+    "file": "main.js",
+    "find": "    try { realOk = fs.realpathSync(dirPath).startsWith(fs.realpathSync(projectsBase) + path.sep); } catch (_) {}",
+    "replace": "    realOk = true;  /* MUTANT: realpath 가드 제거 */"
+  },
+  {
+    "name": "index: rebuild 실패 시 던지지 않는다",
+    "file": "main/project-store/snapshot-store.js",
+    "find": "  try { return writeIndex(projectsDir, projectId, idx); }\n  catch (e) { idx.indexUnwritable = e.message; return idx; }",
+    "replace": "  return writeIndex(projectsDir, projectId, idx);"
+  },
+  {
+    "name": "C3: mixedEncoding 경고(가짜 변경의 벽)",
+    "file": "js/version-history-ui.js",
+    "find": "    if (d.mixedEncoding) {\n      rows.push(_skipHtml('저장 형식이 섞여 있어 «바뀐 섹션»은 판별할 수 없습니다(없어진/새로 생긴 섹션만 표시)'));\n    } else if (d.changed.length) {",
+    "replace": "    if (false) {\n    } else if (d.changed.length) {"
+  },
+  {
+    "name": "C3: changeDiff 예외를 «생략»으로",
+    "file": "js/version-history-ui.js",
+    "find": "      html = _skipHtml(e && e.message ? e.message : '비교 중 오류가 났습니다');\n      cacheable = false;",
+    "replace": "      html = '';"
+  },
+  {
+    "name": "C3: 상세 캐시(같은 행 재요청 방지)",
+    "file": "js/version-history-ui.js",
+    "find": "    if (_detailCache.has(ts)) {",
+    "replace": "    if (false) {"
+  },
+  {
+    "name": "C3: 닫을 때 상세 캐시 폐기",
+    "file": "js/version-history-ui.js",
+    "find": "    _detailCache.clear();   // ★다음에 열 땐 «지금»이 달라져 있다 — 옛 비교를 그대로 보여주면 거짓말이다",
+    "replace": "    /* MUTANT */"
+  },
+  {
+    "name": "C3: versionDiff 부재 방어",
+    "file": "js/version-history-ui.js",
+    "find": "      } else if (!window.versionDiff || typeof window.versionDiff.changeDiff !== 'function') {\n        html = _skipHtml('비교 모듈이 로드되지 않았습니다');",
+    "replace": "      } else if (false) {\n        html = '';"
+  },
+  {
+    "name": "C3: too_large 이유 문구",
+    "file": "js/version-history-ui.js",
+    "find": "    too_large: '이 버전이 너무 커서 섹션 단위 비교를 건너뜁니다',",
+    "replace": "    too_large: '',"
+  },
+  {
+    "name": "M1 긍정 안심 문구 통째로",
+    "file": "js/version-history-ui.js",
+    "find": "      rows.push('<div class=\"vhist-detail-note\">이 버전과 「지금」의 섹션 내용이 같습니다.</div>');",
+    "replace": "      /* MUTANT */"
+  },
+  {
+    "name": "M-치명② total===0 가드",
+    "file": "js/version-history-ui.js",
+    "find": "    if (!d || !d.summary || d.summary.total === 0) {",
+    "replace": "    if (false) {"
+  },
+  {
+    "name": "M6 await 뒤 재진입 확인",
+    "file": "js/version-history-ui.js",
+    "find": "    if (!_ctx || _ctx.projectId !== targetId) return;\n    const liveBox",
+    "replace": "    const liveBox"
+  },
+  {
+    "name": "M-중대⑥ 실패 비캐시",
+    "file": "js/version-history-ui.js",
+    "find": "    if (cacheable) _detailCache.set(ts, html);",
+    "replace": "    _detailCache.set(ts, html);"
+  },
+  {
+    "name": "M8 too_large 용량 병기",
+    "file": "js/version-history-ui.js",
+    "find": "          html = _skipHtml(r && r.reason === 'too_large' && r.bytes\n            ? `${why} (${formatBytesLocal(r.bytes)})` : why);",
+    "replace": "          html = _skipHtml(why);"
+  },
+  {
+    "name": "M10 비교 중 버튼 잠금",
+    "file": "js/version-history-ui.js",
+    "find": "    btn.disabled = true;\n    btn.textContent = '비교 중…';",
+    "replace": "    btn.textContent = '비교 중…';"
+  },
+  {
+    "name": "M12 손실 줄 is-lost",
+    "file": "js/version-history-ui.js",
+    "find": "`<div class=\"vhist-detail-line is-lost\">− 지금은 없는 섹션",
+    "replace": "`<div class=\"vhist-detail-line\">− 지금은 없는 섹션"
+  },
+  {
+    "name": "M13 「지금」 행 상세 억제",
+    "file": "js/version-history-ui.js",
+    "find": "    const actions = r.isCurrent ? '<div class=\"vhist-actions\"></div>'",
+    "replace": "    const actions = false ? '<div class=\"vhist-actions\"></div>'"
+  },
+  {
+    "name": "M14 섹션 이름 이스케이프",
+    "file": "js/version-history-ui.js",
+    "find": "    const names = items.slice(0, max).map(x => _esc(x.n || x.k));",
+    "replace": "    const names = items.slice(0, max).map(x => String(x.n || x.k));"
+  },
+  {
+    "name": "M-중대⑤ 혼재 판정(base64 규약)",
+    "file": "js/version-diff.js",
+    "find": "      if (typeof v === 'string' && FOLDABLE_B64.test(v)) return true;",
+    "replace": "      if (typeof v === 'string' && v.indexOf('data:image') !== -1) return true;"
+  },
+  {
+    "name": "M-중대③ L1/L2 신원 통일",
+    "file": "js/version-diff.js",
+    "find": "      for (const [k, v] of m) { const id = _idOf(k); if (!o.has(id)) o.set(id, v); }",
+    "replace": "      for (const [k, v] of m) { if (!o.has(k)) o.set(k, v); }"
+  },
+  {
+    "name": "M-경미⑦ reason 사전",
+    "file": "js/version-history-ui.js",
+    "find": "    no_current: '「지금」 상태 파일을 찾을 수 없습니다',      // main.js:1243",
+    "replace": "    // MUTANT: no_current 키 제거"
+  },
+  {
+    "name": "M-경미⑧ 인라인 display 로 CSS 죽이기",
+    "file": "js/version-history-ui.js",
+    "find": "    liveBox.style.display = '';   // ★[경미⑧] CSS(.vhist-detail{display:flex;gap})가 살도록 인라인을 지운다",
+    "replace": "    liveBox.style.display = 'block';"
+  },
+  {
+    "name": "FLOW-a 설정 탭에 목록 대신 «열기 버튼»",
+    "file": "js/settings/settings-modal.js",
+    "find": "    await window.mountVersionHistory(pane, {",
+    "replace": "    pane.innerHTML += '<button class=\"settings-btn\">버전 기록 열기</button>'; if (false) await window.mountVersionHistory(pane, {"
+  },
+  {
+    "name": "FLOW-b 공용 마운트 미노출(두 번째 구현 유도)",
+    "file": "js/version-history-ui.js",
+    "find": "  window.mountVersionHistory = mountVersionHistory;",
+    "replace": "  /* MUTANT */"
+  },
+  {
+    "name": "FLOW-c 카드 🕐 되살리기",
+    "file": "pages/projects.html",
+    "find": "      <div class=\"card-actions\">\n        ${shareBtnHtml}",
+    "replace": "      <div class=\"card-actions\">\n        <button class=\"card-action card-history\" onclick=\"openVersionHistoryUI(event, '${proj.id}')\">🕐</button>\n        ${shareBtnHtml}"
+  },
+  {
+    "name": "FLOW-d 리스트 예약폭을 옛 값(76px)으로",
+    "file": "pages/projects.html",
+    "find": "  padding: 6px 84px 6px 12px;",
+    "replace": "  padding: 6px 76px 6px 12px;"
+  },
+  {
+    "name": "FLOW-e 상세 박스를 전역 id 로 되돌림",
+    "file": "js/version-history-ui.js",
+    "find": "      : `<div class=\"vhist-detail\" data-vh-detail-box=\"${r.ts}\" style=\"display:none\"></div>`;",
+    "replace": "      : `<div class=\"vhist-detail\" id=\"vhist-detail-${r.ts}\" style=\"display:none\"></div>`;"
+  },
+  {
+    "name": "LOGO-a 무조건 delete(초판)",
+    "file": "js/props/prop-asset.js",
+    "find": "    const wasLogo = ab.dataset.preset === 'logo';\n    if (!wasLogo) delete ab.dataset.preset;",
+    "replace": "    const wasLogo = false;\n    delete ab.dataset.preset;"
+  },
+  {
+    "name": "LOGO-b 합집합에서 규격 갈래 제거",
+    "file": "js/inspector.js",
+    "find": "ab.dataset.preset === 'logo' || _isLogoSized(ab)",
+    "replace": "ab.dataset.preset === 'logo'"
+  },
+  {
+    "name": "FIGMA-a capture 클릭차단 제거",
+    "file": "index.html",
+    "find": "      el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); }, true);\n",
+    "replace": ""
+  },
+  {
+    "name": "FIGMA-b capture→bubbling(onclick 은 못 막는다)",
+    "file": "index.html",
+    "find": "e.preventDefault(); e.stopPropagation(); }, true);",
+    "replace": "e.preventDefault(); e.stopPropagation(); }, false);"
+  },
+  {
+    "name": "FIGMA-c file input disabled 제거",
+    "file": "index.html",
+    "find": "      el.querySelectorAll('input').forEach(i => { i.disabled = true; });   // <label> 안의 file input\n",
+    "replace": ""
+  },
+  {
+    "name": "FIGMA-d 모듈 안 가드(1cf854b) 제거",
+    "file": "js/io/figma-publish.js",
+    "find": "  if (!window.FIGMA_ENABLED) return;",
+    "replace": "  /* MUTANT */"
+  }
+]

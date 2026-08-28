@@ -32,3 +32,27 @@ window.state = state;
  * ★true로 두면 아래 진입점 가드가 전부 통과해 기존 협업 동작이 그대로 복원된다. */
 export const COLLAB_ENABLED = true;
 window.COLLAB_ENABLED = COLLAB_ENABLED;
+
+/** ★킬스위치: 마켓(템플릿 공유) — 이번 런칭에는 «아직» 안 낸다(현빈 2026-08-28).
+ * false면 환경설정 「마켓」 탭·패인이 «그려지지 않고», 지연로드(renderMarketPane)도 안 돈다.
+ * 진입점 전수 확인: 마켓으로 들어가는 문은 환경설정 탭 «하나뿐»이라 이걸로 기능 전체가 닫힌다
+ *   (js/market.js 의 함수들은 renderMarketPane 을 통해서만 호출된다).
+ * ★되돌리기 = true 하나. 코드는 그대로 두었으니 다음 런칭에 한 글자로 켠다.
+ * ⚠️이미 마켓으로 받은 로컬 프로젝트는 그대로 남는다 — 데이터는 안 건드린다. */
+export const MARKET_ENABLED = false;
+window.MARKET_ENABLED = MARKET_ENABLED;
+
+/** ★킬스위치: Figma 연동 — 이번 MVP 에서 «제외»한다(현빈 2026-08-28).
+ * false 면 아래가 «그려지지 않고», 브릿지 상태 조회·기동도 안 돈다:
+ *   ⒜ Export 드롭다운의 Figma Bridge · Figma 업로드 · Figma 가져오기
+ *   ⒝ Plugins 패널의 Figma Upload · Figma Import  (★Iconify 는 Figma 무관이라 «남긴다»)
+ * ★메뉴만 감추고 뒤에서 도는 게 최악이라, 드롭다운 열 때 도는 initFigmaBridge 도 막는다.
+ * ★되돌리기 = true 하나. 코드는 그대로 두었으니 다음 런칭에 한 글자로 켠다. */
+export const FIGMA_ENABLED = false;
+window.FIGMA_ENABLED = FIGMA_ENABLED;
+
+/** ★킬스위치: 애니메이션 GIF 만들기 — 이번 MVP 에서 제외(현빈 2026-08-28).
+ * Figma 와 «별개 스위치»다 — 서로 다른 결정을 한 플래그에 묶으면
+ * 나중에 Figma 를 켤 때 GIF 도 같이 살아난다. 되돌리기 = true 하나. */
+export const ANIM_GIF_ENABLED = false;
+window.ANIM_GIF_ENABLED = ANIM_GIF_ENABLED;

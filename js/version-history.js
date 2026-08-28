@@ -1,0 +1,169 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   version-history.js — 버전/백업 히스토리의 «데이터 계층». 설계: _context/DESIGN-version-history.md §6~§7
+   ───────────────────────────────────────────────────────────────────────────
+   ★U3 단계에서는 «행 모델»까지만 만든다. 진입점 마크업·모달 DOM 은 현빈 Q1(진입점) 답 뒤에 붙는다.
+     그래서 이 파일에는 document 접근이 «없다» — 순수 함수만 있고 그래서 전부 단위테스트가 된다.
+
+   ★행 하나가 답해야 하는 질문은 「이 버전에 내가 잃은 게 살아 있나」다(§1).
+     그래서 lost 를 앞세우고, 숫자(섹션·블록·이미지·용량·시각)를 같이 준다 —
+     「사고 직전엔 섹션이 24개였는데 지금 21개」가 한 줄에 보이면 그것만으로 답이 나온다.
+
+   ★정직 규약(P-1)
+     · pending(아직 안 읽은 대형 레거시)은 숫자를 «지어내지 않는다» → counts=null, sectionsText='—'
+     · canon:0(옛 형식)은 그렇게 표시한다
+     · 손실 0 이면 손실 줄을 아예 안 그린다(노이즈 제거) → lostText=''
+═══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  const KB = 1024, MB = KB * 1024;
+
+  /** 「3시간 전」 — commit-system.js:69 _formatTimeAgo 와 «같은 말투»를 쓴다(앱 안에서 표기가 갈리면 안 된다).
+   * ★단 한 곳만 다르다: 8일이 넘어도 «날짜로 바꾸지 않고» 계속 「N일 전」을 센다.
+   *   저쪽은 이 값만 단독으로 쓰지만, 여기선 바로 옆에 formatWhen 의 «절대 날짜»가 이미 있다.
+   *   그대로 뒀더니 화면이 「8월 19일 08:17  8월 19일」로 날짜를 두 번 찍었다(스크린샷에서 잡혔다 —
+   *   숫자 검사로는 안 잡히는 부류다). 복구 도구에선 「40일 전」이 날짜 반복보다 쓸모 있다. */
+  function formatTimeAgo(ts, now) {
+    const base = now == null ? Date.now() : now;
+    const diff = base - new Date(ts).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1)  return '방금 전';
+    if (m < 60) return `${m}분 전`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}시간 전`;
+    return `${Math.floor(h / 24)}일 전`;
+  }
+
+  /** 「오늘 14:22」 / 「어제 09:05」 / 「8월 12일 09:05」 — 복구는 «시각»으로 찾는다. */
+  function formatWhen(ts, now) {
+    const d = new Date(ts);
+    const hh = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const base = new Date(now == null ? Date.now() : now);
+    const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const gap = Math.round((day(base) - day(d)) / 86400000);
+    if (gap === 0) return `오늘 ${hh}`;
+    if (gap === 1) return `어제 ${hh}`;
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 ${hh}`;
+  }
+
+  function formatBytes(n) {
+    if (!n || n < 0) return '—';
+    if (n < KB) return `${n}B`;
+    if (n < MB) return `${(n / KB).toFixed(0)}KB`;
+    // ★소수점을 버리지 않는다 — 「40MB vs 40MB」로 보이면 어느 버전이 더 큰지 못 고른다.
+    return `${(n / MB).toFixed(n < 10 * MB ? 2 : 1)}MB`;
+  }
+
+  function _lossDiff(entrySecs, currentSecs) {
+    const V = (typeof window !== 'undefined' && window.versionDiff) || null;
+    if (V && typeof V.lossDiff === 'function') return V.lossDiff(entrySecs, currentSecs);
+    // version-diff.js 가 없으면 «손실 없음»이 아니라 «모름»이다 — 0 으로 답하면 거짓 안심을 준다.
+    return null;
+  }
+
+  /**
+   * 목록 응답 → 화면 행 모델.
+   * @param {{ok:boolean,current:object|null,entries:object[],legacyCount:number,pendingCount:number}} list
+   *        main 의 projects:history-list 응답 그대로.
+   * @param {{now?:number}} [opts]
+   * @returns {{ok:boolean, currentRow:object|null, rows:object[], legacyCount:number, pendingCount:number, totalText:string}}
+   */
+  function buildRows(list, opts) {
+    const o = opts || {};
+    const now = o.now == null ? Date.now() : o.now;
+    if (!list || list.ok !== true) {
+      return { ok: false, reason: (list && list.reason) || 'unavailable', currentRow: null, rows: [],
+               legacyCount: 0, pendingCount: 0, totalText: '—' };
+    }
+    const cur = list.current || null;
+    const curSecs = (cur && cur.secs) || [];
+    // ★[C2 + 1차 중대4] «지금»을 모르면 비교가 성립하지 않는다. 둘 중 어느 쪽으로도 답하면 안 된다:
+    //   빈 배열로 비교하면 전 버전이 «전량 손실»(거짓 경보), 옛 current 를 쓰면 «전량 동일»(거짓 안심).
+    //   둘 다 사고 직후에 사용자를 틀린 방향으로 민다. ⇒ 「비교 불가」라고 말한다(§P-1).
+    const comparable = !!(cur && Array.isArray(cur.secs));
+
+    const currentRow = cur ? {
+      isCurrent: true, ts: cur.ts || now,
+      whenText: '지금', agoText: '',
+      counts: cur.counts || null,
+      sectionsText: cur.counts ? String(cur.counts.sections) : '—',
+      blocksText:   cur.counts ? String(cur.counts.blocks)   : '—',
+      imagesText:   cur.counts ? String(cur.counts.images)   : '—',
+      sizeText: formatBytes(cur.bytes),
+      lost: [], lostText: '', lossUnknown: false, pending: false, legacy: false, pinned: false, reason: 'current',
+    } : null;
+
+    const rows = (list.entries || []).map((e) => {
+      const loss = (e.pending || !comparable) ? null : _lossDiff(e.secs || [], curSecs);
+      return {
+        isCurrent: false,
+        ts: e.ts,
+        file: e.file,
+        whenText: formatWhen(e.ts, now),
+        agoText: formatTimeAgo(e.ts, now),
+        counts: e.counts || null,
+        sectionsText: e.counts ? String(e.counts.sections) : '—',
+        blocksText:   e.counts ? String(e.counts.blocks)   : '—',
+        imagesText:   e.counts ? String(e.counts.images)   : '—',
+        sizeText: formatBytes(e.bytes),
+        // ★헤드라인 — 이 버전엔 있는데 지금은 없는 섹션
+        lost: (loss && loss.lost) || [],
+        lostText: formatLossText(loss, e),
+        // ★[B] «모른다»는 UI 가 문구를 «문자열 비교»해서 알아내면 안 된다.
+        //   초판은 `r.lostText === '비교 불가'` 로 판정했다 — 문구를 한 글자만 다듬으면
+        //   「⚠️ 비교 불가」처럼 경고 아이콘이 붙는다(모르는 걸 경보로 만든다). 상태를 «값»으로 준다.
+        lossUnknown: e.pending === true || !comparable,
+        gainedCount: (loss && loss.gained && loss.gained.length) || 0,
+        pending: e.pending === true,
+        legacy: e.canon === 0,
+        approx: e.approx === true,
+        pinned: e.pinned === true,
+        reason: e.reason || 'auto',
+        badgeText: badgeFor(e),
+      };
+    });
+
+    /* ★[QA] 같은 «분»에 찍힌 행이 둘 이상이면 초를 붙여 구분한다.
+     *   되돌리기를 연달아 한 패닉 세션에서 안전판이 전부 「오늘 12:22」로 보였다(자체 QA 실측).
+     *   이 기능은 «그 순간»을 고르라고 만든 것인데, 고를 수 있는 이름이 같으면 고를 수가 없다.
+     *   ⛔항상 초를 붙이지는 않는다 — 평소엔 노이즈고, 사고 직후 화면에서 노이즈가 제일 해롭다(§1). */
+    const seen = new Map();
+    for (const r of rows) seen.set(r.whenText, (seen.get(r.whenText) || 0) + 1);
+    for (const r of rows) {
+      if (seen.get(r.whenText) > 1) {
+        r.whenText = `${r.whenText}:${String(new Date(r.ts).getSeconds()).padStart(2, '0')}`;
+      }
+    }
+
+    return {
+      ok: true, currentRow, rows,
+      legacyCount: list.legacyCount || 0,
+      pendingCount: list.pendingCount || 0,
+      totalText: formatBytes(list.totalBytes),
+    };
+  }
+
+  /** 손실 요약 한 줄. ★모르면 «0»이 아니라 «모름»이라고 말한다(거짓 안심 금지). */
+  function formatLossText(loss, entry) {
+    if (entry && entry.pending) return '아직 분석 안 함';
+    if (!loss) return '비교 불가';
+    const n = (loss.lost || []).length;
+    if (n === 0) return '';
+    const names = loss.lost.slice(0, 3).map(s => s.n).join(' · ');
+    return n <= 3 ? `지금은 없는 섹션 ${n} — ${names}` : `지금은 없는 섹션 ${n} — ${names} 외 ${n - 3}`;
+  }
+
+  /** 행에 붙는 상태 배지. 없으면 빈 문자열(배지를 억지로 만들지 않는다). */
+  function badgeFor(e) {
+    if (!e) return '';
+    if (e.reason === 'pre-restore') return '되돌리기 직전';
+    if (e.reason === 'manual') return '수동';
+    if (e.pending) return '옛 형식 · 미분석';
+    if (e.canon === 0) return '옛 형식';
+    return '';
+  }
+
+  const api = { buildRows, formatWhen, formatTimeAgo, formatBytes, formatLossText, badgeFor };
+  if (typeof window !== 'undefined') window.versionHistory = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api; // 단위테스트용
+})();

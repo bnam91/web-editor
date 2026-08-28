@@ -1,0 +1,231 @@
+<!doctype html>
+<!--
+  bn2-panel-probe — 배너02 «줄 편집기»를 실 DOM 에 그려서
+    ⑴ 어휘·배치가 텍스트 패널 규율(절 → 소제목 → 행)을 따르나
+    ⑵ ★재배치 후에도 «모든 컨트롤이 자기 줄을 고치나»
+    ⑶ ★줄을 지운 뒤 남은 줄의 컨트롤이 여전히 자기 줄을 고치나(인덱스 재계산)
+  를 잰다. ⛔실앱 불필요.
+-->
+<meta charset="utf-8"><title>배너02 줄 편집기 실측</title>
+<link rel="stylesheet" href="../../css/editor-base.css">
+<link rel="stylesheet" href="../../css/editor-panels.css">
+<link rel="stylesheet" href="../../css/editor-props.css">
+<body style="margin:0;background:#111">
+<div id="panel-right" class="panel" style="width:240px"><div class="panel-body"></div></div>
+<div id="canvas-wrap"><div id="canvas"></div></div>
+<pre id="out" style="color:#ddd;font:11px monospace;white-space:pre-wrap"></pre>
+<script type="module">
+const R = { ok: true, env: {}, problems: [] };
+const P = m => R.problems.push(m);
+try {
+  window.getBlockBreadcrumb = () => '';
+  window.setRpIdBadge = () => {};
+  window.pushHistory = () => { R.env.pushHistory = (R.env.pushHistory || 0) + 1; };
+  window.renderLayerTree = () => {}; window.scheduleAutoSave = () => {};
+  const { state } = await import('../../js/globals.js');
+  state.pageSettings = state.pageSettings || {}; state.pageSettings.padX = 40;
+  // ★_bn2Lines 를 다는 모듈을 «먼저» 올린다 — 안 올리면 read 가 undefined 라 줄이 0개가 되고,
+  //   그걸 「줄이 없다」로 읽으면 «측정 안 됨»을 «문제 있음»으로 오진한다(방금 그랬다).
+  await import('../../js/blocks/banner02-block.js');
+  if (!window._bn2Lines) P('★_bn2Lines 가 없다 — 아래 측정이 전부 무효다');
+  const { showBanner02Properties } = await import('../../js/props/prop-banner02.js');
+
+  /* 실제 배너02 마크업에 가깝게 — bn2Lines 가 읽는 구조 그대로 */
+  const canvas = document.getElementById('canvas');
+  function mkBanner(lines) {
+    canvas.innerHTML = `<div class="section-block" id="sec_b"><div class="section-inner">
+      <div class="banner02-block" id="bn2_probe" data-type="banner02" data-variant="frame_8">
+        <div class="bn2-inner"><div class="bn2-text">${lines.map((l,i)=>
+          `<div class="bn2-${l.kind}" data-line="${i}" style="font-size:${l.size}px;color:${l.color};">${l.text}</div>`).join('')}
+        </div></div></div></div></div>`;
+    const b = document.getElementById('bn2_probe');
+    b.dataset.lines = JSON.stringify(lines);
+    return b;
+  }
+  const LINES = [
+    { kind: 'label', text: '한정 수량',  size: 18, color: '#888888', gapTop: 0,  letterSpacing: 0 },
+    { kind: 'title', text: '무릎이 편해지는 시간', size: 48, color: '#111111', gapTop: 12, letterSpacing: -0.5 },
+    { kind: 'sub',   text: '등산·러닝 필수템',   size: 22, color: '#555555', gapTop: 8,  letterSpacing: 0 },
+  ];
+  const block = mkBanner(LINES);
+  showBanner02Properties(block);
+  await new Promise(r => setTimeout(r, 30));
+
+  const panel = document.querySelector('#panel-right .panel-body');
+
+  /* ★이 패널은 «칩으로 한 줄을 골라» 그 줄만 편집기를 그린다(3줄이 동시에 뜨지 않는다).
+   *   ⚠️초판 프로브는 「3개가 떠야 한다」는 «내가 지어낸 전제»를 재고 있었다. 실제 동작에 맞춘다. */
+  // ★「전체」 칩(data-line-chip="all")이 하나 더 있다 — 줄 칩만 센다.
+  const chips = () => [...panel.querySelectorAll('[data-line-chip]')].filter(b => b.dataset.lineChip !== 'all');
+  const openLine = async (i) => {
+    const c = chips().find(b => b.dataset.lineChip === String(i));
+    if (!c) { P(`★${i}번 줄 칩이 없다`); return false; }
+    c.click(); await new Promise(r => setTimeout(r, 40)); return true;
+  };
+  R.env.chipCount = chips().length;
+  R.env.allChip = !!panel.querySelector('[data-line-chip="all"]');
+  if (chips().length !== 3) P(`★줄 칩이 3개가 아니다 (${chips().length})`);
+  if (!R.env.allChip) P('★「전체」 칩이 사라졌다 — 재배치가 칩 스트립을 건드렸다');
+  const editors = () => [...panel.querySelectorAll('[data-line-row]')];
+  R.env.editorsAtOnce = editors().length;
+  if (editors().length !== 1) P(`★편집기가 «한 줄»만 떠야 한다 (${editors().length})`);
+
+  /* ⑴ 어휘·배치 — 지금 열린 줄 기준 */
+  const r0 = editors()[0];
+  const titles = [...r0.querySelectorAll('.prop-section-title')].map(e => e.textContent.replace(/\s+/g,' ').trim());
+  const fieldLabels = [...r0.querySelectorAll('.prop-field-label')].map(e => e.textContent.trim());
+  const rowLabels = [...r0.querySelectorAll('.prop-label')].map(e => e.textContent.trim());
+  R.env.sectionTitles = titles; R.env.fieldLabels = fieldLabels; R.env.rowLabels = rowLabels;
+  for (const t of ['Typography', 'Fill'])
+    if (!titles.includes(t)) P(`★절 「${t}」이 없다 — 텍스트 패널 어휘와 안 맞는다`);
+  if (titles.includes('Content')) P('★「Content」 절이 남아 있다 — 종류만 남으니 절을 유지할 이유가 없다');
+  // ★textarea 는 «없어야» 한다 — 캔버스 편집이 정본이다
+  if (r0.querySelector('[data-line-text]')) P('★문구 입력칸(textarea)이 남아 있다 — 같은 일을 두 곳에서 한다');
+  if (r0.querySelector('.prop-textarea')) P('★.prop-textarea 가 남아 있다');
+  for (const f of ['Font', 'Letter Spacing', 'Line Spacing'])
+    if (!fieldLabels.includes(f)) P(`★소제목 「${f}」이 없다`);
+  if (rowLabels.includes('색')) P('★행 라벨이 아직 「색」이다 — 텍스트 패널은 「글자색」이다');
+  if (rowLabels.includes('종류')) P('★「종류」가 아직 행에 있다 — 줄 머리로 옮겼어야 한다');
+  if (!rowLabels.includes('글자색')) P('★「글자색」이 없다');
+  const oi = n => rowLabels.indexOf(n);
+  if (!(oi('폰트') < oi('굵기') && oi('굵기') < oi('크기')))
+    P(`★Typography 순서가 폰트→굵기→크기가 아니다: ${rowLabels.join(' / ')}`);
+
+  /* ⑴-b ★줄 머리에 «역할·번호·미리보기·삭제»가 한 줄로 모였나 + 가로가 안 밀리나 */
+  const head = r0.querySelector('.prop-section-title[data-line-toggle]');
+  if (!head) P('★줄 머리에 접기(data-line-toggle)가 없다');
+  else {
+    const kindInHead = !!head.querySelector('[data-line-kind]');
+    const previewInHead = !!head.querySelector('.prop-hint');
+    const delInHead = !!head.querySelector('[data-line-remove]');
+    R.env.head = { kind: kindInHead, preview: previewInHead, del: delInHead,
+                   overflowX: head.scrollWidth - head.clientWidth,
+                   previewText: (head.querySelector('.prop-hint') || {}).textContent };
+    if (!kindInHead) P('★「종류」가 줄 머리에 없다 — 줄의 역할이고 캔버스에 대응 경로가 없어 지우면 안 된다');
+    if (!previewInHead) P('★미리보기가 줄 머리에 없다 — 같은 kind 가 여럿이면 구분이 안 된다');
+    if (!delInHead) P('★삭제(×)가 줄 머리에 없다');
+    if (head.scrollWidth - head.clientWidth > 1) P(`★줄 머리가 가로로 ${head.scrollWidth - head.clientWidth}px 밀렸다`);
+    const hint = head.querySelector('.prop-hint');
+    if (hint && getComputedStyle(hint).textOverflow !== 'ellipsis') P('★미리보기에 ellipsis 가 없다 — 긴 문구가 패널을 민다');
+  }
+  // ★긴 문구로 «실제로» 밀리는지 — ellipsis 가 도는지 확인
+  {
+    const long = JSON.parse(block.dataset.lines);
+    long[0].text = '아주 긴 문구입니다 '.repeat(6);
+    block.dataset.lines = JSON.stringify(long);
+    showBanner02Properties(block, 0);
+    await new Promise(r => setTimeout(r, 40));
+    const h2 = panel.querySelector('.prop-section-title[data-line-toggle]');
+    const pb = document.querySelector('#panel-right .panel-body');
+    R.env.longTextOverflow = { head: h2 ? h2.scrollWidth - h2.clientWidth : -1, panel: pb.scrollWidth - pb.clientWidth };
+    if (h2 && h2.scrollWidth - h2.clientWidth > 1) P('★긴 문구에서 줄 머리가 가로로 밀린다');
+    if (pb.scrollWidth - pb.clientWidth > 1) P('★긴 문구에서 패널이 가로로 밀린다');
+    long[0].text = '한정 수량'; block.dataset.lines = JSON.stringify(long);
+    showBanner02Properties(block, 0); await new Promise(r => setTimeout(r, 40));
+  }
+
+  /* ⑵ ★각 컨트롤이 «자기 줄»을 고치나 — 칩으로 열고 실제로 조작한다 */
+  const readLines = () => JSON.parse(block.dataset.lines || '[]');
+  const fire = (el, type) => el.dispatchEvent(new Event(type, { bubbles: true }));
+  /* ★사람이 하는 대로 «input 다음 change» 를 둘 다 쏜다.
+   *   컨트롤마다 듣는 이벤트가 다르다(크기=input, 여백위=change) — 하나만 쏘면
+   *   「안 먹었다」가 «코드 결함»인지 «내가 잘못 쏜 것»인지 구별이 안 된다. 실제로 한 번 오진했다. */
+  const set = (attr, i, val) => {
+    const el = panel.querySelector(`[${attr}="${i}"]`);
+    if (!el) { P(`★컨트롤 없음: ${attr}=${i}`); return false; }
+    el.value = val; fire(el, 'input'); fire(el, 'change'); return true;
+  };
+  await openLine(1);
+  set('data-line-size-num', 1, '64');
+  set('data-line-ls', 1, '-1.5');
+  set('data-line-gap', 1, '30');
+  await new Promise(r => setTimeout(r, 40));
+  let L = readLines();
+  R.env.afterEdit = L.map(l => `${l.kind}/${l.size}/${l.letterSpacing}/${l.gapTop}`);
+  if (L[1].size !== 64) P(`★크기가 1번 줄에 안 들어갔다 (${L[1].size})`);
+  if (String(L[1].letterSpacing) !== '-1.5') P(`★자간이 안 들어갔다 (${L[1].letterSpacing})`);
+  if (String(L[1].gapTop) !== '30') P(`★여백위가 안 들어갔다 (${L[1].gapTop})`);
+  if (L[0].size !== 18 || L[0].gapTop !== 0) P('★0번 줄이 «같이» 바뀌었다 — 컨트롤이 남의 줄을 고친다');
+
+  await openLine(2);
+  set('data-line-kind', 2, 'label');
+  await new Promise(r => setTimeout(r, 40));
+  L = readLines();
+  if (L[2].kind !== 'label') P(`★종류가 2번 줄에 안 들어갔다 (${L[2].kind})`);
+  if (L[1].kind !== 'title') P('★1번 줄 종류가 같이 바뀌었다');
+
+  /* ★문구는 이제 «캔버스»가 유일한 입구다 — 그게 살아 있는지 여기서 잰다.
+   *   textarea 를 뺐으니 이 경로가 죽으면 «글자를 고칠 방법이 없어진다». */
+  {
+    const el = block.querySelector('[data-line-idx="2"]');
+    if (!el) P('★캔버스에 줄 요소(data-line-idx)가 없다 — 편집 경로 자체가 없다');
+    else {
+      if (el.getAttribute('contenteditable') !== 'false') P('★평소에 contenteditable 이 true 다(오편집 위험)');
+      el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 20));
+      R.env.canvasEditable = el.getAttribute('contenteditable');
+      if (el.getAttribute('contenteditable') !== 'true')
+        P('★더블클릭해도 캔버스 편집이 안 켜진다 — textarea 를 뺐는데 이게 죽으면 글자를 못 고친다');
+      el.textContent = '캔버스에서 고침';
+      el.dispatchEvent(new Event('blur', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 40));
+      const z = readLines();
+      R.env.canvasEditResult = z[2] && z[2].text;
+      if (!/캔버스에서 고침/.test((z[2] && z[2].text) || ''))
+        P(`★캔버스 편집이 dataset 에 «반영되지 않는다» (${z[2] && z[2].text}) — 유일한 입구가 끊겼다`);
+    }
+  }
+
+  /* ⑶ ★줄을 지운 뒤 — 남은 줄의 컨트롤이 여전히 «자기 줄»을 고치나(인덱스 재계산) */
+  await openLine(0);
+  const del = panel.querySelector('[data-line-remove="0"]');
+  if (!del) P('★삭제 버튼이 없다');
+  else {
+    del.click(); await new Promise(r => setTimeout(r, 60));
+    const after = readLines();
+    R.env.afterDelete = after.map(l => `${l.kind}/${l.size}`);
+    if (after.length !== 2) P(`★삭제 후 줄이 2개가 아니다 (${after.length})`);
+    else {
+      // 원래 1번(title/64)이 이제 0번이다. 0번을 열어 고쳐서 «그 줄»이 바뀌나 본다.
+      await openLine(0);
+      set('data-line-size-num', 0, '70');
+      await new Promise(r => setTimeout(r, 40));
+      const z = readLines();
+      R.env.afterDeleteEdit = z.map(l => `${l.kind}/${l.size}`);
+      if (!z[0] || z[0].size !== 70) P(`★삭제 후 0번 컨트롤이 자기 줄을 못 고친다 (${z[0] && z[0].size}) — 인덱스 재계산이 깨졌다`);
+      if (z[1] && z[1].size === 70) P('★삭제 후 컨트롤이 «다른 줄»을 고쳤다 — 인덱스가 밀렸다');
+      if (z[0] && z[0].kind !== 'title') P(`★삭제 후 0번이 원래 1번(title)이 아니다 (${z[0] && z[0].kind})`);
+    }
+  }
+
+  /* ⑷ ★화면이 «무거워 보이지» 않나 — 절이 늘었으니 숫자로 잰다.
+   *   줄 머리까지 .prop-section-title 이라 4개가 같은 굵기로 쌓이면 「제목이 내용보다 많다」가 된다. */
+  await openLine(0);
+  const ed = editors()[0];
+  // ★접힘 상태에서 재면 «줄 머리만» 재는 것이다 — 펼친 상태의 높이를 잰다.
+  const edBody = ed.querySelector('[data-line-editor]');
+  R.env.editorOpen = edBody ? getComputedStyle(edBody).display !== 'none' : null;
+  if (edBody && getComputedStyle(edBody).display === 'none') {
+    ed.querySelector('[data-line-toggle]').click();
+    await new Promise(r => setTimeout(r, 40));
+  }
+  const rowsN = ed.querySelectorAll('.prop-row, .prop-color-row').length;
+  const titleN = ed.querySelectorAll('.prop-section-title').length;
+  const fieldN = ed.querySelectorAll('.prop-field-label').length;
+  R.env.weight = { titles: titleN, fieldLabels: fieldN, rows: rowsN, editorH: Math.round(editors()[0].getBoundingClientRect().height) };
+  if (titleN + fieldN > rowsN) P(`★제목(${titleN}+${fieldN})이 내용(${rowsN})보다 많다 — 화면이 무거워 보인다`);
+  const panelBody = document.querySelector('#panel-right .panel-body');
+  R.env.panelOverflowX = panelBody.scrollWidth - panelBody.clientWidth;
+  if (R.env.panelOverflowX > 1) P(`★패널이 가로로 ${R.env.panelOverflowX}px 밀렸다`);
+
+  /* ⑸ 디자인 게이트 — 신작 클래스 0 */
+  const cls = new Set();
+  panel.querySelectorAll('[data-line-row] *').forEach(e => e.classList.forEach(c => cls.add(c)));
+  const foreign = [...cls].filter(c => !/^(prop-|cv-|font-picker|is-|active)/.test(c));
+  R.env.foreignClasses = foreign;
+  if (foreign.length) P(`★공용 밖 클래스가 섞였다: ${foreign.join(', ')}`);
+} catch (e) { P('프로브가 던졌다: ' + (e && e.message) + ' @ ' + (e && e.stack || '').split('\n')[1]); }
+R.ok = R.problems.length === 0;
+window.__RESULT = R;
+document.getElementById('out').textContent = JSON.stringify(R, null, 1);
+</script>

@@ -359,6 +359,63 @@ const DesignSystem = (() => {
     const panel = document.getElementById('design-system-panel');
     if (!panel) return;
     panel.classList.toggle('open');
+    if (panel.classList.contains('open')) makeSectionsCollapsible();
+  }
+
+  /* ★절(Base·Color·컬러 변수·Font·Label Radius)도 «각각» 접힌다(현빈 2026-08-28).
+   *   패널 전체 토글만 있어서, 색 하나 보려고 5개 절을 다 펼쳐 놓고 스크롤해야 했다.
+   * ★마크업을 안 고치고 «감싼다» — index.html 은 라벨과 내용이 형제로 나열돼 있어
+   *   각 행에 손대면 5곳을 다 고쳐야 하고, 절이 늘 때마다 또 고쳐야 한다.
+   *   여기서 한 번 감싸면 «절이 늘어도» 자동으로 따라온다.
+   * ⛔Apply/Reset(.ds-btn-row)은 어느 절에도 안 넣는다 — 접히면 못 누른다. */
+  const _DS_COLLAPSE_KEY = 'goditor.ds.collapsed';
+  function makeSectionsCollapsible() {
+    const body = document.getElementById('ds-panel-body');
+    if (!body || body.dataset.collapsibleReady) return;
+    body.dataset.collapsibleReady = '1';
+
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(_DS_COLLAPSE_KEY) || '{}'); } catch (_) {}
+
+    const labels = [...body.querySelectorAll('.ds-section-label')];
+    labels.forEach(label => {
+      const name = label.textContent.trim();
+      const wrap = document.createElement('div');
+      wrap.className = 'ds-section-body';
+      // 다음 절 라벨 «전»까지, 그리고 버튼 줄은 «빼고» 담는다.
+      let node = label.nextElementSibling;
+      while (node && !node.classList.contains('ds-section-label') && !node.classList.contains('ds-btn-row')) {
+        const next = node.nextElementSibling;
+        wrap.appendChild(node);
+        node = next;
+      }
+      label.after(wrap);
+      label.classList.add('ds-section-toggle');
+      label.setAttribute('role', 'button');
+      label.tabIndex = 0;
+
+      const apply = (collapsed) => {
+        wrap.style.display = collapsed ? 'none' : '';
+        label.classList.toggle('collapsed', collapsed);
+        label.title = collapsed ? `${name} 펼치기` : `${name} 접기`;
+      };
+      apply(saved[name] === true);
+
+      const toggle = () => {
+        const now = wrap.style.display !== 'none';
+        apply(now);
+        try {
+          const cur = JSON.parse(localStorage.getItem(_DS_COLLAPSE_KEY) || '{}');
+          cur[name] = now;
+          localStorage.setItem(_DS_COLLAPSE_KEY, JSON.stringify(cur));
+        } catch (_) {}
+      };
+      label.addEventListener('click', toggle);
+      // ★키보드로도 접힌다 — role=button 을 줬으면 Enter/Space 가 먹어야 한다.
+      label.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+      });
+    });
   }
 
   // ── 프로젝트 열 때 복원 ──────────────────────────────
@@ -519,7 +576,7 @@ const DesignSystem = (() => {
   document.addEventListener('DOMContentLoaded', init);
 
   return {
-    applyBase, applyFromPanel, resetTokens, togglePanel, syncPanelUI, saveNewPreset,
+    applyBase, applyFromPanel, resetTokens, togglePanel, syncPanelUI, saveNewPreset, makeSectionsCollapsible,
     // 시맨틱 컬러 변수 — 데이터(팀A) + 패널 UI(팀B)
     getColorVars, setColorVar, removeColorVar, applyColorVars, restoreColorVarsFromMeta,
     addColorVarFromPanel, renderColorVars,

@@ -1,0 +1,17 @@
+<meta charset="utf-8">
+<style>
+  body{margin:0}
+  #canvas-wrap{height:1036px;overflow-y:auto;padding-bottom:40px;background:#181818}
+  #canvas-scaler{transform-origin:0 0}
+  #canvas{width:860px;margin:0 auto}
+  .section-block{background:#2a2a2a;border-bottom:1px solid #444;color:#888;font:12px sans-serif;padding:4px}
+</style>
+<div id="canvas-wrap"><div id="canvas-scaler"><div id="canvas"></div></div></div>
+<script>
+  const canvas=document.getElementById('canvas');
+  // 섹션 20개 — 크기 제각각(작은 것/큰 것 섞기)
+  const hs=[150,1400,2200,900,500,1800,600,4300,2400,1100,700,2100,1000,800,1500,600,3000,900,1200,900];
+  hs.forEach((h,i)=>{const d=document.createElement('div');d.className='section-block';d.style.height=h+'px';d.dataset.name='Section '+(i+1);canvas.appendChild(d);});
+  window.applyZoomTest = z => { document.getElementById('canvas-scaler').style.transform='translate(0px, 0px) scale('+z+')'; };
+  applyZoomTest(0.4);
+</script>

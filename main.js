@@ -742,6 +742,15 @@ const _safeSeg = s => {
 
 // proj.json 경로 dual-resolve: 신 우선 → flat fallback.
 // migrator 모듈이 있으면 그쪽 사용, 없으면 동일 로직 인라인.
+// snapshot-store 지연 로더 — _getExternalizer/_getMigrator 와 같은 패턴(모듈 부재 시 앱은 계속 뜬다).
+let _ssMod = null, _ssTried = false;
+function _SS() {
+  if (!_ssTried) { _ssTried = true; try { _ssMod = require('./main/project-store/snapshot-store'); } catch (e) { console.warn('[snapshot-store] 로드 실패:', e.message); } }
+  return _ssMod || _SS_FALLBACK;
+}
+// 모듈이 없으면 «스냅샷을 안 만들고 폴백 후보도 안 준다» — 저장·로드 자체는 계속 되게(현행과 동일한 안전 성향).
+const _SS_FALLBACK = { writeSnapshot: () => ({ ok: false, skipped: 'module_missing' }), pruneVersions: () => ({ kept: 0, deleted: [] }), loadFallbackCandidates: () => [] };
+
 function _resolveProjectJsonPath(id) {
   id = _safeSeg(id); // GAP-009
   const m = _getMigrator();
@@ -1132,30 +1141,23 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   // 2) GAP-004 폴백 체인: proj_backup.json → proj_history 최신→오래된 순.
   //    백업 인프라(롤링백업·히스토리 5슬롯)가 옆에 유효본을 둬도 손상 시 빈 프로젝트로
   //    로드되던 데이터손실을 차단. 첫 유효본을 반환하고 proj.json으로 자가치유 재기록.
-  const candidates = [];
-  const backupPath = _resolveBackupJsonPath(id);
-  if (backupPath) candidates.push({ path: backupPath, from: 'backup' });
-  for (const histDir of [path.join(PROJECTS_DIR, id, 'proj_history'), path.join(PROJECTS_DIR, `${id}_history`)]) {
-    try {
-      if (fs.existsSync(histDir)) {
-        const slots = fs.readdirSync(histDir).filter(f => f.endsWith('.json'))
-          .sort((a, b) => (parseInt(b) || 0) - (parseInt(a) || 0)); // 최신 우선
-        for (const s of slots) candidates.push({ path: path.join(histDir, s), from: 'history' });
-      }
-    } catch (_) {}
-  }
-  // [externalize] 최후 보루: 일괄 외부화 직전 원본(rename 보존본). ★반드시 체인 «맨 끝»(DESIGN §3-1) —
-  //   pre-externalize는 변환 시점에 고정돼 갱신되지 않으므로(늙는다), backup·history보다 앞에 두면
-  //   한 달 늙은 원본이 최신 백업/히스토리를 이겨 덮어쓰는 데이터손실(F1)이 난다. 롤링·히스토리가 다
-  //   죽었을 때만 쓰는 절대 최후 보루로만 남긴다.
-  try {
-    const preExt = path.join(PROJECTS_DIR, _safeSeg(id), 'proj_pre-externalize.json');
-    if (fs.existsSync(preExt)) candidates.push({ path: preExt, from: 'pre-externalize' });
-  } catch (_) {}
+  //   후보 «순서 자체»가 계약이다 — backup → history(최신→오래된) → pre-externalize(★맨 끝).
+  //   pre-externalize는 변환 시점에 고정돼 늙으므로 앞에 두면 한 달 늙은 원본이 최신 백업/히스토리를
+  //   이겨 덮어쓰는 데이터손실(F1)이 난다. 이 순서는 snapshot-store 에서 특성화 테스트로 고정돼 있다.
+  const candidates = _SS().loadFallbackCandidates(PROJECTS_DIR, id, _resolveBackupJsonPath);
   for (const c of candidates) {
     let proj;
     try { proj = JSON.parse(fs.readFileSync(c.path, 'utf8')); }
     catch (_) { continue; } // 이 백업도 손상 → 다음 후보
+    // ★[A2 치명] «파싱되면 프로젝트»가 아니다. readVersion 은 이미 isProjectShaped 로 거르는데
+    //   폴백 루프만 안 걸러서, 히스토리 폴더의 사이드카(pins.json)가 프로젝트로 채택되고
+    //   자가치유가 39MB proj.json 을 3줄로 덮어썼다(3차 검수 end-to-end 재현).
+    //   ⛔후보 «생성»쪽(loadFallbackCandidates)도 고쳤지만 여기서 한 번 더 막는다 —
+    //   이 루프는 backup·pre-externalize 등 우리가 이름을 통제하지 못하는 파일도 먹는다.
+    if (!_SS().isProjectShaped(proj)) {
+      console.warn(`[projects:load] 후보가 프로젝트 형태가 아님 — 건너뜀: ${path.basename(c.path)}`);
+      continue;
+    }
     console.warn(`[projects:load] ${id} 손상 → ${c.from}(${path.basename(c.path)})에서 복구`);
     try { // 자가치유: 복구본을 proj.json으로 재기록 (다음 로드부터 정상)
       const paths = _ensureNewLayoutPaths(id);
@@ -1200,6 +1202,65 @@ ipcMain.handle('projects:externalize-scan', (_e, { projectId } = {}) => {
   const X = _getExternalizer();
   if (!X || !projectId) return null;
   try { return X.scanProjectFile(PROJECTS_DIR, _safeSeg(projectId)); } catch (_) { return null; }
+});
+
+/* ── [version-history] 버전 기록 조회 (U2 — ★읽기 전용) ─────────────────────
+ * ⛔이 블록에는 «쓰기» 채널이 없다. 되돌리기·사본생성은 U5/U6 에서 별도로 온다.
+ *   복구 기능이 조회만으로 사용자 데이터를 바꾸면 안 된다.
+ *   ⚠️ 단 하나의 예외는 사이드카(proj_history/index.json · pins.json)다 — «파생 캐시»이고
+ *      잃어도 재빌드된다. 프로젝트 데이터(proj.json/백업/슬롯/에셋)는 한 바이트도 안 바뀐다.
+ *      단위테스트가 그 경계를 (경로,크기,해시) 스냅샷 대조로 못 박는다.
+ * ★DIFF_PAYLOAD_MAX: 정규화 «후»에도 이만큼 크면 렌더러로 안 보낸다. 목록의 숫자와 손실 요약은
+ *   인덱스에서 나오므로 그래도 답이 나온다 — 상세 비교만 건너뛴다(P-1 정직). */
+const DIFF_PAYLOAD_MAX = 8 * 1024 * 1024;
+
+ipcMain.handle('projects:history-list', (_e, { projectId } = {}) => {
+  const SS = _SS();
+  if (!projectId || typeof SS.listVersions !== 'function') return { ok: false, reason: 'unavailable' };
+  try { return SS.listVersions(PROJECTS_DIR, _safeSeg(projectId)); }
+  catch (e) { console.warn('[history:list] 실패:', e.message); return { ok: false, reason: 'exception', message: e.message }; }
+});
+
+ipcMain.handle('projects:history-read', (_e, { projectId, ts } = {}) => {
+  const SS = _SS();
+  if (!projectId || typeof SS.readVersion !== 'function') return { ok: false, reason: 'unavailable' };
+  try { return SS.readVersion(PROJECTS_DIR, _safeSeg(projectId), ts); }
+  catch (e) { return { ok: false, reason: 'exception', message: e.message }; }
+});
+
+/* 손실/변경 비교용 재료 — ★«양쪽을 같은 좌표계로» 몰아서 준다.
+ * 스냅샷은 정규형인데 현재본이 base64 면 이미지가 든 모든 섹션이 「변경」으로 떠서 목록이 무용해진다.
+ * 렌더러는 40MB base64 를 해싱할 수 없으므로(동기 crypto 없음) 여기서 접어 보낸다.
+ * canonicalize(write:false) = 해시만 계산, 디스크 무접촉. */
+ipcMain.handle('projects:history-diff-payload', (_e, { projectId, ts } = {}) => {
+  const SS = _SS();
+  if (!projectId || typeof SS.readVersion !== 'function') return { ok: false, reason: 'unavailable' };
+  const pid = _safeSeg(projectId);
+  try {
+    const snap = SS.readVersion(PROJECTS_DIR, pid, ts);
+    if (!snap.ok) return snap;
+    const curPath = _resolveProjectJsonPath(pid);
+    if (!curPath) return { ok: false, reason: 'no_current' };
+    let cur;
+    try { cur = JSON.parse(fs.readFileSync(curPath, 'utf8')); }
+    catch (e) { return { ok: false, reason: 'current_corrupt', message: e.message }; }
+
+    const toMap = (data) => {
+      const canon = SS.canonicalize(PROJECTS_DIR, pid, data, { write: false });
+      const out = {};
+      for (const c of SS._internal.canvasStrings(canon.data)) out[c.key] = c.html;
+      return out;
+    };
+    const snapCanvas = toMap(snap.data);
+    const curCanvas = toMap(cur);
+    const size = Object.values(snapCanvas).reduce((a, h) => a + h.length, 0)
+               + Object.values(curCanvas).reduce((a, h) => a + h.length, 0);
+    if (size > DIFF_PAYLOAD_MAX) return { ok: false, reason: 'too_large', bytes: size };
+    return { ok: true, ts: snap.ts, snapCanvas, curCanvas, bytes: size };
+  } catch (e) {
+    console.warn('[history:diff-payload] 실패:', e.message);
+    return { ok: false, reason: 'exception', message: e.message };
+  }
 });
 
 // 섹션 수 합산 헬퍼 — 모든 페이지의 canvas HTML에서 section-block 카운트
@@ -1258,35 +1319,20 @@ async function _saveProjectImpl(project) {
       // 롤링 백업: 정상 저장 전 직전 버전 보존 — 신 위치에만 작성
       try { fs.copyFileSync(prevPath, paths.backup); } catch (_) {}
 
-      // 다중 백업: 시간 기반 5개 슬롯 — 신 위치 디렉터리 안 history/
-      try {
-        const histDir = paths.history;
-        if (!fs.existsSync(histDir)) fs.mkdirSync(histDir, { recursive: true });
-        const slots = fs.readdirSync(histDir).filter(f => f.endsWith('.json')).sort();
-        const now = Date.now();
-        const lastSlotTs = slots.length > 0
-          ? parseInt(slots[slots.length - 1].replace('.json','')) || 0
-          : 0;
-        // 직전 슬롯과 10분 이상 차이날 때만 새 스냅샷 추가 (저장 폭주 방지)
-        if (now - lastSlotTs > 10 * 60 * 1000) {
-          const newSlot = path.join(histDir, `${now}.json`);
-          fs.copyFileSync(prevPath, newSlot);
-          // 5개 초과 시 가장 오래된 슬롯 제거
-          const refreshed = fs.readdirSync(histDir).filter(f => f.endsWith('.json')).sort();
-          while (refreshed.length > 5) {
-            const oldest = refreshed.shift();
-            try { fs.unlinkSync(path.join(histDir, oldest)); } catch {}
-          }
-        }
-      } catch (e) {
-        console.warn('[projects:save] 다중 백업 슬롯 갱신 실패:', e.message);
-      }
+      // (버전 스냅샷은 proj.json 을 «쓴 뒤» 아래에서 만든다 — 재료가 파일이 아니라 메모리의 객체다)
     } catch {}
   }
 
   _atomicWriteFileSync(filePath, JSON.stringify(project, null, 2));
   // [b8] 목록 메타 캐시 갱신 — proj.json 직후 기록해 meta.mtime >= proj.mtime 불변식 유지(목록 풀파싱 회피)
   _refreshListMeta(project.id, project);
+  // [version-history] 버전 스냅샷 — «지금 저장되는 객체»를 정규형(goya-asset)으로 기록 + 계층 프룬.
+  //   ★proj.json 을 «쓴 뒤»여야 한다: updateCurrent 가 새 mtime/size 를 읽어 목록 신선도 판정에 쓴다.
+  //   ★스냅샷 실패가 저장 실패로 번지면 안 된다 — 전체를 삼킨다(현행 백업 로직과 같은 규율).
+  try {
+    _SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'auto' });
+    _SS().pruneVersions(PROJECTS_DIR, project.id);
+  } catch (e) { console.warn('[projects:save] 버전 스냅샷 실패(저장은 정상):', e.message); }
   // claude-pm/project.meta.json title 동기화 (PM 폴더 있을 때만, best-effort)
   try { await syncClaudePmTitle(PROJECTS_DIR, project.id, project.name); } catch {}
   return { ok: true };
@@ -1309,6 +1355,14 @@ ipcMain.on('projects:save-sync', (event, project) => {
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
     _refreshListMeta(project.id, project); // [b8] 목록 메타 캐시 동기 갱신 (mtime 불변식 유지)
+    // [version-history/Q4] ★새로고침·탭닫기 순간에도 버전을 남긴다 — 사고가 제일 잦은 순간인데
+    //   여태 이 경로엔 슬롯이 «전혀» 안 생겼다(롤링 백업만). 같은 10분 간격 게이트를 타므로
+    //   종료가 매번 느려지지 않는다(실측: 게이트에 막히면 0.1ms, 생성될 때만 39.6MB 기준 230ms).
+    //   ★스냅샷 실패가 «종료 저장»을 막으면 안 된다 — 삼킨다.
+    try {
+      _SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'unload' });
+      _SS().pruneVersions(PROJECTS_DIR, project.id);
+    } catch (e) { console.warn('[projects:save-sync] 버전 스냅샷 실패(저장은 정상):', e.message); }
     // claude-pm title 동기화 — sync 경로에서는 fire-and-forget (returnValue를 막지 않음)
     Promise.resolve()
       .then(() => syncClaudePmTitle(PROJECTS_DIR, project.id, project.name))
@@ -1320,44 +1374,135 @@ ipcMain.on('projects:save-sync', (event, project) => {
   }
 });
 
-ipcMain.handle('projects:delete', (event, id) => {
-  // projectId sanitize — path traversal 방어 (slash/dot-only/empty reject)
+/* ── [version-history/U7] 삭제 안전망 — 영구삭제 → «휴지통» (현빈 승인) ────
+ * ★설계 §8-0 규약: «되돌릴 수단»을 대상과 «같은 봉투»에 두지 마라.
+ *   proj_<id>/ 안에 proj.json · proj_backup.json · **proj_history 스냅샷 전부** · assets 가 다 있다.
+ *   그걸 rmSync 하면 본체와 복구 수단이 «동시에» 사라진다 — 우리가 만든 버전 히스토리가 삭제 앞에서
+ *   통째로 무력해진다. 휴지통이 그 봉투 «밖»의 안전망 역할을 한다.
+ *
+ * ★실패하면 «조용히 영구삭제로 폴백하지 않는다». 복구 도구를 만들면서 「휴지통이 안 되니 지울게요」는
+ *   앞뒤가 안 맞는다. 대신 정직하게 실패를 돌려주고, «영구 삭제»는 사용자가 2차 확인으로 «선택»한다.
+ *   ⇒ 반환을 { ok, trashed, reason } 으로 나눠 「지웠나」와 「휴지통이냐 영구냐」를 구분한다.
+ *     (구 반환은 boolean 하나라 「지웠다」와 「지울 게 없었다」가 같은 값이었다.)
+ *
+ * ⚠️비동기 전환의 숨은 위험(설계 D-U7-4): rmSync 는 반환 시점에 이미 끝나 «반쯤 지워진 상태»가
+ *   구조적으로 없었다. trashItem 은 Promise 라 await 사이에 autosave 가 끼어들 수 있다.
+ *   ⇒ 호출측(렌더러)이 «그 프로젝트를 안 연 상태»로 부르는 게 전제다 — 갤러리에서만 부른다.
+ */
+ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
   const safeId = String(id || '').trim();
   if (!safeId || safeId.includes('/') || safeId.includes('\\') || /^\.+$/.test(safeId)) {
-    return false;
+    return { ok: false, trashed: false, reason: 'invalid_id' };
   }
-  // 번들 레이아웃: proj_<id>/ 디렉터리 한 방 삭제 (proj.json/proj_backup.json/proj_meta.json/proj_history/claude-pm/assets/images 포함)
-  // path.resolve로 base 밖 탈출 2차 방어
+  const permanent = opts && opts.permanent === true;   // ★2차 확인을 «거친» 경우에만 true
   const projectsBase = path.resolve(PROJECTS_DIR);
   const dirPath = path.resolve(PROJECTS_DIR, safeId);
-  let dirOk = true;
-  if (dirPath.startsWith(projectsBase + path.sep) && fs.existsSync(dirPath)) {
-    try { fs.rmSync(dirPath, { recursive: true, force: true }); }
-    catch (e) {
-      // partial delete — 호출측에 false 반환해 알림 (codex Medium fix)
-      console.error('[projects:delete] dir 삭제 실패:', e.message, 'path:', dirPath);
-      dirOk = false;
+  const inBase = (p) => p.startsWith(projectsBase + path.sep);
+
+  // 지울 대상 모으기 — 번들 디렉터리 + 구 flat 잔재.
+  // ★flat <id>_history/ 도 «복구 재료»다(projects:load 폴백 체인이 읽는다) — 같이 휴지통으로 보낸다.
+  // ★순서가 중요하다 — «구 flat 잔재 먼저, 번들 디렉터리 나중».
+  //   반대로 하면(번들 먼저) 잔재 하나가 실패했을 때 «본체는 휴지통인데 <id>_history 는 남는» 상태가 되고,
+  //   목록의 낡은 카드를 누르면 projects:load 폴백이 그 잔재로 «옛 내용의 좀비»를 되살린다.
+  //   잔재 먼저면 최악이 「본체는 멀쩡한데 낡은 잔재만 치웠다」라 무해하다.
+  const targets = [];
+  for (const name of [`${safeId}.json`, `${safeId}_meta.json`, `${safeId}_backup.json`, `${safeId}_history`]) {
+    const p2 = path.resolve(PROJECTS_DIR, name);
+    if (inBase(p2) && fs.existsSync(p2)) targets.push(p2);
+  }
+  if (inBase(dirPath) && fs.existsSync(dirPath)) targets.push(dirPath);
+  if (!targets.length) return { ok: true, trashed: false, reason: 'not_found', deleted: 0 };
+
+  // ★휴지통에서 «찾을 수 있어야» 복구다. proj_178… 폴더가 수십 개면 자기 걸 못 고른다.
+  //   ⛔디렉터리 이름은 «안» 바꾼다 — id 가 곧 디렉터리명이라 trash 실패 시 살아있는 프로젝트가 깨진다.
+  //   어차피 버려질 봉투 «안»에 마커를 넣는 건 위험이 0이다.
+  // ⛔permanent 모드엔 마커가 쓸모없다(휴지통에서 찾을 일이 없다) — 안 쓴다.
+  // ⚠️symlink 로 base 밖을 가리키면 마커가 PROJECTS_DIR 밖에 써진다 → realpath 로 한 번 더 막는다.
+  let markerPath = null;
+  if (!permanent && fs.existsSync(dirPath)) {
+    let realOk = false;
+    try { realOk = fs.realpathSync(dirPath).startsWith(fs.realpathSync(projectsBase) + path.sep); } catch (_) {}
+    if (realOk) {
+    try {
+      let name = safeId, sections = null;
+      try {
+        const m = JSON.parse(fs.readFileSync(path.join(dirPath, 'proj_meta.json'), 'utf8'));
+        if (m && m.name) name = m.name;
+      } catch (_) {}
+      try { sections = _countSections(JSON.parse(fs.readFileSync(path.join(dirPath, 'proj.json'), 'utf8'))); } catch (_) {}
+      markerPath = path.join(dirPath, '_deleted-info.json');
+      fs.writeFileSync(markerPath,
+        JSON.stringify({ name, id: safeId, deletedAt: new Date().toISOString(), sections }, null, 2));
+    } catch (_) { markerPath = null; /* 마커 실패는 삭제를 무르지 않는다 */ }
     }
   }
-  // 마이그레이션 안 된 flat 잔재 best-effort cleanup
-  // (proj_<id>.json / proj_<id>_meta.json / proj_<id>_backup.json / proj_<id>_history/)
-  const flatCandidates = [
-    path.join(PROJECTS_DIR, `${safeId}.json`),
-    path.join(PROJECTS_DIR, `${safeId}_meta.json`),
-    path.join(PROJECTS_DIR, `${safeId}_backup.json`),
-  ];
-  for (const p of flatCandidates) {
-    try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch (_) {}
+
+  const failed = [];
+  let trashedCount = 0;
+  let bundleMoved = false;   // ★«우리가» 번들을 옮겼나 — 사후조건은 그때만 의미가 있다
+  // ★[A3 치명] 하나라도 실패하면 «거기서 멈춘다». targets 는 「잔재 먼저, 번들 마지막」 순이므로
+  //   조기중단은 곧 «번들 무접촉»이다.
+  //   ⛔초판은 실패해도 continue 해서, 잔재가 EPERM 인데 번들만 휴지통으로 갔다. 그러면
+  //   2차 확인창에서 「영구 삭제」를 취소하는 순간 — proj.json·proj_history·assets 는 전부 휴지통이고
+  //   구 flat 잔재만 남아서 — 같은 이름 카드가 «1년 전 내용»으로 부활하고(projects:load 폴백),
+  //   그 프로젝트의 버전 기록은 통째로 휴지통이라 «앱 안에서» 되돌릴 방법이 없다.
+  //   다음 자동저장이 그 옛 내용을 새 번들로 굳혀 되돌리기 창까지 닫는다.
+  //   ★순서(잔재 먼저)는 필요조건이었을 뿐 충분조건이 아니었다 — 중단이 있어야 보장이 된다.
+  //   ⇒ 이 루프가 나가는 순간의 불변식: «failed 가 비어있지 않으면 번들은 그대로 있다».
+  for (const t of targets) {
+    if (permanent) {
+      try { fs.rmSync(t, { recursive: true, force: true }); trashedCount++; if (t === dirPath) bundleMoved = true; }
+      catch (e) { failed.push({ path: path.basename(t), error: e.message }); break; }
+    } else {
+      try { await shell.trashItem(t); trashedCount++; if (t === dirPath) bundleMoved = true; }
+      catch (e) {
+        // ★이미 없으면 «성공»이다 — 연타·경합으로 먼저 치워진 것을 실패로 보면
+        //   사용자에게 「영구 삭제할까요」라는 거짓 경고를 띄운다.
+        //   ⛔단 bundleMoved 로는 «안» 친다 — 우리가 옮긴 게 아니므로 아래 사후조건의 대상이 아니다.
+        if (e && (e.code === 'ENOENT' || /ENOENT/.test(e.message || ''))) { trashedCount++; continue; }
+        failed.push({ path: path.basename(t), error: e.message });
+        break;
+      }
+    }
   }
-  const flatHist = path.join(PROJECTS_DIR, `${safeId}_history`);
-  if (flatHist.startsWith(projectsBase + path.sep)) {
-    try { if (fs.existsSync(flatHist)) fs.rmSync(flatHist, { recursive: true, force: true }); } catch (_) {}
+  if (failed.length) {
+    // ★조용히 영구삭제로 폴백하지 «않는다». 사용자가 알고 고르게 한다.
+    // ★★그리고 «부분 이동»을 「전부 실패」로 말하지 않는다 — 초판은 trashedCount 를 «계산만 하고 안 읽어»
+    //   번들이 이미 휴지통에 간 상태에서 trashed:false 를 답했다. 그러면 렌더러가
+    //   「휴지통으로 옮길 수 없습니다 → 영구 삭제할까요」라는 «사실과 다른» 확인창을 띄운다.
+    //   ★[A3] 조기중단 덕분에 여기서 bundleMoved 는 «항상 false» 다(번들이 목록의 마지막이므로).
+    //   그래서 trashed 는 «번들이 갔나»로 정직하게 답할 수 있다 — 렌더러의 확인창이 이걸 보고
+    //   「영구 삭제할까요」를 물으므로, 여기서 거짓을 말하면 사용자가 판단을 그르친다.
+    const partial = trashedCount > 0;   // 잔재 일부만 옮겨졌다(프로젝트 본체는 그대로)
+    console.warn('[projects:delete] 실패:', JSON.stringify(failed), 'moved=', trashedCount, 'bundleMoved=', bundleMoved);
+    if (markerPath) { try { fs.unlinkSync(markerPath); } catch (_) {} }   // 살아남은 프로젝트에 마커를 남기지 않는다
+    return { ok: false, trashed: bundleMoved, bundleIntact: !bundleMoved, deleted: trashedCount,
+             reason: permanent ? 'delete_failed' : (partial ? 'trash_partial' : 'trash_failed'),
+             message: failed[0].error, failed };
   }
-  return dirOk;
+  // ★사후조건 — await 사이에 autosave 가 프로젝트를 «다시 만들었을» 수 있다(D-U7-4 의 비동기 창).
+  //   그러면 「휴지통에 보냈다」가 사실이 아니다. 잠금 대신 결과를 확인해서 정직하게 답한다.
+  if (!permanent && bundleMoved && fs.existsSync(dirPath)) {
+    return { ok: false, trashed: true, deleted: trashedCount, reason: 'recreated_during_delete',
+             message: '삭제 도중 프로젝트가 다시 만들어졌습니다(다른 창에서 편집 중일 수 있습니다).' };
+  }
+  return { ok: true, trashed: !permanent, deleted: trashedCount };
 });
 
+
 // 프로젝트 복제 코어 — ipcMain.handle(렌더러)와 MCP 도구(duplicate_project)가 공용.
-async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
+/**
+ * 프로젝트 복제.
+ * @param {object} args
+ * @param {string} args.sourceProjectId 원본 id — 에셋 폴더·meta·goya-asset URL 재매핑의 «기준»이다.
+ * @param {string} [args.newName]
+ * @param {object} [args.sourceData] ★내용을 «다른 것»으로 바꿔 복제한다(버전 히스토리의 「사본으로 열기」).
+ *   안 주면 원본 proj.json 을 읽는다(기존 동작 그대로). 주면 그 객체가 내용이 되고,
+ *   에셋 하드링크·goya-asset URL 치환·meta 처리 등 «나머지 전부»는 동일한 경로를 탄다.
+ *   ⇒ 복제 로직을 두 벌 만들지 않는다. js/market.js 가 saveProject 로 직접 만들다가 에셋을 통째로
+ *     빠뜨린 전례가 있다(사본이 원본 폴더를 몰래 참조 → 원본 삭제 시 404).
+ */
+async function _duplicateProjectImpl({ sourceProjectId, newName, sourceData } = {}) {
   try {
     if (!sourceProjectId || typeof sourceProjectId !== 'string')
       return { ok: false, error: 'sourceProjectId 필수', code: 'invalid' };
@@ -1376,9 +1521,11 @@ async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
       fs.existsSync(path.join(PROJECTS_DIR, `${newId}.json`))        // flat 잔재
     );
 
-    // JSON 복사 + 메타 갱신
-    const src = JSON.parse(fs.readFileSync(srcJsonPath, 'utf8'));
-    const dup = JSON.parse(JSON.stringify(src));
+    // JSON 복사 + 메타 갱신. sourceData 가 오면 «내용만» 그것으로 바꾼다(기준 id 는 그대로 원본).
+    const src = sourceData && typeof sourceData === 'object'
+      ? sourceData
+      : JSON.parse(fs.readFileSync(srcJsonPath, 'utf8'));
+    const dup = JSON.parse(JSON.stringify(src)); // 깊은 복제 — 호출측 객체를 절대 변형하지 않는다
     const now = new Date().toISOString();
     const baseName = (newName && String(newName).trim()) || `${src.name || '이름 없음'} (사본)`;
     dup.id = newId; dup.name = baseName; dup.createdAt = now; dup.updatedAt = now;
@@ -1470,6 +1617,11 @@ async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
       try {
         const meta = JSON.parse(fs.readFileSync(srcMeta, 'utf8'));
         meta.id = newId; meta.name = baseName; meta.updatedAt = now;
+        // ★collabRef 는 «이 문서»가 아니라 «이 설치의 원격 연결 상태»다(main.js:852). 사본에 딸려가면
+        //   두 프로젝트가 같은 협업방을 가리켜 서로의 편집을 덮어쓴다 — 그건 데이터 사고다.
+        //   externalized 마커도 사본에는 의미가 없다(사본의 pre-externalize 원본이 없으므로 되돌리기 불가).
+        delete meta.collabRef;
+        delete meta.externalized;
         _atomicWriteFileSync(targetPaths.meta, JSON.stringify(meta, null, 2));
       } catch (e) { console.warn('[projects:duplicate] meta 복사 실패:', e.message); }
     }
@@ -1484,6 +1636,117 @@ async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
   }
 }
 ipcMain.handle('projects:duplicate', (_e, args = {}) => _duplicateProjectImpl(args));
+
+/* ── [version-history] U5 «사본으로 열기» — 비파괴 ─────────────────────────
+ * 옛 버전을 «새 프로젝트»로 만든다. 원본 프로젝트는 한 바이트도 안 바뀐다.
+ * 읽기전용 뷰어 대신 사본을 주는 이유: 사용자는 만져보고 판단해야 하는데, 원본은 안전해야 한다.
+ * ★반드시 _duplicateProjectImpl 을 탄다 — goya-asset URL 이 hostname 에 projectId 를 박고 있어서
+ *   URL 치환 + 에셋 하드링크를 안 하면 사본이 원본 폴더를 몰래 참조한다(원본 삭제 시 404). */
+/* ── [version-history] U6b «이 버전으로 교체» — ★파괴 경로 ────────────────
+ * 현빈 확정(Q2): 교체가 «기본», 교체 «직전» 자동 스냅샷, 다른 창에 열려 있으면 거부 + 새 프로젝트만.
+ *
+ * ★안전판이 «먼저» 박히는 순서를 코드가 강제한다 — snapshot-store.prepareRestore 가
+ *   ①안전판 강제 스냅샷 → ②실패하면 data 조차 «안 넘기고» 종료 → ③성공해야 데이터를 준다.
+ *   그래서 이 핸들러는 「안전판을 잊는」 실수를 할 수 없다(잊으면 덮을 데이터 자체가 없다).
+ *
+ * ★★autosave 경합 — 이 유닛의 진짜 난점(설계 §D10)
+ *   그 프로젝트가 «에디터에 열려 있는데» main 이 proj.json 을 직접 쓰면,
+ *   1.5초 뒤 autosave 가 옛 DOM 으로 «되돌린 것을 되돌린다».
+ *   ⇒ 열려 있으면 main 은 «쓰지 않고» 데이터만 준다. 적용은 렌더러가
+ *     state._suppressAutoSave + applyProjectData 로 한다(commit-system.js:269 가 세운 정본).
+ *
+ * ★다중 인스턴스 — main.js 에 requestSingleInstanceLock 이 «없다». 즉 두 번째 앱이 실제로 뜰 수 있고,
+ *   그쪽이 같은 프로젝트를 열고 있는지 이 프로세스는 «알 수 없다».
+ *   판별 불가일 때 덮어쓰면 남의 편집을 조용히 날린다 ⇒ 거부하고 «왜»를 화면에 말한다(설계 §7-4).
+ *   호출측은 openProjectIds(이 창이 연 탭 목록)를 «반드시» 넘겨야 한다 — 안 넘기면 판별 불가로 본다.
+ */
+ipcMain.handle('projects:history-restore', async (_e, { projectId, ts, openProjectIds, activeProjectId, currentData } = {}) => {
+  const SS = _SS();
+  if (!projectId || typeof SS.prepareRestore !== 'function') return { ok: false, reason: 'unavailable' };
+  const pid = _safeSeg(projectId);
+
+  // ★「열려 있나」를 main 이 «추측하지 않는다» — 렌더러가 답한다(설계 §D10).
+  if (!Array.isArray(openProjectIds)) {
+    return { ok: false, reason: 'unknown_open_state',
+      message: '다른 창에서 열려 있을 수 있어 교체할 수 없습니다 — 새 프로젝트로 복원하세요.' };
+  }
+  // ★«다른 창»은 main 이 실제로 셀 수 있다. 창이 둘 이상이면 이 창의 탭 목록은 «전체 지식»이 아니다
+  //   → 덮어쓰면 다른 창의 편집을 조용히 날린다. 거부하고 이유를 말한다.
+  //   ⚠️ 별도 «프로세스»(두 번째 앱 실행)는 이걸로도 못 잡는다 — main.js 에 requestSingleInstanceLock 이
+  //     없어 실제로 가능하다. 그건 이 유닛이 못 덮는 구멍이라 설계에 남긴다(§D10 잔여 위험).
+  let windowCount = 1;
+  try { windowCount = BrowserWindow.getAllWindows().filter(w => !w.isDestroyed()).length || 1; } catch (_) {}
+  if (windowCount > 1) {
+    return { ok: false, reason: 'multiple_windows', windowCount,
+      message: `창이 ${windowCount}개 열려 있어 교체할 수 없습니다(다른 창에서 이 프로젝트를 편집 중일 수 있습니다) — 새 프로젝트로 복원하세요.` };
+  }
+  /* ★[1차검수 잠복] «열려 있다»만으로 렌더러 적용을 켜면 안 된다.
+   * applyProjectData 는 «활성 탭»의 화면을 바꾼다 — 비활성 탭의 projectId 로 부르면
+   * A 의 데이터가 활성 탭 B 화면에 적용된다. 현 진입점 조합에선 도달 불가지만,
+   * ★진입점이 하나만 늘면 바로 터진다(방금 톱니바퀴를 늘렸다). 구조로 막는다.
+   * ⇒ 렌더러가 「이게 활성 탭이다」를 명시(activeProjectId)해야만 적용 경로를 연다.
+   *   아니면 main 이 직접 쓴다 — 화면이 안 바뀌니 경합도 없다. */
+  const isOpenHere = openProjectIds.includes(pid) && activeProjectId === pid;
+
+  let r;
+  try { r = SS.prepareRestore(PROJECTS_DIR, pid, ts, { currentData: isOpenHere ? currentData : null }); }
+  catch (e) { console.error('[history:restore] prepareRestore 예외:', e); return { ok: false, reason: 'exception', message: e.message }; }
+  if (!r.ok) return r;   // ★안전판이 없으면 여기서 끝. 아래로 내려가지 않는다.
+
+  // 열려 있으면 «쓰지 않는다» — 렌더러가 적용한다(autosave 경합 회피)
+  if (isOpenHere) {
+    return { ok: true, applyInRenderer: true, preRestoreTs: r.preRestoreTs, ts: r.ts,
+             data: r.data, source: r.source, missingAssets: r.missingAssets,
+             targetEmpty: r.targetEmpty, currentEmpty: r.currentEmpty };
+  }
+  // 안 열려 있으면 main 이 직접 쓴다.
+  // ★★[C1] «그대로 쓰면» 안 된다. 되돌릴 데이터는 스냅샷이고, 스냅샷은 렌더러의 serializeProject()
+  //   산출물일 수 있어 id·name·createdAt·marketRef 가 «없다». 그대로 쓰면 proj.json 에 id 가 없어
+  //   _listItemFor(main.js:850)가 그 프로젝트를 목록에서 통째로 빼버린다 — 사용자에겐 «삭제»로 보인다.
+  //   ⇒ 정상 저장경로(_saveProjectImpl → _guardProjectName)와 «같은 규율»로 기존 파일과 병합한다.
+  try {
+    const prevPath = _resolveProjectJsonPath(pid);
+    let prev = {};
+    try { if (prevPath) prev = JSON.parse(fs.readFileSync(prevPath, 'utf8')) || {}; } catch (_) {}
+    const merged = {
+      ...prev, ...r.data,
+      id: pid,
+      name: r.data.name || prev.name || 'Untitled',
+      createdAt: r.data.createdAt || prev.createdAt || null,
+      updatedAt: new Date().toISOString(),   // 되돌린 «시각»이 최신이다 — 목록 정렬이 과거로 감기면 안 된다
+    };
+    await _saveProjectImpl(merged);          // 롤링백업·이름가드·목록캐시·스냅샷을 한 번에 얻는다
+  } catch (e) {
+    // ★여기서 실패해도 «안전판은 이미 있다» — 사용자는 아무것도 잃지 않았다.
+    console.error('[history:restore] 쓰기 실패:', e);
+    return { ok: false, reason: 'write_failed', message: e.message, preRestoreTs: r.preRestoreTs };
+  }
+  return { ok: true, applyInRenderer: false, preRestoreTs: r.preRestoreTs, ts: r.ts,
+           source: r.source, missingAssets: r.missingAssets,
+           targetEmpty: r.targetEmpty, currentEmpty: r.currentEmpty };
+});
+
+ipcMain.handle('projects:history-open-copy', async (_e, { projectId, ts, newName } = {}) => {
+  const SS = _SS();
+  if (!projectId || typeof SS.readVersion !== 'function') return { ok: false, error: 'unavailable', code: 'unavailable' };
+  const pid = _safeSeg(projectId);
+  try {
+    const snap = SS.readVersion(PROJECTS_DIR, pid, ts);
+    if (!snap.ok) return { ok: false, error: snap.reason, code: snap.reason };
+    let base = pid;
+    try { const cur = JSON.parse(fs.readFileSync(_resolveProjectJsonPath(pid), 'utf8')); base = cur.name || base; }
+    catch (_) { base = (snap.data && snap.data.name) || base; }
+    const d = new Date(snap.ts);
+    const stamp = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} `
+                + `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const name = (newName && String(newName).trim()) || `${base} (v ${stamp})`;
+    const r = await _duplicateProjectImpl({ sourceProjectId: pid, newName: name, sourceData: snap.data });
+    return r.ok ? { ...r, fromTs: snap.ts } : r;
+  } catch (e) {
+    console.error('[history:open-copy] 예외:', e);
+    return { ok: false, error: e.message, code: 'io' };
+  }
+});
 
 // 프로젝트 생성 코어 — MCP create_project 도구가 사용.
 // ⚠️빈 프로젝트 «포맷»은 갤러리 「새 프로젝트」(pages/projects.html createProject())와 동일해야

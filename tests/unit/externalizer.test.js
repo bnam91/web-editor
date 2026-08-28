@@ -4,6 +4,8 @@
  */
 'use strict';
 const test = require('node:test');
+const { mkTmpRoot } = require('./_tmproot.js');
+
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
@@ -18,7 +20,7 @@ const PNG = `data:image/png;base64,${PNG_B64}`;
 const GIF = `data:image/gif;base64,${GIF_B64}`;
 const hash16 = (b64) => crypto.createHash('sha256').update(Buffer.from(b64, 'base64')).digest('hex').slice(0, 16);
 
-function mkRoot() { return fs.mkdtempSync(path.join(os.tmpdir(), 'goya-ext-')); }
+function mkRoot() { return mkTmpRoot('goya-ext-'); }
 function writeProj(root, id, obj, meta) {
   const dir = path.join(root, id); fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'proj.json'), JSON.stringify(obj, null, 2));

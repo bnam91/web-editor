@@ -176,7 +176,22 @@ export function showTextProperties(tb) {
   // BUG-FIX: 텍스트블록 선택마다 이 함수가 실행되므로 리스너 중복 방지
   // onclick을 직접 교체하는 방식으로 단일 핸들러 보장
   const animBtn = document.getElementById('open-anim-btn');
-  if (animBtn) animBtn.onclick = () => window.openAnimModal(tb);
+  if (animBtn) {
+    /* ★[MVP 제외] 「애니메이션 GIF 만들기」는 이번 버전에서 «보이되 안 눌린다»(현빈 2026-08-28).
+     *   Figma·개발자·협업과 같은 방식 — 감추면 「있었다」는 것조차 사라진다.
+     *   ⛔이 버튼은 우측 패널이 그려질 때마다 «새로 만들어진다»(prop-text-template.js:361).
+     *     그래서 로드 시점 IIFE 로는 못 막고 «여기서» 막아야 한다. */
+    if (window.ANIM_GIF_ENABLED === false || window.ANIM_GIF_ENABLED === undefined) {
+      animBtn.onclick = null;
+      animBtn.disabled = true;
+      animBtn.setAttribute('aria-disabled', 'true');
+      animBtn.style.opacity = '0.4';
+      animBtn.style.cursor = 'default';
+      animBtn.title = '이번 버전에서는 사용할 수 없습니다';
+    } else {
+      animBtn.onclick = () => window.openAnimModal(tb);
+    }
+  }
 
   window.bindLayoutInput?.(tb);
 

@@ -1,0 +1,196 @@
+<!doctype html>
+<!--
+  panel-clip-probe — 우측 프로퍼티 패널 버튼의 «글자 잘림»을 눈이 아니라 숫자로 잰다.
+
+  쓰는 법 (앱·GODITOR 슬롯 «불필요». 브라우저만 있으면 된다)
+    1) 격리 헤드리스 크롬을 전용 프로필로 띄우고 이 파일을 file:// 로 연다
+       "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu \
+         --user-data-dir=<임시프로필> --allow-file-access-from-files --remote-debugging-port=9333 \
+         "file://<repo>/tools/panel-clip-probe/probe.html"
+    2) CDP 로 window.__RESULT 를 읽는다. problems[] 가 비면 통과.
+    3) 끝나면 크롬 kill + 프로필 삭제(내가 띄운 것만).
+
+  ★★판정식 주의 — 여기 두 번 데였다
+    · .prop-align-btn 은 display:flex 라 «넘쳐도 scrollWidth 가 안 늘어난다»
+    · Range.getBoundingClientRect() 는 «잘린 뒤» rect 를 준다 → 항상 inner 이하
+    ⇒ 자연 폭은 같은 폰트의 «화면 밖 span»으로 따로 재야 한다. SELFTEST 케이스가 그 검증이다.
+    ⇒ 「검출 0」은 «문제 없음»과 «검출기가 무딤» 두 가지 뜻이다. SELFTEST 가 초록이어야 나머지 초록이 유효하다.
+
+  ★★2026-08-28 실측 결론 — «정적 grep 후보 8곳» 중 실제 결함은 «1곳»뿐이었다
+    감사에서 「`.prop-align-btn` + 인라인 flex:1 = 8곳」을 후보로 뽑았으나,
+    flex:1 은 basis 0 이라 «축소»가 아니라 «균등분배»다 → 여유가 있으면 shrink 가 아예 발동 안 한다.
+    실측에서 BEFORE 와 「인라인 제거」의 폭이 모든 N 에서 «완전히 동일»했다(110/72/53/41.6/34px).
+    진짜 조건은 «개수»(container/N < 글자 폭). 자리별 판정:
+      ⛔comparison:36,37 · banner02:239,240 · step:74,75 — 고정 2개 → 110px 씩, 잘림 0. «고치면 회귀만 만든다»
+      ⛔banner02:34 — variant 가 실제로 2개뿐(가로 배너/와이드 4:1) → 임계 미달
+      ✅comparison:69 «칼럼 N» — N≥7 에서 잘림. comparison-block.js:480 이 상한을 8 로 허용 → 도달 가능
+        수정: style="flex:1" → "flex:1 0 auto" (공용 클래스 `1 0 28px` 에서 basis 만 내용 폭으로)
+        N=2~6 은 전·후 폭이 완전 동일 = 회귀 0 / N=7·8 은 7건 잘림 → 0
+    ⇒ **「8곳」이라는 숫자만 보고 나머지 7곳을 고치지 마라.** 다시 재고 싶으면 이 프로브를 돌려라.
+-->
+<meta charset="utf-8">
+<title>prop-align-btn 잘림 실측</title>
+<link rel="stylesheet" href="../../css/editor-base.css">
+<link rel="stylesheet" href="../../css/editor-panels.css">
+<link rel="stylesheet" href="../../css/editor-props.css">
+<body style="margin:0;background:#111">
+<div id="stage"></div>
+<pre id="out" style="color:#ddd;font:11px monospace;white-space:pre-wrap"></pre>
+<script>
+(function () {
+  const R = { ok: true, env: {}, cases: [], problems: [] };
+  const P = (m) => R.problems.push(m);
+
+  // ★실제 DOM 사슬 재현: .panel#panel-right > .panel-body > (프롭 마크업)
+  //   .panel 240px · .panel-body padding 6px · 스크롤바 4px → 콘텐츠 폭 224px
+  function mount(innerHTML, panelW) {
+    const panel = document.createElement('div');
+    panel.className = 'panel'; panel.id = 'panel-right';
+    panel.style.width = panelW + 'px';
+    const body = document.createElement('div');
+    body.className = 'panel-body';
+    body.style.width = (panelW - 4) + 'px';   // 스크롤바 몫
+    body.innerHTML = innerHTML;
+    panel.appendChild(body);
+    document.getElementById('stage').appendChild(panel);
+    return { panel, body };
+  }
+
+  /* 잘림 판정 — 눈이 아니라 숫자로.
+   *  ① 버튼 자신이 내용을 못 담는가: scrollWidth > clientWidth
+   *  ② 텍스트가 실제로 잘리는가: Range 로 잰 글자 폭 > 버튼 안쪽 폭
+   *  ①만 보면 white-space:nowrap 없이 «줄바꿈»으로 흘러 높이가 늘어난 경우를 놓친다 → ③ 높이도 본다. */
+  /* 잘림 판정 — ★자연 폭을 «따로» 재야 한다.
+   * 초판은 scrollWidth / Range rect 로 쟀는데 둘 다 무뎠다(자가시험이 잡아냈다):
+   *   · .prop-align-btn 은 display:flex 라 넘쳐도 scrollWidth 가 안 늘어난다
+   *   · Range.getBoundingClientRect() 는 «잘린 뒤» 렌더된 rect 를 준다 → 항상 inner 이하
+   * ⇒ 같은 폰트로 화면 밖 span 에 텍스트를 넣어 «잘리기 전» 자연 폭을 재고 버튼 안쪽 폭과 비교한다. */
+  const ruler = document.createElement('span');
+  ruler.style.cssText = 'position:absolute;left:-9999px;top:-9999px;white-space:pre;visibility:hidden';
+  document.body.appendChild(ruler);
+  function naturalWidth(text, cs) {
+    ruler.style.font = cs.font || `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize}/${cs.lineHeight} ${cs.fontFamily}`;
+    ruler.style.letterSpacing = cs.letterSpacing;
+    ruler.textContent = text;
+    return ruler.getBoundingClientRect().width;
+  }
+  function measure(btn) {
+    const cs = getComputedStyle(btn);
+    const r = btn.getBoundingClientRect();
+    const padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
+    const bL = parseFloat(cs.borderLeftWidth) || 0, bR = parseFloat(cs.borderRightWidth) || 0;
+    const inner = r.width - padL - padR - bL - bR;
+    const nat = naturalWidth(btn.textContent, cs);
+    return {
+      w: +r.width.toFixed(1), h: +r.height.toFixed(1),
+      inner: +inner.toFixed(1), nat: +nat.toFixed(1),
+      clipped: nat > inner + 0.5,               // ★자연 폭이 안쪽 폭을 넘으면 잘린다
+      wrapped: r.height > 26.5,
+      flex: cs.flexGrow + ' ' + cs.flexShrink + ' ' + cs.flexBasis,
+    };
+  }
+
+  // ── 실제 소스에서 가져온 마크업(라벨·폰트크기·컨테이너 그대로) ────────────
+  const BTN = (label, inlineStyle, extra) =>
+    `<button class="prop-align-btn${extra || ''}"${inlineStyle ? ` style="${inlineStyle}"` : ''}>${label}</button>`;
+
+  const SITES = [
+    // 고정 2개 자리 — 실제 도달 가능한 조건 그대로
+    { id: 'comparison:36,37 «꽉 채우기/원본 비율» ×2(고정)', wrap: 'row',
+      labels: ['꽉 채우기', '원본 비율'], fs: 'font-size:10px;' },
+    { id: 'banner02:239,240 «꽉 채우기/원본 비율» ×2(고정)', wrap: 'group',
+      labels: ['꽉 채우기', '원본 비율'], fs: 'font-size:11px;' },
+    { id: 'step:74,75 «세로/가로» ×2(고정)', wrap: 'group', labels: ['세로', '가로'], fs: '' },
+    { id: 'banner02:34 variant ×2(실제 전수: 가로 배너/와이드 4:1)', wrap: 'group',
+      labels: ['가로 배너', '와이드 4:1'], fs: 'font-size:11px;' },
+    // ★comparison:69 — 칼럼은 «가변»이고 comparison-block.js:480 이 상한을 8 로 못 박고 있다
+    ...[2, 3, 4, 5, 6, 7, 8].map(n => ({
+      id: `comparison:69 «칼럼 N» ×${n}`, wrap: 'group',
+      labels: Array.from({ length: n }, (_, i) => `칼럼 ${i + 1}`), fs: '' })),
+    { id: 'SELFTEST 강제 잘림(반드시 검출돼야 함)', wrap: 'group', selftest: true,
+      labels: ['아주아주 긴 라벨입니다 정말로'], fs: 'font-size:11px;', force: 'width:30px;max-width:30px;overflow:hidden;flex:0 0 30px;' },
+  ];
+
+  // 변형 3종: 현행 / 인라인 flex 제거(공용 클래스 그대로) / banner02:159 형태
+  const VARIANTS = [
+    { key: 'BEFORE  flex:1',        style: (fs) => `flex:1;${fs}` },
+    { key: 'AFTER-A 인라인 제거',    style: (fs) => `${fs}` },
+    { key: 'AFTER-B 0 1 auto+nowrap', style: (fs) => `flex:0 1 auto;min-width:0;white-space:nowrap;${fs}` },
+    // 대안 — 채움(grow)은 유지하되 basis 를 «내용 폭»으로: 넘치면 축소가 아니라 wrap 된다
+    { key: 'AFTER-C 1 0 auto', style: (fs) => `flex:1 0 auto;${fs}` },
+  ];
+
+  /* ★[QA②] 초판은 여기에 「실제 소스 파일에서 뽑아온다」고 «적어만» 뒀고, 프로브는 그 파일을
+   *   읽지 않았다(fetch/import 0건). 그래서 픽스를 되돌려도 프로브는 초록이었다 — 파일이 아니라
+   *   내 기억을 재고 있었다. ⇒ 러너(run.js)가 prop-comparison.js 에서 인라인 style 을 «뽑아»
+   *   window.__SOURCE_STYLE 로 넣어준다. 없으면 «안 쟀다»고 말한다 — 통과로 치지 않는다. */
+  // ⚠️«빈 문자열»도 유효한 상태다(= 인라인 style 없음 = 수정 전). 그걸 「못 쟀다」로 읽으면
+  //   픽스를 되돌렸을 때 «틀린 이유»로 빨강이 된다 — 실패 이유가 틀리면 진단이 틀린다.
+  if (typeof window.__SOURCE_STYLE === 'string') {
+    VARIANTS.push({ key: 'SOURCE (파일에서 읽음)', style: (fs) => `${window.__SOURCE_STYLE}${fs}` });
+  } else {
+    P('★소스 style 을 못 받았다 — 「파일을 잰다」가 성립하지 않는다. run.js 로 돌려라');
+  }
+
+  const WIDTHS = [240, 220, 200];
+
+  for (const site of SITES) {
+    for (const v of VARIANTS) {
+      for (const W of WIDTHS) {
+        if (site.selftest && !v.key.startsWith('BEFORE')) continue;   // 자가시험은 1회면 된다
+        const st = site.force ? site.force + site.fs
+                 : site.chip ? `flex:0 1 auto;min-width:0;white-space:nowrap;padding:2px 8px;${site.fs}`
+                 : v.style(site.fs);
+        const btns = site.labels.map(l => BTN(l, st)).join('');
+        // ★[QA①] 실제 마크업은 .prop-section «안»에 있고 그 클래스에 padding:0 8px 이 있다.
+        //   초판 픽스처는 이걸 빠뜨려 «16px 넓게» 재는 바람에 임계값이 한 칸 어긋났다(N=6→7 로 늦게 봤다).
+        const inner = site.wrap === 'row'
+          ? `<div class="prop-row" style="gap:4px;">${btns}</div>`
+          : `<div class="prop-align-group">${btns}</div>`;
+        const html = `<div class="prop-section">${inner}</div>`;
+        const { panel, body } = mount(html, W);
+        const els = [...body.querySelectorAll('.prop-align-btn')];
+        const ms = els.map(measure);
+        const clipped = ms.filter(m => m.clipped).length;
+        R.cases.push({ site: site.id, variant: v.key, W, n: els.length, clipped,
+                       wrapped: ms.filter(m => m.wrapped).length,
+                       flex: ms[0] && ms[0].flex, widths: ms.map(m => m.w) });
+        panel.remove();
+      }
+    }
+  }
+
+  // ★양성대조 — 수정 «전»에서 잘림이 검출되는가. 안 잡히면 그 자리는 문제가 아니었거나 검출기가 무디다.
+  const before = R.cases.filter(c => c.variant.startsWith('BEFORE'));
+  const beforeClipped = before.filter(c => c.clipped > 0);
+  R.env.beforeClippedCases = beforeClipped.length + '/' + before.length;
+  // 자가시험이 통과하면 검출기는 멀쩡하다 → BEFORE 에서 안 잡히는 건 «그 자리가 문제가 아니다»는 뜻이다.
+
+  // ★음성대조 — 짧은 라벨은 어느 변형에서도 안 잘려야 한다(고칠 필요 없는 자리)
+  const shortBefore = R.cases.filter(c => c.site.includes('세로/가로') && c.variant.startsWith('BEFORE'));
+  R.env.shortLabelClipped = shortBefore.reduce((a, c) => a + c.clipped, 0);
+  // ★검출기 자가시험 판정
+  const st = R.cases.find(c => c.site.includes('SELFTEST'));
+  R.env.selftestDetected = st ? (st.clipped > 0) : null;
+  if (!R.env.selftestDetected) P('★검출기가 «강제 잘림»조차 못 잡았다 — 판정식이 무디다. 모든 초록이 무효다');
+
+  // AFTER 가 실제로 고치는가
+  for (const key of ['AFTER-A 인라인 제거', 'AFTER-B 0 1 auto+nowrap', 'AFTER-C 1 0 auto', 'SOURCE (파일에서 읽음)']) {
+    if (!R.cases.some(c => c.variant === key)) continue;
+    const bad = R.cases.filter(c => c.variant === key && c.clipped > 0);
+    R.env[key] = bad.length === 0 ? '잘림 0' : `잘림 남음 ${bad.length}건`;
+  }
+
+  // ★현행 소스가 실제로 고치는가 — 이게 이 프로브의 «본론»이다.
+  const src = R.cases.filter(c => c.variant.startsWith('SOURCE'));
+  if (src.length) {
+    const bad = src.filter(c => c.clipped > 0);
+    R.env.sourceClipped = bad.length;
+    if (bad.length) P(`★현행 소스에서 잘림이 남는다 ${bad.length}건 — 픽스가 무효다`);
+  }
+
+  R.ok = R.problems.length === 0;
+  window.__RESULT = R;
+  document.getElementById('out').textContent = JSON.stringify(R, null, 1);
+})();
+</script>

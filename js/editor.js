@@ -159,6 +159,11 @@ function applyZoom(z) {
   // - zoom < 80%: 점진적으로 키워서 가독성 유지, 최대 1.6 cap (겹침 방지는 max-width+ellipsis가 담당)
   const uiScale = currentZoom >= 80 ? 1 : Math.min(1.6, 100 / currentZoom * 0.8);
   document.documentElement.style.setProperty('--ui-scale', uiScale.toFixed(4));
+  /* ★[적대검수 중대②] 꼬리 여백은 selectSection 안에서만 «부여»되고 아무도 안 되돌렸다.
+   *   배율만 바꿔도 465px 짜리 죽은 회색이 그대로 남았다(실측 4회 연속 425px 유지).
+   *   여백은 «그 순간의 스크롤을 위한 것»이라 상태가 바뀌면 미련 없이 버린다.
+   *   다시 필요하면 다음 selectSection 이 «모자란 만큼» 다시 준다. */
+  window.resetCanvasTail?.();
 }
 
 function _applyScalerTransform() {
@@ -2019,11 +2024,30 @@ function selectSection(sec, scrollIntoView = false) {
   syncLayerActive(sec);
   window.showSectionProperties(sec);
   if (scrollIntoView) {
+    /* ★초판은 `sec.offsetTop * scale - 40` 이었다 — 배율은 곱했지만
+     *   #canvas-scaler 의 «translate» 를 안 셌다. 실측(2026-08-28, scale 0.38·translateY -335px):
+     *   섹션 3개 전부 화면 위쪽에서 «-255px», 즉 «위로 잘려 올라가» 아랫부분만 보였다.
+     *   의도는 「위에 40px 여유」였는데 반대로 260px 넘게 어긋나 있었다.
+     * ⇒ offsetTop 산수를 버리고 «실제 화면 좌표»로 잰다. transform 이 어떻든(translate·scale·
+     *   나중에 rotate 가 붙어도) 맞는다 — 좌표계를 직접 읽으니 변환을 몰라도 된다. */
     const canvasWrapEl = document.getElementById('canvas-wrap');
     const scalerEl = document.getElementById('canvas-scaler');
-    const scale = parseFloat(scalerEl.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1);
-    const secTop = sec.offsetTop * scale;
-    canvasWrapEl.scrollTo({ top: secTop - 40, behavior: 'smooth' });
+    const delta = sec.getBoundingClientRect().top - canvasWrapEl.getBoundingClientRect().top;
+    const target = canvasWrapEl.scrollTop + delta - CANVAS_TAIL_GAP;
+    /* ★마지막 섹션은 «더 당길 캔버스가 없어» 40px 까지 못 온다(현빈이 원인을 짚었다).
+     *   부족한 만큼 #canvas-scaler 의 margin-bottom 을 늘린다 — margin 은 «레이아웃»이라
+     *   transform: scale 의 영향을 안 받아 1:1 로 스크롤 여유가 된다(실측 500→+500, 1000→+1000).
+     *   ⛔#canvas 안에 넣으면 «저장되는 캔버스 HTML»을 오염시킨다. scaler 밖(wrap)은
+     *     flex-direction: row 라 옆에 붙어 세로엔 기여를 안 한다. 그래서 scaler 의 margin 이다.
+     * ★공식으로 미리 계산하지 «않는다» — 매번 0 으로 되돌리고 «모자란 만큼»만 준다.
+     *   그래야 배율이 낮아 레이아웃과 화면이 어긋날 때도 정확하고, 여백이 누적되지 않는다. */
+    if (scalerEl) {
+      scalerEl.style.marginBottom = '0px';
+      const max = canvasWrapEl.scrollHeight - canvasWrapEl.clientHeight;
+      const short = target - max;
+      if (short > 0) scalerEl.style.marginBottom = Math.round(short) + 'px';
+    }
+    canvasWrapEl.scrollTo({ top: target, behavior: 'smooth' });
   }
 }
 
@@ -2101,9 +2125,19 @@ if (window.electronAPI) {
   });
 }
 
-// 버전 배지 — BETA 표기
+/* 버전 배지 — 「BETA」 옆에 «실제 버전»을 같이 보인다(현빈 2026-08-28).
+ * ★왜: 앱 안에서 「내가 지금 몇 버전을 쓰는지」 알 방법이 없었다.
+ *   오늘 실제로 문제가 됐다 — 현빈은 0.8.3, 수지맥은 0.8.2 인데 둘 다 화면엔 「BETA」만 떴다.
+ *   버그 신고를 받아도 «어느 버전에서» 난 건지 되물어야 한다.
+ * ⚠️getVersion 은 IPC(비동기)라 실패할 수 있다 — 그때는 「BETA」로 남긴다.
+ *   ⛔실패를 «빈 배지»로 두지 않는다. 로고 옆이 비면 «망가진 화면»으로 읽힌다. */
 const _verBadge = document.getElementById('logo-version-badge');
-if (_verBadge) _verBadge.textContent = 'BETA';
+if (_verBadge) {
+  _verBadge.textContent = 'BETA';
+  window.electronAPI?.getVersion?.()
+    .then(v => { if (v) _verBadge.textContent = `BETA v${v}`; })
+    .catch(() => {});
+}
 
 // Electron 환경이면 JSON 파일에서 프리셋 로드.
 // _presetsReady: race condition 방지용 Promise — showSectionProperties 등에서 await 후 UI 렌더.
@@ -2623,6 +2657,77 @@ document.addEventListener('click', e => {
     panning = false;
     if (panMode) canvasWrap.classList.remove('panning');
   });
+}
+
+/* ═══════════════════════════════════
+   캔버스 «꼬리 여백» — 마지막 섹션도 맨 위로 당겨지게
+   ★문제(현빈 실측): 레이어에서 마지막 섹션을 고르면 위 여유 40px 이 «안» 맞는다.
+     끝까지 스크롤해도(scrollTop == 최대) 590px 이 모자랐다 —
+     아래에 캔버스가 없어서 «더 당길 수가 없다». 버그가 아니라 물리적 한계였다.
+   ⇒ 스크롤 컨테이너 아래에 «부족한 만큼만» 여백을 준다. 문서 편집기들이 쓰는 방식이다.
+   ★고정값(=화면 한 폭)으로 주지 «않는다» — 마지막 섹션이 크면 여백이 필요 없는데도
+     빈 공간이 생긴다. 필요한 만큼만 계산한다: 보이는높이 - 40 - 마지막섹션높이.
+   ⚠️transform: scale 은 «레이아웃 크기를 안 바꾼다» → ResizeObserver 가 안 운다.
+     그래서 배율 변경(applyZoom)에서도 직접 부른다. */
+const CANVAS_TAIL_GAP = 40;   // 섹션 위에 남길 여유
+/* 꼬리 여백은 «공식»으로 못 맞춘다 — 아래 selectSection 에서 «모자란 만큼»만 늘린다.
+ * ★왜 공식이 안 되나: transform: scale 은 레이아웃 높이를 «안 줄인다».
+ *   낮은 배율에선 레이아웃 높이(수천px)와 화면상 높이가 크게 어긋나서
+ *   「보이는높이 - 40 - 마지막섹션높이」가 실제 필요량과 다르다(13% 에서 실측 어긋남).
+ * ⇒ 계산하지 말고 «재라». 목표 스크롤이 최대치를 넘으면 그 차이가 곧 필요량이다. */
+/* ═══════════════════════════════════
+   FLOATING PANEL — 캔버스 중앙 추종
+   ★문제: 좌우 패널을 접었다 펴면 «캔버스 영역»의 중심이 움직이는데,
+     상단 노치는 따라가고 하단 플로팅 바는 «창 한가운데»에 고정돼 있었다.
+       #canvas-notch-bar  position: absolute  → #canvas-area 안에서 가운데 (따라간다)
+       #floating-panel    position: fixed     → 창 전체에서 가운데 (안 따라간다)
+     실측(2026-08-28): 좌패널 237px 접으면 캔버스 중심 776 → 657 인데 플로팅은 777 그대로 = 120px 어긋남.
+
+   ★왜 DOM 을 #canvas-area 안으로 «옮기지 않았나»:
+     #canvas-area 는 overflow:hidden 이다. 플로팅 바 안의 드롭다운(스티커·플러그인 등)이
+     영역 밖으로 펼쳐지면 «잘린다». 위치만 따라가게 하는 편이 부작용이 없다.
+
+   ★ResizeObserver 를 쓴다 — 패널 토글·창 크기변경·애니메이션 «중»에도 매 프레임 따라온다.
+     토글 이벤트에 갈고리를 걸면 새 토글 경로가 생길 때마다 빠뜨린다.
+   ※좁을 때(바 400px > 캔버스 영역) 양옆이 패널 위로 삐져나오는 건 현빈 확인 후 «그대로 둔다».
+     「실제로 문제가 보이면 그때 잡자」 — 지금 clamp 를 넣으면 그 자체로 중앙에서 벗어난다. */
+/** 꼬리 여백을 버린다 — 배율변경·페이지전환·섹션삭제 등 «상태가 바뀌면» 남겨두지 않는다. */
+function resetCanvasTail() {
+  const sc = document.getElementById('canvas-scaler');
+  if (sc && sc.style.marginBottom && sc.style.marginBottom !== '0px') sc.style.marginBottom = '0px';
+}
+window.resetCanvasTail = resetCanvasTail;
+
+/** 플로팅 바와 «같이» 움직여야 하는 fixed 팝업들. absolute 인 것은 바를 따라가므로 넣지 않는다. */
+const FP_FIXED_POPUPS = ['#fp-plugin-panel'];
+{
+  const fp   = document.getElementById('floating-panel');
+  const area = document.getElementById('canvas-area');
+  if (fp && area) {
+    const syncFloatingPanelCenter = () => {
+      const r = area.getBoundingClientRect();
+      if (r.width <= 0) return;                       // 숨겨진 순간엔 건드리지 않는다
+      const cx = (r.left + r.width / 2) + 'px';
+      fp.style.left = cx;                             // transform: translateX(-50%) 는 CSS 그대로
+      /* ★[적대검수 중대①] 바만 옮기면 «그 바에서 뜨는 팝업»이 창 중앙에 남는다.
+       *   #fp-plugin-panel 은 position: fixed; left: 50% 라 바와 «따로» 논다(실측 120px 어긋남).
+       *   스티커 드롭다운(.fp-dropdown-menu)은 position: absolute 라 바를 따라가므로 대상 아님.
+       *   ⇒ fixed 로 뜨는 형제를 «같이» 옮긴다. 새로 생기면 여기 추가해야 한다 —
+       *     그래서 셀렉터를 «한 곳»에 모아 둔다. */
+      for (const sel of FP_FIXED_POPUPS) {
+        const el = document.querySelector(sel);
+        if (el) el.style.left = cx;
+      }
+    };
+    syncFloatingPanelCenter();
+    /* ⚠️관찰자 «참조»를 붙잡아 둔다 — 변수 없이 new 하면 수거되어 콜백이 조용히 안 울린다.
+       (실측: 참조 없이 두면 패널 토글에 반응 0. 함수 자체는 정상이라 진단이 어렵다.) */
+    const _fpRO = new ResizeObserver(syncFloatingPanelCenter);
+    _fpRO.observe(area);
+    window._fpResizeObserver = _fpRO;
+    window.addEventListener('resize', syncFloatingPanelCenter);
+    window.syncFloatingPanelCenter = syncFloatingPanelCenter;   // 테스트/프로브용
+  }
 }
 
 /* ═══════════════════════════════════
