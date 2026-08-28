@@ -118,8 +118,19 @@
     { key: 'AFTER-B 0 1 auto+nowrap', style: (fs) => `flex:0 1 auto;min-width:0;white-space:nowrap;${fs}` },
     // 대안 — 채움(grow)은 유지하되 basis 를 «내용 폭»으로: 넘치면 축소가 아니라 wrap 된다
     { key: 'AFTER-C 1 0 auto', style: (fs) => `flex:1 0 auto;${fs}` },
-    // ★수정된 «실제 소스 파일»에서 뽑아온 인라인 style 로 그대로 검증한다(내 기억이 아니라 파일을 잰다)
   ];
+
+  /* ★[QA②] 초판은 여기에 「실제 소스 파일에서 뽑아온다」고 «적어만» 뒀고, 프로브는 그 파일을
+   *   읽지 않았다(fetch/import 0건). 그래서 픽스를 되돌려도 프로브는 초록이었다 — 파일이 아니라
+   *   내 기억을 재고 있었다. ⇒ 러너(run.js)가 prop-comparison.js 에서 인라인 style 을 «뽑아»
+   *   window.__SOURCE_STYLE 로 넣어준다. 없으면 «안 쟀다»고 말한다 — 통과로 치지 않는다. */
+  // ⚠️«빈 문자열»도 유효한 상태다(= 인라인 style 없음 = 수정 전). 그걸 「못 쟀다」로 읽으면
+  //   픽스를 되돌렸을 때 «틀린 이유»로 빨강이 된다 — 실패 이유가 틀리면 진단이 틀린다.
+  if (typeof window.__SOURCE_STYLE === 'string') {
+    VARIANTS.push({ key: 'SOURCE (파일에서 읽음)', style: (fs) => `${window.__SOURCE_STYLE}${fs}` });
+  } else {
+    P('★소스 style 을 못 받았다 — 「파일을 잰다」가 성립하지 않는다. run.js 로 돌려라');
+  }
 
   const WIDTHS = [240, 220, 200];
 
@@ -131,9 +142,12 @@
                  : site.chip ? `flex:0 1 auto;min-width:0;white-space:nowrap;padding:2px 8px;${site.fs}`
                  : v.style(site.fs);
         const btns = site.labels.map(l => BTN(l, st)).join('');
-        const html = site.wrap === 'row'
+        // ★[QA①] 실제 마크업은 .prop-section «안»에 있고 그 클래스에 padding:0 8px 이 있다.
+        //   초판 픽스처는 이걸 빠뜨려 «16px 넓게» 재는 바람에 임계값이 한 칸 어긋났다(N=6→7 로 늦게 봤다).
+        const inner = site.wrap === 'row'
           ? `<div class="prop-row" style="gap:4px;">${btns}</div>`
           : `<div class="prop-align-group">${btns}</div>`;
+        const html = `<div class="prop-section">${inner}</div>`;
         const { panel, body } = mount(html, W);
         const els = [...body.querySelectorAll('.prop-align-btn')];
         const ms = els.map(measure);
@@ -161,9 +175,18 @@
   if (!R.env.selftestDetected) P('★검출기가 «강제 잘림»조차 못 잡았다 — 판정식이 무디다. 모든 초록이 무효다');
 
   // AFTER 가 실제로 고치는가
-  for (const key of ['AFTER-A 인라인 제거', 'AFTER-B 0 1 auto+nowrap', 'AFTER-C 1 0 auto']) {
+  for (const key of ['AFTER-A 인라인 제거', 'AFTER-B 0 1 auto+nowrap', 'AFTER-C 1 0 auto', 'SOURCE (파일에서 읽음)']) {
+    if (!R.cases.some(c => c.variant === key)) continue;
     const bad = R.cases.filter(c => c.variant === key && c.clipped > 0);
     R.env[key] = bad.length === 0 ? '잘림 0' : `잘림 남음 ${bad.length}건`;
+  }
+
+  // ★현행 소스가 실제로 고치는가 — 이게 이 프로브의 «본론»이다.
+  const src = R.cases.filter(c => c.variant.startsWith('SOURCE'));
+  if (src.length) {
+    const bad = src.filter(c => c.clipped > 0);
+    R.env.sourceClipped = bad.length;
+    if (bad.length) P(`★현행 소스에서 잘림이 남는다 ${bad.length}건 — 픽스가 무효다`);
   }
 
   R.ok = R.problems.length === 0;
