@@ -107,6 +107,16 @@ function readJsonOrNull(p) {
 /** ★[R3/R4] 「프로젝트로 읽히는가」 — 안전판/되돌리기 대상의 최소 형태.
  *  객체이기만 하면 통과시키면 `{}` 가 «안전판»이 되고 `[]` 가 «되돌릴 데이터»가 된다.
  *  둘 다 ok:true 로 보고돼서 사용자는 안전하다고 믿는다. 그게 최악이다. */
+/** 모든 페이지의 canvas 가 비었나 — js/io/save-load.js 의 S11(_isAllCanvasEmpty)과 같은 판정.
+ *  정상 저장경로는 이걸로 «빈 저장»을 막는다. 되돌리기 경로에도 같은 눈이 필요하다. */
+function isAllCanvasEmpty(d) {
+  if (!d || typeof d !== 'object') return true;
+  if (Array.isArray(d.pages)) {
+    if (!d.pages.length) return true;
+    return d.pages.every(pg => !pg || typeof pg.canvas !== 'string' || pg.canvas.trim() === '');
+  }
+  return typeof d.canvas !== 'string' || d.canvas.trim() === '';
+}
 function isProjectShaped(d) {
   if (!d || typeof d !== 'object' || Array.isArray(d)) return false;
   return Array.isArray(d.pages) || typeof d.canvas === 'string';
@@ -705,6 +715,21 @@ function prepareRestore(projectsDir, projectId, ts, opts = {}) {
   // ★[R3] «객체이기만 하면» 통과시키면 `{}` 가 안전판이 된다 — 없느니만 못하다(성공했다고 말하므로).
   if (!isProjectShaped(current)) return { ok: false, reason: 'current_unusable' };
 
+  // ★★[C1] 렌더러의 serializeProject() 는 «신원»을 안 담는다 — id·name·createdAt·marketRef 가 없다
+  //   (js/io/save-load.js:378). 그대로 안전판으로 박으면, 나중에 그 안전판으로 되돌렸을 때
+  //   proj.json 에 id 가 없어 projects:list 가 그 프로젝트를 «통째로 뺀다»(main.js:850).
+  //   = 「교체 취소」가 프로젝트를 갤러리에서 사라지게 한다. 이 유닛이 지킨다는 바로 그 약속이 깨진다.
+  //   ⇒ 디스크의 신원 필드로 «보강»해서 안전판을 온전하게 만든다(근본 처방).
+  if (source === 'live') {
+    const onDisk = readJsonOrNull(p.proj) || {};
+    const identity = {};
+    for (const k of ['id', 'name', 'createdAt', 'type', 'marketRef']) {
+      if (current[k] === undefined && onDisk[k] !== undefined) identity[k] = onDisk[k];
+    }
+    if (!identity.id && !current.id) identity.id = pid;
+    if (Object.keys(identity).length) current = { ...current, ...identity };
+  }
+
   let snap;
   try {
     snap = writeSnapshot(projectsDir, pid, current, {
@@ -731,7 +756,15 @@ function prepareRestore(projectsDir, projectId, ts, opts = {}) {
     }
   } catch (_) {}
 
+  // ★[C2] 되돌릴 «대상»이 비어 있으면 교체는 곧 «지금 내용을 지우는 것»이다.
+  //   ⛔막지는 않는다 — 지금이 비어서 복구하러 온 게 이 기능의 본래 용도라, 막으면 그걸 막는다.
+  //   대신 호출측이 확인창에서 «명시»할 수 있게 알린다. 정상 저장경로의 S11 과 같은 눈이되, 판단은 사용자 몫.
+  const targetEmpty = isAllCanvasEmpty(target.data);
+  const currentEmpty = isAllCanvasEmpty(current);
+
   return { ok: true, preRestoreTs: snap.ts, ts: target.ts, data: target.data, source,
+           ...(targetEmpty ? { targetEmpty: true } : {}),
+           ...(currentEmpty ? { currentEmpty: true } : {}),
            ...(missingAssets.length ? { missingAssets } : {}) };
 }
 
@@ -810,5 +843,5 @@ module.exports = {
   writeSnapshot, pruneVersions, listVersions, readVersion, prepareRestore,
   listReferencedAssets, loadFallbackCandidates,
   _internal: { safeSeg, pathsFor, canvasStrings, mapCanvas, assetNameFor, slotFiles, dayKey, isValidTs,
-               canonOf, assetsFromRaw, fingerprintRaw, readPins, writePins, isProjectShaped },
+               canonOf, assetsFromRaw, fingerprintRaw, readPins, writePins, isProjectShaped, isAllCanvasEmpty },
 };

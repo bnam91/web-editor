@@ -82,9 +82,18 @@ test('RB-RACE2 ★열려 있어도 «안전판»은 박힌다 — 안 박히면 
   assert.deepEqual(names(saved.data), ['혜택정리'], '안전판은 «교체 직전» 상태여야 한다');
 });
 
+/** ★렌더러의 serializeProject()(js/io/save-load.js:378)가 «실제로» 만드는 모양.
+ *  id·name·createdAt·marketRef 가 «없다». 이 한 칸의 차이가 치명 결함 1건을 가렸다 —
+ *  픽스처를 진짜 모양으로 두지 않으면 그 결함이 초록 밑에 계속 앉아 있는다. */
+const serializeShape = (canvas) => ({
+  version: 2, currentPageId: 'page_1',
+  pages: [{ id: 'page_1', name: 'Page 1', canvas }],
+  checklistItems: [], checklistSections: [], imageGallery: [], assetsTree: [],
+});
+
 test('RB-RACE3 ★열려 있으면 «화면의 최신 상태»가 안전판에 담긴다 — 미저장 편집분이 빠지면 못 돌아온다', async () => {
   const { id, ts } = await setup();
-  const live = proj(id, sec('sec_a', '혜택정리') + sec('sec_new', '방금 만든 것'));
+  const live = serializeShape(sec('sec_a', '혜택정리') + sec('sec_new', '방금 만든 것'));
   const r = await H.invoke('projects:history-restore', { projectId: id, ts, openProjectIds: [id], currentData: live });
   assert.equal(r.ok, true);
   assert.equal(r.source, 'live');
@@ -206,4 +215,76 @@ test('RB-LIST1 교체 뒤 목록이 «지금»을 다시 가리킨다 — 다음
   const pre = l.entries.find(e => e.ts === r.preRestoreTs);
   assert.equal(pre.reason, 'pre-restore');
   assert.equal(pre.pinned, true, '★안전판이 목록에서 「되돌리기 직전」으로 보여야 찾을 수 있다');
+});
+
+/* ═══ ★적대검수가 잡은 치명 2건 — 회귀 봉인 ══════════════════════════════ */
+
+test('RB-C1 ★「교체 취소」 뒤에도 프로젝트가 목록에 «남아 있다» — 사라지면 사용자에겐 삭제로 보인다', async () => {
+  const id = `proj_${1787700000000 + (seq++) * 1000}`;
+  await H.invoke('projects:save', { ...proj(id, sec('sec_a', '혜택정리') + sec('sec_b', 'FAQ')),
+    createdAt: '2026-01-01T00:00:00.000Z', marketRef: { sku: 'A-1' }, type: 'coupang' });
+  const ts = (await H.invoke('projects:history-list', { projectId: id })).entries[0].ts;
+
+  // ★렌더러가 «실제로» 보내는 모양(id·name·createdAt·marketRef 없음)으로 교체
+  const live = serializeShape(sec('sec_a', '혜택정리'));
+  const r1 = await H.invoke('projects:history-restore',
+    { projectId: id, ts, openProjectIds: [id], currentData: live });
+  assert.equal(r1.ok, true);
+
+  // 「잘못 골랐다」 — 안전판으로 되돌린다(갤러리에서 = 안 열린 상태)
+  const r2 = await H.invoke('projects:history-restore',
+    { projectId: id, ts: r1.preRestoreTs, openProjectIds: [] });
+  assert.equal(r2.ok, true, JSON.stringify(r2));
+
+  const after = readProj(id);
+  assert.equal(after.id, id, '★id 가 없으면 _listItemFor 가 목록에서 통째로 뺀다(main.js:850)');
+  assert.ok(after.name, '★이름이 사라지면 사용자가 못 찾는다');
+  assert.equal(after.createdAt, '2026-01-01T00:00:00.000Z', 'createdAt 보존');
+  assert.deepEqual(after.marketRef, { sku: 'A-1' }, 'marketRef 보존');
+  assert.equal(after.type, 'coupang', 'type 보존');
+
+  const list = await H.invoke('projects:list');
+  assert.ok(list.some(p => p.id === id),
+    '★★교체 취소 뒤 프로젝트가 갤러리에서 «사라졌다» — 이 유닛의 약속이 정면으로 깨진 것이다');
+});
+
+test('RB-C1b ★안전판 자체가 «온전»해야 한다 — 신원이 빠진 안전판은 되돌아갈 곳이 못 된다', async () => {
+  const id = `proj_${1787700000000 + (seq++) * 1000}`;
+  await H.invoke('projects:save', { ...proj(id, sec('sec_a', 'A')), createdAt: '2026-02-02T00:00:00.000Z' });
+  const ts = (await H.invoke('projects:history-list', { projectId: id })).entries[0].ts;
+  const r = await H.invoke('projects:history-restore',
+    { projectId: id, ts, openProjectIds: [id], currentData: serializeShape(sec('sec_a', 'A')) });
+  assert.equal(r.ok, true);
+  const saved = SS.readVersion(DIR, id, r.preRestoreTs).data;
+  assert.equal(saved.id, id, '★안전판에 id 가 없으면 그걸로 되돌린 순간 프로젝트가 목록에서 빠진다');
+  assert.ok(saved.name);
+  assert.equal(saved.createdAt, '2026-02-02T00:00:00.000Z');
+});
+
+test('RB-C2 ★되돌릴 대상이 «비어 있으면» 알려준다 — 막지는 않는다(지금이 비어서 복구하러 온 것일 수 있다)', async () => {
+  const id = `proj_${1787700000000 + (seq++) * 1000}`;
+  await H.invoke('projects:save', proj(id, ''));                                  // 빈 버전
+  const emptyTs = (await H.invoke('projects:history-list', { projectId: id })).entries[0].ts;
+  await H.invoke('projects:save', proj(id, sec('sec_a', '혜택정리') + sec('sec_b', 'FAQ')));
+
+  const r = await H.invoke('projects:history-restore', { projectId: id, ts: emptyTs, openProjectIds: [] });
+  assert.equal(r.ok, true, '막지 않는다 — 사용자가 그걸 원할 수 있다');
+  assert.equal(r.targetEmpty, true,
+    '★교체가 곧 «지금 내용을 지우는 것»이면 확인창이 그렇게 말할 수 있어야 한다');
+  // 그리고 지운 뒤에도 «돌아올 수 있다»
+  const back = await H.invoke('projects:history-restore', { projectId: id, ts: r.preRestoreTs, openProjectIds: [] });
+  assert.equal(back.ok, true);
+  assert.deepEqual(names(readProj(id)), ['혜택정리', 'FAQ'], '★지웠어도 돌아올 수 있어야 한다');
+});
+
+test('RB-C2b 지금이 비어 있어도 «복구»는 된다 — 이 기능의 본래 용도를 막으면 안 된다', async () => {
+  const id = `proj_${1787700000000 + (seq++) * 1000}`;
+  await H.invoke('projects:save', proj(id, sec('sec_a', '혜택정리') + sec('sec_b', 'FAQ')));
+  const good = (await H.invoke('projects:history-list', { projectId: id })).entries[0].ts;
+  // 사고: 로드 실패 폴백 등으로 화면이 빈 상태
+  const r = await H.invoke('projects:history-restore',
+    { projectId: id, ts: good, openProjectIds: [id], currentData: serializeShape('') });
+  assert.equal(r.ok, true, '★지금이 비었다고 복구를 막으면 이 기능이 존재할 이유가 없다');
+  assert.equal(r.currentEmpty, true, '다만 «지금이 비었다»는 알려준다');
+  assert.deepEqual(names(r.data), ['혜택정리', 'FAQ']);
 });

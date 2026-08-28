@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>H3 — 억제 창이 «실 MutationObserver» 발화까지 덮는가</title>
+<body style="margin:0;background:#1a1a1a">
+<div id="canvas"></div>
+<script>
+/* ★검수자 지적: 이전 프로브의 applyProjectData 스텁은 DOM 을 «한 글자도» 안 건드려서
+ *   MutationObserver 가 아예 없었다 → 「억제 창이 관측자 발화까지 덮는가」라는 진짜 질문이 빠졌다.
+ *   여기선 실제 DOM 변경 + 실 MutationObserver 로 잰다. 그리고 save-load.js 의 «진짜» 규율을 흉내낸다:
+ *     applyProjectData 는 스스로 억제를 켜고 rAF 로 «한 프레임 뒤»에 푼다(save-load.js:394/493).
+ *     관측자는 microtask 뒤에 발화한다 — 그 사이 억제가 꺼지면 자동저장이 예약된다. */
+const R = { armed: [], problems: [] };
+window.state = { _suppressAutoSave: false };
+const canvasEl = document.getElementById('canvas');
+
+new MutationObserver(() => {
+  // save-load.js 의 scheduleAutoSave 게이트와 같은 위치에서 «예약 시점»의 억제값을 본다
+  if (!window.state._suppressAutoSave) R.armed.push({ at: 'observer' });
+}).observe(canvasEl, { childList: true, subtree: true, characterData: true, attributes: true });
+
+window.applyProjectData = function (d) {
+  // save-load.js:391~493 의 규율 재현: 스스로 켜고, rAF 한 프레임 뒤에 푼다
+  window.state._suppressAutoSave = true;
+  canvasEl.innerHTML = (d.pages && d.pages[0] && d.pages[0].canvas) || '';
+  requestAnimationFrame(() => { window.state._suppressAutoSave = false; });
+};
+
+window.openTabs = [{ id: 'proj_1', name: 'T' }];
+window.activeProjectId = 'proj_1';
+window.serializeProject = () => JSON.stringify({ version: 2, currentPageId: 'page_1',
+  pages: [{ id: 'page_1', canvas: canvasEl.innerHTML }] });
+window.saveProjectToFile = async () => { R.saved = true; return true; };
+window.showToast = () => {};
+window.confirm = () => true;
+window.alert = (m) => { (R.alerts = R.alerts || []).push(m); };
+const TARGET = { id: 'proj_1', version: 2, pages: [{ id: 'page_1',
+  canvas: '<div class="section-block" id="sec_a" data-name="혜택정리"></div><div class="section-block" id="sec_b" data-name="FAQ"></div>' }] };
+const NOW = Date.now();
+const S = (k, n) => ({ k, n });
+window.electronAPI = {
+  historyList: async () => ({ ok: true,
+    current: { ts: NOW, bytes: 1, counts: { pages: 1, sections: 1, blocks: 1, images: 0 }, secs: [S('page_1::sec_a', '혜택정리')] },
+    entries: [{ ts: NOW - 3600e3, file: 'a.json', reason: 'auto', pinned: false, canon: 1, bytes: 2,
+      counts: { pages: 1, sections: 2, blocks: 2, images: 0 },
+      secs: [S('page_1::sec_a', '혜택정리'), S('page_1::sec_b', 'FAQ')] }],
+    legacyCount: 0, pendingCount: 0, totalBytes: 2 }),
+  historyRestore: async () => ({ ok: true, applyInRenderer: true, preRestoreTs: NOW, ts: NOW - 3600e3, data: TARGET }),
+  saveProject: async () => ({ ok: true }),
+  historyOpenCopy: async () => ({ ok: true }),
+};
+</script>
+<script src="../../js/version-diff.js"></script>
+<script src="../../js/version-history.js"></script>
+<script src="../../js/version-history-ui.js"></script>
+<script>
+(async function () {
+  await window.openVersionHistory({ projectId: 'proj_1', projectName: 'T' });
+  await new Promise(r => setTimeout(r, 60));
+  const b = document.querySelector('[data-vh-restore]');
+  if (!b) { R.problems.push('교체 버튼 없음'); window.__RESULT = R; return; }
+  b.click();
+  // ★관측자는 microtask 뒤, rAF 해제는 다음 프레임 — 둘 다 지나도록 넉넉히 기다린다
+  await new Promise(r => setTimeout(r, 400));
+  await new Promise(r => requestAnimationFrame(() => r()));
+  await new Promise(r => setTimeout(r, 200));
+
+  R.canvasNow = canvasEl.querySelectorAll('.section-block').length;
+  R.suppressNow = window.state._suppressAutoSave;
+  if (R.armed.length) R.problems.push(`★적용 직후 관측자가 «억제 없이» ${R.armed.length}회 발화했다 — 1.5초 뒤 자동저장이 옛 DOM 을 확정한다`);
+  if (R.canvasNow !== 2) R.problems.push(`적용이 안 됐다 (섹션 ${R.canvasNow})`);
+  if (!R.saved) R.problems.push('정상 저장경로(saveProjectToFile)를 안 탔다');
+  if (R.suppressNow !== false) R.problems.push(`★억제가 끝내 안 풀렸다(${R.suppressNow}) — 이후 편집이 저장되지 않는다`);
+  R.ok = R.problems.length === 0;
+  window.__RESULT = R;
+})();
+</script>

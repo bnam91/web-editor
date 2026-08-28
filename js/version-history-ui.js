@@ -162,13 +162,18 @@
     const row = (view.rows || []).find(r => r.ts === ts);
     const when = row ? `${row.whenText} (${row.agoText})` : '이 버전';
     // ★파괴 경로 — 확인창에서 «되돌릴 수 있다»를 명시한다. 그게 이 기능의 안전판이 하는 일이다.
-    if (!confirm(`「${when}」 상태로 교체할까요?\n\n지금 상태는 교체 «직전»에 자동으로 버전으로 저장됩니다.\n잘못 골랐으면 그걸로 다시 되돌릴 수 있습니다.`)) return;
+    const emptyWarn = (row && row.counts && row.counts.sections === 0)
+      ? '\n\n⚠️ 이 버전은 «내용이 비어 있습니다» — 교체하면 지금 내용이 화면에서 사라집니다.' : '';
+    if (!confirm(`「${when}」 상태로 교체할까요?${emptyWarn}\n\n지금 상태는 교체 «직전»에 자동으로 버전으로 저장됩니다.\n잘못 골랐으면 그걸로 다시 되돌릴 수 있습니다.`)) return;
 
     const openIds = _openProjectIds();
     const isOpenHere = openIds.includes(_ctx.projectId);
     // 열려 있으면 «화면의 최신 상태»를 같이 넘긴다 — 디스크만 뜨면 미저장 편집분이 안전판에서 빠진다
+    // ⚠️serializeProject() 는 «활성 탭»의 DOM 을 직렬화한다 — 대상이 활성 탭이 아니면
+    //   A 프로젝트 내용이 B 의 안전판으로 박힌다. 활성일 때만 넘기고, 아니면 main 이 디스크를 뜨게 둔다.
     let currentData = null;
-    if (isOpenHere && typeof window.serializeProject === 'function') {
+    if (isOpenHere && window.activeProjectId === _ctx.projectId
+        && typeof window.serializeProject === 'function') {
       try { currentData = JSON.parse(window.serializeProject()); } catch (_) {}
     }
 
@@ -185,13 +190,47 @@
         return;
       }
       if (r.applyInRenderer) {
-        // ★autosave 경합 회피 — commit-system.js:269 가 세운 정본을 그대로 쓴다.
-        //   억제 없이 applyProjectData 를 부르면 MutationObserver 가 1.5초 뒤 옛 DOM 으로 되돌린다.
-        if (window.state) window.state._suppressAutoSave = true;
-        try { window.applyProjectData(r.data); }
-        finally { if (window.state) window.state._suppressAutoSave = false; }
-        // 적용한 내용을 «즉시» 디스크에 확정한다 — 안 하면 다음 autosave 까지 디스크는 옛 상태다
-        try { await api.saveProject({ ...r.data, id: _ctx.projectId }); } catch (_) {}
+        /* ★autosave 경합 회피 — commit-system.js:269 가 세운 정본.
+         * ⚠️[H3] 단 «해제 시점»이 중요하다. applyProjectData 는 스스로 억제를 켜고
+         *   rAF 로 «한 프레임 뒤»에 푼다(save-load.js:493) — MutationObserver 가 microtask 뒤에
+         *   발화하기 때문이다. 여기서 finally 로 «동기» 해제하면 그 창을 닫아버려,
+         *   관측자가 억제 꺼진 상태로 발화해 자동저장을 예약한다(실 Chromium 대조실험으로 확인).
+         * ⇒ 우리가 «켠» 경우에만, 그것도 한 프레임 뒤에 «원래 값»으로 되돌린다.
+         *   (남이 켜둔 억제 창 — 탭 전환·프로젝트 로드·collab 패치 — 을 중간에서 끄지 않기 위해서도 필요하다) */
+        const hadState = !!window.state;
+        const prevSuppress = hadState ? window.state._suppressAutoSave : undefined;
+        if (hadState) window.state._suppressAutoSave = true;
+        try {
+          window.applyProjectData(r.data);
+        } catch (e) {
+          // ★적용이 도중에 던지면 DOM 은 «반쯤» 바뀐 상태다. 억제를 그대로 두면 그게 저장되지 않지만,
+          //   사용자에겐 실패를 알려야 한다. 억제는 아래 rAF 가 원래 값으로 되돌린다.
+          alert(`교체하지 못했습니다 — ${e.message}\n\n화면이 중간 상태일 수 있으니 새로고침하세요.\n지금 상태는 버전 목록 맨 위에 저장돼 있습니다.`);
+          throw e;
+        } finally {
+          if (hadState) {
+            const restore = () => { window.state._suppressAutoSave = prevSuppress; };
+            if (typeof requestAnimationFrame === 'function') requestAnimationFrame(restore); else setTimeout(restore, 0);
+          }
+        }
+        /* ★[M4] 정상 저장경로를 «탄다». saveProject 로 직접 쏘면 기존 파일과의 병합이 없어
+         *   marketRef 가 사라지고 updatedAt 이 과거로 감긴다(갤러리 정렬이 뒤로 밀린다).
+         *   saveProjectToFile 이 merge·id·name·updatedAt·branches 분리를 전부 해준다. */
+        let saveOk = true;
+        try {
+          if (typeof window.saveProjectToFile === 'function') {
+            const res = await window.saveProjectToFile(JSON.stringify(r.data), { projectId: _ctx.projectId });
+            if (res === false) saveOk = false;      // undefined = 큐잉(미확정) — 실패로 보지 않는다
+          } else {
+            const res = await api.saveProject({ ...r.data, id: _ctx.projectId });
+            saveOk = !!(res && res.ok);
+          }
+        } catch (_) { saveOk = false; }
+        // ★[M5] 저장 실패를 삼키고 「교체됨」이라 말하지 않는다 — 무조건 초록 토스트로 이미 한 번 데였다
+        if (!saveOk) {
+          alert('화면엔 적용됐지만 «저장에 실패»했습니다.\n앱을 닫기 전에 다시 저장하세요.\n지금 상태는 버전 목록 맨 위에 저장돼 있습니다.');
+          return;
+        }
       }
       if (r.missingAssets && r.missingAssets.length) {
         _toast(`⚠️ 이미지 ${r.missingAssets.length}개가 없어 비어 보일 수 있습니다`);

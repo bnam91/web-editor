@@ -1601,20 +1601,34 @@ ipcMain.handle('projects:history-restore', async (_e, { projectId, ts, openProje
   // 열려 있으면 «쓰지 않는다» — 렌더러가 적용한다(autosave 경합 회피)
   if (isOpenHere) {
     return { ok: true, applyInRenderer: true, preRestoreTs: r.preRestoreTs, ts: r.ts,
-             data: r.data, source: r.source, missingAssets: r.missingAssets };
+             data: r.data, source: r.source, missingAssets: r.missingAssets,
+             targetEmpty: r.targetEmpty, currentEmpty: r.currentEmpty };
   }
-  // 안 열려 있으면 main 이 직접 쓴다
+  // 안 열려 있으면 main 이 직접 쓴다.
+  // ★★[C1] «그대로 쓰면» 안 된다. 되돌릴 데이터는 스냅샷이고, 스냅샷은 렌더러의 serializeProject()
+  //   산출물일 수 있어 id·name·createdAt·marketRef 가 «없다». 그대로 쓰면 proj.json 에 id 가 없어
+  //   _listItemFor(main.js:850)가 그 프로젝트를 목록에서 통째로 빼버린다 — 사용자에겐 «삭제»로 보인다.
+  //   ⇒ 정상 저장경로(_saveProjectImpl → _guardProjectName)와 «같은 규율»로 기존 파일과 병합한다.
   try {
-    const paths = _ensureNewLayoutPaths(pid);
-    _atomicWriteFileSync(paths.proj, JSON.stringify(r.data, null, 2));
-    _refreshListMeta(pid, r.data);
+    const prevPath = _resolveProjectJsonPath(pid);
+    let prev = {};
+    try { if (prevPath) prev = JSON.parse(fs.readFileSync(prevPath, 'utf8')) || {}; } catch (_) {}
+    const merged = {
+      ...prev, ...r.data,
+      id: pid,
+      name: r.data.name || prev.name || 'Untitled',
+      createdAt: r.data.createdAt || prev.createdAt || null,
+      updatedAt: new Date().toISOString(),   // 되돌린 «시각»이 최신이다 — 목록 정렬이 과거로 감기면 안 된다
+    };
+    await _saveProjectImpl(merged);          // 롤링백업·이름가드·목록캐시·스냅샷을 한 번에 얻는다
   } catch (e) {
     // ★여기서 실패해도 «안전판은 이미 있다» — 사용자는 아무것도 잃지 않았다.
     console.error('[history:restore] 쓰기 실패:', e);
     return { ok: false, reason: 'write_failed', message: e.message, preRestoreTs: r.preRestoreTs };
   }
   return { ok: true, applyInRenderer: false, preRestoreTs: r.preRestoreTs, ts: r.ts,
-           source: r.source, missingAssets: r.missingAssets };
+           source: r.source, missingAssets: r.missingAssets,
+           targetEmpty: r.targetEmpty, currentEmpty: r.currentEmpty };
 });
 
 ipcMain.handle('projects:history-open-copy', async (_e, { projectId, ts, newName } = {}) => {
