@@ -256,7 +256,13 @@
   transition: opacity 160ms;
 }
 
-.section-inner { display: flex; flex-direction: column; overflow-x: hidden; }
+/* ★overflow-x 는 «hidden» 이 아니라 «clip» 이어야 한다.
+   CSS 규격: 한 축이 hidden 이면 나머지 축의 visible 이 «자동으로 auto» 가 된다
+   → 가로만 자르려던 게 «세로까지 자르는 상자»가 되어, 블록의 아래쪽 그림자가 잘렸다.
+   실측(2026-08-28, sec_84a7j_uscssba 배지): computed overflow-y = auto,
+   사각형 아래 여유 35.5px 인데 그림자는 46px(0 14px 32px) → 10.5px 잘림.
+   clip 은 스크롤 컨테이너를 만들지 않으므로 overflow-y 가 visible 로 남는다(가로 클립은 그대로). */
+.section-inner { display: flex; flex-direction: column; overflow-x: clip; }
 
 /* ═══════════════════════════════════
    ROW — 레이아웃 컨테이너
