@@ -63,7 +63,7 @@ for spec in "$@"; do
 import base64,sys
 s=open('$OUT/$sid.w$WIDTH.txt').read().strip().strip('\"')
 open('$e','wb').write(base64.b64decode(s.split(',',1)[1]))" 2>/dev/null
-    node "$SK/truth-capture.js" "$PORT" "$sid" "$t" >/dev/null 2>&1
+    node "$SK/truth-capture.js" "$PORT" "$sid" "$t" "$WIDTH" >/dev/null 2>&1   # ★폭을 truth 에도 넘긴다
     if [ ! -s "$t" ] || [ ! -s "$e" ]; then
       echo "  ⛔ $sid  캡처 없음/빈 파일 — «못 쟀다»(PASS 아님)"; ERR=$((ERR+1))
       printf '%s\t%s\t%s\tERROR\t캡처실패\t\t\n' "$pid" "$sid" "$WIDTH" >> "$RESULTS"; continue
