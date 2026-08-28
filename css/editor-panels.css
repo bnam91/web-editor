@@ -1806,3 +1806,11 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 }
 .insp-color-item.insp-jump { cursor: pointer; }
 .insp-color-item.insp-jump:hover .insp-color-swatch { outline: 2px solid var(--ui-accent-primary, #2d6fe8); outline-offset: 1px; }
+/* Design System 절 접기 — 라벨을 눌러 각 절을 개별로 접는다(2026-08-28 현빈) */
+.ds-section-label.ds-section-toggle { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 4px; }
+.ds-section-label.ds-section-toggle::before {
+  content: '▾'; font-size: 9px; line-height: 1; opacity: 0.7;
+  transition: transform 0.12s; transform-origin: center;
+}
+.ds-section-label.ds-section-toggle.collapsed::before { transform: rotate(-90deg); }
+.ds-section-label.ds-section-toggle:hover { color: var(--ui-text, #ddd); }
