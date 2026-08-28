@@ -72,7 +72,7 @@
             <button class="settings-tab" data-tab="shortcuts">단축키</button>
             <button class="settings-tab" data-tab="easter">이스터에그</button>
             <button class="settings-tab" data-tab="perf">성능</button>
-            <button class="settings-tab" data-tab="market">마켓</button>
+            ${window.MARKET_ENABLED ? '<button class="settings-tab" data-tab="market">마켓</button>' : ''}
             ${window.COLLAB_ENABLED ? '<button class="settings-tab" data-tab="collab">협업</button>' : ''}
             <button class="settings-tab" data-tab="dev">개발자</button>
           </div>
@@ -81,7 +81,7 @@
             <div class="settings-pane settings-pane-shortcuts" data-pane="shortcuts" style="display:none"></div>
             <div class="settings-pane settings-pane-easter" data-pane="easter" style="display:none"></div>
             <div class="settings-pane settings-pane-perf" data-pane="perf" style="display:none"></div>
-            <div class="settings-pane settings-pane-market" data-pane="market" style="display:none"></div>
+            ${window.MARKET_ENABLED ? '<div class="settings-pane settings-pane-market" data-pane="market" style="display:none"></div>' : ''}
             ${window.COLLAB_ENABLED ? '<div class="settings-pane settings-pane-collab" data-pane="collab" style="display:none"></div>' : ''}
             <div class="settings-pane settings-pane-dev" data-pane="dev" style="display:none"></div>
           </div>
@@ -113,7 +113,7 @@
           p.style.display = (p.dataset.pane === tab) ? 'block' : 'none';
         });
         // 마켓 탭은 진입 시 렌더(목록 fetch는 비용 있어 지연 로드)
-        if (tab === 'market' && typeof window.renderMarketPane === 'function') {
+        if (tab === 'market' && window.MARKET_ENABLED && typeof window.renderMarketPane === 'function') {
           const mp = modal.querySelector('.settings-pane-market');
           if (mp) window.renderMarketPane(mp);
         }

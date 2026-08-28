@@ -32,3 +32,12 @@ window.state = state;
  * ★true로 두면 아래 진입점 가드가 전부 통과해 기존 협업 동작이 그대로 복원된다. */
 export const COLLAB_ENABLED = true;
 window.COLLAB_ENABLED = COLLAB_ENABLED;
+
+/** ★킬스위치: 마켓(템플릿 공유) — 이번 런칭에는 «아직» 안 낸다(현빈 2026-08-28).
+ * false면 환경설정 「마켓」 탭·패인이 «그려지지 않고», 지연로드(renderMarketPane)도 안 돈다.
+ * 진입점 전수 확인: 마켓으로 들어가는 문은 환경설정 탭 «하나뿐»이라 이걸로 기능 전체가 닫힌다
+ *   (js/market.js 의 함수들은 renderMarketPane 을 통해서만 호출된다).
+ * ★되돌리기 = true 하나. 코드는 그대로 두었으니 다음 런칭에 한 글자로 켠다.
+ * ⚠️이미 마켓으로 받은 로컬 프로젝트는 그대로 남는다 — 데이터는 안 건드린다. */
+export const MARKET_ENABLED = false;
+window.MARKET_ENABLED = MARKET_ENABLED;
