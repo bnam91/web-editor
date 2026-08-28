@@ -2019,11 +2019,15 @@ function selectSection(sec, scrollIntoView = false) {
   syncLayerActive(sec);
   window.showSectionProperties(sec);
   if (scrollIntoView) {
+    /* ★초판은 `sec.offsetTop * scale - 40` 이었다 — 배율은 곱했지만
+     *   #canvas-scaler 의 «translate» 를 안 셌다. 실측(2026-08-28, scale 0.38·translateY -335px):
+     *   섹션 3개 전부 화면 위쪽에서 «-255px», 즉 «위로 잘려 올라가» 아랫부분만 보였다.
+     *   의도는 「위에 40px 여유」였는데 반대로 260px 넘게 어긋나 있었다.
+     * ⇒ offsetTop 산수를 버리고 «실제 화면 좌표»로 잰다. transform 이 어떻든(translate·scale·
+     *   나중에 rotate 가 붙어도) 맞는다 — 좌표계를 직접 읽으니 변환을 몰라도 된다. */
     const canvasWrapEl = document.getElementById('canvas-wrap');
-    const scalerEl = document.getElementById('canvas-scaler');
-    const scale = parseFloat(scalerEl.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1);
-    const secTop = sec.offsetTop * scale;
-    canvasWrapEl.scrollTo({ top: secTop - 40, behavior: 'smooth' });
+    const delta = sec.getBoundingClientRect().top - canvasWrapEl.getBoundingClientRect().top;
+    canvasWrapEl.scrollTo({ top: canvasWrapEl.scrollTop + delta - 40, behavior: 'smooth' });
   }
 }
 
