@@ -27,7 +27,7 @@ if [ "$1" = "--width" ]; then WIDTH="$2"; shift 2; fi
 OUT="${EXPORT_GATE_OUT:-${TMPDIR:-/tmp}/export-gate-$$}"
 OUT="$OUT/w$WIDTH"
 mkdir -p "$OUT"
-PASS=0; FAIL=0; ERR=0
+PASS=0; FAIL=0; ERR=0; SKIP=0
 RESULTS="$OUT/results.tsv"; : > "$RESULTS"
 
 free_gb=$(df -g / | tail -1 | awk '{print $4}')
@@ -92,9 +92,15 @@ import base64,sys
 s=open('$OUT/$pid.$sid.w$WIDTH.txt').read().strip().strip('\"')
 open('$e','wb').write(base64.b64decode(s.split(',',1)[1]))" 2>/dev/null
     node "$SK/truth-capture.js" "$PORT" "$sid" "$t" "$WIDTH" >/dev/null 2>&1   # ★폭을 truth 에도 넘긴다
-    if [ ! -s "$t" ] || [ ! -s "$e" ]; then
-      echo "  ⛔ $sid  캡처 없음/빈 파일 — «못 쟀다»(PASS 아님)"; ERR=$((ERR+1))
-      printf '%s\t%s\t%s\tERROR\t캡처실패\t\t\n' "$pid" "$sid" "$WIDTH" >> "$RESULTS"; continue
+    # ★어느 쪽이 없는지 «반드시» 말한다 — 2026-08-29 실측: 「캡처 없음/빈 파일」 한 마디가
+    #   export·truth 둘을 동시에 가리켜서, 실제로는 export 가 안 만들어지고 있는데 truth 를
+    #   한참 팠다(앱 재시작 2회·수동 재현 3회). 둘을 가리키는 메시지는 진단을 엉뚱한 데로 보낸다.
+    miss=""
+    [ ! -s "$e" ] && miss="export"
+    [ ! -s "$t" ] && miss="${miss:+$miss+}truth"
+    if [ -n "$miss" ]; then
+      echo "  ⛔ $sid  ★«$miss» 캡처가 없다/비었다 — «못 쟀다»(PASS 아님)"; ERR=$((ERR+1))
+      printf '%s\t%s\t%s\tERROR\t캡처실패(%s)\t\t\n' "$pid" "$sid" "$WIDTH" "$miss" >> "$RESULTS"; continue
     fi
 
     # ★★재현성 자가검사 — truth 를 «두 번» 떠서 서로 0 이 아니면 그 실행은 못 믿는다.
@@ -115,11 +121,23 @@ open('$e','wb').write(base64.b64decode(s.split(',',1)[1]))" 2>/dev/null
       [ "$d" = "0" ] && return 0
       echo "재현성: truth 두 번이 서로 다르다(diff=$d)"; return 1
     }
+    # ★세션 간 «흔들리는» 섹션 — TOTAL 비교에서 빼되 «조용히» 빼지 않는다. 빠진 게 안 보이면
+    #   다음 사람이 「223개 다 본다」고 믿는다. 구조 층(크기·밴드개수)은 그대로 적용한다.
+    #   실측(2026-08-29): 전수 223섹션을 재시작+새 프로필로 2회 측정 → 221 동일, 흔들린 건 이거 하나.
+    #     sec_0g02j5t  TOTAL 1,476 ↔ 15,585 (cvb 카드가 세로 2px). export 는 안 흔들린다(바이트 동일 3회).
+    case " ${EXPORT_GATE_FLAKY_SECTIONS:-sec_0g02j5t} " in
+      *" $sid "*) echo "  ⚠️ $sid  ★흔들림 목록에 있다 — TOTAL 비교 제외, 구조 층만 본다(원인 미상·백로그)";;
+    esac
     j=$(arch -arm64 python3 "$CMP" "$e" "$t" --json 2>/dev/null)
     if [ -z "$j" ]; then echo "  ⛔ $sid  비교기 실패"; ERR=$((ERR+1)); continue; fi
     v=$(echo "$j" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const o=JSON.parse(s);console.log([o.verdict,o.total,o.maxCell,(o.reasons||[]).join(" / "),o.guess||""].join("\t"))})')
     verdict=$(echo "$v" | cut -f1); total=$(echo "$v" | cut -f2); cell=$(echo "$v" | cut -f3)
     reason=$(echo "$v" | cut -f4); guess=$(echo "$v" | cut -f5)
+    case " ${EXPORT_GATE_FLAKY_SECTIONS:-sec_0g02j5t} " in
+      *" $sid "*) struct=$(echo "$j" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).struct)}catch(e){console.log("?")}})')
+                  if [ "$struct" = "FAIL" ]; then verdict=FAIL; reason="구조 층 위반(TOTAL 은 흔들림으로 제외)"
+                  else verdict=FLAKY_SKIP; reason="세션 간 흔들림 — TOTAL 비교 제외(구조 층 통과)"; fi;;
+    esac
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$sid" "$WIDTH" "$verdict" "$total" "$cell" "$reason|$guess" >> "$RESULTS"
     # ★재현성을 «판정을 확정하기 전»에 묻는다 — FAIL 을 보고하기 전에 「이 측정이 재현되나」부터다.
     need_repro=0
@@ -136,7 +154,8 @@ open('$e','wb').write(base64.b64decode(s.split(',',1)[1]))" 2>/dev/null
         continue
       fi
     fi
-    if [ "$verdict" = "PASS" ]; then PASS=$((PASS+1)); printf "  ✅ %-22s TOTAL=%-6s cell=%s\n" "$sid" "$total" "$cell"
+    if [ "$verdict" = "FLAKY_SKIP" ]; then SKIP=$((SKIP+1)); printf "  ⚠️  %-22s TOTAL=%-6s ★흔들림 제외(PASS 로 안 센다)\n" "$sid" "$total"
+    elif [ "$verdict" = "PASS" ]; then PASS=$((PASS+1)); printf "  ✅ %-22s TOTAL=%-6s cell=%s\n" "$sid" "$total" "$cell"
     else FAIL=$((FAIL+1)); printf "  ❌ %-22s TOTAL=%-6s cell=%-4s %s\n" "$sid" "$total" "$cell" "$reason"; [ -n "$guess" ] && echo "        추정: $guess"; fi
   done
 done
@@ -179,7 +198,8 @@ if [ -n "$EXPORT_GATE_BASELINE" ] && [ -f "$EXPORT_GATE_BASELINE" ]; then
     [ "$ERR" -gt 0 ] && exit 2; exit 0
   fi
 fi
-echo "══ export 게이트 결과(폭 ${WIDTH}px) ══  PASS $PASS · FAIL $FAIL · ERROR $ERR"
+echo "══ export 게이트 결과(폭 ${WIDTH}px) ══  PASS $PASS · FAIL $FAIL · ERROR $ERR · 흔들림제외 $SKIP"
+[ "$SKIP" -gt 0 ] && echo "   ⚠️★흔들림 제외 $SKIP 건 — PASS 가 아니다. 구조 층만 봤다(EXPORT_GATE_FLAKY_SECTIONS)."
 echo "   재현성 자가검사: ${EXPORT_GATE_REPRO:-sample}  (sample=프로젝트당 첫 섹션+FAIL 전건 / all / off)"
 [ "${EXPORT_GATE_REPRO:-sample}" = "off" ] && echo "   ⚠️★재현성 검사를 «껐다» — 이 결과는 「실행마다 같은 답인지」를 확인하지 않았다."
 echo "   산출물: $OUT   (결과표: $RESULTS)"
