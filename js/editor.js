@@ -159,6 +159,8 @@ function applyZoom(z) {
   // - zoom < 80%: 점진적으로 키워서 가독성 유지, 최대 1.6 cap (겹침 방지는 max-width+ellipsis가 담당)
   const uiScale = currentZoom >= 80 ? 1 : Math.min(1.6, 100 / currentZoom * 0.8);
   document.documentElement.style.setProperty('--ui-scale', uiScale.toFixed(4));
+  // ★배율이 바뀌면 섹션의 «화면 높이»가 바뀐다 — transform 은 레이아웃을 안 바꿔 RO 가 안 운다.
+  window.syncCanvasTailSpace?.();
 }
 
 function _applyScalerTransform() {
@@ -2627,6 +2629,55 @@ document.addEventListener('click', e => {
     panning = false;
     if (panMode) canvasWrap.classList.remove('panning');
   });
+}
+
+/* ═══════════════════════════════════
+   캔버스 «꼬리 여백» — 마지막 섹션도 맨 위로 당겨지게
+   ★문제(현빈 실측): 레이어에서 마지막 섹션을 고르면 위 여유 40px 이 «안» 맞는다.
+     끝까지 스크롤해도(scrollTop == 최대) 590px 이 모자랐다 —
+     아래에 캔버스가 없어서 «더 당길 수가 없다». 버그가 아니라 물리적 한계였다.
+   ⇒ 스크롤 컨테이너 아래에 «부족한 만큼만» 여백을 준다. 문서 편집기들이 쓰는 방식이다.
+   ★고정값(=화면 한 폭)으로 주지 «않는다» — 마지막 섹션이 크면 여백이 필요 없는데도
+     빈 공간이 생긴다. 필요한 만큼만 계산한다: 보이는높이 - 40 - 마지막섹션높이.
+   ⚠️transform: scale 은 «레이아웃 크기를 안 바꾼다» → ResizeObserver 가 안 운다.
+     그래서 배율 변경(applyZoom)에서도 직접 부른다. */
+const CANVAS_TAIL_BASE = 40;   // 기존 padding-bottom
+/* ⚠️★padding-bottom 으로는 «스크롤 여유가 안 생긴다».
+ *   content-box 에서 padding 을 키우면 clientHeight 도 같이 커져서
+ *   max scroll(= scrollHeight - clientHeight) 이 그대로다. 실측으로 확인했다.
+ *   ⇒ 스크롤되는 «내용 안»에 빈 요소를 넣는다. 이건 scrollHeight 만 늘린다.
+ * ★#canvas-scaler «밖»에 둔다 — 안에 두면 transform: scale 이 걸려
+ *   배율이 낮을 때 여백이 같이 줄어든다(정작 그때 더 필요한데). */
+function syncCanvasTailSpace() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) return;
+  let spacer = document.getElementById('canvas-tail-space');
+  if (!spacer) {
+    spacer = document.createElement('div');
+    spacer.id = 'canvas-tail-space';
+    spacer.setAttribute('aria-hidden', 'true');
+    spacer.style.cssText = 'flex:0 0 auto;pointer-events:none;';
+    wrap.appendChild(spacer);
+  }
+  const secs = wrap.querySelectorAll('.section-block:not([data-ghost])');
+  const last = secs[secs.length - 1];
+  if (!last) { spacer.style.height = '0px'; return; }
+  // 마지막 섹션의 «위»를 40px 자리까지 올리려면 그 아래에 이만큼이 있어야 한다.
+  const need = wrap.clientHeight - CANVAS_TAIL_BASE - last.getBoundingClientRect().height - spacer.getBoundingClientRect().height;
+  const cur = parseFloat(spacer.style.height) || 0;
+  spacer.style.height = Math.max(0, Math.round(cur + need)) + 'px';
+}
+window.syncCanvasTailSpace = syncCanvasTailSpace;
+{
+  const wrap = document.getElementById('canvas-wrap');
+  const canvasEl2 = document.getElementById('canvas');
+  if (wrap && canvasEl2) {
+    syncCanvasTailSpace();
+    const ro = new ResizeObserver(syncCanvasTailSpace);
+    ro.observe(canvasEl2); ro.observe(wrap);
+    window._tailResizeObserver = ro;          // 참조 보유(없으면 조용히 안 운다)
+    window.addEventListener('resize', syncCanvasTailSpace);
+  }
 }
 
 /* ═══════════════════════════════════
