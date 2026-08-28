@@ -485,9 +485,12 @@ async function renameProject(id, newName) {
   }
 }
 
+/* [U7] ★반환값을 «버리지 않는다».
+ * 이전엔 결과를 안 보고 그대로 renderGrid() 를 불러서, 삭제가 «실패해도» 화면엔 성공으로 보였다.
+ * 「실패했는데 목록에서 사라진」 사용자는 지워진 줄 알고 다시 안 찾는다 — 그게 U7 의 숨은 전제조건이다. */
 async function removeProject(id) {
   if (IS_ELECTRON) {
-    await window.electronAPI.deleteProject(id);
+    return await window.electronAPI.deleteProject(id);
   } else {
     const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(list.filter(p => p.id !== id)));
@@ -661,8 +664,17 @@ async function deleteProject(e, id) {
   const list = await loadProjects();
   const proj = list.find(p => p.id === id);
   if (!proj) return;
-  if (!confirm(`"${proj.name}" 프로젝트를 삭제할까요?`)) return;
-  await removeProject(id);
+  // [U7] 기대되는 «되돌림 가능성»이 달라졌으니 그걸 말해준다 — 휴지통에서 되살릴 수 있다.
+  if (!confirm(`"${proj.name}" 을(를) 휴지통으로 보낼까요?\n\n휴지통에서 되살릴 수 있습니다.`)) return;
+  let r = await removeProject(id);
+  if (r && r.ok === false) {
+    // ★조용히 영구삭제로 폴백하지 «않는다» — 되돌릴 수 없다는 걸 알고 누르게 한다.
+    if (r.reason === 'trash_failed') {
+      if (!confirm(`휴지통으로 옮길 수 없습니다.\n(${r.message || '알 수 없는 이유'})\n\n«영구 삭제»하면 되돌릴 수 없습니다. 진행할까요?`)) return;
+      r = await window.electronAPI.deleteProject(id, { permanent: true });
+    }
+    if (r && r.ok === false) { alert(`삭제하지 못했습니다 — ${r.message || r.reason}`); return; }
+  }
   window.gdtFontReport?.clear?.(id);   // 글꼴 기록도 같이 거둔다(안 지우면 localStorage에 계속 쌓인다)
   renderGrid();
 }

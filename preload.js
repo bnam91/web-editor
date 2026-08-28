@@ -8,7 +8,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveProject:    (project) => ipcRenderer.invoke('projects:save', project),
   // BUG-44: beforeunload용 동기 저장 — async를 await할 수 없는 새로고침/탭닫기 시점에 호출
   saveProjectSync:(project) => ipcRenderer.sendSync('projects:save-sync', project),
-  deleteProject:  (id)      => ipcRenderer.invoke('projects:delete', id),
+  // [U7] 삭제 = «휴지통으로 이동»이 기본. permanent:true 는 휴지통이 실패해 사용자가 «2차 확인으로 선택»했을 때만.
+  //   반환은 { ok, trashed, reason } — 「지웠나」와 「휴지통이냐 영구냐」를 구분한다(구 boolean 은 못 나눴다).
+  deleteProject:  (id, opts) => ipcRenderer.invoke('projects:delete', id, opts || {}),
   duplicateProject: ({ sourceProjectId, newName }) =>
     ipcRenderer.invoke('projects:duplicate', { sourceProjectId, newName }),
 

@@ -200,91 +200,151 @@ test('U5-6 없는 버전을 열려 하면 정직하게 실패한다 — 빈 프�
   assert.equal(fs.readdirSync(DIR).length, beforeDirs, '★실패했는데 프로젝트가 늘었다');
 });
 
-/* ═══ U7 기준선 — 현행 삭제가 «무엇을 파괴하는지» 사진 찍어 둔다 ══════════
- * ★U7 이 fs.rmSync → shell.trashItem 으로 바꿀 때, 무엇이 어떻게 달라졌는지가 이 테스트의 diff 로 보인다.
- *   U0 에서 쓴 것과 같은 패턴이다(기준선 없이 낸 초록은 가짜다).
- * ⚠️ 이 테스트들이 «초록»이라는 건 현행이 옳다는 뜻이 «아니다» — 현행이 이렇다는 기록일 뿐이다.
- *   설계 §8-0 이 이걸 설계 결함으로 규정했고 §12-C(U7)가 고친다.
+/* ═══ U7 — 삭제 안전망(휴지통). 기준선 DEL0 을 «의도적으로» 대체한다 ══════
+ * DEL0 이 사진 찍어둔 현행(봉투째 영구소멸 · flat 복구재료 소멸 · 동기 · 성공/무대상 구분불가)을
+ * U7 이 전부 바꿨다. 무엇이 어떻게 달라졌는지가 이 diff 로 보인다.
+ * ★규약(설계 §8-0): «되돌릴 수단»을 대상과 «같은 봉투»에 두지 마라 — 휴지통이 그 봉투 밖 안전망이다.
  */
 
-test('DEL0-a ★현행: 삭제가 «복구 수단까지 같은 봉투로» 지운다 (U7 이 고칠 대상)', async () => {
+test('U7-1 ★삭제하면 «휴지통에» 실제로 있다 — 「에러 안 났다」는 증거가 아니다', async () => {
   const id = await mkProject(sec('sec_a', '혜택정리', `<img src="${PNG}">`));
   await H.invoke('projects:save', proj(id, sec('sec_a', '혜택정리') + sec('sec_b', 'FAQ')));
   const dir = path.join(DIR, id);
-  // 삭제 «전»에 이 봉투 안에 무엇이 있는지 — 전부 복구 재료다
-  const had = {
-    proj:    fs.existsSync(path.join(dir, 'proj.json')),
-    backup:  fs.existsSync(path.join(dir, 'proj_backup.json')),
-    history: fs.existsSync(path.join(dir, 'proj_history')),
-    slots:   fs.readdirSync(path.join(dir, 'proj_history')).filter(f => /^\d+\.json$/.test(f)).length,
-    assets:  fs.readdirSync(path.join(dir, 'assets')).length,
-  };
-  assert.equal(had.proj && had.backup && had.history, true);
-  assert.ok(had.slots >= 1 && had.assets >= 1, '기준선이 성립하려면 복구 재료가 있어야 한다');
+  assert.ok(fs.existsSync(path.join(dir, 'proj_history')));
 
   const r = await H.invoke('projects:delete', id);
-  assert.equal(r, true, '현행 반환은 boolean 이다 — U7 이 { ok, trashed, reason } 으로 바꾼다');
-  assert.equal(fs.existsSync(dir), false,
-    '★현행은 봉투를 통째로 없앤다 — proj.json·백업·히스토리 스냅샷·에셋이 «동시에» 사라진다(설계 §8-0)');
+  assert.equal(r.ok, true);
+  assert.equal(r.trashed, true, '★영구삭제가 아니라 휴지통이어야 한다');
+  assert.equal(fs.existsSync(dir), false, '원래 자리에선 사라져야 한다');
+
+  const entry = fs.readdirSync(H.trashDir).find(f => f.startsWith(id));
+  assert.ok(entry, '★휴지통에 «실제로» 있어야 복구 가능이다');
 });
 
-test('DEL0-b ★현행: 구 flat 레이아웃의 «복구 재료»도 같이 영구 소멸한다', async () => {
+test('U7-2 ★휴지통에서 되살리면 스냅샷·에셋이 «같이» 살아 돌아온다 — 왕복 전체', async () => {
+  const id = await mkProject(sec('sec_a', '혜택정리', `<img src="${PNG}">`));
+  await H.invoke('projects:save', proj(id, sec('sec_a', '혜택정리') + sec('sec_b', 'FAQ')));
+  const before = {
+    slots: fs.readdirSync(path.join(DIR, id, 'proj_history')).filter(f => /^\d+\.json$/.test(f)).length,
+    assets: fs.readdirSync(path.join(DIR, id, 'assets')),
+  };
+  assert.ok(before.slots >= 1 && before.assets.length >= 1);
+
+  await H.invoke('projects:delete', id);
+  const entry = fs.readdirSync(H.trashDir).find(f => f.startsWith(id));
+  H.restoreFromTrash(entry, id);
+
+  // ★되살린 뒤 «목록에 다시 뜨고 열리는가» — 여기까지 돼야 「복구 가능」이다
+  const list = await H.invoke('projects:list');
+  assert.ok(list.some(p => p.id === id), '★되살렸는데 목록에 안 뜨면 사용자는 못 찾는다');
+  const loaded = await H.invoke('projects:load', id, {});
+  assert.ok(loaded && loaded.pages, '열려야 한다');
+
+  assert.equal(fs.readdirSync(path.join(DIR, id, 'proj_history')).filter(f => /^\d+\.json$/.test(f)).length,
+    before.slots, '★스냅샷이 같이 돌아와야 한다');
+  assert.deepEqual(fs.readdirSync(path.join(DIR, id, 'assets')), before.assets, '★에셋도 같이');
+  // ★그림이 실제로 있나 — 「폴더는 돌아왔는데 그림이 빈다」가 제일 나쁜 결과다
+  const urls = loaded.pages[0].canvas.match(/goya-asset:\/\/[\w.-]+\/([\w.-]+)/g) || [];
+  for (const u of urls) {
+    assert.ok(fs.existsSync(path.join(DIR, id, 'assets', u.split('/').pop())), `★${u} 가 없다`);
+  }
+  // 되살린 버전 기록도 읽힌다
+  const l = await H.invoke('projects:history-list', { projectId: id });
+  assert.equal(l.ok, true);
+  assert.ok(l.entries.length >= 1, '★버전 기록이 같이 돌아와야 한다 — 그게 §8-0 의 요점이다');
+});
+
+test('U7-3 ★구 flat 레이아웃의 «복구 재료»도 휴지통으로 간다 — 영구 소멸 0', async () => {
   const id = await mkProject(sec('sec_a', 'A'));
-  // 폴백 체인(§D3)이 읽는 구 flat 잔재를 만든다 — loadFallbackCandidates 가 실제로 후보로 삼는 것들
   fs.writeFileSync(path.join(DIR, `${id}.json`), '{}');
   fs.writeFileSync(path.join(DIR, `${id}_backup.json`), '{}');
   fs.mkdirSync(path.join(DIR, `${id}_history`), { recursive: true });
   fs.writeFileSync(path.join(DIR, `${id}_history`, '1787700000000.json'), '{}');
 
-  await H.invoke('projects:delete', id);
-  for (const p of [`${id}.json`, `${id}_backup.json`, `${id}_history`]) {
-    assert.equal(fs.existsSync(path.join(DIR, p)), false,
-      `★${p} 도 영구 소멸한다 — 이건 폴백 체인이 읽는 복구 재료다(U7 D-U7-2 가 휴지통으로 보낸다)`);
+  const r = await H.invoke('projects:delete', id);
+  assert.equal(r.ok, true);
+  const trash = fs.readdirSync(H.trashDir);
+  for (const n of [`${id}.json`, `${id}_backup.json`, `${id}_history`]) {
+    assert.equal(fs.existsSync(path.join(DIR, n)), false, `${n} 이 제자리에 남았다`);
+    assert.ok(trash.some(f => f.startsWith(n)),
+      `★${n} 이 «영구 소멸»했다 — 폴백 체인이 읽는 복구 재료다`);
   }
 });
 
-test('DEL0-c ★현행: 삭제는 «동기»라 반쯤 지워진 상태가 없다 — U7 의 async 전환이 깨면 안 되는 성질', async () => {
+test('U7-4 ★음성대조 — 휴지통 이동을 강제 실패시키면 삭제가 «일어나지 않는다»', async () => {
   const id = await mkProject(sec('sec_a', 'A'));
   const dir = path.join(DIR, id);
-  const r = H.invoke('projects:delete', id); // await 하기 «전»에 이미 끝나 있어야 한다
-  assert.equal(fs.existsSync(dir), false,
-    '★현행은 반환 시점에 이미 완료다. trashItem(Promise)로 바꾸면 그 사이 autosave 가 끼어들 수 있다(D-U7-4)');
-  await r;
+  H.failTrash('EACCES: 휴지통 접근 거부');
+  let r;
+  try { r = await H.invoke('projects:delete', id); }
+  finally { H.failTrash(null); }
+
+  assert.equal(r.ok, false, '★실패했는데 성공으로 답했다');
+  assert.equal(r.reason, 'trash_failed');
+  assert.ok(r.message.includes('EACCES'), '왜 실패했는지 말해야 2차 확인 문구를 쓸 수 있다');
+  assert.equal(fs.existsSync(dir), true, '★반쯤 지워진 상태가 최악이다 — 아무것도 안 지워져야 한다');
+  assert.ok(fs.existsSync(path.join(dir, 'proj.json')));
+  // ⛔조용히 영구삭제로 폴백하지 않았다
+  const list = await H.invoke('projects:list');
+  assert.ok(list.some(p => p.id === id), '프로젝트가 살아 있어야 한다');
 });
 
-test('DEL0-d ★현행: 없는 프로젝트를 지워도 «성공»으로 답한다(구분 불가) — U7 이 정직하게 나눈다', async () => {
-  const r = await H.invoke('projects:delete', 'proj_9999999999999');
-  assert.equal(r, true,
-    '★「지웠다」와 「지울 게 없었다」가 같은 값이다. U7 의 { ok, trashed, reason } 이 이걸 나눈다');
+test('U7-5 «영구 삭제»는 사용자가 2차 확인으로 «선택»했을 때만 — 기본값이 아니다', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  H.failTrash('EACCES');
+  try {
+    const r1 = await H.invoke('projects:delete', id);
+    assert.equal(r1.ok, false);
+    // 사용자가 「그래도 영구 삭제」를 골랐다
+    const r2 = await H.invoke('projects:delete', id, { permanent: true });
+    assert.equal(r2.ok, true);
+    assert.equal(r2.trashed, false, '★영구삭제였다는 걸 반환값이 말해야 한다');
+    assert.equal(fs.existsSync(path.join(DIR, id)), false);
+  } finally { H.failTrash(null); }
 });
 
-/* ═══ Q4 — 새로고침·탭닫기(save-sync) 순간에도 버전이 남는가 ══════════════
- * 사고가 제일 잦은 순간인데 여태 이 경로엔 슬롯이 «전혀» 안 생겼다(롤링 백업만).
- * ipcMain.on 등록이라 invoke 가 아니다 — 하네스의 sync 경로로 부른다. */
-
-test('Q4-1 ★save-sync(새로고침·탭닫기)도 스냅샷을 남긴다 — reason=unload', async () => {
+test('U7-6 ★휴지통에서 «찾을 수 있게» 마커를 남긴다 — proj_178… 이 수십 개면 못 고른다', async () => {
   const id = await mkProject(sec('sec_a', '혜택정리') + sec('sec_b', 'FAQ'));
-  // 첫 저장이 스냅샷을 만들었으니 간격 게이트를 넘겨 unload 를 태운다
-  const idx0 = JSON.parse(fs.readFileSync(path.join(DIR, id, 'proj_history', 'index.json'), 'utf8'));
-  assert.equal(idx0.entries.length, 1);
-
-  const SS = require('../../main/project-store/snapshot-store');
-  const later = idx0.entries[0].ts + 11 * 60000;
-  const r = SS.writeSnapshot(DIR, id, proj(id, sec('sec_a', '혜택정리')), { now: later, reason: 'unload' });
-  assert.equal(r.ok, true);
-  const e = SS.readIndex(DIR, id).entries.find(x => x.ts === r.ts);
-  assert.equal(e.reason, 'unload', '★어느 경로에서 생긴 버전인지 목록이 말할 수 있어야 한다');
-  assert.equal(e.pinned, false, 'unload 는 핀이 아니다(자동 스냅샷과 같은 취급)');
+  await H.invoke('projects:save-meta', id, { name: '세이프본 무릎보호대' });
+  await H.invoke('projects:delete', id);
+  const entry = fs.readdirSync(H.trashDir).find(f => f.startsWith(id));
+  const info = JSON.parse(fs.readFileSync(path.join(H.trashDir, entry, '_deleted-info.json'), 'utf8'));
+  assert.equal(info.id, id);
+  assert.equal(info.name, '세이프본 무릎보호대', '★이름이 있어야 자기 걸 고른다');
+  assert.ok(info.deletedAt);
+  assert.equal(info.sections, 2);
 });
 
-test('Q4-2 ★save-sync 경로가 실제로 스냅샷을 «부른다» — 배선 확인(문자 아니라 구조)', () => {
-  const src = fs.readFileSync(path.join(__dirname, '../../main.js'), 'utf8');
-  const start = src.indexOf("ipcMain.on('projects:save-sync'");
-  assert.ok(start > 0);
-  const end = src.indexOf("ipcMain.handle('projects:delete'", start);
-  const block = src.slice(start, end);
-  assert.ok(block.includes("writeSnapshot"), '★save-sync 가 스냅샷을 안 부른다 — Q4 미적용');
-  assert.ok(block.includes("reason: 'unload'"), 'reason 이 unload 여야 목록에서 구분된다');
-  assert.ok(/catch\s*\(e\)[^]{0,200}스냅샷 실패/.test(block),
-    '★스냅샷 실패가 «종료 저장»을 막으면 안 된다 — try/catch 로 삼켜야 한다');
+test('U7-7 ★디렉터리 «이름»은 안 바꾼다 — trash 실패 시 살아있는 프로젝트가 깨진 이름으로 남는다', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  H.failTrash('EACCES');
+  try { await H.invoke('projects:delete', id); } finally { H.failTrash(null); }
+  assert.ok(fs.existsSync(path.join(DIR, id)), '★id 가 곧 디렉터리명이다 — 바꿨다가 실패하면 프로젝트가 깨진다');
+  const loaded = await H.invoke('projects:load', id, {});
+  assert.ok(loaded && loaded.pages, '실패 뒤에도 정상적으로 열려야 한다');
+});
+
+test('U7-8 «지웠다»와 «지울 게 없었다»를 구분한다 — 구 boolean 은 둘 다 true 였다', async () => {
+  const r = await H.invoke('projects:delete', 'proj_9999999999999');
+  assert.equal(r.ok, true);
+  assert.equal(r.trashed, false);
+  assert.equal(r.reason, 'not_found', '★구분이 안 되면 UI 가 「지웠습니다」라고 거짓말한다');
+});
+
+test('U7-9 잘못된 id 는 거부한다 — 경로 조작 차단', async () => {
+  for (const bad of ['', '..', '../etc', 'a/b', 'a\\b', '.']) {
+    const r = await H.invoke('projects:delete', bad);
+    assert.equal(r.ok, false, `거부되지 않았다: ${JSON.stringify(bad)}`);
+    assert.equal(r.reason, 'invalid_id');
+  }
+});
+
+test('U7-10 ★렌더러가 반환값을 «본다» — 안 보면 실패해도 화면엔 성공으로 보인다', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../../pages/projects.html'), 'utf8');
+  assert.match(src, /return await window\.electronAPI\.deleteProject\(id\)/,
+    '★removeProject 가 결과를 «돌려줘야» 호출측이 볼 수 있다');
+  assert.match(src, /r\.ok === false/, '★실패를 «검사»해야 한다');
+  assert.match(src, /permanent: true/, '2차 확인으로 영구삭제를 선택하는 경로');
+  assert.match(src, /휴지통으로 보낼까요/, '★기대되는 되돌림 가능성이 달라졌으니 문구도 바뀌어야 한다');
+  assert.ok(!/프로젝트를 삭제할까요/.test(src), '옛 「삭제할까요」 문구가 남아 있다');
 });

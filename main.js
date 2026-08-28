@@ -1365,41 +1365,77 @@ ipcMain.on('projects:save-sync', (event, project) => {
   }
 });
 
-ipcMain.handle('projects:delete', (event, id) => {
-  // projectId sanitize — path traversal 방어 (slash/dot-only/empty reject)
+/* ── [version-history/U7] 삭제 안전망 — 영구삭제 → «휴지통» (현빈 승인) ────
+ * ★설계 §8-0 규약: «되돌릴 수단»을 대상과 «같은 봉투»에 두지 마라.
+ *   proj_<id>/ 안에 proj.json · proj_backup.json · **proj_history 스냅샷 전부** · assets 가 다 있다.
+ *   그걸 rmSync 하면 본체와 복구 수단이 «동시에» 사라진다 — 우리가 만든 버전 히스토리가 삭제 앞에서
+ *   통째로 무력해진다. 휴지통이 그 봉투 «밖»의 안전망 역할을 한다.
+ *
+ * ★실패하면 «조용히 영구삭제로 폴백하지 않는다». 복구 도구를 만들면서 「휴지통이 안 되니 지울게요」는
+ *   앞뒤가 안 맞는다. 대신 정직하게 실패를 돌려주고, «영구 삭제»는 사용자가 2차 확인으로 «선택»한다.
+ *   ⇒ 반환을 { ok, trashed, reason } 으로 나눠 「지웠나」와 「휴지통이냐 영구냐」를 구분한다.
+ *     (구 반환은 boolean 하나라 「지웠다」와 「지울 게 없었다」가 같은 값이었다.)
+ *
+ * ⚠️비동기 전환의 숨은 위험(설계 D-U7-4): rmSync 는 반환 시점에 이미 끝나 «반쯤 지워진 상태»가
+ *   구조적으로 없었다. trashItem 은 Promise 라 await 사이에 autosave 가 끼어들 수 있다.
+ *   ⇒ 호출측(렌더러)이 «그 프로젝트를 안 연 상태»로 부르는 게 전제다 — 갤러리에서만 부른다.
+ */
+ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
   const safeId = String(id || '').trim();
   if (!safeId || safeId.includes('/') || safeId.includes('\\') || /^\.+$/.test(safeId)) {
-    return false;
+    return { ok: false, trashed: false, reason: 'invalid_id' };
   }
-  // 번들 레이아웃: proj_<id>/ 디렉터리 한 방 삭제 (proj.json/proj_backup.json/proj_meta.json/proj_history/claude-pm/assets/images 포함)
-  // path.resolve로 base 밖 탈출 2차 방어
+  const permanent = opts && opts.permanent === true;   // ★2차 확인을 «거친» 경우에만 true
   const projectsBase = path.resolve(PROJECTS_DIR);
   const dirPath = path.resolve(PROJECTS_DIR, safeId);
-  let dirOk = true;
-  if (dirPath.startsWith(projectsBase + path.sep) && fs.existsSync(dirPath)) {
-    try { fs.rmSync(dirPath, { recursive: true, force: true }); }
-    catch (e) {
-      // partial delete — 호출측에 false 반환해 알림 (codex Medium fix)
-      console.error('[projects:delete] dir 삭제 실패:', e.message, 'path:', dirPath);
-      dirOk = false;
+  const inBase = (p) => p.startsWith(projectsBase + path.sep);
+
+  // 지울 대상 모으기 — 번들 디렉터리 + 구 flat 잔재.
+  // ★flat <id>_history/ 도 «복구 재료»다(projects:load 폴백 체인이 읽는다) — 같이 휴지통으로 보낸다.
+  const targets = [];
+  if (inBase(dirPath) && fs.existsSync(dirPath)) targets.push(dirPath);
+  for (const name of [`${safeId}.json`, `${safeId}_meta.json`, `${safeId}_backup.json`, `${safeId}_history`]) {
+    const p2 = path.resolve(PROJECTS_DIR, name);
+    if (inBase(p2) && fs.existsSync(p2)) targets.push(p2);
+  }
+  if (!targets.length) return { ok: true, trashed: false, reason: 'not_found', deleted: 0 };
+
+  // ★휴지통에서 «찾을 수 있어야» 복구다. proj_178… 폴더가 수십 개면 자기 걸 못 고른다.
+  //   ⛔디렉터리 이름은 «안» 바꾼다 — id 가 곧 디렉터리명이라 trash 실패 시 살아있는 프로젝트가 깨진다.
+  //   어차피 버려질 봉투 «안»에 마커를 넣는 건 위험이 0이다.
+  if (fs.existsSync(dirPath)) {
+    try {
+      let name = safeId, sections = null;
+      try {
+        const m = JSON.parse(fs.readFileSync(path.join(dirPath, 'proj_meta.json'), 'utf8'));
+        if (m && m.name) name = m.name;
+      } catch (_) {}
+      try { sections = _countSections(JSON.parse(fs.readFileSync(path.join(dirPath, 'proj.json'), 'utf8'))); } catch (_) {}
+      fs.writeFileSync(path.join(dirPath, '_deleted-info.json'),
+        JSON.stringify({ name, id: safeId, deletedAt: new Date().toISOString(), sections }, null, 2));
+    } catch (_) { /* 마커 실패는 삭제를 무르지 않는다 */ }
+  }
+
+  const failed = [];
+  let trashedCount = 0;
+  for (const t of targets) {
+    if (permanent) {
+      try { fs.rmSync(t, { recursive: true, force: true }); }
+      catch (e) { failed.push({ path: path.basename(t), error: e.message }); }
+    } else {
+      try { await shell.trashItem(t); trashedCount++; }
+      catch (e) { failed.push({ path: path.basename(t), error: e.message }); }
     }
   }
-  // 마이그레이션 안 된 flat 잔재 best-effort cleanup
-  // (proj_<id>.json / proj_<id>_meta.json / proj_<id>_backup.json / proj_<id>_history/)
-  const flatCandidates = [
-    path.join(PROJECTS_DIR, `${safeId}.json`),
-    path.join(PROJECTS_DIR, `${safeId}_meta.json`),
-    path.join(PROJECTS_DIR, `${safeId}_backup.json`),
-  ];
-  for (const p of flatCandidates) {
-    try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch (_) {}
+  if (failed.length) {
+    // ★조용히 영구삭제로 폴백하지 «않는다». 사용자가 알고 고르게 한다.
+    console.warn('[projects:delete] 실패:', JSON.stringify(failed));
+    return { ok: false, trashed: false, reason: permanent ? 'delete_failed' : 'trash_failed',
+             message: failed[0].error, failed };
   }
-  const flatHist = path.join(PROJECTS_DIR, `${safeId}_history`);
-  if (flatHist.startsWith(projectsBase + path.sep)) {
-    try { if (fs.existsSync(flatHist)) fs.rmSync(flatHist, { recursive: true, force: true }); } catch (_) {}
-  }
-  return dirOk;
+  return { ok: true, trashed: !permanent, deleted: targets.length };
 });
+
 
 // 프로젝트 복제 코어 — ipcMain.handle(렌더러)와 MCP 도구(duplicate_project)가 공용.
 /**
