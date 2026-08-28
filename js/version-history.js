@@ -123,6 +123,18 @@
       };
     });
 
+    /* ★[QA] 같은 «분»에 찍힌 행이 둘 이상이면 초를 붙여 구분한다.
+     *   되돌리기를 연달아 한 패닉 세션에서 안전판이 전부 「오늘 12:22」로 보였다(자체 QA 실측).
+     *   이 기능은 «그 순간»을 고르라고 만든 것인데, 고를 수 있는 이름이 같으면 고를 수가 없다.
+     *   ⛔항상 초를 붙이지는 않는다 — 평소엔 노이즈고, 사고 직후 화면에서 노이즈가 제일 해롭다(§1). */
+    const seen = new Map();
+    for (const r of rows) seen.set(r.whenText, (seen.get(r.whenText) || 0) + 1);
+    for (const r of rows) {
+      if (seen.get(r.whenText) > 1) {
+        r.whenText = `${r.whenText}:${String(new Date(r.ts).getSeconds()).padStart(2, '0')}`;
+      }
+    }
+
     return {
       ok: true, currentRow, rows,
       legacyCount: list.legacyCount || 0,

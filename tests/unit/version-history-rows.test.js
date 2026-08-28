@@ -180,3 +180,21 @@ test('VH17 ★UI 가 문구를 «문자열 비교»해서 상태를 알아내지
     '★lostText 를 문자열 비교하고 있다 — 문구를 한 글자 다듬는 순간 「⚠️ 비교 불가」가 된다');
   assert.ok(/lossUnknown/.test(code), '★상태 값을 안 쓰고 있다');
 });
+
+/* ═══ [QA] 같은 분에 찍힌 행은 «구분되어야» 고를 수 있다 ═══════════════════ */
+
+test('VH18 ★되돌리기를 연달아 하면 안전판이 같은 분에 쌓인다 — 초까지 붙여 구분한다', () => {
+  const base = NOW;
+  const mk = (ts, reason) => ({ ...entry(), ts, file: `${ts}.json`, reason, pinned: reason === 'pre-restore' });
+  const r = VH.buildRows(listOf([mk(base + 3000, 'pre-restore'), mk(base + 41000, 'pre-restore')], current()), { now: base + 60000 });
+  const whens = r.rows.map(x => x.whenText);
+  assert.equal(new Set(whens).size, whens.length,
+    `★같은 이름의 행이 둘이다(${whens.join(' / ')}) — 「그 순간」을 고르라는 기능인데 고를 수가 없다`);
+  assert.ok(whens.every(w => /:\d{2}:\d{2}$/.test(w)), `초가 안 붙었다: ${whens.join(' / ')}`);
+});
+
+test('VH19 겹치지 않으면 «초를 안 붙인다» — 평소 화면에 노이즈를 더하지 않는다(양성대조)', () => {
+  const r = VH.buildRows(listOf([{ ...entry(), ts: NOW - 3 * 3600000 }, { ...entry(), ts: NOW - 26 * 3600000 }], current()), { now: NOW });
+  const whens = r.rows.map(x => x.whenText);
+  assert.ok(whens.every(w => !/:\d{2}:\d{2}$/.test(w)), `★안 겹치는데 초를 붙였다: ${whens.join(' / ')}`);
+});
