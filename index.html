@@ -1237,10 +1237,21 @@
     if (!res?.ok || !res.url) return;
     const badge = document.getElementById('mcp-info-badge');
     if (!badge) return;
-    const label = '🔌 MCP: ' + res.url + ' [복사]';
+    /* ★[복사] 글자를 «없앤다» — 뱃지 전체가 이미 클릭하면 복사된다(안내는 title 로 충분하다).
+     *   주소 자체가 정보인데 그 옆에 조작 안내가 붙어 있으면 주소가 안 읽힌다. */
+    const label = '🔌 MCP: ' + res.url;
     badge.textContent = label;
     badge.style.display = 'inline-block';
+    /* ★드래그로 «선택»도 되게 한다 — 주소를 부분만 집어가고 싶을 때가 있다.
+     *   기본 뱃지는 user-select:none 이라 드래그가 안 먹었다. */
+    badge.style.userSelect = 'text';
+    badge.style.cursor = 'pointer';
+    badge.title = '클릭하면 주소 복사 · 드래그하면 선택';
     badge.onclick = async () => {
+      /* ★드래그로 «선택 중»이면 복사하지 않는다 — 선택하려던 건데 클립보드가 덮이면
+       *   사용자가 고른 범위를 잃는다. mouseup 직후 selection 을 보고 가른다. */
+      const sel = window.getSelection && window.getSelection();
+      if (sel && String(sel).length > 0 && badge.contains(sel.anchorNode)) return;
       try { await api.clipboardWriteText(res.url); } catch (_) {}
       badge.textContent = '🔌 복사됨';
       setTimeout(() => { badge.textContent = label; }, 1200);
