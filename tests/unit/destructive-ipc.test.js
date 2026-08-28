@@ -63,3 +63,65 @@ test('A1e ★36MB 프로젝트 교체 6회 — 6회차 안전판이 «같은 트
   assert.match(now.pages[0].canvas, /id="sec_6"/, '★취소했는데 교체 직전 작업이 아니다');
 });
 
+/* ═══ A② (치명) — pins.json 이 «프로젝트»로 채택돼 proj.json 을 덮는다 ═══ */
+
+test('A2a ★전원차단 재현 — 잘린 proj.json 을 «핀 사이드카»로 복구하지 않는다', async () => {
+  const id = await mkProject(sec('sec_a', '진짜 내용') + sec('sec_b', 'B') + sec('sec_c', 'C'));
+  // 되돌리기를 한 번 해서 «진짜» pins.json 을 만든다(손으로 만든 픽스처가 아니다).
+  const list = await H.invoke('projects:history-list', { projectId: id });
+  const ts = list.entries[0].ts;
+  await H.invoke('projects:history-restore', { projectId: id, ts, openProjectIds: [] });
+  const pins = path.join(histDir(id), 'pins.json');
+  assert.ok(fs.existsSync(pins), '전제 실패: pins.json 이 없다');
+
+  // 전원차단: proj.json 이 잘리고, 같이 쓰이던 백업·슬롯도 함께 깨진다.
+  fs.writeFileSync(path.join(DIR, id, 'proj.json'), '{"pages":[{"id":"page_1","canv');
+  for (const f of fs.readdirSync(histDir(id))) {
+    if (/^\d+\.json$/.test(f)) fs.writeFileSync(path.join(histDir(id), f), '{"pages":[{"id":"pa');
+  }
+  const bak = path.join(DIR, id, 'proj_backup.json');
+  if (fs.existsSync(bak)) fs.writeFileSync(bak, '{"pages":[{"id":"pa');
+
+  const loaded = await H.invoke('projects:load', id);
+  if (loaded !== null) {
+    assert.ok(Array.isArray(loaded.pages) || typeof loaded.canvas === 'string',
+      `★프로젝트가 아닌 것을 프로젝트로 반환했다: ${JSON.stringify(loaded).slice(0, 120)}`);
+  }
+  // ★자가치유가 «덮어썼는지»가 진짜 피해다 — 반환값만 보면 못 잡는다.
+  const after = fs.readFileSync(path.join(DIR, id, 'proj.json'), 'utf8');
+  assert.ok(!/pre-restore/.test(after),
+    '★자가치유가 proj.json 을 핀 사이드카 내용으로 덮었다 — 39MB 원본이 3줄이 되는 경로다');
+});
+
+test('A2b ★후보 «생성»단에서도 사이드카가 안 나온다 — 이름이 늘어도 따라올 필요가 없게', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  const SS = require('../../main/project-store/snapshot-store');
+  fs.writeFileSync(path.join(histDir(id), 'pins.json'), '{"1":"pre-restore"}');
+  fs.writeFileSync(path.join(histDir(id), 'index.json.bak'), '{"entries":[]}');   // 미래에 늘 법한 이름
+  const cands = SS.loadFallbackCandidates(DIR, id, () => null).map(c => path.basename(c.path));
+  assert.ok(cands.every(f => /^\d+\.json$/.test(f) || !f.endsWith('.json') || /proj/.test(f)),
+    `★슬롯이 아닌 파일이 복구 후보에 들어갔다: ${cands.join(', ')}`);
+  assert.ok(!cands.includes('pins.json'), '★pins.json 이 복구 후보다');
+  assert.ok(!cands.includes('index.json.bak'), '★인덱스 백업이 복구 후보다');
+  assert.ok(cands.some(f => /^\d+\.json$/.test(f)), '전제 실패: 진짜 슬롯이 후보에 없다(양성대조)');
+});
+
+test('A2c ★이름을 «우리가 안 짓는» 후보(backup)에서도 프로젝트 형태를 확인한다', async () => {
+  // proj_history 슬롯 이름은 이 모듈이 짓지만 backup·pre-externalize 는 아니다.
+  //   그래서 후보 «생성»단 필터만으로는 이 자리를 못 막는다 — 채택 «직전»의 형태 확인이 필요하다.
+  //   실사고 형태: 백업이 원자쓰기 도중 «파싱은 되는데 내용이 없는» 상태로 남는다.
+  const id = await mkProject(sec('sec_a', '진짜 내용') + sec('sec_b', 'B'));
+  fs.writeFileSync(path.join(DIR, id, 'proj_backup.json'), '{}');
+  for (const f of fs.readdirSync(histDir(id))) {
+    if (/^\d+\.json$/.test(f)) fs.unlinkSync(path.join(histDir(id), f));
+  }
+  fs.writeFileSync(path.join(DIR, id, 'proj.json'), '{"pages":[{"id":"page_1","canv');
+
+  const loaded = await H.invoke('projects:load', id);
+  assert.ok(loaded === null || Array.isArray(loaded.pages) || typeof loaded.canvas === 'string',
+    `★내용이 없는 백업을 프로젝트로 채택했다: ${JSON.stringify(loaded)}`);
+  const after = fs.readFileSync(path.join(DIR, id, 'proj.json'), 'utf8');
+  assert.ok(!/^\s*\{\s*\}\s*$/.test(after),
+    '★자가치유가 proj.json 을 «빈 객체»로 덮었다 — 복구하러 온 사용자의 파일을 여기서 잃는다');
+});
+

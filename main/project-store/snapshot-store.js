@@ -891,7 +891,15 @@ function loadFallbackCandidates(projectsDir, id, resolveBackupPath) {
   for (const histDir of [path.join(projectsDir, id, 'proj_history'), path.join(projectsDir, `${id}_history`)]) {
     try {
       if (fs.existsSync(histDir)) {
-        const slots = fs.readdirSync(histDir).filter(f => f.endsWith('.json') && f !== INDEX_NAME)
+        // ★[A2 치명] «빼야 할 이름을 열거»하지 않는다 — «우리가 만든 슬롯 이름만» 받는다.
+        //   초판은 f !== INDEX_NAME 만 걸렀고, 뒤에 pins.json 사이드카가 «하나 늘자» 곧바로
+        //   그게 복구 후보가 됐다. 3차 검수 end-to-end 재현: proj.json 손상 →
+        //   { "1787700000000":"pre-restore", _recovered:"history" } 를 «프로젝트로» 반환하고
+        //   자가치유가 39MB proj.json 을 그 3줄로 덮어썼다. 전원차단 복구라는 이 기능의 존재 이유
+        //   그 자체를 배신한다.
+        //   ⇒ 프룬의 [F3] 과 «같은» 규약을 쓴다: 슬롯 파일명은 /^\d+\.json$/ 뿐이다.
+        //   이러면 앞으로 사이드카가 몇 개 더 늘어도 이 목록은 따라올 필요가 없다.
+        const slots = fs.readdirSync(histDir).filter(f => /^\d+\.json$/.test(f))
           .sort((a, b) => (parseInt(b) || 0) - (parseInt(a) || 0)); // 최신 우선
         for (const s of slots) candidates.push({ path: path.join(histDir, s), from: 'history' });
       }
@@ -910,6 +918,7 @@ module.exports = {
   readIndex, writeIndex, rebuildIndex, ensureIndex, updateCurrent,
   writeSnapshot, pruneVersions, listVersions, readVersion, prepareRestore,
   listReferencedAssets, loadFallbackCandidates,
+  isProjectShaped,   // ★[A2] main.js 폴백 루프가 «파싱되면 프로젝트»로 삼지 않도록 공개
   _internal: { safeSeg, pathsFor, canvasStrings, mapCanvas, assetNameFor, slotFiles, dayKey, isValidTs,
                canonOf, assetsFromRaw, fingerprintRaw, readPins, writePins, isProjectShaped, isAllCanvasEmpty },
 };

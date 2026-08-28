@@ -1149,6 +1149,15 @@ ipcMain.handle('projects:load', (event, id, opts) => {
     let proj;
     try { proj = JSON.parse(fs.readFileSync(c.path, 'utf8')); }
     catch (_) { continue; } // 이 백업도 손상 → 다음 후보
+    // ★[A2 치명] «파싱되면 프로젝트»가 아니다. readVersion 은 이미 isProjectShaped 로 거르는데
+    //   폴백 루프만 안 걸러서, 히스토리 폴더의 사이드카(pins.json)가 프로젝트로 채택되고
+    //   자가치유가 39MB proj.json 을 3줄로 덮어썼다(3차 검수 end-to-end 재현).
+    //   ⛔후보 «생성»쪽(loadFallbackCandidates)도 고쳤지만 여기서 한 번 더 막는다 —
+    //   이 루프는 backup·pre-externalize 등 우리가 이름을 통제하지 못하는 파일도 먹는다.
+    if (!_SS().isProjectShaped(proj)) {
+      console.warn(`[projects:load] 후보가 프로젝트 형태가 아님 — 건너뜀: ${path.basename(c.path)}`);
+      continue;
+    }
     console.warn(`[projects:load] ${id} 손상 → ${c.from}(${path.basename(c.path)})에서 복구`);
     try { // 자가치유: 복구본을 proj.json으로 재기록 (다음 로드부터 정상)
       const paths = _ensureNewLayoutPaths(id);
