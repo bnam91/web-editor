@@ -68,14 +68,20 @@ console.log(`가장 오래된 복구 지점: ${ages.length ? Math.max(...ages).t
 
 let fail = 0;
 const check = (ok, msg) => { console.log(`${ok ? 'PASS' : '★FAIL'}  ${msg}`); if (!ok) fail++; };
-check(has(0, 0.5),  '① «오늘» 복구 지점이 있다');
-check(has(0.5, 1.6), '② ★«어제» 복구 지점이 있다 — 이게 복구의 실제 단위다(§1)');
-check(has(2.5, 3.6), '③ «3일 전» 복구 지점이 있다');
-check(has(6.5, 7.6), '④ «1주 전» 복구 지점이 있다');
-check(has(13, 14.6), '⑤ «2주 전» 복구 지점이 있다');
+/* ★시뮬 구간 «밖»을 재면 도구가 거짓말한다 — 10일만 돌리고 「2주 전 지점이 없다」고 FAIL 을 내는 식.
+ *   구간 밖 항목은 «못 잰다»고 말하고 넘긴다(P-1 정직: 안 잰 걸 실패로도 성공으로도 세지 않는다). */
+const checkAge = (loD, hiD, msg) => {
+  if (loD >= DAYS) { console.log(`SKIP  ${msg} — 시뮬 구간(${DAYS}일) 밖이라 «못 잰다»`); return; }
+  check(has(loD, hiD), msg);
+};
+checkAge(0, 0.5,  '① «오늘» 복구 지점이 있다');
+checkAge(0.5, 1.6, '② ★«어제» 복구 지점이 있다 — 이게 복구의 실제 단위다(§1)');
+checkAge(2.5, 3.6, '③ «3일 전» 복구 지점이 있다');
+checkAge(6.5, 7.6, '④ «1주 전» 복구 지점이 있다');
+checkAge(13, 14.6, '⑤ «2주 전» 복구 지점이 있다');
 // ★상한 «경계»는 상수에서 끌어온다 — 상수를 바꾸고 검사 문구가 안 따라오면 그게 가짜 초록이다
 const D = SS.DAILY_DAYS;
-check(has(D - 2, D + 0.6), `⑥ ★보관 상한 경계(${D}일)에 복구 지점이 있다 — 중간만 재면 상한이 실제로 서는지 모른다`);
+checkAge(D - 2, D + 0.6, `⑥ ★보관 상한 경계(${D}일)에 복구 지점이 있다 — 중간만 재면 상한이 실제로 서는지 모른다`);
 check(!has(D + 2, 9999), `⑦ 상한(${D}일)을 «넘는» 슬롯은 남지 않는다(핀·레거시 제외)`);
 check(files.length <= SS.RECENT_KEEP + SS.DAILY_DAYS + SS.PINNED_MAX + 2,
   `⑧ 슬롯 수가 정책 상한 안이다 (${files.length} ≤ ${SS.RECENT_KEEP}+${SS.DAILY_DAYS}+여유)`);

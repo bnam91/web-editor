@@ -131,7 +131,20 @@ function isProjectShaped(d) {
   return Array.isArray(d.pages) || typeof d.canvas === 'string';
 }
 function canonOf(data) {
-  return canvasStrings(data).some(c => c.html.indexOf('data:image') !== -1) ? 0 : 1;
+  // ★[M4] 「data:image 가 있나」가 아니라 «우리가 접는 것이 남았나»로 판정한다.
+  //   canonicalize 는 externalizer 와 같은 규약이라 «base64 data URI 만» 접는다
+  //   (비base64 SVG 는 경계가 모호·소형이라 대상 밖 — externalizer.js 헤더 규약).
+  //   그런데 canon 을 'data:image' 문자열로 재면 그 SVG 하나 때문에 canon=0 이 되고,
+  //   canon=0 은 «영구 보존 + 예산 미산입»이라 보관정책이 그 프로젝트에서 통째로 꺼진다.
+  //   실측: 그 상태로 45일 시뮬 → 슬롯 270개(전량 잔존)·86MB. 정상은 48개·13.9MB.
+  //   canon 의 «쓰임»은 ①레거시(기능 이전의 무거운 스냅샷) 보호 ②「옛 형식」 배지 —
+  //   둘 다 「접을 수 있는 base64 가 남았나」가 맞는 물음이다.
+  for (const c of canvasStrings(data)) {
+    if (c.html.indexOf('data:image') === -1) continue;
+    X.DATA_URI_RE.lastIndex = 0;
+    if (X.DATA_URI_RE.test(c.html)) return 0;
+  }
+  return 1;
 }
 /** [F4] 문자열 전체에서 goya-asset 파일명을 긁는다 — 캔버스 밖(scratchpad 매니페스트 등)도 잡아야 한다. */
 function assetsFromRaw(raw) {
@@ -412,7 +425,9 @@ function rebuildIndex(projectsDir, projectId, opts = {}) {
     let fp, canon, name;
     if (st.size > LEGACY_RAW_MAX) {
       fp = fingerprintRaw(raw);
-      canon = raw.indexOf('data:image') === -1 ? 1 : 0; // 대형은 캔버스/비캔버스를 못 가른다 → 보수적
+      // [M4] 대형은 캔버스/비캔버스를 못 가르므로 보수적이되, 판정은 «접을 수 있는 base64» 기준으로 맞춘다
+      X.DATA_URI_RE.lastIndex = 0;
+      canon = X.DATA_URI_RE.test(raw) ? 0 : 1;
       name = (raw.match(/"name"\s*:\s*"([^"]*)"/) || [])[1] || null;
     } else {
       let data;
@@ -476,7 +491,12 @@ function writeSnapshot(projectsDir, projectId, data, opts = {}) {
 
   // 간격 게이트 — force 면 무시. ★게이트에 막혀도 current 지문은 갱신한다(목록이 늘 최신을 보게).
   if (opts.force !== true) {
-    const last = idx.entries.length ? idx.entries[idx.entries.length - 1].ts : 0;
+    // ★[M5] «내 시간선의» 최신을 본다 — 미래 ts 를 기준으로 잡으면 게이트가 영원히 안 열린다.
+    //   미래 엔트리는 실제로 생긴다: NTP 보정 · 드라이브 동기화로 넘어온 폴더 · 백업 복원.
+    //   실측: 미래 엔트리 1개면 정상 시계로 12회 저장해도 «성공 0» — 그리고 「안 쌓이고 있다」는
+    //   신호가 어디에도 없어서 사고가 나야 안다. 그건 이 기능이 «있으나 마나»가 되는 실패다.
+    let last = 0;
+    for (const e of idx.entries) if (e.ts <= now && e.ts > last) last = e.ts;
     if (!(now - last > MIN_GAP_MS)) {
       // 게이트에 막혀도 current 는 «가끔» 갱신한다 — 매번 하면 저장 경로에 32ms 회귀.
       // 건너뛴 사이의 정확도는 listVersions 의 mtime 신선도 판정이 메운다.
@@ -599,8 +619,21 @@ function pruneVersions(projectsDir, projectId, opts = {}) {
   const reclaimable = (e) => keep.has(e.ts) && !e.pinned && e.canon !== 0 && e.ts !== (all[0] && all[0].ts);
   let total = all.filter(reclaimable).reduce((s, e) => s + (e.bytes || 0), 0);
   if (total > BUDGET_BYTES) {
-    const droppable = all.filter(reclaimable).sort((a, b) => a.ts - b.ts);
-    for (const e of droppable) {
+    /* ★[P4] «오래된 것부터»가 아니다 — «중복이 많은 것부터»다.
+     * 살아남은 집합은 두 종류가 섞여 있다:
+     *   ⓐ 최근 N개 — 몇 분 간격이라 서로 «거의 같다»(중복이 크다)
+     *   ⓑ 날짜 대표 1개/일 — 하루에 하나뿐이라 «그날은 대체 불가»다
+     * 오래된 것부터 버리면 ⓑ(대체 불가)를 먼저 죽이고 ⓐ(중복)를 남긴다 — 정확히 거꾸로다.
+     * ⇒ ⓐ부터(그 안에서 오래된 순), 그래도 모자라면 ⓑ를 오래된 순.
+     * ⛔안전판(pre-restore)은 아래 별도 루프가 «가장 새것부터» 버린다 — 거긴 반대가 맞다:
+     *   새 안전판은 지금 상태와 거의 같아 재구성 가능하고, 가장 오래된 것은 그 소동 이전으로
+     *   가는 유일한 길이라 대체 불가다. 두 규칙은 «중복이 많은 쪽을 먼저 버린다»는 한 원칙의 두 얼굴이다. */
+    const dailyRep = new Set();
+    { const seen = new Set();
+      for (const e of all) { const k = dayKey(e.ts); if (!seen.has(k)) { seen.add(k); dailyRep.add(e.ts); } } }
+    const dense = all.filter(e => reclaimable(e) && !dailyRep.has(e.ts)).sort((a, b) => a.ts - b.ts);
+    const sparse = all.filter(e => reclaimable(e) && dailyRep.has(e.ts)).sort((a, b) => a.ts - b.ts);
+    for (const e of [...dense, ...sparse]) {
       if (total <= BUDGET_BYTES) break;
       keep.delete(e.ts); total -= (e.bytes || 0);
     }
@@ -679,6 +712,8 @@ function listVersions(projectsDir, projectId) {
     entries,
     legacyCount: entries.filter(e => e.canon === 0).length,
     pendingCount: entries.filter(e => e.pending).length, // [F7] 아직 안 읽은 대형 레거시 — UI 가 정직하게 표시
+    // [M5] 시각이 «미래»인 버전 — 시계 보정·동기화·백업 복원의 흔적이다. 숨기지 말고 알린다.
+    futureCount: entries.filter(e => e.ts > Date.now() + 60000).length,
     totalBytes: entries.reduce((s, e) => s + (e.bytes || 0), 0),
   };
 }

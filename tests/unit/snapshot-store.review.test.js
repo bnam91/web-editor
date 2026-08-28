@@ -417,3 +417,159 @@ test('C2 ★proj.json 을 못 읽으면 «옛 current 를 들고 나가지 않�
   assert.equal(l.ok, true);
   assert.equal(l.entries.length, 1, '★버전 목록은 보여야 복구할 수 있다');
 });
+
+/* ═══ M6 — 프룬의 «교훈 유래» 동작 4개. 변이 스윕에서 «전부 초록 생존»했다 ══
+ * 주석이 「이 동작이 중요하다」고 선언만 하고 보증은 없던 자리들이다.
+ * 각 테스트는 그 동작을 «없애면 빨강»이 되도록 짰다. */
+
+/** 예산 분기를 «실제로» 태우는 픽스처 — bytes 를 크게 조작해 BUDGET 을 넘긴다. */
+function seedOverBudget(root, opts = {}) {
+  const DAY = 86400000;
+  writeProjFile(root, 'p', { id: 'p', name: 'T', version: 2, pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] });
+  const made = [];
+  // 날짜 대표 5개(하루 1개씩, 서로 다른 날) + 최근 밀집 10개(같은 날)
+  for (let d = 5; d >= 1; d--) {
+    const r = SS.writeSnapshot(root, 'p', { id: 'p', name: 'T', version: 2,
+      pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] }, { now: NOW - d * DAY, force: true });
+    made.push({ ts: r.ts, kind: 'daily' });
+  }
+  for (let i = 0; i < 10; i++) {
+    const r = SS.writeSnapshot(root, 'p', { id: 'p', name: 'T', version: 2,
+      pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] }, { now: NOW + i * 11 * MIN, force: true });
+    made.push({ ts: r.ts, kind: 'dense' });
+  }
+  const idx = SS.readIndex(root, 'p');
+  idx.entries.forEach(e => { e.bytes = 30 * 1024 * 1024; });   // 15 × 30MB = 450MB > 200MB
+  SS.writeIndex(root, 'p', idx);
+  return made;
+}
+
+test('P4 ★예산 초과 시 «중복이 많은 것»부터 버린다 — 오래된 순으로 버리면 대체 불가한 날짜대표가 먼저 죽는다', () => {
+  const root = mkRoot();
+  const made = seedOverBudget(root);
+  SS.pruneVersions(root, 'p', { now: NOW + 10 * 11 * MIN });
+  const kept = new Set(SS.readIndex(root, 'p').entries.map(e => e.ts));
+  const dailyKept = made.filter(m => m.kind === 'daily' && kept.has(m.ts)).length;
+  const denseKept = made.filter(m => m.kind === 'dense' && kept.has(m.ts)).length;
+  assert.ok(dailyKept > denseKept,
+    `★날짜대표 ${dailyKept} vs 밀집 ${denseKept} — 하루에 하나뿐인 날짜대표가 먼저 죽으면 그날은 영영 못 돌아간다`);
+});
+
+test('P10 ★예산 드롭이 «핀»을 먹지 않는다 — [F1 치명] 주석이 지키려던 바로 그 동작', () => {
+  const root = mkRoot();
+  writeProjFile(root, 'p', { id: 'p', name: 'T', version: 2, pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] });
+  const pin = SS.writeSnapshot(root, 'p', { id: 'p', name: 'T', version: 2,
+    pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] }, { now: NOW, force: true, reason: 'pre-restore' });
+  for (let i = 1; i <= 12; i++) {
+    SS.writeSnapshot(root, 'p', { id: 'p', name: 'T', version: 2,
+      pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] }, { now: NOW + i * 11 * MIN, force: true });
+  }
+  const idx = SS.readIndex(root, 'p');
+  idx.entries.forEach(e => { e.bytes = 30 * 1024 * 1024; });
+  SS.writeIndex(root, 'p', idx);
+  SS.pruneVersions(root, 'p', { now: NOW + 13 * 11 * MIN });
+  assert.ok(SS.readVersion(root, 'p', pin.ts).ok,
+    '★예산 드롭이 안전판을 먹으면 그 되돌리기는 영영 취소 불가가 된다');
+});
+
+test('P10b ★예산 드롭이 «레거시»도 먹지 않는다 — 복구 도구가 사용자 데이터를 지우고 시작하면 안 된다', () => {
+  const root = mkRoot();
+  const hd = path.join(root, 'p', 'proj_history');
+  fs.mkdirSync(hd, { recursive: true });
+  const legacyTs = NOW - 300 * 86400000;
+  fs.writeFileSync(path.join(hd, `${legacyTs}.json`), JSON.stringify({ id: 'p', version: 2,
+    pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') + `<img src="${PNG}">` }] }));
+  writeProjFile(root, 'p', { id: 'p', name: 'T', version: 2, pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] });
+  for (let i = 1; i <= 12; i++) {
+    SS.writeSnapshot(root, 'p', { id: 'p', name: 'T', version: 2,
+      pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] }, { now: NOW + i * 11 * MIN, force: true });
+  }
+  const idx = SS.readIndex(root, 'p');
+  idx.entries.forEach(e => { e.bytes = 30 * 1024 * 1024; });
+  SS.writeIndex(root, 'p', idx);
+  SS.pruneVersions(root, 'p', { now: NOW + 13 * 11 * MIN });
+  assert.ok(fs.existsSync(path.join(hd, `${legacyTs}.json`)), '★레거시가 예산 드롭에 날아갔다');
+});
+
+test('P5 ★안전판이 예산에 걸리면 «가장 새것»부터 버린다 — 가장 오래된 것은 대체 불가다', () => {
+  const root = mkRoot();
+  writeProjFile(root, 'p', { id: 'p', name: 'T', version: 2, pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] });
+  const pins = [];
+  for (let i = 0; i < 8; i++) {
+    const r = SS.writeSnapshot(root, 'p', { id: 'p', name: 'T', version: 2,
+      pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] }, { now: NOW + i * 11 * MIN, force: true, reason: 'pre-restore' });
+    pins.push(r.ts);
+  }
+  const idx = SS.readIndex(root, 'p');
+  idx.entries.forEach(e => { e.bytes = 50 * 1024 * 1024; });   // 8 × 50MB = 400MB > 200MB
+  SS.writeIndex(root, 'p', idx);
+  SS.pruneVersions(root, 'p', { now: NOW + 9 * 11 * MIN });
+  assert.ok(SS.readVersion(root, 'p', pins[0]).ok,
+    '★가장 오래된 안전판이 「그 소동 이전」으로 가는 유일한 길이다 — 그걸 먼저 버리면 안 된다');
+});
+
+test('P6 ★보관 상한(DAILY_DAYS)이 «실제로» 선다 — 컷오프를 지워도 초록이던 자리', () => {
+  const root = mkRoot();
+  const DAY = 86400000;
+  writeProjFile(root, 'p', { id: 'p', name: 'T', version: 2, pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] });
+  const old = [];
+  // 상한 «훨씬» 밖 — 최근 20개에도 안 들어가게 충분히 많이 만든다
+  for (let d = SS.DAILY_DAYS + 40; d > SS.DAILY_DAYS + 20; d--) {
+    const r = SS.writeSnapshot(root, 'p', { id: 'p', name: 'T', version: 2,
+      pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] }, { now: NOW - d * DAY, force: true });
+    old.push(r.ts);
+  }
+  for (let i = 0; i < 25; i++) {
+    SS.writeSnapshot(root, 'p', { id: 'p', name: 'T', version: 2,
+      pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] }, { now: NOW + i * 11 * MIN, force: true });
+  }
+  SS.pruneVersions(root, 'p', { now: NOW + 25 * 11 * MIN });
+  const kept = SS.readIndex(root, 'p').entries.map(e => e.ts);
+  assert.equal(old.filter(t => kept.includes(t)).length, 0,
+    `★상한(${SS.DAILY_DAYS}일)을 «한참» 넘긴 슬롯이 남았다 — 컷오프가 안 서면 무한 적립이다`);
+  assert.ok(kept.length >= SS.RECENT_KEEP, '최근분은 남아야 한다(양성대조)');
+});
+
+test('M5 ★시계가 한 번 앞선 스냅샷이 있어도 이후 저장이 «멈추지» 않는다', () => {
+  const root = mkRoot();
+  const mk = () => ({ id: 'p', name: 'T', version: 2, pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] });
+  writeProjFile(root, 'p', mk());
+  // 미래 ts 는 실제로 생긴다: NTP 보정 · 드라이브 동기화로 넘어온 폴더 · 백업 복원
+  SS.writeSnapshot(root, 'p', mk(), { now: NOW + 30 * 86400000, force: true });
+  let ok = 0;
+  for (let i = 1; i <= 12; i++) if (SS.writeSnapshot(root, 'p', mk(), { now: NOW + i * 20 * MIN }).ok) ok++;
+  assert.equal(ok, 12,
+    '★미래 엔트리를 기준으로 간격을 재면 게이트가 «영원히» 안 열린다 — 그리고 UI 에 신호가 없어 사고가 나야 안다');
+  assert.ok(SS.listVersions(root, 'p').futureCount >= 1, '미래 시각 버전이 있다는 걸 «알려야» 한다');
+});
+
+test('M5b ★간격 게이트 자체는 여전히 막는다 — M5 수정이 게이트를 느슨하게 만든 게 아니다', () => {
+  const root = mkRoot();
+  const mk = () => ({ id: 'p', name: 'T', version: 2, pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] });
+  writeProjFile(root, 'p', mk());
+  assert.equal(SS.writeSnapshot(root, 'p', mk(), { now: NOW }).ok, true);
+  assert.equal(SS.writeSnapshot(root, 'p', mk(), { now: NOW + 1 * MIN }).ok, false, '★1분 뒤 저장은 막혀야 한다');
+  assert.equal(SS.writeSnapshot(root, 'p', mk(), { now: NOW + 11 * MIN }).ok, true);
+});
+
+test('M4 ★비base64 SVG 하나로 보관정책이 꺼지지 않는다 — canon 은 «접을 수 있는 것»으로 잰다', () => {
+  const SVG = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22%3E%3C/svg%3E';
+  const mk = (inner) => ({ id: 'p', version: 2, pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') + inner }] });
+  assert.equal(SS._internal.canonOf(mk(`<img src="${SVG}">`)), 1,
+    '★canon=0 이면 영구보존 + 예산 미산입 — 그 프로젝트만 보관정책이 통째로 꺼진다');
+  assert.equal(SS._internal.canonOf(mk(`<img src="${PNG}">`)), 0, '★양성대조 — 접을 base64 가 남으면 0이어야 한다');
+  assert.equal(SS._internal.canonOf(mk('<img src="goya-asset://p/a.png">')), 1);
+  assert.equal(SS._internal.canonOf(mk(`<img src="${SVG}"><img src="${PNG}">`)), 0, '섞이면 0');
+});
+
+test('M4b ★그래서 프룬이 실제로 돈다 — canon 판정이 틀리면 슬롯이 무한 적립된다', () => {
+  const root = mkRoot();
+  const SVG = 'data:image/svg+xml,%3Csvg%3E%3C/svg%3E';
+  const mk = () => ({ id: 'p', name: 'T', version: 2,
+    pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') + `<img src="${SVG}">` }] });
+  writeProjFile(root, 'p', mk());
+  for (let i = 0; i < 40; i++) SS.writeSnapshot(root, 'p', mk(), { now: NOW + i * 11 * MIN, force: true });
+  SS.pruneVersions(root, 'p', { now: NOW + 40 * 11 * MIN });
+  const n = SS.readIndex(root, 'p').entries.length;
+  assert.ok(n <= SS.RECENT_KEEP + 3, `★40개가 ${n}개로 안 줄었다 — canon=0 으로 오판하면 전량 잔존한다`);
+});
