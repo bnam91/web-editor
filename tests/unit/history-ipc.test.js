@@ -348,3 +348,137 @@ test('U7-10 ★렌더러가 반환값을 «본다» — 안 보면 실패해도 
   assert.match(src, /휴지통으로 보낼까요/, '★기대되는 되돌림 가능성이 달라졌으니 문구도 바뀌어야 한다');
   assert.ok(!/프로젝트를 삭제할까요/.test(src), '옛 「삭제할까요」 문구가 남아 있다');
 });
+
+/* ═══ U7 적대검수 회귀 — 「변이시켜도 빨강이 안 되던」 동작들 ══════════════
+ * 검수자가 변이 스윕으로 증명했다: 아래 동작들은 «없애도» 테스트가 전부 초록이었다.
+ * (부분이동 정직보고 · 삭제 순서 · inBase 봉쇄 · deleted 카운트 · _meta 팔 · 렌더러 재렌더)
+ * 각 항목마다 «그 동작을 없애면 빨강이 되는» 테스트를 붙인다. */
+
+/** 특정 호출 순번만 실패시킨다 — 하네스의 failTrash 는 전부-아니면-전무라 부분실패를 표현 못 한다. */
+function failTrashOnCall(nth, err) {
+  const el = require.cache['electron'].exports;
+  const orig = el.shell.trashItem;
+  let n = 0;
+  el.shell.trashItem = async (p) => { n++; if (n === nth) { const e = new Error(err || 'EPERM'); throw e; } return orig(p); };
+  return { restore: () => { el.shell.trashItem = orig; }, calls: () => n };
+}
+
+test('U7-11 ★부분 이동을 «전부 실패»로 말하지 않는다 — 번들이 이미 휴지통인데 trashed:false 는 거짓말이다', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  fs.writeFileSync(path.join(DIR, `${id}.json`), '{}');
+  fs.writeFileSync(path.join(DIR, `${id}_meta.json`), '{}');
+  const f = failTrashOnCall(2, 'EPERM: 권한 없음');
+  let r;
+  try { r = await H.invoke('projects:delete', id); } finally { f.restore(); }
+
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'trash_partial', '★부분 이동은 «부분»이라고 말해야 한다');
+  assert.equal(r.trashed, true, '★일부는 «실제로» 휴지통에 갔다 — false 면 사용자가 판단을 그르친다');
+  assert.ok(r.deleted >= 1, `deleted 가 실제 이동 수여야 한다 (=${r.deleted})`);
+  const mine = fs.readdirSync(H.trashDir).filter(f => f.startsWith(id));
+  assert.equal(mine.length, r.deleted, `★deleted 가 휴지통 실물과 맞아야 한다 (${JSON.stringify(mine)})`);
+});
+
+test('U7-12 ★삭제 «순서» — 잔재 먼저, 번들 나중. 반대면 「좀비 부활」이 난다', async () => {
+  const id = await mkProject(sec('sec_a', '지금것'));
+  // 폴백 체인이 읽는 구 flat 히스토리(옛 내용) — 번들이 먼저 사라지면 이게 좀비를 만든다
+  fs.mkdirSync(path.join(DIR, `${id}_history`), { recursive: true });
+  fs.writeFileSync(path.join(DIR, `${id}_history`, '1700000000000.json'),
+    JSON.stringify(proj(id, sec('sec_old', '1년 전 옛것'))));
+
+  // ★몇 번째가 번들인지 픽스처에 의존하지 않는다 — «번들 경로»를 직접 지목해 실패시킨다
+  const el = require.cache['electron'].exports;
+  const origT = el.shell.trashItem;
+  const bundle = path.join(DIR, id);
+  el.shell.trashItem = async (p) => { if (String(p) === bundle) throw new Error('EPERM'); return origT(p); };
+  const f = { restore: () => { el.shell.trashItem = origT; } };
+  let r;
+  try { r = await H.invoke('projects:delete', id); } finally { f.restore(); }
+  assert.equal(r.ok, false);
+  // ★번들이 «남아 있어야» 한다 — 순서가 반대면 번들이 먼저 가서 좀비가 부활한다
+  assert.ok(fs.existsSync(path.join(DIR, id, 'proj.json')),
+    '★번들을 먼저 치우면 「본체는 휴지통인데 옛 잔재로 좀비가 살아나는」 상태가 된다');
+  const loaded = await H.invoke('projects:load', id, {});
+  assert.ok(loaded && !loaded._recovered, '폴백으로 «옛 내용»이 살아나지 않아야 한다');
+  assert.ok(loaded.pages[0].canvas.includes('지금것'), '현재 내용이어야 한다');
+  assert.ok(!loaded.pages[0].canvas.includes('1년 전 옛것'), '★옛 잔재로 되살아나면 안 된다');
+});
+
+test('U7-13 ★실패하면 살아남은 프로젝트에 «마커를 남기지 않는다» — 거짓 deletedAt 이 박힌다', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  H.failTrash('EACCES');
+  try { await H.invoke('projects:delete', id); } finally { H.failTrash(null); }
+  assert.ok(fs.existsSync(path.join(DIR, id, 'proj.json')), '프로젝트는 살아 있다');
+  assert.equal(fs.existsSync(path.join(DIR, id, '_deleted-info.json')), false,
+    '★살아있는 프로젝트에 「삭제됨」 마커가 영구히 남는다');
+});
+
+test('U7-14 permanent 모드엔 마커를 안 쓴다 — 휴지통에서 찾을 일이 없다', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  const dir = path.join(DIR, id);
+  await H.invoke('projects:delete', id, { permanent: true });
+  assert.equal(fs.existsSync(dir), false);
+  // (지워졌으므로 마커 확인은 불가 — 대신 소스로 조건을 고정한다)
+  const src = fs.readFileSync(path.join(__dirname, '../../main.js'), 'utf8');
+  assert.match(src, /if \(!permanent && fs\.existsSync\(dirPath\)\)/, '★permanent 면 마커를 안 써야 한다');
+});
+
+test('U7-15 ★마커 쓰기가 PROJECTS_DIR «밖»으로 새지 않는다 (symlink 봉쇄)', async () => {
+  const outside = fs.mkdtempSync(path.join(require('os').tmpdir(), 'goya-outside-'));
+  fs.writeFileSync(path.join(outside, 'proj.json'), '{}');
+  const linkId = 'proj_1799999999999';
+  try { fs.symlinkSync(outside, path.join(DIR, linkId)); }
+  catch (_) { return; }   // symlink 불가 환경이면 건너뛴다
+  H.failTrash('EACCES');
+  try { await H.invoke('projects:delete', linkId); } finally { H.failTrash(null); }
+  assert.equal(fs.existsSync(path.join(outside, '_deleted-info.json')), false,
+    '★realpath 봉쇄가 없으면 PROJECTS_DIR 밖에 파일을 쓴다');
+  try { fs.unlinkSync(path.join(DIR, linkId)); } catch (_) {}
+  fs.rmSync(outside, { recursive: true, force: true });
+});
+
+test('U7-16 ★이미 없는 것은 «성공»으로 센다 — 연타에 「영구 삭제할까요」라는 거짓 경고를 띄우지 않는다', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  const el = require.cache['electron'].exports;
+  const orig = el.shell.trashItem;
+  el.shell.trashItem = async (p) => { const e = new Error('ENOENT: no such file'); e.code = 'ENOENT'; throw e; };
+  let r;
+  try { r = await H.invoke('projects:delete', id); } finally { el.shell.trashItem = orig; }
+  assert.equal(r.ok, true, '★ENOENT 를 실패로 보면 이미 안전한 프로젝트에 영구삭제를 권한다');
+  assert.equal(r.trashed, true);
+});
+
+test('U7-17 ★삭제 도중 프로젝트가 «다시 만들어지면» 성공이라고 말하지 않는다', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  const el = require.cache['electron'].exports;
+  const orig = el.shell.trashItem;
+  el.shell.trashItem = async (p) => {
+    await orig(p);
+    // await 창에서 autosave 가 끼어들어 프로젝트를 되살린 상황
+    if (String(p).endsWith(id)) { fs.mkdirSync(path.join(DIR, id), { recursive: true });
+      fs.writeFileSync(path.join(DIR, id, 'proj.json'), JSON.stringify(proj(id, sec('sec_z', '되살아남')))); }
+  };
+  let r;
+  try { r = await H.invoke('projects:delete', id); } finally { el.shell.trashItem = orig; }
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'recreated_during_delete',
+    '★「휴지통에 보냈다」고 답하는데 제자리에 프로젝트가 있으면 그건 사실이 아니다');
+});
+
+test('U7-18 «_meta.json» 잔재도 실제로 치운다 — 이 팔은 여태 픽스처가 만들지 않아 죽어 있었다', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  fs.writeFileSync(path.join(DIR, `${id}_meta.json`), '{"legacy":1}');
+  const r = await H.invoke('projects:delete', id);
+  assert.equal(r.ok, true);
+  assert.equal(fs.existsSync(path.join(DIR, `${id}_meta.json`)), false, '★_meta 잔재가 제자리에 남았다');
+  assert.ok(fs.readdirSync(H.trashDir).some(f => f.startsWith(`${id}_meta.json`)));
+});
+
+test('U7-19 ★렌더러가 «어느 경로로 빠져나가도» 화면을 다시 그린다 — 안 그리면 좀비 카드가 남는다', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../../pages/projects.html'), 'utf8');
+  const fn = src.slice(src.indexOf('async function deleteProject('), src.indexOf('/* ── 원격으로 올리기'));
+  assert.match(fn, /\}\s*finally\s*\{[\s\S]*renderGrid\(\)/,
+    '★취소·실패 return 이 renderGrid() 를 건너뛰면 이미 휴지통에 간 프로젝트의 카드가 남는다');
+  assert.match(fn, /trash_partial/, '부분 이동을 «부분»이라고 말해야 한다');
+  assert.match(fn, /_deleting/, '연타 방어');
+});

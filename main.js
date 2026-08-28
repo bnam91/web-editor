@@ -1392,18 +1392,28 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
 
   // 지울 대상 모으기 — 번들 디렉터리 + 구 flat 잔재.
   // ★flat <id>_history/ 도 «복구 재료»다(projects:load 폴백 체인이 읽는다) — 같이 휴지통으로 보낸다.
+  // ★순서가 중요하다 — «구 flat 잔재 먼저, 번들 디렉터리 나중».
+  //   반대로 하면(번들 먼저) 잔재 하나가 실패했을 때 «본체는 휴지통인데 <id>_history 는 남는» 상태가 되고,
+  //   목록의 낡은 카드를 누르면 projects:load 폴백이 그 잔재로 «옛 내용의 좀비»를 되살린다.
+  //   잔재 먼저면 최악이 「본체는 멀쩡한데 낡은 잔재만 치웠다」라 무해하다.
   const targets = [];
-  if (inBase(dirPath) && fs.existsSync(dirPath)) targets.push(dirPath);
   for (const name of [`${safeId}.json`, `${safeId}_meta.json`, `${safeId}_backup.json`, `${safeId}_history`]) {
     const p2 = path.resolve(PROJECTS_DIR, name);
     if (inBase(p2) && fs.existsSync(p2)) targets.push(p2);
   }
+  if (inBase(dirPath) && fs.existsSync(dirPath)) targets.push(dirPath);
   if (!targets.length) return { ok: true, trashed: false, reason: 'not_found', deleted: 0 };
 
   // ★휴지통에서 «찾을 수 있어야» 복구다. proj_178… 폴더가 수십 개면 자기 걸 못 고른다.
   //   ⛔디렉터리 이름은 «안» 바꾼다 — id 가 곧 디렉터리명이라 trash 실패 시 살아있는 프로젝트가 깨진다.
   //   어차피 버려질 봉투 «안»에 마커를 넣는 건 위험이 0이다.
-  if (fs.existsSync(dirPath)) {
+  // ⛔permanent 모드엔 마커가 쓸모없다(휴지통에서 찾을 일이 없다) — 안 쓴다.
+  // ⚠️symlink 로 base 밖을 가리키면 마커가 PROJECTS_DIR 밖에 써진다 → realpath 로 한 번 더 막는다.
+  let markerPath = null;
+  if (!permanent && fs.existsSync(dirPath)) {
+    let realOk = false;
+    try { realOk = fs.realpathSync(dirPath).startsWith(fs.realpathSync(projectsBase) + path.sep); } catch (_) {}
+    if (realOk) {
     try {
       let name = safeId, sections = null;
       try {
@@ -1411,29 +1421,50 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
         if (m && m.name) name = m.name;
       } catch (_) {}
       try { sections = _countSections(JSON.parse(fs.readFileSync(path.join(dirPath, 'proj.json'), 'utf8'))); } catch (_) {}
-      fs.writeFileSync(path.join(dirPath, '_deleted-info.json'),
+      markerPath = path.join(dirPath, '_deleted-info.json');
+      fs.writeFileSync(markerPath,
         JSON.stringify({ name, id: safeId, deletedAt: new Date().toISOString(), sections }, null, 2));
-    } catch (_) { /* 마커 실패는 삭제를 무르지 않는다 */ }
+    } catch (_) { markerPath = null; /* 마커 실패는 삭제를 무르지 않는다 */ }
+    }
   }
 
   const failed = [];
   let trashedCount = 0;
+  let bundleMoved = false;   // ★«우리가» 번들을 옮겼나 — 사후조건은 그때만 의미가 있다
   for (const t of targets) {
     if (permanent) {
       try { fs.rmSync(t, { recursive: true, force: true }); }
       catch (e) { failed.push({ path: path.basename(t), error: e.message }); }
     } else {
-      try { await shell.trashItem(t); trashedCount++; }
-      catch (e) { failed.push({ path: path.basename(t), error: e.message }); }
+      try { await shell.trashItem(t); trashedCount++; if (t === dirPath) bundleMoved = true; }
+      catch (e) {
+        // ★이미 없으면 «성공»이다 — 연타·경합으로 먼저 치워진 것을 실패로 보면
+        //   사용자에게 「영구 삭제할까요」라는 거짓 경고를 띄운다.
+        //   ⛔단 bundleMoved 로는 «안» 친다 — 우리가 옮긴 게 아니므로 아래 사후조건의 대상이 아니다.
+        if (e && (e.code === 'ENOENT' || /ENOENT/.test(e.message || ''))) { trashedCount++; continue; }
+        failed.push({ path: path.basename(t), error: e.message });
+      }
     }
   }
   if (failed.length) {
     // ★조용히 영구삭제로 폴백하지 «않는다». 사용자가 알고 고르게 한다.
-    console.warn('[projects:delete] 실패:', JSON.stringify(failed));
-    return { ok: false, trashed: false, reason: permanent ? 'delete_failed' : 'trash_failed',
+    // ★★그리고 «부분 이동»을 「전부 실패」로 말하지 않는다 — 초판은 trashedCount 를 «계산만 하고 안 읽어»
+    //   번들이 이미 휴지통에 간 상태에서 trashed:false 를 답했다. 그러면 렌더러가
+    //   「휴지통으로 옮길 수 없습니다 → 영구 삭제할까요」라는 «사실과 다른» 확인창을 띄운다.
+    const partial = trashedCount > 0;
+    console.warn('[projects:delete] 실패:', JSON.stringify(failed), 'moved=', trashedCount);
+    if (markerPath) { try { fs.unlinkSync(markerPath); } catch (_) {} }   // 살아남은 프로젝트에 마커를 남기지 않는다
+    return { ok: false, trashed: partial, deleted: trashedCount,
+             reason: permanent ? 'delete_failed' : (partial ? 'trash_partial' : 'trash_failed'),
              message: failed[0].error, failed };
   }
-  return { ok: true, trashed: !permanent, deleted: targets.length };
+  // ★사후조건 — await 사이에 autosave 가 프로젝트를 «다시 만들었을» 수 있다(D-U7-4 의 비동기 창).
+  //   그러면 「휴지통에 보냈다」가 사실이 아니다. 잠금 대신 결과를 확인해서 정직하게 답한다.
+  if (!permanent && bundleMoved && fs.existsSync(dirPath)) {
+    return { ok: false, trashed: true, deleted: trashedCount, reason: 'recreated_during_delete',
+             message: '삭제 도중 프로젝트가 다시 만들어졌습니다(다른 창에서 편집 중일 수 있습니다).' };
+  }
+  return { ok: true, trashed: !permanent, deleted: trashedCount };
 });
 
 
