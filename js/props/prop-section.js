@@ -276,7 +276,7 @@ async function showSectionProperties(sec) {
       <input type="text" id="sec-tpl-folder-new" class="tpl-name-input" placeholder="새 폴더 이름" style="display:none;margin-bottom:4px;">
       <input type="text" id="sec-tpl-name" class="tpl-name-input" placeholder="템플릿 이름" style="margin-bottom:4px;">
       <input type="text" id="sec-tpl-tags" class="tpl-name-input" placeholder="태그 (쉼표 구분)" style="margin-bottom:4px;">
-      <button class="prop-action-btn primary" id="sec-tpl-save-btn">저장</button>
+      <button class="prop-action-btn primary" id="sec-tpl-save-btn">템플릿으로 저장</button>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(sec.id || null);
