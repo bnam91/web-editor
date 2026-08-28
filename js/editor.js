@@ -159,8 +159,6 @@ function applyZoom(z) {
   // - zoom < 80%: 점진적으로 키워서 가독성 유지, 최대 1.6 cap (겹침 방지는 max-width+ellipsis가 담당)
   const uiScale = currentZoom >= 80 ? 1 : Math.min(1.6, 100 / currentZoom * 0.8);
   document.documentElement.style.setProperty('--ui-scale', uiScale.toFixed(4));
-  // ★배율이 바뀌면 섹션의 «화면 높이»가 바뀐다 — transform 은 레이아웃을 안 바꿔 RO 가 안 운다.
-  window.syncCanvasTailSpace?.();
 }
 
 function _applyScalerTransform() {
@@ -2028,8 +2026,23 @@ function selectSection(sec, scrollIntoView = false) {
      * ⇒ offsetTop 산수를 버리고 «실제 화면 좌표»로 잰다. transform 이 어떻든(translate·scale·
      *   나중에 rotate 가 붙어도) 맞는다 — 좌표계를 직접 읽으니 변환을 몰라도 된다. */
     const canvasWrapEl = document.getElementById('canvas-wrap');
+    const scalerEl = document.getElementById('canvas-scaler');
     const delta = sec.getBoundingClientRect().top - canvasWrapEl.getBoundingClientRect().top;
-    canvasWrapEl.scrollTo({ top: canvasWrapEl.scrollTop + delta - 40, behavior: 'smooth' });
+    const target = canvasWrapEl.scrollTop + delta - CANVAS_TAIL_GAP;
+    /* ★마지막 섹션은 «더 당길 캔버스가 없어» 40px 까지 못 온다(현빈이 원인을 짚었다).
+     *   부족한 만큼 #canvas-scaler 의 margin-bottom 을 늘린다 — margin 은 «레이아웃»이라
+     *   transform: scale 의 영향을 안 받아 1:1 로 스크롤 여유가 된다(실측 500→+500, 1000→+1000).
+     *   ⛔#canvas 안에 넣으면 «저장되는 캔버스 HTML»을 오염시킨다. scaler 밖(wrap)은
+     *     flex-direction: row 라 옆에 붙어 세로엔 기여를 안 한다. 그래서 scaler 의 margin 이다.
+     * ★공식으로 미리 계산하지 «않는다» — 매번 0 으로 되돌리고 «모자란 만큼»만 준다.
+     *   그래야 배율이 낮아 레이아웃과 화면이 어긋날 때도 정확하고, 여백이 누적되지 않는다. */
+    if (scalerEl) {
+      scalerEl.style.marginBottom = '0px';
+      const max = canvasWrapEl.scrollHeight - canvasWrapEl.clientHeight;
+      const short = target - max;
+      if (short > 0) scalerEl.style.marginBottom = Math.round(short) + 'px';
+    }
+    canvasWrapEl.scrollTo({ top: target, behavior: 'smooth' });
   }
 }
 
@@ -2641,45 +2654,12 @@ document.addEventListener('click', e => {
      빈 공간이 생긴다. 필요한 만큼만 계산한다: 보이는높이 - 40 - 마지막섹션높이.
    ⚠️transform: scale 은 «레이아웃 크기를 안 바꾼다» → ResizeObserver 가 안 운다.
      그래서 배율 변경(applyZoom)에서도 직접 부른다. */
-const CANVAS_TAIL_BASE = 40;   // 기존 padding-bottom
-/* ⚠️★padding-bottom 으로는 «스크롤 여유가 안 생긴다».
- *   content-box 에서 padding 을 키우면 clientHeight 도 같이 커져서
- *   max scroll(= scrollHeight - clientHeight) 이 그대로다. 실측으로 확인했다.
- *   ⇒ 스크롤되는 «내용 안»에 빈 요소를 넣는다. 이건 scrollHeight 만 늘린다.
- * ★#canvas-scaler «밖»에 둔다 — 안에 두면 transform: scale 이 걸려
- *   배율이 낮을 때 여백이 같이 줄어든다(정작 그때 더 필요한데). */
-function syncCanvasTailSpace() {
-  const wrap = document.getElementById('canvas-wrap');
-  if (!wrap) return;
-  let spacer = document.getElementById('canvas-tail-space');
-  if (!spacer) {
-    spacer = document.createElement('div');
-    spacer.id = 'canvas-tail-space';
-    spacer.setAttribute('aria-hidden', 'true');
-    spacer.style.cssText = 'flex:0 0 auto;pointer-events:none;';
-    wrap.appendChild(spacer);
-  }
-  const secs = wrap.querySelectorAll('.section-block:not([data-ghost])');
-  const last = secs[secs.length - 1];
-  if (!last) { spacer.style.height = '0px'; return; }
-  // 마지막 섹션의 «위»를 40px 자리까지 올리려면 그 아래에 이만큼이 있어야 한다.
-  const need = wrap.clientHeight - CANVAS_TAIL_BASE - last.getBoundingClientRect().height - spacer.getBoundingClientRect().height;
-  const cur = parseFloat(spacer.style.height) || 0;
-  spacer.style.height = Math.max(0, Math.round(cur + need)) + 'px';
-}
-window.syncCanvasTailSpace = syncCanvasTailSpace;
-{
-  const wrap = document.getElementById('canvas-wrap');
-  const canvasEl2 = document.getElementById('canvas');
-  if (wrap && canvasEl2) {
-    syncCanvasTailSpace();
-    const ro = new ResizeObserver(syncCanvasTailSpace);
-    ro.observe(canvasEl2); ro.observe(wrap);
-    window._tailResizeObserver = ro;          // 참조 보유(없으면 조용히 안 운다)
-    window.addEventListener('resize', syncCanvasTailSpace);
-  }
-}
-
+const CANVAS_TAIL_GAP = 40;   // 섹션 위에 남길 여유
+/* 꼬리 여백은 «공식»으로 못 맞춘다 — 아래 selectSection 에서 «모자란 만큼»만 늘린다.
+ * ★왜 공식이 안 되나: transform: scale 은 레이아웃 높이를 «안 줄인다».
+ *   낮은 배율에선 레이아웃 높이(수천px)와 화면상 높이가 크게 어긋나서
+ *   「보이는높이 - 40 - 마지막섹션높이」가 실제 필요량과 다르다(13% 에서 실측 어긋남).
+ * ⇒ 계산하지 말고 «재라». 목표 스크롤이 최대치를 넘으면 그 차이가 곧 필요량이다. */
 /* ═══════════════════════════════════
    FLOATING PANEL — 캔버스 중앙 추종
    ★문제: 좌우 패널을 접었다 펴면 «캔버스 영역»의 중심이 움직이는데,
