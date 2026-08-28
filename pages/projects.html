@@ -236,10 +236,14 @@ body {
 #project-grid.is-list .card-body {
   flex: 1; min-width: 0;
   display: flex; align-items: center; gap: 10px;
-  /* 오른쪽 = hover 시 뜨는 .card-actions 자리.
-     ★버튼이 3개일 때 76px 이었는데 「버전 기록(🕐)」이 붙어 4개가 됐다 — 그대로 두면 날짜와 겹친다.
-     계산: 4×22(버튼) + 3×4(gap) + 10(right) + 여유 = 110px. 버튼을 또 늘리면 여기도 같이 늘려라. */
-  padding: 6px 110px 6px 12px;
+  /* 오른쪽 = hover 시 뜨는 .card-actions 자리. 버튼 «최대 개수»에 맞춘다
+     (공유는 조건부라 2~3개 — 예약은 최대치 기준이어야 겹침이 안 난다).
+     ★산식: 3×22(버튼) + 2×4(gap) + 10(.card-actions 의 right) = 84px.
+     ⚠️2026-08-28 실측으로 잡은 것: 「버전 기록(🕐)」을 걷어내며 «옛 값 76px» 로 되돌렸더니
+       .card-date 가 액션과 8px 겹쳤다 — ★76 은 애초에 틀린 값이었다(3개면 84 다).
+       4개 시절의 110px(=4×22+3×4+10)이 정확했던 탓에 그동안 안 드러났을 뿐이다.
+       ⇒ 되돌릴 때 «옛 값»을 믿지 말고 다시 계산·실측한다. 실측: 겹침 0 · 남는 여백 0. */
+  padding: 6px 84px 6px 12px;
 }
 #project-grid.is-list .card-name { flex: 1; min-width: 0; margin-bottom: 0; }
 #project-grid.is-list .card-date { flex-shrink: 0; }
@@ -550,7 +554,6 @@ async function renderGrid() {
       <div class="card-actions">
         ${shareBtnHtml}
         ${duplicateBtnHtml}
-        <button class="card-action card-history" onclick="openVersionHistoryUI(event, '${proj.id}')" title="버전 기록 — 저장할 때마다 쌓입니다">🕐</button>
         <button class="card-action card-delete" onclick="deleteProject(event, '${proj.id}')" title="삭제">✕</button>
       </div>
     `;
@@ -656,14 +659,6 @@ function openProject(id, type) {
  *   (fsub 의 openFontSubstituteUI 와 같은 형태·같은 이유). */
 /* [U7] 삭제 진행 중인 프로젝트 — 휴지통 이동은 느릴 수 있고 그 사이 ✕ 가 살아 있다. */
 const _deleting = new Set();
-
-function openVersionHistoryUI(e, id) {
-  e.stopPropagation();          // 카드 클릭(=프로젝트 열기)으로 새지 않게
-  if (typeof window.openVersionHistory !== 'function') { alert('버전 기록은 데스크탑 앱에서만 사용할 수 있습니다.'); return; }
-  const card = e.target.closest('.project-card');
-  const name = card ? (card.querySelector('.card-name')?.textContent || '') : '';
-  window.openVersionHistory({ projectId: id, projectName: name });
-}
 
 async function deleteProject(e, id) {
   e.stopPropagation();
