@@ -32,13 +32,19 @@ function styleFromSource() {
   if (!btn) {
     throw new Error(`[panel-clip] ${path.relative(REPO, SRC)} 에서 칼럼 버튼 자체를 못 찾았다 — 마크업이 바뀌었다.`);
   }
-  const m = /style="([^"]*)"/.exec(btn[0]) || (btn[0].includes('style=') ? null : ['', '']);
-  if (!m) {
+  // ★[QA ⓐ] 초판은 「없다/비었다를 가른다」고 «적어만» 두고 둘 다 '' 로 떨어뜨렸다.
+  //   거짓 초록은 아니었지만(둘 다 exit 1) 마크업이 바뀐 걸 「픽스가 무효다」라고 «틀리게 진단»했다.
+  //   내가 바로 앞 커밋에 「실패 이유가 틀리면 진단이 틀린다」고 써놓고 한 자리를 남긴 것이다.
+  const hasAttr = /\sstyle\s*=/.test(btn[0]);
+  const m = /style\s*=\s*"([^"]*)"/.exec(btn[0]) || /style\s*=\s*'([^']*)'/.exec(btn[0]);
+  if (hasAttr && !m) {
     throw new Error(
-      `[panel-clip] ${path.relative(REPO, SRC)} 에서 칼럼 버튼의 인라인 style 을 «못 찾았다».\n` +
-      `  마크업이 바뀌었으면 이 추출기도 같이 고쳐야 한다 — 못 찾은 걸 «문제 없음»으로 넘기지 않는다.`);
+      `[panel-clip] ${path.relative(REPO, SRC)} 의 칼럼 버튼에 style 속성은 «있는데» 값을 못 읽었다.\n` +
+      `  따옴표 형태가 바뀌었거나 템플릿이 달라졌다 — 추출기를 고쳐라.\n` +
+      `  버튼: ${btn[0].slice(0, 160)}`);
   }
-  return m[1];
+  // 속성이 «아예 없다» = 인라인 스타일 없는 상태. 유효한 측정 대상이므로 '' 로 잰다.
+  return m ? m[1] : '';
 }
 
 (async () => {
