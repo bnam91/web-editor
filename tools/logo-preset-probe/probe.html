@@ -1,0 +1,130 @@
+<!doctype html>
+<!--
+  logo-preset-probe — 「패딩제외 토글이 로고 표식을 지우는가」를 «실제 핸들러»로 잰다.
+
+  ★왜 실 DOM 인가: showAssetProperties 는 propPanel.innerHTML 로 컨트롤을 그린 뒤
+    getElementById 로 찾아 이벤트를 «건다». 단위에서 dataset 만 만지면
+    「내가 흉내낸 것」을 재게 되고, 진짜 핸들러가 지우는지는 영영 안 재진다.
+  ⛔실앱(GODITOR) 불필요 — 브라우저만 있으면 된다. 격리 프로필 헤드리스 크롬으로 돈다.
+-->
+<meta charset="utf-8">
+<title>로고 프리셋 유실 실측</title>
+<link rel="stylesheet" href="../../css/editor-base.css">
+<link rel="stylesheet" href="../../css/editor-panels.css">
+<link rel="stylesheet" href="../../css/editor-props.css">
+<body style="margin:0;background:#111">
+<!-- showAssetProperties 가 기대하는 최소 구조(globals.js 가 로드 시점에 잡는다) -->
+<div id="panel-right" class="panel" style="width:240px"><div class="panel-body"></div></div>
+<div id="canvas-wrap"><div id="canvas"></div></div>
+<pre id="out" style="color:#ddd;font:11px monospace;white-space:pre-wrap"></pre>
+<script type="module">
+const R = { ok: true, env: {}, cases: [], problems: [] };
+const P = (m) => R.problems.push(m);
+try {
+  const { state } = await import('../../js/globals.js');
+  const { showAssetProperties } = await import('../../js/props/prop-asset.js');
+  // ★개수 술어는 «재구현하지 않는다» — 재구현하면 inspector.js 를 고쳐도 프로브가 안 죽는다.
+  const { logoBlocksOf } = await import('../../js/inspector.js');
+  state.pageSettings = state.pageSettings || {};
+  state.pageSettings.padX = 40;                 // 패딩제외가 «실제로 폭을 바꾸는» 조건
+  window.pushHistory = () => { R.env.pushHistory = (R.env.pushHistory || 0) + 1; };
+  // 패널이 그리면서 부르는 «주변» 훅들 — 이 프로브의 관심사가 아니라 최소 스텁으로 둔다.
+  window.getBlockBreadcrumb = () => '';
+  window.setRpIdBadge = () => {};
+  window.applyAssetFullBleed = (ab) => { ab.style.width = ''; };
+  window.renderLayerTree = () => {};
+  window.scheduleAutoSave = () => {};
+
+  const canvas = document.getElementById('canvas');
+
+  /** 실제 마크업에 가깝게 에셋 블록 하나를 만든다. */
+  function mkAsset({ preset, w, h, usePadx }) {
+    canvas.innerHTML = `<div class="section-block" id="sec_x"><div class="section-inner" data-padding-x="">
+      <div class="asset-block" id="ab_probe"></div></div></div>`;
+    const ab = document.getElementById('ab_probe');
+    if (preset) ab.dataset.preset = preset;
+    ab.dataset.usePadx = usePadx;
+    ab.style.width = w; ab.style.height = h;
+    return ab;
+  }
+
+  /** ★진짜 경로: 프로퍼티 패널을 그리고 «토글 체크박스를 실제로 클릭»한다. */
+  function toggleP(ab, checked) {
+    showAssetProperties(ab);
+    const t = document.getElementById('asset-padx-toggle');
+    if (!t) { P('asset-padx-toggle 이 안 그려졌다 — 프로브 전제가 깨졌다'); return null; }
+    t.checked = checked;
+    t.dispatchEvent(new Event('change', { bubbles: true }));
+    return t;
+  }
+
+  function snap(ab, label) {
+    const c = { label, preset: ab.dataset.preset ?? null,
+      w: ab.style.width, h: ab.style.height,
+      ml: ab.style.marginLeft, usePadx: ab.dataset.usePadx };
+    R.cases.push(c); return c;
+  }
+
+  /* ═══ ① 로고: 토글해도 표식·규격이 살아야 한다 ═══ */
+  {
+    const ab = mkAsset({ preset: 'logo', w: '200px', h: '64px', usePadx: 'false' });
+    if (!toggleP(ab, true)) throw new Error('toggle 실패');
+    const a = snap(ab, '로고 · 패딩제외 ON');
+    if (a.preset !== 'logo') P('★로고 표식이 사라졌다 — 200x64 인데 로고로 안 세어진다(현빈 신고 그 상태)');
+    if (a.w !== '200px' || a.h !== '64px') P(`★로고 규격이 깨졌다 (${a.w} × ${a.h}) — 표식만 지키고 폭을 안 잡았다`);
+    if (a.ml) P(`★로고에 음수 마진이 붙었다 (${a.ml}) — Logo 는 usePadx 를 «무시»하는 게 정의다`);
+
+    toggleP(ab, false);
+    const b = snap(ab, '로고 · 패딩제외 OFF(되돌림)');
+    if (b.preset !== 'logo') P('★되돌릴 때 표식이 사라졌다');
+    if (b.w !== '200px' || b.h !== '64px') P(`★되돌릴 때 규격이 깨졌다 (${b.w} × ${b.h})`);
+  }
+
+  /* ═══ ② ★양성대조 — 일반(프리셋 없음)은 «원래대로» 폭이 재계산돼야 한다 ═══ */
+  {
+    const ab = mkAsset({ preset: null, w: '600px', h: '400px', usePadx: 'false' });
+    toggleP(ab, true);
+    const c = snap(ab, '일반 · 패딩제외 ON');
+    if (!c.ml) P('★일반 블록에 음수 마진이 «안» 붙었다 — 로고 수정이 다른 경로까지 죽였다');
+    if (c.usePadx !== 'true') P('★usePadx 상태가 기록되지 않았다');
+  }
+
+  /* ═══ ③ ★a4 는 기존 동작(표식 해제)을 유지해야 한다 — 폭이 실제로 재계산되므로 ═══ */
+  {
+    const ab = mkAsset({ preset: 'a4', w: '410px', h: '580px', usePadx: 'false' });
+    toggleP(ab, true);
+    const d = snap(ab, 'a4 · 패딩제외 ON');
+    if (d.preset === 'a4') P('★a4 표식이 남았다 — a4 는 폭이 재계산되므로 해제가 맞다(로고와 다르다)');
+  }
+
+  /* ═══ ④ 개수 근사 — 「표식 ∪ 200x64」 ═══ */
+  {
+    canvas.innerHTML = `<div class="section-block"><div class="section-inner">
+      <div class="asset-block" data-preset="logo" style="width:200px;height:64px"></div>
+      <div class="asset-block" style="width:200px;height:64px"></div>
+      <!-- ★표식은 있는데 규격이 아닌 것 — 로고를 «리사이즈»하면 생긴다(표식은 남고 크기만 변한다).
+           이게 없으면 「표식 branch 를 지워도 초록」이 된다(합집합의 한쪽이 안 재진다). -->
+      <div class="asset-block" data-preset="logo" style="width:300px;height:90px"></div>
+      <div class="asset-block" style="width:780px;height:500px"></div>
+      <div class="asset-block" style="height:640px"></div>
+    </div></div>`;
+    const abs = [...document.querySelectorAll('.asset-block')];
+    const byMark = abs.filter(ab => ab.dataset.preset === 'logo').length;
+    const byUnion = logoBlocksOf(abs).length;         // ★진짜 함수를 쓴다
+    R.env.countByMark = byMark; R.env.countByUnion = byUnion; R.env.assets = abs.length;
+    const bySize = abs.filter(ab => parseInt(ab.style.width) === 200 && parseInt(ab.style.height) === 64).length;
+    R.env.countBySize = bySize;
+    if (byUnion !== 3) P(`★합집합 개수가 3이 아니다 (${byUnion}) — 표식/규격 중 한쪽만 세고 있다`);
+    if (byMark !== 2) P(`전제 확인 실패 — 표식만 세면 2 여야 한다 (${byMark})`);
+    if (bySize !== 2) P(`전제 확인 실패 — 규격만 세면 2 여야 한다 (${bySize})`);
+    // ★두 갈래가 «서로 다른 것»을 잡아야 합집합이 의미가 있다(둘 다 지워보면 각각 죽는다)
+    if (byMark === byUnion) P('★표식만 세도 합집합과 같다 — 규격 갈래가 안 재진다');
+    if (bySize === byUnion) P('★규격만 세도 합집합과 같다 — 표식 갈래가 안 재진다');
+  }
+} catch (e) {
+  P('프로브가 던졌다: ' + (e && e.message));
+}
+R.ok = R.problems.length === 0;
+window.__RESULT = R;
+document.getElementById('out').textContent = JSON.stringify(R, null, 1);
+</script>
