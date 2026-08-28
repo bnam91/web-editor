@@ -90,7 +90,7 @@
       blocksText:   cur.counts ? String(cur.counts.blocks)   : '—',
       imagesText:   cur.counts ? String(cur.counts.images)   : '—',
       sizeText: formatBytes(cur.bytes),
-      lost: [], lostText: '', pending: false, legacy: false, pinned: false, reason: 'current',
+      lost: [], lostText: '', lossUnknown: false, pending: false, legacy: false, pinned: false, reason: 'current',
     } : null;
 
     const rows = (list.entries || []).map((e) => {
@@ -109,6 +109,10 @@
         // ★헤드라인 — 이 버전엔 있는데 지금은 없는 섹션
         lost: (loss && loss.lost) || [],
         lostText: formatLossText(loss, e),
+        // ★[B] «모른다»는 UI 가 문구를 «문자열 비교»해서 알아내면 안 된다.
+        //   초판은 `r.lostText === '비교 불가'` 로 판정했다 — 문구를 한 글자만 다듬으면
+        //   「⚠️ 비교 불가」처럼 경고 아이콘이 붙는다(모르는 걸 경보로 만든다). 상태를 «값»으로 준다.
+        lossUnknown: e.pending === true || !comparable,
         gainedCount: (loss && loss.gained && loss.gained.length) || 0,
         pending: e.pending === true,
         legacy: e.canon === 0,

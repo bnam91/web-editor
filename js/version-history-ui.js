@@ -80,7 +80,9 @@
     const meta = `<div class="vhist-meta">섹션 ${_esc(r.sectionsText)} · 블록 ${_esc(r.blocksText)}`
       + ` · 이미지 ${_esc(r.imagesText)} · ${_esc(r.sizeText)}</div>`;
     // ★손실 0 이면 줄 자체를 안 그린다. 사고 직후 화면에서 노이즈가 제일 해롭다.
-    const unknown = r.lostText === '비교 불가' || r.lostText === '아직 분석 안 함';
+    // ★[B] 문구를 «문자열 비교»하지 않는다 — 데이터 계층이 상태를 값으로 준다(lossUnknown).
+    //   문자열 비교는 문구를 다듬는 순간 조용히 어긋나 「⚠️ 비교 불가」가 된다(모름을 경보로 만든다).
+    const unknown = r.lossUnknown === true;
     const loss = r.lostText
       ? `<div class="vhist-loss${unknown ? ' is-unknown' : ''}">${unknown ? '' : '⚠️ '}${_esc(r.lostText)}</div>` : '';
     // ★현빈 확정(Q2): 「이 버전으로 교체」가 «기본»(primary). 사본은 보조.

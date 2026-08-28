@@ -159,3 +159,24 @@ test('VH15 «지금»을 알면 정상 비교한다 — 위 두 개가 느슨해
   const r = VH.buildRows(listOf([entry()], current()), { now: NOW });
   assert.deepEqual(r.rows[0].lost.map(x => x.n), ['B', 'C'], '★양성대조 — 비교 자체는 살아 있어야 한다');
 });
+
+/* ═══ [B] «모른다»는 값으로 흐른다 — 문구 문자열에 기대지 않는다 ═══════════ */
+
+test('VH16 ★lossUnknown 이 «값»으로 나온다 — UI 가 문구를 문자열 비교하지 않게', () => {
+  const unk = VH.buildRows(listOf([entry()], null), { now: NOW });
+  assert.equal(unk.rows[0].lossUnknown, true, '★current 없음 = 비교 불가인데 값으로 안 나온다');
+  const pend = VH.buildRows(listOf([{ ...entry(), pending: true }], current()), { now: NOW });
+  assert.equal(pend.rows[0].lossUnknown, true, '★미분석도 「모른다」다');
+  const ok = VH.buildRows(listOf([entry()], current()), { now: NOW });
+  assert.equal(ok.rows[0].lossUnknown, false, '★양성대조 — 비교되는 행까지 모름으로 칠하면 안 된다');
+  assert.equal(ok.currentRow.lossUnknown, false);
+});
+
+test('VH17 ★UI 가 문구를 «문자열 비교»해서 상태를 알아내지 않는다', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../../js/version-history-ui.js'), 'utf8');
+  // 주석(=설명문)은 걷어내고 «코드»만 본다 — 초판 테스트가 내 해설 주석과 매칭돼 헛통과했다.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  assert.ok(!/lostText\s*===/.test(code),
+    '★lostText 를 문자열 비교하고 있다 — 문구를 한 글자 다듬는 순간 「⚠️ 비교 불가」가 된다');
+  assert.ok(/lossUnknown/.test(code), '★상태 값을 안 쓰고 있다');
+});
