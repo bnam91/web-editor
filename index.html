@@ -1258,6 +1258,35 @@
     };
   })();
 </script>
+<script>
+/* ★[FIGMA 킬스위치] 현빈 지시로 이번 MVP 에서 Figma 연동을 «제외»한다.
+ *   마크업·코드는 «지우지 않고» 표시만 차단한다 — 다음 런칭에 FIGMA_ENABLED=true 한 글자로 돌아온다.
+ *   ⛔「이미지로 내보내기(PNG)」·「JSON 내보내기」·「불러오기」·「참고 이미지 일괄 추가」는 건드리지 않는다.
+ *   ⛔Plugins 패널의 Iconify 는 Figma 무관이라 «남긴다».
+ *   ★메뉴만 감추고 뒤에서 브릿지가 도는 게 최악이라, 상태조회(initFigmaBridge)도 무력화한다. */
+(function () {
+  if (window.FIGMA_ENABLED) return;
+  const hide = (el) => { if (el) el.style.display = 'none'; };
+  const run = () => {
+    hide(document.getElementById('figma-bridge-item'));            // Figma Bridge
+    hide(document.getElementById('figma-import-file-input')?.closest('.pub-dd-item'));  // Figma 가져오기
+    document.querySelectorAll('.pub-dd-item').forEach(el => {
+      const t = (el.textContent || '').trim();
+      if (t.startsWith('Figma 업로드')) hide(el);
+    });
+    hide(document.getElementById('plugin-figma-upload'));
+    document.querySelectorAll('.fp-plugin-item').forEach(el => {
+      const n = el.querySelector('.fp-plugin-name');
+      if (n && /^Figma /.test(n.textContent.trim())) hide(el);     // Figma Upload / Figma Import
+    });
+    // 브릿지 배경 동작 차단 — 상태조회조차 안 돈다.
+    window.initFigmaBridge = () => {};
+    window.toggleFigmaBridge = () => {};
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
+  else run();
+})();
+</script>
 <script src="js/checklist-data.js"></script>
 <script src="js/checklist-panel.js"></script>
 <!-- ══════════════════════════

@@ -41,3 +41,12 @@ window.COLLAB_ENABLED = COLLAB_ENABLED;
  * ⚠️이미 마켓으로 받은 로컬 프로젝트는 그대로 남는다 — 데이터는 안 건드린다. */
 export const MARKET_ENABLED = false;
 window.MARKET_ENABLED = MARKET_ENABLED;
+
+/** ★킬스위치: Figma 연동 — 이번 MVP 에서 «제외»한다(현빈 2026-08-28).
+ * false 면 아래가 «그려지지 않고», 브릿지 상태 조회·기동도 안 돈다:
+ *   ⒜ Export 드롭다운의 Figma Bridge · Figma 업로드 · Figma 가져오기
+ *   ⒝ Plugins 패널의 Figma Upload · Figma Import  (★Iconify 는 Figma 무관이라 «남긴다»)
+ * ★메뉴만 감추고 뒤에서 도는 게 최악이라, 드롭다운 열 때 도는 initFigmaBridge 도 막는다.
+ * ★되돌리기 = true 하나. 코드는 그대로 두었으니 다음 런칭에 한 글자로 켠다. */
+export const FIGMA_ENABLED = false;
+window.FIGMA_ENABLED = FIGMA_ENABLED;
