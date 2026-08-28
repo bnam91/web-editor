@@ -546,3 +546,88 @@ test('ID6 gained 가 «두 번 세지» 않는다 — 맞물린 현재 섹션은
   assert.deepEqual(r.gained.map(x => x.n), ['새섹션']);
   assert.equal(r.keptCount, 1);
 });
+
+/* ═══ [C3검수 중대③] L1/L2 가 «한 신원 규약»을 쓴다 ══════════════════════
+ * 초판은 L2 만 `pageId::id` 전체 키로 맞춰서, 같은 행의 요약과 상세가 정반대를 말했다.
+ * 이 파일 헤더가 스스로 「거짓 경보」라 부른 그 동작이 L2 에 그대로 남아 있었다.
+ */
+
+test('L12-1 ★섹션을 다른 페이지로 «옮기기만» 해도 사라졌다고 말하지 않는다', () => {
+  const snap = { page_1: sec('sec_hero', '상단 배너') + sec('sec_detail', '상세컷 3'), page_2: '' };
+  const cur  = { page_1: sec('sec_hero', '상단 배너'), page_2: sec('sec_detail', '상세컷 3') };
+  const d = VD.changeDiff(snap, cur, P);
+  assert.deepEqual(names(d.lost), [], '★드래그로 페이지만 옮겼는데 «없어진 섹션»으로 빨갛게 뜬다(거짓 경보)');
+  assert.deepEqual(names(d.gained), [], '★같은 섹션이 «새로 생긴 것»으로도 세진다');
+  assert.equal(d.summary.same, 2, `내용이 안 바뀌었으면 「같음」이다 (same=${d.summary.same})`);
+});
+
+test('L12-2 ★L1 과 L2 가 «같은 답»을 낸다 — 한 행의 요약과 상세가 어긋나면 안 된다', () => {
+  const snap = { page_1: sec('sec_a', 'A') + sec('sec_b', 'B'), page_2: '' };
+  const cur  = { page_1: sec('sec_a', 'A'), page_2: sec('sec_b', 'B') };
+  // L1 은 인덱스의 secs 로 판단한다 — 같은 이동을 그 모양으로 표현한다.
+  const l1 = VD.lossDiff(S(['page_1::sec_a', 'A'], ['page_1::sec_b', 'B']),
+                         S(['page_1::sec_a', 'A'], ['page_2::sec_b', 'B']));
+  const l2 = VD.changeDiff(snap, cur, P);
+  assert.deepEqual(names(l1.lost), [], '전제: L1 은 이미 옳다');
+  assert.deepEqual(names(l2.lost), names(l1.lost),
+    `★같은 상황에서 L1 은 손실 ${l1.lost.length}, L2 는 ${l2.lost.length} 이라고 말한다`);
+});
+
+test('L12-3 ★페이지 키가 통째로 달라도(v1 «page» ↔ v2 «page_17») 전량 손실이 아니다', () => {
+  const snap = { page: sec('sec_a', 'A') + sec('sec_b', 'B') };
+  const cur  = { page_17: sec('sec_a', 'A') + sec('sec_b', 'B') };
+  const d = VD.changeDiff(snap, cur, P);
+  assert.deepEqual(names(d.lost), [], '★스키마 v1 스냅샷을 열면 모든 섹션이 사라졌다고 말한다');
+  assert.equal(d.summary.same, 2);
+});
+
+test('L12-4 ★진짜 삭제는 여전히 잡는다 — 신원 통일이 손실 탐지를 끈 게 아니다(양성대조)', () => {
+  const snap = { page_1: sec('sec_a', 'A') + sec('sec_gone', '사라질 섹션') };
+  const cur  = { page_1: sec('sec_a', 'A') };
+  const d = VD.changeDiff(snap, cur, P);
+  assert.deepEqual(names(d.lost), ['사라질 섹션']);
+  assert.deepEqual(names(d.gained), []);
+});
+
+test('L12-5 ★옮기면서 «내용도» 바꾸면 «달라진 섹션»이다(사라진 게 아니라)', () => {
+  const snap = { page_1: sec('sec_x', '배너', '<p>원래</p>'), page_2: '' };
+  const cur  = { page_1: '', page_2: sec('sec_x', '배너', '<p>바뀜</p>') };
+  const d = VD.changeDiff(snap, cur, P);
+  assert.deepEqual(names(d.lost), []);
+  assert.deepEqual(names(d.changed), ['배너']);
+});
+
+test('L12-6 id 없는 섹션은 «위치»라 페이지를 넘으면 같다고 안 한다 — L1 과 같은 판단', () => {
+  const snap = { page_1: '<div class="section-block" data-name="이름없음"></div>', page_2: '' };
+  const cur  = { page_1: '', page_2: '<div class="section-block" data-name="이름없음"></div>' };
+  const d = VD.changeDiff(snap, cur, P);
+  assert.equal(d.lost.length, 1, '★noid 는 신원이 아니다 — 조용히 「같음」으로 접으면 살릴 수 있던 걸 못 살린다');
+  assert.equal(d.gained.length, 1);
+});
+
+/* ═══ [C3검수 중대⑤] 혼재 판정은 «접을 수 있는 base64»로 잰다 ════════════ */
+
+const B64IMG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+const SVGURI = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22%3E%3C/svg%3E';
+
+test('MX1 ★정규형 스냅샷에 «비base64 SVG» 가 하나 있어도 혼재 경고가 살아있다', () => {
+  // 스냅샷 = 정규형(goya-asset) + SVG data URI 하나 / 현재 = 인라인 base64 40장
+  const snap = { p: sec('s1', 'A', `<img src="goya-asset://x/aa.png"><img src="${SVGURI}">`) };
+  const cur  = { p: sec('s1', 'A', `<img src="${B64IMG}">`) };
+  const d = VD.changeDiff(snap, cur, P);
+  assert.equal(d.mixedEncoding, true,
+    '★「data:image 가 있나」로 재면 양쪽 다 true → 경고가 사라진다. '
+    + '가짜 변경의 벽이 필요한 바로 그때 벽만 남고 설명이 없어진다');
+});
+
+test('MX2 ★양쪽 다 정규형이면 «경고 없음» — 아무 때나 경고하지 않는다(양성대조)', () => {
+  const snap = { p: sec('s1', 'A', `<img src="goya-asset://x/aa.png"><img src="${SVGURI}">`) };
+  const cur  = { p: sec('s1', 'A', `<img src="goya-asset://x/bb.png"><img src="${SVGURI}">`) };
+  assert.ok(!VD.changeDiff(snap, cur, P).mixedEncoding);
+});
+
+test('MX3 양쪽 다 인라인 base64 면 «같은 좌표계»라 경고 없음', () => {
+  const snap = { p: sec('s1', 'A', `<img src="${B64IMG}">`) };
+  const cur  = { p: sec('s1', 'A', `<img src="${B64IMG}">`) };
+  assert.ok(!VD.changeDiff(snap, cur, P).mixedEncoding);
+});

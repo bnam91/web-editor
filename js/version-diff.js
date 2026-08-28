@@ -172,18 +172,32 @@
       throw new Error('version-diff.changeDiff: DOMParser 가 없다 (opts.DOMParser 로 주입하라)');
     }
 
-    const S = _collect(snapCanvasMap, DP);
-    const C = _collect(curCanvasMap, DP);
+    /* ★[C3검수 중대③] «신원»은 L1 과 «같은» 규약이어야 한다 — `_idOf(k)`(섹션 id) 다.
+     *   초판은 여기서만 `pageId::id` 전체 키로 맞춰서, 섹션을 1페이지→2페이지로 드래그만 해도
+     *   같은 행이 정반대를 말했다:
+     *     행 요약(L1)  = 손실 줄 없음
+     *     펼친 패널(L2) = − 지금은 없는 섹션 1 … / + 그 뒤에 생긴 섹션 1 …  ← 같은 섹션이다
+     *   이 파일 헤더가 스스로 「키 전체로 비교하면 멀쩡히 살아 있는 섹션을 사라졌다고 말한다 —
+     *   복구 도구에서 그건 거짓 경보」라고 적어놓고 L1 만 고친 상태였다.
+     *   스냅샷 v1(page key 'page') ↔ 현재 v2('page_17') 조합에선 «전량 손실»까지 간다.
+     *   ⇒ 두 층이 한 신원 규약을 쓴다. 페이지는 «위치»고 섹션 id 가 «신원»이다(설계 §6-3). */
+    const byIdentity = (m) => {
+      const o = new Map();
+      for (const [k, v] of m) { const id = _idOf(k); if (!o.has(id)) o.set(id, v); }  // 먼저 나온 것이 이긴다(L1 과 같은 규율)
+      return o;
+    };
+    const S = byIdentity(_collect(snapCanvasMap, DP));
+    const C = byIdentity(_collect(curCanvasMap, DP));
 
     const changed = [], lost = [], gained = [];
     let same = 0;
-    for (const [k, s] of S) {
-      const c = C.get(k);
-      if (!c) { lost.push({ k, n: s.n }); continue; }
+    for (const [id, s] of S) {
+      const c = C.get(id);
+      if (!c) { lost.push({ k: s.k, n: s.n }); continue; }
       if (_hash(_norm(s.el)) === _hash(_norm(c.el))) same++;
-      else changed.push({ k, n: c.n || s.n });     // 이름은 «지금» 것을 쓴다(사용자가 지금 보는 이름)
+      else changed.push({ k: c.k, n: c.n || s.n });   // 이름은 «지금» 것을 쓴다(사용자가 지금 보는 이름)
     }
-    for (const [k, c] of C) if (!S.has(k)) gained.push({ k, n: c.n });
+    for (const [id, c] of C) if (!S.has(id)) gained.push({ k: c.k, n: c.n });
 
     const result = {
       changed, lost, gained,
@@ -196,7 +210,7 @@
       },
     };
     // 싸구려 방어 — indexOf 2회. 정규화는 «시도하지 않는다»(호출측 책임).
-    if (_hasInlineImage(snapCanvasMap) !== _hasInlineImage(curCanvasMap)) result.mixedEncoding = true;
+    if (_hasFoldableBase64(snapCanvasMap) !== _hasFoldableBase64(curCanvasMap)) result.mixedEncoding = true;
     return result;
   }
 
@@ -242,11 +256,18 @@
     return n || id || NO_NAME;
   }
 
-  function _hasInlineImage(canvasMap) {
+  /* ★[C3검수 중대⑤] 물음은 「data:image 가 있나」가 아니라 «우리가 접는 것(base64)이 남았나»다.
+   *   externalizer/canonicalize 는 base64 data URI «만» 접는다(비base64 SVG 는 대상 밖) —
+   *   snapshot-store 의 canonOf 가 [M4] 로 이미 같은 교훈을 겪은 자리다.
+   *   초판은 indexOf('data:image') 라서, 정규형 스냅샷에 비base64 SVG 가 «하나만» 있어도
+   *   양쪽 모두 true → 대칭 비교가 false → «가짜 변경의 벽»이 필요한 바로 그때 경고가 사라졌다.
+   *   ⇒ externalizer 와 같은 규약(js/io/asset-externalize.js:19)으로 잰다. */
+  const FOLDABLE_B64 = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+=*/;
+  function _hasFoldableBase64(canvasMap) {
     if (!canvasMap || typeof canvasMap !== 'object') return false;
     for (const pid of Object.keys(canvasMap)) {
       const v = canvasMap[pid];
-      if (typeof v === 'string' && v.indexOf('data:image') !== -1) return true;
+      if (typeof v === 'string' && FOLDABLE_B64.test(v)) return true;
     }
     return false;
   }
