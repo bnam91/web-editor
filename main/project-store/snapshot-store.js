@@ -30,7 +30,10 @@ const crypto = require('crypto');
 const X = require('./externalizer');
 
 /* ── 정책 상수 ───────────────────────────────────────────────────────────── */
-const SCHEMA        = 1;
+// ★[C1] 2 로 올린다 — v1 인덱스는 «깨진 정규식으로 계산된 지문»을 담고 있다.
+//   그대로 두면 옛 스냅샷들이 계속 거짓말한다(지운 섹션이 손실에 안 뜨고, 안 지운 게 뜬다).
+//   readIndex 가 v!==SCHEMA 를 거부하므로, 다음 접근에서 «자동 재빌드»된다(읽기 예산제가 비용을 묶는다).
+const SCHEMA        = 2;
 const MIN_GAP_MS    = 10 * 60 * 1000;   // 자동 스냅샷 간격 게이트(저장 폭주 방지)
 const RECENT_KEEP   = 20;               // 최근 N개는 무조건 보존
 const DAILY_DAYS    = 30;               // 최근 D일, 각 날짜의 «마지막» 1개 보존 (Q5 현빈 확정: 14→30)
@@ -58,7 +61,13 @@ const PINNED_REASONS = new Set(['pre-restore', 'manual']);
 /* ── 지문 정규식 — «싸구려»가 요구사항이다(저장 경로에 얹힌다) ─────────────
  * 실측(39.6MB canvas): SEC_OPEN 16ms · BLOCK_ID 7ms · 이미지 2종 20ms · secs 추출 8ms.
  * 합계 45ms 라 스로틀이 필요 없다 — 추측했으면 안 넣어도 될 스로틀을 넣었을 것이다. */
-const SEC_OPEN = /<div class="section-block"[^>]*>/g;
+// ★[C1 치명] 닫는 " 를 강제하면 `class="section-block selected"` 를 «통째로» 놓친다.
+//   런타임 클래스가 저장본에 새는 건 팀이 이미 아는 사실이다(js/version-diff.js:31 _RUNTIME_CLS 가
+//   바로 그 selected/group-selected 를 벗긴다) — L1 정규식만 반영이 안 돼 있었다.
+//   결과가 «거짓 안심»이라 제일 나쁘다: 지운 섹션이 손실 목록에 «안 뜨고», 안 지운 섹션이 뜬다.
+//   ⚠️라이브 실데이터 67개 중 9개(13%)가 이 상태였다. 전제 검증: section-block 태그 2,121건 전부
+//   «div + class 가 첫 속성» — 그래서 한 글자(`[ "]`)로 닫힌다.
+const SEC_OPEN = /<div class="section-block[ "][^>]*>/g;
 // 앱의 genId 규약(sec_/ab_/tb_/gb_…). svg 내부의 id="lnr-grad-1" 같은 건 하이픈 때문에 안 걸린다.
 // ★id 를 «캡처»한다 — 섹션 id 를 집합으로 빼야 blocks 가 정확해진다(아래 주석).
 const BLOCK_ID = / id="([a-z0-9]{1,6}_[a-z0-9]{4,})"/gi;
@@ -301,7 +310,7 @@ function fingerprint(data) {
  * JSON 안에서 캔버스의 " 는 \" 로 이스케이프돼 있다. 그걸 그대로 노린다.
  * ⚠️ 정규 경로(fingerprint)와 «두 구현»이 되므로 드리프트 위험이 있다 → 8MB 초과 슬롯에만 쓰고,
  *    단위테스트가 두 경로의 동치를 대조한다(실슬롯 15개 차분검증 통과). */
-const SEC_OPEN_ESC  = /<div class=\\"section-block\\"[^>]*>/g;
+const SEC_OPEN_ESC  = /<div class=\\"section-block[ \\][^>]*>/g;   // [C1] 이스케이프판도 같은 이유
 const ATTR_ID_ESC   = / id=\\"([^\\"]*)\\"/;
 const ATTR_NAME_ESC = / data-name=\\"([^\\"]*)\\"/;
 // ⚠️ JSON 은 «/ 를 이스케이프하지 않는다» — 닫는 태그는 </span> 그대로다.
@@ -368,6 +377,7 @@ function rebuildIndex(projectsDir, projectId, opts = {}) {
   const prev = readJsonOrNull(p.index);
   const prevByTs = new Map(((prev && prev.entries) || []).map(e => [e.ts, e]));
   const pins = readPins(projectsDir, projectId); // [F2] 인덱스를 잃어도 핀은 여기서 되살아난다
+  const schemaSame = !!(prev && prev.v === SCHEMA);   // ★[C1] 스키마가 다르면 옛 계산을 못 믿는다
   // [F7] ★최신 슬롯부터 예산만큼만 «읽는다». 이미 분석된 항목은 다시 읽지 않는다.
   const newestFirst = slotFiles(p.history).slice().reverse();
   let budget = opts.byteBudget != null ? opts.byteBudget : REBUILD_BYTE_BUDGET;
@@ -380,7 +390,9 @@ function rebuildIndex(projectsDir, projectId, opts = {}) {
     const pinReason0 = pins[String(ts)] || (PINNED_REASONS.has(old.reason) ? old.reason : null);
 
     // 이미 분석된 항목은 그대로 승계(핀만 최신화) — 읽지 않는다.
-    if (old.counts && old.pending !== true && old.bytes === st.size) {
+    // ★[C1] 단 «스키마가 다르면» 승계하지 않는다. 그 지름길이 스키마 무효화를 통째로 무력화해서,
+    //   깨진 정규식으로 찍힌 지문이 재빌드를 지나서도 살아남는다(테스트 C1c 가 이걸 잡았다).
+    if (schemaSame && old.counts && old.pending !== true && old.bytes === st.size) {
       idx.entries.push({ ...old, reason: pinReason0 || old.reason || 'auto', pinned: !!pinReason0 });
       continue;
     }
@@ -421,7 +433,9 @@ function rebuildIndex(projectsDir, projectId, opts = {}) {
     });
   }
   idx.entries.sort((a, b) => a.ts - b.ts);
-  if (prev && prev.current) idx.current = prev.current;
+  // ★[C1] 스키마가 바뀐 인덱스의 current 는 «옛 계산»이라 그대로 이어받으면 안 된다.
+  //   mtime 은 안 바뀌어 listVersions 의 신선도 판정에도 안 걸리므로, 여기서 명시적으로 버린다.
+  if (prev && prev.current && prev.v === SCHEMA) idx.current = prev.current;
   return writeIndex(projectsDir, projectId, idx);
 }
 
@@ -637,7 +651,15 @@ function listVersions(projectsDir, projectId) {
   if (!stale) {
     try { stale = fs.statSync(p.proj).mtimeMs > (idx.current.projMtimeMs || 0); } catch (_) { stale = false; }
   }
-  if (stale) {
+  // ★[C2] proj.json 을 못 읽으면 «옛 current 를 그대로 들고 나가지 않는다».
+  //   그러면 프로젝트가 없는데 「지금 섹션 3」이라 표시하고 모든 버전이 「같다」고 답한다 —
+  //   거짓 안심이다. 정직한 답은 current:null 이고, 렌더러가 「비교 불가」로 말한다.
+  //   ⚠️proj.json 이 깨진 상황이 «이 기능을 여는 바로 그 상황»이라 이 경로가 특히 중요하다.
+  let projReadable = true;
+  try { projReadable = fs.existsSync(p.proj) && readJsonOrNull(p.proj) !== null; } catch (_) { projReadable = false; }
+  if (!projReadable) idx = { ...idx, current: null };
+
+  if (projReadable && stale) {
     // [F7] ★목록은 «사고 직후» 열리는 화면이다. 디스크가 읽기전용이거나 꽉 차서 인덱스를 못 써도
     //   목록이 죽으면 안 된다 — 기록에 실패하면 «메모리에서만» 계산해 돌려준다.
     const cur = readJsonOrNull(p.proj);

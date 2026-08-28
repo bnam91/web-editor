@@ -136,3 +136,26 @@ test('VH12 ★U3 데이터 계층은 DOM 을 안 만진다 — 진입점은 현�
     assert.ok(!src.includes(t), `★${t} 가 들어왔다 — 이 단계는 순수 데이터 계층이어야 한다`);
   }
 });
+
+/* ═══ C2 + 1차 중대4 — 「지금」을 모르면 «비교 불가»다 (양방향 거짓말 봉인) ══ */
+
+test('VH13 ★current 가 null 이면 «전량 손실»이라 말하지 않는다 (거짓 경보)', () => {
+  const r = VH.buildRows(listOf([entry()], null), { now: NOW });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.rows[0].lost, [], '★빈 배열과 비교하면 전 버전이 「전부 사라졌다」가 된다');
+  assert.equal(r.rows[0].lostText, '비교 불가');
+  assert.equal(r.currentRow, null, '기준점이 없으면 「지금」 행도 없어야 한다');
+});
+
+test('VH14 ★current.secs 가 없어도 «비교 불가» — 조용히 0으로 세지 않는다', () => {
+  for (const bad of [{ ts: NOW, counts: { sections: 3 } }, { ts: NOW, secs: null }, { ts: NOW, secs: 'x' }]) {
+    const r = VH.buildRows(listOf([entry()], bad), { now: NOW });
+    assert.equal(r.rows[0].lostText, '비교 불가', `secs=${JSON.stringify(bad.secs)}`);
+    assert.deepEqual(r.rows[0].lost, []);
+  }
+});
+
+test('VH15 «지금»을 알면 정상 비교한다 — 위 두 개가 느슨해서 초록인 게 아님을 확인', () => {
+  const r = VH.buildRows(listOf([entry()], current()), { now: NOW });
+  assert.deepEqual(r.rows[0].lost.map(x => x.n), ['B', 'C'], '★양성대조 — 비교 자체는 살아 있어야 한다');
+});

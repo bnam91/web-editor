@@ -77,6 +77,10 @@
     }
     const cur = list.current || null;
     const curSecs = (cur && cur.secs) || [];
+    // ★[C2 + 1차 중대4] «지금»을 모르면 비교가 성립하지 않는다. 둘 중 어느 쪽으로도 답하면 안 된다:
+    //   빈 배열로 비교하면 전 버전이 «전량 손실»(거짓 경보), 옛 current 를 쓰면 «전량 동일»(거짓 안심).
+    //   둘 다 사고 직후에 사용자를 틀린 방향으로 민다. ⇒ 「비교 불가」라고 말한다(§P-1).
+    const comparable = !!(cur && Array.isArray(cur.secs));
 
     const currentRow = cur ? {
       isCurrent: true, ts: cur.ts || now,
@@ -90,7 +94,7 @@
     } : null;
 
     const rows = (list.entries || []).map((e) => {
-      const loss = e.pending ? null : _lossDiff(e.secs || [], curSecs);
+      const loss = (e.pending || !comparable) ? null : _lossDiff(e.secs || [], curSecs);
       return {
         isCurrent: false,
         ts: e.ts,

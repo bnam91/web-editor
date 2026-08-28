@@ -13,6 +13,13 @@ const os = require('os');
 const path = require('path');
 const SS = require('../../main/project-store/snapshot-store');
 
+/** version-diff.js 는 브라우저 IIFE — 가짜 window 에 얹어 «진짜» lossDiff 를 쓴다(재구현 금지). */
+function loadVersionDiff() {
+  const win = {};
+  new Function('window', fs.readFileSync(path.join(__dirname, '../../js/version-diff.js'), 'utf8'))(win);
+  return win.versionDiff;
+}
+
 const MIN = 60 * 1000, DAY = 86400000;
 const NOW = 1_787_700_000_000;
 const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
@@ -337,4 +344,76 @@ test('F7e 미룬 항목도 프룬이 «레거시»로 보호한다 — 분석 �
   SS.pruneVersions(root, 'p', { now: NOW + 25 * 11 * MIN });
   assert.ok(fs.existsSync(path.join(hd, `${NOW - 300 * DAY}.json`)),
     '★아직 안 읽어본 슬롯을 지웠다 — 내용을 모르는 채로 버리는 건 복구 도구가 할 일이 아니다');
+});
+
+/* ═══ 2차 적대검수 — 거짓 안심 계열 ══════════════════════════════════════ */
+
+test('C1 ★런타임 클래스가 붙은 섹션을 «놓치지» 않는다 — 놓치면 「지워도 손실 0」이라 말한다', () => {
+  // 저장본에 selected/group-selected 가 새는 건 팀이 이미 아는 사실이다
+  // (js/version-diff.js 의 _RUNTIME_CLS 가 바로 그걸 벗긴다). L1 정규식만 반영이 안 돼 있었다.
+  const canvas = '<div class="section-block" id="sec_a" data-name="멀쩡"></div>'
+    + '<div class="section-block selected" id="sec_b" data-name="핵심 카피"></div>'
+    + '<div class="section-block group-selected editing" id="sec_c" data-name="셋째"></div>';
+  const fp = SS.fingerprint({ id: 'p', version: 2, pages: [{ id: 'page_1', canvas }] });
+  assert.equal(fp.counts.sections, 3, '★런타임 클래스가 붙으면 섹션이 통째로 사라진다');
+  assert.deepEqual(fp.secs.map(s => s.n), ['멀쩡', '핵심 카피', '셋째']);
+  // ★거짓 안심의 «두 방향»을 다 잰다
+  const gone = { id: 'p', version: 2, pages: [{ id: 'page_1',
+    canvas: '<div class="section-block" id="sec_a" data-name="멀쩡"></div>' }] };
+  const V = loadVersionDiff();
+  const loss = V.lossDiff(fp.secs, SS.fingerprint(gone).secs);
+  assert.deepEqual(loss.lost.map(x => x.n), ['핵심 카피', '셋째'],
+    '★지운 섹션이 손실에 «안 뜨면» 사용자는 안심하고 그냥 나간다');
+  const noLoss = V.lossDiff(fp.secs, fp.secs);
+  assert.deepEqual(noLoss.lost, [], '★안 지웠는데 「사라졌다」고 하면 엉뚱한 버전으로 되돌린다');
+});
+
+test('C1b raw 지문(대형 레거시)도 같은 규칙을 쓴다 — 두 경로가 갈리면 목록이 거짓말한다', () => {
+  const canvas = '<div class="section-block selected" id="sec_b" data-name="핵심 카피"></div>';
+  const raw = JSON.stringify({ id: 'p', version: 2, pages: [{ id: 'page_1', canvas }] });
+  const fr = SS._internal.fingerprintRaw(raw);
+  assert.equal(fr.counts.sections, 1);
+  assert.deepEqual(fr.secs.map(s => s.n), ['핵심 카피']);
+});
+
+test('C1c ★깨진 정규식으로 찍힌 «옛 인덱스»는 자동으로 다시 계산된다', () => {
+  const root = mkRoot();
+  const canvas = '<div class="section-block selected" id="sec_b" data-name="핵심 카피"></div>';
+  const data = { id: 'p', name: 'T', version: 2, pages: [{ id: 'page_1', canvas }] };
+  writeProjFile(root, 'p', data);
+  SS.writeSnapshot(root, 'p', data, { now: NOW });
+
+  // v1(옛 스키마) + 옛 계산 결과를 흉내낸다
+  const ip = path.join(root, 'p', 'proj_history', 'index.json');
+  const idx = JSON.parse(fs.readFileSync(ip, 'utf8'));
+  idx.v = 1;
+  idx.entries.forEach(e => { e.counts.sections = 0; e.secs = []; });
+  idx.current = { ts: NOW, bytes: 1, projMtimeMs: 9e15, counts: { sections: 0 }, secs: [] };
+  fs.writeFileSync(ip, JSON.stringify(idx));
+
+  const l = SS.listVersions(root, 'p');
+  assert.equal(l.entries[0].counts.sections, 1, '★옛 지문을 그대로 쓰면 계속 거짓말한다');
+  assert.equal(l.current.counts.sections, 1,
+    '★current 도 옛 계산이다 — mtime 이 안 바뀌어 신선도 판정에 안 걸리므로 명시적으로 버려야 한다');
+});
+
+test('C2 ★proj.json 을 못 읽으면 «옛 current 를 들고 나가지 않는다» — 「지금 섹션 3」은 거짓말이다', () => {
+  const root = mkRoot();
+  const data = { id: 'p', name: 'T', version: 2, pages: [{ id: 'page_1',
+    canvas: sec('sec_a', 'A') + sec('sec_b', 'B') + sec('sec_c', 'C') }] };
+  writeProjFile(root, 'p', data);
+  SS.writeSnapshot(root, 'p', data, { now: NOW });
+  assert.equal(SS.listVersions(root, 'p').current.counts.sections, 3, '정상일 땐 3');
+
+  // ① 잘린 JSON
+  fs.writeFileSync(path.join(root, 'p', 'proj.json'), '{"pages":[{"canv');
+  assert.equal(SS.listVersions(root, 'p').current, null,
+    '★깨진 프로젝트인데 「지금 섹션 3」이라 답하면 모든 버전이 「같다」로 보인다 — 거짓 안심');
+  // ② 아예 삭제
+  fs.unlinkSync(path.join(root, 'p', 'proj.json'));
+  assert.equal(SS.listVersions(root, 'p').current, null, '★없는 프로젝트에 「지금」이 있으면 안 된다');
+  // 그래도 목록 자체는 살아야 한다 — 사고 직후에 열리는 화면이다
+  const l = SS.listVersions(root, 'p');
+  assert.equal(l.ok, true);
+  assert.equal(l.entries.length, 1, '★버전 목록은 보여야 복구할 수 있다');
 });
