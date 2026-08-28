@@ -27,6 +27,45 @@ export const LOGO_W = 200, LOGO_H = 64;
 export const _isLogoSized = (ab) =>
   parseInt(ab.style.width) === LOGO_W && parseInt(ab.style.height) === LOGO_H;
 /** 에셋 블록 목록에서 «로고로 셀 것»을 고른다(표식 ∪ 규격). 파일은 안 건드린다. */
+/* 점프 상태 — 키별 대상 배열과 «지금 몇 번째». 패널을 다시 그리면 대상은 갱신되고 커서는 유지한다. */
+let _jumpTargets = {};
+const _jumpIdx = {};
+
+/** 요소를 화면 가운데로 데려오고 잠깐 표시한다. selectSection 과 같은 «실제 좌표» 방식. */
+function jumpToElement(el) {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !el) return;
+  const delta = el.getBoundingClientRect().top - wrap.getBoundingClientRect().top;
+  // 블록은 섹션보다 작으니 «가운데»에 놓는다 — 위에 40px 만 두면 뭘 가리키는지 알기 어렵다.
+  const center = Math.max(0, wrap.clientHeight / 2 - el.getBoundingClientRect().height / 2);
+  wrap.scrollTo({ top: wrap.scrollTop + delta - center, behavior: 'smooth' });
+  el.classList.add('insp-jump-flash');
+  setTimeout(() => el.classList.remove('insp-jump-flash'), 1200);
+}
+
+/* 클릭 위임 — 패널은 innerHTML 로 다시 그려지므로 «행마다» 리스너를 달면 새로 그릴 때 사라진다.
+   문서 레벨에 한 번만 단다. ★재진입 방지: 이미 달렸으면 다시 안 단다. */
+if (typeof document !== 'undefined' && !window.__inspJumpWired) {
+  window.__inspJumpWired = true;
+  document.addEventListener('click', (e) => {
+    const row = e.target.closest?.('.insp-jump');
+    if (!row) return;
+    const key = row.dataset.jump;
+    const list = (_jumpTargets[key] || []).filter(el => el.isConnected);   // 지워진 블록은 건너뛴다
+    if (!list.length) return;
+    const i = ((_jumpIdx[key] ?? -1) + 1) % list.length;
+    _jumpIdx[key] = i;
+    jumpToElement(list[i]);
+    const val = row.querySelector('[data-jump-value]');
+    if (val) {
+      // ★「눌렀는데 안 움직인다」로 읽히지 않게 «지금 몇 번째»를 보여준다.
+      val.textContent = `${i + 1}/${list.length}`;
+      clearTimeout(val._t);
+      val._t = setTimeout(() => { val.textContent = String(list.length); }, 2000);
+    }
+  });
+}
+
 export function logoBlocksOf(assetBlocks) {
   return [...assetBlocks].filter(ab => ab.dataset.preset === 'logo' || _isLogoSized(ab));
 }
@@ -51,6 +90,18 @@ function renderInspectorPanel() {
   const shapeBlocks       = [...document.querySelectorAll('.shape-block')];
 
   const logoBlocks = logoBlocksOf(assetBlocks);
+
+  /* ★[점프] 통계 행을 누르면 «그 블록들»로 순차 이동한다(현빈 2026-08-28).
+   *   개수는 이미 «요소 배열»에서 나오는데 지금까지 length 만 찍고 배열은 버렸다.
+   *   그 배열을 들고 있으면 이동은 공짜다. 스크롤은 selectSection 이 쓰는 것과 같은 방식. */
+  _jumpTargets = {};
+  const statRow = (key, label, list) => {
+    if (!list || !list.length) return '';
+    _jumpTargets[key] = list;
+    return `<div class="insp-stat-row insp-jump" data-jump="${key}" title="클릭하면 사용된 곳으로 이동 (${list.length}개)">`
+         + `<span class="insp-stat-label">${label}</span>`
+         + `<span class="insp-stat-value" data-jump-value="${key}">${list.length}</span></div>`;
+  };
 
   // 텍스트 variant 카운트
   const variantCount = { heading: 0, subheading: 0, body: 0, caption: 0, label: 0 };
@@ -116,25 +167,22 @@ function renderInspectorPanel() {
 
   const variantRows = Object.entries(variantCount)
     .filter(([, n]) => n > 0)
-    .map(([k, n]) => `
-      <div class="insp-stat-row">
-        <span class="insp-stat-label">${variantLabels[k]}</span>
-        <span class="insp-stat-value">${n}</span>
-      </div>`).join('');
+    .map(([k]) => statRow('v:' + k, variantLabels[k],
+      textBlocks.filter(tb => tb.dataset.type === k))).join('');
 
   const extraBlockRows = [
-    gapBlocks.length        ? `<div class="insp-stat-row"><span class="insp-stat-label">Gap</span><span class="insp-stat-value">${gapBlocks.length}</span></div>` : '',
-    iconBlocks.length       ? `<div class="insp-stat-row"><span class="insp-stat-label">Icon Circle</span><span class="insp-stat-value">${iconBlocks.length}</span></div>` : '',
-    tableBlocks.length      ? `<div class="insp-stat-row"><span class="insp-stat-label">Table</span><span class="insp-stat-value">${tableBlocks.length}</span></div>` : '',
-    graphBlocks.length      ? `<div class="insp-stat-row"><span class="insp-stat-label">Graph</span><span class="insp-stat-value">${graphBlocks.length}</span></div>` : '',
-    dividerBlocks.length    ? `<div class="insp-stat-row"><span class="insp-stat-label">Divider</span><span class="insp-stat-value">${dividerBlocks.length}</span></div>` : '',
-    labelGroupBlocks.length ? `<div class="insp-stat-row"><span class="insp-stat-label">Tags</span><span class="insp-stat-value">${labelGroupBlocks.length}</span></div>` : '',
-    iconTextBlocks.length   ? `<div class="insp-stat-row"><span class="insp-stat-label">Icon Text</span><span class="insp-stat-value">${iconTextBlocks.length}</span></div>` : '',
-    stepBlocks.length       ? `<div class="insp-stat-row"><span class="insp-stat-label">Step</span><span class="insp-stat-value">${stepBlocks.length}</span></div>` : '',
-    canvasBlocks.length     ? `<div class="insp-stat-row"><span class="insp-stat-label">Canvas</span><span class="insp-stat-value">${canvasBlocks.length}</span></div>` : '',
-    shapeBlocks.length      ? `<div class="insp-stat-row"><span class="insp-stat-label">Shape</span><span class="insp-stat-value">${shapeBlocks.length}</span></div>` : '',
+    statRow('gapBlocks', 'Gap', gapBlocks),
+    statRow('iconBlocks', 'Icon Circle', iconBlocks),
+    statRow('tableBlocks', 'Table', tableBlocks),
+    statRow('graphBlocks', 'Graph', graphBlocks),
+    statRow('dividerBlocks', 'Divider', dividerBlocks),
+    statRow('labelGroupBlocks', 'Tags', labelGroupBlocks),
+    statRow('iconTextBlocks', 'Icon Text', iconTextBlocks),
+    statRow('stepBlocks', 'Step', stepBlocks),
+    statRow('canvasBlocks', 'Canvas', canvasBlocks),
+    statRow('shapeBlocks', 'Shape', shapeBlocks),
     // 0개면 «안 그린다» — 다른 줄과 같은 규율(없는 걸 0 으로 늘어놓지 않는다)
-    logoBlocks.length       ? `<div class="insp-stat-row"><span class="insp-stat-label">Logo</span><span class="insp-stat-value">${logoBlocks.length}</span></div>` : '',
+    statRow('logoBlocks', 'Logo', logoBlocks),
   ].join('');
 
   const colorSwatches = colors.length

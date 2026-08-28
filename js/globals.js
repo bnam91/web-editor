@@ -50,3 +50,9 @@ window.MARKET_ENABLED = MARKET_ENABLED;
  * ★되돌리기 = true 하나. 코드는 그대로 두었으니 다음 런칭에 한 글자로 켠다. */
 export const FIGMA_ENABLED = false;
 window.FIGMA_ENABLED = FIGMA_ENABLED;
+
+/** ★킬스위치: 애니메이션 GIF 만들기 — 이번 MVP 에서 제외(현빈 2026-08-28).
+ * Figma 와 «별개 스위치»다 — 서로 다른 결정을 한 플래그에 묶으면
+ * 나중에 Figma 를 켤 때 GIF 도 같이 살아난다. 되돌리기 = true 하나. */
+export const ANIM_GIF_ENABLED = false;
+window.ANIM_GIF_ENABLED = ANIM_GIF_ENABLED;

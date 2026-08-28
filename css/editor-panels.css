@@ -1788,3 +1788,9 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
   color: #f3e8ff; flex: 1;
   overflow: hidden; word-break: break-all;
 }
+
+/* ── 인스펙터 통계 «점프» ── 클릭하면 사용된 블록으로 순차 이동(2026-08-28 현빈) */
+.insp-stat-row.insp-jump { cursor: pointer; border-radius: 3px; transition: background 0.12s; }
+.insp-stat-row.insp-jump:hover { background: var(--ui-bg-hover, rgba(255,255,255,0.06)); }
+/* 도착한 블록을 잠깐 표시한다 — 어디로 갔는지 모르면 이동이 무의미하다 */
+.insp-jump-flash { outline: 2px solid var(--ui-accent-primary, #2d6fe8) !important; outline-offset: 2px; }
