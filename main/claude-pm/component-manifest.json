@@ -203,7 +203,9 @@
         "자유 텍스트 배너 (banner02 사용)",
         "preset이 없는 신규 배너 (banner02로 직접 작성)"
       ],
-      "examplePrompt": "표준 배너 frame_8 가져와줘"
+      "examplePrompt": "표준 배너 frame_8 가져와줘",
+      "deprecated": true,
+      "note": "★MVP 제외(2026-08-28). Banner 2(banner02)가 후속이다 — window.addBanner02Block / add_banner02_block 을 써라. 실사용 전수 0건이라 UI·MCP 에서 막았다."
     },
     {
       "name": "text",

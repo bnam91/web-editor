@@ -1829,6 +1829,12 @@ function _registerDefaultTools() {
   registerTool(
     'add_banner_block',
     async ({ sectionId, preset } = {}) => {
+      /* ★[MVP 제외] 구형 banner 는 UI 에서 뺐다(현빈 2026-08-28). 도구로도 «새로 만들지» 않는다.
+         실사용 전수: 구형 블록 0개 / 신형 banner02 28개. add_banner02_block 을 써라.
+         ⛔도구 정의를 지우진 않는다 — 지우면 옛 대화·스크립트가 «도구 없음»으로 조용히 실패한다.
+           대신 «왜 막혔고 무엇을 쓰라»고 말한다. */
+      throw new Error('add_banner 는 MVP 에서 제외됐다(구형 banner). 대신 add_banner02_block 을 사용해라.');
+      // eslint-disable-next-line no-unreachable
       if (!_rendererInvoker?.addBannerBlock) throw new Error('renderer bridge not ready');
       if (sectionId !== undefined && (typeof sectionId !== 'string' || !sectionId.startsWith('sec_'))) {
         throw new Error(`invalid sectionId: ${sectionId}`);
