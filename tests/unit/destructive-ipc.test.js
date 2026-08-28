@@ -125,3 +125,47 @@ test('A2c ★이름을 «우리가 안 짓는» 후보(backup)에서도 프로�
     '★자가치유가 proj.json 을 «빈 객체»로 덮었다 — 복구하러 온 사용자의 파일을 여기서 잃는다');
 });
 
+/* ═══ A③ (치명) — 삭제 부분실패 시 «번들에 손대지 않고» 중단한다 ═══════ */
+
+test('A3a ★잔재 하나가 실패하면 번들은 건드리지 않는다 — 좀비 부활 경로', async () => {
+  const id = await mkProject(sec('sec_new', '새 내용'));
+  // 구 flat 잔재 — 1년 전 옛 내용. 이게 남고 번들이 사라지면 폴백이 좀비를 되살린다.
+  const leftover = path.join(DIR, `${id}_history`);
+  fs.mkdirSync(leftover, { recursive: true });
+  fs.writeFileSync(path.join(leftover, '1756000000000.json'),
+    JSON.stringify(proj(id, sec('sec_old', '1년 전 옛것'))));
+
+  // ★«잔재만» 실패시킨다 — 전부 실패시키면 「번들이 안 갔다」가 저절로 참이 돼서 가드를 못 잰다.
+  H.failTrash('EPERM: operation not permitted', `${id}_history`);
+  const r = await H.invoke('projects:delete', id, {});
+  H.failTrash(null);
+
+  assert.equal(r.ok, false);
+  assert.ok(fs.existsSync(path.join(DIR, id, 'proj.json')),
+    '★잔재에서 실패했는데 번들이 휴지통으로 갔다 — 확인창에서 취소하면 «1년 전 내용»의 좀비가 남고 '
+    + '그 프로젝트의 버전 기록은 통째로 휴지통이라 앱 안에서 되돌릴 방법이 없다');
+  assert.equal(r.trashed, false, '★번들이 그대로인데 「휴지통에 갔다」고 답했다');
+});
+
+test('A3b 첫 잔재만 실패해도 «그 뒤 잔재까지» 안 건드린다 — 부분 파괴 없음', async () => {
+  const id = await mkProject(sec('sec_new', '새'));
+  for (const n of [`${id}.json`, `${id}_backup.json`]) fs.writeFileSync(path.join(DIR, n), '{}');
+  H.failTrash('EPERM', `${id}.json`);   // ★«첫» 잔재만 실패
+  const r = await H.invoke('projects:delete', id, {});
+  H.failTrash(null);
+  assert.equal(r.ok, false);
+  assert.equal(r.deleted, 0, `★첫 실패 뒤에도 계속 지웠다(deleted=${r.deleted})`);
+  assert.ok(fs.existsSync(path.join(DIR, `${id}.json`)) && fs.existsSync(path.join(DIR, `${id}_backup.json`)));
+  assert.ok(fs.existsSync(path.join(DIR, id, 'proj.json')));
+});
+
+test('A3c 양성대조 — 실패가 없으면 «전부» 휴지통으로 간다(중단이 삭제를 죽인 게 아니다)', async () => {
+  const id = await mkProject(sec('sec_a', 'A'));
+  fs.writeFileSync(path.join(DIR, `${id}.json`), '{}');
+  const r = await H.invoke('projects:delete', id, {});
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.trashed, true);
+  assert.ok(r.deleted >= 2, `deleted=${r.deleted}`);
+  assert.ok(!fs.existsSync(path.join(DIR, id)), '번들이 안 갔다');
+  assert.ok(!fs.existsSync(path.join(DIR, `${id}.json`)), '잔재가 안 갔다');
+});

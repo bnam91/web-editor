@@ -39,7 +39,12 @@ function loadMain(opts) {
     shell: {
       openExternal: noop, openPath: noop, showItemInFolder: noop,
       trashItem: async (p) => {
-        if (stub.__trashFails) throw new Error(stub.__trashFails);
+        // ★[A3] «전부» 실패 말고 «특정 경로만» 실패시킬 수 있어야 한다.
+        //   전부 실패시키면 「번들이 안 옮겨졌다」가 저절로 참이 돼서, 조기중단 가드를 지워도 초록이다
+        //   (3차 검수가 지적한 부분실패는 정확히 «잔재만 실패»하는 경우다).
+        if (stub.__trashFails && (!stub.__trashOnly || String(p).includes(stub.__trashOnly))) {
+          throw new Error(stub.__trashFails);
+        }
         const dest = path.join(userData, '_Trash', path.basename(p) + '.' + Date.now());
         fs.mkdirSync(path.dirname(dest), { recursive: true });
         fs.renameSync(p, dest);
@@ -73,8 +78,13 @@ function loadMain(opts) {
   return {
     userData, projectsDir, sent,
     trashDir: path.join(userData, '_Trash'),
-    /** 휴지통 이동을 강제 실패시킨다(음성대조용). 인자 없이 부르면 해제. */
-    failTrash: (msg) => { stub.__trashFails = msg || null; },
+    /** 휴지통 이동을 강제 실패시킨다(음성대조용). 인자 없이 부르면 해제.
+     * @param {string} [msg] 던질 메시지
+     * @param {string} [onlyPathContains] 주면 «경로에 이 문자열이 든 항목만» 실패한다(부분실패 재현) */
+    failTrash: (msg, onlyPathContains) => {
+      stub.__trashFails = msg || null;
+      stub.__trashOnly = msg ? (onlyPathContains || null) : null;
+    },
     /** 휴지통에서 «되살린다» — 왕복 검증용. */
     restoreFromTrash: (entryName, toName) => {
       const from = path.join(userData, '_Trash', entryName);

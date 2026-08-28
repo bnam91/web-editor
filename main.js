@@ -1440,10 +1440,19 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
   const failed = [];
   let trashedCount = 0;
   let bundleMoved = false;   // ★«우리가» 번들을 옮겼나 — 사후조건은 그때만 의미가 있다
+  // ★[A3 치명] 하나라도 실패하면 «거기서 멈춘다». targets 는 「잔재 먼저, 번들 마지막」 순이므로
+  //   조기중단은 곧 «번들 무접촉»이다.
+  //   ⛔초판은 실패해도 continue 해서, 잔재가 EPERM 인데 번들만 휴지통으로 갔다. 그러면
+  //   2차 확인창에서 「영구 삭제」를 취소하는 순간 — proj.json·proj_history·assets 는 전부 휴지통이고
+  //   구 flat 잔재만 남아서 — 같은 이름 카드가 «1년 전 내용»으로 부활하고(projects:load 폴백),
+  //   그 프로젝트의 버전 기록은 통째로 휴지통이라 «앱 안에서» 되돌릴 방법이 없다.
+  //   다음 자동저장이 그 옛 내용을 새 번들로 굳혀 되돌리기 창까지 닫는다.
+  //   ★순서(잔재 먼저)는 필요조건이었을 뿐 충분조건이 아니었다 — 중단이 있어야 보장이 된다.
+  //   ⇒ 이 루프가 나가는 순간의 불변식: «failed 가 비어있지 않으면 번들은 그대로 있다».
   for (const t of targets) {
     if (permanent) {
-      try { fs.rmSync(t, { recursive: true, force: true }); }
-      catch (e) { failed.push({ path: path.basename(t), error: e.message }); }
+      try { fs.rmSync(t, { recursive: true, force: true }); trashedCount++; if (t === dirPath) bundleMoved = true; }
+      catch (e) { failed.push({ path: path.basename(t), error: e.message }); break; }
     } else {
       try { await shell.trashItem(t); trashedCount++; if (t === dirPath) bundleMoved = true; }
       catch (e) {
@@ -1452,6 +1461,7 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
         //   ⛔단 bundleMoved 로는 «안» 친다 — 우리가 옮긴 게 아니므로 아래 사후조건의 대상이 아니다.
         if (e && (e.code === 'ENOENT' || /ENOENT/.test(e.message || ''))) { trashedCount++; continue; }
         failed.push({ path: path.basename(t), error: e.message });
+        break;
       }
     }
   }
@@ -1460,10 +1470,13 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
     // ★★그리고 «부분 이동»을 「전부 실패」로 말하지 않는다 — 초판은 trashedCount 를 «계산만 하고 안 읽어»
     //   번들이 이미 휴지통에 간 상태에서 trashed:false 를 답했다. 그러면 렌더러가
     //   「휴지통으로 옮길 수 없습니다 → 영구 삭제할까요」라는 «사실과 다른» 확인창을 띄운다.
-    const partial = trashedCount > 0;
-    console.warn('[projects:delete] 실패:', JSON.stringify(failed), 'moved=', trashedCount);
+    //   ★[A3] 조기중단 덕분에 여기서 bundleMoved 는 «항상 false» 다(번들이 목록의 마지막이므로).
+    //   그래서 trashed 는 «번들이 갔나»로 정직하게 답할 수 있다 — 렌더러의 확인창이 이걸 보고
+    //   「영구 삭제할까요」를 물으므로, 여기서 거짓을 말하면 사용자가 판단을 그르친다.
+    const partial = trashedCount > 0;   // 잔재 일부만 옮겨졌다(프로젝트 본체는 그대로)
+    console.warn('[projects:delete] 실패:', JSON.stringify(failed), 'moved=', trashedCount, 'bundleMoved=', bundleMoved);
     if (markerPath) { try { fs.unlinkSync(markerPath); } catch (_) {} }   // 살아남은 프로젝트에 마커를 남기지 않는다
-    return { ok: false, trashed: partial, deleted: trashedCount,
+    return { ok: false, trashed: bundleMoved, bundleIntact: !bundleMoved, deleted: trashedCount,
              reason: permanent ? 'delete_failed' : (partial ? 'trash_partial' : 'trash_failed'),
              message: failed[0].error, failed };
   }

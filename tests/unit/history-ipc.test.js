@@ -363,7 +363,12 @@ function failTrashOnCall(nth, err) {
   return { restore: () => { el.shell.trashItem = orig; }, calls: () => n };
 }
 
-test('U7-11 ★부분 이동을 «전부 실패»로 말하지 않는다 — 번들이 이미 휴지통인데 trashed:false 는 거짓말이다', async () => {
+test('U7-11 ★부분 이동을 «있는 그대로» 말한다 — 숫자도 번들 상태도 휴지통 실물과 맞아야 한다', async () => {
+  /* ⚠️초판 이 테스트는 「번들이 이미 휴지통인데 trashed:false 는 거짓말이다」였다.
+   *   3차 적대검수 뒤 계약이 바뀌었다 — 잔재에서 실패하면 «번들에 손대지 않고 중단»한다([A3]).
+   *   그래서 실패 응답의 trashed 는 언제나 false 이고, 그게 «사실»이다.
+   *   초판의 전제(번들이 이미 휴지통)가 애초에 사고 그 자체였으므로 테스트를 계약에 맞춰 다시 쓴다.
+   *   ★느슨하게 만든 게 아니다 — 「번들이 그대로다」라는 «더 강한» 단언이 늘었다. */
   const id = await mkProject(sec('sec_a', 'A'));
   fs.writeFileSync(path.join(DIR, `${id}.json`), '{}');
   fs.writeFileSync(path.join(DIR, `${id}_meta.json`), '{}');
@@ -373,7 +378,9 @@ test('U7-11 ★부분 이동을 «전부 실패»로 말하지 않는다 — 번
 
   assert.equal(r.ok, false);
   assert.equal(r.reason, 'trash_partial', '★부분 이동은 «부분»이라고 말해야 한다');
-  assert.equal(r.trashed, true, '★일부는 «실제로» 휴지통에 갔다 — false 면 사용자가 판단을 그르친다');
+  assert.equal(r.trashed, false, '★번들은 안 갔다 — true 면 사용자가 「영구 삭제」를 잘못 누른다');
+  assert.equal(r.bundleIntact, true);
+  assert.ok(fs.existsSync(path.join(DIR, id, 'proj.json')), '★번들이 사라졌다 — 좀비 부활 경로');
   assert.ok(r.deleted >= 1, `deleted 가 실제 이동 수여야 한다 (=${r.deleted})`);
   const mine = fs.readdirSync(H.trashDir).filter(f => f.startsWith(id));
   assert.equal(mine.length, r.deleted, `★deleted 가 휴지통 실물과 맞아야 한다 (${JSON.stringify(mine)})`);
