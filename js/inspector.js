@@ -124,13 +124,25 @@ function renderInspectorPanel() {
     return null;
   }
 
-  const colorSet = new Set();
+  /* ★[색 사용처] Set 이 아니라 Map(색 → 요소들)으로 모은다(현빈 2026-08-28).
+   *   Set 이라 «몇 번 쓰였는지»도 «어디서 쓰였는지»도 알 수 없었다.
+   *   순회는 어차피 요소 단위로 돌고 있어서 «담아두기»만 하면 된다.
+   * ★개수의 정의 = 「그 색을 쓰는 «요소» 수」. 이동 대상 수와 «같은 수»여야 한다 —
+   *   3이라 써놓고 두 번만 이동하면 그게 더 헷갈린다. 한 요소가 글자색·배경색 둘 다
+   *   같은 색이어도 1로 센다(Set 으로 요소를 담으므로 자연히 그렇게 된다). */
+  const colorMap = new Map();
+  const addColor = (hex, el) => {
+    if (!hex) return;
+    if (!colorMap.has(hex)) colorMap.set(hex, new Set());
+    if (el) colorMap.get(hex).add(el);
+  };
+  const colorSet = { add: (hex) => addColor(hex, null) };   // 아래 기존 호출 호환
 
   sections.forEach(sec => {
     // 섹션 배경색
     const bgRaw = sec.style.backgroundColor || sec.style.background;
     const bgHex = normalizeColor(bgRaw);
-    if (bgHex) colorSet.add(bgHex);
+    addColor(bgHex, sec);
 
     // 텍스트 블록 색상
     sec.querySelectorAll('.text-block').forEach(tb => {
@@ -139,11 +151,9 @@ function renderInspectorPanel() {
 
       // 인라인 색상 우선
       if (contentEl.style.color) {
-        const c = normalizeColor(contentEl.style.color);
-        if (c) colorSet.add(c);
+        addColor(normalizeColor(contentEl.style.color), tb);
       } else {
-        const c = normalizeColor(window.getComputedStyle(contentEl).color);
-        if (c) colorSet.add(c);
+        addColor(normalizeColor(window.getComputedStyle(contentEl).color), tb);
       }
 
       // 라벨 박스 배경색
@@ -152,12 +162,13 @@ function renderInspectorPanel() {
         const lbg = labelEl.style.backgroundColor
           ? normalizeColor(labelEl.style.backgroundColor)
           : normalizeColor(window.getComputedStyle(labelEl).backgroundColor);
-        if (lbg) colorSet.add(lbg);
+        addColor(lbg, tb);
       }
     });
   });
 
-  const colors = [...colorSet];
+  /* 많이 쓰인 색부터 — 팔레트에서 «주조색»이 위에 오는 게 읽기 쉽다. */
+  const colors = [...colorMap.entries()].sort((a, b) => b[1].size - a[1].size).map(([hex]) => hex);
 
   // ── HTML 렌더링 ──
   const variantLabels = {
@@ -185,12 +196,23 @@ function renderInspectorPanel() {
     statRow('logoBlocks', 'Logo', logoBlocks),
   ].join('');
 
+  /* ★칩에 «사용 횟수»를 얹고, 누르면 그 색을 쓰는 곳으로 순차 이동한다.
+   *   숫자를 hex 옆에 «따로 한 줄»로 두면 19색에서 칩이 세로로 길어진다 —
+   *   스와치 «위»에 작은 배지로 얹어 세로 높이를 안 늘린다. */
   const colorSwatches = colors.length
-    ? colors.map(hex => `
-        <div class="insp-color-item" title="${hex}">
-          <div class="insp-color-swatch" style="background:${hex}"></div>
+    ? colors.map(hex => {
+        const els = [...(colorMap.get(hex) || [])].filter(el => el && el.isConnected);
+        const key = 'c:' + hex;
+        if (els.length) _jumpTargets[key] = els;
+        return `
+        <div class="insp-color-item${els.length ? ' insp-jump' : ''}"${els.length ? ` data-jump="${key}"` : ''}
+             title="${hex}${els.length ? ` — ${els.length}곳에서 사용 (클릭하면 이동)` : ''}">
+          <div class="insp-color-swatch" style="background:${hex}">${
+            els.length ? `<span class="insp-color-count" data-jump-value="${key}">${els.length}</span>` : ''
+          }</div>
           <span class="insp-color-hex">${hex}</span>
-        </div>`).join('')
+        </div>`;
+      }).join('')
     : '<span class="insp-empty">색상 없음</span>';
 
   const totalBlocks = textBlocks.length + assetBlocks.length + gapBlocks.length + iconBlocks.length + tableBlocks.length + graphBlocks.length + dividerBlocks.length + labelGroupBlocks.length + iconTextBlocks.length + stepBlocks.length + canvasBlocks.length + shapeBlocks.length;

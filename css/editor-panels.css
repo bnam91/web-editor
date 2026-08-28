@@ -1794,3 +1794,15 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .insp-stat-row.insp-jump:hover { background: var(--ui-bg-hover, rgba(255,255,255,0.06)); }
 /* 도착한 블록을 잠깐 표시한다 — 어디로 갔는지 모르면 이동이 무의미하다 */
 .insp-jump-flash { outline: 2px solid var(--ui-accent-primary, #2d6fe8) !important; outline-offset: 2px; }
+/* 색 칩의 «사용 횟수» 배지 — 스와치 «위»에 얹어 칩 높이를 안 늘린다(2026-08-28) */
+.insp-color-swatch { position: relative; }
+.insp-color-count {
+  position: absolute; right: 1px; bottom: 1px;
+  font-size: var(--ui-fs-9); font-weight: var(--ui-fw-semibold);
+  line-height: 1; padding: 1px 3px; border-radius: 3px;
+  /* 밝은 색·어두운 색 위 «둘 다»에서 읽혀야 한다 — 반투명 검정 + 흰 글자로 고정한다 */
+  background: rgba(0,0,0,0.62); color: #fff;
+  pointer-events: none;
+}
+.insp-color-item.insp-jump { cursor: pointer; }
+.insp-color-item.insp-jump:hover .insp-color-swatch { outline: 2px solid var(--ui-accent-primary, #2d6fe8); outline-offset: 1px; }
