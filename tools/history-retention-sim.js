@@ -18,6 +18,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const SS = require('../main/project-store/snapshot-store');
+const { mkTmpRoot } = require('../tests/unit/_tmproot');
 
 const LIVE = path.join(process.env.HOME, 'Library/Application Support/GODITOR/projects');
 const PID = process.argv[2] || 'proj_1787026440333';
@@ -27,7 +28,10 @@ const MIN = 60 * 1000, DAY = 86400000;
 const src = path.join(LIVE, PID, 'proj.json');
 if (!fs.existsSync(src)) { console.error(`실데이터 없음: ${src}`); process.exit(0); }
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-ret-'));
+/* ★임시폴더는 «우산 아래»에서 만든다($TMPDIR/goya-run-<pid>/) — 도구도 예외가 아니다.
+ *   os.tmpdir() 에 직접 만들면 죽은-pid 사후회수가 «못 찾는다»(우산 밖이라 스캔 대상이 아니다).
+ *   이 도구들이 만드는 픽스처가 수백 MB 라, 새면 남의 세션이 멈춘다(2026-08-28 실사고). */
+const root = mkTmpRoot('goya-ret-');
 fs.mkdirSync(path.join(root, PID), { recursive: true });
 fs.copyFileSync(src, path.join(root, PID, 'proj.json'));
 const base = JSON.parse(fs.readFileSync(path.join(root, PID, 'proj.json'), 'utf8'));

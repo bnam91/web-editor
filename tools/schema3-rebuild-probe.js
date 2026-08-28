@@ -6,10 +6,14 @@
 'use strict';
 const fs = require('fs'), os = require('os'), path = require('path');
 const SS = require('../main/project-store/snapshot-store');
+const { mkTmpRoot } = require('../tests/unit/_tmproot');
 
 const TOTAL_MB = Number(process.argv[2] || 283);
 const SLOTS = Number(process.argv[3] || 5);
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-s3probe-'));
+/* ★임시폴더는 «우산 아래»에서 만든다($TMPDIR/goya-run-<pid>/) — 도구도 예외가 아니다.
+ *   os.tmpdir() 에 직접 만들면 죽은-pid 사후회수가 «못 찾는다»(우산 밖이라 스캔 대상이 아니다).
+ *   이 도구들이 만드는 픽스처가 수백 MB 라, 새면 남의 세션이 멈춘다(2026-08-28 실사고). */
+const root = mkTmpRoot('goya-s3probe-');
 process.on('exit', () => { try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {} });
 
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';

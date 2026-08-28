@@ -13,13 +13,17 @@
 'use strict';
 const { spawn, execSync } = require('child_process');
 const fs = require('fs'), os = require('os'), path = require('path');
+const { mkTmpRoot } = require('../../tests/unit/_tmproot');
 
 const CHROME = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
                 '/Applications/Chromium.app/Contents/MacOS/Chromium'].find(p => fs.existsSync(p));
 if (!CHROME) { console.error('⛔크롬을 못 찾았다'); process.exit(2); }
 
 const PORT = Number(process.env.PROBE_PORT || 9351);
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-probe-'));
+/* ★임시폴더는 «우산 아래»에서 만든다($TMPDIR/goya-run-<pid>/) — 도구도 예외가 아니다.
+ *   os.tmpdir() 에 직접 만들면 죽은-pid 사후회수가 «못 찾는다»(우산 밖이라 스캔 대상이 아니다).
+ *   이 도구들이 만드는 픽스처가 수백 MB 라, 새면 남의 세션이 멈춘다(2026-08-28 실사고). */
+const profile = mkTmpRoot('goya-probe-');
 const url = 'file://' + path.resolve(__dirname, 'probe.html');
 let child;
 function cleanup() {
