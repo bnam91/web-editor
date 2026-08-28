@@ -265,6 +265,12 @@ async function doFigmaUpload() {
 
 /* ── Figma Bridge (WebSocket 서버 ON/OFF) ── */
 async function initFigmaBridge() {
+  /* ★[FIGMA 킬스위치] 가드는 «함수 안»에 있어야 한다.
+   *   이 파일은 type="module" 이라 모듈 스코프 바인딩이 window 와 «별개»다.
+   *   밖에서 window.initFigmaBridge 를 스텁으로 갈아도, 아래 togglePublishDropdown 래퍼는
+   *   모듈 안의 이 함수를 그대로 부른다 — 메뉴는 죽었는데 뒤에서 계속 돌았다.
+   *   figmaBridgeStatus 는 main 에서 «TCP 127.0.0.1:3055 에 실제 접속»을 시도한다. */
+  if (!window.FIGMA_ENABLED) return;
   if (!window.electronAPI?.figmaBridgeStatus) return;
   const on = await window.electronAPI.figmaBridgeStatus();
   const badge = document.getElementById('figma-bridge-badge');
@@ -275,6 +281,7 @@ async function initFigmaBridge() {
 }
 
 async function toggleFigmaBridge(e) {
+  if (!window.FIGMA_ENABLED) { e?.stopPropagation?.(); return; }   // ★같은 이유 — 모듈 스코프
   e.stopPropagation();
   if (!window.electronAPI) return;
   const on = await window.electronAPI.figmaBridgeStatus();
