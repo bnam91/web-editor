@@ -14,6 +14,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { mkTmpRoot } = require('./_tmproot');
 const crypto = require('crypto');
 const yauzl = require('yauzl');
 const { exportGdt, transformProjectJson } = require('../../main/gdt/export');

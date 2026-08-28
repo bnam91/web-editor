@@ -10,6 +10,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { mkTmpRoot } = require('./_tmproot');
 const { execFileSync } = require('child_process');
 
 const HARNESS = path.join(__dirname, '_ipc-harness.js');
@@ -43,7 +44,7 @@ const PROJ_SRC = (id) =>
   'const proj = (canvas) => ({ id: ' + JSON.stringify(id) + ", name: '재기동시험', version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'Page 1', canvas }], checklistItems: [] });";
 
 test('RS1 ★저장 → 프로세스 종료 → 새 프로세스에서 재오픈 — 버전 기록이 살아 있다', () => {
-  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-restart-'));
+  const ud = mkTmpRoot('goya-restart-');
   const id = 'proj_1787700000000';
   const canvasA = sec('sec_a', '혜택정리', '<img src="' + PNG + '">') + sec('sec_b', 'FAQ') + sec('sec_c', '배송안내');
 
@@ -107,7 +108,7 @@ test('RS1 ★저장 → 프로세스 종료 → 새 프로세스에서 재오픈
 });
 
 test('RS2 ★인덱스를 잃은 채 재기동해도 목록이 복원된다 (인덱스는 파생 데이터)', () => {
-  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-restart2-'));
+  const ud = mkTmpRoot('goya-restart2-');
   const id = 'proj_1787700001000';
   const r1 = inChildProcess(ud, PROJ_SRC(id) + `
     await H.invoke('projects:save', proj(${JSON.stringify(sec('sec_a', '혜택정리') + sec('sec_b', 'FAQ'))}));
@@ -129,7 +130,7 @@ test('RS2 ★인덱스를 잃은 채 재기동해도 목록이 복원된다 (인
 });
 
 test('RS3 ★proj.json 이 손상돼도 재기동 후 스냅샷에서 복구되고 «이미지가 살아 있다»', () => {
-  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-restart3-'));
+  const ud = mkTmpRoot('goya-restart3-');
   const id = 'proj_1787700002000';
   inChildProcess(ud, PROJ_SRC(id) + `
     await H.invoke('projects:save', proj(${JSON.stringify(sec('sec_a', '혜택정리', '<img src="' + PNG + '">'))}));

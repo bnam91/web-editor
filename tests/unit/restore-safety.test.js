@@ -15,13 +15,14 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { mkTmpRoot } = require('./_tmproot');
 const crypto = require('crypto');
 const SS = require('../../main/project-store/snapshot-store');
 
 const MIN = 60 * 1000;
 const NOW = 1_787_700_000_000;
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-const mkRoot = () => fs.mkdtempSync(path.join(os.tmpdir(), 'goya-u6a-'));
+const mkRoot = () => mkTmpRoot('goya-u6a-');
 const sec = (id, name, inner) =>
   `<div class="section-block" id="${id}" data-name="${name}"><div class="section-inner">${inner || ''}</div></div>`;
 const proj = (id, canvas) => ({ id, name: 'T', version: 2, currentPageId: 'page_1',

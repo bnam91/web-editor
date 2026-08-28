@@ -15,9 +15,10 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { mkTmpRoot } = require('./_tmproot');
 const SS = require('../../main/project-store/snapshot-store');
 
-function mkRoot() { return fs.mkdtempSync(path.join(os.tmpdir(), 'goya-snap-')); }
+function mkRoot() { return mkTmpRoot('goya-snap-'); }
 function mkHist(root, id, tsList) {
   const d = path.join(root, id, 'proj_history');
   fs.mkdirSync(d, { recursive: true });
@@ -83,7 +84,7 @@ test('A6 projectId 에 경로조각이 들어와도 base 밖을 가리키지 않
   /* ⚠️초판은 존재하지도 않는 곳('../../etc')을 넘겨서 후보가 «항상 빈 배열»이었다 —
    *   빈 배열에 대고 for 를 돌면 무엇을 지워도 초록이다(3차 검수: safeSeg 를 지워도 초록).
    *   ⇒ 탈출 지점에 실물을 놓고, ★후보가 나왔다는 것 자체도 확인한다(양성대조). */
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-esc2-'));
+  const base = mkTmpRoot('goya-esc2-');
   const root = path.join(base, 'projects');
   const escapeDir = path.join(base, 'secret');
   fs.mkdirSync(path.join(escapeDir, 'proj_history'), { recursive: true });

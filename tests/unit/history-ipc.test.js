@@ -7,6 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { mkTmpRoot } = require('./_tmproot');
 const crypto = require('crypto');
 const { loadMain } = require('./_ipc-harness');
 
@@ -431,7 +432,7 @@ test('U7-14 permanent 모드엔 마커를 안 쓴다 — 휴지통에서 찾을 
 });
 
 test('U7-15 ★마커 쓰기가 PROJECTS_DIR «밖»으로 새지 않는다 (symlink 봉쇄)', async () => {
-  const outside = fs.mkdtempSync(path.join(require('os').tmpdir(), 'goya-outside-'));
+  const outside = mkTmpRoot('goya-outside-');
   fs.writeFileSync(path.join(outside, 'proj.json'), '{}');
   const linkId = 'proj_1799999999999';
   try { fs.symlinkSync(outside, path.join(DIR, linkId)); }

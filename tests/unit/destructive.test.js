@@ -10,11 +10,12 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { mkTmpRoot } = require('./_tmproot');
 const SS = require('../../main/project-store/snapshot-store');
 
 const MIN = 60 * 1000, DAY = 86400000;
 const NOW = 1_787_700_000_000;
-const mkRoot = () => fs.mkdtempSync(path.join(os.tmpdir(), 'goya-de-'));
+const mkRoot = () => mkTmpRoot('goya-de-');
 const sec = (id, name) => `<div class="section-block" id="${id}" data-name="${name || id}">`
   + `<div class="section-hitzone"><span class="section-label">${name || id}</span></div></div>`;
 const proj = (id, canvas, extra = {}) => ({ id, name: 'T', version: 2, currentPageId: 'page_1',

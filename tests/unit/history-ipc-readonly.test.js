@@ -14,13 +14,14 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { mkTmpRoot } = require('./_tmproot');
 const crypto = require('crypto');
 const SS = require('../../main/project-store/snapshot-store');
 
 const NOW = 1_787_700_000_000;
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 const SIDECARS = new Set(['proj_history/index.json', 'proj_history/pins.json']);
-const mkRoot = () => fs.mkdtempSync(path.join(os.tmpdir(), 'goya-ro-'));
+const mkRoot = () => mkTmpRoot('goya-ro-');
 const sec = (id, name) => `<div class="section-block" id="${id}" data-name="${name}"></div>`;
 const proj = (id, canvas) => ({ id, name: 'T', version: 2, currentPageId: 'page_1',
   pages: [{ id: 'page_1', name: 'Page 1', canvas }] });

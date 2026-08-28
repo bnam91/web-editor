@@ -11,6 +11,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { mkTmpRoot } = require('./_tmproot');
 const SS = require('../../main/project-store/snapshot-store');
 
 /** version-diff.js 는 브라우저 IIFE — 가짜 window 에 얹어 «진짜» lossDiff 를 쓴다(재구현 금지). */
@@ -24,7 +25,7 @@ const MIN = 60 * 1000, DAY = 86400000;
 const NOW = 1_787_700_000_000;
 const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 const PNG = `data:image/png;base64,${PNG_B64}`;
-const mkRoot = () => fs.mkdtempSync(path.join(os.tmpdir(), 'goya-rv-'));
+const mkRoot = () => mkTmpRoot('goya-rv-');
 const sec = (id, name) => `<div class="section-block" id="${id}"${name ? ` data-name="${name}"` : ''}>`
   + `<div class="section-hitzone"><span class="section-label">${name || id}</span></div></div>`;
 const proj = (id, canvas, extra = {}) => ({ id, name: 'T', version: 2, currentPageId: 'page_1',
@@ -272,7 +273,7 @@ test('F9 폴백 후보 생성도 projectId 를 sanitize 한다', () => {
    *   '../elsewhere' 를 넘겼는데, 그 경로가 실제로 가리키는 곳은 root 의 «형제»다.
    *   그래서 분기가 아예 안 돌았고 safeSeg 를 지워도 초록이었다(3차 검수 지적).
    *   ⇒ 진짜 탈출 지점에 «실물 슬롯»을 두고, 그게 후보로 나오는지 본다. */
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-esc-'));
+  const base = mkTmpRoot('goya-esc-');
   const root = path.join(base, 'projects');
   const escapeDir = path.join(base, 'elsewhere');            // = root/../elsewhere ★진짜 탈출 지점
   fs.mkdirSync(path.join(escapeDir, 'proj_history'), { recursive: true });

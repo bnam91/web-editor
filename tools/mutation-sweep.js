@@ -28,7 +28,20 @@ const targets = [...new Set(muts.map(m => m.file))];
 }
 /** 변이 중인 파일을 어떤 종료 경로에서도 되돌린다. */
 const pending = new Map();   // path → 원본
-function restoreAll() { for (const [p, orig] of pending) { try { fs.writeFileSync(p, orig); } catch (_) {} } pending.clear(); }
+/* ⚠️★복원 «자체»가 실패할 수 있다 — 디스크가 꽉 차서 죽는 경우가 그렇다(실제로 났다:
+ *   ENOSPC 로 스윕이 죽었고, 되돌리는 writeFileSync 도 같은 이유로 실패해 변이가 트리에 남았다).
+ *   조용히 삼키면 «남은 변이 위에서» 다음 작업을 하게 된다. 크게 소리쳐 알린다.
+ *   ⇒ 그래도 못 되돌리면 시작 전 청결검사가 다음 실행을 막아준다(2중 안전). */
+function restoreAll() {
+  for (const [p, orig] of pending) {
+    try { fs.writeFileSync(p, orig); }
+    catch (e) {
+      console.error(`\n⛔⛔ 복원 실패 — «변이가 워킹트리에 남았다»: ${p}\n   ${e.message}\n`
+        + `   ⇒ 즉시 \`git checkout -- ${p}\` 하라. 이 상태로 테스트를 믿으면 안 된다.`);
+    }
+  }
+  pending.clear();
+}
 for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => { restoreAll(); process.exit(130); });
 process.on('exit', restoreAll);
 process.on('uncaughtException', (e) => { restoreAll(); throw e; });

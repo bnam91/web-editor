@@ -15,7 +15,7 @@ const os = require('os');
 
 /** @param {{userData?:string}} [opts] userData 를 주면 그 디렉터리를 재사용한다 — «앱 재기동» 재현용. */
 function loadMain(opts) {
-  const userData = (opts && opts.userData) || fs.mkdtempSync(path.join(os.tmpdir(), 'goya-ipc-'));
+  const userData = (opts && opts.userData) || require('./_tmproot').mkTmpRoot('goya-ipc-');
   fs.mkdirSync(userData, { recursive: true });
   const handlers = new Map(), syncHandlers = new Map(), sent = [];
   const noop = () => {};

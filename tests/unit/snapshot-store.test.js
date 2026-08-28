@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { mkTmpRoot } = require('./_tmproot');
 const crypto = require('crypto');
 const SS = require('../../main/project-store/snapshot-store');
 const X = require('../../main/project-store/externalizer');
@@ -22,7 +23,7 @@ const PNG = `data:image/png;base64,${PNG_B64}`;
 const GIF = `data:image/gif;base64,${GIF_B64}`;
 const hash16 = (b64) => crypto.createHash('sha256').update(Buffer.from(b64, 'base64')).digest('hex').slice(0, 16);
 
-const mkRoot = () => fs.mkdtempSync(path.join(os.tmpdir(), 'goya-u1-'));
+const mkRoot = () => mkTmpRoot('goya-u1-');
 
 function sec(id, name, inner = '') {
   return `<div class="section-block" data-section="1" id="${id}"${name ? ` data-name="${name}"` : ''}>`
