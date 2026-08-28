@@ -107,7 +107,22 @@
     modal.querySelector('#settings-save-btn').addEventListener('click', onSave);
     modal.querySelector('#settings-reset-btn').addEventListener('click', onResetShortcuts);
 
+    /* ★[MVP 제외] 개발자·협업 탭은 «보이되 안 눌린다»(현빈 2026-08-28).
+     *   Figma 때와 같은 방식 — 감추면 「있었다」는 것조차 사라진다. 다음 런칭에 돌아온다.
+     *   ⛔탭 «내용»(renderDevPane 등)은 그대로 둔다. 여기서 막는 건 «들어가는 문»이다. */
+    const MVP_DISABLED_TABS = ['dev', 'collab'];
     modal.querySelectorAll('.settings-tab').forEach(btn => {
+      if (MVP_DISABLED_TABS.includes(btn.dataset.tab)) {
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+        btn.style.opacity = '0.4';
+        btn.style.cursor = 'default';
+        btn.title = '이번 버전에서는 사용할 수 없습니다';
+        /* ★capture 단계에서 막는다 — disabled 만으로는 브라우저마다 클릭이 새고,
+           아래 리스너가 이미 붙는 구조라 bubbling 으로는 못 막는다. */
+        btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); }, true);
+        return;
+      }
       btn.addEventListener('click', () => {
         const tab = btn.dataset.tab;
         modal.querySelectorAll('.settings-tab').forEach(b => b.classList.toggle('active', b === btn));
