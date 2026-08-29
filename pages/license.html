@@ -466,6 +466,7 @@
   // Electron 신호등(트래픽 라이트) 영역 회피용 클래스 토글
   if (api.isElectron) {
     document.body.classList.add('electron-app');
+    if (/Mac|Macintosh/i.test(navigator.userAgent)) document.body.classList.add('is-mac');
     api.getFullscreen?.().then(isFullscreen => {
       document.body.classList.toggle('fullscreen', isFullscreen);
     });
