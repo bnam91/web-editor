@@ -29,6 +29,16 @@ body {
 }
 #titlebar * { -webkit-app-region: no-drag; }
 /* ★신호등 자리는 «맥에서만». 윈도우엔 신호등이 없어 빈 공간이 된다(2026-08-29) */
+/* editor-panels.css #logo-version-badge 와 같은 값 — 그 파일은 이 페이지가 로드하지 않는다 */
+#logo-version-badge {
+  font-size: var(--ui-fs-9); font-weight: var(--ui-fw-medium);
+  color: var(--ui-text-dim); letter-spacing: 0.3px;
+  border: 1px solid var(--ui-bg-hover);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
 .electron-app #titlebar { padding-left: 16px; }
 .electron-app.is-mac #titlebar { padding-left: 80px; }
 .electron-app.fullscreen #titlebar,
@@ -357,6 +367,7 @@ body {
       <circle cx="5.2" cy="5.2" r="0.75" fill="white" opacity="0.7"/>
     </svg>
     GODITOR
+    <span id="logo-version-badge"></span>
   </div>
   <!-- 탭바 (홈에서도 유지) -->
   <div id="home-tab-bar"></div>
@@ -868,6 +879,16 @@ async function initSampleProject() {
 // Electron fullscreen 감지
 if (window.electronAPI?.isElectron) {
   document.body.classList.add('electron-app');
+/* 버전 배지 — 에디터(js/editor.js)와 «같은 방식». 실패해도 빈 배지로 두지 않는다.
+ * ★왜: 「내가 지금 몇 버전을 쓰는지」를 홈 화면에서도 알아야 한다(현빈 2026-08-29). */
+(() => {
+  const b = document.getElementById('logo-version-badge');
+  if (!b) return;
+  b.textContent = 'BETA';
+  window.electronAPI?.getVersion?.()
+    .then(v => { if (v) b.textContent = `BETA v${v}`; })
+    .catch(() => {});
+})();
   // ★맥에서만 신호등 자리를 비운다(윈도우엔 신호등이 없다) — 2026-08-29
   if (/Mac|Macintosh/i.test(navigator.userAgent)) document.body.classList.add('is-mac');
   window.electronAPI.getFullscreen?.().then(isFullscreen => {
