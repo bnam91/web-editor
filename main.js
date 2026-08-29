@@ -240,7 +240,13 @@ function createWindow() {
     minHeight: 700,
     title: windowTitle,
     icon: path.join(__dirname, 'build/icon.png'),
-    ...(isMac ? { titleBarStyle: 'hiddenInset' } : { titleBarStyle: 'default' }),
+    ...(isMac
+      ? { titleBarStyle: 'hiddenInset' }
+      // ★윈도우/리눅스: 기본 메뉴바(파일·편집·보기·창)가 «창 안»에 붙는다.
+      //   맥은 시스템 메뉴바로 가서 안 보이지만 윈도우는 앱 UI 위에 겹쳐 보인다.
+      //   ⚠️제거(setApplicationMenu(null))가 아니라 «숨김»을 쓴다 — 제거하면 입력창의
+      //     복사·붙여넣기 가속기까지 같이 사라질 수 있다. autoHideMenuBar 는 Alt 로 다시 뜬다.
+      : { titleBarStyle: 'default', autoHideMenuBar: true }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

@@ -657,8 +657,11 @@ body {
   -webkit-app-region: no-drag; /* 버튼은 드래그 제외 */
 }
 /* Electron: 신호등(약 80px) 영역 확보 */
-.electron-app #topbar { padding-left: 80px; }
-.electron-app.fullscreen #topbar { padding-left: 12px; }
+/* ★신호등 자리는 «맥에서만». 윈도우는 신호등이 없어 같은 여백이 빈 공간이 된다. */
+.electron-app #topbar { padding-left: 12px; }
+.electron-app.is-mac #topbar { padding-left: 80px; }
+.electron-app.fullscreen #topbar,
+.electron-app.is-mac.fullscreen #topbar { padding-left: 12px; }
 #topbar .logo { font-size: var(--ui-fs-14); font-weight: var(--ui-fw-semibold); color: #fff; margin-right: 8px; }
 #topbar .divider { width: 1px; height: 20px; background: var(--ui-border-mid); flex-shrink: 0; margin: 0 2px; }
 #topbar .spacer { flex: 1; }
