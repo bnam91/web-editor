@@ -2578,6 +2578,7 @@ app.whenReady().then(async () => {
       editTextBlock: _invokeRendererEditBlock,
       addSection: _invokeRendererAddSection,
       addAssetBlock: _invokeRendererAddAssetBlock,
+      scratchAdd: _invokeRendererScratchAdd,
       buildBasicSection: _invokeRendererBuildBasicSection,
       getCanvasState: _invokeRendererGetCanvasState,
       listScratchItems: _invokeRendererListScratchItems,
@@ -3112,6 +3113,44 @@ async function _invokeRendererAddSection({ empty = false, bg, beforeId, afterId,
 
 // ─── Phase 3 MVP — renderer 측 에셋(비율 프리셋) row 추가 helper ──────────────
 // window.addPresetRow(preset) 호출. img1/img2/img3/text-img.
+/* MCP put_image — 이미지 바이트를 «스크래치»로 들여보내는 입구.
+ * ★가드는 _invokeRendererAddAssetBlock 의 것을 «하나도 빼지 않고» 복제했다:
+ *   renderer not ready · WINDOW_MINIMIZED · USER_BUSY(편집 중·최근 키입력 1.5초) · API_MISSING
+ *   + 단일 atomic IIFE — 두 executeJavaScript 사이 race 차단
+ *   ⚠️특히 USER_BUSY: 사람이 타이핑 중인데 이미지가 끼어들면 안 된다.
+ * ★프로젝트 열림 확인과 «되읽기»는 렌더러 쪽(_scratchAddForMcp)에서 한다 —
+ *   그 상태(_currentProjectId·_scratchItems)가 거기 있고, 왕복을 늘리지 않는다.
+ */
+async function _invokeRendererScratchAdd({ src, width } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeSrc   = JSON.stringify(String(src || ''));
+  const safeWidth = width ? String(Number(width) || 0) : 'undefined';
+  const atomicJs = `(async () => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window._scratchAddForMcp !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window._scratchAddForMcp not found' };
+      }
+      return await window._scratchAddForMcp(${safeSrc}, { width: ${safeWidth} });
+    } catch (e) {
+      return { ok: false, code: 'RENDERER_ERROR', message: String((e && e.message) || e) };
+    }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+}
+
 async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId, scratchId } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
@@ -3165,7 +3204,10 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId, scratc
       }
       const newAssets = [...document.querySelectorAll('.asset-block')].filter(b => !beforeIds.has(b.id));
       const lastNew = newAssets[newAssets.length - 1];
-      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after, assetBlockId: lastNew?.id || null, hasImage: !!(lastNew?.querySelector('.asset-img')?.src || lastNew?.dataset?.imgSrc) };
+      // sectionId 추가(2026-08-30): put_image 가 «어느 섹션에 붙었나»를 돌려줘야 하는데
+      //   sectionId 생략 호출(활성 섹션 사용)에서는 호출자가 그걸 «알 방법이 없었다». 필드 추가만 — 기존 필드는 그대로.
+      const secOf = lastNew?.closest('[id^="sec_"]')?.id || sid || null;
+      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after, assetBlockId: lastNew?.id || null, sectionId: secOf, hasImage: !!(lastNew?.querySelector('.asset-img')?.src || lastNew?.dataset?.imgSrc || (lastNew?.classList?.contains('asset-img') && lastNew?.src)) };
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {
