@@ -240,6 +240,9 @@ export function showIconifyProperties(block) {
     else hideNewCatInput();
   });
   newCatInput?.addEventListener('keydown', (e) => {
+    // ★한글 조합 중 Enter 가드 — 없으면 «같은 이름 카테고리가 두 번» 생성된다.
+    //   submitNewCat 은 await 전에 입력을 비우지 않아 두 번째 호출도 같은 name 으로 진행된다.
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter') { e.preventDefault(); submitNewCat(); }
     else if (e.key === 'Escape') { e.preventDefault(); hideNewCatInput(); }
   });
