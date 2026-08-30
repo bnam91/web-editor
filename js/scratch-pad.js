@@ -1446,6 +1446,45 @@ window._scratchNextSlot = ({ newColumn = false } = {}) => {
   return { x: colX, y: bottom + GAP_Y };
 };
 
+
+/* ── MCP put_image 전용 투입구 ─────────────────────────────────────────────────
+ * ★왜 별도 함수인가: _scratchAddAndSave 는 «조용히 실패»할 수 있다.
+ *   _getScratchKey 가 projectId 없으면 null 을 돌려주고 저장이 «스킵»되는데,
+ *   _scratchAddAndSave 는 그래도 resolve 한다 ⇒ 「성공을 돌려주고 실제론 아무 데도 안 남는다».
+ *   ★「성공 반환 = 실제로 됐음」이 아니다. 그래서 여기서 «앞뒤로» 막는다:
+ *     ⑴ 앞: 프로젝트 열림을 «먼저» 확인하고, 없으면 명확한 오류로 거절
+ *     ⑵ 뒤: 저장한 뒤 «되읽어» 실제로 있는지 확인. 없으면 성공을 돌려주지 않는다
+ * 위치는 _scratchNextSlot({newColumn:false}) — 폴더 불러오기와 «같은 컬럼 규칙»으로 세로로 쌓는다.
+ */
+window._scratchAddForMcp = async (src, { width } = {}) => {
+  if (!_currentProjectId) {
+    return { ok: false, code: 'NO_PROJECT',
+             message: '프로젝트가 열려 있지 않습니다. 프로젝트를 먼저 열어 주세요. (스크래치는 프로젝트+페이지에 묶입니다)' };
+  }
+  if (typeof src !== 'string' || !src) {
+    return { ok: false, code: 'BAD_SRC', message: 'src must be a non-empty string' };
+  }
+  const W = width || SCRATCH_PLACE.WIDTH;
+  const { x, y } = window._scratchNextSlot({ newColumn: false });
+  const before = _scratchItems.length;
+  try {
+    await window._scratchAddAndSave(src, x, y, W);
+  } catch (e) {
+    return { ok: false, code: 'ADD_FAILED', message: String(e && e.message || e) };
+  }
+  // ⑵ ★되읽기 — 실제로 남았는지 확인한다. 방금 것은 «마지막» 아이템이다.
+  const added = _scratchItems.length - before;
+  const last = _scratchItems[_scratchItems.length - 1];
+  if (added !== 1 || !last || !last.id) {
+    return { ok: false, code: 'NOT_PERSISTED', message: '스크래치에 실제로 들어가지 않았습니다(되읽기 실패).' };
+  }
+  const check = window._scratchGetItemById(last.id);
+  if (!check || check.src !== src) {
+    return { ok: false, code: 'NOT_PERSISTED', message: '스크래치 되읽기 불일치 — 저장이 반영되지 않았습니다.' };
+  }
+  return { ok: true, scratchId: last.id, x, y, width: W };
+};
+
 // Port 드롭다운 → 폴더 일괄 불러오기 (goditor-images_to_scratchpad 스킬 UI판)
 // 좌표 정책: 첫 batch는 x=960부터 세로 컬럼. 이후 batch는 기존 max X 옆 컬럼(+GAP_X)에 새 세로 컬럼으로 추가
 async function loadScratchpadFolder(event) {
