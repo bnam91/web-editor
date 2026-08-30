@@ -808,8 +808,12 @@ function _registerDefaultTools() {
                  scratchId: put.scratchId,
                  message: `${(att && att.message) || '캔버스 부착 실패'} — 이미지는 보관함(${put.scratchId})에 남아 있습니다.` };
       }
+      // ★blockId 는 add_asset_block 이 «assetBlockId» 라는 이름으로 준다 — 이름이 달라
+      //   그냥 att.blockId 를 읽으면 «항상 null» 이다(2026-08-30 대조에서 잡음).
       return { ok: true, target: 'canvas', scratchId: put.scratchId,
-               sectionId: att.sectionId || sectionId || null, blockId: att.blockId || null };
+               sectionId: att.sectionId || sectionId || null,
+               blockId: att.assetBlockId || att.blockId || null,
+               hasImage: att.hasImage === true };
     },
     {
       description: 'Put an image into GODITOR. Default target=canvas: the image is stored in the scratch pad and immediately attached to a section as an asset block. target=scratch stores it in the scratch pad only (canvas untouched). ⚠️A project must be OPEN for either target — the scratch pad is scoped to project+page. Image must be a data URL (max ~5MB); oversized images are rejected, never silently downscaled.',
