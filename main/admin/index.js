@@ -121,7 +121,7 @@ const ROLE_TTL_MS = 5 * 60 * 1000;
  */
 async function _fetchRole(force) {
   const auth = _auth();
-  if (!auth) return { ok: false, reason: 'not_signed_in', isAdmin: false, hasRoleField: false };
+  if (!auth) return { ok: false, reason: 'not_signed_in', isAdmin: false, hasRoleField: null };
 
   if (!force && _roleCache && _roleCache.email === auth.email && Date.now() - _roleCache.at < ROLE_TTL_MS) {
     return { ok: true, isAdmin: _roleCache.role === 'admin', role: _roleCache.role,
@@ -135,13 +135,22 @@ async function _fetchRole(force) {
     });
   } catch (_) {
     // 오프라인 — «모른다». 어드민이 아니라고 «단정»하지 않되, 탭은 안 띄운다(모르면 안 보여준다).
-    return { ok: false, reason: 'offline', isAdmin: false, hasRoleField: false };
+    return { ok: false, reason: 'offline', isAdmin: false, hasRoleField: null };
   }
 
+  /* ★★여기부터의 갈래 순서가 중요하다 (G1 지적, 2026-09-02).
+   *   죽은 토큰이면 서버는 401 {ok:false, reason:'invalid_session'} 을 준다 — 그 응답엔 role 키가 «없다».
+   *   그걸 먼저 안 걸러내고 hasOwnProperty 를 재면 「구버전 서버」로 읽는다. 실제로는 «로그아웃»이다.
+   *   ⇒ 200 이 아닌 응답에서는 role 판정을 «아예 하지 않는다».
+   *
+   * ★hasRoleField 는 3값이다 — true/false/null.
+   *   false = «봤는데 키가 없다»(구버전 서버)   null = «볼 기회조차 없었다»(오프라인·401·403)
+   *   둘을 false 로 뭉치면 「왜 탭이 없지」를 엉뚱한 데서 찾는다(관찰과 해석을 섞는 실수). */
   const j = r.json;
-  if (!j || typeof j !== 'object') return { ok: false, reason: 'bad_response', isAdmin: false, hasRoleField: false };
-  if (r.status === 401) return { ok: false, reason: 'invalid_session', isAdmin: false, hasRoleField: false };
-  if (r.status === 403) return { ok: false, reason: j.reason || 'forbidden', isAdmin: false, hasRoleField: false };
+  if (!j || typeof j !== 'object') return { ok: false, reason: 'bad_response', isAdmin: false, hasRoleField: null };
+  if (r.status === 401) return { ok: false, reason: 'invalid_session', isAdmin: false, hasRoleField: null };
+  if (r.status === 403) return { ok: false, reason: j.reason || 'forbidden', isAdmin: false, hasRoleField: null };
+  if (r.status !== 200) return { ok: false, reason: 'bad_response', status: r.status, isAdmin: false, hasRoleField: null };
 
   const hasRoleField = Object.prototype.hasOwnProperty.call(j, 'role');
   const role = hasRoleField ? (j.role === 'admin' ? 'admin' : null) : null;

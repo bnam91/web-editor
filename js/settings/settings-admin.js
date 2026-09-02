@@ -53,14 +53,23 @@
       let r = null;
       try { r = await a.state({ force: !!force }); } catch (_) { r = null; }
       _state = r || { ok: false, isAdmin: false, hasRoleField: false, reason: 'ipc_failed' };
-      const why = _state.isAdmin ? '' : (_state.hasRoleField ? 'not_admin' : (_state.reason || 'no_role_field'));
+      /* ★「탭이 왜 없나」의 이유를 «가려서» 한 번 남긴다.
+       *   hasRoleField 는 3값이다(main/admin/index.js): true=일반 / false=구버전 서버 / null=못 봄.
+       *   ⛔null 과 false 를 같이 다루지 마라 — 「구버전 서버」와 「로그아웃」은 할 일이 다르다. */
+      const why = _state.isAdmin ? ''
+        : _state.hasRoleField === true ? 'not_admin'
+        : _state.hasRoleField === false ? 'no_role_field'
+        : (_state.reason || 'unknown');
       if (why && why !== _loggedWhy) {
         _loggedWhy = why;
-        console.log('[admin] 공지 탭 없음 —', why === 'not_admin'
-          ? '이 계정은 운영자가 아닙니다(서버가 role:null 로 답했습니다)'
-          : why === 'no_role_field'
-            ? '서버 응답에 role 필드가 없습니다(이 패치가 안 실린 서버입니다)'
-            : why);
+        console.log('[admin] 공지 탭 없음 —', {
+          not_admin:      '이 계정은 운영자가 아닙니다(서버가 role:null 로 답했습니다)',
+          no_role_field:  '서버 응답에 role 필드가 없습니다 — 이 패치가 안 실린 서버입니다',
+          invalid_session:'로그인이 만료됐습니다 — 다시 로그인해야 합니다(구버전 서버가 아닙니다)',
+          not_signed_in:  '로그인되어 있지 않습니다',
+          offline:        '서버에 닿지 못했습니다 — 어드민인지 «모르는» 상태라 탭을 안 띄웁니다',
+          email_not_verified: '이메일 인증이 끝나지 않은 계정입니다',
+        }[why] || why);
       }
       _inflight = null;
       return _state;
@@ -400,7 +409,9 @@
     $('nt-preview').addEventListener('click', () => {
       const c = collect();
       if (c.error) { setStatus('✗ ' + c.error, 'err'); return; }
-      const how = preview({ title: c.payload.title, body: c.payload.body, level: c.payload.level });
+      /* ★endAt 도 «싣는다»(G3 지적). 안 실으면 만료 판정이 안 걸려서 실제와 다르게 «안 닫히는» 화면이 된다.
+       *   collect() 가 이미 «지난 종료시각»을 막으므로, 여기 오는 endAt 은 항상 미래다 — 곧바로 닫힐 일은 없다. */
+      const how = preview({ title: c.payload.title, body: c.payload.body, level: c.payload.level, endAt: c.payload.endAt });
       if (how === 'blocked') {
         setStatus('✗ 다른 공지 창이 떠 있어 미리보기를 띄우지 못했습니다. 그 창을 닫고 다시 눌러 주세요.', 'err');
         return;
