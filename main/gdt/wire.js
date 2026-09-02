@@ -72,6 +72,32 @@ function _deliver(p) {
 }
 function _deliverAll(paths) { for (const p of paths) _deliver(p); }
 
+/* ★두 번째 실행 = 「앱을 띄워 달라」는 뜻이다. 죽는 것으로 끝내면 «아무 일도 안 일어난» 것이 된다.
+ *   ⚠️맥에서는 win.focus() 만으로는 «다른 앱 위로» 못 올라온다(창은 활성인데 앱이 뒤에 있다).
+ *     app.focus({steal:true}) 가 앱 자체를 앞으로 끌어낸다 — 이건 사용자가 «방금 요청한» 일이라
+ *     스틸이 정당한 몇 안 되는 경우다. 다른 플랫폼에서는 인자 없는 focus() 가 맞다. */
+function _focusFirstWindow() {
+  try {
+    const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      if (!win.isVisible()) win.show();
+      win.focus();
+    }
+    if (process.platform === 'darwin') app.focus({ steal: true });
+    else app.focus();
+  } catch (e) {
+    console.warn('[single-instance] 창을 앞으로 못 냈다:', e && e.message);
+  }
+}
+
+/* 여러 인스턴스를 «일부러» 띄우는 경우인가. ⛔패키징 빌드에는 예외가 없다. */
+function _allowMultiInstance() {
+  if (app.isPackaged) return false;
+  if (String(process.env.GODITOR_ALLOW_MULTI || '') === '1') return true;
+  return (process.argv || []).some(a => typeof a === 'string' && a.startsWith('--remote-debugging-port'));
+}
+
 /* ★app ready «이전»에 불러야 한다 — 맥 open-file은 ready 전에도 뜬다. */
 function registerGdtFileAssociations() {
   // 맥: 꺼진 상태·켜진 상태 모두 이 이벤트로 온다
@@ -80,15 +106,36 @@ function registerGdtFileAssociations() {
     _deliver(filePath);
   });
 
-  // 윈도우: 실행 중이면 두 번째 인스턴스의 argv로 온다.
-  // ★잠금은 «패키지 빌드에서만» 건다 — dev:step2~dev:admin 병렬 인스턴스와
-  //   layout-orchestrator의 격리 인스턴스가 한 창으로 접히는 걸 막기 위해서다.
-  if (app.isPackaged) {
+  /* ── ★단일 인스턴스 잠금 (현빈 확정 2026-09-02: 「포토샵처럼」 하나만 뜬다) ──
+   *
+   * ★2026-09-02 정정: 이 잠금은 «원래 있었다» — 단, `app.isPackaged` 안에만 있었다.
+   *   그래서 배포본은 이미 두 번째 실행이 죽었고, dev(`electron .`)만 여러 개가 떴다.
+   *   main.js 의 「requestSingleInstanceLock 이 없다」 주석은 dev 기준으로만 맞는 말이었다
+   *   (그 주석도 같이 고쳤다 — 안 고치면 다음 사람이 「아직 못 막았다」로 읽는다).
+   *
+   * ★고친 것 ⑴ — 두 번째 실행이 «죽기만» 하고 끝났다.
+   *   사용자 눈에는 «아이콘을 눌렀는데 아무 일도 안 일어난 것»이다. 그건 「하나만 뜬다」가
+   *   아니라 「안 뜬다」로 읽힌다. ⇒ 첫 번째 창을 앞으로 끌어낸다(_focusFirstWindow).
+   *   .gdt 경로가 실려 왔든 아니든 «항상» 끌어낸다 — 파일 연결은 그 위에 얹는 일이다.
+   *
+   * ★고친 것 ⑵ — dev 는 무조건 열려 있었다.
+   *   그러면 우리가 이 기능을 «검증할 방법이 없다»(포장 빌드를 만들어야만 재현된다).
+   *   ⇒ 기본을 잠금으로 바꾸고, 여러 개가 «필요한 경우»만 판별해 비켜간다:
+   *     ⒜ --remote-debugging-port 가 붙은 실행 — CDP 검증·layout-orchestrator 격리 인스턴스가
+   *        전부 이 인자를 쓴다(package.json dev:* 8개가 «모두» 이 인자를 달고 있다. 실측).
+   *        즉 이 한 줄로 기존 개발 흐름은 하나도 안 죽는다.
+   *     ⒝ GODITOR_ALLOW_MULTI=1 — 인자를 못 붙이는 경우의 비상구.
+   *   ⛔패키징 빌드에는 예외가 «없다». 사용자 손에 가는 앱에 「여러 개 띄우는 법」을 남기면
+   *     그건 확정 사양이 아니라 권고가 된다. */
+  if (!_allowMultiInstance()) {
     // ★app.quit()가 아니라 exit(0) — quit()은 «비동기»라 그 뒤로 main.js가 계속 실행돼
     //   두 번째 인스턴스가 창을 띄우거나 마이그레이터를 도는 사이 경합이 난다.
     //   이 인스턴스는 아직 아무것도 안 했으므로 즉시 끊는 게 안전하다.
     if (!app.requestSingleInstanceLock()) { app.exit(0); return; }
-    app.on('second-instance', (_e, argv) => _deliverAll(_gdtPathsFromArgv(argv)));
+    app.on('second-instance', (_e, argv) => {
+      _focusFirstWindow();
+      _deliverAll(_gdtPathsFromArgv(argv));
+    });
   }
 
   // 콜드 스타트(윈도우): 최초 argv에 «여러» 경로가 실려 올 수 있다(다중선택)
@@ -258,4 +305,6 @@ module.exports = {
   registerGdtIpc, registerGdtFileAssociations, buildAppMenu, safeFileName,
   // 테스트용 — 파일 연결 경로는 GUI 더블클릭 없이는 재현이 어려워 상태를 들여다볼 창구를 둔다
   _gdtPathFromArgv, _gdtPathsFromArgv, getPendingOpenPath: () => _pendingOpenPaths.slice(),
+  // 단일 인스턴스 판정은 «인자/환경»만 보는 순수 함수라 이렇게 직접 잴 수 있다(GUI 없이 재현).
+  _allowMultiInstance,
 };

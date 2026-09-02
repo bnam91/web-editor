@@ -885,6 +885,11 @@
     // ★협업 탭은 «열 때» 안 그린다 — 탭을 눌러야 그린다(마켓 탭과 같은 지연 로드).
     //   초대 목록은 네트워크를 타므로, 안 볼 탭 때문에 매번 서버를 두드릴 이유가 없다.
     renderDevPane();
+    /* ★어드민 「공지」 탭은 «열 때» 붙인다(js/settings/settings-admin.js).
+     *   role 은 로그인 뒤에 오고 로그아웃하면 사라진다 — ensureModal 은 한 번만 도니
+     *   거기서 그리면 「로그인했는데 탭이 없다」와 「로그아웃했는데 탭이 남는다」가 둘 다 난다.
+     *   ⚠️비동기다(main 에 role 을 물어본다). 탭은 한 박자 뒤에 붙는다. */
+    if (typeof window.syncAdminTab === 'function') window.syncAdminTab(modal);
     show(modal);
     // ★특정 탭으로 바로 열 수 있어야 한다 — 상단바 「초대 N건」 배지가 여기로 보낸다.
     //   눌렀는데 엉뚱한 탭이 열리면 사용자는 초대를 못 찾는다.

@@ -21,12 +21,6 @@ app.name = 'GODITOR';
 const fs = require('fs');
 const os = require('os');
 
-// .gdt 파일 연결 — ★app ready «이전»에 걸어야 한다.
-// 맥은 파인더에서 더블클릭한 경로를 `open-file` 이벤트로 주는데, 콜드 스타트에선
-// 그 이벤트가 whenReady보다 «먼저» 뜬다. ready 안에서 등록하면 첫 더블클릭을 놓친다.
-try { require('./main/gdt/wire').registerGdtFileAssociations(); }
-catch (e) { console.error('[gdt] 파일 연결 등록 실패:', e); }
-
 // userData 폴더 마이그레이션: 구 이름('Goya Design Editor') → 'GODITOR'.
 // app.name이 userData 경로를 결정하므로, 앱이 새 경로에 처음 쓰기 전(top-level)에 rename.
 // 같은 볼륨 rename이라 원자적·즉시(6GB+ copy 아님). old만 있고 new 없을 때 1회만.
@@ -43,6 +37,19 @@ catch (e) { console.error('[gdt] 파일 연결 등록 실패:', e); }
     console.error('[migrate] userData rename failed:', e.message);
   }
 })();
+
+// .gdt 파일 연결 — ★app ready «이전»에 걸어야 한다.
+// 맥은 파인더에서 더블클릭한 경로를 `open-file` 이벤트로 주는데, 콜드 스타트에선
+// 그 이벤트가 whenReady보다 «먼저» 뜬다. ready 안에서 등록하면 첫 더블클릭을 놓친다.
+// ★★그리고 «위 마이그레이션 뒤»여야 한다 (2026-09-02 실측).
+//   이 안에서 requestSingleInstanceLock() 을 부르는데, 그게 userData 에 SingletonLock/
+//   SingletonCookie/SingletonSocket 을 «만든다»(실측: 새 userData 폴더에 3개가 생겼다).
+//   마이그레이션보다 «먼저» 돌면 'GODITOR' 폴더가 그 파일들 때문에 이미 존재해서
+//   `!fs.existsSync(newUD)` 가 거짓이 되고 → 이사가 조용히 안 일어난다 →
+//   옛 이름 폴더에 있던 사용자의 프로젝트가 통째로 «없는 것»이 된다.
+//   ⛔이 두 줄을 위로 다시 올리지 마라. 올리면 그 순간 그 사고가 돌아온다.
+try { require('./main/gdt/wire').registerGdtFileAssociations(); }
+catch (e) { console.error('[gdt] 파일 연결 등록 실패:', e); }
 
 // .env 로드 (크리덴셜 환경변수)
 function _loadEnvFile(p) {
@@ -1661,8 +1668,10 @@ ipcMain.handle('projects:duplicate', (_e, args = {}) => _duplicateProjectImpl(ar
  *   ⇒ 열려 있으면 main 은 «쓰지 않고» 데이터만 준다. 적용은 렌더러가
  *     state._suppressAutoSave + applyProjectData 로 한다(commit-system.js:269 가 세운 정본).
  *
- * ★다중 인스턴스 — main.js 에 requestSingleInstanceLock 이 «없다». 즉 두 번째 앱이 실제로 뜰 수 있고,
- *   그쪽이 같은 프로젝트를 열고 있는지 이 프로세스는 «알 수 없다».
+ * ★다중 인스턴스 — 2026-09-02 «막았다»(현빈 확정: 포토샵처럼 하나만). 잠금은 main/gdt/wire.js 의
+ *   registerGdtFileAssociations() 안에 있다(requestSingleInstanceLock + second-instance → 첫 창을 앞으로).
+ *   ⚠️예외가 «둘» 있다: `--remote-debugging-port` 가 붙은 dev 실행(CDP 검증·격리 인스턴스)과
+ *     GODITOR_ALLOW_MULTI=1. 즉 «개발 중에는» 두 번째 프로세스가 여전히 뜬다 — 아래 판별은 그대로 필요하다.
  *   판별 불가일 때 덮어쓰면 남의 편집을 조용히 날린다 ⇒ 거부하고 «왜»를 화면에 말한다(설계 §7-4).
  *   호출측은 openProjectIds(이 창이 연 탭 목록)를 «반드시» 넘겨야 한다 — 안 넘기면 판별 불가로 본다.
  */
@@ -1678,8 +1687,9 @@ ipcMain.handle('projects:history-restore', async (_e, { projectId, ts, openProje
   }
   // ★«다른 창»은 main 이 실제로 셀 수 있다. 창이 둘 이상이면 이 창의 탭 목록은 «전체 지식»이 아니다
   //   → 덮어쓰면 다른 창의 편집을 조용히 날린다. 거부하고 이유를 말한다.
-  //   ⚠️ 별도 «프로세스»(두 번째 앱 실행)는 이걸로도 못 잡는다 — main.js 에 requestSingleInstanceLock 이
-  //     없어 실제로 가능하다. 그건 이 유닛이 못 덮는 구멍이라 설계에 남긴다(§D10 잔여 위험).
+  //   ⚠️ 별도 «프로세스»(두 번째 앱 실행)는 이걸로도 못 잡는다. 배포본에서는 단일 인스턴스 잠금이
+  //     그걸 막지만(main/gdt/wire.js), dev 실행(--remote-debugging-port·GODITOR_ALLOW_MULTI=1)은
+  //     여전히 여러 개가 뜬다 ⇒ 이 창 수 판별은 «폐기하지 마라». §D10 잔여 위험은 «개발 실행»으로 좁혀졌다.
   let windowCount = 1;
   try { windowCount = BrowserWindow.getAllWindows().filter(w => !w.isDestroyed()).length || 1; } catch (_) {}
   if (windowCount > 1) {
@@ -2161,6 +2171,23 @@ require('./main/collab').init(ipcMain, {
     try { if (fs.existsSync(paths.meta)) merged = JSON.parse(fs.readFileSync(paths.meta, 'utf8')) || {}; } catch (_) {}
     _atomicWriteFileSync(paths.meta, JSON.stringify({ ...merged, ...patch }, null, 2));
   },
+});
+
+/* ── IPC: 어드민(공지 작성·신고 열람) ──
+   구현은 main/admin/* 에 있다. 여기엔 «주입»만 둔다(협업과 같은 꼴).
+   ⚠️ sessionToken 은 이 클로저 밖으로 안 나간다 — 렌더러엔 admin:* 결과만 간다.
+   ★권한은 서버가 지킨다(api/_lib/roles.js requireAdmin). 이 모듈의 role 판정은
+     «환경설정에 공지 탭을 그릴까»를 정하는 힌트일 뿐이다. */
+require('./main/admin').init(ipcMain, { readAuth });
+
+/* ── IPC: 운영자 공지 ──
+   구현은 main/notice/* 에 있다. 여기엔 «주입»만 둔다(collab 과 같은 규약).
+   ⚠️ sessionToken 은 이 클로저 밖으로 안 나간다 — 공지 조회의 x-session-token 헤더는 main 에서만 붙는다. */
+require('./main/notice').init(ipcMain, {
+  userDataDir: USER_DATA_DIR,
+  readAuth,
+  getVersion: () => { try { return app.getVersion(); } catch (_) { return ''; } },
+  getWindows: () => BrowserWindow.getAllWindows(),
 });
 
 /* ── IPC: Intake (design-bot pipeline) ── */
