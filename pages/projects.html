@@ -10,6 +10,7 @@
      (실측: editor-base.css와 이 페이지 사이에 id/class 충돌 0건) -->
 <link rel="stylesheet" href="../css/editor-base.css">
 <link rel="stylesheet" href="../css/settings-modal.css">
+<link rel="stylesheet" href="../css/notice.css">
 <link rel="stylesheet" href="../css/font-substitute.css">
 <link rel="stylesheet" href="../css/version-history.css">
 <style>
@@ -486,6 +487,7 @@ body {
 <!-- ★킬스위치 단일 원본(js/feature-flags.js) — 이 인라인 스크립트가 window.COLLAB_ENABLED 를
      읽으므로 «반드시 먼저» 실행돼야 한다. 에디터(index.html)도 같은 파일을 읽는다. -->
 <script src="../js/feature-flags.js"></script>
+<script src="../js/notice.js"></script>
 
 <script>
 const IS_ELECTRON = !!window.electronAPI?.isElectron;
