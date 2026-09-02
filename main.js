@@ -5660,3 +5660,101 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   [Unit B] 버그·피드백 신고 — IPC 3개 (2026-09-02)
+   ──────────────────────────────────────────────────────────────────────────
+   ★파일 «맨 끝»에 몰아 둔다: 같은 시각 다른 유닛(G3 공지·G4 어드민/단일실행)이
+     main.js 를 동시에 고치고 있다. 한 덩어리로 모여 있어야 충돌 조정이 싸다.
+   ★sessionToken 은 여기서만 붙는다 — 렌더러로 나가지 않는다(기존 원칙 유지).
+══════════════════════════════════════════════════════════════════════════ */
+const reportQueue = require('./main/report/queue');
+
+let _reportQueueReady = false;
+function ensureReportQueue() {
+  if (_reportQueueReady) return;
+  _reportQueueReady = true;
+  reportQueue.init({
+    userDataDir: app.getPath('userData'),
+    apiBase: AUTH_API_BASE,
+    // ★큐 파일엔 토큰을 적지 않는다. 보낼 때마다 «그 순간의» auth.json 을 읽는다
+    //   ⇒ 로그아웃했다면 그 뒤 재시도는 자동으로 익명이 된다(유저렌즈 D-c).
+    readAuth: () => {
+      const a = readAuth();
+      return a ? { email: a.email, sessionToken: a.sessionToken } : null;
+    },
+    log: (m) => console.warn(m),
+  });
+}
+app.whenReady().then(() => {
+  try {
+    ensureReportQueue();
+    // 켜질 때 한 번 — 지난번에 서버가 죽어 있어 남은 신고를 보낸다(유저렌즈 C-a).
+    setTimeout(() => { reportQueue.flush().catch(() => {}); }, 5000);
+  } catch (e) { console.warn('[report] 큐 초기화 실패:', e.message); }
+});
+
+/** 신고 창이 「함께 보내지는 것」에 적을 값 + 아직 못 보낸 건수. */
+ipcMain.handle('report:context', () => {
+  let queued = 0;
+  try { ensureReportQueue(); queued = reportQueue.stats().size; } catch (_) {}
+  return {
+    appVersion: app.getVersion(),
+    os: `${process.platform} ${require('os').release()}`,
+    arch: process.arch,
+    queued,
+  };
+});
+
+/* 화면 캡처 — 1280px 축소 + JPEG. ★렌더러로 원본 PNG(수 MB)를 넘기지 않는다.
+   축소를 메인에서 끝내야 IPC 도, 미리보기도, 전송 payload 도 같은 «한 장»이 된다. */
+ipcMain.handle('report:capture', async (event) => {
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return { ok: false, message: '창을 찾을 수 없습니다' };
+    let img = await win.webContents.capturePage();
+    if (!img || img.isEmpty()) return { ok: false, message: '빈 화면입니다' };
+    const size = img.getSize();
+    const longEdge = Math.max(size.width, size.height);
+    if (longEdge > 1280) {
+      img = size.width >= size.height ? img.resize({ width: 1280 }) : img.resize({ height: 1280 });
+    }
+    const out = img.getSize();
+    return {
+      ok: true,
+      w: out.width,
+      h: out.height,
+      dataUrl: 'data:image/jpeg;base64,' + img.toJPEG(72).toString('base64'),
+    };
+  } catch (e) {
+    return { ok: false, message: e.message };
+  }
+});
+
+/* 신고 접수 — ★언제나 «큐에 먼저» 넣고 그다음에 보낸다.
+   반대로 하면 전송 중 앱이 죽었을 때 아무 데도 안 남는다(PLAN §2⑸). */
+ipcMain.handle('report:submit', async (_event, payload) => {
+  try {
+    ensureReportQueue();
+    if (!payload || typeof payload.text !== 'string' || !payload.text.trim()) {
+      return { ok: false, sent: false, queued: false, message: '내용을 적어 주세요.' };
+    }
+    const { dropped } = reportQueue.enqueue(payload);
+    const r = await reportQueue.flush();
+    return {
+      ok: true,
+      sent: r.sent > 0,
+      queued: r.left > 0,
+      left: r.left,
+      dropped,                       // 상한 50 을 넘겨 «오래된» 것이 빠진 수
+      message: r.sent > 0 ? (r.lastMessage || null) : (r.lastError || null),
+    };
+  } catch (e) {
+    return { ok: false, sent: false, queued: false, message: e.message };
+  }
+});
+
+/** 큐 상태 조회 — 검증·표시용(전송은 안 한다). */
+ipcMain.handle('report:queue-stats', () => {
+  try { ensureReportQueue(); return reportQueue.stats(); } catch (e) { return { size: 0, max: 50, error: e.message }; }
+});

@@ -121,6 +121,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setSettings:  (patch)         => ipcRenderer.invoke('settings:set', patch),
   testApiKey:   (provider, key) => ipcRenderer.invoke('settings:test-key', provider, key),
 
+  // ── [Unit B] 버그·피드백 신고 ──
+  //   ★sessionToken 은 «메인»이 붙인다(여기로 안 나온다). 렌더러는 내용·이미지만 넘긴다.
+  report: {
+    submit:  (payload) => ipcRenderer.invoke('report:submit', payload),
+    capture: ()        => ipcRenderer.invoke('report:capture'),
+    context: ()        => ipcRenderer.invoke('report:context'),
+    stats:   ()        => ipcRenderer.invoke('report:queue-stats'),
+  },
+
   // App info
   isElectron: true,
   getVersion: () => ipcRenderer.invoke('get-version'),
