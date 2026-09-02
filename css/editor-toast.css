@@ -4,9 +4,11 @@
    FLOATING ACTION PANEL
 ═══════════════════════════════════ */
 /* ── Toast ── */
+/* ★자리 = «위 가운데»(탭바 아래). 2026-09-02 현빈 확정 — 앱의 토스트 자리는 한 곳뿐이다.
+   옛 자리는 화면 정중앙이었다(모달과 겹쳐 읽을 수 없었다). .settings-toast 와 같은 좌표. */
 #editor-toast {
-  position: fixed; top: 50%; left: 50%;
-  transform: translate(-50%, calc(-50% + 12px));
+  position: fixed; top: 56px; left: 50%;
+  transform: translate(-50%, -12px);
   background: var(--ui-bg-base); color: #f0f0f0;
   font-size: var(--ui-fs-13); font-weight: var(--ui-fw-medium);
   padding: 10px 18px; border-radius: 8px;
@@ -16,7 +18,7 @@
   transition: opacity 0.15s, transform 0.15s;
   z-index: 600; white-space: nowrap;
 }
-#editor-toast.show { opacity: 1; transform: translate(-50%, -50%); }
+#editor-toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 @keyframes fp-shake {
   0%,100% { transform: translateX(-50%); }
