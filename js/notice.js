@@ -137,7 +137,9 @@
       clearInterval(expiryTimer);
       overlay.remove();
       // 「확인」을 눌렀을 때만 읽음으로 적는다. 기간이 끝나 저절로 닫힌 건 읽은 게 아니다.
-      if (ack) { try { api.notice.ack(n.id); } catch (_) {} }
+      // ★id 가 없으면 «어드민 미리보기»다(preview) — 서버에도 파일에도 아무것도 안 남긴다.
+      //   가드를 빼면 미리보기의 「확인」이 빈 id 로 ack 를 쳐서 main 이 400 을 뱉는다.
+      if (ack && n.id) { try { api.notice.ack(n.id); } catch (_) {} }
     };
 
     overlay.addEventListener('click', (e) => {
@@ -223,6 +225,31 @@
   if (d.readyState === 'loading') d.addEventListener('DOMContentLoaded', hello, { once: true });
   else hello();
 
-  // QA·디버그용 창구(사용자 화면엔 안 보인다).
-  w.__notice = { busyReason, pollNow: () => api.notice.pollNow(), state: () => api.notice.state() };
+  /* ── 밖으로 내는 창구 ─────────────────────────────────────────────────────
+   * busyReason·pollNow·state 는 QA·디버그용(사용자 화면엔 안 보인다).
+   * preview 는 «어드민 공지 작성 탭»(Unit D)이 쓴다 — 같은 룩을 두 벌로 그리지 않으려고
+   * 이 모듈의 표시 함수를 그대로 빌려준다(PLAN §2⑹ 디자인 일관성). */
+  w.__notice = {
+    busyReason,
+    pollNow: () => api.notice.pollNow(),
+    state:   () => api.notice.state(),
+    /** ★보내기 전 미리보기(PLAN B-c). 서버에 아무것도 안 쓰고 읽음 기록도 안 남긴다.
+     *  ⇒ id 를 «일부러» 안 싣는다(위 finish 의 `ack && n.id` 가드와 짝이다).
+     *  ⇒ 긴급도 «항상» 닫을 수 있게 연다 — 미리보기에 갇히면 공지를 못 보낸다.
+     *  ⚠️종료시각이 이미 지난 draft 면 긴급 미리보기가 곧바로 닫힌다(실제와 같은 규칙이라
+     *    그대로 둔다). 어드민 화면이 미리보기 «전에» 그걸 경고하는 쪽이 맞다.
+     *  @returns {boolean} 띄웠으면 true. 다른 모달이 이미 떠 있으면 false(조용히 안 뜬다).
+     */
+    preview: (n) => {
+      if (!n) return false;
+      const draft = { title: n.title, body: n.body, level: n.level, endAt: n.endAt };
+      if (draft.level === 'urgent') {
+        if (_openModalEl) return false;
+        openModal(draft, { dismissible: true });
+        return true;
+      }
+      showToast(draft);
+      return true;
+    },
+  };
 })(window, document);
