@@ -456,6 +456,17 @@ body {
             </svg>
             <span class="tab-add-item-name">등급 올리기</span>
           </button>
+          <!-- ★로그아웃 — 2026-09-02 추가. 그 전까지 이 앱에는 «로그아웃할 방법이 없었다»
+               (main.js auth:logout · preload authLogout 은 있는데 부르는 화면이 0곳이었다).
+               ⛔새 버튼 모양을 만들지 않는다 — 위 「등급 올리기」와 «같은» .tab-add-item 한 벌이다. -->
+          <button type="button" class="tab-add-item" id="acct-logout" role="menuitem" data-acct-item
+                  title="이 기기에서 로그아웃합니다">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            <span class="tab-add-item-name">로그아웃</span>
+          </button>
         </div>
       </div>
     </div>
@@ -471,6 +482,10 @@ body {
     <p>아직 프로젝트가 없어요.<br>새 프로젝트를 만들어보세요.</p>
   </div>
 </div>
+
+<!-- ★킬스위치 단일 원본(js/feature-flags.js) — 이 인라인 스크립트가 window.COLLAB_ENABLED 를
+     읽으므로 «반드시 먼저» 실행돼야 한다. 에디터(index.html)도 같은 파일을 읽는다. -->
+<script src="../js/feature-flags.js"></script>
 
 <script>
 const IS_ELECTRON = !!window.electronAPI?.isElectron;
@@ -555,7 +570,9 @@ async function renderGrid() {
     // ★「원격으로 올리기」는 «아직 안 올린 카드»에만 뜬다. 이미 올린 카드에서 또 누르면
     //   무슨 일이 나는지 사용자가 알 수 없다 — 버튼을 없애서 그 질문 자체를 없앴다.
     //   (끊기·초대 관리는 환경설정 「협업」 탭이 맡는다. 카드에 다 넣으면 카드가 도구상자가 된다.)
-    const shareBtnHtml = (isCollab || !window.electronAPI?.collab)
+    //   ★킬스위치(js/feature-flags.js COLLAB_ENABLED) 를 «여기서도» 본다 — 2026-09-02 이전에는
+    //   안 봤다. 그래서 스위치를 꺼도 이 버튼만 살아남아 「눌리는데 서버가 404」였다.
+    const shareBtnHtml = (!window.COLLAB_ENABLED || isCollab || !window.electronAPI?.collab)
       ? ''
       : `<button class="card-action card-share" onclick="shareProjectUI(event, '${proj.id}')" title="원격으로 올리기 — 다른 사람을 초대해 같이 편집합니다">👥</button>`;
     card.innerHTML = `
@@ -720,6 +737,9 @@ async function deleteProject(e, id) {
  */
 async function shareProjectUI(e, id) {
   e.stopPropagation();
+  // ★킬스위치는 «버튼을 안 그리는 것»으로 끝나지 않는다 — 이 함수는 전역이라 남은 경로(콘솔·
+  //   나중에 붙는 메뉴)로도 불릴 수 있다. 문을 두 겹으로 닫아 둔다(js/feature-flags.js).
+  if (!window.COLLAB_ENABLED) return;
   if (!window.electronAPI?.collab) { alert('공동작업은 데스크탑 앱에서만 사용할 수 있습니다.'); return; }
   const st = await window.electronAPI.getAuthState?.();
   if (!st || !st.signedIn) { alert('공동작업은 로그인한 뒤에 쓸 수 있습니다.\n(계정이 있어야 상대를 초대할 수 있습니다.)'); return; }
@@ -1101,6 +1121,24 @@ function wireAcctMenu(api) {
     closeAcctMenu();
     const st = await api.getAuthState();
     if (st && st.purchaseUrl && api.openExternalUrl) await api.openExternalUrl(st.purchaseUrl);
+  });
+
+  /* ★로그아웃 — 세션(userData/auth.json)을 지우고 로그인 화면으로 «되돌린다».
+   *   ⛔새 IPC 를 만들지 않는다 — 이미 있는 auth:logout(main.js) / authLogout(preload) 을 쓴다.
+   *   ★확인을 «받는다»: 위 두 항목(새로고침·요금제 열기)은 잘못 눌러도 되돌아오는데,
+   *     이건 다시 들어오려면 이메일·비밀번호를 «다시» 쳐야 한다(오프라인이면 못 들어온다).
+   *     좁은 드롭다운에서 한 칸 아래를 누르는 실수의 대가가 다른 항목과 다르다.
+   *     (Electron 은 prompt() 만 막는다 — confirm() 은 이 파일이 이미 여러 곳에서 쓴다.)
+   *   ★화면을 «반드시» 되돌린다: 지우기만 하고 이 화면에 남으면 프로젝트가 열리는데
+   *     로그인은 안 된 «반쯤 로그아웃» 상태가 된다. 이동 경로는 위 acct-refresh 의
+   *     invalid_session 분기와 «같은» license.html 이다(입구를 두 벌 만들지 않는다). */
+  const out = document.getElementById('acct-logout');
+  if (out) out.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!confirm('로그아웃할까요?\n\n다시 쓰려면 이메일·비밀번호로 다시 로그인해야 합니다.\n(작업한 프로젝트는 이 컴퓨터에 그대로 남습니다.)')) return;
+    closeAcctMenu();
+    try { await api.authLogout?.(); } catch (_) {}
+    window.location.href = 'license.html';
   });
 }
 
