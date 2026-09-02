@@ -86,7 +86,8 @@
       "**/*",
       "!.git",
       "!dist",
-      "!*.md"
+      "!*.md",
+      "!templates"
     ]
   },
   "repository": {
