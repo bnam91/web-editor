@@ -349,7 +349,11 @@
      *   그쪽이 창구(__notice.preview)를 열어두면 그걸 쓰고, 아직이면 같은 클래스로 폴백한다.
      *   ⚠️폴백은 «코드가 두 벌»이라는 뜻이다. 창구가 열리면 이 폴백은 지워야 한다. */
     function preview(n) {
-      if (w.__notice && typeof w.__notice.preview === 'function') { w.__notice.preview(n); return 'reused'; }
+      if (w.__notice && typeof w.__notice.preview === 'function') {
+        /* ★돌려주는 값을 «버리지 않는다» — 다른 공지 모달이 떠 있으면 false 다(G3 계약).
+         *   버리면 아무것도 안 떴는데 「이렇게 보입니다」라고 말하게 된다. */
+        return w.__notice.preview(n) ? 'reused' : 'blocked';
+      }
       fallbackPreview(n);
       return 'fallback';
     }
@@ -397,6 +401,10 @@
       const c = collect();
       if (c.error) { setStatus('✗ ' + c.error, 'err'); return; }
       const how = preview({ title: c.payload.title, body: c.payload.body, level: c.payload.level });
+      if (how === 'blocked') {
+        setStatus('✗ 다른 공지 창이 떠 있어 미리보기를 띄우지 못했습니다. 그 창을 닫고 다시 눌러 주세요.', 'err');
+        return;
+      }
       setStatus(how === 'reused'
         ? '실제로 뜨는 그 화면입니다 — 아직 아무에게도 안 보냈습니다.'
         : '미리보기(대체 화면)입니다 — 아직 아무에게도 안 보냈습니다.', 'ok');
