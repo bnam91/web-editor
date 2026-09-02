@@ -171,6 +171,8 @@
     payload_too_large: '내용이 너무 깁니다.',
     too_large: '파일이 너무 커서 여기서는 열 수 없습니다.',
     not_found: '찾을 수 없습니다(이미 지워졌을 수 있습니다).',
+    // ★DB 엔 있는데 디스크에 파일이 없다 — 「없는 신고」와 원인이 다르다(서버가 문구를 준다).
+    file_missing: '서버에 저장된 이미지 파일을 찾지 못했습니다.',
   };
   const say = (r) => (r && r.message) || REASON[r && r.reason] || (r && r.reason) || '알 수 없는 오류';
 

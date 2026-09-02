@@ -242,7 +242,7 @@ function init(ipcMain, deps) {
       res = await get('/api/report/image');
       if (res.status === 404) {
         // ⚠️404 가 «이 신고에 그 이미지가 없다»일 수도, «엔드포인트가 아직 없다»일 수도 있다.
-        //   alias 로 한 번 더 물어 가른다 — 둘 다 404 면 그때 not_found 다.
+        //   alias 로 한 번 더 물어 가른다.
         const alt = await get('/api/license/report-image');
         if (alt.status !== 404) res = alt;
       }
@@ -252,7 +252,19 @@ function init(ipcMain, deps) {
       let j = null; try { j = await res.json(); } catch (_) {}
       return { ok: false, reason: (j && j.error) || 'forbidden', message: j && j.message };
     }
-    if (res.status !== 200) return { ok: false, reason: res.status === 404 ? 'not_found' : 'server', status: res.status };
+    if (res.status !== 200) {
+      /* ★JSON 계열과 «같은 규칙»으로 가른다 (_callWithAlias 참조).
+       *   핸들러가 낸 404 는 message 를 싣는다(G1 이 14곳을 채우고 테스트로 못 박았다 — 1c88ee7).
+       *   어댑터의 라우팅 404 는 message 가 «없다»(ec2-server.js 에 ⛔주석으로 고정).
+       *   ⇒ 여기서도 not_found(그 파일이 없다) 와 not_deployed(그 문이 아직 없다) 를 가른다.
+       *   ★file_missing(DB엔 있는데 디스크에 없다)도 서버 문구를 그대로 올린다 — 원인이 다르다. */
+      let j = null; try { j = await res.json(); } catch (_) {}
+      if (res.status === 404) {
+        if (j && j.message) return { ok: false, reason: j.error || 'not_found', message: j.message };
+        return { ok: false, reason: 'not_deployed', status: 404 };
+      }
+      return { ok: false, reason: 'server', status: res.status, message: j && j.message };
+    }
 
     const mime = res.headers.get('content-type') || 'application/octet-stream';
     let buf;
