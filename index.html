@@ -20,6 +20,9 @@
 <link rel="stylesheet" href="css/editor-extra.css">
 <link rel="stylesheet" href="css/pen-tool.css">
 <link rel="stylesheet" href="css/settings-modal.css">
+<link rel="stylesheet" href="css/report-modal.css">
+<link rel="stylesheet" href="css/notice.css">
+<link rel="stylesheet" href="css/settings-admin.css">
 <link rel="stylesheet" href="css/font-substitute.css">
 <link rel="stylesheet" href="css/version-history.css">
 <link rel="stylesheet" href="css/section-search.css">
@@ -704,6 +707,21 @@
       <path d="M13 1.5 13.5 3 15 3.5 13.5 4 13 5.5 12.5 4 11 3.5 12.5 3Z" fill="#ffd66b"/>
     </svg>
   </button>
+  <div class="fp-divider"></div>
+  <!-- [Unit B] 버그·피드백 신고 — 툴바 «맨 끝». 아이콘만 보고 알 수 있어야 한다(유저렌즈 A-a)
+       ⇒ 벌레(버그) 모양 + title 을 둘 다 둔다. -->
+  <button class="fp-btn" id="fp-report-btn" aria-label="버그·피드백 보내기"
+          onclick="window.openReportModal && window.openReportModal()"
+          title="버그·피드백 보내기 — 안 되는 것·아쉬운 것을 개발팀에 보냅니다">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+         stroke-width="1.1" stroke-linecap="round" aria-hidden="true">
+      <path d="M5.4 4.2a2.6 2.6 0 0 1 5.2 0"/>
+      <path d="M5.6 3.3 4.4 2.1M10.4 3.3l1.2-1.2"/>
+      <rect x="4.6" y="4.2" width="6.8" height="8.2" rx="3.4"/>
+      <path d="M4.6 8H2.6M11.4 8h2M4.9 5.6 3.1 4.3M11.1 5.6l1.8-1.3M4.9 10.6l-1.8 1.3M11.1 10.6l1.8 1.3"/>
+      <path d="M8 4.6v7.6"/>
+    </svg>
+  </button>
 </div>
 
 <!-- Plugin Panel (floating-panel 하단 팝업) -->
@@ -876,6 +894,9 @@
 <!-- ★킬스위치 단일 원본 — «맨 앞»에 둔다(다른 스크립트가 window.COLLAB_ENABLED 를 읽는다).
      pages/projects.html 도 «같은 파일»을 읽는다 — 스위치가 두 벌이 되면 한쪽이 샌다. -->
 <script src="js/feature-flags.js"></script>
+<!-- [Unit B] 오류 링버퍼 — ★반드시 «맨 앞». 뒤에 두면 초기 오류를 놓친다 -->
+<script src="js/report-buffer.js"></script>
+<script src="js/notice.js"></script>
 <script src="vendor/html2canvas/html2canvas.min.js" defer></script>
 <script defer src="js/gif.js"></script>
 <!-- Settings (다른 js보다 먼저 — _matchShortcut/getShortcut 글로벌 등록) -->
@@ -893,6 +914,10 @@
 <script src="js/collab/accept.js"></script>
 <script src="js/market.js"></script>
 <script src="js/settings/settings-modal.js"></script>
+<!-- 환경설정 「공지」 탭(어드민 전용). settings-modal «뒤» — openSettingsModal 이 여기 함수를 부른다.
+     ★어드민이 아니면 탭을 아예 안 만든다(A-e). 권한은 서버가 지킨다. -->
+<script src="js/settings/settings-admin.js"></script>
+<script src="js/report-modal.js"></script><!-- [Unit B] 버그·피드백 신고 창 -->
 <!-- Section Search (⌘F 팔레트) — editor.js(module) 이전에 window.openSectionSearch 정의 -->
 <script src="js/section-search.js"></script>
 <script type="module" src="js/globals.js"></script>

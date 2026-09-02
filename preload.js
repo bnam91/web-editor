@@ -74,6 +74,35 @@ contextBridge.exposeInMainWorld('electronAPI', {
     pull:     (payload) => ipcRenderer.invoke('collab:pull',     payload),
   },
 
+  // 어드민(운영자) — 공지 작성·회수 + 받은 신고 열람 (main/admin/*).
+  // ★state() 는 «탭을 그릴까»의 힌트다. 권한은 서버가 지킨다(api/_lib/roles.js).
+  //   여기에 「어드민이면 …」 같은 분기를 «권한 목적»으로 쓰지 마라.
+  admin: {
+    state:         (payload) => ipcRenderer.invoke('admin:state',         payload),
+    noticeCreate:  (payload) => ipcRenderer.invoke('admin:notice-create', payload),
+    noticeList:    ()        => ipcRenderer.invoke('admin:notice-list'),
+    noticeRevoke:  (payload) => ipcRenderer.invoke('admin:notice-revoke', payload),
+    reportList:    (payload) => ipcRenderer.invoke('admin:report-list',   payload),
+    reportStatus:  (payload) => ipcRenderer.invoke('admin:report-status', payload),
+    reportImage:   (payload) => ipcRenderer.invoke('admin:report-image',  payload),
+  },
+
+  // 운영자 공지 (main/notice/*). ★읽음 기록은 «파일»이라 main 에만 있다 —
+  // localStorage 로 두면 앱을 두 개 띄웠을 때 창마다 따로라 같은 공지가 두 번 뜬다.
+  notice: {
+    // 화면이 준비됐다 → main 이 «앱 시작 폴링»을 건다
+    hello:   ()   => ipcRenderer.invoke('notice:hello').catch(() => null),
+    // 「확인」을 눌렀다 → 기간이 남아 있어도 다시 안 뜬다
+    ack:     (id) => ipcRenderer.invoke('notice:ack', id).catch(() => null),
+    pollNow: ()   => ipcRenderer.invoke('notice:poll-now').catch(() => null),
+    state:   ()   => ipcRenderer.invoke('notice:state').catch(() => null),
+    onShow:  (cb) => {
+      const h = (_e, n) => { try { cb(n); } catch (_) {} };
+      ipcRenderer.on('notice:show', h);
+      return () => ipcRenderer.removeListener('notice:show', h);
+    },
+  },
+
   // Account auth (라이선스 키 제도 폐지 → 홈페이지 계정 로그인)
   getAuthState:       ()                   => ipcRenderer.invoke('auth:state'),
   refreshAuth:        ()                   => ipcRenderer.invoke('auth:refresh'),
