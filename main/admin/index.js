@@ -61,11 +61,19 @@ async function _callWithAlias(primary, alias, body) {
   let r;
   try { r = await _fetchJson(`${API_BASE}${primary}`, { body }); }
   catch (_) { return { ok: false, reason: 'offline' }; }
-  if (r.status === 404) {
-    try { r = await _fetchJson(`${API_BASE}${alias}`, { body }); }
-    catch (_) { return { ok: false, reason: 'offline' }; }
-  }
-  return _shape(r);
+  if (r.status !== 404) return _shape(r);
+
+  try { r = await _fetchJson(`${API_BASE}${alias}`, { body }); }
+  catch (_) { return { ok: false, reason: 'offline' }; }
+  if (r.status !== 404) return _shape(r);
+
+  /* ★두 주소가 «둘 다» 404 다 — 십중팔구 «아직 배포 안 된 것»이다.
+   *   ⚠️그냥 두면 「찾을 수 없습니다(이미 지워졌을 수 있습니다)」로 보인다. 실측(2026-09-02):
+   *     라이브가 없는 경로에 {"ok":false,"error":"not_found"} 를 준다 — 핸들러의 404 와 «코드가 같다».
+   *     그 상태로 배포하면 운영자는 「공지가 왜 안 가지」를 계속 파게 된다(협업이 정확히 그랬다).
+   *   가르는 표: 핸들러가 낸 404 는 사람에게 할 말(message)을 «같이» 준다. 라우팅 404 는 안 준다. */
+  if (r.json && typeof r.json === 'object' && r.json.message) return _shape(r);
+  return { ok: false, reason: 'not_deployed', status: 404 };
 }
 
 /** 서버 응답 → 렌더러가 그대로 쓸 수 있는 꼴. ★서버가 준 message 를 «버리지 않는다». */
