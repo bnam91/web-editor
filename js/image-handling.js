@@ -834,6 +834,33 @@ function _bgSizeToPx(size, W, H, nw, nh) {
 }
 
 const _r1 = v => Math.round(v * 10) / 10;
+const _r2 = v => Math.round(v * 100) / 100;
+
+/**
+ * 사각형(0,0,w,h)에서 구멍(hx,hy,hw,hh)을 «도려낸» clip-path 문자열.
+ *
+ * ★왜 polygon 의 «열쇠구멍(slit)» 인가 — path(evenodd,…) 를 쓰다가 실측에서 깨졌다:
+ *   computed clip-path 가 통째로 `none` 이었다(2026-09-03, 팀장 런타임 검증).
+ *   CSSWG 가 path() 의 <fill-rule> 인자를 걷어낸 뒤라 Chromium 이 선언 자체를 버린 것이다
+ *   — CSS.supports 가드가 false 를 돌려주고 punch-out 이 «조용히» 안 걸렸다.
+ *   ⇒ 있는지 없는지 물어봐야 하는 문법을 쓰지 않는다. polygon() 은 어디서나 되고,
+ *     구멍은 «폭 0 의 틈»으로 바깥 링과 안쪽 링을 이어 만든다.
+ *     바깥은 시계방향, 안쪽은 반시계방향 — nonzero/evenodd 어느 규칙에서도 같은 결과다.
+ * 겹치지 않으면 '' (구멍 없음), 구멍이 사각형을 덮으면 빈 폴리곤(=전부 감춤).
+ */
+function _punchOutPolygon(w, h, hx, hy, hw, hh) {
+  const x0 = Math.max(0, hx),      y0 = Math.max(0, hy);
+  const x1 = Math.min(w, hx + hw), y1 = Math.min(h, hy + hh);
+  if (x1 <= x0 || y1 <= y0) return '';                       // 프레임과 안 겹친다 — 통째로 보인다
+  if (x0 <= 0 && y0 <= 0 && x1 >= w && y1 >= h) return 'polygon(0 0, 0 0, 0 0)'; // 전부 프레임 안
+  const p = (x, y) => `${_r2(x)}px ${_r2(y)}px`;
+  return 'polygon(' + [
+    p(0, 0), p(w, 0), p(w, h), p(0, h),   // 바깥 링(시계방향)
+    p(0, y0), p(x0, y0),                  // 왼쪽 변 → 구멍으로 들어가는 틈
+    p(x0, y1), p(x1, y1), p(x1, y0), p(x0, y0), // 안쪽 링(반시계방향)
+    p(0, y0),                             // 틈으로 되돌아 나온다
+  ].join(', ') + ')';
+}
 
 function enterSectionBgEditMode(sec) {
   if (!sec || sec._secBgEditing) return;
@@ -884,11 +911,10 @@ function enterSectionBgEditMode(sec) {
     sec._secBgGhost = ghostWrap;
 
     const twoLayer = !!(sec.dataset.bg && sec.dataset.bgImg);
-    const canPunch = !!(window.CSS && CSS.supports && CSS.supports('clip-path', 'path(evenodd, "M0 0 L1 0 Z")'));
 
     /* 프레임 «안» = 진짜 배경 갱신 · 프레임 «밖» = 고스트 갱신 */
     const ratio = (nw && nh) ? nh / nw : 1;   // 높이 = 너비 × ratio
-    let _lastSize = '', _lastPos = '';
+    let _lastSize = '', _lastPos = '', _lastClip = null;
     function syncBg() {
       if (!proxy.isConnected) return;
       // ★offsetWidth 는 «정수 반올림»이라 그대로 쓰면 편집을 켜는 것만으로 배경이 최대 0.5px 튄다.
@@ -931,13 +957,10 @@ function enterSectionBgEditMode(sec) {
       ghost.style.top    = gy + 'px';
       ghost.style.width  = gw + 'px';
       ghost.style.height = gh + 'px';
-      if (canPunch) {
-        // 고스트 로컬좌표에서 «프레임 사각형»을 evenodd 로 뚫는다 → 안쪽은 진짜 배경이 보인다
-        const fx = (aR.left - oR.left - wx) - gx, fy = (aR.top - oR.top - wy) - gy;
-        const fw = aR.width, fh = aR.height;
-        ghost.style.clipPath =
-          `path(evenodd, "M0 0 H${gw} V${gh} H0 Z M${fx} ${fy} H${fx + fw} V${fy + fh} H${fx} Z")`;
-      }
+      // 고스트 로컬좌표에서 «프레임 사각형»을 뚫는다 → 안쪽은 진짜 배경(선명)이 그대로 보인다
+      const fx = (aR.left - oR.left - wx) - gx, fy = (aR.top - oR.top - wy) - gy;
+      const clip = _punchOutPolygon(gw, gh, fx, fy, aR.width, aR.height);
+      if (clip !== _lastClip) { ghost.style.clipPath = clip; _lastClip = clip; }  // 긴 문자열 재파싱 회피
     }
     let _bgRaf = requestAnimationFrame(function loop() { syncBg(); _bgRaf = requestAnimationFrame(loop); });
     sec._secBgSyncStop = () => { if (_bgRaf) { cancelAnimationFrame(_bgRaf); _bgRaf = null; } };

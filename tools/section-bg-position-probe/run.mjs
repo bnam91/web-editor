@@ -136,7 +136,10 @@ const on = await evalJs(`
     ghost: g, ghostOverflowPx: over(g),
     boundary: bnd, boundaryOverflowPx: over(bnd),
     ghostVisible: (() => { const e = document.querySelector('.sec-bg-ghost'); if (!e) return null;
-      const cs = getComputedStyle(e); return { opacity: cs.opacity, display: cs.display, clipPath: (cs.clipPath||'').slice(0, 40) }; })(),
+      const cs = getComputedStyle(e); const cp = (cs.clipPath || '').trim();
+      return { opacity: cs.opacity, display: cs.display, clipPath: cp.slice(0, 120),
+               // ★punch-out 실측 — 'none' 이면 프레임 «안»까지 반투명해진다(2026-09-03 실사고)
+               punched: /^polygon\(/.test(cp), rawIsNone: cp === 'none' || cp === '' }; })(),
     styleNow: { size: sec.style.backgroundSize, pos: sec.style.backgroundPosition },
     proxyInCanvas: !!document.querySelector('#canvas .sec-bg-proxy'),
     ghostInCanvas: !!document.querySelector('#canvas .sec-bg-ghost, #canvas .sec-bg-ghost-wrap'),
@@ -157,6 +160,8 @@ check('고스트는 #canvas «밖»(직렬화 대상 아님)', on.ghostInCanvas 
 // 프록시는 «설계상» #canvas 안이다(섹션 padding-box 좌표를 써야 하므로) → 세척 등록이 필수.
 check('프록시는 #canvas 안 (→ 세척 등록 필수)', on.proxyInCanvas === true, `#canvas 안 프록시=${on.proxyInCanvas}`);
 console.log(`편집 중   : background-size=${on.styleNow.size}  position=${on.styleNow.pos}`);
+check('⑴ 고스트 punch-out 적용(프레임 안은 안 흐려짐)', on.ghostVisible?.punched === true,
+      `computed clip-path=${on.ghostVisible?.clipPath || '(빈값)'}`);
 console.log(`고스트    : opacity=${on.ghostVisible?.opacity} clip=${on.ghostVisible?.clipPath || '(punch-out 없음)'}`);
 
 const shotOn = process.env.SHOT ? await shot({ x: base.rect.x, y: base.rect.y, width: base.rect.w, height: base.rect.h }) : null;
