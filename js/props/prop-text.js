@@ -44,7 +44,12 @@ export function showTextProperties(tb) {
   const senderName = isSpeechBubble ? (tb.dataset.senderName || 'Your name') : 'Your name';
   const labelPillPadT = parseInt(contentEl.style.paddingTop)    || 4;
   const labelPillPadB = parseInt(contentEl.style.paddingBottom) || 4;
-  const labelPillH    = labelPillPadT + labelPillPadB;
+  // ★원형(Circle)의 «크기»는 패딩이 아니라 지름(인라인 width)이다 — 패딩으로 읽으면
+  //   실제 지름 100 짜리에 슬라이더가 8 을 가리켜 다시 잡을 때 크기가 툭 튄다.
+  const _isCircleLabel = contentEl.dataset.shape === 'circle';
+  const labelPillH    = _isCircleLabel
+    ? (parseInt(contentEl.style.width) || Math.round(contentEl.getBoundingClientRect().width) || 64)
+    : labelPillPadT + labelPillPadB;
   const _jcToAlign   = { 'flex-start': 'left', 'center': 'center', 'flex-end': 'right' };
   // U10 후속 — «거짓 active» 제거.
   //   커스텀 폭(width≠100%) 블록의 «박스 가로 위치»를 지배하는 건 textAlign 이 아니라
