@@ -204,8 +204,11 @@ function exportDesignJSON() {
     const blocks = [];
 
     if (inner) {
-      [...inner.children].forEach(child => {
-        if (child.classList.contains('gap-block')) {
+      // ★.section-merged-part 는 «투명하게» 통과 — 안 그러면 합친 아래 몸이 통째로 빠진다
+      const walk = (child) => {
+        if (child.classList.contains('section-merged-part')) {
+          [...child.children].forEach(walk);
+        } else if (child.classList.contains('gap-block')) {
           blocks.push(serializeBlock(child));
         } else if (child.classList.contains('row')) {
           blocks.push(serializeRow(child));
@@ -219,7 +222,8 @@ function exportDesignJSON() {
             rows: groupRows,
           });
         }
-      });
+      };
+      [...inner.children].forEach(walk);
     }
 
     const result = {

@@ -110,9 +110,25 @@ function mergeSectionInto(target, source) {
        이유: 상자는 아래 섹션의 «내용 시작점»에 원점을 세운다. 머리 갭을 지우면 그 원점이
        원래 .section-block top 과 달라져, top:342px 같은 좌표가 통째로 어긋난다.
        꼬리 갭(위 섹션 것)은 위 섹션 «내용 뒤»에 있어 아무 좌표의 기준도 아니다 — 지워도 안전하다. */
-  const tailGap = tIn.lastElementChild;
+  /* ★«마지막 자식»이 아니라 «마지막 여백»을 찾아야 한다.
+     2회차부터는 위 섹션의 마지막 자식이 이미 .section-merged-part(=먼저 합친 몸)라
+     lastElementChild 로는 갭 판정이 실패하고, 이음매에 100+100=200px 이 그대로 남았다.
+     (실측: 1회차 0px / 2회차 200px — 이 기능의 «핵심»이 두 번째부터 안 돌았다.)
+     ⇒ 상자를 «뚫고» 내려가 진짜 마지막 여백을 찾는다. */
+  const _lastGap = (el) => {
+    let cur = el;
+    while (cur) {
+      const last = cur.lastElementChild;
+      if (!last) return null;
+      if (last.classList.contains('gap-block')) return last;
+      if (last.classList.contains('section-merged-part')) { cur = last; continue; }
+      return null;
+    }
+    return null;
+  };
+  const tailGap = _lastGap(tIn);
   const headGap = sIn.firstElementChild;
-  if (tailGap?.classList.contains('gap-block') && headGap?.classList.contains('gap-block')) {
+  if (tailGap && headGap?.classList.contains('gap-block')) {
     tailGap.remove();
   }
 
