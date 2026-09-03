@@ -49,6 +49,16 @@ function mergeSectionInto(target, source) {
   const gate = canMergeSections(target, source);
   if (!gate.ok) { window.showToast?.(gate.reason); return false; }
 
+  /* ★lazy 로 «내려놓은» 섹션을 먼저 되살린다.
+     화면 밖으로 스크롤된 섹션은 style.backgroundImage 가 'none' 이고 원본은
+     data-lazy-bg 속성에 들어 있다(io/lazy-sections.js). 그 상태로 합치면
+     상자엔 'none' 이 실리고, 되살리는 주체(_restoreSection)는 .section-block 만 보므로
+     아무도 상자를 복원해 주지 않는다 ⇒ 배경이 «영구» 소실된다.
+     복원은 «합치기 전»에 해야 한다 — 뒤에 하면 원본 섹션이 이미 없다. */
+  if (target.classList.contains('lazy-unloaded') || source.classList.contains('lazy-unloaded')) {
+    window.materializeAllSections?.();
+  }
+
   // ★변경 «전»에 찍는다 — 이 레포의 드롭 핸들러 관례이고, tip 상태는 undo 진입 시
   //   ensureHistoryCheckpoint 가 늦게 담으므로 이걸로 ⌘Z 한 번에 완전 복원된다.
   window.pushHistory?.('섹션 합치기');
