@@ -262,7 +262,8 @@ function addLabelGroupBlock(opts = {}) {
   window.selectSection(sec);
 }
 
-// 테이블 기본 채움문구 셀 — «텍스트 블록과 같은 한 벌»을 쓴다(block-factory.js:89/92 미러).
+// 테이블 «본문» 기본 채움문구 셀 — «텍스트 블록과 같은 한 벌»을 쓴다(block-factory.js:89/92 미러).
+//   ⛔헤더(th)엔 쓰지 마라 — 헤더 기본문구는 일반 텍스트로 둔다(2026-09-03 현빈 결정).
 //   글자는 «들어 있고» data-is-placeholder='true' 로 표시 → CSS 가 흐리게 그리고(editor-blocks.css:900),
 //   더블클릭 진입 시 전체선택되어 첫 타이핑으로 즉시 교체된다(block-drag.js 테이블 dblclick).
 //   ⇒ 「지웠다가 다시 쓰는」 손맛이 사라진다. export 는 미입력 placeholder 를 숨긴다(export-image.js:241).
@@ -309,10 +310,15 @@ function makeTableBlock() {
   tb.style.setProperty('--tbl-line-color', tb.dataset.lineColor);
   tb.style.setProperty('--tbl-header-bg', tb.dataset.headerBg);
   tb.style.setProperty('--tbl-text-color', tb.dataset.textColor);
+  // ★헤더(th)는 «일반 텍스트»로 둔다(2026-09-03 현빈 결정). 요구는 「행」이었고, 헤더에 진짜
+  //   「항목」이라고 쓰려는 사용자가 있다. placeholder 로 만들면 그대로 둔 헤더가 export 에서
+  //   사라진다(export-image.js:241 이 미입력 placeholder 를 visibility:hidden 처리).
+  //   ⇒ placeholder 규율은 «본문(td) 첫 열»에만 적용한다.
+  //   (주석을 HTML 템플릿 «안»에 두지 않는 이유: 그 주석이 그대로 저장 HTML 에 박힌다.)
   tb.innerHTML = `
     <table class="tb-table">
       <thead>
-        <tr>${_tblPhCell('th','항목')}${_tblPhCell('th','내용')}</tr>
+        <tr><th style="text-align:center">항목</th><th style="text-align:center">내용</th></tr>
       </thead>
       <tbody>
         ${[1,2,3,4,5,6,7].map(n => `<tr>${_tblPhCell('td','항목 ' + n)}<td style="text-align:center"></td></tr>`).join('')}

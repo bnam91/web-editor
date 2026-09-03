@@ -220,15 +220,6 @@ function _revertTableRowToImg(tr) {
 }
 window.__revertTableRowToImg = _revertTableRowToImg;
 
-// 셀에 «기본문구 = placeholder» 를 심는다 — 텍스트 블록과 같은 한 벌(block-factory.js:_tblPhCell).
-//   글자는 들어있되 data-is-placeholder='true' 라 흐리게 보이고, 더블클릭 진입 시 전체선택돼
-//   첫 타이핑으로 즉시 교체된다(block-drag.js 테이블 dblclick). 「지웠다 다시 쓰기」가 사라진다.
-function _tblSetPlaceholder(cell, ph) {
-  cell.textContent = ph;
-  cell.dataset.placeholder = ph;
-  cell.dataset.isPlaceholder = 'true';
-}
-
 // ③ 「행별 높이」 절 접힘 상태 — 기본 «접힘». 패널 재생성(showTableProperties 재호출) 사이에만
 //    살아있으면 되므로 WeakMap 에 둔다(prop-banner02.js:9 _bn2ExpandedLines 와 같은 방식).
 //    ⚠️dataset 에 두지 않는 이유: UI 상태가 사용자 문서(저장 HTML)에 새어 들어가면 안 된다.
@@ -343,7 +334,7 @@ export function showTableProperties(block) {
         for (let i = ths.length; i < cols; i++) {
           const th = document.createElement('th');
           th.setAttribute('contenteditable','false');
-          _tblSetPlaceholder(th, '항목');
+          th.textContent = '항목';   // ★헤더는 일반 텍스트(2026-09-03 현빈) — placeholder 금지
           tr.appendChild(th);
         }
       } else {
@@ -653,7 +644,7 @@ export function showTableProperties(block) {
         if (refCell.className) cell.className = refCell.className;
         if (refCell.style.cssText) cell.style.cssText = refCell.style.cssText;
       }
-      if (isHead) _tblSetPlaceholder(cell, '항목');
+      if (isHead) cell.textContent = '항목';   // ★헤더는 일반 텍스트(2026-09-03 현빈)
       tr.appendChild(cell);
       // :img row면 새 셀도 placeholder로 자동 변환
       if (!isHead && tr.dataset.rowImg === 'true') {

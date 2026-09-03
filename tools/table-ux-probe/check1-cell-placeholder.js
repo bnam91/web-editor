@@ -4,8 +4,10 @@
  *   PORT=9334 node tools/table-ux-probe/check1-cell-placeholder.js
  *
  * 무엇을 재나
- *   ① 새 테이블 본문 셀이 «텍스트 블록과 같은» placeholder 규율을 쓰는가
+ *   ① 새 테이블 «본문» 셀이 «텍스트 블록과 같은» placeholder 규율을 쓰는가
  *      (data-is-placeholder='true' + data-placeholder + 흐린 opacity)
+ *      ★그리고 «헤더»는 반대로 일반 텍스트인가 — 헤더는 placeholder 로 만들지 않는다
+ *        (2026-09-03 현빈 결정: 그대로 둔 헤더가 export 에서 사라지면 안 된다)
  *   ② 더블클릭하면 편집 상태가 되고 «전체선택»되는가  ← 지웠다 다시 쓸 필요 없음의 정의
  *   ③ 한 글자 치면 기본문구가 통째로 교체되는가(= '항목 1가' 가 되지 않는가)
  *   ④ 비운 채 빠져나오면 기본문구가 복원되고 다시 placeholder 로 표시되는가
@@ -61,7 +63,11 @@ const { connect, sleep } = require('./_cdp');
       본문행수: bodyRows.length,
       첫열_셀들: bodyRows.map(tr => cell(tr.children[0])),
       둘째열_셀들: bodyRows.map(tr => cell(tr.children[1])),
+      // ★헤더는 «일반 텍스트»여야 한다(2026-09-03 현빈 결정) — placeholder 면 그대로 둔 헤더가
+      //   export 에서 사라진다. 즉 여기선 isPlaceholder=false 가 «정답»이다(본문과 기대가 반대).
       헤더셀들: [...b.querySelectorAll('thead th')].map(cell),
+      헤더_전부_일반텍스트인가: [...b.querySelectorAll('thead th')].every(
+        el => el.dataset.isPlaceholder !== 'true' && !el.dataset.placeholder),
     };`);
 
   // ── ② 더블클릭 → 편집 + 전체선택 (진짜 마우스 입력) ────────────────────
@@ -164,6 +170,8 @@ const { connect, sleep } = require('./_cdp');
   // ── 판정 ────────────────────────────────────────────────────────────────
   const P = out.문제;
   if (!out.r1_생성직후셀.첫열_셀들.every(c => c.isPlaceholder))   P.push('① 본문 첫 열이 placeholder 로 표시되지 않는다');
+  if (out.r1_생성직후셀.헤더_전부_일반텍스트인가 !== true)
+    P.push('① ★헤더가 placeholder 로 들어갔다 — 헤더는 일반 텍스트여야 한다(그대로 두면 export 에서 사라진다)');
   if (!out.r1_생성직후셀.첫열_셀들.every(c => c.opacity < 1))     P.push('① placeholder 인데 흐리게 안 그려진다(CSS 미적용)');
   if (!out.r2_더블클릭.셀이_편집상태)                              P.push('② 더블클릭해도 편집 상태가 아니다');
   if (!out.r2_더블클릭.전체선택인가)                                P.push('② 더블클릭 시 전체선택이 안 된다 — 지웠다 다시 써야 한다');
