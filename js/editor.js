@@ -1107,6 +1107,19 @@ function alignSelectedToParent(dir) {
    나머지 갭은 제거한다. 사이에 다른 블록(비선택·비갭)이 낀 갭은 다른 런.
    떨어진 선택은 각 연속 런만 병합하고 나머지는 그대로 둔다.
 ═══════════════════════════════════ */
+/* ★「섹션을 골랐다」를 «섹션만» 골랐을 때로 좁힌다.
+   블록을 클릭하면 syncSection 이 그 섹션에도 .selected 를 붙인다 — 그래서
+   `.section-block.selected` 만 보면 «거의 항상 참»이고, 블록 하나 고른 사람이
+   ⌘M 을 누르면 섹션이 통째로 합쳐진다(실측: 3→2).
+   ⇒ 섹션 아닌 .selected 가 하나라도 있으면 「섹션을 고른 것」이 아니다. */
+function _sectionOnlySelection() {
+  const sec = document.querySelector('.section-block.selected');
+  if (!sec) return false;
+  const other = [...document.querySelectorAll('.selected')].find(el =>
+    el !== document.body && !el.classList.contains('section-block') && !el.classList.contains('layer-item'));
+  return !other;
+}
+
 function mergeSelectedGaps() {
   const gaps = [...document.querySelectorAll('.gap-block.selected')];
   if (gaps.length < 2) return; // 1개/무선택 → no-op
@@ -1222,13 +1235,23 @@ document.addEventListener('keydown', e => {
   //   ★섹션은 «맨 뒤»다. 섹션은 블록을 고르면 같이 selected 로 남는 일이 많아서,
   //     앞에 두면 셀·갭 병합을 가로챈다. 좁은 대상이 먼저다.
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyM' && !e.shiftKey && !e.altKey) {
+    /* ★입력 중엔 «아무것도 하지 않는다».
+       맥에서 ⌘M 은 「창 최소화」 손버릇이고 이 분기가 preventDefault 로 가로챈다.
+       예전엔 그 대가가 no-op 이었지만 섹션 합치기가 붙은 뒤로는 «파괴 편집»이 된다.
+       같은 핸들러의 다른 ⌘단축키 21곳엔 이 가드가 이미 있다 — ⌘M 에만 없었다. */
+    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
+    if (document.body.classList.contains('preview-mode')) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
     e.preventDefault();
     if (document.querySelector('.gap-block.selected')) {
       mergeSelectedGaps();
     } else if (document.querySelector('.table-block .tb-table td.cell-selected')) {
       /* #5-b 테이블 바디셀 병합 (table-cell-select.js) */
       window.mergeSelectedCells?.();
-    } else if (document.querySelector('.section-block.selected')) {
+    } else if (_sectionOnlySelection()) {
       /* 섹션 합치기 (section-merge.js) — 「바로 위 섹션과 하나로」 */
       window.mergeSelectedSectionUp?.();
     }

@@ -65,9 +65,34 @@ function mergeSectionInto(target, source) {
   const part = document.createElement('div');
   part.className = 'section-merged-part';
   part.dataset.mergedFrom = source.id || '';
-  // ⑴ 배경 — prop-section.js 가 쓰는 네 가지를 같이 옮긴다(이미지 배경도 살아야 한다)
-  for (const k of ['background', 'backgroundColor', 'backgroundSize', 'backgroundPosition', 'backgroundRepeat']) {
-    if (source.style[k]) part.style[k] = source.style[k];
+  /* ⑴ 섹션이 «이고 있던 것»을 통째로 옮긴다.
+     ★한때 목록을 손으로 적었다가 세 가지를 잃었다(독립 검수 3인 지적, 실측 확인):
+       · backgroundImage — 「이미지만」 배경은 shorthand 가 아니라 longhand 라
+         style.background 가 빈 문자열이다. 목록에 없으면 «아무것도» 안 옮겨진다.
+       · --preset-* 인라인 CSS 변수 + dataset.preset — 프리셋(Dark 등)의 글자색·글꼴이
+         전부 위 섹션 것으로 바뀐다. 어두운 배경 + 검은 글자가 된다.
+       · dataset.bgImg / bgSize / bgPos — 재로드 시 배경을 되살리는 «정본»이다.
+     ⇒ 손으로 적은 «허용목록»을 버리고, 인라인 스타일과 dataset 을 «전부» 옮긴다.
+       모르는 속성이 나중에 생겨도 안 잃는다. */
+  for (const k of source.style) {                       // 인라인으로 «실제로 적힌» 것만 순회
+    if (k === 'padding-bottom' || k.startsWith('padding')) continue;   // 여백은 아래에서 따로
+    part.style.setProperty(k, source.style.getPropertyValue(k), source.style.getPropertyPriority(k));
+  }
+  for (const [k, v] of Object.entries(source.dataset)) {
+    if (k === 'name' || k === 'variation' || k === 'variationGroup') continue;  // 섹션 «신원»은 안 옮긴다
+    part.dataset[k] = v;
+  }
+  // 아래쪽 여백은 섹션이 이고 있던 것 — 상자가 이어받아야 밑 공간이 안 사라진다
+  if (source.style.paddingBottom) part.style.paddingBottom = source.style.paddingBottom;
+
+  /* ★인라인 배경이 «없는» 섹션도 흰색이다 — .section-block { background:#fff } (editor-canvas.css).
+     그냥 두면 위 섹션이 네이비일 때 아래 몸이 네이비로 물든다.
+     이 레포가 이미 두 번 밟고 주석까지 남긴 함정이다(export-image.js·export-figma-json.js). */
+  if (!part.style.background && !part.style.backgroundColor && !part.style.backgroundImage) {
+    const computed = window.getComputedStyle(source).backgroundColor;
+    if (computed && computed !== 'rgba(0, 0, 0, 0)' && computed !== 'transparent') {
+      part.style.backgroundColor = computed;
+    }
   }
   // ⑵ 좌우여백 — 상자는 «위 섹션의 패딩을 지우고» 자기 패딩을 다시 준다.
   //    안 지우면 A패딩 + B패딩 이 겹쳐 두 배로 들어간다.
@@ -79,12 +104,16 @@ function mergeSectionInto(target, source) {
   part.style.paddingRight = srcPadX + 'px';
   syncMergedPartMargins(target);   // 위 섹션 패딩을 상쇄하는 음수 마진
 
-  // ── 이음매 접기: A의 «마지막» gap 과 B의 «첫» gap 이 둘 다 gap 이면 하나로 ──
+  /* ── 이음매 접기 ────────────────────────────────────────────────────
+     ★지우는 쪽은 «위 섹션의 꼬리 갭»이다. 아래 섹션의 «머리 갭»은 건드리지 않는다.
+       한때 반대로 했다가 절대배치 요소가 내용 대비 44px 어긋났다(실측, 실제 프로젝트).
+       이유: 상자는 아래 섹션의 «내용 시작점»에 원점을 세운다. 머리 갭을 지우면 그 원점이
+       원래 .section-block top 과 달라져, top:342px 같은 좌표가 통째로 어긋난다.
+       꼬리 갭(위 섹션 것)은 위 섹션 «내용 뒤»에 있어 아무 좌표의 기준도 아니다 — 지워도 안전하다. */
   const tailGap = tIn.lastElementChild;
   const headGap = sIn.firstElementChild;
   if (tailGap?.classList.contains('gap-block') && headGap?.classList.contains('gap-block')) {
-    tailGap.style.height = Math.max(_gapH(tailGap), _gapH(headGap)) + 'px';
-    headGap.remove();
+    tailGap.remove();
   }
 
   // ── 내용 이동: 순서 그대로, 상자 안으로 ──
