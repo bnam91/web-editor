@@ -1,5 +1,6 @@
 import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
+import { findMergeTarget, showMergeAffordance, clearMergeAffordance, mergeSectionInto } from '../section-merge.js';
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
@@ -1712,6 +1713,11 @@ function initApp() {
     _sectionDragRafId = requestAnimationFrame(() => {
       _sectionDragRafId = null;
       clearSectionIndicators();
+      // ★자석 우선 — 위 섹션 «밑단»에 걸리면 순서 인디케이터를 «띄우지 않는다».
+      //   둘이 동시에 보이면 사용자가 어느 결과가 나올지 알 수 없다(합치려다 순서만 바뀜의 원인).
+      const mergeTarget = findMergeTarget(canvasEl, clientY, sectionDragSrc);
+      if (mergeTarget) { showMergeAffordance(mergeTarget); return; }
+      clearMergeAffordance();
       const after = getSectionDragAfterEl(canvasEl, clientY);
       const indicator = document.createElement('div');
       indicator.className = 'section-drop-indicator';
@@ -1721,11 +1727,22 @@ function initApp() {
   });
   canvasEl.addEventListener('dragleave', e => {
     if (!sectionDragSrc) return;
-    if (!canvasEl.contains(e.relatedTarget)) clearSectionIndicators();
+    if (!canvasEl.contains(e.relatedTarget)) { clearSectionIndicators(); clearMergeAffordance(); }
   });
   canvasEl.addEventListener('drop', e => {
     if (!sectionDragSrc) return;
     e.preventDefault();
+    // ★자석이 걸린 상태면 «순서 바꾸기가 아니라» 합치기다. 화면에 뜬 초록이 곧 결과다.
+    const mergeTarget = canvasEl.querySelector('.section-block.section-merge-target');
+    if (mergeTarget) {
+      const src = sectionDragSrc;
+      clearMergeAffordance();
+      clearSectionIndicators();
+      sectionDragSrc = null;
+      state._suppressAutoSave = false;
+      mergeSectionInto(mergeTarget, src);   // pushHistory 는 이 안에서 «변경 전»에 찍는다
+      return;
+    }
     window.pushHistory();
     const indicator = canvasEl.querySelector('.section-drop-indicator');
     // variation group이면 같은 그룹의 variant 전체를 묶음 이동 (DRAG-VAR-01)

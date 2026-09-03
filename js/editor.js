@@ -1772,8 +1772,22 @@ document.addEventListener('keydown', e => {
     }
   }
 
+  // ── 섹션 합치기: Cmd+Shift+↑ — «순서 위로(Cmd+↑)» 보다 «먼저» 걸러야 한다 ──
+  // ★Cmd+↑ 를 쓰지 않는 이유: 그건 이미 「섹션 순서 위로」다. 같은 키에 두 뜻은 못 얹는다.
+  if (e.key === 'ArrowUp' && e.shiftKey && (e.metaKey || e.ctrlKey)) {
+    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    if (document.querySelector('.section-block.selected')) {
+      e.preventDefault();
+      window.mergeSelectedSectionUp?.();
+      return;
+    }
+  }
+
   // ── 키보드 Nudge: 블록 이동 Cmd+방향키 (편집 중이거나 입력 포커스 시 무시) ──
-  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey)) {
+  // ★!e.shiftKey — Shift 조합은 위 «합치기»가 가져간다. 이 가드가 없으면 ⌘⇧↑ 가
+  //   합치기 «와» 순서이동을 둘 다 태워 결과가 뒤엉킨다.
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
     // 섹션 외 모든 selected 요소를 블록으로 취급 (iconify/shape/sticker/laurel 등 누락 방지)

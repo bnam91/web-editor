@@ -282,3 +282,51 @@
   border-left: 1px dashed var(--ui-accent-primary);
   width: 0 !important;
 }
+
+/* ── 섹션 합치기 자석 ────────────────────────────────────────────────────
+   순서 바꾸기(.section-drop-indicator = 파란 가로선)와 «다른 색·다른 모양»이어야 한다.
+   같은 손짓에 결과가 둘이라, 신호가 약하면 「합치려다 순서만 바뀌었다」가 반드시 난다.
+   색은 기존 토큰 재사용 — design-tokens.css 의 --color-success 는 주석이 곧 "success / merge". */
+.section-block.section-merge-target {
+  outline: 2px solid var(--color-success);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+/* ★::after 를 쓰지 않는다 — .section-block:has(.section-hitzone:hover)::after 가 이미 있어
+   같은 의사요소를 놓고 부딪힌다(둘 다 (0,2,1) 이라 파일 순서로 조용히 갈린다). 전용 요소로 둔다. */
+.section-merge-seam {
+  position: absolute;
+  left: 0; right: 0; bottom: -3px; height: 6px;
+  background: var(--color-success);
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 30;
+}
+.section-merge-chip {
+  position: absolute;
+  left: 50%; bottom: -15px;
+  /* ★줌 역보정 — 섹션 라벨(.section-label)이 쓰는 --ui-scale 과 «같은 장치».
+     안 붙이면 60% 캔버스에서 글자가 같이 줄어 읽히지 않는다(실측 스크린샷). */
+  transform: translateX(-50%) scale(var(--ui-scale, 1));
+  transform-origin: center top;
+  background: var(--color-success);
+  color: #10240f;
+  font-size: 12px; font-weight: 700; line-height: 1;
+  padding: 6px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 31;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+}
+/* 합쳐진 직후 한 번 번쩍 — 어디로 합쳐졌는지 눈이 따라가게 */
+.section-block.section-merge-flash {
+  animation: sectionMergeFlash .6s ease-out;
+}
+@keyframes sectionMergeFlash {
+  0%   { box-shadow: 0 0 0 3px var(--color-success); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .section-block.section-merge-flash { animation-duration: .01ms; }
+}
