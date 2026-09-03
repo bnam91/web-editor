@@ -196,3 +196,21 @@
   font-size: var(--ui-fs-11, 11px);
   color: var(--ui-text-dim);
 }
+
+/* 첨부 안내 — 붙여넣기·끌어놓기가 된다는 걸 «보이게» 한다 */
+.report-attach-hint {
+  font-size: 12px;
+  color: var(--ui-text-muted);
+  margin-left: 10px;
+  align-self: center;
+}
+/* 파일을 끌어와 모달 위에 있을 때 — 놓아도 된다는 신호 */
+.settings-modal.report-dropping,
+#report-modal.report-dropping {
+  outline: 2px dashed var(--ui-accent-primary);
+  outline-offset: -6px;
+}
+#report-modal.report-dropping .report-attach {
+  background: var(--color-selection-glow, rgba(45,111,232,.12));
+  border-radius: 6px;
+}
