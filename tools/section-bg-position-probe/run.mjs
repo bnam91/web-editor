@@ -139,7 +139,7 @@ const on = await evalJs(`
       const cs = getComputedStyle(e); const cp = (cs.clipPath || '').trim();
       return { opacity: cs.opacity, display: cs.display, clipPath: cp.slice(0, 120),
                // ★punch-out 실측 — 'none' 이면 프레임 «안»까지 반투명해진다(2026-09-03 실사고)
-               punched: /^polygon\(/.test(cp), rawIsNone: cp === 'none' || cp === '' }; })(),
+               punched: /^polygon\\(/.test(cp), rawIsNone: cp === 'none' || cp === '' }; })(),
     styleNow: { size: sec.style.backgroundSize, pos: sec.style.backgroundPosition },
     proxyInCanvas: !!document.querySelector('#canvas .sec-bg-proxy'),
     ghostInCanvas: !!document.querySelector('#canvas .sec-bg-ghost, #canvas .sec-bg-ghost-wrap'),
