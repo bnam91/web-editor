@@ -177,7 +177,7 @@ function mergeSectionInto(target, source) {
  * ★섹션 좌우 패딩이 나중에 바뀌면 상자도 따라와야 한다 — 안 그러면 아래쪽 몸만 어긋난다.
  *   그래서 패딩을 바꾸는 화면(prop-section·prop-page)에서 이 함수를 부른다.
  */
-function syncMergedPartMargins(sec) {
+function syncMergedPartMargins(sec, opts = {}) {
   const inner = _inner(sec);
   if (!inner) return;
   const parts = inner.querySelectorAll(':scope > .section-merged-part');
@@ -186,6 +186,22 @@ function syncMergedPartMargins(sec) {
   parts.forEach(p => {
     p.style.marginLeft = -padX + 'px';
     p.style.marginRight = -padX + 'px';
+    /* ★사용자가 «직접» 좌우여백을 바꾼 경우엔 아래 몸까지 같은 값으로 맞춘다.
+       규칙: «저절로 일어나는 일은 보존, 사용자가 직접 한 일은 전체 적용».
+         · 합치기(자동) → 여백을 안 건드린다. 내 디자인이 멋대로 바뀌면 안 되니까.
+         · 슬라이더(직접) → 「이 섹션 전체를 이렇게」라는 뜻이니 아래 몸도 따라간다.
+       안 그러면 슬라이더가 «위쪽 몸만» 움직여 반쪽만 먹는 것처럼 보인다. */
+    if (opts.applyPadding) {
+      p.style.paddingLeft = padX + 'px';
+      p.style.paddingRight = padX + 'px';
+      p.dataset.padX = String(padX);
+      // 상자 안의 상자(중첩 합치기)까지 내려간다
+      p.querySelectorAll('.section-merged-part').forEach(q => {
+        q.style.marginLeft = '0px'; q.style.marginRight = '0px';
+        q.style.paddingLeft = '0px'; q.style.paddingRight = '0px';
+        q.dataset.padX = '0';
+      });
+    }
   });
 }
 
