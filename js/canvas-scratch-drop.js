@@ -23,6 +23,7 @@
 // 활성 가이드 상태 (드래그 1회 사이클 동안 유지)
 let _activeReplaceAb = null;     // .sp2c-replace-target 부착된 asset-block
 let _activeSectionTarget = null; // .sp2c-section-target 부착된 section-block
+let _activeSectionLocked = false; // 그 섹션이 «배경 위치 편집 중»이라 배경 교체를 막고 있는가
 let _activeIndicator = null;     // .sp2c-insert-indicator DOM 노드
 let _activeNewSection = null;    // newsection 배지 호스트(#canvas-scaler)
 
@@ -61,6 +62,7 @@ function _clearSectionBadge(sec) {
 function _clearGuides() {
   if (_activeReplaceAb) { _clearReplaceBadge(_activeReplaceAb); _activeReplaceAb = null; }
   if (_activeSectionTarget) { _clearSectionBadge(_activeSectionTarget); _activeSectionTarget = null; }
+  _activeSectionLocked = false;
   if (_activeIndicator) { _activeIndicator.remove(); _activeIndicator = null; }
   if (_activeNewSection) { _activeNewSection.querySelectorAll(':scope > .sp2c-badge').forEach(b => b.remove()); _activeNewSection = null; }
   // 누수 안전망 — 외부에서 미정리된 가이드 흔적 일괄 정리
@@ -142,6 +144,13 @@ function _classifyDrop(clientX, clientY) {
   if (inPart) {
     return { kind: 'insert', sec, inner: inPart, after: null };
   }
+  /* ★섹션 배경 «위치 편집»이 켜져 있으면 «바꾸지 않는다».
+     편집 모드가 섹션을 프록시로 덮고 있어 rowLike 판정이 전부 빠지고 여기로만 떨어진다 —
+     그대로 두면 「편집하려고 켜 놨는데 배경이 바뀌었다」가 되고, 편집 세션은 «옛 이미지 기준»
+     기하를 새 배경에 커밋해 어긋남이 조용히 남는다.
+     ⚠️여기서 편집을 «대신 끝내지» 않는다 — 사용자가 시킨 적 없는 동작이라 더 놀랍다.
+       무시하되 호버 배지 + 드롭 토스트로 «왜 안 되는지»를 말한다(조용한 무반응은 고장으로 읽힌다). */
+  if (sec._secBgEditing) return { kind: 'sectionbg', sec, inner: sectionInner, locked: true };
   return { kind: 'sectionbg', sec, inner: sectionInner };   // 배경은 «섹션» 것이지 상자 것이 아니다
 }
 
@@ -174,11 +183,13 @@ function _renderGuide(decision) {
     return;
   }
   if (decision.kind === 'sectionbg') {
-    if (_activeSectionTarget === decision.sec) return;
+    // locked 가 바뀌면(호버 중 Esc) 배지를 다시 그려야 하므로 잠금상태도 동일성 판정에 넣는다
+    if (_activeSectionTarget === decision.sec && _activeSectionLocked === !!decision.locked) return;
     _clearGuides();
     decision.sec.classList.add('sp2c-section-target');
-    _addBadge(decision.sec, '섹션 배경으로', true);
+    _addBadge(decision.sec, decision.locked ? '배경 위치 편집 중 — Esc 로 마친 뒤 놓으세요' : '섹션 배경으로', true);
     _activeSectionTarget = decision.sec;
+    _activeSectionLocked = !!decision.locked;
     return;
   }
   if (decision.kind === 'newsection') {
@@ -338,6 +349,10 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
     window.setAssetImageFromSrc?.(block, src);
     window.buildLayerPanel?.();
   } else if (decision.kind === 'sectionbg') {
+    if (decision.locked || decision.sec?._secBgEditing) {
+      window.showToast?.('배경 위치 편집 중에는 배경을 바꿀 수 없습니다 — Esc 로 마친 뒤 놓으세요');
+      return false;
+    }
     // 섹션 빈 영역/가장자리 드롭 → 섹션 배경 이미지로 설정 (#5b)
     if (typeof window.setSectionBgImage !== 'function') {
       console.warn('[canvas-scratch-drop] setSectionBgImage 누락');

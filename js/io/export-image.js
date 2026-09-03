@@ -241,7 +241,9 @@ async function exportSection(sec, format, width, opts) {
   clone.querySelectorAll('[data-is-placeholder="true"]').forEach(el => {
     el.style.visibility = 'hidden';
   });
-  clone.classList.remove('selected');
+  // 편집 전용 임시 DOM — 내보내기 클론에 새어 나가면 PNG 에 박힌다.
+  clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary').forEach(el => el.remove());
+  clone.classList.remove('selected', 'sec-bg-editing');
   // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 내보내기 오염 방지)
   clone.querySelectorAll(
     '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected, .bn2-line-selected, .bn2-line-empty'
