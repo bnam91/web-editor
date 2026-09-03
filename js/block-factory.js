@@ -262,6 +262,15 @@ function addLabelGroupBlock(opts = {}) {
   window.selectSection(sec);
 }
 
+// 테이블 «본문» 기본 채움문구 셀 — «텍스트 블록과 같은 한 벌»을 쓴다(block-factory.js:89/92 미러).
+//   ⛔헤더(th)엔 쓰지 마라 — 헤더 기본문구는 일반 텍스트로 둔다(2026-09-03 현빈 결정).
+//   글자는 «들어 있고» data-is-placeholder='true' 로 표시 → CSS 가 흐리게 그리고(editor-blocks.css:900),
+//   더블클릭 진입 시 전체선택되어 첫 타이핑으로 즉시 교체된다(block-drag.js 테이블 dblclick).
+//   ⇒ 「지웠다가 다시 쓰는」 손맛이 사라진다. export 는 미입력 placeholder 를 숨긴다(export-image.js:241).
+function _tblPhCell(tag, ph) {
+  return `<${tag} style="text-align:center" data-placeholder="${ph}" data-is-placeholder="true">${ph}</${tag}>`;
+}
+
 function makeTableBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
@@ -275,7 +284,13 @@ function makeTableBlock() {
   // 신규 옵션 7개 기본값 (기존 테이블 사이트 호환을 위해 dataset 부재 시 default 동작은 CSS/prop 로직에서 보장)
   tb.dataset.showVLines = 'true';
   tb.dataset.showHLines = 'true';
-  tb.dataset.showOuterX = 'true';
+  // ★외곽 좌우는 «신규 테이블만» 기본 OFF(2026-09-03 현빈). 저장본은 손대지 않는다:
+  //   ⑴ 기존 프로젝트의 table-block 은 저장 HTML 에 data-show-outer-x="true" 가 «글자로» 박혀
+  //      로드되므로 이 줄의 변경과 무관하게 켜진 채로 복원된다.
+  //   ⑵ 속성이 아예 없는 초기버전 저장본도 CSS 는 [data-show-outer-x="false"] 일 때만 border 를
+  //      지우므로(editor-blocks.css:772) 그대로 «켜짐»이다. 읽기 기본값(prop-table.js:252
+  //      `!== 'false'`)도 건드리지 않았다 — 그래야 «부재 = 켜짐»이 유지된다.
+  tb.dataset.showOuterX = 'false';
   tb.dataset.showOuterY = 'true';
   tb.dataset.outerWidth = '1';
   tb.dataset.rowH = '0';
@@ -295,19 +310,18 @@ function makeTableBlock() {
   tb.style.setProperty('--tbl-line-color', tb.dataset.lineColor);
   tb.style.setProperty('--tbl-header-bg', tb.dataset.headerBg);
   tb.style.setProperty('--tbl-text-color', tb.dataset.textColor);
+  // ★헤더(th)는 «일반 텍스트»로 둔다(2026-09-03 현빈 결정). 요구는 「행」이었고, 헤더에 진짜
+  //   「항목」이라고 쓰려는 사용자가 있다. placeholder 로 만들면 그대로 둔 헤더가 export 에서
+  //   사라진다(export-image.js:241 이 미입력 placeholder 를 visibility:hidden 처리).
+  //   ⇒ placeholder 규율은 «본문(td) 첫 열»에만 적용한다.
+  //   (주석을 HTML 템플릿 «안»에 두지 않는 이유: 그 주석이 그대로 저장 HTML 에 박힌다.)
   tb.innerHTML = `
     <table class="tb-table">
       <thead>
         <tr><th style="text-align:center">항목</th><th style="text-align:center">내용</th></tr>
       </thead>
       <tbody>
-        <tr><td style="text-align:center">항목 1</td><td style="text-align:center"></td></tr>
-        <tr><td style="text-align:center">항목 2</td><td style="text-align:center"></td></tr>
-        <tr><td style="text-align:center">항목 3</td><td style="text-align:center"></td></tr>
-        <tr><td style="text-align:center">항목 4</td><td style="text-align:center"></td></tr>
-        <tr><td style="text-align:center">항목 5</td><td style="text-align:center"></td></tr>
-        <tr><td style="text-align:center">항목 6</td><td style="text-align:center"></td></tr>
-        <tr><td style="text-align:center">항목 7</td><td style="text-align:center"></td></tr>
+        ${[1,2,3,4,5,6,7].map(n => `<tr>${_tblPhCell('td','항목 ' + n)}<td style="text-align:center"></td></tr>`).join('')}
       </tbody>
     </table>`;
 
