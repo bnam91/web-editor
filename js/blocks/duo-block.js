@@ -79,9 +79,10 @@ function _duoLineHtml(line, colAlign, depth = 0) {
       const w = Number(c.width) || 1;
       const inner = (Array.isArray(c.lines) ? c.lines : [])
         .map(l => _duoLineHtml(l, c.align || colAlign, depth + 1)).join('');
-      return `<div class="duo-nested-col" style="flex:${w};min-width:0;">${inner}</div>`;
+      // 바깥 duo 와 «같은» 정렬 축을 쓴다 — 컬럼은 stretch, 정렬은 컬럼 안 내용(justify-content).
+      return `<div class="duo-nested-col" style="flex:${w};min-width:0;display:flex;flex-direction:column;justify-content:${valign};">${inner}</div>`;
     }).join('');
-    return `<div class="duo-nested" style="display:flex;gap:${gap}px;align-items:${valign};${mtCss}">${colsHtml}</div>`;
+    return `<div class="duo-nested" style="display:flex;gap:${gap}px;align-items:stretch;${mtCss}">${colsHtml}</div>`;
   }
   // 중첩 graph: {type:'graph', items:[{label,value,barColor?}]} — 정적 가로바 렌더 (BL-SFB-01).
   // bar-h 외 chartType도 카드 내부에선 동일한 가로바 표현으로 수용 (독립 그래프는 graph-block 몫).
@@ -137,15 +138,21 @@ function renderDuoBlock(block) {
   block.style.boxSizing = 'border-box';
 
   const totalW = cols.reduce((s, c) => s + (Number(c.width) > 0 ? Number(c.width) : 1), 0) || 1;
-  block.innerHTML = `<div class="duo-inner" style="display:flex;align-items:${valign};gap:${gapPx}px;width:100%;">
+  // ★세로 정렬의 축 = «컬럼 박스»가 아니라 «컬럼 안의 내용» (2026-09-03 fix/duo-layout-align).
+  //   이전: .duo-inner{align-items:top|middle|bottom}. 이 축은 컬럼 박스를 움직이는데,
+  //   flex-start/center/flex-end 는 컬럼 박스를 «내용 크기»로 줄여버려 정렬이 쓸 여백을 스스로 0으로
+  //   만든다 → 두 컬럼이 동형인 기본 듀오에서는 상단/중앙/하단 어느 것을 눌러도 화면 좌표 0px.
+  //   지금: 컬럼은 항상 stretch(=블록 높이를 채움) + 컬럼 내부 justify-content 로 «내용»을 배치.
+  //   ⇒ 배경/패딩이 있는 컬럼은 카드 높이가 서로 맞고, 여백이 있으면 내용이 실제로 이동한다.
+  block.innerHTML = `<div class="duo-inner" style="display:flex;align-items:stretch;gap:${gapPx}px;width:100%;">
     ${cols.map(col => {
       const w = Number(col.width) > 0 ? Number(col.width) : 1;
       const bg = (typeof col.bg === 'string' && _DUO_COLOR_RE.test(col.bg.trim())) ? col.bg.trim() : '';
       const pad = Number(col.padding) || 0;
       const r = Number(col.radius) || 0;
-      const cv = _DUO_VALIGN[col.valign] || '';
+      const cv = _DUO_VALIGN[col.valign] || valign;   // 컬럼 개별 지정이 블록 기본값을 덮는다
       const lines = Array.isArray(col.lines) ? col.lines : [];
-      return `<div class="duo-col" style="flex:${(w / totalW * 100).toFixed(2)} 1 0;min-width:0;${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${r > 0 ? `border-radius:${r}px;` : ''}${cv ? `align-self:${cv};` : ''}">
+      return `<div class="duo-col" style="flex:${(w / totalW * 100).toFixed(2)} 1 0;min-width:0;display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${r > 0 ? `border-radius:${r}px;` : ''}">
         ${lines.map(l => _duoLineHtml(l, col.align)).join('')}
       </div>`;
     }).join('')}
