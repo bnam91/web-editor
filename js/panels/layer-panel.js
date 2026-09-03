@@ -239,7 +239,13 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
       directBlocks.forEach(renderBlock);
     }
 
-    [...(sectionInner ? sectionInner.children : [])].forEach(child => {
+    // ★합쳐 넣은 상자(.section-merged-part)는 «레이어에 안 보인다» — 안의 것들을 같은 깊이로 편다.
+    //   상자는 배경·좌표를 이고 있는 «껍데기»지 사용자가 다루는 대상이 아니다.
+    function walkInnerChild(child) {
+      if (child.classList.contains('section-merged-part')) {
+        [...child.children].forEach(walkInnerChild);
+        return;
+      }
       if (child.classList.contains('gap-block')) {
         children.appendChild(makeLayerBlockItem(child, child, sec, 1));
       } else if (child.classList.contains('row')) {
@@ -270,7 +276,8 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
         // section-inner 직접 자식 블록 (frame-block으로 감싸지지 않은 케이스) — 안전망
         children.appendChild(makeLayerBlockItem(child, child, sec, 1));
       }
-    });
+    }
+    [...(sectionInner ? sectionInner.children : [])].forEach(walkInnerChild);
 
     // 레이어 패널 드롭존 (Row/Gap 단위 재배치)
     // rAF throttle: getLayerDragAfterItem 내 getBoundingClientRect 호출 최적화 (DBG-11)

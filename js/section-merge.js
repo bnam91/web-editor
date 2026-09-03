@@ -55,11 +55,29 @@ function mergeSectionInto(target, source) {
 
   const tIn = _inner(target), sIn = _inner(source);
 
-  // 버려지는 것을 «미리» 세어 둔다 — 합친 뒤엔 비교할 원본이 없다
-  const lostBg  = (source.style.background || source.style.backgroundColor || '').trim();
-  const keptBg  = (target.style.background || target.style.backgroundColor || '').trim();
-  const bgDiffers  = !!lostBg && lostBg !== keptBg;
-  const padDiffers = (sIn.style.paddingLeft || '') !== (tIn.style.paddingLeft || '');
+  /* ── 아래 섹션의 «몸»을 감싸는 상자 ──────────────────────────────────────
+     그냥 블록만 옮기면 세 가지가 무너진다(실측):
+       ⑴ 배경   — 아래 섹션의 배경이 통째로 사라진다
+       ⑵ 좌우여백 — 위 섹션 것으로 바뀐다
+       ⑶ 절대좌표 — ★좌표 기준은 .section-inner 가 아니라 «.section-block»(position:relative)이다.
+                    기준이 B→A 로 갈아타서 y 307 → -76 로 튀었다.
+     ⇒ 상자가 그 셋을 그대로 이어받는다. position:relative 라 «좌표 기준»도 여기서 다시 선다. */
+  const part = document.createElement('div');
+  part.className = 'section-merged-part';
+  part.dataset.mergedFrom = source.id || '';
+  // ⑴ 배경 — prop-section.js 가 쓰는 네 가지를 같이 옮긴다(이미지 배경도 살아야 한다)
+  for (const k of ['background', 'backgroundColor', 'backgroundSize', 'backgroundPosition', 'backgroundRepeat']) {
+    if (source.style[k]) part.style[k] = source.style[k];
+  }
+  // ⑵ 좌우여백 — 상자는 «위 섹션의 패딩을 지우고» 자기 패딩을 다시 준다.
+  //    안 지우면 A패딩 + B패딩 이 겹쳐 두 배로 들어간다.
+  const srcPadX = sIn.dataset.paddingX !== undefined && sIn.dataset.paddingX !== ''
+    ? parseFloat(sIn.dataset.paddingX)
+    : (parseFloat(sIn.style.paddingLeft) || 0);
+  part.dataset.padX = String(srcPadX);
+  part.style.paddingLeft = srcPadX + 'px';
+  part.style.paddingRight = srcPadX + 'px';
+  syncMergedPartMargins(target);   // 위 섹션 패딩을 상쇄하는 음수 마진
 
   // ── 이음매 접기: A의 «마지막» gap 과 B의 «첫» gap 이 둘 다 gap 이면 하나로 ──
   const tailGap = tIn.lastElementChild;
@@ -69,8 +87,10 @@ function mergeSectionInto(target, source) {
     headGap.remove();
   }
 
-  // ── 내용 이동: 순서 그대로 ──
-  while (sIn.firstChild) tIn.appendChild(sIn.firstChild);
+  // ── 내용 이동: 순서 그대로, 상자 안으로 ──
+  while (sIn.firstChild) part.appendChild(sIn.firstChild);
+  tIn.appendChild(part);
+  syncMergedPartMargins(target);   // 붙인 뒤 한 번 더(상자가 이제 DOM 에 있다)
   source.remove();
 
   // ── 뒷정리 ──
@@ -81,17 +101,30 @@ function mergeSectionInto(target, source) {
 
   window.buildLayerPanel?.();
   window.scheduleAutoSave?.();
-
-  // ★버린 걸 «말한다». 조용히 버리면 나중에 원인을 못 찾는다.
-  const lost = [];
-  if (bgDiffers)  lost.push('배경색');
-  if (padDiffers) lost.push('좌우 여백');
-  window.showToast?.(
-    lost.length
-      ? `섹션을 합쳤습니다 — 아래 섹션의 ${lost.join('·')}은 사라집니다 (⌘Z 되돌리기)`
-      : '섹션을 합쳤습니다 (⌘Z 되돌리기)'
-  );
+  window.showToast?.('섹션을 합쳤습니다 (⌘Z 되돌리기)');
   return true;
+}
+
+/**
+ * 합쳐 넣은 상자들의 «음수 마진»을 그 섹션의 현재 좌우 패딩에 맞춘다.
+ * ★섹션 좌우 패딩이 나중에 바뀌면 상자도 따라와야 한다 — 안 그러면 아래쪽 몸만 어긋난다.
+ *   그래서 패딩을 바꾸는 화면(prop-section·prop-page)에서 이 함수를 부른다.
+ */
+function syncMergedPartMargins(sec) {
+  const inner = _inner(sec);
+  if (!inner) return;
+  const parts = inner.querySelectorAll(':scope > .section-merged-part');
+  if (!parts.length) return;
+  const padX = parseFloat(inner.style.paddingLeft) || 0;
+  parts.forEach(p => {
+    p.style.marginLeft = -padX + 'px';
+    p.style.marginRight = -padX + 'px';
+  });
+}
+
+/** 캔버스 전체 — 패딩 일괄 변경(페이지 설정) 뒤에 부른다 */
+function syncAllMergedPartMargins() {
+  document.querySelectorAll('.section-block').forEach(syncMergedPartMargins);
 }
 
 /** 선택된 섹션을 «바로 위» 섹션과 합친다 — ⌘⇧↑ 가 부른다 */
@@ -112,8 +145,13 @@ window.mergeSectionInto      = mergeSectionInto;
 window.mergeSelectedSectionUp = mergeSelectedSectionUp;
 window.canMergeSections      = canMergeSections;
 
+window.syncMergedPartMargins    = syncMergedPartMargins;
+window.syncAllMergedPartMargins = syncAllMergedPartMargins;
+
 export {
   mergeSectionInto,
   mergeSelectedSectionUp,
   canMergeSections,
+  syncMergedPartMargins,
+  syncAllMergedPartMargins,
 };

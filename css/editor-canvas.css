@@ -297,3 +297,14 @@
 @media (prefers-reduced-motion: reduce) {
   .section-block.section-merge-flash { animation-duration: .01ms; }
 }
+
+/* 합쳐 넣은 «아래 섹션의 몸».
+   ★position:relative 가 핵심 — 절대좌표 요소의 기준(containing block)이 원래
+     .section-block 이었다. 그냥 옮기면 기준이 위 섹션으로 갈아타 좌표가 튄다(실측 y 307→-76).
+     이 상자가 다시 기준이 되어 준다.
+   배경·좌우패딩은 인라인으로 옮겨 담고, 음수 마진은 syncMergedPartMargins 가 맞춘다. */
+.section-merged-part {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
