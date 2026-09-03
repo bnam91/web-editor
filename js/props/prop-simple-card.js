@@ -2,6 +2,37 @@
 // prop-canvas.js에서 분리: 심플 카드 블록 프로퍼티 패널 (showSimpleCardProperties + _escHtml)
 import { propPanel } from '../globals.js';
 
+// 라벨 모드 전환의 «단일 진실원».
+//   같은 상태(dataset.labelPos / dataset.textHide)를 만지는 컨트롤이 둘이다 —
+//   ① 「라벨 모드」 세그먼트(분리/오버레이/숨김)  ② 「이미지 배경」 체크박스.
+//   로직을 «복사»하면 한쪽만 고쳤을 때 dataset 이 갈린다(drift). 그래서 «호출»로 묶는다.
+// newMode: 'separate' | 'overlay' | 'hide'
+function _applyCvbLabelMode(block, newMode) {
+  const currentPos = block.dataset.labelPos || 'bottom';
+  const wasOverlay = currentPos.startsWith('overlay-');
+  // hide 모드 — textHide=true. 다른 모드면 textHide=false
+  if (newMode === 'hide') {
+    block.dataset.textHide = 'true';
+  } else {
+    block.dataset.textHide = 'false';
+    // 모드 변경 시 labelPos 매핑: separate↔overlay 적절 기본값
+    if (newMode === 'overlay' && !wasOverlay) {
+      const bare = currentPos === 'both' ? 'bottom' : currentPos;
+      block.dataset.labelPos = 'overlay-' + bare;
+    } else if (newMode === 'separate' && wasOverlay) {
+      const bare = currentPos.replace('overlay-', '').replace('center', 'bottom');
+      block.dataset.labelPos = bare;
+    }
+  }
+  window.renderCanvas(block);
+  window.pushHistory?.('라벨 모드');
+  window.scheduleAutoSave?.();
+  // prop UI 재렌더 (위치 버튼·체크박스가 모드에 따라 달라지므로)
+  // ★이 호출이 propPanel.innerHTML 을 통째로 갈아끼운다 ⇒ 호출 전에 overlay-h/w-row 의
+  //   style.display 를 손으로 쓰던 옛 코드는 «덮어써지는 죽은 코드»였다 → 옮기며 제거.
+  window.showSimpleCardProperties(block);
+}
+
 function showSimpleCardProperties(block) {
   const w         = parseInt(block.dataset.canvasW)  || 360;
   const h         = parseInt(block.dataset.canvasH)  || 480;
@@ -26,6 +57,17 @@ function showSimpleCardProperties(block) {
   const overlayHeight = parseInt(block.dataset.overlayHeight) || 140;
   const overlayWidth  = Math.min(100, Math.max(10, parseInt(block.dataset.overlayWidth) || 100));
   const isOverlay = labelPos.startsWith('overlay-');
+  // 「이미지 배경」 = 카드 이미지가 셀 «전체»를 덮는 상태. 새 dataset 키를 만들지 않고
+  // 이미 있는 렌더 분기를 그대로 노출한다(실측 근거 = canvas-block.js):
+  //   · :580 overlay-* 분기 → fullImg 가 position:absolute;inset:0 (셀 전체를 덮음)
+  //   · :519 textHide=true  → imgH = designH (텍스트 밴드 없이 셀 전체)
+  // ⇒ 켜짐 = overlay || textHide. 끄면 '분리'(imgRatio 밴드)로 돌아간다.
+  const cardOrient  = block.dataset.cardOrient || 'portrait';
+  const isLandscape = cardOrient === 'landscape';
+  const imgBgOn     = isOverlay || textHide;
+  // 가로 카드는 renderCanvas 의 landscape 분기에 overlay 처리가 «없다»(canvas-block.js:475~512)
+  // → 켜도 화면이 안 바뀐다. 죽은 컨트롤을 내보내지 않도록 잠근다.
+  const imgBgLocked = textHide || isLandscape;
   // 텍스트 세로위치(px) — Text Area 슬라이더용. 0~100 클램프.
   const textVOffset = Math.min(100, Math.max(0, parseInt(block.dataset.textVOffset) || 0));
   // 라벨 배경 그라데이션 미세조정 상태. dataset.textBg가 실제 렌더 소스, grad*는 슬라이더 보존용.
@@ -188,6 +230,18 @@ function showSimpleCardProperties(block) {
         </div>
       </div>
       <div class="prop-row">
+        <span class="prop-label">이미지 배경</span>
+        <label class="prop-toggle" style="${imgBgLocked ? 'opacity:0.35;pointer-events:none;' : ''}">
+          <input type="checkbox" id="cvb-imgbg-toggle" ${imgBgOn ? 'checked' : ''} ${imgBgLocked ? 'disabled' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div class="prop-hint" style="margin-top:2px;">${
+        isLandscape ? '가로(landscape) 카드는 아직 지원하지 않습니다'
+      : textHide    ? '「숨김」 모드는 이미 이미지가 카드 전체를 덮습니다'
+      :               '켜면 이미지가 카드 전체 배경이 되고 라벨이 그 위에 얹힙니다'
+      }</div>
+      <div class="prop-row">
         <span class="prop-label">라벨 모드</span>
         <div class="prop-align-group" id="cvb-label-mode-group">
           <button class="prop-align-btn${(!isOverlay && !textHide) ? ' active' : ''}" data-mode="separate" title="분리 박스 — 이미지와 텍스트가 별도 영역">분리</button>
@@ -286,7 +340,7 @@ function showSimpleCardProperties(block) {
         <input type="text" class="prop-color-hex" id="cvb-icon-color-hex" value="${iconColor}" maxlength="7">
       </div>
       <div class="prop-color-row">
-        <span class="prop-label">이미지 배경</span>
+        <span class="prop-label">아이콘 배경</span>
         <div class="prop-color-swatch" style="background:${isIconBgTransparent ? 'transparent' : iconBg}; ${isIconBgTransparent ? 'background-image:repeating-conic-gradient(#888 0% 25%,#555 0% 50%);background-size:8px 8px;' : ''}">
           <input type="color" id="cvb-iconbg-pick" value="${iconBg}" ${isIconBgTransparent ? 'disabled' : ''}>
         </div>
@@ -465,38 +519,19 @@ function showSimpleCardProperties(block) {
     });
   });
 
+  // ── 이미지 배경 (카드 전체를 이미지로) ────────────────────────────────────────
+  // 새 상태를 만들지 않는다 — 켜기=오버레이 모드, 끄기=분리 모드. 「라벨 모드」 세그먼트와
+  // «같은» _applyCvbLabelMode 를 부르므로 두 컨트롤이 어긋날 수 없다.
+  const imgBgToggle = document.getElementById('cvb-imgbg-toggle');
+  imgBgToggle?.addEventListener('change', () => {
+    _applyCvbLabelMode(block, imgBgToggle.checked ? 'overlay' : 'separate');
+  });
+
   // ── 라벨 모드 (분리 vs 오버레이) — 모드 바꾸면 prop UI 재렌더 ───────────────────
   const modeGroup = document.getElementById('cvb-label-mode-group');
   const overlayHRow = document.getElementById('cvb-overlay-h-row');
   modeGroup?.querySelectorAll('.prop-align-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const newMode = btn.dataset.mode;
-      const currentPos = block.dataset.labelPos || 'bottom';
-      const wasOverlay = currentPos.startsWith('overlay-');
-      // hide 모드 — textHide=true. 다른 모드면 textHide=false
-      const overlayWRow = document.getElementById('cvb-overlay-w-row');
-      if (newMode === 'hide') {
-        block.dataset.textHide = 'true';
-        // hide 모드면 overlay-h/w-row 강제 숨김
-        if (overlayHRow) overlayHRow.style.display = 'none';
-        if (overlayWRow) overlayWRow.style.display = 'none';
-      } else {
-        block.dataset.textHide = 'false';
-        // 모드 변경 시 labelPos 매핑: separate↔overlay 적절 기본값
-        if (newMode === 'overlay' && !wasOverlay) {
-          const bare = currentPos === 'both' ? 'bottom' : currentPos;
-          block.dataset.labelPos = 'overlay-' + bare;
-        } else if (newMode === 'separate' && wasOverlay) {
-          const bare = currentPos.replace('overlay-', '').replace('center', 'bottom');
-          block.dataset.labelPos = bare;
-        }
-      }
-      window.renderCanvas(block);
-      window.pushHistory?.('라벨 모드');
-      window.scheduleAutoSave?.();
-      // prop UI 재렌더 (위치 버튼이 모드에 따라 달라지므로)
-      window.showSimpleCardProperties(block);
-    });
+    btn.addEventListener('click', () => _applyCvbLabelMode(block, btn.dataset.mode));
   });
 
   // ── 라벨 위치 (모드에 맞는 옵션 중 선택) ────────────────────────────────────────
