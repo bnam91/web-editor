@@ -5,8 +5,15 @@
    ★새 데이터가 «없다» — 값이자 렌더가 인라인 `style.marginTop` 하나다.
      · 저장       : DOM innerHTML 이 저장본(section-serialize) → 자동
      · HTML 내보내기: cloneNode(true) → clone.innerHTML       → 자동
-     · Figma      : getBoundingClientRect() 기반               → 자동
-     ⇒ 내보내기 3종을 «건드리지 않는다». 이게 이 방식을 고른 이유다.
+     · PNG        : 클론을 실제 DOM 에 붙여 브라우저가 레이아웃  → 자동
+     ⇒ 저장·불러오기·HTML·PNG 는 내보내기 코드를 «0줄» 고치고 따라온다.
+
+   ⚠️★그러나 «Figma JSON · Design JSON 두 종은 겹침을 싣지 못한다» — 0줄로는 영구히 안 된다.
+     export-figma-json.js 는 라이브 DOM 이 아니라 저장 문자열을 DOMParser 로 «오프라인 파싱»해
+     순회하고(:889), 섹션 객체가 { id, name, background, bgImage, blocks } 뿐이라 y·height 축이
+     아예 없다(:881). z-index·marginTop 참조도 각각 0회. export-design-json.js 도 의미 모델이라
+     좌표축이 없다. ⇒ 두 JSON 에서는 겹침이 «없는 것처럼» 나가고 섹션이 그만큼 길어진다.
+     이걸 실으려면 스키마에 pullUp 축을 넣고 Figma 플러그인 빌더까지 손대야 한다 — 별건이다.
      (실측: 블록에 style.marginTop 을 쓰는 곳이 없어 자리가 비어 있었다 —
       editor.js:938 은 «지우는» 쪽, banner-block.js:66 은 배너 내부 자식이라 무관.)
 
@@ -75,9 +82,17 @@
 
   function getPull(b) { var u = flowUnit(b); return u ? (parseInt(u.style.marginTop, 10) || 0) : 0; }
 
+  /* 이 단위가 «위로 갈 수 있는 한계» — 섹션 상자를 넘어가면 PNG 캡처가 잘라낸다
+     (export-image.js 의 clip y = 섹션 클론 rect.top). 화면·HTML 은 넘쳐 보이는데 PNG 만
+     잘려서 셋이 갈린다. ⇒ 애초에 섹션 위로는 못 나가게 막는다. */
+  function minPullFor(u) {
+    var natural = (u.offsetTop || 0) - (parseInt(u.style.marginTop, 10) || 0);
+    return Math.max(MIN, -natural);
+  }
+
   function setPull(b0, v) {
     var b = flowUnit(b0); if (!b) return 0;
-    v = Math.max(MIN, Math.min(MAX, Math.round(v)));
+    v = Math.max(minPullFor(b), Math.min(MAX, Math.round(v)));
     if (v) {
       b.style.marginTop = v + 'px';
       /* ★당겨 올린 블록은 «통째로» 위에 와야 한다.
@@ -87,16 +102,19 @@
          ⚠️이게 Figma 와 안 갈리는 이유: «당김»은 언제나 «자기 바로 위» 블록을 파고드는 것이라
            당긴 쪽이 상대보다 항상 DOM 뒤다. z 를 올려도 결과가 DOM 순서와 «같다».
            (Figma 내보내기는 z-index 를 0회 보고 자식 순서만 쓴다 — 그래서 어긋날 수 없다.) */
-      if (!b.dataset.ovlPos) {
-        var cs = getComputedStyle(b);
-        if (cs.position === 'static') b.style.position = 'relative';
-        var z = parseInt(cs.zIndex, 10);
-        if (!(z > OVL_Z)) b.style.zIndex = String(OVL_Z);
-        b.dataset.ovlPos = '1';
-      }
+      /* ★computed 가 relative 여도 «인라인으로» 박는다.
+         내보낸 HTML 에는 `.frame-block{position:relative;display:flex;overflow:hidden}` 규칙이
+         «한 줄도» 없다(export-html.js 자체 CSS 에 frame-block 0회). 앱에서 relative 였던 건
+         css/editor-blocks.css:4 덕분이라, 인라인이 없으면 내보낸 뒤 static 이 되어 z-index 가 죽는다.
+         ★플래그(dataset)를 두지 않는다 — 저장본에 실려 다음 로드에서 «이미 처리함»으로 오인되고,
+           무엇보다 「새 데이터 0」이 거짓이 된다. marginTop 이 곧 표식이라 그걸로 충분하다. */
+      b.style.position = 'relative';
+      b.style.zIndex = String(OVL_Z);
     } else {
       b.style.marginTop = '';
-      if (b.dataset.ovlPos) { b.style.position = ''; b.style.zIndex = ''; delete b.dataset.ovlPos; }
+      b.style.position = '';
+      b.style.zIndex = '';
+      if (b.dataset.ovlPos) delete b.dataset.ovlPos;   // 옛 버전이 남긴 것 청소
     }
     return v;
   }
