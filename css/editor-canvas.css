@@ -308,3 +308,20 @@
   display: flex;
   flex-direction: column;
 }
+/* ★선택 아웃라인이 이 상자에 «덮인다» — 되살린다.
+   .section-block.selected 의 outline 은 outline-offset:-1px 라 «섹션 안쪽 가장자리»에 그려지는데,
+   이 상자는 position:relative + 섹션 폭 그대로 + 불투명 배경이라 자기 구간의 좌·우(·아래)를 가린다.
+   (실측: 합친 뒤 선택하면 아래쪽 몸에만 파란 선이 안 보였다 — 현빈 2026-09-03)
+   ⇒ 가려지는 «변만» inset 그림자로 다시 그린다. 위쪽은 긋지 않는다 — 그으면 두 섹션처럼 보인다. */
+.section-block.selected .section-merged-part {
+  box-shadow:
+    inset  var(--sel-outline-w) 0 0 0 var(--sel-color),
+    inset calc(-1 * var(--sel-outline-w)) 0 0 0 var(--sel-color);
+}
+/* 상자가 섹션 «맨 아래»일 때만 아랫변도 — 뒤에 블록이 더 있으면 엉뚱한 가로선이 된다 */
+.section-block.selected .section-merged-part:last-child {
+  box-shadow:
+    inset  var(--sel-outline-w) 0 0 0 var(--sel-color),
+    inset calc(-1 * var(--sel-outline-w)) 0 0 0 var(--sel-color),
+    inset 0 calc(-1 * var(--sel-outline-w)) 0 0 var(--sel-color);
+}
