@@ -4,6 +4,7 @@
    실행:
      cd /Users/a1/web-editor-secbgpos
      node tools/section-bg-position-probe/run.mjs                      # 기본: 포트 9334, sec_uid2mbz
+     (node_modules 없어도 됨 — ws 는 /Users/a1/web-editor 쪽에서 폴백 로드)
      PORT=9334 SEC=sec_uid2mbz node tools/section-bg-position-probe/run.mjs
      SEC=auto node tools/section-bg-position-probe/run.mjs             # 배경이미지 있는 첫 섹션 자동선택
      SHOT=1  node tools/section-bg-position-probe/run.mjs              # 켬/끔 스크린샷을 이 폴더에 저장
@@ -22,7 +23,9 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import WebSocket from 'ws';
+// ws 는 워크트리에 node_modules 가 없어도 되게 본 레포에서 폴백 로드한다
+const WebSocket = (await import('ws').catch(() =>
+  import('/Users/a1/web-editor/node_modules/ws/wrapper.mjs'))).default;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || '9334';
