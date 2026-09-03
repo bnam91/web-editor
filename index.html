@@ -484,6 +484,28 @@
             <span id="ds-label-radius-val">8px</span>
           </div>
 
+          <!-- 캔버스 바탕색 — 우측 「페이지」 패널에서 옮겨 왔다.
+               ★거기 있을 땐 「배경색」이라 «섹션 배경»인 줄 알고 누르는 일이 잦았다(현빈).
+                 이름도 「캔버스 바탕색」으로 바꿔, 무엇이 바뀌는지 이름만 보고 알게 한다.
+               ⚠️Apply/Reset 은 «토큰» 버튼이다 — 바탕색은 누르는 즉시 반영되고 Reset 대상이 아니다. -->
+          <div class="ds-section-label">캔버스</div>
+          <div class="ds-token-row">
+            <span class="ds-token-label" title="작업 화면(캔버스)의 바탕색입니다 — 섹션 배경이 아닙니다">바탕색</span>
+            <!-- ★마크업을 «그대로» 옮겼다(id 포함). 커스텀 컬러피커(그라데이션 탭)가
+                 .prop-color-swatch > input[type=color] 구조에 붙기 때문에, 모양을 바꾸면
+                 페이지 배경 그라데이션 기능이 조용히 사라진다(js/props/color-picker.js openPicker). -->
+            <div class="prop-color-field" style="flex:1">
+              <div class="prop-color-swatch" style="background:#acacac">
+                <input type="color" id="page-bg-color" value="#acacac">
+              </div>
+              <input type="text" class="prop-color-hex" id="page-bg-hex" value="ACACAC" maxlength="6" aria-label="Color">
+              <label class="prop-color-alpha" title="Opacity">
+                <input type="text" class="prop-color-alpha-input" id="page-bg-alpha-input" value="100" aria-label="Opacity">
+                <span class="prop-color-alpha-suffix">%</span>
+              </label>
+            </div>
+          </div>
+
           <!-- Buttons -->
           <div class="ds-btn-row">
             <button class="ds-apply-btn" onclick="DesignSystem.applyFromPanel()">Apply</button>

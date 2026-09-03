@@ -2976,7 +2976,12 @@ window.showMultiSelPanel = showMultiSelPanel;
 // 모든 모듈 로드 후 앱 초기화 — save-load.js가 editor.js보다 늦게 평가될 수 있어
 // window.initApp 등록을 폴링으로 대기 (setTimeout 0만으로는 race가 남음)
 (function waitInitApp() {
-  if (window.initApp) window.initApp();
+  if (window.initApp) {
+    window.initApp();
+    // 캔버스 바탕색 컨트롤(왼쪽 Design System 패널)은 «상주»하므로 부팅 때 한 번만 배선한다.
+    // ★initApp «뒤»여야 한다 — state.pageSettings 가 채워진 뒤에 현재 색을 읽어야 하니까.
+    try { window.wireCanvasBgControl?.(); } catch (_) {}
+  }
   else setTimeout(waitInitApp, 10);
 })();
 
