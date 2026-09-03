@@ -117,10 +117,15 @@ function _classifyDrop(clientX, clientY) {
     return { kind: 'none' };
   }
 
-  const inner = sec.querySelector('.section-inner') || sec;
+  const sectionInner = sec.querySelector('.section-inner') || sec;
 
   // 케이스 B: row / gap / frame 위(=섹션 본문 콘텐츠) → 블록 사이에 에셋블럭 삽입
   const rowLike = hit.closest('.row, .gap-block, .frame-block');
+  /* ★삽입 «컨테이너»는 놓은 자리를 «직접» 품은 곳이어야 한다.
+     합쳐 넣은 몸(.section-merged-part)은 section-inner 의 자식 «하나»로 보이므로,
+     거기에 놓아도 위치 계산이 상자 통째의 앞뒤로 떨어진다 — 놓은 데가 아니라 엉뚱한 자리에 생긴다
+     (실측 2026-09-03: 상자 안 텍스트 위에 놓았는데 위쪽 본문에 생겼다). */
+  const inner = (rowLike && rowLike.closest('.section-merged-part')) || sectionInner;
   if (rowLike && inner.contains(rowLike)) {
     // section-inner의 직속 자식 기준으로만 위치 계산 (frame 내부는 본 모듈 적용 X — 섹션 끝 동작이 자연스러움)
     const after = (typeof window.getDragAfterElement === 'function')
@@ -130,7 +135,7 @@ function _classifyDrop(clientX, clientY) {
   }
 
   // 케이스 C: section-block의 빈 영역/가장자리 → 섹션 배경 이미지로 설정 (드롭 위치 구분 #5b)
-  return { kind: 'sectionbg', sec, inner };
+  return { kind: 'sectionbg', sec, inner: sectionInner };   // 배경은 «섹션» 것이지 상자 것이 아니다
 }
 
 function _renderGuide(decision) {
@@ -348,7 +353,8 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
       const blocks = sec.querySelectorAll('.asset-block');
       const ab = blocks[blocks.length - 1];
       if (ab) {
-        const inner = sec.querySelector('.section-inner') || sec;
+        // 좌우여백은 «그 블록이 실제로 들어간 곳» 기준이어야 한다(합쳐 넣은 몸이면 그 상자)
+        const inner = ab.closest('.section-merged-part') || sec.querySelector('.section-inner') || sec;
         reapplyPadX(inner);
         applyAspectSync(ab);
         window.setAssetImageFromSrc?.(ab, src);
