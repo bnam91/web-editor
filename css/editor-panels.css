@@ -696,6 +696,11 @@ body.right-panel-collapsed #tb-toggle-right-panel .pg-fill { opacity: 0; }
 #logo-text {
   display: flex; align-items: center; gap: 6px;
   min-width: 0;
+  /* ★배지가 셋(BETA·DEV·ADMIN)까지 붙을 수 있다 — 한 줄로 두면 마지막 배지가
+     패널 밖으로 잘려 «안 보인다»(실측: ADMIN 이 부모 오른끝 222 를 넘어 269 까지).
+     배지는 「지금 무슨 창인지」를 알리는 것이라 잘리면 존재 이유가 없다. ⇒ 넘치면 다음 줄로. */
+  flex-wrap: wrap;
+  row-gap: 3px;
 }
 #logo-name {
   font-size: var(--ui-fs-base); font-weight: var(--ui-fw-bold);
@@ -710,14 +715,25 @@ body.right-panel-collapsed #tb-toggle-right-panel .pg-fill { opacity: 0; }
   padding: 1px 5px;
   flex-shrink: 0;
 }
-#logo-branch-badge {
+#logo-branch-badge,
+#logo-admin-badge {
   font-size: var(--ui-fs-9); font-weight: var(--ui-fw-semibold);
-  color: #e8a030; letter-spacing: 0.2px;
-  border: 1px solid #5a3d10;
-  background: rgba(232,160,48,0.08);
+  letter-spacing: 0.2px;
   border-radius: 3px;
   padding: 1px 6px;
   flex-shrink: 0;
+}
+#logo-branch-badge {          /* DEV — 「설치본이 아니다」 */
+  color: #e8a030;
+  border: 1px solid #5a3d10;
+  background: rgba(232,160,48,0.08);
+}
+/* ADMIN — 「일반 사용자에게 없는 게 보인다」.
+   DEV 와 «다른 색»이어야 구분된다 — 둘은 서로 다른 질문에 답하는 배지다. */
+#logo-admin-badge {
+  color: #e05a6b;
+  border: 1px solid #5a1620;
+  background: rgba(224,90,107,0.10);
 }
 
 /* 프로젝트명 행 */

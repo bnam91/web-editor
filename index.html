@@ -295,6 +295,7 @@
           <span id="logo-name">GODITOR</span>
           <span id="logo-version-badge"></span>
           <span id="logo-branch-badge" style="display:none"></span>
+          <span id="logo-admin-badge" style="display:none" title="관리자 모드 — 일반 사용자에게 없는 기능이 보입니다"></span>
         </div>
       </div>
       <div id="project-name-row">
@@ -1203,6 +1204,25 @@
    * ⇒ 배지의 유무 자체가 「지금 개발 빌드냐 릴리스본이냐」를 말해준다.
    * ★2026-08-28 실제 혼동: 같은 「BETA v0.8.3」인데 dev 빌드엔 그림자 픽스가 있고
    *   릴리스본엔 없어서, 「아까는 고쳐져 보였는데?」가 나왔다. 화면에 구분이 없었다. */
+  /* ★관리자 모드 표시 — DEV 배지와 «별개» 조건이다.
+     소스로 돌려도 admin 인자가 없으면 관리자가 아니고, 설치본이어도 토큰·허용파일이
+     맞으면 관리자다. 두 배지가 각각 다른 질문에 답한다:
+       DEV   = 「이게 설치된 앱이 아니라 소스다」
+       ADMIN = 「일반 사용자에게 «없는» 기능이 지금 보이고 있다」
+     ★토글을 만들지 «않는» 이유 — 화면만 숨기는 토글은 main 쪽 게이트 8곳을 못 끄므로
+       「일반 사용자로 확인했다」가 거짓이 된다. 비교하려면 admin 없이 «다시 띄우는» 게 진짜다. */
+  (async () => {
+    const isAdmin = await window.electronAPI?.isAdmin?.().catch(() => false);
+    if (!isAdmin) return;                       // 배지 없음 = 일반 사용자 보기
+    const b = document.getElementById('logo-admin-badge');
+    if (b) {
+      b.textContent = 'ADMIN';
+      b.title = '관리자 모드 — 일반 사용자에게 없는 기능(New Plan 등)이 보입니다. '
+              + '일반 사용자 화면을 보려면 admin 인자 없이 다시 실행하세요.';
+      b.style.display = '';
+    }
+  })();
+
   (async () => {
     if (!window.electronAPI?.getGitBranch) return;
     const branch = await window.electronAPI.getGitBranch();
