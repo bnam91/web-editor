@@ -212,8 +212,22 @@ function syncAllMergedPartMargins() {
 
 /** 선택된 섹션을 «바로 위» 섹션과 합친다 — ⌘⇧↑ 가 부른다 */
 function mergeSelectedSectionUp() {
-  const sel = document.querySelector('.section-block.selected');
-  if (!sel) { window.showToast?.('합칠 섹션을 먼저 고르세요'); return false; }
+  /* ★여러 개를 골랐으면 «전부» 합친다.
+     한때 querySelector 단수라 문서상 첫 번째 하나만, 그것도 «고르지도 않은 바로 위 섹션»과
+     합쳤다. 고른 게 3·4·5 인데 2 에 3 이 들어가는 식이라 결과를 예측할 수 없었다.
+     규칙: 고른 것들 중 «맨 위» 하나로 나머지를 위에서 아래 순서대로 합친다.
+       고른 게 하나뿐이면 예전대로 «그 위 섹션»과 합친다. */
+  const sels = [...document.querySelectorAll('.section-block.selected')];
+  if (!sels.length) { window.showToast?.('합칠 섹션을 먼저 고르세요'); return false; }
+
+  if (sels.length >= 2) {
+    const target = sels[0];                       // DOM 순서상 맨 위
+    let n = 0;
+    for (const s of sels.slice(1)) { if (mergeSectionInto(target, s)) n++; }
+    return n > 0;
+  }
+
+  const sel = sels[0];
   let prev = sel.previousElementSibling;
   while (prev && !prev.classList.contains('section-block')) prev = prev.previousElementSibling;
   if (!prev) {

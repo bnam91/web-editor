@@ -320,7 +320,12 @@ function getBlockBreadcrumb(el) {
   const row = el.classList.contains('row') ? el : el.closest('.row');
   if (!row) return `Section ${sIdx}`;
   const inner = sec.querySelector('.section-inner');
-  const rows = inner ? [...inner.querySelectorAll(':scope > .row')] : [];
+  /* ★합쳐 넣은 몸 안의 행도 세야 한다 — :scope > 만 보면 indexOf 가 -1 이라 「Row 0」 이 뜬다.
+     세는 순서는 «화면에 보이는 순서»여야 하므로 상자를 만나면 그 안으로 내려간다. */
+  const flattenRows = (el) => [...el.children].flatMap(c =>
+    c.classList.contains('section-merged-part') ? flattenRows(c)
+      : (c.classList.contains('row') ? [c] : []));
+  const rows = inner ? flattenRows(inner) : [];
   const rIdx = rows.indexOf(row) + 1;
   return `Section ${sIdx}  ·  Row ${rIdx}`;
 }
@@ -1115,6 +1120,7 @@ function alignSelectedToParent(dir) {
 function _sectionOnlySelection() {
   const sec = document.querySelector('.section-block.selected');
   if (!sec) return false;
+  // 섹션이 여러 개 골라져 있어도 «섹션만» 이면 합치기 대상이다(전부 합친다)
   const other = [...document.querySelectorAll('.selected')].find(el =>
     el !== document.body && !el.classList.contains('section-block') && !el.classList.contains('layer-item'));
   return !other;
@@ -2271,7 +2277,13 @@ function moveSelectedBlocks(direction) {
   // 프레임(frame-block)이 선택된 경우 별도 처리
   const selFrame = window._activeFrame;
   if (selFrame && selFrame.classList.contains('selected')) {
-    const sectionInner = selFrame.closest('.section-inner');
+    /* ★컨테이너는 «실제 부모»다. closest('.section-inner') 는 합쳐 넣은 몸
+       (.section-merged-part) 안의 프레임에 대해 «바깥» inner 를 집어, indexOf 가 -1 이 되고
+       아래로 이동이 containerItems[0].after() 로 떨어져 «프레임이 섹션 맨 위로 순간이동»했다
+       (위로는 idx<=0 에 걸려 먹통). 상자를 지나 밖으로 꺼내지기까지 한다. */
+    const sectionInner = (selFrame.parentElement?.classList.contains('section-merged-part')
+      ? selFrame.parentElement
+      : selFrame.closest('.section-inner'));
     if (!sectionInner) return;
     const containerItems = [...sectionInner.children].filter(c =>
       c.classList.contains('row') || c.classList.contains('gap-block') || c.classList.contains('frame-block')
@@ -2307,8 +2319,12 @@ function moveSelectedBlocks(direction) {
   if (selBlocks.length === 0) return;
 
   // 각 블록의 이동 단위(row or gap-block)를 DOM 순서대로 수집
+  // ★.section-merged-part 직속 갭도 «이동 단위»다. 안 넣으면 closest('.row')=null →
+  //   unitSet 이 비어 ⌘[/⌘] 가 «조용히» 아무 일도 안 한다(먹통으로 보인다).
+  const _isUnitParent = el => !!el && (el.classList.contains('section-inner')
+    || el.classList.contains('frame-block') || el.classList.contains('section-merged-part'));
   const getUnit = b => b.classList.contains('gap-block')
-    ? (b.parentElement?.classList.contains('section-inner') || b.parentElement?.classList.contains('frame-block') ? b : b.closest('.row'))
+    ? (_isUnitParent(b.parentElement) ? b : b.closest('.row'))
     : b.closest('.row');
 
   const unitSet = new Set();
