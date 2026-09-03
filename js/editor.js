@@ -1217,7 +1217,10 @@ document.addEventListener('keydown', e => {
   }
 
   // ⌘M — 병합. ★preventDefault 필수(Electron '창 최소화' 가속기와 충돌).
-  //   컨텍스트 분기: 갭 선택 → #8 갭 병합 / 테이블 셀 선택 → #5-b 셀 병합 / 둘 다 아니면 no-op.
+  //   컨텍스트 분기: 갭 선택 → #8 갭 병합 / 테이블 셀 선택 → #5-b 셀 병합
+  //                 / 섹션만 선택 → 섹션 합치기 / 아무것도 아니면 no-op.
+  //   ★섹션은 «맨 뒤»다. 섹션은 블록을 고르면 같이 selected 로 남는 일이 많아서,
+  //     앞에 두면 셀·갭 병합을 가로챈다. 좁은 대상이 먼저다.
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyM' && !e.shiftKey && !e.altKey) {
     e.preventDefault();
     if (document.querySelector('.gap-block.selected')) {
@@ -1225,6 +1228,9 @@ document.addEventListener('keydown', e => {
     } else if (document.querySelector('.table-block .tb-table td.cell-selected')) {
       /* #5-b 테이블 바디셀 병합 (table-cell-select.js) */
       window.mergeSelectedCells?.();
+    } else if (document.querySelector('.section-block.selected')) {
+      /* 섹션 합치기 (section-merge.js) — 「바로 위 섹션과 하나로」 */
+      window.mergeSelectedSectionUp?.();
     }
     return;
   }
@@ -1772,22 +1778,8 @@ document.addEventListener('keydown', e => {
     }
   }
 
-  // ── 섹션 합치기: Cmd+Shift+↑ — «순서 위로(Cmd+↑)» 보다 «먼저» 걸러야 한다 ──
-  // ★Cmd+↑ 를 쓰지 않는 이유: 그건 이미 「섹션 순서 위로」다. 같은 키에 두 뜻은 못 얹는다.
-  if (e.key === 'ArrowUp' && e.shiftKey && (e.metaKey || e.ctrlKey)) {
-    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-    if (document.querySelector('.section-block.selected')) {
-      e.preventDefault();
-      window.mergeSelectedSectionUp?.();
-      return;
-    }
-  }
-
   // ── 키보드 Nudge: 블록 이동 Cmd+방향키 (편집 중이거나 입력 포커스 시 무시) ──
-  // ★!e.shiftKey — Shift 조합은 위 «합치기»가 가져간다. 이 가드가 없으면 ⌘⇧↑ 가
-  //   합치기 «와» 순서이동을 둘 다 태워 결과가 뒤엉킨다.
-  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey)) {
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
     // 섹션 외 모든 selected 요소를 블록으로 취급 (iconify/shape/sticker/laurel 등 누락 방지)
