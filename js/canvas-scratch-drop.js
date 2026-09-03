@@ -134,7 +134,14 @@ function _classifyDrop(clientX, clientY) {
     return { kind: 'insert', sec, inner, after };
   }
 
-  // 케이스 C: section-block의 빈 영역/가장자리 → 섹션 배경 이미지로 설정 (드롭 위치 구분 #5b)
+  /* 케이스 C: section-block의 빈 영역/가장자리 → 섹션 배경 이미지로 설정 (드롭 위치 구분 #5b)
+     ★합쳐 넣은 몸의 «빈 여백»에 놓으면 rowLike 에 안 걸려 여기로 빠지는데,
+       그대로 두면 «위 섹션 전체» 배경이 바뀐다 — 놓은 자리엔 안 보이고 위쪽만 변한다.
+       그 자리는 배경 바꿀 자리가 아니라 «그 몸의 끝에 넣을» 자리다. */
+  const inPart = hit.closest('.section-merged-part');
+  if (inPart) {
+    return { kind: 'insert', sec, inner: inPart, after: null };
+  }
   return { kind: 'sectionbg', sec, inner: sectionInner };   // 배경은 «섹션» 것이지 상자 것이 아니다
 }
 

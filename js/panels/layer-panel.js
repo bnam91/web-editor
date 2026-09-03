@@ -308,18 +308,38 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
       const dragTarget = window.layerDragSrc._dragTarget;
       const indicator = children.querySelector('.layer-drop-indicator');
 
+      /* ★「섹션의 끝」은 마지막 «직계» 갭이 아니라 마지막 «여백»이다.
+         합쳐 넣은 몸(.section-merged-part)이 있으면 그 안이 진짜 끝이라,
+         직계만 보면 이음매 갭을 집어 «두 몸 사이»에 꽂힌다. */
+      const _lastGapDeep = (root) => {
+        let cur = root, found = null;
+        while (cur) {
+          const gaps = [...cur.children].filter(c => c.classList.contains('gap-block'));
+          if (gaps.length) found = gaps[gaps.length - 1];
+          const lastPart = [...cur.children].reverse().find(c => c.classList.contains('section-merged-part'));
+          if (!lastPart) break;
+          cur = lastPart;
+        }
+        return found;
+      };
       const insertIntoSec = (domEl) => {
         if (!indicator) { sectionInner.appendChild(domEl); return; }
         const nextEl = indicator.nextElementSibling;
         const nextTarget = nextEl?._dragTarget || null;
-        // sectionInner 직접 자식인 경우에만 insertBefore 사용
-        const nextDirectChild = (nextTarget && nextTarget.parentElement === sectionInner) ? nextTarget : null;
-        if (nextDirectChild) {
-          sectionInner.insertBefore(domEl, nextDirectChild);
+        /* ★기준 노드의 «실제 부모»에 넣는다.
+           레이어는 상자 안을 같은 깊이로 «펴서» 보여주는데 삽입은 늘 sectionInner 로 했다.
+           그래서 상자 안 항목을 한 칸만 옮겨도 블록이 상자 «밖»으로 튀어나와
+           배경·좌우여백·좌표기준을 한꺼번에 잃었다(이 브랜치가 상자로 지키려던 셋). */
+        const parent = nextTarget?.parentElement;
+        const okParent = parent && (parent === sectionInner
+          || (parent.classList.contains('section-merged-part') && sectionInner.contains(parent)));
+        if (okParent) {
+          parent.insertBefore(domEl, nextTarget);
         } else {
-          const bottomGap = [...sectionInner.querySelectorAll(':scope > .gap-block')].at(-1);
-          if (bottomGap && bottomGap !== domEl) sectionInner.insertBefore(domEl, bottomGap);
-          else sectionInner.appendChild(domEl);
+          const bottomGap = _lastGapDeep(sectionInner);
+          if (bottomGap && bottomGap !== domEl && bottomGap.parentElement) {
+            bottomGap.parentElement.insertBefore(domEl, bottomGap);
+          } else sectionInner.appendChild(domEl);
         }
       };
 
