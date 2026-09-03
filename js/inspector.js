@@ -190,7 +190,13 @@ function renderInspectorPanel() {
     statRow('labelGroupBlocks', 'Tags', labelGroupBlocks),
     statRow('iconTextBlocks', 'Icon Text', iconTextBlocks),
     statRow('stepBlocks', 'Step', stepBlocks),
-    statRow('canvasBlocks', 'Canvas', canvasBlocks),
+    /* ★표시명은 «Card» 다 — 추가 메뉴(index.html)도, 레이어 패널(layer-panel-items.js
+       labels.canvas)도 Card 인데 여기만 'Canvas' 라 어긋나 있었다.
+       「캔버스」는 에디터의 «작업 화면»(#canvas)을 가리키는 말로 남겨 둔다 —
+       한 낱말이 두 가지를 가리키면 대화가 매번 갈린다.
+       클래스명 canvas-block / id cvb_ 는 «내부 이름»이라 그대로 둔다.
+       저장된 모든 프로젝트 HTML 에 박혀 있어서 바꾸면 기존 파일이 전부 깨진다. */
+    statRow('canvasBlocks', 'Card', canvasBlocks),
     statRow('shapeBlocks', 'Shape', shapeBlocks),
     // 0개면 «안 그린다» — 다른 줄과 같은 규율(없는 걸 0 으로 늘어놓지 않는다)
     statRow('logoBlocks', 'Logo', logoBlocks),
