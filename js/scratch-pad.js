@@ -5,6 +5,7 @@
 ══════════════════════════════════════ */
 
 import { previewScratchDropAt, commitScratchDropAt, clearScratchDropGuides } from './canvas-scratch-drop.js';
+import { parseGoyaAssetUrl, makeElectronAssetReader } from './io/goya-asset-inline.js';
 
 const SCRATCH_DB_NAME = 'ScratchPadDB';
 const SCRATCH_STORE   = 'scratch';
@@ -287,6 +288,20 @@ function _getScale() {
 }
 
 // dataURL → 이미지 자연 크기
+// ★goya-asset:// 는 «캔버스를 오염»시킨다 — 그대로 그리면 toDataURL 이 SecurityError 를 던져
+//   슬라이스가 통째로 실패한다(v0.8.0 이미지 외부화 이후 잠복, 2026-09-03 현빈 신고로 발견).
+//   렌더러는 file:// origin 이고 커스텀 스킴은 cross-origin 이라 crossOrigin='anonymous' 로도
+//   «로드 자체가» 안 된다(실측). export 쪽이 이미 쓰는 assets:readAsDataUri IPC 로 우회한다.
+//   ⇒ 여기서 data: URI 로 바꿔 오면 same-origin 이라 오염되지 않는다.
+async function _toDrawableSrc(src) {
+  const info = parseGoyaAssetUrl(src);
+  if (!info) return src;                       // data:/http(s)/blob: 는 그대로
+  const read = makeElectronAssetReader();
+  if (!read) return src;                       // 웹(IPC 없음) — 원본 그대로 시도
+  const dataUri = await read(info.projectId, info.filename);
+  return dataUri || src;
+}
+
 function _loadImg(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -298,7 +313,7 @@ function _loadImg(src) {
 
 // 단일 컷 슬라이스: ratio(0~1) 위치에서 가로로 잘라 위/아래 dataURL 두 개 반환
 async function _sliceImageHorizontal(src, ratio) {
-  const img = await _loadImg(src);
+  const img = await _loadImg(await _toDrawableSrc(src));
   const W = img.naturalWidth, H = img.naturalHeight;
   const cutY = Math.max(1, Math.min(H - 1, Math.round(H * ratio)));
   const mk = (sy, sh) => {
@@ -317,7 +332,7 @@ async function _sliceImageHorizontal(src, ratio) {
 
 // 세로 컷 슬라이스(⌘ hold): ratio(0~1) 위치에서 세로로 잘라 좌/우 dataURL 두 개 반환
 async function _sliceImageVertical(src, ratio) {
-  const img = await _loadImg(src);
+  const img = await _loadImg(await _toDrawableSrc(src));
   const W = img.naturalWidth, H = img.naturalHeight;
   const cutX = Math.max(1, Math.min(W - 1, Math.round(W * ratio)));
   const mk = (sx, sw) => {

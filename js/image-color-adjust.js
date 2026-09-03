@@ -182,6 +182,19 @@ function buildExportCSSFilter(adj) {
  * @param {HTMLImageElement} img - clone 내의 .asset-img
  * @returns {Promise<void>}
  */
+// goya-asset:// → data: URI. 커스텀 스킴은 file:// 렌더러 기준 cross-origin 이라 캔버스를
+// 오염시키고 crossOrigin 으로도 못 읽는다. export/스크래치와 같은 IPC 우회를 쓴다.
+async function _toDrawableSrc(src) {
+  const m = /^goya-asset:\/\/([^/]+)\/(.+)$/.exec(String(src || ''));
+  if (!m || !window.electronAPI?.assetsReadAsDataUri) return String(src || '');
+  try {
+    const res = await window.electronAPI.assetsReadAsDataUri({
+      projectId: decodeURIComponent(m[1]), filename: decodeURIComponent(m[2]),
+    });
+    return (res?.ok && res.dataUri) ? res.dataUri : String(src);
+  } catch { return String(src); }
+}
+
 async function bakeImgFilterToCanvas(img) {
   const adj = _readAdj(img);
   if (_isDefault(adj)) return; // 조정값 없으면 skip
@@ -195,10 +208,20 @@ async function bakeImgFilterToCanvas(img) {
   const ctx = canvas.getContext('2d');
 
   // 원본 이미지 로드 (이미 로드된 경우 즉시)
+  // ★goya-asset:// 는 crossOrigin='anonymous' 로 «로드 자체가» 실패한다(실측 2026-09-03).
+  //   그런데 아래 await 는 onerror 도 성공처럼 넘겨서, 깨진 이미지로 drawImage 를 부르고
+  //   InvalidStateError 가 던져진다 → 색보정한 외부화 이미지가 든 섹션은 «PNG 내보내기가 통째로 죽는다».
+  //   슬라이스와 같은 병(캔버스 오염)이라 같은 우회를 쓴다: assets:readAsDataUri IPC.
+  const drawableSrc = await _toDrawableSrc(img.src);
   const imgObj = new Image();
-  imgObj.crossOrigin = 'anonymous';
-  imgObj.src = img.src;
-  await new Promise(res => { imgObj.onload = imgObj.onerror = res; });
+  if (!drawableSrc.startsWith('data:')) imgObj.crossOrigin = 'anonymous';
+  imgObj.src = drawableSrc;
+  const loaded = await new Promise(res => { imgObj.onload = () => res(true); imgObj.onerror = () => res(false); });
+  // ★못 읽었으면 «아무것도 안 한다» — 빈 캔버스로 갈아치우면 원본이 사라진다(조용한 데이터 손실).
+  if (!loaded || !imgObj.naturalWidth) {
+    console.warn('[color-adjust] 원본을 못 읽어 bake 생략 — 필터 없이 원본 유지:', String(img.src).slice(0, 80));
+    return;
+  }
 
   // Canvas 2D ctx.filter 적용 (brightness/contrast/saturate/sepia/hue-rotate)
   const cssFilter = buildExportCSSFilter(adj);
