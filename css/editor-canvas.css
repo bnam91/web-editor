@@ -235,10 +235,27 @@
   outline: 2px solid transparent;
   z-index: 2;
 }
-.section-block:has(.section-hitzone:hover)::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.section-block.selected {
+/* ★:not(.selected) — 선택 아웃라인이 같은 ::after 를 쓴다. 이 hover 규칙은 :has() 때문에
+   특정도가 더 높아서, 빼지 않으면 «선택된 섹션의 라벨에 마우스를 올리는 순간» z-index 가
+   0 으로 떨어져 full-bleed 블록 뒤로 아웃라인이 다시 숨는다. 선택 중엔 hover fill 이 없어도
+   자연스럽다 — 선택 표시가 이미 «여기»라고 말하고 있다. */
+.section-block:not(.selected):has(.section-hitzone:hover)::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+/* ★선택 아웃라인은 «오버레이 의사요소»로 그린다.
+   outline 은 z-순서에서 콘텐츠에 «진다» — 패딩 제외(full-bleed) 이미지처럼 섹션
+   가장자리까지 닿는 블록이 있으면 그 구간의 파란 선이 가려져 끊겨 보였다
+   (픽셀 실측 2026-09-03: 에셋 위쪽엔 (71,109,226), 에셋 구간엔 에셋 색만).
+   ::after 를 섹션 위(z-index 90, 툴바 100 «아래»)에 깔면 어떤 블록이 와도 선이 산다.
+   pointer-events:none 이라 클릭·드래그는 그대로 통과한다.
+   ⚠️hover fill 이 이미 ::after 를 쓰지만(:has(.section-hitzone:hover)) 선택 중엔
+     hover fill 이 없어도 자연스러우므로 «선택이 이긴다» — 같은 의사요소라 덮어써진다. */
+.section-block.selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));
+  pointer-events: none;
+  z-index: 90;
 }
 
 .section-label {
@@ -308,20 +325,31 @@
   display: flex;
   flex-direction: column;
 }
-/* ★선택 아웃라인이 이 상자에 «덮인다» — 되살린다.
-   .section-block.selected 의 outline 은 outline-offset:-1px 라 «섹션 안쪽 가장자리»에 그려지는데,
-   이 상자는 position:relative + 섹션 폭 그대로 + 불투명 배경이라 자기 구간의 좌·우(·아래)를 가린다.
-   (실측: 합친 뒤 선택하면 아래쪽 몸에만 파란 선이 안 보였다 — 현빈 2026-09-03)
-   ⇒ 가려지는 «변만» inset 그림자로 다시 그린다. 위쪽은 긋지 않는다 — 그으면 두 섹션처럼 보인다. */
-.section-block.selected .section-merged-part {
-  box-shadow:
-    inset  var(--sel-outline-w) 0 0 0 var(--sel-color),
-    inset calc(-1 * var(--sel-outline-w)) 0 0 0 var(--sel-color);
+/* (기록) 한때 합쳐 넣은 몸이 아웃라인을 덮어 inset 그림자로 «변만» 되살렸다.
+   지금은 선택 아웃라인 자체가 오버레이(::after, z-90)라 어떤 블록·상자가 와도 안 가려진다.
+   그 보정을 남겨두면 «이중선»이 되므로 지웠다. */
+/* 합쳐진 직후 한 번 번쩍 — 어디로 합쳐졌는지 눈이 따라가게 */
+.section-block.section-merge-flash {
+  animation: sectionMergeFlash .6s ease-out;
 }
-/* 상자가 섹션 «맨 아래»일 때만 아랫변도 — 뒤에 블록이 더 있으면 엉뚱한 가로선이 된다 */
-.section-block.selected .section-merged-part:last-child {
-  box-shadow:
-    inset  var(--sel-outline-w) 0 0 0 var(--sel-color),
-    inset calc(-1 * var(--sel-outline-w)) 0 0 0 var(--sel-color),
-    inset 0 calc(-1 * var(--sel-outline-w)) 0 0 var(--sel-color);
+@keyframes sectionMergeFlash {
+  0%   { box-shadow: 0 0 0 3px var(--color-success); }
+  100% { box-shadow: 0 0 0 3px transparent; }
 }
+@media (prefers-reduced-motion: reduce) {
+  .section-block.section-merge-flash { animation-duration: .01ms; }
+}
+
+/* 합쳐 넣은 «아래 섹션의 몸».
+   ★position:relative 가 핵심 — 절대좌표 요소의 기준(containing block)이 원래
+     .section-block 이었다. 그냥 옮기면 기준이 위 섹션으로 갈아타 좌표가 튄다(실측 y 307→-76).
+     이 상자가 다시 기준이 되어 준다.
+   배경·좌우패딩은 인라인으로 옮겨 담고, 음수 마진은 syncMergedPartMargins 가 맞춘다. */
+.section-merged-part {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+/* (기록) 한때 합쳐 넣은 몸이 아웃라인을 덮어 inset 그림자로 «변만» 되살렸다.
+   지금은 선택 아웃라인 자체가 오버레이(::after, z-90)라 어떤 블록·상자가 와도 안 가려진다.
+   그 보정을 남기면 «이중선»이 되므로 지웠다. */
