@@ -99,7 +99,7 @@
           '<div class="report-attach" id="report-attach">' +
             '<button class="report-attach-add" type="button" id="report-attach-add">＋ 이미지 첨부</button>' +
             // ★단축키만 있으면 아무도 모른다 — 붙여넣기·끌어놓기가 «된다»는 걸 여기서 말한다
-            '<span class="report-attach-hint">붙여넣기(⌘V)나 끌어놓기로도 됩니다</span>' +
+            '<span class="report-attach-hint">여기에 끌어다 놓거나 ⌘V 로 붙여넣어도 됩니다</span>' +
           '</div>' +
           '<input type="file" id="report-file" accept="image/png,image/jpeg,image/webp" multiple hidden>' +
 
@@ -250,6 +250,11 @@
     run.then(renderAttachments);
   }
 
+  function _markHasItems(box) {
+    if (!box) return;
+    box.classList.toggle('has-items', box.querySelectorAll('.report-thumb').length > 0);
+  }
+
   function renderAttachments() {
     var el = document.getElementById('report-modal');
     if (!el || !state) return;
@@ -258,8 +263,14 @@
     state.attachments.forEach(function (a, i) {
       var chip = document.createElement('span');
       chip.className = 'report-thumb';
-      chip.innerHTML = '<span title="' + esc(a.name) + '">' + esc(a.name) + '</span>' +
-        '<small style="color:var(--ui-text-dim)">' + a.kb + 'KB</small>' +
+      /* ★이름만 있으면 «무엇을 붙였는지» 알 수 없다 — 붙여넣은 것들은 이름이 다 같다.
+         그림을 보여줘야 잘못 붙인 걸 «보내기 전에» 알아챈다. */
+      chip.innerHTML =
+        '<img class="report-thumb-img" src="' + a.dataUrl + '" alt="">' +
+        '<span class="report-thumb-meta">' +
+          '<span class="report-thumb-name" title="' + esc(a.name) + '">' + esc(a.name) + '</span>' +
+          '<small>' + a.kb + 'KB</small>' +
+        '</span>' +
         '<button type="button" aria-label="첨부 제거">✕</button>';
       chip.querySelector('button').addEventListener('click', function () {
         state.attachments.splice(i, 1);
@@ -269,6 +280,7 @@
     });
     var add = el.querySelector('#report-attach-add');
     add.disabled = attachCount() >= MAX_IMAGES;
+    _markHasItems(box);
   }
 
   /* ── 화면 캡처 ──────────────────────────────────────────────────────────
