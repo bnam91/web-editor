@@ -313,6 +313,15 @@ body {
 .card-action:hover { background: #2d6fe8; border-color: #2d6fe8; color: #fff; }
 .card-delete:hover { background: #c0392b; border-color: #c0392b; }
 
+/* ── 즐겨찾기 ──
+   ★켜진 별은 «hover 없이도» 보여야 한다. 나머지 액션은 hover 때만 뜨지만,
+     즐겨찾기는 「이 카드가 즐겨찾기다」를 «알리는» 표시라 숨으면 존재 이유가 없다.
+   ⛔새 버튼 모양을 만들지 않는다 — 복제·삭제와 같은 .card-action 한 벌을 쓴다. */
+.project-card .card-fav.on { color: #f0b429; border-color: #6b5312; background: rgba(240,180,41,0.12); }
+.project-card:not(:hover) .card-actions:has(.card-fav.on) { display: flex; }
+.project-card:not(:hover) .card-actions:has(.card-fav.on) > :not(.card-fav) { display: none; }
+.card-fav:hover { background: #f0b429; border-color: #f0b429; color: #1a1a1a; }
+
 /* ── Empty state ── */
 #empty-state {
   display: none; text-align: center; padding: 100px 0; color: #444;
@@ -541,13 +550,18 @@ function formatDate(iso) {
 }
 
 async function renderGrid() {
-  const list = await loadProjects();
+  let list = await loadProjects();
   const grid = document.getElementById('project-grid');
   const empty = document.getElementById('empty-state');
   grid.innerHTML = '';
 
   if (!list.length) { empty.style.display = 'block'; return; }
   empty.style.display = 'none';
+
+  /* ★즐겨찾기가 맨 위로 — 그 안에서는 «원래 순서»를 그대로 둔다.
+     별을 눌렀다고 최근순 정렬까지 뒤집으면 「내 목록이 왜 이렇게 됐지」가 된다.
+     안정 정렬(sort 는 안정적)이라 같은 그룹 안 순서는 보존된다. */
+  list = [...list].sort((a, b) => (b.favorite === true) - (a.favorite === true));
 
   list.forEach(proj => {
     const isPlanning = proj.type === 'planning';
@@ -585,6 +599,10 @@ async function renderGrid() {
         <div class="card-date">${formatDate(proj.updatedAt)}</div>
       </div>
       <div class="card-actions">
+        <button class="card-action card-fav${proj.favorite ? ' on' : ''}"
+                onclick="toggleFavorite(event, '${proj.id}')"
+                title="${proj.favorite ? '즐겨찾기 해제' : '즐겨찾기 — 목록 맨 위로'}"
+                aria-pressed="${proj.favorite ? 'true' : 'false'}">${proj.favorite ? '★' : '☆'}</button>
         ${shareBtnHtml}
         ${duplicateBtnHtml}
         <button class="card-action card-delete" onclick="deleteProject(event, '${proj.id}')" title="삭제">✕</button>
@@ -933,6 +951,29 @@ initSampleProject().then(() => renderGrid());
 
 // 홈 탭바 초기 렌더
 renderHomeTabs();
+
+/* 즐겨찾기 — 켜면 목록 맨 위로 온다.
+   ★저장 위치는 proj_meta.json — collabRef 와 같은 «이 설치의 상태»다(문서가 아니다).
+     projects:save-meta 는 read-merge-write 라 thumbnail·collabRef 를 지우지 않는다. */
+async function toggleFavorite(ev, id) {
+  ev.stopPropagation();                       // 카드 열기로 번지지 않게
+  const btn = ev.currentTarget;
+  const next = !btn.classList.contains('on');
+  // ★먼저 화면을 바꾸고 저장한다 — 별 하나 누르는 데 디스크를 기다리게 하지 않는다.
+  //   실패하면 되돌리고 «말한다»(조용히 되돌아가면 사용자는 눌린 줄 안다).
+  btn.classList.toggle('on', next);
+  btn.textContent = next ? '★' : '☆';
+  btn.setAttribute('aria-pressed', String(next));
+  btn.title = next ? '즐겨찾기 해제' : '즐겨찾기 — 목록 맨 위로';
+  try {
+    await window.electronAPI.saveProjectMeta(id, { favorite: next });
+    renderGrid();                             // 정렬 반영
+  } catch (e) {
+    btn.classList.toggle('on', !next);
+    btn.textContent = next ? '☆' : '★';
+    alert('즐겨찾기를 저장하지 못했습니다.');
+  }
+}
 
 function removeHomeTab(id) {
   try {
