@@ -90,6 +90,18 @@ function mergeSectionInto(target, source) {
   // ── 내용 이동: 순서 그대로, 상자 안으로 ──
   while (sIn.firstChild) part.appendChild(sIn.firstChild);
   tIn.appendChild(part);
+
+  /* ★.section-inner «밖»에 사는 것들도 옮긴다 — 스티커가 여기 산다.
+     .section-block 의 직계 자식이라 inner 만 옮기면 «섹션과 함께 지워진다»
+     (실측: 스티커 2개 → 1개. 현빈이 「스티커 넣고도 되냐」고 물어봐서 드러났다).
+     ⚠️허용목록이 아니라 «제외목록»으로 옮긴다 — 모르는 블록이 새로 생겨도 안 잃는다.
+       hitzone·toolbar 는 섹션마다 하나씩 있는 UI라 두고 온다.
+     좌표는 절대배치라 상자(position:relative)가 새 기준이 되어 준다. */
+  const KEEP_OUT = ['section-hitzone', 'section-toolbar', 'section-inner'];
+  [...source.children].forEach((el) => {
+    if (KEEP_OUT.some(c => el.classList.contains(c))) return;
+    part.appendChild(el);
+  });
   syncMergedPartMargins(target);   // 붙인 뒤 한 번 더(상자가 이제 DOM 에 있다)
   source.remove();
 
