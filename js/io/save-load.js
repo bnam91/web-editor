@@ -713,11 +713,15 @@ function rebindAll(opts = {}) {
       const px = parseInt(secInner.dataset.paddingX) || 0;
       if (px > 0) {
         secInner.querySelectorAll('.asset-block').forEach(ab => {
-          if (ab.dataset.usePadx === 'true') {
-            ab.style.marginLeft  = -px + 'px';
-            ab.style.marginRight = -px + 'px';
-            ab.style.width = `calc(100% + ${px * 2}px)`;
-          }
+          if (ab.dataset.usePadx !== 'true') return;
+          /* ★자손 전수라 «합쳐 넣은 몸» 안까지 들어간다. 그 안 블록의 기준 여백은
+             위 섹션이 아니라 «그 상자»의 것이다 — 섞으면 재로드 후에만 좌우가 어긋나
+             (편집 중엔 멀쩡해서 왕복 검사로도 안 잡힌다) .section-inner{overflow-x:clip}에 잘린다. */
+          const part = ab.closest('.section-merged-part');
+          const own = part ? (parseInt(part.dataset.padX) || parseFloat(part.style.paddingLeft) || 0) : px;
+          ab.style.marginLeft  = -own + 'px';
+          ab.style.marginRight = -own + 'px';
+          ab.style.width = `calc(100% + ${own * 2}px)`;
         });
       }
     }

@@ -75,6 +75,7 @@ window.applyAssetFullBleed = applyAssetFullBleed;
 function applyPadXToSection(inner, padX) {
   inner.style.paddingLeft  = padX ? padX + 'px' : '';
   inner.style.paddingRight = padX ? padX + 'px' : '';
+  window.syncMergedPartMargins?.(inner.closest('.section-block'));
   // section-inner의 '직접' 자식 ab만 처리 — row 안의 ab는 row 핸들러가 관리
   inner.querySelectorAll(':scope > .asset-block').forEach(ab => {
     if (getEffectiveUsePadx(ab) && padX > 0) {

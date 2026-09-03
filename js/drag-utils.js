@@ -95,8 +95,19 @@ function makeLabelItem(text = 'Label', bg = '#e8e8e8', color = '#333333', radius
 /* 섹션 안 삽입 — 하단 Gap Block 바로 앞에 */
 function insertBeforeBottomGap(section, el) {
   const inner = section.querySelector('.section-inner');
-  const bottomGap = [...inner.querySelectorAll(':scope > .gap-block')].at(-1);
-  if (bottomGap) inner.insertBefore(el, bottomGap);
+  /* ★「섹션의 끝」은 마지막 «직계» 갭이 아니다.
+     합쳐 넣은 몸(.section-merged-part)이 있으면 그 «안»이 진짜 끝이라,
+     직계만 보면 이음매 갭을 집어 새 블록이 «두 몸 사이»에 꽂힌다
+     (합친 섹션을 고르고 텍스트/이미지를 추가하면 바로 재현). */
+  let cur = inner, bottomGap = null;
+  while (cur) {
+    const gaps = [...cur.children].filter(c => c.classList.contains('gap-block'));
+    if (gaps.length) bottomGap = gaps[gaps.length - 1];
+    const lastPart = [...cur.children].reverse().find(c => c.classList.contains('section-merged-part'));
+    if (!lastPart) break;
+    cur = lastPart;
+  }
+  if (bottomGap && bottomGap.parentElement) bottomGap.parentElement.insertBefore(el, bottomGap);
   else inner.appendChild(el);
 }
 

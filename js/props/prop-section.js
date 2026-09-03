@@ -291,6 +291,7 @@ async function showSectionProperties(sec) {
       inner.style.paddingLeft  = v + 'px';
       inner.style.paddingRight = v + 'px';
       inner.dataset.paddingX   = String(v);
+      window.syncMergedPartMargins?.(sec);   // 합쳐 넣은 몸도 같이 따라와야 한다
       // 글로벌 padXExcludesAsset도 고려 (prop-page.js의 getEffectiveUsePadx 헬퍼)
       // section-inner의 '직접' 자식 ab만 처리 — row 안에 있는 ab는 row 핸들러가 관리
       const usePadx = window.getEffectiveUsePadx;

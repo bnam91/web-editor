@@ -117,6 +117,11 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 /* layout */
 .section-block{position:relative;width:100%;}
 .section-inner{display:flex;flex-direction:column;}
+/* ★합쳐 넣은 아래 섹션의 몸 — 이 두 줄이 빠지면 내보낸 HTML 에서
+   ⑴ align-self 로 준 가운데·우측 정렬이 통째로 풀리고(flex 가 아니게 된다)
+   ⑵ 상자 안 절대배치 요소의 기준이 .section-block 으로 갈아타 y 가 튄다.
+   에디터에서 고친 좌표 튐이 «산출물에서만» 재발하는 자리다. */
+.section-merged-part{position:relative;display:flex;flex-direction:column;}
 .row{position:relative;display:flex;width:100%;}
 .row[data-layout="stack"]{flex-direction:column;}
 .row[data-layout="flex"]{flex-direction:row;gap:8px;align-items:stretch;}
