@@ -290,6 +290,35 @@
   box-sizing: border-box;
   pointer-events: auto;
 }
+/* ── 섹션 배경 «위치 편집» (image-handling.js: enterSectionBgEditMode) ──
+   프록시 = 섹션 padding-box 를 덮는 «에셋 블록 대역». 편집 중에만 존재하고
+   직렬화·내보내기에서 제거된다(section-serialize / save-load / export-image).
+   보이는 건 «진짜 배경 + 고스트»뿐이라 프록시 img 는 opacity:0 이다. */
+.sec-bg-proxy {
+  position: absolute;
+  inset: 0;                /* = 섹션 padding box = background-position 의 기준 영역 */
+  overflow: visible;       /* 클리핑은 .asset-img-clip 담당 (에셋과 동일) */
+  background: none;
+  cursor: move;
+  z-index: 80;             /* 섹션 콘텐츠 위 · 선택 아웃라인(.section-block.selected::after, 90) 아래 */
+  border-radius: inherit;
+}
+.sec-bg-proxy .asset-img { opacity: 0; }  /* 기하 담당만 — 그리기는 진짜 배경 + 고스트 */
+/* 프레임 «밖» 원본 미리보기 — #ss-handles-overlay(=#canvas 밖)에만 산다.
+   래퍼가 «캔버스 뷰포트»로 잘라 좌우 패널까지 반투명해지는 걸 막는다. */
+.sec-bg-ghost-wrap {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;              /* .img-boundary(15)·핸들(9992) 아래 */
+}
+.sec-bg-ghost {
+  position: absolute;
+  opacity: 0.42;
+  pointer-events: none;
+  object-fit: fill;
+}
+
 /* 스냅 가이드 라인 */
 .img-snap-guide-h {
   position: absolute;

@@ -39,11 +39,24 @@ function applyImageTransform(ab) {
   img.style.transform = rotate ? `rotate(${rotate}deg)` : '';
 }
 
-function enterImageEditMode(ab) {
+/**
+ * 에셋 «이미지 편집»(더블클릭) 모드.
+ * @param {HTMLElement} ab   .asset-block (또는 그 «대역» — 섹션 배경 프록시)
+ * @param {object} [opts]    호출자별 차이만 끄고 켜는 스위치. 기본값 = 기존 에셋 동작 그대로.
+ *   noRotate        : 회전존을 만들지 않는다(배경 이미지는 CSS 로 회전 불가).
+ *   noColorAdjust   : 색보정 패널을 열지 않는다.
+ *   keepAliveSel    : 이 selector 안쪽 클릭은 «바깥 클릭»으로 치지 않는다(우측 패널 등).
+ *   historyLabel    : pushHistory 라벨.
+ *   beforeCommit(ab): dataset.imgW/X/Y 확정 «직후», pushHistory «이전». 여기서 호출자가
+ *                     기하를 자기 표현(예: background-size/position)으로 옮기고 임시 DOM 을 치운다.
+ *   afterExit(ab)   : 모든 정리 후.
+ */
+function enterImageEditMode(ab, opts = {}) {
   if (ab._imgEditing) return;
   const img = ab.querySelector('.asset-img');
   if (!img) return;
 
+  ab._imgEditOpts = opts;
   ab._imgEditing = true;
   ab.classList.add('img-editing');
   ab.draggable = false;
@@ -203,7 +216,7 @@ function enterImageEditMode(ab) {
 
   // 회전 존 — 모서리 핸들 바깥 영역 (20×20px, z-index 낮음)
   const rotateZoneEls = {};
-  ['tl','tr','bl','br'].forEach(id => {
+  (opts.noRotate ? [] : ['tl','tr','bl','br']).forEach(id => {
     const rz = document.createElement('div');
     rz.className = 'img-rotate-zone';
     rz.draggable = false;
@@ -445,7 +458,7 @@ function enterImageEditMode(ab) {
   });
 
   renderImgPanel();
-  window.showColorAdjustPanel?.(ab);
+  if (!opts.noColorAdjust) window.showColorAdjustPanel?.(ab);
 
   // RAF 루프 — 캔버스 패닝/줌 시에도 핸들·경계선 위치 계속 동기화
   let _syncRafId = null;
@@ -471,7 +484,8 @@ function enterImageEditMode(ab) {
                             e.target.classList.contains('img-boundary')      ||
                             e.target.classList.contains('img-rotate-zone');
     const isColorPanel = !!e.target.closest('#color-adjust-panel'); // 색상 조정 패널 클릭은 편집 모드 유지
-    if (!ab.contains(e.target) && !isOverlayHandle && !isColorPanel) exitImageEditMode(ab);
+    const isKeepAlive  = !!(opts.keepAliveSel && e.target.closest(opts.keepAliveSel));
+    if (!ab.contains(e.target) && !isOverlayHandle && !isColorPanel && !isKeepAlive) exitImageEditMode(ab);
   };
   ab._exitImgEsc  = e => { if (e.key === 'Escape') exitImageEditMode(ab); };
   setTimeout(() => {
@@ -482,6 +496,7 @@ function enterImageEditMode(ab) {
 
 function exitImageEditMode(ab) {
   if (!ab._imgEditing) return;
+  const opts = ab._imgEditOpts || {};
   ab._imgEditing = false;
   ab.classList.remove('img-editing');
   window.hideColorAdjustPanel?.();
@@ -492,15 +507,20 @@ function exitImageEditMode(ab) {
     ab.dataset.imgY = parseFloat(img.style.top)  || 0;
     img.style.objectFit = 'cover';
   }
-  // 편집 세션 종료 시 단일 커밋 — 입력/정렬/드래그/스케일 전부 포함 (undo·자동저장 choke point)
-  window.pushHistory?.('이미지 위치/크기');
-  window.scheduleAutoSave?.();
-  document.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone').forEach(el => el.remove());
+  // ★임시 DOM(프록시·고스트)을 쓰는 호출자는 여기서 «자기 표현으로 옮기고 치운다» —
+  //   pushHistory «이전»이라 스냅샷에 편집용 DOM 이 애초에 들어가지 않는다(세척은 2중 방어).
   if (ab._imgEditCleanup) { ab._imgEditCleanup(); ab._imgEditCleanup = null; }
+  document.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone').forEach(el => el.remove());
+  try { opts.beforeCommit?.(ab); } catch (err) { console.warn('[imgEdit] beforeCommit 실패', err); }
+  // 편집 세션 종료 시 단일 커밋 — 입력/정렬/드래그/스케일 전부 포함 (undo·자동저장 choke point)
+  window.pushHistory?.(opts.historyLabel || '이미지 위치/크기');
+  window.scheduleAutoSave?.();
   document.removeEventListener('click',   ab._exitImgEdit);
   document.removeEventListener('keydown', ab._exitImgEsc);
   ab._exitImgEdit = null;
   ab._exitImgEsc  = null;
+  ab._imgEditOpts = null;
+  try { opts.afterExit?.(ab); } catch (err) { console.warn('[imgEdit] afterExit 실패', err); }
 }
 
 function triggerAssetUpload(ab) {
@@ -763,6 +783,235 @@ function exitBgPosDragMode(el) {
 
 window.enterBgPosDragMode = enterBgPosDragMode;
 window.exitBgPosDragMode  = exitBgPosDragMode;
+
+/* ══════════════════════════════════════════════════════════════════════════
+   섹션 배경 «위치 편집» — 에셋 더블클릭 편집기를 그대로 빌려 쓴다.
+   ───────────────────────────────────────────────────────────────────────────
+   배경은 «요소»가 아니라 CSS 속성이라 핸들을 붙일 대상이 없다. 그래서 편집 중에만
+   섹션 padding-box 를 그대로 덮는 «프록시 에셋 블록»(.sec-bg-proxy)을 띄우고
+   enterImageEditMode 를 그 위에 태운다 — 핸들·경계선·스냅·회전 제외·우측 패널·ESC·
+   RAF 동기화가 전부 «에셋과 같은 코드»에서 나온다(두 벌 방지).
+
+   좌표계가 정확히 맞는 이유:
+     · position:absolute; inset:0 은 «containing block 의 padding box» 기준이고,
+       background-position 의 기준(background-origin 기본값)도 padding-box 다.
+       .section-block 은 position:relative 라 섹션 자신이 containing block 이다.
+     · 프록시 img 는 width=W, height:auto → 렌더 높이 = W/비율.
+       background-size: W H 도 같은 값 → 1:1.
+   프록시 img 는 opacity:0 이다. «보이는 것»은 두 겹으로 나눈다:
+     ⑴ 프레임 «안» = 섹션의 진짜 CSS 배경(드래그마다 backgroundSize/Position 만 갱신).
+        → 편집 중 화면 = 저장될 결과. 구조적으로 WYSIWYG.
+     ⑵ 프레임 «밖» = #ss-handles-overlay 에 띄우는 반투명 고스트(.sec-bg-ghost).
+        프레임 사각형은 clip-path(evenodd) 로 뚫어 안쪽은 진짜 배경이 그대로 보인다.
+        오버레이는 #canvas «밖»(position:fixed 형제)이라 직렬화 대상이 아니다.
+═══════════════════════════════════════════════════════════════════════════ */
+
+/** "50% 50%" / "center" / "-120px 40px" → {x,y} px (프레임 W×H, 이미지 dw×dh 기준) */
+function _bgPosToPx(pos, W, H, dw, dh) {
+  const KEY = { left: '0%', top: '0%', center: '50%', right: '100%', bottom: '100%' };
+  let parts = String(pos || 'center').trim().split(/\s+/).map(t => KEY[t] ?? t);
+  if (parts.length === 1) parts = [parts[0], '50%'];
+  const one = (tok, avail) => {
+    const m = String(tok).match(/^(-?[\d.]+)(%|px)?$/);
+    if (!m) return avail / 2;
+    const v = parseFloat(m[1]);
+    return m[2] === 'px' ? v : (avail * v / 100);
+  };
+  return { x: one(parts[0], W - dw), y: one(parts[1], H - dh) };
+}
+
+/** background-size 키워드/값 → 렌더 크기 px */
+function _bgSizeToPx(size, W, H, nw, nh) {
+  const s = String(size || 'cover').trim();
+  const r = (nw && nh) ? nw / nh : 1;
+  const px = s.match(/^(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?$/);
+  if (px) { const dw = parseFloat(px[1]); return { dw, dh: px[2] ? parseFloat(px[2]) : dw / r }; }
+  const pc = s.match(/^([\d.]+)%$/);
+  if (pc) { const dw = W * parseFloat(pc[1]) / 100; return { dw, dh: dw / r }; }
+  if (s === 'contain') { const k = Math.min(W / nw, H / nh); return { dw: nw * k, dh: nh * k }; }
+  if (s === 'auto')    { return { dw: nw, dh: nh }; }
+  const k = Math.max(W / nw, H / nh); return { dw: nw * k, dh: nh * k }; // cover(기본)
+}
+
+const _r1 = v => Math.round(v * 10) / 10;
+
+function enterSectionBgEditMode(sec) {
+  if (!sec || sec._secBgEditing) return;
+  const src = sec.dataset.bgImg;
+  if (!src) return;
+
+  const origSize = sec.dataset.bgSize || '';
+  const origPos  = sec.dataset.bgPos  || '';
+
+  // ── 프록시(임시) — 섹션 padding-box 를 덮는 에셋 블록 대역
+  const proxy = document.createElement('div');
+  // ★.asset-block 클래스는 «일부러» 안 붙인다 — Delete 키 핸들러(editor.js: '.asset-block.img-editing'
+  //   → clearAssetImage), inspector/ai-image-gen 의 에셋 전수조사 등이 프록시를 «진짜 에셋»으로
+  //   오인한다. enterImageEditMode 가 요구하는 건 .asset-img 하나뿐이라 클래스는 최소로 둔다.
+  proxy.className = 'sec-bg-proxy';
+  proxy.dataset.secBgProxy = '1';
+  proxy.innerHTML = '<div class="asset-img-clip"><img class="asset-img" draggable="false"></div>';
+  const img = proxy.querySelector('.asset-img');
+  sec.appendChild(proxy);
+  sec.classList.add('sec-bg-editing');
+  sec._secBgEditing = true;
+  sec._secBgProxy   = proxy;
+
+  const start = () => {
+    if (!sec._secBgEditing || !proxy.isConnected) return;
+    const W = proxy.offsetWidth, H = proxy.offsetHeight;
+    const nw = img.naturalWidth || W, nh = img.naturalHeight || H;
+    const { dw, dh } = _bgSizeToPx(origSize, W, H, nw, nh);
+    const { x: x0, y: y0 } = _bgPosToPx(origPos, W, H, dw, dh);
+    // enterImageEditMode 는 dataset.imgW/X/Y 를 «정본»으로 읽는다 → 현재 배경과 픽셀 동일하게 주입
+    proxy.dataset.imgW = dw;
+    proxy.dataset.imgX = x0;
+    proxy.dataset.imgY = y0;
+
+    // ── 고스트(프레임 밖 원본) — 오버레이(#canvas 밖)에 둔다
+    //    래퍼는 «캔버스 뷰포트»로 잘라낸다 — auto 사이즈처럼 큰 원본이면 고스트가
+    //    좌우 패널까지 덮어 에디터 전체가 반투명해 보인다.
+    const overlay = document.getElementById('ss-handles-overlay');
+    const cwrap   = document.getElementById('canvas-wrap');
+    const ghostWrap = document.createElement('div');
+    ghostWrap.className = 'sec-bg-ghost-wrap';
+    const ghost = document.createElement('img');
+    ghost.className = 'sec-bg-ghost';
+    ghost.draggable = false;
+    ghost.src = src;
+    ghostWrap.appendChild(ghost);
+    if (overlay) overlay.appendChild(ghostWrap);
+    sec._secBgGhost = ghostWrap;
+
+    const twoLayer = !!(sec.dataset.bg && sec.dataset.bgImg);
+    const canPunch = !!(window.CSS && CSS.supports && CSS.supports('clip-path', 'path(evenodd, "M0 0 L1 0 Z")'));
+
+    /* 프레임 «안» = 진짜 배경 갱신 · 프레임 «밖» = 고스트 갱신 */
+    const ratio = (nw && nh) ? nh / nw : 1;   // 높이 = 너비 × ratio
+    let _lastSize = '', _lastPos = '';
+    function syncBg() {
+      if (!proxy.isConnected) return;
+      // ★offsetWidth 는 «정수 반올림»이라 그대로 쓰면 편집을 켜는 것만으로 배경이 최대 0.5px 튄다.
+      //   style.width 가 정본(스케일 핸들이 여기에 쓴다). 높이는 원본 비율로 되계산.
+      const w = parseFloat(img.style.width) || img.offsetWidth;
+      const h = w * ratio;
+      const px = parseFloat(img.style.left) || 0, py = parseFloat(img.style.top) || 0;
+      const nextSize = twoLayer ? `cover, ${w}px ${h}px`    : `${w}px ${h}px`;
+      const nextPos  = twoLayer ? `center, ${px}px ${py}px` : `${px}px ${py}px`;
+      // ★값이 같으면 «쓰지 않는다» — style 속성 변경은 autoSaveObserver 가 유의미 변경으로 읽어
+      //   RAF 루프가 60fps 로 scheduleAutoSave 를 두들기게 된다(디바운스가 영영 안 끝남).
+      if (nextSize !== _lastSize) {
+        sec.style.backgroundSize = nextSize;
+        // dataset 도 같이 — 편집 «중»에 자동저장이 돌면 인라인 style 만 px 로 저장되고
+        // data-bg-size 는 'cover' 로 남아 다음 _applySectionBg 한 번에 되돌아간다.
+        sec.dataset.bgSize = `${_r1(w)}px ${_r1(h)}px`;
+        _lastSize = nextSize;
+      }
+      if (nextPos !== _lastPos) {
+        sec.style.backgroundPosition = nextPos;
+        sec.dataset.bgPos = `${_r1(px)}px ${_r1(py)}px`;
+        _lastPos = nextPos;
+      }
+      if (!overlay || !ghostWrap.isConnected) return;
+      const aR = proxy.getBoundingClientRect();
+      const oR = overlay.getBoundingClientRect();
+      const cR = (cwrap || overlay).getBoundingClientRect();
+      const zs = (window.currentZoom || 100) / 100;
+      // 래퍼 = 캔버스 뷰포트(오버레이 좌표계)
+      const wx = cR.left - oR.left, wy = cR.top - oR.top;
+      ghostWrap.style.left   = wx + 'px';
+      ghostWrap.style.top    = wy + 'px';
+      ghostWrap.style.width  = cR.width  + 'px';
+      ghostWrap.style.height = cR.height + 'px';
+      // 고스트 = 이미지 전체(래퍼 좌표계)
+      const gx = (aR.left - oR.left) + px * zs - wx;
+      const gy = (aR.top  - oR.top)  + py * zs - wy;
+      const gw = w * zs, gh = h * zs;
+      ghost.style.left   = gx + 'px';
+      ghost.style.top    = gy + 'px';
+      ghost.style.width  = gw + 'px';
+      ghost.style.height = gh + 'px';
+      if (canPunch) {
+        // 고스트 로컬좌표에서 «프레임 사각형»을 evenodd 로 뚫는다 → 안쪽은 진짜 배경이 보인다
+        const fx = (aR.left - oR.left - wx) - gx, fy = (aR.top - oR.top - wy) - gy;
+        const fw = aR.width, fh = aR.height;
+        ghost.style.clipPath =
+          `path(evenodd, "M0 0 H${gw} V${gh} H0 Z M${fx} ${fy} H${fx + fw} V${fy + fh} H${fx} Z")`;
+      }
+    }
+    let _bgRaf = requestAnimationFrame(function loop() { syncBg(); _bgRaf = requestAnimationFrame(loop); });
+    sec._secBgSyncStop = () => { if (_bgRaf) { cancelAnimationFrame(_bgRaf); _bgRaf = null; } };
+
+    enterImageEditMode(proxy, {
+      noRotate: true,          // background-image 는 CSS 로 회전 불가 → 회전존 자체를 만들지 않는다
+      noColorAdjust: true,     // 색보정은 <img> 필터 기반 — 배경엔 적용 경로가 없다
+      keepAliveSel: '#panel-right',
+      historyLabel: '섹션 배경 위치/크기',
+      beforeCommit: () => {
+        // style.width 가 정본 (dataset.imgW 는 exitImageEditMode 가 offsetWidth 로 반올림해 둔 값)
+        const w  = parseFloat(img.style.width) || parseFloat(proxy.dataset.imgW) || 0;
+        const x  = parseFloat(proxy.dataset.imgX) || 0;
+        const y  = parseFloat(proxy.dataset.imgY) || 0;
+        const h  = w * ratio;
+        // 안 움직였으면 원래 표기(cover/center 등)를 그대로 되돌린다 — 열었다 닫은 것만으로
+        // 사이즈 표기가 px 로 바뀌면 우측 패널이 «직접 조절» 로 보이는 부작용이 생긴다.
+        const changed = Math.abs(w - dw) > 0.25 || Math.abs(x - x0) > 0.25 || Math.abs(y - y0) > 0.25;
+        if (changed) {
+          sec.dataset.bgSize = `${_r1(w)}px ${_r1(h)}px`;
+          sec.dataset.bgPos  = `${_r1(x)}px ${_r1(y)}px`;
+        } else {
+          if (origSize) sec.dataset.bgSize = origSize; else delete sec.dataset.bgSize;
+          if (origPos)  sec.dataset.bgPos  = origPos;  else delete sec.dataset.bgPos;
+        }
+        _teardownSectionBgEdit(sec);            // ★pushHistory 전에 임시 DOM 을 0 으로
+        window.applySectionBg?.(sec);
+      },
+      afterExit: () => {
+        _teardownSectionBgEdit(sec);            // 멱등 — beforeCommit 이 실패해도 잔여 0
+        window.showSectionProperties?.(sec);
+      },
+    });
+
+    // 우측 패널이 «이미지 편집»으로 교체된 뒤 — 같은 자리에 종료 버튼(같은 클래스 재사용)
+    const pp = document.querySelector('#panel-right .panel-body');
+    if (pp) {
+      const box = document.createElement('div');
+      box.className = 'prop-section';
+      box.innerHTML = '<button class="prop-action-btn secondary" id="sec-bg-pos-done">위치 편집 완료</button>';
+      pp.appendChild(box);
+      box.querySelector('#sec-bg-pos-done').addEventListener('click', () => exitSectionBgEditMode(sec));
+    }
+  };
+
+  img.src = src;
+  if (img.complete && img.naturalWidth) start();
+  else img.addEventListener('load', start, { once: true });
+  img.addEventListener('error', () => { console.warn('[secBg] 배경 이미지 로드 실패'); _teardownSectionBgEdit(sec); }, { once: true });
+}
+
+/** 임시 DOM·상태를 «완전히» 되돌린다. 여러 번 불러도 안전(멱등). */
+function _teardownSectionBgEdit(sec) {
+  if (!sec) return;
+  sec._secBgSyncStop?.(); sec._secBgSyncStop = null;
+  sec._secBgProxy?.remove(); sec._secBgProxy = null;
+  sec._secBgGhost?.remove(); sec._secBgGhost = null;
+  // 방어: 어떤 경로로든 남은 프록시/고스트 전수 제거
+  document.querySelectorAll('.sec-bg-proxy, .sec-bg-ghost-wrap, .sec-bg-ghost').forEach(el => el.remove());
+  sec.classList.remove('sec-bg-editing');
+  sec._secBgEditing = false;
+}
+
+function exitSectionBgEditMode(sec) {
+  if (!sec) return;
+  const proxy = sec._secBgProxy;
+  if (proxy && proxy._imgEditing) { exitImageEditMode(proxy); return; } // beforeCommit/afterExit 경유
+  _teardownSectionBgEdit(sec);
+  window.applySectionBg?.(sec);
+  window.showSectionProperties?.(sec);
+}
+
+window.enterSectionBgEditMode = enterSectionBgEditMode;
+window.exitSectionBgEditMode  = exitSectionBgEditMode;
 window.applyImageTransform = applyImageTransform;
 window.triggerAssetUpload = triggerAssetUpload;
 window.clearAssetImage    = clearAssetImage;

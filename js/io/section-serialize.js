@@ -29,7 +29,7 @@
     root.querySelectorAll('.section-block.lazy-unloaded').forEach(el => el.classList.remove('lazy-unloaded'));
     // ghost 섹션은 저장에서 제외
     root.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
-    root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone').forEach(el => el.remove());
+    root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy').forEach(el => el.remove());
     // UI 상태 클래스 전면 제거 — selected 잔존이 독립렌더/export 에 파란 아웃라인 유출
     root.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
     root.querySelectorAll('.cell-selected').forEach(el => el.classList.remove('cell-selected')); // #5-b 테이블 셀 선택 마킹 (UI 상태 — 저장본 유출 방지)
@@ -40,6 +40,9 @@
     root.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
     root.querySelectorAll('.sticker-block.tiny').forEach(s => s.classList.remove('tiny'));
     root.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
+    // 섹션 배경 «위치 편집» 임시 상태 — .sec-bg-proxy 는 위 remove 목록에서 이미 사라졌고,
+    // 여기선 섹션에 남을 수 있는 마킹 클래스를 지운다(고스트 .sec-bg-ghost 는 #canvas 밖 오버레이라 애초에 클론에 없다).
+    root.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
     root.querySelectorAll('.ci-selected').forEach(el => el.classList.remove('ci-selected'));
     root.querySelectorAll('.ci-active').forEach(el => el.classList.remove('ci-active'));
     // 편집 상태 속성 제거 — contenteditable/editing 상태가 저장되지 않도록
