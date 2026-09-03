@@ -59,6 +59,14 @@ function mergeSectionInto(target, source) {
     window.materializeAllSections?.();
   }
 
+  /* ★섹션 배경 «위치 편집»이 켜져 있으면 «먼저» 끈다.
+     그 모드는 섹션 직계에 임시 프록시(.sec-bg-proxy)를 띄우는데, 아래 KEEP_OUT 이
+     «제외목록»이라 모르는 직계 자식은 전부 상자로 옮겨진다 — 편집용 DOM 이 상자 안으로
+     따라 들어가고, source 는 remove 되어 편집 세션이 죽은 노드를 붙들게 된다.
+     끄면 커밋(dataset.bgSize/bgPos)까지 정상적으로 끝난 뒤 합쳐진다. */
+  window.exitSectionBgEditMode?.(source);
+  window.exitSectionBgEditMode?.(target);
+
   // ★변경 «전»에 찍는다 — 이 레포의 드롭 핸들러 관례이고, tip 상태는 undo 진입 시
   //   ensureHistoryCheckpoint 가 늦게 담으므로 이걸로 ⌘Z 한 번에 완전 복원된다.
   window.pushHistory?.('섹션 합치기');
@@ -152,7 +160,9 @@ function mergeSectionInto(target, source) {
      ⚠️허용목록이 아니라 «제외목록»으로 옮긴다 — 모르는 블록이 새로 생겨도 안 잃는다.
        hitzone·toolbar 는 섹션마다 하나씩 있는 UI라 두고 온다.
      좌표는 절대배치라 상자(position:relative)가 새 기준이 되어 준다. */
-  const KEEP_OUT = ['section-hitzone', 'section-toolbar', 'section-inner'];
+  //   sec-bg-proxy 는 «편집 중에만» 사는 임시 UI — 위에서 이미 껐지만, 어떤 경로로든
+  //   남아 있으면 상자로 옮기지 않는다(옮기면 저장·내보내기로 새어 나갈 자리가 하나 늘어난다).
+  const KEEP_OUT = ['section-hitzone', 'section-toolbar', 'section-inner', 'sec-bg-proxy'];
   [...source.children].forEach((el) => {
     if (KEEP_OUT.some(c => el.classList.contains(c))) return;
     part.appendChild(el);

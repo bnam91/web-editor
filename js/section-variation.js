@@ -55,6 +55,9 @@ function createVariation(sec) {
   sec.dataset.variationActive = '1';
   bindVariationToolbarBtn(sec);
   const clone = sec.cloneNode(true);
+  // 편집 전용 임시 DOM 은 복제하지 않는다 — 사본에 클릭을 막는 투명 오버레이가 영구히 남는다
+  clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary').forEach(el => el.remove());
+  clone.classList.remove('sec-bg-editing');
   clone.id = window.genId ? window.genId('sec') : 'sec_' + Math.random().toString(36).slice(2, 9);
   clone.querySelectorAll('[id]').forEach(el => {
     const prefix = el.id.split('_')[0];
@@ -97,6 +100,9 @@ function addVariation(sec) {
   const nextLabel = VARIATION_LABELS[all.length];
   const active = all.find(s => s.dataset.variationActive === '1') || all[0];
   const clone = active.cloneNode(true);
+  // 편집 전용 임시 DOM 은 복제하지 않는다 — 사본에 클릭을 막는 투명 오버레이가 영구히 남는다
+  clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary').forEach(el => el.remove());
+  clone.classList.remove('sec-bg-editing');
   clone.id = window.genId ? window.genId('sec') : 'sec_' + Math.random().toString(36).slice(2, 9);
   clone.querySelectorAll('[id]').forEach(el => {
     const prefix = el.id.split('_')[0];
