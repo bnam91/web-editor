@@ -745,6 +745,10 @@ function initTemplateBrowser() {
     }
 
     if (e.key === 'Enter') {
+      // ★한글 조합 중 Enter 는 «조합 확정»이지 «실행»이 아니다 — 가드가 없으면 템플릿이 «두 번» 삽입된다.
+      //   검색창(tpl-browser-search)은 한글로 검색하는 자리다(2026-08-30 윈도우 실기 QA 에서 발견).
+      //   ⚠️closeTemplateBrowser() 는 _browserSelected 를 «안 지운다» → 두 번째 Enter 도 그대로 통과한다.
+      if (e.isComposing || e.keyCode === 229) return;
       if (_applySelectedBrowserTemplate()) {
         e.preventDefault();
         e.stopPropagation();

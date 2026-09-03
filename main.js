@@ -21,12 +21,6 @@ app.name = 'GODITOR';
 const fs = require('fs');
 const os = require('os');
 
-// .gdt 파일 연결 — ★app ready «이전»에 걸어야 한다.
-// 맥은 파인더에서 더블클릭한 경로를 `open-file` 이벤트로 주는데, 콜드 스타트에선
-// 그 이벤트가 whenReady보다 «먼저» 뜬다. ready 안에서 등록하면 첫 더블클릭을 놓친다.
-try { require('./main/gdt/wire').registerGdtFileAssociations(); }
-catch (e) { console.error('[gdt] 파일 연결 등록 실패:', e); }
-
 // userData 폴더 마이그레이션: 구 이름('Goya Design Editor') → 'GODITOR'.
 // app.name이 userData 경로를 결정하므로, 앱이 새 경로에 처음 쓰기 전(top-level)에 rename.
 // 같은 볼륨 rename이라 원자적·즉시(6GB+ copy 아님). old만 있고 new 없을 때 1회만.
@@ -43,6 +37,19 @@ catch (e) { console.error('[gdt] 파일 연결 등록 실패:', e); }
     console.error('[migrate] userData rename failed:', e.message);
   }
 })();
+
+// .gdt 파일 연결 — ★app ready «이전»에 걸어야 한다.
+// 맥은 파인더에서 더블클릭한 경로를 `open-file` 이벤트로 주는데, 콜드 스타트에선
+// 그 이벤트가 whenReady보다 «먼저» 뜬다. ready 안에서 등록하면 첫 더블클릭을 놓친다.
+// ★★그리고 «위 마이그레이션 뒤»여야 한다 (2026-09-02 실측).
+//   이 안에서 requestSingleInstanceLock() 을 부르는데, 그게 userData 에 SingletonLock/
+//   SingletonCookie/SingletonSocket 을 «만든다»(실측: 새 userData 폴더에 3개가 생겼다).
+//   마이그레이션보다 «먼저» 돌면 'GODITOR' 폴더가 그 파일들 때문에 이미 존재해서
+//   `!fs.existsSync(newUD)` 가 거짓이 되고 → 이사가 조용히 안 일어난다 →
+//   옛 이름 폴더에 있던 사용자의 프로젝트가 통째로 «없는 것»이 된다.
+//   ⛔이 두 줄을 위로 다시 올리지 마라. 올리면 그 순간 그 사고가 돌아온다.
+try { require('./main/gdt/wire').registerGdtFileAssociations(); }
+catch (e) { console.error('[gdt] 파일 연결 등록 실패:', e); }
 
 // .env 로드 (크리덴셜 환경변수)
 function _loadEnvFile(p) {
@@ -240,7 +247,13 @@ function createWindow() {
     minHeight: 700,
     title: windowTitle,
     icon: path.join(__dirname, 'build/icon.png'),
-    ...(isMac ? { titleBarStyle: 'hiddenInset' } : { titleBarStyle: 'default' }),
+    ...(isMac
+      ? { titleBarStyle: 'hiddenInset' }
+      // ★윈도우/리눅스: 기본 메뉴바(파일·편집·보기·창)가 «창 안»에 붙는다.
+      //   맥은 시스템 메뉴바로 가서 안 보이지만 윈도우는 앱 UI 위에 겹쳐 보인다.
+      //   ⚠️제거(setApplicationMenu(null))가 아니라 «숨김»을 쓴다 — 제거하면 입력창의
+      //     복사·붙여넣기 가속기까지 같이 사라질 수 있다. autoHideMenuBar 는 Alt 로 다시 뜬다.
+      : { titleBarStyle: 'default', autoHideMenuBar: true }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -1655,8 +1668,10 @@ ipcMain.handle('projects:duplicate', (_e, args = {}) => _duplicateProjectImpl(ar
  *   ⇒ 열려 있으면 main 은 «쓰지 않고» 데이터만 준다. 적용은 렌더러가
  *     state._suppressAutoSave + applyProjectData 로 한다(commit-system.js:269 가 세운 정본).
  *
- * ★다중 인스턴스 — main.js 에 requestSingleInstanceLock 이 «없다». 즉 두 번째 앱이 실제로 뜰 수 있고,
- *   그쪽이 같은 프로젝트를 열고 있는지 이 프로세스는 «알 수 없다».
+ * ★다중 인스턴스 — 2026-09-02 «막았다»(현빈 확정: 포토샵처럼 하나만). 잠금은 main/gdt/wire.js 의
+ *   registerGdtFileAssociations() 안에 있다(requestSingleInstanceLock + second-instance → 첫 창을 앞으로).
+ *   ⚠️예외가 «둘» 있다: `--remote-debugging-port` 가 붙은 dev 실행(CDP 검증·격리 인스턴스)과
+ *     GODITOR_ALLOW_MULTI=1. 즉 «개발 중에는» 두 번째 프로세스가 여전히 뜬다 — 아래 판별은 그대로 필요하다.
  *   판별 불가일 때 덮어쓰면 남의 편집을 조용히 날린다 ⇒ 거부하고 «왜»를 화면에 말한다(설계 §7-4).
  *   호출측은 openProjectIds(이 창이 연 탭 목록)를 «반드시» 넘겨야 한다 — 안 넘기면 판별 불가로 본다.
  */
@@ -1672,8 +1687,9 @@ ipcMain.handle('projects:history-restore', async (_e, { projectId, ts, openProje
   }
   // ★«다른 창»은 main 이 실제로 셀 수 있다. 창이 둘 이상이면 이 창의 탭 목록은 «전체 지식»이 아니다
   //   → 덮어쓰면 다른 창의 편집을 조용히 날린다. 거부하고 이유를 말한다.
-  //   ⚠️ 별도 «프로세스»(두 번째 앱 실행)는 이걸로도 못 잡는다 — main.js 에 requestSingleInstanceLock 이
-  //     없어 실제로 가능하다. 그건 이 유닛이 못 덮는 구멍이라 설계에 남긴다(§D10 잔여 위험).
+  //   ⚠️ 별도 «프로세스»(두 번째 앱 실행)는 이걸로도 못 잡는다. 배포본에서는 단일 인스턴스 잠금이
+  //     그걸 막지만(main/gdt/wire.js), dev 실행(--remote-debugging-port·GODITOR_ALLOW_MULTI=1)은
+  //     여전히 여러 개가 뜬다 ⇒ 이 창 수 판별은 «폐기하지 마라». §D10 잔여 위험은 «개발 실행»으로 좁혀졌다.
   let windowCount = 1;
   try { windowCount = BrowserWindow.getAllWindows().filter(w => !w.isDestroyed()).length || 1; } catch (_) {}
   if (windowCount > 1) {
@@ -2157,6 +2173,23 @@ require('./main/collab').init(ipcMain, {
   },
 });
 
+/* ── IPC: 어드민(공지 작성·신고 열람) ──
+   구현은 main/admin/* 에 있다. 여기엔 «주입»만 둔다(협업과 같은 꼴).
+   ⚠️ sessionToken 은 이 클로저 밖으로 안 나간다 — 렌더러엔 admin:* 결과만 간다.
+   ★권한은 서버가 지킨다(api/_lib/roles.js requireAdmin). 이 모듈의 role 판정은
+     «환경설정에 공지 탭을 그릴까»를 정하는 힌트일 뿐이다. */
+require('./main/admin').init(ipcMain, { readAuth });
+
+/* ── IPC: 운영자 공지 ──
+   구현은 main/notice/* 에 있다. 여기엔 «주입»만 둔다(collab 과 같은 규약).
+   ⚠️ sessionToken 은 이 클로저 밖으로 안 나간다 — 공지 조회의 x-session-token 헤더는 main 에서만 붙는다. */
+require('./main/notice').init(ipcMain, {
+  userDataDir: USER_DATA_DIR,
+  readAuth,
+  getVersion: () => { try { return app.getVersion(); } catch (_) { return ''; } },
+  getWindows: () => BrowserWindow.getAllWindows(),
+});
+
 /* ── IPC: Intake (design-bot pipeline) ── */
 const INTAKE_DIR = path.join(os.homedir(), 'Documents', 'design-bot-builder');
 if (!fs.existsSync(INTAKE_DIR)) fs.mkdirSync(INTAKE_DIR, { recursive: true });
@@ -2572,6 +2605,7 @@ app.whenReady().then(async () => {
       editTextBlock: _invokeRendererEditBlock,
       addSection: _invokeRendererAddSection,
       addAssetBlock: _invokeRendererAddAssetBlock,
+      scratchAdd: _invokeRendererScratchAdd,
       buildBasicSection: _invokeRendererBuildBasicSection,
       getCanvasState: _invokeRendererGetCanvasState,
       listScratchItems: _invokeRendererListScratchItems,
@@ -3106,6 +3140,44 @@ async function _invokeRendererAddSection({ empty = false, bg, beforeId, afterId,
 
 // ─── Phase 3 MVP — renderer 측 에셋(비율 프리셋) row 추가 helper ──────────────
 // window.addPresetRow(preset) 호출. img1/img2/img3/text-img.
+/* MCP put_image — 이미지 바이트를 «스크래치»로 들여보내는 입구.
+ * ★가드는 _invokeRendererAddAssetBlock 의 것을 «하나도 빼지 않고» 복제했다:
+ *   renderer not ready · WINDOW_MINIMIZED · USER_BUSY(편집 중·최근 키입력 1.5초) · API_MISSING
+ *   + 단일 atomic IIFE — 두 executeJavaScript 사이 race 차단
+ *   ⚠️특히 USER_BUSY: 사람이 타이핑 중인데 이미지가 끼어들면 안 된다.
+ * ★프로젝트 열림 확인과 «되읽기»는 렌더러 쪽(_scratchAddForMcp)에서 한다 —
+ *   그 상태(_currentProjectId·_scratchItems)가 거기 있고, 왕복을 늘리지 않는다.
+ */
+async function _invokeRendererScratchAdd({ src, width } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeSrc   = JSON.stringify(String(src || ''));
+  const safeWidth = width ? String(Number(width) || 0) : 'undefined';
+  const atomicJs = `(async () => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window._scratchAddForMcp !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window._scratchAddForMcp not found' };
+      }
+      return await window._scratchAddForMcp(${safeSrc}, { width: ${safeWidth} });
+    } catch (e) {
+      return { ok: false, code: 'RENDERER_ERROR', message: String((e && e.message) || e) };
+    }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+}
+
 async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId, scratchId } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
@@ -3159,7 +3231,10 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId, scratc
       }
       const newAssets = [...document.querySelectorAll('.asset-block')].filter(b => !beforeIds.has(b.id));
       const lastNew = newAssets[newAssets.length - 1];
-      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after, assetBlockId: lastNew?.id || null, hasImage: !!(lastNew?.querySelector('.asset-img')?.src || lastNew?.dataset?.imgSrc) };
+      // sectionId 추가(2026-08-30): put_image 가 «어느 섹션에 붙었나»를 돌려줘야 하는데
+      //   sectionId 생략 호출(활성 섹션 사용)에서는 호출자가 그걸 «알 방법이 없었다». 필드 추가만 — 기존 필드는 그대로.
+      const secOf = lastNew?.closest('[id^="sec_"]')?.id || sid || null;
+      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after, assetBlockId: lastNew?.id || null, sectionId: secOf, hasImage: !!(lastNew?.querySelector('.asset-img')?.src || lastNew?.dataset?.imgSrc || (lastNew?.classList?.contains('asset-img') && lastNew?.src)) };
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {
@@ -5611,4 +5686,102 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   [Unit B] 버그·피드백 신고 — IPC 3개 (2026-09-02)
+   ──────────────────────────────────────────────────────────────────────────
+   ★파일 «맨 끝»에 몰아 둔다: 같은 시각 다른 유닛(G3 공지·G4 어드민/단일실행)이
+     main.js 를 동시에 고치고 있다. 한 덩어리로 모여 있어야 충돌 조정이 싸다.
+   ★sessionToken 은 여기서만 붙는다 — 렌더러로 나가지 않는다(기존 원칙 유지).
+══════════════════════════════════════════════════════════════════════════ */
+const reportQueue = require('./main/report/queue');
+
+let _reportQueueReady = false;
+function ensureReportQueue() {
+  if (_reportQueueReady) return;
+  _reportQueueReady = true;
+  reportQueue.init({
+    userDataDir: app.getPath('userData'),
+    apiBase: AUTH_API_BASE,
+    // ★큐 파일엔 토큰을 적지 않는다. 보낼 때마다 «그 순간의» auth.json 을 읽는다
+    //   ⇒ 로그아웃했다면 그 뒤 재시도는 자동으로 익명이 된다(유저렌즈 D-c).
+    readAuth: () => {
+      const a = readAuth();
+      return a ? { email: a.email, sessionToken: a.sessionToken } : null;
+    },
+    log: (m) => console.warn(m),
+  });
+}
+app.whenReady().then(() => {
+  try {
+    ensureReportQueue();
+    // 켜질 때 한 번 — 지난번에 서버가 죽어 있어 남은 신고를 보낸다(유저렌즈 C-a).
+    setTimeout(() => { reportQueue.flush().catch(() => {}); }, 5000);
+  } catch (e) { console.warn('[report] 큐 초기화 실패:', e.message); }
+});
+
+/** 신고 창이 「함께 보내지는 것」에 적을 값 + 아직 못 보낸 건수. */
+ipcMain.handle('report:context', () => {
+  let queued = 0;
+  try { ensureReportQueue(); queued = reportQueue.stats().size; } catch (_) {}
+  return {
+    appVersion: app.getVersion(),
+    os: `${process.platform} ${require('os').release()}`,
+    arch: process.arch,
+    queued,
+  };
+});
+
+/* 화면 캡처 — 1280px 축소 + JPEG. ★렌더러로 원본 PNG(수 MB)를 넘기지 않는다.
+   축소를 메인에서 끝내야 IPC 도, 미리보기도, 전송 payload 도 같은 «한 장»이 된다. */
+ipcMain.handle('report:capture', async (event) => {
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return { ok: false, message: '창을 찾을 수 없습니다' };
+    let img = await win.webContents.capturePage();
+    if (!img || img.isEmpty()) return { ok: false, message: '빈 화면입니다' };
+    const size = img.getSize();
+    const longEdge = Math.max(size.width, size.height);
+    if (longEdge > 1280) {
+      img = size.width >= size.height ? img.resize({ width: 1280 }) : img.resize({ height: 1280 });
+    }
+    const out = img.getSize();
+    return {
+      ok: true,
+      w: out.width,
+      h: out.height,
+      dataUrl: 'data:image/jpeg;base64,' + img.toJPEG(72).toString('base64'),
+    };
+  } catch (e) {
+    return { ok: false, message: e.message };
+  }
+});
+
+/* 신고 접수 — ★언제나 «큐에 먼저» 넣고 그다음에 보낸다.
+   반대로 하면 전송 중 앱이 죽었을 때 아무 데도 안 남는다(PLAN §2⑸). */
+ipcMain.handle('report:submit', async (_event, payload) => {
+  try {
+    ensureReportQueue();
+    if (!payload || typeof payload.text !== 'string' || !payload.text.trim()) {
+      return { ok: false, sent: false, queued: false, message: '내용을 적어 주세요.' };
+    }
+    const { dropped } = reportQueue.enqueue(payload);
+    const r = await reportQueue.flush();
+    return {
+      ok: true,
+      sent: r.sent > 0,
+      queued: r.left > 0,
+      left: r.left,
+      dropped,                       // 상한 50 을 넘겨 «오래된» 것이 빠진 수
+      message: r.sent > 0 ? (r.lastMessage || null) : (r.lastError || null),
+    };
+  } catch (e) {
+    return { ok: false, sent: false, queued: false, message: e.message };
+  }
+});
+
+/** 큐 상태 조회 — 검증·표시용(전송은 안 한다). */
+ipcMain.handle('report:queue-stats', () => {
+  try { ensureReportQueue(); return reportQueue.stats(); } catch (e) { return { size: 0, max: 50, error: e.message }; }
 });

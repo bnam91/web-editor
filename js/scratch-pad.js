@@ -1394,6 +1394,97 @@ async function switchScratchPage(newPageId) {
   await _loadScratch(_currentProjectId, newPageId);
 }
 
+
+/* ── 스크래치 «놓을 자리» 계산 — 단일 진실소스 ─────────────────────────────────
+ * ★왜 함수로 뺐나(2026-08-30): 이 계산이 loadScratchpadFolder 안에 «인라인»으로만 있었는데,
+ *   MCP put_image 도 «같은 자리 규칙»을 써야 한다. 복사해두면 나중에 갈린다.
+ *   ⇒ 두 곳이 이 함수 «하나»를 쓴다.
+ *
+ * ⚠️앱의 다른 이미지 투입 경로는 «각자 다른 규칙»을 쓴다. 여기로 합치지 마라(의도가 다르다):
+ *     에셋 드래그드롭  마우스 좌표 · 폭 220      (사람이 놓은 자리에 놓는 게 맞다)
+ *     블록에서 보내기  고정 (40,40) · 폭 400
+ *     AI 이미지갤러리  고정 (0,0)  · 폭 200      ⚠️(0,0)은 캔버스 위다 — 별건 백로그
+ *
+ * ★START_X 하한의 유래: 스크래치 아이템만 보고 maxRight+GAP 로 잡으면, 아이템이 캔버스
+ *   왼쪽(음수 x)에 있을 때 새 컬럼이 캔버스(x0~860) 위로 얹혀 섹션과 겹쳤다
+ *   (현빈 보고: sp_ot4tk9 가 x=-945). 캔버스 우측 클리어를 «항상» 지킨다.
+ *
+ * newColumn:true  — 기존 전부의 오른쪽에 «새 컬럼»을 연다(폴더 일괄 불러오기: 배치마다 새 컬럼)
+ * newColumn:false — «현재 가장 오른쪽 컬럼»의 맨 아래에 이어 붙인다(MCP: 한 장씩 들어와도 세로로 쌓기)
+ * ⚠️「컬럼이 꽉 참」 개념은 «원래 없다» — 기존 코드에 상한이 없어 무한히 세로로 쌓는다.
+ *   새 상한을 여기서 만들지 않는다(지디 지시).
+ */
+const SCRATCH_PLACE = { START_X: 960, WIDTH: 860, GAP_X: 100, GAP_Y: 100 };
+
+window._scratchNextSlot = ({ newColumn = false } = {}) => {
+  const { START_X, GAP_X, GAP_Y } = SCRATCH_PLACE;
+  if (!_scratchItems.length) return { x: START_X, y: 0 };
+
+  let maxRight = 0;
+  for (const s of _scratchItems) {
+    const w = s.el?.offsetWidth || s.w || 0;
+    const right = (s.x || 0) + w;
+    if (right > maxRight) maxRight = right;
+  }
+  if (newColumn) return { x: Math.max(START_X, maxRight + GAP_X), y: 0 };
+
+  // 이어 붙이기 — «가장 오른쪽 컬럼»을 찾아 그 아래로.
+  //   컬럼 판정: 그 컬럼의 x 와 «같은 x»를 가진 아이템들(일괄 투입은 x 가 동일하다).
+  let colX = null, best = -Infinity;
+  for (const s of _scratchItems) {
+    const x = s.x || 0;
+    if (x > best) { best = x; colX = x; }
+  }
+  if (colX === null || colX < START_X) return { x: Math.max(START_X, maxRight + GAP_X), y: 0 };
+  let bottom = 0;
+  for (const s of _scratchItems) {
+    if ((s.x || 0) !== colX) continue;
+    const h = s.el?.offsetHeight || s.h || 0;
+    const b = (s.y || 0) + h;
+    if (b > bottom) bottom = b;
+  }
+  return { x: colX, y: bottom + GAP_Y };
+};
+
+
+/* ── MCP put_image 전용 투입구 ─────────────────────────────────────────────────
+ * ★왜 별도 함수인가: _scratchAddAndSave 는 «조용히 실패»할 수 있다.
+ *   _getScratchKey 가 projectId 없으면 null 을 돌려주고 저장이 «스킵»되는데,
+ *   _scratchAddAndSave 는 그래도 resolve 한다 ⇒ 「성공을 돌려주고 실제론 아무 데도 안 남는다».
+ *   ★「성공 반환 = 실제로 됐음」이 아니다. 그래서 여기서 «앞뒤로» 막는다:
+ *     ⑴ 앞: 프로젝트 열림을 «먼저» 확인하고, 없으면 명확한 오류로 거절
+ *     ⑵ 뒤: 저장한 뒤 «되읽어» 실제로 있는지 확인. 없으면 성공을 돌려주지 않는다
+ * 위치는 _scratchNextSlot({newColumn:false}) — 폴더 불러오기와 «같은 컬럼 규칙»으로 세로로 쌓는다.
+ */
+window._scratchAddForMcp = async (src, { width } = {}) => {
+  if (!_currentProjectId) {
+    return { ok: false, code: 'NO_PROJECT',
+             message: '프로젝트가 열려 있지 않습니다. 프로젝트를 먼저 열어 주세요. (스크래치는 프로젝트+페이지에 묶입니다)' };
+  }
+  if (typeof src !== 'string' || !src) {
+    return { ok: false, code: 'BAD_SRC', message: 'src must be a non-empty string' };
+  }
+  const W = width || SCRATCH_PLACE.WIDTH;
+  const { x, y } = window._scratchNextSlot({ newColumn: false });
+  const before = _scratchItems.length;
+  try {
+    await window._scratchAddAndSave(src, x, y, W);
+  } catch (e) {
+    return { ok: false, code: 'ADD_FAILED', message: String(e && e.message || e) };
+  }
+  // ⑵ ★되읽기 — 실제로 남았는지 확인한다. 방금 것은 «마지막» 아이템이다.
+  const added = _scratchItems.length - before;
+  const last = _scratchItems[_scratchItems.length - 1];
+  if (added !== 1 || !last || !last.id) {
+    return { ok: false, code: 'NOT_PERSISTED', message: '스크래치에 실제로 들어가지 않았습니다(되읽기 실패).' };
+  }
+  const check = window._scratchGetItemById(last.id);
+  if (!check || check.src !== src) {
+    return { ok: false, code: 'NOT_PERSISTED', message: '스크래치 되읽기 불일치 — 저장이 반영되지 않았습니다.' };
+  }
+  return { ok: true, scratchId: last.id, x, y, width: W };
+};
+
 // Port 드롭다운 → 폴더 일괄 불러오기 (goditor-images_to_scratchpad 스킬 UI판)
 // 좌표 정책: 첫 batch는 x=960부터 세로 컬럼. 이후 batch는 기존 max X 옆 컬럼(+GAP_X)에 새 세로 컬럼으로 추가
 async function loadScratchpadFolder(event) {
@@ -1406,22 +1497,8 @@ async function loadScratchpadFolder(event) {
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   if (!images.length) { window.showToast?.('⚠️ 이미지 파일을 찾지 못했습니다'); return; }
 
-  // START_X = 캔버스(섹션은 스크래치좌표 x0~860 점유) 우측으로 안전한 시작 x.
-  const START_X = 960, WIDTH = 860, GAP_X = 100, GAP_Y = 100;
-  let startX = START_X, startY = 0;
-  if (_scratchItems.length > 0) {
-    // 기존 items 중 가장 오른쪽 끝 → 그 옆 새 컬럼으로
-    let maxRight = 0;
-    for (const s of _scratchItems) {
-      const w = s.el?.offsetWidth || s.w;
-      const right = (s.x || 0) + w;
-      if (right > maxRight) maxRight = right;
-    }
-    // ★ 하한 START_X 보장 — 기존엔 스크래치 아이템만 보고 maxRight+GAP라, 아이템이 캔버스
-    //   왼쪽(음수 x 등)에 있으면 새 컬럼이 캔버스(x0~860) 위로 얹혀 섹션과 겹치던 버그
-    //   (현빈: sp_ot4tk9가 x=-945에 있어 발생). 캔버스 우측 클리어를 항상 지킨다.
-    startX = Math.max(START_X, maxRight + GAP_X);
-  }
+  const { x: startX, y: startY } = window._scratchNextSlot({ newColumn: true });
+  const WIDTH = SCRATCH_PLACE.WIDTH, GAP_Y = SCRATCH_PLACE.GAP_Y;
 
   let curY = startY, added = 0;
   window.showToast?.(`📥 ${images.length}개 불러오는 중...`);

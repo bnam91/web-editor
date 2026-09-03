@@ -1,0 +1,55 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   notice.css — 운영자 공지(Unit C). 토스트 «변형»과 모달 «본문»만 담는다.
+   ★새 룩을 만들지 않는다(현빈 상시 지시):
+     · 토스트는 .settings-toast 를 그대로 쓰고 여기선 «가로 배치 + 보기 링크»만 더한다.
+       자리·색·모서리·여백은 .settings-toast 정의 하나가 정본이다(css/settings-modal.css).
+     · 모달은 .settings-modal-overlay / -shell / -header / -footer 를 그대로 쓴다.
+       .settings-modal-body 는 «좌측 탭 + 우측 내용»(flex, min-height 360px) 전용이라
+       공지에는 안 맞는다 ⇒ 본문 한 칸(.notice-modal-body)만 따로 둔다.
+   ⛔왼쪽 띠(border-left) 없음 — 강조는 「보기」 한 곳에만(현빈 확정).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.notice-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 48px));
+}
+.notice-toast-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 이 토스트에서 «유일한» 강조. 링크처럼 보이고 링크처럼 눌린다. */
+.notice-toast-link {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: var(--ui-fw-semibold, 600);
+  color: var(--ui-accent, #7cb8ff);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.notice-toast-link:hover { color: #a8d0ff; }
+.notice-toast-link:focus-visible { outline: 2px solid var(--ui-accent-primary, #2d6fe8); outline-offset: 2px; }
+
+/* ── 모달 ── */
+.notice-modal-shell {
+  width: 460px;          /* 환경설정(640px)보다 좁게 — 글 한 편이라 탭이 없다 */
+  max-height: 60vh;
+}
+.notice-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 22px;
+  font-size: var(--ui-fs-12);
+  line-height: 1.7;
+  color: #d5d5d5;
+  white-space: pre-wrap;   /* 운영자가 넣은 줄바꿈을 살린다(HTML 은 안 쓴다) */
+  word-break: break-word;
+}

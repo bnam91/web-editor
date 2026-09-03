@@ -755,6 +755,82 @@ function _registerDefaultTools() {
     }
   );
 
+  /* put_image — 밖(클로드 앱 등)에서 «이미지 바이트»를 들여보내는 유일한 입구.
+   * 현빈 지시(2026-08-30): 「기본은 캔버스에 바로, 요청하면 보관함에」
+   *
+   * ★설계 원칙 셋:
+   *  ⑴ «항상» 먼저 스크래치에 넣는다 → sp_xxx 를 얻고, 캔버스에는 그 id 로 붙인다.
+   *     기존 add_asset_block(scratchId) 가 렌더러에서 IndexedDB 를 직접 읽어 IPC 폭증을 피한다.
+   *     ⇒ 큰 이미지 대응이 «이미 되어 있는» 경로를 그대로 탄다. 새 경로를 만들지 않는다.
+   *  ⑵ 붙이는 로직을 새로 짜지 않는다 — 기존 add_asset_block 을 그대로 호출한다.
+   *  ⑶ ★「성공 반환 = 실제로 됐음」이 아니다. 프로젝트가 없으면 스크래치 저장이 «조용히 스킵»되므로
+   *     렌더러(_scratchAddForMcp)가 앞에서 막고 뒤에서 되읽어 확인한다.
+   *
+   * ⚠️target="scratch" 도 «프로젝트가 열려 있어야» 한다 — 스크래치는 프로젝트+페이지에 묶인다.
+   * ⚠️상한은 기존 _MKP_MAX_IMGSRC 와 «같은 값»을 쓴다(새 숫자를 만들지 않는다).
+   *   초과 시 «조용히 줄이지 않고» 거절한다 — 사용자 이미지를 우리가 임의로 손대지 않는다.
+   */
+  const _PUT_IMAGE_MAX = 7 * 1024 * 1024; // = _MKP_MAX_IMGSRC (base64 7M chars ≈ 원본 5MB)
+  registerTool(
+    'put_image',
+    async ({ image, target = 'canvas', sectionId, preset = 'img1', width } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.scratchAdd !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      if (typeof image !== 'string' || !image) throw new Error('image must be a non-empty dataURL string');
+      if (!/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(image)) {
+        throw new Error('image must be a data URL: data:image/<type>;base64,<...> (file paths are not accepted)');
+      }
+      if (image.length > _PUT_IMAGE_MAX) {
+        throw new Error(`image too large (${image.length} > ${_PUT_IMAGE_MAX} chars ≈ 5MB). `
+          + '줄여서 다시 주세요 — 우리가 임의로 축소하지 않습니다.');
+      }
+      const targets = ['canvas', 'scratch'];
+      if (!targets.includes(target)) throw new Error(`invalid target: ${target}. allowed: ${targets.join('|')}`);
+      const allowed = ['img1', 'img2', 'img3', 'text-img'];
+      if (!allowed.includes(preset)) throw new Error(`invalid preset: ${preset}. allowed: ${allowed.join('|')}`);
+      if (sectionId !== undefined && (typeof sectionId !== 'string' || !sectionId.startsWith('sec_'))) {
+        throw new Error(`invalid sectionId: ${sectionId}. expected string starting with sec_`);
+      }
+
+      // ⑴ 스크래치에 «먼저» — 프로젝트 확인·되읽기는 렌더러가 한다
+      const put = await _rendererInvoker.scratchAdd({ src: image, width });
+      if (!put || put.ok !== true) return put || { ok: false, code: 'SCRATCH_FAILED' };
+      if (target === 'scratch') {
+        return { ok: true, target: 'scratch', scratchId: put.scratchId, x: put.x, y: put.y };
+      }
+
+      // ⑵ 캔버스에는 «기존 도구»로 붙인다
+      const att = await _rendererInvoker.addAssetBlock({ preset, sectionId, scratchId: put.scratchId });
+      if (!att || att.ok === false) {
+        // ★스크래치에는 «남아 있다» — 그 사실을 반드시 알린다(사용자가 수동으로 끌어다 쓸 수 있게)
+        return { ...(att || {}), ok: false, code: (att && att.code) || 'ATTACH_FAILED',
+                 scratchId: put.scratchId,
+                 message: `${(att && att.message) || '캔버스 부착 실패'} — 이미지는 보관함(${put.scratchId})에 남아 있습니다.` };
+      }
+      // ★blockId 는 add_asset_block 이 «assetBlockId» 라는 이름으로 준다 — 이름이 달라
+      //   그냥 att.blockId 를 읽으면 «항상 null» 이다(2026-08-30 대조에서 잡음).
+      return { ok: true, target: 'canvas', scratchId: put.scratchId,
+               sectionId: att.sectionId || sectionId || null,
+               blockId: att.assetBlockId || att.blockId || null,
+               hasImage: att.hasImage === true };
+    },
+    {
+      description: 'Put an image into GODITOR. Default target=canvas: the image is stored in the scratch pad and immediately attached to a section as an asset block. target=scratch stores it in the scratch pad only (canvas untouched). ⚠️A project must be OPEN for either target — the scratch pad is scoped to project+page. Image must be a data URL (max ~5MB); oversized images are rejected, never silently downscaled.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          image: { type: 'string', description: 'data:image/<type>;base64,<...>  (file paths are not accepted)' },
+          target: { type: 'string', enum: ['canvas', 'scratch'], description: 'canvas (default) = scratch + attach to section; scratch = scratch pad only' },
+          sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, uses the currently selected section (canvas target only)' },
+          preset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout preset (default img1)' },
+          width: { type: 'number', description: 'optional scratch item width in px (default 860 — same as folder import)' }
+        },
+        required: ['image']
+      }
+    }
+  );
+
   // Phase 3 MVP — 비율 프리셋 에셋(이미지 자리) row 추가. renderer의 window.addPresetRow 호출.
   // 이미지 *생성*은 안 함 — 비율 잡힌 자리만 만들고 사용자가 채움.
   registerTool(

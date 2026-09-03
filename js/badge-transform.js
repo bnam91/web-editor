@@ -144,6 +144,8 @@ function enhanceBadgePropPanel(sec) {
   const currentAnim  = ANIM_PRESETS.find(p => p.value !== 'anim-none' && badge.classList.contains(p.value))?.value || 'anim-none';
   const currentAlign = ALIGN_PRESETS.find(p => inner?.classList.contains(p.value))?.value || 'badge-align-center';
   const currentSize  = parseInt(badge.querySelector('.badge-hologram-square')?.style.width) || 200;
+  // 로고(정사각형) ↔ 텍스트 사이 간격. CSS .badge-hologram-row { gap: 40px } 가 기본값.
+  const currentGap   = parseInt(badge.style.gap) || 40;
   // 데코 테두리 상태 (no-deco-* 클래스 부재 = ON)
   const decoThickOn = !badge.classList.contains('no-deco-thick');
   const decoThinOn  = !badge.classList.contains('no-deco-thin');
@@ -230,6 +232,13 @@ function enhanceBadgePropPanel(sec) {
                style="width:54px;padding:3px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
       </div>
 
+      <div class="prop-section-title" style="margin-top:14px;">로고 ↔ 텍스트 간격</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <input type="range" class="prop-slider" id="badge-gap" min="0" max="160" value="${currentGap}" style="flex:2;">
+        <input type="number" id="badge-gap-num" min="0" max="160" value="${currentGap}"
+               style="width:54px;padding:3px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
+      </div>
+
       <div class="prop-section-title" style="margin-top:14px;">텍스트 속성</div>
       ${fieldRows}
     </div>
@@ -237,7 +246,15 @@ function enhanceBadgePropPanel(sec) {
 
   const existing = propPanel.querySelector('#badge-controls-section');
   if (existing) existing.outerHTML = html;
-  else propPanel.insertAdjacentHTML('beforeend', html);
+  else {
+    // ★Export·Template 은 «항상 하단»이어야 한다(현빈 2026-08-30).
+    //   beforeend 로 붙이면 배지 절이 맨 뒤로 가서 그 둘을 위로 밀어낸다.
+    //   ⇒ Export/Template 절을 찾아 그 «앞»에 넣는다. 못 찾으면 기존대로 맨 뒤(안전한 폴백).
+    const tail = [...propPanel.querySelectorAll('.prop-section')]
+      .find(sec => /^(Export|Template)$/.test(sec.querySelector('.prop-section-title')?.textContent?.trim() || ''));
+    if (tail) tail.insertAdjacentHTML('beforebegin', html);
+    else propPanel.insertAdjacentHTML('beforeend', html);
+  }
 
   // ── 이벤트 와이어업 ──
   const applyPresetClass = (presets, newValue, target) => {
@@ -293,6 +310,19 @@ function enhanceBadgePropPanel(sec) {
   sizeSlider?.addEventListener('input', e => applySize(parseInt(e.target.value)));
   sizeSlider?.addEventListener('change', () => { window.pushHistory?.('badge 크기'); window.scheduleAutoSave?.(); });
   sizeNum?.addEventListener('change', e => { applySize(parseInt(e.target.value)); window.pushHistory?.('badge 크기'); window.scheduleAutoSave?.(); });
+
+  // 로고↔텍스트 간격 — 크기 컨트롤과 «같은 형식». row 의 flex gap 을 인라인으로 덮어쓴다.
+  const gapSlider = propPanel.querySelector('#badge-gap');
+  const gapNum = propPanel.querySelector('#badge-gap-num');
+  const applyGap = v => {
+    if (!Number.isFinite(v)) return;
+    badge.style.gap = v + 'px';
+    if (gapSlider) gapSlider.value = v;
+    if (gapNum) gapNum.value = v;
+  };
+  gapSlider?.addEventListener('input', e => applyGap(parseInt(e.target.value)));
+  gapSlider?.addEventListener('change', () => { window.pushHistory?.('badge 간격'); window.scheduleAutoSave?.(); });
+  gapNum?.addEventListener('change', e => { applyGap(parseInt(e.target.value)); window.pushHistory?.('badge 간격'); window.scheduleAutoSave?.(); });
 
   propPanel.querySelectorAll('[data-badge-field]').forEach(input => {
     input.addEventListener('input', e => {

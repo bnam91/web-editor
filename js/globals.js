@@ -24,14 +24,13 @@ export const state = {
 };
 window.state = state;
 
-/* ── ★협업 임시 킬스위치 ──────────────────────────────────────────────
- * false면 협업 진입(autoStart·start·환경설정 협업 탭·초대 폴링)이 «전부» 막힌다.
- * 사유: C8(협업 undo가 상대 작업 재전파로 영구삭제) 미수정 — 정통 수정은
- *   feat/collab-undo-op 브랜치. 그 완성·머지 전까지 배포용으로 협업을 «안 켠다».
- * ★되돌리기 = true 하나. (collabRef 포함 proj_meta 전수 스캔 0 → 데이터 영향 없음)
- * ★true로 두면 아래 진입점 가드가 전부 통과해 기존 협업 동작이 그대로 복원된다. */
-export const COLLAB_ENABLED = true;
-window.COLLAB_ENABLED = COLLAB_ENABLED;
+/* ── ★협업 임시 킬스위치 — 정본은 js/feature-flags.js 하나다 ────────────
+ * ⛔여기에 값을 «다시 쓰지» 마라. globals.js 는 에디터 화면(index.html)의 모듈이라
+ *   프로젝트 목록 화면(pages/projects.html)이 안 읽는다 — 여기에 값을 두면
+ *   목록 화면의 👥 버튼이 스위치를 «안 본다»(2026-09-02 실제 사고).
+ * 여기서는 그 값을 «읽어서» 모듈 쪽 이름으로만 다시 내보낸다.
+ * ★플래그 파일이 안 걸린 화면에서는 undefined → false(닫힘)로 떨어진다 — 안전한 쪽. */
+export const COLLAB_ENABLED = (typeof window !== 'undefined' && window.COLLAB_ENABLED === true);
 
 /** ★킬스위치: 마켓(템플릿 공유) — 이번 런칭에는 «아직» 안 낸다(현빈 2026-08-28).
  * false면 환경설정 「마켓」 탭·패인이 «그려지지 않고», 지연로드(renderMarketPane)도 안 돈다.

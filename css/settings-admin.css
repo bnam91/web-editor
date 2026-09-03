@@ -1,0 +1,97 @@
+/* settings-admin.css — 환경설정 「공지」 탭(어드민)의 «레이아웃만».
+ *
+ * ★색·글꼴·테두리는 한 줄도 새로 정하지 않는다. settings-modal.css 의 값과 토큰을 그대로 쓴다
+ *   (현빈 상시 지시: 룩이 두 벌이 되면 안 된다). 여기 있는 건 «두 칸 배치·펼침 영역» 뿐이다.
+ * ⚠️새 규칙을 여기에 늘리기 전에, settings-modal.css 에 이미 있는 클래스를 먼저 찾아라.
+ */
+
+/* 두 칸 나란히 (등급/받을 사람, 언제부터/언제까지) — .settings-api-row 를 그대로 담는다 */
+.settings-admin-2col {
+  display: flex;
+  gap: 10px;
+}
+.settings-admin-2col > * { flex: 1; min-width: 0; }
+
+/* 본문 입력 — .settings-api-input 의 모양을 그대로 쓰고 높이만 준다 */
+textarea.settings-admin-area {
+  min-height: 72px;
+  resize: vertical;
+  line-height: 1.5;
+  font-family: inherit;   /* ⛔본문은 사람이 읽는 글이다 — 등폭 글꼴(API 키용)로 두지 않는다 */
+}
+select.settings-api-input { font-family: inherit; cursor: pointer; }
+/* 제목·본문은 «사람이 읽는 글»이다 — API 키용 등폭 글꼴이면 한글이 성기게 벌어진다 */
+input.settings-admin-text { font-family: inherit; }
+
+/* 등급 고르기 */
+.settings-admin-chips { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.settings-admin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--ui-fs-base);
+  color: #b0b0b0;
+  cursor: pointer;
+}
+
+.settings-admin-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+/* 「왜 이 칸이 필요한가」 안내 — 비워두고 보내는 걸 막는 문장이라 눈에 걸려야 한다 */
+.settings-admin-why {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-left: 2px solid #3a3a3a;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 0 var(--ui-radius-sm) var(--ui-radius-sm) 0;
+}
+.settings-admin-why b { color: #ddd; font-weight: var(--ui-fw-semibold); }
+
+/* 상태 배지 (뜨는 중 / 회수함 / 새 것 …) */
+.settings-admin-badge {
+  display: inline-block;
+  font-size: var(--ui-fs-10);
+  color: #5bc77c;
+  border: 1px solid #37633f;
+  border-radius: 99px;
+  padding: 0 7px;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+.settings-admin-badge.off { color: var(--ui-text-muted); border-color: #333; }
+
+/* 신고 펼침 */
+.settings-admin-detail {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: #141414;
+  border: 1px solid #2c2c2c;
+  border-radius: var(--ui-radius-sm);
+}
+.settings-admin-pre {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  background: #101010;
+  border-radius: var(--ui-radius-sm);
+  color: #ccc;
+  font-size: var(--ui-fs-base);
+  font-family: 'SF Mono', 'Menlo', monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;         /* ★가로로 흐르지 않게 — 긴 스택트레이스가 모달을 늘리면 안 된다 */
+}
+.settings-admin-kv { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: var(--ui-fs-base); color: #b0b0b0; }
+.settings-admin-kv span { color: var(--ui-text-muted); margin-right: 6px; }
+
+.settings-admin-imgs { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.settings-admin-img {
+  max-width: 100%;
+  border: 1px solid #333;
+  border-radius: var(--ui-radius-sm);
+}

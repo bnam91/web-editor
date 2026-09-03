@@ -39,8 +39,11 @@
       flex-shrink: 0; -webkit-app-region: drag;
     }
     #toolbar * { -webkit-app-region: no-drag; }
-    .electron-app #toolbar { padding-left: 80px; }
-    .electron-app.fullscreen #toolbar { padding-left: 16px; }
+    /* ★신호등 자리는 «맥에서만». 윈도우엔 신호등이 없어 빈 공간이 된다(2026-08-29) */
+    .electron-app #toolbar { padding-left: 16px; }
+    .electron-app.is-mac #toolbar { padding-left: 80px; }
+    .electron-app.fullscreen #toolbar,
+    .electron-app.is-mac.fullscreen #toolbar { padding-left: 16px; }
 
     .tool-logo { font-size: 12px; font-weight: 700; color: var(--ui-text-sub); letter-spacing: 0.4px; }
 
@@ -351,6 +354,8 @@
     // Electron titlebar offset
     if (window.electronAPI?.isElectron) {
       document.body.classList.add('electron-app');
+      // ★맥에서만 신호등 자리를 비운다(2026-08-29)
+      if (/Mac|Macintosh/i.test(navigator.userAgent)) document.body.classList.add('is-mac');
       window.electronAPI.getFullscreen?.()?.then?.(v => {
         if (v) document.body.classList.add('fullscreen');
       });

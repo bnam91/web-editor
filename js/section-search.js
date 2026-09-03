@@ -27,7 +27,7 @@
     input = document.createElement('input');
     input.className = 'ss-input';
     input.type = 'text';
-    input.placeholder = '섹션명/ID 또는 블럭 ID로 이동…';
+    input.placeholder = '섹션명·ID · 블럭 ID · 스크래치패드 ID(sp_)로 이동…';
     input.setAttribute('autocomplete', 'off');
     input.setAttribute('spellcheck', 'false');
 
@@ -82,6 +82,17 @@
     candidates = sections.map((el) => ({ el, name: sectionName(el) }));
 
     blockCandidates = [];
+
+    /* ★스크래치패드 항목(2026-09-03 현빈) — 투두에 «#sp_xxxx» 로 적어둔 것을 찾아 이동한다.
+       ⚠️여기만 «id 가 아니라 dataset.scratchId» 다. 그래서 아래 [id] 순회에 안 잡힌다 —
+         이게 「검색해도 안 나오던」 이유다.
+       ★섹션에 «속하지 않는다» — 캔버스 옆 작업대라 sec 가 없다. 표시는 「스크래치패드」로 고정.
+       ⛔투두의 #sp_ 를 «누르게» 하지 않는다: 체크리스트 글은 인라인 편집 대상이라
+         고치려는 클릭과 이동하려는 클릭이 부딪힌다(현빈 판단 2026-09-03). */
+    document.querySelectorAll('#canvas-scaler .scratch-item[data-scratch-id]').forEach((el) => {
+      blockCandidates.push({ el, id: el.dataset.scratchId, sec: null, secName: '스크래치패드' });
+    });
+
     sections.forEach((sec) => {
       const secName = sectionName(sec);
       sec.querySelectorAll('[id]').forEach((el) => {
@@ -154,7 +165,8 @@
   const BLOCK_MATCH_CAP = 30; // 블럭 매칭 표시 상한 (짧은 쿼리 폭주 방지)
 
   function renderList(query) {
-    const q = (query || '').toLowerCase().trim();
+    // ★맨 앞 «#» 는 떼고 찾는다 — 투두에 「#sp_ovqr99」 로 적혀 있어 그대로 붙여넣게 된다.
+    const q = (query || '').toLowerCase().trim().replace(/^#+/, '');
     // 섹션은 이름 + 섹션 ID(sec_*) 양쪽으로 매칭 — ID로만 걸린 행은 idHit 표시해 id 병기
     let secMatches;
     if (q) {
@@ -183,7 +195,7 @@
       const empty = document.createElement('li');
       empty.className = 'ss-empty';
       empty.textContent = q
-        ? `'${query}'와 일치하는 섹션/블럭이 없습니다`
+        ? `'${query}'와 일치하는 섹션·블럭·스크래치패드가 없습니다`
         : '섹션이 없습니다';
       list.appendChild(empty);
       activeIndex = -1;

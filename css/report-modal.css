@@ -1,0 +1,198 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   report-modal.css — 버그·피드백 신고 모달
+   ──────────────────────────────────────────────────────────────────────────
+   ★새 «룩»을 만들지 않는다(현빈 상시 지시 · PLAN §2⑹).
+     껍데기(overlay/shell/header/close/footer/btn)는 settings-modal 클래스를 «그대로»
+     쓴다. 여기 있는 건 ⑴ 폭 조정 하나와 ⑵ settings 에 없던 «새 부품»(세그먼트·첨부·
+     접힘고지)뿐이고, 값은 전부 --ui-* 토큰이다.
+   ⛔토스트는 정의하지 않는다 — 기존 showToast() 를 «부르기만» 한다(자리는 G3 소관).
+══════════════════════════════════════════════════════════════════════════ */
+
+/* ⑴ 폭 — 환경설정(640px, 좌측 탭 있음)과 달리 단일 폼이라 460px */
+#report-modal .settings-modal-shell {
+  width: 460px;
+  max-height: 86vh;
+}
+
+.report-body {
+  padding: 16px 18px 18px;
+  overflow-y: auto;
+}
+
+.report-label {
+  display: block;
+  font-size: var(--ui-fs-11, 11px);
+  color: var(--ui-text-sub);
+  margin: 0 0 7px;
+}
+.report-label + .report-label,
+.report-attach + .report-label { margin-top: 15px; }
+
+/* ── 유형 3택 ── */
+.report-seg { display: flex; gap: 6px; margin-bottom: 15px; }
+.report-seg button {
+  flex: 1;
+  padding: 7px 0;
+  font-size: var(--ui-fs-12);
+  font-family: inherit;
+  border-radius: var(--ui-radius-sm, 6px);
+  cursor: pointer;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text-sub);
+}
+.report-seg button:hover { background: var(--ui-bg-hover); color: var(--ui-text); }
+.report-seg button[aria-pressed="true"] {
+  background: var(--ui-accent-primary, #2d6fe8);
+  border-color: var(--ui-accent-primary, #2d6fe8);
+  color: #fff;
+  font-weight: var(--ui-fw-semibold, 600);
+}
+
+/* ── 내용 ── */
+.report-area {
+  width: 100%;
+  min-height: 78px;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm, 6px);
+  color: var(--ui-text);
+  font-family: inherit;
+  font-size: var(--ui-fs-12);
+  padding: 10px;
+  resize: vertical;
+  line-height: 1.6;
+  outline: none;
+  box-sizing: border-box;
+}
+.report-area:focus { border-color: var(--ui-accent-primary, #2d6fe8); }
+.report-area::placeholder { color: var(--ui-text-dim); }
+
+.report-count {
+  display: block;
+  text-align: right;
+  font-size: var(--ui-fs-10, 10px);
+  color: var(--ui-text-dim);
+  margin-top: 4px;
+}
+.report-count.over { color: var(--ui-danger); }
+
+/* ── 이미지 첨부(사용자가 «고른» 것) ── */
+.report-attach { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.report-attach-add {
+  background: var(--ui-bg-input);
+  border: 1px dashed var(--ui-border-mid);
+  color: var(--ui-text-sub);
+  border-radius: var(--ui-radius-sm, 6px);
+  padding: 7px 12px;
+  font-size: var(--ui-fs-12);
+  font-family: inherit;
+  cursor: pointer;
+}
+.report-attach-add:hover { border-color: var(--ui-accent-primary, #2d6fe8); color: var(--ui-text); }
+.report-attach-add:disabled { opacity: var(--ui-disabled-opacity, 0.45); cursor: not-allowed; }
+.report-thumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm, 6px);
+  padding: 6px 9px;
+  font-size: var(--ui-fs-11, 11px);
+  color: var(--ui-text-sub);
+  max-width: 100%;
+}
+.report-thumb span {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;
+}
+.report-thumb button {
+  background: none; border: 0; padding: 0;
+  color: var(--ui-text-dim); cursor: pointer; font-size: var(--ui-fs-10, 10px); line-height: 1;
+}
+.report-thumb button:hover { color: var(--ui-danger); }
+
+/* ── 화면 캡처 체크박스 (기본 «끔») ── */
+.report-check {
+  display: flex; align-items: flex-start; gap: 9px;
+  margin-top: 14px;
+  font-size: var(--ui-fs-12);
+  color: var(--ui-text-sub);
+  cursor: pointer;
+}
+.report-check input { margin: 3px 0 0; accent-color: var(--ui-accent-primary, #2d6fe8); flex-shrink: 0; }
+.report-check small { display: block; color: var(--ui-text-dim); font-size: var(--ui-fs-11, 11px); margin-top: 2px; }
+
+/* 캡처 미리보기 — 켤 때만 (PLAN §8 「켜면 미리보기」) */
+.report-shot {
+  display: none;
+  margin-top: 10px;
+  border: 1px dashed var(--ui-border-mid);
+  border-radius: var(--ui-radius-sm, 6px);
+  background: #151515;
+  padding: 8px;
+  text-align: center;
+}
+.report-shot.on { display: block; }
+.report-shot img {
+  max-width: 100%; max-height: 130px; border-radius: 3px; display: block; margin: 0 auto 6px;
+}
+.report-shot em {
+  font-style: normal; font-size: var(--ui-fs-11, 11px); color: var(--ui-text-dim);
+}
+
+/* ── 접힌 고지 — 펼치지 «않지만» 감추지도 않는다 (PLAN §8) ── */
+.report-disc {
+  display: block; width: 100%;
+  margin-top: 14px;
+  background: transparent; border: 0;
+  border-top: 1px solid var(--ui-border);
+  padding: 11px 0 0;
+  text-align: left;
+  font-family: inherit;
+  font-size: var(--ui-fs-11, 11px);
+  color: var(--ui-text-dim);
+  cursor: pointer;
+}
+.report-disc:hover { color: var(--ui-text-sub); }
+.report-disc i { font-style: normal; float: right; transition: transform .15s; }
+.report-disc[aria-expanded="true"] i { transform: rotate(180deg); display: inline-block; }
+
+.report-disc-body {
+  display: none;
+  margin-top: 8px;
+  background: #151515;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm, 6px);
+  padding: 9px 11px;
+  font-size: var(--ui-fs-11, 11px);
+  color: var(--ui-text-sub);
+  line-height: 1.65;
+}
+.report-disc-body.on { display: block; }
+.report-disc-body dl { margin: 0 0 8px; display: grid; grid-template-columns: 64px 1fr; gap: 2px 10px; }
+.report-disc-body dt { color: var(--ui-text-dim); }
+.report-disc-body dd { margin: 0; word-break: break-all; }
+.report-disc-body h6 {
+  margin: 8px 0 4px; font-size: var(--ui-fs-11, 11px); font-weight: var(--ui-fw-semibold, 600);
+  color: var(--ui-text-dim);
+}
+.report-errs {
+  margin: 0; padding: 0; list-style: none;
+  max-height: 120px; overflow-y: auto;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: var(--ui-fs-10, 10px);
+  color: var(--ui-text-dim);
+}
+.report-errs li {
+  padding: 3px 0; border-top: 1px solid var(--ui-bg-hover);
+  white-space: pre-wrap; word-break: break-all;
+}
+.report-errs li:first-child { border-top: 0; }
+.report-errs.empty { color: var(--ui-text-dim); font-family: inherit; }
+
+.report-queue-note {
+  margin-right: auto;
+  font-size: var(--ui-fs-11, 11px);
+  color: var(--ui-text-dim);
+}

@@ -2117,6 +2117,9 @@ let PRESETS = PRESET_FALLBACK;
 // Electron 환경 감지 → body 클래스 추가 (신호등 영역 확보 등 CSS 처리)
 if (window.electronAPI) {
   document.body.classList.add('electron-app');
+  // ★맥에서만 신호등(빨강·노랑·초록) 자리를 비운다. 윈도우엔 신호등이 없어
+  //   같은 여백을 주면 탑바가 «이유 없이 우측으로 밀린다»(2026-08-29 현빈 지적).
+  if (/Mac|Macintosh/i.test(navigator.userAgent)) document.body.classList.add('is-mac');
   window.electronAPI.getFullscreen().then(isFullscreen => {
     document.body.classList.toggle('fullscreen', isFullscreen);
   });
