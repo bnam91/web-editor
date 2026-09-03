@@ -28,6 +28,8 @@
   'use strict';
 
   var MIN = -600, MAX = 0;
+  /* 기존 블록 z 중 가장 높은 것이 .text-block 의 2 다(실측). 그 위 한 칸. */
+  var OVL_Z = 3;
 
   /* 겹칠 수 있는 것 = 섹션 흐름에 «쌓이는» 블록. 갭 블록은 «틈» 자체라 제외한다. */
   var BLOCK_SEL = '.text-block, .asset-block, .icon-circle-block, .table-block, ' +
@@ -38,39 +40,63 @@
 
   function panel() { return document.querySelector('#panel-right .panel-body'); }
 
-  /* 겹침을 걸 수 «있는» 블록인가 —
-     ⑴ 섹션 흐름 안에 있어야 한다(자유배치 프레임 안은 left/top 이 위치라 marginTop 이 무의미)
-     ⑵ 자기 자신이 절대배치면 제외
-     ⑶ 갭 블록·섹션은 제외 */
+  /* ★겹침의 «단위»는 블록이 아니라 «흐름의 직계 자식»이다.
+     에셋 블록은 .row 래퍼 안에 들어가고, 텍스트 블록은 text-frame 래퍼 안에 들어간다.
+     블록 자신에 marginTop 을 걸면 래퍼 안에서만 움직여 «아무 일도 안 난다»(실측).
+     ⇒ 흐름 컨테이너(.section-inner / .section-merged-part / 흐름 frame-block)의
+       직계 자식까지 거슬러 올라가 거기에 건다. block-drag.js 의 dragTarget 과 같은 규칙. */
+  function flowUnit(b) {
+    if (!b || !b.closest) return null;
+    /* ⚠️text-frame 은 «컨테이너»가 아니라 텍스트 블록의 래퍼다 — 단위의 «일부»로 봐야 한다.
+       빼먹으면 텍스트 블록의 단위가 자기 자신이 돼 「앞에 아무것도 없다」로 판정된다(실측). */
+    var box = b.closest('.section-inner, .section-merged-part, ' +
+                        '.frame-block:not([data-free-layout]):not([data-text-frame])');
+    if (!box) return null;
+    var u = b;
+    while (u && u.parentElement && u.parentElement !== box) u = u.parentElement;
+    return (u && u.parentElement === box) ? u : null;
+  }
+
+  /* 겹침을 걸 수 «있는가» — 판정은 «단위» 기준이다 */
   function eligible(b) {
-    if (!b || !b.matches || !b.matches(BLOCK_SEL)) return false;
+    if (!b || !b.matches) return false;
+    if (!b.matches(BLOCK_SEL)) return false;
     if (b.classList.contains('gap-block') || b.classList.contains('section-block')) return false;
-    if (b.style.position === 'absolute') return false;
-    if (b.closest('.frame-block[data-free-layout]')) return false;
-    if (!b.closest('.section-inner')) return false;
-    /* 섹션의 «첫» 블록은 파고들 상대가 없다(위가 섹션 여백이다) */
-    var prev = b.previousElementSibling;
+    if (b.closest('.frame-block[data-free-layout]')) return false;   // 자유배치는 left/top 이 위치다
+    var u = flowUnit(b);
+    if (!u) return false;
+    if (u.style.position === 'absolute') return false;
+    if (u.classList.contains('gap-block')) return false;
+    /* 맨 «첫» 자리는 파고들 상대가 없다(위가 섹션 여백이다) */
+    var prev = u.previousElementSibling;
     while (prev && prev.classList.contains('drop-indicator')) prev = prev.previousElementSibling;
     return !!prev;
   }
 
-  function getPull(b) { return parseInt(b.style.marginTop, 10) || 0; }
+  function getPull(b) { var u = flowUnit(b); return u ? (parseInt(u.style.marginTop, 10) || 0) : 0; }
 
-  function setPull(b, v) {
+  function setPull(b0, v) {
+    var b = flowUnit(b0); if (!b) return 0;
     v = Math.max(MIN, Math.min(MAX, Math.round(v)));
     if (v) {
       b.style.marginTop = v + 'px';
-      /* 겹친 블록은 «통째로» 위에 올라와야 한다. position:static 인 상자의 배경은
-         DOM 순서로 칠해지지만 «글자(inline)»는 모든 배경보다 위에 칠해진다 —
-         그래서 relative 를 안 주면 «아래 블록의 글자가 위 블록 배경을 뚫고» 보인다.
-         ⚠️이미 자리를 잡은 블록(absolute/relative/sticky)은 건드리지 않는다. */
-      if (!b.dataset.ovlPos && getComputedStyle(b).position === 'static') {
-        b.style.position = 'relative';
+      /* ★당겨 올린 블록은 «통째로» 위에 와야 한다.
+         실측: `.text-block` 은 이미 position:relative + z-index:2 를 갖는데 `.row` 래퍼는
+         z-index:auto 다. 그래서 사진(row)을 텍스트 위로 당기면 «아래 글자가 배경을 뚫고» 보였다.
+         ⇒ 당긴 단위에만 z 를 얹는다.
+         ⚠️이게 Figma 와 안 갈리는 이유: «당김»은 언제나 «자기 바로 위» 블록을 파고드는 것이라
+           당긴 쪽이 상대보다 항상 DOM 뒤다. z 를 올려도 결과가 DOM 순서와 «같다».
+           (Figma 내보내기는 z-index 를 0회 보고 자식 순서만 쓴다 — 그래서 어긋날 수 없다.) */
+      if (!b.dataset.ovlPos) {
+        var cs = getComputedStyle(b);
+        if (cs.position === 'static') b.style.position = 'relative';
+        var z = parseInt(cs.zIndex, 10);
+        if (!(z > OVL_Z)) b.style.zIndex = String(OVL_Z);
         b.dataset.ovlPos = '1';
       }
     } else {
       b.style.marginTop = '';
-      if (b.dataset.ovlPos) { b.style.position = ''; delete b.dataset.ovlPos; }
+      if (b.dataset.ovlPos) { b.style.position = ''; b.style.zIndex = ''; delete b.dataset.ovlPos; }
     }
     return v;
   }
@@ -116,8 +142,12 @@
 
   /* ── 섹션 패널에 「이 섹션 겹침 해제」 (Bulk Align 과 같은 자리·같은 모양) ── */
   function addSectionRow(p, sec) {
+    var seen = [];
     var hit = [].slice.call(sec.querySelectorAll(BLOCK_SEL)).filter(function (b) {
-      return getPull(b) !== 0;
+      var u = flowUnit(b);
+      if (!u || seen.indexOf(u) >= 0) return false;      // 단위 중복 제거
+      if ((parseInt(u.style.marginTop, 10) || 0) === 0) return false;
+      seen.push(u); return true;
     });
     var wrap = document.createElement('div');
     wrap.className = 'prop-section';
