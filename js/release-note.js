@@ -54,7 +54,7 @@
         <button class="settings-modal-close" data-act="close" title="닫기 (Esc)"
                 style="position:absolute;top:14px;right:14px;z-index:2">×</button>
         <div class="relnote-hero">
-          <span class="relnote-ver">UPDATED</span>
+          <span class="tb-badge tb-badge--pill tb-badge--accent relnote-ver"></span>
           <div class="relnote-h"></div>
           <div class="relnote-sub"></div>
         </div>
