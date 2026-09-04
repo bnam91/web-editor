@@ -93,7 +93,15 @@ export function buildGridPicker(picker, label, onPick, opts = {}) {
    * 같은 판정을 여러 곳에 베끼면 반드시 한 곳이 뒤처진다 — 이 레포가 오늘만 여러 번 당한 패턴이다. */
   const alive = (r, c) => r >= MINR && r <= MAXR && c >= MINC && c <= MAX;
   picker.innerHTML = '';
-  for (let r = 1; r <= MAX; r++) {
+  /* ★칸 «수»도 상수를 따라간다. 전엔 CSS 가 `grid-template-columns: repeat(4, 1fr)` 로 「한 변 4」를
+   * 따로 알고 있었다(그것도 editor-blocks.css / editor-props.css 두 벌로). 열 상한을 바꾸면
+   * 셀은 늘어나는데 격자는 4칸이라 줄바꿈이 깨진다 — 여기서 한 번에 정한다. */
+  picker.style.gridTemplateColumns = `repeat(${MAX}, 1fr)`;
+  /* ★행 루프 상한은 MAXR(행) 이다. 전엔 MAX(열 상한)로 돌아서, alive() 는 «살아있다»고 하는데
+   * 셀 자체가 안 그려지는 조합이 생겼다(적대검수 G1: MAX_ROWS=5 면 2x5·3x5·4x5).
+   * 오늘은 MAX_COLS===MAX_ROWS===4 라 안 터졌을 뿐이고, 이 커밋이 고치겠다고 선언한 바로 그 병이다.
+   * ⚠️술어(alive)만 고치고 «술어 밖의 루프»를 안 고치면 이렇게 남는다 — 축은 끝까지 따라가야 한다. */
+  for (let r = 1; r <= MAXR; r++) {
     for (let c = 1; c <= MAX; c++) {
       const cell = document.createElement('div');
       cell.className = 'grid-picker-cell';

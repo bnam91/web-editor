@@ -183,8 +183,15 @@ export function showDuoProperties(block) {
     return true;
   };
   /* ── 4×4 그리드 피커 — 가로×세로 칸 수 변경 (현빈 발주 ①) ─────────────────
-   * 카드블럭과 «같은» UI 를 쓴다(공용 buildGridPicker). ★2026-09-04 P1: maxRows 해제 —
-   * 이제 진짜 4×4(행 축이 생겼다). 줄일 때 잘린 칸/행의 내용은 pushHistory 로 undo 복원. */
+   * ★2026-09-04 P1: maxRows 해제 — 이제 진짜 4×4(행 축이 생겼다).
+   * 줄일 때 잘린 칸/행의 내용은 pushHistory 로 undo 복원(패널 힌트에도 적어뒀다).
+   *
+   * ⚠️2026-09-05 정정: 여기 「카드블럭과 «같은» UI 를 쓴다(공용 buildGridPicker)」라고 적혀
+   *   있었는데 «거짓» 이었다(적대검수). `_helpers.js` 의 buildGridPicker 를 부르는 곳은
+   *   이 파일 «하나» 뿐이고, 카드·월계수·캔버스(prop-simple-card.js · prop-laurel.js ·
+   *   prop-canvas.js)는 피커를 통째로 복붙해 각자 갖고 있다.
+   *   ⇒ 여기 고친 것이 그쪽에 «안 간다». 피커 동작을 바꿀 땐 그 세 곳을 따로 봐야 한다.
+   *   (공용화는 별건 — 지금 묶으면 세 블록의 UX 를 동시에 바꾸는 셈이라 발주가 필요하다.) */
   buildGridPicker(
     document.getElementById('grd-grid-picker'),
     document.getElementById('grd-grid-picker-label'),
