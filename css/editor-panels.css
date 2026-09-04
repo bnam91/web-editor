@@ -1842,7 +1842,12 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .insp-stat-row.insp-jump { cursor: pointer; border-radius: 3px; transition: background 0.12s; }
 .insp-stat-row.insp-jump:hover { background: var(--ui-bg-hover, rgba(255,255,255,0.06)); }
 /* 도착한 블록을 잠깐 표시한다 — 어디로 갔는지 모르면 이동이 무의미하다 */
-.insp-jump-flash { outline: 2px solid var(--ui-accent-primary, #2d6fe8) !important; outline-offset: 2px; }
+/* ★줌 보정 — 캔버스가 scale() 안이라 2px 는 40% 줌에서 «0.8px» 로 그려져 거의 안 보였다(실측).
+   레포의 --inv-zoom 을 쓴다(섹션 라벨·리사이즈 핸들이 이미 쓰는 방식, editor-blocks.css:373,417,1045). */
+.insp-jump-flash {
+  outline: calc(2px * var(--inv-zoom, 1)) solid var(--ui-accent-primary, #2d6fe8) !important;
+  outline-offset: calc(2px * var(--inv-zoom, 1));
+}
 /* 색 칩의 «사용 횟수» 배지 — 스와치 «위»에 얹어 칩 높이를 안 늘린다(2026-08-28) */
 .insp-color-swatch { position: relative; }
 .insp-color-count {

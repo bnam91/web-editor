@@ -39,8 +39,23 @@ function jumpToElement(el) {
   // 블록은 섹션보다 작으니 «가운데»에 놓는다 — 위에 40px 만 두면 뭘 가리키는지 알기 어렵다.
   const center = Math.max(0, wrap.clientHeight / 2 - el.getBoundingClientRect().height / 2);
   wrap.scrollTo({ top: wrap.scrollTop + delta - center, behavior: 'smooth' });
-  el.classList.add('insp-jump-flash');
-  setTimeout(() => el.classList.remove('insp-jump-flash'), 1200);
+
+  /* ★그 블록을 «고른다» — 깜빡임만으로는 1.2초 뒤 아무 표시도 안 남아
+     「어디로 간 건지」를 알 수 없었다(현빈 2026-09-04). 선택하면 아웃라인이 남고
+     우측 패널도 그 블록으로 바뀐다. 섹션이면 selectSection, 블록이면 selectBlock. */
+  try {
+    if (el.classList.contains('section-block')) window.selectSection?.(el);
+    else if (window.selectBlock) window.selectBlock(el);
+  } catch (_) {}
+
+  /* ★깜빡임은 «스크롤이 끝난 뒤»부터 센다 — smooth 스크롤이 구르는 동안 시간이 흘러
+     도착했을 땐 이미 절반 이상 지나 있었다. */
+  clearTimeout(jumpToElement._t);
+  clearTimeout(jumpToElement._t2);
+  jumpToElement._t = setTimeout(() => {
+    el.classList.add('insp-jump-flash');
+    jumpToElement._t2 = setTimeout(() => el.classList.remove('insp-jump-flash'), 1400);
+  }, 320);
 }
 
 /* 클릭 위임 — 패널은 innerHTML 로 다시 그려지므로 «행마다» 리스너를 달면 새로 그릴 때 사라진다.

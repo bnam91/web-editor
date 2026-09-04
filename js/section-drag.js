@@ -61,16 +61,13 @@ function getDragAfterElement(container, y) {
   );
   return children.reduce((closest, child) => {
     const box = child.getBoundingClientRect();
-    /* ★«겹침(음수 marginTop)»을 빼고 «흐름 위치»로 잰다.
-       이 판정은 세로 중점을 쓰는데, 음수 마진이 rect 를 끌어올리면
-       「DOM 순서 = 중점 오름차순」 전제가 깨진다. 동점(=중점이 같아지는 지점,
-       m = -(앞높이+자기높이)/2)에서는 엄격 부등호(offset > closest.offset) 때문에
-       앞선 형제가 항상 이겨 그 블록을 «드롭 기준으로 영영 못 고른다».
-       ⇒ 겹침만 되돌린 좌표로 재면 중점 순서가 흐름 순서로 회복된다.
-       (block-drag.js 의 프레임 안 드롭도 이 함수를 쓴다 — 같이 낫는다.) */
-    const _ovl = Math.min(0, parseInt(child.style.marginTop, 10) || 0);
-    const top = box.top - _ovl;
-    const offset = y - top - box.height / 2;
+    /* ★«렌더된 중점» 그대로 쓴다 — 겹침을 되돌려 «흐름 위치»로 재는 보정을 넣어 봤다가
+       걷어냈다(2026-09-04). 겹침이 크면 섹션이 줄어 보정 좌표가 렌더 영역 밖으로 나가고,
+       커서가 거기 닿을 수 없어 «오히려» 도달 불가가 늘었다.
+       실측(줌 100%, 단위 5개): 원래 pull 0~−500 전부 5/5 · 보정은 −200 부터 4/5.
+       ⇒ 사용자가 «보는 대로» 판정하는 게 낫다. 남는 결함은 중점이 정확히 겹치는
+         한 지점(m = −(앞높이+자기높이)/2)에서 드롭 띠가 얇아지는 것뿐이다. */
+    const offset = y - box.top - box.height / 2;
     if (offset < 0 && offset > closest.offset) return { offset, element: child };
     return closest;
   }, { offset: Number.NEGATIVE_INFINITY }).element;
