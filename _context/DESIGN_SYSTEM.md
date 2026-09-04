@@ -317,8 +317,12 @@ section-block
 | Device Mockup | `.mockup-block` | `addDeviceMockupBlock(key, w)` | 디바이스 목업 |
 | Step | `.step-block` | `addStepBlock()` | 번호형 스텝 가이드 |
 | Vector | `.vector-block` | `addVectorBlock(svgString)` | 커스텀 SVG 벡터 |
-| Grid | `.grid-block` | `addNewGridBlock(cols, rows)` | 격자형 레이아웃 |
 | Joker | `.joker-block` | `addJokerBlock()` | 특수 목적 블록 |
+<!-- ★2026-09-04 정정: 이전 행에 `.grid-block`/`addNewGridBlock(cols, rows)`가 「구현」으로 적혀 있었으나
+     거짓 기재였다 — `.grid-block` 클래스는 코드에 존재한 적이 없다(git log -S'.grid-block' -- js css index.html = 0건).
+     실체는 NewGrid(`data-new-grid`, frame-block 기반, 2026-04-07 구현 → 2026-06-08 봉인, 2026-09-04 스텁 삭제)였다.
+     듀오 블록(`.duo-block`)이 이후 그 자리를 대신한다 — PLAN-gridblock.md 참조. -->
+| ~~Grid~~ | ~~`.grid-block`~~ | ~~`addNewGridBlock(cols, rows)`~~ | **삭제(구현된 적 없음)** — 실체는 NewGrid(봉인·2026-09-04 스텁 삭제), 다열은 `.duo-block` 사용 |
 
 ---
 

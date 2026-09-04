@@ -2078,26 +2078,6 @@ function addShapeBlock(type = 'rectangle') {
   window.showFrameProperties?.(ss);
 }
 
-// ── New Grid Block ── [봉인됨 2026-06-08]
-// 봉인 이유: img2/img3 multi-col preset은 canvas-block(cvb_)로 통합. 옛 .row+.col 경로는 좀비 동작.
-// 봉인 후 호출 시 명시적 경고 + canvas-block 대체 안내. 함수 정의는 save-load 마이그레이션이 참조할 수 있어 보존.
-// PM/MCP 등록 금지 — update_new_grid_block 같은 도구를 만들지 말 것.
-//
-// 원래 시그니처 (참고용 — 호출 X):
-//   addNewGridBlock(cols, rows, opts)
-//     cols: 열 수 (기본 2) / rows: 행 수 (기본 1)
-//     opts: { gap: 16, cellHeight: auto, ratios: [1,1,...], bg: '' }
-function addNewGridBlock(/* cols, rows, opts */) {
-  // [SEALED 2026-06-08] 호출 차단 — multi-col 이미지 비교는 canvas-block(addCanvasBlock)으로 대체.
-  // 원본 구현은 git history(v2025-06-08 이전 commit)에서 참조 가능. PM/MCP 등록 금지.
-  console.warn('[sealed] addNewGridBlock is deprecated since 2026-06-08. Use addCanvasBlock for multi-image grid.');
-  if (typeof window.showToast === 'function') {
-    window.showToast('NewGrid는 봉인된 컴포넌트입니다. Canvas 블록을 사용하세요.');
-  }
-  return null;
-}
-window.addNewGridBlock = addNewGridBlock;
-
 // ── setSectionBg: 섹션 단위 배경색 설정 ──
 // sectionEl: .section-block 요소 또는 섹션 id(string)
 // color: hex 색상 문자열 (#ffffff 등). null/''이면 배경색 제거

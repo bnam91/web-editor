@@ -122,7 +122,7 @@ window.setAssetImageFromSrc(ab, 'data:image/gif;base64,...');   // 원본 GIF da
 window.addSection()
 window.addSection({ skipDefaultBlock: true })  // 빈 섹션 (기본 h2+asset 없음)
 
-// 2. (다열 레이아웃의 경우) Canvas 블록 생성  ※ addNewGridBlock은 봉인됨(SEALED)
+// 2. (다열 레이아웃의 경우) Canvas 블록 생성  ※ addNewGridBlock은 삭제됨(2026-09-04, 이전엔 봉인/SEALED)
 window.addCanvasBlock({ cardMode: 'simple', gridCols: 2, gridRows: 1 })
 
 // 3. 블록 추가
@@ -208,13 +208,13 @@ window.deleteSection(sec)
 
 ## NewGrid 제어
 
-### `window.addNewGridBlock(cols?, rows?, opts?)` — **DEPRECATED / SEALED (2026-06-08)**
+### `window.addNewGridBlock(cols?, rows?, opts?)` — **삭제됨 (2026-09-04, 이전엔 DEPRECATED / SEALED 2026-06-08)**
 
-> **봉인됨**: `addNewGridBlock`은 2026-06-08부터 호출이 차단되었다(`[SEALED]`). 인자를 무시하고 `console.warn` + 토스트("NewGrid는 봉인된 컴포넌트입니다. Canvas 블록을 사용하세요.") 출력 후 **`null`을 반환**하며 아무 블록도 생성하지 않는다. multi-col 이미지 비교/그리드는 `window.addCanvasBlock`(자유배치) 또는 `addCanvasBlock({ cardMode: 'simple', gridCols, gridRows })`(카드 그리드)로 대체한다. PM/MCP 도구 등록 금지.
+> **삭제됨**: `addNewGridBlock`은 2026-06-08부터 호출이 차단된 봉인 스텁이었고(인자 무시, `console.warn` + 토스트 후 `null` 반환), 2026-09-04 P0 정리에서 호출처 0건을 확인 후 함수 정의 자체를 삭제했다. **지금은 `window.addNewGridBlock`이 `undefined`다** — 호출하면 `TypeError`. multi-col 이미지 비교/그리드는 `window.addCanvasBlock`(자유배치) 또는 `addCanvasBlock({ cardMode: 'simple', gridCols, gridRows })`(카드 그리드)로 대체한다. PM/MCP 도구 등록 금지.
 
 ```js
-// 봉인됨 — null 반환:
-window.addNewGridBlock(2)     // → console.warn + toast, returns null
+// 삭제됨 — 함수 자체가 없다(TypeError):
+window.addNewGridBlock(2)     // → TypeError: window.addNewGridBlock is not a function
 
 // 대체:
 window.addCanvasBlock({ cardMode: 'simple', gridCols: 2, gridRows: 1, cards: [ /* ... */ ] })
@@ -866,15 +866,15 @@ window.addLabelGroupBlock({ labels: ['특징1', '특징2', '특징3'] })
 window.triggerAutoSave()
 ```
 
-### 2열(NewGrid) 섹션 조립 — **DEPRECATED 예시**
+### 2열(NewGrid) 섹션 조립 — **DEPRECATED 예시 (함수 삭제됨 2026-09-04)**
 
-> **주의**: 아래 예시의 `window.addNewGridBlock(2)`는 2026-06-08부터 봉인되어 `null`을 반환한다. 새 코드에서는 다열 카드 그리드는 `window.addCanvasBlock({ cardMode: 'simple', gridCols, gridRows, cards })`로, 자유배치는 `window.addCanvasBlock({ layers })`로 작성한다. `activateCol` / 셀 직접 활성화 패턴은 더 이상 동작하지 않는다. 이 예시는 과거 frame-cell 흐름의 역사적 참고용이다.
+> **주의**: 아래 예시의 `window.addNewGridBlock(2)`는 2026-06-08부터 봉인돼 `null`을 반환하다가, 2026-09-04 P0 정리에서 함수 정의 자체가 삭제됐다(호출하면 `TypeError`). 새 코드에서는 다열 카드 그리드는 `window.addCanvasBlock({ cardMode: 'simple', gridCols, gridRows, cards })`로, 자유배치는 `window.addCanvasBlock({ layers })`로 작성한다. `activateCol` / 셀 직접 활성화 패턴은 더 이상 동작하지 않는다. 이 예시는 과거 frame-cell 흐름의 역사적 참고용이다.
 
 ```js
 // 1. 빈 섹션 생성
 window.addSection({ skipDefaultBlock: true })
 
-// 2. 2열 NewGrid 생성 → [SEALED] null 반환, 아래 흐름은 더 이상 동작 안 함
+// 2. 2열 NewGrid 생성 → 함수 삭제됨(TypeError), 아래 흐름은 더 이상 동작 안 함
 window.addNewGridBlock(2)
 
 // 3. 첫 번째 셀 frame-block을 직접 활성화 → 블록 추가
@@ -1253,7 +1253,7 @@ value: [{ src, x, y, w }, ...]
 ## 주의 사항
 
 1. `addSection()` 호출 직후 섹션이 자동 선택됨 — 별도의 `selectSection()` 불필요
-2. ~~`addNewGridBlock()` 호출 직후 `window._activeFrame`에 생성된 frame이 자동 설정됨~~ — **봉인됨(2026-06-08)**, `null` 반환·프레임 미생성. 다열은 `addCanvasBlock`을 사용할 것
+2. ~~`addNewGridBlock()` 호출 직후 `window._activeFrame`에 생성된 frame이 자동 설정됨~~ — **삭제됨(2026-09-04, 이전엔 봉인 2026-06-08)**, 함수 자체가 없어 호출 시 `TypeError`. 다열은 `addCanvasBlock`을 사용할 것
 3. Frame 내 셀 작업 후 섹션 레벨로 복귀하려면 `deactivateFrame()` 호출
 4. `addTextBlock`에 `content: ''` 전달 시 placeholder 텍스트 유지 (빈 문자열은 무시됨)
 5. 모든 작업 완료 후 `triggerAutoSave()` 필수 호출

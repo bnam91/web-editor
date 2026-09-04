@@ -1,5 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { parseRatio } from './_helpers.js';
 
 function _tblTok(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -59,9 +60,7 @@ function _applyColRatio(block, rawRatio) {
   // #5-b: 논리 colCount(rowspan/colspan 반영). 병합 없으면 기존 결과와 동일.
   const colCount = _tblLogicalColCount(table);
   if (!colCount) return;
-  let parts = String(rawRatio || '').split(/[:,\s]+/).filter(Boolean).map(Number).filter(n => !isNaN(n) && n > 0);
-  while (parts.length < colCount) parts.push(1);
-  parts = parts.slice(0, colCount);
+  const parts = parseRatio(rawRatio, colCount);
   const sum = parts.reduce((a, b) => a + b, 0) || 1;
   const percents = parts.map(p => (p / sum) * 100);
   const old = table.querySelector('colgroup');

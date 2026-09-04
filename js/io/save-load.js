@@ -578,16 +578,6 @@ function migrateColsFromDOM(canvasEl) {
     });
     col.remove();
   });
-  canvasEl.querySelectorAll('.row[data-layout="grid"][data-card-grid], .row[data-layout="grid"]').forEach(row => {
-    const cols = [...row.querySelectorAll(':scope > .col')];
-    if (cols.length === 0) return;
-    return;
-    cols.forEach(col => {
-      [...col.childNodes].forEach(child => row.appendChild(child));
-      col.remove();
-    });
-    row.dataset.cardGrid = '1';
-  });
   // Flex/Grid row: col → NewGrid 변환 (deprecated, 2026-06-08 봉인)
   // NewGrid Frame(ss_*) 블록은 사용자 정책상 안 씀 (UI 노출 0, 플로팅 패널 숨김).
   // proj.json load 시 multi-col row를 자동 grid 변환하던 코드 비활성화.

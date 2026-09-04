@@ -268,5 +268,11 @@ window.addDuoBlock = addDuoBlock;
 window.updateDuoBlock = updateDuoBlock;
 window.renderDuoBlock = renderDuoBlock;
 
+// ★2026-09-04 P0: 사용자에게는 「그리드 블럭」으로 보인다(발주 ②) — 별칭만 추가, DOM 정체성
+//   (.duo-block / dataset.type='duo' / duo_ id 접두사)은 P2까지 바꾸지 않는다(PLAN-gridblock.md 2-B).
+window.addGridBlock = addDuoBlock;
+window.updateGridBlock = updateDuoBlock;
+window.renderGridBlock = renderDuoBlock;
+
 // innercard-block 등 라인 스택형 블록이 같은 롤/렌더를 공유한다 (부품 공유 — 현빈 지시 2026-07-03)
 export { makeDuoBlock, addDuoBlock, updateDuoBlock, renderDuoBlock, DUO_DEFAULTS, _duoLineHtml as duoLineHtml, _DUO_ROLES as DUO_ROLES };

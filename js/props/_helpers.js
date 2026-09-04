@@ -2,6 +2,21 @@
 // 2026-05-21 신규. RIGHT_PANEL_PROPS.md §4-4 변경 이력 hook 표준 일괄 적용.
 
 /**
+ * 「N:M:...」 비율 문자열 → 정규화된 양수 정수 배열(개수=count).
+ *   - 구분자: ':' ',' 공백(연속 허용) — `1:1:2` / `1,1,2` / `1 1 2` 모두 동일 결과.
+ *   - 부족하면 1로 패딩, 넘치면 자른다(count 초과분 버림).
+ *   - 0 이하·NaN인 항목은 걸러진다(음수·0 비율은 의미가 없다).
+ * ★prop-table.js `_applyColRatio`의 인라인 파서를 그대로 뽑아온 것(2026-09-04 P0) — 동작 무변경.
+ *   테이블·그리드 블록 둘 다 이걸 쓴다(복붙 금지).
+ */
+export function parseRatio(raw, count) {
+  let parts = String(raw || '').split(/[:,\s]+/).filter(Boolean).map(Number).filter(n => !isNaN(n) && n > 0);
+  while (parts.length < count) parts.push(1);
+  parts = parts.slice(0, count);
+  return parts;
+}
+
+/**
  * 슬라이더 + 숫자 인풋 쌍을 표준 패턴으로 묶는다.
  *   - slider mousedown      → pushHistory()        (드래그 시작 직전 체크포인트)
  *   - slider input          → applyFn(v) + 숫자 동기화
