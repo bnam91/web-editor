@@ -12,7 +12,15 @@ import { parseRatio } from './_helpers.js';
  * ⛔20~80 클램프도 제거됐다 — 텍스트 입력은 `9:1`도 허용한다(테이블도 그렇다). */
 function _ratioRowHtml(cols) {
   if (cols.length < 2) return '';
-  const curRatioStr = cols.map(c => Math.max(1, Number(c.width) || 1)).join(':');
+  /* ★소수 비율(예: 0.5:1.5)을 «있는 그대로» 보여준다.
+   * 이전엔 Math.max(1, …) 라 0.5 가 1 로 뭉개져, 패널을 다시 열면 1:1 로 «거짓 표시»됐다.
+   * 값은 살아 있는데 화면만 틀리는 종류라 사용자가 「안 먹었다」고 읽는다.
+   * 표시는 소수 2자리까지, 정수면 정수로(1.00 이 아니라 1). */
+  const curRatioStr = cols.map(c => {
+    const n = Number(c.width);
+    const v = Number.isFinite(n) && n > 0 ? n : 1;
+    return Number.isInteger(v) ? String(v) : String(+v.toFixed(2));
+  }).join(':');
   return `
       <div class="prop-row">
         <span class="prop-label">비율</span>
@@ -99,7 +107,7 @@ export function showDuoProperties(block) {
       </div>`).join('')}
     </div>`).join('')}
     <div class="prop-section">
-      <div class="prop-row"><span class="prop-label" style="opacity:.6">컬럼 «개수»·라인 구조 변경은 updateDuoBlock API 사용 (비율은 위 슬라이더)</span></div>
+      <div class="prop-row"><span class="prop-label" style="opacity:.6">컬럼 «개수»·라인 구조 변경은 updateGridBlock API 사용 (비율은 위 입력칸)</span></div>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);

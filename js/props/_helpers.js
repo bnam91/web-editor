@@ -10,7 +10,9 @@
  *   테이블·그리드 블록 둘 다 이걸 쓴다(복붙 금지).
  */
 export function parseRatio(raw, count) {
-  let parts = String(raw || '').split(/[:,\s]+/).filter(Boolean).map(Number).filter(n => !isNaN(n) && n > 0);
+  /* ★Number.isFinite 로 거른다 — !isNaN(Infinity) 는 true 라 «1e999» 같은 입력이 그대로 통과했고,
+   *   그 값이 dataset 에 들어가면 JSON 직렬화에서 null 이 돼 «비율이 사라진다». */
+  let parts = String(raw || '').split(/[:,\s]+/).filter(Boolean).map(Number).filter(n => Number.isFinite(n) && n > 0);
   while (parts.length < count) parts.push(1);
   parts = parts.slice(0, count);
   return parts;
