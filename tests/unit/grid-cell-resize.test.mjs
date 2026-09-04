@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const srcPath = path.join(__dirname, '../../js/grid-cell-resize.js');
 const aliasPath = path.join(os.tmpdir(), `grid-cell-resize-alias-${process.pid}.mjs`);
 fs.copyFileSync(srcPath, aliasPath);
-const { resizeColBoundary } = await import(pathToFileURL(aliasPath).href);
+const { resizeColBoundary, resizeRowHeight } = await import(pathToFileURL(aliasPath).href);
 fs.unlinkSync(aliasPath);
 
 test('합 보존: 델타를 얼마를 줘도 leftWeight + rightWeight === W', () => {
@@ -84,4 +84,34 @@ test('경계값: 화면 폭 합이 정확히 2*minPx면 클램프 상하한이 �
 test('다른 열은 건드리지 않는다는 계약: 함수는 항상 두 값만 반환한다', () => {
   const r = resizeColBoundary(200, 200, 2, 10);
   assert.deepEqual(Object.keys(r).sort(), ['leftWeight', 'rightWeight']);
+});
+
+/* ── resizeRowHeight (P1 병합 후 신설) ──────────────────────────────────────
+ * 열과 다르다 — «재분배」가 없다. 경계를 끌면 «위» 행 하나의 px 최소높이만 바뀐다.
+ * 반환값은 항상 정수(px) 하나뿐 — 합 보존 계약 자체가 없다(열과의 핵심 차이).
+ */
+test('행 높이: 델타만큼 그대로 늘고 줄어든다(클램프 범위 안)', () => {
+  assert.equal(resizeRowHeight(100, 30), 130);
+  assert.equal(resizeRowHeight(100, -30), 70);
+  assert.equal(resizeRowHeight(100, 0), 100);
+});
+
+test('행 높이: minPx 밑으로는 안 줄어든다(기본 24)', () => {
+  assert.equal(resizeRowHeight(30, -100), 24);
+  assert.equal(resizeRowHeight(30, -100, 10), 10); // 커스텀 minPx
+});
+
+test('행 높이: maxPx 위로는 안 늘어난다(기본 2000)', () => {
+  assert.equal(resizeRowHeight(1990, 500), 2000);
+  assert.equal(resizeRowHeight(100, 500, 24, 300), 300); // 커스텀 maxPx
+});
+
+test('행 높이: 결과는 항상 정수로 반올림된다', () => {
+  assert.equal(resizeRowHeight(100.4, 0.4), 101); // 100.8 → round
+  assert.equal(Number.isInteger(resizeRowHeight(133.7, 12.2)), true);
+});
+
+test('행 높이: 반환값은 숫자 하나뿐(합 보존 같은 계약이 없다 — 열과의 핵심 차이)', () => {
+  const r = resizeRowHeight(100, 20);
+  assert.equal(typeof r, 'number');
 });

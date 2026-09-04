@@ -4,7 +4,16 @@
    Extracted from drag-drop.js (lines ~13–988)
 ═══════════════════════════════════ */
 
-import { resizeColBoundary } from './grid-cell-resize.js';
+import { resizeColBoundary, resizeRowHeight } from './grid-cell-resize.js';
+// ★duo-block.js → drag-drop.js → overlay-handles.js(이 파일) 로 이미 순환 임포트가 있다
+//   (duo-block.js 가 drag-drop.js 의 bindBlock 을 쓰고, drag-drop.js 는 `export * from
+//   './overlay-handles.js'`). 여기서 duo-block.js 를 다시 임포트해도 사이클이 «닫힐» 뿐
+//   깨지지 않는다 — ESM 순환 임포트는 표준(라이브 바인딩)이고, 아래 함수들은 전부 «모듈
+//   최상위가 아니라 이벤트 핸들러 안에서만»(사용자가 실제로 드래그를 시작한 뒤, 즉 전체
+//   그래프가 이미 링크된 뒤) 쓰인다 — 이 셋(duoCols/duoRows/getDuoGrid)이 «단일 진실원»
+//   이라 여기서 dataset.cols/rows 를 직접 재파싱하면 클램프/폴백 로직이 두 곳에 흩어진다
+//   (이 레포의 고질 — P1 IMPL 보고서·P0 EVAL 둘 다 지적한 패턴). 재사용이 맞다.
+import { getDuoGrid, duoCols, duoRows } from './blocks/duo-block.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -1172,31 +1181,32 @@ window.showVectorResizeHandles = showVectorResizeHandles;
 window.hideVectorResizeHandles = hideVectorResizeHandles;
 
 /* ═══════════════════════════════════
-   GRID BLOCK COLUMN GUTTER OVERLAY (P2 — 셀 경계 드래그, PLAN-gridblock.md §5)
-   duo-block(사용자에게는 「그리드 블럭」)이 선택돼 있을 때 열 경계에 드래그 가능한
+   GRID BLOCK ROW/COLUMN GUTTER OVERLAY (P2 — 셀 경계 드래그, PLAN-gridblock.md §5)
+   duo-block(사용자에게는 「그리드 블럭」)이 선택돼 있을 때 열/행 경계에 드래그 가능한
    거터(grd-gutter)를 띄운다. 여기 있는 6종 handle(frame/mockup/icon/asset/canvas/vector)은
    전부 블록 «바깥 테두리»를 px로 늘리는 핸들이라 못 쓴다(PLAN §5-A) — 대신 이 파일의
    #ss-handles-overlay 자리와 rAF 위치갱신·hide 패턴만 그대로 빌린다.
    ⛔거터 DOM 을 블록 «안»에 넣지 않는다 — #ss-handles-overlay는 #canvas-scaler 바깥(캔버스
      클론 대상 밖)이라 저장본·export 에 새지 않는다(완료조건① — section-serialize.js가
      세척하는 root 자체에 애초에 없음).
-   ★값은 항상 «가중치»(cols[i].width) — px 를 직접 쓰지 않는다(폭 계산 함정 회피, duo 는
-     width:100% 고정이라 원래 그 함정 밖이고 여기서도 안 들어간다).
-   ★행 축은 아직 없다(P1 = feat/grid-p1 미병합, 2026-09-04 P2 착수 시점) — 이 오버레이는
-     «열 경계»만 다룬다. 행 경계는 P1 머지 후 별도 커밋으로 추가한다(IMPL-grid-p2.md 참조).
+   ★열 값은 항상 «가중치»(cols[i].width, px 미사용 — 폭 계산 함정 회피). 행 값은 «px 최소높이»
+     (rows[r].height) — 재분배가 아니라 «위 행 하나만» 바뀐다(P1 R2 모델, PLAN §3-A/§5-B-3).
+   ★DOM 구조(2026-09-04 P1 병합) — flex `.duo-col` → CSS grid `.duo-cell[data-r][data-c]`.
+     열 경계는 행0(data-r="0")의 인접 셀, 행 경계는 열0(data-c="0")의 인접 셀에서 rect를 잰다
+     (grid-template-columns/rows 가 블록 전역이라 어느 행/열을 봐도 폭/높이는 같다).
 ═══════════════════════════════════ */
 let _gridGutterBlock = null;
 let _gridGutterRafId = null;
 
-function _getGridCols(block) {
-  return Array.from(block.querySelectorAll(':scope > .duo-inner > .duo-col'));
+function _getGridCell(block, r, c) {
+  return block.querySelector(`:scope > .duo-inner > .duo-cell[data-r="${r}"][data-c="${c}"]`);
 }
 
 function showGridGutters(block) {
   if (_gridGutterBlock === block) { _updateGridGutterPositions(); return; }
   hideGridGutters();
-  const cols = _getGridCols(block);
-  if (cols.length < 2) return; // 열 1개는 경계가 없다
+  const { cols, rows } = getDuoGrid(block);   // 단일 진실원(duo-block.js) — 여기서 재파싱하지 않는다
+  if (cols.length < 2 && rows.length < 2) return; // 경계가 하나도 없다
   _gridGutterBlock = block;
   const overlay = _getOverlay();
   if (!overlay) return;
@@ -1209,7 +1219,16 @@ function showGridGutters(block) {
     //   이라 자식은 absolute 로 둬도 좌표계가 뷰포트와 같다(.ss-resize-handle 등 기존 핸들과 동일 관례).
     g.style.cssText = 'position:absolute;width:8px;cursor:col-resize;z-index:97;pointer-events:auto;';
     overlay.appendChild(g);
-    g.addEventListener('mousedown', e => _onGridGutterMouseDown(e, block, i));
+    g.addEventListener('mousedown', e => _onGridColMouseDown(e, block, i));
+  }
+  for (let i = 0; i < rows.length - 1; i++) {
+    const g = document.createElement('div');
+    g.className = 'grd-gutter';
+    g.dataset.axis = 'row';
+    g.dataset.i = String(i);
+    g.style.cssText = 'position:absolute;height:8px;cursor:row-resize;z-index:97;pointer-events:auto;';
+    overlay.appendChild(g);
+    g.addEventListener('mousedown', e => _onGridRowMouseDown(e, block, i));
   }
   _updateGridGutterPositions();
   _startGridGutterRaf();
@@ -1239,11 +1258,11 @@ function _startGridGutterRaf() {
 function _updateGridGutterPositions() {
   const overlay = _getOverlay();
   if (!overlay || !_gridGutterBlock) return;
-  const cols = _getGridCols(_gridGutterBlock);
-  const blockRect = _gridGutterBlock.getBoundingClientRect();
+  const block = _gridGutterBlock;
+  const blockRect = block.getBoundingClientRect();
   overlay.querySelectorAll('.grd-gutter[data-axis="col"]').forEach(g => {
     const i = +g.dataset.i;
-    const a = cols[i], b = cols[i + 1];
+    const a = _getGridCell(block, 0, i), b = _getGridCell(block, 0, i + 1);
     if (!a || !b) { g.style.display = 'none'; return; }
     g.style.display = '';
     const ar = a.getBoundingClientRect();
@@ -1253,20 +1272,30 @@ function _updateGridGutterPositions() {
     g.style.top = blockRect.top + 'px';
     g.style.height = blockRect.height + 'px';
   });
+  overlay.querySelectorAll('.grd-gutter[data-axis="row"]').forEach(g => {
+    const i = +g.dataset.i;
+    const a = _getGridCell(block, i, 0), b = _getGridCell(block, i + 1, 0);
+    if (!a || !b) { g.style.display = 'none'; return; }
+    g.style.display = '';
+    const ar = a.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
+    const cy = (ar.bottom + br.top) / 2; // 두 행 사이 gap 의 중앙
+    g.style.top = (cy - 4) + 'px';       // 8px 높이 중앙 정렬
+    g.style.left = blockRect.left + 'px';
+    g.style.width = blockRect.width + 'px';
+  });
 }
 
 // 열 경계 드래그 — 인접 두 열의 «가중치»만 재분배(합 보존, 다른 열 불변).
 // wL0/wR0(화면 px, 스케일로 나눈 캔버스 px)와 W(가중치 합)는 mousedown 시점 1회 스냅샷 —
 // mousemove 는 여기서 튄 델타만 resizeColBoundary(순수함수, grid-cell-resize.js)에 먹인다.
-function _onGridGutterMouseDown(e, block, i) {
+function _onGridColMouseDown(e, block, i) {
   if (e.button !== 0) return;
   e.preventDefault();
   e.stopPropagation();
-  let cols;
-  try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) { cols = []; }
-  if (!Array.isArray(cols) || !cols[i] || !cols[i + 1]) return;
-  const colEls = _getGridCols(block);
-  const elA = colEls[i], elB = colEls[i + 1];
+  const cols = duoCols(block);   // 클램프·폴백까지 반영된 단일 진실원(duo-block.js)
+  if (!cols[i] || !cols[i + 1]) return;
+  const elA = _getGridCell(block, 0, i), elB = _getGridCell(block, 0, i + 1);
   if (!elA || !elB) return;
 
   // row draggable(block-drag.js)과의 충돌 방지 — 거터는 블록 밖(오버레이)이라 애초에 잘 안 맞지만,
@@ -1300,6 +1329,46 @@ function _onGridGutterMouseDown(e, block, i) {
         return Number.isInteger(n) ? String(n) : String(+n.toFixed(2));
       }).join(':');
     }
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// 행 경계 드래그 (P1 병합 후 신설) — «가중치 재분배 없음»(PLAN §3-A/§5-B-3). 경계 i|i+1 을
+// 끌면 «위» 행(rows[i])의 px 최소높이만 바뀐다 — 아래 행은 그대로. resizeRowHeight(순수함수).
+function _onGridRowMouseDown(e, block, i) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const rows = duoRows(block);   // 클램프·폴백까지 반영된 단일 진실원(duo-block.js)
+  if (!rows[i] || !rows[i + 1]) return;
+  const elA = _getGridCell(block, i, 0);
+  if (!elA) return;
+
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+
+  const scale0 = _canvasScaleNow();
+  const startH0 = elA.getBoundingClientRect().height / scale0; // 'auto' 행도 «지금 렌더된» 높이에서 시작
+  const startY = e.clientY;
+  window.pushHistory?.(); // ★드래그 «시작 직전» 1회만
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const delta = (ev.clientY - startY) / scale;
+    const h = resizeRowHeight(startH0, delta, 24, 2000);
+    rows[i] = { height: h };
+    block.dataset.rows = JSON.stringify(rows);
+    window.renderDuoBlock?.(block);
+    _updateGridGutterPositions();
+    // 패널이 열려 있으면 그 행의 입력값만 갱신 — 패널 재렌더 금지(열 경계와 동일 원칙).
+    const rowInput = document.querySelector(`.grd-row-h-item[data-ri="${i}"]`);
+    if (rowInput) rowInput.value = String(h);
     window.scheduleAutoSave?.();
   }
   function onUp() {

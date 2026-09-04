@@ -25,4 +25,13 @@ function resizeColBoundary(wL, wR, W, deltaPx, minPx = 40) {
   return { leftWeight, rightWeight };
 }
 
-export { resizeColBoundary };
+// ── 행 경계 드래그 (P1 병합 후 신설) ──────────────────────────────────────
+// 열과 다르다 — 행 높이는 «가중치»가 아니라 «px 최소높이»(P1 R2 모델, PLAN §3-A U5a 의미론).
+// 경계 r|r+1 을 끌면 «위» 행(rows[r])의 높이만 바뀐다 — 아래 행은 손대지 않는다(재분배 없음,
+// PLAN §5-B-3 "행 «가중치» 재분배는 없다"). startH 는 mousedown 시점 실제 렌더 높이(px, scale로
+// 나눈 값) — 'auto' 행도 「지금 화면에 보이는 높이」에서 드래그를 시작한다.
+function resizeRowHeight(startH, deltaPx, minPx = 24, maxPx = 2000) {
+  return Math.round(Math.max(minPx, Math.min(maxPx, startH + deltaPx)));
+}
+
+export { resizeColBoundary, resizeRowHeight };
