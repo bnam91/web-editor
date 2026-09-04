@@ -77,6 +77,107 @@ function _restoreParentFrameSelected(block) {
   // realFrame이 null이면 (section 직속 text-frame): _activeFrame 설정 안 함 → 섹션에 추가됨
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   그리드(duo) 블록 — 캔버스 인라인 텍스트 편집 (P1.5, 현빈 2026-09-04 지시)
+   「이건 왜 필요하니 우측패널에 굳이? 캔버스에서 바로 수정하면 되지 않겠어?」
+   → 우측 패널의 「Column N」 입력 절은 삭제됐다(js/props/prop-duo.js). 글자는 여기서 고친다.
+   ────────────────────────────────────────────────────────────────────────
+   ★판정은 «이 함수 하나»다 — 「이 DOM 은 고칠 수 있는 줄인가 / 좌표는 / 글자를 담는 요소는」.
+     더블클릭 진입·커밋이 전부 이걸 부른다. 같은 판정을 렌더/hover/클릭에 베껴 갈라진 전례가
+     이 레포에 있다(EVAL-grid-final 「살아있는 칸」) — 술어 하나만 둔다.
+   ★좌표는 «추측하지 않는다» — renderDuoBlock 이 줄마다 data-r/data-c/data-line 을 심는다
+     (js/blocks/duo-block.js). DOM 순서로 역산하면 gap/image 줄이 섞였을 때 어긋난다.
+══════════════════════════════════════════════════════════════════════════ */
+function _duoEditable(node) {
+  const line = node && node.closest ? node.closest('[data-line]') : null;
+  if (!line) return null;
+  const block = line.closest('.duo-block');
+  if (!block) return null;
+  const r = Number(line.dataset.r), c = Number(line.dataset.c), li = Number(line.dataset.line);
+  if (!Number.isInteger(r) || !Number.isInteger(c) || !Number.isInteger(li)) return null;
+  /* 글자를 «담는» 요소: 보통 라인 <div>(.duo-line) 자신.
+     뱃지(line.bg 지정)만 안쪽 <span class="duo-badge">가 담는다 — 바깥 div 는 정렬 래퍼다.
+     gap/image/중첩duo/graph 라인은 글자가 없다 → null(편집 대상 아님).
+     ⛔중첩(depth≥1) 라인엔 애초에 data-line 이 없다 — closest 가 바깥 .duo-nested 를 집고
+       여기서 null 로 떨어진다(중첩·innercard 경로는 손대지 않는다). */
+  const host = line.classList.contains('duo-line')
+    ? line
+    : line.querySelector(':scope > .duo-badge');
+  if (!host) return null;
+  return { block, line, host, r, c, li };
+}
+
+/* 화면 글자 → 데이터 문자열. 렌더러가 white-space:pre-wrap 이라 줄바꿈이 그대로 살아난다
+   → textContent(줄바꿈 소실) 가 아니라 innerText 를 쓴다. */
+function _duoReadText(host) {
+  return String(host.innerText == null ? '' : host.innerText).replace(/\r\n?/g, '\n');
+}
+
+/* 편집 세션 종료 = «단일 커밋 choke point» (image-handling.js 편집 세션과 같은 형태).
+   blur / Escape / 다른 곳 클릭이 전부 여기 하나로 모인다.
+   ★pushHistory 는 여기서 «따로 부르지 않는다» — updateDuoBlock 이 dataset 을 바꾸기 «직전»에
+     스스로 1회 부른다. 더블클릭 때 또 부르면 스냅샷이 2개 쌓여 ⌘Z 를 두 번 눌러야 한다.
+     (타이핑마다 쌓이지 않는다 = 세션당 정확히 1개.)
+   ★빈 문자열 정책 = «빈 줄 유지»(플레이스홀더 복귀 아님). 옛 우측패널 입력(.duo-line-input)이
+     input 을 비우면 text:'' 를 그대로 저장했다 — 그 동작을 그대로 잇는다. 되돌리기는 ⌘Z. */
+function _duoEndEdit(block, host, addr) {
+  if (host.getAttribute('contenteditable') !== 'true') return;
+  host.setAttribute('contenteditable', 'false');
+  host.removeAttribute('draggable');
+  block.classList.remove('editing');
+  const before = host._duoBefore;
+  const text = _duoReadText(host);
+  // 안 바뀌었으면 «아무것도» 하지 않는다 — 재렌더가 없어야 바로 옆 줄을 이어서 더블클릭할 때
+  // DOM 이 갈리지 않고, 히스토리에 빈 항목도 안 쌓인다.
+  // (before 가 없다 = 편집 진입을 안 거친 상태 → 'undefined' 를 데이터에 쓰지 않고 그냥 나간다)
+  if (before == null || text === before) return;
+  /* ★DOM 을 편집 «전»으로 되돌린 뒤 커밋한다.
+     updateDuoBlock 안의 pushHistory 는 «직렬화된 캔버스»를 통째로 찍는다 — 타이핑된 글자가
+     DOM 에 남은 채 찍히면 그 스냅샷이 「옛 dataset + 새 글자」로 어긋난다.
+     되돌린 직후 updateDuoBlock 이 renderDuoBlock 으로 새 글자를 다시 그리므로 깜빡임은 없다. */
+  host.textContent = before;
+  const res = window.updateDuoBlock?.(block.id, {
+    patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, text },
+  });
+  // 실패(좌표가 범위 밖 등)면 화면은 이미 «편집 전»이라 화면·데이터가 갈라진 채 남지 않는다.
+  if (res && res.ok === false) window.showToast?.(`줄 수정 실패: ${res.message || res.code}`);
+}
+
+function _duoBeginEdit(hit, e) {
+  const { block, host, r, c, li } = hit;
+  if (host.getAttribute('contenteditable') === 'true') return;
+  block.classList.add('editing');   // 공통 mousedown 드래그·dragstart·삭제키 가드가 이걸 본다
+  host.setAttribute('contenteditable', 'true');
+  // 부모 row 에 draggable="true" 가 걸려 있다 — 안 끄면 «글자 드래그 선택»이 블록 드래그가 된다
+  // (텍스트 블록도 같은 이유로 contenteditable 요소에 draggable=false 를 박는다 — 이 파일의 dragTarget 배선).
+  host.setAttribute('draggable', 'false');
+  host._duoBefore = _duoReadText(host);
+  const addr = { r, c, li };
+  // 라인 요소는 렌더마다 새로 만들어진다 → 이 요소에 처음 한 번만 붙이면 된다(누수 없음).
+  if (!host._duoEditBound) {
+    host._duoEditBound = true;
+    host.addEventListener('blur', () => _duoEndEdit(block, host, addr));
+    host.addEventListener('keydown', ev => {
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        ev.stopPropagation();   // 전역 deselectAll 차단(텍스트 블록과 동일 규약)
+        host.blur();            // blur 핸들러가 커밋한다
+      }
+    });
+  }
+  host.focus();
+  // 클릭한 위치에 캐럿 — 텍스트 블록 더블클릭과 같은 방식(caretRangeFromPoint).
+  const range = e && document.caretRangeFromPoint
+    ? document.caretRangeFromPoint(e.clientX, e.clientY)
+    : null;
+  const sel = window.getSelection();
+  if (sel) {
+    sel.removeAllRanges();
+    if (range) sel.addRange(range);
+    else { const rr = document.createRange(); rr.selectNodeContents(host); rr.collapse(false); sel.addRange(rr); }
+  }
+}
+
 function bindBlock(block) {
   if (block._blockBound) return;
   block._blockBound = true;
@@ -1488,6 +1589,15 @@ function bindBlock(block) {
     if (!flag) continue;
     block.addEventListener('click', e => {
       e.stopPropagation();
+      /* 인라인 편집 중이면 선택/패널 재생성을 하지 않는다 — 캐럿 이동·글자 선택이 우선
+         (텍스트/아이콘텍스트 블록과 같은 규약. .editing 은 duo 만 붙으므로 infocard/innercard 무영향)
+         ★단 «클래스만» 보고 믿지 않는다 — 포커스된 요소가 DOM 에서 제거되면 Chromium 은 blur 를
+           «안» 준다(재렌더가 그 상황을 만든다). 그때 .editing 이 고착되면 블록이 영영 안 눌린다.
+           실제 contenteditable 이 살아있는지로 확인하고, 아니면 여기서 스스로 걷어낸다. */
+      if (block.classList.contains('editing')) {
+        if (block.querySelector('[contenteditable="true"]')) return;
+        block.classList.remove('editing');
+      }
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
@@ -1510,6 +1620,23 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window[showFn]?.(block);
+    });
+  }
+
+  /* 그리드(duo) 캔버스 인라인 편집 — 줄 더블클릭으로 진입 (P1.5).
+     블록에 «위임»으로 건다 — renderDuoBlock 이 innerHTML 을 통째로 갈아끼우므로
+     줄마다 바인딩하면 재렌더 한 번에 전부 죽는다. */
+  if (isDuo) {
+    block.addEventListener('dblclick', e => {
+      /* ★e.target 이 아니라 elementFromPoint 를 «먼저» 본다.
+         앞선 줄의 커밋이 innerHTML 을 갈아끼웠으면 첫 클릭의 타깃이 이미 detach 돼
+         dblclick 타깃이 .duo-block 까지 올라온다(그러면 closest 가 null → 편집이 안 열린다).
+         텍스트 블록의 dblclick 도 같은 이유로 elementFromPoint 로 대상을 고른다(이 파일 isText 분기). */
+      const hit = _duoEditable(document.elementFromPoint(e.clientX, e.clientY))
+               || _duoEditable(e.target);
+      if (!hit || hit.block !== block) return;   // gap/image/중첩 줄 = 편집 대상 아님
+      e.stopPropagation();
+      _duoBeginEdit(hit, e);
     });
   }
 

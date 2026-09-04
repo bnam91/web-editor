@@ -888,6 +888,16 @@
 .infocard-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 
+/* ── 그리드(duo) 캔버스 인라인 편집 (P1.5) ──
+   ⛔여기서 «어느 줄이 편집 가능한가»를 판정하지 않는다 — 그 판정은 js/block-drag.js 의
+     _duoEditable 하나뿐이고, 이 규칙은 그 결과로 «실제 켜진» contenteditable 상태에만 반응한다
+     (CSS 에 판정을 베끼면 JS 와 갈라진다). #canvas 스코프 = export 클론엔 안 샌다. */
+#canvas .duo-block [contenteditable="true"] {
+  outline: 1px solid var(--sel-color);
+  outline-offset: 2px;
+  cursor: text;
+}
+
 /* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
 .row:has(.text-block.selected),
 .frame-block[data-text-frame="true"]:has(.text-block.selected) {

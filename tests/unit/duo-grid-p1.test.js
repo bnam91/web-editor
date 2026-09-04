@@ -401,3 +401,98 @@ test('patchCell{lineIndex} — 범위 밖(줄 개수 초과·음수)은 거부�
   assert.equal(updateDuoBlock(block.id, { patchCell: { r: 0, c: 0, lineIndex: -1, text: 'x' } }).ok, false);
   assert.equal(updateDuoBlock(block.id, { patchCell: { r: 0, c: 1, lineIndex: 0, text: 'x' } }).ok, false, '빈 셀(줄 0개)엔 patchCell.lineIndex 가 무조건 범위 밖');
 });
+
+/* ═══ ⑧ 좌표 왕복 — 「렌더가 심은 좌표 → patchCell 커밋 → 재렌더」 (P1.5 캔버스 인라인 편집)
+ *   ★캔버스 인라인 편집(js/block-drag.js `_duoEditable`/`_duoEndEdit`)이 하는 일과 «같은 순서»로 민다:
+ *     화면에서 좌표를 «읽고» → 그 좌표로 커밋 → 재렌더 결과의 «같은 좌표»를 다시 읽는다.
+ *     좌표를 리터럴로 박으면 「렌더가 좌표를 잘못 심어도 통과하는」 테스트가 된다.
+ *   ★상한(4×4)도 리터럴로 쓰지 않는다 — MAX_COLS/MAX_ROWS 를 import 해서 쓴다(이 레포에서
+ *     리터럴 기대값이 상수 변경 뒤 빨강인 채 커밋 2개를 통과한 사고가 실재한다).            ═══ */
+
+// 렌더된 HTML 에서 「이 글자를 담은 줄」의 좌표를 읽는다 — 인라인 편집이 DOM 에서 하는 일과 같다.
+function addrOf(html, text) {
+  const esc = String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const m = html.match(new RegExp(`<[^>]*data-r="(\\d+)" data-c="(\\d+)" data-line="(\\d+)"[^>]*>${esc}<`));
+  return m ? { r: +m[1], c: +m[2], li: +m[3] } : null;
+}
+
+test('왕복① — 렌더가 심은 좌표로 patchCell 을 커밋하면 재렌더 HTML 의 «같은 좌표»에 새 글자가 온다', () => {
+  const block = freshBlock({ cols: [
+    { width: 1, lines: [{ type: 'h2', text: 'A0' }, { type: 'body', text: 'A1' }] },
+    { width: 1, lines: [{ type: 'body', text: 'B0' }] },
+  ] });
+  const addr = addrOf(block.innerHTML, 'A1');
+  assert.ok(addr, '렌더된 줄에서 좌표를 읽을 수 있어야 한다(못 읽으면 인라인 편집이 성립 안 한다)');
+
+  const res = updateDuoBlock(block.id, { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, text: 'A1★' } });
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.applied.patchCell, { r: addr.r, c: addr.c, lineIndex: addr.li, text: 'A1★' });
+  assert.deepEqual(addrOf(block.innerHTML, 'A1★'), addr, '같은 좌표에 새 글자');
+  assert.deepEqual(addrOf(block.innerHTML, 'A0'), { r: addr.r, c: addr.c, li: 0 }, '형제 줄은 자리도 글자도 그대로');
+  assert.ok(block.innerHTML.includes('>B0<'), '다른 셀은 무변화');
+});
+
+test('왕복② — MAX_ROWS×MAX_COLS 그리드의 «마지막 칸»도 좌표 왕복이 된다(상한은 상수에서 온다)', () => {
+  const cols  = Array.from({ length: MAX_COLS }, (_, c) => ({ width: 1, lines: [{ type: 'body', text: `R0C${c}` }] }));
+  const rows  = Array.from({ length: MAX_ROWS }, () => ({ height: 'auto' }));
+  const cells = Array.from({ length: MAX_ROWS }, (_, r) =>
+    Array.from({ length: MAX_COLS }, (_, c) => ({ lines: [{ type: 'body', text: `R${r}C${c}` }] })));
+  const block = freshBlock({ cols, rows, cells });
+
+  const addr = addrOf(block.innerHTML, `R${MAX_ROWS - 1}C${MAX_COLS - 1}`);
+  assert.deepEqual(addr, { r: MAX_ROWS - 1, c: MAX_COLS - 1, li: 0 }, '끝 칸 좌표가 상한과 맞는다');
+  const res = updateDuoBlock(block.id, { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, text: 'LAST' } });
+  assert.equal(res.ok, true);
+  assert.deepEqual(addrOf(block.innerHTML, 'LAST'), addr, '추가행(r≥1) 끝 칸도 같은 경로로 왕복');
+  assert.ok(block.innerHTML.includes('>R0C0<'), '행0 셀0 은 무변화');
+});
+
+test('왕복③ — 빈 문자열로 지우면 «빈 줄 유지»(플레이스홀더 복귀 아님 — 옛 .duo-line-input 과 같은 동작)', () => {
+  const block = freshBlock({ cols: [
+    { width: 1, lines: [{ type: 'body', text: 'X' }] },
+    { width: 1, lines: [{ type: 'body', text: 'Y' }] },
+  ] });
+  const addr = addrOf(block.innerHTML, 'X');
+  const res = updateDuoBlock(block.id, { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, text: '' } });
+  assert.equal(res.ok, true);
+  assert.equal(JSON.parse(block.dataset.cols)[0].lines[0].text, '', '데이터엔 빈 문자열이 «그대로» 남는다(줄이 지워지지 않는다)');
+  assert.equal(JSON.parse(block.dataset.cols)[0].lines[0].type, 'body', 'type 등 다른 필드는 유지(merge)');
+  assert.match(block.innerHTML, /data-r="0" data-c="0" data-line="0"[^>]*><\/div>/, '줄 요소와 좌표는 살아있고 글자만 비었다');
+  assert.doesNotMatch(block.innerHTML, />X</);
+});
+
+test('좌표 계약① — 뱃지 줄(line.bg)은 좌표가 «바깥 div», 글자는 안쪽 .duo-badge 다(인라인 편집 host 규칙의 근거)', () => {
+  const block = freshBlock({ cols: [
+    { width: 1, lines: [{ type: 'body', text: 'BDG', bg: '#ff0000' }] },
+    { width: 1, lines: [] },
+  ] });
+  assert.match(block.innerHTML, /<div data-r="0" data-c="0" data-line="0"[^>]*><span class="duo-badge"[^>]*>BDG<\/span><\/div>/);
+  const res = updateDuoBlock(block.id, { patchCell: { r: 0, c: 0, lineIndex: 0, text: 'BDG2' } });
+  assert.equal(res.ok, true);
+  assert.match(block.innerHTML, /<span class="duo-badge"[^>]*>BDG2<\/span>/, '뱃지도 같은 patchCell 경로로 왕복한다');
+});
+
+test('좌표 계약② — gap/image 줄에도 좌표는 찍히지만 «글자 담는 요소»가 없다(편집 대상 제외의 근거)', () => {
+  const block = freshBlock({ cols: [
+    { width: 1, lines: [{ type: 'gap', height: 20 }, { type: 'image' }] },
+    { width: 1, lines: [] },
+  ] });
+  assert.match(block.innerHTML, /<div data-r="0" data-c="0" data-line="0" class="duo-gap"/);
+  assert.match(block.innerHTML, /<div data-r="0" data-c="0" data-line="1" class="duo-img duo-img-empty"/);
+  // 인라인 편집은 «.duo-line 이거나 안쪽 .duo-badge» 만 host 로 삼는다 — 둘 다 없으면 편집이 안 열린다.
+  assert.doesNotMatch(block.innerHTML, /class="duo-line/);
+  assert.doesNotMatch(block.innerHTML, /duo-badge/);
+});
+
+test('중첩/innercard 회귀 — 중첩 duo 안쪽 줄에는 좌표가 «0건»이다(주소는 최상위 줄만)', () => {
+  const block = freshBlock({ cols: [
+    { width: 1, lines: [{ type: 'duo', cols: [
+      { width: 1, lines: [{ type: 'body', text: 'IN0' }] },
+      { width: 1, lines: [{ type: 'body', text: 'IN1' }] },
+    ] }] },
+    { width: 1, lines: [] },
+  ] });
+  assert.match(block.innerHTML, /<div data-r="0" data-c="0" data-line="0" class="duo-nested"/, '중첩 «컨테이너»엔 좌표가 있다');
+  assert.equal((block.innerHTML.match(/data-line="/g) || []).length, 1, '주소는 최상위 줄 1개뿐 — 안쪽 2줄엔 0건');
+  assert.ok(block.innerHTML.includes('>IN0<') && block.innerHTML.includes('>IN1<'), '안쪽 줄은 그대로 렌더된다');
+});

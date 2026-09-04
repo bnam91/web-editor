@@ -260,8 +260,9 @@ function renderDuoBlock(block) {
       const bg = (typeof bgRaw === 'string' && _DUO_COLOR_RE.test(bgRaw.trim())) ? bgRaw.trim() : '';
       const pad = Number(pick('padding')) || 0;
       const rad = Number(pick('radius')) || 0;
-      // ★각 라인에도 좌표를 심는다(data-r/data-c/data-line) — 캔버스 인라인 편집(P1.5) 전제 설계,
-      //   현빈 2026-09-04 지시. blur 시 「어느 셀 몇 번째 줄인가」를 DOM 순서 추측 없이 바로 읽는다.
+      // ★각 라인에도 좌표를 심는다(data-r/data-c/data-line) — 현빈 2026-09-04 지시.
+      //   ★2026-09-05 P1.5 부터 «실제로 읽는 소비자»가 있다: js/block-drag.js 의 캔버스 인라인 편집이
+      //   blur 때 「어느 셀 몇 번째 줄인가」를 DOM 순서 추측 없이 여기서 바로 읽어 patchCell 로 커밋한다.
       cellsHtml.push(`<div class="duo-cell" data-r="${r}" data-c="${c}" style="min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}">
         ${lines.map((l, li) => _duoLineHtml(l, align, 0, { r, c, li })).join('')}
       </div>`);

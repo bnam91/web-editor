@@ -1,5 +1,5 @@
 /* ── Duo(다단) 블록 프로퍼티 패널 ──
-   구조(컬럼/라인 추가·삭제)는 CDP/updateDuoBlock 영역 — 패널은 텍스트·간격·정렬·행 높이만 다룬다. */
+   구조(컬럼/라인 추가·삭제)는 CDP/updateDuoBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
 import { parseRatio, buildGridPicker } from './_helpers.js';
 import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★상한은 한 곳에서만 온다
@@ -67,8 +67,6 @@ export function showDuoProperties(block) {
   const _aligns = cols.map(c => c.align || 'left');
   const halign = (_aligns.length && _aligns.every(a => a === _aligns[0])) ? _aligns[0] : '';
 
-  const _esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
   propPanel.innerHTML = `
     <div class="prop-section">
       <div class="prop-block-label">
@@ -132,22 +130,8 @@ export function showDuoProperties(block) {
       </div>
       <div class="prop-hint" style="margin-top:2px;">세로 정렬은 컬럼 높이가 서로 다를 때만 움직인다</div>
     </div>
-    <!-- ⚠️P1.5 에서 캔버스 인라인 편집으로 대체 예정(현빈 2026-09-04 지시) — duo-line 엔 이미
-         data-r/data-c/data-line 좌표가 심겨 있다(renderDuoBlock). 지금은 «유일한» 텍스트 입력
-         수단(duo 블록엔 contenteditable 이 0건)이라 지우지 않는다 — 인라인 편집이 들어오면
-         이 아래 «한 블록»(Column N 섹션)만 지우면 된다(현재 한 곳에 모여 있음). -->
-    ${cols.map((col, ci) => `
     <div class="prop-section">
-      <div class="prop-section-title">Column ${ci + 1}${rows.length > 1 ? ' (행 1)' : ''}</div>
-      ${(Array.isArray(col.lines) ? col.lines : []).map((l, li) =>
-        (l.type === 'image' || l.type === 'gap') ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">${_esc(l.type || 'body')}</span>
-        <input type="text" class="prop-input duo-line-input" data-col="${ci}" data-line="${li}" value="${_esc(l.text || '')}" style="flex:1;min-width:0">
-      </div>`).join('')}
-    </div>`).join('')}
-    <div class="prop-section">
-      <div class="prop-row"><span class="prop-label" style="opacity:.6">${rows.length > 1 ? '행 2 이상의 셀 내용·' : ''}라인 구조 변경은 updateGridBlock API 사용</span></div>
+      <div class="prop-row"><span class="prop-label" style="opacity:.6">글자는 «캔버스에서 줄을 더블클릭»해 고친다 · 라인 구조(추가·삭제) 변경은 updateGridBlock API 사용</span></div>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
@@ -296,17 +280,6 @@ export function showDuoProperties(block) {
       showDuoProperties(block);
     } catch (_) {}
   }));
-
-  propPanel.querySelectorAll('.duo-line-input').forEach(inp => {
-    inp.addEventListener('input', () => {
-      try {
-        const c = JSON.parse(block.dataset.cols || '[]');
-        const l = c[+inp.dataset.col]?.lines?.[+inp.dataset.line];
-        if (l) { l.text = inp.value; block.dataset.cols = JSON.stringify(c); window.renderDuoBlock?.(block); }
-      } catch (_) {}
-    });
-    inp.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
-  });
 
   /* ── 행 높이 — change(blur/Enter)에서만 커밋(비율 입력과 동일 원칙) ──────── */
   propPanel.querySelectorAll('.grd-row-h-item').forEach(inp => {
