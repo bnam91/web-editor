@@ -65,3 +65,53 @@ export function bindSlider(slider, number, applyFn, opts = {}) {
     if (autosave) window.scheduleAutoSave?.();
   });
 }
+
+/**
+ * 4×4 그리드 피커를 «한 곳에서» 만든다.
+ * ★이 UI 는 카드(prop-canvas.js:134-166)·심플카드(prop-simple-card.js:451-491)에
+ *   이미 «복붙 2벌»로 있었다. 그리드 블록이 세 번째 복붙이 되지 않게 여기로 뺐다
+ *   (PLAN-gridblock.md §5 권고). 기존 두 곳은 동작이 검증돼 있어 이번엔 안 건드린다 —
+ *   옮기려면 그쪽 회귀 검증이 따로 필요하다.
+ *
+ * @param {HTMLElement} picker  셀을 채울 빈 컨테이너(.grid-picker)
+ * @param {HTMLElement} label   "c × r" 을 쓸 곳(.grid-picker-label)
+ * @param {(cols:number, rows:number)=>void} onPick  클릭 시 호출
+ * @param {object} [opts]
+ * @param {number} [opts.max=4]      격자 한 변
+ * @param {number} [opts.maxRows]    행 상한(없으면 max). 행 축이 아직 없으면 1 을 준다.
+ */
+export function buildGridPicker(picker, label, onPick, opts = {}) {
+  if (!picker) return;
+  const MAX = opts.max || 4;
+  const MAXR = opts.maxRows || MAX;
+  picker.innerHTML = '';
+  for (let r = 1; r <= MAX; r++) {
+    for (let c = 1; c <= MAX; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'grid-picker-cell';
+      cell.dataset.r = r; cell.dataset.c = c;
+      // 아직 못 만드는 조합은 «죽은 칸»으로 둔다 — 눌러도 아무 일 없는 것보다 안 눌리는 게 정직하다.
+      if (r > MAXR) cell.classList.add('grid-picker-cell--off');
+      picker.appendChild(cell);
+    }
+  }
+  const clear = () => {
+    picker.querySelectorAll('.grid-picker-cell').forEach(cl => cl.classList.remove('active'));
+    if (label) label.textContent = '—';
+  };
+  picker.addEventListener('mouseover', e => {
+    const cell = e.target.closest('.grid-picker-cell');
+    if (!cell || cell.classList.contains('grid-picker-cell--off')) return;
+    const r = +cell.dataset.r, c = +cell.dataset.c;
+    picker.querySelectorAll('.grid-picker-cell').forEach(cl => {
+      cl.classList.toggle('active', +cl.dataset.r <= r && +cl.dataset.c <= c && +cl.dataset.r <= MAXR);
+    });
+    if (label) label.textContent = `${c} × ${r}`;
+  });
+  picker.addEventListener('mouseleave', clear);
+  picker.addEventListener('click', e => {
+    const cell = e.target.closest('.grid-picker-cell');
+    if (!cell || cell.classList.contains('grid-picker-cell--off')) return;
+    onPick(+cell.dataset.c, +cell.dataset.r);
+  });
+}

@@ -41,7 +41,8 @@ function _duoCols(block) {
   let cols;
   try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) { cols = []; }
   if (!Array.isArray(cols) || cols.length < 2) cols = JSON.parse(JSON.stringify(DUO_DEFAULTS.cols));
-  return cols.slice(0, 3);
+  return cols.slice(0, 4);   // ★상한 4 (2026-09-04, 4x4 피커) — updateDuoBlock 검증과 «같은 값»이어야 한다
+
 }
 
 function _duoLineHtml(line, colAlign, depth = 0) {
@@ -71,6 +72,8 @@ function _duoLineHtml(line, colAlign, depth = 0) {
   // 중첩 duo: {type:'duo', gap, valign, cols:[{width, lines[]}]} — innercard 후기카드 등 (BL-SFB-01)
   if (line.type === 'duo') {
     if (depth >= 2) return '';                       // 무한 중첩 가드 (2단까지)
+    // ⛔중첩 duo(라인 안의 duo)는 상한 3 «그대로» — 4x4 피커는 «블록» 대상이라
+    //   중첩까지 넓히면 innercard 렌더 회귀 범위가 커진다(PLAN §P1 회귀위험).
     const cols = Array.isArray(line.cols) ? line.cols.slice(0, 3) : [];
     if (!cols.length) return '';
     const gap = Number(line.gap) || 24;
@@ -164,7 +167,7 @@ function makeDuoBlock(opts = {}) {
   block.className = 'duo-block';
   block.id = genId('duo');
   block.dataset.type = 'duo';
-  const cols = (Array.isArray(opts.cols) && opts.cols.length >= 2) ? opts.cols.slice(0, 3) : JSON.parse(JSON.stringify(DUO_DEFAULTS.cols));
+  const cols = (Array.isArray(opts.cols) && opts.cols.length >= 2) ? opts.cols.slice(0, 4) : JSON.parse(JSON.stringify(DUO_DEFAULTS.cols));
   block.dataset.cols = JSON.stringify(cols);
   block.dataset.gap = String(Number.isFinite(Number(opts.gap)) ? Number(opts.gap) : DUO_DEFAULTS.gap);
   block.dataset.valign = ['top', 'middle', 'bottom'].includes(opts.valign) ? opts.valign : DUO_DEFAULTS.valign;
@@ -211,8 +214,11 @@ function updateDuoBlock(blockId, partial = {}) {
   const applied = {};
 
   if (partial.cols !== undefined) {
-    if (!Array.isArray(partial.cols) || partial.cols.length < 2 || partial.cols.length > 3) {
-      return { ok: false, code: 'INVALID', message: 'cols must be array of 2~3 columns' };
+    /* ★상한 3 → 4 (2026-09-04): 우측 패널 4×4 피커가 최대 4열을 준다.
+     * 하한 2 는 유지한다 — 1열짜리 「그리드」는 그리드가 아니고, _duoCols 폴백이
+     * 1열을 기본값으로 되돌려 «내용을 지우는» 함정이 있다(PLAN §P1 회귀위험). */
+    if (!Array.isArray(partial.cols) || partial.cols.length < 2 || partial.cols.length > 4) {
+      return { ok: false, code: 'INVALID', message: 'cols must be array of 2~4 columns' };
     }
     next.cols = JSON.stringify(partial.cols);
     applied.cols = partial.cols;

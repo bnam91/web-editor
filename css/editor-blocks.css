@@ -2485,3 +2485,7 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   /* path 자체 */
   vector-effect: non-scaling-stroke;
 }
+
+/* 그리드 피커 — 아직 못 만드는 조합(행 축 도입 전 2행 이상)은 «죽은 칸»으로 보인다.
+   눌러도 아무 일 없는 것보다, 안 눌린다는 게 보이는 편이 정직하다. */
+.grid-picker-cell--off { opacity: .28; cursor: default; }

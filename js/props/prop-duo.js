@@ -1,7 +1,7 @@
 /* ── Duo(다단) 블록 프로퍼티 패널 ──
    구조(컬럼/라인 추가·삭제)는 CDP/updateDuoBlock 영역 — 패널은 텍스트·간격·정렬만 다룬다. */
 import { propPanel } from '../globals.js';
-import { parseRatio } from './_helpers.js';
+import { parseRatio, buildGridPicker } from './_helpers.js';
 
 /* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
  * 렌더러(duo-block.js)는 이미 임의 비율을 지원한다 — 각 컬럼에 flex:(w/총합*100).
@@ -52,11 +52,17 @@ export function showDuoProperties(block) {
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || '그리드'}</span>
+          <span class="prop-block-name">${block.dataset.layerName || 'Grid Block'}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : ''}</span>
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Grid (${cols.length}×1)</div>
+      <div class="grid-picker" id="grd-grid-picker"></div>
+      <div class="grid-picker-label" id="grd-grid-picker-label">—</div>
+      <div class="prop-hint" style="margin-top:2px;">가로 칸 수를 고른다 · 세로(행)는 다음 단계</div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
@@ -107,7 +113,7 @@ export function showDuoProperties(block) {
       </div>`).join('')}
     </div>`).join('')}
     <div class="prop-section">
-      <div class="prop-row"><span class="prop-label" style="opacity:.6">컬럼 «개수»·라인 구조 변경은 updateGridBlock API 사용 (비율은 위 입력칸)</span></div>
+      <div class="prop-row"><span class="prop-label" style="opacity:.6">라인 구조 변경은 updateGridBlock API 사용</span></div>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
@@ -137,6 +143,29 @@ export function showDuoProperties(block) {
     window.renderDuoBlock?.(block);
     return true;
   };
+  /* ── 4×4 그리드 피커 — 가로 칸 수 변경 (현빈 발주 ①) ──────────────────────
+   * 카드블럭과 «같은» UI 를 쓴다(공용 buildGridPicker). 행 축은 아직 없어 maxRows=1 —
+   * 못 만드는 조합을 «죽은 칸»으로 보여주는 게, 눌러도 아무 일 없는 것보다 정직하다. */
+  buildGridPicker(
+    document.getElementById('grd-grid-picker'),
+    document.getElementById('grd-grid-picker-label'),
+    (nCols) => {
+      const cur = JSON.parse(block.dataset.cols || '[]');
+      if (nCols === cur.length) return;
+      window.pushHistory?.();                     // ★변경 «전»에
+      const next = [];
+      for (let i = 0; i < nCols; i++) {
+        next.push(cur[i] || { width: 1, lines: [{ type: 'h2', text: '제목' }, { type: 'body', text: '내용을 입력하세요.' }] });
+      }
+      // ⛔줄일 때 잘린 칸의 내용은 «버려진다» — undo 로 되돌아온다(pushHistory 를 먼저 부른 이유).
+      block.dataset.cols = JSON.stringify(next);
+      window.renderDuoBlock?.(block);
+      window.scheduleAutoSave?.();
+      showDuoProperties(block);                   // 패널 재생성(칸 수가 바뀌면 Column 섹션도 바뀐다)
+    },
+    { max: 4, maxRows: 1 }
+  );
+
   const ratioInput = document.getElementById('grd-col-ratio');
   const _applyRatioInput = (raw) => {
     const cur = JSON.parse(block.dataset.cols || '[]');
