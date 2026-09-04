@@ -15,11 +15,24 @@
    ★#555 를 쓰던 게 「상하단이 튄다」의 주 원인이었다 — 앱 값의 2배 밝기였다. */
 .relnote-hero {
   flex: 0 0 auto;
-  padding: 14px 18px 12px;
+  /* ★위 여백은 앱 기본(14px)보다 «더» 준다 — 이 모달은 설정창과 달리 머리가 «한 줄»이라
+     14px 이면 제목이 천장에 붙는다. 아래는 구분선이 받쳐줘서 더 줄 필요가 없다. */
+  /* ★위·아래를 «따로» 본다. 22/13 은 위만 키운 값이라 제목이 구분선 쪽으로 쏠렸다.
+     제목 줄(19px) 기준으로 위 24 · 아래 18 — 위가 조금 더 넓어야 «머리»로 읽힌다. */
+  padding: 24px 18px 18px;
   border-bottom: 1px solid #2a2a2a;
   display: flex; align-items: baseline; gap: 10px;
 }
 .relnote-ver { display: none; }   /* 안 C — 버전은 날짜 줄로 합쳤다 */
+/* 닫기 × — ★위치를 «계산»하지 않는다. 머리가 flex 이므로 그 안의 형제로 두고
+   margin-left:auto 로 밀면 제목 줄에 «자동으로» 맞는다.
+   top 을 px 로 박으면 여백을 고칠 때마다 또 어긋난다(실제로 1.8px 어긋났다). */
+.relnote-close {
+  position: static;
+  margin-left: auto;
+  align-self: center;
+  flex-shrink: 0;
+}
 .relnote-titlerow { display: flex; align-items: baseline; gap: 10px; }
 .relnote-h { font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
 .relnote-date { font-size: 13px; color: var(--ui-text-muted, #9e9e9e); }
@@ -27,7 +40,7 @@
 /* 목록 — 남는 높이를 채우고 여기서만 스크롤한다(min-height:0 없으면 flex 자식이 안 줄어든다) */
 .relnote-list {
   flex: 1 1 auto; min-height: 0; overflow-y: auto;
-  padding: 2px 20px 14px;
+  padding: 6px 20px 14px;
 }
 /* ★구분선은 «항목»이 아니라 «그룹» 사이에 둔다 — 항목마다 그으면 다섯 줄이 다섯 칸으로
    쪼개져 목록이 아니라 표로 읽힌다. 항목 구분은 불릿과 여백이 이미 하고 있다. */

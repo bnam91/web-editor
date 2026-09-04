@@ -45,11 +45,10 @@
     overlay.style.display = 'flex';
     overlay.innerHTML = `
       <div class="settings-modal-shell relnote-shell" role="dialog" aria-modal="true" aria-label="업데이트 내역">
-        <button class="settings-modal-close" data-act="close" title="닫기 (Esc)"
-                style="position:absolute;top:14px;right:14px;z-index:2">×</button>
         <div class="relnote-hero">
           <span class="tb-badge tb-badge--pill tb-badge--accent relnote-ver"></span>
           <div class="relnote-titlerow"><span class="relnote-h">릴리스 노트</span><span class="relnote-date"></span></div>
+          <button class="settings-modal-close relnote-close" data-act="close" title="닫기 (Esc)">×</button>
         </div>
         <div class="relnote-list"></div>
         <div class="settings-modal-footer">
