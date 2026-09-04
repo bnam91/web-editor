@@ -37,6 +37,14 @@
   border-top: 1px solid var(--ui-divider, #555);
 }
 .relnote-group:first-child { margin-top: 8px; padding-top: 0; border-top: none; }
+/* ★그룹 색 — 새 팔레트를 만들지 않고 앱 «의미 토큰»을 그대로 쓴다.
+     새로 생긴 것 = accent(파랑, 「새것」에 이미 쓰는 색)
+     고친 것     = success(초록, 「해결됨」)
+     나아진 것   = muted(중립 — 신규도 결함도 아닌 개선이라 톤을 낮춘다)
+   ⛔danger(빨강)는 안 쓴다 — 고친 것은 «지금 문제»가 아니라 «해결된 것»이다. */
+.relnote-group--new { color: var(--ui-accent-text, #6fa3f7); }
+.relnote-group--fix { color: var(--ui-success, #7fc87f); }
+.relnote-group--imp { color: var(--ui-text-muted, #9e9e9e); }
 
 .relnote-item { padding: 8px 0 8px 13px; }
 .relnote-item b {

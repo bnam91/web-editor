@@ -77,7 +77,7 @@
     items.forEach(it => {
       if (it.k !== lastKind) {                       // 종류가 바뀌면 그룹 제목을 세운다
         const g = document.createElement('div');
-        g.className = 'relnote-group';
+        g.className = 'relnote-group relnote-group--' + it.k;
         g.textContent = GROUP[it.k] || '';
         list.appendChild(g);
         lastKind = it.k;
