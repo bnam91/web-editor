@@ -942,19 +942,70 @@ function _normalizePastedAbsolute(el) {
   }
 }
 
-// banner-preset 안에서 복사한 자식이라면 같은 banner 안에 +20px 오프셋으로 복제.
+// ── C3: 잘라내기(⌘X)/복사(⌘C) → 붙여넣기(⌘V) 「현재 보이는 화면」 ──────────────
+// el(캔버스 절대좌표계 조상 — section-block/frame-block/banner 등)이 지금 #canvas-wrap
+// 뷰포트 안에 실제로 보이는지. zoomStep()의 inView 판정(위 244행 부근)과 같은 규약을 재사용한다
+// (새 판정 기준을 만들지 않는다 — INV-C3 조사에서 지적된 "6번째 좌표 스킴" 함정 회피).
+function _isInViewport(el) {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !el) return false;
+  const wrapRect = wrap.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  return r.bottom > wrapRect.top && r.top < wrapRect.bottom &&
+         r.right  > wrapRect.left && r.left < wrapRect.right;
+}
+
+// 잘라내기(⌘X) 직후엔 선택이 비어있는 게 보통이라 pasteClipboard()의 대상 섹션이
+// DOM 마지막 섹션(document.querySelector('.section-block:last-child'))으로 새곤 했다 —
+// 스크롤이 이동해 있으면 화면 밖으로 붙는다. 대신 「지금 화면에 실제로 보이는」 섹션 중
+// 뷰포트 중앙에 가장 가까운 것을 고른다. 못 찾으면 null(호출부가 기존 last-child로 폴백).
+function _pickVisibleSection() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) return null;
+  const wrapRect = wrap.getBoundingClientRect();
+  const wrapCy = wrapRect.top + wrapRect.height / 2;
+  let best = null, bestDist = Infinity;
+  document.querySelectorAll('.section-block').forEach(sec => {
+    if (!_isInViewport(sec)) return;
+    const r = sec.getBoundingClientRect();
+    const dist = Math.abs((r.top + r.bottom) / 2 - wrapCy);
+    if (dist < bestDist) { bestDist = dist; best = sec; }
+  });
+  return best;
+}
+
+// 뷰포트(#canvas-wrap) 중앙을 containerEl 기준 local px(스케일 보정)로 변환 —
+// scratch-pad.js:1367-1372(OS 클립보드 이미지 ⌘V 시 스크래치패드 뷰포트 중앙 배치)와 같은 공식이다.
+// 원점만 #canvas-scaler 대신 containerEl로 바꿔서 「내부 블록 클립보드」가 이미 쓰는
+// frame-local/banner-local/section-local 좌표계 «안»으로 역변환해 넣는다(새 스킴을 만들지 않음).
+// containerEl이 지금 화면 밖이면 null — 호출부가 기존 +20px 오프셋 로직으로 폴백한다.
+function _viewportCenterInContainerLocal(containerEl) {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !containerEl || !_isInViewport(containerEl)) return null;
+  const scale = currentZoom / 100;
+  const wrapRect = wrap.getBoundingClientRect();
+  const contRect = containerEl.getBoundingClientRect();
+  return {
+    x: (wrapRect.left + wrapRect.width  / 2 - contRect.left) / scale,
+    y: (wrapRect.top  + wrapRect.height / 2 - contRect.top)  / scale,
+  };
+}
+
+// banner-preset 안에서 복사한 자식이라면 같은 banner 안에 복제 —
+// banner가 지금 화면에 보이면 뷰포트 중앙(banner-local)에, 안 보이면 기존처럼 원본 위치 +20px.
 // banner가 더 이상 없으면 null 반환 → 호출부에서 일반 paste 경로로 fallback.
 function _pasteIntoSourceBanner(el, sourceBannerId) {
   if (!sourceBannerId || !el) return null;
   const banner = document.getElementById(sourceBannerId);
   if (!banner || !banner.dataset?.bannerPreset) return null;
   if (banner.dataset?.freeLayout !== 'true') return null;
+  const vp = _viewportCenterInContainerLocal(banner);
+  const origLeft = parseInt(el.style.left || '0', 10);
+  const origTop  = parseInt(el.style.top  || '0', 10);
   banner.appendChild(el);
   el.style.position = 'absolute';
-  const lx = parseInt(el.style.left || '0', 10) + 20;
-  const ly = parseInt(el.style.top  || '0', 10) + 20;
-  el.style.left = lx + 'px';
-  el.style.top  = ly + 'px';
+  el.style.left = (vp ? Math.round(vp.x) : origLeft + 20) + 'px';
+  el.style.top  = (vp ? Math.round(vp.y) : origTop  + 20) + 'px';
   el.style.marginLeft = '';
   el.style.marginTop  = '';
   return banner;
@@ -967,7 +1018,7 @@ function pasteClipboard() {
   window.ensureHistoryCheckpoint?.('붙여넣기 전');
 
   if (clipboard.type === 'multi-block') {
-    const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+    const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
     if (!sec) { window.showNoSelectionHint?.(); return; }
     /* ★기준점 = «마지막» 선택 블록 뒤.
      * insertAfterSelected 는 document.querySelector 로 «첫» 선택을 잡는다(drag-utils.js:174).
@@ -1026,7 +1077,8 @@ function pasteClipboard() {
       const prefix = child.id.split('_')[0] || 'el';
       child.id = genIdFn(prefix);
     });
-    const refSection = getSelectedSection();
+    // 선택이 없으면(잘라내기 직후 흔함) DOM 끝이 아니라 지금 화면에 보이는 섹션 옆에 붙인다.
+    const refSection = getSelectedSection() || _pickVisibleSection();
     if (refSection) {
       refSection.after(el);
     } else {
@@ -1046,7 +1098,7 @@ function pasteClipboard() {
       || (window._activeFrame?.dataset?.freeLayout ? window._activeFrame : null);
     if (!frame) {
       // 대상 프레임 못 찾음 → 일반 경로 폴백(섹션 끝에 삽입)
-      const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+      const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
       if (sec) { insertAfterSelected(sec, el); _bindPastedEl(el); _normalizePastedAbsolute(el); }
     } else {
       // ★붙여넣기도 «새 블록»이다 — 전역 genId 를 써야 actorId 조각이 붙는다.
@@ -1056,8 +1108,12 @@ function pasteClipboard() {
       el.id = _gid('ss');
       el.querySelectorAll('[id]').forEach(c => { const p = c.id.split('_')[0] || 'el'; c.id = _gid(p); });
       const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
-      el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
-      el.dataset.offsetX = String(ox + 20); el.dataset.offsetY = String(oy + 20);
+      // 프레임이 지금 화면에 보이면 뷰포트 중앙(frame-local)에, 안 보이면 기존처럼 원본 위치 +20px.
+      const vp = _viewportCenterInContainerLocal(frame);
+      const nx = vp ? Math.round(vp.x) : ox + 20;
+      const ny = vp ? Math.round(vp.y) : oy + 20;
+      el.style.left = nx + 'px'; el.style.top = ny + 'px';
+      el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
       frame.appendChild(el);
       const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
       el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
@@ -1075,20 +1131,23 @@ function pasteClipboard() {
       _bindPastedEl(el);
     } else if (el.classList.contains('sticker-block')) {
       // 스티커: section 안에 absolute로 +20px 오프셋해 추가
-      const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+      const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
       if (!sec) { window.showNoSelectionHint?.(); return; }
+      // 스티커: section 안에 absolute로 배치 — section이 화면에 보이면 뷰포트 중앙(section-local),
+      // 안 보이면 기존처럼 원본 위치 +20px 오프셋.
+      const curX = parseInt(el.dataset.x) || parseInt(el.style.left) || 0;
+      const curY = parseInt(el.dataset.y) || parseInt(el.style.top) || 0;
+      const vp = _viewportCenterInContainerLocal(sec);
       sec.appendChild(el);
       // ID 재생성 (기존 _bindPastedEl이 처리)
       _bindPastedEl(el);
-      // 위치 오프셋
-      const curX = parseInt(el.dataset.x) || parseInt(el.style.left) || 0;
-      const curY = parseInt(el.dataset.y) || parseInt(el.style.top) || 0;
-      el.dataset.x = String(curX + 20);
-      el.dataset.y = String(curY + 20);
+      // 위치 — vp 있으면 뷰포트 중앙, 없으면 기존 +20px 오프셋
+      el.dataset.x = String(vp ? Math.round(vp.x) : curX + 20);
+      el.dataset.y = String(vp ? Math.round(vp.y) : curY + 20);
       window.renderStickerBlock?.(el);
       window.bindStickerSelect?.(el);
     } else {
-      const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+      const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
       if (!sec) { window.showNoSelectionHint?.(); return; }
       const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
       const savedActiveSS = window._activeFrame;
