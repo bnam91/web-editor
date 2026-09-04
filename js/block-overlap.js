@@ -140,7 +140,26 @@
     return { el: hit, multi: n > 1 };
   }
 
-  /* ── 블록 패널에 「겹침」 한 줄 ────────────────────────────────────────── */
+  /* ── 블록 패널의 「겹침」 — «한 줄» ──────────────────────────────────────
+     겹침은 값 하나다. 바로 위 「좌우 패딩」(prop-section.js:228-232)이 제목+한 줄인데
+     제목·안내문·전폭버튼 네 덩이로 158px 을 쓰던 걸 34px 한 줄로 줄인다(현빈 2026-09-04).
+     · 단축키 안내 → 라벨 title 툴팁
+     · 되돌리기   → 레포에 이미 있는 「초기화」 버튼(prop-asset.js:73 과 같은 클래스) */
+  var TIP = '⌥↑ / ⌥↓ 로 조절 (⇧ 10px) · 겹친 아래 블록은 ⌥클릭으로 선택';
+
+  /* 「패딩/레이아웃/크기」류 절을 찾아 그 «안»에 한 줄로 붙인다. 없으면 자기 절을 만든다. */
+  function hostSection(p) {
+    var secs = [].slice.call(p.querySelectorAll('.prop-section'));
+    for (var i = 0; i < secs.length; i++) {
+      var t = secs[i].querySelector('.prop-section-title');
+      if (!t) continue;
+      if (/padding|layout|spacing|size|패딩|레이아웃|간격|크기/i.test(t.textContent || '')) {
+        if (secs[i].querySelector('.prop-slider')) return secs[i];
+      }
+    }
+    return null;
+  }
+
   function addBlockRow(p, b) {
     var canPull = eligible(b);
     var cur = getPull(b);
@@ -150,41 +169,49 @@
     var lo = u ? minPullFor(u) : FLOOR;
     if (cur < lo) lo = cur;                    // 이미 더 내려가 있으면 그 값까지는 보여준다
 
-    var wrap = document.createElement('div');
-    wrap.className = 'prop-section';
-    wrap.id = 'ovl-prop';
-    wrap.innerHTML =
-      '<div class="prop-section-title">겹침</div>' +
-      '<div class="prop-row">' +
-        '<span class="prop-label">위로 당기기</span>' +
-        '<input type="range" class="prop-slider" id="ovl-slider" min="' + lo + '" max="0" step="1"' +
-          (canPull ? '' : ' disabled') + '>' +
-        '<input type="number" class="prop-number" id="ovl-number" min="' + lo + '" max="0"' +
-          (canPull ? '' : ' disabled') + '>' +
-      '</div>' +
-      '<div class="prop-hint" style="margin-top:2px">' +
-        (canPull
-          ? '⌥↑ / ⌥↓ 로도 조절됩니다 (⇧ 10px). 겹친 아래 블록은 ⌥클릭으로 «고를» 수 있습니다(끌기는 레이어 패널에서).'
-          : '★맨 위 블록이라 더 당길 수 없습니다. 겹침이 남아 있으면 아래 버튼으로 없애십시오.') +
-      '</div>' +
-      '<button class="prop-btn" id="ovl-clear" style="width:100%;margin-top:6px">겹침 없애기</button>';
-    p.appendChild(wrap);
+    var row = document.createElement('div');
+    row.className = 'prop-row';
+    row.id = 'ovl-prop';
+    row.innerHTML =
+      '<span class="prop-label" title="' + TIP + '">겹침</span>' +
+      '<input type="range" class="prop-slider" id="ovl-slider" min="' + lo + '" max="0" step="1"' +
+        (canPull ? '' : ' disabled') + '>' +
+      '<input type="number" class="prop-number" id="ovl-number" min="' + lo + '" max="0"' +
+        (canPull ? '' : ' disabled') + '>' +
+      '<button class="prop-align-btn prop-align-btn--aux" id="ovl-clear" ' +
+        'title="겹침을 0 으로 되돌립니다">초기화</button>';
+    /* ★「초기화」는 «겹쳐 있을 때만» 띄운다.
+       한 줄 폭이 207px 인데 버튼이 47px 을 먹어 슬라이더가 99→48px 로 반토막 난다(실측).
+       겹침이 0 이면 초기화는 할 일이 없으므로 숨기면 슬라이더가 폭을 그대로 돌려받는다. */
 
-    var sl = wrap.querySelector('#ovl-slider');
-    var nb = wrap.querySelector('#ovl-number');
+    var host = hostSection(p);
+    if (host) host.appendChild(row);
+    else {
+      var wrap = document.createElement('div');
+      wrap.className = 'prop-section';
+      wrap.innerHTML = '<div class="prop-section-title">겹침</div>';
+      wrap.appendChild(row);
+      p.appendChild(wrap);
+    }
+
+    var sl = row.querySelector('#ovl-slider');
+    var nb = row.querySelector('#ovl-number');
+    var cb = row.querySelector('#ovl-clear');
     sl.value = cur; nb.value = cur;
+    cb.style.display = cur ? '' : 'none';
 
     function apply(v, gesture) {
       if (gesture) beginGesture();
       var out = setPull(b, v);
       sl.value = out; nb.value = out;
+      cb.style.display = out ? '' : 'none';
       window.scheduleAutoSave && window.scheduleAutoSave();
     }
     sl.addEventListener('pointerdown', function () { beginGesture(); });
     sl.addEventListener('input',  function () { apply(+sl.value, true); });
     sl.addEventListener('change', function () { apply(+sl.value, true); endGesture(); });
     nb.addEventListener('change', function () { apply(+nb.value, true); endGesture(); });
-    wrap.querySelector('#ovl-clear').addEventListener('click', function () { apply(0, true); endGesture(); });
+    cb.addEventListener('click', function () { apply(0, true); endGesture(); });
   }
 
   /* ── 섹션 패널에 「이 섹션 겹침 해제」 ─────────────────────────────────── */
@@ -201,11 +228,12 @@
     wrap.id = 'ovl-sec-prop';
     wrap.innerHTML =
       '<div class="prop-section-title">겹침</div>' +
-      '<button class="prop-btn" id="ovl-sec-clear" style="width:100%">이 섹션 겹침 해제' +
-        (hit.length ? ' (' + hit.length + '개)' : '') + '</button>' +
-      '<div class="prop-hint" style="margin-top:4px">' +
-        (hit.length ? '겹쳐 있는 블록 ' + hit.length + '개를 모두 0 으로 되돌립니다.'
-                    : '이 섹션에 겹쳐 있는 블록이 없습니다.') + '</div>';
+      '<div class="prop-row">' +
+        '<span class="prop-label" title="이 섹션에서 겹쳐 있는 블록을 모두 0 으로 되돌립니다">겹친 블록</span>' +
+        '<span style="flex:1;font-size:11px;color:var(--ui-text-dim)">' +
+          (hit.length ? hit.length + '개' : '없음') + '</span>' +
+        '<button class="prop-align-btn prop-align-btn--aux" id="ovl-sec-clear">초기화</button>' +
+      '</div>';
     /* ★Export·Template 절은 «항상 하단»이어야 한다(현빈 2026-08-30, badge-transform.js:249 규약).
        그 앞에 끼워 넣는다. 없으면 맨 뒤. */
     var tail = [].slice.call(p.querySelectorAll('.prop-section')).filter(function (s) {
