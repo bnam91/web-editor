@@ -64,14 +64,16 @@
   display: flex; align-items: center; gap: 6px;
   font-size: 10.5px; color: var(--ui-text-muted, #9e9e9e); cursor: pointer;
 }
-/* ★체크박스가 다크 UI 에서 «혼자 흰색»으로 튀던 문제.
-   accent-color 만으로는 «체크된» 상태 색만 바뀐다 — 체크 «안 된» 빈 상자는 브라우저가
-   color-scheme 을 보고 그리는데, 이 앱은 color-scheme 을 선언한 적이 없어 라이트 기본이 나왔다.
-   ⇒ 이 모달에서만 dark 로 선언한다(전역에 걸면 앱 전체 네이티브 컨트롤이 같이 바뀐다).
-   체크 색은 앱 관용구 accent-color: var(--ui-accent-primary) 그대로
-   (editor-base.css:283 · .prop-none-check · .report-check 전부 같은 방식). */
+/* 체크박스 — ★앱의 실제 체크박스와 «같게» 둔다.
+   실측(우측 패널 .prop-row 체크박스): accent-color:auto · color-scheme:normal · 13px.
+   즉 이 앱은 체크박스에 «브라우저 기본»을 쓴다. 파랗게 보이던 건 스타일이 아니라
+   「체크된 상태 + OS 기본 강조색」이었다 — grep 으로 찾은 accent-color 관용구는
+   실제로 화면에 보이는 자리엔 안 걸려 있었다(코드만 보고 실물을 안 본 실수).
+   ⇒ accent-color 는 «지정하지 않는다». 크기도 13px 로 맞춘다.
+   ★단 color-scheme: dark 한 줄만 남긴다 — 앱엔 «체크 안 된» 체크박스가 다크 바탕에
+     놓인 선례가 없어서, 그대로 두면 빈 상자가 흰색으로 혼자 튄다(현빈 지적).
+     전역이 아니라 이 모달에만 건다. */
 .relnote-off input[type="checkbox"] {
   color-scheme: dark;
-  accent-color: var(--ui-accent-primary, #2d6fe8);
-  width: 12px; height: 12px; cursor: pointer;
+  width: 13px; height: 13px; cursor: pointer;
 }
