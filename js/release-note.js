@@ -7,7 +7,7 @@
    언제 뜨나: 저장된 「마지막으로 본 버전」과 지금 버전이 «다를 때» 1회.
      · 같은 버전 재실행 → 안 뜬다
      · 신규 설치(저장값 없음) → 안 뜬다(비교할 이전 버전이 없다)
-     · 「다음부터 안 보기」 → 이후 버전에서도 안 뜬다
+     · 「일주일간 안 보기」 → 이후 버전에서도 안 뜬다
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
   const KEY_SEEN = 'goditor.relnote.lastSeen';
@@ -17,7 +17,7 @@
      커밋 메시지를 그대로 옮기면 사용자 말이 안 나오고 내부 작업이 섞여 나간다. */
   const NOTES = {
     '0.9.1': {
-      headline: '두 칸 블록, 원하는 비율로',
+      date: '2026-09-04',
       items: [
         { k: 'new', t: '두 칸 블록 좌우 비율 조절',
           d: '속성 패널의 「비율」 슬라이더로 70:30처럼 원하는 대로. 밀면 캔버스에 바로 반영된다.' },
@@ -55,18 +55,19 @@
                 style="position:absolute;top:14px;right:14px;z-index:2">×</button>
         <div class="relnote-hero">
           <span class="tb-badge tb-badge--pill tb-badge--accent relnote-ver"></span>
-          <div class="relnote-h"></div>
+          <div class="relnote-titlerow"><span class="relnote-h">릴리스 노트</span><span class="relnote-date"></span></div>
           <div class="relnote-sub"></div>
         </div>
         <div class="relnote-list"></div>
         <div class="settings-modal-footer">
-          <label class="relnote-off"><input type="checkbox" data-act="off"> 다음부터 안 보기</label>
+          <label class="relnote-off"><input type="checkbox" data-act="off"> 일주일간 안 보기</label>
           <div style="flex:1"></div>
           <button class="settings-btn settings-btn-primary" data-act="ok">확인</button>
         </div>
       </div>`;
     overlay.querySelector('.relnote-ver').textContent = `버전 ${version}`;
-    overlay.querySelector('.relnote-h').textContent = note.headline || '새 버전이 준비됐어요';
+    /* ★제목은 «항상 고정» — 릴리스노트지 카피라이팅이 아니다. 날짜는 제목과 같은 줄에. */
+    overlay.querySelector('.relnote-date').textContent = note.date || '';
     overlay.querySelector('.relnote-sub').textContent = summarize(items);
     overlay.querySelector('.relnote-shell').style.position = 'relative';
 
@@ -83,21 +84,22 @@
       }
       const row = document.createElement('div');
       row.className = 'relnote-item';
-      const ic = document.createElement('span');
-      ic.className = 'relnote-dot';
-      const box = document.createElement('div');
-      const b = document.createElement('b'); b.textContent = it.t;
-      box.appendChild(b);
-      if (it.d) { const s2 = document.createElement('span'); s2.textContent = it.d; box.appendChild(s2); }
-      row.append(ic, box);
+      const b = document.createElement('b');
+      /* ★불릿은 «실제 요소»다 — ::before 는 렌더된 자리를 잴 수 없어 공식에 기대게 되고 세 번 틀렸다.
+         제목 <b> 안에 두면 그 줄의 행간을 그대로 타고, 재서 맞출 수도 있다. */
+      const bullet = document.createElement('i'); bullet.className = 'relnote-bullet';
+      b.append(bullet, document.createTextNode(it.t));
+      row.appendChild(b);
+      if (it.d) { const s2 = document.createElement('span'); s2.textContent = it.d; row.appendChild(s2); }
       list.appendChild(row);
     });
 
     document.body.appendChild(overlay);
 
     const finish = () => {
+      /* ★「일주일간 안 보기」 — 영구 해제가 아니라 «기한»이다. 지나면 다시 뜬다. */
       if (overlay.querySelector('[data-act=off]')?.checked) {
-        try { localStorage.setItem(KEY_OFF, '1'); } catch (_) {}
+        try { localStorage.setItem(KEY_OFF, String(Date.now() + 7 * 86400000)); } catch (_) {}
       }
       try { localStorage.setItem(KEY_SEEN, version); } catch (_) {}
       document.removeEventListener('keydown', onKey, true);
@@ -115,7 +117,8 @@
   async function boot() {
     let off = null, seen = null;
     try { off = localStorage.getItem(KEY_OFF); seen = localStorage.getItem(KEY_SEEN); } catch (_) {}
-    if (off) return;
+    if (off && Number(off) > Date.now()) return;          // 기한 안이면 안 뜬다
+    if (off) { try { localStorage.removeItem(KEY_OFF); } catch (_) {} }   // 지났으면 해제
     const v = await (window.electronAPI?.getVersion?.() || Promise.resolve(null));
     if (!v) return;                                    // 버전을 모르면 아무것도 안 한다
     if (!seen) {                                       // 신규 설치 — 비교 대상이 없다
