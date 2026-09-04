@@ -110,6 +110,7 @@
       b.style.zIndex = '';
       if (b.dataset.ovlPos) delete b.dataset.ovlPos;   // 옛 버전이 남긴 것 청소
     }
+    if (typeof markLayers === 'function') markLayers();
     return v;
   }
 
@@ -278,10 +279,68 @@
     return false;
   }
 
+  /* ── 레이어 패널 배지 ──────────────────────────────────────────────────
+     겹침 값은 «흐름 단위»(.row / text-frame)에 붙는데 레이어 항목은 그 «안의 블록»이다.
+     한 .row 에 블록이 여럿이면(레이어의 「Grid」 행 그룹, layer-panel-items.js:518)
+     겹친 건 행 하나인데 줄은 여럿이다.
+     ⇒ 행 그룹이 있으면 «헤더에만» 붙인다(현빈 2026-09-04). 자식마다 붙이면
+       「셋을 따로 조절할 수 있나」로 읽히는데 실제로는 못 한다 — 값이 행 하나에만 있다. */
+  function layerBody() { return document.getElementById('layer-panel-body'); }
+
+  function chip(v) {
+    var c = document.createElement('span');
+    c.className = 'ovl-chip';
+    c.textContent = '↑' + Math.abs(v);
+    c.title = '이 줄은 위 블록을 ' + Math.abs(v) + 'px 파고들어 있습니다';
+    return c;
+  }
+  /* 타입 라벨 «앞»에 넣는다 — 이름과 타입 사이가 시안에서 고른 자리다 */
+  function put(host, v) {
+    if (!host || host.querySelector('.ovl-chip')) return;
+    var type = host.querySelector('.layer-item-type');
+    if (type) host.insertBefore(chip(v), type); else host.appendChild(chip(v));
+  }
+
+  function markLayers() {
+    var body = layerBody(); if (!body) return;
+    [].slice.call(body.querySelectorAll('.ovl-chip')).forEach(function (c) { c.remove(); });
+    var done = [];
+
+    /* ⑴ 행 그룹 — 헤더에만 */
+    [].slice.call(body.querySelectorAll('.layer-row-group')).forEach(function (g) {
+      var row = g._dragTarget;
+      if (!row) return;
+      var v = parseInt(row.style.marginTop, 10) || 0;
+      done.push(row);
+      if (v) put(g.querySelector('.layer-row-header'), v);
+    });
+
+    /* ⑵ 나머지 줄 — 자기 단위에 값이 있으면 붙인다.
+       ★한 .row 에 블록이 여럿이어도 «줄마다» 붙인다 — 실측(2026-09-04): 레이어 패널의
+         「Grid」 행 그룹(makeLayerRowGroup, layer-panel-items.js:518)은 **아무 데서도 안 불리는
+         죽은 코드**라 그룹 헤더가 «화면에 없다». 대표할 자리가 없으니 첫 줄에만 붙이면
+         「왜 첫 번째만」이 되고, 둘째 줄을 골라도 겹침 컨트롤은 뜨는데 배지만 없어 어긋난다.
+         ⇒ 컨트롤이 뜨는 줄에는 배지도 뜨게 맞춘다. 그룹이 되살아나면 ⑴이 헤더로 대표한다. */
+    [].slice.call(body.querySelectorAll('.layer-item')).forEach(function (it) {
+      if (it.closest('.layer-row-children')) return;      // 행 그룹 자식은 헤더가 대표한다
+      var t = it._dragTarget; if (!t) return;
+      var u = flowUnit(t) || (t.parentElement ? flowUnit(t.parentElement) : null);
+      if (!u || done.indexOf(u) >= 0) return;             // 그룹이 이미 대표한 행만 건너뛴다
+      var v = parseInt(u.style.marginTop, 10) || 0;
+      if (v) put(it, v);
+    });
+  }
+
   function boot() {
     var p = panel(); if (!p) { setTimeout(boot, 300); return; }
     new MutationObserver(function () { enhance(); }).observe(p, { childList: true });
     enhance();
+
+    /* 레이어 패널은 buildLayerPanel 이 통째로 다시 그린다(layer-panel.js:27 innerHTML='') →
+       그릴 때마다 배지를 다시 찍는다. 직계 childList 만 본다(자식 트리는 한 번에 붙는다). */
+    var lb = layerBody();
+    if (lb) { new MutationObserver(function () { markLayers(); }).observe(lb, { childList: true }); }
+    markLayers();
 
     /* ⌥↑ / ⌥↓ — 1px, ⇧ 10px.
        ★한글 IME 는 e.altKey 를 먹는다 — 레포가 window._optionKeyHeld 폴백을 유지한다
@@ -312,5 +371,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 
-  window.blockOverlap = { getPull: getPull, setPull: setPull, eligible: eligible, flowUnit: flowUnit };
+  window.blockOverlap = { getPull: getPull, setPull: setPull, eligible: eligible, flowUnit: flowUnit, markLayers: markLayers };
 })();
