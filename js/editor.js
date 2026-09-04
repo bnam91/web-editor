@@ -776,16 +776,18 @@ function duplicateSelected() {
   pasteClipboard();
 }
 
+/* 다중선택 «판정» 셀렉터 — copySelected 와 pasteClipboard 가 «같은 집합»을 봐야 한다.
+ * 붙여넣기 기준점을 copy 와 다른 목록으로 고르면 순서가 어긋난다. */
+const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+  '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+  '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+  '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
+  '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
+  '.laurel-block.selected, .joker-block.selected, .speech-bubble-block.selected';
+
 function copySelected() {
   // 내부 클립보드(섹션/블록) 복사 timestamp — Cmd+V 시 외부 클립보드(스크래치 이미지)와 우선순위 비교용
   window._internalClipboardTime = Date.now();
-
-  const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
-    '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
-    '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
-    '.laurel-block.selected, .joker-block.selected, .speech-bubble-block.selected';
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
@@ -948,6 +950,21 @@ function pasteClipboard() {
   if (clipboard.type === 'multi-block') {
     const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
     if (!sec) return;
+    /* ★기준점 = «마지막» 선택 블록 뒤.
+     * insertAfterSelected 는 document.querySelector 로 «첫» 선택을 잡는다(drag-utils.js:174).
+     * 그러면 A 뒤에 A' 가 들어가고 그 뒤에 B' 가 붙어 A A' B' B = «AABB» 가 된다.
+     * 사용자가 기대하는 건 원본 묶음 «뒤»에 사본 묶음이 붙는 A B A' B' = «ABAB» 다. */
+    let anchor = null;
+    {
+      const sels = [...document.querySelectorAll(MULTI_SEL)].filter(e => e.closest('.section-block') === sec);
+      const last = sels[sels.length - 1];
+      if (last) {
+        anchor = last.classList.contains('gap-block')
+          ? last
+          : (last.closest('.frame-block[data-text-frame]') || last.closest('.row') || last);
+        if (!anchor.parentElement) anchor = null;   // 떨어져 나간 노드면 폴백
+      }
+    }
     let lastEl = null;
     clipboard.items.forEach(item => {
       const temp = document.createElement('div');
@@ -967,7 +984,7 @@ function pasteClipboard() {
         const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
         const savedActiveSS = window._activeFrame;
         if (pasteHasSS) window._activeFrame = null;
-        insertAfterSelected(sec, el);
+        if (anchor) anchor.after(el); else insertAfterSelected(sec, el);
         if (pasteHasSS) window._activeFrame = savedActiveSS;
       }
       _bindPastedEl(el);
