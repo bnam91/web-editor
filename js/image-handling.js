@@ -965,6 +965,20 @@ function enterSectionBgEditMode(sec) {
     let _bgRaf = requestAnimationFrame(function loop() { syncBg(); _bgRaf = requestAnimationFrame(loop); });
     sec._secBgSyncStop = () => { if (_bgRaf) { cancelAnimationFrame(_bgRaf); _bgRaf = null; } };
 
+    /* ★고스트를 잡아도 이동이 시작되게 — 공용 편집기(enterImageEditMode)는 프록시 안 <img> 에만
+       mousedown 을 건다(image-handling.js:452). 프록시는 섹션 padding-box 뿐이라 프레임 «밖»을
+       누르면 아무 일도 안 났다. 편집기를 고치는 대신 «같은 이벤트를 img 로 넘긴다» —
+       onImgDown 은 clientX/Y 만 읽고 이후엔 document 에서 mousemove/mouseup 을 듣기 때문에
+       한 번만 넘겨주면 드래그가 고스트 위에서도 그대로 이어진다. */
+    ghost.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      img.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true, cancelable: true, button: 0, buttons: 1,
+        clientX: e.clientX, clientY: e.clientY
+      }));
+    });
+
     enterImageEditMode(proxy, {
       noRotate: true,          // background-image 는 CSS 로 회전 불가 → 회전존 자체를 만들지 않는다
       noColorAdjust: true,     // 색보정은 <img> 필터 기반 — 배경엔 적용 경로가 없다
