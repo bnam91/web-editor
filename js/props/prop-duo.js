@@ -2,6 +2,7 @@
    구조(컬럼/라인 추가·삭제)는 CDP/updateDuoBlock 영역 — 패널은 텍스트·간격·정렬·행 높이만 다룬다. */
 import { propPanel } from '../globals.js';
 import { parseRatio, buildGridPicker } from './_helpers.js';
+import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★상한은 한 곳에서만 온다
 import { duoRows, MIN_COLS, MAX_COLS, MAX_ROWS } from '../blocks/duo-block.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 
@@ -252,15 +253,18 @@ export function showDuoProperties(block) {
     if (ratioInput) ratioInput.value = parts.join(':');   // 정규화 결과로 되씀(테이블과 동일 패턴)
   };
   ratioInput?.addEventListener('change', e => {
-    _applyRatioInput(e.target.value);
+    /* ★pushHistory 는 변경 «전»에. 뒤에 부르면 스냅샷이 «이미 바뀐 상태»라
+     * 피커→비율 순서에서 undo 가 두 단계를 한꺼번에 되돌린다(적대검수 지적).
+     * 이 레포엔 moveSection 에 같은 버그가 실재한다 — 새 코드에서 복제하지 않는다. */
     window.pushHistory?.();
+    _applyRatioInput(e.target.value);
     window.scheduleAutoSave?.();
   });
   document.getElementById('grd-col-ratio-reset')?.addEventListener('click', () => {
     const cur = JSON.parse(block.dataset.cols || '[]');
     const equal = Array(cur.length).fill(1).join(':');
+    window.pushHistory?.();                     // ★변경 «전»에(위와 같은 이유)
     _applyRatioInput(equal);
-    window.pushHistory?.();
     window.scheduleAutoSave?.();
   });
 
@@ -308,7 +312,7 @@ export function showDuoProperties(block) {
       const curRows = duoRows(block);
       if (!curRows[ri]) return;
       const raw = inp.value.trim();
-      const v = raw === '' ? 'auto' : Math.max(0, Math.min(4000, parseInt(raw) || 0));
+      const v = raw === '' ? 'auto' : Math.max(0, Math.min(ROW_H_MAX, parseInt(raw) || 0));
       curRows[ri] = { height: v };
       window.pushHistory?.();
       block.dataset.rows = JSON.stringify(curRows);
