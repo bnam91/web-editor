@@ -530,6 +530,35 @@ function blockContextLuminance(block, selfBg) {
   return colorLuminance(sec.style.backgroundColor || sec.style.background || sec.dataset.bg || '');
 }
 
+// 조상의 HTML5 드래그(draggable="true")를 «드래그하는 동안만» 끈다.
+// ★공유화(2026-09-04 P2, PLAN-gridblock.md §5-B-4) — 원래 table-cell-select.js 안에 IIFE
+//   전용으로 있었다(셀 사각 선택 드래그가 조상 .row 의 dragstart 로 새는 걸 막던 코드).
+//   그리드 블록 열 경계 드래그(overlay-handles.js)가 «같은 문제»를 겪어 여기로 뽑았다.
+//   동작은 원본과 완전히 동일(복붙, 로직 무변경) — table-cell-select.js 는 이제 이 함수를 호출만 한다.
+// ⚠️draggable 조상은 하나가 아닐 수 있다(td → .row → .frame-block 등 체인) — closest() 로
+//   가장 가까운 하나만 끄면 브라우저가 그 위 draggable 에서 dragstart 를 다시 잡는다.
+//   ⇒ 체인 «전부» 끄고 «전부» 원래 값으로 복원한다. 안전망: blur 에도 복구(mouseup 을 못 받는 경우).
+function suppressAncestorDrag(block) {
+  const hosts = [];
+  for (let el = block; el && el !== document.body; el = el.parentElement) {
+    if (el.getAttribute && el.getAttribute('draggable') === 'true') hosts.push([el, el.getAttribute('draggable')]);
+  }
+  if (!hosts.length) return () => {};
+  hosts.forEach(([el]) => el.setAttribute('draggable', 'false'));
+  let done = false;
+  const restore = () => {
+    if (done) return;
+    done = true;
+    window.removeEventListener('blur', restore); // 리스너 누적 방지(mousedown 마다 등록됨)
+    hosts.forEach(([el, was]) => {
+      if (was === null) el.removeAttribute('draggable');
+      else el.setAttribute('draggable', was);
+    });
+  };
+  window.addEventListener('blur', restore);
+  return restore;
+}
+
 export {
   genId,
   getActorId,
@@ -549,6 +578,7 @@ export {
   ASSET_PRESETS,
   colorLuminance,
   blockContextLuminance,
+  suppressAncestorDrag,
 };
 
 window.genId                      = genId;
@@ -567,3 +597,4 @@ window.GRAPH_DEFAULT_ITEMS        = GRAPH_DEFAULT_ITEMS;
 window.renderGraph                = renderGraph;
 window.applyDividerStyle          = applyDividerStyle;
 window.ASSET_PRESETS              = ASSET_PRESETS;
+window.suppressAncestorDrag       = suppressAncestorDrag;

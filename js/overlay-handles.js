@@ -4,6 +4,8 @@
    Extracted from drag-drop.js (lines ~13–988)
 ═══════════════════════════════════ */
 
+import { resizeColBoundary } from './grid-cell-resize.js';
+
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
    Figma 방식: 핸들을 #ss-handles-overlay에 렌더링하여
@@ -1169,6 +1171,149 @@ function _onVectorResizeHandleMouseDown(e, vb, dir) {
 window.showVectorResizeHandles = showVectorResizeHandles;
 window.hideVectorResizeHandles = hideVectorResizeHandles;
 
+/* ═══════════════════════════════════
+   GRID BLOCK COLUMN GUTTER OVERLAY (P2 — 셀 경계 드래그, PLAN-gridblock.md §5)
+   duo-block(사용자에게는 「그리드 블럭」)이 선택돼 있을 때 열 경계에 드래그 가능한
+   거터(grd-gutter)를 띄운다. 여기 있는 6종 handle(frame/mockup/icon/asset/canvas/vector)은
+   전부 블록 «바깥 테두리»를 px로 늘리는 핸들이라 못 쓴다(PLAN §5-A) — 대신 이 파일의
+   #ss-handles-overlay 자리와 rAF 위치갱신·hide 패턴만 그대로 빌린다.
+   ⛔거터 DOM 을 블록 «안»에 넣지 않는다 — #ss-handles-overlay는 #canvas-scaler 바깥(캔버스
+     클론 대상 밖)이라 저장본·export 에 새지 않는다(완료조건① — section-serialize.js가
+     세척하는 root 자체에 애초에 없음).
+   ★값은 항상 «가중치»(cols[i].width) — px 를 직접 쓰지 않는다(폭 계산 함정 회피, duo 는
+     width:100% 고정이라 원래 그 함정 밖이고 여기서도 안 들어간다).
+   ★행 축은 아직 없다(P1 = feat/grid-p1 미병합, 2026-09-04 P2 착수 시점) — 이 오버레이는
+     «열 경계»만 다룬다. 행 경계는 P1 머지 후 별도 커밋으로 추가한다(IMPL-grid-p2.md 참조).
+═══════════════════════════════════ */
+let _gridGutterBlock = null;
+let _gridGutterRafId = null;
+
+function _getGridCols(block) {
+  return Array.from(block.querySelectorAll(':scope > .duo-inner > .duo-col'));
+}
+
+function showGridGutters(block) {
+  if (_gridGutterBlock === block) { _updateGridGutterPositions(); return; }
+  hideGridGutters();
+  const cols = _getGridCols(block);
+  if (cols.length < 2) return; // 열 1개는 경계가 없다
+  _gridGutterBlock = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  for (let i = 0; i < cols.length - 1; i++) {
+    const g = document.createElement('div');
+    g.className = 'grd-gutter';
+    g.dataset.axis = 'col';
+    g.dataset.i = String(i);
+    // ★position:absolute — #ss-handles-overlay 자체가 position:fixed;inset:0(css/editor-blocks.css:78)
+    //   이라 자식은 absolute 로 둬도 좌표계가 뷰포트와 같다(.ss-resize-handle 등 기존 핸들과 동일 관례).
+    g.style.cssText = 'position:absolute;width:8px;cursor:col-resize;z-index:97;pointer-events:auto;';
+    overlay.appendChild(g);
+    g.addEventListener('mousedown', e => _onGridGutterMouseDown(e, block, i));
+  }
+  _updateGridGutterPositions();
+  _startGridGutterRaf();
+}
+
+function hideGridGutters() {
+  if (_gridGutterRafId) { cancelAnimationFrame(_gridGutterRafId); _gridGutterRafId = null; }
+  _gridGutterBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.grd-gutter').forEach(g => g.remove());
+}
+
+function _startGridGutterRaf() {
+  function loop() {
+    if (!_gridGutterBlock) return;
+    // 블록이 DOM에서 사라졌거나 선택 해제되면 거터 제거 — showFrameHandles rAF 패턴과 동일.
+    if (!_gridGutterBlock.isConnected || !_gridGutterBlock.classList.contains('selected')) {
+      hideGridGutters();
+      return;
+    }
+    _updateGridGutterPositions();
+    _gridGutterRafId = requestAnimationFrame(loop);
+  }
+  _gridGutterRafId = requestAnimationFrame(loop);
+}
+
+function _updateGridGutterPositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_gridGutterBlock) return;
+  const cols = _getGridCols(_gridGutterBlock);
+  const blockRect = _gridGutterBlock.getBoundingClientRect();
+  overlay.querySelectorAll('.grd-gutter[data-axis="col"]').forEach(g => {
+    const i = +g.dataset.i;
+    const a = cols[i], b = cols[i + 1];
+    if (!a || !b) { g.style.display = 'none'; return; }
+    g.style.display = '';
+    const ar = a.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
+    const cx = (ar.right + br.left) / 2; // 두 열 사이 gap 의 중앙(스크린 좌표, 스케일 반영된 rect)
+    g.style.left = (cx - 4) + 'px';      // 8px 폭 중앙 정렬
+    g.style.top = blockRect.top + 'px';
+    g.style.height = blockRect.height + 'px';
+  });
+}
+
+// 열 경계 드래그 — 인접 두 열의 «가중치»만 재분배(합 보존, 다른 열 불변).
+// wL0/wR0(화면 px, 스케일로 나눈 캔버스 px)와 W(가중치 합)는 mousedown 시점 1회 스냅샷 —
+// mousemove 는 여기서 튄 델타만 resizeColBoundary(순수함수, grid-cell-resize.js)에 먹인다.
+function _onGridGutterMouseDown(e, block, i) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  let cols;
+  try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) { cols = []; }
+  if (!Array.isArray(cols) || !cols[i] || !cols[i + 1]) return;
+  const colEls = _getGridCols(block);
+  const elA = colEls[i], elB = colEls[i + 1];
+  if (!elA || !elB) return;
+
+  // row draggable(block-drag.js)과의 충돌 방지 — 거터는 블록 밖(오버레이)이라 애초에 잘 안 맞지만,
+  // 조상 체인의 dragstart 를 막는 안전망을 표 셀 선택과 «공유»한다(drag-utils.js, PLAN §5-B-4).
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+
+  const scale0 = _canvasScaleNow();
+  const wL0 = elA.getBoundingClientRect().width / scale0;
+  const wR0 = elB.getBoundingClientRect().width / scale0;
+  const W = (Number(cols[i].width) || 1) + (Number(cols[i + 1].width) || 1);
+  const startX = e.clientX;
+  // ★드래그 «시작 직전» 1회만(mousedown) — mousemove 마다 쌓이면 undo 가 픽셀 단위로 끊긴다.
+  window.pushHistory?.();
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow(); // 드래그 중 줌이 바뀌는 경우까지 방어(매 move 재조회)
+    const delta = (ev.clientX - startX) / scale;
+    const r = resizeColBoundary(wL0, wR0, W, delta, 40);
+    if (!r) return;
+    cols[i].width = r.leftWeight;
+    cols[i + 1].width = r.rightWeight;
+    block.dataset.cols = JSON.stringify(cols);
+    window.renderDuoBlock?.(block);
+    _updateGridGutterPositions();
+    // 패널이 열려 있으면 비율 입력값만 갱신 — 패널 재렌더 금지(포커스/드래그 중단 방지,
+    // prop-duo.js 의 «드래그 중 패널 재렌더 금지» 규약과 동일, PLAN §4 끝줄).
+    const ratioInput = document.getElementById('grd-col-ratio');
+    if (ratioInput) {
+      ratioInput.value = cols.map(c => {
+        const n = Number(c.width);
+        return Number.isInteger(n) ? String(n) : String(+n.toFixed(2));
+      }).join(':');
+    }
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showGridGutters = showGridGutters;
+window.hideGridGutters = hideGridGutters;
+
 export {
   showFrameHandles,
   hideFrameHandles,
@@ -1188,4 +1333,6 @@ export {
   hideCanvasResizeHandles,
   showVectorResizeHandles,
   hideVectorResizeHandles,
+  showGridGutters,
+  hideGridGutters,
 };
