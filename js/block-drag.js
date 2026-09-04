@@ -77,6 +77,59 @@ function _restoreParentFrameSelected(block) {
   // realFrame이 null이면 (section 직속 text-frame): _activeFrame 설정 안 함 → 섹션에 추가됨
 }
 
+// fix(frame-p0#6): bindBlock 안에 있던 "배치모드(absolute↔flow)별 HTML5 드래그 바인딩"을
+// 독립 함수로 뺐다 — SSOT. bindBlock의 최초 호출 경로는 그대로(단순 추출, 동작 동일)이고,
+// «드래그아웃 후 flow로 전환된 유닛을 재바인딩»하는 새 경로(드래그아웃 핸들러)가 이걸 재사용한다.
+// draggable 속성은 호출될 때마다 현재 position에 맞춰 다시 계산한다(재바인딩 시 최신 상태 반영) —
+// 리스너(dragstart/dragend)만 unitEl._html5DragBound 가드로 1회만 부착한다.
+function bindPlacementDrag(unitEl, block) {
+  if (!unitEl) return;
+  // absolute 위치 요소는 HTML5 drag 완전 비활성화 — 커스텀 mousemove drag만 사용
+  // (draggable 속성 자체를 제거 → dragstart 이벤트 미발생 → opacity 깜빡임 없음)
+  // 적용 대상: absolute text-frame, absolute shape-block, absolute block 전반
+  // 기존 저장된 HTML에 draggable="true"가 남아있을 수 있으므로 명시적 removeAttribute 처리
+  const needsHtml5Drag = unitEl.style.position !== 'absolute' && block.style.position !== 'absolute';
+  if (needsHtml5Drag) {
+    unitEl.setAttribute('draggable', 'true');
+  } else {
+    unitEl.removeAttribute('draggable');
+  }
+  if (block.classList.contains('text-block')) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
+
+  if (unitEl._html5DragBound) return;
+  unitEl._html5DragBound = true;
+
+  unitEl.addEventListener('dragstart', e => {
+    // 복수선택 의도(Cmd/Shift/Ctrl + 클릭) 중에는 네이티브 HTML5 드래그를 억제 → 클릭 기반 다중선택이 이기게 한다.
+    // (bare draggable 플로우 블록 — 예: 복사된 버블처럼 본체에 draggable=true가 붙은 경우 — 미세이동만으로
+    //  dragstart가 발화해 modifier+클릭 선택을 가로채던 버그. 모든 블록/프레임 타입에 균일 적용.)
+    if (e.metaKey || e.shiftKey || e.ctrlKey) { e.preventDefault(); return; }
+    if (block.style.position === 'absolute' || unitEl.style.position === 'absolute') { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용 (flow→absolute 전환 후 예외 처리)
+    if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
+    if (block.classList.contains('editing')) { e.preventDefault(); return; }
+    _suppressDragSave();
+    dragState.dragSrc = unitEl;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    // ghost 이미지 투명 처리 (zoom 왜곡 방지)
+    const ghost = document.createElement('div');
+    ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    setTimeout(() => ghost.remove(), 0);
+    requestAnimationFrame(() => unitEl.classList.add('dragging'));
+  });
+  unitEl.addEventListener('dragend', () => {
+    _resumeDragSave();
+    unitEl.classList.remove('dragging');
+    clearDropIndicators();
+    dragState.dragSrc = null;
+    // fix(qa-s02): dragend 후 row-active 잔류 방지 — 드래그로 row가 이동하면
+    // 이전 위치의 row-active 상태가 남아 레이아웃 선택 표시가 오염됨
+    document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+  });
+}
+
 function bindBlock(block) {
   if (block._blockBound) return;
   block._blockBound = true;
@@ -303,10 +356,35 @@ function bindBlock(block) {
         if (ref) inner.insertBefore(dragEl, ref);
         else inner.appendChild(dragEl);
 
-        // flow 요소로 재바인딩
-        dragEl._dragBound = false;
-        const _tb = dragEl.querySelector('.text-block');
-        if (_tb) { _tb._blockBound = false; bindBlock(_tb); }
+        // flow 요소로 재바인딩 — 배치모드 전환(absolute→flow)마다 draggable 재동기화가 필요하다.
+        // 기존엔 .text-block 자식만 «bindBlock 전체 재호출»로 다시 묶어(리스너 중복 부착 위험,
+        // pushHistory 2회 등) 텍스트만 됐고, 텍스트 외 타입(에셋·아이콘·표·mockup의 row·shape의
+        // 프레임)은 재바인딩 자체가 없어 dragstart가 영원히 안 나 "드래그 불가"였다 —
+        // bindPlacementDrag/_bindFrameOwnDrag(SSOT, 리스너 1회 가드)로 전 타입을 통일한다.
+        if (dragEl.dataset.textFrame === 'true') {
+          // 텍스트프레임: 래퍼 자신이 flow 단위(bindBlock의 dragTarget 규칙과 동일) — 대표 text-block으로 재바인딩
+          const tb = dragEl.querySelector('.text-block');
+          if (tb) bindPlacementDrag(dragEl, tb);
+        } else if (dragEl.classList.contains('frame-block')) {
+          // shape-frame 등: 프레임 자체 드래그는 bindFrameDropZone 쪽 별도 관례
+          // (선택 상태일 때만 드래그) — 그 SSOT(_bindFrameOwnDrag)를 재사용한다.
+          _bindFrameOwnDrag(dragEl);
+        } else if (dragEl.classList.contains('row')) {
+          // mockup 등 이미 .row인 경우: 대표 자식으로 재바인딩
+          const rep = dragEl.firstElementChild;
+          if (rep) bindPlacementDrag(dragEl, rep);
+        } else {
+          // 맨몸 절대배치 블록(에셋·아이콘·표 등): 정상 플로우 블록과 동일하게
+          // .row[data-layout=stack]로 감싼다(makeAssetBlock 등 삽입 함수와 동일 구조,
+          // block-factory.js:111 관례) — 그래야 ⌘[/⌘] 이동 단위(closest('.row'))도 맞는다.
+          const row = document.createElement('div');
+          row.className = 'row';
+          row.id = (typeof window.genId === 'function' ? window.genId('row') : 'row_' + Math.random().toString(36).slice(2, 9));
+          row.dataset.layout = 'stack';
+          dragEl.replaceWith(row);
+          row.appendChild(dragEl);
+          bindPlacementDrag(row, dragEl);
+        }
 
         window.buildLayerPanel?.();
         return;
@@ -1559,50 +1637,7 @@ function bindBlock(block) {
   // dragSrc를 block 단위로 분리하고 drop 시 target col에 appendChild하는 로직이 요구됨.
   // 현재는 row 단위 이동만 가능 (사용자에게 col 간 이동 불가 안내 필요 or 기능 추가 필요).
   const dragTarget = isGap ? block : (block.closest('.frame-block[data-text-frame]') || block.closest('.row') || block);
-  if (dragTarget && !dragTarget._dragBound) {
-    dragTarget._dragBound = true;
-    // absolute 위치 요소는 HTML5 drag 완전 비활성화 — 커스텀 mousemove drag만 사용
-    // (draggable 속성 자체를 제거 → dragstart 이벤트 미발생 → opacity 깜빡임 없음)
-    // 적용 대상: absolute text-frame, absolute shape-block, absolute block 전반
-    // 기존 저장된 HTML에 draggable="true"가 남아있을 수 있으므로 명시적 removeAttribute 처리
-    const needsHtml5Drag = dragTarget.style.position !== 'absolute' && block.style.position !== 'absolute';
-    if (needsHtml5Drag) {
-      dragTarget.setAttribute('draggable', 'true');
-    } else {
-      dragTarget.removeAttribute('draggable');
-    }
-    if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
-
-    dragTarget.addEventListener('dragstart', e => {
-      // 복수선택 의도(Cmd/Shift/Ctrl + 클릭) 중에는 네이티브 HTML5 드래그를 억제 → 클릭 기반 다중선택이 이기게 한다.
-      // (bare draggable 플로우 블록 — 예: 복사된 버블처럼 본체에 draggable=true가 붙은 경우 — 미세이동만으로
-      //  dragstart가 발화해 modifier+클릭 선택을 가로채던 버그. 모든 블록/프레임 타입에 균일 적용.)
-      if (e.metaKey || e.shiftKey || e.ctrlKey) { e.preventDefault(); return; }
-      if (block.style.position === 'absolute' || dragTarget.style.position === 'absolute') { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용 (flow→absolute 전환 후 예외 처리)
-      if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
-      if (block.classList.contains('editing')) { e.preventDefault(); return; }
-      _suppressDragSave();
-      dragState.dragSrc = dragTarget;
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', '');
-      // ghost 이미지 투명 처리 (zoom 왜곡 방지)
-      const ghost = document.createElement('div');
-      ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
-      document.body.appendChild(ghost);
-      e.dataTransfer.setDragImage(ghost, 0, 0);
-      setTimeout(() => ghost.remove(), 0);
-      requestAnimationFrame(() => dragTarget.classList.add('dragging'));
-    });
-    dragTarget.addEventListener('dragend', () => {
-      _resumeDragSave();
-      dragTarget.classList.remove('dragging');
-      clearDropIndicators();
-      dragState.dragSrc = null;
-      // fix(qa-s02): dragend 후 row-active 잔류 방지 — 드래그로 row가 이동하면
-      // 이전 위치의 row-active 상태가 남아 레이아웃 선택 표시가 오염됨
-      document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
-    });
-  }
+  bindPlacementDrag(dragTarget, block);
 
   // 블록 우클릭 → 컨텍스트 메뉴
   block.addEventListener('contextmenu', e => {
@@ -1610,7 +1645,46 @@ function bindBlock(block) {
   });
 }
 
+// fix(frame-p0#6): "프레임 자체 드래그"(flow 모드 frame-block, 선택 상태에서만 드래그) 부분을
+// bindFrameDropZone에서 뺐다 — 드래그아웃으로 shape-frame 등이 absolute→flow로 전환될 때
+// bindFrameDropZone 전체를 재호출하면(_subSecBound 리셋) click 등 다른 리스너까지 중복 부착되므로
+// 이 부분만 독립적으로 재호출 가능하게 한다. ss._frameDragBound 가드로 리스너는 1회만 부착.
+function _bindFrameOwnDrag(ss) {
+  ss.setAttribute('draggable', 'true');
+  if (ss._frameDragBound) return;
+  ss._frameDragBound = true;
+  ss.addEventListener('dragstart', e => {
+    // 자식 블록이 시작한 드래그가 버블링된 경우 — 이 핸들러는 프레임 자체 드래그만 처리
+    // (preventDefault나 dragSrc 덮어쓰기로 자식 드래그를 깨뜨리면 안 됨)
+    if (e.target !== ss) return;
+    // 선택된 프레임이 아니면 드래그 취소
+    if (!ss.classList.contains('selected')) { e.preventDefault(); return; }
+    e.stopPropagation();
+    _suppressDragSave();
+    dragState.dragSrc = ss;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    const ghost = document.createElement('div');
+    ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    setTimeout(() => ghost.remove(), 0);
+    requestAnimationFrame(() => ss.classList.add('dragging'));
+  });
+  ss.addEventListener('dragend', () => {
+    _resumeDragSave();
+    ss.classList.remove('dragging');
+    clearDropIndicators();
+    if (dragState.dragSrc === ss) dragState.dragSrc = null;
+    window.buildLayerPanel();
+    window.triggerAutoSave?.();
+  });
+}
+
 function bindFrameDropZone(ss) {
+  // fix(frame-p0#4): 붙여넣기/복제가 프레임이 아닌 맨몸 블록(class=asset-block 등)에
+  // 이 함수를 걸면 프레임 정체성이 이식돼 선택이 영원히 불가능해진다 — class로 게이트.
+  if (!ss.classList || !ss.classList.contains('frame-block')) return;
   if (ss._subSecBound) return;
   ss._subSecBound = true;
 
@@ -1787,33 +1861,7 @@ function bindFrameDropZone(ss) {
   }
 
   // 프레임 자체 드래그 — 프레임이 selected 상태에서 드래그 시 section-inner 내 순서 변경
-  ss.setAttribute('draggable', 'true');
-  ss.addEventListener('dragstart', e => {
-    // 자식 블록이 시작한 드래그가 버블링된 경우 — 이 핸들러는 프레임 자체 드래그만 처리
-    // (preventDefault나 dragSrc 덮어쓰기로 자식 드래그를 깨뜨리면 안 됨)
-    if (e.target !== ss) return;
-    // 선택된 프레임이 아니면 드래그 취소
-    if (!ss.classList.contains('selected')) { e.preventDefault(); return; }
-    e.stopPropagation();
-    _suppressDragSave();
-    dragState.dragSrc = ss;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', '');
-    const ghost = document.createElement('div');
-    ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
-    setTimeout(() => ghost.remove(), 0);
-    requestAnimationFrame(() => ss.classList.add('dragging'));
-  });
-  ss.addEventListener('dragend', () => {
-    _resumeDragSave();
-    ss.classList.remove('dragging');
-    clearDropIndicators();
-    if (dragState.dragSrc === ss) dragState.dragSrc = null;
-    window.buildLayerPanel();
-    window.triggerAutoSave?.();
-  });
+  _bindFrameOwnDrag(ss);
 
   // (click 핸들러는 함수 상단 공통 핸들러로 이동)
 

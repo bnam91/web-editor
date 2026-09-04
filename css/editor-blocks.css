@@ -894,6 +894,13 @@
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));
 }
+/* fix(frame-p0#4-후반): 텍스트프레임 래퍼는 z-index:auto라 DOM 순서로 그려져,
+   자유배치 프레임 안에서 뒤 형제인 asset-block(스태킹 컨텍스트, z-index 없음이라도
+   DOM 순서로 뒤에 옴)이 선택 아웃라인을 덮어버렸다. 텍스트 내용은 이미
+   .text-block.selected { z-index:2 }(아래)로 위에 뜨는데 아웃라인만 뒤에 있던 불일치 — 맞춘다. */
+.frame-block[data-text-frame="true"]:has(.text-block.selected) {
+  z-index: 2;
+}
 /* T6: outline 2겹 픽스 — 부모 row/text-frame이 outline을 책임지면
    .text-block.selected의 자체 outline은 transparent로 되돌려 한 겹만 보이게 한다.
    (text-block은 padding/border-box 변화로 부모와 미세 어긋남이 생겨 2겹으로 보였음) */

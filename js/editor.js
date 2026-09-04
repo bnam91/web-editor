@@ -713,10 +713,17 @@ function duplicateSelected() {
       window.pushHistory('복제');
       const clone = absWrapper.cloneNode(true);
       // 새 id 생성
-      clone.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+      // fix(frame-p0#4): absWrapper는 text/shape 프레임뿐 아니라 «맨몸 절대배치 블록»
+      // (예: asset-block)일 수도 있다 — 항상 'ss_'로 찍으면 id 접두사가 실제 타입과
+      // 어긋난다(bindFrameDropZone 이식·MCP 게이트 불일치). 원래 prefix를 보존하고
+      // genId(actorId 포함)를 쓴다(붙여넣기 경로와 동일 관례).
+      const _gid = (p) => (typeof window.genId === 'function'
+        ? window.genId(p)
+        : p + '_' + Math.random().toString(36).slice(2, 9));
+      clone.id = _gid(absWrapper.id.split('_')[0] || 'ss');
       clone.querySelectorAll('[id]').forEach(el => {
         const prefix = el.id.split('_')[0] || 'el';
-        el.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
+        el.id = _gid(prefix);
       });
       // 오프셋 +20px
       const origLeft = parseInt(absWrapper.style.left || '0');
@@ -745,7 +752,8 @@ function duplicateSelected() {
       }
       clone._dragBound = false;
       clone._subSecBound = false;
-      window.bindFrameDropZone?.(clone);
+      // fix(frame-p0#4): clone이 실제로는 프레임이 아닌 맨몸 블록일 수 있다 — 호출부도 명시 가드.
+      if (clone.classList.contains('frame-block')) window.bindFrameDropZone?.(clone);
       // 기존 선택 해제 후 복제본 선택
       deselectAll();
       const cloneBlock = clone.querySelector('.text-block, .shape-block, .asset-block') || clone;
@@ -1017,7 +1025,10 @@ function pasteClipboard() {
       const _gid = (p) => (typeof window.genId === 'function'
         ? window.genId(p)
         : p + '_' + Math.random().toString(36).slice(2, 9));
-      el.id = _gid('ss');
+      // fix(frame-p0#4): 항상 'ss'로 찍으면 실제로는 asset-block 등인 요소가
+      // ss_ 접두사를 얻어 프레임으로 오판된다(bindFrameDropZone 이식·MCP 게이트 불일치의 원인) —
+      // 원래 id의 접두사(요소 실제 타입)를 보존한다.
+      el.id = _gid(el.id.split('_')[0] || 'ss');
       el.querySelectorAll('[id]').forEach(c => { const p = c.id.split('_')[0] || 'el'; c.id = _gid(p); });
       const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
       el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
@@ -1026,7 +1037,10 @@ function pasteClipboard() {
       const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
       el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
       if (el.matches?.(_ALL)) { delete el._blockBound; window.bindBlock?.(el); }
-      el._dragBound = false; el._subSecBound = false; window.bindFrameDropZone?.(el);
+      el._dragBound = false; el._subSecBound = false;
+      // fix(frame-p0#4): el이 실제로는 프레임이 아닌 맨몸 블록(예: asset-block)일 수 있다 —
+      // bindFrameDropZone은 함수 내부에서도 게이트하지만 호출부도 명시적으로 가드한다.
+      if (el.classList.contains('frame-block')) window.bindFrameDropZone?.(el);
       deselectAll();
       const cb = el.querySelector('.text-block, .shape-block, .asset-block') || el;
       cb.classList.add('selected');

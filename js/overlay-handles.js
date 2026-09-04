@@ -1169,6 +1169,30 @@ function _onVectorResizeHandleMouseDown(e, vb, dir) {
 window.showVectorResizeHandles = showVectorResizeHandles;
 window.hideVectorResizeHandles = hideVectorResizeHandles;
 
+// fix(frame-p0#5): 캔버스 클릭 핸들러 6곳(block-drag.js asset·icon-circle·canvas·vector·
+// iconify·mockup)이 저마다 손으로 부르던 핸들 호출을 타입→핸들 맵 하나로 모은다.
+// 진입점(레이어패널 등)이 늘어도 여기 한 곳만 맞으면 된다 — SSOT.
+// (캔버스 6곳 자체는 회귀 격리를 위해 P0에서는 그대로 두고 P1에서 이 맵으로 치환한다.)
+function showHandlesFor(block) {
+  if (!block || !block.classList) return;
+  if (block.classList.contains('asset-block')) {
+    showAssetRadiusHandles(block);
+    showAssetResizeHandles(block);
+  } else if (block.classList.contains('icon-circle-block')) {
+    showIconCircleResizeHandle(block);
+  } else if (block.classList.contains('canvas-block')) {
+    showCanvasRadiusHandles(block);
+    showCanvasResizeHandles(block);
+  } else if (block.classList.contains('vector-block')) {
+    showVectorResizeHandles(block);
+  } else if (block.classList.contains('icon-block')) {
+    showIconHandles(block);
+  } else if (block.classList.contains('mockup-block')) {
+    showMockupHandles(block);
+  }
+}
+window.showHandlesFor = showHandlesFor;
+
 export {
   showFrameHandles,
   hideFrameHandles,
@@ -1188,4 +1212,5 @@ export {
   hideCanvasResizeHandles,
   showVectorResizeHandles,
   hideVectorResizeHandles,
+  showHandlesFor,
 };
