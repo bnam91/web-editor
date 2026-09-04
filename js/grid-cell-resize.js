@@ -19,6 +19,10 @@
  * / 2000(드래그) 로 «네 자리»에 흩어져 드래그만 2000 에서 멈췄다 — 같은 값이어야 한다.
  * 이 레포가 오늘만 다섯 번 당한 패턴이다(위임목록·저장 화이트리스트·클램프·거터 배선·이것). */
 const ROW_H_MAX = 4000;
+/* ⚠️ROW_H_MIN 은 «드래그 전용 바닥»이다 — 패널 입력과 API 검증의 하한은 0('auto' 허용)이라
+ * 상한(ROW_H_MAX)처럼 전 계층 SSOT 가 «아니다». 일부러 다르다: 데이터로는 0/auto 가 정당하고,
+ * 드래그는 손으로 잡을 수 있는 최소 높이가 필요하다. 통일하지 마라 — 통일하면 auto 가 죽는다.
+ * (적대검수 G2: 테스트가 이 값을 단언해서 「전 계층이 닫힌 것」처럼 읽히던 것을 여기 명시해 둔다.) */
 const ROW_H_MIN = 24;
 const COL_MIN_PX = 40;   // 열 경계 드래그의 화면상 최소 열 폭. 호출부가 리터럴로 덮어쓰지 않는다.
 
@@ -44,8 +48,12 @@ function resizeColBoundary(wL, wR, W, deltaPx, minPx = COL_MIN_PX) {
 // PLAN §5-B-3 "행 «가중치» 재분배는 없다"). startH 는 mousedown 시점 실제 렌더 높이(px, scale로
 // 나눈 값) — 'auto' 행도 「지금 화면에 보이는 높이」에서 드래그를 시작한다.
 function resizeRowHeight(startH, deltaPx, minPx = ROW_H_MIN, maxPx = ROW_H_MAX) {
-  if (!Number.isFinite(deltaPx) || !Number.isFinite(startH)) return Math.round(Math.max(minPx, Number(startH) || minPx));
-  return Math.round(Math.max(minPx, Math.min(maxPx, startH + deltaPx)));
+  /* ★가드 경로도 «정상 경로와 같은 클램프»를 지난다. 전엔 상한을 건너뛰어
+   * R(5000, 0) = 4000 인데 R(5000, NaN) = 5000 이었다(적대검수 G3) — 델타가 망가졌다고
+   * 상한이 풀릴 이유가 없다. 조기 return 이 계약을 깨는 전형이라 오늘만 두 번째다. */
+  const d = Number.isFinite(deltaPx) ? deltaPx : 0;
+  const h = Number.isFinite(startH) ? startH : minPx;
+  return Math.round(Math.max(minPx, Math.min(maxPx, h + d)));
 }
 
 export {
