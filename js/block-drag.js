@@ -77,6 +77,23 @@ function _restoreParentFrameSelected(block) {
   // realFrame이 null이면 (section 직속 text-frame): _activeFrame 설정 안 함 → 섹션에 추가됨
 }
 
+/* ★프레임 선택 복원의 «단일 통로» (적대검수 조건1).
+ * 두 함수가 커버 범위가 다르다:
+ *   _restoreFreeLayoutFrameSelected(editor.js) = data-free-layout 프레임 «만». 중첩까지 거슬러 올라간다.
+ *   _restoreParentFrameSelected(이 파일)       = «모든» frame-block. text-frame→real frame 매핑도 한다.
+ * 레이어패널은 앞엣것만 불러서, fullWidth/배너/모드전환 프레임 안의 블록은 복원이 «아예 안 됐다»
+ * → 이후 캔버스에서 그 블록을 누르면 _isInsideUnselectedFrame(모든 frame-block 을 본다)이 참이 돼
+ *   또 프레임으로 튀었다. 즉 #5 가 free-layout 에서만 고쳐져 있었다.
+ * ⚠️block-drag.js:679 의 `(A || B)(block)` 은 «함수가 존재하면 A만» 부르는 폴백이라
+ *   B 가 영원히 안 돌았다 — 커버 범위 폴백이 아니었다. 여기로 모은다. */
+function restoreFrameSelectionFor(block) {
+  window._restoreFreeLayoutFrameSelected?.(block);
+  // free-layout 복원이 이 블록을 품는 프레임을 잡았으면 끝. 아니면 «모든 프레임» 판을 돌린다.
+  const af = window._activeFrame;
+  if (!af || !af.contains(block)) _restoreParentFrameSelected(block);
+}
+window.restoreFrameSelectionFor = restoreFrameSelectionFor;
+
 // fix(frame-p0#6): bindBlock 안에 있던 "배치모드(absolute↔flow)별 HTML5 드래그 바인딩"을
 // 독립 함수로 뺐다 — SSOT. bindBlock의 최초 호출 경로는 그대로(단순 추출, 동작 동일)이고,
 // «드래그아웃 후 flow로 전환된 유닛을 재바인딩»하는 새 경로(드래그아웃 핸들러)가 이걸 재사용한다.
@@ -676,7 +693,7 @@ function bindBlock(block) {
       }
       window.deselectAll();
       // 중첩 프레임(A > B > TF > C) 구조에서 A와 B 모두 selected 복원
-      (window._restoreFreeLayoutFrameSelected || _restoreParentFrameSelected)(block);
+      restoreFrameSelectionFor(block);   // ★단일 통로 — 옛 `(A || B)` 는 A만 부르던 «존재» 폴백이었다
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);

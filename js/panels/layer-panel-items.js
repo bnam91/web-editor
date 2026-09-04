@@ -209,7 +209,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     // 부모 free-layout 프레임 selected/`_activeFrame`을 복원하는데, 레이어패널 클릭은
     // 이 복원이 없어 이후 캔버스에서 같은 블록을 클릭하면 "미선택 프레임 안"으로
     // 오판돼 블록 대신 프레임이 선택돼버렸다 — 캔버스와 동일하게 복원한다.
-    window._restoreFreeLayoutFrameSelected?.(block);
+    window.restoreFrameSelectionFor?.(block);   // ★free-layout «만» 이 아니라 모든 프레임(적대검수 조건1)
     block.classList.add('selected');
     window.syncSection(sec);
     window.highlightBlock(block, item);
@@ -384,7 +384,7 @@ function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
     window.deselectAll();
     // fix(frame-p0#5): makeLayerBlockItem과 동일 — 프레임 안 asset(오버레이 포함)도
     // 부모 free-layout 프레임 selected/`_activeFrame`을 복원해야 캔버스 재클릭 시 안 튄다.
-    window._restoreFreeLayoutFrameSelected?.(block);
+    window.restoreFrameSelectionFor?.(block);   // ★free-layout «만» 이 아니라 모든 프레임(적대검수 조건1)
     block.classList.add('selected');
     window.syncSection(sec);
     window.highlightBlock(block, header);
