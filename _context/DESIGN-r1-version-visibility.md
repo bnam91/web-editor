@@ -145,3 +145,131 @@
 
 ⚠️ 네이티브 업데이트 모달은 CDP 로 안 보인다(브리프) → V4 의 눈은 **화면 캡처**.
 ⚠️ mini05 는 DERP 경유(≈6MB/s) — 176MB 전송 대신 **mini05 에서 직접 빌드**한다.
+
+---
+
+## 5. 실행 결과 (2026-09-04 · 전부 실측)
+
+### V1 — A1 결정함수 단위테스트 : **PASS 16/16**
+`tests/unit/updater-cache.test.js`. 양성/음성 짝 + 부작용 «범위»(호출 전후 디렉터리 스냅샷 대조).
+
+**★변이 스윕(5종)** — 「동작을 없애면 어느 테스트가 빨강이 되나」
+| 변이 | 결과 |
+|---|---|
+| M1 판정불가=보존 제거 | 빨강 2 ✅ |
+| M2 폴백 프리릴리즈 보수성 제거 | 빨강 1 ✅ |
+| M3 파일명 파서를 전체 semver 로 | **처음엔 초록(=이빨 없음)** → 아래 |
+| M4 삭제 범위를 캐시 루트로 확대 | 빨강 3 ✅ |
+| M5 캐시 이름 못 읽으면 추측 | 빨강 1 ✅ |
+
+★M3 이 살아남아 **테스트의 구멍을 찾았다.** 처음 변이가 no-op 이었던 것도 같이 드러났다(코어만 돌려주는
+함수라 파서를 바꿔도 결과가 같았다). 진짜 위험은 **`decideCleanup` 의 폴백이 전체 semver 를 쓸 때**고,
+그때 답이 뒤집히는 자리는 **앱이 프리릴리즈일 때 «하나뿐»**이다
+(`0.9.1-arm64-mac` < `0.9.1-beta.1` — 'arm64' < 'beta' → 설치 대기분을 지워버린다).
+그 케이스를 테스트에 추가하고 변이를 다시 걸어 **빨강 1** 확인.
+
+### V2 — A1 맥 실측 : **PASS** (실제 캐시 · 실제 코드)
+`resolveUpdaterCacheDir(/Applications/GODITOR.app/Contents/Resources/app-update.yml)`
+→ `~/Library/Caches/sangpe-editor-updater` (실물 파일에서 이름을 읽음)
+
+| | before | after |
+|---|---|---|
+| `pending/` | `GODITOR-0.8.6-arm64-mac.zip` 185,225,043 + `update-info.json` 173 | **`[]` · du 0** |
+| 루트 `update.zip`(차분 기준) | 185,225,043 | **185,225,043 (무변경)** |
+| 캐시 합계 | 353.3MB | **176.6MB** |
+
+음성대조도 같이 쟀다 — 같은 pending 을 앱 0.8.5 로 판정하면 `clean:false`(「설치 대기 중」).
+
+⚠️ **못 한 것**: «포장된 맥 앱이 부팅하며» 이 함수를 부르는 것까지는 안 봤다. 맥 릴리스 빌드는 서명/공증이
+필요해 현빈 게이트고, `--dir` 빌드는 `app-update.yml` 을 안 만든다. 그리고 현빈 실사용 맥이라
+GUI 앱을 띄우면 포커스를 뺏는다(⛔). **호출 배선은 윈도우 V5 에서 같은 코드로 증명됐고**,
+맥 고유 부분(경로 해석)은 V2 가 실물로 증명했다.
+
+### V3 — A2 이름 3자 일치 : **PASS** (mini05, github 설정 그대로 `--publish never`)
+```
+dist\GODITOR-Setup-0.9.1.exe      176,121,793
+dist\GODITOR-Setup-0.9.1.exe.blockmap
+dist\latest.yml →  url: GODITOR-Setup-0.9.1.exe / path: GODITOR-Setup-0.9.1.exe
+```
+로컬 파일명 = latest.yml = **v0.9.0 게시명과 같은 형식**(`GODITOR-Setup-0.9.0.exe`).
+바뀐 것은 «공백→대시 치환에 의존하지 않는다»는 것뿐이다.
+
+### V4 — ★A2 자동업데이트 완주 : **PASS**
+구성: **GitHub 릴리스 v0.9.0 «정품 설치본»**(`GODITOR-Setup-0.9.0.exe` 176,599,329B, exe mtime 03:00:30Z)
+→ `resources/app-update.yml` 만 로컬 피드로 교체 → mini05 로컬 HTTP 피드(`127.0.0.1:8099`)가 0.9.1 배포.
+
+피드 서버 실측 로그(= 업데이터가 실제로 무엇을 요청했나):
+```
+10:18:08 200 latest.yml 343
+10:18:08 200 GODITOR-Setup-0.9.1.exe.blockmap 518865
+10:18:08 404 GODITOR-Setup-0.9.0.exe.blockmap      ← 차분 실패 → 전량 다운로드 폴백(정상 경로)
+10:18:08 200 GODITOR-Setup-0.9.1.exe 526536438
+```
+결과: `pending/` 에 `temp-GODITOR-Setup-0.9.1.exe` → 완료 후 최종 이름으로 rename + `update-info.json`.
+설치 후 **`APP_EXE_VERSION = 0.9.1.0`** (0.9.0.0 → 0.9.1.0).
+
+⚠️ **경계 — 정직하게**: mini05 는 **모니터가 없다**(Electron 로그 `No displays detected`).
+그래서 네이티브 업데이트 모달이 «뜨지 않아» 「재시작」 클릭 경로는 이 기계에서 못 눌렀다
+(창 열거 0개, graceful `taskkill` 이 "창이 없다"로 거부). ⇒ 설치는 **electron-updater 가
+`autoInstallOnAppQuit` 에서 spawn 하는 명령 그대로** 재현해 태웠다: `<pending>\GODITOR-Setup-0.9.1.exe --updated /S`.
+안 태운 것은 «모달 버튼 → app.quit()» 배선 하나뿐이고, 그건 이번 변경이 손대지 않은 자리다.
+
+### V5 — A1 윈도우 실측 : **PASS** (3종 대조)
+| 케이스 | pending 전 | pending 후 | 판정 |
+|---|---|---|---|
+| ★실제 업데이트 직후(마커 **없음** = 정품 0.9.0 이 받은 것) | 527,055,774B | **0B** | 파일명 폴백으로 소진 판정 ✅ |
+| 음성대조: 0.9.2 페이로드+마커(설치 대기) | 3,145,900B | **3,145,900B (보존)** | ✅ |
+| 양성대조: 0.9.1 페이로드+마커(앱과 동일) | 3,145,900B | **0B** | ✅ |
+| 양성대조: 0.8.6 페이로드, 마커 **없음**(구버전 잔재) | 3,145,900B | **0B** | ✅ |
+
+전 케이스에서 캐시 루트 `installer.exe:526536438` · `current.blockmap:519167` **무변경**.
+★첫 줄이 특히 중요하다 — 실제 0.9.0 사용자는 마커가 «없다»(마커 코드는 0.9.1부터다). 그 경로가 실측으로 돈다.
+
+### V6 — A3 육안 + 실측 : **PASS**
+mini05 dev 인스턴스 + CDP 로 에디터(`index.html`)를 열고 측정:
+```
+BADGE_TEXT    = "v0.9.1"
+BADGE_CLASS   = "tb-badge"          (신작 CSS 0 — 공용 클래스 재사용)
+BADGE_VISIBLE = display:flex 44x17 @ (1155,13)
+```
+**디자인 일관성 검수(계산된 스타일 대조)** — 인접 동종 배지와 «전부 동일»:
+`font-size 10px · background rgb(42,42,42) · border rgb(58,58,58) · padding 2px 6px · radius 4px`
+(fsub / collab / collab-invite / debug-port / mcp-info / mcp-token 6개와 값이 한 글자도 안 다르다.
+`figma-bridge-badge` 만 다른데 그건 `.tb-badge--pill` 변형이라 원래 다르다.)
+`#topbar` 가로 넘침 없음(`scrollWidth 1424 == clientWidth 1424`). 좌측 로고 배지는 `BETA v0.9.1` 그대로.
+스크린샷 `qa/a3-editor.png` — 상단바 우측 `v0.9.1` 이 File 버튼 왼쪽에 보인다.
+맥: `.is-mac` 규칙은 `#topbar { padding-left: 80px }` 하나뿐이고(신호등 자리, **좌측**) 이 배지는 우측 무리라 충돌 없음.
+
+---
+
+## 6. 부수 발견 — 보고 대상
+
+### 6-1. ★NSIS 설치기가 «자기 자신»을 캐시 루트에 복사한다 (코드 + 실측 2회)
+`installer.nsh:93`. mini05 에서 0.9.0 설치 직후 `installer.exe:176,599,329`(정품 exe와 **바이트 일치**),
+0.9.1 설치 직후 `installer.exe:526,536,438` 로 갱신되는 것을 실측했다.
+⇒ 「윈도우 pending 337MB」의 실체는 **pending + 이 루트 복사본**이고, 우리가 지우는 건 앞의 절반이다.
+
+### 6-2. ⚠️`-c.npmRebuild=false` + asar 빌드는 mini05 에서 «실행 즉시 exit 1»
+- 정품 v0.9.0(asar) 은 mini05 에서 **정상 실행**된다 → 기계 문제 아님.
+- 같은 소스의 **`-c.asar=false`** 빌드는 정상 실행된다 → 소스 문제 아님.
+- 증상: stdout/stderr 0바이트, 이벤트로그 무기록, SmartAppControl=0, Defender 무탐지.
+  asar 를 풀어 `resources/app` 으로 바꿔도 여전히 exit 1(=무결성 fuse 가 exe 에 남아서로 추정).
+- ★**대조 실험(이게 결론이다)**: 같은 mini05 에서 `--dir` + asar 로 두 번 빌드했다.
+  | 빌드 | 소스 | 실행 |
+  |---|---|---|
+  | A | **내 R1 브랜치** | exit 1 |
+  | B | **미변경 `origin/dev`** (package.json·main.js·index.html·js/editor.js 를 origin/dev 로 되돌리고 `main/updater-cache.js` 제거) | **exit 1 (똑같이 실패)** |
+  ⇒ **내 R1 변경과 무관하다** — 빌드 «환경»(VS Build Tools 부재 → `-c.npmRebuild=false`) 쪽 문제다.
+⇒ **릴리스 경로에는 영향 없음**(릴리스는 네이티브 리빌드를 하는 기계에서 빌드된다 — 정품 v0.9.0 이 mini05 에서 잘 돈다).
+   다만 「VS Build Tools 없는 기계에서는 asar 배포본을 만들 수 없다」는 제약으로 기록해 둔다.
+   ⚠️ 근본 원인은 «미규명»이다. 「asar 무결성 fuse」는 정황 추정이고 증명하지 않았다 — 그렇게 적어 둔다.
+
+### 6-3. ⚠️ 사용자 지정 `artifactName` 은 arch 접미사를 «자동으로 안 붙인다»
+`platformPackager.expandArtifactNamePattern` 의 `isUserForced` 분기. win 이 x64 하나라 지금은 안전하지만
+**arm64 를 추가하는 날 두 산출물이 같은 이름이 된다** → 그때 `-${arch}` 를 넣어야 하고, 그건 게시명 변경이다.
+
+### 6-4. ⚠️ 운영 함정 2개(다음 사람용)
+- ssh 로 띄운 프로세스는 **ssh 세션이 끝나면 같이 죽는다**(Start-Process·detached spawn 둘 다).
+  피드 서버가 조용히 죽어 「업데이트가 안 걸린다」로 보였다. ⇒ 상주가 필요하면 **`schtasks /IT`**.
+- **mini05 는 모니터가 없다** → GUI 창이 아예 안 생긴다. 창 열거 0, graceful taskkill 거부.
+  GUI 가 필요한 QA 는 이 기계로 못 한다.

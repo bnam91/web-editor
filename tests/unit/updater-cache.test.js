@@ -88,6 +88,10 @@ test('decideCleanup(filename) — 폴백은 «보수적»이다', () => {
   assert.equal(d('GODITOR-Setup-0.9.2.exe', '0.9.1').clean, false);
   // ★코어가 같은데 앱이 프리릴리즈면 파일명만으론 beta.1/beta.2 를 못 가른다 → 보존해야 한다.
   assert.equal(d('GODITOR-Setup-0.9.1.exe', '0.9.1-beta.1').clean, false);
+  // ★★여기가 「arch 를 프리릴리즈로 읽으면」 실제로 답이 뒤집히는 «유일한» 자리다(변이 스윕에서 찾음).
+  //   전체 semver 로 읽으면 0.9.1-arm64-mac < 0.9.1-beta.1 ('arm64' < 'beta') 이 되어 «지운다» 로 뒤집힌다.
+  //   실제로는 설치 대기 중인 0.9.1 정식일 수 있다 → 지우면 재다운로드를 강요한다.
+  assert.equal(d('GODITOR-0.9.1-arm64-mac.zip', '0.9.1-beta.1').clean, false);
 });
 
 test('decideCleanup — 판정 불가는 «보존»이다', () => {
