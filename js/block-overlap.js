@@ -96,6 +96,10 @@
 
   function setPull(b0, v) {
     var b = flowUnit(b0); if (!b) return 0;
+    /* ★«걸 수 없는» 자리엔 걸지 않는다 — eligible() 은 패널만 보고 setPull 은 안 봤다.
+       그래서 API 로 부르면 갭 블록·맨 첫 자리에도 겹침이 들어갔다(2026-09-04 QA 실측:
+       gap-block 에 −60 이 먹었다). 지우는 것(v===0)은 언제나 허용해야 «되돌리기»가 산다. */
+    if (Math.round(v) !== 0 && !eligible(b0)) return parseInt(b.style.marginTop, 10) || 0;
     v = Math.max(minPullFor(b), Math.min(MAX, Math.round(v)));
     if (v) {
       b.style.marginTop = v + 'px';
