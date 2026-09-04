@@ -2702,6 +2702,50 @@ function moveSection(sectionId, { beforeId, afterId } = {}) {
 }
 window.moveSection = moveSection;
 
+/* ── 블록 이동 (섹션 내부/섹션 간, beforeId 또는 afterId) ──
+   MCP 결손 조사(INV-B3/B1)에서 1순위로 확정된 기능: move_section만 있고 그 아래
+   단위인 블록 이동이 전무했다(레이어패널 드래그로만 가능).
+   ★실제로 옮기는 DOM 단위는 blockId 그 자체가 아닐 수 있다 — 레이어패널 드래그가 쓰는
+   «재배치 단위» 규칙(js/panels/layer-panel.js의 _dragTarget 배정)과 동일하게:
+     · .row 안에 있는 블록(멀티카드 등 side-by-side 포함) → 그 row 전체가 단위
+     · text-frame(.frame-block[data-text-frame="true"])에 감싸인 text-block → 그 frame이 단위
+   그대로 blockId만 옮기면 row가 쪼개지거나 텍스트가 프레임 밖으로 빠져나가 배경/크기를 잃는다
+   (INV-B3 ①에서 지적된 update_asset_block류 문제와 같은 종류의 "겉보기엔 되는데 구조가 깨지는" 함정).
+   beforeId/afterId도 같은 규칙으로 승격해 기준을 잡는다. */
+function _resolveBlockMoveUnit(el) {
+  if (!el) return null;
+  const row = el.closest?.('.row');
+  if (row) return row;
+  if (el.classList?.contains('text-block')) {
+    const parent = el.parentElement;
+    if (parent && parent.classList?.contains('frame-block') && parent.dataset?.textFrame === 'true') return parent;
+  }
+  return el;
+}
+function moveBlock(blockId, { beforeId, afterId } = {}) {
+  const raw = document.getElementById(blockId);
+  if (!raw || raw.classList.contains('section-block')) return false; // section은 moveSection 사용
+  if (!beforeId && !afterId) return false;
+  const unit = _resolveBlockMoveUnit(raw);
+  if (!unit || !unit.parentElement) return false;
+  let refRaw = null, mode = null;
+  if (beforeId) { refRaw = document.getElementById(beforeId); mode = 'before'; }
+  else { refRaw = document.getElementById(afterId); mode = 'after'; }
+  if (!refRaw || refRaw.classList.contains('section-block')) return false;
+  const refUnit = _resolveBlockMoveUnit(refRaw);
+  if (!refUnit || refUnit === unit) return false;
+  // 순환 방지 — 기준이 이동 대상 내부(또는 그 반대)면 거부
+  if (unit.contains(refUnit) || refUnit.contains(unit)) return false;
+  // ★moveSection의 실수(이동 «후»에 pushHistory → undo가 대기중 변경까지 뭉갬, INV-B3 ②)를
+  //   복제하지 않는다 — 검증을 모두 끝낸 뒤, mutate «전»에 pushHistory.
+  pushHistory('블록 이동 전');
+  if (mode === 'before') refUnit.before(unit); else refUnit.after(unit);
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+  return { movedUnitId: unit.id || null, refUnitId: refUnit.id || null };
+}
+window.moveBlock = moveBlock;
+
 /* ── 특정 블록 뒤에 갭 삽입 (기존 섹션 중간 갭) ── */
 function insertGapAfterBlock(blockId, height) {
   const block = document.getElementById(blockId);

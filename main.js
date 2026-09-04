@@ -2658,10 +2658,13 @@ app.whenReady().then(async () => {
       getCanvasState: _invokeRendererGetCanvasState,
       listScratchItems: _invokeRendererListScratchItems,
       readScratchItem: _invokeRendererReadScratchItem,
+      deleteScratchItem: _invokeRendererDeleteScratchItem,
+      updateScratchItem: _invokeRendererUpdateScratchItem,
       addGapBlock: _invokeRendererAddGapBlock,
       deleteSection: _invokeRendererDeleteSection,
       deleteBlock: _invokeRendererDeleteBlock,
       moveSection: _invokeRendererMoveSection,
+      moveBlock: _invokeRendererMoveBlock,
       insertGapAfterBlock: _invokeRendererInsertGapAfterBlock,
       updateSection: _invokeRendererUpdateSection,
       addTableBlock: _invokeRendererAddTableBlock,
@@ -2671,6 +2674,8 @@ app.whenReady().then(async () => {
       setSectionMemo: _invokeRendererSetSectionMemo,
       getSectionMemo: _invokeRendererGetSectionMemo,
       updateChecklistItem: _invokeRendererUpdateChecklistItem,
+      listChecklistItems: _invokeRendererListChecklistItems,
+      deleteChecklistItem: _invokeRendererDeleteChecklistItem,
       addMockupBlock: _invokeRendererAddMockupBlock,
       updateMockupBlock: _invokeRendererUpdateMockupBlock,
       addBanner02Block: _invokeRendererAddBanner02Block,
@@ -2999,6 +3004,32 @@ async function _invokeRendererMoveSection({ sectionId, beforeId, afterId } = {})
   );
 }
 
+// ─── move_block — 블록(비-섹션) 순서 재배치 ────────────────────────────────
+// moveSection과 동일한 얇은 bridge 패턴. 실제 검증(section 여부 등)은 renderer의
+// window.moveBlock 안에서 한 번 더 하지만, 여기서도 section-block을 조기 컷해
+// "move_section을 대신 쓰라"는 에러를 IPC 왕복 전에 돌려준다.
+async function _invokeRendererMoveBlock({ blockId, beforeId, afterId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
+  const safeBid = JSON.stringify(String(blockId || ''));
+  const safeB   = beforeId ? JSON.stringify(String(beforeId)) : 'null';
+  const safeA   = afterId  ? JSON.stringify(String(afterId))  : 'null';
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      const bid = ${safeBid}, bId = ${safeB}, aId = ${safeA};
+      const el = document.getElementById(bid);
+      if (!el) return { ok:false, code:'NOT_FOUND', message:'block not found: '+bid };
+      if (el.classList.contains('section-block')) return { ok:false, code:'IS_SECTION', message:'section은 move_section 사용' };
+      if (bId && !document.getElementById(bId)) return { ok:false, code:'NOT_FOUND', message:'beforeId not found' };
+      if (aId && !document.getElementById(aId)) return { ok:false, code:'NOT_FOUND', message:'afterId not found' };
+      const result = window.moveBlock(bid, { beforeId: bId, afterId: aId });
+      if (!result) return { ok:false, code:'MOVE_FAILED', blockId: bid, beforeId: bId, afterId: aId };
+      return { ok:true, blockId: bid, movedUnitId: result.movedUnitId || bid, refUnitId: result.refUnitId || null, beforeId: bId, afterId: aId };
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
+}
+
 async function _invokeRendererInsertGapAfterBlock({ blockId, height = 40 } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
@@ -3065,6 +3096,37 @@ async function _invokeRendererReadScratchItem(id, opts = {}) {
   });
   return await mainWindow.webContents.executeJavaScript(
     `(typeof window._getScratchItemByIdForMCP === "function") ? window._getScratchItemByIdForMCP(${safeId}, ${safeOpts}) : null`,
+    true
+  );
+}
+
+// ─── delete_scratch_item — 스크래치패드 아이템 삭제 ──────────────────────────
+// list/read_scratch_item과 짝. 스크래치는 캔버스 undo history 밖(IndexedDB 별도)이라
+// USER_BUSY류 동시편집 가드가 필요 없다(텍스트 인라인 편집 같은 충돌 대상이 아님).
+async function _invokeRendererDeleteScratchItem({ id } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  const safeId = JSON.stringify(String(id || ''));
+  return await mainWindow.webContents.executeJavaScript(
+    `(typeof window._scratchDeleteForMcp === "function") ? window._scratchDeleteForMcp(${safeId}) : { ok:false, code:'API_MISSING' }`,
+    true
+  );
+}
+
+// ─── update_scratch_item — 스크래치패드 아이템 재배치(x/y/w) ────────────────
+async function _invokeRendererUpdateScratchItem({ id, x, y, w } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  const safeId = JSON.stringify(String(id || ''));
+  const safeOpts = JSON.stringify({
+    x: typeof x === 'number' ? x : undefined,
+    y: typeof y === 'number' ? y : undefined,
+    w: typeof w === 'number' ? w : undefined,
+  });
+  return await mainWindow.webContents.executeJavaScript(
+    `(typeof window._scratchUpdateForMcp === "function") ? window._scratchUpdateForMcp(${safeId}, ${safeOpts}) : { ok:false, code:'API_MISSING' }`,
     true
   );
 }
@@ -3487,6 +3549,51 @@ async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y
         return { ok: false, code: 'USER_BUSY', message: '사용자가 체크리스트를 편집 중입니다.', retryAfter: 2000 };
       }
       return window.updateChecklistItem(${safeArgs});
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
+}
+
+// ─── list_checklist_items — 체크리스트 전체(또는 필터) 조회 ─────────────────
+// INV-B3 결손 #2 짝 — add/update만 있고 조회가 없던 것 해소. 순수 데이터 읽기라
+// USER_BUSY 가드 불필요(인라인 편집 중이어도 목록 조회는 막을 이유 없음).
+async function _invokeRendererListChecklistItems({ includeDone = true, sectionId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  const safeOpts = JSON.stringify({ includeDone: includeDone !== false, sectionId: sectionId || null });
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      if (typeof window.listChecklistItems !== 'function') return { ok:false, code:'API_MISSING' };
+      const items = window.listChecklistItems(${safeOpts});
+      return { ok:true, items, count: items.length };
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
+}
+
+// ─── delete_checklist_item — 체크리스트 항목 삭제 ────────────────────────────
+// list와 짝. USER_BUSY 가드는 update_checklist_item과 동일(같은 인라인 편집 중 항목을
+// 지우려는 race 방지) — 단, 편집 중인 항목이 삭제 대상과 다르면 막지 않는다.
+async function _invokeRendererDeleteChecklistItem({ id } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeId = JSON.stringify(String(id || ''));
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      const id = ${safeId};
+      const ae = document.activeElement;
+      const editingHost = ae && ae.closest && ae.closest('.ck-item, .todo-pin-popup, .ck-inline-input');
+      const editingId = editingHost && editingHost.dataset ? (editingHost.dataset.id || null) : null;
+      if (editingId && editingId === id) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 이 항목을 편집 중입니다.', retryAfter: 2000 };
+      }
+      if (typeof window.deleteChecklistItem !== 'function') return { ok:false, code:'API_MISSING' };
+      return window.deleteChecklistItem({ id });
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
     true
   );

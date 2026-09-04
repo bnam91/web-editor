@@ -2557,6 +2557,35 @@ function updateAssetBlock(blockId, partial = {}) {
     }
   }
 
+  // ── 7.5) scratchId — 대용량 이미지 "교체" (INV-B3/B1 결손 #3·#4) ──
+  //   ★imgSrc는 IPC 문자열이라 200000자 캡이 걸린다(≈150KB — 실사진은 대부분 넘는다).
+  //     반면 add_asset_block(scratchId)는 renderer가 자기 IndexedDB를 직접 읽어 7MB(≈5MB)까지
+  //     받는다 — "붙이기"와 "교체"가 35배 비대칭이던 원인이 여기(update 쪽에만 scratchId 경로가
+  //     없었던 것)였다. 같은 window._getScratchItemByIdForMCP 경로를 태워 대칭을 맞춘다.
+  if (partial.scratchId !== undefined && partial.scratchId !== null) {
+    if (partial.imgSrc !== undefined && partial.imgSrc !== null) {
+      return { ok: false, code: 'INVALID', message: 'imgSrc and scratchId are mutually exclusive' };
+    }
+    if (typeof partial.scratchId !== 'string' || !partial.scratchId.startsWith('sp_')) {
+      return { ok: false, code: 'INVALID', message: 'scratchId must be a string starting with "sp_"' };
+    }
+    const scItem = typeof window._getScratchItemByIdForMCP === 'function'
+      ? window._getScratchItemByIdForMCP(partial.scratchId, { includeSrc: true })
+      : null;
+    if (!scItem || !scItem.src) {
+      return { ok: false, code: 'NOT_FOUND', message: 'scratch item not found or empty: ' + partial.scratchId };
+    }
+    if (typeof window.setAssetImageFromSrc === 'function') {
+      try { window.setAssetImageFromSrc(block, scItem.src); } catch (e) {
+        return { ok: false, code: 'RENDER_ERROR', message: 'setAssetImageFromSrc failed: ' + e.message };
+      }
+    } else {
+      block.classList.add('has-image');
+      block.dataset.imgSrc = scItem.src;
+    }
+    applied.scratchId = partial.scratchId;
+  }
+
   // ── 8) imgSrc — setAssetImageFromSrc / clearAssetImage 사용 ──
   // "" 빈문자열 = 이미지 해제 (.has-image 클래스도 제거)
   // 외부 헬퍼 부재 시 dataset.imgSrc만 갱신 (graceful fallback)

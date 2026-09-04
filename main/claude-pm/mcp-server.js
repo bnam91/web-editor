@@ -1328,6 +1328,42 @@ function _registerDefaultTools() {
     }
   );
 
+  // PM move_block — 블록(비-섹션) 순서 재배치. beforeId 또는 afterId 한 쪽만.
+  // move_section의 블록 단위 대응물. 이전엔 아예 없어서(INV-B3/B1 1순위 결손) 순서를
+  // 바꾸려면 delete_block 뒤 모든 필드를 다시 채워 재생성해야 했다.
+  registerTool(
+    'move_block',
+    async ({ blockId, beforeId, afterId } = {}) => {
+      if (!blockId || typeof blockId !== 'string') throw new Error('blockId required');
+      if (!beforeId && !afterId) throw new Error('beforeId or afterId required');
+      if (beforeId && afterId) throw new Error('beforeId and afterId are mutually exclusive');
+      if (beforeId && typeof beforeId !== 'string') throw new Error('invalid beforeId');
+      if (afterId  && typeof afterId  !== 'string')  throw new Error('invalid afterId');
+      if (blockId.startsWith('sec_')) throw new Error('blockId is a section — use move_section instead');
+      if ((beforeId || '').startsWith('sec_') || (afterId || '').startsWith('sec_')) {
+        throw new Error('beforeId/afterId must not be a section — use move_section instead');
+      }
+      if (!_rendererInvoker?.moveBlock) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.moveBlock({ blockId, beforeId, afterId });
+    },
+    {
+      description: 'Move a non-section block to a new position relative to another block (beforeId or afterId, mutually exclusive). '
+        + 'For sections use move_section. NOTE: if the block sits inside a row (side-by-side layout) or a text-frame wrapper, '
+        + 'the whole row/frame moves as one unit — same grouping the layer panel drag uses, to avoid splitting a row or tearing '
+        + 'a text block out of its frame. The response movedUnitId/refUnitId report the id(s) that actually moved, which may '
+        + 'differ from the blockId/beforeId/afterId you passed in.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId:  { type: 'string', description: 'block id to move (tb_/ab_/gb_/cvb_/ss_ etc, not sec_)' },
+          beforeId: { type: 'string', description: 'place BEFORE this block id' },
+          afterId:  { type: 'string', description: 'place AFTER this block id' }
+        },
+        required: ['blockId']
+      }
+    }
+  );
+
   // PM insert_gap_after_block — 특정 블록 뒤 정확한 위치에 갭 삽입 (add_gap_block 한계 보완).
   registerTool(
     'insert_gap_after_block',
@@ -1421,6 +1457,69 @@ function _registerDefaultTools() {
     }
   );
 
+  // PM delete_scratch_item — 스크래치패드 아이템 삭제 (INV-B3/B1 결손 #5)
+  // put_image/add_asset_block(scratchId)로 넣기만 되고 MCP가 스스로 치우지 못하던 결손.
+  // 스크래치는 프로젝트 캔버스 undo history 밖(IndexedDB 별도) — DESTRUCTIVE지만 ⌘Z 대상은 아님.
+  registerTool(
+    'delete_scratch_item',
+    async ({ id } = {}) => {
+      if (!id || typeof id !== 'string') throw new Error('id required (e.g. "sp_br70mc")');
+      if (!id.startsWith('sp_')) throw new Error(`invalid scratch id: ${id} (expected prefix "sp_")`);
+      if (!_rendererInvoker || typeof _rendererInvoker.deleteScratchItem !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      return await _rendererInvoker.deleteScratchItem({ id });
+    },
+    {
+      description: 'Delete a scratch pad item by id (e.g. "sp_br70mc") — DESTRUCTIVE, removes it from the scratch pad (and its IndexedDB storage) permanently. '
+        + 'Note: this does NOT touch any canvas block that was already attached from it (add_asset_block/update_asset_block copy the image data at attach time). '
+        + 'Not part of canvas undo history (scratch items live outside project serialization) — cannot be undone with ⌘Z. Use list_scratch_items to find ids.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Scratch item id, e.g. "sp_br70mc"' }
+        },
+        required: ['id']
+      }
+    }
+  );
+
+  // PM update_scratch_item — 스크래치패드 아이템 재배치(x/y) · 리사이즈(w) (INV-B3/B1 결손 #5)
+  // ★이미지 내용(src) 교체는 범위 밖 — add_asset_block/update_asset_block의 scratchId 경로가
+  //   "스크래치→캔버스"를 담당하고, 스크래치 자체의 src 교체는 이번 결손표에 없던 별도 기능이다.
+  registerTool(
+    'update_scratch_item',
+    async ({ id, x, y, w } = {}) => {
+      if (!id || typeof id !== 'string') throw new Error('id required (e.g. "sp_br70mc")');
+      if (!id.startsWith('sp_')) throw new Error(`invalid scratch id: ${id} (expected prefix "sp_")`);
+      if (x !== undefined && typeof x !== 'number') throw new Error('x must be number');
+      if (y !== undefined && typeof y !== 'number') throw new Error('y must be number');
+      if (w !== undefined && typeof w !== 'number') throw new Error('w must be number');
+      if (x === undefined && y === undefined && w === undefined) {
+        throw new Error('no fields to update — provide at least one of x/y/w');
+      }
+      if (!_rendererInvoker || typeof _rendererInvoker.updateScratchItem !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      return await _rendererInvoker.updateScratchItem({ id, x, y, w });
+    },
+    {
+      description: 'Reposition/resize a scratch pad item by id — partial update of x/y (canvas coords) and/or w (display width). '
+        + 'Does NOT change the image content (src) — only where/how big it sits on the scratch pad. Use list_scratch_items to find ids. '
+        + 'Not part of canvas undo history (scratch items live outside project serialization).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Scratch item id, e.g. "sp_br70mc"' },
+          x: { type: 'number', description: 'scratch pad x coord' },
+          y: { type: 'number', description: 'scratch pad y coord' },
+          w: { type: 'number', description: 'display width (px)' }
+        },
+        required: ['id']
+      }
+    }
+  );
+
   // ─── set_section_memo — 섹션 메모 작성/수정 (P/G/E + Codex 리뷰) ───────────
   registerTool(
     'set_section_memo',
@@ -1506,6 +1605,58 @@ function _registerDefaultTools() {
           urgent: { type: 'boolean', description: 'urgent flag' },
           x: { type: ['number', 'null'], description: 'canvas x coord. null = detach pin' },
           y: { type: ['number', 'null'], description: 'canvas y coord. null = detach pin' }
+        },
+        required: ['id']
+      }
+    }
+  );
+
+  // ─── list_checklist_items — 체크리스트 항목 전체(또는 필터) 조회 ────────────
+  // INV-B3/B1 결손 #2 — add/update만 있고 조회가 없어, 대화가 끊겨 id를 잊으면
+  // 만든 항목을 다시 찾을(그래서 update/delete할) 방법이 없었다.
+  registerTool(
+    'list_checklist_items',
+    async ({ includeDone = true, sectionId } = {}) => {
+      if (typeof includeDone !== 'boolean') throw new Error('includeDone must be boolean');
+      if (sectionId !== undefined && sectionId !== null) {
+        if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) throw new Error(`invalid sectionId: ${sectionId}`);
+      }
+      if (!_rendererInvoker?.listChecklistItems) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.listChecklistItems({ includeDone, sectionId });
+    },
+    {
+      description: 'List checklist items (todos/pins) in the active project. Returns {ok, items:[{id,text,done,urgent,x,y,sectionId,createdAt,updatedAt}], count}. '
+        + 'includeDone=false hides completed items. Pass sectionId to filter to items tagged with that section (note: add_checklist_item currently always stores sectionId:null — this filter is forward-compatible). '
+        + 'Use this before update_checklist_item/delete_checklist_item when you do not already have the ck_xxx id.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          includeDone: { type: 'boolean', description: 'include already-completed items. default true' },
+          sectionId: { type: 'string', description: 'optional sec_xxx filter' }
+        },
+        required: []
+      }
+    }
+  );
+
+  // ─── delete_checklist_item — 체크리스트 항목 삭제 ────────────────────────────
+  // INV-B3/B1 결손 #2 — UI(js/checklist-panel.js .ck-delete)엔 이미 있는 삭제가 MCP엔 없었다.
+  registerTool(
+    'delete_checklist_item',
+    async ({ id } = {}) => {
+      if (!id || typeof id !== 'string' || !id.startsWith('ck_')) {
+        throw new Error(`invalid id: ${id} (must start with "ck_")`);
+      }
+      if (!_rendererInvoker?.deleteChecklistItem) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.deleteChecklistItem({ id });
+    },
+    {
+      description: 'Delete a checklist item (ck_xxx) — DESTRUCTIVE, acts on the ACTIVE project. Returns {ok, itemId, item} (item = the removed item, for confirmation). '
+        + 'Get the id from list_checklist_items if you do not already have it. Returns USER_BUSY if the user is inline-editing that exact item.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'ck_xxx (checklist item id)' }
         },
         required: ['id']
       }
@@ -2911,7 +3062,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.updateAssetBlock({ blockId, partial });
     },
     {
-      description: 'Edit an EXISTING asset block (ab_xxx) — partial update of any field. width(100~860, 860+=full bleed), height(200~1600), borderRadius(0~120). align(left|center|right) syncs alignSelf. usePadx(true|false) auto-applies negative margins + width calc using section-inner padX. fit(cover|contain) syncs img.style.objectFit. bgColor accepts hex/rgb(a)/hsl(a)/transparent; "" resets. overlay(true|false) ensures .asset-overlay child. overlayOpacity(0~100) maps to rgba alpha. overlayPosition(flex-start|center|flex-end) sets justifyContent. preset=logo forces 200x64 and disables width opt; preset=none clears it. imgSrc accepts data:image/*|http(s)|assets/ ≤200000 chars; "" calls clearAssetImage(). baseHeight auto-syncs with height. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state.',
+      description: 'Edit an EXISTING asset block (ab_xxx) — partial update of any field. width(100~860, 860+=full bleed), height(200~1600), borderRadius(0~120). align(left|center|right) syncs alignSelf. usePadx(true|false) auto-applies negative margins + width calc using section-inner padX. fit(cover|contain) syncs img.style.objectFit. bgColor accepts hex/rgb(a)/hsl(a)/transparent; "" resets. overlay(true|false) ensures .asset-overlay child. overlayOpacity(0~100) maps to rgba alpha. overlayPosition(flex-start|center|flex-end) sets justifyContent. preset=logo forces 200x64 and disables width opt; preset=none clears it. imgSrc accepts data:image/*|http(s)|assets/ ≤200000 chars (≈150KB — too small for most real photos); "" calls clearAssetImage(). For larger images, put_image the replacement into the scratch pad first then pass scratchId (sp_xxx) instead — same large-payload path add_asset_block uses, up to ~5MB. imgSrc and scratchId are mutually exclusive. baseHeight auto-syncs with height. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -2927,7 +3078,8 @@ function _registerDefaultTools() {
           overlayOpacity: { type: 'integer', description: '0~100 → rgba(0,0,0,v/100) on .asset-overlay' },
           overlayPosition: { type: 'string', enum: ['flex-start', 'center', 'flex-end'], description: 'overlayEl.style.justifyContent' },
           preset: { type: 'string', enum: ['logo', 'none'], description: 'logo → 200x64 fixed + usePadx ignored. none → delete dataset.preset.' },
-          imgSrc: { type: 'string', description: 'data:image/* | http(s) | assets/ (≤200000). Empty string clears the image via clearAssetImage().' },
+          imgSrc: { type: 'string', description: 'data:image/* | http(s) | assets/ (≤200000, ≈150KB). Empty string clears the image via clearAssetImage(). Mutually exclusive with scratchId.' },
+          scratchId: { type: 'string', description: 'sp_xxx — replace the image from a scratch pad item (up to ~5MB, no IPC length cap — the renderer reads it directly from IndexedDB). Mutually exclusive with imgSrc. put_image the new photo into scratch first, then pass its id here.' },
           layerName: { type: 'string', description: 'layer panel display name (≤80 code points)' }
         },
         required: ['blockId']
@@ -5337,6 +5489,18 @@ function _validateAssetOpts(args, { mode } = {}) {
     if (args.imgSrc.length > 200000) throw new Error('imgSrc too long (>200000)');
     if (/["\r\n]/.test(args.imgSrc)) throw new Error('imgSrc contains quote/newline (escape unsafe)');
     out.imgSrc = args.imgSrc;
+  }
+
+  // scratchId — imgSrc의 200000자 캡을 우회하는 대용량 교체 경로(add_asset_block과 동일 패턴).
+  // sp_xxx만 IPC를 타고, 실제 src는 renderer가 자기 IndexedDB에서 직접 읽는다.
+  if (args.scratchId !== undefined && args.scratchId !== null) {
+    if (typeof args.scratchId !== 'string' || !args.scratchId.startsWith('sp_')) {
+      throw new Error(`invalid scratchId: ${args.scratchId}. expected string starting with sp_`);
+    }
+    if (args.imgSrc !== undefined && args.imgSrc !== null) {
+      throw new Error('imgSrc and scratchId are mutually exclusive');
+    }
+    out.scratchId = args.scratchId;
   }
 
   return out;
