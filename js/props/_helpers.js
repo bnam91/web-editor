@@ -87,6 +87,11 @@ export function buildGridPicker(picker, label, onPick, opts = {}) {
   const MAX = opts.max || 4;
   const MAXR = opts.maxRows || MAX;
   const MINC = opts.minCols || 1;
+  const MINR = opts.minRows || 1;
+  /* ★「살아있는 칸인가」는 «술어 하나»에서만 판정한다 — 전엔 렌더·hover·클릭 세 곳에 조건을
+   * 따로 적어놨고, hover 만 MINC 를 빠뜨려 «죽은 열 1 칸까지 파랗게 칠해졌다»(적대검수 지적).
+   * 같은 판정을 여러 곳에 베끼면 반드시 한 곳이 뒤처진다 — 이 레포가 오늘만 여러 번 당한 패턴이다. */
+  const alive = (r, c) => r >= MINR && r <= MAXR && c >= MINC && c <= MAX;
   picker.innerHTML = '';
   for (let r = 1; r <= MAX; r++) {
     for (let c = 1; c <= MAX; c++) {
@@ -94,7 +99,7 @@ export function buildGridPicker(picker, label, onPick, opts = {}) {
       cell.className = 'grid-picker-cell';
       cell.dataset.r = r; cell.dataset.c = c;
       // 아직 못 만드는 조합은 «죽은 칸»으로 둔다 — 눌러도 아무 일 없는 것보다 안 눌리는 게 정직하다.
-      if (r > MAXR || c < MINC) cell.classList.add('grid-picker-cell--off');
+      if (!alive(r, c)) cell.classList.add('grid-picker-cell--off');
       picker.appendChild(cell);
     }
   }
@@ -107,14 +112,20 @@ export function buildGridPicker(picker, label, onPick, opts = {}) {
     if (!cell || cell.classList.contains('grid-picker-cell--off')) return;
     const r = +cell.dataset.r, c = +cell.dataset.c;
     picker.querySelectorAll('.grid-picker-cell').forEach(cl => {
-      cl.classList.toggle('active', +cl.dataset.r <= r && +cl.dataset.c <= c && +cl.dataset.r <= MAXR);
+      const cr = +cl.dataset.r, cc = +cl.dataset.c;
+      // ★칠하는 조건도 «alive» 를 거친다 — 죽은 칸은 미리보기에도 안 들어간다.
+      cl.classList.toggle('active', alive(cr, cc) && cr <= r && cc <= c);
     });
     if (label) label.textContent = `${c} × ${r}`;
   });
   picker.addEventListener('mouseleave', clear);
   picker.addEventListener('click', e => {
     const cell = e.target.closest('.grid-picker-cell');
-    if (!cell || cell.classList.contains('grid-picker-cell--off')) return;
-    onPick(+cell.dataset.c, +cell.dataset.r);
+    if (!cell) return;
+    const r = +cell.dataset.r, c = +cell.dataset.c;
+    // ★클래스(--off)가 아니라 «데이터»로 다시 판정한다 — 클래스는 렌더 시점의 «흔적»이라
+    //   한도가 바뀌고 다시 안 그리면 낡는다. 판정은 언제나 alive() 하나.
+    if (!alive(r, c)) return;
+    onPick(c, r);
   });
 }

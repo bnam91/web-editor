@@ -3,7 +3,7 @@
 import { propPanel } from '../globals.js';
 import { parseRatio, buildGridPicker } from './_helpers.js';
 import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★상한은 한 곳에서만 온다
-import { duoRows, MIN_COLS, MAX_COLS, MAX_ROWS } from '../blocks/duo-block.js';
+import { duoRows, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS } from '../blocks/duo-block.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 
 /* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
@@ -89,6 +89,9 @@ export function showDuoProperties(block) {
       <div class="grid-picker" id="grd-grid-picker"></div>
       <div class="grid-picker-label" id="grd-grid-picker-label">—</div>
       <div class="prop-hint" style="margin-top:2px;">가로×세로 칸 수를 고른다</div>
+      <!-- ★적대검수 Q3: 「줄이면 보존」으로 동작을 바꾸는 대신 «사실을 적는다».
+           API 경로(duo-block.js)가 이미 «자르고 undo» 정책이라, 피커만 보존하면 정책이 둘로 갈라진다. -->
+      <div class="prop-hint" style="margin-top:2px;">줄이면 잘린 칸 내용은 사라진다 (⌘Z 복원)</div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
@@ -240,7 +243,7 @@ export function showDuoProperties(block) {
       showDuoProperties(block);
       showGridGutters(block);                   // 패널 재생성(칸/행 수가 바뀌면 섹션도 바뀐다)
     },
-    { max: MAX_COLS, maxRows: MAX_ROWS, minCols: MIN_COLS }
+    { max: MAX_COLS, maxRows: MAX_ROWS, minCols: MIN_COLS, minRows: MIN_ROWS }
   );
 
   const ratioInput = document.getElementById('grd-col-ratio');
