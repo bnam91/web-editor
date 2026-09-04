@@ -10,16 +10,19 @@
 }
 
 /* 머리 — 제목과 날짜가 «한 줄» */
+/* 안 C — 머리를 «한 줄»로. 여백·구분선은 앱의 다른 모달과 «같은 값»을 쓴다
+   (settings-modal.css: padding 14px 18px · border #2a2a2a).
+   ★#555 를 쓰던 게 「상하단이 튄다」의 주 원인이었다 — 앱 값의 2배 밝기였다. */
 .relnote-hero {
   flex: 0 0 auto;
-  padding: 18px 20px 15px;
-  border-bottom: 1px solid var(--ui-divider, #555);
-  display: flex; flex-direction: column; gap: 7px;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid #2a2a2a;
+  display: flex; align-items: baseline; gap: 10px;
 }
-.relnote-ver { align-self: flex-start; letter-spacing: .06em; }
+.relnote-ver { display: none; }   /* 안 C — 버전은 날짜 줄로 합쳤다 */
 .relnote-titlerow { display: flex; align-items: baseline; gap: 10px; }
-.relnote-h { font-size: 17px; font-weight: 800; letter-spacing: -.02em; }
-.relnote-date { font-size: 11.5px; color: var(--ui-text-muted, #9e9e9e); }
+.relnote-h { font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+.relnote-date { font-size: 13px; color: var(--ui-text-muted, #9e9e9e); }
 
 /* 목록 — 남는 높이를 채우고 여기서만 스크롤한다(min-height:0 없으면 flex 자식이 안 줄어든다) */
 .relnote-list {
@@ -33,7 +36,7 @@
   color: var(--ui-text-muted, #9e9e9e);
   margin: 6px 0 2px;
   padding-top: 14px;
-  border-top: 1px solid var(--ui-divider, #555);
+  border-top: 1px solid #2a2a2a;
 }
 .relnote-group:first-child { margin-top: 8px; padding-top: 0; border-top: none; }
 /* ★그룹 색 = «전부 파랑»(현빈 확정). 종류마다 색을 가르면 그 색이 무슨 뜻인지 사용자가

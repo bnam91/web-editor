@@ -60,7 +60,8 @@
       </div>`;
     overlay.querySelector('.relnote-ver').textContent = `버전 ${version}`;
     /* ★제목은 «항상 고정» — 릴리스노트지 카피라이팅이 아니다. 날짜는 제목과 같은 줄에. */
-    overlay.querySelector('.relnote-date').textContent = note.date || '';
+    overlay.querySelector('.relnote-date').textContent =
+      'v' + version + (note.date ? ' · ' + note.date : '');
     overlay.querySelector('.relnote-shell').style.position = 'relative';
 
     /* ★textContent 로만 넣는다 — 노트가 HTML 로 실행될 이유가 없다(notice.js 와 같은 규약). */
