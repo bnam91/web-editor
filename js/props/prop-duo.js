@@ -52,7 +52,7 @@ export function showDuoProperties(block) {
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Grid Block'}</span>
+          <span class="prop-block-name">${block.dataset.layerName || '그리드'}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : ''}</span>
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
