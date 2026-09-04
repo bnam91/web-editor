@@ -1,0 +1,42 @@
+/* release-note.css — A4 업데이트 내역 모달.
+   ★껍데기(.settings-modal-overlay/-shell)는 기존 정의를 쓰되, 본문은 «발표»에 가깝게 짠다.
+     공지(notice)는 «읽히면 끝»이지만 이건 «무엇이 좋아졌는지 파는» 자리다 — 밀도가 다르다.
+   ⛔색·모서리·글자색은 전부 앱 정본 토큰에서만 가져온다(새 팔레트 없음). */
+.relnote-shell { max-width: 480px; }
+
+/* 머리 — 버전을 크게. 「무엇이 왔는지」가 첫 줄에 온다 */
+.relnote-hero {
+  padding: 22px 22px 16px;
+  border-bottom: 1px solid var(--ui-divider, #555);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.relnote-ver {
+  display: inline-flex; align-self: flex-start; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 700; letter-spacing: .1em;
+  color: #9dc0fb; background: rgba(45,111,232,.18);
+  border: 1px solid var(--ui-accent-primary, #2d6fe8);
+  padding: 3px 9px; border-radius: 999px;
+}
+.relnote-h { font-size: 20px; font-weight: 800; letter-spacing: -.02em; line-height: 1.3; }
+.relnote-sub { font-size: 12px; color: var(--ui-text-dim, #969696); }
+
+/* 본문 — 그룹 제목 + 항목(제목 + 한 줄 설명) */
+.relnote-list { padding: 6px 22px 18px; display: flex; flex-direction: column; gap: 2px; max-height: 400px; overflow-y: auto; }
+.relnote-group {
+  font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ui-text-muted, #9e9e9e);
+  margin-top: 14px; margin-bottom: 4px;
+}
+.relnote-group:first-child { margin-top: 8px; }
+.relnote-item { display: grid; grid-template-columns: 12px 1fr; gap: 10px; padding: 9px 0; align-items: start; }
+/* 불릿 하나. 아이콘 칩은 뺐다 — 다섯 줄에 다섯 개 상자가 서면 목록이 아니라 격자로 읽힌다. */
+.relnote-dot {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--ui-text-muted, #9e9e9e);
+  margin-top: 8px; margin-left: 4px;
+}
+.relnote-dot.new { background: var(--ui-accent-primary, #2d6fe8); }
+.relnote-item b { font-size: 13px; font-weight: 600; display: block; line-height: 1.5; }
+.relnote-item span { font-size: 12px; color: var(--ui-text-dim, #969696); display: block; line-height: 1.65; margin-top: 4px; }
+
+.relnote-off { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--ui-text-muted, #9e9e9e); cursor: pointer; }
