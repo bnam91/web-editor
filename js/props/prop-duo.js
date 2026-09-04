@@ -59,9 +59,10 @@ export function showDuoProperties(block) {
   let cols = [];
   try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) {}
   const rows = duoRows(block);   // 없으면(옛 파일) [{height:'auto'}] 1행 — duo-block.js 승격 로직과 공유
-  // ★`parseInt(...) || 24` 금지 — 간격 0 이 «유효값»인데 폴백에 삼켜져 패널이 24 로 되살려 보여줬다.
-  const _g = parseInt(block.dataset.gap);
-  const gap = Number.isFinite(_g) ? _g : 24;
+  /* ★2026-09-05 현빈 지시로 「간격」 슬라이더를 패널에서 걷어냈다.
+   * ⛔데이터와 렌더러는 «그대로»다 — `block.dataset.gap` 은 계속 살아 있고 duo-block.js 가
+   *   읽어서 그린다(기존 프로젝트의 간격 값이 사라지면 안 된다). 없앤 건 «조절 UI» 하나뿐이다.
+   * 바꾸려면 updateGridBlock API / MCP 로는 여전히 된다. */
   const valign = block.dataset.valign || 'top';
   // 가로 정렬은 컬럼 모델(col.align)에 산다. 컬럼마다 다르면(혼합) 어느 버튼도 active 로 켜지 않는다.
   const _aligns = cols.map(c => c.align || 'left');
@@ -93,11 +94,6 @@ export function showDuoProperties(block) {
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
-      <div class="prop-row">
-        <span class="prop-label">간격</span>
-        <input type="range" class="prop-slider" id="duo-gap-slider" min="0" max="120" step="4" value="${gap}">
-        <input type="number" class="prop-number" id="duo-gap-number" min="0" max="120" value="${gap}">
-      </div>
       ${_ratioRowHtml(cols)}
       ${_rowHeightHtml(rows)}
       <div class="prop-row">
@@ -136,23 +132,12 @@ export function showDuoProperties(block) {
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
-  const gapS = document.getElementById('duo-gap-slider');
-  const gapN = document.getElementById('duo-gap-number');
-  const applyGap = (v) => {
-    v = Math.min(120, Math.max(0, v || 0));
-    block.dataset.gap = String(v);
-    window.renderDuoBlock?.(block);
-    gapS.value = v; gapN.value = v;
-  };
-  gapS.addEventListener('input', () => applyGap(parseInt(gapS.value)));
-  gapS.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
-  gapN.addEventListener('change', () => { applyGap(parseInt(gapN.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
-
   /* ── 비율 배선 — «change» 시점에만 커밋(blur/Enter) ── */
   /* ⚠️updateDuoBlock 을 매 입력마다 부르지 않는다 — 성공하면 showDuoProperties 를 다시 불러
    *   패널을 통째로 새로 그린다. 입력 중(각 keystroke)에 재호출하면 포커스가 든 input DOM 이
-   *   교체돼 타이핑이 끊긴다. 바로 위 gap 슬라이더가 같은 이유로 dataset 직접 쓰기를 택했다 —
-   *   여기서도 «change»(blur/Enter) 시점에만 dataset 을 커밋하고 패널은 다시 그리지 않는다.
+   *   교체돼 타이핑이 끊긴다. (전에 있던 gap 슬라이더도 같은 이유로 dataset 직접 쓰기를 택했었다 —
+   *   그 슬라이더는 2026-09-05 에 제거됐다.) 여기서도 «change»(blur/Enter) 시점에만 dataset 을
+   *   커밋하고 패널은 다시 그리지 않는다.
    *   (검증은 여기서 한다 — 컬럼 2~4개, width 는 양수) */
   const _commitCols = (next) => {
     /* ★상한은 duo-block.js 의 클램프와 «같은 값»이어야 한다 — MIN_COLS/MAX_COLS 상수를 import 해서
