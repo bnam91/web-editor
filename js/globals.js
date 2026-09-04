@@ -55,3 +55,27 @@ window.FIGMA_ENABLED = FIGMA_ENABLED;
  * 나중에 Figma 를 켤 때 GIF 도 같이 살아난다. 되돌리기 = true 하나. */
 export const ANIM_GIF_ENABLED = false;
 window.ANIM_GIF_ENABLED = ANIM_GIF_ENABLED;
+
+/* ── 블록 클릭 «위임» 셀렉터 (SSOT) ────────────────────────────────────────
+ * 컨테이너(컬럼 `.col` / 서브섹션 프레임)의 click 핸들러가 «자식 블록 클릭은
+ * 자식 핸들러에게 넘긴다»고 판단할 때 쓰는 목록. 여기 «없는» 블록은
+ * 컨테이너가 캡처 단계에서 stopPropagation 으로 가로채 버려서
+ * 「그 블록만 선택이 안 된다」가 된다 — 다중선택 이전에 «단일 클릭»부터 깨진다.
+ *
+ * ⚠️왜 상수로 뺐나: 같은 목록이 두 곳에 «따로» 하드코딩돼 서로 어긋나 있었다.
+ *   - block-drag.js(프레임)  = 21종
+ *   - editor.js(컬럼)        = 17종 — joker/mockup/shape/step 이 빠져 있었다
+ *   그래서 「애셋 아래에 스텝블럭」처럼 «되는 블록과 안 되는 블록이 섞인» 비대칭 증상이 났다.
+ *   이 병은 이미 한 번 났었다 — block-drag.js 의 「FIX(T5): .mockup-block 누락」.
+ *   그때 프레임 목록만 고치고 컬럼 목록은 안 고쳐서 반쪽으로 남았다.
+ *
+ * ⛔여기에 «선택 판정용» 목록(.selected 계열)을 합치지 말 것 — 역할이 다르다.
+ *   이건 「자식에게 넘길 것인가」이고, 그쪽은 「무엇을 선택된 것으로 볼 것인가」다.
+ */
+export const BLOCK_DELEGATE_SEL = [
+  '.text-block', '.asset-block', '.gap-block', '.icon-circle-block', '.table-block',
+  '.label-group-block', '.graph-block', '.divider-block', '.bridge-block', '.duo-block',
+  '.infocard-block', '.innercard-block', '.icon-text-block', '.joker-block', '.shape-block',
+  '.canvas-block', '.banner02-block', '.comparison-block', '.mockup-block', '.vector-block',
+  '.step-block',
+].join(', ');

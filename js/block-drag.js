@@ -5,7 +5,7 @@
    Extracted from drag-drop.js (lines ~1258–2915)
 ═══════════════════════════════════ */
 
-import { state } from './globals.js';
+import { state, BLOCK_DELEGATE_SEL } from './globals.js';
 import {
   clearDropIndicators,
   makeLabelItem,
@@ -1629,7 +1629,7 @@ function bindFrameDropZone(ss) {
     // 내부 자식 블록 click은 자식 핸들러가 처리
     // FIX(T5): .mockup-block 누락 — 프레임 안 mockup 클릭 시 자식 핸들러로 위임 안 되고
     // 프레임이 선택돼버려 mockup 선택/드래그 흐름이 깨지는 문제 수정
-    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block')) return;
+    if (e.target.closest(BLOCK_DELEGATE_SEL)) return;   // SSOT — globals.js
     // 내부 nested frame 자체 click 핸들러가 있어서 이미 처리됨 → 여기로 버블된 경우 무시
     const innerFrame = e.target.closest('.frame-block:not([data-text-frame])');
     if (innerFrame && innerFrame !== ss) { e.stopPropagation(); return; }
