@@ -3,6 +3,7 @@
 import { propPanel } from '../globals.js';
 import { parseRatio, buildGridPicker } from './_helpers.js';
 import { duoRows, MIN_COLS, MAX_COLS, MAX_ROWS } from '../blocks/duo-block.js';
+import { showGridGutters } from '../overlay-handles.js';
 
 /* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
  * 렌더러(duo-block.js)는 이미 임의 비율을 지원한다 — 각 컬럼에 flex:(w/총합*100).
@@ -289,6 +290,11 @@ export function showDuoProperties(block) {
       inp.value = v === 'auto' ? '' : v;   // 정규화 결과로 되씀(비율 입력과 동일 패턴)
     });
   });
+
+  // ★2026-09-04 P2: 캔버스 셀 경계 드래그 거터(overlay-handles.js) — 패널이 뜨는 자리마다
+  //   같이 띄운다(클릭 선택·레이어패널 선택·updateDuoBlock 후 재선택 모두 이 함수를 거친다,
+  //   PLAN-gridblock.md §5). 해제는 editor.js deselectAll()의 hideGridGutters 로 일괄.
+  showGridGutters(block);
 }
 
 window.showDuoProperties = showDuoProperties;
