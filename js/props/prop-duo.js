@@ -227,7 +227,13 @@ export function showDuoProperties(block) {
       }
       window.renderDuoBlock?.(block);
       window.scheduleAutoSave?.();
+      /* ★거터를 «명시적으로» 다시 그린다.
+       * showDuoProperties 끝에도 showGridGutters 가 있지만, 피커 경로에서는 그것만으로
+       * 갱신되지 않았다 — 실측: 2x1 → 3x3 으로 바꿔도 거터가 col 1개 그대로였다(2초 뒤에도).
+       * 격자 «수»가 바뀌는 건 이 경로뿐이라, 여기서 한 번 걷고 다시 세운다. */
+      window.hideGridGutters?.();
       showDuoProperties(block);                   // 패널 재생성(칸/행 수가 바뀌면 섹션도 바뀐다)
+      window.showGridGutters?.(block);
     },
     { max: MAX_COLS, maxRows: MAX_ROWS }
   );
