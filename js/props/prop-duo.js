@@ -127,6 +127,10 @@ export function showDuoProperties(block) {
       </div>
       <div class="prop-hint" style="margin-top:2px;">세로 정렬은 컬럼 높이가 서로 다를 때만 움직인다</div>
     </div>
+    <!-- ⚠️P1.5 에서 캔버스 인라인 편집으로 대체 예정(현빈 2026-09-04 지시) — duo-line 엔 이미
+         data-r/data-c/data-line 좌표가 심겨 있다(renderDuoBlock). 지금은 «유일한» 텍스트 입력
+         수단(duo 블록엔 contenteditable 이 0건)이라 지우지 않는다 — 인라인 편집이 들어오면
+         이 아래 «한 블록»(Column N 섹션)만 지우면 된다(현재 한 곳에 모여 있음). -->
     ${cols.map((col, ci) => `
     <div class="prop-section">
       <div class="prop-section-title">Column ${ci + 1}${rows.length > 1 ? ' (행 1)' : ''}</div>

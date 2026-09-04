@@ -131,7 +131,14 @@ function getDuoGrid(block) {
   return { cols, rows, cells: [row0, ...extra] };
 }
 
-function _duoLineHtml(line, colAlign, depth = 0) {
+// ★addr(4번째 인자, 신설) — 「캔버스 인라인 편집을 전제로」 셀 텍스트 주소를 렌더 시점에 심는다
+//   (2026-09-04 현빈 지시, P1.5 선행 설계). {r,c,li} 를 받으면 반환 요소의 최상위 태그에
+//   data-r/data-c/data-line 을 찍는다 — blur 때 「이 DOM 이 어느 셀의 몇 번째 줄인가」를 DOM
+//   순서 추측 없이 바로 읽을 수 있어야 한다(이 레포에서 순서 추측이 실제 버그를 낸 전례가 있다).
+//   ⛔addr 은 «최상위 라인»에만 찍는다 — 중첩 duo/graph 내부(depth≥1)는 addr 없이 그대로 호출해
+//     기존 출력과 byte-identical 을 유지한다(innercard 등 무변화 요구 — addr=null 이면 이 함수
+//     전체가 P0/P1 이전과 동일 문자열을 낸다).
+function _duoLineHtml(line, colAlign, depth = 0, addr = null) {
   if (!line || typeof line !== 'object') return '';
   // ★필드 별칭 정규화 (2026-07-04 bench2 근본픽스): planner/generator는 텍스트블록 어휘(content)를
   // 라인에도 쓴다 — text만 읽으면 "그릇만 있고 내용 없음"(오렌지 바에 빈 텍스트, duo 통째 미렌더).
@@ -139,9 +146,10 @@ function _duoLineHtml(line, colAlign, depth = 0) {
   if (line.text === undefined && line.content !== undefined) line = { ...line, text: line.content };
   const mt = Number.isFinite(Number(line.marginTop)) ? Number(line.marginTop) : null;
   const mtCss = mt !== null ? `margin-top:${mt}px;` : '';
+  const addrAttr = addr ? ` data-r="${addr.r}" data-c="${addr.c}" data-line="${addr.li}"` : '';
   if (line.type === 'gap') {
     const h = Number(line.height) || 16;
-    return `<div class="duo-gap" style="height:${h}px;${mtCss}"></div>`;
+    return `<div${addrAttr} class="duo-gap" style="height:${h}px;${mtCss}"></div>`;
   }
   if (line.type === 'image') {
     const h = Number(line.height) || 0;
@@ -149,11 +157,11 @@ function _duoLineHtml(line, colAlign, depth = 0) {
     if (!line.imgSrc) {
       // 빈 이미지 슬롯: 발주 대기 placeholder (기존 ''=투명 소실 → 카드가 깨져 보이던 문제)
       const ph = h > 0 ? h : 180;
-      return `<div class="duo-img duo-img-empty" style="width:100%;height:${ph}px;background:#e8e8e8;` +
+      return `<div${addrAttr} class="duo-img duo-img-empty" style="width:100%;height:${ph}px;background:#e8e8e8;` +
         `border-radius:${r > 0 ? r : 8}px;${mtCss}"></div>`;
     }
     const sizeCss = h > 0 ? `height:${h}px;object-fit:cover;` : 'height:auto;';
-    return `<img class="duo-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;${sizeCss}${r > 0 ? `border-radius:${r}px;` : ''}${mtCss}">`;
+    return `<img${addrAttr} class="duo-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;${sizeCss}${r > 0 ? `border-radius:${r}px;` : ''}${mtCss}">`;
   }
   // 중첩 duo: {type:'duo', gap, valign, cols:[{width, lines[]}]} — innercard 후기카드 등 (BL-SFB-01)
   if (line.type === 'duo') {
@@ -167,11 +175,11 @@ function _duoLineHtml(line, colAlign, depth = 0) {
     const colsHtml = cols.map(c => {
       const w = Number(c.width) || 1;
       const inner = (Array.isArray(c.lines) ? c.lines : [])
-        .map(l => _duoLineHtml(l, c.align || colAlign, depth + 1)).join('');
+        .map(l => _duoLineHtml(l, c.align || colAlign, depth + 1)).join('');   // ⛔addr 미전달(중첩은 아직 미주소화)
       // 바깥 duo 와 «같은» 정렬 축을 쓴다 — 컬럼은 stretch, 정렬은 컬럼 안 내용(justify-content).
       return `<div class="duo-nested-col" style="flex:${w};min-width:0;display:flex;flex-direction:column;justify-content:${valign};">${inner}</div>`;
     }).join('');
-    return `<div class="duo-nested" style="display:flex;gap:${gap}px;align-items:stretch;${mtCss}">${colsHtml}</div>`;
+    return `<div${addrAttr} class="duo-nested" style="display:flex;gap:${gap}px;align-items:stretch;${mtCss}">${colsHtml}</div>`;
   }
   // 중첩 graph: {type:'graph', items:[{label,value,barColor?}]} — 정적 가로바 렌더 (BL-SFB-01).
   // bar-h 외 chartType도 카드 내부에선 동일한 가로바 표현으로 수용 (독립 그래프는 graph-block 몫).
@@ -196,7 +204,7 @@ function _duoLineHtml(line, colAlign, depth = 0) {
           `<div style="width:${v}%;height:100%;border-radius:9px;background:${bc};"></div>` +
         `</div></div>`;
     }).join('');
-    return `<div class="duo-graph" style="width:100%;${mtCss}">${rows}</div>`;
+    return `<div${addrAttr} class="duo-graph" style="width:100%;${mtCss}">${rows}</div>`;
   }
   const role = _DUO_ROLES[line.type] || _DUO_ROLES.body;
   const size = Number(line.fontSize) || role.size;
@@ -210,11 +218,11 @@ function _duoLineHtml(line, colAlign, depth = 0) {
     const padV = Number(line.padV) || Math.max(6, Math.round(size * 0.4));
     const padH = Number(line.padH) || Math.max(14, Math.round(size * 1.0));
     const rad = Number.isFinite(Number(line.radius)) ? Number(line.radius) : 999;
-    return `<div style="text-align:${align};${mtCss}"><span class="duo-badge" style="display:inline-block;background:${bg};` +
+    return `<div${addrAttr} style="text-align:${align};${mtCss}"><span class="duo-badge" style="display:inline-block;background:${bg};` +
       `font-size:${size}px;font-weight:${weight};line-height:1.2;letter-spacing:${role.ls};${color ? `color:${color};` : ''}` +
       `padding:${padV}px ${padH}px;border-radius:${rad}px;white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</span></div>`;
   }
-  return `<div class="duo-line duo-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${role.lh};letter-spacing:${role.ls};text-align:${align};${color ? `color:${color};` : ''}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
+  return `<div${addrAttr} class="duo-line duo-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${role.lh};letter-spacing:${role.ls};text-align:${align};${color ? `color:${color};` : ''}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
 }
 
 // ★2026-09-04 P1: flex → CSS grid(PLAN §3-A) — 행 축을 넣으려면 열끼리 «경계가 맞아야»
@@ -251,8 +259,10 @@ function renderDuoBlock(block) {
       const bg = (typeof bgRaw === 'string' && _DUO_COLOR_RE.test(bgRaw.trim())) ? bgRaw.trim() : '';
       const pad = Number(pick('padding')) || 0;
       const rad = Number(pick('radius')) || 0;
+      // ★각 라인에도 좌표를 심는다(data-r/data-c/data-line) — 캔버스 인라인 편집(P1.5) 전제 설계,
+      //   현빈 2026-09-04 지시. blur 시 「어느 셀 몇 번째 줄인가」를 DOM 순서 추측 없이 바로 읽는다.
       cellsHtml.push(`<div class="duo-cell" data-r="${r}" data-c="${c}" style="min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}">
-        ${lines.map(l => _duoLineHtml(l, align)).join('')}
+        ${lines.map((l, li) => _duoLineHtml(l, align, 0, { r, c, li })).join('')}
       </div>`);
     }
   }
@@ -410,17 +420,34 @@ function updateDuoBlock(blockId, partial = {}) {
     const r = Number(p.r), c = Number(p.c);
     if (r < 0 || r >= rowCountForValidation) return { ok: false, code: 'INVALID', message: `patchCell.r out of range (0~${rowCountForValidation - 1})` };
     if (c < 0 || c >= cols.length) return { ok: false, code: 'INVALID', message: `patchCell.c out of range (0~${cols.length - 1})` };
-    const { r: _r, c: _c, ...rest } = p;
+    const { r: _r, c: _c, lineIndex, ...rest } = p;
+    const extra = r > 0 ? _duoExtraRows(block, cols, rowCountForValidation) : null;
+    let cellPatch = rest;   // 기본: 셀 전체(부분) patch — 기존 동작 그대로
+
+    if (lineIndex !== undefined) {
+      /* ★한 줄 단위 patch — P1.5 캔버스 인라인 편집 전제 설계(현빈 2026-09-04 지시).
+       * 셀 전체(lines 배열 통째)를 갈아치우지 않고 lines[lineIndex] «하나만» 병합한다 —
+       * 인라인 편집이 blur 때 이 경로로 한 줄만 커밋해야 다른 줄이 안 날아가고 커서도 안 튄다. */
+      const li = Number(lineIndex);
+      const curCell = r === 0 ? cols[c] : extra[r - 1][c];
+      const curLines = Array.isArray(curCell.lines) ? curCell.lines : [];
+      if (!Number.isFinite(li) || li < 0 || li >= curLines.length) {
+        return { ok: false, code: 'INVALID', message: `patchCell.lineIndex out of range (0~${curLines.length - 1})` };
+      }
+      const nextLines = curLines.slice();
+      nextLines[li] = Object.assign({}, nextLines[li], rest);
+      cellPatch = { lines: nextLines };
+    }
+
     if (r === 0) {
       // 행 0 은 늘 cols[c] 자체다(단일 진실원) — patchCol 과 «같은 길」로 보낸다.
-      cols[c] = _mergeCellIntoCol(cols[c], rest);
+      cols[c] = _mergeCellIntoCol(cols[c], cellPatch);
       next.cols = JSON.stringify(cols);
     } else {
-      const extra = _duoExtraRows(block, cols, rowCountForValidation);
-      extra[r - 1][c] = Object.assign({}, extra[r - 1][c], rest);
+      extra[r - 1][c] = Object.assign({}, extra[r - 1][c], cellPatch);
       next.cells = JSON.stringify(extra);
     }
-    applied.patchCell = { r, c, ...rest };
+    applied.patchCell = lineIndex !== undefined ? { r, c, lineIndex: Number(lineIndex), ...rest } : { r, c, ...rest };
   }
   if (partial.gap !== undefined) {
     const n = Number(partial.gap);

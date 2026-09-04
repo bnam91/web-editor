@@ -65,7 +65,7 @@ function makeFakeDom() {
   return { createElement, getElementById: (id) => registry.get(id) || null };
 }
 
-let getDuoGrid, duoRows, duoCols, makeDuoBlock, updateDuoBlock, renderDuoBlock, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS;
+let getDuoGrid, duoRows, duoCols, makeDuoBlock, updateDuoBlock, renderDuoBlock, duoLineHtml, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS;
 
 before(async () => {
   const aliasPath = path.join(os.tmpdir(), `duo-grid-p1-alias-${process.pid}.mjs`);
@@ -74,7 +74,7 @@ before(async () => {
   globalThis.window = {}; // updateDuoBlock/makeDuoBlock 은 window.* 를 전부 옵셔널 체이닝(?.)으로 부른다
   const mod = await import(pathToFileURL(aliasPath).href);
   fs.unlinkSync(aliasPath);
-  ({ getDuoGrid, duoRows, duoCols, makeDuoBlock, updateDuoBlock, renderDuoBlock, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS } = mod);
+  ({ getDuoGrid, duoRows, duoCols, makeDuoBlock, updateDuoBlock, renderDuoBlock, duoLineHtml, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS } = mod);
 });
 
 /* ═══ 상수 회귀 ═══ */
@@ -187,6 +187,34 @@ test('renderDuoBlock — 옛 1행 파일도 grid 로 렌더되지만 셀 수는 
   renderDuoBlock(block);
   assert.match(block.innerHTML, /grid-template-columns:1fr 1fr 2fr/);
   assert.equal((block.innerHTML.match(/class="duo-cell"/g) || []).length, 3);
+});
+
+test('renderDuoBlock — 각 라인에 data-r/data-c/data-line 좌표가 심긴다(P1.5 캔버스 인라인 편집 전제, 현빈 지시)', () => {
+  const block = {
+    dataset: {
+      cols: JSON.stringify([
+        { width: 1, lines: [{ type: 'h2', text: 'A' }, { type: 'body', text: 'B' }] },
+        { width: 1, lines: [{ type: 'body', text: 'C' }] },
+      ]),
+      rows: JSON.stringify([{ height: 'auto' }, { height: 'auto' }]),
+      cells: JSON.stringify([[{ lines: [{ type: 'body', text: 'D' }] }, { lines: [] }]]),
+    },
+    style: {},
+  };
+  renderDuoBlock(block);
+  // 행0 셀0 의 2번째 줄(li=1) = "B"
+  assert.match(block.innerHTML, /data-r="0" data-c="0" data-line="1"[^>]*>B</);
+  // 행0 셀1 의 1번째 줄(li=0) = "C"
+  assert.match(block.innerHTML, /data-r="0" data-c="1" data-line="0"[^>]*>C</);
+  // 행1 셀0 의 1번째 줄(li=0) = "D"
+  assert.match(block.innerHTML, /data-r="1" data-c="0" data-line="0"[^>]*>D</);
+});
+
+test('duoLineHtml(named export, innercard 경로) — addr 를 안 주면 data-r/c/line 이 «전혀» 안 찍힌다(innercard 렌더 무변화)', () => {
+  // innercard-block.js 는 duoLineHtml(l, align) 2개 인자로만 부른다 — depth/addr 는 기본값(0/null).
+  const html = duoLineHtml({ type: 'h2', text: '제목' }, 'center');
+  assert.doesNotMatch(html, /data-r=|data-c=|data-line=/);
+  assert.equal(html, '<div class="duo-line duo-h2" style="font-size:40px;font-weight:700;line-height:1.2;letter-spacing:-0.01em;text-align:center;white-space:pre-wrap;word-break:keep-all;">제목</div>');
 });
 
 /* ═══ ④ makeDuoBlock — 생성 경로 ═══ */
@@ -327,4 +355,36 @@ test('updateDuoBlock — 존재하지 않는 blockId 는 NOT_FOUND', () => {
   const r = updateDuoBlock('duo_doesnotexist', { gap: 10 });
   assert.equal(r.ok, false);
   assert.equal(r.code, 'NOT_FOUND');
+});
+
+/* ═══ ⑦ patchCell{lineIndex} — 한 줄 단위 patch (P1.5 캔버스 인라인 편집 전제, 현빈 2026-09-04 지시) ═══ */
+test('patchCell{r:0,lineIndex} — 셀 전체가 아니라 그 줄 하나만 바뀐다(다른 줄 보존)', () => {
+  const block = freshBlock({ cols: [
+    { width: 1, lines: [{ type: 'h2', text: 'A' }, { type: 'body', text: 'B' }] },
+    { width: 1, lines: [{ type: 'body', text: 'C' }] },
+  ] });
+  const r = updateDuoBlock(block.id, { patchCell: { r: 0, c: 0, lineIndex: 1, text: 'B2' } });
+  assert.equal(r.ok, true);
+  const cols = JSON.parse(block.dataset.cols);
+  assert.deepEqual(cols[0].lines[0], { type: 'h2', text: 'A' }, '0번째 줄은 안 건드림');
+  assert.equal(cols[0].lines[1].text, 'B2', '1번째 줄만 바뀜');
+  assert.equal(cols[0].lines[1].type, 'body', 'text 이외 필드는 유지(merge, 통째 교체 아님)');
+});
+
+test('patchCell{r≥1,lineIndex} — 추가행 셀의 한 줄도 같은 방식으로 patch된다', () => {
+  const block = freshBlock({ cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }] });
+  updateDuoBlock(block.id, { rows: [{ height: 'auto' }, { height: 'auto' }] });
+  updateDuoBlock(block.id, { patchCell: { r: 1, c: 0, lines: [{ type: 'body', text: 'X' }, { type: 'caption', text: 'Y' }] } });
+  const r = updateDuoBlock(block.id, { patchCell: { r: 1, c: 0, lineIndex: 0, text: 'X2' } });
+  assert.equal(r.ok, true);
+  const grid = getDuoGrid(block);
+  assert.equal(grid.cells[1][0].lines[0].text, 'X2');
+  assert.equal(grid.cells[1][0].lines[1].text, 'Y', '1번째 줄은 안 건드림');
+});
+
+test('patchCell{lineIndex} — 범위 밖(줄 개수 초과·음수)은 거부된다', () => {
+  const block = freshBlock({ cols: [{ width: 1, lines: [{ type: 'body', text: 'A' }] }, { width: 1, lines: [] }] });
+  assert.equal(updateDuoBlock(block.id, { patchCell: { r: 0, c: 0, lineIndex: 5, text: 'x' } }).ok, false);
+  assert.equal(updateDuoBlock(block.id, { patchCell: { r: 0, c: 0, lineIndex: -1, text: 'x' } }).ok, false);
+  assert.equal(updateDuoBlock(block.id, { patchCell: { r: 0, c: 1, lineIndex: 0, text: 'x' } }).ok, false, '빈 셀(줄 0개)엔 patchCell.lineIndex 가 무조건 범위 밖');
 });

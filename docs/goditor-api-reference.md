@@ -56,10 +56,14 @@ window.addGridBlock({
 // 수정: updateGridBlock(id, partial) — 구조 필드(cols|patchCol|cells|patchCell)는 «한 번에 하나만», rows/gap/valign은 자유 결합.
 //   patchCell({r,c,...}) — r===0 은 patchCol과 동치(행0=cols, 단일 진실원). r≥1 은 dataset.cells(추가행)에 merge.
 updateGridBlock(id, { rows: [{ height: 'auto' }, { height: 120 }, { height: 'auto' }] })  // 1행→3행으로 확장
-updateGridBlock(id, { patchCell: { r: 2, c: 0, lines: [{ type: 'body', text: '새 셀 내용' }] } })
-// MCP: add_grid_block(cols required, rows?/cells?/gap?/valign?/sectionId?) · update_grid_block(blockId, {cols|patchCol|rows|cells|patchCell|gap|valign})
-//   통합 도구로도 접근 가능: add_block({type:'grid', cols, rows?, cells?}) · update_block(blockId, {...}) — blockId prefix duo_.
+updateGridBlock(id, { patchCell: { r: 2, c: 0, lines: [{ type: 'body', text: '새 셀 내용' }] } })  // 셀 통째 교체
+updateGridBlock(id, { patchCell: { r: 0, c: 0, lineIndex: 1, text: '한 줄만' } })                    // ★한 줄만 patch(P1.5 인라인 편집용)
+// ★캔버스 주소(P1.5 캔버스 인라인 편집 전제 설계, 현빈 2026-09-04 지시): 렌더된 .duo-line/.duo-gap/.duo-img
+//   등 각 «최상위 라인» 요소에 data-r/data-c/data-line 이 심겨 있다(중첩 duo/graph 내부는 아직 미주소화).
+//   이 좌표로 patchCell({r,c,lineIndex,...})를 호출하면 그 줄 하나만 바뀐다(셀의 다른 줄·다른 필드는 보존).
 // ⛔열은 가중치(fr, width — px 아님) · 행만 px 최소높이(minmax(px,auto))다. 열 하한은 2 그대로(1열 「그리드」는 없음).
+// ⛔MCP 등록(add_grid_block/update_grid_block, BLOCK_TYPES) = 현빈 지시로 «보류»(2026-09-04). window.* 함수만
+//   존재한다 — main/claude-pm/ 아래는 이번 P1에서 건드리지 않았다(홈페이지 개발자문서 격차 정리가 먼저).
 
 // infocard — 스탯/가격/리뷰 카드. 별칭 3종이 variant 프리셋
 window.addCountupBlock({ data: { stats: [        // ★정적 최종값 빅넘버(애니 없음), N개 가로 배치
