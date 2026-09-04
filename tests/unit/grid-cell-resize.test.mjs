@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const srcPath = path.join(__dirname, '../../js/grid-cell-resize.js');
 const aliasPath = path.join(os.tmpdir(), `grid-cell-resize-alias-${process.pid}.mjs`);
 fs.copyFileSync(srcPath, aliasPath);
-const { resizeColBoundary } = await import(pathToFileURL(aliasPath).href);
+const { resizeColBoundary, resizeRowBoundary } = await import(pathToFileURL(aliasPath).href);
 fs.unlinkSync(aliasPath);
 
 test('합 보존: 델타를 얼마를 줘도 leftWeight + rightWeight === W', () => {
@@ -84,4 +84,47 @@ test('경계값: 화면 폭 합이 정확히 2*minPx면 클램프 상하한이 �
 test('다른 열은 건드리지 않는다는 계약: 함수는 항상 두 값만 반환한다', () => {
   const r = resizeColBoundary(200, 200, 2, 10);
   assert.deepEqual(Object.keys(r).sort(), ['leftWeight', 'rightWeight']);
+});
+
+/* ── resizeRowBoundary — 행 경계 드래그(px 최소높이, 가중치 없음) ────────────── */
+
+test('행: 델타 0 은 시작 높이를 그대로 반환한다', () => {
+  assert.equal(resizeRowBoundary(120, 0), 120);
+});
+
+test('행: 아래로 끌면(양수 델타) 높이가 커진다', () => {
+  assert.equal(resizeRowBoundary(120, 50), 170);
+});
+
+test('행: 위로 끌면(음수 델타) 높이가 작아진다', () => {
+  assert.equal(resizeRowBoundary(120, -50), 70);
+});
+
+test('행: minPx 클램프 — 기본 24px 밑으로는 줄지 않는다', () => {
+  assert.equal(resizeRowBoundary(120, -1000), 24);
+});
+
+test('행: maxPx 클램프 — 기본 2000px 위로는 늘지 않는다', () => {
+  assert.equal(resizeRowBoundary(120, 100000), 2000);
+});
+
+test('행: 커스텀 min/max 클램프도 적용된다', () => {
+  assert.equal(resizeRowBoundary(50, -1000, 10, 200), 10);
+  assert.equal(resizeRowBoundary(50, 1000, 10, 200), 200);
+});
+
+test('행: 결과는 정수로 반올림된다', () => {
+  assert.equal(resizeRowBoundary(100.2, 0.1), 100);
+  assert.equal(resizeRowBoundary(100.6, 0), 101);
+});
+
+test('행: startPx/deltaPx가 유효한 수가 아니면 null(no-op) — \'auto\'를 그대로 넘기는 실수 방지', () => {
+  assert.equal(resizeRowBoundary(NaN, 10), null);
+  assert.equal(resizeRowBoundary(120, NaN), null);
+  assert.equal(resizeRowBoundary(undefined, 10), null);
+});
+
+test('행: 다른 행은 건드리지 않는다는 계약 — 함수는 숫자 하나만 반환한다(객체 아님)', () => {
+  const r = resizeRowBoundary(120, 10);
+  assert.equal(typeof r, 'number');
 });

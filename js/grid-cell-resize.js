@@ -25,4 +25,24 @@ function resizeColBoundary(wL, wR, W, deltaPx, minPx = 40) {
   return { leftWeight, rightWeight };
 }
 
-export { resizeColBoundary };
+// ═══════════════════════════════════
+// 행 경계 드래그 — P1(행 축) 위에 얹는 셀 경계 드래그의 나머지 절반(PLAN §5-B-3).
+// 열과 달리 «가중치 합 보존» 제약이 없다 — 행 높이는 3-A 모델에서 각 행이 독립된
+// px 최소높이(minmax(px, auto)) 이거나 'auto' 다. 그래서 드래그 대상 행 «하나»만
+// 바뀌고 다른 행은 데이터상 아예 손대지 않는다(호출부가 rows[r] 하나만 덮어쓴다).
+//
+// startPx = 드래그 시작 시점 «행 r»의 화면 px 높이(scale로 나눈 캔버스 px, mousedown 1회
+//   스냅샷). ★'auto' 행을 처음 드래그하면 호출부가 «현재 렌더된 높이»를 이 값으로 굳혀서
+//   넘긴다(순수함수는 'auto' 문자열 자체를 모른다 — px 변환은 DOM을 아는 overlay-handles.js
+//   책임).
+// deltaPx = mousemove 누적 델타(캔버스 px, scale 이미 나눈 값). 아래(+)면 행이 커진다.
+// minPx/maxPx = 클램프 상하한(기본 24/2000 — PLAN §5-B-3 그대로) — 0/음수 행이 되는 것을 막는다.
+//
+// 반환: 다음 행 높이(px, 정수 반올림). startPx/deltaPx가 유효한 수가 아니면 null(no-op).
+function resizeRowBoundary(startPx, deltaPx, minPx = 24, maxPx = 2000) {
+  if (!Number.isFinite(startPx) || !Number.isFinite(deltaPx)) return null;
+  const next = startPx + deltaPx;
+  return Math.round(Math.max(minPx, Math.min(maxPx, next)));
+}
+
+export { resizeColBoundary, resizeRowBoundary };

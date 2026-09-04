@@ -4,7 +4,7 @@
    Extracted from drag-drop.js (lines ~13–988)
 ═══════════════════════════════════ */
 
-import { resizeColBoundary } from './grid-cell-resize.js';
+import { resizeColBoundary, resizeRowBoundary } from './grid-cell-resize.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -1172,31 +1172,43 @@ window.showVectorResizeHandles = showVectorResizeHandles;
 window.hideVectorResizeHandles = hideVectorResizeHandles;
 
 /* ═══════════════════════════════════
-   GRID BLOCK COLUMN GUTTER OVERLAY (P2 — 셀 경계 드래그, PLAN-gridblock.md §5)
-   duo-block(사용자에게는 「그리드 블럭」)이 선택돼 있을 때 열 경계에 드래그 가능한
+   GRID BLOCK CELL GUTTER OVERLAY (P2 — 셀 경계 드래그, PLAN-gridblock.md §5)
+   duo-block(사용자에게는 「그리드 블럭」)이 선택돼 있을 때 열/행 경계에 드래그 가능한
    거터(grd-gutter)를 띄운다. 여기 있는 6종 handle(frame/mockup/icon/asset/canvas/vector)은
    전부 블록 «바깥 테두리»를 px로 늘리는 핸들이라 못 쓴다(PLAN §5-A) — 대신 이 파일의
    #ss-handles-overlay 자리와 rAF 위치갱신·hide 패턴만 그대로 빌린다.
    ⛔거터 DOM 을 블록 «안»에 넣지 않는다 — #ss-handles-overlay는 #canvas-scaler 바깥(캔버스
      클론 대상 밖)이라 저장본·export 에 새지 않는다(완료조건① — section-serialize.js가
      세척하는 root 자체에 애초에 없음).
-   ★값은 항상 «가중치»(cols[i].width) — px 를 직접 쓰지 않는다(폭 계산 함정 회피, duo 는
-     width:100% 고정이라 원래 그 함정 밖이고 여기서도 안 들어간다).
-   ★행 축은 아직 없다(P1 = feat/grid-p1 미병합, 2026-09-04 P2 착수 시점) — 이 오버레이는
-     «열 경계»만 다룬다. 행 경계는 P1 머지 후 별도 커밋으로 추가한다(IMPL-grid-p2.md 참조).
+   ★열은 항상 «가중치»(cols[i].width) — px 를 직접 쓰지 않는다(폭 계산 함정 회피, duo 는
+     width:100% 고정이라 원래 그 함정 밖이고 여기서도 안 들어간다). 행은 반대로 항상 «px
+     최소높이»(rows[r].height, 3-A 의미론 — 테이블 U5a와 동일) — 가중치 재분배가 없다.
+   ★★2026-09-04 P2b(행 경계 추가) — P1(feat/grid-p1-nomcp)이 렌더를 flex→CSS grid로 바꾸며
+     열 DOM이 `.duo-col` → `.duo-cell[data-r][data-c]`로 바뀌었다. 아래 `_getGridCols`는
+     원래 `.duo-col`을 찾았는데(P0/P2 시절 DOM), P1 위로 올라오며 이미 죽은 셀렉터가 됐다 —
+     이번에 «행 0의 셀」로 고쳤다(리베이스 중 발견, IMPL-grid-p2b.md 참조).
 ═══════════════════════════════════ */
 let _gridGutterBlock = null;
 let _gridGutterRafId = null;
 
+// 열의 x 위치 = 「행 0」 셀 하나로 충분하다(grid-template-columns는 모든 행에 공통 적용).
 function _getGridCols(block) {
-  return Array.from(block.querySelectorAll(':scope > .duo-inner > .duo-col'));
+  return Array.from(block.querySelectorAll(':scope > .duo-inner > .duo-cell[data-r="0"]'))
+    .sort((a, b) => (+a.dataset.c) - (+b.dataset.c));
+}
+
+// 행의 y 위치 = 「열 0」 셀 하나로 충분하다(grid-template-rows는 모든 열에 공통 적용).
+function _getGridRowCells(block) {
+  return Array.from(block.querySelectorAll(':scope > .duo-inner > .duo-cell[data-c="0"]'))
+    .sort((a, b) => (+a.dataset.r) - (+b.dataset.r));
 }
 
 function showGridGutters(block) {
   if (_gridGutterBlock === block) { _updateGridGutterPositions(); return; }
   hideGridGutters();
   const cols = _getGridCols(block);
-  if (cols.length < 2) return; // 열 1개는 경계가 없다
+  const rowCells = _getGridRowCells(block);
+  if (cols.length < 2 && rowCells.length < 2) return; // 열 1개+행 1개는 경계가 없다
   _gridGutterBlock = block;
   const overlay = _getOverlay();
   if (!overlay) return;
@@ -1210,6 +1222,15 @@ function showGridGutters(block) {
     g.style.cssText = 'position:absolute;width:8px;cursor:col-resize;z-index:97;pointer-events:auto;';
     overlay.appendChild(g);
     g.addEventListener('mousedown', e => _onGridGutterMouseDown(e, block, i));
+  }
+  for (let r = 0; r < rowCells.length - 1; r++) {
+    const g = document.createElement('div');
+    g.className = 'grd-gutter';
+    g.dataset.axis = 'row';
+    g.dataset.i = String(r);
+    g.style.cssText = 'position:absolute;height:8px;cursor:row-resize;z-index:97;pointer-events:auto;';
+    overlay.appendChild(g);
+    g.addEventListener('mousedown', e => _onGridRowGutterMouseDown(e, block, r));
   }
   _updateGridGutterPositions();
   _startGridGutterRaf();
@@ -1240,6 +1261,7 @@ function _updateGridGutterPositions() {
   const overlay = _getOverlay();
   if (!overlay || !_gridGutterBlock) return;
   const cols = _getGridCols(_gridGutterBlock);
+  const rowCells = _getGridRowCells(_gridGutterBlock);
   const blockRect = _gridGutterBlock.getBoundingClientRect();
   overlay.querySelectorAll('.grd-gutter[data-axis="col"]').forEach(g => {
     const i = +g.dataset.i;
@@ -1252,6 +1274,18 @@ function _updateGridGutterPositions() {
     g.style.left = (cx - 4) + 'px';      // 8px 폭 중앙 정렬
     g.style.top = blockRect.top + 'px';
     g.style.height = blockRect.height + 'px';
+  });
+  overlay.querySelectorAll('.grd-gutter[data-axis="row"]').forEach(g => {
+    const r = +g.dataset.i;
+    const a = rowCells[r], b = rowCells[r + 1];
+    if (!a || !b) { g.style.display = 'none'; return; }
+    g.style.display = '';
+    const ar = a.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
+    const cy = (ar.bottom + br.top) / 2; // 두 행 사이 gap 의 중앙(스크린 좌표, 스케일 반영된 rect)
+    g.style.top = (cy - 4) + 'px';       // 8px 높이 중앙 정렬
+    g.style.left = blockRect.left + 'px';
+    g.style.width = blockRect.width + 'px';
   });
 }
 
@@ -1300,6 +1334,54 @@ function _onGridGutterMouseDown(e, block, i) {
         return Number.isInteger(n) ? String(n) : String(+n.toFixed(2));
       }).join(':');
     }
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// 행 경계 드래그 — 대상 행 r «하나»만 px 최소높이로 굳힌다(가중치 재분배 없음, 3-A 의미론).
+// startH(화면 px, 스케일로 나눈 캔버스 px)는 mousedown 시점 1회 스냅샷 — 'auto' 행이면 «현재
+// 렌더된 높이»를 시작값으로 굳힌다(순수함수 resizeRowBoundary는 'auto' 문자열 자체를 모른다).
+function _onGridRowGutterMouseDown(e, block, r) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  let rows;
+  try { rows = JSON.parse(block.dataset.rows || '[]'); } catch (_) { rows = []; }
+  if (!Array.isArray(rows) || rows.length < 2 || !rows[r]) return;
+  const rowEls = _getGridRowCells(block);
+  const elA = rowEls[r];
+  if (!elA) return;
+
+  // row draggable(block-drag.js)과의 충돌 방지 — 열 경계와 같은 안전망(drag-utils.js, PLAN §5-B-4).
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+
+  const scale0 = _canvasScaleNow();
+  const startH = rows[r].height === 'auto'
+    ? (elA.getBoundingClientRect().height / scale0)
+    : (Number(rows[r].height) || 0);
+  const startY = e.clientY;
+  // ★드래그 «시작 직전» 1회만(mousedown) — mousemove 마다 쌓이면 undo 가 픽셀 단위로 끊긴다.
+  window.pushHistory?.();
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow(); // 드래그 중 줌이 바뀌는 경우까지 방어(매 move 재조회)
+    const delta = (ev.clientY - startY) / scale;
+    const next = resizeRowBoundary(startH, delta, 24, 2000);
+    if (next == null) return;
+    rows[r] = { height: next };
+    block.dataset.rows = JSON.stringify(rows);
+    window.renderDuoBlock?.(block);
+    _updateGridGutterPositions();
+    // 패널이 열려 있으면 해당 행 입력값만 갱신 — 패널 재렌더 금지(열 경계와 동일 원칙).
+    const rowInput = document.querySelector(`.grd-row-h-item[data-ri="${r}"]`);
+    if (rowInput) rowInput.value = String(next);
     window.scheduleAutoSave?.();
   }
   function onUp() {
