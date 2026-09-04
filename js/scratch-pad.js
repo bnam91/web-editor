@@ -1805,6 +1805,48 @@ window._scratchRemoveById = async (id) => {
   return true;
 };
 
+// ── 외부 API (MCP delete_scratch_item) ───────────────────────────────────────
+// INV-B3/B1 결손 #5 — put_image/add_asset_block(scratchId)로 넣기만 되고 MCP 스스로
+// 치우지는 못했다. 기존 _scratchRemoveById(canvas-scratch-drop.js가 드롭 성공 후 쓰던
+// 내부 헬퍼) 그대로 재사용 — 새 삭제 로직을 만들지 않고 ok/code 형태만 MCP 규약에 맞춘다.
+// ★스크래치는 프로젝트 캔버스 직렬화 밖(IndexedDB 별도, 파일 상단 주석)이라 undo history
+//   대상이 아니다 — pushHistory 불필요(기존 _scratchRemoveById도 안 부름).
+window._scratchDeleteForMcp = async (id) => {
+  if (!id || typeof id !== 'string') return { ok: false, code: 'BAD_ARGS', message: 'id required' };
+  const it = _scratchItems.find(s => s.id === id);
+  if (!it) return { ok: false, code: 'NOT_FOUND', message: 'scratch item not found: ' + id };
+  const removed = { id: it.id, x: it.x, y: it.y, w: it.w };
+  const ok = await window._scratchRemoveById(id);
+  return ok ? { ok: true, scratchId: id, item: removed }
+            : { ok: false, code: 'REMOVE_FAILED', message: 'remove failed: ' + id };
+};
+
+// ── 외부 API (MCP update_scratch_item) ───────────────────────────────────────
+// INV-B3/B1 결손 #5 짝 — 좌표(x/y) · 폭(w) 재배치만 지원한다(★src 교체는 범위 밖 —
+// add_asset_block/update_asset_block의 scratchId 경로가 이미 "스크래치→캔버스로 붙이기"를
+// 담당하므로, 스크래치 자체의 이미지 내용 교체는 이번 결손표에 없던 별도 기능이다).
+window._scratchUpdateForMcp = async (id, { x, y, w } = {}) => {
+  if (!id || typeof id !== 'string') return { ok: false, code: 'BAD_ARGS', message: 'id required' };
+  const it = _scratchItems.find(s => s.id === id);
+  if (!it) return { ok: false, code: 'NOT_FOUND', message: 'scratch item not found: ' + id };
+  const hasX = typeof x === 'number' && Number.isFinite(x);
+  const hasY = typeof y === 'number' && Number.isFinite(y);
+  const hasW = typeof w === 'number' && Number.isFinite(w);
+  if (!hasX && !hasY && !hasW) {
+    return { ok: false, code: 'BAD_ARGS', message: 'no fields to update — provide at least one of x/y/w' };
+  }
+  if (hasX) it.x = x;
+  if (hasY) it.y = y;
+  if (hasW) it.w = w;
+  if (it.el) {
+    if (hasX) it.el.style.left = it.x + 'px';
+    if (hasY) it.el.style.top = it.y + 'px';
+    if (hasW) it.el.style.width = it.w + 'px';
+  }
+  await _saveScratch();
+  return { ok: true, scratchId: id, x: it.x, y: it.y, w: it.w };
+};
+
 // ════════════════════════════════════════════════════════════════════════
 // dataURL → Blob 직접 파싱 (Codex #7 — fetch round-trip 회피)
 // ════════════════════════════════════════════════════════════════════════

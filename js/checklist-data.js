@@ -127,3 +127,29 @@ window.addChecklistItem = function addChecklistItem({ text, x, y, sectionId, don
   window.renderTodoPins?.();
   return newItem.id;
 };
+
+// ── 외부 API (MCP list_checklist_items) ──────────────────────────────────────
+// INV-B3 결손 #2 — add/update만 있고 조회가 없어 세션이 끊기면(id를 잊으면) 만든 항목을
+// 다시 찾을 방법이 없었다. loadItems() 그대로 노출(방어적 얕은 복사 — 호출측이 배열을
+// 변형해도 _ckItems 원본에 영향 없게).
+window.listChecklistItems = function listChecklistItems({ includeDone = true, sectionId } = {}) {
+  let items = loadItems().slice();
+  if (includeDone === false) items = items.filter(it => !it.done);
+  if (sectionId != null) items = items.filter(it => it.sectionId === sectionId);
+  return items;
+};
+
+// ── 외부 API (MCP delete_checklist_item) ─────────────────────────────────────
+// UI(js/checklist-panel.js .ck-delete)와 같은 패턴: saveItems(loadItems().filter(...)).
+// list와 짝을 이뤄야 "만들었는데 못 보고 못 지우는" 이중 결손이 해소된다.
+window.deleteChecklistItem = function deleteChecklistItem({ id } = {}) {
+  if (!id || typeof id !== 'string') return { ok: false, code: 'BAD_ARGS', message: 'id required' };
+  const items = loadItems();
+  const idx = items.findIndex(it => it.id === id);
+  if (idx === -1) return { ok: false, code: 'NOT_FOUND', message: 'checklist item not found: ' + id };
+  const [removed] = items.splice(idx, 1);
+  saveItems(items);
+  if (typeof window.renderChecklistPanel === 'function') window.renderChecklistPanel();
+  if (typeof window.renderTodoPins === 'function')       window.renderTodoPins();
+  return { ok: true, itemId: id, item: removed };
+};
