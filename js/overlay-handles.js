@@ -1209,11 +1209,16 @@ function showGridGutters(block) {
    * 그래서 3x3 으로 바꿔도 거터가 옛 개수 그대로였다(실측: col 1개).
    * 피커 경로만 밖에서 강제로 고쳤더니 updateGridBlock→showDuoProperties 경로가 그대로 남았다.
    * 고칠 자리는 «여기»다 — 개수 비교를 조기 return 조건에 넣는다. */
-  const need = Math.max(0, cols.length - 1) + Math.max(0, rows.length - 1);
+  /* ★«축별»로 센다. 합으로 비교하면 3x2 → 2x3 처럼 «합이 같은» 전환에서
+   * 재생성이 안 돌아 row 거터가 하나 안 생긴다(적대검수 2차 지적).
+   * 열 2 + 행 1 = 3 과 열 1 + 행 2 = 3 은 합이 같지만 «다른 격자»다. */
+  const needCol = Math.max(0, cols.length - 1);
+  const needRow = Math.max(0, rows.length - 1);
   if (_gridGutterBlock === block) {
     const ovl = _getOverlay();
-    const have = ovl ? ovl.querySelectorAll('.grd-gutter').length : 0;
-    if (have === need) { _updateGridGutterPositions(); return; }
+    const haveCol = ovl ? ovl.querySelectorAll('.grd-gutter[data-axis="col"]').length : 0;
+    const haveRow = ovl ? ovl.querySelectorAll('.grd-gutter[data-axis="row"]').length : 0;
+    if (haveCol === needCol && haveRow === needRow) { _updateGridGutterPositions(); return; }
   }
   hideGridGutters();
   if (cols.length < 2 && rows.length < 2) return; // 경계가 하나도 없다
