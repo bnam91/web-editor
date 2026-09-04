@@ -35,12 +35,6 @@
 
   const GROUP = { new: '새로 생긴 것', fix: '고친 것', imp: '나아진 것' };
 
-  function summarize(items) {
-    const c = { new: 0, fix: 0, imp: 0 };
-    items.forEach(i => { if (c[i.k] != null) c[i.k]++; });
-    const L = { new: '새기능', fix: '고침', imp: '개선' };
-    return Object.keys(c).filter(k => c[k]).map(k => `${L[k]} ${c[k]}`).join(' · ');
-  }
 
   function open(version, note) {
     const items = note.items || note;
@@ -56,7 +50,6 @@
         <div class="relnote-hero">
           <span class="tb-badge tb-badge--pill tb-badge--accent relnote-ver"></span>
           <div class="relnote-titlerow"><span class="relnote-h">릴리스 노트</span><span class="relnote-date"></span></div>
-          <div class="relnote-sub"></div>
         </div>
         <div class="relnote-list"></div>
         <div class="settings-modal-footer">
@@ -68,7 +61,6 @@
     overlay.querySelector('.relnote-ver').textContent = `버전 ${version}`;
     /* ★제목은 «항상 고정» — 릴리스노트지 카피라이팅이 아니다. 날짜는 제목과 같은 줄에. */
     overlay.querySelector('.relnote-date').textContent = note.date || '';
-    overlay.querySelector('.relnote-sub').textContent = summarize(items);
     overlay.querySelector('.relnote-shell').style.position = 'relative';
 
     /* ★textContent 로만 넣는다 — 노트가 HTML 로 실행될 이유가 없다(notice.js 와 같은 규약). */
