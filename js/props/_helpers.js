@@ -79,11 +79,14 @@ export function bindSlider(slider, number, applyFn, opts = {}) {
  * @param {object} [opts]
  * @param {number} [opts.max=4]      격자 한 변
  * @param {number} [opts.maxRows]    행 상한(없으면 max). 행 축이 아직 없으면 1 을 준다.
+ * @param {number} [opts.minCols=1]  ★열 하한. 그리드는 2 다 — 1열은 그리드가 아니고,
+ *                                    누르면 dataset 만 1 이 되고 캔버스는 2칸으로 남아 «어긋난다»(실측).
  */
 export function buildGridPicker(picker, label, onPick, opts = {}) {
   if (!picker) return;
   const MAX = opts.max || 4;
   const MAXR = opts.maxRows || MAX;
+  const MINC = opts.minCols || 1;
   picker.innerHTML = '';
   for (let r = 1; r <= MAX; r++) {
     for (let c = 1; c <= MAX; c++) {
@@ -91,7 +94,7 @@ export function buildGridPicker(picker, label, onPick, opts = {}) {
       cell.className = 'grid-picker-cell';
       cell.dataset.r = r; cell.dataset.c = c;
       // 아직 못 만드는 조합은 «죽은 칸»으로 둔다 — 눌러도 아무 일 없는 것보다 안 눌리는 게 정직하다.
-      if (r > MAXR) cell.classList.add('grid-picker-cell--off');
+      if (r > MAXR || c < MINC) cell.classList.add('grid-picker-cell--off');
       picker.appendChild(cell);
     }
   }

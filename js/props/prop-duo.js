@@ -210,7 +210,11 @@ export function showDuoProperties(block) {
          * 안 넣으면 셀이 빈 채로 높이 0 이 되어, 2x2 를 눌러도 «아무 일도 안 일어난 것»처럼 보인다
          * (실측: rows=2 이고 duo-cell 4개가 생겼는데 2행 두 칸 높이가 0px).
          * 1행이 기본 텍스트를 갖는 것과 «같은 대우»여야 사용자가 무엇이 생겼는지 안다.
-         * ⛔이미 있는 셀은 «건드리지 않는다» — 줄였다 늘려도 옛 내용이 살아 있어야 한다. */
+         * ⚠️정정(적대검수 지적, 2026-09-04): 이 코드는 «옛 내용을 보존하지 않는다».
+         *   nextCells 를 새로 만들어 덮으므로 «잘린 행/열의 내용은 사라진다».
+         *   내가 앞서 커밋 메시지에 「줄였다 늘려도 옛 내용이 살아 있다」고 썼는데 «거짓»이었다 —
+         *   P1 의 「cells 를 그대로 둔다」 설계를 병합에서 모르고 뒤집었다.
+         *   복원은 undo 로만 된다(그래서 pushHistory 를 변경 전에 부른다). */
         let curCells = [];
         try { curCells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { curCells = []; }
         const nextCells = [];
@@ -235,7 +239,7 @@ export function showDuoProperties(block) {
       showDuoProperties(block);
       showGridGutters(block);                   // 패널 재생성(칸/행 수가 바뀌면 섹션도 바뀐다)
     },
-    { max: MAX_COLS, maxRows: MAX_ROWS }
+    { max: MAX_COLS, maxRows: MAX_ROWS, minCols: MIN_COLS }
   );
 
   const ratioInput = document.getElementById('grd-col-ratio');
