@@ -135,9 +135,14 @@ export function showDuoProperties(block) {
    *   패널을 통째로 새로 그린다. 입력 중(각 keystroke)에 재호출하면 포커스가 든 input DOM 이
    *   교체돼 타이핑이 끊긴다. 바로 위 gap 슬라이더가 같은 이유로 dataset 직접 쓰기를 택했다 —
    *   여기서도 «change»(blur/Enter) 시점에만 dataset 을 커밋하고 패널은 다시 그리지 않는다.
-   *   (검증은 여기서 한다 — 컬럼 2~3개, width 는 양수) */
+   *   (검증은 여기서 한다 — 컬럼 2~4개, width 는 양수) */
   const _commitCols = (next) => {
-    if (!Array.isArray(next) || next.length < 2 || next.length > 3) return false;
+    /* ★상한은 duo-block.js 의 클램프와 «같은 값»이어야 한다(2~4).
+     * P0 에서 duo-block.js 세 자리(44 렌더 / 170 생성 / 214 검증)를 4 로 올리면서
+     * «여기 하나»를 놓쳤다 — 그래서 4열 그리드에서 비율 입력이 조용히 무시됐다.
+     * (P2 워커가 코드에서 발견 → 지디 실기 재현: 4열에 1:2:3:4 를 넣어도 [1,2,3,1] 유지)
+     * ⚠️이 레포의 고질이다 — 열거 자리가 흩어져 있어 한 곳만 고치면 «절반만» 고쳐진다. */
+    if (!Array.isArray(next) || next.length < 2 || next.length > 4) return false;
     next.forEach(c => { const n = Number(c.width); c.width = Number.isFinite(n) && n > 0 ? n : 1; });
     block.dataset.cols = JSON.stringify(next);
     window.renderDuoBlock?.(block);
