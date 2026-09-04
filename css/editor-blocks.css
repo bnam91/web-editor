@@ -507,8 +507,6 @@
 
 /* 캔버스 드롭 인디케이터 — 줌 보정을 위해 두껍게 */
 .drop-indicator {
-  /* ★겹침(z 85) 밑으로 깔리면 오조작을 눈으로 확인할 수 없다 → 그 위로 올린다 */
-  position: relative; z-index: 86;
   height: 5px; background: var(--ui-accent-primary);
   border-radius: 3px; flex-shrink: 0;
   pointer-events: none; margin: 2px 0;
