@@ -2177,6 +2177,20 @@ if (_verBadge) {
     .catch(() => {});
 }
 
+/* [A3] 같은 값을 «상단바»에도 (현빈 2026-09-04).
+ * ⛔여기선 실패 시 「BETA」 같은 대체 문구를 안 쓴다 — 상단바 배지는 «없어도 되는» 자리라
+ *   버전을 모를 때 뭔가 띄우면 그게 버전인 줄 읽힌다. 못 얻으면 숨긴다. */
+const _tbVerBadge = document.getElementById('topbar-version-badge');
+if (_tbVerBadge) {
+  window.electronAPI?.getVersion?.()
+    .then(v => {
+      if (!v) return;
+      _tbVerBadge.textContent = `v${v}`;
+      _tbVerBadge.style.display = '';
+    })
+    .catch(() => {});
+}
+
 // Electron 환경이면 JSON 파일에서 프리셋 로드.
 // _presetsReady: race condition 방지용 Promise — showSectionProperties 등에서 await 후 UI 렌더.
 // Electron 비환경(브라우저)에서는 즉시 resolve하여 PRESET_FALLBACK 사용.
