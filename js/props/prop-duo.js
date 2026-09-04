@@ -44,7 +44,7 @@ function _rowHeightHtml(rows) {
   const items = rows.map((r, ri) => `
       <div class="grd-rowh-item-row" style="display:flex;align-items:center;gap:6px;">
         <span class="prop-sublabel" style="width:40px;font-size:11px;color:#888;">행 ${ri + 1}</span>
-        <input type="number" class="prop-number grd-row-h-item" data-ri="${ri}" min="0" max="4000"
+        <input type="number" class="prop-number grd-row-h-item" data-ri="${ri}" min="0" max="${ROW_H_MAX}"
                placeholder="auto" value="${r.height === 'auto' ? '' : r.height}" title="이 행 높이(px). 비우면 자동" style="width:70px;">
       </div>`).join('');
   return `

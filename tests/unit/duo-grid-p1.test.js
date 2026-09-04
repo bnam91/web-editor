@@ -34,6 +34,15 @@ src = src.replace(
 );
 assert.notEqual(src, beforeSwap, '소스에서 drag-utils/drag-drop import 2줄을 못 찾음 — 리팩터링됐나?');
 
+/* ★grid-cell-resize.js 는 «무의존 순수모듈»이라 Node 에서 그대로 import 된다 — 스텁이 필요없다.
+ * 다만 사본이 tmpdir 로 가면 상대경로 '../grid-cell-resize.js' 가 레포 밖을 가리켜 깨진다.
+ * → 절대 file:// URL 로 고정한다(실제 소스를 그대로 쓰는 원칙 유지: ROW_H_MAX 가 진짜 그 파일에서 온다). */
+const GCR_SPEC = "from '../grid-cell-resize.js'";
+const gcrAliasPath = path.join(os.tmpdir(), `grid-cell-resize-alias-p1-${process.pid}.mjs`);
+const beforeGcr = src;
+src = src.replace(GCR_SPEC, 'from ' + JSON.stringify(pathToFileURL(gcrAliasPath).href));
+assert.notEqual(src, beforeGcr, "소스에서 grid-cell-resize.js import 를 못 찾음 — 행높이 상한 SSOT 가 끊겼나?");
+
 /* ── 미니 DOM(이 파일이 실제로 쓰는 API 표면만) ── */
 function makeFakeDom() {
   const registry = new Map();
@@ -69,11 +78,15 @@ let getDuoGrid, duoRows, duoCols, makeDuoBlock, updateDuoBlock, renderDuoBlock, 
 
 before(async () => {
   const aliasPath = path.join(os.tmpdir(), `duo-grid-p1-alias-${process.pid}.mjs`);
+  // ★grid-cell-resize 도 «바이트 그대로» .mjs 사본으로 둔다 — package.json 이 type:commonjs 라
+  //   레포의 .js 를 그대로 import 하면 CJS 로 읽혀 named export(ROW_H_MAX)가 안 나온다.
+  fs.copyFileSync(path.join(__dirname, '../../js/grid-cell-resize.js'), gcrAliasPath);
   fs.writeFileSync(aliasPath, src);
   globalThis.document = makeFakeDom();
   globalThis.window = {}; // updateDuoBlock/makeDuoBlock 은 window.* 를 전부 옵셔널 체이닝(?.)으로 부른다
   const mod = await import(pathToFileURL(aliasPath).href);
   fs.unlinkSync(aliasPath);
+  fs.unlinkSync(gcrAliasPath);
   ({ getDuoGrid, duoRows, duoCols, makeDuoBlock, updateDuoBlock, renderDuoBlock, duoLineHtml, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS } = mod);
 });
 

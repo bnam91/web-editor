@@ -20,11 +20,15 @@
  * 이 레포가 오늘만 다섯 번 당한 패턴이다(위임목록·저장 화이트리스트·클램프·거터 배선·이것). */
 const ROW_H_MAX = 4000;
 const ROW_H_MIN = 24;
+const COL_MIN_PX = 40;   // 열 경계 드래그의 화면상 최소 열 폭. 호출부가 리터럴로 덮어쓰지 않는다.
 
-function resizeColBoundary(wL, wR, W, deltaPx, minPx = 40) {
+function resizeColBoundary(wL, wR, W, deltaPx, minPx = COL_MIN_PX) {
   // ★NaN 가드 — 행 쪽엔 있고 열 쪽엔 없어 «비대칭»이었다(적대검수 지적).
   //   NaN 이 가중치에 들어가면 JSON 직렬화에서 null 이 돼 «비율이 사라진다».
-  if (!Number.isFinite(deltaPx)) return { wL, wR };
+  // ⚠️여기서 «px»(wL,wR)을 그대로 돌려주면 안 된다 — 반환 계약은 «가중치»(leftWeight/rightWeight)고
+  //   호출부는 r.leftWeight 를 읽는다. px 를 돌려주면 키가 없어 undefined→width 소실이었다.
+  //   델타를 0 으로 본 것과 같게 «현재 비율 그대로»를 돌려준다(합 보존 계약도 지킨다).
+  if (!Number.isFinite(deltaPx)) deltaPx = 0;
   const total = wL + wR;
   if (!(total >= minPx * 2)) return null;
   let wLNext = wL + deltaPx;
@@ -45,4 +49,4 @@ function resizeRowHeight(startH, deltaPx, minPx = ROW_H_MIN, maxPx = ROW_H_MAX) 
 }
 
 export {
-  ROW_H_MAX, ROW_H_MIN, resizeColBoundary, resizeRowHeight };
+  ROW_H_MAX, ROW_H_MIN, COL_MIN_PX, resizeColBoundary, resizeRowHeight };

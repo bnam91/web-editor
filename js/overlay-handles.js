@@ -1328,7 +1328,7 @@ function _onGridColMouseDown(e, block, i) {
   function onMove(ev) {
     const scale = _canvasScaleNow(); // 드래그 중 줌이 바뀌는 경우까지 방어(매 move 재조회)
     const delta = (ev.clientX - startX) / scale;
-    const r = resizeColBoundary(wL0, wR0, W, delta, 40);
+    const r = resizeColBoundary(wL0, wR0, W, delta);   // ★minPx 는 모듈 기본값(COL_MIN_PX) — 여기서 리터럴로 덮지 않는다
     if (!r) return;
     cols[i].width = r.leftWeight;
     cols[i + 1].width = r.rightWeight;
@@ -1376,7 +1376,7 @@ function _onGridRowMouseDown(e, block, i) {
   function onMove(ev) {
     const scale = _canvasScaleNow();
     const delta = (ev.clientY - startY) / scale;
-    const h = resizeRowHeight(startH0, delta, 24, 2000);
+    const h = resizeRowHeight(startH0, delta);   // ★min/max 는 모듈 기본값(ROW_H_MIN/ROW_H_MAX) — 여기 리터럴 2000 이 상한을 «혼자» 절반으로 깎고 있었다
     rows[i] = { height: h };
     block.dataset.rows = JSON.stringify(rows);
     window.renderDuoBlock?.(block);

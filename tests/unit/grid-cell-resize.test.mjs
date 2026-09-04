@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const srcPath = path.join(__dirname, '../../js/grid-cell-resize.js');
 const aliasPath = path.join(os.tmpdir(), `grid-cell-resize-alias-${process.pid}.mjs`);
 fs.copyFileSync(srcPath, aliasPath);
-const { resizeColBoundary, resizeRowHeight } = await import(pathToFileURL(aliasPath).href);
+const { resizeColBoundary, resizeRowHeight, ROW_H_MAX, ROW_H_MIN, COL_MIN_PX } = await import(pathToFileURL(aliasPath).href);
 fs.unlinkSync(aliasPath);
 
 test('합 보존: 델타를 얼마를 줘도 leftWeight + rightWeight === W', () => {
@@ -101,8 +101,10 @@ test('행 높이: minPx 밑으로는 안 줄어든다(기본 24)', () => {
   assert.equal(resizeRowHeight(30, -100, 10), 10); // 커스텀 minPx
 });
 
-test('행 높이: maxPx 위로는 안 늘어난다(기본 2000)', () => {
-  assert.equal(resizeRowHeight(1990, 500), 2000);
+test('행 높이: maxPx 위로는 안 늘어난다(기본 = ROW_H_MAX)', () => {
+  // ★기대값을 «리터럴 2000» 으로 박아뒀다가, 상한을 4000 으로 올린 뒤 이 테스트가 빨강인 채로
+  //   커밋이 지나갔다. 상한은 상수에서 읽는다 — 상수가 바뀌면 테스트도 같이 따라간다.
+  assert.equal(resizeRowHeight(ROW_H_MAX - 10, 500), ROW_H_MAX);
   assert.equal(resizeRowHeight(100, 500, 24, 300), 300); // 커스텀 maxPx
 });
 
@@ -114,4 +116,59 @@ test('행 높이: 결과는 항상 정수로 반올림된다', () => {
 test('행 높이: 반환값은 숫자 하나뿐(합 보존 같은 계약이 없다 — 열과의 핵심 차이)', () => {
   const r = resizeRowHeight(100, 20);
   assert.equal(typeof r, 'number');
+});
+
+/* ─────────────────────────────────────────────────────────────
+   ★아래 6건은 «폐기된 p2b 판에 있다가 p2 를 채택하며 같이 빠진» 계약들이다.
+   적대검수가 「테스트 4건도 같이 빠졌다」고 지적한 자리 — 코드에 가드를 넣고
+   테스트를 안 넣으면 다음 사람이 가드를 지워도 초록이다.
+   ⚠️두 건(NaN 반환형·상한 SSOT)은 그 «가드 자체»가 틀려 있던 걸 잡은 회귀 테스트다.
+───────────────────────────────────────────────────────────── */
+
+test('행 높이: 델타 0 은 시작 높이를 그대로 반환한다', () => {
+  assert.equal(resizeRowHeight(137, 0), 137);
+  assert.equal(resizeRowHeight(24, 0), 24);   // 하한 경계에서도 그대로
+});
+
+test('행 높이: 아래로 끌면(양수) 커지고 위로 끌면(음수) 작아진다', () => {
+  assert.equal(resizeRowHeight(100, 30), 130);
+  assert.equal(resizeRowHeight(100, -30), 70);
+});
+
+test('행 높이: 커스텀 min/max 도 적용된다(기본값에만 의존하지 않는다)', () => {
+  assert.equal(resizeRowHeight(100, -500, 50, 300), 50);
+  assert.equal(resizeRowHeight(100, 500, 50, 300), 300);
+});
+
+test('행 높이: startPx/deltaPx 가 유효한 수가 아니면 높이를 «망가뜨리지» 않는다', () => {
+  // NaN 이 dataset.rows 에 들어가면 JSON.stringify 에서 null 이 돼 행 높이가 소실된다.
+  for (const bad of [NaN, Infinity, -Infinity, undefined, null, 'abc']) {
+    const r = resizeRowHeight(120, bad);
+    assert.equal(Number.isFinite(r), true, `deltaPx=${String(bad)} 에서 유한수가 아니다`);
+  }
+  assert.equal(Number.isFinite(resizeRowHeight(NaN, 20)), true);
+});
+
+test('★열: deltaPx 가 NaN 이어도 «가중치» 계약을 지킨다(px 를 돌려주면 안 된다)', () => {
+  // 회귀: 가드가 { wL, wR } 을 돌려줘 ⑴키 이름이 다르고(호출부는 leftWeight 를 읽는다)
+  //       ⑵값이 «화면 px» 라 가중치 자리에 300 같은 값이 박히던 결함.
+  const W = 3;
+  const r = resizeColBoundary(300, 100, W, NaN, 40);
+  assert.ok(r, 'null 이 아니어야 한다');
+  assert.equal(typeof r.leftWeight, 'number', 'leftWeight 키가 있어야 한다');
+  assert.equal(typeof r.rightWeight, 'number', 'rightWeight 키가 있어야 한다');
+  assert.equal(r.leftWeight + r.rightWeight, W, '합 보존은 NaN 에서도 지켜진다');
+  // 델타 0 과 같은 결과여야 한다(현재 비율 유지)
+  const zero = resizeColBoundary(300, 100, W, 0, 40);
+  assert.deepEqual(r, zero);
+});
+
+test('★상한/최소폭은 «상수 한 곳»에서 온다 — 호출부 리터럴로 갈라지지 않는다', () => {
+  // 회귀: overlay-handles.js 가 resizeRowHeight(h, d, 24, 2000) 로 «리터럴 2000» 을 넘겨
+  //       패널(4000)과 드래그(2000)의 상한이 갈라져 있던 결함. 기본값이 SSOT 다.
+  assert.equal(ROW_H_MAX, 4000);
+  assert.equal(ROW_H_MIN, 24);
+  assert.equal(COL_MIN_PX, 40);
+  assert.equal(resizeRowHeight(3900, 500), ROW_H_MAX, '기본 상한까지 늘어난다');
+  assert.equal(resizeRowHeight(100, -500), ROW_H_MIN, '기본 하한까지 줄어든다');
 });

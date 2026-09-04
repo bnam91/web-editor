@@ -20,6 +20,7 @@
 //                  text?, fontSize?, color?, weight?, align?, marginTop?,
 //                  imgSrc?, height?(image/gap), radius?(image) }]
 
+import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★행 높이 상한은 한 곳에서만 온다
 import { insertAfterSelected, genId } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 
@@ -356,8 +357,8 @@ function updateDuoBlock(blockId, partial = {}) {
       const h = r && typeof r === 'object' ? r.height : undefined;
       if (h === 'auto' || h == null || h === '') { normRows.push({ height: 'auto' }); continue; }
       const n = Number(h);
-      if (!Number.isFinite(n) || n < 0 || n > 4000) {
-        return { ok: false, code: 'INVALID', message: 'row height must be "auto" or a number 0~4000' };
+      if (!Number.isFinite(n) || n < 0 || n > ROW_H_MAX) {
+        return { ok: false, code: 'INVALID', message: `row height must be "auto" or a number 0~${ROW_H_MAX}` };
       }
       normRows.push({ height: n });
     }
