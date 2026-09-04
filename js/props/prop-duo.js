@@ -205,8 +205,25 @@ export function showDuoProperties(block) {
         const nextRows = [];
         for (let i = 0; i < nRows; i++) nextRows.push(curRows[i] || { height: 'auto' });
         block.dataset.rows = JSON.stringify(nextRows);
-        // 추가행(index≥1) 셀은 렌더가 새 열 수에 맞춰 pad/truncate 한다 — dataset.cells 는 그대로 둔다
-        // (줄였다 다시 늘리면 undo 없이도 이전 내용이 살아 있을 수 있다 — 데이터를 안 지우는 쪽이 안전).
+
+        /* ★새로 생긴 행에 «기본 내용»을 넣는다.
+         * 안 넣으면 셀이 빈 채로 높이 0 이 되어, 2x2 를 눌러도 «아무 일도 안 일어난 것»처럼 보인다
+         * (실측: rows=2 이고 duo-cell 4개가 생겼는데 2행 두 칸 높이가 0px).
+         * 1행이 기본 텍스트를 갖는 것과 «같은 대우»여야 사용자가 무엇이 생겼는지 안다.
+         * ⛔이미 있는 셀은 «건드리지 않는다» — 줄였다 늘려도 옛 내용이 살아 있어야 한다. */
+        let curCells = [];
+        try { curCells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { curCells = []; }
+        const nextCells = [];
+        for (let r = 1; r < nRows; r++) {          // index 0 = 1행은 cols[].lines 가 갖는다
+          const row = Array.isArray(curCells[r - 1]) ? curCells[r - 1] : [];
+          const outRow = [];
+          for (let c = 0; c < nCols; c++) {
+            outRow.push(row[c] || { lines: [{ type: 'body', text: '내용을 입력하세요.' }] });
+          }
+          nextCells.push(outRow);
+        }
+        if (nextCells.length) block.dataset.cells = JSON.stringify(nextCells);
+        else delete block.dataset.cells;
       }
       window.renderDuoBlock?.(block);
       window.scheduleAutoSave?.();
