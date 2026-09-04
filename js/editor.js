@@ -863,7 +863,13 @@ function copySelected() {
       || selNormal.classList.contains('chat-block')
       || selNormal.classList.contains('laurel-block')
       || selNormal.classList.contains('joker-block');
-    const target = (isGapSel || isFloating) ? selNormal : (selNormal.closest('.row') || selNormal);
+    /* ★단일 선택도 «부분 선택»일 수 있다 — 한 행에 블록이 여럿인데 하나만 고른 경우다.
+     * 이전엔 개수와 무관하게 행 전체를 담아, 고르지 않은 형제까지 복사됐다(실기 재현 2→4).
+     * 「행이 통째로 선택됐을 때만 행을 담는다」는 판정은 멀티 분기와 «같은 헬퍼»를 쓴다 —
+     * 두 분기가 다른 기준을 쓰면 개수에 따라 동작이 갈린다(그게 이 버그였다). */
+    const _row1 = selNormal.closest('.row');
+    const target = (isGapSel || isFloating) ? selNormal
+      : ((_row1 && _isRowFullySelected(_row1, ALL_TYPES_SEL)) ? _row1 : selNormal);
     const banner = target.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: target.outerHTML, sourceBannerId: banner?.id || null };
   } else if (selSS) {
@@ -1029,9 +1035,14 @@ function pasteClipboard() {
       const sels = [...document.querySelectorAll(MULTI_SEL)].filter(e => e.closest('.section-block') === sec);
       const last = sels[sels.length - 1];
       if (last) {
+        /* ★행이 «통째로» 선택된 경우에만 행 뒤에 붙인다.
+         * 선택·비선택이 섞인 행에서 행을 기준으로 삼으면 사본이 행 «밖»(.section-inner 직계)에
+         * 떨어진다 — 실기에서 재현됐다. 섞인 행이면 «그 블록» 뒤가 맞다. */
+        const _lastRow = last.closest('.row');
         anchor = last.classList.contains('gap-block')
           ? last
-          : (last.closest('.frame-block[data-text-frame]') || last.closest('.row') || last);
+          : (last.closest('.frame-block[data-text-frame]')
+             || ((_lastRow && _isRowFullySelected(_lastRow, ALL_TYPES_SEL)) ? _lastRow : last));
         if (!anchor.parentElement) anchor = null;   // 떨어져 나간 노드면 폴백
       }
     }
