@@ -848,8 +848,17 @@ function showIconCircleResizeHandle(block) {
     const circle = block.querySelector('.icb-circle');
     if (!circle) return;
     const rect = circle.getBoundingClientRect();
-    h.style.top  = (rect.bottom - 3.5) + 'px';
-    h.style.left = (rect.right  - 3.5) + 'px';
+    /* ★핸들을 «원 둘레» 위에 놓는다 — 전엔 바운딩 «박스»의 오른쪽아래 꼭지점에 붙였다.
+     * 원에서 그 꼭지점은 «빈 공간»이다: 중심에서 박스 꼭지점까지는 r·√2 이고 둘레까지는 r 이라
+     * 핸들이 원 밖으로 r(√2−1) ≈ 0.414r 만큼 떠 보인다.
+     * 실측(현빈 지적 icb_ts0he_bfyeida 재현): 반지름 48px 일 때 중심까지 67.9px — 정확히 r·√2 다.
+     * 45° 방향 둘레점은 중심에서 각 축으로 r/√2 이므로 그 자리에 놓는다(원 크기와 무관하게 밀착). */
+    const R  = rect.width / 2;
+    const cx = rect.left + R;
+    const cy = rect.top  + R;
+    const off = R / Math.SQRT2;          // 45° 둘레점까지의 축별 거리
+    h.style.top  = (cy + off - 3.5) + 'px';
+    h.style.left = (cx + off - 3.5) + 'px';
   }
   function _loop() {
     if (!_icbResizeBlock) return;
