@@ -199,13 +199,15 @@
     var nb = row.querySelector('#ovl-number');
     var cb = row.querySelector('#ovl-clear');
     sl.value = cur; nb.value = cur;
-    cb.style.display = cur ? '' : 'none';
+    /* ★「초기화」는 «항상» 보인다(현빈 2026-09-04). 겹침이 0 일 때만 숨겼더니
+       「버튼이 없어졌다」로 읽혔다. 대신 줄 폭(207px)에서 버튼이 47px 을 먹으므로
+       숫자칸을 44 → 38px 로 줄여 슬라이더 손실을 줄인다. */
+    nb.style.width = '38px';
 
     function apply(v, gesture) {
       if (gesture) beginGesture();
       var out = setPull(b, v);
       sl.value = out; nb.value = out;
-      cb.style.display = out ? '' : 'none';
       window.scheduleAutoSave && window.scheduleAutoSave();
     }
     sl.addEventListener('pointerdown', function () { beginGesture(); });
