@@ -776,6 +776,14 @@ function duplicateSelected() {
   pasteClipboard();
 }
 
+// 한 행(.row) 안의 «복사 대상이 될 수 있는 블록»이 전부 .selected 인지 판정.
+// (copySelected 멀티셀렉트 전용 — 부분선택 시 미선택 형제까지 행째로 딸려오는 것을 막는 기준)
+function _isRowFullySelected(row, allTypesSel) {
+  const occupants = [...row.querySelectorAll(allTypesSel)];
+  if (!occupants.length) return true; // 판정 불가(구조상 못 찾음) — 기존처럼 행 단위 취급
+  return occupants.every(b => b.classList.contains('selected'));
+}
+
 function copySelected() {
   // 내부 클립보드(섹션/블록) 복사 timestamp — Cmd+V 시 외부 클립보드(스크래치 이미지)와 우선순위 비교용
   window._internalClipboardTime = Date.now();
@@ -787,21 +795,33 @@ function copySelected() {
     '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
     '.laurel-block.selected, .joker-block.selected, .speech-bubble-block.selected';
 
+  // 위와 같은 블록 타입 목록이지만 «.selected 여부 무관» — 한 행(row) 안의 블록이
+  // «전부» 선택됐는지 판정할 때만 쓴다(부분선택이면 행 전체를 담지 않기 위한 기준).
+  const ALL_TYPES_SEL = MULTI_SEL.replace(/\.selected\b/g, '');
+
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
   if (allSel.length > 1) {
-    // 멀티셀렉트: DOM 순서대로 고유 행 수집 (같은 row 중복 방지)
+    // 멀티셀렉트: DOM 순서대로 고유 항목 수집.
+    // ★한 행의 occupant(블록/shape-frame)가 «전부» 선택된 경우에만 행(.row) 전체를 한 덩어리로
+    //   담는다(중복 페이스트 방지 + 레이아웃 비율 보존). «일부»만 선택됐으면 미선택 형제가
+    //   덩달아 복사되는 것을 막기 위해 선택된 블록만 개별로 담는다(레이아웃 폭은 유실될 수 있음
+    //   — 행 전체가 아니라 «일부만 골랐다»는 사용자 의도를 우선한다).
     const seen = new Set();
     const items = [];
     allSel.forEach(block => {
       let ref;
       if (block.classList.contains('shape-block')) {
         const ss = block.closest('.frame-block');
-        ref = ss?.closest('.row') || ss || block;
+        const rowEl = ss?.closest('.row') || ss || block;
+        ref = (rowEl !== ss && _isRowFullySelected(rowEl, ALL_TYPES_SEL))
+          ? rowEl
+          : (ss || block);
       } else if (block.classList.contains('gap-block')) {
         ref = block;
       } else {
-        ref = block.closest('.row') || block;
+        const rowEl = block.closest('.row');
+        ref = (rowEl && _isRowFullySelected(rowEl, ALL_TYPES_SEL)) ? rowEl : block;
       }
       if (!seen.has(ref)) {
         seen.add(ref);
@@ -940,14 +960,14 @@ function _pasteIntoSourceBanner(el, sourceBannerId) {
 }
 
 function pasteClipboard() {
-  if (!clipboard) return;
+  if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
   // 현재 DOM 상태가 마지막 히스토리와 다르면 체크포인트 저장
   // (block-factory.js가 push-before라서 최신 N개 블록 상태가 히스토리에 없는 경우 대비)
   window.ensureHistoryCheckpoint?.('붙여넣기 전');
 
   if (clipboard.type === 'multi-block') {
     const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
-    if (!sec) return;
+    if (!sec) { window.showNoSelectionHint?.(); return; }
     let lastEl = null;
     clipboard.items.forEach(item => {
       const temp = document.createElement('div');
@@ -1040,7 +1060,7 @@ function pasteClipboard() {
     } else if (el.classList.contains('sticker-block')) {
       // 스티커: section 안에 absolute로 +20px 오프셋해 추가
       const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
-      if (!sec) return;
+      if (!sec) { window.showNoSelectionHint?.(); return; }
       sec.appendChild(el);
       // ID 재생성 (기존 _bindPastedEl이 처리)
       _bindPastedEl(el);
@@ -1053,7 +1073,7 @@ function pasteClipboard() {
       window.bindStickerSelect?.(el);
     } else {
       const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
-      if (!sec) return;
+      if (!sec) { window.showNoSelectionHint?.(); return; }
       const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
       const savedActiveSS = window._activeFrame;
       if (pasteHasSS) window._activeFrame = null;
