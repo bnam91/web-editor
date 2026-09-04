@@ -898,6 +898,23 @@
   cursor: text;
 }
 
+/* ★빈 줄이 «손에 닿게» 한다 (P1.5 실기 QA FAIL 해소)
+ * 글자를 전부 지우면 .duo-line 이 높이 0 이 돼 다시 더블클릭할 수가 없었다. 데이터(text:"")는
+ * 남아 있는데 손이 닿지 않는다 — 그 자리를 누르면 elementFromPoint 가 «아래 줄»을 집는다.
+ * 되살릴 창구였던 우측패널 Column N 입력을 이번 P1.5 에서 없앴으므로, 복구 수단이 ⌘Z 뿐이었다.
+ * ⇒ 텍스트 블록이 쓰는 것과 «같은 관용구»(:empty::before, #ccc, pointer-events:none)로 높이를 만든다.
+ *   ::before 가 내용을 가지면 부모 줄에 높이가 생겨 클릭이 닿는다(pointer-events:none 이라
+ *   가상요소 자신은 클릭을 안 먹고 부모가 받는다 — text-block 이 이미 그렇게 돈다).
+ * ★#canvas 스코프인 이유: export 클론은 #canvas 밖이라 안내문이 결과물에 «안 샌다».
+ *   (editor-layout.css:307 의 text-block 판은 스코프가 없어 내보내기에도 나온다 — 따라하지 않았다.) */
+#canvas .duo-block .duo-line:empty::before { color: #ccc; pointer-events: none; }
+#canvas .duo-block .duo-h1:empty::before      { content: '제목을 입력하세요'; }
+#canvas .duo-block .duo-h2:empty::before      { content: '소제목을 입력하세요'; }
+#canvas .duo-block .duo-h3:empty::before      { content: '소항목을 입력하세요'; }
+#canvas .duo-block .duo-body:empty::before    { content: '본문을 입력하세요'; }
+#canvas .duo-block .duo-caption:empty::before { content: '캡션을 입력하세요'; }
+#canvas .duo-block .duo-label:empty::before   { content: 'Label'; }
+
 /* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
 .row:has(.text-block.selected),
 .frame-block[data-text-frame="true"]:has(.text-block.selected) {
