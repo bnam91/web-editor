@@ -2686,6 +2686,8 @@ app.whenReady().then(async () => {
       updateComparisonBlock: _invokeRendererUpdateComparisonBlock,
       addStepBlock: _invokeRendererAddStepBlock,
       updateStepBlock: _invokeRendererUpdateStepBlock,
+      addGridBlock: _invokeRendererAddGridBlock,
+      updateGridBlock: _invokeRendererUpdateGridBlock,
       // ── 17-block batch (auto-appended) ──
       addLaurelBlock: _invokeRendererAddLaurelBlock,
       updateLaurelBlock: _invokeRendererUpdateLaurelBlock,
@@ -4144,6 +4146,101 @@ async function _invokeRendererUpdateStepBlock({ blockId, partial } = {}) {
     return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('updateStepBlock call failed: ' + e.message);
+  }
+}
+
+// ─── add_grid_block — 2~4열×1~4행 그리드 블록 추가 (step 패턴 미러, P1) ────────
+// ★window.addGridBlock 은 window.addDuoBlock 의 별칭(duo-block.js P0) — DOM 정체성은 duo 그대로.
+async function _invokeRendererAddGridBlock(opts = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeSectionId = opts.sectionId ? JSON.stringify(String(opts.sectionId)) : 'null';
+  const dataOpts = { ...opts };
+  delete dataOpts.sectionId;
+  const safeData = JSON.stringify(dataOpts);
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.addGridBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addGridBlock not found' };
+      }
+      const sid = ${safeSectionId};
+      if (sid) {
+        const target = document.getElementById(sid) || document.querySelector('[data-section-id="' + sid + '"]');
+        if (!target) return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        if (typeof window.selectSection === 'function') { try { window.selectSection(target); } catch(_){} }
+      }
+      if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()
+          && typeof window.selectSection === 'function') {
+        const firstSec = document.querySelector('[id^="sec_"]');
+        if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
+      }
+      const beforeIds = new Set([...document.querySelectorAll('.duo-block')].map(b => b.id));
+      const result = window.addGridBlock(${safeData});
+      const blocks = [...document.querySelectorAll('.duo-block')];
+      const newBlock = (result && result.block) || blocks.find(b => !beforeIds.has(b.id));
+      if (!newBlock) {
+        return { ok: false, code: 'NO_ADD', message: 'grid block이 추가되지 않았습니다.' };
+      }
+      const sec = (typeof window.getSelectedSection === 'function') ? window.getSelectedSection() : null;
+      return {
+        ok: true,
+        blockId: newBlock.id,
+        sectionId: sec ? sec.id : null,
+        pageId: window.activePageId || null,
+        beforeCount: beforeIds.size,
+        afterCount: blocks.length,
+      };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addGridBlock call failed: ' + e.message);
+  }
+}
+
+// ─── update_grid_block — 기존 그리드 블록 부분 수정 (step 패턴 미러, P1) ───────
+async function _invokeRendererUpdateGridBlock({ blockId, partial } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeBlockId = JSON.stringify(String(blockId || ''));
+  const safePartial = JSON.stringify(partial || {});
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.updateGridBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.updateGridBlock not found' };
+      }
+      return window.updateGridBlock(${safeBlockId}, ${safePartial});
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('updateGridBlock call failed: ' + e.message);
   }
 }
 

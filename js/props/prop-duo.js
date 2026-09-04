@@ -1,7 +1,8 @@
 /* ── Duo(다단) 블록 프로퍼티 패널 ──
-   구조(컬럼/라인 추가·삭제)는 CDP/updateDuoBlock 영역 — 패널은 텍스트·간격·정렬만 다룬다. */
+   구조(컬럼/라인 추가·삭제)는 CDP/updateDuoBlock 영역 — 패널은 텍스트·간격·정렬·행 높이만 다룬다. */
 import { propPanel } from '../globals.js';
 import { parseRatio, buildGridPicker } from './_helpers.js';
+import { duoRows, MIN_COLS, MAX_COLS, MAX_ROWS } from '../blocks/duo-block.js';
 
 /* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
  * 렌더러(duo-block.js)는 이미 임의 비율을 지원한다 — 각 컬럼에 flex:(w/총합*100).
@@ -30,9 +31,32 @@ function _ratioRowHtml(cols) {
       <div class="prop-hint">예: 1:1:2 → 25/25/50%</div>`;
 }
 
+/* ── 행 «높이» UI ──────────────────────────────────────────────────────────
+ * ★2026-09-04 P1: 열은 «비율»(가중치)이지만 행은 «px 최소높이»다(PLAN §3-A, 테이블
+ *   U5a 와 같은 의미론) — 그래서 열처럼 `1:1:1` 합성 비율 입력을 쓰지 않고, 테이블의
+ *   행별 높이 입력(prop-table.js `.tbl-rowh-item-row`)과 같은 마크업으로 «행마다 하나씩» 받는다.
+ * rows 가 1개(옛 파일과 동일 상태)면 아예 렌더하지 않는다 — 「비율은 있는데 높이는 없다」는
+ *   행 개념이 아직 없다는 뜻이라 보여줄 게 없다(PLAN §4 "행이 생기면 …rows>1일 때만 노출"). */
+function _rowHeightHtml(rows) {
+  if (rows.length < 2) return '';
+  const items = rows.map((r, ri) => `
+      <div class="grd-rowh-item-row" style="display:flex;align-items:center;gap:6px;">
+        <span class="prop-sublabel" style="width:40px;font-size:11px;color:#888;">행 ${ri + 1}</span>
+        <input type="number" class="prop-number grd-row-h-item" data-ri="${ri}" min="0" max="4000"
+               placeholder="auto" value="${r.height === 'auto' ? '' : r.height}" title="이 행 높이(px). 비우면 자동" style="width:70px;">
+      </div>`).join('');
+  return `
+      <div class="prop-row" style="align-items:flex-start;">
+        <span class="prop-label" style="padding-top:4px;">행 높이</span>
+        <div class="grd-rowh-list" style="display:flex;flex-direction:column;gap:4px;flex:1;">${items}</div>
+      </div>
+      <div class="prop-hint">비우면 자동(내용 높이) · 값은 «최소» 높이(내용이 더 크면 늘어난다)</div>`;
+}
+
 export function showDuoProperties(block) {
   let cols = [];
   try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) {}
+  const rows = duoRows(block);   // 없으면(옛 파일) [{height:'auto'}] 1행 — duo-block.js 승격 로직과 공유
   // ★`parseInt(...) || 24` 금지 — 간격 0 이 «유효값»인데 폴백에 삼켜져 패널이 24 로 되살려 보여줬다.
   const _g = parseInt(block.dataset.gap);
   const gap = Number.isFinite(_g) ? _g : 24;
@@ -59,10 +83,10 @@ export function showDuoProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">Grid (${cols.length}×1)</div>
+      <div class="prop-section-title">Grid (${cols.length}×${rows.length})</div>
       <div class="grid-picker" id="grd-grid-picker"></div>
       <div class="grid-picker-label" id="grd-grid-picker-label">—</div>
-      <div class="prop-hint" style="margin-top:2px;">가로 칸 수를 고른다 · 세로(행)는 다음 단계</div>
+      <div class="prop-hint" style="margin-top:2px;">가로×세로 칸 수를 고른다</div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
@@ -72,6 +96,7 @@ export function showDuoProperties(block) {
         <input type="number" class="prop-number" id="duo-gap-number" min="0" max="120" value="${gap}">
       </div>
       ${_ratioRowHtml(cols)}
+      ${_rowHeightHtml(rows)}
       <div class="prop-row">
         <span class="prop-label">가로 정렬</span>
         <div class="prop-align-group" id="duo-halign-group">
@@ -104,7 +129,7 @@ export function showDuoProperties(block) {
     </div>
     ${cols.map((col, ci) => `
     <div class="prop-section">
-      <div class="prop-section-title">Column ${ci + 1}</div>
+      <div class="prop-section-title">Column ${ci + 1}${rows.length > 1 ? ' (행 1)' : ''}</div>
       ${(Array.isArray(col.lines) ? col.lines : []).map((l, li) =>
         (l.type === 'image' || l.type === 'gap') ? '' : `
       <div class="prop-row">
@@ -113,7 +138,7 @@ export function showDuoProperties(block) {
       </div>`).join('')}
     </div>`).join('')}
     <div class="prop-section">
-      <div class="prop-row"><span class="prop-label" style="opacity:.6">라인 구조 변경은 updateGridBlock API 사용</span></div>
+      <div class="prop-row"><span class="prop-label" style="opacity:.6">${rows.length > 1 ? '행 2 이상의 셀 내용·' : ''}라인 구조 변경은 updateGridBlock API 사용</span></div>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
@@ -137,38 +162,52 @@ export function showDuoProperties(block) {
    *   여기서도 «change»(blur/Enter) 시점에만 dataset 을 커밋하고 패널은 다시 그리지 않는다.
    *   (검증은 여기서 한다 — 컬럼 2~4개, width 는 양수) */
   const _commitCols = (next) => {
-    /* ★상한은 duo-block.js 의 클램프와 «같은 값»이어야 한다(2~4).
-     * P0 에서 duo-block.js 세 자리(44 렌더 / 170 생성 / 214 검증)를 4 로 올리면서
-     * «여기 하나»를 놓쳤다 — 그래서 4열 그리드에서 비율 입력이 조용히 무시됐다.
-     * (P2 워커가 코드에서 발견 → 지디 실기 재현: 4열에 1:2:3:4 를 넣어도 [1,2,3,1] 유지)
-     * ⚠️이 레포의 고질이다 — 열거 자리가 흩어져 있어 한 곳만 고치면 «절반만» 고쳐진다. */
-    if (!Array.isArray(next) || next.length < 2 || next.length > 4) return false;
+    /* ★상한은 duo-block.js 의 클램프와 «같은 값»이어야 한다 — MIN_COLS/MAX_COLS 상수를 import 해서
+     * «같은 값»을 강제한다(하드코딩 2건 반복 금지). P0 에서 duo-block.js 세 자리(렌더/생성/검증)를
+     * 4로 올리면서 «여기 하나»를 놓쳐 4열 그리드 비율 입력이 조용히 무시됐던 사고(2026-09-04
+     * fix(grid-p0) 1abfea2)가 있었다 — 이 레포의 고질(열거 자리가 흩어져 있어 한 곳만 고치면
+     * «절반만» 고쳐진다)이라 P1에서 아예 상수 import 로 재발을 막는다. */
+    if (!Array.isArray(next) || next.length < MIN_COLS || next.length > MAX_COLS) return false;
     next.forEach(c => { const n = Number(c.width); c.width = Number.isFinite(n) && n > 0 ? n : 1; });
     block.dataset.cols = JSON.stringify(next);
     window.renderDuoBlock?.(block);
     return true;
   };
-  /* ── 4×4 그리드 피커 — 가로 칸 수 변경 (현빈 발주 ①) ──────────────────────
-   * 카드블럭과 «같은» UI 를 쓴다(공용 buildGridPicker). 행 축은 아직 없어 maxRows=1 —
-   * 못 만드는 조합을 «죽은 칸»으로 보여주는 게, 눌러도 아무 일 없는 것보다 정직하다. */
+  /* ── 4×4 그리드 피커 — 가로×세로 칸 수 변경 (현빈 발주 ①) ─────────────────
+   * 카드블럭과 «같은» UI 를 쓴다(공용 buildGridPicker). ★2026-09-04 P1: maxRows 해제 —
+   * 이제 진짜 4×4(행 축이 생겼다). 줄일 때 잘린 칸/행의 내용은 pushHistory 로 undo 복원. */
   buildGridPicker(
     document.getElementById('grd-grid-picker'),
     document.getElementById('grd-grid-picker-label'),
-    (nCols) => {
-      const cur = JSON.parse(block.dataset.cols || '[]');
-      if (nCols === cur.length) return;
+    (nCols, nRows) => {
+      const curCols = JSON.parse(block.dataset.cols || '[]');
+      const curRows = duoRows(block);
+      if (nCols === curCols.length && nRows === curRows.length) return;
       window.pushHistory?.();                     // ★변경 «전»에
-      const next = [];
+
+      const nextCols = [];
       for (let i = 0; i < nCols; i++) {
-        next.push(cur[i] || { width: 1, lines: [{ type: 'h2', text: '제목' }, { type: 'body', text: '내용을 입력하세요.' }] });
+        nextCols.push(curCols[i] || { width: 1, lines: [{ type: 'h2', text: '제목' }, { type: 'body', text: '내용을 입력하세요.' }] });
       }
       // ⛔줄일 때 잘린 칸의 내용은 «버려진다» — undo 로 되돌아온다(pushHistory 를 먼저 부른 이유).
-      block.dataset.cols = JSON.stringify(next);
+      block.dataset.cols = JSON.stringify(nextCols);
+
+      if (nRows <= 1) {
+        // 1행으로 돌아가면 옛 duo 파일과 «완전히 같은» 모양으로 되돌린다(dataset.rows/cells 제거).
+        delete block.dataset.rows;
+        delete block.dataset.cells;
+      } else {
+        const nextRows = [];
+        for (let i = 0; i < nRows; i++) nextRows.push(curRows[i] || { height: 'auto' });
+        block.dataset.rows = JSON.stringify(nextRows);
+        // 추가행(index≥1) 셀은 렌더가 새 열 수에 맞춰 pad/truncate 한다 — dataset.cells 는 그대로 둔다
+        // (줄였다 다시 늘리면 undo 없이도 이전 내용이 살아 있을 수 있다 — 데이터를 안 지우는 쪽이 안전).
+      }
       window.renderDuoBlock?.(block);
       window.scheduleAutoSave?.();
-      showDuoProperties(block);                   // 패널 재생성(칸 수가 바뀌면 Column 섹션도 바뀐다)
+      showDuoProperties(block);                   // 패널 재생성(칸/행 수가 바뀌면 섹션도 바뀐다)
     },
-    { max: 4, maxRows: 1 }
+    { max: MAX_COLS, maxRows: MAX_ROWS }
   );
 
   const ratioInput = document.getElementById('grd-col-ratio');
@@ -228,6 +267,23 @@ export function showDuoProperties(block) {
       } catch (_) {}
     });
     inp.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  });
+
+  /* ── 행 높이 — change(blur/Enter)에서만 커밋(비율 입력과 동일 원칙) ──────── */
+  propPanel.querySelectorAll('.grd-row-h-item').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const ri = parseInt(inp.dataset.ri);
+      const curRows = duoRows(block);
+      if (!curRows[ri]) return;
+      const raw = inp.value.trim();
+      const v = raw === '' ? 'auto' : Math.max(0, Math.min(4000, parseInt(raw) || 0));
+      curRows[ri] = { height: v };
+      window.pushHistory?.();
+      block.dataset.rows = JSON.stringify(curRows);
+      window.renderDuoBlock?.(block);
+      window.scheduleAutoSave?.();
+      inp.value = v === 'auto' ? '' : v;   // 정규화 결과로 되씀(비율 입력과 동일 패턴)
+    });
   });
 }
 

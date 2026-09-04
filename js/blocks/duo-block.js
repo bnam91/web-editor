@@ -1,17 +1,24 @@
 /* ═══════════════════════════════════
-   DUO BLOCK — 다단(2~4컬럼) 레이아웃 프리미티브 (BL-CDD-02)
-   ★상한 4 = 2026-09-04 4x4 피커. 중첩 duo(라인 안)만 3 유지(:77).
+   DUO BLOCK — 다단(2~4컬럼 × 1~4행) 그리드 레이아웃 프리미티브 (BL-CDD-02)
+   ★열 상한 4 = 2026-09-04 P0 4x4 피커. 중첩 duo(라인 안)만 3 유지(:77). 행 축(1~4)은 P1 신설.
 ═══════════════════════════════════ */
 //
 // 봉인된 NewGrid(자유 중첩 그리드)의 대체가 아니라, 상세페이지에서 실제로 필요한
-// "정형 다단"(좌 수치/우 설명, 양극 게이지, 좌 이미지/우 텍스트)만 안전하게 커버한다.
-// 자식 블록 중첩 없음 — 상태는 전부 data-*(cols JSON), renderDuoBlock이 인라인 스타일로만
-// 재조립(직렬화·HTML export 그대로 생존, step/infocard 패턴).
+// "정형 다단/그리드"(좌 수치/우 설명, 양극 게이지, 좌 이미지/우 텍스트, N×M 격자)만 안전하게 커버한다.
+// 자식 블록 중첩 없음 — 상태는 전부 data-*(cols/rows/cells JSON), renderDuoBlock이 인라인
+// 스타일로만 재조립(직렬화·HTML export 그대로 생존, step/infocard 패턴).
 //
-// cols: [{ width:1, align:'left', valign:'top', bg:'', padding:0, radius:0,
-//          lines:[{ type:'label|h1|h2|h3|body|caption|image|gap',
-//                   text?, fontSize?, color?, weight?, align?, marginTop?,
-//                   imgSrc?, height?(image/gap), radius?(image) }] }]
+// ★2026-09-04 P1(행 축) — 데이터 모델 R2(PLAN-gridblock.md §3-A):
+//   cols  = [{ width:1, align, valign, bg, padding, radius, lines?[] }]   // 열 가중치(fr) + «행 0」 콘텐츠
+//   rows  = [{ height:'auto'|<px> }]                                     // 없으면 [{height:'auto'}] (=옛 1행 파일과 동일)
+//   cells = [[{align?,valign?,bg?,padding?,radius?,lines[]}, …], …]      // ★«행 1 이후만» 저장한다(행 0 은 없음)
+// ★단일 진실원 유지: 행 0 의 콘텐츠는 cols[c].lines 「하나」뿐이다 — cells 안에 행 0 을 따로
+//   복제해 두면(예: cells[0]) 두 값이 어긋나는 전형적 2-소스 버그가 생긴다(이 레포의 dataset
+//   단일 진실원 불변식 위반). getDuoGrid()가 cols 로부터 행 0 을 «항상 재구성»해서 돌려준다 —
+//   이게 곧 「cells 없는 옛 파일의 승격」이다(모든 블록이 항상 이 경로를 거친다).
+// cols[].lines: [{ type:'label|h1|h2|h3|body|caption|image|gap',
+//                  text?, fontSize?, color?, weight?, align?, marginTop?,
+//                  imgSrc?, height?(image/gap), radius?(image) }]
 
 import { insertAfterSelected, genId } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
@@ -24,6 +31,11 @@ const DUO_DEFAULTS = {
     { width: 1, lines: [{ type: 'h2', text: '오른쪽 컬럼' }, { type: 'body', text: '내용을 입력하세요.' }] },
   ],
 };
+const ROW_DEFAULT = { height: 'auto' };
+// ★한도 — 3곳(이 파일의 _duoCols/_duoRows, updateDuoBlock 검증)이 «같은 값»을 봐야 한다
+//   (P0 EVAL이 지적한 「열거 자리가 흩어진다」 재발 방지 — 한 곳에 모은다).
+const MIN_COLS = 2, MAX_COLS = 4;   // ⛔1열은 그대로 막아둔다(그리드 최소 형태). PLAN §3-A "1열 허용 여부는 결정 필요"에 대한 답.
+const MIN_ROWS = 1, MAX_ROWS = 4;   // 1행 = 옛 duo 파일과 동일(행 축 신설 이전 기본값).
 
 // 컬럼 스케일 텍스트 롤 기본값 (풀폭 h1 104px는 다단에선 과대 — 컬럼용 축소 기준)
 const _DUO_ROLES = {
@@ -41,9 +53,82 @@ const _esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
 function _duoCols(block) {
   let cols;
   try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) { cols = []; }
-  if (!Array.isArray(cols) || cols.length < 2) cols = JSON.parse(JSON.stringify(DUO_DEFAULTS.cols));
-  return cols.slice(0, 4);   // ★상한 4 (2026-09-04, 4x4 피커) — updateDuoBlock 검증과 «같은 값»이어야 한다
+  if (!Array.isArray(cols) || cols.length < MIN_COLS) cols = JSON.parse(JSON.stringify(DUO_DEFAULTS.cols));
+  return cols.slice(0, MAX_COLS);   // ★상한 4 (2026-09-04, 4x4 피커) — updateDuoBlock 검증과 «같은 값»이어야 한다
+}
 
+// rows — ★신설(P1). 없으면(옛 파일) [{height:'auto'}] 1행으로 승격한다.
+// 행 높이는 «가중치»가 아니라 px 최소높이(플랜 §3-A, 테이블 U5a와 같은 의미론) — 'auto' 허용.
+function _duoRows(block) {
+  let rows;
+  try { rows = JSON.parse(block.dataset.rows || '[]'); } catch (_) { rows = []; }
+  if (!Array.isArray(rows) || rows.length < MIN_ROWS) rows = [Object.assign({}, ROW_DEFAULT)];
+  return rows.slice(0, MAX_ROWS).map(r => {
+    const h = r && typeof r === 'object' ? r.height : undefined;
+    if (h === 'auto' || h == null || h === '') return { height: 'auto' };
+    const n = Number(h);
+    return { height: (Number.isFinite(n) && n >= 0) ? n : 'auto' };
+  });
+}
+
+// ★dataset.cells 는 «행 0 을 뺀 나머지 행」만 담는다(위 헤더 주석 참조 — 단일 진실원).
+//   rowCount(행 0 포함 전체 행 수) 만큼 나올 «추가 행» 배열을 cols.length 열에 맞춰 pad/truncate.
+function _duoExtraRows(block, cols, rowCount) {
+  let extra;
+  try { extra = JSON.parse(block.dataset.cells || '[]'); } catch (_) { extra = []; }
+  if (!Array.isArray(extra)) extra = [];
+  const need = Math.max(0, rowCount - 1);
+  const C = cols.length;
+  const out = [];
+  for (let i = 0; i < need; i++) {
+    const src = Array.isArray(extra[i]) ? extra[i] : [];
+    const row = [];
+    for (let c = 0; c < C; c++) {
+      const cell = (src[c] && typeof src[c] === 'object') ? src[c] : {};
+      // ★lines 는 항상 배열로 정규화한다 — 행0 셀(cols 기반)이 늘 lines:[] 를 갖는 것과 «같은 모양»으로
+      //   맞춰야 getDuoGrid() 소비자가 r===0 이든 아니든 같은 코드로 cell.lines 를 다룰 수 있다.
+      row.push(Array.isArray(cell.lines) ? cell : { ...cell, lines: [] });
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+// col(열 기본값) 에 cell(행 0 이 아닌 개별 셀 오버라이드)을 merge — patchCol/patchCell{r:0} 공용.
+function _mergeCellIntoCol(col, cell) {
+  if (!cell || typeof cell !== 'object') return col;
+  const next = { ...col };
+  if (Array.isArray(cell.lines)) next.lines = cell.lines;
+  ['align', 'valign', 'bg', 'padding', 'radius'].forEach(k => { if (cell[k] !== undefined) next[k] = cell[k]; });
+  return next;
+}
+
+// API 경계(add_block/update_block{cells})는 «행 0 포함 전체 R×C」를 받는다(PLAN §3-A 스키마 그대로) —
+// 내부 저장만 행 0 을 cols 로 흡수한다(단일 진실원). 여기서 그 경계를 나눈다.
+function _splitFullCells(fullCells, cols) {
+  if (!Array.isArray(fullCells) || !fullCells.length) return { cols, extra: [] };
+  const row0 = Array.isArray(fullCells[0]) ? fullCells[0] : [];
+  const mergedCols = cols.map((col, c) => _mergeCellIntoCol(col, row0[c]));
+  const extra = fullCells.slice(1).map(row => (Array.isArray(row)
+    ? row.map(cell => (cell && typeof cell === 'object') ? cell : {})
+    : []));
+  return { cols: mergedCols, extra };
+}
+
+/** 블록의 dataset 에서 전체 그리드(cols/rows/cells)를 읽는다 — «옛 파일 승격」의 단일 진입점.
+ *  cells 는 항상 «행 0 포함» 전체 rows.length × cols.length 로 재구성해서 돌려준다(렌더·API 응답용).
+ *  dataset.rows/cells 가 아예 없는 옛 파일도 이 함수를 거치면 1행 그리드로 승격된 모양이 나온다 —
+ *  옛 파일이라고 다른 코드 경로를 타지 않는다(늘 같은 함수, 승격은 '있으면 쓰고 없으면 기본값'뿐).
+ */
+function getDuoGrid(block) {
+  const cols = _duoCols(block);
+  const rows = _duoRows(block);
+  const extra = _duoExtraRows(block, cols, rows.length);
+  const row0 = cols.map(c => ({
+    lines: Array.isArray(c.lines) ? c.lines : [],
+    align: c.align, valign: c.valign, bg: c.bg, padding: c.padding, radius: c.radius,
+  }));
+  return { cols, rows, cells: [row0, ...extra] };
 }
 
 function _duoLineHtml(line, colAlign, depth = 0) {
@@ -132,34 +217,48 @@ function _duoLineHtml(line, colAlign, depth = 0) {
   return `<div class="duo-line duo-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${role.lh};letter-spacing:${role.ls};text-align:${align};${color ? `color:${color};` : ''}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
 }
 
+// ★2026-09-04 P1: flex → CSS grid(PLAN §3-A) — 행 축을 넣으려면 열끼리 «경계가 맞아야»
+//   한다(스프레드시트 드래그가 목표, 5절/P2), flex 행 스택(R1안)은 그게 안 돼 탈락했다.
+//   열은 이전과 «같은 비율»(가중치)이라 fr 단위로 바로 옮긴다 — flex:(pct) 1 0 → <w>fr 은
+//   수학적으로 같은 분배지만 반올림 경로가 달라 1px 안팎 흔들릴 수 있다(완료조건, QA 대상).
 function renderDuoBlock(block) {
-  const cols = _duoCols(block);
+  const { cols, rows, cells } = getDuoGrid(block);
   const gap = parseInt(block.dataset.gap);
   const gapPx = Number.isFinite(gap) ? gap : DUO_DEFAULTS.gap;
-  const valign = _DUO_VALIGN[block.dataset.valign] || 'flex-start';
+  const blockValign = _DUO_VALIGN[block.dataset.valign] || 'flex-start';
 
   block.style.width = '100%';
   block.style.boxSizing = 'border-box';
 
-  const totalW = cols.reduce((s, c) => s + (Number(c.width) > 0 ? Number(c.width) : 1), 0) || 1;
-  // ★세로 정렬의 축 = «컬럼 박스»가 아니라 «컬럼 안의 내용» (2026-09-03 fix/duo-layout-align).
-  //   이전: .duo-inner{align-items:top|middle|bottom}. 이 축은 컬럼 박스를 움직이는데,
-  //   flex-start/center/flex-end 는 컬럼 박스를 «내용 크기»로 줄여버려 정렬이 쓸 여백을 스스로 0으로
-  //   만든다 → 두 컬럼이 동형인 기본 듀오에서는 상단/중앙/하단 어느 것을 눌러도 화면 좌표 0px.
-  //   지금: 컬럼은 항상 stretch(=블록 높이를 채움) + 컬럼 내부 justify-content 로 «내용»을 배치.
-  //   ⇒ 배경/패딩이 있는 컬럼은 카드 높이가 서로 맞고, 여백이 있으면 내용이 실제로 이동한다.
-  block.innerHTML = `<div class="duo-inner" style="display:flex;align-items:stretch;gap:${gapPx}px;width:100%;">
-    ${cols.map(col => {
-      const w = Number(col.width) > 0 ? Number(col.width) : 1;
-      const bg = (typeof col.bg === 'string' && _DUO_COLOR_RE.test(col.bg.trim())) ? col.bg.trim() : '';
-      const pad = Number(col.padding) || 0;
-      const r = Number(col.radius) || 0;
-      const cv = _DUO_VALIGN[col.valign] || valign;   // 컬럼 개별 지정이 블록 기본값을 덮는다
-      const lines = Array.isArray(col.lines) ? col.lines : [];
-      return `<div class="duo-col" style="flex:${(w / totalW * 100).toFixed(2)} 1 0;min-width:0;display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${r > 0 ? `border-radius:${r}px;` : ''}">
-        ${lines.map(l => _duoLineHtml(l, col.align)).join('')}
-      </div>`;
-    }).join('')}
+  const colTemplate = cols.map(c => `${Number(c.width) > 0 ? Number(c.width) : 1}fr`).join(' ');
+  // ★행 높이는 «가중치»가 아니라 px 최소높이(minmax) — 3-A U5a 의미론. 'auto' 행은 내용 높이 그대로.
+  const rowTemplate = rows.map(r => r.height === 'auto' ? 'auto' : `minmax(${r.height}px, auto)`).join(' ');
+
+  const cellsHtml = [];
+  for (let r = 0; r < rows.length; r++) {
+    for (let c = 0; c < cols.length; c++) {
+      const col = cols[c];
+      const cell = (cells[r] && cells[r][c]) || {};
+      // 셀 속성 우선순위: cell > col > block(valign) — PLAN §3-A. 행 0 은 cell===col 이라
+      // pick()이 늘 col 값을 돌려주므로(값이 같다) 아래는 모든 행에 대해 «같은 코드»로 맞다.
+      const pick = (k) => (cell[k] !== undefined ? cell[k] : col[k]);
+      const lines = Array.isArray(cell.lines) ? cell.lines : [];
+      const align = pick('align');
+      // ★세로 정렬의 축 = «셀 박스»가 아니라 «셀 안의 내용» (2026-09-03 fix/duo-layout-align 계승).
+      //   그리드 아이템은 기본 stretch(칸을 꽉 채움) + 셀 내부 justify-content 로 «내용»을 배치.
+      const cv = _DUO_VALIGN[pick('valign')] || blockValign;
+      const bgRaw = pick('bg');
+      const bg = (typeof bgRaw === 'string' && _DUO_COLOR_RE.test(bgRaw.trim())) ? bgRaw.trim() : '';
+      const pad = Number(pick('padding')) || 0;
+      const rad = Number(pick('radius')) || 0;
+      cellsHtml.push(`<div class="duo-cell" data-r="${r}" data-c="${c}" style="min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}">
+        ${lines.map(l => _duoLineHtml(l, align)).join('')}
+      </div>`);
+    }
+  }
+
+  block.innerHTML = `<div class="duo-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};gap:${gapPx}px;width:100%;">
+    ${cellsHtml.join('')}
   </div>`;
 }
 
@@ -168,10 +267,27 @@ function makeDuoBlock(opts = {}) {
   block.className = 'duo-block';
   block.id = genId('duo');
   block.dataset.type = 'duo';
-  const cols = (Array.isArray(opts.cols) && opts.cols.length >= 2) ? opts.cols.slice(0, 4) : JSON.parse(JSON.stringify(DUO_DEFAULTS.cols));
-  block.dataset.cols = JSON.stringify(cols);
+  let cols = (Array.isArray(opts.cols) && opts.cols.length >= MIN_COLS) ? opts.cols.slice(0, MAX_COLS) : JSON.parse(JSON.stringify(DUO_DEFAULTS.cols));
   block.dataset.gap = String(Number.isFinite(Number(opts.gap)) ? Number(opts.gap) : DUO_DEFAULTS.gap);
   block.dataset.valign = ['top', 'middle', 'bottom'].includes(opts.valign) ? opts.valign : DUO_DEFAULTS.valign;
+
+  // ★P1: rows/cells(선택) — 안 주면 옛 duo 와 완전히 같은 1행 블록(dataset.rows/cells 아예 안 씀).
+  //   cells 는 add_block API 경계 그대로 «행 0 포함 전체»를 받는다(§3-A) — 행 0 은 cols 로 흡수.
+  if (Array.isArray(opts.rows) && opts.rows.length >= MIN_ROWS) {
+    const rows = opts.rows.slice(0, MAX_ROWS).map(r => {
+      const h = r && typeof r === 'object' ? r.height : undefined;
+      if (h === 'auto' || h == null || h === '') return { height: 'auto' };
+      const n = Number(h);
+      return { height: (Number.isFinite(n) && n >= 0) ? n : 'auto' };
+    });
+    block.dataset.rows = JSON.stringify(rows);
+    if (rows.length > 1 && Array.isArray(opts.cells) && opts.cells.length) {
+      const { cols: mergedCols, extra } = _splitFullCells(opts.cells.slice(0, rows.length), cols);
+      cols = mergedCols;
+      if (extra.length) block.dataset.cells = JSON.stringify(extra);
+    }
+  }
+  block.dataset.cols = JSON.stringify(cols);
   renderDuoBlock(block);
 
   const row = document.createElement('div');
@@ -197,7 +313,9 @@ function addDuoBlock(opts = {}) {
 }
 
 // updateStepBlock/updateInfoCardBlock 미러 — validate-then-commit + before 스냅샷.
-// 지원: cols(전체 교체), patchCol {index, ...부분}(lines 교체 포함), gap, valign
+// 지원: cols(전체 교체) · patchCol{index,…} · rows(전체 교체) · cells(행0 포함 전체 교체) ·
+//       patchCell{r,c,…} · gap · valign.
+// ★구조 필드(cols/patchCol/cells/patchCell)는 한 번에 하나만 — 부분 적용 혼란 방지(기존 cols/patchCol 규칙 확장).
 function updateDuoBlock(blockId, partial = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
   const block = document.getElementById(String(blockId));
@@ -210,22 +328,53 @@ function updateDuoBlock(blockId, partial = {}) {
   if (Object.keys(partial).length === 0) {
     return { ok: false, code: 'INVALID', message: 'partial is empty' };
   }
+  const structKeys = ['cols', 'patchCol', 'cells', 'patchCell'].filter(k => partial[k] !== undefined);
+  if (structKeys.length > 1) {
+    return { ok: false, code: 'INVALID', message: `${structKeys.join(', ')} 동시 지정 불가 — 구조 변경은 한 번에 하나만` };
+  }
 
   const next = {};
   const applied = {};
+
+  // rows 를 먼저 처리한다 — cells/patchCell 검증이 「바뀐 뒤」 행 수를 기준으로 범위를 잰다.
+  if (partial.rows !== undefined) {
+    if (!Array.isArray(partial.rows) || partial.rows.length < MIN_ROWS || partial.rows.length > MAX_ROWS) {
+      return { ok: false, code: 'INVALID', message: `rows must be array of ${MIN_ROWS}~${MAX_ROWS} rows` };
+    }
+    const normRows = [];
+    for (const r of partial.rows) {
+      const h = r && typeof r === 'object' ? r.height : undefined;
+      if (h === 'auto' || h == null || h === '') { normRows.push({ height: 'auto' }); continue; }
+      const n = Number(h);
+      if (!Number.isFinite(n) || n < 0 || n > 4000) {
+        return { ok: false, code: 'INVALID', message: 'row height must be "auto" or a number 0~4000' };
+      }
+      normRows.push({ height: n });
+    }
+    next.rows = JSON.stringify(normRows);
+    applied.rows = normRows;
+    // ⛔줄어든 행의 셀 데이터는 dataset.cells 에서 잘려나간다 — «변경 전» pushHistory 로 undo 복원.
+    const colsForTrim = _duoCols(block);
+    const trimmedExtra = _duoExtraRows(block, colsForTrim, normRows.length);
+    next.cells = JSON.stringify(trimmedExtra);
+  }
+  const rowCountForValidation = next.rows !== undefined ? JSON.parse(next.rows).length : _duoRows(block).length;
 
   if (partial.cols !== undefined) {
     /* ★상한 3 → 4 (2026-09-04): 우측 패널 4×4 피커가 최대 4열을 준다.
      * 하한 2 는 유지한다 — 1열짜리 「그리드」는 그리드가 아니고, _duoCols 폴백이
      * 1열을 기본값으로 되돌려 «내용을 지우는» 함정이 있다(PLAN §P1 회귀위험). */
-    if (!Array.isArray(partial.cols) || partial.cols.length < 2 || partial.cols.length > 4) {
-      return { ok: false, code: 'INVALID', message: 'cols must be array of 2~4 columns' };
+    if (!Array.isArray(partial.cols) || partial.cols.length < MIN_COLS || partial.cols.length > MAX_COLS) {
+      return { ok: false, code: 'INVALID', message: `cols must be array of ${MIN_COLS}~${MAX_COLS} columns` };
     }
     next.cols = JSON.stringify(partial.cols);
     applied.cols = partial.cols;
+    // 열 수가 바뀌면 추가행 셀도 새 열 수에 맞춰 pad/truncate(방어 — 다음 렌더에서도 어차피
+    // _duoExtraRows 가 같은 일을 하지만, dataset 자체를 깨끗하게 유지해 export/외부 판독을 돕는다).
+    const trimmedExtra = _duoExtraRows(block, partial.cols, rowCountForValidation);
+    next.cells = JSON.stringify(trimmedExtra);
   }
   if (partial.patchCol !== undefined) {
-    if (next.cols !== undefined) return { ok: false, code: 'INVALID', message: 'cols와 patchCol 동시 지정 불가' };
     const p = partial.patchCol;
     if (!p || typeof p !== 'object' || !Number.isFinite(Number(p.index))) {
       return { ok: false, code: 'INVALID', message: 'patchCol must be {index, ...}' };
@@ -237,6 +386,41 @@ function updateDuoBlock(blockId, partial = {}) {
     cols[i] = Object.assign({}, cols[i], rest);
     next.cols = JSON.stringify(cols);
     applied.patchCol = { index: i, ...rest };
+  }
+  if (partial.cells !== undefined) {
+    // ★API 경계는 «행 0 포함 전체 R×C»(§3-A 스키마 그대로) — 내부에서 행 0 은 cols 로 흡수한다.
+    if (!Array.isArray(partial.cells) || !partial.cells.length) {
+      return { ok: false, code: 'INVALID', message: 'cells must be a non-empty 2D array (rows × cols, row 0 included)' };
+    }
+    if (partial.cells.length > rowCountForValidation) {
+      return { ok: false, code: 'INVALID', message: `cells has ${partial.cells.length} rows but grid has ${rowCountForValidation} rows — pass rows in the same call to grow the grid first` };
+    }
+    const baseCols = _duoCols(block);
+    const { cols: mergedCols, extra } = _splitFullCells(partial.cells, baseCols);
+    next.cols = JSON.stringify(mergedCols);
+    next.cells = JSON.stringify(extra);
+    applied.cells = partial.cells;
+  }
+  if (partial.patchCell !== undefined) {
+    const p = partial.patchCell;
+    if (!p || typeof p !== 'object' || !Number.isFinite(Number(p.r)) || !Number.isFinite(Number(p.c))) {
+      return { ok: false, code: 'INVALID', message: 'patchCell must be {r, c, ...}' };
+    }
+    const cols = _duoCols(block);
+    const r = Number(p.r), c = Number(p.c);
+    if (r < 0 || r >= rowCountForValidation) return { ok: false, code: 'INVALID', message: `patchCell.r out of range (0~${rowCountForValidation - 1})` };
+    if (c < 0 || c >= cols.length) return { ok: false, code: 'INVALID', message: `patchCell.c out of range (0~${cols.length - 1})` };
+    const { r: _r, c: _c, ...rest } = p;
+    if (r === 0) {
+      // 행 0 은 늘 cols[c] 자체다(단일 진실원) — patchCol 과 «같은 길」로 보낸다.
+      cols[c] = _mergeCellIntoCol(cols[c], rest);
+      next.cols = JSON.stringify(cols);
+    } else {
+      const extra = _duoExtraRows(block, cols, rowCountForValidation);
+      extra[r - 1][c] = Object.assign({}, extra[r - 1][c], rest);
+      next.cells = JSON.stringify(extra);
+    }
+    applied.patchCell = { r, c, ...rest };
   }
   if (partial.gap !== undefined) {
     const n = Number(partial.gap);
@@ -251,14 +435,25 @@ function updateDuoBlock(blockId, partial = {}) {
     next.valign = partial.valign;
     applied.valign = partial.valign;
   }
+  if (Object.keys(next).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/valign' };
+  }
 
-  const before = { cols: block.dataset.cols, gap: block.dataset.gap, valign: block.dataset.valign };
+  const before = {
+    cols: block.dataset.cols, gap: block.dataset.gap, valign: block.dataset.valign,
+    rows: block.dataset.rows, cells: block.dataset.cells,
+  };
+  const restore = (snap) => {
+    ['cols', 'gap', 'valign', 'rows', 'cells'].forEach(k => {
+      if (snap[k] === undefined) delete block.dataset[k]; else block.dataset[k] = snap[k];
+    });
+  };
   window.pushHistory?.();
   Object.assign(block.dataset, next);
   try {
     renderDuoBlock(block);
   } catch (e) {
-    Object.assign(block.dataset, before); // rollback
+    restore(before); // rollback
     try { renderDuoBlock(block); } catch (_) {}
     return { ok: false, code: 'RENDER_ERROR', message: e.message };
   }
@@ -282,4 +477,11 @@ window.updateGridBlock = updateDuoBlock;
 window.renderGridBlock = renderDuoBlock;
 
 // innercard-block 등 라인 스택형 블록이 같은 롤/렌더를 공유한다 (부품 공유 — 현빈 지시 2026-07-03)
-export { makeDuoBlock, addDuoBlock, updateDuoBlock, renderDuoBlock, DUO_DEFAULTS, _duoLineHtml as duoLineHtml, _DUO_ROLES as DUO_ROLES };
+// ★getDuoGrid/duoRows: 「옛 파일 승격」이 실제로 일어나는 단일 진입점 — 단위테스트가
+//   DOM 없이 순수 데이터(fake block = {dataset:{...}})로 이걸 직접 검사한다.
+export {
+  makeDuoBlock, addDuoBlock, updateDuoBlock, renderDuoBlock, DUO_DEFAULTS,
+  _duoLineHtml as duoLineHtml, _DUO_ROLES as DUO_ROLES,
+  getDuoGrid, _duoRows as duoRows, _duoCols as duoCols,
+  MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS,
+};

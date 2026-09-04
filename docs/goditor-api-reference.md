@@ -30,16 +30,36 @@ sleep 7 && curl -s http://127.0.0.1:93XX/json/version   # Chrome/... 뜨면 OK
 - 저장: `window.triggerAutoSave()` 후 2초 이상 대기(디바운스 1.5s). 빌드 완료본은 `/tmp/goditor_93XX/projects/<id>/`에서 메인 저장소(`~/Library/Application Support/Goya Design Editor/projects/`)로 복사해 이관.
 - ⚠️ 하나의 인스턴스에서 여러 프로젝트를 오갈 때는 eval 진입 시 `window.activeProjectId`가 대상 프로젝트인지 가드하고, 빌드+직렬화+저장을 단일 동기 eval로 묶을 것(로드 중 전환 레이스 방지).
 
-### 신규 블록 (2026-07-03) — duo · infocard · innercard
+### 신규 블록 (2026-07-03, 행 축 2026-09-04 P1) — duo(Grid) · infocard · innercard
 
 ```js
-// duo — 다단(2~3컬럼) 레이아웃. 좌 수치/우 설명, 좌 이미지/우 텍스트 등 정형 다단 전용
+// duo — 사용자에게는 「Grid Block」으로 보인다(2026-09-04 P0 개명, DOM 정체성 .duo-block/dataset.type='duo'는
+// P2까지 유지). 2~4열 × 1~4행 그리드. 좌 수치/우 설명, 좌 이미지/우 텍스트 등 정형 다단은 옛 1행 형태 그대로.
 window.addDuoBlock({ gap: 32, valign: 'middle', cols: [
   { width: 3, align: 'center', lines: [{ type: 'h1', text: '01', color: '#2d6fe8' }, { type: 'caption', text: 'REASON' }] },
   { width: 7, lines: [{ type: 'h2', text: '헤드라인' }, { type: 'gap', height: 8 }, { type: 'body', text: '본문…' }] },
 ] })
 // 라인 타입: label|h1|h2|h3|body|caption|image({imgSrc,height?,radius?})|gap({height})
-// 수정: updateDuoBlock(id, { patchCol: { index: 1, lines: [...] } } | { cols } | { gap } | { valign })
+// 수정(기존, 계속 동작): updateDuoBlock(id, { patchCol: { index: 1, lines: [...] } } | { cols } | { gap } | { valign })
+
+// ★2026-09-04 P1 — 행 축(R2 모델, PLAN-gridblock.md §3-A). cols[c] = «행 0» 콘텐츠(단일 진실원) +
+//   rows(px 최소높이, 'auto' 허용) + cells(행0 포함 전체 rows×cols — 행0은 cols로 흡수, 저장은
+//   dataset.cells에 «행0을 뺀» 나머지만). rows 를 안 주면 옛 1행 duo 와 byte-identical.
+window.addGridBlock({
+  cols: [{ width: 1 }, { width: 1 }],
+  rows: [{ height: 'auto' }, { height: 200 }],           // 없으면 1행(옛 duo와 동일)
+  cells: [                                                // 선택 — 행0 포함 전체
+    [{ lines: [{ type: 'h2', text: 'R0C0' }] }, { lines: [{ type: 'h2', text: 'R0C1' }] }],
+    [{ lines: [{ type: 'body', text: 'R1C0' }] }, { lines: [{ type: 'body', text: 'R1C1' }] }],
+  ],
+})
+// 수정: updateGridBlock(id, partial) — 구조 필드(cols|patchCol|cells|patchCell)는 «한 번에 하나만», rows/gap/valign은 자유 결합.
+//   patchCell({r,c,...}) — r===0 은 patchCol과 동치(행0=cols, 단일 진실원). r≥1 은 dataset.cells(추가행)에 merge.
+updateGridBlock(id, { rows: [{ height: 'auto' }, { height: 120 }, { height: 'auto' }] })  // 1행→3행으로 확장
+updateGridBlock(id, { patchCell: { r: 2, c: 0, lines: [{ type: 'body', text: '새 셀 내용' }] } })
+// MCP: add_grid_block(cols required, rows?/cells?/gap?/valign?/sectionId?) · update_grid_block(blockId, {cols|patchCol|rows|cells|patchCell|gap|valign})
+//   통합 도구로도 접근 가능: add_block({type:'grid', cols, rows?, cells?}) · update_block(blockId, {...}) — blockId prefix duo_.
+// ⛔열은 가중치(fr, width — px 아님) · 행만 px 최소높이(minmax(px,auto))다. 열 하한은 2 그대로(1열 「그리드」는 없음).
 
 // infocard — 스탯/가격/리뷰 카드. 별칭 3종이 variant 프리셋
 window.addCountupBlock({ data: { stats: [        // ★정적 최종값 빅넘버(애니 없음), N개 가로 배치

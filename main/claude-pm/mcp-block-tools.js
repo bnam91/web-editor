@@ -47,6 +47,9 @@ const BLOCK_TYPES = [
     blurb: 'N cards in a row (image+title+desc) — feature/benefit grid' },
   { type: 'canvas', add: 'add_canvas_block', upd: 'update_canvas_block', pfx: 'cvb_',
     blurb: 'free-placed layers (x/y/w/h shape·image·text) or card grid; Figma import target' },
+  // ★2026-09-04 P1 신설 — id 접두사는 duo_(DOM 정체성은 아직 duo-block, 사용자에게만 "Grid"로 보임).
+  { type: 'grid', add: 'add_grid_block', upd: 'update_grid_block', pfx: 'duo_',
+    blurb: '2-4 column x 1-4 row grid, each cell holds a text stack (label/h1-h3/body/caption/image/gap)' },
   { type: 'table', add: 'add_table_block', upd: 'update_table_block', pfx: 'tbl_',
     blurb: 'table of specs/prices (headers + rows)' },
   { type: 'comparison', add: 'add_comparison_block', upd: 'update_comparison_block', pfx: 'cmp_',
