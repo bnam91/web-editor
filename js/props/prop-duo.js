@@ -2,6 +2,38 @@
    구조(컬럼/라인 추가·삭제)는 CDP/updateDuoBlock 영역 — 패널은 텍스트·간격·정렬만 다룬다. */
 import { propPanel } from '../globals.js';
 
+/* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
+ * 렌더러(duo-block.js)는 이미 임의 비율을 지원한다 — 각 컬럼에 flex:(w/총합*100).
+ * 즉 없던 것은 «엔진»이 아니라 «슬라이더 하나»였다. 여기서 그것만 채운다.
+ * ⛔px width 를 직접 쓰지 말 것 — flex 가중치를 유지해야 폭 계산 함정에 새로 노출되지 않는다. */
+function _ratioRowHtml(cols) {
+  const n = cols.length;
+  if (n < 2) return '';
+  const w = cols.map(c => Math.max(1, Number(c.width) || 1));
+  const sum = w.reduce((a, b) => a + b, 0);
+  const pct = w.map(v => Math.round(v / sum * 100));
+  if (n === 2) {
+    // 두 칸이면 «하나의» 슬라이더가 직관적이다 — 왼쪽이 차지하는 비율.
+    return `
+      <div class="prop-row">
+        <span class="prop-label">비율</span>
+        <input type="range" class="prop-slider" id="duo-ratio-slider" min="20" max="80" step="5" value="${pct[0]}">
+        <input type="number" class="prop-number" id="duo-ratio-number" min="20" max="80" step="5" value="${pct[0]}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label" style="opacity:.6">좌 : 우</span>
+        <span class="prop-label" id="duo-ratio-readout" style="opacity:.8">${pct[0]} : ${100 - pct[0]}</span>
+      </div>`;
+  }
+  // 세 칸이면 칸마다 «가중치» 슬라이더 + 환산 %를 같이 보여준다.
+  return cols.map((c, i) => `
+      <div class="prop-row">
+        <span class="prop-label">${i + 1}번 폭</span>
+        <input type="range" class="prop-slider duo-w-slider" data-col="${i}" min="1" max="8" step="1" value="${w[i]}">
+        <span class="prop-label duo-w-pct" data-col="${i}" style="opacity:.8;min-width:34px;text-align:right">${pct[i]}%</span>
+      </div>`).join('');
+}
+
 export function showDuoProperties(block) {
   let cols = [];
   try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) {}
@@ -37,6 +69,7 @@ export function showDuoProperties(block) {
         <input type="range" class="prop-slider" id="duo-gap-slider" min="0" max="120" step="4" value="${gap}">
         <input type="number" class="prop-number" id="duo-gap-number" min="0" max="120" value="${gap}">
       </div>
+      ${_ratioRowHtml(cols)}
       <div class="prop-row">
         <span class="prop-label">가로 정렬</span>
         <div class="prop-align-group" id="duo-halign-group">
@@ -78,7 +111,7 @@ export function showDuoProperties(block) {
       </div>`).join('')}
     </div>`).join('')}
     <div class="prop-section">
-      <div class="prop-row"><span class="prop-label" style="opacity:.6">컬럼/라인 구조 변경은 updateDuoBlock API 사용</span></div>
+      <div class="prop-row"><span class="prop-label" style="opacity:.6">컬럼 «개수»·라인 구조 변경은 updateDuoBlock API 사용 (비율은 위 슬라이더)</span></div>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
@@ -94,6 +127,52 @@ export function showDuoProperties(block) {
   gapS.addEventListener('input', () => applyGap(parseInt(gapS.value)));
   gapS.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
   gapN.addEventListener('change', () => { applyGap(parseInt(gapN.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+
+  /* ── 비율 배선 — updateDuoBlock(validate-then-commit + rollback)만 거친다 ── */
+  /* ⚠️updateDuoBlock 을 «쓰지 않는다» — 성공하면 showDuoProperties 를 다시 불러
+   *   패널을 통째로 새로 그린다. 드래그 중이면 슬라이더 DOM 이 교체돼 드래그가 끊긴다.
+   *   바로 위 gap 슬라이더가 같은 이유로 dataset 직접 쓰기를 택했다. 같은 패턴을 따른다.
+   *   (검증은 여기서 한다 — 컬럼 2~3개, width 는 양수) */
+  const _commitCols = (next) => {
+    if (!Array.isArray(next) || next.length < 2 || next.length > 3) return false;
+    next.forEach(c => { const n = Number(c.width); c.width = Number.isFinite(n) && n > 0 ? n : 1; });
+    block.dataset.cols = JSON.stringify(next);
+    window.renderDuoBlock?.(block);
+    return true;
+  };
+  const ratioS = document.getElementById('duo-ratio-slider');
+  const ratioN = document.getElementById('duo-ratio-number');
+  if (ratioS && ratioN) {
+    const applyRatio = (p) => {
+      p = Math.min(80, Math.max(20, Math.round((p || 50) / 5) * 5));
+      const cur = JSON.parse(block.dataset.cols || '[]');
+      if (cur.length !== 2) return;
+      cur[0].width = p; cur[1].width = 100 - p;   // 가중치라 합이 100일 필요는 없지만 읽기 쉽다
+      _commitCols(cur);
+      ratioS.value = p; ratioN.value = p;
+      const ro = document.getElementById('duo-ratio-readout');
+      if (ro) ro.textContent = `${p} : ${100 - p}`;
+    };
+    ratioS.addEventListener('input', () => applyRatio(parseInt(ratioS.value)));
+    ratioS.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    ratioN.addEventListener('change', () => { applyRatio(parseInt(ratioN.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  }
+  propPanel.querySelectorAll('.duo-w-slider').forEach(sl => {
+    const applyW = () => {
+      const cur = JSON.parse(block.dataset.cols || '[]');
+      const i = parseInt(sl.dataset.col);
+      if (!cur[i]) return;
+      cur[i].width = Math.min(8, Math.max(1, parseInt(sl.value) || 1));
+      _commitCols(cur);
+      const tot = cur.reduce((a, c) => a + (Number(c.width) || 1), 0);
+      propPanel.querySelectorAll('.duo-w-pct').forEach(el => {
+        const j = parseInt(el.dataset.col);
+        if (cur[j]) el.textContent = Math.round((Number(cur[j].width) || 1) / tot * 100) + '%';
+      });
+    };
+    sl.addEventListener('input', applyW);
+    sl.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  });
 
   propPanel.querySelectorAll('[data-va]').forEach(btn => btn.addEventListener('click', () => {
     block.dataset.valign = btn.dataset.va;

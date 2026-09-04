@@ -1,4 +1,4 @@
-import { canvasEl, propPanel, state } from './globals.js';
+import { canvasEl, propPanel, state, BLOCK_DELEGATE_SEL } from './globals.js';
 import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './history.js';
 
 /* ═══════════════════════════════════
@@ -2824,7 +2824,7 @@ canvasEl.addEventListener('click', e => {
   const col = e.target.closest('.col');
   if (!col) return;
   // 블록 클릭은 블록 핸들러에게 위임
-  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) return;
+  if (e.target.closest(BLOCK_DELEGATE_SEL)) return;   // SSOT — globals.js
   // col-add 버튼/메뉴는 통과 (메뉴 열기 동작 유지)
   if (e.target.closest('.col-add-btn, .col-add-menu')) return;
 
