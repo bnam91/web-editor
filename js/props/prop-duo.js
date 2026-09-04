@@ -3,7 +3,7 @@
 import { propPanel } from '../globals.js';
 import { parseRatio, buildGridPicker } from './_helpers.js';
 import { duoRows, MIN_COLS, MAX_COLS, MAX_ROWS } from '../blocks/duo-block.js';
-import { showGridGutters } from '../overlay-handles.js';
+import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 
 /* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
  * 렌더러(duo-block.js)는 이미 임의 비율을 지원한다 — 각 컬럼에 flex:(w/총합*100).
@@ -227,7 +227,13 @@ export function showDuoProperties(block) {
       }
       window.renderDuoBlock?.(block);
       window.scheduleAutoSave?.();
-      showDuoProperties(block);                   // 패널 재생성(칸/행 수가 바뀌면 섹션도 바뀐다)
+      /* ★거터를 «명시적으로» 걷고 다시 세운다.
+       * showDuoProperties 끝에도 showGridGutters 가 있지만 피커 경로에서는 그것만으로 안 따라온다 —
+       * 실측: 2x1 → 3x3 으로 바꿔도 거터가 col 1개 그대로였다(2초 뒤에도).
+       * 격자 «수»가 바뀌는 건 이 경로뿐이라 여기서 한 번 정리한다. */
+      hideGridGutters();
+      showDuoProperties(block);
+      showGridGutters(block);                   // 패널 재생성(칸/행 수가 바뀌면 섹션도 바뀐다)
     },
     { max: MAX_COLS, maxRows: MAX_ROWS }
   );
