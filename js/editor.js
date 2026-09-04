@@ -320,7 +320,12 @@ function getBlockBreadcrumb(el) {
   const row = el.classList.contains('row') ? el : el.closest('.row');
   if (!row) return `Section ${sIdx}`;
   const inner = sec.querySelector('.section-inner');
-  const rows = inner ? [...inner.querySelectorAll(':scope > .row')] : [];
+  /* ★합쳐 넣은 몸 안의 행도 세야 한다 — :scope > 만 보면 indexOf 가 -1 이라 「Row 0」 이 뜬다.
+     세는 순서는 «화면에 보이는 순서»여야 하므로 상자를 만나면 그 안으로 내려간다. */
+  const flattenRows = (el) => [...el.children].flatMap(c =>
+    c.classList.contains('section-merged-part') ? flattenRows(c)
+      : (c.classList.contains('row') ? [c] : []));
+  const rows = inner ? flattenRows(inner) : [];
   const rIdx = rows.indexOf(row) + 1;
   return `Section ${sIdx}  ·  Row ${rIdx}`;
 }
@@ -1107,6 +1112,20 @@ function alignSelectedToParent(dir) {
    나머지 갭은 제거한다. 사이에 다른 블록(비선택·비갭)이 낀 갭은 다른 런.
    떨어진 선택은 각 연속 런만 병합하고 나머지는 그대로 둔다.
 ═══════════════════════════════════ */
+/* ★「섹션을 골랐다」를 «섹션만» 골랐을 때로 좁힌다.
+   블록을 클릭하면 syncSection 이 그 섹션에도 .selected 를 붙인다 — 그래서
+   `.section-block.selected` 만 보면 «거의 항상 참»이고, 블록 하나 고른 사람이
+   ⌘M 을 누르면 섹션이 통째로 합쳐진다(실측: 3→2).
+   ⇒ 섹션 아닌 .selected 가 하나라도 있으면 「섹션을 고른 것」이 아니다. */
+function _sectionOnlySelection() {
+  const sec = document.querySelector('.section-block.selected');
+  if (!sec) return false;
+  // 섹션이 여러 개 골라져 있어도 «섹션만» 이면 합치기 대상이다(전부 합친다)
+  const other = [...document.querySelectorAll('.selected')].find(el =>
+    el !== document.body && !el.classList.contains('section-block') && !el.classList.contains('layer-item'));
+  return !other;
+}
+
 function mergeSelectedGaps() {
   const gaps = [...document.querySelectorAll('.gap-block.selected')];
   if (gaps.length < 2) return; // 1개/무선택 → no-op
@@ -1217,14 +1236,30 @@ document.addEventListener('keydown', e => {
   }
 
   // ⌘M — 병합. ★preventDefault 필수(Electron '창 최소화' 가속기와 충돌).
-  //   컨텍스트 분기: 갭 선택 → #8 갭 병합 / 테이블 셀 선택 → #5-b 셀 병합 / 둘 다 아니면 no-op.
+  //   컨텍스트 분기: 갭 선택 → #8 갭 병합 / 테이블 셀 선택 → #5-b 셀 병합
+  //                 / 섹션만 선택 → 섹션 합치기 / 아무것도 아니면 no-op.
+  //   ★섹션은 «맨 뒤»다. 섹션은 블록을 고르면 같이 selected 로 남는 일이 많아서,
+  //     앞에 두면 셀·갭 병합을 가로챈다. 좁은 대상이 먼저다.
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyM' && !e.shiftKey && !e.altKey) {
+    /* ★입력 중엔 «아무것도 하지 않는다».
+       맥에서 ⌘M 은 「창 최소화」 손버릇이고 이 분기가 preventDefault 로 가로챈다.
+       예전엔 그 대가가 no-op 이었지만 섹션 합치기가 붙은 뒤로는 «파괴 편집»이 된다.
+       같은 핸들러의 다른 ⌘단축키 21곳엔 이 가드가 이미 있다 — ⌘M 에만 없었다. */
+    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
+    if (document.body.classList.contains('preview-mode')) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
     e.preventDefault();
     if (document.querySelector('.gap-block.selected')) {
       mergeSelectedGaps();
     } else if (document.querySelector('.table-block .tb-table td.cell-selected')) {
       /* #5-b 테이블 바디셀 병합 (table-cell-select.js) */
       window.mergeSelectedCells?.();
+    } else if (_sectionOnlySelection()) {
+      /* 섹션 합치기 (section-merge.js) — 「바로 위 섹션과 하나로」 */
+      window.mergeSelectedSectionUp?.();
     }
     return;
   }
@@ -2242,7 +2277,13 @@ function moveSelectedBlocks(direction) {
   // 프레임(frame-block)이 선택된 경우 별도 처리
   const selFrame = window._activeFrame;
   if (selFrame && selFrame.classList.contains('selected')) {
-    const sectionInner = selFrame.closest('.section-inner');
+    /* ★컨테이너는 «실제 부모»다. closest('.section-inner') 는 합쳐 넣은 몸
+       (.section-merged-part) 안의 프레임에 대해 «바깥» inner 를 집어, indexOf 가 -1 이 되고
+       아래로 이동이 containerItems[0].after() 로 떨어져 «프레임이 섹션 맨 위로 순간이동»했다
+       (위로는 idx<=0 에 걸려 먹통). 상자를 지나 밖으로 꺼내지기까지 한다. */
+    const sectionInner = (selFrame.parentElement?.classList.contains('section-merged-part')
+      ? selFrame.parentElement
+      : selFrame.closest('.section-inner'));
     if (!sectionInner) return;
     const containerItems = [...sectionInner.children].filter(c =>
       c.classList.contains('row') || c.classList.contains('gap-block') || c.classList.contains('frame-block')
@@ -2278,8 +2319,12 @@ function moveSelectedBlocks(direction) {
   if (selBlocks.length === 0) return;
 
   // 각 블록의 이동 단위(row or gap-block)를 DOM 순서대로 수집
+  // ★.section-merged-part 직속 갭도 «이동 단위»다. 안 넣으면 closest('.row')=null →
+  //   unitSet 이 비어 ⌘[/⌘] 가 «조용히» 아무 일도 안 한다(먹통으로 보인다).
+  const _isUnitParent = el => !!el && (el.classList.contains('section-inner')
+    || el.classList.contains('frame-block') || el.classList.contains('section-merged-part'));
   const getUnit = b => b.classList.contains('gap-block')
-    ? (b.parentElement?.classList.contains('section-inner') || b.parentElement?.classList.contains('frame-block') ? b : b.closest('.row'))
+    ? (_isUnitParent(b.parentElement) ? b : b.closest('.row'))
     : b.closest('.row');
 
   const unitSet = new Set();
@@ -2931,7 +2976,12 @@ window.showMultiSelPanel = showMultiSelPanel;
 // 모든 모듈 로드 후 앱 초기화 — save-load.js가 editor.js보다 늦게 평가될 수 있어
 // window.initApp 등록을 폴링으로 대기 (setTimeout 0만으로는 race가 남음)
 (function waitInitApp() {
-  if (window.initApp) window.initApp();
+  if (window.initApp) {
+    window.initApp();
+    // 캔버스 바탕색 컨트롤(왼쪽 Design System 패널)은 «상주»하므로 부팅 때 한 번만 배선한다.
+    // ★initApp «뒤»여야 한다 — state.pageSettings 가 채워진 뒤에 현재 색을 읽어야 하니까.
+    try { window.wireCanvasBgControl?.(); } catch (_) {}
+  }
   else setTimeout(waitInitApp, 10);
 })();
 

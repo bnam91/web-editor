@@ -50,7 +50,13 @@ Object.defineProperty(window, 'layerSectionDragSrc', {
 function getDragAfterElement(container, y) {
   // y = dragover event.clientY (화면 좌표)
   // getBoundingClientRect도 화면 좌표 반환 → scale 보정 불필요, 두 값 단위 일치
-  const children = [...container.children].filter(el =>
+  /* ★합쳐 넣은 몸(.section-merged-part)은 «펴서» 후보에 넣는다.
+     안 그러면 「아래 섹션 전체 높이를 가진 상자 하나」로 계산돼, 그 안 어디에 놓든
+     이음매 앞 아니면 섹션 맨 끝 둘 중 하나로만 간다(중간 배치 불가).
+     ⇒ 반환된 기준 노드의 «부모»에 넣어야 한다 — 부르는 쪽이 그렇게 하고 있다. */
+  const flatten = (el) => [...el.children].flatMap(c =>
+    c.classList.contains('section-merged-part') ? flatten(c) : [c]);
+  const children = flatten(container).filter(el =>
     !el.classList.contains('drop-indicator') && el !== dragState.dragSrc
   );
   return children.reduce((closest, child) => {
@@ -280,7 +286,9 @@ function bindSectionDropZone(sec) {
       const after = getDragAfterElement(inner, clientY);
       const indicator = document.createElement('div');
       indicator.className = 'drop-indicator';
-      if (after) inner.insertBefore(indicator, after);
+      // ★기준 노드의 «실제 부모»에 넣는다(상자 안이면 상자 안). inner 로만 넣으면
+      //   insertBefore 가 NotFoundError 로 죽거나 블록이 상자 밖으로 튀어나온다.
+      if (after && after.parentElement) after.parentElement.insertBefore(indicator, after);
       else inner.appendChild(indicator);
     });
   });
@@ -296,7 +304,7 @@ function bindSectionDropZone(sec) {
     if (!dragState.dragSrc) return;
     window.pushHistory();
     const indicator = inner.querySelector('.drop-indicator');
-    if (indicator) inner.insertBefore(dragState.dragSrc, indicator);
+    if (indicator && indicator.parentElement) indicator.parentElement.insertBefore(dragState.dragSrc, indicator);
     else inner.appendChild(dragState.dragSrc);
     clearDropIndicators();
     window.buildLayerPanel();

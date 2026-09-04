@@ -20,6 +20,9 @@ function _applySectionBg(sec) {
   const color = sec.dataset.bg || '';
   const img   = sec.dataset.bgImg || '';
   const size  = sec.dataset.bgSize || 'cover';
+  // ★bgPos 는 dataset 이 정본(save-load.js 복원과 동일). 예전엔 여기서 'center' 로 덮어써서
+  //   「위치 편집」으로 잡은 위치가 사이즈 변경·색 변경 한 번에 되돌아갔다.
+  const pos   = sec.dataset.bgPos || 'center';
 
   // 항상 shorthand는 초기화 후 개별 속성으로 재설정 (이전 multi-layer 잔재 제거)
   sec.style.background = '';
@@ -27,14 +30,16 @@ function _applySectionBg(sec) {
   if (img && color) {
     // multi-background: gradient(색) 위, url(이미지) 아래
     sec.style.background = `linear-gradient(${color}, ${color}), url(${img})`;
-    sec.style.backgroundSize = `${size}, ${size}`;
-    sec.style.backgroundPosition = 'center, center';
+    // 색 layer 는 gradient — 고유 크기가 없어 어떤 키워드든 박스 전체다. 'cover' 로 고정해야
+    // 이미지 layer 가 px 값(위치 편집 결과)일 때 색이 박스 일부만 덮는 사고가 없다.
+    sec.style.backgroundSize = `cover, ${size}`;
+    sec.style.backgroundPosition = `center, ${pos}`;
     sec.style.backgroundRepeat = 'no-repeat, no-repeat';
   } else if (img) {
     sec.style.backgroundImage = `url(${img})`;
     sec.style.backgroundColor = 'transparent';
     sec.style.backgroundSize = size;
-    sec.style.backgroundPosition = 'center';
+    sec.style.backgroundPosition = pos;
     sec.style.backgroundRepeat = 'no-repeat';
   } else if (color) {
     sec.style.backgroundImage = 'none';
@@ -102,6 +107,9 @@ async function showSectionProperties(sec) {
     ? parseInt(inner.dataset.paddingX)
     : (parseInt(inner?.style.paddingLeft) || 0);
   const secPadXAsset   = inner?.dataset.padXExcludesAsset || '';
+  // 「위치 편집」으로 잡은 크기는 px 값이라 3개 키워드 어디에도 안 맞는다 —
+  // 옵션을 안 넣으면 select 가 «Cover» 로 보이는 거짓말을 한다.
+  const _bgSizeCustom = /px/.test(bgSize);
   const bgImgHTML = hasBgImg ? `
     <div class="prop-row">
       <span class="prop-label">사이즈</span>
@@ -109,9 +117,10 @@ async function showSectionProperties(sec) {
         <option value="cover"   ${bgSize==='cover'   ?'selected':''}>Cover</option>
         <option value="contain" ${bgSize==='contain' ?'selected':''}>Contain</option>
         <option value="auto"    ${bgSize==='auto'    ?'selected':''}>Auto</option>
+        ${_bgSizeCustom ? `<option value="${bgSize}" selected>직접 조절</option>` : ''}
       </select>
     </div>
-    <button class="prop-action-btn secondary" id="sec-bg-pos-btn" style="margin-top:6px;">위치 편집</button>
+    <button class="prop-action-btn secondary" id="sec-bg-pos-btn" style="margin-top:6px;">${sec._secBgEditing ? '위치 편집 완료' : '위치 편집'}</button>
     <button class="prop-action-btn danger" id="sec-bg-img-remove" style="margin-top:4px;">이미지 제거</button>
   ` : `
     <button class="prop-action-btn secondary" id="sec-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
@@ -291,6 +300,7 @@ async function showSectionProperties(sec) {
       inner.style.paddingLeft  = v + 'px';
       inner.style.paddingRight = v + 'px';
       inner.dataset.paddingX   = String(v);
+      window.syncMergedPartMargins?.(sec, { applyPadding: true });   // 사용자가 «직접» 바꿨으니 아래 몸도 전체 적용
       // 글로벌 padXExcludesAsset도 고려 (prop-page.js의 getEffectiveUsePadx 헬퍼)
       // section-inner의 '직접' 자식 ab만 처리 — row 안에 있는 ab는 row 핸들러가 관리
       const usePadx = window.getEffectiveUsePadx;
@@ -392,7 +402,12 @@ async function showSectionProperties(sec) {
   const bgSizeEl    = document.getElementById('sec-bg-size');
   const bgImgRemove = document.getElementById('sec-bg-img-remove');
   const bgPosBtnEl  = document.getElementById('sec-bg-pos-btn');
-  if (bgPosBtnEl) bgPosBtnEl.addEventListener('click', () => window.enterBgPosDragMode?.(sec));
+  // 「위치 편집」 = 에셋 더블클릭 편집기를 섹션 배경에 붙인 모드(토글).
+  // 예전 enterBgPosDragMode(%-기반 위치만 드래그)는 프레임(.frame-block) 쪽에 그대로 남아 있다.
+  if (bgPosBtnEl) bgPosBtnEl.addEventListener('click', () => {
+    if (sec._secBgEditing) window.exitSectionBgEditMode?.(sec);
+    else                   window.enterSectionBgEditMode?.(sec);
+  });
 
   if (bgImgBtn && bgImgInput) {
     bgImgBtn.addEventListener('click', () => bgImgInput.click());
@@ -416,6 +431,8 @@ async function showSectionProperties(sec) {
     bgSizeEl.addEventListener('change', () => {
       window.pushHistory?.('섹션 배경 크기');
       sec.dataset.bgSize = bgSizeEl.value;
+      // 키워드 사이즈로 되돌리면 px 위치는 의미가 달라진다 → 중앙으로 리셋
+      if (!/px/.test(bgSizeEl.value)) delete sec.dataset.bgPos;
       _applySectionBg(sec);
       window.scheduleAutoSave?.();
     });
@@ -425,6 +442,7 @@ async function showSectionProperties(sec) {
       window.pushHistory?.('섹션 배경 이미지 제거');
       delete sec.dataset.bgImg;
       delete sec.dataset.bgSize;
+      delete sec.dataset.bgPos;
       _applySectionBg(sec);
       window.scheduleAutoSave?.();
       showSectionProperties(sec);
@@ -558,4 +576,5 @@ export { applyPreset, setRpIdBadge, showSectionProperties, syncSection };
 window.applyPreset           = applyPreset;
 window.setRpIdBadge          = setRpIdBadge;
 window.showSectionProperties = showSectionProperties;
+window.applySectionBg = _applySectionBg;   // image-handling.js(섹션 배경 위치 편집) 커밋용
 window.syncSection           = syncSection;

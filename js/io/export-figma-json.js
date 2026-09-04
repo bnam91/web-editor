@@ -99,8 +99,11 @@ async function exportFigmaJSON() {
     const inner = secEl.querySelector('.section-inner');
     const rows = [];
     if (inner) {
-      [...inner.children].forEach(child => {
-        if (child.classList.contains('row')) {
+      // ★.section-merged-part 는 «투명하게» 통과 — 안 그러면 합친 아래 몸이 통째로 빠진다
+      const walk = (child) => {
+        if (child.classList.contains('section-merged-part')) {
+          [...child.children].forEach(walk);
+        } else if (child.classList.contains('row')) {
           rows.push(parseRow(child, ps));
         } else if (child.classList.contains('group-block')) {
           child.querySelectorAll(':scope > .group-inner > .row').forEach(r => rows.push(parseRow(r, ps)));
@@ -108,7 +111,8 @@ async function exportFigmaJSON() {
           const h = parseFloat(child.style.height) || 50;
           rows.push({ layout: 'stack', cols: [{ width: 100, blocks: [{ type: 'gap', height: h }] }] });
         }
-      });
+      };
+      [...inner.children].forEach(walk);
     }
     // 빈 blocks 배열 rows 제거
     const filteredRows = rows.filter(r => r.cols.some(c => c.blocks.length > 0));
@@ -826,7 +830,14 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       return { type: 'frame', id: fb.id || '', width: w, height: h,
                bg: fb.dataset.bg || '', radius: parseInt(fb.dataset.radius) || 0, free, children };
     }
-    [...inner.children].forEach(child => {
+    /* ★.section-merged-part(합쳐 넣은 아래 섹션의 몸)는 «투명하게» 통과한다.
+       이 화이트리스트에 안 걸리면 자식을 내려가 보지도 않고 버려서, 합친 섹션을
+       내보내면 아래쪽 몸이 «조용히» 통째로 사라진다(에러도 경고도 없다). */
+    const _walkSectionChild = (child) => {
+      if (child.classList.contains('section-merged-part')) {
+        [...child.children].forEach(_walkSectionChild);
+        return;
+      }
       if (child.classList.contains('row')) {
         _row(child, psEx).forEach(b => blocks.push(b));
       } else if (child.classList.contains('group-block')) {
@@ -843,7 +854,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         const parsed = _block(child, psEx);
         if (parsed) blocks.push(parsed);
       }
-    });
+    };
+    [...inner.children].forEach(_walkSectionChild);
     const bgColor = secEl.style.backgroundColor || '';
     const styleAttr = secEl.getAttribute('style') || '';
     const bgImgRaw = secEl.style.backgroundImage || (/background(-image)?:\s*([^;]+)/.exec(styleAttr) || [])[2] || '';

@@ -23,6 +23,7 @@
 // 활성 가이드 상태 (드래그 1회 사이클 동안 유지)
 let _activeReplaceAb = null;     // .sp2c-replace-target 부착된 asset-block
 let _activeSectionTarget = null; // .sp2c-section-target 부착된 section-block
+let _activeSectionLocked = false; // 그 섹션이 «배경 위치 편집 중»이라 배경 교체를 막고 있는가
 let _activeIndicator = null;     // .sp2c-insert-indicator DOM 노드
 let _activeNewSection = null;    // newsection 배지 호스트(#canvas-scaler)
 
@@ -61,6 +62,7 @@ function _clearSectionBadge(sec) {
 function _clearGuides() {
   if (_activeReplaceAb) { _clearReplaceBadge(_activeReplaceAb); _activeReplaceAb = null; }
   if (_activeSectionTarget) { _clearSectionBadge(_activeSectionTarget); _activeSectionTarget = null; }
+  _activeSectionLocked = false;
   if (_activeIndicator) { _activeIndicator.remove(); _activeIndicator = null; }
   if (_activeNewSection) { _activeNewSection.querySelectorAll(':scope > .sp2c-badge').forEach(b => b.remove()); _activeNewSection = null; }
   // 누수 안전망 — 외부에서 미정리된 가이드 흔적 일괄 정리
@@ -117,10 +119,15 @@ function _classifyDrop(clientX, clientY) {
     return { kind: 'none' };
   }
 
-  const inner = sec.querySelector('.section-inner') || sec;
+  const sectionInner = sec.querySelector('.section-inner') || sec;
 
   // 케이스 B: row / gap / frame 위(=섹션 본문 콘텐츠) → 블록 사이에 에셋블럭 삽입
   const rowLike = hit.closest('.row, .gap-block, .frame-block');
+  /* ★삽입 «컨테이너»는 놓은 자리를 «직접» 품은 곳이어야 한다.
+     합쳐 넣은 몸(.section-merged-part)은 section-inner 의 자식 «하나»로 보이므로,
+     거기에 놓아도 위치 계산이 상자 통째의 앞뒤로 떨어진다 — 놓은 데가 아니라 엉뚱한 자리에 생긴다
+     (실측 2026-09-03: 상자 안 텍스트 위에 놓았는데 위쪽 본문에 생겼다). */
+  const inner = (rowLike && rowLike.closest('.section-merged-part')) || sectionInner;
   if (rowLike && inner.contains(rowLike)) {
     // section-inner의 직속 자식 기준으로만 위치 계산 (frame 내부는 본 모듈 적용 X — 섹션 끝 동작이 자연스러움)
     const after = (typeof window.getDragAfterElement === 'function')
@@ -129,8 +136,22 @@ function _classifyDrop(clientX, clientY) {
     return { kind: 'insert', sec, inner, after };
   }
 
-  // 케이스 C: section-block의 빈 영역/가장자리 → 섹션 배경 이미지로 설정 (드롭 위치 구분 #5b)
-  return { kind: 'sectionbg', sec, inner };
+  /* 케이스 C: section-block의 빈 영역/가장자리 → 섹션 배경 이미지로 설정 (드롭 위치 구분 #5b)
+     ★합쳐 넣은 몸의 «빈 여백»에 놓으면 rowLike 에 안 걸려 여기로 빠지는데,
+       그대로 두면 «위 섹션 전체» 배경이 바뀐다 — 놓은 자리엔 안 보이고 위쪽만 변한다.
+       그 자리는 배경 바꿀 자리가 아니라 «그 몸의 끝에 넣을» 자리다. */
+  const inPart = hit.closest('.section-merged-part');
+  if (inPart) {
+    return { kind: 'insert', sec, inner: inPart, after: null };
+  }
+  /* ★섹션 배경 «위치 편집»이 켜져 있으면 «바꾸지 않는다».
+     편집 모드가 섹션을 프록시로 덮고 있어 rowLike 판정이 전부 빠지고 여기로만 떨어진다 —
+     그대로 두면 「편집하려고 켜 놨는데 배경이 바뀌었다」가 되고, 편집 세션은 «옛 이미지 기준»
+     기하를 새 배경에 커밋해 어긋남이 조용히 남는다.
+     ⚠️여기서 편집을 «대신 끝내지» 않는다 — 사용자가 시킨 적 없는 동작이라 더 놀랍다.
+       무시하되 호버 배지 + 드롭 토스트로 «왜 안 되는지»를 말한다(조용한 무반응은 고장으로 읽힌다). */
+  if (sec._secBgEditing) return { kind: 'sectionbg', sec, inner: sectionInner, locked: true };
+  return { kind: 'sectionbg', sec, inner: sectionInner };   // 배경은 «섹션» 것이지 상자 것이 아니다
 }
 
 function _renderGuide(decision) {
@@ -162,11 +183,13 @@ function _renderGuide(decision) {
     return;
   }
   if (decision.kind === 'sectionbg') {
-    if (_activeSectionTarget === decision.sec) return;
+    // locked 가 바뀌면(호버 중 Esc) 배지를 다시 그려야 하므로 잠금상태도 동일성 판정에 넣는다
+    if (_activeSectionTarget === decision.sec && _activeSectionLocked === !!decision.locked) return;
     _clearGuides();
     decision.sec.classList.add('sp2c-section-target');
-    _addBadge(decision.sec, '섹션 배경으로', true);
+    _addBadge(decision.sec, decision.locked ? '배경 위치 편집 중 — Esc 로 마친 뒤 놓으세요' : '섹션 배경으로', true);
     _activeSectionTarget = decision.sec;
+    _activeSectionLocked = !!decision.locked;
     return;
   }
   if (decision.kind === 'newsection') {
@@ -326,6 +349,10 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
     window.setAssetImageFromSrc?.(block, src);
     window.buildLayerPanel?.();
   } else if (decision.kind === 'sectionbg') {
+    if (decision.locked || decision.sec?._secBgEditing) {
+      window.showToast?.('배경 위치 편집 중에는 배경을 바꿀 수 없습니다 — Esc 로 마친 뒤 놓으세요');
+      return false;
+    }
     // 섹션 빈 영역/가장자리 드롭 → 섹션 배경 이미지로 설정 (#5b)
     if (typeof window.setSectionBgImage !== 'function') {
       console.warn('[canvas-scratch-drop] setSectionBgImage 누락');
@@ -348,7 +375,8 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
       const blocks = sec.querySelectorAll('.asset-block');
       const ab = blocks[blocks.length - 1];
       if (ab) {
-        const inner = sec.querySelector('.section-inner') || sec;
+        // 좌우여백은 «그 블록이 실제로 들어간 곳» 기준이어야 한다(합쳐 넣은 몸이면 그 상자)
+        const inner = ab.closest('.section-merged-part') || sec.querySelector('.section-inner') || sec;
         reapplyPadX(inner);
         applyAspectSync(ab);
         window.setAssetImageFromSrc?.(ab, src);

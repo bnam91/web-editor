@@ -853,7 +853,9 @@ function _listItemFor(id, projPath, metaFast) {
         if (meta && meta.listMetaV && meta.name != null) {
           return { id, name: meta.name, type: meta.type || null, createdAt: meta.createdAt || null,
                    updatedAt: meta.updatedAt || null, thumbnail: meta.thumbnail || null, marketRef: meta.marketRef || null,
-                   collabRef: meta.collabRef || null };
+                   collabRef: meta.collabRef || null,
+                   // ★즐겨찾기는 collabRef 와 같은 «이 설치의 상태» — proj.json(문서)이 아니라 meta 에 산다
+                   favorite: meta.favorite === true };
         }
       }
     } catch (_) { /* stat/parse 실패 → 풀파싱 폴백 */ }
@@ -865,16 +867,18 @@ function _listItemFor(id, projPath, metaFast) {
   // ★collabRef 는 proj.json 이 아니라 meta 에만 산다(원격 연결은 «문서»가 아니라 «이 설치»의 상태다).
   //   그래서 풀파싱 폴백 경로에서도 meta 를 읽어 와야 배지가 안 사라진다.
   let collabRef = null;
+  let favorite = false;
   if (metaPath && fs.existsSync(metaPath)) {
     try {
       const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
       if (meta.thumbnail) thumbnail = meta.thumbnail;
       collabRef = meta.collabRef || null;
+      favorite = meta.favorite === true;   // ★빠른 경로와 «같은 곳»에서 읽는다 — 갈리면 배지가 깜빡인다
     } catch {}
   }
   if (metaFast) { try { _refreshListMeta(data.id, data); } catch (_) {} }
   return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt,
-           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, collabRef };
+           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, collabRef, favorite };
 }
 
 /* ── IPC: AI Image Gen ──

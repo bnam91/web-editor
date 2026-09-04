@@ -290,6 +290,42 @@
   box-sizing: border-box;
   pointer-events: auto;
 }
+/* ── 섹션 배경 «위치 편집» (image-handling.js: enterSectionBgEditMode) ──
+   프록시 = 섹션 padding-box 를 덮는 «에셋 블록 대역». 편집 중에만 존재하고
+   직렬화·내보내기에서 제거된다(section-serialize / save-load / export-image).
+   보이는 건 «진짜 배경 + 고스트»뿐이라 프록시 img 는 opacity:0 이다. */
+.sec-bg-proxy {
+  position: absolute;
+  inset: 0;                /* = 섹션 padding box = background-position 의 기준 영역 */
+  overflow: visible;       /* 클리핑은 .asset-img-clip 담당 (에셋과 동일) */
+  background: none;
+  cursor: move;
+  z-index: 80;             /* 섹션 콘텐츠 위 · 선택 아웃라인(.section-block.selected::after, 90) 아래 */
+  border-radius: inherit;
+}
+.sec-bg-proxy .asset-img { opacity: 0; }  /* 기하 담당만 — 그리기는 진짜 배경 + 고스트 */
+/* 프레임 «밖» 원본 미리보기 — #ss-handles-overlay(=#canvas 밖)에만 산다.
+   래퍼가 «캔버스 뷰포트»로 잘라 좌우 패널까지 반투명해지는 걸 막는다. */
+.sec-bg-ghost-wrap {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;              /* .img-boundary(15)·핸들(9992) 아래 */
+}
+.sec-bg-ghost {
+  position: absolute;
+  opacity: 0.42;
+  /* ★프레임 «밖» 고스트도 잡아 옮길 수 있어야 한다.
+     none 이면 프록시(=섹션 padding-box)만 눌리므로 «섹션 안에서만» 드래그가 시작됐다(2026-09-04 신고).
+     래퍼(.sec-bg-ghost-wrap)는 none 그대로 — 고스트 «사각형»만 반응하게 둔다.
+     ⑴ 고스트엔 punch-out(polygon 열쇠구멍)이 걸려 있고 clip-path 는 «히트테스트도» 도려낸다
+        ⇒ 프레임 «안»은 그대로 프록시가 받는다(역할이 안 겹친다).
+     ⑵ .img-boundary(pointer-events:none)·핸들(z 9992)보다 아래라 조작을 안 가린다. */
+  pointer-events: auto;
+  cursor: move;
+  object-fit: fill;
+}
+
 /* 스냅 가이드 라인 */
 .img-snap-guide-h {
   position: absolute;

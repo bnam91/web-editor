@@ -75,6 +75,7 @@ window.applyAssetFullBleed = applyAssetFullBleed;
 function applyPadXToSection(inner, padX) {
   inner.style.paddingLeft  = padX ? padX + 'px' : '';
   inner.style.paddingRight = padX ? padX + 'px' : '';
+  window.syncMergedPartMargins?.(inner.closest('.section-block'), { applyPadding: true });
   // section-inner의 '직접' 자식 ab만 처리 — row 안의 ab는 row 핸들러가 관리
   inner.querySelectorAll(':scope > .asset-block').forEach(ab => {
     if (getEffectiveUsePadx(ab) && padX > 0) {
@@ -151,20 +152,16 @@ export function showPageProperties() {
         <span class="prop-block-name">Page</span>
       </div>
     </div>
+    <!-- ★캔버스 바탕색은 왼쪽 Design System 패널로 옮겼다(현빈 2026-09-03).
+         여기 「배경색」이라고 있으니 «섹션 배경»인 줄 알고 누르는 일이 잦았고,
+         그러면 캔버스 전체 바탕이 바뀌어 「왜 이래?」가 됐다.
+         자리만 비우면 또 찾게 되므로 «어디로 갔는지»를 남긴다. -->
     <div class="prop-section">
       <div class="prop-section-title">Background</div>
-      <div class="prop-color-row">
-        <span class="prop-label">배경색</span>
-        <div class="prop-color-field">
-          <div class="prop-color-swatch" style="background:${bg}">
-            <input type="color" id="page-bg-color" value="${bg}">
-          </div>
-          <input type="text" class="prop-color-hex" id="page-bg-hex" value="${bgHexUp}" maxlength="6" aria-label="Color">
-          <label class="prop-color-alpha" title="Opacity">
-            <input type="text" class="prop-color-alpha-input" id="page-bg-alpha-input" value="${bgAlpha}" aria-label="Opacity">
-            <span class="prop-color-alpha-suffix">%</span>
-          </label>
-        </div>
+      <div class="prop-row">
+        <span class="prop-label" style="width:auto;color:var(--ui-text-muted);font-size:11px;line-height:1.5">
+          캔버스 바탕색은 왼쪽 <b>Design System</b> 패널에 있습니다.
+        </span>
       </div>
     </div>
     <div class="prop-section" style="opacity:0.4;pointer-events:none;" title="잘못 누르는 사고 방지로 일시 비활성 — 필요 시 prop-page.js에서 복구">
@@ -227,95 +224,6 @@ export function showPageProperties() {
       <button class="prop-export-btn" id="page-export-all-btn">전체 섹션 내보내기</button>
     </div>`;
 
-  const bgPicker   = document.getElementById('page-bg-color');
-  const bgHex      = document.getElementById('page-bg-hex');
-  const bgAlphaInp = document.getElementById('page-bg-alpha-input');
-  const bgSwatch   = bgPicker.closest('.prop-color-swatch');
-
-  const _bgToRgba = () => {
-    const h = (state.pageSettings.bg || '#000000').replace('#','');
-    const r = parseInt(h.slice(0,2), 16);
-    const g = parseInt(h.slice(2,4), 16);
-    const b = parseInt(h.slice(4,6), 16);
-    const a = Math.max(0, Math.min(1, (state.pageSettings.bgAlpha ?? 100) / 100));
-    return `rgba(${r},${g},${b},${a})`;
-  };
-  const _applyBg = () => {
-    const rgba = _bgToRgba();
-    canvasWrap.style.background = rgba;
-    bgSwatch.style.background = rgba;
-  };
-
-  bgPicker.addEventListener('input', () => {
-    state.pageSettings.bg = bgPicker.value;
-    bgHex.value = bgPicker.value.replace('#','').toUpperCase();
-    // 솔리드 색 선택 시 그라데이션 해제(잔상 방지) — 솔리드로 복귀
-    delete state.pageSettings.bgGradient;
-    _applyBg();
-  });
-  bgPicker.addEventListener('change', () => {
-    window.pushHistory?.();
-    window.scheduleAutoSave?.();
-  });
-  bgHex.addEventListener('input', () => {
-    const v = bgHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      state.pageSettings.bg = '#' + v.toLowerCase();
-      bgPicker.value = state.pageSettings.bg;
-      _applyBg();
-    }
-  });
-  bgHex.addEventListener('change', () => {
-    const v = bgHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      window.pushHistory?.();
-      window.scheduleAutoSave?.();
-    }
-  });
-  bgHex.addEventListener('blur', () => {
-    bgHex.value = (state.pageSettings.bg || '#000000').replace('#','').toUpperCase();
-  });
-  bgAlphaInp.addEventListener('input', () => {
-    const m = bgAlphaInp.value.match(/(\d+)/);
-    if (!m) return;
-    const p = Math.max(0, Math.min(100, parseInt(m[1])));
-    state.pageSettings.bgAlpha = p;
-    _applyBg();
-  });
-  bgAlphaInp.addEventListener('change', () => {
-    window.pushHistory?.();
-    window.scheduleAutoSave?.();
-  });
-  bgAlphaInp.addEventListener('blur', () => {
-    bgAlphaInp.value = String(state.pageSettings.bgAlpha ?? 100);
-  });
-
-  // ── 페이지 배경 그라데이션 수신 (color-picker gradient 탭) ──
-  // prop-shape.js 그라데이션 패턴 미러. goya-cp:gradient = 라이브 미리보기(매 프레임),
-  // goya-cp:gradient-commit = 사용자 확정(마우스업·select 변경) → pushHistory.
-  // NOTE(B6): export-html/export-image는 아직 solid bg만 읽으므로 내보내기엔 그라데이션 미반영(후속).
-  const _applyBgGradient = (css) => {
-    canvasWrap.style.background = css;
-    bgSwatch.style.background = css;
-  };
-  if (!bgPicker._gradWired) {
-    bgPicker._gradWired = true;
-    bgPicker.addEventListener('goya-cp:gradient', (e) => {
-      if (!e.detail || !e.detail.css) return;
-      state.pageSettings.bgGradient = JSON.stringify({
-        type: e.detail.type,
-        angle: e.detail.angle,
-        stops: e.detail.stops,
-      });
-      _applyBgGradient(e.detail.css);
-      if (e.detail.commit) window.pushHistory?.();
-      window.scheduleAutoSave?.();
-    });
-    bgPicker.addEventListener('goya-cp:gradient-commit', () => {
-      window.pushHistory?.();
-      window.scheduleAutoSave?.();
-    });
-  }
 
   const gapSlider = document.getElementById('section-gap-slider');
   const gapNumber = document.getElementById('section-gap-number');
@@ -439,4 +347,107 @@ export function showPageProperties() {
 }
 
 // Backward compat: classic scripts call this via window.*
+/* ── 캔버스 바탕색 — 왼쪽 Design System 패널의 컨트롤을 «한 번만» 배선한다.
+   ★2026-09-03 현빈 지시로 우측 「페이지」 패널에서 옮겨 왔다.
+     거기 「배경색」이라고 있으니 «섹션 배경»인 줄 알고 눌러 캔버스 전체 바탕이 바뀌는 일이 잦았다.
+   ★마크업(id·.prop-color-swatch 구조)은 «그대로» 옮겼다 — 커스텀 컬러피커의 그라데이션 탭이
+     그 구조에 붙기 때문에(color-picker.js openPicker), 모양을 바꾸면 그 기능이 조용히 사라진다.
+   ★요소가 DS 패널에 «상주»하므로 패널을 열 때마다 다시 걸 필요가 없다 — 중복 배선 가드. */
+export function wireCanvasBgControl() {
+  const _probe = document.getElementById('page-bg-color');
+  if (!_probe || _probe._canvasBgWired) return;
+  _probe._canvasBgWired = true;
+  const bgPicker   = document.getElementById('page-bg-color');
+  const bgHex      = document.getElementById('page-bg-hex');
+  const bgAlphaInp = document.getElementById('page-bg-alpha-input');
+  const bgSwatch   = bgPicker.closest('.prop-color-swatch');
+
+  const _bgToRgba = () => {
+    const h = (state.pageSettings.bg || '#000000').replace('#','');
+    const r = parseInt(h.slice(0,2), 16);
+    const g = parseInt(h.slice(2,4), 16);
+    const b = parseInt(h.slice(4,6), 16);
+    const a = Math.max(0, Math.min(1, (state.pageSettings.bgAlpha ?? 100) / 100));
+    return `rgba(${r},${g},${b},${a})`;
+  };
+  const _applyBg = () => {
+    const rgba = _bgToRgba();
+    canvasWrap.style.background = rgba;
+    bgSwatch.style.background = rgba;
+  };
+
+  bgPicker.addEventListener('input', () => {
+    state.pageSettings.bg = bgPicker.value;
+    bgHex.value = bgPicker.value.replace('#','').toUpperCase();
+    // 솔리드 색 선택 시 그라데이션 해제(잔상 방지) — 솔리드로 복귀
+    delete state.pageSettings.bgGradient;
+    _applyBg();
+  });
+  bgPicker.addEventListener('change', () => {
+    window.pushHistory?.();
+    window.scheduleAutoSave?.();
+  });
+  bgHex.addEventListener('input', () => {
+    const v = bgHex.value.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{6}$/i.test(v)) {
+      state.pageSettings.bg = '#' + v.toLowerCase();
+      bgPicker.value = state.pageSettings.bg;
+      _applyBg();
+    }
+  });
+  bgHex.addEventListener('change', () => {
+    const v = bgHex.value.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{6}$/i.test(v)) {
+      window.pushHistory?.();
+      window.scheduleAutoSave?.();
+    }
+  });
+  bgHex.addEventListener('blur', () => {
+    bgHex.value = (state.pageSettings.bg || '#000000').replace('#','').toUpperCase();
+  });
+  bgAlphaInp.addEventListener('input', () => {
+    const m = bgAlphaInp.value.match(/(\d+)/);
+    if (!m) return;
+    const p = Math.max(0, Math.min(100, parseInt(m[1])));
+    state.pageSettings.bgAlpha = p;
+    _applyBg();
+  });
+  bgAlphaInp.addEventListener('change', () => {
+    window.pushHistory?.();
+    window.scheduleAutoSave?.();
+  });
+  bgAlphaInp.addEventListener('blur', () => {
+    bgAlphaInp.value = String(state.pageSettings.bgAlpha ?? 100);
+  });
+
+  // ── 페이지 배경 그라데이션 수신 (color-picker gradient 탭) ──
+  // prop-shape.js 그라데이션 패턴 미러. goya-cp:gradient = 라이브 미리보기(매 프레임),
+  // goya-cp:gradient-commit = 사용자 확정(마우스업·select 변경) → pushHistory.
+  // NOTE(B6): export-html/export-image는 아직 solid bg만 읽으므로 내보내기엔 그라데이션 미반영(후속).
+  const _applyBgGradient = (css) => {
+    canvasWrap.style.background = css;
+    bgSwatch.style.background = css;
+  };
+  if (!bgPicker._gradWired) {
+    bgPicker._gradWired = true;
+    bgPicker.addEventListener('goya-cp:gradient', (e) => {
+      if (!e.detail || !e.detail.css) return;
+      state.pageSettings.bgGradient = JSON.stringify({
+        type: e.detail.type,
+        angle: e.detail.angle,
+        stops: e.detail.stops,
+      });
+      _applyBgGradient(e.detail.css);
+      if (e.detail.commit) window.pushHistory?.();
+      window.scheduleAutoSave?.();
+    });
+    bgPicker.addEventListener('goya-cp:gradient-commit', () => {
+      window.pushHistory?.();
+      window.scheduleAutoSave?.();
+    });
+  }
+}
+
 window.showPageProperties = showPageProperties;
+
+window.wireCanvasBgControl = wireCanvasBgControl;

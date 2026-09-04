@@ -220,6 +220,11 @@ function _revertTableRowToImg(tr) {
 }
 window.__revertTableRowToImg = _revertTableRowToImg;
 
+// ③ 「행별 높이」 절 접힘 상태 — 기본 «접힘». 패널 재생성(showTableProperties 재호출) 사이에만
+//    살아있으면 되므로 WeakMap 에 둔다(prop-banner02.js:9 _bn2ExpandedLines 와 같은 방식).
+//    ⚠️dataset 에 두지 않는 이유: UI 상태가 사용자 문서(저장 HTML)에 새어 들어가면 안 된다.
+const _tblRowHOpen = new WeakMap();
+
 export function showTableProperties(block) {
   const table    = block.querySelector('.tb-table');
   const thead    = table.querySelector('thead');
@@ -283,10 +288,28 @@ export function showTableProperties(block) {
                placeholder="${curRowH || 'auto'}" value="${h > 0 ? h : ''}" title="이 행 높이(px). 비우면 자동" style="width:60px;">
       </div>`;
     }).join('');
-    return `<div class="prop-row" style="align-items:flex-start;">
-      <span class="prop-label">행별 높이</span>
-      <div class="tbl-rowh-list" style="display:flex;flex-direction:column;gap:4px;flex:1;">${items}</div>
-    </div>`;
+    // ③ 행이 많으면 이 목록만으로 패널이 길어진다 → 기본 «접힘», 필요할 때 펼친다(2026-09-03 현빈).
+    //    ⚠️새 접기 UI 를 만들지 않았다 — prop-banner02.js:87 의 «prop-section-title + 쉐브론 +
+    //      본문 display:none» 한 벌을 그대로 쓴다(회전각·transition·stroke 폭까지 동일).
+    //      aria-expanded/role=button 은 prop-laurel.js:159·design-system.js:394 규율을 따랐다.
+    //    ⚠️hidden 속성 대신 style.display 를 쓴다 — hidden 은 display 클래스에 진다(MEMORY).
+    const _open = _tblRowHOpen.get(block) === true;
+    return `<div class="prop-section-title" id="tbl-rowh-toggle" role="button" tabindex="0"
+                 aria-expanded="${_open ? 'true' : 'false'}"
+                 style="display:flex;align-items:center;gap:6px;cursor:pointer;"
+                 title="${_open ? '접기' : '펼치기'}">
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
+             style="flex:0 0 auto;transform:rotate(${_open ? 90 : 0}deg);transition:transform .12s;">
+          <polyline points="2,2 6,4 2,6"/>
+        </svg>
+        <span style="flex:1 1 auto;">행별 높이</span>
+        <span class="prop-hint" style="flex:0 0 auto;">${rows.length}행</span>
+      </div>
+      <div id="tbl-rowh-body" style="display:${_open ? 'block' : 'none'};">
+        <div class="prop-row" style="align-items:flex-start;">
+          <div class="tbl-rowh-list" style="display:flex;flex-direction:column;gap:4px;flex:1;">${items}</div>
+        </div>
+      </div>`;
   };
 
   const rebuildTable = () => {
@@ -311,7 +334,7 @@ export function showTableProperties(block) {
         for (let i = ths.length; i < cols; i++) {
           const th = document.createElement('th');
           th.setAttribute('contenteditable','false');
-          th.textContent = '항목';
+          th.textContent = '항목';   // ★헤더는 일반 텍스트(2026-09-03 현빈) — placeholder 금지
           tr.appendChild(th);
         }
       } else {
@@ -621,7 +644,7 @@ export function showTableProperties(block) {
         if (refCell.className) cell.className = refCell.className;
         if (refCell.style.cssText) cell.style.cssText = refCell.style.cssText;
       }
-      if (isHead) cell.textContent = '항목';
+      if (isHead) cell.textContent = '항목';   // ★헤더는 일반 텍스트(2026-09-03 현빈)
       tr.appendChild(cell);
       // :img row면 새 셀도 placeholder로 자동 변환
       if (!isHead && tr.dataset.rowImg === 'true') {
@@ -827,6 +850,26 @@ export function showTableProperties(block) {
       window.pushHistory();
     });
   });
+
+  /* ③ 「행별 높이」 절 펼침/접힘 — 재렌더 없이 그 자리에서 토글(입력값·포커스 보존) */
+  const _rowhToggle = document.getElementById('tbl-rowh-toggle');
+  if (_rowhToggle) {
+    const _flip = () => {
+      const body = document.getElementById('tbl-rowh-body');
+      if (!body) return;
+      const next = body.style.display === 'none';
+      body.style.display = next ? 'block' : 'none';
+      _rowhToggle.setAttribute('aria-expanded', String(next));
+      _rowhToggle.title = next ? '접기' : '펼치기';
+      const sv = _rowhToggle.querySelector('svg');
+      if (sv) sv.style.transform = `rotate(${next ? 90 : 0}deg)`;
+      _tblRowHOpen.set(block, next);   // 행 추가/삭제로 패널이 재생성돼도 유지
+    };
+    _rowhToggle.addEventListener('click', _flip);
+    _rowhToggle.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _flip(); }
+    });
+  }
 
   /* 세로선 / 수평선 / 외곽 좌우 / 외곽 상하 토글 */
   const bindLineToggle = (id, dataKey) => {

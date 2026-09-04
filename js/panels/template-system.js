@@ -78,10 +78,11 @@ async function _loadCanvas(id) {
 
 async function saveAsTemplate(el, name, folder, category, tags, type = 'section') {
   const clone = el.cloneNode(true);
-  clone.classList.remove('selected');
+  clone.classList.remove('selected', 'sec-bg-editing');
+  clone.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
   clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
   clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
-  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint').forEach(el => el.remove());
+  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .sec-bg-proxy').forEach(el => el.remove());
 
   const id  = 'tpl_' + Date.now();
   const html = clone.outerHTML;
@@ -487,10 +488,11 @@ function startEditTemplate(id) {
     const sec = canvasEl.querySelector('.section-block.selected');
     if (!sec) { alert('덮어쓸 섹션을 먼저 선택하세요.'); return; }
     const clone = sec.cloneNode(true);
-    clone.classList.remove('selected');
+    clone.classList.remove('selected', 'sec-bg-editing');
+    clone.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
     clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
     clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
-    clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint').forEach(el => el.remove());
+    clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .sec-bg-proxy').forEach(el => el.remove());
     if (window.electronAPI?.saveTemplateCanvas) {
       await window.electronAPI.saveTemplateCanvas(id, clone.outerHTML);
     } else {
@@ -699,7 +701,7 @@ export async function saveBlockAsTemplate(block, name, folder = '블록', tagsSt
   // 저장용 클론 (핸들/편집모드 제거)
   const clone = block.cloneNode(true);
   clone.classList.remove('selected', 'hovered');
-  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint, .block-toolbar').forEach(el => el.remove());
+  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .sec-bg-proxy, .block-toolbar').forEach(el => el.remove());
   clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
   const html = clone.outerHTML;
 

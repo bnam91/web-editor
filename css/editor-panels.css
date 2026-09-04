@@ -275,6 +275,8 @@ body.right-panel-collapsed #tb-toggle-right-panel .pg-fill { opacity: 0; }
 .tpl-browser-trigger:hover { color: var(--ui-accent) !important; background: rgba(45,111,232,0.06); }
 .tpl-browser-trigger.browser-open { color: var(--ui-accent); background: rgba(45,111,232,0.1); }
 .file-section-chevron {
+  /* SVG 속성(width=10)에 기대지 않고 토큰으로 못 박는다 — 마크업이 바뀌어도 안 흔들리게 */
+  width: var(--ui-chevron); height: var(--ui-chevron);
   transition: transform 0.15s; flex-shrink: 0; opacity: 0.6;
 }
 .file-panel-section.collapsed .file-section-chevron {
@@ -696,6 +698,11 @@ body.right-panel-collapsed #tb-toggle-right-panel .pg-fill { opacity: 0; }
 #logo-text {
   display: flex; align-items: center; gap: 6px;
   min-width: 0;
+  /* ★배지가 셋(BETA·DEV·ADMIN)까지 붙을 수 있다 — 한 줄로 두면 마지막 배지가
+     패널 밖으로 잘려 «안 보인다»(실측: ADMIN 이 부모 오른끝 222 를 넘어 269 까지).
+     배지는 「지금 무슨 창인지」를 알리는 것이라 잘리면 존재 이유가 없다. ⇒ 넘치면 다음 줄로. */
+  flex-wrap: wrap;
+  row-gap: 3px;
 }
 #logo-name {
   font-size: var(--ui-fs-base); font-weight: var(--ui-fw-bold);
@@ -710,14 +717,25 @@ body.right-panel-collapsed #tb-toggle-right-panel .pg-fill { opacity: 0; }
   padding: 1px 5px;
   flex-shrink: 0;
 }
-#logo-branch-badge {
+#logo-branch-badge,
+#logo-admin-badge {
   font-size: var(--ui-fs-9); font-weight: var(--ui-fw-semibold);
-  color: #e8a030; letter-spacing: 0.2px;
-  border: 1px solid #5a3d10;
-  background: rgba(232,160,48,0.08);
+  letter-spacing: 0.2px;
   border-radius: 3px;
   padding: 1px 6px;
   flex-shrink: 0;
+}
+#logo-branch-badge {          /* DEV — 「설치본이 아니다」 */
+  color: #e8a030;
+  border: 1px solid #5a3d10;
+  background: rgba(232,160,48,0.08);
+}
+/* ADMIN — 「일반 사용자에게 없는 게 보인다」.
+   DEV 와 «다른 색»이어야 구분된다 — 둘은 서로 다른 질문에 답하는 배지다. */
+#logo-admin-badge {
+  color: #e05a6b;
+  border: 1px solid #5a1620;
+  background: rgba(224,90,107,0.10);
 }
 
 /* 프로젝트명 행 */
@@ -1142,8 +1160,10 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 }
 
 .layer-chevron {
-  width: 12px; height: 12px;
-  opacity: 0.4; transition: transform 0.15s; flex-shrink: 0;
+  /* 크기는 --ui-chevron 하나에서 온다 — 예전엔 12(레이어)/10(절 머리)로 갈려
+     세로로 이어지는 좌측 패널에서 «같은 화살표»가 20% 크게 보였다(현빈 2026-09-04). */
+  width: var(--ui-chevron); height: var(--ui-chevron);
+  opacity: 0.5; transition: transform 0.15s; flex-shrink: 0;
 }
 .layer-section.collapsed .layer-chevron { transform: rotate(-90deg); }
 
@@ -1170,9 +1190,13 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .layer-section.collapsed .layer-children { display: none; }
 
 /* ── Layer Row Group (멀티컬럼 컨테이너) ── */
-.layer-row-group { margin-bottom: 2px; border-radius: 4px; overflow: hidden; }
+/* ★margin-bottom 2px 제거 — 다른 줄은 전부 붙어 있는데(간격 0) 프레임 그룹만 2px 떠서
+   목록 리듬이 미세하게 깨졌다. 「간격은 0 아니면 4(섹션 구분)」 두 값만 쓴다(현빈 2026-09-04).
+   그룹 구분은 이미 들여쓰기 가이드선 + 굵은 헤더가 하고 있다. */
+.layer-row-group { border-radius: 4px; overflow: hidden; }
 .layer-row-header {
-  display: flex; align-items: center; gap: 8px;
+  /* gap 은 .layer-item(7px)과 같게 — 8 이면 아이콘·이름이 한 칸씩 밀려 세로선이 흔들린다 */
+  display: flex; align-items: center; gap: 7px;
   height: 28px; padding: 0 6px 0 8px;
   cursor: pointer; border-radius: 4px;
   transition: background 0.1s; user-select: none;
@@ -1185,7 +1209,11 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .layer-row-children { padding-left: 0; overflow: hidden; }
 .layer-row-group.collapsed .layer-row-children { display: none; }
 .layer-row-group.collapsed .layer-chevron { transform: rotate(-90deg); }
-.layer-row-header .layer-chevron { margin-left: -18px; position: relative; z-index: 1; }
+/* ★토글이 «자리를 안 먹게» 들여쓰기 칸 위로 당긴다.
+   −18px 은 셈이 안 맞았다: chevron 폭 + gap 만큼 당겨야 하는데 2px 이 남았고,
+   거기에 gap 8/7 혼재가 1px 씩 더해져 토글 있는 줄이 «4px 더 들어가» 보였다(실측).
+   chevron 10 + gap 7 = 17 ⇒ 정확히 상쇄돼 토글 유무와 무관하게 아이콘 31 · 이름 52 로 맞는다. */
+.layer-row-header .layer-chevron { margin-left: calc(-1 * (var(--ui-chevron) + 7px)); position: relative; z-index: 1; }
 /* Frame 그룹(sub-section)의 chevron은 보여야 함 */
 .layer-row-group.layer-dragging { opacity: 0.3; }
 .layer-item-nested { padding-left: 0; }
@@ -1228,6 +1256,9 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 /* type 태그(항목별 반복 메타 — 패널 최약 위계): name(--ui-text-sub) + 섹션헤더(9px볼드 #969696)보다 더 눌러
    8px + 한 톤 darker(#6e6e6e)로 크기·명도 모두 하위. 우측 여백으로 가장자리 붙음 완화 — 현빈 2026-06-14 */
 .layer-item-type { font-size: 8px; color: #6e6e6e; letter-spacing: 0.06em; text-transform: uppercase; margin-right: 10px; }
+/* 선택된 줄은 이름과 «타입»이 함께 액센트로 간다.
+   .layer-row-header.active 는 이미 그러는데(:1199) .layer-item.active 는 이름만 바꿔 왔다 — 맞춘다. */
+.layer-item.active .layer-item-type { color: var(--ui-accent-text); }
 .layer-ungroup-btn {
   display: none; margin-left: auto; padding: 2px 4px;
   width: 20px; height: 20px;
@@ -1793,7 +1824,12 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .insp-stat-row.insp-jump { cursor: pointer; border-radius: 3px; transition: background 0.12s; }
 .insp-stat-row.insp-jump:hover { background: var(--ui-bg-hover, rgba(255,255,255,0.06)); }
 /* 도착한 블록을 잠깐 표시한다 — 어디로 갔는지 모르면 이동이 무의미하다 */
-.insp-jump-flash { outline: 2px solid var(--ui-accent-primary, #2d6fe8) !important; outline-offset: 2px; }
+/* ★줌 보정 — 캔버스가 scale() 안이라 2px 는 40% 줌에서 «0.8px» 로 그려져 거의 안 보였다(실측).
+   레포의 --inv-zoom 을 쓴다(섹션 라벨·리사이즈 핸들이 이미 쓰는 방식, editor-blocks.css:373,417,1045). */
+.insp-jump-flash {
+  outline: calc(2px * var(--inv-zoom, 1)) solid var(--ui-accent-primary, #2d6fe8) !important;
+  outline-offset: calc(2px * var(--inv-zoom, 1));
+}
 /* 색 칩의 «사용 횟수» 배지 — 스와치 «위»에 얹어 칩 높이를 안 늘린다(2026-08-28) */
 .insp-color-swatch { position: relative; }
 .insp-color-count {

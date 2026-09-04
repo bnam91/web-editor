@@ -39,8 +39,23 @@ function jumpToElement(el) {
   // 블록은 섹션보다 작으니 «가운데»에 놓는다 — 위에 40px 만 두면 뭘 가리키는지 알기 어렵다.
   const center = Math.max(0, wrap.clientHeight / 2 - el.getBoundingClientRect().height / 2);
   wrap.scrollTo({ top: wrap.scrollTop + delta - center, behavior: 'smooth' });
-  el.classList.add('insp-jump-flash');
-  setTimeout(() => el.classList.remove('insp-jump-flash'), 1200);
+
+  /* ★그 블록을 «고른다» — 깜빡임만으로는 1.2초 뒤 아무 표시도 안 남아
+     「어디로 간 건지」를 알 수 없었다(현빈 2026-09-04). 선택하면 아웃라인이 남고
+     우측 패널도 그 블록으로 바뀐다. 섹션이면 selectSection, 블록이면 selectBlock. */
+  try {
+    if (el.classList.contains('section-block')) window.selectSection?.(el);
+    else if (window.selectBlock) window.selectBlock(el);
+  } catch (_) {}
+
+  /* ★깜빡임은 «스크롤이 끝난 뒤»부터 센다 — smooth 스크롤이 구르는 동안 시간이 흘러
+     도착했을 땐 이미 절반 이상 지나 있었다. */
+  clearTimeout(jumpToElement._t);
+  clearTimeout(jumpToElement._t2);
+  jumpToElement._t = setTimeout(() => {
+    el.classList.add('insp-jump-flash');
+    jumpToElement._t2 = setTimeout(() => el.classList.remove('insp-jump-flash'), 1400);
+  }, 320);
 }
 
 /* 클릭 위임 — 패널은 innerHTML 로 다시 그려지므로 «행마다» 리스너를 달면 새로 그릴 때 사라진다.
@@ -190,7 +205,13 @@ function renderInspectorPanel() {
     statRow('labelGroupBlocks', 'Tags', labelGroupBlocks),
     statRow('iconTextBlocks', 'Icon Text', iconTextBlocks),
     statRow('stepBlocks', 'Step', stepBlocks),
-    statRow('canvasBlocks', 'Canvas', canvasBlocks),
+    /* ★표시명은 «Card» 다 — 추가 메뉴(index.html)도, 레이어 패널(layer-panel-items.js
+       labels.canvas)도 Card 인데 여기만 'Canvas' 라 어긋나 있었다.
+       「캔버스」는 에디터의 «작업 화면»(#canvas)을 가리키는 말로 남겨 둔다 —
+       한 낱말이 두 가지를 가리키면 대화가 매번 갈린다.
+       클래스명 canvas-block / id cvb_ 는 «내부 이름»이라 그대로 둔다.
+       저장된 모든 프로젝트 HTML 에 박혀 있어서 바꾸면 기존 파일이 전부 깨진다. */
+    statRow('canvasBlocks', 'Card', canvasBlocks),
     statRow('shapeBlocks', 'Shape', shapeBlocks),
     // 0개면 «안 그린다» — 다른 줄과 같은 규율(없는 걸 0 으로 늘어놓지 않는다)
     statRow('logoBlocks', 'Logo', logoBlocks),

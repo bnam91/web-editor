@@ -855,6 +855,42 @@ function bindBlock(block) {
   }
 
   if (isTableB) {
+    // ── 셀 placeholder 한 벌 (텍스트 블록과 «같은 방식») ─────────────────────────
+    // 텍스트 블록의 실측 규율(_bindTextEditEl / dblclick, 이 파일 495~640행):
+    //   ⑴ 기본문구는 «값으로 들어있고» data-is-placeholder='true' 로 표시된다.
+    //   ⑵ 편집 진입 시 placeholder 면 «전체선택» → 첫 타이핑이 통째로 교체(지울 필요 없음).
+    //   ⑶ 타이핑되면 플래그 해제, 비운 채 blur 하면 기본문구 복원.
+    // 테이블 셀도 같은 세 규칙만 그대로 옮긴다(새 방식 발명 없음).
+    const _tblCellCaret = (cell) => {
+      const range = document.createRange();
+      range.selectNodeContents(cell);
+      // placeholder 면 전체선택(collapse 안 함) — block-drag.js:622 텍스트블록 분기 미러
+      if (cell.dataset.isPlaceholder !== 'true') range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    };
+    // 타이핑 즉시 placeholder 해제 + 비운 채 blur 시 기본문구 복원 (최초 1회만 바인딩)
+    const _tblBindCellPh = (cell) => {
+      if (cell._phBound) return;
+      cell._phBound = true;
+      cell.addEventListener('input', () => {
+        if (cell.dataset.isPlaceholder === 'true' && cell.textContent.trim() !== '') {
+          delete cell.dataset.isPlaceholder;
+        }
+      });
+      cell.addEventListener('blur', () => {
+        const ph = cell.dataset.placeholder;
+        if (!ph) return;
+        if (cell.textContent.trim() === '') {
+          cell.textContent = ph;
+          cell.dataset.isPlaceholder = 'true';
+        } else if (cell.textContent.trim() !== ph.trim()) {
+          delete cell.dataset.isPlaceholder;
+        }
+        // 문구와 «같으면» 플래그 유지 — 안내문구가 본문으로 굳는 지뢰 방지(텍스트블록 동일)
+      });
+    };
     // hydrate: 기존 :img row(저장된 HTML에서 복원된)에 더블클릭/x 버튼 핸들러 재바인딩
     block.querySelectorAll('tr[data-row-img="true"]').forEach(tr => window.__bindTableRowImg?.(tr));
     block.addEventListener('click', e => {
@@ -894,13 +930,9 @@ function bindBlock(block) {
         cell._editBefore = cell.textContent;
         cell.setAttribute('contenteditable','true');
         cell.focus();
-        // 커서를 끝으로 이동
-        const range = document.createRange();
-        range.selectNodeContents(cell);
-        range.collapse(false);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
+        _tblBindCellPh(cell);
+        // placeholder 면 전체선택, 실데이터면 커서를 끝으로 (focus 직후 «동기» 실행 필수)
+        _tblCellCaret(cell);
         // blur 시 편집 종료 + 변경 내용 히스토리 저장 (최초 1회만 등록)
         if (!cell._editBound) {
           cell._editBound = true;
@@ -940,12 +972,8 @@ function bindBlock(block) {
               if (nextCell) {
                 nextCell.setAttribute('contenteditable', 'true');
                 nextCell.focus();
-                const range = document.createRange();
-                range.selectNodeContents(nextCell);
-                range.collapse(false);
-                const sel = window.getSelection();
-                sel.removeAllRanges();
-                sel.addRange(range);
+                _tblBindCellPh(nextCell);
+                _tblCellCaret(nextCell);
                 if (!nextCell._editBound) {
                   nextCell._editBound = true;
                   nextCell.addEventListener('blur', () => {

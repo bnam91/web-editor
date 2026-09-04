@@ -91,6 +91,13 @@ async function exportHTMLFile() {
   // BL-CD-10: label-group은 render-재생성형이 아니라 직렬 DOM 보존형 — 에디터 전용 ✕삭제/＋추가
   // 버튼 노드가 저장 HTML에 남아 export에서 그대로 노출됐음. 노드 자체를 제거한다.
   clone.querySelectorAll('.label-item-delete-btn, .label-group-add-btn').forEach(el => el.remove());
+  /* ★편집 전용 임시 DOM — 이 클론은 «라이브 캔버스»에서 뜨고(=serializeCleanRoot 를 안 거친다),
+     내보낸 HTML 은 이 파일이 직접 쓰는 <style> 만 갖는다. 앱 CSS(.sec-bg-proxy .asset-img{opacity:0},
+     .asset-img-clip{overflow:hidden})가 «없으므로» 편집 중 내보내면 배경 이미지가 불투명하게
+     한 번 더, 그것도 클리핑 없이 겹쳐 찍힌다. 클래스가 아니라 «노드»를 지워야 한다. */
+  clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary, .img-corner-handle, .img-edge-handle, .img-rotate-zone').forEach(el => el.remove());
+  clone.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
+  clone.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   clone.querySelectorAll('.item-selected').forEach(el => el.classList.remove('item-selected'));
   clone.querySelectorAll('.bn2-line-selected').forEach(el => el.classList.remove('bn2-line-selected')); // ⑧ 편집용 마커
   clone.querySelectorAll('.bn2-line-empty').forEach(el => el.classList.remove('bn2-line-empty'));       // ⑸ 빈 줄 플레이스홀더
@@ -117,6 +124,11 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 /* layout */
 .section-block{position:relative;width:100%;}
 .section-inner{display:flex;flex-direction:column;}
+/* ★합쳐 넣은 아래 섹션의 몸 — 이 두 줄이 빠지면 내보낸 HTML 에서
+   ⑴ align-self 로 준 가운데·우측 정렬이 통째로 풀리고(flex 가 아니게 된다)
+   ⑵ 상자 안 절대배치 요소의 기준이 .section-block 으로 갈아타 y 가 튄다.
+   에디터에서 고친 좌표 튐이 «산출물에서만» 재발하는 자리다. */
+.section-merged-part{position:relative;display:flex;flex-direction:column;}
 .row{position:relative;display:flex;width:100%;}
 .row[data-layout="stack"]{flex-direction:column;}
 .row[data-layout="flex"]{flex-direction:row;gap:8px;align-items:stretch;}

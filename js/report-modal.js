@@ -98,6 +98,8 @@
           '<span class="report-label">이미지 (선택)</span>' +
           '<div class="report-attach" id="report-attach">' +
             '<button class="report-attach-add" type="button" id="report-attach-add">＋ 이미지 첨부</button>' +
+            // ★단축키만 있으면 아무도 모른다 — 붙여넣기·끌어놓기가 «된다»는 걸 여기서 말한다
+            '<span class="report-attach-hint">여기에 끌어다 놓거나 ⌘V 로 붙여넣어도 됩니다</span>' +
           '</div>' +
           '<input type="file" id="report-file" accept="image/png,image/jpeg,image/webp" multiple hidden>' +
 
@@ -151,6 +153,50 @@
       ev.target.value = '';   // 같은 파일을 다시 고를 수 있게
     });
 
+    /* ── 붙여넣기(⌘V) ────────────────────────────────────────────────────
+       버그를 알릴 때 사람은 방금 «찍어둔» 스크린샷을 붙이고 싶어한다.
+       지금까지는 파일로 저장했다가 다시 골라야 해서 두 단계가 헛돌았다.
+       ★글자를 붙여넣는 건 그대로 둔다 — 클립보드에 «이미지가 있을 때만» 가로챈다.
+         본문 입력칸에서 글 붙여넣기가 막히면 그게 더 큰 손해다.
+       ★document 에 건다 — 모달 안 어디에 커서가 있든 되게. 열려 있을 때만 동작. */
+    document.addEventListener('paste', function (ev) {
+      var m = document.getElementById('report-modal');
+      if (!m || m.style.display === 'none') return;
+      var items = ev.clipboardData && ev.clipboardData.items;
+      if (!items) return;
+      var files = [];
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].kind !== 'file') continue;
+        if (!/^image\//.test(items[i].type || '')) continue;
+        var f = items[i].getAsFile();
+        if (f) files.push(f);
+      }
+      if (!files.length) return;            // 이미지가 없으면 «건드리지 않는다»(글 붙여넣기 보존)
+      ev.preventDefault();
+      onPickFiles(files);
+    });
+
+    /* ── 끌어놓기 ────────────────────────────────────────────────────────
+       ★dragover 에서 preventDefault 를 «해야» drop 이 온다. 안 하면 브라우저가
+         그 파일을 창에 열어버려 편집 중이던 신고 내용이 통째로 날아간다. */
+    el.addEventListener('dragover', function (ev) {
+      if (!ev.dataTransfer || !Array.prototype.some.call(ev.dataTransfer.types || [], function (t) { return t === 'Files'; })) return;
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = 'copy';
+      el.classList.add('report-dropping');
+    });
+    el.addEventListener('dragleave', function (ev) {
+      if (!el.contains(ev.relatedTarget)) el.classList.remove('report-dropping');
+    });
+    el.addEventListener('drop', function (ev) {
+      if (!ev.dataTransfer || !ev.dataTransfer.files || !ev.dataTransfer.files.length) return;
+      ev.preventDefault();
+      el.classList.remove('report-dropping');
+      var imgs = Array.prototype.filter.call(ev.dataTransfer.files, function (f) { return /^image\//.test(f.type || ''); });
+      if (!imgs.length) { toast('이미지 파일만 첨부할 수 있습니다'); return; }
+      onPickFiles(imgs);
+    });
+
     el.querySelector('#report-capture').addEventListener('change', function (ev) {
       onToggleCapture(ev.target.checked);
     });
@@ -190,15 +236,23 @@
           fr.onerror = function () { resolve(''); };
           fr.readAsDataURL(f);
         }).then(function (dataUrl) {
-          if (!dataUrl) { toast('「' + f.name + '」을 읽지 못했습니다'); return; }
+          if (!dataUrl) { toast('「' + (f.name || '이미지') + '」을 읽지 못했습니다'); return; }
           return shrinkToJpeg(dataUrl).then(function (r) {
             if (!state) return;
-            state.attachments.push({ name: f.name, dataUrl: r.dataUrl, kb: approxKB(r.dataUrl) });
+            // ★클립보드에서 온 파일은 이름이 'image.png' 처럼 뭉뚱그려지거나 비어 있다.
+            //   목록에서 「어느 게 뭔지」 구분되게 붙여넣은 것임을 밝힌다.
+            var nm = f.name && f.name !== 'image.png' ? f.name : '붙여넣은 이미지';
+            state.attachments.push({ name: nm, dataUrl: r.dataUrl, kb: approxKB(r.dataUrl) });
           }).catch(function () { toast('「' + f.name + '」은 이미지가 아닙니다'); });
         });
       });
     }, Promise.resolve());
     run.then(renderAttachments);
+  }
+
+  function _markHasItems(box) {
+    if (!box) return;
+    box.classList.toggle('has-items', box.querySelectorAll('.report-thumb').length > 0);
   }
 
   function renderAttachments() {
@@ -209,8 +263,14 @@
     state.attachments.forEach(function (a, i) {
       var chip = document.createElement('span');
       chip.className = 'report-thumb';
-      chip.innerHTML = '<span title="' + esc(a.name) + '">' + esc(a.name) + '</span>' +
-        '<small style="color:var(--ui-text-dim)">' + a.kb + 'KB</small>' +
+      /* ★이름만 있으면 «무엇을 붙였는지» 알 수 없다 — 붙여넣은 것들은 이름이 다 같다.
+         그림을 보여줘야 잘못 붙인 걸 «보내기 전에» 알아챈다. */
+      chip.innerHTML =
+        '<img class="report-thumb-img" src="' + a.dataUrl + '" alt="">' +
+        '<span class="report-thumb-meta">' +
+          '<span class="report-thumb-name" title="' + esc(a.name) + '">' + esc(a.name) + '</span>' +
+          '<small>' + a.kb + 'KB</small>' +
+        '</span>' +
         '<button type="button" aria-label="첨부 제거">✕</button>';
       chip.querySelector('button').addEventListener('click', function () {
         state.attachments.splice(i, 1);
@@ -220,6 +280,7 @@
     });
     var add = el.querySelector('#report-attach-add');
     add.disabled = attachCount() >= MAX_IMAGES;
+    _markHasItems(box);
   }
 
   /* ── 화면 캡처 ──────────────────────────────────────────────────────────

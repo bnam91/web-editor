@@ -61,7 +61,16 @@ export function wireLabelSection({ ctx }) {
   const pillHNumber = document.getElementById('label-pill-height-number');
   const lhSlider    = document.getElementById('txt-label-h-slider');
   const lhNumber    = document.getElementById('txt-label-h-number');
+  // ★원형(Circle)은 «패딩으로 커지지 않는다» — CSS 가드가 padding:0 !important 로 못박고
+  //   크기를 인라인 width/height 로 잡기 때문이다. 그래서 원형에선 지름을 직접 바꾼다.
+  //   (안 그러면 슬라이더를 끝까지 밀어도 25.6px 그대로 — 2026-09-03 현빈 신고 실측.)
+  const _isCircle = () => ctx.contentEl.dataset.shape === 'circle';
   const setPillH = v => {
+    if (_isCircle()) {
+      ctx.contentEl.style.width  = v+'px';
+      ctx.contentEl.style.height = v+'px';
+      return;
+    }
     const half = Math.round(v/2);
     ctx.contentEl.style.paddingTop = half+'px';
     ctx.contentEl.style.paddingBottom = half+'px';
@@ -152,6 +161,9 @@ export function wireLabelSection({ ctx }) {
     ctx.contentEl.style.justifyContent = 'center';
     // Circle은 숫자만 — 항상 "1"로 덮어쓰기 (사용자가 직접 2,3 등으로 변경 가능)
     ctx.contentEl.textContent = '1';
+    // ★슬라이더를 지금 지름(64)에 맞춰 둔다. 안 맞추면 첫 드래그에서 «이전 pill 높이»부터
+    //   시작해 크기가 툭 튄다(슬라이더가 가리키는 값과 실제가 어긋난 상태).
+    syncPillH(64);
     const rSlider2 = document.getElementById('label-radius-slider');
     const rNumber2 = document.getElementById('label-radius-number');
     if (rSlider2) { rSlider2.value = 999; rNumber2.value = 999; }
