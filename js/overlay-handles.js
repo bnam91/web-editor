@@ -3,6 +3,7 @@
    Resize / radius handles for frames, mockups, icons, assets, canvas, vectors
    Extracted from drag-drop.js (lines ~13–988)
 ═══════════════════════════════════ */
+import { applyFrameTransform, applyFrameRotationMargin } from './frame-geometry.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -133,16 +134,9 @@ const _FRAME_ROTATE_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.
 // 프레임 회전 드래그 — 중심 기준 atan2 자유회전, Shift=15° 스냅.
 // dataset.rotateDeg + 합성 transform(translate·rotate·scale) 규약(prop-frame·save-load과 동일).
 function _composeFrameTransform(ss) {
-  const tx = parseInt(ss.dataset.translateX) || 0;
-  const ty = parseInt(ss.dataset.translateY) || 0;
-  const rd = parseFloat(ss.dataset.rotateDeg) || 0;
-  const fx = ss.dataset.flipH === '1' ? -1 : 1;
-  const fy = ss.dataset.flipV === '1' ? -1 : 1;
-  if (!tx && !ty && !rd && fx === 1 && fy === 1) {
-    ss.style.removeProperty('transform');
-  } else {
-    ss.style.transform = `translate(${tx}px,${ty}px) rotate(${rd}deg) scale(${fx},${fy})`;
-  }
+  // SSOT = js/frame-geometry.js. transform 문자열 합성 + 회전 AABB 세로 마진 보정을 함께 한다.
+  // identity:'clear' 는 «이 경로의 기존 규약»(항등이면 style.transform 제거)을 그대로 유지한 것.
+  applyFrameTransform(ss, { identity: 'clear' });
 }
 function _onFrameRotateMouseDown(e, ss) {
   if (e.button !== 0) return;
@@ -291,6 +285,9 @@ function _onHandleMouseDown(e, ss, dir) {
     if (!isFullWidth) {
       ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
     }
+    // 회전한 프레임을 리사이즈하면 AABB 도 같이 변한다 → 세로 마진 보정 재계산.
+    // sizeHint 로 넘겨 offsetWidth/Height 재측정(강제 리플로우) 없이 계산한다.
+    if (_blockRotationDeg(ss)) applyFrameRotationMargin(ss, { w: newW, h: isFullWidth ? ss.offsetHeight : newH });
     // 그룹: 자식들을 좌상단(0,0) 원점 기준 비례 스케일 (기준은 style 기반 groupStartW/H)
     if (isGroup && groupSnap) {
       const sx = groupStartW ? newW / groupStartW : 1;

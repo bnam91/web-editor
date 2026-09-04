@@ -3,6 +3,7 @@ import { externalizeProjectData, recordExternalizeBaseline } from './asset-exter
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
+import { applyFrameTransform } from '../frame-geometry.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
 /* ══════════════════════════════════════
@@ -1067,14 +1068,10 @@ function rebindAll(opts = {}) {
     if (ss.dataset.justifyContent) ss.style.justifyContent = ss.dataset.justifyContent;
     if (ss.dataset.gap)            ss.style.gap            = ss.dataset.gap + 'px';
     // 위치 / 회전 / 반전 복원
-    const _tx = parseInt(ss.dataset.translateX) || 0;
-    const _ty = parseInt(ss.dataset.translateY) || 0;
-    const _rd = parseFloat(ss.dataset.rotateDeg) || 0;
-    const _fx = ss.dataset.flipH === '1' ? -1 : 1;
-    const _fy = ss.dataset.flipV === '1' ? -1 : 1;
-    if (_tx || _ty || _rd || _fx !== 1 || _fy !== 1) {
-      ss.style.transform = `translate(${_tx}px,${_ty}px) rotate(${_rd}deg) scale(${_fx},${_fy})`;
-    }
+    // SSOT = js/frame-geometry.js. identity:'skip'(기본) = «이 경로의 기존 규약»
+    // — 항등이면 아무것도 안 한다(저장본의 transform 잔재를 건드리면 스태킹 컨텍스트가 바뀐다).
+    // 회전 AABB 세로 마진 보정은 여기서 재계산된다(회전 0 프레임엔 no-op → outerHTML 무변경).
+    applyFrameTransform(ss);
   });
 
   // table-block 로드 후 dataset 복원 (showHeader, cellAlign, fontSize, cellPad, rowH, outerWidth)

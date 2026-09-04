@@ -18,6 +18,7 @@ import {
   bindSectionDrag,
   bindSectionDropZone,
 } from './drag-drop.js';
+import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform } from './frame-geometry.js';
 
 /* ═══════════════════════════════════
    BLOCK FACTORY — make* / add* / addSection
@@ -460,6 +461,9 @@ function addTextBlock(type, opts = {}) {
       } else {
         _clampTextFrameWidth(tf, activeSS);
       }
+      // #2 «프레임 안 텍스트가 가운데 안 온다» — 좌표를 «안 준» 경우의 기본값을 프레임 중앙으로.
+      // ★opts.x/y/width 를 명시한 경로(MCP·드롭)는 사용자가 지정한 좌표라 손대지 않는다.
+      if (!hasAbsCoords) _placeAtFrameCenter(tf, activeSS);
     } else if (activeSS.dataset.fullWidth === 'true') {
       // A 모드: fullWidth 플로우 — 선택된 자손이 있으면 그것을 품은 직계 자식 다음 sibling으로 삽입
       let refChild = null;
@@ -553,6 +557,8 @@ function addBlankTextBlock(type = 'body', opts = {}) {
       tf.style.width = '100%';
       tf.dataset.width = '100%';
       _clampTextFrameWidth(tf, activeSS);
+      // #2 와 동일 — 빈 줄도 프레임 중앙에서 시작한다(폭 100% 라 좌우는 0, 세로가 실제로 움직인다).
+      _placeAtFrameCenter(tf, activeSS);
     } else if (activeSS.dataset.fullWidth === 'true') {
       let refChild = null;
       const selList = activeSS.querySelectorAll('.selected');
@@ -1619,6 +1625,32 @@ function _clampTextFrameWidth(tf, frameEl) {
   return tf.style.width;
 }
 
+/* freeLayout 프레임 «중앙»에 자식 하나를 놓는다 (수평·수직 «둘 다»).
+   ★«중앙»의 정의는 frameAlignOffset 하나 — props/prop-frame.js 의 정렬 버튼(_setAlign)이
+     쓰는 것과 «같은 술어»다. 두 벌로 갈라지면 「가운데 정렬했는데 자리가 다르다」가 난다.
+   ⚠️el 은 이미 frame 에 append 되어 있어야 한다(offsetWidth/Height 실측 필요).
+     텍스트프레임은 _clampTextFrameWidth 로 폭이 확정된 «뒤»에 불러야 한다.
+   같은 자리에 형제가 이미 있으면 +20px 대각선 캐스케이드(붙여넣기 관례와 동일). */
+function _placeAtFrameCenter(el, frame) {
+  if (!el || !frame) return null;
+  const off = frameAlignOffset(frame.clientWidth, frame.clientHeight,
+                               el.offsetWidth, el.offsetHeight, 'center', 'center');
+  // ★삽입 경로에서만 «음수 클램프» — 공유 술어(frameAlignOffset)는 클램프하지 않는다.
+  //   실측(2026-09-05): 에셋 프리셋은 780px 인데 기본 프레임은 520px 이라 순수 중앙은
+  //   top:-130px 이 되고, 프레임 overflow:hidden 이 «방금 넣은 이미지의 윗부분»을 잘랐다.
+  //   정렬 «버튼»(prop-frame _setAlign)은 사용자가 의도적으로 누른 것이라 음수를 허용하지만,
+  //   «삽입 기본값»이 블록을 프레임 밖으로 밀어내면 안 된다 → 여기서만 0으로 막는다.
+  const baseL = Math.max(0, off.left);
+  const baseT = Math.max(0, off.top);
+  const occupied = [...frame.children]
+    .filter(c => c !== el && !c.classList.contains('frame-resize-handle') && c.style.position === 'absolute')
+    .map(c => ({ left: parseInt(c.style.left) || 0, top: parseInt(c.style.top) || 0 }));
+  const pos = cascadeIfOccupied(baseL, baseT, occupied);
+  el.style.left = pos.left + 'px';
+  el.style.top  = pos.top  + 'px';
+  return pos;
+}
+
 /* freeLayout inner 안에서 absolute 블록들을 아래로 쌓을 Y 좌표 계산 */
 function _calcFreeLayoutStackY(inner) {
   const absEls = [...inner.querySelectorAll(':scope > *')].filter(el => el.style.position === 'absolute');
@@ -1659,6 +1691,9 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
       block.dataset.offsetY = stackY;
     }
     ss.appendChild(block);
+    // #3 «블록을 프레임 중앙에 놓기» — 좌표 미지정 삽입의 기본값을 프레임 중앙으로.
+    // append «뒤»에 불러야 offsetWidth/Height 가 실측된다. hasAbsCoords(MCP·명시좌표)면 유지.
+    if (!hasAbsCoords) _placeAtFrameCenter(block, ss);
     bindBlock(block);
     block.setAttribute('draggable', 'false');
     window.buildLayerPanel();
@@ -4883,12 +4918,8 @@ function updateFrameBlock(blockId, partial = {}) {
     applied.flipV = v === '1';
   }
   if (_transformTouched) {
-    const tx = parseInt(block.dataset.translateX) || 0;
-    const ty = parseInt(block.dataset.translateY) || 0;
-    const rd = parseFloat(block.dataset.rotateDeg) || 0;
-    const fx = block.dataset.flipH === '1' ? -1 : 1;
-    const fy = block.dataset.flipV === '1' ? -1 : 1;
-    block.style.transform = `translate(${tx}px,${ty}px) rotate(${rd}deg) scale(${fx},${fy})`;
+    // SSOT = js/frame-geometry.js. identity:'write' = prop-frame _applyTransform 과 동일 규약.
+    applyFrameTransform(block, { identity: 'write' });
   }
 
   // 10) bannerPreset — destructive. 자식 모두 사라짐. PM 호출 시 명시적 confirmDestructive=true 필요.
