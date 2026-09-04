@@ -3,11 +3,11 @@ project: /Users/a1/web-editor
 app_name: GODITOR (상페마법사 웹에디터)
 type: css-vars            # CSS 커스텀 프로퍼티 토큰 시스템
 playbook: playbooks/css-vars.md
-entry: index.html (Electron, main.js / name=sangpe-editor)
-cdp_port: 9334            # GoyaDesignEditor 0.5.0 — 9335는 죽어있음
+entry: index.html (Electron, main.js / package name=sangpe-editor = 옛 제품명, productName=GODITOR)
+cdp_port: 9334            # GODITOR v0.9.0 (구 표기 0.5.0 폐기) — 9335는 죽어있음
 notion_db: 329111a5-7788-8021-9027-deea1f33dd18   # Design Squad 투두 DB
 results_dir: .design/results
-git_head: 1afbe91
+git_head: 1bf10b2            # v0.9.0 (2026-09-04 리프레시)
 
 # ── HTML 리포트가 <link>할 앱 CSS (경로는 .design/html/ 기준 상대 — report-html.mjs용) ──
 # 이걸 선언하면 HTML 뷰에서 컴포넌트가 앱과 동일하게 실물 렌더됨(이 앱 리포트 최대 강점).
@@ -16,6 +16,14 @@ app_css:
   - ../../css/editor-base.css
   - ../../css/editor-props.css
   - ../../css/editor-blocks.css
+  # ── 2026-09-04 리프레시: 명세 기준(1afbe91) 이후 신설된 7표면 ──
+  - ../../css/report-modal.css
+  - ../../css/version-history.css
+  - ../../css/section-search.css
+  - ../../css/settings-admin.css
+  - ../../css/notice.css
+  - ../../css/pen-tool.css
+  - ../../css/font-substitute.css
 
 # ── 기준값 (숫자로 박음 — 기준 없는 감사는 취향 감사) ──
 grid_unit: 4              # --space-0..6 = 2/4/8/12/16/24/32
@@ -38,15 +46,36 @@ editor-base.css :root에 신설·확정된 표준. 새 컴포넌트는 raw px/he
 - **치수**: `--ui-btn-h`24 · `--ui-input-h`24 · `--ui-radius-sm/md/lg`4/6/10 · `--ui-form-label-w`56 · `--ui-row-gap`4 · `--ui-pad-panel`8 · `--ui-disabled-opacity`0.5
 - **컴포넌트 표준**: 슬라이더행 = `.prop-slider` + `.prop-number`(편집가능). 위험버튼 = `.prop-action-btn.danger`(블록) / `.prop-btn.prop-btn-danger`(항목✕). focus = 공용 `:focus-visible` 규칙.
 
-## FIX 반영 현황 (커밋 a7ad40b + 미커밋)
-✅ 저대비 AA / danger 토큰화(4방식→1) / 헤더아이콘 16px / 슬라이더행 표준화 / focus-visible 공용규칙 / malformed(var(--ui-border)322) 수정 / disabled opacity 통일
-🔵 진행대기(report-only): token-dualization 정본화(dead 68 + 파랑 31), comp-shelf 215줄 2중정의 제거, radius/shadow 이관(372 raw — pending 토큰 소비), bare 컨트롤 84 표준클래스 흡수
+## FIX 반영 현황 — ★2026-09-04 v0.9.0 기준 «재측정» (6월 표기는 낡아서 폐기)
+✅ **닫힘(실측 확인)**
+- 파랑 우회 hex(`#6fa3f7`/`#6cf`/`#6a9fd8`) = **0건**. 정본 `var(--ui-accent-primary)` **140회** 사용.
+- comp-shelf 2중정의 = 해소된 것으로 보임(`editor-extra.css` 한 파일 63줄에만 존재).
+- 6월 ✅목록(저대비 AA / danger 토큰화 / 헤더아이콘 16px / 슬라이더행 / focus-visible / malformed / disabled opacity)은 그대로 유효.
 
+🟡 **거의 닫힘(개략 — 정밀 재측정 필요)**
+- dead 토큰 68 → css/ 전체 토큰 정의가 **188 → 155**(신설 54 / 소멸 87). 소멸 87이 dead 정리와 정합하나 «어느 것이 dead였는지» 1:1 대조는 안 했다.
+
+❌ **여전히 열림 — 그리고 «늘었다»**
+- **raw radius/shadow: 6월 372 → 지금 464.**
+  - `border-radius` 477건 중 var 65 / **raw 412**
+  - `box-shadow` 81건 중 var 29 / **raw 52**
+  - ⇒ 「이관 대기」로 둔 사이 신설 7표면이 raw 로 더 쌓였다. **D-component/spacing 감사의 1순위.**
+- bare 컨트롤 84 → **미측정**(이번 리프레시에서 안 쟀다. 열린 것으로 둔다).
+
+⚠️ **측정 주의(이번에 실제로 당했다)**: `border-radius:\s*[0-9]+px` 로 세면 **1건**이 나온다 —
+단순 단일값만 잡히기 때문이다. 실제는 412건. **검사식의 첫 숫자를 결론으로 쓰지 마라.**
+raw 판정은 「`var(` 를 포함하지 «않는» 선언」으로 세라.
+
+## 리프레시 이력
+| 날짜 | 기준 커밋 | 한 일 |
+|---|---|---|
+| 2026-06-11/12 | a7ad40b·1afbe91 | 최초 명세 + FIX 1차 |
+| **2026-09-04** | **1bf10b2 (v0.9.0)** | 755커밋·CSS +2,513/−902 간극 반영: 신설 7표면 app_css 편입 · 진행대기 4건 실측 교체 · 버전/entry 표기 정정 |
 
 ## 앱 개요
 바닐라 JS ES모듈 + Electron 상세페이지 에디터. **다크 UI 크롬**(에디터 셸)이 **라이트 캔버스 콘텐츠**(사용자가 만드는 상세페이지)를 편집한다. 이 둘의 디자인 기준이 다르다 — UI 크롬은 토큰 강제, 캔버스 콘텐츠는 사용자 편집값이라 **불가침**.
 
-## 스타일 표면 (16개 CSS, 10,944줄)
+## 스타일 표면 (★2026-09-04 실측 23개 CSS, 12598줄 — 6월 표기 16개/10,944줄에서 증가. 아래 표는 6월 기준이라 신설 7표면이 빠져 있다)
 | 파일 | 줄 | 역할 | 위험 |
 |------|----|------|------|
 | design-tokens.css | 195 | 토큰 정의 (primitive→semantic 2단) | ⚠️ 의미토큰 미사용 (아래) |
