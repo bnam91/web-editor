@@ -1158,8 +1158,10 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 }
 
 .layer-chevron {
-  width: 12px; height: 12px;
-  opacity: 0.4; transition: transform 0.15s; flex-shrink: 0;
+  /* ★10px — 바로 위 절 머리(.file-section-chevron)가 10×10 이라 12 면 «같은 화살표»가
+     세로로 이어지는 좌측 패널에서 20% 크게 보였다(현빈 2026-09-04 지적). 크기를 맞춘다. */
+  width: 10px; height: 10px;
+  opacity: 0.5; transition: transform 0.15s; flex-shrink: 0;
 }
 .layer-section.collapsed .layer-chevron { transform: rotate(-90deg); }
 
@@ -1188,7 +1190,8 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 /* ── Layer Row Group (멀티컬럼 컨테이너) ── */
 .layer-row-group { margin-bottom: 2px; border-radius: 4px; overflow: hidden; }
 .layer-row-header {
-  display: flex; align-items: center; gap: 8px;
+  /* gap 은 .layer-item(7px)과 같게 — 8 이면 아이콘·이름이 한 칸씩 밀려 세로선이 흔들린다 */
+  display: flex; align-items: center; gap: 7px;
   height: 28px; padding: 0 6px 0 8px;
   cursor: pointer; border-radius: 4px;
   transition: background 0.1s; user-select: none;
@@ -1201,7 +1204,11 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .layer-row-children { padding-left: 0; overflow: hidden; }
 .layer-row-group.collapsed .layer-row-children { display: none; }
 .layer-row-group.collapsed .layer-chevron { transform: rotate(-90deg); }
-.layer-row-header .layer-chevron { margin-left: -18px; position: relative; z-index: 1; }
+/* ★토글이 «자리를 안 먹게» 들여쓰기 칸 위로 당긴다.
+   −18px 은 셈이 안 맞았다: chevron 폭 + gap 만큼 당겨야 하는데 2px 이 남았고,
+   거기에 gap 8/7 혼재가 1px 씩 더해져 토글 있는 줄이 «4px 더 들어가» 보였다(실측).
+   chevron 10 + gap 7 = 17 ⇒ 정확히 상쇄돼 토글 유무와 무관하게 아이콘 31 · 이름 52 로 맞는다. */
+.layer-row-header .layer-chevron { margin-left: -17px; position: relative; z-index: 1; }
 /* Frame 그룹(sub-section)의 chevron은 보여야 함 */
 .layer-row-group.layer-dragging { opacity: 0.3; }
 .layer-item-nested { padding-left: 0; }
