@@ -103,6 +103,11 @@
   <span id="debug-port-badge" class="tb-badge" style="display:none;"></span>
 <span id="mcp-info-badge" class="tb-badge" style="display:none;cursor:pointer;" title="클릭하면 MCP 주소 복사"></span>
 <span id="mcp-token-badge" class="tb-badge" style="display:none;cursor:pointer;" title="클릭하면 MCP 접속 토큰 복사 / Alt+클릭 재발급"></span>
+<!-- [A3] 앱 버전 — 상단바에서 «육안»으로 보인다(현빈 2026-09-04).
+     ★왜 여기도: 버전은 좌측 패널 로고 옆(#logo-version-badge)에만 있었다. 좌측 패널을 안 보는
+     흐름(윈도우에서 특히)에서는 「내가 몇 버전을 쓰는지」가 화면에 없다 — 버그 신고 때마다 되묻게 된다.
+     상단바 공용 .tb-badge 재사용(fsub·collab·mcp 배지와 같은 어휘). 값을 못 얻으면 «빈 배지»로 두지 않고 숨긴다. -->
+<span id="topbar-version-badge" class="tb-badge" style="display:none;" title="현재 앱 버전"></span>
   <div class="divider tb-hidden-mvp"></div>
   <button class="tb-btn tb-hidden-mvp" onclick="saveProject()" title="Commit & 히스토리">Commit</button>
   <div class="divider"></div>

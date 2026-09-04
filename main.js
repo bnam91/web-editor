@@ -14,6 +14,7 @@ const _GOYA_ASSET_MIME = {
   webp: 'image/webp', svg: 'image/svg+xml', avif: 'image/avif', bmp: 'image/bmp', ico: 'image/x-icon',
 };
 const { autoUpdater } = require('electron-updater');
+const updaterCache = require('./main/updater-cache');
 const path = require('path');
 
 // C4: 앱 이름 브랜딩 (macOS 상단 메뉴바 표시)
@@ -2497,6 +2498,39 @@ ipcMain.handle('capture-section-cdp', async (event, { x = 0, y = 0, width, heigh
 // });
 
 /* ── 자동업데이트 ── */
+
+/** electron-updater 가 쓰는 캐시 루트. 이름을 못 읽으면 null(= pending 정리 무동작).
+ *  ⛔app.getName() 으로 «추측»하지 않는다 — 엉뚱한 디렉터리를 지우느니 아무것도 안 하는 게 낫다. */
+function _updaterCacheDir() {
+  try {
+    return updaterCache.resolveUpdaterCacheDir({
+      appUpdateConfigPath: app.isPackaged
+        ? path.join(process.resourcesPath, 'app-update.yml')
+        : path.join(app.getAppPath(), 'dev-app-update.yml'),
+    });
+  } catch (e) {
+    console.warn('[updater-cache] 캐시 경로 해석 실패:', e.message);
+    return null;
+  }
+}
+
+/** ★설치가 «끝난 뒤» 남은 pending 페이로드를 지운다 — R1/A1.
+ *  판정·근거는 main/updater-cache.js 머리주석 참조. 여기선 «언제 부르나»만 정한다:
+ *  checkForUpdatesAndNotify() «앞». 뒤에 두면 방금 받은 pending 과 경합한다. */
+function cleanSpentUpdaterPending() {
+  const cacheDir = _updaterCacheDir();
+  if (!cacheDir) { console.log('[updater-cache] updaterCacheDirName 없음 — 정리 건너뜀'); return; }
+  try {
+    updaterCache.cleanPendingIfSpent({
+      cacheDir,
+      currentVersion: app.getVersion(),
+      logger: { info: (m) => console.log(m), warn: (m) => console.warn(m) },
+    });
+  } catch (e) {
+    console.warn('[updater-cache] 정리 실패(무시하고 계속):', e.message);
+  }
+}
+
 function setupAutoUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
@@ -2512,6 +2546,13 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
+    // 「이 pending 은 몇 버전인가」를 박아둔다 — 다음 실행의 정리 판정 «정본».
+    // (파일명 파싱은 폴백일 뿐이다: arch 접미사·프리릴리즈를 파일명만으론 못 가른다.)
+    try {
+      const cacheDir = _updaterCacheDir();
+      if (cacheDir) updaterCache.writePendingMarker({ cacheDir, version: info.version, fileName: info.downloadedFile ? path.basename(info.downloadedFile) : null });
+    } catch (e) { console.warn('[updater-cache] 마커 기록 실패:', e.message); }
+
     dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: '업데이트 준비 완료',
@@ -2526,6 +2567,9 @@ function setupAutoUpdater() {
   autoUpdater.on('error', (err) => {
     console.error('[updater] 오류:', err.message);
   });
+
+  // ★검사 «전»에 소진된 pending 을 비운다(뒤에 두면 갓 받은 페이로드와 경합).
+  cleanSpentUpdaterPending();
 
   autoUpdater.checkForUpdatesAndNotify();
 }
