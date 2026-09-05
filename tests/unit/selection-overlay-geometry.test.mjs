@@ -38,19 +38,22 @@ assert.ok(TOUCH, 'TOUCH_DEVICE_PX 상수를 못 찾았다');
 assert.equal(TOUCH[1], '1',
   '맞닿음 임계는 «디바이스 픽셀 1개» — 두 선이 한 픽셀 안에 겹쳐 «구분 불가»일 때만 지운다는 뜻이다');
 const SNAP = [...SRC.matchAll(/const _snap(Lo|Hi) = [^\n;]+;/g)].map(m => m[0]);
+const ROWE = [...SRC.matchAll(/const _rowEdge = [^\n;]+;/g)].map(m => m[0]);
+assert.equal(ROWE.length, 1, '_rowEdge 정의를 못 찾았다 — 연장 끝점은 «한 함수»여야 한다(조건④)');
 assert.equal(SNAP.length, 2, '_snapLo/_snapHi 정의를 못 찾았다 — 스냅이 «두 갈래»여야 선이 상자 밖으로 안 샌다');
 const ctx = vm.createContext({});
 vm.runInContext(
   `const TOUCH_DEVICE_PX = ${TOUCH[1]};\nconst _dpr = () => 2;\nconst _touchEps = () => TOUCH_DEVICE_PX / _dpr();\n` +
   SNAP.join('\n') + '\n' +
+  ROWE[0] + '\n' +
   slice('export function subtractInterval') + '\n' +
   slice('function _span') + '\n' +
   slice('function _dedupe') + '\n' +
   slice('function _edgesOf') + '\n' +
   'const _ZERO_R = { nw:[0,0], ne:[0,0], se:[0,0], sw:[0,0] };\n' +
-  'globalThis.__pure = { subtractInterval, _dedupe, _edgesOf, _snapLo, _snapHi };',
+  'globalThis.__pure = { subtractInterval, _dedupe, _edgesOf, _snapLo, _snapHi, _rowEdge };',
   ctx);
-const { subtractInterval, _dedupe, _edgesOf, _snapLo, _snapHi } = ctx.__pure;
+const { subtractInterval, _dedupe, _edgesOf, _snapLo, _snapHi, _rowEdge } = ctx.__pure;
 const DPR = 2;   // 실측 기기(dpr 2). 아래 검사는 dpr 1 에서도 성립해야 하므로 둘 다 돈다.
 
 /** 축정렬 상자 하나를 items 원소로. (l,t,r,b) = 스크린 CSS px 생좌표. */
@@ -61,7 +64,7 @@ function box(l, t, r, b, opts = {}) {
     rot: false, h, sw: h * 2, r: opts.r || R0,
     raw: { l, t, r, b },
     L: _snapLo(l, DPR, h), T: _snapLo(t, DPR, h), R: _snapHi(r, DPR, h), B: _snapHi(b, DPR, h),
-    xlo: l, xhi: r, ylo: t, yhi: b,
+    xlo: _rowEdge(l, DPR), xhi: _rowEdge(r, DPR), ylo: _rowEdge(t, DPR), yhi: _rowEdge(b, DPR),
   };
   return { g, edges: _edgesOf(g), dedupable: opts.dedupable !== false };
 }
@@ -217,4 +220,36 @@ test('★적대검수 조건③ — 굵기 1.5px(흰 점선)에서도 선이 상
   assert.ok(b.g.B + 0.75 <= 500.1 + 1e-9, '아래쪽 가장자리가 상자 밖으로 나갔다');
   assert.ok(b.g.L - 0.75 >= 100.3 - 1e-9, '왼쪽 가장자리가 상자 밖으로 나갔다');
   assert.ok(b.g.R + 0.75 <= 400.9 + 1e-9, '오른쪽 가장자리가 상자 밖으로 나갔다');
+});
+
+
+test('★조건④ — 연장은 «중심이 내 상자 안인 행»까지만 (이웃 픽셀을 안 건드린다)', () => {
+  /* 앞판은 «상자의 생 변»까지 늘렸다. 생 변이 디바이스 격자에 안 맞으면 그 좌표를 품은 행이
+   * 경계를 반씩 걸치고 «그 행의 중심은 이웃 안»이라, A 만 선택했는데 B 안이 4px 바뀌었다.
+   * ⇒ 픽셀의 «소유»로 규칙을 다시 세웠다: 행 i=[i/k,(i+1)/k), 중심 (i+0.5)/k 가 내 상자 안일 때만.
+   * ★한 함수여야 한다 — 「위가 끝나는 자리」와 「아래가 시작하는 자리」가 같아야 구멍도 겹침도 없다. */
+  for (const k of [1, 2, 3]) {
+    for (const e of [617.594, 200, 429.375, 523.7734, 100.25, 254.5636, 77.9]) {
+      const aEnd = _rowEdge(e, k), bStart = _rowEdge(e, k);
+      assert.equal(aEnd, bStart, `dpr${k}/e${e}: 위가 끝나는 자리와 아래가 시작하는 자리가 달라 구멍/겹침이 생긴다`);
+      const i = Math.floor(e * k);                 // 경계를 걸친 행
+      const center = (i + 0.5) / k;
+      const paintsA = (i + 1) / k <= aEnd + 1e-12;
+      const paintsB = i / k >= bStart - 1e-12;
+      assert.ok(!(paintsA && paintsB), `dpr${k}/e${e}: 한 행을 두 상자가 «둘 다» 칠한다`);
+      assert.equal(center < e, paintsA,
+        `dpr${k}/e${e}: 중심 ${center} 의 소유가 어긋났다 — 중심이 있는 쪽 «하나»만 칠해야 한다`);
+    }
+  }
+});
+
+test('★조건④ — 그래도 세로변이 모퉁이(가로선 스트로크)에 «닿는다»', () => {
+  for (const k of [1, 2, 3]) for (const h of [0.5, 0.75]) {
+    for (const [t, b] of [[254.5636, 500.1], [200, 400], [429.375, 523.7734]]) {
+      assert.ok(_rowEdge(t, k) <= _snapLo(t, k, h) - h + 1e-12,
+        `dpr${k}/h${h}: 세로변 시작이 윗선 스트로크보다 아래라 모퉁이가 빈다`);
+      assert.ok(_rowEdge(b, k) >= _snapHi(b, k, h) + h - 1e-12,
+        `dpr${k}/h${h}: 세로변 끝이 아랫선 스트로크에 못 미쳐 모퉁이가 빈다`);
+    }
+  }
 });
