@@ -48,18 +48,25 @@ test('ICB1 네 모서리 표는 «한 곳»에서 나온다 — 방향 4개가 �
   }
 });
 
-test('ICB2 ★핸들은 원 «둘레»에 밀착한다 — 상자 꼭지점은 원 밖으로 뜬다(판별력 증명 포함)', () => {
+test('ICB2 ★핸들은 «상자 꼭지점»에 놓인다 — 다른 블록과 같은 자리(판별력 증명 포함)', () => {
+  /* ★2026-09-05 정책 변경(현빈): 「다른 거처럼 «꼭지점»에 해줘야지. 아웃라인만 원으로 해도 되지 않나?」
+   * 이 테스트는 원래 반대(원 둘레 밀착)를 지키고 있었다 — «그때는» 상자가 원의 3배 폭이라 그게 옳았다.
+   * 상자를 원과 같게 줄인 뒤(33530d0) 전제가 사라졌는데 이 단정만 남아 있었다.
+   * ⇒ 정책이 바뀌면 «그 정책을 지키던 테스트»도 같이 바꾼다. 안 바꾸면 옛 규약이 새 코드를 막는다. */
   for (const R of [20, 48, 120, 200, 430]) {
     const off = OH.circumferenceOffset(R);
+    assert.equal(off, R, `R=${R}: 축별 거리가 R 이어야 상자 꼭지점이다(현재 ${off})`);
     for (const d of OH.CORNER_DIRS) {
       const { sx, sy } = OH.cornerSign(d);
       const dist = Math.hypot(off * sx, off * sy);
-      assert.ok(Math.abs(dist - R) < 1e-9, `${d} R=${R}: 중심거리 ${dist} ≠ 반지름 ${R} (원에서 떴다)`);
+      assert.ok(Math.abs(dist - R * Math.SQRT2) < 1e-9,
+        `${d} R=${R}: 중심거리 ${dist} ≠ R·√2 ${R * Math.SQRT2} (상자 꼭지점이 아니다)`);
     }
-    /* ★이 축이 «갈리는지» 증명 — 고치기 전의 배치(상자 꼭지점 (R,R))는 반드시 원 밖이어야 한다.
+    /* ★축이 «갈리는지» 증명 — 옛 배치(45° 둘레점, R/√2)는 이 단정을 반드시 «못» 넘겨야 한다.
        이게 성립 안 하면 위 단정은 무엇이든 통과하는 무의미한 측정이다. */
-    const boxCorner = Math.hypot(R, R);
-    assert.ok(boxCorner > R + 0.4 * R, `R=${R}: 상자 꼭지점이 원 밖이 아니다 — 측정축이 무의미`);
+    const oldOff = R / Math.SQRT2;
+    assert.ok(Math.abs(oldOff - R) > 0.25 * R,
+      `R=${R}: 옛 배치와 새 배치가 안 갈린다 — 측정축이 무의미`);
   }
 });
 

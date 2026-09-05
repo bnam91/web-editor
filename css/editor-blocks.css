@@ -622,7 +622,33 @@
 .icon-circle-block { position: relative; }
 /* ⚠️여기 있던 `border-radius: 8px` 는 위 기본값과 «같은 값의 중복»이었다 — 선택 상태가 모양을
    바꾸는 것처럼 읽혀 오해를 부른다. 기본값을 없앴으므로 이 줄도 뺀다(아웃라인은 각지게). */
-.icon-circle-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+/* ★아웃라인만 «원»으로 (현빈 확정 2026-09-05: 「아웃라인만 원으로 해도 되지 않나?」).
+ * outline 은 border-radius 를 따라 그려지므로 50% 면 선이 원 둘레를 탄다.
+ * ⛔전에 있던 `border-radius: 8px` 와는 다른 것이다 — 그건 «임의의 둥근 네모»라
+ *   원과도 다른 모양이었고 다른 블록의 «각진» 관례와도 어긋나 현빈이 지적했다.
+ *   여기 50% 는 «이 블록이 실제로 원이라서» 그 모양을 그대로 따르는 것이다.
+ * ★핸들은 반대로 «상자 꼭지점»에 둔다 — 잡는 자리는 앱 전체가 같아야 한다(overlay-handles.js). */
+.icon-circle-block.selected {
+  /* ⚠️outline 을 쓰면 «안 보인다» — 자식(.icb-circle)이 상자를 96×96 으로 «꽉 덮고» 배경이미지까지
+   * 그려서 그 위를 지나간다. outline 은 자기 배경 위에는 그려지지만 «자손» 아래에 깔린다.
+   *   실측: ab 는 자식이 0×0 이라 안 가리고, icb 는 자식이 상자를 100% 덮는다 → 선이 통째로 사라졌다
+   *   (현빈: 「아웃라인 위에 에셋이 올라가서 맞닿는 곳에 아웃라인이 일부 지워지는 이슈」).
+   * ⇒ 자손보다 «위»에 그릴 수 있는 ::before 링으로 그린다. 색·두께는 같은 토큰이라 보이는 건 동일하다.
+   *   ⛔자식(.icb-circle)에 직접 걸지 않는다 — 선택 표시는 «블록»의 상태이지 원의 속성이 아니고,
+   *     원에 걸면 회전·이미지 교체 같은 원 자신의 변화에 선이 딸려간다. */
+  outline: none;
+  border-radius: 50%;
+}
+.icon-circle-block.selected::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: var(--sel-outline-w) solid var(--sel-color);
+  box-sizing: border-box;
+  pointer-events: none;   /* 클릭 판정은 블록이 그대로 받는다 */
+  z-index: 3;             /* .icb-circle(z auto) 보다 위 — 이게 «가림»을 푸는 자리다 */
+}
 .icon-circle-block.drag-over .icb-circle { outline: 2px dashed var(--sel-color); }
 
 .icb-circle {
