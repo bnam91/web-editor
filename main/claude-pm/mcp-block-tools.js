@@ -294,6 +294,7 @@ function install({ tools, toolSchemas, registerTool, hide }) {
         throw new Error('blockId required (get it from get_canvas_state)');
       }
       let d = resolveType(type);
+      const guessedFromPrefix = !d;   // B5: type 미지정 → 아래에서 «접두로 추측»한다
       if (!d) {
         // 접두사 매칭 — 긴 접두사 우선(sb_ vs stb_ 처럼 헷갈리는 쌍 방어).
         const cands = BLOCK_TYPES.filter(x => x.upd && blockId.startsWith(x.pfx))
@@ -308,6 +309,22 @@ function install({ tools, toolSchemas, registerTool, hide }) {
       if (!d.upd) throw new Error(`type "${d.type}" has no update tool`);
       const args = { blockId, ...mergeProps(props, rest) };
       const res = await dispatch(d.upd, args);
+      /* B5(2026-09-05): 접두로 «추측»한 타입이 실제 DOM 클래스와 어긋나면 핸들러는
+         "<type>-block not found: <id>" 를 돌려준다 — 그런데 그 문장은 «블록이 없다» 와
+         «타입을 잘못 골랐다» 를 «바이트 단위로 동일하게» 말한다(실측: 강제 ss_ 붙인
+         asset-block 과 존재하지 않는 ss_ 가 같은 메시지). 접두가 어긋나는 건 실제로 있다 —
+         makeJokerBlock() 이 joker-block 에 «sb_»(=speech_bubble 접두) 아이디를 준다.
+         ⚠️실제 클래스는 여기서 «알아낼 수 없다»: install() 은 renderer 핸들(_rendererInvoker)을
+         못 받고, 유일한 조회 도구 get_canvas_state 는 .text-block 만 읽는다(js/canvas-state.js).
+         ⇒ 데이터는 안 망가지므로 «추측이었다»는 사실만 밝혀 헷갈림을 없앤다. */
+      if (guessedFromPrefix && res && res.ok === false && res.code === 'NOT_FOUND') {
+        res.guessedType = d.type;
+        res.message = `${res.message} — type "${d.type}" was GUESSED from the id prefix "${d.pfx}" and NOT verified, `
+          + 'so this also happens when the block DOES exist but is of another type (ids do not always match their type: '
+          + 'a joker block carries an "sb_" id, which this tool reads as speech_bubble). '
+          + `Retry as update_block{blockId:"${blockId}", type:"<actual type>", ...}. `
+          + 'This tool cannot read the block\'s real class — check it in the editor or via get_canvas_state (text blocks only).';
+      }
       return warnUnknown(res, d.upd, args);
     },
     {
