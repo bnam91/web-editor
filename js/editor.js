@@ -266,7 +266,17 @@ let _panRoomY = 0;   // scaler 상하 여백(px, 한쪽)
        스스로 자랐다. 세로만 «지우는 쪽»이 있어 대칭이 깨져 있었다.
    ⇒ 구조로 끊는다: **scaler 의 네 margin 에 쓰는 코드는 _applyPanRoom() «하나»뿐**.
      꼬리는 자기 값(_canvasTailY)만 갖고, 합성은 소유자가 한다.
-     ⇒ DOM 은 언제나 (_panRoomX, _panRoomY, _canvasTailY) 의 함수 = 「변수만 보는」 가드가 참이 된다. */
+     ⇒ DOM 은 언제나 (_panRoomX, _panRoomY, _canvasTailY) 의 함수 = 「변수만 보는」 가드가 참이 된다.
+
+   ⛔★★이 값이 «항상 0 으로 보여도 지우지 마라»(M22).
+     실측(2026-09-05): 팬 여지가 아래에 늘 한 화면(856px)을 두므로 selectSection 의
+     `short = target − max` 가 음수가 돼 꼬리는 «실제로 안 붙는다» — S2 sweep 9경로 전부 tail 0.
+     그래서 「안 쓰이니 정리하자」가 반드시 나온다. 그런데 이 항을 걷어내면
+     `marginBottom = _panRoomY + _canvasTailY` 라는 «식»이 `marginBottom = _panRoomY` 라는
+     «관행»으로 내려앉는다. 즉 「mb ≥ _panRoomY」가 **식의 성질**이 아니라 **아무도 안 어기기로
+     한 약속**이 되고, 다음에 꼬리 같은 «아래쪽 전용 여백»이 하나 더 필요해지는 순간
+     그 사람은 다시 marginBottom 을 «직접» 쓴다 — ⑴ 결함이 그대로 돌아온다.
+     ⇒ 지울 거면 «소유자 단일성 테스트»(pan-native-scroll.test.js §E)를 먼저 다시 세워라. */
 let _canvasTailY = 0;
 
 function _applyPanRoom() {
