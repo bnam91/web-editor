@@ -135,7 +135,13 @@ async function insertTemplate(tpl) {
     row.appendChild(blockEl);
 
     window.insertAfterSelected?.(sec, row);
+    /* ★rebindAll 비경유 문(2026-09-05 개명) — «옛 빌드가 저장한 블록 템플릿»이 여기로 들어온다.
+       ⛔이 자리는 설계 문서의 문 목록(subsection:182 / section:277)에 «없었다» — 구현 중 발견.
+       승격을 안 하면 bindBlock 안전망이 뒤늦게 잡아 warn 을 남긴다(= 문을 놓쳤다는 신호). */
+    window.migrateGridIdentity?.(blockEl);
     window.bindBlock?.(blockEl);
+    // ★이 문도 렌더러를 안 부른다 — 스냅샷(grd-*)과 CSS 가 어긋나지 않게 다시 그린다.
+    if (blockEl.classList.contains('grid-block')) window.renderGridBlock?.(blockEl);
     window.buildLayerPanel?.();
     window.pushHistory?.();
     window.scheduleAutoSave?.();
@@ -177,7 +183,9 @@ async function insertTemplate(tpl) {
     // 이벤트 재바인딩
     window.bindFrameDropZone?.(ss);
     // 내부 블록 이벤트 핸들러 재등록 (Section 삽입과 동일 수준)
-    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .joker-block').forEach(b => window.bindBlock?.(b));
+    // ★rebindAll 비경유 문 — 승격을 직접 한다(2026-09-05 개명).
+    window.migrateGridIdentity?.(ss);
+    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .joker-block').forEach(b => window.bindBlock?.(b));
     ss.querySelectorAll('.group-block').forEach(g => window.bindGroupDrag?.(g));
     if (ss.dataset.bg) ss.style.backgroundColor = ss.dataset.bg;
     if (ss.dataset.bgImg && !ss.style.backgroundImage) {
@@ -269,7 +277,14 @@ async function insertTemplate(tpl) {
   renderSectionTags(sec);   // 태그 칩 렌더 (bindSectionHitzone 래퍼가 로드 시 재생성하나, 삽입 즉시 표시 보장)
   bindSectionDrag(sec);
   bindSectionDropZone(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block').forEach(b => bindBlock(b));
+  // ★rebindAll 비경유 문 — 승격을 직접 한다(2026-09-05 개명).
+  window.migrateGridIdentity?.(sec);
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block').forEach(b => {
+    bindBlock(b);
+    // ★이 문은 «유일하게» 렌더러를 안 부르던 문이다 — 개명으로 스냅샷(grd-*)과 CSS 가
+    //   어긋나면 P1.5 「빈 줄이 손에 안 닿음」이 여기서만 재현된다. save-load.js:979 와 같은 줄.
+    if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
+  });
   sec.querySelectorAll('.group-block').forEach(g => {
     if (!g.querySelector(':scope > .group-block-label')) {
       const lbl = document.createElement('span');

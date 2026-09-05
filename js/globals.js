@@ -74,7 +74,7 @@ window.ANIM_GIF_ENABLED = ANIM_GIF_ENABLED;
  */
 export const BLOCK_DELEGATE_SEL = [
   '.text-block', '.asset-block', '.gap-block', '.icon-circle-block', '.table-block',
-  '.label-group-block', '.graph-block', '.divider-block', '.bridge-block', '.duo-block',
+  '.label-group-block', '.graph-block', '.divider-block', '.bridge-block', '.grid-block',
   '.infocard-block', '.innercard-block', '.icon-text-block', '.joker-block', '.shape-block',
   '.canvas-block', '.banner02-block', '.comparison-block', '.mockup-block', '.vector-block',
   '.step-block',

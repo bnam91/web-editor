@@ -317,8 +317,18 @@ section-block
 | Device Mockup | `.mockup-block` | `addDeviceMockupBlock(key, w)` | 디바이스 목업 |
 | Step | `.step-block` | `addStepBlock()` | 번호형 스텝 가이드 |
 | Vector | `.vector-block` | `addVectorBlock(svgString)` | 커스텀 SVG 벡터 |
-| Grid | `.grid-block` | `addNewGridBlock(cols, rows)` | 격자형 레이아웃 |
 | Joker | `.joker-block` | `addJokerBlock()` | 특수 목적 블록 |
+<!-- ★2026-09-04 정정: 이전 행에 `.grid-block`/`addNewGridBlock(cols, rows)`가 「구현」으로 적혀 있었으나
+     거짓 기재였다 — `.grid-block` 클래스는 (그 시점까지) 코드에 존재한 적이 없다.
+     실체는 NewGrid(`data-new-grid`, frame-block 기반, 2026-04-07 구현 → 2026-06-08 봉인, 2026-09-04 스텁 삭제)였다.
+     듀오 블록(`.duo-block`)이 이후 그 자리를 대신한다 — PLAN-gridblock.md 참조. -->
+<!-- ★★2026-09-05 재정정(위 정정문에 «대비»로 세운다 — 위 문장을 지우지 않는다):
+     이제 `.grid-block` 은 «실존한다». 다만 위가 말한 NewGrid 와는 «다른 물건»이다 —
+     듀오 블록이 이 이름으로 개명됐다(PLAN-grid-rename.md). 셸 정체성 = `.grid-block` /
+     `data-type="grid"` / 새 id 접두 `grd_`. `addNewGridBlock` 은 여전히 존재하지 않는다.
+     ⛔옛 저장본의 `.duo-block` 은 파일을 고치지 않고 «열 때» 승격한다. 옛 id `duo_…` 는 그대로 둔다(참조라서). -->
+| Grid | `.grid-block` | `addGridBlock({cols, rows?, cells?, gap?, valign?})` | 2~4열 × 1~4행 정형 그리드 (2026-09-05 개명 전 이름 = duo) |
+| ~~NewGrid~~ | ~~`data-new-grid`~~ | ~~`addNewGridBlock(cols, rows)`~~ | **삭제(봉인·2026-09-04 스텁 삭제)** — 위 Grid 와 무관한 별개 물건 |
 
 ---
 

@@ -31,7 +31,7 @@ function selectBlock(id) {
     else if (cl.contains('graph-block')) window.showGraphProperties?.(block);
     else if (cl.contains('divider-block')) window.showDividerProperties?.(block);
     else if (cl.contains('bridge-block')) window.showBridgeProperties?.(block);
-    else if (cl.contains('duo-block')) window.showDuoProperties?.(block);
+    else if (cl.contains('grid-block')) window.showGridProperties?.(block);
     else if (cl.contains('infocard-block')) window.showInfoCardProperties?.(block);
     else if (cl.contains('innercard-block')) window.showInnerCardProperties?.(block);
     else window.showTextProperties?.(block);

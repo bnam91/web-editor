@@ -29,7 +29,7 @@
     '.graph-block',
     '.divider-block',
     '.bridge-block',
-    '.duo-block',
+    '.grid-block',
     '.infocard-block',
     '.innercard-block',
     '.icon-text-block',

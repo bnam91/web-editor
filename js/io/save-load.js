@@ -553,6 +553,9 @@ function applyPageSettings() {
 }
 
 function migrateColsFromDOM(canvasEl) {
+  // ★duo-block → grid-block 셸 승격 (2026-09-05 개명, 구버전 저장 호환) — id 는 안 바꾼다.
+  //   아래 sub-section-block → frame-block 과 «같은 층·같은 패턴»이다.
+  window.migrateGridIdentity?.(canvasEl);
   // sub-section-block → frame-block 리네임 (구버전 저장 호환)
   canvasEl.querySelectorAll('.sub-section-block').forEach(el => {
     el.classList.replace('sub-section-block', 'frame-block');
@@ -577,16 +580,6 @@ function migrateColsFromDOM(canvasEl) {
       row.appendChild(child);
     });
     col.remove();
-  });
-  canvasEl.querySelectorAll('.row[data-layout="grid"][data-card-grid], .row[data-layout="grid"]').forEach(row => {
-    const cols = [...row.querySelectorAll(':scope > .col')];
-    if (cols.length === 0) return;
-    return;
-    cols.forEach(col => {
-      [...col.childNodes].forEach(child => row.appendChild(child));
-      col.remove();
-    });
-    row.dataset.cardGrid = '1';
   });
   // Flex/Grid row: col → NewGrid 변환 (deprecated, 2026-06-08 봉인)
   // NewGrid Frame(ss_*) 블록은 사용자 정책상 안 씀 (UI 노출 0, 플로팅 패널 숨김).
@@ -741,7 +734,7 @@ function rebindAll(opts = {}) {
         window.selectSectionWithModifier(sec, e);
         const row = e.target.closest('.row');
         // row 빈 여백 클릭은 row-active 제외 — 섹션 선택만 (fix(section-select), 판정=editor.js isRowMarginClick)
-        if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block')) {
+        if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block')) {
           document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
           row.classList.add('row-active');
           if (window.syncLayerRow) window.syncLayerRow(row);
@@ -957,7 +950,7 @@ function rebindAll(opts = {}) {
     window.bindGradientSelect?.(block);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -977,7 +970,7 @@ function rebindAll(opts = {}) {
         : b.classList.contains('laurel-block') ? 'lrb'
         : b.classList.contains('divider-block') ? 'dvd'
         : b.classList.contains('bridge-block') ? 'brg'
-        : b.classList.contains('duo-block') ? 'duo'
+        : b.classList.contains('grid-block') ? 'grd'   /* ★'grid' 아니다 — GRID_ID_PREFIXES=['grd_','duo_'] 와 같은 토큰이어야 한다(적대검수 C1) */
         : b.classList.contains('infocard-block') ? 'ifc'
         : b.classList.contains('innercard-block') ? 'icd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
@@ -985,8 +978,8 @@ function rebindAll(opts = {}) {
     if (b.classList.contains('laurel-block')) window.renderLaurelBlock?.(b);
     // bridge: data-bridge-*로 path 재생성 + 항상 full-bleed 재적용 (로드 후 현재 섹션 패딩 반영)
     if (b.classList.contains('bridge-block')) { window.renderBridgeBlock?.(b); window.applyBridgeFullBleed?.(b); }
-    // duo/infocard: dataset 모델로 재렌더 (직렬 HTML은 스냅샷일 뿐 — 로드 시 dataset이 진실)
-    if (b.classList.contains('duo-block')) window.renderDuoBlock?.(b);
+    // grid/infocard: dataset 모델로 재렌더 (직렬 HTML은 스냅샷일 뿐 — 로드 시 dataset이 진실)
+    if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
     if (b.classList.contains('infocard-block')) window.renderInfoCardBlock?.(b);
     if (b.classList.contains('innercard-block')) window.renderInnerCardBlock?.(b);
     // chat-block: 저장본 innerHTML은 정적이라 dblclick 편집 핸들러가 없음 → 재렌더로 위임 바인딩
