@@ -215,3 +215,24 @@ test('★P-R2 계약: click 삼키기는 «한 번»만이고 캔버스 안에�
   assert.ok(/,\s*true\s*\)\s*;?\s*$/m.test(SRC.slice(i, i + 800)) || /}, true\)/.test(SRC.slice(i, i + 800)),
     '캡처 단계여야 앱의 다른 click 핸들러보다 «먼저» 본다');
 });
+
+/* ══ E. 이득비(gain) — 커서 1px = 캔버스 1px ═══════════════════════════ */
+
+test('★이득비 계약: 여지를 늘린 뒤 기준점을 «되맞추지» 않는다 (그러면 잔여를 잃는다)', () => {
+  const i = SRC.indexOf("window.addEventListener('mousemove'");
+  const body = stripComments(SRC.slice(i, SRC.indexOf("window.addEventListener('mouseup'", i)));
+  // 되맞추기(= scrollStart.left 를 «현재 스크롤 + wantDX» 로 덮어쓰기)가 있으면 이득비가 1 미만이 된다.
+  assert.ok(!/scrollStart\.left\s*=\s*canvasWrap\.scrollLeft\s*\+/.test(body),
+    '기준점을 되맞추면 그 프레임 잔여를 잃는다 — 실측 300px 끌면 290px(이득비 0.967)');
+  assert.ok(!/scrollStart\.top\s*=\s*canvasWrap\.scrollTop\s*\+/.test(body), '세로도 같다');
+  assert.ok(/scrollStart\.left\s*\+=\s*growPanRoom\('x'\)/.test(body),
+    '여지 확장이 스크롤에 더한 만큼 기준점도 «같이» 옮겨야 불변식이 유지된다');
+  assert.ok(/scrollStart\.top\s*\+=\s*growPanRoom\('y'\)/.test(body), '세로도 같다');
+});
+
+test('★이득비 계약: growPanRoom 은 «더한 보정량»을 돌려준다', () => {
+  const body = stripComments(extractFn(SRC, 'growPanRoom'));
+  assert.ok(/return\s+d\s*;/.test(body) && /const d\s*=/.test(body),
+    '호출자가 기준점을 같이 옮기려면 보정량을 알아야 한다');
+  assert.ok(/return 0\s*;/.test(body), '요소가 없을 때도 «수»를 돌려줘야 += 가 NaN 이 안 된다');
+});

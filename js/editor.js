@@ -285,21 +285,28 @@ function ensurePanRoom() {
   }
 }
 
-/** 끝에 닿았을 때 «그 축만» 한 화면 더 늘리고 스크롤을 보정한다. */
+/** 끝에 닿았을 때 «그 축만» 한 화면 더 늘리고 스크롤을 보정한다.
+ *  @returns {number} 스크롤에 «더한» 보정량 — 호출자가 기준점(scrollStart)을 같이 옮겨야
+ *  `scrollLeft = scrollStart.left - wantDX` 불변식이 유지된다.
+ *  ⛔이 값을 안 쓰고 기준점을 «되맞추면» 그 프레임의 잔여를 잃는다(실측: 300px 끌면 290px 만 감).
+ */
 function growPanRoom(axis) {
   const wrap = document.getElementById('canvas-wrap');
-  if (!wrap || !scaler) return;
+  if (!wrap || !scaler) return 0;
   if (axis === 'x') {
     const before = _panRoomX, sl = wrap.scrollLeft;
     _panRoomX += wrap.clientWidth;
     _applyPanRoom();
-    wrap.scrollLeft = sl + (_panRoomX - before);
-  } else {
-    const before = _panRoomY, st = wrap.scrollTop;
-    _panRoomY += wrap.clientHeight;
-    _applyPanRoom();
-    wrap.scrollTop = st + (_panRoomY - before);
+    const d = _panRoomX - before;
+    wrap.scrollLeft = sl + d;
+    return d;
   }
+  const before = _panRoomY, st = wrap.scrollTop;
+  _panRoomY += wrap.clientHeight;
+  _applyPanRoom();
+  const d = _panRoomY - before;
+  wrap.scrollTop = st + d;
+  return d;
 }
 
 /**
@@ -3054,14 +3061,16 @@ document.addEventListener('click', e => {
     canvasWrap.scrollTop = scrollStart.top - wantDY;
     // 끝에 닿아 흡수 못한 만큼이 남으면 «그 축의 여지»를 한 화면 늘리고 다시 시도한다.
     // (여백을 늘리는 방향은 clamp 가 안 걸린다 — 실측)
+    /* 흡수 못한 잔여가 있으면 «그 축의 여지»를 한 화면 늘리고 «다시» 목표를 적용한다.
+       ★기준점을 «되맞추면» 안 된다 — 그러면 그 프레임의 잔여를 잃어 커서보다 덜 간다
+         (실측: 300px 끌면 290px, 이득비 0.967). 여지 확장이 스크롤에 더한 만큼 기준점을
+         «같이 옮겨» 불변식 `scrollLeft = scrollStart.left - wantDX` 를 지킨다. */
     if (Math.abs((scrollStart.left - canvasWrap.scrollLeft) - wantDX) > 0.5) {
-      growPanRoom('x');
-      scrollStart.left = canvasWrap.scrollLeft + wantDX;
+      scrollStart.left += growPanRoom('x');
       canvasWrap.scrollLeft = scrollStart.left - wantDX;
     }
     if (Math.abs((scrollStart.top - canvasWrap.scrollTop) - wantDY) > 0.5) {
-      growPanRoom('y');
-      scrollStart.top = canvasWrap.scrollTop + wantDY;
+      scrollStart.top += growPanRoom('y');
       canvasWrap.scrollTop = scrollStart.top - wantDY;
     }
     if (window.updateNotchPosition) window.updateNotchPosition();
