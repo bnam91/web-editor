@@ -453,3 +453,33 @@ test('★FIX-⑴/탭 계약: 탭 뷰상태가 «팬 여지»를 같이 저장·�
     '좌표를 세우기 «전»에 그 좌표가 전제한 여지부터 세워야 한다');
   assert.ok(/window\.setPanRoom\s*=/.test(SRC), 'editor.js 가 setPanRoom 을 노출해야 한다');
 });
+
+/* ══ F. FIX-canvas-eval3 ⑵ — 휠 정착이 «팬 도중» 좌표계를 바꾸던 것 ═══════ */
+
+test('★FIX-⑵ 계약: 여지를 깎으면 «진행 중인 팬의 기준점»도 같은 양 옮긴다', () => {
+  const body = stripComments(extractFn(SRC, 'shrinkPanRoom'));
+  assert.ok(/_panScrollBaseline/.test(body),
+    '기준점 보정이 없으면 다음 mousemove 가 옛 좌표계를 다시 써서 cut 만큼 튄다(실측 1,510px)');
+  assert.ok(/_panScrollBaseline\.left\s*-=\s*cutX/.test(body) && /_panScrollBaseline\.top\s*-=\s*cutY/.test(body),
+    '스크롤을 내린 만큼 «똑같이» 내려야 이득비 1.000 이 유지된다');
+  const i = SRC.indexOf("canvasWrap.addEventListener('mousedown'");
+  const md = stripComments(SRC.slice(i, SRC.indexOf("window.addEventListener('mousemove'", i)));
+  assert.ok(/setPanScrollBaseline\s*\(\s*scrollStart\s*\)/.test(md), '복사본이 아니라 참조를 걸어야 한다');
+  const j = SRC.indexOf("window.addEventListener('mouseup'");
+  const mu = stripComments(SRC.slice(j, SRC.indexOf("window.addEventListener('click'", j)));
+  assert.ok(mu.indexOf('setPanScrollBaseline(null)') !== -1 &&
+            mu.indexOf('setPanScrollBaseline(null)') < mu.indexOf('shrinkPanRoom('),
+    '팬이 끝난 뒤의 회수는 기준점을 건드리면 안 된다 — 풀고 나서 회수한다');
+});
+
+test('★FIX-⑵ 계약: «여지 회수»는 살아 있어야 한다 (미봉 방지)', () => {
+  /* 「정착 타이머를 미룬다/늘린다」로 때우면 회수가 늦어지거나 사라져, 여백이 상한까지 쌓여
+     「그 다음 제스처가 아예 안 움직인다」는 원래 병이 돌아온다. 회수 경로 둘을 못 박는다. */
+  const settle = stripComments(extractFn(SRC, 'scheduleWheelSettle'));
+  assert.ok(/shrinkPanRoom\s*\(/.test(settle), '휠엔 mouseup 이 없다 — 정착 타이머가 유일한 회수 계기다');
+  assert.ok(/,\s*200\s*\)/.test(settle), '정착 지연은 200ms 그대로 — 값을 키우는 것은 미봉이다');
+  assert.ok(!/panning/.test(settle), '「팬 중이면 미룬다」로 때우지 않는다(호출자 하나만 막는 처방)');
+  const j = SRC.indexOf("window.addEventListener('mouseup'");
+  const mu = stripComments(SRC.slice(j, SRC.indexOf("window.addEventListener('click'", j)));
+  assert.ok(/shrinkPanRoom\s*\(/.test(mu), '팬을 놓으면 늘어난 여지를 되돌려야 한다');
+});

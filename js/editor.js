@@ -333,6 +333,21 @@ function growPanRoom(axis) {
   return d;
 }
 
+/* ★[FIX-⑵] 진행 중인 팬의 «기준점»을 여지 변경자들이 볼 수 있게 걸어 둔다.
+   기전: 팬은 매 mousemove 마다 `scrollLeft = scrollStart.left − wantDX` 를 «절대»로 다시 쓴다.
+     그런데 휠 정착 타이머(200ms)의 shrinkPanRoom() 은 margin 을 깎으면서 scrollLeft 도 같이
+     내린다 — 화면은 안 튀지만 «좌표계가 바뀐다». 팬의 기준점은 옛 좌표계 그대로라 다음
+     mousemove 가 옛 값을 다시 써서 깎인 만큼 «툭» 튄다(실측 60px 요청에 −1,450px · 점프 1,510px).
+   ⇒ growPanRoom 이 반환값으로 이미 하고 있던 「여지를 옮겼으면 기준점도 옮겨라」를
+     shrink 에도 적용한다. 팬 블록이 자기 scrollStart «객체 그대로»를 걸어 두므로 즉시 반영된다.
+   ⛔「팬 중엔 타이머를 미룬다/타이머를 늘린다」는 처방은 안 골랐다 —
+     ⓐ 그건 이 호출자 «하나»만 막는다(여지를 깎는 코드가 하나 더 생기면 같은 버그가 재발).
+     ⓑ 정착 자체를 미루면 «여지 회수»가 늦어지거나 사라져, 여백이 상한까지 쌓여
+        「그 다음 제스처가 아예 안 움직인다」는 원래 병(M17 계열)이 돌아온다.
+     ⇒ 정착 타이머는 200ms 그대로 두고 «회수도 그대로 일어나되», 기준점을 같이 옮긴다. */
+let _panScrollBaseline = null;   // 팬 중에만 non-null — 팬 블록의 scrollStart 객체 «그 자체»
+function setPanScrollBaseline(ref) { _panScrollBaseline = ref; }
+
 /**
  * 여백을 «안전한 만큼만» 줄인다 — 현재 스크롤 위치를 담는 데 필요한 양은 남긴다.
  * ⛔기본값으로 되돌리면 안 된다: 멀리 밀어낸 상태에서 놓으면 clamp 가 걸려 캔버스가 튄다.
@@ -357,6 +372,9 @@ function shrinkPanRoom() {
   _applyPanRoom();
   wrap.scrollLeft = sl - cutX;
   wrap.scrollTop = st - cutY;
+  /* ★[FIX-⑵] 진행 중인 팬이 있으면 그 기준점도 «같은 양» 옮긴다 —
+     불변식 `scrollLeft = scrollStart.left − wantDX` 를 새 좌표계에서 그대로 유지. */
+  if (_panScrollBaseline) { _panScrollBaseline.left -= cutX; _panScrollBaseline.top -= cutY; }
 }
 /* ═══ [P-W1] 휠/트랙패드 «잔여»를 transform 이 아니라 «여지»로 흡수한다 ═══
    왜: 잔여를 `panOffset`+transform 으로 처리하면 결함이 «둘» 생긴다 —
@@ -3142,6 +3160,8 @@ document.addEventListener('click', e => {
     if (e.code === 'Space') {
       panMode = false;
       panning = false;
+      scrollStart = null;
+      setPanScrollBaseline(null);   // [FIX-⑵] 스페이스를 «먼저» 떼는 순서에서도 기준점을 남기지 않는다
       canvasWrap.classList.remove('pan-mode', 'panning');
       // [P-A2] ⑵팬 모드 이탈 — 마우스를 창 «밖»에서 떼면 mouseup 이 안 올 수 있다.
       //   고착은 곧 「저장이 영영 안 됨」이라 재개 경로를 여러 곳에 둔다.
@@ -3165,6 +3185,9 @@ document.addEventListener('click', e => {
     // [S2] 팬을 «네이티브 스크롤»로 한다 — 시작 시점의 스크롤을 기준점으로 잡는다.
     ensurePanRoom();
     scrollStart = { left: canvasWrap.scrollLeft, top: canvasWrap.scrollTop };
+    /* [FIX-⑵] 여지를 깎는 코드(휠 정착 타이머 등)가 이 기준점을 «같이» 옮기게 등록한다.
+       객체 «참조»를 그대로 넘긴다 — 보정이 이 블록의 scrollStart 에 곧바로 반영돼야 한다. */
+    setPanScrollBaseline(scrollStart);
     canvasWrap.classList.add('panning');
     e.preventDefault();
     e.stopPropagation();
@@ -3204,6 +3227,7 @@ document.addEventListener('click', e => {
     if (!panning) return;
     panning = false;
     scrollStart = null;
+    setPanScrollBaseline(null);   // [FIX-⑵] 아래 shrinkPanRoom «전»에 푼다(팬은 이미 끝났다)
     /* [P-R2] 팬을 놓으면 뒤이어 `click` 이 «커서 아래 요소»에 정상 발화한다.
        mousedown 은 캡처에서 막지만 click 은 안 막혀서, 팬을 놓을 때마다 블록이 선택됐다.
        현빈 확인: 「의도 아님」. ⇒ 팬으로 끝난 제스처의 click «한 번»만 삼킨다. */
