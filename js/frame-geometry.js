@@ -1,9 +1,10 @@
 /* ══════════════════════════════════════════════════════════════════════
    FRAME-GEOMETRY — 프레임 «기하» SSOT (회전 AABB 높이보정 + 자식 정렬좌표)
 
-   이 파일이 답하는 질문은 둘뿐이다.
+   이 파일이 답하는 질문은 셋이다.
    ① 회전한 프레임이 «실제로 차지하는» 세로 공간은 얼마인가 (AABB)
    ② 프레임 «중앙(또는 좌/우·상/하)» 은 정확히 어느 좌표인가
+   ③ 프레임 안에 «새로 만든» 텍스트의 글자정렬 기본값은 무엇인가 (2026-09-05 추가)
 
    ★왜 한 곳인가
    - ①은 이전까지 «어디에도 없었다» — transform 문자열만 3~4곳이 각자 조립하고
@@ -11,6 +12,9 @@
      못 늘리고 export(섹션 offsetHeight 클립)에서 잘려나갔다.
    - ②는 props/prop-frame.js `_setAlign` 안에만 있었다. 삽입 경로(block-factory)가
      같은 계산을 «다시» 쓰면 두 벌이 된다 → 술어 하나로 묶는다.
+   - ③은 「(a) 신규추가」와 「(b) 외부에서 들고 들어옴」을 «가르는 판정»이다. 이 판정이
+     addTextBlock / addBlankTextBlock / 드롭 / 붙여넣기에 각자 복사되면 한 곳만 고쳐도
+     나머지가 안 따라온다(이 레포에서 실제로 난 사고) → 술어 하나로 묶는다.
 
    ⚠️이 파일은 «순수 계산 + 얇은 DOM 어댑터» 다. 다른 모듈을 import 하지 않는다
      (단위테스트가 .mjs 별칭으로 «이 소스 그대로» 를 import 하기 때문).
@@ -72,6 +76,62 @@ export function cascadeIfOccupied(left, top, occupied, step = 20, tol = 2, maxHo
     L += step; T += step;
   }
   return { left: L, top: T };
+}
+
+/* ══ ③ 프레임 «삽입» 계약 — (a) 신규추가 vs (b) 외부에서 들고 들어옴 ══
+   현빈 지시(2026-09-05) 원문 계약 셋:
+     (a) 프레임 안에 «새로» 텍스트 블록을 만들 때 → 글자 정렬도 중앙 + 좌표도 중앙
+     (b) 외부에서 들고 들어올 때(드롭·붙여넣기·복제)  → 글자 정렬 «무접촉», 좌표만 중앙
+     (c) 「중앙」의 기준 = 프레임블럭의 «보여지는» 가로너비
+   ⇒ (a)/(b) 를 가르는 판정과 (c) 의 「보여지는 폭」 읽는 법을 여기 하나로 둔다. */
+
+/* (a) 경로가 «새로 만든» 텍스트에 넣을 기본 글자정렬. */
+export const FRAME_NEW_TEXT_ALIGN = 'center';
+
+/* (a) 신규-추가 경로가 주입할 글자정렬을 판정한다.
+   반환: 주입할 align 문자열 | null(= «아무것도 하지 마라», 기존 그대로)
+   - explicitAlign 이 있으면 null — 호출자(MCP·API·오버레이 상속·사용자 지정)가 «이긴다».
+     내가 덮으면 「align:'left' 로 넣었는데 가운데로 온다」가 된다.
+   - hasExplicitCoords(opts.x/y/width 명시)면 null — 좌표를 «준» 호출은 (a)가 아니다.
+     MCP·Figma 임포트가 원본 레이아웃을 «재현»하는 자리라서, 가운데정렬을 넣으면
+     _clampTextFrameWidth 가 폭까지 100% 로 바꿔 임포트한 배치가 깨진다.
+     P1 의 좌표 중앙배치가 쓰는 가드(hasAbsCoords)와 «같은 축»이다.
+   - 자유배치(freeLayout) 프레임이 아니면 null — 섹션 «직접» 추가와 fullWidth(플로우)
+     프레임은 이 지시의 대상이 아니다(둘 다 회귀 금지선).
+   ⚠️(b) 경로(드롭·붙여넣기·복제)는 이 함수를 «부르지 않는다». 부르는 순간 계약 위반이다. */
+export function newTextAlignInFrame(frameEl, explicitAlign, hasExplicitCoords) {
+  if (explicitAlign) return null;
+  if (hasExplicitCoords) return null;
+  if (!frameEl || !frameEl.dataset || frameEl.dataset.freeLayout !== 'true') return null;
+  return FRAME_NEW_TEXT_ALIGN;
+}
+
+/* (c) 프레임의 «보여지는» 가로/세로 — 절대배치 자식의 left/top 이 사는 좌표계.
+   ★왜 clientWidth 인가 (2026-09-05 실측, tests/measure/frame-textcenter/02-axis.js)
+     - getBoundingClientRect().width 는 «화면 픽셀»이다. 캔버스 줌은 #canvas-scaler 의
+       transform:scale 이라 40% 줌에서 rect=344 / clientWidth=860 으로 갈린다.
+       자식의 offsetWidth 는 스케일을 «안» 받으므로(200 그대로) rect 로 중앙을 내면
+       left=72 (정답 330) — 258px 어긋난다. 두 축을 섞으면 안 된다.
+     - dataset.width / style.width 는 «설정값»이다. max-width:100% 가 걸린 중첩 프레임에서
+       dataset.width='860' 인데 실제로는 400 이었다(같은 실측). 「보여지는」이 아니다.
+     - clientWidth 는 «패딩 박스» 폭이고, 절대배치 자식의 containing block 이 바로 그것이다
+       (패딩40+테두리5 프레임 실측: offsetWidth 860 / clientWidth 850 ← 이쪽이 기준).
+   ⇒ P1 의 좌표 중앙(_placeAtFrameCenter · _setAlign)이 쓰는 축과 «같은 축»이다. */
+export function frameVisibleSize(frameEl) {
+  return {
+    w: (frameEl && frameEl.clientWidth) || 0,
+    h: (frameEl && frameEl.clientHeight) || 0,
+  };
+}
+
+/* 캐스케이드(+20 대각)가 «프레임 밖으로 밀어내지» 않게 X 를 안쪽으로 되돌린다.
+   비킬 가로 여유가 0 이면(자식이 프레임 폭을 꽉 채움 — 가운데정렬 텍스트프레임의 width:100%)
+   결과는 0 이 되어 X 캐스케이드가 «사라진다». 겹침 회피는 Y 캐스케이드가 계속 맡는다.
+   실측 근거(2026-09-05 고치기 전): 폭 100% 텍스트프레임 둘째가 left:20px 이 되어
+   오른쪽으로 20px 삐져나가고 중심이 20px 어긋났다. */
+export function clampLeftIntoFrame(left, frameW, elW) {
+  const maxL = Math.max(0, (Number(frameW) || 0) - (Number(elW) || 0));
+  return Math.min(Number(left) || 0, maxL);
 }
 
 /* ── 얇은 DOM 어댑터 ─────────────────────────────────────────────── */

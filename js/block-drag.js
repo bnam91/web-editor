@@ -13,6 +13,7 @@ import {
   showToast,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
+import { frameAlignOffset, frameVisibleSize } from './frame-geometry.js';
 import {
   dragState,
   _suppressDragSave,
@@ -2027,13 +2028,26 @@ function bindFrameDropZone(ss) {
         }
       }
 
-      // DOM 순서 변경 후 absolute 블록의 top 재계산
+      /* DOM 순서 변경 후 absolute 블록의 top 재계산 + ★가로 중앙 배치.
+         ★(b) 「외부에서 들고 넣을 때는 좌표만 중앙값에 위치시켜주면 된다.
+              중앙값이란 프레임블럭의 «보여지는 가로너비»를 기준」 (현빈 2026-09-05).
+           - «가로만» 중앙이다. 세로는 이 루프의 기존 스택을 그대로 둔다 — 지시가 「중앙값」을
+             «가로너비»로 정의했고, 세로까지 중앙으로 끌면 드롭한 블록이 스택과 겹친다.
+           - 글자정렬(text-align)은 «안» 건드린다. (b) 는 좌표만이다.
+         ★이 루프가 SSOT 밖의 「술어 밖 루프」다 — 위 분기들이 left 를 어떻게 정하든
+           마지막에 여기서 다시 쓴다. 그래서 중앙 계산도 «여기»에 걸어야 실제로 먹는다.
+           실측(2026-09-05 고치기 전): 섹션→프레임 드롭 시 중심오차 −350px, 그리고 프레임 안에
+           «이미 중앙에 있던» 형제(left:303)까지 left:0 으로 되돌려 P1 의 중앙배치를 지웠다.
+         ⚠️dataset.offsetX 는 여기서 갱신하지 않는다 — 이 루프는 원래부터 안 했고(figma export가
+           읽는 값이라 이미 낡아 있다), 이번 변경의 축을 «left 값 하나»로 묶어두기 위해서다. */
+      const _fv = frameVisibleSize(inner);
       let _stackY = 0;
       [...inner.children].forEach(b => {
         if (b.classList.contains('drop-indicator')) return;
         if (b.style.position === 'absolute') {
           b.style.top  = _stackY + 'px';
-          b.style.left = '0px';
+          const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null);
+          b.style.left = Math.max(0, _off.left) + 'px';
         }
         _stackY += (b.offsetHeight || 60) + 16;
       });

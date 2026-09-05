@@ -18,7 +18,8 @@ import {
   bindSectionDrag,
   bindSectionDropZone,
 } from './drag-drop.js';
-import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform } from './frame-geometry.js';
+import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
+         newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame } from './frame-geometry.js';
 
 /* ═══════════════════════════════════
    BLOCK FACTORY — make* / add* / addSection
@@ -436,13 +437,23 @@ function addTextBlock(type, opts = {}) {
     window.pushHistory();
     const { block } = makeTextBlock(type);
     const tf = _makeTextFrame();
-    applyTextOpts(block, tf, opts, type);
+    /* ★(a) «신규 추가» — 프레임 안에 새로 만드는 텍스트는 «글자 정렬도» 중앙(현빈 2026-09-05).
+       판정은 술어 하나(newTextAlignInFrame): 호출자가 align 을 명시했으면 그게 이기고,
+       자유배치 프레임이 아니면(섹션 직접·fullWidth 플로우) null 이라 «기존 그대로»다.
+       ⚠️applyTextOpts «전»에 정해야 한다 — 뒤의 _clampTextFrameWidth 가 정렬을 읽어
+         폭을 결정하기 때문(center → width:100%). 순서가 바뀌면 폭이 한 박자 늦는다. */
+    // opts.x/y/width 명시 = 좌표를 «준» 호출(MCP·Figma 임포트) — 아래 freeLayout 분기의
+    // hasAbsCoords 와 «같은 식»이다. 두 벌로 갈리지 않게 여기서 한 번 세서 술어에 넘긴다.
+    const _hasAbsCoords = (opts.x !== undefined || opts.y !== undefined || opts.width !== undefined);
+    const _newAlign = newTextAlignInFrame(activeSS, opts.align, _hasAbsCoords);
+    const _opts = _newAlign ? { ...opts, align: _newAlign } : opts;
+    applyTextOpts(block, tf, _opts, type);
     tf.appendChild(block);
 
     if (activeSS.dataset.freeLayout === 'true') {
       // B 모드: 자유배치 프레임 — text-frame을 absolute로 추가
       // opts에 x/y/width가 있으면 절대좌표 고정, 없으면 자동 스택
-      const hasAbsCoords = (opts.x !== undefined || opts.y !== undefined || opts.width !== undefined);
+      const hasAbsCoords = _hasAbsCoords;   // ★위에서 «한 번» 센 것 — 두 벌 금지
       const stackY = hasAbsCoords ? (opts.y ?? 0) : _calcFreeLayoutStackY(activeSS);
       const leftPx = hasAbsCoords ? (opts.x ?? 0) : 0;
       tf.style.position = 'absolute';
@@ -539,10 +550,13 @@ function addBlankTextBlock(type = 'body', opts = {}) {
     window.pushHistory();
     const { block } = makeTextBlock(type, { blank: true });
     const tf = _makeTextFrame();
-    if (o.align) {
+    // ★(a) 신규 추가 — addTextBlock 과 «같은 술어»로 기본 정렬을 정한다(두 벌 금지).
+    // addBlankTextBlock 은 좌표 옵션 자체가 없다(항상 스택) → hasExplicitCoords=false.
+    const _blankAlign = o.align || newTextAlignInFrame(activeSS, o.align, false);
+    if (_blankAlign) {
       const contentEl = block.querySelector('[class^="tb-"]');
-      if (type === 'label') block.style.textAlign = o.align;
-      else if (contentEl) contentEl.style.textAlign = o.align;
+      if (type === 'label') block.style.textAlign = _blankAlign;
+      else if (contentEl) contentEl.style.textAlign = _blankAlign;
     }
     tf.appendChild(block);
 
@@ -1633,7 +1647,9 @@ function _clampTextFrameWidth(tf, frameEl) {
    같은 자리에 형제가 이미 있으면 +20px 대각선 캐스케이드(붙여넣기 관례와 동일). */
 function _placeAtFrameCenter(el, frame) {
   if (!el || !frame) return null;
-  const off = frameAlignOffset(frame.clientWidth, frame.clientHeight,
+  // (c) 「중앙」의 기준 = 프레임의 «보여지는» 폭/높이 — 축 선택 근거는 frameVisibleSize 주석 참조.
+  const fv = frameVisibleSize(frame);
+  const off = frameAlignOffset(fv.w, fv.h,
                                el.offsetWidth, el.offsetHeight, 'center', 'center');
   // ★삽입 경로에서만 «음수 클램프» — 공유 술어(frameAlignOffset)는 클램프하지 않는다.
   //   실측(2026-09-05): 에셋 프리셋은 780px 인데 기본 프레임은 520px 이라 순수 중앙은
@@ -1646,9 +1662,16 @@ function _placeAtFrameCenter(el, frame) {
     .filter(c => c !== el && !c.classList.contains('frame-resize-handle') && c.style.position === 'absolute')
     .map(c => ({ left: parseInt(c.style.left) || 0, top: parseInt(c.style.top) || 0 }));
   const pos = cascadeIfOccupied(baseL, baseT, occupied);
-  el.style.left = pos.left + 'px';
+  /* ★캐스케이드는 «비켜놓기»지 «밀어내기»가 아니다 — 프레임 밖으로 나가면 안쪽으로 되돌린다.
+     실측(2026-09-05, 고치기 전): 폭 100% 인 텍스트프레임(빈 줄)을 두 번 넣으면 둘째가
+     left:20px 이 되고 박스가 오른쪽으로 20px 삐져나가 «가운데»가 20px 어긋났다.
+     글자 중앙정렬을 기본으로 켜면(폭 100%) 이 자리를 «모든» 텍스트가 지나간다.
+     X 로 비킬 자리가 없으면(가득 찬 폭) X 는 0 으로 되돌리고 Y 캐스케이드만 남긴다
+     — 두 형제의 top 이 20px 다르므로 «완전히 겹치는» 일은 그대로 막힌다. */
+  const left = clampLeftIntoFrame(pos.left, fv.w, el.offsetWidth);
+  el.style.left = left + 'px';
   el.style.top  = pos.top  + 'px';
-  return pos;
+  return { left, top: pos.top };
 }
 
 /* freeLayout inner 안에서 absolute 블록들을 아래로 쌓을 Y 좌표 계산 */
