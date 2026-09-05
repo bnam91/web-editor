@@ -99,6 +99,64 @@
     }
   }
 
+
+  /* ── 리소스 URL 요약 ★M11: 「새는 것을 막되 재현 능력을 죽이지 않는다」 ────────
+     [실측 2026-09-05] 고치기 «전»에 이 후킹이 담던 것 — 9/9 표본 전부 유출:
+       img 로드 실패: http://127.0.0.1:9877/hang_%EB%A1%AF%EB%8D%B0_2026%EC%97%AC%EB%A6%84.png
+       img 로드 실패: https://cdn.lotte.co.kr/2026summer/main_v3.jpg      ← ★호스트가 곧 «클라이언트 이름»
+       img 로드 실패: goya-asset://proj_9k2/롯데_2026여름_메인.png
+       img 로드 실패: ~/…/hero.png                                        ← 경로는 씻겼는데 «파일명»은 남는다
+     ★적대검수가 지적한 파일명보다 «범위가 넓었다»:
+       · data: URI 는 «이미지 바이트»가 1000자 상한까지 그대로 담겼다 — 파일명이 아니라 «내용»이다.
+         (GIF 경로가 프레임을 dataURL 로 갈아끼우므로 data: img 는 실제로 존재한다)
+       · 쿼리스트링의 서명·토큰(`?token=…&sig=…`)이 그대로 담겼다.
+     ⚠️scrubPaths 로는 못 막는다 — 그 세척기는 «URL 을 일부러 안 건드린다»(③ 규칙이 앞 글자
+       '/'·':' 를 보고 비껴간다). 그래서 여기서 «담기 전에» 줄인다(규약: 씻는 자리는 담을 때).
+
+     남기는 것 / 버리는 것 — 판정 기준은 「없으면 재현이 안 되는가」:
+       유지 · 태그(무엇이 깨졌나) · ★스킴(원인 유형의 1축: 에셋저장소 유실 / 사용자 디스크 / 원격)
+             · 확장자(gif·svg 는 코드 경로가 다르다) · 짧은 해시(아래 dedupe 와 짝)
+       ⛔버림 · 호스트 · 경로 · 파일명 · 쿼리(서명·토큰) · data: 페이로드 · 프로젝트 id
+             (프로젝트 id 는 신고 payload.projectId 에 이미 있다 — 여기 또 넣을 이유가 없다)
+     ⇒ 결과 꼴:  `img 로드 실패: goya-asset: .png #a3f19c`                              */
+  function resHash(s) {
+    // djb2. 암호용이 아니다 — «같은 URL 인가»만 가른다(dedupe 뒤 서로 다른 에셋을 구분하려고).
+    var h = 5381;
+    for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+    return ('00000000' + h.toString(16)).slice(-6);
+  }
+  function describeResUrl(raw) {
+    var u = String(raw || '');
+    if (!u) return '(주소 없음)';
+    var m = u.match(/^([a-z][a-z0-9+.\-]{0,11}):/i);
+    var scheme = m ? m[1].toLowerCase() + ':' : 'rel';
+    var ext = '';
+    if (scheme === 'data:') {
+      // ⛔페이로드는 «절대» 안 본다. mime 서브타입만.
+      var dm = u.match(/^data:([a-z0-9.+\-]+)\/([a-z0-9.+\-]+)/i);
+      if (dm) ext = '.' + dm[2].toLowerCase();
+    } else {
+      var path = u.split('#')[0].split('?')[0];        // ★쿼리·프래그먼트를 «먼저» 버린다(서명·토큰)
+      var em = path.match(/\.([A-Za-z0-9]{1,8})$/);
+      if (em) ext = '.' + em[1].toLowerCase();
+    }
+    return scheme + (ext ? ' ' + ext : '') + ' #' + resHash(u);
+  }
+  /* 같은 줄이 «아직 링 안에» 있으면 다시 담지 않는다.
+     ★근거: 내보내기 한 번에 같은 깨진 이미지가 «세 번» 온다 — 라이브 DOM · export 클론 · truth 클론이
+       전부 document.body 에 붙기 때문이다(export-image.js prepareCloneForCapture 를 export 와
+       truth 가 «같이» 쓴다). 20섹션에 깨진 에셋이 하나씩이면 정상 내보내기만으로 40칸을 먹고,
+       그건 MAX_PER_RUN 예산 «밖»이라 남의 오류를 밀어낸다.
+     ⚠️여기서 억누르는 건 «완전히 같은 요약 줄»뿐이다. 서로 다른 에셋은 해시가 달라 안 뭉친다 —
+       해시를 남기는 이유가 바로 이것이다(해시를 빼면 서로 다른 두 에셋이 한 줄로 합쳐진다).
+     ⛔resource 밖에는 적용하지 않는다 — 이 파일은 다른 기능도 쓰는 공용 파일이다. */
+  function hasRecent(level, msg) {
+    for (var i = 0; i < ring.length; i++) {
+      if (ring[i].level === level && ring[i].msg === msg) return true;
+    }
+    return false;
+  }
+
   /* ── 후킹 ①: console.error ─────────────────────────────────────────────── */
   var origError = w.console && w.console.error;
   if (typeof origError === 'function') {
@@ -122,7 +180,11 @@
       }
       // 리소스 로드 실패(<img>·<script>)는 target 에만 정보가 있다
       var t = ev && ev.target;
-      if (t && t.tagName) push('resource', t.tagName.toLowerCase() + ' 로드 실패: ' + (t.src || t.href || ''));
+      if (t && t.tagName) {
+        var line = t.tagName.toLowerCase() + ' 로드 실패: ' + describeResUrl(t.src || t.href || '');
+        // ★같은 줄이 «아직 링에 있으면» 다시 담지 않는다 — 아래 dedupe 주석 참조.
+        if (!hasRecent('resource', line)) push('resource', line);
+      }
     } catch (_) {}
   }, true);   // capture — 중간에서 stopPropagation 해도 우린 본다
 
