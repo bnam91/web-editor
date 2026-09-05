@@ -2273,6 +2273,12 @@ function deselectAll() {
   window.hideIconHandles?.();
   window.hideAssetRadiusHandles?.();
   window.hideAssetResizeHandles?.();
+  /* ★아이콘원형 핸들도 «여기서» 정리한다 — 빠져 있었다.
+   * 빠져 있으면 모듈 내부의 `_icbResizeBlock` 이 «선택 해제된 블록»을 계속 가리킨 채 남고,
+   * 같은 블록을 다시 클릭하면 `showIconCircleResizeHandle` 의 동일블록 가드에 걸려 no-op 이 된다.
+   * (핸들 DOM 은 그 사이 다른 정리가 지워버려서 «영영 안 돌아온다» — 실측 재현: 재클릭 시 1→0개.
+   *  에셋 블록은 hide 가 자기 상태변수를 null 로 되돌려서 같은 증상이 없다.) */
+  window.hideIconCircleResizeHandle?.();
   window.hideCanvasRadiusHandles?.();
   window.hideCanvasResizeHandles?.();
   window.hideVectorResizeHandles?.();

@@ -17,6 +17,23 @@ function _getOverlay() {
 }
 
 /* ═══════════════════════════════════
+   모서리 규약 — 네 모서리와 «바깥» 방향 부호를 «한 곳»에서 정한다.
+   에셋 블록(사각)·아이콘 원형(원)이 같은 표를 쓴다. 베껴 두면 한쪽만 고쳐진다.
+═══════════════════════════════════ */
+export const CORNER_DIRS = ['nw', 'ne', 'sw', 'se'];
+
+/** dir → 상자 중심에서 «바깥»으로 향하는 축별 부호. e/s 가 +, w/n 이 −. */
+export function cornerSign(dir) {
+  return { sx: dir.includes('e') ? 1 : -1, sy: dir.includes('s') ? 1 : -1 };
+}
+
+/** 원의 45° «둘레점»까지의 축별 거리. (off, off) 의 길이가 정확히 R 이라 핸들이 원에 밀착한다.
+ *  ★상자 «꼭지점»(R, R)은 길이가 R·√2 라 원 밖으로 R(√2−1)≈0.414R 만큼 뜬다 — 현빈이 지적한 그 증상. */
+export function circumferenceOffset(R) {
+  return R / Math.SQRT2;
+}
+
+/* ═══════════════════════════════════
    회전 인식 좌표 헬퍼 (U14 — 회전 후 리사이즈 핸들 좌표 보정)
    블록이 transform:rotate 된 상태에서 getBoundingClientRect()는 «회전된 요소의
    축정렬 바운딩박스(AABB)»를 돌려주므로, 코너 핸들을 rect 모서리에 두면
@@ -576,8 +593,7 @@ function showAssetRadiusHandles(ab) {
   const overlay = _getOverlay();
   if (!overlay) return;
 
-  const dirs = ['nw', 'ne', 'sw', 'se'];
-  dirs.forEach(dir => {
+  CORNER_DIRS.forEach(dir => {
     const r = document.createElement('div');
     r.className = `asset-radius-handle ${dir}`;
     r.dataset.assetRadiusDir = dir;
@@ -676,8 +692,7 @@ function showAssetResizeHandles(ab) {
   const overlay = _getOverlay();
   if (!overlay) return;
 
-  const dirs = ['nw', 'ne', 'sw', 'se'];
-  dirs.forEach(dir => {
+  CORNER_DIRS.forEach(dir => {
     const h = document.createElement('div');
     h.className = `asset-overlay-handle ${dir}`;
     h.dataset.assetResizeDir = dir;
@@ -802,26 +817,34 @@ function showIconCircleResizeHandle(block) {
   const overlay = _getOverlay();
   if (!overlay) return;
 
-  const h = document.createElement('div');
-  h.className = 'asset-overlay-handle se';
-  h.dataset.icbResize = '1';
-  overlay.appendChild(h);
+  /* ★네 «모서리»에 다 단다 — 에셋 블록(.asset-block)과 개수·종류를 맞춘다.
+   * 전엔 se 한 개뿐이라 「다른 에셋 블럭과 조금씩 다르다」(현빈)의 한 축이었다.
+   * ⚠️클래스는 `.icb-overlay-handle` — `.asset-overlay-handle` 을 «빌려 쓰면»
+   *   `hideAssetResizeHandles()` 의 일괄 제거에 같이 쓸려나간다(실측 재현: 재클릭 시 1→0). */
+  const _handles = CORNER_DIRS.map(dir => {
+    const h = document.createElement('div');
+    h.className = `icb-overlay-handle ${dir}`;
+    h.dataset.icbResize = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onIcbResizeMouseDown(e, block, dir));
+    return h;
+  });
 
-  h.addEventListener('mousedown', e => {
+  function _onIcbResizeMouseDown(e, block, dir) {
     if (e.button !== 0) return;
     e.stopPropagation(); e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
-    const scaler0 = document.getElementById('canvas-scaler');
-    const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     const startSize = parseInt(block.dataset.size) || 240;
+    const { sx, sy } = cornerSign(dir);
 
     function onMove(ev) {
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
       // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로)
       const _ud = _unrotateDelta(block, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
-      const dx = _ud.dx, dy = _ud.dy;
+      // 바깥으로 끌면 커진다 — 모서리마다 «바깥»의 부호가 달라 위 표로 뒤집는다.
+      const dx = _ud.dx * sx, dy = _ud.dy * sy;
       const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
       const newSize = Math.min(860, Math.max(40, Math.round(startSize + delta)));
       const circle = block.querySelector('.icb-circle');
@@ -841,24 +864,34 @@ function showIconCircleResizeHandle(block) {
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-  });
+  }
 
   function _updatePos() {
     if (!_icbResizeBlock) return;
     const circle = block.querySelector('.icb-circle');
     if (!circle) return;
     const rect = circle.getBoundingClientRect();
-    /* ★핸들을 «원 둘레» 위에 놓는다 — 전엔 바운딩 «박스»의 오른쪽아래 꼭지점에 붙였다.
+    /* ★핸들을 «원 둘레» 위에 놓는다 — 전엔 바운딩 «박스»의 꼭지점에 붙였다.
      * 원에서 그 꼭지점은 «빈 공간»이다: 중심에서 박스 꼭지점까지는 r·√2 이고 둘레까지는 r 이라
      * 핸들이 원 밖으로 r(√2−1) ≈ 0.414r 만큼 떠 보인다.
      * 실측(현빈 지적 icb_ts0he_bfyeida 재현): 반지름 48px 일 때 중심까지 67.9px — 정확히 r·√2 다.
-     * 45° 방향 둘레점은 중심에서 각 축으로 r/√2 이므로 그 자리에 놓는다(원 크기와 무관하게 밀착). */
-    const R  = rect.width / 2;
-    const cx = rect.left + R;
-    const cy = rect.top  + R;
-    const off = R / Math.SQRT2;          // 45° 둘레점까지의 축별 거리
-    h.style.top  = (cy + off - 3.5) + 'px';
-    h.style.left = (cx + off - 3.5) + 'px';
+     * 45° 방향 둘레점은 중심에서 각 축으로 r/√2 이므로 그 자리에 놓는다(원 크기와 무관하게 밀착).
+     * ★이건 «남겨둔 의도적 차이»다 — 에셋 블록은 사각이라 상자 꼭지점이 곧 보이는 모서리지만,
+     *   원은 상자 꼭지점이 빈 공간이다. 같은 «모서리»의 원형 대응점이 45° 둘레점이다. */
+    /* ★반지름은 «레이아웃 폭»에서 낸다 — rect.width 를 쓰면 회전했을 때 부푼다.
+     * getBoundingClientRect 는 회전된 요소의 «축정렬 바운딩박스(AABB)» 라
+     * 30° 회전 시 96px 원의 rect 가 131px 로 잡혔다(실측) → 핸들이 원 밖 17.5px 로 떠버린다.
+     * 회전은 중심을 보존하므로 «중심은 rect 에서», «반지름은 offsetWidth×캔버스배율»에서 가져온다.
+     * 원은 회전대칭이라 45° 화면좌표에 그대로 두면 어느 각도에서도 둘레에 밀착한다. */
+    const R  = (circle.offsetWidth * _canvasScaleNow()) / 2;
+    const cx = rect.left + rect.width  / 2;
+    const cy = rect.top  + rect.height / 2;
+    const off = circumferenceOffset(R);   // 45° 둘레점까지의 축별 거리(공용 헬퍼)
+    _handles.forEach(h => {
+      const { sx, sy } = cornerSign(h.dataset.icbResize);
+      h.style.left = (cx + off * sx - 3.5) + 'px';
+      h.style.top  = (cy + off * sy - 3.5) + 'px';
+    });
   }
   function _loop() {
     if (!_icbResizeBlock) return;
