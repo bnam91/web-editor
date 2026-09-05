@@ -537,19 +537,35 @@ function resetPanOffset() {
      예전 코드는 panOffsetX=0 만 해서, 「가로를 되돌린다」는 노치의 «유일한 일»을 못 했다
      (실측: 300px 민 뒤 노치 클릭 → 화면 변위 300px 그대로). 세로처럼 «두 저장소를 다» 비운다.
      dev 에선 가로 저장소가 transform «하나»였기에 panOffsetX=0 으로 충분했다 ⇒ 이건 회귀였다.
-   ★순서: transform 을 «먼저» 비우고 나서 쉼 위치를 잰다 — getRestingScroll 은 캔버스 gBCR 로
-     재는데 gBCR 엔 transform 이 들어 있다. 순서를 바꾸면 옛 변위가 섞인 자리로 간다. */
+   ~~★[폐기] 「순서: transform 을 «먼저» 비우고 나서 쉼 위치를 잰다 — getRestingScroll 은 캔버스
+     gBCR 로 재는데 gBCR 엔 transform 이 들어 있다. 순서를 바꾸면 옛 변위가 섞인 자리로 간다」~~
+   ★[M46 · 2026-09-05] 순서를 «뒤집었다». 폐기한 문장은 «전이가 없을 때만» 맞다.
+     ⑴ getRestingScroll 은 이미 gBCR 에서 panOffsetX 를 «명시적으로 뺀다»(위 FIX-ⓑ, :219)
+        ⇒ 옛 변위가 «섞이지 않는다». 비우기 «전»에 재도 답은 같다.
+     ⑵ 그런데 이 함수의 «유일한» 호출처인 노치 클릭(:3452)은 바로 앞에서
+        `scaler.style.transition = 'transform 0.3s ease'` 를 켠다. 그러면 transform 을 비운
+        «직후»의 gBCR 은 아직 «옛 자리»다 — 보간이 0.3초에 걸쳐 흐르기 때문이다.
+        `void offsetHeight` 는 «레이아웃»을 강제할 뿐 «전이»를 끝내지 못한다.
+     ⇒ 비운 뒤에 재면 panOffsetX 는 0 인데 gBCR 은 옛 P 를 품고 있어 쉼 위치가 P 만큼 어긋나고,
+       전이가 끝나면 캔버스가 «가운데를 지나쳐» 반대쪽에 선다.
+       [실측] 줌스텝 뒤 노치 클릭: 클릭 «직후» dx=0(도착 성공) → +200ms 169 → +400ms 171.
+              −500.8 → +101(반대쪽), 그런데 노치는 사라진다.
+     ★M44-b 와 «같은 병»이다 — 판정식이 «아직 안 끝난 자기 변화»를 입력으로 쓴다(GEN §31 계열).
+       M44-b 는 전이를 «끄고» 풀었지만 여기서는 못 끈다(0.3s 애니메이션이 이 기능의 «의도»다)
+       ⇒ 끄는 대신 «전이가 시작되기 전»에 재서 같은 결과를 얻는다. */
+  const wrap = document.getElementById('canvas-wrap');
+  const scalerEl = document.getElementById('canvas-scaler');
+  /* ★재기부터. 이 시점의 transform 은 «정착»해 있고 panOffsetX 도 아직 옛 값이라 식이 정확하다. */
+  const rest = (wrap && scalerEl) ? getRestingScroll() : null;
   panOffsetX = 0;
   panOffsetY = 0;
   _applyScalerTransformAndSync();
-  const wrap = document.getElementById('canvas-wrap');
-  const scalerEl = document.getElementById('canvas-scaler');
-  if (wrap && scalerEl) {
+  if (wrap && scalerEl && rest) {
     void scalerEl.offsetHeight; void wrap.scrollHeight;
-    const rest = getRestingScroll();
     wrap.scrollTop = rest.top;
     wrap.scrollLeft = rest.left;
   }
+  scheduleNotchUpdate();   // [M35] 여기서 dx 가 0 이 된다 — 표시기도 그 사실을 알아야 한다
 }
 function zoomStep(delta) {
   const wrap = document.getElementById('canvas-wrap');

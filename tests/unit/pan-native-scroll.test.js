@@ -491,8 +491,19 @@ test('★FIX-⑶ 계약: resetPanOffset 이 «가로»도 되돌린다 (S2 이�
   assert.ok(/scrollLeft\s*=/.test(body),
     'panOffsetX=0 만으로는 안 된다 — S2 이후 가로 변위는 scrollLeft 에 산다(노치의 유일한 일)');
   assert.ok(/scrollTop\s*=/.test(body), '세로도 그대로 유지');
-  assert.ok(body.indexOf('_applyScalerTransformAndSync') < body.indexOf('getRestingScroll'),
-    'gBCR 엔 transform 이 들어 있다 — 측정 «전»에 transform 을 비워야 옛 변위가 안 섞인다');
+  /* ~~[2026-09-04 · 폐기] 「_applyScalerTransformAndSync 가 getRestingScroll «앞»이어야 한다 —
+       gBCR 엔 transform 이 들어 있으니 측정 «전»에 비워야 옛 변위가 안 섞인다」~~
+     ★[M46 · 2026-09-05] 순서를 «뒤집었다». 폐기한 단언은 «전이가 없을 때만» 맞다.
+       ⑴ getRestingScroll 은 gBCR 에서 panOffsetX 를 «명시적으로 뺀다»(FIX-ⓑ) ⇒ 비우기 전에 재도 답이 같다.
+       ⑵ 유일한 호출처인 노치 클릭은 바로 앞에서 `transition:'transform 0.3s ease'` 를 켠다 ⇒
+          비운 «직후»의 gBCR 은 아직 옛 자리라, 그때 재면 쉼 위치가 P 만큼 어긋나
+          전이가 끝난 뒤 «가운데를 지나쳐» 반대쪽에 선다(실측: −500.8 → +101).
+     ⇒ ★지켜야 할 «계약»은 「순서」가 아니라 **「쉼 위치를 «정착한» 기하에서 잰다」**이다.
+        그래서 단언을 «순서»에서 «정착»으로 바꾼다 — 순서를 못 박으면 M46 이 되돌아온다. */
+  assert.ok(body.indexOf('getRestingScroll') < body.indexOf('_applyScalerTransformAndSync'),
+    '★M46: 쉼 위치는 transform 이 «정착해 있는» 동안 재야 한다 — 비운 직후엔 전이 때문에 gBCR 이 옛 자리다');
+  assert.ok(body.indexOf('getRestingScroll') < body.indexOf('scrollLeft ='),
+    '재고 나서 쓴다(측정→적용 순서 자체는 유지)');
 });
 
 test('★FIX-⑶ 계약: 노치는 «실제로 돌아왔을 때만» 숨는다', () => {
