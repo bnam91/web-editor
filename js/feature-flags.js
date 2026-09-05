@@ -33,3 +33,16 @@
    *   (사용자가 「내 프로젝트가 사라졌다」고 느끼면 안 된다). */
   w.COLLAB_ENABLED = false;
 })(window);
+
+/* ── ★선택 테두리 «오버레이 층» 킬스위치 (2026-09-06 · 울트라플랜 P0) ────────
+ * true 면 선택 표시를 문서(블록 CSS outline)가 아니라 핸들이 이미 쓰는 오버레이
+ * 층(#ss-handles-overlay)의 SVG 1장에서 그린다(js/selection-overlay.js).
+ *
+ * ★왜 «양립»인가 — P0 는 CSS 원본을 «지우지 않는다».
+ *   중화(outline-color:transparent)는 `body.sel-ov` 아래에서만 걸리고, 그 클래스는
+ *   오버레이 모듈이 «초기화에 성공한 뒤 스스로» 붙인다. 즉 JS 가 죽으면 클래스가
+ *   안 붙고 문서 outline 이 그대로 살아 «제품이 성립»한다. 되돌리기 = 이 줄 하나.
+ * ⚠️COLLAB_ENABLED 와 달리 이 스위치가 닿는 화면은 에디터(index.html) 하나다 —
+ *   프로젝트 목록엔 캔버스가 없다. 그래도 «스위치의 단일 원본»은 여기다.
+ */
+(function (w) { w.SEL_OVERLAY_ENABLED = true; })(window);

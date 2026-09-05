@@ -1053,6 +1053,10 @@
 <script type="module" src="js/ai-section-fill.js"></script>
 <script type="module" src="js/history.js"></script>
 <script type="module" src="js/editor.js"></script>
+<!-- ★선택 테두리 오버레이 층(P0) — 킬스위치 window.SEL_OVERLAY_ENABLED(js/feature-flags.js).
+     ⚠️editor.js «뒤»에 둔다: 이 모듈은 #canvas 를 MutationObserver 로 볼 뿐이라 순서 의존이 없지만,
+        「선택 표시」는 에디터가 다 선 «뒤» 얹히는 층이라는 것을 로드 순서로도 남긴다. -->
+<script type="module" src="js/selection-overlay.js"></script>
 
 <!-- ══════════════════════════
      ANIMATION GIF MODAL
