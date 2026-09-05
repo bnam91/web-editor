@@ -1085,7 +1085,23 @@
 .frame-block:not(.selected) .infocard-block:hover::after,
 .frame-block:not(.selected) .innercard-block:hover::after,
 .frame-block:not(.selected) .label-group-block:hover::after,
-.frame-block:not(.selected) .shape-block:hover::after {
+.frame-block:not(.selected) .shape-block:hover::after,
+/* L1(2026-09-05): 위 11종만 있고 아래 10종이 빠져 있었다 — 「미선택 프레임 안 hover 억제」
+   판정이 «한 곳»인데 목록이 반쪽이라 같은 상황에서 블록마다 다르게 굴었다.
+   재현 경로 = 프레임 자신은 미선택이고 «자손 하나가 selected»인 드릴인 상태
+   (editor-blocks.css:39 의 pointer-events 차단이 `:not(:has(.selected))` 라 이때 풀린다).
+   전수 census(실측): tint 를 가진 블록 클래스 중 억제되던 11 / 새던 12.
+   text-block 계열(text/speech-bubble/liner)은 [data-text-frame] 전용 규칙이 따로 있어 제외 — §5 참조. */
+.frame-block:not(.selected) .asset-block:hover::after,
+.frame-block:not(.selected) .icon-text-block:hover::after,
+.frame-block:not(.selected) .icon-block:hover::after,
+.frame-block:not(.selected) .canvas-block:hover::after,
+.frame-block:not(.selected) .step-block:hover::after,
+.frame-block:not(.selected) .banner02-block:hover::after,
+.frame-block:not(.selected) .comparison-block:hover::after,
+.frame-block:not(.selected) .mockup-block:hover::after,
+.frame-block:not(.selected) .vector-block:hover::after,
+.frame-block:not(.selected) .chat-block:hover::after {
   display: none !important;
 }
 /* speech-bubble-block은 fit-content 폭 → text-block:hover::after (editor-layout.css)와
