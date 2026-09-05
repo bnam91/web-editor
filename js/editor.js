@@ -2542,6 +2542,24 @@ if (window.electronAPI) {
 }
 
 
+/* ★[P-A1] 값이 «이미 그 값»이면 쓰지 않는다.
+   왜 이게 성능 처방인가 — 실측(2026-09-05, 진짜 입력):
+     `deselectAll` 자체는 8ms 로 싸다. 그래서 두 번 「범인 아님」으로 기각했다.
+     그런데 이 함수는 «비용»이 아니라 «방아쇠»였다 — 텍스트블록 전체에 contenteditable 을
+     249개 다시 쓰고(값이 같아도 DOM mutation 이다), `autoSaveObserver`(canvasEl,
+     attributes:true, subtree:true — save-load.js:1663)가 그걸 «편집»으로 집계한다.
+     그 옵저버의 필터는 `class` 만 제외하고 `contenteditable` 은 통과시킨다(save-load.js).
+     ⇒ scheduleAutoSave() → 디바운스 1500ms → serializeProject()(90MB) →
+       ★메인스레드 811ms 정지 + IPC 응답 대기 401ms.
+     ⇒ 클릭하고 1.5초 안에 팬하면 그 정지가 «팬 도중»에 떨어진다. 그게 「탁」이다.
+   실측 근거: 표시등 관측으로 예측 2018ms vs 관측 2027ms(오차 9ms).
+     그리고 자동저장을 끄면 팬중 최대가 749~825ms → 16.7ms 로 사라진다(측정용 절제).
+   ⛔이 처방은 «클릭 → 팬» 경로만 막는다. «진짜 편집 → 팬» 은 자동저장이 정당하게 걸리므로
+     여전히 정지한다. 그건 별도 처방(제스처 중 유예)이 필요하다 — 이 커밋으로 끝난 게 아니다. */
+function _setAttrIfChanged(el, name, value) {
+  if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+}
+
 function deselectAll() {
   clearMultiSel();
   _lastClickedBlock = null;
@@ -2561,7 +2579,7 @@ function deselectAll() {
   canvas.querySelectorAll('.section-block').forEach(s => s.classList.remove('selected'));
   canvas.querySelectorAll('.text-block').forEach(t => {
     t.classList.remove('selected', 'editing');
-    t.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('contenteditable','false'));
+    t.querySelectorAll('[contenteditable]').forEach(el => _setAttrIfChanged(el, 'contenteditable', 'false'));
   });
   canvas.querySelectorAll('.asset-block').forEach(a => {
     a.classList.remove('selected');
@@ -2579,11 +2597,11 @@ function deselectAll() {
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
-    b.querySelectorAll('.label-item-text').forEach(el => el.setAttribute('contenteditable','false'));
+    b.querySelectorAll('.label-item-text').forEach(el => _setAttrIfChanged(el, 'contenteditable', 'false'));
   });
   canvas.querySelectorAll('.table-block').forEach(b => {
     b.classList.remove('selected');
-    b.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable','false'));
+    b.querySelectorAll('[contenteditable="true"]').forEach(el => _setAttrIfChanged(el, 'contenteditable', 'false'));
     // #5-b: 셀 선택 마킹도 함께 해제
     b.querySelectorAll('td.cell-selected, th.cell-selected').forEach(c => c.classList.remove('cell-selected'));
   });

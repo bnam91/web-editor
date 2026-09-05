@@ -311,3 +311,14 @@ test('★R5 핀: scrollTop 을 «자기 목적»으로 쓰는 곳은 «상대» 
   assert.ok(/const startTop = wrap\.scrollTop/.test(stripComments(SRC)),
     'editor.js 부드러운 스크롤이 시작값을 안 잡으면 팬 위치를 무시하고 튄다');
 });
+
+/* ══ H. P-A1 — 쓸데없는 속성 쓰기 제거(자동저장 방아쇠 줄이기) ═══════════ */
+
+test('★P-A1 계약: deselectAll 이 «값이 같으면» contenteditable 을 안 쓴다', () => {
+  const body = stripComments(extractFn(SRC, 'deselectAll'));
+  assert.ok(!/setAttribute\('contenteditable'/.test(body),
+    "직접 setAttribute 하면 값이 같아도 mutation 이 나고, autoSaveObserver 가 그걸 «편집»으로 센다");
+  assert.ok(/_setAttrIfChanged\(/.test(body), '변화가 있을 때만 쓰는 헬퍼를 써야 한다');
+  const h = stripComments(extractFn(SRC, '_setAttrIfChanged'));
+  assert.ok(/getAttribute\(name\)\s*!==\s*value/.test(h), '기존 값과 비교해야 의미가 있다');
+});
