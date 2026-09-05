@@ -73,8 +73,11 @@ export function classifyExportOutcome(o) {
 }
 
 /* ── ⑵ 한 겹 더 씻기 ──────────────────────────────────────────────────────
-   순서가 중요하다: URL·데이터를 «먼저» 스킴만 남기고 뭉갠 뒤에 경로 세척을 부른다.
-   반대로 하면 https://cdn.example/상품/메인.png 이 경로 규칙에 걸려 파일명이 살아난다. */
+   ⚠️여기 「①~④ 는 순서가 중요하다」고 적혀 있었는데 **거짓이었다**(적대검수 X4·X5 실측).
+     ①↔② 도 ③↔④ 도 뒤집어 보면 결과가 «같다» — scrubPaths 가 URL 을 «건드리지 않기» 때문이다
+     (그 ③ 규칙이 앞 글자 '/'·':' 를 보고 비껴간다). https://host/Users/x/y.png 도 같았다.
+   ★순서가 결과를 바꾸는 곳은 fmtError 의 ⑤(«씻은 뒤» 자르기) «하나»고 거기만 핀이 있다(M11/S8).
+     안 그런 것을 「순서 의존」이라 적어 두면 다음 사람이 못 건드릴 것을 못 건드린다고 읽는다. */
 const SRC_FILE = /\.(m?js|cjs|html|json)(:\d+)?(:\d+)?$/i;
 const MEDIA    = /[^\s'"()/\\]+\.(png|jpe?g|gif|webp|svg|bmp|avif|heic|tiff?|mp4|webm|mov|psd|ai|pdf|zip|ttf|otf|woff2?)\b/gi;
 
