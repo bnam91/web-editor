@@ -215,7 +215,10 @@ function getRestingScroll() {
     const delta = (cr.left + cr.width / 2) - (wr.left + wrap.clientWidth / 2);
     left = Math.round(Math.max(0, Math.min(maxLeft, wrap.scrollLeft + delta)));
   }
-  return { top: Math.round(maxTop / 2), left };
+  /* ★[FIX-⑴] 꼬리 여백은 «아래쪽에만» 붙어 범위를 비대칭으로 만든다 — 그때 범위의 한가운데는
+     콘텐츠의 한가운데가 아니다(실측 −428px = 856/2). 꼬리의 절반을 덜어 대칭 기준으로 되돌린다.
+     꼬리가 0 이면 예전 식과 «완전히 같다» — 배율 변경 뒤엔 항상 0 이다. */
+  return { top: Math.round((maxTop - _canvasTailY) / 2), left };
 }
 
 /** 실효 팬 «변위». 부호는 기존 panOffset 과 같다(+y = 콘텐츠가 아래로 내려간 것). */
@@ -249,13 +252,34 @@ window.getPanPosition = getPanPosition;
 
 let _panRoomX = 0;   // scaler 좌우 여백(px, 한쪽) — 0 이면 아직 미적용
 let _panRoomY = 0;   // scaler 상하 여백(px, 한쪽)
+/* ★[FIX-⑴] 꼬리 여백을 «DOM 이 아니라 값»으로 갖는다.
+   ⛔무엇이 문제였나: 꼬리 여백(마지막 섹션도 맨 위로 당겨지게)과 팬 여지가 «같은 CSS 속성»
+     (#canvas-scaler.marginBottom) 한 칸을 나눠 썼다. 한 칸을 두 주인이 쓰면 나중에 쓴 쪽이
+     앞 쪽을 «지운다» — applyZoom → resetCanvasTail 이 marginBottom='0px' 을 써서 팬 여지
+     856px 이 배율을 바꿀 때마다 증발했다. 게다가 ensurePanRoom() 가드는 «변수만» 보므로
+     「이미 충분」으로 no-op → 스스로 낫지 못했다(실측 room.y=856 인데 DOM=0px).
+     ★가로가 멀쩡했던 이유도 여기 있다 — 가로엔 지우는 주인이 없어 growPanRoom('x') 이
+       스스로 자랐다. 세로만 «지우는 쪽»이 있어 대칭이 깨져 있었다.
+   ⇒ 구조로 끊는다: **scaler 의 네 margin 에 쓰는 코드는 _applyPanRoom() «하나»뿐**.
+     꼬리는 자기 값(_canvasTailY)만 갖고, 합성은 소유자가 한다.
+     ⇒ DOM 은 언제나 (_panRoomX, _panRoomY, _canvasTailY) 의 함수 = 「변수만 보는」 가드가 참이 된다. */
+let _canvasTailY = 0;
 
 function _applyPanRoom() {
   if (!scaler) return;
   scaler.style.marginLeft = _panRoomX + 'px';
   scaler.style.marginRight = _panRoomX + 'px';
   scaler.style.marginTop = _panRoomY + 'px';
-  scaler.style.marginBottom = _panRoomY + 'px';
+  scaler.style.marginBottom = (_panRoomY + _canvasTailY) + 'px';
+}
+
+/** 꼬리 여백을 «값»으로 정한다 — DOM 쓰기는 소유자(_applyPanRoom)에게 맡긴다.
+ *  ⇒ 불변식: 어떤 경로 뒤에도 marginBottom = _panRoomY + _canvasTailY ≥ _panRoomY. */
+function setCanvasTail(px) {
+  const v = Math.max(0, Math.round(px) || 0);
+  if (v === _canvasTailY) return;
+  _canvasTailY = v;
+  _applyPanRoom();
 }
 
 /** 기본 여지 = 사방 한 화면. 이미 그만큼 있으면 아무것도 안 한다. */
@@ -379,6 +403,23 @@ function absorbWheelResidual(axis, res) {
 }
 window.ensurePanRoom = ensurePanRoom;
 window.getPanRoom = () => ({ x: _panRoomX, y: _panRoomY });
+/* ★[FIX-⑴/탭] 팬 여지를 저장된 «값»으로 되돌린다 — 스크롤 보정은 «안 한다»(호출자가 직후에
+   저장된 scrollTop/Left 를 직접 세운다).
+   왜 필요한가: `_panRoomX/Y` 는 모듈 전역이라 «모든 탭이 한 벌을 공유»한다. 그런데 탭 뷰상태는
+   scrollTop 을 «절대값»으로 저장한다 — 저장 시점의 여백을 전제로 한 좌표다. 다른 탭에서 여지가
+   줄면(shrinkPanRoom) 돌아왔을 때 같은 scrollTop 이 «다른 자리»를 가리킨다
+   (실측: room.y 1556→1256 으로 300 줄자 복원이 정확히 300px 어긋났다).
+   ⇒ 좌표를 세우기 «전»에 그 좌표가 전제한 여지를 먼저 세운다.
+   ⛔기본(한 화면) 아래로는 안 내린다 — 그 아래는 가운데정렬이 성립하지 않는 영역이다. */
+window.setPanRoom = (r) => {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!r || !wrap || !scaler || !wrap.clientWidth) return;
+  const x = Math.max(wrap.clientWidth, Math.round(r.x) || 0);
+  const y = Math.max(wrap.clientHeight, Math.round(r.y) || 0);
+  if (x === _panRoomX && y === _panRoomY) return;
+  _panRoomX = x; _panRoomY = y;
+  _applyPanRoom();
+};
 window.shrinkPanRoom = shrinkPanRoom;   // 하네스 검증용(정상 위치 복귀 후 여지 회수 확인)
 
 /* C20: transform:scale은 레이아웃 박스 높이를 안 바꿔 #canvas-wrap.scrollHeight가 미축소 원본 기준으로 잡힘
@@ -2410,10 +2451,13 @@ function selectSection(sec, scrollIntoView = false) {
      * ★공식으로 미리 계산하지 «않는다» — 매번 0 으로 되돌리고 «모자란 만큼»만 준다.
      *   그래야 배율이 낮아 레이아웃과 화면이 어긋날 때도 정확하고, 여백이 누적되지 않는다. */
     if (scalerEl) {
-      scalerEl.style.marginBottom = '0px';
+      /* ★[FIX-⑴] margin 을 직접 쓰지 «않는다» — 꼬리는 자기 값만 정하고, DOM 은 _applyPanRoom 이
+         팬 여지와 «합쳐» 쓴다. 예전엔 이 두 줄이 팬 여지를 덮어써 없앴다.
+         ★기능은 그대로다: 매번 0 으로 되돌리고 «모자란 만큼»만 준다(마지막 섹션도 top+40). */
+      setCanvasTail(0);
       const max = canvasWrapEl.scrollHeight - canvasWrapEl.clientHeight;
       const short = target - max;
-      if (short > 0) scalerEl.style.marginBottom = Math.round(short) + 'px';
+      if (short > 0) setCanvasTail(short);
     }
     canvasWrapEl.scrollTo({ top: target, behavior: 'smooth' });
   }
@@ -3222,8 +3266,10 @@ const CANVAS_TAIL_GAP = 40;   // 섹션 위에 남길 여유
      「실제로 문제가 보이면 그때 잡자」 — 지금 clamp 를 넣으면 그 자체로 중앙에서 벗어난다. */
 /** 꼬리 여백을 버린다 — 배율변경·페이지전환·섹션삭제 등 «상태가 바뀌면» 남겨두지 않는다. */
 function resetCanvasTail() {
-  const sc = document.getElementById('canvas-scaler');
-  if (sc && sc.style.marginBottom && sc.style.marginBottom !== '0px') sc.style.marginBottom = '0px';
+  /* ★[FIX-⑴] 예전엔 여기서 `marginBottom='0px'` 로 DOM 을 «직접» 지웠다 — 그 한 줄이 팬 여지를
+     같이 지웠다(applyZoom 끝에서 «항상» 불린다). 이제 꼬리 «값»만 0 으로 내리고 DOM 은
+     소유자(_applyPanRoom)가 팬 여지와 합쳐 다시 쓴다. */
+  setCanvasTail(0);
 }
 window.resetCanvasTail = resetCanvasTail;
 

@@ -39,16 +39,17 @@ function extractFn(src, name) {
 }
 
 /** 가짜 DOM 으로 getRestingScroll/getPanPosition 을 «실제 소스 그대로» 돌린다. */
-function makeEnv({ scalerH, clientH, clientW, scrollH, scrollW, zoom, panX, panY, scrollTop, scrollLeft }) {
+function makeEnv({ scalerH, clientH, clientW, scrollH, scrollW, zoom, panX, panY, scrollTop, scrollLeft, canvasTailY = 0 }) {
   const wrap = { clientHeight: clientH, clientWidth: clientW, scrollHeight: scrollH, scrollWidth: scrollW, scrollTop, scrollLeft };
   const scaler = { offsetHeight: scalerH };
   const document = { getElementById: id => (id === 'canvas-wrap' ? wrap : id === 'canvas-scaler' ? scaler : null) };
-  const factory = new Function('document', 'currentZoom', 'panOffsetX', 'panOffsetY', `
+  // [FIX-⑴] 꼬리 여백은 «아래쪽에만» 붙어 스크롤 범위를 비대칭으로 만든다 → 쉼 위치가 그 값을 본다.
+  const factory = new Function('document', 'currentZoom', 'panOffsetX', 'panOffsetY', '_canvasTailY', `
     ${extractFn(SRC, 'getRestingScroll')}
     ${extractFn(SRC, 'getPanPosition')}
     return { getRestingScroll, getPanPosition };
   `);
-  return { wrap, ...factory(document, zoom, panX, panY) };
+  return { wrap, ...factory(document, zoom, panX, panY, canvasTailY) };
 }
 
 const BASE = { scalerH: 10000, clientH: 800, clientW: 1000, scrollH: 10000, scrollW: 1000,
@@ -399,4 +400,56 @@ test('★P-A1″ 계약: 자동저장 감시가 그 필터를 실제로 «쓴다
   assert.notEqual(i, -1);
   const body = stripComments(SL.slice(i, i + 1400));
   assert.ok(/_isNonContentUiMutation\(m\)/.test(body), '감시 콜백이 필터를 호출해야 한다');
+});
+
+
+/* ══ E. FIX-canvas-eval3 ⑴ — marginBottom «한 칸 두 주인»을 소유자로 끊는다 ══ */
+
+test('★FIX-⑴ 계약: #canvas-scaler 의 margin 을 쓰는 코드는 _applyPanRoom «하나»뿐', () => {
+  /* 결함의 뿌리는 「한 CSS 속성을 두 기능이 공유」였다 — 팬 여지와 꼬리 여백이 같은
+     marginBottom 을 각자 썼고, 나중에 쓴 쪽이 앞 쪽을 지웠다(배율 변경마다 여지 856px 증발).
+     ⇒ 소유자를 «한 함수»로 못 박는다. 다른 데서 다시 쓰면 여기서 빨강이 된다. */
+  const clean = stripComments(SRC);
+  const RE = /(?:scaler|scalerEl)\.style\.margin/g;
+  const all = clean.match(RE) || [];
+  const owner = stripComments(extractFn(SRC, '_applyPanRoom')).match(RE) || [];
+  assert.equal(owner.length, 4, '_applyPanRoom 이 네 margin 을 «전부» 쓴다');
+  assert.equal(all.length, owner.length,
+    'scaler 의 margin 을 _applyPanRoom «밖»에서 쓰는 코드가 생겼다 — 한 칸을 두 주인이 쓰면 서로 지운다');
+});
+
+test('★FIX-⑴ 계약: 꼬리 여백은 «값»(_canvasTailY)이고 소유자가 팬 여지와 «합쳐» 쓴다', () => {
+  const owner = stripComments(extractFn(SRC, '_applyPanRoom'));
+  assert.ok(/marginBottom\s*=\s*\(_panRoomY\s*\+\s*_canvasTailY\)/.test(owner),
+    '아래 여백 = 팬 여지 + 꼬리 ⇒ marginBottom ≥ _panRoomY 가 «정의상» 참이 된다');
+  for (const fn of ['resetCanvasTail']) {
+    const body = stripComments(extractFn(SRC, fn));
+    assert.ok(!/style\.margin/.test(body), `${fn} 이 DOM 을 직접 지우면 팬 여지를 같이 지운다`);
+    assert.ok(/setCanvasTail\s*\(\s*0\s*\)/.test(body), '꼬리 «값»만 0 으로 내려야 한다');
+  }
+  // 꼬리를 «주는» 쪽(selectSection)도 margin 을 직접 쓰면 안 된다 — 위 소유자 테스트가 잡지만
+  // 실패했을 때 원인을 바로 알 수 있게 여기서도 이름으로 못 박는다.
+  const sel = stripComments(extractFn(SRC, 'selectSection'));
+  assert.ok(/setCanvasTail\s*\(/.test(sel) && !/scalerEl\.style\.margin/.test(sel),
+    'selectSection 의 꼬리 계산은 setCanvasTail 을 거쳐야 한다');
+});
+
+test('★FIX-⑴ 동작: 꼬리 여백이 있으면 쉼 세로가 그 절반만큼 올라간다(비대칭 보정)', () => {
+  assert.equal(makeEnv({ ...BASE }).getRestingScroll().top, 4600);   // 꼬리 0 = 옛 식과 동일
+  // 꼬리 856 이 «아래에만» 붙으면 범위가 856 늘지만 참 중앙은 그대로다
+  const e = makeEnv({ ...BASE, scrollH: 10000 + 856, canvasTailY: 856 });
+  assert.equal(e.getRestingScroll().top, 4600, '꼬리 몫을 안 빼면 428px 아래로 어긋난다(실측값)');
+});
+
+test('★FIX-⑴/탭 계약: 탭 뷰상태가 «팬 여지»를 같이 저장·복원한다', () => {
+  const TS = fs.readFileSync(path.join(__dirname, '../../js/tab-system.js'), 'utf8');
+  const clean = stripComments(TS);
+  assert.ok(/panRoom:\s*window\.getPanRoom/.test(clean),
+    'scrollTop 은 «저장 시점의 여백»을 전제한 절대 좌표다 — 여지도 같이 저장해야 한다');
+  assert.ok(/window\.setPanRoom\s*\(\s*panRoom\s*\)/.test(clean), '복원도 있어야 한다');
+  const setIdx = clean.indexOf('window.setPanRoom(panRoom)');
+  const scrollIdx = clean.indexOf('wrap.scrollTop = scrollTop');
+  assert.ok(setIdx !== -1 && scrollIdx !== -1 && setIdx < scrollIdx,
+    '좌표를 세우기 «전»에 그 좌표가 전제한 여지부터 세워야 한다');
+  assert.ok(/window\.setPanRoom\s*=/.test(SRC), 'editor.js 가 setPanRoom 을 노출해야 한다');
 });

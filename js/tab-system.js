@@ -205,11 +205,14 @@ let _viewRestoreGen = 0;
 function _restoreViewState(tab) {
   const gen = ++_viewRestoreGen; // 새 복원 시작 = 이전 탭의 pending 재시도 전부 무효화
   if (!tab?._viewState) return;
-  const { zoom, panX, panY, scrollTop = 0, scrollLeft = 0 } = tab._viewState;
+  const { zoom, panX, panY, scrollTop = 0, scrollLeft = 0, panRoom = null } = tab._viewState;
   // applyZoom → _syncScalerHeight가 scaler 레이아웃 높이를 동기화(reflow)해
   // scrollHeight가 확보된 뒤 스크롤을 세팅할 수 있다 (editor.js C20 참조)
   if (window.applyZoom) window.applyZoom(zoom);
   if (window.setPanOffset) window.setPanOffset(panX, panY);
+  /* ★[FIX-⑴] 저장된 scrollTop/Left 는 «저장 시점의 팬 여백»을 전제로 한 절대 좌표다.
+     여지는 모듈 전역이라 다른 탭에서 줄어들 수 있다 ⇒ 좌표를 세우기 전에 그 전제부터 세운다. */
+  if (panRoom && window.setPanRoom) window.setPanRoom(panRoom);
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap) return;
   wrap.scrollTop = scrollTop;
@@ -254,7 +257,9 @@ async function switchTab(id) {
     const curWrap = document.getElementById('canvas-wrap');
     curTab._viewState = {
       zoom: window.currentZoom || 40, panX: pan.x, panY: pan.y,
-      scrollTop: curWrap?.scrollTop || 0, scrollLeft: curWrap?.scrollLeft || 0
+      scrollTop: curWrap?.scrollTop || 0, scrollLeft: curWrap?.scrollLeft || 0,
+      // [FIX-⑴] 위 스크롤 좌표가 «전제한» 팬 여백 — 복원 때 좌표보다 «먼저» 되세운다
+      panRoom: window.getPanRoom?.() || null
     };
   }
 
