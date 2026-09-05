@@ -417,6 +417,9 @@ function shrinkPanRoom() {
   const maxT = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
   const cutX = Math.max(0, Math.min(_panRoomX - baseX, wrap.scrollLeft, maxL - wrap.scrollLeft));
   const cutY = Math.max(0, Math.min(_panRoomY - baseY, wrap.scrollTop, maxT - wrap.scrollTop));
+  /* [M35] «정착»은 제스처가 끝나고 앱이 상태를 추스르는 지점이다 — 여지를 실제로 깎았든 아니든
+     그때 표시기를 상태에 맞춘다. 이른 return 뒤에 두면 「깎을 게 없던 정착」에서 노치가 어긋난 채 남는다. */
+  scheduleNotchUpdate();
   if (!cutX && !cutY) return;
   const sl = wrap.scrollLeft, st = wrap.scrollTop;
   _panRoomX -= cutX; _panRoomY -= cutY;
@@ -426,7 +429,6 @@ function shrinkPanRoom() {
   /* ★[FIX-⑵] 진행 중인 팬이 있으면 그 기준점도 «같은 양» 옮긴다 —
      불변식 `scrollLeft = scrollStart.left − wantDX` 를 새 좌표계에서 그대로 유지. */
   if (_panScrollBaseline) { _panScrollBaseline.left -= cutX; _panScrollBaseline.top -= cutY; }
-  scheduleNotchUpdate();   // [M35] 여지 회수는 scrollLeft 와 쉼 위치를 «같이» 옮긴다 = dx 가 바뀐다
 }
 /* ═══ [P-W1] 휠/트랙패드 «잔여»를 transform 이 아니라 «여지»로 흡수한다 ═══
    왜: 잔여를 `panOffset`+transform 으로 처리하면 결함이 «둘» 생긴다 —
