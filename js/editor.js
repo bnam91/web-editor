@@ -3083,6 +3083,13 @@ document.addEventListener('click', e => {
       if (!panMode) {
         panMode = true;
         canvasWrap.classList.add('pan-mode');
+        /* [P-A2] ★유예를 «스페이스» 시점에도 건다.
+           mousedown 에만 걸면, 스페이스와 클릭을 «거의 동시에» 누른 회차에서
+           mousedown 이 `panMode === false` 로 early return 해 유예가 «안 걸린다».
+           실측: 유효 회차인데 defer 호출 0회 → 디바운스 그대로 1509ms 에 1983ms 정지.
+           스페이스는 팬의 «시작 신호»이므로 여기서 걸면 순서와 무관하게 걸린다.
+           (재개는 keyup·mouseup·blur·타임아웃 넷이 이미 덮는다) */
+        window.deferAutoSave?.();
       }
     }
   });

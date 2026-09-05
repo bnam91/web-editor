@@ -357,11 +357,17 @@ test('★P-A2 계약: 고착 방지 — 재개 경로가 «여럿»이다 (고�
     '스페이스를 떼는 경로에서도 재개해야 한다(마우스를 창 밖에서 떼는 경우)');
 });
 
-test('★P-A2 계약: 팬 시작이 유예를 «건다»', () => {
+test('★P-A2 계약: 유예를 «스페이스»와 «mousedown» «둘 다»에서 건다', () => {
   const ed = stripComments(SRC);
   const dnIdx = ed.indexOf("canvasWrap.addEventListener('mousedown'");
   assert.ok(/deferAutoSave\?\.\(\)/.test(ed.slice(dnIdx, dnIdx + 700)),
     '팬 mousedown 이 유예를 걸어야 90MB 직렬화가 팬 도중에 안 터진다');
+  // ★mousedown «만» 걸면, 스페이스와 클릭이 거의 동시일 때 mousedown 이 panMode=false 로
+  //   early return 해 유예가 안 걸린다(실측: 유효 회차인데 defer 0회 → 1983ms 정지).
+  const spIdx = ed.indexOf("canvasWrap.classList.add('pan-mode')");
+  assert.ok(spIdx > 0, '팬 모드 진입 지점을 못 찾음');
+  assert.ok(/deferAutoSave\?\.\(\)/.test(ed.slice(spIdx, spIdx + 400)),
+    '스페이스(팬 시작 신호) 시점에도 걸어야 순서 경합에 안 진다');
 });
 
 /* ══ J. P-A1″ — «편집이 아닌 것»의 단일 목록 ════════════════════════════ */
