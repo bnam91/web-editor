@@ -58,6 +58,13 @@ function _appendCardTexts(container, card, titleSize, descSize, textAlign, title
     const ph = document.createElement('div');
     ph.className = 'cvb-card-ph';
     if (cardIdx != null) { ph.dataset.cardIdx = cardIdx; ph.dataset.field = titleField; if (slot) ph.dataset.slot = slot; }
+    /* ★내보내기에 «안내문이 박히지 않게» 앱의 기존 표식을 붙인다 (지디 실기 QA FAIL 해소).
+     * export-image.js:241 이 `[data-is-placeholder="true"]` 를 찾아 visibility:hidden 으로 가린다
+     * (자식 DOM·높이는 유지하고 «글자만» 사라지게 하는 정석 — textContent='' 는 높이가 collapse 된다).
+     * 이 표식이 없어서 실측상 export 클론에 「텍스트를 입력하세요」가 그대로 보였다:
+     *   클론 visibility=visible · display=block · 글자 있음 → ★FAIL.
+     * ⛔새 장치를 만들지 않는다. 텍스트블럭 등이 이미 쓰는 그 관례를 그대로 쓴다. */
+    ph.dataset.isPlaceholder = 'true';
     ph.style.cssText = 'color:#bbb;font-size:13px;font-family:sans-serif;text-align:center;';
     ph.textContent = '텍스트를 입력하세요';
     container.appendChild(ph);
