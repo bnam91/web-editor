@@ -317,9 +317,16 @@ function shrinkPanRoom() {
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap || !scaler) return;
   const baseX = wrap.clientWidth, baseY = wrap.clientHeight;
-  // 앞쪽 여백은 scrollLeft/Top 이하로는 못 줄인다(줄인 만큼 스크롤도 줄여야 하는데 음수가 된다).
-  const cutX = Math.max(0, Math.min(_panRoomX - baseX, wrap.scrollLeft));
-  const cutY = Math.max(0, Math.min(_panRoomY - baseY, wrap.scrollTop));
+  /* 한쪽에서 c 를 깎으면 «양쪽» 여백이 줄어 전체 범위가 2c 만큼 준다.
+     ⇒ 안전 조건이 «둘»이다:
+       ⑴ 앞쪽: 줄인 만큼 스크롤도 줄여야 하므로  c ≤ scrollLeft   (안 그러면 음수)
+       ⑵ 뒤쪽: 새 최대(max−2c)가 새 위치(scrollLeft−c) 이상이어야 하므로  c ≤ max − scrollLeft
+     ⛔⑵를 빠뜨렸다가 실측에서 걸렸다 — 끝까지 민 상태에서 되돌리니 브라우저가 clamp 해
+       그 다음 제스처가 «아예 안 움직였다»(이동 0). 「줄이는 방향은 clamp 를 부른다」의 두 번째 얼굴이다. */
+  const maxL = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+  const maxT = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+  const cutX = Math.max(0, Math.min(_panRoomX - baseX, wrap.scrollLeft, maxL - wrap.scrollLeft));
+  const cutY = Math.max(0, Math.min(_panRoomY - baseY, wrap.scrollTop, maxT - wrap.scrollTop));
   if (!cutX && !cutY) return;
   const sl = wrap.scrollLeft, st = wrap.scrollTop;
   _panRoomX -= cutX; _panRoomY -= cutY;
@@ -327,8 +334,52 @@ function shrinkPanRoom() {
   wrap.scrollLeft = sl - cutX;
   wrap.scrollTop = st - cutY;
 }
+/* ═══ [P-W1] 휠/트랙패드 «잔여»를 transform 이 아니라 «여지»로 흡수한다 ═══
+   왜: 잔여를 `panOffset`+transform 으로 처리하면 결함이 «둘» 생긴다 —
+     ⓐ `±clientWidth/2` 상한에 걸려 「원하는 만큼 안 밀린다」(실측 10%에서 1500 요청 → 477px, 32%)
+     ⓑ 그 경로엔 `.panning` 이 «없어» `transition: transform .15s` 가 «켜진 채» 돈다
+        ⇒ 「마우스가 가면 이후에 따라오는 느낌」의 직접 원인(실측 잔여 중 transition-duration=0.15s)
+   ⇒ 여지로 흡수하면 transform 을 «아예 안 쓰므로» ⓑ가 구조적으로 사라진다(타이머 불필요).
+
+   ⛔상한은 «유지»한다. 원래 버그가 실재했다 — `0ab2f72`(2026-06-14):
+     「휠로 콘텐츠 끝을 지나도 panOffset 이 무한 누적돼 빈 공간으로 끝없이 스크롤」.
+     여지도 무한히 키우면 같은 병이 돌아온다. 그래서 «콘텐츠 끝을 지나 최대 OVER 화면»으로 묶는다.
+   ★OVER 값의 근거: 실측이 아니라 «완료조건에서 역산»한 것이다 —
+     10% 배율에서 1500px 요청의 95% 를 채우려면 화면폭(≈954) 기준 약 1.6화면이 필요하다.
+     3 은 거기에 여유를 둔 값이고, 제품 판단이지 측정값이 아니다(현빈 게이트에서 「키우기」로 정해짐). */
+const WHEEL_OVER_SCREENS = 3;
+
+/* ★휠에는 mouseup 이 «없다» — 팬처럼 제스처 끝에 여지를 되돌릴 계기가 없다.
+   안 되돌리면 여지가 상한까지 쌓인 채 남아 «그 다음 제스처가 아예 안 움직인다»
+   (실측: 배율을 옮겨 가며 세 번 밀었더니 세 번째엔 이동 0). ⇒ 제스처가 멎으면 되돌린다.
+   축소는 shrinkPanRoom 이 «현재 위치가 요구하는 만큼»까지만 하므로 clamp 튐이 없다. */
+let _wheelSettleTimer = null;
+function scheduleWheelSettle() {
+  clearTimeout(_wheelSettleTimer);
+  _wheelSettleTimer = setTimeout(() => { _wheelSettleTimer = null; shrinkPanRoom(); }, 200);
+}
+
+function absorbWheelResidual(axis, res) {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !scaler || !res) return 0;
+  const isX = axis === 'x';
+  const client = isX ? wrap.clientWidth : wrap.clientHeight;
+  const cap = client + client * WHEEL_OVER_SCREENS;      // 기본 한 화면 + 여유 OVER 화면
+  const cur = isX ? _panRoomX : _panRoomY;
+  if (cur >= cap) return 0;                              // 상한 도달 — 여기서 멈춘다(원래 상한과 같은 뜻)
+  const grow = Math.min(cap - cur, Math.abs(res));
+  const before = cur;
+  if (isX) { _panRoomX = cur + grow; } else { _panRoomY = cur + grow; }
+  _applyPanRoom();
+  const d = (isX ? _panRoomX : _panRoomY) - before;
+  // 앞쪽 여백이 늘어난 만큼 스크롤을 보정한 뒤, 잔여 방향으로 실제로 민다.
+  if (isX) { wrap.scrollLeft = wrap.scrollLeft + d + res; }
+  else     { wrap.scrollTop  = wrap.scrollTop  + d + res; }
+  return d;
+}
 window.ensurePanRoom = ensurePanRoom;
 window.getPanRoom = () => ({ x: _panRoomX, y: _panRoomY });
+window.shrinkPanRoom = shrinkPanRoom;   // 하네스 검증용(정상 위치 복귀 후 여지 회수 확인)
 
 /* C20: transform:scale은 레이아웃 박스 높이를 안 바꿔 #canvas-wrap.scrollHeight가 미축소 원본 기준으로 잡힘
  *      → 줌아웃 시 마지막 섹션 아래로 빈 회색이 과도하게 스크롤됨. scaler 레이아웃 높이를
@@ -2791,14 +2842,12 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
       const resY = e.deltaY - (wrap.scrollTop - bt);
       const resX = e.deltaX - (wrap.scrollLeft - bl);
       if (resX || resY) {
-        panOffsetX -= resX;
-        panOffsetY -= resY;
-        // over-scroll 상한: 콘텐츠 끝을 지나 최대 '반 화면'까지만 휠 팬 허용.
-        // ★휠이 실제로 민 축만 클램프(resX/resY 각각) — 세로 over-scroll이 기존 가로 오프셋(줌/스페이스팬)을
-        //   깎거나 노치를 튀게 하지 않도록(Codex 리뷰 반영). 줌/스크롤바/스페이스팬은 이 경로를 안 타므로 무영향.
-        if (resX) { const LIM_X = wrap.clientWidth  / 2; panOffsetX = Math.max(-LIM_X, Math.min(LIM_X, panOffsetX)); }
-        if (resY) { const LIM_Y = wrap.clientHeight / 2; panOffsetY = Math.max(-LIM_Y, Math.min(LIM_Y, panOffsetY)); }
-        _applyScalerTransform();
+        // [P-W1] 잔여를 «여지»로 흡수한다 — transform 을 안 쓰므로 0.15s 보간이 안 걸린다.
+        if (resX) absorbWheelResidual('x', resX);
+        if (resY) absorbWheelResidual('y', resY);
+        scheduleWheelSettle();
+        // 상한은 absorbWheelResidual 안에 «여지 상한»으로 옮겼다(원래 목적 = 콘텐츠 끝 지나
+        // 무한 누적 방지, 0ab2f72). transform 은 여기서 «안» 쓴다.
         if (window.updateNotchPosition) window.updateNotchPosition();
       }
     }

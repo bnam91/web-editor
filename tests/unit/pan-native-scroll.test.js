@@ -236,3 +236,40 @@ test('★이득비 계약: growPanRoom 은 «더한 보정량»을 돌려준다'
     '호출자가 기준점을 같이 옮기려면 보정량을 알아야 한다');
   assert.ok(/return 0\s*;/.test(body), '요소가 없을 때도 «수»를 돌려줘야 += 가 NaN 이 안 된다');
 });
+
+/* ══ F. P-W1 — 휠/트랙패드 «잔여» ═══════════════════════════════════════ */
+
+test('★P-W1 계약: 휠 잔여 경로가 transform 을 «안» 쓴다', () => {
+  const i = SRC.indexOf("const resX = e.deltaX");
+  assert.notEqual(i, -1, '휠 잔여 계산부를 못 찾음');
+  const body = stripComments(SRC.slice(i, i + 900));
+  assert.ok(!/_applyScalerTransform\s*\(/.test(body),
+    '잔여를 transform 으로 쓰면 ⑴그 프레임 전면 재기록 ⑵`.panning` 이 없어 0.15s 보간이 켜진 채 돈다');
+  assert.ok(!/panOffsetX\s*-=|panOffsetY\s*-=/.test(body), '잔여를 panOffset 에 넣지 않는다');
+  assert.ok(/absorbWheelResidual\('x'/.test(body) && /absorbWheelResidual\('y'/.test(body),
+    '잔여는 «여지»로 흡수한다(S2 와 같은 수단)');
+});
+
+test('★P-W1 계약: 여지 상한이 «있다» — 원래 버그(무한 누적)가 실재했다', () => {
+  const body = stripComments(extractFn(SRC, 'absorbWheelResidual'));
+  assert.ok(/WHEEL_OVER_SCREENS/.test(body) && /cap/.test(body),
+    '상한이 없으면 0ab2f72 가 고친 「콘텐츠 끝 지나 끝없이 스크롤」이 되살아난다');
+  assert.ok(/if \(cur >= cap\) return 0/.test(body), '상한에 닿으면 더 늘리지 않는다');
+});
+
+test('★P-W1 계약: 휠은 mouseup 이 없으므로 «정착 시» 여지를 되돌린다', () => {
+  const body = stripComments(extractFn(SRC, 'scheduleWheelSettle'));
+  assert.ok(/clearTimeout/.test(body) && /setTimeout/.test(body), '제스처가 이어지면 미뤄야 한다');
+  assert.ok(/shrinkPanRoom\s*\(/.test(body),
+    '안 되돌리면 여지가 상한까지 쌓인 채 남아 «다음 제스처가 아예 안 움직인다»(실측 이동 0)');
+  const wheel = stripComments(SRC.slice(SRC.indexOf("const resX = e.deltaX"), SRC.indexOf("const resX = e.deltaX") + 900));
+  assert.ok(/scheduleWheelSettle\s*\(/.test(wheel), '휠 경로가 실제로 예약해야 한다');
+});
+
+test('★P-W1 계약: 여지 «축소»의 안전조건이 «둘» 다 있다 (앞쪽·뒤쪽)', () => {
+  const body = stripComments(extractFn(SRC, 'shrinkPanRoom'));
+  assert.ok(/maxL\s*-\s*wrap\.scrollLeft/.test(body),
+    '뒤쪽 조건이 없으면 끝까지 민 상태에서 되돌릴 때 브라우저가 clamp 해 다음 제스처가 죽는다');
+  assert.ok(/maxT\s*-\s*wrap\.scrollTop/.test(body), '세로도 같다');
+  assert.ok(/wrap\.scrollLeft/.test(body) && /wrap\.scrollTop/.test(body), '앞쪽 조건도 있어야 한다');
+});
