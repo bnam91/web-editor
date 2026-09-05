@@ -91,7 +91,31 @@ function stats() {
   return { size: items.length, max: MAX_ITEMS, oldest: items[0] ? items[0].createdAt : null };
 }
 
-/* ── 전송 ────────────────────────────────────────────────────────────────── */
+/* ── 전송 ──────────────────────────────────────────────────────────────────
+   ★★정본 하나만 두드리면 «신고가 한 건도 안 간다» (2026-09-05 지디 실측)
+     실측:  POST /api/report          → 404 {"ok":false,"error":"not_found"}  (message «없음»)
+            POST /api/license/report  → 400 {"ok":false,"error":"empty_text","message":"내용을 적어 주세요."}
+     즉 정본 라우트는 «아직 EC2 어댑터 ROUTES 화이트리스트에 없고», 같은 핸들러가 alias
+     주소로는 «살아 있다». 그런데 404 는 (의도적으로) 재시도 대상이라 큐가 조용히 무한 재시도만 한다
+     — 사용자는 「보냈다」고 보고 현빈은 «아무것도 못 받는다».
+     main/admin/index.js 는 «읽기» 쪽에서 이미 같은 사정을 alias 폴백으로 넘고 있었는데
+     «쓰기»(이 파일)에만 그 폴백이 없었다.
+   ★가르는 표는 admin/index.js 와 «같은 것»을 쓴다: 핸들러가 낸 404 는 사람에게 할 말(message)을
+     싣고, 어댑터의 라우팅 404 는 안 싣는다. message 가 있으면 그건 정본이 «대답한» 것이므로
+     alias 로 넘어가지 않는다(같은 신고가 두 번 들어가는 걸 막는다). */
+const ALIAS_PATH = '/api/license/report';
+let _pathPref = null;    // 이번 실행에서 «통한» 주소. 매 건 왕복 두 번 하지 않으려고 기억한다.
+
+/** 정본 → (라우팅 404 면) alias 로 «한 번만» 재시도. 반환 꼴은 post 와 같다. */
+async function postReport(body) {
+  if (_pathPref === ALIAS_PATH) return post(_apiBase + ALIAS_PATH, body);
+  const r = await post(_apiBase + '/api/report', body);
+  if (r.status !== 404 || (r.json && r.json.message)) { _pathPref = '/api/report'; return r; }
+  const alt = await post(_apiBase + ALIAS_PATH, body);
+  if (alt.status !== 404) _pathPref = ALIAS_PATH;
+  return alt;
+}
+
 async function post(url, body) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
@@ -169,7 +193,7 @@ async function flush() {
         // ★세션토큰은 «보낼 때» 붙인다. 큐 파일에 토큰을 적어 두지 않는다(디스크에 남는다).
         //   D-c: 로그아웃 뒤 재시도되면 토큰이 없어 그대로 익명이 된다 — 이전 계정이 새지 않는다.
         if (auth.sessionToken) body.sessionToken = auth.sessionToken;
-        res = await post(_apiBase + '/api/report', body);
+        res = await postReport(body);
       } catch (e) {
         netErr = (e && e.name === 'AbortError') ? 'timeout' : ((e && e.message) || 'network');
       }
@@ -231,4 +255,4 @@ function init(o) {
   scheduleRetry();
 }
 
-module.exports = { init, enqueue, flush, stats, MAX_ITEMS };
+module.exports = { init, enqueue, flush, stats, MAX_ITEMS, _postReport: (b) => postReport(b), _resetPathPref: () => { _pathPref = null; }, ALIAS_PATH };
