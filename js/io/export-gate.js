@@ -59,6 +59,13 @@ export async function runExportGate(sec, w, io) {
   };
   let metrics = null;
   const timing = { truthMs: 0, cmpMs: 0, reproMs: 0 };
+  /* ★삼킨 예외를 «밖으로» 들려 보낸다 (적대검수 B1, 2026-09-05).
+     아래 catch 들은 오류를 안 삼키고 「못 쟀다」로 돌리지만, «무엇이» 못 재게 했는지는
+     console.warn 으로 «이 기계에만» 남았다. 그러면 신고에 `why=captureError` 한 마디만 가고
+     현빈은 「검사기가 죽었다」밖에 못 읽는다 — 「이 기록만 보고 재현할 수 있는가」에 걸린다.
+     ⇒ 예외 객체를 결과에 실어 «기록하는 쪽»이 세척해서 붙이게 한다.
+     ⛔여기서 세척하지 않는다 — 세척은 담을 때 한 번(export-report.js) 이면 된다. */
+  let gateError = null;
 
   // «못 잴 조건»이면 truth 를 뜨지도 않는다 — 비용을 안 쓴다.
   const pre = judgeExportDiff(null, ctx);
@@ -69,7 +76,9 @@ export async function runExportGate(sec, w, io) {
   if (!io.exportCanvas) {
     ctx.captureError = true;
     const v = judgeExportDiff(null, ctx);
-    return _log(sec, { tier: v.tier, reasons: v.reasons, metrics: null, ms: performance.now() - t0, timing });
+    // exportCanvas 가 아예 없다 — 예외 객체는 없지만 «사유»는 말할 수 있다.
+    return _log(sec, { tier: v.tier, reasons: v.reasons, metrics: null, ms: performance.now() - t0, timing,
+                       error: new Error('exportCanvas 없음 (캡처 결과가 안 넘어왔다)') });
   }
 
   let truth1 = null;
@@ -86,6 +95,7 @@ export async function runExportGate(sec, w, io) {
     // ⚠️오류를 «삼키면» 그 위의 모든 판정이 거짓말이 된다 — 「검사했는데 정상」이 아니라
     //   「검사를 못 했다」가 사실이다.
     console.warn('[export-gate] truth 캡처/비교 실패:', err);
+    gateError = err;                      // ★밖으로 들려 보낸다 — 적대검수 B1(원인 없는 gateerr)
     ctx.captureError = true;
   }
 
@@ -105,12 +115,13 @@ export async function runExportGate(sec, w, io) {
       if (metrics) metrics.reproDiff = rm.sizeMismatch ? 'SIZE' : rm.total;
     } catch (err) {
       console.warn('[export-gate] 재검사 실패:', err);
+      if (!gateError) gateError = err;      // ★먼저 난 것을 남긴다(뒤엣것이 앞엣것을 가리지 않게)
       ctx.repro = 'unstable';
     }
     verdict = judgeExportDiff(metrics, ctx);
   }
 
-  return _log(sec, { tier: verdict.tier, reasons: verdict.reasons, metrics, ms: performance.now() - t0, timing });
+  return _log(sec, { tier: verdict.tier, reasons: verdict.reasons, metrics, ms: performance.now() - t0, timing, error: gateError });
 }
 
 function _log(sec, r) {
@@ -124,9 +135,14 @@ function _log(sec, r) {
     ms: Math.round(r.ms), truthMs: Math.round(r.timing.truthMs),
     cmpMs: Math.round(r.timing.cmpMs), reproMs: Math.round(r.timing.reproMs),
   }));
-  // 신고 창에 실릴 수 있게 «수치만» 남긴다(그림 없음 — 고객사 캔버스다).
-  // ⚠️ReportBuffer 의 공개 API 는 note(문자열) 다 — push 는 내부용(level, msg) 이라 부르면 조용히 어긋난다.
-  try { window.ReportBuffer?.note?.('[export-gate] ' + (sec && sec.id) + ' ' + r.tier + ' ' + (r.reasons || []).join(',') + (m ? (' total=' + m.total + ' blob=' + m.blobPx) : '')); } catch (_) {}
+  /* ⛔여기서는 신고 버퍼에 «담지 않는다» — 옮겼다(js/io/export-report.js).
+     이 자리의 note 는 tier 와 무관하게 «내보낼 때마다» 한 줄씩 담았다. 링버퍼는 20칸이라
+     22섹션짜리 전체 내보내기 한 번이면 그것만으로 버퍼가 다 찬다 — 정작 실패한 섹션의 줄도,
+     그 앞에 쌓여 있던 console.error 도 밀려나 «신고가 껍데기»가 된다(2026-09-05 지디 검수).
+     그리고 담기던 sec.id 는 `sec_<actorId>_…` 라 설치 고정 식별자를 실어 보내면서
+     정작 재현에 필요한 형식·폭·블록 구성·예외는 없었다.
+     ⇒ 지금은 exportSection 래퍼가 «실패에서만», «재현에 쓰이는 값»으로 담는다.
+     ★콘솔 로그(위)는 그대로다 — 그건 이 기계에만 남고 아무 데도 안 간다. */
   return r;
 }
 
