@@ -152,18 +152,7 @@ export function showPageProperties() {
         <span class="prop-block-name">Page</span>
       </div>
     </div>
-    <!-- ★캔버스 바탕색은 왼쪽 Design System 패널로 옮겼다(현빈 2026-09-03).
-         여기 「배경색」이라고 있으니 «섹션 배경»인 줄 알고 누르는 일이 잦았고,
-         그러면 캔버스 전체 바탕이 바뀌어 「왜 이래?」가 됐다.
-         자리만 비우면 또 찾게 되므로 «어디로 갔는지»를 남긴다. -->
-    <div class="prop-section">
-      <div class="prop-section-title">Background</div>
-      <div class="prop-row">
-        <span class="prop-label" style="width:auto;color:var(--ui-text-muted);font-size:11px;line-height:1.5">
-          캔버스 바탕색은 왼쪽 <b>Design System</b> 패널에 있습니다.
-        </span>
-      </div>
-    </div>
+    <!-- 「Background」 안내 절은 제거했다(현빈 2026-09-05) — 캔버스 바탕색은 왼쪽 Design System 패널. -->
     <div class="prop-section" style="opacity:0.4;pointer-events:none;" title="잘못 누르는 사고 방지로 일시 비활성 — 필요 시 prop-page.js에서 복구">
       <div class="prop-section-title">Bulk Align (비활성)</div>
       <div class="prop-align-group">
