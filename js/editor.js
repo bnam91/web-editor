@@ -180,6 +180,46 @@ function _applyScalerTransformAndSync() {
   _syncScalerHeight();
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   팬 위치의 «단일 진실» (DESIGN-pan-native-scroll §3-C)
+
+   「캔버스가 얼마나 밀렸나」는 두 곳에 나뉘어 산다:
+     ⑴ `#canvas-wrap.scrollTop/Left` — 1차 저장소(tab-system.js:251)
+     ⑵ `panOffsetX/Y`                — 스크롤이 흡수 못한 «잔여»만 (휠 경로)
+   panOffset «만» 보는 코드는 ⑴을 놓친다. 그래서 판정은 반드시 이 함수를 거친다.
+   ⛔진실을 두 벌로 두면 사고가 난다.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/** 팬을 «하나도 안 한» 상태의 스크롤 위치(= 쉼 위치). resetPanOffset 의 기존 공식을 그대로 뽑아냈다. */
+function getRestingScroll() {
+  const wrap = document.getElementById('canvas-wrap');
+  const scalerEl = document.getElementById('canvas-scaler');
+  if (!wrap || !scalerEl) return { top: 0, left: 0 };
+  const scale = currentZoom / 100;
+  const contentH = scalerEl.offsetHeight * scale;
+  const idealTop = Math.round((contentH - wrap.clientHeight) / 2);
+  const maxTop = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+  const maxLeft = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+  return {
+    top: Math.max(0, Math.min(maxTop, idealTop)),
+    // 가로 쉼 위치 = 범위의 한가운데. 현재(가로 범위 0)는 언제나 0 이라 기존 동작과 동일하다.
+    left: Math.round(maxLeft / 2)
+  };
+}
+
+/** 실효 팬 «변위». 부호는 기존 panOffset 과 같다(+y = 콘텐츠가 아래로 내려간 것). */
+function getPanPosition() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) return { x: panOffsetX, y: panOffsetY };
+  const r = getRestingScroll();
+  return {
+    x: panOffsetX - (wrap.scrollLeft - r.left),
+    y: panOffsetY - (wrap.scrollTop - r.top)
+  };
+}
+window.getRestingScroll = getRestingScroll;
+window.getPanPosition = getPanPosition;
+
 /* C20: transform:scale은 레이아웃 박스 높이를 안 바꿔 #canvas-wrap.scrollHeight가 미축소 원본 기준으로 잡힘
  *      → 줌아웃 시 마지막 섹션 아래로 빈 회색이 과도하게 스크롤됨. scaler 레이아웃 높이를
  *      (미축소 자연높이 × scale)로 명시해 스크롤 영역을 줌과 동기화(top 고정 유지). */
@@ -217,15 +257,13 @@ function resetPanOffset() {
   panOffsetX = 0;
   // C14: panOffsetY를 0으로 만들 때 잃는 세로 보정을 wrap.scrollTop으로 흡수해
   //       콘텐츠 중앙정렬 유지 (applyZoom의 idealScrollTop/clamp 공식 차용).
+  // [S1'] 쉼 위치 공식을 getRestingScroll() «한 곳»으로 모았다 — 여기와 getPanPosition() 이
+  //       같은 쉼 위치를 봐야 「가운데인가」 판정이 갈리지 않는다.
   const wrap = document.getElementById('canvas-wrap');
   const scalerEl = document.getElementById('canvas-scaler');
   if (wrap && scalerEl) {
     void scalerEl.offsetHeight; void wrap.scrollHeight;
-    const scale = currentZoom / 100;
-    const contentH = scalerEl.offsetHeight * scale;
-    const idealScrollTop = Math.round((contentH - wrap.clientHeight) / 2);
-    const maxScroll = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
-    wrap.scrollTop = Math.max(0, Math.min(maxScroll, idealScrollTop));
+    wrap.scrollTop = getRestingScroll().top;
   }
   panOffsetY = 0;
   _applyScalerTransformAndSync();
