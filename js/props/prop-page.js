@@ -330,11 +330,9 @@ export function showPageProperties() {
         const res = await window.exportAllSections(fmt, w, (i, total) => {
           pageExportBtn.textContent = `내보내는 중... (${i}/${total})`;
         });
-        if (res?.failed?.length) {
-          window.showToast?.(`⚠️ ${res.failed.length}/${res.total}개 섹션 내보내기 실패: ${res.failed.join(', ')}`);
-        } else {
-          window.showToast?.(`✅ ${res?.total ?? secCount}개 섹션 내보내기 완료 — 다운로드 폴더를 확인하세요`);
-        }
+        // ★결과는 «모달 하나»로만 말한다(현빈 「결과 모달도 떠야」).
+        //   2초짜리 토스트에 「어느 섹션이 왜」를 담을 수 없다 — 담으면 사라진 뒤 행동이 안 남는다.
+        window.showExportResultModal?.(res, { format: fmt, width: w });
       } catch (err) {
         console.error('[export] 전체 내보내기 실패:', err);
         window.showToast?.('⚠️ 내보내기 실패: ' + (err?.message || err));

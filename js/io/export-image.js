@@ -1,4 +1,5 @@
 import { canvasEl, state } from '../globals.js';
+import { runExportGate, isGateSupported } from './export-gate.js';
 
 const CANVAS_W = 860;
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
@@ -207,22 +208,29 @@ async function _waitImagesReady(root, timeoutMs = 8000) {
       waits.push(new Promise(res => { const pi = new Image(); pi.onload = pi.onerror = () => res(); pi.src = u; }));
     }
   });
-  if (!waits.length) return;
-  await Promise.race([Promise.all(waits), new Promise(res => setTimeout(res, timeoutMs))]);
+  // ★타임아웃을 «상태»로 돌려준다 — 타임아웃이 나면 export 도 truth 도 «빈 그림»일 수 있고,
+  //   그러면 둘이 «같아서» PASS 가 된다. 「검출 0」을 「문제 없음」으로 읽는 그 병이다.
+  //   ⇒ 부른 쪽이 그 실행을 «못 쟀다»로 돌릴 수 있게 true/false 를 준다.
+  if (!waits.length) return false;
+  let _timedOut = false;
+  let _timer = null;
+  await Promise.race([
+    Promise.all(waits),
+    new Promise(res => { _timer = setTimeout(() => { _timedOut = true; res(); }, timeoutMs); }),
+  ]);
+  clearTimeout(_timer);
+  return _timedOut;
 }
 
-async function exportSection(sec, format, width, opts) {
-  // 이미지 외부화(goya-asset://) 이후: lazy 언로드된 섹션이 빈(blank) 상태로 캡처되지
-  // 않도록 export 렌더 전에 모든 섹션 이미지를 라이브 DOM에 복원한다.
-  // (lazy-sections.js가 아직 없을 수도 있으므로 방어적으로 호출)
-  if (window.materializeAllSections) window.materializeAllSections();
-
-  const fmt = format || 'png';
-  const w   = width  || CANVAS_W;
-  const isGif     = fmt === 'gif' || fmt === 'gif-anim';
-  const isGifAnim = fmt === 'gif-anim';
-
-  // 클론을 transform 밖(body)에 배치해서 html2canvas가 부모 scale 영향 안 받게 함
+/* ══════════════════════════════════════════════════════════════════════════
+   ① 캡처용 클론 준비 — export 와 truth 가 «같이» 쓴다.
+   ★스트립 목록은 «이 함수에만» 존재한다. 사본을 두면 어긋남이 «검출»로 둔갑한다
+     (실제로 그랬다: 하네스 truth-capture.js 는 .sec-bg-proxy/.img-edit-hint/.img-boundary
+      와 sec-bg-editing 을 «안» 벗겨서 export 와 목록이 갈려 있었다).
+   ⛔여기에 «export 전용 변환»(flatten / bg→canvas / box-shadow→border / 필터 bake)을
+     넣지 마라 — 넣는 순간 그 변환의 버그를 이 검사가 영원히 못 잡는다.
+   ══════════════════════════════════════════════════════════════════════════ */
+export async function prepareCloneForCapture(sec, w, useNative) {
   const clone = sec.cloneNode(true);
   const cloneLabel   = clone.querySelector('.section-label');
   const cloneToolbar = clone.querySelector('.section-toolbar');
@@ -253,7 +261,6 @@ async function exportSection(sec, format, width, opts) {
   });
   // CDP captureBeyondViewport로 off-screen 좌표도 캡쳐 가능 — clone을 화면 밖에 두어
   // export 중 사용자 화면에 큰 박스가 튀어나오는 "ghosting" 현상 제거
-  const useNative = !(opts && opts.forceH2C) && !!window.electronAPI?.captureSection;
   clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + w + 'px;margin:0;outline:none;';
 
   // P1 우회 부수 안정성: clone 자체를 stacking context로 격리
@@ -292,16 +299,148 @@ async function exportSection(sec, format, width, opts) {
 
   // 레이아웃 강제 확정 (offsetWidth/Height 정확도)
   clone.getBoundingClientRect();
+  return clone;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ② 컴포넌트 «자기 렌더» — export 와 truth 가 «같이» 쓴다.
+   가르는 기준 한 줄: 「캔버스도 이걸 하나?」
+     · renderCanvas / renderBanner02 / renderComparison = 캔버스도 부른다 ⇒ 공용.
+       안 넣으면 truth 가 «저장본 스냅샷 높이»로 굳어 폭이 바뀌어도 다시 안 흘러
+       «크기 불일치» 거짓 FAIL 이 난다(2026-08-28 780px 실측).
+     · 평탄화·bg→canvas·shadow→border = html2canvas 한계 우회 ⇒ export 만(③).
+   ★재렌더가 편집용 마커를 «되붙인다» — ①의 일괄 스트립보다 뒤이므로 여기서 한 번 더 벗긴다
+     (PNG 엔 점선이 찍히고 export-html 엔 안 찍히던 QA BUG-2 의 자리).
+   ══════════════════════════════════════════════════════════════════════════ */
+export function renderComponentsInClone(clone) {
+  for (const _cb of clone.querySelectorAll('.canvas-block[data-card-mode]')) {
+    if (window.renderCanvas) {
+      window.renderCanvas(_cb);
+      if (_cb._cvbRO) { _cb._cvbRO.disconnect(); _cb._cvbRO = null; }
+    }
+  }
+  for (const _bn of clone.querySelectorAll('.banner02-block')) {
+    if (window.renderBanner02) {
+      window.renderBanner02(_bn);
+      if (_bn._bn2RO) { _bn._bn2RO.disconnect(); _bn._bn2RO = null; }
+    }
+  }
+  for (const _cmp of clone.querySelectorAll('.comparison-block')) {
+    if (window.renderComparison) {
+      window.renderComparison(_cmp);
+      if (_cmp._cmpRO) { _cmp._cmpRO.disconnect(); _cmp._cmpRO = null; }
+    }
+  }
+  clone.querySelectorAll('.bn2-line-selected, .bn2-line-empty').forEach(_el =>
+    _el.classList.remove('bn2-line-selected', 'bn2-line-empty'));
+  clone.getBoundingClientRect();
+}
+
+/** export/truth 공용 — 이 클론이 native(CDP) 캡처 대상인가. */
+export function isNativeCapture(opts) {
+  return !(opts && opts.forceH2C) && !!window.electronAPI?.captureSection;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ④ 클론 → 캔버스 캡처 — export 와 truth 가 «같이» 쓴다.
+   ★truth 도 «이 헬퍼»로 캡처해야 다운스케일 리샘플이 같다. 사본을 두면 리샘플 차이가
+     «검출»로 둔갑한다.
+   반환 { canvas, imgTimedOut, native } — imgTimedOut 이 true 면 export 도 truth 도
+   «빈 그림»일 수 있어 둘이 같아도 PASS 라고 말하면 안 된다(판정에서 unmeasured 로 간다).
+   ══════════════════════════════════════════════════════════════════════════ */
+export async function captureCloneToCanvas(clone, w, bgColor, useNative) {
+    if (useNative) {
+      // ⚠️ 'background' 단축속성으로 폴백색을 넣으면 안 됨: data-URL 이미지배경은
+      // background shorthand getter가 ''를 반환해서 `clone.style.background || bgColor`가
+      // 색을 단축속성으로 세팅 → backgroundImage(섹션 텍스처)가 initial로 리셋되어 증발함.
+      // (다크 텍스처 섹션이 흰색으로 export되던 결함.) → 인라인 배경(이미지/색)이 전혀 없을
+      // 때만 longhand backgroundColor로 폴백해서 텍스처/색을 보존한다.
+      if (!clone.style.backgroundImage && !clone.style.backgroundColor) {
+        clone.style.backgroundColor = bgColor;
+      }
+      await document.fonts.ready;
+      const _to = await _waitImagesReady(clone); // goya-asset 이미지 디코드 대기(콜드 캐시 빈 캡처 방지)
+      clone.getBoundingClientRect();
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const secH = clone.offsetHeight;
+      let pngBase64;
+      if (window.electronAPI.captureSectionCdp) {
+        // clone은 top:-99999px(off-screen)에 위치 — clip.y를 그 좌표로 전달해 캡쳐
+        const cloneRect = clone.getBoundingClientRect();
+        pngBase64 = await window.electronAPI.captureSectionCdp({
+          x: Math.round(cloneRect.left),
+          y: Math.round(cloneRect.top),
+          width: w,
+          height: secH,
+        });
+      } else {
+        // 구버전 Electron(메인 프로세스 미업데이트) 호환을 위한 명시적 실패
+        throw new Error('captureSectionCdp 미지원 — Electron 재빌드 필요');
+      }
+      // 게이트④/A6(현빈 확정 spec): PNG/JPG export = CSS픽셀 ★1배 고정.
+      // CDP 캡처(captureSectionCdp)는 surface device-pixel-ratio배(레티나=2x) 물리픽셀로
+      // 돌아온다(섹션 CSS 860px → 캡처 1720px). 기존엔 outCanvas도 w*dpr로 둬서 2배 PNG가
+      // 나왔고, dpr=1 머신에선 1배라 머신 간 산출물이 비결정적이었음.
+      // → 출력 캔버스를 CSS px(w×secH)로 고정하고 drawImage 시 다운스케일 → dpr 무관 결정적 1배.
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width  = Math.round(w);
+      outCanvas.height = Math.round(secH);
+      const ctx = outCanvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      await new Promise((res, rej) => {
+        const ci = new Image();
+        ci.onload  = () => { ctx.drawImage(ci, 0, 0, outCanvas.width, outCanvas.height); res(); };
+        ci.onerror = rej;
+        ci.src = 'data:image/png;base64,' + pngBase64;
+      });
+      return { canvas: outCanvas, imgTimedOut: _to, native: true };
+    }
+    // html2canvas 폴백 — CDP 가 없는 빌드(웹). 검사는 여기서 «안» 돈다(isGateSupported=false).
+    const _to2 = await _waitImagesReady(clone);
+    const _h2c = await html2canvas(clone, {
+      scale: 1,
+      useCORS: true,
+      backgroundColor: bgColor,
+      logging: false,
+    });
+    return { canvas: _h2c, imgTimedOut: _to2, native: false };
+}
+
+/** 섹션 배경색 — export 와 truth 가 «같은 값»을 써야 한다(하나만 회색으로 찍히면 그게 차이로 잡힌다).
+ *  라이브 computed bg 가 불투명이면 그 색, 진짜 투명(alpha=0)일 때만 pageSettings.bg 폴백.
+ *  (흰 섹션이 `.section-block{background:#fff}` 클래스에서 색을 받는데 inline 이 없다고
+ *   pageSettings.bg 회색으로 폴백해 회색으로 export 되던 결함의 자리 — Figma builder 65faf33 과 동일 원리.) */
+export function sectionBgColor(sec) {
+  const live  = getComputedStyle(sec).backgroundColor || '';
+  const m     = live.match(/^rgba?\(([^)]+)\)/);
+  const alpha = m ? (m[1].split(',').map(v => parseFloat(v))[3] ?? 1) : 1;
+  return (m && alpha !== 0) ? live : (state.pageSettings.bg || '#ffffff');
+}
+
+async function exportSection(sec, format, width, opts) {
+  // 이미지 외부화(goya-asset://) 이후: lazy 언로드된 섹션이 빈(blank) 상태로 캡처되지
+  // 않도록 export 렌더 전에 모든 섹션 이미지를 라이브 DOM에 복원한다.
+  // (lazy-sections.js가 아직 없을 수도 있으므로 방어적으로 호출)
+  if (window.materializeAllSections) window.materializeAllSections();
+
+  const fmt = format || 'png';
+  const w   = width  || CANVAS_W;
+  const isGif     = fmt === 'gif' || fmt === 'gif-anim';
+  const isGifAnim = fmt === 'gif-anim';
+
+  // 클론을 transform 밖(body)에 배치해서 html2canvas가 부모 scale 영향 안 받게 함
+  const useNative = isNativeCapture(opts);
+  const clone = await prepareCloneForCapture(sec, w, useNative);
+  // ②컴포넌트 자기 렌더를 «먼저 전부» 돌린다(truth 와 같은 순서). 그 뒤가 ③export 전용 변환.
+  renderComponentsInClone(clone);
 
   // cvb(canvas-block): renderCanvas로 scale 재계산 후 transform 평탄화
   // html2canvas가 transform:scale() 내부 background-image를 잘못 렌더링하므로
   // 실제 px 값으로 변환하여 transform 제거
   // forEach 대신 for...of 사용 (내부에서 await 필요)
   for (const cb of clone.querySelectorAll('.canvas-block[data-card-mode]')) {
-    if (window.renderCanvas) {
-      window.renderCanvas(cb);
-      if (cb._cvbRO) { cb._cvbRO.disconnect(); cb._cvbRO = null; }
-    }
+    // ★렌더는 ②renderComponentsInClone 에서 «이미» 돌았다 — 여기서 또 부르면 렌더 목록이
+    //   두 곳으로 갈린다. 아래는 ③export 전용 변환뿐이다.
 
     // renderCanvas가 cssText에 right:auto;bottom:auto를 포함시켜 브라우저가
     // inset 단축 속성으로 재직렬화함 → html2canvas 파싱 오류 방지를 위해 재변환
@@ -407,15 +546,8 @@ async function exportSection(sec, format, width, opts) {
 
   // banner02-block: canvas-block과 동일한 transform:scale() 트릭 → export 시 px 평탄화 + bg-image→canvas
   for (const bn of clone.querySelectorAll('.banner02-block')) {
-    if (window.renderBanner02) {
-      window.renderBanner02(bn);
-      if (bn._bn2RO) { bn._bn2RO.disconnect(); bn._bn2RO = null; }
-      // ★재렌더가 편집용 마커를 «되붙인다» — 위(:247)의 일괄 스트립은 이 줄보다 앞이라 소용없다.
-      //   그래서 PNG 엔 점선이 찍히고 export-html(재렌더 없음)엔 안 찍혔다(QA BUG-2).
-      //   ⇒ 마커 제거는 «재렌더 뒤»에 한 번 더. 스트립 목록을 늘릴 땐 이 줄도 같이 봐야 한다.
-      bn.querySelectorAll('.bn2-line-selected, .bn2-line-empty').forEach(el =>
-        el.classList.remove('bn2-line-selected', 'bn2-line-empty'));
-    }
+    // ★렌더는 ②renderComponentsInClone 에서 «이미» 돌았다 — 여기서 또 부르면 렌더 목록이
+    //   두 곳으로 갈린다. 아래는 ③export 전용 변환뿐이다.
     const inner = bn.querySelector('.bn2-inner');
     if (!inner) continue;
     const m = (inner.style.transform || '').match(/scale\(([^)]+)\)/);
@@ -469,7 +601,8 @@ async function exportSection(sec, format, width, opts) {
 
   // comparison-block: scale 평탄화 (텍스트 기반이라 bg-image 변환 불필요, overflow visible로 shadow 보존)
   for (const cmp of clone.querySelectorAll('.comparison-block')) {
-    if (window.renderComparison) { window.renderComparison(cmp); if (cmp._cmpRO) { cmp._cmpRO.disconnect(); cmp._cmpRO = null; } }
+    // ★렌더는 ②renderComponentsInClone 에서 «이미» 돌았다 — 여기서 또 부르면 렌더 목록이
+    //   두 곳으로 갈린다. 아래는 ③export 전용 변환뿐이다.
     const inner = cmp.querySelector('.cmp-inner');
     if (!inner) continue;
     const m = (inner.style.transform || '').match(/scale\(([^)]+)\)/);
@@ -513,10 +646,7 @@ async function exportSection(sec, format, width, opts) {
   // pageSettings.bg(#acacac 회색)로 폴백하면 흰 섹션이 회색으로 export되는 버그가 있었음.
   // (Figma builder 65faf33과 동일 원리.) → 라이브 computed bg가 불투명이면 그 색을 쓰고,
   // 진짜 투명(alpha=0)일 때만 pageSettings.bg 폴백.
-  const _liveBg  = getComputedStyle(sec).backgroundColor || '';
-  const _bgm     = _liveBg.match(/^rgba?\(([^)]+)\)/);
-  const _bgAlpha = _bgm ? (_bgm[1].split(',').map(s => parseFloat(s))[3] ?? 1) : 1;
-  const bgColor  = (_bgm && _bgAlpha !== 0) ? _liveBg : (state.pageSettings.bg || '#ffffff');
+  const bgColor = sectionBgColor(sec);
 
   const secList = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
   const idx     = secList.indexOf(sec) + 1;
@@ -529,61 +659,12 @@ async function exportSection(sec, format, width, opts) {
   // 청크 사이 compositor commit 미보장으로 직전 frame이 재사용되어 동일 내용이
   // 두 번 캡쳐되는 동기화 버그가 있었음.
   // → CDP Page.captureScreenshot + captureBeyondViewport:true 한 번 호출로 교체.
-  const captureCloneToCanvas = async () => {
-    if (useNative) {
-      // ⚠️ 'background' 단축속성으로 폴백색을 넣으면 안 됨: data-URL 이미지배경은
-      // background shorthand getter가 ''를 반환해서 `clone.style.background || bgColor`가
-      // 색을 단축속성으로 세팅 → backgroundImage(섹션 텍스처)가 initial로 리셋되어 증발함.
-      // (다크 텍스처 섹션이 흰색으로 export되던 결함.) → 인라인 배경(이미지/색)이 전혀 없을
-      // 때만 longhand backgroundColor로 폴백해서 텍스처/색을 보존한다.
-      if (!clone.style.backgroundImage && !clone.style.backgroundColor) {
-        clone.style.backgroundColor = bgColor;
-      }
-      await document.fonts.ready;
-      await _waitImagesReady(clone); // goya-asset 이미지 디코드 대기(콜드 캐시 빈 캡처 방지)
-      clone.getBoundingClientRect();
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const secH = clone.offsetHeight;
-      let pngBase64;
-      if (window.electronAPI.captureSectionCdp) {
-        // clone은 top:-99999px(off-screen)에 위치 — clip.y를 그 좌표로 전달해 캡쳐
-        const cloneRect = clone.getBoundingClientRect();
-        pngBase64 = await window.electronAPI.captureSectionCdp({
-          x: Math.round(cloneRect.left),
-          y: Math.round(cloneRect.top),
-          width: w,
-          height: secH,
-        });
-      } else {
-        // 구버전 Electron(메인 프로세스 미업데이트) 호환을 위한 명시적 실패
-        throw new Error('captureSectionCdp 미지원 — Electron 재빌드 필요');
-      }
-      // 게이트④/A6(현빈 확정 spec): PNG/JPG export = CSS픽셀 ★1배 고정.
-      // CDP 캡처(captureSectionCdp)는 surface device-pixel-ratio배(레티나=2x) 물리픽셀로
-      // 돌아온다(섹션 CSS 860px → 캡처 1720px). 기존엔 outCanvas도 w*dpr로 둬서 2배 PNG가
-      // 나왔고, dpr=1 머신에선 1배라 머신 간 산출물이 비결정적이었음.
-      // → 출력 캔버스를 CSS px(w×secH)로 고정하고 drawImage 시 다운스케일 → dpr 무관 결정적 1배.
-      const outCanvas = document.createElement('canvas');
-      outCanvas.width  = Math.round(w);
-      outCanvas.height = Math.round(secH);
-      const ctx = outCanvas.getContext('2d');
-      ctx.imageSmoothingQuality = 'high';
-      await new Promise((res, rej) => {
-        const ci = new Image();
-        ci.onload  = () => { ctx.drawImage(ci, 0, 0, outCanvas.width, outCanvas.height); res(); };
-        ci.onerror = rej;
-        ci.src = 'data:image/png;base64,' + pngBase64;
-      });
-      return outCanvas;
-    }
-    // html2canvas 폴백
-    await _waitImagesReady(clone);
-    return await html2canvas(clone, {
-      scale: 1,
-      useCORS: true,
-      backgroundColor: bgColor,
-      logging: false,
-    });
+  // ★캡처 결과는 «캔버스 하나»가 아니라 {canvas, imgTimedOut, native} 다.
+  //   마지막 캡처의 상태를 들고 있다가 검사(⑥)에 넘긴다 — 애니메이션 GIF 는 frame 마다 부른다.
+  let _lastCap = null;
+  const capture = async () => {
+    _lastCap = await captureCloneToCanvas(clone, w, bgColor, useNative);
+    return _lastCap.canvas;
   };
 
   const triggerDownload = (blob, ext) => {
@@ -599,12 +680,20 @@ async function exportSection(sec, format, width, opts) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  /* 게이트 상태 — try 밖에서 읽는다. `return` 을 try 안에 두면 finally 가 먼저 돌아
+     truth 클론이 export 클론과 «같은 자리»에서 겹친다. */
+  let _gateCanvas = null, _gateSkip = null, _done = false, _err = null;
+  const gateOn = !(opts && opts.returnDataUrl) && !(opts && opts.gate === false) && isGateSupported();
+
   try {
     if (!isGif) {
       // ── 기존 PNG/JPG 경로 ────────────────────────────────────────
-      const outCanvas = await captureCloneToCanvas();
+      const outCanvas = await capture();
       // 채점용: 다운로드 대신 dataURL 반환 (goditor ground-truth 캡처)
       if (opts && opts.returnDataUrl) {
+        // ⛔이 경로에서는 게이트를 «절대» 켜지 않는다 — tools/export-gate.sh 와 QA 스킬이
+        //   쓰는 길이라, 켜면 «외부 검산이 자기 자신을 재게» 된다(검산이 검산이 아니게 된다).
+        if (window.__EXPORT_GATE_TRACE) console.log('[export-gate] skipped: returnDataUrl');
         return outCanvas.toDataURL('image/png'); // clone 정리는 함수 끝 finally가 수행
       }
       const mime = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
@@ -616,8 +705,12 @@ async function exportSection(sec, format, width, opts) {
           res();
         }, mime, 0.95);
       });
-      return;
+      // ★파일은 «이미» 나갔다(B안 «주고 알린다»). 검사는 여기서부터고, 결과는 모달로만 간다.
+      //   ⚠️A안(막기)으로 바꿀 자리는 «한 곳» — 위 triggerDownload 호출을 검사 «뒤»로 옮기면 된다.
+      _gateCanvas = outCanvas;
+      _done = true;
     }
+    if (!_done) {
 
     // ── GIF 경로 (정적 / 애니메이션) ──────────────────────────────
     // 클론 내 GIF 원본 수집 (cvb 변환으로 canvas가 된 곳 + 일반 img + 일반 bg)
@@ -641,14 +734,18 @@ async function exportSection(sec, format, width, opts) {
 
     if (!effectiveAnim) {
       // ── 정적 GIF (단일 frame) ───────────────────────────────
-      const outCanvas = await captureCloneToCanvas();
+      const outCanvas = await capture();
       const blob = await canvasToGifBlob([outCanvas], [100], {
         repeat:     -1, // 1회 재생 (단일 frame)
         background: bgColor,
       });
       triggerDownload(blob, 'gif');
-      return;
+      // ⛔GIF 는 팔레트 256색으로 «양자화»된다 — 캔버스와 다른 게 «정상»이라 이 판정기의 축이 아니다.
+      //   P0 는 못 쟀다고 말한다(정상이라고도, 문제라고도 말하지 않는다).
+      _gateSkip = 'gif';
+      _done = true;
     }
+    if (!_done) {
 
     // ── 애니메이션 GIF ─────────────────────────────────────────
     // 1) 첫 번째(주요) GIF의 frame 정보를 결정적으로 사용 (timeline 동기화 단순화)
@@ -710,7 +807,7 @@ async function exportSection(sec, format, width, opts) {
       }
 
       // (d) 한 frame 캡처
-      const outCanvas = await captureCloneToCanvas();
+      const outCanvas = await capture();
       frameCanvases.push(outCanvas);
       frameDelays.push(pf.delay || 100);
     }
@@ -720,30 +817,62 @@ async function exportSection(sec, format, width, opts) {
       background: bgColor,
     });
     triggerDownload(blob, 'gif');
+    _gateSkip = 'gif';
+    }
+    }
 
+  } catch (err) {
+    _err = err;
   } finally {
+    // ★truth 클론은 export 클론이 «지워진 뒤»에 붙는다 — 둘 다 top:-99999px;left:0 이라 겹친다.
     document.body.removeChild(clone);
   }
+  if (_err) throw _err;
+
+  /* ── ⑥ 검사 — 파일이 나간 «뒤» ─────────────────────────────────────────
+     여기서 무엇을 하든 다운로드에는 영향이 없다(B안). 예외가 나도 삼키지 않고
+     «못 쟀다»로 돌린다 — 검사가 내보내기를 깨뜨리면 안 된다. */
+  let gate = null;
+  if (gateOn) {
+    gate = await runExportGate(sec, w, {
+      exportCanvas: _gateCanvas,
+      imgTimedOut:  _lastCap ? _lastCap.imgTimedOut : false,
+      native:       _lastCap ? _lastCap.native : useNative,
+      format:       fmt,
+      bgColor,
+      sectionId:    sec.id,
+    });
+  }
+  return { name, idx, sectionId: sec.id, format: fmt, width: w, gate };
 }
 
-async function exportAllSections(format, width, onProgress) {
+async function exportAllSections(format, width, onProgress, opts) {
   // 전체 export 시작 전 lazy 언로드 섹션 전부 복원 (개별 exportSection도 호출하지만,
   // 섹션 목록 산정/순회 전에 한 번 더 보장)
   if (window.materializeAllSections) window.materializeAllSections();
 
   const sections = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
   const failed = [];
+  const results = [];
   for (let i = 0; i < sections.length; i++) {
     onProgress?.(i + 1, sections.length);
     try {
-      await exportSection(sections[i], format, width);
+      const r = await exportSection(sections[i], format, width, opts);
+      results.push(r && typeof r === 'object'
+        ? r
+        : { name: sections[i]._name || sections[i].id, idx: i + 1, sectionId: sections[i].id, gate: null });
     } catch (err) {
       console.error('[export] 섹션 내보내기 실패:', sections[i].id, err);
-      failed.push(sections[i]._name || sections[i].id);
+      const nm = sections[i]._name || sections[i].id;
+      failed.push(nm);
+      // ★「내보내지 못했다」는 «픽셀 판정»과 다른 층이다 — 파일이 아예 없다.
+      //   결과 모달이 둘을 섞어 말하면 사용자가 파일을 찾으러 간다.
+      results.push({ name: nm, idx: i + 1, sectionId: sections[i].id, failed: true,
+                     error: (err && err.message) || String(err), gate: null });
     }
     await new Promise(r => setTimeout(r, 300));
   }
-  return { total: sections.length, failed };
+  return { total: sections.length, failed, results };
 }
 
 // A30: 'Export' 버튼 드롭다운에서 곧바로 이미지(PNG)로 내보내기 — 핵심 산출물 동선을
@@ -756,8 +885,8 @@ async function exportAllImagesPNG() {
   window.showToast?.('이미지 내보내는 중...');
   try {
     const res = await window.exportAllSections('png', 860, (i, t) => window.showToast?.(`내보내는 중... (${i}/${t})`));
-    if (res?.failed?.length) window.showToast?.(`⚠️ ${res.failed.length}/${res.total}개 실패: ${res.failed.join(', ')}`);
-    else window.showToast?.(`✅ ${res?.total ?? n}개 섹션 PNG 내보내기 완료 — 다운로드 폴더 확인`);
+    // ★결과는 «모달 하나»로만 말한다 — 2초 토스트에 담을 정보가 아니다(현빈 「결과 모달도 떠야」).
+    window.showExportResultModal?.(res, { format: 'png', width: 860 });
   } catch (err) {
     console.error('[export] PNG 전체 내보내기 실패:', err);
     window.showToast?.('⚠️ 내보내기 실패: ' + (err?.message || err));

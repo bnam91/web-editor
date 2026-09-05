@@ -522,7 +522,9 @@ function _bindSectionExport(sec) {
     // GIF 애니메이션은 frame 캡처 + 인코딩으로 시간이 오래 걸림 → 안내문 분리
     secExportBtn.textContent = fmt === 'gif-anim' ? 'GIF 생성 중...' : '내보내는 중...';
     try {
-      await window.exportSection(sec, fmt, w);
+      const r = await window.exportSection(sec, fmt, w);
+      // 단일 섹션 — «같으면» 토스트 한 줄, 그 외엔 결과 모달(전체 내보내기와 같은 창).
+      window.showExportResultOne?.(r, { format: fmt, width: w });
     } finally {
       secExportBtn.disabled = false;
       secExportBtn.textContent = '이 섹션 내보내기';

@@ -1,0 +1,53 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   export-result.css — 내보내기 결과 모달 (P0)
+   ★새 룩을 만들지 않는다: 껍데기·머리·푸터·버튼·닫기·배지는 .settings-modal-* / .tb-badge
+     공용 정의를 «그대로» 쓴다. 여기서 정하는 건 «목록 한 칸»의 여백·글자뿐이다.
+   ★색은 토큰만 쓴다. 모달 내부 구분선은 --ui-border-soft(=앱의 다른 모달과 같은 값).
+     --ui-border-mid 로 대신하면 두 단계 밝아져 relnote 가 고쳤던 「상하단이 튄다」로 돌아간다.
+   ══════════════════════════════════════════════════════════════════════════ */
+.exres-shell {
+  width: 460px;
+  max-width: 460px;
+  /* ★relnote 처럼 «고정»하지 않는다 — 여기 목록은 「확인이 필요한 섹션」이 0~N 으로 크게 변한다.
+     정상일 땐 두 줄인데 540px 을 세우면 빈 상자가 된다. 상한만 둬서 다 걸려도 화면 밖으로
+     안 나가게 한다(목록만 스크롤). */
+  max-height: min(680px, 84vh);
+}
+/* 머리 — .settings-modal-header 를 그대로 쓰고, 제목 글자만 이 모달 몫으로 키운다.
+   ★닫기 × 위치를 «계산»하지 않는다 — header 가 이미 space-between 이다. */
+.exres-h { font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+.exres-hero { gap: 10px; justify-content: flex-start; }
+.exres-hero .exres-close { margin-left: auto; }
+
+.exres-list {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  padding: 14px 20px 16px;
+}
+.exres-sum { margin: 0; font-size: 12.5px; line-height: 1.6; }
+
+/* 그룹 제목 — 구분선은 «항목»이 아니라 «그룹» 사이에 둔다(relnote 와 같은 규약).
+   항목마다 그으면 목록이 아니라 표로 읽힌다. */
+.exres-group {
+  font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ui-accent-text);
+  margin: 6px 0 2px; padding-top: 14px;
+  border-top: 1px solid var(--ui-border-soft);
+}
+
+.exres-row {
+  display: grid; grid-template-columns: 1fr auto;
+  align-items: start; gap: 4px 10px;
+  padding: 9px 0;
+}
+.exres-row b { font-size: 12.5px; font-weight: 600; line-height: 1.5; }
+.exres-reason {
+  grid-column: 1 / -1;
+  font-size: 11.5px; line-height: 1.6; color: var(--ui-text-dim);
+}
+.exres-row--ok .exres-reason { color: var(--ui-text-muted); }
+.exres-retry { grid-column: 2; grid-row: 1; align-self: center; }
+
+.exres-about { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--ui-border-soft); }
+.exres-about > summary { font-size: 11px; color: var(--ui-text-muted); cursor: pointer; }
+.exres-about > p { margin: 8px 0 0; font-size: 11.5px; line-height: 1.65; color: var(--ui-text-dim); }
+.exres-foot { font-size: 10.5px; color: var(--ui-text-muted); }
