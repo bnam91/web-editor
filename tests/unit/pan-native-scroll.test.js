@@ -322,3 +322,44 @@ test('★P-A1 계약: deselectAll 이 «값이 같으면» contenteditable 을 �
   const h = stripComments(extractFn(SRC, '_setAttrIfChanged'));
   assert.ok(/getAttribute\(name\)\s*!==\s*value/.test(h), '기존 값과 비교해야 의미가 있다');
 });
+
+/* ══ I. P-A2 — 제스처 중 자동저장 «연기»(취소 아님) ══════════════════════ */
+const SL = fs.readFileSync(path.join(__dirname, '../../js/io/save-load.js'), 'utf8');
+
+test('★P-A2 계약: 유예는 «취소»가 아니라 «연기»다 — 보류분을 기억했다 다시 건다', () => {
+  const d = stripComments(extractFn(SL, 'deferAutoSave'));
+  const r = stripComments(extractFn(SL, 'resumeAutoSave'));
+  assert.ok(/_autoSavePending\s*=\s*true/.test(d),
+    '걸려 있던 예약을 해제하면서 «있었다는 사실»을 기억해야 한다 — 안 그러면 그 편집이 저장 안 된다');
+  assert.ok(/_autoSavePending[\s\S]{0,80}scheduleAutoSave\s*\(/.test(r),
+    'resume 이 보류분을 다시 걸어야 «연기»다. 안 걸면 «취소»가 되고 그건 데이터 손실이다');
+  const sch = stripComments(SL.slice(SL.indexOf('function scheduleAutoSave'), SL.indexOf('function scheduleAutoSave') + 700));
+  assert.ok(/_autoSaveDeferred[\s\S]{0,120}_autoSavePending\s*=\s*true/.test(sch),
+    '유예 중에 들어온 요청도 «기억»해야 한다');
+});
+
+test('★P-A2 계약: 고착 방지 — 재개 경로가 «여럿»이다 (고착 = 저장이 영영 안 됨)', () => {
+  const d = stripComments(extractFn(SL, 'deferAutoSave'));
+  assert.ok(/_autoSaveDeferGuard\s*=\s*setTimeout/.test(d),
+    '안전망 타임아웃이 없으면 mouseup 을 못 받는 경로에서 «영구 유예»가 된다');
+  assert.ok(/addEventListener\('blur'[\s\S]{0,80}resumeAutoSave/.test(stripComments(SL)),
+    '창 포커스를 잃는 경로에서도 재개돼야 한다');
+  const ed = stripComments(SRC);
+  assert.ok(/resumeAutoSave\?\.\(\)/.test(ed), '팬 종료 경로가 재개를 불러야 한다');
+  const upIdx = ed.indexOf("window.addEventListener('mouseup'");
+  assert.ok(/resumeAutoSave/.test(ed.slice(upIdx, upIdx + 900)), 'mouseup 에서 재개해야 한다');
+  // ★keyup 리스너가 여럿이라 «스페이스를 보는» 블록을 찾아야 한다(첫 번째를 집으면 오탐).
+  // ★앵커는 «그 블록에만» 있는 문장이어야 한다 — `panMode = false;` 는 선언부에도 있어
+  //   첫 일치가 엉뚱한 데를 가리켰다(이 테스트가 그렇게 한 번 헛돌았다).
+  const kuIdx = ed.indexOf("classList.remove('pan-mode', 'panning')");
+  assert.ok(kuIdx > 0, '팬 모드 해제 블록을 못 찾음');
+  assert.ok(/resumeAutoSave/.test(ed.slice(kuIdx, kuIdx + 400)),
+    '스페이스를 떼는 경로에서도 재개해야 한다(마우스를 창 밖에서 떼는 경우)');
+});
+
+test('★P-A2 계약: 팬 시작이 유예를 «건다»', () => {
+  const ed = stripComments(SRC);
+  const dnIdx = ed.indexOf("canvasWrap.addEventListener('mousedown'");
+  assert.ok(/deferAutoSave\?\.\(\)/.test(ed.slice(dnIdx, dnIdx + 700)),
+    '팬 mousedown 이 유예를 걸어야 90MB 직렬화가 팬 도중에 안 터진다');
+});

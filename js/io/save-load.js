@@ -1256,8 +1256,53 @@ function _setAutosaveIndicator(state) {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   [P-A2] 제스처 «중»엔 자동저장을 «미룬다» (취소가 아니다)
+
+   왜: 90MB 프로젝트의 `serializeProject()` 는 메인스레드를 **811ms** 멈추고, 이어서
+   파일 쓰기 IPC 응답 대기가 **401ms** 더 든다(실측, 진짜 입력). 디바운스 1500ms 뒤에
+   발화하므로 «클릭하고 1.5초 안에 팬하면» 그 정지가 팬 도중에 떨어진다 — 그게 「탁」이다.
+   ⇒ 미는 동안엔 안 터지게 하고, 손을 떼면 바로 다시 예약한다. (현빈 승인: 저장 표시가
+     미는 동안 안 뜨다가 놓으면 뜬다 — 그 «보이는 변화»까지 포함해 승인됨)
+
+   ⛔취소가 아니라 «연기»다. 유예 중에 들어온 예약 요청은 `_autoSavePending` 에 «기억»했다가
+   `resumeAutoSave()` 에서 다시 건다. 기존 `_suppressDragSave`(section-drag.js)는 그냥 «버린다» —
+   그건 그 창의 편집을 잃을 수 있다. 이쪽은 안 잃는다.
+
+   ⛔고착이 곧 데이터 손실이다. 이 레포는 이미 겪었다(`drag-drop.js:28` 「ESC 취소 시
+   _suppressAutoSave 고착 방지」). 그래서 재개 경로를 «셋» 둔다:
+     ⑴제스처 정상 종료(mouseup) ⑵창 포커스 상실(blur) ⑶안전망 타임아웃(최대 유예 시간)
+   ═══════════════════════════════════════════════════════════════════ */
+const _AUTOSAVE_DEFER_MAX_MS = 30000;   // 어떤 경우에도 이보다 오래 미루지 않는다
+let _autoSaveDeferred = false;
+let _autoSavePending = false;           // 유예 중에 «예약 요청»이 있었나
+let _autoSaveDeferGuard = null;
+
+function deferAutoSave() {
+  if (_autoSaveDeferred) return;
+  _autoSaveDeferred = true;
+  // 이미 걸려 있던 타이머는 «해제»하되, 예약이 있었다는 사실은 기억한다.
+  if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; _autoSavePending = true; }
+  clearTimeout(_autoSaveDeferGuard);
+  _autoSaveDeferGuard = setTimeout(() => resumeAutoSave(), _AUTOSAVE_DEFER_MAX_MS);
+}
+
+function resumeAutoSave() {
+  clearTimeout(_autoSaveDeferGuard); _autoSaveDeferGuard = null;
+  if (!_autoSaveDeferred) return;
+  _autoSaveDeferred = false;
+  if (_autoSavePending) { _autoSavePending = false; scheduleAutoSave(); }
+}
+window.deferAutoSave = deferAutoSave;
+window.resumeAutoSave = resumeAutoSave;
+window.__autoSaveDeferState = () => ({ deferred: _autoSaveDeferred, pending: _autoSavePending });
+// ⑵창 포커스를 잃으면(다른 앱으로 전환 등) 제스처가 끝난 것으로 본다 — 고착 방지.
+window.addEventListener('blur', () => resumeAutoSave());
+
 function scheduleAutoSave() {
   if (state._suppressAutoSave) return;
+  // [P-A2] 제스처 중이면 «미룬다» — 버리지 않고 기억해 뒀다가 놓을 때 다시 건다.
+  if (_autoSaveDeferred) { _dirtySinceSave = true; _autoSavePending = true; return; }
   // BUG-12: activeProjectId가 없으면 'web-editor-autosave__undefined' 키로 저장되는 버그 방지
   if (!activeProjectId) { console.warn('[save-load] scheduleAutoSave: activeProjectId 없음, 저장 건너뜀'); return; }
   _dirtySinceSave = true;

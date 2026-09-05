@@ -3092,6 +3092,9 @@ document.addEventListener('click', e => {
       panMode = false;
       panning = false;
       canvasWrap.classList.remove('pan-mode', 'panning');
+      // [P-A2] ⑵팬 모드 이탈 — 마우스를 창 «밖»에서 떼면 mouseup 이 안 올 수 있다.
+      //   고착은 곧 「저장이 영영 안 됨」이라 재개 경로를 여러 곳에 둔다.
+      window.resumeAutoSave?.();
     }
   });
 
@@ -3105,6 +3108,9 @@ document.addEventListener('click', e => {
     panning = true;
     panStart = { x: e.clientX, y: e.clientY };
     panOffsetStart = { x: panOffsetX, y: panOffsetY };
+    // [P-A2] 미는 동안 자동저장을 «미룬다»(취소 아님 — 놓으면 바로 재예약).
+    //   90MB 직렬화가 811ms + IPC 401ms 라 팬 도중에 터지면 그게 「탁」이다.
+    window.deferAutoSave?.();
     // [S2] 팬을 «네이티브 스크롤»로 한다 — 시작 시점의 스크롤을 기준점으로 잡는다.
     ensurePanRoom();
     scrollStart = { left: canvasWrap.scrollLeft, top: canvasWrap.scrollTop };
@@ -3157,6 +3163,10 @@ document.addEventListener('click', e => {
     // ⛔기본값으로 되돌리면 clamp 가 걸려 놓는 순간 캔버스가 튄다.
     shrinkPanRoom();
     if (panMode) canvasWrap.classList.remove('panning');
+    // [P-A2] ⑴정상 종료 — 미뤄 둔 자동저장을 «여기서» 다시 건다.
+    //   ⛔즉시 저장이 아니라 «재예약»이다. 놓자마자 811ms 를 태우면 「놓을 때 탁」이 된다.
+    //     원래 디바운스(1500ms)를 이 시점부터 다시 세는 셈이라, 사람이 손을 뗀 뒤 여유가 생긴다.
+    window.resumeAutoSave?.();
   });
 
   /* [P-R2] 팬 직후의 click 삼키기 — window 캡처라 앱의 어떤 핸들러보다 먼저 본다.
