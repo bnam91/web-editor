@@ -35,25 +35,26 @@ function slice(head) {
 // ★DOM 을 안 쓰는 조각만 떼어 «진짜로 실행»한다 — 문자열 대조가 아니라 동작 검사다.
 const TOUCH = SRC.match(/const TOUCH_EPS = ([\d.]+)/);
 assert.ok(TOUCH, 'TOUCH_EPS 상수를 못 찾았다');
-const SNAP = SRC.match(/const _snap = [^\n;]+;/);
-assert.ok(SNAP, '_snap 정의를 못 찾았다');
+const SNAP = [...SRC.matchAll(/const _snap(Lo|Hi) = [^\n;]+;/g)].map(m => m[0]);
+assert.equal(SNAP.length, 2, '_snapLo/_snapHi 정의를 못 찾았다 — 스냅이 «두 갈래»여야 선이 상자 밖으로 안 샌다');
 const ctx = vm.createContext({});
 vm.runInContext(
   `const TOUCH_EPS = ${TOUCH[1]};\n` +
-  SNAP[0] + '\n' +
+  SNAP.join('\n') + '\n' +
   slice('export function subtractInterval') + '\n' +
   slice('function _dedupe') + '\n' +
   slice('function _edgesOf') + '\n' +
-  'globalThis.__pure = { subtractInterval, _dedupe, _edgesOf, _snap };',
+  'globalThis.__pure = { subtractInterval, _dedupe, _edgesOf, _snapLo, _snapHi };',
   ctx);
-const { subtractInterval, _dedupe, _edgesOf, _snap } = ctx.__pure;
+const { subtractInterval, _dedupe, _edgesOf, _snapLo, _snapHi } = ctx.__pure;
+const DPR = 2;   // 실측 기기(dpr 2). 아래 검사는 dpr 1 에서도 성립해야 하므로 둘 다 돈다.
 
 /** 축정렬 상자 하나를 items 원소로. (l,t,r,b) = 스크린 CSS px 생좌표. */
 function box(l, t, r, b, opts = {}) {
   const g = {
     rot: false,
     raw: { l, t, r, b },
-    L: _snap(l + 0.5), T: _snap(t + 0.5), R: _snap(r - 0.5), B: _snap(b - 0.5),
+    L: _snapLo(l, DPR), T: _snapLo(t, DPR), R: _snapHi(r, DPR), B: _snapHi(b, DPR),
   };
   return { g, edges: _edgesOf(g), dedupable: opts.dedupable !== false };
 }
@@ -61,6 +62,18 @@ const len = ivs => ivs.reduce((s, [a, b]) => s + (b - a), 0);
 // ⚠️vm 컨텍스트의 배열은 «다른 Array.prototype» 이라 deepStrictEqual 이 프로토타입에서 갈린다
 //   (실제로 여기서 한 번 헛짚었다). 값만 비교한다.
 const eqIv = (got, want, msg) => assert.equal(JSON.stringify(got), JSON.stringify(want), msg);
+
+test('★스냅은 선을 «상자 밖으로» 내보내지 않는다(분수 좌표에서도)', () => {
+  // 실측으로 잡힌 결함: 429.375 같은 분수 변에서 round() 스냅이 선을 0.5px 바깥으로 밀었다.
+  for (const [t, b] of [[429.375, 523.773], [100, 200], [10.9, 20.1], [0.2, 3.8]]) {
+    for (const k of [1, 2, 3]) {
+      const T = _snapLo(t, k), B = _snapHi(b, k);
+      assert.ok(T - 0.5 >= t - 1e-9, `dpr${k}: 윗선 ${T} 이 상자 위(${t}) «밖»으로 나갔다`);
+      assert.ok(B + 0.5 <= b + 1e-9, `dpr${k}: 아랫선 ${B} 이 상자 아래(${b}) «밖»으로 나갔다`);
+      assert.ok(T - 0.5 - t <= 1 / k + 1e-9, `dpr${k}: 윗선이 ${T - 0.5 - t} 만큼 안쪽으로 들어갔다(핸들과 벌어진다)`);
+    }
+  }
+});
 
 test('구간 빼기 — 겹침 없음·전부·부분·가운데 쪼개기', () => {
   eqIv(subtractInterval([[0, 10]], 20, 30), [[0, 10]], '떨어진 구간은 안 건드린다');
