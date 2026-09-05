@@ -406,6 +406,16 @@
   opacity: 1;
   overflow-y: auto;
 }
+/* ── 스크롤바 «코너» (가로·세로 바가 동시에 뜨는 컨테이너에서만 드러난다) ──
+ * ★현빈 F1 신고: 캔버스 오른쪽 아래에 «작은 흰 사각형»이 보인다.
+ *   원인은 새 기능도 버전 차이도 아니었다 — 이 앱엔 `::-webkit-scrollbar` 규칙이 34개인데
+ *   `-corner` 는 «0개» 여서, 칠하지 않은 코너가 브라우저 기본 흰색으로 드러난 것이다.
+ *   실측(v0.9.0 격리 실기, 두 축 모두 넘치게 만들어 재현): 코너 rgb(255,255,255) vs
+ *   주변 캔버스 rgb(245,245,245) — 눈에 띄는 이유가 이 10 단계 차이다.
+ * ★34곳에 따로 붙이지 않고 «한 곳»에서 전부 덮는다 — 개별로 붙이면 반드시 한 곳이 빠진다
+ *   (이 레포가 위임목록·클램프·거터·피커 축에서 반복해 당한 패턴). */
+*::-webkit-scrollbar-corner { background: transparent; }
+
 #var-panel.open::-webkit-scrollbar { width: 4px; }
 #var-panel.open::-webkit-scrollbar-thumb { background: var(--ui-border-mid); border-radius: 2px; }
 
