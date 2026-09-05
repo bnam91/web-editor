@@ -195,16 +195,27 @@ function getRestingScroll() {
   const wrap = document.getElementById('canvas-wrap');
   const scalerEl = document.getElementById('canvas-scaler');
   if (!wrap || !scalerEl) return { top: 0, left: 0 };
-  const scale = currentZoom / 100;
-  const contentH = scalerEl.offsetHeight * scale;
-  const idealTop = Math.round((contentH - wrap.clientHeight) / 2);
+  /* [S2] 쉼 위치 = «스크롤 범위의 한가운데».
+     팬 여지가 사방 «대칭»이므로 범위의 한가운데가 곧 콘텐츠의 한가운데다(대수적으로 동일).
+     ⚠️예전 공식은 `scalerEl.offsetHeight * scale` 로 콘텐츠 높이를 다시 구했는데,
+       offsetHeight 는 _syncScalerHeight 가 «이미 배율을 곱해» 넣어 둔 값이라
+       배율이 «두 번» 곱해지고 있었다(zoom≠100 에서만 어긋난다). 실제 scrollHeight 를
+       쓰면 그 문제가 원천적으로 없어진다. ⇒ zoom≠100 에서의 쉼 위치가 «달라진다»(의도된 수정). */
   const maxTop = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
   const maxLeft = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
-  return {
-    top: Math.max(0, Math.min(maxTop, idealTop)),
-    // 가로 쉼 위치 = 범위의 한가운데. 현재(가로 범위 0)는 언제나 0 이라 기존 동작과 동일하다.
-    left: Math.round(maxLeft / 2)
-  };
+  /* 가로 쉼 = «캔버스가 뷰포트 한가운데» 오는 스크롤 위치.
+     ⛔범위의 절반(maxLeft/2)으로 잡으면 안 된다 — scaler 의 레이아웃 폭이 캔버스보다 넓을 수 있고
+       (자손이 옆으로 삐져나오면 그렇게 된다: 실측 캔버스 860 vs scaler 1108), 그러면 대칭 여백이
+       캔버스를 가운데로 안 놓는다(실측 127px 어긋남). 실제 캔버스 위치를 재서 맞춘다. */
+  const canvasEl2 = document.getElementById('canvas');
+  let left = Math.round(maxLeft / 2);
+  if (canvasEl2 && wrap.clientWidth) {
+    const cr = canvasEl2.getBoundingClientRect();
+    const wr = wrap.getBoundingClientRect();
+    const delta = (cr.left + cr.width / 2) - (wr.left + wrap.clientWidth / 2);
+    left = Math.round(Math.max(0, Math.min(maxLeft, wrap.scrollLeft + delta)));
+  }
+  return { top: Math.round(maxTop / 2), left };
 }
 
 /** 실효 팬 «변위». 부호는 기존 panOffset 과 같다(+y = 콘텐츠가 아래로 내려간 것). */
@@ -219,6 +230,98 @@ function getPanPosition() {
 }
 window.getRestingScroll = getRestingScroll;
 window.getPanPosition = getPanPosition;
+/* ═══════════════════════════════════════════════════════════════════
+   [S2] 팬 «여지»(pan room) — 캔버스 밖으로도 계속 밀리게
+
+   왜 필요한가: 팬을 네이티브 스크롤로 하면 «스크롤 범위» 밖으로는 못 민다.
+   현행 transform 팬은 무한히 밀렸으므로, 그 감각을 유지하려면 범위를 만들어야 한다.
+   ⇒ scaler 사방에 «한 화면»씩 여백을 주고, 끝에 닿으면 «그때만» 한 화면 더 늘린다.
+
+   ★왜 transform 으로 안 하나(실측, GEN-canvas-c2-status §13):
+     스크롤 컨테이너 안에서 콘텐츠를 transform 으로 옮기면 그 프레임의 표시목록이
+     통째로 다시 기록된다 — 전면 Paint 가 스텝마다 찍힌다(Paint 27ms → 165ms, 6배).
+     축·거리와 무관하고 «썼는가»에만 걸린다. 그래서 팬 중 transform 쓰기는 «0회»여야 한다.
+
+   ★왜 «줄이는» 정리를 조심하나: 브라우저는 스크롤 범위가 «현재 위치보다 작아질 때»
+     scrollTop/Left 를 clamp 한다(실측). 여백을 함부로 되돌리면 놓는 순간 캔버스가 «툭» 튄다.
+     ⇒ _shrinkPanRoom 은 «현재 위치가 요구하는 만큼»까지만 줄인다(정의상 clamp 불가).
+   ═══════════════════════════════════════════════════════════════════ */
+
+let _panRoomX = 0;   // scaler 좌우 여백(px, 한쪽) — 0 이면 아직 미적용
+let _panRoomY = 0;   // scaler 상하 여백(px, 한쪽)
+
+function _applyPanRoom() {
+  if (!scaler) return;
+  scaler.style.marginLeft = _panRoomX + 'px';
+  scaler.style.marginRight = _panRoomX + 'px';
+  scaler.style.marginTop = _panRoomY + 'px';
+  scaler.style.marginBottom = _panRoomY + 'px';
+}
+
+/** 기본 여지 = 사방 한 화면. 이미 그만큼 있으면 아무것도 안 한다. */
+function ensurePanRoom() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !scaler) return;
+  const needX = wrap.clientWidth, needY = wrap.clientHeight;
+  if (!needX || !needY) return;                     // 아직 레이아웃 전
+  if (_panRoomX >= needX && _panRoomY >= needY) return;
+  const first = (_panRoomX === 0);
+  const before = { x: _panRoomX, y: _panRoomY, sl: wrap.scrollLeft, st: wrap.scrollTop };
+  _panRoomX = Math.max(_panRoomX, needX);
+  _panRoomY = Math.max(_panRoomY, needY);
+  _applyPanRoom();
+  if (first) {
+    /* ★최초 확보: 여기서 «가로 중앙정렬»이 성립한다.
+       justify-content 를 flex-start 로 바꿨으므로(§S2 CSS) 중앙정렬은 CSS 가 아니라
+       «대칭 여백 + 쉼 스크롤 위치»가 만든다. 이 줄이 없으면 캔버스가 왼쪽에 붙는다. */
+    void wrap.scrollWidth;
+    wrap.scrollLeft = getRestingScroll().left;
+    wrap.scrollTop = before.st + (_panRoomY - before.y);
+  } else {
+    // 앞쪽(왼/위) 여백이 늘어난 만큼 콘텐츠가 뒤로 밀린다 → 같은 프레임에 스크롤을 보정해
+    // 화면에 보이는 그림이 안 움직이게 한다(같은 JS 태스크 = 페인트 전이라 원자적).
+    wrap.scrollLeft = before.sl + (_panRoomX - before.x);
+    wrap.scrollTop = before.st + (_panRoomY - before.y);
+  }
+}
+
+/** 끝에 닿았을 때 «그 축만» 한 화면 더 늘리고 스크롤을 보정한다. */
+function growPanRoom(axis) {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !scaler) return;
+  if (axis === 'x') {
+    const before = _panRoomX, sl = wrap.scrollLeft;
+    _panRoomX += wrap.clientWidth;
+    _applyPanRoom();
+    wrap.scrollLeft = sl + (_panRoomX - before);
+  } else {
+    const before = _panRoomY, st = wrap.scrollTop;
+    _panRoomY += wrap.clientHeight;
+    _applyPanRoom();
+    wrap.scrollTop = st + (_panRoomY - before);
+  }
+}
+
+/**
+ * 여백을 «안전한 만큼만» 줄인다 — 현재 스크롤 위치를 담는 데 필요한 양은 남긴다.
+ * ⛔기본값으로 되돌리면 안 된다: 멀리 밀어낸 상태에서 놓으면 clamp 가 걸려 캔버스가 튄다.
+ */
+function shrinkPanRoom() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !scaler) return;
+  const baseX = wrap.clientWidth, baseY = wrap.clientHeight;
+  // 앞쪽 여백은 scrollLeft/Top 이하로는 못 줄인다(줄인 만큼 스크롤도 줄여야 하는데 음수가 된다).
+  const cutX = Math.max(0, Math.min(_panRoomX - baseX, wrap.scrollLeft));
+  const cutY = Math.max(0, Math.min(_panRoomY - baseY, wrap.scrollTop));
+  if (!cutX && !cutY) return;
+  const sl = wrap.scrollLeft, st = wrap.scrollTop;
+  _panRoomX -= cutX; _panRoomY -= cutY;
+  _applyPanRoom();
+  wrap.scrollLeft = sl - cutX;
+  wrap.scrollTop = st - cutY;
+}
+window.ensurePanRoom = ensurePanRoom;
+window.getPanRoom = () => ({ x: _panRoomX, y: _panRoomY });
 
 /* C20: transform:scale은 레이아웃 박스 높이를 안 바꿔 #canvas-wrap.scrollHeight가 미축소 원본 기준으로 잡힘
  *      → 줌아웃 시 마지막 섹션 아래로 빈 회색이 과도하게 스크롤됨. scaler 레이아웃 높이를
@@ -238,6 +341,8 @@ function _syncScalerHeight() {
   }
   const target = Math.round(naturalH * scale) + 'px';
   scaler.style.height = (target !== prev) ? target : prev;
+  // [S2] 팬 여지 보장 — 로드·줌·리사이즈가 전부 이 경로를 탄다. 이미 충분하면 no-op.
+  ensurePanRoom();
 }
 
 /* C20: 섹션/블록 추가·삭제·리사이즈로 #canvas 높이가 바뀌면 scaler 레이아웃 높이도 재동기화.
@@ -2916,28 +3021,57 @@ document.addEventListener('click', e => {
     }
   });
 
+  let scrollStart = null;
+
   // capture 단계: 하위 요소 stopPropagation 우회
   canvasWrap.addEventListener('mousedown', e => {
     if (!panMode || e.button !== 0) return;
     panning = true;
     panStart = { x: e.clientX, y: e.clientY };
     panOffsetStart = { x: panOffsetX, y: panOffsetY };
+    // [S2] 팬을 «네이티브 스크롤»로 한다 — 시작 시점의 스크롤을 기준점으로 잡는다.
+    ensurePanRoom();
+    scrollStart = { left: canvasWrap.scrollLeft, top: canvasWrap.scrollTop };
     canvasWrap.classList.add('panning');
     e.preventDefault();
     e.stopPropagation();
   }, true);
 
   window.addEventListener('mousemove', e => {
-    if (!panning) return;
-    panOffsetX = panOffsetStart.x + (e.clientX - panStart.x);
-    panOffsetY = panOffsetStart.y + (e.clientY - panStart.y);
-    _applyScalerTransform();
+    if (!panning || !scrollStart) return;
+    /* [S2] ★팬 중에는 scaler.style.transform 을 «쓰지 않는다».
+       스크롤 컨테이너 안에서 transform 으로 콘텐츠를 옮기면 그 프레임의 표시목록이
+       통째로 다시 기록된다(실측 Paint 27ms → 165ms). 그래서 이동은 전부 스크롤로 한다.
+
+       ★«절대 델타»로 매 프레임 다시 계산한다(증분 += 금지).
+         증분이면 오차가 누적되고, 끝에 닿았다 되돌아올 때 손이 미끄러진 것처럼 느껴진다. */
+    const wantDX = e.clientX - panStart.x;
+    const wantDY = e.clientY - panStart.y;
+    // 팬은 콘텐츠를 손끝이 «따라가게» 한다 → 스크롤은 반대 부호.
+    canvasWrap.scrollLeft = scrollStart.left - wantDX;
+    canvasWrap.scrollTop = scrollStart.top - wantDY;
+    // 끝에 닿아 흡수 못한 만큼이 남으면 «그 축의 여지»를 한 화면 늘리고 다시 시도한다.
+    // (여백을 늘리는 방향은 clamp 가 안 걸린다 — 실측)
+    if (Math.abs((scrollStart.left - canvasWrap.scrollLeft) - wantDX) > 0.5) {
+      growPanRoom('x');
+      scrollStart.left = canvasWrap.scrollLeft + wantDX;
+      canvasWrap.scrollLeft = scrollStart.left - wantDX;
+    }
+    if (Math.abs((scrollStart.top - canvasWrap.scrollTop) - wantDY) > 0.5) {
+      growPanRoom('y');
+      scrollStart.top = canvasWrap.scrollTop + wantDY;
+      canvasWrap.scrollTop = scrollStart.top - wantDY;
+    }
     if (window.updateNotchPosition) window.updateNotchPosition();
   });
 
   window.addEventListener('mouseup', () => {
     if (!panning) return;
     panning = false;
+    scrollStart = null;
+    // 늘어난 여지를 «안전한 만큼만» 되돌린다(현재 위치가 요구하는 양은 남긴다).
+    // ⛔기본값으로 되돌리면 clamp 가 걸려 놓는 순간 캔버스가 튄다.
+    shrinkPanRoom();
     if (panMode) canvasWrap.classList.remove('panning');
   });
 }

@@ -56,19 +56,20 @@ const BASE = { scalerH: 10000, clientH: 800, clientW: 1000, scrollH: 10000, scro
 
 /* ══ A. 동작 ═════════════════════════════════════════════════════════════ */
 
-test('쉼 위치: 세로는 «콘텐츠 중앙», 범위를 넘지 않게 clamp', () => {
+test('쉼 위치 = «스크롤 범위의 한가운데» (팬 여지가 대칭이라 곧 콘텐츠 중앙)', () => {
   const e = makeEnv({ ...BASE });
-  // ideal = (10000*1 - 800)/2 = 4600, max = 10000-800 = 9200 → 4600
-  assert.equal(e.getRestingScroll().top, 4600);
+  assert.equal(e.getRestingScroll().top, 4600);           // (10000-800)/2
   const small = makeEnv({ ...BASE, scalerH: 500, scrollH: 500 });
-  // ideal = (500-800)/2 = -150 → 0 으로 clamp (음수 스크롤은 없다)
-  assert.equal(small.getRestingScroll().top, 0);
+  assert.equal(small.getRestingScroll().top, 0);          // 범위 0 → 0 (음수 스크롤은 없다)
 });
 
-test('쉼 위치: 배율을 반영한다 (transform:scale 은 레이아웃을 안 바꾸므로 직접 곱해야 한다)', () => {
-  const e = makeEnv({ ...BASE, zoom: 40 });
-  // contentH = 10000*0.4 = 4000 → ideal = (4000-800)/2 = 1600
-  assert.equal(e.getRestingScroll().top, 1600);
+test('★쉼 위치는 «실제 scrollHeight» 로만 구한다 — 배율을 다시 곱하지 않는다', () => {
+  // scaler.offsetHeight 는 _syncScalerHeight 가 «이미 배율을 곱해» 넣은 값이다.
+  // 거기에 또 곱하면 배율이 두 번 걸린다(옛 공식의 버그). 같은 scrollHeight 면
+  // 배율이 달라도 쉼 위치는 같아야 한다.
+  const a = makeEnv({ ...BASE, zoom: 100 }).getRestingScroll().top;
+  const b = makeEnv({ ...BASE, zoom: 40 }).getRestingScroll().top;
+  assert.equal(a, b, '배율이 쉼 위치를 «직접» 바꾸면 이중 배율이 되살아난 것이다');
 });
 
 test('쉼 위치: 가로는 «범위의 한가운데». 범위가 0 이면 0 (현행 동작과 동일)', () => {
@@ -139,3 +140,55 @@ test('단일 진실 함수가 window 로 노출된다 (탭 뷰상태·하네스�
 
 /* ── 요약(러너가 읽는 형식) ─────────────────────────────────────────────── */
 process.on('exit', () => {});
+
+
+/* ══ C. S2 — 팬 여지(pan room) ═══════════════════════════════════════════ */
+
+test('★S2 계약: 팬 mousemove 는 scaler.style.transform 을 «쓰지 않는다»', () => {
+  // 성립 조건이다 — 스크롤 컨테이너 안에서 transform 을 쓰면 그 프레임 표시목록이
+  // 통째로 다시 기록된다(실측 Paint 27ms → 165ms, 축·거리 무관).
+  const i = SRC.indexOf("window.addEventListener('mousemove'");
+  assert.notEqual(i, -1, '팬 mousemove 핸들러를 못 찾음');
+  const body = stripComments(SRC.slice(i, SRC.indexOf("window.addEventListener('mouseup'", i)));
+  assert.ok(!/_applyScalerTransform\s*\(/.test(body),
+    '팬 중 transform 을 쓰면 개선이 통째로 사라진다');
+  assert.ok(!/scaler\.style\.transform/.test(body), '직접 쓰기도 금지');
+  assert.ok(/scrollLeft\s*=/.test(body) && /scrollTop\s*=/.test(body),
+    '이동은 네이티브 스크롤로 해야 한다');
+});
+
+test('★S2 계약: 팬은 «절대 델타»로 매 프레임 재계산한다 (증분 += 금지)', () => {
+  const i = SRC.indexOf("window.addEventListener('mousemove'");
+  const body = stripComments(SRC.slice(i, SRC.indexOf("window.addEventListener('mouseup'", i)));
+  assert.ok(/e\.clientX\s*-\s*panStart\.x/.test(body), '절대 델타여야 누적 오차가 안 생긴다');
+  assert.ok(!/scrollLeft\s*\+=/.test(body) && !/scrollTop\s*\+=/.test(body),
+    '증분이면 끝에 닿았다 되돌아올 때 손이 미끄러진 것처럼 느껴진다');
+});
+
+test('★S2 계약: 여지 축소는 «현재 위치가 요구하는 만큼»까지만 (clamp 튐 방지)', () => {
+  const body = stripComments(extractFn(SRC, 'shrinkPanRoom'));
+  assert.ok(/Math\.min\([^)]*scrollLeft/.test(body) || /scrollLeft\)/.test(body),
+    '앞쪽 여백은 scrollLeft 이하로 못 줄인다 — 안 그러면 놓는 순간 캔버스가 튄다');
+  assert.ok(/scrollLeft\s*=\s*sl\s*-\s*cutX/.test(body), '줄인 만큼 스크롤도 같이 줄여야 그림이 안 움직인다');
+});
+
+test('★S2 계약: 여지 확장은 «같은 프레임에» 스크롤을 보정한다', () => {
+  for (const fn of ['ensurePanRoom', 'growPanRoom']) {
+    const body = stripComments(extractFn(SRC, fn));
+    assert.ok(/scrollLeft\s*=/.test(body) && /scrollTop\s*=/.test(body),
+      `${fn}: 앞쪽 여백이 늘면 콘텐츠가 밀린다 — 같은 프레임에 스크롤 보정이 없으면 그림이 튄다`);
+  }
+});
+
+test('★S2 계약: 가로 여지가 성립하려면 flex-shrink:0 이 있어야 한다', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../../css/editor-canvas.css'), 'utf8');
+  const scaler = css.slice(css.indexOf('#canvas-scaler {'));
+  assert.ok(/flex-shrink:\s*0/.test(scaler.slice(0, 300)),
+    'flex 자식은 기본 flex-shrink:1 이라 폭을 키워도 도로 줄어든다(실측 2768 요청 → 874)');
+  // ★규칙 «블록»을 잘라서 본다 — 고정 길이 창은 주석이 길어지면 빗나간다(이 테스트가 그렇게 한 번 헛돌았다).
+  const wrapRule = css.slice(css.indexOf('#canvas-wrap {'), css.indexOf('}', css.indexOf('#canvas-wrap {')));
+  assert.ok(/justify-content:\s*flex-start/.test(wrapRule),
+    'justify-content:center 면 왼쪽 넘침이 스크롤로 안 닿는다');
+  assert.ok(/scrollbar:horizontal[\s\S]{0,40}height:\s*0/.test(css),
+    '가로 스크롤바는 숨긴다(현빈 결정)');
+});

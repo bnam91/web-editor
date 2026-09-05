@@ -49,13 +49,20 @@
 
 #canvas-wrap {
   flex: 1; background: #969696;
-  display: flex; align-items: flex-start; justify-content: center;
+  /* ★[S2] justify-content:center → flex-start.
+     flex 중앙정렬은 콘텐츠가 넘칠 때 «왼쪽 넘침이 스크롤로 안 닿는다»(실측: 400% 에서
+     도달 가능 scrollLeft 가 0~617 뿐, 왼쪽 끝에 못 갔다 — 기존 버그).
+     중앙정렬은 이제 scaler 의 «좌우 대칭 여백 + 쉼 스크롤 위치»가 대신한다. */
+  display: flex; align-items: flex-start; justify-content: flex-start;
   overflow: auto; padding: 40px;
   position: relative;
 }
 #canvas-wrap.pan-mode { cursor: grab; }
 #canvas-wrap.pan-mode.panning { cursor: grabbing; user-select: none; }
 #canvas-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
+/* ★[S2] 가로 스크롤바는 «숨긴다»(현빈 결정: 「스크롤바 숨기고 범위만」).
+   팬 여지 때문에 가로 범위가 상시 생기므로, 안 숨기면 없던 스크롤바가 새로 보인다. */
+#canvas-wrap::-webkit-scrollbar:horizontal { height: 0; }
 #canvas-wrap::-webkit-scrollbar-thumb { background: var(--ui-border); border-radius: 3px; }
 #canvas-wrap.scratch-drag-over { outline: 2px dashed rgba(21,146,254,0.45); outline-offset: -6px; }
 
@@ -212,7 +219,11 @@
   z-index: 9999;
 }
 
-#canvas-scaler { transform-origin: top center; transition: transform 0.15s ease; position: relative; }
+/* ★[S2] flex-shrink:0 — 이게 없으면 폭을 키워도 flex 가 도로 줄인다(실측: 2768px 요청 → 874px).
+   즉 가로 팬 여지가 «전혀» 안 생긴다. 레시피의 필수 조각이다. */
+#canvas-scaler { transform-origin: top center; transition: transform 0.15s ease; position: relative; flex-shrink: 0; }
+/* 넓어진 scaler 안에서 캔버스는 계속 가운데 — 여백이 생겨도 그림 위치는 안 바뀐다. */
+#canvas-scaler > #canvas { margin-inline: auto; }
 #canvas-wrap.panning #canvas-scaler { transition: none; }
 
 #canvas {
