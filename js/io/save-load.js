@@ -676,8 +676,10 @@ function rebindAll(opts = {}) {
   if (!window._historyPaused && !opts.preserveHistory) window.clearHistory?.();
   // undo/redo 복원 후 색상 조정 SVG 필터 재적용
   // (data-adj-* 속성은 HTML에 포함되어 복원되지만 SVG 필터 매트릭스는 별도 DOM이므로 재동기화 필요)
-  if (window.restoreImgColorAdjust) {
-    canvasEl.querySelectorAll('.asset-img[data-adj-exposure], .asset-img[data-adj-contrast], .asset-img[data-adj-saturation], .asset-img[data-adj-temperature], .asset-img[data-adj-tint], .asset-img[data-adj-highlights], .asset-img[data-adj-shadows]')
+  // ★대상 술어는 image-color-adjust.js 의 ADJ_DIRTY_SEL 하나만 쓴다(에셋 img + 카드 배경이미지 div).
+  //   여기에 셀렉터를 복사해 두면 대상이 늘 때마다 «이 줄만 안 따라와» 조용히 복원이 빠진다.
+  if (window.restoreImgColorAdjust && window.ADJ_DIRTY_SEL) {
+    canvasEl.querySelectorAll(window.ADJ_DIRTY_SEL)
       .forEach(img => window.restoreImgColorAdjust(img));
   }
   // asset-overlay 오염 정리: contenteditable 제거 + 직접 텍스트 노드 제거

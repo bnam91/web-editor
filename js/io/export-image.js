@@ -502,8 +502,8 @@ async function exportSection(sec, format, width, opts) {
 
   // 색상 조정 필터가 적용된 img → Canvas로 bake
   // html2canvas는 SVG filter url()을 지원하지 않으므로 사전 변환 필요
-  if (window.bakeImgFilterToCanvas) {
-    for (const img of clone.querySelectorAll('.asset-img[data-adj-exposure], .asset-img[data-adj-contrast], .asset-img[data-adj-saturation], .asset-img[data-adj-temperature], .asset-img[data-adj-tint], .asset-img[data-adj-highlights], .asset-img[data-adj-shadows]')) {
+  if (window.bakeImgFilterToCanvas && window.ADJ_DIRTY_SEL) {
+    for (const img of clone.querySelectorAll(window.ADJ_DIRTY_SEL)) {
       await window.bakeImgFilterToCanvas(img);
     }
   }
