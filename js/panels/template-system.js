@@ -135,7 +135,13 @@ async function insertTemplate(tpl) {
     row.appendChild(blockEl);
 
     window.insertAfterSelected?.(sec, row);
+    /* ★rebindAll 비경유 문(2026-09-05 개명) — «옛 빌드가 저장한 블록 템플릿»이 여기로 들어온다.
+       ⛔이 자리는 설계 문서의 문 목록(subsection:182 / section:277)에 «없었다» — 구현 중 발견.
+       승격을 안 하면 bindBlock 안전망이 뒤늦게 잡아 warn 을 남긴다(= 문을 놓쳤다는 신호). */
+    window.migrateGridIdentity?.(blockEl);
     window.bindBlock?.(blockEl);
+    // ★이 문도 렌더러를 안 부른다 — 스냅샷(grd-*)과 CSS 가 어긋나지 않게 다시 그린다.
+    if (blockEl.classList.contains('grid-block')) window.renderGridBlock?.(blockEl);
     window.buildLayerPanel?.();
     window.pushHistory?.();
     window.scheduleAutoSave?.();
