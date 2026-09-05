@@ -59,7 +59,9 @@ export function circumferenceOffset(R) {
    실제 회전된 코너와 어긋난다. 회전각을 반영해 «진짜 회전된 코너»의 스크린
    좌표를 계산한다. 회전이 0이면 기존 rect 모서리 경로와 «완전 동일»(회귀 0).
 ═══════════════════════════════════ */
-function _canvasScaleNow() {
+/** ★export — 선택 오버레이(js/selection-overlay.js)가 «같은 배율»을 쓴다.
+ *  베끼면 갈라진다: 스케일러 transform 을 읽는 자리는 «한 곳»이어야 한다. */
+export function _canvasScaleNow() {
   const s = document.getElementById('canvas-scaler');
   return s ? parseFloat(s.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
 }
@@ -76,7 +78,10 @@ function _blockRotationDeg(el) {
 }
 // 코너 dir('nw'|'ne'|'sw'|'se')의 스크린 좌표.
 // inset>0 이면 코너에서 안쪽으로(코너반경 핸들), inset<0 이면 바깥쪽으로(회전 핫존).
-function _cornerScreen(el, dir, inset = 0) {
+/** ★export — 선택 오버레이가 테두리 꼭지점을 «이 함수로» 얻는다(핸들과 같은 좌표).
+ *  ⛔베끼지 마라 — 베끼는 순간 「핸들은 여기, 선은 저기」로 갈라진다(M39 가 바로 그 병이었다).
+ *  ⚠️한계: 회전은 el «자신»의 dataset 만 본다. 회전한 «조상» 안의 자식은 AABB 가 나온다. */
+export function _cornerScreen(el, dir, inset = 0) {
   const rect = el.getBoundingClientRect();
   const deg = _blockRotationDeg(el);
   if (!deg) {

@@ -82,6 +82,68 @@
   pointer-events: none;
   z-index: 9990;
 }
+
+/* ═══ ★선택 테두리 «오버레이 층» (울트라플랜 P0 · js/selection-overlay.js) ═══════════
+   설계 정본 _context/PLAN-selection-overlay.md. 아래 두 덩이는 «성격이 다르다»:
+     ⑴ .ss-sel-layer 절 = 새 층의 «영구» 스타일
+     ⑵ body.sel-ov 중화 절 = P0 «임시물». P1 에서 블록 CSS 원본과 «함께» 지운다.
+   ⛔P0 에서 원본을 지우지 않는 이유 = 양립. body.sel-ov 는 오버레이 모듈이 초기화에
+     성공한 «뒤 스스로» 붙이므로, JS 가 죽으면 이 절이 통째로 안 걸리고 문서 outline 이 산다.
+════════════════════════════════════════════════════════════════════════════════ */
+.ss-sel-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  z-index: 0;              /* 핸들(.ss-resize-handle 등 z-index:1) «아래» */
+}
+/* ★위험13 — SVG 는 기본적으로 히트테스트 대상이다. 층 하나만 none 으로 두면 자식 path 가
+   여전히 클릭을 «먹어» 캔버스 클릭이 죽는다. 층과 «모든 자손»을 함께 끈다. */
+.ss-sel-layer,
+.ss-sel-layer * { pointer-events: none; }
+
+.ss-sel-path {
+  fill: none;
+  stroke: var(--sel-color);
+  /* ★오버레이는 #canvas-scaler «밖»이라 줌에 곱해지지 않는다 — --inv-zoom 보정이 «불필요»하다.
+     (이 이전의 요지 중 하나. 스케일러 안에 있는 한 모든 굵기는 보정을 달고 다녀야 했다.) */
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+/* 회전 상자는 반픽셀 스냅을 끄므로 crispEdges 가 오히려 선을 계단으로 만든다. */
+.ss-sel-path.is-rot { shape-rendering: geometricPrecision; }
+/* 에셋 오버레이 안 = 어두운 이미지 위. 파랑은 안 보인다 → 흰 점선(기존 M57-b 의 룩을 그대로 옮김). */
+.ss-sel-path--overlay {
+  stroke: rgba(255,255,255,0.7);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+  shape-rendering: geometricPrecision;
+}
+/* 스티커·그라데이션 = 보라(--ui-sel-overlay). */
+.ss-sel-path--sticker { stroke: var(--ui-sel-overlay, #9966ff); }
+
+/* ── ⑵ 중화(P0 임시물) ─────────────────────────────────────────────────────────
+   ⛔원본을 «지우지» 않는다. 색만 투명으로 돌린다(레이아웃·offset·specificity 그대로).
+   ★:not() 목록의 성격 = «블록 이름»이 아니라 ⒜ 오버레이가 안 그리는 대상 ⒝ 선택과
+     «동시에» 걸릴 수 있는 다른 상태의 표시. 새 블록이 생겨도 안 썩는다.
+     이 두 목록은 tests/unit/selection-overlay-scope.test.mjs 가 «검사로» 고정한다.
+   overlay-tb 가 `!important` 라 우리도 `!important` — 이기는 건 특이성이다
+   (body.sel-ov #canvas .selected = id1·class3·elem1 > .overlay-tb.selected = class2). */
+body.sel-ov #canvas .selected:not(.section-block):not(.col):not(.editing):not(.drag-over):not(.ss-drag-over):not(.pos-dragging):not(.bg-pos-dragging):not(.img-editing),
+body.sel-ov #canvas .row:has(> .text-block.selected),
+body.sel-ov #canvas .row:has(> .speech-bubble-block.selected),
+body.sel-ov #canvas .frame-block[data-text-frame="true"]:has(> .text-block.selected),
+body.sel-ov #canvas .frame-block[data-text-frame="true"]:has(> .speech-bubble-block.selected) {
+  outline-color: transparent !important;
+}
+/* 같은 선을 ::after 의 border 로 그리는 판(말풍선·형광펜) — 색만 투명으로. */
+body.sel-ov #canvas .row:has(> .speech-bubble-block.selected)::after,
+body.sel-ov #canvas .frame-block[data-text-frame="true"]:has(> .speech-bubble-block.selected)::after,
+body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
+  border-color: transparent !important;
+  outline-color: transparent !important;
+}
 .ss-resize-handle {
   position: absolute;
   width:  7px;
