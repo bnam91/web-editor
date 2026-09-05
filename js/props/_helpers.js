@@ -79,10 +79,13 @@ export function bindSlider(slider, number, applyFn, opts = {}) {
  * @param {object} [opts]
  * @param {number} [opts.max=4]      격자 한 변
  * @param {number} [opts.maxRows]    행 상한(없으면 max). 행 축이 아직 없으면 1 을 준다.
- * @param {number} [opts.minCols=1]  ★열 하한. 그리드도 2026-09-05(M40)부터 «1» 이다 —
- *                                    「눌러도 dataset 만 1 이 되고 캔버스는 2칸으로 남는다」던 옛 실측은
- *                                    grid-block.js 의 MIN_COLS=2 폴백(_gridCols) 때문이었고, 그 상수를
- *                                    1 로 내리면서 폴백 조건 자체가 사라졌다. 이 파일은 안 바뀐다.
+ * @param {number} [opts.minCols=1]  ★열 하한.
+ *   ~~[2026-09-04 · 폐기] 「그리드는 2 다 — 1열은 그리드가 아니고, 누르면 dataset 만 1 이 되고
+ *     캔버스는 2칸으로 남아 «어긋난다»(실측)」~~
+ *   ★[2026-09-05 · 현빈 지시로 뒤집음 = «정책 변경»] 그리드도 «1» 이다. 폐기 문장의 «어긋남»은
+ *     grid-block.js 의 `MIN_COLS=2` 폴백(_gridCols)이 만든 것이었고, 그 상수를 1 로 내리면서
+ *     폴백 «조건 자체»가 사라졌다. ⛔이 파일(buildGridPicker)은 한 줄도 안 바뀌었다 —
+ *     술어 `alive()` 가 처음부터 minCols 를 그대로 따랐다.
  */
 export function buildGridPicker(picker, label, onPick, opts = {}) {
   if (!picker) return;
