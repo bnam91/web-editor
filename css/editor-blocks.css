@@ -951,9 +951,45 @@
      _gridEditable 하나뿐이고, 이 규칙은 그 결과로 «실제 켜진» contenteditable 상태에만 반응한다
      (CSS 에 판정을 베끼면 JS 와 갈라진다). #canvas 스코프 = export 클론엔 안 샌다. */
 #canvas .grid-block [contenteditable="true"] {
-  outline: 1px solid var(--sel-color);
-  outline-offset: 2px;
+  /* ★[M51] outline-offset 을 «안쪽»으로 뒤집었다. 옛 값은 `+2px` 라 테두리가 요소 «바깥» 3px
+     (offset 2 + width 1)에 그려졌다. 그리드 안쪽 여백은 0 이고 첫 칸 왼쪽이 블록 왼쪽과
+     «같은 좌표»라(실측: .grd-inner padding 0, cell.left === block.left), 1행 1열 줄을 편집하면
+     그 테두리가 블록 밖으로 나갔다 — 현빈 2026-09-05 「튀어나가잖아」.
+     ⇒ 블록 선택 테두리(:947)와 «같은 관용구»로 맞춘다: 폭=--sel-outline-w, offset=음수 같은 값.
+   ★[M56] 그리고 폭을 --sel-outline-w 로 바꾼 것은 «줌 보정»이기도 하다. 옛 `1px` 은 생짜라
+     스케일러 안에서 줌에 그대로 곱해졌다 — 10% 축소면 화면상 0.1px 로 «사실상 안 보이고»,
+     400% 면 4px 로 뚱뚱해졌다. 즉 어긋남의 크기가 줌마다 달랐다.
+     --sel-outline-w = calc(1px * var(--inv-zoom,1)) 는 화면상 굵기를 줌 불변으로 만든다.
+   ★배경 틴트를 같이 준 이유: 줌 보정을 해도 1px 은 축소 상태에서 «있는지 없는지» 수준이다.
+     .text-block.editing(editor-layout.css:301)이 이미 outline + --sel-color-fill 두 겹으로
+     가는 관례다 — 그 관례를 따른다. 색이 8% 알파라 글자 가독성은 안 건드린다. */
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+  background: var(--sel-color-fill);
   cursor: text;
+}
+
+/* ── [M52] 칼럼 경계 가이드 ──────────────────────────────────────────
+   현빈 2026-09-05: 「칼럼과 칼럼 사이에 갭이 있는지? 있다면 시각적으로 볼 수 있게.
+   칼럼간의 경계가 잘 안 보여서 영역이 어떻게 되는지 모르겠네」
+   ★갭은 «있다» — GRID_DEFAULTS.gap = 24(grid-block.js:30), .grd-inner 의 column-gap 으로
+     실제로 그려진다(실측: 현빈 프로젝트 grd_ts0he_zf5bpyt 에서 24px). 안 보였던 것은
+     갭이 없어서가 아니라 «칸 경계에 아무 표시도 없어서» 였다.
+   ★그래서 갭에 줄을 긋는 대신 «칸의 영역»을 점선으로 두른다 — 그러면 칸 넓이와 갭이
+     동시에 읽힌다(갭 = 점선 상자와 상자 사이의 빈 곳). 현빈이 물은 것은 「갭이 있나」가
+     아니라 「영역이 어떻게 되나」였다.
+   ★.selected «와» .editing 둘 다에 건다 — 칸을 더블클릭해 편집에 들어가면 block 에
+     .editing 이 붙는데(block-drag.js:150), 그때 .selected 가 유지된다는 보장이 없다.
+     하나만 걸면 «가장 필요한 순간에» 가이드가 사라진다.
+   ★offset 은 음수(안쪽) — 바깥이면 24px 갭을 점선이 잠식해 갭이 실제보다 좁아 보인다.
+   ★:scope 직계(> .grd-inner >)로 한정 — 그리드 안에 그리드가 들어가도 남의 칸을 안 두른다.
+   ★#canvas 스코프라 export 클론엔 안 샌다(위 P1.5 규칙과 같은 이유).
+   ⚠️점선 색은 --sel-color-hover(파랑 40%) — 블록 테두리(실선 100%)보다 «한 단계 약하게» 해서
+     「블록 경계 vs 칸 경계」의 위계가 눈으로 갈리게 한다. */
+#canvas .grid-block.selected > .grd-inner > .grd-cell,
+#canvas .grid-block.editing  > .grd-inner > .grd-cell {
+  outline: var(--sel-outline-w) dashed var(--sel-color-hover);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 
 /* ★빈 줄이 «손에 닿게» 한다 (P1.5 실기 QA FAIL 해소)
