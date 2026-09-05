@@ -227,6 +227,9 @@ function _restoreViewState(tab) {
       wrap.scrollTop = scrollTop;
       wrap.scrollLeft = scrollLeft;
       needRetry = Math.abs(wrap.scrollTop - scrollTop) > 1;
+      /* ★[M35] 재시도는 «150ms 뒤»에 scrollLeft 를 다시 세운다 — 그 순간 dx 가 또 바뀐다.
+         applyZoom/setPanOffset 이 건 갱신은 이미 지나갔으므로 여기서 한 번 더 건다. */
+      window.scheduleNotchUpdate?.();
     }
   };
   requestAnimationFrame(retry);

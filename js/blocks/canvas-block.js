@@ -152,6 +152,29 @@ function _fillCardIcon(div, card, areaSize, opts) {
  *   ⑸ dblclick 은 «블록에 위임» — renderCanvas 가 .cvb-inner.innerHTML 을 통째로 갈아끼우므로
  *      요소에 직접 걸면 첫 커밋 한 번에 전부 죽는다.
  */
+/* ★[M38] 「카드블럭에 이미지 영역 체크배경으로 해줘. 다른 이미지 에셋 블럭 배경처럼 말야」(현빈)
+ *   ⇒ «새로 그리는 것»이 아니라 «기존 것을 재사용»하는 요구다. 기준(정본)은 빈 `.asset-block` —
+ *     css/editor-layout.css:505 의 이 값이고, 이 파일의 layers 경로(:866)가 이미 같은 값을 갖고 있었다.
+ *     ★같은 파일 안에서 layers 는 체커인데 cards 만 `rgba(0,0,0,0.06)` 단색이었다 = 그게 현빈이 본 것.
+ *   ⇒ 리터럴을 «이 파일에서 한 줄»로 올리고 네 자리(layers + 카드 가로/세로/오버레이)가 그 한 줄을 본다.
+ *   ⚠️리포 전체로는 이 값이 6벌(css 2 · js 4)로 흩어져 있고, `js/io/export-figma-json.js:383` 이
+ *     `/repeating-conic-gradient/` 정규식으로 «빈 icon-circle»을 판정한다. 그 판정기는 `.icb-circle`
+ *     «만» 보므로 이 변경과 무관하지만(카드는 그 셀렉터에 안 걸린다), 6벌을 토큰 하나로 합치는
+ *     리팩터는 그 판정기를 같이 움직이므로 «이번 범위 밖»으로 남긴다(FIX 보고서 「못 깬 것」).
+ *
+ * ★[M38-b · 적대검수 조건①] 위 판단에서 «틀린 것»은 값이 아니라 «두는 자리»였다.
+ *   이 상수를 네 자리가 «인라인 style» 로 박았는데, 인라인은 직렬화돼 저장본에 실리고
+ *   내보내기 결과물에도 체커와 '+' 가 그대로 찍힌다. 정본으로 삼은 `.asset-block` 은
+ *   애초에 체커를 «CSS 에» 둔다 — 재사용해야 했던 것은 «값»이 아니라 «그 방식»이었다.
+ *   (옛 코드의 `rgba(0,0,0,0.06)` 도 같은 인라인 병이었다. 회색이라 안 띄었을 뿐이고,
+ *    체커로 바꾸면서 «보이게» 된 것이다 — 새로 생긴 병이 아니라 드러난 병이다.)
+ *   ⇒ 네 자리 모두 클래스로 옮겼다: .cvb-img-empty(카드 3자리, 체커+'+')
+ *     · .cvb-img-empty-plain(레이어, 체커만). 이 상수는 이제 «쓰는 곳이 없다».
+ *   ⚠️상수를 지우지 않고 남긴 이유: 위 「6벌 흩어짐」 기록이 이 주석에 달려 있고,
+ *     그 리팩터(export-figma-json 판정기 포함)는 아직 안 했다. 값이 아니라 «기록»이 자산이다. */
+// eslint-disable-next-line no-unused-vars
+const _CVB_CHECKER_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
+
 const _CVB_EDIT_SEL = '.cvb-card-title, .cvb-card-desc, .cvb-card-ph';
 // patchCards 로 보낼 수 있는 필드만. 렌더러(_appendCardTexts)가 찍는 값과 «같은 목록»이어야 한다.
 const _CVB_EDIT_FIELDS = ['title', 'desc', 'titleTop', 'descTop', 'titleBottom', 'descBottom'];
@@ -639,11 +662,9 @@ function renderCanvas(block) {
           } else if (card.imgSrc) {
             _paintCardImage(imgDiv, card, block, idx);
           } else {
-            imgDiv.style.background = 'rgba(0,0,0,0.06)';
-            imgDiv.style.display = 'flex'; imgDiv.style.alignItems = 'center'; imgDiv.style.justifyContent = 'center';
-            const ph = document.createElement('span');
-            ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
-            ph.textContent = '+'; imgDiv.appendChild(ph);
+            /* [M38-b] 인라인이 아니라 «클래스» — 인라인은 저장본·내보내기 결과물에 실린다.
+               체커와 '+' 는 css/editor-blocks.css 의 .cvb-img-empty 가 갖는다(에셋 블록과 같은 자리). */
+            imgDiv.classList.add('cvb-img-empty');
             _bindCvbImgPlaceholder(imgDiv, block, idx);
           }
           cell.appendChild(imgDiv);
@@ -677,11 +698,9 @@ function renderCanvas(block) {
             } else if (card.imgSrc) {
               _paintCardImage(div, card, block, idx);
             } else {
-              div.style.background = 'rgba(0,0,0,0.06)';
-              div.style.display = 'flex'; div.style.alignItems = 'center'; div.style.justifyContent = 'center';
-              const ph = document.createElement('span');
-              ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
-              ph.textContent = '+'; div.appendChild(ph);
+              /* [M38-b] 인라인이 아니라 «클래스» — 인라인은 저장본·내보내기 결과물에 실린다.
+                 체커와 '+' 는 css/editor-blocks.css 의 .cvb-img-empty 가 갖는다(에셋 블록과 같은 자리). */
+              div.classList.add('cvb-img-empty');
               _bindCvbImgPlaceholder(div, block, idx);
             }
             return div;
@@ -725,11 +744,9 @@ function renderCanvas(block) {
             } else if (card.imgSrc) {
               _paintCardImage(fullImg, card, block, idx);
             } else {
-              fullImg.style.background = 'rgba(0,0,0,0.06)';
-              fullImg.style.display = 'flex'; fullImg.style.alignItems = 'center'; fullImg.style.justifyContent = 'center';
-              const ph = document.createElement('span');
-              ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
-              ph.textContent = '+'; fullImg.appendChild(ph);
+              /* [M38-b] 인라인이 아니라 «클래스» — 인라인은 저장본·내보내기 결과물에 실린다.
+                 체커와 '+' 는 css/editor-blocks.css 의 .cvb-img-empty 가 갖는다(에셋 블록과 같은 자리). */
+              fullImg.classList.add('cvb-img-empty');
               _bindCvbImgPlaceholder(fullImg, block, idx);
             }
             cell.appendChild(fullImg);
@@ -863,13 +880,23 @@ function renderCanvas(block) {
           el.style.borderRadius = (layer.radius || 0) + 'px';
 
         } else if (layer.type === 'image') {
-          el.style.background   = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
           el.style.borderRadius = (layer.radius || 0) + 'px';
+          /* [M38-b] 체커를 인라인이 아니라 «클래스»로. 인라인은 저장본·내보내기에 실린다.
+             ★동작은 안 바뀐다 — 옛 코드가 `style.background`(단축)로 체커를 깔고 src 가 있으면
+               바로 다음 줄 `style.backgroundImage` 로 «덮었다». 단축의 background-image 가
+               통째로 교체되므로 src 가 있을 때 체커는 원래도 «안 보였다».
+               (「투명 PNG 뒤로 체커가 비친다」는 이 자리에선 성립한 적이 없다 — 그건 .icb-circle
+                판의 이야기다. 그래서 else 가지에만 거는 것이 옛 동작과 «같다».)
+             ⚠️여기엔 '+' 안내문을 안 붙인다 — 카드 3자리는 «클릭해서 이미지를 넣는» 자리라
+               안내가 필요하지만, 이건 절대배치 레이어라 그 배선(_bindCvbImgPlaceholder)이 없다.
+               그래서 체커만 갖는 별도 클래스를 쓴다. */
           if (layer.src) {
             el.style.backgroundImage    = `url("${layer.src}")`;
             el.style.backgroundSize     = 'cover';
             el.style.backgroundPosition = 'center';
             el.style.backgroundRepeat   = 'no-repeat';
+          } else {
+            el.classList.add('cvb-img-empty-plain');
           }
 
         } else if (layer.type === 'text') {

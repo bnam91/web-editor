@@ -3,7 +3,7 @@
 import { propPanel } from '../globals.js';
 import { parseRatio, buildGridPicker } from './_helpers.js';
 import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★상한은 한 곳에서만 온다
-import { gridRows, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS } from '../blocks/grid-block.js';
+import { gridRows, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT } from '../blocks/grid-block.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 
 /* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
@@ -172,7 +172,9 @@ export function showGridProperties(block) {
 
       const nextCols = [];
       for (let i = 0; i < nCols; i++) {
-        nextCols.push(curCols[i] || { width: 1, lines: [{ type: 'h2', text: '제목' }, { type: 'body', text: '내용을 입력하세요.' }] });
+        /* ★[M41] 열을 늘릴 때의 기본값도 «정본 한 줄»을 쓴다 — 여긴 h2:'제목' 을 얹고 있어서
+         * 블록 생성(grid-block.js)·열 추가(여기)·행 추가(아래)가 서로 «다른» 기본값이었다. */
+        nextCols.push(curCols[i] || { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] });
       }
       // ⛔줄일 때 잘린 칸의 내용은 «버려진다» — undo 로 되돌아온다(pushHistory 를 먼저 부른 이유).
       block.dataset.cols = JSON.stringify(nextCols);
@@ -202,7 +204,7 @@ export function showGridProperties(block) {
           const row = Array.isArray(curCells[r - 1]) ? curCells[r - 1] : [];
           const outRow = [];
           for (let c = 0; c < nCols; c++) {
-            outRow.push(row[c] || { lines: [{ type: 'body', text: '내용을 입력하세요.' }] });
+            outRow.push(row[c] || { lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] });
           }
           nextCells.push(outRow);
         }

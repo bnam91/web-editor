@@ -150,6 +150,21 @@ let panOffsetY = 0;
 
 function applyZoom(z) {
   currentZoom = Math.min(400, Math.max(10, z));
+  /* ★[M44] 배율을 «세우는» 경로는 팬 잔여를 반드시 버린다 — 안 버리면 ×(s_new/s_old) 래칫이 된다.
+     panOffsetX/Y 는 «그 배율에서» 스크롤이 못 삼킨 «화면 px» 잔여다. 배율이 바뀌면 같은 숫자가
+     다른 뜻이 된다. zoomStep 은 그 사실을 알고 «재계산 전에» 0 으로 비우고 앵커를 다시 잡는데
+     (:572), applyZoom(⌘0 · Fit · 탭복원 · 초기화)은 그냥 두고 있었다. 그 «비대칭»이 래칫이다:
+       ⑴ zoomStep 은 앵커 보존의 «정의상» 잔여를 s_new/s_old 배로 키운다(그 자체는 맞는 계산이다 —
+          커서 밑 점을 붙잡으려면 변위도 같은 배율로 커져야 한다).
+       ⑵ applyZoom 은 배율만 되돌리고 «4배가 된 잔여»는 그대로 남긴다.
+     ⇒ [핀치 → ⌘0/Fit/탭복원] 을 반복하면 −9 → −45 → −189 → … ×4 로 발산해 Chromium translate
+       포화점(2²⁴)까지 가고, 캔버스가 화면 밖으로 나가 「줌은 바뀌는데 화면이 안 변한다」가 된다.
+     ⇒ 고칠 곳은 «키우는 쪽»(zoomStep 의 앵커 계산)이 아니라 «안 지우는 쪽»이다.
+     ⚠️호출처 넷을 다 봤다 — zoomStep 은 이 줄 직전에 이미 0 을 넣으므로 무해하고(:572),
+       탭 복원은 이 함수 «다음 줄»에서 저장값을 setPanOffset 으로 도로 세우며(tab-system.js:212),
+       초기화(:2464)는 그때 panOffset 이 이미 0 이다. 남는 건 ⌘0·Fit — 거기선 «되돌린다»가 맞는 뜻이다. */
+  panOffsetX = 0;
+  panOffsetY = 0;
   window.currentZoom = currentZoom;
   _applyScalerTransformAndSync();
   zoomDisplay.textContent = currentZoom + '%';
@@ -164,6 +179,9 @@ function applyZoom(z) {
    *   여백은 «그 순간의 스크롤을 위한 것»이라 상태가 바뀌면 미련 없이 버린다.
    *   다시 필요하면 다음 selectSection 이 «모자란 만큼» 다시 준다. */
   window.resetCanvasTail?.();
+  /* [M35] 배율이 바뀌면 «쉼 위치»(getRestingScroll)가 바뀌므로 같은 스크롤이라도 dx 가 달라진다.
+     ⌘0 · Fit(zoomFit) · 탭복원 · 초기화 · zoomStep 이 전부 여기를 지난다 — 한 자리로 족하다. */
+  scheduleNotchUpdate();
 }
 
 /* ★[perf] transform 쓰기와 «높이 동기»를 나눈다.
@@ -237,6 +255,25 @@ function getPanPosition() {
 }
 window.getRestingScroll = getRestingScroll;
 window.getPanPosition = getPanPosition;
+
+/* ★[M35] 「노치는 언제 생기고 안 생기나」 — 갱신을 «변위를 바꾼 모든 경로»에 건다.
+   [실측 GEN-batch-0905-A §B2] 앱 자신의 술어(`getPanPosition().x`, |dx|<5)로 9경로×3배율을
+   재니 불일치 **25/33 · 전부 MISS_SHOW · MISS_HIDE 0 · LATE 0**(1초 뒤에도 안 고쳐진다).
+   원인은 «판정»이 아니라 «배선»이다 — updateNotchPosition 을 부르는 자리가 넷뿐이었다
+   (휠 «잔여가 있을 때만» · 스페이스팬 mousemove · 노치 클릭 · 기동 100ms).
+   ⇒ 줌·리사이즈·정착·탭복원이 dx 를 −196,605 로 만들어도 아무도 노치에게 말해주지 않고,
+     한참 뒤 «가로 성분 0 인 세로 휠»이 그때서야 켠다 = 현빈 원문 「또 갑자기 노치가 생겼네」.
+   ⛔갱신을 `_applyScalerTransform`(팬 스텝마다 도는 자리)에 걸면 안 된다 — updateNotchPosition 은
+     getRestingScroll → gBCR 을 읽어 «강제 레이아웃»을 부른다. 팬 중 레이아웃 0 이 이 브랜치의 전제다.
+   ⇒ «한 태스크에 한 번»으로 합친다. ⚠️rAF 가 아니라 setTimeout 이다 —
+     이 앱은 비포커스 창에서 rAF 가 멈춘다(같은 이유로 트랙패드 스로틀도 setTimeout 이다, :2930). */
+let _notchUpdatePending = false;
+function scheduleNotchUpdate() {
+  if (_notchUpdatePending) return;
+  _notchUpdatePending = true;
+  setTimeout(() => { _notchUpdatePending = false; window.updateNotchPosition?.(); }, 0);
+}
+window.scheduleNotchUpdate = scheduleNotchUpdate;
 /* ═══════════════════════════════════════════════════════════════════
    [S2] 팬 «여지»(pan room) — 캔버스 밖으로도 계속 밀리게
 
@@ -380,6 +417,9 @@ function shrinkPanRoom() {
   const maxT = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
   const cutX = Math.max(0, Math.min(_panRoomX - baseX, wrap.scrollLeft, maxL - wrap.scrollLeft));
   const cutY = Math.max(0, Math.min(_panRoomY - baseY, wrap.scrollTop, maxT - wrap.scrollTop));
+  /* [M35] «정착»은 제스처가 끝나고 앱이 상태를 추스르는 지점이다 — 여지를 실제로 깎았든 아니든
+     그때 표시기를 상태에 맞춘다. 이른 return 뒤에 두면 「깎을 게 없던 정착」에서 노치가 어긋난 채 남는다. */
+  scheduleNotchUpdate();
   if (!cutX && !cutY) return;
   const sl = wrap.scrollLeft, st = wrap.scrollTop;
   _panRoomX -= cutX; _panRoomY -= cutY;
@@ -497,19 +537,35 @@ function resetPanOffset() {
      예전 코드는 panOffsetX=0 만 해서, 「가로를 되돌린다」는 노치의 «유일한 일»을 못 했다
      (실측: 300px 민 뒤 노치 클릭 → 화면 변위 300px 그대로). 세로처럼 «두 저장소를 다» 비운다.
      dev 에선 가로 저장소가 transform «하나»였기에 panOffsetX=0 으로 충분했다 ⇒ 이건 회귀였다.
-   ★순서: transform 을 «먼저» 비우고 나서 쉼 위치를 잰다 — getRestingScroll 은 캔버스 gBCR 로
-     재는데 gBCR 엔 transform 이 들어 있다. 순서를 바꾸면 옛 변위가 섞인 자리로 간다. */
+   ~~★[폐기] 「순서: transform 을 «먼저» 비우고 나서 쉼 위치를 잰다 — getRestingScroll 은 캔버스
+     gBCR 로 재는데 gBCR 엔 transform 이 들어 있다. 순서를 바꾸면 옛 변위가 섞인 자리로 간다」~~
+   ★[M46 · 2026-09-05] 순서를 «뒤집었다». 폐기한 문장은 «전이가 없을 때만» 맞다.
+     ⑴ getRestingScroll 은 이미 gBCR 에서 panOffsetX 를 «명시적으로 뺀다»(위 FIX-ⓑ, :219)
+        ⇒ 옛 변위가 «섞이지 않는다». 비우기 «전»에 재도 답은 같다.
+     ⑵ 그런데 이 함수의 «유일한» 호출처인 노치 클릭(:3452)은 바로 앞에서
+        `scaler.style.transition = 'transform 0.3s ease'` 를 켠다. 그러면 transform 을 비운
+        «직후»의 gBCR 은 아직 «옛 자리»다 — 보간이 0.3초에 걸쳐 흐르기 때문이다.
+        `void offsetHeight` 는 «레이아웃»을 강제할 뿐 «전이»를 끝내지 못한다.
+     ⇒ 비운 뒤에 재면 panOffsetX 는 0 인데 gBCR 은 옛 P 를 품고 있어 쉼 위치가 P 만큼 어긋나고,
+       전이가 끝나면 캔버스가 «가운데를 지나쳐» 반대쪽에 선다.
+       [실측] 줌스텝 뒤 노치 클릭: 클릭 «직후» dx=0(도착 성공) → +200ms 169 → +400ms 171.
+              −500.8 → +101(반대쪽), 그런데 노치는 사라진다.
+     ★M44-b 와 «같은 병»이다 — 판정식이 «아직 안 끝난 자기 변화»를 입력으로 쓴다(GEN §31 계열).
+       M44-b 는 전이를 «끄고» 풀었지만 여기서는 못 끈다(0.3s 애니메이션이 이 기능의 «의도»다)
+       ⇒ 끄는 대신 «전이가 시작되기 전»에 재서 같은 결과를 얻는다. */
+  const wrap = document.getElementById('canvas-wrap');
+  const scalerEl = document.getElementById('canvas-scaler');
+  /* ★재기부터. 이 시점의 transform 은 «정착»해 있고 panOffsetX 도 아직 옛 값이라 식이 정확하다. */
+  const rest = (wrap && scalerEl) ? getRestingScroll() : null;
   panOffsetX = 0;
   panOffsetY = 0;
   _applyScalerTransformAndSync();
-  const wrap = document.getElementById('canvas-wrap');
-  const scalerEl = document.getElementById('canvas-scaler');
-  if (wrap && scalerEl) {
+  if (wrap && scalerEl && rest) {
     void scalerEl.offsetHeight; void wrap.scrollHeight;
-    const rest = getRestingScroll();
     wrap.scrollTop = rest.top;
     wrap.scrollLeft = rest.left;
   }
+  scheduleNotchUpdate();   // [M35] 여기서 dx 가 0 이 된다 — 표시기도 그 사실을 알아야 한다
 }
 function zoomStep(delta) {
   const wrap = document.getElementById('canvas-wrap');
@@ -520,6 +576,21 @@ function zoomStep(delta) {
   const newZoom = Math.min(400, Math.max(10, currentZoom + delta));
   if (newZoom === currentZoom) return;
   const s_new = newZoom / 100;
+
+  /* ★[M44-b] 앵커를 «재기 전»에 진행 중인 transform 전이를 끝낸다 — 여기가 원래 자리다.
+     이 함수는 아래(원래 :569)에서 `transition='none'` 을 하며 그 이유를 주석 ⑵에 적어 뒀다
+     (「transition 때문에 동기 측정이 예전 scale 을 반영 못 함」). 그런데 «끄는 자리»가
+     «재는 자리»보다 «뒤»였다 — 가드는 있는데 그 대상을 안 보고 있었다.
+     ⇒ scalerRectBefore 가 직전 applyZoom/zoomStep 의 0.15s 보간 «도중» 값으로 잡히고,
+       그 rect 로 계산한 앵커가 panOffsetX 에 잔여를 남긴다.
+     [실측 GREEN] 회차 간격 400ms(전이 종료 후) → panOffsetX 가 12회 «전부 −9» 로 고정.
+                  회차 간격 60~80ms(전이 중)   → −9 → −80 (또는 −1,177) 로 «계속 자란다».
+     ⇒ 사람도 밟는다: 핀치 → ⌘0 → 다시 핀치 를 0.15s 안에 하면 그때마다 잔여가 붙는다.
+     ⛔`transition:'none'` 만으로는 부족하다 — 취소된 전이의 최종값이 rect 에 오려면 리플로가
+       한 번 필요하다(아래 applyZoom 뒤의 `void scaler.offsetHeight` 와 같은 이유). */
+  const prevTransition = scaler.style.transition;
+  scaler.style.transition = 'none';
+  void scaler.offsetWidth;
 
   // 줌인 + 선택 블록 있음: 해당 섹션이 화면 밖일 때만 그쪽으로 점프
   // (이미 화면에 보이는 경우엔 vpCenter 보존 — 사용자가 보던 영역이 갑자기 점프하지 않도록)
@@ -546,6 +617,7 @@ function zoomStep(delta) {
   //     예전 scale을 반영하지 못함 → transition 일시 off + reflow.
   //  3) anchor의 untransformed canvas-y를 줌 전 getBoundingClientRect로 측정해서,
   //     줌 후 scrollTop을 직접 계산. scrollTop으로 흡수 불가 영역은 panOffsetY로 보완.
+
   const wrapRectBefore = wrap.getBoundingClientRect();
   const scalerRectBefore = scaler.getBoundingClientRect();
   const anchorScreenY = targetEl
@@ -565,9 +637,7 @@ function zoomStep(delta) {
   const anchorVpY = targetEl ? (wrapRectBefore.height / 2) : (anchorScreenY - wrapRectBefore.top);
   const anchorVpX = targetEl ? (wrapRectBefore.width  / 2) : (anchorScreenX - wrapRectBefore.left);
 
-  // transition 일시 off → 동기 적용
-  const prevTransition = scaler.style.transition;
-  scaler.style.transition = 'none';
+  // transition 은 «앵커를 재기 전»에 이미 껐다(위 M44-b) — 여기서 다시 끄지 않는다.
   // pan 초기화 (panning 기능 없음 가정, scrollTop 우선)
   panOffsetX = 0;
   panOffsetY = 0;
@@ -2949,8 +3019,11 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
         scheduleWheelSettle();
         // 상한은 absorbWheelResidual 안에 «여지 상한»으로 옮겼다(원래 목적 = 콘텐츠 끝 지나
         // 무한 누적 방지, 0ab2f72). transform 은 여기서 «안» 쓴다.
-        if (window.updateNotchPosition) window.updateNotchPosition();
       }
+      /* ★[M35] 갱신을 «잔여가 있을 때»에 묶어 두면 안 된다 — 잔여 없이 scrollLeft 만 움직인
+         휠도 dx 를 바꾼다. 그 조건문이 MISS_SHOW 25건의 절반이었다(휠 가로·휠 세로 전 배율).
+         ⛔여기서 «직접» 부르지 않는다: 휠은 프레임마다 오고 updateNotchPosition 은 gBCR 을 읽는다. */
+      scheduleNotchUpdate();
     }
   }, { passive: false });
 })();
@@ -3401,6 +3474,9 @@ const FP_FIXED_POPUPS = ['#fp-plugin-panel'];
   });
 
   setTimeout(updateNotchPosition, 100);
+  /* ★[M35] 창 리사이즈는 clientWidth 를 바꿔 «쉼 위치»를 옮긴다 — 팬을 안 했는데 dx 가 변한다.
+     여태 이 경로엔 노치 갱신이 «아예» 없었다(실측 MISS_SHOW 3/3 배율). */
+  window.addEventListener('resize', scheduleNotchUpdate);
 }
 
 /* ── Col 클릭: capture-phase ── */
@@ -3445,7 +3521,7 @@ window.zoomStep = zoomStep;
 window.zoomFit = zoomFit;
 window.applyZoom = applyZoom;
 window.getPanOffset = () => ({ x: panOffsetX, y: panOffsetY });
-window.setPanOffset = (x, y) => { panOffsetX = x; panOffsetY = y; _applyScalerTransform(); };
+window.setPanOffset = (x, y) => { panOffsetX = x; panOffsetY = y; _applyScalerTransform(); scheduleNotchUpdate(); };
 window.toggleAllSections = toggleAllSections;
 window.switchToTab = switchToTab;
 window.initFileTabToggle = initFileTabToggle;
