@@ -1351,10 +1351,19 @@
   pointer-events: none;
 }
 /* 카드 제목/설명은 클릭 가능해야 더블클릭 인라인 편집(_bindCvbDblEdit)이 동작한다.
-   cvb-inner의 pointer-events:none를 텍스트에서만 되살림 (나머지는 카드 본체로 통과). */
+   cvb-inner의 pointer-events:none를 텍스트에서만 되살림 (나머지는 카드 본체로 통과).
+   ★.cvb-card-ph(글자가 «전부» 빈 카드의 안내문)도 같은 목록에 있어야 한다 — 여기 빠지면
+     글자를 다 지운 카드가 캔버스에서 영영 손에 닿지 않는다(_cvbEditable 이 보는 요소와 한 쌍).
+     목록이 갈라지면 「판정은 하나」 규약이 깨지므로 JS 의 _CVB_EDIT_SEL 과 같이 고칠 것. */
 .canvas-block .cvb-card-title,
-.canvas-block .cvb-card-desc {
+.canvas-block .cvb-card-desc,
+.canvas-block .cvb-card-ph {
   pointer-events: auto;
+}
+/* 편집 중 커서 — «어느 요소가 편집 가능한가»를 CSS 가 다시 판정하지 않는다.
+   JS 가 실제로 켠 상태(contenteditable)에만 반응한다. #canvas 스코프라 내보내기 클론에 안 샌다. */
+#canvas .canvas-block [contenteditable="true"] {
+  cursor: text;
 }
 
 /* ── Vector Block ────────────────────────────────────────────────────────── */
