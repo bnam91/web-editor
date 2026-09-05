@@ -2,6 +2,43 @@
 // prop-canvas.js에서 분리: 심플 카드 블록 프로퍼티 패널 (showSimpleCardProperties + _escHtml)
 import { propPanel } from '../globals.js';
 
+// ② 카드 텍스트 입력칸 펼침 상태 — 블록별 «펼친 카드 인덱스» 집합.
+//   ★캔버스에서 더블클릭으로 바로 고칠 수 있게 됐으니(canvas-block.js _bindCvbDblEdit) 우측
+//     입력칸은 «두 번째 입구»다 → 기본 접힘. 카드 N개면 textarea 2N개가 늘 펼쳐져 있던 것을 접는다.
+//   ★지우지 «않는» 이유: 캔버스에서 글자를 전부 지우면 title/desc 요소가 사라져 겨냥할 것이 없다.
+//     그 순간 이 입력칸이 «유일한» 복구 수단이다(그래서 아래 _isEmpty 카드는 자동으로 펼친다).
+//   ★디스크에 안 남긴다(순수 UI 상태). 패널이 통째로 재생성돼도(updateCanvasBlock →
+//     showSimpleCardProperties) 블록별로 «기억»된다 — prop-banner02.js:9 _bn2ExpandedLines 와 같은 방식.
+const _cvbExpandedCards = new WeakMap();
+function _cvbExpanded(block) {
+  if (!_cvbExpandedCards.has(block)) _cvbExpandedCards.set(block, new Set());
+  return _cvbExpandedCards.get(block);
+}
+
+// ② 접힘 판정 — 이 «하나»가 (펼칠까 / 미리보기에 뭘 쓸까)를 다 정한다. 렌더 안에 두면
+//   호출부가 늘 때마다 복제될 자리라 모듈 스코프의 순수 함수로 꺼내 뒀다(단위테스트 대상).
+//   ★값 해석은 렌더러(canvas-block.js _appendCardTexts)와 «같은 규칙»이어야 미리보기가 거짓말을
+//     안 한다 — both 모드의 슬롯 값은 미설정 시 title/desc 로 폴백한다.
+export function cvbCardTexts(card, isBoth) {
+  const c = card || {};
+  return isBoth
+    ? [c.titleTop ?? c.title, c.descTop ?? c.desc, c.titleBottom ?? c.title, c.descBottom ?? c.desc]
+    : [c.title, c.desc];
+}
+// expanded: Set<number> — 사용자가 «직접» 펼친 카드들. 없으면 접힘이 기본.
+export function cvbCardFold(card, i, isBoth, expanded) {
+  const parts = cvbCardTexts(card, isBoth).map(v => String(v ?? '').trim()).filter(Boolean);
+  const isEmpty = parts.length === 0;
+  return {
+    // ★빈 카드는 «항상» 펼친다 — 글자가 없으면 캔버스에 겨냥할 것이 없어(제목/설명 요소가
+    //   렌더되지 않는다) 여기가 사실상 유일한 입구가 된다. 접어도 다시 열리는 건 의도다.
+    open: isEmpty || !!expanded?.has?.(i),
+    isEmpty,
+    // 미리보기 — 카드 3장이 전부 「카드 N」이면 번호만으론 구분이 안 된다.
+    preview: isEmpty ? '(빈 카드)' : parts.join(' · ').replace(/\s+/g, ' ').slice(0, 28),
+  };
+}
+
 // 라벨 모드 전환의 «단일 진실원».
 //   같은 상태(dataset.labelPos / dataset.textHide)를 만지는 컨트롤이 둘이다 —
 //   ① 「라벨 모드」 세그먼트(분리/오버레이/숨김)  ② 「이미지 배경」 체크박스.
@@ -33,7 +70,13 @@ function _applyCvbLabelMode(block, newMode) {
   window.showSimpleCardProperties(block);
 }
 
-function showSimpleCardProperties(block) {
+// expandCardArg: 어느 카드의 텍스트칸을 펼칠지 — «인자 > 기억값 > 기본(전부 접힘)».
+//   정수  = 그 카드를 펼친 채로 그린다(기억에도 남는다)
+//   null  = 전부 접는다
+//   생략  = 기억값 그대로 (updateCanvasBlock 의 패널 갱신이 이 경로다 → 펼침이 유지된다)
+function showSimpleCardProperties(block, expandCardArg) {
+  if (expandCardArg === null) _cvbExpanded(block).clear();
+  else if (Number.isInteger(expandCardArg)) _cvbExpanded(block).add(expandCardArg);
   const w         = parseInt(block.dataset.canvasW)  || 360;
   const h         = parseInt(block.dataset.canvasH)  || 480;
   const radius    = parseInt(block.dataset.radius)   || 12;
@@ -111,6 +154,7 @@ function showSimpleCardProperties(block) {
   const isBoth = labelPos === 'both';
   const cardItemsHtml = cards.map((card, i) => {
     const imgScale = Math.min(400, Math.max(100, parseInt(card.imgScale) || 100));
+    const fold = cvbCardFold(card, i, isBoth, _cvbExpanded(block));
     return `
     <div class="cvb-card-item" data-card-index="${i}">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
@@ -152,7 +196,20 @@ function showSimpleCardProperties(block) {
         <input type="number" class="cvb-card-border-width" data-card-index="${i}" value="${card.borderWidth || 0}" min="0" max="20">
         <span class="cvb-card-meta">px</span>
       </div>
-      ${isBoth ? `
+      <!-- ② 텍스트 접기 머리 — 새 룩을 만들지 않는다. prop-banner02.js:87 의 줄 머리와 «같은»
+           마크업(prop-section-title + 8px 쉐브론 + prop-hint 미리보기)이다. 같은 패널 안에서
+           같은 동작이 다르게 생기면 그 자체가 새 룩이다. -->
+      <div class="prop-section-title cvb-card-text-toggle" data-card-text-toggle="${i}"
+           style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:4px;"
+           title="${fold.open ? '접기' : '펼치기'}">
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
+             style="flex:0 0 auto;transform:rotate(${fold.open ? 90 : 0}deg);transition:transform .12s;">
+          <polyline points="2,2 6,4 2,6"/>
+        </svg>
+        <span style="flex:0 0 auto;">텍스트</span>
+        <span class="prop-hint" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escHtml(fold.preview)}</span>
+      </div>
+      ${!fold.open ? '' : isBoth ? `
       <div class="cvb-slot-block" style="border-left:2px solid var(--ui-border, #ddd);padding-left:6px;margin-bottom:6px;">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
           <span class="cvb-card-meta" style="flex:1;font-weight:600;">상단 라벨</span>
@@ -1194,6 +1251,15 @@ function showSimpleCardProperties(block) {
 
   // 이미지 업로드 / 제거 버튼
   cardItemsEl.addEventListener('click', e => {
+    // ② 텍스트칸 펼침/접힘 — 상태만 뒤집고 패널을 다시 그린다(빈 카드는 _cardFold 가 다시 펼친다 — 의도).
+    const foldToggle = e.target.closest('[data-card-text-toggle]');
+    if (foldToggle) {
+      const i = parseInt(foldToggle.dataset.cardTextToggle, 10);
+      const set = _cvbExpanded(block);
+      set.has(i) ? set.delete(i) : set.add(i);
+      showSimpleCardProperties(block);
+      return;
+    }
     const imgBtn   = e.target.closest('.cvb-card-img-btn');
     const clearBtn = e.target.closest('.cvb-card-img-clear');
     const iconBtn   = e.target.closest('.cvb-card-icon-btn');
