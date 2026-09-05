@@ -26,18 +26,33 @@ import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★행 높이 상한은
 import { insertAfterSelected, genId } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 
+/* ★[M41] 새 칸의 기본 내용 — «한 줄». 열 추가(prop-grid.js)·행 추가도 이 값을 쓴다. */
+export const GRID_CELL_DEFAULT_TEXT = '내용을 입력하세요.';
+
 const GRID_DEFAULTS = {
   gap: 24,
   valign: 'top', // top | middle | bottom
   cols: [
-    { width: 1, lines: [{ type: 'h2', text: '왼쪽 컬럼' }, { type: 'body', text: '내용을 입력하세요.' }] },
-    { width: 1, lines: [{ type: 'h2', text: '오른쪽 컬럼' }, { type: 'body', text: '내용을 입력하세요.' }] },
+    /* ★[M41] 「왼쪽 컬럼 / 오른쪽 컬럼」 제거 — 현빈 원문: 「기본적으로 '내용을 입력하세요' 하나만
+       있으면 될듯」. 자리를 알려주려고 넣은 h2 였는데, 새 그리드를 만들 때마다 «지우는 일»이 먼저였다.
+       ⚠️여기가 «세 자리 중 정본»이다 — 피커로 열을 늘릴 때(prop-grid.js)·행을 늘릴 때가 서로
+       다른 기본값을 쓰고 있었다(각각 h2:'제목'+body / body 만). 셋을 이 한 줄로 맞춘다. */
+    { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] },
+    { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] },
   ],
 };
 const ROW_DEFAULT = { height: 'auto' };
 // ★한도 — 3곳(이 파일의 _gridCols/_gridRows, updateGridBlock 검증)이 «같은 값»을 봐야 한다
 //   (P0 EVAL이 지적한 「열거 자리가 흩어진다」 재발 방지 — 한 곳에 모은다).
-const MIN_COLS = 2, MAX_COLS = 4;   // ⛔1열은 그대로 막아둔다(그리드 최소 형태). PLAN §3-A "1열 허용 여부는 결정 필요"에 대한 답.
+/* ★[M40] 1 열 허용(2026-09-05). 현빈 원문: 「그리드 피커 첫번쨰 칼럼 선택이 안되는건 …
+ *   일단 1*4로도 할수 있어야될거 같은데??」 ⇒ 「결정 필요」로 남아 있던 것을 현빈이 결정했다.
+ *   ⛔피커 첫 «열» 4칸(1x1~1x4)이 죽어 있던 건 「그리드라서」가 아니라 «이 상수 하나» 때문이다
+ *     — 참조 5곳(_gridCols 폴백 · makeGridBlock · updateGridBlock 검증 · prop-grid 두 곳)이
+ *     전부 이 값을 보므로 여기만 바꾸면 다섯 자리가 같이 열린다.
+ *   ⚠️_helpers.js:82 주석이 경고하던 「눌러도 dataset 만 1 이 되고 캔버스는 2칸으로 남는다」는
+ *     _gridCols 의 `cols.length < MIN_COLS → 기본값 폴백` 때문이었다. MIN_COLS=1 이면 그 폴백이
+ *     길이 1 을 «되돌리지 않는다» ⇒ 어긋남이 원천적으로 사라진다(그 주석도 같이 고쳤다). */
+const MIN_COLS = 1, MAX_COLS = 4;
 const MIN_ROWS = 1, MAX_ROWS = 4;   // 1행 = 옛 duo 파일과 동일(행 축 신설 이전 기본값).
 
 // 컬럼 스케일 텍스트 롤 기본값 (풀폭 h1 104px는 다단에선 과대 — 컬럼용 축소 기준)
@@ -404,8 +419,8 @@ function updateGridBlock(blockId, partial = {}) {
 
   if (partial.cols !== undefined) {
     /* ★상한 3 → 4 (2026-09-04): 우측 패널 4×4 피커가 최대 4열을 준다.
-     * 하한 2 는 유지한다 — 1열짜리 「그리드」는 그리드가 아니고, _gridCols 폴백이
-     * 1열을 기본값으로 되돌려 «내용을 지우는» 함정이 있다(PLAN §P1 회귀위험). */
+     * ★하한 2 → 1 (2026-09-05, M40): 현빈 결정으로 1열을 연다. 「_gridCols 폴백이 1열을
+     * 기본값으로 되돌린다」는 옛 위험은 MIN_COLS 가 1 이 되면서 «폴백 조건 자체»가 사라졌다. */
     if (!Array.isArray(partial.cols) || partial.cols.length < MIN_COLS || partial.cols.length > MAX_COLS) {
       return { ok: false, code: 'INVALID', message: `cols must be array of ${MIN_COLS}~${MAX_COLS} columns` };
     }

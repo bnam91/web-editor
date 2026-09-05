@@ -95,9 +95,35 @@ before(async () => {
 });
 
 /* ═══ 상수 회귀 ═══ */
-test('한도 상수 — 열 2~4, 행 1~4 (PLAN §3-A)', () => {
-  assert.equal(MIN_COLS, 2); assert.equal(MAX_COLS, 4);
+/* ★2026-09-05(M40): 열 하한 2 → 1. 현빈 결정 —「일단 1*4로도 할수 있어야될거 같은데??」
+   이 단언이 «2» 를 못 박고 있어서, 고치면 빨간불이 나 되돌리게 돼 있었다.
+   ⛔값만 바꾸고 끝내지 않는다 — 「하한이 실제로 «열린다»」를 아래 두 테스트로 같이 못 박는다. */
+test('한도 상수 — 열 1~4, 행 1~4 (M40: 1열 허용)', () => {
+  assert.equal(MIN_COLS, 1); assert.equal(MAX_COLS, 4);
   assert.equal(MIN_ROWS, 1); assert.equal(MAX_ROWS, 4);
+});
+
+test('★M40 — 1열 그리드가 «폴백에 먹히지 않고» 1열 그대로 읽힌다', () => {
+  /* 이게 진짜 결함이었다: _gridCols 가 `cols.length < MIN_COLS` 면 기본값(2열)으로 되돌려서,
+     피커가 1 을 눌러도 dataset 만 1 이 되고 캔버스는 2칸으로 남았다(_helpers.js:82 옛 주석). */
+  const block = { dataset: { cols: JSON.stringify([{ width: 1, lines: [{ type: 'body', text: 'A' }] }]) } };
+  const { cols } = getGridModel(block);
+  assert.equal(cols.length, 1, '1열이 2열 기본값으로 되돌려지면 안 된다');
+  assert.equal(cols[0].lines[0].text, 'A', '내용도 살아 있어야 한다(폴백은 내용을 지운다)');
+});
+
+test('★M40 — 피커의 «1x4»(1열 4행)가 실제로 만들어진다', () => {
+  /* 현빈 원문 「일단 1*4로도 할수 있어야될거 같은데??」 — 피커 첫 열의 맨 아래 칸이 이 조합이다. */
+  const { block } = makeGridBlock({
+    cols: [{ width: 1, lines: [{ type: 'body', text: 'A' }] }],
+    rows: [{ height: 'auto' }, { height: 'auto' }, { height: 'auto' }, { height: 'auto' }],
+  });
+  const { cols, rows, cells } = getGridModel(block);
+  assert.equal(cols.length, 1, '1열이 2열 기본값으로 되돌려지면 안 된다');
+  assert.equal(rows.length, 4, '4행');
+  assert.equal(cells.length, 4);
+  assert.equal(cells[0].length, 1, '행마다 칸은 1개');
+  assert.equal(cells[0][0].lines[0].text, 'A', '내용이 살아 있어야 한다');
 });
 
 /* ═══ ① 「cells 없는 옛 파일」 승격 — 이 파일의 핵심 요구 ═══ */
@@ -117,8 +143,11 @@ test('승격① — dataset.rows/cells 가 아예 없으면 1행 그리드로 �
   assert.equal(cells[0][0].align, 'left', '열 속성(align)도 행0 셀에 그대로 승격');
 });
 
-test('승격② — dataset.cols 자체가 없거나(2미만) 깨져도 기본 2열로 승격하고 크래시하지 않는다', () => {
-  for (const badCols of [undefined, '[]', '[{"width":1}]', 'not json', null]) {
+/* ★2026-09-05(M40) 정정: 「2미만이면 기본 2열」은 이 테스트가 지키려던 계약이 아니라
+   MIN_COLS=2 의 «부산물»이었다. 지키려던 것은 「깨진 입력에도 크래시 안 하고 쓸 수 있는 모델이
+   나온다」이고, 그건 그대로다. 1열은 이제 «깨진 것»이 아니므로 표본에서 «유효군»으로 옮긴다. */
+test('승격② — dataset.cols 가 없거나 깨져도 기본 2열로 승격하고 크래시하지 않는다', () => {
+  for (const badCols of [undefined, '[]', 'not json', null]) {
     const block = { dataset: {} };
     if (badCols !== undefined && badCols !== null) block.dataset.cols = badCols;
     const { cols, rows, cells } = getGridModel(block);
@@ -127,6 +156,16 @@ test('승격② — dataset.cols 자체가 없거나(2미만) 깨져도 기본 2
     assert.equal(cells.length, 1);
     assert.equal(cells[0].length, 2);
   }
+});
+
+test('★M40 — 1열 dataset 은 «깨진 것»이 아니다: 폴백 없이 1열 모델이 나온다', () => {
+  const block = { dataset: { cols: '[{"width":1}]' } };
+  const { cols, rows, cells } = getGridModel(block);
+  assert.equal(cols.length, 1);
+  assert.equal(rows.length, 1);
+  assert.equal(cells.length, 1);
+  assert.equal(cells[0].length, 1);
+  assert.deepEqual(cells[0][0].lines, [], 'lines 가 없어도 빈 배열로 정규화돼 크래시하지 않는다');
 });
 
 test('승격③ — dataset.rows 만 있고 dataset.cells 가 없으면(2행 이상) 추가행은 «빈 셀»로 채워진다(크래시 없음)', () => {
@@ -343,10 +382,13 @@ test('updateGridBlock — cells(행0 포함 전체)로 한 번에 그리드 콘�
 });
 
 /* ═══ ⑥ 검증 — 한도·상호배제 ═══ */
-test('updateGridBlock — cols 1개/5개는 거부된다(하한 2 유지 — PLAN §3-A "1열 허용 여부" 에 대한 보수적 답)', () => {
+/* ★2026-09-05(M40): 하한 2 → 1(현빈 결정 「1*4로도 할수 있어야」). 상한 4 는 그대로다.
+   ⇒ 「거부되는가」의 표본을 0개·5개로 옮기고, 1개는 «통과해야 한다»를 같은 테스트에서 못 박는다. */
+test('updateGridBlock — cols 0개/5개는 거부되고 1개는 통과한다(하한 1 · 상한 4 — M40)', () => {
   const block = freshBlock({ cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }] });
-  assert.equal(updateGridBlock(block.id, { cols: [{ width: 1 }] }).ok, false);
+  assert.equal(updateGridBlock(block.id, { cols: [] }).ok, false);
   assert.equal(updateGridBlock(block.id, { cols: Array.from({ length: 5 }, () => ({ width: 1 })) }).ok, false);
+  assert.equal(updateGridBlock(block.id, { cols: [{ width: 1 }] }).ok, true, '1열은 이제 허용된다');
 });
 
 test('updateGridBlock — rows 0개/5개는 거부된다(1~4)', () => {
