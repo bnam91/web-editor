@@ -197,7 +197,10 @@ export function buildFailureLine(f) {
   const p = [];
   const put = (k, v) => { if (v !== null && v !== undefined && v !== '') p.push(k + '=' + v); };
   put('k', f.kind);
-  put('n', f.idx + '/' + f.total);                 // 섹션 «순번» — 이름은 안 쓴다
+  /* ★순번을 «못 쟀으면» 0 이 아니라 `?` 다. 순번은 1부터라 0 은 불가능한 값이지만,
+     읽는 쪽(settings-admin renderDetail)은 이 줄을 «문자 그대로» <pre> 에 붓는다 — 파싱이 없다.
+     「0 = 못 쟀다」를 사람이 문서에서 기억해야 하는 규약은 규약이 아니다(적대검수 B6). */
+  put('n', (f.idx > 0 ? f.idx : '?') + '/' + (f.total > 0 ? f.total : '?'));
   put('fmt', f.format);
   put('w', f.width);
   put('h', f.secH);                                 // 캔버스 쪽 섹션 높이(CSS px)
@@ -313,7 +316,9 @@ export function noteExportOutcome(sec, o) {
     bandCount: m && m.bandCount >= 0 ? m.bandCount : null,
     truthBandCount: m && m.bandCount >= 0 ? m.truthBandCount : null,
     reproDiff: m && m.reproDiff !== undefined ? m.reproDiff : null,
-    err: o.error ? fmtError(o.error, scrub) : null,
+    /* ★예외는 «두 곳»에서 온다 — 내보내기가 던진 것(o.error)과 게이트가 «삼킨» 것(gate.error).
+       gateerr 갈래는 후자뿐이라 이걸 안 실으면 `why=captureError` 한 마디만 남는다(적대검수 B1). */
+    err: fmtError(o.error || g.error || null, scrub) || null,
   });
   _note(line);
   return line;

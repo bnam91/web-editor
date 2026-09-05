@@ -298,6 +298,119 @@ test('L2 ★줄에 섹션 «이름»도 «id» 도 없다 — 이름은 사람�
   assert.ok(!/name/.test(l), l);
 });
 
+/* ── ⑶-b ★★«배선»을 끝까지 도는 테스트 (적대검수 C1) ─────────────────────
+   ⚠️위 S 테스트는 전부 `fmtError(err, rb.scrubPaths)` 처럼 세척기를 «직접 넘겨서» 부른다.
+     그래서 noteExportOutcome 이 세척기를 «안 넘기게» 바꿔도 전부 초록이었다 —
+     검수자가 그 변이로 `~/…/롯데_2026여름` 유출을 실제로 재현했다.
+   ★N1(전송 폴백)에서 «똑같은 병»을 이미 겪었다: 단독만 재면 배선이 끊겨도 통과한다.
+     처방도 같다 — 입구(noteExportOutcome)부터 «버퍼에 실제로 담기는 데»까지 통째로 돈다. */
+function withWindow(rb, fn) {
+  const had = Object.prototype.hasOwnProperty.call(globalThis, 'window');
+  const prev = globalThis.window;
+  globalThis.window = { ReportBuffer: rb };
+  try { return fn(); } finally { if (had) globalThis.window = prev; else delete globalThis.window; }
+}
+/** 메시지가 «폴더로 끝나는 경로»를 담은 진짜 Error. 확장자가 없어 ④(미디어)도 안 닿는다 —
+ *  이 줄을 지키는 건 ③ 하나고, ③은 scrubPaths 가 «먼저» 돈 뒤에만 닿는다. */
+function realPathError() {
+  try { throw new Error("ENOENT: no such file or directory, scandir '/Users/kim minjae/작업/롯데_2026여름'"); }
+  catch (e) { return e; }
+}
+
+test('W1 ★★noteExportOutcome → 링버퍼까지 «통째로» 돌 때 실명·클라이언트명이 안 남는다', () => {
+  const rb = makeReportBuffer();
+  const err = realPathError();
+  // 양성대조 — 원본 메시지엔 «있다»
+  assert.ok(err.message.includes('kim minjae') && err.message.includes('롯데_2026여름'), err.message);
+  const line = withWindow(rb, () => {
+    beginRun(1, 'png', 860);
+    const l = noteExportOutcome(null, { format: 'png', width: 860, idx: 1, total: 1, ms: 5, error: err });
+    endRun();
+    return l;
+  });
+  // ★함수 반환값이 아니라 «버퍼에 실제로 담긴 것»을 본다 — 그게 신고로 가는 바이트다.
+  const stored = rb.list().map(e => e.msg);
+  assert.ok(stored.length >= 1, '버퍼에 안 담겼다');
+  assert.equal(stored[0], line, '반환값과 담긴 값이 다르다');
+  for (const bad of ['kim', 'minjae', '롯데', '작업', '/Users/']) {
+    assert.ok(!stored[0].includes(bad), `«${bad}» 가 담겼다: ` + stored[0]);
+  }
+  assert.ok(stored[0].includes('ENOENT'), '재현에 필요한 «무슨 실패인지»가 사라졌다: ' + stored[0]);
+});
+
+test('W2 ★★Error 가 «아닌» 것도 배선을 끝까지 탄다 — DOMException·Event 는 instanceof Error 가 false 다', () => {
+  const rb = makeReportBuffer();
+  // 브라우저 실측: `new DOMException() instanceof Error` === false, Event 도 마찬가지.
+  const domEx = { name: 'SecurityError', message: 'The operation is insecure.' };
+  assert.equal(domEx instanceof Error, false, '양성대조: 이건 Error 가 «아니다»');
+  const lines = withWindow(rb, () => {
+    beginRun(2, 'png', 860);
+    noteExportOutcome(null, { format: 'png', width: 860, idx: 1, total: 2, ms: 5, error: domEx });
+    noteExportOutcome(null, { format: 'png', width: 860, idx: 2, total: 2, ms: 5, error: { type: 'error' } });
+    endRun();
+    return rb.list().map(e => e.msg);
+  });
+  assert.equal(lines.length, 3, 'Error 아닌 실패가 «조용히 버려졌다»: ' + JSON.stringify(lines));
+  assert.ok(lines[0].includes('SecurityError'), lines[0]);
+  assert.match(lines[2], /bad=2/);
+});
+
+test('W3 ★★gateerr 도 «원인»을 싣는다 — 게이트가 삼킨 예외가 줄에 온다 (적대검수 B1)', () => {
+  const rb = makeReportBuffer();
+  const err = realPathError();
+  const stored = withWindow(rb, () => {
+    beginRun(1, 'png', 860);
+    noteExportOutcome(null, { format: 'png', width: 860, idx: 9, total: 102, ms: 577,
+      gate: { tier: 'unmeasured', reasons: ['captureError'], ms: 300, metrics: null, error: err } });
+    endRun();
+    return rb.list().map(e => e.msg);
+  });
+  assert.match(stored[0], /k=gateerr/);
+  assert.ok(/err=Error: ENOENT/.test(stored[0]), '원인 없는 기록이다 — why= 만 있다: ' + stored[0]);
+  assert.ok(stored[0].includes('scandir'), '메시지가 잘렸다: ' + stored[0]);
+  for (const bad of ['kim', 'minjae', '롯데', '/Users/']) {
+    assert.ok(!stored[0].includes(bad), `«${bad}» 가 담겼다: ` + stored[0]);
+  }
+});
+
+test('W4 ★순번을 못 쟀으면 «?» 다 — 읽는 쪽은 문자 그대로 붓는다(파싱 0)', () => {
+  const rb = makeReportBuffer();
+  const stored = withWindow(rb, () => {
+    beginRun(1, 'png', 860);
+    noteExportOutcome(null, { format: 'png', width: 860, idx: 0, total: 0, ms: 1, error: new Error('x') });
+    endRun();
+    return rb.list().map(e => e.msg);
+  });
+  // total 은 판(run)이 알고 있으므로 1 로 채워진다. 못 잰 것은 «순번» 쪽이다.
+  assert.match(stored[0], /n=\?\//, '0 이 그대로 실렸다 — 「0=못 쟀다」를 사람이 기억해야 한다: ' + stored[0]);
+  assert.ok(!stored[0].includes('n=0'), stored[0]);
+});
+
+test('W5 ★꼬리 규칙이 «실제 함수 이름»에 묶여 있다 — 개명되면 조용히 죽는다 (적대검수 A6)', async () => {
+  const src = fs.readFileSync(path.join(__dirname, '../../js/io/export-image.js'), 'utf8');
+  // FRAME_TAIL 이 이 두 이름을 문자열로 안다. 소스에서 사라지면 «꼬리를 못 알아본다».
+  assert.match(src, /async function exportSection\s*\(/, 'exportSection 이 개명됐다 — FRAME_TAIL 을 같이 고쳐라');
+  assert.match(src, /async function exportAllSections\s*\(/, 'exportAllSections 이 개명됐다 — FRAME_TAIL 을 같이 고쳐라');
+});
+
+test('W6 ★게이트 «쪽» 배선도 잰다 — W3 는 합성 gate 객체를 먹여서 이 끊김을 못 본다', () => {
+  /* ⚠️자백: 이 핀이 없는 동안 실제로 끊겼다(2026-09-05, 변이 러너가 이 줄을 지우고 못 되돌렸는데
+     W3 는 초록이었다). W3 는 `gate:{error}` 를 «직접 만들어» 넘기므로 runExportGate 가 예외를
+     싣든 말든 통과한다 — C1 이 지적한 「단독만 재면 배선이 끊겨도 통과」 그 병이 한 번 더 났다.
+     runExportGate 는 DOM·CDP 의존이라 단위로 못 돌린다 ⇒ ★이건 «소스 텍스트» 핀이다.
+     동작 증거는 실기(9391 G-gateerr)에 있고, 이 핀은 「누가 지워도 빨강이 뜬다」만 보장한다. */
+  const src = fs.readFileSync(path.join(__dirname, '../../js/io/export-gate.js'), 'utf8');
+  /* ★catch 블록을 «두 개» 다 따로 못 박는다. 처음엔 `catch (err) … gateError = err;` 로 느슨하게
+     썼다가 재검사 catch 쪽 `if (!gateError) gateError = err;` 에 매칭돼 «초록으로 통과»했다
+     (변이 C2b 가 살아남았다). 각 catch 의 «고유한 warn 문구»에 붙인다. */
+  assert.match(src, /truth 캡처\/비교 실패[\s\S]{0,160}?\n\s*gateError = err;/,
+    'truth 캡처/비교 catch 가 예외를 «안 들려 보낸다» — gateerr 이 다시 원인 없는 기록이 된다');
+  assert.match(src, /재검사 실패[\s\S]{0,160}?if \(!gateError\) gateError = err;/,
+    '재검사 catch 가 예외를 «안 들려 보낸다» — unstable 갈래가 원인 없는 기록이 된다');
+  assert.match(src, /timing,\s*error: gateError/,
+    'runExportGate 반환에 error 가 안 실린다');
+});
+
 /* ── ⑷ 링버퍼 예산 ───────────────────────────────────────────────────── */
 function drain(rb) { const l = rb.list().map(e => e.msg); rb.clear(); return l; }
 

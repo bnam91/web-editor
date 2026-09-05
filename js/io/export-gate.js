@@ -59,6 +59,13 @@ export async function runExportGate(sec, w, io) {
   };
   let metrics = null;
   const timing = { truthMs: 0, cmpMs: 0, reproMs: 0 };
+  /* ★삼킨 예외를 «밖으로» 들려 보낸다 (적대검수 B1, 2026-09-05).
+     아래 catch 들은 오류를 안 삼키고 「못 쟀다」로 돌리지만, «무엇이» 못 재게 했는지는
+     console.warn 으로 «이 기계에만» 남았다. 그러면 신고에 `why=captureError` 한 마디만 가고
+     현빈은 「검사기가 죽었다」밖에 못 읽는다 — 「이 기록만 보고 재현할 수 있는가」에 걸린다.
+     ⇒ 예외 객체를 결과에 실어 «기록하는 쪽»이 세척해서 붙이게 한다.
+     ⛔여기서 세척하지 않는다 — 세척은 담을 때 한 번(export-report.js) 이면 된다. */
+  let gateError = null;
 
   // «못 잴 조건»이면 truth 를 뜨지도 않는다 — 비용을 안 쓴다.
   const pre = judgeExportDiff(null, ctx);
@@ -69,7 +76,9 @@ export async function runExportGate(sec, w, io) {
   if (!io.exportCanvas) {
     ctx.captureError = true;
     const v = judgeExportDiff(null, ctx);
-    return _log(sec, { tier: v.tier, reasons: v.reasons, metrics: null, ms: performance.now() - t0, timing });
+    // exportCanvas 가 아예 없다 — 예외 객체는 없지만 «사유»는 말할 수 있다.
+    return _log(sec, { tier: v.tier, reasons: v.reasons, metrics: null, ms: performance.now() - t0, timing,
+                       error: new Error('exportCanvas 없음 (캡처 결과가 안 넘어왔다)') });
   }
 
   let truth1 = null;
@@ -86,6 +95,7 @@ export async function runExportGate(sec, w, io) {
     // ⚠️오류를 «삼키면» 그 위의 모든 판정이 거짓말이 된다 — 「검사했는데 정상」이 아니라
     //   「검사를 못 했다」가 사실이다.
     console.warn('[export-gate] truth 캡처/비교 실패:', err);
+    gateError = err;                      // ★밖으로 들려 보낸다 — 적대검수 B1(원인 없는 gateerr)
     ctx.captureError = true;
   }
 
@@ -105,12 +115,13 @@ export async function runExportGate(sec, w, io) {
       if (metrics) metrics.reproDiff = rm.sizeMismatch ? 'SIZE' : rm.total;
     } catch (err) {
       console.warn('[export-gate] 재검사 실패:', err);
+      if (!gateError) gateError = err;      // ★먼저 난 것을 남긴다(뒤엣것이 앞엣것을 가리지 않게)
       ctx.repro = 'unstable';
     }
     verdict = judgeExportDiff(metrics, ctx);
   }
 
-  return _log(sec, { tier: verdict.tier, reasons: verdict.reasons, metrics, ms: performance.now() - t0, timing });
+  return _log(sec, { tier: verdict.tier, reasons: verdict.reasons, metrics, ms: performance.now() - t0, timing, error: gateError });
 }
 
 function _log(sec, r) {
