@@ -561,6 +561,21 @@ function zoomStep(delta) {
   if (newZoom === currentZoom) return;
   const s_new = newZoom / 100;
 
+  /* ★[M44-b] 앵커를 «재기 전»에 진행 중인 transform 전이를 끝낸다 — 여기가 원래 자리다.
+     이 함수는 아래(원래 :569)에서 `transition='none'` 을 하며 그 이유를 주석 ⑵에 적어 뒀다
+     (「transition 때문에 동기 측정이 예전 scale 을 반영 못 함」). 그런데 «끄는 자리»가
+     «재는 자리»보다 «뒤»였다 — 가드는 있는데 그 대상을 안 보고 있었다.
+     ⇒ scalerRectBefore 가 직전 applyZoom/zoomStep 의 0.15s 보간 «도중» 값으로 잡히고,
+       그 rect 로 계산한 앵커가 panOffsetX 에 잔여를 남긴다.
+     [실측 GREEN] 회차 간격 400ms(전이 종료 후) → panOffsetX 가 12회 «전부 −9» 로 고정.
+                  회차 간격 60~80ms(전이 중)   → −9 → −80 (또는 −1,177) 로 «계속 자란다».
+     ⇒ 사람도 밟는다: 핀치 → ⌘0 → 다시 핀치 를 0.15s 안에 하면 그때마다 잔여가 붙는다.
+     ⛔`transition:'none'` 만으로는 부족하다 — 취소된 전이의 최종값이 rect 에 오려면 리플로가
+       한 번 필요하다(아래 applyZoom 뒤의 `void scaler.offsetHeight` 와 같은 이유). */
+  const prevTransition = scaler.style.transition;
+  scaler.style.transition = 'none';
+  void scaler.offsetWidth;
+
   // 줌인 + 선택 블록 있음: 해당 섹션이 화면 밖일 때만 그쪽으로 점프
   // (이미 화면에 보이는 경우엔 vpCenter 보존 — 사용자가 보던 영역이 갑자기 점프하지 않도록)
   const selectedBlock = delta > 0 && document.querySelector(
@@ -586,6 +601,7 @@ function zoomStep(delta) {
   //     예전 scale을 반영하지 못함 → transition 일시 off + reflow.
   //  3) anchor의 untransformed canvas-y를 줌 전 getBoundingClientRect로 측정해서,
   //     줌 후 scrollTop을 직접 계산. scrollTop으로 흡수 불가 영역은 panOffsetY로 보완.
+
   const wrapRectBefore = wrap.getBoundingClientRect();
   const scalerRectBefore = scaler.getBoundingClientRect();
   const anchorScreenY = targetEl
@@ -605,9 +621,7 @@ function zoomStep(delta) {
   const anchorVpY = targetEl ? (wrapRectBefore.height / 2) : (anchorScreenY - wrapRectBefore.top);
   const anchorVpX = targetEl ? (wrapRectBefore.width  / 2) : (anchorScreenX - wrapRectBefore.left);
 
-  // transition 일시 off → 동기 적용
-  const prevTransition = scaler.style.transition;
-  scaler.style.transition = 'none';
+  // transition 은 «앵커를 재기 전»에 이미 껐다(위 M44-b) — 여기서 다시 끄지 않는다.
   // pan 초기화 (panning 기능 없음 가정, scrollTop 우선)
   panOffsetX = 0;
   panOffsetY = 0;
