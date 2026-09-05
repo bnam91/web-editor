@@ -939,12 +939,17 @@ function showCanvasRadiusHandles(cb) {
   const overlay = _getOverlay();
   if (!overlay) return;
 
-  const r = document.createElement('div');
-  r.className = 'canvas-radius-handle nw';
-  r.dataset.canvasRadiusDir = 'nw';
-  r.title = '모서리 반경 조절';
-  overlay.appendChild(r);
-  r.addEventListener('mousedown', e => _onCanvasRadiusHandleMouseDown(e, cb));
+  /* ★[M39] 현빈 2026-09-05: 「카드 블럭 코너라디우스 조절하는거 좌측 상단에만 핸들이 있는데」
+     옛 코드는 'nw' 를 «문자열로 박아» 한 개만 만들었다. 에셋 블록(:611)은 처음부터
+     CORNER_DIRS 네 개를 돈다 — 같은 표를 쓰게 맞춘다(핸들 CSS 는 방향별 규칙이 없어 그대로 쓴다). */
+  CORNER_DIRS.forEach(dir => {
+    const r = document.createElement('div');
+    r.className = `canvas-radius-handle ${dir}`;
+    r.dataset.canvasRadiusDir = dir;
+    r.title = '모서리 반경 조절';
+    overlay.appendChild(r);
+    r.addEventListener('mousedown', e => _onCanvasRadiusHandleMouseDown(e, cb, dir));
+  });
 
   _updateCanvasRadiusHandlePositions();
   _startCanvasRadiusRaf();
@@ -960,12 +965,15 @@ function hideCanvasRadiusHandles() {
 function _updateCanvasRadiusHandlePositions() {
   const overlay = _getOverlay();
   if (!overlay || !_canvasRadiusBlock) return;
-  const rect = _canvasRadiusBlock.getBoundingClientRect();
   const INSET = 10;
   const HALF  = 3.5; // 7px 핸들 중앙 정렬
+  /* ★[M39] 옛 코드는 rect.top/left 로 «좌상단 하나»만 계산했다. 에셋 판(:638)과 같은
+     _cornerScreen(el, dir, inset) 을 쓴다 — 이건 «회전한 블록»의 모서리도 맞게 돌려준다
+     (rect 기반 계산은 회전하면 어긋난다. 카드가 회전 대상이 되면 옛 식은 조용히 틀린다). */
   overlay.querySelectorAll('.canvas-radius-handle').forEach(h => {
-    h.style.top  = (rect.top  + INSET - HALF) + 'px';
-    h.style.left = (rect.left + INSET - HALF) + 'px';
+    const c = _cornerScreen(_canvasRadiusBlock, h.dataset.canvasRadiusDir, INSET);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
   });
 }
 
@@ -982,7 +990,7 @@ function _startCanvasRadiusRaf() {
   _canvasRadiusRafId = requestAnimationFrame(loop);
 }
 
-function _onCanvasRadiusHandleMouseDown(e, cb) {
+function _onCanvasRadiusHandleMouseDown(e, cb, dir = 'nw') {
   if (e.button !== 0) return;
   e.stopPropagation();
   e.preventDefault();
@@ -997,8 +1005,18 @@ function _onCanvasRadiusHandleMouseDown(e, cb) {
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
-    const delta = (dx + dy) / 2;
-    const newR = Math.min(60, Math.max(0, Math.round(startRadius - delta)));
+    /* ★[M39] 현빈 2026-09-05: 「드래그하면 에셋블럭의 모서리 코너핸들과 라디우스 적용되는게
+       반대인데 카드블럭을 고쳐줘」 — 정본은 «에셋»이라고 현빈이 지정했다.
+       ⑴ 부호가 뒤집혀 있었다: 에셋은 `startRadius + delta`, 카드만 `- delta` 였다.
+          같은 방향으로 끌면 에셋은 «커지고» 카드는 «작아졌다».
+       ⑵ 그리고 옛 식은 방향을 안 봤다(항상 nw 판 (dx+dy)/2). 핸들이 하나뿐이라 티가 안 났을
+          뿐이고, 네 개로 늘리는 순간 ne·sw·se 가 «반대로» 움직인다 — ①을 고치면 반드시
+          같이 고쳐야 하는 자리다(둘은 한 결함의 두 얼굴이다).
+       ⇒ 에셋(:670)과 «같은 식»을 쓴다. 안쪽으로 끌면 커진다.
+       ⚠️상한 60 은 카드의 «설계 상수»라 그대로 둔다(에셋 120 과 다른 건 의도 — 카드가 더 작다). */
+    const { sx, sy } = cornerSign(dir);
+    const delta = (-sx * dx + -sy * dy) / 2;
+    const newR = Math.min(60, Math.max(0, Math.round(startRadius + delta)));
     cb.dataset.radius = String(newR);
     window.renderCanvas(cb);
     const rSlider = document.getElementById('cvb-radius-slider');

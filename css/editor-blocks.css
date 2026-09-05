@@ -1069,7 +1069,18 @@
 }
 
 
-/* 선택된 블록이 인접 블록의 outline을 가리지 않도록 z-index로 위로 올림 */
+/* 선택된 블록이 인접 블록의 outline을 가리지 않도록 z-index로 위로 올림
+   ★[M57] canvas-block · banner02-block 이 이 목록에서 «빠져 있었다» (현빈 2026-09-06:
+     「두 블럭이 맞닿는 부분에 밑에 로고에셋이 카드블럭의 아랫아웃라인을 덮어버려 가려버린다」
+      cvb_ts0he_v77tmhv ↔ ab_ts0he_x0cekgk · proj_1788627421215).
+   ★하필 이 둘만 빠진 게 «우연이 아니다» — 이 둘은 배경/이미지가 가장자리까지 차서
+     아웃라인을 «바깥»으로 그리는 유일한 블록이다(--ui-sel-outline-offset-out, DS-20).
+     안쪽으로 그리는 블록은 아웃라인이 자기 상자 «안»에 있어 이웃이 덮을 일이 없다.
+     ⇒ z-index 가 «가장 필요한» 둘이 목록에서 빠져 있었다. 실측: 카드 bottom 346 =
+       에셋 top 346(간격 0), 카드 outline-offset +2.5px 라 아웃라인이 346~351 을
+       차지하는데 둘 다 z-index:auto 라 DOM 뒤인 에셋이 그 위에 그려진다.
+   ★목록으로 관리되는 규칙은 «새 블록이 생길 때 빠진다» — 이 파일에서만 세 번째다
+     (frame-p0#4-후반 주석의 텍스트프레임 래퍼, .cvb-card-ph 의 pointer-events 목록). */
 .text-block.selected,
 .asset-block.selected,
 .gap-block.selected,
@@ -1082,6 +1093,8 @@
 .grid-block.selected,
 .infocard-block.selected,
 .innercard-block.selected,
+.canvas-block.selected,
+.banner02-block.selected,
 .mockup-block.selected { z-index: 2; }
 .row.row-active,
 .col.col-active { z-index: 1; }

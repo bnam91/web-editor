@@ -575,10 +575,18 @@
   color: rgba(255,255,255,0.3);
   pointer-events: none;
 }
+/* ★[M57-b] 오버레이 텍스트의 선택 표시 — 카드(M57)와 «같은 결함»이 여기에도 있었다.
+   ⑴ offset 0 = 아웃라인이 상자 «바깥»에 그려진다 → 오버레이 안의 뒤 형제(다음 줄·갭·라벨그룹)가
+      DOM 순서로 그 위에 그려져 «아랫변이 가려진다». z-index 목록에도 이름이 없었다.
+   ⑵ `1.5px` 가 생짜라 «줌 보정이 없다» — 스케일러 안이라 줌에 곱해진다. 10% 축소면 화면상
+      0.15px 로 사실상 안 보이고, 400% 면 6px 로 뚱뚱해진다. --sel-outline-w 로 줌 불변으로.
+      ⚠️굵기 «비율»은 유지한다 — 원래 1.5px 이므로 토큰의 1.5배로 둔다(점선 가독성).
+   ★색은 그대로 흰색 반투명이다 — 이미지 위에 얹히는 표시라 파랑 선택색이면 안 보인다(의도). */
 .overlay-tb.selected,
 .asset-overlay .label-group-block.selected {
-  outline: 1.5px dashed rgba(255,255,255,0.7) !important;
+  outline: calc(1.5 * var(--sel-outline-w)) dashed rgba(255,255,255,0.7) !important;
   outline-offset: 0;
+  z-index: 2;
 }
 .asset-overlay .label-group-block {
   width: 100%;
