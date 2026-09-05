@@ -192,3 +192,26 @@ test('★S2 계약: 가로 여지가 성립하려면 flex-shrink:0 이 있어야
   assert.ok(/scrollbar:horizontal[\s\S]{0,40}height:\s*0/.test(css),
     '가로 스크롤바는 숨긴다(현빈 결정)');
 });
+
+/* ══ D. P-R2 — 팬 놓을 때 블록이 선택되는 것 막기 ═══════════════════════ */
+
+test('★P-R2 계약: 팬 mouseup 이 «다음 click 한 번»을 삼키도록 표시한다', () => {
+  const i = SRC.indexOf("window.addEventListener('mouseup'");
+  assert.notEqual(i, -1);
+  const body = stripComments(SRC.slice(i, i + 900));
+  assert.ok(/_swallowPanClick\s*=\s*true/.test(body),
+    '팬으로 끝난 제스처는 뒤따르는 click 을 삼켜야 한다(현빈: 「선택은 의도 아님」)');
+  assert.ok(/setTimeout\(/.test(body),
+    '타이머로 풀지 않으면 팬 뒤 «영원히» 다음 클릭을 잡아먹는다');
+});
+
+test('★P-R2 계약: click 삼키기는 «한 번»만이고 캔버스 안에서만', () => {
+  const i = SRC.indexOf("window.addEventListener('click'");
+  assert.notEqual(i, -1, '팬용 click 캡처 리스너를 못 찾음');
+  const body = stripComments(SRC.slice(i, i + 700));
+  assert.ok(/_swallowPanClick\s*=\s*false/.test(body), '한 번 쓰면 즉시 내려야 한다');
+  assert.ok(/canvasWrap\.contains\(/.test(body), '캔버스 밖 클릭까지 삼키면 안 된다');
+  assert.ok(/stopPropagation\(\)/.test(body) && /preventDefault\(\)/.test(body));
+  assert.ok(/,\s*true\s*\)\s*;?\s*$/m.test(SRC.slice(i, i + 800)) || /}, true\)/.test(SRC.slice(i, i + 800)),
+    '캡처 단계여야 앱의 다른 click 핸들러보다 «먼저» 본다');
+});

@@ -3022,6 +3022,8 @@ document.addEventListener('click', e => {
   });
 
   let scrollStart = null;
+  let _swallowPanClick = false;       // [P-R2] 팬 직후 click 한 번을 삼킨다
+  let _swallowPanClickTimer = null;
 
   // capture 단계: 하위 요소 stopPropagation 우회
   canvasWrap.addEventListener('mousedown', e => {
@@ -3069,11 +3071,28 @@ document.addEventListener('click', e => {
     if (!panning) return;
     panning = false;
     scrollStart = null;
+    /* [P-R2] 팬을 놓으면 뒤이어 `click` 이 «커서 아래 요소»에 정상 발화한다.
+       mousedown 은 캡처에서 막지만 click 은 안 막혀서, 팬을 놓을 때마다 블록이 선택됐다.
+       현빈 확인: 「의도 아님」. ⇒ 팬으로 끝난 제스처의 click «한 번»만 삼킨다. */
+    _swallowPanClick = true;
+    clearTimeout(_swallowPanClickTimer);
+    _swallowPanClickTimer = setTimeout(() => { _swallowPanClick = false; }, 300);
     // 늘어난 여지를 «안전한 만큼만» 되돌린다(현재 위치가 요구하는 양은 남긴다).
     // ⛔기본값으로 되돌리면 clamp 가 걸려 놓는 순간 캔버스가 튄다.
     shrinkPanRoom();
     if (panMode) canvasWrap.classList.remove('panning');
   });
+
+  /* [P-R2] 팬 직후의 click 삼키기 — window 캡처라 앱의 어떤 핸들러보다 먼저 본다.
+     ⛔«한 번»만 삼킨다: 타이머로 풀어 두지 않으면 다음 정상 클릭까지 잡아먹는다. */
+  window.addEventListener('click', e => {
+    if (!_swallowPanClick) return;
+    _swallowPanClick = false;
+    clearTimeout(_swallowPanClickTimer);
+    if (!canvasWrap.contains(e.target)) return;   // 캔버스 밖 클릭은 그대로 둔다
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
 }
 
 /* ═══════════════════════════════════
