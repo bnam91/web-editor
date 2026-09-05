@@ -9,6 +9,15 @@ export function showIconCircleProperties(block) {
   const borderV  = block.dataset.border            || 'none';
   const radius   = parseInt(block.dataset.radius)  || 0;
   const padX     = parseInt(block.dataset.padX)    || 0;
+  // ★「좌우 패딩」은 «죽은 속성이 아니다» — row 가 cols 일 때만 산다(실측 2026-09-05).
+  //   stack(기본)에서는 블록이 행 폭으로 늘어나고 .icon-circle-block 이 justify-content:center
+  //   + .icb-circle 이 flex-shrink:0 이라, «좌우 대칭» 패딩이 정확히 상쇄돼 원이 1px도 안 움직인다
+  //   (padX 0/40/80/120/200 다섯 값에서 원 중심 720.0 고정·블록 폭 286.4 고정).
+  //   → 값을 지우면 cols 에서 쓰던 사람이 잃는다. 그래서 «내리지 않고», 무효인 레이아웃에서만
+  //     끄고 이유를 붙인다(prop-laurel/prop-banner02 의 opacity:0.4;pointer-events:none 관례).
+  const _padXLive  = block.parentElement?.dataset.layout === 'cols';
+  const _padXOff   = _padXLive ? '' : 'opacity:0.4;pointer-events:none;';
+  const _padXTitle = _padXLive ? '' : ' title="이 행이 «가로 배치(cols)»일 때만 적용됩니다 — 세로 배치에서는 원이 가운데 정렬이라 좌우 패딩이 상쇄됩니다"';
 
   const hasImage = block.classList.contains('has-image');
 
@@ -35,7 +44,7 @@ export function showIconCircleProperties(block) {
         <input type="range" class="prop-slider" id="icb-size-slider" min="40" max="860" step="4" value="${size}">
         <input type="number" class="prop-number"  id="icb-size-number" min="40" max="860" value="${size}">
       </div>
-      <div class="prop-row">
+      <div class="prop-row" style="${_padXOff}"${_padXTitle}>
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="icb-padx-slider" min="0" max="200" step="4" value="${padX}">
         <input type="number" class="prop-number" id="icb-padx-number" min="0" max="200" value="${padX}">

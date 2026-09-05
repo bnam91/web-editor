@@ -62,6 +62,26 @@ function _appendCardTexts(container, card, titleSize, descSize, textAlign, title
 //   - scale<=1(미설정/100): 기존 그대로 cover|contain (회귀 없음)
 //   - scale>1: contain은 비율 유지하며 (`contain` 기준 × scale 불가하므로) cover처럼 `${100*scale}% auto` 대신
 //     가로/세로 모두 키우는 `${100*scale}%`(cover 근사) 사용. backgroundPosition(imgX/imgY)과 병행 동작.
+/**
+ * 카드 이미지 «칠하기» 단일 경로 — 세로/가로/오버레이 세 렌더 분기가 모두 여기를 부른다.
+ * ★.cvb-card-img 클래스가 색보정의 «대상 술어»(image-color-adjust.js ADJ_TARGET_SEL)다.
+ *   카드 이미지는 <img> 가 아니라 background-image div 이므로, 클래스가 없으면
+ *   패널·저장복원·내보내기 어느 쪽도 이 이미지를 찾지 못한다.
+ * ★조정값의 «정본»은 DOM 이 아니라 card.adj 다 — div 는 재렌더마다 새로 만들어져
+ *   dataset 이 통째로 날아간다. 그래서 렌더할 때마다 card.adj 로 다시 칠한다.
+ */
+function _paintCardImage(div, card, block, idx) {
+  div.classList.add('cvb-card-img');
+  div.style.backgroundImage    = `url("${card.imgSrc}")`;
+  div.style.backgroundSize     = _cvbBackgroundSize(card);
+  div.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
+  div.style.backgroundRepeat   = 'no-repeat';
+  if (card.adj && Object.values(card.adj).some(v => Math.abs(Number(v) || 0) > 0.001)) {
+    window.applyImgColorAdjust?.(div, card.adj);
+  }
+  _bindCvbImgDrag(div, block, idx);
+}
+
 function _cvbBackgroundSize(card) {
   const scale = Math.max(1, (Number(card.imgScale) || 100) / 100);
   if (scale <= 1) return card.imgFit === 'contain' ? 'contain' : 'cover';
@@ -231,6 +251,18 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
   _updateHint();
   imgDiv.appendChild(hint);
 
+  // ★색상 조정 — 에셋 이미지와 «같은 몸짓»: 편집 모드에 들어가면 패널이 뜨고, 나가면 닫힌다
+  //   (image-handling.js enterImageEditMode 끝 / exitImageEditMode 와 동일 규약).
+  //   카드는 dataset 이 재렌더로 날아가므로 onChange 로 card.adj 에 되쓴다 — 여기가 «정본».
+  window.showColorAdjustPanel?.(imgDiv, {
+    onChange: (adj) => {
+      try {
+        const arr = JSON.parse(block.dataset.cards || '[]');
+        if (arr[idx]) { arr[idx].adj = { ...adj }; block.dataset.cards = JSON.stringify(arr); }
+      } catch (_) {}
+    },
+  });
+
   let _wheelDirty = false; // 휠 줌 변경 여부 — 종료 시 한 번만 history push
 
   const exitMode = () => {
@@ -243,6 +275,7 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
     document.removeEventListener('mousedown', onOutside, true);
     imgDiv.removeEventListener('mousedown', onDragStart);
     imgDiv.removeEventListener('wheel', onWheel);
+    window.hideColorAdjustPanel?.();
     if (_wheelDirty) { window.pushHistory?.('카드 이미지 확대'); window.scheduleAutoSave?.(); }
   };
 
@@ -273,7 +306,10 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
   document.addEventListener('keydown', onKey, true);
 
   // 바깥 클릭 종료 — 일반 에디터 관행 (ESC와 동일 동작)
-  const onOutside = (e) => { if (!imgDiv.contains(e.target)) exitMode(); };
+  const onOutside = (e) => {
+    if (e.target.closest?.('#color-adjust-panel')) return; // 색상 조정 패널 클릭은 편집 모드 유지
+    if (!imgDiv.contains(e.target)) exitMode();
+  };
   setTimeout(() => document.addEventListener('mousedown', onOutside, true), 0);
 
   // 휠 = 이미지 확대/축소(imgScale 100~400) — 패널 '확대' 슬라이더와 같은 필드라 상호 동기
@@ -490,11 +526,7 @@ function renderCanvas(block) {
           if (card.icon && card.icon.svg) {
             _fillCardIcon(imgDiv, card, Math.min(imgW, designH), _iconOpts);
           } else if (card.imgSrc) {
-            imgDiv.style.backgroundImage    = `url("${card.imgSrc}")`;
-            imgDiv.style.backgroundSize     = _cvbBackgroundSize(card);
-            imgDiv.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
-            imgDiv.style.backgroundRepeat   = 'no-repeat';
-            _bindCvbImgDrag(imgDiv, block, idx);
+            _paintCardImage(imgDiv, card, block, idx);
           } else {
             imgDiv.style.background = 'rgba(0,0,0,0.06)';
             imgDiv.style.display = 'flex'; imgDiv.style.alignItems = 'center'; imgDiv.style.justifyContent = 'center';
@@ -532,11 +564,7 @@ function renderCanvas(block) {
             if (card.icon && card.icon.svg) {
               _fillCardIcon(div, card, Math.min(designW, imgH), _iconOpts);
             } else if (card.imgSrc) {
-              div.style.backgroundImage    = `url("${card.imgSrc}")`;
-              div.style.backgroundSize     = _cvbBackgroundSize(card);
-              div.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
-              div.style.backgroundRepeat   = 'no-repeat';
-              _bindCvbImgDrag(div, block, idx);
+              _paintCardImage(div, card, block, idx);
             } else {
               div.style.background = 'rgba(0,0,0,0.06)';
               div.style.display = 'flex'; div.style.alignItems = 'center'; div.style.justifyContent = 'center';
@@ -584,11 +612,7 @@ function renderCanvas(block) {
             if (card.icon && card.icon.svg) {
               _fillCardIcon(fullImg, card, Math.min(designW, designH), _iconOpts);
             } else if (card.imgSrc) {
-              fullImg.style.backgroundImage    = `url("${card.imgSrc}")`;
-              fullImg.style.backgroundSize     = _cvbBackgroundSize(card);
-              fullImg.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
-              fullImg.style.backgroundRepeat   = 'no-repeat';
-              _bindCvbImgDrag(fullImg, block, idx);
+              _paintCardImage(fullImg, card, block, idx);
             } else {
               fullImg.style.background = 'rgba(0,0,0,0.06)';
               fullImg.style.display = 'flex'; fullImg.style.alignItems = 'center'; fullImg.style.justifyContent = 'center';
