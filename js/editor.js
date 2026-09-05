@@ -3234,21 +3234,30 @@ const FP_FIXED_POPUPS = ['#fp-plugin-panel'];
 
   let _notchHideTimer = null;
 
+  /* ★[N-1] 노치는 «가로 전용»이다.
+     팬이 네이티브 스크롤로 옮겨간 뒤 «세로 팬»과 «세로 스크롤»은 구분이 불가능해졌다.
+     세로까지 보면 휠로 문서를 내려보기만 해도 노치바가 상시로 뜬다 — 명백히 나쁘다.
+     그리고 세로 위치는 «스크롤바»가 이미 알려 준다.
+     ⇒ 가로 스크롤바를 숨기기로 한 결정(현빈) 때문에 «가로 이탈을 알리는 UI 가 노치 하나»가 됐고,
+       노치를 가로 전용으로 두는 것이 그 결정과 정합적이다.
+     ⛔panOffsetX 가 아니라 getPanPosition().x 를 본다 — 팬이 스크롤로 가서 panOffset 은
+       대개 0 이다. panOffset 만 보면 «항상 가운데»라고 거짓말한다(진실의 절반). */
+  const _notchOffX = () => getPanPosition().x;
+
   function updateNotchPosition() {
-    // panOffset 기준으로 노치 위치 표시 (0 = 중앙)
-    const isCentered = Math.abs(panOffsetX) < 5 && Math.abs(panOffsetY) < 5;
+    const dx = _notchOffX();
+    const isCentered = Math.abs(dx) < 5;
     notch.classList.toggle('centered', isCentered);
     // 노치 위치: pill 가로 중앙 기준으로 offset 반영
     const pill = 80;
-    const clampedX = Math.max(4, Math.min(pill - 4, pill / 2 - panOffsetX / 10));
+    const clampedX = Math.max(4, Math.min(pill - 4, pill / 2 - dx / 10));
     notch.style.left = clampedX + 'px';
 
     if (!isCentered) {
       notchBar.classList.add('visible');
       clearTimeout(_notchHideTimer);
       _notchHideTimer = setTimeout(() => {
-        if (Math.abs(panOffsetX) < 5 && Math.abs(panOffsetY) < 5)
-          notchBar.classList.remove('visible');
+        if (Math.abs(_notchOffX()) < 5) notchBar.classList.remove('visible');
       }, 2500);
     }
   }

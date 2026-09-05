@@ -273,3 +273,41 @@ test('★P-W1 계약: 여지 «축소»의 안전조건이 «둘» 다 있다 (�
   assert.ok(/maxT\s*-\s*wrap\.scrollTop/.test(body), '세로도 같다');
   assert.ok(/wrap\.scrollLeft/.test(body) && /wrap\.scrollTop/.test(body), '앞쪽 조건도 있어야 한다');
 });
+
+/* ══ G. N-1 노치 · R3/R5 회귀 핀 ═══════════════════════════════════════ */
+
+test('★N-1 계약: 노치는 «가로 전용»이고 panOffset 이 아니라 실효 변위를 본다', () => {
+  const body = stripComments(extractFn(SRC, 'updateNotchPosition'));
+  assert.ok(!/panOffsetY/.test(body),
+    '세로까지 보면 휠로 문서만 내려도 노치바가 상시로 뜬다(세로는 스크롤바가 알린다)');
+  assert.ok(!/panOffsetX/.test(body),
+    'panOffset 만 보면 팬이 스크롤로 간 뒤엔 «항상 가운데»라고 거짓말한다');
+  assert.ok(/_notchOffX\s*\(\)/.test(body), '실효 변위(getPanPosition().x)를 써야 한다');
+  const off = stripComments(SRC.slice(SRC.indexOf('const _notchOffX'), SRC.indexOf('const _notchOffX') + 120));
+  assert.ok(/getPanPosition\(\)\.x/.test(off));
+});
+
+test('★R3 핀: zoomStep 의 앵커 식이 wrap.scrollLeft 를 «계속» 쓴다', () => {
+  // S2 로 가로 스크롤 범위가 «생겼다». 이 식이 scrollLeft 를 안 보면 줌 앵커가 어긋난다.
+  const body = stripComments(extractFn(SRC, 'zoomStep'));
+  assert.ok(/wrap\.scrollLeft/.test(body),
+    '가로 범위가 생긴 뒤엔 scrollLeft 가 앵커 계산의 일부다 — 빼면 커서 아래 지점이 안 고정된다');
+});
+
+test('★R5 핀: scrollTop 을 «자기 목적»으로 쓰는 곳은 «상대» 이동이어야 한다', () => {
+  // 팬이 scrollTop 을 쓰게 됐으므로, 절대 위치를 가정하는 코드가 있으면 팬 상태와 충돌한다.
+  // 아래 넷은 전부 «현재값 기준 상대» 이동이라 안전하다 — 그 성질을 못 박는다.
+  const files = {
+    'js/section-search.js': [/wrap\.scrollTop\s*\+=/, /wrap\.scrollLeft\s*\+=/],
+    'js/inspector.js': [/wrap\.scrollTop\s*\+\s*delta/],
+  };
+  for (const [rel, pats] of Object.entries(files)) {
+    const src = stripComments(fs.readFileSync(path.join(__dirname, '../../', rel), 'utf8'));
+    for (const re of pats) {
+      assert.ok(re.test(src), `${rel}: «상대» 이동 형태가 사라졌다 — 절대 대입으로 바뀌면 팬 위치를 덮어쓴다 (${re})`);
+    }
+  }
+  // editor.js 의 부드러운 스크롤도 «시작값 기준»이어야 한다
+  assert.ok(/const startTop = wrap\.scrollTop/.test(stripComments(SRC)),
+    'editor.js 부드러운 스크롤이 시작값을 안 잡으면 팬 위치를 무시하고 튄다');
+});
