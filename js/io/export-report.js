@@ -108,13 +108,71 @@ export function scrubErr(s, scrubPaths) {
  *  ★4로 잡은 이유: 아래 export-image.js 의 중복 console.error 를 걷어냈으므로(warn 강등)
  *    이제 이 «한 줄»이 스택을 가진 유일한 기록이다. 실측 표본에서 4프레임이면
  *    materializeAllSections → _exportSectionInner → exportSection → exportAllSections 가 다 들어온다. */
+/* ★던져지는 게 «항상 Error 는 아니다» — 실기 실측(2026-09-05, 9391)
+     · canvas.toBlob 실패 → **DOMException** : name·message 는 있는데 **stack 이 없다**
+     · 이미지 onerror → rej(ev) → **Event** : stack 도 message 도 없고 String(e) = **`[object Event]`**
+       (captureCloneToCanvas 의 `ci.onerror = rej` 가 바로 이 자리다 — 실재하는 실패 경로다)
+   그냥 두면 기록이 `err=Error: [object Event]` 가 된다. **한 줄을 남겨 놓고 아무 말도 안 하는 것**이라
+   재현이 0 이다. ⇒ Error 가 아닌 것에서도 «말할 수 있는 것»을 꺼낸다.
+   ⛔단 target 의 src 는 «스킴만» — 거기 고객 이미지 URL 이 들어 있다. */
+function _nonErrorInfo(err) {
+  try {
+    if (typeof Event !== 'undefined' && err instanceof Event) {
+      const t = err.target || {};
+      const tag = t.tagName ? String(t.tagName).toLowerCase() : '?';
+      let scheme = '';
+      const raw = String(t.currentSrc || t.src || '');
+      /* ★스킴이 «있을 때만» 스킴을 쓴다. 그냥 split(':')[0] 하면 스킴 없는 상대경로에서
+         파일명 전체가 «스킴 자리»에 들어가고, 하류 세척이 그걸 지워 `src=«f»:` 라는
+         뜻 없는 글자가 남는다(2026-09-05 실측). 유출은 아니지만 «읽을 수 없는 기록»이다.
+         ⛔여기서 스킴만 뽑는 것은 «다중 방어»다 — 유일한 방벽이 아니다(scrubErr 이 URL 을 또 덮는다). */
+      const m = raw.match(/^([a-z][a-z0-9+.\-]{0,11}):/i);
+      if (m) scheme = m[1] + ':';
+      else if (raw) scheme = 'rel';                                     // 상대경로·파일명 — «있었다»는 것만
+      const nat = (typeof t.naturalWidth === 'number') ? (' nat=' + t.naturalWidth + 'x' + t.naturalHeight) : '';
+      return 'Event(' + (err.type || '?') + ') on ' + tag + (scheme ? ' src=' + scheme : '') + nat;
+    }
+  } catch (_) {}
+  return null;
+}
+
+/* ★스택에서 «몇 프레임»을 남길 것인가 — 세지 말고 «불변 꼬리»를 버린다.
+ *
+ * [실측 2026-09-05, 실기 9391 스택 3종]  정보 프레임 수 = S-A 2 · S-B 2 · S-C 3
+ *   N=2 : 97~104자   S-C 를 «놓친다»(renderComponentsInClone:317 이 잘려 어디서 깨졌는지 사라짐)
+ *   N=3 : 148~150자  표본 3종을 «전부» 덮는다   ← 측정된 최소
+ *   N=4 : 178~200자  덮는 것이 «더 없다» (+43자)
+ *   N=5 : 178~234자  〃
+ *   ⇒ 전체 줄 최대 403자(N=4)로 링버퍼 상한 1000자에 한참 못 미친다 — 길이는 «제약이 아니다».
+ *
+ * ⇒ 그래서 고정 N 을 버렸다. 어느 실패든 «똑같이» 나오는 꼬리(exportSection 래퍼 → exportAllSections
+ *   루프)는 정보량이 0 이고, 그 «앞»이 전부 정보다. 깊이는 실패마다 다르다(2~3, 그리고 GIF·cvb
+ *   경로는 더 깊을 것이다 — 미표집).  ⇒ 꼬리를 만나면 멈춘다. 상한은 폭주 방지용이다.
+ *   ★이러면 얕은 실패는 «더 짧아지고»(178→104자) 깊은 실패는 «안 잘린다». */
+const FRAME_TAIL = /\bat (?:async )?(?:exportSection|exportAllSections)\b/;
+const FRAME_MAX  = 6;
+
+export function pickFrames(stack) {
+  const lines = String(stack || '').split('\n').slice(1);
+  const out = [];
+  for (const f of lines) {
+    if (FRAME_TAIL.test(f)) break;
+    out.push(f.trim());
+    if (out.length >= FRAME_MAX) break;
+  }
+  // ★꼬리가 «첫 줄»이면(래퍼 자신이 던진 경우) 0개가 된다 — 그럴 땐 한 줄은 남긴다.
+  if (!out.length && lines.length) out.push(lines[0].trim());
+  return out;
+}
+
 export function fmtError(err, scrubPaths) {
   if (!err) return '';
   const name = (err && err.name) || 'Error';
-  const msg  = String((err && err.message) || err || '');
+  let msg = String((err && err.message) || '');
+  if (!msg) msg = _nonErrorInfo(err) || String(err);
   let frames = '';
   const st = err && err.stack;
-  if (typeof st === 'string') frames = st.split('\n').slice(1, 5).map(x => x.trim()).join(' | ');
+  if (typeof st === 'string') frames = pickFrames(st).join(' | ');
   /* ★자르는 건 «씻은 뒤»다 (2026-09-05 실기에서 잡은 결함).
      씻기 전에 320자로 자르니 4번째 프레임이 `…/export-im` 처럼 «파일명 한가운데»에서 끊겼고,
      그러면 ③ 규칙이 확장자를 못 봐 우리 소스 프레임까지 «f» 로 지워 버렸다
@@ -126,7 +184,9 @@ export function fmtError(err, scrubPaths) {
     const cut = outFr.lastIndexOf(' | ', 320);
     outFr = (cut > 0 ? outFr.slice(0, cut) : outFr.slice(0, 320)) + ' …';
   }
-  return outMsg + (outFr ? ' @ ' + outFr : '');
+  /* ★스택이 «없다»는 것도 정보다 — 「기록이 잘렸나」와 「원래 없나」를 가른다.
+     실측상 DOMException·Event 계열이 여기 온다. */
+  return outMsg + (outFr ? ' @ ' + outFr : ' @nostack');
 }
 
 /* ── ⑶ 한 줄 만들기 ─────────────────────────────────────────────────────

@@ -146,19 +146,57 @@ test('S7 ★file:// 프레임에서도 «우리 파일명»은 살아남는다 �
 
 test('S8 ★긴 스택에서도 «우리 파일명»이 안 잘린다 — 자르는 건 «씻은 뒤»여야 한다', () => {
   const rb = makeReportBuffer();
-  /* 실기 9391 에서 실제로 나온 프레임(경로만 그대로). 씻기 «전»에 320자로 자르면
-     4번째 프레임이 `…/export-im` 에서 끊겨 확장자를 잃고 ③ 규칙이 «f» 로 지워 버린다. */
+  /* 실기 9391 에서 나온 프레임 꼴(경로 그대로) 6개. 씻기 «전»에 320자로 자르면 뒤쪽 프레임이
+     `…/export-im` 에서 끊겨 확장자를 잃고 ③ 규칙이 «f» 로 지워 버린다. */
   const base = 'file:///private/tmp/srv-%EC%A7%80%EB%94%94_exrep/js/io/export-image.js';
   const fake = { name: 'TypeError', message: "Cannot read properties of null (reading 'style')",
     stack: ['TypeError: x',
       '    at window.materializeAllSections (<anonymous>:9:11)',
-      `    at _exportSectionInner (${base}:463:45)`,
-      `    at exportSection (${base}:436:21)`,
-      `    at exportAllSections (${base}:903:23)`].join('\n') };
+      `    at renderComponentsInClone (${base}:317:27)`,
+      `    at flattenCvbTransform (${base}:512:9)`,
+      `    at bakeImgFilterToCanvas (${base}:640:11)`,
+      `    at prepareCloneForCapture (${base}:233:7)`,
+      `    at _exportSectionInner (${base}:474:3)`].join('\n') };
   const line = fmtError(fake, rb.scrubPaths);
-  assert.ok(line.includes('export-image.js:903'), '마지막 프레임이 잘려 «f» 가 됐다: ' + line);
+  assert.ok(line.includes('_exportSectionInner'), '마지막 프레임이 사라졌다: ' + line);
+  assert.ok(line.includes('export-image.js:474'), '마지막 프레임이 잘려 «f» 가 됐다: ' + line);
   assert.ok(!line.includes('«f»'), line);
   assert.ok(!line.includes('srv-'), '워크트리 경로가 남았다: ' + line);
+});
+
+test('S12 ★«불변 꼬리»는 버린다 — exportSection/exportAllSections 는 어느 실패든 똑같이 나온다', () => {
+  const rb = makeReportBuffer();
+  const base = 'file:///app/js/io/export-image.js';
+  const mk = (frames) => ({ name: 'TypeError', message: 'x', stack: ['TypeError: x', ...frames].join('\n') });
+
+  // 실측 S-C(깊음) — 정보 프레임 3개에서 «정확히» 멈춘다
+  const sc = fmtError(mk([
+    '    at P.querySelectorAll (<anonymous>:16:65)',
+    `    at renderComponentsInClone (${base}:317:27)`,
+    `    at _exportSectionInner (${base}:474:3)`,
+    `    at async exportSection (${base}:436:15)`,
+    '    at async run (<anonymous>:8:11)']), rb.scrubPaths);
+  assert.ok(sc.includes('renderComponentsInClone'), '정보 프레임이 잘렸다: ' + sc);
+  assert.ok(sc.includes('_exportSectionInner'), sc);
+  assert.ok(!sc.includes('exportSection ('), '불변 꼬리가 실렸다: ' + sc);
+  assert.ok(!/\bexportAllSections\b/.test(sc), sc);
+  assert.equal(sc.split(' | ').length, 3, '프레임 3개가 아니다: ' + sc);
+
+  // 실측 S-A(얕음) — 2개. 고정 N=4 였다면 꼬리 2개가 더 붙었다
+  const sa = fmtError(mk([
+    '    at window.materializeAllSections (<anonymous>:9:11)',
+    `    at _exportSectionInner (${base}:463:45)`,
+    `    at exportSection (${base}:436:21)`,
+    `    at exportAllSections (${base}:903:23)`]), rb.scrubPaths);
+  assert.equal(sa.split(' | ').length, 2, '프레임 2개가 아니다: ' + sa);
+
+  // 폭주 방지 — 정보 프레임이 아무리 깊어도 상한에서 멈춘다
+  const deep = fmtError(mk(Array.from({ length: 30 }, (_, i) => `    at deepFn${i} (${base}:${100 + i}:1)`)), rb.scrubPaths);
+  assert.equal(deep.split(' | ').length, 6, '상한이 안 걸렸다: ' + deep);
+
+  // ★꼬리가 «첫 줄»이면(래퍼 자신이 던진 경우) 0개가 되면 안 된다 — 한 줄은 남긴다
+  const only = fmtError(mk([`    at exportSection (${base}:436:21)`]), rb.scrubPaths);
+  assert.ok(only.includes('exportSection'), '프레임이 통째로 사라졌다: ' + only);
 });
 
 test('S5a ★경로 «끝 이름»을 지운다 — scrubPaths 는 ~/…/롯데_2026여름 까지밖에 못 씻는다', () => {
@@ -191,6 +229,53 @@ test('S6 URL·데이터 URI 는 «스킴만» 남는다 — 호스트·경로에
   assert.ok(!d.includes('iVBOR'), d);
   assert.ok(!scrubErr('blob:file:///abc-123', rb.scrubPaths).includes('abc-123'));
   assert.ok(!scrubErr('goya-asset://proj_9/여름_1.png', rb.scrubPaths).includes('여름_1'));
+});
+
+/* ── ⑵-b ★던져지는 게 «항상 Error 는 아니다» (실기 실측 D7·D8) ────────── */
+test('S9 ★DOMException — stack 이 «없다». 「잘린 것」과 「원래 없는 것」을 가른다', () => {
+  const rb = makeReportBuffer();
+  const e = { name: 'SecurityError', message: 'The operation is insecure.' };  // stack 없음
+  const line = fmtError(e, rb.scrubPaths);
+  assert.ok(line.startsWith('SecurityError: The operation is insecure.'), line);
+  assert.ok(line.endsWith('@nostack'), '스택 부재가 «표시»돼야 한다: ' + line);
+});
+
+test('S10 ★Event 로 reject 되면 String(e) 는 «[object Event]» 다 — 그대로 두면 기록이 무정보', () => {
+  const rb = makeReportBuffer();
+  class FakeEvent {}                     // node 엔 DOM Event 가 없다 → 전역을 세워 실제 분기를 태운다
+  globalThis.Event = FakeEvent;
+  try {
+    const ev = new FakeEvent();
+    ev.type = 'error';
+    ev.target = { tagName: 'IMG', currentSrc: 'data:image/png;base64,iVBORw0KGgo', naturalWidth: 0, naturalHeight: 0 };
+    // ★양성대조 — 손대지 않으면 이 문자열이 그대로 기록된다
+    assert.equal(String(ev), '[object Object]');
+    const line = fmtError(ev, rb.scrubPaths);
+    assert.ok(line.includes('Event(error)'), line);
+    assert.ok(line.includes('img'), '무엇이 실패했는지가 없다: ' + line);
+    assert.ok(line.includes('src=data:'), '소스 «스킴»이 없다: ' + line);
+    assert.ok(line.includes('nat=0x0'), line);
+    // ⛔URL 본문은 실리면 안 된다
+    assert.ok(!line.includes('iVBOR'), '이미지 데이터가 샜다: ' + line);
+    assert.ok(!line.includes('base64'), line);
+  } finally { delete globalThis.Event; }
+});
+
+test('S11 ★스킴 없는 src 는 «rel» 이다 — split(":")[0] 이면 `src=«f»:` 라는 뜻 없는 글자가 남는다', () => {
+  const rb = makeReportBuffer();
+  class FakeEvent {}
+  globalThis.Event = FakeEvent;
+  try {
+    const mk = (src) => { const e = new FakeEvent(); e.type = 'error';
+      e.target = { tagName: 'IMG', currentSrc: src, naturalWidth: 0, naturalHeight: 0 }; return e; };
+    const bare = fmtError(mk('여름세일_메인.png'), rb.scrubPaths);
+    assert.ok(bare.includes('src=rel'), '스킴 없는 src 가 안 읽힌다: ' + bare);
+    assert.ok(!bare.includes('«f»:'), '세척된 파일명이 «스킴 자리»에 남았다: ' + bare);
+    assert.ok(!bare.includes('여름세일'), bare);
+    // 스킴이 있으면 스킴을 쓴다
+    assert.ok(fmtError(mk('goya-asset://p/여름_1.png'), rb.scrubPaths).includes('src=goya-asset:'));
+    assert.ok(!fmtError(mk('https://shop.example.co.kr/a/b.png'), rb.scrubPaths).includes('shop.example'));
+  } finally { delete globalThis.Event; }
 });
 
 /* ── ⑶ 담기는 줄 ─────────────────────────────────────────────────────── */
