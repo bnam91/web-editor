@@ -152,6 +152,17 @@ function _fillCardIcon(div, card, areaSize, opts) {
  *   ⑸ dblclick 은 «블록에 위임» — renderCanvas 가 .cvb-inner.innerHTML 을 통째로 갈아끼우므로
  *      요소에 직접 걸면 첫 커밋 한 번에 전부 죽는다.
  */
+/* ★[M38] 「카드블럭에 이미지 영역 체크배경으로 해줘. 다른 이미지 에셋 블럭 배경처럼 말야」(현빈)
+ *   ⇒ «새로 그리는 것»이 아니라 «기존 것을 재사용»하는 요구다. 기준(정본)은 빈 `.asset-block` —
+ *     css/editor-layout.css:505 의 이 값이고, 이 파일의 layers 경로(:866)가 이미 같은 값을 갖고 있었다.
+ *     ★같은 파일 안에서 layers 는 체커인데 cards 만 `rgba(0,0,0,0.06)` 단색이었다 = 그게 현빈이 본 것.
+ *   ⇒ 리터럴을 «이 파일에서 한 줄»로 올리고 네 자리(layers + 카드 가로/세로/오버레이)가 그 한 줄을 본다.
+ *   ⚠️리포 전체로는 이 값이 6벌(css 2 · js 4)로 흩어져 있고, `js/io/export-figma-json.js:383` 이
+ *     `/repeating-conic-gradient/` 정규식으로 «빈 icon-circle»을 판정한다. 그 판정기는 `.icb-circle`
+ *     «만» 보므로 이 변경과 무관하지만(카드는 그 셀렉터에 안 걸린다), 6벌을 토큰 하나로 합치는
+ *     리팩터는 그 판정기를 같이 움직이므로 «이번 범위 밖»으로 남긴다(FIX 보고서 「못 깬 것」). */
+const _CVB_CHECKER_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
+
 const _CVB_EDIT_SEL = '.cvb-card-title, .cvb-card-desc, .cvb-card-ph';
 // patchCards 로 보낼 수 있는 필드만. 렌더러(_appendCardTexts)가 찍는 값과 «같은 목록»이어야 한다.
 const _CVB_EDIT_FIELDS = ['title', 'desc', 'titleTop', 'descTop', 'titleBottom', 'descBottom'];
@@ -639,10 +650,10 @@ function renderCanvas(block) {
           } else if (card.imgSrc) {
             _paintCardImage(imgDiv, card, block, idx);
           } else {
-            imgDiv.style.background = 'rgba(0,0,0,0.06)';
+            imgDiv.style.background = _CVB_CHECKER_BG;   // [M38] 빈 .asset-block 과 «같은 값»
             imgDiv.style.display = 'flex'; imgDiv.style.alignItems = 'center'; imgDiv.style.justifyContent = 'center';
             const ph = document.createElement('span');
-            ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
+            ph.style.cssText = 'color:rgba(0,0,0,0.35);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
             ph.textContent = '+'; imgDiv.appendChild(ph);
             _bindCvbImgPlaceholder(imgDiv, block, idx);
           }
@@ -677,10 +688,10 @@ function renderCanvas(block) {
             } else if (card.imgSrc) {
               _paintCardImage(div, card, block, idx);
             } else {
-              div.style.background = 'rgba(0,0,0,0.06)';
+              div.style.background = _CVB_CHECKER_BG;   // [M38] 빈 .asset-block 과 «같은 값»
               div.style.display = 'flex'; div.style.alignItems = 'center'; div.style.justifyContent = 'center';
               const ph = document.createElement('span');
-              ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
+              ph.style.cssText = 'color:rgba(0,0,0,0.35);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
               ph.textContent = '+'; div.appendChild(ph);
               _bindCvbImgPlaceholder(div, block, idx);
             }
@@ -725,10 +736,10 @@ function renderCanvas(block) {
             } else if (card.imgSrc) {
               _paintCardImage(fullImg, card, block, idx);
             } else {
-              fullImg.style.background = 'rgba(0,0,0,0.06)';
+              fullImg.style.background = _CVB_CHECKER_BG;   // [M38] 빈 .asset-block 과 «같은 값»
               fullImg.style.display = 'flex'; fullImg.style.alignItems = 'center'; fullImg.style.justifyContent = 'center';
               const ph = document.createElement('span');
-              ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
+              ph.style.cssText = 'color:rgba(0,0,0,0.35);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
               ph.textContent = '+'; fullImg.appendChild(ph);
               _bindCvbImgPlaceholder(fullImg, block, idx);
             }
@@ -863,7 +874,7 @@ function renderCanvas(block) {
           el.style.borderRadius = (layer.radius || 0) + 'px';
 
         } else if (layer.type === 'image') {
-          el.style.background   = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
+          el.style.background   = _CVB_CHECKER_BG;
           el.style.borderRadius = (layer.radius || 0) + 'px';
           if (layer.src) {
             el.style.backgroundImage    = `url("${layer.src}")`;
