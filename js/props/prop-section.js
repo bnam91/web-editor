@@ -521,11 +521,16 @@ function _bindSectionExport(sec) {
     secExportBtn.disabled = true;
     // GIF 애니메이션은 frame 캡처 + 인코딩으로 시간이 오래 걸림 → 안내문 분리
     secExportBtn.textContent = fmt === 'gif-anim' ? 'GIF 생성 중...' : '내보내는 중...';
+    /* ★한 섹션이어도 «스피너»를 띄운다 — 버튼 글자만 바뀌면 어디까지 왔는지도, 멈춘 건지도 모른다.
+     * 전체 내보내기와 «같은 창»을 쓴다(현빈: 스피너가 돌다가 끝나면 결과). 검사까지 하므로 체감이 2배다. */
+    window.showExportProgress?.(1, { format: fmt, width: w });
+    window.stepExportProgress?.(1, 1, sec._name || sec.dataset?.name || '');
     try {
       const r = await window.exportSection(sec, fmt, w);
       // 단일 섹션 — «같으면» 토스트 한 줄, 그 외엔 결과 모달(전체 내보내기와 같은 창).
       window.showExportResultOne?.(r, { format: fmt, width: w });
     } finally {
+      window.closeExportProgress?.();   // ★결과 모달이 스스로 닫지만, 토스트 경로·예외에서도 남지 않게
       secExportBtn.disabled = false;
       secExportBtn.textContent = '이 섹션 내보내기';
     }

@@ -43,3 +43,20 @@
 }
 /* ⛔.exres-retry / .exres-about 규칙은 걷었다 — 현빈 지시로 「다시 내보내기」와 「접힌 설명」을
    없앴고, 쓰지 않는 CSS 를 남기면 다음 사람이 «있는 기능»으로 읽는다. */
+
+/* ══ 진행 패널 — 결과 모달과 «같은 껍데기»를 쓰고 여기선 스피너·막대만 정한다 ══
+   ★색은 토큰만. 애니메이션은 하나뿐이고, prefers-reduced-motion 에서는 멈춘다. */
+.exres-prog { width: 380px; max-width: 380px; }
+.exres-progline { display: flex; align-items: center; gap: 8px; }
+.exres-spin {
+  flex: 0 0 auto; width: 13px; height: 13px; border-radius: 50%;
+  border: 2px solid var(--ui-border-strong);
+  border-top-color: var(--ui-accent-text);
+  animation: exres-spin .7s linear infinite;
+}
+@keyframes exres-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .exres-spin { animation: none; } }
+.exres-progtext { font-size: 13px; font-weight: 600; color: var(--ui-text); font-variant-numeric: tabular-nums; }
+/* 막대 — 「어디까지 왔는지」는 숫자보다 이게 먼저 읽힌다 */
+.exres-bar { margin-top: 10px; height: 3px; border-radius: 2px; background: var(--ui-bg-input); overflow: hidden; }
+.exres-bar > i { display: block; height: 100%; width: 0; background: var(--ui-accent-primary); transition: width .18s ease; }

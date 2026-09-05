@@ -882,13 +882,20 @@ async function exportAllImagesPNG() {
   const n = canvasEl.querySelectorAll('.section-block:not([data-ghost])').length;
   if (!n) { window.showToast?.('내보낼 섹션이 없습니다.'); return; }
   if (!confirm(`전체 ${n}개 섹션을 PNG 이미지로 내보냅니다. 계속할까요?`)) return;
-  window.showToast?.('이미지 내보내는 중...');
+  /* ★진행은 «토스트»가 아니라 스피너 패널로 보인다 — 현빈: 「스피너가 돌면서 처리 중이다
+   * 이런 로그가 뜨다가, 다 끝나면 성공 몇 개 실패 몇 개」. 2초 토스트로는 어디까지 왔는지 모른다.
+   * 그 패널은 결과 모달이 열릴 때 «스스로» 닫힌다(창이 둘 뜨지 않게). */
+  window.showExportProgress?.(n, { format: 'png', width: 860 });
   try {
-    const res = await window.exportAllSections('png', 860, (i, t) => window.showToast?.(`내보내는 중... (${i}/${t})`));
+    const res = await window.exportAllSections('png', 860, (i, t) => {
+      const sec = canvasEl.querySelectorAll('.section-block:not([data-ghost])')[i - 1];
+      window.stepExportProgress?.(i, t, sec?._name || sec?.dataset?.name || '');
+    });
     // ★결과는 «모달 하나»로만 말한다 — 2초 토스트에 담을 정보가 아니다(현빈 「결과 모달도 떠야」).
     window.showExportResultModal?.(res, { format: 'png', width: 860 });
   } catch (err) {
     console.error('[export] PNG 전체 내보내기 실패:', err);
+    window.closeExportProgress?.();   // ★예외로 빠져도 스피너를 남기지 않는다
     window.showToast?.('⚠️ 내보내기 실패: ' + (err?.message || err));
   }
 }

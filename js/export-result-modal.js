@@ -38,7 +38,11 @@
     /* 겹침 가드 — 다른 모달이 열려 있으면 그 위에 또 띄우지 않는다(relnote 와 같은 규약).
        ★그래도 결과를 «삼키지» 않는다 — 토스트로 한 줄 남긴다. */
     if (document.getElementById('exres-modal')) return;
-    const other = document.querySelector('.settings-modal-overlay[style*="flex"]');
+    /* ★진행 패널은 «남의 모달»이 아니다 — 우리가 띄운 것이고 곧 닫는다.
+     * 이걸 안 빼면 겹침 가드가 «자기 자신»을 남으로 보고 결과를 토스트로 삼킨다
+     * (실기에서 재현: 불일치·실패가 있는데 모달이 안 떴다). 그래서 #exres-progress 는 제외한다. */
+    const other = [...document.querySelectorAll('.settings-modal-overlay[style*="flex"]')]
+      .find(el => el.id !== 'exres-progress') || null;
     const bad  = rows.filter(r => r && !r.failed && r.gate && r.gate.tier === 'mismatch');
     const unk  = rows.filter(r => r && !r.failed && (!r.gate || r.gate.tier === 'unmeasured'));
     const fail = rows.filter(r => r && r.failed);
@@ -48,9 +52,11 @@
       window.showToast?.(fail.length || bad.length
         ? `내보내기 결과 — 확인이 필요한 섹션 ${bad.length + fail.length}개`
         : '내보내기를 마쳤습니다. 다운로드 폴더를 확인하세요');
+      progressClose();
       return;
     }
 
+    progressClose();   // ★진행 → 결과: 창이 «둘» 뜨지 않게 반드시 먼저 닫는다
     const overlay = document.createElement('div');
     overlay.id = 'exres-modal';
     overlay.className = 'settings-modal-overlay';
@@ -139,6 +145,57 @@
     if (!r.gate) { window.showToast?.('내보냈습니다. 다운로드 폴더를 확인하세요'); return; }
     open({ results: [r], total: 1 }, meta);
   }
+
+  /* ══ 진행 표시 — «같은 모달»이 진행 중엔 스피너, 끝나면 결과가 된다 ══
+   * 현빈: 「섹션 내보내기 하면 «스피너가 돌면서 처리 중이다» 이런 로그가 뜨다가,
+   *        다 끝나면 성공 몇 개 실패 몇 개 이렇게 간단하게 떠 주면 된다」
+   * ⇒ 토스트 한 줄로는 «진행»이 안 읽힌다(2초 뒤 사라지고 어디까지 왔는지도 모른다).
+   *   결과와 «다른 창»을 띄우지 않는 이유: 창이 두 번 바뀌면 사용자가 뭘 기다렸는지 잃는다.
+   * ⛔새 룩 금지 — 껍데기·버튼은 결과 모달과 «같은» 공용 클래스다. */
+  let _prog = null;
+
+  function progressOpen(total, meta) {
+    progressClose();
+    const M = meta || {};
+    const ov = document.createElement('div');
+    ov.id = 'exres-progress';
+    ov.className = 'settings-modal-overlay';
+    ov.style.display = 'flex';
+    ov.innerHTML = `
+      <div class="settings-modal-shell exres-shell exres-prog" role="dialog" aria-modal="true"
+           aria-live="polite" aria-label="내보내는 중">
+        <div class="settings-modal-header exres-hero">
+          <span class="settings-modal-title exres-h">내보내는 중</span>
+          <span class="tb-badge tb-badge--pill exres-badge">${(M.format || 'PNG').toUpperCase()} · ${M.width || 860}px</span>
+        </div>
+        <div class="exres-list">
+          <p class="exres-sum exres-progline"><span class="exres-spin" aria-hidden="true"></span><span class="exres-progtext">준비 중…</span></p>
+          <div class="exres-bar"><i></i></div>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    _prog = { ov, total: total || 0 };
+    progressStep(0, total);
+    return ov;
+  }
+
+  function progressStep(i, total, name) {
+    if (!_prog) return;
+    const t = total || _prog.total || 0;
+    const txt = _prog.ov.querySelector('.exres-progtext');
+    const bar = _prog.ov.querySelector('.exres-bar > i');
+    if (txt) txt.textContent = t ? `${i} / ${t} 처리 중${name ? ' · ' + name : ''}` : '처리 중…';
+    if (bar) bar.style.width = t ? `${Math.round((i / t) * 100)}%` : '0%';
+  }
+
+  function progressClose() {
+    if (_prog && _prog.ov) _prog.ov.remove();
+    _prog = null;
+  }
+
+  window.showExportProgress   = progressOpen;
+  window.stepExportProgress   = progressStep;
+  window.closeExportProgress  = progressClose;
 
   window.showExportResultModal = open;
   window.showExportResultOne   = openOne;
