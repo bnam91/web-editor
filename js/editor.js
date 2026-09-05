@@ -179,6 +179,9 @@ function applyZoom(z) {
    *   여백은 «그 순간의 스크롤을 위한 것»이라 상태가 바뀌면 미련 없이 버린다.
    *   다시 필요하면 다음 selectSection 이 «모자란 만큼» 다시 준다. */
   window.resetCanvasTail?.();
+  /* [M35] 배율이 바뀌면 «쉼 위치»(getRestingScroll)가 바뀌므로 같은 스크롤이라도 dx 가 달라진다.
+     ⌘0 · Fit(zoomFit) · 탭복원 · 초기화 · zoomStep 이 전부 여기를 지난다 — 한 자리로 족하다. */
+  scheduleNotchUpdate();
 }
 
 /* ★[perf] transform 쓰기와 «높이 동기»를 나눈다.
@@ -252,6 +255,25 @@ function getPanPosition() {
 }
 window.getRestingScroll = getRestingScroll;
 window.getPanPosition = getPanPosition;
+
+/* ★[M35] 「노치는 언제 생기고 안 생기나」 — 갱신을 «변위를 바꾼 모든 경로»에 건다.
+   [실측 GEN-batch-0905-A §B2] 앱 자신의 술어(`getPanPosition().x`, |dx|<5)로 9경로×3배율을
+   재니 불일치 **25/33 · 전부 MISS_SHOW · MISS_HIDE 0 · LATE 0**(1초 뒤에도 안 고쳐진다).
+   원인은 «판정»이 아니라 «배선»이다 — updateNotchPosition 을 부르는 자리가 넷뿐이었다
+   (휠 «잔여가 있을 때만» · 스페이스팬 mousemove · 노치 클릭 · 기동 100ms).
+   ⇒ 줌·리사이즈·정착·탭복원이 dx 를 −196,605 로 만들어도 아무도 노치에게 말해주지 않고,
+     한참 뒤 «가로 성분 0 인 세로 휠»이 그때서야 켠다 = 현빈 원문 「또 갑자기 노치가 생겼네」.
+   ⛔갱신을 `_applyScalerTransform`(팬 스텝마다 도는 자리)에 걸면 안 된다 — updateNotchPosition 은
+     getRestingScroll → gBCR 을 읽어 «강제 레이아웃»을 부른다. 팬 중 레이아웃 0 이 이 브랜치의 전제다.
+   ⇒ «한 태스크에 한 번»으로 합친다. ⚠️rAF 가 아니라 setTimeout 이다 —
+     이 앱은 비포커스 창에서 rAF 가 멈춘다(같은 이유로 트랙패드 스로틀도 setTimeout 이다, :2930). */
+let _notchUpdatePending = false;
+function scheduleNotchUpdate() {
+  if (_notchUpdatePending) return;
+  _notchUpdatePending = true;
+  setTimeout(() => { _notchUpdatePending = false; window.updateNotchPosition?.(); }, 0);
+}
+window.scheduleNotchUpdate = scheduleNotchUpdate;
 /* ═══════════════════════════════════════════════════════════════════
    [S2] 팬 «여지»(pan room) — 캔버스 밖으로도 계속 밀리게
 
@@ -404,6 +426,7 @@ function shrinkPanRoom() {
   /* ★[FIX-⑵] 진행 중인 팬이 있으면 그 기준점도 «같은 양» 옮긴다 —
      불변식 `scrollLeft = scrollStart.left − wantDX` 를 새 좌표계에서 그대로 유지. */
   if (_panScrollBaseline) { _panScrollBaseline.left -= cutX; _panScrollBaseline.top -= cutY; }
+  scheduleNotchUpdate();   // [M35] 여지 회수는 scrollLeft 와 쉼 위치를 «같이» 옮긴다 = dx 가 바뀐다
 }
 /* ═══ [P-W1] 휠/트랙패드 «잔여»를 transform 이 아니라 «여지»로 흡수한다 ═══
    왜: 잔여를 `panOffset`+transform 으로 처리하면 결함이 «둘» 생긴다 —
@@ -2964,8 +2987,11 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
         scheduleWheelSettle();
         // 상한은 absorbWheelResidual 안에 «여지 상한»으로 옮겼다(원래 목적 = 콘텐츠 끝 지나
         // 무한 누적 방지, 0ab2f72). transform 은 여기서 «안» 쓴다.
-        if (window.updateNotchPosition) window.updateNotchPosition();
       }
+      /* ★[M35] 갱신을 «잔여가 있을 때»에 묶어 두면 안 된다 — 잔여 없이 scrollLeft 만 움직인
+         휠도 dx 를 바꾼다. 그 조건문이 MISS_SHOW 25건의 절반이었다(휠 가로·휠 세로 전 배율).
+         ⛔여기서 «직접» 부르지 않는다: 휠은 프레임마다 오고 updateNotchPosition 은 gBCR 을 읽는다. */
+      scheduleNotchUpdate();
     }
   }, { passive: false });
 })();
@@ -3416,6 +3442,9 @@ const FP_FIXED_POPUPS = ['#fp-plugin-panel'];
   });
 
   setTimeout(updateNotchPosition, 100);
+  /* ★[M35] 창 리사이즈는 clientWidth 를 바꿔 «쉼 위치»를 옮긴다 — 팬을 안 했는데 dx 가 변한다.
+     여태 이 경로엔 노치 갱신이 «아예» 없었다(실측 MISS_SHOW 3/3 배율). */
+  window.addEventListener('resize', scheduleNotchUpdate);
 }
 
 /* ── Col 클릭: capture-phase ── */
@@ -3460,7 +3489,7 @@ window.zoomStep = zoomStep;
 window.zoomFit = zoomFit;
 window.applyZoom = applyZoom;
 window.getPanOffset = () => ({ x: panOffsetX, y: panOffsetY });
-window.setPanOffset = (x, y) => { panOffsetX = x; panOffsetY = y; _applyScalerTransform(); };
+window.setPanOffset = (x, y) => { panOffsetX = x; panOffsetY = y; _applyScalerTransform(); scheduleNotchUpdate(); };
 window.toggleAllSections = toggleAllSections;
 window.switchToTab = switchToTab;
 window.initFileTabToggle = initFileTabToggle;
