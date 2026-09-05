@@ -151,7 +151,7 @@ let panOffsetY = 0;
 function applyZoom(z) {
   currentZoom = Math.min(400, Math.max(10, z));
   window.currentZoom = currentZoom;
-  _applyScalerTransform();
+  _applyScalerTransformAndSync();
   zoomDisplay.textContent = currentZoom + '%';
   document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
   // 섹션 라벨/툴바 카운터-스케일
@@ -166,8 +166,17 @@ function applyZoom(z) {
   window.resetCanvasTail?.();
 }
 
+/* ★[perf] transform 쓰기와 «높이 동기»를 나눈다.
+ *   _syncScalerHeight 의 출력(naturalH × scale)은 «배율과 콘텐츠»의 함수다 — 팬은 둘 다 안 바꾼다.
+ *   그런데 팬 스텝마다 부르면 스텝당 강제 레이아웃 2회 + style 쓰기 2회가 «정의상 낭비»로 든다.
+ *   ⇒ 팬 경로는 _applyScalerTransform(), 배율·콘텐츠가 바뀌는 경로는 _applyScalerTransformAndSync().
+ *   ★부수 효과: 팬 중 scaler 높이가 안 바뀌므로 scrollHeight 도 안 바뀐다 —
+ *     브라우저가 팬 중 scrollTop 을 clamp 하는 일이 없어진다(스크롤 팬의 전제). */
 function _applyScalerTransform() {
   scaler.style.transform = `translate(${panOffsetX}px, ${panOffsetY}px) scale(${currentZoom / 100})`;
+}
+function _applyScalerTransformAndSync() {
+  _applyScalerTransform();
   _syncScalerHeight();
 }
 
@@ -219,7 +228,7 @@ function resetPanOffset() {
     wrap.scrollTop = Math.max(0, Math.min(maxScroll, idealScrollTop));
   }
   panOffsetY = 0;
-  _applyScalerTransform();
+  _applyScalerTransformAndSync();
 }
 function zoomStep(delta) {
   const wrap = document.getElementById('canvas-wrap');
@@ -300,7 +309,7 @@ function zoomStep(delta) {
   // → panOffsetX = anchorVpX - scaler.offsetLeft - scaler.offsetWidth/2 + wrap.scrollLeft - anchorCanvasOffsetX*s_new
   const wantedX = anchorVpX - scaler.offsetLeft - scaler.offsetWidth / 2 + wrap.scrollLeft - anchorCanvasOffsetX * s_new;
   panOffsetX = wantedX;
-  _applyScalerTransform();
+  _applyScalerTransformAndSync();
 
   // transition 복원 (다음 프레임)
   requestAnimationFrame(() => { scaler.style.transition = prevTransition; });
