@@ -150,6 +150,21 @@ let panOffsetY = 0;
 
 function applyZoom(z) {
   currentZoom = Math.min(400, Math.max(10, z));
+  /* ★[M44] 배율을 «세우는» 경로는 팬 잔여를 반드시 버린다 — 안 버리면 ×(s_new/s_old) 래칫이 된다.
+     panOffsetX/Y 는 «그 배율에서» 스크롤이 못 삼킨 «화면 px» 잔여다. 배율이 바뀌면 같은 숫자가
+     다른 뜻이 된다. zoomStep 은 그 사실을 알고 «재계산 전에» 0 으로 비우고 앵커를 다시 잡는데
+     (:572), applyZoom(⌘0 · Fit · 탭복원 · 초기화)은 그냥 두고 있었다. 그 «비대칭»이 래칫이다:
+       ⑴ zoomStep 은 앵커 보존의 «정의상» 잔여를 s_new/s_old 배로 키운다(그 자체는 맞는 계산이다 —
+          커서 밑 점을 붙잡으려면 변위도 같은 배율로 커져야 한다).
+       ⑵ applyZoom 은 배율만 되돌리고 «4배가 된 잔여»는 그대로 남긴다.
+     ⇒ [핀치 → ⌘0/Fit/탭복원] 을 반복하면 −9 → −45 → −189 → … ×4 로 발산해 Chromium translate
+       포화점(2²⁴)까지 가고, 캔버스가 화면 밖으로 나가 「줌은 바뀌는데 화면이 안 변한다」가 된다.
+     ⇒ 고칠 곳은 «키우는 쪽»(zoomStep 의 앵커 계산)이 아니라 «안 지우는 쪽»이다.
+     ⚠️호출처 넷을 다 봤다 — zoomStep 은 이 줄 직전에 이미 0 을 넣으므로 무해하고(:572),
+       탭 복원은 이 함수 «다음 줄»에서 저장값을 setPanOffset 으로 도로 세우며(tab-system.js:212),
+       초기화(:2464)는 그때 panOffset 이 이미 0 이다. 남는 건 ⌘0·Fit — 거기선 «되돌린다»가 맞는 뜻이다. */
+  panOffsetX = 0;
+  panOffsetY = 0;
   window.currentZoom = currentZoom;
   _applyScalerTransformAndSync();
   zoomDisplay.textContent = currentZoom + '%';
