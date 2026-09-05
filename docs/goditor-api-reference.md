@@ -30,24 +30,27 @@ sleep 7 && curl -s http://127.0.0.1:93XX/json/version   # Chrome/... 뜨면 OK
 - 저장: `window.triggerAutoSave()` 후 2초 이상 대기(디바운스 1.5s). 빌드 완료본은 `/tmp/goditor_93XX/projects/<id>/`에서 메인 저장소(`~/Library/Application Support/Goya Design Editor/projects/`)로 복사해 이관.
 - ⚠️ 하나의 인스턴스에서 여러 프로젝트를 오갈 때는 eval 진입 시 `window.activeProjectId`가 대상 프로젝트인지 가드하고, 빌드+직렬화+저장을 단일 동기 eval로 묶을 것(로드 중 전환 레이스 방지).
 
-### 신규 블록 (2026-07-03, 행 축 2026-09-04 P1) — duo(Grid) · infocard · innercard
+### 신규 블록 (2026-07-03, 행 축 2026-09-04 P1) — grid · infocard · innercard
 
 ```js
-// duo — 사용자에게는 「Grid Block」으로 보인다(2026-09-04 P0 개명, DOM 정체성 .duo-block/dataset.type='duo'는
-// P2까지 유지). 2~4열 × 1~4행 그리드. 좌 수치/우 설명, 좌 이미지/우 텍스트 등 정형 다단은 옛 1행 형태 그대로.
-window.addDuoBlock({ gap: 32, valign: 'middle', cols: [
+// grid — 「Grid Block」. ★2026-09-05 개명 완료: DOM 정체성도 .grid-block / dataset.type='grid' /
+//   새 id 접두 grd_ 다(2026-09-04 P0 때는 라벨만 바뀌고 DOM 은 duo 였다 — 그 문장은 이제 낡았다).
+//   옛 저장본의 .duo-block 은 «열 때» migrateGridIdentity() 가 승격한다. ⛔옛 id(duo_…)는 안 바꾼다 — 참조다.
+//   window.addDuoBlock/updateDuoBlock/renderDuoBlock/makeDuoBlock/showDuoProperties 는 deprecated 별칭으로 «살아 있다»(제거는 P1).
+// 2~4열 × 1~4행 그리드. 좌 수치/우 설명, 좌 이미지/우 텍스트 등 정형 다단은 옛 1행 형태 그대로.
+window.addGridBlock({ gap: 32, valign: 'middle', cols: [
   { width: 3, align: 'center', lines: [{ type: 'h1', text: '01', color: '#2d6fe8' }, { type: 'caption', text: 'REASON' }] },
   { width: 7, lines: [{ type: 'h2', text: '헤드라인' }, { type: 'gap', height: 8 }, { type: 'body', text: '본문…' }] },
 ] })
 // 라인 타입: label|h1|h2|h3|body|caption|image({imgSrc,height?,radius?})|gap({height})
-// 수정(기존, 계속 동작): updateDuoBlock(id, { patchCol: { index: 1, lines: [...] } } | { cols } | { gap } | { valign })
+// 수정(기존, 계속 동작): updateGridBlock(id, { patchCol: { index: 1, lines: [...] } } | { cols } | { gap } | { valign })
 
 // ★2026-09-04 P1 — 행 축(R2 모델, PLAN-gridblock.md §3-A). cols[c] = «행 0» 콘텐츠(단일 진실원) +
 //   rows(px 최소높이, 'auto' 허용) + cells(행0 포함 전체 rows×cols — 행0은 cols로 흡수, 저장은
-//   dataset.cells에 «행0을 뺀» 나머지만). rows 를 안 주면 옛 1행 duo 와 byte-identical.
+//   dataset.cells에 «행0을 뺀» 나머지만). rows 를 안 주면 옛 1행 그리드와 byte-identical.
 window.addGridBlock({
   cols: [{ width: 1 }, { width: 1 }],
-  rows: [{ height: 'auto' }, { height: 200 }],           // 없으면 1행(옛 duo와 동일)
+  rows: [{ height: 'auto' }, { height: 200 }],           // 없으면 1행(옛 duo 파일과 동일)
   cells: [                                                // 선택 — 행0 포함 전체
     [{ lines: [{ type: 'h2', text: 'R0C0' }] }, { lines: [{ type: 'h2', text: 'R0C1' }] }],
     [{ lines: [{ type: 'body', text: 'R1C0' }] }, { lines: [{ type: 'body', text: 'R1C1' }] }],
@@ -61,12 +64,15 @@ updateGridBlock(id, { patchCell: { r: 0, c: 0, lineIndex: 1, text: '한 줄만' 
 // ★UI(P1.5, 2026-09-05 반영): 그리드 글자는 «캔버스에서 줄을 더블클릭»해 고친다(blur/Escape/딴 곳 클릭에서 커밋).
 //   우측 패널의 「Column N」 텍스트 입력 절은 «삭제»됐다 — 패널은 이제 간격·비율·정렬·행 높이만 다룬다.
 //   인라인 편집의 커밋 경로도 아래 patchCell{r,c,lineIndex,text} 하나뿐이다(dataset 직접 수정 없음).
-// ★캔버스 주소(현빈 2026-09-04 지시): 렌더된 .duo-line/.duo-gap/.duo-img
-//   등 각 «최상위 라인» 요소에 data-r/data-c/data-line 이 심겨 있다(중첩 duo/graph 내부는 아직 미주소화).
+// ★캔버스 주소(현빈 2026-09-04 지시): 렌더된 .grd-line/.grd-gap/.grd-img
+//   등 각 «최상위 라인» 요소에 data-r/data-c/data-line 이 심겨 있다(중첩 그리드/graph 내부는 아직 미주소화).
+//   ⛔하위 클래스는 «스냅샷»이다 — 저장본에 옛 duo-line/duo-col 이 남아 있어도 열 때 renderGridBlock 이 다시 그린다.
 //   이 좌표로 patchCell({r,c,lineIndex,...})를 호출하면 그 줄 하나만 바뀐다(셀의 다른 줄·다른 필드는 보존).
 // ⛔열은 가중치(fr, width — px 아님) · 행만 px 최소높이(minmax(px,auto))다. 열 하한은 2 그대로(1열 「그리드」는 없음).
 // ⛔MCP 등록(add_grid_block/update_grid_block, BLOCK_TYPES) = 현빈 지시로 «보류»(2026-09-04). window.* 함수만
 //   존재한다 — main/claude-pm/ 아래는 이번 P1에서 건드리지 않았다(홈페이지 개발자문서 격차 정리가 먼저).
+//   ★등록이 풀리는 날 BLOCK_TYPES 에 «2행» 이 필요하다: {type:'grid',pfx:'grd_'} + {type:'grid',pfx:'duo_'}.
+//   승격이 id 를 안 바꾸므로 옛 블록은 class=grid-block + id=duo_ 조합으로 «영구히» 남는다(정상이다).
 
 // infocard — 스탯/가격/리뷰 카드. 별칭 3종이 variant 프리셋
 window.addCountupBlock({ data: { stats: [        // ★정적 최종값 빅넘버(애니 없음), N개 가로 배치

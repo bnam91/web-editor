@@ -1,13 +1,13 @@
-/* ── Duo(다단) 블록 프로퍼티 패널 ──
-   구조(컬럼/라인 추가·삭제)는 CDP/updateDuoBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
+/* ── Grid(다단) 블록 프로퍼티 패널 ──
+   구조(컬럼/라인 추가·삭제)는 CDP/updateGridBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
 import { parseRatio, buildGridPicker } from './_helpers.js';
 import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★상한은 한 곳에서만 온다
-import { duoRows, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS } from '../blocks/duo-block.js';
+import { gridRows, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS } from '../blocks/grid-block.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 
 /* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
- * 렌더러(duo-block.js)는 이미 임의 비율을 지원한다 — 각 컬럼에 flex:(w/총합*100).
+ * 렌더러(grid-block.js)는 이미 임의 비율을 지원한다 — 각 컬럼에 flex:(w/총합*100).
  * ★2026-09-04 P0: 슬라이더(2열 20~80 클램프 / 3열 칸별 슬라이더) → 테이블식 `1:1:1` 텍스트
  *   + 「균등」 버튼으로 교체(현빈 지시). 파서는 prop-table.js `_applyColRatio`에서 뽑아온
  *   parseRatio(_helpers.js)를 공용으로 쓴다(복붙 금지) — 부족 1 패딩·초과 자름 규칙 동일.
@@ -55,12 +55,12 @@ function _rowHeightHtml(rows) {
       <div class="prop-hint">비우면 자동(내용 높이) · 값은 «최소» 높이(내용이 더 크면 늘어난다)</div>`;
 }
 
-export function showDuoProperties(block) {
+export function showGridProperties(block) {
   let cols = [];
   try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) {}
-  const rows = duoRows(block);   // 없으면(옛 파일) [{height:'auto'}] 1행 — duo-block.js 승격 로직과 공유
+  const rows = gridRows(block);   // 없으면(옛 파일) [{height:'auto'}] 1행 — grid-block.js 승격 로직과 공유
   /* ★2026-09-05 현빈 지시로 「간격」 슬라이더를 패널에서 걷어냈다.
-   * ⛔데이터와 렌더러는 «그대로»다 — `block.dataset.gap` 은 계속 살아 있고 duo-block.js 가
+   * ⛔데이터와 렌더러는 «그대로»다 — `block.dataset.gap` 은 계속 살아 있고 grid-block.js 가
    *   읽어서 그린다(기존 프로젝트의 간격 값이 사라지면 안 된다). 없앤 건 «조절 UI» 하나뿐이다.
    * 바꾸려면 updateGridBlock API / MCP 로는 여전히 된다. */
   const valign = block.dataset.valign || 'top';
@@ -89,7 +89,7 @@ export function showDuoProperties(block) {
       <div class="grid-picker-label" id="grd-grid-picker-label">—</div>
       <div class="prop-hint" style="margin-top:2px;">가로×세로 칸 수를 고른다</div>
       <!-- ★적대검수 Q3: 「줄이면 보존」으로 동작을 바꾸는 대신 «사실을 적는다».
-           API 경로(duo-block.js)가 이미 «자르고 undo» 정책이라, 피커만 보존하면 정책이 둘로 갈라진다. -->
+           API 경로(grid-block.js)가 이미 «자르고 undo» 정책이라, 피커만 보존하면 정책이 둘로 갈라진다. -->
       <div class="prop-hint" style="margin-top:2px;">줄이면 잘린 칸 내용은 사라진다 (⌘Z 복원)</div>
     </div>
     <div class="prop-section">
@@ -98,7 +98,7 @@ export function showDuoProperties(block) {
       ${_rowHeightHtml(rows)}
       <div class="prop-row">
         <span class="prop-label">가로 정렬</span>
-        <div class="prop-align-group" id="duo-halign-group">
+        <div class="prop-align-group" id="grd-halign-group">
           <button class="prop-align-btn${halign === 'left' ? ' active' : ''}"   data-ha="left"   title="왼쪽 정렬">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="2" x2="1" y2="12"/><rect x="3" y="4" width="5" height="6" rx="1"/></svg>
           </button>
@@ -112,7 +112,7 @@ export function showDuoProperties(block) {
       </div>
       <div class="prop-row">
         <span class="prop-label">세로 정렬</span>
-        <div class="prop-align-group" id="duo-valign-group">
+        <div class="prop-align-group" id="grd-valign-group">
           <button class="prop-align-btn${valign === 'top' ? ' active' : ''}"    data-va="top"    title="상단 정렬">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="1" x2="12" y2="1"/><rect x="4" y="3" width="6" height="5" rx="1"/></svg>
           </button>
@@ -133,22 +133,22 @@ export function showDuoProperties(block) {
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   /* ── 비율 배선 — «change» 시점에만 커밋(blur/Enter) ── */
-  /* ⚠️updateDuoBlock 을 매 입력마다 부르지 않는다 — 성공하면 showDuoProperties 를 다시 불러
+  /* ⚠️updateGridBlock 을 매 입력마다 부르지 않는다 — 성공하면 showGridProperties 를 다시 불러
    *   패널을 통째로 새로 그린다. 입력 중(각 keystroke)에 재호출하면 포커스가 든 input DOM 이
    *   교체돼 타이핑이 끊긴다. (전에 있던 gap 슬라이더도 같은 이유로 dataset 직접 쓰기를 택했었다 —
    *   그 슬라이더는 2026-09-05 에 제거됐다.) 여기서도 «change»(blur/Enter) 시점에만 dataset 을
    *   커밋하고 패널은 다시 그리지 않는다.
    *   (검증은 여기서 한다 — 컬럼 2~4개, width 는 양수) */
   const _commitCols = (next) => {
-    /* ★상한은 duo-block.js 의 클램프와 «같은 값»이어야 한다 — MIN_COLS/MAX_COLS 상수를 import 해서
-     * «같은 값»을 강제한다(하드코딩 2건 반복 금지). P0 에서 duo-block.js 세 자리(렌더/생성/검증)를
+    /* ★상한은 grid-block.js 의 클램프와 «같은 값»이어야 한다 — MIN_COLS/MAX_COLS 상수를 import 해서
+     * «같은 값»을 강제한다(하드코딩 2건 반복 금지). P0 에서 grid-block.js 세 자리(렌더/생성/검증)를
      * 4로 올리면서 «여기 하나»를 놓쳐 4열 그리드 비율 입력이 조용히 무시됐던 사고(2026-09-04
      * fix(grid-p0) 1abfea2)가 있었다 — 이 레포의 고질(열거 자리가 흩어져 있어 한 곳만 고치면
      * «절반만» 고쳐진다)이라 P1에서 아예 상수 import 로 재발을 막는다. */
     if (!Array.isArray(next) || next.length < MIN_COLS || next.length > MAX_COLS) return false;
     next.forEach(c => { const n = Number(c.width); c.width = Number.isFinite(n) && n > 0 ? n : 1; });
     block.dataset.cols = JSON.stringify(next);
-    window.renderDuoBlock?.(block);
+    window.renderGridBlock?.(block);
     return true;
   };
   /* ── 4×4 그리드 피커 — 가로×세로 칸 수 변경 (현빈 발주 ①) ─────────────────
@@ -166,7 +166,7 @@ export function showDuoProperties(block) {
     document.getElementById('grd-grid-picker-label'),
     (nCols, nRows) => {
       const curCols = JSON.parse(block.dataset.cols || '[]');
-      const curRows = duoRows(block);
+      const curRows = gridRows(block);
       if (nCols === curCols.length && nRows === curRows.length) return;
       window.pushHistory?.();                     // ★변경 «전»에
 
@@ -188,7 +188,7 @@ export function showDuoProperties(block) {
 
         /* ★새로 생긴 행에 «기본 내용»을 넣는다.
          * 안 넣으면 셀이 빈 채로 높이 0 이 되어, 2x2 를 눌러도 «아무 일도 안 일어난 것»처럼 보인다
-         * (실측: rows=2 이고 duo-cell 4개가 생겼는데 2행 두 칸 높이가 0px).
+         * (실측: rows=2 이고 grd-cell 4개가 생겼는데 2행 두 칸 높이가 0px).
          * 1행이 기본 텍스트를 갖는 것과 «같은 대우»여야 사용자가 무엇이 생겼는지 안다.
          * ⚠️정정(적대검수 지적, 2026-09-04): 이 코드는 «옛 내용을 보존하지 않는다».
          *   nextCells 를 새로 만들어 덮으므로 «잘린 행/열의 내용은 사라진다».
@@ -209,14 +209,14 @@ export function showDuoProperties(block) {
         if (nextCells.length) block.dataset.cells = JSON.stringify(nextCells);
         else delete block.dataset.cells;
       }
-      window.renderDuoBlock?.(block);
+      window.renderGridBlock?.(block);
       window.scheduleAutoSave?.();
       /* ★거터를 «명시적으로» 걷고 다시 세운다.
-       * showDuoProperties 끝에도 showGridGutters 가 있지만 피커 경로에서는 그것만으로 안 따라온다 —
+       * showGridProperties 끝에도 showGridGutters 가 있지만 피커 경로에서는 그것만으로 안 따라온다 —
        * 실측: 2x1 → 3x3 으로 바꿔도 거터가 col 1개 그대로였다(2초 뒤에도).
        * 격자 «수»가 바뀌는 건 이 경로뿐이라 여기서 한 번 정리한다. */
       hideGridGutters();
-      showDuoProperties(block);
+      showGridProperties(block);
       showGridGutters(block);                   // 패널 재생성(칸/행 수가 바뀌면 섹션도 바뀐다)
     },
     { max: MAX_COLS, maxRows: MAX_ROWS, minCols: MIN_COLS, minRows: MIN_ROWS }
@@ -249,13 +249,13 @@ export function showDuoProperties(block) {
 
   propPanel.querySelectorAll('[data-va]').forEach(btn => btn.addEventListener('click', () => {
     block.dataset.valign = btn.dataset.va;
-    window.renderDuoBlock?.(block);
+    window.renderGridBlock?.(block);
     window.pushHistory?.(); window.scheduleAutoSave?.();
-    showDuoProperties(block);
+    showGridProperties(block);
   }));
 
   // 가로 정렬 — 컬럼 단위(col.align)로 일괄 적용.
-  // ★라인의 line.align 은 렌더러에서 col.align 을 «가린다»(_duoLineHtml: line.align || colAlign).
+  // ★라인의 line.align 은 렌더러에서 col.align 을 «가린다»(_gridLineHtml: line.align || colAlign).
   //   실제 저장본 실측(147줄 중 17줄)에서 그 라인들만 안 움직여 «절반만 먹는» 정렬이 된다 →
   //   컬럼 레벨 일괄 지시일 때는 라인 오버라이드를 걷어내 컬럼을 단일 진실원으로 만든다(undo 가능).
   propPanel.querySelectorAll('[data-ha]').forEach(btn => btn.addEventListener('click', () => {
@@ -267,9 +267,9 @@ export function showDuoProperties(block) {
         if (Array.isArray(col.lines)) col.lines.forEach(l => { if (l && typeof l === 'object') delete l.align; });
       });
       block.dataset.cols = JSON.stringify(c);
-      window.renderDuoBlock?.(block);
+      window.renderGridBlock?.(block);
       window.pushHistory?.(); window.scheduleAutoSave?.();
-      showDuoProperties(block);
+      showGridProperties(block);
     } catch (_) {}
   }));
 
@@ -277,25 +277,26 @@ export function showDuoProperties(block) {
   propPanel.querySelectorAll('.grd-row-h-item').forEach(inp => {
     inp.addEventListener('change', () => {
       const ri = parseInt(inp.dataset.ri);
-      const curRows = duoRows(block);
+      const curRows = gridRows(block);
       if (!curRows[ri]) return;
       const raw = inp.value.trim();
       const v = raw === '' ? 'auto' : Math.max(0, Math.min(ROW_H_MAX, parseInt(raw) || 0));
       curRows[ri] = { height: v };
       window.pushHistory?.();
       block.dataset.rows = JSON.stringify(curRows);
-      window.renderDuoBlock?.(block);
+      window.renderGridBlock?.(block);
       window.scheduleAutoSave?.();
       inp.value = v === 'auto' ? '' : v;   // 정규화 결과로 되씀(비율 입력과 동일 패턴)
     });
   });
 
   // ★2026-09-04 P2: 캔버스 셀 경계 드래그 거터(overlay-handles.js) — 패널이 뜨는 자리마다
-  //   같이 띄운다(클릭 선택·레이어패널 선택·updateDuoBlock 후 재선택 모두 이 함수를 거친다,
+  //   같이 띄운다(클릭 선택·레이어패널 선택·updateGridBlock 후 재선택 모두 이 함수를 거친다,
   //   PLAN-gridblock.md §5). 해제는 editor.js deselectAll()의 hideGridGutters 로 일괄.
   showGridGutters(block);
 }
 
-window.showDuoProperties = showDuoProperties;
-// ★2026-09-04 P0: 「그리드 블럭」 별칭(발주 ②) — DOM 정체성은 그대로다(위 duo-block.js 별칭과 동반).
-window.showGridProperties = showDuoProperties;
+window.showGridProperties = showGridProperties;
+// ★deprecated 별칭 — 2026-09-05 개명 이전 이름(tools/duo-align-probe·외부 CDP 스크립트 호환).
+//   제거는 P1. grid-block.js 의 window.*Duo* 별칭 4개와 동반한다.
+window.showDuoProperties = showGridProperties;

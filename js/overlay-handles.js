@@ -5,15 +5,15 @@
 ═══════════════════════════════════ */
 
 import { resizeColBoundary, resizeRowHeight } from './grid-cell-resize.js';
-// ★duo-block.js → drag-drop.js → overlay-handles.js(이 파일) 로 이미 순환 임포트가 있다
-//   (duo-block.js 가 drag-drop.js 의 bindBlock 을 쓰고, drag-drop.js 는 `export * from
-//   './overlay-handles.js'`). 여기서 duo-block.js 를 다시 임포트해도 사이클이 «닫힐» 뿐
+// ★grid-block.js → drag-drop.js → overlay-handles.js(이 파일) 로 이미 순환 임포트가 있다
+//   (grid-block.js 가 drag-drop.js 의 bindBlock 을 쓰고, drag-drop.js 는 `export * from
+//   './overlay-handles.js'`). 여기서 grid-block.js 를 다시 임포트해도 사이클이 «닫힐» 뿐
 //   깨지지 않는다 — ESM 순환 임포트는 표준(라이브 바인딩)이고, 아래 함수들은 전부 «모듈
 //   최상위가 아니라 이벤트 핸들러 안에서만»(사용자가 실제로 드래그를 시작한 뒤, 즉 전체
-//   그래프가 이미 링크된 뒤) 쓰인다 — 이 셋(duoCols/duoRows/getDuoGrid)이 «단일 진실원»
+//   그래프가 이미 링크된 뒤) 쓰인다 — 이 셋(gridCols/gridRows/getGridModel)이 «단일 진실원»
 //   이라 여기서 dataset.cols/rows 를 직접 재파싱하면 클램프/폴백 로직이 두 곳에 흩어진다
 //   (이 레포의 고질 — P1 IMPL 보고서·P0 EVAL 둘 다 지적한 패턴). 재사용이 맞다.
-import { getDuoGrid, duoCols, duoRows } from './blocks/duo-block.js';
+import { getGridModel, gridCols, gridRows } from './blocks/grid-block.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -1182,7 +1182,7 @@ window.hideVectorResizeHandles = hideVectorResizeHandles;
 
 /* ═══════════════════════════════════
    GRID BLOCK ROW/COLUMN GUTTER OVERLAY (P2 — 셀 경계 드래그, PLAN-gridblock.md §5)
-   duo-block(사용자에게는 「그리드 블럭」)이 선택돼 있을 때 열/행 경계에 드래그 가능한
+   grid-block(사용자에게는 「그리드 블럭」)이 선택돼 있을 때 열/행 경계에 드래그 가능한
    거터(grd-gutter)를 띄운다. 여기 있는 6종 handle(frame/mockup/icon/asset/canvas/vector)은
    전부 블록 «바깥 테두리»를 px로 늘리는 핸들이라 못 쓴다(PLAN §5-A) — 대신 이 파일의
    #ss-handles-overlay 자리와 rAF 위치갱신·hide 패턴만 그대로 빌린다.
@@ -1191,7 +1191,7 @@ window.hideVectorResizeHandles = hideVectorResizeHandles;
      세척하는 root 자체에 애초에 없음).
    ★열 값은 항상 «가중치»(cols[i].width, px 미사용 — 폭 계산 함정 회피). 행 값은 «px 최소높이»
      (rows[r].height) — 재분배가 아니라 «위 행 하나만» 바뀐다(P1 R2 모델, PLAN §3-A/§5-B-3).
-   ★DOM 구조(2026-09-04 P1 병합) — flex `.duo-col` → CSS grid `.duo-cell[data-r][data-c]`.
+   ★DOM 구조(2026-09-04 P1 병합) — flex `.duo-col` → CSS grid `.grd-cell[data-r][data-c]`.
      열 경계는 행0(data-r="0")의 인접 셀, 행 경계는 열0(data-c="0")의 인접 셀에서 rect를 잰다
      (grid-template-columns/rows 가 블록 전역이라 어느 행/열을 봐도 폭/높이는 같다).
 ═══════════════════════════════════ */
@@ -1199,15 +1199,15 @@ let _gridGutterBlock = null;
 let _gridGutterRafId = null;
 
 function _getGridCell(block, r, c) {
-  return block.querySelector(`:scope > .duo-inner > .duo-cell[data-r="${r}"][data-c="${c}"]`);
+  return block.querySelector(`:scope > .grd-inner > .grd-cell[data-r="${r}"][data-c="${c}"]`);
 }
 
 function showGridGutters(block) {
-  const { cols, rows } = getDuoGrid(block);   // 단일 진실원(duo-block.js) — 여기서 재파싱하지 않는다
+  const { cols, rows } = getGridModel(block);   // 단일 진실원(grid-block.js) — 여기서 재파싱하지 않는다
   /* ★같은 블록이어도 «격자 수»가 바뀌었으면 다시 세워야 한다.
    * 전엔 `_gridGutterBlock === block` 이면 위치만 갱신하고 return 했다 —
    * 그래서 3x3 으로 바꿔도 거터가 옛 개수 그대로였다(실측: col 1개).
-   * 피커 경로만 밖에서 강제로 고쳤더니 updateGridBlock→showDuoProperties 경로가 그대로 남았다.
+   * 피커 경로만 밖에서 강제로 고쳤더니 updateGridBlock→showGridProperties 경로가 그대로 남았다.
    * 고칠 자리는 «여기»다 — 개수 비교를 조기 return 조건에 넣는다. */
   /* ★«축별»로 센다. 합으로 비교하면 3x2 → 2x3 처럼 «합이 같은» 전환에서
    * 재생성이 안 돌아 row 거터가 하나 안 생긴다(적대검수 2차 지적).
@@ -1308,7 +1308,7 @@ function _onGridColMouseDown(e, block, i) {
   if (e.button !== 0) return;
   e.preventDefault();
   e.stopPropagation();
-  const cols = duoCols(block);   // 클램프·폴백까지 반영된 단일 진실원(duo-block.js)
+  const cols = gridCols(block);   // 클램프·폴백까지 반영된 단일 진실원(grid-block.js)
   if (!cols[i] || !cols[i + 1]) return;
   const elA = _getGridCell(block, 0, i), elB = _getGridCell(block, 0, i + 1);
   if (!elA || !elB) return;
@@ -1333,10 +1333,10 @@ function _onGridColMouseDown(e, block, i) {
     cols[i].width = r.leftWeight;
     cols[i + 1].width = r.rightWeight;
     block.dataset.cols = JSON.stringify(cols);
-    window.renderDuoBlock?.(block);
+    window.renderGridBlock?.(block);
     _updateGridGutterPositions();
     // 패널이 열려 있으면 비율 입력값만 갱신 — 패널 재렌더 금지(포커스/드래그 중단 방지,
-    // prop-duo.js 의 «드래그 중 패널 재렌더 금지» 규약과 동일, PLAN §4 끝줄).
+    // prop-grid.js 의 «드래그 중 패널 재렌더 금지» 규약과 동일, PLAN §4 끝줄).
     const ratioInput = document.getElementById('grd-col-ratio');
     if (ratioInput) {
       ratioInput.value = cols.map(c => {
@@ -1361,7 +1361,7 @@ function _onGridRowMouseDown(e, block, i) {
   if (e.button !== 0) return;
   e.preventDefault();
   e.stopPropagation();
-  const rows = duoRows(block);   // 클램프·폴백까지 반영된 단일 진실원(duo-block.js)
+  const rows = gridRows(block);   // 클램프·폴백까지 반영된 단일 진실원(grid-block.js)
   if (!rows[i] || !rows[i + 1]) return;
   const elA = _getGridCell(block, i, 0);
   if (!elA) return;
@@ -1379,7 +1379,7 @@ function _onGridRowMouseDown(e, block, i) {
     const h = resizeRowHeight(startH0, delta);   // ★min/max 는 모듈 기본값(ROW_H_MIN/ROW_H_MAX) — 여기 리터럴 2000 이 상한을 «혼자» 절반으로 깎고 있었다
     rows[i] = { height: h };
     block.dataset.rows = JSON.stringify(rows);
-    window.renderDuoBlock?.(block);
+    window.renderGridBlock?.(block);
     _updateGridGutterPositions();
     // 패널이 열려 있으면 그 행의 입력값만 갱신 — 패널 재렌더 금지(열 경계와 동일 원칙).
     const rowInput = document.querySelector(`.grd-row-h-item[data-ri="${i}"]`);

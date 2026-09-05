@@ -5,11 +5,11 @@
 // "섹션 bg 무관한 카드 컨테이너 + 텍스트 스택" — 다크 위 흰카드(kitou S67), 보증카드(#ededed),
 // 좌측 강조바 후기 인용(CDD-07)을 addInnerCardBlock 한 콜로. 그동안 frame-block+자유배치나
 // 텍스트블록 패딩 수동조절로 흉내 내던 패턴의 정식 블록화.
-// 라인 모델·렌더러는 duo-block과 공유(부품 공유) — dataset+render 재생성형.
+// 라인 모델·렌더러는 grid-block과 공유(부품 공유) — dataset+render 재생성형.
 
 import { insertAfterSelected, genId, blockContextLuminance } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
-import { duoLineHtml } from './duo-block.js';
+import { gridLineHtml } from './grid-block.js';
 
 const INNERCARD_DEFAULTS = {
   bg: '#ffffff', radius: 16, padding: 40, align: 'left', shadow: 'none', width: 0, // width 0 = 100%
@@ -47,7 +47,7 @@ function renderInnerCardBlock(block) {
 
   // 테마어웨어 기본 텍스트색 (2026-07-04 제니 발주): 색 미지정 라인은 카드 자체 bg 휘도 기준 상속.
   // 섹션이 다크여도 카드가 화이트면 다크 텍스트 — 화이트카드 위 화이트(bench 저점 패턴) 방지.
-  // line.color 명시는 duoLineHtml이 인라인으로 덮으므로 항상 최우선.
+  // line.color 명시는 gridLineHtml이 인라인으로 덮으므로 항상 최우선.
   const _cardLum  = blockContextLuminance(block, bg);
   const _cardDark = _cardLum !== null && _cardLum < 0.45;
   block.style.cssText = `box-sizing:border-box;position:relative;` +
@@ -58,7 +58,7 @@ function renderInnerCardBlock(block) {
     (shadow ? `box-shadow:${shadow};` : '') +
     (borderW > 0 ? `border:${borderW}px solid ${borderColor};` : '') +
     (accentW > 0 ? `border-left:${accentW}px solid ${accentColor};` : '');
-  block.innerHTML = lines.map(l => duoLineHtml(l, align)).join('');
+  block.innerHTML = lines.map(l => gridLineHtml(l, align)).join('');
 }
 
 function makeInnerCardBlock(opts = {}) {
@@ -106,7 +106,7 @@ function addInnerCardBlock(opts = {}) {
   return { row, block };
 }
 
-// updateDuoBlock 미러 — lines 교체 / patchLine {index,...} / 스타일 키
+// updateGridBlock 미러 — lines 교체 / patchLine {index,...} / 스타일 키
 function updateInnerCardBlock(blockId, partial = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
   const block = document.getElementById(String(blockId));

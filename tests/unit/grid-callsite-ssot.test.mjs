@@ -8,7 +8,7 @@
  *
  * ⚠️이 파일은 «동작»이 아니라 «소스 문자열»을 단언한다. 정상적인 리팩터링에도 빨강이 날 수 있다 —
  *   그때는 이 파일을 지우지 말고, 「그 상수가 여전히 한 곳에서 오는가」를 확인한 뒤 패턴을 고쳐라.
- *   선례: duo-grid-p1.test.js 가 같은 방식으로 import 2줄의 존재를 지킨다.
+ *   선례: grid-p1.test.js 가 같은 방식으로 import 2줄의 존재를 지킨다.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -50,7 +50,7 @@ test('★열 최소폭: overlay-handles 의 resizeColBoundary 호출이 minPx �
 
 test('★행 높이 상한 4000 은 «상수 밖»에 리터럴로 남아 있지 않다', () => {
   // 상수 정의 파일 자신은 제외. 나머지에서 행 높이 문맥의 4000 이 보이면 SSOT 가 깨진 것이다.
-  const targets = ['js/blocks/duo-block.js', 'js/props/prop-duo.js', 'js/overlay-handles.js'];
+  const targets = ['js/blocks/grid-block.js', 'js/props/prop-grid.js', 'js/overlay-handles.js'];
   for (const rel of targets) {
     const src = stripComments(read(rel));
     assert.equal(/\b4000\b/.test(src), false,

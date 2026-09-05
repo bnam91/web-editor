@@ -1429,7 +1429,7 @@ function addSection(opts = {}) {
     window.selectSectionWithModifier(sec, e);
     const row = e.target.closest('.row');
     // row 빈 여백 클릭은 row-active 제외 — 섹션 선택만 (fix(section-select), 판정=editor.js isRowMarginClick)
-    if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block')) {
+    if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -1442,7 +1442,7 @@ function addSection(opts = {}) {
   // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
@@ -1738,7 +1738,7 @@ function _nextGroupName() {
 function wrapSelectedBlocksInFrame(opts = {}) {
   const asGroup = opts.asGroup === true;
   // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
   let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
