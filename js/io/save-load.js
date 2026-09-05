@@ -970,7 +970,7 @@ function rebindAll(opts = {}) {
         : b.classList.contains('laurel-block') ? 'lrb'
         : b.classList.contains('divider-block') ? 'dvd'
         : b.classList.contains('bridge-block') ? 'brg'
-        : b.classList.contains('grid-block') ? 'grid'
+        : b.classList.contains('grid-block') ? 'grd'   /* ★'grid' 아니다 — GRID_ID_PREFIXES=['grd_','duo_'] 와 같은 토큰이어야 한다(적대검수 C1) */
         : b.classList.contains('infocard-block') ? 'ifc'
         : b.classList.contains('innercard-block') ? 'icd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);

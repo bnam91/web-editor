@@ -146,3 +146,22 @@ test('S1 제거기 자기검사 — 주석/문자열/중첩템플릿/정규식�
   assert.equal(has('const r = /a\\/duo/;'), true, '정규식 «안»의 토큰은 코드다');
   assert.equal(stripComments('a\n// x\nb').split('\n').length, 3, '줄 수가 보존된다(줄번호 신뢰성)');
 });
+
+/* ★적대검수 C1 — 로드 폴백 id 접두가 «다른 자리와 같은 토큰»인가.
+ * `js/io/save-load.js` 의 「id 없는 블록」 폴백이 `'grid'` 로 적혀 있었다. 나머지(GRID_ID_PREFIXES ·
+ * 문서 · 플랜)는 전부 `'grd'` 다. 갈라지면 그 블록만 `grid_…` 가 되어 접두로 타입을 보는 코드가 못 알아본다.
+ * ⚠️이 자리는 테스트가 «0건» 이었다 — 검수자가 `'zzz'` 로 바꿔도 466/466 초록임을 실측했다.
+ *   동작 테스트로는 이 폴백까지 가지 못하므로 «소스 문자열»로 잠근다(주석은 걷고 센다). */
+test('★로드 폴백 id 접두는 GRID_ID_PREFIXES 와 같은 토큰이다 (C1)', () => {
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const sl = strip(fs.readFileSync(path.join(ROOT, 'js/io/save-load.js'), 'utf8'));
+  const m = sl.match(/classList\.contains\('grid-block'\)\s*\?\s*'([a-z_]+)'/);
+  assert.ok(m, 'save-load.js 에서 grid-block 폴백 접두를 못 찾았다 — 리팩터링됐나? 패턴을 갱신하라');
+
+  const gb = strip(fs.readFileSync(path.join(ROOT, 'js/blocks/grid-block.js'), 'utf8'));
+  const p = gb.match(/GRID_ID_PREFIXES\s*=\s*\[\s*'([a-z]+)_'/);
+  assert.ok(p, 'GRID_ID_PREFIXES 를 못 찾았다 — 패턴을 갱신하라');
+
+  assert.equal(m[1], p[1],
+    `폴백은 '${m[1]}_' 인데 GRID_ID_PREFIXES[0] 는 '${p[1]}_' 다 — 두 자리가 갈라졌다`);
+});
