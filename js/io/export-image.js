@@ -1,5 +1,6 @@
 import { canvasEl, state } from '../globals.js';
 import { runExportGate, isGateSupported } from './export-gate.js';
+import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
 
 const CANVAS_W = 860;
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
@@ -417,7 +418,45 @@ export function sectionBgColor(sec) {
   return (m && alpha !== 0) ? live : (state.pageSettings.bg || '#ffffff');
 }
 
+/* ══ 내보내기 «실패» 기록 — 배선은 «이 한 자리»뿐이다 ══════════════════════
+   ⛔다운로드 코드는 손대지 않는다(B안). 이 래퍼는 결과를 «읽고 지나갈» 뿐이라
+     기록이 죽어도 내보내기는 그대로 돈다(noteExportOutcome 은 스스로 try 로 감싼다).
+   ★왜 exportSection «안»이 아니라 «밖»인가 — 실패가 세 층에서 난다:
+     ⑴ prepareCloneForCapture/renderComponentsInClone/③변환 (아래 함수의 try «밖»)
+     ⑵ 캡처·인코딩 (try 안 → _err)
+     ⑶ 게이트 판정 (파일이 나간 뒤)
+     안쪽에 배선하면 ⑴을 통째로 놓친다. 밖에서 감싸면 «세 층 전부»가 한 술어를 지난다.
+   ★returnDataUrl 경로는 «건드리지 않는다» — QA·외부검산이 쓰는 길이고 게이트도 안 돈다. */
 async function exportSection(sec, format, width, opts) {
+  if (opts && opts.returnDataUrl) return _exportSectionInner(sec, format, width, opts);
+  const _t0 = performance.now();
+  const _own = !isRunOpen();                       // 단일 섹션이면 스스로 «1칸짜리 판»을 연다
+  if (_own) beginRun(1, format || 'png', width || CANVAS_W);
+  try {
+    const r = await _exportSectionInner(sec, format, width, opts);
+    noteExportOutcome(sec, { format: format || 'png', width: width || CANVAS_W,
+      idx: (r && r.idx) || 0, total: _runTotal(), ms: performance.now() - _t0, gate: r && r.gate });
+    return r;
+  } catch (err) {
+    noteExportOutcome(sec, { format: format || 'png', width: width || CANVAS_W,
+      idx: _liveIdx(sec), total: _runTotal(), ms: performance.now() - _t0, error: err });
+    throw err;
+  } finally {
+    if (_own) endRun();
+  }
+}
+
+/** 라이브 캔버스에서의 섹션 «순번». 예외 경로는 exportSection 이 idx 를 못 돌려준다. */
+function _liveIdx(sec) {
+  try { return [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')].indexOf(sec) + 1; }
+  catch (_) { return 0; }
+}
+function _runTotal() {
+  try { return canvasEl.querySelectorAll('.section-block:not([data-ghost])').length; }
+  catch (_) { return 0; }
+}
+
+async function _exportSectionInner(sec, format, width, opts) {
   // 이미지 외부화(goya-asset://) 이후: lazy 언로드된 섹션이 빈(blank) 상태로 캡처되지
   // 않도록 export 렌더 전에 모든 섹션 이미지를 라이브 DOM에 복원한다.
   // (lazy-sections.js가 아직 없을 수도 있으므로 방어적으로 호출)
@@ -854,6 +893,10 @@ async function exportAllSections(format, width, onProgress, opts) {
   const sections = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
   const failed = [];
   const results = [];
+  /* ★한 «판»을 연다 — 22섹션이 다 실패해도 링버퍼(20칸)를 다 먹지 않게 상한을 걸고,
+     끝에서 요약 한 줄(생략 건수 포함)을 남긴다. 실패 0이면 아무것도 안 남는다. */
+  beginRun(sections.length, format || 'png', width || CANVAS_W);
+  try {
   for (let i = 0; i < sections.length; i++) {
     onProgress?.(i + 1, sections.length);
     try {
@@ -862,7 +905,13 @@ async function exportAllSections(format, width, onProgress, opts) {
         ? r
         : { name: sections[i]._name || sections[i].id, idx: i + 1, sectionId: sections[i].id, gate: null });
     } catch (err) {
-      console.error('[export] 섹션 내보내기 실패:', sections[i].id, err);
+      /* ★console.error 가 «아니다»(2026-09-05 지디 실측). report-buffer.js 가 console.error 를
+         후킹해 링버퍼(20칸)에 담는데, 이 줄이 담기면 실패 한 건당 «두 칸»을 먹는다 —
+         3섹션 실패에 7칸(구조화 3 + 원문 3 + 요약 1)이 들어갔다. 22섹션이면 상한이 무의미해진다.
+         게다가 이 줄은 sections[i].id(`sec_<actorId>_…`)와 스택 전문을 «씻지 않고» 싣는다.
+         ⇒ 신고로 갈 기록은 위 래퍼의 [export-fail] 한 줄로 «단일화»한다(스택 4프레임 포함).
+         ⛔삼키는 게 아니다 — 콘솔에는 그대로 찍히고, 예외도 그대로 results 에 실린다. */
+      console.warn('[export] 섹션 내보내기 실패:', sections[i].id, err);
       const nm = sections[i]._name || sections[i].id;
       failed.push(nm);
       // ★「내보내지 못했다」는 «픽셀 판정»과 다른 층이다 — 파일이 아예 없다.
@@ -872,6 +921,7 @@ async function exportAllSections(format, width, onProgress, opts) {
     }
     await new Promise(r => setTimeout(r, 300));
   }
+  } finally { endRun(); }
   return { total: sections.length, failed, results };
 }
 

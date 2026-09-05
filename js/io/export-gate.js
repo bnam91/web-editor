@@ -124,9 +124,14 @@ function _log(sec, r) {
     ms: Math.round(r.ms), truthMs: Math.round(r.timing.truthMs),
     cmpMs: Math.round(r.timing.cmpMs), reproMs: Math.round(r.timing.reproMs),
   }));
-  // 신고 창에 실릴 수 있게 «수치만» 남긴다(그림 없음 — 고객사 캔버스다).
-  // ⚠️ReportBuffer 의 공개 API 는 note(문자열) 다 — push 는 내부용(level, msg) 이라 부르면 조용히 어긋난다.
-  try { window.ReportBuffer?.note?.('[export-gate] ' + (sec && sec.id) + ' ' + r.tier + ' ' + (r.reasons || []).join(',') + (m ? (' total=' + m.total + ' blob=' + m.blobPx) : '')); } catch (_) {}
+  /* ⛔여기서는 신고 버퍼에 «담지 않는다» — 옮겼다(js/io/export-report.js).
+     이 자리의 note 는 tier 와 무관하게 «내보낼 때마다» 한 줄씩 담았다. 링버퍼는 20칸이라
+     22섹션짜리 전체 내보내기 한 번이면 그것만으로 버퍼가 다 찬다 — 정작 실패한 섹션의 줄도,
+     그 앞에 쌓여 있던 console.error 도 밀려나 «신고가 껍데기»가 된다(2026-09-05 지디 검수).
+     그리고 담기던 sec.id 는 `sec_<actorId>_…` 라 설치 고정 식별자를 실어 보내면서
+     정작 재현에 필요한 형식·폭·블록 구성·예외는 없었다.
+     ⇒ 지금은 exportSection 래퍼가 «실패에서만», «재현에 쓰이는 값»으로 담는다.
+     ★콘솔 로그(위)는 그대로다 — 그건 이 기계에만 남고 아무 데도 안 간다. */
   return r;
 }
 
