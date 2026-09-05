@@ -39,11 +39,18 @@ export const SKIP_SELECTOR = '.section-block, .col';
 const TEXT_SELECTOR = '.text-block, .speech-bubble-block';
 const TEXT_HOST_SELECTOR = '.frame-block[data-text-frame="true"], .row';
 
-/* 맞닿음 판정 임계(스크린 CSS px).
- * ⚠️10% 축소에서 «문서상 10px 떨어진» 두 상자가 화면상 1px 이 되어 «거짓 맞닿음»이 된다.
- *   그래도 1px 을 쓰는 이유: 그 상황에서 선을 지우든 남기든 화면상 차이가 1px 이라
- *   사람 눈에 같다. 반대로 임계를 줄이면 «진짜 맞닿음»을 100% 에서 놓친다(그건 보인다). */
-const TOUCH_EPS = 1.0;
+/* 맞닿음 판정 임계 — 단위는 «디바이스 픽셀» 1개.
+ * ★2026-09-06 실측으로 정정. 처음엔 1 CSS px 였고, 「10% 축소에서 거짓 맞닿음이 나도
+ *   사람 눈에 같다」고 «판단»했다. 그 판단이 틀렸다:
+ *     10% · 문서 8px 간격(=화면 0.8px) 실측 — 진실은 «1px 선 두 줄 + 그 사이 2 디바이스행의 배경»
+ *     인데 dedupe 가 아래 상자의 윗변을 «통째로» 지웠다(폭 70px 전부, 화면 926 픽셀 변화).
+ *     즉 「지우나 남기나 같다」가 아니라 «한 줄이 없어진다» — 두 상자가 한 상자로 읽힌다.
+ * ⇒ 임계의 «의미»를 다시 세웠다: 두 선이 «디바이스 픽셀 하나 안에» 들어와 서로 구분이
+ *   불가능할 때만 지운다. 그보다 넓게 벌어져 있으면 사람이 «볼 수 있으므로» 지우면 안 된다.
+ *   진짜 맞닿음(간격 0)은 어떤 배율에서도 여전히 잡힌다. */
+const _dpr = () => (window.devicePixelRatio || 1);
+const TOUCH_DEVICE_PX = 1;
+const _touchEps = () => TOUCH_DEVICE_PX / _dpr();
 
 let _layer = null;
 let _mo = null;
@@ -113,9 +120,15 @@ function _collect() {
 /* ★격자는 «CSS px» 이 아니라 «디바이스 px» 이다 — dpr 2 인 이 맥에서 CSS 정수로 반올림하면
  *   선을 최대 1 CSS px 안쪽으로 밀어넣어 핸들 꼭지점과 «1.54px» 벌어졌다(실측). 디바이스
  *   격자로 스냅하면 그 어긋남이 절반(≤0.5 CSS px)이 되고, 선은 여전히 «상자 안쪽»에 남는다. */
-const _dpr = () => (window.devicePixelRatio || 1);
 const _snapLo = (v, k) => Math.ceil(v * k) / k + 0.5;    // 좌·상 — 상자 «안쪽»으로
 const _snapHi = (v, k) => Math.floor(v * k) / k - 0.5;   // 우·하 — 상자 «안쪽»으로
+/* ★코너 편차의 «상한 유도» — 핸들(_cornerScreen(el,dir,0))과 이 꼭지점의 축별 거리는
+ *     0.5                    (선 굵기 1px 의 절반 — «안쪽 선»이면 반드시 붙는다)
+ *   + snapGap ∈ [0, 1/dpr)   (위 두 스냅이 디바이스 격자로 미는 몫)
+ *   ⇒ 축별 ≤ 0.5 + 1/dpr    (대각은 그 √2 배)
+ * 이건 «표류»가 아니라 «상수 상한»이다 — 줌·위치가 커져도 안 커진다(880 표본 실측:
+ * 축별 max 0.9766 · 대각 max 1.2348, 줌이 커질수록 오히려 감소). 인수조건도 이 식으로 다시 썼다.
+ * (PLAN 초판의 「대각 ≤1px」은 감으로 적힌 수라 «도달 불가능»했다 — 하한이 이미 0.707 이다.) */
 
 /** 상자 하나의 기하. 좌표는 «핸들과 같은 함수»(_cornerScreen)에서만 나온다. */
 function _geomOf(el) {
@@ -168,7 +181,7 @@ export function subtractInterval(ivs, c, d) {
  *   ⛔O(N²) 를 피한다: 맞닿으려면 두 변의 좌표가 1px 안이어야 하므로 round(좌표)로 버킷팅해
  *   후보를 ±1 세 칸에서만 꺼낸다(N≈200 select-all 이 사실상 O(N)).
  *   회전 상자·조상회전 상자는 참여하지 않는다. */
-function _dedupe(items) {
+function _dedupe(items, eps = _touchEps()) {
   const byB = new Map(), byT = new Map(), byR = new Map(), byL = new Map();
   const put = (m, k, i) => { const a = m.get(k); a ? a.push(i) : m.set(k, [i]); };
   items.forEach((it, i) => {
@@ -189,28 +202,28 @@ function _dedupe(items) {
     for (const pi of near(byB, qg.raw.t)) {          // p 가 «위», q 의 윗변이 중복
       if (pi >= qi) continue;
       const pg = items[pi].g;
-      if (Math.abs(pg.raw.b - qg.raw.t) >= TOUCH_EPS) continue;
+      if (Math.abs(pg.raw.b - qg.raw.t) >= eps) continue;
       const c = Math.max(pg.L, qg.L), d = Math.min(pg.R, qg.R);
       if (d > c) q.edges.top = subtractInterval(q.edges.top, c, d);
     }
     for (const pi of near(byT, qg.raw.b)) {          // p 가 «아래», q 의 아랫변이 중복
       if (pi >= qi) continue;
       const pg = items[pi].g;
-      if (Math.abs(pg.raw.t - qg.raw.b) >= TOUCH_EPS) continue;
+      if (Math.abs(pg.raw.t - qg.raw.b) >= eps) continue;
       const c = Math.max(pg.L, qg.L), d = Math.min(pg.R, qg.R);
       if (d > c) q.edges.bottom = subtractInterval(q.edges.bottom, c, d);
     }
     for (const pi of near(byR, qg.raw.l)) {          // p 가 «왼쪽», q 의 왼변이 중복
       if (pi >= qi) continue;
       const pg = items[pi].g;
-      if (Math.abs(pg.raw.r - qg.raw.l) >= TOUCH_EPS) continue;
+      if (Math.abs(pg.raw.r - qg.raw.l) >= eps) continue;
       const c = Math.max(pg.T, qg.T), d = Math.min(pg.B, qg.B);
       if (d > c) q.edges.left = subtractInterval(q.edges.left, c, d);
     }
     for (const pi of near(byL, qg.raw.r)) {          // p 가 «오른쪽», q 의 오른변이 중복
       if (pi >= qi) continue;
       const pg = items[pi].g;
-      if (Math.abs(pg.raw.l - qg.raw.r) >= TOUCH_EPS) continue;
+      if (Math.abs(pg.raw.l - qg.raw.r) >= eps) continue;
       const c = Math.max(pg.T, qg.T), d = Math.min(pg.B, qg.B);
       if (d > c) q.edges.right = subtractInterval(q.edges.right, c, d);
     }

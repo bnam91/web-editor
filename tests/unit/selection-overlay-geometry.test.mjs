@@ -33,13 +33,15 @@ function slice(head) {
 }
 
 // ★DOM 을 안 쓰는 조각만 떼어 «진짜로 실행»한다 — 문자열 대조가 아니라 동작 검사다.
-const TOUCH = SRC.match(/const TOUCH_EPS = ([\d.]+)/);
-assert.ok(TOUCH, 'TOUCH_EPS 상수를 못 찾았다');
+const TOUCH = SRC.match(/const TOUCH_DEVICE_PX = ([\d.]+)/);
+assert.ok(TOUCH, 'TOUCH_DEVICE_PX 상수를 못 찾았다');
+assert.equal(TOUCH[1], '1',
+  '맞닿음 임계는 «디바이스 픽셀 1개» — 두 선이 한 픽셀 안에 겹쳐 «구분 불가»일 때만 지운다는 뜻이다');
 const SNAP = [...SRC.matchAll(/const _snap(Lo|Hi) = [^\n;]+;/g)].map(m => m[0]);
 assert.equal(SNAP.length, 2, '_snapLo/_snapHi 정의를 못 찾았다 — 스냅이 «두 갈래»여야 선이 상자 밖으로 안 샌다');
 const ctx = vm.createContext({});
 vm.runInContext(
-  `const TOUCH_EPS = ${TOUCH[1]};\n` +
+  `const TOUCH_DEVICE_PX = ${TOUCH[1]};\nconst _dpr = () => 2;\nconst _touchEps = () => TOUCH_DEVICE_PX / _dpr();\n` +
   SNAP.join('\n') + '\n' +
   slice('export function subtractInterval') + '\n' +
   slice('function _dedupe') + '\n' +
@@ -70,7 +72,11 @@ test('★스냅은 선을 «상자 밖으로» 내보내지 않는다(분수 좌
       const T = _snapLo(t, k), B = _snapHi(b, k);
       assert.ok(T - 0.5 >= t - 1e-9, `dpr${k}: 윗선 ${T} 이 상자 위(${t}) «밖»으로 나갔다`);
       assert.ok(B + 0.5 <= b + 1e-9, `dpr${k}: 아랫선 ${B} 이 상자 아래(${b}) «밖»으로 나갔다`);
-      assert.ok(T - 0.5 - t <= 1 / k + 1e-9, `dpr${k}: 윗선이 ${T - 0.5 - t} 만큼 안쪽으로 들어갔다(핸들과 벌어진다)`);
+      // ★인수조건 「코너 일치 = 축별 ≤ 0.5 + 1/dpr」의 «유도»를 여기서 못박는다.
+      //   축별 편차 = (선 중심 − 상자 변) = 0.5(굵기 절반) + snapGap, snapGap < 1/dpr.
+      assert.ok(T - t <= 0.5 + 1 / k + 1e-9,
+        `dpr${k}: 축별 편차 ${T - t} 가 유도 상한 ${0.5 + 1 / k} 를 넘었다 — 상한이 깨지면 «표류»다`);
+      assert.ok(T - 0.5 - t < 1 / k + 1e-9, `dpr${k}: 스냅 몫이 1/dpr 을 넘었다`);
     }
   }
 });
@@ -91,6 +97,26 @@ test('★§4-2 — 위아래로 «맞닿은» 두 상자: 뒤 상자의 «윗변
   assert.ok(len(a.edges.bottom) > 0, 'A 의 아랫변은 «살아야» 한다 — 경계선이 아예 사라지면 그건 고친 게 아니다');
   assert.ok(len(a.edges.top) > 0 && len(b.edges.bottom) > 0, '맞닿지 않은 변은 손대지 않는다');
   assert.ok(len(b.edges.left) > 0 && len(b.edges.right) > 0, '세로변은 손대지 않는다');
+});
+
+test('★위험4(10% 거짓 맞닿음) — «디바이스 픽셀 하나보다 넓게» 벌어지면 지우지 않는다', () => {
+  /* 실측으로 정정된 규칙. 10% 축소 · 문서 8px 간격 = 화면 0.8px 일 때 옛 임계(1 CSS px)는
+   * 아래 상자의 윗변을 통째로 지웠다 — 화면엔 «두 선 + 그 사이 배경 2행»이 실재했는데도.
+   * dpr 2 → 임계 0.5. 0.8 은 «지우면 안 되고», 0.4 는 한 픽셀 안이라 지워도 된다. */
+  const A = box(100, 100, 300, 200);
+  const far = box(100, 200.8, 300, 300);      // 0.8px — 사람이 «볼 수 있다»
+  _dedupe([A, far]);
+  assert.ok(len(far.edges.top) > 0, '0.8px(디바이스 1.6행) 떨어진 선을 지웠다 — 한 줄이 «없어진다»');
+
+  const A2 = box(100, 100, 300, 200);
+  const near = box(100, 200.4, 300, 300);     // 0.4px — 한 디바이스 픽셀 안, 구분 불가
+  _dedupe([A2, near]);
+  assert.equal(len(near.edges.top), 0, '한 픽셀 안에서 겹치는 두 선은 여전히 «한 줄»이어야 한다');
+
+  const A3 = box(100, 100, 300, 200);
+  const flush = box(100, 200, 300, 300);      // 진짜 맞닿음 — 어떤 배율에서도 잡혀야 한다
+  _dedupe([A3, flush]);
+  assert.equal(len(flush.edges.top), 0, '간격 0 인 «진짜» 맞닿음을 놓쳤다');
 });
 
 test('★음성대조 — 3px 떨어져 있으면 «지우지 않는다»', () => {
