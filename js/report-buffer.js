@@ -119,10 +119,31 @@
        ⛔버림 · 호스트 · 경로 · 파일명 · 쿼리(서명·토큰) · data: 페이로드 · 프로젝트 id
              (프로젝트 id 는 신고 payload.projectId 에 이미 있다 — 여기 또 넣을 이유가 없다)
      ⇒ 결과 꼴:  `img 로드 실패: goya-asset: .png #a3f19c`                              */
+  /* ★소금 — 이 «판»(앱 실행 = 링버퍼 한 벌 = 신고 한 건)마다 새로 뽑는다.
+     ⚠️소금이 없으면 djb2 6자리는 «짧은 파일명이면 추측 대조로 확인»될 수 있다
+       (`여름세일_메인.png` 를 넣어 보고 해시가 맞는지 보면 된다).
+     ★그런데 해시를 «빼는» 것도 답이 아니다 — 빼면 중복 억제가 서로 다른 에셋을 한 줄로 뭉쳐서
+       「깨진 에셋이 몇 «종»인가」를 잃는다. 둘 중 하나를 고르는 문제가 아니었다.
+     ⇒ 해시의 용도는 «판 안에서 같은 URL 인가»뿐이고 판이 끝나면 쓸모가 없다.
+       판마다 소금을 갈면 그 용도는 그대로 살고, 추측 대조는 «성립하지 않는다»
+       (같은 파일명이 판마다 다른 6자리가 된다. 소금을 모르면 대조할 것이 없다).
+     ⛔소금은 어디에도 싣지 않는다 — 실리면 소금이 아니다. */
+  var RES_SALT = (function () {
+    try {
+      var c = (w && w.crypto) || (typeof crypto !== 'undefined' ? crypto : null);
+      if (c && c.getRandomValues) {
+        var a = new Uint32Array(2); c.getRandomValues(a);
+        return a[0].toString(36) + '.' + a[1].toString(36);
+      }
+    } catch (_) {}
+    // crypto 가 없는 환경(구버전·테스트 컨텍스트)에서도 «판마다 달라야» 한다
+    return Math.random().toString(36).slice(2) + '.' + Date.now().toString(36);
+  })();
+
   function resHash(s) {
-    // djb2. 암호용이 아니다 — «같은 URL 인가»만 가른다(dedupe 뒤 서로 다른 에셋을 구분하려고).
-    var h = 5381;
-    for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+    // djb2. 암호용이 아니다 — 소금이 «추측 대조»를 막고, 이 함수는 «같은 URL 인가»만 가른다.
+    var h = 5381, t = RES_SALT + '\u0000' + s;
+    for (var i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) >>> 0;
     return ('00000000' + h.toString(16)).slice(-6);
   }
   function describeResUrl(raw) {

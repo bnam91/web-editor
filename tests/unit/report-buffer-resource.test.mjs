@@ -132,6 +132,40 @@ test('R5 ★★중복 억제 — 같은 에셋 3칸이 1칸이 되고, «서로 
   for (const m of msgs) { assert.ok(!m.includes('롯데'), m); assert.ok(!m.includes('메인'), m); assert.ok(!m.includes('서브'), m); }
 });
 
+/* ── ⑵-b ★해시의 «소금» — 빼는 대신 소금을 친다 ────────────────────────── */
+test('R8 같은 판에서는 같은 URL = 같은 6자리 (중복 억제가 성립하려면 필요)', () => {
+  const b = boot();
+  const a1 = fire(b, resEv('IMG', 'goya-asset://p/여름세일_메인.png'))[0];
+  b.rb.clear();
+  const a2 = fire(b, resEv('IMG', 'goya-asset://p/여름세일_메인.png'))[0];
+  assert.equal(a1, a2, '같은 판인데 해시가 흔들린다 — 중복 억제가 깨진다');
+});
+
+test('R9 ★★«다른 판»에서는 같은 URL = 다른 6자리 — 추측 대조가 성립하지 않는다', () => {
+  /* ★소금이 없으면 djb2 6자리는 짧은 파일명을 «확인»할 수 있다(넣어 보고 맞춰 보면 된다).
+     판마다 소금을 갈면 같은 파일명이 판마다 다른 6자리가 되어 대조할 것이 없어진다.
+     ⚠️난수라 «한 URL»만 보면 2^-24 확률로 우연히 같을 수 있다 → 4개를 보고 «전부 같으면» 실패로 본다
+       (그건 소금이 상수라는 뜻이다). 이렇게 해야 flake 없이 «상수 소금»만 잡는다. */
+  const URLS = ['goya-asset://p/여름세일_메인.png', 'file:///Users/a/b/hero.jpg',
+                'https://cdn/x/main_v3.gif', 'data:image/png;base64,AAAA'];
+  const runA = boot(), runB = boot();
+  const A = URLS.map(u => { runA.rb.clear(); return fire(runA, resEv('IMG', u))[0]; });
+  const B = URLS.map(u => { runB.rb.clear(); return fire(runB, resEv('IMG', u))[0]; });
+  // 줄의 «모양»(스킴·확장자)은 같아야 하고, 해시만 갈려야 한다
+  for (let i = 0; i < URLS.length; i++) {
+    assert.equal(A[i].split('#')[0], B[i].split('#')[0], '판이 다르다고 스킴·확장자까지 흔들리면 안 된다');
+  }
+  assert.notDeepEqual(A, B, '★판이 달라도 해시가 같다 — 소금이 상수다(추측 대조가 성립한다)');
+});
+
+test('R10 ⛔소금 자체는 «어디에도 안 실린다»', () => {
+  const b = boot();
+  const line = fire(b, resEv('IMG', 'goya-asset://p/x.png'))[0];
+  // 줄에 남는 건 태그·스킴·확장자·6자리 해시뿐이다
+  assert.match(line, /^resource \| img 로드 실패: goya-asset: \.png #[0-9a-f]{6}$/, line);
+  assert.equal(typeof b.rb.RES_SALT, 'undefined', '소금이 공개 API 로 샜다');
+});
+
 /* ── ⑶ ★공용 파일이다 — resource 밖 동작은 «안 바꾼다» ───────────────────── */
 test('R6 ★resource 밖 동작 무변경 — 다른 후킹·세척기·중복정책이 그대로다', () => {
   const b = boot();
