@@ -212,7 +212,11 @@ function getRestingScroll() {
   if (canvasEl2 && wrap.clientWidth) {
     const cr = canvasEl2.getBoundingClientRect();
     const wr = wrap.getBoundingClientRect();
-    const delta = (cr.left + cr.width / 2) - (wr.left + wrap.clientWidth / 2);
+    /* ★[FIX-ⓑ] gBCR 은 transform(panOffsetX)이 «이미 반영된» 좌표다. 쉼 위치는 「팬을 하나도
+       안 한 상태」의 스크롤이므로 그 몫을 빼야 한다. 안 빼면 getPanPosition().x 가 panOffsetX 를
+       «두 번» 센다(실측 zoomStep 뒤 화면 변위 660 인데 pos.x 720 — 노치 pill 위치 오차).
+       ⑶ 의 복원도 이 값을 목표로 쓰므로 여기가 정확해야 «가운데»가 진짜 가운데가 된다. */
+    const delta = (cr.left + cr.width / 2) - (wr.left + wrap.clientWidth / 2) - panOffsetX;
     left = Math.round(Math.max(0, Math.min(maxLeft, wrap.scrollLeft + delta)));
   }
   /* ★[FIX-⑴] 꼬리 여백은 «아래쪽에만» 붙어 범위를 비대칭으로 만든다 — 그때 범위의 한가운데는
@@ -476,19 +480,26 @@ function _syncScalerHeight() {
 })();
 
 function resetPanOffset() {
-  panOffsetX = 0;
-  // C14: panOffsetY를 0으로 만들 때 잃는 세로 보정을 wrap.scrollTop으로 흡수해
-  //       콘텐츠 중앙정렬 유지 (applyZoom의 idealScrollTop/clamp 공식 차용).
+  // C14: panOffsetY를 0으로 만들 때 잃는 세로 보정을 wrap.scrollTop으로 흡수해 콘텐츠 중앙정렬 유지.
   // [S1'] 쉼 위치 공식을 getRestingScroll() «한 곳»으로 모았다 — 여기와 getPanPosition() 이
   //       같은 쉼 위치를 봐야 「가운데인가」 판정이 갈리지 않는다.
+  /* ★[FIX-⑶] S2 이후 «가로» 변위의 저장소는 transform(panOffsetX) 이 아니라 `scrollLeft` 다.
+     예전 코드는 panOffsetX=0 만 해서, 「가로를 되돌린다」는 노치의 «유일한 일»을 못 했다
+     (실측: 300px 민 뒤 노치 클릭 → 화면 변위 300px 그대로). 세로처럼 «두 저장소를 다» 비운다.
+     dev 에선 가로 저장소가 transform «하나»였기에 panOffsetX=0 으로 충분했다 ⇒ 이건 회귀였다.
+   ★순서: transform 을 «먼저» 비우고 나서 쉼 위치를 잰다 — getRestingScroll 은 캔버스 gBCR 로
+     재는데 gBCR 엔 transform 이 들어 있다. 순서를 바꾸면 옛 변위가 섞인 자리로 간다. */
+  panOffsetX = 0;
+  panOffsetY = 0;
+  _applyScalerTransformAndSync();
   const wrap = document.getElementById('canvas-wrap');
   const scalerEl = document.getElementById('canvas-scaler');
   if (wrap && scalerEl) {
     void scalerEl.offsetHeight; void wrap.scrollHeight;
-    wrap.scrollTop = getRestingScroll().top;
+    const rest = getRestingScroll();
+    wrap.scrollTop = rest.top;
+    wrap.scrollLeft = rest.left;
   }
-  panOffsetY = 0;
-  _applyScalerTransformAndSync();
 }
 function zoomStep(delta) {
   const wrap = document.getElementById('canvas-wrap');
@@ -3373,7 +3384,10 @@ const FP_FIXED_POPUPS = ['#fp-plugin-panel'];
     scaler.style.transition = 'transform 0.3s ease';
     resetPanOffset();
     setTimeout(() => { scaler.style.transition = ''; }, 320);
-    notchBar.classList.remove('visible');
+    /* ★[FIX-⑶] 숨기는 것은 «실제로 돌아왔을 때만». 예전엔 무조건 숨겨서, 복원에 실패해도
+       노치만 사라지고 변위는 남았다(다음 팬에 다시 등장 = 조용한 무력화). 결과로 판정한다. */
+    if (Math.abs(_notchOffX()) < 5) notchBar.classList.remove('visible');
+    else updateNotchPosition();
   });
 
   setTimeout(updateNotchPosition, 100);

@@ -483,3 +483,29 @@ test('★FIX-⑵ 계약: «여지 회수»는 살아 있어야 한다 (미봉 �
   const mu = stripComments(SRC.slice(j, SRC.indexOf("window.addEventListener('click'", j)));
   assert.ok(/shrinkPanRoom\s*\(/.test(mu), '팬을 놓으면 늘어난 여지를 되돌려야 한다');
 });
+
+/* ══ G. FIX-canvas-eval3 ⑶ + ⓑ — 노치 복원이 «가로»를 못 되돌리던 회귀 ═══ */
+
+test('★FIX-⑶ 계약: resetPanOffset 이 «가로»도 되돌린다 (S2 이후 저장소는 scrollLeft)', () => {
+  const body = stripComments(extractFn(SRC, 'resetPanOffset'));
+  assert.ok(/scrollLeft\s*=/.test(body),
+    'panOffsetX=0 만으로는 안 된다 — S2 이후 가로 변위는 scrollLeft 에 산다(노치의 유일한 일)');
+  assert.ok(/scrollTop\s*=/.test(body), '세로도 그대로 유지');
+  assert.ok(body.indexOf('_applyScalerTransformAndSync') < body.indexOf('getRestingScroll'),
+    'gBCR 엔 transform 이 들어 있다 — 측정 «전»에 transform 을 비워야 옛 변위가 안 섞인다');
+});
+
+test('★FIX-⑶ 계약: 노치는 «실제로 돌아왔을 때만» 숨는다', () => {
+  const i = SRC.indexOf("notchBar.addEventListener('click'");
+  assert.notEqual(i, -1);
+  const body = stripComments(SRC.slice(i, SRC.indexOf('});', i)));
+  assert.ok(/if\s*\(Math\.abs\(_notchOffX\(\)\)\s*<\s*5\)/.test(body),
+    '무조건 숨기면 복원 실패 시 «변위는 남고 노치만» 사라진다(조용한 무력화)');
+  assert.ok(/notchBar\.classList\.remove\('visible'\)/.test(body), '돌아왔으면 숨겨야 한다');
+});
+
+test('★FIX-ⓑ 계약: 쉼 가로는 gBCR 에서 panOffsetX 를 «뺀다» (이중 계산 금지)', () => {
+  const body = stripComments(extractFn(SRC, 'getRestingScroll'));
+  assert.ok(/-\s*panOffsetX/.test(body),
+    'gBCR 엔 transform 이 이미 들어 있다 — 안 빼면 getPanPosition().x 가 panOffsetX 를 두 번 센다');
+});
