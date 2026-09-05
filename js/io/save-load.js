@@ -307,7 +307,7 @@ async function switchPage(pageId) {
   canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   canvasEl.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
   document.querySelectorAll('.sec-bg-ghost-wrap, .sec-bg-ghost').forEach(el => el.remove());
-  canvasEl.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy').forEach(el => el.remove());
+  canvasEl.querySelectorAll(NON_CONTENT_UI_SELECTOR).forEach(el => el.remove());
   // (마이그레이션은 rebindAll 내부에서 처리)
   // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
   const propPanel = document.querySelector('#panel-right .panel-body');
@@ -380,6 +380,31 @@ function getSerializedCanvas() {
   //   (연산·순서 동일 → 출력 바이트 동일). 플레인 스크립트라 이 모듈보다 먼저 로드된다.
   window.serializeCleanRoot(clone);
   return clone.innerHTML;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   [P-A1″] «편집이 아닌 것»의 단일 목록
+
+   계약: **이 목록은 「저장에서 지워지는 것」 = 「편집이 아닌 것」이다.**
+     ⇒ `serializeProject()` 가 저장 «전»에 지우므로, 이것들의 생성·제거는 정의상 «콘텐츠 변화»가 아니다.
+     ⇒ 그러므로 `autoSaveObserver` 도 이것들 때문에 저장을 예약해선 안 된다.
+   ⛔여기에 무언가 추가할 때는 **`serializeProject` 가 실제로 그걸 지우는지 먼저 확인**하라.
+     지우지 않는 것을 넣으면 «진짜 편집»이 저장되지 않는다 — 데이터 손실이다.
+   ★두 곳이 «같은 상수»를 봐야 한다. 목록을 두 벌로 만들면 한쪽이 반드시 뒤처진다.
+
+   왜 생겼나(실측 2026-09-05, 진짜 입력): 에셋 블록을 클릭하면 `.ab-rotate-zone` 4개가
+   캔버스 «안»에 붙었다 떨어지고(childList ×12), 그게 `autoSaveObserver` 를 «편집»으로 깨웠다.
+   ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
+   ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
+export const NON_CONTENT_UI_SELECTOR =
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy';
+
+/** 이 mutation 이 «UI 장식»만 건드렸나 — 그렇다면 편집이 아니다. */
+function _isNonContentUiMutation(m) {
+  if (m.type !== 'childList') return false;
+  const nodes = [...m.addedNodes, ...m.removedNodes];
+  if (!nodes.length) return false;
+  return nodes.every(n => n.nodeType === 1 && n.matches?.(NON_CONTENT_UI_SELECTOR));
 }
 
 function serializeProject() {
@@ -1256,8 +1281,53 @@ function _setAutosaveIndicator(state) {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   [P-A2] 제스처 «중»엔 자동저장을 «미룬다» (취소가 아니다)
+
+   왜: 90MB 프로젝트의 `serializeProject()` 는 메인스레드를 **811ms** 멈추고, 이어서
+   파일 쓰기 IPC 응답 대기가 **401ms** 더 든다(실측, 진짜 입력). 디바운스 1500ms 뒤에
+   발화하므로 «클릭하고 1.5초 안에 팬하면» 그 정지가 팬 도중에 떨어진다 — 그게 「탁」이다.
+   ⇒ 미는 동안엔 안 터지게 하고, 손을 떼면 바로 다시 예약한다. (현빈 승인: 저장 표시가
+     미는 동안 안 뜨다가 놓으면 뜬다 — 그 «보이는 변화»까지 포함해 승인됨)
+
+   ⛔취소가 아니라 «연기»다. 유예 중에 들어온 예약 요청은 `_autoSavePending` 에 «기억»했다가
+   `resumeAutoSave()` 에서 다시 건다. 기존 `_suppressDragSave`(section-drag.js)는 그냥 «버린다» —
+   그건 그 창의 편집을 잃을 수 있다. 이쪽은 안 잃는다.
+
+   ⛔고착이 곧 데이터 손실이다. 이 레포는 이미 겪었다(`drag-drop.js:28` 「ESC 취소 시
+   _suppressAutoSave 고착 방지」). 그래서 재개 경로를 «셋» 둔다:
+     ⑴제스처 정상 종료(mouseup) ⑵창 포커스 상실(blur) ⑶안전망 타임아웃(최대 유예 시간)
+   ═══════════════════════════════════════════════════════════════════ */
+const _AUTOSAVE_DEFER_MAX_MS = 30000;   // 어떤 경우에도 이보다 오래 미루지 않는다
+let _autoSaveDeferred = false;
+let _autoSavePending = false;           // 유예 중에 «예약 요청»이 있었나
+let _autoSaveDeferGuard = null;
+
+function deferAutoSave() {
+  if (_autoSaveDeferred) return;
+  _autoSaveDeferred = true;
+  // 이미 걸려 있던 타이머는 «해제»하되, 예약이 있었다는 사실은 기억한다.
+  if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; _autoSavePending = true; }
+  clearTimeout(_autoSaveDeferGuard);
+  _autoSaveDeferGuard = setTimeout(() => resumeAutoSave(), _AUTOSAVE_DEFER_MAX_MS);
+}
+
+function resumeAutoSave() {
+  clearTimeout(_autoSaveDeferGuard); _autoSaveDeferGuard = null;
+  if (!_autoSaveDeferred) return;
+  _autoSaveDeferred = false;
+  if (_autoSavePending) { _autoSavePending = false; scheduleAutoSave(); }
+}
+window.deferAutoSave = deferAutoSave;
+window.resumeAutoSave = resumeAutoSave;
+window.__autoSaveDeferState = () => ({ deferred: _autoSaveDeferred, pending: _autoSavePending });
+// ⑵창 포커스를 잃으면(다른 앱으로 전환 등) 제스처가 끝난 것으로 본다 — 고착 방지.
+window.addEventListener('blur', () => resumeAutoSave());
+
 function scheduleAutoSave() {
   if (state._suppressAutoSave) return;
+  // [P-A2] 제스처 중이면 «미룬다» — 버리지 않고 기억해 뒀다가 놓을 때 다시 건다.
+  if (_autoSaveDeferred) { _dirtySinceSave = true; _autoSavePending = true; return; }
   // BUG-12: activeProjectId가 없으면 'web-editor-autosave__undefined' 키로 저장되는 버그 방지
   if (!activeProjectId) { console.warn('[save-load] scheduleAutoSave: activeProjectId 없음, 저장 건너뜀'); return; }
   _dirtySinceSave = true;
@@ -1379,6 +1449,8 @@ if (IS_ELECTRON) {
 const autoSaveObserver = new MutationObserver(mutations => {
   const meaningful = mutations.some(m => {
     if (m.type === 'attributes' && m.attributeName === 'class') return false;
+    // [P-A1″] 저장에서 지워지는 «UI 장식»의 생성/제거는 편집이 아니다 — 같은 목록을 본다.
+    if (_isNonContentUiMutation(m)) return false;
     // lazy 렌더 패스(뷰포트 밖 배경 언로드/복원)가 «자기 mutation 만» 무시하게 한다.
     //   예전엔 lazy-sections 가 _suppressAutoSave 를 통째로 켜서, 그 창에 들어온 «진짜 편집»까지
     //   조용히 버려졌다(저장 예약조차 안 됨). lazy 가 만지는 건 style / data-lazy-bg / class 뿐이라

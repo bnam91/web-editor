@@ -151,7 +151,7 @@ let panOffsetY = 0;
 function applyZoom(z) {
   currentZoom = Math.min(400, Math.max(10, z));
   window.currentZoom = currentZoom;
-  _applyScalerTransform();
+  _applyScalerTransformAndSync();
   zoomDisplay.textContent = currentZoom + '%';
   document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
   // 섹션 라벨/툴바 카운터-스케일
@@ -166,10 +166,293 @@ function applyZoom(z) {
   window.resetCanvasTail?.();
 }
 
+/* ★[perf] transform 쓰기와 «높이 동기»를 나눈다.
+ *   _syncScalerHeight 의 출력(naturalH × scale)은 «배율과 콘텐츠»의 함수다 — 팬은 둘 다 안 바꾼다.
+ *   그런데 팬 스텝마다 부르면 스텝당 강제 레이아웃 2회 + style 쓰기 2회가 «정의상 낭비»로 든다.
+ *   ⇒ 팬 경로는 _applyScalerTransform(), 배율·콘텐츠가 바뀌는 경로는 _applyScalerTransformAndSync().
+ *   ★부수 효과: 팬 중 scaler 높이가 안 바뀌므로 scrollHeight 도 안 바뀐다 —
+ *     브라우저가 팬 중 scrollTop 을 clamp 하는 일이 없어진다(스크롤 팬의 전제). */
 function _applyScalerTransform() {
   scaler.style.transform = `translate(${panOffsetX}px, ${panOffsetY}px) scale(${currentZoom / 100})`;
+}
+function _applyScalerTransformAndSync() {
+  _applyScalerTransform();
   _syncScalerHeight();
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   팬 위치의 «단일 진실» (DESIGN-pan-native-scroll §3-C)
+
+   「캔버스가 얼마나 밀렸나」는 두 곳에 나뉘어 산다:
+     ⑴ `#canvas-wrap.scrollTop/Left` — 1차 저장소(tab-system.js:251)
+     ⑵ `panOffsetX/Y`                — 스크롤이 흡수 못한 «잔여»만 (휠 경로)
+   panOffset «만» 보는 코드는 ⑴을 놓친다. 그래서 판정은 반드시 이 함수를 거친다.
+   ⛔진실을 두 벌로 두면 사고가 난다.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/** 팬을 «하나도 안 한» 상태의 스크롤 위치(= 쉼 위치). resetPanOffset 의 기존 공식을 그대로 뽑아냈다. */
+function getRestingScroll() {
+  const wrap = document.getElementById('canvas-wrap');
+  const scalerEl = document.getElementById('canvas-scaler');
+  if (!wrap || !scalerEl) return { top: 0, left: 0 };
+  /* [S2] 쉼 위치 = «스크롤 범위의 한가운데».
+     팬 여지가 사방 «대칭»이므로 범위의 한가운데가 곧 콘텐츠의 한가운데다(대수적으로 동일).
+     ⚠️예전 공식은 `scalerEl.offsetHeight * scale` 로 콘텐츠 높이를 다시 구했는데,
+       offsetHeight 는 _syncScalerHeight 가 «이미 배율을 곱해» 넣어 둔 값이라
+       배율이 «두 번» 곱해지고 있었다(zoom≠100 에서만 어긋난다). 실제 scrollHeight 를
+       쓰면 그 문제가 원천적으로 없어진다. ⇒ zoom≠100 에서의 쉼 위치가 «달라진다»(의도된 수정). */
+  const maxTop = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+  const maxLeft = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+  /* 가로 쉼 = «캔버스가 뷰포트 한가운데» 오는 스크롤 위치.
+     ⛔범위의 절반(maxLeft/2)으로 잡으면 안 된다 — scaler 의 레이아웃 폭이 캔버스보다 넓을 수 있고
+       (자손이 옆으로 삐져나오면 그렇게 된다: 실측 캔버스 860 vs scaler 1108), 그러면 대칭 여백이
+       캔버스를 가운데로 안 놓는다(실측 127px 어긋남). 실제 캔버스 위치를 재서 맞춘다. */
+  const canvasEl2 = document.getElementById('canvas');
+  let left = Math.round(maxLeft / 2);
+  if (canvasEl2 && wrap.clientWidth) {
+    const cr = canvasEl2.getBoundingClientRect();
+    const wr = wrap.getBoundingClientRect();
+    /* ★[FIX-ⓑ] gBCR 은 transform(panOffsetX)이 «이미 반영된» 좌표다. 쉼 위치는 「팬을 하나도
+       안 한 상태」의 스크롤이므로 그 몫을 빼야 한다. 안 빼면 getPanPosition().x 가 panOffsetX 를
+       «두 번» 센다(실측 zoomStep 뒤 화면 변위 660 인데 pos.x 720 — 노치 pill 위치 오차).
+       ⑶ 의 복원도 이 값을 목표로 쓰므로 여기가 정확해야 «가운데»가 진짜 가운데가 된다. */
+    const delta = (cr.left + cr.width / 2) - (wr.left + wrap.clientWidth / 2) - panOffsetX;
+    left = Math.round(Math.max(0, Math.min(maxLeft, wrap.scrollLeft + delta)));
+  }
+  /* ★[FIX-⑴] 꼬리 여백은 «아래쪽에만» 붙어 범위를 비대칭으로 만든다 — 그때 범위의 한가운데는
+     콘텐츠의 한가운데가 아니다(실측 −428px = 856/2). 꼬리의 절반을 덜어 대칭 기준으로 되돌린다.
+     꼬리가 0 이면 예전 식과 «완전히 같다» — 배율 변경 뒤엔 항상 0 이다. */
+  return { top: Math.round((maxTop - _canvasTailY) / 2), left };
+}
+
+/** 실효 팬 «변위». 부호는 기존 panOffset 과 같다(+y = 콘텐츠가 아래로 내려간 것). */
+function getPanPosition() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) return { x: panOffsetX, y: panOffsetY };
+  const r = getRestingScroll();
+  return {
+    x: panOffsetX - (wrap.scrollLeft - r.left),
+    y: panOffsetY - (wrap.scrollTop - r.top)
+  };
+}
+window.getRestingScroll = getRestingScroll;
+window.getPanPosition = getPanPosition;
+/* ═══════════════════════════════════════════════════════════════════
+   [S2] 팬 «여지»(pan room) — 캔버스 밖으로도 계속 밀리게
+
+   왜 필요한가: 팬을 네이티브 스크롤로 하면 «스크롤 범위» 밖으로는 못 민다.
+   현행 transform 팬은 무한히 밀렸으므로, 그 감각을 유지하려면 범위를 만들어야 한다.
+   ⇒ scaler 사방에 «한 화면»씩 여백을 주고, 끝에 닿으면 «그때만» 한 화면 더 늘린다.
+
+   ★왜 transform 으로 안 하나(실측, GEN-canvas-c2-status §13):
+     스크롤 컨테이너 안에서 콘텐츠를 transform 으로 옮기면 그 프레임의 표시목록이
+     통째로 다시 기록된다 — 전면 Paint 가 스텝마다 찍힌다(Paint 27ms → 165ms, 6배).
+     축·거리와 무관하고 «썼는가»에만 걸린다. 그래서 팬 중 transform 쓰기는 «0회»여야 한다.
+
+   ★왜 «줄이는» 정리를 조심하나: 브라우저는 스크롤 범위가 «현재 위치보다 작아질 때»
+     scrollTop/Left 를 clamp 한다(실측). 여백을 함부로 되돌리면 놓는 순간 캔버스가 «툭» 튄다.
+     ⇒ _shrinkPanRoom 은 «현재 위치가 요구하는 만큼»까지만 줄인다(정의상 clamp 불가).
+   ═══════════════════════════════════════════════════════════════════ */
+
+let _panRoomX = 0;   // scaler 좌우 여백(px, 한쪽) — 0 이면 아직 미적용
+let _panRoomY = 0;   // scaler 상하 여백(px, 한쪽)
+/* ★[FIX-⑴] 꼬리 여백을 «DOM 이 아니라 값»으로 갖는다.
+   ⛔무엇이 문제였나: 꼬리 여백(마지막 섹션도 맨 위로 당겨지게)과 팬 여지가 «같은 CSS 속성»
+     (#canvas-scaler.marginBottom) 한 칸을 나눠 썼다. 한 칸을 두 주인이 쓰면 나중에 쓴 쪽이
+     앞 쪽을 «지운다» — applyZoom → resetCanvasTail 이 marginBottom='0px' 을 써서 팬 여지
+     856px 이 배율을 바꿀 때마다 증발했다. 게다가 ensurePanRoom() 가드는 «변수만» 보므로
+     「이미 충분」으로 no-op → 스스로 낫지 못했다(실측 room.y=856 인데 DOM=0px).
+     ★가로가 멀쩡했던 이유도 여기 있다 — 가로엔 지우는 주인이 없어 growPanRoom('x') 이
+       스스로 자랐다. 세로만 «지우는 쪽»이 있어 대칭이 깨져 있었다.
+   ⇒ 구조로 끊는다: **scaler 의 네 margin 에 쓰는 코드는 _applyPanRoom() «하나»뿐**.
+     꼬리는 자기 값(_canvasTailY)만 갖고, 합성은 소유자가 한다.
+     ⇒ DOM 은 언제나 (_panRoomX, _panRoomY, _canvasTailY) 의 함수 = 「변수만 보는」 가드가 참이 된다.
+
+   ⛔★★이 값이 «항상 0 으로 보여도 지우지 마라»(M22).
+     실측(2026-09-05): 팬 여지가 아래에 늘 한 화면(856px)을 두므로 selectSection 의
+     `short = target − max` 가 음수가 돼 꼬리는 «실제로 안 붙는다» — S2 sweep 9경로 전부 tail 0.
+     그래서 「안 쓰이니 정리하자」가 반드시 나온다. 그런데 이 항을 걷어내면
+     `marginBottom = _panRoomY + _canvasTailY` 라는 «식»이 `marginBottom = _panRoomY` 라는
+     «관행»으로 내려앉는다. 즉 「mb ≥ _panRoomY」가 **식의 성질**이 아니라 **아무도 안 어기기로
+     한 약속**이 되고, 다음에 꼬리 같은 «아래쪽 전용 여백»이 하나 더 필요해지는 순간
+     그 사람은 다시 marginBottom 을 «직접» 쓴다 — ⑴ 결함이 그대로 돌아온다.
+     ⇒ 지울 거면 «소유자 단일성 테스트»(pan-native-scroll.test.js §E)를 먼저 다시 세워라. */
+let _canvasTailY = 0;
+
+function _applyPanRoom() {
+  if (!scaler) return;
+  scaler.style.marginLeft = _panRoomX + 'px';
+  scaler.style.marginRight = _panRoomX + 'px';
+  scaler.style.marginTop = _panRoomY + 'px';
+  scaler.style.marginBottom = (_panRoomY + _canvasTailY) + 'px';
+}
+
+/** 꼬리 여백을 «값»으로 정한다 — DOM 쓰기는 소유자(_applyPanRoom)에게 맡긴다.
+ *  ⇒ 불변식: 어떤 경로 뒤에도 marginBottom = _panRoomY + _canvasTailY ≥ _panRoomY. */
+function setCanvasTail(px) {
+  const v = Math.max(0, Math.round(px) || 0);
+  if (v === _canvasTailY) return;
+  _canvasTailY = v;
+  _applyPanRoom();
+}
+
+/** 기본 여지 = 사방 한 화면. 이미 그만큼 있으면 아무것도 안 한다. */
+function ensurePanRoom() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !scaler) return;
+  const needX = wrap.clientWidth, needY = wrap.clientHeight;
+  if (!needX || !needY) return;                     // 아직 레이아웃 전
+  if (_panRoomX >= needX && _panRoomY >= needY) return;
+  const first = (_panRoomX === 0);
+  const before = { x: _panRoomX, y: _panRoomY, sl: wrap.scrollLeft, st: wrap.scrollTop };
+  _panRoomX = Math.max(_panRoomX, needX);
+  _panRoomY = Math.max(_panRoomY, needY);
+  _applyPanRoom();
+  if (first) {
+    /* ★최초 확보: 여기서 «가로 중앙정렬»이 성립한다.
+       justify-content 를 flex-start 로 바꿨으므로(§S2 CSS) 중앙정렬은 CSS 가 아니라
+       «대칭 여백 + 쉼 스크롤 위치»가 만든다. 이 줄이 없으면 캔버스가 왼쪽에 붙는다. */
+    void wrap.scrollWidth;
+    wrap.scrollLeft = getRestingScroll().left;
+    wrap.scrollTop = before.st + (_panRoomY - before.y);
+  } else {
+    // 앞쪽(왼/위) 여백이 늘어난 만큼 콘텐츠가 뒤로 밀린다 → 같은 프레임에 스크롤을 보정해
+    // 화면에 보이는 그림이 안 움직이게 한다(같은 JS 태스크 = 페인트 전이라 원자적).
+    wrap.scrollLeft = before.sl + (_panRoomX - before.x);
+    wrap.scrollTop = before.st + (_panRoomY - before.y);
+  }
+}
+
+/** 끝에 닿았을 때 «그 축만» 한 화면 더 늘리고 스크롤을 보정한다.
+ *  @returns {number} 스크롤에 «더한» 보정량 — 호출자가 기준점(scrollStart)을 같이 옮겨야
+ *  `scrollLeft = scrollStart.left - wantDX` 불변식이 유지된다.
+ *  ⛔이 값을 안 쓰고 기준점을 «되맞추면» 그 프레임의 잔여를 잃는다(실측: 300px 끌면 290px 만 감).
+ */
+function growPanRoom(axis) {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !scaler) return 0;
+  if (axis === 'x') {
+    const before = _panRoomX, sl = wrap.scrollLeft;
+    _panRoomX += wrap.clientWidth;
+    _applyPanRoom();
+    const d = _panRoomX - before;
+    wrap.scrollLeft = sl + d;
+    return d;
+  }
+  const before = _panRoomY, st = wrap.scrollTop;
+  _panRoomY += wrap.clientHeight;
+  _applyPanRoom();
+  const d = _panRoomY - before;
+  wrap.scrollTop = st + d;
+  return d;
+}
+
+/* ★[FIX-⑵] 진행 중인 팬의 «기준점»을 여지 변경자들이 볼 수 있게 걸어 둔다.
+   기전: 팬은 매 mousemove 마다 `scrollLeft = scrollStart.left − wantDX` 를 «절대»로 다시 쓴다.
+     그런데 휠 정착 타이머(200ms)의 shrinkPanRoom() 은 margin 을 깎으면서 scrollLeft 도 같이
+     내린다 — 화면은 안 튀지만 «좌표계가 바뀐다». 팬의 기준점은 옛 좌표계 그대로라 다음
+     mousemove 가 옛 값을 다시 써서 깎인 만큼 «툭» 튄다(실측 60px 요청에 −1,450px · 점프 1,510px).
+   ⇒ growPanRoom 이 반환값으로 이미 하고 있던 「여지를 옮겼으면 기준점도 옮겨라」를
+     shrink 에도 적용한다. 팬 블록이 자기 scrollStart «객체 그대로»를 걸어 두므로 즉시 반영된다.
+   ⛔「팬 중엔 타이머를 미룬다/타이머를 늘린다」는 처방은 안 골랐다 —
+     ⓐ 그건 이 호출자 «하나»만 막는다(여지를 깎는 코드가 하나 더 생기면 같은 버그가 재발).
+     ⓑ 정착 자체를 미루면 «여지 회수»가 늦어지거나 사라져, 여백이 상한까지 쌓여
+        「그 다음 제스처가 아예 안 움직인다」는 원래 병(M17 계열)이 돌아온다.
+     ⇒ 정착 타이머는 200ms 그대로 두고 «회수도 그대로 일어나되», 기준점을 같이 옮긴다. */
+let _panScrollBaseline = null;   // 팬 중에만 non-null — 팬 블록의 scrollStart 객체 «그 자체»
+function setPanScrollBaseline(ref) { _panScrollBaseline = ref; }
+
+/**
+ * 여백을 «안전한 만큼만» 줄인다 — 현재 스크롤 위치를 담는 데 필요한 양은 남긴다.
+ * ⛔기본값으로 되돌리면 안 된다: 멀리 밀어낸 상태에서 놓으면 clamp 가 걸려 캔버스가 튄다.
+ */
+function shrinkPanRoom() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !scaler) return;
+  const baseX = wrap.clientWidth, baseY = wrap.clientHeight;
+  /* 한쪽에서 c 를 깎으면 «양쪽» 여백이 줄어 전체 범위가 2c 만큼 준다.
+     ⇒ 안전 조건이 «둘»이다:
+       ⑴ 앞쪽: 줄인 만큼 스크롤도 줄여야 하므로  c ≤ scrollLeft   (안 그러면 음수)
+       ⑵ 뒤쪽: 새 최대(max−2c)가 새 위치(scrollLeft−c) 이상이어야 하므로  c ≤ max − scrollLeft
+     ⛔⑵를 빠뜨렸다가 실측에서 걸렸다 — 끝까지 민 상태에서 되돌리니 브라우저가 clamp 해
+       그 다음 제스처가 «아예 안 움직였다»(이동 0). 「줄이는 방향은 clamp 를 부른다」의 두 번째 얼굴이다. */
+  const maxL = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+  const maxT = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+  const cutX = Math.max(0, Math.min(_panRoomX - baseX, wrap.scrollLeft, maxL - wrap.scrollLeft));
+  const cutY = Math.max(0, Math.min(_panRoomY - baseY, wrap.scrollTop, maxT - wrap.scrollTop));
+  if (!cutX && !cutY) return;
+  const sl = wrap.scrollLeft, st = wrap.scrollTop;
+  _panRoomX -= cutX; _panRoomY -= cutY;
+  _applyPanRoom();
+  wrap.scrollLeft = sl - cutX;
+  wrap.scrollTop = st - cutY;
+  /* ★[FIX-⑵] 진행 중인 팬이 있으면 그 기준점도 «같은 양» 옮긴다 —
+     불변식 `scrollLeft = scrollStart.left − wantDX` 를 새 좌표계에서 그대로 유지. */
+  if (_panScrollBaseline) { _panScrollBaseline.left -= cutX; _panScrollBaseline.top -= cutY; }
+}
+/* ═══ [P-W1] 휠/트랙패드 «잔여»를 transform 이 아니라 «여지»로 흡수한다 ═══
+   왜: 잔여를 `panOffset`+transform 으로 처리하면 결함이 «둘» 생긴다 —
+     ⓐ `±clientWidth/2` 상한에 걸려 「원하는 만큼 안 밀린다」(실측 10%에서 1500 요청 → 477px, 32%)
+     ⓑ 그 경로엔 `.panning` 이 «없어» `transition: transform .15s` 가 «켜진 채» 돈다
+        ⇒ 「마우스가 가면 이후에 따라오는 느낌」의 직접 원인(실측 잔여 중 transition-duration=0.15s)
+   ⇒ 여지로 흡수하면 transform 을 «아예 안 쓰므로» ⓑ가 구조적으로 사라진다(타이머 불필요).
+
+   ⛔상한은 «유지»한다. 원래 버그가 실재했다 — `0ab2f72`(2026-06-14):
+     「휠로 콘텐츠 끝을 지나도 panOffset 이 무한 누적돼 빈 공간으로 끝없이 스크롤」.
+     여지도 무한히 키우면 같은 병이 돌아온다. 그래서 «콘텐츠 끝을 지나 최대 OVER 화면»으로 묶는다.
+   ★OVER 값의 근거: 실측이 아니라 «완료조건에서 역산»한 것이다 —
+     10% 배율에서 1500px 요청의 95% 를 채우려면 화면폭(≈954) 기준 약 1.6화면이 필요하다.
+     3 은 거기에 여유를 둔 값이고, 제품 판단이지 측정값이 아니다(현빈 게이트에서 「키우기」로 정해짐). */
+const WHEEL_OVER_SCREENS = 3;
+
+/* ★휠에는 mouseup 이 «없다» — 팬처럼 제스처 끝에 여지를 되돌릴 계기가 없다.
+   안 되돌리면 여지가 상한까지 쌓인 채 남아 «그 다음 제스처가 아예 안 움직인다»
+   (실측: 배율을 옮겨 가며 세 번 밀었더니 세 번째엔 이동 0). ⇒ 제스처가 멎으면 되돌린다.
+   축소는 shrinkPanRoom 이 «현재 위치가 요구하는 만큼»까지만 하므로 clamp 튐이 없다. */
+let _wheelSettleTimer = null;
+function scheduleWheelSettle() {
+  clearTimeout(_wheelSettleTimer);
+  _wheelSettleTimer = setTimeout(() => { _wheelSettleTimer = null; shrinkPanRoom(); }, 200);
+}
+
+function absorbWheelResidual(axis, res) {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !scaler || !res) return 0;
+  const isX = axis === 'x';
+  const client = isX ? wrap.clientWidth : wrap.clientHeight;
+  const cap = client + client * WHEEL_OVER_SCREENS;      // 기본 한 화면 + 여유 OVER 화면
+  const cur = isX ? _panRoomX : _panRoomY;
+  if (cur >= cap) return 0;                              // 상한 도달 — 여기서 멈춘다(원래 상한과 같은 뜻)
+  const grow = Math.min(cap - cur, Math.abs(res));
+  const before = cur;
+  if (isX) { _panRoomX = cur + grow; } else { _panRoomY = cur + grow; }
+  _applyPanRoom();
+  const d = (isX ? _panRoomX : _panRoomY) - before;
+  // 앞쪽 여백이 늘어난 만큼 스크롤을 보정한 뒤, 잔여 방향으로 실제로 민다.
+  if (isX) { wrap.scrollLeft = wrap.scrollLeft + d + res; }
+  else     { wrap.scrollTop  = wrap.scrollTop  + d + res; }
+  return d;
+}
+window.ensurePanRoom = ensurePanRoom;
+window.getPanRoom = () => ({ x: _panRoomX, y: _panRoomY });
+/* ★[FIX-⑴/탭] 팬 여지를 저장된 «값»으로 되돌린다 — 스크롤 보정은 «안 한다»(호출자가 직후에
+   저장된 scrollTop/Left 를 직접 세운다).
+   왜 필요한가: `_panRoomX/Y` 는 모듈 전역이라 «모든 탭이 한 벌을 공유»한다. 그런데 탭 뷰상태는
+   scrollTop 을 «절대값»으로 저장한다 — 저장 시점의 여백을 전제로 한 좌표다. 다른 탭에서 여지가
+   줄면(shrinkPanRoom) 돌아왔을 때 같은 scrollTop 이 «다른 자리»를 가리킨다
+   (실측: room.y 1556→1256 으로 300 줄자 복원이 정확히 300px 어긋났다).
+   ⇒ 좌표를 세우기 «전»에 그 좌표가 전제한 여지를 먼저 세운다.
+   ⛔기본(한 화면) 아래로는 안 내린다 — 그 아래는 가운데정렬이 성립하지 않는 영역이다. */
+window.setPanRoom = (r) => {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!r || !wrap || !scaler || !wrap.clientWidth) return;
+  const x = Math.max(wrap.clientWidth, Math.round(r.x) || 0);
+  const y = Math.max(wrap.clientHeight, Math.round(r.y) || 0);
+  if (x === _panRoomX && y === _panRoomY) return;
+  _panRoomX = x; _panRoomY = y;
+  _applyPanRoom();
+};
+window.shrinkPanRoom = shrinkPanRoom;   // 하네스 검증용(정상 위치 복귀 후 여지 회수 확인)
 
 /* C20: transform:scale은 레이아웃 박스 높이를 안 바꿔 #canvas-wrap.scrollHeight가 미축소 원본 기준으로 잡힘
  *      → 줌아웃 시 마지막 섹션 아래로 빈 회색이 과도하게 스크롤됨. scaler 레이아웃 높이를
@@ -189,6 +472,8 @@ function _syncScalerHeight() {
   }
   const target = Math.round(naturalH * scale) + 'px';
   scaler.style.height = (target !== prev) ? target : prev;
+  // [S2] 팬 여지 보장 — 로드·줌·리사이즈가 전부 이 경로를 탄다. 이미 충분하면 no-op.
+  ensurePanRoom();
 }
 
 /* C20: 섹션/블록 추가·삭제·리사이즈로 #canvas 높이가 바뀌면 scaler 레이아웃 높이도 재동기화.
@@ -205,21 +490,26 @@ function _syncScalerHeight() {
 })();
 
 function resetPanOffset() {
+  // C14: panOffsetY를 0으로 만들 때 잃는 세로 보정을 wrap.scrollTop으로 흡수해 콘텐츠 중앙정렬 유지.
+  // [S1'] 쉼 위치 공식을 getRestingScroll() «한 곳»으로 모았다 — 여기와 getPanPosition() 이
+  //       같은 쉼 위치를 봐야 「가운데인가」 판정이 갈리지 않는다.
+  /* ★[FIX-⑶] S2 이후 «가로» 변위의 저장소는 transform(panOffsetX) 이 아니라 `scrollLeft` 다.
+     예전 코드는 panOffsetX=0 만 해서, 「가로를 되돌린다」는 노치의 «유일한 일»을 못 했다
+     (실측: 300px 민 뒤 노치 클릭 → 화면 변위 300px 그대로). 세로처럼 «두 저장소를 다» 비운다.
+     dev 에선 가로 저장소가 transform «하나»였기에 panOffsetX=0 으로 충분했다 ⇒ 이건 회귀였다.
+   ★순서: transform 을 «먼저» 비우고 나서 쉼 위치를 잰다 — getRestingScroll 은 캔버스 gBCR 로
+     재는데 gBCR 엔 transform 이 들어 있다. 순서를 바꾸면 옛 변위가 섞인 자리로 간다. */
   panOffsetX = 0;
-  // C14: panOffsetY를 0으로 만들 때 잃는 세로 보정을 wrap.scrollTop으로 흡수해
-  //       콘텐츠 중앙정렬 유지 (applyZoom의 idealScrollTop/clamp 공식 차용).
+  panOffsetY = 0;
+  _applyScalerTransformAndSync();
   const wrap = document.getElementById('canvas-wrap');
   const scalerEl = document.getElementById('canvas-scaler');
   if (wrap && scalerEl) {
     void scalerEl.offsetHeight; void wrap.scrollHeight;
-    const scale = currentZoom / 100;
-    const contentH = scalerEl.offsetHeight * scale;
-    const idealScrollTop = Math.round((contentH - wrap.clientHeight) / 2);
-    const maxScroll = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
-    wrap.scrollTop = Math.max(0, Math.min(maxScroll, idealScrollTop));
+    const rest = getRestingScroll();
+    wrap.scrollTop = rest.top;
+    wrap.scrollLeft = rest.left;
   }
-  panOffsetY = 0;
-  _applyScalerTransform();
 }
 function zoomStep(delta) {
   const wrap = document.getElementById('canvas-wrap');
@@ -300,7 +590,7 @@ function zoomStep(delta) {
   // → panOffsetX = anchorVpX - scaler.offsetLeft - scaler.offsetWidth/2 + wrap.scrollLeft - anchorCanvasOffsetX*s_new
   const wantedX = anchorVpX - scaler.offsetLeft - scaler.offsetWidth / 2 + wrap.scrollLeft - anchorCanvasOffsetX * s_new;
   panOffsetX = wantedX;
-  _applyScalerTransform();
+  _applyScalerTransformAndSync();
 
   // transition 복원 (다음 프레임)
   requestAnimationFrame(() => { scaler.style.transition = prevTransition; });
@@ -2200,10 +2490,13 @@ function selectSection(sec, scrollIntoView = false) {
      * ★공식으로 미리 계산하지 «않는다» — 매번 0 으로 되돌리고 «모자란 만큼»만 준다.
      *   그래야 배율이 낮아 레이아웃과 화면이 어긋날 때도 정확하고, 여백이 누적되지 않는다. */
     if (scalerEl) {
-      scalerEl.style.marginBottom = '0px';
+      /* ★[FIX-⑴] margin 을 직접 쓰지 «않는다» — 꼬리는 자기 값만 정하고, DOM 은 _applyPanRoom 이
+         팬 여지와 «합쳐» 쓴다. 예전엔 이 두 줄이 팬 여지를 덮어써 없앴다.
+         ★기능은 그대로다: 매번 0 으로 되돌리고 «모자란 만큼»만 준다(마지막 섹션도 top+40). */
+      setCanvasTail(0);
       const max = canvasWrapEl.scrollHeight - canvasWrapEl.clientHeight;
       const short = target - max;
-      if (short > 0) scalerEl.style.marginBottom = Math.round(short) + 'px';
+      if (short > 0) setCanvasTail(short);
     }
     canvasWrapEl.scrollTo({ top: target, behavior: 'smooth' });
   }
@@ -2332,6 +2625,24 @@ if (window.electronAPI) {
 }
 
 
+/* ★[P-A1] 값이 «이미 그 값»이면 쓰지 않는다.
+   왜 이게 성능 처방인가 — 실측(2026-09-05, 진짜 입력):
+     `deselectAll` 자체는 8ms 로 싸다. 그래서 두 번 「범인 아님」으로 기각했다.
+     그런데 이 함수는 «비용»이 아니라 «방아쇠»였다 — 텍스트블록 전체에 contenteditable 을
+     249개 다시 쓰고(값이 같아도 DOM mutation 이다), `autoSaveObserver`(canvasEl,
+     attributes:true, subtree:true — save-load.js:1663)가 그걸 «편집»으로 집계한다.
+     그 옵저버의 필터는 `class` 만 제외하고 `contenteditable` 은 통과시킨다(save-load.js).
+     ⇒ scheduleAutoSave() → 디바운스 1500ms → serializeProject()(90MB) →
+       ★메인스레드 811ms 정지 + IPC 응답 대기 401ms.
+     ⇒ 클릭하고 1.5초 안에 팬하면 그 정지가 «팬 도중»에 떨어진다. 그게 「탁」이다.
+   실측 근거: 표시등 관측으로 예측 2018ms vs 관측 2027ms(오차 9ms).
+     그리고 자동저장을 끄면 팬중 최대가 749~825ms → 16.7ms 로 사라진다(측정용 절제).
+   ⛔이 처방은 «클릭 → 팬» 경로만 막는다. «진짜 편집 → 팬» 은 자동저장이 정당하게 걸리므로
+     여전히 정지한다. 그건 별도 처방(제스처 중 유예)이 필요하다 — 이 커밋으로 끝난 게 아니다. */
+function _setAttrIfChanged(el, name, value) {
+  if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+}
+
 function deselectAll() {
   clearMultiSel();
   _lastClickedBlock = null;
@@ -2351,7 +2662,7 @@ function deselectAll() {
   canvas.querySelectorAll('.section-block').forEach(s => s.classList.remove('selected'));
   canvas.querySelectorAll('.text-block').forEach(t => {
     t.classList.remove('selected', 'editing');
-    t.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('contenteditable','false'));
+    t.querySelectorAll('[contenteditable]').forEach(el => _setAttrIfChanged(el, 'contenteditable', 'false'));
   });
   canvas.querySelectorAll('.asset-block').forEach(a => {
     a.classList.remove('selected');
@@ -2369,11 +2680,11 @@ function deselectAll() {
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
-    b.querySelectorAll('.label-item-text').forEach(el => el.setAttribute('contenteditable','false'));
+    b.querySelectorAll('.label-item-text').forEach(el => _setAttrIfChanged(el, 'contenteditable', 'false'));
   });
   canvas.querySelectorAll('.table-block').forEach(b => {
     b.classList.remove('selected');
-    b.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable','false'));
+    b.querySelectorAll('[contenteditable="true"]').forEach(el => _setAttrIfChanged(el, 'contenteditable', 'false'));
     // #5-b: 셀 선택 마킹도 함께 해제
     b.querySelectorAll('td.cell-selected, th.cell-selected').forEach(c => c.classList.remove('cell-selected'));
   });
@@ -2632,14 +2943,12 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
       const resY = e.deltaY - (wrap.scrollTop - bt);
       const resX = e.deltaX - (wrap.scrollLeft - bl);
       if (resX || resY) {
-        panOffsetX -= resX;
-        panOffsetY -= resY;
-        // over-scroll 상한: 콘텐츠 끝을 지나 최대 '반 화면'까지만 휠 팬 허용.
-        // ★휠이 실제로 민 축만 클램프(resX/resY 각각) — 세로 over-scroll이 기존 가로 오프셋(줌/스페이스팬)을
-        //   깎거나 노치를 튀게 하지 않도록(Codex 리뷰 반영). 줌/스크롤바/스페이스팬은 이 경로를 안 타므로 무영향.
-        if (resX) { const LIM_X = wrap.clientWidth  / 2; panOffsetX = Math.max(-LIM_X, Math.min(LIM_X, panOffsetX)); }
-        if (resY) { const LIM_Y = wrap.clientHeight / 2; panOffsetY = Math.max(-LIM_Y, Math.min(LIM_Y, panOffsetY)); }
-        _applyScalerTransform();
+        // [P-W1] 잔여를 «여지»로 흡수한다 — transform 을 안 쓰므로 0.15s 보간이 안 걸린다.
+        if (resX) absorbWheelResidual('x', resX);
+        if (resY) absorbWheelResidual('y', resY);
+        scheduleWheelSettle();
+        // 상한은 absorbWheelResidual 안에 «여지 상한»으로 옮겼다(원래 목적 = 콘텐츠 끝 지나
+        // 무한 누적 방지, 0ab2f72). transform 은 여기서 «안» 쓴다.
         if (window.updateNotchPosition) window.updateNotchPosition();
       }
     }
@@ -2857,6 +3166,13 @@ document.addEventListener('click', e => {
       if (!panMode) {
         panMode = true;
         canvasWrap.classList.add('pan-mode');
+        /* [P-A2] ★유예를 «스페이스» 시점에도 건다.
+           mousedown 에만 걸면, 스페이스와 클릭을 «거의 동시에» 누른 회차에서
+           mousedown 이 `panMode === false` 로 early return 해 유예가 «안 걸린다».
+           실측: 유효 회차인데 defer 호출 0회 → 디바운스 그대로 1509ms 에 1983ms 정지.
+           스페이스는 팬의 «시작 신호»이므로 여기서 걸면 순서와 무관하게 걸린다.
+           (재개는 keyup·mouseup·blur·타임아웃 넷이 이미 덮는다) */
+        window.deferAutoSave?.();
       }
     }
   });
@@ -2865,9 +3181,18 @@ document.addEventListener('click', e => {
     if (e.code === 'Space') {
       panMode = false;
       panning = false;
+      scrollStart = null;
+      setPanScrollBaseline(null);   // [FIX-⑵] 스페이스를 «먼저» 떼는 순서에서도 기준점을 남기지 않는다
       canvasWrap.classList.remove('pan-mode', 'panning');
+      // [P-A2] ⑵팬 모드 이탈 — 마우스를 창 «밖»에서 떼면 mouseup 이 안 올 수 있다.
+      //   고착은 곧 「저장이 영영 안 됨」이라 재개 경로를 여러 곳에 둔다.
+      window.resumeAutoSave?.();
     }
   });
+
+  let scrollStart = null;
+  let _swallowPanClick = false;       // [P-R2] 팬 직후 click 한 번을 삼킨다
+  let _swallowPanClickTimer = null;
 
   // capture 단계: 하위 요소 stopPropagation 우회
   canvasWrap.addEventListener('mousedown', e => {
@@ -2875,24 +3200,81 @@ document.addEventListener('click', e => {
     panning = true;
     panStart = { x: e.clientX, y: e.clientY };
     panOffsetStart = { x: panOffsetX, y: panOffsetY };
+    // [P-A2] 미는 동안 자동저장을 «미룬다»(취소 아님 — 놓으면 바로 재예약).
+    //   90MB 직렬화가 811ms + IPC 401ms 라 팬 도중에 터지면 그게 「탁」이다.
+    window.deferAutoSave?.();
+    // [S2] 팬을 «네이티브 스크롤»로 한다 — 시작 시점의 스크롤을 기준점으로 잡는다.
+    ensurePanRoom();
+    scrollStart = { left: canvasWrap.scrollLeft, top: canvasWrap.scrollTop };
+    /* [FIX-⑵] 여지를 깎는 코드(휠 정착 타이머 등)가 이 기준점을 «같이» 옮기게 등록한다.
+       객체 «참조»를 그대로 넘긴다 — 보정이 이 블록의 scrollStart 에 곧바로 반영돼야 한다. */
+    setPanScrollBaseline(scrollStart);
     canvasWrap.classList.add('panning');
     e.preventDefault();
     e.stopPropagation();
   }, true);
 
   window.addEventListener('mousemove', e => {
-    if (!panning) return;
-    panOffsetX = panOffsetStart.x + (e.clientX - panStart.x);
-    panOffsetY = panOffsetStart.y + (e.clientY - panStart.y);
-    _applyScalerTransform();
+    if (!panning || !scrollStart) return;
+    /* [S2] ★팬 중에는 scaler.style.transform 을 «쓰지 않는다».
+       스크롤 컨테이너 안에서 transform 으로 콘텐츠를 옮기면 그 프레임의 표시목록이
+       통째로 다시 기록된다(실측 Paint 27ms → 165ms). 그래서 이동은 전부 스크롤로 한다.
+
+       ★«절대 델타»로 매 프레임 다시 계산한다(증분 += 금지).
+         증분이면 오차가 누적되고, 끝에 닿았다 되돌아올 때 손이 미끄러진 것처럼 느껴진다. */
+    const wantDX = e.clientX - panStart.x;
+    const wantDY = e.clientY - panStart.y;
+    // 팬은 콘텐츠를 손끝이 «따라가게» 한다 → 스크롤은 반대 부호.
+    canvasWrap.scrollLeft = scrollStart.left - wantDX;
+    canvasWrap.scrollTop = scrollStart.top - wantDY;
+    // 끝에 닿아 흡수 못한 만큼이 남으면 «그 축의 여지»를 한 화면 늘리고 다시 시도한다.
+    // (여백을 늘리는 방향은 clamp 가 안 걸린다 — 실측)
+    /* 흡수 못한 잔여가 있으면 «그 축의 여지»를 한 화면 늘리고 «다시» 목표를 적용한다.
+       ★기준점을 «되맞추면» 안 된다 — 그러면 그 프레임의 잔여를 잃어 커서보다 덜 간다
+         (실측: 300px 끌면 290px, 이득비 0.967). 여지 확장이 스크롤에 더한 만큼 기준점을
+         «같이 옮겨» 불변식 `scrollLeft = scrollStart.left - wantDX` 를 지킨다. */
+    if (Math.abs((scrollStart.left - canvasWrap.scrollLeft) - wantDX) > 0.5) {
+      scrollStart.left += growPanRoom('x');
+      canvasWrap.scrollLeft = scrollStart.left - wantDX;
+    }
+    if (Math.abs((scrollStart.top - canvasWrap.scrollTop) - wantDY) > 0.5) {
+      scrollStart.top += growPanRoom('y');
+      canvasWrap.scrollTop = scrollStart.top - wantDY;
+    }
     if (window.updateNotchPosition) window.updateNotchPosition();
   });
 
   window.addEventListener('mouseup', () => {
     if (!panning) return;
     panning = false;
+    scrollStart = null;
+    setPanScrollBaseline(null);   // [FIX-⑵] 아래 shrinkPanRoom «전»에 푼다(팬은 이미 끝났다)
+    /* [P-R2] 팬을 놓으면 뒤이어 `click` 이 «커서 아래 요소»에 정상 발화한다.
+       mousedown 은 캡처에서 막지만 click 은 안 막혀서, 팬을 놓을 때마다 블록이 선택됐다.
+       현빈 확인: 「의도 아님」. ⇒ 팬으로 끝난 제스처의 click «한 번»만 삼킨다. */
+    _swallowPanClick = true;
+    clearTimeout(_swallowPanClickTimer);
+    _swallowPanClickTimer = setTimeout(() => { _swallowPanClick = false; }, 300);
+    // 늘어난 여지를 «안전한 만큼만» 되돌린다(현재 위치가 요구하는 양은 남긴다).
+    // ⛔기본값으로 되돌리면 clamp 가 걸려 놓는 순간 캔버스가 튄다.
+    shrinkPanRoom();
     if (panMode) canvasWrap.classList.remove('panning');
+    // [P-A2] ⑴정상 종료 — 미뤄 둔 자동저장을 «여기서» 다시 건다.
+    //   ⛔즉시 저장이 아니라 «재예약»이다. 놓자마자 811ms 를 태우면 「놓을 때 탁」이 된다.
+    //     원래 디바운스(1500ms)를 이 시점부터 다시 세는 셈이라, 사람이 손을 뗀 뒤 여유가 생긴다.
+    window.resumeAutoSave?.();
   });
+
+  /* [P-R2] 팬 직후의 click 삼키기 — window 캡처라 앱의 어떤 핸들러보다 먼저 본다.
+     ⛔«한 번»만 삼킨다: 타이머로 풀어 두지 않으면 다음 정상 클릭까지 잡아먹는다. */
+  window.addEventListener('click', e => {
+    if (!_swallowPanClick) return;
+    _swallowPanClick = false;
+    clearTimeout(_swallowPanClickTimer);
+    if (!canvasWrap.contains(e.target)) return;   // 캔버스 밖 클릭은 그대로 둔다
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
 }
 
 /* ═══════════════════════════════════
@@ -2929,8 +3311,10 @@ const CANVAS_TAIL_GAP = 40;   // 섹션 위에 남길 여유
      「실제로 문제가 보이면 그때 잡자」 — 지금 clamp 를 넣으면 그 자체로 중앙에서 벗어난다. */
 /** 꼬리 여백을 버린다 — 배율변경·페이지전환·섹션삭제 등 «상태가 바뀌면» 남겨두지 않는다. */
 function resetCanvasTail() {
-  const sc = document.getElementById('canvas-scaler');
-  if (sc && sc.style.marginBottom && sc.style.marginBottom !== '0px') sc.style.marginBottom = '0px';
+  /* ★[FIX-⑴] 예전엔 여기서 `marginBottom='0px'` 로 DOM 을 «직접» 지웠다 — 그 한 줄이 팬 여지를
+     같이 지웠다(applyZoom 끝에서 «항상» 불린다). 이제 꼬리 «값»만 0 으로 내리고 DOM 은
+     소유자(_applyPanRoom)가 팬 여지와 합쳐 다시 쓴다. */
+  setCanvasTail(0);
 }
 window.resetCanvasTail = resetCanvasTail;
 
@@ -2976,21 +3360,30 @@ const FP_FIXED_POPUPS = ['#fp-plugin-panel'];
 
   let _notchHideTimer = null;
 
+  /* ★[N-1] 노치는 «가로 전용»이다.
+     팬이 네이티브 스크롤로 옮겨간 뒤 «세로 팬»과 «세로 스크롤»은 구분이 불가능해졌다.
+     세로까지 보면 휠로 문서를 내려보기만 해도 노치바가 상시로 뜬다 — 명백히 나쁘다.
+     그리고 세로 위치는 «스크롤바»가 이미 알려 준다.
+     ⇒ 가로 스크롤바를 숨기기로 한 결정(현빈) 때문에 «가로 이탈을 알리는 UI 가 노치 하나»가 됐고,
+       노치를 가로 전용으로 두는 것이 그 결정과 정합적이다.
+     ⛔panOffsetX 가 아니라 getPanPosition().x 를 본다 — 팬이 스크롤로 가서 panOffset 은
+       대개 0 이다. panOffset 만 보면 «항상 가운데»라고 거짓말한다(진실의 절반). */
+  const _notchOffX = () => getPanPosition().x;
+
   function updateNotchPosition() {
-    // panOffset 기준으로 노치 위치 표시 (0 = 중앙)
-    const isCentered = Math.abs(panOffsetX) < 5 && Math.abs(panOffsetY) < 5;
+    const dx = _notchOffX();
+    const isCentered = Math.abs(dx) < 5;
     notch.classList.toggle('centered', isCentered);
     // 노치 위치: pill 가로 중앙 기준으로 offset 반영
     const pill = 80;
-    const clampedX = Math.max(4, Math.min(pill - 4, pill / 2 - panOffsetX / 10));
+    const clampedX = Math.max(4, Math.min(pill - 4, pill / 2 - dx / 10));
     notch.style.left = clampedX + 'px';
 
     if (!isCentered) {
       notchBar.classList.add('visible');
       clearTimeout(_notchHideTimer);
       _notchHideTimer = setTimeout(() => {
-        if (Math.abs(panOffsetX) < 5 && Math.abs(panOffsetY) < 5)
-          notchBar.classList.remove('visible');
+        if (Math.abs(_notchOffX()) < 5) notchBar.classList.remove('visible');
       }, 2500);
     }
   }
@@ -3001,7 +3394,10 @@ const FP_FIXED_POPUPS = ['#fp-plugin-panel'];
     scaler.style.transition = 'transform 0.3s ease';
     resetPanOffset();
     setTimeout(() => { scaler.style.transition = ''; }, 320);
-    notchBar.classList.remove('visible');
+    /* ★[FIX-⑶] 숨기는 것은 «실제로 돌아왔을 때만». 예전엔 무조건 숨겨서, 복원에 실패해도
+       노치만 사라지고 변위는 남았다(다음 팬에 다시 등장 = 조용한 무력화). 결과로 판정한다. */
+    if (Math.abs(_notchOffX()) < 5) notchBar.classList.remove('visible');
+    else updateNotchPosition();
   });
 
   setTimeout(updateNotchPosition, 100);
