@@ -307,7 +307,7 @@ async function switchPage(pageId) {
   canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   canvasEl.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
   document.querySelectorAll('.sec-bg-ghost-wrap, .sec-bg-ghost').forEach(el => el.remove());
-  canvasEl.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy').forEach(el => el.remove());
+  canvasEl.querySelectorAll(NON_CONTENT_UI_SELECTOR).forEach(el => el.remove());
   // (마이그레이션은 rebindAll 내부에서 처리)
   // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
   const propPanel = document.querySelector('#panel-right .panel-body');
@@ -380,6 +380,31 @@ function getSerializedCanvas() {
   //   (연산·순서 동일 → 출력 바이트 동일). 플레인 스크립트라 이 모듈보다 먼저 로드된다.
   window.serializeCleanRoot(clone);
   return clone.innerHTML;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   [P-A1″] «편집이 아닌 것»의 단일 목록
+
+   계약: **이 목록은 「저장에서 지워지는 것」 = 「편집이 아닌 것」이다.**
+     ⇒ `serializeProject()` 가 저장 «전»에 지우므로, 이것들의 생성·제거는 정의상 «콘텐츠 변화»가 아니다.
+     ⇒ 그러므로 `autoSaveObserver` 도 이것들 때문에 저장을 예약해선 안 된다.
+   ⛔여기에 무언가 추가할 때는 **`serializeProject` 가 실제로 그걸 지우는지 먼저 확인**하라.
+     지우지 않는 것을 넣으면 «진짜 편집»이 저장되지 않는다 — 데이터 손실이다.
+   ★두 곳이 «같은 상수»를 봐야 한다. 목록을 두 벌로 만들면 한쪽이 반드시 뒤처진다.
+
+   왜 생겼나(실측 2026-09-05, 진짜 입력): 에셋 블록을 클릭하면 `.ab-rotate-zone` 4개가
+   캔버스 «안»에 붙었다 떨어지고(childList ×12), 그게 `autoSaveObserver` 를 «편집»으로 깨웠다.
+   ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
+   ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
+export const NON_CONTENT_UI_SELECTOR =
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy';
+
+/** 이 mutation 이 «UI 장식»만 건드렸나 — 그렇다면 편집이 아니다. */
+function _isNonContentUiMutation(m) {
+  if (m.type !== 'childList') return false;
+  const nodes = [...m.addedNodes, ...m.removedNodes];
+  if (!nodes.length) return false;
+  return nodes.every(n => n.nodeType === 1 && n.matches?.(NON_CONTENT_UI_SELECTOR));
 }
 
 function serializeProject() {
@@ -1424,6 +1449,8 @@ if (IS_ELECTRON) {
 const autoSaveObserver = new MutationObserver(mutations => {
   const meaningful = mutations.some(m => {
     if (m.type === 'attributes' && m.attributeName === 'class') return false;
+    // [P-A1″] 저장에서 지워지는 «UI 장식»의 생성/제거는 편집이 아니다 — 같은 목록을 본다.
+    if (_isNonContentUiMutation(m)) return false;
     // lazy 렌더 패스(뷰포트 밖 배경 언로드/복원)가 «자기 mutation 만» 무시하게 한다.
     //   예전엔 lazy-sections 가 _suppressAutoSave 를 통째로 켜서, 그 창에 들어온 «진짜 편집»까지
     //   조용히 버려졌다(저장 예약조차 안 됨). lazy 가 만지는 건 style / data-lazy-bg / class 뿐이라

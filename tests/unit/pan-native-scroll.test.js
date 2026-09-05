@@ -363,3 +363,34 @@ test('★P-A2 계약: 팬 시작이 유예를 «건다»', () => {
   assert.ok(/deferAutoSave\?\.\(\)/.test(ed.slice(dnIdx, dnIdx + 700)),
     '팬 mousedown 이 유예를 걸어야 90MB 직렬화가 팬 도중에 안 터진다');
 });
+
+/* ══ J. P-A1″ — «편집이 아닌 것»의 단일 목록 ════════════════════════════ */
+
+test('★P-A1″ 계약: 목록이 «한 곳»에 있고 저장·감시가 «같은 상수»를 본다', () => {
+  assert.ok(/export const NON_CONTENT_UI_SELECTOR/.test(SL), '목록은 하나의 상수여야 한다');
+  // 목록 리터럴이 «두 번» 나오면 두 벌이 된 것이다 — 한쪽이 반드시 뒤처진다.
+  // ★주석에도 클래스명이 적혀 있으니 «코드»만 세야 한다(이 단언이 그렇게 한 번 헛돌았다).
+  const occurrences = (stripComments(SL).match(/\.ab-rotate-zone/g) || []).length;
+  assert.equal(occurrences, 1,
+    `save-load.js 안에 목록이 ${occurrences}벌 있다 — 상수 하나만 남겨야 둘이 안 갈린다`);
+  assert.ok(/querySelectorAll\(NON_CONTENT_UI_SELECTOR\)/.test(SL),
+    'serializeProject 가 상수를 써야 한다');
+  const f = stripComments(extractFn(SL, '_isNonContentUiMutation'));
+  assert.ok(/NON_CONTENT_UI_SELECTOR/.test(f), '감시 필터도 «같은» 상수를 봐야 한다');
+});
+
+test('★P-A1″ 계약: 필터는 «childList» 이고 «전부» UI 장식일 때만 무시한다', () => {
+  const f = stripComments(extractFn(SL, '_isNonContentUiMutation'));
+  assert.ok(/m\.type\s*!==\s*'childList'/.test(f),
+    '속성·characterData 까지 무시하면 진짜 편집을 놓친다');
+  assert.ok(/\.every\(/.test(f),
+    '★some 이 아니라 every — 하나라도 «진짜 콘텐츠»가 섞이면 그건 편집이다');
+  assert.ok(/nodes\.length/.test(f), '빈 mutation 을 «UI 장식»으로 오인하면 안 된다');
+});
+
+test('★P-A1″ 계약: 자동저장 감시가 그 필터를 실제로 «쓴다»', () => {
+  const i = SL.indexOf('const autoSaveObserver');
+  assert.notEqual(i, -1);
+  const body = stripComments(SL.slice(i, i + 1400));
+  assert.ok(/_isNonContentUiMutation\(m\)/.test(body), '감시 콜백이 필터를 호출해야 한다');
+});
