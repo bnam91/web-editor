@@ -33,24 +33,20 @@ function slice(head) {
 }
 
 // ★DOM 을 안 쓰는 조각만 떼어 «진짜로 실행»한다 — 문자열 대조가 아니라 동작 검사다.
-const TOUCH = SRC.match(/const TOUCH_DEVICE_PX = ([\d.]+)/);
-assert.ok(TOUCH, 'TOUCH_DEVICE_PX 상수를 못 찾았다');
-assert.equal(TOUCH[1], '1',
-  '맞닿음 임계는 «디바이스 픽셀 1개» — 두 선이 한 픽셀 안에 겹쳐 «구분 불가»일 때만 지운다는 뜻이다');
+// ⚠️주석에는 «왜 뺐는지»가 남아 있어야 하므로 «코드»만 보고 판정한다.
+const CODE_ONLY = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+assert.ok(!/function _dedupe|function _span|subtractInterval|TOUCH_DEVICE_PX/.test(CODE_ONLY),
+  '★dedupe 잔재가 «코드»에 남아 있다 — 명분이 실측으로 사라져 통째로 뺐다(되살리려면 먼저 재라)');
 const SNAP = [...SRC.matchAll(/const _snap(Lo|Hi) = [^\n;]+;/g)].map(m => m[0]);
 assert.equal(SNAP.length, 2, '_snapLo/_snapHi 정의를 못 찾았다 — 스냅이 «두 갈래»여야 선이 상자 밖으로 안 샌다');
 const ctx = vm.createContext({});
 vm.runInContext(
-  `const TOUCH_DEVICE_PX = ${TOUCH[1]};\nconst _dpr = () => 2;\nconst _touchEps = () => TOUCH_DEVICE_PX / _dpr();\n` +
   SNAP.join('\n') + '\n' +
-  slice('export function subtractInterval') + '\n' +
-  slice('function _span') + '\n' +
-  slice('function _dedupe') + '\n' +
   slice('function _edgesOf') + '\n' +
   'const _ZERO_R = { nw:[0,0], ne:[0,0], se:[0,0], sw:[0,0] };\n' +
-  'globalThis.__pure = { subtractInterval, _dedupe, _edgesOf, _snapLo, _snapHi };',
+  'globalThis.__pure = { _edgesOf, _snapLo, _snapHi };',
   ctx);
-const { subtractInterval, _dedupe, _edgesOf, _snapLo, _snapHi } = ctx.__pure;
+const { _edgesOf, _snapLo, _snapHi } = ctx.__pure;
 const DPR = 2;   // 실측 기기(dpr 2). 아래 검사는 dpr 1 에서도 성립해야 하므로 둘 다 돈다.
 
 /** 축정렬 상자 하나를 items 원소로. (l,t,r,b) = 스크린 CSS px 생좌표. */
@@ -86,101 +82,14 @@ test('★스냅은 선을 «상자 밖으로» 내보내지 않는다(분수 좌
   }
 });
 
-test('구간 빼기 — 겹침 없음·전부·부분·가운데 쪼개기', () => {
-  eqIv(subtractInterval([[0, 10]], 20, 30), [[0, 10]], '떨어진 구간은 안 건드린다');
-  eqIv(subtractInterval([[0, 10]], 0, 10), [], '완전히 겹치면 사라진다');
-  eqIv(subtractInterval([[0, 10]], -5, 4), [[4, 10]], '왼쪽 부분겹침 → 남는 구간만');
-  eqIv(subtractInterval([[0, 10]], 6, 99), [[0, 6]], '오른쪽 부분겹침 → 남는 구간만');
-  eqIv(subtractInterval([[0, 10]], 4, 6), [[0, 4], [6, 10]], '가운데는 «둘로 쪼갠다»');
-});
 
-test('★§4-2 — 위아래로 «맞닿은» 두 상자: 뒤 상자의 «윗변만» 사라진다', () => {
-  const a = box(100, 100, 300, 200);          // A.bottom = 200
-  const b = box(100, 200, 300, 300);          // B.top    = 200  (간격 0)
-  _dedupe([a, b]);
-  assert.equal(len(b.edges.top), 0, 'B 의 윗변이 남아 있으면 경계가 «2px» 로 그려진다(현빈 제보 ⑶ 그 자체)');
-  assert.ok(len(a.edges.bottom) > 0, 'A 의 아랫변은 «살아야» 한다 — 경계선이 아예 사라지면 그건 고친 게 아니다');
-  assert.ok(len(a.edges.top) > 0 && len(b.edges.bottom) > 0, '맞닿지 않은 변은 손대지 않는다');
-  assert.ok(len(b.edges.left) > 0 && len(b.edges.right) > 0, '세로변은 손대지 않는다');
-});
 
-test('★위험4(10% 거짓 맞닿음) — «디바이스 픽셀 하나보다 넓게» 벌어지면 지우지 않는다', () => {
-  /* 실측으로 정정된 규칙. 10% 축소 · 문서 8px 간격 = 화면 0.8px 일 때 옛 임계(1 CSS px)는
-   * 아래 상자의 윗변을 통째로 지웠다 — 화면엔 «두 선 + 그 사이 배경 2행»이 실재했는데도.
-   * dpr 2 → 임계 0.5. 0.8 은 «지우면 안 되고», 0.4 는 한 픽셀 안이라 지워도 된다. */
-  const A = box(100, 100, 300, 200);
-  const far = box(100, 200.8, 300, 300);      // 0.8px — 사람이 «볼 수 있다»
-  _dedupe([A, far]);
-  assert.ok(len(far.edges.top) > 0, '0.8px(디바이스 1.6행) 떨어진 선을 지웠다 — 한 줄이 «없어진다»');
 
-  const A2 = box(100, 100, 300, 200);
-  const near = box(100, 200.4, 300, 300);     // 0.4px — 한 디바이스 픽셀 안, 구분 불가
-  _dedupe([A2, near]);
-  assert.equal(len(near.edges.top), 0, '한 픽셀 안에서 겹치는 두 선은 여전히 «한 줄»이어야 한다');
 
-  const A3 = box(100, 100, 300, 200);
-  const flush = box(100, 200, 300, 300);      // 진짜 맞닿음 — 어떤 배율에서도 잡혀야 한다
-  _dedupe([A3, flush]);
-  assert.equal(len(flush.edges.top), 0, '간격 0 인 «진짜» 맞닿음을 놓쳤다');
-});
 
-test('★음성대조 — 3px 떨어져 있으면 «지우지 않는다»', () => {
-  const a = box(100, 100, 300, 200);
-  const b = box(100, 203, 300, 300);
-  _dedupe([a, b]);
-  assert.ok(len(b.edges.top) > 0, '떨어진 상자의 변을 지우면 «선이 없어진» 것이지 고친 게 아니다');
-});
 
-test('부분 겹침 — 겹친 x 구간만 빠지고 «남는 구간»은 그린다', () => {
-  const a = box(100, 100, 200, 200);
-  const b = box(150, 200, 300, 300);          // x 로 150~200 만 겹친다
-  const base = len(box(150, 200, 300, 300).edges.top);   // 지우기 «전» 길이(모퉁이 연장 포함)
-  _dedupe([a, b]);
-  const now = len(b.edges.top);
-  assert.ok(now > 0, '남는 구간이 있어야 한다');
-  assert.ok(now < base, '겹친 구간은 빠져야 한다');
-  // ★기대값을 «스냅된 실제 좌표»에서 뽑는다 — 원좌표 50 을 박아 두면 스냅·모퉁이 연장이 바뀔 때마다 늙는다.
-  const overlap = Math.min(a.g.R, b.g.R) - Math.max(a.g.L, b.g.L);
-  assert.ok(Math.abs((base - now) - overlap) < 1e-6,
-    `지운 길이 ${base - now} 가 두 변의 실제 겹침 ${overlap} 과 다르다`);
-  // ⛔부분 겹침에서는 «안쪽 끝»을 h 만큼 더 갉으면 안 된다 — 남아야 할 선이 줄어든다.
-  assert.ok(b.edges.top.some(([p, q]) => q - p > 90), '오른쪽에 남아야 할 긴 구간이 사라졌다');
-});
 
-test('좌우로 맞닿아도 «세로변»이 중복제거된다', () => {
-  const a = box(100, 100, 200, 300);
-  const b = box(200, 100, 320, 300);
-  _dedupe([a, b]);
-  assert.equal(len(b.edges.left), 0, 'B 의 왼변이 남으면 세로 경계도 2px 이 된다');
-  assert.ok(len(a.edges.right) > 0, 'A 의 오른변은 살아야 한다');
-});
 
-test('★회전/조상회전 상자는 dedupe 에 «참여하지 않는다»', () => {
-  const a = box(100, 100, 300, 200, { dedupable: false });
-  const b = box(100, 200, 300, 300);
-  _dedupe([a, b]);
-  assert.ok(len(b.edges.top) > 0,
-    '폴리곤이 «틀린»(AABB) 상자로 남의 변을 지우면 두 배로 나쁘다 — 회전 상자는 빠져야 한다');
-});
-
-test('★3단 쌓임 — 가운데 상자는 «위·아래 둘 다» 빠지고 바깥 변은 산다', () => {
-  const a = box(100, 100, 300, 200);
-  const b = box(100, 200, 300, 300);
-  const c = box(100, 300, 300, 400);
-  _dedupe([a, b, c]);
-  assert.equal(len(b.edges.top), 0);
-  assert.equal(len(c.edges.top), 0);
-  assert.ok(len(a.edges.top) > 0 && len(c.edges.bottom) > 0, '맨 위·맨 아래 바깥 변은 살아야 한다');
-  assert.ok(len(a.edges.bottom) > 0 && len(b.edges.bottom) > 0, '앞 상자 쪽 선이 «경계»를 책임진다');
-});
-
-test('★DOM 뒤 상자에서 뺀다 — 순서를 뒤집어도 «지워지는 쪽»이 뒤 상자다', () => {
-  const b = box(100, 200, 300, 300);   // 이번엔 아래 상자가 «앞»
-  const a = box(100, 100, 300, 200);   // 위 상자가 «뒤»
-  _dedupe([b, a]);
-  assert.equal(len(a.edges.bottom), 0, '뒤 상자(a)의 아랫변이 빠져야 한다');
-  assert.ok(len(b.edges.top) > 0, '앞 상자(b)의 윗변은 살아야 한다');
-});
 
 
 test('★적대검수 조건① — border-radius 가 있으면 직선이 «호만큼 물러나고» 호가 따로 그려진다', () => {
@@ -196,20 +105,6 @@ test('★적대검수 조건① — border-radius 가 있으면 직선이 «호�
   for (const e of ['top','bottom','left','right']) assert.ok(len(rounded.edges[e]) > 0, e + ' 가 통째로 사라졌다');
 });
 
-test('★적대검수 조건② — 맞닿은 두 상자의 «세로변»이 모퉁이에서 끊기지 않는다', () => {
-  const A = box(100, 100, 300, 200);
-  const B = box(100, 200, 300, 300);
-  _dedupe([A, B]);
-  const aL = A.edges.left.at(-1), bL = B.edges.left[0];
-  assert.ok(aL && bL, '세로변이 비었다');
-  assert.ok(bL[0] <= aL[1] + 1e-9,
-    `위 상자 왼변이 ${aL[1]} 에서 끝나는데 아래 상자 왼변이 ${bL[0]} 에서 시작한다 — 그 사이가 «구멍»이다`);
-  // 늘림은 «반굵기까지만» — 그 이상이면 상자 밖이라 §4-3 이 깨진다
-  assert.ok(aL[1] <= A.g.raw.b + 1e-9, '아래로 상자 «밖»까지 늘렸다 — 이웃 불가침이 깨진다');
-  assert.ok(bL[0] >= B.g.raw.t - 1e-9, '위로 상자 «밖»까지 늘렸다');
-  assert.ok(Math.abs(bL[0] - aL[1]) < 1e-9,
-    `구멍이 ${bL[0] - aL[1]} 남았다 — 두 세로변은 «같은 좌표»에서 만나야 한다(h 만 늘리면 절반만 닫힌다)`);
-});
 
 test('★적대검수 조건③ — 굵기 1.5px(흰 점선)에서도 선이 상자 «안»에 있다', () => {
   const b = box(100.3, 200.7, 400.9, 500.1, { h: 0.75 });
@@ -217,4 +112,42 @@ test('★적대검수 조건③ — 굵기 1.5px(흰 점선)에서도 선이 상
   assert.ok(b.g.B + 0.75 <= 500.1 + 1e-9, '아래쪽 가장자리가 상자 밖으로 나갔다');
   assert.ok(b.g.L - 0.75 >= 100.3 - 1e-9, '왼쪽 가장자리가 상자 밖으로 나갔다');
   assert.ok(b.g.R + 0.75 <= 400.9 + 1e-9, '오른쪽 가장자리가 상자 밖으로 나갔다');
+});
+
+test('★§4-2 의 «진짜 근거» — 맞닿은 두 상자의 선은 dedupe 없이도 «겹치지 않는다»', () => {
+  /* 설계안은 「dedupe 가 유일한 해법」이라 했고 팀장이 승인했다. 실측이 그 전제를 뒤집었다:
+   * 안쪽 디바이스 격자 스냅이 각 선을 자기 상자 «안»으로 밀기 때문에, 간격 0 이어도 두 선은
+   * 이미 떨어져 있다. ⇒ 경계에 «2px 띠»가 생길 수 없다(각 선은 여전히 1 CSS px).
+   * ★이 검사가 그 «메커니즘»을 지킨다 — 스냅을 되돌리면 여기서 빨강이 된다. */
+  for (const edge of [200, 200.4, 429.375, 523.773, 77.9]) {
+    for (const k of [1, 2, 3]) for (const h of [0.5, 0.75]) {
+      const aB = _snapHi(edge, k, h);        // 위 상자의 아랫선 중심
+      const bT = _snapLo(edge, k, h);        // 아래 상자의 윗선 중심 (같은 변에서 맞닿음)
+      assert.ok(bT - aB >= 2 * h - 1e-9,
+        `dpr${k}/h${h}/edge${edge}: 두 선이 ${bT - aB} 만큼 떨어져 있다 — 2h(${2*h}) 미만이면 «겹쳐서 2px 띠»가 된다`);
+      assert.ok(aB + h <= edge + 1e-9 && bT - h >= edge - 1e-9,
+        `dpr${k}/h${h}/edge${edge}: 선이 자기 상자 «밖»으로 나갔다`);
+    }
+  }
+});
+
+test('★맞닿아도 각 변은 «온전히» 그려진다(정보를 지우지 않는다)', () => {
+  /* dedupe 가 하던 일 = 뒤 상자의 그 변을 «통째로» 삭제. 그 결과 두 블록이 «한 상자»로 읽혔다.
+   * 현빈 제보는 「두꺼워 보인다」였지 「경계를 없애라」가 아니다 — 두 블록이면 테두리도 둘이다. */
+  const A = box(100, 100, 300, 200);
+  const B = box(100, 200, 300, 300);
+  const len = ivs => ivs.reduce((s, [a, b]) => s + (b - a), 0);
+  assert.ok(len(A.edges.bottom) > 0 && len(B.edges.top) > 0,
+    '맞닿은 두 상자의 «마주보는 변»이 둘 다 살아 있어야 한다');
+  assert.ok(Math.abs(len(A.edges.bottom) - len(B.edges.top)) < 1e-9, '두 변 길이가 같아야 한다');
+});
+
+test('★조건② — 맞닿은 두 상자의 «세로변»이 모퉁이에서 끊기지 않는다', () => {
+  const A = box(100, 100, 300, 200);
+  const B = box(100, 200, 300, 300);
+  const aL = A.edges.left.at(-1), bL = B.edges.left[0];
+  assert.ok(aL && bL, '세로변이 비었다');
+  assert.ok(Math.abs(bL[0] - aL[1]) < 1e-9,
+    `구멍이 ${bL[0] - aL[1]} 남았다 — 두 세로변은 «같은 좌표»(생 변)에서 만나야 한다`);
+  assert.ok(aL[1] <= A.g.raw.b + 1e-9 && bL[0] >= B.g.raw.t - 1e-9, '상자 «밖»까지 늘렸다');
 });

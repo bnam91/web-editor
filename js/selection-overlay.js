@@ -39,22 +39,21 @@ export const SKIP_SELECTOR = '.section-block, .col';
 const TEXT_SELECTOR = '.text-block, .speech-bubble-block';
 const TEXT_HOST_SELECTOR = '.frame-block[data-text-frame="true"], .row';
 
-/* 맞닿음 판정 임계 — 단위는 «디바이스 픽셀» 1개.
- * ★2026-09-06 실측으로 정정. 처음엔 1 CSS px 였고, 「10% 축소에서 거짓 맞닿음이 나도
- *   사람 눈에 같다」고 «판단»했다. 그 판단이 틀렸다:
- *     10% · 문서 8px 간격(=화면 0.8px) 실측 — 진실은 «1px 선 두 줄 + 그 사이 2 디바이스행의 배경»
- *     인데 dedupe 가 아래 상자의 윗변을 «통째로» 지웠다(폭 70px 전부, 화면 926 픽셀 변화).
- *     즉 「지우나 남기나 같다」가 아니라 «한 줄이 없어진다» — 두 상자가 한 상자로 읽힌다.
- * ⇒ 임계를 «디바이스 픽셀 하나»로 좁혔다. 진짜 맞닿음(간격 0)은 어떤 배율에서도 잡힌다.
- * ⛔★불변식을 정확히 쓴다(2026-09-06 적대검수 지적으로 정정):
- *   이 코드가 비교하는 것은 «두 상자의 변»이지 «그려진 두 선»이 아니다.
- *   스냅이 각 선을 자기 상자 «안»으로 밀기 때문에 그려진 선 사이는 «항상 더 벌어져 있다».
- *   실측: 상자 간격 0.40px 인데 그려진 선은 4 디바이스행 떨어져 있었고, 그래도 지웠다.
- *   ⇒ 「구분 불가능할 때만 지운다」는 «참이 아니다». 「상자 변이 1 디바이스px 안일 때 지운다」가 참이다.
- *   ★★그리고 애초에 dedupe 가 필요한지 자체가 실측으로 흔들렸다 — 아래 «필요성» 주석 참조. */
+/* ⛔dedupe 를 «두지 않는다» — 2026-09-06 실측으로 명분이 사라졌다.
+ * 설계안은 「§4-2(경계 두께 == 단일 변)와 §4-3 을 동시에 만족하는 «유일한» 해법 = dedupe」라고
+ * 적었고 팀장이 승인했다. **그 전제가 틀렸다.** 증상 ⑶(2px 띠)을 없앤 것은 dedupe 가 아니라
+ * «디바이스 격자 안쪽 스냅»(_snapLo/_snapHi)이다 — 두 상자가 «간격 0» 으로 맞닿아도
+ * 각 선이 자기 상자 안으로 밀려 사이에 흰 1 디바이스행이 남는다(실측 y1025·1026 / 1027 흰 / 1028·1029).
+ *   ⇒ dedupe 를 켜서 «얻는 것»은 없고, 잃는 것은 «정확성»이었다: 맞닿은 두 블록 중 한 줄이
+ *     통째로 사라져 두 상자가 «한 상자»로 읽혔다(간격 0 에서 온전한 선 2858px 소실).
+ *   ★현빈 제보 원문은 「두꺼워 보인다」지 「경계가 없어졌으면 좋겠다」가 아니다.
+ *     두 블록이면 테두리도 «둘»인 게 맞다 — 한 줄로 합치는 건 정보를 지우는 것이다(지디 판정).
+ * ⇒ 함께 사라진 것: 위험3(대량 O(N²) 파생)·위험4(거짓 맞닿음 임계)·_span·subtractInterval·
+ *   그리고 「구분 불가능할 때만 지운다」라는 «참이 아니던» 불변식.
+ * ⚠️되살리고 싶어지면 «먼저 재라» — 간격 0 에서 두 선이 이미 떨어져 있는지부터. */
+/* 화면의 «디바이스 픽셀» 배율. 스냅 격자와 코너 상한(h + 1/dpr)이 이 값을 쓴다.
+ * ⚠️dedupe 상수와 «붙어 있던» 탓에 제거하다 같이 지워질 뻔했다(실측에서 ReferenceError 로 잡혔다). */
 const _dpr = () => (window.devicePixelRatio || 1);
-const TOUCH_DEVICE_PX = 1;
-const _touchEps = () => TOUCH_DEVICE_PX / _dpr();
 
 let _layer = null;
 let _mo = null;
@@ -231,15 +230,12 @@ function _geomOf(el, variant, scale) {
            xlo: raw.l, xhi: raw.r, ylo: raw.t, yhi: raw.b };
 }
 
-/** ★위험1 감지 — 회전한 «조상» 안의 자식은 _cornerScreen 이 AABB 를 준다.
- *  미회전 상자의 화면 크기는 offsetW/H × 캔버스배율과 «정확히» 같아야 한다. 어긋나면 조상 회전이다.
- *  P0 에서는 그 상자를 dedupe 에서 «뺀다» — 틀린 폴리곤으로 이웃의 변을 지우면 두 배로 나쁘다. */
-function _isNestedRotated(el, g, scale) {
-  if (g.rot) return false;
-  const ow = el.offsetWidth * scale, oh = el.offsetHeight * scale;
-  if (!ow || !oh) return false;
-  return Math.abs((g.raw.r - g.raw.l) - ow) > 1 || Math.abs((g.raw.b - g.raw.t) - oh) > 1;
-}
+/* ⚠️★여기 있던 `_isNestedRotated`(회전한 «조상» 안의 자식 감지)를 «같이» 지웠다.
+ *   그 함수의 유일한 소비자가 dedupe 였다(틀린 AABB 폴리곤으로 남의 변을 지우는 것을 막는 용도).
+ *   dedupe 가 없으면 소비자가 없어 «죽은 코드»가 된다.
+ *   ⛔중첩 회전 «퇴행 자체»는 그대로 남아 있다(P1) — 실측: 45° 조상 안의 자식이 진짜 상자
+ *     344×37.6 인데 AABB 269.9×269.9(높이 +232.3px). P1 에서 조상 누적행렬로 풀 때
+ *     이 감지식(폴리곤 크기 ≠ offsetW/H × 배율)을 다시 쓰면 된다. */
 
 /* ── 변 구간 산술 ────────────────────────────────────────────────────────── */
 /* 직선 구간 — 모서리 반경만큼 «짧게» 시작하고, 반경 0 인 모서리에서는 반굵기 h 만큼 «늘린다».
@@ -266,92 +262,6 @@ function _edgesOf(g) {
     right:  iv(yLo(r.ne[1]), yHi(r.se[1])),
   };
 }
-/** 구간 목록에서 [c,d] 를 뺀다. 부분 겹침이면 «남는 구간만» 남는다. */
-export function subtractInterval(ivs, c, d) {
-  const out = [];
-  for (const [a, b] of ivs) {
-    if (d <= a || c >= b) { out.push([a, b]); continue; }
-    if (c > a) out.push([a, c]);
-    if (d < b) out.push([d, b]);
-  }
-  return out;
-}
-
-/* ★★dedupe 의 «필요성» — 2026-09-06 적대검수 + 내 대조 실측으로 «전제가 흔들렸다».
- *   설계안은 「§4-2 와 §4-3 을 동시에 만족하려면 dedupe 가 유일한 해법」이라고 적었다. 아니었다.
- *   증상 ⑶(2px 띠)을 없앤 것은 dedupe 가 아니라 «디바이스 격자 안쪽 스냅»(00f013b)이다.
- *   ⇒ dedupe 를 꺼도 경계의 각 선은 여전히 «1 CSS px»이고 §4-2 의 문언(경계 두께 == 단일 변)은 참이다.
- *   실측(100% · 간격 0 · 같은 픽스처, 사본 두 벌):
- *     ON  y1025·1026 파랑 / 1027~ 흰            → 선 «한 줄»
- *     OFF y1025·1026 파랑 / 1027 «흰» / 1028·1029 파랑 → 선 «두 줄 + 사이 흰 1행»
- *   즉 남는 것은 «두께» 문제가 아니라 «경계에 선이 두 줄로 보이는 게 옳은가»라는 «디자인» 문제다.
- *   ⛔그 판단은 지디·현빈이 한다. 여기서는 코드를 «그대로 두고» 근거만 남긴다.
- *   ★dedupe 를 빼면 같이 사라지는 것: 위험3(대량 O(N²) 파생)·위험4(거짓 맞닿음)·_span·위 불변식 문장.
- *     성능 실측(70개 동시선택 build 중앙값): ON 1.1ms → OFF 0.4ms.
- *   ★dedupe 와 «무관»한 것: 조건②(세로변 구멍)는 ON/OFF 둘 다 0 이다 — 그건 «생 변까지 늘리기»가 고쳤다.
- *
- * 맞닿은 «변 구간»의 중복 한 줄을 지운다.
- *   ⛔O(N²) 를 피한다: 맞닿으려면 두 변의 좌표가 1px 안이어야 하므로 round(좌표)로 버킷팅해
- *   후보를 ±1 세 칸에서만 꺼낸다(N≈200 select-all 이 사실상 O(N)).
- *   회전 상자·조상회전 상자는 참여하지 않는다. */
-/* 겹침 구간의 «끝» 처리 — 직선 구간은 반경 0 인 모퉁이에서 반굵기 h 만큼 늘어나 있다(_edgesOf).
- * 두 상자의 변이 «같은 자리»에서 끝나면 그 늘림까지 함께 지워야 h 길이의 «토막»이 안 남는다.
- * ⛔반대로 끝이 어긋나 있으면(부분 겹침) 늘리지 않는다 — 남아야 할 선을 h 만큼 갉아먹는다. */
-function _span(pa, pb, qa, qb, qlo, qhi) {
-  let c = Math.max(pa, qa), d = Math.min(pb, qb);
-  if (Math.abs(pa - qa) < 1e-6) c = qlo;   // 끝이 «같은 자리»면 늘어난 몫까지 지운다
-  if (Math.abs(pb - qb) < 1e-6) d = qhi;
-  return [c, d];
-}
-function _dedupe(items, eps = _touchEps()) {
-  const byB = new Map(), byT = new Map(), byR = new Map(), byL = new Map();
-  const put = (m, k, i) => { const a = m.get(k); a ? a.push(i) : m.set(k, [i]); };
-  items.forEach((it, i) => {
-    if (!it.dedupable) return;
-    put(byB, Math.round(it.g.raw.b), i);
-    put(byT, Math.round(it.g.raw.t), i);
-    put(byR, Math.round(it.g.raw.r), i);
-    put(byL, Math.round(it.g.raw.l), i);
-  });
-  const near = (m, v) => {
-    const k = Math.round(v);
-    return [...(m.get(k - 1) || []), ...(m.get(k) || []), ...(m.get(k + 1) || [])];
-  };
-  // 「DOM 뒤 상자에서 뺀다」 — q 를 돌면서 «자기보다 앞선» p 하고만 비교하면 그 규약이 그대로 성립한다.
-  items.forEach((q, qi) => {
-    if (!q.dedupable) return;
-    const qg = q.g;
-    for (const pi of near(byB, qg.raw.t)) {          // p 가 «위», q 의 윗변이 중복
-      if (pi >= qi) continue;
-      const pg = items[pi].g;
-      if (Math.abs(pg.raw.b - qg.raw.t) >= eps) continue;
-      const [c, d] = _span(pg.L, pg.R, qg.L, qg.R, qg.xlo, qg.xhi);
-      if (d > c) q.edges.top = subtractInterval(q.edges.top, c, d);
-    }
-    for (const pi of near(byT, qg.raw.b)) {          // p 가 «아래», q 의 아랫변이 중복
-      if (pi >= qi) continue;
-      const pg = items[pi].g;
-      if (Math.abs(pg.raw.t - qg.raw.b) >= eps) continue;
-      const [c, d] = _span(pg.L, pg.R, qg.L, qg.R, qg.xlo, qg.xhi);
-      if (d > c) q.edges.bottom = subtractInterval(q.edges.bottom, c, d);
-    }
-    for (const pi of near(byR, qg.raw.l)) {          // p 가 «왼쪽», q 의 왼변이 중복
-      if (pi >= qi) continue;
-      const pg = items[pi].g;
-      if (Math.abs(pg.raw.r - qg.raw.l) >= eps) continue;
-      const [c, d] = _span(pg.T, pg.B, qg.T, qg.B, qg.ylo, qg.yhi);
-      if (d > c) q.edges.left = subtractInterval(q.edges.left, c, d);
-    }
-    for (const pi of near(byL, qg.raw.r)) {          // p 가 «오른쪽», q 의 오른변이 중복
-      if (pi >= qi) continue;
-      const pg = items[pi].g;
-      if (Math.abs(pg.raw.l - qg.raw.r) >= eps) continue;
-      const [c, d] = _span(pg.T, pg.B, qg.T, qg.B, qg.ylo, qg.yhi);
-      if (d > c) q.edges.right = subtractInterval(q.edges.right, c, d);
-    }
-  });
-}
-
 const _n = v => (Math.round(v * 100) / 100);
 /* 모서리 호 하나. sweep=1 = 화면상 시계방향(SVG 는 y 가 아래로 간다) — 네 모서리 모두 바깥으로 볼록.
  * ⛔호는 dedupe 대상이 «아니다». 곡선 구간을 지우면 모양이 깨진다(적대검수 경고). */
@@ -399,11 +309,8 @@ function _build() {
     if (!t.el.isConnected) return null;
     const g = _geomOf(t.el, t.variant, scale);
     if (!g.rot && (g.raw.r - g.raw.l < 0.5 || g.raw.b - g.raw.t < 0.5)) continue; // 접힌/숨은 상자
-    const it = { el: t.el, variant: t.variant, g, edges: g.rot ? null : _edgesOf(g) };
-    it.dedupable = !g.rot && !_isNestedRotated(t.el, g, scale);
-    items.push(it);
+    items.push({ el: t.el, variant: t.variant, g, edges: g.rot ? null : _edgesOf(g) });
   }
-  if (items.length > 1) _dedupe(items);
   return items;
 }
 
