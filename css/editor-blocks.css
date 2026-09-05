@@ -156,7 +156,12 @@
 
 
 /* ── Asset Block overlay resize handles (프레임 핸들과 동일 스타일) ── */
-.asset-overlay-handle {
+/* ★`.icb-overlay-handle` 를 «같은 규칙»에 얹는다 — 복사가 아니라 공유다.
+ * 전엔 아이콘원형 핸들이 `.asset-overlay-handle` 클래스를 «빌려» 썼는데,
+ * `hideAssetResizeHandles()` 가 오버레이의 `.asset-overlay-handle` 을 «전부» 쓸어담아 지운다.
+ * 그래서 deselectAll() 한 번에 남의 정리가 이쪽 핸들을 지워버렸다(실측: 재클릭 시 1→0개). */
+.asset-overlay-handle,
+.icb-overlay-handle {
   position: absolute;
   width:  7px;
   height: 7px;
@@ -167,10 +172,10 @@
   pointer-events: auto;
   box-sizing: border-box;
 }
-.asset-overlay-handle.nw { cursor: nw-resize; }
-.asset-overlay-handle.ne { cursor: ne-resize; }
-.asset-overlay-handle.sw { cursor: sw-resize; }
-.asset-overlay-handle.se { cursor: se-resize; }
+.asset-overlay-handle.nw, .icb-overlay-handle.nw { cursor: nw-resize; }
+.asset-overlay-handle.ne, .icb-overlay-handle.ne { cursor: ne-resize; }
+.asset-overlay-handle.sw, .icb-overlay-handle.sw { cursor: sw-resize; }
+.asset-overlay-handle.se, .icb-overlay-handle.se { cursor: se-resize; }
 
 /* ── Canvas Block overlay resize handles ── */
 .canvas-overlay-handle {
@@ -594,12 +599,65 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border-radius: 8px;
-  
+  /* ★블록 상자를 «원의 상자»와 같게 만든다 (현빈: 「오브젝트로 들어가는 블록에 그냥 프레임만
+   * 똥그라미로 씌웠으면 되는데 지금 구조가 조금 다르다」).
+   * 전엔 이 블록이 «행 전체 폭»으로 늘어나 있었다 — 실측: 원이 240px 인데 블록 상자는 716px.
+   * 그래서 ①선택 아웃라인이 원의 3배 폭 직사각형으로 그려지고 ②hover 틴트가 빈 여백까지 덮고
+   * ③원에서 한참 떨어진 빈 자리를 눌러도 블록이 잡혔다 — 에셋 블록(.asset-block)은 상자가 곧
+   * 보이는 면이라 이 셋이 전부 일치한다. 여기만 어긋나 있었다.
+   * ⚠️`!important` 인 이유: 자유배치 프레임 삽입 경로(_insertToFlowFrame)가 «인라인»으로
+   *   `width:100%` 를 박는다. 인라인은 선택자 특정성으로 못 이긴다.
+   * `align-self`/`justify-self` 는 stack(세로 flex)·flex(가로 flex)·grid 세 레이아웃 모두에서
+   *   stretch 를 끊고 «원 크기 그대로» 남기려는 것이다. */
+  width: fit-content !important;
+  align-self: center;
+  justify-self: center;
+  /* ★border-radius 를 뺐다 (현빈 지적: 「파란색 아웃라인 꼭지점에 라디우스가 적용되어 있음」).
+   * 이 8px 는 «선택 아웃라인의 모서리를 둥글게 만드는 것» 말고 하는 일이 없었다 —
+   * 배경·보더·체커무늬는 전부 안쪽 `.icb-circle`(radius 50%)에 붙는다(:605-649).
+   * 그리고 다른 블록의 관례와도 어긋났다: 선택 아웃라인에 양의 radius 를 주는 블록은
+   * 이것 «하나뿐»이었고, table·graph 는 오히려 `border-radius: 0` 으로 각지게 못박아뒀다. */
 }
 .icon-circle-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .icon-circle-block { position: relative; }
-.icon-circle-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); border-radius: 8px; }
+/* ⚠️여기 있던 `border-radius: 8px` 는 위 기본값과 «같은 값의 중복»이었다 — 선택 상태가 모양을
+   바꾸는 것처럼 읽혀 오해를 부른다. 기본값을 없앴으므로 이 줄도 뺀다(아웃라인은 각지게). */
+/* ★아웃라인만 «원»으로 (현빈 확정 2026-09-05: 「아웃라인만 원으로 해도 되지 않나?」).
+ * outline 은 border-radius 를 따라 그려지므로 50% 면 선이 원 둘레를 탄다.
+ * ⛔전에 있던 `border-radius: 8px` 와는 다른 것이다 — 그건 «임의의 둥근 네모»라
+ *   원과도 다른 모양이었고 다른 블록의 «각진» 관례와도 어긋나 현빈이 지적했다.
+ *   여기 50% 는 «이 블록이 실제로 원이라서» 그 모양을 그대로 따르는 것이다.
+ * ★핸들은 반대로 «상자 꼭지점»에 둔다 — 잡는 자리는 앱 전체가 같아야 한다(overlay-handles.js). */
+.icon-circle-block.selected {
+  /* ⚠️outline 을 쓰면 «안 보인다» — 자식(.icb-circle)이 상자를 96×96 으로 «꽉 덮고» 배경이미지까지
+   * 그려서 그 위를 지나간다. outline 은 자기 배경 위에는 그려지지만 «자손» 아래에 깔린다.
+   *   실측: ab 는 자식이 0×0 이라 안 가리고, icb 는 자식이 상자를 100% 덮는다 → 선이 통째로 사라졌다
+   *   (현빈: 「아웃라인 위에 에셋이 올라가서 맞닿는 곳에 아웃라인이 일부 지워지는 이슈」).
+   * ⇒ 자손보다 «위»에 그릴 수 있는 ::before 링으로 그린다. 색·두께는 같은 토큰이라 보이는 건 동일하다.
+   *   ⛔자식(.icb-circle)에 직접 걸지 않는다 — 선택 표시는 «블록»의 상태이지 원의 속성이 아니고,
+   *     원에 걸면 회전·이미지 교체 같은 원 자신의 변화에 선이 딸려간다. */
+  /* ★선이 «둘» 이다 (현빈 2026-09-05: 「동그라미만 되어 있는데 네모박스도 같이 떠야 되지 않겠니」)
+   *   ⑴네모 박스 = «선택 범위». 핸들이 그 네 꼭지점에 앉으므로 박스가 없으면 핸들이 허공에 뜬다.
+   *   ⑵원형 링   = «보이는 모양». 실제 그려지는 건 원이니 그 둘레도 같이 보여준다.
+   *   두 선이 같이 있어야 「무엇을 잡았고(범위) 무엇이 보이는지(모양)」가 한눈에 읽힌다. */
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: 0;
+  border-radius: 0;       /* ★네모로 — outline 은 border-radius 를 따라간다 */
+}
+/* 원형 링 — ⚠️outline 으로는 못 그린다. 자식(.icb-circle)이 상자를 100% 덮고 배경이미지까지
+   그려서 그 위를 지나가는데, outline 은 «자손 아래»에 깔린다(실측: 선이 통째로 사라졌다).
+   ⇒ 자손보다 위에 올릴 수 있는 ::before 로 그린다. ⛔자식에 직접 걸지 않는다 —
+     선택 표시는 «블록»의 상태이지 원의 속성이 아니다. */
+.icon-circle-block.selected::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: var(--sel-outline-w) solid var(--sel-color);
+  box-sizing: border-box;
+  pointer-events: none;   /* 클릭 판정은 블록이 그대로 받는다 */
+  z-index: 3;             /* .icb-circle(z auto) 보다 위 — 이게 «가림»을 푸는 자리다 */
+}
 .icon-circle-block.drag-over .icb-circle { outline: 2px dashed var(--sel-color); }
 
 .icb-circle {
