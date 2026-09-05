@@ -50,11 +50,23 @@ function jumpToElement(el) {
 
   /* ★깜빡임은 «스크롤이 끝난 뒤»부터 센다 — smooth 스크롤이 구르는 동안 시간이 흘러
      도착했을 땐 이미 절반 이상 지나 있었다. */
+  /* ⛔[M59] 타이머로 «누가» 지울지를 기억하지 마라 — 현빈 2026-09-06:
+       「옮겨다니면서 … 파란색 볼드 아웃라인이 시간지나면 사라져야되는데 계속 남아있는 버그」
+     옛 코드는 지우기 타이머가 «하나»(_t2)뿐이라, 1.7초(320+1400) 안에 다음 항목을 누르면
+     clearTimeout(_t2) 가 «앞 블록의 지우기»를 취소했다 → 지나온 블록마다 아웃라인이 «영구히» 남는다.
+     6개를 훑는 것이 이 기능의 «정상 사용»이라 사실상 항상 재현된다.
+   ⇒ 지우는 대상을 «기억»하지 말고 «화면에서 찾아» 지운다. 타이머가 몇 개 살아 있든,
+     중간에 패널이 다시 그려지든, 블록이 교체되든(undo·협업) 남지 않는다.
+     ★이 방식은 타이머 상태와 «무관»하다 — 그게 요점이다. */
+  const _clearFlash = () => document.querySelectorAll('.insp-jump-flash')
+    .forEach(n => n.classList.remove('insp-jump-flash'));
   clearTimeout(jumpToElement._t);
   clearTimeout(jumpToElement._t2);
+  _clearFlash();                       // 앞 항목의 표시를 «지금» 거둔다(타이머를 안 믿는다)
   jumpToElement._t = setTimeout(() => {
+    _clearFlash();                     // 스크롤 도중 또 눌렸을 수 있다
     el.classList.add('insp-jump-flash');
-    jumpToElement._t2 = setTimeout(() => el.classList.remove('insp-jump-flash'), 1400);
+    jumpToElement._t2 = setTimeout(_clearFlash, 1400);
   }, 320);
 }
 

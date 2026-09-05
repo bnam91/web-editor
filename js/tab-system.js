@@ -380,19 +380,21 @@ async function openTabForProject(id) {
    ★여기가 유일한 정본이다. 예전엔 「새 프로젝트」 경로마다 이 리터럴을 복사해 뒀는데,
      복사본이 갈리면 «어느 경로로 만들었느냐»에 따라 에디터가 다르게 군다
      (실제로 projects.html 복사본은 bg 가 다르다). 새 경로(초대 수락 = js/collab/accept.js)는
-     복사하지 말고 이 함수를 부른다. */
+     복사하지 말고 이 함수를 부른다.
+   ★[M58] 그 「bg 가 다르다」는 경고가 «사실이었다» — 실측 결과 네 벌 네 색이었다.
+     이제 bg 는 js/feature-flags.js 의 window.PAGE_BG_DEFAULT «하나»에서 온다. 리터럴 금지. */
 function buildEmptyProject(id, name) {
   const now = new Date().toISOString();
   const emptySnap = JSON.stringify({
     version: 2, currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }]
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }]
   });
   const proj = {
     id, name: name || 'Untitled',
     createdAt: now, updatedAt: now,
     version: 2,
     currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }],
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }],
     currentBranch: 'dev',
     branches: {
       main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },
