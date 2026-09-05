@@ -110,41 +110,117 @@ function _collect() {
 }
 
 /* ── 기하 ────────────────────────────────────────────────────────────────── */
-/* 반픽셀 스냅 — 1px 선의 «중심»을 픽셀 격자 가운데로. 회전 상자에는 쓰지 않는다.
+/* 반픽셀 스냅 — 선의 «중심»을 픽셀 격자에 맞춘다. 회전 상자에는 쓰지 않는다.
  * ★두 갈래인 이유(2026-09-06 실측으로 정정) — 처음엔 round() 한 갈래였는데, 상자 변이
  *   정수 CSS px 이 «아닌» 자리(실측 429.375)에 있으면 반올림이 선을 «바깥으로» 최대 0.5px
  *   밀어낸다. dpr 2 에서 그게 디바이스 1행이고, 그 1행이 이웃 상자 안에 찍혔다
  *   (§4-3 「이웃 픽셀이 한 점도 안 바뀐다」가 860px 로 «깨졌다» — 픽셀이 잡아낸 결함이다).
- * ⇒ 좌·상은 올림(+0.5), 우·하는 내림(−0.5) 으로 «항상 상자 안쪽»에 둔다.
- *   대가: 변이 분수 좌표면 선이 최대 1px 안쪽으로 들어온다. 안쪽 아웃라인이므로 의도와 같은 방향이다. */
-/* ★격자는 «CSS px» 이 아니라 «디바이스 px» 이다 — dpr 2 인 이 맥에서 CSS 정수로 반올림하면
- *   선을 최대 1 CSS px 안쪽으로 밀어넣어 핸들 꼭지점과 «1.54px» 벌어졌다(실측). 디바이스
- *   격자로 스냅하면 그 어긋남이 절반(≤0.5 CSS px)이 되고, 선은 여전히 «상자 안쪽»에 남는다. */
-const _snapLo = (v, k) => Math.ceil(v * k) / k + 0.5;    // 좌·상 — 상자 «안쪽»으로
-const _snapHi = (v, k) => Math.floor(v * k) / k - 0.5;   // 우·하 — 상자 «안쪽»으로
+ * ★격자는 «CSS px» 이 아니라 «디바이스 px» 이다 — CSS 정수로 반올림하면 핸들 꼭지점과
+ *   1.54px 벌어졌다(실측). 디바이스 격자면 그 몫이 1/dpr 이하로 줄고 선은 여전히 상자 안이다.
+ * ★★그리고 «반굵기»는 상수가 아니라 «그 선의 굵기»에서 나온다(2026-09-06 적대검수 조건③).
+ *   흰 점선(--overlay)만 1.5px 인데 0.5 를 박아 두어 선이 상자 «밖»으로 0.25px 샜다(실측 190px).
+ *   ⇒ 두 함수 모두 반굵기 h 를 «받는다». 굵기를 바꾸면 스냅이 «따라온다». */
+const _snapLo = (v, k, h) => Math.ceil(v * k) / k + h;    // 좌·상 — 상자 «안쪽»으로
+const _snapHi = (v, k, h) => Math.floor(v * k) / k - h;   // 우·하 — 상자 «안쪽»으로
 /* ★코너 편차의 «상한 유도» — 핸들(_cornerScreen(el,dir,0))과 이 꼭지점의 축별 거리는
- *     0.5                    (선 굵기 1px 의 절반 — «안쪽 선»이면 반드시 붙는다)
+ *     h  (= 굵기의 절반 — «안쪽 선»이면 반드시 붙는다)
  *   + snapGap ∈ [0, 1/dpr)   (위 두 스냅이 디바이스 격자로 미는 몫)
- *   ⇒ 축별 ≤ 0.5 + 1/dpr    (대각은 그 √2 배)
+ *   ⇒ 축별 ≤ h + 1/dpr      (대각은 그 √2 배)
  * 이건 «표류»가 아니라 «상수 상한»이다 — 줌·위치가 커져도 안 커진다(880 표본 실측:
- * 축별 max 0.9766 · 대각 max 1.2348, 줌이 커질수록 오히려 감소). 인수조건도 이 식으로 다시 썼다.
- * (PLAN 초판의 「대각 ≤1px」은 감으로 적힌 수라 «도달 불가능»했다 — 하한이 이미 0.707 이다.) */
+ * 축별 max 0.9766 · 대각 max 1.2348, 줌이 커질수록 오히려 감소).
+ * ⚠️「≤1px 통과」라고 쓰지 마라 — 적대검수 측 독립 실측은 1.146px 이었다(둘 다 상한 «안»이다). */
+
+/* 변종별 선 굵기(CSS px). ★css/editor-blocks.css 의 stroke-width 와 «같아야» 한다 —
+ * 어긋나면 스냅이 굵기를 잘못 알아 선이 상자 밖으로 샌다(조건③이 정확히 그 사고였다).
+ * ⇒ tests/unit/selection-overlay-scope.test.mjs 가 CSS 값과 이 표를 «대조»한다. */
+export const STROKE_W = { '': 1, overlay: 1.5, sticker: 1 };
+const _strokeOf = v => STROKE_W[v] || 1;
+
+/* ★border-radius 를 «읽어» 온다(적대검수 조건①).
+ *   CSS outline 은 곡률을 따라가는데 SVG 4직선은 둥근 모서리를 «가로지른다» — 각진 테두리가
+ *   되어 오늘보다 나빠진다(실측: 반경 40px 카드 모서리 파랑 0 → 57·57·59·59).
+ *   ⚠️네 모서리가 «각각 다를 수 있다»(M39 의 코너 반경 핸들이 모서리별로 조절한다).
+ *   ⚠️각 모서리는 타원(rx, ry)일 수 있고, %는 상자 크기 기준이다.
+ *   ⚠️합이 변 길이를 넘으면 CSS 규약대로 «전부 같은 비율로» 줄인다. */
+const _RAD_PROPS = { nw: 'borderTopLeftRadius', ne: 'borderTopRightRadius',
+                     se: 'borderBottomRightRadius', sw: 'borderBottomLeftRadius' };
+function _radiiOf(el, scale) {
+  const cs = getComputedStyle(el);
+  const ow = el.offsetWidth, oh = el.offsetHeight;
+  const num = (tok, base) => {
+    if (!tok) return 0;
+    const f = parseFloat(tok);
+    if (!Number.isFinite(f)) return 0;
+    return tok.endsWith('%') ? f / 100 * base : f;
+  };
+  const r = {};
+  let any = false;
+  for (const d of CORNER_DIRS) {
+    const parts = String(cs[_RAD_PROPS[d]] || '0px').trim().split(/\s+/);
+    const rx = num(parts[0], ow) * scale;
+    const ry = num(parts[1] || parts[0], oh) * scale;
+    r[d] = [Math.max(0, rx), Math.max(0, ry)];
+    if (rx > 0 || ry > 0) any = true;
+  }
+  return any ? r : null;
+}
+/** CSS 규약의 축소 계수 — 어느 변에서든 두 반경의 합이 변 길이를 넘으면 «전부» 같은 비율로 줄인다. */
+function _clampRadii(r, w, h) {
+  let f = 1;
+  const lim = (sum, len) => { if (sum > 0 && len / sum < f) f = len / sum; };
+  lim(r.nw[0] + r.ne[0], w); lim(r.sw[0] + r.se[0], w);
+  lim(r.nw[1] + r.sw[1], h); lim(r.ne[1] + r.se[1], h);
+  if (f >= 1) return r;
+  const o = {};
+  for (const d of CORNER_DIRS) o[d] = [r[d][0] * f, r[d][1] * f];
+  return o;
+}
+/** 상자 «변»에서 선 «중심»까지의 거리만큼 반경을 줄인다(안쪽 선의 곡률은 그만큼 작다). */
+function _insetRadii(r, dl, dt, dr, db) {
+  const m = (v, d) => Math.max(0, v - d);
+  return {
+    nw: [m(r.nw[0], dl), m(r.nw[1], dt)], ne: [m(r.ne[0], dr), m(r.ne[1], dt)],
+    se: [m(r.se[0], dr), m(r.se[1], db)], sw: [m(r.sw[0], dl), m(r.sw[1], db)],
+  };
+}
+const _ZERO_R = { nw: [0, 0], ne: [0, 0], se: [0, 0], sw: [0, 0] };
 
 /** 상자 하나의 기하. 좌표는 «핸들과 같은 함수»(_cornerScreen)에서만 나온다. */
-function _geomOf(el) {
-  const [nw, ne, sw, se] = CORNER_DIRS.map(d => _cornerScreen(el, d, 0.5));
-  const axis = Math.abs(nw.y - ne.y) < 0.02 && Math.abs(sw.y - se.y) < 0.02
-            && Math.abs(nw.x - sw.x) < 0.02 && Math.abs(ne.x - se.x) < 0.02;
-  if (!axis) return { rot: true, pts: [nw, ne, se, sw] };
-  // inset 0.5 를 되돌린 «상자 자신»의 변 — 맞닿음 판정은 이 생값으로 한다
-  // (스냅한 선 좌표로 재면 맞닿은 두 변이 항상 1.0 떨어져 보인다).
-  const raw = { l: nw.x - 0.5, t: nw.y - 0.5, r: se.x + 0.5, b: se.y + 0.5 };
+function _geomOf(el, variant, scale) {
+  const sw = _strokeOf(variant), h = sw / 2;
+  // inset 0 = «상자 자신»의 네 꼭지점. 맞닿음 판정도 이 생값으로 한다.
+  const [nw, ne, sw_, se] = CORNER_DIRS.map(d => _cornerScreen(el, d, 0));
+  const axis = Math.abs(nw.y - ne.y) < 0.02 && Math.abs(sw_.y - se.y) < 0.02
+            && Math.abs(nw.x - sw_.x) < 0.02 && Math.abs(ne.x - se.x) < 0.02;
+  const rawR = _radiiOf(el, scale);
+
+  if (!axis) {
+    // 회전 — 로컬 축(u,v)으로 반굵기만큼 «안쪽»으로 민다. 스냅은 하지 않는다(격자가 기울어 있다).
+    const len = (a, b) => Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const lu = len(nw, ne), lv = len(nw, sw_);
+    const u = { x: (ne.x - nw.x) / lu, y: (ne.y - nw.y) / lu };
+    const v = { x: (sw_.x - nw.x) / lv, y: (sw_.y - nw.y) / lv };
+    const P = (p, a, b) => ({ x: p.x + u.x * a + v.x * b, y: p.y + u.y * a + v.y * b });
+    let r = rawR ? _clampRadii(rawR, lu, lv) : _ZERO_R;
+    r = _insetRadii(r, h, h, h, h);
+    return { rot: true, sw, h, r, u, v, W: lu - sw, H: lv - sw,
+             deg: Math.atan2(u.y, u.x) * 180 / Math.PI,
+             o: { nw: P(nw, h, h), ne: P(ne, -h, h), se: P(se, -h, -h), sw: P(sw_, h, -h) },
+             pts: [P(nw, h, h), P(ne, -h, h), P(se, -h, -h), P(sw_, h, -h)] };
+  }
+
+  const raw = { l: nw.x, t: nw.y, r: se.x, b: se.y };
   const k = _dpr();
-  let L = _snapLo(raw.l, k), T = _snapLo(raw.t, k), R = _snapHi(raw.r, k), B = _snapHi(raw.b, k);
-  // ⚠️2px 미만의 «납작한» 상자에서는 위 스냅이 뒤집힌다 → 그때만 상자 «중심»에 한 줄.
+  let L = _snapLo(raw.l, k, h), T = _snapLo(raw.t, k, h),
+      R = _snapHi(raw.r, k, h), B = _snapHi(raw.b, k, h);
+  // ⚠️굵기의 2배보다 «납작한» 상자에서는 위 스냅이 뒤집힌다 → 그때만 상자 «중심»에 한 줄.
   if (R < L) L = R = (raw.l + raw.r) / 2;
   if (B < T) T = B = (raw.t + raw.b) / 2;
-  return { rot: false, raw, L, T, R, B };
+  let r = rawR ? _clampRadii(rawR, raw.r - raw.l, raw.b - raw.t) : _ZERO_R;
+  r = _insetRadii(r, L - raw.l, T - raw.t, raw.r - R, raw.b - B);
+  // 연장 끝점 = «상자의 생 변». 스냅한 선 좌표(L,T,R,B)와 달리 상자와 정확히 같은 자리다.
+  return { rot: false, raw, L, T, R, B, sw, h, r, round: !!rawR,
+           xlo: raw.l, xhi: raw.r, ylo: raw.t, yhi: raw.b };
 }
 
 /** ★위험1 감지 — 회전한 «조상» 안의 자식은 _cornerScreen 이 AABB 를 준다.
@@ -158,12 +234,28 @@ function _isNestedRotated(el, g, scale) {
 }
 
 /* ── 변 구간 산술 ────────────────────────────────────────────────────────── */
+/* 직선 구간 — 모서리 반경만큼 «짧게» 시작하고, 반경 0 인 모서리에서는 반굵기 h 만큼 «늘린다».
+ * ★늘리는 이유(적대검수 조건②): 맞닿은 두 상자를 동시 선택하면 위 상자 아랫변은 floor,
+ *   아래 상자 윗변은 ceil 로 스냅돼 세로변 사이에 «1 CSS px 구멍»이 생겼다(실측 y500.5~501.5).
+ *   각 세로변을 자기 모퉁이 쪽으로 h 만큼 늘리면 두 구간이 «맞닿아» 구멍이 없어진다.
+ * ⚠️h 만큼만 늘린다 — 그 이상은 상자 «밖»이라 §4-3(이웃 불가침)이 깨진다.
+ *   L,T 는 raw 보다 최소 h 안쪽이므로 h 만큼 늘려도 여전히 상자 안이다. */
 function _edgesOf(g) {
+  const r = g.r || _ZERO_R;
+  /* 반경 0 인 모퉁이에서는 «상자의 생 변까지» 늘린다(반굵기 h 가 아니라).
+   * ★h 만 늘리면 구멍이 «절반만» 닫힌다(실측): 위 상자 아랫변은 floor, 아래 상자 윗변은 ceil 로
+   *   스냅돼 두 선 중심이 1.5px 벌어지고, 각자 0.5 씩 덮으면 0.5px 이 남는다(디바이스 1행).
+   *   생 변(raw)까지 늘리면 두 구간이 «같은 좌표»에서 만나 구멍이 0 이 된다.
+   * ⚠️여전히 상자 «안»이다 — 세로변의 유출은 x 로 정해지고(L±h 는 상자 안), y 범위는 상자와 «같다».
+   *   즉 §4-3(이웃 불가침)을 깨지 않는다. 끝점이 분수라도 선의 «선명도»는 x 좌표가 정하므로 안 흐려진다. */
+  const iv = (a, b) => (b > a ? [[a, b]] : []);
+  const xLo = r0 => (r0 > 0 ? g.L + r0 : g.xlo), xHi = r0 => (r0 > 0 ? g.R - r0 : g.xhi);
+  const yLo = r1 => (r1 > 0 ? g.T + r1 : g.ylo), yHi = r1 => (r1 > 0 ? g.B - r1 : g.yhi);
   return {
-    top:    [[g.L, g.R]],
-    bottom: [[g.L, g.R]],
-    left:   [[g.T, g.B]],
-    right:  [[g.T, g.B]],
+    top:    iv(xLo(r.nw[0]), xHi(r.ne[0])),
+    bottom: iv(xLo(r.sw[0]), xHi(r.se[0])),
+    left:   iv(yLo(r.nw[1]), yHi(r.sw[1])),
+    right:  iv(yLo(r.ne[1]), yHi(r.se[1])),
   };
 }
 /** 구간 목록에서 [c,d] 를 뺀다. 부분 겹침이면 «남는 구간만» 남는다. */
@@ -181,6 +273,15 @@ export function subtractInterval(ivs, c, d) {
  *   ⛔O(N²) 를 피한다: 맞닿으려면 두 변의 좌표가 1px 안이어야 하므로 round(좌표)로 버킷팅해
  *   후보를 ±1 세 칸에서만 꺼낸다(N≈200 select-all 이 사실상 O(N)).
  *   회전 상자·조상회전 상자는 참여하지 않는다. */
+/* 겹침 구간의 «끝» 처리 — 직선 구간은 반경 0 인 모퉁이에서 반굵기 h 만큼 늘어나 있다(_edgesOf).
+ * 두 상자의 변이 «같은 자리»에서 끝나면 그 늘림까지 함께 지워야 h 길이의 «토막»이 안 남는다.
+ * ⛔반대로 끝이 어긋나 있으면(부분 겹침) 늘리지 않는다 — 남아야 할 선을 h 만큼 갉아먹는다. */
+function _span(pa, pb, qa, qb, qlo, qhi) {
+  let c = Math.max(pa, qa), d = Math.min(pb, qb);
+  if (Math.abs(pa - qa) < 1e-6) c = qlo;   // 끝이 «같은 자리»면 늘어난 몫까지 지운다
+  if (Math.abs(pb - qb) < 1e-6) d = qhi;
+  return [c, d];
+}
 function _dedupe(items, eps = _touchEps()) {
   const byB = new Map(), byT = new Map(), byR = new Map(), byL = new Map();
   const put = (m, k, i) => { const a = m.get(k); a ? a.push(i) : m.set(k, [i]); };
@@ -203,45 +304,67 @@ function _dedupe(items, eps = _touchEps()) {
       if (pi >= qi) continue;
       const pg = items[pi].g;
       if (Math.abs(pg.raw.b - qg.raw.t) >= eps) continue;
-      const c = Math.max(pg.L, qg.L), d = Math.min(pg.R, qg.R);
+      const [c, d] = _span(pg.L, pg.R, qg.L, qg.R, qg.xlo, qg.xhi);
       if (d > c) q.edges.top = subtractInterval(q.edges.top, c, d);
     }
     for (const pi of near(byT, qg.raw.b)) {          // p 가 «아래», q 의 아랫변이 중복
       if (pi >= qi) continue;
       const pg = items[pi].g;
       if (Math.abs(pg.raw.t - qg.raw.b) >= eps) continue;
-      const c = Math.max(pg.L, qg.L), d = Math.min(pg.R, qg.R);
+      const [c, d] = _span(pg.L, pg.R, qg.L, qg.R, qg.xlo, qg.xhi);
       if (d > c) q.edges.bottom = subtractInterval(q.edges.bottom, c, d);
     }
     for (const pi of near(byR, qg.raw.l)) {          // p 가 «왼쪽», q 의 왼변이 중복
       if (pi >= qi) continue;
       const pg = items[pi].g;
       if (Math.abs(pg.raw.r - qg.raw.l) >= eps) continue;
-      const c = Math.max(pg.T, qg.T), d = Math.min(pg.B, qg.B);
+      const [c, d] = _span(pg.T, pg.B, qg.T, qg.B, qg.ylo, qg.yhi);
       if (d > c) q.edges.left = subtractInterval(q.edges.left, c, d);
     }
     for (const pi of near(byL, qg.raw.r)) {          // p 가 «오른쪽», q 의 오른변이 중복
       if (pi >= qi) continue;
       const pg = items[pi].g;
       if (Math.abs(pg.raw.l - qg.raw.r) >= eps) continue;
-      const c = Math.max(pg.T, qg.T), d = Math.min(pg.B, qg.B);
+      const [c, d] = _span(pg.T, pg.B, qg.T, qg.B, qg.ylo, qg.yhi);
       if (d > c) q.edges.right = subtractInterval(q.edges.right, c, d);
     }
   });
 }
 
 const _n = v => (Math.round(v * 100) / 100);
+/* 모서리 호 하나. sweep=1 = 화면상 시계방향(SVG 는 y 가 아래로 간다) — 네 모서리 모두 바깥으로 볼록.
+ * ⛔호는 dedupe 대상이 «아니다». 곡선 구간을 지우면 모양이 깨진다(적대검수 경고). */
+const _arc = (rx, ry, deg, x, y) => `A${_n(rx)} ${_n(ry)} ${_n(deg)} 0 1 ${_n(x)} ${_n(y)}`;
+
 function _pathData(it) {
-  if (it.g.rot) {
-    const p = it.g.pts;
-    return `M${_n(p[0].x)} ${_n(p[0].y)}L${_n(p[1].x)} ${_n(p[1].y)}L${_n(p[2].x)} ${_n(p[2].y)}L${_n(p[3].x)} ${_n(p[3].y)}Z`;
+  const g = it.g, r = g.r;
+  if (g.rot) {
+    // 로컬 축(u,v) 위에서 둥근 사각형을 만든다 — 회전해도 «상자와 같이» 둥글다.
+    const { o, u, v, deg } = g;
+    const P = (p, a, b) => `${_n(p.x + u.x * a + v.x * b)} ${_n(p.y + u.y * a + v.y * b)}`;
+    const pt = (p, a, b) => ({ x: p.x + u.x * a + v.x * b, y: p.y + u.y * a + v.y * b });
+    let d = `M${P(o.nw, r.nw[0], 0)}`;
+    d += `L${P(o.ne, -r.ne[0], 0)}`;
+    if (r.ne[0] || r.ne[1]) { const q = pt(o.ne, 0, r.ne[1]); d += _arc(r.ne[0], r.ne[1], deg, q.x, q.y); }
+    d += `L${P(o.se, 0, -r.se[1])}`;
+    if (r.se[0] || r.se[1]) { const q = pt(o.se, -r.se[0], 0); d += _arc(r.se[0], r.se[1], deg, q.x, q.y); }
+    d += `L${P(o.sw, r.sw[0], 0)}`;
+    if (r.sw[0] || r.sw[1]) { const q = pt(o.sw, 0, -r.sw[1]); d += _arc(r.sw[0], r.sw[1], deg, q.x, q.y); }
+    d += `L${P(o.nw, 0, r.nw[1])}`;
+    if (r.nw[0] || r.nw[1]) { const q = pt(o.nw, r.nw[0], 0); d += _arc(r.nw[0], r.nw[1], deg, q.x, q.y); }
+    return d + 'Z';
   }
-  const g = it.g, e = it.edges;
+  const e = it.edges;
   let d = '';
-  for (const [a, b] of e.top)    d += `M${_n(a)} ${g.T}L${_n(b)} ${g.T}`;
-  for (const [a, b] of e.bottom) d += `M${_n(a)} ${g.B}L${_n(b)} ${g.B}`;
-  for (const [a, b] of e.left)   d += `M${g.L} ${_n(a)}L${g.L} ${_n(b)}`;
-  for (const [a, b] of e.right)  d += `M${g.R} ${_n(a)}L${g.R} ${_n(b)}`;
+  for (const [a, b] of e.top)    d += `M${_n(a)} ${_n(g.T)}L${_n(b)} ${_n(g.T)}`;
+  for (const [a, b] of e.bottom) d += `M${_n(a)} ${_n(g.B)}L${_n(b)} ${_n(g.B)}`;
+  for (const [a, b] of e.left)   d += `M${_n(g.L)} ${_n(a)}L${_n(g.L)} ${_n(b)}`;
+  for (const [a, b] of e.right)  d += `M${_n(g.R)} ${_n(a)}L${_n(g.R)} ${_n(b)}`;
+  // 네 모서리 호 — 직선 구간과 «따로» 그린다(dedupe 가 직선만 건드리게 하기 위해서다).
+  if (r.nw[0] || r.nw[1]) d += `M${_n(g.L)} ${_n(g.T + r.nw[1])}` + _arc(r.nw[0], r.nw[1], 0, g.L + r.nw[0], g.T);
+  if (r.ne[0] || r.ne[1]) d += `M${_n(g.R - r.ne[0])} ${_n(g.T)}` + _arc(r.ne[0], r.ne[1], 0, g.R, g.T + r.ne[1]);
+  if (r.se[0] || r.se[1]) d += `M${_n(g.R)} ${_n(g.B - r.se[1])}` + _arc(r.se[0], r.se[1], 0, g.R - r.se[0], g.B);
+  if (r.sw[0] || r.sw[1]) d += `M${_n(g.L + r.sw[0])} ${_n(g.B)}` + _arc(r.sw[0], r.sw[1], 0, g.L, g.B - r.sw[1]);
   return d;
 }
 
@@ -253,7 +376,7 @@ function _build() {
     // ★매 프레임 isConnected — undo/redo·협업 sync 가 outerHTML 을 통째로 갈아끼운다.
     //   죽은 노드를 들고 있으면 «유령 상자»가 화면에 남는다(핸들 루프와 같은 방어).
     if (!t.el.isConnected) return null;
-    const g = _geomOf(t.el);
+    const g = _geomOf(t.el, t.variant, scale);
     if (!g.rot && (g.raw.r - g.raw.l < 0.5 || g.raw.b - g.raw.t < 0.5)) continue; // 접힌/숨은 상자
     const it = { el: t.el, variant: t.variant, g, edges: g.rot ? null : _edgesOf(g) };
     it.dedupable = !g.rot && !_isNestedRotated(t.el, g, scale);
@@ -270,9 +393,11 @@ function _render(items) {
   for (let i = 0; i < items.length; i++) {
     let p = kids[i];
     if (!p) { p = document.createElementNS(SVG_NS, 'path'); layer.appendChild(p); }
+    const g = items[i].g;
+    const hasR = !!(g.r && CORNER_DIRS.some(d => g.r[d][0] > 0.05 || g.r[d][1] > 0.05));
     const cls = 'ss-sel-path'
       + (items[i].variant ? ` ss-sel-path--${items[i].variant}` : '')
-      + (items[i].g.rot ? ' is-rot' : '');
+      + (g.rot || hasR ? ' is-rot' : '');   // is-rot = geometricPrecision(호·기울기엔 crispEdges 가 해롭다)
     if (p.getAttribute('class') !== cls) p.setAttribute('class', cls);
     const d = _pathData(items[i]);
     if (p.getAttribute('d') !== d) p.setAttribute('d', d);

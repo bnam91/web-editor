@@ -113,3 +113,42 @@ test('★매 프레임 isConnected — undo/협업이 outerHTML 을 갈아끼운
   assert.ok(/MutationObserver/.test(JS_CODE) && /childList:\s*true/.test(JS_CODE) && /attributeFilter/.test(JS_CODE),
     '선택 변경 «이벤트가 없다» — class 변화와 childList 를 둘 다 봐야 한다');
 });
+
+
+test('★조건③ 재발방지 — CSS 의 stroke-width 와 JS 의 STROKE_W 가 «같은 값»인가', () => {
+  /* 스냅은 «반굵기»만큼 선을 상자 안쪽에 둔다. 그 반굵기를 JS 가 STROKE_W 로 «안다».
+   * CSS 에서만 굵기를 바꾸면 스냅이 굵기를 잘못 알아 선이 상자 «밖»으로 샌다 —
+   * 실제로 --overlay(1.5px)에서 0.25 CSS px 가 새어 190 픽셀이 이웃에 찍혔다(적대검수 조건③).
+   * ⇒ 두 값이 갈라지는 순간 여기서 빨강. */
+  const m = JS_CODE.match(/STROKE_W\s*=\s*\{([^}]*)\}/);
+  assert.ok(m, 'STROKE_W 표를 못 찾았다');
+  const js = {};
+  for (const mm of m[1].matchAll(/(?:'([a-z]*)'|([a-z]+))\s*:\s*([\d.]+)/g)) js[mm[1] ?? mm[2]] = parseFloat(mm[3]);
+  assert.ok(Object.keys(js).length >= 2, `STROKE_W 항목이 ${Object.keys(js).length}개 — 너무 적다`);
+
+  const cssW = {};
+  for (const mm of CSS.matchAll(/\.ss-sel-path(--[a-z]+)?\s*\{([^}]*)\}/g)) {
+    const w = mm[2].match(/stroke-width\s*:\s*([\d.]+)/);
+    if (w) cssW[(mm[1] || '').replace('--', '')] = parseFloat(w[1]);
+  }
+  assert.ok('' in cssW, '.ss-sel-path 의 stroke-width 를 CSS 에서 못 찾았다');
+  for (const [k, v] of Object.entries(cssW)) {
+    assert.equal(js[k] ?? js[''], v,
+      `변종 «${k || '기본'}» 굵기가 CSS ${v} vs JS ${js[k] ?? js['']} — 스냅이 굵기를 잘못 알면 선이 상자 밖으로 샌다`);
+  }
+});
+
+test('★조건① 재발방지 — 오버레이가 border-radius 를 «읽는다»', () => {
+  assert.ok(/borderTopLeftRadius/.test(JS_CODE) && /borderBottomRightRadius/.test(JS_CODE),
+    '네 모서리 반경을 «각각» 읽어야 한다 — M39 의 코너 반경 핸들이 모서리별로 조절한다');
+  assert.ok(/getComputedStyle/.test(JS_CODE),
+    'inline style 만 보면 CSS 클래스로 온 반경을 놓친다');
+  assert.ok(/\bA\$\{|_arc\(/.test(JS_CODE), 'SVG 원호(A) 를 그려야 둥근 모서리를 따라간다');
+  /* ★이 줄이 «검사가 대상을 실제로 보는지»를 지킨다.
+   *   기하 단위검사는 반경을 «주입해서» 산술만 본다 — _geomOf 가 _radiiOf 를 안 부르게 바꿔도
+   *   그쪽은 초록이었다(양성대조로 확인). 그 구멍을 여기서 막는다. */
+  assert.ok(/const rawR = _radiiOf\(el/.test(JS_CODE),
+    '_geomOf 가 _radiiOf 를 «호출»해야 한다 — 안 부르면 반경을 읽고도 안 쓰는 셈이다');
+  assert.ok(/_clampRadii/.test(JS_CODE) && /_insetRadii/.test(JS_CODE),
+    '반경은 «변 길이로 클램프»하고 «선 안쪽 거리만큼 축소»해야 한다(CSS 규약 + 안쪽 선)');
+});

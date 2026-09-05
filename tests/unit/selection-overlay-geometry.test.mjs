@@ -44,8 +44,10 @@ vm.runInContext(
   `const TOUCH_DEVICE_PX = ${TOUCH[1]};\nconst _dpr = () => 2;\nconst _touchEps = () => TOUCH_DEVICE_PX / _dpr();\n` +
   SNAP.join('\n') + '\n' +
   slice('export function subtractInterval') + '\n' +
+  slice('function _span') + '\n' +
   slice('function _dedupe') + '\n' +
   slice('function _edgesOf') + '\n' +
+  'const _ZERO_R = { nw:[0,0], ne:[0,0], se:[0,0], sw:[0,0] };\n' +
   'globalThis.__pure = { subtractInterval, _dedupe, _edgesOf, _snapLo, _snapHi };',
   ctx);
 const { subtractInterval, _dedupe, _edgesOf, _snapLo, _snapHi } = ctx.__pure;
@@ -53,10 +55,13 @@ const DPR = 2;   // 실측 기기(dpr 2). 아래 검사는 dpr 1 에서도 성�
 
 /** 축정렬 상자 하나를 items 원소로. (l,t,r,b) = 스크린 CSS px 생좌표. */
 function box(l, t, r, b, opts = {}) {
+  const h = opts.h ?? 0.5;                       // 기본 = 굵기 1px 의 절반
+  const R0 = { nw:[0,0], ne:[0,0], se:[0,0], sw:[0,0] };
   const g = {
-    rot: false,
+    rot: false, h, sw: h * 2, r: opts.r || R0,
     raw: { l, t, r, b },
-    L: _snapLo(l, DPR), T: _snapLo(t, DPR), R: _snapHi(r, DPR), B: _snapHi(b, DPR),
+    L: _snapLo(l, DPR, h), T: _snapLo(t, DPR, h), R: _snapHi(r, DPR, h), B: _snapHi(b, DPR, h),
+    xlo: l, xhi: r, ylo: t, yhi: b,
   };
   return { g, edges: _edgesOf(g), dedupable: opts.dedupable !== false };
 }
@@ -68,15 +73,15 @@ const eqIv = (got, want, msg) => assert.equal(JSON.stringify(got), JSON.stringif
 test('★스냅은 선을 «상자 밖으로» 내보내지 않는다(분수 좌표에서도)', () => {
   // 실측으로 잡힌 결함: 429.375 같은 분수 변에서 round() 스냅이 선을 0.5px 바깥으로 밀었다.
   for (const [t, b] of [[429.375, 523.773], [100, 200], [10.9, 20.1], [0.2, 3.8]]) {
-    for (const k of [1, 2, 3]) {
-      const T = _snapLo(t, k), B = _snapHi(b, k);
-      assert.ok(T - 0.5 >= t - 1e-9, `dpr${k}: 윗선 ${T} 이 상자 위(${t}) «밖»으로 나갔다`);
-      assert.ok(B + 0.5 <= b + 1e-9, `dpr${k}: 아랫선 ${B} 이 상자 아래(${b}) «밖»으로 나갔다`);
+    for (const k of [1, 2, 3]) for (const h of [0.5, 0.75]) {   // 0.75 = --overlay 흰 점선(1.5px)
+      const T = _snapLo(t, k, h), B = _snapHi(b, k, h);
+      assert.ok(T - h >= t - 1e-9, `dpr${k}/h${h}: 윗선 ${T} 이 상자 위(${t}) «밖»으로 나갔다`);
+      assert.ok(B + h <= b + 1e-9, `dpr${k}/h${h}: 아랫선 ${B} 이 상자 아래(${b}) «밖»으로 나갔다`);
       // ★인수조건 「코너 일치 = 축별 ≤ 0.5 + 1/dpr」의 «유도»를 여기서 못박는다.
       //   축별 편차 = (선 중심 − 상자 변) = 0.5(굵기 절반) + snapGap, snapGap < 1/dpr.
-      assert.ok(T - t <= 0.5 + 1 / k + 1e-9,
-        `dpr${k}: 축별 편차 ${T - t} 가 유도 상한 ${0.5 + 1 / k} 를 넘었다 — 상한이 깨지면 «표류»다`);
-      assert.ok(T - 0.5 - t < 1 / k + 1e-9, `dpr${k}: 스냅 몫이 1/dpr 을 넘었다`);
+      assert.ok(T - t <= h + 1 / k + 1e-9,
+        `dpr${k}/h${h}: 축별 편차 ${T - t} 가 유도 상한 ${h + 1 / k} 를 넘었다 — 상한이 깨지면 «표류»다`);
+      assert.ok(T - h - t < 1 / k + 1e-9, `dpr${k}/h${h}: 스냅 몫이 1/dpr 을 넘었다`);
     }
   }
 });
@@ -129,11 +134,17 @@ test('★음성대조 — 3px 떨어져 있으면 «지우지 않는다»', () =
 test('부분 겹침 — 겹친 x 구간만 빠지고 «남는 구간»은 그린다', () => {
   const a = box(100, 100, 200, 200);
   const b = box(150, 200, 300, 300);          // x 로 150~200 만 겹친다
+  const base = len(box(150, 200, 300, 300).edges.top);   // 지우기 «전» 길이(모퉁이 연장 포함)
   _dedupe([a, b]);
-  const total = b.g.R - b.g.L;
-  assert.ok(len(b.edges.top) > 0, '남는 구간이 있어야 한다');
-  assert.ok(len(b.edges.top) < total, '겹친 구간은 빠져야 한다');
-  assert.ok(Math.abs(len(b.edges.top) - (total - (200 - 150))) < 2, `남은 길이가 어긋난다: ${len(b.edges.top)}`);
+  const now = len(b.edges.top);
+  assert.ok(now > 0, '남는 구간이 있어야 한다');
+  assert.ok(now < base, '겹친 구간은 빠져야 한다');
+  // ★기대값을 «스냅된 실제 좌표»에서 뽑는다 — 원좌표 50 을 박아 두면 스냅·모퉁이 연장이 바뀔 때마다 늙는다.
+  const overlap = Math.min(a.g.R, b.g.R) - Math.max(a.g.L, b.g.L);
+  assert.ok(Math.abs((base - now) - overlap) < 1e-6,
+    `지운 길이 ${base - now} 가 두 변의 실제 겹침 ${overlap} 과 다르다`);
+  // ⛔부분 겹침에서는 «안쪽 끝»을 h 만큼 더 갉으면 안 된다 — 남아야 할 선이 줄어든다.
+  assert.ok(b.edges.top.some(([p, q]) => q - p > 90), '오른쪽에 남아야 할 긴 구간이 사라졌다');
 });
 
 test('좌우로 맞닿아도 «세로변»이 중복제거된다', () => {
@@ -169,4 +180,41 @@ test('★DOM 뒤 상자에서 뺀다 — 순서를 뒤집어도 «지워지는 �
   _dedupe([b, a]);
   assert.equal(len(a.edges.bottom), 0, '뒤 상자(a)의 아랫변이 빠져야 한다');
   assert.ok(len(b.edges.top) > 0, '앞 상자(b)의 윗변은 살아야 한다');
+});
+
+
+test('★적대검수 조건① — border-radius 가 있으면 직선이 «호만큼 물러나고» 호가 따로 그려진다', () => {
+  const R = 12;
+  const plain  = box(100, 100, 300, 300);
+  const rounded = box(100, 100, 300, 300, { r: { nw:[R,R], ne:[R,R], se:[R,R], sw:[R,R] } });
+  const len = ivs => ivs.reduce((s, [a, b]) => s + (b - a), 0);
+  assert.ok(len(rounded.edges.top) < len(plain.edges.top) - 2 * R + 1e-6,
+    '반경이 있는데 윗변이 «끝까지» 그려진다 — SVG 직선이 둥근 모서리를 가로지른다(퇴행 그 자체)');
+  const g = plain.g;
+  assert.ok(Math.abs(len(rounded.edges.top) - ((g.R - g.L) - 2 * R)) < 1e-6,
+    `윗변은 «스냅 좌표 사이 − 양쪽 반경» 이어야 한다(반경이 있으면 생 변까지 안 늘린다): ${len(rounded.edges.top)}`);
+  for (const e of ['top','bottom','left','right']) assert.ok(len(rounded.edges[e]) > 0, e + ' 가 통째로 사라졌다');
+});
+
+test('★적대검수 조건② — 맞닿은 두 상자의 «세로변»이 모퉁이에서 끊기지 않는다', () => {
+  const A = box(100, 100, 300, 200);
+  const B = box(100, 200, 300, 300);
+  _dedupe([A, B]);
+  const aL = A.edges.left.at(-1), bL = B.edges.left[0];
+  assert.ok(aL && bL, '세로변이 비었다');
+  assert.ok(bL[0] <= aL[1] + 1e-9,
+    `위 상자 왼변이 ${aL[1]} 에서 끝나는데 아래 상자 왼변이 ${bL[0]} 에서 시작한다 — 그 사이가 «구멍»이다`);
+  // 늘림은 «반굵기까지만» — 그 이상이면 상자 밖이라 §4-3 이 깨진다
+  assert.ok(aL[1] <= A.g.raw.b + 1e-9, '아래로 상자 «밖»까지 늘렸다 — 이웃 불가침이 깨진다');
+  assert.ok(bL[0] >= B.g.raw.t - 1e-9, '위로 상자 «밖»까지 늘렸다');
+  assert.ok(Math.abs(bL[0] - aL[1]) < 1e-9,
+    `구멍이 ${bL[0] - aL[1]} 남았다 — 두 세로변은 «같은 좌표»에서 만나야 한다(h 만 늘리면 절반만 닫힌다)`);
+});
+
+test('★적대검수 조건③ — 굵기 1.5px(흰 점선)에서도 선이 상자 «안»에 있다', () => {
+  const b = box(100.3, 200.7, 400.9, 500.1, { h: 0.75 });
+  assert.ok(b.g.T - 0.75 >= 200.7 - 1e-9, '1.5px 선의 위쪽 가장자리가 상자 밖으로 나갔다');
+  assert.ok(b.g.B + 0.75 <= 500.1 + 1e-9, '아래쪽 가장자리가 상자 밖으로 나갔다');
+  assert.ok(b.g.L - 0.75 >= 100.3 - 1e-9, '왼쪽 가장자리가 상자 밖으로 나갔다');
+  assert.ok(b.g.R + 0.75 <= 400.9 + 1e-9, '오른쪽 가장자리가 상자 밖으로 나갔다');
 });
