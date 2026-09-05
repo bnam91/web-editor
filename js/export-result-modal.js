@@ -64,7 +64,6 @@
         </div>
         <div class="exres-list"></div>
         <div class="settings-modal-footer">
-          <span class="exres-foot"></span>
           <div style="flex:1"></div>
           <button class="settings-btn settings-btn-primary" data-act="ok">확인</button>
         </div>
@@ -81,19 +80,19 @@
     /* 요약 한 줄 — 다른 게 없으면 «이 줄이 전부»다. */
     const sum = document.createElement('p');
     sum.className = 'exres-sum';
-    let t = okN === total
-      ? `${total}개 섹션을 캔버스와 같게 내보냈습니다.`
-      : `${total}개 중 ${okN}개는 캔버스와 같게 내보냈습니다.`;
-    if (unk.length) t += ` 그중 ${unk.length}개는 검사하지 못했습니다.`;
-    sum.textContent = t;
+    /* ★현빈 원문: 「그냥 몇 개 내보내기 성공 / 실패 n건, n건 리스트는 무엇인지」
+     * ⇒ 문장이 아니라 «숫자 둘»이 먼저 읽히게 한다. 뒤에 목록이 이유를 말한다. */
+    const badN = bad.length + unk.length + fail.length;
+    sum.textContent = badN === 0
+      ? `성공 ${okN}건`
+      : `성공 ${okN}건 · 확인 필요 ${badN}건`;
     list.appendChild(sum);
 
+    /* ★그룹 «제목»을 두지 않는다 — 현빈 「더 심플하게, 알럿 같은 느낌」(2026-09-05).
+     * 어느 부류인지는 «줄 안의 한 마디»로 이미 드러난다(「내보내지 못했습니다: …」 / 「확인이 필요합니다」).
+     * 제목까지 두면 항목이 2~3개인데 머리가 2개 붙어 목록이 «표»처럼 읽힌다. */
     const group = (title, arr, kind) => {
-      if (!arr.length) return;                       // 0 이면 그룹 자체를 안 그린다
-      const g = document.createElement('div');
-      g.className = 'exres-group';
-      g.textContent = `${title} ${arr.length}`;
-      list.appendChild(g);
+      if (!arr.length) return;
       arr.forEach(r => {
         const row = document.createElement('div');
         row.className = 'exres-row';
@@ -105,13 +104,6 @@
           ? `내보내지 못했습니다: ${r.error || '알 수 없는 오류'}`
           : reasonText(r.gate && r.gate.reasons);
         row.append(nm, why);
-        if (kind !== 'failed') {
-          const btn = document.createElement('button');
-          btn.className = 'settings-btn exres-retry';
-          btn.textContent = '다시 내보내기';
-          btn.dataset.sid = r.sectionId || '';
-          row.appendChild(btn);
-        }
         list.appendChild(row);
       });
     };
@@ -119,45 +111,17 @@
     group('검사하지 못한 섹션', unk, 'unmeasured');
     group('내보내지 못한 섹션', fail, 'failed');
 
-    /* 접힌 설명 — «이 검사가 무엇을 보고 무엇을 안 보는지». 안 보는 것을 같이 적는다. */
-    const det = document.createElement('details');
-    det.className = 'exres-about';
-    const smy = document.createElement('summary');
-    smy.textContent = '이 검사는 무엇을 보나';
-    const p = document.createElement('p');
-    /* ★「무엇을 보나」에 «못 보는 것»을 같이 적는다. 안심을 주는 문장은 경고 부재보다 나쁘다.
-       지금 P0 가 사용자에게 말하는 축은 «크기 불일치» 하나다 — 그 이상을 약속하지 않는다. */
-    p.textContent = '내보낸 이미지를 캔버스 렌더와 픽셀 단위로 비교해, 잘렸거나 여백이 생긴 것을 찾습니다. 글자 굵기·자간의 미세한 어긋남과 색감·밝기 차이는 아직 검사 대상이 아닙니다.';
-    det.append(smy, p);
-    list.appendChild(det);
-
-    overlay.querySelector('.exres-foot').textContent = '다운로드 폴더에 저장했습니다';
+    /* ⛔「접힌 설명」·「다시 내보내기」를 두지 않는다 — 현빈 지시(2026-09-05):
+     *   「그냥 몇 개 성공 / 실패 n건, n건 리스트는 무엇인지 이렇게 간단하게만. 알럿처럼.
+     *    다시 내보내기는 없어도 돼」
+     *   ⇒ 이 모달이 말하는 건 «숫자 둘 + 목록» 뿐이다. 설명·재시도·시각화는 전부 뺐다. */
+    /* 푸터 보조문구도 뺀다 — 요약 한 줄이 이미 「내보냈다」를 말한다. 알럿에 두 번 적지 않는다. */
     document.body.appendChild(overlay);
 
     const finish = () => { document.removeEventListener('keydown', onKey, true); overlay.remove(); };
     const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); finish(); } };
     document.addEventListener('keydown', onKey, true);
     overlay.addEventListener('click', async e => {
-      const retry = e.target.closest('.exres-retry');
-      if (retry) {
-        const sec = document.getElementById(retry.dataset.sid);
-        if (!sec) { window.showToast?.('그 섹션을 찾지 못했습니다.'); return; }
-        retry.disabled = true; retry.textContent = '내보내는 중...';
-        try {
-          const r = await window.exportSection(sec, M.format || 'png', M.width || 860);
-          const row = retry.closest('.exres-row');
-          const why = row.querySelector('.exres-reason');
-          const tier = r && r.gate && r.gate.tier;
-          why.textContent = tier === 'same' || tier === 'minor'
-            ? '다시 내보냈습니다. 이번에는 캔버스와 같습니다.'
-            : reasonText(r && r.gate && r.gate.reasons);
-          row.classList.toggle('exres-row--ok', tier === 'same' || tier === 'minor');
-        } catch (err) {
-          retry.closest('.exres-row').querySelector('.exres-reason').textContent =
-            `내보내지 못했습니다: ${(err && err.message) || err}`;
-        } finally { retry.disabled = false; retry.textContent = '다시 내보내기'; }
-        return;
-      }
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act === 'ok' || act === 'close') finish();
       else if (e.target === overlay) finish();
