@@ -205,6 +205,11 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
       return;
     }
     window.deselectAll();
+    // fix(frame-p0#5): 캔버스 클릭 경로(block-drag.js)는 프레임 안 블록 선택 시
+    // 부모 free-layout 프레임 selected/`_activeFrame`을 복원하는데, 레이어패널 클릭은
+    // 이 복원이 없어 이후 캔버스에서 같은 블록을 클릭하면 "미선택 프레임 안"으로
+    // 오판돼 블록 대신 프레임이 선택돼버렸다 — 캔버스와 동일하게 복원한다.
+    window.restoreFrameSelectionFor?.(block);   // ★free-layout «만» 이 아니라 모든 프레임(적대검수 조건1)
     block.classList.add('selected');
     window.syncSection(sec);
     window.highlightBlock(block, item);
@@ -242,6 +247,10 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isChat) window.showChatProperties?.(block);
     else if (isLaurel) window.showLaurelProperties?.(block);
     else window.showAssetProperties(block);
+    // fix(frame-p0#5): 캔버스 클릭 경로 6곳(asset/icon-circle/canvas/vector/iconify/mockup)이
+    // 각자 부르던 코너·리사이즈 핸들 호출이 레이어패널 클릭엔 아예 없어 모서리 핸들 없는
+    // "다른 아웃라인"만 뜨는 원인이었다 — 타입→핸들 맵(showHandlesFor)으로 동일하게 맞춘다.
+    window.showHandlesFor?.(block);
   });
   block.addEventListener('mouseenter', () => item.style.background = 'var(--ui-bg-card)');
   block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
@@ -373,10 +382,15 @@ function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
   header.addEventListener('click', e => {
     if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
     window.deselectAll();
+    // fix(frame-p0#5): makeLayerBlockItem과 동일 — 프레임 안 asset(오버레이 포함)도
+    // 부모 free-layout 프레임 selected/`_activeFrame`을 복원해야 캔버스 재클릭 시 안 튄다.
+    window.restoreFrameSelectionFor?.(block);   // ★free-layout «만» 이 아니라 모든 프레임(적대검수 조건1)
     block.classList.add('selected');
     window.syncSection(sec);
     window.highlightBlock(block, header);
     window.showAssetProperties(block);
+    // fix(frame-p0#5): 코너 핸들 없는 "다른 아웃라인"만 뜨던 문제 — asset 핸들 부착.
+    window.showHandlesFor?.(block);
   });
   block._layerItem = header;
 

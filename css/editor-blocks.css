@@ -921,6 +921,13 @@
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));
 }
+/* fix(frame-p0#4-후반): 텍스트프레임 래퍼는 z-index:auto라 DOM 순서로 그려져,
+   자유배치 프레임 안에서 뒤 형제인 asset-block(스태킹 컨텍스트, z-index 없음이라도
+   DOM 순서로 뒤에 옴)이 선택 아웃라인을 덮어버렸다. 텍스트 내용은 이미
+   .text-block.selected { z-index:2 }(아래)로 위에 뜨는데 아웃라인만 뒤에 있던 불일치 — 맞춘다. */
+.frame-block[data-text-frame="true"]:has(.text-block.selected) {
+  z-index: 2;
+}
 /* T6: outline 2겹 픽스 — 부모 row/text-frame이 outline을 책임지면
    .text-block.selected의 자체 outline은 transparent로 되돌려 한 겹만 보이게 한다.
    (text-block은 padding/border-box 변화로 부모와 미세 어긋남이 생겨 2겹으로 보였음) */
@@ -1048,9 +1055,24 @@
   overflow: visible;
 }
 
-/* 회전된 shape을 가진 frame은 항상 overflow 해제 —
+/* 회전된 자식을 가진 frame은 항상 overflow 해제 —
    사용자 의도: 회전 시 frame 크기는 그대로 두되 시각적 잘림은 피한다.
-   회전된 shape의 visual bounding box가 frame을 넘어가도 잘리지 않게 한다. */
+   회전된 자식의 visual bounding box(AABB)가 frame을 넘어가도 잘리지 않게 한다.
+
+   ★2026-09-05 (P1-1): 원래 shape «하나만» 해제돼 있었다. 실측(796x316 프레임 안
+     400x200 에셋 45도) — 프레임 overflow:hidden 이 위쪽 92.1px·아래쪽 32.1px 를 «실제로»
+     잘라냈다. 회전 규약은 세 갈래라 셀렉터도 세 줄이어야 한다:
+       · data-rotation      — asset/text-frame/icon/mockup/canvas/icon-circle
+                              (asset-rotate.js _applyRotationDeg 는 0이면 «속성을 지운다»
+                               → 존재 == 비영). 따라서 :not() 불필요.
+       · data-rotate-deg    — frame·vector. 0이어도 «문자열로 남는다» → :not([="0"]) 필수.
+       · data-shape-rotation— shape (기존 줄, 유지)
+     음성대조 실측: 회전 없는 프레임 / data-rotate-deg="0" 자식만 있는 프레임은 둘 다
+     computed overflow-y = hidden 그대로다(축이 실제로 갈린다).
+   ⚠️대가: 이 프레임의 border-radius 가 자식을 더 이상 «잘라주지 않는다».
+     shape 규칙이 2026년 초에 이미 받아들인 트레이드오프와 «같은» 정책이다. */
+.frame-block:has([data-rotation]),
+.frame-block:has([data-rotate-deg]:not([data-rotate-deg="0"])),
 .frame-block:has(.shape-block[data-shape-rotation]) {
   overflow: visible;
 }

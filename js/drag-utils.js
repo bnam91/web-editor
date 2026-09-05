@@ -202,10 +202,21 @@ function showToast(msg) {
   t._timer = setTimeout(() => t.classList.remove('show'), 2000);
 }
 
+/* 섹션에 «직접» 텍스트를 추가할 때 상속할 정렬 — 섹션 안 «첫» 텍스트의 정렬을 따라간다.
+   ★자유배치(freeLayout) 프레임 «안»의 텍스트는 근거에서 뺀다.
+     그 자식들은 자기 좌표계를 갖는 별개 세계이고, 2026-09-05 지시로 «프레임 안 신규 추가»의
+     기본 정렬이 가운데가 됐다 — 그걸 여기서 읽으면 프레임이 하나라도 있는 섹션에서
+     «섹션에 직접» 넣는 텍스트까지 가운데로 끌려간다(회귀 금지선).
+     실측(tests/measure/frame-textcenter): 이 가드가 없을 때 섹션 직접 추가가
+     (none) → center 로 오염됐다. 가드 후 (none) 복귀.
+   ⚠️fullWidth(플로우) 프레임 안 텍스트는 «뺴지 않는다» — 그쪽은 섹션과 같은 플로우다. */
 function getSectionAlign(sec) {
-  const first = sec.querySelector('.text-block .tb-h1, .text-block .tb-h2, .text-block .tb-h3, .text-block .tb-body');
-  if (!first) return null;
-  return first.style.textAlign || null;
+  const cands = sec.querySelectorAll('.text-block .tb-h1, .text-block .tb-h2, .text-block .tb-h3, .text-block .tb-body');
+  for (const el of cands) {
+    if (el.closest('.frame-block[data-free-layout], .frame-block[data-freelayout]')) continue;
+    return el.style.textAlign || null;   // 첫 «섹션 레벨» 텍스트가 정한다(빈 문자열이면 null)
+  }
+  return null;
 }
 
 const GRAPH_DEFAULT_ITEMS = [
