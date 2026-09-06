@@ -13,6 +13,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readSrc } from './_srcread.js';   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
 
 const require = createRequire(import.meta.url);
 const A = require('../../services/authService.js');
@@ -71,8 +72,7 @@ test('U-AB-6 ★★ⓓ 어떤 env 로도 런타임 판정을 dev 로 못 돌린�
 });
 
 test('U-AB-7 ★ⓓ 판정 근거는 execPath 와 __dirname 뿐이다 (env 낱말이 소스에 없다)', () => {
-  const fs = require('fs');
-  const src = fs.readFileSync(require.resolve('../../services/authService.js'), 'utf8');
+  const src = readSrc(require.resolve('../../services/authService.js'));
   /* ★주석을 «먼저» 지운다 — 안 그러면 자기가 쓴 설명문에 걸려 빨개진다. */
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
   const body = code.slice(code.indexOf('function isPackagedRuntime'));
