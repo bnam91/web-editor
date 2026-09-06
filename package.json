@@ -95,6 +95,7 @@
       "!.design",
       "!.ux",
       "!.qa",
+      "!tools",
       "!_context",
       "!debug"
     ]
