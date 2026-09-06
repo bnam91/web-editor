@@ -39,6 +39,17 @@ const os = require('os');
   }
 })();
 
+/* ── [H2] 크래시·메인오류 로컬 기록 (2026-09-06) ──────────────────────────────
+   ★얇게만 부른다. 새 로직은 전부 main/crash/ 안에 있다.
+   ★자리가 여기인 이유: userData 이사(위 IIFE)보다 «뒤»여야 logs/ 가 새 폴더에 생기고,
+     그 밖의 모든 초기화보다 «앞»이어야 그 사이에 난 예외를 듣는다.
+   ⛔이 호출이 실패해도 앱은 뜬다 — 기록기가 앱을 못 막게 한다. */
+try {
+  require('./main/crash').install({ app, ipcMain });
+} catch (e) {
+  console.error('[crash-recorder] 설치 실패:', e && e.message);
+}
+
 // .gdt 파일 연결 — ★app ready «이전»에 걸어야 한다.
 // 맥은 파인더에서 더블클릭한 경로를 `open-file` 이벤트로 주는데, 콜드 스타트에선
 // 그 이벤트가 whenReady보다 «먼저» 뜬다. ready 안에서 등록하면 첫 더블클릭을 놓친다.

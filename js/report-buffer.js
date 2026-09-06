@@ -82,6 +82,37 @@
     }
   }
 
+  /* ── [H2] 메인으로 «미러» ────────────────────────────────────────────────
+     ★왜 — 렌더러가 죽으면 이 링버퍼도 같이 죽는다. 신고 창은 «사람이 열어야» 읽지만,
+       크래시는 사람을 안 기다린다. 살아 있는 동안 메인에 사본을 넘겨 둬야
+       crash-*.json 의 errors 로 붙는다(main/crash/recorder.js).
+     ★앞선 가장자리(leading edge)로 보낸다 — 조용하던 중 «첫» 오류는 «즉시» 나간다.
+       ⛔뒤로만 모으면(trailing) 오류가 나고 100ms 뒤에 죽는 흔한 경우에 사본이 못 나간다.
+       연달아 터질 때만 뒤로 모아 초당 두 번을 넘기지 않는다.
+     ⛔여기서 console.* 를 부르지 않는다(무한재귀). 통로가 없으면 조용히 아무것도 안 한다.
+     ⚠️보내는 것은 «이미 씻긴» ring 뿐이다(세척은 담을 때 끝났다). 메인이 한 번 더 씻는다. */
+  var MIRROR_MIN_MS = 500;
+  var mirrorAt = 0, mirrorTimer = null;
+  function sendMirror() {
+    mirrorTimer = null;
+    mirrorAt = Date.now();
+    try {
+      var api = w.electronAPI;
+      if (!api || typeof api.crashMirror !== 'function') return;
+      api.crashMirror({ errors: ring.slice(), at: Date.now(), projectId: String(w.activeProjectId || '') });
+    } catch (_) {}
+  }
+  function scheduleMirror() {
+    try {
+      if (!w.electronAPI || !w.electronAPI.crashMirror) return;   // 브라우저·테스트 환경엔 통로가 없다
+      var since = Date.now() - mirrorAt;
+      if (since >= MIRROR_MIN_MS) { sendMirror(); return; }
+      if (!mirrorTimer && typeof setTimeout === 'function') {
+        mirrorTimer = setTimeout(sendMirror, MIRROR_MIN_MS - since);
+      }
+    } catch (_) {}
+  }
+
   /** 링버퍼에 한 줄 담기. ⛔여기서 console.* 를 부르지 마라. */
   function push(level, rawMsg) {
     if (reentry) return;
@@ -97,6 +128,8 @@
     } finally {
       reentry = false;
     }
+    /* ★재진입 가드를 «푼 뒤에» 보낸다 — 미러가 도중에 무엇을 하든 담기를 막지 않는다. */
+    scheduleMirror();
   }
 
 

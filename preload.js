@@ -249,4 +249,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('claudePM:terminal:exit', h);
     return () => ipcRenderer.removeListener('claudePM:terminal:exit', h);
   },
+
+  /* ── [H2] 렌더러 오류 링버퍼 «미러» (2026-09-06) ──────────────────────────
+     ★왜 — 렌더러가 죽으면 링버퍼(js/report-buffer.js)도 같이 죽는다. 크래시 «뒤»에
+       물어볼 방법이 없으니, 살아 있는 동안 메인에 사본을 보내 둔다. 메인은 그 사본을
+       crash-*.json 의 errors 로 붙인다(main/crash/recorder.js).
+     ⛔invoke 가 아니라 send 다 — 응답을 기다리지 않는다. 오류를 «담는» 자리에서
+       await 를 걸면 오류 경로가 느려지고, 크래시 직전엔 응답이 영영 안 온다.
+     ⚠️여기로 들어오는 문자열은 링버퍼가 «이미 씻은» 것이다(세척은 담을 때 끝난다).
+       그래도 메인이 한 번 더 씻는다 — 이 통로로 들어온 값을 믿지 않는다. */
+  crashMirror: (payload) => { try { ipcRenderer.send('crash:mirror', payload); } catch (_) {} },
 });
+
