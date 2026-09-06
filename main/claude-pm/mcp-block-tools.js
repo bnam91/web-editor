@@ -303,6 +303,20 @@ function install({ tools, toolSchemas, registerTool, hide }) {
         d = cands.find(x => x.type === 'canvas') || cands[0] || null;
       }
       if (!d) {
+        /* ★2026-09-06 — 「접두사 추론이 없다」가 아니라 «안내가 틀렸다»가 결손이었다.
+         *   추론은 된다(타입 26 · 서로 다른 접두사 24 · 겹치는 ss_/cvb_ 도 자동 해소).
+         *   실제로 밟는 길은 ★«블록이 아닌 id»를 넘긴 경우인데, 그중 sec_ 가 압도적이다 —
+         *   「섹션 3번 제목 바꿔줘」에서 클로드가 «가장 먼저 손에 쥐는 게 섹션 id» 라서다.
+         *   그런데 옛 문구는 블록 접두사 표만 늘어놓아 「타입을 명시하라」로 «오독»시켰다.
+         *   ⇒ 클로드는 type 을 억지로 붙이거나 포기했다. ★틀린 안내는 없는 안내보다 나쁘다.
+         *   ⇒ 그래서 «아는 종류»는 갈 곳을 찍어 준다. ⛔모르는 건 그대로 「모르겠다」로 둔다. */
+        const WRONG_KIND = {
+          sec_: 'That is a SECTION id, not a block id. Call read_section(sectionId) to list the blocks inside it, then pass the block id you want (e.g. tb_… for a heading or body text).',
+          ck_:  'That is a CHECKLIST item id. Use update_checklist_item(id) instead.',
+          sp_:  'That is a SCRATCH PAD item id. Use update_scratch_item(id) instead.',
+        };
+        const kind = Object.keys(WRONG_KIND).find(k => blockId.startsWith(k));
+        if (kind) throw new Error(`${blockId} is not a block. ${WRONG_KIND[kind]}`);
         throw new Error(`cannot tell the block type of "${blockId}". Pass type explicitly. known id prefixes: `
           + BLOCK_TYPES.filter(x => x.upd).map(x => `${x.pfx}=${x.type}`).join(', '));
       }
