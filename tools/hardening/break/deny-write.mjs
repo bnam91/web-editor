@@ -10,45 +10,39 @@
      enospc 대상 파일 경로를 «디렉터리»로 선점 — 쓰기가 EISDIR 로 실패한다.
             ⚠️ENOSPC 를 진짜로 내려면 별도 볼륨이 필요하다. 이건 «쓰기 실패»의 대역이지
               ENOSPC 자체가 아니다 — 보고에 그렇게 적는다(추정/실측 구분).
-   ⛔macOS 에서 root 로 돌면 chmod 000 이 «안 막힌다». 그래서 실제로 막혔는지 «써 봐서» 확인한다.
+   ⛔root(맥)·관리자 승격(윈도우)으로 돌면 «안 막힌다». 그래서 실제로 막혔는지 «써 봐서» 확인한다.
+   ★윈도우 이식성: chmod 는 윈도우에서 «디렉터리에 무효»다 — 옛 판은 거기서 sanity 미달로
+     HARNESS_ERROR 를 냈다(= H4·H7 게이트가 윈도우에서 안 돌았다). 이제 플랫폼별 «동등한 동작»
+     (POSIX chmod / 윈도우 icacls /deny)을 lib/denywrite.cjs 에 모아 두고 여기서 부른다.
 ═══════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
 import { assertWritableTarget } from '../lib/fixture.mjs';
 import { HarnessError } from '../lib/deadline.mjs';
+import { denyWrite as denyWriteRaw, probeWritable as probeWritableRaw } from '../lib/denywrite.cjs';
 
 /** 실제로 못 쓰는지 «써 봐서» 확인한다 — 플래그를 믿지 않는다. */
 export function probeWritable(dir) {
-  const p = path.join(dir, `.h7-probe-${process.pid}`);
-  try { fs.writeFileSync(p, 'x'); fs.rmSync(p, { force: true }); return { writable: true, code: null }; }
-  catch (e) { return { writable: false, code: e.code }; }
+  return probeWritableRaw(dir);
 }
 
 export function denyWrite(targetDir, { mode = 'perm' } = {}) {
   const dir = assertWritableTarget(targetDir);
   if (!fs.existsSync(dir)) throw new HarnessError(`deny-write: 대상이 없다 ${dir}`);
-  if (os.userInfo().uid === 0) throw new HarnessError('⛔root 로 돌면 chmod 000 이 안 막힌다 — 일반 사용자로 돌려라');
-  const beforeMode = fs.statSync(dir).mode & 0o777;
-  const beforeProbe = probeWritable(dir);
-  if (!beforeProbe.writable) throw new HarnessError(`deny-write sanity 미달 — 막기 «전»부터 못 쓴다(${beforeProbe.code})`);
-
   if (mode !== 'perm') throw new HarnessError(`아직 없는 deny 모드: ${mode}`);
-  fs.chmodSync(dir, 0o000);
-  const afterProbe = probeWritable(dir);
-  if (afterProbe.writable) {
-    fs.chmodSync(dir, beforeMode);
-    throw new HarnessError('deny-write sanity 미달 — chmod 000 을 했는데 «여전히 써진다»', { dir });
-  }
+
+  let h;
+  try { h = denyWriteRaw(dir); }
+  catch (e) { throw new HarnessError(`deny-write sanity 미달 — ${e.message}`, { dir }); }
+
   return {
-    breaker: 'deny-write', mode, dir, beforeMode,
+    breaker: 'deny-write', mode, dir, how: h.how,
     denied: [dir],                       // ★판정기에 넘길 «선언». 안 넘기면 「못 쟀다」가 「없다」가 된다.
-    errCode: afterProbe.code,
-    sanity: `막기 전 쓰기 가능 → 막은 뒤 ${afterProbe.code}`,
-    summary: `deny-write(perm) ${dir} — ${afterProbe.code}`,
+    errCode: h.errCode,
+    sanity: h.sanity,
+    summary: `deny-write(perm/${h.how}) ${dir} — ${h.errCode}`,
     restore() {
-      try { fs.chmodSync(dir, beforeMode); } catch (_) {}
-      return probeWritable(dir);
+      h.restore();
+      return probeWritableRaw(dir);
     },
   };
 }

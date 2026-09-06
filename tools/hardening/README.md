@@ -35,7 +35,7 @@ node tools/hardening/selfcheck.mjs
 | `crash-gpu` | CDP `Browser.crashGpuProcess` | 앱 생존 여부 · 기록 | **H2** |
 | `hang` | 렌더러 busy loop | 무응답 지속 시간 · 회복 시간 | H2(unresponsive) |
 | `kill9-midsave` | `proj.json.tmp` **출현 순간** SIGKILL | I7(디스크 JSON 유효) · tmp 잔재 · 손실 창 | **H4** · 롤링백업 변경 |
-| `deny-write` | `projects` 폴더 `chmod 000` | 인디케이터·토스트 · 종료가 막히나 | **H4** |
+| `deny-write` | `projects` 폴더 쓰기 거부 (POSIX `chmod 0500` / 윈도우 `icacls /deny`) | 인디케이터·토스트 · 종료가 막히나 | **H4** |
 | `corrupt-half` | `proj.json` **만** 반쪽 | 기존 폴백 체인이 사는지(**양성대조**) | **H5** |
 | `corrupt-all` | proj·backup·history **전부** 반쪽 | 빈 캔버스로 «조용히» 열리는지 | **H5** |
 | `corrupt-sidecar` | history 가 사이드카뿐 | A2 치명(사이드카 채택) 재발 감시 | H5 |
@@ -163,7 +163,7 @@ node -e "for (const f of ['/tmp/h5-all.json','/tmp/h5-half.json']) { const r=req
 | 항목 | 맥 | 윈도우 대안 |
 |---|---|---|
 | 창 화면 밖 이동 | AppleScript `set position` | **없음** → `launch({ requireOffscreen:false })`. 창이 앞에 뜬다 — 원격 세션(세션0)에선 GUI 자체가 안 뜬다 |
-| `deny-write` | `chmod 000` | `icacls <dir> /deny "%USERNAME%":(W)` — `denyWrite()` 를 **분기해야 한다**(현재 `perm` 모드는 POSIX 전용, 윈도우에선 `HARNESS_ERROR`) |
+| `deny-write` | `chmod 0500` | ✅**이식됨** — `lib/denywrite.cjs` 가 `icacls <dir> /deny <user>:(OI)(CI)(W)` 로 분기한다. 양쪽 다 «써 봐서» 확인하고, 승격(root·관리자)이면 «조용히 통과»가 아니라 던진다 |
 | preflight | `preflight.sh` (bash) | 미이식. 윈도우는 포트 점유를 `netstat -ano` 로 직접 확인하고 `--port` 를 골라라 |
 | Electron 경로 | `Electron.app/Contents/MacOS/Electron` | `node_modules/electron/dist/electron.exe` — `electronBinary()` 에 후보 추가 필요 |
 | `arch -arm64` | 필수 | 불필요 — spawn 을 `electron.exe` 직접으로 |
