@@ -54,6 +54,14 @@ function makePng(w, h, rgb) {
   ]);
 }
 const png = makePng(60, 40, [220, 80, 80]);
+
+/* ★진짜 파일이다 — 앞 판의 픽스처는 «매직바이트 + 패딩»이라 구조 검사가 붙자 전부 깨졌다.
+   그건 U0 의 `iVBORw0KGgo=`(PNG 시그니처 8바이트)와 «같은 부류의 가짜»였다.
+   JPEG 은 sips 로 만든 실제 파일(EXIF APP1 포함, 775B), GIF 은 최소 GIF89a 1x1(35B). */
+const REAL_JPEG  = Buffer.from('/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAmaADAAQAAAABAAAA3AAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgA3ACZAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICBAICBAYEBAQGCAYGBgYICggICAgICgwKCgoKCgoMDAwMDAwMDA4ODg4ODhAQEBAQEhISEhISEhISEv/bAEMBAwMDBQQFCAQECBMNCw0TExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE//dAAQACv/aAAwDAQACEQMRAD8Ax6KKK/Pz+ugooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/0Meiiivz8/roKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA/9HHooor8/P66CiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/Sx6KKK/Pz+ugooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/08eiiivz8/roKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA/9THooor8/P66CiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/Vx6KKK/Pz+ugooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/1seiiivz8/roKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA/9fHooor8/P66CiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/Qx6KKK/Pz+ugooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/0ceiiivz8/roKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA/9LHooor8/P66CiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/Tx6KKK/Pz+ugooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/1Meiiivz8/roKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA/9k=', 'base64');  // 220px, 스캔 데이터 644B
+const THUMB_JPEG = Buffer.from('/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAC6ADAAQAAAABAAAAEAAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgAEAALAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMABAQEBAQEBgQEBgkGBgYJDAkJCQkMDwwMDAwMDxIPDw8PDw8SEhISEhISEhUVFRUVFRkZGRkZHBwcHBwcHBwcHP/bAEMBBAUFBwcHDAcHDB0UEBQdHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHf/dAAQAAf/aAAwDAQACEQMRAD8Ap0UUV8ef0Yf/2Q==', 'base64');  // 16px — APP1 안에 넣을 썸네일
+const REAL_GIF  = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAkQBADs=', 'base64');
+
 const dataUrl = (mime, buf) => `data:${mime};base64,` + buf.toString('base64');
 const GOOD_PNG = dataUrl('image/png', png);
 
@@ -143,25 +151,19 @@ test('★base64url(-, _)도 거절한다 — 바이트는 온전해도 화면에
   assert.equal(e.detail.reason, 'BASE64URL_NOT_SUPPORTED');
 });
 
-test('★그러나 공백·줄바꿈·패딩생략은 «브라우저도 받는다» — 계속 통과시킨다', async () => {
+test('★패딩 생략은 «세 소비자 전부» 받는다 — 계속 통과시킨다', async () => {
+  // 브라우저 파서 ✓ / Node ✓ / 외부화 정규식의 `=*` ✓ — 교집합 «안»이다.
   const [h, b] = GOOD_PNG.split(';base64,');
-  for (const [name, payload] of [
-    ['76열 wrap', b.replace(/(.{76})/g, '$1\n')],
-    ['공백',      b.slice(0, 40) + ' \t ' + b.slice(40)],
-    ['패딩없음',   b.replace(/=+$/, '')]
-  ]) {
-    const url = `${h};base64,` + payload;
-    const got = Buffer.from(await (await fetch(url)).arrayBuffer());
-    assert.equal(got.length, png.length, `전제 실패(실제 소비자가 못 읽음): ${name}`);
-    assert.equal(_assertImageSrcIntact(url, 'image').checked, 'png-structure', name);
-  }
+  const url = `${h};base64,` + b.replace(/=+$/, '');
+  const got = Buffer.from(await (await fetch(url)).arrayBuffer());
+  assert.equal(got.length, png.length, '전제: 실제 소비자가 읽어야 한다');
+  assert.equal(_assertImageSrcIntact(url, 'image').checked, 'png-structure');
 });
 
 test('★구조를 못 보는 포맷은 «막지 않는다» — 이제 jpeg/gif/webp 는 «끝 표식»까지 본다', () => {
   // 첫 판에서는 셋 다 magic-bytes 까지만 보고 통과시켰다(=잘린 JPEG 가 그대로 저장됐다).
   // 적대검수에서 그게 「사고 유형의 절반 이상이 남았다」로 잡혔다 ⇒ 구조 검사를 붙였다.
-  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 7), Buffer.from([0xff, 0xd9])]);
-  assert.equal(_assertImageSrcIntact(dataUrl('image/jpeg', jpeg), 'image').checked, 'jpeg-structure');
+  assert.equal(_assertImageSrcIntact(dataUrl('image/jpeg', REAL_JPEG), 'image').checked, 'jpeg-structure');
 });
 
 test('모르는 mime 은 디코드까지만 보고 통과시킨다 (되던 게 안 되면 안 된다)', () => {
@@ -197,16 +199,18 @@ test('★배선 — update_block(ab_) 이 update_asset_block 으로 가는 경�
 test('★거절은 «어느 경로로도» 코드 이름을 잃지 않는다 (던져도 문장에 남는다)', () => {
   const e = grab(() => _assertImageSrcIntact(truncateLikeIncident(GOOD_PNG), 'imgSrc'));
   assert.equal(e.code, 'IMAGE_TRUNCATED');
-  assert.match(e.message, /\[IMAGE_TRUNCATED\]/,
-    'JSON-RPC 에러로 납작해지면 code 필드가 사라진다 — 문장에도 남아 있어야 한다');
+  assert.match(e.message, /\[IMAGE_TRUNCATED:PNG_CHUNK_TRUNCATED\]/,
+    'JSON-RPC 에러로 납작해지면 code·reason 이 사라진다 — 문장에 «둘 다» 남아야 한다');
 });
 
 test('★배선 — update_asset_block 이 잘린 imgSrc 를 put_image 와 «같은 모양»으로 거절한다', () => {
   const fs = require('node:fs');
   const src = fs.readFileSync(require.resolve('../../main/claude-pm/mcp-server.js'), 'utf8');
-  const hits = src.match(/return \{ ok: false, code: 'IMAGE_TRUNCATED'/g) || [];
-  assert.ok(hits.length >= 2,
-    `put_image 와 update_asset_block «둘 다» ok:false 로 답해야 한다 (found ${hits.length})`);
+  // ★코드 «이름»이 아니라 표식(imageCheckError)으로 잡는다 — 사유에 따라 코드가 갈리기 때문이다
+  //   (IMAGE_TRUNCATED / IMAGE_INVALID). 이름으로 grep 하면 코드가 늘 때마다 조용히 헐거워진다.
+  const hits = src.match(/if \(e && e\.imageCheckError\)/g) || [];
+  assert.ok(hits.length >= 3,
+    `put_image·update_asset_block·디스패처가 «전부» ok:false 로 답해야 한다 (found ${hits.length})`);
 });
 
 
@@ -267,15 +271,31 @@ const PNG_B64 = b64of(png);
 
 /* ★오탐 — «정상인데 거절»이 구멍보다 나쁘다.
    셋 다 디코드하면 원본과 바이트가 «같다». 옛 코드에선 통과하던 것들이다. */
-test('★오탐 — 76열로 줄바꿈된 base64는 통과한다 (파이썬 base64.encodebytes 기본값)', () => {
-  const wrapped = PNG_B64.replace(/(.{76})/g, '$1\n');
-  assert.ok(wrapped.includes('\n'), '전제: 실제로 줄바꿈이 있어야 한다');
-  assert.deepEqual(Buffer.from(wrapped.replace(/\s/g, ''), 'base64'), png, '전제: 바이트는 원본과 같다');
-  assert.equal(_assertImageSrcIntact('data:image/png;base64,' + wrapped, 'image').checked, 'png-structure');
+/* ★★여기서 «세 번째» 뒤집혔다 — 이번엔 새 사실이 근거다. 소비자가 셋이었다.
+   1판: 알파벳 밖 글자·공백 거절 → 2판: 「Node 가 읽으니」 통과 → 3판: 「브라우저가 거부하는 것만」 거절
+   → **4판: 「저장도 읽을 수 있는 것만」 통과.**
+   저장 시 에셋 외부화(main/project-store/externalizer.js:25)가 쓰는 정규식은
+     /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+\/]+=*​/g
+   소문자 `data:image/` 고정 · 파라미터 불가 · **base64 안에 공백 불가**다. 실측(2026-09-07):
+     76열 wrap 6,575자 → **98자만 매치** ⇒ 앞부분만 goya-asset:// 로 치환되고 나머지가 쓰레기로
+     남아 **저장하면 이미지가 영구 파손**된다. 5단계 검증 게이트가 «같은 정규식»이라 그 쓰레기를
+     0 으로 세고 통과시킨다 — 파손이 게이트를 그냥 지난다.
+   ⇒ 받아들이는 집합은 «모든 소비자의 교집합»이다. 브라우저가 받아도 저장이 깨뜨리면
+     「돌아가는데 결과가 손상된다」 — 이 판이 막으려던 그 모양이다. */
+test('★★base64 안의 줄바꿈은 거절한다 — 브라우저는 읽지만 «저장»이 파손한다', () => {
+  const [h, b] = GOOD_PNG.split(';base64,');
+  const wrapped = b.replace(/(.{76})/g, '$1\n');
+  const e = grab(() => _assertImageSrcIntact(`${h};base64,` + wrapped, 'image'));
+  assert.equal(e.detail.reason, 'BASE64_WHITESPACE_NOT_STORABLE');
+  assert.equal(e.code, 'IMAGE_INVALID', '잘린 게 아니다 — 코드가 그렇게 말해야 한다');
+  assert.doesNotMatch(e.message, /잘려서/, '원인을 정확히 말해야 한다');
+  assert.match(e.message, /저장/, '왜 안 되는지(저장 단계) 를 말해야 한다');
 });
-test('★오탐 — 공백이 섞인 base64는 통과한다', () => {
-  const spaced = PNG_B64.slice(0, 40) + ' \t ' + PNG_B64.slice(40);
-  assert.equal(_assertImageSrcIntact('data:image/png;base64,' + spaced, 'image').checked, 'png-structure');
+
+test('★★공백이 섞인 base64도 같은 이유로 거절한다', () => {
+  const [h, b] = GOOD_PNG.split(';base64,');
+  const e = grab(() => _assertImageSrcIntact(`${h};base64,` + b.slice(0, 40) + ' \t ' + b.slice(40), 'image'));
+  assert.equal(e.detail.reason, 'BASE64_WHITESPACE_NOT_STORABLE');
 });
 test('★오탐 — 패딩(=) 없는 «완전한» base64는 통과한다 (RFC 4648 에서 패딩은 생략 가능)', () => {
   const nopad = PNG_B64.replace(/=+$/, '');
@@ -304,9 +324,10 @@ for (const [name, url] of [
 ]) {
   test(`★우회막힘 — ${name} 로 위장한 잘린 PNG 도 거절된다`, () => {
     const e = grab(() => _assertImageSrcIntact(url(), 'image'));
-    assert.equal(e.code, 'IMAGE_TRUNCATED');
-    assert.equal(e.detail.reason, 'PNG_CHUNK_TRUNCATED',
-      '★표기가 뭐든 «내용 기준»으로 구조를 봐야 한다 — 불일치로 반려하는 게 아니다');
+    assert.ok(e.imageCheckError, '어느 사유로든 «거절»되어야 한다');
+    // 표기가 저장 소비자에 안 맞으면 그게 «먼저» 잡힌다(대문자·파라미터). 내용까지 간 것은 구조로 잡힌다.
+    assert.ok(['MIME_CASE_NOT_STORABLE', 'MIME_PARAMS_NOT_STORABLE', 'PNG_CHUNK_TRUNCATED']
+      .includes(e.detail.reason), e.detail.reason);
   });
 }
 
@@ -315,8 +336,8 @@ test('★청크 길이 필드를 «작게 위조»해도 CRC 가 잡는다', () 
   const forged = Buffer.from(png);
   forged.writeUInt32BE(4, 33 - 25 >= 0 ? 33 : 33); // IDAT 길이 자리(offset 33)를 4로 위조
   const e = grab(() => _assertImageSrcIntact('data:image/png;base64,' + b64of(forged), 'image'));
-  assert.equal(e.code, 'IMAGE_TRUNCATED');
   assert.equal(e.detail.reason, 'PNG_CRC_MISMATCH');
+  assert.equal(e.code, 'IMAGE_INVALID', '내용이 깨진 것이지 «잘린» 게 아니다 — 코드가 사유를 따라야 한다');
 });
 test('★길이는 그대로 두고 «내용만» 파괴해도 CRC 가 잡는다', () => {
   const corrupt = Buffer.from(png);
@@ -326,8 +347,8 @@ test('★길이는 그대로 두고 «내용만» 파괴해도 CRC 가 잡는다
 });
 
 /* ★JPEG/GIF/WebP — 셋 다 «끝 표식»이 있다. 잘리면 그게 없다. */
-const JPEG_OK = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(120, 7), Buffer.from([0xff, 0xd9])]);
-const GIF_OK  = Buffer.concat([Buffer.from('GIF89a', 'latin1'), Buffer.alloc(60, 3), Buffer.from([0x3b])]);
+const JPEG_OK = REAL_JPEG;
+const GIF_OK  = REAL_GIF;
 const WEBP_OK = (() => {
   const body = Buffer.alloc(40, 9); const b = Buffer.alloc(12 + body.length);
   b.write('RIFF', 0, 'latin1'); b.writeUInt32LE(4 + body.length, 4); b.write('WEBP', 8, 'latin1');
@@ -365,7 +386,8 @@ test('★스킴/인코딩 표기 대소문자 — DATA:…;BASE64, 도 «읽고�
   // 정규식의 i 플래그가 실제로 일하는 자리. 없으면 이 입력이 «데이터URL이 아님»으로 빠져나가
   // 검사를 통째로 건너뛴다(=우회로). 실측: /i 없으면 매치 실패.
   const e = grab(() => _assertImageSrcIntact('DATA:IMAGE/PNG;BASE64,' + truncateLikeIncident(GOOD_PNG).split(';base64,')[1], 'image'));
-  assert.equal(e.code, 'IMAGE_TRUNCATED');
+  assert.ok(e.imageCheckError, '읽기는 해야 한다 — «데이터URL이 아님»으로 빠져나가면 우회로가 된다');
+  assert.equal(e.detail.reason, 'MIME_CASE_NOT_STORABLE');
 });
 test('★패딩 없는 base64는 Node 가 그대로 읽는다 — 우리가 채우지 않는다', () => {
   const nopad = PNG_B64.replace(/=+$/, '');
@@ -381,8 +403,7 @@ test('★온전한 PNG 를 image/jpg 로 선언해도 «통과»한다 — 되�
 });
 
 test('별칭 덕분에 image/jpg + «진짜 JPEG» 은 통과한다 (흔한 오타를 막지 않는다)', () => {
-  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 7), Buffer.from([0xff, 0xd9])]);
-  const r = _assertImageSrcIntact('data:image/jpg;base64,' + jpeg.toString('base64'), 'image');
+  const r = _assertImageSrcIntact('data:image/jpg;base64,' + REAL_JPEG.toString('base64'), 'image');
   assert.equal(r.checked, 'jpeg-structure');
   assert.equal(r.declaredMime, 'image/jpg', '표기가 달랐다는 사실은 응답에 남는다');
 });
@@ -436,14 +457,115 @@ test('★mime 별칭표가 판정을 가른다 — image/jpg 로 «이미지가 
   assert.equal(e.detail.declaredMime, 'image/jpg');
 });
 
-test('★JPEG EOI 뒤에 trailer(EXIF 썸네일 등)가 붙어도 «통과»한다 — 오탐 방지', () => {
-  // 「마지막 2바이트가 ff d9 인가」로 박으면 이런 «실존하는 온전한» 파일을 막는다.
-  // 적대검수가 미리 경고한 자리다: 1번 오탐 사고를 반복하지 않으려면 완화해야 한다.
-  const jpeg = Buffer.concat([
-    Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 7), Buffer.from([0xff, 0xd9]),
-    Buffer.alloc(120, 0x5a)   // EOI 뒤 trailer
-  ]);
-  const r = _assertImageSrcIntact('data:image/jpeg;base64,' + jpeg.toString('base64'), 'image');
+test('★JPEG EOI 뒤에 trailer 가 붙어도 «통과»한다 — 오탐 방지', () => {
+  const withTail = Buffer.concat([REAL_JPEG, Buffer.alloc(120, 0x5a)]);
+  const r = _assertImageSrcIntact('data:image/jpeg;base64,' + withTail.toString('base64'), 'image');
   assert.equal(r.checked, 'jpeg-structure');
   assert.equal(r.trailingBytes, 120, 'trailer 길이를 세어 보고해야 한다');
+});
+
+/* ══ 적대검수 2차(2026-09-07) — 구멍과 오탐이 «같은 원인(정책 불일치)»에서 나왔다 ══
+   앞 판은 네 포맷에 정책이 셋이었다: PNG·WebP 는 뒤 잔여 보고 후 통과 /
+   GIF 은 «마지막 바이트» 엄격(→ 오탐) / JPEG 은 lastIndexOf(→ 잘린 폰 사진이 뚫림). */
+
+/* 카메라 JPEG 을 «만든다» — APP1(Exif) 안에 «자기 EOI 를 가진» 썸네일 JPEG 을 넣는다.
+   폰 사진은 사실상 전부 이 모양이다. sips 로 만든 작은 JPEG 엔 썸네일이 없어서
+   그대로 쓰면 이 시험이 «전제 실패»로 헛돈다(실제로 그랬다). */
+/* ⚠️SOS 를 indexOf(ff da) 로 찾으면 «썸네일 안의» SOS 를 먼저 문다(실제로 그랬다).
+   바깥 이미지의 SOS 는 세그먼트를 «걸어서»만 찾을 수 있다 — 검사기와 같은 방식이다. */
+function outerScanStart(buf) {
+  let i = 2;
+  while (i + 3 < buf.length) {
+    if (buf[i] !== 0xff) { i++; continue; }
+    const m = buf[i + 1];
+    if (m === 0xff) { i++; continue; }
+    if (m === 0xd8 || (m >= 0xd0 && m <= 0xd7) || m === 0x01) { i += 2; continue; }
+    if (m === 0xd9) return -1;
+    const L = buf.readUInt16BE(i + 2);
+    if (m === 0xda) return i + 2 + L;
+    i = i + 2 + L;
+  }
+  return -1;
+}
+
+function makeCameraJpeg(thumb) {
+  const payload = Buffer.concat([Buffer.from('Exif\0\0', 'latin1'), thumb]);
+  const seg = Buffer.alloc(4);
+  seg[0] = 0xff; seg[1] = 0xe1; seg.writeUInt16BE(payload.length + 2, 2);   // APP1 + 길이(자기 2바이트 포함)
+  return Buffer.concat([REAL_JPEG.subarray(0, 2), seg, payload, REAL_JPEG.subarray(2)]);
+}
+
+test('★★잘린 «카메라» JPEG(EXIF 썸네일 보유)이 거절된다 — 원 사고의 가장 흔한 형태', () => {
+  const cam = makeCameraJpeg(THUMB_JPEG);
+  assert.equal(_assertImageSrcIntact('data:image/jpeg;base64,' + cam.toString('base64'), 'image').checked,
+    'jpeg-structure', '전제①: 온전한 카메라 JPEG 은 «통과»해야 한다(오탐 아님)');
+
+  // ★SOS «이후»(스캔 데이터 도중)에서 자른다 — 세그먼트 워크는 무사히 통과하고
+  //   EOI 판정만 남는 지점이라야 「어디서 EOI 를 찾나」가 «실제로» 갈린다.
+  //   (SOS 앞에서 자르면 세그먼트 길이 검사가 먼저 잡아 이 시험이 헛돈다 — 실제로 그랬다.)
+  const scanStart = outerScanStart(cam);
+  assert.ok(scanStart > 0, '전제: 바깥 이미지의 SOS 를 찾아야 한다');
+  const cut = cam.subarray(0, scanStart + 200);
+  assert.ok(cut.lastIndexOf(Buffer.from([0xff, 0xd9])) >= 0,
+    '전제②: 잘린 조각 «안에» ff d9 가 남아야 한다 — 그게 앞 판이 속은 이유다(썸네일의 EOI)');
+  assert.equal(cut.indexOf(Buffer.from([0xff, 0xd9]), scanStart), -1,
+    '전제③: 그런데 «스캔 이후»엔 EOI 가 없어야 한다 — 여기서 두 판이 갈린다');
+
+  const e = grab(() => _assertImageSrcIntact('data:image/jpeg;base64,' + cut.toString('base64'), 'image'));
+  assert.equal(e.code, 'IMAGE_TRUNCATED');
+  assert.equal(e.detail.reason, 'JPEG_NO_EOI');
+});
+
+/* ⛔알려진 한계 — 「잘린 스캔 데이터 뒤에 ff d9 를 붙이면」 우리는 «못 잡는다».
+   엔트로피 스트림을 실제로 디코드해야 알 수 있고, 구조 검사로는 온전한 파일과 구별되지 않는다.
+   적대검수 판단: 적대적 «조작»이라 우선순위 낮다(전송 중 절단은 EOI 를 만들어 내지 않는다).
+   ⇒ 「막힌다」고 적지 «않는다». 못 잡는 것을 못 잡는다고 테스트로 박아 둔다 —
+      나중에 누가 「이건 왜 통과하지」로 헤매지 않게. */
+test('⛔알려진 한계: 잘린 스캔 데이터에 ff d9 를 «붙이면» 구조 검사로는 못 잡는다', () => {
+  const cam = makeCameraJpeg(THUMB_JPEG);
+  const scanStart = outerScanStart(cam);
+  const forged = Buffer.concat([cam.subarray(0, scanStart + 200), Buffer.from([0xff, 0xd9])]);
+  const r = _assertImageSrcIntact('data:image/jpeg;base64,' + forged.toString('base64'), 'image');
+  assert.equal(r.checked, 'jpeg-structure', '지금은 통과한다 — 이게 «현재의 한계»다');
+  assert.equal(r.trailingBytes, 0);
+});
+
+test('★온전한 GIF 뒤에 1바이트가 붙어도 «통과»한다 — 앞 판의 오탐', () => {
+  // 「마지막 바이트가 0x3b 인가」로 박아 뒀던 자리. JPEG 에선 일부러 피한 패턴인데 GIF 만 엄격이었다.
+  const withTail = Buffer.concat([REAL_GIF, Buffer.from([0x0a])]);
+  const r = _assertImageSrcIntact('data:image/gif;base64,' + withTail.toString('base64'), 'image');
+  assert.equal(r.checked, 'gif-structure');
+  assert.equal(r.trailingBytes, 1);
+});
+
+test('★잘린 GIF 는 거절된다', () => {
+  const e = grab(() => _assertImageSrcIntact('data:image/gif;base64,' + REAL_GIF.subarray(0, REAL_GIF.length - 6).toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'GIF_TRUNCATED');
+});
+
+test('★네 포맷이 «한 정책»이다 — 구조적 끝 뒤는 전부 trailingBytes 로 «보고만» 한다', () => {
+  const cases = [
+    ['png',  'image/png',  png],
+    ['jpeg', 'image/jpeg', REAL_JPEG],
+    ['gif',  'image/gif',  REAL_GIF]
+  ];
+  for (const [fmt, mime, buf] of cases) {
+    const tail = Buffer.concat([buf, Buffer.alloc(7, 0x11)]);
+    const r = _assertImageSrcIntact(`data:${mime};base64,` + tail.toString('base64'), 'image');
+    assert.equal(r.checked, `${fmt}-structure`, `${fmt}: 뒤 잔여로 «거절»하면 안 된다`);
+    assert.equal(r.trailingBytes, 7, `${fmt}: 잔여를 정확히 세어야 한다`);
+  }
+});
+
+test('★대문자 mime·파라미터는 «저장»이 못 읽으므로 거절한다 (문에 따라 갈리지도 않는다)', () => {
+  // 앞 판은 put_image 만 거절하고 update_block 은 통과시켜 «문에 따라 갈렸다».
+  // 이제 두 문 다 같은 검사기를 타고, 판정 근거는 「저장 소비자가 읽나」로 하나다.
+  for (const [u, reason] of [
+    ['data:IMAGE/PNG;base64,' + PNG_B64,             'MIME_CASE_NOT_STORABLE'],
+    ['data:image/png;charset=utf-8;base64,' + PNG_B64, 'MIME_PARAMS_NOT_STORABLE']
+  ]) {
+    const e = grab(() => _assertImageSrcIntact(u, 'image'));
+    assert.equal(e.detail.reason, reason);
+    assert.equal(e.code, 'IMAGE_INVALID');
+  }
 });
