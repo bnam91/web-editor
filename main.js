@@ -3065,6 +3065,9 @@ app.whenReady().then(async () => {
       buildBasicSection: _invokeRendererBuildBasicSection,
       getCanvasState: _invokeRendererGetCanvasState,
       exportSections: _invokeRendererExport,
+      historyTip: _invokeRendererHistoryTip,
+      historyHasSeq: _invokeRendererHistoryHasSeq,
+      undoOnce: _invokeRendererUndoOnce,
       exportCollect: { begin: _dlBegin, settle: _dlSettle, end: _dlEnd },
       listScratchItems: _invokeRendererListScratchItems,
       readScratchItem: _invokeRendererReadScratchItem,
@@ -3844,6 +3847,48 @@ async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', labe
 // ─── PM get_canvas_state — renderer 측 READ-ONLY 캔버스 조회 helper ────────────
 // 변경(mutation) 없음 → USER_BUSY 가드 불필요. null/destroyed 가드만 유지.
 // (최소화 창도 읽기는 안전하므로 isMinimized 차단 안 함.)
+/* ── 히스토리 (2026-09-06) — MCP undo 판정용 ────────────────────────────────
+ * ★withLive 는 «비싸다»(getSerializedCanvas). 편집 도구마다 부르는 «가벼운» 읽기와
+ *   되돌리기 «직전» 한 번 부르는 «무거운» 읽기를 인자로 가른다. */
+async function _invokeRendererHistoryTip() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  const js = `(() => { try {
+      if (typeof window.getHistoryTip !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.getHistoryTip not found' };
+      return window.getHistoryTip();
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; } })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+async function _invokeRendererHistoryHasSeq(seq) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  const js = `(() => { try {
+      if (typeof window.historyHasSeq !== 'function') return { ok: false, code: 'API_MISSING' };
+      return { ok: true, has: window.historyHasSeq(${Number(seq)}) };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; } })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+/** ⛔한 칸만. 앱 undo 를 그대로 부르되 «호출 여부»는 도구가 가드로 판단한 뒤다. */
+async function _invokeRendererUndoOnce() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태' };
+  /* ★사용자가 «지금» 편집 중이면 손대지 않는다 — 레포의 기존 USER_BUSY 판정과 «같은 술어».
+     ⇒ undo() 는 맨 위에서 시작하면 ensureHistoryCheckpoint 를 스스로 먼저 밀어,
+       아직 히스토리에 안 올라간 «그 타이핑»을 항목으로 박고 되돌린다. 그걸 여기서 막는다. */
+  const js = `(() => { try {
+      if (typeof window.undo !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.undo not found' };
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+        && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다 — 되돌리지 않았습니다.',
+                 retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      window.undo();
+      return { ok: true };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; } })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
 /* ── 내보내기 (2026-09-06) ────────────────────────────────────────────────────
  * ⛔window.exportAllImagesPNG() 를 «부르지 않는다» — 안에 confirm() 이 있어 MCP 호출이
  *   응답 없이 멎는다. 한 단계 아래 exportAllSections(fmt, w) 를 직접 부른다.

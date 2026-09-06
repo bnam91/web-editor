@@ -33,6 +33,26 @@ let _iconifyApi = null;
 // main.js가 setProjectOps({duplicate})로 주입 — 프로젝트 단위 관리(복제 등). main 프로세스 fs 로직.
 let _projectOps = null;
 
+/* ── MCP undo 추적 (2026-09-06) ────────────────────────────────────────────
+ * 「우리가 «마지막으로» 만든 히스토리 항목」의 seq. 편집 도구가 성공할 때마다 갱신.
+ * ⛔전역 undo 를 여는 게 아니다 — «우리 것일 때만» 되돌리기 위한 근거다. */
+let _lastMcpSeq = null;      // 우리 마지막 편집이 만든 «맨 위» 항목의 seq
+/* ★실측(2026-09-06): MCP 도구 «1회»가 히스토리 «1칸»이 아니다.
+     add_block/add_section = 1칸인데 build_basic_section = ★4칸.
+   ⇒ 한 칸만 되돌리면 «반쯤 지어진 섹션»이 남는다 — ok:true 인데 눈에는 그대로다.
+   ⇒ 그래서 «우리 호출이 만든 구간»(from, to] 을 기억하고 그 구간«만» 되돌린다.
+     ⛔「내 것이 나올 때까지 계속」이 아니다 — 우리 경계 밖으로는 «한 칸도» 안 간다. */
+let _lastMcpSeqFrom = null;
+/* 캔버스를 «안 바꾸는» 도구들 — 이걸 부른 뒤엔 seq 를 갱신하지 않는다.
+   ★export_sections 는 파일을 쓰지만 «캔버스»는 안 바꾼다 → 여기 들어간다. */
+const _NON_MUTATING = new Set([
+  'read_project', 'read_section', 'get_canvas_state', 'list_memories', 'list_scratch_items',
+  'read_scratch_item', 'list_checklist_items', 'get_section_memo', 'search_iconify',
+  'get_block_schema', 'list_projects', 'goditor_which_instance', 'export_sections',
+  'undo_last_mcp_change',
+]);
+
+
 const tools = new Map();
 const toolSchemas = new Map();
 /* «토큰 다이어트»(2026-08-25) — tools/list 에서만 감출 도구 이름.
@@ -645,6 +665,91 @@ function _registerDefaultTools() {
     }
   );
 
+  /* ── undo_last_mcp_change (2026-09-06) ────────────────────────────────────
+   * ⛔이름을 `undo` 로 «안» 짓는다 — 「앱 undo 를 그대로 준다」로 읽히면 안 된다.
+   * ★undo 스택은 «사람 조작과 MCP 조작이 섞인 한 스택»이다(블록 26종 전부 여기 쌓인다).
+   *   그래서 앱 undo 를 그대로 열면 «사람이 방금 한 것»을 되돌린다 = 안전장치가 아니라 사고 도구.
+   * ★★소스를 읽어야만 보이는 함정: undo() 는 맨 위에서 시작하면 ensureHistoryCheckpoint 를
+   *   «스스로 먼저» 민다. 사용자가 방금 타이핑해 체크포인트가 안 된 상태면 그 타이핑이 새 항목으로
+   *   박히고 undo 가 «그걸» 되돌린다. seq 대조로는 못 막는다(그 시점엔 top 이 아직 우리 것).
+   *   ⇒ 그래서 undoOnce 가 «USER_BUSY»(레포 공통 술어)로 그 순간을 막는다.
+   * ⛔협업 스코프(_useScoped)는 «건드리지 않는다» — 비협업에서 켜면 협업 경로에 회귀가 난다. */
+  registerTool(
+    'undo_last_mcp_change',
+    async ({ expectedProject } = {}) => {
+      _assertExpectedProject(expectedProject);
+      if (!_rendererInvoker?.historyTip || !_rendererInvoker?.undoOnce) {
+        throw new Error('renderer bridge not ready (app version too old?)');
+      }
+      if (_lastMcpSeq == null) {
+        return { ok: false, code: 'NOTHING_TRACKED',
+          reason: 'This session has not made a tracked edit yet (or the project was switched since).',
+          hint: 'Only an edit made through MCP in this app session can be undone here.' };
+      }
+      const tip = await _rendererInvoker.historyTip();
+      if (!tip || tip.ok === false) return tip || { ok: false, code: 'CALL_ERROR' };
+      if (tip.empty || !tip.canUndo) {
+        return { ok: false, code: 'NOTHING_TO_UNDO', reason: 'History has no earlier state on this page.', historyLen: tip.len };
+      }
+      if (tip.seq !== _lastMcpSeq) {
+        // 우리 항목이 «아직 스택에 있는가»로 두 사실을 가른다.
+        let has = false;
+        try { const h = await _rendererInvoker.historyHasSeq(_lastMcpSeq); has = !!(h && h.has); } catch (_) {}
+        return has
+          ? { ok: false, code: 'NOT_OURS',
+              reason: 'The most recent change was NOT made by these tools — refusing to undo it.',
+              top: { action: tip.action || null },
+              hint: 'A person (or another tool) changed the canvas after our last edit. Ask the user to undo it themselves if that is what they want.' }
+          : { ok: false, code: 'EVICTED',
+              reason: `Our change is no longer in the undo history (it holds at most 50 steps).`,
+              top: { action: tip.action || null },
+              hint: 'Too many later changes pushed it out. It cannot be undone from here.' };
+      }
+      /* ★사용자 미커밋 편집 가드는 undoOnce 안의 USER_BUSY 로 옮겼다 —
+         「라이브==맨위」 비교는 pushHistory 가 «변경 전»을 찍어서 항상 어긋난다(실측). */
+      /* ★우리 «한 호출»이 만든 칸 수만큼만 되돌린다(실측: build_basic_section 은 4칸).
+         ⛔경계 밖으로는 한 칸도 안 간다 — from 에 닿으면 «즉시» 멈춘다. */
+      const target = (_lastMcpSeqFrom == null) ? 1 : Math.max(1, _lastMcpSeq - _lastMcpSeqFrom);
+      const undoneSeq = _lastMcpSeq, fromSeq = _lastMcpSeqFrom;
+      let steps = 0;
+      for (let i = 0; i < target; i++) {
+        const cur = await _rendererInvoker.historyTip();
+        if (!cur || cur.ok === false || cur.empty || !cur.canUndo) break;
+        if (fromSeq != null && cur.seq != null && cur.seq <= fromSeq) break;   // ★우리 경계
+        const one = await _rendererInvoker.undoOnce();
+        if (!one || one.ok === false) {
+          if (steps === 0) return one || { ok: false, code: 'CALL_ERROR' };
+          break;   // 중간에 막히면 «거기까지»를 정직하게 보고한다
+        }
+        steps++;
+      }
+      _lastMcpSeq = null; _lastMcpSeqFrom = null;   // ★«소모» — 연달아 부르면 2번째는 NOTHING_TRACKED
+      const after = await _rendererInvoker.historyTip();
+      return { ok: steps > 0, undoneSteps: steps, plannedSteps: target,
+        undone: { seq: undoneSeq, fromSeq, action: tip.action || null },
+        partial: steps < target,
+        historyPos: after && after.pos, historyLen: after && after.len,
+        hint: steps < target
+          ? 'Stopped early — only part of the last tool call was rolled back. The canvas may be in an in-between state; check it.'
+          : 'Rolled back exactly the steps of the LAST tool call these tools made (one call can be several history steps). It will not walk further back.' };
+    },
+    {
+      description: 'Undo the LAST edit these MCP tools made — only if it is still the most recent change on the canvas. '
+        + 'One tool call can be several history steps (build_basic_section is 4), so this rolls back exactly that call, never further. '
+        + 'It will NOT undo a change a person made and never walks past its own call: if the top of the '
+        + 'history is not ours, it refuses and tells you why (NOT_OURS / USER_BUSY / EVICTED / NOTHING_TO_UNDO). '
+        + 'Use it to take back an edit you just made by mistake.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          expectedProject: { type: 'string', description: 'proj_<digits>. Refuses if a different project is open.' }
+        },
+        required: []
+      }
+    }
+  );
+
+
 
 
   registerTool(
@@ -717,6 +822,7 @@ function _registerDefaultTools() {
         throw new Error('project ops not initialized (setProjectOps not called — app version too old?)');
       // ★전환 전체를 배타 구간에 넣는다 — 이 구간 동안 편집 도구는 디스패처에서 큐잉된다.
       //   (전환끼리도 직렬: 두 open 이 겹치면 서로의 문서를 덮는다.)
+      _lastMcpSeq = null; _lastMcpSeqFrom = null;   // ★스택은 «페이지별»이라 전환하면 우리 seq 는 무의미해진다
       const r = await _runExclusiveSwitch({ projectId }, () => _projectOps.open({ projectId, timeoutMs }));
       if (!r) throw new Error('open failed');
       // ★로드 대기 실패(load_timeout/load_error/navigated_away)는 «구조화된 실패»로 돌려준다 —
@@ -6642,13 +6748,35 @@ async function _handleRpc(msg) {
       /* ★응답도 «유저 토큰»이다. pretty-print(들여쓰기 2칸)는 같은 정보에 15~25% 를 더 물린다.
        *   compact JSON 은 정보 손실 0 이라 그냥 이득이다(클라이언트는 JSON 으로 파싱한다). */
       const _reply = (r) => ok({ content: [{ type: 'text', text: JSON.stringify(r) }], isError: false });
+      /* ★편집 도구가 «성공»했으면 그때 만들어진 히스토리 꼭대기의 seq 를 기억한다.
+         ⛔withLive 를 «켜지 않는다» — 여기선 매 호출 도는 자리라 직렬화 비용을 물면 안 된다
+           (실사용 프로젝트가 100MB 대다). 무거운 판정은 undo 도구가 «한 번» 한다. */
+      let _before = null;
+      const _noteSeq = async (r) => {
+        try {
+          if (_NON_MUTATING.has(name)) return r;
+          if (!r || r.ok === false) return r;
+          if (!_rendererInvoker?.historyTip) return r;
+          const t = await _rendererInvoker.historyTip();
+          if (t && t.ok !== false && !t.empty && t.seq != null && t.seq !== _before) {
+            _lastMcpSeqFrom = _before;   // 호출 «전» 꼭대기
+            _lastMcpSeq = t.seq;         // 호출 «후» 꼭대기
+          }
+        } catch (_) { /* 추적 실패는 편집을 막지 않는다 — undo 가 NOT_OURS 로 안전측 거절한다 */ }
+        return r;
+      };
+      if (!_NON_MUTATING.has(name) && _rendererInvoker?.historyTip) {
+        /* ★seq 가 null 인 «옛 항목»(도장 이전에 생긴 것)은 0 으로 본다 —
+           null 을 그대로 두면 구간 계산이 못 되고 「1칸」으로 조용히 축소된다. */
+        try { const b = await _rendererInvoker.historyTip(); if (b && b.ok !== false) _before = (b.empty || b.seq == null) ? 0 : b.seq; } catch (_) {}
+      }
       if (_SWITCH_EXEMPT.has(name)) {
-        return _reply(_enrichApiMissing(await handler(args)));
+        return _reply(await _noteSeq(_enrichApiMissing(await handler(args))));
       }
       return await _serializeCall(async () => {
         const blocked = await _awaitSwitchIdle(name, _SWITCH_QUEUE_MAX_MS);
         if (blocked) return _reply(blocked);
-        return _reply(_enrichApiMissing(await handler(args)));
+        return _reply(await _noteSeq(_enrichApiMissing(await handler(args))));
       });
     }
 

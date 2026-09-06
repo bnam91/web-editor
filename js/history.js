@@ -6,6 +6,10 @@ import { state } from './globals.js';
 
 /* ── 상태 변수 ── */
 const MAX_HISTORY = 50;
+/* ★단조 증가 순번 — «절대» 리셋하지 않는다.
+   MAX_HISTORY 로 밀려나면 «깊이»(historyPos)는 재사용되지만 seq 는 안 겹친다.
+   그래서 「되돌릴 게 없다」와 「밀려나서 되돌릴 수 «없다»」를 가를 수 있다. */
+let _seq = 0;
 let historyStack = [];
 let historyPos   = -1;
 let _historyPaused = false;
@@ -37,7 +41,7 @@ function pushHistory(action = '작업', sideEffects = null) {
   historyStack = historyStack.slice(0, historyPos + 1);
   // sideEffects: { onUndo?: fn, onRedo?: fn } — DOM 외 상태(예: 스크래치패드 IDB) 복원용
   // remoteKeys: 직전 체크포인트 이후 적용된 원격 섹션 키 셋(스코프 undo 가 제외에 사용)
-  historyStack.push({ canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys() });
+  historyStack.push({ canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), seq: ++_seq });
   if (historyStack.length > MAX_HISTORY) {
     historyStack.shift(); // 가장 오래된 항목 제거
     historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -278,7 +282,7 @@ function clearHistory() {
   // 초기 상태를 스냅샷으로 저장해 첫 번째 액션도 Undo 가능하게 함
   // 프로젝트 격리: 이전 프로젝트에서 누적된 원격 키 잔량을 버린다(빈 셋으로 초기화).
   _remoteSinceCheckpoint = new Set();
-  const init = { canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set() };
+  const init = { canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set(), seq: ++_seq };
   historyStack = [init];
   historyPos   = 0;
   state._canvasDirty = false;
@@ -330,7 +334,7 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
     historyStack = historyStack.slice(0, historyPos + 1);
     // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
     //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
-    historyStack.push({ canvas: current, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys() });
+    historyStack.push({ canvas: current, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), seq: ++_seq });
     if (historyStack.length > MAX_HISTORY) {
       historyStack.shift(); // 가장 오래된 항목 제거
       historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -342,11 +346,29 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
 }
 
 /* ── window 노출 ── */
+
+/* ── 히스토리 «꼭대기» 읽기 (2026-09-06) ─────────────────────────────────────
+ * MCP undo 가 「이 맨 위 항목이 «우리 것»인가」를 판정하는 유일한 근거.
+ * ⛔읽기 전용 — 스택을 «절대» 건드리지 않는다. 직렬화도 «안» 한다(호출당 비용 O(1)).
+ * ★한때 「라이브 캔버스 == 맨 위 항목」으로 «사용자 미커밋 편집»을 잡으려 했는데 «틀렸다»:
+ *   pushHistory 는 변경 «전» 상태를 찍는다 → 어떤 편집 뒤에도 live ≠ top 이라 «항상» 걸린다
+ *   (실측 2026-09-06: 정상 경로에서 100% 오탐). 그 판정은 앱이 이미 쓰는 USER_BUSY 로 옮겼다. */
+function getHistoryTip() {
+  const e = historyStack[historyPos];
+  const base = { ok: true, pos: historyPos, len: historyStack.length, canUndo: historyPos > 0 };
+  if (!e) return { ...base, empty: true };
+  return { ...base, empty: false, seq: (e.seq == null ? null : e.seq), action: e.action || null };
+}
+/** 그 seq 가 «아직 스택에 있는가» — 없으면 MAX_HISTORY 로 밀려난 것. */
+function historyHasSeq(seq) { return historyStack.some(x => x && x.seq === seq); }
+
 window.pushHistory  = pushHistory;
 window.ensureHistoryCheckpoint = ensureHistoryCheckpoint;
 window.undo         = undo;
 window.redo         = redo;
 window.clearHistory = clearHistory;
+window.getHistoryTip = getHistoryTip;
+window.historyHasSeq = historyHasSeq;
 window.restoreSnapshot = restoreSnapshot;
 // D1: 페이지별 히스토리 헬퍼 노출 (save-load.js는 window.* 로만 호출)
 window.stashHistoryFor    = stashHistoryFor;
