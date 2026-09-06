@@ -64,6 +64,18 @@ function isPackagedRuntime() {
   return false;                                                        // ⒞
 }
 
+/* ── ★「패키징인가」의 «한 벌» 답 ─────────────────────────────────────────────
+ * 이 변수가 이 앱에서 그 물음의 정본이다. 지금 이 답을 보는 자리는 셋이다:
+ *   ⑴ 서버 주소(resolveApiBase, 이 파일)  ⑵ collab 주소(main/collab/transport.js)
+ *   ⑶ 개발자용 .env 로드(main/env-file.js)
+ * ★새로 판정하지 말고 `isPackaged()` 를 «불러라». 판정이 두 벌이 되면 나중에 한쪽만
+ *   고쳐지고, 그때부터 두 자리의 답이 조용히 갈린다.
+ * 값은 ⒜ 부팅 직후 `isPackagedRuntime()` 의 기본값(=막는 쪽)이고,
+ *      ⒝ main.js 가 `applyRuntime()` 으로 Electron 의 `app.isPackaged` 를 알려주면 그 답이 된다. */
+let _packaged = true;
+/** @returns {boolean} 이 실행이 「배포본」인가 (dev = false) */
+function isPackaged() { return _packaged; }
+
 let API_BASE, LOGIN_URL, SESSION_URL, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL;
 
 /** 주소 하나에서 파생 URL 전부를 다시 만든다. ⛔여기 말고 다른 데서 조립하지 마라. */
@@ -103,11 +115,12 @@ function _recompute(base) {
  * @param {{isPackaged:boolean}} rt
  */
 function applyRuntime(rt) {
-  const packaged = !(rt && rt.isPackaged === false);
-  _recompute(resolveApiBase({ isPackaged: packaged ? true : false, env: process.env }));
+  _packaged = !(rt && rt.isPackaged === false);
+  _recompute(resolveApiBase({ isPackaged: _packaged, env: process.env }));
 }
 
-_recompute(resolveApiBase({ isPackaged: isPackagedRuntime() ? true : false, env: process.env }));
+_packaged = isPackagedRuntime() ? true : false;
+_recompute(resolveApiBase({ isPackaged: _packaged, env: process.env }));
 
 const TIMEOUT_MS = 10000;
 // 링크 생사 확인은 클릭 직후에 돌아 «체감 지연»이 된다. 로그인 요청보다 짧게 잡는다.
@@ -287,6 +300,7 @@ module.exports = {
   verifySession,
   resolveApiBase,
   applyRuntime,
+  isPackaged,
   LIVE_API_BASE,
   _isPackagedRuntime: isPackagedRuntime,
   API_BASE,

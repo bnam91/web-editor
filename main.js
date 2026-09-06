@@ -52,19 +52,6 @@ const os = require('os');
 try { require('./main/gdt/wire').registerGdtFileAssociations(); }
 catch (e) { console.error('[gdt] 파일 연결 등록 실패:', e); }
 
-// .env 로드 (크리덴셜 환경변수)
-function _loadEnvFile(p) {
-  if (!fs.existsSync(p)) return;
-  fs.readFileSync(p, 'utf8').split('\n').forEach(line => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) return;
-    const [k, ...v] = trimmed.split('=');
-    if (k && v.length) process.env[k.trim()] = v.join('=').trim();
-  });
-}
-_loadEnvFile(path.join(__dirname, '.env'));
-// 외부 자격증명 저장소(로컬 공유 시크릿) — GEMINI_API_KEY 등. iCloud dataless(EDEADLK) 회피 위해 ~/.config/secrets 로 일원화
-_loadEnvFile(path.join(os.homedir(), '.config/secrets/.env'));
 const { spawn } = require('child_process');
 const _authService = require('./services/authService');
 /* ★「패키징인가」의 정본은 Electron 자신(`app.isPackaged`)이다 — authService 는 electron 을
@@ -72,11 +59,28 @@ const _authService = require('./services/authService');
    ⛔이 줄은 authService 를 처음 require 한 «직후»·아래 구조분해와 main/admin·main/collab·
      main/notice «보다 먼저» 와야 한다 — 그들도 API_BASE 를 각자 구조분해로 붙잡는다.
    ★안 불러도 안전하다: authService 기본값이 이미 「막는 쪽」(패키징 가정)이다.
-     이 줄이 하는 일은 「dev 다」를 «Electron 의 답으로» 확정해 주는 것뿐이다. */
+     이 줄이 하는 일은 「dev 다」를 «Electron 의 답으로» 확정해 주는 것뿐이다.
+   ★★그리고 «.env 로드보다 먼저» 와야 한다 — .env 게이트가 이 답을 본다. */
 if (typeof _authService.applyRuntime === 'function') {
   let _pkg = true;
   try { _pkg = app.isPackaged; } catch (_) { _pkg = false; }
   _authService.applyRuntime({ isPackaged: _pkg });
+}
+
+/* ── .env 로드 (개발자 편의 크리덴셜) ──────────────────────────────────────────
+   ⑴ <앱>/.env  ⑵ ~/.config/secrets/.env — GEMINI_API_KEY 등. 외부 자격증명 저장소를
+   ~/.config/secrets 로 일원화한 건 iCloud dataless(EDEADLK) 회피 때문이다.
+   ★★배포본에선 «한 줄도 안 읽는다» — ⑵는 사용자 홈이라, 거기 한 줄 쓰는 것만으로
+     `GODITOR_LICENSE_API`·`GODITOR_ENTITLEMENT_PUBKEY`·`GODITOR_ADMIN_TOKEN` 게이트가
+     전부 열렸다(2026-09-06). 판정·읽기는 main/env-file.js 가 한다(거기 이유를 적어 뒀다).
+   ★사용자 자기 API 키는 이 경로와 무관하다 — settings.json → getApiKey() → payload.apiKey. */
+require('./main/env-file').loadDevEnvFiles({ appDir: __dirname });
+/* .env 가 dev 서버주소(GODITOR_LICENSE_API)를 담고 있을 수 있다 → «읽은 뒤» 다시 계산.
+   패키징이면 위에서 아무것도 안 읽었고 resolveApiBase 가 env 를 무시하므로 값은 그대로다. */
+if (typeof _authService.applyRuntime === 'function') {
+  let _pkg2 = true;
+  try { _pkg2 = app.isPackaged; } catch (_) { _pkg2 = false; }
+  _authService.applyRuntime({ isPackaged: _pkg2 });
 }
 const { login: authLogin, verifySession: authVerifySession, urlIsLive: authUrlIsLive, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL, API_BASE: AUTH_API_BASE } = _authService;
 /* ★자격증명 판정의 SSOT. 이 파일에는 «판정 규칙»을 두지 않는다 — 규칙이 둘이 되면 갈라진다.
