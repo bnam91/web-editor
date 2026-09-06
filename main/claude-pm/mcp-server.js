@@ -1071,6 +1071,17 @@ function _registerDefaultTools() {
         throw new Error(`image too large (${image.length} > ${_PUT_IMAGE_MAX} chars ≈ 5MB). `
           + '줄여서 다시 주세요 — 우리가 임의로 축소하지 않습니다.');
       }
+      // ★접두사·길이만 보던 자리 — 「온전한가」를 아무도 안 봐서 잘린 PNG 가 «성공»으로 저장됐다
+      //   (2026-09-07 실측: 4,849B 원본이 3,472B 로 잘려 들어옴). ⛔수선하지 않고 «거절»한다.
+      let imageCheck;
+      try {
+        imageCheck = _assertImageSrcIntact(image, 'image');
+      } catch (e) {
+        if (e && e.code === 'IMAGE_TRUNCATED') {
+          return { ok: false, code: 'IMAGE_TRUNCATED', message: e.message, ...e.detail };
+        }
+        throw e;
+      }
       const targets = ['canvas', 'scratch'];
       if (!targets.includes(target)) throw new Error(`invalid target: ${target}. allowed: ${targets.join('|')}`);
       const allowed = ['img1', 'img2', 'img3', 'text-img'];
@@ -1083,7 +1094,7 @@ function _registerDefaultTools() {
       const put = await _rendererInvoker.scratchAdd({ src: image, width });
       if (!put || put.ok !== true) return put || { ok: false, code: 'SCRATCH_FAILED' };
       if (target === 'scratch') {
-        return { ok: true, target: 'scratch', scratchId: put.scratchId, x: put.x, y: put.y };
+        return { ok: true, target: 'scratch', scratchId: put.scratchId, x: put.x, y: put.y, imageCheck };
       }
 
       // ⑵ 캔버스에는 «기존 도구»로 붙인다
@@ -1099,7 +1110,7 @@ function _registerDefaultTools() {
       return { ok: true, target: 'canvas', scratchId: put.scratchId,
                sectionId: att.sectionId || sectionId || null,
                blockId: att.assetBlockId || att.blockId || null,
-               hasImage: att.hasImage === true };
+               hasImage: att.hasImage === true, imageCheck };
     },
     {
       description: 'Put an image into GODITOR. Default target=canvas: the image is stored in the scratch pad and immediately attached to a section as an asset block. target=scratch stores it in the scratch pad only (canvas untouched). ⚠️A project must be OPEN for either target — the scratch pad is scoped to project+page. Image must be a data URL (max ~5MB); oversized images are rejected, never silently downscaled.',
@@ -3341,7 +3352,17 @@ function _registerDefaultTools() {
       if (typeof blockId !== 'string' || !blockId.startsWith('ab_')) {
         throw new Error(`invalid blockId: ${blockId}. must be a string starting with "ab_"`);
       }
-      const partial = _validateAssetOpts(rest, { mode: 'update' });
+      let partial;
+      try {
+        partial = _validateAssetOpts(rest, { mode: 'update' });
+      } catch (e) {
+        // ★put_image 와 «같은 모양»으로 답한다 — 던지면 JSON-RPC 에러가 되어 code 를 잃고,
+        //   호출자(모델)가 「다시 통째로 보내면 된다」를 구조적으로 못 읽는다.
+        if (e && e.code === 'IMAGE_TRUNCATED') {
+          return { ok: false, code: 'IMAGE_TRUNCATED', message: e.message, ...e.detail };
+        }
+        throw e;
+      }
       if (Object.keys(partial).length === 0) {
         throw new Error('no fields to update — provide at least one asset field');
       }
@@ -5711,6 +5732,145 @@ function _validateDividerOpts(args, { mode } = {}) {
   return out;
 }
 
+// ─── 이미지 무결성 검사 (2026-09-07) ──────────────────────────────────────────
+/* ★왜 있나 — 실측으로 생긴 함수다.
+ *   클로드 데스크톱에 사진을 첨부해 「넣어줘」 하면, 모델이 자기 샌드박스에서 파일을 읽어
+ *   base64 «문자열»로 만들어 도구 인자로 나른다. 그 과정에서 문자열이 «잘렸다».
+ *   실측(2026-09-07): 원본 4,849B(sha 1df744f1…) → 모델 샌드박스 4,849B «동일» →
+ *   고디터에 들어간 것 3,472B(sha a57afb24…). IHDR 이 선언한 IDAT 길이는 4,792B 인데
+ *   파일 전체가 3,472B 였다 = «잘린 PNG».
+ *   그런데 우리 검사는 ⑴접두사 정규식 ⑵길이 상한 «둘뿐»이라 그게 그대로 통과해
+ *   깨진 파일이 «성공»으로 저장됐다. 사용자는 한참 뒤 깨진 페이지를 발견한다.
+ *   ⇒ 「돌아는 가는데 효과가 0」보다 나쁘다. 「돌아가는데 결과가 손상된다」다.
+ *
+ * ★원칙 넷 (지디 2026-09-07):
+ *  ⑴ ⛔거절이지 «수선»이 아니다. 잘린 걸 우리가 복구하려 들지 않는다.
+ *  ⑵ ⛔검사 못 하는 포맷을 «막지» 않는다. jpeg/gif/webp 는 구조 검사를 못 하니
+ *     디코드+매직바이트까지만 보고 통과시킨다. 「검사 못 함」을 「실패」로 만들면 되던 게 안 된다.
+ *  ⑶ ★«어디까지 봤는지»를 응답에 적는다(checked). 통과가 「온전함이 증명됨」이 아닐 수 있다.
+ *  ⑷ ★숫자로 말한다 — 몇 바이트 받았고 몇을 기대했나. 모델이 그걸 읽고 다시 시도해야 한다.
+ *
+ * ⛔이 함수는 «한 곳»이다. put_image / _validateAssetOpts(=update_asset_block,
+ *   update_block(ab_)) 가 «이것만» 부른다. 한 곳만 고치면 옆 필드를 빠뜨린다.
+ */
+const _IMG_MAGIC = {
+  'image/png':  [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+  'image/jpeg': [[0xff, 0xd8, 0xff]],
+  'image/gif':  [[0x47, 0x49, 0x46, 0x38, 0x37, 0x61], [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]],
+  'image/webp': [[0x52, 0x49, 0x46, 0x46]] // "RIFF" + 4바이트 크기 + "WEBP"
+};
+
+function _imgErr(message, detail) {
+  // ★코드 이름을 «문장 안»에도 넣는다 — 던져진 에러는 JSON-RPC -32000 으로 납작해지면서
+  //   code 필드를 잃는다. 그러면 모델이 「무엇이 잘못됐나」를 문자열로만 알게 된다.
+  const e = new Error('[IMAGE_TRUNCATED] ' + message);
+  e.code = 'IMAGE_TRUNCATED';
+  e.detail = detail || {};
+  return e;
+}
+
+/* PNG 청크를 걸어가며 «선언한 길이»와 «실제 남은 바이트»를 대조한다.
+   잘린 파일은 여기서 잡힌다 — 헤더는 멀쩡하고 IDAT 만 모자라기 때문이다. */
+function _checkPngStructure(buf, field) {
+  let pos = 8; // 시그니처는 호출자가 이미 확인했다
+  let sawIHDR = false, sawIEND = false;
+  while (pos + 8 <= buf.length) {
+    const declared = buf.readUInt32BE(pos);
+    const type = buf.toString('latin1', pos + 4, pos + 8);
+    if (pos === 8 && type !== 'IHDR') {
+      throw _imgErr(`${field}: PNG 의 첫 청크가 IHDR 이 아닙니다 (got "${type}") — 손상된 파일입니다.`,
+        { reason: 'PNG_NO_IHDR', firstChunk: type, decodedBytes: buf.length });
+    }
+    if (type === 'IHDR') sawIHDR = true;
+    const need = pos + 12 + declared;              // 길이4 + 타입4 + 데이터 + CRC4
+    if (need > buf.length) {
+      const available = buf.length - (pos + 8);
+      throw _imgErr(
+        `${field}: 이미지가 «잘려서» 들어왔습니다 — 저장하지 않았습니다. `
+        + `PNG 청크 "${type}"(offset ${pos})가 ${declared}바이트를 선언했는데 `
+        + `남은 것은 ${available}바이트뿐입니다. `
+        + `받은 전체 ${buf.length}바이트 / 이 청크까지만 해도 ${need}바이트가 필요합니다. `
+        + `⛔우리가 복구하지 않습니다 — 원본을 «다시» 통째로 보내 주세요.`,
+        { reason: 'PNG_CHUNK_TRUNCATED', chunk: type, offset: pos,
+          declaredChunkBytes: declared, availableBytes: available,
+          decodedBytes: buf.length, expectedAtLeastBytes: need });
+    }
+    pos = need;
+    if (type === 'IEND') { sawIEND = true; break; }
+  }
+  if (!sawIHDR) {
+    throw _imgErr(`${field}: PNG 에 IHDR 이 없습니다 — 손상된 파일입니다 (받은 ${buf.length}바이트).`,
+      { reason: 'PNG_NO_IHDR', decodedBytes: buf.length });
+  }
+  if (!sawIEND) {
+    throw _imgErr(
+      `${field}: 이미지가 «잘려서» 들어왔습니다 — 저장하지 않았습니다. `
+      + `PNG 가 IEND 로 끝나지 않습니다 (받은 ${buf.length}바이트, ${pos}바이트에서 끊김). `
+      + `⛔우리가 복구하지 않습니다 — 원본을 «다시» 통째로 보내 주세요.`,
+      { reason: 'PNG_NO_IEND', decodedBytes: buf.length, stoppedAt: pos });
+  }
+  return { trailingBytes: buf.length - pos };
+}
+
+/* src 가 data:image/* dataURL 일 때만 «온전한가»를 본다.
+   http(s)/assets//blob: 등 우리가 바이트를 안 가진 것은 검사 대상이 아니다 — 그대로 통과. */
+function _assertImageSrcIntact(src, field = 'image') {
+  if (typeof src !== 'string' || !src) return { checked: 'skipped:not-a-string' };
+  const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]*)$/.exec(src);
+  if (!m) return { checked: 'skipped:not-a-data-url' };
+  const mime = m[1].toLowerCase();
+  const b64 = m[2];
+  if (!b64) {
+    throw _imgErr(`${field}: dataURL 에 base64 본문이 없습니다 (0바이트).`,
+      { reason: 'EMPTY_PAYLOAD', base64Chars: 0, decodedBytes: 0 });
+  }
+  // ⑴ base64 디코드 — Node 의 Buffer 는 «관대»해서 이상한 글자를 조용히 버린다. 우리가 먼저 본다.
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(b64)) {
+    throw _imgErr(`${field}: base64 에 허용되지 않는 문자가 있습니다 — 전송 중 손상된 것으로 봅니다 (${b64.length}자 받음).`,
+      { reason: 'BASE64_BAD_CHARS', base64Chars: b64.length });
+  }
+  if (b64.length % 4 !== 0) {
+    const expected = Math.ceil(b64.length / 4) * 4;
+    throw _imgErr(
+      `${field}: base64 길이가 4의 배수가 아닙니다 — «잘린» 것으로 봅니다. `
+      + `${b64.length}자 받음 / 최소 ${expected}자 기대. ⛔우리가 채우지 않습니다 — 원본을 다시 보내 주세요.`,
+      { reason: 'BASE64_LENGTH', base64Chars: b64.length, expectedBase64Chars: expected });
+  }
+  const buf = Buffer.from(b64, 'base64');
+  if (buf.length === 0) {
+    throw _imgErr(`${field}: base64 를 디코드했더니 0바이트입니다 (${b64.length}자 받음).`,
+      { reason: 'DECODE_EMPTY', base64Chars: b64.length, decodedBytes: 0 });
+  }
+  // ⑵ 매직바이트 ↔ 선언 mime
+  const magics = _IMG_MAGIC[mime];
+  if (!magics) {
+    // 모르는 mime 은 «막지 않는다». 어디까지 봤는지만 적는다.
+    return { checked: 'decode-only', format: mime, bytes: buf.length,
+             note: `mime "${mime}" 은 매직바이트 표에 없어 디코드까지만 확인했습니다.` };
+  }
+  const hit = magics.some(sig => sig.every((b, i) => buf[i] === b));
+  if (!hit) {
+    const got = Array.from(buf.slice(0, Math.min(8, buf.length)))
+      .map(b => b.toString(16).padStart(2, '0')).join(' ');
+    throw _imgErr(
+      `${field}: 선언한 형식(${mime})과 실제 내용이 다릅니다 — 앞 바이트가 [${got}] 입니다 `
+      + `(받은 ${buf.length}바이트). 확장자만 바꾼 파일이거나 전송 중 손상된 것입니다.`,
+      { reason: 'MAGIC_MISMATCH', declaredMime: mime, firstBytesHex: got, decodedBytes: buf.length });
+  }
+  if (mime === 'image/webp' && (buf.length < 12 || buf.toString('latin1', 8, 12) !== 'WEBP')) {
+    throw _imgErr(`${field}: RIFF 컨테이너인데 WEBP 가 아닙니다 (받은 ${buf.length}바이트).`,
+      { reason: 'MAGIC_MISMATCH', declaredMime: mime, decodedBytes: buf.length });
+  }
+  // ⑶ 구조 검사 — PNG 만 «끝까지» 볼 수 있다.
+  if (mime === 'image/png') {
+    const r = _checkPngStructure(buf, field);
+    return { checked: 'png-structure', format: mime, bytes: buf.length,
+             trailingBytes: r.trailingBytes };
+  }
+  return { checked: 'magic-bytes', format: mime, bytes: buf.length,
+           note: `${mime} 는 구조 검사를 하지 않습니다 — 디코드와 매직바이트까지만 확인했습니다.` };
+}
+
 // ─── asset-block validator ───
 // ─── asset 옵션 검증 (update only — add는 별도 add_asset_block에서 직접 검증) ──
 // banner02 _validateBanner02Opts 패턴 미러. update 모드 전용 (sectionId 검증 없음).
@@ -5774,6 +5934,10 @@ function _validateAssetOpts(args, { mode } = {}) {
     if (typeof args.imgSrc !== 'string') throw new Error('imgSrc must be string');
     if (args.imgSrc.length > 200000) throw new Error('imgSrc too long (>200000)');
     if (/["\r\n]/.test(args.imgSrc)) throw new Error('imgSrc contains quote/newline (escape unsafe)');
+    // ★put_image 와 «같은» 검사를 탄다 — 검사가 한 곳이어야 옆 필드를 안 빠뜨린다(지디 2026-09-07).
+    //   이 한 줄이 update_asset_block 과 update_block(ab_, imgSrc) «둘 다»를 덮는다
+    //   (통합 update_block 은 ab_ 접두를 보고 update_asset_block 으로 디스패치한다).
+    _assertImageSrcIntact(args.imgSrc, 'imgSrc');
     out.imgSrc = args.imgSrc;
   }
 
@@ -6958,4 +7122,6 @@ module.exports = {
   getTokenFilePath,
   getBridgePath,
   getBridgeError,
+  // 검사 로직은 «한 곳»이고, 그 한 곳을 테스트가 직접 부른다.
+  _assertImageSrcIntact,
 };
