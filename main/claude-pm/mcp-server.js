@@ -407,7 +407,7 @@ function _slimCanvasState(raw, detail) {
         sectionId: s.sectionId,
         ...(s.name ? { name: s.name } : {}),
         blocks: (s.blocks || []).length,
-        ...((s.blocks || []).length ? { first: String((s.blocks[0] || {}).text || '').slice(0, 40) } : {})
+        ...((s.blocks || []).length ? { first: String((s.blocks[0] || {}).text || ('(' + ((s.blocks[0] || {}).type || 'block') + ')')).slice(0, 40) } : {})
       })),
       ...(rest > 0 ? { omittedSections: rest } : {}),
       note: 'summary only — call get_canvas_state(sectionId) for one section\'s blocks.'
@@ -427,6 +427,12 @@ function _slimCanvasState(raw, detail) {
         if (b.color) o.color = b.color;
         if (b.fontSize) o.fontSize = b.fontSize;
         if (b.align) o.align = b.align;
+        /* ★2026-09-06 — 이 «허용목록»이 렌더러가 새로 보내는 필드를 «조용히» 버렸다.
+           canvas-state 가 이미지·표·갭의 summary 를 실어 보내는데 여기서 사라져,
+           블록은 «보이는데» 지목에 필요한 정보만 없는 상태가 됐다(반쯤 고쳐진 모양).
+           ⇒ summary 는 이미 «경계된» 값이다(dataURL·셀 전문 없음). 그대로 싣는다.
+           ⛔필드를 늘릴 땐 이 목록도 같이 봐라 — 안 그러면 또 조용히 버려진다. */
+        if (b.summary && typeof b.summary === 'object' && Object.keys(b.summary).length) o.summary = b.summary;
         return o;
       })
     }))
