@@ -20,10 +20,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readSrc } from './_srcread.js';        // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
-const SRC = fs.readFileSync(path.join(ROOT, 'js/editor.js'), 'utf8');
+const SRC = readSrc(ROOT, 'js/editor.js');
 
 /** 최상위 함수를 «원문 그대로» 잘라낸다(0열 `}` 로 끝난다). */
 function slice(head) {
@@ -250,7 +251,7 @@ test('U-M67-11 zoomStep 의 인자 뜻이 안 바뀌었다 (키보드·툴바 �
 test('U-M67-12 키보드·툴바가 «여전히» ±10%p 로 부른다', () => {
   const kb = SRC.match(/zoomStep\((-?\+?10)\)/g) || [];
   assert.ok(kb.length >= 2, `editor.js 의 ⌘+/− 호출이 사라졌다: ${JSON.stringify(kb)}`);
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const html = readSrc(ROOT, 'index.html');
   assert.ok(/zoomStep\(-10\)/.test(html) && /zoomStep\(\+10\)/.test(html),
     '툴바 ± 버튼의 호출이 바뀌었다 — 키보드/버튼 체감은 이 작업의 대상이 아니다');
 });

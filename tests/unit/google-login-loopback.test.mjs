@@ -19,11 +19,12 @@ import net from 'node:net';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { readSrc } from './_srcread.js';        // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
 const require_ = createRequire(import.meta.url);
-const SRC = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
+const SRC = readSrc(ROOT, 'main.js');
 
 /** main.js 에서 최상위 함수 «원문»을 잘라낸다(최상위 함수는 0열 `}` 로 끝난다). */
 function sliceFn(head) {

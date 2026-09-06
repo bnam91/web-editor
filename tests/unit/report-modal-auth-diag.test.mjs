@@ -12,6 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
 import { fileURLToPath } from 'url';
+import { readSrc } from './_srcread.js';        // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,7 +21,7 @@ function boot() {
     electronAPI: null,
     document: { addEventListener() {}, getElementById() { return null; } },
   };
-  const code = fs.readFileSync(path.join(__dirname, '../../js/report-modal.js'), 'utf8');
+  const code = readSrc(__dirname, '../../js/report-modal.js');
   vm.runInNewContext(code, { window: w, document: w.document, Date, JSON, Object, Array, String, Error, Image: function () {} });
   return w.reportModalMergeAuthDiag;
 }
