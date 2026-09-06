@@ -213,7 +213,14 @@ function contractViolation(p, outerKid) {
   if (!(exp > iat)) return 'bad_payload';
   /* ★`accessUntil` 은 `null | ISO`. **null = 무기한**(2099 매직넘버 금지 규약).
      ⛔null 을 「파싱 실패 → 만료」로 읽으면 무기한 사용자를 «잠근다». */
-  if (p.accessUntil !== null && p.accessUntil !== undefined) {
+  /* ⛔**키가 «아예 없는» 것과 `null` 은 다르다.** null 만 «무기한»이다.
+     키 부재를 무기한으로 읽으면, 서버가 필드명을 바꾸는 날 **전원이 무기한**이 된다 —
+     계약 검사가 「규격이 바뀌면 여기서 터진다」고 해 놓고 정작 안 터지는 자리였다(적대검수 A7).
+     ★막는 줄은 «아래 `!== null` 하나»다 — 초판은 여기에 `&& !== undefined` 가 붙어 있어서
+       키가 없으면 검사를 통째로 «건너뛰었다». `hasOwnProperty` 를 따로 두려다 뺐다:
+       JSON 입력에선 「키 없음」과 「값 undefined」가 구별되지 않아 «어떤 변이로도 못 죽이는»
+       줄이 된다. 검사가 못 지나는 코드는 안 두는 게 낫다. */
+  if (p.accessUntil !== null) {
     if (typeof p.accessUntil !== 'string') return 'bad_payload';
     if (!Number.isFinite(Date.parse(p.accessUntil))) return 'bad_payload';
   }
@@ -356,7 +363,7 @@ function classify(record, now, keys, C) {
      ⛔**명시적으로 분기한다.** `Date.parse(null)` 이 NaN 이라 «우연히» 통과하기도 하지만
        그건 우연이지 규칙이 아니다 — 쓰레기 값도 똑같이 NaN 이 되는데 그건 «거부»해야 한다.
        우연에 기대면 둘이 같은 길로 가고, 그때 무기한 사용자가 잠긴다. */
-  if (p.accessUntil !== null && p.accessUntil !== undefined) {
+  if (p.accessUntil !== null) {
     const until = Date.parse(p.accessUntil);
     if (!Number.isFinite(until)) {
       /* 계약 검사가 이미 걸러 여기 오지 않는 게 정상이다. 그래도 «통과 쪽»으로는 절대 안 보낸다. */
@@ -481,7 +488,15 @@ function applyServerAnswer(record, r, ctx) {
          취소·환불한 사용자가 오프라인으로 30일을 더 쓴다. */
     diag.droppedSignature = true;
     const next = withPlain(base, r);
-    if (next) delete next.signed;
+    if (next) {
+      delete next.signed;
+      /* ★★서버가 `accessUntil` 을 «안 실어 주면» plain 이 «그대로» 남는다 —
+         그러면 2099 로 고쳐 둔 파일이 서명 삭제 뒤에도 옛 규칙으로 통과한다.
+         ⛔지금 안 열려 있는 이유가 「서버가 expired 응답에도 accessUntil 을 싣기 때문」인데,
+           그건 «남의 코드에 기댄 안전»이다 — 서버가 그 필드를 빼는 날 조용히 열린다.
+         ⇒ 기대지 않는다. 안 주면 «지금»으로 박아 끝난 것으로 만든다(적대검수 판정불가 항목). */
+      if (!r.accessUntil) next.accessUntil = new Date(now).toISOString();
+    }
     return { record: next, clear: false, changed: true, diag };
   }
 
@@ -564,11 +579,29 @@ async function resolveAuth(record, ctx) {
      ★서버가 「말을 안 했다」면 record 가 그대로라 결과도 그대로 — 유예가 유지된다. */
   const after = classify(applied.record, now, keys, C);
 
-  /* ★L2(sig_invalid)·L1(마감 후)에서 서버가 `ok:true` 라고 «말했으면» 그 세션은 통과시킨다.
-     우리 배포 사고(키 오배포·kid 어긋남)를 «헐거운 쪽»으로 떨어뜨리는 자리다.
-     ⛔단, 서버가 만료라고 «말한» 경우는 여기 안 걸린다(r.ok === true 조건). */
-  if (!after.pass && r && r.ok === true
-      && (after.cls === 'sig_invalid' || after.cls === 'sig_missing')) {
+  /* ★★서버가 `ok:true` 라고 «말했는데도» 로컬이 막는 경우 — 어디까지 살릴 것인가.
+   *
+   * ⛔초판은 이걸 «cls 목록»(sig_invalid·sig_missing)으로 적었고, 그게 **틀렸다**.
+   *   적대검수(fable) 실측으로 「우리 실수 → 전원 잠금」이 네 갈래 재현됐다:
+   *     ⑴ 갱신 결제한 사용자 + 서명 env 미배포 → access_ended 로 REJECT
+   *     ⑵ env 깨진 채 45일 → 서명본 가진 «전원» grace_exceeded REJECT (온라인인데)
+   *     ⑶ 키 로테이션이 앱 업데이트보다 먼저 → REJECT
+   *     ⑷ 시계가 24h 이상 느린 사용자 → 온라인인데 clock_rollback REJECT
+   *   계획서 §3-1 의 L4「서버 OK → 통과(서버 시각이 정본)」·L3「L2 와 동일 경로」와도 반대였다.
+   *
+   * ★고친 규칙 — 「무엇을 못 했나」로 가른다(「무슨 상태였나」가 아니라):
+   *   ㉮ **새 서명본을 «못 썼다»**(serverDocMissing/Invalid) = 우리 배포 사고의 «모양».
+   *      서버는 좋다고 하는데 우리가 그 진술을 못 받아 적은 것이라 사용자 탓이 아니다.
+   *   ㉯ **`clock_rollback`** — 이건 «자격» 얘기가 아니라 «로컬 시계» 얘기다.
+   *      서버가 답했다는 건 정본 시각을 얻었다는 뜻이므로 로컬 시계로 잠글 이유가 없다.
+   *   ㉰ **`sub_mismatch`** — 계획서 L3 이 「L2 와 같은 경로」로 정해 뒀다(핀은 약한 신호다).
+   *
+   * ⛔**「ok:true 면 무조건 통과」로 넓히지 «않는다».** 서버가 «유효한 새 서명본»을 줬는데
+   *   그게 `access_ended` 라고 말하면 그건 서명된 사실이라 그쪽이 이긴다 — 만료 서명본은 안 연다.
+   *   즉 ㉮ 는 「서명본을 못 받았을 때」로 «한정»된다. 그 경계를 검사가 잠근다. */
+  const couldNotStoreSignature = !!(applied.diag.serverDocMissing || applied.diag.serverDocInvalid);
+  const timeOrPinOnly = after.cls === 'clock_rollback' || after.cls === 'sub_mismatch';
+  if (!after.pass && r && r.ok === true && (couldNotStoreSignature || timeOrPinOnly)) {
     return {
       ...after, pass: true, screen: 'editor', reason: 'server_vouched',
       record: applied.record, backgroundVerify: false, local: local.cls,

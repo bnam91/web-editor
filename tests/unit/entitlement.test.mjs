@@ -57,6 +57,8 @@ function sign(overrides = {}, priv = kp1.privateKey, opts = {}) {
     sid: null,
     ...overrides,
   };
+  /* ★키를 «지우는» 것은 반드시 직렬화 «전»이다 — 뒤에 두면 지워도 인코딩엔 남는다 */
+  for (const k of (opts.omit || [])) delete payload[k];
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const sig = Buffer.from(crypto.sign(null, Buffer.from(encoded, 'utf8'), priv)).toString('base64url');
   const field = opts.field || 'payload';
@@ -234,10 +236,14 @@ test('ⓗ ★accessUntil 지남 · exp 는 «신선» → access_ended (통과 �
 
 test('ⓗ2 ★판정 «순서»가 코드에 박혀 있다 — accessUntil 검사가 exp 검사보다 «앞»', () => {
   /* 표를 눈으로 맞추는 대신 «소스의 위치»로 센다. 순서가 뒤집히면 이 검사가 빨강. */
-  const iAccess = SRC.indexOf('L5 —');
-  const iExp = SRC.indexOf('L6 —');
-  assert.ok(iAccess > 0 && iExp > 0, 'L5/L6 표식이 없다');
-  assert.ok(iAccess < iExp, '★accessUntil(L5) 이 exp(L6) 보다 «뒤»에 있다 — 구멍 ① 재발');
+  /* ⛔초판은 «주석 표식»(L5 —/L6 —)을 셌다. 코드만 옮기면 생존한다(적대검수 지적).
+     ⇒ classify «본문»에서 «실행되는 줄»의 위치를 잰다. */
+  const body = SRC.slice(SRC.indexOf('function classify('), SRC.indexOf('function legacyAccessValid('));
+  const iAccess = body.indexOf('if (p.accessUntil !== null) {');
+  const iExp = body.indexOf('if (now > exp + C.CLOCK_SKEW_MS');
+  assert.ok(iAccess > 0, 'classify 안에서 accessUntil 검사 «코드»를 못 찾았다');
+  assert.ok(iExp > 0, 'classify 안에서 exp 검사 «코드»를 못 찾았다');
+  assert.ok(iAccess < iExp, '★accessUntil 검사가 exp 검사보다 «뒤»에 있다 — 구멍 ① 재발');
 });
 
 test('ⓘ signed:null → signature_missing (거부가 «아니다» — 위조로 읽으면 안 된다)', () => {
@@ -416,6 +422,10 @@ test('★sid 불일치는 «위조»가 아니라 «없음» — 서버가 명�
   assert.equal(c.diag.sidMismatch, true);
   /* ★「거부」가 아니라 «재검증»이다 — 서버에 물어볼 자리를 반드시 알려 줘야 한다 */
   assert.ok(c.needsVerify, '★재검증 경로를 안 알려 준다 — 사용자가 «푸는 길»을 잃는다');
+  /* ★★M23 이 잡아낸 것: needsVerify 만 보면 「마감 전 재로그인 사용자를 오프라인에서 잠근다」가
+     안 잠긴다. «통과하는가»를 직접 재야 한다. */
+  assert.equal(c.pass, true, '★마감 전 재로그인 사용자를 오프라인에서 잠갔다');
+  assert.equal(c.cls, 'legacy_grace');
   assert.equal(E.diagLine(c).includes('sid=mismatch'), true, '진단에 sid 불일치가 안 남는다');
 
   /* ★★sid 불일치는 «갈래가 둘»이다 — 위 케이스는 마감 전이라 legacy_grace 로 «먼저» 빠진다.
@@ -602,4 +612,101 @@ test('★grace 밖 + 서버가 새 서명본 → 조용히 복구(잠김이 «�
   assert.equal(r.local, 'grace_exceeded', '전제: 로컬만 보면 잠겨야 한다');
   assert.equal(r.pass, true, '온라인인데 안 풀렸다');
   assert.equal(r.cls, 'valid');
+});
+
+
+/* ═══ 적대검수(fable) 반영 — vouch 방향 · 계약 · resolveAuth 경로 ═══════════ */
+
+test('★①-A 「우리가 서명본을 «못 썼을 때»」는 서버 ok:true 가 살린다 — 네 갈래 전부', async () => {
+  /* 적대검수 실측 재현: 초판은 cls 목록(sig_invalid|sig_missing)으로 걸러 아래가 «전원 잠김»이었다. */
+  const ctx = { keys: KEYS, C: E.CONSTANTS };
+  const vouch = async (record, now) => E.resolveAuth(record, {
+    ...ctx, now, verify: async () => ({ ok: true, signed: null, plan: 'pro' }),
+  });
+  /* ⑴ 갱신 결제 + 서명 env 미배포 → 저장본은 access_ended */
+  const ended = sign({ accessUntil: new Date(T0 - DAY).toISOString() });
+  assert.equal((await vouch(rec(ended), T0 + DAY)).pass, true, '⑴ 갱신한 사용자를 잠갔다');
+  /* ⑵ env 깨진 채 45일 → grace_exceeded */
+  assert.equal((await vouch(rec(sign()), T0 + 46 * DAY)).pass, true, '⑵ 온라인인데 유예초과로 잠갔다');
+  /* ⑶ 키 로테이션이 앱보다 먼저 → 저장본이 unknown_kid(sig_invalid) */
+  const rotated = { ...sign(), kid: 'k9' };
+  assert.equal((await vouch(rec(rotated), T0 + DAY)).pass, true, '⑶ 키 로테이션으로 잠갔다');
+  /* ⑷ 시계 24h+ 느림 */
+  assert.equal((await vouch(rec(sign()), T0 - 26 * 60 * MIN)).pass, true, '⑷ 시계 느린 사용자를 잠갔다');
+});
+
+test('★①-B 시계 문제는 «유효한 새 서명본»이 와도 살린다 — 자격 얘기가 아니라 시계 얘기다', async () => {
+  /* 적대검수 ⑷ 의 «진짜» 모양: 서버가 서명을 «주는데» 서버 시각이 로컬보다 26h 앞선다.
+     그러면 새 서명본으로 갈아도 여전히 clock_rollback 이다 ⇒ couldNotStore 로는 안 살아난다. */
+  const future = new Date(T0 + 26 * 60 * MIN).toISOString();
+  const fresh = sign({ iat: future, exp: new Date(Date.parse(future) + 30 * DAY).toISOString() });
+  const r = await E.resolveAuth(rec(sign({ iat: future, exp: new Date(Date.parse(future) + 30 * DAY).toISOString() })), {
+    now: T0, keys: KEYS, C: E.CONSTANTS, verify: async () => ({ ok: true, signed: fresh }),
+  });
+  assert.equal(r.local, 'clock_rollback', '전제: 로컬만 보면 시계 되돌림이어야 한다');
+  assert.equal(r.pass, true, '★서버가 답했는데 로컬 시계로 잠갔다 — 서버 시각이 정본이다');
+});
+
+test('★①-C 경계 — 서버가 «유효한» 만료 서명본을 주면 ok:true 여도 «안 연다»', async () => {
+  /* 넓히면 안 되는 쪽. 서명된 사실이 응답 플래그를 이긴다. */
+  const expiredSigned = sign({ accessUntil: new Date(T0 - DAY).toISOString() });
+  const r = await E.resolveAuth(rec({ ...sign(), sig: 'AAAA' }), {
+    now: T0 + DAY, keys: KEYS, C: E.CONSTANTS,
+    verify: async () => ({ ok: true, signed: expiredSigned }),
+  });
+  assert.equal(r.cls, 'access_ended');
+  assert.equal(r.pass, false, '★만료 서명본을 열었다');
+});
+
+test('★①-D vouch 는 «서버가 ok:true 라고 말했을 때»만 — ok:false 로는 안 열린다', async () => {
+  /* M46 이 살아남던 자리: `r.ok === true` 를 `r` 로 바꿔도 초록이었다. */
+  const future = new Date(T0 + 26 * 60 * MIN).toISOString();
+  const stored = sign({ iat: future, exp: new Date(Date.parse(future) + 30 * DAY).toISOString() });
+  const r = await E.resolveAuth(rec(stored), {
+    now: T0, keys: KEYS, C: E.CONSTANTS,
+    verify: async () => ({ ok: false, reason: 'some_other_reason' }),
+  });
+  assert.equal(r.pass, false, '★서버가 ok:true 라고 «말하지 않았는데» 통과시켰다');
+});
+
+test('★ⓛ-resolveAuth 서버 expired → `resolveAuth` 경로에서도 PASS 아니다', async () => {
+  /* ⓛ 은 applyServerAnswer «만» 불렀다 — resolveAuth 경로는 0건이었다(적대검수 M46 지적). */
+  const r = await E.resolveAuth(rec({ ...sign(), sig: 'AAAA' }), {
+    now: T0 + DAY, keys: KEYS, C: E.CONSTANTS,
+    verify: async () => ({ ok: false, reason: 'expired', accessUntil: '2026-09-01T00:00:00.000Z' }),
+  });
+  assert.equal(r.pass, false);
+  assert.equal('signed' in (r.record || {}), false, '서명본이 안 지워졌다');
+});
+
+test('★② `accessUntil` «키 부재» = bad_payload — null 만 무기한이다', () => {
+  /* 키가 없으면 무기한으로 읽던 자리(적대검수 A7:ABSENT).
+     서버가 필드명을 바꾸는 날 «전원 무기한»이 된다 — 계약이 거기서 터져야 한다. */
+  const absent = sign({}, kp1.privateKey, { omit: ['accessUntil'] });
+  const r = E.verifyEntitlement(absent, KEYS);
+  assert.equal(r.ok, false, '★키가 없는데 통과했다 = 전원 무기한');
+  assert.equal(r.why, 'bad_payload');
+  assert.equal(E.classify(rec(absent), T0, KEYS, E.CONSTANTS).pass, false);
+  /* 그래도 «null 은» 여전히 무기한이다(둘을 갈랐다는 대조) */
+  assert.equal(E.verifyEntitlement(sign({ accessUntil: null }), KEYS).ok, true);
+});
+
+test('★④ 서버가 expired 에 `accessUntil` 을 «안 실어도» 해킹 파일이 안 열린다', () => {
+  /* 지금 안 열리는 이유가 「서버가 실어 주기 때문」이면 그건 «남의 코드에 기댄» 안전이다.
+     서버가 그 필드를 빼는 날 조용히 열린다 ⇒ 기대지 않는 것을 검사로 고정한다. */
+  const hacked = rec(sign(), { accessUntil: '2099-01-01T00:00:00.000Z' });
+  const applied = E.applyServerAnswer(hacked, { ok: false, reason: 'expired' },  // ← accessUntil 없음
+                                      { now: T0 + DAY, keys: KEYS, C: E.CONSTANTS });
+  assert.equal('signed' in applied.record, false);
+  assert.notEqual(applied.record.accessUntil, '2099-01-01T00:00:00.000Z',
+    '★2099 가 그대로 남았다 — 서명 삭제 뒤 옛 규칙으로 통과한다');
+  assert.equal(E.classify(applied.record, T0 + 2 * DAY, KEYS, E.CONSTANTS).pass, false);
+});
+
+test('★M56 상수가 «조용히» 바뀌지 않는다 (값 자체를 못박는다)', () => {
+  const C = E.CONSTANTS;
+  assert.equal(C.SIG_VALID_DAYS, 30);
+  assert.equal(C.GRACE_DAYS, 45, '★유예가 바뀌었다 — 현빈 결정 사항이다(계획서 §3-3)');
+  assert.equal(C.CLOCK_SKEW_MS, 5 * 60 * 1000);
+  assert.equal(C.ROLLBACK_TOL_MS, 24 * 60 * 60 * 1000);
 });
