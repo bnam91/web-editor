@@ -132,6 +132,12 @@ const DEFAULT_SETTINGS = {
     addAsset:     'KeyA',
     addSection:   'KeyS',
     pinToggle:    'Backquote',
+    /* ★[별건 A] 여기는 «전선 위의 기본값»이고 표기는 맥 기준(Meta)이다. 플랫폼 교정은
+       «읽는 자리»에서 한다 — js/settings/settings-store.js 의 _toPlatform(Meta→Ctrl).
+       ⛔여기만 고쳐도 «기존 사용자»는 안 고쳐진다: 저장본(settings.json)에 옛 Meta 값이 이미
+         박혀 있고 DEFAULT_SETTINGS 는 «없는 키»에만 쓰인다. 그래서 교정이 읽는 자리에 있다.
+       ⚠️그러니 이 값을 보고 「윈도우에서도 Win 키가 먹는다」고 읽지 마라 — 먹는 건 Ctrl 이다.
+         화면 라벨도 그 교정을 타야 한다(js/settings/settings-modal.js _badgeLabel). */
     groupBlocks:  'Meta+KeyG',
     ungroup:      'Meta+Shift+KeyG',
     wrapInFrame:  'Meta+Alt+KeyG',
@@ -145,6 +151,11 @@ const DEFAULT_SETTINGS = {
     freeLayoutAnalyze: true,
   },
 };
+/* ★[별건 A] 검사가 «값의 정본»을 직접 읽을 수 있게 내보낸다 — Electron 은 main.js 의 exports 를 안 본다.
+   (settings:get 핸들러는 whenReady 안에서 등록돼 유닛 하네스에선 안 잡힌다.)
+   ⇒ 「화면 라벨이 이 값과 어긋나지 않는가」를 «진짜 정본»으로 잰다. */
+module.exports = Object.assign(module.exports || {}, { DEFAULT_SHORTCUTS: DEFAULT_SETTINGS.shortcuts });
+
 function readSettings() {
   try {
     const p = getSettingsPath();
@@ -1796,9 +1807,38 @@ ipcMain.on('projects:save-sync', (event, project) => {
     event.returnValue = { ok: true };
   } catch (e) {
     console.error('[projects:save-sync] 저장 실패:', e);
+    /* ★[W-3] 여기가 «윈도우 X 버튼»이 지나가는 자리다.
+       창 close → 렌더러 unload(beforeunload) → 이 동기 IPC → 창 소멸 → app.quit().
+       옛 코드는 여기서 { ok:false } 만 돌려줬고 렌더러는 console.warn 한 줄로 끝냈다 —
+       화면은 이미 사라지는 중이라 그 줄을 볼 사람이 없다. 실측: 다이얼로그 0 · 마커 0 ·
+       비상 사본 0 · 편집 토큰 디스크 0건 = 유실(미니4호기 윈도우 실기 QA 2차 §5-3ⓐ).
+       ⇒ EPERM 을 «쥐고 있는 건 여기»다. 흔적은 이 자리에서 남기고, 말하는 건 before-quit 이 한다.
+       ⚠️새로고침(⌘R)으로도 여기에 온다 — 그때도 «디스크에 못 들어간 건 사실»이라 기록은 옳다.
+         종료가 아니면 소비될 일이 없고, 마커는 다음 실행 때 H3 가 읽어 복구를 제안한다. */
+    _recordSyncSaveFailure(project, 'exception', e && e.message);
     event.returnValue = { ok: false, reason: 'exception', message: e.message };
   }
 });
+
+/** [W-3] 동기 저장 실패를 H4 가드에 넘겨 «마커 + 비상 사본»으로 남긴다.
+ *  ⛔여기서 다이얼로그를 띄우면 안 된다 — 렌더러 unload 를 막고 도는 동기 IPC 안이다.
+ *  ★기록 자체가 실패해도 저장 경로를 «더» 망가뜨리지 않는다(삼킨다). */
+function _recordSyncSaveFailure(project, reason, error) {
+  try {
+    if (!project || !project.id) return;
+    /* init 은 «준 것만» 덮는다 — dialog·shell 은 before-quit 이 뒤에 얹는다(충돌 없음). */
+    quitSaveGuard.init({ userDataDir: app.getPath('userData'), appVersion: app.getVersion(), log: (m) => console.warn(m) });
+    quitSaveGuard.recordSyncSaveFailure({
+      projectId: project.id,
+      projectName: project.name || null,
+      /* ★비상 사본은 «프로젝트 JSON 과 같은 모양» 그대로 — recovery:restore 가 그대로 되살린다. */
+      snapshot: JSON.stringify(project, null, 2),
+      reason, error: error || null,
+    });
+  } catch (err) {
+    console.warn('[projects:save-sync] 저장 실패를 기록하지 못했다:', err && err.message);
+  }
+}
 
 /* ── [version-history/U7] 삭제 안전망 — 영구삭제 → «휴지통» (현빈 승인) ────
  * ★설계 §8-0 규약: «되돌릴 수단»을 대상과 «같은 봉투»에 두지 마라.
@@ -2939,7 +2979,35 @@ function cleanSpentUpdaterPending() {
   }
 }
 
+/* ★[별건 D] 자동 업데이트를 «켤 것인가» — 판정의 정본은 Electron 자신(app.isPackaged)이다.
+   (main.js:68 이 authService 에 대해 이미 같은 말을 한다: 「패키징인가」의 정본은 app.isPackaged.)
+
+   ★옛 게이트는 «크로미움 로깅 플래그»로 개발 모드를 판정했다:
+       if (!process.argv.includes('--enable-logging')) setupAutoUpdater();
+     두 조건은 «다른 것»을 잰다 —
+       --enable-logging = 「로그를 켜고 띄웠나」 · 실행 «옵션». ★배포본에도 붙을 수 있다.
+       app.isPackaged   = 「asar 로 포장됐나」   · 실행 «형태». 개발 체크아웃은 언제나 false.
+     ⇒ 배포본이 그 플래그와 함께 실행되면 자동 업데이트가 «조용히» 죽었다
+       (윈도우 실기 QA 2차 별건 D). 0.5.0 자동업데이트 사망(아래 whenReady 주석)과 같은 병이다 —
+       «안 도는데 아무도 모른다».
+     ⇒ 반대 방향도 틀려 있었다: `npm start`(= electron . , 플래그 없음)는 개발 체크아웃인데도
+       옛 게이트를 «통과»했다. electron-updater 가 스스로 no-op 이라 티가 안 났을 뿐이다.
+
+   ★개발 편의는 안 깨진다 — 개발자가 `electron .` 로 띄우든 `npm run dev`(--enable-logging)로
+     띄우든 isPackaged=false 라 updater 는 안 돈다. 오히려 옛 게이트보다 «더» 확실히 안 돈다.
+
+   ★게이트를 «부르는 자리»가 아니라 «함수 안»에 둔다: 부르는 자리에 조건을 두면 그 조건이
+     검사 밖에 남는다(검사는 이 함수를 직접 부른다 — tests/unit/update-gate*.test.mjs). */
+function _autoUpdateEnabled() {
+  try { return app.isPackaged === true; } catch (_) { return false; }
+}
+
 function setupAutoUpdater() {
+  if (!_autoUpdateEnabled()) {
+    console.log('[updater] 자동 업데이트 «꺼짐» — 포장 안 된 실행이다(app.isPackaged=false).');
+    return false;
+  }
+  console.log('[updater] 자동 업데이트 «켜짐» — app.isPackaged=true');
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   // 채널 분기: settings.betaChannel=true인 테스터만 pre-release 수신.
@@ -2980,7 +3048,12 @@ function setupAutoUpdater() {
   cleanSpentUpdaterPending();
 
   autoUpdater.checkForUpdatesAndNotify();
+  return true;
 }
+
+/* ★검사가 «게이트 그 자체»를 부를 수 있게 내보낸다 — Electron 은 main.js 의 exports 를 안 본다.
+   ⛔소스 정규식으로 게이트를 지키지 않기 위해서다(정규식은 조건이 바뀌어도 초록일 수 있다). */
+module.exports = Object.assign(module.exports || {}, { setupAutoUpdater, _autoUpdateEnabled });
 
 /* ── App lifecycle ── */
 app.whenReady().then(async () => {
@@ -3041,10 +3114,8 @@ app.whenReady().then(async () => {
   createWindow();
   // watchFiles가 던져도 updater/MCP 초기화는 계속돼야 함 (0.5.0 자동업데이트 사망 원인)
   try { watchFiles(); } catch (e) { console.error('[hot-reload] watch skipped:', e.message); }
-  // 개발 모드에서는 자동업데이트 스킵
-  if (!process.argv.includes('--enable-logging')) {
-    setupAutoUpdater();
-  }
+  // 자동업데이트 — 켤지 말지는 setupAutoUpdater 가 app.isPackaged 로 «스스로» 판정한다(별건 D).
+  setupAutoUpdater();
   // Claude PM MCP 서버 (포트 9345, port-status 표 9345+ 신규 자유)
   try {
     const { port: actualPort, token: mcpToken } = await startMcpServer({
@@ -6361,7 +6432,32 @@ app.on('before-quit', (event) => {
   try { killAllTerminalSessions(); } catch (_) {}
 
   const win = BrowserWindow.getAllWindows()[0];
-  if (!win || win.isDestroyed()) return; // 창 없으면 바로 종료
+  if (!win || win.isDestroyed()) {
+    /* ★[W-3] 창이 «이미 사라진 뒤»에 오는 before-quit — 윈도우 X 버튼(WM_CLOSE) 이 여기다.
+       창 close → 렌더러 unload → 창 소멸 → window-all-closed → app.quit() → 여기(창 0개).
+       옛 코드는 여기서 그냥 return 했다 ⇒ 아래 quitSaveGuard 는 «한 번도 안 불렸고»,
+       저장이 실패해도 아무 말 없이 260ms 만에 죽었다(윈도우 실기 QA 2차 §5-3ⓐ).
+       ★맥도 «같은 줄»이다: 빨간 버튼으로 창을 닫고 나서 ⌘Q 하면 똑같이 창 0개로 온다.
+         (창이 «열린 채» ⌘Q 만 기존 H4 경로를 탔다.)
+       ⇒ unload 때 남겨 둔 실패 기록이 있으면 «말하고» 죽는다. 없으면 옛 동작 그대로
+         즉시 종료한다 — 정상 종료가 1ms 도 안 느려진다. */
+    let pending = null;
+    try { pending = quitSaveGuard.takePendingSyncFailure(); } catch (_) {}
+    if (!pending) return;
+    event.preventDefault();
+    try {
+      quitSaveGuard.init({
+        userDataDir: app.getPath('userData'), dialog, shell,
+        appVersion: app.getVersion(), log: (m) => console.log(m),
+      });
+      quitSaveGuard.notifyWindowGone({ pending, exit: (code) => app.exit(code) });
+    } catch (e) {
+      /* ★통지가 터져도 «앱은 꺼져야 한다» — 안 꺼지는 앱은 조용한 종료보다 나쁘다. */
+      console.error('[quit-guard] 창-없음 통지 실패 — 그냥 종료:', e && e.message);
+      app.exit(0);
+    }
+    return;
+  }
   event.preventDefault();
   try {
     quitSaveGuard.init({

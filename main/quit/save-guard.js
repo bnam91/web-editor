@@ -52,6 +52,9 @@ let _dialog = null;              // { showMessageBox(opts) -> Promise<{response}
 let _shell = null;               // { showItemInFolder(p) }  — 없으면 버튼을 안 만든다
 let _appVersion = null;
 let _running = null;             // 재진입 방지(before-quit 은 두 번 올 수 있다)
+/* ★[W-3] beforeunload 동기 저장이 «실패했다»는 사실. 창이 이미 닫히는 중이라 그 자리에선
+   말할 수 없다 — 흔적은 «그 자리»에서 남기고, 말하는 건 뒤이어 오는 before-quit 이 한다. */
+let _pendingSync = null;
 
 function init({ userDataDir, log, dialog, shell, appVersion } = {}) {
   if (userDataDir) _dir = userDataDir;
@@ -307,6 +310,89 @@ function runBeforeQuit({ win, ipcMain, exit, timings } = {}) {
   return state;
 }
 
+/* ── [W-3] 창이 «이미 사라진» 종료 경로 ────────────────────────────────────
+   ★무엇이 뚫려 있었나 (미니4호기 윈도우 실기 QA 2차 §5-3ⓐ, SHA 6dc2385)
+     윈도우 X 버튼(WM_CLOSE) 은 이렇게 간다:
+       창 close → 렌더러 unload(beforeunload → projects:save-sync) → 창 소멸
+         → window-all-closed → app.quit() → before-quit «창 0개»
+     그런데 before-quit 은 첫 줄에서 창이 없으면 그냥 return 했다.
+     ⇒ 위 runBeforeQuit 은 «한 번도 안 불린다». 저장이 EPERM 으로 실패해도
+       다이얼로그 0 · 마커 없음 · 비상 사본 없음 = 조용한 유실(실측 260ms).
+     ⇒ 맥도 «같은 줄»이다. ⌘Q 를 창이 열린 채 누르면 걸리지만,
+       빨간 버튼으로 창을 닫고 나서 ⌘Q 하면 똑같이 창 0개로 온다.
+
+   ★그래서 «두 조각»으로 나눈다 — 이 순간엔 둘을 같이 할 수 없기 때문이다.
+     ㉮ 남기기: 동기 저장이 실패한 «바로 그 자리»(메인이 EPERM 을 쥔 자리)에서 기록한다.
+        ⇒ 창이 닫히든 프로세스가 죽든 흔적은 이미 디스크에 있다. 새로고침 경로도 같이 덮인다.
+     ㉯ 말하기: 뒤이어 오는 before-quit 이 그 기록을 «소비»해 다이얼로그를 띄운다.
+        ⛔여기서도 동기 다이얼로그 금지 — 상한 타이머가 안 돌아 앱이 영영 안 꺼진다.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * 동기 저장(beforeunload) 실패를 «그 자리에서» 기록한다 — 마커 + 비상 사본.
+ * ⛔여기서 다이얼로그를 띄우지 않는다: 이 함수는 렌더러의 unload 를 «막고» 도는 동기 IPC 안이다.
+ * @param {{projectId:string, projectName?:string, snapshot:string, reason?:string, error?:string}} o
+ * @returns {{outcome:object, saved:object}|null} 기록 결과(before-quit 이 소비한다)
+ */
+function recordSyncSaveFailure({ projectId, projectName, snapshot, reason, error } = {}) {
+  if (!projectId) return null;              // 저장할 대상이 없으면 잃을 것도 없다
+  const outcome = {
+    ok: false,
+    reason: typeof reason === 'string' && reason ? reason.slice(0, 64) : 'save-failed',
+    error: typeof error === 'string' ? error.slice(0, 500) : null,
+    projectId: String(projectId).slice(0, 128),
+    projectName: typeof projectName === 'string' ? projectName.slice(0, 200) : null,
+    snapshot: typeof snapshot === 'string' ? snapshot : null,
+  };
+  const saved = writeFailureRecord(outcome, Date.now());
+  _log(`[quit-guard] 동기 저장 실패 기록(${outcome.reason}) — ` +
+       `${saved.markerError ? `마커 실패(${saved.markerError})` : saved.markerPath}` +
+       ` · 비상 사본 ${saved.record.emergencyPath || `없음(${saved.record.emergencyError})`}`);
+  _pendingSync = { outcome, saved };
+  return _pendingSync;
+}
+
+/** before-quit 이 «한 번만» 소비한다. 없으면 null — 그때는 옛 동작대로 즉시 종료해야 한다. */
+function takePendingSyncFailure() { const p = _pendingSync; _pendingSync = null; return p; }
+/** 소비하지 않고 들여다보기(검사·진단용). */
+function peekPendingSyncFailure() { return _pendingSync; }
+
+/**
+ * 창이 없는 채로 온 before-quit — 이미 남긴 기록을 «말하고» 종료한다.
+ * ★반드시 exit 가 불린다. 상한 두 겹(notifyMs·hardExitMs)이 어느 경로로 새도 앱을 꺼준다.
+ * @param {{pending:object, exit:function, timings?:object}} o
+ */
+function notifyWindowGone({ pending, exit, timings } = {}) {
+  const bail = () => { try { exit(0); } catch (_) {} };
+  if (!pending || !pending.outcome) { bail(); return null; }
+  if (_running && !_running.exited) return _running;   // 두 번째 before-quit 은 무시
+  const t = { ...TIMINGS, ...(timings || {}) };
+  const started = Date.now();
+  const state = {
+    startedAt: started, settled: true, exited: false,
+    outcome: pending.outcome, saved: pending.saved,
+    exitReason: null, exitCode: null, dialog: null, timers: [], windowGone: true,
+  };
+  _running = state;
+  const arm = (fn, ms) => { const h = setTimeout(fn, ms); state.timers.push(h); return h; };
+  const finish = (code, why) => {
+    if (state.exited) return;
+    state.exited = true;
+    state.exitReason = why; state.exitCode = code;
+    for (const h of state.timers) { try { clearTimeout(h); } catch (_) {} }
+    _log(`[quit-guard] 종료(창 없음/${why}) — ${Date.now() - started}ms`);
+    try { exit(code); } catch (e) { _log(`[quit-guard] exit 실패: ${e && e.message}`); }
+  };
+  arm(() => finish(0, 'hard-deadline'), t.hardExitMs);
+  arm(() => finish(0, 'notify-deadline'), t.notifyMs);
+  /* ★부모 창이 «없다» — 부모 없는 다이얼로그로 띄운다(윈도우·맥 모두 독립 창으로 뜬다). */
+  showFailureDialog(null, state.outcome, state.saved).then((d) => {
+    state.dialog = d;
+    finish(0, d && d.shown ? 'dialog-dismissed' : 'no-dialog');
+  });
+  return state;
+}
+
 /** 다음 실행이 읽을 «흔적». H3(복구 다이얼로그)이 이 함수를 쓴다 — 여기서 UI 를 만들지 않는다. */
 function pendingFailures() {
   return readMarker().filter((r) => r && !r.handled);
@@ -317,5 +403,6 @@ module.exports = {
   // 검사·도구용
   classify, writeFailureRecord, failureText, readMarker, markerPath, emergencyDir,
   TIMINGS, MAX_RECORDS, MAX_EMERGENCY_FILES,
-  _reset() { _running = null; },
+  recordSyncSaveFailure, takePendingSyncFailure, peekPendingSyncFailure, notifyWindowGone,
+  _reset() { _running = null; _pendingSync = null; },
 };
