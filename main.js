@@ -2968,7 +2968,35 @@ function cleanSpentUpdaterPending() {
   }
 }
 
+/* ★[별건 D] 자동 업데이트를 «켤 것인가» — 판정의 정본은 Electron 자신(app.isPackaged)이다.
+   (main.js:68 이 authService 에 대해 이미 같은 말을 한다: 「패키징인가」의 정본은 app.isPackaged.)
+
+   ★옛 게이트는 «크로미움 로깅 플래그»로 개발 모드를 판정했다:
+       if (!process.argv.includes('--enable-logging')) setupAutoUpdater();
+     두 조건은 «다른 것»을 잰다 —
+       --enable-logging = 「로그를 켜고 띄웠나」 · 실행 «옵션». ★배포본에도 붙을 수 있다.
+       app.isPackaged   = 「asar 로 포장됐나」   · 실행 «형태». 개발 체크아웃은 언제나 false.
+     ⇒ 배포본이 그 플래그와 함께 실행되면 자동 업데이트가 «조용히» 죽었다
+       (윈도우 실기 QA 2차 별건 D). 0.5.0 자동업데이트 사망(아래 whenReady 주석)과 같은 병이다 —
+       «안 도는데 아무도 모른다».
+     ⇒ 반대 방향도 틀려 있었다: `npm start`(= electron . , 플래그 없음)는 개발 체크아웃인데도
+       옛 게이트를 «통과»했다. electron-updater 가 스스로 no-op 이라 티가 안 났을 뿐이다.
+
+   ★개발 편의는 안 깨진다 — 개발자가 `electron .` 로 띄우든 `npm run dev`(--enable-logging)로
+     띄우든 isPackaged=false 라 updater 는 안 돈다. 오히려 옛 게이트보다 «더» 확실히 안 돈다.
+
+   ★게이트를 «부르는 자리»가 아니라 «함수 안»에 둔다: 부르는 자리에 조건을 두면 그 조건이
+     검사 밖에 남는다(검사는 이 함수를 직접 부른다 — tests/unit/update-gate*.test.mjs). */
+function _autoUpdateEnabled() {
+  try { return app.isPackaged === true; } catch (_) { return false; }
+}
+
 function setupAutoUpdater() {
+  if (!_autoUpdateEnabled()) {
+    console.log('[updater] 자동 업데이트 «꺼짐» — 포장 안 된 실행이다(app.isPackaged=false).');
+    return false;
+  }
+  console.log('[updater] 자동 업데이트 «켜짐» — app.isPackaged=true');
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   // 채널 분기: settings.betaChannel=true인 테스터만 pre-release 수신.
@@ -3009,7 +3037,12 @@ function setupAutoUpdater() {
   cleanSpentUpdaterPending();
 
   autoUpdater.checkForUpdatesAndNotify();
+  return true;
 }
+
+/* ★검사가 «게이트 그 자체»를 부를 수 있게 내보낸다 — Electron 은 main.js 의 exports 를 안 본다.
+   ⛔소스 정규식으로 게이트를 지키지 않기 위해서다(정규식은 조건이 바뀌어도 초록일 수 있다). */
+module.exports = Object.assign(module.exports || {}, { setupAutoUpdater, _autoUpdateEnabled });
 
 /* ── App lifecycle ── */
 app.whenReady().then(async () => {
@@ -3070,10 +3103,8 @@ app.whenReady().then(async () => {
   createWindow();
   // watchFiles가 던져도 updater/MCP 초기화는 계속돼야 함 (0.5.0 자동업데이트 사망 원인)
   try { watchFiles(); } catch (e) { console.error('[hot-reload] watch skipped:', e.message); }
-  // 개발 모드에서는 자동업데이트 스킵
-  if (!process.argv.includes('--enable-logging')) {
-    setupAutoUpdater();
-  }
+  // 자동업데이트 — 켤지 말지는 setupAutoUpdater 가 app.isPackaged 로 «스스로» 판정한다(별건 D).
+  setupAutoUpdater();
   // Claude PM MCP 서버 (포트 9345, port-status 표 9345+ 신규 자유)
   try {
     const { port: actualPort, token: mcpToken } = await startMcpServer({

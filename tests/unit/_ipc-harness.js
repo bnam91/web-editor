@@ -29,7 +29,10 @@ function loadMain(opts) {
       whenReady: () => new Promise(() => {}), on: (ev, fn) => { appHandlers.set(ev, fn); },
       once: (ev, fn) => { appHandlers.set(ev, fn); }, getPath: () => userData,
       getName: () => 'GODITOR', getVersion: () => '0.0.0-test', setAsDefaultProtocolClient: noop,
-      quit: noop, exit: (code) => { exits.push(code === undefined ? 0 : code); }, isPackaged: false, requestSingleInstanceLock: () => true,
+      quit: noop, exit: (code) => { exits.push(code === undefined ? 0 : code); },
+      /* ★[별건 D] 「포장됐나」를 테스트가 «갈아끼울 수» 있어야 한다 — 자동업데이트 게이트의 정본이다.
+         기본값은 false(개발 체크아웃) 그대로라 기존 테스트 동작은 안 바뀐다. */
+      isPackaged: !!(opts && opts.isPackaged), requestSingleInstanceLock: () => true,
       commandLine: { appendSwitch: noop }, setAboutPanelOptions: noop, dock: { setIcon: noop },
       relaunch: noop, getLoginItemSettings: () => ({}), setLoginItemSettings: noop,
     },
@@ -68,7 +71,7 @@ function loadMain(opts) {
   };
   const FAKE = {
     electron: stub,
-    'electron-updater': { autoUpdater: { on: noop, checkForUpdates: async () => null, checkForUpdatesAndNotify: async () => null, setFeedURL: noop, downloadUpdate: async () => [], quitAndInstall: noop, logger: null, autoDownload: false, allowPrerelease: false, channel: null, currentVersion: { version: '0.0.0' } } },
+    'electron-updater': { autoUpdater: { __on: [], on(ev) { this.__on.push(ev); }, checkForUpdates: async () => null, checkForUpdatesAndNotify: async () => null, setFeedURL: noop, downloadUpdate: async () => [], quitAndInstall: noop, logger: null, autoDownload: false, allowPrerelease: false, channel: null, currentVersion: { version: '0.0.0' } } },
     'electron-log': Object.assign(function () {}, { transports: { file: { level: 'info' }, console: { level: 'info' } }, info: noop, warn: noop, error: noop, debug: noop, verbose: noop, silly: noop, log: noop, scope: () => ({ info: noop, warn: noop, error: noop, debug: noop }) }),
   };
   const origResolve = Module._resolveFilename;
@@ -82,6 +85,8 @@ function loadMain(opts) {
   fs.mkdirSync(projectsDir, { recursive: true });
   return {
     userData, projectsDir, sent,
+    /** electron-updater 의 autoUpdater 스텁. __on 에 등록된 이벤트가 쌓인다 = 「updater 가 무장됐나」. */
+    updater: FAKE['electron-updater'].autoUpdater,
     trashDir: path.join(userData, '_Trash'),
     /* ★[H4] electron 스텁 «그 자체» — 테스트가 BrowserWindow.getAllWindows 등을 갈아끼운다. */
     stub,
