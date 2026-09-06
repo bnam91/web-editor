@@ -83,6 +83,11 @@
     const raw = (window._settings && window._settings.shortcuts && window._settings.shortcuts[action]) || null;
     return _toPlatform(raw);
   };
+  /* ★[별건 A] 교정을 «내보낸다» — getShortcut 을 못 쓰는 자리(저장 전 draft)도 같은 길을 타야 한다.
+     ⛔이게 없어서 설정 모달만 «날것»을 라벨로 만들었고, 윈도우 화면에 「Win+Shift+G」가 떴다.
+       실제로 먹는 건 Ctrl 이다 — 사용자가 화면을 믿고 윈도우 로고 키를 눌러도 안 된다.
+       (윈도우 실기 QA 2차 별건 A: 라벨 Win+Shift+G / 실측 Ctrl+Shift+G 로 그룹 1→0) */
+  window._toPlatformShortcut = _toPlatform;
 
   // 이스터에그(숨은 기능) on/off 확인 — 기본값 true(기존 동작 보존), 명시적 false일 때만 비활성
   window.isEasterEggEnabled = function (key) {

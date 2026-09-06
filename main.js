@@ -132,6 +132,12 @@ const DEFAULT_SETTINGS = {
     addAsset:     'KeyA',
     addSection:   'KeyS',
     pinToggle:    'Backquote',
+    /* ★[별건 A] 여기는 «전선 위의 기본값»이고 표기는 맥 기준(Meta)이다. 플랫폼 교정은
+       «읽는 자리»에서 한다 — js/settings/settings-store.js 의 _toPlatform(Meta→Ctrl).
+       ⛔여기만 고쳐도 «기존 사용자»는 안 고쳐진다: 저장본(settings.json)에 옛 Meta 값이 이미
+         박혀 있고 DEFAULT_SETTINGS 는 «없는 키»에만 쓰인다. 그래서 교정이 읽는 자리에 있다.
+       ⚠️그러니 이 값을 보고 「윈도우에서도 Win 키가 먹는다」고 읽지 마라 — 먹는 건 Ctrl 이다.
+         화면 라벨도 그 교정을 타야 한다(js/settings/settings-modal.js _badgeLabel). */
     groupBlocks:  'Meta+KeyG',
     ungroup:      'Meta+Shift+KeyG',
     wrapInFrame:  'Meta+Alt+KeyG',
@@ -145,6 +151,11 @@ const DEFAULT_SETTINGS = {
     freeLayoutAnalyze: true,
   },
 };
+/* ★[별건 A] 검사가 «값의 정본»을 직접 읽을 수 있게 내보낸다 — Electron 은 main.js 의 exports 를 안 본다.
+   (settings:get 핸들러는 whenReady 안에서 등록돼 유닛 하네스에선 안 잡힌다.)
+   ⇒ 「화면 라벨이 이 값과 어긋나지 않는가」를 «진짜 정본»으로 잰다. */
+module.exports = Object.assign(module.exports || {}, { DEFAULT_SHORTCUTS: DEFAULT_SETTINGS.shortcuts });
+
 function readSettings() {
   try {
     const p = getSettingsPath();
