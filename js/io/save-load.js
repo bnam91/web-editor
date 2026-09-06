@@ -113,6 +113,19 @@ let _dirtySinceSave = false;
      드레인이 끝날 때까지 매달린다(행 위험). 여기 «기록»만 남기고, 볼 사람이 보게 한다. */
 const _lastSaveResult = new Map();
 
+/* ★[W-3-b] 「이 저장은 «실패»로 끝났나」 — 이 파일의 «단 하나의» 판정.
+   ⛔`ok === false` 만 보면 «보호성 스킵»(빈 캔버스)까지 실패로 센다 ⇒ 새 프로젝트가 영원히
+     dirty 로 남아 탭 전환마다 헛저장하고 공지까지 막힌다. 스킵은 실패가 아니다.
+   ★이 규칙은 «내가 새로 정한 게» 아니다 — 자동저장 인디케이터가 이미
+     `r.ok === false && !r.skipped` 로 쓰고 있었다. 그걸 여기 한 곳으로 모아 «같은 값»을 쓰게 한다. */
+function _isSaveFailure(r) { return !!(r && r.ok === false && r.skipped !== true); }
+
+/** 그 프로젝트의 «마지막으로 끝난» 저장이 실패였나. dirty 와 «따로» 묻는다. */
+function _lastSaveFailed(projectId) {
+  const e = projectId ? _lastSaveResult.get(projectId) : null;
+  return _isSaveFailure(e && e.result);
+}
+
 async function saveProjectToFile(snapshot, opts = {}) {
   const _targetId = opts.projectId || activeProjectId;
   // 저장 중이면 프로젝트별로 최신 데이터를 큐에 대기 — 같은 프로젝트는 최신값으로 coalesce,
@@ -125,7 +138,19 @@ async function saveProjectToFile(snapshot, opts = {}) {
   let _result;
   try {
     _result = await _doSaveProjectToFile(snapshot, opts);
-    _dirtySinceSave = false;
+    /* ★[W-3-b] «결과를 보고» 지운다 — 옛 코드는 무조건 지웠다.
+       _doSaveProjectToFile 은 EPERM 을 throw 가 아니라 { ok:false, reason:'exception' } «반환»한다
+       ⇒ 저장이 실패했는데 「미저장 없음」이 됐고, 그 뒤 beforeunload 가 조기 return 해서
+         projects:save-sync 가 «아예 안 불렸다» ⇒ W-3 가드가 입력을 못 받고 그냥 종료했다.
+         (윈도우 실기 회귀: 「⚠️ 저장 실패」를 «보고 나서» 닫으면 다이얼로그 0·마커 0·로그 0건.
+          편집 «직후»(디바운스 전) 닫기만 살아 있었다 — 사용자가 하는 순서는 앞쪽이다.)
+       ★★가드는 옳은 자리에 있었다. 없던 건 «방아쇠»다.
+       ★이 한 줄이 window.hasUnsavedChanges() 의 거짓말도 «같이» 고친다 —
+         탭 전환의 「변경 없으면 저장 생략」(js/tab-system.js:253)과 공지 억제(js/notice.js:65)가
+         같은 값을 본다. 셋이 한 뿌리였다.
+       ⚠️폭주 없음: 자동저장 재무장은 «편집»(scheduleAutoSave)만 한다 — dirty 는 재무장의
+         입력이 아니다. 실패해도 스스로 다시 쏘지 않는다(검사 W3B-6 이 이걸 잠근다). */
+    if (!_isSaveFailure(_result)) _dirtySinceSave = false;
   } finally {
     if (_targetId) _lastSaveResult.set(_targetId, { at: Date.now(), result: _result });
     _isSavingToFile = false;
@@ -1387,7 +1412,9 @@ function scheduleAutoSave() {
     Promise.resolve(saveProjectToFile(snap, { skipThumbnail: true, projectId: _saveTargetId })) // 자동저장은 썸네일 캡처 생략
       .then(r => {
         // ★보호성 스킵(빈 캔버스)은 «실패»가 아니다 — 새 프로젝트에서 매번 빨강이 되면 신호가 죽는다.
-        _setAutosaveIndicator(r && r.ok === false && !r.skipped ? 'error' : 'saved');
+        //   ★[W-3-b] 판정은 _isSaveFailure 하나로 모았다 — dirty 를 지우는 자리와 «같은 값»이어야
+        //     한다. 두 벌이면 「빨강인데 미저장 없음」 같은 어긋남이 또 난다(그게 이번 병이었다).
+        _setAutosaveIndicator(_isSaveFailure(r) ? 'error' : 'saved');
         // ★협업 동기화 훅 — 저장이 «끝난 뒤»에만 알린다. 저장 전에 쏘면 내 디스크에도
         //   없는 것을 남에게 주게 된다. 실패했으면 안 쏜다(공유는 저장의 «다음» 단계다).
         //   이벤트로 가른 이유: save-load 가 협업을 몰라도 되게 — 협업이 없으면 아무도 안 듣는다.
@@ -1404,7 +1431,11 @@ window.addEventListener('beforeunload', () => {
   // BUG-12: activeProjectId 없으면 undefined 키 오염 방지
   if (!activeProjectId) return;
   // DEF-03: 마지막 저장 이후 변경이 없으면 재기록하지 않음 (무편집 새로고침/방문의 updatedAt·파일 오염 방지)
-  if (!_dirtySinceSave && !autoSaveTimer && !_isSavingToFile) return;
+  /* ★[W-3-b] 벨트 하나 더 — dirty 가 «다른 경로»에서 지워졌더라도, 마지막 저장이 실패로
+     끝난 걸 «아는» 상태면 종료 저장을 시도한다. 디스크가 나쁜 줄 «알면서» 그냥 나가지 않는다.
+     ⛔이건 위 ②의 대체재가 아니라 «보조»다. 근본은 ②(결과를 보고 dirty 를 지운다).
+     ⚠️권한이 복구됐다면 이 시도가 «성공»해서 데이터가 들어간다 — 손해 없는 재시도다. */
+  if (!_dirtySinceSave && !autoSaveTimer && !_isSavingToFile && !_lastSaveFailed(activeProjectId)) return;
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const snap = serializeProject();
