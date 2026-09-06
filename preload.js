@@ -107,6 +107,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAuthState:       ()                   => ipcRenderer.invoke('auth:state'),
   refreshAuth:        ()                   => ipcRenderer.invoke('auth:refresh'),
   authLogin:          (email, password)    => ipcRenderer.invoke('auth:login', email, password),
+  authGoogleLogin:    ()                   => ipcRenderer.invoke('auth:google-login'),
   authLogout:         ()                   => ipcRenderer.invoke('auth:logout'),
   openExternalUrl:    (url)                => ipcRenderer.invoke('auth:open-external', url),
   navigateToProjects: ()                   => ipcRenderer.invoke('license:navigate-projects'),

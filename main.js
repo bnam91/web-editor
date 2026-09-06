@@ -558,6 +558,179 @@ ipcMain.handle('auth:refresh', async () => {
   return { ok: true, plan: r.plan || '', accessUntil: r.accessUntil || '' };
 });
 
+/* ══════════════════════════════════════════════════════════════════════
+   구글 로그인 — RFC 8252 루프백 (인계 규격서 §4)
+
+   ★앱 안에 구글 화면을 띄우는 것은 «불가능»하다 — 구글이 embedded webview 를
+     `disallowed_useragent` 로 차단한다. 반드시 «바깥 브라우저»다.
+   ★앱은 구글과 직접 말하지 않는다. 우리 서버만 부르고 «세션 토큰»만 받는다.
+     ⇒ client_secret 도, 구글 SDK 도 앱에 없다.
+   ★커스텀 프로토콜(goditor://)이 아니라 루프백인 이유 = OS 등록·중복 선점이 없다.
+
+   ⛔토큰은 여기(main)에서 끝난다 — 렌더러로 «절대» 내보내지 않는다.
+     기존 auth:login 이 「세션토큰은 반환하지 않는다」로 세운 규약(:530)과 같다.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* 브라우저에 «우리 얼굴»로 뜨는 유일한 화면이다 — 사용자가 구글에서 돌아와 처음 보는 곳.
+   ★[시안 F 「전면 라임」 채택, 현빈 2026-09-06]
+     색·글자·간격을 «소문의섬 홈페이지 토큰 그대로» 쓴다(blacksheepwall.kr/style.css :root).
+     홈페이지에서 앱으로 넘어와도 끊김이 없게 하는 것이 목적이고, 그 대가로 이 화면에선
+     고디터 파랑(#2d6fe8)을 «안 쓴다» — 현빈이 그 교환을 알고 고른 안이다.
+   ⚠️여기는 file:// 이 아니라 http://127.0.0.1 이라 css/design-tokens.css 도, 상대경로 이미지도
+     «못 쓴다». 그래서 ⑴색은 값으로 박고 ⑵아이콘은 data URI 로 심는다.
+     아래 값은 소문의섬 style.css :root 의 실제 값이다(2026-09-06 실측):
+       --bg #0B0B0E · --bg-elev #15151A · --fg #F2F2F5 · --muted #B5B5BC
+       --faint #6E6E77 · --accent #C9F23A · --danger #FF7A8A · --border rgba(255,255,255,.08)
+     ⇒ 소문의섬 토큰이 바뀌면 여기도 손으로 맞춰야 한다. 숨기지 않으려고 이 주석을 둔다.
+   ⚠️소문의섬 로고마크는 #3EFF00 인데 홈페이지 UI 액센트는 #C9F23A 로 «서로 다르다».
+     여기선 «UI 액센트»를 정본으로 잡았다 — 이 화면은 로고가 아니라 UI 이기 때문이다. */
+
+/* 아이콘은 «앱 아이콘 그 파일»을 쓴다 — 예전엔 파란 사각형에 `✦` 유니코드 «글자»를 그렸고,
+   그래서 독에 뜨는 아이콘과 앱 안 로고가 «서로 다른 얼굴»이었다(2026-09-06 발견).
+   ⚠️build/icon.png 은 512px 라 base64 가 163KB 다 — 3초 보고 닫는 페이지에 그건 과하다.
+     그래서 128px 사본(assets/goditor-icon-128.png, 13KB)을 쓴다. */
+let _ICON_DATA_URI = null;
+function _goditorIconDataUri() {
+  if (_ICON_DATA_URI !== null) return _ICON_DATA_URI;
+  try {
+    const p = path.join(__dirname, 'assets', 'goditor-icon-128.png');
+    _ICON_DATA_URI = 'data:image/png;base64,' + fs.readFileSync(p).toString('base64');
+  } catch (e) {
+    /* 파일이 없어도 «화면이 안 뜨는» 일은 없어야 한다 — 마크만 비운다. */
+    console.warn('[auth] 로그인 완료 화면 아이콘을 못 읽음:', e.message);
+    _ICON_DATA_URI = '';
+  }
+  return _ICON_DATA_URI;
+}
+
+/** @param {boolean} ok  @param {string} [email]  @param {string} [reason] */
+function _loopbackPage(ok, email, reason) {
+  const icon = _goditorIconDataUri();
+  const accent = ok ? '#C9F23A' : '#FF7A8A';
+  const title  = ok ? '로그인됐습니다' : '로그인하지 못했어요';
+  const body   = ok
+    ? '고디터 창으로 돌아가 주세요.'
+    : (reason === 'no_token'
+        ? '구글 인증은 됐지만 로그인 정보를 받지 못했습니다.<br>고디터에서 다시 시도해 주세요.'
+        : '고디터에서 다시 시도해 주세요.');
+  const esc = v => String(v || '').replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+  const sub = ok && email ? `<div class="em">${esc(email)}</div>` : '';
+  const mark = icon ? `<img class="ico" src="${icon}" alt="">` : '';
+  return `<!doctype html><html lang="ko"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>고디터 로그인</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap">
+<style>
+  :root { color-scheme: dark }
+  * { box-sizing: border-box; margin: 0; padding: 0 }
+  body { background:#0B0B0E; color:#F2F2F5; min-height:100vh; display:flex;
+         align-items:center; justify-content:center; padding:32px;
+         font-family:'Inter','Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+         -webkit-font-smoothing:antialiased }
+  .box { width:100%; max-width:360px }
+  .rule { width:36px; height:2px; background:${accent}; margin-bottom:26px }
+  .brand { display:flex; align-items:center; gap:11px; margin-bottom:26px }
+  .ico { width:34px; height:34px; border-radius:9px; display:block; flex:none }
+  .nm { font-size:14px; font-weight:800; letter-spacing:.07em }
+  .by { font-size:9.5px; font-weight:600; letter-spacing:.09em; color:#6E6E77; margin-top:2px }
+  h1 { font-size:21px; font-weight:800; letter-spacing:-.01em; margin-bottom:9px; word-break:keep-all }
+  p  { font-size:13.5px; color:#B5B5BC; line-height:1.65; word-break:keep-all }
+  .em { font-size:12.5px; color:#6E6E77; margin-top:10px; word-break:break-all }
+</style>
+<body><div class="box">
+  <div class="rule"></div>
+  <div class="brand">${mark}<div><div class="nm">GODITOR</div><div class="by">BY 소문의섬</div></div></div>
+  <h1>${title}</h1>
+  <p>${body}</p>
+  ${sub}
+</div></body></html>`;
+}
+
+/* 동시에 두 번 누르면 포트가 둘 열린다 — 하나만 산다. */
+let _googleLoginInFlight = null;
+
+function _startGoogleLoopback() {
+  return new Promise((resolve) => {
+    const http = require('http');
+    let settled = false;
+    let timer = null;
+    const finish = (v) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { server.close(); } catch (_) {}        // ★반드시 닫는다 — 안 닫으면 포트가 남는다
+      resolve(v);
+    };
+
+    const server = http.createServer((req, res) => {
+      let q;
+      try { q = new URL(req.url, 'http://127.0.0.1').searchParams; } catch (_) { q = null; }
+      const token = q && q.get('token');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(_loopbackPage(!!token, q && q.get('email'), token ? '' : 'no_token'));
+      finish(token
+        ? { ok: true, token, email: q.get('email') || '', next: q.get('next') || '' }
+        : { ok: false, reason: 'no_token' });
+    });
+
+    server.on('error', () => finish({ ok: false, reason: 'loopback_failed' }));
+
+    /* ★포트는 listen(0) 으로 «매번» 받는다 — 고정하면 다른 프로그램과 부딪힌다.
+       ★`localhost` 는 서버가 거부한다(DNS 가 딴 데를 가리킬 수 있어서) — 127.0.0.1 만. */
+    server.listen(0, '127.0.0.1', () => {
+      const port = server.address().port;
+      const redirect = `http://127.0.0.1:${port}/cb`;
+      const url = `${AUTH_API_BASE}/api/license/google-start`
+        + `?app=goditor&redirect=${encodeURIComponent(redirect)}`;
+      shell.openExternal(url).catch(() => finish({ ok: false, reason: 'open_failed' }));
+    });
+
+    /* ★사용자가 브라우저를 그냥 닫는 경우 — 5분 뒤 포트를 회수한다. */
+    timer = setTimeout(() => finish({ ok: false, reason: 'timeout' }), 5 * 60 * 1000);
+  });
+}
+
+ipcMain.handle('auth:google-login', async () => {
+  if (_googleLoginInFlight) return { ok: false, reason: 'in_flight' };
+  _googleLoginInFlight = (async () => {
+    const r = await _startGoogleLoopback();
+
+    /* ★앱 창에 포커스를 되돌린다 — 안 하면 「눌렀는데 아무 일도 없다」로 보인다(규격서 §4). */
+    try { if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); } } catch (_) {}
+
+    if (!r.ok) return r;
+
+    /* ★구글 응답엔 plan·accessUntil 이 «없다»(token·email·next 뿐).
+       그런데 readAuth 는 accessUntil 없는 기록을 «무효»로 버린다(:401).
+       ⇒ 등급을 지어내지 않고 «서버에 물어» 채운다. 이메일 로그인이 authLogin 응답으로
+         받는 그 값을, 구글 경로에선 verifySession 으로 받는 것뿐이다. */
+    const v = await authVerifySession(r.email, r.token);
+    if (!v) return { ok: false, reason: 'network' };        // 오프라인 — 아무것도 저장하지 않는다
+    if (v.ok === false) {
+      /* 만료도 «대답»이다 — 토큰은 살아 있으니 기록해 다음 실행에서도 만료 화면이 뜨게 한다
+         (auth:login 의 expired 분기와 같은 규약, :534). */
+      if (v.reason === 'expired') {
+        writeAuth({ email: r.email, plan: v.plan, accessUntil: v.accessUntil, sessionToken: r.token });
+        return { ok: false, reason: 'expired', email: r.email, plan: v.plan, accessUntil: v.accessUntil };
+      }
+      return { ok: false, reason: v.reason || 'unknown', email: r.email };
+    }
+
+    writeAuth({ email: r.email, plan: v.plan, accessUntil: v.accessUntil, sessionToken: r.token });
+    /* ★next = 추가정보(휴대전화·약관동의)가 아직 안 채워진 계정. 앱 «안»에서 받지 않는다 —
+       약관 링크가 필요해서다(규격서 §1). 브라우저로 열어 사람이 채우게 한다. */
+    if (r.next) {
+      try { shell.openExternal(AUTH_API_BASE + r.next); } catch (_) {}
+    }
+    return { ok: true, email: r.email, plan: v.plan, accessUntil: v.accessUntil, next: r.next || '' };
+  })();
+
+  try { return await _googleLoginInFlight; }
+  finally { _googleLoginInFlight = null; }
+});
+
 ipcMain.handle('auth:logout', () => {
   clearAuth();
   return { ok: true };
