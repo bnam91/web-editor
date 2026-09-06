@@ -9,11 +9,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 const require = createRequire(import.meta.url);
 const { loadMain } = require('./_ipc-harness.js');
 
 const H = loadMain({ isPackaged: true });   // ★배포본
-const M = require(new URL('../../main.js', import.meta.url).pathname);
+const M = require(fileURLToPath(new URL('../../main.js', import.meta.url)));
 
 test('U-D3 ★배포본(isPackaged=true)에서 updater 가 실제로 무장된다', () => {
   assert.equal(M._autoUpdateEnabled(), true, '배포본인데 게이트가 닫혀 있다');

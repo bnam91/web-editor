@@ -12,6 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { mkTmpRoot } = require('./_tmproot');
+const DENY = require('../../tools/hardening/lib/denywrite.cjs');   // ★POSIX chmod / 윈도우 icacls
 const SS = require('../../main/project-store/snapshot-store');
 
 /** version-diff.js 는 브라우저 IIFE — 가짜 window 에 얹어 «진짜» lossDiff 를 쓴다(재구현 금지). */
@@ -222,13 +223,15 @@ test('F7a ★히스토리 디렉터리를 못 써도 목록은 답한다 — 사
   const projPath = path.join(root, 'p', 'proj.json');
   fs.writeFileSync(projPath, JSON.stringify(proj('p', sec('sec_a', 'A')), null, 2));
   fs.utimesSync(projPath, new Date(), new Date(Date.now() + 5000)); // current 를 낡게 만든다
-  fs.chmodSync(hd, 0o500); // 읽기전용
+  /* ★쓰기 거부는 POSIX chmod / 윈도우 icacls — 옛 판은 윈도우에서 chmod 가 무효라
+     «못 쓰는 상황»이 아니라 «쓸 수 있는 상황»을 재고 있었다(가짜 초록). */
+  const guard = DENY.denyWrite(hd);
   try {
     const r = SS.listVersions(root, 'p');
     assert.equal(r.ok, true);
     assert.equal(r.entries.length, 1);
     assert.equal(r.current.counts.sections, 1, '기록은 못 해도 «계산»은 해서 답해야 한다');
-  } finally { fs.chmodSync(hd, 0o700); }
+  } finally { guard.restore(); }
 });
 
 test('F7b ★대형 레거시 슬롯은 JSON.parse 없이 지문을 낸다 — 두 경로가 같은 답을 내야 한다', () => {

@@ -11,7 +11,8 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { readSrc } from './_srcread.js';        // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,7 +21,7 @@ function boot() {
     electronAPI: null,
     document: { addEventListener() {}, getElementById() { return null; } },
   };
-  const code = fs.readFileSync(path.join(__dirname, '../../js/report-modal.js'), 'utf8');
+  const code = readSrc(__dirname, '../../js/report-modal.js');
   vm.runInNewContext(code, { window: w, document: w.document, Date, JSON, Object, Array, String, Error, Image: function () {} });
   return w.reportModalMergeAuthDiag;
 }
@@ -67,8 +68,9 @@ test('E3-DIAG-5 null/undefined authDiag 도 죽지 않는다(빈 문자열로)',
 
 /* ── 신고 payload 에 실제로 도달하는 자격 진단에 email 이 없다(@ 문자 0) ─── */
 test('E3-DIAG-6 ★entitlement.js diagLine 은 «@」 문자(이메일)를 안 만든다 — 실제 모듈로 확인', async () => {
-  const entPath = path.join(__dirname, '../../services/entitlement.js');
-  const entitlement = (await import(entPath)).default || (await import(entPath));
+  /* ⚠️절대경로를 import() 에 그대로 주면 윈도우에서 거절당한다 — file:// URL 로 준다. */
+  const entUrl = pathToFileURL(path.join(__dirname, '../../services/entitlement.js')).href;
+  const entitlement = (await import(entUrl)).default || (await import(entUrl));
   const now = Date.now();
   const v = entitlement.classify(
     { email: 'user@example.com', accessUntil: '2027-01-01T00:00:00.000Z', sub: 'u1' },

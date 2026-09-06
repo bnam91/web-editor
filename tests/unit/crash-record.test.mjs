@@ -22,7 +22,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { denyWrite } from '../../tools/hardening/lib/denywrite.cjs';   // ★POSIX chmod / 윈도우 icacls
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..', '..');
@@ -31,11 +32,15 @@ const ROOT = process.env.H2_ROOT ? path.resolve(process.env.H2_ROOT) : REPO;
 const require_ = createRequire(import.meta.url);
 const { mkTmpRoot } = require_(path.join(REPO, 'tests/unit/_tmproot.js'));
 
-/* 자 — ★항상 레포 원본 */
+/* 자 — ★항상 레포 원본.
+   ⚠️import() 에 «절대경로»를 그대로 주면 윈도우에서 'C:\\…' 가 되어
+     ERR_UNSUPPORTED_ESM_URL_SCHEME 로 거절당한다(파일이 통째로 안 돈다).
+     '/C:/…'(new URL().pathname 모양)·'\\C:\\…' 도 «틀린 고침»이다 — 실측으로 둘 다 실패.
+     정답은 pathToFileURL(p).href 하나뿐. */
 const { judgeCrashLog, judgeMirrorMarker, CRASH_SCHEMA } =
-  await import(path.join(REPO, 'tools/hardening/judge/crashlog.mjs'));
-const { judgePii } = await import(path.join(REPO, 'tools/hardening/judge/pii.mjs'));
-const { piiSamples } = await import(path.join(REPO, 'tools/hardening/lib/fixture.mjs'));
+  await import(pathToFileURL(path.join(REPO, 'tools/hardening/judge/crashlog.mjs')).href);
+const { judgePii } = await import(pathToFileURL(path.join(REPO, 'tools/hardening/judge/pii.mjs')).href);
+const { piiSamples } = await import(pathToFileURL(path.join(REPO, 'tools/hardening/lib/fixture.mjs')).href);
 
 /* 제품 — ★H2_ROOT */
 const crash = require_(path.join(ROOT, 'main/crash/index.js'));
@@ -192,10 +197,10 @@ test('U-H2-4 기록물이 «새지 않는다» — 홈경로·에셋명·본문 
 /* ══ 5. 못 써도 앱은 살고, 삼킨 건 «센다» ═══════════════════════════════════
    변이: swallow() 안의 _self.swallowed++ 를 지우면(=진짜 삼킴) 빨강.
    ⛔이게 「오류를 삼키는 코드」와 「삼킨 걸 말하는 코드」를 가르는 자리다. */
-test('U-H2-5 기록이 실패해도 던지지 않는다 — 그리고 «삼킨 사실»이 남는다', { skip: process.getuid && process.getuid() === 0 ? 'root 는 chmod 를 무시한다' : false }, () => {
+test('U-H2-5 기록이 실패해도 던지지 않는다 — 그리고 «삼킨 사실»이 남는다', () => {
   const ud = freshUd('denied');
   fs.mkdirSync(path.join(ud, 'logs'), { recursive: true });
-  fs.chmodSync(path.join(ud, 'logs'), 0o000);
+  const guard = denyWrite(path.join(ud, 'logs'));   // ★POSIX/윈도우 공용 — 못 막으면 소리내어 던진다
   try {
     let threw = null;
     try {
@@ -207,27 +212,27 @@ test('U-H2-5 기록이 실패해도 던지지 않는다 — 그리고 «삼킨 �
     assert.ok(s.swallowed > 0, '★삼킨 걸 «안 센다» — 이 위의 모든 판정이 거짓말이 된다');
     assert.ok(s.firstSwallow && /EACCES|EPERM|ENOENT/.test(s.firstSwallow), '삼킨 «사유»가 없다: ' + s.firstSwallow);
     /* ★그리고 그 사실은 «다음 성공한 기록»에도 실린다(세 번째 자리). */
-    fs.chmodSync(path.join(ud, 'logs'), 0o755);
+    guard.restore();
     recorder.record('render-process-gone', { reason: 'crashed-2' });
     const v = judgeCrashLog(ud, { expect: 'present' });
     assert.ok(v.records.some(r => r.recorder && r.recorder.swallowed > 0),
       '삼킨 횟수가 기록 어디에도 안 실린다');
   } finally {
-    try { fs.chmodSync(path.join(ud, 'logs'), 0o755); } catch (_) {}
+    guard.restore();
   }
 });
 
 /* 「막혀 있다」를 「기록이 없다」로 읽지 않는지 — ★자 쪽 규약을 우리 쪽에서도 고정한다. */
-test('U-H2-5b logs 가 막혀 있으면 판정은 NOT_MEASURED 다 («없다»가 아니다)', { skip: process.getuid && process.getuid() === 0 ? 'root' : false }, () => {
+test('U-H2-5b logs 가 막혀 있으면 판정은 NOT_MEASURED 다 («없다»가 아니다)', () => {
   const ud = freshUd('denied2');
   const logs = path.join(ud, 'logs');
   fs.mkdirSync(logs, { recursive: true });
-  fs.chmodSync(logs, 0o000);
+  const guard = denyWrite(logs);
   try {
     const v = judgeCrashLog(ud, { expect: 'present', denied: [logs] });
     assert.equal(v.verdict, 'NOT_MEASURED', v.summary);
     assert.equal(v.pass, null);
-  } finally { fs.chmodSync(logs, 0o755); }
+  } finally { guard.restore(); }
 });
 
 /* ══ 6. 미러 ════════════════════════════════════════════════════════════════

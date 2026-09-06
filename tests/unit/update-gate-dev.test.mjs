@@ -14,11 +14,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 const require = createRequire(import.meta.url);
 const { loadMain } = require('./_ipc-harness.js');
 
 const H = loadMain();                       // isPackaged 기본값 = false (개발 체크아웃)
-const M = require(new URL('../../main.js', import.meta.url).pathname);
+const M = require(fileURLToPath(new URL('../../main.js', import.meta.url)));
 
 test('U-D1 개발 체크아웃(isPackaged=false)에서는 updater 가 «무장되지 않는다»', () => {
   assert.equal(M._autoUpdateEnabled(), false, '게이트가 개발에서 열려 있다');

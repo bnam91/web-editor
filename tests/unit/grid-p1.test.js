@@ -23,9 +23,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { readSrc } = require('./_srcread.js');   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
 
 const srcPath = path.join(__dirname, '../../js/blocks/grid-block.js');
-let src = fs.readFileSync(srcPath, 'utf8');
+let src = readSrc(srcPath);
 const STUB = "const insertAfterSelected = () => {};\nconst genId = (p) => `${p}_` + Math.random().toString(36).slice(2, 9);\nconst bindBlock = () => {};\n";
 const beforeSwap = src;
 src = src.replace(

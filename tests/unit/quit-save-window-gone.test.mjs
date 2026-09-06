@@ -24,10 +24,13 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { denyWrite as denyWriteDir } from '../../tools/hardening/lib/denywrite.cjs';   // ★POSIX chmod / 윈도우 icacls
+import { fileURLToPath } from 'url';
 
 const require = createRequire(import.meta.url);
 const { loadMain } = require('./_ipc-harness.js');
-const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '../..');
+/* ⚠️new URL(...).pathname 은 윈도우에서 '/C:/…' 를 만든다(require 가 못 찾는다) — fileURLToPath 로. */
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const saveGuard = require(path.join(ROOT, 'main/quit/save-guard'));
 
 /* ⚠️main.js 는 «프로세스당 한 번만» 적재된다(모듈 싱글턴) — loadMain 을 두 번 부르면
@@ -44,14 +47,17 @@ function reset() {
   return recordDialogs();
 }
 
-/** 쓰기가 «진짜로» 거부되는 프로젝트 폴더를 만든다(윈도우 icacls /deny 의 맥 대응물). */
+/** 쓰기가 «진짜로» 거부되는 프로젝트 폴더를 만든다.
+ *  ★POSIX 는 chmod, 윈도우는 icacls /deny — 그리고 «써 봐서» 정말 막혔는지 확인한다.
+ *    (윈도우에서 chmod 는 디렉터리에 무효라, 옛 판은 거기서 «쓸 수 있는» 상황을 재고 있었다.) */
+const _denied = new Map();
 function denyWrite(projectId) {
   const dir = path.join(H.projectsDir, projectId);
   fs.mkdirSync(dir, { recursive: true });
-  fs.chmodSync(dir, 0o555);
+  _denied.set(dir, denyWriteDir(dir));
   return dir;
 }
-function undeny(dir) { try { fs.chmodSync(dir, 0o755); } catch (_) {} }
+function undeny(dir) { const h = _denied.get(dir); if (h) { h.restore(); _denied.delete(dir); } }
 
 function projectWithToken(id) {
   return {

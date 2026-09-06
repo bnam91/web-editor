@@ -37,10 +37,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readSrc } from './_srcread.js';        // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
-const SRC = fs.readFileSync(path.join(ROOT, 'js/overlay-handles.js'), 'utf8');
+const SRC = readSrc(ROOT, 'js/overlay-handles.js');
 
 function sliceFn(head) {
   const i = SRC.indexOf(head);

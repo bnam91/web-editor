@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { pathToFileURL } from 'node:url';   // ★윈도우: import() 는 file:// URL 만 받는다
 import { runOnce, readAuthFile } from './app-runner.mjs';
 
 const argv = process.argv;
@@ -299,7 +300,7 @@ def('packaged-env-ignored',
   async () => {
     /* ⚠️이 케이스는 «모듈»을 재는 것이지 앱을 띄우지 않는다 — 패키징 빌드 실기는 별도(§패키징).
        그래도 여기 둔다: env 게이트가 죽으면 위 케이스 전부가 «아무것도 안 보는» 초록이 된다. */
-    const ent = await import(path.join(REPO, 'services', 'entitlement.js'));
+    const ent = await import(pathToFileURL(path.join(REPO, 'services', 'entitlement.js')).href);
     const pub = fs.readFileSync(PUB, 'utf8');
     const dev = ent.default.resolveKeys({ isPackaged: false, env: { GODITOR_ENTITLEMENT_PUBKEY: pub } });
     const pkg = ent.default.resolveKeys({ isPackaged: true, env: { GODITOR_ENTITLEMENT_PUBKEY: pub } });

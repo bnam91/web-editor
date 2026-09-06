@@ -25,6 +25,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 import { openSource } from '../../tools/hardening/lib/loadcheck.mjs';
+import { denyWrite } from '../../tools/hardening/lib/denywrite.cjs';   // ★POSIX chmod / 윈도우 icacls
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
@@ -242,13 +243,10 @@ test('U-H4-C7 before-quit 이 두 번 와도 exit 는 한 번이다', async () =
 
 test('U-H4-C8 ★userData 를 통째로 못 써도 «던지지 않고» 알리고 죽는다 (deny-write 축소판)', async () => {
   const ud = mkTmpRoot('h4-denied-');
-  fs.chmodSync(ud, 0o500);              // 읽기·탐색만 — 쓰기 거부
+  /* ★denyWrite 가 «써 봐서» 정말 막혔는지 확인하고, 못 막으면 소리내어 던진다.
+     (윈도우에서 chmod 는 디렉터리에 아무 효과가 없다 — 거기선 icacls /deny 를 쓴다.) */
+  const guard = denyWrite(ud);
   try {
-    /* sanity: 정말 못 쓰는지 «써 봐서» 확인한다(플래그를 믿지 않는다) */
-    let denied = false;
-    try { fs.writeFileSync(path.join(ud, '.probe'), 'x'); } catch (_) { denied = true; }
-    assert.ok(denied, '전제 미달 — 막았는데 여전히 써진다(root 로 돌고 있나?)');
-
     const R = rig({ userData: ud });
     R.run();
     R.reply({ ok: false, reason: 'exception', error: 'EACCES', projectId: 'p', snapshot: '{"a":1}' });
@@ -256,7 +254,7 @@ test('U-H4-C8 ★userData 를 통째로 못 써도 «던지지 않고» 알리�
     assert.equal(R.dialogCalls.length, 1);
     assert.match(R.dialogCalls[0].opts.detail, /비상 사본도 만들지 못했습니다/,
       '사본을 못 만들었는데 만든 것처럼 말했다 — 안심시키는 문장이 경고 부재보다 나쁘다');
-  } finally { fs.chmodSync(ud, 0o700); }
+  } finally { guard.restore(); }
 });
 
 test('U-H4-C9 렌더러가 준 projectId 로 «폴더 밖»에 쓰지 않는다', async () => {

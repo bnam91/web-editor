@@ -19,11 +19,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { readSrc } = require('./_srcread.js');   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
 
 /* ── 소스 → 스텁 사본(.mjs) ─────────────────────────────────────────────────── */
 function stubCopy(relSrc, replacements, tag) {
   const srcPath = path.join(__dirname, '../../', relSrc);
-  let src = fs.readFileSync(srcPath, 'utf8');
+  let src = readSrc(srcPath);
   for (const [from, to] of replacements) {
     const before = src;
     src = src.replace(from, to);

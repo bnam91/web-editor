@@ -29,10 +29,25 @@ let _umbrella = null;
 let _hooked = false;
 const _tracked = [];
 
-/** 디스크 여유(바이트). 못 재면 null — «못 쟀다»를 «여유 있다»로 읽지 않는다. */
+/** 디스크 여유(바이트). 못 재면 null — «못 쟀다»를 «여유 있다»로 읽지 않는다.
+ *
+ * ★윈도우 이식성: 그 기계엔 `df` 가 없다. 그렇다고 «건너뛰면» ⑶사전게이트가
+ *   윈도우에서 영영 안 돈다(그리고 T4 의 양성대조가 「못 쟀다」로 빨강이 난다).
+ *   ⇒ 양쪽에서 도는 «같은 자» fs.statfsSync(Node 18.15+) 를 먼저 쓰고,
+ *     그게 없을 때만 POSIX `df` 로 내려간다. 구조(«못 재면 null»)는 그대로다. */
 function freeBytes(dir) {
+  const target = dir || os.tmpdir();
+  if (!fs.existsSync(target)) return null;          // ★없는 경로 = «못 쟀다»(T5 가 재는 자리)
+  if (typeof fs.statfsSync === 'function') {
+    try {
+      const st = fs.statfsSync(target);
+      const free = Number(st.bavail) * Number(st.bsize);
+      if (Number.isFinite(free)) return free;
+    } catch (_) { /* 아래로 */ }
+  }
+  if (process.platform === 'win32') return null;    // df 가 없다 — «못 쟀다»고 말한다
   try {
-    const out = execFileSync('df', ['-k', dir || os.tmpdir()], { encoding: 'utf8' });
+    const out = execFileSync('df', ['-k', target], { encoding: 'utf8' });
     const line = out.trim().split('\n').pop().trim().split(/\s+/);
     // df -k: Filesystem 1024-blocks Used Available ...
     const availKb = parseInt(line[3], 10);
