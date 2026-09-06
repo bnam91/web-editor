@@ -284,6 +284,130 @@ function _assertExpectedProject(expectedProject) {
   }
 }
 
+/* ── ★프로젝트 «싱크» 게이트 — 대상이 확정되기 전엔 쓰기 도구가 돌지 않는다 (2026-09-07) ──
+ * 사고(현빈 실사용, 09-07): 「고디터」라고 말한 적도, 어느 프로젝트인지 정한 적도 없는데
+ *   add_section 이 그냥 «열려 있던 실사용 프로젝트»에 들어갔고 현빈이 화면에서 봤다.
+ *   ★원인은 클로드가 아니라 «프로토콜»이다 — 부작용 도구 24개가 «필수 인자 0개»이고
+ *   전부 활성 프로젝트에 쓴다(projectId 인자가 하나도 없다). 대상을 «고르는 행위» 자체가
+ *   인터페이스에 없으니, 안 골랐다는 사실이 도구 쪽에서 보이지 않는다.
+ *   duplicate_project{} 는 빈 호출 한 번에 최대 721MB 를 복제한다(실측 p90 276MB).
+ *   ⛔게다가 프로젝트를 «지우는» MCP 도구는 없다 — 클로드는 만들 수는 있어도 치울 수 없다.
+ *
+ * ★「확정」의 정의 = «대상을 지목하는 행위»가 있었다. 둘 중 하나면 통과:
+ *   ⑴ expectedProject 인자를 줬고 그게 «지금» 활성 프로젝트와 같다.
+ *   ⑵ 이 서버 생애에서 open_project 가 ok 로 끝났고, 그 프로젝트가 «아직도» 활성이다(sticky).
+ *   (+ duplicate_project 는 sourceProjectId 가 자기 대상을 직접 지목하므로 그것으로 갈음)
+ * ⛔★읽기는 «지목»이 아니다. get_canvas_state 를 먼저 부르는 건 클로드의 기본 습관이라,
+ *   읽기를 확정으로 세면 사고가 난 그 시나리오가 «그대로» 통과한다. 보는 것과 고르는 것은 다르다.
+ * ★sticky 를 쓰는 이유 = 매 호출 인자를 요구하면 왕복이 2배가 된다. 한 번 정하면 그 대화 동안
+ *   유지되는 게 사람이 쓰는 모양이다. 대신 ★«활성이 바뀌면 깨진다» — 사람이 앱에서 다른
+ *   프로젝트를 열면 다음 쓰기는 다시 거절된다(대조는 매 호출 _activeProjectId()).
+ * ⛔거절은 «조용히» 하지 않고 «조용히 성공»도 하지 않는다. 지금 열린 프로젝트 id·이름과
+ *   «다음 수»를 응답에 실어 보낸다 — 그래야 클로드가 스스로 open_project 로 회복한다.
+ * ⛔읽기 도구는 막지 않는다. 막으면 「지금 뭐가 열렸는지」조차 물어볼 수 없다.
+ */
+const _TARGET_FREE = new Set([
+  // ⑴ 읽기 — ⛔이 줄을 줄이지 마라. 막으면 클로드가 현황을 물어볼 통로가 사라진다.
+  'read_project', 'read_section', 'get_canvas_state', 'list_projects', 'list_memories',
+  'list_scratch_items', 'read_scratch_item', 'list_checklist_items', 'get_section_memo',
+  'search_iconify', 'get_block_schema', 'goditor_which_instance',
+  // ⑵ 대상을 «고르는» 도구 = 게이트의 출구
+  'open_project',
+  // ⑶ 새로 만드는 도구는 대상이 없는 게 «정상»이다(아직 아무것도 안 열었으니).
+  //    대신 응답에 「만들었지만 열지 않았다 = 활성은 그대로」를 박는다.
+  'create_project',
+]);
+/* 자기 대상을 «인자로» 직접 지목하는 도구 — 그 인자가 곧 확정이다.
+ * duplicate_project 는 활성 프로젝트가 아니라 sourceProjectId 를 복제한다. */
+const _SELF_TARGET_ARG = new Map([['duplicate_project', 'sourceProjectId']]);
+
+let _confirmedProject = null;   // ★sticky — open_project ok 또는 expectedProject 일치로만 선다
+
+/** 거절 문구에 «이름»을 실어 준다 — id 만으론 사람이 자기 프로젝트인지 못 알아본다. */
+function _projectName(pid) {
+  if (!pid) return null;
+  try {
+    if (_projectOps && typeof _projectOps.list === 'function') {
+      const r = _projectOps.list({});
+      const hit = ((r && r.items) || []).find(p => p && p.id === pid);
+      if (hit && hit.name) return String(hit.name);
+    }
+  } catch (_) {}
+  try { const p = _readProjectFile(pid); if (p && p.name) return String(p.name); } catch (_) {}
+  return null;  // ★이름을 못 읽은 것이지 프로젝트가 없는 게 아니다
+}
+
+/** null = 통과. 객체 = «실행하지 않고» 그대로 돌려줄 거절 응답(다음 수 포함). */
+function _projectGate(toolName, args) {
+  if (_TARGET_FREE.has(toolName)) return null;   // ⛔fail-closed: 목록에 없으면 전부 게이트 대상
+  const a = args || {};
+
+  // 자기 대상을 인자로 지목하는 도구는 그 인자로 갈음한다(빈 호출은 아래로 떨어져 거절된다).
+  const selfArg = _SELF_TARGET_ARG.get(toolName);
+  if (selfArg) {
+    const v = a[selfArg];
+    if (typeof v === 'string' && /^proj_\d+$/.test(v)) return null;
+  }
+
+  const active = _activeProjectId();
+  const expected = a.expectedProject;
+  const hasExpected = expected !== undefined && expected !== null && expected !== '';
+
+  if (hasExpected && (typeof expected !== 'string' || !/^proj_\d+$/.test(expected))) {
+    return {
+      ok: false, code: 'INVALID_EXPECTED_PROJECT', tool: toolName,
+      activeProject: active, activeProjectName: _projectName(active),
+      error: `expectedProject 형식이 틀렸습니다: ${JSON.stringify(expected)} (proj_<숫자> 여야 합니다) — ${toolName} 을(를) 실행하지 않았습니다.`,
+      hint: 'NOTHING was done. Project ids look like "proj_1756123456789". Call list_projects to get the exact id.',
+    };
+  }
+
+  if (!active) {
+    _confirmedProject = null;
+    return {
+      ok: false, code: 'NO_ACTIVE_PROJECT', tool: toolName,
+      activeProject: null, activeProjectName: null,
+      error: `대상 프로젝트가 정해지지 않았습니다 — 편집기에 열린 프로젝트가 없어서 ${toolName} 을(를) 실행하지 않았습니다.`,
+      hint: 'This tool writes into the ACTIVE Goditor project, but no project is open (gallery screen, or the editor window is closed), so NOTHING was written. '
+        + 'Next: call list_projects, show the user the candidates (id + name + updatedAt) and let THEM choose, then call open_project(projectId) and retry. '
+        + 'Do not guess which project the user means.',
+    };
+  }
+
+  if (hasExpected) {
+    if (expected !== active) {
+      _confirmedProject = null;
+      return {
+        ok: false, code: 'PROJECT_MISMATCH', tool: toolName,
+        activeProject: active, activeProjectName: _projectName(active),
+        expectedProject: expected,
+        error: `PROJECT_MISMATCH: 지금 열려 있는 프로젝트는 ${active}${_projectName(active) ? `(${_projectName(active)})` : ''} 인데 expectedProject=${expected} 라서 ${toolName} 을(를) 실행하지 않았습니다.`,
+        hint: `NOTHING was written. Either call open_project("${expected}") first (then retry), or — if you really meant the project that is open — use expectedProject:"${active}". Tell the user which one you are about to change.`,
+      };
+    }
+    _confirmedProject = active;   // ★명시 지목 = 확정. 이후 같은 대화의 호출은 인자 없이 통과한다.
+    return null;
+  }
+
+  if (_confirmedProject && _confirmedProject === active) return null;   // sticky 유효
+
+  const stale = (_confirmedProject && _confirmedProject !== active) ? _confirmedProject : null;
+  _confirmedProject = null;
+  const nm = _projectName(active);
+  return {
+    ok: false, code: 'PROJECT_NOT_CONFIRMED', tool: toolName,
+    activeProject: active, activeProjectName: nm,
+    ...(stale ? {
+      previouslyConfirmed: stale,
+      note: `앱에서 다른 프로젝트가 열렸습니다(${stale} → ${active}) — 이전 확정은 깨졌습니다.`,
+    } : {}),
+    error: `대상 프로젝트를 «정한 적이 없어» ${toolName} 을(를) 실행하지 않았습니다. 지금 열려 있는 것은 ${active}${nm ? `(${nm})` : ''} 입니다.`,
+    hint: `NOTHING was written — this tool would have edited the user's REAL project. The editor currently shows ${active}${nm ? ` ("${nm}")` : ''}, but this session never chose a target. `
+      + `Confirm with the user WHICH project to change, then call open_project("${active}") (or pass expectedProject:"${active}" on this call) and retry. `
+      + 'list_projects shows the other projects. Once confirmed, later calls in this conversation need no extra argument.',
+  };
+}
+
 /* ── 프로젝트 «전환 ↔ 편집» 상호배제 (2026-08-25, 병렬 호출 유실 봉합) ──────────
  * ★대기만으로는 못 막는다. MCP 서버/브리지는 요청을 «직렬화하지 않는다» —
  *   한 stdio 세션에 open_project 와 편집 도구를 «응답을 안 기다리고» 연달아 써 넣으면
@@ -775,7 +899,7 @@ function _registerDefaultTools() {
       inputSchema: {
         type: 'object',
         properties: {
-          sourceProjectId: { type: 'string', description: 'proj_<digits>. 생략하면 현재 활성 프로젝트.' },
+          sourceProjectId: { type: 'string', description: '★proj_<digits> — WHAT to copy. Omitting it means "the active project", which is refused unless the target was confirmed (open_project) — a blank call could copy hundreds of MB of the user\'s data.' },
           newName: { type: 'string', description: '새 프로젝트 이름(생략 시 "원본명 (사본)").' }
         },
         required: []
@@ -793,9 +917,16 @@ function _registerDefaultTools() {
       if (name !== undefined && name !== null && typeof name !== 'string') throw new Error('name must be a string');
       const r = await _projectOps.create({ name });
       if (!r || r.ok === false) throw new Error((r && r.error) || 'create failed');
+      /* ★create 는 대상이 «없는 게 정상»이라 게이트를 안 탄다(§3). 대신 「만들었지만 활성은 그대로」를
+         문장이 아니라 «값»으로 돌려준다 — 그래야 클로드가 열지 않고 편집하다 거절당하는 왕복을 안 돈다. */
+      const activeNow = _activeProjectId();
       return {
         ok: true, projectId: r.projectId, name: r.name,
-        hint: 'Project created but NOT opened — editing tools act on the active project. Call open_project to switch the editor to it.',
+        activeProject: activeNow,
+        opened: false,
+        hint: `Project created but NOT opened — the ACTIVE project is still ${activeNow || '(none — editor not open)'}, `
+          + `so editing tools would NOT touch the new one (and are refused until a target is confirmed). `
+          + `Call open_project("${r.projectId}") to make it the target.`,
       };
     },
     {
@@ -1030,6 +1161,7 @@ function _registerDefaultTools() {
       inputSchema: {
         type: 'object',
         properties: {
+          expectedProject: { type: 'string', description: 'optional proj_<digits> — the project you INTEND to change. Mismatch with the open project ⇒ refused. Also confirms the target for the rest of this conversation.' },
           empty: { type: 'boolean', description: 'true = skip default h2 block (only gap blocks). default false' },
           bg: { type: 'string', description: 'optional section background hex color (e.g. #f5f5f5)' },
           beforeId: { type: 'string', description: 'optional sec_xxx — insert the new section BEFORE this one' },
@@ -6734,9 +6866,13 @@ async function _handleRpc(msg) {
       for (const [name] of tools) {
         if (!includeHidden && hiddenTools.has(name)) continue; // 다이어트: 별칭은 호출 가능하되 목록엔 안 싣는다
         const schema = toolSchemas.get(name) || {};
+        /* ⒝안내 — ⛔손으로 도구마다 적지 않는다(하나 늘 때마다 낡는다). 게이트와 «같은 목록»에서 뽑아
+           붙이므로 도구를 더하면 설명도 자동으로 따라온다. ⒝만으로는 안 지켜져서 ⒜(디스패처)가 본체다. */
+        const _gated = !_TARGET_FREE.has(name);
         list.push({
           name,
-          description: schema.description || '',
+          description: (schema.description || '')
+            + (_gated ? ' ⚠TARGET=the ACTIVE project: refused unless it was confirmed (open_project) in this session.' : ''),
           inputSchema: schema.inputSchema || { type: 'object', properties: {} },
           ...(includeHidden && hiddenTools.has(name) ? { hidden: true } : {})
         });
@@ -6754,6 +6890,20 @@ async function _handleRpc(msg) {
       /* ★응답도 «유저 토큰»이다. pretty-print(들여쓰기 2칸)는 같은 정보에 15~25% 를 더 물린다.
        *   compact JSON 은 정보 손실 0 이라 그냥 이득이다(클라이언트는 JSON 으로 파싱한다). */
       const _reply = (r) => ok({ content: [{ type: 'text', text: JSON.stringify(r) }], isError: false });
+      /* ★프로젝트 «싱크» 게이트 — 대상이 확정 안 된 쓰기는 «실행 전에» 거절한다(_projectGate 주석 참고).
+       *   여기가 유일한 배선 자리다: 도구를 새로 더해도 _TARGET_FREE 에 안 적으면 «자동으로» 게이트를 탄다. */
+      const _gateRefusal = _projectGate(name, args);
+      if (_gateRefusal) return _reply(_gateRefusal);
+      /* ★open_project 가 성공하면 «그 대화 동안» 확정으로 남긴다(sticky). 실패(load_timeout 등)면 안 남긴다 —
+       *   열리지도 않은 프로젝트를 확정으로 세면 게이트가 있으나 마나다. */
+      const _noteConfirmed = (r) => {
+        try {
+          if (name === 'open_project' && r && r.ok !== false) {
+            _confirmedProject = (r.activeProjectId || r.projectId) || null;
+          }
+        } catch (_) {}
+        return r;
+      };
       /* ★편집 도구가 «성공»했으면 그때 만들어진 히스토리 꼭대기의 seq 를 기억한다.
          ⛔withLive 를 «켜지 않는다» — 여기선 매 호출 도는 자리라 직렬화 비용을 물면 안 된다
            (실사용 프로젝트가 100MB 대다). 무거운 판정은 undo 도구가 «한 번» 한다. */
@@ -6777,12 +6927,12 @@ async function _handleRpc(msg) {
         try { const b = await _rendererInvoker.historyTip(); if (b && b.ok !== false) _before = (b.empty || b.seq == null) ? 0 : b.seq; } catch (_) {}
       }
       if (_SWITCH_EXEMPT.has(name)) {
-        return _reply(await _noteSeq(_enrichApiMissing(await handler(args))));
+        return _reply(_noteConfirmed(await _noteSeq(_enrichApiMissing(await handler(args)))));
       }
       return await _serializeCall(async () => {
         const blocked = await _awaitSwitchIdle(name, _SWITCH_QUEUE_MAX_MS);
         if (blocked) return _reply(blocked);
-        return _reply(await _noteSeq(_enrichApiMissing(await handler(args))));
+        return _reply(_noteConfirmed(await _noteSeq(_enrichApiMissing(await handler(args)))));
       });
     }
 

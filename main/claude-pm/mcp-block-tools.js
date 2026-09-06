@@ -246,8 +246,10 @@ function install({ tools, toolSchemas, registerTool, hide }) {
   // ── add_block ────────────────────────────────────────────────────────────
   registerTool(
     'add_block',
-    async ({ type, props, ...rest } = {}) => {
-      const d = resolveType(type);
+    async ({ type, props, expectedProject: _ep, ...rest } = {}) => {
+      /* ★expectedProject 는 «게이트가 먹는» 인자다(mcp-server.js _projectGate) — 블록 속성이 아니다.
+       rest 에 남겨두면 normalizeArgs 가 「모르는 prop」으로 잡아 ignoredProps 에 실어 «틀린 경고»를 낸다. */
+    const d = resolveType(type);
       if (!d) {
         throw new Error(`unknown block type: ${type == null ? '(missing)' : type}. allowed: ${typeList.join(', ')}`);
       }
@@ -268,6 +270,7 @@ function install({ tools, toolSchemas, registerTool, hide }) {
       inputSchema: {
         type: 'object',
         properties: {
+          expectedProject: { type: 'string', description: 'optional proj_<digits> — the project you INTEND to change. Mismatch with the open project ⇒ refused. Also confirms the target for the rest of this conversation.' },
           type: {
             type: 'string',
             enum: typeList,
@@ -289,7 +292,7 @@ function install({ tools, toolSchemas, registerTool, hide }) {
   //   tb_ 로 오면 예전 텍스트 편집 핸들러로 그대로 간다(하위호환 100%).
   registerTool(
     'update_block',
-    async ({ blockId, type, props, ...rest } = {}) => {
+    async ({ blockId, type, props, expectedProject: _ep, ...rest } = {}) => {   // _ep = 게이트 전용 인자, 블록 속성 아님
       if (typeof blockId !== 'string' || !blockId) {
         throw new Error('blockId required (get it from get_canvas_state)');
       }
@@ -356,6 +359,7 @@ function install({ tools, toolSchemas, registerTool, hide }) {
       inputSchema: {
         type: 'object',
         properties: {
+          expectedProject: { type: 'string', description: 'optional proj_<digits> — the project you INTEND to change. Mismatch with the open project ⇒ refused. Also confirms the target for the rest of this conversation.' },
           blockId: { type: 'string', description: 'target block id, e.g. tb_xxx / cvb_xxx / ss_xxx' },
           props: { type: 'object', description: 'fields to change (may also be passed flat)', additionalProperties: true },
           type: { type: 'string', enum: typeList, description: 'optional — only needed when the id prefix is ambiguous' }
