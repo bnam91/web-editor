@@ -238,7 +238,14 @@ test('ⓗ2 ★판정 «순서»가 코드에 박혀 있다 — accessUntil 검�
   /* 표를 눈으로 맞추는 대신 «소스의 위치»로 센다. 순서가 뒤집히면 이 검사가 빨강. */
   /* ⛔초판은 «주석 표식»(L5 —/L6 —)을 셌다. 코드만 옮기면 생존한다(적대검수 지적).
      ⇒ classify «본문»에서 «실행되는 줄»의 위치를 잰다. */
-  const body = SRC.slice(SRC.indexOf('function classify('), SRC.indexOf('function legacyAccessValid('));
+  /* ★E2 교훈(U-ENT-B14): 소스를 문자열로 훑는 검사는 «주석을 먼저 지워라».
+     E2 의 「부팅 경로에 await 0」 검사가 «자기가 쓴 주석 속 await» 에 걸려 빨갛게 났다 —
+     계측기가 자기를 잡은 것이다. 여기도 주석에 같은 코드를 적으면 위치가 흔들린다. */
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[\s;{}])\/\/[^\n]*/g, '$1');
+  const body = strip(SRC.slice(SRC.indexOf('function classify('), SRC.indexOf('function legacyAccessValid(')));
+  /* ⛔「본문까지 지웠나」 가드 — 스트리퍼가 과하게 먹으면 검사가 «조용히» 무의미해진다 */
+  assert.ok(body.includes('function classify(') && body.includes('return out('),
+    '★주석 제거가 본문까지 먹었다 — 이 검사는 무효다');
   const iAccess = body.indexOf('if (p.accessUntil !== null) {');
   const iExp = body.indexOf('if (now > exp + C.CLOCK_SKEW_MS');
   assert.ok(iAccess > 0, 'classify 안에서 accessUntil 검사 «코드»를 못 찾았다');
@@ -495,10 +502,22 @@ test('★진단 문자열에 email·sub·토큰·서명 원문이 «없다» · 
 
 test('★재검증은 「무한히 시도해라」가 «아니다» — 백오프와 상한이 값으로 있다', () => {
   const C = E.CONSTANTS;
-  assert.equal(E.nextRetryDelayMs(1, C), 2000);
-  assert.equal(E.nextRetryDelayMs(2, C), 4000);
+  /* ★수열을 «손으로 적지 않고» 끝까지 돌려서 뽑는다 — 주석·상수가 바뀌면 여기가 먼저 빨개진다.
+     ⛔초판 주석은 「2s→4s→8s」였는데 8s 는 «도달 불가»였다(E2 가 잡았다). 시도 3회 = 대기 2회다. */
+  const seq = [];
+  for (let a = 1; a <= 50; a++) { const d = E.nextRetryDelayMs(a, C); if (d === null) break; seq.push(d); }
+  assert.deepEqual(seq, [2000, 4000], `★지연 수열이 바뀌었다: ${JSON.stringify(seq)} — 주석·상수와 맞춰라`);
+  assert.equal(seq.length, C.VERIFY_MAX_ATTEMPTS - 1, '★시도 N회 = 대기 N−1회 여야 한다');
   assert.equal(E.nextRetryDelayMs(3, C), null, '★상한에서 «그만»이 안 나온다');
   assert.equal(E.nextRetryDelayMs(99, C), null);
+  /* ★주석이 코드를 따라오게 «강제»한다 — 「없어야 할 낱말」을 금지하는 쪽으로 짰다가 물렸다:
+     정정 주석이 「8s 는 도달 불가다」라고 «설명»하느라 그 낱말을 담고 있어서 빨개졌다.
+     ⇒ 금지(부정)가 아니라 «코드에서 뽑은 수열을 주석이 말하는가»(긍정)로 잰다.
+       상수가 바뀌면 기대 문자열도 같이 바뀌므로, 주석을 안 고치면 여기가 빨개진다. */
+  const expected = seq.map(ms => `${ms / 1000}s`).join(' · ');
+  const cmt = SRC.slice(Math.max(0, SRC.indexOf('VERIFY_MAX_ATTEMPTS') - 900), SRC.indexOf('VERIFY_MAX_ATTEMPTS'));
+  assert.ok(cmt.includes(expected),
+    `★주석이 실제 지연 수열 «${expected}» 를 말하지 않는다 — 코드가 바뀌었으면 주석도 고쳐라`);
   /* 지수인지(선형 아님) + 최대치 상한 */
   const big = { ...C, VERIFY_MAX_ATTEMPTS: 20, VERIFY_BACKOFF_MAX_MS: 60000 };
   assert.ok(E.nextRetryDelayMs(4, big) > E.nextRetryDelayMs(3, big));
