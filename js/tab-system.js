@@ -288,60 +288,71 @@ async function switchTab(id) {
   }
   // 즉시 캔버스 클리어 (이전 탭 내용이 잠깐 보이지 않도록)
   // autoSaveObserver가 빈 캔버스를 파일에 덮어쓰지 않도록 억제
-  window.state._suppressAutoSave = true;
-  if (canvasEl) canvasEl.innerHTML = '';
-  // propPanel 클리어 — 이전 탭의 속성 패널 내용이 잔존하지 않도록
-  const propPanel = document.querySelector('#panel-right .panel-body');
-  if (propPanel) propPanel.innerHTML = '';
-  // 이전 프로젝트 스크래치 즉시 제거 + 백그라운드 저장 (탭 전환 잔상 방지). 완료 대기 불필요 —
-  // IndexedDB는 같은 store의 트랜잭션을 생성 순서대로 직렬화하므로 이후 switchScratch의 read와 race 없음
-  window.flushScratchForSwitch?.().catch(e => console.warn('[switchTab] scratch flush 실패:', e));
-  if (window.buildLayerPanel) window.buildLayerPanel();
-
-  renderTabBar();
-  saveTabState();
-
-  const targetTab = openTabs.find(t => t.id === id);
-
-  // 메모리 캐시 있으면 즉각 복원 (파일 I/O 없음)
-  if (targetTab?._cache) {
-    window.applyProjectData(JSON.parse(targetTab._cache));
-    window.state._suppressAutoSave = false;
-    window.initBranchStore();
-    _restoreViewState(targetTab);
-    requestAnimationFrame(() => { if (window.buildLayerPanel) window.buildLayerPanel(); });
-    // currentPageId 정해진 시점에 스크래치패드 전환 (await로 race 방지)
-    try { await window.switchScratch?.(id, window.state?.currentPageId); }
-    finally { _settle('tab-cache'); }
-    return;
-  }
-
-  // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
-  let proj = null;
-  if (window.IS_ELECTRON) {
-    proj = await window.electronAPI.loadProject(id, { open: true })
-      .catch(e => { _settleErr('tab-load-failed:' + ((e && e.message) || e)); throw e; });
-    if (targetTab && proj?.name) targetTab.name = proj.name;
-    renderTabBar();
-  } else {
-    proj = window.loadProjectsList().find(p => p.id === id) || null;
-    if (targetTab && proj?.name) targetTab.name = proj.name;
-  }
-  if (proj) {
-    const data = proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj;
-    if (targetTab) targetTab._cache = JSON.stringify(data);
-    window.applyProjectData(data);
-    _restoreViewState(targetTab);
-  } else {
-    // 프로젝트 없으면 캔버스 초기화
+  /* ★[H6] 억제를 «손으로» 켜고 끄지 않는다 — 이 함수는 아래에서 두 번 나가고(캐시 분기 return),
+   *   그 사이에 «던지는» 자리가 둘 있다: targetTab._cache 의 JSON.parse 와
+   *   loadProject(...).catch(e => { _settleErr(...); throw e; }) — ★후자는 «일부러» 던진다.
+   *   예전엔 그 둘 중 하나만 터져도 억제가 true 로 남아 자동저장이 조용히 멎었다(고착).
+   *   ⛔finally 는 «안전망»이다. 정상 경로의 해제 «시점»은 아래 두 자리 그대로 둔다 —
+   *     applyProjectData 가 rAF 로 푸는 자기 창과 겹치는 타이밍이라 앞당기면 안 된다. */
+  const _asTok = window.AutoSaveSuppress.begin('tab-switch');
+  try {
     if (canvasEl) canvasEl.innerHTML = '';
+    // propPanel 클리어 — 이전 탭의 속성 패널 내용이 잔존하지 않도록
+    const propPanel = document.querySelector('#panel-right .panel-body');
+    if (propPanel) propPanel.innerHTML = '';
+    // 이전 프로젝트 스크래치 즉시 제거 + 백그라운드 저장 (탭 전환 잔상 방지). 완료 대기 불필요 —
+    // IndexedDB는 같은 store의 트랜잭션을 생성 순서대로 직렬화하므로 이후 switchScratch의 read와 race 없음
+    window.flushScratchForSwitch?.().catch(e => console.warn('[switchTab] scratch flush 실패:', e));
     if (window.buildLayerPanel) window.buildLayerPanel();
+
+    renderTabBar();
+    saveTabState();
+
+    const targetTab = openTabs.find(t => t.id === id);
+
+    // 메모리 캐시 있으면 즉각 복원 (파일 I/O 없음)
+    if (targetTab?._cache) {
+      window.applyProjectData(JSON.parse(targetTab._cache));
+      window.AutoSaveSuppress.end(_asTok);   // 캐시 분기: 예전 `= false` 와 «같은 자리»
+      window.initBranchStore();
+      _restoreViewState(targetTab);
+      requestAnimationFrame(() => { if (window.buildLayerPanel) window.buildLayerPanel(); });
+      // currentPageId 정해진 시점에 스크래치패드 전환 (await로 race 방지)
+      try { await window.switchScratch?.(id, window.state?.currentPageId); }
+      finally { _settle('tab-cache'); }
+      return;
+    }
+
+    // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
+    let proj = null;
+    if (window.IS_ELECTRON) {
+      proj = await window.electronAPI.loadProject(id, { open: true })
+        .catch(e => { _settleErr('tab-load-failed:' + ((e && e.message) || e)); throw e; });
+      if (targetTab && proj?.name) targetTab.name = proj.name;
+      renderTabBar();
+    } else {
+      proj = window.loadProjectsList().find(p => p.id === id) || null;
+      if (targetTab && proj?.name) targetTab.name = proj.name;
+    }
+    if (proj) {
+      const data = proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj;
+      if (targetTab) targetTab._cache = JSON.stringify(data);
+      window.applyProjectData(data);
+      _restoreViewState(targetTab);
+    } else {
+      // 프로젝트 없으면 캔버스 초기화
+      if (canvasEl) canvasEl.innerHTML = '';
+      if (window.buildLayerPanel) window.buildLayerPanel();
+    }
+    window.AutoSaveSuppress.end(_asTok);     // 파일 분기: 예전 `= false` 와 «같은 자리»
+    window.initBranchStore();
+    // 파일 로드 분기에서도 스크래치 전환 (currentPageId는 applyProjectData가 set한 후)
+    try { await window.switchScratch?.(id, window.state?.currentPageId); }
+    finally { _settle(proj ? 'tab-file' : 'tab-missing'); }
+  } finally {
+    /* ★이미 위에서 정상 해제됐으면 여기선 «아무 일도 안 한다»(토큰이 한 번만 먹는다). */
+    window.AutoSaveSuppress.end(_asTok);
   }
-  window.state._suppressAutoSave = false;
-  window.initBranchStore();
-  // 파일 로드 분기에서도 스크래치 전환 (currentPageId는 applyProjectData가 set한 후)
-  try { await window.switchScratch?.(id, window.state?.currentPageId); }
-  finally { _settle(proj ? 'tab-file' : 'tab-missing'); }
 }
 
 async function closeTab(id) {

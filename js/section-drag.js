@@ -12,8 +12,19 @@ import {
 } from './drag-utils.js';
 
 // perf(qa-perf): 드래그 중 autoSave MutationObserver 트리거 억제 헬퍼
-export function _suppressDragSave() { state._suppressAutoSave = true; }
-export function _resumeDragSave()   { state._suppressAutoSave = false; }
+/* ★[H6] 토큰으로 연다 — 예전엔 두 함수가 플래그에 «직접» true/false 를 썼다. 그래서
+ *   ⑴ `_resumeDragSave()` 가 «드래그를 안 켠 채» 불리면(dragend 는 캡처 리스너에서 무조건 온다)
+ *      남이 켜 둔 억제 창을 조용히 꺼버렸고,
+ *   ⑵ 드래그 창 «안»에서 남이 억제를 켰다 끄면 내 드래그 억제가 먼저 꺼졌다.
+ *   토큰은 «내가 연 것만» 닫고, 두 번 닫아도 아무 일 없다.
+ *   longLived — 드래그는 사람 손이 쥔 창이라 «오래» 켜져 있는 게 정상이다(감시견 오경보 방지). */
+let _dragTok = null;
+export function _suppressDragSave() {
+  if (!_dragTok) _dragTok = window.AutoSaveSuppress.begin('section-drag', { longLived: true });
+}
+export function _resumeDragSave() {
+  if (_dragTok) { window.AutoSaveSuppress.end(_dragTok); _dragTok = null; }
+}
 
 // Shared mutable drag state — exported as an object so both section-drag.js
 // and block-drag.js can mutate the same properties (ES module live bindings

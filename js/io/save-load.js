@@ -2,6 +2,7 @@ import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
+import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제는 «켠 쪽»이 닫는다
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 import { applyFrameTransform } from '../frame-geometry.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
@@ -294,39 +295,45 @@ function flushCurrentPage() {
 
 async function switchPage(pageId) {
   if (pageId === state.currentPageId) return;
-  state._suppressAutoSave = true; // DOM 조작 전 억제 시작 (MutationObserver 경쟁 조건 방지)
-  await window.switchScratchPage?.(pageId);
-  flushCurrentPage();
-  // D1: 떠나는 페이지(아직 currentPageId가 이전 페이지)의 라이브 히스토리 스택을 보관
-  window.stashHistoryFor?.(state.currentPageId);
-  // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
-  canvasEl.querySelectorAll('[data-pos-dragging], .pos-dragging').forEach(ab => {
-    if (ab._posDragCleanup) { ab._posDragCleanup(); ab._posDragCleanup = null; }
-    if (ab._exitPosDrag)    { document.removeEventListener('click', ab._exitPosDrag); ab._exitPosDrag = null; }
-    if (ab._exitPosDragEsc) { document.removeEventListener('keydown', ab._exitPosDragEsc); ab._exitPosDragEsc = null; }
-    ab._posDragging = false;
-    ab.classList.remove('pos-dragging', 'img-editing');
-  });
-  state.currentPageId = pageId;
-  const page = getCurrentPage();
-  if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
-  canvasEl.innerHTML = sanitizeCanvasHtml(page.canvas || '');
-  canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
-  canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
-  canvasEl.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
-  document.querySelectorAll('.sec-bg-ghost-wrap, .sec-bg-ghost').forEach(el => el.remove());
-  canvasEl.querySelectorAll(NON_CONTENT_UI_SELECTOR).forEach(el => el.remove());
-  // (마이그레이션은 rebindAll 내부에서 처리)
-  // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
-  const propPanel = document.querySelector('#panel-right .panel-body');
-  if (propPanel) propPanel.innerHTML = '';
-  rebindAll();
-  refreshLazyObservation(); // 새 페이지의 section-block을 lazy 관찰 등록 (innerHTML 교체 후)
-  applyPageSettings();
-  window.deselectAll();
-  window.showPageProperties();
-  window.buildLayerPanel(); // also calls buildFilePageSection
-  state._suppressAutoSave = false;
+  /* ★[H6] 억제는 «구조»로 연다 — 이 창엔 «던지는» 자리가 여럿이다:
+   *   await switchScratchPage(IndexedDB 거부) · rebindAll · buildLayerPanel · showPageProperties.
+   *   예전엔 그중 하나만 터져도 억제가 true 로 «남아» 이후 모든 편집이 디스크에 안 남았다.
+   *   오류도 표시도 없이 — 사용자는 그걸 앱 닫을 때 안다.
+   *   ⛔해제 «시점»은 예전 `= false` 와 같은 자리(finally)다 — 앞당기지도 미루지도 않는다. */
+  const _asTok = window.AutoSaveSuppress.begin('page-switch');
+  try {
+    await window.switchScratchPage?.(pageId);
+    flushCurrentPage();
+    // D1: 떠나는 페이지(아직 currentPageId가 이전 페이지)의 라이브 히스토리 스택을 보관
+    window.stashHistoryFor?.(state.currentPageId);
+    // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
+    canvasEl.querySelectorAll('[data-pos-dragging], .pos-dragging').forEach(ab => {
+      if (ab._posDragCleanup) { ab._posDragCleanup(); ab._posDragCleanup = null; }
+      if (ab._exitPosDrag)    { document.removeEventListener('click', ab._exitPosDrag); ab._exitPosDrag = null; }
+      if (ab._exitPosDragEsc) { document.removeEventListener('keydown', ab._exitPosDragEsc); ab._exitPosDragEsc = null; }
+      ab._posDragging = false;
+      ab.classList.remove('pos-dragging', 'img-editing');
+    });
+    state.currentPageId = pageId;
+    const page = getCurrentPage();
+    if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
+    canvasEl.innerHTML = sanitizeCanvasHtml(page.canvas || '');
+    canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+    canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
+    canvasEl.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
+    document.querySelectorAll('.sec-bg-ghost-wrap, .sec-bg-ghost').forEach(el => el.remove());
+    canvasEl.querySelectorAll(NON_CONTENT_UI_SELECTOR).forEach(el => el.remove());
+    // (마이그레이션은 rebindAll 내부에서 처리)
+    // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
+    const propPanel = document.querySelector('#panel-right .panel-body');
+    if (propPanel) propPanel.innerHTML = '';
+    rebindAll();
+    refreshLazyObservation(); // 새 페이지의 section-block을 lazy 관찰 등록 (innerHTML 교체 후)
+    applyPageSettings();
+    window.deselectAll();
+    window.showPageProperties();
+    window.buildLayerPanel(); // also calls buildFilePageSection
+  } finally { window.AutoSaveSuppress.end(_asTok); }
   // D1: 페이지별 히스토리 복원 — 같은 페이지 복귀 시 undo 기록 유지, 처음 방문 페이지는 초기 스냅샷.
   // adopt 헬퍼 미탑재 시(history.js 미패치) 기존 동작(빈 히스토리)로 graceful degrade.
   if (window.adoptHistoryFor) window.adoptHistoryFor(pageId);
@@ -360,16 +367,20 @@ function deletePage(pageId) {
   window.dropHistoryFor?.(pageId);
   if (wasActive) {
     const next = state.pages[Math.min(idx, state.pages.length - 1)];
-    state._suppressAutoSave = true;
-    state.currentPageId = next.id;
-    if (next.pageSettings) Object.assign(state.pageSettings, next.pageSettings);
-    canvasEl.innerHTML = sanitizeCanvasHtml(next.canvas || '');
-    canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
-    rebindAll();
-    applyPageSettings();
-    window.deselectAll();
-    window.showPageProperties();
-    state._suppressAutoSave = false;
+    /* ★[H6] 억제는 «구조»로 연다 — 아래 rebindAll·applyPageSettings·showPageProperties 중
+     *   하나만 던져도 예전엔 억제가 true 로 남아 자동저장이 조용히 멎었다(고착).
+     *   ⛔해제 «시점»은 예전 `= false` 와 같은 자리(finally)로 둔다 — 앞당기지 않는다. */
+    const _asTok = window.AutoSaveSuppress.begin('page-delete');
+    try {
+      state.currentPageId = next.id;
+      if (next.pageSettings) Object.assign(state.pageSettings, next.pageSettings);
+      canvasEl.innerHTML = sanitizeCanvasHtml(next.canvas || '');
+      canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+      rebindAll();
+      applyPageSettings();
+      window.deselectAll();
+      window.showPageProperties();
+    } finally { window.AutoSaveSuppress.end(_asTok); }
   }
   window.buildLayerPanel();
   scheduleAutoSave();
@@ -429,6 +440,11 @@ function serializeProject() {
 }
 
 function applyProjectData(data) {
+  /* ★[H6] 여기는 «일부러» 직접 대입으로 둔다(허용목록 — tests/unit/autosave-suppress.test.js).
+   *   AutoSaveSuppress 로 바꾸면 이 창이 «부르는 쪽»(탭전환·브랜치전환·커밋복원)의 창에 중첩돼
+   *   해제가 한 프레임 밀린다. 그러면 복원 직후 MutationObserver 가 «억제 안에서» 발화해
+   *   복원 결과가 자동저장되지 않는다 — 고착이 아니라 «반대 방향» 회귀다.
+   *   ⛔바꾸려면 부르는 쪽 셋에 명시적 scheduleAutoSave() 를 같이 넣어야 한다(history.js:223 본보기). */
   // DBG-SEC-LOSS: innerHTML 적용으로 인한 MutationObserver → autoSave 트리거를 봉쇄
   // 적용 도중 사용자 reload/탭전환이 끼어들어 부분 상태가 파일에 저장되는 race 방지
   state._suppressAutoSave = true;
@@ -1894,7 +1910,10 @@ function initApp() {
     sectionDragSrc = null;
     // FIX-SD-02: drop 시점에 _suppressAutoSave=true (dragend 아직 미발화)
     // MutationObserver가 scheduleAutoSave를 억제하므로 drop 직후 명시적으로 저장 트리거
-    state._suppressAutoSave = false;
+    /* ★[H6] 예전엔 여기서 플래그에 «직접» false 를 썼다. 그런데 그 억제를 «켠» 것은
+     *   section-drag 의 _suppressDragSave 다 — 켠 쪽 모르게 끄면 그쪽 토큰이 열린 채 남고,
+     *   뒤늦게 오는 dragend 가 «남의» 억제 창을 닫는다. 켠 쪽에게 닫게 한다. */
+    _resumeDragSave();
     scheduleAutoSave();
   });
 }
@@ -1987,8 +2006,12 @@ window.hasUnsavedChanges = () => _dirtySinceSave || !!autoSaveTimer || _isSaving
 // 되돌리기는 «현재 작업을 의도적으로 버리는» 동작이라 flush 없이 봉인만 한다. async — 호출측이 await.
 // 봉인 직전 dirty 값 — 되돌리기 실패/reload 차단 시 «봉인 전 상태»로 정확히 복원(무편집이었으면 재저장 안 함).
 let _dirtyBeforeSeal = false;
+let _reloadSealTok = null;                               // [H6] 봉인 토큰 — resume 이 «내 것만» 닫는다
 window.cancelPendingAutoSaveForReload = async (targetId) => {
-  try { state._suppressAutoSave = true; } catch (_) {}
+  /* ★[H6] 봉인도 토큰으로 — 이 창은 «의도적으로» 함수 밖까지 열려 있다(되돌리기가 끝날 때까지).
+   *   그래서 try/finally 로 못 닫는다. 대신 ⑴ resume 이 «내 것만» 닫고
+   *   ⑵ 되돌리기가 도중에 죽어 resume 이 영영 안 오면 감시견이 «알린다». */
+  if (!_reloadSealTok) _reloadSealTok = window.AutoSaveSuppress.begin('reload-seal');
   clearTimeout(autoSaveTimer); autoSaveTimer = null;
   _dirtyBeforeSeal = _dirtySinceSave;                     // 봉인 직전 값 캡처(③ 부작용 방지)
   clearPendingForReload(_pendingSaves, targetId);         // ⓑ ★되돌리기 대상만 폐기(타 프로젝트 저장 보존, 구멍2)
@@ -2004,7 +2027,7 @@ window.cancelPendingAutoSaveForReload = async (targetId) => {
 //   재무장한다. 안 하면 beforeunload 가드(!_dirtySinceSave && !autoSaveTimer)가 조기 return → Cmd+R 시 소실.
 //   ★dirty는 «봉인 직전 값»으로만 복원한다(무조건 true면 무편집 방문도 updatedAt 오염+협업 발화 — ③ 부작용).
 window.resumeAutoSaveAfterAbortedReload = () => {
-  try { state._suppressAutoSave = false; } catch (_) {}
+  if (_reloadSealTok) { window.AutoSaveSuppress.end(_reloadSealTok); _reloadSealTok = null; }
   _dirtySinceSave = _dirtyBeforeSeal;
   if (_dirtyBeforeSeal) { try { scheduleAutoSave(); } catch (_) {} }  // 편집이 있었을 때만 재무장
   _dirtyBeforeSeal = false;

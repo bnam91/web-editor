@@ -62,6 +62,9 @@ function _updateUndoRedoBtns() {
   }
 }
 
+/* ★[H6] 이 파일의 억제 두 자리는 «직접 대입»으로 둔다(허용목록 — tests/unit/autosave-suppress.test.js):
+ *   이미 try/finally + rAF 해제(C2-A9)라 고칠 결함이 없다. 새 자리를 만들 땐 손으로 쓰지 말고
+ *   window.AutoSaveSuppress.begin/end 를 써라(js/autosave-suppress.js). */
 function restoreSnapshot(snap) {
   _historyPaused = true;
   // innerHTML 교체가 autoSaveObserver(MutationObserver→scheduleAutoSave)를 발화시켜

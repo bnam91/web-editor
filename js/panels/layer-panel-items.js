@@ -268,9 +268,14 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
 
   item.setAttribute('draggable', 'true');
+  /* ★[H6] 레이어 드래그 억제도 토큰으로 — dragstart 는 오는데 dragend 가 «안 오는» 경우가 있다
+   *   (드래그 중 요소가 DOM 에서 빠지면). 예전엔 그때 억제가 true 로 남아 자동저장이 조용히 멎었다.
+   *   ⛔여기선 그 자체를 못 고친다(이벤트가 안 오는 건 이 파일 밖 일이다) —
+   *     대신 억제가 오래 켜져 있으면 감시견이 «알린다»(js/autosave-suppress.js). */
+  let _asTok = null;
   item.addEventListener('dragstart', e => {
     e.stopPropagation();
-    if (window.state) window.state._suppressAutoSave = true;
+    if (!_asTok) _asTok = window.AutoSaveSuppress.begin('layer-drag', { longLived: true });
     window.layerDragSrc = item;
     // 다중선택 드래그: 이 아이템이 active 상태이고 다른 active 아이템도 있으면 함께 이동
     if (item.classList.contains('active')) {
@@ -287,7 +292,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     requestAnimationFrame(() => item.classList.add('layer-dragging'));
   });
   item.addEventListener('dragend', () => {
-    if (window.state) window.state._suppressAutoSave = false;
+    if (_asTok) { window.AutoSaveSuppress.end(_asTok); _asTok = null; }
     item.classList.remove('layer-dragging');
     window.clearLayerIndicators();
     window.layerDragSrc = null;
