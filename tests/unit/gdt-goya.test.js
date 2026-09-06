@@ -9,6 +9,7 @@
 'use strict';
 const test = require('node:test');
 const { mkTmpRoot } = require('./_tmproot.js');
+const { linkToDirOutside } = require('./_link.js');   // ★비승격 윈도우에서도 되는 «밖을 가리키는 링크»
 
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -128,11 +129,17 @@ test('ⓒ 누락 에셋 → 실패가 아니라 경고: 토큰은 그대로, mis
   const OTHER = `goya-asset://proj_9999999999999/dddddddddddddddd.png`; // 프로젝트 자체가 없음
   const TRAV = `goya-asset://../eeeeeeeeeeeeeeee.png`;               // 경로 탈출 시도
   const BADEXT = `goya-asset://${PID}/ffffffffffffffff.txt`;         // 이미지 아님
-  const LINK = `goya-asset://${PID}/gggggggggggggggg.png`;           // assets 밖을 가리키는 심볼릭 링크
+  const LINK = `goya-asset://${PID}/gggggggggggggggg.png`;           // ★assets «밖»을 가리키는 링크
   const canvas = `<img src="${A}"><img src="${MISSING}"><img src="${OTHER}"><img src="${TRAV}"><img src="${BADEXT}"><img src="${LINK}">`;
   const src = writeProject(root, PID, canvas, { 'aaaaaaaaaaaaaaaa.png': PNG });
-  fs.writeFileSync(path.join(root, 'outside.png'), PNG);
-  fs.symlinkSync(path.join(root, 'outside.png'), path.join(root, PID, 'assets', 'gggggggggggggggg.png'));
+  /* ★재는 것 = 「realpath 가 assets 루트를 벗어나면 unsafe_path」(export.js 의 realpath 가드).
+     ⛔파일 심링크는 윈도우 비승격에서 못 만든다(EPERM) — 그런데 denywrite 검사는 승격이면 스스로
+       던지므로 «한 셸로 둘 다 초록»이 불가능하다. ⇒ 「밖을 가리킨다」는 성질을 그대로 둔 채
+       «디렉터리 정션»으로 만든다(비승격 가능, POSIX 에선 그냥 심링크다).
+       이름이 .png 여도 상관없다 — 가드는 realpath 만 본다(읽기까지 가지도 않는다). */
+  fs.mkdirSync(path.join(root, 'outside_dir'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'outside_dir', 'outside.png'), PNG);
+  linkToDirOutside(path.join(root, 'outside_dir'), path.join(root, PID, 'assets', 'gggggggggggggggg.png'));
   const out = path.join(root, 'c.gdt');
 
   const r = await exportGdt({ srcProjJson: src, outPath: out, projectsDir: root });

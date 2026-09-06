@@ -332,6 +332,53 @@ test('Ⓐ-4 ★«파일 경로»를 `/` 로 쪼개거나 붙이는 자리가 0�
     `★윈도우에서 «안 쪼개지거나 섞인 구분자»가 되는 자리 (${SCANNED.length}개 파일을 셌다)`);
 });
 
+/* ═══ Ⓒ 링크 만들기 — 비승격 윈도우에서 «되는» 방법이어야 한다 (뿌리 C) ═══════
+   ★파일 심링크는 승격/개발자모드를 요구하는데, denywrite 는 승격이면 «스스로 던진다».
+     ⇒ 한 셸로 전부 초록이 되려면 링크 쪽이 비승격에서 돼야 한다(정션). */
+
+test('Ⓒ-1 링크가 «밖»을 가리킨다 — 재려던 성질이 그대로다 (realpath 가 대상 밖으로 나간다)', () => {
+  const { linkToDirOutside, unlinkDirLink } = require_('./_link.js');
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-wp-link-'));
+  try {
+    const inside = path.join(base, 'assets'); fs.mkdirSync(inside);
+    const outside = path.join(base, 'outside_dir'); fs.mkdirSync(outside);
+    const link = path.join(inside, 'gggggggggggggggg.png');   // ★이름이 .png 여도 정션이 된다
+    linkToDirOutside(outside, link);
+    const real = fs.realpathSync(link);
+    assert.equal(real.startsWith(fs.realpathSync(inside) + path.sep), false,
+      `★realpath 가 안쪽에 머문다 — 「밖을 가리킨다」를 못 재게 됐다: ${real}`);
+    assert.equal(real, fs.realpathSync(outside));
+    assert.equal(unlinkDirLink(link), true, '링크를 못 지운다 — 뒷 검사를 오염시킨다');
+    assert.equal(fs.existsSync(path.join(base, 'outside_dir')), true, '★링크를 지우며 «대상»까지 지웠다');
+  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('Ⓒ-2 [양성대조] 하드링크로 바꾸면 «다른 것»을 재게 된다 (그래서 안 쓴다)', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-wp-hard-'));
+  try {
+    const inside = path.join(base, 'assets'); fs.mkdirSync(inside);
+    const target = path.join(base, 'outside.png'); fs.writeFileSync(target, 'x');
+    const hard = path.join(inside, 'h.png'); fs.linkSync(target, hard);
+    assert.equal(fs.realpathSync(hard).startsWith(fs.realpathSync(inside) + path.sep), true,
+      '★하드링크의 realpath 는 «자기 자신»이다 — 「밖을 가리킨다」가 성립 안 해 가드를 통과해 버린다');
+  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('Ⓒ-3 ★링크 실패를 «조용히 건너뛰는» 자리가 0건이다', () => {
+  /* 옛 판: `try { fs.symlinkSync(...) } catch (_) { return; }` — 윈도우에서 한 번도 안 돌며 초록이었다. */
+  const bad = [];
+  for (const f of SCANNED) {
+    const code = codeOnly(fs.readFileSync(f, 'utf8'));
+    for (const m of code.matchAll(/fs\.symlinkSync\(/g)) {
+      const seg = code.slice(m.index, m.index + 260);
+      if (!/['"]junction['"]/.test(seg)) bad.push(`${rel(f)}: symlinkSync(… ) — type 'junction' 없음`);
+      if (/catch\s*\([^)]*\)\s*\{\s*return\s*;?\s*\}/.test(seg)) bad.push(`${rel(f)}: symlink 실패를 «조용히» 건너뛴다`);
+    }
+  }
+  assert.deepEqual(bad, [],
+    `★비승격 윈도우에서 파일 심링크는 EPERM 이다 — 정션을 쓰고, 실패는 «소리내어» 던져라 (${SCANNED.length}개 파일을 셌다)`);
+});
+
 /* ═══ ④ 경로 구분자 ════════════════════════════════════════════════════════ */
 
 test('④-1 [양성대조] 소스 스캔 키는 posix 로 정규화된다 — 윈도우 `js\\a.js` 도 `js/a.js`', () => {
