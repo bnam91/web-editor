@@ -152,7 +152,8 @@ test('②-4 ★import() 에 «file:// URL 이 아닌 것»을 주는 자리가 0
            const entUrl = pathToFileURL(...).href;   → import(entUrl)   ✔
            function stubCopy(){ … pathToFileURL(…) } → import(cvbUrl)   ✔ (cvbUrl = stubCopy(…))
            const modUrl = (...s) => path.join(...s); → import(modUrl(…)) ✖ (변이 ㉯ 가 이 모양)
-         ⚠️추적은 «선언 뒤 1500자» 창으로 본다 — 파서를 들이지 않는 대신 범위를 못 박아 둔다. */
+         ⚠️추적 창은 «그 선언의 몸통»까지다 — 처음엔 «뒤 1500자»로 잡았다가
+           `const modUrl = (...s) => path.join(...s);` 가 «다음 줄의» pathToFileURL 을 훔쳐 통과했다. */
       const id = arg.trim();
       const producers = [];
       const asName = id.match(/^([A-Za-z_$][\w$]*)$/);
@@ -165,7 +166,14 @@ test('②-4 ★import() 에 «file:// URL 이 아닌 것»을 주는 자리가 0
 
       const makesFileUrl = (name) => {
         for (const d of code.matchAll(new RegExp(`(?:function\\s+${name}\\b|(?:const|let|var)\\s+${name}\\s*=)`, 'g'))) {
-          if (/pathToFileURL\(|import\.meta\.resolve\(/.test(code.slice(d.index, d.index + 1500))) return true;
+          const start = d.index;
+          /* 선언 «머리»가 `{` 로 끝나면 몸통형 → 0열 `}` 까지, 아니면 한 줄형 → `;` 까지.
+             (머리로 안 가르고 `;`/`}` 중 «먼저 오는 것»을 쓰면 함수 몸통이 첫 문장에서 잘린다.) */
+          const head = code.slice(start, code.indexOf('\n', start) + 1 || undefined).trimEnd();
+          const term = head.endsWith('{') ? '\n}' : ';\n';
+          const at = code.indexOf(term, start);
+          const end = at >= 0 ? at + term.length : start + 1500;
+          if (/pathToFileURL\(|import\.meta\.resolve\(/.test(code.slice(start, Math.min(end, start + 4000)))) return true;
         }
         return false;
       };
