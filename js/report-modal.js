@@ -24,6 +24,25 @@
 
   var state = null;   // 열려 있는 동안만 존재. 닫으면 null — «남지 않는다»가 A-f 다.
 
+  /* ★E3 — main.js `report:context.authDiag`(services/entitlement.js `diagLine`)를
+   * 신고 payload 의 `errors[]` 에 싣는다.
+   * ⛔최상위 `auth` 같은 «모르는 필드»는 서버가 400 도 안 내고 조용히 버린다(지디 실측) —
+   *   `errors[]` 여야 도달한다. email·sub·세션토큰·서명 원문은 이 줄에 없다
+   *   (entitlement.js diagLine 이 이미 안전한 필드만 골라 낸다 — 여기서 다시 안 씻는다).
+   * ★MAX_ERRORS(20)·MAX_ERR_LEN(1000) = 서버 LIMITS 와 같은 수(report-buffer.js 규약).
+   *   넘칠 때는 «가장 오래된 오류»부터 밀어내 자리를 만든다 — 방금 만든 진단 한 줄이
+   *   밀려 사라지면 신고 자체가 무의미해진다(최신 렌더러 오류들보다 «지금 이 진단»이 값어치 있다).
+   * 순수 함수 — 테스트에서 직접 잰다(아래 `w.reportModalMergeAuthDiag`, ReportBuffer.scrubPaths 와 같은 노출 패턴). */
+  function mergeAuthDiag(errors, authDiag, maxErrors, maxLen) {
+    var MAX_ERRORS = maxErrors || 20;
+    var MAX_ERR_LEN = maxLen || 1000;
+    var diagMsg = String(authDiag == null ? '' : authDiag).slice(0, MAX_ERR_LEN);
+    var errs = (errors || []).slice();
+    if (errs.length >= MAX_ERRORS) errs = errs.slice(errs.length - (MAX_ERRORS - 1));
+    errs.push({ at: new Date().toISOString(), level: 'auth', msg: diagMsg });
+    return errs;
+  }
+
   function api() { return (w.electronAPI && w.electronAPI.report) || null; }
   function toast(msg) {
     if (typeof w.showToast === 'function') { try { w.showToast(msg); return; } catch (_) {} }
@@ -406,6 +425,8 @@
         if (c && c.queued) {
           el.querySelector('#report-queue-note').textContent = '아직 못 보낸 신고 ' + c.queued + '건';
         }
+        // ★E3 — 자격증명 진단 한 줄을 신고에 싣는다. 규율은 mergeAuthDiag 주석 참조.
+        if (c && c.authDiag) state.errors = mergeAuthDiag(state.errors, c.authDiag);
         renderDisclosure();
       }).catch(function () {});
     }
@@ -489,4 +510,5 @@
 
   w.openReportModal  = open;
   w.closeReportModal = close;
+  w.reportModalMergeAuthDiag = mergeAuthDiag;   // 테스트 전용 노출 — ReportBuffer.scrubPaths 와 같은 패턴
 })(window);
