@@ -111,3 +111,12 @@ for (const [tool, mk, renderer] of SITES) {
       `${renderer} 가 안 불렸다 — 가드가 «전부»를 막고 있다(오탐). calls=${calls}`);
   });
 }
+
+test('★update_asset_block 도 «어디까지 봤는지»를 응답에 싣는다 (원칙 ⑶이 절반만 지켜지던 자리)', async () => {
+  calls.length = 0;
+  const res = await call('update_asset_block', { blockId: 'ab_t', imgSrc: GOOD });
+  assert.ok(calls.includes('updateAssetBlock'), '통과해야 한다');
+  assert.ok(res.imageCheck, 'imageCheck 가 응답에 있어야 한다 — put_image 에만 있으면 표면의 절반이다');
+  assert.equal(res.imageCheck.checked, 'png-structure');
+  assert.equal(res.imageCheck.bytes, PNG.length);
+});

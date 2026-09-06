@@ -110,15 +110,51 @@ test('매직바이트가 선언 mime 과 달라도 «통과»하고 둘 다 기�
    패딩(=) 생략은 RFC 4648 에서 정상이고, 그걸 거절한 게 적대검수에서 오탐으로 잡혔다.
    대신 「나머지가 1이면 거절」(있을 수 없는 값)로 좁혔다. 아래 참조. */
 
-test('★이상한 글자가 섞여도 «바이트가 온전하면» 통과한다 (문자셋 정규식을 버린 자리)', () => {
-  // Node 의 base64 디코더는 이상한 글자를 «건너뛰고» 나머지를 제대로 읽는다(실측).
-  // 그래서 그 글자를 이유로 거절하면 «되는 그림»을 막는 것이다 — 오탐이다.
-  // 진짜 방어는 아래 구조검사(CRC 등)다: 내용이 실제로 깨졌으면 거기서 잡힌다.
+/* ★여기서 두 번 뒤집혔다 — 기록으로 남긴다(다음 사람이 논의를 볼 수 있게).
+   1판: 알파벳 밖 글자를 «거절» → 2판: 「Node 가 읽으니 괜찮다」로 «통과» → 3판: 다시 «거절».
+   근거가 흔들린 게 아니라 «판단 기준»이 틀렸었다. 기준은 「Node 가 디코드하나」가 아니라
+   **「우리 소비자(브라우저의 data URL 파서)가 읽나」**여야 한다. 실측으로 갈렸다:
+       입력            브라우저 파서   Node Buffer.from
+       공백/줄바꿈        통과           통과   ⇒ 표기 차이 — 거절하면 오탐(실제로 냈다)
+       패딩(=) 생략       통과           통과   ⇒ 같음
+       글자 하나(!)      ★거부          통과(원본 바이트)
+       base64url(-,_)   ★거부          통과(원본 바이트)
+   아래 둘은 «바이트가 온전해도» 저장하면 앱이 «못 그린다» — 이 판이 막으려던 바로 그 모양이다. */
+test('★알파벳 밖 글자는 거절한다 — Node 는 읽지만 «브라우저 data URL 파서»가 거부한다', async () => {
   const [h, b] = GOOD_PNG.split(';base64,');
-  const withJunk = `${h};base64,` + b.slice(0, 8) + '!' + b.slice(8);
-  assert.deepEqual(Buffer.from(b.slice(0, 8) + '!' + b.slice(8), 'base64'), png,
-    '전제: 디코드하면 원본과 «같은 바이트»여야 이 시험이 의미가 있다');
-  assert.equal(_assertImageSrcIntact(withJunk, 'image').checked, 'png-structure');
+  const junky = b.slice(0, 8) + '!' + b.slice(8);
+  assert.deepEqual(Buffer.from(junky, 'base64'), png,
+    '전제①: Node 는 «원본과 같은 바이트»를 준다 — 그래서 2판에선 통과시켰다');
+  await assert.rejects(fetch(`${h};base64,` + junky),
+    '전제②: 실제 소비자(WHATWG forgiving-base64)는 «거부»해야 한다');
+  const e = grab(() => _assertImageSrcIntact(`${h};base64,` + junky, 'image'));
+  assert.equal(e.detail.reason, 'BASE64_BAD_CHARS');
+  assert.equal(e.detail.badChar, '!');
+  assert.doesNotMatch(e.message, /잘려서/, '잘린 게 아니라 «글자»가 문제다 — 사유를 정확히 말해야 한다');
+});
+
+test('★base64url(-, _)도 거절한다 — 바이트는 온전해도 화면에 «못 그린다»', async () => {
+  const [h, b] = GOOD_PNG.split(';base64,');
+  const urlSafe = b.replace(/\+/g, '-').replace(/\//g, '_');
+  assert.notEqual(urlSafe, b, '전제: 픽스처에 +,/ 가 있어야 이 시험이 성립한다');
+  assert.deepEqual(Buffer.from(urlSafe, 'base64'), png, '전제①: Node 는 같은 바이트를 준다');
+  await assert.rejects(fetch(`${h};base64,` + urlSafe), '전제②: data URL 파서가 거부해야 한다');
+  const e = grab(() => _assertImageSrcIntact(`${h};base64,` + urlSafe, 'image'));
+  assert.equal(e.detail.reason, 'BASE64URL_NOT_SUPPORTED');
+});
+
+test('★그러나 공백·줄바꿈·패딩생략은 «브라우저도 받는다» — 계속 통과시킨다', async () => {
+  const [h, b] = GOOD_PNG.split(';base64,');
+  for (const [name, payload] of [
+    ['76열 wrap', b.replace(/(.{76})/g, '$1\n')],
+    ['공백',      b.slice(0, 40) + ' \t ' + b.slice(40)],
+    ['패딩없음',   b.replace(/=+$/, '')]
+  ]) {
+    const url = `${h};base64,` + payload;
+    const got = Buffer.from(await (await fetch(url)).arrayBuffer());
+    assert.equal(got.length, png.length, `전제 실패(실제 소비자가 못 읽음): ${name}`);
+    assert.equal(_assertImageSrcIntact(url, 'image').checked, 'png-structure', name);
+  }
 });
 
 test('★구조를 못 보는 포맷은 «막지 않는다» — 이제 jpeg/gif/webp 는 «끝 표식»까지 본다', () => {
@@ -398,4 +434,16 @@ test('★mime 별칭표가 판정을 가른다 — image/jpg 로 «이미지가 
   const e = grab(() => _assertImageSrcIntact('data:image/jpg;base64,' + junk.toString('base64'), 'image'));
   assert.equal(e.detail.reason, 'NOT_AN_IMAGE');
   assert.equal(e.detail.declaredMime, 'image/jpg');
+});
+
+test('★JPEG EOI 뒤에 trailer(EXIF 썸네일 등)가 붙어도 «통과»한다 — 오탐 방지', () => {
+  // 「마지막 2바이트가 ff d9 인가」로 박으면 이런 «실존하는 온전한» 파일을 막는다.
+  // 적대검수가 미리 경고한 자리다: 1번 오탐 사고를 반복하지 않으려면 완화해야 한다.
+  const jpeg = Buffer.concat([
+    Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 7), Buffer.from([0xff, 0xd9]),
+    Buffer.alloc(120, 0x5a)   // EOI 뒤 trailer
+  ]);
+  const r = _assertImageSrcIntact('data:image/jpeg;base64,' + jpeg.toString('base64'), 'image');
+  assert.equal(r.checked, 'jpeg-structure');
+  assert.equal(r.trailingBytes, 120, 'trailer 길이를 세어 보고해야 한다');
 });

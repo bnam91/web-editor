@@ -3355,8 +3355,9 @@ function _registerDefaultTools() {
         throw new Error(`invalid blockId: ${blockId}. must be a string starting with "ab_"`);
       }
       let partial;
+      const _rep = {};
       try {
-        partial = _validateAssetOpts(rest, { mode: 'update' });
+        partial = _validateAssetOpts(rest, { mode: 'update', report: _rep });
       } catch (e) {
         // ★put_image 와 «같은 모양»으로 답한다 — 던지면 JSON-RPC 에러가 되어 code 를 잃고,
         //   호출자(모델)가 「다시 통째로 보내면 된다」를 구조적으로 못 읽는다.
@@ -3368,7 +3369,10 @@ function _registerDefaultTools() {
       if (Object.keys(partial).length === 0) {
         throw new Error('no fields to update — provide at least one asset field');
       }
-      return await _rendererInvoker.updateAssetBlock({ blockId, partial });
+      const _res = await _rendererInvoker.updateAssetBlock({ blockId, partial });
+      // ★검사를 «어디까지» 했는지 응답에 싣는다(put_image 와 같은 모양).
+      return _rep.imageCheck && _res && typeof _res === 'object'
+        ? { ..._res, imageCheck: _rep.imageCheck } : _res;
     },
     {
       description: 'Edit an EXISTING asset block (ab_xxx) — partial update of any field. width(100~860, 860+=full bleed), height(200~1600), borderRadius(0~120). align(left|center|right) syncs alignSelf. usePadx(true|false) auto-applies negative margins + width calc using section-inner padX. fit(cover|contain) syncs img.style.objectFit. bgColor accepts hex/rgb(a)/hsl(a)/transparent; "" resets. overlay(true|false) ensures .asset-overlay child. overlayOpacity(0~100) maps to rgba alpha. overlayPosition(flex-start|center|flex-end) sets justifyContent. preset=logo forces 200x64 and disables width opt; preset=none clears it. imgSrc accepts data:image/*|http(s)|assets/ ≤200000 chars (≈150KB — too small for most real photos); "" calls clearAssetImage(). For larger images, put_image the replacement into the scratch pad first then pass scratchId (sp_xxx) instead — same large-payload path add_asset_block uses, up to ~5MB. imgSrc and scratchId are mutually exclusive. baseHeight auto-syncs with height. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state.',
@@ -5859,14 +5863,20 @@ function _checkPng(buf, field) {
 }
 /* JPEG 는 EOI(FF D9)로 끝난다. 잘리면 그게 없다. */
 function _checkJpeg(buf, field) {
-  if (buf.length < 4 || buf[buf.length - 2] !== 0xff || buf[buf.length - 1] !== 0xd9) {
-    const tail = Array.from(buf.slice(Math.max(0, buf.length - 2)))
+  /* ⚠️「마지막 2바이트가 ff d9 인가」로 박으면 «오탐»이 난다 — EOI 뒤에 EXIF 썸네일이나
+   *   제조사 trailer 가 붙은 JPEG 이 실존한다. 그건 «온전한» 파일이다.
+   *   ⇒ EOI 가 «어딘가 있나»로 완화하고, 그 뒤 길이는 세어서 보고만 한다.
+   *   잘린 JPEG 에는 EOI 자체가 없으므로 잡는 힘은 유지된다.
+   *   (JPEG 은 스캔 데이터에서 ff 를 ff 00 으로 바이트 스터핑하므로 ff d9 가 우연히 나오지 않는다.) */
+  const at = buf.lastIndexOf(Buffer.from([0xff, 0xd9]));
+  if (at < 2) {
+    const tail = Array.from(buf.slice(Math.max(0, buf.length - 4)))
       .map(b => b.toString(16).padStart(2, '0')).join(' ');
     throw _imgErr(_truncMsg(field,
-      `JPEG 가 EOI(ff d9)로 끝나지 않습니다 — 끝 2바이트가 [${tail}] 입니다.`, buf.length, buf.length + 2),
+      `JPEG 에 EOI(ff d9)가 «없습니다» — 끝 4바이트가 [${tail}] 입니다.`, buf.length, buf.length + 2),
       { reason: 'JPEG_NO_EOI', decodedBytes: buf.length, lastBytesHex: tail });
   }
-  return {};
+  return { trailingBytes: buf.length - (at + 2) };
 }
 /* GIF 는 trailer 0x3B 로 끝난다. */
 function _checkGif(buf, field) {
@@ -5915,14 +5925,36 @@ function _assertImageSrcIntact(src, field = 'image') {
     throw _imgErr(`${field}: dataURL 에 base64 본문이 없습니다 (0바이트).`,
       { reason: 'EMPTY_PAYLOAD', base64Chars: 0, decodedBytes: 0 });
   }
-  /* ⛔base64 «문자셋» 정규식은 폐기했다. 근거 둘(2026-09-07 실측):
-   *  ⑴ 비용: 5MB dataURL(6.67M자)에서 그 정규식 하나가 24.9ms — 검사 전체 42ms 의 «59%»다.
-   *     정작 구조검사 본체는 0.0ms, 디코드는 0.7ms 였다.
-   *  ⑵ 값어치: Node 의 base64 디코더는 이상한 글자를 «건너뛰고» 나머지를 제대로 읽는다
-   *     (실측: "AQID!BAUGBwgJ" → 9바이트, 깨끗한 것과 «동일»). 즉 그 글자가 있어도
-   *     그림은 멀쩡하다. 거절하면 «되는 그림»을 막는 것이다 — 오탐이다.
-   *  ⇒ 진짜 방어는 아래 구조검사(PNG 청크 CRC / JPEG EOI / GIF trailer / WebP 총길이)다.
-   *     내용이 실제로 깨졌으면 거기서 잡힌다. 여기서 글자를 세는 건 비싸고 틀린다. */
+  /* ★알파벳 밖 글자는 거절한다 — 「Node 가 읽으니 괜찮다」가 «틀렸다».
+   *
+   *  판단 기준을 「Node 가 디코드하나」에서 **「우리 소비자(브라우저 data URL 파서)가 읽나」**로
+   *  옮겼다. 그 둘이 «다르다»는 것을 실측했다(WHATWG forgiving-base64 = 브라우저와 같은 알고리즘,
+   *  Node 의 fetch('data:…') 로 확인):
+   *      입력            브라우저 파서      Node Buffer.from
+   *      공백/줄바꿈       통과              통과      ⇒ 표기 차이. 거절하면 오탐(실제로 냈다)
+   *      패딩(=) 생략      통과              통과      ⇒ 같음
+   *      글자 하나(!)      ★거부             통과(원본 바이트)
+   *      base64url(-,_)   ★거부             통과(원본 바이트)
+   *  ⇒ 아래 둘은 «바이트가 온전해도» 저장하면 안 된다. 저장해봐야 앱이 «못 그린다».
+   *     Node 만 보고 통과시키면 「도구는 성공했는데 화면은 깨진 이미지」가 된다 —
+   *     이 판 전체가 막으려던 바로 그 모양이다.
+   *  비용: 5MB(6.7M자)에서 6.6ms(중앙 5회). 「비싸서 안 했다」가 안 서는 값이다.
+   *  ⛔우리가 고쳐 쓰지 않는다(base64url→표준 변환도 «수선»이다) — 거절하고 이유를 정확히 말한다. */
+  const _badChar = /[^A-Za-z0-9+/=\s]/.exec(b64);
+  if (_badChar) {
+    const ch = _badChar[0];
+    const isUrlSafe = ch === '-' || ch === '_';
+    throw _imgErr(
+      `${field}: base64 에 «${ch}» 가 있습니다 (위치 ${_badChar.index}). `
+      + (isUrlSafe
+          ? 'base64url(-, _) 표기는 표준 base64 가 아니라 브라우저의 data URL 파서가 «거부»합니다 — '
+            + '바이트가 온전해도 화면에 못 그립니다. 표준 base64(+, /)로 다시 주세요.'
+          : '이 글자는 base64 알파벳 밖이라 브라우저의 data URL 파서가 «거부»합니다 — '
+            + '전송 중 섞여 들어간 것으로 봅니다. 원본을 «다시» 통째로 보내 주세요.')
+      + ' ⛔우리가 고쳐 쓰지 않습니다.',
+      { reason: isUrlSafe ? 'BASE64URL_NOT_SUPPORTED' : 'BASE64_BAD_CHARS',
+        badChar: ch, atIndex: _badChar.index, base64Chars: b64.length });
+  }
   /* ⛔base64 «길이»(4의 배수인가)로도 거절하지 않는다. 셋 다 같은 부류의 오탐이었다:
    *   ⓐ 패딩(=) 생략 — RFC 4648 에서 정상이고 Node 가 그대로 읽는다("AQIDBAU"→5바이트).
    *   ⓑ 글자 하나가 섞임 — Node 가 건너뛰고 «원본과 같은 바이트»를 준다. 그런데 길이가
@@ -5981,7 +6013,7 @@ function _assertImageSrcIntact(src, field = 'image') {
 // ─── asset-block validator ───
 // ─── asset 옵션 검증 (update only — add는 별도 add_asset_block에서 직접 검증) ──
 // banner02 _validateBanner02Opts 패턴 미러. update 모드 전용 (sectionId 검증 없음).
-function _validateAssetOpts(args, { mode } = {}) {
+function _validateAssetOpts(args, { mode, report } = {}) {
   if (!args || typeof args !== 'object') throw new Error('args must be object');
   const out = {};
 
@@ -6044,7 +6076,9 @@ function _validateAssetOpts(args, { mode } = {}) {
     // ★put_image 와 «같은» 검사를 탄다 — 검사가 한 곳이어야 옆 필드를 안 빠뜨린다(지디 2026-09-07).
     //   이 한 줄이 update_asset_block 과 update_block(ab_, imgSrc) «둘 다»를 덮는다
     //   (통합 update_block 은 ab_ 접두를 보고 update_asset_block 으로 디스패치한다).
-    _assertImageSrcIntact(args.imgSrc, 'imgSrc');
+    //   ★결과를 «버리지 않는다» — 호출자에게 「어디까지 봤는지」를 알려야 원칙 ⑶이 절반만 지켜지지 않는다.
+    const _c = _assertImageSrcIntact(args.imgSrc, 'imgSrc');
+    if (report) report.imageCheck = _c;
     out.imgSrc = args.imgSrc;
   }
 
