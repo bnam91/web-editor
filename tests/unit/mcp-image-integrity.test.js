@@ -99,21 +99,26 @@ test('IEND 가 없으면 거절한다', () => {
   assert.ok(['PNG_NO_IEND', 'PNG_CHUNK_TRUNCATED'].includes(e.detail.reason), e.detail.reason);
 });
 
-test('매직바이트가 선언 mime 과 다르면 거절한다 (확장자만 바꾼 파일)', () => {
-  const e = grab(() => _assertImageSrcIntact(dataUrl('image/jpeg', png), 'image'));
-  assert.equal(e.code, 'IMAGE_TRUNCATED');
-  assert.equal(e.detail.reason, 'MAGIC_MISMATCH');
-  assert.equal(e.detail.declaredMime, 'image/jpeg');
+test('매직바이트가 선언 mime 과 달라도 «통과»하고 둘 다 기록한다 (거절에서 뒤집힌 자리)', () => {
+  const r = _assertImageSrcIntact(dataUrl('image/jpeg', png), 'image');
+  assert.equal(r.checked, 'png-structure', '내용 기준으로 검사해야 한다');
+  assert.equal(r.declaredMime, 'image/jpeg');
+  assert.equal(r.actualFormat, 'image/png');
 });
 
 /* ⛔이 자리에 있던 「4의 배수가 아니면 거절」 테스트는 «폐기»했다 —
    패딩(=) 생략은 RFC 4648 에서 정상이고, 그걸 거절한 게 적대검수에서 오탐으로 잡혔다.
    대신 「나머지가 1이면 거절」(있을 수 없는 값)로 좁혔다. 아래 참조. */
 
-test('base64 에 이상한 문자가 있으면 거절한다', () => {
+test('★이상한 글자가 섞여도 «바이트가 온전하면» 통과한다 (문자셋 정규식을 버린 자리)', () => {
+  // Node 의 base64 디코더는 이상한 글자를 «건너뛰고» 나머지를 제대로 읽는다(실측).
+  // 그래서 그 글자를 이유로 거절하면 «되는 그림»을 막는 것이다 — 오탐이다.
+  // 진짜 방어는 아래 구조검사(CRC 등)다: 내용이 실제로 깨졌으면 거기서 잡힌다.
   const [h, b] = GOOD_PNG.split(';base64,');
-  const e = grab(() => _assertImageSrcIntact(`${h};base64,` + '!!!' + b.slice(3), 'image'));
-  assert.equal(e.detail.reason, 'BASE64_BAD_CHARS');
+  const withJunk = `${h};base64,` + b.slice(0, 8) + '!' + b.slice(8);
+  assert.deepEqual(Buffer.from(b.slice(0, 8) + '!' + b.slice(8), 'base64'), png,
+    '전제: 디코드하면 원본과 «같은 바이트»여야 이 시험이 의미가 있다');
+  assert.equal(_assertImageSrcIntact(withJunk, 'image').checked, 'png-structure');
 });
 
 test('★구조를 못 보는 포맷은 «막지 않는다» — 이제 jpeg/gif/webp 는 «끝 표식»까지 본다', () => {
@@ -243,13 +248,14 @@ test('★오탐 — 패딩(=) 없는 «완전한» base64는 통과한다 (RFC 4
   assert.equal(r.checked, 'png-structure');
   assert.equal(r.bytes, png.length, '패딩만 없을 뿐 «같은 그림»이다');
 });
-test('base64 길이 나머지가 1이면 «있을 수 없는» 값이라 거절한다', () => {
-  // 나머지 1 은 base64 로 만들 수 «없는» 길이다 — 잘렸다는 확실한 신호다.
+test('★base64 길이가 4의 배수가 아니어도 «내용이 온전하면» 통과한다', () => {
+  // 글자 하나가 섞이면 길이가 4의 배수에서 벗어난다. 그런데 Node 는 그 글자를 건너뛰고
+  // 원본과 «같은 바이트»를 준다 ⇒ 길이를 이유로 거절하면 되는 그림을 막는 오탐이다.
   const stripped = PNG_B64.replace(/=+$/, '');
-  const bad = stripped + 'A'.repeat((1 - (stripped.length % 4) + 4) % 4 || 4);
-  assert.equal(bad.length % 4, 1, '전제: 나머지가 1이어야 한다');
-  const e = grab(() => _assertImageSrcIntact('data:image/png;base64,' + bad, 'image'));
-  assert.equal(e.detail.reason, 'BASE64_LENGTH');
+  const odd = stripped + 'A'.repeat((1 - (stripped.length % 4) + 4) % 4 || 4);
+  assert.equal(odd.length % 4, 1, '전제: 나머지가 1이어야 한다');
+  const r = _assertImageSrcIntact('data:image/png;base64,' + odd, 'image');
+  assert.equal(r.checked, 'png-structure');
 });
 
 /* ★우회 — 선언 mime 표기로 구조 검사를 건너뛰던 길들 */
@@ -263,6 +269,8 @@ for (const [name, url] of [
   test(`★우회막힘 — ${name} 로 위장한 잘린 PNG 도 거절된다`, () => {
     const e = grab(() => _assertImageSrcIntact(url(), 'image'));
     assert.equal(e.code, 'IMAGE_TRUNCATED');
+    assert.equal(e.detail.reason, 'PNG_CHUNK_TRUNCATED',
+      '★표기가 뭐든 «내용 기준»으로 구조를 봐야 한다 — 불일치로 반려하는 게 아니다');
   });
 }
 
@@ -299,10 +307,22 @@ for (const [fmt, mime, ok] of [['jpeg','image/jpeg',JPEG_OK], ['gif','image/gif'
     assert.equal(e.code, 'IMAGE_TRUNCATED');
   });
 }
-test('선언 mime 과 실제 내용이 «둘 다 아는 형식»인데 다르면 거절한다', () => {
-  const e = grab(() => _assertImageSrcIntact('data:image/gif;base64,' + PNG_B64, 'image'));
-  assert.equal(e.detail.reason, 'MAGIC_MISMATCH');
-  assert.equal(e.detail.sniffedMime, 'image/png');
+/* ★여기서 한 번 뒤집혔다 — 기록으로 남긴다(나중에 누가 다시 조일 때 보이도록).
+   첫 판: 「선언 mime ≠ 실제 내용」이면 «거절»했다.
+   뒤집은 이유(지디 2026-09-07): 우리가 막으려는 건 「캔버스에 깨진 바이트가 들어가는 것」이지
+   「라벨이 틀린 것」이 아니다. 그림이 멀쩡하면 사고가 아니고, 그 라벨은 «모델이» 붙였으므로
+   사용자는 손쓸 데가 없다. 오탐 3종(줄바꿈·공백·패딩)과 같은 부류다. */
+test('★선언 mime 과 실제 내용이 달라도 «통과»하고 둘 다 기록한다 (거절에서 뒤집힌 자리)', () => {
+  const r = _assertImageSrcIntact('data:image/gif;base64,' + PNG_B64, 'image');
+  assert.equal(r.checked, 'png-structure', '내용(png) 기준으로 구조를 봤어야 한다');
+  assert.equal(r.actualFormat, 'image/png');
+  assert.equal(r.declaredMime, 'image/gif');
+  assert.match(r.note, /받은 그대로/, 'dataURL 을 우리가 고쳐 쓰지 «않는다»는 것을 응답이 말해야 한다');
+});
+test('★«png 라고 했는데 내용이 이미지가 아닌» 것은 여전히 거절한다 (라벨 문제가 아니다)', () => {
+  const junk = Buffer.from('이건 그림이 아니라 그냥 글자다'.repeat(4), 'utf8');
+  const e = grab(() => _assertImageSrcIntact('data:image/png;base64,' + junk.toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'NOT_AN_IMAGE');
 });
 
 test('★스킴/인코딩 표기 대소문자 — DATA:…;BASE64, 도 «읽고» 잘렸으면 거절한다', () => {
@@ -317,16 +337,11 @@ test('★패딩 없는 base64는 Node 가 그대로 읽는다 — 우리가 채�
   assert.equal(_assertImageSrcIntact('data:image/png;base64,' + nopad, 'image').bytes, png.length);
 });
 
-test('★mime 별칭표가 «실제로» 판정을 가른다 — 온전한 PNG 를 image/jpg 로 선언하면 불일치로 거절', () => {
-  // 별칭표가 없으면 'image/jpg' 가 «우리가 아는 형식» 목록에 없어서 불일치 검사를 통째로 건너뛴다
-  //  ⇒ 선언과 내용이 달라도 통과한다. 별칭표는 그 구멍을 막는 자리다(변이로 확인).
-  // ⚠️여기서 거절되는 것은 «온전한» 그림이다 — 잘림이 아니라 «표기가 내용과 다름»이고,
-  //   메시지도 그렇게 말한다(「잘려서 들어왔습니다」라고 거짓말하지 않는다).
-  const e = grab(() => _assertImageSrcIntact('data:image/jpg;base64,' + PNG_B64, 'image'));
-  assert.equal(e.detail.reason, 'MAGIC_MISMATCH');
-  assert.equal(e.detail.declaredMime, 'image/jpg');
-  assert.equal(e.detail.sniffedMime, 'image/png');
-  assert.doesNotMatch(e.message, /잘려서/, '온전한 그림에 「잘렸다」고 말하면 안 된다');
+test('★온전한 PNG 를 image/jpg 로 선언해도 «통과»한다 — 되던 첨부를 막지 않는다', () => {
+  const r = _assertImageSrcIntact('data:image/jpg;base64,' + PNG_B64, 'image');
+  assert.equal(r.checked, 'png-structure');
+  assert.equal(r.declaredMime, 'image/jpg');
+  assert.equal(r.actualFormat, 'image/png');
 });
 
 test('별칭 덕분에 image/jpg + «진짜 JPEG» 은 통과한다 (흔한 오타를 막지 않는다)', () => {
@@ -334,4 +349,53 @@ test('별칭 덕분에 image/jpg + «진짜 JPEG» 은 통과한다 (흔한 오�
   const r = _assertImageSrcIntact('data:image/jpg;base64,' + jpeg.toString('base64'), 'image');
   assert.equal(r.checked, 'jpeg-structure');
   assert.equal(r.declaredMime, 'image/jpg', '표기가 달랐다는 사실은 응답에 남는다');
+});
+
+test('★첫 청크가 IHDR 이 아니면 거절한다 (적대검수 E5 — 변이해도 초록이던 자리)', () => {
+  const bad = Buffer.from(png);
+  bad.write('IDAT', 12, 'latin1');            // 첫 청크 타입만 바꾼다
+  const c = require('node:zlib').crc32(bad.subarray(12, 12 + 4 + 13)) >>> 0;
+  bad.writeUInt32BE(c, 12 + 4 + 13);          // CRC 는 맞춰 준다(=CRC 가 아니라 IHDR 검사가 잡아야 한다)
+  const e = grab(() => _assertImageSrcIntact('data:image/png;base64,' + bad.toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'PNG_NO_IHDR');
+});
+
+test('★trailingBytes 는 «실제로» 센다 (적대검수 E8 — 항상 0 으로 보고해도 초록이던 자리)', () => {
+  const withTail = Buffer.concat([png, Buffer.alloc(37, 0xaa)]);
+  const r = _assertImageSrcIntact('data:image/png;base64,' + withTail.toString('base64'), 'image');
+  assert.equal(r.checked, 'png-structure');
+  assert.equal(r.trailingBytes, 37, 'IEND 뒤에 붙은 바이트 수를 정확히 세야 한다');
+  assert.equal(_assertImageSrcIntact(GOOD_PNG, 'image').trailingBytes, 0);
+});
+
+test('★WebP 는 RIFF 뒤 «WEBP» 표식까지 본다 (적대검수 E3)', () => {
+  const fake = Buffer.alloc(40); fake.write('RIFF', 0, 'latin1');
+  fake.writeUInt32LE(32, 4); fake.write('AVI ', 8, 'latin1');   // RIFF 인데 WEBP 가 아니다
+  const e = grab(() => _assertImageSrcIntact('data:image/webp;base64,' + fake.toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'WEBP_BAD_CONTAINER');
+});
+
+test('★IHDR 가 «첫 청크»가 아니면 거절한다 (있기만 하면 되는 게 아니다)', () => {
+  // IHDR 가 뒤에 «있어도» PNG 스펙상 첫 청크여야 한다. sawIHDR 검사만으로는 이걸 못 잡는다.
+  const z = require('node:zlib');
+  const chunk = (t, d) => {
+    const L = Buffer.alloc(4); L.writeUInt32BE(d.length);
+    const b = Buffer.concat([Buffer.from(t, 'latin1'), d]);
+    const c = Buffer.alloc(4); c.writeUInt32BE(z.crc32(b) >>> 0);
+    return Buffer.concat([L, b, c]);
+  };
+  const body = png.subarray(8);                       // IHDR 부터 끝까지
+  const shuffled = Buffer.concat([png.subarray(0, 8), chunk('tEXt', Buffer.from('a\0b')), body]);
+  const e = grab(() => _assertImageSrcIntact('data:image/png;base64,' + shuffled.toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'PNG_NO_IHDR');
+  assert.equal(e.detail.firstChunk, 'tEXt');
+});
+
+test('★mime 별칭표가 판정을 가른다 — image/jpg 로 «이미지가 아닌 것»을 보내면 거절', () => {
+  // 별칭표가 없으면 'image/jpg' 가 «아는 형식»이 아니라서 NOT_AN_IMAGE 분기를 건너뛰고
+  // decode-only 로 통과한다. 별칭표는 그 구멍을 막는 자리다(변이로 확인).
+  const junk = Buffer.from('그림이 아니라 그냥 글자'.repeat(6), 'utf8');
+  const e = grab(() => _assertImageSrcIntact('data:image/jpg;base64,' + junk.toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'NOT_AN_IMAGE');
+  assert.equal(e.detail.declaredMime, 'image/jpg');
 });

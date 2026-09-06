@@ -5907,26 +5907,29 @@ function _assertImageSrcIntact(src, field = 'image') {
 
   // ⑴ base64 «읽기» — 표기 정규화는 수선이 아니다.
   //    공백/줄바꿈 제거(파이썬 base64.encodebytes 는 76열로 감는다) + 패딩 보정.
-  const b64 = m[3].replace(/\s+/g, '');
-  if (!b64) {
+  /* ⛔공백/줄바꿈을 «우리가» 지우지도 않는다 — Node 의 base64 디코더가 이미 무시한다
+   *   (실측: 8열로 감은 base64 → 원본과 동일 바이트). 지우는 줄을 넣었더니 «변이해도 초록»이라
+   *   아무도 안 쓰는 줄이었다. 패딩 보정 줄과 같은 운명으로 지웠다. */
+  const b64 = m[3];
+  if (!b64.trim()) {
     throw _imgErr(`${field}: dataURL 에 base64 본문이 없습니다 (0바이트).`,
       { reason: 'EMPTY_PAYLOAD', base64Chars: 0, decodedBytes: 0 });
   }
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) {
-    throw _imgErr(`${field}: base64 에 허용되지 않는 문자가 있습니다 — 전송 중 손상된 것으로 봅니다 (${b64.length}자).`,
-      { reason: 'BASE64_BAD_CHARS', base64Chars: b64.length });
-  }
-  const rem = b64.length % 4;
-  if (rem === 1) {
-    throw _imgErr(
-      `${field}: base64 길이가 ${b64.length}자로 «있을 수 없는» 값입니다(4로 나눈 나머지 1) — 잘린 것으로 봅니다. `
-      + `⛔우리가 채우지 않습니다 — 원본을 다시 보내 주세요.`,
-      { reason: 'BASE64_LENGTH', base64Chars: b64.length });
-  }
-  // 나머지 2·3 은 «패딩이 빠진 정상 base64»다(RFC 4648 에서 패딩은 생략 가능).
-  // ⛔여기서 '=' 를 채워 주지 «않는다» — Node 의 Buffer.from(s,'base64') 가 이미 패딩 없이 읽는다
-  //    (실측: "AQIDBAU" → 5바이트, 패딩본과 동일). 채우는 줄을 넣었더니 «변이해도 초록»이었다
-  //    = 아무도 그 줄을 안 쓴다는 뜻이라 지웠다. 나머지 1 만 «있을 수 없는» 값이라 위에서 막는다.
+  /* ⛔base64 «문자셋» 정규식은 폐기했다. 근거 둘(2026-09-07 실측):
+   *  ⑴ 비용: 5MB dataURL(6.67M자)에서 그 정규식 하나가 24.9ms — 검사 전체 42ms 의 «59%»다.
+   *     정작 구조검사 본체는 0.0ms, 디코드는 0.7ms 였다.
+   *  ⑵ 값어치: Node 의 base64 디코더는 이상한 글자를 «건너뛰고» 나머지를 제대로 읽는다
+   *     (실측: "AQID!BAUGBwgJ" → 9바이트, 깨끗한 것과 «동일»). 즉 그 글자가 있어도
+   *     그림은 멀쩡하다. 거절하면 «되는 그림»을 막는 것이다 — 오탐이다.
+   *  ⇒ 진짜 방어는 아래 구조검사(PNG 청크 CRC / JPEG EOI / GIF trailer / WebP 총길이)다.
+   *     내용이 실제로 깨졌으면 거기서 잡힌다. 여기서 글자를 세는 건 비싸고 틀린다. */
+  /* ⛔base64 «길이»(4의 배수인가)로도 거절하지 않는다. 셋 다 같은 부류의 오탐이었다:
+   *   ⓐ 패딩(=) 생략 — RFC 4648 에서 정상이고 Node 가 그대로 읽는다("AQIDBAU"→5바이트).
+   *   ⓑ 글자 하나가 섞임 — Node 가 건너뛰고 «원본과 같은 바이트»를 준다. 그런데 길이가
+   *      4의 배수에서 벗어나 「나머지 1」이 되어 거절됐다. 되는 그림을 막은 것이다.
+   *   ⇒ 표기(공백·줄바꿈·패딩·길이)로는 «절대» 거절하지 않는다. 내용이 깨졌을 때만 거절한다.
+   *      진짜 방어는 아래 구조검사다 — 실제로 잘렸으면 PNG 청크/CRC, JPEG EOI, GIF trailer,
+   *      WebP 총길이가 잡는다. 표기를 세는 건 비싸고(59%) 틀린다. */
   const buf = Buffer.from(b64, 'base64');
   if (buf.length === 0) {
     throw _imgErr(`${field}: base64 를 디코드했더니 0바이트입니다 (${b64.length}자).`,
@@ -5935,18 +5938,24 @@ function _assertImageSrcIntact(src, field = 'image') {
 
   // ⑵ 형식은 «매직바이트로 판정»한다. 선언 mime 은 대조용일 뿐이다.
   const sniffed = _IMG_SNIFF.find(e => e.sig.every((b, i) => buf[i] === b)) || null;
-  if (sniffed && declared !== sniffed.mime && _IMG_SNIFF.some(e => e.mime === declared)) {
-    // 선언도 «우리가 아는» 형식인데 실제와 다르다 → 확장자만 바꾼 파일이거나 손상.
-    const got = Array.from(buf.slice(0, Math.min(8, buf.length)))
-      .map(b => b.toString(16).padStart(2, '0')).join(' ');
-    throw _imgErr(
-      `${field}: 선언한 형식(${declaredRaw})과 실제 내용(${sniffed.mime})이 다릅니다 — 앞 바이트 [${got}] `
-      + `(받은 ${buf.length}바이트).`,
-      { reason: 'MAGIC_MISMATCH', declaredMime: declaredRaw, sniffedMime: sniffed.mime,
-        firstBytesHex: got, decodedBytes: buf.length });
-  }
+  const knownDeclared = _IMG_SNIFF.some(e => e.mime === declared);
+  /* ★「선언한 형식 ≠ 실제 내용」은 «거절하지 않는다»(지디 2026-09-07 결정, 첫 지시를 뒤집음).
+   *   근거: 우리가 막으려는 건 「캔버스에 깨진 바이트가 들어가는 것」이지 「라벨이 틀린 것」이 아니다.
+   *   그림이 멀쩡하면 사고가 아니고, 그 라벨은 «모델이» 붙였으므로 사용자는 손쓸 데가 없다.
+   *   오탐 3종(줄바꿈·공백·패딩)과 «같은 부류»다 — 바이트는 온전한데 표기가 다르다.
+   *   ⇒ 통과시키되 declaredMime/actualFormat 을 «둘 다» 기록한다.
+   *   ⛔dataURL 을 우리가 고쳐 쓰지 않는다 — 그건 수선이다. */
   if (!sniffed) {
-    // 모르는 형식은 «막지 않는다». 어디까지 봤는지만 적는다.
+    if (knownDeclared) {
+      // 「png 라고 했는데 내용이 아예 png 가 아니다」 — 이건 라벨 문제가 아니라 «그림이 아님»이다.
+      const got = Array.from(buf.slice(0, Math.min(8, buf.length)))
+        .map(b => b.toString(16).padStart(2, '0')).join(' ');
+      throw _imgErr(
+        `${field}: ${declaredRaw} 라고 선언했는데 내용이 그 형식이 아닙니다 — 앞 바이트 [${got}] `
+        + `(받은 ${buf.length}바이트). 표기가 아니라 «내용»이 이미지가 아닙니다.`,
+        { reason: 'NOT_AN_IMAGE', declaredMime: declaredRaw, firstBytesHex: got, decodedBytes: buf.length });
+    }
+    // 모르는 형식(svg+xml·avif 등)은 «막지 않는다». 어디까지 봤는지만 적는다.
     return { checked: 'decode-only', format: declaredRaw, bytes: buf.length,
              note: `내용이 아는 형식(png/jpeg/gif/webp)이 아니어서 디코드까지만 확인했습니다.` };
   }
@@ -5959,8 +5968,14 @@ function _assertImageSrcIntact(src, field = 'image') {
     case 'gif':  extra = _checkGif(buf, field);  break;
     case 'webp': extra = _checkWebp(buf, field); break;
   }
-  return { checked: `${sniffed.fmt}-structure`, format: sniffed.mime, bytes: buf.length,
-           declaredMime: declaredRaw !== sniffed.mime ? declaredRaw : undefined, ...extra };
+  const out = { checked: `${sniffed.fmt}-structure`, actualFormat: sniffed.mime,
+                format: sniffed.mime, bytes: buf.length, ...extra };
+  if (declaredRaw !== sniffed.mime) {
+    out.declaredMime = declaredRaw;
+    out.note = `선언은 ${declaredRaw} 인데 내용은 ${sniffed.mime} 입니다 — 내용 기준으로 검사했고 `
+      + `dataURL 은 «받은 그대로» 저장합니다(우리가 고쳐 쓰지 않습니다).`;
+  }
+  return out;
 }
 
 // ─── asset-block validator ───
