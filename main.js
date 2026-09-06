@@ -6170,7 +6170,13 @@ async function _invokeRendererUpdateIconTextBlock({ blockId, partial } = {}) {
   }
 }
 
-/* ── 종료 전 강제 저장 ── */
+const quitSaveGuard = require('./main/quit/save-guard');
+
+/* ── 종료 전 강제 저장 ──
+   ★[H4] 실제 «종료 절차»는 main/quit/save-guard.js 가 갖는다. 여기는 얇게만 부른다.
+     옛 코드는 저장 성공·실패를 «구분하지 않고» 3초 뒤 app.exit(0) 했다 — 저장이 실패해도
+     사용자는 아무 통지도 못 받고 작업물이 사라졌다. 이제는 실패를 «말하고» 흔적을 남긴다.
+     ⛔행 방지 우선이라는 기존 판단은 그대로다: 상한 세 겹이 어떤 경로에서도 앱을 꺼준다. */
 app.on('before-quit', (event) => {
   // Claude PM MCP 서버 정리 (sync close, 폴백)
   try { stopMcpServer(); } catch (_) {}
@@ -6180,11 +6186,19 @@ app.on('before-quit', (event) => {
   const win = BrowserWindow.getAllWindows()[0];
   if (!win || win.isDestroyed()) return; // 창 없으면 바로 종료
   event.preventDefault();
-  win.webContents.send('force-save-before-quit');
-  // 렌더러가 'quit-ready'를 보내면 실제 종료
-  ipcMain.once('quit-ready', () => app.exit(0));
-  // 3초 안에 응답 없으면 강제 종료 (데이터 손실 방어보다 행 방지 우선)
-  setTimeout(() => app.exit(0), 3000);
+  try {
+    quitSaveGuard.init({
+      userDataDir: app.getPath('userData'), dialog, shell,
+      appVersion: app.getVersion(), log: (m) => console.log(m),
+    });
+    quitSaveGuard.runBeforeQuit({ win, ipcMain, exit: (code) => app.exit(code) });
+  } catch (e) {
+    // ★가드 자체가 터져도 «앱은 꺼져야 한다» — 이 폴백이 옛 동작이다.
+    console.error('[quit-guard] 가드 기동 실패 — 옛 경로로 종료:', e && e.message);
+    try { win.webContents.send('force-save-before-quit'); } catch (_) {}
+    ipcMain.once('quit-ready', () => app.exit(0));
+    setTimeout(() => app.exit(0), 3000);
+  }
 });
 
 app.on('window-all-closed', () => {

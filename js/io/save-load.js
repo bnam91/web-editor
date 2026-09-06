@@ -104,6 +104,13 @@ let _isSavingToFile = false;
 const _pendingSaves = new Map(); // targetId → { snapshot, opts }
 // DEF-03: 마지막 저장 완료 이후 변경이 있었는지 — 무편집 방문/언로드가 파일을 재기록(updatedAt 오염)하지 않도록 게이트
 let _dirtySinceSave = false;
+/* ★[H4] «마지막으로 끝난» 저장의 결과 — targetId → { at, result }.
+   큐잉된 호출(undefined 반환)은 자기 결과를 못 본다. 종료 경로가 「큐가 빠졌으니 저장됐겠지」로
+   때우면 «가짜 성공»이 된다 — 실측으로 그 일이 났다(2026-09-06 deny-write 실기: 저장이
+   EACCES 로 실패했는데 종료 로그가 「저장 확인됨(saved)」). ⇒ 추측하지 말고 «결과를 읽는다».
+   ⛔saveProjectToFile 의 반환 계약(큐잉=undefined)은 그대로 둔다 — 바꾸면 다른 호출측이
+     드레인이 끝날 때까지 매달린다(행 위험). 여기 «기록»만 남기고, 볼 사람이 보게 한다. */
+const _lastSaveResult = new Map();
 
 async function saveProjectToFile(snapshot, opts = {}) {
   const _targetId = opts.projectId || activeProjectId;
@@ -119,6 +126,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
     _result = await _doSaveProjectToFile(snapshot, opts);
     _dirtySinceSave = false;
   } finally {
+    if (_targetId) _lastSaveResult.set(_targetId, { at: Date.now(), result: _result });
     _isSavingToFile = false;
     // 대기 중인 프로젝트별 저장을 FIFO로 순차 드레인 (드롭 없음)
     if (_pendingSaves.size) {
@@ -1424,22 +1432,94 @@ window.addEventListener('beforeunload', () => {
   }
 });
 
+/* ── 종료 시 저장 결과의 «번역» (H4) ───────────────────────────────────────
+ * saveProjectToFile 의 반환을 «종료 통지»로 바꾼다.
+ * ★이 함수가 왜 따로 있나 — 여기가 H4 가 고친 «판단» 그 자체다. 유닛테스트가
+ *   이 원문을 그대로 잘라 돌린다(tests/unit/quit-save-guard.test.mjs).
+ * ★규칙: «명시적인 성공»만 성공이다.
+ *   · { ok:true }                  → 디스크에 들어갔다.
+ *   · { ok:false, skipped:true }   → «보호성 스킵»(빈 캔버스)이다. 실패가 아니다 →
+ *                                    골 C4 의 양성대조: 여기서 다이얼로그가 뜨면 안 된다.
+ *   · { ok:false, ... }            → 실패다. ★옛 코드는 이걸 «한 건도» 못 봤다
+ *                                    (saveProjectToFile 은 던지지 않고 반환한다).
+ *   · undefined                    → «큐잉됨 = 미확정». 종료 중엔 그 큐가 안 돈다 →
+ *                                    저장됐다고 말하면 안 된다.
+ * ────────────────────────────────────────────────────────────────────────── */
+function _quitSaveOutcome(result) {
+  if (result && result.ok === true) return { ok: true, reason: 'saved' };
+  if (result && result.ok === false && result.skipped === true) return { ok: true, reason: result.reason || 'skipped' };
+  if (result === undefined || result === null) return { ok: false, reason: 'unconfirmed' };
+  return { ok: false, reason: (result && result.reason) || 'save-failed', error: (result && result.error) || null };
+}
+
+function _quitSaveResolveQueued(isSaving, pendingHas, last, queuedAt) {
+  /* ★★«큐가 빠졌다» ≠ «저장에 성공했다».
+     실측(2026-09-06 deny-write 실기): 종료 시점에 다른 저장이 돌고 있어 우리 저장이 큐로 갔고,
+     큐가 빠지자 초판이 「저장됨」이라고 답했다 — 그런데 그 저장은 EACCES 로 «실패»했다.
+     ⇒ 큐가 빠졌으면 «그 저장의 결과»를 읽는다. 결과가 없거나(기록 없음) 우리가 큐에 넣기 «전»의
+       옛 기록이면 그건 성공의 증거가 아니다 → undefined(=미확정) 로 돌려 실패 쪽으로 센다. */
+  const drained = !isSaving && !pendingHas;
+  if (!drained) return undefined;
+  if (!last || !(last.at >= queuedAt)) return undefined;
+  return last.result;
+}
+
 // 앱 종료 전 강제 저장 (Electron before-quit IPC)
 if (IS_ELECTRON) {
   window.electronAPI.onForceSaveBeforeQuit(async () => {
-    if (!activeProjectId) { window.electronAPI.quitReady(); return; }
-    // debounce 타이머 즉시 취소
-    if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
-    const snap = serializeProject();
-    let snapData;
-    try { snapData = JSON.parse(snap); } catch { window.electronAPI.quitReady(); return; }
-    if (_isAllCanvasEmpty(snapData)) { window.electronAPI.quitReady(); return; }
+    /* ★어느 경로로 새도 «한 번은» 답한다 — 답을 안 하면 메인이 3초를 헛기다린다.
+       그리고 실패는 «실패라고» 답한다(옛 코드는 실패도 성공처럼 답했다). */
+    let answered = false;
+    const answer = (r) => {
+      if (answered) return; answered = true;
+      try { window.electronAPI.quitReady(r); } catch (_) {}
+    };
+    let snap = null;
     try {
-      await saveProjectToFile(snapData, { skipThumbnail: true });
+      if (!activeProjectId) { answer({ ok: true, reason: 'no-project' }); return; }
+      // debounce 타이머 즉시 취소
+      if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+      snap = serializeProject();
+      let snapData;
+      try { snapData = JSON.parse(snap); }
+      catch (e) {
+        // 우리가 만든 문자열을 우리가 못 읽는다 = 저장이 불가능하다. ★원문이라도 넘겨 사본을 남긴다.
+        answer({ ok: false, reason: 'corrupt_snapshot', error: (e && e.message) || null,
+                 projectId: activeProjectId, projectName: getProjectName(), snapshot: snap });
+        return;
+      }
+      if (_isAllCanvasEmpty(snapData)) { answer({ ok: true, reason: 'empty_canvas_skipped' }); return; }
+
+      let result;
+      try {
+        result = await saveProjectToFile(snapData, { skipThumbnail: true });
+      } catch (e) {
+        console.error('[save-load] force-save-before-quit 저장 실패:', e);
+        answer({ ok: false, reason: 'exception', error: (e && e.message) || String(e),
+                 projectId: activeProjectId, projectName: getProjectName(), snapshot: snap });
+        return;
+      }
+      /* undefined = «다른 저장이 도는 중이라 큐에 넣었다». 그 큐는 앞 저장이 끝나야 돌므로
+         상한을 두고 «짧게» 기다려 본다. 끝나면 정직하게 성공, 못 끝나면 정직하게 미확정.
+         ⛔무한 대기 금지 — 메인의 3초 상한을 넘기면 앱이 그냥 죽는다. */
+      if (result === undefined) {
+        const queuedAt = Date.now();
+        const until = queuedAt + 1000;
+        while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(activeProjectId))) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+        result = _quitSaveResolveQueued(_isSavingToFile, _pendingSaves.has(activeProjectId),
+                                        _lastSaveResult.get(activeProjectId), queuedAt);
+      }
+      const out = _quitSaveOutcome(result);
+      answer(out.ok ? { ok: true, reason: out.reason }
+                    : { ok: false, reason: out.reason, error: out.error || null,
+                        projectId: activeProjectId, projectName: getProjectName(), snapshot: snap });
     } catch (e) {
-      console.error('[save-load] force-save-before-quit 저장 실패:', e);
+      console.error('[save-load] force-save-before-quit 처리 실패:', e);
+      answer({ ok: false, reason: 'exception', error: (e && e.message) || String(e),
+               projectId: activeProjectId || null, snapshot: snap });
     }
-    window.electronAPI.quitReady();
   });
 }
 

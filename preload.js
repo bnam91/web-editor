@@ -204,7 +204,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gdtTakePendingOpen: ()   => ipcRenderer.invoke('gdt:takePendingOpen'),
   // 비우지 않고 조회만 — 로그인 화면이 「로그인하면 이 파일을 엽니다」를 보여줄 때 쓴다
   gdtPeekPendingOpen: ()   => ipcRenderer.invoke('gdt:peekPendingOpen'),
-  quitReady: () => ipcRenderer.send('quit-ready'),
+  /* ★[H4] 저장 «결과»를 같이 보낸다 — 인자 없이 부르면 메인이 「모르겠다」로 읽고
+     실패로 센다(조용한 종료 금지). 실패 시엔 스냅샷 원문도 실어 비상 사본을 남긴다. */
+  quitReady: (result) => ipcRenderer.send('quit-ready', result),
 
   // Clipboard (Electron 메인 프로세스 경유 — navigator.clipboard 권한 거부 우회)
   clipboardWriteText:  (text)    => ipcRenderer.invoke('clipboard:writeText', text),

@@ -18,20 +18,25 @@ function loadMain(opts) {
   const userData = (opts && opts.userData) || require('./_tmproot').mkTmpRoot('goya-ipc-');
   fs.mkdirSync(userData, { recursive: true });
   const handlers = new Map(), syncHandlers = new Map(), sent = [];
+  const appHandlers = new Map(), exits = [];
   const noop = () => {};
   const webContents = { on: noop, send: (ch, p) => sent.push({ ch, p }), session: {}, id: 1 };
   const stub = {
     app: {
-      whenReady: () => new Promise(() => {}), on: noop, once: noop, getPath: () => userData,
+      /* ★[H4] app 이벤트를 «잡아 둔다» — before-quit 같은 종료 경로 핸들러를 테스트가
+         진짜로 부를 수 있어야 한다(흉내낸 종료는 배선 오류를 못 잡는다). 잡기만 하고
+         부르지 않으므로 기존 테스트의 동작은 그대로다. */
+      whenReady: () => new Promise(() => {}), on: (ev, fn) => { appHandlers.set(ev, fn); },
+      once: (ev, fn) => { appHandlers.set(ev, fn); }, getPath: () => userData,
       getName: () => 'GODITOR', getVersion: () => '0.0.0-test', setAsDefaultProtocolClient: noop,
-      quit: noop, exit: noop, isPackaged: false, requestSingleInstanceLock: () => true,
+      quit: noop, exit: (code) => { exits.push(code === undefined ? 0 : code); }, isPackaged: false, requestSingleInstanceLock: () => true,
       commandLine: { appendSwitch: noop }, setAboutPanelOptions: noop, dock: { setIcon: noop },
       relaunch: noop, getLoginItemSettings: () => ({}), setLoginItemSettings: noop,
     },
     BrowserWindow: Object.assign(
       function () { return { loadFile: noop, loadURL: noop, on: noop, once: noop, webContents, show: noop, focus: noop, isDestroyed: () => false, close: noop }; },
       { getAllWindows: () => [], fromWebContents: () => null, getFocusedWindow: () => null }),
-    ipcMain: { handle: (c, f) => handlers.set(c, f), on: (c, f) => syncHandlers.set(c, f), removeHandler: (c) => handlers.delete(c), handleOnce: (c, f) => handlers.set(c, f), removeAllListeners: noop },
+    ipcMain: { handle: (c, f) => handlers.set(c, f), on: (c, f) => syncHandlers.set(c, f), once: (c, f) => syncHandlers.set(c, f), removeHandler: (c) => handlers.delete(c), handleOnce: (c, f) => handlers.set(c, f), removeAllListeners: noop },
     dialog: { showOpenDialog: async () => ({ canceled: true }), showSaveDialog: async () => ({ canceled: true }), showMessageBox: async () => ({ response: 0 }), showErrorBox: noop },
     /* ★shell.trashItem 을 «진짜로 옮기게» 만든다 — no-op 스텁이면 「휴지통에 갔나」를 못 재고,
      *   삭제 자체가 안 일어나 다른 테스트의 전제까지 무너진다(실제로 U5-2·RS1 이 그렇게 깨졌다).
@@ -78,6 +83,12 @@ function loadMain(opts) {
   return {
     userData, projectsDir, sent,
     trashDir: path.join(userData, '_Trash'),
+    /* ★[H4] electron 스텁 «그 자체» — 테스트가 BrowserWindow.getAllWindows 등을 갈아끼운다. */
+    stub,
+    /** app.on/once 으로 등록된 «진짜» 핸들러(before-quit 등). */
+    appHandlers,
+    /** app.exit(code) 가 불린 기록. 「조용히 죽었나 / 몇 번 죽었나」를 여기서 센다. */
+    exits,
     /** 휴지통 이동을 강제 실패시킨다(음성대조용). 인자 없이 부르면 해제.
      * @param {string} [msg] 던질 메시지
      * @param {string} [onlyPathContains] 주면 «경로에 이 문자열이 든 항목만» 실패한다(부분실패 재현) */
