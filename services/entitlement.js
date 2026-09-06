@@ -49,7 +49,13 @@ const PUBLIC_KEYS = Object.freeze({
 });
 
 /** 「이 키가 라이브와 대조됐는가」. 'unverified' → 'verified-YYYY-MM-DD'(E5).
- *  ★문장이 아니라 «검사»가 이걸 본다(entitlement.test.mjs ⓡ). 경고는 갈라짐을 못 막는다. */
+ *  ★이걸 «막는» 자리는 `tools/deploy-gate.js` 다 — release:mac/win 앞에서 돌고,
+ *    'verified-YYYY-MM-DD' 형식이 아니면 배포가 exit 1 로 «중단»된다.
+ *  ⛔단위검사(entitlement.test.mjs ⓡ)는 이걸 «못 막는다» — 거기서 하는 건 PEM 이
+ *    ed25519 형식인지 보는 것뿐이고, 한때 이 주석이 「검사가 본다」고 적혀 있었지만
+ *    실제 단언은 `typeof === 'string'` 이라 'unverified-…' 를 그대로 통과시켰다.
+ *    개발 중엔 통과해야 하는 값이라 단위검사에 걸면 매일 빨강이 된다 — 그래서
+ *    「개발은 통과, 배포는 차단」이 되는 릴리스 게이트 쪽에 뒀다. */
 const KEY_PROVENANCE = 'unverified-2026-09-06';
 
 /** 플레이스홀더 표식 — 값이 안 들어왔을 때 «검사가 실패하게» 하는 자리.

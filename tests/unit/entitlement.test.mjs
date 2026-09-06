@@ -370,8 +370,11 @@ test('ⓡ ★PUBLIC_KEYS 위생 — 플레이스홀더·테스트키면 실패 �
   const der = k.export({ type: 'spki', format: 'der' });
   assert.equal(der.length, 44);
   assert.equal(der.subarray(0, 12).toString('hex'), '302a300506032b6570032100');
-  /* ⚠️이 키가 «라이브 서버의 그 키»인지는 아직 교차검증 «안 됐다». E5 가 뒤집는 한 줄. */
-  assert.equal(typeof E.KEY_PROVENANCE, 'string');
+  /* ⚠️이 키가 «라이브 서버의 그 키»인지는 아직 교차검증 «안 됐다». E5 가 뒤집는 한 줄.
+   * ⛔여기서는 «형식만» 본다 — 'unverified-…' 도 통과한다. 개발 중엔 통과해야 하는
+   *   값이라 그렇다. 「대조 안 된 채로 배포」를 실제로 막는 건 tools/deploy-gate.js 다.
+   *   이 단언을 「출처가 확인됐다」로 읽지 마라. */
+  assert.match(E.KEY_PROVENANCE, /^(un)?verified-\d{4}-\d{2}-\d{2}$/);
 });
 
 test('ⓢ ★accessUntil: null (무기한) → valid · 통과 — 잠그면 결함이다', () => {
