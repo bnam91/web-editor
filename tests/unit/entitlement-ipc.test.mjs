@@ -266,6 +266,72 @@ test('U-ENT-B18 ★sid 불일치는 「위조」가 아니라 「없음」이다
   assert.equal(st.status, 'legacy_grace', '★L2(거부)가 아니라 L1(없음) 경로로 가야 한다');
 });
 
+/* ═══ ⑷'' ★«매 실행 재로그인 루프» — 한 바퀴로는 안 보인다 ═══════════════ */
+
+test('U-ENT-B19 ★루프: accessUntil:null 이 write→read 를 «두 바퀴» 돌아도 안 무너진다', async () => {
+  /* ★지디 실측(서버 api/license/login.js:112,174): **로그인 응답도 null 을 준다.**
+     ⇒ 병은 「한 번 저장이 되나」가 아니라 「반복해도 살아 있나」에 있다:
+        로그인 → '' 저장 → 다음 실행에 「기록 없음」 → 다시 로그인 → 1로 …  «영구 루프».
+     ⛔한 바퀴만 재면 「저장은 됐는데 두 번째에 무너지는」 경우를 못 본다.
+        결함이 «반복»에서 나므로 검사도 반복해야 그 결함을 «볼 수 있다». */
+  rmAuth();
+  stub.__login  = { ok: true, email: 'a@b.c', plan: 'pro', accessUntil: null, sessionToken: TOKEN };
+  stub.__verify = { ok: true, plan: 'pro', accessUntil: null };   // ★서명 없이 — plain 경로만 재는 것
+
+  // ── 1바퀴: login → writeAuth → (앱 재기동) → readAuth
+  await H.invoke('auth:login', 'a@b.c', 'pw');
+  assert.equal(getAuth().accessUntil, null, '1바퀴: 디스크가 «무기한»을 잃었다');
+  const st1 = await H.invoke('auth:state');
+  assert.equal(st1.email, 'a@b.c', '1바퀴: readAuth 가 기록을 버렸다 → 로그인 화면');
+  assert.equal(st1.perpetual, true, '1바퀴: 무기한이라는 «뜻»이 사라졌다');
+
+  // ── 2바퀴: 그 «읽은 결과»로 다시 write → 다시 read
+  const r2 = await H.invoke('auth:refresh');   // readAuth → applyServerAnswer → writeAuth
+  assert.equal(r2.ok, true, '2바퀴: 갱신이 실패했다');
+  assert.equal(getAuth().accessUntil, null, '★2바퀴: 두 번째 저장에서 «무기한»이 "" 로 무너졌다 — 여기가 루프의 입구다');
+  const st2 = await H.invoke('auth:state');
+  assert.equal(st2.email, 'a@b.c', '★2바퀴: 여기서 빈 값이면 «매 실행 재로그인 루프»가 그대로 산다');
+  assert.equal(st2.signedIn, st1.signedIn, '2바퀴: 판정이 바퀴마다 달라진다');
+  assert.equal(st2.perpetual, true);
+
+  // ── 3바퀴(덤): 값이 «수렴»하는지 — 바퀴를 돌수록 나빠지지 않아야 한다
+  await H.invoke('auth:refresh');
+  assert.equal(getAuth().accessUntil, null, '3바퀴: 늦게 무너지는 종류가 아닌지');
+  assert.equal((await H.invoke('auth:state')).email, 'a@b.c');
+});
+
+test('U-ENT-B20 ★verifySession 이 «말을 안 할» 때 — login 이 준 값이 그대로 디스크로 간다', async () => {
+  /* ★이 조합(로그인은 됐는데 /session 이 «침묵»)이 실제로 있었다 —
+     서버가 /session 을 404 로 두던 시절(authService 주석, 2026-08-06).
+     평소엔 verifySession 의 답이 login 값을 덮어써서 login 쪽 결함이 «가려진다».
+     ⚠️단, 이 파일은 authService 를 «스텁»으로 바꿔 놓았으므로 여기서 재는 것은
+       **main.js 가 받은 값을 뭉개지 않는가**이지 login() 자체가 아니다.
+       login() 의 `|| ''` 는 entitlement-authservice.test.mjs 의 A7·A8·A9 가 잡는다
+       (변이 M8·M10 이 그 셋만 빨갛게 하고 이 검사는 안 건드리는 것이 그 증거다). */
+  rmAuth();
+  stub.__login  = { ok: true, email: 'a@b.c', plan: 'pro', accessUntil: null, sessionToken: TOKEN };
+  stub.__verify = null;                       // ★서버가 말을 안 한다
+  await H.invoke('auth:login', 'a@b.c', 'pw');
+
+  assert.equal(getAuth().accessUntil, null,
+    '★login 이 "" 를 주면 여기서 "" 가 된다 — verifySession 이 가려 주지 못하는 유일한 조합');
+  const st = await H.invoke('auth:state');
+  assert.equal(st.email, 'a@b.c', '★기록은 살아 있어야 한다 (로그아웃 루프 금지)');
+  assert.equal(st.perpetual, true, '★「무기한」이라는 뜻이 남아 있어야 화면이 만료라고 거짓말하지 않는다');
+
+  /* ⛔그리고 «통과는 아니다» — 이건 결함이 아니라 «의도»다. 여기서 통과시키면
+     사용자가 auth.json 의 accessUntil 을 null 로 고치는 것만으로 무기한이 된다
+     (= 오늘 닫으려는 바로 그 구멍). 서명을 한 번 받아야 열린다. */
+  assert.equal(st.signedIn, false, '★서명 없는 accessUntil:null 을 통과시키면 «파일 편집 = 무기한» 이 된다');
+  assert.equal(st.pending, 'verify', '★문구는 「만료」가 아니라 「인터넷에 연결해 주세요」다');
+
+  // 연결되면 «사용자 개입 0» 으로 풀린다 — 잠금이 아니라 «대기»임을 보인다
+  stub.__verify = { ok: true, plan: 'pro', accessUntil: null, signed: issue({ accessUntil: null }) };
+  const r = await H.invoke('auth:refresh');
+  assert.equal(r.ok, true, '★연결 한 번으로 풀려야 한다 — 안 풀리면 그건 잠금이다');
+  assert.equal((await H.invoke('auth:state')).signedIn, true);
+});
+
 /* ═══ ⑸ 렌더러 미노출 (C6) ═════════════════════════════════════════════════ */
 
 test('U-ENT-B12 auth:state 응답에 sessionToken·payload·sig 가 «없다»', async () => {

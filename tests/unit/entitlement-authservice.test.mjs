@@ -11,6 +11,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import http from 'node:http';
 
 const require = createRequire(import.meta.url);
@@ -84,6 +85,38 @@ test('U-ENT-A6 회귀: 「말을 안 함」(5xx)은 여전히 null 이다 — �
 });
 
 /* ── 같은 병이 login() 에도 있었다 ──────────────────────────────────────── */
+
+test('U-ENT-A8 ★login 과 verifySession 이 «같은 함수»를 지난다 (한쪽만 고치면 재발한다)', () => {
+  /* ★지디 실측: 서버는 `login` 응답에도 `accessUntil: null` 을 넣는다
+     (`api/license/login.js:112,174`). ⇒ 두 경로가 «같은 값»을 지난다.
+     ⛔그런데 각자 변환하면 언젠가 한쪽만 고쳐진다 — 그래서 변환기를 «하나»로 둔 것이고,
+       그 사실을 «검사»로 박는다. 경고는 갈라짐을 못 막는다. */
+  const raw = readFileSync(new URL('../../services/authService.js', import.meta.url), 'utf8');
+  /* ★주석을 먼저 지우고 재다 — 안 그러면 설명 주석의 `|| ''` 가 계측기를 속인다. */
+  const src = raw.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  const body = (name) => {
+    const m = src.match(new RegExp(`async function ${name}\\([\\s\\S]*?\\n\\}`));
+    assert.ok(m, `${name} 을 못 찾았다 — 이름이 바뀌면 이 검사부터 고쳐라`);
+    return m[0];
+  };
+  for (const fn of ['login', 'verifySession']) {
+    const b = body(fn);
+    assert.ok(b.includes('accessUntilField(j)'), `★${fn} 이 공용 변환기를 안 쓴다`);
+    assert.equal(/accessUntil:\s*j\.accessUntil\s*\|\|/.test(b), false,
+      `★${fn} 에 옆길 «직접 박기» 가 다시 생겼다`);
+  }
+  assert.equal((src.match(/function accessUntilField\(/g) || []).length, 1,
+    '★변환기가 둘이 되면 그 순간 갈라진다');
+});
+
+test('U-ENT-A9 ★그래서 두 경로가 «같은 답»을 낸다 (동작으로 한 번 더)', async () => {
+  NEXT = { ok: true, email: 'a@b.c', plan: 'pro', accessUntil: null, sessionToken: 'tok' };
+  const a = await authService.login('a@b.c', 'pw');
+  NEXT = { ok: true, plan: 'pro', accessUntil: null };
+  const b = await authService.verifySession('a@b.c', 'tok');
+  assert.equal(a.accessUntil, b.accessUntil, '★한쪽만 뭉개면 그 경로로 들어온 사람에게서 루프가 재발한다');
+  assert.equal(a.accessUntil, null);
+});
 
 test('U-ENT-A7 ★login() 도 accessUntil:null 을 «null 그대로» 준다 (무기한 사용자의 «로그인» 경로)', async () => {
   NEXT = { ok: true, email: 'a@b.c', plan: 'pro', accessUntil: null, sessionToken: 'tok' };
