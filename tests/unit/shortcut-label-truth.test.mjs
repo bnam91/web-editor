@@ -24,10 +24,12 @@ import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
 import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 
 const require = createRequire(import.meta.url);
 const { loadMain } = require('./_ipc-harness.js');
-const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '../..');
+/* ⚠️new URL(...).pathname 은 윈도우에서 '/C:/…' 를 만든다 — fileURLToPath 로. */
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const H = loadMain();
 
 /** 렌더러 두 파일을 «진짜로» 돌린다. platform 으로 맥/윈도우를 가른다. */

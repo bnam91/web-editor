@@ -22,7 +22,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..', '..');
@@ -31,11 +31,16 @@ const ROOT = process.env.H2_ROOT ? path.resolve(process.env.H2_ROOT) : REPO;
 const require_ = createRequire(import.meta.url);
 const { mkTmpRoot } = require_(path.join(REPO, 'tests/unit/_tmproot.js'));
 
-/* 자 — ★항상 레포 원본 */
+/* 자 — ★항상 레포 원본.
+   ⚠️import() 에 «절대경로»를 그대로 주면 윈도우에서 'C:\\…' 가 되어
+     ERR_UNSUPPORTED_ESM_URL_SCHEME 로 거절당한다(파일이 통째로 안 돈다).
+     '/C:/…'(new URL().pathname 모양)·'\\C:\\…' 도 «틀린 고침»이다 — 실측으로 둘 다 실패.
+     정답은 pathToFileURL(p).href 하나뿐. */
+const modUrl = (...segs) => pathToFileURL(path.join(...segs)).href;
 const { judgeCrashLog, judgeMirrorMarker, CRASH_SCHEMA } =
-  await import(path.join(REPO, 'tools/hardening/judge/crashlog.mjs'));
-const { judgePii } = await import(path.join(REPO, 'tools/hardening/judge/pii.mjs'));
-const { piiSamples } = await import(path.join(REPO, 'tools/hardening/lib/fixture.mjs'));
+  await import(modUrl(REPO, 'tools/hardening/judge/crashlog.mjs'));
+const { judgePii } = await import(modUrl(REPO, 'tools/hardening/judge/pii.mjs'));
+const { piiSamples } = await import(modUrl(REPO, 'tools/hardening/lib/fixture.mjs'));
 
 /* 제품 — ★H2_ROOT */
 const crash = require_(path.join(ROOT, 'main/crash/index.js'));

@@ -24,10 +24,12 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 
 const require = createRequire(import.meta.url);
 const { loadMain } = require('./_ipc-harness.js');
-const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '../..');
+/* ⚠️new URL(...).pathname 은 윈도우에서 '/C:/…' 를 만든다(require 가 못 찾는다) — fileURLToPath 로. */
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const saveGuard = require(path.join(ROOT, 'main/quit/save-guard'));
 
 /* ⚠️main.js 는 «프로세스당 한 번만» 적재된다(모듈 싱글턴) — loadMain 을 두 번 부르면
