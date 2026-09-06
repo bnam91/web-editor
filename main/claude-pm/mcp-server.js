@@ -473,6 +473,83 @@ function _registerDefaultTools() {
     }
   );
 
+  /* ── list_projects (2026-09-06) ────────────────────────────────────────────
+   * 왜: create/open/read/duplicate_project 가 전부 「projectId 를 이미 안다」를 전제한다.
+   *     셀러가 상품을 여럿 굴리는 게 정상이라, 목록이 없으면 「저번에 만든 그 템플릿」을
+   *     클로드가 «스스로» 못 찾고 매번 사람이 id 를 대줘야 한다.
+   * ★실측(2026-09-06, 실사용 ud 62개)이 설계를 세 군데 바꿨다:
+   *   ⑴ 썸네일이 base64 라 «싣는 순간» 응답이 315,581B → 빼면 11,320B (28배). 옵션도 안 둔다.
+   *   ⑵ 62개 중 21개가 같은 이름 "Untitled" 이고 중복 이름이 3종 더 있다
+   *      ⇒ ★이름은 «키가 아니다». query 가 여러 개에 맞는 게 «정상»이라, 하나로 좁혀진 척하면
+   *        클로드가 첫 번째를 열고 그게 틀린 프로젝트다. matched>1 은 «다른 모양»으로 답한다.
+   *   ⑶ type·marketRef 는 실사용 전부 null → 뺀다. collabRef 는 협업이 붙으면 의미가 생기니 남긴다.
+   * ★readdir 실패를 「0개」로 답하지 않는다 — _listProjectsImpl 이 dirError 를 같이 준다. */
+  registerTool(
+    'list_projects',
+    async ({ limit = 100, query } = {}) => {
+      if (!_projectOps || typeof _projectOps.list !== 'function')
+        throw new Error('project ops not initialized (setProjectOps not called — app version too old?)');
+      if (!Number.isInteger(limit) || limit < 1 || limit > 200)
+        throw new Error(`invalid limit: ${limit} (integer 1~200)`);
+      if (query !== undefined && query !== null) {
+        if (typeof query !== 'string') throw new Error('query must be a string');
+        if (query.length > 100) throw new Error(`query too long (${query.length} > 100)`);
+      }
+      const r = _projectOps.list({ withDiag: true });
+      const all = (r && r.items) || [];
+      // ★「폴더를 못 읽었다」를 「프로젝트가 0개」로 답하지 않는다.
+      if (r && r.dirError) throw new Error(`cannot read projects directory: ${r.dirError}`);
+
+      const q = (query || '').trim().toLowerCase();
+      const hits = q ? all.filter(p => String(p.name || '').toLowerCase().includes(q)) : all;
+      // ⛔thumbnail(base64)·type·marketRef 는 «싣지 않는다» — 위 주석 ⑴⑶ 참고.
+      const slim = hits.slice(0, limit).map(p => ({
+        id: p.id, name: p.name, createdAt: p.createdAt, updatedAt: p.updatedAt,
+        favorite: !!p.favorite, collabRef: p.collabRef || null,
+      }));
+      const out = {
+        ok: true,
+        total: all.length,                 // 전체 프로젝트 수(질의 무관)
+        matched: hits.length,              // query 에 맞은 수
+        returned: slim.length,
+        truncated: hits.length > slim.length,
+        activeProjectId: _activeProjectId(),   // ★null 은 「편집기가 안 열렸다」지 「프로젝트가 없다」가 아니다
+        projects: slim,
+      };
+      /* ★1개일 때와 N개일 때는 «모양이 달라야» 한다. 같은 모양이면 클로드가 첫 줄을 집는다. */
+      if (q) {
+        if (hits.length === 1) {
+          out.unique = slim[0];
+        } else if (hits.length > 1) {
+          out.ambiguous = true;
+          out.hint = `query "${query}" matched ${hits.length} projects — names are NOT unique in Goditor `
+            + '(duplicates and many "Untitled" are normal). DO NOT pick one yourself: show the user the '
+            + 'id + name + updatedAt of the candidates and let them choose, then pass that id to open_project.';
+        } else {
+          out.hint = `query "${query}" matched nothing. Call list_projects without query to see all ${all.length}.`;
+        }
+      }
+      return out;
+    },
+    {
+      description: 'List Goditor projects (newest first by updatedAt) so you can find one WITHOUT being told its id — '
+        + 'the id you then pass to open_project / duplicate_project / read_project. '
+        + 'Returns {total, matched, returned, truncated, activeProjectId, projects:[{id,name,createdAt,updatedAt,favorite,collabRef}]}. '
+        + 'Thumbnails are never returned (they are base64 and would blow up the response). '
+        + 'NOTE: project names are NOT unique — duplicates and many "Untitled" are normal, so when a query matches '
+        + 'several, ask the user which id rather than guessing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          limit: { type: 'integer', minimum: 1, maximum: 200, description: 'max projects to return (default 100).' },
+          query: { type: 'string', maxLength: 100, description: 'case-insensitive substring match on the project name. May match several — see the note above.' }
+        },
+        required: []
+      }
+    }
+  );
+
+
   registerTool(
     'duplicate_project',
     async ({ sourceProjectId, newName } = {}) => {

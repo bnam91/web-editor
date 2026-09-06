@@ -1425,15 +1425,22 @@ ipcMain.handle('ai:deleteImage', (_e, { projectId, blobPath } = {}) => {
   }
 });
 
-ipcMain.handle('projects:list', () => {
+/* ── 목록 코어 ──────────────────────────────────────────────────────────────
+   ipcMain.handle('projects:list')(렌더러)와 MCP list_projects(main)가 «공용»한다.
+   (projects:save 가 _saveProjectImpl 을 공용하는 것과 같은 패턴.)
+   ★opts.withDiag — readdir 실패를 «빈 배열»로 삼키면 「프로젝트가 0개」와 「폴더를 못 읽었다」가
+     «구분이 안 된다». 렌더러는 예전처럼 배열만 받고(동작 무변경), MCP 만 진단을 같이 받아
+     둘을 다른 응답으로 갈라 낸다. */
+function _listProjectsImpl(opts) {
   // 번들 레이아웃: PROJECTS_DIR 안의 proj_<id>/proj.json + 아직 마이그 안 된 flat proj_<id>.json 둘 다 인식.
   // 중복 ID는 신 위치 우선.
   const seen = new Set();
   const items = [];
 
   let entries = [];
+  let dirError = null;
   try { entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true }); }
-  catch { entries = []; }
+  catch (e) { entries = []; dirError = (e && e.message) || String(e); }
 
   // 1) 신 레이아웃 우선: proj_<id>/proj.json — [b8] 메타 우선(무거운 proj.json 풀파싱 회피)
   for (const ent of entries) {
@@ -1472,8 +1479,9 @@ ipcMain.handle('projects:list', () => {
   }
 
   items.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-  return items;
-});
+  return (opts && opts.withDiag) ? { items, dirError } : items;
+}
+ipcMain.handle('projects:list', () => _listProjectsImpl());
 
 /* ── [externalize] 열 때 정책 (DESIGN-asset-batch-externalize.md §3-2 ①·§3-3·§4-C) ──
    렌더러가 «프로젝트를 연다»고 알린 로드(opts.open)에서만 동작. 저장 경로의 loadProject(기존본 병합)에선 안 돈다.
@@ -3092,7 +3100,7 @@ app.whenReady().then(async () => {
     }
     // 프로젝트 단위 코어 주입 — MCP duplicate_project/create_project/open_project 도구가 사용.
     if (typeof setMcpProjectOps === 'function') {
-      setMcpProjectOps({ duplicate: _duplicateProjectImpl, create: _createProjectImpl, open: _openProjectImpl });
+      setMcpProjectOps({ duplicate: _duplicateProjectImpl, create: _createProjectImpl, open: _openProjectImpl, list: _listProjectsImpl });
     }
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
