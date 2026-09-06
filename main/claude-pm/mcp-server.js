@@ -1982,6 +1982,8 @@ function _registerDefaultTools() {
     if (!ok) {
       throw new Error('imgSrc must be data:image/* (base64), http(s)://, or assets/...');
     }
+    // ★put_image 와 «같은 7MB 상한» 이라 노출이 같다 — 한쪽 문만 잠그지 않는다(지디 2026-09-07).
+    _assertImageSrcIntact(src, 'imgSrc');
   }
 
   registerTool(
@@ -4354,6 +4356,9 @@ function _validateBanner02Opts(args, { mode } = {}) {
     if (typeof args.imgSrc !== 'string') throw new Error('imgSrc must be string');
     if (args.imgSrc.length > 200000) throw new Error('imgSrc too long (>200000)');
     if (/["\r\n]/.test(args.imgSrc)) throw new Error('imgSrc contains quote/newline (escape unsafe)');
+    // ★put_image 와 «같은» 검사 함수를 부른다 — 겹을 새로 만들지 않는다(지디 2026-09-07).
+    //   상한(200000자)은 «양»을 막지 «구조»를 못 막는다. 잘린 PNG 는 크기와 무관하다.
+    _assertImageSrcIntact(args.imgSrc, 'imgSrc');
     out.imgSrc = args.imgSrc;
   }
   _int('imgX', -4000, 4000); _int('imgY', -4000, 4000);
@@ -5555,6 +5560,9 @@ function _validateStickerOpts(args, { mode } = {}) {
     if (args.imgSrc !== '' && !/^(data:image\/|https?:\/\/|assets\/)/.test(args.imgSrc)) {
       throw new Error('imgSrc must start with data:image/, http(s)://, or assets/ (or "" to clear)');
     }
+    // ★put_image 와 «같은» 검사 함수를 부른다 — 겹을 새로 만들지 않는다(지디 2026-09-07).
+    //   상한(200000자)은 «양»을 막지 «구조»를 못 막는다. 잘린 PNG 는 크기와 무관하다.
+    _assertImageSrcIntact(args.imgSrc, 'imgSrc');
     out.imgSrc = args.imgSrc;
   }
 
@@ -5736,28 +5744,43 @@ function _validateDividerOpts(args, { mode } = {}) {
 /* ★왜 있나 — 실측으로 생긴 함수다.
  *   클로드 데스크톱에 사진을 첨부해 「넣어줘」 하면, 모델이 자기 샌드박스에서 파일을 읽어
  *   base64 «문자열»로 만들어 도구 인자로 나른다. 그 과정에서 문자열이 «잘렸다».
- *   실측(2026-09-07): 원본 4,849B(sha 1df744f1…) → 모델 샌드박스 4,849B «동일» →
- *   고디터에 들어간 것 3,472B(sha a57afb24…). IHDR 이 선언한 IDAT 길이는 4,792B 인데
- *   파일 전체가 3,472B 였다 = «잘린 PNG».
- *   그런데 우리 검사는 ⑴접두사 정규식 ⑵길이 상한 «둘뿐»이라 그게 그대로 통과해
- *   깨진 파일이 «성공»으로 저장됐다. 사용자는 한참 뒤 깨진 페이지를 발견한다.
- *   ⇒ 「돌아는 가는데 효과가 0」보다 나쁘다. 「돌아가는데 결과가 손상된다」다.
+ *   실측: 원본 4,849B(sha 1df744f1…) → 모델 샌드박스 4,849B «동일» →
+ *        고디터 3,472B(sha a57afb24…). IHDR 이 선언한 IDAT 길이는 4,792B 였다.
+ *   그런데 검사가 ⑴접두사 정규식 ⑵길이 상한 «둘뿐»이라 그대로 통과해
+ *   깨진 파일이 «성공»으로 저장됐다. 「돌아가는데 결과가 손상된다」는 「효과 0」보다 나쁘다.
  *
- * ★원칙 넷 (지디 2026-09-07):
- *  ⑴ ⛔거절이지 «수선»이 아니다. 잘린 걸 우리가 복구하려 들지 않는다.
- *  ⑵ ⛔검사 못 하는 포맷을 «막지» 않는다. jpeg/gif/webp 는 구조 검사를 못 하니
- *     디코드+매직바이트까지만 보고 통과시킨다. 「검사 못 함」을 「실패」로 만들면 되던 게 안 된다.
+ * ★원칙 넷:
+ *  ⑴ ⛔거절이지 «수선»이 아니다 — 잘린 «그림»을 복구하려 들지 않는다.
+ *     ⚠️단 «표기»의 정규화(공백/줄바꿈/패딩)는 수선이 아니라 «읽기»다. 아래 ★오탐 참조.
+ *  ⑵ ⛔검사 못 하는 포맷을 막지 않는다. 「검사 못 함」을 「실패」로 만들면 되던 게 안 된다.
  *  ⑶ ★«어디까지 봤는지»를 응답에 적는다(checked). 통과가 「온전함이 증명됨」이 아닐 수 있다.
- *  ⑷ ★숫자로 말한다 — 몇 바이트 받았고 몇을 기대했나. 모델이 그걸 읽고 다시 시도해야 한다.
+ *  ⑷ ★숫자로 말한다 — 몇 바이트 받았고 몇을 기대했나.
  *
- * ⛔이 함수는 «한 곳»이다. put_image / _validateAssetOpts(=update_asset_block,
- *   update_block(ab_)) 가 «이것만» 부른다. 한 곳만 고치면 옆 필드를 빠뜨린다.
+ * ★오탐이 «구멍보다» 나쁘다 (적대검수 2026-09-07 에서 3건 잡힘):
+ *   첫 판에서 ⓐ76열로 줄바꿈된 base64(파이썬 `base64.encodebytes` 기본값) ⓑ공백 섞인 base64
+ *   ⓒ패딩(=) 없는 «완전한» base64 — 셋 다 디코드하면 원본과 sha256 이 «같은데» 거절했다.
+ *   게다가 「잘려서 들어왔습니다, 원본을 다시 보내세요」라고 **원인을 거짓으로** 말했다.
+ *   ⇒ 표기 차이는 «정규화해서 읽는다». 거절은 «바이트가 실제로 모자랄 때»만.
+ *
+ * ★선언 mime 을 믿지 않는다:
+ *   `image/jpg`(흔한 오타) `image/x-png` `data:IMAGE/PNG` `;charset=` 같은 표기가
+ *   구조 검사를 통째로 우회시켰다(적대검수). ⇒ 형식은 «매직바이트로 판정»하고,
+ *   선언 mime 은 «대조용»으로만 쓴다.
+ *
+ * ⛔검사는 «한 곳»이다 — put_image / _validateAssetOpts / Banner02 / Sticker /
+ *   IconCircle / IconText / _validateMkpImgSrc 가 «이것만» 부른다.
  */
-const _IMG_MAGIC = {
-  'image/png':  [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
-  'image/jpeg': [[0xff, 0xd8, 0xff]],
-  'image/gif':  [[0x47, 0x49, 0x46, 0x38, 0x37, 0x61], [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]],
-  'image/webp': [[0x52, 0x49, 0x46, 0x46]] // "RIFF" + 4바이트 크기 + "WEBP"
+const _IMG_SNIFF = [
+  { fmt: 'png',  mime: 'image/png',  sig: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+  { fmt: 'jpeg', mime: 'image/jpeg', sig: [0xff, 0xd8, 0xff] },
+  { fmt: 'gif',  mime: 'image/gif',  sig: [0x47, 0x49, 0x46, 0x38, 0x37, 0x61] },
+  { fmt: 'gif',  mime: 'image/gif',  sig: [0x47, 0x49, 0x46, 0x38, 0x39, 0x61] },
+  { fmt: 'webp', mime: 'image/webp', sig: [0x52, 0x49, 0x46, 0x46] } // RIFF … WEBP
+];
+// 같은 그림을 가리키는 «다른 이름»들. 오타(jpg)까지 받아 준다 — 이름 때문에 검사를 건너뛰면 안 된다.
+const _MIME_ALIAS = {
+  'image/jpg': 'image/jpeg', 'image/pjpeg': 'image/jpeg',
+  'image/x-png': 'image/png', 'image/apng': 'image/png'
 };
 
 function _imgErr(message, detail) {
@@ -5768,12 +5791,32 @@ function _imgErr(message, detail) {
   e.detail = detail || {};
   return e;
 }
+function _truncMsg(field, what, got, need, extra) {
+  return `${field}: 이미지가 «잘려서» 들어왔습니다 — 저장하지 않았습니다. ${what} `
+    + `받은 전체 ${got}바이트 / 최소 ${need}바이트가 필요합니다.${extra ? ' ' + extra : ''} `
+    + `⛔우리가 복구하지 않습니다 — 원본을 «다시» 통째로 보내 주세요.`;
+}
 
-/* PNG 청크를 걸어가며 «선언한 길이»와 «실제 남은 바이트»를 대조한다.
-   잘린 파일은 여기서 잡힌다 — 헤더는 멀쩡하고 IDAT 만 모자라기 때문이다. */
-function _checkPngStructure(buf, field) {
-  let pos = 8; // 시그니처는 호출자가 이미 확인했다
-  let sawIHDR = false, sawIEND = false;
+const _CRC_TABLE = (() => {
+  const t = new Int32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c;
+  }
+  return t;
+})();
+function _crc32(buf, from, to) {
+  let crc = -1;
+  for (let i = from; i < to; i++) crc = _CRC_TABLE[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
+  return (crc ^ -1) >>> 0;
+}
+
+/* PNG: 청크를 걸어가며 «선언 길이 ↔ 실제 잔여»와 «CRC»를 본다.
+   CRC 까지 보는 이유 — 길이 필드를 작게 위조하면 길이 대조만으로는 통과한다(적대검수에서 뚫림).
+   5MB 기준 CRC32 는 수십 ms 다(§성능). 그 값으로 「잘렸는데 통과」를 없앤다. */
+function _checkPng(buf, field) {
+  let pos = 8, sawIHDR = false, sawIEND = false;
   while (pos + 8 <= buf.length) {
     const declared = buf.readUInt32BE(pos);
     const type = buf.toString('latin1', pos + 4, pos + 8);
@@ -5782,18 +5825,24 @@ function _checkPngStructure(buf, field) {
         { reason: 'PNG_NO_IHDR', firstChunk: type, decodedBytes: buf.length });
     }
     if (type === 'IHDR') sawIHDR = true;
-    const need = pos + 12 + declared;              // 길이4 + 타입4 + 데이터 + CRC4
+    const need = pos + 12 + declared;
     if (need > buf.length) {
-      const available = buf.length - (pos + 8);
-      throw _imgErr(
-        `${field}: 이미지가 «잘려서» 들어왔습니다 — 저장하지 않았습니다. `
-        + `PNG 청크 "${type}"(offset ${pos})가 ${declared}바이트를 선언했는데 `
-        + `남은 것은 ${available}바이트뿐입니다. `
-        + `받은 전체 ${buf.length}바이트 / 이 청크까지만 해도 ${need}바이트가 필요합니다. `
-        + `⛔우리가 복구하지 않습니다 — 원본을 «다시» 통째로 보내 주세요.`,
+      throw _imgErr(_truncMsg(field,
+        `PNG 청크 "${type}"(offset ${pos})가 ${declared}바이트를 선언했는데 남은 것은 ${buf.length - (pos + 8)}바이트뿐입니다.`,
+        buf.length, need),
         { reason: 'PNG_CHUNK_TRUNCATED', chunk: type, offset: pos,
-          declaredChunkBytes: declared, availableBytes: available,
+          declaredChunkBytes: declared, availableBytes: buf.length - (pos + 8),
           decodedBytes: buf.length, expectedAtLeastBytes: need });
+    }
+    const want = buf.readUInt32BE(need - 4);
+    const got = _crc32(buf, pos + 4, need - 4);
+    if (want !== got) {
+      throw _imgErr(
+        `${field}: PNG 청크 "${type}"(offset ${pos})의 CRC 가 맞지 않습니다 — 내용이 손상됐습니다 `
+        + `(선언 ${want.toString(16)} / 실제 ${got.toString(16)}, 받은 전체 ${buf.length}바이트). `
+        + `⛔우리가 복구하지 않습니다 — 원본을 «다시» 통째로 보내 주세요.`,
+        { reason: 'PNG_CRC_MISMATCH', chunk: type, offset: pos,
+          declaredCrc: want, actualCrc: got, decodedBytes: buf.length });
     }
     pos = need;
     if (type === 'IEND') { sawIEND = true; break; }
@@ -5803,72 +5852,115 @@ function _checkPngStructure(buf, field) {
       { reason: 'PNG_NO_IHDR', decodedBytes: buf.length });
   }
   if (!sawIEND) {
-    throw _imgErr(
-      `${field}: 이미지가 «잘려서» 들어왔습니다 — 저장하지 않았습니다. `
-      + `PNG 가 IEND 로 끝나지 않습니다 (받은 ${buf.length}바이트, ${pos}바이트에서 끊김). `
-      + `⛔우리가 복구하지 않습니다 — 원본을 «다시» 통째로 보내 주세요.`,
+    throw _imgErr(_truncMsg(field, `PNG 가 IEND 로 끝나지 않습니다 (${pos}바이트에서 끊김).`, buf.length, pos + 12),
       { reason: 'PNG_NO_IEND', decodedBytes: buf.length, stoppedAt: pos });
   }
   return { trailingBytes: buf.length - pos };
+}
+/* JPEG 는 EOI(FF D9)로 끝난다. 잘리면 그게 없다. */
+function _checkJpeg(buf, field) {
+  if (buf.length < 4 || buf[buf.length - 2] !== 0xff || buf[buf.length - 1] !== 0xd9) {
+    const tail = Array.from(buf.slice(Math.max(0, buf.length - 2)))
+      .map(b => b.toString(16).padStart(2, '0')).join(' ');
+    throw _imgErr(_truncMsg(field,
+      `JPEG 가 EOI(ff d9)로 끝나지 않습니다 — 끝 2바이트가 [${tail}] 입니다.`, buf.length, buf.length + 2),
+      { reason: 'JPEG_NO_EOI', decodedBytes: buf.length, lastBytesHex: tail });
+  }
+  return {};
+}
+/* GIF 는 trailer 0x3B 로 끝난다. */
+function _checkGif(buf, field) {
+  if (buf.length < 14 || buf[buf.length - 1] !== 0x3b) {
+    throw _imgErr(_truncMsg(field,
+      `GIF 가 trailer(0x3b)로 끝나지 않습니다 — 끝 바이트가 0x${(buf[buf.length - 1] || 0).toString(16)} 입니다.`,
+      buf.length, buf.length + 1),
+      { reason: 'GIF_NO_TRAILER', decodedBytes: buf.length });
+  }
+  return {};
+}
+/* WebP 는 RIFF 헤더 4~8바이트가 «그 뒤 전체 길이»를 선언한다 — 잘리면 그 숫자가 안 맞는다. */
+function _checkWebp(buf, field) {
+  if (buf.length < 12 || buf.toString('latin1', 8, 12) !== 'WEBP') {
+    throw _imgErr(`${field}: RIFF 컨테이너인데 WEBP 가 아닙니다 (받은 ${buf.length}바이트).`,
+      { reason: 'WEBP_BAD_CONTAINER', decodedBytes: buf.length });
+  }
+  const declared = buf.readUInt32LE(4);
+  const need = declared + 8;
+  if (buf.length < need) {
+    throw _imgErr(_truncMsg(field,
+      `WebP RIFF 헤더가 전체 ${need}바이트를 선언했습니다.`, buf.length, need),
+      { reason: 'WEBP_TRUNCATED', declaredTotalBytes: need, decodedBytes: buf.length });
+  }
+  return { trailingBytes: buf.length - need };
 }
 
 /* src 가 data:image/* dataURL 일 때만 «온전한가»를 본다.
    http(s)/assets//blob: 등 우리가 바이트를 안 가진 것은 검사 대상이 아니다 — 그대로 통과. */
 function _assertImageSrcIntact(src, field = 'image') {
   if (typeof src !== 'string' || !src) return { checked: 'skipped:not-a-string' };
-  const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]*)$/.exec(src);
+  // ★대소문자·부가 파라미터(;charset=…)를 «허용»한다 — 이것 때문에 검사를 건너뛰면 우회로가 된다.
+  const m = /^data:([^;,]*)((?:;[^;,]*)*);base64,([\s\S]*)$/i.exec(src);
   if (!m) return { checked: 'skipped:not-a-data-url' };
-  const mime = m[1].toLowerCase();
-  const b64 = m[2];
+  const declaredRaw = m[1].trim().toLowerCase();
+  if (!declaredRaw.startsWith('image/')) return { checked: 'skipped:not-an-image-data-url' };
+  const declared = _MIME_ALIAS[declaredRaw] || declaredRaw;
+
+  // ⑴ base64 «읽기» — 표기 정규화는 수선이 아니다.
+  //    공백/줄바꿈 제거(파이썬 base64.encodebytes 는 76열로 감는다) + 패딩 보정.
+  const b64 = m[3].replace(/\s+/g, '');
   if (!b64) {
     throw _imgErr(`${field}: dataURL 에 base64 본문이 없습니다 (0바이트).`,
       { reason: 'EMPTY_PAYLOAD', base64Chars: 0, decodedBytes: 0 });
   }
-  // ⑴ base64 디코드 — Node 의 Buffer 는 «관대»해서 이상한 글자를 조용히 버린다. 우리가 먼저 본다.
-  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(b64)) {
-    throw _imgErr(`${field}: base64 에 허용되지 않는 문자가 있습니다 — 전송 중 손상된 것으로 봅니다 (${b64.length}자 받음).`,
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) {
+    throw _imgErr(`${field}: base64 에 허용되지 않는 문자가 있습니다 — 전송 중 손상된 것으로 봅니다 (${b64.length}자).`,
       { reason: 'BASE64_BAD_CHARS', base64Chars: b64.length });
   }
-  if (b64.length % 4 !== 0) {
-    const expected = Math.ceil(b64.length / 4) * 4;
+  const rem = b64.length % 4;
+  if (rem === 1) {
     throw _imgErr(
-      `${field}: base64 길이가 4의 배수가 아닙니다 — «잘린» 것으로 봅니다. `
-      + `${b64.length}자 받음 / 최소 ${expected}자 기대. ⛔우리가 채우지 않습니다 — 원본을 다시 보내 주세요.`,
-      { reason: 'BASE64_LENGTH', base64Chars: b64.length, expectedBase64Chars: expected });
+      `${field}: base64 길이가 ${b64.length}자로 «있을 수 없는» 값입니다(4로 나눈 나머지 1) — 잘린 것으로 봅니다. `
+      + `⛔우리가 채우지 않습니다 — 원본을 다시 보내 주세요.`,
+      { reason: 'BASE64_LENGTH', base64Chars: b64.length });
   }
+  // 나머지 2·3 은 «패딩이 빠진 정상 base64»다(RFC 4648 에서 패딩은 생략 가능).
+  // ⛔여기서 '=' 를 채워 주지 «않는다» — Node 의 Buffer.from(s,'base64') 가 이미 패딩 없이 읽는다
+  //    (실측: "AQIDBAU" → 5바이트, 패딩본과 동일). 채우는 줄을 넣었더니 «변이해도 초록»이었다
+  //    = 아무도 그 줄을 안 쓴다는 뜻이라 지웠다. 나머지 1 만 «있을 수 없는» 값이라 위에서 막는다.
   const buf = Buffer.from(b64, 'base64');
   if (buf.length === 0) {
-    throw _imgErr(`${field}: base64 를 디코드했더니 0바이트입니다 (${b64.length}자 받음).`,
+    throw _imgErr(`${field}: base64 를 디코드했더니 0바이트입니다 (${b64.length}자).`,
       { reason: 'DECODE_EMPTY', base64Chars: b64.length, decodedBytes: 0 });
   }
-  // ⑵ 매직바이트 ↔ 선언 mime
-  const magics = _IMG_MAGIC[mime];
-  if (!magics) {
-    // 모르는 mime 은 «막지 않는다». 어디까지 봤는지만 적는다.
-    return { checked: 'decode-only', format: mime, bytes: buf.length,
-             note: `mime "${mime}" 은 매직바이트 표에 없어 디코드까지만 확인했습니다.` };
-  }
-  const hit = magics.some(sig => sig.every((b, i) => buf[i] === b));
-  if (!hit) {
+
+  // ⑵ 형식은 «매직바이트로 판정»한다. 선언 mime 은 대조용일 뿐이다.
+  const sniffed = _IMG_SNIFF.find(e => e.sig.every((b, i) => buf[i] === b)) || null;
+  if (sniffed && declared !== sniffed.mime && _IMG_SNIFF.some(e => e.mime === declared)) {
+    // 선언도 «우리가 아는» 형식인데 실제와 다르다 → 확장자만 바꾼 파일이거나 손상.
     const got = Array.from(buf.slice(0, Math.min(8, buf.length)))
       .map(b => b.toString(16).padStart(2, '0')).join(' ');
     throw _imgErr(
-      `${field}: 선언한 형식(${mime})과 실제 내용이 다릅니다 — 앞 바이트가 [${got}] 입니다 `
-      + `(받은 ${buf.length}바이트). 확장자만 바꾼 파일이거나 전송 중 손상된 것입니다.`,
-      { reason: 'MAGIC_MISMATCH', declaredMime: mime, firstBytesHex: got, decodedBytes: buf.length });
+      `${field}: 선언한 형식(${declaredRaw})과 실제 내용(${sniffed.mime})이 다릅니다 — 앞 바이트 [${got}] `
+      + `(받은 ${buf.length}바이트).`,
+      { reason: 'MAGIC_MISMATCH', declaredMime: declaredRaw, sniffedMime: sniffed.mime,
+        firstBytesHex: got, decodedBytes: buf.length });
   }
-  if (mime === 'image/webp' && (buf.length < 12 || buf.toString('latin1', 8, 12) !== 'WEBP')) {
-    throw _imgErr(`${field}: RIFF 컨테이너인데 WEBP 가 아닙니다 (받은 ${buf.length}바이트).`,
-      { reason: 'MAGIC_MISMATCH', declaredMime: mime, decodedBytes: buf.length });
+  if (!sniffed) {
+    // 모르는 형식은 «막지 않는다». 어디까지 봤는지만 적는다.
+    return { checked: 'decode-only', format: declaredRaw, bytes: buf.length,
+             note: `내용이 아는 형식(png/jpeg/gif/webp)이 아니어서 디코드까지만 확인했습니다.` };
   }
-  // ⑶ 구조 검사 — PNG 만 «끝까지» 볼 수 있다.
-  if (mime === 'image/png') {
-    const r = _checkPngStructure(buf, field);
-    return { checked: 'png-structure', format: mime, bytes: buf.length,
-             trailingBytes: r.trailingBytes };
+
+  // ⑶ 구조 검사 — «판정된» 형식으로. 선언 mime 의 오타(image/jpg 등)로 건너뛰지 않는다.
+  let extra;
+  switch (sniffed.fmt) {
+    case 'png':  extra = _checkPng(buf, field);  break;
+    case 'jpeg': extra = _checkJpeg(buf, field); break;
+    case 'gif':  extra = _checkGif(buf, field);  break;
+    case 'webp': extra = _checkWebp(buf, field); break;
   }
-  return { checked: 'magic-bytes', format: mime, bytes: buf.length,
-           note: `${mime} 는 구조 검사를 하지 않습니다 — 디코드와 매직바이트까지만 확인했습니다.` };
+  return { checked: `${sniffed.fmt}-structure`, format: sniffed.mime, bytes: buf.length,
+           declaredMime: declaredRaw !== sniffed.mime ? declaredRaw : undefined, ...extra };
 }
 
 // ─── asset-block validator ───
@@ -6209,6 +6301,9 @@ function _validateIconCircleOpts(args, { mode } = {}) {
     if (typeof args.imgSrc !== 'string') throw new Error('imgSrc must be string');
     if (args.imgSrc.length > 200000) throw new Error('imgSrc too long (>200000)');
     if (/["\r\n]/.test(args.imgSrc)) throw new Error('imgSrc contains quote/newline (escape unsafe)');
+    // ★put_image 와 «같은» 검사 함수를 부른다 — 겹을 새로 만들지 않는다(지디 2026-09-07).
+    //   상한(200000자)은 «양»을 막지 «구조»를 못 막는다. 잘린 PNG 는 크기와 무관하다.
+    _assertImageSrcIntact(args.imgSrc, 'imgSrc');
     out.imgSrc = args.imgSrc;
   }
 
@@ -6564,6 +6659,9 @@ function _validateIconTextOpts(args, { mode } = {}) {
         /^assets\//i.test(s);
       if (!okProto) throw new Error('imgSrc protocol not allowed (use data:image/*, http(s)://, blob:, or assets/)');
     }
+    // ★put_image 와 «같은» 검사 함수를 부른다 — 겹을 새로 만들지 않는다(지디 2026-09-07).
+    //   상한(200000자)은 «양»을 막지 «구조»를 못 막는다. 잘린 PNG 는 크기와 무관하다.
+    _assertImageSrcIntact(args.imgSrc, 'imgSrc');
     out.imgSrc = args.imgSrc;
   }
 
