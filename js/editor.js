@@ -141,6 +141,34 @@ function initFileTabToggle() {
    ZOOM
 ═══════════════════════════════════ */
 const CANVAS_W = 860;
+/* ★[M67] 휠 줌의 «단위»는 %p 가 아니라 «배율»이다.
+   [실측 260906 맥 9386, tools/perf/comfort-bench.mjs · 윈도우는 지디 팀 보고(내가 잰 것 아님)]
+     휠 한 노치(deltaY −100 도 −120 도 도 −53 도) → 100→130→160→190→220→250 «항상 +30%p».
+     옛 식 `Math.max(-30, Math.min(30, Math.round(d*2)))` 은 d=100 이면 200 이라 «무슨 값이 와도»
+     상한에 포화한다 ⇒ 노치의 세기가 입력과 무관해지고, 120 을 주는 맥과 100 을 주는 윈도우가
+     구분되지 않는다(기기 성능 문제로 오해하기 딱 좋은 자리다).
+   ⇒ 그런데 진짜 병은 포화가 아니라 «덧셈»이다. 같은 +30%p 가 배율마다 다른 뜻이 된다:
+        40% 에서 +30%p = ×1.75(사납다)   ·   200% 에서 +30%p = ×1.15(굼뜨다)
+        줌아웃은 100→70→40→10 — «세 노치»에 바닥을 치고 그 뒤로는 아무 반응도 없다.
+        ★더 나쁜 건 초기 배율이다: 40% 에서 줌아웃 «한 노치»면 곧장 10%(실측 40→10→10→10).
+   ⇒ %p 를 «더하는» 대신 «비율을 곱한다»(피그마·포토샵·브라우저 줌이 그렇다). 노치 하나 = ×1.2 면
+     40→48 과 200→240 이 «같은 배율 변화»라 어디서 돌려도 같은 정도로 느껴진다.
+     대가: 40%(초기 배율)에서 100% 까지 2노치 → 6노치로 «느려진다». 그 대신 바닥까지 1노치 → 8노치,
+           400% 까지 10노치 → 12노치가 되어 «양 끝이 살아난다». 사나운 쪽을 깎아 굼뜬 쪽에 준 것이다.
+   ⛔zoomStep 의 인자 뜻은 «그대로 %p» 다 — 비율은 zoomByRatio 가 그 자리에서 %p 로 바꿔 넣는다.
+     ⇒ ⌘+/−(:1797,1801)·툴바 ± 버튼(index.html:555,559)의 체감은 «한 글자도» 안 바뀐다. */
+const ZOOM_RATIO_PER_NOTCH = 1.2;
+/* 마우스 휠 «한 노치»로 칠 최소 deltaY. 맥 120·윈도우 100·리눅스 53 이 전부 «노치 하나»다 ⇒
+   크기가 아니라 «개수»로 세야 기기가 달라도 체감이 같다. 트랙패드 핀치는 한 자릿수로 들어온다. */
+const WHEEL_NOTCH_MIN_DELTA = 40;
+/* 트랙패드 핀치는 연속량이라 개수로 못 센다 — deltaY 10 을 노치 하나로 환산한다.
+   ★이 10 은 «옛 체감을 100% 배율에서 그대로 재현»하도록 고른 값이다:
+     옛 식 100% 에서  d=10 → 120%(×1.2) · d=3 → 106%(×1.06)
+     새 식            d=10 → 1.2^1.0 = ×1.200 · d=3 → 1.2^0.3 = ×1.056  — 같은 자리에서 같은 세기. */
+const PINCH_DELTA_PER_NOTCH = 10;
+/* 한 스로틀 틱(16ms)에 몰린 입력의 상한. 옛 판의 ±30%p 클램프가 하던 «폭주 방지»를 잇는다
+   (상한에 걸려도 ×1.728 — 옛 판이 40% 에서 한 노치에 내던 ×1.75 를 넘지 않는다). */
+const ZOOM_MAX_NOTCHES_PER_TICK = 3;
 let currentZoom = 40;
 const scaler = document.getElementById('canvas-scaler');
 const zoomDisplay = document.getElementById('zoom-display');
@@ -183,7 +211,11 @@ function applyZoom(z, opts) {
       _anchorU = Math.max(0, Math.min(1, (_anchorVpMid - cr.top) / cr.height));
     }
   }
-  currentZoom = Math.min(400, Math.max(10, z));
+  /* ★[M67] 곱셈 스텝은 정수로 안 떨어진다(100 → 120 → 144 → 172.8 …). 소수 2자리로 «정착»시켜
+     ⑴ 저장 데이터에 172.79999999999998 같은 부동소수 먼지가 안 들어가게 하고
+     ⑵ zoomStep 의 `newZoom === currentZoom` 조기반환이 같은 눈금 위에서 비교되게 한다.
+     정수 반올림은 안 쓴다 — 10%대에서 반올림 오차가 «노치 간격»(20%)의 1/4까지 먹어 균일성을 깬다. */
+  currentZoom = Math.round(Math.min(400, Math.max(10, z)) * 100) / 100;
   /* ★[M44] 배율을 «세우는» 경로는 팬 잔여를 반드시 버린다 — 안 버리면 ×(s_new/s_old) 래칫이 된다.
      panOffsetX/Y 는 «그 배율에서» 스크롤이 못 삼킨 «화면 px» 잔여다. 배율이 바뀌면 같은 숫자가
      다른 뜻이 된다. zoomStep 은 그 사실을 알고 «재계산 전에» 0 으로 비우고 앵커를 다시 잡는데
@@ -201,7 +233,7 @@ function applyZoom(z, opts) {
   panOffsetY = 0;
   window.currentZoom = currentZoom;
   _applyScalerTransformAndSync();
-  zoomDisplay.textContent = currentZoom + '%';
+  zoomDisplay.textContent = Math.round(currentZoom) + '%';   // [M67] 표시는 정수 — 내부 배율만 소수를 갖는다
   document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
   // 섹션 라벨/툴바 카운터-스케일
   // - zoom ≥ 80%: 자연 스케일 (1.0) — 라벨이 섹션과 분리돼 보이지 않게
@@ -617,7 +649,7 @@ function zoomStep(delta) {
   if (!wrap || !scaler) { applyZoom(currentZoom + delta); return; }
 
   const s_old = currentZoom / 100;
-  const newZoom = Math.min(400, Math.max(10, currentZoom + delta));
+  const newZoom = Math.round(Math.min(400, Math.max(10, currentZoom + delta)) * 100) / 100;  // [M67] applyZoom 과 같은 눈금
   if (newZoom === currentZoom) return;
   const s_new = newZoom / 100;
 
@@ -709,6 +741,33 @@ function zoomStep(delta) {
   // transition 복원 (다음 프레임)
   requestAnimationFrame(() => { scaler.style.transition = prevTransition; });
 }
+/** 휠 이벤트 하나를 «노치 저장통»에 담는다. 순수함수 — 검사가 여기를 잡는다. [M67]
+ *  ★[M67] 마우스 «노치»와 트랙패드 «연속량»을 따로 센다 — 한 자로 재면 둘 중 하나가 망가진다
+ *    (노치 하나가 deltaY 100~120 인데 핀치 한 틱은 3~10 이다: 30배 차이).
+ *  ⛔오분류는 «느려지는» 쪽으로만 틀린다 — 큰 핀치가 노치로 세지면 ×1.2 로 «덜» 움직일 뿐이고,
+ *    작은 노치가 핀치로 세져도 상한(×1.728)에 막힌다. 어느 쪽도 폭주하지 않는다. */
+function wheelZoomAccumulate(acc, deltaY) {
+  const d = -deltaY;                                    // 핀치 아웃(확대) → deltaY 음수
+  if (Math.abs(deltaY) >= WHEEL_NOTCH_MIN_DELTA) acc.notches += Math.sign(d);
+  else acc.pinch += d;
+  return acc;
+}
+
+/** 한 스로틀 틱에 모인 저장통을 «노치 수»로 환산한다. 순수함수 — 검사가 여기를 잡는다. [M67] */
+function wheelZoomNotches(acc) {
+  const n = acc.notches + acc.pinch / PINCH_DELTA_PER_NOTCH;
+  return Math.max(-ZOOM_MAX_NOTCHES_PER_TICK, Math.min(ZOOM_MAX_NOTCHES_PER_TICK, n));
+}
+
+/** 배율을 «비율»로 바꾼다(×1.2 처럼). [M67]
+ *  ⛔zoomStep 을 «고쳐서» 곱셈으로 만들지 않는다 — 그 함수의 인자 뜻이 바뀌면 ⌘+/− 와 툴바 ± 가
+ *    같이 끌려간다. 대신 여기서 비율을 «그 배율에서의 %p» 로 환산해 넘긴다. 그러면 zoomStep 이
+ *    쌓아 둔 보장(M44 팬 잔여 폐기 · M44-b 전이 종료 후 측정 · 앵커 보존)을 «한 줄도» 안 건드린다. */
+function zoomByRatio(ratio) {
+  if (!(ratio > 0) || ratio === 1) return;
+  zoomStep(currentZoom * (ratio - 1));
+}
+
 function zoomFit() {
   const wrap = document.getElementById('canvas-wrap');
   applyZoom(Math.floor(((wrap.clientWidth - 80) / CANVAS_W) * 100), { keepViewportCenter: true });  // [M62]
@@ -3033,19 +3092,20 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 (function initTrackpadGestures() {
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap) return;
-  let accum = 0, timer = null;
+  const zoomAcc = { notches: 0, pinch: 0 };   // [M67] 마우스 노치 «개수» / 트랙패드 «연속량» 따로
+  let timer = null;
   wrap.addEventListener('wheel', (e) => {
     if (document.body.classList.contains('preview-mode')) return;
     if (e.ctrlKey) {
-      // 핀치 = 줌
+      // 핀치/휠 = 줌
       e.preventDefault();
-      accum += -e.deltaY; // 핀치 아웃(확대) → deltaY 음수
+      wheelZoomAccumulate(zoomAcc, e.deltaY);   // [M67]
       if (timer) return;
       // setTimeout 스로틀(~60fps) — rAF는 비포커스 윈도우에서 멈춰서 setTimeout 사용
       timer = setTimeout(() => {
-        const d = accum; accum = 0; timer = null;
-        const step = Math.max(-30, Math.min(30, Math.round(d * 2)));
-        if (step !== 0) zoomStep(step);
+        const n = wheelZoomNotches(zoomAcc);
+        zoomAcc.notches = 0; zoomAcc.pinch = 0; timer = null;
+        if (n !== 0) zoomByRatio(Math.pow(ZOOM_RATIO_PER_NOTCH, n));   // [M67] «곱셈» 스텝
       }, 16);
     } else {
       // 두손가락 드래그 = 캔버스 팬. 스크롤로 흡수 가능한 만큼 스크롤하고,
@@ -3562,6 +3622,7 @@ window.deselectAll = deselectAll;
 window.getBlockBreadcrumb = getBlockBreadcrumb;
 window.selectSection = selectSection;
 window.zoomStep = zoomStep;
+window.zoomByRatio = zoomByRatio;   // [M67] 계측 하네스·검사가 «비율 스텝»을 직접 부를 수 있게
 window.zoomFit = zoomFit;
 window.applyZoom = applyZoom;
 window.getPanOffset = () => ({ x: panOffsetX, y: panOffsetY });
@@ -3700,6 +3761,7 @@ export {
   getBlockBreadcrumb,
   selectSection,
   zoomStep,
+  zoomByRatio,
   zoomFit,
   applyZoom,
   toggleAllSections,
