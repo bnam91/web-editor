@@ -3202,20 +3202,40 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId,
         const firstSec = document.querySelector('[id^="sec_"]');
         if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
       }
+      /* ★2026-09-07 [U2] 「문서순 마지막」은 «이 콜이 만든 블록»이 아니다.
+         ⑴삽입은 insertAfterSelected(= «선택 블록 뒤») 라 섹션 끝이 아니고,
+         ⑵이 쿼리는 섹션 안이 아니라 «문서 전체»를 훑는다.
+         ⇒ 뒤쪽 섹션에 텍스트가 하나라도 있으면 앞 섹션에 넣어도 마지막이 «안 움직인다».
+         격리 인스턴스 실측: 서로 다른 섹션에 «직렬» 3콜이 전부 같은 id 를 돌려줬다
+         (내림차순 S3→S2→S1). 오름차순이면 우연히 맞아서 «순서에 따라 숨는» 결함이다.
+         ok:true 인데 손잡이가 남의 것이라, 다음 update_block 이 «엉뚱한 블록»을 고친다.
+         ⇒ 같은 파일의 table(:3265)·asset(:3743)·section(:3629) 이 이미 쓰는
+           «차집합(beforeIds)» 으로 통일한다. 렌더러(js/block-factory.js)는 안 건드린다 —
+           그 파일은 index.html 의 버튼도 부르는 «공용»이라 고치면 앱 동작이 바뀐다. */
+      const beforeIds = new Set([...document.querySelectorAll('.text-block')].map(b => b.id));
       const before = document.querySelectorAll('.text-block').length;
       const _opts = { content: ${safeContent} };
       const _al = ${safeAlign};
       if (_al) _opts.align = _al;
       window.addTextBlock(${safeType}, _opts);
-      const blocks = document.querySelectorAll('.text-block');
+      const blocks = [...document.querySelectorAll('.text-block')];
       const after = blocks.length;
       if (after <= before) {
         return { ok: false, code: 'NO_SECTION', message: '활성 섹션이 없어 블록을 추가하지 못했습니다.' };
       }
-      const newBlock = blocks[blocks.length - 1];
+      const fresh = blocks.filter(b => !beforeIds.has(b.id));
+      const newBlock = fresh[fresh.length - 1] || null;
+      /* ⛔여기서 «아무거나» 집어 ok:true 로 돌려주면 옛 결함으로 되돌아간다.
+         못 찾으면 «틀린 손잡이»가 아니라 «없다»로 말한다(블록 자체는 생성돼 있다). */
+      if (!newBlock || !newBlock.id) {
+        return { ok: false, code: 'BLOCKID_UNRESOLVED',
+                 message: '블록은 추가됐지만 새 블록의 id 를 특정하지 못했습니다. get_canvas_state 로 확인하세요.',
+                 beforeCount: before, afterCount: after };
+      }
       return {
         ok: true,
-        blockId: newBlock?.id || null,
+        blockId: newBlock.id,
+        sectionId: newBlock.closest('[id^="sec_"]')?.id || sid || null,
         pageId: window.activePageId || null,
         beforeCount: before,
         afterCount: after,
@@ -3475,12 +3495,30 @@ async function _invokeRendererAddGapBlock({ height = 40, sectionId } = {}) {
         if (sec && typeof window.selectSection === 'function') window.selectSection(sec);
         else if (!sec) return { ok:false, code:'SECTION_NOT_FOUND', message: 'section id not in DOM: ' + targetSid };
       }
+      /* ★2026-09-07 [U2] add_text_block(:3215) 과 «같은 결함»이었다 — 게다가 갭은 더 나쁘다:
+         문서순 마지막 「.gap-block」 은 «맨 끝 섹션의 하단 패딩 갭»이라 새 갭이 절대 그 자리에
+         안 온다 ⇒ 실측상 «콜1부터, 3콜 전부» 같은 남의 id 를 돌려줬다.
+         ⑵「after <= before」 가드도 «없었다» — 활성 섹션이 없으면 addGapBlock 은 힌트만 띄우고
+           조용히 돌아오는데(js/block-factory.js:913 showNoSelectionHint), 그래도 ok:true 에
+           남의 gapBlockId 가 실렸다. 둘 다 닫는다. */
+      const beforeIds = new Set([...document.querySelectorAll('.gap-block')].map(b => b.id));
       const before = document.querySelectorAll('.gap-block').length;
       window.addGapBlock(${h});
-      const after = document.querySelectorAll('.gap-block').length;
-      const allGaps = document.querySelectorAll('.gap-block');
-      const last = allGaps[allGaps.length - 1];
-      return { ok: true, height: ${h}, gapBlockId: last?.id || null, beforeCount: before, afterCount: after };
+      const gaps = [...document.querySelectorAll('.gap-block')];
+      const after = gaps.length;
+      if (after <= before) {
+        return { ok: false, code: 'NO_SECTION', message: '활성 섹션이 없어 갭을 추가하지 못했습니다.', beforeCount: before, afterCount: after };
+      }
+      const freshGaps = gaps.filter(b => !beforeIds.has(b.id));
+      const last = freshGaps[freshGaps.length - 1] || null;
+      if (!last || !last.id) {
+        return { ok: false, code: 'BLOCKID_UNRESOLVED',
+                 message: '갭은 추가됐지만 새 갭의 id 를 특정하지 못했습니다. get_canvas_state 로 확인하세요.',
+                 beforeCount: before, afterCount: after };
+      }
+      return { ok: true, height: ${h}, gapBlockId: last.id,
+               sectionId: last.closest('[id^="sec_"]')?.id || targetSid || null,
+               beforeCount: before, afterCount: after };
     } catch (e) { return { ok:false, code:'EXCEPTION', message: e.message }; }
   })()`;
   return await mainWindow.webContents.executeJavaScript(atomicJs, true);
