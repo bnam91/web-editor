@@ -18,26 +18,96 @@
 //   어느 쪽이 응답했는지 모른 채 통과해 버려, 장애를 조용히 감춘다(확장 쪽 폴백은
 //   웹스토어 재심사 때문에 남긴 예외).
 //   ⇒ 다른 주소를 봐야 할 때는 env로 명시한다(개발용 Vercel 확인 등).
-const API_BASE      = process.env.GODITOR_LICENSE_API || 'https://blacksheepwall.kr';
-const LOGIN_URL     = `${API_BASE}/api/license/login`;
-// 세션 조용한 갱신용. 2026-08-06 현재 백엔드 미구현(404) — 응답을 못 받으면
-// "판단 불가"로 처리하고 로컬 캐시를 그대로 신뢰한다(=오프라인 유예와 동일 경로).
-// 백엔드가 이 엔드포인트를 열면 코드 수정 없이 갱신이 살아난다.
-const SESSION_URL   = `${API_BASE}/api/license/session`;
-const SIGNUP_URL    = `${API_BASE}/signup.html`;
-const PRICING_URL   = `${API_BASE}/pricing.html`;
-// 계정 찾기.
-// ★이 링크를 넣던 2026-08-07 오전엔 두 페이지가 라이브에 «없었다»(404). 홈페이지 쪽에만
-//   있었고 배포가 아직이어서, 링크만 넣었으면 사용자는 「이메일 찾기」를 눌러 404를 봤다.
-//   그래서 링크는 화면에 두되, 여는 쪽(main.js 'auth:open-external')이 열기 전에 실제 응답을
-//   확인해 죽어 있으면 브라우저를 띄우지 않는다. 「있다고 해놓고 404」가 「없다」보다 나쁘다.
-//   같은 날 두 페이지가 배포되어 지금은 통과한다.
-// ★그래도 가드를 남기는 이유는 «설정 사고로 페이지가 조용히 사라질 수 있어서»다. 같은 날
-//   실례가 있었다: 레포에 public/ 디렉터리가 생기자 Vercel이 그걸 출력 디렉터리로 잡아
-//   레포 루트가 통째로 404가 됐다(public/icons/… 만 루트에서 나왔다). 배포는 «성공»했고
-//   사이트만 죽어 있었다 — 즉 배포 성공이 페이지 생존을 보장하지 않는다.
-const FIND_EMAIL_URL    = `${API_BASE}/find-email.html`;
-const FIND_PASSWORD_URL = `${API_BASE}/find-password.html`;
+const LIVE_API_BASE = 'https://blacksheepwall.kr';
+
+/* ── dev 전용 서버주소 주입 ──────────────────────────────────────────────────
+ * ★`resolveKeys`(services/entitlement.js)·`isAdminAuthorized`(main.js) 와 «같은 규약»:
+ *   미패키징에서만 env 를 허용하고, 패키징에선 «무시»한다.
+ *
+ * ⛔패키징에서 살려 두면 서명 검증 전체가 장식이 된다. 공개키를 못 바꾸게 막아도
+ *   «서버를 바꾸면» 같은 결과이기 때문이다:
+ *     10줄짜리 서버가 {ok:true, signed:null} 만 돌려준다
+ *     → 앱의 「ok:true 인데 signed 없으면 통과」 유예 규약이 그대로 발동 → 통과.
+ *   그 유예 규약은 «우리가 서버 env 를 빠뜨렸을 때 전원이 잠기는 것»을 막으려고 일부러
+ *   넣은 것이고, 그 근거는 「위조자는 진짜 서버에게서 ok:true 를 못 받는다」였다.
+ *   그 전제는 «앱이 진짜 서버에 붙는다»는 가정 위에 서 있었다 — 그 가정을 여기서 세운다.
+ */
+function resolveApiBase(opts) {
+  const o = opts || {};
+  if (o.isPackaged !== false) return LIVE_API_BASE;   // 기본은 «막는» 쪽
+  const raw = o.env && o.env.GODITOR_LICENSE_API;
+  if (!raw) return LIVE_API_BASE;
+  return String(raw);
+}
+
+/* ── 「패키징인가」를 electron 없이 답하는 기본값 ─────────────────────────────
+ * ★정본은 Electron 의 `app.isPackaged` 이고, main.js 가 `applyRuntime()` 으로 알려준다.
+ *   이 파일은 순수 모듈이라 electron 을 못 부른다(⛔새로 들이지도 않는다) — 그래서
+ *   «알려주기 前»에도 안전하도록, 사용자가 못 만드는 근거만으로 기본값을 세운다.
+ *
+ * ⛔env 는 근거로 «쓰지 않는다». NODE_ENV·ELECTRON_IS_DEV 따위로 「나는 dev 다」를
+ *   주장할 수 있으면 이 파일 전체가 도로아미타불이다.
+ *
+ * 근거는 둘, OR 이다(하나라도 「패키징」이면 패키징 — 안전한 쪽으로 기운다):
+ *   ⒜ 이 파일이 `app.asar` «안»에서 돌고 있다. asar 를 뜯어 다시 싸야 바꿀 수 있다.
+ *   ⒝ Electron 런타임인데 실행파일 이름이 'electron' 이 «아니다» = electron-builder 가
+ *      만든 앱 바이너리다. 이건 Electron 자신의 `app.isPackaged` 와 «같은 규칙»이다
+ *      (그 이름은 코드서명·공증된 .app 번들 안에 있어서 바꾸면 서명이 깨진다).
+ *   ⒞ Electron 이 아니다 = node 로 돌린 단위검사다. 지킬 배포본 자체가 없다.
+ */
+function isPackagedRuntime() {
+  if (/[\\/]app\.asar([\\/]|$)/.test(__dirname)) return true;          // ⒜
+  if (process.versions && process.versions.electron) {                  // ⒝
+    const exe = String(process.execPath || '').split(/[\\/]/).pop().toLowerCase();
+    return exe !== 'electron' && exe !== 'electron.exe';
+  }
+  return false;                                                        // ⒞
+}
+
+let API_BASE, LOGIN_URL, SESSION_URL, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL;
+
+/** 주소 하나에서 파생 URL 전부를 다시 만든다. ⛔여기 말고 다른 데서 조립하지 마라. */
+function _recompute(base) {
+  API_BASE    = base;
+  LOGIN_URL   = `${API_BASE}/api/license/login`;
+  // 세션 조용한 갱신용. 2026-08-06 현재 백엔드 미구현(404) — 응답을 못 받으면
+  // "판단 불가"로 처리하고 로컬 캐시를 그대로 신뢰한다(=오프라인 유예와 동일 경로).
+  // 백엔드가 이 엔드포인트를 열면 코드 수정 없이 갱신이 살아난다.
+  SESSION_URL = `${API_BASE}/api/license/session`;
+  SIGNUP_URL  = `${API_BASE}/signup.html`;
+  PRICING_URL = `${API_BASE}/pricing.html`;
+  // 계정 찾기.
+  // ★이 링크를 넣던 2026-08-07 오전엔 두 페이지가 라이브에 «없었다»(404). 홈페이지 쪽에만
+  //   있었고 배포가 아직이어서, 링크만 넣었으면 사용자는 「이메일 찾기」를 눌러 404를 봤다.
+  //   그래서 링크는 화면에 두되, 여는 쪽(main.js 'auth:open-external')이 열기 전에 실제 응답을
+  //   확인해 죽어 있으면 브라우저를 띄우지 않는다. 「있다고 해놓고 404」가 「없다」보다 나쁘다.
+  //   같은 날 두 페이지가 배포되어 지금은 통과한다.
+  // ★그래도 가드를 남기는 이유는 «설정 사고로 페이지가 조용히 사라질 수 있어서»다. 같은 날
+  //   실례가 있었다: 레포에 public/ 디렉터리가 생기자 Vercel이 그걸 출력 디렉터리로 잡아
+  //   레포 루트가 통째로 404가 됐다(public/icons/… 만 루트에서 나왔다). 배포는 «성공»했고
+  //   사이트만 죽어 있었다 — 즉 배포 성공이 페이지 생존을 보장하지 않는다.
+  FIND_EMAIL_URL    = `${API_BASE}/find-email.html`;
+  FIND_PASSWORD_URL = `${API_BASE}/find-password.html`;
+  // 구조분해로 붙잡는 소비자(main.js·main/admin·main/collab·main/notice)가 갱신값을 받도록.
+  if (typeof module !== 'undefined' && module.exports) {
+    Object.assign(module.exports, {
+      API_BASE, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL,
+    });
+  }
+}
+
+/**
+ * Electron main 이 「패키징인가」의 정본을 알려준다.
+ * ⛔authService 를 «처음 require 한 직후»·다른 소비자보다 «먼저» 불러야 한다.
+ *   안 불러도 안전하다 — 위 `isPackagedRuntime()` 기본값이 이미 「막는 쪽」이다.
+ * @param {{isPackaged:boolean}} rt
+ */
+function applyRuntime(rt) {
+  const packaged = !(rt && rt.isPackaged === false);
+  _recompute(resolveApiBase({ isPackaged: packaged ? true : false, env: process.env }));
+}
+
+_recompute(resolveApiBase({ isPackaged: isPackagedRuntime() ? true : false, env: process.env }));
 
 const TIMEOUT_MS = 10000;
 // 링크 생사 확인은 클릭 직후에 돌아 «체감 지연»이 된다. 로그인 요청보다 짧게 잡는다.
@@ -215,6 +285,10 @@ async function verifySession(email, sessionToken) {
 module.exports = {
   login,
   verifySession,
+  resolveApiBase,
+  applyRuntime,
+  LIVE_API_BASE,
+  _isPackagedRuntime: isPackagedRuntime,
   API_BASE,
   SIGNUP_URL,
   PRICING_URL,

@@ -66,7 +66,19 @@ _loadEnvFile(path.join(__dirname, '.env'));
 // 외부 자격증명 저장소(로컬 공유 시크릿) — GEMINI_API_KEY 등. iCloud dataless(EDEADLK) 회피 위해 ~/.config/secrets 로 일원화
 _loadEnvFile(path.join(os.homedir(), '.config/secrets/.env'));
 const { spawn } = require('child_process');
-const { login: authLogin, verifySession: authVerifySession, urlIsLive: authUrlIsLive, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL, API_BASE: AUTH_API_BASE } = require('./services/authService');
+const _authService = require('./services/authService');
+/* ★「패키징인가」의 정본은 Electron 자신(`app.isPackaged`)이다 — authService 는 electron 을
+   안 쓰는 순수 모듈이라 스스로 못 묻는다. 그래서 여기서 «알려준다»(주입).
+   ⛔이 줄은 authService 를 처음 require 한 «직후»·아래 구조분해와 main/admin·main/collab·
+     main/notice «보다 먼저» 와야 한다 — 그들도 API_BASE 를 각자 구조분해로 붙잡는다.
+   ★안 불러도 안전하다: authService 기본값이 이미 「막는 쪽」(패키징 가정)이다.
+     이 줄이 하는 일은 「dev 다」를 «Electron 의 답으로» 확정해 주는 것뿐이다. */
+if (typeof _authService.applyRuntime === 'function') {
+  let _pkg = true;
+  try { _pkg = app.isPackaged; } catch (_) { _pkg = false; }
+  _authService.applyRuntime({ isPackaged: _pkg });
+}
+const { login: authLogin, verifySession: authVerifySession, urlIsLive: authUrlIsLive, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL, API_BASE: AUTH_API_BASE } = _authService;
 /* ★자격증명 판정의 SSOT. 이 파일에는 «판정 규칙»을 두지 않는다 — 규칙이 둘이 되면 갈라진다.
    여기가 하는 일은 「디스크·네트워크·화면을 그 답에 «배선»하는 것」뿐이다. */
 const entitlement = require('./services/entitlement');
