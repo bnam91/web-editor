@@ -317,13 +317,15 @@ test('Ⓐ-4 ★«파일 경로»를 `/` 로 쪼개거나 붙이는 자리가 0�
   const PATHY = /(?:^|[.\])(?:[A-Za-z_$][\w$]*)?(?:[Pp]ath|[Dd]ir|[Rr]oot|[Hh]ome|real|cwd|tmpdir\(\)|homedir\(\))[\w$]*$/;
   /* ⛔`pathname` 은 URL API 라 «항상» `/` 가 맞다 — 이름이 닮았을 뿐이니 뺀다. */
   const URLISH = /pathname$|^location\./;
-  const OPS = /\.(?:split|join|startsWith|endsWith)\(\s*['"]\/['"]\s*\)/g;
+  /* ★`+ '/'` 로 «이어붙이는» 자리도 같은 병이다 — 변이 ⒝ 가 여기로 빠져나갔다
+     (`repoRoot + '/'` 는 `.endsWith('/')` 가 아니라 «연결»이라 옛 규칙이 못 봤다). */
+  const OPS = /\.(?:split|join|startsWith|endsWith)\(\s*['"]\/['"]\s*\)|\+\s*['"]\/['"]/g;
   const bad = [];
   for (const f of SCANNED) {
     const code = codeOnly(fs.readFileSync(f, 'utf8'));
     for (const m of code.matchAll(OPS)) {
       /* 연산 «앞»의 수신자 표현식을 뜬다 */
-      const before = code.slice(Math.max(0, m.index - 80), m.index);
+      const before = code.slice(Math.max(0, m.index - 80), m.index).replace(/\s+$/, '');   // ★`x + '/'` 는 사이에 공백이 있다
       const recv = (before.match(/([A-Za-z_$][\w$.()]*)$/) || [''])[0];
       if (PATHY.test(recv) && !URLISH.test(recv)) bad.push(`${rel(f)}: ${recv}${m[0]}`);
     }
