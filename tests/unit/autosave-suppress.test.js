@@ -14,7 +14,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { readSrc } = require('./_srcread.js');   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
+const { readSrc, toPosix } = require('./_srcread.js');   // ★CRLF 방어 + 경로 구분자 정규화(윈도우)
 
 const ROOT = path.join(__dirname, '../..');
 const read = (rel) => readSrc(ROOT, rel);
@@ -28,7 +28,9 @@ function allJsFiles(dir = path.join(ROOT, 'js'), out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) allJsFiles(p, out);
-    else if (e.name.endsWith('.js')) out.push(path.relative(ROOT, p));
+    /* ★윈도우는 path.relative 가 `js\\autosave-suppress.js` 를 준다 — 아래 허용목록 키는
+       전부 `js/…` 다. 검사 키는 «항상» posix 로 정규화한다(④ 경로 구분자). */
+    else if (e.name.endsWith('.js')) out.push(toPosix(path.relative(ROOT, p)));
   }
   return out.sort();
 }
