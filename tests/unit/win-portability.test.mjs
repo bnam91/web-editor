@@ -215,20 +215,59 @@ test('③-1 freeBytes 는 «양쪽 플랫폼에서 도는 자»를 쓴다 — �
     `★df 가 없으면 «못 잰다»로 떨어진다(윈도우가 바로 그 상황) — 받은 값: ${JSON.stringify(r.stdout)}`);
 });
 
-test('③-2 쓰기 거부는 플랫폼별 «동등한 동작»이고, 「막았다」를 «써 봐서» 확인한다', () => {
+test('③-2 쓰기 거부는 플랫폼별 «동등한 동작»이고, ★읽기는 «살아남는다»', () => {
   const D = require_('../../tools/hardening/lib/denywrite.cjs');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-wp-deny-'));
   try {
-    assert.equal(D.probeWritable(dir).writable, true, '전제 미달 — 막기 전부터 못 쓴다');
+    fs.writeFileSync(path.join(dir, 'pre.txt'), 'hello');       // ★미리 있던 파일 = 읽기 확인용
+    assert.equal(D.probeAccess(dir).write, true, '전제 미달 — 막기 전부터 못 쓴다');
     const h = D.denyWrite(dir);
     try {
-      assert.equal(h.how, process.platform === 'win32' ? 'icacls /deny (OI)(CI)(W)' : 'chmod 0500');
-      assert.equal(D.probeWritable(dir).writable, false, '★막았다는데 «여전히 써진다» — 가짜 초록이다');
+      if (process.platform === 'win32') {
+        assert.match(h.how, new RegExp(`^icacls /deny .+:\\(${D.WIN_DENY_RIGHTS.replace(/,/g, ',')}\\)$`), h.how);
+      } else {
+        assert.equal(h.how, 'chmod 0500');
+      }
+      assert.equal(h.after.write, false, '★막았다는데 «여전히 써진다» — 가짜 초록이다');
+      assert.equal(h.after.list, true, '★나열까지 죽었다 — 가짜 빨강이다(재려던 건 「못 쓰는」 상황이다)');
+      assert.equal(h.after.read, true, '★읽기까지 죽었다 — 가짜 빨강이다');
+      assert.equal(fs.readFileSync(path.join(dir, 'pre.txt'), 'utf8'), 'hello', '막힌 폴더의 파일을 못 읽는다');
       assert.deepEqual(h.denied, [dir], '막은 경로를 «선언»하지 않으면 「못 쟀다」가 「없다」가 된다');
       assert.ok(/EACCES|EPERM/.test(h.errCode), `거부 코드가 없다: ${h.errCode}`);
     } finally { h.restore(); }
-    assert.equal(D.probeWritable(dir).writable, true, '되돌리지 못했다 — 뒷 검사를 오염시킨다');
+    assert.equal(D.probeAccess(dir).write, true, '되돌리지 못했다 — 뒷 검사를 오염시킨다');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('Ⓑ-1 ★판정 자가 «가짜 초록»과 «가짜 빨강»을 «둘 다» 잡는다 (윈도우 없이 잰다)', () => {
+  const { denialShapeProblem } = require_('../../tools/hardening/lib/denywrite.cjs');
+  const before = { list: true, read: true, write: true, listCode: null, readCode: null, writeCode: null };
+  const ok = { list: true, read: true, write: false, listCode: null, readCode: null, writeCode: 'EACCES' };
+  assert.equal(denialShapeProblem(before, ok, 'chmod 0500'), null, '정상 모양을 문제로 본다');
+
+  /* ⑴ 가짜 초록 — 안 막혔다 */
+  assert.match(String(denialShapeProblem(before, { ...ok, write: true }, 'x')), /가짜 초록/);
+  /* ⑵ 가짜 빨강 — 나열이 죽었다 (icacls `(W)` 가 실제로 만든 상황) */
+  assert.match(String(denialShapeProblem(before, { ...ok, list: false, listCode: 'EPERM' }, 'icacls /deny u:(W)')),
+    /가짜 빨강/);
+  /* ⑶ 가짜 빨강 — 읽기가 죽었다 */
+  assert.match(String(denialShapeProblem(before, { ...ok, read: false, readCode: 'EPERM' }, 'icacls /deny u:(W)')),
+    /가짜 빨강/);
+});
+
+test('Ⓑ-2 ★윈도우 deny 권한 집합에 `(W)`·`(OI)(CI)` 를 다시 들이지 않는다', () => {
+  const D = require_('../../tools/hardening/lib/denywrite.cjs');
+  /* `(W)` = FILE_GENERIC_WRITE 는 READ_CONTROL·SYNCHRONIZE 를 포함해 «여는 것 자체»를 막는다.
+     `(OI)(CI)` 는 이미 있는 자식 파일까지 건드려 POSIX chmod 0500 과 어긋난다. */
+  assert.equal(/(^|,)W(,|$)/.test(D.WIN_DENY_RIGHTS), false,
+    `★generic (W) 가 돌아왔다 — 읽기가 다시 죽는다: ${D.WIN_DENY_RIGHTS}`);
+  for (const r of ['WD', 'AD']) {
+    assert.ok(D.WIN_DENY_RIGHTS.split(',').includes(r), `쓰기 거부의 핵심 권한 ${r} 이 빠졌다`);
+  }
+  const src = readSrc(ROOT, 'tools/hardening/lib/denywrite.cjs');
+  assert.equal(/\(OI\)\(CI\)/.test(src.replace(/\/\*[\s\S]*?\*\//g, '')), false,
+    '★상속 플래그가 돌아왔다 — POSIX chmod 0500 과 다른 상황을 재게 된다');
+  assert.equal(D.POSIX_DENY_MODE, 0o500);
 });
 
 test('③-3 ★윈도우에서 «건너뛰는» 쓰기-거부 검사가 0건이다 (skip 은 초록이 아니다)', () => {
