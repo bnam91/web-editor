@@ -1,0 +1,30 @@
+{
+  "note": "생성물. make-fixture.mjs 로만 고친다. --check 로 대조.",
+  "counts": {
+    "sections": 2,
+    "text": 3,
+    "photos": 3,
+    "photoBytes": [
+      3400,
+      3400,
+      400000
+    ],
+    "table": "5x4",
+    "gaps": 2,
+    "textInFrame": 1
+  },
+  "sha256": {
+    "img/small-a.png": "7376cb1c53aa5d6aeaf4d38f532f8d8221c94f425f9db465b71032479aca3d94",
+    "img/small-b.png": "408cee8120b877a10caa8aee552bac09b9dd5c9cc0cdf40a1e0aeaae9b544670",
+    "img/big.png": "f806e31638c4d4e727d96d109fee06e466dac6fa99e2b936c05f4990e7d6d645",
+    "canvas.html": "11a5df5eb4034fd912c28a8e4831f4993bc71cf6ca4f2dbeb330b2a4cada5555",
+    "canvas-state.json": "62b07a0d55ec7ca057b458cb67789e03218673f721e2b74127142b61da066b19"
+  },
+  "bytes": {
+    "img/small-a.png": 3400,
+    "img/small-b.png": 3400,
+    "img/big.png": 400000,
+    "canvas.html": 539500,
+    "canvas-state.json": 2320
+  }
+}
