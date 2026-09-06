@@ -1,0 +1,99 @@
+{
+  "ok": true,
+  "sections": [
+    {
+      "sectionId": "sec_fixt_1",
+      "name": "히어로",
+      "blocks": [
+        {
+          "blockId": "tb_fx_h1",
+          "type": "heading",
+          "text": "픽스처 제목",
+          "color": "rgb(17, 17, 17)",
+          "fontSize": "40px",
+          "align": "center"
+        },
+        {
+          "blockId": "tb_fx_b1",
+          "type": "body",
+          "text": "본문 한 줄. 이 문장은 120자 상한을 «안» 넘긴다 — 잘림 표시가 붙으면 안 된다.",
+          "color": "",
+          "fontSize": "",
+          "align": "left"
+        },
+        {
+          "blockId": "gb_fx_1",
+          "type": "gap",
+          "summary": {
+            "height": "48px"
+          }
+        },
+        {
+          "blockId": "ab_fx_small_a",
+          "type": "asset",
+          "summary": {
+            "image": "small-a.png",
+            "natural": "28x28"
+          }
+        },
+        {
+          "blockId": "ab_fx_small_b",
+          "type": "asset",
+          "summary": {
+            "image": "(inline data)",
+            "natural": "28x28"
+          }
+        }
+      ]
+    },
+    {
+      "sectionId": "sec_fixt_2",
+      "name": "스펙",
+      "blocks": [
+        {
+          "blockId": "tbl_fx_1",
+          "type": "table",
+          "summary": {
+            "rows": 5,
+            "headers": [
+              "항목",
+              "A",
+              "B",
+              "C"
+            ]
+          }
+        },
+        {
+          "blockId": "gb_fx_2",
+          "type": "gap",
+          "summary": {
+            "height": "24px"
+          }
+        },
+        {
+          "blockId": "ab_fx_big",
+          "type": "asset",
+          "summary": {
+            "image": "(inline data)",
+            "natural": "340x340"
+          }
+        },
+        {
+          "blockId": "ss_fx_frame_1",
+          "type": "frame",
+          "summary": {
+            "preview": "프레임 «안»의 텍스트 — 이게 빠지면 #1 결함 재발이다."
+          }
+        },
+        {
+          "blockId": "tb_fx_inframe",
+          "type": "body",
+          "text": "프레임 «안»의 텍스트 — 이게 빠지면 #1 결함 재발이다.",
+          "color": "",
+          "fontSize": "",
+          "align": "center"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1082 @@
+{
+  "note": "생성물 — tools/mcp-contract-snapshot.mjs 로만 고친다. 손으로 고치지 마라.",
+  "counts": {
+    "registered": 84,
+    "visible": 33,
+    "hidden": 51,
+    "mutating": 71,
+    "gated": 0
+  },
+  "sizeCaps": {
+    "_CANVAS_TEXT_CAP": 120,
+    "_CANVAS_AUTO_SUMMARY_CHARS": 24000
+  },
+  "idPrefixes": {
+    "text": "tb_",
+    "gap": "gb_",
+    "asset": "ab_",
+    "frame": "ss_",
+    "card": "cvb_",
+    "canvas": "cvb_",
+    "table": "tbl_",
+    "comparison": "cmp_",
+    "step": "stb_",
+    "iconify": "icn_",
+    "icon_circle": "icb_",
+    "icon_text": "itb_",
+    "divider": "dvd_",
+    "sticker": "stk_",
+    "speech_bubble": "sb_",
+    "chat": "chb_",
+    "label_group": "lg_",
+    "laurel": "lrb_",
+    "graph": "grb_",
+    "shape": "shp_",
+    "vector": "vb_",
+    "mockup": "mkp_",
+    "banner": "ss_",
+    "banner02": "lnr_",
+    "gradient": "grad_"
+  },
+  "tools": {
+    "add_asset_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_banner_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "add_banner02_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_block": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "type"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "add_canvas_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_card_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "cards"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "add_chat_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_checklist_item": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "text"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "add_comparison_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_divider_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_frame_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_gap_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_gradient_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_graph_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_icon_circle_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_icon_text_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_iconify_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "name"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "add_label_group_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_laurel_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_liner_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_mockup_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_section": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_shape_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_speech_bubble_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_step_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "steps"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "add_sticker_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_table_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_text_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "content"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "add_vector_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "svg"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "build_basic_section": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "mainCopy"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "create_project": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": true,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "hint",
+        "name",
+        "ok",
+        "projectId"
+      ]
+    },
+    "delete_block": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": true,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "delete_checklist_item": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "id"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "delete_scratch_item": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "id"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "delete_section": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "sectionId"
+      ],
+      "expectedProjectGuard": true,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "duplicate_project": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "export_sections": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": true,
+      "noArgs": "ok",
+      "responseKeys": [
+        "exported",
+        "failed",
+        "files",
+        "format",
+        "hint",
+        "ok",
+        "outDir",
+        "requested",
+        "width"
+      ]
+    },
+    "get_block_schema": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": true,
+      "targetFree": true,
+      "required": [
+        "type"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "get_canvas_state": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok",
+        "sections"
+      ]
+    },
+    "get_section_memo": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "sectionId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "insert_gap_after_block": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "list_checklist_items": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "items",
+        "ok"
+      ]
+    },
+    "list_memories": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "folder",
+        "memories"
+      ]
+    },
+    "list_projects": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "activeProjectId",
+        "matched",
+        "ok",
+        "projects",
+        "returned",
+        "total",
+        "truncated"
+      ]
+    },
+    "list_scratch_items": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "items",
+        "ok"
+      ]
+    },
+    "move_block": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "move_section": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "sectionId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "open_project": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": true,
+      "targetFree": true,
+      "required": [
+        "projectId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "put_image": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "image"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "read_project": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "hint",
+        "ok",
+        "projectId",
+        "projectSize",
+        "summary",
+        "truncated"
+      ]
+    },
+    "read_scratch_item": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "id"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "read_section": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "sectionId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "search_iconify": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": true,
+      "targetFree": true,
+      "required": [
+        "query"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "set_section_memo": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "memo",
+        "sectionId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "undo_last_mcp_change": {
+      "hidden": false,
+      "mutating": false,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": true,
+      "noArgs": "ok",
+      "responseKeys": [
+        "hint",
+        "historyLen",
+        "ok",
+        "partial",
+        "plannedSteps",
+        "undone",
+        "undoneSteps"
+      ]
+    },
+    "update_asset_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_banner02_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_block": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_canvas_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_card_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_chat_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_checklist_item": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "id"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_comparison_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_divider_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_frame_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_gap_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_gradient_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_graph_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_icon_circle_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_icon_text_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_iconify_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_label_group_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_laurel_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_liner_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_mockup_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_scratch_item": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "id"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_section": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "sectionId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_shape_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_speech_bubble_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_step_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_sticker_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_table_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_text_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "update_vector_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    }
+  }
+}
