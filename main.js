@@ -1796,9 +1796,38 @@ ipcMain.on('projects:save-sync', (event, project) => {
     event.returnValue = { ok: true };
   } catch (e) {
     console.error('[projects:save-sync] 저장 실패:', e);
+    /* ★[W-3] 여기가 «윈도우 X 버튼»이 지나가는 자리다.
+       창 close → 렌더러 unload(beforeunload) → 이 동기 IPC → 창 소멸 → app.quit().
+       옛 코드는 여기서 { ok:false } 만 돌려줬고 렌더러는 console.warn 한 줄로 끝냈다 —
+       화면은 이미 사라지는 중이라 그 줄을 볼 사람이 없다. 실측: 다이얼로그 0 · 마커 0 ·
+       비상 사본 0 · 편집 토큰 디스크 0건 = 유실(미니4호기 윈도우 실기 QA 2차 §5-3ⓐ).
+       ⇒ EPERM 을 «쥐고 있는 건 여기»다. 흔적은 이 자리에서 남기고, 말하는 건 before-quit 이 한다.
+       ⚠️새로고침(⌘R)으로도 여기에 온다 — 그때도 «디스크에 못 들어간 건 사실»이라 기록은 옳다.
+         종료가 아니면 소비될 일이 없고, 마커는 다음 실행 때 H3 가 읽어 복구를 제안한다. */
+    _recordSyncSaveFailure(project, 'exception', e && e.message);
     event.returnValue = { ok: false, reason: 'exception', message: e.message };
   }
 });
+
+/** [W-3] 동기 저장 실패를 H4 가드에 넘겨 «마커 + 비상 사본»으로 남긴다.
+ *  ⛔여기서 다이얼로그를 띄우면 안 된다 — 렌더러 unload 를 막고 도는 동기 IPC 안이다.
+ *  ★기록 자체가 실패해도 저장 경로를 «더» 망가뜨리지 않는다(삼킨다). */
+function _recordSyncSaveFailure(project, reason, error) {
+  try {
+    if (!project || !project.id) return;
+    /* init 은 «준 것만» 덮는다 — dialog·shell 은 before-quit 이 뒤에 얹는다(충돌 없음). */
+    quitSaveGuard.init({ userDataDir: app.getPath('userData'), appVersion: app.getVersion(), log: (m) => console.warn(m) });
+    quitSaveGuard.recordSyncSaveFailure({
+      projectId: project.id,
+      projectName: project.name || null,
+      /* ★비상 사본은 «프로젝트 JSON 과 같은 모양» 그대로 — recovery:restore 가 그대로 되살린다. */
+      snapshot: JSON.stringify(project, null, 2),
+      reason, error: error || null,
+    });
+  } catch (err) {
+    console.warn('[projects:save-sync] 저장 실패를 기록하지 못했다:', err && err.message);
+  }
+}
 
 /* ── [version-history/U7] 삭제 안전망 — 영구삭제 → «휴지통» (현빈 승인) ────
  * ★설계 §8-0 규약: «되돌릴 수단»을 대상과 «같은 봉투»에 두지 마라.
@@ -6323,7 +6352,32 @@ app.on('before-quit', (event) => {
   try { killAllTerminalSessions(); } catch (_) {}
 
   const win = BrowserWindow.getAllWindows()[0];
-  if (!win || win.isDestroyed()) return; // 창 없으면 바로 종료
+  if (!win || win.isDestroyed()) {
+    /* ★[W-3] 창이 «이미 사라진 뒤»에 오는 before-quit — 윈도우 X 버튼(WM_CLOSE) 이 여기다.
+       창 close → 렌더러 unload → 창 소멸 → window-all-closed → app.quit() → 여기(창 0개).
+       옛 코드는 여기서 그냥 return 했다 ⇒ 아래 quitSaveGuard 는 «한 번도 안 불렸고»,
+       저장이 실패해도 아무 말 없이 260ms 만에 죽었다(윈도우 실기 QA 2차 §5-3ⓐ).
+       ★맥도 «같은 줄»이다: 빨간 버튼으로 창을 닫고 나서 ⌘Q 하면 똑같이 창 0개로 온다.
+         (창이 «열린 채» ⌘Q 만 기존 H4 경로를 탔다.)
+       ⇒ unload 때 남겨 둔 실패 기록이 있으면 «말하고» 죽는다. 없으면 옛 동작 그대로
+         즉시 종료한다 — 정상 종료가 1ms 도 안 느려진다. */
+    let pending = null;
+    try { pending = quitSaveGuard.takePendingSyncFailure(); } catch (_) {}
+    if (!pending) return;
+    event.preventDefault();
+    try {
+      quitSaveGuard.init({
+        userDataDir: app.getPath('userData'), dialog, shell,
+        appVersion: app.getVersion(), log: (m) => console.log(m),
+      });
+      quitSaveGuard.notifyWindowGone({ pending, exit: (code) => app.exit(code) });
+    } catch (e) {
+      /* ★통지가 터져도 «앱은 꺼져야 한다» — 안 꺼지는 앱은 조용한 종료보다 나쁘다. */
+      console.error('[quit-guard] 창-없음 통지 실패 — 그냥 종료:', e && e.message);
+      app.exit(0);
+    }
+    return;
+  }
   event.preventDefault();
   try {
     quitSaveGuard.init({
