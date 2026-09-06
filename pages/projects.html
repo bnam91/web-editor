@@ -64,6 +64,21 @@ body {
 }
 #header h1 { font-size: 18px; font-weight: 700; color: #f0f0f0; }
 
+/* ── E3-b ㉯ 예고 배너 ── 정보지 제한이 아니다: [hidden]이면 레이아웃 자리도 안 먹는다
+   (기본이 거의 언제나 이 상태다 — 창 밖이면 뜰 일이 없다). 모달·오버레이 금지, 한 줄. */
+#sig-stale-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--ui-bg-card); border: 1px solid var(--ui-border-mid);
+  border-radius: var(--ui-radius-sm);
+  padding: 8px 12px; margin-bottom: 14px;
+  font-size: var(--ui-fs-12); color: var(--ui-text-sub);
+}
+#sig-stale-banner-close {
+  background: transparent; border: none; cursor: pointer;
+  color: var(--ui-text-dim); font-size: var(--ui-fs-12); line-height: 1; padding: 2px 4px;
+}
+#sig-stale-banner-close:hover { color: var(--ui-text); }
+
 #btn-new {
   display: flex; align-items: center; gap: 6px;
   padding: 0 14px; height: 32px;
@@ -484,6 +499,14 @@ body {
       </div>
     </div>
   </div>
+  <!-- ★E3-b ㉯ — 잠그기 전 exp−7일 예고. js/entitlement-banner.js 가 판정, 이 블록은
+       문구를 «옮겨 적기»만 한다. 기본 hidden(자리도 안 먹는다) · 닫으면 이 세션 동안
+       다시 안 뜬다(새로고침·재부팅 후엔 다시 판정 — 이 세션 memory 뿐, 영구 억제 아님).
+       ⛔모달이 아니다 — 사용자가 하던 일을 끊지 않는다. -->
+  <div id="sig-stale-banner" style="display:none">
+    <span id="sig-stale-banner-text"></span>
+    <button type="button" id="sig-stale-banner-close" aria-label="닫기">✕</button>
+  </div>
   <div id="project-grid"></div>
   <div id="empty-state">
     <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#888" stroke-width="1.2">
@@ -500,6 +523,7 @@ body {
      읽으므로 «반드시 먼저» 실행돼야 한다. 에디터(index.html)도 같은 파일을 읽는다. -->
 <script src="../js/feature-flags.js"></script>
 <script src="../js/notice.js"></script>
+<script src="../js/entitlement-banner.js"></script>
 
 <script>
 const IS_ELECTRON = !!window.electronAPI?.isElectron;
@@ -1045,6 +1069,33 @@ const PLAN_LABEL = {
 };
 const PLAN_CLASS = { beta: 'is-beta', event_free: 'is-beta', starter: 'is-paid', pro: 'is-paid', promax: 'is-paid' };
 
+/* ── E3-b ㉯ — 잠그기 전 exp−7일 예고 ────────────────────────────────────
+ * ★판정은 js/entitlement-banner.js «하나»(decideExpiryBanner)가 한다. 여기서 exp 를
+ *   다시 해석하지 않는다 — 그러면 판정이 두 벌이 된다(§E3-b ㉮ 에서 실제로 있었던 사고).
+ * ★닫으면 «이 세션 동안만» 억제한다(새로고침·재실행하면 다시 판정) — 영구 dismiss 를
+ *   만들면 정말 잠기기 직전에도 «예전에 닫았다»는 이유로 안 뜰 수 있다. 그건 예고의
+ *   존재 이유를 지운다. 세션 메모리 하나로 충분하다(새로고침이 잦은 화면이 아니다).
+ */
+let _sigStaleBannerClosedThisSession = false;
+function paintSigStaleBanner(st) {
+  const box = document.getElementById('sig-stale-banner');
+  if (!box) return;
+  const B = window.EntitlementBanner;
+  const decided = (B && !_sigStaleBannerClosedThisSession) ? B.decideExpiryBanner(st) : null;
+  if (!decided) { box.style.display = 'none'; return; }
+  document.getElementById('sig-stale-banner-text').textContent = decided.text;
+  box.style.display = '';
+}
+(function wireSigStaleBannerClose() {
+  const btn = document.getElementById('sig-stale-banner-close');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    _sigStaleBannerClosedThisSession = true;
+    const box = document.getElementById('sig-stale-banner');
+    if (box) box.style.display = 'none';
+  });
+})();
+
 function paintAcct(st) {
   const box = document.getElementById('acct');
   if (!box) return;
@@ -1153,7 +1204,9 @@ function wireAcctMenu(api) {
         setTimeout(() => { window.location.href = 'license.html'; }, 900);
         return;
       }
-      paintAcct(await api.getAuthState());
+      const freshSt = await api.getAuthState();
+      paintAcct(freshSt);
+      paintSigStaleBanner(freshSt);
       // ★오프라인이면 «조용히 실패»하면 안 된다 — 눌렀는데 아무 일도 안 일어난 걸로 보인다.
       //   만료도 마찬가지다 — 서버는 대답했는데 「갱신됨」이라고 쓰면 거짓말이 된다.
       setState((r && r.ok) ? '갱신됨'
@@ -1195,7 +1248,9 @@ function wireAcctMenu(api) {
 (async () => {
   const api = window.electronAPI;
   if (!api || !api.getAuthState) return;          // 브라우저에서 열었을 때 — 조용히 생략
-  paintAcct(await api.getAuthState());
+  const bootSt = await api.getAuthState();
+  paintAcct(bootSt);
+  paintSigStaleBanner(bootSt);
   wireAcctMenu(api);
 })();
 

@@ -286,6 +286,38 @@ function verifyEntitlement(signed, keys) {
   return { ok: true, payload, field: got.field };
 }
 
+/** ㉯(E3-b, 잠그기 전 예고) 전용 — 서명의 `exp` 까지 남은 «일수».
+ *
+ * ★★이건 «판정»이 «아니다». pass/reject 는 classify/resolveAuth «한 곳»의 몫이고,
+ *   이 함수는 그 판정에 관여하지 않는다 — 「화면이 exp 를 직접 해석해 두 번째 판정을
+ *   만드는」 사고(지디 §E3-b ㉮ 지적과 같은 종류)를 막으려고 계산 자리를 하나로 둔다.
+ *   화면(예: projects.html 배너)은 이 함수가 돌려준 «숫자»만 옮겨 적어야 한다.
+ *
+ * ★검증된 payload 가 없으면 `null` — 서명이 없거나(legacy_grace 포함) 위조·불일치면
+ *   「며칠 남았다」를 계산할 근거 자체가 없다. ⇒ legacy_grace 사용자는 이 값이 항상
+ *   `null` 이라 배너 대상에서 «자동으로» 빠진다(별도 분기 없이). 그 사람들의 실제
+ *   마감은 `CONSTANTS.SIGLESS_GRACE_UNTIL`(고정 전역 날짜)이지 개인별 `exp` 가 아니라서
+ *   같은 배너에 실으면 «틀린 날짜»를 예고하게 된다 — 그래서 여기서 다루지 않는다
+ *   (지디 결정 ⒜, 2026-09-06: 이 경로는 온라인 한 번이면 서명본으로 자동 교체돼
+ *   해소되므로 겁줄 이유가 없다).
+ *
+ * ★음수를 돌려줄 수 있다(exp 가 이미 지남 = exp_in_grace/grace_exceeded) — «걸러내는
+ *   건 부르는 쪽»이다. 이 함수는 사실만 계산한다.
+ *
+ * @param {object|null} record  auth.json 레코드(`record.signed` 를 본다)
+ * @param {Record<string,string>} keys
+ * @param {number} [now] ms — 생략하면 Date.now()
+ * @returns {number|null} 정수 일수(음수 가능). 계산 불가면 null.
+ */
+function daysUntilSigStale(record, keys, now) {
+  const v = verifyEntitlement(record && record.signed, keys);
+  if (!v.ok) return null;
+  const exp = Date.parse(v.payload.exp);
+  if (!Number.isFinite(exp)) return null;
+  const t = Number.isFinite(now) ? now : Date.now();
+  return Math.ceil((exp - t) / DAY_MS);
+}
+
 /* ── 로컬 분류 (순수·동기) ──────────────────────────────────────────────────
  * 계획서 §3-1 표. **순서가 곧 우선순위다** — 특히 L5(accessUntil) 가 L6(exp) «앞»이다.
  */
@@ -671,6 +703,7 @@ module.exports = {
   CONSTANTS,
   STATUS_OF,
   verifyEntitlement,
+  daysUntilSigStale,
   classify,
   applyServerAnswer,
   resolveAuth,

@@ -356,6 +356,37 @@ test('U-ENT-B13 신고 진단은 «한 줄»이고 이메일이 없다 (errors[]
   assert.equal('auth' in ctx, false, '★서버가 조용히 버리는 «모르는 최상위 필드»를 만들지 않는다');
 });
 
+/* ═══ ⑺ E3-b ㉯ — auth:state.daysUntilSigStale ═══════════════════════════════
+ * ★진짜 main.js 핸들러로 잰다(흉내 아님) — entitlement.js 의 daysUntilSigStale 이
+ *   main.js 배선을 거쳐 auth:state 에 «실제로» 나오는지가 검사 대상이다. */
+test('U-ENT-B21 ★유효한 서명 + exp 가 5일 뒤 → auth:state.daysUntilSigStale === 5', async () => {
+  const iat = Date.now();
+  const signed = issue({ exp: new Date(iat + 5 * DAY).toISOString() }, iat);
+  rmAuth();
+  putAuth({ email: 'a@b.c', plan: 'pro', accessUntil: null, sessionToken: TOKEN, sub: 'user-1', signed });
+  const st = await H.invoke('auth:state');
+  assert.equal(st.daysUntilSigStale, 5);
+});
+
+test('U-ENT-B22 ★★서명이 없는(legacy_grace 모양) 옛 auth.json → null — SIGLESS_GRACE_UNTIL 은 별개 마감이다', async () => {
+  rmAuth();
+  putAuth({ email: 'a@b.c', plan: 'pro', accessUntil: new Date(Date.now() + 100 * DAY).toISOString(), sessionToken: TOKEN, savedAt: new Date().toISOString() });
+  const st = await H.invoke('auth:state');
+  assert.equal(st.daysUntilSigStale, null, 'legacy_grace 는 exp 가 없으니 배너 대상에서 자동으로 빠져야 한다');
+});
+
+test('U-ENT-B23 위조된 서명(다른 키) → null(위조 exp 로 예고하지 않는다)', async () => {
+  const other = crypto.generateKeyPairSync('ed25519');
+  const p = { ver: 1, kid: 'k1', app: 'goditor', sub: 'user-1', email: 'a@b.c', plan: 'pro',
+    accessUntil: null, iat: new Date().toISOString(), exp: new Date(Date.now() + 3 * DAY).toISOString(), sid: SID };
+  const payload = Buffer.from(JSON.stringify(p), 'utf8').toString('base64url');
+  const sig = crypto.sign(null, Buffer.from(payload, 'utf8'), other.privateKey).toString('base64url');
+  rmAuth();
+  putAuth({ email: 'a@b.c', plan: 'pro', accessUntil: null, sessionToken: TOKEN, sub: 'user-1', signed: { payload, sig, kid: 'k1' } });
+  const st = await H.invoke('auth:state');
+  assert.equal(st.daysUntilSigStale, null);
+});
+
 /* ═══ ⑹ 부팅이 네트워크를 기다리지 않는가 ═════════════════════════════════ */
 
 test('U-ENT-B14 ★부팅 경로(checkAuthAndLoad)에 네트워크 await 가 0 이다', () => {

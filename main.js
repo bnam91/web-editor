@@ -633,6 +633,11 @@ ipcMain.handle('auth:state', () => {
     email:       auth?.email || '',
     plan:        auth?.plan || '',
     accessUntil: auth?.accessUntil == null ? '' : String(auth.accessUntil),
+    /* ★E3-b ㉯(잠그기 전 예고)용 — 서명의 exp 까지 남은 «일수». entitlement.js 가 계산한
+       값을 «그대로» 옮긴다. ⛔여기서 exp 를 직접 파싱하지 않는다 — 화면이 두 번째 판정을
+       만드는 사고(E3-b ㉮ 에서 지적된 것과 같은 종류)를 막는다. 서명이 없으면(legacy_grace
+       포함) null — 그 사람들의 실제 마감은 SIGLESS_GRACE_UNTIL 이라 이 값과 다르다. */
+    daysUntilSigStale: entitlement.daysUntilSigStale(auth, entKeys(), Date.now()),
     purchaseUrl: PRICING_URL,
     signupUrl:   SIGNUP_URL,
     findEmailUrl:    FIND_EMAIL_URL,
