@@ -1335,6 +1335,75 @@ function _startGridGutterRaf() {
   _gridGutterRafId = requestAnimationFrame(loop);
 }
 
+/* ═══ [M64] 행 거터가 «낮은 배율에서» 칸의 편집 진입을 삼킨다 ═══════════════════════
+   미니4호기 윈도우 QA 보고 → 맥 재현(2026-09-06, 9371 · 3열×4행 · 행높이 210px).
+   ⛔보고서의 「거터가 21px 짜리 칸을 통째로 덮는다」는 «틀렸다» — 실측하면 거터는 칸의
+     «맨 위 2.8px»만 덮는다. 문제는 덮는 «넓이»가 아니라 «자리»다:
+       · 편집 가능한 표적은 칸 전체가 아니라 그 안의 글줄(`[data-line]`) «하나»다.
+       · valign:top 이라 글줄은 칸의 «맨 위»에 붙는다 — 거터가 파고드는 바로 그 자리다.
+       · 10% 에서 글줄 높이 = 35.2×0.1 = 3.52px, 그 중앙은 칸 위끝에서 1.76px.
+         거터는 위끝에서 2.8px 까지 덮는다(4 − gap·s/2 = 4 − 1.2). 1.76 < 2.8 ⇒ 삼킨다.
+   [실측 — «진짜 더블클릭»(Input.dispatchMouseEvent clickCount 1→2) 12칸 × 배율]
+       10%: 편집진입 3/12 (막힘 9, 전부 거터)      13%: 3/12 (막힘 9)
+       15%: 12/12                                  25%·40%: 12/12    100%: 9/9(3칸 화면밖)
+     ★막히는 칸은 «위에 거터가 있는 행»(1·2·3행) 전부고, 0행은 10% 에서도 들어간다 —
+       0행 위에는 경계가 없다. 이 대조가 「10% 라서 다 안 되는 것」이 아님을 증명한다.
+     ★깨지는 구간은 s < 4/((gap+lineH)/2) = 4/29.6 ≈ 0.135 — 즉 «10~13%» 뿐이다(측정과 일치).
+   ⛔그냥 얇게 만들면 안 된다 — 거터가 «화면 고정 8px»인 건 낮은 배율에서 «잡으라»는 뜻이다.
+     8px 를 4px 로 줄이면 이번엔 거터를 못 잡는다. ⇒ «둘 다 잡히는» 자리를 찾아야 한다.
+   ★답 = 거터를 경계 «중앙 정렬»에서 풀고, 위/아래 절반을 «각자» 이웃 칸의 글줄 중앙까지만
+     뻗게 한다(비대칭 허용). valign:top 이면 위 칸의 «아래쪽»은 언제나 비어 있으므로
+     위 절반이 4px 를 그대로 갖고, 아래 절반만 글줄을 피해 줄어든다:
+       10% 실측 → 위 4.00 + 아래 2.21 = 6.21px 거터(잡을 수 있다) · 글줄 중앙은 0.75px 여유로 열림.
+   ⚠️대가 ⑴ 아주 낮은 배율에서 거터가 경계보다 «살짝 위»에 앉는다(비대칭). 경계선 자체는
+        위 절반 4px 가 여전히 덮으므로 「보이는 선을 누르면 잡힌다」는 유지된다.
+     ⑵ 위·아래 «둘 다» 글줄이 경계에 붙은 병리적 배치(valign:bottom + 다음 칸 top)에서는
+        GUT_MIN_TOTAL floor 가 이겨서 거터가 글줄을 조금 덮는다 — 「거터를 아예 못 잡는다」보다
+        낫다고 판단했다. 그 경우에도 사용자는 배율을 올려 편집할 수 있다.
+     ⑶ 낮은 배율에서만 글줄 rect 를 읽는다(GUT_PROBE_H 게이트) — 보통 배율에선 추가 비용 0.
+   ⛔열 거터는 «안 건드린다» — 글줄은 칸 폭을 가득 채우므로 가로 중앙은 열 거터에서 11px 떨어져
+     있고, 실측에서도 열 거터로 막힌 칸은 0 건이었다. 고칠 근거가 없는 것은 안 고친다.
+═══════════════════════════════════════════════════════════════════════════════ */
+const GUT_HALF_MAX   = 4;    // 기존 8px 거터의 «절반» — 상한(높은 배율에선 이 값 그대로)
+const GUT_MIN_TOTAL  = 5;    // 거터 최소 두께(px). 이 아래로는 «못 잡는다»
+const GUT_CONTENT_EPS = 0.75; // 글줄 중앙을 이만큼은 «반드시» 비워 둔다
+const GUT_PROBE_H    = 64;   // 칸이 이보다 높으면 8px 거터가 글줄 중앙에 닿을 수 없다 → 조사 생략
+
+/** 경계 중앙 cy 에서 위/아래 한계선을 받아 거터 띠([top, height])를 낸다 — 순수함수(단위검사 대상).
+ *  upLimit   = 거터가 «이 y 아래»로만 갈 수 있다(위 칸 글줄 중앙 + eps). null = 제약 없음
+ *  downLimit = 거터가 «이 y 위»로만 갈 수 있다(아래 칸 글줄 중앙 − eps). null = 제약 없음 */
+function _rowGutterBand(cy, upLimit, downLimit) {
+  let halfUp   = upLimit   == null ? GUT_HALF_MAX : Math.min(GUT_HALF_MAX, Math.max(0, cy - upLimit));
+  let halfDown = downLimit == null ? GUT_HALF_MAX : Math.min(GUT_HALF_MAX, Math.max(0, downLimit - cy));
+  /* ★floor — 내용이 양쪽에서 밀어붙여도 «잡을 수 있는» 두께는 남긴다.
+     남는 여유가 있는 쪽(주로 위 칸의 빈 아래쪽)부터 채운다. */
+  let deficit = GUT_MIN_TOTAL - (halfUp + halfDown);
+  if (deficit > 0) {
+    const take = Math.min(deficit, GUT_HALF_MAX - halfUp);
+    halfUp += take; deficit -= take;
+    if (deficit > 0) halfDown = Math.min(GUT_HALF_MAX, halfDown + deficit);
+  }
+  return { top: cy - halfUp, height: halfUp + halfDown };
+}
+
+/** 행 r 의 «경계쪽 글줄 중앙»(화면 y). dir='up' = 그 행이 경계 위(마지막 줄), 'down' = 아래(첫 줄).
+ *  ★열을 «전부» 훑는다 — 거터는 블록 폭 전체를 덮으므로 한 열만 보면 다른 열이 계속 막힌다. */
+function _rowContentEdge(block, r, dir) {
+  const inner = block.querySelector(':scope > .grd-inner');
+  if (!inner) return null;
+  let edge = null;
+  for (const cell of inner.querySelectorAll(`:scope > .grd-cell[data-r="${r}"]`)) {
+    const lines = cell.querySelectorAll('[data-line]');
+    if (!lines.length) continue;
+    const lr = (dir === 'up' ? lines[lines.length - 1] : lines[0]).getBoundingClientRect();
+    if (!(lr.height > 0)) continue;
+    const mid = lr.top + lr.height / 2;
+    const v = dir === 'up' ? mid + GUT_CONTENT_EPS : mid - GUT_CONTENT_EPS;
+    if (edge === null || (dir === 'up' ? v > edge : v < edge)) edge = v;
+  }
+  return edge;
+}
+
 function _updateGridGutterPositions() {
   const overlay = _getOverlay();
   if (!overlay || !_gridGutterBlock) return;
@@ -1360,7 +1429,16 @@ function _updateGridGutterPositions() {
     const ar = a.getBoundingClientRect();
     const br = b.getBoundingClientRect();
     const cy = (ar.bottom + br.top) / 2; // 두 행 사이 gap 의 중앙
-    g.style.top = (cy - 4) + 'px';       // 8px 높이 중앙 정렬
+    /* [M64] 낮은 배율에서만 이웃 글줄을 조사해 «편집 표적»을 비켜 앉는다(위 큰 주석 참조).
+       칸이 충분히 크면 8px 거터가 글줄 중앙까지 닿을 수 없으므로 rect 를 읽지 않는다. */
+    const probe = ar.height < GUT_PROBE_H || br.height < GUT_PROBE_H;
+    const band = _rowGutterBand(
+      cy,
+      probe ? _rowContentEdge(block, i, 'up') : null,
+      probe ? _rowContentEdge(block, i + 1, 'down') : null,
+    );
+    g.style.top = band.top + 'px';
+    g.style.height = band.height + 'px';
     g.style.left = blockRect.left + 'px';
     g.style.width = blockRect.width + 'px';
   });
