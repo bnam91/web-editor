@@ -23,6 +23,12 @@
 
 const fs = require('fs');
 const path = require('path');
+/* ★[H1, 2026-09-06] 정본→alias 재시도는 admin/index.js 의 _callWithAlias 를 그대로 쓴다
+ *   (복사하지 않는다 — main/admin/index.js 헤더의 [H1] 주석과 짝). 서버가 /api/report·
+ *   /api/notice 폴더 «전체»를 EC2 라우팅에서 빠뜨린 채 배포된 적이 있어(실측 2026-09-06:
+ *   POST /api/report → 404, POST /api/license/report → 200), 정본 하나만 부르면 신고가
+ *   영원히 큐에 갇힌다(현빈 기계 실제 사고: 2건 갇힘·1건 271회 재시도). */
+const { _callWithAlias } = require('../admin');
 
 const MAX_ITEMS   = 50;
 const TIMEOUT_MS  = 30000;   // 이미지가 붙으면 10초로는 모자란다
@@ -92,24 +98,6 @@ function stats() {
 }
 
 /* ── 전송 ────────────────────────────────────────────────────────────────── */
-async function post(url, body) {
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: ctl.signal,
-    });
-    let json = null;
-    try { json = await res.json(); } catch (_) { json = null; }
-    return { status: res.status, json };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 /* ★버리는 조건은 «허용목록»이다 — 「4xx 면 버린다」가 아니다.
  *   실측(2026-09-02): 라이브 /api/report 는 아직 «없어서» 404 를 준다. 4xx 를 통째로
  *   영구실패로 보면 라우트가 올라가기 «전»에 눌린 신고가 전부 조용히 사라진다
@@ -162,16 +150,21 @@ async function flush() {
         if (target) { target.inflightAt = new Date().toISOString(); target.resumed = item.resumed; write(st); }
       }
 
-      let res = null, netErr = null;
+      let res;
       try {
         const auth = _authReader() || {};
         const body = Object.assign({}, item.payload);
         // ★세션토큰은 «보낼 때» 붙인다. 큐 파일에 토큰을 적어 두지 않는다(디스크에 남는다).
         //   D-c: 로그아웃 뒤 재시도되면 토큰이 없어 그대로 익명이 된다 — 이전 계정이 새지 않는다.
         if (auth.sessionToken) body.sessionToken = auth.sessionToken;
-        res = await post(_apiBase + '/api/report', body);
+        // ★[H1] 정본(/api/report) 먼저, 404 면 alias(/api/license/report) 로 한 번 더.
+        //   _apiBase 를 그대로 밀어넣는다 — admin/index.js 의 고정 API_BASE 에 기대면
+        //   stage 큐가 live alias 를 부르는 사고가 난다(파일 헤더 require 주석 참조).
+        res = await _callWithAlias('/api/report', '/api/license/report', body, TIMEOUT_MS, _apiBase);
       } catch (e) {
-        netErr = (e && e.name === 'AbortError') ? 'timeout' : ((e && e.message) || 'network');
+        // _callWithAlias 는 네트워크 오류를 안에서 삼켜 {ok:false, reason:'offline'} 로 돌려주는
+        // 계약이다(admin/index.js) — 이 catch 는 그 계약이 깨졌을 때만 걸리는 방어선이다.
+        res = { ok: false, reason: (e && e.name === 'AbortError') ? 'timeout' : ((e && e.message) || 'network') };
       }
       _inflight.delete(item.id);
 
@@ -179,26 +172,35 @@ async function flush() {
       const idx = st.items.findIndex((x) => x.id === item.id);
       if (idx < 0) continue;   // 그 사이 지워졌다면 그냥 넘어간다
 
-      if (res && res.status >= 200 && res.status < 300 && res.json && res.json.ok) {
+      if (res.ok) {
         st.items.splice(idx, 1);
         write(st);
         sent++;
-        lastMessage = (res.json && res.json.message) || null;
+        lastMessage = res.message || null;
         continue;
       }
 
-      if (res && isPermanent(res.status)) {
+      if (typeof res.status === 'number' && isPermanent(res.status)) {
         // 서버가 「이건 못 받는다」고 «말과 함께» 거절했다. 계속 붙들 이유가 없다.
         st.items.splice(idx, 1);
         write(st);
         dropped++;
-        lastError = (res.json && (res.json.message || res.json.error)) || ('HTTP ' + res.status);
+        lastError = res.message || res.reason || ('HTTP ' + res.status);
         continue;
       }
 
-      // 일시적 실패(오프라인·5xx·429) — 남겨두고 «멈춘다». 순서를 지키기 위해서다.
+      /* 일시적 실패 — 남겨두고 «멈춘다»(순서를 지키기 위해서다). 여기 들어오는 것:
+       *   · 오프라인·타임아웃(res.reason==='offline'/'timeout')
+       *   · 5xx·429
+       *   · 정본·alias 가 «둘 다» 404(res.reason==='not_deployed') — ★일부러 여기 둔다.
+       *     PERMANENT 는 404 를 포함하지 않는다(파일 위 주석). alias 까지 404 라는 건
+       *     「아직 배포가 안 됐다」는 뜻이지 「이 기능이 없다」가 아니다 — 배포 순서 하나로
+       *     신고를 버리면 안 된다는 원래 계약을 그대로 지킨다. 백오프를 더 늘리지 않는 이유는
+       *     RETRY_MS(10분)가 이미 배포 대기로는 충분히 느리고, 레이트리밋(10건/시간)은
+       *     ★flush() 가 한 항목에서 실패하면 즉시 break 해 같은 사이클에서 더 안 두드리기
+       *     때문이다(429 를 받아도 여기로 와서 멈춘다 — 폭주하지 않는다). */
       st.items[idx].tries = (st.items[idx].tries || 0) + 1;
-      st.items[idx].lastError = netErr || (res ? ('HTTP ' + res.status) : 'unknown');
+      st.items[idx].lastError = res.message || res.reason || (res.status ? ('HTTP ' + res.status) : 'unknown');
       st.items[idx].inflightAt = null;    // 응답을 «봤으므로» 재개 상태가 아니다
       write(st);
       lastError = st.items[idx].lastError;

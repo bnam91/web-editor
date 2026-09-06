@@ -87,7 +87,11 @@
       "!.git",
       "!dist",
       "!*.md",
-      "!templates"
+      "!templates",
+      "!.env",
+      "!.env.*",
+      "!**/.env",
+      "!**/.env.*"
     ]
   },
   "repository": {
