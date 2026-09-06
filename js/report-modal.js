@@ -348,13 +348,15 @@
     });
   }
 
-  /* ── 「함께 보내지는 것」 ────────────────────────────────────────────── */
-  function renderDisclosure() {
-    var el = document.getElementById('report-modal');
-    if (!el || !state) return;
-    var c = state.ctx || {};
-    var errs = state.errors || [];
-    var acct = state.account;
+  /* ── 「함께 보내지는 것」 ──────────────────────────────────────────────
+     ★본문 만들기를 «순수 함수»로 뺀다 — DOM 없이 «진짜 함수»를 잴 수 있게
+       (mergeAuthDiag · ReportBuffer.scrubPaths 와 같은 노출 패턴).
+       renderDisclosure 는 상태를 모아 이 함수에 넘기고 결과를 꽂기만 한다. */
+  function disclosureHtml(o) {
+    var c = (o && o.ctx) || {};
+    var errs = (o && o.errors) || [];
+    var acct = o && o.account;
+    var hasBuffer = !!(o && o.hasBuffer);
     var html =
       '<dl>' +
         '<dt>버전</dt><dd>' + esc(c.appVersion || '?') + '</dd>' +
@@ -365,6 +367,21 @@
       '</dl>' +
       '<h6>최근 오류 ' + errs.length + '건 ' +
         '<span style="font-weight:400">(파일 경로에서 사용자 이름은 지우고 담습니다)</span></h6>';
+
+    /* ★★[H3 후속] 「이 화면은 편집 중 오류를 «안 모은다»」를 «말한다» (지디 지시, 2026-09-06).
+       ⛔이걸 안 적으면 우리가 나중에 「왜 어떤 신고는 errors 가 비지」로 헤맨다.
+       사실관계: 링버퍼(js/report-buffer.js)는 에디터(index.html)에만 실린다. 프로젝트
+       목록 화면(pages/projects.html)에는 «일부러» 안 실었다 — 그 화면에 새 console 후킹을
+       들이는 건 H3 의 일이 아니고, ★H2 이후 링버퍼 내용은 «디스크에도» 남으므로
+       노출 면을 안 늘리는 쪽이 옳다(지디 확정).
+       ⇒ 그래서 「비었다」는 «고장이 아니라 설계»다. 그 사실을 화면이 스스로 말한다.
+       ★버퍼가 «있는지»로 판정한다 — 화면 이름(location)으로 판정하면 화면이 늘 때마다 낡는다. */
+    if (!hasBuffer) {
+      html += '<p class="report-errs empty" style="margin:0 0 6px">' +
+        '이 화면은 «편집 중 오류»를 따로 모으지 않습니다 — 편집 화면에서 보내시면 최근 오류가 함께 담깁니다.' +
+        '</p>';
+    }
+
     if (!errs.length) {
       html += '<p class="report-errs empty" style="margin:0">담긴 오류가 없습니다.</p>';
     } else {
@@ -372,7 +389,16 @@
         return '<li>' + esc((e.level || '') + ' · ' + (e.msg || '')) + '</li>';
       }).join('') + '</ul>';
     }
-    el.querySelector('#report-disc-body').innerHTML = html;
+    return html;
+  }
+
+  function renderDisclosure() {
+    var el = document.getElementById('report-modal');
+    if (!el || !state) return;
+    el.querySelector('#report-disc-body').innerHTML = disclosureHtml({
+      ctx: state.ctx, errors: state.errors, account: state.account,
+      hasBuffer: !!(w.ReportBuffer && typeof w.ReportBuffer.list === 'function'),
+    });
   }
 
   /* ── 열기 / 닫기 ──────────────────────────────────────────────────────
@@ -528,4 +554,5 @@
   w.openReportModal  = open;
   w.closeReportModal = close;
   w.reportModalMergeAuthDiag = mergeAuthDiag;   // 테스트 전용 노출 — ReportBuffer.scrubPaths 와 같은 패턴
+  w.reportModalDisclosureHtml = disclosureHtml; // 같은 패턴 — DOM 없이 「무엇이 보이나」를 잰다
 })(window);
