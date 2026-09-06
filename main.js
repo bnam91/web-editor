@@ -67,6 +67,9 @@ _loadEnvFile(path.join(__dirname, '.env'));
 _loadEnvFile(path.join(os.homedir(), '.config/secrets/.env'));
 const { spawn } = require('child_process');
 const { login: authLogin, verifySession: authVerifySession, urlIsLive: authUrlIsLive, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL, API_BASE: AUTH_API_BASE } = require('./services/authService');
+/* ★자격증명 판정의 SSOT. 이 파일에는 «판정 규칙»을 두지 않는다 — 규칙이 둘이 되면 갈라진다.
+   여기가 하는 일은 「디스크·네트워크·화면을 그 답에 «배선»하는 것」뿐이다. */
+const entitlement = require('./services/entitlement');
 const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
@@ -397,20 +400,41 @@ function readAuth() {
     const p = getAuthPath();
     if (!fs.existsSync(p)) return null;
     const raw = JSON.parse(fs.readFileSync(p, 'utf8').replace(/^﻿/, ''));
-    if (!raw || typeof raw !== 'object' || !raw.email || !raw.accessUntil) return null;
+    /* ★★`!raw.accessUntil` 가드를 «뺐다» — 로더가 «판정»까지 겸해서 난 사고다.
+         무기한 사용자의 accessUntil 은 `null`(= 끝 없음)이라 `''`/`null` 둘 다 falsy 다.
+         옛 가드는 그 기록을 「없다」로 읽어 로그인 화면을 띄웠고, 그러면 sessionToken 도
+         못 꺼내 silentRefresh 가 손도 못 대는 «자가복구 불가» 상태가 된다.
+       ⇒ **판정은 resolveAuth/classify 가 할 일이지 «로더»가 할 일이 아니다.**
+         로더는 「이 파일이 우리 레코드인가」(= email 이 있나)만 본다. */
+    if (!raw || typeof raw !== 'object' || !raw.email) return null;
     return raw;
   } catch (_) {
     return null;
   }
 }
+/* ⚠️★이 함수는 «화이트리스트»다 — 여기 안 적힌 필드는 «조용히» 사라진다.
+     그래서 새 필드를 쓰는 호출처를 아무리 잘 짜도, 여기를 안 고치면 **전원이 옛 상태로 퇴행**한다.
+     (서명본이 매 저장마다 증발 → 모두 `sig_missing` → 마감 후엔 전원 재검증) */
 function writeAuth(record) {
   const next = {
     email:        String(record.email || ''),
     plan:         String(record.plan || ''),
-    accessUntil:  String(record.accessUntil || ''),
+    /* ★`accessUntil` «만» 강제 문자열화에서 뺀다 — `null` 은 「무기한」이라는 «뜻»이고
+       `String(null || '')` = `''` 는 그 뜻을 지운다. 지워지면 readAuth 가 못 읽어
+       무기한 사용자가 매 실행 로그아웃된다(2026-09-06 재현).
+       ⛔나머지 4필드는 «그대로» 문자열 강제다 — 같이 풀면 다른 병이 난다. */
+    accessUntil:  record.accessUntil === null ? null : String(record.accessUntil || ''),
     sessionToken: String(record.sessionToken || ''),
     savedAt:      new Date().toISOString(),
   };
+  /* ★서명본 보존. ⛔`signed.payload` 는 서버가 준 b64url 문자열 «그대로»여야 한다 —
+     파싱해서 다시 만들면 한 바이트가 달라져 서명이 깨진다. 그래서 «객체를 그대로» 싣는다.
+     ★`signed` 가 record 에 «없으면» 안 쓴다 = 「지운다」는 뜻이다
+       (applyServerAnswer 의 expired-무서명 폴백이 `delete next.signed` 로 그 뜻을 만든다). */
+  if (record.signed && typeof record.signed === 'object' && !Array.isArray(record.signed)) {
+    next.signed = record.signed;
+  }
+  if (record.sub) next.sub = String(record.sub);
   try {
     fs.writeFileSync(getAuthPath(), JSON.stringify(next, null, 2), 'utf8');
   } catch (e) {
@@ -421,10 +445,50 @@ function writeAuth(record) {
 function clearAuth() {
   try { fs.unlinkSync(getAuthPath()); } catch (_) {}
 }
-/** accessUntil이 아직 안 지났는가. 파싱 불가면 false(=만료 취급). */
-function authAccessValid(a) {
-  const t = Date.parse(a?.accessUntil);
-  return Number.isFinite(t) && t > Date.now();
+/* ── 자격증명 SSOT 배선 ──────────────────────────────────────────────────────
+   ⛔옛 `authAccessValid(a)` 는 **폐기됐다**. 그건 `auth.json` 의 문자열 하나만 봤고,
+     그 파일은 사용자 것이다(2099 로 고치면 통과). 판정은 이제 services/entitlement.js 가
+     «한 곳»에서 하고, 이 파일은 그 답을 디스크·화면·네트워크에 «배선»만 한다.
+   ★이 아래 세 함수 말고 다른 곳에서 판정하지 마라 — 규칙이 둘이 되면 갈라진다. */
+
+/** 이 앱이 믿을 공개키. ★dev(!isPackaged)에서만 env 주입을 허용한다
+ *  (`isAdminAuthorized` 와 «같은 규약» — 패키징에선 무시. 안 그러면 사용자가 자기 키를 넣고
+ *   자기가 서명해서 서명 검증 전체가 장식이 된다). */
+function entKeys() {
+  let packaged = true;
+  try { packaged = app.isPackaged; } catch (_) { packaged = false; }
+  return entitlement.resolveKeys({ isPackaged: packaged, env: process.env });
+}
+
+/** resolveAuth 에 «주입»하는 verify. ⛔토큰은 이 함수 밖으로 안 나간다. */
+async function entVerify(record) {
+  if (!record || !record.email || !record.sessionToken) return null;
+  return await authVerifySession(record.email, record.sessionToken);
+}
+
+/** 로컬 판정(동기·네트워크 0). 부팅·auth:state·navigate-projects 가 «같은» 이 답을 쓴다. */
+function authVerdict(record, now) {
+  return entitlement.classify(
+    record,
+    Number.isFinite(now) ? now : Date.now(),
+    entKeys(),
+    entitlement.CONSTANTS
+  );
+}
+
+/** 서버 답의 진단만 보관(신고용). ⛔email·sub·토큰·서명 원문은 «담지 않는다». */
+let _lastServerDiag = {};
+function _noteServer(diagOrNull) {
+  _lastServerDiag = (diagOrNull && typeof diagOrNull === 'object') ? diagOrNull : {};
+}
+
+/** applyServerAnswer 결과를 디스크에 반영한다. 「말 안 함」이면 «아무것도 안 한다»(유예). */
+function persistApplied(prev, applied) {
+  _noteServer(applied && applied.diag);
+  if (!applied) return prev;
+  if (applied.clear) { if (prev) clearAuth(); return null; }
+  if (applied.changed && applied.record) { writeAuth(applied.record); return applied.record; }
+  return applied.record || prev;
 }
 
 /* ── admin 모드 인증 (GAP-008 심층: 라이선스/결제 우회 차단) ──
@@ -471,32 +535,64 @@ async function checkAuthAndLoad() {
     return;
   }
   const auth = readAuth();
-  if (auth && authAccessValid(auth)) {
+  /* ⛔**부팅 경로엔 네트워크 `await` 가 «한 개도» 없다** — 2026-08-05(백엔드 다운에 인증했던
+     사용자가 전부 잠김)의 약속이다. `authVerdict` 는 순수·동기다.
+     확인이 «필요한» 상태는 열지 않고 license.html 로 보내 «거기서» auth:refresh 로 푼다. */
+  const v = authVerdict(auth);
+  if (v.pass) {
     _grantEditorAccess();
     mainWindow.loadFile('pages/projects.html');
-    silentRefresh(auth); // 네트워크 없으면 조용히 포기 — 부팅을 막지 않는다
+    /* ★legacy_grace(옛 auth.json)는 «반드시» 서명본으로 교체돼야 한다 — 그래서 비차단 갱신은
+       통과했을 때도 돈다. 네트워크가 없으면 조용히 포기한다(부팅을 막지 않는다). */
+    if (v.backgroundVerify !== false && v.needsVerify === 'background') silentRefresh(auth);
     return;
   }
-  // 저장된 계정이 있으면 license.html이 만료 화면으로, 없으면 로그인 화면으로 뜬다
-  // (렌더러가 auth:state를 물어서 분기).
+  // 저장된 계정이 있으면 license.html이 만료/확인 화면으로, 없으면 로그인 화면으로 뜬다
+  // (렌더러가 auth:state를 물어서 분기 — pending/status/reason 을 준다).
   mainWindow.loadFile('pages/license.html');
 }
 
-/** 온라인이면 접근권한을 조용히 갱신. 실패·판단불가는 전부 무시(캐시 유지). */
-async function silentRefresh(auth) {
+/* 백그라운드 갱신 상태. ⛔모든 대기에 상한이 있다 — 상한이 없으면 검사가 «무한 대기»한다. */
+let _bgVerifyTimer = null;
+let _lastVerifyAt = 0;
+
+/** 온라인이면 접근권한을 조용히 갱신. 실패·판단불가는 전부 무시(캐시 유지).
+ *  ★판정·저장 규칙은 `applyServerAnswer` «한 곳»에 있다 — 여기서 따로 쓰지 않는다.
+ *  ★서버가 «말을 안 하면» E1 의 백오프로 다시 묻고, 상한(VERIFY_MAX_ATTEMPTS)을 넘으면
+ *    **그만 묻는다** — `nextRetryDelayMs` 의 `null` 은 「그만 물어라」이지 `0ms` 가 아니다.
+ *  @param {number} [attempt] 재시도 회차(1부터). 없으면 «첫 호출».  */
+async function silentRefresh(auth, attempt) {
+  const C = entitlement.CONSTANTS;
   try {
-    const r = await authVerifySession(auth.email, auth.sessionToken);
-    if (!r) return;                    // 오프라인 또는 엔드포인트 미구현 → 유예 유지
-    if (r.ok && r.accessUntil) {
-      writeAuth({ ...auth, plan: r.plan || auth.plan, accessUntil: r.accessUntil });
+    if (!auth || !auth.email || !auth.sessionToken) return;
+    const now = Date.now();
+    /* ★첫 호출에만 최소 간격을 본다 — 재기동을 연타해도 서버를 분당 여러 번 때리지 않는다.
+       (재시도 회차는 이미 백오프가 간격을 정했으므로 여기서 또 막지 않는다.) */
+    if (attempt == null && now - _lastVerifyAt < C.VERIFY_MIN_INTERVAL_MS) return;
+    _lastVerifyAt = now;
+
+    let r = null;
+    try { r = await entVerify(auth); } catch (_) { r = null; }
+
+    if (r === null || r === undefined) {
+      // 「말을 안 했다」 — 캐시를 «안 건드린다». 백오프로 다시 묻는다(상한까지만).
+      _noteServer({ serverSpoke: false });
+      const n = attempt || 1;
+      const delay = entitlement.nextRetryDelayMs(n, C);
+      if (delay === null) return;                 // 상한 — 그만 묻는다
+      if (_bgVerifyTimer) clearTimeout(_bgVerifyTimer);
+      _bgVerifyTimer = setTimeout(() => {
+        _bgVerifyTimer = null;
+        silentRefresh(readAuth() || auth, n + 1);
+      }, delay);
+      /* ★타이머가 프로세스를 붙잡지 않게 한다 — 안 그러면 단위검사가 «끝나지 않는다». */
+      if (_bgVerifyTimer && typeof _bgVerifyTimer.unref === 'function') _bgVerifyTimer.unref();
       return;
     }
-    if (r.reason === 'expired' && r.accessUntil) {
-      // 세션 중에는 쫓아내지 않는다. 다음 실행부터 만료 화면.
-      writeAuth({ ...auth, plan: r.plan || auth.plan, accessUntil: r.accessUntil });
-      return;
-    }
-    if (r.reason === 'invalid_session') clearAuth();
+    const applied = entitlement.applyServerAnswer(auth, r, { now: Date.now(), keys: entKeys(), C });
+    /* ⚠️세션 중에는 쫓아내지 않는다(옛 규약 그대로) — 저장만 하고 화면은 다음 실행에서 갈린다.
+       단 `invalid_session`/`email_not_verified` 는 «답»이라 지운다(applied.clear). */
+    persistApplied(auth, applied);
   } catch (_) {}
 }
 
@@ -505,13 +601,22 @@ async function silentRefresh(auth) {
 // 로그인 화면/만료 화면 분기용 현재 상태. 비밀번호·세션토큰은 렌더러에 넘기지 않는다.
 ipcMain.handle('auth:state', () => {
   const auth = readAuth();
-  const valid = !!auth && authAccessValid(auth);
+  const v = authVerdict(auth);
   return {
-    signedIn:    valid,
-    expired:     !!auth && !valid,
+    signedIn:    v.pass,
+    expired:     !!auth && !v.pass,
+    /* ★E3(화면)용 — 「만료」와 「확인 필요」는 «다른 말»이다.
+       ⛔`sig`·`payload`·`sessionToken`·`sub` 는 여기로 «절대» 안 나간다(C6). */
+    pending:     v.screen === 'verify' ? 'verify' : null,
+    status:      v.status,
+    reason:      v.reason || '',
+    offline:     _lastServerDiag.serverSpoke === false,
+    /* ★무기한(accessUntil === null)을 그대로 내보내면 옛 화면이 「만료」로 읽는다.
+       표시용 문자열과 «무기한이라는 사실»을 따로 준다. */
+    perpetual:   !!auth && auth.accessUntil === null,
     email:       auth?.email || '',
     plan:        auth?.plan || '',
-    accessUntil: auth?.accessUntil || '',
+    accessUntil: auth?.accessUntil == null ? '' : String(auth.accessUntil),
     purchaseUrl: PRICING_URL,
     signupUrl:   SIGNUP_URL,
     findEmailUrl:    FIND_EMAIL_URL,
@@ -522,16 +627,27 @@ ipcMain.handle('auth:state', () => {
 ipcMain.handle('auth:login', async (_event, email, password) => {
   const r = await authLogin(String(email || '').trim(), String(password || ''));
   if (r.ok) {
-    writeAuth({
-      email: r.email, plan: r.plan, accessUntil: r.accessUntil, sessionToken: r.sessionToken,
-    });
+    let rec = { email: r.email, plan: r.plan, accessUntil: r.accessUntil, sessionToken: r.sessionToken };
+    /* ★`login` 응답엔 `signed` 가 «없다»(서버 login.js 무변경) ⇒ 서명본은 `session` 이 준다.
+       구글 경로(:auth:google-login)가 이미 그렇게 하고 있다 — «그 모양을 따른다».
+       ⚠️오프라인이면 verifySession 이 null 이다. 그때도 **로그인은 성공시킨다** —
+         서명이 없다고 막으면 서버 서명 미배포·오프라인이 곧 「로그인 불가」가 된다. */
+    const v = await entVerify(rec);
+    const applied = entitlement.applyServerAnswer(rec, v, { now: Date.now(), keys: entKeys(), C: entitlement.CONSTANTS });
+    _noteServer(applied.diag);
+    if (!applied.clear && applied.record) rec = applied.record;
+    writeAuth(rec);
     // 세션토큰은 반환하지 않는다(렌더러 노출 최소화).
-    return { ok: true, email: r.email, plan: r.plan, accessUntil: r.accessUntil };
+    return {
+      ok: true, email: rec.email, plan: rec.plan,
+      accessUntil: rec.accessUntil == null ? '' : String(rec.accessUntil),
+      perpetual: rec.accessUntil === null,
+    };
   }
   if (r.reason === 'expired') {
     // 자격증명은 맞는데 이용기간이 끝난 계정 — 다음 실행에서도 만료 화면이 뜨도록 기록.
     // (sessionToken 없음)
-    writeAuth({ email: String(email || '').trim(), plan: r.plan, accessUntil: r.accessUntil, sessionToken: '' });
+    writeAuth({ email: String(email || '').trim(), plan: r.plan, accessUntil: r.accessUntil === undefined ? '' : r.accessUntil, sessionToken: '' });
   }
   return r;
 });
@@ -547,15 +663,39 @@ ipcMain.handle('auth:login', async (_event, email, password) => {
 ipcMain.handle('auth:refresh', async () => {
   const auth = readAuth();
   if (!auth?.email || !auth?.sessionToken) return { ok: false, reason: 'not_signed_in' };
-  const r = await authVerifySession(auth.email, auth.sessionToken);
-  if (!r) return { ok: false, reason: 'offline' };          // 유예 유지 — auth.json 을 안 건드린다
-  if (r.ok === false && (r.reason === 'invalid_session' || r.reason === 'email_not_verified')) {
-    clearAuth();
-    return { ok: false, reason: r.reason };
+  /* ★여기는 «언제나» 서버에 묻는다 — 「새로고침」의 존재 이유가 그것이다(등급은 앱 밖에서 바뀐다).
+     ⇒ resolveAuth 의 「로컬이 통과면 네트워크를 건너뛴다」 최적화를 여기선 쓰면 안 된다. */
+  const r = await entVerify(auth);
+  if (!r) { _noteServer({ serverSpoke: false }); return { ok: false, reason: 'offline', offline: true }; }
+
+  const ctx = { now: Date.now(), keys: entKeys(), C: entitlement.CONSTANTS };
+  const applied = entitlement.applyServerAnswer(auth, r, ctx);
+  const rec = persistApplied(auth, applied);
+  if (applied.clear) return { ok: false, reason: applied.diag.cleared || 'invalid_session' };
+
+  /* ★서버가 `ok:true` 라고 «말했는데» 로컬 검증이 실패한 경우(키·kid 오배포 = «우리 사고»)를
+     헐거운 쪽으로 떨어뜨리는 규칙은 resolveAuth 가 주인이다. verify 는 «이미 받은 답»을
+     그대로 돌려주므로 네트워크 재요청은 0 이다. ⛔여기서 그 규칙을 다시 쓰지 않는다. */
+  const v = await entitlement.resolveAuth(rec, {
+    verify: async () => r, now: ctx.now, keys: ctx.keys, C: ctx.C, allowNetwork: true,
+  });
+  /* ★`clear:false` 로 고정하는 이유 = 세션 폐기(invalid_session)는 «위»에서 이미 갈렸다.
+     같은 `r` 이 두 번 도는 것이라 여기서 또 지울 일이 없다 — 갈래를 둘로 두면 갈라진다. */
+  persistApplied(rec, { clear: false, changed: v.record !== rec, record: v.record, diag: v.diag });
+
+  /* ⛔성공해도 `_grantEditorAccess()` 를 «직접» 켜지 않는다 — 그건 license:navigate-projects 가
+     SSOT 로 다시 판정해서 켠다. 여기서 켜면 게이트를 우회하는 두 번째 문이 생긴다. */
+  const until = v.record && v.record.accessUntil;
+  if (v.pass) {
+    return {
+      ok: true, plan: (v.record && v.record.plan) || '', status: v.status,
+      accessUntil: until == null ? '' : String(until), perpetual: until === null,
+    };
   }
-  writeAuth({ ...auth, plan: r.plan || auth.plan, accessUntil: r.accessUntil || auth.accessUntil });
-  if (r.ok === false) return { ok: false, reason: r.reason || 'unknown', plan: r.plan || '', accessUntil: r.accessUntil || '' };
-  return { ok: true, plan: r.plan || '', accessUntil: r.accessUntil || '' };
+  return {
+    ok: false, reason: v.reason || r.reason || 'unknown', status: v.status, pending: v.screen === 'verify' ? 'verify' : null,
+    plan: (v.record && v.record.plan) || '', accessUntil: until == null ? '' : String(until),
+  };
 });
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -712,19 +852,35 @@ ipcMain.handle('auth:google-login', async () => {
       /* 만료도 «대답»이다 — 토큰은 살아 있으니 기록해 다음 실행에서도 만료 화면이 뜨게 한다
          (auth:login 의 expired 분기와 같은 규약, :534). */
       if (v.reason === 'expired') {
-        writeAuth({ email: r.email, plan: v.plan, accessUntil: v.accessUntil, sessionToken: r.token });
-        return { ok: false, reason: 'expired', email: r.email, plan: v.plan, accessUntil: v.accessUntil };
+        /* ★서버는 «만료된 사용자에게도» 서명해서 준다 — 그 서명본을 저장해야 다음 판정이
+           L5(access_ended)로 «지속»된다. 안 그러면 옛 서명본이 exp 까지 통과한다. */
+        const exp = entitlement.applyServerAnswer(
+          { email: r.email, plan: v.plan, accessUntil: v.accessUntil, sessionToken: r.token }, v,
+          { now: Date.now(), keys: entKeys(), C: entitlement.CONSTANTS });
+        _noteServer(exp.diag);
+        writeAuth(exp.record || { email: r.email, plan: v.plan, accessUntil: v.accessUntil, sessionToken: r.token });
+        return { ok: false, reason: 'expired', email: r.email, plan: v.plan, accessUntil: v.accessUntil == null ? '' : String(v.accessUntil) };
       }
       return { ok: false, reason: v.reason || 'unknown', email: r.email };
     }
 
-    writeAuth({ email: r.email, plan: v.plan, accessUntil: v.accessUntil, sessionToken: r.token });
+    /* ★구글 경로는 «이미» session 을 한 번 부른다 — 서명본이 여기 실려 온다.
+       판정·저장 규칙은 applyServerAnswer «한 곳»이다(이메일 로그인과 같은 문). */
+    let grec = { email: r.email, plan: v.plan, accessUntil: v.accessUntil, sessionToken: r.token };
+    const gapplied = entitlement.applyServerAnswer(grec, v, { now: Date.now(), keys: entKeys(), C: entitlement.CONSTANTS });
+    _noteServer(gapplied.diag);
+    if (!gapplied.clear && gapplied.record) grec = gapplied.record;
+    writeAuth(grec);
     /* ★next = 추가정보(휴대전화·약관동의)가 아직 안 채워진 계정. 앱 «안»에서 받지 않는다 —
        약관 링크가 필요해서다(규격서 §1). 브라우저로 열어 사람이 채우게 한다. */
     if (r.next) {
       try { shell.openExternal(AUTH_API_BASE + r.next); } catch (_) {}
     }
-    return { ok: true, email: r.email, plan: v.plan, accessUntil: v.accessUntil, next: r.next || '' };
+    return {
+      ok: true, email: grec.email, plan: grec.plan, next: r.next || '',
+      accessUntil: grec.accessUntil == null ? '' : String(grec.accessUntil),
+      perpetual: grec.accessUntil === null,
+    };
   })();
 
   try { return await _googleLoginInFlight; }
@@ -777,12 +933,14 @@ ipcMain.handle('license:navigate-projects', () => {
   // (기존: 무조건 projects.html 로드 → license 화면 콘솔에서 navigateToProjects() 한 줄로 우회)
   if (isAdminAuthorized()) { _grantEditorAccess(); mainWindow.loadFile('pages/projects.html'); return { ok: true }; }
   const auth = readAuth();
-  if (auth && authAccessValid(auth)) {
+  /* ★게이트 통과 판정은 부팅과 «같은 함수»다 — 문이 둘이면 하나만 고쳐지고 갈라진다. */
+  const v = authVerdict(auth);
+  if (v.pass) {
     _grantEditorAccess();
     mainWindow.loadFile('pages/projects.html');
     return { ok: true };
   }
-  return { ok: false, code: 'LICENSE_REQUIRED' };
+  return { ok: false, code: 'LICENSE_REQUIRED', status: v.status, pending: v.screen === 'verify' ? 'verify' : null };
 });
 
 /* ── 사용자 데이터 경로 (자동업데이트 후에도 유지) ── */
@@ -6058,8 +6216,27 @@ ipcMain.handle('report:context', () => {
     os: `${process.platform} ${require('os').release()}`,
     arch: process.arch,
     queued,
+    /* ★자격증명 진단은 «한 줄 문자열»이고, 실릴 곳은 신고의 `errors[]` 다.
+       ⛔`auth` 같은 «모르는 최상위 필드»는 서버가 조용히 버린다 — 그러면 진단이 도달하지 않는다.
+       ⛔email·sub·sessionToken·서명 원문은 담기지 않는다(diagLine 이 필드를 골라 낸다). */
+    authDiag: _authDiagLine(),
   };
 });
+
+/** 신고에 실을 자격증명 진단 한 줄. 실패해도 신고를 막지 않는다(빈 문자열). */
+function _authDiagLine() {
+  try {
+    const a = readAuth();
+    const now = Date.now();
+    const v = authVerdict(a, now);
+    const diag = { ...v.diag, ..._lastServerDiag };
+    if (diag.iat) {
+      const t = Date.parse(diag.iat);
+      if (Number.isFinite(t)) diag.iatAgeDays = Math.floor((now - t) / 86400000);
+    }
+    return entitlement.diagLine({ ...v, diag });
+  } catch (_) { return ''; }
+}
 
 /* 화면 캡처 — 1280px 축소 + JPEG. ★렌더러로 원본 PNG(수 MB)를 넘기지 않는다.
    축소를 메인에서 끝내야 IPC 도, 미리보기도, 전송 payload 도 같은 «한 장»이 된다. */

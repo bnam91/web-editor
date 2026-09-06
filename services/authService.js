@@ -95,6 +95,34 @@ async function urlIsLive(url, onResult) {
   }
 }
 
+/* ── 서버 응답 필드 «뭉개지 않기» ────────────────────────────────────────────
+ * ★2026-09-06 재현된 사고: 서버가 준 `accessUntil: null`(= «무기한», 2099 매직넘버 금지 규약)이
+ *   `j.accessUntil || ''` 에서 `''` 가 되고 → main.js writeAuth 가 `''` 를 적고 →
+ *   readAuth 가 `''` 를 falsy 로 읽어 「기록이 없다」로 판정 → **돈 낸 무기한 사용자가
+ *   «첫 성공적 verifySession 바로 다음 실행»부터 로그아웃 화면을 본다.** 서서히가 아니라 즉시다.
+ *   게다가 sessionToken 도 같이 못 꺼내 silentRefresh 가 손도 못 대는 «자가복구 불가» 상태였다.
+ * ⇒ 뭉개는 자리가 «둘»이었다(여기 + writeAuth). ★한쪽만 고치면 안 낫는다.
+ */
+
+/** `accessUntil` 을 «뜻을 지운 채» 넘기지 않는다.
+ *  · `null`      = 무기한 → **null 그대로**
+ *  · 키 자체 없음 = 서버가 «말하지 않은» 것 → **키를 만들지 않는다**
+ *    (applyServerAnswer 의 plain 갱신이 `undefined` 를 보고 캐시를 «안 덮는다»).
+ *  · 그 밖        = 문자열 */
+function accessUntilField(j) {
+  if (!j || j.accessUntil === undefined) return {};
+  if (j.accessUntil === null) return { accessUntil: null };
+  return { accessUntil: String(j.accessUntil) };
+}
+
+/** 서버 서명 블록을 «가공 없이» 통과시킨다.
+ *  ⛔파싱 후 재직렬화 금지 — `payload` 는 «서명 대상 그 b64url 문자열»이라 한 바이트만
+ *    달라져도 검증이 깨진다. 그래서 객체를 그대로 넘기고, 없으면 키를 만들지 않는다. */
+function signedField(j) {
+  const sg = j && j.signed;
+  return (sg && typeof sg === 'object' && !Array.isArray(sg)) ? { signed: sg } : {};
+}
+
 /**
  * 계정 로그인.
  * @returns {Promise<object>} 항상 아래 중 하나 (throw 하지 않음)
@@ -124,7 +152,9 @@ async function login(email, password) {
       ok: true,
       email: j.email || email,
       plan: j.plan || '',
-      accessUntil: j.accessUntil || '',
+      /* ★`|| ''` 를 쓰지 않는다 — 무기한(null)을 '' 로 뭉개면 그 사용자는 로그인 «직후»부터
+         저장본이 무효로 읽힌다. 자세한 이유는 accessUntilField 주석. */
+      ...accessUntilField(j),
       sessionToken: j.sessionToken || '',
     };
   }
@@ -135,7 +165,7 @@ async function login(email, password) {
       ok: false,
       reason: j.reason || 'unknown',
       plan: j.plan || '',
-      accessUntil: j.accessUntil || '',
+      ...accessUntilField(j),
       purchaseUrl: j.purchaseUrl || PRICING_URL,
     };
   }
@@ -150,8 +180,14 @@ async function login(email, password) {
 /**
  * 저장된 세션으로 접근권한 조용히 갱신(로그인 화면을 띄우지 않는다).
  * @returns {Promise<object|null>} null = 판단 불가(오프라인·엔드포인트 부재·서버오류) → 캐시 유지
- *  - { ok:true, plan, accessUntil }
- *  - { ok:false, reason }          'expired' | 'invalid_session' 등
+ *  - { ok:true,  plan, accessUntil?, signed? }
+ *  - { ok:false, reason, plan, accessUntil?, signed? }   'expired' | 'invalid_session' 등
+ *
+ * ★`signed` = 서버 Ed25519 서명 블록 `{payload, sig, kid}`(정본 `feat/entitlement@522412a`,
+ *   모듈 `api/_lib/entitlement-sign.js`). **`payload` 하나**다 — `entitlement` 가 아니다.
+ *   여기서는 «가공 없이» 통과만 시킨다. 판정은 services/entitlement.js 가 한다.
+ * ★서버는 **만료된 사용자에게도 서명해서 준다** ⇒ 「signed 가 있다」로 통과시키면 안 된다.
+ * ★`accessUntil` 은 **null 일 수 있다 = 무기한**. `|| ''` 로 뭉개지 않는다(accessUntilField).
  */
 async function verifySession(email, sessionToken) {
   if (!email || !sessionToken) return null;
@@ -172,8 +208,8 @@ async function verifySession(email, sessionToken) {
   const spoke = (r.status === 200 || r.status === 401 || r.status === 403)
              && j && typeof j.ok === 'boolean';
   if (!spoke) return null;
-  if (j.ok) return { ok: true, plan: j.plan || '', accessUntil: j.accessUntil || '' };
-  return { ok: false, reason: j.reason || 'unknown', plan: j.plan || '', accessUntil: j.accessUntil || '' };
+  if (j.ok) return { ok: true, plan: j.plan || '', ...accessUntilField(j), ...signedField(j) };
+  return { ok: false, reason: j.reason || 'unknown', plan: j.plan || '', ...accessUntilField(j), ...signedField(j) };
 }
 
 module.exports = {
