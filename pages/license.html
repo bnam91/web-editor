@@ -8,6 +8,10 @@
   <title>GODITOR — 로그인</title>
   <link rel="stylesheet" href="../assets/fonts/pretendard.css">
   <link rel="stylesheet" href="../css/design-tokens.css">
+  <!-- ★상태별 문구·판정의 «정본». license.html 인라인 스크립트는 이 사전을 그대로 쓴다 —
+       화면이 자기 문구를 새로 짓지 않는다(§E3). 단위검사(license-screen.test.mjs)가 이 파일
+       «그대로»를 vm 으로 돌려 잰다. -->
+  <script src="../js/license-screen.js"></script>
   <style>
     /* 디자인 토큰 alias */
     :root {
@@ -344,10 +348,11 @@
     </div>
   </div>
 
-  <!-- 만료(이벤트 종료) 화면 -->
+  <!-- 만료 화면 — ★진짜 구독 종료(서명된 사실)일 때만 뜬다. 「연결 필요」(verifyScreen)와
+       문구를 절대 안 섞는다(§E3 ㉮, js/license-screen.js EXPIRED_COPY). -->
   <div id="expiredScreen" class="screen">
-    <h2>이벤트가 종료됐습니다</h2>
-    <p class="desc">무료 이용 기간이 끝났습니다.<br>계속 사용하시려면 요금제를 확인해 주세요.</p>
+    <h2 id="expTitle">이용 기간이 끝났습니다</h2>
+    <p class="desc" id="expDesc">구독 기간이 끝났습니다.<br>계속 사용하시려면 요금제를 확인해 주세요.</p>
 
     <div class="account-box">
       <div class="account-row"><span class="k">계정</span><span class="v" id="expEmail">—</span></div>
@@ -357,6 +362,26 @@
     <button class="btn" id="purchaseBtn">요금제 보기</button>
     <button class="btn btn-back" id="backToLoginBtn">다른 계정으로 로그인</button>
     <div class="status info" id="expiredStatus"></div>
+  </div>
+
+  <!-- 확인 필요 화면 — ★구독은 «살아 있을 수 있다». sig_missing·sig_invalid·sub_mismatch·
+       clock_rollback·grace_exceeded 전부 여기로 온다(계획서 §3-1 R). 「만료」라고 «절대» 안 쓴다.
+       ㉰ 푸는 조건은 «연결»(auth:refresh, sessionToken 재사용)이지 재로그인이 아니다 —
+       이 화면엔 비밀번호 입력칸이 «없다». -->
+  <div id="verifyScreen" class="screen">
+    <h2 id="verifyTitle">확인하는 중…</h2>
+    <p class="desc" id="verifyDesc">로그인 상태를 확인하고 있어요. 잠시만 기다려 주세요.</p>
+
+    <div class="account-box" id="verifyAccountBox" style="display:none">
+      <div class="account-row"><span class="k">계정</span><span class="v" id="verifyEmail">—</span></div>
+      <div class="account-row" id="verifyUntilRow"><span class="k">구독</span><span class="v" id="verifyUntil">—</span></div>
+    </div>
+
+    <div class="status info" id="verifyStatus"><span class="spinner"></span>확인하는 중…</div>
+
+    <!-- ★디바운스 2초 — 연타가 /session 을 분당 N회 때리지 않게(§E3 적대검수 ⑶). -->
+    <button class="btn" id="verifyRetryBtn" style="display:none">다시 시도</button>
+    <button class="btn btn-back" id="verifyBackBtn" style="display:none">다른 계정으로 로그인</button>
   </div>
 </div>
 
@@ -392,6 +417,8 @@
   let findPasswordUrl = 'https://blacksheepwall.kr/find-password.html';
 
   const $ = (id) => document.getElementById(id);
+  // ★상태별 문구·판정의 정본. js/license-screen.js(위 <script src>)가 window 에 심어 둔다.
+  const LS = window.LicenseScreen;
 
   function fmtDate(iso) {
     const t = Date.parse(iso);
@@ -402,13 +429,119 @@
   function showScreen(name) {
     $('loginScreen').classList.toggle('visible', name === 'login');
     $('expiredScreen').classList.toggle('visible', name === 'expired');
-    $('logoSub').textContent = name === 'expired' ? 'Subscription' : 'Sign in';
+    $('verifyScreen').classList.toggle('visible', name === 'verify');
+    $('logoSub').textContent = name === 'expired' ? 'Subscription' : name === 'verify' ? 'Verifying' : 'Sign in';
     if (name === 'login') $('email').focus();
   }
 
   function setStatus(el, text, kind) {
     el.textContent = text;
     el.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function showExpiredScreen(email, accessUntil) {
+    // ★문구는 js/license-screen.js EXPIRED_COPY «하나»에서 온다 — 화면이 따로 짓지 않는다.
+    $('expTitle').textContent = LS.EXPIRED_COPY.title;
+    $('expDesc').textContent = LS.EXPIRED_COPY.desc;
+    $('expEmail').textContent = email || '—';
+    $('expUntil').textContent = fmtDate(accessUntil) + ' 까지';
+    $('email').value = email || '';
+    showScreen('expired');
+  }
+
+  /* ── 확인 필요 화면(verifyScreen) ──────────────────────────────────────
+   * §E3 ㉮ — 「만료」와 문구를 절대 안 섞는다. js/license-screen.js 의 VERIFY_COPY/
+   * EXPIRED_COPY «하나»를 그대로 쓴다(여기서 새 문구를 짓지 않는다).
+   * §E3 ㉰ — 푸는 조건은 «연결»(api.refreshAuth, sessionToken 재사용)뿐이다.
+   *   이 화면에는 처음부터 끝까지 비밀번호 입력칸이 없다.
+   */
+  let _verifyKnownState = null;   // 마지막으로 받은 auth:state — 재시도 때 계정 박스를 다시 그리는 데 쓴다
+  let _lastVerifyRetryAt = 0;
+
+  function paintVerifyAccount(st) {
+    const box = $('verifyAccountBox');
+    if (!st || !st.email) { box.style.display = 'none'; return; }
+    $('verifyEmail').textContent = st.email;
+    const kind = LS.remainingKind(st);
+    $('verifyUntilRow').style.display = '';
+    if (kind === 'perpetual') {
+      $('verifyUntil').textContent = '무기한 이용 중';
+    } else if (kind === 'until') {
+      // ★남은 기간을 «숫자(날짜)»로 보여준다 — 서명 안의 accessUntil, 이미 갖고 있던 값이다.
+      $('verifyUntil').textContent = fmtDate(st.accessUntil) + ' 까지 남아 있음';
+    } else {
+      $('verifyUntilRow').style.display = 'none';
+    }
+    box.style.display = '';
+  }
+
+  function paintVerifyCopy(kind) {
+    const c = LS.VERIFY_COPY[kind] || LS.VERIFY_COPY.generic;
+    $('verifyTitle').textContent = c.title;
+    $('verifyDesc').textContent = c.desc;
+  }
+
+  function setVerifyChecking() {
+    paintVerifyCopy('checking');
+    $('verifyStatus').innerHTML = '<span class="spinner"></span>확인하는 중…';
+    $('verifyStatus').className = 'status info';
+    $('verifyRetryBtn').style.display = 'none';
+    $('verifyBackBtn').style.display = 'none';
+  }
+
+  function setVerifyFailed(kind) {
+    paintVerifyCopy(kind);
+    $('verifyStatus').textContent = '';
+    $('verifyStatus').className = 'status';
+    $('verifyRetryBtn').style.display = '';
+    $('verifyBackBtn').style.display = '';
+  }
+
+  /** pending:'verify' 상태를 실제로 푼다. 사용자 조작 0 —
+   *  로드되자마자 한 번 자동으로 돈다(㉯의 취지: 대부분은 여기서 «조용히» 풀린다). */
+  async function runVerifyFlow(st) {
+    _verifyKnownState = st || _verifyKnownState;
+    showScreen('verify');
+    paintVerifyAccount(_verifyKnownState);
+    setVerifyChecking();
+
+    let result = null;
+    try { result = await api.refreshAuth?.(); } catch (_) { result = null; }
+
+    const outcome = LS.decideVerifyOutcome(result);
+    switch (outcome) {
+      case 'ok':
+        paintVerifyCopy('ok');
+        setStatus($('verifyStatus'), '확인됐습니다! 잠시 후 이동합니다...', 'success');
+        setTimeout(() => { api.navigateToProjects(); }, 600);
+        return;
+      case 'session_cleared':
+        // 서버가 «세션이 죽었다»고 명시적으로 답했다 — 이건 사실이라 재로그인이 맞다(㉰가 막는 건
+        // «푸는 조건»으로 재로그인을 요구하는 것이지, 세션이 실제로 죽은 걸 감추라는 게 아니다).
+        setStatus($('statusMsg'), '다른 기기에서 로그인해 이 세션은 종료됐어요. 다시 로그인해 주세요.', 'info');
+        $('email').value = (_verifyKnownState && _verifyKnownState.email) || '';
+        showScreen('login');
+        return;
+      case 'expired':
+        showExpiredScreen(
+          (_verifyKnownState && _verifyKnownState.email) || '',
+          (result && result.accessUntil) || (_verifyKnownState && _verifyKnownState.accessUntil) || ''
+        );
+        return;
+      case 'offline':
+      case 'clock_rollback':
+      case 'generic':
+      default:
+        setVerifyFailed(outcome);
+        return;
+    }
+  }
+
+  function handleVerifyRetry() {
+    const now = Date.now();
+    if (now - _lastVerifyRetryAt < 2000) return;   // ★디바운스 2초 — 연타로 서버를 때리지 않는다
+    _lastVerifyRetryAt = now;
+    runVerifyFlow(_verifyKnownState);
   }
 
   async function init() {
@@ -419,11 +552,14 @@
         if (st.purchaseUrl) purchaseUrl = st.purchaseUrl;
         if (st.findEmailUrl) findEmailUrl = st.findEmailUrl;
         if (st.findPasswordUrl) findPasswordUrl = st.findPasswordUrl;
-        if (st.expired) {
-          $('expEmail').textContent = st.email || '—';
-          $('expUntil').textContent = fmtDate(st.accessUntil) + ' 까지';
-          $('email').value = st.email || '';
-          showScreen('expired');
+
+        const screen = LS.decideInitialScreen(st);
+        if (screen === 'verify') {
+          runVerifyFlow(st);
+          return;
+        }
+        if (screen === 'expired') {
+          showExpiredScreen(st.email, st.accessUntil);
           return;
         }
         if (st.email) $('email').value = st.email;
@@ -470,9 +606,7 @@
 
     // 만료는 오류가 아니라 구매 안내 분기 — 이메일 로그인과 같은 처리(:396).
     if (result && result.reason === 'expired') {
-      $('expEmail').textContent = result.email || '';
-      $('expUntil').textContent = fmtDate(result.accessUntil) + ' 까지';
-      showScreen('expired');
+      showExpiredScreen(result.email || '', result.accessUntil);
       return;
     }
 
@@ -526,10 +660,8 @@
       // ★만료는 HTTP 200 + ok:false 로 온다 — 에러가 아니라 구매 안내 분기.
       if (result && result.reason === 'expired') {
         if (result.purchaseUrl) purchaseUrl = result.purchaseUrl;
-        $('expEmail').textContent = email;
-        $('expUntil').textContent = fmtDate(result.accessUntil) + ' 까지';
         $('password').value = '';
-        showScreen('expired');
+        showExpiredScreen(email, result.accessUntil);
         return;
       }
 
@@ -581,6 +713,11 @@
   $('findPwLink').addEventListener('click', () => openExternal(findPasswordUrl, $('statusMsg')));
   $('purchaseBtn').addEventListener('click', () => openExternal(purchaseUrl, $('expiredStatus')));
   $('backToLoginBtn').addEventListener('click', () => {
+    setStatus($('statusMsg'), '', '');
+    showScreen('login');
+  });
+  $('verifyRetryBtn').addEventListener('click', handleVerifyRetry);
+  $('verifyBackBtn').addEventListener('click', () => {
     setStatus($('statusMsg'), '', '');
     showScreen('login');
   });
