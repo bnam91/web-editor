@@ -297,7 +297,7 @@ function createWindow() {
   // 핸들러가 없으면 Electron 기본 저장 다이얼로그에 의존 — 창이 가려진/숨겨진
   // 상태에서는 다이얼로그가 못 떠서 다운로드가 조용히 유실된다.
   mainWindow.webContents.session.on('will-download', (event, item) => {
-    const dir = app.getPath('downloads');
+    const dir = (_dlCollector && _dlCollector.outDir) || app.getPath('downloads');
     const base = item.getFilename() || 'export';
     let dest = path.join(dir, base);
     for (let n = 1; fs.existsSync(dest); n++) {
@@ -305,6 +305,23 @@ function createWindow() {
       dest = path.join(dir, `${path.basename(base, ext)} (${n})${ext}`);
     }
     item.setSavePath(dest);
+    /* ★계측 — 「내보냈다」와 「어디에 떨어졌나」는 다른 사실이다.
+       ⑴ 충돌 시 위 루프가 `(1)` 을 붙이는데 그 결과가 «렌더러로 안 돌아간다» → MCP 가
+          도구를 만들어도 ok:true 인데 클로드가 파일을 못 찾는다. 여기가 최종 경로를 아는
+          «유일한» 자리다.
+       ⑵ ⛔setSavePath 는 «의도»지 «결과»가 아니다 — 실패·취소해도 경로는 정해진다.
+          그래서 done 을 기다려 state 와 getSavePath() 를 같이 싣는다. 안 그러면
+          「실패한 내보내기」를 성공 경로로 보고하게 된다. */
+    if (_dlCollector) {
+      const rec = { filename: base, intendedPath: dest, state: 'pending', path: null, bytes: 0 };
+      _dlCollector.items.push(rec);
+      item.once('done', (_e, state) => {
+        rec.state = state;                        // completed | cancelled | interrupted
+        rec.path = item.getSavePath() || null;    // ★실제로 쓰인 경로
+        rec.bytes = item.getReceivedBytes() || 0;
+        rec.pathMatchesIntent = rec.path === dest;
+      });
+    }
   });
 
   // local-fonts 퍼미션 허용 (queryLocalFonts API)
@@ -548,6 +565,24 @@ function isAdminAuthorized() {
 // GAP-008: 에디터(라이선스 게이트 너머) 진입 허가 플래그. 인증된 경로(부팅 라이선스 통과·
 // 키 등록 성공·admin)에서만 true로 세팅. will-navigate 가드가 이 플래그로 렌더러발(發)
 // 직접 네비게이션(location.href='projects.html' 등) 우회를 차단한다.
+/* ── 다운로드 수집기 (2026-09-06) ─────────────────────────────────────────────
+   MCP 내보내기 도구가 «한 호출 동안만» 연다. 열려 있는 동안 will-download 가 여기에
+   최종 경로를 적는다. ⛔전역 로그가 아니다 — 안 열려 있으면 아무것도 안 쌓인다
+   (사용자가 직접 내보낸 것까지 우리가 들고 있을 이유가 없다). */
+let _dlCollector = null;
+function _dlBegin(outDir) { _dlCollector = { items: [], outDir: outDir || null }; return _dlCollector; }
+function _dlEnd() { const c = _dlCollector; _dlCollector = null; return c ? c.items : []; }
+/** done 이 비동기라 잠깐 기다린다. 다 끝났거나 시한이 지나면 반환. */
+async function _dlSettle(expected, timeoutMs = 15000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const it = (_dlCollector && _dlCollector.items) || [];
+    if (it.length >= expected && it.every(r => r.state !== 'pending')) break;
+    await new Promise(r => setTimeout(r, 120));
+  }
+  return (_dlCollector && _dlCollector.items) || [];
+}
+
 let _editorAccessGranted = false;
 function _grantEditorAccess() { _editorAccessGranted = true; }
 
@@ -1482,6 +1517,8 @@ function _listProjectsImpl(opts) {
   return (opts && opts.withDiag) ? { items, dirError } : items;
 }
 ipcMain.handle('projects:list', () => _listProjectsImpl());
+
+
 
 /* ── [externalize] 열 때 정책 (DESIGN-asset-batch-externalize.md §3-2 ①·§3-3·§4-C) ──
    렌더러가 «프로젝트를 연다»고 알린 로드(opts.open)에서만 동작. 저장 경로의 loadProject(기존본 병합)에선 안 돈다.
@@ -3027,6 +3064,8 @@ app.whenReady().then(async () => {
       scratchAdd: _invokeRendererScratchAdd,
       buildBasicSection: _invokeRendererBuildBasicSection,
       getCanvasState: _invokeRendererGetCanvasState,
+      exportSections: _invokeRendererExport,
+      exportCollect: { begin: _dlBegin, settle: _dlSettle, end: _dlEnd },
       listScratchItems: _invokeRendererListScratchItems,
       readScratchItem: _invokeRendererReadScratchItem,
       deleteScratchItem: _invokeRendererDeleteScratchItem,
@@ -3805,6 +3844,42 @@ async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', labe
 // ─── PM get_canvas_state — renderer 측 READ-ONLY 캔버스 조회 helper ────────────
 // 변경(mutation) 없음 → USER_BUSY 가드 불필요. null/destroyed 가드만 유지.
 // (최소화 창도 읽기는 안전하므로 isMinimized 차단 안 함.)
+/* ── 내보내기 (2026-09-06) ────────────────────────────────────────────────────
+ * ⛔window.exportAllImagesPNG() 를 «부르지 않는다» — 안에 confirm() 이 있어 MCP 호출이
+ *   응답 없이 멎는다. 한 단계 아래 exportAllSections(fmt, w) 를 직접 부른다.
+ * ⛔opts.returnDataUrl 을 «쓰지 않는다» — 그 경로는 다운로드도 «픽셀 게이트»도 건너뛴다
+ *   (export-image.js 주석: QA 검산 전용). 도구가 그리로 가면 검사가 통째로 우회된다.
+ * ★폭은 함수가 «인자로» 받는다 — UI 가 860 을 박아 부를 뿐이다(현빈: 「전체 780px」). */
+async function _invokeRendererExport({ sectionId, format, width } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태' };
+  const sid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const fmt = JSON.stringify(String(format || 'png'));
+  const w   = Number(width) || 860;
+  const js = `(async () => {
+    try {
+      if (typeof window.exportSection !== 'function' || typeof window.exportAllSections !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'export API not found (editor not open?)' };
+      }
+      const sid = ${sid};
+      const secs = [...document.querySelectorAll('.section-block:not([data-ghost])')];
+      if (!secs.length) return { ok: false, code: 'NO_SECTIONS', message: '내보낼 섹션이 없습니다' };
+      if (sid) {
+        const el = document.getElementById(sid);
+        if (!el || !el.classList.contains('section-block')) {
+          return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        }
+        await window.exportSection(el, ${fmt}, ${w});
+        return { ok: true, requested: 1 };
+      }
+      const r = await window.exportAllSections(${fmt}, ${w});
+      return { ok: true, requested: (r && r.total) || secs.length, failedNames: (r && r.failed) || [] };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e && e.message ? e.message : String(e) }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(js, true); }
+  catch (e) { throw new Error('export call failed: ' + e.message); }
+}
+
 async function _invokeRendererGetCanvasState({ sectionId } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');

@@ -549,6 +549,103 @@ function _registerDefaultTools() {
     }
   );
 
+  /* ── export_sections (2026-09-06) ─────────────────────────────────────────
+   * 현빈: 「특정 섹션(섹션아이디 함께), 전체 섹션 내보내기해줘 780px으로」
+   * 앱엔 «이미» 있다(발행 드롭다운 · 섹션/페이지 속성패널). 폭도 함수가 인자로 받는다.
+   * 여기서 여는 건 «입구»뿐이다.
+   * ★★계측 실측(2026-09-06)이 이 도구의 모양을 정했다:
+   *   ⑴ 충돌 시 will-download 가 `(1)` 을 붙이는데 그 «최종 경로»가 렌더러로 «안 돌아온다»
+   *      → main 쪽 setSavePath 자리에서 모아야 한다. 아니면 ok:true 인데 파일을 못 찾는다.
+   *   ⑵ ⛔**`path` 만 보면 «거짓 성공»이다** — 쓰기 불가 폴더로 내보내니
+   *      state='interrupted' 인데 path 는 채워지고 bytes 는 0 이었다(파일 없음).
+   *      ⇒ 성공 판정은 state==='completed' «하나»이고, 응답에 싣기 «전에»
+   *        존재·크기를 다시 확인한다. 확인 못 한 경로는 files 에 «안» 넣는다. */
+  registerTool(
+    'export_sections',
+    async ({ sectionId, format = 'png', width = 860, outDir, expectedProject, timeoutMs } = {}) => {
+      if (sectionId !== undefined && sectionId !== null) {
+        if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
+          throw new Error(`invalid sectionId: ${sectionId} (must start with "sec_")`);
+        }
+      }
+      if (!['png', 'jpg'].includes(format)) {
+        throw new Error(`invalid format: ${format} (png|jpg). ⛔gif 는 프레임 인코딩이라 수십 초가 걸려 이 도구에서 뺐다.`);
+      }
+      if (!Number.isInteger(width) || width < 320 || width > 2000) {
+        throw new Error(`invalid width: ${width} (integer 320~2000)`);
+      }
+      if (outDir !== undefined && outDir !== null) {
+        if (typeof outDir !== 'string' || !path.isAbsolute(outDir)) throw new Error('outDir must be an absolute path');
+        if (!fs.existsSync(outDir) || !fs.statSync(outDir).isDirectory()) throw new Error(`outDir not a directory: ${outDir}`);
+      }
+      if (timeoutMs !== undefined && timeoutMs !== null) {
+        if (!Number.isInteger(timeoutMs) || timeoutMs < 5000 || timeoutMs > 600000) {
+          throw new Error(`invalid timeoutMs: ${timeoutMs} (integer 5000~600000)`);
+        }
+      }
+      _assertExpectedProject(expectedProject);   // ★디스크에 파일을 쓰는 부작용 도구다
+      if (!_rendererInvoker?.exportSections || !_rendererInvoker?.exportCollect) {
+        throw new Error('renderer bridge not ready (app version too old?)');
+      }
+
+      const C = _rendererInvoker.exportCollect;
+      C.begin(outDir || null);
+      let r;
+      try {
+        r = await _rendererInvoker.exportSections({ sectionId, format, width });
+      } catch (e) { C.end(); throw e; }
+      if (!r || r.ok === false) { C.end(); return r || { ok: false, code: 'CALL_ERROR' }; }
+
+      // ★한 장당 «캡처+픽셀검사»라 3섹션에 10초 넘게 걸린다(실측). 넉넉히 기다린다.
+      const budget = timeoutMs || Math.max(20000, (r.requested || 1) * 15000);
+      const items = await C.settle(r.requested || 1, budget);
+      C.end();
+
+      const files = [], failed = [];
+      for (const it of items) {
+        // ⛔state 가 completed 여도 «파일이 실제로 있는지»를 다시 본다(계측이 아니라 사실 확인).
+        let stat = null;
+        if (it.state === 'completed' && it.path) { try { stat = fs.statSync(it.path); } catch (_) { stat = null; } }
+        if (stat && stat.size > 0) files.push({ name: it.filename, path: it.path, bytes: stat.size });
+        else failed.push({ name: it.filename, state: it.state, intendedPath: it.intendedPath,
+                           reason: it.state !== 'completed' ? `download ${it.state}` : 'file missing or empty' });
+      }
+      for (const nm of (r.failedNames || [])) failed.push({ name: nm, state: 'render_failed', reason: '섹션 렌더/캡처 실패' });
+
+      return {
+        ok: failed.length === 0,
+        format, width,
+        requested: r.requested || 0,
+        exported: files.length,
+        files, failed,
+        outDir: outDir || null,
+        hint: files.length
+          ? 'files[].path 는 «존재를 확인한» 경로다. outDir 을 안 주면 사용자의 다운로드 폴더에 떨어지고, 같은 이름이 있으면 "(1)"이 붙는다.'
+          : 'No file was verified on disk. Check failed[] — a completed download can still leave no file (e.g. unwritable folder).',
+      };
+    },
+    {
+      description: 'Export section(s) of the OPEN project to PNG/JPG image files on disk — the last step MCP was missing '
+        + '("fill the page" worked, "get the finished page out" did not). sectionId → that one section; omit → every section. '
+        + 'width is a real argument (e.g. 780), not fixed at the UI default 860. '
+        + 'Returns files[] with paths that were VERIFIED to exist on disk; anything else lands in failed[]. '
+        + 'Rendering + the pixel check take seconds PER section, so a full export of many sections takes minutes.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_<id> — export just this section. Omit to export all sections.' },
+          format:    { type: 'string', enum: ['png', 'jpg'], description: 'default png. (gif is intentionally not offered here — encoding takes tens of seconds.)' },
+          width:     { type: 'integer', minimum: 320, maximum: 2000, description: 'output width in px (default 860).' },
+          outDir:    { type: 'string', description: 'absolute directory to write into. Omit → the user download folder.' },
+          expectedProject: { type: 'string', description: 'proj_<digits>. Refuses if a different project is open.' },
+          timeoutMs: { type: 'integer', minimum: 5000, maximum: 600000, description: 'how long to wait for the files (default: 15s per section, min 20s).' }
+        },
+        required: []
+      }
+    }
+  );
+
+
 
   registerTool(
     'duplicate_project',
