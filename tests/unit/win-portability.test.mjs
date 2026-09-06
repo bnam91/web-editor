@@ -243,6 +243,56 @@ test('③-3 ★윈도우에서 «건너뛰는» 쓰기-거부 검사가 0건이�
     `★윈도우에서 건너뛰면 그 검사는 거기서 «영영 안 돈다» — 오늘 우리가 skipped 를 초록으로 읽어 게이트를 놓쳤다 (${SCANNED.length}개 파일을 셌다)`);
 });
 
+/* ═══ Ⓐ 경로를 «'/' 로» 다루는 자리 (윈도우 실기 31a7723 이 잡은 뿌리 A) ═════════
+   ★④갈래가 `autosave-suppress` «하나»만 고치고 여기를 빼먹었다. 하나 고치고 나머지를
+     놓치는 게 이 갈래의 함정이다 — 그래서 규칙을 «전수»로 박는다. */
+
+test('Ⓐ-1 [양성대조] 옛 식은 윈도우 임시경로에서 «언제나» 던졌다 (판정기가 하나도 못 돌았다)', () => {
+  const W = 'C:\\Users\\darli\\AppData\\Local\\Temp\\goya-run-1\\h4-x';
+  assert.equal(W.split('/').length, 1, '전제 미달 — 윈도우 경로엔 `/` 가 하나도 없다');
+  assert.equal(W.split('/').length < 4, true,
+    '★옛 `real.split("/").length < 4` 는 «모든» 윈도우 경로를 「위험한 경로」로 던졌다 (실측 14건)');
+});
+
+test('Ⓐ-2 새 깊이 판정은 윈도우 경로를 «통과»시킨다 (맥에서 path.win32 로 잰다)', async () => {
+  const { pathDepth, isRootPath } = await import(pathToFileURL(path.join(ROOT, 'tools/hardening/lib/fixture.mjs')).href);
+  const W = 'C:\\Users\\darli\\AppData\\Local\\Temp\\goya-run-1\\h4-x';
+  assert.equal(pathDepth(W, path.win32), 7, '윈도우 경로의 깊이를 못 센다');
+  assert.equal(isRootPath('C:\\', path.win32), true, '볼륨 루트를 못 알아본다');
+  assert.equal(isRootPath('C:\\Temp', path.win32), false);
+  assert.equal(pathDepth('C:\\Temp', path.win32) < 3, true, '★얕은 윈도우 경로는 «여전히» 막아야 한다');
+});
+
+test('Ⓐ-3 ★POSIX 판정은 «한 글자도» 안 바뀌었다 (옛 식과 표본 전수 동치)', async () => {
+  const { pathDepth, isRootPath } = await import(pathToFileURL(path.join(ROOT, 'tools/hardening/lib/fixture.mjs')).href);
+  const samples = ['/', '/a', '/a/b', '/a/b/c', '/x/y/z/w', '/tmp/goya-run-1/h4', '/Users/a1/x/y'];
+  for (const p of samples) {
+    const old = !(p === '/' || p.split('/').length < 4);
+    const neu = !(isRootPath(p, path.posix) || pathDepth(p, path.posix) < 3);
+    assert.equal(neu, old, `POSIX 판정이 갈렸다: ${p} (옛=${old} 새=${neu})`);
+  }
+});
+
+test('Ⓐ-4 ★«파일 경로»를 `/` 로 쪼개거나 붙이는 자리가 0건이다 (URL 은 제외)', () => {
+  /* 대상 = 이름이 «경로»라고 말하는 것들. URL(`u`·`m[0]`·`location.pathname`)은 `/` 가 맞다. */
+  const PATHY = /(?:^|[.\])(?:[A-Za-z_$][\w$]*)?(?:[Pp]ath|[Dd]ir|[Rr]oot|[Hh]ome|real|cwd|tmpdir\(\)|homedir\(\))[\w$]*$/;
+  /* ⛔`pathname` 은 URL API 라 «항상» `/` 가 맞다 — 이름이 닮았을 뿐이니 뺀다. */
+  const URLISH = /pathname$|^location\./;
+  const OPS = /\.(?:split|join|startsWith|endsWith)\(\s*['"]\/['"]\s*\)/g;
+  const bad = [];
+  for (const f of SCANNED) {
+    const code = codeOnly(fs.readFileSync(f, 'utf8'));
+    for (const m of code.matchAll(OPS)) {
+      /* 연산 «앞»의 수신자 표현식을 뜬다 */
+      const before = code.slice(Math.max(0, m.index - 80), m.index);
+      const recv = (before.match(/([A-Za-z_$][\w$.()]*)$/) || [''])[0];
+      if (PATHY.test(recv) && !URLISH.test(recv)) bad.push(`${rel(f)}: ${recv}${m[0]}`);
+    }
+  }
+  assert.deepEqual(bad, [],
+    `★윈도우에서 «안 쪼개지거나 섞인 구분자»가 되는 자리 (${SCANNED.length}개 파일을 셌다)`);
+});
+
 /* ═══ ④ 경로 구분자 ════════════════════════════════════════════════════════ */
 
 test('④-1 [양성대조] 소스 스캔 키는 posix 로 정규화된다 — 윈도우 `js\\a.js` 도 `js/a.js`', () => {

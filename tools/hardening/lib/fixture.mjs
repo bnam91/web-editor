@@ -15,15 +15,46 @@ import { HarnessError } from './deadline.mjs';
 
 export const CORPUS_DIR = path.join(os.homedir(), 'srv-지디_qa-corpus');
 export const CORPUS_LARGE = path.join(CORPUS_DIR, 'proj_large_safebon');
-const ORIGINAL_UD = path.join(os.homedir(), 'Library/Application Support/GODITOR');
+/* ⛔건드리면 안 되는 «원본» userData — 맥과 윈도우는 «다른 자리»에 있다.
+   맥만 적어 두면 윈도우에서 이 안전 게이트가 «조용히 무효»가 된다. */
+const ORIGINAL_UD = [
+  path.join(os.homedir(), 'Library/Application Support/GODITOR'),   // macOS
+  path.join(os.homedir(), 'AppData', 'Roaming', 'GODITOR'),         // Windows (%APPDATA%)
+];
+
+/**
+ * 루트를 뗀 «세그먼트 수». ★플랫폼을 주입할 수 있다 — 윈도우 모양을 «맥에서» 재려면 필요하다.
+ *
+ * ★왜 바꿨나 (미니4호기 윈도우 실기, 31a7723)
+ *   옛 판 `real.split('/').length < 4` 는 `C:\Users\…\Temp\…` 에 `/` 가 «하나도 없어»
+ *   언제나 1 → **언제나 던졌다.** 실측: selfcheck 판정기 14건(오탐 6·미탐 8)이 전부 같은
+ *   「위험한 경로」 문구로 죽었다 = 판정기가 «하나도 못 돌았다».
+ *   ⇒ POSIX 판정은 한 글자도 안 바뀐다: '/a/b/c'=3(허용) · '/a/b'=2(거부) — 옛 식과 동치다.
+ */
+export function pathDepth(p, P = path) {
+  const real = P.resolve(p);
+  return real.slice(P.parse(real).root.length).split(/[\\/]+/).filter(Boolean).length;
+}
+/** 그 경로가 볼륨 루트 자체인가(`/` · `C:\`). */
+export function isRootPath(p, P = path) {
+  const real = P.resolve(p);
+  return real === P.parse(real).root;
+}
+/** 접두 비교 — ★NTFS 는 대소문자를 안 가린다. 그대로 비교하면 안전 게이트가 새어 나간다. */
+function isUnder(real, base) {
+  const n = (s) => (process.platform === 'win32' ? s.toLowerCase() : s);
+  return n(real).startsWith(n(base));
+}
 
 /** ⛔쓰기 대상이 «내 것»인지 매번 확인한다. 이 게이트를 우회하는 경로를 만들지 마라. */
 export function assertWritableTarget(p) {
   const real = path.resolve(p);
-  if (real === '/' || real.split('/').length < 4) throw new HarnessError(`위험한 경로: ${real}`);
-  if (real.startsWith(ORIGINAL_UD)) throw new HarnessError(`⛔원본 userData 를 쓰려 했다: ${real}`);
-  if (real.startsWith(CORPUS_DIR)) throw new HarnessError(`⛔코퍼스 «원본»을 쓰려 했다(복사해서 써라): ${real}`);
-  if (real.startsWith(path.join(os.homedir(), 'web-editor-merge'))) throw new HarnessError(`⛔현빈 작업본을 쓰려 했다: ${real}`);
+  if (isRootPath(real) || pathDepth(real) < 3) throw new HarnessError(`위험한 경로: ${real}`);
+  for (const ud of ORIGINAL_UD) {
+    if (isUnder(real, ud)) throw new HarnessError(`⛔원본 userData 를 쓰려 했다: ${real}`);
+  }
+  if (isUnder(real, CORPUS_DIR)) throw new HarnessError(`⛔코퍼스 «원본»을 쓰려 했다(복사해서 써라): ${real}`);
+  if (isUnder(real, path.join(os.homedir(), 'web-editor-merge'))) throw new HarnessError(`⛔현빈 작업본을 쓰려 했다: ${real}`);
   return real;
 }
 

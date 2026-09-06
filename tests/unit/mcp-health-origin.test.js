@@ -49,6 +49,16 @@ test('원본 문자열이 실제로 «응답 안에 없다» (키만 지우고 �
   assert.doesNotMatch(raw, /"activeProject"\s*:/, 'activeProject «키»가 없어야 한다');
   // 절대경로 조각이 본문 어디에도 남으면 안 된다(값만 지우고 다른 필드에 흘리는 실수 방지).
   // ⚠️note 문자열은 «키 이름»을 설명으로 담고 있으므로 키 패턴으로 봐야 한다 — 단어 검색은 오탐이다.
-  const homeRoot = require('node:os').homedir().split('/').slice(0, 3).join('/');
-  assert.ok(!raw.includes(homeRoot), `홈 경로(${homeRoot}) 조각이 남으면 안 된다`);
+  /* ★옛 판 `homedir().split('/').slice(0,3).join('/')` 은 윈도우(`C:\Users\…`)에서
+     한 조각도 안 쪼개져 «다른 것»을 쟀다. 루트를 떼고 «앞 두 세그먼트»로 다시 만든다.
+     ⚠️그리고 본문은 JSON 이라 윈도우 경로가 `C:\\Users\\…` 로 «이스케이프돼» 실린다 —
+       날 것만 찾으면 못 본다. 세 표기를 다 본다. NTFS 는 대소문자도 안 가린다. */
+  const path = require('node:path');
+  const home = require('node:os').homedir();
+  const hroot = path.parse(home).root;
+  const homeRoot = hroot + home.slice(hroot.length).split(/[\\/]+/).filter(Boolean).slice(0, 2).join(path.sep);
+  const norm = (s) => (process.platform === 'win32' ? s.toLowerCase() : s);
+  for (const v of new Set([homeRoot, homeRoot.replace(/\\/g, '\\\\'), homeRoot.replace(/\\/g, '/')])) {
+    assert.ok(!norm(raw).includes(norm(v)), `홈 경로(${v}) 조각이 남으면 안 된다`);
+  }
 });

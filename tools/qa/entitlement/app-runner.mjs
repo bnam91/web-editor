@@ -77,7 +77,8 @@ export async function runOnce(o) {
      Node 의 모듈 해석이 `<경로>.js` 를 «먼저» 찾는다 — 공용 scratchpad 에 남의
      `e4.js` 가 있어서 Electron 이 **남의 스크립트를 앱 본체로 로드했다**(2026-09-06 실측).
      증상은 「창이 안 뜬다」뿐이라 원인이 안 보인다. 슬래시 하나가 그걸 막는다. */
-  const appArg = repoRoot.endsWith('/') ? repoRoot : repoRoot + '/';
+  /* ★구분자는 플랫폼 것이다 — 윈도우에서 `C:\repo` 에 `/` 를 붙이면 «섞인 경로»가 된다. */
+  const appArg = /[\\/]$/.test(repoRoot) ? repoRoot : repoRoot + path.sep;
   const args = [
     ...(o.binPath ? [] : [appArg]),
     '--enable-logging',
