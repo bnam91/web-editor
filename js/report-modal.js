@@ -375,17 +375,32 @@
     el.querySelector('#report-disc-body').innerHTML = html;
   }
 
-  /* ── 열기 / 닫기 ────────────────────────────────────────────────────── */
-  function open() {
+  /* ── 열기 / 닫기 ──────────────────────────────────────────────────────
+     @param {{type?:string, text?:string, extraErrors?:Array}} [opts]
+       ★[H3] 인자는 «선택»이다 — 기존 호출부(index.html 의 openReportModal())는 그대로 돈다.
+       ★extraErrors = 지난 실행의 크래시 줄(main/recovery/index.js reportLines).
+         ⛔최상위 새 필드로 싣지 않는다 — 서버가 «모르는 필드»를 조용히 버린다(E3 실측).
+           errors[] 라야 도달한다. authDiag 와 «같은 통로»다.
+       ★★extraErrors 가 있으면 「함께 보내지는 것」을 «펼친 채로» 연다 —
+         사용자가 «안 적은» 내용이 실리는 경우이므로, 접어 두면 안 된다(H3 노출규칙 ⑵). */
+  function open(opts) {
+    var o = opts || {};
     var el = ensureModal();
 
     // ★A-f — 열 때마다 «전부» 새로. 첨부·캡처·본문이 지난번 것에서 살아남지 않는다.
+    var _extra = Array.isArray(o.extraErrors) ? o.extraErrors : [];
     state = {
-      type: 'bug',
-      text: '',
+      type: (o.type && TYPES.some(function (t) { return t.key === o.type; })) ? o.type : 'bug',
+      text: typeof o.text === 'string' ? o.text.slice(0, MAX_TEXT) : '',
       attachments: [],
       capture: null,
-      errors: (w.ReportBuffer && w.ReportBuffer.list()) || [],
+      errors: _extra.length
+        ? ((w.RecoveryBanner && w.RecoveryBanner.mergeRecoveryLines)
+            ? w.RecoveryBanner.mergeRecoveryLines((w.ReportBuffer && w.ReportBuffer.list()) || [], _extra)
+            /* ★모듈이 없으면 «싣지 않는다». 우리가 못 만든 줄을 사용자에게 보여준 적도 없으니
+               조용히 보내는 것보다 안 보내는 게 낫다(H3 실패 방향). */
+            : ((w.ReportBuffer && w.ReportBuffer.list()) || []))
+        : ((w.ReportBuffer && w.ReportBuffer.list()) || []),
       ctx: {
         screen: (w.screen ? (w.screen.width + '×' + w.screen.height) : ''),
         projectId: w.activeProjectId || '',
@@ -394,19 +409,21 @@
       sending: false,
     };
 
-    el.querySelector('#report-text').value = '';
-    el.querySelector('#report-count').textContent = '0 / ' + MAX_TEXT;
+    el.querySelector('#report-text').value = state.text;
+    el.querySelector('#report-count').textContent = state.text.length + ' / ' + MAX_TEXT;
     el.querySelector('#report-count').classList.remove('over');
     el.querySelector('#report-capture').checked = false;      // ★기본 «끔»
     var shot = el.querySelector('#report-shot');
     shot.classList.remove('on'); shot.innerHTML = '';
-    el.querySelector('#report-disc').setAttribute('aria-expanded', 'false');   // ★접힌 채로
-    el.querySelector('#report-disc-body').classList.remove('on');
+    /* ★기본은 접힌 채로. 단 «사용자가 안 적은 줄»(extraErrors)이 실렸으면 펼친 채로 연다. */
+    var openDisc = _extra.length > 0;
+    el.querySelector('#report-disc').setAttribute('aria-expanded', String(openDisc));
+    el.querySelector('#report-disc-body').classList.toggle('on', openDisc);
     el.querySelector('#report-queue-note').textContent = '';
     el.querySelector('#report-send').disabled = false;
     el.querySelector('#report-send').textContent = '보내기';
-    Array.prototype.forEach.call(el.querySelectorAll('#report-seg button'), function (x, i) {
-      x.setAttribute('aria-pressed', String(i === 0));
+    Array.prototype.forEach.call(el.querySelectorAll('#report-seg button'), function (x) {
+      x.setAttribute('aria-pressed', String(x.dataset.type === state.type));
     });
     renderAttachments();
     renderDisclosure();

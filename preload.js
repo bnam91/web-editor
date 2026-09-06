@@ -160,6 +160,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stats:   ()        => ipcRenderer.invoke('report:queue-stats'),
   },
 
+  // ── [H3] 지난 실행의 사고 — 되찾기 + 원인 보내기 ──
+  //   ★pending 은 «읽기»다. 여기엔 전송이 없다 — 보내는 건 위 report.submit 뿐이고,
+  //     그건 사용자가 신고 창에서 [보내기] 를 눌러야 불린다.
+  //   ★restore 는 «사본»을 만든다(기존 프로젝트를 덮지 않는다).
+  recovery: {
+    pending: ()     => ipcRenderer.invoke('recovery:pending'),
+    restore: (args) => ipcRenderer.invoke('recovery:restore', args),
+    reveal:  (args) => ipcRenderer.invoke('recovery:reveal', args),
+    ack:     (ids)  => ipcRenderer.invoke('recovery:ack', { ids }),
+  },
+
   // App info
   isElectron: true,
   getVersion: () => ipcRenderer.invoke('get-version'),

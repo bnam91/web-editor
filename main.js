@@ -6344,3 +6344,123 @@ ipcMain.handle('report:submit', async (_event, payload) => {
 ipcMain.handle('report:queue-stats', () => {
   try { ensureReportQueue(); return reportQueue.stats(); } catch (e) { return { size: 0, max: 50, error: e.message }; }
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   [H3] 지난 실행의 사고 — «되찾기 + 원인 보내기» IPC 4개 (2026-09-06)
+   ──────────────────────────────────────────────────────────────────────────
+   ★얇게만 부른다. 판정·투영·도장은 전부 main/recovery/index.js 안에 있다
+     (같은 시각 다른 단위가 main.js 를 고치고 있어 충돌이 비싸다 — H2·H4 와 같은 규율).
+   ★★자동 전송은 «없다». 여기 어디에도 네트워크 호출이 없다 — recovery:pending 은
+     「나갈 줄」을 만들어 «보여주기만» 하고, 실제 전송은 사용자가 신고 창에서
+     [보내기] 를 눌러 report:submit 을 탈 때뿐이다.
+   ★★비상 사본은 «사용자 문서 본문»이다 — 신고에 자동으로 붙지 않는다.
+     복구는 로컬에서만: recovery:restore(사본으로 되살리기) · recovery:reveal(파일 위치).
+══════════════════════════════════════════════════════════════════════════ */
+const recovery = require('./main/recovery');
+let _recoveryReady = false;
+function ensureRecovery() {
+  if (_recoveryReady) return;
+  _recoveryReady = true;
+  /* ★save-guard 는 종료 «직전»에야 init 된다(before-quit). H3 는 그보다 훨씬 먼저 —
+     앱을 켠 직후 — 마커와 emergency-saves/ 경로를 물어야 한다.
+     ⇒ 여기서 userDataDir 만 미리 넣는다. init 은 «준 것만» 덮으므로 before-quit 이
+       나중에 dialog·shell 을 얹는 것과 충돌하지 않는다(main/quit/save-guard.js init 참조).
+     ⛔이 두 줄이 없으면 emergencyDir() 가 null 위에서 터져 «되살리기가 조용히 not_found» 가 된다
+       (실측 2026-09-06: U-H3-W3 이 이걸 잡았다 — 「돌아는 가는데 효과 0」의 전형). */
+  try { quitSaveGuard.init({ userDataDir: app.getPath('userData'), appVersion: app.getVersion() }); } catch (_) {}
+  recovery.init({
+    userDataDir: app.getPath('userData'),
+    crash: require('./main/crash'),
+    saveGuard: quitSaveGuard,
+    log: (m) => console.warn(m),
+  });
+}
+
+/** 「지난 실행에 무슨 일이 있었나」 + 「보내면 나갈 줄」. ⛔읽기만 한다. */
+ipcMain.handle('recovery:pending', () => {
+  try {
+    ensureRecovery();
+    const r = recovery.localItems();
+    return { ok: true, items: r.items, counts: r.counts, degraded: r.degraded,
+             reportLines: recovery.reportLines(r.items) };
+  } catch (e) {
+    /* ★삼키지 않는다 — 「없다」와 「못 읽었다」는 다른 말이다. 화면이 그걸 구분해 말한다. */
+    console.warn('[recovery] pending 실패:', e && e.message);
+    return { ok: false, items: [], counts: {}, degraded: ['pending: ' + (e && e.message)], reportLines: [], error: e && e.message };
+  }
+});
+
+/** 비상 사본을 «사본으로» 되살린다 — ⛔기존 프로젝트를 덮지 않는다(버전 히스토리 「사본으로 열기」와 같은 길). */
+ipcMain.handle('recovery:restore', async (_e, { emergencyPath, projectId } = {}) => {
+  try {
+    ensureRecovery();
+    const snap = recovery.readEmergencySnapshot(emergencyPath);
+    if (!snap.ok) return { ok: false, code: snap.reason, error: snap.error || null };
+    const pid = _safeSeg(String(projectId || ''));
+    /* ★스냅샷은 serializeProject() 결과라 id·name·branches 가 «없다»(js/io/save-load.js).
+       원본이 살아 있으면 그 파일 위에 «내용만» 얹는다 — _doSaveProjectToFile 이 하는 병합과
+       같은 모양이다. ⛔손으로 새 포맷을 빚지 않는다. */
+    const srcPath = pid ? _resolveProjectJsonPath(pid) : null;
+    const hasSource = !!(srcPath && fs.existsSync(srcPath));
+    let base = {};
+    if (hasSource) { try { base = JSON.parse(fs.readFileSync(srcPath, 'utf8')) || {}; } catch (_) { base = {}; } }
+    const merged = { ...base, ...snap.data };
+    const stamp = new Date().toLocaleString('sv').slice(5, 16);   // MM-DD HH:mm
+    const name = `${base.name || '되살린 작업'} (복구본 ${stamp})`;
+
+    /* ㉮ 첫째 길 — «사본으로 열기»와 같은 경로. ★이미지 자산이 하드링크로 같이 온다. */
+    let r = null;
+    if (hasSource && /^proj_\d+$/.test(pid)) {
+      r = await _duplicateProjectImpl({ sourceProjectId: pid, newName: name, sourceData: merged });
+    }
+    if (r && r.ok === true) {
+      /* ★_duplicateProjectImpl 은 newProjectId/newName 이라는 «자기 이름»으로 답한다 —
+         그 이름을 그대로 화면까지 흘리지 않고 여기서 한 번 옮겨 적는다. */
+      console.warn(`[recovery] 비상 사본을 «사본»으로 되살렸다: ${pid} → ${r.newProjectId} (${snap.bytes}B)`);
+      return { ok: true, projectId: r.newProjectId, name: r.newName || name, bytes: snap.bytes, assetsLinked: true };
+    }
+
+    /* ㉯ ★둘째 길 — 원본이 없거나(지웠다) id 모양이 복제 규약(proj_<숫자>)과 안 맞을 때.
+       ⛔여기서 포기하면 그게 바로 「복구할 수 있었는데 못 했다」다 — 사본 파일은 멀쩡히 있는데
+         사용자는 손을 못 댄다. ⇒ 원본에 «기대지 않고» 새 프로젝트로 되살린다.
+       ★실측(2026-09-06 실기)이 이 가지를 요구했다: H4 러너가 만든 프로젝트 id 가
+         `proj_h4_<epoch>` 라 _duplicateProjectImpl 의 `^proj_\d+$` 를 통과 못 했고,
+         초판은 거기서 «되살리기 없음»으로 끝났다.
+       ⚠️단, 이 길은 원본 폴더의 «이미지 자산»을 못 가져온다(하드링크 대상이 없다) —
+         그래서 assetsLinked:false 로 «말한다». 조용히 반쪽을 주지 않는다. */
+    const created = await _createProjectImpl({ name });
+    if (!created || created.ok !== true) {
+      return { ok: false, code: (r && r.code) || (created && created.code) || 'io',
+               error: (r && r.error) || (created && created.error) || '복구 실패' };
+    }
+    const saved = await _saveProjectImpl({ ...merged, id: created.projectId, name });
+    if (!saved || saved.ok !== true) {
+      return { ok: false, code: 'io', error: (saved && saved.reason) || '되살린 내용을 저장하지 못했습니다' };
+    }
+    console.warn(`[recovery] 비상 사본을 «새 프로젝트»로 되살렸다(원본 ${hasSource ? 'id 규약 불일치' : '없음'}): ` +
+                 `${pid || '?'} → ${created.projectId} (${snap.bytes}B) · 자산 미연결`);
+    return { ok: true, projectId: created.projectId, name, bytes: snap.bytes, assetsLinked: false };
+  } catch (e) {
+    console.error('[recovery] restore 예외:', e);
+    return { ok: false, code: 'io', error: e.message };
+  }
+});
+
+/** 비상 사본 파일 위치 열기 — 되살리기가 안 될 때의 «마지막 통로». 사용자는 이 파일을 직접 챙길 수 있다. */
+ipcMain.handle('recovery:reveal', (_e, { emergencyPath } = {}) => {
+  try {
+    ensureRecovery();
+    const abs = recovery.resolveEmergencyPath(emergencyPath);
+    if (!abs) return { ok: false, code: 'not_found' };
+    shell.showItemInFolder(abs);
+    return { ok: true, path: abs };
+  } catch (e) { return { ok: false, code: 'io', error: e.message }; }
+});
+
+/** 도장 — 「이건 봤다」. ⛔원본은 지우지 않는다(나중에 다시 찾을 수 있어야 한다). */
+ipcMain.handle('recovery:ack', (_e, { ids } = {}) => {
+  try {
+    ensureRecovery();
+    return { ok: true, ...recovery.ack(Array.isArray(ids) ? ids : []) };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
