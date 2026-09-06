@@ -46,6 +46,7 @@ const BAD = 'data:image/png;base64,' + B64.slice(0, Math.floor(B64.length * 0.7 
 
 // ── 하네스 ────────────────────────────────────────────────────────────────
 let PORT, TOKEN;
+const PROJECT = 'proj_1';
 const calls = [];
 const spy = (name, ret) => async (...a) => { calls.push(name); return typeof ret === 'function' ? ret(...a) : ret; };
 
@@ -61,10 +62,20 @@ before(async () => {
     updateMockupBlock:     spy('updateMockupBlock', { ok: true }),
     editTextBlock:         spy('editTextBlock', { ok: true })
   });
-  const r = await mcp.startMcpServer({ port: 9390 }); // 9345~9365 «밖»
+  /* ★활성 프로젝트를 «있다»고 알려 준다 — 프로젝트 확정 게이트(feat/mcp-project-gate)가
+     합쳐지면 쓰기 도구는 「대상을 정한 적 없다」로 «먼저» 거절한다. 그러면 이 파일은
+     ⑴거절은 나는데 사유가 IMAGE_TRUNCATED 가 아니고 ⑵대조군은 렌더러가 안 불려서
+     «둘 다» 깨진다. 실측: 병합본에서 이 파일만 17개 빨강(2026-09-07). */
+  const r = await mcp.startMcpServer({ port: 9390, onActiveProject: () => PROJECT }); // 9345~9365 «밖»
   PORT = r.port ?? 9390;
   assert.ok(PORT < 9345 || PORT > 9365, `테스트 포트가 브리지 스캔 대역 안이다: ${PORT}`);
   TOKEN = mcp.getToken();
+  /* 게이트 확정은 sticky 다 — 한 번 `expectedProject` 로 지목하면 이후 호출은 인자 없이 통과한다.
+     ⛔게이트가 «없는» 트리(이 브랜치 단독)에서는 이 인자가 그냥 무시된다 ⇒ 양쪽에서 같은 파일이 돈다.
+     ⚠️이 파일은 「이미지 검사가 배선됐나」를 재는 곳이지 「게이트가 막나」를 재는 곳이 아니다.
+        게이트 자체의 검사는 U0 의 mcp-gate-coverage.test.js 소관이다 — 여기서 겹쳐 재지 않는다. */
+  await call('update_asset_block', { blockId: 'ab_t', imgSrc: GOOD, expectedProject: PROJECT });
+  calls.length = 0;
 });
 after(async () => { await mcp.stopMcpServer(); });
 
