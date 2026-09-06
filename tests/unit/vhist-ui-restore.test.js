@@ -132,8 +132,16 @@ test('UI3 ★S11 빈 캔버스 스킵이 «저장 실패»로 잡힌다 — 하�
 
 test('UI4 ★보호성 스킵은 자동저장 인디케이터를 빨갛게 만들지 않는다 — 새 프로젝트마다 빨강이면 신호가 죽는다', () => {
   const src = fs.readFileSync(path.join(__dirname, '../../js/io/save-load.js'), 'utf8');
-  assert.match(src, /r\.ok === false && !r\.skipped \? 'error'/,
-    '★skipped 를 실패로 표시하면 「진짜 실패」 신호가 묻힌다');
+  /* ★[W-3-b] 판정이 «한 함수»(_isSaveFailure)로 모였다. 그 전엔 이 자리에 식이 «인라인»돼 있었고
+     dirty 를 지우는 자리와 «두 벌»이었다 — 두 벌이라 「빨강인데 미저장 없음」이 났다(W-3 방아쇠).
+     ⇒ 그래서 이제 «둘»을 본다: ㉮ 규칙이 skipped 를 실패에서 빼는가 ㉯ 인디케이터가 그 규칙을 쓰는가.
+     ⚠️여기가 정규식인 이유: 스킵은 «자동저장 경로로는 도달하지 않는다»(scheduleAutoSave 와
+       _doSaveProjectToFile 이 같은 스냅샷에 같은 빈-캔버스 검사를 한다) — 행동으로 못 잰다.
+       도달하는 쪽(진짜 실패 → 빨강)은 tests/unit/save-dirty-after-failure.test.mjs W3B-10 이 «행동»으로 잰다. */
+  assert.match(src, /function _isSaveFailure\(r\) \{ return !!\(r && r\.ok === false && r\.skipped !== true\); \}/,
+    '★skipped 를 실패에 넣으면 「진짜 실패」 신호가 묻힌다');
+  assert.match(src, /_setAutosaveIndicator\(_isSaveFailure\(r\) \? 'error' : 'saved'\)/,
+    '★인디케이터가 그 규칙을 «안 쓰고» 자기 식을 다시 쓴다 — 두 벌이 되는 순간 또 어긋난다');
 });
 
 test('UI5 ★await 를 건너는 동안 _ctx 가 null 이 돼도 «엉뚱한 안내»를 하지 않는다', () => {
