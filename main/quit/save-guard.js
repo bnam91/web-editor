@@ -174,9 +174,19 @@ const WHY = {
   'send-failed': '편집 화면에 저장 요청을 보내지 못했습니다.',
 };
 
+/* ★「실패했다」와 「모른다」는 다른 말이다 — 아래 셋은 «실패의 증거가 없다».
+ *   무응답/미확인은 상한(3s)에 걸린 것이지 저장이 실패한 게 아니다. 실제로 큰 프로젝트는
+ *   상한 뒤에 «성공»으로 끝날 수 있다(실측: 103MB proj.json 직렬화만 543ms + IPC + 쓰기).
+ *   ⇒ 그런 사람에게 「저장하지 못했습니다」라고 «단정»하면 우리가 모르는 것을 사실로 읽어 주는 것이다.
+ *   ⛔이건 문구만 다르고 «동작은 같다» — 비상 사본도 마커도 그대로 남긴다. 안전은 안 낮춘다.
+ *   (같은 원칙: E3-b ㉮ — 검증 안 된 accessUntil 을 사실처럼 보여주지 않는다) */
+const UNKNOWN_REASONS = ['unconfirmed', 'no-response', 'no-result'];
+
 function failureText(outcome, saved) {
+  const unknown = UNKNOWN_REASONS.indexOf(outcome.reason) !== -1;
   const why = WHY[outcome.reason] || `저장에 실패했습니다. (${outcome.reason})`;
   const lines = [why];
+  if (unknown) lines.push('저장이 «끝났을 수도» 있습니다 — 다음 실행에서 확인하세요.');
   if (outcome.error) lines.push(`원인: ${outcome.error}`);
   if (saved.record.emergencyPath) {
     lines.push('', '마지막 작업 내용을 «비상 사본»으로 따로 저장했습니다:', saved.record.emergencyPath,
@@ -186,8 +196,14 @@ function failureText(outcome, saved) {
       '이번 종료 뒤 마지막 편집이 사라질 수 있습니다.');
   }
   return {
-    title: '저장하지 못한 채 종료합니다',
-    message: outcome.projectName ? `「${outcome.projectName}」을(를) 저장하지 못했습니다.` : '작업 내용을 저장하지 못했습니다.',
+    title: unknown ? '저장을 «확인하지 못한» 채 종료합니다' : '저장하지 못한 채 종료합니다',
+    message: unknown
+      ? (outcome.projectName
+          ? `「${outcome.projectName}」의 저장이 끝났는지 확인하지 못했습니다.`
+          : '작업 내용의 저장이 끝났는지 확인하지 못했습니다.')
+      : (outcome.projectName
+          ? `「${outcome.projectName}」을(를) 저장하지 못했습니다.`
+          : '작업 내용을 저장하지 못했습니다.'),
     detail: lines.join('\n'),
   };
 }
