@@ -69,11 +69,13 @@ function loadFixedQueue() {
   delete require_.cache[p];
   return require_(p);
 }
+/* ★git show 로 매번 「고치기 전」을 뜨지 않는다 — 이 저장소를 local 'dev' 브랜치 없이
+ * 클론(얕은 클론·CI worktree 등)하면 그 명령이 죽는다. 대신 얼린 고정자료를 쓴다
+ * (U-M67 스위트가 옛 산식을 인라인으로 못 박는 것과 같은 관례) — 파일 자체가 provenance
+ * 주석을 달고 있다. */
 function loadOldQueue() {
-  const oldSrc = require_('child_process').execSync(`git show dev:main/report/queue.js`, { cwd: ROOT, encoding: 'utf8' });
-  const p = path.join(mkTmpRoot('h1-old-queue-'), 'queue-old.js');
-  fs.writeFileSync(p, oldSrc, 'utf8');
-  delete require_.cache[require_.resolve(p)];
+  const p = require_.resolve('./_fixture-h1-queue-pre-fix.js');
+  delete require_.cache[p];
   return require_(p);
 }
 
