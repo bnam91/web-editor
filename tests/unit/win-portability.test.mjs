@@ -72,19 +72,23 @@ test('①-2 loadcheck 의 자르기가 CRLF 를 먹어도 «LF 와 같은 값»�
 });
 
 test('①-3 ★소스를 «문자열로 자르는» 검사는 전부 readSrc/openSource 를 탄다', () => {
-  /* 자르기 신호 = `x.indexOf('\n}` (0열 `}` 로 최상위 선언을 끊는 관용구) · sliceTopLevel.
-     ⚠️규칙은 «파일 단위»다 — 정규화를 «전혀 안 쓰면서» 자르는 파일만 잡는다.
-       (한 파일 안에서 정규화된 읽기와 날 읽기를 섞으면 못 잡는다. 알고 이렇게 둔다:
-        정밀도를 올리려면 taint 추적이 필요한데, 그건 이 게이트가 감당할 일이 아니다.) */
-  const SLICE_RE = /indexOf\(\s*['"]\\n\}|sliceTopLevel\(/;
-  const RAW_READ_RE = /readFileSync\([^)]*,\s*['"]utf8['"]\s*\)/;
-  const NORMALIZED_RE = /readSrc\(|readSourceLF\(|normalizeEol\(|openSource\(/;
+  /* ★규칙은 «변수 단위»다 — 「이 파일 어딘가에 정규화가 있다」로는 못 잡는다
+     (실제로 그렇게 짰다가 변이 ㉮ 가 살아남았다: 같은 파일의 «다른» 읽기가 면죄부가 됐다).
+     ⇒ 날 것으로 읽은 «그 변수»가 잘리는지를 본다. rename 한 홉(`const c = s.replace(…)`)까지 따라간다. */
+  const RAW_DECL = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?fs\.readFileSync\([^;]*?['"]utf8['"]\s*\)/g;
+  const RENAME = (src) => new RegExp(`(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*${src}\\s*\\.(?:replace|toString|normalize)\\(`, 'g');
+  const slicedBy = (code, name) =>
+    new RegExp(`\\b${name}\\s*\\.indexOf\\(\\s*['"]\\\\n\\}`).test(code)
+    || new RegExp(`sliceTopLevel\\(\\s*${name}\\b`).test(code)
+    || new RegExp(`sliceConstLine\\(\\s*${name}\\b`).test(code);
   const bad = [];
   for (const f of SCANNED) {
     const code = codeOnly(fs.readFileSync(f, 'utf8'));
-    if (!SLICE_RE.test(code)) continue;
-    if (NORMALIZED_RE.test(code)) continue;          // 정규화를 «쓰고 있다»
-    if (RAW_READ_RE.test(code)) bad.push(rel(f));
+    for (const m of code.matchAll(RAW_DECL)) {
+      const names = [m[1]];
+      for (const r of code.matchAll(RENAME(m[1]))) names.push(r[1]);   // 한 홉
+      if (names.some(n => slicedBy(code, n))) bad.push(`${rel(f)}:${m[1]}`);
+    }
   }
   assert.deepEqual(bad, [],
     `★CRLF 체크아웃에서 «자르기가 던져» 파일이 통째로 안 도는 자리 (${SCANNED.length}개 파일을 셌다)`);
@@ -124,14 +128,50 @@ test('②-3 pathToFileURL ⇄ fileURLToPath 왕복이 이 플랫폼의 실제 �
 });
 
 test('②-4 ★import() 에 «file:// URL 이 아닌 것»을 주는 자리가 0건이다', () => {
+  /* ★변이 ㉯ 가 살아남아서 고친 자리: 헬퍼(`const modUrl = …`)로 감싸면 호출 자리에서
+     pathToFileURL 이 «안 보인다». ⇒ 규칙은 「호출 자리에 보이게 두라」로 바꿨다.
+     ⛔검사 대상은 «Node 쪽» 파일만 — tests/measure/* 는 브라우저에서 도는 `import('/js/…')` 다. */
+  const argOf = (code, at) => {                       // 괄호 균형으로 인자 원문을 뜬다
+    let d = 0, i = at;
+    for (; i < code.length; i++) {
+      if (code[i] === '(') d++;
+      else if (code[i] === ')') { d--; if (d === 0) return code.slice(at + 1, i); }
+    }
+    return code.slice(at);
+  };
+  const LITERAL_OK = /^\s*['"`][^'"`]*['"`]\s*$/;    // 'node:fs' · './x.js' 같은 정적 지정자
   const bad = [];
-  const PAT = [
-    /\bimport\(\s*path\.(?:join|resolve)\(/,          // import(path.join(...))
-    /\bimport\(\s*[A-Za-z_$][\w$]*Path\b\s*\)/,        // import(entPath)
-  ];
   for (const f of SCANNED) {
+    if (!/(^|\/)(tests\/unit|tools)\//.test(rel(f)) || /\/measure\//.test(rel(f))) continue;
     const code = codeOnly(fs.readFileSync(f, 'utf8'));
-    if (PAT.some(re => re.test(code))) bad.push(rel(f));
+    for (const m of code.matchAll(/(?<![.\w$])import\s*\(/g)) {
+      const arg = argOf(code, m.index + m[0].length - 1);
+      if (LITERAL_OK.test(arg)) continue;                       // 정적 지정자는 문제없다
+      if (/pathToFileURL\(|import\.meta\.resolve\(/.test(arg)) continue;   // ★file:// 로 바꿨다
+      /* 인자가 이름이거나 헬퍼 호출이면 «만든 자리»를 한 홉 따라간다:
+           const entUrl = pathToFileURL(...).href;   → import(entUrl)   ✔
+           function stubCopy(){ … pathToFileURL(…) } → import(cvbUrl)   ✔ (cvbUrl = stubCopy(…))
+           const modUrl = (...s) => path.join(...s); → import(modUrl(…)) ✖ (변이 ㉯ 가 이 모양)
+         ⚠️추적은 «선언 뒤 1500자» 창으로 본다 — 파서를 들이지 않는 대신 범위를 못 박아 둔다. */
+      const id = arg.trim();
+      const producers = [];
+      const asName = id.match(/^([A-Za-z_$][\w$]*)$/);
+      const asCall = id.match(/^([A-Za-z_$][\w$]*)\s*\(/);
+      if (asName) {
+        producers.push(asName[1]);
+        const from = code.match(new RegExp(`(?:const|let|var)\\s+${asName[1]}\\s*=\\s*(?:await\\s+)?([A-Za-z_$][\\w$]*)\\s*\\(`));
+        if (from) producers.push(from[1]);
+      } else if (asCall) producers.push(asCall[1]);
+
+      const makesFileUrl = (name) => {
+        for (const d of code.matchAll(new RegExp(`(?:function\\s+${name}\\b|(?:const|let|var)\\s+${name}\\s*=)`, 'g'))) {
+          if (/pathToFileURL\(|import\.meta\.resolve\(/.test(code.slice(d.index, d.index + 1500))) return true;
+        }
+        return false;
+      };
+      if (producers.some(makesFileUrl)) continue;
+      bad.push(`${rel(f)}: import(${id.slice(0, 60)})`);
+    }
   }
   assert.deepEqual(bad, [],
     `★윈도우에서 ERR_UNSUPPORTED_ESM_URL_SCHEME 로 «파일이 통째로» 죽는 자리 (${SCANNED.length}개 파일을 셌다)`);
@@ -157,9 +197,14 @@ test('③-1 freeBytes 는 «양쪽 플랫폼에서 도는 자»를 쓴다 — �
     '★여유를 못 쟀다 — T4 의 양성대조가 성립 안 한다(윈도우에 df 가 없던 그 자리)');
   assert.equal(T.freeBytes(path.join(os.tmpdir(), 'goya-nonexistent-for-wp')), null,
     '없는 경로를 «여유 있다»로 읽었다');
-  /* ★구조 고정: statfsSync 분기가 있어야 윈도우에서도 «잰다»(건너뛰는 게 아니다). */
-  const src = readSrc(__dirname, '_tmproot.js');
-  assert.match(src, /statfsSync/, '★윈도우 조회 경로(statfsSync)가 사라졌다 — 거기선 다시 «못 잰다»가 된다');
+  /* ★★「statfsSync 라는 글자가 있나」로 재지 않는다 — `if (false)` 한 줄에 살아남는다(변이 ㉲).
+     ⇒ 윈도우의 실제 조건(«df 가 없다»)을 PATH 를 비운 자식 프로세스로 «진짜로» 만든다. */
+  const r = require_('child_process').spawnSync(process.execPath, ['-e',
+    `process.stdout.write(String(require(${JSON.stringify(path.join(__dirname, '_tmproot.js'))}).freeBytes()))`,
+  ], { encoding: 'utf8', env: { ...process.env, PATH: '' }, timeout: 15000 });
+  assert.equal(r.status, 0, `자식이 실패했다: ${r.stderr}`);
+  assert.ok(Number(r.stdout) > 0,
+    `★df 가 없으면 «못 잰다»로 떨어진다(윈도우가 바로 그 상황) — 받은 값: ${JSON.stringify(r.stdout)}`);
 });
 
 test('③-2 쓰기 거부는 플랫폼별 «동등한 동작»이고, 「막았다」를 «써 봐서» 확인한다', () => {

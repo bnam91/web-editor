@@ -37,11 +37,10 @@ const { mkTmpRoot } = require_(path.join(REPO, 'tests/unit/_tmproot.js'));
      ERR_UNSUPPORTED_ESM_URL_SCHEME 로 거절당한다(파일이 통째로 안 돈다).
      '/C:/…'(new URL().pathname 모양)·'\\C:\\…' 도 «틀린 고침»이다 — 실측으로 둘 다 실패.
      정답은 pathToFileURL(p).href 하나뿐. */
-const modUrl = (...segs) => pathToFileURL(path.join(...segs)).href;
 const { judgeCrashLog, judgeMirrorMarker, CRASH_SCHEMA } =
-  await import(modUrl(REPO, 'tools/hardening/judge/crashlog.mjs'));
-const { judgePii } = await import(modUrl(REPO, 'tools/hardening/judge/pii.mjs'));
-const { piiSamples } = await import(modUrl(REPO, 'tools/hardening/lib/fixture.mjs'));
+  await import(pathToFileURL(path.join(REPO, 'tools/hardening/judge/crashlog.mjs')).href);
+const { judgePii } = await import(pathToFileURL(path.join(REPO, 'tools/hardening/judge/pii.mjs')).href);
+const { piiSamples } = await import(pathToFileURL(path.join(REPO, 'tools/hardening/lib/fixture.mjs')).href);
 
 /* 제품 — ★H2_ROOT */
 const crash = require_(path.join(ROOT, 'main/crash/index.js'));
