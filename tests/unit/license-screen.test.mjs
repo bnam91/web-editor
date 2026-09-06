@@ -139,6 +139,43 @@ test('E3-REM-3 계정 자체가 없으면(email 없음) unknown', () => {
   assert.equal(LS.remainingKind(null), 'unknown');
 });
 
+/* ── E3-b ㉮ — 검증 안 된 값을 «사실」로 안 보여준다 ──────────────────────
+ * 지디 실측 + E4 재현: payload 를 2099 로 위조한 기록도 signature_invalid 로
+ * «접근은 정상 차단»되는데, 화면은 그 위조된 2099 를 「구독: …까지 남아 있음」으로
+ * «사실»처럼 보여줬다. main.js auth:state 가 평문 accessUntil 을 검증 여부와
+ * 무관하게 그대로 내보내기 때문 — 화면(이 파일) 쪽에서 status 를 보고 걸러야 한다. */
+test('E3-REM-4 ★status:"signature_invalid" — 위조된 2099 accessUntil 을 «절대」 보여주지 않는다(unverified)', () => {
+  const LS = boot();
+  const forged = { email: 'a@b.com', status: 'signature_invalid', perpetual: false, accessUntil: '2099-12-31T00:00:00.000Z' };
+  assert.equal(LS.remainingKind(forged), 'unverified');
+});
+
+test('E3-REM-5 ★status:"signature_missing" — 서명 자체가 없을 때도 accessUntil 을 안 보여준다', () => {
+  const LS = boot();
+  const record = { email: 'a@b.com', status: 'signature_missing', perpetual: false, accessUntil: '2027-01-01T00:00:00.000Z' };
+  assert.equal(LS.remainingKind(record), 'unverified');
+});
+
+test('E3-REM-6 ★위조된 perpetual:true 도 unverified 상태에서는 안 보여준다(같은 평문 출처)', () => {
+  const LS = boot();
+  const forged = { email: 'a@b.com', status: 'signature_invalid', perpetual: true, accessUntil: '' };
+  assert.equal(LS.remainingKind(forged), 'unverified');
+});
+
+test('E3-REM-7 ★반대 방향 — 서명 «검증을 통과한» 상태(clock_rollback·grace_exceeded)는 그대로 보여준다', () => {
+  const LS = boot();
+  // clock_rollback → status:'locked'. exp_in_grace/grace_exceeded → status:'sig_expired'.
+  // 둘 다 entitlement.js classify 상 v.ok===true(서명 검증 통과) 뒤에만 도달한다 — 진짜 사실이다.
+  assert.equal(LS.remainingKind({ email: 'a@b.com', status: 'locked', accessUntil: '2027-01-01T00:00:00.000Z' }), 'until');
+  assert.equal(LS.remainingKind({ email: 'a@b.com', status: 'sig_expired', accessUntil: '2027-01-01T00:00:00.000Z' }), 'until');
+  assert.equal(LS.remainingKind({ email: 'a@b.com', status: 'sig_expired', perpetual: true, accessUntil: '' }), 'perpetual');
+});
+
+test('E3-REM-8 UNVERIFIED_STATUSES 사전에 정확히 그 둘만 있다(다른 status 로 새지 않는다)', () => {
+  const LS = boot();
+  assert.equal(LS.UNVERIFIED_STATUSES.slice().sort().join(','), 'signature_invalid,signature_missing');
+});
+
 /* ── 적재 검사: 이 파일이 실제로 electron·DOM 의존이 0인지(브라우저 <script> 로도 로드되므로) ── */
 test('U-LICSCR-0 electron·require·module 의존 없이 순수 함수만 있다(전역이 window 뿐이어도 로드된다)', () => {
   // boot() 자체가 window 하나만 준 vm 에서 실행됐다 — 여기까지 왔다는 게 증거다.

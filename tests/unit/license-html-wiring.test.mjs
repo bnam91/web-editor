@@ -277,3 +277,55 @@ test('W11 ★verifyScreen 안에 type="password" 입력칸이 없다 — 푸는 
   assert.ok(m, 'verifyScreen 블록을 못 찾았다 — 마크업이 바뀌었다');
   assert.ok(!/type="password"/.test(m[0]), 'verifyScreen 안에 비밀번호 입력칸이 있다 — ㉰ 위반');
 });
+
+/* ── 11. ★E3-b ㉮ — 위조된 accessUntil(2099)이 DOM 에 실제로 «안 뜬다» ─────
+ * 지디 실측 + E4 재현 사고를 «그대로» 재현한다: status:'signature_invalid' 인데
+ * 평문 accessUntil 이 2099 로 위조돼 있다. 화면 어디에도 "2099" 문자열이 나오면 안 된다
+ * (verifyUntilRow 가 숨어야 한다) — 판정(㉮가 verify 화면으로 보내는 것) 자체는 안 바뀐다. */
+test('W12 ★위조된 signature_invalid 기록 — DOM 전체에 "2099" 가 한 글자도 없다', async () => {
+  const st = {
+    signedIn: false, expired: true, pending: 'verify', email: 'victim@b.com',
+    status: 'signature_invalid', reason: 'signature_invalid',
+    perpetual: false, accessUntil: '2099-12-31T00:00:00.000Z',
+  };
+  const { els } = bootPage({
+    getAuthState: async () => st,
+    refreshAuth: async () => ({ ok: false, reason: 'signature_invalid', status: 'signature_invalid' }),
+  });
+  await flush();
+  assert.ok(els.verifyScreen.classList.contains('visible'));
+  assert.equal(els.verifyAccountBox.style.display, '');   // 계정(이메일)은 보여준다
+  assert.equal(els.verifyUntilRow.style.display, 'none', '★위조된 기간 행이 숨어야 한다');
+  const dump = Object.values(els).map((e) => e.textContent + '|' + e.innerHTML).join('\n');
+  assert.ok(!dump.includes('2099'), '위조된 accessUntil(2099)이 화면 어딘가에 그대로 떴다:\n' + dump);
+  assert.equal(els.verifyEmail.textContent, 'victim@b.com', '이메일 자체는 계속 보여준다(신뢰 문제가 아니다)');
+});
+
+test('W13 ★같은 상황이 signature_missing 이어도 동일 — accessUntil 미노출', async () => {
+  const st = {
+    signedIn: false, expired: true, pending: 'verify', email: 'a@b.com',
+    status: 'signature_missing', reason: 'sigless_needs_verify',
+    perpetual: false, accessUntil: '2099-01-01T00:00:00.000Z',
+  };
+  const { els } = bootPage({
+    getAuthState: async () => st,
+    refreshAuth: async () => ({ ok: false, reason: 'offline', offline: true }),
+  });
+  await flush();
+  assert.equal(els.verifyUntilRow.style.display, 'none');
+});
+
+test('W14 서명 검증을 «통과한» clock_rollback 은 진짜 남은 기간을 그대로 보여준다(과잉 차단 아님)', async () => {
+  const st = {
+    signedIn: false, expired: true, pending: 'verify', email: 'a@b.com',
+    status: 'locked', reason: 'clock_rollback',
+    perpetual: false, accessUntil: '2027-06-01T00:00:00.000Z',
+  };
+  const { els } = bootPage({
+    getAuthState: async () => st,
+    refreshAuth: async () => ({ ok: false, reason: 'clock_rollback', status: 'locked' }),
+  });
+  await flush();
+  assert.equal(els.verifyUntilRow.style.display, '', '서명이 유효한 상태까지 과잉차단하면 안 된다');
+  assert.match(els.verifyUntil.textContent, /까지 남아 있음/);
+});

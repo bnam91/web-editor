@@ -59,9 +59,31 @@
 
   /* ── 남은 기간 표시 종류 ────────────────────────────────────────────────
    * ★accessUntil === null(무기한)을 «끝났다»로 읽으면 무기한 사용자를 잠근다(§3-1 L5 주석).
-   *   auth:state 는 무기한을 `accessUntil:''` + `perpetual:true` 로 따로 준다 — 그대로 따른다. */
+   *   auth:state 는 무기한을 `accessUntil:''` + `perpetual:true` 로 따로 준다 — 그대로 따른다.
+   *
+   * ★★E3-b ㉮ — «검증되지 않은 값을 사용자에게 사실로 읽어 주지 마라»(지디 실측, E4 재현):
+   *   main.js `auth:state` 는 평문 `accessUntil`/`perpetual` 을 **검증 여부와 무관하게**
+   *   그대로 내보낸다(`userData/auth.json` 의 사용자가 고칠 수 있는 필드가 출처다). 서명이
+   *   없거나(`status==='signature_missing'`) 서명이 안 맞으면(`status==='signature_invalid'`,
+   *   sig_invalid·sub_mismatch 공용) 그 값은 «누구나 2099 로 고칠 수 있는 숫자」다 — 화면이
+   *   그 숫자를 「구독은 2099년까지 남아 있음」으로 «사실»처럼 읽어 주면 안 된다.
+   *   ⇒ 이 두 status 에서는 accessUntil·perpetual 둘 다 «안 보여준다»('unverified').
+   *
+   *   ⛔이건 «잠금(pass/reject)」을 바꾸는 게 아니다 — 판정은 여전히 classify/resolveAuth
+   *   «한 곳»의 몫이고, 여기는 «표시만» 죽인다. ★sig_missing 은 «거부»가 아니라 «재질의»다
+   *   (E4 실측: signed 삭제 → 오프라인 pending:verify → 온라인 auth:refresh 로 재수령 →
+   *   정상 진입) — 그러니 이 화면이 「막혔다」로 과장해서도 안 된다(VERIFY_COPY 가 이미
+   *   그렇게 갈라 놨다). 여기서 하는 일은 «기간 문구 하나»를 안 내보내는 것뿐이다.
+   *
+   *   ★clock_rollback(`status:'locked'`)·grace_exceeded/exp_in_grace(`status:'sig_expired'`)
+   *   는 «서명 검증을 이미 통과한»(payload 가 있는) 상태다(entitlement.js classify L4·L6·L7
+   *   — 전부 v.ok===true 뒤에만 도달) — 이 accessUntil 은 서명이 뒷받침하는 «사실»이라
+   *   그대로 보여준다. 두 status 문자열만 보고 «뭉뚱그려» 다 가리면 진짜 정보까지 죽는다. */
+  var UNVERIFIED_STATUSES = ['signature_missing', 'signature_invalid'];
+
   function remainingKind(st) {
     if (!st) return 'unknown';
+    if (UNVERIFIED_STATUSES.indexOf(st.status) !== -1) return 'unverified';
     if (st.perpetual) return 'perpetual';
     if (st.accessUntil) return 'until';
     return 'unknown';
@@ -107,6 +129,7 @@
     decideInitialScreen: decideInitialScreen,
     decideVerifyOutcome: decideVerifyOutcome,
     remainingKind: remainingKind,
+    UNVERIFIED_STATUSES: UNVERIFIED_STATUSES,
     VERIFY_COPY: VERIFY_COPY,
     EXPIRED_COPY: EXPIRED_COPY,
     EXPIRY_WORDS: EXPIRY_WORDS,
