@@ -5,7 +5,7 @@
     "visible": 33,
     "hidden": 51,
     "mutating": 71,
-    "gated": 0
+    "gated": 71
   },
   "sizeCaps": {
     "_CANVAS_TEXT_CAP": 120,
@@ -43,7 +43,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -55,7 +55,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "rejected",
@@ -65,7 +65,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -77,7 +77,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "type"
       ],
@@ -89,7 +89,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -101,7 +101,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "cards"
       ],
@@ -113,7 +113,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -125,7 +125,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "text"
       ],
@@ -137,7 +137,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -149,7 +149,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -161,7 +161,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -173,7 +173,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -185,7 +185,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -197,7 +197,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -209,7 +209,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -221,7 +221,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -233,7 +233,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "name"
       ],
@@ -245,7 +245,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -257,7 +257,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -269,7 +269,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -281,7 +281,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -293,7 +293,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -305,7 +305,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -317,7 +317,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -329,7 +329,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "steps"
       ],
@@ -341,7 +341,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -353,7 +353,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -365,7 +365,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "content"
       ],
@@ -377,7 +377,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "svg"
       ],
@@ -389,7 +389,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "mainCopy"
       ],
@@ -406,9 +406,11 @@
       "expectedProjectGuard": false,
       "noArgs": "ok",
       "responseKeys": [
+        "activeProject",
         "hint",
         "name",
         "ok",
+        "opened",
         "projectId"
       ]
     },
@@ -416,7 +418,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -428,7 +430,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "id"
       ],
@@ -440,7 +442,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "id"
       ],
@@ -452,7 +454,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "sectionId"
       ],
@@ -464,7 +466,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
       "noArgs": "ok",
@@ -476,7 +478,7 @@
       "hidden": false,
       "mutating": false,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": true,
       "noArgs": "ok",
@@ -533,7 +535,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -602,7 +604,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -614,7 +616,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "sectionId"
       ],
@@ -638,7 +640,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "image"
       ],
@@ -703,7 +705,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "memo",
         "sectionId"
@@ -716,7 +718,7 @@
       "hidden": false,
       "mutating": false,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [],
       "expectedProjectGuard": true,
       "noArgs": "ok",
@@ -734,7 +736,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -746,7 +748,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -758,7 +760,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -770,7 +772,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -782,7 +784,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -794,7 +796,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -806,7 +808,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "id"
       ],
@@ -818,7 +820,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -830,7 +832,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -842,7 +844,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -854,7 +856,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -866,7 +868,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -878,7 +880,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -890,7 +892,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -902,7 +904,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -914,7 +916,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -926,7 +928,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -938,7 +940,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -950,7 +952,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -962,7 +964,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -974,7 +976,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "id"
       ],
@@ -986,7 +988,7 @@
       "hidden": false,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "sectionId"
       ],
@@ -998,7 +1000,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -1010,7 +1012,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -1022,7 +1024,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -1034,7 +1036,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -1046,7 +1048,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -1058,7 +1060,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],
@@ -1070,7 +1072,7 @@
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
-      "targetFree": true,
+      "targetFree": false,
       "required": [
         "blockId"
       ],

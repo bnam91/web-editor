@@ -76,7 +76,7 @@ const CASES = {
   move_block: { args: {"blockId":"tb_fx_b1","beforeId":"tb_fx_h1"}, sinks: ["moveBlock"] },
   move_section: { args: {"sectionId":"sec_fixt_2","beforeId":"sec_fixt_1"}, sinks: ["moveSection"] },
   open_project: { args: {"projectId":"proj_1"}, sinks: ["projectOps.open"] },
-  put_image: { args: {"image":"data:image/png;base64,iVBORw0KGgo="}, sinks: ["scratchAdd","addAssetBlock"] },
+  put_image: { args: {"image":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAAMBAQD3A0FDAAAAAElFTkSuQmCC"}, sinks: ["scratchAdd","addAssetBlock"] },
     // 보관함(scratchAdd)에 넣고 캔버스(addAssetBlock)에 얹는다 — 둘 다여야 «넣었다»
   read_project: { args: {}, sinks: [] },
     // 디스크(proj.json)를 직접 읽는다 — 브리지 배선이 «없는 게 옳다»
