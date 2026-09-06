@@ -236,8 +236,25 @@ async function startHarness(opts = {}) {
     if (Module._load.__mcpHarnessPatched) Module._load = Module._load.__orig;
   }
 
+  /* ★프로젝트 «확정» — feat/mcp-project-gate(caf8045) 이후 쓰기 도구 71개는
+   *   「어느 프로젝트인지 지목하지 않으면 안 쓴다」로 막힌다(sticky, 대화당 왕복 +2).
+   *   ⇒ 하네스도 «사람이 쓰듯» 먼저 대상을 고른다. 안 그러면 전수 호출이 전부 거절되고,
+   *      그건 «도구 결함»이 아니라 하네스가 클라이언트 흉내를 안 낸 것이다(09-07 실측).
+   *   ⛔기본으로 확정하되 «끄고» 부를 수 있어야 한다 — 게이트가 실제로 «막는지»를 재려면
+   *      확정 «안 한» 상태가 필요하다. confirmProject:false 가 그 자리다. */
+  async function confirmTarget(projectId) {
+    const pid = projectId || activeProjectOf();
+    if (!pid) throw new Error('[mcp-harness] 확정할 프로젝트가 없다 — activeProject 를 먼저 줘라');
+    const r = await call('open_project', { projectId: pid });
+    if (!r.result || r.result.ok !== true) {
+      throw new Error(`[mcp-harness] open_project 실패 — 확정이 안 섰다: ${JSON.stringify(r.result || r.error)}`);
+    }
+    return r.result;
+  }
+  if (opts.confirmProject !== false && activeProjectOf()) await confirmTarget();
+
   return {
-    mod, port, token, userData, projectsDir, seedProject,
+    mod, port, token, userData, projectsDir, seedProject, confirmTarget,
     /** ★렌더러 호출 원장 — 시각(hrt)·순서(seq)·인자까지. F7 양끝 계측의 «렌더러 쪽 끝». */
     calls,
     /** _noteSeq 가 무조건 끼워넣는 historyTip 왕복을 뺀 «도구가 시킨 일»만. */

@@ -28,7 +28,8 @@ import { spawnSync } from 'node:child_process';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SERVER = 'main/claude-pm/mcp-server.js';
-const UNIT = ['tests/unit/mcp-contract.test.js', 'tests/unit/mcp-response-budget.test.js', 'tests/unit/mcp-two-ends.test.js'];
+const UNIT = ['tests/unit/mcp-contract.test.js', 'tests/unit/mcp-response-budget.test.js',
+              'tests/unit/mcp-two-ends.test.js', 'tests/unit/mcp-gate-coverage.test.js'];
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 
 /** 변이 = {id, 왜, file, find, replace, expectRed:[어느 검사가 빨강이어야 하나]} */
@@ -102,6 +103,31 @@ const MUTATIONS = [
     find: `        if (!includeHidden && hiddenTools.has(name)) continue;`,
     replace: `        if (hiddenTools.has(name)) continue;  // [MUTANT] includeHidden 무시`,
     expectRed: ['F3-0', 'F1'] },
+
+  /* ── 프로젝트 확정 게이트(caf8045) ──
+   * ★이 셋이 «반드시» 있어야 하는 이유: 게이트가 들어오자 내 F3-2 가 39건 빨강이 됐고,
+   *   고친 방법은 «하네스가 사람처럼 먼저 대상을 확정»하는 것이었다. 그렇게만 두면
+   *   게이트를 통째로 지워도 F3-2 는 초록이다(확정하고 부르니까) — 「고쳤다」가 구멍이 된다. */
+  { id: 'M11-gate-disabled', requires: { probe: 'function _projectGate(', name: '프로젝트 확정 게이트' },
+    why: '★게이트 무력화 — 확정 없이도 쓰기가 통과한다(사용자의 진짜 프로젝트가 말없이 바뀐다).',
+    file: SERVER,
+    find: `function _projectGate(toolName, args) {`,
+    replace: `function _projectGate(toolName, args) {\n  return null;  // [MUTANT] 게이트 무력화`,
+    expectRed: ['F3-7'] },
+
+  { id: 'M12-gate-leak-targetfree', requires: { probe: 'const _TARGET_FREE = new Set(', name: '프로젝트 확정 게이트' },
+    why: '★면제 목록 누수 — 쓰기 도구를 _TARGET_FREE 로 몰래 빼면 그 도구만 게이트를 빠져나간다.',
+    file: SERVER,
+    find: `const _TARGET_FREE = new Set([`,
+    replace: `const _TARGET_FREE = new Set([\n  'add_text_block', 'update_block',  // [MUTANT] 쓰기 도구 누수`,
+    expectRed: ['F3-7', 'F1'] },
+
+  { id: 'M13-gate-refuse-but-write', requires: { probe: 'const _gateRefusal = _projectGate(', name: '프로젝트 확정 게이트' },
+    why: '★★「거절했다」와 «아무것도 안 했다»는 다른 사실 — 거절문을 돌려주면서 편집은 이미 한 모양.',
+    file: SERVER,
+    find: `      if (_gateRefusal) return _reply(_gateRefusal);`,
+    replace: `      if (_gateRefusal) { /* [MUTANT] 거절해 놓고 계속 진행 */ }`,
+    expectRed: ['F3-7'] },
 ];
 
 if (process.argv.includes('--list')) {
@@ -161,10 +187,15 @@ if (base.fail !== 0 || baseF1.code !== 0) {
 console.log(`기준선: unit ${base.pass} pass / ${base.fail} fail · F1(--check) exit 0\n`);
 
 const rows = [];
-let leaked = 0;
+let leaked = 0, skipped = 0;
 try {
   for (const m of MUTATIONS) {
     if (only && m.id !== only) continue;
+    if (m.requires && !original.includes(m.requires.probe)) {
+      // ⑵ 기능이 이 트리에 «없다» — 낡은 변이가 아니다. 소리내어 건너뛴다(통과로 세지 않는다).
+      rows.push({ id: m.id, verdict: '건너뜀', detail: `${m.requires.name} 가 이 트리에 없다 — 병합되면 «자동으로» 살아난다.` });
+      skipped++; continue;
+    }
     if (!original.includes(m.find)) {
       rows.push({ id: m.id, verdict: '검사불가', detail: '치환 대상 문자열을 못 찾았다 — 소스가 바뀌었다. 변이를 고쳐라.' });
       leaked++; continue;
@@ -195,5 +226,7 @@ console.log('\n| 변이 | 판정 | 근거 | 단위검사 |');
 console.log('|---|---|---|---|');
 for (const r of rows) console.log(`| ${r.id} | ${r.verdict} | ${r.detail} | ${r.unit || '-'} |`);
 if (leaked) { console.error(`\n❌ 초록으로 «샌» 변이 ${leaked}건 — 그 검사는 검사가 아니다.`); process.exit(1); }
-console.log(`\n✅ 변이 ${rows.length}건 «전부» 빨강 — 검사가 실제로 무언가를 재고 있다.`);
+const ran = rows.length - skipped;
+console.log(`\n✅ 변이 ${ran}건 «전부» 빨강 — 검사가 실제로 무언가를 재고 있다.`
+  + (skipped ? `\n⏭️  건너뜀 ${skipped}건 — 해당 기능이 이 트리에 «없다»(병합되면 자동으로 살아난다). 통과로 세지 않았다.` : ''));
 process.exit(0);

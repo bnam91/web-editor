@@ -7,6 +7,16 @@
  * ⑴ 금지 문자열 `base64,` 가 응답에 «0건»                     ← 새는 경로가 생기면 즉시 빨강
  * ⑵ 크기 예산(바이트)                                          ← 기준선은 «커밋과 같이» 적는다
  * ⑶ 자동 summary 폴백이 살아 있다(큰 페이지가 통째로 안 나온다)
+ * ⑷ ★«거절» 경로도 잰다(F4-8) — 아래 「두 경로」 참고
+ *
+ * ── ★왜 «두 경로»를 따로 재나 (2026-09-07, 프로젝트 게이트 caf8045 병합 뒤) ──
+ *   게이트가 들어오면서 쓰기 도구 71개가 「대상 확정 전」엔 «거절 페이로드»를 돌려준다.
+ *   거절문은 회복 절차(다음 수)를 실어야 해서 «길다» — 성공 응답 11 B 대 거절 715 B.
+ *   ⇒ 한 예산으로 묶으면 둘 중 하나가 거짓말이 된다: 느슨하게 잡으면 성공 경로가 부어도
+ *      안 잡히고, 빡빡하게 잡으면 «설계대로 동작하는» 거절이 빨강이 된다.
+ *   ⇒ 예산을 «둘로» 나눈다. 그리고 ★거절 경로에도 base64 금지를 건다 —
+ *      put_image 의 거절문이 인자로 받은 dataURL 을 되읊으면 그게 제일 큰 유출구다.
+ *      (F4-7 은 «성공» 경로만 훑는다 — 그 구멍을 F4-8 이 막는다.)
  *
  * ★검사가 «자극 있는» 검사인 근거: F6 픽스처는 사진 3장 중 2장이 «인라인 dataURL» 이다
  *   (small-b 3,400B · big 400,000B). DOM 쪽엔 base64 가 실제로 «있는데» 응답엔 0건이어야 참이다.
@@ -18,8 +28,10 @@
  *     get_canvas_state(summary)       284 B
  *     read_section(sec_fixt_1)        818 B
  *     read_project(기본=목차)         442 B   ← 프로젝트 원본엔 base64 20,000자가 있다
- *     update_block                     11 B
- *     put_image                        78 B   ← 입력 dataURL 50,022자
+ *     update_block                     11 B   ← ★«성공» 경로
+ *     put_image                        78 B   ← 입력 dataURL 50,022자, «성공» 경로
+ *   ★거절 경로는 «따로» 잰다(F4-8) — 게이트 도구 70개, 709~867 B @ caf8045
+ *     (확정이 «깨진» 거절은 previouslyConfirmed/note 가 더 붙어 조금 더 길다)
  *   상한은 기준선의 «2배 + 여유»로 둔다 — 조금씩 붓는 것을 잡되 사소한 문구 변경엔 안 터진다.
  */
 'use strict';
@@ -38,6 +50,8 @@ const BUDGET = {
   update_block: 200,
   put_image: 400,
 };
+/** 거절 경로 예산 — 실측 709~743 B(게이트 도구 70개) 기준, 여유를 두되 «무한»은 아니다. */
+const REFUSAL_BUDGET = 1600;
 
 let H = null;
 before(async () => { H = await startHarness({ activeProject: 'proj_1' }); });
@@ -147,4 +161,37 @@ test('F4-7 ★도구 «전수» 응답에 base64 가 0건이다', async () => {
   }
   assert.deepStrictEqual(leaks, [], `base64 를 되돌려 준 도구: ${leaks.join(' ')}`);
   console.error(`  [셈] 도구 ${Object.keys(CASES).length}개 전수 · base64 유출 0건`);
+});
+
+test('F4-8 ★«거절» 경로 예산 — 게이트 거절문은 길어도 되지만 무한하지 않고, base64 를 되읊지 않는다', async (t) => {
+  /* ⚠️게이트(feat/mcp-project-gate)가 없는 트리에서도 이 파일은 돈다 — 병합 순서 때문이다.
+     없는 것을 빨강으로 내지 않고 «소리내어» 건너뛴다(skip 은 통과가 아니다, 로그에 남는다). */
+  if (!CONTRACT.counts.gated) return t.skip('게이트가 이 트리에 없다 — 계약 counts.gated=0');
+  /* ⚠️확정 «안 한» 하네스가 필요하다 — 한 프로세스에 하네스는 하나라, 여기선 지금 하네스의
+     확정을 «깨서» 거절 상태를 만든다(사람이 앱에서 다른 프로젝트를 연 것과 같은 경로). */
+  const { CASES } = require('../contract/mcp-cases');
+  H.seedProject('proj_9');
+  H.setActiveProject('proj_9');   // sticky 깨짐 → 이후 쓰기는 전부 거절
+
+  const over = [], leaks = [];
+  let n = 0, max = 0, maxName = null;
+  for (const [name, c] of Object.entries(CASES)) {
+    if (CONTRACT.tools[name].targetFree || c.expectReject) continue;
+    const r = await H.call(name, c.args);
+    // 이 자리에서 «거절이 맞는지»는 F3-7 이 본다. 여기서는 «크기»만 잰다.
+    if (r.result && r.result.ok === false) {
+      n++;
+      if (r.bytes > max) { max = r.bytes; maxName = name; }
+      if (r.bytes > REFUSAL_BUDGET) over.push(`${name} ${r.bytes}B`);
+      if ((r.rawText.match(/base64,/g) || []).length) leaks.push(name);
+    }
+  }
+  assert.ok(n >= 50, `거절 경로를 ${n}개밖에 못 쟀다 — 게이트가 안 걸렸다(자극 없는 초록)`);
+  assert.deepStrictEqual(leaks, [],
+    `★거절문이 base64 를 되읊었다: ${leaks.join(' ')} — 인자로 받은 dataURL 을 에코하고 있다`);
+  assert.deepStrictEqual(over, [], `거절 예산 ${REFUSAL_BUDGET}B 초과: ${over.join(' ')}`);
+  console.error(`  [실측] 거절 경로 ${n}개 · 최대 ${max}B(${maxName}) · 예산 ${REFUSAL_BUDGET}B · base64 0건`);
+
+  H.setActiveProject('proj_1');   // 원복 — 뒤에 오는 검사가 있을 수 있다
+  await H.confirmTarget('proj_1');
 });

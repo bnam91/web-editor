@@ -8,6 +8,7 @@
  *
  * 스냅샷에 박는 것(도구마다):
  *   name · hidden(tools/list 미노출) · mutating(_NON_MUTATING 의 여집합) · switchExempt
+ *   · targetFree(★프로젝트 확정 게이트 «면제» 여부 — caf8045 이후)
  *   · required(inputSchema.required) · expectedProjectGuard(파괴적 도구 가드 보유)
  *   · responseKeys(무인자 호출의 최상위 키 — «현행 기록»이다, 판정이 아니다)
  * 전역: 도구 수 · 접두사 표(idPrefixes) · 크기 상한(sizeCaps)
@@ -108,6 +109,13 @@ async function build() {
   const fromSource = toolNamesFromSource();
   const nonMutating = setLiteral(src, '_NON_MUTATING');
   const switchExempt = setLiteral(src, '_SWITCH_EXEMPT');
+  /* ★_TARGET_FREE = 프로젝트 확정 게이트의 «면제 목록»(caf8045).
+     ⛔fail-closed 라 「목록에 없으면 게이트 대상」이다 — 그래서 이 집합을 스냅샷에 박으면
+     도구를 몰래 면제로 빼는 변경이 exit 1 로 드러난다.
+     ⚠️게이트 «이전» 소스에는 이 집합이 없다 → 그땐 전부 targetFree=true 로 기록한다
+        (없는 것을 「전부 게이트 대상」으로 적으면 거짓이 된다). */
+  const hasGate = /const\s+_TARGET_FREE\s*=\s*new Set\(/.test(src);
+  const targetFree = hasGate ? setLiteral(src, '_TARGET_FREE') : null;
   const guarded = guardedTools(src);
 
   let harness;
@@ -145,6 +153,7 @@ async function build() {
         hidden: !visible.has(t.name),
         mutating: !nonMutating.has(t.name),
         switchExempt: switchExempt.has(t.name),
+        targetFree: targetFree ? targetFree.has(t.name) : true,
         required: (t.inputSchema && t.inputSchema.required) ? t.inputSchema.required.slice().sort() : [],
         expectedProjectGuard: guarded.has(t.name),
         /* ⚠️「무인자로 부르면 이렇게 답한다」는 «현행 기록»이지 «옳음»이 아니다.
@@ -157,7 +166,8 @@ async function build() {
     return {
       note: '생성물 — tools/mcp-contract-snapshot.mjs 로만 고친다. 손으로 고치지 마라.',
       counts: { registered: fromServer.size, visible: visible.size, hidden: fromServer.size - visible.size,
-                mutating: [...fromServer].filter(n => !nonMutating.has(n)).length },
+                mutating: [...fromServer].filter(n => !nonMutating.has(n)).length,
+                gated: [...fromServer].filter(n => !(targetFree ? targetFree.has(n) : true)).length },
       sizeCaps: sizeCaps(src),
       idPrefixes: idPrefixes(),
       tools,
@@ -170,7 +180,7 @@ const built = await build();
 if (!CHECK) {
   mkdirSync(dirname(SNAP), { recursive: true });
   writeFileSync(SNAP, JSON.stringify(built, null, 2) + '\n');
-  console.log(`스냅샷 갱신: ${SNAP}\n  도구 ${built.counts.registered}개(노출 ${built.counts.visible} · 숨김 ${built.counts.hidden} · 변경성 ${built.counts.mutating}) · 접두사 ${Object.keys(built.idPrefixes).length}종`);
+  console.log(`스냅샷 갱신: ${SNAP}\n  도구 ${built.counts.registered}개(노출 ${built.counts.visible} · 숨김 ${built.counts.hidden} · 변경성 ${built.counts.mutating} · 게이트대상 ${built.counts.gated}) · 접두사 ${Object.keys(built.idPrefixes).length}종`);
   process.exit(0);
 }
 
@@ -184,7 +194,7 @@ for (const n of [...bn].filter(x => !hn.has(x)).sort()) diffs.push(`+ 새 도구
 for (const n of [...hn].filter(x => !bn.has(x)).sort()) diffs.push(`- 도구 «${n}» 가 사라졌다(스냅샷엔 있다)`);
 for (const n of [...bn].filter(x => hn.has(x)).sort()) {
   const a = have.tools[n], b = built.tools[n];
-  for (const k of ['hidden', 'mutating', 'switchExempt', 'expectedProjectGuard', 'noArgs']) {
+  for (const k of ['hidden', 'mutating', 'switchExempt', 'targetFree', 'expectedProjectGuard', 'noArgs']) {
     if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) diffs.push(`~ ${n}.${k}: ${JSON.stringify(a[k])} → ${JSON.stringify(b[k])}`);
   }
   for (const k of ['required', 'responseKeys']) {
