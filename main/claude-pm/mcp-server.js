@@ -7091,6 +7091,24 @@ function _createServer() {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       // tokenFile/instance/pid는 «어느 인스턴스인지»와 «토큰을 어디서 읽을지»만 알려준다.
       // 토큰 값은 절대 여기 싣지 않는다(무인증 엔드포인트).
+      /* ★«브라우저 페이지»에는 activeProject·tokenFile 을 주지 않는다 (2026-09-07).
+       *
+       * 왜 이 경계인가 — 「로컬 유저 = 주인」 모델은 «로컬 프로세스»에 대해선 충분하다.
+       *   같은 사용자로 도는 프로세스는 토큰 파일을 어차피 찾는다(이 브리지 자신이
+       *   「경로를 못 받으면 기본 userData 를 뒤진다」는 폴백을 갖고 있다 = 추측 가능하다는 증거).
+       *   그런 프로세스는 이미 파일시스템·스크린샷·키체인이 열려 있다. 토큰만 더 조여봐야 소용없다.
+       * ⇒ 그러나 **브라우저 페이지는 «로컬 유저»가 아니다**. 샌드박스 안이라 파일을 못 읽는다.
+       *   이 엔드포인트가 ACAO:* 라서, 사용자가 연 아무 웹페이지나 여기를 읽을 수 있고
+       *   거기서 «어느 프로젝트를 열어놨는지»와 «/Users/<계정명>/…» 경로를 무료로 가져간다.
+       *   토큰은 못 훔치지만(파일을 못 읽으니) 신원·작업 내용은 새어 나간다.
+       * ⇒ Origin 헤더가 «있는» 요청(=브라우저) 에만 그 둘을 뺀다.
+       *   로컬 호출자는 Origin 을 안 보낸다 — 실측으로 센 소비자 둘 다 Node 쪽이다:
+       *     ⑴ mcp-stdio-bridge.cjs (http.get)  ⑵ main/claude-pm/ipc.js handlePingMcp (fetch, 본문 안 읽음)
+       *   렌더러에서 /health 를 직접 부르는 곳은 «0개»다(상단 MCP 배지는 IPC 로 간다).
+       * ⚠️이건 «브라우저 경계»용이지 오늘(09-07) 사고의 처방이 아니다. 그 사고는 같은 사용자의
+       *   권한 있는 CLI 세션 9개가 실사용 인스턴스에 붙은 «조율» 실패였고, 이걸로는 안 막힌다.
+       *   그 처방은 팀 규약(세션마다 GODITOR_MCP_PORT 고정)이다. 둘을 섞지 마라. */
+      const _fromBrowser = !!req.headers.origin;
       res.end(JSON.stringify({
         status: 'ok',
         port: currentPort,
@@ -7100,8 +7118,10 @@ function _createServer() {
         instance: path.basename(_getUserDataDir()),
         // 인스턴스를 2개 띄우면 포트·pid만으론 «사람이» 어느 창인지 못 알아본다.
         // 열려 있는 프로젝트가 제일 알아보기 쉬운 표식이라 같이 준다.
-        activeProject: (() => { try { return _activeProjectId(); } catch (_) { return null; } })(),
-        tokenFile: _tokenFilePath
+        activeProject: _fromBrowser ? undefined
+          : (() => { try { return _activeProjectId(); } catch (_) { return null; } })(),
+        tokenFile: _fromBrowser ? undefined : _tokenFilePath,
+        ...(_fromBrowser ? { note: 'cross-origin caller: activeProject/tokenFile omitted' } : {})
       }));
       return;
     }
