@@ -91,7 +91,12 @@
       "!.env",
       "!.env.*",
       "!**/.env",
-      "!**/.env.*"
+      "!**/.env.*",
+      "!.design",
+      "!.ux",
+      "!.qa",
+      "!_context",
+      "!debug"
     ]
   },
   "repository": {
