@@ -23,6 +23,7 @@
 'use strict';
 const Module = require('module');
 const http = require('http');
+const net = require('net');
 const fs = require('fs');
 const path = require('path');
 
@@ -37,6 +38,27 @@ function assertOutsideBand(port) {
       '이 대역은 클로드앱 커넥터가 스캔한다 — 사용자의 클로드앱이 테스트 서버에 붙는다. 중단한다.');
   }
   return port;
+}
+
+/* ★«비어 있는» 포트를 먼저 찾는다 — 남의 세션이 이 대역에 앉아 있다.
+ *   실측(2026-09-07): srv-지디_goal-appgate 의 격리 Electron 이 9370(MCP)·9372(CDP)를 물고 있었다.
+ *   모듈의 EADDRINUSE 폴백(+1)이 흡수해서 검사는 통과했지만, 「폴백이 받아줬다」에 기대면
+ *   ⑴남의 포트를 두드리고 ⑵폴백 20칸을 다 쓰면 조용히 실패한다.
+ *   ⇒ 바인딩 «전에» 직접 열어 보고 비어 있는 것만 고른다. 못 찾으면 «시작을 거부»한다. */
+async function _freePortIn(lo, hi) {
+  const tryOne = (p) => new Promise((res) => {
+    const s = net.createServer();
+    s.once('error', () => res(false));
+    s.once('listening', () => s.close(() => res(true)));
+    s.listen(p, '127.0.0.1');
+  });
+  const start = lo + Math.floor(Math.random() * (hi - lo + 1));
+  for (let i = 0; i <= hi - lo; i++) {
+    const p = lo + ((start - lo + i) % (hi - lo + 1));
+    if (await tryOne(p)) return p;
+  }
+  throw new Error(`[mcp-harness] ${lo}~${hi} 에 빈 포트가 «하나도» 없다 — 남의 인스턴스가 대역을 다 물고 있다. ` +
+    'lsof -nP -iTCP -sTCP:LISTEN 으로 확인해라. ⛔9345~9365 로는 내려가지 않는다.');
 }
 
 /** 렌더러 메서드 기본 canned 응답. 이름으로 «모양»을 고른다(도구가 뭘 기대하는지 반영). */
@@ -182,7 +204,7 @@ async function startHarness(opts = {}) {
     open: async ({ projectId } = {}) => { _active = projectId || _active; return { ok: true, projectId }; },
   }, opts.projectOps || {})));
 
-  const base = opts.basePort || (BASE_LO + Math.floor(Math.random() * (BASE_HI - BASE_LO + 1)));
+  const base = opts.basePort || await _freePortIn(BASE_LO, BASE_HI);
   if (base >= FORBIDDEN_LO && base <= FORBIDDEN_HI) throw new Error(`[mcp-harness] basePort ${base} 가 금지 대역이다.`);
   const started = await mod.startMcpServer({ port: base, onActiveProject: () => activeProjectOf() });
   const port = assertOutsideBand(started.port);
@@ -272,4 +294,4 @@ async function startHarness(opts = {}) {
 
 const stubRef = { current: null };
 
-module.exports = { startHarness, assertOutsideBand, FORBIDDEN_LO, FORBIDDEN_HI, defaultCanned };
+module.exports = { startHarness, assertOutsideBand, FORBIDDEN_LO, FORBIDDEN_HI, defaultCanned, _freePortIn };
