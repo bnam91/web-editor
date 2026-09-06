@@ -148,7 +148,41 @@ const zoomDisplay = document.getElementById('zoom-display');
 let panOffsetX = 0;
 let panOffsetY = 0;
 
-function applyZoom(z) {
+function applyZoom(z, opts) {
+  /* ★[M62] `keepViewportCenter` — 배율만 바꾸고 scrollTop 을 그냥 두면 «캔버스가 화면 밖으로» 나간다.
+     scrollTop 은 «화면 px» 인데 배율이 바뀌면 캔버스 총높이가 바뀐다(200%→100% = ½). 같은 4828 이
+     아까는 문서 중간이었는데 이제는 «캔버스 아래 꼬리» 를 가리킨다 ⇒ 캔버스가 통째로 위로 사라진다.
+     [실측 260906 맥, proj_1788627421215] 중간 섹션을 화면 정중앙에 두고:
+       ⌘0 ←200% : 세로 교집합 905 → ★0   ⌘0 ←400% : 905 → ★0
+       Fit←200% : 905 → ★0               Fit←400% : 905 → ★0
+       ⌘0/Fit ←40%·10% : 702→905, 279→670 (정상 — 줌 «아웃» 방향에서만 난다)
+     ⚠️노치는 «가로 전용»이라 세로로 나가면 돌아올 길이 없다 — 사용자가 스스로 못 고친다.
+     ⇒ 배율 전 «뷰포트 세로중앙에 있던 캔버스 지점»을 배율 후에도 중앙에 되돌린다(피그마 방식).
+     ⛔이 보정은 «옵션»이다 — 켜는 자리는 ⌘0 과 Fit «둘뿐». 나머지 호출처는 자기 스크롤을 갖고 있다:
+       · zoomStep  — 이 함수를 지난 «뒤» 커서/선택블록 앵커로 scrollTop 을 다시 쓴다(:648). 켜면 헛계산.
+       · 탭복원    — 이 함수 다음 줄에서 저장된 scrollTop 을 도로 세운다(tab-system.js:216).
+       · 초기화    — 그때 scrollTop 은 이미 0 이다.
+     M44 주석이 「남는 건 ⌘0·Fit」 이라 짚은 바로 그 두 자리다. */
+  const _keepCenter = !!(opts && opts.keepViewportCenter);
+  const _wrapEl   = _keepCenter ? document.getElementById('canvas-wrap') : null;
+  const _canvasEl = _keepCenter ? document.getElementById('canvas') : null;
+  let _anchorU = null, _anchorVpMid = 0, _prevTr = null;
+  if (_wrapEl && _canvasEl) {
+    /* ★scaler 의 `transition: transform .15s` 때문에 rect 는 «보간 중» 값을 준다 —
+       zoomStep(:583) 이 같은 이유로 재기 «전에» 끄고 리플로를 한 번 돌린다. 같은 규약으로 맞춘다. */
+    _prevTr = scaler.style.transition;
+    scaler.style.transition = 'none';
+    void scaler.offsetWidth;
+    const wr = _wrapEl.getBoundingClientRect();
+    const cr = _canvasEl.getBoundingClientRect();
+    if (cr.height > 0) {
+      _anchorVpMid = wr.top + _wrapEl.clientHeight / 2;
+      /* 캔버스 «세로 정규화 좌표»(0=위끝, 1=아래끝). 배율에 안 흔들리는 유일한 단위다.
+         ★[0,1] 로 자른다 — 지금 꼬리 여백을 보고 있었더라도 ⌘0 은 «캔버스로» 데려와야 한다.
+           이 clamp 가 「배율 후 캔버스는 반드시 화면과 겹친다」 불변식을 세운다. */
+      _anchorU = Math.max(0, Math.min(1, (_anchorVpMid - cr.top) / cr.height));
+    }
+  }
   currentZoom = Math.min(400, Math.max(10, z));
   /* ★[M44] 배율을 «세우는» 경로는 팬 잔여를 반드시 버린다 — 안 버리면 ×(s_new/s_old) 래칫이 된다.
      panOffsetX/Y 는 «그 배율에서» 스크롤이 못 삼킨 «화면 px» 잔여다. 배율이 바뀌면 같은 숫자가
@@ -179,6 +213,16 @@ function applyZoom(z) {
    *   여백은 «그 순간의 스크롤을 위한 것»이라 상태가 바뀌면 미련 없이 버린다.
    *   다시 필요하면 다음 selectSection 이 «모자란 만큼» 다시 준다. */
   window.resetCanvasTail?.();
+  if (_anchorU !== null) {
+    /* ★resetCanvasTail «뒤»여야 한다 — 꼬리를 버리면 scrollHeight 가 바뀌고, 그러면 아래 대입이
+       브라우저 clamp 에 걸리는 자리가 달라진다. 스크롤 여지가 «최종»이 된 다음에 쓴다. */
+    void scaler.offsetHeight; void _wrapEl.scrollHeight;
+    const cr2 = _canvasEl.getBoundingClientRect();
+    _wrapEl.scrollTop += (cr2.top + _anchorU * cr2.height) - _anchorVpMid;
+    requestAnimationFrame(() => { scaler.style.transition = _prevTr; });
+  } else if (_prevTr !== null) {
+    scaler.style.transition = _prevTr;
+  }
   /* [M35] 배율이 바뀌면 «쉼 위치»(getRestingScroll)가 바뀌므로 같은 스크롤이라도 dx 가 달라진다.
      ⌘0 · Fit(zoomFit) · 탭복원 · 초기화 · zoomStep 이 전부 여기를 지난다 — 한 자리로 족하다. */
   scheduleNotchUpdate();
@@ -667,7 +711,7 @@ function zoomStep(delta) {
 }
 function zoomFit() {
   const wrap = document.getElementById('canvas-wrap');
-  applyZoom(Math.floor(((wrap.clientWidth - 80) / CANVAS_W) * 100));
+  applyZoom(Math.floor(((wrap.clientWidth - 80) / CANVAS_W) * 100), { keepViewportCenter: true });  // [M62]
 }
 
 
@@ -1756,7 +1800,7 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       document.body.classList.contains('preview-mode') ? window.previewZoomStep?.(-10) : zoomStep(-10);
     }
-    if (e.key === '0')                  { e.preventDefault(); applyZoom(100); }
+    if (e.key === '0')                  { e.preventDefault(); applyZoom(100, { keepViewportCenter: true }); }  // [M62]
     if (e.key === 'z' && !e.shiftKey)   { if (document.activeElement?.isContentEditable) return; e.preventDefault(); undo(); return; }
     // ★Shift+z 는 브라우저가 key:'Z'(대문자)로 준다 — 소문자만 검사하면 ⌘⇧Z redo 가 «전혀» 안 먹는다.
     //   바로 아래 취소선(⌘⇧X)이 (e.key==='x'||e.key==='X') 로 둘 다 받는 것과 같은 규약으로 맞춘다.
