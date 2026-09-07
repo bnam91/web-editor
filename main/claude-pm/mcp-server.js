@@ -8078,7 +8078,10 @@ async function _handleRpc(msg) {
       const _verifyApplied = async (r) => {
         try {
           if (!r || r.ok === false) return r;
-          if (!/^update_.*_block$/.test(name) && name !== 'update_section') return r;
+          /* ⛔옛 조건 `^update_.*_block$` 은 «update_block» 을 «안» 잡았다 (2026-09-07 실측: verify:null).
+               그게 통합 도구라 제일 많이 쓰이는 이름인데, 관문이 그것만 비껴갔다.
+               ⇒ 「검사가 초록이다」 이전에 «검사가 돌기는 하나»를 먼저 재라. */
+          if (!/^update_/.test(name)) return r;
           const bid = args && (args.blockId || args.sectionId);
           if (!bid || !_rendererInvoker?.readBlockState) return r;
           const st = await _rendererInvoker.readBlockState({ blockId: String(bid) });
@@ -8089,24 +8092,92 @@ async function _handleRpc(msg) {
           const said = (r && typeof r.applied === 'object' && r.applied) || null;
           if (!said) return Object.assign({}, r, { verified: { readBack: true } });
           const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/px$/, '').replace(/\s+/g, '');
-          const mismatch = {};
+          /* ★색은 «표기»가 갈린다: 우리는 #ff0000 을 보내고 화면은 rgb(255,0,0) 를 돌려준다.
+             표기가 다르다고 「안 먹었다」로 읽으면 거짓 빨강이다 ⇒ 한 모양(rgb 3튜플)으로 맞춰 비교한다. */
+          const rgb = (v) => {
+            const t = String(v == null ? '' : v).trim().toLowerCase();
+            let m = t.match(/^#([0-9a-f]{3})$/);
+            if (m) return m[1].split('').map(c => parseInt(c + c, 16)).join(',');
+            m = t.match(/^#([0-9a-f]{6})$/);
+            if (m) return [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)).join(',');
+            m = t.match(/^rgba?\(([^)]+)\)$/);
+            if (m) return m[1].split(',').slice(0, 3).map(x => parseInt(x.trim(), 10)).join(',');
+            return null;   // 못 알아보는 표기는 «못 잰» 것으로 둔다
+          };
+          /* ★★「검사가 초록이다」는 «검사가 본 범위»와 같이 적어야 뜻이 있다.
+             ⛔옛 판은 «못 잰» 키까지 checked 에 넣고 ok:true 를 냈다 — 실측: content 를 바꾸면
+               dataset 에 content 가 없어 대조를 «건너뛰고» verify:{ok:true, checked:['content']} 를 줬다.
+               읽는 쪽은 「내용이 확인됐다」로 읽는다. 그건 거짓 초록이다.
+             ⇒ 잰 것(checked)과 «못 잰 것»(notChecked)을 갈라 적는다. 하나도 못 쟀으면 ok 를 «안» 준다. */
+          const TEXTISH = new Set(['content', 'text', 'title', 'label', 'name']);
+          const mismatch = {}; const checked = []; const notChecked = {};
           for (const k of Object.keys(said)) {
             const want = said[k];
-            if (want == null || typeof want === 'object') continue;   // 배열·객체는 이 관문이 안 본다
+            if (want == null || typeof want === 'object') { notChecked[k] = '배열·객체는 이 관문이 안 본다'; continue; }
             const got = st.dataset[k];
-            if (got === undefined) continue;                          // dataset 에 안 사는 값은 대조 못 한다
-            if (norm(got) !== norm(want)) mismatch[k] = { said: want, actual: got };
+            if (got !== undefined) {
+              checked.push(k);
+              if (norm(got) !== norm(want)) mismatch[k] = { said: want, actual: got, via: 'dataset' };
+              continue;
+            }
+            /* ★글자류는 dataset 이 아니라 «화면 글자»에 산다 — readBlockState 가 text 를 이미 준다.
+               (현빈이 제일 많이 시키는 일이 「이 텍스트를 이걸로 바꿔줘」다. 그게 안 재지고 있었다.) */
+            if (TEXTISH.has(k) && typeof st.text === 'string') {
+              checked.push(k);
+              if (!norm(st.text).includes(norm(want))) {
+                mismatch[k] = { said: want, actual: String(st.text).slice(0, 120), via: 'innerText' };
+              }
+              continue;
+            }
+            /* ★계산된 스타일로 잴 수 있는 것 — dataset 에 안 살 뿐 «화면엔 있다» */
+            const CSSMAP = { fontSize: 'fontSize', align: 'textAlign', textAlign: 'textAlign',
+                             color: 'color', fontWeight: 'fontWeight', bgColor: 'backgroundColor' };
+            const ck = CSSMAP[k];
+            /* ★바깥·안쪽 «둘 다» 본다 — 스타일은 안쪽 자식에 붙는다(.tb-body).
+               ⛔바깥만 보면 「applied 가 거짓말한다」는 «거짓 빨강»이 난다(2026-09-07 실제로 냈다). */
+            const outer = st.computed && st.computed[ck];
+            const inner = st.computedInner && st.computedInner[ck];
+            if (ck && (outer != null || inner != null)) {
+              checked.push(k);
+              const w = norm(want);
+              const cands = [outer, inner].filter(v => v != null).map(norm);
+              const a = cands.includes(w) ? w : (norm(inner != null ? inner : outer));
+              /* 숫자는 단위가 붙어 온다(40 vs 40px) — norm 이 px 를 떼므로 그대로 비교된다.
+                 색은 표기가 갈린다(#fff vs rgb(255,255,255)) — «어긋났다»고 단정하지 않고 못 잰 것으로 둔다. */
+              const colorish = /^(color|bgColor)$/.test(k);
+              if (colorish) {
+                const wr = rgb(want);
+                const cr = [outer, inner].filter(v => v != null).map(rgb).filter(Boolean);
+                if (wr == null || !cr.length) {
+                  checked.pop();
+                  notChecked[k] = '색 표기를 못 알아봐 대조 불가 — 어긋났다는 뜻이 아니다';
+                } else if (!cr.includes(wr)) {
+                  mismatch[k] = { said: want, actual: (inner != null ? inner : outer), via: 'computed(rgb)' };
+                }
+              } else if (a !== w) {
+                mismatch[k] = { said: want, actual: (inner != null ? inner : outer), via: 'computed' };
+              }
+              continue;
+            }
+            notChecked[k] = 'dataset 에도 없고 글자류·스타일도 아니라 대조할 자리가 없다';
           }
           if (Object.keys(mismatch).length) {
             return Object.assign({}, r, {
               verify: {
-                ok: false,
+                ok: false, checked, notChecked,
                 note: '★응답의 applied 와 «화면의 실제 값»이 다릅니다 — 「바꿨다」를 그대로 믿지 마세요.',
                 mismatch,
               },
             });
           }
-          return Object.assign({}, r, { verify: { ok: true, checked: Object.keys(said) } });
+          if (!checked.length) {
+            /* ⛔「어긋난 게 없다」를 「확인했다」로 쓰지 않는다 — 한 개도 못 쟀으면 «못 잰» 것이다. */
+            return Object.assign({}, r, {
+              verify: { ok: null, measured: false, checked: [], notChecked,
+                        note: '★되읽기는 했지만 «대조할 수 있는 값이 없었다» — 확인된 게 아닙니다.' },
+            });
+          }
+          return Object.assign({}, r, { verify: { ok: true, checked, notChecked } });
         } catch (_) { return r; }   // ⛔관문이 도구를 죽이지 않는다(진단은 편의, 동작이 우선)
       };
 

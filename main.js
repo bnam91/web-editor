@@ -5947,7 +5947,20 @@ async function _invokeRendererReadBlockState({ blockId } = {}) {
       if (!el) return null;
       const ds = {};
       for (const k in el.dataset) ds[k] = el.dataset[k];
-      return { id: el.id, dataset: ds, text: (el.innerText || '').trim().slice(0, 2000) };
+      /* ★계산된 스타일도 조금 실어 준다 — fontSize·align·color 는 dataset 에 안 살아서
+           관문이 「대조할 자리가 없다」로 «못 재고» 있었다(2026-09-07 실측).
+         ⛔전부 싣지 않는다(응답이 커진다) — 관문이 실제로 쓰는 것만. */
+      /* ★★스타일은 «바깥 블록»에 안 붙는다 — 텍스트 블록은 안쪽 .tb-body 에 붙는다.
+           2026-09-07 실측: 바깥 tb_ 는 16px/start 인데 안쪽은 40px/right 였다.
+           바깥만 재고 「applied 가 거짓말한다」고 판정할 뻔했다 — «내 계측이 틀린» 것이었다.
+         ⇒ 바깥과 «첫 자식» 둘 다 싣는다. 판정은 부르는 쪽이 «둘 중 하나라도 맞으면 맞다»로 한다. */
+      const pick = (n) => { try { const c = getComputedStyle(n);
+        return { fontSize: c.fontSize, textAlign: c.textAlign, color: c.color,
+                 fontWeight: c.fontWeight, backgroundColor: c.backgroundColor }; } catch (_) { return {}; } };
+      const cs = pick(el);
+      const csIn = el.firstElementChild ? pick(el.firstElementChild) : {};
+      return { id: el.id, dataset: ds, computed: cs, computedInner: csIn,
+               text: (el.innerText || '').trim().slice(0, 2000) };
     } catch (_) { return null; }
   })()`;
   try { return await mainWindow.webContents.executeJavaScript(js, true); }
