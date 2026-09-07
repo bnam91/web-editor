@@ -7913,7 +7913,14 @@ function _createServer() {
           try {
             const a = (typeof _authProbe === 'function') ? _authProbe() : null;
             if (!a || a.accountScoped === undefined) return {};
-            return { accountScoped: !!a.accountScoped, accountFingerprint: a.accountFingerprint || null };
+            /* ⛔필드를 «만들고 배선을 안 하면» 진단이 조용히 사라진다 —
+                 실제로 accountUnresolved 를 main.js 에 넣고 여기서 안 실어 undefined 였다.
+                 ★「0건」이면 「못 잰 것 아닌가」부터 의심하라는 그 규칙이 «필드»에도 적용된다. */
+            return {
+              accountScoped: !!a.accountScoped,
+              accountUnresolved: !!a.accountUnresolved,   // 「계정을 못 알아냈다」 — 격리 폴더에 있다
+              accountFingerprint: a.accountFingerprint || null,
+            };
           } catch (_) { return {}; }
         })()),
         ...(_fromBrowser ? { note: 'cross-origin caller: activeProject/tokenFile omitted' } : {})

@@ -23,18 +23,21 @@ function extractBlock(src = SRC) {
 /* 떼어낸 블록을 «진짜 fs»와 임시 userData 위에서 실행한다. */
 function load({ email = null, block = extractBlock(), userData = null, authThrows = false } = {}) {
   const ud = userData || fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
-  const readAuth = () => { if (authThrows) throw new Error('auth.json 깨짐'); return email ? { email } : null; };
+  /* ★readAuthOrThrow 를 흉내낸다 — «파일 없음(null)»과 «못 읽음(throw)»을 가르는 함수다.
+     그게 이 판의 핵심이라, 하네스가 그 둘을 «따로» 만들 수 있어야 한다. */
+  const readAuthOrThrow = () => { if (authThrows) throw new Error('auth.json 깨짐'); return email ? { email } : null; };
   const factory = new Function(
-    'path', 'fs', 'USER_DATA_DIR', 'migrateFiles', '__dirname', 'readAuth', 'require', 'console',
+    'path', 'fs', 'USER_DATA_DIR', 'migrateFiles', '__dirname', 'readAuthOrThrow', 'require', 'console',
     block + `
     ; return {
         _accountKeyFor, _currentAccountKey, _accountProjectsDir, _repointProjectsDir,
         _adoptLegacyIfSoleAccount, _existingAccountKeys, _legacyProjectEntries, _projectsRoot,
         get PROJECTS_DIR() { return PROJECTS_DIR; },
-        PROJECTS_DIR_LEGACY, ACCOUNTS_DIR,
+        get state() { return _projectsDirState; },
+        PROJECTS_DIR_LEGACY, ACCOUNTS_DIR, PROJECTS_DIR_UNRESOLVED,
       };`
   );
-  const api = factory(path, fs, ud, () => {}, ud, readAuth, require, { log() {}, warn() {} });
+  const api = factory(path, fs, ud, () => {}, ud, readAuthOrThrow, require, { log() {}, warn() {}, error() {} });
   return { ud, api, setEmail(e) { email = e; }, setAuthThrows(v) { authThrows = v; } };
 }
 
@@ -312,16 +315,34 @@ test('M15 ★PM 폴더 뿌리도 «조용히» 공용 폴더로 폴백하지 않
    ★결함 단위를 «함수»가 아니라 «형제 패턴»으로 잡아라.
    ──────────────────────────────────────────────────────────────────────────── */
 
-test('M16 ★「auth.json 을 못 읽었다」를 「비로그인」으로 뭉개지 않는다', () => {
-  /* 뭉개면 «공용 풀»로 간다. 그 상태로 만든 프로젝트가 공용 풀에 쌓이면,
-     나중에 다른 계정이 첫 로그인 할 때 입양돼 «A 의 작업물이 B 에게» 넘어간다. */
-  const h = load({ email: 'chulsoo@example.com' });   // 정상 기동 뒤에 «깨뜨린다»
+test('M16 ★「auth.json 을 못 읽었다」는 «공용 풀»로 내려가지 않는다', () => {
+  /* ⛔1차 수정은 «작동하지 않는 문장»이었다(지디 지적): _currentAccountKey 에서 던지게 했지만
+       readAuth 가 «먼저» 삼켜서 예외가 올라올 일이 없었다. 그래서 주석 「진짜 비로그인」이 거짓이었다.
+     ★즉 「던지게 했다」는 «던질 것이 있어야» 말이 된다. ⇒ readAuthOrThrow 로 갈랐다.
+     실측(손상 auth.json 으로 앱 기동): 오늘은 MCP 가 NOT_LOGGED_IN 으로 거절하고 렌더러는
+     로그인 화면에 머물러 «도달 불가»였다. 그래도 고친다 — 안전이 «무관한 게이트 둘»에
+     얹혀 있으면, 그 둘 중 하나만 바뀌어도 조용히 열린다. */
+  const h = load({ email: 'chulsoo@example.com' });
   h.setAuthThrows(true);
-  assert.throws(() => h.api._repointProjectsDir('login'), /auth\.json 깨짐/,
-    '★못 읽었으면 던져야 한다 — 조용히 공용 풀로 가면 남의 것과 섞인다');
+  const st = h.api._repointProjectsDir('login');
 
-  const ok = load({ email: null });   // 진짜 비로그인은 «null» 이고 공용 풀이 맞다
-  assert.strictEqual(ok.api.PROJECTS_DIR, ok.api.PROJECTS_DIR_LEGACY, '반대방향 오탐 방지');
+  assert.notStrictEqual(h.api.PROJECTS_DIR, h.api.PROJECTS_DIR_LEGACY,
+    '★못 읽었는데 «공용 풀»로 내려가면, 거기 쌓인 것이 다음 계정에게 입양된다');
+  assert.strictEqual(h.api.PROJECTS_DIR, h.api.PROJECTS_DIR_UNRESOLVED, '★격리 폴더로 가야 한다');
+  assert.strictEqual(st.unresolved, true, '★상태에 «못 알아냈다»가 남아야 진단이 된다');
+  assert.match(st.error, /깨짐/);
+  assert.ok(fs.existsSync(h.api.PROJECTS_DIR), '격리 폴더가 «실제로» 있어야 한다(앱이 계속 돌아야 하니까)');
+
+  // ★격리 폴더는 «계정»으로 세지 않는다 — 세면 나중에 진짜 계정이 입양을 못 받는다
+  const keys = h.api._existingAccountKeys();
+  assert.ok(keys.every(k => !k.includes('_unresolved')),
+    `★_unresolved 가 «계정»으로 세이면 다음 계정 첫 로그인이 입양을 못 받는다 (지금: ${JSON.stringify(keys)})`);
+  assert.ok(fs.existsSync(path.join(h.ud, 'accounts', '_unresolved')),
+    '★양성대조: 격리 폴더가 «실제로» 만들어졌는데도 안 세어져야 의미가 있다');
+
+  // 반대방향 오탐 방지 — «진짜 파일 없음»은 공용 풀이 맞다
+  const out = load({ email: null });
+  assert.strictEqual(out.api.PROJECTS_DIR, out.api.PROJECTS_DIR_LEGACY);
 });
 
 test('M17 ★★입양이 «던져도» 뿌리는 계정 폴더에 서 있다 (공용 풀에 안 남는다)', () => {
@@ -388,4 +409,55 @@ test('M19 ★로그아웃이 «실패해도» 앞사람 뿌리에 머물지 않�
   assert.match(body, /PROJECTS_DIR = PROJECTS_DIR_LEGACY/,
     '★못 지웠으면 뿌리는 반드시 공용 풀로 내려야 한다');
   assert.match(body, /ENOENT/, '★원래 없던 파일은 «실패»가 아니다 — 그건 갈라야 한다');
+});
+
+test('M20 ★readAuthOrThrow «진짜 함수»가 「없음」과 「손상」을 가른다', () => {
+  /* ⛔변이 검사에서 이 채널이 «비어 있었다» — 하네스가 readAuthOrThrow 를 «흉내» 내므로
+     진짜 함수를 손상 삼키게 바꿔도 M1~M19 가 전부 초록이었다.
+     ★「흉내낸 것」을 재고 「진짜 것」을 안 잰 것 — 오늘 두 번째다.
+     ⇒ 함수 몸통을 «떼어» 실제 파일 위에서 돌린다. */
+  const body = bodyOf('readAuthOrThrow');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-auth-'));
+  const authPath = path.join(dir, 'auth.json');
+  const f = new Function('path', 'fs', 'getAuthPath', body + '\n; return readAuthOrThrow;')(path, fs, () => authPath);
+
+  // ⒜ 파일이 «없다» = 진짜 비로그인 → null
+  assert.strictEqual(f(), null, '★파일이 없는 것은 «비로그인»이지 오류가 아니다');
+
+  // ⒝ ★손상 → «던진다» (잘린 JSON = 디스크 꽉 참·강제종료의 실제 모양)
+  fs.writeFileSync(authPath, '{"email":"a@b.c');
+  assert.throws(() => f(), /JSON|Unexpected|Unterminated/i,
+    '★손상을 null 로 삼키면 「비로그인」으로 읽혀 ★공용 풀로 내려간다');
+
+  // ⒞ 객체가 아니면 던진다
+  fs.writeFileSync(authPath, '"문자열"');
+  assert.throws(() => f(), /객체가 아니다/);
+
+  // ⒟ 정상 → 객체 (반대방향 오탐 방지)
+  fs.writeFileSync(authPath, JSON.stringify({ email: 'a@b.c', plan: 'x' }));
+  assert.strictEqual(f().email, 'a@b.c');
+
+  // ⒠ 우리 레코드가 아니면(email 없음) 로그인 아님 → null. ⛔이건 «손상»이 아니다
+  fs.writeFileSync(authPath, JSON.stringify({ plan: 'x' }));
+  assert.strictEqual(f(), null);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('M20b ★readAuth(자격증명 SSOT)는 «안 건드렸다»', () => {
+  /* 지디 조언: readAuth 는 SSOT 라 건드리는 값이 크다. 별도 함수를 두는 쪽이 안전하다.
+     ⇒ 「안 건드렸다」를 말로 하지 말고 «검사»로 둔다. */
+  const body = bodyOf('readAuth');
+  assert.match(body, /catch \(_\) \{\s*\n?\s*return null;/, '★readAuth 의 계약(로그인 아님이면 null)은 그대로여야 한다');
+  assert.ok(!/throw/.test(body), '★readAuth 가 던지기 시작하면 로그인 경로 전체가 흔들린다');
+});
+
+test('M21 ★진단 필드가 «health 까지» 배선돼 있다 (만들고 안 실으면 조용히 사라진다)', () => {
+  /* 실제로 그랬다 — accountUnresolved 를 main.js 프로브에 넣고 mcp-server 의 health 에서
+     안 실어서 undefined 로 나왔다. ★「0건이면 못 잰 것 아닌가」는 «필드»에도 적용된다. */
+  const mcp = fs.readFileSync(path.join(__dirname, '..', '..', 'main', 'claude-pm', 'mcp-server.js'), 'utf8');
+  for (const f of ['accountScoped', 'accountUnresolved', 'accountFingerprint']) {
+    assert.ok(SRC.includes(`${f}:`), `★프로브(main.js)에 ${f} 가 없다`);
+    assert.match(mcp, new RegExp(`${f}:\\s*[^,\\n]*a\\.${f}`), `★health(mcp-server.js)가 ${f} 를 안 싣는다 — 만들어도 안 보인다`);
+  }
 });

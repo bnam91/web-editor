@@ -470,6 +470,21 @@ function readAuth() {
     return null;
   }
 }
+/* ★readAuth 는 「없다」·「손상됐다」·「우리 레코드가 아니다」를 «전부 null» 로 뭉갠다.
+     그건 «로그인 판정»에는 맞다(셋 다 「로그인 아님」이니까). 그런데 «프로젝트 뿌리»를
+     정할 땐 다르다 — 「손상」을 「비로그인」으로 읽으면 ★레거시 공용 풀로 내려가고,
+     거기 쌓인 것이 나중에 다른 계정 첫 로그인 때 입양돼 «A 것이 B 에게» 간다.
+   ⇒ 그래서 «가르는» 함수를 따로 둔다. ⛔readAuth 자체는 안 건드린다 — 자격증명 SSOT 라
+     건드리는 값이 크고, 그 함수의 계약(「로그인 아님이면 null」)은 지금 그대로가 맞다.
+   반환: null = «진짜 파일 없음»(로그아웃) · 객체 = 읽힘 · throw = «못 읽었다»(손상 등) */
+function readAuthOrThrow() {
+  const p = getAuthPath();
+  if (!fs.existsSync(p)) return null;              // ★여기만 「진짜 비로그인」이다
+  const raw = JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, ''));   // ⛔던지게 둔다
+  if (!raw || typeof raw !== 'object') throw new Error('auth.json 이 객체가 아니다');
+  return raw.email ? raw : null;                   // 우리 레코드가 아니면 로그인 아님
+}
+
 /* ⚠️★이 함수는 «화이트리스트»다 — 여기 안 적힌 필드는 «조용히» 사라진다.
      그래서 새 필드를 쓰는 호출처를 아무리 잘 짜도, 여기를 안 고치면 **전원이 옛 상태로 퇴행**한다.
      (서명본이 매 저장마다 증발 → 모두 `sig_missing` → 마감 후엔 전원 재검증) */
@@ -1082,6 +1097,11 @@ function migrateFiles(oldDir, newDir) {
      값으로 붙잡아 두는 자리는 registerGdtIpc 하나뿐이라 거기만 «게터»로 넘긴다. */
 const PROJECTS_DIR_LEGACY = path.join(USER_DATA_DIR, 'projects');
 const ACCOUNTS_DIR = path.join(USER_DATA_DIR, 'accounts');
+/* ★「누구인지 못 알아냈다」의 착지점. ⛔레거시 공용 풀로 내리지 않는다 —
+   거기 쌓인 것은 다음 계정 첫 로그인 때 «입양»되고, 거기 있던 것은 «보인다».
+   비어 있는 격리 폴더라 새는 방향이 양쪽 다 없다. 앱은 계속 돈다(사용자를 가두지 않는다).
+   ⛔`acct_` 접두가 «아니라서» _existingAccountKeys 가 계정으로 세지 않는다 — 의도한 것이다. */
+const PROJECTS_DIR_UNRESOLVED = path.join(ACCOUNTS_DIR, '_unresolved', 'projects');
 let PROJECTS_DIR = PROJECTS_DIR_LEGACY;
 migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR_LEGACY); // 구 경로 마이그레이션
 if (!fs.existsSync(PROJECTS_DIR_LEGACY)) fs.mkdirSync(PROJECTS_DIR_LEGACY, { recursive: true });
@@ -1104,8 +1124,11 @@ function _accountKeyFor(email) {
    ★null 은 «진짜 비로그인»(파일이 없거나 우리 레코드가 아님)일 때만 나온다 —
      그 판정은 readAuth 가 이미 한다(`!raw.email` → null). */
 function _currentAccountKey() {
-  const a = readAuth();   // ⛔삼키지 않는다 — 던지면 그대로 올라간다
-  if (!a || !a.email) return null;   // 진짜 비로그인
+  /* ⛔readAuth 를 쓰면 «손상»이 null 로 삼켜져 여기까지 예외가 안 온다 —
+     그러면 위층에서 무엇을 해도 「없다」와 「못 읽었다」를 못 가른다(지디 지적, 2026-09-07).
+     ★즉 「던지게 했다」는 «던질 것이 있어야» 말이 된다. */
+  const a = readAuthOrThrow();
+  if (!a || !a.email) return null;   // ★여기 null 은 «진짜» 비로그인이다(파일 없음)
   return _accountKeyFor(a.email);
 }
 function _accountProjectsDir(key) { return path.join(ACCOUNTS_DIR, key, 'projects'); }
@@ -1153,7 +1176,17 @@ function _adoptLegacyIfSoleAccount(key, dest) {
 /* 계정별 뿌리로 갈아끼운다. 로그인/로그아웃/기동 때 부른다. */
 let _projectsDirState = null;
 function _repointProjectsDir(reason) {
-  const key = _currentAccountKey();
+  let key;
+  try {
+    key = _currentAccountKey();
+  } catch (e) {
+    /* ★「못 읽었다」를 「비로그인」으로 «내려보내지» 않는다. 누구인지 모르면 아무것도 안 보여준다. */
+    console.error(`[projects] ★계정을 «못 읽었다»(손상?) — 공용 풀로 내리지 않고 격리 폴더로 간다:`, (e && e.message) || e);
+    fs.mkdirSync(PROJECTS_DIR_UNRESOLVED, { recursive: true });
+    PROJECTS_DIR = PROJECTS_DIR_UNRESOLVED;
+    _projectsDirState = { root: PROJECTS_DIR, account: null, reason, unresolved: true, error: String((e && e.message) || e) };
+    return _projectsDirState;
+  }
   if (!key) {
     PROJECTS_DIR = PROJECTS_DIR_LEGACY;
     _projectsDirState = { root: PROJECTS_DIR, account: null, reason };
@@ -3534,7 +3567,10 @@ app.whenReady().then(async () => {
         /* ★격리가 «실제로» 걸렸는지 진단할 창.
            「목록이 0건」이 나왔을 때 «격리돼서 0건»인지 «못 재서 0건»인지 갈라야 한다.
            ⛔이메일도, 계정키(이메일 slug 포함)도 안 넘긴다 — 지문 8자만 넘긴다. */
-        accountScoped: PROJECTS_DIR !== PROJECTS_DIR_LEGACY,
+        accountScoped: PROJECTS_DIR !== PROJECTS_DIR_LEGACY && !(_projectsDirState && _projectsDirState.unresolved),
+        /* ★「계정별로 갈렸다」와 「누구인지 못 알아내 격리 폴더에 있다」는 «다른 상태»다.
+           뭉개면 「0건」을 볼 때 또 오독한다. */
+        accountUnresolved: !!(_projectsDirState && _projectsDirState.unresolved),
         /* ⛔「비로그인이라 없다」와 「못 읽어서 없다」를 같은 null 로 뭉개지 않는다 —
              이 값은 「0건」을 «격리»와 «고장»으로 가르라고 있는 것이라, 뭉개면 쓸모가 없다. */
         accountFingerprint: (() => {
