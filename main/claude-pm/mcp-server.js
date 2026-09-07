@@ -390,11 +390,17 @@ function _readProjectFile(projectId) {
 // ─────────────────────────────────────────────
 // Default tools
 // ─────────────────────────────────────────────
-// 「지금 열려 있는 프로젝트」의 근거.
-// ⚠️실측: onActiveProjectCb가 읽는 global.currentActiveProjectId는 renderer가
-//   claudePM:setActiveProject를 «부르는 곳이 아예 없어서» 항상 null이다(preload에만 노출돼 있다).
-//   그 결과 read_project·read_section·duplicate_project가 늘 'no active project'로 죽었다.
-//   편집기 창 URL(index.html?project=proj_xxx)이 실제로 열린 프로젝트의 유일한 근거라 이걸 폴백으로 쓴다.
+// 「지금 열려 있는 프로젝트」의 근거 — «두 갈래»다. 둘 다 살아 있다.
+//   ⑴ global.currentActiveProjectId — renderer 의 js/claude-pm/active-project-sync.js 가
+//      claudePM:setActiveProject 로 채운다(index.html:1423 에서 싣는다 → ipc.js 가 전역에 대입).
+//   ⑵ 편집기 창 URL(index.html?project=proj_xxx) — ⑴이 아직 안 왔을 때의 폴백.
+// ★2026-09-07 실측으로 갱신: 예전 주석은 「⑴을 «부르는 곳이 아예 없어서» 항상 null」이라고
+//   적혀 있었는데(08-15 관측), 그 뒤 active-project-sync.js 가 생겨 «지금은 참이 아니다».
+//   재는 법 — 프로젝트를 열고 delete_project 로 그걸 지운다. 응답의 activeCleared 가 true 면
+//   main.js 의 `wasActive = (global.currentActiveProjectId === projectId)` 가 참이었다는 뜻이고,
+//   그건 ⑴이 «채워져 있었다»는 증거다. 실제로 true 였다(health.activeProject 도 null 로 떨어졌다).
+// ⛔낡은 주석이 「이 경로는 안 돈다」고 말하면 다음 사람이 그 위에 잘못된 판단을 세운다.
+//   ★고칠 땐 «어떻게 쟀는지»를 같이 적어라 — 이 문단이 또 낡을 때 다시 잴 수 있게.
 function _activeProjectId() {
   try { const p = onActiveProjectCb ? onActiveProjectCb() : null; if (p) return p; } catch (_) {}
   try {
