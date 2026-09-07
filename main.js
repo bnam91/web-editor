@@ -3655,6 +3655,7 @@ app.whenReady().then(async () => {
       addCardBlock: _invokeRendererAddCardBlock,
       updateCardBlock: _invokeRendererUpdateCardBlock,
       addChecklistItem: _invokeRendererAddChecklistItem,
+      checklistSection: _invokeRendererChecklistSection,
       setSectionMemo: _invokeRendererSetSectionMemo,
       getSectionMemo: _invokeRendererGetSectionMemo,
       updateChecklistItem: _invokeRendererUpdateChecklistItem,
@@ -3835,18 +3836,56 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId,
 }
 
 // ─── add_checklist_item — 체크리스트 항목(=핀) 추가 ─────────────────────────
-async function _invokeRendererAddChecklistItem({ text, x, y, sectionId, done = false, urgent = false } = {}) {
+async function _invokeRendererAddChecklistItem({ text, x, y, sectionId, ckSectionId, done = false, urgent = false } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
-  const safeArgs = JSON.stringify({ text: String(text||''), x, y, sectionId, done: !!done, urgent: !!urgent });
+  const safeArgs = JSON.stringify({ text: String(text||''), x, y, sectionId, ckSectionId,
+                                    done: !!done, urgent: !!urgent });
   return await mainWindow.webContents.executeJavaScript(
     `(() => { try {
       if (typeof window.addChecklistItem !== 'function') return { ok:false, code:'API_MISSING' };
-      const id = window.addChecklistItem(${safeArgs});
-      return { ok:true, itemId: id };
+      const r = window.addChecklistItem(${safeArgs});
+      /* ⛔addChecklistItem 은 «보통은 id 문자열»이지만 거절할 땐 «객체»를 준다(SECTION_NOT_FOUND).
+           예전 코드는 그걸 itemId 에 그대로 담아 ok:true 로 올렸다 — 거짓 성공이다.
+         ⇒ 모양으로 가른다. 문자열이 아니면 «그 객체를 그대로» 올린다. */
+      if (typeof r !== 'string') return (r && typeof r === 'object') ? r
+        : { ok:false, code:'NO_ID', message:'항목 id 를 못 받았습니다.' };
+      return { ok:true, itemId: r };
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
     true
   );
+}
+
+/* ─── 체크리스트 «섹션» — 만들기·이름·지우기·목록 (2026-09-07 현빈 요청) ──────
+   ⛔한 자리에서 op 로 가른다(에셋 트리와 같은 모양) — 도구가 넷으로 흩어지면 목록이 썩는다. */
+async function _invokeRendererChecklistSection({ op, id, name } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const a = JSON.stringify({ op, id: id || null, name: name == null ? null : String(name) });
+  const js = `(() => {
+    try {
+      const p = ${a};
+      const need = { create:'addChecklistSection', rename:'renameChecklistSection',
+                     delete:'deleteChecklistSection', list:'listChecklistSections' }[p.op];
+      if (!need) return { ok:false, code:'BAD_OP', message:'op must be one of create|rename|delete|list' };
+      if (typeof window[need] !== 'function') return { ok:false, code:'API_MISSING', message: need + ' not found' };
+      let r;
+      if (p.op === 'create')      r = window.addChecklistSection({ name: p.name });
+      else if (p.op === 'rename') r = window.renameChecklistSection({ id: p.id, name: p.name });
+      else if (p.op === 'delete') r = window.deleteChecklistSection({ id: p.id });
+      else                        r = { ok: true };
+      /* ★결과를 «되읽어» 돌려준다 — 인자를 되읊지 않는다.
+           create 면 «정말 생겼나», rename 이면 «정말 그 이름인가», delete 면 «정말 없나». */
+      const secs = window.listChecklistSections();
+      const tid = (r && r.sectionId) || p.id || null;
+      const found = tid ? secs.find(s => s.id === tid) : null;
+      return Object.assign({}, r, {
+        op: p.op, sections: secs, sectionCount: secs.length,
+        section: found || null, stillExists: !!found,
+      });
+    } catch (e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
 }
 
 // ─── add_table_block — 표 블록 추가 (headers + rows 데이터 직접 주입) ────────
@@ -4735,7 +4774,7 @@ async function _invokeRendererGetSectionMemo({ sectionId } = {}) {
 // ─── update_checklist_item — 체크리스트 항목 부분 갱신 (text/done/urgent) ────
 // USER_BUSY 가드: 사용자가 체크리스트 인라인 편집 중이면 (.ck-inline-input 등) MCP write 차단.
 // renderChecklistPanel()이 input을 unmount하면서 blur save가 stale closure로 덮는 race 방지 (Codex 리뷰 #1).
-async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y } = {}) {
+async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y, ckSectionId } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
@@ -4748,6 +4787,9 @@ async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y
   if (urgent !== undefined) args.urgent = !!urgent;
   if (x      !== undefined) args.x = (typeof x === 'number') ? x : null;
   if (y      !== undefined) args.y = (typeof y === 'number') ? y : null;
+  /* ★«체크리스트 섹션»(ck_xxx) 이동. 캔버스 섹션(sec_xxx)과 이름이 겹쳐 헷갈리는 자리라
+     밖에서는 ckSectionId 로만 받는다. null 을 «명시»하면 섹션에서 뺀다. */
+  if (ckSectionId !== undefined) args.ckSectionId = (ckSectionId === null || ckSectionId === '') ? null : String(ckSectionId);
   const safeArgs = JSON.stringify(args);
   return await mainWindow.webContents.executeJavaScript(
     `(() => { try {

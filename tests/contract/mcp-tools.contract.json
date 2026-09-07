@@ -1,11 +1,11 @@
 {
   "note": "생성물 — tools/mcp-contract-snapshot.mjs 로만 고친다. 손으로 고치지 마라.",
   "counts": {
-    "registered": 92,
-    "visible": 38,
+    "registered": 93,
+    "visible": 39,
     "hidden": 54,
-    "mutating": 79,
-    "gated": 77
+    "mutating": 80,
+    "gated": 78
   },
   "sizeCaps": {
     "_CANVAS_TEXT_CAP": 120,
@@ -515,6 +515,22 @@
         "ok"
       ]
     },
+    "edit_checklist_section": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "op"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "code",
+        "message",
+        "ok"
+      ]
+    },
     "export_sections": {
       "hidden": false,
       "mutating": false,
@@ -618,7 +634,8 @@
       "noArgs": "ok",
       "responseKeys": [
         "items",
-        "ok"
+        "ok",
+        "sections"
       ]
     },
     "list_memories": {

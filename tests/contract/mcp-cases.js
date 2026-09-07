@@ -82,6 +82,9 @@ const CASES = {
   get_section_memo: { args: {"sectionId":"sec_fixt_1"}, sinks: ["getSectionMemo"] },
   insert_gap_after_block: { args: {"blockId":"tb_fx_h1","height":24}, sinks: ["insertGapAfterBlock"] },
   list_checklist_items: { args: {}, sinks: ["listChecklistItems"] },
+  edit_checklist_section: { args: {"op":"list"}, sinks: ["checklistSection"] },
+    // ★op:list 로 잰다 — create 면 «검사가 남는 것»을 만든다(픽스처가 시험마다 불어난다).
+    //   ⛔delete 는 confirm 게이트가 있어 무인자 호출이 CONFIRM_REQUIRED 로 «먼저» 끊긴다.
   list_memories: { args: {}, sinks: [], noOkKey: true },
     // 디스크 스캔 — 배선 없음. ★응답에 ok 키가 없다(현행 계약)
   list_projects: { args: {}, sinks: ["projectOps.list"] },
