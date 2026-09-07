@@ -7,7 +7,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'main.js'), 'utf8');
+const { readSrc } = require('./_srcread.js');   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
+const SRC = readSrc(__dirname, '..', '..', 'main.js');
 
 /* 주석을 «통째로» 지운다 — 줄 단위로 지우면 블록 주석 «안쪽»이 남아 코드로 세어진다
    (오늘 아침 D7 에서 그걸로 가짜 빨강을 냈다). 문자열 안의 // 는 여기선 문제가 안 된다. */
@@ -707,7 +708,7 @@ test('W1 ★섹션 이름의 «정본»은 sec._name 이다 — dataset 만 쓰�
   assert.ok(iName > 0 && iDs > 0);
 
   // ★반대방향 — 직렬화기가 «여전히» _name 을 정본으로 쓰는지(그게 바뀌면 이 처방이 낡는다)
-  const ser = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'io', 'save-load.js'), 'utf8');
+  const ser = readSrc(__dirname, '..', '..', 'js', 'io', 'save-load.js');
   assert.match(ser, /sec\._name && sec\.dataset\.name !== sec\._name/,
     '★직렬화기가 _name 을 더는 정본으로 안 쓴다면 위 처방을 다시 봐야 한다');
 });
