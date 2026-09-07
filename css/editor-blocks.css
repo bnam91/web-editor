@@ -1771,6 +1771,26 @@ textarea.cvb-card-input {
 /* ★선택 아웃라인용 «보이지 않는» 상자 — 도형(+테두리)과 «같은 크기·같은 모서리».
    js/selection-overlay.js 의 _geomOf 가 이 상자와 border-radius 를 읽어 보라 path 를 그린다.
    ⇒ 원이면 원, 사각이면 사각. 칠하지도 않고 클릭도 안 받는다(기하 전용). */
+/* ★도형 배경 = 체크패턴(투명 표시용 placeholder). 「다른 이미지에셋 들어갈 때처럼」이 명세라
+   .icb-circle(위)이 쓰는 «그 값 그대로» 재사용한다 — 무늬 정본을 둘로 만들지 않는다.
+   ⚠️전례 주석의 사고를 그대로 물려받는다: 이미지가 들어오면 체크를 «없애야» 한다.
+     투명 SVG 의 투명부로 체크가 비쳐 Export PNG 에까지 박혔던 버그(현빈).
+     ⇒ 확대블럭은 «아직 이미지 입력이 없다». 생기면 .icon-circle-block.has-image 전례대로
+       `.zoom-block.has-image .zoom-bg { background-image: none; }` 를 여기에 더해라. */
+.zoom-block .zoom-bg {
+  position: absolute;
+  pointer-events: none;
+  background:
+    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+}
+/* a·b 핸들 층 — 체크 배경 «위». SVG 본체와 같은 상자·같은 viewBox 라 좌표가 그대로 맞는다. */
+.zoom-block .zoom-handle-layer {
+  position: absolute;
+  left: 0; top: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.zoom-block.selected .zoom-handle-layer { pointer-events: none; }
 .zoom-block .zoom-sel-box {
   position: absolute;
   pointer-events: none;

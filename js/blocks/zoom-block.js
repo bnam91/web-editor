@@ -27,11 +27,16 @@
 
 import { insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
-import { buildZoomStage, computeZoomGeometry } from './zoom-geometry.js';
+import { buildZoomStage, computeZoomGeometry, ZOOM_CHECKER } from './zoom-geometry.js';
 
 const ZOOM_DEFAULTS = {
   shape:  'rect',   // ★기본은 사각형. 프리셋 = rect | circle | square
-  angle:  0,        // 방향(도)
+  /* ★12시(수직 위) — 현빈 2026-09-08 「a·b 지점은 오른쪽에 두지 말고 12시 수직 위치에」.
+     ⚠️이 좌표계는 y 가 «아래»로 증가한다. 추측하지 말고 재서 골랐다:
+       angle  0 → L=(170,   0)  오른쪽    ·  angle  90 → L=(0,  170)  아래
+       angle 180 → L=(-170,  0)  왼쪽     ·  ★angle -90 → L=(0, -170)  «위»
+       실측 a=(30.40,-170) b=(-30.40,-170) — 둘이 같은 높이로 도형 «위»에 선다. */
+  angle:  -90,      // 방향(도) — ★12시
   length: 170,      // 길이(px) — 도형 중심 ~ 광원
   spread: 0,        // A·B 벌림(px)
   maxop:  30,       // ★최대 농도(%)
@@ -39,7 +44,13 @@ const ZOOM_DEFAULTS = {
   narrow: 62,       // 좁아짐(%)
   size:   160,      // 도형 크기(px, 가로 지름)
   rot:    0,        // 도형 회전(도) — silhouette 이 받는 값
-  fill:   '#cfd6e0',// 도형 색
+  /* ★기본 배경 = 체크패턴(현빈: 「다른 이미지에셋 들어갈 때처럼」).
+     fill 이 'checker' 면 «색이 아니라 무늬»다 — 무늬는 .zoom-bg 가 CSS 로 그린다. */
+  fill:   ZOOM_CHECKER,
+  /* ★w/h = 크기의 «덧씌우개». 없으면 size + 프리셋 비율에서 파생된다(shapeHalf 주석 참조).
+     핸들로 끌면 그때만 박힌다 — a·b 의 자동/고정과 «같은 구조»다. */
+  w:      null,
+  h:      null,
   /* ★그림자 라디오(현빈 2026-09-08) — 이 한 값이 블록 «둘»을 하나로 합친다.
        'off'(★기본) = 「에셋블럭 스티커」(도형 + 테두리) · 'on' = 「돋보기」(도형 + 그림자)
      ★현빈 2026-09-08: 「기본적으로 그림자는 Off 인 상태로」 — 스티커가 «먼저»고 돋보기가 옵션이다.
@@ -56,6 +67,12 @@ const ZOOM_DEFAULTS = {
 const ZOOM_SHAPES = ['rect', 'circle', 'square'];
 /** 라디오 두 벌의 값 — 모르는 값이 들어오면 기본으로 떨어뜨린다(저장본 변조 대비). */
 function _onOff(v, dflt) { return (v === 'on' || v === 'off') ? v : dflt; }
+
+/** w/h 는 «없음»이 뜻을 갖는다(=파생) — 0 이나 NaN 을 기본값으로 삼키면 안 된다. */
+function _numOrNull(v) {
+  const n = parseFloat(v);
+  return (Number.isFinite(n) && n > 0) ? n : null;
+}
 
 function _num(v, dflt) {
   const n = parseFloat(v);
@@ -77,6 +94,8 @@ function readZoomState(block) {
     size:   _num(d.size,   ZOOM_DEFAULTS.size),
     rot:    _num(d.rot,    ZOOM_DEFAULTS.rot),
     fill:   d.fill || ZOOM_DEFAULTS.fill,
+    w:      _numOrNull(d.w),
+    h:      _numOrNull(d.h),
     shadow: _onOff(d.shadow, ZOOM_DEFAULTS.shadow),
     bd:     _onOff(d.bd,     ZOOM_DEFAULTS.bd),
     bdw:    _num(d.bdw, ZOOM_DEFAULTS.bdw),
@@ -103,6 +122,12 @@ function readPinnedShortEdge(block) {
 function clearPinnedShortEdge(block) {
   delete block.dataset.ax; delete block.dataset.ay;
   delete block.dataset.bx; delete block.dataset.by;
+}
+
+/** ★크기 덧씌우개를 지운다 = 다시 «size + 프리셋 비율». 프리셋 변경·size 슬라이더가 부른다. */
+function clearZoomSizeOverride(block) {
+  delete block.dataset.w;
+  delete block.dataset.h;
 }
 
 function _pinShortEdge(block, a, b) {
@@ -216,6 +241,7 @@ window.renderZoomBlock        = renderZoomBlock;
 window.readZoomState          = readZoomState;
 window.readPinnedZoomShortEdge = readPinnedShortEdge;
 window.clearPinnedZoomShortEdge = clearPinnedShortEdge;
+window.clearZoomSizeOverride  = clearZoomSizeOverride;
 window.ZOOM_DEFAULTS          = ZOOM_DEFAULTS;
 window.ZOOM_SHAPES            = ZOOM_SHAPES;
 
@@ -226,6 +252,7 @@ export {
   readZoomState,
   readPinnedShortEdge,
   clearPinnedShortEdge,
+  clearZoomSizeOverride,
   ZOOM_DEFAULTS,
   ZOOM_SHAPES,
 };

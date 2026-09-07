@@ -1423,6 +1423,8 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showZoomProperties?.(block);
+      // ★아웃라인 모서리 리사이즈 핸들 — 레이어패널 경로(showHandlesFor)와 «같은» 입구를 쓴다.
+      window.showHandlesFor?.(block);
     });
   }
 

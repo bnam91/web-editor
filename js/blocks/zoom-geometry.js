@@ -15,6 +15,13 @@ export const ZOOM_RECT_RATIO = 0.625;   // 가로:세로 = 1.6 : 1
 /** 그림자 띠 개수. 많을수록 매끈하지만 노드가 늘어난다(64 = 실측상 밴딩 안 보임). */
 export const ZOOM_STRIP_COUNT = 64;
 
+/* ★도형 배경의 «기본» = 체크패턴 (현빈 2026-09-08 「쉐이프 배경은 기본적으로 체크패턴
+   백그라운드로 — 다른 이미지에셋 들어갈 때처럼」). fill 이 이 값이면 «색이 아니라 무늬»다.
+   ⛔무늬 자체는 여기서 안 그린다 — css/editor-blocks.css 의 .icb-circle 이 쓰는
+     repeating-conic-gradient 가 정본이고, .zoom-bg 가 그 값을 «그대로» 재사용한다.
+     SVG <pattern> 으로 베끼면 같은 무늬가 두 군데가 되어 조용히 갈라진다. */
+export const ZOOM_CHECKER = 'checker';
+
 export function lerp(p, q, t) {
   return { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t };
 }
@@ -119,18 +126,18 @@ export function computeZoomGeometry(st, pinned) {
      ⛔bd==='off' 면 bw=0 이라 도형 실루엣 그대로다 — 예전 동작이 그대로 남는다.
      ⚠️알려진 한계: bdr(모서리 라운드)은 실루엣에 «안» 들어간다(꼭짓점 기준). 라운드가 크면
        사다리꼴 붙는 점이 모서리에서 살짝 뜬다 — 지디 판단으로 지금은 안 고친다. */
-  var half = (Number(st.size) || 0) / 2;
+  var hw = shapeHalf(st).hw;
   var bw = borderWidthOf(st);
   var L = lightPoint(st.angle, st.length, 0, 0);
   var sil = (st.shape === 'circle')
-    ? silhouetteCircle(half + bw, L, 0, 0)
+    ? silhouetteCircle(hw + bw, L, 0, 0)
     : silhouetteFromPts(shapeCornerPts(st, bw), L, 0, 0);
   var sp = applySpread(sil[0], sil[1], st.spread);
   var A = sp[0], B = sp[1];
   var auto = autoShortEdge(A, B, L, st.narrow);
   var a = (pinned && pinned.a) ? pinned.a : auto[0];
   var b = (pinned && pinned.b) ? pinned.b : auto[1];
-  return { L: L, A: A, B: B, a: a, b: b, autoA: auto[0], autoB: auto[1], r: half, bw: bw };
+  return { L: L, A: A, B: B, a: a, b: b, autoA: auto[0], autoB: auto[1], r: hw, bw: bw };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -149,26 +156,52 @@ export function safeColor(v, fallback) {
   return /^[#a-zA-Z0-9(),.%\s_-]{1,64}$/.test(s) ? s : fallback;
 }
 
+/**
+ * 도형의 «반치수» — ★여기가 크기의 단 하나의 출처다.
+ *
+ * ★왜 size 하나로 안 되나 (현빈 2026-09-08 「아웃라인으로 핸들로 높이와 너비 조절」):
+ *   핸들은 가로·세로를 «따로» 끈다. size 는 «한 수»라 그걸 못 담는다.
+ *   ⇒ w/h 를 «덧씌우개»로 둔다. 이건 a·b 의 자동/고정과 «같은 구조»다:
+ *       기본 = size + 프리셋 비율에서 «파생»   ·   사람이 끌면 = w/h 가 «이긴다»
+ *   ⛔프리셋(shape)을 바꾸거나 size 슬라이더를 움직이면 w/h 를 «지운다» — 안 지우면
+ *     비율을 바꿔도 안 따라와서 프리셋이 프리셋 구실을 못 한다(a·b 에서 겪은 그 병).
+ * ★rect 비율(1.6:1)과의 공존: w/h 가 «없을 때만» ZOOM_RECT_RATIO 가 세로를 만든다.
+ *   w 만 있으면 square/circle 은 정비율(hh=hw), rect 는 여전히 비율로 세로를 만든다.
+ * ⚠️circle 은 hw≠hh 를 «못 그린다»(silhouetteCircle 이 정원 전제). ⇒ 쓰는 쪽(핸들·패널)이
+ *   circle 일 때 w=h 로 맞춰서 쓴다. 여기서는 h 가 없으면 hh=hw 로 떨어뜨려 정원을 지킨다.
+ */
+export function shapeHalf(st) {
+  const half = (Number(st.size) || 0) / 2;
+  const wv = Number(st.w), hv = Number(st.h);
+  const hw = (Number.isFinite(wv) && wv > 0) ? wv / 2 : half;
+  const hh = (Number.isFinite(hv) && hv > 0) ? hv / 2
+           : (st.shape === 'rect' ? half * ZOOM_RECT_RATIO : hw);
+  return { hw, hh };
+}
+
 /* 도형 하나를 그린다. grow>0 이면 «바깥으로» 그만큼 키운 판(=테두리)이다.
    ★rect/square 는 polygon 이 아니라 <rect rx>+rotate 로 그린다 — 모서리 라운드(bdr)를
-     회전과 «같이» 쓰려면 그 길뿐이다. 실루엣 계산(shapePts)은 그대로 꼭짓점을 쓴다. */
+     회전과 «같이» 쓰려면 그 길뿐이다. 실루엣 계산은 그대로 꼭짓점을 쓴다. */
 function shapeEl(st, grow, fill, cls) {
-  const half = (Number(st.size) || 0) / 2;
+  const { hw, hh } = shapeHalf(st);
   const bdr = Math.max(0, Number(st.bdr) || 0);
   if (st.shape === 'circle') {
-    return `<${''}circle class="${cls}" cx="0" cy="0" r="${(half + grow).toFixed(2)}" fill="${fill}"/>`;
+    return `<circle class="${cls}" cx="0" cy="0" r="${(hw + grow).toFixed(2)}" fill="${fill}"/>`;
   }
-  const hw = half + grow;
-  const hh = (st.shape === 'rect' ? half * ZOOM_RECT_RATIO : half) + grow;
+  const W = hw + grow, H = hh + grow;
   // ★테두리판의 모서리는 «도형 모서리 + 두께» 여야 링 두께가 어디서나 같다(동심 오프셋).
   const rx = grow > 0 ? (bdr > 0 ? bdr + grow : 0) : bdr;
   const rot = Number(st.rot) || 0;
-  return `<rect class="${cls}" x="${(-hw).toFixed(2)}" y="${(-hh).toFixed(2)}" ` +
-    `width="${(hw * 2).toFixed(2)}" height="${(hh * 2).toFixed(2)}" rx="${rx.toFixed(2)}"` +
+  return `<rect class="${cls}" x="${(-W).toFixed(2)}" y="${(-H).toFixed(2)}" ` +
+    `width="${(W * 2).toFixed(2)}" height="${(H * 2).toFixed(2)}" rx="${rx.toFixed(2)}"` +
     `${rot ? ` transform="rotate(${rot})"` : ''} fill="${fill}"/>`;
 }
 
 export function shapeMarkup(st) {
+  /* ★체크패턴이면 도형은 «안 칠한다» — 배경은 DOM 층(.zoom-bg)이 CSS 로 그린다.
+     이유: 체크 값의 정본은 css/editor-blocks.css 의 repeating-conic-gradient 하나여야 한다.
+     SVG <pattern> 으로 베끼면 «같은 무늬가 두 군데»가 되어 갈라진다. */
+  if (st.fill === ZOOM_CHECKER) return shapeEl(st, 0, 'none', 'zoom-shape');
   return shapeEl(st, 0, safeColor(st.fill, '#cfd6e0'), 'zoom-shape');
 }
 
@@ -188,32 +221,25 @@ export function borderMarkup(st) {
 
 /** rect/square 의 «실제» 꼭짓점. grow 를 각 반치수에 «따로» 더한다(비율로 키우지 않는다). */
 export function shapeCornerPts(st, grow) {
-  const half = (Number(st.size) || 0) / 2;
-  const hw = half + grow;
-  const hh = (st.shape === 'rect' ? half * ZOOM_RECT_RATIO : half) + grow;
+  const { hw, hh } = shapeHalf(st);
+  const W = hw + grow, H = hh + grow;
   const th = (Number(st.rot) || 0) * Math.PI / 180;
   const co = Math.cos(th), si = Math.sin(th);
-  return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]
+  return [[-W, -H], [W, -H], [W, H], [-W, H]]
     .map(p => ({ x: p[0] * co - p[1] * si, y: p[0] * si + p[1] * co }));
 }
 
 /** 도형(+테두리)이 차지하는 «실제» 꼭짓점 — 뷰박스가 이걸 담아야 테두리가 안 잘린다. */
 export function outerExtentPts(st) {
   const bw = borderWidthOf(st);
-  const half = (Number(st.size) || 0) / 2;
+  const { hw } = shapeHalf(st);
   if (st.shape === 'circle') {
-    const R = half + bw;
+    const R = hw + bw;
     return [{ x: -R, y: -R }, { x: R, y: R }];
   }
   return shapeCornerPts(st, bw);
 }
 
-/**
- * 확대블럭의 SVG 전부. 도형 중심이 (0,0) 인 좌표계로 그리고, 뷰박스가 그 상자를 담는다.
- * ★그리는 순서 = 그림자 → 테두리판 → 도형 → 핸들. 도형이 «가장 진한 끝»을 덮어야 사다리꼴이 도형에 «붙는다».
- * ★a·b 핸들은 «항상» 그린다 — 보이기는 CSS(.zoom-block.selected)가 정한다.
- *   선택은 renderZoomBlock 을 다시 부르지 않으므로 렌더 시점의 선택상태에 기대면 안 된다.
- */
 /** 뷰박스 상자 — 조립기와 «선택 상자»가 같은 좌표계를 봐야 해서 한 자리로 뽑았다. */
 export function zoomBox(st, pinned) {
   const geo = computeZoomGeometry(st, pinned);
@@ -248,11 +274,11 @@ export function shadowVisible(st, geo) {
  *   ⚠️회전은 CSS transform 이 아니라 data-rotation 으로 준다 — _cornerScreen 이 «그것»을 읽는다.
  */
 export function selBoxSpec(st, pinned) {
-  const half = (Number(st.size) || 0) / 2;
   const bw = borderWidthOf(st);
   const circle = st.shape === 'circle';
-  const hw = half + bw;
-  const hh = (circle ? half : (st.shape === 'rect' ? half * ZOOM_RECT_RATIO : half)) + bw;
+  const half = shapeHalf(st);
+  const hw = half.hw + bw;
+  const hh = (circle ? half.hw : half.hh) + bw;
   const bdr = Math.max(0, Number(st.bdr) || 0);
   const box = zoomBox(st, pinned);
   return {
@@ -272,8 +298,41 @@ export function selBoxMarkup(st, pinned) {
 }
 
 /** 블록 안에 실제로 들어가는 것 전부 — SVG + (보이지 않는) 선택 상자. */
+/** 체크패턴 배경 — 도형«과 같은 상자». 이미지 자리라는 표시다(에셋/아이콘서클과 같은 뜻). */
+export function bgMarkup(st, pinned) {
+  if (st.fill !== ZOOM_CHECKER) return '';
+  const half = shapeHalf(st);
+  const bdr = Math.max(0, Number(st.bdr) || 0);
+  const hw = half.hw, hh = (st.shape === 'circle') ? half.hw : half.hh;
+  const box = zoomBox(st, pinned);
+  const rot = (st.shape === 'circle') ? 0 : (Number(st.rot) || 0);
+  return `<div class="zoom-bg" style="left:${(-box.minX - hw).toFixed(2)}px;top:${(-box.minY - hh).toFixed(2)}px;` +
+    `width:${(hw * 2).toFixed(2)}px;height:${(hh * 2).toFixed(2)}px;` +
+    `border-radius:${st.shape === 'circle' ? '50%' : bdr.toFixed(2) + 'px'};` +
+    (rot ? `transform:rotate(${rot}deg);` : '') + `"></div>`;
+}
+
+/** a·b 핸들 — ★별도 층이다. 체크 배경(.zoom-bg)이 SVG 위에 올라오므로 핸들이 그 «위»에 있어야 한다. */
+export function handleLayerMarkup(st, pinned) {
+  const box = zoomBox(st, pinned);
+  if (!box.ok) return '';
+  const geo = box.geo;
+  return `<svg class="zoom-handle-layer" width="${box.w.toFixed(2)}" height="${box.h.toFixed(2)}" ` +
+    `viewBox="${box.minX.toFixed(2)} ${box.minY.toFixed(2)} ${box.w.toFixed(2)} ${box.h.toFixed(2)}" ` +
+    `xmlns="http://www.w3.org/2000/svg">` +
+    `<circle class="zoom-handle" data-pt="a" cx="${geo.a.x.toFixed(2)}" cy="${geo.a.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
+    `<circle class="zoom-handle" data-pt="b" cx="${geo.b.x.toFixed(2)}" cy="${geo.b.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
+    `</svg>`;
+}
+
+/** 블록 안에 실제로 들어가는 것 전부.
+ *  ★쌓는 순서 = 그림자·테두리·도형(SVG) → 체크배경 → a·b 핸들 → (보이지 않는) 선택 상자.
+ *    체크가 SVG «위»인 이유: 테두리판은 «도형보다 큰 판»이라 SVG 안에서 도형 자리를 덮는다.
+ *    아래에 깔면 테두리를 켠 순간 체크가 사라진다(실측으로 확인한 자리).
+ *    그래서 핸들도 체크 «뒤»로 옮겼다 — 안 그러면 겹칠 때 핸들이 가려진다. */
 export function buildZoomStage(st, pinned) {
-  return `<div class="zoom-stage">${buildZoomSvg(st, pinned)}${selBoxMarkup(st, pinned)}</div>`;
+  return `<div class="zoom-stage">${buildZoomSvg(st, pinned)}${bgMarkup(st, pinned)}` +
+    `${handleLayerMarkup(st, pinned)}${selBoxMarkup(st, pinned)}</div>`;
 }
 
 export function buildZoomSvg(st, pinned) {
@@ -284,13 +343,8 @@ export function buildZoomSvg(st, pinned) {
     ? strips(geo.A, geo.B, geo.a, geo.b, ZOOM_STRIP_COUNT, (Number(st.curve) || 100) / 100, (Number(st.maxop) || 0) / 100)
     : '';
 
-  const handles = ok ? `<g class="zoom-handles">` +
-    `<circle class="zoom-handle" data-pt="a" cx="${geo.a.x.toFixed(2)}" cy="${geo.a.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
-    `<circle class="zoom-handle" data-pt="b" cx="${geo.b.x.toFixed(2)}" cy="${geo.b.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
-    `</g>` : '';
-
   return `<svg class="zoom-svg" width="${box.w.toFixed(2)}" height="${box.h.toFixed(2)}" ` +
     `viewBox="${box.minX.toFixed(2)} ${box.minY.toFixed(2)} ${box.w.toFixed(2)} ${box.h.toFixed(2)}" ` +
     `xmlns="http://www.w3.org/2000/svg">` +
-    `<g class="zoom-shadow">${shadow}</g>${borderMarkup(st)}${shapeMarkup(st)}${handles}</svg>`;
+    `<g class="zoom-shadow">${shadow}</g>${borderMarkup(st)}${shapeMarkup(st)}</svg>`;
 }
