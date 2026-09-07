@@ -301,6 +301,13 @@
         const item = _scEl(scratchId);
         if (!sec || !item) continue;
         const ir = item.getBoundingClientRect(), sr = sec.getBoundingClientRect();
+        /* [#16-C] 안 그려진 쪽으로는 선을 긋지 않는다 — display:none 인 요소의 rect 는 «전부 0» 이라
+         *   그대로 두면 선이 캔버스 좌상단(0,0)으로 뻗는 «허공 선»이 된다.
+         *   ★스크래치 일괄 숨기기(window.toggleScratchHideAll)가 바로 이 상태를 만든다.
+         *   ★특정 기능이 아니라 «rect 로» 판정한다 — 숨김 경로가 늘어도 이 문 하나로 닫힌다
+         *     (클래스명으로 판정하면 다음 숨김 경로에서 같은 버그가 다시 난다).
+         *   ⚠️0×0 은 「없다」가 아니라 「안 보인다」다 — 데이터·연결은 그대로 살아 있다. */
+        if ((ir.width === 0 && ir.height === 0) || (sr.width === 0 && sr.height === 0)) continue;
         const ix = toLocalX(ir.left + ir.width / 2), iy = toLocalY(ir.top + ir.height / 2); // 스크래치 중심
         const attachRight = (ir.left + ir.width / 2) > (sr.left + sr.width / 2);
         const sx = toLocalX(attachRight ? sr.right : sr.left), sy = toLocalY(sr.top + sr.height / 2);
@@ -346,6 +353,23 @@
   window.__spLinkRerender = __spLinkRerender;
   window.__spLinkRelayout = () => { _lastEdgePath = null; _drawEdges(); };
   function setShowEdges(v) { _showEdges = !!v; _lastEdgePath = null; _drawEdges(); }
+
+  /* [#16-B] 저장된 「연결선 표시」(환경설정 > 성능)를 «부팅 시» 한 번 적용한다.
+   *   ★왜 여기서 읽나 — 스크립트 순서가 settings-store(948) → settings-modal(961) → 이 파일(1033)이고,
+   *     settings:ready 는 main IPC 를 «기다렸다가» 뜬다. 즉 «둘 중 뭐가 먼저인지 보장이 없다».
+   *     ⇒ 양쪽을 다 건다: (a) 이벤트가 나중이면 리스너가 받고, (b) 이벤트가 먼저였으면
+   *        _boot 에서 window._settings 를 직접 읽는다. 한쪽만 걸면 부팅 때 값이 «가끔» 무시된다.
+   *   ⚠️키가 «없으면» ON 이다 — 기본값이 true 이므로 undefined 를 OFF 로 읽으면 안 된다. */
+  function _applySavedShowEdges() {
+    try {
+      const s = window._settings;
+      if (!s) return false;                       // 아직 안 왔다 — 이벤트가 받아준다
+      setShowEdges(s.showScratchLinkEdges !== false);
+      return true;
+    } catch (_) { return false; }
+  }
+  window.addEventListener('settings:ready',   _applySavedShowEdges);
+  window.addEventListener('settings:changed', _applySavedShowEdges);
 
   // ── 추종 트리거: 스크롤/리사이즈/스케일러 transform 변화 → rAF 스로틀 relayout ──
   function _installFollow() {
@@ -467,6 +491,7 @@
   }
 
   function _boot() {
+    _applySavedShowEdges();   // [#16-B] 이벤트가 «이미» 지나갔을 경우의 두 번째 문
     _installFollow();
     _installLinkUX();
     if (!_installSectionHook()) setTimeout(_installSectionHook, 300);

@@ -1630,6 +1630,48 @@ window._scratchImportAll = async (newProjectId, scratchBlock) => {
   return n;
 };
 
+// ════════════════════════════════════════════════════════════════════════
+// [#16-C] 스크래치패드 «일괄 숨기기» — 산만할 때 화면에서만 치운다
+//
+// ⛔데이터는 «절대» 안 건드린다. _scratchRemoveById / _scratchAddAndSave 호출 0.
+//   IndexedDB(ScratchPadDB)도, 섹션의 data-ref-links(연결)도 그대로다.
+//   하는 일은 body 클래스 토글 하나 → css/editor-canvas.css 의 display:none 한 줄.
+//
+// ★상태는 «세션 한정»이다(저장 안 함). 왜:
+//   숨김은 「지금 이 순간 산만하다」는 일시적 요구지 프로젝트의 속성이 아니다.
+//   저장해 두면 며칠 뒤 프로젝트를 연 사람이 «빈 캔버스»를 보고 「참고 이미지가 날아갔다」고
+//   읽는다 — 실제로 데이터는 멀쩡한데도. 「없다」와 「안 보인다」를 사용자가 구분할 수 있는
+//   유일한 보증이 「껐다 켜면 돌아온다」이므로, 껐다 켜면 «항상» 보이는 쪽을 택했다.
+//   (원하면 나중에 settings 키 하나로 승격 가능하지만, 그건 별건 게이트다.)
+//
+// ★연결선(#16-B)은 여기서 «따로» 끄지 않는다 — 끄면 사용자의 환경설정 값을 덮어쓴다.
+//   숨겨진 아이템의 rect 가 0×0 이라 scratchpad-link 의 «0×0 건너뛰기»가 알아서 감춘다.
+//   즉시 반영을 위해 __spLinkRelayout 만 한 번 두드린다(rAF 루프가 없을 때 대비).
+// ════════════════════════════════════════════════════════════════════════
+let _scratchHiddenAll = false;
+
+window.isScratchHiddenAll = () => _scratchHiddenAll;
+
+window.toggleScratchHideAll = (force) => {
+  const next = (force === undefined) ? !_scratchHiddenAll : !!force;
+  _scratchHiddenAll = next;
+  document.body.classList.toggle('scratch-hidden-all', next);
+  _syncScratchHideAllLabel();
+  // 연결선 즉시 재계산(허공 선 방지). 링크 0이면 rAF 루프가 안 도니 여기서 한 번 그린다.
+  try { window.__spLinkRelayout?.(); } catch (_) {}
+  // ⛔네이티브 alert 로 «폴백» 시키지 마라 — showToast 는 undefined 를 반환해서 그 폴백이 항상 터지고, 그 alert 이 렌더러를 얼린다.
+  window.showToast?.(next
+    ? '🙈 스크래치패드를 숨겼습니다 (데이터는 그대로)'
+    : '👁 스크래치패드를 다시 표시합니다');
+  return next;
+};
+
+// 메뉴 항목의 «라벨»이 현재 상태를 말하게 한다 — 누르기 전에 무슨 일이 날지 보여야 한다.
+function _syncScratchHideAllLabel() {
+  const el = document.getElementById('scratch-hide-all-label');
+  if (el) el.textContent = _scratchHiddenAll ? '참고 이미지 다시 보기' : '참고 이미지 일괄 숨기기';
+}
+
 // ── 스크래치 그룹화 (Cmd+G — editor.js 단축키 분기) ──────
 // 다중 선택된 스크래치들에 data-scratch-group만 박음 — 위치/크기는 보이는 그대로 불변.
 // 같은 그룹은 시각적 묶음 (향후 함께 이동 등 확장 가능).
