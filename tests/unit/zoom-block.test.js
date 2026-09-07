@@ -245,9 +245,9 @@ test('ⓐ-9 ★a·b 는 «언제나 자동»으로 방향을 따라간다 — �
   assert.ok(dist(p0.autoA, p90.autoA) > 1);
 });
 
-test('ⓐ-10 ★마크업 실측 — buildZoomStage 가 실제로 내보내는 것을 «파싱해서» 잰다', async () => {
+test('ⓐ-10 ★마크업 실측 — buildZoomInner 가 실제로 내보내는 것을 «파싱해서» 잰다', async () => {
   const g = await loadGeom();
-  const html = g.buildZoomStage({ ...ST, fill: '#cfd6e0' }, null);
+  const html = g.buildZoomInner({ ...ST, fill: '#cfd6e0' }, null);
 
   assert.equal(html.includes('NaN'), false, 'NaN 이 한 글자라도 새면 SVG 가 통째로 안 그려진다');
   assert.equal(html.includes('linearGradient'), false, '내보내는 마크업에도 선형이 없어야 한다');
@@ -255,23 +255,23 @@ test('ⓐ-10 ★마크업 실측 — buildZoomStage 가 실제로 내보내는 �
   assert.equal((html.match(/<polygon[^>]*fill="#000"/g) || []).length, 64, '띠 64장');
   assert.equal((html.match(/class="zoom-shape"/g) || []).length, 1, '도형은 하나');
   assert.equal((html.match(/class="zoom-handle"/g) || []).length, 2, 'a·b 핸들 둘');
+  // ⛔플로팅으로 옮기면서 «보조 선택상자»는 없어졌다 — 블록 자신이 그 상자다
+  assert.equal(/zoom-sel-box|zoom-stage/.test(html), false, '보조 상자가 되살아났다');
 
-  /* ★쌓는 순서 = 그림자 → 도형 → 체크배경 → 핸들 → 선택상자.
-     체크가 SVG «위»여야 하는 이유: 테두리판이 SVG 안에서 도형 자리를 덮기 때문이다.
-     그래서 핸들도 체크 «뒤»로 가야 안 가려진다. */
   assert.ok(html.indexOf('zoom-shadow') < html.indexOf('zoom-shape'), '도형이 그림자 «뒤»면 사다리꼴이 도형을 덮는다');
   assert.ok(html.indexOf('zoom-shape') < html.indexOf('zoom-handle-layer'), '핸들은 도형 뒤에');
-  assert.ok(html.indexOf('zoom-handle-layer') < html.indexOf('zoom-sel-box'), '선택 상자가 맨 뒤');
 
-  // 핸들 좌표는 «계산된» a·b 와 같아야 한다
   const geo = g.computeZoomGeometry(ST, null);
   const ha = html.match(/data-pt="a" cx="([-\d.]+)" cy="([-\d.]+)"/);
   assert.ok(ha);
   assert.ok(Math.abs(parseFloat(ha[1]) - geo.a.x) < 0.01 && Math.abs(parseFloat(ha[2]) - geo.a.y) < 0.01);
-  // 핸들 층은 본체와 «같은 상자·같은 viewBox» 여야 좌표가 맞는다
   const vbs = [...html.matchAll(/viewBox="([^"]+)"/g)].map(m => m[1]);
   assert.equal(vbs.length, 2);
   assert.equal(vbs[0], vbs[1], '두 층의 viewBox 가 다르면 핸들이 엉뚱한 자리에 뜬다');
+  // 두 층은 블록 안에서 «같은 자리»에 놓여야 좌표가 맞는다
+  const lefts = [...html.matchAll(/style="left:([-\d.]+)px;top:([-\d.]+)px;"/g)].map(m => m[1] + ',' + m[2]);
+  assert.equal(lefts.length, 2);
+  assert.equal(lefts[0], lefts[1]);
 });
 
 test('ⓐ-11 뷰박스가 도형·그림자·광원을 «전부» 담는다 (잘리면 화면에서 사다리꼴 끝이 사라진다)', async () => {
@@ -445,7 +445,7 @@ test('ⓐ-19c [리팩터 대조] silhouette 을 쪼갠 뒤에도 «같은 답»�
   assert.deepEqual(g.silhouette('circle', 80, 0, L, 0, 0), g.silhouetteCircle(80, L, 0, 0));
 });
 
-test('ⓐ-20 ★선택 상자가 «도형 모양»을 든다 — 원이면 원, 테두리 켜면 테두리 바깥', async () => {
+test('ⓐ-20 ★블록 «자신»이 도형 상자다 — 원이면 원, 테두리 켜면 테두리 바깥', async () => {
   const g = await loadGeom();
   /* 기대값은 검사 «안에서» 독립 계산한다(M16 교훈 — 대상 함수로 만들면 같이 틀린다). */
   const expect = (st) => {
@@ -455,64 +455,56 @@ test('ⓐ-20 ★선택 상자가 «도형 모양»을 든다 — 원이면 원, 
     return { w: (half + bw) * 2, h: hh * 2,
              radius: circle ? '50%' : (((st.bdr || 0) > 0 ? st.bdr + bw : 0).toFixed(2) + 'px') };
   };
-  const cases = [
-    { ...ST, shape: 'rect' },
-    { ...ST, shape: 'circle' },
-    { ...ST, shape: 'square', rot: 30 },
-    { ...ST, shape: 'rect', bd: 'on', bdw: 6, bdr: 12 },
-    { ...ST, shape: 'circle', bd: 'on', bdw: 24 },
-  ];
-  for (const st of cases) {
-    const sp = g.selBoxSpec(st, null);
+  for (const st of [
+    { ...ST, shape: 'rect' }, { ...ST, shape: 'circle' }, { ...ST, shape: 'square', rot: 30 },
+    { ...ST, shape: 'rect', bd: 'on', bdw: 6, bdr: 12 }, { ...ST, shape: 'circle', bd: 'on', bdw: 24 },
+  ]) {
+    const box = g.blockBoxSpec(st);
     const e = expect(st);
-    assert.equal(sp.w, e.w, `${st.shape}: 폭`);
-    assert.equal(sp.h, e.h, `${st.shape}: 높이`);
-    assert.equal(sp.radius, e.radius, `${st.shape}: 모서리`);
-    // ★상자 «중심»이 도형 중심(뷰박스 0,0)과 정확히 겹쳐야 아웃라인이 도형 위에 앉는다.
-    const box = g.zoomBox(st, null);
-    assert.ok(Math.abs(sp.left + sp.w / 2 + box.minX) < 1e-9, `${st.shape}: 가로 중심 어긋남`);
-    assert.ok(Math.abs(sp.top + sp.h / 2 + box.minY) < 1e-9, `${st.shape}: 세로 중심 어긋남`);
+    assert.equal(box.w, e.w, `${st.shape}: 폭`);
+    assert.equal(box.h, e.h, `${st.shape}: 높이`);
+    assert.equal(box.radius, e.radius, `${st.shape}: 모서리`);
   }
-  // 대조 — 원과 사각의 모서리가 «실제로» 갈려야 이 검사가 뭔가를 가른다
-  assert.notEqual(g.selBoxSpec({ ...ST, shape: 'circle' }, null).radius,
-                  g.selBoxSpec({ ...ST, shape: 'rect' }, null).radius);
+  assert.notEqual(g.blockBoxSpec({ ...ST, shape: 'circle' }).radius,
+                  g.blockBoxSpec({ ...ST, shape: 'rect' }).radius);
+  // 원은 돌려도 같은 모양 → 회전을 안 붙인다
+  assert.equal(g.blockBoxSpec({ ...ST, shape: 'circle', rot: 30 }).rot, 0);
+  assert.equal(g.blockBoxSpec({ ...ST, shape: 'square', rot: 30 }).rot, 30);
 });
 
-test('ⓐ-20b 마크업 — 회전은 CSS transform 이 아니라 data-rotation 으로 준다', async () => {
+test('ⓐ-20b ★SVG 오프셋 — 도형 중심이 «블록 중심»에 정확히 앉는다', async () => {
   const g = await loadGeom();
-  // _cornerScreen 은 dataset(rotateDeg|rotation|shapeRotation)만 읽는다. transform 을 주면 못 본다.
-  const rotHtml = g.selBoxMarkup({ ...ST, shape: 'square', rot: 30 }, null);
-  assert.match(rotHtml, /data-rotation="30"/);
-  assert.equal(/transform:/.test(rotHtml), false, 'CSS transform 은 _cornerScreen 이 «안 읽는다»');
-  assert.match(rotHtml, /data-sel-box/);
-  assert.match(rotHtml, /data-sel-variant="sticker"/);
-  // 원은 돌려도 같은 모양 → 회전을 안 붙인다(쓸데없는 회전 분기 회피)
-  assert.equal(/data-rotation/.test(g.selBoxMarkup({ ...ST, shape: 'circle', rot: 30 }, null)), false);
-  // stage 안에 SVG 와 선택 상자가 «둘 다» 들어간다
-  const stage = g.buildZoomStage(ST, null);
-  assert.match(stage, /^<div class="zoom-stage"><svg/);
-  assert.ok(stage.indexOf('zoom-sel-box') > stage.indexOf('</svg>'), '선택 상자는 SVG 뒤에 온다');
+  for (const st of [ST, { ...ST, shape: 'circle' }, { ...ST, bd: 'on', bdw: 24 }, { ...ST, angle: 90, length: 300 }]) {
+    const off = g.svgOffset(st, null);
+    const box = g.zoomBox(st, null);
+    const b = g.blockBoxSpec(st);
+    // 뷰박스 (0,0) = 도형 중심. 그 점의 블록 내 픽셀 좌표 = off + (-minX, -minY)
+    assert.ok(Math.abs((off.left - box.minX) - b.w / 2) < 1e-9, `${st.shape}: 가로 중심 어긋남`);
+    assert.ok(Math.abs((off.top - box.minY) - b.h / 2) < 1e-9, `${st.shape}: 세로 중심 어긋남`);
+    // 그림자가 있으면 SVG 는 블록 «밖»으로 나간다(플로팅이라 아무것도 안 밀린다)
+    if (st.shadow !== 'off') assert.ok(off.left < 0 || off.top < 0);
+  }
 });
 
 test('ⓐ-21 ④체크패턴 — 기본 배경은 무늬고, 그때 도형은 «안 칠한다»', async () => {
   const g = await loadGeom();
-  const chk = g.buildZoomStage({ ...ST, fill: g.ZOOM_CHECKER }, null);
+  const chk = g.buildZoomInner({ ...ST, fill: g.ZOOM_CHECKER }, null);
   assert.match(chk, /class="zoom-bg"/, '체크 층이 없다');
   assert.match(chk, /<rect class="zoom-shape"[^>]*fill="none"/, '무늬 위에 색을 덧칠하면 체크가 안 보인다');
-  // 색을 고르면 무늬 층이 «사라지고» 도형이 칠해진다
-  const col = g.buildZoomStage({ ...ST, fill: '#cfd6e0' }, null);
+  const col = g.buildZoomInner({ ...ST, fill: '#cfd6e0' }, null);
   assert.equal(/class="zoom-bg"/.test(col), false);
   assert.match(col, /<rect class="zoom-shape"[^>]*fill="#cfd6e0"/);
-  // 무늬 상자 = 도형 상자(테두리 제외) — 중심이 도형 중심과 겹친다
-  const box = g.zoomBox({ ...ST, fill: g.ZOOM_CHECKER }, null);
-  const m = chk.match(/class="zoom-bg" style="left:([-\d.]+)px;top:([-\d.]+)px;width:([\d.]+)px;height:([\d.]+)px/);
-  assert.ok(m, '무늬 상자 치수를 못 읽었다');
-  const [L, T, W, H] = m.slice(1).map(Number);
-  assert.equal(W, 160); assert.equal(H, 100);       // rect: size 160 × 0.625
-  assert.ok(Math.abs(L + W / 2 + box.minX) < 1e-9);
-  assert.ok(Math.abs(T + H / 2 + box.minY) < 1e-9);
-  // 원은 50%
-  assert.match(g.buildZoomStage({ ...ST, shape: 'circle', fill: g.ZOOM_CHECKER }, null), /class="zoom-bg"[^>]*border-radius:50%/);
+
+  /* 무늬 상자 = «도형» 상자(테두리 제외). 블록 좌상단 기준이라 테두리 두께만큼 안쪽에서 시작한다. */
+  const m = (html) => {
+    const x = html.match(/class="zoom-bg" style="left:([-\d.]+)px;top:([-\d.]+)px;width:([\d.]+)px;height:([\d.]+)px/);
+    assert.ok(x, '무늬 상자 치수를 못 읽었다');
+    return x.slice(1).map(Number);
+  };
+  assert.deepEqual(m(chk), [0, 0, 160, 100]);          // rect: size 160 × 0.625, 테두리 없음
+  const bd = g.buildZoomInner({ ...ST, fill: g.ZOOM_CHECKER, bd: 'on', bdw: 6 }, null);
+  assert.deepEqual(m(bd), [6, 6, 160, 100]);           // ★테두리를 켜도 «도형 크기»는 그대로
+  assert.match(g.buildZoomInner({ ...ST, shape: 'circle', fill: g.ZOOM_CHECKER }, null), /class="zoom-bg"[^>]*border-radius:50%/);
 });
 
 test('ⓐ-22 ⑤크기 덧씌우개 — w/h 가 «이기고», 없으면 size+프리셋 비율에서 파생된다', async () => {
@@ -532,8 +524,8 @@ test('ⓐ-22 ⑤크기 덧씌우개 — w/h 가 «이기고», 없으면 size+�
   assert.equal(small.A.x, 80); assert.equal(big.A.x, 150);
   assert.ok(Math.abs(big.A.y) === 60);
   assert.ok(g.zoomBox({ ...ST, w: 300, h: 120 }, null).w > g.zoomBox(ST, null).w, '뷰박스가 안 따라왔다');
-  // 아웃라인 상자도 따라온다(핸들이 앉는 자리)
-  assert.equal(g.selBoxSpec({ ...ST, w: 300, h: 120 }, null).w, 300);
+  // 블록 상자(=아웃라인·핸들이 앉는 자리)도 따라온다
+  assert.equal(g.blockBoxSpec({ ...ST, w: 300, h: 120 }).w, 300);
 });
 
 test('ⓐ-23 ⑥a·b 기본 위치는 «12시»다 — y 가 아래로 증가하니 재서 골랐다', async () => {
@@ -673,41 +665,37 @@ test('ⓑ-15 ★확대블럭은 «스티커 계열» 보라다 — hover 도 같
   // 대조 — 스티커 원본과 «같은 토큰»인지(색을 새로 만들지 않았는지)
   const stk = s.match(/\.sticker-block\.selected\s*\{([^}]*)\}/);
   assert.ok(stk && /var\(--ui-sel-overlay/.test(stk[1]), '전제: 스티커가 그 토큰을 쓴다');
-  // 선택 상자는 «보이지 않아야» 한다(기하 전용) — 칠하면 화면에 네모가 뜬다
-  const box = s.match(/\.zoom-block \.zoom-sel-box\s*\{([^}]*)\}/);
-  assert.ok(box, '.zoom-sel-box 규칙이 없다');
-  assert.match(box[1], /pointer-events:\s*none/);
-  assert.match(box[1], /position:\s*absolute/);
+  /* ★블록 자신이 «플로팅»이라 absolute 다 — 그래야 상자가 도형 상자가 되고, 오버레이가
+     그 상자의 border-radius 를 읽어 원을 그린다. 보조 상자(.zoom-sel-box)는 없어졌다. */
+  const blk = s.match(/\n\.zoom-block\s*\{([^}]*)\}/);
+  assert.ok(blk, '.zoom-block 규칙이 없다');
+  assert.match(blk[1], /position:\s*absolute/, '플로팅이 아니면 상자가 행 전체 폭이 된다');
+  assert.equal(/width:\s*100%/.test(blk[1]), false, '행 전체 폭으로 되돌아갔다');
+  assert.equal(/\.zoom-sel-box/.test(s), false, '보조 선택상자가 되살아났다');
 });
 
-test('ⓑ-16 ★선택 오버레이 배선 — 그리고 «다른 블록 결과가 안 바뀐다»', () => {
+test('ⓑ-16 ★선택 오버레이 — 변경 표면이 «_variantOf 세 줄»뿐이다', () => {
   const s = SRC.overlay;
   // ⑴ 갈래(보라)를 «선언»으로 받는다 — 블록 이름 목록을 안 늘린다(이 파일 머리의 규칙)
   assert.ok(/host\.dataset\?\.selVariant/.test(s), 'data-sel-variant 를 안 읽는다 = 보라가 안 붙는다');
-  // ⑵ 선택 상자를 host 로 쓴다
-  assert.ok(/data-sel-box/.test(s), 'data-sel-box 를 안 쓴다 = 아웃라인이 «행 전체 폭»이 된다');
 
-  // ⛔⑶ 퇴행 방지 — _geomOf 는 «한 글자도» 안 건드렸다
+  // ⛔⑵ 기존 입력의 답이 안 바뀐다 = 새 분기가 «옛 분기 뒤»에 온다
+  const variant = sliceFn(s, 'function _variantOf(host)');
+  assert.ok(variant.indexOf("classList.contains('sticker-block')") < variant.indexOf('dataset?.selVariant'),
+    '선언형 분기가 «앞»에 오면 기존 두 블록의 판정이 바뀔 수 있다');
+
+  /* ⛔⑶ 퇴행 방지 — _geomOf 와 _hostOf 는 «한 글자도» 안 건드렸다.
+     ★플로팅으로 옮기면서 _hostOf 의 보조상자 분기가 «죽은 가지»가 됐다 — 죽은 가지는 썩으니 지웠다.
+       그래서 지금 _hostOf 는 dev 원본과 같아야 한다. */
+  const hostOf = sliceFn(s, 'function _hostOf(el)');
+  assert.equal(/sel-box|SEL_BOX|selVariant|zoom/.test(hostOf), false,
+    '_hostOf 에 확대블럭 전용 가지가 남아 있다 — 플로팅이면 필요 없다');
   const geom = sliceFn(s, 'function _geomOf(el, variant, scale)');
   for (const w of ['zoom', 'sel-box', 'selVariant', 'selBox']) {
     assert.equal(geom.includes(w), false, `_geomOf 에 ${w} 가 들어갔다 — 공용 함수를 건드렸다`);
   }
 
-  // ⛔⑷ 기존 입력의 답이 안 바뀐다 = 새 분기가 «옛 분기 뒤»에 온다
-  const variant = sliceFn(s, 'function _variantOf(host)');
-  assert.ok(variant.indexOf("classList.contains('sticker-block')") < variant.indexOf('dataset?.selVariant'),
-    '선언형 분기가 «앞»에 오면 기존 두 블록의 판정이 바뀔 수 있다');
-  const hostOf = sliceFn(s, 'function _hostOf(el)');
-  assert.ok(hostOf.indexOf('TEXT_SELECTOR') < hostOf.indexOf('SEL_BOX_SELECTOR'),
-    '텍스트 분기보다 «앞»에 오면 텍스트 블록의 host 판정이 바뀐다');
-
-  // ⛔⑸ 선택 상자 탐색은 «깊이 두 단계»로 묶는다 — 임의 후손이면 남의 상자를 집는다
-  const sel = s.match(/const SEL_BOX_SELECTOR = '([^']+)'/);
-  assert.ok(sel, 'SEL_BOX_SELECTOR 가 없다');
-  assert.ok(sel[1].split(',').every(p => p.trim().startsWith(':scope >')),
-    `임의 후손 탐색이다: ${sel[1]}`);
-
-  // ⛔⑹ 선 굵기 표를 안 늘렸다(sticker 는 1 그대로)
+  // ⛔⑷ 선 굵기 표를 안 늘렸다(sticker 는 1 그대로)
   const sw = s.match(/export const STROKE_W = \{([^}]*)\}/);
   assert.ok(sw && /sticker:\s*1/.test(sw[1]), 'sticker 굵기가 1 이 아니다');
   assert.equal(sw[1].split(',').filter(x => x.trim()).length, 3, '굵기 갈래를 늘렸다 — sticker 를 그대로 써야 한다');
@@ -745,6 +733,32 @@ test('ⓑ-11 ⛔새 색을 만들지 않는다 — 체크패턴은 «전례와 �
   }
 });
 
+test('ⓑ-19 ★⑧계열 = «플로팅»(스티커) — 행에 넣지 않는다', () => {
+  const b = SRC.block;
+  // ⑴ 삽입 자리 = 섹션 «직접 자식». 스티커와 같은 자리다.
+  const add = sliceFn(b, 'function addZoomBlock(opts = {})');
+  assert.ok(/sec\.appendChild\(block\)/.test(add), '섹션 직접 자식이 아니다 = 플로팅이 아니다');
+  assert.equal(/insertAfterSelected/.test(b), false, '흐름 삽입 헬퍼가 남아 있다');
+  // ⑵ 행(row)을 «만들지 않는다»
+  const mk = sliceFn(b, 'function makeZoomBlock(opts = {})');
+  assert.equal(/className = 'row'/.test(mk), false, '행을 다시 만들고 있다');
+  assert.ok(/return block;/.test(mk), '행 없이 블록만 돌려줘야 한다');
+  // ⑶ 위치 = absolute + left/top(px) + dataset.x/y — 스티커의 cssText 관례
+  const rend = sliceFn(b, 'function renderZoomBlock(block)');
+  assert.ok(/position:absolute;left:\$\{st\.x\}px;top:\$\{st\.y\}px;/.test(rend), '절대 위치를 안 쓴다');
+  assert.ok(/width:\$\{box\.w[\s\S]{0,60}?height:\$\{box\.h/.test(rend), 'absolute 면 크기를 스스로 가져야 한다');
+  assert.ok(/border-radius:\$\{box\.radius\}/.test(rend), '★블록의 border-radius 가 곧 아웃라인 모양이다');
+  // ⑷ 이동 드래그도 «스티커 규약»을 그대로 쓴다(새로 만들지 않는다)
+  const mv = sliceFn(b, 'function _bindZoomMoveDrag(block)');
+  assert.ok(/window\._clampToSection/.test(mv) && /window\._findSectionAt/.test(mv),
+    '스티커의 좌표 헬퍼를 안 쓰고 새로 만들었다');
+  assert.ok(/dataset\.x = /.test(mv) && /style\.left = /.test(mv), 'dataset 과 style 을 «같이» 밀어야 한다');
+  // ⑸ 보라 갈래는 블록이 «스스로» 든다
+  assert.ok(/dataset\.selVariant = 'sticker'/.test(b), '선택 오버레이가 보라를 못 고른다');
+  // ⑹ 배율은 «정본 함수»에서 온다 — 베끼면 핸들과 갈라진다
+  assert.ok(/import \{ _canvasScaleNow \} from '\.\.\/overlay-handles\.js'/.test(b), '배율을 베꼈다');
+});
+
 test('ⓑ-17 ⑤핸들 배선 — 아웃라인 상자에 붙고, dataset.w/h 로 커밋한다', () => {
   const s = SRC.handles;
   assert.ok(/showHandlesFor[\s\S]{0,300}?zoom-block[\s\S]{0,120}?showZoomResizeHandles/.test(s),
@@ -755,9 +769,11 @@ test('ⓑ-17 ⑤핸들 배선 — 아웃라인 상자에 붙고, dataset.w/h 로
   assert.equal(/zb\.style\.width/.test(body), false, 'style.width 로 쓰면 도형이 안 변한다');
   assert.ok(/window\.renderZoomBlock\?\.\(zb\)/.test(body), '재렌더 없이는 실루엣·그림자가 안 따라온다');
   assert.ok(/isCircle[\s\S]{0,120}?newW = newH/.test(body), '원은 정원만 그릴 수 있다(w=h 로 묶어야 한다)');
-  // 핸들이 «아웃라인 상자»에 앉는가 — 블록 상자면 행 전체 폭이라 엉뚱한 자리다
+  /* ★핸들 기준 = «블록 자신». 플로팅이라 블록 상자가 곧 도형(+테두리) 상자다.
+     ⛔보조 상자를 다시 들이면 블록 상자와 «두 벌»이 되어 아웃라인과 핸들이 갈린다. */
   const boxFn = sliceFn(s, 'function _zoomOutlineBox(zb)');
-  assert.ok(boxFn.includes('.zoom-sel-box'), '핸들 기준이 아웃라인 상자가 아니다');
+  assert.equal(/zoom-sel-box/.test(boxFn), false, '보조 상자가 되살아났다');
+  assert.ok(/return zb;/.test(boxFn), '핸들 기준이 블록 자신이 아니다');
   // 캔버스 클릭 경로에서도 불러야 한다(레이어패널만 되면 반쪽이다)
   assert.ok(/if \(isZoom\)[\s\S]{0,1800}?window\.showHandlesFor\?\.\(block\)/.test(SRC.drag),
     '캔버스에서 클릭했을 때 핸들이 안 뜬다');

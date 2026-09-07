@@ -1548,9 +1548,8 @@ window.hideGridGutters = hideGridGutters;
 /* ═══════════════════════════════════════════════════════════════════════════
    확대블럭(zoom) 리사이즈 핸들 — 현빈 2026-09-08 「아웃라인으로 핸들로 높이와 너비 조절」
    ───────────────────────────────────────────────────────────────────────────
-   ★핸들은 «블록 상자»가 아니라 «아웃라인 상자»(.zoom-sel-box)에 붙는다.
-     블록은 행 전체 폭이고 그림자까지 품는다 — 거기 붙이면 도형과 아무 상관 없는 자리에 뜬다.
-     보라 아웃라인이 그 상자를 그리므로, 핸들이 «아웃라인 모서리»에 정확히 앉는다.
+   ★핸들은 «블록 상자»에 붙는다 — 확대블럭은 플로팅(스티커 계열)이라 블록 상자가 곧
+     도형(+테두리) 상자다. 보라 아웃라인이 그리는 상자와 «같은 상자»라 모서리가 정확히 맞는다.
    ★크기는 style.width/height 가 아니라 dataset.w / dataset.h 에 쓴다.
      확대블럭의 크기는 CSS 상자가 아니라 «SVG 안 도형»이라, 블록에 width 를 줘도 도형이 안 변한다.
      ⇒ renderZoomBlock 을 다시 불러 실루엣·그림자·뷰박스가 «같이» 따라오게 한다.
@@ -1560,9 +1559,11 @@ const ZOOM_MIN = 20, ZOOM_MAX = 1200;
 let _zoomResizeBlock = null;
 let _zoomResizeRafId = null;
 
-/** 핸들이 앉을 상자 = 아웃라인 상자. 아직 안 그려졌으면 블록으로 떨어진다. */
+/** 핸들이 앉을 상자 = ★블록 «자신». 플로팅(스티커 계열)이라 블록 상자가 곧 도형(+테두리) 상자다.
+ *  ⛔예전엔 보조 상자(.zoom-sel-box)를 뒀다 — 블록이 행 안에 있어 «행 전체 폭»이었기 때문이다.
+ *    플로팅으로 옮기면서 그 보조 상자가 없어졌다(zoom-geometry.js blockBoxSpec 주석 참조). */
 function _zoomOutlineBox(zb) {
-  return zb.querySelector(':scope > .zoom-stage > .zoom-sel-box') || zb;
+  return zb;
 }
 
 function showZoomResizeHandles(zb) {

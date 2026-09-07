@@ -265,59 +265,61 @@ export function shadowVisible(st, geo) {
 }
 
 /**
- * ★선택 아웃라인이 «shape 모양»을 따라가게 하는 상자 (현빈 2026-09-08).
- *   js/selection-overlay.js 의 _geomOf 는 «요소의 상자 + computed border-radius»로 모양을 만든다
- *   (원을 따로 아는 게 아니라 border-radius:50% 를 읽어서 원을 그린다).
- *   ⇒ 그 길에 태우는 방법 = «도형과 똑같은 상자»를 하나 두는 것이다. _geomOf 는 안 건드린다.
- *   ⛔.zoom-block 자신은 못 쓴다 — 행 전체 폭이라 상자가 그림자까지 감싼다.
- *   ⚠️테두리가 켜져 있으면 아웃라인도 «테두리 바깥»을 따른다(그림자와 같은 축).
- *   ⚠️회전은 CSS transform 이 아니라 data-rotation 으로 준다 — _cornerScreen 이 «그것»을 읽는다.
+ * ★블록 «자신»의 상자 — 확대블럭은 스티커 계열(플로팅)이라 블록 상자가 곧 도형 상자다.
+ *
+ * ⛔예전엔 블록이 행(row) 안에 흐름으로 들어가 «행 전체 폭»이었고, 그래서 아웃라인이 도형과
+ *   아무 상관 없는 네모로 떴다. 그때 처방을 「보이지 않는 선택상자(.zoom-sel-box)를 하나 더 둔다」로
+ *   했는데, ★원인은 그게 아니라 «계열»이었다(현빈 2026-09-08: 「스티커 블럭인데 왜 블럭 안에 있어?
+ *   플로팅되어야 되는 거 아냐?」). 플로팅으로 옮기니 블록 상자가 도형 상자가 되어
+ *   선택 오버레이(_geomOf)가 «블록의 border-radius»를 그대로 읽는다 — 보조 상자가 필요 없어졌다.
+ *   ⇒ 증상을 우회하지 말고 «왜 그 상태인가»를 한 겹 더 물었어야 했다.
+ *
+ * 상자는 «테두리를 포함»한다 — 아웃라인도 핸들도 테두리 바깥을 따른다(그림자와 같은 축).
  */
-export function selBoxSpec(st, pinned) {
+export function blockBoxSpec(st) {
   const bw = borderWidthOf(st);
   const circle = st.shape === 'circle';
   const half = shapeHalf(st);
   const hw = half.hw + bw;
   const hh = (circle ? half.hw : half.hh) + bw;
   const bdr = Math.max(0, Number(st.bdr) || 0);
-  const box = zoomBox(st, pinned);
   return {
     w: hw * 2, h: hh * 2,
     radius: circle ? '50%' : ((bdr > 0 ? bdr + bw : 0).toFixed(2) + 'px'),
-    left: -box.minX - hw, top: -box.minY - hh,
     rot: circle ? 0 : (Number(st.rot) || 0),   // 원은 돌려도 같은 모양이다
   };
 }
 
-export function selBoxMarkup(st, pinned) {
-  const s = selBoxSpec(st, pinned);
-  return `<div class="zoom-sel-box" data-sel-box data-sel-variant="sticker"` +
-    (s.rot ? ` data-rotation="${s.rot}"` : '') +
-    ` style="left:${s.left.toFixed(2)}px;top:${s.top.toFixed(2)}px;` +
-    `width:${s.w.toFixed(2)}px;height:${s.h.toFixed(2)}px;border-radius:${s.radius};"></div>`;
+/** SVG 를 블록 «안»에 놓는 오프셋 — 도형 중심(뷰박스 0,0)을 블록 중심에 맞춘다.
+ *  그림자는 블록 밖으로 삐져나간다(overflow:visible). 플로팅이라 아무것도 밀리지 않는다. */
+export function svgOffset(st, pinned) {
+  const box = zoomBox(st, pinned);
+  const b = blockBoxSpec(st);
+  return { left: b.w / 2 + box.minX, top: b.h / 2 + box.minY };
 }
 
-/** 블록 안에 실제로 들어가는 것 전부 — SVG + (보이지 않는) 선택 상자. */
-/** 체크패턴 배경 — 도형«과 같은 상자». 이미지 자리라는 표시다(에셋/아이콘서클과 같은 뜻). */
-export function bgMarkup(st, pinned) {
+/** 체크패턴 층 — «도형» 상자다(테두리 제외). 블록 좌상단 기준. */
+export function bgMarkup(st) {
   if (st.fill !== ZOOM_CHECKER) return '';
+  const bw = borderWidthOf(st);
   const half = shapeHalf(st);
-  const bdr = Math.max(0, Number(st.bdr) || 0);
   const hw = half.hw, hh = (st.shape === 'circle') ? half.hw : half.hh;
-  const box = zoomBox(st, pinned);
+  const bdr = Math.max(0, Number(st.bdr) || 0);
   const rot = (st.shape === 'circle') ? 0 : (Number(st.rot) || 0);
-  return `<div class="zoom-bg" style="left:${(-box.minX - hw).toFixed(2)}px;top:${(-box.minY - hh).toFixed(2)}px;` +
+  return `<div class="zoom-bg" style="left:${bw.toFixed(2)}px;top:${bw.toFixed(2)}px;` +
     `width:${(hw * 2).toFixed(2)}px;height:${(hh * 2).toFixed(2)}px;` +
     `border-radius:${st.shape === 'circle' ? '50%' : bdr.toFixed(2) + 'px'};` +
     (rot ? `transform:rotate(${rot}deg);` : '') + `"></div>`;
 }
 
-/** a·b 핸들 — ★별도 층이다. 체크 배경(.zoom-bg)이 SVG 위에 올라오므로 핸들이 그 «위»에 있어야 한다. */
+/** a·b 핸들 — ★별도 층이다. 체크 배경이 SVG 위에 올라오므로 핸들이 그 «위»에 있어야 한다. */
 export function handleLayerMarkup(st, pinned) {
   const box = zoomBox(st, pinned);
   if (!box.ok) return '';
   const geo = box.geo;
-  return `<svg class="zoom-handle-layer" width="${box.w.toFixed(2)}" height="${box.h.toFixed(2)}" ` +
+  const off = svgOffset(st, pinned);
+  return `<svg class="zoom-handle-layer" style="left:${off.left.toFixed(2)}px;top:${off.top.toFixed(2)}px;" ` +
+    `width="${box.w.toFixed(2)}" height="${box.h.toFixed(2)}" ` +
     `viewBox="${box.minX.toFixed(2)} ${box.minY.toFixed(2)} ${box.w.toFixed(2)} ${box.h.toFixed(2)}" ` +
     `xmlns="http://www.w3.org/2000/svg">` +
     `<circle class="zoom-handle" data-pt="a" cx="${geo.a.x.toFixed(2)}" cy="${geo.a.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
@@ -325,14 +327,13 @@ export function handleLayerMarkup(st, pinned) {
     `</svg>`;
 }
 
-/** 블록 안에 실제로 들어가는 것 전부.
- *  ★쌓는 순서 = 그림자·테두리·도형(SVG) → 체크배경 → a·b 핸들 → (보이지 않는) 선택 상자.
+/** 블록 안에 들어가는 것 전부.
+ *  ★쌓는 순서 = 그림자·테두리·도형(SVG) → 체크배경 → a·b 핸들.
  *    체크가 SVG «위»인 이유: 테두리판은 «도형보다 큰 판»이라 SVG 안에서 도형 자리를 덮는다.
- *    아래에 깔면 테두리를 켠 순간 체크가 사라진다(실측으로 확인한 자리).
- *    그래서 핸들도 체크 «뒤»로 옮겼다 — 안 그러면 겹칠 때 핸들이 가려진다. */
-export function buildZoomStage(st, pinned) {
-  return `<div class="zoom-stage">${buildZoomSvg(st, pinned)}${bgMarkup(st, pinned)}` +
-    `${handleLayerMarkup(st, pinned)}${selBoxMarkup(st, pinned)}</div>`;
+ *    아래 깔면 테두리를 켠 순간 체크가 사라진다. 그래서 핸들도 체크 «뒤»로 뒀다.
+ *  ⛔선택 상자(.zoom-sel-box)는 «없다» — 블록 자신이 그 상자다(blockBoxSpec 주석 참조). */
+export function buildZoomInner(st, pinned) {
+  return `${buildZoomSvg(st, pinned)}${bgMarkup(st)}${handleLayerMarkup(st, pinned)}`;
 }
 
 export function buildZoomSvg(st, pinned) {
@@ -343,7 +344,9 @@ export function buildZoomSvg(st, pinned) {
     ? strips(geo.A, geo.B, geo.a, geo.b, ZOOM_STRIP_COUNT, (Number(st.curve) || 100) / 100, (Number(st.maxop) || 0) / 100)
     : '';
 
-  return `<svg class="zoom-svg" width="${box.w.toFixed(2)}" height="${box.h.toFixed(2)}" ` +
+  const off = svgOffset(st, pinned);
+  return `<svg class="zoom-svg" style="left:${off.left.toFixed(2)}px;top:${off.top.toFixed(2)}px;" ` +
+    `width="${box.w.toFixed(2)}" height="${box.h.toFixed(2)}" ` +
     `viewBox="${box.minX.toFixed(2)} ${box.minY.toFixed(2)} ${box.w.toFixed(2)} ${box.h.toFixed(2)}" ` +
     `xmlns="http://www.w3.org/2000/svg">` +
     `<g class="zoom-shadow">${shadow}</g>${borderMarkup(st)}${shapeMarkup(st)}</svg>`;

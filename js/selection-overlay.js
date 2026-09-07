@@ -81,15 +81,9 @@ function _clear() {
 }
 
 /* ── 대상 집합 ───────────────────────────────────────────────────────────── */
-/* ★블록이 «스스로» 선언한 선택 상자가 있으면 그것을 쓴다 — 이 파일 머리의
- *   「블록 이름 목록을 두지 않는다」를 지키는 길이다(목록은 새 블록이 생길 때 조용히 썩는다).
- *   쓰는 자리: 확대블럭(zoom) — 블록 상자는 «행 전체 폭»이라 도형과 안 맞는다. 도형과 «같은 상자»를
- *   자식으로 두고 그 상자에 data-sel-box 를 단다. ⇒ _geomOf 는 «한 글자도» 안 바뀐다.
- *   ⚠️깊이를 «두 단계»로 묶는다 — 임의 후손을 찾으면 남의 상자를 집을 수 있다. */
-const SEL_BOX_SELECTOR = ':scope > [data-sel-box], :scope > * > [data-sel-box]';
 function _hostOf(el) {
   if (el.matches(TEXT_SELECTOR)) return el.closest(TEXT_HOST_SELECTOR) || el;
-  return el.querySelector?.(SEL_BOX_SELECTOR) || el;
+  return el;
 }
 
 /* ★색은 «호스트 조상»으로 결정한다 — 블록 이름표로 분기하지 않는다.
@@ -99,7 +93,8 @@ function _hostOf(el) {
 function _variantOf(host) {
   if (host.closest('.asset-overlay')) return 'overlay';
   if (host.classList.contains('sticker-block') || host.classList.contains('gradient-block')) return 'sticker';
-  /* ★선언형 — 위 두 클래스와 «같은 뜻»이지만 이름 목록을 안 늘린다(선택 상자가 자기 갈래를 들고 온다). */
+  /* ★선언형 — 위 두 클래스와 «같은 뜻»이지만 이름 목록을 안 늘린다(블록이 자기 갈래를 들고 온다).
+     확대블럭(zoom)이 이 길로 보라를 받는다. */
   if (host.dataset?.selVariant) return host.dataset.selVariant;
   return '';
 }

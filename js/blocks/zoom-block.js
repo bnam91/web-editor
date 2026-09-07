@@ -1,4 +1,10 @@
 // ── Zoom Block (확대블럭) ────────────────────────────────────────────────────
+// ★계열 = «스티커»(플로팅). 섹션의 «직접 자식»으로 absolute 로 떠 있다 — 행(row) 안에 넣지 않는다.
+//   현빈 2026-09-08: 「왜 블럭 안에 있는 거야 스티커 블럭인데. 플로팅되어야 되는 거 아냐?」
+//   ⛔전에는 row.appendChild 였고, 그 탓에 블록 상자가 «행 전체 폭»이라 선택 아웃라인이 도형과
+//     상관없는 네모로 떴다. 그 증상을 「보조 선택상자를 하나 더 둔다」로 우회했는데 원인은 «계열»이었다.
+//     ⇒ 증상을 보면 «왜 그 상태인가»를 한 겹 더 물어라. 여기가 그 기록이다.
+//
 // 도형(rect/circle/square) + 그 도형에서 «광원 쪽으로» 뻗는 그림자 사다리꼴.
 // ★그림자는 라디오로 끌 수 있다 — 그래서 이 «하나»가 스티커 블록 둘을 대신한다.
 //     끔 = 도형 + 테두리(에셋블럭 스티커) / 켬 = 도형 + 그림자(돋보기)
@@ -20,14 +26,15 @@
 //      ⇒ ★피그마로 업로드하면 확대블럭이 «조용히 빠진다»(오류도 안 난다). laurel 처럼 전용 분기가 필요하다.
 //
 // 의존성:
-//   - insertAfterSelected (drag-utils.js)
 //   - bindBlock (drag-drop.js)
+//   - window._clampToSection / _findSectionAt (sticker-select.js — 플로팅 좌표 규약을 공유한다)
 //   - window.getSelectedSection / showNoSelectionHint / pushHistory / buildLayerPanel /
 //     selectBlock / triggerAutoSave
 
-import { insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
-import { buildZoomStage, computeZoomGeometry, ZOOM_CHECKER } from './zoom-geometry.js';
+// ★배율은 «한 곳»에서만 읽는다 — 베끼면 핸들과 갈라진다(overlay-handles.js 주석 참조).
+import { _canvasScaleNow } from '../overlay-handles.js';
+import { buildZoomInner, blockBoxSpec, computeZoomGeometry, ZOOM_CHECKER } from './zoom-geometry.js';
 
 const ZOOM_DEFAULTS = {
   shape:  'rect',   // ★기본은 사각형. 프리셋 = rect | circle | square
@@ -62,6 +69,9 @@ const ZOOM_DEFAULTS = {
   bdw:    6,        // 두께(px)
   bdc:    '#ffffff',// 색
   bdr:    0,        // 모서리(px) — 도형·테두리판이 «같이» 둥글어야 링 두께가 일정하다
+  /* ★플로팅 좌표 — 섹션 좌상단 기준(px). 스티커와 «같은 규약»(dataset.x/y + style.left/top). */
+  x:      40,
+  y:      40,
 };
 
 const ZOOM_SHAPES = ['rect', 'circle', 'square'];
@@ -96,6 +106,8 @@ function readZoomState(block) {
     fill:   d.fill || ZOOM_DEFAULTS.fill,
     w:      _numOrNull(d.w),
     h:      _numOrNull(d.h),
+    x:      _num(d.x, ZOOM_DEFAULTS.x),
+    y:      _num(d.y, ZOOM_DEFAULTS.y),
     shadow: _onOff(d.shadow, ZOOM_DEFAULTS.shadow),
     bd:     _onOff(d.bd,     ZOOM_DEFAULTS.bd),
     bdw:    _num(d.bdw, ZOOM_DEFAULTS.bdw),
@@ -136,10 +148,71 @@ function _pinShortEdge(block, a, b) {
 }
 
 function renderZoomBlock(block) {
-  // ★그림은 «순수 모듈»이 만든다(zoom-geometry.js: buildZoomSvg) — 검사가 실제로 나가는
-  //   마크업을 그대로 받아 잴 수 있게 하려는 것이다. 여기는 dataset 읽기와 위임 바인딩만.
-  block.innerHTML = buildZoomStage(readZoomState(block), readPinnedShortEdge(block));
+  const st = readZoomState(block);
+  const box = blockBoxSpec(st);
+  /* ★블록 «자신»이 도형(+테두리) 상자다 — 그래서 선택 오버레이가 이 상자의 border-radius 를
+     그대로 읽어 «원이면 원»으로 그린다. 보조 상자가 필요 없다.
+     ⚠️회전은 CSS transform 이 아니라 data-rotation 이다 — _cornerScreen 이 «그것»을 읽는다.
+       transform 을 걸면 안에 든 SVG 까지 돌아 그림자 방향이 세계좌표를 벗어난다. */
+  block.style.cssText =
+    `position:absolute;left:${st.x}px;top:${st.y}px;` +
+    `width:${box.w.toFixed(2)}px;height:${box.h.toFixed(2)}px;` +
+    `border-radius:${box.radius};`;
+  if (box.rot) block.dataset.rotation = String(box.rot);
+  else delete block.dataset.rotation;
+
+  // ★그림은 «순수 모듈»이 만든다(zoom-geometry.js) — 검사가 실제로 나가는 마크업을 그대로 잰다.
+  block.innerHTML = buildZoomInner(st, readPinnedShortEdge(block));
   _bindZoomHandleDrag(block);
+  _bindZoomMoveDrag(block);
+}
+
+/* 위치 드래그 — 스티커와 «같은 규약»: dataset.x/y 에 쓰고 style.left/top 을 같이 민다.
+   ⛔새로 만들지 않고 sticker-select.js 의 _clampToSection / _findSectionAt 을 쓴다.
+   ⚠️a·b 핸들과 리사이즈 핸들 위에서는 «안» 잡는다(그쪽이 자기 드래그를 갖는다). */
+function _bindZoomMoveDrag(block) {
+  if (block._zoomMoveBound) return;
+  block._zoomMoveBound = true;
+  block.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (e.target.closest?.('.zoom-handle, .asset-overlay-handle')) return;
+    let sec = block.closest('.section-block');
+    if (!sec) return;
+    const zoom = _canvasScaleNow() || 1;
+    const r = block.getBoundingClientRect();
+    const grabX = (e.clientX - r.left) / zoom;
+    const grabY = (e.clientY - r.top) / zoom;
+    let moved = false;
+
+    const onMove = ev => {
+      if (!moved) {
+        if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 2) return;
+        moved = true;
+        window.pushHistory?.('확대블럭 이동');
+      }
+      // ⌘ 드래그 = 자유 이동(섹션 경계 clamp 없이). 스티커와 같은 어휘.
+      const free = ev.metaKey;
+      const hover = (!free && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;
+      if (hover && hover !== sec) { hover.appendChild(block); sec = hover; }
+      const sr = sec.getBoundingClientRect();
+      const rawX = (ev.clientX - sr.left) / zoom - grabX;
+      const rawY = (ev.clientY - sr.top) / zoom - grabY;
+      const [cx, cy] = free
+        ? [rawX, rawY]
+        : (window._clampToSection?.(rawX, rawY, sec, block.offsetWidth, block.offsetHeight) || [rawX, rawY]);
+      block.dataset.x = String(Math.round(cx));
+      block.dataset.y = String(Math.round(cy));
+      block.style.left = Math.round(cx) + 'px';
+      block.style.top  = Math.round(cy) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (moved) window.triggerAutoSave?.();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
 }
 
 /* a·b 핸들 드래그 — 끄는 «순간»에만 dataset 에 박는다.
@@ -195,6 +268,10 @@ function makeZoomBlock(opts = {}) {
   block.className = 'zoom-block';
   block.id = 'zmb_' + Math.random().toString(36).slice(2, 8);
   block.dataset.type = 'zoom';
+  /* ★선택 오버레이에 «스티커 계열»(보라)임을 «스스로» 알린다.
+     selection-overlay.js 에 블록 이름을 하나 더 적는 대신 블록이 자기 갈래를 들고 간다
+     (그 파일 머리의 「블록 이름 목록을 두지 않는다」를 지키는 길). */
+  block.dataset.selVariant = 'sticker';
   const shape = ZOOM_SHAPES.includes(opts.shape) ? opts.shape : ZOOM_DEFAULTS.shape;
   block.dataset.shape  = shape;
   block.dataset.angle  = String(opts.angle  ?? ZOOM_DEFAULTS.angle);
@@ -211,26 +288,29 @@ function makeZoomBlock(opts = {}) {
   block.dataset.bdw    = String(opts.bdw    ?? ZOOM_DEFAULTS.bdw);
   block.dataset.bdc    = String(opts.bdc    ?? ZOOM_DEFAULTS.bdc);
   block.dataset.bdr    = String(opts.bdr    ?? ZOOM_DEFAULTS.bdr);
+  block.dataset.x      = String(opts.x      ?? ZOOM_DEFAULTS.x);
+  block.dataset.y      = String(opts.y      ?? ZOOM_DEFAULTS.y);
   // ⛔a·b 는 신규 생성 시 «절대» 박지 않는다 — 끌기 전까지 언제나 자동.
   renderZoomBlock(block);
-
-  const row = document.createElement('div');
-  row.className = 'row';
-  row.dataset.layout = 'stack';
-  row.appendChild(block);
-  return { row, block };
+  return block;   // ★행(row)을 만들지 않는다 — 플로팅이라 섹션 직접 자식이 된다
 }
 
 function addZoomBlock(opts = {}) {
-  const sec = window.getSelectedSection?.();
+  const selectedAny = document.querySelector('.zoom-block.selected, .sticker-block.selected, [class*="-block"].selected');
+  const sec = window.getSelectedSection?.() || selectedAny?.closest('.section-block');
   if (!sec) { window.showNoSelectionHint?.(); return; }
-  window.pushHistory?.();
-  const { row, block } = makeZoomBlock(opts);
-  insertAfterSelected(sec, row);
+  // 같은 자리 겹침 방지 — 스티커의 cascade 와 같은 어휘(24px 씩, 8칸 주기).
+  if (opts.x == null && opts.y == null) {
+    const n = sec.querySelectorAll('.zoom-block').length;
+    opts = { ...opts, x: 40 + (n % 8) * 24, y: 40 + (n % 8) * 24 };
+  }
+  window.pushHistory?.('확대블럭 추가');
+  const block = makeZoomBlock(opts);
+  sec.appendChild(block);   // ★섹션 직접 자식 (absolute → 섹션 기준). 스티커와 같은 자리.
   bindBlock(block);
   window.buildLayerPanel?.();
   try { window.selectBlock?.(block.id); } catch (_) {}
-  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   window.triggerAutoSave?.();
 }
 
