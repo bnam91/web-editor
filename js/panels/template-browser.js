@@ -684,6 +684,12 @@ function initTplResize() {
 /* ── 초기화: 이벤트 바인딩 ── */
 function initTemplateBrowser() {
   document.getElementById('tpl-browser-close')?.addEventListener('click', closeTemplateBrowser);
+  /* 새 창으로 보기 — 뷰어 전용 창을 main 이 띄운다.
+     ⛔#tpl-browser-layout 에는 핸들러를 «달지 않는다». 기능이 아직 없어서 disabled 로 막아 뒀고,
+       핸들러만 먼저 달면 disabled 를 떼는 순간 «눌리는데 아무 일도 안 나는» 버튼이 된다. */
+  document.getElementById('tpl-browser-popout')?.addEventListener('click', () => {
+    window.electronAPI?.openTemplateWindow?.();
+  });
 
   // 헤더 드래그 이동
   const panel = document.getElementById('tpl-browser');

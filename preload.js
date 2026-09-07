@@ -50,6 +50,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveTemplateCanvas:  (id, html) => ipcRenderer.invoke('templates:save-canvas', id, html),
   deleteTemplateCanvas:(id)       => ipcRenderer.invoke('templates:delete-canvas', id),
   getTemplateRootState:()         => ipcRenderer.invoke('templates:root-state'),
+  openTemplateWindow:  ()         => ipcRenderer.invoke('templates:open-window'),
+  // 팝아웃 창 → 편집기 창 (삽입 위임 · 패널 복구).
+  // ★결과를 «받아야» 하므로 main 이 executeJavaScript 로 편집기의 window.__tplEditorCommand 를 부른다.
+  //   단방향 send 였을 때 팝아웃이 「보냈다」를 「넣었다」로 말하는 거짓 성공이 났다.
+  insertTemplateInMain:(id)       => ipcRenderer.invoke('templates:insert-in-main', id),
+  restoreTemplatePanel:()         => ipcRenderer.invoke('templates:restore-panel'),
 
   // Figma Upload
   figmaUpload:       (channel, designJSON) => ipcRenderer.invoke('figma:upload', { channel, designJSON }),

@@ -857,3 +857,54 @@ window.renderTemplatePanel  = renderTemplatePanel;
 window.initTemplates        = initTemplates;
 window._loadCanvas          = _loadCanvas;
 window.showTemplatePreview  = showTemplatePreview;
+
+/* ── 떼어낸 템플릿 창에서 오는 명령 ──
+   ★삽입은 «편집기»에서 일어나야 한다 — 「어느 섹션에 넣나」의 주인이 여기이기 때문이다.
+     팝아웃 창은 선택 상태를 모르므로 id 만 보내고, 실제 삽입은 이 창이 자기 insertTemplate 으로 한다.
+   ⛔찾지 못한 id 를 «조용히» 흘리지 마라 — 그러면 「눌렀는데 아무 말이 없다」가 다시 생긴다. */
+/* ★팝아웃 창이 부르는 «편집기 쪽 입구». main 이 executeJavaScript 로 부르고 «반환값»을 받아간다
+     (이 앱의 기존 관례 — _invokeRendererUpdateIconifyBlock 과 같은 방식).
+   ⛔예전엔 webContents.send 로 «보내기만» 했다. 그래서 팝아웃은 「보냈다」를 「넣었다」로 말했고,
+     실제로는 안 들어갔는데 앞 창이 성공을 띄웠다(거짓 성공). 결과를 받아야 사실대로 말할 수 있다.
+   ⛔insertTemplate 의 시그니처는 «건드리지 않는다» — 편집기 내부 호출처가 여럿이다.
+     대신 ⑴삽입 «전후»를 세고 ⑵편집기가 스스로 띄운 토스트를 사유로 가로챈다. */
+window.__tplEditorCommand = async (p) => {
+  try {
+    if (!p || !p.action) return { ok: false, reason: '알 수 없는 명령입니다.' };
+    if (p.action === 'open-panel') { window.openTemplateBrowser?.(); return { ok: true }; }
+    if (p.action !== 'insert') return { ok: false, reason: '알 수 없는 명령입니다.' };
+
+    const tpl = loadTemplates().find(t => t.id === p.id);
+    if (!tpl) return { ok: false, reason: '템플릿을 찾지 못했습니다. 목록을 새로 고쳐 주세요.' };
+
+    // ★«무엇이 늘어야 하나»는 insertTemplate 의 분기와 같아야 한다(block=row / subsection=frame / else=section)
+    const snap = () => ({
+      sec:   canvasEl.querySelectorAll('.section-block').length,
+      frame: canvasEl.querySelectorAll('.frame-block').length,
+      row:   canvasEl.querySelectorAll('.row').length,
+      total: canvasEl.querySelectorAll('*').length,
+    });
+
+    /* 편집기가 «스스로 아는 사유»를 그대로 쓴다 — 여기서 사유를 새로 지어내면 두 곳이 갈린다.
+       ⛔원본 토스트는 그대로 부른다(편집기 사용자에게 보이는 동작을 바꾸지 않는다). */
+    let lastMsg = '';
+    const origToast = window.showToast;
+    window.showToast = function (m) { lastMsg = String(m == null ? '' : m); return origToast?.apply(this, arguments); };
+
+    const before = snap();
+    try { await insertTemplate(tpl); }
+    finally { window.showToast = origToast; }
+    const after = snap();
+
+    const grew = (k) => after[k] > before[k];
+    const ok = tpl.type === 'block'      ? (grew('row')   || grew('total'))
+             : tpl.type === 'subsection' ? (grew('frame') || grew('total'))
+             :                             grew('sec');
+    if (ok) return { ok: true };
+    // 사유는 편집기가 방금 띄운 문구에서 «❌/⚠️» 장식만 떼어 넘긴다
+    const reason = lastMsg.replace(/^[❌⚠️🔒\s]+/, '').trim();
+    return { ok: false, reason: reason || '편집기가 삽입하지 못했습니다.' };
+  } catch (e) {
+    return { ok: false, reason: (e && e.message) || '알 수 없는 오류' };
+  }
+};

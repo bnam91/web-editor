@@ -744,7 +744,8 @@ body.preview-mode #preview-navigator { display: flex; }
   font-size: var(--ui-fs-base);
 }
 .tpl-browser-search::placeholder { color: var(--ui-text-dim); }
-.tpl-browser-close {
+/* 헤더 버튼 공용 — 닫기·새창·레이아웃이 «같은 몸통»을 쓴다(값은 옛 .tpl-browser-close 그대로) */
+.tpl-browser-hbtn {
   background: none;
   border: none;
   color: var(--ui-text-dim);
@@ -754,7 +755,10 @@ body.preview-mode #preview-navigator { display: flex; }
   display: flex;
   align-items: center;
 }
-.tpl-browser-close:hover { background: var(--ui-bg-input); color: #ccc; }
+.tpl-browser-hbtn:hover { background: var(--ui-bg-input); color: #ccc; }
+/* 기능 미정 버튼 — 보이되 못 누른다(.tb-card-*-btn:disabled 와 같은 관례) */
+.tpl-browser-hbtn:disabled { opacity: 0.3; cursor: not-allowed; }
+.tpl-browser-hbtn:disabled:hover { background: none; color: var(--ui-text-dim); }
 
 /* 바디: 트리 + 카드 — 패널 남은 높이 채움 */
 .tpl-browser-body {

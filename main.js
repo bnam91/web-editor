@@ -3475,6 +3475,84 @@ ipcMain.handle('templates:root-state', () => {
   return { account: s.account || null, landed: s.landed || null, unresolved: !!s.unresolved, reason: s.reason || null };
 });
 
+/* ── 템플릿 «뷰어» 창 (B-4) ─────────────────────────────────────────────
+   ★뷰어 전용이다 — 삽입 기능이 없다. 삽입은 «선택된 섹션»의 주인인 편집기 창에서만 일어나야 한다.
+   ⛔편집기 렌더러 모듈(template-browser.js / template-system.js)을 이 창에 싣지 않는다.
+     template-system.js 가 globals.js 의 canvasEl 을 import 하고 있어서 편집기를 통째로 끌고 들어온다.
+     그래서 뷰어 페이지는 electronAPI(IPC)를 «직접» 부른다. */
+let _tplWin = null;
+ipcMain.handle('templates:open-window', () => {
+  // ★살아 있으면 새로 만들지 않고 포커스만 — 창이 두 개 뜨면 어느 쪽이 최신인지 알 수 없다.
+  if (_tplWin && !_tplWin.isDestroyed()) { _tplWin.focus(); return { ok: true, reused: true }; }
+  _tplWin = new BrowserWindow({
+    width: 420,
+    height: 720,
+    minWidth: 320,
+    minHeight: 360,
+    title: '템플릿',
+    alwaysOnTop: true,          // 현빈 지시 — 캔버스와 나란히 두고 보는 용도다
+    /* ★메인 창과 «같은» 분기를 쓴다. 이걸 빠뜨리면 팝아웃만 기본 프레임이 되어
+       맥에서 신호등(빨강·노랑·초록)이 이 창에만 뜬다 — 앱과 모양이 안 맞는다.
+       ⛔frame:false 로 통째로 없애지는 않는다. 창을 옮기고 닫을 길이 사라진다. */
+    /* ⚠️isMac 은 createWindow() «안»의 지역 const 라 여기선 스코프 밖이다 — 그대로 쓰면
+       문법검사는 통과하고 «실행할 때» ReferenceError 가 난다. 여기서 다시 잡는다. */
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'hiddenInset' }
+      : { titleBarStyle: 'default', autoHideMenuBar: true }),
+    parent: mainWindow || undefined,
+    webPreferences: {           // ★mainWindow 와 «동일» — 새 창이라고 권한을 열지 않는다
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+  _tplWin.loadFile(path.join(__dirname, 'pages', 'template-browser.html'));
+  /* ★이걸 빠뜨리면 닫은 뒤 «죽은 참조»를 붙잡아 다시 안 열린다(isDestroyed 로도 걸러지지만
+     참조를 남겨두면 parent 해제·GC 가 늦다). 닫히면 즉시 놓는다. */
+  _tplWin.on('closed', () => { _tplWin = null; });
+  return { ok: true, reused: false };
+});
+/* 부모가 닫히면 같이 닫는다 — 고아 창이 떠 있으면 앱이 안 꺼진 것처럼 보인다.
+   (parent 지정만으로는 맥에서 부모 종료 시 자동으로 안 닫히는 경우가 있어 명시한다.) */
+app.on('before-quit', () => { if (_tplWin && !_tplWin.isDestroyed()) _tplWin.destroy(); });
+
+/* ★팝아웃 창 → 편집기 창으로 가는 «통로는 하나»다(window.__tplEditorCommand).
+   삽입도 복구도 결국 「편집기가 해야 하는 일」이라, 통로를 늘리지 않고 action 으로 가른다.
+   ⛔통로를 명령마다 새로 만들면 어느 것이 살아 있는지 추적이 안 된다. */
+async function _callEditorCommand(payload) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    return { ok: false, reason: '편집기 창을 찾지 못했습니다. 편집기를 먼저 열어 주세요.' };
+  }
+  /* ★send(단방향) 가 아니라 executeJavaScript 로 «결과를 받아온다».
+     send 였을 때 팝아웃은 「보냈다」를 「넣었다」로 말했고, 안 들어간 경우에도 성공을 띄웠다(거짓 성공).
+     이 앱은 이미 같은 방식을 쓴다 — _invokeRendererUpdateIconifyBlock 참고. */
+  const js = `(window.__tplEditorCommand
+    ? window.__tplEditorCommand(${JSON.stringify(payload)})
+    : { ok:false, reason:'편집기가 아직 준비되지 않았습니다.' })`;
+  try {
+    const r = await mainWindow.webContents.executeJavaScript(js, true);
+    return (r && typeof r === 'object') ? r : { ok: false, reason: '편집기 응답을 읽지 못했습니다.' };
+  } catch (e) {
+    return { ok: false, reason: (e && e.message) || '편집기 호출에 실패했습니다.' };
+  }
+}
+/* 삽입 — ★「어느 섹션에 넣나」의 주인은 편집기다. 팝아웃은 선택 상태를 모르므로 위임한다.
+   (섹션 미선택 안내는 편집기 쪽 기존 흐름이 띄운다 — 여기서 흉내내지 않는다.) */
+ipcMain.handle('templates:insert-in-main', async (event, id) => {
+  const r = await _callEditorCommand({ action: 'insert', id: String(id || '') });
+  // ⛔실패했는데 편집기를 앞으로 끌어오면 «된 것»처럼 보인다. 성공했을 때만 포커스한다.
+  if (r.ok && mainWindow && !mainWindow.isDestroyed()) mainWindow.focus();
+  return r;
+});
+/* 복구 — 창을 닫고 편집기의 인앱 패널을 다시 연다(떼어내기의 «짝»). */
+ipcMain.handle('templates:restore-panel', async () => {
+  const r = await _callEditorCommand({ action: 'open-panel' });
+  if (r.ok && mainWindow && !mainWindow.isDestroyed()) mainWindow.focus();
+  if (_tplWin && !_tplWin.isDestroyed()) _tplWin.close();
+  return r;
+});
+
 ipcMain.handle('templates:load-index', () => {
   const personalRoot = _templatesRoot();
   const shared = _readTplIndex(TEMPLATES_DIR_SHARED).map(m => Object.assign({}, m, { _scope: 'shared' }));
