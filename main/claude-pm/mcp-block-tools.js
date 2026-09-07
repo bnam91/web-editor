@@ -246,8 +246,10 @@ function install({ tools, toolSchemas, registerTool, hide }) {
   // ── add_block ────────────────────────────────────────────────────────────
   registerTool(
     'add_block',
-    async ({ type, props, ...rest } = {}) => {
-      const d = resolveType(type);
+    async ({ type, props, expectedProject: _ep, ...rest } = {}) => {
+      /* ★expectedProject 는 «게이트가 먹는» 인자다(mcp-server.js _projectGate) — 블록 속성이 아니다.
+       rest 에 남겨두면 normalizeArgs 가 「모르는 prop」으로 잡아 ignoredProps 에 실어 «틀린 경고»를 낸다. */
+    const d = resolveType(type);
       if (!d) {
         throw new Error(`unknown block type: ${type == null ? '(missing)' : type}. allowed: ${typeList.join(', ')}`);
       }
@@ -268,6 +270,7 @@ function install({ tools, toolSchemas, registerTool, hide }) {
       inputSchema: {
         type: 'object',
         properties: {
+          expectedProject: { type: 'string', description: 'optional proj_<digits> — the project you INTEND to change. Mismatch with the open project ⇒ refused. Also confirms the target for the rest of this conversation.' },
           type: {
             type: 'string',
             enum: typeList,
@@ -289,11 +292,12 @@ function install({ tools, toolSchemas, registerTool, hide }) {
   //   tb_ 로 오면 예전 텍스트 편집 핸들러로 그대로 간다(하위호환 100%).
   registerTool(
     'update_block',
-    async ({ blockId, type, props, ...rest } = {}) => {
+    async ({ blockId, type, props, expectedProject: _ep, ...rest } = {}) => {   // _ep = 게이트 전용 인자, 블록 속성 아님
       if (typeof blockId !== 'string' || !blockId) {
         throw new Error('blockId required (get it from get_canvas_state)');
       }
       let d = resolveType(type);
+      const guessedFromPrefix = !d;   // B5: type 미지정 → 아래에서 «접두로 추측»한다
       if (!d) {
         // 접두사 매칭 — 긴 접두사 우선(sb_ vs stb_ 처럼 헷갈리는 쌍 방어).
         const cands = BLOCK_TYPES.filter(x => x.upd && blockId.startsWith(x.pfx))
@@ -302,12 +306,42 @@ function install({ tools, toolSchemas, registerTool, hide }) {
         d = cands.find(x => x.type === 'canvas') || cands[0] || null;
       }
       if (!d) {
+        /* ★2026-09-06 — 「접두사 추론이 없다」가 아니라 «안내가 틀렸다»가 결손이었다.
+         *   추론은 된다(타입 26 · 서로 다른 접두사 24 · 겹치는 ss_/cvb_ 도 자동 해소).
+         *   실제로 밟는 길은 ★«블록이 아닌 id»를 넘긴 경우인데, 그중 sec_ 가 압도적이다 —
+         *   「섹션 3번 제목 바꿔줘」에서 클로드가 «가장 먼저 손에 쥐는 게 섹션 id» 라서다.
+         *   그런데 옛 문구는 블록 접두사 표만 늘어놓아 「타입을 명시하라」로 «오독»시켰다.
+         *   ⇒ 클로드는 type 을 억지로 붙이거나 포기했다. ★틀린 안내는 없는 안내보다 나쁘다.
+         *   ⇒ 그래서 «아는 종류»는 갈 곳을 찍어 준다. ⛔모르는 건 그대로 「모르겠다」로 둔다. */
+        const WRONG_KIND = {
+          sec_: 'That is a SECTION id, not a block id. Call read_section(sectionId) to list the blocks inside it, then pass the block id you want (e.g. tb_… for a heading or body text).',
+          ck_:  'That is a CHECKLIST item id. Use update_checklist_item(id) instead.',
+          sp_:  'That is a SCRATCH PAD item id. Use update_scratch_item(id) instead.',
+        };
+        const kind = Object.keys(WRONG_KIND).find(k => blockId.startsWith(k));
+        if (kind) throw new Error(`${blockId} is not a block. ${WRONG_KIND[kind]}`);
         throw new Error(`cannot tell the block type of "${blockId}". Pass type explicitly. known id prefixes: `
           + BLOCK_TYPES.filter(x => x.upd).map(x => `${x.pfx}=${x.type}`).join(', '));
       }
       if (!d.upd) throw new Error(`type "${d.type}" has no update tool`);
       const args = { blockId, ...mergeProps(props, rest) };
       const res = await dispatch(d.upd, args);
+      /* B5(2026-09-05): 접두로 «추측»한 타입이 실제 DOM 클래스와 어긋나면 핸들러는
+         "<type>-block not found: <id>" 를 돌려준다 — 그런데 그 문장은 «블록이 없다» 와
+         «타입을 잘못 골랐다» 를 «바이트 단위로 동일하게» 말한다(실측: 강제 ss_ 붙인
+         asset-block 과 존재하지 않는 ss_ 가 같은 메시지). 접두가 어긋나는 건 실제로 있다 —
+         makeJokerBlock() 이 joker-block 에 «sb_»(=speech_bubble 접두) 아이디를 준다.
+         ⚠️실제 클래스는 여기서 «알아낼 수 없다»: install() 은 renderer 핸들(_rendererInvoker)을
+         못 받고, 유일한 조회 도구 get_canvas_state 는 .text-block 만 읽는다(js/canvas-state.js).
+         ⇒ 데이터는 안 망가지므로 «추측이었다»는 사실만 밝혀 헷갈림을 없앤다. */
+      if (guessedFromPrefix && res && res.ok === false && res.code === 'NOT_FOUND') {
+        res.guessedType = d.type;
+        res.message = `${res.message} — type "${d.type}" was GUESSED from the id prefix "${d.pfx}" and NOT verified, `
+          + 'so this also happens when the block DOES exist but is of another type (ids do not always match their type: '
+          + 'a joker block carries an "sb_" id, which this tool reads as speech_bubble). '
+          + `Retry as update_block{blockId:"${blockId}", type:"<actual type>", ...}. `
+          + 'This tool cannot read the block\'s real class — check it in the editor or via get_canvas_state (text blocks only).';
+      }
       return warnUnknown(res, d.upd, args);
     },
     {
@@ -325,6 +359,7 @@ function install({ tools, toolSchemas, registerTool, hide }) {
       inputSchema: {
         type: 'object',
         properties: {
+          expectedProject: { type: 'string', description: 'optional proj_<digits> — the project you INTEND to change. Mismatch with the open project ⇒ refused. Also confirms the target for the rest of this conversation.' },
           blockId: { type: 'string', description: 'target block id, e.g. tb_xxx / cvb_xxx / ss_xxx' },
           props: { type: 'object', description: 'fields to change (may also be passed flat)', additionalProperties: true },
           type: { type: 'string', enum: typeList, description: 'optional — only needed when the id prefix is ambiguous' }

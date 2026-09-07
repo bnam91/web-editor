@@ -396,6 +396,8 @@
       }
     }
 
+    /* ★[H6] 직접 대입 유지(허용목록) — 이미 try/finally + rAF 해제다. 그리고 이 파일은
+       «고전 스크립트»라 import 가 안 된다. 새 자리는 window.AutoSaveSuppress 를 써라. */
     st._suppressAutoSave = true;
     try {
       if (el) {

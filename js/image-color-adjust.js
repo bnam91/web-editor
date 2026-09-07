@@ -8,8 +8,16 @@
 //   Persistence: img.dataset.adj* 속성 (HTML 직렬화 자동 포함)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const FILTER_ID  = 'img-color-adj-filter';
-const SVG_EL_ID  = 'img-color-adj-svg';
+const FILTER_PREFIX = 'img-color-adj-';
+const SVG_EL_ID     = 'img-color-adj-svg';
+
+// ★색보정 «대상»은 술어 하나로만 정의한다 — 에셋 <img.asset-img> 와 카드 배경이미지 div(.cvb-card-img).
+//   이 두 상수를 저장복원(save-load)·내보내기(export-image)가 그대로 재사용한다.
+//   (예전엔 7개 속성 셀렉터가 3곳에 복사돼 있었고, 카드가 생기면 세 곳을 다 고쳐야 했다.)
+const ADJ_KEYS       = ['exposure','contrast','saturation','temperature','tint','highlights','shadows'];
+const ADJ_TARGET_SEL = '.asset-img, .cvb-card-img';
+const ADJ_DIRTY_SEL  = ADJ_TARGET_SEL.split(',').map(s => s.trim())
+  .flatMap(base => ADJ_KEYS.map(k => `${base}[data-adj-${k}]`)).join(', ');
 
 const DEFAULTS = {
   exposure: 0, contrast: 0, saturation: 0,
@@ -30,33 +38,50 @@ const SLIDERS = [
 // SVG 필터 엔진
 // ─────────────────────────────────────────────
 
-function _ensureSVGFilter() {
-  if (document.getElementById(SVG_EL_ID)) return;
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.id = SVG_EL_ID;
-  svg.setAttribute('aria-hidden', 'true');
-  svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;';
-  svg.innerHTML = `
-    <defs>
-      <filter id="${FILTER_ID}" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">
-        <feColorMatrix id="ca-matrix" type="matrix"
-          values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/>
-        <feComponentTransfer>
-          <feFuncR id="ca-funcR" type="linear" slope="1" intercept="0"/>
-          <feFuncG id="ca-funcG" type="linear" slope="1" intercept="0"/>
-          <feFuncB id="ca-funcB" type="linear" slope="1" intercept="0"/>
-        </feComponentTransfer>
-      </filter>
-    </defs>`;
-  document.body.appendChild(svg);
+// ★★필터는 «조정값 하나당 하나»다 — 전역 단일 필터였을 때는 이미지 2장에 서로 다른 값을 주면
+//   둘 다 «마지막에 갱신된» 행렬로 그려졌다(url(#같은id) 를 공유하므로 구조적으로 필연).
+//   에셋은 한 번에 한 장만 편집해 잘 안 드러났지만, 카드는 격자로 여러 장이 동시에 보여 바로 깨진다.
+//   id 에 조정값을 인코딩해 «같은 값이면 공유·다른 값이면 별도» 가 되게 한다.
+function _svgDefs() {
+  let svg = document.getElementById(SVG_EL_ID);
+  if (!svg) {
+    svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = SVG_EL_ID;
+    svg.setAttribute('aria-hidden', 'true');
+    svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;';
+    svg.innerHTML = '<defs></defs>';
+    document.body.appendChild(svg);
+  }
+  return svg.querySelector('defs');
+}
+
+/** 조정값 → CSS id 로 쓸 수 있는 서명(음수 m, 소수점 p) */
+function _adjKey(adj) {
+  return ADJ_KEYS.map(k => (Number(adj[k]) || 0).toFixed(3))
+    .join('_').replace(/-/g, 'm').replace(/\./g, 'p');
+}
+
+// 슬라이더를 드래그하면 값마다 필터가 하나씩 생긴다 → 화면에서 참조되지 않는 것은 주기적으로 회수.
+function _pruneFilters(defs) {
+  if (defs.childElementCount <= 48) return;
+  const used = new Set();
+  document.querySelectorAll('[style*="' + FILTER_PREFIX + '"]').forEach(el => {
+    const m = /url\(#(img-color-adj-[A-Za-z0-9_]+)\)/.exec(el.style.filter || '');
+    if (m) used.add(m[1]);
+  });
+  [...defs.children].forEach(f => { if (!used.has(f.id)) f.remove(); });
 }
 
 /**
- * SVG 필터 행렬 업데이트 (피그마 Skia 파이프라인 근사)
+ * 조정값 전용 SVG 필터를 보장하고 그 id 를 돌려준다 (피그마 Skia 파이프라인 근사)
  * 순서: Exposure → Contrast → Temperature → Tint → Saturation → Highlights/Shadows
  */
-function _updateSVGFilter(adj) {
-  _ensureSVGFilter();
+function _ensureSVGFilter(adj) {
+  const id = FILTER_PREFIX + _adjKey(adj);
+  const defs = _svgDefs();
+  if (document.getElementById(id)) return id;   // 같은 값이면 재사용 — 카드 격자에서 필터 폭증 방지
+  _pruneFilters(defs);
+
   const { exposure=0, contrast=0, saturation=0,
           temperature=0, tint=0, highlights=0, shadows=0 } = adj;
 
@@ -69,24 +94,28 @@ function _updateSVGFilter(adj) {
   const gK = Math.max(0.01, 1 + tint * 0.5);     // G 채널 스케일 (tint: 마젠타↔그린)
 
   const lr=0.2126, lg=0.7152, lb=0.0722;
-  // saturation + temp/tint를 luma 기반 행렬에 퓨전
-  const rr = (lr + (1-lr)*s) * c * e * (1 + t);
-  const rg = (lr - lr*s)     * c * e;
-  const rb = (lr - lr*s)     * c * e;
-  const gr = (lg - lg*s)     * c * e;
-  const gg = (lg + (1-lg)*s) * c * e * gK;
-  const gb = (lg - lg*s)     * c * e;
-  const br = (lb - lb*s)     * c * e;
-  const bg = (lb - lb*s)     * c * e;
-  const bb = (lb + (1-lb)*s) * c * e * (1 - t);
+  // ★★행렬이 «전치»돼 있었다(2026-09-05 실측, origin/dev 부터 존재).
+  //   각 행이 (lr,lg,lb) 대신 «자기 행의 luma 계수 하나»를 세 칸에 다 써서, 채도 -100 을 주면
+  //   빨강(255,0,0)이 회색이 아니라 «초록(54,182,18)»이 됐다. 내보내기는 canvas saturate(0) 라
+  //   회색(54,54,54)으로 제대로 구워져서 «화면과 결과물이 서로 다른 색»이었다.
+  //   표준 채도 행렬은 행마다 (lr,lg,lb) 를 쓴다:
+  //     R' = (lr+(1-lr)s)R + (lg-lg·s)G   + (lb-lb·s)B
+  //     G' = (lr-lr·s)R    + (lg+(1-lg)s)G + (lb-lb·s)B
+  //     B' = (lr-lr·s)R    + (lg-lg·s)G   + (lb+(1-lb)s)B
+  // ★그리고 exposure/contrast/temp/tint 는 채도 «뒤»에 오는 대각행렬이므로 «행 전체»에 곱해야 한다
+  //   (예전엔 (1+t)/gK/(1-t) 가 대각 한 칸에만 붙어, 단색 입력이 아니면 색온도·색조도 틀렸다).
+  const kR = c * e * (1 + t);
+  const kG = c * e * gK;
+  const kB = c * e * (1 - t);
+  const rr = kR * (lr + (1-lr)*s), rg = kR * (lg - lg*s),     rb = kR * (lb - lb*s);
+  const gr = kG * (lr - lr*s),     gg = kG * (lg + (1-lg)*s), gb = kG * (lb - lb*s);
+  const br = kB * (lr - lr*s),     bg = kB * (lg - lg*s),     bb = kB * (lb + (1-lb)*s);
 
-  const m = document.getElementById('ca-matrix');
-  if (m) m.setAttribute('values',
-    `${_f(rr)} ${_f(rg)} ${_f(rb)} 0 ${_f(p)}
-     ${_f(gr)} ${_f(gg)} ${_f(gb)} 0 ${_f(p)}
-     ${_f(br)} ${_f(bg)} ${_f(bb)} 0 ${_f(p)}
-     0 0 0 1 0`
-  );
+  const matrix =
+    `${_f(rr)} ${_f(rg)} ${_f(rb)} 0 ${_f(p)} ` +
+    `${_f(gr)} ${_f(gg)} ${_f(gb)} 0 ${_f(p)} ` +
+    `${_f(br)} ${_f(bg)} ${_f(bb)} 0 ${_f(p)} ` +
+    `0 0 0 1 0`;
 
   // ── Highlights / Shadows: 17점 tone-curve LUT ──
   const lut = Array.from({ length: 17 }, (_, i) => {
@@ -96,12 +125,20 @@ function _updateSVGFilter(adj) {
     return Math.min(1, Math.max(0, v + hl + sh)).toFixed(4);
   }).join(' ');
 
-  ['ca-funcR', 'ca-funcG', 'ca-funcB'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.setAttribute('type', 'table');
-    el.setAttribute('tableValues', lut);
-  });
+  const f = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+  f.id = id;
+  f.setAttribute('color-interpolation-filters', 'sRGB');
+  f.setAttribute('x', '0'); f.setAttribute('y', '0');
+  f.setAttribute('width', '100%'); f.setAttribute('height', '100%');
+  f.innerHTML =
+    `<feColorMatrix type="matrix" values="${matrix}"/>` +
+    `<feComponentTransfer>` +
+      `<feFuncR type="table" tableValues="${lut}"/>` +
+      `<feFuncG type="table" tableValues="${lut}"/>` +
+      `<feFuncB type="table" tableValues="${lut}"/>` +
+    `</feComponentTransfer>`;
+  defs.appendChild(f);
+  return id;
 }
 
 function _f(n) { return n.toFixed(4); }
@@ -136,15 +173,28 @@ function _saveAdj(img, adj) {
   img.dataset.adjShadows     = adj.shadows.toFixed(3);
 }
 
-/** 이미지에 색상 조정 적용 (dataset 저장 + SVG filter) */
+/**
+ * 색보정 «대상» 하나에 조정 적용 (dataset 저장 + SVG filter)
+ * @param {HTMLElement} img - <img.asset-img> 또는 배경이미지 div(.cvb-card-img).
+ *   filter 는 배경이미지에도 그대로 걸리므로 두 경우 모두 같은 코드로 동작한다.
+ */
 function applyImgColorAdjust(img, adj) {
-  _saveAdj(img, adj);
+  if (!img) return;
   if (_isDefault(adj)) {
+    // 기본값이면 흔적을 «지운다» — 남겨두면 저장본에 무의미한 data-adj-* 7개가 박히고,
+    // 내보내기 bake 대상 목록에도 계속 걸린다.
+    ADJ_KEYS.forEach(k => { delete img.dataset['adj' + k[0].toUpperCase() + k.slice(1)]; });
     img.style.filter = '';
     return;
   }
-  _updateSVGFilter(adj);
-  img.style.filter = `url(#${FILTER_ID})`;
+  _saveAdj(img, adj);
+  img.style.filter = `url(#${_ensureSVGFilter(adj)})`;
+}
+
+/** 호스트(에셋블럭 / 카드 셀 / 카드 이미지 div)에서 색보정 «대상»을 찾는 술어 — 유일 정의 */
+function findAdjTarget(host) {
+  if (!host || !host.matches) return null;
+  return host.matches(ADJ_TARGET_SEL) ? host : host.querySelector(ADJ_TARGET_SEL);
 }
 
 // ─────────────────────────────────────────────
@@ -195,33 +245,58 @@ async function _toDrawableSrc(src) {
   } catch { return String(src); }
 }
 
-async function bakeImgFilterToCanvas(img) {
-  const adj = _readAdj(img);
+/** 배경이미지 div 의 url(...) 추출 — 카드 이미지는 <img> 가 아니라 background-image 다 */
+function _bgUrl(el) {
+  const m = /url\(\s*(['"]?)([^'")]+)\1\s*\)/.exec(el.style.backgroundImage || '');
+  return m ? m[2] : '';
+}
+
+const _BAKE_MAX_SIDE = 4000;   // 픽셀루프(하이라이트/그림자) 메모리 상한
+
+async function bakeImgFilterToCanvas(el) {
+  const adj = _readAdj(el);
   if (_isDefault(adj)) return; // 조정값 없으면 skip
 
-  const dw = img.offsetWidth  || img.naturalWidth  || 800;
-  const dh = img.offsetHeight || img.naturalHeight || 600;
-
-  const canvas = document.createElement('canvas');
-  canvas.width  = dw;
-  canvas.height = dh;
-  const ctx = canvas.getContext('2d');
+  const isImg = el.tagName === 'IMG';
+  const rawSrc = isImg ? el.src : _bgUrl(el);
+  if (!rawSrc) return;
 
   // 원본 이미지 로드 (이미 로드된 경우 즉시)
   // ★goya-asset:// 는 crossOrigin='anonymous' 로 «로드 자체가» 실패한다(실측 2026-09-03).
   //   그런데 아래 await 는 onerror 도 성공처럼 넘겨서, 깨진 이미지로 drawImage 를 부르고
   //   InvalidStateError 가 던져진다 → 색보정한 외부화 이미지가 든 섹션은 «PNG 내보내기가 통째로 죽는다».
   //   슬라이스와 같은 병(캔버스 오염)이라 같은 우회를 쓴다: assets:readAsDataUri IPC.
-  const drawableSrc = await _toDrawableSrc(img.src);
+  const drawableSrc = await _toDrawableSrc(rawSrc);
   const imgObj = new Image();
   if (!drawableSrc.startsWith('data:')) imgObj.crossOrigin = 'anonymous';
   imgObj.src = drawableSrc;
   const loaded = await new Promise(res => { imgObj.onload = () => res(true); imgObj.onerror = () => res(false); });
   // ★못 읽었으면 «아무것도 안 한다» — 빈 캔버스로 갈아치우면 원본이 사라진다(조용한 데이터 손실).
   if (!loaded || !imgObj.naturalWidth) {
-    console.warn('[color-adjust] 원본을 못 읽어 bake 생략 — 필터 없이 원본 유지:', String(img.src).slice(0, 80));
+    console.warn('[color-adjust] 원본을 못 읽어 bake 생략 — 필터 없이 원본 유지:', String(rawSrc).slice(0, 80));
     return;
   }
+
+  // ★굽는 «해상도»가 두 경우에 다르다.
+  //   <img> : 표시 크기 그대로(기존 동작 보존 — objectFit 을 캔버스가 대신 못 하므로).
+  //   배경div: «원본 해상도». 표시 크기로 구우면 background-size:cover 가 한 번 더 늘려
+  //           이중 리샘플되고, imgScale/imgX/imgY 가 어긋난다. 원본 크기로 구워야
+  //           background-size/position 을 그대로 두고 색만 바뀐다.
+  let dw, dh;
+  if (isImg) {
+    dw = el.offsetWidth  || imgObj.naturalWidth  || 800;
+    dh = el.offsetHeight || imgObj.naturalHeight || 600;
+  } else {
+    dw = imgObj.naturalWidth;
+    dh = imgObj.naturalHeight;
+    const over = Math.max(dw, dh) / _BAKE_MAX_SIDE;
+    if (over > 1) { dw = Math.round(dw / over); dh = Math.round(dh / over); }
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = dw;
+  canvas.height = dh;
+  const ctx = canvas.getContext('2d');
 
   // Canvas 2D ctx.filter 적용 (brightness/contrast/saturate/sepia/hue-rotate)
   const cssFilter = buildExportCSSFilter(adj);
@@ -247,12 +322,25 @@ async function bakeImgFilterToCanvas(img) {
     ctx.putImageData(imgData, 0, 0);
   }
 
-  // img를 canvas로 교체 (style 복사)
-  canvas.style.cssText   = img.style.cssText;
-  canvas.style.filter    = '';
-  canvas.style.objectFit = '';
-  canvas.style.display   = 'block';
-  img.parentNode?.replaceChild(canvas, img);
+  if (isImg) {
+    // img를 canvas로 교체 (style 복사)
+    canvas.style.cssText   = el.style.cssText;
+    canvas.style.filter    = '';
+    canvas.style.objectFit = '';
+    canvas.style.display   = 'block';
+    el.parentNode?.replaceChild(canvas, el);
+  } else {
+    // 배경이미지 div: «구운 그림으로 배경만 갈아끼운다».
+    // 엘리먼트를 교체하면 라운드/클립/텍스트 오버레이 같은 형제 스타일이 함께 날아간다.
+    let baked;
+    try { baked = canvas.toDataURL('image/png'); }
+    catch (err) {
+      console.warn('[color-adjust] canvas 오염으로 bake 생략 — 원본 유지:', err?.message);
+      return;
+    }
+    el.style.backgroundImage = `url("${baked}")`;
+    el.style.filter = '';
+  }
 }
 
 window.bakeImgFilterToCanvas = bakeImgFilterToCanvas;
@@ -262,6 +350,7 @@ window.bakeImgFilterToCanvas = bakeImgFilterToCanvas;
 // ─────────────────────────────────────────────
 
 let _currentAb = null;
+let _onChange  = null;   // 카드처럼 dataset 이 재렌더로 날아가는 대상의 «되쓰기» 훅
 
 function _buildPanelHTML(adj) {
   const rows = SLIDERS.map(({ key, label }) => {
@@ -308,6 +397,7 @@ function _bindSliders(img) {
       const adj = _readAdj(img);
       adj[key] = v / 100;
       applyImgColorAdjust(img, adj);
+      _onChange?.(adj);
       window.scheduleAutoSave?.();
     };
 
@@ -322,6 +412,7 @@ function _bindSliders(img) {
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
       applyImgColorAdjust(img, { ...DEFAULTS });
+      _onChange?.({ ...DEFAULTS });
       SLIDERS.forEach(({ key }) => {
         const sl = document.getElementById(`ca-${key}`);
         const nu = document.getElementById(`ca-${key}-num`);
@@ -393,14 +484,20 @@ function _initPanelDrag() {
   }
 }
 
-function showColorAdjustPanel(ab) {
+/**
+ * @param {HTMLElement} host - 에셋블럭(.asset-block) 또는 카드 이미지 div(.cvb-card-img)
+ * @param {{onChange?:(adj:object)=>void}} [opts] - 조정이 바뀔 때마다 호출.
+ *   카드는 DOM dataset 이 재렌더로 날아가므로 이 훅으로 block.dataset.cards 에 되쓴다.
+ */
+function showColorAdjustPanel(host, opts = {}) {
   const panel = document.getElementById('color-adjust-panel');
   const body  = document.getElementById('color-adjust-body');
   if (!panel || !body) return;
 
-  _currentAb = ab;
-  const img = ab.querySelector('.asset-img');
+  const img = findAdjTarget(host);
   if (!img) return;
+  _currentAb = host;
+  _onChange  = typeof opts.onChange === 'function' ? opts.onChange : null;
 
   // 편집 시작 전 스냅샷 저장 → Cmd+Z로 색상 조정 전체 취소 가능
   window.pushHistory?.('색상 조정');
@@ -423,8 +520,8 @@ function showColorAdjustPanel(ab) {
 
   panel.style.display = 'flex';
 
-  // 이미 적용된 필터가 있으면 SVG 필터 상태도 동기화
-  if (!_isDefault(adj)) _updateSVGFilter(adj);
+  // 이미 적용된 필터가 있으면 SVG 필터 노드가 살아있는지 보장
+  if (!_isDefault(adj)) _ensureSVGFilter(adj);
 
   _bindSliders(img);
 }
@@ -433,6 +530,7 @@ function hideColorAdjustPanel() {
   const panel = document.getElementById('color-adjust-panel');
   if (panel) panel.style.display = 'none';
   _currentAb = null;
+  _onChange  = null;
 }
 
 // DOM 준비 후 드래그 초기화
@@ -446,10 +544,11 @@ if (document.readyState === 'loading') {
 function restoreImgColorAdjust(img) {
   const adj = _readAdj(img);
   if (_isDefault(adj)) return;
-  _updateSVGFilter(adj);
-  img.style.filter = `url(#${FILTER_ID})`;
+  img.style.filter = `url(#${_ensureSVGFilter(adj)})`;
 }
 
+window.ADJ_DIRTY_SEL         = ADJ_DIRTY_SEL;   // ★저장복원·내보내기가 «같은 술어»를 쓴다
+window.findAdjTarget         = findAdjTarget;
 window.showColorAdjustPanel  = showColorAdjustPanel;
 window.hideColorAdjustPanel  = hideColorAdjustPanel;
 window.applyImgColorAdjust   = applyImgColorAdjust;

@@ -38,7 +38,7 @@ const layerIcons = {
   table:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1"/><line x1="1" y1="4.5" x2="11" y2="4.5"/><line x1="5" y1="4.5" x2="5" y2="11"/></svg>`,
   divider:    `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="11" y2="6"/></svg>`,
   bridge:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 4 H4.5 Q5.2 4 6 7 Q6.8 4 7.5 4 H11"/></svg>`,
-  duo:        `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="2" width="4.5" height="8" rx="1"/><rect x="6.5" y="2" width="4.5" height="8" rx="1"/></svg>`,
+  grid:       `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="2" width="4.5" height="8" rx="1"/><rect x="6.5" y="2" width="4.5" height="8" rx="1"/></svg>`,
   infocard:   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2" width="9" height="8" rx="1.5"/><path d="M3.5 7.5 H8.5 M3.5 5 H6.5"/></svg>`,
   innercard:  `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="1.5" width="9" height="9" rx="2"/><path d="M4 5 H8 M4 7 H6.5"/></svg>`,
   'label-group': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="6" rx="1"/><rect x="7" y="3" width="4" height="6" rx="1"/></svg>`,
@@ -167,13 +167,25 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   // (isText가 먼저 걸리면 dataset.type 누락된 레거시 버블이 'body'로 오렌더 = 다른 아웃라인과 불일치, #7)
   const isBubble     = block.classList.contains('speech-bubble-block');
   const isBridge     = block.classList.contains('bridge-block');
-  const isDuo        = block.classList.contains('duo-block');
+  const isGrid        = block.classList.contains('grid-block');
   const isInfoCard   = block.classList.contains('infocard-block');
   const isInnerCard  = block.classList.contains('innercard-block');
   const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
-  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isDuo ? 'duo' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isGradient ? 'gradient' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', duo:'Duo', infocard:'Info Card', innercard:'Inner Card', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', duo:'Component', infocard:'Component', innercard:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isGrid ? 'grid' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isGradient ? 'gradient' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', grid:'Grid', infocard:'Info Card', innercard:'Inner Card', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
+  /* ★[M55] grid 의 타입 라벨을 'Component' → 'Grid'. 현빈 2026-09-05:
+       「여기에 컴퍼넌트라고 영어로 되어있는데 그리드라고 되어야되지 않겠니?」
+     ★이 칸의 값어치는 «이름을 바꾼 뒤»에 나온다 — 레이어 이름은 「가격표」처럼 바꿀 수 있고,
+       그러면 «그게 그리드였다»를 알려주는 건 이 칸뿐이다. 'Component' 는 10종이 공유해서
+       그 순간 「열 종류 중 뭔지 모름」이 된다.
+     ★이 표는 «이미» 반쪽만 구체적이다(canvas→'Card', mockup→'Mockup', vector→'Vector' 는
+       자기 이름을 쓰고, table/bridge/infocard/innercard/graph/comparison/step/chat/laurel 은
+       'Component' 로 뭉뚱그린다). 그리드를 구체 쪽으로 옮기는 것이라 표가 더 어긋나지 않는다.
+     ⚠️나머지 9종도 같은 병이지만 «제보 지점»만 고친다 — 9종을 한꺼번에 바꾸는 것은
+       현빈이 볼 화면을 통째로 바꾸는 일이라 별도 항목으로 올린다.
+     ★안전 확인: 이 문자열을 «판정»에 쓰는 코드는 0건이다. 읽는 두 자리
+       (layer-panel.js:614·:749)는 aria-label 문구를 조립하는 데만 쓴다 — 기능이 안 깨진다. */
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', grid:'Grid', infocard:'Component', innercard:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -205,6 +217,11 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
       return;
     }
     window.deselectAll();
+    // fix(frame-p0#5): 캔버스 클릭 경로(block-drag.js)는 프레임 안 블록 선택 시
+    // 부모 free-layout 프레임 selected/`_activeFrame`을 복원하는데, 레이어패널 클릭은
+    // 이 복원이 없어 이후 캔버스에서 같은 블록을 클릭하면 "미선택 프레임 안"으로
+    // 오판돼 블록 대신 프레임이 선택돼버렸다 — 캔버스와 동일하게 복원한다.
+    window.restoreFrameSelectionFor?.(block);   // ★free-layout «만» 이 아니라 모든 프레임(적대검수 조건1)
     block.classList.add('selected');
     window.syncSection(sec);
     window.highlightBlock(block, item);
@@ -234,7 +251,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isMockup) window.showMockupProperties?.(block);
     else if (isDivider) window.showDividerProperties?.(block);
     else if (isBridge) window.showBridgeProperties?.(block);
-    else if (isDuo) window.showDuoProperties?.(block);
+    else if (isGrid) window.showGridProperties?.(block);
     else if (isInfoCard) window.showInfoCardProperties?.(block);
     else if (isInnerCard) window.showInnerCardProperties?.(block);
     else if (isLabelGroup) window.showLabelGroupProperties?.(block);
@@ -242,14 +259,23 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isChat) window.showChatProperties?.(block);
     else if (isLaurel) window.showLaurelProperties?.(block);
     else window.showAssetProperties(block);
+    // fix(frame-p0#5): 캔버스 클릭 경로 6곳(asset/icon-circle/canvas/vector/iconify/mockup)이
+    // 각자 부르던 코너·리사이즈 핸들 호출이 레이어패널 클릭엔 아예 없어 모서리 핸들 없는
+    // "다른 아웃라인"만 뜨는 원인이었다 — 타입→핸들 맵(showHandlesFor)으로 동일하게 맞춘다.
+    window.showHandlesFor?.(block);
   });
   block.addEventListener('mouseenter', () => item.style.background = 'var(--ui-bg-card)');
   block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
 
   item.setAttribute('draggable', 'true');
+  /* ★[H6] 레이어 드래그 억제도 토큰으로 — dragstart 는 오는데 dragend 가 «안 오는» 경우가 있다
+   *   (드래그 중 요소가 DOM 에서 빠지면). 예전엔 그때 억제가 true 로 남아 자동저장이 조용히 멎었다.
+   *   ⛔여기선 그 자체를 못 고친다(이벤트가 안 오는 건 이 파일 밖 일이다) —
+   *     대신 억제가 오래 켜져 있으면 감시견이 «알린다»(js/autosave-suppress.js). */
+  let _asTok = null;
   item.addEventListener('dragstart', e => {
     e.stopPropagation();
-    if (window.state) window.state._suppressAutoSave = true;
+    if (!_asTok) _asTok = window.AutoSaveSuppress.begin('layer-drag', { longLived: true });
     window.layerDragSrc = item;
     // 다중선택 드래그: 이 아이템이 active 상태이고 다른 active 아이템도 있으면 함께 이동
     if (item.classList.contains('active')) {
@@ -266,7 +292,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     requestAnimationFrame(() => item.classList.add('layer-dragging'));
   });
   item.addEventListener('dragend', () => {
-    if (window.state) window.state._suppressAutoSave = false;
+    if (_asTok) { window.AutoSaveSuppress.end(_asTok); _asTok = null; }
     item.classList.remove('layer-dragging');
     window.clearLayerIndicators();
     window.layerDragSrc = null;
@@ -373,10 +399,15 @@ function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
   header.addEventListener('click', e => {
     if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
     window.deselectAll();
+    // fix(frame-p0#5): makeLayerBlockItem과 동일 — 프레임 안 asset(오버레이 포함)도
+    // 부모 free-layout 프레임 selected/`_activeFrame`을 복원해야 캔버스 재클릭 시 안 튄다.
+    window.restoreFrameSelectionFor?.(block);   // ★free-layout «만» 이 아니라 모든 프레임(적대검수 조건1)
     block.classList.add('selected');
     window.syncSection(sec);
     window.highlightBlock(block, header);
     window.showAssetProperties(block);
+    // fix(frame-p0#5): 코너 핸들 없는 "다른 아웃라인"만 뜨던 문제 — asset 핸들 부착.
+    window.showHandlesFor?.(block);
   });
   block._layerItem = header;
 
@@ -655,7 +686,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
       } else if (child.classList.contains('row')) {
         appendRowFn(child, ssChildren, depth + 1);
       } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
-                'table-block','graph-block','divider-block','bridge-block','duo-block','infocard-block','innercard-block','label-group-block','shape-block','canvas-block','banner02-block','comparison-block','step-block','chat-block']
+                'table-block','graph-block','divider-block','bridge-block','grid-block','infocard-block','innercard-block','label-group-block','shape-block','canvas-block','banner02-block','comparison-block','step-block','chat-block']
                 .some(c => child.classList.contains(c))) {
         ssChildren.appendChild(makeLayerBlockItem(child, child, sec, depth + 1));
       }

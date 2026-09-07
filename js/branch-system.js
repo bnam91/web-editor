@@ -159,21 +159,25 @@ function switchBranch(name) {
   store.branches[store.current].snapshot = serializeProject();
   store.branches[store.current].updatedAt = Date.now();
   // 대상 브랜치 로드 — autoSave 억제를 파싱 전에 먼저 적용 (경쟁 조건 최소화)
-  window.state._suppressAutoSave = true;
-  store.current = name;
-  saveBranchStore(store);
-  let data;
+  /* ★[H6] 억제를 구조로 — 이 창의 «던지는» 자리는 applyProjectData 가 아니라
+   *   ★saveBranchStore 다(브랜치 스냅샷은 localStorage 로 간다 → QuotaExceededError).
+   *   터지면 예전엔 억제가 true 로 남아 자동저장이 조용히 멎었다.
+   *   아래 catch 의 return 도 이 finally 를 지나간다 — 그래서 catch 안의 해제는 지웠다. */
+  const _asTok = window.AutoSaveSuppress.begin('branch-switch');
   try {
-    const raw = store.branches[name].snapshot;
-    data = typeof raw === 'string' ? JSON.parse(raw) : raw;
-  } catch (e) {
-    console.error('[branch] 스냅샷 파싱 실패:', e);
-    window.showToast?.('❌ 브랜치 데이터 손상 — 전환 취소');
-    window.state._suppressAutoSave = false;
-    return;
-  }
-  applyProjectData(data);
-  window.state._suppressAutoSave = false;
+    store.current = name;
+    saveBranchStore(store);
+    let data;
+    try {
+      const raw = store.branches[name].snapshot;
+      data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch (e) {
+      console.error('[branch] 스냅샷 파싱 실패:', e);
+      window.showToast?.('❌ 브랜치 데이터 손상 — 전환 취소');
+      return;
+    }
+    applyProjectData(data);
+  } finally { window.AutoSaveSuppress.end(_asTok); }
   // 브랜치 전환 시 히스토리 스택 초기화 — applyProjectData 이후 호출해야 새 브랜치 상태가 초기 스냅샷으로 저장됨
   if (window.clearHistory) window.clearHistory();
   updateBranchIndicator(name);
@@ -295,9 +299,12 @@ function mergeBranch(fromName) {
     window.showToast?.('❌ 병합 결과 적용 실패');
     return;
   }
-  window.state._suppressAutoSave = true;
-  applyProjectData(mergedData);
-  window.state._suppressAutoSave = false;
+  /* ★[H6] 억제를 구조로 — applyProjectData 는 자기 창을 rAF 로 풀지만, 그건 «저쪽» 사정이다.
+   *   여기서 켠 창은 여기서 닫는다(그 의존을 남기면 저쪽이 바뀔 때 조용히 고착한다). */
+  const _asTok = window.AutoSaveSuppress.begin('branch-merge');
+  try {
+    applyProjectData(mergedData);
+  } finally { window.AutoSaveSuppress.end(_asTok); }
   // 병합 후 히스토리 초기화 — applyProjectData 이후 호출해야 병합된 상태가 초기 스냅샷으로 저장됨
   if (window.clearHistory) window.clearHistory();
   updateBranchIndicator(toName);

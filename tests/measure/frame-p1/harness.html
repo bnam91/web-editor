@@ -1,0 +1,30 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="/css/editor-base.css">
+<link rel="stylesheet" href="/css/editor-panels.css">
+<link rel="stylesheet" href="/css/editor-canvas.css">
+<link rel="stylesheet" href="/css/editor-layout.css">
+<link rel="stylesheet" href="/css/editor-props.css">
+<link rel="stylesheet" href="/css/editor-blocks.css">
+<link rel="stylesheet" href="/css/editor-extra.css">
+</head><body>
+<div id="panel-right"><div class="panel-body"></div></div>
+<div id="canvas" style="width:860px;">
+  <div class="section-block" id="sec_test" style="width:860px;">
+    <div class="section-inner" style="padding:40px 0;"></div>
+  </div>
+</div>
+<script>
+window.__err=[]; window.onerror=(m)=>{window.__err.push(String(m));};
+window.addEventListener('unhandledrejection',e=>window.__err.push('rej:'+String(e.reason)));
+window.pushHistory=()=>{}; window.buildLayerPanel=()=>{}; window.scheduleAutoSave=()=>{};
+window.selectBlock=()=>{}; window.getSelectedSection=()=>document.getElementById('sec_test');
+window.electronAPI = {};
+</script>
+<script type="module">
+try {
+  window.__bf = await import('/js/block-factory.js');
+  window.__pf = await import('/js/props/prop-frame.js');
+  window.__loaded = true;
+} catch(e) { window.__err.push('import:'+e.message); window.__loaded=false; }
+</script>
+</body></html>

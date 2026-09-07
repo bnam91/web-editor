@@ -2,7 +2,9 @@ import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
+import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제는 «켠 쪽»이 닫는다
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
+import { applyFrameTransform } from '../frame-geometry.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
 /* ══════════════════════════════════════
@@ -103,6 +105,26 @@ let _isSavingToFile = false;
 const _pendingSaves = new Map(); // targetId → { snapshot, opts }
 // DEF-03: 마지막 저장 완료 이후 변경이 있었는지 — 무편집 방문/언로드가 파일을 재기록(updatedAt 오염)하지 않도록 게이트
 let _dirtySinceSave = false;
+/* ★[H4] «마지막으로 끝난» 저장의 결과 — targetId → { at, result }.
+   큐잉된 호출(undefined 반환)은 자기 결과를 못 본다. 종료 경로가 「큐가 빠졌으니 저장됐겠지」로
+   때우면 «가짜 성공»이 된다 — 실측으로 그 일이 났다(2026-09-06 deny-write 실기: 저장이
+   EACCES 로 실패했는데 종료 로그가 「저장 확인됨(saved)」). ⇒ 추측하지 말고 «결과를 읽는다».
+   ⛔saveProjectToFile 의 반환 계약(큐잉=undefined)은 그대로 둔다 — 바꾸면 다른 호출측이
+     드레인이 끝날 때까지 매달린다(행 위험). 여기 «기록»만 남기고, 볼 사람이 보게 한다. */
+const _lastSaveResult = new Map();
+
+/* ★[W-3-b] 「이 저장은 «실패»로 끝났나」 — 이 파일의 «단 하나의» 판정.
+   ⛔`ok === false` 만 보면 «보호성 스킵»(빈 캔버스)까지 실패로 센다 ⇒ 새 프로젝트가 영원히
+     dirty 로 남아 탭 전환마다 헛저장하고 공지까지 막힌다. 스킵은 실패가 아니다.
+   ★이 규칙은 «내가 새로 정한 게» 아니다 — 자동저장 인디케이터가 이미
+     `r.ok === false && !r.skipped` 로 쓰고 있었다. 그걸 여기 한 곳으로 모아 «같은 값»을 쓰게 한다. */
+function _isSaveFailure(r) { return !!(r && r.ok === false && r.skipped !== true); }
+
+/** 그 프로젝트의 «마지막으로 끝난» 저장이 실패였나. dirty 와 «따로» 묻는다. */
+function _lastSaveFailed(projectId) {
+  const e = projectId ? _lastSaveResult.get(projectId) : null;
+  return _isSaveFailure(e && e.result);
+}
 
 async function saveProjectToFile(snapshot, opts = {}) {
   const _targetId = opts.projectId || activeProjectId;
@@ -116,8 +138,21 @@ async function saveProjectToFile(snapshot, opts = {}) {
   let _result;
   try {
     _result = await _doSaveProjectToFile(snapshot, opts);
-    _dirtySinceSave = false;
+    /* ★[W-3-b] «결과를 보고» 지운다 — 옛 코드는 무조건 지웠다.
+       _doSaveProjectToFile 은 EPERM 을 throw 가 아니라 { ok:false, reason:'exception' } «반환»한다
+       ⇒ 저장이 실패했는데 「미저장 없음」이 됐고, 그 뒤 beforeunload 가 조기 return 해서
+         projects:save-sync 가 «아예 안 불렸다» ⇒ W-3 가드가 입력을 못 받고 그냥 종료했다.
+         (윈도우 실기 회귀: 「⚠️ 저장 실패」를 «보고 나서» 닫으면 다이얼로그 0·마커 0·로그 0건.
+          편집 «직후»(디바운스 전) 닫기만 살아 있었다 — 사용자가 하는 순서는 앞쪽이다.)
+       ★★가드는 옳은 자리에 있었다. 없던 건 «방아쇠»다.
+       ★이 한 줄이 window.hasUnsavedChanges() 의 거짓말도 «같이» 고친다 —
+         탭 전환의 「변경 없으면 저장 생략」(js/tab-system.js:253)과 공지 억제(js/notice.js:65)가
+         같은 값을 본다. 셋이 한 뿌리였다.
+       ⚠️폭주 없음: 자동저장 재무장은 «편집»(scheduleAutoSave)만 한다 — dirty 는 재무장의
+         입력이 아니다. 실패해도 스스로 다시 쏘지 않는다(검사 W3B-6 이 이걸 잠근다). */
+    if (!_isSaveFailure(_result)) _dirtySinceSave = false;
   } finally {
+    if (_targetId) _lastSaveResult.set(_targetId, { at: Date.now(), result: _result });
     _isSavingToFile = false;
     // 대기 중인 프로젝트별 저장을 FIFO로 순차 드레인 (드롭 없음)
     if (_pendingSaves.size) {
@@ -285,39 +320,45 @@ function flushCurrentPage() {
 
 async function switchPage(pageId) {
   if (pageId === state.currentPageId) return;
-  state._suppressAutoSave = true; // DOM 조작 전 억제 시작 (MutationObserver 경쟁 조건 방지)
-  await window.switchScratchPage?.(pageId);
-  flushCurrentPage();
-  // D1: 떠나는 페이지(아직 currentPageId가 이전 페이지)의 라이브 히스토리 스택을 보관
-  window.stashHistoryFor?.(state.currentPageId);
-  // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
-  canvasEl.querySelectorAll('[data-pos-dragging], .pos-dragging').forEach(ab => {
-    if (ab._posDragCleanup) { ab._posDragCleanup(); ab._posDragCleanup = null; }
-    if (ab._exitPosDrag)    { document.removeEventListener('click', ab._exitPosDrag); ab._exitPosDrag = null; }
-    if (ab._exitPosDragEsc) { document.removeEventListener('keydown', ab._exitPosDragEsc); ab._exitPosDragEsc = null; }
-    ab._posDragging = false;
-    ab.classList.remove('pos-dragging', 'img-editing');
-  });
-  state.currentPageId = pageId;
-  const page = getCurrentPage();
-  if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
-  canvasEl.innerHTML = sanitizeCanvasHtml(page.canvas || '');
-  canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
-  canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
-  canvasEl.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
-  document.querySelectorAll('.sec-bg-ghost-wrap, .sec-bg-ghost').forEach(el => el.remove());
-  canvasEl.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy').forEach(el => el.remove());
-  // (마이그레이션은 rebindAll 내부에서 처리)
-  // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
-  const propPanel = document.querySelector('#panel-right .panel-body');
-  if (propPanel) propPanel.innerHTML = '';
-  rebindAll();
-  refreshLazyObservation(); // 새 페이지의 section-block을 lazy 관찰 등록 (innerHTML 교체 후)
-  applyPageSettings();
-  window.deselectAll();
-  window.showPageProperties();
-  window.buildLayerPanel(); // also calls buildFilePageSection
-  state._suppressAutoSave = false;
+  /* ★[H6] 억제는 «구조»로 연다 — 이 창엔 «던지는» 자리가 여럿이다:
+   *   await switchScratchPage(IndexedDB 거부) · rebindAll · buildLayerPanel · showPageProperties.
+   *   예전엔 그중 하나만 터져도 억제가 true 로 «남아» 이후 모든 편집이 디스크에 안 남았다.
+   *   오류도 표시도 없이 — 사용자는 그걸 앱 닫을 때 안다.
+   *   ⛔해제 «시점»은 예전 `= false` 와 같은 자리(finally)다 — 앞당기지도 미루지도 않는다. */
+  const _asTok = window.AutoSaveSuppress.begin('page-switch');
+  try {
+    await window.switchScratchPage?.(pageId);
+    flushCurrentPage();
+    // D1: 떠나는 페이지(아직 currentPageId가 이전 페이지)의 라이브 히스토리 스택을 보관
+    window.stashHistoryFor?.(state.currentPageId);
+    // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
+    canvasEl.querySelectorAll('[data-pos-dragging], .pos-dragging').forEach(ab => {
+      if (ab._posDragCleanup) { ab._posDragCleanup(); ab._posDragCleanup = null; }
+      if (ab._exitPosDrag)    { document.removeEventListener('click', ab._exitPosDrag); ab._exitPosDrag = null; }
+      if (ab._exitPosDragEsc) { document.removeEventListener('keydown', ab._exitPosDragEsc); ab._exitPosDragEsc = null; }
+      ab._posDragging = false;
+      ab.classList.remove('pos-dragging', 'img-editing');
+    });
+    state.currentPageId = pageId;
+    const page = getCurrentPage();
+    if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
+    canvasEl.innerHTML = sanitizeCanvasHtml(page.canvas || '');
+    canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+    canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
+    canvasEl.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
+    document.querySelectorAll('.sec-bg-ghost-wrap, .sec-bg-ghost').forEach(el => el.remove());
+    canvasEl.querySelectorAll(NON_CONTENT_UI_SELECTOR).forEach(el => el.remove());
+    // (마이그레이션은 rebindAll 내부에서 처리)
+    // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
+    const propPanel = document.querySelector('#panel-right .panel-body');
+    if (propPanel) propPanel.innerHTML = '';
+    rebindAll();
+    refreshLazyObservation(); // 새 페이지의 section-block을 lazy 관찰 등록 (innerHTML 교체 후)
+    applyPageSettings();
+    window.deselectAll();
+    window.showPageProperties();
+    window.buildLayerPanel(); // also calls buildFilePageSection
+  } finally { window.AutoSaveSuppress.end(_asTok); }
   // D1: 페이지별 히스토리 복원 — 같은 페이지 복귀 시 undo 기록 유지, 처음 방문 페이지는 초기 스냅샷.
   // adopt 헬퍼 미탑재 시(history.js 미패치) 기존 동작(빈 히스토리)로 graceful degrade.
   if (window.adoptHistoryFor) window.adoptHistoryFor(pageId);
@@ -351,16 +392,20 @@ function deletePage(pageId) {
   window.dropHistoryFor?.(pageId);
   if (wasActive) {
     const next = state.pages[Math.min(idx, state.pages.length - 1)];
-    state._suppressAutoSave = true;
-    state.currentPageId = next.id;
-    if (next.pageSettings) Object.assign(state.pageSettings, next.pageSettings);
-    canvasEl.innerHTML = sanitizeCanvasHtml(next.canvas || '');
-    canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
-    rebindAll();
-    applyPageSettings();
-    window.deselectAll();
-    window.showPageProperties();
-    state._suppressAutoSave = false;
+    /* ★[H6] 억제는 «구조»로 연다 — 아래 rebindAll·applyPageSettings·showPageProperties 중
+     *   하나만 던져도 예전엔 억제가 true 로 남아 자동저장이 조용히 멎었다(고착).
+     *   ⛔해제 «시점»은 예전 `= false` 와 같은 자리(finally)로 둔다 — 앞당기지 않는다. */
+    const _asTok = window.AutoSaveSuppress.begin('page-delete');
+    try {
+      state.currentPageId = next.id;
+      if (next.pageSettings) Object.assign(state.pageSettings, next.pageSettings);
+      canvasEl.innerHTML = sanitizeCanvasHtml(next.canvas || '');
+      canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+      rebindAll();
+      applyPageSettings();
+      window.deselectAll();
+      window.showPageProperties();
+    } finally { window.AutoSaveSuppress.end(_asTok); }
   }
   window.buildLayerPanel();
   scheduleAutoSave();
@@ -381,6 +426,31 @@ function getSerializedCanvas() {
   return clone.innerHTML;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   [P-A1″] «편집이 아닌 것»의 단일 목록
+
+   계약: **이 목록은 「저장에서 지워지는 것」 = 「편집이 아닌 것」이다.**
+     ⇒ `serializeProject()` 가 저장 «전»에 지우므로, 이것들의 생성·제거는 정의상 «콘텐츠 변화»가 아니다.
+     ⇒ 그러므로 `autoSaveObserver` 도 이것들 때문에 저장을 예약해선 안 된다.
+   ⛔여기에 무언가 추가할 때는 **`serializeProject` 가 실제로 그걸 지우는지 먼저 확인**하라.
+     지우지 않는 것을 넣으면 «진짜 편집»이 저장되지 않는다 — 데이터 손실이다.
+   ★두 곳이 «같은 상수»를 봐야 한다. 목록을 두 벌로 만들면 한쪽이 반드시 뒤처진다.
+
+   왜 생겼나(실측 2026-09-05, 진짜 입력): 에셋 블록을 클릭하면 `.ab-rotate-zone` 4개가
+   캔버스 «안»에 붙었다 떨어지고(childList ×12), 그게 `autoSaveObserver` 를 «편집»으로 깨웠다.
+   ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
+   ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
+export const NON_CONTENT_UI_SELECTOR =
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy';
+
+/** 이 mutation 이 «UI 장식»만 건드렸나 — 그렇다면 편집이 아니다. */
+function _isNonContentUiMutation(m) {
+  if (m.type !== 'childList') return false;
+  const nodes = [...m.addedNodes, ...m.removedNodes];
+  if (!nodes.length) return false;
+  return nodes.every(n => n.nodeType === 1 && n.matches?.(NON_CONTENT_UI_SELECTOR));
+}
+
 function serializeProject() {
   flushCurrentPage();
   return JSON.stringify({
@@ -395,6 +465,11 @@ function serializeProject() {
 }
 
 function applyProjectData(data) {
+  /* ★[H6] 여기는 «일부러» 직접 대입으로 둔다(허용목록 — tests/unit/autosave-suppress.test.js).
+   *   AutoSaveSuppress 로 바꾸면 이 창이 «부르는 쪽»(탭전환·브랜치전환·커밋복원)의 창에 중첩돼
+   *   해제가 한 프레임 밀린다. 그러면 복원 직후 MutationObserver 가 «억제 안에서» 발화해
+   *   복원 결과가 자동저장되지 않는다 — 고착이 아니라 «반대 방향» 회귀다.
+   *   ⛔바꾸려면 부르는 쪽 셋에 명시적 scheduleAutoSave() 를 같이 넣어야 한다(history.js:223 본보기). */
   // DBG-SEC-LOSS: innerHTML 적용으로 인한 MutationObserver → autoSave 트리거를 봉쇄
   // 적용 도중 사용자 reload/탭전환이 끼어들어 부분 상태가 파일에 저장되는 race 방지
   state._suppressAutoSave = true;
@@ -553,6 +628,9 @@ function applyPageSettings() {
 }
 
 function migrateColsFromDOM(canvasEl) {
+  // ★duo-block → grid-block 셸 승격 (2026-09-05 개명, 구버전 저장 호환) — id 는 안 바꾼다.
+  //   아래 sub-section-block → frame-block 과 «같은 층·같은 패턴»이다.
+  window.migrateGridIdentity?.(canvasEl);
   // sub-section-block → frame-block 리네임 (구버전 저장 호환)
   canvasEl.querySelectorAll('.sub-section-block').forEach(el => {
     el.classList.replace('sub-section-block', 'frame-block');
@@ -577,16 +655,6 @@ function migrateColsFromDOM(canvasEl) {
       row.appendChild(child);
     });
     col.remove();
-  });
-  canvasEl.querySelectorAll('.row[data-layout="grid"][data-card-grid], .row[data-layout="grid"]').forEach(row => {
-    const cols = [...row.querySelectorAll(':scope > .col')];
-    if (cols.length === 0) return;
-    return;
-    cols.forEach(col => {
-      [...col.childNodes].forEach(child => row.appendChild(child));
-      col.remove();
-    });
-    row.dataset.cardGrid = '1';
   });
   // Flex/Grid row: col → NewGrid 변환 (deprecated, 2026-06-08 봉인)
   // NewGrid Frame(ss_*) 블록은 사용자 정책상 안 씀 (UI 노출 0, 플로팅 패널 숨김).
@@ -682,8 +750,10 @@ function rebindAll(opts = {}) {
   if (!window._historyPaused && !opts.preserveHistory) window.clearHistory?.();
   // undo/redo 복원 후 색상 조정 SVG 필터 재적용
   // (data-adj-* 속성은 HTML에 포함되어 복원되지만 SVG 필터 매트릭스는 별도 DOM이므로 재동기화 필요)
-  if (window.restoreImgColorAdjust) {
-    canvasEl.querySelectorAll('.asset-img[data-adj-exposure], .asset-img[data-adj-contrast], .asset-img[data-adj-saturation], .asset-img[data-adj-temperature], .asset-img[data-adj-tint], .asset-img[data-adj-highlights], .asset-img[data-adj-shadows]')
+  // ★대상 술어는 image-color-adjust.js 의 ADJ_DIRTY_SEL 하나만 쓴다(에셋 img + 카드 배경이미지 div).
+  //   여기에 셀렉터를 복사해 두면 대상이 늘 때마다 «이 줄만 안 따라와» 조용히 복원이 빠진다.
+  if (window.restoreImgColorAdjust && window.ADJ_DIRTY_SEL) {
+    canvasEl.querySelectorAll(window.ADJ_DIRTY_SEL)
       .forEach(img => window.restoreImgColorAdjust(img));
   }
   // asset-overlay 오염 정리: contenteditable 제거 + 직접 텍스트 노드 제거
@@ -741,7 +811,7 @@ function rebindAll(opts = {}) {
         window.selectSectionWithModifier(sec, e);
         const row = e.target.closest('.row');
         // row 빈 여백 클릭은 row-active 제외 — 섹션 선택만 (fix(section-select), 판정=editor.js isRowMarginClick)
-        if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block')) {
+        if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block')) {
           document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
           row.classList.add('row-active');
           if (window.syncLayerRow) window.syncLayerRow(row);
@@ -957,7 +1027,7 @@ function rebindAll(opts = {}) {
     window.bindGradientSelect?.(block);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -977,7 +1047,7 @@ function rebindAll(opts = {}) {
         : b.classList.contains('laurel-block') ? 'lrb'
         : b.classList.contains('divider-block') ? 'dvd'
         : b.classList.contains('bridge-block') ? 'brg'
-        : b.classList.contains('duo-block') ? 'duo'
+        : b.classList.contains('grid-block') ? 'grd'   /* ★'grid' 아니다 — GRID_ID_PREFIXES=['grd_','duo_'] 와 같은 토큰이어야 한다(적대검수 C1) */
         : b.classList.contains('infocard-block') ? 'ifc'
         : b.classList.contains('innercard-block') ? 'icd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
@@ -985,8 +1055,8 @@ function rebindAll(opts = {}) {
     if (b.classList.contains('laurel-block')) window.renderLaurelBlock?.(b);
     // bridge: data-bridge-*로 path 재생성 + 항상 full-bleed 재적용 (로드 후 현재 섹션 패딩 반영)
     if (b.classList.contains('bridge-block')) { window.renderBridgeBlock?.(b); window.applyBridgeFullBleed?.(b); }
-    // duo/infocard: dataset 모델로 재렌더 (직렬 HTML은 스냅샷일 뿐 — 로드 시 dataset이 진실)
-    if (b.classList.contains('duo-block')) window.renderDuoBlock?.(b);
+    // grid/infocard: dataset 모델로 재렌더 (직렬 HTML은 스냅샷일 뿐 — 로드 시 dataset이 진실)
+    if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
     if (b.classList.contains('infocard-block')) window.renderInfoCardBlock?.(b);
     if (b.classList.contains('innercard-block')) window.renderInnerCardBlock?.(b);
     // chat-block: 저장본 innerHTML은 정적이라 dblclick 편집 핸들러가 없음 → 재렌더로 위임 바인딩
@@ -1067,14 +1137,10 @@ function rebindAll(opts = {}) {
     if (ss.dataset.justifyContent) ss.style.justifyContent = ss.dataset.justifyContent;
     if (ss.dataset.gap)            ss.style.gap            = ss.dataset.gap + 'px';
     // 위치 / 회전 / 반전 복원
-    const _tx = parseInt(ss.dataset.translateX) || 0;
-    const _ty = parseInt(ss.dataset.translateY) || 0;
-    const _rd = parseFloat(ss.dataset.rotateDeg) || 0;
-    const _fx = ss.dataset.flipH === '1' ? -1 : 1;
-    const _fy = ss.dataset.flipV === '1' ? -1 : 1;
-    if (_tx || _ty || _rd || _fx !== 1 || _fy !== 1) {
-      ss.style.transform = `translate(${_tx}px,${_ty}px) rotate(${_rd}deg) scale(${_fx},${_fy})`;
-    }
+    // SSOT = js/frame-geometry.js. identity:'skip'(기본) = «이 경로의 기존 규약»
+    // — 항등이면 아무것도 안 한다(저장본의 transform 잔재를 건드리면 스태킹 컨텍스트가 바뀐다).
+    // 회전 AABB 세로 마진 보정은 여기서 재계산된다(회전 0 프레임엔 no-op → outerHTML 무변경).
+    applyFrameTransform(ss);
   });
 
   // table-block 로드 후 dataset 복원 (showHeader, cellAlign, fontSize, cellPad, rowH, outerWidth)
@@ -1264,8 +1330,53 @@ function _setAutosaveIndicator(state) {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   [P-A2] 제스처 «중»엔 자동저장을 «미룬다» (취소가 아니다)
+
+   왜: 90MB 프로젝트의 `serializeProject()` 는 메인스레드를 **811ms** 멈추고, 이어서
+   파일 쓰기 IPC 응답 대기가 **401ms** 더 든다(실측, 진짜 입력). 디바운스 1500ms 뒤에
+   발화하므로 «클릭하고 1.5초 안에 팬하면» 그 정지가 팬 도중에 떨어진다 — 그게 「탁」이다.
+   ⇒ 미는 동안엔 안 터지게 하고, 손을 떼면 바로 다시 예약한다. (현빈 승인: 저장 표시가
+     미는 동안 안 뜨다가 놓으면 뜬다 — 그 «보이는 변화»까지 포함해 승인됨)
+
+   ⛔취소가 아니라 «연기»다. 유예 중에 들어온 예약 요청은 `_autoSavePending` 에 «기억»했다가
+   `resumeAutoSave()` 에서 다시 건다. 기존 `_suppressDragSave`(section-drag.js)는 그냥 «버린다» —
+   그건 그 창의 편집을 잃을 수 있다. 이쪽은 안 잃는다.
+
+   ⛔고착이 곧 데이터 손실이다. 이 레포는 이미 겪었다(`drag-drop.js:28` 「ESC 취소 시
+   _suppressAutoSave 고착 방지」). 그래서 재개 경로를 «셋» 둔다:
+     ⑴제스처 정상 종료(mouseup) ⑵창 포커스 상실(blur) ⑶안전망 타임아웃(최대 유예 시간)
+   ═══════════════════════════════════════════════════════════════════ */
+const _AUTOSAVE_DEFER_MAX_MS = 30000;   // 어떤 경우에도 이보다 오래 미루지 않는다
+let _autoSaveDeferred = false;
+let _autoSavePending = false;           // 유예 중에 «예약 요청»이 있었나
+let _autoSaveDeferGuard = null;
+
+function deferAutoSave() {
+  if (_autoSaveDeferred) return;
+  _autoSaveDeferred = true;
+  // 이미 걸려 있던 타이머는 «해제»하되, 예약이 있었다는 사실은 기억한다.
+  if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; _autoSavePending = true; }
+  clearTimeout(_autoSaveDeferGuard);
+  _autoSaveDeferGuard = setTimeout(() => resumeAutoSave(), _AUTOSAVE_DEFER_MAX_MS);
+}
+
+function resumeAutoSave() {
+  clearTimeout(_autoSaveDeferGuard); _autoSaveDeferGuard = null;
+  if (!_autoSaveDeferred) return;
+  _autoSaveDeferred = false;
+  if (_autoSavePending) { _autoSavePending = false; scheduleAutoSave(); }
+}
+window.deferAutoSave = deferAutoSave;
+window.resumeAutoSave = resumeAutoSave;
+window.__autoSaveDeferState = () => ({ deferred: _autoSaveDeferred, pending: _autoSavePending });
+// ⑵창 포커스를 잃으면(다른 앱으로 전환 등) 제스처가 끝난 것으로 본다 — 고착 방지.
+window.addEventListener('blur', () => resumeAutoSave());
+
 function scheduleAutoSave() {
   if (state._suppressAutoSave) return;
+  // [P-A2] 제스처 중이면 «미룬다» — 버리지 않고 기억해 뒀다가 놓을 때 다시 건다.
+  if (_autoSaveDeferred) { _dirtySinceSave = true; _autoSavePending = true; return; }
   // BUG-12: activeProjectId가 없으면 'web-editor-autosave__undefined' 키로 저장되는 버그 방지
   if (!activeProjectId) { console.warn('[save-load] scheduleAutoSave: activeProjectId 없음, 저장 건너뜀'); return; }
   _dirtySinceSave = true;
@@ -1301,7 +1412,9 @@ function scheduleAutoSave() {
     Promise.resolve(saveProjectToFile(snap, { skipThumbnail: true, projectId: _saveTargetId })) // 자동저장은 썸네일 캡처 생략
       .then(r => {
         // ★보호성 스킵(빈 캔버스)은 «실패»가 아니다 — 새 프로젝트에서 매번 빨강이 되면 신호가 죽는다.
-        _setAutosaveIndicator(r && r.ok === false && !r.skipped ? 'error' : 'saved');
+        //   ★[W-3-b] 판정은 _isSaveFailure 하나로 모았다 — dirty 를 지우는 자리와 «같은 값»이어야
+        //     한다. 두 벌이면 「빨강인데 미저장 없음」 같은 어긋남이 또 난다(그게 이번 병이었다).
+        _setAutosaveIndicator(_isSaveFailure(r) ? 'error' : 'saved');
         // ★협업 동기화 훅 — 저장이 «끝난 뒤»에만 알린다. 저장 전에 쏘면 내 디스크에도
         //   없는 것을 남에게 주게 된다. 실패했으면 안 쏜다(공유는 저장의 «다음» 단계다).
         //   이벤트로 가른 이유: save-load 가 협업을 몰라도 되게 — 협업이 없으면 아무도 안 듣는다.
@@ -1318,7 +1431,11 @@ window.addEventListener('beforeunload', () => {
   // BUG-12: activeProjectId 없으면 undefined 키 오염 방지
   if (!activeProjectId) return;
   // DEF-03: 마지막 저장 이후 변경이 없으면 재기록하지 않음 (무편집 새로고침/방문의 updatedAt·파일 오염 방지)
-  if (!_dirtySinceSave && !autoSaveTimer && !_isSavingToFile) return;
+  /* ★[W-3-b] 벨트 하나 더 — dirty 가 «다른 경로»에서 지워졌더라도, 마지막 저장이 실패로
+     끝난 걸 «아는» 상태면 종료 저장을 시도한다. 디스크가 나쁜 줄 «알면서» 그냥 나가지 않는다.
+     ⛔이건 위 ②의 대체재가 아니라 «보조»다. 근본은 ②(결과를 보고 dirty 를 지운다).
+     ⚠️권한이 복구됐다면 이 시도가 «성공»해서 데이터가 들어간다 — 손해 없는 재시도다. */
+  if (!_dirtySinceSave && !autoSaveTimer && !_isSavingToFile && !_lastSaveFailed(activeProjectId)) return;
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const snap = serializeProject();
@@ -1362,22 +1479,94 @@ window.addEventListener('beforeunload', () => {
   }
 });
 
+/* ── 종료 시 저장 결과의 «번역» (H4) ───────────────────────────────────────
+ * saveProjectToFile 의 반환을 «종료 통지»로 바꾼다.
+ * ★이 함수가 왜 따로 있나 — 여기가 H4 가 고친 «판단» 그 자체다. 유닛테스트가
+ *   이 원문을 그대로 잘라 돌린다(tests/unit/quit-save-guard.test.mjs).
+ * ★규칙: «명시적인 성공»만 성공이다.
+ *   · { ok:true }                  → 디스크에 들어갔다.
+ *   · { ok:false, skipped:true }   → «보호성 스킵»(빈 캔버스)이다. 실패가 아니다 →
+ *                                    골 C4 의 양성대조: 여기서 다이얼로그가 뜨면 안 된다.
+ *   · { ok:false, ... }            → 실패다. ★옛 코드는 이걸 «한 건도» 못 봤다
+ *                                    (saveProjectToFile 은 던지지 않고 반환한다).
+ *   · undefined                    → «큐잉됨 = 미확정». 종료 중엔 그 큐가 안 돈다 →
+ *                                    저장됐다고 말하면 안 된다.
+ * ────────────────────────────────────────────────────────────────────────── */
+function _quitSaveOutcome(result) {
+  if (result && result.ok === true) return { ok: true, reason: 'saved' };
+  if (result && result.ok === false && result.skipped === true) return { ok: true, reason: result.reason || 'skipped' };
+  if (result === undefined || result === null) return { ok: false, reason: 'unconfirmed' };
+  return { ok: false, reason: (result && result.reason) || 'save-failed', error: (result && result.error) || null };
+}
+
+function _quitSaveResolveQueued(isSaving, pendingHas, last, queuedAt) {
+  /* ★★«큐가 빠졌다» ≠ «저장에 성공했다».
+     실측(2026-09-06 deny-write 실기): 종료 시점에 다른 저장이 돌고 있어 우리 저장이 큐로 갔고,
+     큐가 빠지자 초판이 「저장됨」이라고 답했다 — 그런데 그 저장은 EACCES 로 «실패»했다.
+     ⇒ 큐가 빠졌으면 «그 저장의 결과»를 읽는다. 결과가 없거나(기록 없음) 우리가 큐에 넣기 «전»의
+       옛 기록이면 그건 성공의 증거가 아니다 → undefined(=미확정) 로 돌려 실패 쪽으로 센다. */
+  const drained = !isSaving && !pendingHas;
+  if (!drained) return undefined;
+  if (!last || !(last.at >= queuedAt)) return undefined;
+  return last.result;
+}
+
 // 앱 종료 전 강제 저장 (Electron before-quit IPC)
 if (IS_ELECTRON) {
   window.electronAPI.onForceSaveBeforeQuit(async () => {
-    if (!activeProjectId) { window.electronAPI.quitReady(); return; }
-    // debounce 타이머 즉시 취소
-    if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
-    const snap = serializeProject();
-    let snapData;
-    try { snapData = JSON.parse(snap); } catch { window.electronAPI.quitReady(); return; }
-    if (_isAllCanvasEmpty(snapData)) { window.electronAPI.quitReady(); return; }
+    /* ★어느 경로로 새도 «한 번은» 답한다 — 답을 안 하면 메인이 3초를 헛기다린다.
+       그리고 실패는 «실패라고» 답한다(옛 코드는 실패도 성공처럼 답했다). */
+    let answered = false;
+    const answer = (r) => {
+      if (answered) return; answered = true;
+      try { window.electronAPI.quitReady(r); } catch (_) {}
+    };
+    let snap = null;
     try {
-      await saveProjectToFile(snapData, { skipThumbnail: true });
+      if (!activeProjectId) { answer({ ok: true, reason: 'no-project' }); return; }
+      // debounce 타이머 즉시 취소
+      if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+      snap = serializeProject();
+      let snapData;
+      try { snapData = JSON.parse(snap); }
+      catch (e) {
+        // 우리가 만든 문자열을 우리가 못 읽는다 = 저장이 불가능하다. ★원문이라도 넘겨 사본을 남긴다.
+        answer({ ok: false, reason: 'corrupt_snapshot', error: (e && e.message) || null,
+                 projectId: activeProjectId, projectName: getProjectName(), snapshot: snap });
+        return;
+      }
+      if (_isAllCanvasEmpty(snapData)) { answer({ ok: true, reason: 'empty_canvas_skipped' }); return; }
+
+      let result;
+      try {
+        result = await saveProjectToFile(snapData, { skipThumbnail: true });
+      } catch (e) {
+        console.error('[save-load] force-save-before-quit 저장 실패:', e);
+        answer({ ok: false, reason: 'exception', error: (e && e.message) || String(e),
+                 projectId: activeProjectId, projectName: getProjectName(), snapshot: snap });
+        return;
+      }
+      /* undefined = «다른 저장이 도는 중이라 큐에 넣었다». 그 큐는 앞 저장이 끝나야 돌므로
+         상한을 두고 «짧게» 기다려 본다. 끝나면 정직하게 성공, 못 끝나면 정직하게 미확정.
+         ⛔무한 대기 금지 — 메인의 3초 상한을 넘기면 앱이 그냥 죽는다. */
+      if (result === undefined) {
+        const queuedAt = Date.now();
+        const until = queuedAt + 1000;
+        while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(activeProjectId))) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+        result = _quitSaveResolveQueued(_isSavingToFile, _pendingSaves.has(activeProjectId),
+                                        _lastSaveResult.get(activeProjectId), queuedAt);
+      }
+      const out = _quitSaveOutcome(result);
+      answer(out.ok ? { ok: true, reason: out.reason }
+                    : { ok: false, reason: out.reason, error: out.error || null,
+                        projectId: activeProjectId, projectName: getProjectName(), snapshot: snap });
     } catch (e) {
-      console.error('[save-load] force-save-before-quit 저장 실패:', e);
+      console.error('[save-load] force-save-before-quit 처리 실패:', e);
+      answer({ ok: false, reason: 'exception', error: (e && e.message) || String(e),
+               projectId: activeProjectId || null, snapshot: snap });
     }
-    window.electronAPI.quitReady();
   });
 }
 
@@ -1387,6 +1576,8 @@ if (IS_ELECTRON) {
 const autoSaveObserver = new MutationObserver(mutations => {
   const meaningful = mutations.some(m => {
     if (m.type === 'attributes' && m.attributeName === 'class') return false;
+    // [P-A1″] 저장에서 지워지는 «UI 장식»의 생성/제거는 편집이 아니다 — 같은 목록을 본다.
+    if (_isNonContentUiMutation(m)) return false;
     // lazy 렌더 패스(뷰포트 밖 배경 언로드/복원)가 «자기 mutation 만» 무시하게 한다.
     //   예전엔 lazy-sections 가 _suppressAutoSave 를 통째로 켜서, 그 창에 들어온 «진짜 편집»까지
     //   조용히 버려졌다(저장 예약조차 안 됨). lazy 가 만지는 건 style / data-lazy-bg / class 뿐이라
@@ -1750,7 +1941,10 @@ function initApp() {
     sectionDragSrc = null;
     // FIX-SD-02: drop 시점에 _suppressAutoSave=true (dragend 아직 미발화)
     // MutationObserver가 scheduleAutoSave를 억제하므로 drop 직후 명시적으로 저장 트리거
-    state._suppressAutoSave = false;
+    /* ★[H6] 예전엔 여기서 플래그에 «직접» false 를 썼다. 그런데 그 억제를 «켠» 것은
+     *   section-drag 의 _suppressDragSave 다 — 켠 쪽 모르게 끄면 그쪽 토큰이 열린 채 남고,
+     *   뒤늦게 오는 dragend 가 «남의» 억제 창을 닫는다. 켠 쪽에게 닫게 한다. */
+    _resumeDragSave();
     scheduleAutoSave();
   });
 }
@@ -1843,8 +2037,12 @@ window.hasUnsavedChanges = () => _dirtySinceSave || !!autoSaveTimer || _isSaving
 // 되돌리기는 «현재 작업을 의도적으로 버리는» 동작이라 flush 없이 봉인만 한다. async — 호출측이 await.
 // 봉인 직전 dirty 값 — 되돌리기 실패/reload 차단 시 «봉인 전 상태»로 정확히 복원(무편집이었으면 재저장 안 함).
 let _dirtyBeforeSeal = false;
+let _reloadSealTok = null;                               // [H6] 봉인 토큰 — resume 이 «내 것만» 닫는다
 window.cancelPendingAutoSaveForReload = async (targetId) => {
-  try { state._suppressAutoSave = true; } catch (_) {}
+  /* ★[H6] 봉인도 토큰으로 — 이 창은 «의도적으로» 함수 밖까지 열려 있다(되돌리기가 끝날 때까지).
+   *   그래서 try/finally 로 못 닫는다. 대신 ⑴ resume 이 «내 것만» 닫고
+   *   ⑵ 되돌리기가 도중에 죽어 resume 이 영영 안 오면 감시견이 «알린다». */
+  if (!_reloadSealTok) _reloadSealTok = window.AutoSaveSuppress.begin('reload-seal');
   clearTimeout(autoSaveTimer); autoSaveTimer = null;
   _dirtyBeforeSeal = _dirtySinceSave;                     // 봉인 직전 값 캡처(③ 부작용 방지)
   clearPendingForReload(_pendingSaves, targetId);         // ⓑ ★되돌리기 대상만 폐기(타 프로젝트 저장 보존, 구멍2)
@@ -1860,7 +2058,7 @@ window.cancelPendingAutoSaveForReload = async (targetId) => {
 //   재무장한다. 안 하면 beforeunload 가드(!_dirtySinceSave && !autoSaveTimer)가 조기 return → Cmd+R 시 소실.
 //   ★dirty는 «봉인 직전 값»으로만 복원한다(무조건 true면 무편집 방문도 updatedAt 오염+협업 발화 — ③ 부작용).
 window.resumeAutoSaveAfterAbortedReload = () => {
-  try { state._suppressAutoSave = false; } catch (_) {}
+  if (_reloadSealTok) { window.AutoSaveSuppress.end(_reloadSealTok); _reloadSealTok = null; }
   _dirtySinceSave = _dirtyBeforeSeal;
   if (_dirtyBeforeSeal) { try { scheduleAutoSave(); } catch (_) {} }  // 편집이 있었을 때만 재무장
   _dirtyBeforeSeal = false;

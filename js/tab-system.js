@@ -205,11 +205,14 @@ let _viewRestoreGen = 0;
 function _restoreViewState(tab) {
   const gen = ++_viewRestoreGen; // 새 복원 시작 = 이전 탭의 pending 재시도 전부 무효화
   if (!tab?._viewState) return;
-  const { zoom, panX, panY, scrollTop = 0, scrollLeft = 0 } = tab._viewState;
+  const { zoom, panX, panY, scrollTop = 0, scrollLeft = 0, panRoom = null } = tab._viewState;
   // applyZoom → _syncScalerHeight가 scaler 레이아웃 높이를 동기화(reflow)해
   // scrollHeight가 확보된 뒤 스크롤을 세팅할 수 있다 (editor.js C20 참조)
   if (window.applyZoom) window.applyZoom(zoom);
   if (window.setPanOffset) window.setPanOffset(panX, panY);
+  /* ★[FIX-⑴] 저장된 scrollTop/Left 는 «저장 시점의 팬 여백»을 전제로 한 절대 좌표다.
+     여지는 모듈 전역이라 다른 탭에서 줄어들 수 있다 ⇒ 좌표를 세우기 전에 그 전제부터 세운다. */
+  if (panRoom && window.setPanRoom) window.setPanRoom(panRoom);
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap) return;
   wrap.scrollTop = scrollTop;
@@ -224,6 +227,9 @@ function _restoreViewState(tab) {
       wrap.scrollTop = scrollTop;
       wrap.scrollLeft = scrollLeft;
       needRetry = Math.abs(wrap.scrollTop - scrollTop) > 1;
+      /* ★[M35] 재시도는 «150ms 뒤»에 scrollLeft 를 다시 세운다 — 그 순간 dx 가 또 바뀐다.
+         applyZoom/setPanOffset 이 건 갱신은 이미 지나갔으므로 여기서 한 번 더 건다. */
+      window.scheduleNotchUpdate?.();
     }
   };
   requestAnimationFrame(retry);
@@ -254,7 +260,9 @@ async function switchTab(id) {
     const curWrap = document.getElementById('canvas-wrap');
     curTab._viewState = {
       zoom: window.currentZoom || 40, panX: pan.x, panY: pan.y,
-      scrollTop: curWrap?.scrollTop || 0, scrollLeft: curWrap?.scrollLeft || 0
+      scrollTop: curWrap?.scrollTop || 0, scrollLeft: curWrap?.scrollLeft || 0,
+      // [FIX-⑴] 위 스크롤 좌표가 «전제한» 팬 여백 — 복원 때 좌표보다 «먼저» 되세운다
+      panRoom: window.getPanRoom?.() || null
     };
   }
 
@@ -280,60 +288,71 @@ async function switchTab(id) {
   }
   // 즉시 캔버스 클리어 (이전 탭 내용이 잠깐 보이지 않도록)
   // autoSaveObserver가 빈 캔버스를 파일에 덮어쓰지 않도록 억제
-  window.state._suppressAutoSave = true;
-  if (canvasEl) canvasEl.innerHTML = '';
-  // propPanel 클리어 — 이전 탭의 속성 패널 내용이 잔존하지 않도록
-  const propPanel = document.querySelector('#panel-right .panel-body');
-  if (propPanel) propPanel.innerHTML = '';
-  // 이전 프로젝트 스크래치 즉시 제거 + 백그라운드 저장 (탭 전환 잔상 방지). 완료 대기 불필요 —
-  // IndexedDB는 같은 store의 트랜잭션을 생성 순서대로 직렬화하므로 이후 switchScratch의 read와 race 없음
-  window.flushScratchForSwitch?.().catch(e => console.warn('[switchTab] scratch flush 실패:', e));
-  if (window.buildLayerPanel) window.buildLayerPanel();
-
-  renderTabBar();
-  saveTabState();
-
-  const targetTab = openTabs.find(t => t.id === id);
-
-  // 메모리 캐시 있으면 즉각 복원 (파일 I/O 없음)
-  if (targetTab?._cache) {
-    window.applyProjectData(JSON.parse(targetTab._cache));
-    window.state._suppressAutoSave = false;
-    window.initBranchStore();
-    _restoreViewState(targetTab);
-    requestAnimationFrame(() => { if (window.buildLayerPanel) window.buildLayerPanel(); });
-    // currentPageId 정해진 시점에 스크래치패드 전환 (await로 race 방지)
-    try { await window.switchScratch?.(id, window.state?.currentPageId); }
-    finally { _settle('tab-cache'); }
-    return;
-  }
-
-  // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
-  let proj = null;
-  if (window.IS_ELECTRON) {
-    proj = await window.electronAPI.loadProject(id, { open: true })
-      .catch(e => { _settleErr('tab-load-failed:' + ((e && e.message) || e)); throw e; });
-    if (targetTab && proj?.name) targetTab.name = proj.name;
-    renderTabBar();
-  } else {
-    proj = window.loadProjectsList().find(p => p.id === id) || null;
-    if (targetTab && proj?.name) targetTab.name = proj.name;
-  }
-  if (proj) {
-    const data = proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj;
-    if (targetTab) targetTab._cache = JSON.stringify(data);
-    window.applyProjectData(data);
-    _restoreViewState(targetTab);
-  } else {
-    // 프로젝트 없으면 캔버스 초기화
+  /* ★[H6] 억제를 «손으로» 켜고 끄지 않는다 — 이 함수는 아래에서 두 번 나가고(캐시 분기 return),
+   *   그 사이에 «던지는» 자리가 둘 있다: targetTab._cache 의 JSON.parse 와
+   *   loadProject(...).catch(e => { _settleErr(...); throw e; }) — ★후자는 «일부러» 던진다.
+   *   예전엔 그 둘 중 하나만 터져도 억제가 true 로 남아 자동저장이 조용히 멎었다(고착).
+   *   ⛔finally 는 «안전망»이다. 정상 경로의 해제 «시점»은 아래 두 자리 그대로 둔다 —
+   *     applyProjectData 가 rAF 로 푸는 자기 창과 겹치는 타이밍이라 앞당기면 안 된다. */
+  const _asTok = window.AutoSaveSuppress.begin('tab-switch');
+  try {
     if (canvasEl) canvasEl.innerHTML = '';
+    // propPanel 클리어 — 이전 탭의 속성 패널 내용이 잔존하지 않도록
+    const propPanel = document.querySelector('#panel-right .panel-body');
+    if (propPanel) propPanel.innerHTML = '';
+    // 이전 프로젝트 스크래치 즉시 제거 + 백그라운드 저장 (탭 전환 잔상 방지). 완료 대기 불필요 —
+    // IndexedDB는 같은 store의 트랜잭션을 생성 순서대로 직렬화하므로 이후 switchScratch의 read와 race 없음
+    window.flushScratchForSwitch?.().catch(e => console.warn('[switchTab] scratch flush 실패:', e));
     if (window.buildLayerPanel) window.buildLayerPanel();
+
+    renderTabBar();
+    saveTabState();
+
+    const targetTab = openTabs.find(t => t.id === id);
+
+    // 메모리 캐시 있으면 즉각 복원 (파일 I/O 없음)
+    if (targetTab?._cache) {
+      window.applyProjectData(JSON.parse(targetTab._cache));
+      window.AutoSaveSuppress.end(_asTok);   // 캐시 분기: 예전 `= false` 와 «같은 자리»
+      window.initBranchStore();
+      _restoreViewState(targetTab);
+      requestAnimationFrame(() => { if (window.buildLayerPanel) window.buildLayerPanel(); });
+      // currentPageId 정해진 시점에 스크래치패드 전환 (await로 race 방지)
+      try { await window.switchScratch?.(id, window.state?.currentPageId); }
+      finally { _settle('tab-cache'); }
+      return;
+    }
+
+    // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
+    let proj = null;
+    if (window.IS_ELECTRON) {
+      proj = await window.electronAPI.loadProject(id, { open: true })
+        .catch(e => { _settleErr('tab-load-failed:' + ((e && e.message) || e)); throw e; });
+      if (targetTab && proj?.name) targetTab.name = proj.name;
+      renderTabBar();
+    } else {
+      proj = window.loadProjectsList().find(p => p.id === id) || null;
+      if (targetTab && proj?.name) targetTab.name = proj.name;
+    }
+    if (proj) {
+      const data = proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj;
+      if (targetTab) targetTab._cache = JSON.stringify(data);
+      window.applyProjectData(data);
+      _restoreViewState(targetTab);
+    } else {
+      // 프로젝트 없으면 캔버스 초기화
+      if (canvasEl) canvasEl.innerHTML = '';
+      if (window.buildLayerPanel) window.buildLayerPanel();
+    }
+    window.AutoSaveSuppress.end(_asTok);     // 파일 분기: 예전 `= false` 와 «같은 자리»
+    window.initBranchStore();
+    // 파일 로드 분기에서도 스크래치 전환 (currentPageId는 applyProjectData가 set한 후)
+    try { await window.switchScratch?.(id, window.state?.currentPageId); }
+    finally { _settle(proj ? 'tab-file' : 'tab-missing'); }
+  } finally {
+    /* ★이미 위에서 정상 해제됐으면 여기선 «아무 일도 안 한다»(토큰이 한 번만 먹는다). */
+    window.AutoSaveSuppress.end(_asTok);
   }
-  window.state._suppressAutoSave = false;
-  window.initBranchStore();
-  // 파일 로드 분기에서도 스크래치 전환 (currentPageId는 applyProjectData가 set한 후)
-  try { await window.switchScratch?.(id, window.state?.currentPageId); }
-  finally { _settle(proj ? 'tab-file' : 'tab-missing'); }
 }
 
 async function closeTab(id) {
@@ -372,19 +391,21 @@ async function openTabForProject(id) {
    ★여기가 유일한 정본이다. 예전엔 「새 프로젝트」 경로마다 이 리터럴을 복사해 뒀는데,
      복사본이 갈리면 «어느 경로로 만들었느냐»에 따라 에디터가 다르게 군다
      (실제로 projects.html 복사본은 bg 가 다르다). 새 경로(초대 수락 = js/collab/accept.js)는
-     복사하지 말고 이 함수를 부른다. */
+     복사하지 말고 이 함수를 부른다.
+   ★[M58] 그 「bg 가 다르다」는 경고가 «사실이었다» — 실측 결과 네 벌 네 색이었다.
+     이제 bg 는 js/feature-flags.js 의 window.PAGE_BG_DEFAULT «하나»에서 온다. 리터럴 금지. */
 function buildEmptyProject(id, name) {
   const now = new Date().toISOString();
   const emptySnap = JSON.stringify({
     version: 2, currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }]
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }]
   });
   const proj = {
     id, name: name || 'Untitled',
     createdAt: now, updatedAt: now,
     version: 2,
     currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }],
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }],
     currentBranch: 'dev',
     branches: {
       main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },

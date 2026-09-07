@@ -1,0 +1,17 @@
+{
+  "v": 1,
+  "records": [
+    {
+      "at": "2026-09-06T13:00:38.430Z",
+      "reason": "exception",
+      "error": "Error invoking remote method 'projects:save': Error: EACCES: permission denied, mkdir '/Users/a1/srv-지디_qa-ud-h4-deny-9378/projects/proj_h4_1788699619109'",
+      "projectId": "proj_h4_1788699619109",
+      "projectName": "H7 fixture",
+      "appVersion": "0.9.1",
+      "emergencyPath": "/Users/a1/srv-지디_qa-ud-h4-deny-9378/emergency-saves/proj_h4_1788699619109-2026-09-06T13-00-38-430Z.json",
+      "emergencyBytes": 544,
+      "emergencyError": null,
+      "handled": false
+    }
+  ]
+}

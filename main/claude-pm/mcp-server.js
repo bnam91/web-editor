@@ -33,6 +33,26 @@ let _iconifyApi = null;
 // main.js가 setProjectOps({duplicate})로 주입 — 프로젝트 단위 관리(복제 등). main 프로세스 fs 로직.
 let _projectOps = null;
 
+/* ── MCP undo 추적 (2026-09-06) ────────────────────────────────────────────
+ * 「우리가 «마지막으로» 만든 히스토리 항목」의 seq. 편집 도구가 성공할 때마다 갱신.
+ * ⛔전역 undo 를 여는 게 아니다 — «우리 것일 때만» 되돌리기 위한 근거다. */
+let _lastMcpSeq = null;      // 우리 마지막 편집이 만든 «맨 위» 항목의 seq
+/* ★실측(2026-09-06): MCP 도구 «1회»가 히스토리 «1칸»이 아니다.
+     add_block/add_section = 1칸인데 build_basic_section = ★4칸.
+   ⇒ 한 칸만 되돌리면 «반쯤 지어진 섹션»이 남는다 — ok:true 인데 눈에는 그대로다.
+   ⇒ 그래서 «우리 호출이 만든 구간»(from, to] 을 기억하고 그 구간«만» 되돌린다.
+     ⛔「내 것이 나올 때까지 계속」이 아니다 — 우리 경계 밖으로는 «한 칸도» 안 간다. */
+let _lastMcpSeqFrom = null;
+/* 캔버스를 «안 바꾸는» 도구들 — 이걸 부른 뒤엔 seq 를 갱신하지 않는다.
+   ★export_sections 는 파일을 쓰지만 «캔버스»는 안 바꾼다 → 여기 들어간다. */
+const _NON_MUTATING = new Set([
+  'read_project', 'read_section', 'get_canvas_state', 'list_memories', 'list_scratch_items',
+  'read_scratch_item', 'list_checklist_items', 'get_section_memo', 'search_iconify',
+  'get_block_schema', 'list_projects', 'goditor_which_instance', 'export_sections',
+  'undo_last_mcp_change',
+]);
+
+
 const tools = new Map();
 const toolSchemas = new Map();
 /* «토큰 다이어트»(2026-08-25) — tools/list 에서만 감출 도구 이름.
@@ -264,6 +284,130 @@ function _assertExpectedProject(expectedProject) {
   }
 }
 
+/* ── ★프로젝트 «싱크» 게이트 — 대상이 확정되기 전엔 쓰기 도구가 돌지 않는다 (2026-09-07) ──
+ * 사고(현빈 실사용, 09-07): 「고디터」라고 말한 적도, 어느 프로젝트인지 정한 적도 없는데
+ *   add_section 이 그냥 «열려 있던 실사용 프로젝트»에 들어갔고 현빈이 화면에서 봤다.
+ *   ★원인은 클로드가 아니라 «프로토콜»이다 — 부작용 도구 24개가 «필수 인자 0개»이고
+ *   전부 활성 프로젝트에 쓴다(projectId 인자가 하나도 없다). 대상을 «고르는 행위» 자체가
+ *   인터페이스에 없으니, 안 골랐다는 사실이 도구 쪽에서 보이지 않는다.
+ *   duplicate_project{} 는 빈 호출 한 번에 최대 721MB 를 복제한다(실측 p90 276MB).
+ *   ⛔게다가 프로젝트를 «지우는» MCP 도구는 없다 — 클로드는 만들 수는 있어도 치울 수 없다.
+ *
+ * ★「확정」의 정의 = «대상을 지목하는 행위»가 있었다. 둘 중 하나면 통과:
+ *   ⑴ expectedProject 인자를 줬고 그게 «지금» 활성 프로젝트와 같다.
+ *   ⑵ 이 서버 생애에서 open_project 가 ok 로 끝났고, 그 프로젝트가 «아직도» 활성이다(sticky).
+ *   (+ duplicate_project 는 sourceProjectId 가 자기 대상을 직접 지목하므로 그것으로 갈음)
+ * ⛔★읽기는 «지목»이 아니다. get_canvas_state 를 먼저 부르는 건 클로드의 기본 습관이라,
+ *   읽기를 확정으로 세면 사고가 난 그 시나리오가 «그대로» 통과한다. 보는 것과 고르는 것은 다르다.
+ * ★sticky 를 쓰는 이유 = 매 호출 인자를 요구하면 왕복이 2배가 된다. 한 번 정하면 그 대화 동안
+ *   유지되는 게 사람이 쓰는 모양이다. 대신 ★«활성이 바뀌면 깨진다» — 사람이 앱에서 다른
+ *   프로젝트를 열면 다음 쓰기는 다시 거절된다(대조는 매 호출 _activeProjectId()).
+ * ⛔거절은 «조용히» 하지 않고 «조용히 성공»도 하지 않는다. 지금 열린 프로젝트 id·이름과
+ *   «다음 수»를 응답에 실어 보낸다 — 그래야 클로드가 스스로 open_project 로 회복한다.
+ * ⛔읽기 도구는 막지 않는다. 막으면 「지금 뭐가 열렸는지」조차 물어볼 수 없다.
+ */
+const _TARGET_FREE = new Set([
+  // ⑴ 읽기 — ⛔이 줄을 줄이지 마라. 막으면 클로드가 현황을 물어볼 통로가 사라진다.
+  'read_project', 'read_section', 'get_canvas_state', 'list_projects', 'list_memories',
+  'list_scratch_items', 'read_scratch_item', 'list_checklist_items', 'get_section_memo',
+  'search_iconify', 'get_block_schema', 'goditor_which_instance',
+  // ⑵ 대상을 «고르는» 도구 = 게이트의 출구
+  'open_project',
+  // ⑶ 새로 만드는 도구는 대상이 없는 게 «정상»이다(아직 아무것도 안 열었으니).
+  //    대신 응답에 「만들었지만 열지 않았다 = 활성은 그대로」를 박는다.
+  'create_project',
+]);
+/* 자기 대상을 «인자로» 직접 지목하는 도구 — 그 인자가 곧 확정이다.
+ * duplicate_project 는 활성 프로젝트가 아니라 sourceProjectId 를 복제한다. */
+const _SELF_TARGET_ARG = new Map([['duplicate_project', 'sourceProjectId']]);
+
+let _confirmedProject = null;   // ★sticky — open_project ok 또는 expectedProject 일치로만 선다
+
+/** 거절 문구에 «이름»을 실어 준다 — id 만으론 사람이 자기 프로젝트인지 못 알아본다. */
+function _projectName(pid) {
+  if (!pid) return null;
+  try {
+    if (_projectOps && typeof _projectOps.list === 'function') {
+      const r = _projectOps.list({});
+      const hit = ((r && r.items) || []).find(p => p && p.id === pid);
+      if (hit && hit.name) return String(hit.name);
+    }
+  } catch (_) {}
+  try { const p = _readProjectFile(pid); if (p && p.name) return String(p.name); } catch (_) {}
+  return null;  // ★이름을 못 읽은 것이지 프로젝트가 없는 게 아니다
+}
+
+/** null = 통과. 객체 = «실행하지 않고» 그대로 돌려줄 거절 응답(다음 수 포함). */
+function _projectGate(toolName, args) {
+  if (_TARGET_FREE.has(toolName)) return null;   // ⛔fail-closed: 목록에 없으면 전부 게이트 대상
+  const a = args || {};
+
+  // 자기 대상을 인자로 지목하는 도구는 그 인자로 갈음한다(빈 호출은 아래로 떨어져 거절된다).
+  const selfArg = _SELF_TARGET_ARG.get(toolName);
+  if (selfArg) {
+    const v = a[selfArg];
+    if (typeof v === 'string' && /^proj_\d+$/.test(v)) return null;
+  }
+
+  const active = _activeProjectId();
+  const expected = a.expectedProject;
+  const hasExpected = expected !== undefined && expected !== null && expected !== '';
+
+  if (hasExpected && (typeof expected !== 'string' || !/^proj_\d+$/.test(expected))) {
+    return {
+      ok: false, code: 'INVALID_EXPECTED_PROJECT', tool: toolName,
+      activeProject: active, activeProjectName: _projectName(active),
+      error: `expectedProject 형식이 틀렸습니다: ${JSON.stringify(expected)} (proj_<숫자> 여야 합니다) — ${toolName} 을(를) 실행하지 않았습니다.`,
+      hint: 'NOTHING was done. Project ids look like "proj_1756123456789". Call list_projects to get the exact id.',
+    };
+  }
+
+  if (!active) {
+    _confirmedProject = null;
+    return {
+      ok: false, code: 'NO_ACTIVE_PROJECT', tool: toolName,
+      activeProject: null, activeProjectName: null,
+      error: `대상 프로젝트가 정해지지 않았습니다 — 편집기에 열린 프로젝트가 없어서 ${toolName} 을(를) 실행하지 않았습니다.`,
+      hint: 'This tool writes into the ACTIVE Goditor project, but no project is open (gallery screen, or the editor window is closed), so NOTHING was written. '
+        + 'Next: call list_projects, show the user the candidates (id + name + updatedAt) and let THEM choose, then call open_project(projectId) and retry. '
+        + 'Do not guess which project the user means.',
+    };
+  }
+
+  if (hasExpected) {
+    if (expected !== active) {
+      _confirmedProject = null;
+      return {
+        ok: false, code: 'PROJECT_MISMATCH', tool: toolName,
+        activeProject: active, activeProjectName: _projectName(active),
+        expectedProject: expected,
+        error: `PROJECT_MISMATCH: 지금 열려 있는 프로젝트는 ${active}${_projectName(active) ? `(${_projectName(active)})` : ''} 인데 expectedProject=${expected} 라서 ${toolName} 을(를) 실행하지 않았습니다.`,
+        hint: `NOTHING was written. Either call open_project("${expected}") first (then retry), or — if you really meant the project that is open — use expectedProject:"${active}". Tell the user which one you are about to change.`,
+      };
+    }
+    _confirmedProject = active;   // ★명시 지목 = 확정. 이후 같은 대화의 호출은 인자 없이 통과한다.
+    return null;
+  }
+
+  if (_confirmedProject && _confirmedProject === active) return null;   // sticky 유효
+
+  const stale = (_confirmedProject && _confirmedProject !== active) ? _confirmedProject : null;
+  _confirmedProject = null;
+  const nm = _projectName(active);
+  return {
+    ok: false, code: 'PROJECT_NOT_CONFIRMED', tool: toolName,
+    activeProject: active, activeProjectName: nm,
+    ...(stale ? {
+      previouslyConfirmed: stale,
+      note: `앱에서 다른 프로젝트가 열렸습니다(${stale} → ${active}) — 이전 확정은 깨졌습니다.`,
+    } : {}),
+    error: `대상 프로젝트를 «정한 적이 없어» ${toolName} 을(를) 실행하지 않았습니다. 지금 열려 있는 것은 ${active}${nm ? `(${nm})` : ''} 입니다.`,
+    hint: `NOTHING was written — this tool would have edited the user's REAL project. The editor currently shows ${active}${nm ? ` ("${nm}")` : ''}, but this session never chose a target. `
+      + `Confirm with the user WHICH project to change, then call open_project("${active}") (or pass expectedProject:"${active}" on this call) and retry. `
+      + 'list_projects shows the other projects. Once confirmed, later calls in this conversation need no extra argument.',
+  };
+}
+
 /* ── 프로젝트 «전환 ↔ 편집» 상호배제 (2026-08-25, 병렬 호출 유실 봉합) ──────────
  * ★대기만으로는 못 막는다. MCP 서버/브리지는 요청을 «직렬화하지 않는다» —
  *   한 stdio 세션에 open_project 와 편집 도구를 «응답을 안 기다리고» 연달아 써 넣으면
@@ -387,7 +531,7 @@ function _slimCanvasState(raw, detail) {
         sectionId: s.sectionId,
         ...(s.name ? { name: s.name } : {}),
         blocks: (s.blocks || []).length,
-        ...((s.blocks || []).length ? { first: String((s.blocks[0] || {}).text || '').slice(0, 40) } : {})
+        ...((s.blocks || []).length ? { first: String((s.blocks[0] || {}).text || ('(' + ((s.blocks[0] || {}).type || 'block') + ')')).slice(0, 40) } : {})
       })),
       ...(rest > 0 ? { omittedSections: rest } : {}),
       note: 'summary only — call get_canvas_state(sectionId) for one section\'s blocks.'
@@ -407,6 +551,12 @@ function _slimCanvasState(raw, detail) {
         if (b.color) o.color = b.color;
         if (b.fontSize) o.fontSize = b.fontSize;
         if (b.align) o.align = b.align;
+        /* ★2026-09-06 — 이 «허용목록»이 렌더러가 새로 보내는 필드를 «조용히» 버렸다.
+           canvas-state 가 이미지·표·갭의 summary 를 실어 보내는데 여기서 사라져,
+           블록은 «보이는데» 지목에 필요한 정보만 없는 상태가 됐다(반쯤 고쳐진 모양).
+           ⇒ summary 는 이미 «경계된» 값이다(dataURL·셀 전문 없음). 그대로 싣는다.
+           ⛔필드를 늘릴 땐 이 목록도 같이 봐라 — 안 그러면 또 조용히 버려진다. */
+        if (b.summary && typeof b.summary === 'object' && Object.keys(b.summary).length) o.summary = b.summary;
         return o;
       })
     }))
@@ -473,6 +623,265 @@ function _registerDefaultTools() {
     }
   );
 
+  /* ── list_projects (2026-09-06) ────────────────────────────────────────────
+   * 왜: create/open/read/duplicate_project 가 전부 「projectId 를 이미 안다」를 전제한다.
+   *     셀러가 상품을 여럿 굴리는 게 정상이라, 목록이 없으면 「저번에 만든 그 템플릿」을
+   *     클로드가 «스스로» 못 찾고 매번 사람이 id 를 대줘야 한다.
+   * ★실측(2026-09-06, 실사용 ud 62개)이 설계를 세 군데 바꿨다:
+   *   ⑴ 썸네일이 base64 라 «싣는 순간» 응답이 315,581B → 빼면 11,320B (28배). 옵션도 안 둔다.
+   *   ⑵ 62개 중 21개가 같은 이름 "Untitled" 이고 중복 이름이 3종 더 있다
+   *      ⇒ ★이름은 «키가 아니다». query 가 여러 개에 맞는 게 «정상»이라, 하나로 좁혀진 척하면
+   *        클로드가 첫 번째를 열고 그게 틀린 프로젝트다. matched>1 은 «다른 모양»으로 답한다.
+   *   ⑶ type·marketRef 는 실사용 전부 null → 뺀다. collabRef 는 협업이 붙으면 의미가 생기니 남긴다.
+   * ★readdir 실패를 「0개」로 답하지 않는다 — _listProjectsImpl 이 dirError 를 같이 준다. */
+  registerTool(
+    'list_projects',
+    async ({ limit = 100, query } = {}) => {
+      if (!_projectOps || typeof _projectOps.list !== 'function')
+        throw new Error('project ops not initialized (setProjectOps not called — app version too old?)');
+      if (!Number.isInteger(limit) || limit < 1 || limit > 200)
+        throw new Error(`invalid limit: ${limit} (integer 1~200)`);
+      if (query !== undefined && query !== null) {
+        if (typeof query !== 'string') throw new Error('query must be a string');
+        if (query.length > 100) throw new Error(`query too long (${query.length} > 100)`);
+      }
+      const r = _projectOps.list({ withDiag: true });
+      const all = (r && r.items) || [];
+      // ★「폴더를 못 읽었다」를 「프로젝트가 0개」로 답하지 않는다.
+      if (r && r.dirError) throw new Error(`cannot read projects directory: ${r.dirError}`);
+
+      const q = (query || '').trim().toLowerCase();
+      const hits = q ? all.filter(p => String(p.name || '').toLowerCase().includes(q)) : all;
+      // ⛔thumbnail(base64)·type·marketRef 는 «싣지 않는다» — 위 주석 ⑴⑶ 참고.
+      const slim = hits.slice(0, limit).map(p => ({
+        id: p.id, name: p.name, createdAt: p.createdAt, updatedAt: p.updatedAt,
+        favorite: !!p.favorite, collabRef: p.collabRef || null,
+      }));
+      const out = {
+        ok: true,
+        total: all.length,                 // 전체 프로젝트 수(질의 무관)
+        matched: hits.length,              // query 에 맞은 수
+        returned: slim.length,
+        truncated: hits.length > slim.length,
+        activeProjectId: _activeProjectId(),   // ★null 은 「편집기가 안 열렸다」지 「프로젝트가 없다」가 아니다
+        projects: slim,
+      };
+      /* ★1개일 때와 N개일 때는 «모양이 달라야» 한다. 같은 모양이면 클로드가 첫 줄을 집는다. */
+      if (q) {
+        if (hits.length === 1) {
+          out.unique = slim[0];
+        } else if (hits.length > 1) {
+          out.ambiguous = true;
+          out.hint = `query "${query}" matched ${hits.length} projects — names are NOT unique in Goditor `
+            + '(duplicates and many "Untitled" are normal). DO NOT pick one yourself: show the user the '
+            + 'id + name + updatedAt of the candidates and let them choose, then pass that id to open_project.';
+        } else {
+          out.hint = `query "${query}" matched nothing. Call list_projects without query to see all ${all.length}.`;
+        }
+      }
+      return out;
+    },
+    {
+      description: 'List Goditor projects (newest first by updatedAt) so you can find one WITHOUT being told its id — '
+        + 'the id you then pass to open_project / duplicate_project / read_project. '
+        + 'Returns {total, matched, returned, truncated, activeProjectId, projects:[{id,name,createdAt,updatedAt,favorite,collabRef}]}. '
+        + 'Thumbnails are never returned (they are base64 and would blow up the response). '
+        + 'NOTE: project names are NOT unique — duplicates and many "Untitled" are normal, so when a query matches '
+        + 'several, ask the user which id rather than guessing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          limit: { type: 'integer', minimum: 1, maximum: 200, description: 'max projects to return (default 100).' },
+          query: { type: 'string', maxLength: 100, description: 'case-insensitive substring match on the project name. May match several — see the note above.' }
+        },
+        required: []
+      }
+    }
+  );
+
+  /* ── export_sections (2026-09-06) ─────────────────────────────────────────
+   * 현빈: 「특정 섹션(섹션아이디 함께), 전체 섹션 내보내기해줘 780px으로」
+   * 앱엔 «이미» 있다(발행 드롭다운 · 섹션/페이지 속성패널). 폭도 함수가 인자로 받는다.
+   * 여기서 여는 건 «입구»뿐이다.
+   * ★★계측 실측(2026-09-06)이 이 도구의 모양을 정했다:
+   *   ⑴ 충돌 시 will-download 가 `(1)` 을 붙이는데 그 «최종 경로»가 렌더러로 «안 돌아온다»
+   *      → main 쪽 setSavePath 자리에서 모아야 한다. 아니면 ok:true 인데 파일을 못 찾는다.
+   *   ⑵ ⛔**`path` 만 보면 «거짓 성공»이다** — 쓰기 불가 폴더로 내보내니
+   *      state='interrupted' 인데 path 는 채워지고 bytes 는 0 이었다(파일 없음).
+   *      ⇒ 성공 판정은 state==='completed' «하나»이고, 응답에 싣기 «전에»
+   *        존재·크기를 다시 확인한다. 확인 못 한 경로는 files 에 «안» 넣는다. */
+  registerTool(
+    'export_sections',
+    async ({ sectionId, format = 'png', width = 860, outDir, expectedProject, timeoutMs } = {}) => {
+      if (sectionId !== undefined && sectionId !== null) {
+        if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
+          throw new Error(`invalid sectionId: ${sectionId} (must start with "sec_")`);
+        }
+      }
+      if (!['png', 'jpg'].includes(format)) {
+        throw new Error(`invalid format: ${format} (png|jpg). ⛔gif 는 프레임 인코딩이라 수십 초가 걸려 이 도구에서 뺐다.`);
+      }
+      if (!Number.isInteger(width) || width < 320 || width > 2000) {
+        throw new Error(`invalid width: ${width} (integer 320~2000)`);
+      }
+      if (outDir !== undefined && outDir !== null) {
+        if (typeof outDir !== 'string' || !path.isAbsolute(outDir)) throw new Error('outDir must be an absolute path');
+        if (!fs.existsSync(outDir) || !fs.statSync(outDir).isDirectory()) throw new Error(`outDir not a directory: ${outDir}`);
+      }
+      if (timeoutMs !== undefined && timeoutMs !== null) {
+        if (!Number.isInteger(timeoutMs) || timeoutMs < 5000 || timeoutMs > 600000) {
+          throw new Error(`invalid timeoutMs: ${timeoutMs} (integer 5000~600000)`);
+        }
+      }
+      _assertExpectedProject(expectedProject);   // ★디스크에 파일을 쓰는 부작용 도구다
+      if (!_rendererInvoker?.exportSections || !_rendererInvoker?.exportCollect) {
+        throw new Error('renderer bridge not ready (app version too old?)');
+      }
+
+      const C = _rendererInvoker.exportCollect;
+      C.begin(outDir || null);
+      let r;
+      try {
+        r = await _rendererInvoker.exportSections({ sectionId, format, width });
+      } catch (e) { C.end(); throw e; }
+      if (!r || r.ok === false) { C.end(); return r || { ok: false, code: 'CALL_ERROR' }; }
+
+      // ★한 장당 «캡처+픽셀검사»라 3섹션에 10초 넘게 걸린다(실측). 넉넉히 기다린다.
+      const budget = timeoutMs || Math.max(20000, (r.requested || 1) * 15000);
+      const items = await C.settle(r.requested || 1, budget);
+      C.end();
+
+      const files = [], failed = [];
+      for (const it of items) {
+        // ⛔state 가 completed 여도 «파일이 실제로 있는지»를 다시 본다(계측이 아니라 사실 확인).
+        let stat = null;
+        if (it.state === 'completed' && it.path) { try { stat = fs.statSync(it.path); } catch (_) { stat = null; } }
+        if (stat && stat.size > 0) files.push({ name: it.filename, path: it.path, bytes: stat.size });
+        else failed.push({ name: it.filename, state: it.state, intendedPath: it.intendedPath,
+                           reason: it.state !== 'completed' ? `download ${it.state}` : 'file missing or empty' });
+      }
+      for (const nm of (r.failedNames || [])) failed.push({ name: nm, state: 'render_failed', reason: '섹션 렌더/캡처 실패' });
+
+      return {
+        ok: failed.length === 0,
+        format, width,
+        requested: r.requested || 0,
+        exported: files.length,
+        files, failed,
+        outDir: outDir || null,
+        hint: files.length
+          ? 'files[].path 는 «존재를 확인한» 경로다. outDir 을 안 주면 사용자의 다운로드 폴더에 떨어지고, 같은 이름이 있으면 "(1)"이 붙는다.'
+          : 'No file was verified on disk. Check failed[] — a completed download can still leave no file (e.g. unwritable folder).',
+      };
+    },
+    {
+      description: 'Export section(s) of the OPEN project to PNG/JPG image files on disk — the last step MCP was missing '
+        + '("fill the page" worked, "get the finished page out" did not). sectionId → that one section; omit → every section. '
+        + 'width is a real argument (e.g. 780), not fixed at the UI default 860. '
+        + 'Returns files[] with paths that were VERIFIED to exist on disk; anything else lands in failed[]. '
+        + 'Rendering + the pixel check take seconds PER section, so a full export of many sections takes minutes.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_<id> — export just this section. Omit to export all sections.' },
+          format:    { type: 'string', enum: ['png', 'jpg'], description: 'default png. (gif is intentionally not offered here — encoding takes tens of seconds.)' },
+          width:     { type: 'integer', minimum: 320, maximum: 2000, description: 'output width in px (default 860).' },
+          outDir:    { type: 'string', description: 'absolute directory to write into. Omit → the user download folder.' },
+          expectedProject: { type: 'string', description: 'proj_<digits>. Refuses if a different project is open.' },
+          timeoutMs: { type: 'integer', minimum: 5000, maximum: 600000, description: 'how long to wait for the files (default: 15s per section, min 20s).' }
+        },
+        required: []
+      }
+    }
+  );
+
+  /* ── undo_last_mcp_change (2026-09-06) ────────────────────────────────────
+   * ⛔이름을 `undo` 로 «안» 짓는다 — 「앱 undo 를 그대로 준다」로 읽히면 안 된다.
+   * ★undo 스택은 «사람 조작과 MCP 조작이 섞인 한 스택»이다(블록 26종 전부 여기 쌓인다).
+   *   그래서 앱 undo 를 그대로 열면 «사람이 방금 한 것»을 되돌린다 = 안전장치가 아니라 사고 도구.
+   * ★★소스를 읽어야만 보이는 함정: undo() 는 맨 위에서 시작하면 ensureHistoryCheckpoint 를
+   *   «스스로 먼저» 민다. 사용자가 방금 타이핑해 체크포인트가 안 된 상태면 그 타이핑이 새 항목으로
+   *   박히고 undo 가 «그걸» 되돌린다. seq 대조로는 못 막는다(그 시점엔 top 이 아직 우리 것).
+   *   ⇒ 그래서 undoOnce 가 «USER_BUSY»(레포 공통 술어)로 그 순간을 막는다.
+   * ⛔협업 스코프(_useScoped)는 «건드리지 않는다» — 비협업에서 켜면 협업 경로에 회귀가 난다. */
+  registerTool(
+    'undo_last_mcp_change',
+    async ({ expectedProject } = {}) => {
+      _assertExpectedProject(expectedProject);
+      if (!_rendererInvoker?.historyTip || !_rendererInvoker?.undoOnce) {
+        throw new Error('renderer bridge not ready (app version too old?)');
+      }
+      if (_lastMcpSeq == null) {
+        return { ok: false, code: 'NOTHING_TRACKED',
+          reason: 'This session has not made a tracked edit yet (or the project was switched since).',
+          hint: 'Only an edit made through MCP in this app session can be undone here.' };
+      }
+      const tip = await _rendererInvoker.historyTip();
+      if (!tip || tip.ok === false) return tip || { ok: false, code: 'CALL_ERROR' };
+      if (tip.empty || !tip.canUndo) {
+        return { ok: false, code: 'NOTHING_TO_UNDO', reason: 'History has no earlier state on this page.', historyLen: tip.len };
+      }
+      if (tip.seq !== _lastMcpSeq) {
+        // 우리 항목이 «아직 스택에 있는가»로 두 사실을 가른다.
+        let has = false;
+        try { const h = await _rendererInvoker.historyHasSeq(_lastMcpSeq); has = !!(h && h.has); } catch (_) {}
+        return has
+          ? { ok: false, code: 'NOT_OURS',
+              reason: 'The most recent change was NOT made by these tools — refusing to undo it.',
+              top: { action: tip.action || null },
+              hint: 'A person (or another tool) changed the canvas after our last edit. Ask the user to undo it themselves if that is what they want.' }
+          : { ok: false, code: 'EVICTED',
+              reason: `Our change is no longer in the undo history (it holds at most 50 steps).`,
+              top: { action: tip.action || null },
+              hint: 'Too many later changes pushed it out. It cannot be undone from here.' };
+      }
+      /* ★사용자 미커밋 편집 가드는 undoOnce 안의 USER_BUSY 로 옮겼다 —
+         「라이브==맨위」 비교는 pushHistory 가 «변경 전»을 찍어서 항상 어긋난다(실측). */
+      /* ★우리 «한 호출»이 만든 칸 수만큼만 되돌린다(실측: build_basic_section 은 4칸).
+         ⛔경계 밖으로는 한 칸도 안 간다 — from 에 닿으면 «즉시» 멈춘다. */
+      const target = (_lastMcpSeqFrom == null) ? 1 : Math.max(1, _lastMcpSeq - _lastMcpSeqFrom);
+      const undoneSeq = _lastMcpSeq, fromSeq = _lastMcpSeqFrom;
+      let steps = 0;
+      for (let i = 0; i < target; i++) {
+        const cur = await _rendererInvoker.historyTip();
+        if (!cur || cur.ok === false || cur.empty || !cur.canUndo) break;
+        if (fromSeq != null && cur.seq != null && cur.seq <= fromSeq) break;   // ★우리 경계
+        const one = await _rendererInvoker.undoOnce();
+        if (!one || one.ok === false) {
+          if (steps === 0) return one || { ok: false, code: 'CALL_ERROR' };
+          break;   // 중간에 막히면 «거기까지»를 정직하게 보고한다
+        }
+        steps++;
+      }
+      _lastMcpSeq = null; _lastMcpSeqFrom = null;   // ★«소모» — 연달아 부르면 2번째는 NOTHING_TRACKED
+      const after = await _rendererInvoker.historyTip();
+      return { ok: steps > 0, undoneSteps: steps, plannedSteps: target,
+        undone: { seq: undoneSeq, fromSeq, action: tip.action || null },
+        partial: steps < target,
+        historyPos: after && after.pos, historyLen: after && after.len,
+        hint: steps < target
+          ? 'Stopped early — only part of the last tool call was rolled back. The canvas may be in an in-between state; check it.'
+          : 'Rolled back exactly the steps of the LAST tool call these tools made (one call can be several history steps). It will not walk further back.' };
+    },
+    {
+      description: 'Undo the LAST edit these MCP tools made — only if it is still the most recent change on the canvas. '
+        + 'One tool call can be several history steps (build_basic_section is 4), so this rolls back exactly that call, never further. '
+        + 'It will NOT undo a change a person made and never walks past its own call: if the top of the '
+        + 'history is not ours, it refuses and tells you why (NOT_OURS / USER_BUSY / EVICTED / NOTHING_TO_UNDO). '
+        + 'Use it to take back an edit you just made by mistake.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          expectedProject: { type: 'string', description: 'proj_<digits>. Refuses if a different project is open.' }
+        },
+        required: []
+      }
+    }
+  );
+
+
+
+
   registerTool(
     'duplicate_project',
     async ({ sourceProjectId, newName } = {}) => {
@@ -490,7 +899,7 @@ function _registerDefaultTools() {
       inputSchema: {
         type: 'object',
         properties: {
-          sourceProjectId: { type: 'string', description: 'proj_<digits>. 생략하면 현재 활성 프로젝트.' },
+          sourceProjectId: { type: 'string', description: '★proj_<digits> — WHAT to copy. Omitting it means "the active project", which is refused unless the target was confirmed (open_project) — a blank call could copy hundreds of MB of the user\'s data.' },
           newName: { type: 'string', description: '새 프로젝트 이름(생략 시 "원본명 (사본)").' }
         },
         required: []
@@ -508,9 +917,16 @@ function _registerDefaultTools() {
       if (name !== undefined && name !== null && typeof name !== 'string') throw new Error('name must be a string');
       const r = await _projectOps.create({ name });
       if (!r || r.ok === false) throw new Error((r && r.error) || 'create failed');
+      /* ★create 는 대상이 «없는 게 정상»이라 게이트를 안 탄다(§3). 대신 「만들었지만 활성은 그대로」를
+         문장이 아니라 «값»으로 돌려준다 — 그래야 클로드가 열지 않고 편집하다 거절당하는 왕복을 안 돈다. */
+      const activeNow = _activeProjectId();
       return {
         ok: true, projectId: r.projectId, name: r.name,
-        hint: 'Project created but NOT opened — editing tools act on the active project. Call open_project to switch the editor to it.',
+        activeProject: activeNow,
+        opened: false,
+        hint: `Project created but NOT opened — the ACTIVE project is still ${activeNow || '(none — editor not open)'}, `
+          + `so editing tools would NOT touch the new one (and are refused until a target is confirmed). `
+          + `Call open_project("${r.projectId}") to make it the target.`,
       };
     },
     {
@@ -543,6 +959,7 @@ function _registerDefaultTools() {
         throw new Error('project ops not initialized (setProjectOps not called — app version too old?)');
       // ★전환 전체를 배타 구간에 넣는다 — 이 구간 동안 편집 도구는 디스패처에서 큐잉된다.
       //   (전환끼리도 직렬: 두 open 이 겹치면 서로의 문서를 덮는다.)
+      _lastMcpSeq = null; _lastMcpSeqFrom = null;   // ★스택은 «페이지별»이라 전환하면 우리 seq 는 무의미해진다
       const r = await _runExclusiveSwitch({ projectId }, () => _projectOps.open({ projectId, timeoutMs }));
       if (!r) throw new Error('open failed');
       // ★로드 대기 실패(load_timeout/load_error/navigated_away)는 «구조화된 실패»로 돌려준다 —
@@ -744,6 +1161,7 @@ function _registerDefaultTools() {
       inputSchema: {
         type: 'object',
         properties: {
+          expectedProject: { type: 'string', description: 'optional proj_<digits> — the project you INTEND to change. Mismatch with the open project ⇒ refused. Also confirms the target for the rest of this conversation.' },
           empty: { type: 'boolean', description: 'true = skip default h2 block (only gap blocks). default false' },
           bg: { type: 'string', description: 'optional section background hex color (e.g. #f5f5f5)' },
           beforeId: { type: 'string', description: 'optional sec_xxx — insert the new section BEFORE this one' },
@@ -778,12 +1196,27 @@ function _registerDefaultTools() {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
       if (typeof image !== 'string' || !image) throw new Error('image must be a non-empty dataURL string');
-      if (!/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(image)) {
+      /* ⚠️여기 문지기는 «검사기와 같은 관대함»이어야 한다. 앞 판은 이 줄만 대소문자 구분이라
+       *   `data:IMAGE/PNG;base64,<온전한 PNG>` 를 put_image 가 거절하고 update_block 은 통과시켰다
+       *   — «같은 입력이 문에 따라 갈리는» 오탐이다(적대검수 2026-09-07). 브라우저는 정상 렌더한다.
+       *   ⇒ /i + 파라미터(;charset=…) 허용으로 _assertImageSrcIntact 의 파서와 맞춘다. */
+      if (!/^data:image\/[a-zA-Z0-9.+-]+(?:;[^;,]*)*;base64,/i.test(image)) {
         throw new Error('image must be a data URL: data:image/<type>;base64,<...> (file paths are not accepted)');
       }
       if (image.length > _PUT_IMAGE_MAX) {
         throw new Error(`image too large (${image.length} > ${_PUT_IMAGE_MAX} chars ≈ 5MB). `
           + '줄여서 다시 주세요 — 우리가 임의로 축소하지 않습니다.');
+      }
+      // ★접두사·길이만 보던 자리 — 「온전한가」를 아무도 안 봐서 잘린 PNG 가 «성공»으로 저장됐다
+      //   (2026-09-07 실측: 4,849B 원본이 3,472B 로 잘려 들어옴). ⛔수선하지 않고 «거절»한다.
+      let imageCheck;
+      try {
+        imageCheck = _assertImageSrcIntact(image, 'image');
+      } catch (e) {
+        if (e && e.imageCheckError) {
+          return { ok: false, code: e.code, message: e.message, ...e.detail };
+        }
+        throw e;
       }
       const targets = ['canvas', 'scratch'];
       if (!targets.includes(target)) throw new Error(`invalid target: ${target}. allowed: ${targets.join('|')}`);
@@ -797,7 +1230,7 @@ function _registerDefaultTools() {
       const put = await _rendererInvoker.scratchAdd({ src: image, width });
       if (!put || put.ok !== true) return put || { ok: false, code: 'SCRATCH_FAILED' };
       if (target === 'scratch') {
-        return { ok: true, target: 'scratch', scratchId: put.scratchId, x: put.x, y: put.y };
+        return { ok: true, target: 'scratch', scratchId: put.scratchId, x: put.x, y: put.y, imageCheck };
       }
 
       // ⑵ 캔버스에는 «기존 도구»로 붙인다
@@ -813,7 +1246,7 @@ function _registerDefaultTools() {
       return { ok: true, target: 'canvas', scratchId: put.scratchId,
                sectionId: att.sectionId || sectionId || null,
                blockId: att.assetBlockId || att.blockId || null,
-               hasImage: att.hasImage === true };
+               hasImage: att.hasImage === true, imageCheck };
     },
     {
       description: 'Put an image into GODITOR. Default target=canvas: the image is stored in the scratch pad and immediately attached to a section as an asset block. target=scratch stores it in the scratch pad only (canvas untouched). ⚠️A project must be OPEN for either target — the scratch pad is scoped to project+page. Image must be a data URL (max ~5MB); oversized images are rejected, never silently downscaled.',
@@ -1328,6 +1761,42 @@ function _registerDefaultTools() {
     }
   );
 
+  // PM move_block — 블록(비-섹션) 순서 재배치. beforeId 또는 afterId 한 쪽만.
+  // move_section의 블록 단위 대응물. 이전엔 아예 없어서(INV-B3/B1 1순위 결손) 순서를
+  // 바꾸려면 delete_block 뒤 모든 필드를 다시 채워 재생성해야 했다.
+  registerTool(
+    'move_block',
+    async ({ blockId, beforeId, afterId } = {}) => {
+      if (!blockId || typeof blockId !== 'string') throw new Error('blockId required');
+      if (!beforeId && !afterId) throw new Error('beforeId or afterId required');
+      if (beforeId && afterId) throw new Error('beforeId and afterId are mutually exclusive');
+      if (beforeId && typeof beforeId !== 'string') throw new Error('invalid beforeId');
+      if (afterId  && typeof afterId  !== 'string')  throw new Error('invalid afterId');
+      if (blockId.startsWith('sec_')) throw new Error('blockId is a section — use move_section instead');
+      if ((beforeId || '').startsWith('sec_') || (afterId || '').startsWith('sec_')) {
+        throw new Error('beforeId/afterId must not be a section — use move_section instead');
+      }
+      if (!_rendererInvoker?.moveBlock) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.moveBlock({ blockId, beforeId, afterId });
+    },
+    {
+      description: 'Move a non-section block to a new position relative to another block (beforeId or afterId, mutually exclusive). '
+        + 'For sections use move_section. NOTE: if the block sits inside a row (side-by-side layout) or a text-frame wrapper, '
+        + 'the whole row/frame moves as one unit — same grouping the layer panel drag uses, to avoid splitting a row or tearing '
+        + 'a text block out of its frame. The response movedUnitId/refUnitId report the id(s) that actually moved, which may '
+        + 'differ from the blockId/beforeId/afterId you passed in.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId:  { type: 'string', description: 'block id to move (tb_/ab_/gb_/cvb_/ss_ etc, not sec_)' },
+          beforeId: { type: 'string', description: 'place BEFORE this block id' },
+          afterId:  { type: 'string', description: 'place AFTER this block id' }
+        },
+        required: ['blockId']
+      }
+    }
+  );
+
   // PM insert_gap_after_block — 특정 블록 뒤 정확한 위치에 갭 삽입 (add_gap_block 한계 보완).
   registerTool(
     'insert_gap_after_block',
@@ -1415,6 +1884,69 @@ function _registerDefaultTools() {
           id: { type: 'string', description: 'Scratch item id, e.g. "sp_br70mc"' },
           includeSrc: { type: 'boolean', description: 'If true, return full src content (may be large dataURL). Default: false (only first 200 chars as srcPreview).', default: false },
           truncateSrcTo: { type: 'number', description: 'When includeSrc=false, prefix length for srcPreview. Default: 200.', default: 200 }
+        },
+        required: ['id']
+      }
+    }
+  );
+
+  // PM delete_scratch_item — 스크래치패드 아이템 삭제 (INV-B3/B1 결손 #5)
+  // put_image/add_asset_block(scratchId)로 넣기만 되고 MCP가 스스로 치우지 못하던 결손.
+  // 스크래치는 프로젝트 캔버스 undo history 밖(IndexedDB 별도) — DESTRUCTIVE지만 ⌘Z 대상은 아님.
+  registerTool(
+    'delete_scratch_item',
+    async ({ id } = {}) => {
+      if (!id || typeof id !== 'string') throw new Error('id required (e.g. "sp_br70mc")');
+      if (!id.startsWith('sp_')) throw new Error(`invalid scratch id: ${id} (expected prefix "sp_")`);
+      if (!_rendererInvoker || typeof _rendererInvoker.deleteScratchItem !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      return await _rendererInvoker.deleteScratchItem({ id });
+    },
+    {
+      description: 'Delete a scratch pad item by id (e.g. "sp_br70mc") — DESTRUCTIVE, removes it from the scratch pad (and its IndexedDB storage) permanently. '
+        + 'Note: this does NOT touch any canvas block that was already attached from it (add_asset_block/update_asset_block copy the image data at attach time). '
+        + 'Not part of canvas undo history (scratch items live outside project serialization) — cannot be undone with ⌘Z. Use list_scratch_items to find ids.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Scratch item id, e.g. "sp_br70mc"' }
+        },
+        required: ['id']
+      }
+    }
+  );
+
+  // PM update_scratch_item — 스크래치패드 아이템 재배치(x/y) · 리사이즈(w) (INV-B3/B1 결손 #5)
+  // ★이미지 내용(src) 교체는 범위 밖 — add_asset_block/update_asset_block의 scratchId 경로가
+  //   "스크래치→캔버스"를 담당하고, 스크래치 자체의 src 교체는 이번 결손표에 없던 별도 기능이다.
+  registerTool(
+    'update_scratch_item',
+    async ({ id, x, y, w } = {}) => {
+      if (!id || typeof id !== 'string') throw new Error('id required (e.g. "sp_br70mc")');
+      if (!id.startsWith('sp_')) throw new Error(`invalid scratch id: ${id} (expected prefix "sp_")`);
+      if (x !== undefined && typeof x !== 'number') throw new Error('x must be number');
+      if (y !== undefined && typeof y !== 'number') throw new Error('y must be number');
+      if (w !== undefined && typeof w !== 'number') throw new Error('w must be number');
+      if (x === undefined && y === undefined && w === undefined) {
+        throw new Error('no fields to update — provide at least one of x/y/w');
+      }
+      if (!_rendererInvoker || typeof _rendererInvoker.updateScratchItem !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      return await _rendererInvoker.updateScratchItem({ id, x, y, w });
+    },
+    {
+      description: 'Reposition/resize a scratch pad item by id — partial update of x/y (canvas coords) and/or w (display width). '
+        + 'Does NOT change the image content (src) — only where/how big it sits on the scratch pad. Use list_scratch_items to find ids. '
+        + 'Not part of canvas undo history (scratch items live outside project serialization).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Scratch item id, e.g. "sp_br70mc"' },
+          x: { type: 'number', description: 'scratch pad x coord' },
+          y: { type: 'number', description: 'scratch pad y coord' },
+          w: { type: 'number', description: 'display width (px)' }
         },
         required: ['id']
       }
@@ -1512,6 +2044,58 @@ function _registerDefaultTools() {
     }
   );
 
+  // ─── list_checklist_items — 체크리스트 항목 전체(또는 필터) 조회 ────────────
+  // INV-B3/B1 결손 #2 — add/update만 있고 조회가 없어, 대화가 끊겨 id를 잊으면
+  // 만든 항목을 다시 찾을(그래서 update/delete할) 방법이 없었다.
+  registerTool(
+    'list_checklist_items',
+    async ({ includeDone = true, sectionId } = {}) => {
+      if (typeof includeDone !== 'boolean') throw new Error('includeDone must be boolean');
+      if (sectionId !== undefined && sectionId !== null) {
+        if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) throw new Error(`invalid sectionId: ${sectionId}`);
+      }
+      if (!_rendererInvoker?.listChecklistItems) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.listChecklistItems({ includeDone, sectionId });
+    },
+    {
+      description: 'List checklist items (todos/pins) in the active project. Returns {ok, items:[{id,text,done,urgent,x,y,sectionId,createdAt,updatedAt}], count}. '
+        + 'includeDone=false hides completed items. Pass sectionId to filter to items tagged with that section (note: add_checklist_item currently always stores sectionId:null — this filter is forward-compatible). '
+        + 'Use this before update_checklist_item/delete_checklist_item when you do not already have the ck_xxx id.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          includeDone: { type: 'boolean', description: 'include already-completed items. default true' },
+          sectionId: { type: 'string', description: 'optional sec_xxx filter' }
+        },
+        required: []
+      }
+    }
+  );
+
+  // ─── delete_checklist_item — 체크리스트 항목 삭제 ────────────────────────────
+  // INV-B3/B1 결손 #2 — UI(js/checklist-panel.js .ck-delete)엔 이미 있는 삭제가 MCP엔 없었다.
+  registerTool(
+    'delete_checklist_item',
+    async ({ id } = {}) => {
+      if (!id || typeof id !== 'string' || !id.startsWith('ck_')) {
+        throw new Error(`invalid id: ${id} (must start with "ck_")`);
+      }
+      if (!_rendererInvoker?.deleteChecklistItem) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.deleteChecklistItem({ id });
+    },
+    {
+      description: 'Delete a checklist item (ck_xxx) — DESTRUCTIVE, acts on the ACTIVE project. Returns {ok, itemId, item} (item = the removed item, for confirmation). '
+        + 'Get the id from list_checklist_items if you do not already have it. Returns USER_BUSY if the user is inline-editing that exact item.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'ck_xxx (checklist item id)' }
+        },
+        required: ['id']
+      }
+    }
+  );
+
   // ─── add_mockup_block — 디바이스 목업 블록 추가 ────────────────────────────
   // 화이트리스트 + 길이 검증은 server-side, atomic 호출은 main bridge에서.
   // imgSrc 검증: dataURL/http(s) 만 허용 (javascript:, file: 등 차단)
@@ -1534,6 +2118,8 @@ function _registerDefaultTools() {
     if (!ok) {
       throw new Error('imgSrc must be data:image/* (base64), http(s)://, or assets/...');
     }
+    // ★put_image 와 «같은 7MB 상한» 이라 노출이 같다 — 한쪽 문만 잠그지 않는다(지디 2026-09-07).
+    _assertImageSrcIntact(src, 'imgSrc');
   }
 
   registerTool(
@@ -2904,14 +3490,28 @@ function _registerDefaultTools() {
       if (typeof blockId !== 'string' || !blockId.startsWith('ab_')) {
         throw new Error(`invalid blockId: ${blockId}. must be a string starting with "ab_"`);
       }
-      const partial = _validateAssetOpts(rest, { mode: 'update' });
+      let partial;
+      const _rep = {};
+      try {
+        partial = _validateAssetOpts(rest, { mode: 'update', report: _rep });
+      } catch (e) {
+        // ★put_image 와 «같은 모양»으로 답한다 — 던지면 JSON-RPC 에러가 되어 code 를 잃고,
+        //   호출자(모델)가 「다시 통째로 보내면 된다」를 구조적으로 못 읽는다.
+        if (e && e.imageCheckError) {
+          return { ok: false, code: e.code, message: e.message, ...e.detail };
+        }
+        throw e;
+      }
       if (Object.keys(partial).length === 0) {
         throw new Error('no fields to update — provide at least one asset field');
       }
-      return await _rendererInvoker.updateAssetBlock({ blockId, partial });
+      const _res = await _rendererInvoker.updateAssetBlock({ blockId, partial });
+      // ★검사를 «어디까지» 했는지 응답에 싣는다(put_image 와 같은 모양).
+      return _rep.imageCheck && _res && typeof _res === 'object'
+        ? { ..._res, imageCheck: _rep.imageCheck } : _res;
     },
     {
-      description: 'Edit an EXISTING asset block (ab_xxx) — partial update of any field. width(100~860, 860+=full bleed), height(200~1600), borderRadius(0~120). align(left|center|right) syncs alignSelf. usePadx(true|false) auto-applies negative margins + width calc using section-inner padX. fit(cover|contain) syncs img.style.objectFit. bgColor accepts hex/rgb(a)/hsl(a)/transparent; "" resets. overlay(true|false) ensures .asset-overlay child. overlayOpacity(0~100) maps to rgba alpha. overlayPosition(flex-start|center|flex-end) sets justifyContent. preset=logo forces 200x64 and disables width opt; preset=none clears it. imgSrc accepts data:image/*|http(s)|assets/ ≤200000 chars; "" calls clearAssetImage(). baseHeight auto-syncs with height. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state.',
+      description: 'Edit an EXISTING asset block (ab_xxx) — partial update of any field. width(100~860, 860+=full bleed), height(200~1600), borderRadius(0~120). align(left|center|right) syncs alignSelf. usePadx(true|false) auto-applies negative margins + width calc using section-inner padX. fit(cover|contain) syncs img.style.objectFit. bgColor accepts hex/rgb(a)/hsl(a)/transparent; "" resets. overlay(true|false) ensures .asset-overlay child. overlayOpacity(0~100) maps to rgba alpha. overlayPosition(flex-start|center|flex-end) sets justifyContent. preset=logo forces 200x64 and disables width opt; preset=none clears it. imgSrc accepts data:image/*|http(s)|assets/ ≤200000 chars (≈150KB — too small for most real photos); "" calls clearAssetImage(). For larger images, put_image the replacement into the scratch pad first then pass scratchId (sp_xxx) instead — same large-payload path add_asset_block uses, up to ~5MB. imgSrc and scratchId are mutually exclusive. baseHeight auto-syncs with height. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -2927,7 +3527,8 @@ function _registerDefaultTools() {
           overlayOpacity: { type: 'integer', description: '0~100 → rgba(0,0,0,v/100) on .asset-overlay' },
           overlayPosition: { type: 'string', enum: ['flex-start', 'center', 'flex-end'], description: 'overlayEl.style.justifyContent' },
           preset: { type: 'string', enum: ['logo', 'none'], description: 'logo → 200x64 fixed + usePadx ignored. none → delete dataset.preset.' },
-          imgSrc: { type: 'string', description: 'data:image/* | http(s) | assets/ (≤200000). Empty string clears the image via clearAssetImage().' },
+          imgSrc: { type: 'string', description: 'data:image/* | http(s) | assets/ (≤200000, ≈150KB). Empty string clears the image via clearAssetImage(). Mutually exclusive with scratchId.' },
+          scratchId: { type: 'string', description: 'sp_xxx — replace the image from a scratch pad item (up to ~5MB, no IPC length cap — the renderer reads it directly from IndexedDB). Mutually exclusive with imgSrc. put_image the new photo into scratch first, then pass its id here.' },
           layerName: { type: 'string', description: 'layer panel display name (≤80 code points)' }
         },
         required: ['blockId']
@@ -3895,6 +4496,9 @@ function _validateBanner02Opts(args, { mode } = {}) {
     if (typeof args.imgSrc !== 'string') throw new Error('imgSrc must be string');
     if (args.imgSrc.length > 200000) throw new Error('imgSrc too long (>200000)');
     if (/["\r\n]/.test(args.imgSrc)) throw new Error('imgSrc contains quote/newline (escape unsafe)');
+    // ★put_image 와 «같은» 검사 함수를 부른다 — 겹을 새로 만들지 않는다(지디 2026-09-07).
+    //   상한(200000자)은 «양»을 막지 «구조»를 못 막는다. 잘린 PNG 는 크기와 무관하다.
+    _assertImageSrcIntact(args.imgSrc, 'imgSrc');
     out.imgSrc = args.imgSrc;
   }
   _int('imgX', -4000, 4000); _int('imgY', -4000, 4000);
@@ -5096,6 +5700,9 @@ function _validateStickerOpts(args, { mode } = {}) {
     if (args.imgSrc !== '' && !/^(data:image\/|https?:\/\/|assets\/)/.test(args.imgSrc)) {
       throw new Error('imgSrc must start with data:image/, http(s)://, or assets/ (or "" to clear)');
     }
+    // ★put_image 와 «같은» 검사 함수를 부른다 — 겹을 새로 만들지 않는다(지디 2026-09-07).
+    //   상한(200000자)은 «양»을 막지 «구조»를 못 막는다. 잘린 PNG 는 크기와 무관하다.
+    _assertImageSrcIntact(args.imgSrc, 'imgSrc');
     out.imgSrc = args.imgSrc;
   }
 
@@ -5273,10 +5880,364 @@ function _validateDividerOpts(args, { mode } = {}) {
   return out;
 }
 
+// ─── 이미지 무결성 검사 (2026-09-07) ──────────────────────────────────────────
+/* ★왜 있나 — 실측으로 생긴 함수다.
+ *   클로드 데스크톱에 사진을 첨부해 「넣어줘」 하면, 모델이 자기 샌드박스에서 파일을 읽어
+ *   base64 «문자열»로 만들어 도구 인자로 나른다. 그 과정에서 문자열이 «잘렸다».
+ *   실측: 원본 4,849B(sha 1df744f1…) → 모델 샌드박스 4,849B «동일» →
+ *        고디터 3,472B(sha a57afb24…). IHDR 이 선언한 IDAT 길이는 4,792B 였다.
+ *   그런데 검사가 ⑴접두사 정규식 ⑵길이 상한 «둘뿐»이라 그대로 통과해
+ *   깨진 파일이 «성공»으로 저장됐다. 「돌아가는데 결과가 손상된다」는 「효과 0」보다 나쁘다.
+ *
+ * ★원칙 넷:
+ *  ⑴ ⛔거절이지 «수선»이 아니다 — 잘린 «그림»을 복구하려 들지 않는다.
+ *     ⚠️단 «표기»의 정규화(공백/줄바꿈/패딩)는 수선이 아니라 «읽기»다. 아래 ★오탐 참조.
+ *  ⑵ ⛔검사 못 하는 포맷을 막지 않는다. 「검사 못 함」을 「실패」로 만들면 되던 게 안 된다.
+ *  ⑶ ★«어디까지 봤는지»를 응답에 적는다(checked). 통과가 「온전함이 증명됨」이 아닐 수 있다.
+ *  ⑷ ★숫자로 말한다 — 몇 바이트 받았고 몇을 기대했나.
+ *
+ * ★오탐이 «구멍보다» 나쁘다 (적대검수 2026-09-07 에서 3건 잡힘):
+ *   첫 판에서 ⓐ76열로 줄바꿈된 base64(파이썬 `base64.encodebytes` 기본값) ⓑ공백 섞인 base64
+ *   ⓒ패딩(=) 없는 «완전한» base64 — 셋 다 디코드하면 원본과 sha256 이 «같은데» 거절했다.
+ *   게다가 「잘려서 들어왔습니다, 원본을 다시 보내세요」라고 **원인을 거짓으로** 말했다.
+ *   ⇒ 표기 차이는 «정규화해서 읽는다». 거절은 «바이트가 실제로 모자랄 때»만.
+ *
+ * ★선언 mime 을 믿지 않는다:
+ *   `image/jpg`(흔한 오타) `image/x-png` `data:IMAGE/PNG` `;charset=` 같은 표기가
+ *   구조 검사를 통째로 우회시켰다(적대검수). ⇒ 형식은 «매직바이트로 판정»하고,
+ *   선언 mime 은 «대조용»으로만 쓴다.
+ *
+ * ⛔검사는 «한 곳»이다 — put_image / _validateAssetOpts / Banner02 / Sticker /
+ *   IconCircle / IconText / _validateMkpImgSrc 가 «이것만» 부른다.
+ */
+const _IMG_SNIFF = [
+  { fmt: 'png',  mime: 'image/png',  sig: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+  { fmt: 'jpeg', mime: 'image/jpeg', sig: [0xff, 0xd8, 0xff] },
+  { fmt: 'gif',  mime: 'image/gif',  sig: [0x47, 0x49, 0x46, 0x38, 0x37, 0x61] },
+  { fmt: 'gif',  mime: 'image/gif',  sig: [0x47, 0x49, 0x46, 0x38, 0x39, 0x61] },
+  { fmt: 'webp', mime: 'image/webp', sig: [0x52, 0x49, 0x46, 0x46] } // RIFF … WEBP
+];
+// 같은 그림을 가리키는 «다른 이름»들. 오타(jpg)까지 받아 준다 — 이름 때문에 검사를 건너뛰면 안 된다.
+const _MIME_ALIAS = {
+  'image/jpg': 'image/jpeg', 'image/pjpeg': 'image/jpeg',
+  'image/x-png': 'image/png', 'image/apng': 'image/png'
+};
+
+/* «잘림»인 사유들 — 이 목록에 있을 때만 IMAGE_TRUNCATED 다. */
+const _TRUNCATION_REASONS = new Set([
+  'PNG_CHUNK_TRUNCATED', 'PNG_NO_IEND', 'JPEG_NO_EOI', 'JPEG_NO_SOS',
+  'JPEG_SEGMENT_TRUNCATED', 'GIF_TRUNCATED', 'WEBP_TRUNCATED',
+  'EMPTY_PAYLOAD', 'DECODE_EMPTY'
+]);
+function _imgErr(message, detail) {
+  /* ★코드를 «사유에서» 도출한다.
+   *   앞 판은 사유와 무관하게 전부 `IMAGE_TRUNCATED` 를 박았다 — `BASE64URL_NOT_SUPPORTED`
+   *   도, `NOT_AN_IMAGE` 도, `PNG_CRC_MISMATCH` 도 「잘렸다」로 나갔다.
+   *   1판에서 잡힌 「원인을 거짓으로 말한다」가 «한 층 위로 옮겨갔을 뿐» 그대로였다
+   *   (적대검수 2026-09-07). 게다가 7곳 중 5곳은 던지는 경로라 detail.reason 이 안 보이고
+   *   그 «거짓 태그»만 남는다 — 모델이 읽는 게 정확히 거짓인 부분이다.
+   * ★코드 이름을 문장 안에도 넣는다 — 던져진 에러는 JSON-RPC 로 납작해지며 code 를 잃는다. */
+  const reason = (detail && detail.reason) || 'IMAGE_INVALID';
+  const code = _TRUNCATION_REASONS.has(reason) ? 'IMAGE_TRUNCATED' : 'IMAGE_INVALID';
+  const e = new Error(`[${code}:${reason}] ` + message);
+  e.code = code;
+  e.imageCheckError = true;   // ★디스패처가 «이것»으로 잡는다 — 코드 이름에 안 묶인다
+  e.detail = detail || {};
+  return e;
+}
+function _truncMsg(field, what, got, need, extra) {
+  return `${field}: 이미지가 «잘려서» 들어왔습니다 — 저장하지 않았습니다. ${what} `
+    + `받은 전체 ${got}바이트 / 최소 ${need}바이트가 필요합니다.${extra ? ' ' + extra : ''} `
+    + `⛔우리가 복구하지 않습니다 — 원본을 «다시» 통째로 보내 주세요.`;
+}
+
+const _CRC_TABLE = (() => {
+  const t = new Int32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c;
+  }
+  return t;
+})();
+function _crc32(buf, from, to) {
+  let crc = -1;
+  for (let i = from; i < to; i++) crc = _CRC_TABLE[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
+  return (crc ^ -1) >>> 0;
+}
+
+/* PNG: 청크를 걸어가며 «선언 길이 ↔ 실제 잔여»와 «CRC»를 본다.
+   CRC 까지 보는 이유 — 길이 필드를 작게 위조하면 길이 대조만으로는 통과한다(적대검수에서 뚫림).
+   5MB 기준 CRC32 는 수십 ms 다(§성능). 그 값으로 「잘렸는데 통과」를 없앤다. */
+function _checkPng(buf, field) {
+  let pos = 8, sawIHDR = false, sawIEND = false;
+  while (pos + 8 <= buf.length) {
+    const declared = buf.readUInt32BE(pos);
+    const type = buf.toString('latin1', pos + 4, pos + 8);
+    if (pos === 8 && type !== 'IHDR') {
+      throw _imgErr(`${field}: PNG 의 첫 청크가 IHDR 이 아닙니다 (got "${type}") — 손상된 파일입니다.`,
+        { reason: 'PNG_NO_IHDR', firstChunk: type, decodedBytes: buf.length });
+    }
+    if (type === 'IHDR') sawIHDR = true;
+    const need = pos + 12 + declared;
+    if (need > buf.length) {
+      throw _imgErr(_truncMsg(field,
+        `PNG 청크 "${type}"(offset ${pos})가 ${declared}바이트를 선언했는데 남은 것은 ${buf.length - (pos + 8)}바이트뿐입니다.`,
+        buf.length, need),
+        { reason: 'PNG_CHUNK_TRUNCATED', chunk: type, offset: pos,
+          declaredChunkBytes: declared, availableBytes: buf.length - (pos + 8),
+          decodedBytes: buf.length, expectedAtLeastBytes: need });
+    }
+    const want = buf.readUInt32BE(need - 4);
+    const got = _crc32(buf, pos + 4, need - 4);
+    if (want !== got) {
+      throw _imgErr(
+        `${field}: PNG 청크 "${type}"(offset ${pos})의 CRC 가 맞지 않습니다 — 내용이 손상됐습니다 `
+        + `(선언 ${want.toString(16)} / 실제 ${got.toString(16)}, 받은 전체 ${buf.length}바이트). `
+        + `⛔우리가 복구하지 않습니다 — 원본을 «다시» 통째로 보내 주세요.`,
+        { reason: 'PNG_CRC_MISMATCH', chunk: type, offset: pos,
+          declaredCrc: want, actualCrc: got, decodedBytes: buf.length });
+    }
+    pos = need;
+    if (type === 'IEND') { sawIEND = true; break; }
+  }
+  if (!sawIHDR) {
+    throw _imgErr(`${field}: PNG 에 IHDR 이 없습니다 — 손상된 파일입니다 (받은 ${buf.length}바이트).`,
+      { reason: 'PNG_NO_IHDR', decodedBytes: buf.length });
+  }
+  if (!sawIEND) {
+    throw _imgErr(_truncMsg(field, `PNG 가 IEND 로 끝나지 않습니다 (${pos}바이트에서 끊김).`, buf.length, pos + 12),
+      { reason: 'PNG_NO_IEND', decodedBytes: buf.length, stoppedAt: pos });
+  }
+  return { trailingBytes: buf.length - pos };
+}
+/* ★네 포맷 «한 정책»: 포맷마다 «구조적 끝 오프셋»을 구하고, 그 뒤는 trailingBytes 로 보고만 한다.
+   ⛔앞 판은 정책이 셋이었다 — PNG·WebP 는 뒤 잔여를 보고 후 통과, GIF 은 «마지막 바이트» 엄격
+     비교(→ 온전한 GIF 뒤 1바이트에도 오탐), JPEG 은 lastIndexOf(→ 잘린 카메라 사진이 뚫림).
+     **구멍과 오탐이 «같은 원인(정책 불일치)»에서 동시에 나왔다**(적대검수 2026-09-07). */
+function _checkJpeg(buf, field) {
+  /* ★EOI 를 «SOS 이후»에서만 찾는다.
+   * 폰 사진은 사실상 전부 APP1(Exif) 안에 «썸네일 JPEG»을 품고 그 썸네일도 자기 EOI 를 갖는다.
+   * 앞 판의 lastIndexOf(ff d9) 는 본체가 스캔 도중 잘려도 «썸네일의 EOI»를 찾아 통과시켰다
+   * (실측: 11,144B 카메라 JPEG 을 60% 에서 자른 6,686B 가 ok:true, trailingBytes 6,359).
+   * 내가 오탐(EOI 뒤 trailer 실존)을 피하려 넣은 완화가 «정확히 그 방어축»을 무력화했고,
+   * ★이 판이 막으려는 사고(클로드앱 첨부 절단)의 «가장 흔한» 형태가 바로 폰 사진이다.
+   * ⇒ 세그먼트를 선언 길이로 걸어 SOS 까지 간다 — APP1 은 통째로 건너뛰므로 썸네일이 안 보인다.
+   *   진짜 trailer 는 EOI 뒤에 남고 그건 trailingBytes 로 보고만 한다(오탐 없음). */
+  if (buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) {
+    throw _imgErr(`${field}: JPEG 이 SOI(ff d8)로 시작하지 않습니다 (받은 ${buf.length}바이트).`,
+      { reason: 'JPEG_NO_SOI', decodedBytes: buf.length });
+  }
+  let i = 2, sos = -1;
+  while (i + 3 < buf.length) {
+    if (buf[i] !== 0xff) { i++; continue; }
+    const marker = buf[i + 1];
+    if (marker === 0xff) { i++; continue; }                                   // 채움 바이트
+    if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) { i += 2; continue; }
+    if (marker === 0xd9) break;                                               // 스캔 «전» EOI = 잘린 것
+    const segLen = buf.readUInt16BE(i + 2);                                   // 길이는 자기 2바이트 포함
+    if (segLen < 2 || i + 2 + segLen > buf.length) {
+      throw _imgErr(_truncMsg(field,
+        `JPEG 세그먼트 ff${marker.toString(16)}(offset ${i})가 ${segLen}바이트를 선언했는데 남은 것은 ${buf.length - (i + 2)}바이트뿐입니다.`,
+        buf.length, i + 2 + segLen),
+        { reason: 'JPEG_SEGMENT_TRUNCATED', marker: 'ff' + marker.toString(16), offset: i,
+          declaredSegmentBytes: segLen, decodedBytes: buf.length, expectedAtLeastBytes: i + 2 + segLen });
+    }
+    if (marker === 0xda) { sos = i; i = i + 2 + segLen; break; }               // SOS — 뒤는 엔트로피 데이터
+    i = i + 2 + segLen;
+  }
+  if (sos < 0) {
+    throw _imgErr(_truncMsg(field,
+      'JPEG 이 SOS(ff da, 스캔 시작)에 «닿기 전»에 끝났습니다 — 헤더만 있고 그림 데이터가 없습니다.',
+      buf.length, buf.length + 2),
+      { reason: 'JPEG_NO_SOS', decodedBytes: buf.length });
+  }
+  const at = buf.indexOf(Buffer.from([0xff, 0xd9]), i);   // ★썸네일 EOI 는 SOS 앞이라 안 걸린다
+  if (at < 0) {
+    const tail = Array.from(buf.slice(Math.max(0, buf.length - 4)))
+      .map(b => b.toString(16).padStart(2, '0')).join(' ');
+    throw _imgErr(_truncMsg(field,
+      `JPEG 스캔 데이터가 EOI(ff d9) 없이 끝났습니다 — 끝 4바이트가 [${tail}] (SOS 는 offset ${sos}).`,
+      buf.length, buf.length + 2),
+      { reason: 'JPEG_NO_EOI', decodedBytes: buf.length, sosOffset: sos, lastBytesHex: tail });
+  }
+  return { trailingBytes: buf.length - (at + 2) };
+}
+/* GIF: 블록을 «걸어서» trailer(0x3b) «위치»를 구한다 — 마지막 바이트를 엄격 비교하지 않는다. */
+function _checkGif(buf, field) {
+  const need = (n, what) => {
+    if (n > buf.length) {
+      throw _imgErr(_truncMsg(field, `GIF ${what} 를 읽으려면 ${n}바이트가 필요합니다.`, buf.length, n),
+        { reason: 'GIF_TRUNCATED', at: what, decodedBytes: buf.length, expectedAtLeastBytes: n });
+    }
+  };
+  need(13, '헤더+화면기술자');
+  let i = 13;
+  if (buf[10] & 0x80) { const gct = 3 * (1 << ((buf[10] & 7) + 1)); need(i + gct, '전역 색상표'); i += gct; }
+  const subBlocks = () => {                    // 길이 접두 하위블록 — 0 이 끝
+    for (;;) { need(i + 1, '하위블록 길이'); const n = buf[i]; i += 1; if (n === 0) return; need(i + n, '하위블록'); i += n; }
+  };
+  for (;;) {
+    need(i + 1, '블록 표식');
+    const b = buf[i];
+    if (b === 0x3b) return { trailingBytes: buf.length - (i + 1) };            // ★구조적 끝
+    if (b === 0x21) { need(i + 2, '확장 헤더'); i += 2; subBlocks(); continue; }
+    if (b === 0x2c) {
+      need(i + 10, '이미지 기술자'); const f = buf[i + 9]; i += 10;
+      if (f & 0x80) { const lct = 3 * (1 << ((f & 7) + 1)); need(i + lct, '지역 색상표'); i += lct; }
+      need(i + 1, 'LZW 최소코드'); i += 1; subBlocks(); continue;
+    }
+    throw _imgErr(`${field}: GIF 에 알 수 없는 블록 표식 0x${b.toString(16)} 가 offset ${i} 에 있습니다 — 손상된 파일입니다 (받은 ${buf.length}바이트).`,
+      { reason: 'GIF_BAD_BLOCK', marker: '0x' + b.toString(16), offset: i, decodedBytes: buf.length });
+  }
+}
+/* WebP 는 RIFF 헤더 4~8바이트가 «그 뒤 전체 길이»를 선언한다 — 잘리면 그 숫자가 안 맞는다. */
+function _checkWebp(buf, field) {
+  /* ⚠️앞의 `length < 12` 는 «증명 가능하게 잉여»다 — 길이가 11 이하면 toString(8,12) 가
+     최대 3글자라 'WEBP'(4글자)와 절대 같을 수 없어 두 번째 조건이 «항상» 잡는다.
+     ⇒ 이 줄을 11 로 옮기는 변이는 «어떤 입력으로도» 못 죽인다(적대검수 L22, 실측으로 확인).
+     읽기 좋으라고 남겨 두는 것이지 «검사»가 아니다 — 여기에 테스트를 붙이려 애쓰지 마라. */
+  if (buf.length < 12 || buf.toString('latin1', 8, 12) !== 'WEBP') {
+    throw _imgErr(`${field}: RIFF 컨테이너인데 WEBP 가 아닙니다 (받은 ${buf.length}바이트).`,
+      { reason: 'WEBP_BAD_CONTAINER', decodedBytes: buf.length });
+  }
+  const declared = buf.readUInt32LE(4);
+  const need = declared + 8;
+  if (buf.length < need) {
+    throw _imgErr(_truncMsg(field,
+      `WebP RIFF 헤더가 전체 ${need}바이트를 선언했습니다.`, buf.length, need),
+      { reason: 'WEBP_TRUNCATED', declaredTotalBytes: need, decodedBytes: buf.length });
+  }
+  return { trailingBytes: buf.length - need };
+}
+
+/* src 가 data:image/* dataURL 일 때만 «온전한가»를 본다.
+   http(s)/assets//blob: 등 우리가 바이트를 안 가진 것은 검사 대상이 아니다 — 그대로 통과. */
+/* ★소비자들이 «전부 온전히» 읽는 형태인가 — 하나의 정규식이 판정한다.
+ *
+ * ⛔앞 판은 «금지할 것을 열거»했다: 대소문자 · 파라미터 · base64 안의 공백…
+ *   그래서 «내가 안 떠올린 것»은 통째로 샜다. 적대검수가 그 목록을 그대로 보여줬다(2026-09-07):
+ *     · 빈 서브타입 `data:image/;`      · 밑줄 서브타입 `data:image/x_y;`
+ *     · mime «안»의 공백 `data:image/png ;`  · base64 «중간»의 `=`
+ *     · ★`^` 앵커 «밖» — 앞에 공백 한 칸(`" data:image/png;base64,…"`)이면 검사를 «아예 안 했다»
+ *   전부 externalizer 가 못 읽거나 부분 매치해서 «저장 시 파손»되는 것들이었다.
+ * ⇒ 열거를 그만둔다. 판정은 «소비자의 패턴»으로 통째로 한다.
+ *   - `^…$` 양끝 앵커      : 앞뒤에 뭐가 붙으면 통과 못 한다
+ *   - 서브타입 문자집합     : externalizer 의 `[a-zA-Z0-9.+-]+` «그대로»(빈 것도 불가)
+ *   - base64 는 `=` 를 «꼬리에만»
+ *   실측으로 12케이스 전부 externalizer 판정과 일치했고, `image/svg+xml`·`image/vnd.ms-photo`·
+ *   패딩 생략 같은 «되던 것»은 그대로 통과한다(좁히다 되던 걸 막는 게 이 판의 상습 실수였다).
+ * ★분류(_diagnoseUnstorable)는 «메시지용»일 뿐이다 — 판정은 이 정규식 «하나»가 한다. */
+const _STORABLE_RE = /^data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$/;
+
+/** 왜 못 쓰는지 «말해 주기» 위한 분류. ⛔여기서 통과/거절을 정하지 않는다. */
+function _diagnoseUnstorable(src, field) {
+  const why = (reason, what) => _imgErr(
+    `${field}: ${what} 브라우저는 읽을 수 있어도 «저장 단계»의 에셋 외부화가 이 형태를 `
+    + '온전히 못 읽어 이미지가 깨지거나 base64 가 프로젝트 파일에 통째로 박힙니다. '
+    + '⛔우리가 고쳐 쓰지 않습니다 — `data:image/<타입>;base64,<공백 없는 base64>` 로 다시 주세요.',
+    { reason });
+  if (src !== src.trim()) return why('SRC_HAS_SURROUNDING_WHITESPACE', 'dataURL 앞뒤에 공백이 있습니다.');
+  const head = /^data:([^;,]*)((?:;[^;,]*)*);base64,([\s\S]*)$/i.exec(src);
+  if (!head) return why('SRC_NOT_A_DATA_URL', 'dataURL 모양이 아닙니다(`;base64,` 를 못 찾았습니다).');
+  const [, type, params, body] = head;
+  if (params) return why('MIME_PARAMS_NOT_STORABLE', `dataURL 에 부가 파라미터(${params})가 있습니다.`);
+  if (!/^data:image\//.test(src)) return why('MIME_CASE_NOT_STORABLE', '앞부분이 소문자 «data:image/» 가 아닙니다.');
+  const sub = type.slice('image/'.length);
+  if (!/^[a-zA-Z0-9.+-]+$/.test(sub)) {
+    return why('MIME_SUBTYPE_NOT_STORABLE',
+      sub === '' ? '이미지 종류(서브타입)가 비어 있습니다.' : `이미지 종류 «${sub}» 에 쓸 수 없는 글자가 있습니다.`);
+  }
+  const ws = /\s/.exec(body);
+  if (ws) return why('BASE64_WHITESPACE_NOT_STORABLE', `base64 안(위치 ${ws.index})에 공백/줄바꿈이 있습니다.`);
+  const url = /[-_]/.exec(body);
+  if (url) return _imgErr(
+    `${field}: base64 에 «${url[0]}» 가 있습니다(위치 ${url.index}). base64url(-, _) 표기는 표준 base64 가 `
+    + '아니라 브라우저의 data URL 파서도, 저장 단계도 «거부»합니다 — 바이트가 온전해도 못 씁니다. '
+    + '표준 base64(+, /)로 다시 주세요. ⛔우리가 고쳐 쓰지 않습니다.',
+    { reason: 'BASE64URL_NOT_SUPPORTED', badChar: url[0], atIndex: url.index });
+  /* ⚠️순서 주의 — «알파벳 밖 글자»를 «패딩 위치»보다 «먼저» 본다.
+     `…!…==` 처럼 둘이 겹치면 패딩 검사가 먼저 걸려 「패딩이 잘못됐다」고 «틀린 사유»를 말한다.
+     사유를 정확히 말하는 게 이 판의 규약이라 순서가 곧 정확성이다(실측으로 잡았다). */
+  const bad = /[^A-Za-z0-9+/=]/.exec(body);
+  if (bad) return _imgErr(
+    `${field}: base64 에 알파벳 밖 글자 «${bad[0]}» 가 있습니다(위치 ${bad.index}) — 전송 중 섞여 들어간 것으로 `
+    + '봅니다. 원본을 «다시» 통째로 보내 주세요. ⛔우리가 고쳐 쓰지 않습니다.',
+    { reason: 'BASE64_BAD_CHARS', badChar: bad[0], atIndex: bad.index });
+  const eq = body.indexOf('=');
+  if (eq >= 0 && !/^[A-Za-z0-9+/]+={1,2}$/.test(body)) {
+    return why('BASE64_PADDING_MISPLACED', `base64 «중간»(위치 ${eq})에 «=» 가 있습니다 — 패딩은 끝에만 올 수 있습니다.`);
+  }
+  if (!body) return _imgErr(`${field}: dataURL 에 base64 본문이 없습니다 (0바이트).`,
+    { reason: 'EMPTY_PAYLOAD', base64Chars: 0, decodedBytes: 0 });
+  return why('SRC_NOT_STORABLE', '저장 소비자가 읽을 수 있는 형태가 아닙니다.');
+}
+
+function _assertImageSrcIntact(src, field = 'image') {
+  if (typeof src !== 'string' || !src) return { checked: 'skipped:not-a-string' };
+  /* ★들어오는 문은 «느슨하게», 통과하는 문은 «엄격하게».
+     느슨한 쪽이 엄격하면 앵커·대소문자로 빠져나가 검사를 «아예 안 받는다»(적대검수 실측). */
+  /* ⚠️슬래시를 «안» 요구한다 — `data:imageX/…` 같은 것도 «들어와서» 아래 엄격 게이트에 걸려야 한다.
+     슬래시를 요구하면 그런 것이 skipped 로 빠져나간다(적대검수 변이 L13 이 이 자리를 짚었다). */
+  if (!/^\s*data:image/i.test(src)) return { checked: 'skipped:not-a-data-url' };
+  if (!_STORABLE_RE.test(src)) throw _diagnoseUnstorable(src, field);
+
+  const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/.exec(src);
+  const declaredRaw = m[1];
+  const declared = _MIME_ALIAS[declaredRaw] || declaredRaw;
+  const b64 = m[2];
+  const buf = Buffer.from(b64, 'base64');
+  if (buf.length === 0) {
+    throw _imgErr(`${field}: base64 를 디코드했더니 0바이트입니다 (${b64.length}자).`,
+      { reason: 'DECODE_EMPTY', base64Chars: b64.length, decodedBytes: 0 });
+  }
+
+  // ⑵ 형식은 «매직바이트로 판정»한다. 선언 mime 은 대조용일 뿐이다.
+  const sniffed = _IMG_SNIFF.find(e => e.sig.every((b, i) => buf[i] === b)) || null;
+  const knownDeclared = _IMG_SNIFF.some(e => e.mime === declared);
+  /* ★「선언한 형식 ≠ 실제 내용」은 «거절하지 않는다»(지디 2026-09-07 결정, 첫 지시를 뒤집음).
+   *   근거: 우리가 막으려는 건 「캔버스에 깨진 바이트가 들어가는 것」이지 「라벨이 틀린 것」이 아니다.
+   *   그림이 멀쩡하면 사고가 아니고, 그 라벨은 «모델이» 붙였으므로 사용자는 손쓸 데가 없다.
+   *   오탐 3종(줄바꿈·공백·패딩)과 «같은 부류»다 — 바이트는 온전한데 표기가 다르다.
+   *   ⇒ 통과시키되 declaredMime/actualFormat 을 «둘 다» 기록한다.
+   *   ⛔dataURL 을 우리가 고쳐 쓰지 않는다 — 그건 수선이다. */
+  if (!sniffed) {
+    if (knownDeclared) {
+      // 「png 라고 했는데 내용이 아예 png 가 아니다」 — 이건 라벨 문제가 아니라 «그림이 아님»이다.
+      const got = Array.from(buf.slice(0, Math.min(8, buf.length)))
+        .map(b => b.toString(16).padStart(2, '0')).join(' ');
+      throw _imgErr(
+        `${field}: ${declaredRaw} 라고 선언했는데 내용이 그 형식이 아닙니다 — 앞 바이트 [${got}] `
+        + `(받은 ${buf.length}바이트). 표기가 아니라 «내용»이 이미지가 아닙니다.`,
+        { reason: 'NOT_AN_IMAGE', declaredMime: declaredRaw, firstBytesHex: got, decodedBytes: buf.length });
+    }
+    // 모르는 형식(svg+xml·avif 등)은 «막지 않는다». 어디까지 봤는지만 적는다.
+    return { checked: 'decode-only', format: declaredRaw, bytes: buf.length,
+             note: `내용이 아는 형식(png/jpeg/gif/webp)이 아니어서 디코드까지만 확인했습니다.` };
+  }
+
+  // ⑶ 구조 검사 — «판정된» 형식으로. 선언 mime 의 오타(image/jpg 등)로 건너뛰지 않는다.
+  let extra;
+  switch (sniffed.fmt) {
+    case 'png':  extra = _checkPng(buf, field);  break;
+    case 'jpeg': extra = _checkJpeg(buf, field); break;
+    case 'gif':  extra = _checkGif(buf, field);  break;
+    case 'webp': extra = _checkWebp(buf, field); break;
+  }
+  const out = { checked: `${sniffed.fmt}-structure`, actualFormat: sniffed.mime,
+                format: sniffed.mime, bytes: buf.length, ...extra };
+  if (declaredRaw !== sniffed.mime) {
+    out.declaredMime = declaredRaw;
+    out.note = `선언은 ${declaredRaw} 인데 내용은 ${sniffed.mime} 입니다 — 내용 기준으로 검사했고 `
+      + `dataURL 은 «받은 그대로» 저장합니다(우리가 고쳐 쓰지 않습니다).`;
+  }
+  return out;
+}
+
 // ─── asset-block validator ───
 // ─── asset 옵션 검증 (update only — add는 별도 add_asset_block에서 직접 검증) ──
 // banner02 _validateBanner02Opts 패턴 미러. update 모드 전용 (sectionId 검증 없음).
-function _validateAssetOpts(args, { mode } = {}) {
+function _validateAssetOpts(args, { mode, report } = {}) {
   if (!args || typeof args !== 'object') throw new Error('args must be object');
   const out = {};
 
@@ -5336,7 +6297,25 @@ function _validateAssetOpts(args, { mode } = {}) {
     if (typeof args.imgSrc !== 'string') throw new Error('imgSrc must be string');
     if (args.imgSrc.length > 200000) throw new Error('imgSrc too long (>200000)');
     if (/["\r\n]/.test(args.imgSrc)) throw new Error('imgSrc contains quote/newline (escape unsafe)');
+    // ★put_image 와 «같은» 검사를 탄다 — 검사가 한 곳이어야 옆 필드를 안 빠뜨린다(지디 2026-09-07).
+    //   이 한 줄이 update_asset_block 과 update_block(ab_, imgSrc) «둘 다»를 덮는다
+    //   (통합 update_block 은 ab_ 접두를 보고 update_asset_block 으로 디스패치한다).
+    //   ★결과를 «버리지 않는다» — 호출자에게 「어디까지 봤는지」를 알려야 원칙 ⑶이 절반만 지켜지지 않는다.
+    const _c = _assertImageSrcIntact(args.imgSrc, 'imgSrc');
+    if (report) report.imageCheck = _c;
     out.imgSrc = args.imgSrc;
+  }
+
+  // scratchId — imgSrc의 200000자 캡을 우회하는 대용량 교체 경로(add_asset_block과 동일 패턴).
+  // sp_xxx만 IPC를 타고, 실제 src는 renderer가 자기 IndexedDB에서 직접 읽는다.
+  if (args.scratchId !== undefined && args.scratchId !== null) {
+    if (typeof args.scratchId !== 'string' || !args.scratchId.startsWith('sp_')) {
+      throw new Error(`invalid scratchId: ${args.scratchId}. expected string starting with sp_`);
+    }
+    if (args.imgSrc !== undefined && args.imgSrc !== null) {
+      throw new Error('imgSrc and scratchId are mutually exclusive');
+    }
+    out.scratchId = args.scratchId;
   }
 
   return out;
@@ -5595,6 +6574,9 @@ function _validateIconCircleOpts(args, { mode } = {}) {
     if (typeof args.imgSrc !== 'string') throw new Error('imgSrc must be string');
     if (args.imgSrc.length > 200000) throw new Error('imgSrc too long (>200000)');
     if (/["\r\n]/.test(args.imgSrc)) throw new Error('imgSrc contains quote/newline (escape unsafe)');
+    // ★put_image 와 «같은» 검사 함수를 부른다 — 겹을 새로 만들지 않는다(지디 2026-09-07).
+    //   상한(200000자)은 «양»을 막지 «구조»를 못 막는다. 잘린 PNG 는 크기와 무관하다.
+    _assertImageSrcIntact(args.imgSrc, 'imgSrc');
     out.imgSrc = args.imgSrc;
   }
 
@@ -5950,6 +6932,9 @@ function _validateIconTextOpts(args, { mode } = {}) {
         /^assets\//i.test(s);
       if (!okProto) throw new Error('imgSrc protocol not allowed (use data:image/*, http(s)://, blob:, or assets/)');
     }
+    // ★put_image 와 «같은» 검사 함수를 부른다 — 겹을 새로 만들지 않는다(지디 2026-09-07).
+    //   상한(200000자)은 «양»을 막지 «구조»를 못 막는다. 잘린 PNG 는 크기와 무관하다.
+    _assertImageSrcIntact(args.imgSrc, 'imgSrc');
     out.imgSrc = args.imgSrc;
   }
 
@@ -6284,9 +7269,13 @@ async function _handleRpc(msg) {
       for (const [name] of tools) {
         if (!includeHidden && hiddenTools.has(name)) continue; // 다이어트: 별칭은 호출 가능하되 목록엔 안 싣는다
         const schema = toolSchemas.get(name) || {};
+        /* ⒝안내 — ⛔손으로 도구마다 적지 않는다(하나 늘 때마다 낡는다). 게이트와 «같은 목록»에서 뽑아
+           붙이므로 도구를 더하면 설명도 자동으로 따라온다. ⒝만으로는 안 지켜져서 ⒜(디스패처)가 본체다. */
+        const _gated = !_TARGET_FREE.has(name);
         list.push({
           name,
-          description: schema.description || '',
+          description: (schema.description || '')
+            + (_gated ? ' ⚠TARGET=the ACTIVE project: refused unless it was confirmed (open_project) in this session.' : ''),
           inputSchema: schema.inputSchema || { type: 'object', properties: {} },
           ...(includeHidden && hiddenTools.has(name) ? { hidden: true } : {})
         });
@@ -6296,21 +7285,72 @@ async function _handleRpc(msg) {
 
     if (method === 'tools/call') {
       const { name, arguments: args = {} } = params || {};
-      const handler = tools.get(name);
-      if (!handler) return err(-32601, `tool not found: ${name}`);
+      const _rawHandler = tools.get(name);
+      if (!_rawHandler) return err(-32601, `tool not found: ${name}`);
+      /* ★이미지 무결성 거절을 «한 곳»에서 같은 모양으로 만든다.
+       *   앞 판은 put_image·update_asset_block 만 ok:false+code 였고, 나머지 5개 진입점은
+       *   던져서 JSON-RPC -32000 으로 납작해졌다 — code 도 reason 도 숫자 detail 도 사라지고
+       *   문장의 [IMAGE_TRUNCATED] 표식만 남았다. 「호출자가 «구조적으로» 읽어야 한다」는
+       *   내 근거가 7곳 중 2곳에만 적용돼 있었다(적대검수 2026-09-07).
+       *   ⛔7곳에 각각 catch 를 심지 «않는다» — 겹을 늘리면 각 겹이 실제로 일하는지 못 잰다. */
+      const handler = async (a) => {
+        try { return await _rawHandler(a); }
+        catch (e) {
+          if (e && e.imageCheckError) {
+            return { ok: false, code: e.code, message: e.message, ...(e.detail || {}) };
+          }
+          throw e;
+        }
+      };
       /* ★프로젝트 전환 중이면 «실행하지 않고» 기다린다(큐잉). 병렬 호출로 들어온 편집이
        *   곧 교체될 옛 문서에 떨어져 조용히 증발하는 것을 여기서 한 곳으로 막는다.
        *   개별 도구 문자열은 손대지 않는다(다이어트 때와 같은 «디스패처 일괄» 패턴). */
       /* ★응답도 «유저 토큰»이다. pretty-print(들여쓰기 2칸)는 같은 정보에 15~25% 를 더 물린다.
        *   compact JSON 은 정보 손실 0 이라 그냥 이득이다(클라이언트는 JSON 으로 파싱한다). */
       const _reply = (r) => ok({ content: [{ type: 'text', text: JSON.stringify(r) }], isError: false });
+      /* ★프로젝트 «싱크» 게이트 — 대상이 확정 안 된 쓰기는 «실행 전에» 거절한다(_projectGate 주석 참고).
+       *   여기가 유일한 배선 자리다: 도구를 새로 더해도 _TARGET_FREE 에 안 적으면 «자동으로» 게이트를 탄다. */
+      const _gateRefusal = _projectGate(name, args);
+      if (_gateRefusal) return _reply(_gateRefusal);
+      /* ★open_project 가 성공하면 «그 대화 동안» 확정으로 남긴다(sticky). 실패(load_timeout 등)면 안 남긴다 —
+       *   열리지도 않은 프로젝트를 확정으로 세면 게이트가 있으나 마나다. */
+      const _noteConfirmed = (r) => {
+        try {
+          if (name === 'open_project' && r && r.ok !== false) {
+            _confirmedProject = (r.activeProjectId || r.projectId) || null;
+          }
+        } catch (_) {}
+        return r;
+      };
+      /* ★편집 도구가 «성공»했으면 그때 만들어진 히스토리 꼭대기의 seq 를 기억한다.
+         ⛔withLive 를 «켜지 않는다» — 여기선 매 호출 도는 자리라 직렬화 비용을 물면 안 된다
+           (실사용 프로젝트가 100MB 대다). 무거운 판정은 undo 도구가 «한 번» 한다. */
+      let _before = null;
+      const _noteSeq = async (r) => {
+        try {
+          if (_NON_MUTATING.has(name)) return r;
+          if (!r || r.ok === false) return r;
+          if (!_rendererInvoker?.historyTip) return r;
+          const t = await _rendererInvoker.historyTip();
+          if (t && t.ok !== false && !t.empty && t.seq != null && t.seq !== _before) {
+            _lastMcpSeqFrom = _before;   // 호출 «전» 꼭대기
+            _lastMcpSeq = t.seq;         // 호출 «후» 꼭대기
+          }
+        } catch (_) { /* 추적 실패는 편집을 막지 않는다 — undo 가 NOT_OURS 로 안전측 거절한다 */ }
+        return r;
+      };
+      if (!_NON_MUTATING.has(name) && _rendererInvoker?.historyTip) {
+        /* ★seq 가 null 인 «옛 항목»(도장 이전에 생긴 것)은 0 으로 본다 —
+           null 을 그대로 두면 구간 계산이 못 되고 「1칸」으로 조용히 축소된다. */
+        try { const b = await _rendererInvoker.historyTip(); if (b && b.ok !== false) _before = (b.empty || b.seq == null) ? 0 : b.seq; } catch (_) {}
+      }
       if (_SWITCH_EXEMPT.has(name)) {
-        return _reply(_enrichApiMissing(await handler(args)));
+        return _reply(_noteConfirmed(await _noteSeq(_enrichApiMissing(await handler(args)))));
       }
       return await _serializeCall(async () => {
         const blocked = await _awaitSwitchIdle(name, _SWITCH_QUEUE_MAX_MS);
         if (blocked) return _reply(blocked);
-        return _reply(_enrichApiMissing(await handler(args)));
+        return _reply(_noteConfirmed(await _noteSeq(_enrichApiMissing(await handler(args)))));
       });
     }
 
@@ -6342,6 +7382,24 @@ function _createServer() {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       // tokenFile/instance/pid는 «어느 인스턴스인지»와 «토큰을 어디서 읽을지»만 알려준다.
       // 토큰 값은 절대 여기 싣지 않는다(무인증 엔드포인트).
+      /* ★«브라우저 페이지»에는 activeProject·tokenFile 을 주지 않는다 (2026-09-07).
+       *
+       * 왜 이 경계인가 — 「로컬 유저 = 주인」 모델은 «로컬 프로세스»에 대해선 충분하다.
+       *   같은 사용자로 도는 프로세스는 토큰 파일을 어차피 찾는다(이 브리지 자신이
+       *   「경로를 못 받으면 기본 userData 를 뒤진다」는 폴백을 갖고 있다 = 추측 가능하다는 증거).
+       *   그런 프로세스는 이미 파일시스템·스크린샷·키체인이 열려 있다. 토큰만 더 조여봐야 소용없다.
+       * ⇒ 그러나 **브라우저 페이지는 «로컬 유저»가 아니다**. 샌드박스 안이라 파일을 못 읽는다.
+       *   이 엔드포인트가 ACAO:* 라서, 사용자가 연 아무 웹페이지나 여기를 읽을 수 있고
+       *   거기서 «어느 프로젝트를 열어놨는지»와 «/Users/<계정명>/…» 경로를 무료로 가져간다.
+       *   토큰은 못 훔치지만(파일을 못 읽으니) 신원·작업 내용은 새어 나간다.
+       * ⇒ Origin 헤더가 «있는» 요청(=브라우저) 에만 그 둘을 뺀다.
+       *   로컬 호출자는 Origin 을 안 보낸다 — 실측으로 센 소비자 둘 다 Node 쪽이다:
+       *     ⑴ mcp-stdio-bridge.cjs (http.get)  ⑵ main/claude-pm/ipc.js handlePingMcp (fetch, 본문 안 읽음)
+       *   렌더러에서 /health 를 직접 부르는 곳은 «0개»다(상단 MCP 배지는 IPC 로 간다).
+       * ⚠️이건 «브라우저 경계»용이지 오늘(09-07) 사고의 처방이 아니다. 그 사고는 같은 사용자의
+       *   권한 있는 CLI 세션 9개가 실사용 인스턴스에 붙은 «조율» 실패였고, 이걸로는 안 막힌다.
+       *   그 처방은 팀 규약(세션마다 GODITOR_MCP_PORT 고정)이다. 둘을 섞지 마라. */
+      const _fromBrowser = !!req.headers.origin;
       res.end(JSON.stringify({
         status: 'ok',
         port: currentPort,
@@ -6351,8 +7409,10 @@ function _createServer() {
         instance: path.basename(_getUserDataDir()),
         // 인스턴스를 2개 띄우면 포트·pid만으론 «사람이» 어느 창인지 못 알아본다.
         // 열려 있는 프로젝트가 제일 알아보기 쉬운 표식이라 같이 준다.
-        activeProject: (() => { try { return _activeProjectId(); } catch (_) { return null; } })(),
-        tokenFile: _tokenFilePath
+        activeProject: _fromBrowser ? undefined
+          : (() => { try { return _activeProjectId(); } catch (_) { return null; } })(),
+        tokenFile: _fromBrowser ? undefined : _tokenFilePath,
+        ...(_fromBrowser ? { note: 'cross-origin caller: activeProject/tokenFile omitted' } : {})
       }));
       return;
     }
@@ -6486,4 +7546,6 @@ module.exports = {
   getTokenFilePath,
   getBridgePath,
   getBridgeError,
+  // 검사 로직은 «한 곳»이고, 그 한 곳을 테스트가 직접 부른다.
+  _assertImageSrcIntact,
 };

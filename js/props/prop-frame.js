@@ -4,6 +4,7 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { bindSlider } from './_helpers.js';
+import { applyFrameTransform, frameAlignOffset } from '../frame-geometry.js';
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#ffffff';
@@ -434,12 +435,9 @@ function _renderAutoPanel(ss) {
 
   // ── 위치(X/Y) 핸들러 ──
   const _applyTransform = () => {
-    const tx = parseInt(ss.dataset.translateX) || 0;
-    const ty = parseInt(ss.dataset.translateY) || 0;
-    const rd = parseFloat(ss.dataset.rotateDeg) || 0;
-    const fx = ss.dataset.flipH === '1' ? -1 : 1;
-    const fy = ss.dataset.flipV === '1' ? -1 : 1;
-    ss.style.transform = `translate(${tx}px,${ty}px) rotate(${rd}deg) scale(${fx},${fy})`;
+    // SSOT = js/frame-geometry.js. identity:'write' 는 «이 경로의 기존 규약»
+    // (항등이어도 문자열을 기록)을 그대로 유지한 것. 회전 AABB 세로 마진 보정이 함께 걸린다.
+    applyFrameTransform(ss, { identity: 'write' });
     window.scheduleAutoSave?.();
   };
   document.getElementById('ss-pos-x')?.addEventListener('input', e => { ss.dataset.translateX = parseInt(e.target.value) || 0; _applyTransform(); });
@@ -458,18 +456,10 @@ function _renderAutoPanel(ss) {
         !c.classList.contains('frame-resize-handle') &&
         getComputedStyle(c).position === 'absolute');
       kids.forEach(c => {
-        if (alignItems !== null) {
-          const cw = c.offsetWidth;
-          const left = alignItems === 'center' ? Math.round((ssW - cw) / 2)
-                     : alignItems === 'flex-end' ? Math.round(ssW - cw) : 0;
-          c.style.left = left + 'px'; c.dataset.offsetX = left;
-        }
-        if (justifyContent !== null) {
-          const ch = c.offsetHeight;
-          const top = justifyContent === 'center' ? Math.round((ssH - ch) / 2)
-                    : justifyContent === 'flex-end' ? Math.round(ssH - ch) : 0;
-          c.style.top = top + 'px'; c.dataset.offsetY = top;
-        }
+        // ★«프레임 안 어디»의 정의는 frameAlignOffset 하나다 — 삽입 경로(block-factory)도 같은 걸 쓴다.
+        const off = frameAlignOffset(ssW, ssH, c.offsetWidth, c.offsetHeight, alignItems, justifyContent);
+        if (off.left !== null) { c.style.left = off.left + 'px'; c.dataset.offsetX = off.left; }
+        if (off.top  !== null) { c.style.top  = off.top  + 'px'; c.dataset.offsetY = off.top; }
       });
       if (alignItems !== null) ss.dataset.childAlignX = alignItems;
       if (justifyContent !== null) ss.dataset.childAlignY = justifyContent;

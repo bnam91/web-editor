@@ -24,6 +24,25 @@
 
   var state = null;   // 열려 있는 동안만 존재. 닫으면 null — «남지 않는다»가 A-f 다.
 
+  /* ★E3 — main.js `report:context.authDiag`(services/entitlement.js `diagLine`)를
+   * 신고 payload 의 `errors[]` 에 싣는다.
+   * ⛔최상위 `auth` 같은 «모르는 필드»는 서버가 400 도 안 내고 조용히 버린다(지디 실측) —
+   *   `errors[]` 여야 도달한다. email·sub·세션토큰·서명 원문은 이 줄에 없다
+   *   (entitlement.js diagLine 이 이미 안전한 필드만 골라 낸다 — 여기서 다시 안 씻는다).
+   * ★MAX_ERRORS(20)·MAX_ERR_LEN(1000) = 서버 LIMITS 와 같은 수(report-buffer.js 규약).
+   *   넘칠 때는 «가장 오래된 오류»부터 밀어내 자리를 만든다 — 방금 만든 진단 한 줄이
+   *   밀려 사라지면 신고 자체가 무의미해진다(최신 렌더러 오류들보다 «지금 이 진단»이 값어치 있다).
+   * 순수 함수 — 테스트에서 직접 잰다(아래 `w.reportModalMergeAuthDiag`, ReportBuffer.scrubPaths 와 같은 노출 패턴). */
+  function mergeAuthDiag(errors, authDiag, maxErrors, maxLen) {
+    var MAX_ERRORS = maxErrors || 20;
+    var MAX_ERR_LEN = maxLen || 1000;
+    var diagMsg = String(authDiag == null ? '' : authDiag).slice(0, MAX_ERR_LEN);
+    var errs = (errors || []).slice();
+    if (errs.length >= MAX_ERRORS) errs = errs.slice(errs.length - (MAX_ERRORS - 1));
+    errs.push({ at: new Date().toISOString(), level: 'auth', msg: diagMsg });
+    return errs;
+  }
+
   function api() { return (w.electronAPI && w.electronAPI.report) || null; }
   function toast(msg) {
     if (typeof w.showToast === 'function') { try { w.showToast(msg); return; } catch (_) {} }
@@ -329,13 +348,15 @@
     });
   }
 
-  /* ── 「함께 보내지는 것」 ────────────────────────────────────────────── */
-  function renderDisclosure() {
-    var el = document.getElementById('report-modal');
-    if (!el || !state) return;
-    var c = state.ctx || {};
-    var errs = state.errors || [];
-    var acct = state.account;
+  /* ── 「함께 보내지는 것」 ──────────────────────────────────────────────
+     ★본문 만들기를 «순수 함수»로 뺀다 — DOM 없이 «진짜 함수»를 잴 수 있게
+       (mergeAuthDiag · ReportBuffer.scrubPaths 와 같은 노출 패턴).
+       renderDisclosure 는 상태를 모아 이 함수에 넘기고 결과를 꽂기만 한다. */
+  function disclosureHtml(o) {
+    var c = (o && o.ctx) || {};
+    var errs = (o && o.errors) || [];
+    var acct = o && o.account;
+    var hasBuffer = !!(o && o.hasBuffer);
     var html =
       '<dl>' +
         '<dt>버전</dt><dd>' + esc(c.appVersion || '?') + '</dd>' +
@@ -346,6 +367,21 @@
       '</dl>' +
       '<h6>최근 오류 ' + errs.length + '건 ' +
         '<span style="font-weight:400">(파일 경로에서 사용자 이름은 지우고 담습니다)</span></h6>';
+
+    /* ★★[H3 후속] 「이 화면은 편집 중 오류를 «안 모은다»」를 «말한다» (지디 지시, 2026-09-06).
+       ⛔이걸 안 적으면 우리가 나중에 「왜 어떤 신고는 errors 가 비지」로 헤맨다.
+       사실관계: 링버퍼(js/report-buffer.js)는 에디터(index.html)에만 실린다. 프로젝트
+       목록 화면(pages/projects.html)에는 «일부러» 안 실었다 — 그 화면에 새 console 후킹을
+       들이는 건 H3 의 일이 아니고, ★H2 이후 링버퍼 내용은 «디스크에도» 남으므로
+       노출 면을 안 늘리는 쪽이 옳다(지디 확정).
+       ⇒ 그래서 「비었다」는 «고장이 아니라 설계»다. 그 사실을 화면이 스스로 말한다.
+       ★버퍼가 «있는지»로 판정한다 — 화면 이름(location)으로 판정하면 화면이 늘 때마다 낡는다. */
+    if (!hasBuffer) {
+      html += '<p class="report-errs empty" style="margin:0 0 6px">' +
+        '이 화면은 «편집 중 오류»를 따로 모으지 않습니다 — 편집 화면에서 보내시면 최근 오류가 함께 담깁니다.' +
+        '</p>';
+    }
+
     if (!errs.length) {
       html += '<p class="report-errs empty" style="margin:0">담긴 오류가 없습니다.</p>';
     } else {
@@ -353,20 +389,44 @@
         return '<li>' + esc((e.level || '') + ' · ' + (e.msg || '')) + '</li>';
       }).join('') + '</ul>';
     }
-    el.querySelector('#report-disc-body').innerHTML = html;
+    return html;
   }
 
-  /* ── 열기 / 닫기 ────────────────────────────────────────────────────── */
-  function open() {
+  function renderDisclosure() {
+    var el = document.getElementById('report-modal');
+    if (!el || !state) return;
+    el.querySelector('#report-disc-body').innerHTML = disclosureHtml({
+      ctx: state.ctx, errors: state.errors, account: state.account,
+      hasBuffer: !!(w.ReportBuffer && typeof w.ReportBuffer.list === 'function'),
+    });
+  }
+
+  /* ── 열기 / 닫기 ──────────────────────────────────────────────────────
+     @param {{type?:string, text?:string, extraErrors?:Array}} [opts]
+       ★[H3] 인자는 «선택»이다 — 기존 호출부(index.html 의 openReportModal())는 그대로 돈다.
+       ★extraErrors = 지난 실행의 크래시 줄(main/recovery/index.js reportLines).
+         ⛔최상위 새 필드로 싣지 않는다 — 서버가 «모르는 필드»를 조용히 버린다(E3 실측).
+           errors[] 라야 도달한다. authDiag 와 «같은 통로»다.
+       ★★extraErrors 가 있으면 「함께 보내지는 것」을 «펼친 채로» 연다 —
+         사용자가 «안 적은» 내용이 실리는 경우이므로, 접어 두면 안 된다(H3 노출규칙 ⑵). */
+  function open(opts) {
+    var o = opts || {};
     var el = ensureModal();
 
     // ★A-f — 열 때마다 «전부» 새로. 첨부·캡처·본문이 지난번 것에서 살아남지 않는다.
+    var _extra = Array.isArray(o.extraErrors) ? o.extraErrors : [];
     state = {
-      type: 'bug',
-      text: '',
+      type: (o.type && TYPES.some(function (t) { return t.key === o.type; })) ? o.type : 'bug',
+      text: typeof o.text === 'string' ? o.text.slice(0, MAX_TEXT) : '',
       attachments: [],
       capture: null,
-      errors: (w.ReportBuffer && w.ReportBuffer.list()) || [],
+      errors: _extra.length
+        ? ((w.RecoveryBanner && w.RecoveryBanner.mergeRecoveryLines)
+            ? w.RecoveryBanner.mergeRecoveryLines((w.ReportBuffer && w.ReportBuffer.list()) || [], _extra)
+            /* ★모듈이 없으면 «싣지 않는다». 우리가 못 만든 줄을 사용자에게 보여준 적도 없으니
+               조용히 보내는 것보다 안 보내는 게 낫다(H3 실패 방향). */
+            : ((w.ReportBuffer && w.ReportBuffer.list()) || []))
+        : ((w.ReportBuffer && w.ReportBuffer.list()) || []),
       ctx: {
         screen: (w.screen ? (w.screen.width + '×' + w.screen.height) : ''),
         projectId: w.activeProjectId || '',
@@ -375,19 +435,21 @@
       sending: false,
     };
 
-    el.querySelector('#report-text').value = '';
-    el.querySelector('#report-count').textContent = '0 / ' + MAX_TEXT;
+    el.querySelector('#report-text').value = state.text;
+    el.querySelector('#report-count').textContent = state.text.length + ' / ' + MAX_TEXT;
     el.querySelector('#report-count').classList.remove('over');
     el.querySelector('#report-capture').checked = false;      // ★기본 «끔»
     var shot = el.querySelector('#report-shot');
     shot.classList.remove('on'); shot.innerHTML = '';
-    el.querySelector('#report-disc').setAttribute('aria-expanded', 'false');   // ★접힌 채로
-    el.querySelector('#report-disc-body').classList.remove('on');
+    /* ★기본은 접힌 채로. 단 «사용자가 안 적은 줄»(extraErrors)이 실렸으면 펼친 채로 연다. */
+    var openDisc = _extra.length > 0;
+    el.querySelector('#report-disc').setAttribute('aria-expanded', String(openDisc));
+    el.querySelector('#report-disc-body').classList.toggle('on', openDisc);
     el.querySelector('#report-queue-note').textContent = '';
     el.querySelector('#report-send').disabled = false;
     el.querySelector('#report-send').textContent = '보내기';
-    Array.prototype.forEach.call(el.querySelectorAll('#report-seg button'), function (x, i) {
-      x.setAttribute('aria-pressed', String(i === 0));
+    Array.prototype.forEach.call(el.querySelectorAll('#report-seg button'), function (x) {
+      x.setAttribute('aria-pressed', String(x.dataset.type === state.type));
     });
     renderAttachments();
     renderDisclosure();
@@ -406,6 +468,8 @@
         if (c && c.queued) {
           el.querySelector('#report-queue-note').textContent = '아직 못 보낸 신고 ' + c.queued + '건';
         }
+        // ★E3 — 자격증명 진단 한 줄을 신고에 싣는다. 규율은 mergeAuthDiag 주석 참조.
+        if (c && c.authDiag) state.errors = mergeAuthDiag(state.errors, c.authDiag);
         renderDisclosure();
       }).catch(function () {});
     }
@@ -489,4 +553,6 @@
 
   w.openReportModal  = open;
   w.closeReportModal = close;
+  w.reportModalMergeAuthDiag = mergeAuthDiag;   // 테스트 전용 노출 — ReportBuffer.scrubPaths 와 같은 패턴
+  w.reportModalDisclosureHtml = disclosureHtml; // 같은 패턴 — DOM 없이 「무엇이 보이나」를 잰다
 })(window);

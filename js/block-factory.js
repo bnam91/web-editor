@@ -18,6 +18,8 @@ import {
   bindSectionDrag,
   bindSectionDropZone,
 } from './drag-drop.js';
+import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
+         newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame } from './frame-geometry.js';
 
 /* ═══════════════════════════════════
    BLOCK FACTORY — make* / add* / addSection
@@ -435,13 +437,23 @@ function addTextBlock(type, opts = {}) {
     window.pushHistory();
     const { block } = makeTextBlock(type);
     const tf = _makeTextFrame();
-    applyTextOpts(block, tf, opts, type);
+    /* ★(a) «신규 추가» — 프레임 안에 새로 만드는 텍스트는 «글자 정렬도» 중앙(현빈 2026-09-05).
+       판정은 술어 하나(newTextAlignInFrame): 호출자가 align 을 명시했으면 그게 이기고,
+       자유배치 프레임이 아니면(섹션 직접·fullWidth 플로우) null 이라 «기존 그대로»다.
+       ⚠️applyTextOpts «전»에 정해야 한다 — 뒤의 _clampTextFrameWidth 가 정렬을 읽어
+         폭을 결정하기 때문(center → width:100%). 순서가 바뀌면 폭이 한 박자 늦는다. */
+    // opts.x/y/width 명시 = 좌표를 «준» 호출(MCP·Figma 임포트) — 아래 freeLayout 분기의
+    // hasAbsCoords 와 «같은 식»이다. 두 벌로 갈리지 않게 여기서 한 번 세서 술어에 넘긴다.
+    const _hasAbsCoords = (opts.x !== undefined || opts.y !== undefined || opts.width !== undefined);
+    const _newAlign = newTextAlignInFrame(activeSS, opts.align, _hasAbsCoords);
+    const _opts = _newAlign ? { ...opts, align: _newAlign } : opts;
+    applyTextOpts(block, tf, _opts, type);
     tf.appendChild(block);
 
     if (activeSS.dataset.freeLayout === 'true') {
       // B 모드: 자유배치 프레임 — text-frame을 absolute로 추가
       // opts에 x/y/width가 있으면 절대좌표 고정, 없으면 자동 스택
-      const hasAbsCoords = (opts.x !== undefined || opts.y !== undefined || opts.width !== undefined);
+      const hasAbsCoords = _hasAbsCoords;   // ★위에서 «한 번» 센 것 — 두 벌 금지
       const stackY = hasAbsCoords ? (opts.y ?? 0) : _calcFreeLayoutStackY(activeSS);
       const leftPx = hasAbsCoords ? (opts.x ?? 0) : 0;
       tf.style.position = 'absolute';
@@ -460,6 +472,9 @@ function addTextBlock(type, opts = {}) {
       } else {
         _clampTextFrameWidth(tf, activeSS);
       }
+      // #2 «프레임 안 텍스트가 가운데 안 온다» — 좌표를 «안 준» 경우의 기본값을 프레임 중앙으로.
+      // ★opts.x/y/width 를 명시한 경로(MCP·드롭)는 사용자가 지정한 좌표라 손대지 않는다.
+      if (!hasAbsCoords) _placeAtFrameCenter(tf, activeSS);
     } else if (activeSS.dataset.fullWidth === 'true') {
       // A 모드: fullWidth 플로우 — 선택된 자손이 있으면 그것을 품은 직계 자식 다음 sibling으로 삽입
       let refChild = null;
@@ -535,10 +550,13 @@ function addBlankTextBlock(type = 'body', opts = {}) {
     window.pushHistory();
     const { block } = makeTextBlock(type, { blank: true });
     const tf = _makeTextFrame();
-    if (o.align) {
+    // ★(a) 신규 추가 — addTextBlock 과 «같은 술어»로 기본 정렬을 정한다(두 벌 금지).
+    // addBlankTextBlock 은 좌표 옵션 자체가 없다(항상 스택) → hasExplicitCoords=false.
+    const _blankAlign = o.align || newTextAlignInFrame(activeSS, o.align, false);
+    if (_blankAlign) {
       const contentEl = block.querySelector('[class^="tb-"]');
-      if (type === 'label') block.style.textAlign = o.align;
-      else if (contentEl) contentEl.style.textAlign = o.align;
+      if (type === 'label') block.style.textAlign = _blankAlign;
+      else if (contentEl) contentEl.style.textAlign = _blankAlign;
     }
     tf.appendChild(block);
 
@@ -553,6 +571,8 @@ function addBlankTextBlock(type = 'body', opts = {}) {
       tf.style.width = '100%';
       tf.dataset.width = '100%';
       _clampTextFrameWidth(tf, activeSS);
+      // #2 와 동일 — 빈 줄도 프레임 중앙에서 시작한다(폭 100% 라 좌우는 0, 세로가 실제로 움직인다).
+      _placeAtFrameCenter(tf, activeSS);
     } else if (activeSS.dataset.fullWidth === 'true') {
       let refChild = null;
       const selList = activeSS.querySelectorAll('.selected');
@@ -1429,7 +1449,7 @@ function addSection(opts = {}) {
     window.selectSectionWithModifier(sec, e);
     const row = e.target.closest('.row');
     // row 빈 여백 클릭은 row-active 제외 — 섹션 선택만 (fix(section-select), 판정=editor.js isRowMarginClick)
-    if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block')) {
+    if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -1442,7 +1462,7 @@ function addSection(opts = {}) {
   // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
@@ -1619,6 +1639,41 @@ function _clampTextFrameWidth(tf, frameEl) {
   return tf.style.width;
 }
 
+/* freeLayout 프레임 «중앙»에 자식 하나를 놓는다 (수평·수직 «둘 다»).
+   ★«중앙»의 정의는 frameAlignOffset 하나 — props/prop-frame.js 의 정렬 버튼(_setAlign)이
+     쓰는 것과 «같은 술어»다. 두 벌로 갈라지면 「가운데 정렬했는데 자리가 다르다」가 난다.
+   ⚠️el 은 이미 frame 에 append 되어 있어야 한다(offsetWidth/Height 실측 필요).
+     텍스트프레임은 _clampTextFrameWidth 로 폭이 확정된 «뒤»에 불러야 한다.
+   같은 자리에 형제가 이미 있으면 +20px 대각선 캐스케이드(붙여넣기 관례와 동일). */
+function _placeAtFrameCenter(el, frame) {
+  if (!el || !frame) return null;
+  // (c) 「중앙」의 기준 = 프레임의 «보여지는» 폭/높이 — 축 선택 근거는 frameVisibleSize 주석 참조.
+  const fv = frameVisibleSize(frame);
+  const off = frameAlignOffset(fv.w, fv.h,
+                               el.offsetWidth, el.offsetHeight, 'center', 'center');
+  // ★삽입 경로에서만 «음수 클램프» — 공유 술어(frameAlignOffset)는 클램프하지 않는다.
+  //   실측(2026-09-05): 에셋 프리셋은 780px 인데 기본 프레임은 520px 이라 순수 중앙은
+  //   top:-130px 이 되고, 프레임 overflow:hidden 이 «방금 넣은 이미지의 윗부분»을 잘랐다.
+  //   정렬 «버튼»(prop-frame _setAlign)은 사용자가 의도적으로 누른 것이라 음수를 허용하지만,
+  //   «삽입 기본값»이 블록을 프레임 밖으로 밀어내면 안 된다 → 여기서만 0으로 막는다.
+  const baseL = Math.max(0, off.left);
+  const baseT = Math.max(0, off.top);
+  const occupied = [...frame.children]
+    .filter(c => c !== el && !c.classList.contains('frame-resize-handle') && c.style.position === 'absolute')
+    .map(c => ({ left: parseInt(c.style.left) || 0, top: parseInt(c.style.top) || 0 }));
+  const pos = cascadeIfOccupied(baseL, baseT, occupied);
+  /* ★캐스케이드는 «비켜놓기»지 «밀어내기»가 아니다 — 프레임 밖으로 나가면 안쪽으로 되돌린다.
+     실측(2026-09-05, 고치기 전): 폭 100% 인 텍스트프레임(빈 줄)을 두 번 넣으면 둘째가
+     left:20px 이 되고 박스가 오른쪽으로 20px 삐져나가 «가운데»가 20px 어긋났다.
+     글자 중앙정렬을 기본으로 켜면(폭 100%) 이 자리를 «모든» 텍스트가 지나간다.
+     X 로 비킬 자리가 없으면(가득 찬 폭) X 는 0 으로 되돌리고 Y 캐스케이드만 남긴다
+     — 두 형제의 top 이 20px 다르므로 «완전히 겹치는» 일은 그대로 막힌다. */
+  const left = clampLeftIntoFrame(pos.left, fv.w, el.offsetWidth);
+  el.style.left = left + 'px';
+  el.style.top  = pos.top  + 'px';
+  return { left, top: pos.top };
+}
+
 /* freeLayout inner 안에서 absolute 블록들을 아래로 쌓을 Y 좌표 계산 */
 function _calcFreeLayoutStackY(inner) {
   const absEls = [...inner.querySelectorAll(':scope > *')].filter(el => el.style.position === 'absolute');
@@ -1659,6 +1714,9 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
       block.dataset.offsetY = stackY;
     }
     ss.appendChild(block);
+    // #3 «블록을 프레임 중앙에 놓기» — 좌표 미지정 삽입의 기본값을 프레임 중앙으로.
+    // append «뒤»에 불러야 offsetWidth/Height 가 실측된다. hasAbsCoords(MCP·명시좌표)면 유지.
+    if (!hasAbsCoords) _placeAtFrameCenter(block, ss);
     bindBlock(block);
     block.setAttribute('draggable', 'false');
     window.buildLayerPanel();
@@ -1738,7 +1796,7 @@ function _nextGroupName() {
 function wrapSelectedBlocksInFrame(opts = {}) {
   const asGroup = opts.asGroup === true;
   // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
   let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
@@ -2077,26 +2135,6 @@ function addShapeBlock(type = 'rectangle') {
   window._activeFrame = ss;
   window.showFrameProperties?.(ss);
 }
-
-// ── New Grid Block ── [봉인됨 2026-06-08]
-// 봉인 이유: img2/img3 multi-col preset은 canvas-block(cvb_)로 통합. 옛 .row+.col 경로는 좀비 동작.
-// 봉인 후 호출 시 명시적 경고 + canvas-block 대체 안내. 함수 정의는 save-load 마이그레이션이 참조할 수 있어 보존.
-// PM/MCP 등록 금지 — update_new_grid_block 같은 도구를 만들지 말 것.
-//
-// 원래 시그니처 (참고용 — 호출 X):
-//   addNewGridBlock(cols, rows, opts)
-//     cols: 열 수 (기본 2) / rows: 행 수 (기본 1)
-//     opts: { gap: 16, cellHeight: auto, ratios: [1,1,...], bg: '' }
-function addNewGridBlock(/* cols, rows, opts */) {
-  // [SEALED 2026-06-08] 호출 차단 — multi-col 이미지 비교는 canvas-block(addCanvasBlock)으로 대체.
-  // 원본 구현은 git history(v2025-06-08 이전 commit)에서 참조 가능. PM/MCP 등록 금지.
-  console.warn('[sealed] addNewGridBlock is deprecated since 2026-06-08. Use addCanvasBlock for multi-image grid.');
-  if (typeof window.showToast === 'function') {
-    window.showToast('NewGrid는 봉인된 컴포넌트입니다. Canvas 블록을 사용하세요.');
-  }
-  return null;
-}
-window.addNewGridBlock = addNewGridBlock;
 
 // ── setSectionBg: 섹션 단위 배경색 설정 ──
 // sectionEl: .section-block 요소 또는 섹션 id(string)
@@ -2555,6 +2593,35 @@ function updateAssetBlock(blockId, partial = {}) {
       block.style.backgroundColor = c;
       applied.bgColor = c;
     }
+  }
+
+  // ── 7.5) scratchId — 대용량 이미지 "교체" (INV-B3/B1 결손 #3·#4) ──
+  //   ★imgSrc는 IPC 문자열이라 200000자 캡이 걸린다(≈150KB — 실사진은 대부분 넘는다).
+  //     반면 add_asset_block(scratchId)는 renderer가 자기 IndexedDB를 직접 읽어 7MB(≈5MB)까지
+  //     받는다 — "붙이기"와 "교체"가 35배 비대칭이던 원인이 여기(update 쪽에만 scratchId 경로가
+  //     없었던 것)였다. 같은 window._getScratchItemByIdForMCP 경로를 태워 대칭을 맞춘다.
+  if (partial.scratchId !== undefined && partial.scratchId !== null) {
+    if (partial.imgSrc !== undefined && partial.imgSrc !== null) {
+      return { ok: false, code: 'INVALID', message: 'imgSrc and scratchId are mutually exclusive' };
+    }
+    if (typeof partial.scratchId !== 'string' || !partial.scratchId.startsWith('sp_')) {
+      return { ok: false, code: 'INVALID', message: 'scratchId must be a string starting with "sp_"' };
+    }
+    const scItem = typeof window._getScratchItemByIdForMCP === 'function'
+      ? window._getScratchItemByIdForMCP(partial.scratchId, { includeSrc: true })
+      : null;
+    if (!scItem || !scItem.src) {
+      return { ok: false, code: 'NOT_FOUND', message: 'scratch item not found or empty: ' + partial.scratchId };
+    }
+    if (typeof window.setAssetImageFromSrc === 'function') {
+      try { window.setAssetImageFromSrc(block, scItem.src); } catch (e) {
+        return { ok: false, code: 'RENDER_ERROR', message: 'setAssetImageFromSrc failed: ' + e.message };
+      }
+    } else {
+      block.classList.add('has-image');
+      block.dataset.imgSrc = scItem.src;
+    }
+    applied.scratchId = partial.scratchId;
   }
 
   // ── 8) imgSrc — setAssetImageFromSrc / clearAssetImage 사용 ──
@@ -4883,12 +4950,8 @@ function updateFrameBlock(blockId, partial = {}) {
     applied.flipV = v === '1';
   }
   if (_transformTouched) {
-    const tx = parseInt(block.dataset.translateX) || 0;
-    const ty = parseInt(block.dataset.translateY) || 0;
-    const rd = parseFloat(block.dataset.rotateDeg) || 0;
-    const fx = block.dataset.flipH === '1' ? -1 : 1;
-    const fy = block.dataset.flipV === '1' ? -1 : 1;
-    block.style.transform = `translate(${tx}px,${ty}px) rotate(${rd}deg) scale(${fx},${fy})`;
+    // SSOT = js/frame-geometry.js. identity:'write' = prop-frame _applyTransform 과 동일 규약.
+    applyFrameTransform(block, { identity: 'write' });
   }
 
   // 10) bannerPreset — destructive. 자식 모두 사라짐. PM 호출 시 명시적 confirmDestructive=true 필요.

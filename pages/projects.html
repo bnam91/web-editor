@@ -13,6 +13,8 @@
 <link rel="stylesheet" href="../css/notice.css">
 <link rel="stylesheet" href="../css/font-substitute.css">
 <link rel="stylesheet" href="../css/version-history.css">
+<!-- ★[H3] 신고 창을 이 화면에서도 연다(복구 배너 → 원인 보내기). settings-modal.css 는 이미 위에 있다. -->
+<link rel="stylesheet" href="../css/report-modal.css">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 
@@ -63,6 +65,71 @@ body {
   margin-bottom: 28px;
 }
 #header h1 { font-size: 18px; font-weight: 700; color: #f0f0f0; }
+
+/* ── E3-b ㉯ 예고 배너 ── 정보지 제한이 아니다: [hidden]이면 레이아웃 자리도 안 먹는다
+   (기본이 거의 언제나 이 상태다 — 창 밖이면 뜰 일이 없다). 모달·오버레이 금지, 한 줄. */
+#sig-stale-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--ui-bg-card); border: 1px solid var(--ui-border-mid);
+  border-radius: var(--ui-radius-sm);
+  padding: 8px 12px; margin-bottom: 14px;
+  font-size: var(--ui-fs-12); color: var(--ui-text-sub);
+}
+#sig-stale-banner-close {
+  background: transparent; border: none; cursor: pointer;
+  color: var(--ui-text-dim); font-size: var(--ui-fs-12); line-height: 1; padding: 2px 4px;
+}
+#sig-stale-banner-close:hover { color: var(--ui-text); }
+
+/* ── [H3] 지난 실행 복구 배너 ────────────────────────────────────────────
+   ★#sig-stale-banner 와 «같은 꼴»이다 — 새 배너 모양을 만들지 않는다(변수도 그대로).
+     다른 점은 색 하나뿐: 이건 「알림」이 아니라 「잃을 뻔한 것」이라 테두리를 세운다.
+   ★모달이 아니다 — 자리를 차지하는 한 줄이고, 사용자가 하던 일을 막지 않는다.
+   ⛔`hidden` 속성을 쓰지 않는다 — ID 셀렉터의 display 가 [hidden] UA 규칙을 이겨서
+     «빈 회색 줄»이 남는다(#sig-stale-banner 에서 실제로 났던 회귀. PSB-1 참조). */
+#recovery-banner {
+  background: var(--ui-bg-card); border: 1px solid var(--ui-accent-primary);
+  border-radius: var(--ui-radius-sm);
+  padding: 10px 12px; margin-bottom: 14px;
+  font-size: var(--ui-fs-12); color: var(--ui-text-sub);
+}
+#recovery-banner-row { display: flex; align-items: center; gap: 10px; }
+#recovery-banner-msg { flex: 1; min-width: 0; }
+#recovery-banner-headline { color: var(--ui-text); font-weight: 600; }
+#recovery-banner-sub { display: block; margin-top: 2px; color: var(--ui-text-dim); }
+#recovery-banner button {
+  background: transparent; border: 1px solid var(--ui-border-mid); border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-sub); font-size: var(--ui-fs-12); line-height: 1;
+  padding: 6px 10px; cursor: pointer; white-space: nowrap;
+}
+#recovery-banner button:hover { color: var(--ui-text); border-color: var(--ui-text-dim); }
+#recovery-banner button.primary { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; font-weight: 600; }
+#recovery-banner button.primary:hover { background: var(--ui-accent-primary-hover); }
+#recovery-banner button:disabled { opacity: .5; cursor: default; }
+#recovery-banner-close { border: none !important; padding: 4px 6px !important; color: var(--ui-text-dim); }
+
+#recovery-say { display: block; margin-top: 8px; color: var(--ui-text); }
+#recovery-detail { display: none; margin-top: 10px; border-top: 1px solid var(--ui-border-mid); padding-top: 10px; }
+#recovery-detail.on { display: block; }
+#recovery-detail .rec-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 7px 0; border-bottom: 1px solid var(--ui-border-mid);
+}
+#recovery-detail .rec-item:last-child { border-bottom: none; }
+#recovery-detail .rec-item-txt { flex: 1; min-width: 0; }
+#recovery-detail .rec-item-title { color: var(--ui-text); }
+#recovery-detail .rec-item-meta { display: block; margin-top: 2px; color: var(--ui-text-dim); word-break: break-all; }
+#recovery-detail .rec-acts { display: flex; gap: 6px; flex-shrink: 0; }
+#recovery-send-box { margin-top: 10px; }
+#recovery-outgoing {
+  display: none; margin-top: 8px; max-height: 220px; overflow: auto;
+  background: var(--ui-bg-app); border: 1px solid var(--ui-border-mid);
+  border-radius: var(--ui-radius-sm); padding: 8px 10px;
+  font-family: 'SF Mono', 'Menlo', monospace;   /* ★레포 관례와 «같은 값» — design-gate 「기존 값과 대조」 항목 */
+  font-size: 11px; line-height: 1.5; color: var(--ui-text-sub);
+  white-space: pre-wrap; word-break: break-all;
+}
+#recovery-outgoing.on { display: block; }
 
 #btn-new {
   display: flex; align-items: center; gap: 6px;
@@ -484,6 +551,36 @@ body {
       </div>
     </div>
   </div>
+  <!-- ★E3-b ㉯ — 잠그기 전 exp−7일 예고. js/entitlement-banner.js 가 판정, 이 블록은
+       문구를 «옮겨 적기»만 한다. 기본 hidden(자리도 안 먹는다) · 닫으면 이 세션 동안
+       다시 안 뜬다(새로고침·재부팅 후엔 다시 판정 — 이 세션 memory 뿐, 영구 억제 아님).
+       ⛔모달이 아니다 — 사용자가 하던 일을 끊지 않는다. -->
+  <div id="sig-stale-banner" style="display:none">
+    <span id="sig-stale-banner-text"></span>
+    <button type="button" id="sig-stale-banner-close" aria-label="닫기">✕</button>
+  </div>
+  <!-- ★[H3] 지난 실행의 사고 — 「되찾기 + 원인 보내기」.
+       ⛔모달이 아니다. 지난 실행의 사고는 «지금» 급한 일이 아니다 — 사용자가 하려던 걸
+         먼저 하게 두고, 되찾을 수 있다는 사실만 눈에 띄게 둔다(#sig-stale-banner 와 같은 원칙).
+       ⛔`hidden` 속성이 아니라 style="display:none" — PSB-1 회귀 방지(위 CSS 주석 참조).
+       ★★[보낼 내용 그대로 보기]가 이 화면의 «가장 중요한» 버튼이다. 「진단 정보가
+         포함됩니다」 같은 뭉뚱그린 문장 금지 — 나갈 줄을 그대로 보여준다.
+       ★★비상 사본은 «문서 본문 그 자체»라 신고에 절대 안 붙는다. 되살리기·파일 열기는
+         전부 «로컬»이다(main.js recovery:restore / recovery:reveal). -->
+  <div id="recovery-banner" style="display:none" role="status">
+    <div id="recovery-banner-row">
+      <span id="recovery-banner-msg">
+        <span id="recovery-banner-headline"></span>
+        <small id="recovery-banner-sub"></small>
+      </span>
+      <button type="button" id="recovery-restore" class="primary" style="display:none">되살리기</button>
+      <button type="button" id="recovery-toggle" aria-expanded="false" aria-controls="recovery-detail">자세히</button>
+      <button type="button" id="recovery-banner-close" aria-label="나중에 보기" title="나중에 — 다음 실행 때 다시 보여줍니다">✕</button>
+    </div>
+    <!-- 결과 한 줄(되살렸다·못 했다). ⛔alert 가 아니다 — 이 배너는 사용자를 막지 않는다. -->
+    <small id="recovery-say" role="status" aria-live="polite" style="display:none"></small>
+    <div id="recovery-detail"></div>
+  </div>
   <div id="project-grid"></div>
   <div id="empty-state">
     <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#888" stroke-width="1.2">
@@ -500,6 +597,14 @@ body {
      읽으므로 «반드시 먼저» 실행돼야 한다. 에디터(index.html)도 같은 파일을 읽는다. -->
 <script src="../js/feature-flags.js"></script>
 <script src="../js/notice.js"></script>
+<script src="../js/entitlement-banner.js"></script>
+<!-- ★[H3] 지난 실행 복구. recovery-banner.js = 판정·문구(DOM 의존 0),
+     report-modal.js = «기존» 신고 창 그대로(새 전송 경로를 만들지 않는다 — 재사용).
+     ⛔js/report-buffer.js 는 «일부러» 안 싣는다: 이 화면에 새 console 후킹을 들이는 건
+       이 단위의 일이 아니다. 없으면 ReportBuffer.list() 자리가 빈 배열이 될 뿐이고
+       (report-modal.js 가 이미 그렇게 방어한다), 복구 줄은 메인이 만들어 준다. -->
+<script src="../js/recovery-banner.js"></script>
+<script src="../js/report-modal.js"></script>
 
 <script>
 const IS_ELECTRON = !!window.electronAPI?.isElectron;
@@ -655,14 +760,14 @@ async function createProject() {
   const now = new Date().toISOString();
   const emptySnap = JSON.stringify({
     version: 2, currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }]
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }]
   });
   const proj = {
     id, name: 'Untitled',
     createdAt: now, updatedAt: now,
     version: 2,
     currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }],
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }],
     currentBranch: 'dev',
     branches: {
       main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },
@@ -912,7 +1017,7 @@ async function initSampleProject() {
     currentPageId: 'page_1',
     pages: [{
       id: 'page_1', name: 'Page 1', label: '',
-      pageSettings: { bg: '#969696', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true },
+      pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true },
       canvas: sampleCanvas
     }]
   };
@@ -1045,6 +1150,213 @@ const PLAN_LABEL = {
 };
 const PLAN_CLASS = { beta: 'is-beta', event_free: 'is-beta', starter: 'is-paid', pro: 'is-paid', promax: 'is-paid' };
 
+/* ── E3-b ㉯ — 잠그기 전 exp−7일 예고 ────────────────────────────────────
+ * ★판정은 js/entitlement-banner.js «하나»(decideExpiryBanner)가 한다. 여기서 exp 를
+ *   다시 해석하지 않는다 — 그러면 판정이 두 벌이 된다(§E3-b ㉮ 에서 실제로 있었던 사고).
+ * ★닫으면 «이 세션 동안만» 억제한다(새로고침·재실행하면 다시 판정) — 영구 dismiss 를
+ *   만들면 정말 잠기기 직전에도 «예전에 닫았다»는 이유로 안 뜰 수 있다. 그건 예고의
+ *   존재 이유를 지운다. 세션 메모리 하나로 충분하다(새로고침이 잦은 화면이 아니다).
+ */
+let _sigStaleBannerClosedThisSession = false;
+function paintSigStaleBanner(st) {
+  const box = document.getElementById('sig-stale-banner');
+  if (!box) return;
+  const B = window.EntitlementBanner;
+  const decided = (B && !_sigStaleBannerClosedThisSession) ? B.decideExpiryBanner(st) : null;
+  if (!decided) { box.style.display = 'none'; return; }
+  document.getElementById('sig-stale-banner-text').textContent = decided.text;
+  box.style.display = '';
+}
+(function wireSigStaleBannerClose() {
+  const btn = document.getElementById('sig-stale-banner-close');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    _sigStaleBannerClosedThisSession = true;
+    const box = document.getElementById('sig-stale-banner');
+    if (box) box.style.display = 'none';
+  });
+})();
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * [H3] 지난 실행의 사고 — 되찾기 + 원인 보내기
+ * ──────────────────────────────────────────────────────────────────────────
+ * ★판정·문구는 js/recovery-banner.js «하나»가 한다. 여기서 다시 해석하지 않는다
+ *   (entitlement-banner 와 같은 규율 — 판정이 두 벌이 되면 갈라진다).
+ * ★★노출 규칙(지디 확정) — 이 블록이 «마지막 관문»이다
+ *   ⑴ 동의 없이 아무것도 안 나간다. 여기엔 전송 호출이 «없다» — [원인 보내기]는
+ *      기존 신고 창을 «열» 뿐이고, 실제 전송은 거기서 [보내기]를 눌러야 일어난다.
+ *   ⑵ 나갈 줄을 «그대로» 볼 수 있다 — [보낼 내용 그대로 보기] + 신고 창을 «펼친 채로» 연다.
+ *   ⑶ 비상 사본(문서 본문)은 «절대» 신고에 안 붙는다. 되살리기·파일 열기는 로컬뿐이다.
+ *   ⑷ 애매하면 «안 보내는» 쪽.
+ * ★[✕]=이번만 숨김(다음 실행 때 다시 뜬다) / [이 안내 그만 보기]=도장(attachedAt).
+ *   ⛔도장을 찍어도 원본 기록은 «안 지운다» — 나중에 다시 찾을 수 있어야 한다.
+ * ══════════════════════════════════════════════════════════════════════════ */
+let _recoveryPending = null;
+function _recEl(id) { return document.getElementById(id); }
+
+async function paintRecoveryBanner() {
+  const box = _recEl('recovery-banner');
+  if (!box) return;
+  const api = window.electronAPI;
+  if (!api || !api.recovery) return;              // 브라우저에서 열었을 때 — 조용히 생략
+  let p = null;
+  try { p = await api.recovery.pending(); } catch (_) { p = null; }
+  _recoveryPending = p;
+  const R = window.RecoveryBanner;
+  const decided = (R && p) ? R.decide(p) : null;
+  if (!decided) { box.style.display = 'none'; return; }
+  _recEl('recovery-banner-headline').textContent = decided.headline;
+  _recEl('recovery-banner-sub').textContent = decided.sub;
+  const rb = _recEl('recovery-restore');
+  rb.style.display = decided.restorable > 0 ? '' : 'none';
+  renderRecoveryDetail();
+  box.style.display = '';
+}
+
+/** 첫 «되살릴 수 있는» 저장 실패. 배너의 [되살리기]가 가리키는 대상이다. */
+function _firstRestorable() {
+  const items = (_recoveryPending && _recoveryPending.items) || [];
+  return items.find(i => i.kind === 'save-failure' && i.emergencyExists) || null;
+}
+
+function renderRecoveryDetail() {
+  const wrap = _recEl('recovery-detail');
+  const R = window.RecoveryBanner;
+  if (!wrap || !R) return;
+  const p = _recoveryPending || {};
+  const items = p.items || [];
+  const lines = p.reportLines || [];
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  let html = items.map((it, i) =>
+    '<div class="rec-item">' +
+      '<span class="rec-item-txt">' +
+        '<span class="rec-item-title">' + esc(R.itemTitle(it)) + '</span>' +
+        '<small class="rec-item-meta">' + esc(R.itemDetail(it)) + '</small>' +
+      '</span>' +
+      '<span class="rec-acts">' +
+        (it.emergencyExists
+          ? '<button type="button" data-rec-restore="' + i + '">되살리기</button>' +
+            '<button type="button" data-rec-reveal="' + i + '">파일 위치</button>'
+          : '') +
+      '</span>' +
+    '</div>').join('');
+
+  if (p.degraded && p.degraded.length) {
+    // ★「없다」와 「못 읽었다」는 다른 말이다 — 삼키지 않고 화면에 적는다.
+    html += '<div class="rec-item"><span class="rec-item-txt"><span class="rec-item-title">' +
+      '일부 기록을 읽지 못했습니다</span><small class="rec-item-meta">' +
+      esc(p.degraded.join(' / ')) + '</small></span></div>';
+  }
+
+  html +=
+    '<div id="recovery-send-box">' +
+      '<div class="rec-acts">' +
+        '<button type="button" id="recovery-send"' + (lines.length ? '' : ' disabled') + '>원인 보내기…</button>' +
+        '<button type="button" id="recovery-show-out" aria-expanded="false" aria-controls="recovery-outgoing">' +
+          '보낼 내용 그대로 보기 (' + lines.length + '줄)</button>' +
+        '<button type="button" id="recovery-dismiss" ' +
+          'title="다시 안 띄웁니다. ⛔기록과 비상 사본 파일은 지우지 않습니다 — 나중에 다시 찾을 수 있습니다">' +
+          '이 안내 그만 보기</button>' +
+      '</div>' +
+      /* ★비상 사본이 안 나간다는 사실을 «명시»한다 — 뭉뚱그리지 않는다. */
+      '<small class="rec-item-meta">보내기를 눌러야 나갑니다. ' +
+        '작업 내용(비상 사본)은 보내지지 않고 이 컴퓨터에만 남습니다.</small>' +
+      '<pre id="recovery-outgoing">' + esc(R.outgoingText(lines)) + '</pre>' +
+    '</div>';
+  wrap.innerHTML = html;
+}
+
+(function wireRecoveryBanner() {
+  const box = _recEl('recovery-banner');
+  if (!box) return;
+  const api = () => window.electronAPI && window.electronAPI.recovery;
+  /* ★결과는 «배너 안 한 줄»로 말한다. ⛔alert/confirm 금지 — 이 배너는 사용자를 막지 않는다.
+     (이 화면엔 showToast 가 없다. 있으면 그걸 쓰고, 없어도 «조용히» 끝나지 않게 줄을 남긴다.) */
+  const say = (m) => {
+    const s = _recEl('recovery-say');
+    if (s) { s.textContent = m; s.style.display = ''; }
+    if (typeof window.showToast === 'function') { try { window.showToast(m); } catch (_) {} }
+  };
+
+  const doRestore = async (it) => {
+    if (!it || !api()) return;
+    const r = await api().restore({ emergencyPath: it.emergencyPath, projectId: it.projectId });
+    if (r && r.ok) {
+      // 되살렸으면 그 기록은 «할 일을 다 했다» — 도장을 찍는다(원본 파일은 그대로 둔다).
+      try { await api().ack([it.id]); } catch (_) {}
+      /* ★반쪽이면 «반쪽이라고» 말한다 — 원본 폴더가 없으면 이미지 자산이 안 따라온다.
+         조용히 그림 빠진 프로젝트를 주면 사용자는 두 번째로 잃는다. */
+      say(r.assetsLinked === false
+        ? '✅ 「' + r.name + '」으로 되살렸습니다 — ⚠️원본 프로젝트가 없어 «이미지가 빠졌을 수» 있습니다'
+        : '✅ 「' + r.name + '」으로 되살렸습니다');
+      try { await renderGrid(); } catch (_) {}
+      await paintRecoveryBanner();
+    } else {
+      // ⛔실패를 «성공처럼» 말하지 않는다. 파일은 그대로 있으니 다른 통로를 알린다.
+      say('⚠️ 되살리지 못했습니다 (' + ((r && (r.error || r.code)) || '알 수 없음') + ') — [파일 위치]로 사본을 직접 챙기실 수 있습니다');
+    }
+  };
+
+  box.addEventListener('click', async (ev) => {
+    const t = ev.target.closest('button');
+    if (!t) return;
+    const items = (_recoveryPending && _recoveryPending.items) || [];
+
+    if (t.id === 'recovery-banner-close') { box.style.display = 'none'; return; }  // ★이번만
+    if (t.id === 'recovery-toggle') {
+      const d = _recEl('recovery-detail');
+      const next = t.getAttribute('aria-expanded') !== 'true';
+      t.setAttribute('aria-expanded', String(next));
+      d.classList.toggle('on', next);
+      return;
+    }
+    if (t.id === 'recovery-restore') { await doRestore(_firstRestorable()); return; }
+    if (t.dataset.recRestore != null) { await doRestore(items[Number(t.dataset.recRestore)]); return; }
+    if (t.dataset.recReveal != null) {
+      const it = items[Number(t.dataset.recReveal)];
+      const r = it && api() ? await api().reveal({ emergencyPath: it.emergencyPath }) : null;
+      if (!r || !r.ok) say('⚠️ 사본 파일을 찾지 못했습니다');
+      return;
+    }
+    if (t.id === 'recovery-show-out') {
+      const pre = _recEl('recovery-outgoing');
+      const next = t.getAttribute('aria-expanded') !== 'true';
+      t.setAttribute('aria-expanded', String(next));
+      pre.classList.toggle('on', next);
+      return;
+    }
+    if (t.id === 'recovery-dismiss') {
+      if (api()) { try { await api().ack(items.map(i => i.id)); } catch (_) {} }
+      box.style.display = 'none';
+      return;
+    }
+    if (t.id === 'recovery-send') {
+      /* ★★여기서 «보내지 않는다» — 기존 신고 창을 열 뿐이다. 사용자가 거기서 [보내기]를
+         눌러야 나간다. 그리고 창은 「함께 보내지는 것」을 «펼친 채로» 열려서
+         나갈 줄이 그대로 보인다(report-modal.js open({extraErrors})). */
+      const lines = (_recoveryPending && _recoveryPending.reportLines) || [];
+      if (!window.openReportModal) { say('⚠️ 이 화면에서는 신고 창을 열 수 없습니다'); return; }
+      window.openReportModal({
+        type: 'bug',
+        text: '지난 실행에서 예기치 않은 종료·저장 실패가 있었습니다.\n(무슨 작업을 하던 중이었는지 적어주시면 원인을 찾는 데 큰 도움이 됩니다.)\n\n',
+        extraErrors: lines,
+      });
+      /* ★★★도장은 «크래시 기록만». ⛔되살릴 사본이 남은 저장 실패에는 찍지 않는다.
+         실기가 잡은 진짜 결함(2026-09-06): 여기서 «전부» 찍었더니 [원인 보내기] 한 번에
+         배너가 사라져 [되살리기]가 같이 없어졌다 — 사용자는 원인만 보내고 «문서는 잃는다».
+         그게 바로 「복구할 수 있었는데 못 했다」다(지디 확정 반려 조건).
+         ⇒ 크래시는 「보냈으니 할 일 끝」이지만, 저장 실패는 «되살려야» 할 일이 끝난다. */
+      const crashIds = items.filter(i => i.kind === 'crash').map(i => i.id);
+      if (api() && crashIds.length) { try { await api().ack(crashIds); } catch (_) {} }
+      await paintRecoveryBanner();   // 남은 게 있으면 «계속 떠 있는다»
+      if (_recEl('recovery-detail')) _recEl('recovery-detail').classList.remove('on');
+      return;
+    }
+  });
+})();
+
 function paintAcct(st) {
   const box = document.getElementById('acct');
   if (!box) return;
@@ -1153,7 +1465,9 @@ function wireAcctMenu(api) {
         setTimeout(() => { window.location.href = 'license.html'; }, 900);
         return;
       }
-      paintAcct(await api.getAuthState());
+      const freshSt = await api.getAuthState();
+      paintAcct(freshSt);
+      paintSigStaleBanner(freshSt);
       // ★오프라인이면 «조용히 실패»하면 안 된다 — 눌렀는데 아무 일도 안 일어난 걸로 보인다.
       //   만료도 마찬가지다 — 서버는 대답했는데 「갱신됨」이라고 쓰면 거짓말이 된다.
       setState((r && r.ok) ? '갱신됨'
@@ -1195,8 +1509,13 @@ function wireAcctMenu(api) {
 (async () => {
   const api = window.electronAPI;
   if (!api || !api.getAuthState) return;          // 브라우저에서 열었을 때 — 조용히 생략
-  paintAcct(await api.getAuthState());
+  const bootSt = await api.getAuthState();
+  paintAcct(bootSt);
+  paintSigStaleBanner(bootSt);
   wireAcctMenu(api);
+  /* ★[H3] 지난 실행의 사고 — 계정 그리기 «뒤»에 돈다. 실패해도 이 화면이 안 죽게 따로 잡는다
+     (복구 안내가 못 떠도 프로젝트 목록은 떠야 한다 — 안내는 «정보»지 관문이 아니다). */
+  try { await paintRecoveryBanner(); } catch (e) { console.warn('[recovery] 배너 실패:', e && e.message); }
 })();
 
 /* ── 보기 전환(그리드 / 리스트) ──────────────────────────────────────────

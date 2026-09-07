@@ -71,7 +71,7 @@ function createVariation(sec) {
   window.bindSectionOrder(clone);
   if (window.bindSectionDrag) window.bindSectionDrag(clone);
   if (window.bindSectionDropZone) window.bindSectionDropZone(clone);
-  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
+  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
   bindVariationToolbarBtn(clone);
   if (window.buildLayerPanel) window.buildLayerPanel();
 }
@@ -116,7 +116,7 @@ function addVariation(sec) {
   window.bindSectionOrder(clone);
   if (window.bindSectionDrag) window.bindSectionDrag(clone);
   if (window.bindSectionDropZone) window.bindSectionDropZone(clone);
-  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
+  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
   bindVariationToolbarBtn(clone);
   all.forEach(s => bindVariationToolbarBtn(s));
   if (window.buildLayerPanel) window.buildLayerPanel();

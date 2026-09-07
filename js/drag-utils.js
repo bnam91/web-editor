@@ -130,7 +130,7 @@ function insertAfterSelected(section, el) {
     const sel = ssInner.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.card-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .icon-block.selected, .step-block.selected, .vector-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .laurel-block.selected, .chat-block.selected'
+      '.card-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .icon-block.selected, .step-block.selected, .vector-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .laurel-block.selected, .chat-block.selected'
     );
     if (sel) {
       const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
@@ -171,7 +171,7 @@ function insertAfterSelected(section, el) {
     return;
   }
 
-  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .icon-block.selected, .step-block.selected, .vector-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .laurel-block.selected, .chat-block.selected');
+  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .icon-block.selected, .step-block.selected, .vector-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .laurel-block.selected, .chat-block.selected');
 
   if (sel && sel.closest('.section-block') === section) {
     const isGap = sel.classList.contains('gap-block');
@@ -202,10 +202,21 @@ function showToast(msg) {
   t._timer = setTimeout(() => t.classList.remove('show'), 2000);
 }
 
+/* 섹션에 «직접» 텍스트를 추가할 때 상속할 정렬 — 섹션 안 «첫» 텍스트의 정렬을 따라간다.
+   ★자유배치(freeLayout) 프레임 «안»의 텍스트는 근거에서 뺀다.
+     그 자식들은 자기 좌표계를 갖는 별개 세계이고, 2026-09-05 지시로 «프레임 안 신규 추가»의
+     기본 정렬이 가운데가 됐다 — 그걸 여기서 읽으면 프레임이 하나라도 있는 섹션에서
+     «섹션에 직접» 넣는 텍스트까지 가운데로 끌려간다(회귀 금지선).
+     실측(tests/measure/frame-textcenter): 이 가드가 없을 때 섹션 직접 추가가
+     (none) → center 로 오염됐다. 가드 후 (none) 복귀.
+   ⚠️fullWidth(플로우) 프레임 안 텍스트는 «뺴지 않는다» — 그쪽은 섹션과 같은 플로우다. */
 function getSectionAlign(sec) {
-  const first = sec.querySelector('.text-block .tb-h1, .text-block .tb-h2, .text-block .tb-h3, .text-block .tb-body');
-  if (!first) return null;
-  return first.style.textAlign || null;
+  const cands = sec.querySelectorAll('.text-block .tb-h1, .text-block .tb-h2, .text-block .tb-h3, .text-block .tb-body');
+  for (const el of cands) {
+    if (el.closest('.frame-block[data-free-layout], .frame-block[data-freelayout]')) continue;
+    return el.style.textAlign || null;   // 첫 «섹션 레벨» 텍스트가 정한다(빈 문자열이면 null)
+  }
+  return null;
 }
 
 const GRAPH_DEFAULT_ITEMS = [
@@ -530,6 +541,35 @@ function blockContextLuminance(block, selfBg) {
   return colorLuminance(sec.style.backgroundColor || sec.style.background || sec.dataset.bg || '');
 }
 
+// 조상의 HTML5 드래그(draggable="true")를 «드래그하는 동안만» 끈다.
+// ★공유화(2026-09-04 P2, PLAN-gridblock.md §5-B-4) — 원래 table-cell-select.js 안에 IIFE
+//   전용으로 있었다(셀 사각 선택 드래그가 조상 .row 의 dragstart 로 새는 걸 막던 코드).
+//   그리드 블록 열 경계 드래그(overlay-handles.js)가 «같은 문제»를 겪어 여기로 뽑았다.
+//   동작은 원본과 완전히 동일(복붙, 로직 무변경) — table-cell-select.js 는 이제 이 함수를 호출만 한다.
+// ⚠️draggable 조상은 하나가 아닐 수 있다(td → .row → .frame-block 등 체인) — closest() 로
+//   가장 가까운 하나만 끄면 브라우저가 그 위 draggable 에서 dragstart 를 다시 잡는다.
+//   ⇒ 체인 «전부» 끄고 «전부» 원래 값으로 복원한다. 안전망: blur 에도 복구(mouseup 을 못 받는 경우).
+function suppressAncestorDrag(block) {
+  const hosts = [];
+  for (let el = block; el && el !== document.body; el = el.parentElement) {
+    if (el.getAttribute && el.getAttribute('draggable') === 'true') hosts.push([el, el.getAttribute('draggable')]);
+  }
+  if (!hosts.length) return () => {};
+  hosts.forEach(([el]) => el.setAttribute('draggable', 'false'));
+  let done = false;
+  const restore = () => {
+    if (done) return;
+    done = true;
+    window.removeEventListener('blur', restore); // 리스너 누적 방지(mousedown 마다 등록됨)
+    hosts.forEach(([el, was]) => {
+      if (was === null) el.removeAttribute('draggable');
+      else el.setAttribute('draggable', was);
+    });
+  };
+  window.addEventListener('blur', restore);
+  return restore;
+}
+
 export {
   genId,
   getActorId,
@@ -549,6 +589,7 @@ export {
   ASSET_PRESETS,
   colorLuminance,
   blockContextLuminance,
+  suppressAncestorDrag,
 };
 
 window.genId                      = genId;
@@ -567,3 +608,4 @@ window.GRAPH_DEFAULT_ITEMS        = GRAPH_DEFAULT_ITEMS;
 window.renderGraph                = renderGraph;
 window.applyDividerStyle          = applyDividerStyle;
 window.ASSET_PRESETS              = ASSET_PRESETS;
+window.suppressAncestorDrag       = suppressAncestorDrag;

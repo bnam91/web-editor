@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { mkTmpRoot } = require('./_tmproot');
+const { linkToDirOutside, unlinkDirLink } = require('./_link.js');   // ★비승격 윈도우에서도 되는 링크
 const crypto = require('crypto');
 const { loadMain } = require('./_ipc-harness');
 
@@ -435,8 +436,9 @@ test('U7-15 ★마커 쓰기가 PROJECTS_DIR «밖»으로 새지 않는다 (sym
   const outside = mkTmpRoot('goya-outside-');
   fs.writeFileSync(path.join(outside, 'proj.json'), '{}');
   const linkId = 'proj_1799999999999';
-  try { fs.symlinkSync(outside, path.join(DIR, linkId)); }
-  catch (_) { return; }   // symlink 불가 환경이면 건너뛴다
+  /* ⛔옛 판은 `catch { return; }` 로 «조용히» 건너뛰었다 — 윈도우에서 이 검사는
+     한 번도 안 돌면서 초록이었다(가짜 초록). 디렉터리 정션은 비승격에서도 된다. */
+  linkToDirOutside(outside, path.join(DIR, linkId));
   /* ⚠️초판은 여기서 failTrash 로 «실패»를 만들었다. 그런데 실패 경로는 markerPath 를 «unlink 한 뒤»라
    *   마커가 항상 없다 — realpath 가드를 지워도 초록이었다(3차 검수 지적).
    *   ⇒ 삭제를 «성공»시킨다. 심링크 자체만 휴지통으로 가고 outside/ 는 그대로 남으므로,
@@ -454,7 +456,7 @@ test('U7-15 ★마커 쓰기가 PROJECTS_DIR «밖»으로 새지 않는다 (sym
   assert.ok(trashed.some(d => fs.existsSync(path.join(H.trashDir, d, '_deleted-info.json'))),
     '★마커가 아예 안 써지고 있다 — 위 단언이 「기능이 죽어서」 초록이다');
 
-  try { fs.unlinkSync(path.join(DIR, linkId)); } catch (_) {}
+  unlinkDirLink(path.join(DIR, linkId));   // ★링크만 지운다 — 정션은 unlink 가 안 먹는다
   fs.rmSync(outside, { recursive: true, force: true });
 });
 

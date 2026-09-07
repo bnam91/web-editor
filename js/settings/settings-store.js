@@ -6,6 +6,19 @@
    - window.saveSettings(patch) → main에 저장 + 캐시 갱신 + 이벤트 디스패치
    ══════════════════════════════════════ */
 (function () {
+  /* ★[M61] 이 앱의 «주 수식어»(primary modifier). 맥 = Meta(⌘) · 그 밖 = Control.
+     ⛔`navigator.platform` 은 폐기 예정이지만 Electron/Chromium 에선 여전히 정확하고,
+       `userAgentData` 는 «비보안 문맥·구버전»에서 없다. 둘 다 보고, 없으면 Meta 로 떨어진다
+       — 기존 동작이 맥 기준이므로 «모르면 옛 동작»이 안전한 기본값이다. */
+  const _isMac = (() => {
+    try {
+      const uaP = navigator.userAgentData && navigator.userAgentData.platform;
+      if (uaP) return /mac/i.test(uaP);
+      return /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || '');
+    } catch (_) { return true; }
+  })();
+  const PRIMARY = _isMac ? 'Meta' : 'Ctrl';
+
   const FALLBACK = {
     apiKeys: { openai: '', gemini: '', anthropic: '' },
     shortcuts: {
@@ -14,9 +27,18 @@
       addAsset:    'KeyA',
       addSection:  'KeyS',
       pinToggle:   'Backquote',
-      groupBlocks: 'Meta+KeyG',
-      ungroup:     'Meta+Shift+KeyG',
-      wrapInFrame: 'Meta+Alt+KeyG',
+      /* ★[M61] 「주 수식어」는 플랫폼을 따른다 — 맥 ⌘ / 윈도우·리눅스 Ctrl.
+         현빈 2026-09-06: 「일반적으로 어도비 일러스트 이런쪽에서는 문제없이 해당 단축키 썼을텐데」
+         ⇒ 맞다. 윈도우 표준은 Ctrl+Shift+G(일러스트·피그마 전부)이고
+           «우리가 정할 값이 아니라 맞춰야 할 값»이다.
+         ⛔여기가 'Meta+' 로 «하드코딩»돼 있어 윈도우에서 그룹 해제가 «절대» 안 잡혔다
+           (_matchShortcut 이 `!!e.metaKey === parsed.meta` 로 «정확히» 일치시킨다).
+         ⚠️그룹·프레임감싸기는 save-load.js 의 capture 핸들러가 `e.metaKey || e.ctrlKey` 로
+           «따로» 받아줘서 윈도우에서도 됐다 — 그래서 «해제만» 고장 난 것처럼 보였다.
+           ⇒ 증상은 하나였지만 원인은 이 세 줄 «전부»다. */
+      groupBlocks: PRIMARY + '+KeyG',
+      ungroup:     PRIMARY + '+Shift+KeyG',
+      wrapInFrame: PRIMARY + '+Alt+KeyG',
     },
     autoExternalizeOnOpen: false, // [externalize] 열 때 레거시 base64 일괄 외부화(기본 OFF)
     easterEggs: {
@@ -43,9 +65,29 @@
     window.dispatchEvent(new CustomEvent('settings:ready', { detail: window._settings }));
   })();
 
+  /* ★[M61] 「주 수식어」를 «읽는 자리»에서 플랫폼에 맞게 교정한다.
+     ⛔여기서 하는 이유 — 기본값이 «두 벌»이다:
+        렌더러 FALLBACK(이 파일)  ·  ★main.js:99 DEFAULT_SETTINGS(진짜 정본)
+       그리고 사용자 저장본(auth/settings)에도 «옛 Meta 값이 이미 박혀» 있다.
+       ⇒ 기본값만 고치면 «저장본이 있는 기존 사용자»는 그대로 안 고쳐진다.
+         읽는 자리에서 교정하면 저장본·메인·구버전이 «전부» 산다.
+     ★사용자가 «직접 지정»한 것은 안 건드린다 — 교정은 「주 수식어 하나만 있는」 조합에 한한다.
+       (Meta 와 Ctrl 을 «같이» 쓰는 조합은 사용자 의도이므로 그대로 둔다.)
+     ⚠️맥에선 아무것도 안 바꾼다 — PRIMARY 가 'Meta' 라 치환이 항등이다. */
+  function _toPlatform(spec) {
+    if (!spec || _isMac) return spec;
+    if (/Meta/.test(spec) && /Ctrl/.test(spec)) return spec;   // 둘 다 = 사용자 의도
+    return spec.replace(/Meta/g, 'Ctrl');
+  }
   window.getShortcut = function (action) {
-    return (window._settings && window._settings.shortcuts && window._settings.shortcuts[action]) || null;
+    const raw = (window._settings && window._settings.shortcuts && window._settings.shortcuts[action]) || null;
+    return _toPlatform(raw);
   };
+  /* ★[별건 A] 교정을 «내보낸다» — getShortcut 을 못 쓰는 자리(저장 전 draft)도 같은 길을 타야 한다.
+     ⛔이게 없어서 설정 모달만 «날것»을 라벨로 만들었고, 윈도우 화면에 「Win+Shift+G」가 떴다.
+       실제로 먹는 건 Ctrl 이다 — 사용자가 화면을 믿고 윈도우 로고 키를 눌러도 안 된다.
+       (윈도우 실기 QA 2차 별건 A: 라벨 Win+Shift+G / 실측 Ctrl+Shift+G 로 그룹 1→0) */
+  window._toPlatformShortcut = _toPlatform;
 
   // 이스터에그(숨은 기능) on/off 확인 — 기본값 true(기존 동작 보존), 명시적 false일 때만 비활성
   window.isEasterEggEnabled = function (key) {
@@ -108,14 +150,22 @@
       && !!e.ctrlKey  === parsed.ctrl;
   };
 
-  // 사람이 읽는 라벨 — UI 표시용
+  /* 사람이 읽는 라벨 — UI 표시용
+     ★[M61] 윈도우에서 «맥 기호»를 보여주면 «거짓 표시»다. 현빈 제보의 절반이 이것이었다:
+       「설정 화면엔 ⌘⇧G 로 표시된다 — 윈도우 사용자에겐 거짓 표시」.
+       ⇒ 맥이면 기호(⌘⇧⌥⌃), 그 밖이면 «윈도우 표기»(Ctrl+Shift+Alt)로 쓴다.
+     ⚠️`Ctrl` 을 맥에서 «⌃»로 쓰는 건 맞다 — 맥의 Control 키다. 윈도우에선 그 기호가 안 통한다. */
+  const _sym = _isMac
+    ? [[/Meta/g, '⌘'], [/Shift/g, '⇧'], [/Alt/g, '⌥'], [/Ctrl/g, '⌃']]
+    : [[/Meta/g, 'Win'], [/Shift/g, 'Shift'], [/Alt/g, 'Alt'], [/Ctrl/g, 'Ctrl']];
   window._shortcutLabel = function (spec) {
     if (!spec) return '(없음)';
-    return spec
-      .replace(/Meta/g, '⌘')
-      .replace(/Shift/g, '⇧')
-      .replace(/Alt/g, '⌥')
-      .replace(/Ctrl/g, '⌃')
+    /* ⛔수식어만 갈아끼우고 «나머지 치환은 공통»으로 흐르게 한다.
+       처음엔 윈도우 분기에서 바로 return 했다가 Digit·Backquote·BracketLeft… 치환을
+       «통째로 건너뛰는» 것을 발견했다(라벨이 'Ctrl+Digit1' 처럼 나온다). */
+    let spec2 = spec;
+    for (const [re, to] of _sym) spec2 = spec2.replace(re, to);
+    return spec2
       .replace(/Key([A-Z])/g, '$1')
       .replace(/Digit(\d)/g, '$1')
       .replace(/Backquote/g, '`')
@@ -132,7 +182,9 @@
       .replace(/Space/g, '␣')
       .replace(/Tab/g, '⇥')
       .replace(/Escape/g, 'Esc')
-      .replace(/\+/g, '');
+      /* ★[M61] 맥은 기호를 «붙여» 쓴다(⌘⇧G). 윈도우는 «+ 로 잇는» 게 표기 관례다(Ctrl+Shift+G).
+         ⛔이 줄이 무조건 + 를 지워서 윈도우 라벨이 「CtrlShiftG」로 나왔다 — 실측으로 잡았다. */
+      .replace(/\+/g, _isMac ? '' : '+');
   };
 
   // 시스템 단축키 (변경 금지)

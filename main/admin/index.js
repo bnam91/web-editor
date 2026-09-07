@@ -20,6 +20,13 @@
      화이트리스트에 그 폴더가 안 올라간 배포에서는 404 다. 그래서 서버가 «확실히 도는 폴더»
      (api/license/*)에 같은 문을 냈다. 여기서는 정본을 먼저 부르고 404 면 alias 로 한 번만
      재시도한다. ⚠️「404 = 기능 없음」으로 단정하지 않는다 — 협업이 정확히 그걸로 죽었다.
+
+   ★[H1, 2026-09-06] _callWithAlias 는 module.exports 로 «외부 재사용» 된다
+     main/report/queue.js(신고 큐 전송기)가 같은 정본→alias 규약이 필요해 이 함수를 그대로
+     불러 쓴다(복사하지 않는다 — 서버 핸들러가 한 벌인데 클라이언트 쪽 판단 로직이 갈라지면
+     한쪽만 고치는 사고가 난다). 다섯째 인자까지 열어 뒀다: timeoutMs(이미지 신고는 15초로
+     모자랄 수 있다), base(신고 큐의 _apiBase 는 stage/live 를 따로 설정할 수 있어 이 파일의
+     고정 API_BASE 를 그대로 쓰면 안 된다). 둘 다 안 주면 기존 호출부와 동작이 같다.
 ═══════════════════════════════════════════════════════════════════════════ */
 'use strict';
 
@@ -56,14 +63,23 @@ async function _fetchJson(url, { method = 'POST', body, headers } = {}, timeoutM
   }
 }
 
-/** 정본 → (404 면) alias 로 한 번만 재시도. 두 주소가 «같은 핸들러»라 결과는 같다. */
-async function _callWithAlias(primary, alias, body) {
+/** 정본 → (404 면) alias 로 한 번만 재시도. 두 주소가 «같은 핸들러»라 결과는 같다.
+ *  ★[H1, 2026-09-06] main/report/queue.js 도 이 함수를 «재사용»한다(복사 금지 — 로직이
+ *    갈라지면 한쪽만 고치는 사고가 난다). 그래서 이 파일의 고정 API_BASE 에 기대지 않고
+ *    두 가지를 «호출자가 밀어넣을 수 있게» 열어 둔다 — 안 주면 기존 호출부(공지·신고열람)는
+ *    동작이 «전혀» 안 바뀐다:
+ *    ⑴ timeoutMs — 이미지가 실리면 기본 15초로는 모자랄 수 있다.
+ *    ⑵ base — queue.js 의 _apiBase 는 init() 으로 stage/live 를 바꿀 수 있다(main.js 의
+ *       AUTH_API_BASE 와 지금은 같은 값을 쓰지만, «우연히 같다»에 기대면 나중에 base 가
+ *       갈라졌을 때 alias 만 옛 주소로 남는 사고가 난다 — 그래서 값을 받는다). */
+async function _callWithAlias(primary, alias, body, timeoutMs, base) {
+  const b = base || API_BASE;
   let r;
-  try { r = await _fetchJson(`${API_BASE}${primary}`, { body }); }
+  try { r = await _fetchJson(`${b}${primary}`, { body }, timeoutMs); }
   catch (_) { return { ok: false, reason: 'offline' }; }
   if (r.status !== 404) return _shape(r);
 
-  try { r = await _fetchJson(`${API_BASE}${alias}`, { body }); }
+  try { r = await _fetchJson(`${b}${alias}`, { body }, timeoutMs); }
   catch (_) { return { ok: false, reason: 'offline' }; }
   if (r.status !== 404) return _shape(r);
 
@@ -277,4 +293,4 @@ function init(ipcMain, deps) {
   });
 }
 
-module.exports = { init, _fetchRole };
+module.exports = { init, _fetchRole, _callWithAlias };

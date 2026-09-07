@@ -18,26 +18,109 @@
 //   어느 쪽이 응답했는지 모른 채 통과해 버려, 장애를 조용히 감춘다(확장 쪽 폴백은
 //   웹스토어 재심사 때문에 남긴 예외).
 //   ⇒ 다른 주소를 봐야 할 때는 env로 명시한다(개발용 Vercel 확인 등).
-const API_BASE      = process.env.GODITOR_LICENSE_API || 'https://blacksheepwall.kr';
-const LOGIN_URL     = `${API_BASE}/api/license/login`;
-// 세션 조용한 갱신용. 2026-08-06 현재 백엔드 미구현(404) — 응답을 못 받으면
-// "판단 불가"로 처리하고 로컬 캐시를 그대로 신뢰한다(=오프라인 유예와 동일 경로).
-// 백엔드가 이 엔드포인트를 열면 코드 수정 없이 갱신이 살아난다.
-const SESSION_URL   = `${API_BASE}/api/license/session`;
-const SIGNUP_URL    = `${API_BASE}/signup.html`;
-const PRICING_URL   = `${API_BASE}/pricing.html`;
-// 계정 찾기.
-// ★이 링크를 넣던 2026-08-07 오전엔 두 페이지가 라이브에 «없었다»(404). 홈페이지 쪽에만
-//   있었고 배포가 아직이어서, 링크만 넣었으면 사용자는 「이메일 찾기」를 눌러 404를 봤다.
-//   그래서 링크는 화면에 두되, 여는 쪽(main.js 'auth:open-external')이 열기 전에 실제 응답을
-//   확인해 죽어 있으면 브라우저를 띄우지 않는다. 「있다고 해놓고 404」가 「없다」보다 나쁘다.
-//   같은 날 두 페이지가 배포되어 지금은 통과한다.
-// ★그래도 가드를 남기는 이유는 «설정 사고로 페이지가 조용히 사라질 수 있어서»다. 같은 날
-//   실례가 있었다: 레포에 public/ 디렉터리가 생기자 Vercel이 그걸 출력 디렉터리로 잡아
-//   레포 루트가 통째로 404가 됐다(public/icons/… 만 루트에서 나왔다). 배포는 «성공»했고
-//   사이트만 죽어 있었다 — 즉 배포 성공이 페이지 생존을 보장하지 않는다.
-const FIND_EMAIL_URL    = `${API_BASE}/find-email.html`;
-const FIND_PASSWORD_URL = `${API_BASE}/find-password.html`;
+const LIVE_API_BASE = 'https://blacksheepwall.kr';
+
+/* ── dev 전용 서버주소 주입 ──────────────────────────────────────────────────
+ * ★`resolveKeys`(services/entitlement.js)·`isAdminAuthorized`(main.js) 와 «같은 규약»:
+ *   미패키징에서만 env 를 허용하고, 패키징에선 «무시»한다.
+ *
+ * ⛔패키징에서 살려 두면 서명 검증 전체가 장식이 된다. 공개키를 못 바꾸게 막아도
+ *   «서버를 바꾸면» 같은 결과이기 때문이다:
+ *     10줄짜리 서버가 {ok:true, signed:null} 만 돌려준다
+ *     → 앱의 「ok:true 인데 signed 없으면 통과」 유예 규약이 그대로 발동 → 통과.
+ *   그 유예 규약은 «우리가 서버 env 를 빠뜨렸을 때 전원이 잠기는 것»을 막으려고 일부러
+ *   넣은 것이고, 그 근거는 「위조자는 진짜 서버에게서 ok:true 를 못 받는다」였다.
+ *   그 전제는 «앱이 진짜 서버에 붙는다»는 가정 위에 서 있었다 — 그 가정을 여기서 세운다.
+ */
+function resolveApiBase(opts) {
+  const o = opts || {};
+  if (o.isPackaged !== false) return LIVE_API_BASE;   // 기본은 «막는» 쪽
+  const raw = o.env && o.env.GODITOR_LICENSE_API;
+  if (!raw) return LIVE_API_BASE;
+  return String(raw);
+}
+
+/* ── 「패키징인가」를 electron 없이 답하는 기본값 ─────────────────────────────
+ * ★정본은 Electron 의 `app.isPackaged` 이고, main.js 가 `applyRuntime()` 으로 알려준다.
+ *   이 파일은 순수 모듈이라 electron 을 못 부른다(⛔새로 들이지도 않는다) — 그래서
+ *   «알려주기 前»에도 안전하도록, 사용자가 못 만드는 근거만으로 기본값을 세운다.
+ *
+ * ⛔env 는 근거로 «쓰지 않는다». NODE_ENV·ELECTRON_IS_DEV 따위로 「나는 dev 다」를
+ *   주장할 수 있으면 이 파일 전체가 도로아미타불이다.
+ *
+ * 근거는 둘, OR 이다(하나라도 「패키징」이면 패키징 — 안전한 쪽으로 기운다):
+ *   ⒜ 이 파일이 `app.asar` «안»에서 돌고 있다. asar 를 뜯어 다시 싸야 바꿀 수 있다.
+ *   ⒝ Electron 런타임인데 실행파일 이름이 'electron' 이 «아니다» = electron-builder 가
+ *      만든 앱 바이너리다. 이건 Electron 자신의 `app.isPackaged` 와 «같은 규칙»이다
+ *      (그 이름은 코드서명·공증된 .app 번들 안에 있어서 바꾸면 서명이 깨진다).
+ *   ⒞ Electron 이 아니다 = node 로 돌린 단위검사다. 지킬 배포본 자체가 없다.
+ */
+function isPackagedRuntime() {
+  if (/[\\/]app\.asar([\\/]|$)/.test(__dirname)) return true;          // ⒜
+  if (process.versions && process.versions.electron) {                  // ⒝
+    const exe = String(process.execPath || '').split(/[\\/]/).pop().toLowerCase();
+    return exe !== 'electron' && exe !== 'electron.exe';
+  }
+  return false;                                                        // ⒞
+}
+
+/* ── ★「패키징인가」의 «한 벌» 답 ─────────────────────────────────────────────
+ * 이 변수가 이 앱에서 그 물음의 정본이다. 지금 이 답을 보는 자리는 셋이다:
+ *   ⑴ 서버 주소(resolveApiBase, 이 파일)  ⑵ collab 주소(main/collab/transport.js)
+ *   ⑶ 개발자용 .env 로드(main/env-file.js)
+ * ★새로 판정하지 말고 `isPackaged()` 를 «불러라». 판정이 두 벌이 되면 나중에 한쪽만
+ *   고쳐지고, 그때부터 두 자리의 답이 조용히 갈린다.
+ * 값은 ⒜ 부팅 직후 `isPackagedRuntime()` 의 기본값(=막는 쪽)이고,
+ *      ⒝ main.js 가 `applyRuntime()` 으로 Electron 의 `app.isPackaged` 를 알려주면 그 답이 된다. */
+let _packaged = true;
+/** @returns {boolean} 이 실행이 「배포본」인가 (dev = false) */
+function isPackaged() { return _packaged; }
+
+let API_BASE, LOGIN_URL, SESSION_URL, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL;
+
+/** 주소 하나에서 파생 URL 전부를 다시 만든다. ⛔여기 말고 다른 데서 조립하지 마라. */
+function _recompute(base) {
+  API_BASE    = base;
+  LOGIN_URL   = `${API_BASE}/api/license/login`;
+  // 세션 조용한 갱신용. 2026-08-06 현재 백엔드 미구현(404) — 응답을 못 받으면
+  // "판단 불가"로 처리하고 로컬 캐시를 그대로 신뢰한다(=오프라인 유예와 동일 경로).
+  // 백엔드가 이 엔드포인트를 열면 코드 수정 없이 갱신이 살아난다.
+  SESSION_URL = `${API_BASE}/api/license/session`;
+  SIGNUP_URL  = `${API_BASE}/signup.html`;
+  PRICING_URL = `${API_BASE}/pricing.html`;
+  // 계정 찾기.
+  // ★이 링크를 넣던 2026-08-07 오전엔 두 페이지가 라이브에 «없었다»(404). 홈페이지 쪽에만
+  //   있었고 배포가 아직이어서, 링크만 넣었으면 사용자는 「이메일 찾기」를 눌러 404를 봤다.
+  //   그래서 링크는 화면에 두되, 여는 쪽(main.js 'auth:open-external')이 열기 전에 실제 응답을
+  //   확인해 죽어 있으면 브라우저를 띄우지 않는다. 「있다고 해놓고 404」가 「없다」보다 나쁘다.
+  //   같은 날 두 페이지가 배포되어 지금은 통과한다.
+  // ★그래도 가드를 남기는 이유는 «설정 사고로 페이지가 조용히 사라질 수 있어서»다. 같은 날
+  //   실례가 있었다: 레포에 public/ 디렉터리가 생기자 Vercel이 그걸 출력 디렉터리로 잡아
+  //   레포 루트가 통째로 404가 됐다(public/icons/… 만 루트에서 나왔다). 배포는 «성공»했고
+  //   사이트만 죽어 있었다 — 즉 배포 성공이 페이지 생존을 보장하지 않는다.
+  FIND_EMAIL_URL    = `${API_BASE}/find-email.html`;
+  FIND_PASSWORD_URL = `${API_BASE}/find-password.html`;
+  // 구조분해로 붙잡는 소비자(main.js·main/admin·main/collab·main/notice)가 갱신값을 받도록.
+  if (typeof module !== 'undefined' && module.exports) {
+    Object.assign(module.exports, {
+      API_BASE, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL,
+    });
+  }
+}
+
+/**
+ * Electron main 이 「패키징인가」의 정본을 알려준다.
+ * ⛔authService 를 «처음 require 한 직후»·다른 소비자보다 «먼저» 불러야 한다.
+ *   안 불러도 안전하다 — 위 `isPackagedRuntime()` 기본값이 이미 「막는 쪽」이다.
+ * @param {{isPackaged:boolean}} rt
+ */
+function applyRuntime(rt) {
+  _packaged = !(rt && rt.isPackaged === false);
+  _recompute(resolveApiBase({ isPackaged: _packaged, env: process.env }));
+}
+
+_packaged = isPackagedRuntime() ? true : false;
+_recompute(resolveApiBase({ isPackaged: _packaged, env: process.env }));
 
 const TIMEOUT_MS = 10000;
 // 링크 생사 확인은 클릭 직후에 돌아 «체감 지연»이 된다. 로그인 요청보다 짧게 잡는다.
@@ -95,6 +178,34 @@ async function urlIsLive(url, onResult) {
   }
 }
 
+/* ── 서버 응답 필드 «뭉개지 않기» ────────────────────────────────────────────
+ * ★2026-09-06 재현된 사고: 서버가 준 `accessUntil: null`(= «무기한», 2099 매직넘버 금지 규약)이
+ *   `j.accessUntil || ''` 에서 `''` 가 되고 → main.js writeAuth 가 `''` 를 적고 →
+ *   readAuth 가 `''` 를 falsy 로 읽어 「기록이 없다」로 판정 → **돈 낸 무기한 사용자가
+ *   «첫 성공적 verifySession 바로 다음 실행»부터 로그아웃 화면을 본다.** 서서히가 아니라 즉시다.
+ *   게다가 sessionToken 도 같이 못 꺼내 silentRefresh 가 손도 못 대는 «자가복구 불가» 상태였다.
+ * ⇒ 뭉개는 자리가 «둘»이었다(여기 + writeAuth). ★한쪽만 고치면 안 낫는다.
+ */
+
+/** `accessUntil` 을 «뜻을 지운 채» 넘기지 않는다.
+ *  · `null`      = 무기한 → **null 그대로**
+ *  · 키 자체 없음 = 서버가 «말하지 않은» 것 → **키를 만들지 않는다**
+ *    (applyServerAnswer 의 plain 갱신이 `undefined` 를 보고 캐시를 «안 덮는다»).
+ *  · 그 밖        = 문자열 */
+function accessUntilField(j) {
+  if (!j || j.accessUntil === undefined) return {};
+  if (j.accessUntil === null) return { accessUntil: null };
+  return { accessUntil: String(j.accessUntil) };
+}
+
+/** 서버 서명 블록을 «가공 없이» 통과시킨다.
+ *  ⛔파싱 후 재직렬화 금지 — `payload` 는 «서명 대상 그 b64url 문자열»이라 한 바이트만
+ *    달라져도 검증이 깨진다. 그래서 객체를 그대로 넘기고, 없으면 키를 만들지 않는다. */
+function signedField(j) {
+  const sg = j && j.signed;
+  return (sg && typeof sg === 'object' && !Array.isArray(sg)) ? { signed: sg } : {};
+}
+
 /**
  * 계정 로그인.
  * @returns {Promise<object>} 항상 아래 중 하나 (throw 하지 않음)
@@ -124,7 +235,9 @@ async function login(email, password) {
       ok: true,
       email: j.email || email,
       plan: j.plan || '',
-      accessUntil: j.accessUntil || '',
+      /* ★`|| ''` 를 쓰지 않는다 — 무기한(null)을 '' 로 뭉개면 그 사용자는 로그인 «직후»부터
+         저장본이 무효로 읽힌다. 자세한 이유는 accessUntilField 주석. */
+      ...accessUntilField(j),
       sessionToken: j.sessionToken || '',
     };
   }
@@ -135,7 +248,7 @@ async function login(email, password) {
       ok: false,
       reason: j.reason || 'unknown',
       plan: j.plan || '',
-      accessUntil: j.accessUntil || '',
+      ...accessUntilField(j),
       purchaseUrl: j.purchaseUrl || PRICING_URL,
     };
   }
@@ -150,8 +263,14 @@ async function login(email, password) {
 /**
  * 저장된 세션으로 접근권한 조용히 갱신(로그인 화면을 띄우지 않는다).
  * @returns {Promise<object|null>} null = 판단 불가(오프라인·엔드포인트 부재·서버오류) → 캐시 유지
- *  - { ok:true, plan, accessUntil }
- *  - { ok:false, reason }          'expired' | 'invalid_session' 등
+ *  - { ok:true,  plan, accessUntil?, signed? }
+ *  - { ok:false, reason, plan, accessUntil?, signed? }   'expired' | 'invalid_session' 등
+ *
+ * ★`signed` = 서버 Ed25519 서명 블록 `{payload, sig, kid}`(정본 `feat/entitlement@522412a`,
+ *   모듈 `api/_lib/entitlement-sign.js`). **`payload` 하나**다 — `entitlement` 가 아니다.
+ *   여기서는 «가공 없이» 통과만 시킨다. 판정은 services/entitlement.js 가 한다.
+ * ★서버는 **만료된 사용자에게도 서명해서 준다** ⇒ 「signed 가 있다」로 통과시키면 안 된다.
+ * ★`accessUntil` 은 **null 일 수 있다 = 무기한**. `|| ''` 로 뭉개지 않는다(accessUntilField).
  */
 async function verifySession(email, sessionToken) {
   if (!email || !sessionToken) return null;
@@ -172,13 +291,18 @@ async function verifySession(email, sessionToken) {
   const spoke = (r.status === 200 || r.status === 401 || r.status === 403)
              && j && typeof j.ok === 'boolean';
   if (!spoke) return null;
-  if (j.ok) return { ok: true, plan: j.plan || '', accessUntil: j.accessUntil || '' };
-  return { ok: false, reason: j.reason || 'unknown', plan: j.plan || '', accessUntil: j.accessUntil || '' };
+  if (j.ok) return { ok: true, plan: j.plan || '', ...accessUntilField(j), ...signedField(j) };
+  return { ok: false, reason: j.reason || 'unknown', plan: j.plan || '', ...accessUntilField(j), ...signedField(j) };
 }
 
 module.exports = {
   login,
   verifySession,
+  resolveApiBase,
+  applyRuntime,
+  isPackaged,
+  LIVE_API_BASE,
+  _isPackagedRuntime: isPackagedRuntime,
   API_BASE,
   SIGNUP_URL,
   PRICING_URL,

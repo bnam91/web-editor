@@ -224,6 +224,6 @@
 | `index.html` (`#floating-panel`) | 구조 정의 |
 | `css/editor-panels.css` | `.fp-btn`, `.fp-dropdown*` 스타일 |
 | `js/drag-drop.js` | `addTextBlock`, `addAssetBlock`, `addSection` 등 |
-| `js/block-factory.js` | `addFrameBlock`, `addCanvasBlock`, `addNewGridBlock` 등 |
+| `js/block-factory.js` | `addFrameBlock`, `addCanvasBlock` 등 (`addNewGridBlock`은 2026-09-04 삭제됨) |
 | `js/branch-system.js` | `toggleBranchDropdown`, 브랜치 전환 |
 | `js/editor.js` | `window._activeFrame` 관리 |

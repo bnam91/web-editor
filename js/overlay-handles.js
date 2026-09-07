@@ -3,6 +3,18 @@
    Resize / radius handles for frames, mockups, icons, assets, canvas, vectors
    Extracted from drag-drop.js (lines ~13–988)
 ═══════════════════════════════════ */
+import { applyFrameTransform, applyFrameRotationMargin } from './frame-geometry.js';
+
+import { resizeColBoundary, resizeRowHeight } from './grid-cell-resize.js';
+// ★grid-block.js → drag-drop.js → overlay-handles.js(이 파일) 로 이미 순환 임포트가 있다
+//   (grid-block.js 가 drag-drop.js 의 bindBlock 을 쓰고, drag-drop.js 는 `export * from
+//   './overlay-handles.js'`). 여기서 grid-block.js 를 다시 임포트해도 사이클이 «닫힐» 뿐
+//   깨지지 않는다 — ESM 순환 임포트는 표준(라이브 바인딩)이고, 아래 함수들은 전부 «모듈
+//   최상위가 아니라 이벤트 핸들러 안에서만»(사용자가 실제로 드래그를 시작한 뒤, 즉 전체
+//   그래프가 이미 링크된 뒤) 쓰인다 — 이 셋(gridCols/gridRows/getGridModel)이 «단일 진실원»
+//   이라 여기서 dataset.cols/rows 를 직접 재파싱하면 클램프/폴백 로직이 두 곳에 흩어진다
+//   (이 레포의 고질 — P1 IMPL 보고서·P0 EVAL 둘 다 지적한 패턴). 재사용이 맞다.
+import { getGridModel, gridCols, gridRows } from './blocks/grid-block.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -17,13 +29,39 @@ function _getOverlay() {
 }
 
 /* ═══════════════════════════════════
+   모서리 규약 — 네 모서리와 «바깥» 방향 부호를 «한 곳»에서 정한다.
+   에셋 블록(사각)·아이콘 원형(원)이 같은 표를 쓴다. 베껴 두면 한쪽만 고쳐진다.
+═══════════════════════════════════ */
+export const CORNER_DIRS = ['nw', 'ne', 'sw', 'se'];
+
+/** dir → 상자 중심에서 «바깥»으로 향하는 축별 부호. e/s 가 +, w/n 이 −. */
+export function cornerSign(dir) {
+  return { sx: dir.includes('e') ? 1 : -1, sy: dir.includes('s') ? 1 : -1 };
+}
+
+/** 핸들이 놓이는 «축별 거리». 상자 꼭지점 = (R, R).
+ *  ★2026-09-05 현빈 확정: 「다른 거처럼 «꼭지점»에 해줘야지. 아웃라인만 원으로 해도 되지 않나?」
+ *   ⇒ 핸들은 다른 모든 블록과 «같은 자리»(상자 네 꼭지점)에 두고, «원처럼 보이는 일»은 아웃라인이 한다.
+ *
+ *  ⚠️이 함수는 원래 `R/√2`(45° 둘레점)를 돌려줬다. 그 판단은 «그때» 옳았다 —
+ *    당시엔 블록 상자가 원의 3배 폭(286×96)이라 상자 꼭지점이 원에서 한참 떨어져 있었다.
+ *    그 뒤 검수에서 상자를 원과 같은 크기로 줄이자(33530d0) 전제가 사라졌는데 이 함수만 남아,
+ *    «선은 네모 모서리를 그리는데 핸들은 24px 안쪽»이라는 어긋남이 생겼다(실측).
+ *    ★두 수정이 각각은 옳았는데 합쳐지니 어긋난 자리다 — 전제를 바꿨으면 그 위에 선 것을 다시 재라. */
+export function circumferenceOffset(R) {
+  return R;
+}
+
+/* ═══════════════════════════════════
    회전 인식 좌표 헬퍼 (U14 — 회전 후 리사이즈 핸들 좌표 보정)
    블록이 transform:rotate 된 상태에서 getBoundingClientRect()는 «회전된 요소의
    축정렬 바운딩박스(AABB)»를 돌려주므로, 코너 핸들을 rect 모서리에 두면
    실제 회전된 코너와 어긋난다. 회전각을 반영해 «진짜 회전된 코너»의 스크린
    좌표를 계산한다. 회전이 0이면 기존 rect 모서리 경로와 «완전 동일»(회귀 0).
 ═══════════════════════════════════ */
-function _canvasScaleNow() {
+/** ★export — 선택 오버레이(js/selection-overlay.js)가 «같은 배율»을 쓴다.
+ *  베끼면 갈라진다: 스케일러 transform 을 읽는 자리는 «한 곳»이어야 한다. */
+export function _canvasScaleNow() {
   const s = document.getElementById('canvas-scaler');
   return s ? parseFloat(s.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
 }
@@ -40,7 +78,10 @@ function _blockRotationDeg(el) {
 }
 // 코너 dir('nw'|'ne'|'sw'|'se')의 스크린 좌표.
 // inset>0 이면 코너에서 안쪽으로(코너반경 핸들), inset<0 이면 바깥쪽으로(회전 핫존).
-function _cornerScreen(el, dir, inset = 0) {
+/** ★export — 선택 오버레이가 테두리 꼭지점을 «이 함수로» 얻는다(핸들과 같은 좌표).
+ *  ⛔베끼지 마라 — 베끼는 순간 「핸들은 여기, 선은 저기」로 갈라진다(M39 가 바로 그 병이었다).
+ *  ⚠️한계: 회전은 el «자신»의 dataset 만 본다. 회전한 «조상» 안의 자식은 AABB 가 나온다. */
+export function _cornerScreen(el, dir, inset = 0) {
   const rect = el.getBoundingClientRect();
   const deg = _blockRotationDeg(el);
   if (!deg) {
@@ -133,16 +174,9 @@ const _FRAME_ROTATE_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.
 // 프레임 회전 드래그 — 중심 기준 atan2 자유회전, Shift=15° 스냅.
 // dataset.rotateDeg + 합성 transform(translate·rotate·scale) 규약(prop-frame·save-load과 동일).
 function _composeFrameTransform(ss) {
-  const tx = parseInt(ss.dataset.translateX) || 0;
-  const ty = parseInt(ss.dataset.translateY) || 0;
-  const rd = parseFloat(ss.dataset.rotateDeg) || 0;
-  const fx = ss.dataset.flipH === '1' ? -1 : 1;
-  const fy = ss.dataset.flipV === '1' ? -1 : 1;
-  if (!tx && !ty && !rd && fx === 1 && fy === 1) {
-    ss.style.removeProperty('transform');
-  } else {
-    ss.style.transform = `translate(${tx}px,${ty}px) rotate(${rd}deg) scale(${fx},${fy})`;
-  }
+  // SSOT = js/frame-geometry.js. transform 문자열 합성 + 회전 AABB 세로 마진 보정을 함께 한다.
+  // identity:'clear' 는 «이 경로의 기존 규약»(항등이면 style.transform 제거)을 그대로 유지한 것.
+  applyFrameTransform(ss, { identity: 'clear' });
 }
 function _onFrameRotateMouseDown(e, ss) {
   if (e.button !== 0) return;
@@ -291,6 +325,9 @@ function _onHandleMouseDown(e, ss, dir) {
     if (!isFullWidth) {
       ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
     }
+    // 회전한 프레임을 리사이즈하면 AABB 도 같이 변한다 → 세로 마진 보정 재계산.
+    // sizeHint 로 넘겨 offsetWidth/Height 재측정(강제 리플로우) 없이 계산한다.
+    if (_blockRotationDeg(ss)) applyFrameRotationMargin(ss, { w: newW, h: isFullWidth ? ss.offsetHeight : newH });
     // 그룹: 자식들을 좌상단(0,0) 원점 기준 비례 스케일 (기준은 style 기반 groupStartW/H)
     if (isGroup && groupSnap) {
       const sx = groupStartW ? newW / groupStartW : 1;
@@ -576,8 +613,7 @@ function showAssetRadiusHandles(ab) {
   const overlay = _getOverlay();
   if (!overlay) return;
 
-  const dirs = ['nw', 'ne', 'sw', 'se'];
-  dirs.forEach(dir => {
+  CORNER_DIRS.forEach(dir => {
     const r = document.createElement('div');
     r.className = `asset-radius-handle ${dir}`;
     r.dataset.assetRadiusDir = dir;
@@ -676,8 +712,7 @@ function showAssetResizeHandles(ab) {
   const overlay = _getOverlay();
   if (!overlay) return;
 
-  const dirs = ['nw', 'ne', 'sw', 'se'];
-  dirs.forEach(dir => {
+  CORNER_DIRS.forEach(dir => {
     const h = document.createElement('div');
     h.className = `asset-overlay-handle ${dir}`;
     h.dataset.assetResizeDir = dir;
@@ -802,26 +837,34 @@ function showIconCircleResizeHandle(block) {
   const overlay = _getOverlay();
   if (!overlay) return;
 
-  const h = document.createElement('div');
-  h.className = 'asset-overlay-handle se';
-  h.dataset.icbResize = '1';
-  overlay.appendChild(h);
+  /* ★네 «모서리»에 다 단다 — 에셋 블록(.asset-block)과 개수·종류를 맞춘다.
+   * 전엔 se 한 개뿐이라 「다른 에셋 블럭과 조금씩 다르다」(현빈)의 한 축이었다.
+   * ⚠️클래스는 `.icb-overlay-handle` — `.asset-overlay-handle` 을 «빌려 쓰면»
+   *   `hideAssetResizeHandles()` 의 일괄 제거에 같이 쓸려나간다(실측 재현: 재클릭 시 1→0). */
+  const _handles = CORNER_DIRS.map(dir => {
+    const h = document.createElement('div');
+    h.className = `icb-overlay-handle ${dir}`;
+    h.dataset.icbResize = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onIcbResizeMouseDown(e, block, dir));
+    return h;
+  });
 
-  h.addEventListener('mousedown', e => {
+  function _onIcbResizeMouseDown(e, block, dir) {
     if (e.button !== 0) return;
     e.stopPropagation(); e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
-    const scaler0 = document.getElementById('canvas-scaler');
-    const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     const startSize = parseInt(block.dataset.size) || 240;
+    const { sx, sy } = cornerSign(dir);
 
     function onMove(ev) {
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
       // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로)
       const _ud = _unrotateDelta(block, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
-      const dx = _ud.dx, dy = _ud.dy;
+      // 바깥으로 끌면 커진다 — 모서리마다 «바깥»의 부호가 달라 위 표로 뒤집는다.
+      const dx = _ud.dx * sx, dy = _ud.dy * sy;
       const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
       const newSize = Math.min(860, Math.max(40, Math.round(startSize + delta)));
       const circle = block.querySelector('.icb-circle');
@@ -841,15 +884,30 @@ function showIconCircleResizeHandle(block) {
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-  });
+  }
 
   function _updatePos() {
     if (!_icbResizeBlock) return;
     const circle = block.querySelector('.icb-circle');
     if (!circle) return;
     const rect = circle.getBoundingClientRect();
-    h.style.top  = (rect.bottom - 3.5) + 'px';
-    h.style.left = (rect.right  - 3.5) + 'px';
+    /* ★핸들은 «상자 꼭지점»에 둔다 — 다른 모든 블록과 같은 자리다(현빈 확정).
+     * 「원처럼 보이는 일」은 아웃라인이 맡는다(.icon-circle-block.selected 의 border-radius:50%).
+     * ⇒ 잡는 자리는 앱 전체가 동일하고, 보이는 모양만 블록마다 다르다. */
+    /* ★반지름은 «레이아웃 폭»에서 낸다 — rect.width 를 쓰면 회전했을 때 부푼다.
+     * getBoundingClientRect 는 회전된 요소의 «축정렬 바운딩박스(AABB)» 라
+     * 30° 회전 시 96px 원의 rect 가 131px 로 잡혔다(실측) → 핸들이 원 밖 17.5px 로 떠버린다.
+     * 회전은 중심을 보존하므로 «중심은 rect 에서», «반지름은 offsetWidth×캔버스배율»에서 가져온다.
+     * 원은 회전대칭이라 45° 화면좌표에 그대로 두면 어느 각도에서도 둘레에 밀착한다. */
+    const R  = (circle.offsetWidth * _canvasScaleNow()) / 2;
+    const cx = rect.left + rect.width  / 2;
+    const cy = rect.top  + rect.height / 2;
+    const off = circumferenceOffset(R);   // 45° 둘레점까지의 축별 거리(공용 헬퍼)
+    _handles.forEach(h => {
+      const { sx, sy } = cornerSign(h.dataset.icbResize);
+      h.style.left = (cx + off * sx - 3.5) + 'px';
+      h.style.top  = (cy + off * sy - 3.5) + 'px';
+    });
   }
   function _loop() {
     if (!_icbResizeBlock) return;
@@ -886,12 +944,17 @@ function showCanvasRadiusHandles(cb) {
   const overlay = _getOverlay();
   if (!overlay) return;
 
-  const r = document.createElement('div');
-  r.className = 'canvas-radius-handle nw';
-  r.dataset.canvasRadiusDir = 'nw';
-  r.title = '모서리 반경 조절';
-  overlay.appendChild(r);
-  r.addEventListener('mousedown', e => _onCanvasRadiusHandleMouseDown(e, cb));
+  /* ★[M39] 현빈 2026-09-05: 「카드 블럭 코너라디우스 조절하는거 좌측 상단에만 핸들이 있는데」
+     옛 코드는 'nw' 를 «문자열로 박아» 한 개만 만들었다. 에셋 블록(:611)은 처음부터
+     CORNER_DIRS 네 개를 돈다 — 같은 표를 쓰게 맞춘다(핸들 CSS 는 방향별 규칙이 없어 그대로 쓴다). */
+  CORNER_DIRS.forEach(dir => {
+    const r = document.createElement('div');
+    r.className = `canvas-radius-handle ${dir}`;
+    r.dataset.canvasRadiusDir = dir;
+    r.title = '모서리 반경 조절';
+    overlay.appendChild(r);
+    r.addEventListener('mousedown', e => _onCanvasRadiusHandleMouseDown(e, cb, dir));
+  });
 
   _updateCanvasRadiusHandlePositions();
   _startCanvasRadiusRaf();
@@ -907,12 +970,15 @@ function hideCanvasRadiusHandles() {
 function _updateCanvasRadiusHandlePositions() {
   const overlay = _getOverlay();
   if (!overlay || !_canvasRadiusBlock) return;
-  const rect = _canvasRadiusBlock.getBoundingClientRect();
   const INSET = 10;
   const HALF  = 3.5; // 7px 핸들 중앙 정렬
+  /* ★[M39] 옛 코드는 rect.top/left 로 «좌상단 하나»만 계산했다. 에셋 판(:638)과 같은
+     _cornerScreen(el, dir, inset) 을 쓴다 — 이건 «회전한 블록»의 모서리도 맞게 돌려준다
+     (rect 기반 계산은 회전하면 어긋난다. 카드가 회전 대상이 되면 옛 식은 조용히 틀린다). */
   overlay.querySelectorAll('.canvas-radius-handle').forEach(h => {
-    h.style.top  = (rect.top  + INSET - HALF) + 'px';
-    h.style.left = (rect.left + INSET - HALF) + 'px';
+    const c = _cornerScreen(_canvasRadiusBlock, h.dataset.canvasRadiusDir, INSET);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
   });
 }
 
@@ -929,7 +995,7 @@ function _startCanvasRadiusRaf() {
   _canvasRadiusRafId = requestAnimationFrame(loop);
 }
 
-function _onCanvasRadiusHandleMouseDown(e, cb) {
+function _onCanvasRadiusHandleMouseDown(e, cb, dir = 'nw') {
   if (e.button !== 0) return;
   e.stopPropagation();
   e.preventDefault();
@@ -944,8 +1010,18 @@ function _onCanvasRadiusHandleMouseDown(e, cb) {
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
-    const delta = (dx + dy) / 2;
-    const newR = Math.min(60, Math.max(0, Math.round(startRadius - delta)));
+    /* ★[M39] 현빈 2026-09-05: 「드래그하면 에셋블럭의 모서리 코너핸들과 라디우스 적용되는게
+       반대인데 카드블럭을 고쳐줘」 — 정본은 «에셋»이라고 현빈이 지정했다.
+       ⑴ 부호가 뒤집혀 있었다: 에셋은 `startRadius + delta`, 카드만 `- delta` 였다.
+          같은 방향으로 끌면 에셋은 «커지고» 카드는 «작아졌다».
+       ⑵ 그리고 옛 식은 방향을 안 봤다(항상 nw 판 (dx+dy)/2). 핸들이 하나뿐이라 티가 안 났을
+          뿐이고, 네 개로 늘리는 순간 ne·sw·se 가 «반대로» 움직인다 — ①을 고치면 반드시
+          같이 고쳐야 하는 자리다(둘은 한 결함의 두 얼굴이다).
+       ⇒ 에셋(:670)과 «같은 식»을 쓴다. 안쪽으로 끌면 커진다.
+       ⚠️상한 60 은 카드의 «설계 상수»라 그대로 둔다(에셋 120 과 다른 건 의도 — 카드가 더 작다). */
+    const { sx, sy } = cornerSign(dir);
+    const delta = (-sx * dx + -sy * dy) / 2;
+    const newR = Math.min(60, Math.max(0, Math.round(startRadius + delta)));
     cb.dataset.radius = String(newR);
     window.renderCanvas(cb);
     const rSlider = document.getElementById('cvb-radius-slider');
@@ -1169,6 +1245,326 @@ function _onVectorResizeHandleMouseDown(e, vb, dir) {
 window.showVectorResizeHandles = showVectorResizeHandles;
 window.hideVectorResizeHandles = hideVectorResizeHandles;
 
+/* ═══════════════════════════════════
+   GRID BLOCK ROW/COLUMN GUTTER OVERLAY (P2 — 셀 경계 드래그, PLAN-gridblock.md §5)
+   grid-block(사용자에게는 「그리드 블럭」)이 선택돼 있을 때 열/행 경계에 드래그 가능한
+   거터(grd-gutter)를 띄운다. 여기 있는 6종 handle(frame/mockup/icon/asset/canvas/vector)은
+   전부 블록 «바깥 테두리»를 px로 늘리는 핸들이라 못 쓴다(PLAN §5-A) — 대신 이 파일의
+   #ss-handles-overlay 자리와 rAF 위치갱신·hide 패턴만 그대로 빌린다.
+   ⛔거터 DOM 을 블록 «안»에 넣지 않는다 — #ss-handles-overlay는 #canvas-scaler 바깥(캔버스
+     클론 대상 밖)이라 저장본·export 에 새지 않는다(완료조건① — section-serialize.js가
+     세척하는 root 자체에 애초에 없음).
+   ★열 값은 항상 «가중치»(cols[i].width, px 미사용 — 폭 계산 함정 회피). 행 값은 «px 최소높이»
+     (rows[r].height) — 재분배가 아니라 «위 행 하나만» 바뀐다(P1 R2 모델, PLAN §3-A/§5-B-3).
+   ★DOM 구조(2026-09-04 P1 병합) — flex `.duo-col` → CSS grid `.grd-cell[data-r][data-c]`.
+     열 경계는 행0(data-r="0")의 인접 셀, 행 경계는 열0(data-c="0")의 인접 셀에서 rect를 잰다
+     (grid-template-columns/rows 가 블록 전역이라 어느 행/열을 봐도 폭/높이는 같다).
+═══════════════════════════════════ */
+let _gridGutterBlock = null;
+let _gridGutterRafId = null;
+
+function _getGridCell(block, r, c) {
+  return block.querySelector(`:scope > .grd-inner > .grd-cell[data-r="${r}"][data-c="${c}"]`);
+}
+
+function showGridGutters(block) {
+  const { cols, rows } = getGridModel(block);   // 단일 진실원(grid-block.js) — 여기서 재파싱하지 않는다
+  /* ★같은 블록이어도 «격자 수»가 바뀌었으면 다시 세워야 한다.
+   * 전엔 `_gridGutterBlock === block` 이면 위치만 갱신하고 return 했다 —
+   * 그래서 3x3 으로 바꿔도 거터가 옛 개수 그대로였다(실측: col 1개).
+   * 피커 경로만 밖에서 강제로 고쳤더니 updateGridBlock→showGridProperties 경로가 그대로 남았다.
+   * 고칠 자리는 «여기»다 — 개수 비교를 조기 return 조건에 넣는다. */
+  /* ★«축별»로 센다. 합으로 비교하면 3x2 → 2x3 처럼 «합이 같은» 전환에서
+   * 재생성이 안 돌아 row 거터가 하나 안 생긴다(적대검수 2차 지적).
+   * 열 2 + 행 1 = 3 과 열 1 + 행 2 = 3 은 합이 같지만 «다른 격자»다. */
+  const needCol = Math.max(0, cols.length - 1);
+  const needRow = Math.max(0, rows.length - 1);
+  if (_gridGutterBlock === block) {
+    const ovl = _getOverlay();
+    const haveCol = ovl ? ovl.querySelectorAll('.grd-gutter[data-axis="col"]').length : 0;
+    const haveRow = ovl ? ovl.querySelectorAll('.grd-gutter[data-axis="row"]').length : 0;
+    if (haveCol === needCol && haveRow === needRow) { _updateGridGutterPositions(); return; }
+  }
+  hideGridGutters();
+  if (cols.length < 2 && rows.length < 2) return; // 경계가 하나도 없다
+  _gridGutterBlock = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  for (let i = 0; i < cols.length - 1; i++) {
+    const g = document.createElement('div');
+    g.className = 'grd-gutter';
+    g.dataset.axis = 'col';
+    g.dataset.i = String(i);
+    // ★position:absolute — #ss-handles-overlay 자체가 position:fixed;inset:0(css/editor-blocks.css:78)
+    //   이라 자식은 absolute 로 둬도 좌표계가 뷰포트와 같다(.ss-resize-handle 등 기존 핸들과 동일 관례).
+    g.style.cssText = 'position:absolute;width:8px;cursor:col-resize;z-index:97;pointer-events:auto;';
+    overlay.appendChild(g);
+    g.addEventListener('mousedown', e => _onGridColMouseDown(e, block, i));
+  }
+  for (let i = 0; i < rows.length - 1; i++) {
+    const g = document.createElement('div');
+    g.className = 'grd-gutter';
+    g.dataset.axis = 'row';
+    g.dataset.i = String(i);
+    g.style.cssText = 'position:absolute;height:8px;cursor:row-resize;z-index:97;pointer-events:auto;';
+    overlay.appendChild(g);
+    g.addEventListener('mousedown', e => _onGridRowMouseDown(e, block, i));
+  }
+  _updateGridGutterPositions();
+  _startGridGutterRaf();
+}
+
+function hideGridGutters() {
+  if (_gridGutterRafId) { cancelAnimationFrame(_gridGutterRafId); _gridGutterRafId = null; }
+  _gridGutterBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.grd-gutter').forEach(g => g.remove());
+}
+
+function _startGridGutterRaf() {
+  function loop() {
+    if (!_gridGutterBlock) return;
+    // 블록이 DOM에서 사라졌거나 선택 해제되면 거터 제거 — showFrameHandles rAF 패턴과 동일.
+    if (!_gridGutterBlock.isConnected || !_gridGutterBlock.classList.contains('selected')) {
+      hideGridGutters();
+      return;
+    }
+    _updateGridGutterPositions();
+    _gridGutterRafId = requestAnimationFrame(loop);
+  }
+  _gridGutterRafId = requestAnimationFrame(loop);
+}
+
+/* ═══ [M64] 행 거터가 «낮은 배율에서» 칸의 편집 진입을 삼킨다 ═══════════════════════
+   미니4호기 윈도우 QA 보고 → 맥 재현(2026-09-06, 9371 · 3열×4행 · 행높이 210px).
+   ⛔보고서의 「거터가 21px 짜리 칸을 통째로 덮는다」는 «틀렸다» — 실측하면 거터는 칸의
+     «맨 위 2.8px»만 덮는다. 문제는 덮는 «넓이»가 아니라 «자리»다:
+       · 편집 가능한 표적은 칸 전체가 아니라 그 안의 글줄(`[data-line]`) «하나»다.
+       · valign:top 이라 글줄은 칸의 «맨 위»에 붙는다 — 거터가 파고드는 바로 그 자리다.
+       · 10% 에서 글줄 높이 = 35.2×0.1 = 3.52px, 그 중앙은 칸 위끝에서 1.76px.
+         거터는 위끝에서 2.8px 까지 덮는다(4 − gap·s/2 = 4 − 1.2). 1.76 < 2.8 ⇒ 삼킨다.
+   [실측 — «진짜 더블클릭»(Input.dispatchMouseEvent clickCount 1→2) 12칸 × 배율]
+       10%: 편집진입 3/12 (막힘 9, 전부 거터)      13%: 3/12 (막힘 9)
+       15%: 12/12                                  25%·40%: 12/12    100%: 9/9(3칸 화면밖)
+     ★막히는 칸은 «위에 거터가 있는 행»(1·2·3행) 전부고, 0행은 10% 에서도 들어간다 —
+       0행 위에는 경계가 없다. 이 대조가 「10% 라서 다 안 되는 것」이 아님을 증명한다.
+     ★깨지는 구간은 s < 4/((gap+lineH)/2) = 4/29.6 ≈ 0.135 — 즉 «10~13%» 뿐이다(측정과 일치).
+   ⛔그냥 얇게 만들면 안 된다 — 거터가 «화면 고정 8px»인 건 낮은 배율에서 «잡으라»는 뜻이다.
+     8px 를 4px 로 줄이면 이번엔 거터를 못 잡는다. ⇒ «둘 다 잡히는» 자리를 찾아야 한다.
+   ★답 = 거터를 경계 «중앙 정렬»에서 풀고, 위/아래 절반을 «각자» 이웃 칸의 글줄 중앙까지만
+     뻗게 한다(비대칭 허용). valign:top 이면 위 칸의 «아래쪽»은 언제나 비어 있으므로
+     위 절반이 4px 를 그대로 갖고, 아래 절반만 글줄을 피해 줄어든다:
+       10% 실측 → 위 4.00 + 아래 2.21 = 6.21px 거터(잡을 수 있다) · 글줄 중앙은 0.75px 여유로 열림.
+   ⚠️대가 ⑴ 아주 낮은 배율에서 거터가 경계보다 «살짝 위»에 앉는다(비대칭). 경계선 자체는
+        위 절반 4px 가 여전히 덮으므로 「보이는 선을 누르면 잡힌다」는 유지된다.
+     ⑵ 위·아래 «둘 다» 글줄이 경계에 붙은 병리적 배치(valign:bottom + 다음 칸 top)에서는
+        GUT_MIN_TOTAL floor 가 이겨서 거터가 글줄을 조금 덮는다 — 「거터를 아예 못 잡는다」보다
+        낫다고 판단했다. 그 경우에도 사용자는 배율을 올려 편집할 수 있다.
+     ⑶ 낮은 배율에서만 글줄 rect 를 읽는다(GUT_PROBE_H 게이트) — 보통 배율에선 추가 비용 0.
+   ⛔열 거터는 «안 건드린다» — 글줄은 칸 폭을 가득 채우므로 가로 중앙은 열 거터에서 11px 떨어져
+     있고, 실측에서도 열 거터로 막힌 칸은 0 건이었다. 고칠 근거가 없는 것은 안 고친다.
+═══════════════════════════════════════════════════════════════════════════════ */
+const GUT_HALF_MAX   = 4;    // 기존 8px 거터의 «절반» — 상한(높은 배율에선 이 값 그대로)
+const GUT_MIN_TOTAL  = 5;    // 거터 최소 두께(px). 이 아래로는 «못 잡는다»
+const GUT_CONTENT_EPS = 0.75; // 글줄 중앙을 이만큼은 «반드시» 비워 둔다
+const GUT_PROBE_H    = 64;   // 칸이 이보다 높으면 8px 거터가 글줄 중앙에 닿을 수 없다 → 조사 생략
+
+/** 경계 중앙 cy 에서 위/아래 한계선을 받아 거터 띠([top, height])를 낸다 — 순수함수(단위검사 대상).
+ *  upLimit   = 거터가 «이 y 아래»로만 갈 수 있다(위 칸 글줄 중앙 + eps). null = 제약 없음
+ *  downLimit = 거터가 «이 y 위»로만 갈 수 있다(아래 칸 글줄 중앙 − eps). null = 제약 없음 */
+function _rowGutterBand(cy, upLimit, downLimit) {
+  let halfUp   = upLimit   == null ? GUT_HALF_MAX : Math.min(GUT_HALF_MAX, Math.max(0, cy - upLimit));
+  let halfDown = downLimit == null ? GUT_HALF_MAX : Math.min(GUT_HALF_MAX, Math.max(0, downLimit - cy));
+  /* ★floor — 내용이 양쪽에서 밀어붙여도 «잡을 수 있는» 두께는 남긴다.
+     남는 여유가 있는 쪽(주로 위 칸의 빈 아래쪽)부터 채운다. */
+  let deficit = GUT_MIN_TOTAL - (halfUp + halfDown);
+  if (deficit > 0) {
+    const take = Math.min(deficit, GUT_HALF_MAX - halfUp);
+    halfUp += take; deficit -= take;
+    if (deficit > 0) halfDown = Math.min(GUT_HALF_MAX, halfDown + deficit);
+  }
+  return { top: cy - halfUp, height: halfUp + halfDown };
+}
+
+/** 행 r 의 «경계쪽 글줄 중앙»(화면 y). dir='up' = 그 행이 경계 위(마지막 줄), 'down' = 아래(첫 줄).
+ *  ★열을 «전부» 훑는다 — 거터는 블록 폭 전체를 덮으므로 한 열만 보면 다른 열이 계속 막힌다. */
+function _rowContentEdge(block, r, dir) {
+  const inner = block.querySelector(':scope > .grd-inner');
+  if (!inner) return null;
+  let edge = null;
+  for (const cell of inner.querySelectorAll(`:scope > .grd-cell[data-r="${r}"]`)) {
+    const lines = cell.querySelectorAll('[data-line]');
+    if (!lines.length) continue;
+    const lr = (dir === 'up' ? lines[lines.length - 1] : lines[0]).getBoundingClientRect();
+    if (!(lr.height > 0)) continue;
+    const mid = lr.top + lr.height / 2;
+    const v = dir === 'up' ? mid + GUT_CONTENT_EPS : mid - GUT_CONTENT_EPS;
+    if (edge === null || (dir === 'up' ? v > edge : v < edge)) edge = v;
+  }
+  return edge;
+}
+
+function _updateGridGutterPositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_gridGutterBlock) return;
+  const block = _gridGutterBlock;
+  const blockRect = block.getBoundingClientRect();
+  overlay.querySelectorAll('.grd-gutter[data-axis="col"]').forEach(g => {
+    const i = +g.dataset.i;
+    const a = _getGridCell(block, 0, i), b = _getGridCell(block, 0, i + 1);
+    if (!a || !b) { g.style.display = 'none'; return; }
+    g.style.display = '';
+    const ar = a.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
+    const cx = (ar.right + br.left) / 2; // 두 열 사이 gap 의 중앙(스크린 좌표, 스케일 반영된 rect)
+    g.style.left = (cx - 4) + 'px';      // 8px 폭 중앙 정렬
+    g.style.top = blockRect.top + 'px';
+    g.style.height = blockRect.height + 'px';
+  });
+  overlay.querySelectorAll('.grd-gutter[data-axis="row"]').forEach(g => {
+    const i = +g.dataset.i;
+    const a = _getGridCell(block, i, 0), b = _getGridCell(block, i + 1, 0);
+    if (!a || !b) { g.style.display = 'none'; return; }
+    g.style.display = '';
+    const ar = a.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
+    const cy = (ar.bottom + br.top) / 2; // 두 행 사이 gap 의 중앙
+    /* [M64] 낮은 배율에서만 이웃 글줄을 조사해 «편집 표적»을 비켜 앉는다(위 큰 주석 참조).
+       칸이 충분히 크면 8px 거터가 글줄 중앙까지 닿을 수 없으므로 rect 를 읽지 않는다. */
+    const probe = ar.height < GUT_PROBE_H || br.height < GUT_PROBE_H;
+    const band = _rowGutterBand(
+      cy,
+      probe ? _rowContentEdge(block, i, 'up') : null,
+      probe ? _rowContentEdge(block, i + 1, 'down') : null,
+    );
+    g.style.top = band.top + 'px';
+    g.style.height = band.height + 'px';
+    g.style.left = blockRect.left + 'px';
+    g.style.width = blockRect.width + 'px';
+  });
+}
+
+// 열 경계 드래그 — 인접 두 열의 «가중치»만 재분배(합 보존, 다른 열 불변).
+// wL0/wR0(화면 px, 스케일로 나눈 캔버스 px)와 W(가중치 합)는 mousedown 시점 1회 스냅샷 —
+// mousemove 는 여기서 튄 델타만 resizeColBoundary(순수함수, grid-cell-resize.js)에 먹인다.
+function _onGridColMouseDown(e, block, i) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const cols = gridCols(block);   // 클램프·폴백까지 반영된 단일 진실원(grid-block.js)
+  if (!cols[i] || !cols[i + 1]) return;
+  const elA = _getGridCell(block, 0, i), elB = _getGridCell(block, 0, i + 1);
+  if (!elA || !elB) return;
+
+  // row draggable(block-drag.js)과의 충돌 방지 — 거터는 블록 밖(오버레이)이라 애초에 잘 안 맞지만,
+  // 조상 체인의 dragstart 를 막는 안전망을 표 셀 선택과 «공유»한다(drag-utils.js, PLAN §5-B-4).
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+
+  const scale0 = _canvasScaleNow();
+  const wL0 = elA.getBoundingClientRect().width / scale0;
+  const wR0 = elB.getBoundingClientRect().width / scale0;
+  const W = (Number(cols[i].width) || 1) + (Number(cols[i + 1].width) || 1);
+  const startX = e.clientX;
+  // ★드래그 «시작 직전» 1회만(mousedown) — mousemove 마다 쌓이면 undo 가 픽셀 단위로 끊긴다.
+  window.pushHistory?.();
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow(); // 드래그 중 줌이 바뀌는 경우까지 방어(매 move 재조회)
+    const delta = (ev.clientX - startX) / scale;
+    const r = resizeColBoundary(wL0, wR0, W, delta);   // ★minPx 는 모듈 기본값(COL_MIN_PX) — 여기서 리터럴로 덮지 않는다
+    if (!r) return;
+    cols[i].width = r.leftWeight;
+    cols[i + 1].width = r.rightWeight;
+    block.dataset.cols = JSON.stringify(cols);
+    window.renderGridBlock?.(block);
+    _updateGridGutterPositions();
+    // 패널이 열려 있으면 비율 입력값만 갱신 — 패널 재렌더 금지(포커스/드래그 중단 방지,
+    // prop-grid.js 의 «드래그 중 패널 재렌더 금지» 규약과 동일, PLAN §4 끝줄).
+    const ratioInput = document.getElementById('grd-col-ratio');
+    if (ratioInput) {
+      ratioInput.value = cols.map(c => {
+        const n = Number(c.width);
+        return Number.isInteger(n) ? String(n) : String(+n.toFixed(2));
+      }).join(':');
+    }
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// 행 경계 드래그 (P1 병합 후 신설) — «가중치 재분배 없음»(PLAN §3-A/§5-B-3). 경계 i|i+1 을
+// 끌면 «위» 행(rows[i])의 px 최소높이만 바뀐다 — 아래 행은 그대로. resizeRowHeight(순수함수).
+function _onGridRowMouseDown(e, block, i) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const rows = gridRows(block);   // 클램프·폴백까지 반영된 단일 진실원(grid-block.js)
+  if (!rows[i] || !rows[i + 1]) return;
+  const elA = _getGridCell(block, i, 0);
+  if (!elA) return;
+
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+
+  const scale0 = _canvasScaleNow();
+  const startH0 = elA.getBoundingClientRect().height / scale0; // 'auto' 행도 «지금 렌더된» 높이에서 시작
+  const startY = e.clientY;
+  window.pushHistory?.(); // ★드래그 «시작 직전» 1회만
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const delta = (ev.clientY - startY) / scale;
+    const h = resizeRowHeight(startH0, delta);   // ★min/max 는 모듈 기본값(ROW_H_MIN/ROW_H_MAX) — 여기 리터럴 2000 이 상한을 «혼자» 절반으로 깎고 있었다
+    rows[i] = { height: h };
+    block.dataset.rows = JSON.stringify(rows);
+    window.renderGridBlock?.(block);
+    _updateGridGutterPositions();
+    // 패널이 열려 있으면 그 행의 입력값만 갱신 — 패널 재렌더 금지(열 경계와 동일 원칙).
+    const rowInput = document.querySelector(`.grd-row-h-item[data-ri="${i}"]`);
+    if (rowInput) rowInput.value = String(h);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showGridGutters = showGridGutters;
+window.hideGridGutters = hideGridGutters;
+
+// fix(frame-p0#5): 캔버스 클릭 핸들러 6곳(block-drag.js asset·icon-circle·canvas·vector·
+// iconify·mockup)이 저마다 손으로 부르던 핸들 호출을 타입→핸들 맵 하나로 모은다.
+// 진입점(레이어패널 등)이 늘어도 여기 한 곳만 맞으면 된다 — SSOT.
+// (캔버스 6곳 자체는 회귀 격리를 위해 P0에서는 그대로 두고 P1에서 이 맵으로 치환한다.)
+function showHandlesFor(block) {
+  if (!block || !block.classList) return;
+  if (block.classList.contains('asset-block')) {
+    showAssetRadiusHandles(block);
+    showAssetResizeHandles(block);
+  } else if (block.classList.contains('icon-circle-block')) {
+    showIconCircleResizeHandle(block);
+  } else if (block.classList.contains('canvas-block')) {
+    showCanvasRadiusHandles(block);
+    showCanvasResizeHandles(block);
+  } else if (block.classList.contains('vector-block')) {
+    showVectorResizeHandles(block);
+  } else if (block.classList.contains('icon-block')) {
+    showIconHandles(block);
+  } else if (block.classList.contains('mockup-block')) {
+    showMockupHandles(block);
+  }
+}
+window.showHandlesFor = showHandlesFor;
+
 export {
   showFrameHandles,
   hideFrameHandles,
@@ -1188,4 +1584,8 @@ export {
   hideCanvasResizeHandles,
   showVectorResizeHandles,
   hideVectorResizeHandles,
+  showGridGutters,
+  hideGridGutters,
+
+  showHandlesFor,
 };

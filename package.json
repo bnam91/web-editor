@@ -1,6 +1,6 @@
 {
   "name": "sangpe-editor",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "상페마법사 — 상세페이지 제작용 에디터",
   "main": "main.js",
   "scripts": {
@@ -87,7 +87,17 @@
       "!.git",
       "!dist",
       "!*.md",
-      "!templates"
+      "!templates",
+      "!.env",
+      "!.env.*",
+      "!**/.env",
+      "!**/.env.*",
+      "!.design",
+      "!.ux",
+      "!.qa",
+      "!tools",
+      "!_context",
+      "!debug"
     ]
   },
   "repository": {

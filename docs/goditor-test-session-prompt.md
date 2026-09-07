@@ -120,7 +120,7 @@ window.goditor.buildFromSpec(<STEP1에서 만든 JSON>)
 ### buildFromSpec 동작
 - sections 배열을 순서대로 순회하며 각 섹션 자동 조립
 - 섹션마다: addSection → rows 처리 → triggerAutoSave
-- flex/grid row: addNewGridBlock(cols, rows) 호출 후 각 frame-block에 블록 추가
+- flex/grid row: ~~addNewGridBlock(cols, rows) 호출 후 각 frame-block에 블록 추가~~ — **삭제됨(2026-09-04, 이전엔 2026-06-08 봉인)**. 이 흐름은 더 이상 동작하지 않는다. 다열은 `addCanvasBlock({ cardMode: 'simple', gridCols, gridRows })`로 대체할 것
 - stack row: frame-block 없이 section-inner에 직접 블록 추가
 
 ### 직접 API 호출이 필요한 경우 (보조)

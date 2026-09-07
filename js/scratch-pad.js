@@ -1685,24 +1685,68 @@ window._scratchHasGroupSelection = () =>
   [..._selectedItems].some(it => it.g || it.el?.dataset?.scratchGroup);
 
 // 스크래치 언그룹 — 선택된 아이템들의 그룹 해제 (Cmd+Shift+G)
+/* ── 링크(섹션 연결) 끊기 헬퍼 ───────────────────────────────────────────
+ * ⚠️SPLink.removeLink() 를 쓰지 «않는다». 그건 호출마다 pushHistory 를 따로 쌓고
+ *   앵커(linkDy)를 버려서, 여러 개를 한꺼번에 끊으면 undo 가 N번으로 쪼개지고
+ *   되돌려도 오프셋이 사라진다. 여기선 dataset 을 직접 고쳐 «한 번의» undo 로 묶는다.
+ *   linkDy 복원은 _applyScratchGeomSnapshot 이 이미 해준다. */
+function _severLinks(ids) {
+  const SP = window.SPLink;
+  if (!SP || !SP._parse || !SP._write || !SP.sectionIdOf) return [];
+  const removed = [];
+  ids.forEach(id => {
+    const secId = SP.sectionIdOf(id);
+    if (!secId) return;                       // 연결 안 돼 있으면 할 일 없음
+    const sec = document.getElementById(secId);
+    if (!sec) return;
+    const arr = SP._parse(sec);
+    const link = arr.find(l => l.scratchId === id);
+    if (!link) return;
+    SP._write(sec, arr.filter(l => l.scratchId !== id));
+    removed.push({ secId, link });
+  });
+  if (removed.length) SP.rerender?.();
+  return removed;
+}
+function _restoreLinks(removed) {
+  const SP = window.SPLink;
+  if (!SP || !SP._parse || !SP._write) return;
+  removed.forEach(({ secId, link }) => {
+    const sec = document.getElementById(secId);
+    if (!sec) return;
+    const arr = SP._parse(sec);
+    if (arr.some(l => l.scratchId === link.scratchId)) return;   // 이미 있으면 중복 금지
+    arr.push(link);
+    SP._write(sec, arr);
+  });
+  if (removed.length) SP.rerender?.();
+}
+
 window._scratchUngroup = () => {
   const items = [..._selectedItems].filter(it => it.g || it.el?.dataset?.scratchGroup);
   if (!items.length) return { ok: false, msg: '그룹 아이템 없음' };
-  const before = _scratchGeomSnapshot(items); // undo용 사전 스냅샷 (g 복원)
+  const before = _scratchGeomSnapshot(items); // undo용 사전 스냅샷 (g·linkDy 복원)
   items.forEach(it => {
     delete it.g;
     if (it.el) delete it.el.dataset.scratchGroup;
   });
+  /* ★그룹을 풀면 «섹션 연결»도 같이 끊는다.
+   * 안 그러면 그룹만 풀리고 refLinks 는 남아 _applyFollow 의 rAF 루프가
+   * 계속 y = secTop + linkDy 를 다시 먹여, 「해제했는데 여전히 같이 움직인다」가 된다.
+   * 그룹(6~7월)과 링크(#16, 8월)가 7주 시차로 따로 만들어져 서로를 몰랐다. */
+  const severed = _severLinks(items.map(it => it.id));
   _saveScratch();
   const after = _scratchGeomSnapshot(items);
   try {
     window.pushHistory?.('스크래치 그룹 해제', {
-      onUndo: () => _applyScratchGeomSnapshot(before),
-      onRedo: () => _applyScratchGeomSnapshot(after),
+      onUndo: () => { _restoreLinks(severed); _applyScratchGeomSnapshot(before); },
+      onRedo: () => { _severLinks(severed.map(r => r.link.scratchId)); _applyScratchGeomSnapshot(after); },
     });
   } catch (_) {}
-  window.showToast?.(`🧩 스크래치 그룹 해제 (${items.length}개)`);
-  return { ok: true, count: items.length };
+  window.showToast?.(severed.length
+    ? `🧩 스크래치 그룹 해제 (${items.length}개) · 섹션 연결 ${severed.length}개도 끊음`
+    : `🧩 스크래치 그룹 해제 (${items.length}개)`);
+  return { ok: true, count: items.length, unlinked: severed.length };
 };
 
 // ── Claude PM MCP 노출: 스크래치 아이템 메타데이터 조회 ──
@@ -1759,6 +1803,48 @@ window._scratchRemoveById = async (id) => {
   _scratchItems = _scratchItems.filter(s => s !== it);
   await _saveScratch();
   return true;
+};
+
+// ── 외부 API (MCP delete_scratch_item) ───────────────────────────────────────
+// INV-B3/B1 결손 #5 — put_image/add_asset_block(scratchId)로 넣기만 되고 MCP 스스로
+// 치우지는 못했다. 기존 _scratchRemoveById(canvas-scratch-drop.js가 드롭 성공 후 쓰던
+// 내부 헬퍼) 그대로 재사용 — 새 삭제 로직을 만들지 않고 ok/code 형태만 MCP 규약에 맞춘다.
+// ★스크래치는 프로젝트 캔버스 직렬화 밖(IndexedDB 별도, 파일 상단 주석)이라 undo history
+//   대상이 아니다 — pushHistory 불필요(기존 _scratchRemoveById도 안 부름).
+window._scratchDeleteForMcp = async (id) => {
+  if (!id || typeof id !== 'string') return { ok: false, code: 'BAD_ARGS', message: 'id required' };
+  const it = _scratchItems.find(s => s.id === id);
+  if (!it) return { ok: false, code: 'NOT_FOUND', message: 'scratch item not found: ' + id };
+  const removed = { id: it.id, x: it.x, y: it.y, w: it.w };
+  const ok = await window._scratchRemoveById(id);
+  return ok ? { ok: true, scratchId: id, item: removed }
+            : { ok: false, code: 'REMOVE_FAILED', message: 'remove failed: ' + id };
+};
+
+// ── 외부 API (MCP update_scratch_item) ───────────────────────────────────────
+// INV-B3/B1 결손 #5 짝 — 좌표(x/y) · 폭(w) 재배치만 지원한다(★src 교체는 범위 밖 —
+// add_asset_block/update_asset_block의 scratchId 경로가 이미 "스크래치→캔버스로 붙이기"를
+// 담당하므로, 스크래치 자체의 이미지 내용 교체는 이번 결손표에 없던 별도 기능이다).
+window._scratchUpdateForMcp = async (id, { x, y, w } = {}) => {
+  if (!id || typeof id !== 'string') return { ok: false, code: 'BAD_ARGS', message: 'id required' };
+  const it = _scratchItems.find(s => s.id === id);
+  if (!it) return { ok: false, code: 'NOT_FOUND', message: 'scratch item not found: ' + id };
+  const hasX = typeof x === 'number' && Number.isFinite(x);
+  const hasY = typeof y === 'number' && Number.isFinite(y);
+  const hasW = typeof w === 'number' && Number.isFinite(w);
+  if (!hasX && !hasY && !hasW) {
+    return { ok: false, code: 'BAD_ARGS', message: 'no fields to update — provide at least one of x/y/w' };
+  }
+  if (hasX) it.x = x;
+  if (hasY) it.y = y;
+  if (hasW) it.w = w;
+  if (it.el) {
+    if (hasX) it.el.style.left = it.x + 'px';
+    if (hasY) it.el.style.top = it.y + 'px';
+    if (hasW) it.el.style.width = it.w + 'px';
+  }
+  await _saveScratch();
+  return { ok: true, scratchId: id, x: it.x, y: it.y, w: it.w };
 };
 
 // ════════════════════════════════════════════════════════════════════════

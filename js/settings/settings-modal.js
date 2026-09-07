@@ -468,15 +468,30 @@
     });
   }
 
+  /* ★[별건 A] 배지에 찍는 «단 하나의» 라벨 제조기.
+     ⛔옛 코드는 `_draft.shortcuts[key]` 를 «날것»으로 _shortcutLabel 에 넘겼다.
+       그 값의 정본은 main.js DEFAULT_SETTINGS 이고 거기엔 아직 'Meta+Shift+KeyG' 가 박혀 있다
+       (기존 사용자 저장본에도 그대로 박혀 있다) ⇒ 윈도우 화면에 「Win+Shift+G」.
+       그런데 «실제로 먹는 키»는 Ctrl 이다 — getShortcut() 이 읽는 자리에서 Meta→Ctrl 로 교정하고
+       _matchShortcut 이 그 값으로 판정하기 때문이다.
+       ⇒ 화면과 실기가 «어긋난» 것이고, 사용자는 화면을 믿고 눌러도 아무 일이 안 일어난다.
+         이건 기능이 없는 것보다 나쁘다.
+     ⇒ 설정 모달도 «같은 교정»을 탄다. 저장되는 값(_draft.shortcuts)은 그대로 둔다 —
+       바꾸면 맥/윈도우 사이에서 설정이 옮겨 다닐 때 «먹는 키»가 달라진다. 고칠 건 «표시»다.
+     ★검사가 DOM 없이 이 문자열을 잴 수 있게 아래에서 내보낸다. */
+  function _badgeLabel(spec) {
+    const shown = window._toPlatformShortcut ? window._toPlatformShortcut(spec) : spec;
+    return window._shortcutLabel ? window._shortcutLabel(shown) : (shown || '(없음)');
+  }
+  /* ★「화면에 실제로 찍히는 문자열」을 검사가 부를 수 있게. (jsdom 이 없어 DOM 을 못 세운다) */
+  window.__settingsShortcutLabel = _badgeLabel;
+
   function refreshShortcutBadges() {
     const pane = document.querySelector('.settings-pane-shortcuts');
     if (!pane) return;
     SHORTCUT_ACTIONS.forEach(a => {
       const badge = pane.querySelector(`[data-badge="${a.key}"]`);
-      if (badge) {
-        const spec = _draft.shortcuts[a.key];
-        badge.textContent = window._shortcutLabel ? window._shortcutLabel(spec) : (spec || '(없음)');
-      }
+      if (badge) badge.textContent = _badgeLabel(_draft.shortcuts[a.key]);
     });
   }
 

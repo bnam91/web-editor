@@ -1,3 +1,4 @@
+@charset "UTF-8";
 /* ═══════════════════════════════════
    SUB-SECTION BLOCK — 섹션 안 하위 섹션
 ═══════════════════════════════════ */
@@ -81,6 +82,68 @@
   pointer-events: none;
   z-index: 9990;
 }
+
+/* ═══ ★선택 테두리 «오버레이 층» (울트라플랜 P0 · js/selection-overlay.js) ═══════════
+   설계 정본 _context/PLAN-selection-overlay.md. 아래 두 덩이는 «성격이 다르다»:
+     ⑴ .ss-sel-layer 절 = 새 층의 «영구» 스타일
+     ⑵ body.sel-ov 중화 절 = P0 «임시물». P1 에서 블록 CSS 원본과 «함께» 지운다.
+   ⛔P0 에서 원본을 지우지 않는 이유 = 양립. body.sel-ov 는 오버레이 모듈이 초기화에
+     성공한 «뒤 스스로» 붙이므로, JS 가 죽으면 이 절이 통째로 안 걸리고 문서 outline 이 산다.
+════════════════════════════════════════════════════════════════════════════════ */
+.ss-sel-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  z-index: 0;              /* 핸들(.ss-resize-handle 등 z-index:1) «아래» */
+}
+/* ★위험13 — SVG 는 기본적으로 히트테스트 대상이다. 층 하나만 none 으로 두면 자식 path 가
+   여전히 클릭을 «먹어» 캔버스 클릭이 죽는다. 층과 «모든 자손»을 함께 끈다. */
+.ss-sel-layer,
+.ss-sel-layer * { pointer-events: none; }
+
+.ss-sel-path {
+  fill: none;
+  stroke: var(--sel-color);
+  /* ★오버레이는 #canvas-scaler «밖»이라 줌에 곱해지지 않는다 — --inv-zoom 보정이 «불필요»하다.
+     (이 이전의 요지 중 하나. 스케일러 안에 있는 한 모든 굵기는 보정을 달고 다녀야 했다.) */
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+/* 회전 상자는 반픽셀 스냅을 끄므로 crispEdges 가 오히려 선을 계단으로 만든다. */
+.ss-sel-path.is-rot { shape-rendering: geometricPrecision; }
+/* 에셋 오버레이 안 = 어두운 이미지 위. 파랑은 안 보인다 → 흰 점선(기존 M57-b 의 룩을 그대로 옮김). */
+.ss-sel-path--overlay {
+  stroke: rgba(255,255,255,0.7);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+  shape-rendering: geometricPrecision;
+}
+/* 스티커·그라데이션 = 보라(--ui-sel-overlay). */
+.ss-sel-path--sticker { stroke: var(--ui-sel-overlay, #9966ff); }
+
+/* ── ⑵ 중화(P0 임시물) ─────────────────────────────────────────────────────────
+   ⛔원본을 «지우지» 않는다. 색만 투명으로 돌린다(레이아웃·offset·specificity 그대로).
+   ★:not() 목록의 성격 = «블록 이름»이 아니라 ⒜ 오버레이가 안 그리는 대상 ⒝ 선택과
+     «동시에» 걸릴 수 있는 다른 상태의 표시. 새 블록이 생겨도 안 썩는다.
+     이 두 목록은 tests/unit/selection-overlay-scope.test.mjs 가 «검사로» 고정한다.
+   overlay-tb 가 `!important` 라 우리도 `!important` — 이기는 건 특이성이다
+   (body.sel-ov #canvas .selected = id1·class3·elem1 > .overlay-tb.selected = class2). */
+body.sel-ov #canvas .selected:not(.section-block):not(.col):not(.editing):not(.drag-over):not(.ss-drag-over):not(.pos-dragging):not(.bg-pos-dragging):not(.img-editing),
+body.sel-ov #canvas .row:has(> .text-block.selected),
+body.sel-ov #canvas .row:has(> .speech-bubble-block.selected),
+body.sel-ov #canvas .frame-block[data-text-frame="true"]:has(> .text-block.selected),
+body.sel-ov #canvas .frame-block[data-text-frame="true"]:has(> .speech-bubble-block.selected) {
+  outline-color: transparent !important;
+}
+/* 같은 선을 ::after 의 border 로 그리는 판(말풍선·형광펜) — 색만 투명으로. */
+body.sel-ov #canvas .row:has(> .speech-bubble-block.selected)::after,
+body.sel-ov #canvas .frame-block[data-text-frame="true"]:has(> .speech-bubble-block.selected)::after,
+body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
+  border-color: transparent !important;
+  outline-color: transparent !important;
+}
 .ss-resize-handle {
   position: absolute;
   width:  7px;
@@ -156,7 +219,12 @@
 
 
 /* ── Asset Block overlay resize handles (프레임 핸들과 동일 스타일) ── */
-.asset-overlay-handle {
+/* ★`.icb-overlay-handle` 를 «같은 규칙»에 얹는다 — 복사가 아니라 공유다.
+ * 전엔 아이콘원형 핸들이 `.asset-overlay-handle` 클래스를 «빌려» 썼는데,
+ * `hideAssetResizeHandles()` 가 오버레이의 `.asset-overlay-handle` 을 «전부» 쓸어담아 지운다.
+ * 그래서 deselectAll() 한 번에 남의 정리가 이쪽 핸들을 지워버렸다(실측: 재클릭 시 1→0개). */
+.asset-overlay-handle,
+.icb-overlay-handle {
   position: absolute;
   width:  7px;
   height: 7px;
@@ -167,10 +235,10 @@
   pointer-events: auto;
   box-sizing: border-box;
 }
-.asset-overlay-handle.nw { cursor: nw-resize; }
-.asset-overlay-handle.ne { cursor: ne-resize; }
-.asset-overlay-handle.sw { cursor: sw-resize; }
-.asset-overlay-handle.se { cursor: se-resize; }
+.asset-overlay-handle.nw, .icb-overlay-handle.nw { cursor: nw-resize; }
+.asset-overlay-handle.ne, .icb-overlay-handle.ne { cursor: ne-resize; }
+.asset-overlay-handle.sw, .icb-overlay-handle.sw { cursor: sw-resize; }
+.asset-overlay-handle.se, .icb-overlay-handle.se { cursor: se-resize; }
 
 /* ── Canvas Block overlay resize handles ── */
 .canvas-overlay-handle {
@@ -594,12 +662,65 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border-radius: 8px;
-  
+  /* ★블록 상자를 «원의 상자»와 같게 만든다 (현빈: 「오브젝트로 들어가는 블록에 그냥 프레임만
+   * 똥그라미로 씌웠으면 되는데 지금 구조가 조금 다르다」).
+   * 전엔 이 블록이 «행 전체 폭»으로 늘어나 있었다 — 실측: 원이 240px 인데 블록 상자는 716px.
+   * 그래서 ①선택 아웃라인이 원의 3배 폭 직사각형으로 그려지고 ②hover 틴트가 빈 여백까지 덮고
+   * ③원에서 한참 떨어진 빈 자리를 눌러도 블록이 잡혔다 — 에셋 블록(.asset-block)은 상자가 곧
+   * 보이는 면이라 이 셋이 전부 일치한다. 여기만 어긋나 있었다.
+   * ⚠️`!important` 인 이유: 자유배치 프레임 삽입 경로(_insertToFlowFrame)가 «인라인»으로
+   *   `width:100%` 를 박는다. 인라인은 선택자 특정성으로 못 이긴다.
+   * `align-self`/`justify-self` 는 stack(세로 flex)·flex(가로 flex)·grid 세 레이아웃 모두에서
+   *   stretch 를 끊고 «원 크기 그대로» 남기려는 것이다. */
+  width: fit-content !important;
+  align-self: center;
+  justify-self: center;
+  /* ★border-radius 를 뺐다 (현빈 지적: 「파란색 아웃라인 꼭지점에 라디우스가 적용되어 있음」).
+   * 이 8px 는 «선택 아웃라인의 모서리를 둥글게 만드는 것» 말고 하는 일이 없었다 —
+   * 배경·보더·체커무늬는 전부 안쪽 `.icb-circle`(radius 50%)에 붙는다(:605-649).
+   * 그리고 다른 블록의 관례와도 어긋났다: 선택 아웃라인에 양의 radius 를 주는 블록은
+   * 이것 «하나뿐»이었고, table·graph 는 오히려 `border-radius: 0` 으로 각지게 못박아뒀다. */
 }
 .icon-circle-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .icon-circle-block { position: relative; }
-.icon-circle-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); border-radius: 8px; }
+/* ⚠️여기 있던 `border-radius: 8px` 는 위 기본값과 «같은 값의 중복»이었다 — 선택 상태가 모양을
+   바꾸는 것처럼 읽혀 오해를 부른다. 기본값을 없앴으므로 이 줄도 뺀다(아웃라인은 각지게). */
+/* ★아웃라인만 «원»으로 (현빈 확정 2026-09-05: 「아웃라인만 원으로 해도 되지 않나?」).
+ * outline 은 border-radius 를 따라 그려지므로 50% 면 선이 원 둘레를 탄다.
+ * ⛔전에 있던 `border-radius: 8px` 와는 다른 것이다 — 그건 «임의의 둥근 네모»라
+ *   원과도 다른 모양이었고 다른 블록의 «각진» 관례와도 어긋나 현빈이 지적했다.
+ *   여기 50% 는 «이 블록이 실제로 원이라서» 그 모양을 그대로 따르는 것이다.
+ * ★핸들은 반대로 «상자 꼭지점»에 둔다 — 잡는 자리는 앱 전체가 같아야 한다(overlay-handles.js). */
+.icon-circle-block.selected {
+  /* ⚠️outline 을 쓰면 «안 보인다» — 자식(.icb-circle)이 상자를 96×96 으로 «꽉 덮고» 배경이미지까지
+   * 그려서 그 위를 지나간다. outline 은 자기 배경 위에는 그려지지만 «자손» 아래에 깔린다.
+   *   실측: ab 는 자식이 0×0 이라 안 가리고, icb 는 자식이 상자를 100% 덮는다 → 선이 통째로 사라졌다
+   *   (현빈: 「아웃라인 위에 에셋이 올라가서 맞닿는 곳에 아웃라인이 일부 지워지는 이슈」).
+   * ⇒ 자손보다 «위»에 그릴 수 있는 ::before 링으로 그린다. 색·두께는 같은 토큰이라 보이는 건 동일하다.
+   *   ⛔자식(.icb-circle)에 직접 걸지 않는다 — 선택 표시는 «블록»의 상태이지 원의 속성이 아니고,
+   *     원에 걸면 회전·이미지 교체 같은 원 자신의 변화에 선이 딸려간다. */
+  /* ★선이 «둘» 이다 (현빈 2026-09-05: 「동그라미만 되어 있는데 네모박스도 같이 떠야 되지 않겠니」)
+   *   ⑴네모 박스 = «선택 범위». 핸들이 그 네 꼭지점에 앉으므로 박스가 없으면 핸들이 허공에 뜬다.
+   *   ⑵원형 링   = «보이는 모양». 실제 그려지는 건 원이니 그 둘레도 같이 보여준다.
+   *   두 선이 같이 있어야 「무엇을 잡았고(범위) 무엇이 보이는지(모양)」가 한눈에 읽힌다. */
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: 0;
+  border-radius: 0;       /* ★네모로 — outline 은 border-radius 를 따라간다 */
+}
+/* 원형 링 — ⚠️outline 으로는 못 그린다. 자식(.icb-circle)이 상자를 100% 덮고 배경이미지까지
+   그려서 그 위를 지나가는데, outline 은 «자손 아래»에 깔린다(실측: 선이 통째로 사라졌다).
+   ⇒ 자손보다 위에 올릴 수 있는 ::before 로 그린다. ⛔자식에 직접 걸지 않는다 —
+     선택 표시는 «블록»의 상태이지 원의 속성이 아니다. */
+.icon-circle-block.selected::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: var(--sel-outline-w) solid var(--sel-color);
+  box-sizing: border-box;
+  pointer-events: none;   /* 클릭 판정은 블록이 그대로 받는다 */
+  z-index: 3;             /* .icb-circle(z auto) 보다 위 — 이게 «가림»을 푸는 자리다 */
+}
 .icon-circle-block.drag-over .icb-circle { outline: 2px dashed var(--sel-color); }
 
 .icb-circle {
@@ -870,9 +991,9 @@
 .bridge-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 
 /* ═══════════════════════════════════
-   DUO / INFOCARD BLOCK — dataset 모델 콤포짓 (U4·U5)
+   GRID / INFOCARD BLOCK — dataset 모델 콤포짓 (U4·U5)
 ═══════════════════════════════════ */
-.duo-block,
+.grid-block,
 .infocard-block,
 .innercard-block {
   position: relative;
@@ -881,18 +1002,88 @@
   box-sizing: border-box;
   outline: 2px solid transparent;
 }
-.duo-block:hover::after,
+.grid-block:hover::after,
 .infocard-block:hover::after,
 .innercard-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.duo-block.selected,
+.grid-block.selected,
 .infocard-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+
+/* ── 그리드 캔버스 인라인 편집 (P1.5) ──
+   ⛔여기서 «어느 줄이 편집 가능한가»를 판정하지 않는다 — 그 판정은 js/block-drag.js 의
+     _gridEditable 하나뿐이고, 이 규칙은 그 결과로 «실제 켜진» contenteditable 상태에만 반응한다
+     (CSS 에 판정을 베끼면 JS 와 갈라진다). #canvas 스코프 = export 클론엔 안 샌다. */
+#canvas .grid-block [contenteditable="true"] {
+  /* ★[M51] outline-offset 을 «안쪽»으로 뒤집었다. 옛 값은 `+2px` 라 테두리가 요소 «바깥» 3px
+     (offset 2 + width 1)에 그려졌다. 그리드 안쪽 여백은 0 이고 첫 칸 왼쪽이 블록 왼쪽과
+     «같은 좌표»라(실측: .grd-inner padding 0, cell.left === block.left), 1행 1열 줄을 편집하면
+     그 테두리가 블록 밖으로 나갔다 — 현빈 2026-09-05 「튀어나가잖아」.
+     ⇒ 블록 선택 테두리(:947)와 «같은 관용구»로 맞춘다: 폭=--sel-outline-w, offset=음수 같은 값.
+   ★[M56] 그리고 폭을 --sel-outline-w 로 바꾼 것은 «줌 보정»이기도 하다. 옛 `1px` 은 생짜라
+     스케일러 안에서 줌에 그대로 곱해졌다 — 10% 축소면 화면상 0.1px 로 «사실상 안 보이고»,
+     400% 면 4px 로 뚱뚱해졌다. 즉 어긋남의 크기가 줌마다 달랐다.
+     --sel-outline-w = calc(1px * var(--inv-zoom,1)) 는 화면상 굵기를 줌 불변으로 만든다.
+   ★배경 틴트를 같이 준 이유: 줌 보정을 해도 1px 은 축소 상태에서 «있는지 없는지» 수준이다.
+     .text-block.editing(editor-layout.css:301)이 이미 outline + --sel-color-fill 두 겹으로
+     가는 관례다 — 그 관례를 따른다. 색이 8% 알파라 글자 가독성은 안 건드린다. */
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+  background: var(--sel-color-fill);
+  cursor: text;
+}
+
+/* ── [M52] 칼럼 경계 가이드 ──────────────────────────────────────────
+   현빈 2026-09-05: 「칼럼과 칼럼 사이에 갭이 있는지? 있다면 시각적으로 볼 수 있게.
+   칼럼간의 경계가 잘 안 보여서 영역이 어떻게 되는지 모르겠네」
+   ★갭은 «있다» — GRID_DEFAULTS.gap = 24(grid-block.js:30), .grd-inner 의 column-gap 으로
+     실제로 그려진다(실측: 현빈 프로젝트 grd_ts0he_zf5bpyt 에서 24px). 안 보였던 것은
+     갭이 없어서가 아니라 «칸 경계에 아무 표시도 없어서» 였다.
+   ★그래서 갭에 줄을 긋는 대신 «칸의 영역»을 점선으로 두른다 — 그러면 칸 넓이와 갭이
+     동시에 읽힌다(갭 = 점선 상자와 상자 사이의 빈 곳). 현빈이 물은 것은 「갭이 있나」가
+     아니라 「영역이 어떻게 되나」였다.
+   ★.selected «와» .editing 둘 다에 건다 — 칸을 더블클릭해 편집에 들어가면 block 에
+     .editing 이 붙는데(block-drag.js:150), 그때 .selected 가 유지된다는 보장이 없다.
+     하나만 걸면 «가장 필요한 순간에» 가이드가 사라진다.
+   ★offset 은 음수(안쪽) — 바깥이면 24px 갭을 점선이 잠식해 갭이 실제보다 좁아 보인다.
+   ★:scope 직계(> .grd-inner >)로 한정 — 그리드 안에 그리드가 들어가도 남의 칸을 안 두른다.
+   ★#canvas 스코프라 export 클론엔 안 샌다(위 P1.5 규칙과 같은 이유).
+   ⚠️점선 색은 --sel-color-hover(파랑 40%) — 블록 테두리(실선 100%)보다 «한 단계 약하게» 해서
+     「블록 경계 vs 칸 경계」의 위계가 눈으로 갈리게 한다. */
+#canvas .grid-block.selected > .grd-inner > .grd-cell,
+#canvas .grid-block.editing  > .grd-inner > .grd-cell {
+  outline: var(--sel-outline-w) dashed var(--sel-color-hover);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
+
+/* ★빈 줄이 «손에 닿게» 한다 (P1.5 실기 QA FAIL 해소)
+ * 글자를 전부 지우면 .grd-line 이 높이 0 이 돼 다시 더블클릭할 수가 없었다. 데이터(text:"")는
+ * 남아 있는데 손이 닿지 않는다 — 그 자리를 누르면 elementFromPoint 가 «아래 줄»을 집는다.
+ * 되살릴 창구였던 우측패널 Column N 입력을 이번 P1.5 에서 없앴으므로, 복구 수단이 ⌘Z 뿐이었다.
+ * ⇒ 텍스트 블록이 쓰는 것과 «같은 관용구»(:empty::before, #ccc, pointer-events:none)로 높이를 만든다.
+ *   ::before 가 내용을 가지면 부모 줄에 높이가 생겨 클릭이 닿는다(pointer-events:none 이라
+ *   가상요소 자신은 클릭을 안 먹고 부모가 받는다 — text-block 이 이미 그렇게 돈다).
+ * ★#canvas 스코프인 이유: export 클론은 #canvas 밖이라 안내문이 결과물에 «안 샌다».
+ *   (editor-layout.css:307 의 text-block 판은 스코프가 없어 내보내기에도 나온다 — 따라하지 않았다.) */
+#canvas .grid-block .grd-line:empty::before { color: #ccc; pointer-events: none; }
+#canvas .grid-block .grd-h1:empty::before      { content: '제목을 입력하세요'; }
+#canvas .grid-block .grd-h2:empty::before      { content: '소제목을 입력하세요'; }
+#canvas .grid-block .grd-h3:empty::before      { content: '소항목을 입력하세요'; }
+#canvas .grid-block .grd-body:empty::before    { content: '본문을 입력하세요'; }
+#canvas .grid-block .grd-caption:empty::before { content: '캡션을 입력하세요'; }
+#canvas .grid-block .grd-label:empty::before   { content: 'Label'; }
 
 /* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
 .row:has(.text-block.selected),
 .frame-block[data-text-frame="true"]:has(.text-block.selected) {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));
+}
+/* fix(frame-p0#4-후반): 텍스트프레임 래퍼는 z-index:auto라 DOM 순서로 그려져,
+   자유배치 프레임 안에서 뒤 형제인 asset-block(스태킹 컨텍스트, z-index 없음이라도
+   DOM 순서로 뒤에 옴)이 선택 아웃라인을 덮어버렸다. 텍스트 내용은 이미
+   .text-block.selected { z-index:2 }(아래)로 위에 뜨는데 아웃라인만 뒤에 있던 불일치 — 맞춘다. */
+.frame-block[data-text-frame="true"]:has(.text-block.selected) {
+  z-index: 2;
 }
 /* T6: outline 2겹 픽스 — 부모 row/text-frame이 outline을 책임지면
    .text-block.selected의 자체 outline은 transparent로 되돌려 한 겹만 보이게 한다.
@@ -941,7 +1132,18 @@
 }
 
 
-/* 선택된 블록이 인접 블록의 outline을 가리지 않도록 z-index로 위로 올림 */
+/* 선택된 블록이 인접 블록의 outline을 가리지 않도록 z-index로 위로 올림
+   ★[M57] canvas-block · banner02-block 이 이 목록에서 «빠져 있었다» (현빈 2026-09-06:
+     「두 블럭이 맞닿는 부분에 밑에 로고에셋이 카드블럭의 아랫아웃라인을 덮어버려 가려버린다」
+      cvb_ts0he_v77tmhv ↔ ab_ts0he_x0cekgk · proj_1788627421215).
+   ★하필 이 둘만 빠진 게 «우연이 아니다» — 이 둘은 배경/이미지가 가장자리까지 차서
+     아웃라인을 «바깥»으로 그리는 유일한 블록이다(--ui-sel-outline-offset-out, DS-20).
+     안쪽으로 그리는 블록은 아웃라인이 자기 상자 «안»에 있어 이웃이 덮을 일이 없다.
+     ⇒ z-index 가 «가장 필요한» 둘이 목록에서 빠져 있었다. 실측: 카드 bottom 346 =
+       에셋 top 346(간격 0), 카드 outline-offset +2.5px 라 아웃라인이 346~351 을
+       차지하는데 둘 다 z-index:auto 라 DOM 뒤인 에셋이 그 위에 그려진다.
+   ★목록으로 관리되는 규칙은 «새 블록이 생길 때 빠진다» — 이 파일에서만 세 번째다
+     (frame-p0#4-후반 주석의 텍스트프레임 래퍼, .cvb-card-ph 의 pointer-events 목록). */
 .text-block.selected,
 .asset-block.selected,
 .gap-block.selected,
@@ -951,9 +1153,11 @@
 .graph-block.selected,
 .divider-block.selected,
 .bridge-block.selected,
-.duo-block.selected,
+.grid-block.selected,
 .infocard-block.selected,
 .innercard-block.selected,
+.canvas-block.selected,
+.banner02-block.selected,
 .mockup-block.selected { z-index: 2; }
 .row.row-active,
 .col.col-active { z-index: 1; }
@@ -1021,9 +1225,24 @@
   overflow: visible;
 }
 
-/* 회전된 shape을 가진 frame은 항상 overflow 해제 —
+/* 회전된 자식을 가진 frame은 항상 overflow 해제 —
    사용자 의도: 회전 시 frame 크기는 그대로 두되 시각적 잘림은 피한다.
-   회전된 shape의 visual bounding box가 frame을 넘어가도 잘리지 않게 한다. */
+   회전된 자식의 visual bounding box(AABB)가 frame을 넘어가도 잘리지 않게 한다.
+
+   ★2026-09-05 (P1-1): 원래 shape «하나만» 해제돼 있었다. 실측(796x316 프레임 안
+     400x200 에셋 45도) — 프레임 overflow:hidden 이 위쪽 92.1px·아래쪽 32.1px 를 «실제로»
+     잘라냈다. 회전 규약은 세 갈래라 셀렉터도 세 줄이어야 한다:
+       · data-rotation      — asset/text-frame/icon/mockup/canvas/icon-circle
+                              (asset-rotate.js _applyRotationDeg 는 0이면 «속성을 지운다»
+                               → 존재 == 비영). 따라서 :not() 불필요.
+       · data-rotate-deg    — frame·vector. 0이어도 «문자열로 남는다» → :not([="0"]) 필수.
+       · data-shape-rotation— shape (기존 줄, 유지)
+     음성대조 실측: 회전 없는 프레임 / data-rotate-deg="0" 자식만 있는 프레임은 둘 다
+     computed overflow-y = hidden 그대로다(축이 실제로 갈린다).
+   ⚠️대가: 이 프레임의 border-radius 가 자식을 더 이상 «잘라주지 않는다».
+     shape 규칙이 2026년 초에 이미 받아들인 트레이드오프와 «같은» 정책이다. */
+.frame-block:has([data-rotation]),
+.frame-block:has([data-rotate-deg]:not([data-rotate-deg="0"])),
 .frame-block:has(.shape-block[data-shape-rotation]) {
   overflow: visible;
 }
@@ -1068,7 +1287,7 @@
 .frame-block:not(.selected) .graph-block:hover,
 .frame-block:not(.selected) .divider-block:hover,
 .frame-block:not(.selected) .bridge-block:hover,
-.frame-block:not(.selected) .duo-block:hover,
+.frame-block:not(.selected) .grid-block:hover,
 .frame-block:not(.selected) .infocard-block:hover,
 .frame-block:not(.selected) .innercard-block:hover,
 .frame-block:not(.selected) .icon-text-block:hover,
@@ -1081,11 +1300,27 @@
 .frame-block:not(.selected) .graph-block:hover::after,
 .frame-block:not(.selected) .divider-block:hover::after,
 .frame-block:not(.selected) .bridge-block:hover::after,
-.frame-block:not(.selected) .duo-block:hover::after,
+.frame-block:not(.selected) .grid-block:hover::after,
 .frame-block:not(.selected) .infocard-block:hover::after,
 .frame-block:not(.selected) .innercard-block:hover::after,
 .frame-block:not(.selected) .label-group-block:hover::after,
-.frame-block:not(.selected) .shape-block:hover::after {
+.frame-block:not(.selected) .shape-block:hover::after,
+/* L1(2026-09-05): 위 11종만 있고 아래 10종이 빠져 있었다 — 「미선택 프레임 안 hover 억제」
+   판정이 «한 곳»인데 목록이 반쪽이라 같은 상황에서 블록마다 다르게 굴었다.
+   재현 경로 = 프레임 자신은 미선택이고 «자손 하나가 selected»인 드릴인 상태
+   (editor-blocks.css:39 의 pointer-events 차단이 `:not(:has(.selected))` 라 이때 풀린다).
+   전수 census(실측): tint 를 가진 블록 클래스 중 억제되던 11 / 새던 12.
+   text-block 계열(text/speech-bubble/liner)은 [data-text-frame] 전용 규칙이 따로 있어 제외 — §5 참조. */
+.frame-block:not(.selected) .asset-block:hover::after,
+.frame-block:not(.selected) .icon-text-block:hover::after,
+.frame-block:not(.selected) .icon-block:hover::after,
+.frame-block:not(.selected) .canvas-block:hover::after,
+.frame-block:not(.selected) .step-block:hover::after,
+.frame-block:not(.selected) .banner02-block:hover::after,
+.frame-block:not(.selected) .comparison-block:hover::after,
+.frame-block:not(.selected) .mockup-block:hover::after,
+.frame-block:not(.selected) .vector-block:hover::after,
+.frame-block:not(.selected) .chat-block:hover::after {
   display: none !important;
 }
 /* speech-bubble-block은 fit-content 폭 → text-block:hover::after (editor-layout.css)와
@@ -1227,11 +1462,47 @@
   overflow: hidden;
   pointer-events: none;
 }
+
+/* ── [M38-b] 빈 카드 이미지 영역 — «편집 전용» 체커 ────────────────────
+   현빈 2026-09-05: 「카드블럭에 이미지 영역 체크배경으로 해줘. 다른 이미지 에셋 블럭 배경처럼」
+   ★1차(M38)는 이 값을 «인라인»으로 박았다 — 그러면 저장본에 실리고 «내보내기 결과물에도»
+     체커와 '+' 가 그대로 찍힌다(적대검수 조건①). 옛 코드(rgba(0,0,0,0.06) 인라인)도 같은
+     병이었는데, 회색이라 눈에 안 띄었을 뿐이다 — 내가 «보이게» 만든 것이다.
+   ★정본은 .asset-block(editor-layout.css:501)이다: 체커를 «CSS 에» 둔다. 내보낸 HTML 은
+     export-html.js 가 직접 쓰는 <style> 만 갖고 앱 CSS 를 안 실으므로, CSS 로 두면 «자동으로»
+     결과물에 안 나간다. 그래서 값이 아니라 «두는 자리»를 에셋 블록과 맞춘다.
+   ★'+' 는 ::before 로 뺀다 — 텍스트 노드로 두면 DOM 이라 클래스를 지워도 글자가 남는다.
+   ★선례 = .bn2-line-empty(배너 빈 줄). export-html.js 가 클래스째 벗긴다 — 같은 목록에 넣었다.
+     (CSS 가 안 실리므로 그것만으로 이미 충분하지만, «의도»를 코드에 남겨 다음 사람이
+      인라인으로 되돌리지 않게 한다.) */
+.canvas-block .cvb-img-empty {
+  background: repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+  display: flex; align-items: center; justify-content: center;
+}
+.canvas-block .cvb-img-empty::before {
+  content: '+';
+  color: rgba(0,0,0,0.35);
+  font: 200 28px sans-serif;
+  pointer-events: none;
+}
+/* 절대배치 레이어의 빈 이미지 — 체커«만». '+' 안내문은 클릭 배선이 없어 안 붙인다. */
+.canvas-block .cvb-img-empty-plain {
+  background: repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+}
 /* 카드 제목/설명은 클릭 가능해야 더블클릭 인라인 편집(_bindCvbDblEdit)이 동작한다.
-   cvb-inner의 pointer-events:none를 텍스트에서만 되살림 (나머지는 카드 본체로 통과). */
+   cvb-inner의 pointer-events:none를 텍스트에서만 되살림 (나머지는 카드 본체로 통과).
+   ★.cvb-card-ph(글자가 «전부» 빈 카드의 안내문)도 같은 목록에 있어야 한다 — 여기 빠지면
+     글자를 다 지운 카드가 캔버스에서 영영 손에 닿지 않는다(_cvbEditable 이 보는 요소와 한 쌍).
+     목록이 갈라지면 「판정은 하나」 규약이 깨지므로 JS 의 _CVB_EDIT_SEL 과 같이 고칠 것. */
 .canvas-block .cvb-card-title,
-.canvas-block .cvb-card-desc {
+.canvas-block .cvb-card-desc,
+.canvas-block .cvb-card-ph {
   pointer-events: auto;
+}
+/* 편집 중 커서 — «어느 요소가 편집 가능한가»를 CSS 가 다시 판정하지 않는다.
+   JS 가 실제로 켠 상태(contenteditable)에만 반응한다. #canvas 스코프라 내보내기 클론에 안 샌다. */
+#canvas .canvas-block [contenteditable="true"] {
+  cursor: text;
 }
 
 /* ── Vector Block ────────────────────────────────────────────────────────── */
@@ -2485,3 +2756,7 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   /* path 자체 */
   vector-effect: non-scaling-stroke;
 }
+
+/* 그리드 피커 — 아직 못 만드는 조합(행 축 도입 전 2행 이상)은 «죽은 칸»으로 보인다.
+   눌러도 아무 일 없는 것보다, 안 눌린다는 게 보이는 편이 정직하다. */
+.grid-picker-cell--off { opacity: .28; cursor: default; }

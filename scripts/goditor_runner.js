@@ -166,13 +166,14 @@ function getBlockHeight(block) {
       case 'comparison':   // cols[{title, rows[]}], featured — rows[0]={type:'image', imgSrc} 슬롯 지원
       case 'canvas':       // cardMode:'simple', gridCols, gridRows(≤20), cards[] — 구 card의 대체
       case 'duo':          // cols[{width, lines[]}], gap, valign
+      case 'grid':         // 'duo'의 별칭(P0, 발주 ②) — 같은 스펙(cols[{width, lines[]}], gap, valign)
       case 'innercard': {  // bg/radius/padding/align/shadow/border/accentBar + lines[]
         const API = {
           'divider': 'addDividerBlock', 'icon-circle': 'addIconCircleBlock',
           'label-group': 'addLabelGroupBlock', 'table': 'addTableBlock',
           'graph': 'addGraphBlock', 'step': 'addStepBlock', 'chat': 'addChatBlock',
           'comparison': 'addComparisonBlock', 'canvas': 'addCanvasBlock',
-          'duo': 'addDuoBlock', 'innercard': 'addInnerCardBlock',
+          'duo': 'addDuoBlock', 'grid': 'addGridBlock', 'innercard': 'addInnerCardBlock',
         }[block.type];
         const { type, ...opts } = block;
         await ev(`window.${API}(${JSON.stringify(opts)})`);

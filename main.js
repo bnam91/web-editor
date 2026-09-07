@@ -14,6 +14,7 @@ const _GOYA_ASSET_MIME = {
   webp: 'image/webp', svg: 'image/svg+xml', avif: 'image/avif', bmp: 'image/bmp', ico: 'image/x-icon',
 };
 const { autoUpdater } = require('electron-updater');
+const updaterCache = require('./main/updater-cache');
 const path = require('path');
 
 // C4: 앱 이름 브랜딩 (macOS 상단 메뉴바 표시)
@@ -38,6 +39,17 @@ const os = require('os');
   }
 })();
 
+/* ── [H2] 크래시·메인오류 로컬 기록 (2026-09-06) ──────────────────────────────
+   ★얇게만 부른다. 새 로직은 전부 main/crash/ 안에 있다.
+   ★자리가 여기인 이유: userData 이사(위 IIFE)보다 «뒤»여야 logs/ 가 새 폴더에 생기고,
+     그 밖의 모든 초기화보다 «앞»이어야 그 사이에 난 예외를 듣는다.
+   ⛔이 호출이 실패해도 앱은 뜬다 — 기록기가 앱을 못 막게 한다. */
+try {
+  require('./main/crash').install({ app, ipcMain });
+} catch (e) {
+  console.error('[crash-recorder] 설치 실패:', e && e.message);
+}
+
 // .gdt 파일 연결 — ★app ready «이전»에 걸어야 한다.
 // 맥은 파인더에서 더블클릭한 경로를 `open-file` 이벤트로 주는데, 콜드 스타트에선
 // 그 이벤트가 whenReady보다 «먼저» 뜬다. ready 안에서 등록하면 첫 더블클릭을 놓친다.
@@ -51,21 +63,40 @@ const os = require('os');
 try { require('./main/gdt/wire').registerGdtFileAssociations(); }
 catch (e) { console.error('[gdt] 파일 연결 등록 실패:', e); }
 
-// .env 로드 (크리덴셜 환경변수)
-function _loadEnvFile(p) {
-  if (!fs.existsSync(p)) return;
-  fs.readFileSync(p, 'utf8').split('\n').forEach(line => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) return;
-    const [k, ...v] = trimmed.split('=');
-    if (k && v.length) process.env[k.trim()] = v.join('=').trim();
-  });
-}
-_loadEnvFile(path.join(__dirname, '.env'));
-// 외부 자격증명 저장소(로컬 공유 시크릿) — GEMINI_API_KEY 등. iCloud dataless(EDEADLK) 회피 위해 ~/.config/secrets 로 일원화
-_loadEnvFile(path.join(os.homedir(), '.config/secrets/.env'));
 const { spawn } = require('child_process');
-const { login: authLogin, verifySession: authVerifySession, urlIsLive: authUrlIsLive, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL, API_BASE: AUTH_API_BASE } = require('./services/authService');
+const _authService = require('./services/authService');
+/* ★「패키징인가」의 정본은 Electron 자신(`app.isPackaged`)이다 — authService 는 electron 을
+   안 쓰는 순수 모듈이라 스스로 못 묻는다. 그래서 여기서 «알려준다»(주입).
+   ⛔이 줄은 authService 를 처음 require 한 «직후»·아래 구조분해와 main/admin·main/collab·
+     main/notice «보다 먼저» 와야 한다 — 그들도 API_BASE 를 각자 구조분해로 붙잡는다.
+   ★안 불러도 안전하다: authService 기본값이 이미 「막는 쪽」(패키징 가정)이다.
+     이 줄이 하는 일은 「dev 다」를 «Electron 의 답으로» 확정해 주는 것뿐이다.
+   ★★그리고 «.env 로드보다 먼저» 와야 한다 — .env 게이트가 이 답을 본다. */
+if (typeof _authService.applyRuntime === 'function') {
+  let _pkg = true;
+  try { _pkg = app.isPackaged; } catch (_) { _pkg = false; }
+  _authService.applyRuntime({ isPackaged: _pkg });
+}
+
+/* ── .env 로드 (개발자 편의 크리덴셜) ──────────────────────────────────────────
+   ⑴ <앱>/.env  ⑵ ~/.config/secrets/.env — GEMINI_API_KEY 등. 외부 자격증명 저장소를
+   ~/.config/secrets 로 일원화한 건 iCloud dataless(EDEADLK) 회피 때문이다.
+   ★★배포본에선 «한 줄도 안 읽는다» — ⑵는 사용자 홈이라, 거기 한 줄 쓰는 것만으로
+     `GODITOR_LICENSE_API`·`GODITOR_ENTITLEMENT_PUBKEY`·`GODITOR_ADMIN_TOKEN` 게이트가
+     전부 열렸다(2026-09-06). 판정·읽기는 main/env-file.js 가 한다(거기 이유를 적어 뒀다).
+   ★사용자 자기 API 키는 이 경로와 무관하다 — settings.json → getApiKey() → payload.apiKey. */
+require('./main/env-file').loadDevEnvFiles({ appDir: __dirname });
+/* .env 가 dev 서버주소(GODITOR_LICENSE_API)를 담고 있을 수 있다 → «읽은 뒤» 다시 계산.
+   패키징이면 위에서 아무것도 안 읽었고 resolveApiBase 가 env 를 무시하므로 값은 그대로다. */
+if (typeof _authService.applyRuntime === 'function') {
+  let _pkg2 = true;
+  try { _pkg2 = app.isPackaged; } catch (_) { _pkg2 = false; }
+  _authService.applyRuntime({ isPackaged: _pkg2 });
+}
+const { login: authLogin, verifySession: authVerifySession, urlIsLive: authUrlIsLive, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL, API_BASE: AUTH_API_BASE } = _authService;
+/* ★자격증명 판정의 SSOT. 이 파일에는 «판정 규칙»을 두지 않는다 — 규칙이 둘이 되면 갈라진다.
+   여기가 하는 일은 「디스크·네트워크·화면을 그 답에 «배선»하는 것」뿐이다. */
+const entitlement = require('./services/entitlement');
 const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
@@ -101,6 +132,12 @@ const DEFAULT_SETTINGS = {
     addAsset:     'KeyA',
     addSection:   'KeyS',
     pinToggle:    'Backquote',
+    /* ★[별건 A] 여기는 «전선 위의 기본값»이고 표기는 맥 기준(Meta)이다. 플랫폼 교정은
+       «읽는 자리»에서 한다 — js/settings/settings-store.js 의 _toPlatform(Meta→Ctrl).
+       ⛔여기만 고쳐도 «기존 사용자»는 안 고쳐진다: 저장본(settings.json)에 옛 Meta 값이 이미
+         박혀 있고 DEFAULT_SETTINGS 는 «없는 키»에만 쓰인다. 그래서 교정이 읽는 자리에 있다.
+       ⚠️그러니 이 값을 보고 「윈도우에서도 Win 키가 먹는다」고 읽지 마라 — 먹는 건 Ctrl 이다.
+         화면 라벨도 그 교정을 타야 한다(js/settings/settings-modal.js _badgeLabel). */
     groupBlocks:  'Meta+KeyG',
     ungroup:      'Meta+Shift+KeyG',
     wrapInFrame:  'Meta+Alt+KeyG',
@@ -114,6 +151,11 @@ const DEFAULT_SETTINGS = {
     freeLayoutAnalyze: true,
   },
 };
+/* ★[별건 A] 검사가 «값의 정본»을 직접 읽을 수 있게 내보낸다 — Electron 은 main.js 의 exports 를 안 본다.
+   (settings:get 핸들러는 whenReady 안에서 등록돼 유닛 하네스에선 안 잡힌다.)
+   ⇒ 「화면 라벨이 이 값과 어긋나지 않는가」를 «진짜 정본»으로 잰다. */
+module.exports = Object.assign(module.exports || {}, { DEFAULT_SHORTCUTS: DEFAULT_SETTINGS.shortcuts });
+
 function readSettings() {
   try {
     const p = getSettingsPath();
@@ -266,7 +308,7 @@ function createWindow() {
   // 핸들러가 없으면 Electron 기본 저장 다이얼로그에 의존 — 창이 가려진/숨겨진
   // 상태에서는 다이얼로그가 못 떠서 다운로드가 조용히 유실된다.
   mainWindow.webContents.session.on('will-download', (event, item) => {
-    const dir = app.getPath('downloads');
+    const dir = (_dlCollector && _dlCollector.outDir) || app.getPath('downloads');
     const base = item.getFilename() || 'export';
     let dest = path.join(dir, base);
     for (let n = 1; fs.existsSync(dest); n++) {
@@ -274,6 +316,23 @@ function createWindow() {
       dest = path.join(dir, `${path.basename(base, ext)} (${n})${ext}`);
     }
     item.setSavePath(dest);
+    /* ★계측 — 「내보냈다」와 「어디에 떨어졌나」는 다른 사실이다.
+       ⑴ 충돌 시 위 루프가 `(1)` 을 붙이는데 그 결과가 «렌더러로 안 돌아간다» → MCP 가
+          도구를 만들어도 ok:true 인데 클로드가 파일을 못 찾는다. 여기가 최종 경로를 아는
+          «유일한» 자리다.
+       ⑵ ⛔setSavePath 는 «의도»지 «결과»가 아니다 — 실패·취소해도 경로는 정해진다.
+          그래서 done 을 기다려 state 와 getSavePath() 를 같이 싣는다. 안 그러면
+          「실패한 내보내기」를 성공 경로로 보고하게 된다. */
+    if (_dlCollector) {
+      const rec = { filename: base, intendedPath: dest, state: 'pending', path: null, bytes: 0 };
+      _dlCollector.items.push(rec);
+      item.once('done', (_e, state) => {
+        rec.state = state;                        // completed | cancelled | interrupted
+        rec.path = item.getSavePath() || null;    // ★실제로 쓰인 경로
+        rec.bytes = item.getReceivedBytes() || 0;
+        rec.pathMatchesIntent = rec.path === dest;
+      });
+    }
   });
 
   // local-fonts 퍼미션 허용 (queryLocalFonts API)
@@ -396,20 +455,41 @@ function readAuth() {
     const p = getAuthPath();
     if (!fs.existsSync(p)) return null;
     const raw = JSON.parse(fs.readFileSync(p, 'utf8').replace(/^﻿/, ''));
-    if (!raw || typeof raw !== 'object' || !raw.email || !raw.accessUntil) return null;
+    /* ★★`!raw.accessUntil` 가드를 «뺐다» — 로더가 «판정»까지 겸해서 난 사고다.
+         무기한 사용자의 accessUntil 은 `null`(= 끝 없음)이라 `''`/`null` 둘 다 falsy 다.
+         옛 가드는 그 기록을 「없다」로 읽어 로그인 화면을 띄웠고, 그러면 sessionToken 도
+         못 꺼내 silentRefresh 가 손도 못 대는 «자가복구 불가» 상태가 된다.
+       ⇒ **판정은 resolveAuth/classify 가 할 일이지 «로더»가 할 일이 아니다.**
+         로더는 「이 파일이 우리 레코드인가」(= email 이 있나)만 본다. */
+    if (!raw || typeof raw !== 'object' || !raw.email) return null;
     return raw;
   } catch (_) {
     return null;
   }
 }
+/* ⚠️★이 함수는 «화이트리스트»다 — 여기 안 적힌 필드는 «조용히» 사라진다.
+     그래서 새 필드를 쓰는 호출처를 아무리 잘 짜도, 여기를 안 고치면 **전원이 옛 상태로 퇴행**한다.
+     (서명본이 매 저장마다 증발 → 모두 `sig_missing` → 마감 후엔 전원 재검증) */
 function writeAuth(record) {
   const next = {
     email:        String(record.email || ''),
     plan:         String(record.plan || ''),
-    accessUntil:  String(record.accessUntil || ''),
+    /* ★`accessUntil` «만» 강제 문자열화에서 뺀다 — `null` 은 「무기한」이라는 «뜻»이고
+       `String(null || '')` = `''` 는 그 뜻을 지운다. 지워지면 readAuth 가 못 읽어
+       무기한 사용자가 매 실행 로그아웃된다(2026-09-06 재현).
+       ⛔나머지 4필드는 «그대로» 문자열 강제다 — 같이 풀면 다른 병이 난다. */
+    accessUntil:  record.accessUntil === null ? null : String(record.accessUntil || ''),
     sessionToken: String(record.sessionToken || ''),
     savedAt:      new Date().toISOString(),
   };
+  /* ★서명본 보존. ⛔`signed.payload` 는 서버가 준 b64url 문자열 «그대로»여야 한다 —
+     파싱해서 다시 만들면 한 바이트가 달라져 서명이 깨진다. 그래서 «객체를 그대로» 싣는다.
+     ★`signed` 가 record 에 «없으면» 안 쓴다 = 「지운다」는 뜻이다
+       (applyServerAnswer 의 expired-무서명 폴백이 `delete next.signed` 로 그 뜻을 만든다). */
+  if (record.signed && typeof record.signed === 'object' && !Array.isArray(record.signed)) {
+    next.signed = record.signed;
+  }
+  if (record.sub) next.sub = String(record.sub);
   try {
     fs.writeFileSync(getAuthPath(), JSON.stringify(next, null, 2), 'utf8');
   } catch (e) {
@@ -420,10 +500,50 @@ function writeAuth(record) {
 function clearAuth() {
   try { fs.unlinkSync(getAuthPath()); } catch (_) {}
 }
-/** accessUntil이 아직 안 지났는가. 파싱 불가면 false(=만료 취급). */
-function authAccessValid(a) {
-  const t = Date.parse(a?.accessUntil);
-  return Number.isFinite(t) && t > Date.now();
+/* ── 자격증명 SSOT 배선 ──────────────────────────────────────────────────────
+   ⛔옛 `authAccessValid(a)` 는 **폐기됐다**. 그건 `auth.json` 의 문자열 하나만 봤고,
+     그 파일은 사용자 것이다(2099 로 고치면 통과). 판정은 이제 services/entitlement.js 가
+     «한 곳»에서 하고, 이 파일은 그 답을 디스크·화면·네트워크에 «배선»만 한다.
+   ★이 아래 세 함수 말고 다른 곳에서 판정하지 마라 — 규칙이 둘이 되면 갈라진다. */
+
+/** 이 앱이 믿을 공개키. ★dev(!isPackaged)에서만 env 주입을 허용한다
+ *  (`isAdminAuthorized` 와 «같은 규약» — 패키징에선 무시. 안 그러면 사용자가 자기 키를 넣고
+ *   자기가 서명해서 서명 검증 전체가 장식이 된다). */
+function entKeys() {
+  let packaged = true;
+  try { packaged = app.isPackaged; } catch (_) { packaged = false; }
+  return entitlement.resolveKeys({ isPackaged: packaged, env: process.env });
+}
+
+/** resolveAuth 에 «주입»하는 verify. ⛔토큰은 이 함수 밖으로 안 나간다. */
+async function entVerify(record) {
+  if (!record || !record.email || !record.sessionToken) return null;
+  return await authVerifySession(record.email, record.sessionToken);
+}
+
+/** 로컬 판정(동기·네트워크 0). 부팅·auth:state·navigate-projects 가 «같은» 이 답을 쓴다. */
+function authVerdict(record, now) {
+  return entitlement.classify(
+    record,
+    Number.isFinite(now) ? now : Date.now(),
+    entKeys(),
+    entitlement.CONSTANTS
+  );
+}
+
+/** 서버 답의 진단만 보관(신고용). ⛔email·sub·토큰·서명 원문은 «담지 않는다». */
+let _lastServerDiag = {};
+function _noteServer(diagOrNull) {
+  _lastServerDiag = (diagOrNull && typeof diagOrNull === 'object') ? diagOrNull : {};
+}
+
+/** applyServerAnswer 결과를 디스크에 반영한다. 「말 안 함」이면 «아무것도 안 한다»(유예). */
+function persistApplied(prev, applied) {
+  _noteServer(applied && applied.diag);
+  if (!applied) return prev;
+  if (applied.clear) { if (prev) clearAuth(); return null; }
+  if (applied.changed && applied.record) { writeAuth(applied.record); return applied.record; }
+  return applied.record || prev;
 }
 
 /* ── admin 모드 인증 (GAP-008 심층: 라이선스/결제 우회 차단) ──
@@ -456,6 +576,24 @@ function isAdminAuthorized() {
 // GAP-008: 에디터(라이선스 게이트 너머) 진입 허가 플래그. 인증된 경로(부팅 라이선스 통과·
 // 키 등록 성공·admin)에서만 true로 세팅. will-navigate 가드가 이 플래그로 렌더러발(發)
 // 직접 네비게이션(location.href='projects.html' 등) 우회를 차단한다.
+/* ── 다운로드 수집기 (2026-09-06) ─────────────────────────────────────────────
+   MCP 내보내기 도구가 «한 호출 동안만» 연다. 열려 있는 동안 will-download 가 여기에
+   최종 경로를 적는다. ⛔전역 로그가 아니다 — 안 열려 있으면 아무것도 안 쌓인다
+   (사용자가 직접 내보낸 것까지 우리가 들고 있을 이유가 없다). */
+let _dlCollector = null;
+function _dlBegin(outDir) { _dlCollector = { items: [], outDir: outDir || null }; return _dlCollector; }
+function _dlEnd() { const c = _dlCollector; _dlCollector = null; return c ? c.items : []; }
+/** done 이 비동기라 잠깐 기다린다. 다 끝났거나 시한이 지나면 반환. */
+async function _dlSettle(expected, timeoutMs = 15000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const it = (_dlCollector && _dlCollector.items) || [];
+    if (it.length >= expected && it.every(r => r.state !== 'pending')) break;
+    await new Promise(r => setTimeout(r, 120));
+  }
+  return (_dlCollector && _dlCollector.items) || [];
+}
+
 let _editorAccessGranted = false;
 function _grantEditorAccess() { _editorAccessGranted = true; }
 
@@ -470,32 +608,64 @@ async function checkAuthAndLoad() {
     return;
   }
   const auth = readAuth();
-  if (auth && authAccessValid(auth)) {
+  /* ⛔**부팅 경로엔 네트워크 `await` 가 «한 개도» 없다** — 2026-08-05(백엔드 다운에 인증했던
+     사용자가 전부 잠김)의 약속이다. `authVerdict` 는 순수·동기다.
+     확인이 «필요한» 상태는 열지 않고 license.html 로 보내 «거기서» auth:refresh 로 푼다. */
+  const v = authVerdict(auth);
+  if (v.pass) {
     _grantEditorAccess();
     mainWindow.loadFile('pages/projects.html');
-    silentRefresh(auth); // 네트워크 없으면 조용히 포기 — 부팅을 막지 않는다
+    /* ★legacy_grace(옛 auth.json)는 «반드시» 서명본으로 교체돼야 한다 — 그래서 비차단 갱신은
+       통과했을 때도 돈다. 네트워크가 없으면 조용히 포기한다(부팅을 막지 않는다). */
+    if (v.backgroundVerify !== false && v.needsVerify === 'background') silentRefresh(auth);
     return;
   }
-  // 저장된 계정이 있으면 license.html이 만료 화면으로, 없으면 로그인 화면으로 뜬다
-  // (렌더러가 auth:state를 물어서 분기).
+  // 저장된 계정이 있으면 license.html이 만료/확인 화면으로, 없으면 로그인 화면으로 뜬다
+  // (렌더러가 auth:state를 물어서 분기 — pending/status/reason 을 준다).
   mainWindow.loadFile('pages/license.html');
 }
 
-/** 온라인이면 접근권한을 조용히 갱신. 실패·판단불가는 전부 무시(캐시 유지). */
-async function silentRefresh(auth) {
+/* 백그라운드 갱신 상태. ⛔모든 대기에 상한이 있다 — 상한이 없으면 검사가 «무한 대기»한다. */
+let _bgVerifyTimer = null;
+let _lastVerifyAt = 0;
+
+/** 온라인이면 접근권한을 조용히 갱신. 실패·판단불가는 전부 무시(캐시 유지).
+ *  ★판정·저장 규칙은 `applyServerAnswer` «한 곳»에 있다 — 여기서 따로 쓰지 않는다.
+ *  ★서버가 «말을 안 하면» E1 의 백오프로 다시 묻고, 상한(VERIFY_MAX_ATTEMPTS)을 넘으면
+ *    **그만 묻는다** — `nextRetryDelayMs` 의 `null` 은 「그만 물어라」이지 `0ms` 가 아니다.
+ *  @param {number} [attempt] 재시도 회차(1부터). 없으면 «첫 호출».  */
+async function silentRefresh(auth, attempt) {
+  const C = entitlement.CONSTANTS;
   try {
-    const r = await authVerifySession(auth.email, auth.sessionToken);
-    if (!r) return;                    // 오프라인 또는 엔드포인트 미구현 → 유예 유지
-    if (r.ok && r.accessUntil) {
-      writeAuth({ ...auth, plan: r.plan || auth.plan, accessUntil: r.accessUntil });
+    if (!auth || !auth.email || !auth.sessionToken) return;
+    const now = Date.now();
+    /* ★첫 호출에만 최소 간격을 본다 — 재기동을 연타해도 서버를 분당 여러 번 때리지 않는다.
+       (재시도 회차는 이미 백오프가 간격을 정했으므로 여기서 또 막지 않는다.) */
+    if (attempt == null && now - _lastVerifyAt < C.VERIFY_MIN_INTERVAL_MS) return;
+    _lastVerifyAt = now;
+
+    let r = null;
+    try { r = await entVerify(auth); } catch (_) { r = null; }
+
+    if (r === null || r === undefined) {
+      // 「말을 안 했다」 — 캐시를 «안 건드린다». 백오프로 다시 묻는다(상한까지만).
+      _noteServer({ serverSpoke: false });
+      const n = attempt || 1;
+      const delay = entitlement.nextRetryDelayMs(n, C);
+      if (delay === null) return;                 // 상한 — 그만 묻는다
+      if (_bgVerifyTimer) clearTimeout(_bgVerifyTimer);
+      _bgVerifyTimer = setTimeout(() => {
+        _bgVerifyTimer = null;
+        silentRefresh(readAuth() || auth, n + 1);
+      }, delay);
+      /* ★타이머가 프로세스를 붙잡지 않게 한다 — 안 그러면 단위검사가 «끝나지 않는다». */
+      if (_bgVerifyTimer && typeof _bgVerifyTimer.unref === 'function') _bgVerifyTimer.unref();
       return;
     }
-    if (r.reason === 'expired' && r.accessUntil) {
-      // 세션 중에는 쫓아내지 않는다. 다음 실행부터 만료 화면.
-      writeAuth({ ...auth, plan: r.plan || auth.plan, accessUntil: r.accessUntil });
-      return;
-    }
-    if (r.reason === 'invalid_session') clearAuth();
+    const applied = entitlement.applyServerAnswer(auth, r, { now: Date.now(), keys: entKeys(), C });
+    /* ⚠️세션 중에는 쫓아내지 않는다(옛 규약 그대로) — 저장만 하고 화면은 다음 실행에서 갈린다.
+       단 `invalid_session`/`email_not_verified` 는 «답»이라 지운다(applied.clear). */
+    persistApplied(auth, applied);
   } catch (_) {}
 }
 
@@ -504,13 +674,27 @@ async function silentRefresh(auth) {
 // 로그인 화면/만료 화면 분기용 현재 상태. 비밀번호·세션토큰은 렌더러에 넘기지 않는다.
 ipcMain.handle('auth:state', () => {
   const auth = readAuth();
-  const valid = !!auth && authAccessValid(auth);
+  const v = authVerdict(auth);
   return {
-    signedIn:    valid,
-    expired:     !!auth && !valid,
+    signedIn:    v.pass,
+    expired:     !!auth && !v.pass,
+    /* ★E3(화면)용 — 「만료」와 「확인 필요」는 «다른 말»이다.
+       ⛔`sig`·`payload`·`sessionToken`·`sub` 는 여기로 «절대» 안 나간다(C6). */
+    pending:     v.screen === 'verify' ? 'verify' : null,
+    status:      v.status,
+    reason:      v.reason || '',
+    offline:     _lastServerDiag.serverSpoke === false,
+    /* ★무기한(accessUntil === null)을 그대로 내보내면 옛 화면이 「만료」로 읽는다.
+       표시용 문자열과 «무기한이라는 사실»을 따로 준다. */
+    perpetual:   !!auth && auth.accessUntil === null,
     email:       auth?.email || '',
     plan:        auth?.plan || '',
-    accessUntil: auth?.accessUntil || '',
+    accessUntil: auth?.accessUntil == null ? '' : String(auth.accessUntil),
+    /* ★E3-b ㉯(잠그기 전 예고)용 — 서명의 exp 까지 남은 «일수». entitlement.js 가 계산한
+       값을 «그대로» 옮긴다. ⛔여기서 exp 를 직접 파싱하지 않는다 — 화면이 두 번째 판정을
+       만드는 사고(E3-b ㉮ 에서 지적된 것과 같은 종류)를 막는다. 서명이 없으면(legacy_grace
+       포함) null — 그 사람들의 실제 마감은 SIGLESS_GRACE_UNTIL 이라 이 값과 다르다. */
+    daysUntilSigStale: entitlement.daysUntilSigStale(auth, entKeys(), Date.now()),
     purchaseUrl: PRICING_URL,
     signupUrl:   SIGNUP_URL,
     findEmailUrl:    FIND_EMAIL_URL,
@@ -521,16 +705,27 @@ ipcMain.handle('auth:state', () => {
 ipcMain.handle('auth:login', async (_event, email, password) => {
   const r = await authLogin(String(email || '').trim(), String(password || ''));
   if (r.ok) {
-    writeAuth({
-      email: r.email, plan: r.plan, accessUntil: r.accessUntil, sessionToken: r.sessionToken,
-    });
+    let rec = { email: r.email, plan: r.plan, accessUntil: r.accessUntil, sessionToken: r.sessionToken };
+    /* ★`login` 응답엔 `signed` 가 «없다»(서버 login.js 무변경) ⇒ 서명본은 `session` 이 준다.
+       구글 경로(:auth:google-login)가 이미 그렇게 하고 있다 — «그 모양을 따른다».
+       ⚠️오프라인이면 verifySession 이 null 이다. 그때도 **로그인은 성공시킨다** —
+         서명이 없다고 막으면 서버 서명 미배포·오프라인이 곧 「로그인 불가」가 된다. */
+    const v = await entVerify(rec);
+    const applied = entitlement.applyServerAnswer(rec, v, { now: Date.now(), keys: entKeys(), C: entitlement.CONSTANTS });
+    _noteServer(applied.diag);
+    if (!applied.clear && applied.record) rec = applied.record;
+    writeAuth(rec);
     // 세션토큰은 반환하지 않는다(렌더러 노출 최소화).
-    return { ok: true, email: r.email, plan: r.plan, accessUntil: r.accessUntil };
+    return {
+      ok: true, email: rec.email, plan: rec.plan,
+      accessUntil: rec.accessUntil == null ? '' : String(rec.accessUntil),
+      perpetual: rec.accessUntil === null,
+    };
   }
   if (r.reason === 'expired') {
     // 자격증명은 맞는데 이용기간이 끝난 계정 — 다음 실행에서도 만료 화면이 뜨도록 기록.
     // (sessionToken 없음)
-    writeAuth({ email: String(email || '').trim(), plan: r.plan, accessUntil: r.accessUntil, sessionToken: '' });
+    writeAuth({ email: String(email || '').trim(), plan: r.plan, accessUntil: r.accessUntil === undefined ? '' : r.accessUntil, sessionToken: '' });
   }
   return r;
 });
@@ -546,15 +741,228 @@ ipcMain.handle('auth:login', async (_event, email, password) => {
 ipcMain.handle('auth:refresh', async () => {
   const auth = readAuth();
   if (!auth?.email || !auth?.sessionToken) return { ok: false, reason: 'not_signed_in' };
-  const r = await authVerifySession(auth.email, auth.sessionToken);
-  if (!r) return { ok: false, reason: 'offline' };          // 유예 유지 — auth.json 을 안 건드린다
-  if (r.ok === false && (r.reason === 'invalid_session' || r.reason === 'email_not_verified')) {
-    clearAuth();
-    return { ok: false, reason: r.reason };
+  /* ★여기는 «언제나» 서버에 묻는다 — 「새로고침」의 존재 이유가 그것이다(등급은 앱 밖에서 바뀐다).
+     ⇒ resolveAuth 의 「로컬이 통과면 네트워크를 건너뛴다」 최적화를 여기선 쓰면 안 된다. */
+  const r = await entVerify(auth);
+  if (!r) { _noteServer({ serverSpoke: false }); return { ok: false, reason: 'offline', offline: true }; }
+
+  const ctx = { now: Date.now(), keys: entKeys(), C: entitlement.CONSTANTS };
+  const applied = entitlement.applyServerAnswer(auth, r, ctx);
+  const rec = persistApplied(auth, applied);
+  if (applied.clear) return { ok: false, reason: applied.diag.cleared || 'invalid_session' };
+
+  /* ★서버가 `ok:true` 라고 «말했는데» 로컬 검증이 실패한 경우(키·kid 오배포 = «우리 사고»)를
+     헐거운 쪽으로 떨어뜨리는 규칙은 resolveAuth 가 주인이다. verify 는 «이미 받은 답»을
+     그대로 돌려주므로 네트워크 재요청은 0 이다. ⛔여기서 그 규칙을 다시 쓰지 않는다. */
+  const v = await entitlement.resolveAuth(rec, {
+    verify: async () => r, now: ctx.now, keys: ctx.keys, C: ctx.C, allowNetwork: true,
+  });
+  /* ★`clear:false` 로 고정하는 이유 = 세션 폐기(invalid_session)는 «위»에서 이미 갈렸다.
+     같은 `r` 이 두 번 도는 것이라 여기서 또 지울 일이 없다 — 갈래를 둘로 두면 갈라진다. */
+  persistApplied(rec, { clear: false, changed: v.record !== rec, record: v.record, diag: v.diag });
+
+  /* ⛔성공해도 `_grantEditorAccess()` 를 «직접» 켜지 않는다 — 그건 license:navigate-projects 가
+     SSOT 로 다시 판정해서 켠다. 여기서 켜면 게이트를 우회하는 두 번째 문이 생긴다. */
+  const until = v.record && v.record.accessUntil;
+  if (v.pass) {
+    return {
+      ok: true, plan: (v.record && v.record.plan) || '', status: v.status,
+      accessUntil: until == null ? '' : String(until), perpetual: until === null,
+    };
   }
-  writeAuth({ ...auth, plan: r.plan || auth.plan, accessUntil: r.accessUntil || auth.accessUntil });
-  if (r.ok === false) return { ok: false, reason: r.reason || 'unknown', plan: r.plan || '', accessUntil: r.accessUntil || '' };
-  return { ok: true, plan: r.plan || '', accessUntil: r.accessUntil || '' };
+  return {
+    ok: false, reason: v.reason || r.reason || 'unknown', status: v.status, pending: v.screen === 'verify' ? 'verify' : null,
+    plan: (v.record && v.record.plan) || '', accessUntil: until == null ? '' : String(until),
+  };
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   구글 로그인 — RFC 8252 루프백 (인계 규격서 §4)
+
+   ★앱 안에 구글 화면을 띄우는 것은 «불가능»하다 — 구글이 embedded webview 를
+     `disallowed_useragent` 로 차단한다. 반드시 «바깥 브라우저»다.
+   ★앱은 구글과 직접 말하지 않는다. 우리 서버만 부르고 «세션 토큰»만 받는다.
+     ⇒ client_secret 도, 구글 SDK 도 앱에 없다.
+   ★커스텀 프로토콜(goditor://)이 아니라 루프백인 이유 = OS 등록·중복 선점이 없다.
+
+   ⛔토큰은 여기(main)에서 끝난다 — 렌더러로 «절대» 내보내지 않는다.
+     기존 auth:login 이 「세션토큰은 반환하지 않는다」로 세운 규약(:530)과 같다.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* 브라우저에 «우리 얼굴»로 뜨는 유일한 화면이다 — 사용자가 구글에서 돌아와 처음 보는 곳.
+   ★[시안 F 「전면 라임」 채택, 현빈 2026-09-06]
+     색·글자·간격을 «소문의섬 홈페이지 토큰 그대로» 쓴다(blacksheepwall.kr/style.css :root).
+     홈페이지에서 앱으로 넘어와도 끊김이 없게 하는 것이 목적이고, 그 대가로 이 화면에선
+     고디터 파랑(#2d6fe8)을 «안 쓴다» — 현빈이 그 교환을 알고 고른 안이다.
+   ⚠️여기는 file:// 이 아니라 http://127.0.0.1 이라 css/design-tokens.css 도, 상대경로 이미지도
+     «못 쓴다». 그래서 ⑴색은 값으로 박고 ⑵아이콘은 data URI 로 심는다.
+     아래 값은 소문의섬 style.css :root 의 실제 값이다(2026-09-06 실측):
+       --bg #0B0B0E · --bg-elev #15151A · --fg #F2F2F5 · --muted #B5B5BC
+       --faint #6E6E77 · --accent #C9F23A · --danger #FF7A8A · --border rgba(255,255,255,.08)
+     ⇒ 소문의섬 토큰이 바뀌면 여기도 손으로 맞춰야 한다. 숨기지 않으려고 이 주석을 둔다.
+   ⚠️소문의섬 로고마크는 #3EFF00 인데 홈페이지 UI 액센트는 #C9F23A 로 «서로 다르다».
+     여기선 «UI 액센트»를 정본으로 잡았다 — 이 화면은 로고가 아니라 UI 이기 때문이다. */
+
+/* 아이콘은 «앱 아이콘 그 파일»을 쓴다 — 예전엔 파란 사각형에 `✦` 유니코드 «글자»를 그렸고,
+   그래서 독에 뜨는 아이콘과 앱 안 로고가 «서로 다른 얼굴»이었다(2026-09-06 발견).
+   ⚠️build/icon.png 은 512px 라 base64 가 163KB 다 — 3초 보고 닫는 페이지에 그건 과하다.
+     그래서 128px 사본(assets/goditor-icon-128.png, 13KB)을 쓴다. */
+let _ICON_DATA_URI = null;
+function _goditorIconDataUri() {
+  if (_ICON_DATA_URI !== null) return _ICON_DATA_URI;
+  try {
+    const p = path.join(__dirname, 'assets', 'goditor-icon-128.png');
+    _ICON_DATA_URI = 'data:image/png;base64,' + fs.readFileSync(p).toString('base64');
+  } catch (e) {
+    /* 파일이 없어도 «화면이 안 뜨는» 일은 없어야 한다 — 마크만 비운다. */
+    console.warn('[auth] 로그인 완료 화면 아이콘을 못 읽음:', e.message);
+    _ICON_DATA_URI = '';
+  }
+  return _ICON_DATA_URI;
+}
+
+/** @param {boolean} ok  @param {string} [email]  @param {string} [reason] */
+function _loopbackPage(ok, email, reason) {
+  const icon = _goditorIconDataUri();
+  const accent = ok ? '#C9F23A' : '#FF7A8A';
+  const title  = ok ? '로그인됐습니다' : '로그인하지 못했어요';
+  const body   = ok
+    ? '고디터 창으로 돌아가 주세요.'
+    : (reason === 'no_token'
+        ? '구글 인증은 됐지만 로그인 정보를 받지 못했습니다.<br>고디터에서 다시 시도해 주세요.'
+        : '고디터에서 다시 시도해 주세요.');
+  const esc = v => String(v || '').replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+  const sub = ok && email ? `<div class="em">${esc(email)}</div>` : '';
+  const mark = icon ? `<img class="ico" src="${icon}" alt="">` : '';
+  return `<!doctype html><html lang="ko"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>고디터 로그인</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap">
+<style>
+  :root { color-scheme: dark }
+  * { box-sizing: border-box; margin: 0; padding: 0 }
+  body { background:#0B0B0E; color:#F2F2F5; min-height:100vh; display:flex;
+         align-items:center; justify-content:center; padding:32px;
+         font-family:'Inter','Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+         -webkit-font-smoothing:antialiased }
+  .box { width:100%; max-width:360px }
+  .rule { width:36px; height:2px; background:${accent}; margin-bottom:26px }
+  .brand { display:flex; align-items:center; gap:11px; margin-bottom:26px }
+  .ico { width:34px; height:34px; border-radius:9px; display:block; flex:none }
+  .nm { font-size:14px; font-weight:800; letter-spacing:.07em }
+  .by { font-size:9.5px; font-weight:600; letter-spacing:.09em; color:#6E6E77; margin-top:2px }
+  h1 { font-size:21px; font-weight:800; letter-spacing:-.01em; margin-bottom:9px; word-break:keep-all }
+  p  { font-size:13.5px; color:#B5B5BC; line-height:1.65; word-break:keep-all }
+  .em { font-size:12.5px; color:#6E6E77; margin-top:10px; word-break:break-all }
+</style>
+<body><div class="box">
+  <div class="rule"></div>
+  <div class="brand">${mark}<div><div class="nm">GODITOR</div><div class="by">BY 소문의섬</div></div></div>
+  <h1>${title}</h1>
+  <p>${body}</p>
+  ${sub}
+</div></body></html>`;
+}
+
+/* 동시에 두 번 누르면 포트가 둘 열린다 — 하나만 산다. */
+let _googleLoginInFlight = null;
+
+function _startGoogleLoopback() {
+  return new Promise((resolve) => {
+    const http = require('http');
+    let settled = false;
+    let timer = null;
+    const finish = (v) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { server.close(); } catch (_) {}        // ★반드시 닫는다 — 안 닫으면 포트가 남는다
+      resolve(v);
+    };
+
+    const server = http.createServer((req, res) => {
+      let q;
+      try { q = new URL(req.url, 'http://127.0.0.1').searchParams; } catch (_) { q = null; }
+      const token = q && q.get('token');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(_loopbackPage(!!token, q && q.get('email'), token ? '' : 'no_token'));
+      finish(token
+        ? { ok: true, token, email: q.get('email') || '', next: q.get('next') || '' }
+        : { ok: false, reason: 'no_token' });
+    });
+
+    server.on('error', () => finish({ ok: false, reason: 'loopback_failed' }));
+
+    /* ★포트는 listen(0) 으로 «매번» 받는다 — 고정하면 다른 프로그램과 부딪힌다.
+       ★`localhost` 는 서버가 거부한다(DNS 가 딴 데를 가리킬 수 있어서) — 127.0.0.1 만. */
+    server.listen(0, '127.0.0.1', () => {
+      const port = server.address().port;
+      const redirect = `http://127.0.0.1:${port}/cb`;
+      const url = `${AUTH_API_BASE}/api/license/google-start`
+        + `?app=goditor&redirect=${encodeURIComponent(redirect)}`;
+      shell.openExternal(url).catch(() => finish({ ok: false, reason: 'open_failed' }));
+    });
+
+    /* ★사용자가 브라우저를 그냥 닫는 경우 — 5분 뒤 포트를 회수한다. */
+    timer = setTimeout(() => finish({ ok: false, reason: 'timeout' }), 5 * 60 * 1000);
+  });
+}
+
+ipcMain.handle('auth:google-login', async () => {
+  if (_googleLoginInFlight) return { ok: false, reason: 'in_flight' };
+  _googleLoginInFlight = (async () => {
+    const r = await _startGoogleLoopback();
+
+    /* ★앱 창에 포커스를 되돌린다 — 안 하면 「눌렀는데 아무 일도 없다」로 보인다(규격서 §4). */
+    try { if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); } } catch (_) {}
+
+    if (!r.ok) return r;
+
+    /* ★구글 응답엔 plan·accessUntil 이 «없다»(token·email·next 뿐).
+       그런데 readAuth 는 accessUntil 없는 기록을 «무효»로 버린다(:401).
+       ⇒ 등급을 지어내지 않고 «서버에 물어» 채운다. 이메일 로그인이 authLogin 응답으로
+         받는 그 값을, 구글 경로에선 verifySession 으로 받는 것뿐이다. */
+    const v = await authVerifySession(r.email, r.token);
+    if (!v) return { ok: false, reason: 'network' };        // 오프라인 — 아무것도 저장하지 않는다
+    if (v.ok === false) {
+      /* 만료도 «대답»이다 — 토큰은 살아 있으니 기록해 다음 실행에서도 만료 화면이 뜨게 한다
+         (auth:login 의 expired 분기와 같은 규약, :534). */
+      if (v.reason === 'expired') {
+        /* ★서버는 «만료된 사용자에게도» 서명해서 준다 — 그 서명본을 저장해야 다음 판정이
+           L5(access_ended)로 «지속»된다. 안 그러면 옛 서명본이 exp 까지 통과한다. */
+        const exp = entitlement.applyServerAnswer(
+          { email: r.email, plan: v.plan, accessUntil: v.accessUntil, sessionToken: r.token }, v,
+          { now: Date.now(), keys: entKeys(), C: entitlement.CONSTANTS });
+        _noteServer(exp.diag);
+        writeAuth(exp.record || { email: r.email, plan: v.plan, accessUntil: v.accessUntil, sessionToken: r.token });
+        return { ok: false, reason: 'expired', email: r.email, plan: v.plan, accessUntil: v.accessUntil == null ? '' : String(v.accessUntil) };
+      }
+      return { ok: false, reason: v.reason || 'unknown', email: r.email };
+    }
+
+    /* ★구글 경로는 «이미» session 을 한 번 부른다 — 서명본이 여기 실려 온다.
+       판정·저장 규칙은 applyServerAnswer «한 곳»이다(이메일 로그인과 같은 문). */
+    let grec = { email: r.email, plan: v.plan, accessUntil: v.accessUntil, sessionToken: r.token };
+    const gapplied = entitlement.applyServerAnswer(grec, v, { now: Date.now(), keys: entKeys(), C: entitlement.CONSTANTS });
+    _noteServer(gapplied.diag);
+    if (!gapplied.clear && gapplied.record) grec = gapplied.record;
+    writeAuth(grec);
+    /* ★next = 추가정보(휴대전화·약관동의)가 아직 안 채워진 계정. 앱 «안»에서 받지 않는다 —
+       약관 링크가 필요해서다(규격서 §1). 브라우저로 열어 사람이 채우게 한다. */
+    if (r.next) {
+      try { shell.openExternal(AUTH_API_BASE + r.next); } catch (_) {}
+    }
+    return {
+      ok: true, email: grec.email, plan: grec.plan, next: r.next || '',
+      accessUntil: grec.accessUntil == null ? '' : String(grec.accessUntil),
+      perpetual: grec.accessUntil === null,
+    };
+  })();
+
+  try { return await _googleLoginInFlight; }
+  finally { _googleLoginInFlight = null; }
 });
 
 ipcMain.handle('auth:logout', () => {
@@ -603,12 +1011,14 @@ ipcMain.handle('license:navigate-projects', () => {
   // (기존: 무조건 projects.html 로드 → license 화면 콘솔에서 navigateToProjects() 한 줄로 우회)
   if (isAdminAuthorized()) { _grantEditorAccess(); mainWindow.loadFile('pages/projects.html'); return { ok: true }; }
   const auth = readAuth();
-  if (auth && authAccessValid(auth)) {
+  /* ★게이트 통과 판정은 부팅과 «같은 함수»다 — 문이 둘이면 하나만 고쳐지고 갈라진다. */
+  const v = authVerdict(auth);
+  if (v.pass) {
     _grantEditorAccess();
     mainWindow.loadFile('pages/projects.html');
     return { ok: true };
   }
-  return { ok: false, code: 'LICENSE_REQUIRED' };
+  return { ok: false, code: 'LICENSE_REQUIRED', status: v.status, pending: v.screen === 'verify' ? 'verify' : null };
 });
 
 /* ── 사용자 데이터 경로 (자동업데이트 후에도 유지) ── */
@@ -1061,15 +1471,22 @@ ipcMain.handle('ai:deleteImage', (_e, { projectId, blobPath } = {}) => {
   }
 });
 
-ipcMain.handle('projects:list', () => {
+/* ── 목록 코어 ──────────────────────────────────────────────────────────────
+   ipcMain.handle('projects:list')(렌더러)와 MCP list_projects(main)가 «공용»한다.
+   (projects:save 가 _saveProjectImpl 을 공용하는 것과 같은 패턴.)
+   ★opts.withDiag — readdir 실패를 «빈 배열»로 삼키면 「프로젝트가 0개」와 「폴더를 못 읽었다」가
+     «구분이 안 된다». 렌더러는 예전처럼 배열만 받고(동작 무변경), MCP 만 진단을 같이 받아
+     둘을 다른 응답으로 갈라 낸다. */
+function _listProjectsImpl(opts) {
   // 번들 레이아웃: PROJECTS_DIR 안의 proj_<id>/proj.json + 아직 마이그 안 된 flat proj_<id>.json 둘 다 인식.
   // 중복 ID는 신 위치 우선.
   const seen = new Set();
   const items = [];
 
   let entries = [];
+  let dirError = null;
   try { entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true }); }
-  catch { entries = []; }
+  catch (e) { entries = []; dirError = (e && e.message) || String(e); }
 
   // 1) 신 레이아웃 우선: proj_<id>/proj.json — [b8] 메타 우선(무거운 proj.json 풀파싱 회피)
   for (const ent of entries) {
@@ -1108,8 +1525,11 @@ ipcMain.handle('projects:list', () => {
   }
 
   items.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-  return items;
-});
+  return (opts && opts.withDiag) ? { items, dirError } : items;
+}
+ipcMain.handle('projects:list', () => _listProjectsImpl());
+
+
 
 /* ── [externalize] 열 때 정책 (DESIGN-asset-batch-externalize.md §3-2 ①·§3-3·§4-C) ──
    렌더러가 «프로젝트를 연다»고 알린 로드(opts.open)에서만 동작. 저장 경로의 loadProject(기존본 병합)에선 안 돈다.
@@ -1387,9 +1807,38 @@ ipcMain.on('projects:save-sync', (event, project) => {
     event.returnValue = { ok: true };
   } catch (e) {
     console.error('[projects:save-sync] 저장 실패:', e);
+    /* ★[W-3] 여기가 «윈도우 X 버튼»이 지나가는 자리다.
+       창 close → 렌더러 unload(beforeunload) → 이 동기 IPC → 창 소멸 → app.quit().
+       옛 코드는 여기서 { ok:false } 만 돌려줬고 렌더러는 console.warn 한 줄로 끝냈다 —
+       화면은 이미 사라지는 중이라 그 줄을 볼 사람이 없다. 실측: 다이얼로그 0 · 마커 0 ·
+       비상 사본 0 · 편집 토큰 디스크 0건 = 유실(미니4호기 윈도우 실기 QA 2차 §5-3ⓐ).
+       ⇒ EPERM 을 «쥐고 있는 건 여기»다. 흔적은 이 자리에서 남기고, 말하는 건 before-quit 이 한다.
+       ⚠️새로고침(⌘R)으로도 여기에 온다 — 그때도 «디스크에 못 들어간 건 사실»이라 기록은 옳다.
+         종료가 아니면 소비될 일이 없고, 마커는 다음 실행 때 H3 가 읽어 복구를 제안한다. */
+    _recordSyncSaveFailure(project, 'exception', e && e.message);
     event.returnValue = { ok: false, reason: 'exception', message: e.message };
   }
 });
+
+/** [W-3] 동기 저장 실패를 H4 가드에 넘겨 «마커 + 비상 사본»으로 남긴다.
+ *  ⛔여기서 다이얼로그를 띄우면 안 된다 — 렌더러 unload 를 막고 도는 동기 IPC 안이다.
+ *  ★기록 자체가 실패해도 저장 경로를 «더» 망가뜨리지 않는다(삼킨다). */
+function _recordSyncSaveFailure(project, reason, error) {
+  try {
+    if (!project || !project.id) return;
+    /* init 은 «준 것만» 덮는다 — dialog·shell 은 before-quit 이 뒤에 얹는다(충돌 없음). */
+    quitSaveGuard.init({ userDataDir: app.getPath('userData'), appVersion: app.getVersion(), log: (m) => console.warn(m) });
+    quitSaveGuard.recordSyncSaveFailure({
+      projectId: project.id,
+      projectName: project.name || null,
+      /* ★비상 사본은 «프로젝트 JSON 과 같은 모양» 그대로 — recovery:restore 가 그대로 되살린다. */
+      snapshot: JSON.stringify(project, null, 2),
+      reason, error: error || null,
+    });
+  } catch (err) {
+    console.warn('[projects:save-sync] 저장 실패를 기록하지 못했다:', err && err.message);
+  }
+}
 
 /* ── [version-history/U7] 삭제 안전망 — 영구삭제 → «휴지통» (현빈 승인) ────
  * ★설계 §8-0 규약: «되돌릴 수단»을 대상과 «같은 봉투»에 두지 마라.
@@ -2497,7 +2946,68 @@ ipcMain.handle('capture-section-cdp', async (event, { x = 0, y = 0, width, heigh
 // });
 
 /* ── 자동업데이트 ── */
+
+/** electron-updater 가 쓰는 캐시 루트. 이름을 못 읽으면 null(= pending 정리 무동작).
+ *  ⛔app.getName() 으로 «추측»하지 않는다 — 엉뚱한 디렉터리를 지우느니 아무것도 안 하는 게 낫다. */
+function _updaterCacheDir() {
+  try {
+    return updaterCache.resolveUpdaterCacheDir({
+      appUpdateConfigPath: app.isPackaged
+        ? path.join(process.resourcesPath, 'app-update.yml')
+        : path.join(app.getAppPath(), 'dev-app-update.yml'),
+    });
+  } catch (e) {
+    console.warn('[updater-cache] 캐시 경로 해석 실패:', e.message);
+    return null;
+  }
+}
+
+/** ★설치가 «끝난 뒤» 남은 pending 페이로드를 지운다 — R1/A1.
+ *  판정·근거는 main/updater-cache.js 머리주석 참조. 여기선 «언제 부르나»만 정한다:
+ *  checkForUpdatesAndNotify() «앞». 뒤에 두면 방금 받은 pending 과 경합한다. */
+function cleanSpentUpdaterPending() {
+  const cacheDir = _updaterCacheDir();
+  if (!cacheDir) { console.log('[updater-cache] updaterCacheDirName 없음 — 정리 건너뜀'); return; }
+  try {
+    updaterCache.cleanPendingIfSpent({
+      cacheDir,
+      currentVersion: app.getVersion(),
+      logger: { info: (m) => console.log(m), warn: (m) => console.warn(m) },
+    });
+  } catch (e) {
+    console.warn('[updater-cache] 정리 실패(무시하고 계속):', e.message);
+  }
+}
+
+/* ★[별건 D] 자동 업데이트를 «켤 것인가» — 판정의 정본은 Electron 자신(app.isPackaged)이다.
+   (main.js:68 이 authService 에 대해 이미 같은 말을 한다: 「패키징인가」의 정본은 app.isPackaged.)
+
+   ★옛 게이트는 «크로미움 로깅 플래그»로 개발 모드를 판정했다:
+       if (!process.argv.includes('--enable-logging')) setupAutoUpdater();
+     두 조건은 «다른 것»을 잰다 —
+       --enable-logging = 「로그를 켜고 띄웠나」 · 실행 «옵션». ★배포본에도 붙을 수 있다.
+       app.isPackaged   = 「asar 로 포장됐나」   · 실행 «형태». 개발 체크아웃은 언제나 false.
+     ⇒ 배포본이 그 플래그와 함께 실행되면 자동 업데이트가 «조용히» 죽었다
+       (윈도우 실기 QA 2차 별건 D). 0.5.0 자동업데이트 사망(아래 whenReady 주석)과 같은 병이다 —
+       «안 도는데 아무도 모른다».
+     ⇒ 반대 방향도 틀려 있었다: `npm start`(= electron . , 플래그 없음)는 개발 체크아웃인데도
+       옛 게이트를 «통과»했다. electron-updater 가 스스로 no-op 이라 티가 안 났을 뿐이다.
+
+   ★개발 편의는 안 깨진다 — 개발자가 `electron .` 로 띄우든 `npm run dev`(--enable-logging)로
+     띄우든 isPackaged=false 라 updater 는 안 돈다. 오히려 옛 게이트보다 «더» 확실히 안 돈다.
+
+   ★게이트를 «부르는 자리»가 아니라 «함수 안»에 둔다: 부르는 자리에 조건을 두면 그 조건이
+     검사 밖에 남는다(검사는 이 함수를 직접 부른다 — tests/unit/update-gate*.test.mjs). */
+function _autoUpdateEnabled() {
+  try { return app.isPackaged === true; } catch (_) { return false; }
+}
+
 function setupAutoUpdater() {
+  if (!_autoUpdateEnabled()) {
+    console.log('[updater] 자동 업데이트 «꺼짐» — 포장 안 된 실행이다(app.isPackaged=false).');
+    return false;
+  }
+  console.log('[updater] 자동 업데이트 «켜짐» — app.isPackaged=true');
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   // 채널 분기: settings.betaChannel=true인 테스터만 pre-release 수신.
@@ -2512,6 +3022,13 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
+    // 「이 pending 은 몇 버전인가」를 박아둔다 — 다음 실행의 정리 판정 «정본».
+    // (파일명 파싱은 폴백일 뿐이다: arch 접미사·프리릴리즈를 파일명만으론 못 가른다.)
+    try {
+      const cacheDir = _updaterCacheDir();
+      if (cacheDir) updaterCache.writePendingMarker({ cacheDir, version: info.version, fileName: info.downloadedFile ? path.basename(info.downloadedFile) : null });
+    } catch (e) { console.warn('[updater-cache] 마커 기록 실패:', e.message); }
+
     dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: '업데이트 준비 완료',
@@ -2527,8 +3044,16 @@ function setupAutoUpdater() {
     console.error('[updater] 오류:', err.message);
   });
 
+  // ★검사 «전»에 소진된 pending 을 비운다(뒤에 두면 갓 받은 페이로드와 경합).
+  cleanSpentUpdaterPending();
+
   autoUpdater.checkForUpdatesAndNotify();
+  return true;
 }
+
+/* ★검사가 «게이트 그 자체»를 부를 수 있게 내보낸다 — Electron 은 main.js 의 exports 를 안 본다.
+   ⛔소스 정규식으로 게이트를 지키지 않기 위해서다(정규식은 조건이 바뀌어도 초록일 수 있다). */
+module.exports = Object.assign(module.exports || {}, { setupAutoUpdater, _autoUpdateEnabled });
 
 /* ── App lifecycle ── */
 app.whenReady().then(async () => {
@@ -2589,10 +3114,8 @@ app.whenReady().then(async () => {
   createWindow();
   // watchFiles가 던져도 updater/MCP 초기화는 계속돼야 함 (0.5.0 자동업데이트 사망 원인)
   try { watchFiles(); } catch (e) { console.error('[hot-reload] watch skipped:', e.message); }
-  // 개발 모드에서는 자동업데이트 스킵
-  if (!process.argv.includes('--enable-logging')) {
-    setupAutoUpdater();
-  }
+  // 자동업데이트 — 켤지 말지는 setupAutoUpdater 가 app.isPackaged 로 «스스로» 판정한다(별건 D).
+  setupAutoUpdater();
   // Claude PM MCP 서버 (포트 9345, port-status 표 9345+ 신규 자유)
   try {
     const { port: actualPort, token: mcpToken } = await startMcpServer({
@@ -2612,12 +3135,20 @@ app.whenReady().then(async () => {
       scratchAdd: _invokeRendererScratchAdd,
       buildBasicSection: _invokeRendererBuildBasicSection,
       getCanvasState: _invokeRendererGetCanvasState,
+      exportSections: _invokeRendererExport,
+      historyTip: _invokeRendererHistoryTip,
+      historyHasSeq: _invokeRendererHistoryHasSeq,
+      undoOnce: _invokeRendererUndoOnce,
+      exportCollect: { begin: _dlBegin, settle: _dlSettle, end: _dlEnd },
       listScratchItems: _invokeRendererListScratchItems,
       readScratchItem: _invokeRendererReadScratchItem,
+      deleteScratchItem: _invokeRendererDeleteScratchItem,
+      updateScratchItem: _invokeRendererUpdateScratchItem,
       addGapBlock: _invokeRendererAddGapBlock,
       deleteSection: _invokeRendererDeleteSection,
       deleteBlock: _invokeRendererDeleteBlock,
       moveSection: _invokeRendererMoveSection,
+      moveBlock: _invokeRendererMoveBlock,
       insertGapAfterBlock: _invokeRendererInsertGapAfterBlock,
       updateSection: _invokeRendererUpdateSection,
       addTableBlock: _invokeRendererAddTableBlock,
@@ -2627,6 +3158,8 @@ app.whenReady().then(async () => {
       setSectionMemo: _invokeRendererSetSectionMemo,
       getSectionMemo: _invokeRendererGetSectionMemo,
       updateChecklistItem: _invokeRendererUpdateChecklistItem,
+      listChecklistItems: _invokeRendererListChecklistItems,
+      deleteChecklistItem: _invokeRendererDeleteChecklistItem,
       addMockupBlock: _invokeRendererAddMockupBlock,
       updateMockupBlock: _invokeRendererUpdateMockupBlock,
       addBanner02Block: _invokeRendererAddBanner02Block,
@@ -2680,7 +3213,7 @@ app.whenReady().then(async () => {
     }
     // 프로젝트 단위 코어 주입 — MCP duplicate_project/create_project/open_project 도구가 사용.
     if (typeof setMcpProjectOps === 'function') {
-      setMcpProjectOps({ duplicate: _duplicateProjectImpl, create: _createProjectImpl, open: _openProjectImpl });
+      setMcpProjectOps({ duplicate: _duplicateProjectImpl, create: _createProjectImpl, open: _openProjectImpl, list: _listProjectsImpl });
     }
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -2740,20 +3273,40 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId,
         const firstSec = document.querySelector('[id^="sec_"]');
         if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
       }
+      /* ★2026-09-07 [U2] 「문서순 마지막」은 «이 콜이 만든 블록»이 아니다.
+         ⑴삽입은 insertAfterSelected(= «선택 블록 뒤») 라 섹션 끝이 아니고,
+         ⑵이 쿼리는 섹션 안이 아니라 «문서 전체»를 훑는다.
+         ⇒ 뒤쪽 섹션에 텍스트가 하나라도 있으면 앞 섹션에 넣어도 마지막이 «안 움직인다».
+         격리 인스턴스 실측: 서로 다른 섹션에 «직렬» 3콜이 전부 같은 id 를 돌려줬다
+         (내림차순 S3→S2→S1). 오름차순이면 우연히 맞아서 «순서에 따라 숨는» 결함이다.
+         ok:true 인데 손잡이가 남의 것이라, 다음 update_block 이 «엉뚱한 블록»을 고친다.
+         ⇒ 같은 파일의 table(:3265)·asset(:3743)·section(:3629) 이 이미 쓰는
+           «차집합(beforeIds)» 으로 통일한다. 렌더러(js/block-factory.js)는 안 건드린다 —
+           그 파일은 index.html 의 버튼도 부르는 «공용»이라 고치면 앱 동작이 바뀐다. */
+      const beforeIds = new Set([...document.querySelectorAll('.text-block')].map(b => b.id));
       const before = document.querySelectorAll('.text-block').length;
       const _opts = { content: ${safeContent} };
       const _al = ${safeAlign};
       if (_al) _opts.align = _al;
       window.addTextBlock(${safeType}, _opts);
-      const blocks = document.querySelectorAll('.text-block');
+      const blocks = [...document.querySelectorAll('.text-block')];
       const after = blocks.length;
       if (after <= before) {
         return { ok: false, code: 'NO_SECTION', message: '활성 섹션이 없어 블록을 추가하지 못했습니다.' };
       }
-      const newBlock = blocks[blocks.length - 1];
+      const fresh = blocks.filter(b => !beforeIds.has(b.id));
+      const newBlock = fresh[fresh.length - 1] || null;
+      /* ⛔여기서 «아무거나» 집어 ok:true 로 돌려주면 옛 결함으로 되돌아간다.
+         못 찾으면 «틀린 손잡이»가 아니라 «없다»로 말한다(블록 자체는 생성돼 있다). */
+      if (!newBlock || !newBlock.id) {
+        return { ok: false, code: 'BLOCKID_UNRESOLVED',
+                 message: '블록은 추가됐지만 새 블록의 id 를 특정하지 못했습니다. get_canvas_state 로 확인하세요.',
+                 beforeCount: before, afterCount: after };
+      }
       return {
         ok: true,
-        blockId: newBlock?.id || null,
+        blockId: newBlock.id,
+        sectionId: newBlock.closest('[id^="sec_"]')?.id || sid || null,
         pageId: window.activePageId || null,
         beforeCount: before,
         afterCount: after,
@@ -2955,6 +3508,32 @@ async function _invokeRendererMoveSection({ sectionId, beforeId, afterId } = {})
   );
 }
 
+// ─── move_block — 블록(비-섹션) 순서 재배치 ────────────────────────────────
+// moveSection과 동일한 얇은 bridge 패턴. 실제 검증(section 여부 등)은 renderer의
+// window.moveBlock 안에서 한 번 더 하지만, 여기서도 section-block을 조기 컷해
+// "move_section을 대신 쓰라"는 에러를 IPC 왕복 전에 돌려준다.
+async function _invokeRendererMoveBlock({ blockId, beforeId, afterId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
+  const safeBid = JSON.stringify(String(blockId || ''));
+  const safeB   = beforeId ? JSON.stringify(String(beforeId)) : 'null';
+  const safeA   = afterId  ? JSON.stringify(String(afterId))  : 'null';
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      const bid = ${safeBid}, bId = ${safeB}, aId = ${safeA};
+      const el = document.getElementById(bid);
+      if (!el) return { ok:false, code:'NOT_FOUND', message:'block not found: '+bid };
+      if (el.classList.contains('section-block')) return { ok:false, code:'IS_SECTION', message:'section은 move_section 사용' };
+      if (bId && !document.getElementById(bId)) return { ok:false, code:'NOT_FOUND', message:'beforeId not found' };
+      if (aId && !document.getElementById(aId)) return { ok:false, code:'NOT_FOUND', message:'afterId not found' };
+      const result = window.moveBlock(bid, { beforeId: bId, afterId: aId });
+      if (!result) return { ok:false, code:'MOVE_FAILED', blockId: bid, beforeId: bId, afterId: aId };
+      return { ok:true, blockId: bid, movedUnitId: result.movedUnitId || bid, refUnitId: result.refUnitId || null, beforeId: bId, afterId: aId };
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
+}
+
 async function _invokeRendererInsertGapAfterBlock({ blockId, height = 40 } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
@@ -2987,12 +3566,30 @@ async function _invokeRendererAddGapBlock({ height = 40, sectionId } = {}) {
         if (sec && typeof window.selectSection === 'function') window.selectSection(sec);
         else if (!sec) return { ok:false, code:'SECTION_NOT_FOUND', message: 'section id not in DOM: ' + targetSid };
       }
+      /* ★2026-09-07 [U2] add_text_block(:3215) 과 «같은 결함»이었다 — 게다가 갭은 더 나쁘다:
+         문서순 마지막 「.gap-block」 은 «맨 끝 섹션의 하단 패딩 갭»이라 새 갭이 절대 그 자리에
+         안 온다 ⇒ 실측상 «콜1부터, 3콜 전부» 같은 남의 id 를 돌려줬다.
+         ⑵「after <= before」 가드도 «없었다» — 활성 섹션이 없으면 addGapBlock 은 힌트만 띄우고
+           조용히 돌아오는데(js/block-factory.js:913 showNoSelectionHint), 그래도 ok:true 에
+           남의 gapBlockId 가 실렸다. 둘 다 닫는다. */
+      const beforeIds = new Set([...document.querySelectorAll('.gap-block')].map(b => b.id));
       const before = document.querySelectorAll('.gap-block').length;
       window.addGapBlock(${h});
-      const after = document.querySelectorAll('.gap-block').length;
-      const allGaps = document.querySelectorAll('.gap-block');
-      const last = allGaps[allGaps.length - 1];
-      return { ok: true, height: ${h}, gapBlockId: last?.id || null, beforeCount: before, afterCount: after };
+      const gaps = [...document.querySelectorAll('.gap-block')];
+      const after = gaps.length;
+      if (after <= before) {
+        return { ok: false, code: 'NO_SECTION', message: '활성 섹션이 없어 갭을 추가하지 못했습니다.', beforeCount: before, afterCount: after };
+      }
+      const freshGaps = gaps.filter(b => !beforeIds.has(b.id));
+      const last = freshGaps[freshGaps.length - 1] || null;
+      if (!last || !last.id) {
+        return { ok: false, code: 'BLOCKID_UNRESOLVED',
+                 message: '갭은 추가됐지만 새 갭의 id 를 특정하지 못했습니다. get_canvas_state 로 확인하세요.',
+                 beforeCount: before, afterCount: after };
+      }
+      return { ok: true, height: ${h}, gapBlockId: last.id,
+               sectionId: last.closest('[id^="sec_"]')?.id || targetSid || null,
+               beforeCount: before, afterCount: after };
     } catch (e) { return { ok:false, code:'EXCEPTION', message: e.message }; }
   })()`;
   return await mainWindow.webContents.executeJavaScript(atomicJs, true);
@@ -3021,6 +3618,37 @@ async function _invokeRendererReadScratchItem(id, opts = {}) {
   });
   return await mainWindow.webContents.executeJavaScript(
     `(typeof window._getScratchItemByIdForMCP === "function") ? window._getScratchItemByIdForMCP(${safeId}, ${safeOpts}) : null`,
+    true
+  );
+}
+
+// ─── delete_scratch_item — 스크래치패드 아이템 삭제 ──────────────────────────
+// list/read_scratch_item과 짝. 스크래치는 캔버스 undo history 밖(IndexedDB 별도)이라
+// USER_BUSY류 동시편집 가드가 필요 없다(텍스트 인라인 편집 같은 충돌 대상이 아님).
+async function _invokeRendererDeleteScratchItem({ id } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  const safeId = JSON.stringify(String(id || ''));
+  return await mainWindow.webContents.executeJavaScript(
+    `(typeof window._scratchDeleteForMcp === "function") ? window._scratchDeleteForMcp(${safeId}) : { ok:false, code:'API_MISSING' }`,
+    true
+  );
+}
+
+// ─── update_scratch_item — 스크래치패드 아이템 재배치(x/y/w) ────────────────
+async function _invokeRendererUpdateScratchItem({ id, x, y, w } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  const safeId = JSON.stringify(String(id || ''));
+  const safeOpts = JSON.stringify({
+    x: typeof x === 'number' ? x : undefined,
+    y: typeof y === 'number' ? y : undefined,
+    w: typeof w === 'number' ? w : undefined,
+  });
+  return await mainWindow.webContents.executeJavaScript(
+    `(typeof window._scratchUpdateForMcp === "function") ? window._scratchUpdateForMcp(${safeId}, ${safeOpts}) : { ok:false, code:'API_MISSING' }`,
     true
   );
 }
@@ -3328,6 +3956,84 @@ async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', labe
 // ─── PM get_canvas_state — renderer 측 READ-ONLY 캔버스 조회 helper ────────────
 // 변경(mutation) 없음 → USER_BUSY 가드 불필요. null/destroyed 가드만 유지.
 // (최소화 창도 읽기는 안전하므로 isMinimized 차단 안 함.)
+/* ── 히스토리 (2026-09-06) — MCP undo 판정용 ────────────────────────────────
+ * ★withLive 는 «비싸다»(getSerializedCanvas). 편집 도구마다 부르는 «가벼운» 읽기와
+ *   되돌리기 «직전» 한 번 부르는 «무거운» 읽기를 인자로 가른다. */
+async function _invokeRendererHistoryTip() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  const js = `(() => { try {
+      if (typeof window.getHistoryTip !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.getHistoryTip not found' };
+      return window.getHistoryTip();
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; } })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+async function _invokeRendererHistoryHasSeq(seq) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  const js = `(() => { try {
+      if (typeof window.historyHasSeq !== 'function') return { ok: false, code: 'API_MISSING' };
+      return { ok: true, has: window.historyHasSeq(${Number(seq)}) };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; } })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+/** ⛔한 칸만. 앱 undo 를 그대로 부르되 «호출 여부»는 도구가 가드로 판단한 뒤다. */
+async function _invokeRendererUndoOnce() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태' };
+  /* ★사용자가 «지금» 편집 중이면 손대지 않는다 — 레포의 기존 USER_BUSY 판정과 «같은 술어».
+     ⇒ undo() 는 맨 위에서 시작하면 ensureHistoryCheckpoint 를 스스로 먼저 밀어,
+       아직 히스토리에 안 올라간 «그 타이핑»을 항목으로 박고 되돌린다. 그걸 여기서 막는다. */
+  const js = `(() => { try {
+      if (typeof window.undo !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.undo not found' };
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+        && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다 — 되돌리지 않았습니다.',
+                 retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      window.undo();
+      return { ok: true };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; } })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
+/* ── 내보내기 (2026-09-06) ────────────────────────────────────────────────────
+ * ⛔window.exportAllImagesPNG() 를 «부르지 않는다» — 안에 confirm() 이 있어 MCP 호출이
+ *   응답 없이 멎는다. 한 단계 아래 exportAllSections(fmt, w) 를 직접 부른다.
+ * ⛔opts.returnDataUrl 을 «쓰지 않는다» — 그 경로는 다운로드도 «픽셀 게이트»도 건너뛴다
+ *   (export-image.js 주석: QA 검산 전용). 도구가 그리로 가면 검사가 통째로 우회된다.
+ * ★폭은 함수가 «인자로» 받는다 — UI 가 860 을 박아 부를 뿐이다(현빈: 「전체 780px」). */
+async function _invokeRendererExport({ sectionId, format, width } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태' };
+  const sid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const fmt = JSON.stringify(String(format || 'png'));
+  const w   = Number(width) || 860;
+  const js = `(async () => {
+    try {
+      if (typeof window.exportSection !== 'function' || typeof window.exportAllSections !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'export API not found (editor not open?)' };
+      }
+      const sid = ${sid};
+      const secs = [...document.querySelectorAll('.section-block:not([data-ghost])')];
+      if (!secs.length) return { ok: false, code: 'NO_SECTIONS', message: '내보낼 섹션이 없습니다' };
+      if (sid) {
+        const el = document.getElementById(sid);
+        if (!el || !el.classList.contains('section-block')) {
+          return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        }
+        await window.exportSection(el, ${fmt}, ${w});
+        return { ok: true, requested: 1 };
+      }
+      const r = await window.exportAllSections(${fmt}, ${w});
+      return { ok: true, requested: (r && r.total) || secs.length, failedNames: (r && r.failed) || [] };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e && e.message ? e.message : String(e) }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(js, true); }
+  catch (e) { throw new Error('export call failed: ' + e.message); }
+}
+
 async function _invokeRendererGetCanvasState({ sectionId } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
@@ -3443,6 +4149,51 @@ async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y
         return { ok: false, code: 'USER_BUSY', message: '사용자가 체크리스트를 편집 중입니다.', retryAfter: 2000 };
       }
       return window.updateChecklistItem(${safeArgs});
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
+}
+
+// ─── list_checklist_items — 체크리스트 전체(또는 필터) 조회 ─────────────────
+// INV-B3 결손 #2 짝 — add/update만 있고 조회가 없던 것 해소. 순수 데이터 읽기라
+// USER_BUSY 가드 불필요(인라인 편집 중이어도 목록 조회는 막을 이유 없음).
+async function _invokeRendererListChecklistItems({ includeDone = true, sectionId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  const safeOpts = JSON.stringify({ includeDone: includeDone !== false, sectionId: sectionId || null });
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      if (typeof window.listChecklistItems !== 'function') return { ok:false, code:'API_MISSING' };
+      const items = window.listChecklistItems(${safeOpts});
+      return { ok:true, items, count: items.length };
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
+}
+
+// ─── delete_checklist_item — 체크리스트 항목 삭제 ────────────────────────────
+// list와 짝. USER_BUSY 가드는 update_checklist_item과 동일(같은 인라인 편집 중 항목을
+// 지우려는 race 방지) — 단, 편집 중인 항목이 삭제 대상과 다르면 막지 않는다.
+async function _invokeRendererDeleteChecklistItem({ id } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeId = JSON.stringify(String(id || ''));
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      const id = ${safeId};
+      const ae = document.activeElement;
+      const editingHost = ae && ae.closest && ae.closest('.ck-item, .todo-pin-popup, .ck-inline-input');
+      const editingId = editingHost && editingHost.dataset ? (editingHost.dataset.id || null) : null;
+      if (editingId && editingId === id) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 이 항목을 편집 중입니다.', retryAfter: 2000 };
+      }
+      if (typeof window.deleteChecklistItem !== 'function') return { ok:false, code:'API_MISSING' };
+      return window.deleteChecklistItem({ id });
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
     true
   );
@@ -5667,7 +6418,13 @@ async function _invokeRendererUpdateIconTextBlock({ blockId, partial } = {}) {
   }
 }
 
-/* ── 종료 전 강제 저장 ── */
+const quitSaveGuard = require('./main/quit/save-guard');
+
+/* ── 종료 전 강제 저장 ──
+   ★[H4] 실제 «종료 절차»는 main/quit/save-guard.js 가 갖는다. 여기는 얇게만 부른다.
+     옛 코드는 저장 성공·실패를 «구분하지 않고» 3초 뒤 app.exit(0) 했다 — 저장이 실패해도
+     사용자는 아무 통지도 못 받고 작업물이 사라졌다. 이제는 실패를 «말하고» 흔적을 남긴다.
+     ⛔행 방지 우선이라는 기존 판단은 그대로다: 상한 세 겹이 어떤 경로에서도 앱을 꺼준다. */
 app.on('before-quit', (event) => {
   // Claude PM MCP 서버 정리 (sync close, 폴백)
   try { stopMcpServer(); } catch (_) {}
@@ -5675,13 +6432,46 @@ app.on('before-quit', (event) => {
   try { killAllTerminalSessions(); } catch (_) {}
 
   const win = BrowserWindow.getAllWindows()[0];
-  if (!win || win.isDestroyed()) return; // 창 없으면 바로 종료
+  if (!win || win.isDestroyed()) {
+    /* ★[W-3] 창이 «이미 사라진 뒤»에 오는 before-quit — 윈도우 X 버튼(WM_CLOSE) 이 여기다.
+       창 close → 렌더러 unload → 창 소멸 → window-all-closed → app.quit() → 여기(창 0개).
+       옛 코드는 여기서 그냥 return 했다 ⇒ 아래 quitSaveGuard 는 «한 번도 안 불렸고»,
+       저장이 실패해도 아무 말 없이 260ms 만에 죽었다(윈도우 실기 QA 2차 §5-3ⓐ).
+       ★맥도 «같은 줄»이다: 빨간 버튼으로 창을 닫고 나서 ⌘Q 하면 똑같이 창 0개로 온다.
+         (창이 «열린 채» ⌘Q 만 기존 H4 경로를 탔다.)
+       ⇒ unload 때 남겨 둔 실패 기록이 있으면 «말하고» 죽는다. 없으면 옛 동작 그대로
+         즉시 종료한다 — 정상 종료가 1ms 도 안 느려진다. */
+    let pending = null;
+    try { pending = quitSaveGuard.takePendingSyncFailure(); } catch (_) {}
+    if (!pending) return;
+    event.preventDefault();
+    try {
+      quitSaveGuard.init({
+        userDataDir: app.getPath('userData'), dialog, shell,
+        appVersion: app.getVersion(), log: (m) => console.log(m),
+      });
+      quitSaveGuard.notifyWindowGone({ pending, exit: (code) => app.exit(code) });
+    } catch (e) {
+      /* ★통지가 터져도 «앱은 꺼져야 한다» — 안 꺼지는 앱은 조용한 종료보다 나쁘다. */
+      console.error('[quit-guard] 창-없음 통지 실패 — 그냥 종료:', e && e.message);
+      app.exit(0);
+    }
+    return;
+  }
   event.preventDefault();
-  win.webContents.send('force-save-before-quit');
-  // 렌더러가 'quit-ready'를 보내면 실제 종료
-  ipcMain.once('quit-ready', () => app.exit(0));
-  // 3초 안에 응답 없으면 강제 종료 (데이터 손실 방어보다 행 방지 우선)
-  setTimeout(() => app.exit(0), 3000);
+  try {
+    quitSaveGuard.init({
+      userDataDir: app.getPath('userData'), dialog, shell,
+      appVersion: app.getVersion(), log: (m) => console.log(m),
+    });
+    quitSaveGuard.runBeforeQuit({ win, ipcMain, exit: (code) => app.exit(code) });
+  } catch (e) {
+    // ★가드 자체가 터져도 «앱은 꺼져야 한다» — 이 폴백이 옛 동작이다.
+    console.error('[quit-guard] 가드 기동 실패 — 옛 경로로 종료:', e && e.message);
+    try { win.webContents.send('force-save-before-quit'); } catch (_) {}
+    ipcMain.once('quit-ready', () => app.exit(0));
+    setTimeout(() => app.exit(0), 3000);
+  }
 });
 
 app.on('window-all-closed', () => {
@@ -5734,8 +6524,27 @@ ipcMain.handle('report:context', () => {
     os: `${process.platform} ${require('os').release()}`,
     arch: process.arch,
     queued,
+    /* ★자격증명 진단은 «한 줄 문자열»이고, 실릴 곳은 신고의 `errors[]` 다.
+       ⛔`auth` 같은 «모르는 최상위 필드»는 서버가 조용히 버린다 — 그러면 진단이 도달하지 않는다.
+       ⛔email·sub·sessionToken·서명 원문은 담기지 않는다(diagLine 이 필드를 골라 낸다). */
+    authDiag: _authDiagLine(),
   };
 });
+
+/** 신고에 실을 자격증명 진단 한 줄. 실패해도 신고를 막지 않는다(빈 문자열). */
+function _authDiagLine() {
+  try {
+    const a = readAuth();
+    const now = Date.now();
+    const v = authVerdict(a, now);
+    const diag = { ...v.diag, ..._lastServerDiag };
+    if (diag.iat) {
+      const t = Date.parse(diag.iat);
+      if (Number.isFinite(t)) diag.iatAgeDays = Math.floor((now - t) / 86400000);
+    }
+    return entitlement.diagLine({ ...v, diag });
+  } catch (_) { return ''; }
+}
 
 /* 화면 캡처 — 1280px 축소 + JPEG. ★렌더러로 원본 PNG(수 MB)를 넘기지 않는다.
    축소를 메인에서 끝내야 IPC 도, 미리보기도, 전송 payload 도 같은 «한 장»이 된다. */
@@ -5788,4 +6597,124 @@ ipcMain.handle('report:submit', async (_event, payload) => {
 /** 큐 상태 조회 — 검증·표시용(전송은 안 한다). */
 ipcMain.handle('report:queue-stats', () => {
   try { ensureReportQueue(); return reportQueue.stats(); } catch (e) { return { size: 0, max: 50, error: e.message }; }
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   [H3] 지난 실행의 사고 — «되찾기 + 원인 보내기» IPC 4개 (2026-09-06)
+   ──────────────────────────────────────────────────────────────────────────
+   ★얇게만 부른다. 판정·투영·도장은 전부 main/recovery/index.js 안에 있다
+     (같은 시각 다른 단위가 main.js 를 고치고 있어 충돌이 비싸다 — H2·H4 와 같은 규율).
+   ★★자동 전송은 «없다». 여기 어디에도 네트워크 호출이 없다 — recovery:pending 은
+     「나갈 줄」을 만들어 «보여주기만» 하고, 실제 전송은 사용자가 신고 창에서
+     [보내기] 를 눌러 report:submit 을 탈 때뿐이다.
+   ★★비상 사본은 «사용자 문서 본문»이다 — 신고에 자동으로 붙지 않는다.
+     복구는 로컬에서만: recovery:restore(사본으로 되살리기) · recovery:reveal(파일 위치).
+══════════════════════════════════════════════════════════════════════════ */
+const recovery = require('./main/recovery');
+let _recoveryReady = false;
+function ensureRecovery() {
+  if (_recoveryReady) return;
+  _recoveryReady = true;
+  /* ★save-guard 는 종료 «직전»에야 init 된다(before-quit). H3 는 그보다 훨씬 먼저 —
+     앱을 켠 직후 — 마커와 emergency-saves/ 경로를 물어야 한다.
+     ⇒ 여기서 userDataDir 만 미리 넣는다. init 은 «준 것만» 덮으므로 before-quit 이
+       나중에 dialog·shell 을 얹는 것과 충돌하지 않는다(main/quit/save-guard.js init 참조).
+     ⛔이 두 줄이 없으면 emergencyDir() 가 null 위에서 터져 «되살리기가 조용히 not_found» 가 된다
+       (실측 2026-09-06: U-H3-W3 이 이걸 잡았다 — 「돌아는 가는데 효과 0」의 전형). */
+  try { quitSaveGuard.init({ userDataDir: app.getPath('userData'), appVersion: app.getVersion() }); } catch (_) {}
+  recovery.init({
+    userDataDir: app.getPath('userData'),
+    crash: require('./main/crash'),
+    saveGuard: quitSaveGuard,
+    log: (m) => console.warn(m),
+  });
+}
+
+/** 「지난 실행에 무슨 일이 있었나」 + 「보내면 나갈 줄」. ⛔읽기만 한다. */
+ipcMain.handle('recovery:pending', () => {
+  try {
+    ensureRecovery();
+    const r = recovery.localItems();
+    return { ok: true, items: r.items, counts: r.counts, degraded: r.degraded,
+             reportLines: recovery.reportLines(r.items) };
+  } catch (e) {
+    /* ★삼키지 않는다 — 「없다」와 「못 읽었다」는 다른 말이다. 화면이 그걸 구분해 말한다. */
+    console.warn('[recovery] pending 실패:', e && e.message);
+    return { ok: false, items: [], counts: {}, degraded: ['pending: ' + (e && e.message)], reportLines: [], error: e && e.message };
+  }
+});
+
+/** 비상 사본을 «사본으로» 되살린다 — ⛔기존 프로젝트를 덮지 않는다(버전 히스토리 「사본으로 열기」와 같은 길). */
+ipcMain.handle('recovery:restore', async (_e, { emergencyPath, projectId } = {}) => {
+  try {
+    ensureRecovery();
+    const snap = recovery.readEmergencySnapshot(emergencyPath);
+    if (!snap.ok) return { ok: false, code: snap.reason, error: snap.error || null };
+    const pid = _safeSeg(String(projectId || ''));
+    /* ★스냅샷은 serializeProject() 결과라 id·name·branches 가 «없다»(js/io/save-load.js).
+       원본이 살아 있으면 그 파일 위에 «내용만» 얹는다 — _doSaveProjectToFile 이 하는 병합과
+       같은 모양이다. ⛔손으로 새 포맷을 빚지 않는다. */
+    const srcPath = pid ? _resolveProjectJsonPath(pid) : null;
+    const hasSource = !!(srcPath && fs.existsSync(srcPath));
+    let base = {};
+    if (hasSource) { try { base = JSON.parse(fs.readFileSync(srcPath, 'utf8')) || {}; } catch (_) { base = {}; } }
+    const merged = { ...base, ...snap.data };
+    const stamp = new Date().toLocaleString('sv').slice(5, 16);   // MM-DD HH:mm
+    const name = `${base.name || '되살린 작업'} (복구본 ${stamp})`;
+
+    /* ㉮ 첫째 길 — «사본으로 열기»와 같은 경로. ★이미지 자산이 하드링크로 같이 온다. */
+    let r = null;
+    if (hasSource && /^proj_\d+$/.test(pid)) {
+      r = await _duplicateProjectImpl({ sourceProjectId: pid, newName: name, sourceData: merged });
+    }
+    if (r && r.ok === true) {
+      /* ★_duplicateProjectImpl 은 newProjectId/newName 이라는 «자기 이름»으로 답한다 —
+         그 이름을 그대로 화면까지 흘리지 않고 여기서 한 번 옮겨 적는다. */
+      console.warn(`[recovery] 비상 사본을 «사본»으로 되살렸다: ${pid} → ${r.newProjectId} (${snap.bytes}B)`);
+      return { ok: true, projectId: r.newProjectId, name: r.newName || name, bytes: snap.bytes, assetsLinked: true };
+    }
+
+    /* ㉯ ★둘째 길 — 원본이 없거나(지웠다) id 모양이 복제 규약(proj_<숫자>)과 안 맞을 때.
+       ⛔여기서 포기하면 그게 바로 「복구할 수 있었는데 못 했다」다 — 사본 파일은 멀쩡히 있는데
+         사용자는 손을 못 댄다. ⇒ 원본에 «기대지 않고» 새 프로젝트로 되살린다.
+       ★실측(2026-09-06 실기)이 이 가지를 요구했다: H4 러너가 만든 프로젝트 id 가
+         `proj_h4_<epoch>` 라 _duplicateProjectImpl 의 `^proj_\d+$` 를 통과 못 했고,
+         초판은 거기서 «되살리기 없음»으로 끝났다.
+       ⚠️단, 이 길은 원본 폴더의 «이미지 자산»을 못 가져온다(하드링크 대상이 없다) —
+         그래서 assetsLinked:false 로 «말한다». 조용히 반쪽을 주지 않는다. */
+    const created = await _createProjectImpl({ name });
+    if (!created || created.ok !== true) {
+      return { ok: false, code: (r && r.code) || (created && created.code) || 'io',
+               error: (r && r.error) || (created && created.error) || '복구 실패' };
+    }
+    const saved = await _saveProjectImpl({ ...merged, id: created.projectId, name });
+    if (!saved || saved.ok !== true) {
+      return { ok: false, code: 'io', error: (saved && saved.reason) || '되살린 내용을 저장하지 못했습니다' };
+    }
+    console.warn(`[recovery] 비상 사본을 «새 프로젝트»로 되살렸다(원본 ${hasSource ? 'id 규약 불일치' : '없음'}): ` +
+                 `${pid || '?'} → ${created.projectId} (${snap.bytes}B) · 자산 미연결`);
+    return { ok: true, projectId: created.projectId, name, bytes: snap.bytes, assetsLinked: false };
+  } catch (e) {
+    console.error('[recovery] restore 예외:', e);
+    return { ok: false, code: 'io', error: e.message };
+  }
+});
+
+/** 비상 사본 파일 위치 열기 — 되살리기가 안 될 때의 «마지막 통로». 사용자는 이 파일을 직접 챙길 수 있다. */
+ipcMain.handle('recovery:reveal', (_e, { emergencyPath } = {}) => {
+  try {
+    ensureRecovery();
+    const abs = recovery.resolveEmergencyPath(emergencyPath);
+    if (!abs) return { ok: false, code: 'not_found' };
+    shell.showItemInFolder(abs);
+    return { ok: true, path: abs };
+  } catch (e) { return { ok: false, code: 'io', error: e.message }; }
+});
+
+/** 도장 — 「이건 봤다」. ⛔원본은 지우지 않는다(나중에 다시 찾을 수 있어야 한다). */
+ipcMain.handle('recovery:ack', (_e, { ids } = {}) => {
+  try {
+    ensureRecovery();
+    return { ok: true, ...recovery.ack(Array.isArray(ids) ? ids : []) };
+  } catch (e) { return { ok: false, error: e.message }; }
 });

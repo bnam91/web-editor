@@ -51,7 +51,20 @@ function _appendCardTexts(container, card, titleSize, descSize, textAlign, title
     container.appendChild(el);
   }
   if ((!titleText || titleText.trim() === '') && (!descText || descText.trim() === '')) {
+    // ★빈 문자열 함정 — 글자를 전부 지우면 렌더러가 위 두 요소를 «안 만든다». 그러면 캔버스에는
+    //   겨냥할 것이 남지 않아 다시 못 고친다(duo 에서 실기로 재현된 것과 같은 성질).
+    //   이 안내문은 «이미 있던 요소»다 → 새 룩을 만들지 않고 여기에 주소를 붙여 복구 경로로 쓴다.
+    //   진입 시 _cvbBeginEdit 가 안내 문구를 비우므로 힌트가 데이터로 새지 않는다.
     const ph = document.createElement('div');
+    ph.className = 'cvb-card-ph';
+    if (cardIdx != null) { ph.dataset.cardIdx = cardIdx; ph.dataset.field = titleField; if (slot) ph.dataset.slot = slot; }
+    /* ★내보내기에 «안내문이 박히지 않게» 앱의 기존 표식을 붙인다 (지디 실기 QA FAIL 해소).
+     * export-image.js:241 이 `[data-is-placeholder="true"]` 를 찾아 visibility:hidden 으로 가린다
+     * (자식 DOM·높이는 유지하고 «글자만» 사라지게 하는 정석 — textContent='' 는 높이가 collapse 된다).
+     * 이 표식이 없어서 실측상 export 클론에 「텍스트를 입력하세요」가 그대로 보였다:
+     *   클론 visibility=visible · display=block · 글자 있음 → ★FAIL.
+     * ⛔새 장치를 만들지 않는다. 텍스트블럭 등이 이미 쓰는 그 관례를 그대로 쓴다. */
+    ph.dataset.isPlaceholder = 'true';
     ph.style.cssText = 'color:#bbb;font-size:13px;font-family:sans-serif;text-align:center;';
     ph.textContent = '텍스트를 입력하세요';
     container.appendChild(ph);
@@ -62,6 +75,26 @@ function _appendCardTexts(container, card, titleSize, descSize, textAlign, title
 //   - scale<=1(미설정/100): 기존 그대로 cover|contain (회귀 없음)
 //   - scale>1: contain은 비율 유지하며 (`contain` 기준 × scale 불가하므로) cover처럼 `${100*scale}% auto` 대신
 //     가로/세로 모두 키우는 `${100*scale}%`(cover 근사) 사용. backgroundPosition(imgX/imgY)과 병행 동작.
+/**
+ * 카드 이미지 «칠하기» 단일 경로 — 세로/가로/오버레이 세 렌더 분기가 모두 여기를 부른다.
+ * ★.cvb-card-img 클래스가 색보정의 «대상 술어»(image-color-adjust.js ADJ_TARGET_SEL)다.
+ *   카드 이미지는 <img> 가 아니라 background-image div 이므로, 클래스가 없으면
+ *   패널·저장복원·내보내기 어느 쪽도 이 이미지를 찾지 못한다.
+ * ★조정값의 «정본»은 DOM 이 아니라 card.adj 다 — div 는 재렌더마다 새로 만들어져
+ *   dataset 이 통째로 날아간다. 그래서 렌더할 때마다 card.adj 로 다시 칠한다.
+ */
+function _paintCardImage(div, card, block, idx) {
+  div.classList.add('cvb-card-img');
+  div.style.backgroundImage    = `url("${card.imgSrc}")`;
+  div.style.backgroundSize     = _cvbBackgroundSize(card);
+  div.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
+  div.style.backgroundRepeat   = 'no-repeat';
+  if (card.adj && Object.values(card.adj).some(v => Math.abs(Number(v) || 0) > 0.001)) {
+    window.applyImgColorAdjust?.(div, card.adj);
+  }
+  _bindCvbImgDrag(div, block, idx);
+}
+
 function _cvbBackgroundSize(card) {
   const scale = Math.max(1, (Number(card.imgScale) || 100) / 100);
   if (scale <= 1) return card.imgFit === 'contain' ? 'contain' : 'cover';
@@ -108,44 +141,165 @@ function _fillCardIcon(div, card, areaSize, opts) {
   div.appendChild(wrap);
 }
 
-// 카드 제목/설명 더블클릭 인라인 편집 — block 자체에 한 번만 등록
+/* ── 카드 제목/설명 캔버스 인라인 편집 ──────────────────────────────────────────
+ * 규약은 duo(그리드) 인라인 편집(block-drag.js _duoEditable/_duoEndEdit)과 «같다».
+ *   ⑴ 판정 술어는 «하나»(_cvbEditable) — 렌더·dblclick·blur·keydown 이 전부 그걸 쓴다.
+ *      (옛 코드는 '.cvb-card-title, .cvb-card-desc' 셀렉터를 세 곳에 «복사»해 뒀다 → 한 곳만 고치면 갈린다.)
+ *   ⑵ 커밋은 «한 경로» — updateCanvasBlock(id,{patchCards}) 만. dataset 직접 쓰기 금지.
+ *      (옛 코드는 dataset.cards 를 손으로 갈아 검증(≤500자)·재렌더·패널 갱신을 전부 건너뛰었다.)
+ *   ⑶ pushHistory 는 편집 세션당 «1회» — updateCanvasBlock 안의 _pushOnce 가 보장한다.
+ *   ⑷ blur·Escape·딴 곳 클릭이 모이는 «단일 커밋 choke point»(_cvbEndEdit). 안 바뀌었으면 아무 일도 안 한다.
+ *   ⑸ dblclick 은 «블록에 위임» — renderCanvas 가 .cvb-inner.innerHTML 을 통째로 갈아끼우므로
+ *      요소에 직접 걸면 첫 커밋 한 번에 전부 죽는다.
+ */
+/* ★[M38] 「카드블럭에 이미지 영역 체크배경으로 해줘. 다른 이미지 에셋 블럭 배경처럼 말야」(현빈)
+ *   ⇒ «새로 그리는 것»이 아니라 «기존 것을 재사용»하는 요구다. 기준(정본)은 빈 `.asset-block` —
+ *     css/editor-layout.css:505 의 이 값이고, 이 파일의 layers 경로(:866)가 이미 같은 값을 갖고 있었다.
+ *     ★같은 파일 안에서 layers 는 체커인데 cards 만 `rgba(0,0,0,0.06)` 단색이었다 = 그게 현빈이 본 것.
+ *   ⇒ 리터럴을 «이 파일에서 한 줄»로 올리고 네 자리(layers + 카드 가로/세로/오버레이)가 그 한 줄을 본다.
+ *   ⚠️리포 전체로는 이 값이 6벌(css 2 · js 4)로 흩어져 있고, `js/io/export-figma-json.js:383` 이
+ *     `/repeating-conic-gradient/` 정규식으로 «빈 icon-circle»을 판정한다. 그 판정기는 `.icb-circle`
+ *     «만» 보므로 이 변경과 무관하지만(카드는 그 셀렉터에 안 걸린다), 6벌을 토큰 하나로 합치는
+ *     리팩터는 그 판정기를 같이 움직이므로 «이번 범위 밖»으로 남긴다(FIX 보고서 「못 깬 것」).
+ *
+ * ★[M38-b · 적대검수 조건①] 위 판단에서 «틀린 것»은 값이 아니라 «두는 자리»였다.
+ *   이 상수를 네 자리가 «인라인 style» 로 박았는데, 인라인은 직렬화돼 저장본에 실리고
+ *   내보내기 결과물에도 체커와 '+' 가 그대로 찍힌다. 정본으로 삼은 `.asset-block` 은
+ *   애초에 체커를 «CSS 에» 둔다 — 재사용해야 했던 것은 «값»이 아니라 «그 방식»이었다.
+ *   (옛 코드의 `rgba(0,0,0,0.06)` 도 같은 인라인 병이었다. 회색이라 안 띄었을 뿐이고,
+ *    체커로 바꾸면서 «보이게» 된 것이다 — 새로 생긴 병이 아니라 드러난 병이다.)
+ *   ⇒ 네 자리 모두 클래스로 옮겼다: .cvb-img-empty(카드 3자리, 체커+'+')
+ *     · .cvb-img-empty-plain(레이어, 체커만). 이 상수는 이제 «쓰는 곳이 없다».
+ *   ⚠️상수를 지우지 않고 남긴 이유: 위 「6벌 흩어짐」 기록이 이 주석에 달려 있고,
+ *     그 리팩터(export-figma-json 판정기 포함)는 아직 안 했다. 값이 아니라 «기록»이 자산이다. */
+// eslint-disable-next-line no-unused-vars
+const _CVB_CHECKER_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
+
+const _CVB_EDIT_SEL = '.cvb-card-title, .cvb-card-desc, .cvb-card-ph';
+// patchCards 로 보낼 수 있는 필드만. 렌더러(_appendCardTexts)가 찍는 값과 «같은 목록»이어야 한다.
+const _CVB_EDIT_FIELDS = ['title', 'desc', 'titleTop', 'descTop', 'titleBottom', 'descBottom'];
+
+// ⑴ 판정 술어 — 「이 DOM 은 고칠 수 있는가 / 어느 카드의 어느 필드인가」를 여기 하나에만 둔다.
+//    돌려주는 host 가 «글자를 담는 요소»다. 조건 하나라도 안 맞으면 null(편집 대상 아님).
+function _cvbEditable(node, block) {
+  const host = node?.closest?.(_CVB_EDIT_SEL);
+  if (!host || !block.contains(host)) return null;
+  const idx = parseInt(host.dataset.cardIdx, 10);
+  const field = host.dataset.field;
+  if (!Number.isInteger(idx) || idx < 0) return null;
+  if (!_CVB_EDIT_FIELDS.includes(field)) return null;
+  return { host, idx, field };
+}
+
+// 렌더러가 white-space:pre-wrap 이라 줄바꿈이 살아난다 → textContent 가 아니라 innerText.
+// 개행만 정규화하고 «앞뒤 공백은 건드리지 않는다» — 옛 .trim() 은 사용자가 넣은 들여쓰기를
+// 조용히 지웠다. 다만 contenteditable 이 끝에 남기는 개행은 걷어낸다(타이핑 결과가 아니다).
+function _cvbReadText(host) {
+  return String(host.innerText ?? '').replace(/\r\n?/g, '\n').replace(/\n+$/, '');
+}
+
+// ⑷ 단일 커밋 choke point — blur / Escape / 딴 곳 클릭이 전부 여기로 모인다.
+function _cvbEndEdit(block, host) {
+  const hit = _cvbEditable(host, block);
+  host.contentEditable = 'false';
+  host.removeAttribute('draggable');
+  host.style.outline = ''; host.style.outlineOffset = '';
+  block.classList.remove('editing');
+  const before = host._cvbBeforeText;
+  const beforeDom = host._cvbBeforeDom;
+  delete host._cvbBeforeText; delete host._cvbBeforeDom;
+  if (!hit) return;                                   // 주소를 잃었으면 데이터는 건드리지 않는다
+  const text = _cvbReadText(host);
+  if (before === undefined || text === before) {      // 안 바뀌었으면 재렌더도 히스토리도 없다
+    if (beforeDom !== undefined) host.textContent = beforeDom;
+    return;
+  }
+  // 화면을 «편집 전»으로 되돌린 뒤 커밋한다 — 실패해도 화면과 데이터가 갈라진 채 남지 않는다.
+  if (beforeDom !== undefined) host.textContent = beforeDom;
+  // 렌더러는 cards[idx] 가 없어도 `cards[idx] || {}` 로 «셀은 그린다» → 그리드가 cards 보다 길면
+  // 화면에 보이는 칸의 index 가 배열 밖일 수 있다. patchCards 는 그걸 NOT_FOUND 로 막으므로
+  // 그 «한 경우»에만 같은 API 의 cards 전체교체로 채워 넣는다(새 경로를 만들지는 않는다).
+  let curLen = 0;
+  try { const a = JSON.parse(block.dataset.cards || '[]'); if (Array.isArray(a)) curLen = a.length; } catch (_) {}
+  let partial;
+  if (hit.idx < curLen) {
+    partial = { patchCards: [{ index: hit.idx, [hit.field]: text }] };
+  } else {
+    let arr = [];
+    try { const a = JSON.parse(block.dataset.cards || '[]'); if (Array.isArray(a)) arr = a; } catch (_) {}
+    while (arr.length <= hit.idx) arr.push({ title: '', desc: '', imgSrc: '', cellBg: '' });
+    arr[hit.idx] = { ...arr[hit.idx], [hit.field]: text };
+    partial = { cards: arr };
+  }
+  const r = window.updateCanvasBlock?.(block.id, partial);
+  if (r && r.ok === false) {
+    try { window.showToast?.(`카드 글자를 저장하지 못했습니다 — ${r.message || r.code}`); } catch (_) {}
+  }
+}
+
+// 편집 진입. 클릭한 «글자 위치»에 캐럿을 세운다(텍스트 블록 더블클릭과 같은 방식).
+function _cvbBeginEdit(block, hit, e) {
+  const { host } = hit;
+  if (host.contentEditable === 'true') return;
+  host._cvbBeforeDom = host.textContent;
+  // 안내문(.cvb-card-ph)은 «데이터가 아니라 힌트»다 — 비교 기준은 빈 문자열이고, 진입 시 비운다.
+  const isPh = host.classList.contains('cvb-card-ph');
+  host._cvbBeforeText = isPh ? '' : _cvbReadText(host);
+  if (isPh) host.textContent = '';
+  block.classList.add('editing');   // mousedown(block-drag.js:111)·dragstart(:1583) 가드가 이걸 본다
+  host.contentEditable = 'true';
+  host.setAttribute('draggable', 'false'); // 글자 드래그선택이 블록 드래그가 되지 않게
+  host.style.outline = '2px dashed var(--ui-accent-primary, #3b82f6)';
+  host.style.outlineOffset = '2px';
+  host.focus();
+  let range = null;
+  if (e && document.caretRangeFromPoint) range = document.caretRangeFromPoint(e.clientX, e.clientY);
+  if (!range || !host.contains(range.startContainer)) {
+    range = document.createRange();
+    range.selectNodeContents(host);
+    range.collapse(false);
+  }
+  const sel = window.getSelection();
+  sel.removeAllRanges(); sel.addRange(range);
+}
+
+// «.editing 고착» 자가치유 — 클래스만 믿지 않는다. 포커스된 요소가 DOM 에서 제거되면
+// Chromium 은 blur 를 «안 준다» → 재렌더(.cvb-inner.innerHTML 교체)가 편집 요소를 떼어가면
+// .editing 이 영영 남아 mousedown(block-drag.js:111)·dragstart 가드가 블록을 못 쓰게 만든다.
+// 실제로 살아있는 contenteditable 이 없으면 스스로 걷어낸다.
+function _cvbHealEditing(block) {
+  if (!block.classList.contains('editing')) return;
+  if (block.querySelector('[contenteditable="true"]')) return;
+  block.classList.remove('editing');
+}
+
+// ⑸ block 자체에 «한 번만» 등록 — renderCanvas 가 매번 불러도 재등록되지 않는다.
+//    (등록은 한 번이지만 «치유»는 매 렌더마다 해야 하므로 early return 앞에 둔다.)
 function _bindCvbDblEdit(block) {
+  _cvbHealEditing(block);
   if (block._cvbDblBound) return;
   block._cvbDblBound = true;
   block.addEventListener('dblclick', (e) => {
-    const target = e.target.closest('.cvb-card-title, .cvb-card-desc');
-    if (!target || !block.contains(target)) return;
+    _cvbHealEditing(block);
+    // 앞선 커밋이 innerHTML 을 갈면 첫 클릭 타깃이 detach 돼 dblclick 타깃이 블록까지 올라온다
+    // → 실제 화면 좌표에 «지금» 있는 요소를 먼저 본다(duo 와 같은 이유·같은 순서).
+    const at = document.elementFromPoint?.(e.clientX, e.clientY);
+    const hit = _cvbEditable(at, block) || _cvbEditable(e.target, block);
+    if (!hit) return;
     e.stopPropagation();
-    target.contentEditable = 'true';
-    target.style.outline = '2px dashed var(--ui-accent-primary, #3b82f6)';
-    target.style.outlineOffset = '2px';
-    target.focus();
-    const range = document.createRange();
-    range.selectNodeContents(target);
-    const sel = window.getSelection();
-    sel.removeAllRanges(); sel.addRange(range);
+    _cvbBeginEdit(block, hit, e);
   });
   block.addEventListener('blur', (e) => {
-    const target = e.target?.closest?.('.cvb-card-title, .cvb-card-desc');
-    if (!target || target.contentEditable !== 'true') return;
-    target.contentEditable = 'false';
-    target.style.outline = ''; target.style.outlineOffset = '';
-    const idx = parseInt(target.dataset.cardIdx);
-    const field = target.dataset.field;
-    if (!Number.isFinite(idx) || !field) return;
-    const cards = JSON.parse(block.dataset.cards || '[]');
-    if (!cards[idx]) cards[idx] = {};
-    cards[idx][field] = target.innerText.trim();
-    block.dataset.cards = JSON.stringify(cards);
-    window.pushHistory?.('카드 편집');
-    window.scheduleAutoSave?.();
-    if (block.classList.contains('selected') && window.showSimpleCardProperties) window.showSimpleCardProperties(block);
+    const host = e.target?.closest?.(_CVB_EDIT_SEL);
+    if (!host || host.contentEditable !== 'true') return;
+    _cvbEndEdit(block, host);
   }, true);
   block.addEventListener('keydown', (e) => {
-    const target = e.target?.closest?.('.cvb-card-title, .cvb-card-desc');
-    if (!target || target.contentEditable !== 'true') return;
-    if (e.key === 'Escape') { e.preventDefault(); target.blur(); }
-    else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); target.blur(); }
+    const host = e.target?.closest?.(_CVB_EDIT_SEL);
+    if (!host || host.contentEditable !== 'true') return;
+    // Escape / ⌘Enter 는 «커밋하고 편집만 끝낸다»(duo 와 동일). blur 가 choke point 를 부른다.
+    if (e.key === 'Escape') { e.preventDefault(); host.blur(); }
+    else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); host.blur(); }
   });
 }
 
@@ -231,6 +385,18 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
   _updateHint();
   imgDiv.appendChild(hint);
 
+  // ★색상 조정 — 에셋 이미지와 «같은 몸짓»: 편집 모드에 들어가면 패널이 뜨고, 나가면 닫힌다
+  //   (image-handling.js enterImageEditMode 끝 / exitImageEditMode 와 동일 규약).
+  //   카드는 dataset 이 재렌더로 날아가므로 onChange 로 card.adj 에 되쓴다 — 여기가 «정본».
+  window.showColorAdjustPanel?.(imgDiv, {
+    onChange: (adj) => {
+      try {
+        const arr = JSON.parse(block.dataset.cards || '[]');
+        if (arr[idx]) { arr[idx].adj = { ...adj }; block.dataset.cards = JSON.stringify(arr); }
+      } catch (_) {}
+    },
+  });
+
   let _wheelDirty = false; // 휠 줌 변경 여부 — 종료 시 한 번만 history push
 
   const exitMode = () => {
@@ -243,6 +409,7 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
     document.removeEventListener('mousedown', onOutside, true);
     imgDiv.removeEventListener('mousedown', onDragStart);
     imgDiv.removeEventListener('wheel', onWheel);
+    window.hideColorAdjustPanel?.();
     if (_wheelDirty) { window.pushHistory?.('카드 이미지 확대'); window.scheduleAutoSave?.(); }
   };
 
@@ -273,7 +440,10 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
   document.addEventListener('keydown', onKey, true);
 
   // 바깥 클릭 종료 — 일반 에디터 관행 (ESC와 동일 동작)
-  const onOutside = (e) => { if (!imgDiv.contains(e.target)) exitMode(); };
+  const onOutside = (e) => {
+    if (e.target.closest?.('#color-adjust-panel')) return; // 색상 조정 패널 클릭은 편집 모드 유지
+    if (!imgDiv.contains(e.target)) exitMode();
+  };
   setTimeout(() => document.addEventListener('mousedown', onOutside, true), 0);
 
   // 휠 = 이미지 확대/축소(imgScale 100~400) — 패널 '확대' 슬라이더와 같은 필드라 상호 동기
@@ -490,17 +660,11 @@ function renderCanvas(block) {
           if (card.icon && card.icon.svg) {
             _fillCardIcon(imgDiv, card, Math.min(imgW, designH), _iconOpts);
           } else if (card.imgSrc) {
-            imgDiv.style.backgroundImage    = `url("${card.imgSrc}")`;
-            imgDiv.style.backgroundSize     = _cvbBackgroundSize(card);
-            imgDiv.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
-            imgDiv.style.backgroundRepeat   = 'no-repeat';
-            _bindCvbImgDrag(imgDiv, block, idx);
+            _paintCardImage(imgDiv, card, block, idx);
           } else {
-            imgDiv.style.background = 'rgba(0,0,0,0.06)';
-            imgDiv.style.display = 'flex'; imgDiv.style.alignItems = 'center'; imgDiv.style.justifyContent = 'center';
-            const ph = document.createElement('span');
-            ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
-            ph.textContent = '+'; imgDiv.appendChild(ph);
+            /* [M38-b] 인라인이 아니라 «클래스» — 인라인은 저장본·내보내기 결과물에 실린다.
+               체커와 '+' 는 css/editor-blocks.css 의 .cvb-img-empty 가 갖는다(에셋 블록과 같은 자리). */
+            imgDiv.classList.add('cvb-img-empty');
             _bindCvbImgPlaceholder(imgDiv, block, idx);
           }
           cell.appendChild(imgDiv);
@@ -532,17 +696,11 @@ function renderCanvas(block) {
             if (card.icon && card.icon.svg) {
               _fillCardIcon(div, card, Math.min(designW, imgH), _iconOpts);
             } else if (card.imgSrc) {
-              div.style.backgroundImage    = `url("${card.imgSrc}")`;
-              div.style.backgroundSize     = _cvbBackgroundSize(card);
-              div.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
-              div.style.backgroundRepeat   = 'no-repeat';
-              _bindCvbImgDrag(div, block, idx);
+              _paintCardImage(div, card, block, idx);
             } else {
-              div.style.background = 'rgba(0,0,0,0.06)';
-              div.style.display = 'flex'; div.style.alignItems = 'center'; div.style.justifyContent = 'center';
-              const ph = document.createElement('span');
-              ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
-              ph.textContent = '+'; div.appendChild(ph);
+              /* [M38-b] 인라인이 아니라 «클래스» — 인라인은 저장본·내보내기 결과물에 실린다.
+                 체커와 '+' 는 css/editor-blocks.css 의 .cvb-img-empty 가 갖는다(에셋 블록과 같은 자리). */
+              div.classList.add('cvb-img-empty');
               _bindCvbImgPlaceholder(div, block, idx);
             }
             return div;
@@ -584,17 +742,11 @@ function renderCanvas(block) {
             if (card.icon && card.icon.svg) {
               _fillCardIcon(fullImg, card, Math.min(designW, designH), _iconOpts);
             } else if (card.imgSrc) {
-              fullImg.style.backgroundImage    = `url("${card.imgSrc}")`;
-              fullImg.style.backgroundSize     = _cvbBackgroundSize(card);
-              fullImg.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
-              fullImg.style.backgroundRepeat   = 'no-repeat';
-              _bindCvbImgDrag(fullImg, block, idx);
+              _paintCardImage(fullImg, card, block, idx);
             } else {
-              fullImg.style.background = 'rgba(0,0,0,0.06)';
-              fullImg.style.display = 'flex'; fullImg.style.alignItems = 'center'; fullImg.style.justifyContent = 'center';
-              const ph = document.createElement('span');
-              ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
-              ph.textContent = '+'; fullImg.appendChild(ph);
+              /* [M38-b] 인라인이 아니라 «클래스» — 인라인은 저장본·내보내기 결과물에 실린다.
+                 체커와 '+' 는 css/editor-blocks.css 의 .cvb-img-empty 가 갖는다(에셋 블록과 같은 자리). */
+              fullImg.classList.add('cvb-img-empty');
               _bindCvbImgPlaceholder(fullImg, block, idx);
             }
             cell.appendChild(fullImg);
@@ -728,13 +880,23 @@ function renderCanvas(block) {
           el.style.borderRadius = (layer.radius || 0) + 'px';
 
         } else if (layer.type === 'image') {
-          el.style.background   = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
           el.style.borderRadius = (layer.radius || 0) + 'px';
+          /* [M38-b] 체커를 인라인이 아니라 «클래스»로. 인라인은 저장본·내보내기에 실린다.
+             ★동작은 안 바뀐다 — 옛 코드가 `style.background`(단축)로 체커를 깔고 src 가 있으면
+               바로 다음 줄 `style.backgroundImage` 로 «덮었다». 단축의 background-image 가
+               통째로 교체되므로 src 가 있을 때 체커는 원래도 «안 보였다».
+               (「투명 PNG 뒤로 체커가 비친다」는 이 자리에선 성립한 적이 없다 — 그건 .icb-circle
+                판의 이야기다. 그래서 else 가지에만 거는 것이 옛 동작과 «같다».)
+             ⚠️여기엔 '+' 안내문을 안 붙인다 — 카드 3자리는 «클릭해서 이미지를 넣는» 자리라
+               안내가 필요하지만, 이건 절대배치 레이어라 그 배선(_bindCvbImgPlaceholder)이 없다.
+               그래서 체커만 갖는 별도 클래스를 쓴다. */
           if (layer.src) {
             el.style.backgroundImage    = `url("${layer.src}")`;
             el.style.backgroundSize     = 'cover';
             el.style.backgroundPosition = 'center';
             el.style.backgroundRepeat   = 'no-repeat';
+          } else {
+            el.classList.add('cvb-img-empty-plain');
           }
 
         } else if (layer.type === 'text') {
@@ -1318,3 +1480,6 @@ window._triggerCvbCardImage = _triggerCvbCardImage;
 window._cvbBuildGrad = _cvbBuildGrad;
 
 export { makeCanvasBlock, addCanvasBlock, updateCanvasBlock, renderCanvas, CARD_DEFAULT_OPTS, _cvbBuildGrad };
+// 인라인 편집의 «판정 술어»와 그 술어가 보는 상수 — 단위테스트가 리터럴을 다시 적지 않도록
+// 여기서 가져다 쓴다(테스트 기대값에 셀렉터/필드목록을 박으면 SSOT 가 둘로 갈린다).
+export { _cvbEditable, _cvbReadText, _appendCardTexts, _CVB_EDIT_SEL, _CVB_EDIT_FIELDS };

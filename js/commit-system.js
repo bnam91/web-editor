@@ -267,9 +267,14 @@ async function restoreCommit(id) {
 
   document.getElementById('commit-modal-overlay')?.remove();
   // autoSave 억제 — applyProjectData 직후 MutationObserver가 트리거되어 복원 내용을 덮어쓰는 버그 방지
-  if (window.state) window.state._suppressAutoSave = true;
-  window.applyProjectData(commit.snapshot);
-  if (window.state) window.state._suppressAutoSave = false;
+  /* ★[H6] 억제를 구조로 — 예전엔 켜는 줄과 끄는 줄 사이에 applyProjectData 가 «맨몸»으로 있었다.
+   *   applyProjectData 는 자기 finally+rAF 로 스스로 풀어 주지만, 그건 «저쪽» 구현이다 —
+   *   window.applyProjectData 가 아직 없으면(TypeError) 그 구원도 없고 억제만 남는다.
+   *   남의 내부에 기대지 않고 여기서 닫는다. */
+  const _asTok = window.AutoSaveSuppress.begin('commit-restore');
+  try {
+    window.applyProjectData(commit.snapshot);
+  } finally { window.AutoSaveSuppress.end(_asTok); }
 
   // DBG-11: 커밋 복원 후 현재 브랜치 스토어에도 snapshot 동기화
   // (브랜치 전환 시 복원 전 상태로 덮어쓰여지는 버그 방지)

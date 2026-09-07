@@ -268,7 +268,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
               || child.classList.contains('graph-block')
               || child.classList.contains('divider-block')
               || child.classList.contains('bridge-block')
-              || child.classList.contains('duo-block')
+              || child.classList.contains('grid-block')
               || child.classList.contains('infocard-block')
               || child.classList.contains('innercard-block')
               || child.classList.contains('icon-text-block')

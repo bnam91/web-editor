@@ -107,6 +107,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAuthState:       ()                   => ipcRenderer.invoke('auth:state'),
   refreshAuth:        ()                   => ipcRenderer.invoke('auth:refresh'),
   authLogin:          (email, password)    => ipcRenderer.invoke('auth:login', email, password),
+  authGoogleLogin:    ()                   => ipcRenderer.invoke('auth:google-login'),
   authLogout:         ()                   => ipcRenderer.invoke('auth:logout'),
   openExternalUrl:    (url)                => ipcRenderer.invoke('auth:open-external', url),
   navigateToProjects: ()                   => ipcRenderer.invoke('license:navigate-projects'),
@@ -159,6 +160,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stats:   ()        => ipcRenderer.invoke('report:queue-stats'),
   },
 
+  // ── [H3] 지난 실행의 사고 — 되찾기 + 원인 보내기 ──
+  //   ★pending 은 «읽기»다. 여기엔 전송이 없다 — 보내는 건 위 report.submit 뿐이고,
+  //     그건 사용자가 신고 창에서 [보내기] 를 눌러야 불린다.
+  //   ★restore 는 «사본»을 만든다(기존 프로젝트를 덮지 않는다).
+  recovery: {
+    pending: ()     => ipcRenderer.invoke('recovery:pending'),
+    restore: (args) => ipcRenderer.invoke('recovery:restore', args),
+    reveal:  (args) => ipcRenderer.invoke('recovery:reveal', args),
+    ack:     (ids)  => ipcRenderer.invoke('recovery:ack', { ids }),
+  },
+
   // App info
   isElectron: true,
   getVersion: () => ipcRenderer.invoke('get-version'),
@@ -203,7 +215,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gdtTakePendingOpen: ()   => ipcRenderer.invoke('gdt:takePendingOpen'),
   // 비우지 않고 조회만 — 로그인 화면이 「로그인하면 이 파일을 엽니다」를 보여줄 때 쓴다
   gdtPeekPendingOpen: ()   => ipcRenderer.invoke('gdt:peekPendingOpen'),
-  quitReady: () => ipcRenderer.send('quit-ready'),
+  /* ★[H4] 저장 «결과»를 같이 보낸다 — 인자 없이 부르면 메인이 「모르겠다」로 읽고
+     실패로 센다(조용한 종료 금지). 실패 시엔 스냅샷 원문도 실어 비상 사본을 남긴다. */
+  quitReady: (result) => ipcRenderer.send('quit-ready', result),
 
   // Clipboard (Electron 메인 프로세스 경유 — navigator.clipboard 권한 거부 우회)
   clipboardWriteText:  (text)    => ipcRenderer.invoke('clipboard:writeText', text),
@@ -246,4 +260,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('claudePM:terminal:exit', h);
     return () => ipcRenderer.removeListener('claudePM:terminal:exit', h);
   },
+
+  /* ── [H2] 렌더러 오류 링버퍼 «미러» (2026-09-06) ──────────────────────────
+     ★왜 — 렌더러가 죽으면 링버퍼(js/report-buffer.js)도 같이 죽는다. 크래시 «뒤»에
+       물어볼 방법이 없으니, 살아 있는 동안 메인에 사본을 보내 둔다. 메인은 그 사본을
+       crash-*.json 의 errors 로 붙인다(main/crash/recorder.js).
+     ⛔invoke 가 아니라 send 다 — 응답을 기다리지 않는다. 오류를 «담는» 자리에서
+       await 를 걸면 오류 경로가 느려지고, 크래시 직전엔 응답이 영영 안 온다.
+     ⚠️여기로 들어오는 문자열은 링버퍼가 «이미 씻은» 것이다(세척은 담을 때 끝난다).
+       그래도 메인이 한 번 더 씻는다 — 이 통로로 들어온 값을 믿지 않는다. */
+  crashMirror: (payload) => { try { ipcRenderer.send('crash:mirror', payload); } catch (_) {} },
 });
+

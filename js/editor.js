@@ -1,4 +1,4 @@
-import { canvasEl, propPanel, state } from './globals.js';
+import { canvasEl, propPanel, state, BLOCK_DELEGATE_SEL } from './globals.js';
 import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './history.js';
 
 /* ═══════════════════════════════════
@@ -10,7 +10,7 @@ import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './histor
 const CANVAS_SEL_BLOCKS =
   '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
   '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-  '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, ' +
+  '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, ' +
   '.canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.mockup-block.selected, .icon-block.selected, .vector-block.selected, ' +
   '.step-block.selected, .laurel-block.selected, .gradient-block.selected, ' +
@@ -141,6 +141,34 @@ function initFileTabToggle() {
    ZOOM
 ═══════════════════════════════════ */
 const CANVAS_W = 860;
+/* ★[M67] 휠 줌의 «단위»는 %p 가 아니라 «배율»이다.
+   [실측 260906 맥 9386, tools/perf/comfort-bench.mjs · 윈도우는 지디 팀 보고(내가 잰 것 아님)]
+     휠 한 노치(deltaY −100 도 −120 도 도 −53 도) → 100→130→160→190→220→250 «항상 +30%p».
+     옛 식 `Math.max(-30, Math.min(30, Math.round(d*2)))` 은 d=100 이면 200 이라 «무슨 값이 와도»
+     상한에 포화한다 ⇒ 노치의 세기가 입력과 무관해지고, 120 을 주는 맥과 100 을 주는 윈도우가
+     구분되지 않는다(기기 성능 문제로 오해하기 딱 좋은 자리다).
+   ⇒ 그런데 진짜 병은 포화가 아니라 «덧셈»이다. 같은 +30%p 가 배율마다 다른 뜻이 된다:
+        40% 에서 +30%p = ×1.75(사납다)   ·   200% 에서 +30%p = ×1.15(굼뜨다)
+        줌아웃은 100→70→40→10 — «세 노치»에 바닥을 치고 그 뒤로는 아무 반응도 없다.
+        ★더 나쁜 건 초기 배율이다: 40% 에서 줌아웃 «한 노치»면 곧장 10%(실측 40→10→10→10).
+   ⇒ %p 를 «더하는» 대신 «비율을 곱한다»(피그마·포토샵·브라우저 줌이 그렇다). 노치 하나 = ×1.2 면
+     40→48 과 200→240 이 «같은 배율 변화»라 어디서 돌려도 같은 정도로 느껴진다.
+     대가: 40%(초기 배율)에서 100% 까지 2노치 → 6노치로 «느려진다». 그 대신 바닥까지 1노치 → 8노치,
+           400% 까지 10노치 → 12노치가 되어 «양 끝이 살아난다». 사나운 쪽을 깎아 굼뜬 쪽에 준 것이다.
+   ⛔zoomStep 의 인자 뜻은 «그대로 %p» 다 — 비율은 zoomByRatio 가 그 자리에서 %p 로 바꿔 넣는다.
+     ⇒ ⌘+/−(:1797,1801)·툴바 ± 버튼(index.html:555,559)의 체감은 «한 글자도» 안 바뀐다. */
+const ZOOM_RATIO_PER_NOTCH = 1.2;
+/* 마우스 휠 «한 노치»로 칠 최소 deltaY. 맥 120·윈도우 100·리눅스 53 이 전부 «노치 하나»다 ⇒
+   크기가 아니라 «개수»로 세야 기기가 달라도 체감이 같다. 트랙패드 핀치는 한 자릿수로 들어온다. */
+const WHEEL_NOTCH_MIN_DELTA = 40;
+/* 트랙패드 핀치는 연속량이라 개수로 못 센다 — deltaY 10 을 노치 하나로 환산한다.
+   ★이 10 은 «옛 체감을 100% 배율에서 그대로 재현»하도록 고른 값이다:
+     옛 식 100% 에서  d=10 → 120%(×1.2) · d=3 → 106%(×1.06)
+     새 식            d=10 → 1.2^1.0 = ×1.200 · d=3 → 1.2^0.3 = ×1.056  — 같은 자리에서 같은 세기. */
+const PINCH_DELTA_PER_NOTCH = 10;
+/* 한 스로틀 틱(16ms)에 몰린 입력의 상한. 옛 판의 ±30%p 클램프가 하던 «폭주 방지»를 잇는다
+   (상한에 걸려도 ×1.728 — 옛 판이 40% 에서 한 노치에 내던 ×1.75 를 넘지 않는다). */
+const ZOOM_MAX_NOTCHES_PER_TICK = 3;
 let currentZoom = 40;
 const scaler = document.getElementById('canvas-scaler');
 const zoomDisplay = document.getElementById('zoom-display');
@@ -148,11 +176,64 @@ const zoomDisplay = document.getElementById('zoom-display');
 let panOffsetX = 0;
 let panOffsetY = 0;
 
-function applyZoom(z) {
-  currentZoom = Math.min(400, Math.max(10, z));
+function applyZoom(z, opts) {
+  /* ★[M62] `keepViewportCenter` — 배율만 바꾸고 scrollTop 을 그냥 두면 «캔버스가 화면 밖으로» 나간다.
+     scrollTop 은 «화면 px» 인데 배율이 바뀌면 캔버스 총높이가 바뀐다(200%→100% = ½). 같은 4828 이
+     아까는 문서 중간이었는데 이제는 «캔버스 아래 꼬리» 를 가리킨다 ⇒ 캔버스가 통째로 위로 사라진다.
+     [실측 260906 맥, proj_1788627421215] 중간 섹션을 화면 정중앙에 두고:
+       ⌘0 ←200% : 세로 교집합 905 → ★0   ⌘0 ←400% : 905 → ★0
+       Fit←200% : 905 → ★0               Fit←400% : 905 → ★0
+       ⌘0/Fit ←40%·10% : 702→905, 279→670 (정상 — 줌 «아웃» 방향에서만 난다)
+     ⚠️노치는 «가로 전용»이라 세로로 나가면 돌아올 길이 없다 — 사용자가 스스로 못 고친다.
+     ⇒ 배율 전 «뷰포트 세로중앙에 있던 캔버스 지점»을 배율 후에도 중앙에 되돌린다(피그마 방식).
+     ⛔이 보정은 «옵션»이다 — 켜는 자리는 ⌘0 과 Fit «둘뿐». 나머지 호출처는 자기 스크롤을 갖고 있다:
+       · zoomStep  — 이 함수를 지난 «뒤» 커서/선택블록 앵커로 scrollTop 을 다시 쓴다(:648). 켜면 헛계산.
+       · 탭복원    — 이 함수 다음 줄에서 저장된 scrollTop 을 도로 세운다(tab-system.js:216).
+       · 초기화    — 그때 scrollTop 은 이미 0 이다.
+     M44 주석이 「남는 건 ⌘0·Fit」 이라 짚은 바로 그 두 자리다. */
+  const _keepCenter = !!(opts && opts.keepViewportCenter);
+  const _wrapEl   = _keepCenter ? document.getElementById('canvas-wrap') : null;
+  const _canvasEl = _keepCenter ? document.getElementById('canvas') : null;
+  let _anchorU = null, _anchorVpMid = 0, _prevTr = null;
+  if (_wrapEl && _canvasEl) {
+    /* ★scaler 의 `transition: transform .15s` 때문에 rect 는 «보간 중» 값을 준다 —
+       zoomStep(:583) 이 같은 이유로 재기 «전에» 끄고 리플로를 한 번 돌린다. 같은 규약으로 맞춘다. */
+    _prevTr = scaler.style.transition;
+    scaler.style.transition = 'none';
+    void scaler.offsetWidth;
+    const wr = _wrapEl.getBoundingClientRect();
+    const cr = _canvasEl.getBoundingClientRect();
+    if (cr.height > 0) {
+      _anchorVpMid = wr.top + _wrapEl.clientHeight / 2;
+      /* 캔버스 «세로 정규화 좌표»(0=위끝, 1=아래끝). 배율에 안 흔들리는 유일한 단위다.
+         ★[0,1] 로 자른다 — 지금 꼬리 여백을 보고 있었더라도 ⌘0 은 «캔버스로» 데려와야 한다.
+           이 clamp 가 「배율 후 캔버스는 반드시 화면과 겹친다」 불변식을 세운다. */
+      _anchorU = Math.max(0, Math.min(1, (_anchorVpMid - cr.top) / cr.height));
+    }
+  }
+  /* ★[M67] 곱셈 스텝은 정수로 안 떨어진다(100 → 120 → 144 → 172.8 …). 소수 2자리로 «정착»시켜
+     ⑴ 저장 데이터에 172.79999999999998 같은 부동소수 먼지가 안 들어가게 하고
+     ⑵ zoomStep 의 `newZoom === currentZoom` 조기반환이 같은 눈금 위에서 비교되게 한다.
+     정수 반올림은 안 쓴다 — 10%대에서 반올림 오차가 «노치 간격»(20%)의 1/4까지 먹어 균일성을 깬다. */
+  currentZoom = Math.round(Math.min(400, Math.max(10, z)) * 100) / 100;
+  /* ★[M44] 배율을 «세우는» 경로는 팬 잔여를 반드시 버린다 — 안 버리면 ×(s_new/s_old) 래칫이 된다.
+     panOffsetX/Y 는 «그 배율에서» 스크롤이 못 삼킨 «화면 px» 잔여다. 배율이 바뀌면 같은 숫자가
+     다른 뜻이 된다. zoomStep 은 그 사실을 알고 «재계산 전에» 0 으로 비우고 앵커를 다시 잡는데
+     (:572), applyZoom(⌘0 · Fit · 탭복원 · 초기화)은 그냥 두고 있었다. 그 «비대칭»이 래칫이다:
+       ⑴ zoomStep 은 앵커 보존의 «정의상» 잔여를 s_new/s_old 배로 키운다(그 자체는 맞는 계산이다 —
+          커서 밑 점을 붙잡으려면 변위도 같은 배율로 커져야 한다).
+       ⑵ applyZoom 은 배율만 되돌리고 «4배가 된 잔여»는 그대로 남긴다.
+     ⇒ [핀치 → ⌘0/Fit/탭복원] 을 반복하면 −9 → −45 → −189 → … ×4 로 발산해 Chromium translate
+       포화점(2²⁴)까지 가고, 캔버스가 화면 밖으로 나가 「줌은 바뀌는데 화면이 안 변한다」가 된다.
+     ⇒ 고칠 곳은 «키우는 쪽»(zoomStep 의 앵커 계산)이 아니라 «안 지우는 쪽»이다.
+     ⚠️호출처 넷을 다 봤다 — zoomStep 은 이 줄 직전에 이미 0 을 넣으므로 무해하고(:572),
+       탭 복원은 이 함수 «다음 줄»에서 저장값을 setPanOffset 으로 도로 세우며(tab-system.js:212),
+       초기화(:2464)는 그때 panOffset 이 이미 0 이다. 남는 건 ⌘0·Fit — 거기선 «되돌린다»가 맞는 뜻이다. */
+  panOffsetX = 0;
+  panOffsetY = 0;
   window.currentZoom = currentZoom;
-  _applyScalerTransform();
-  zoomDisplay.textContent = currentZoom + '%';
+  _applyScalerTransformAndSync();
+  zoomDisplay.textContent = Math.round(currentZoom) + '%';   // [M67] 표시는 정수 — 내부 배율만 소수를 갖는다
   document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
   // 섹션 라벨/툴바 카운터-스케일
   // - zoom ≥ 80%: 자연 스케일 (1.0) — 라벨이 섹션과 분리돼 보이지 않게
@@ -164,12 +245,330 @@ function applyZoom(z) {
    *   여백은 «그 순간의 스크롤을 위한 것»이라 상태가 바뀌면 미련 없이 버린다.
    *   다시 필요하면 다음 selectSection 이 «모자란 만큼» 다시 준다. */
   window.resetCanvasTail?.();
+  if (_anchorU !== null) {
+    /* ★resetCanvasTail «뒤»여야 한다 — 꼬리를 버리면 scrollHeight 가 바뀌고, 그러면 아래 대입이
+       브라우저 clamp 에 걸리는 자리가 달라진다. 스크롤 여지가 «최종»이 된 다음에 쓴다. */
+    void scaler.offsetHeight; void _wrapEl.scrollHeight;
+    const cr2 = _canvasEl.getBoundingClientRect();
+    _wrapEl.scrollTop += (cr2.top + _anchorU * cr2.height) - _anchorVpMid;
+    requestAnimationFrame(() => { scaler.style.transition = _prevTr; });
+  } else if (_prevTr !== null) {
+    scaler.style.transition = _prevTr;
+  }
+  /* [M35] 배율이 바뀌면 «쉼 위치»(getRestingScroll)가 바뀌므로 같은 스크롤이라도 dx 가 달라진다.
+     ⌘0 · Fit(zoomFit) · 탭복원 · 초기화 · zoomStep 이 전부 여기를 지난다 — 한 자리로 족하다. */
+  scheduleNotchUpdate();
 }
 
+/* ★[perf] transform 쓰기와 «높이 동기»를 나눈다.
+ *   _syncScalerHeight 의 출력(naturalH × scale)은 «배율과 콘텐츠»의 함수다 — 팬은 둘 다 안 바꾼다.
+ *   그런데 팬 스텝마다 부르면 스텝당 강제 레이아웃 2회 + style 쓰기 2회가 «정의상 낭비»로 든다.
+ *   ⇒ 팬 경로는 _applyScalerTransform(), 배율·콘텐츠가 바뀌는 경로는 _applyScalerTransformAndSync().
+ *   ★부수 효과: 팬 중 scaler 높이가 안 바뀌므로 scrollHeight 도 안 바뀐다 —
+ *     브라우저가 팬 중 scrollTop 을 clamp 하는 일이 없어진다(스크롤 팬의 전제). */
 function _applyScalerTransform() {
   scaler.style.transform = `translate(${panOffsetX}px, ${panOffsetY}px) scale(${currentZoom / 100})`;
+}
+function _applyScalerTransformAndSync() {
+  _applyScalerTransform();
   _syncScalerHeight();
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   팬 위치의 «단일 진실» (DESIGN-pan-native-scroll §3-C)
+
+   「캔버스가 얼마나 밀렸나」는 두 곳에 나뉘어 산다:
+     ⑴ `#canvas-wrap.scrollTop/Left` — 1차 저장소(tab-system.js:251)
+     ⑵ `panOffsetX/Y`                — 스크롤이 흡수 못한 «잔여»만 (휠 경로)
+   panOffset «만» 보는 코드는 ⑴을 놓친다. 그래서 판정은 반드시 이 함수를 거친다.
+   ⛔진실을 두 벌로 두면 사고가 난다.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/** 팬을 «하나도 안 한» 상태의 스크롤 위치(= 쉼 위치). resetPanOffset 의 기존 공식을 그대로 뽑아냈다. */
+function getRestingScroll() {
+  const wrap = document.getElementById('canvas-wrap');
+  const scalerEl = document.getElementById('canvas-scaler');
+  if (!wrap || !scalerEl) return { top: 0, left: 0 };
+  /* [S2] 쉼 위치 = «스크롤 범위의 한가운데».
+     팬 여지가 사방 «대칭»이므로 범위의 한가운데가 곧 콘텐츠의 한가운데다(대수적으로 동일).
+     ⚠️예전 공식은 `scalerEl.offsetHeight * scale` 로 콘텐츠 높이를 다시 구했는데,
+       offsetHeight 는 _syncScalerHeight 가 «이미 배율을 곱해» 넣어 둔 값이라
+       배율이 «두 번» 곱해지고 있었다(zoom≠100 에서만 어긋난다). 실제 scrollHeight 를
+       쓰면 그 문제가 원천적으로 없어진다. ⇒ zoom≠100 에서의 쉼 위치가 «달라진다»(의도된 수정). */
+  const maxTop = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+  const maxLeft = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+  /* 가로 쉼 = «캔버스가 뷰포트 한가운데» 오는 스크롤 위치.
+     ⛔범위의 절반(maxLeft/2)으로 잡으면 안 된다 — scaler 의 레이아웃 폭이 캔버스보다 넓을 수 있고
+       (자손이 옆으로 삐져나오면 그렇게 된다: 실측 캔버스 860 vs scaler 1108), 그러면 대칭 여백이
+       캔버스를 가운데로 안 놓는다(실측 127px 어긋남). 실제 캔버스 위치를 재서 맞춘다. */
+  const canvasEl2 = document.getElementById('canvas');
+  let left = Math.round(maxLeft / 2);
+  if (canvasEl2 && wrap.clientWidth) {
+    const cr = canvasEl2.getBoundingClientRect();
+    const wr = wrap.getBoundingClientRect();
+    /* ★[FIX-ⓑ] gBCR 은 transform(panOffsetX)이 «이미 반영된» 좌표다. 쉼 위치는 「팬을 하나도
+       안 한 상태」의 스크롤이므로 그 몫을 빼야 한다. 안 빼면 getPanPosition().x 가 panOffsetX 를
+       «두 번» 센다(실측 zoomStep 뒤 화면 변위 660 인데 pos.x 720 — 노치 pill 위치 오차).
+       ⑶ 의 복원도 이 값을 목표로 쓰므로 여기가 정확해야 «가운데»가 진짜 가운데가 된다. */
+    const delta = (cr.left + cr.width / 2) - (wr.left + wrap.clientWidth / 2) - panOffsetX;
+    left = Math.round(Math.max(0, Math.min(maxLeft, wrap.scrollLeft + delta)));
+  }
+  /* ★[FIX-⑴] 꼬리 여백은 «아래쪽에만» 붙어 범위를 비대칭으로 만든다 — 그때 범위의 한가운데는
+     콘텐츠의 한가운데가 아니다(실측 −428px = 856/2). 꼬리의 절반을 덜어 대칭 기준으로 되돌린다.
+     꼬리가 0 이면 예전 식과 «완전히 같다» — 배율 변경 뒤엔 항상 0 이다. */
+  return { top: Math.round((maxTop - _canvasTailY) / 2), left };
+}
+
+/** 실효 팬 «변위». 부호는 기존 panOffset 과 같다(+y = 콘텐츠가 아래로 내려간 것). */
+function getPanPosition() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) return { x: panOffsetX, y: panOffsetY };
+  const r = getRestingScroll();
+  return {
+    x: panOffsetX - (wrap.scrollLeft - r.left),
+    y: panOffsetY - (wrap.scrollTop - r.top)
+  };
+}
+window.getRestingScroll = getRestingScroll;
+window.getPanPosition = getPanPosition;
+
+/* ★[M35] 「노치는 언제 생기고 안 생기나」 — 갱신을 «변위를 바꾼 모든 경로»에 건다.
+   [실측 GEN-batch-0905-A §B2] 앱 자신의 술어(`getPanPosition().x`, |dx|<5)로 9경로×3배율을
+   재니 불일치 **25/33 · 전부 MISS_SHOW · MISS_HIDE 0 · LATE 0**(1초 뒤에도 안 고쳐진다).
+   원인은 «판정»이 아니라 «배선»이다 — updateNotchPosition 을 부르는 자리가 넷뿐이었다
+   (휠 «잔여가 있을 때만» · 스페이스팬 mousemove · 노치 클릭 · 기동 100ms).
+   ⇒ 줌·리사이즈·정착·탭복원이 dx 를 −196,605 로 만들어도 아무도 노치에게 말해주지 않고,
+     한참 뒤 «가로 성분 0 인 세로 휠»이 그때서야 켠다 = 현빈 원문 「또 갑자기 노치가 생겼네」.
+   ⛔갱신을 `_applyScalerTransform`(팬 스텝마다 도는 자리)에 걸면 안 된다 — updateNotchPosition 은
+     getRestingScroll → gBCR 을 읽어 «강제 레이아웃»을 부른다. 팬 중 레이아웃 0 이 이 브랜치의 전제다.
+   ⇒ «한 태스크에 한 번»으로 합친다. ⚠️rAF 가 아니라 setTimeout 이다 —
+     이 앱은 비포커스 창에서 rAF 가 멈춘다(같은 이유로 트랙패드 스로틀도 setTimeout 이다, :2930). */
+let _notchUpdatePending = false;
+function scheduleNotchUpdate() {
+  if (_notchUpdatePending) return;
+  _notchUpdatePending = true;
+  setTimeout(() => { _notchUpdatePending = false; window.updateNotchPosition?.(); }, 0);
+}
+window.scheduleNotchUpdate = scheduleNotchUpdate;
+/* ═══════════════════════════════════════════════════════════════════
+   [S2] 팬 «여지»(pan room) — 캔버스 밖으로도 계속 밀리게
+
+   왜 필요한가: 팬을 네이티브 스크롤로 하면 «스크롤 범위» 밖으로는 못 민다.
+   현행 transform 팬은 무한히 밀렸으므로, 그 감각을 유지하려면 범위를 만들어야 한다.
+   ⇒ scaler 사방에 «한 화면»씩 여백을 주고, 끝에 닿으면 «그때만» 한 화면 더 늘린다.
+
+   ★왜 transform 으로 안 하나(실측, GEN-canvas-c2-status §13):
+     스크롤 컨테이너 안에서 콘텐츠를 transform 으로 옮기면 그 프레임의 표시목록이
+     통째로 다시 기록된다 — 전면 Paint 가 스텝마다 찍힌다(Paint 27ms → 165ms, 6배).
+     축·거리와 무관하고 «썼는가»에만 걸린다. 그래서 팬 중 transform 쓰기는 «0회»여야 한다.
+
+   ★왜 «줄이는» 정리를 조심하나: 브라우저는 스크롤 범위가 «현재 위치보다 작아질 때»
+     scrollTop/Left 를 clamp 한다(실측). 여백을 함부로 되돌리면 놓는 순간 캔버스가 «툭» 튄다.
+     ⇒ _shrinkPanRoom 은 «현재 위치가 요구하는 만큼»까지만 줄인다(정의상 clamp 불가).
+   ═══════════════════════════════════════════════════════════════════ */
+
+let _panRoomX = 0;   // scaler 좌우 여백(px, 한쪽) — 0 이면 아직 미적용
+let _panRoomY = 0;   // scaler 상하 여백(px, 한쪽)
+/* ★[FIX-⑴] 꼬리 여백을 «DOM 이 아니라 값»으로 갖는다.
+   ⛔무엇이 문제였나: 꼬리 여백(마지막 섹션도 맨 위로 당겨지게)과 팬 여지가 «같은 CSS 속성»
+     (#canvas-scaler.marginBottom) 한 칸을 나눠 썼다. 한 칸을 두 주인이 쓰면 나중에 쓴 쪽이
+     앞 쪽을 «지운다» — applyZoom → resetCanvasTail 이 marginBottom='0px' 을 써서 팬 여지
+     856px 이 배율을 바꿀 때마다 증발했다. 게다가 ensurePanRoom() 가드는 «변수만» 보므로
+     「이미 충분」으로 no-op → 스스로 낫지 못했다(실측 room.y=856 인데 DOM=0px).
+     ★가로가 멀쩡했던 이유도 여기 있다 — 가로엔 지우는 주인이 없어 growPanRoom('x') 이
+       스스로 자랐다. 세로만 «지우는 쪽»이 있어 대칭이 깨져 있었다.
+   ⇒ 구조로 끊는다: **scaler 의 네 margin 에 쓰는 코드는 _applyPanRoom() «하나»뿐**.
+     꼬리는 자기 값(_canvasTailY)만 갖고, 합성은 소유자가 한다.
+     ⇒ DOM 은 언제나 (_panRoomX, _panRoomY, _canvasTailY) 의 함수 = 「변수만 보는」 가드가 참이 된다.
+
+   ⛔★★이 값이 «항상 0 으로 보여도 지우지 마라»(M22).
+     실측(2026-09-05): 팬 여지가 아래에 늘 한 화면(856px)을 두므로 selectSection 의
+     `short = target − max` 가 음수가 돼 꼬리는 «실제로 안 붙는다» — S2 sweep 9경로 전부 tail 0.
+     그래서 「안 쓰이니 정리하자」가 반드시 나온다. 그런데 이 항을 걷어내면
+     `marginBottom = _panRoomY + _canvasTailY` 라는 «식»이 `marginBottom = _panRoomY` 라는
+     «관행»으로 내려앉는다. 즉 「mb ≥ _panRoomY」가 **식의 성질**이 아니라 **아무도 안 어기기로
+     한 약속**이 되고, 다음에 꼬리 같은 «아래쪽 전용 여백»이 하나 더 필요해지는 순간
+     그 사람은 다시 marginBottom 을 «직접» 쓴다 — ⑴ 결함이 그대로 돌아온다.
+     ⇒ 지울 거면 «소유자 단일성 테스트»(pan-native-scroll.test.js §E)를 먼저 다시 세워라. */
+let _canvasTailY = 0;
+
+function _applyPanRoom() {
+  if (!scaler) return;
+  scaler.style.marginLeft = _panRoomX + 'px';
+  scaler.style.marginRight = _panRoomX + 'px';
+  scaler.style.marginTop = _panRoomY + 'px';
+  scaler.style.marginBottom = (_panRoomY + _canvasTailY) + 'px';
+}
+
+/** 꼬리 여백을 «값»으로 정한다 — DOM 쓰기는 소유자(_applyPanRoom)에게 맡긴다.
+ *  ⇒ 불변식: 어떤 경로 뒤에도 marginBottom = _panRoomY + _canvasTailY ≥ _panRoomY. */
+function setCanvasTail(px) {
+  const v = Math.max(0, Math.round(px) || 0);
+  if (v === _canvasTailY) return;
+  _canvasTailY = v;
+  _applyPanRoom();
+}
+
+/** 기본 여지 = 사방 한 화면. 이미 그만큼 있으면 아무것도 안 한다. */
+function ensurePanRoom() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !scaler) return;
+  const needX = wrap.clientWidth, needY = wrap.clientHeight;
+  if (!needX || !needY) return;                     // 아직 레이아웃 전
+  if (_panRoomX >= needX && _panRoomY >= needY) return;
+  const first = (_panRoomX === 0);
+  const before = { x: _panRoomX, y: _panRoomY, sl: wrap.scrollLeft, st: wrap.scrollTop };
+  _panRoomX = Math.max(_panRoomX, needX);
+  _panRoomY = Math.max(_panRoomY, needY);
+  _applyPanRoom();
+  if (first) {
+    /* ★최초 확보: 여기서 «가로 중앙정렬»이 성립한다.
+       justify-content 를 flex-start 로 바꿨으므로(§S2 CSS) 중앙정렬은 CSS 가 아니라
+       «대칭 여백 + 쉼 스크롤 위치»가 만든다. 이 줄이 없으면 캔버스가 왼쪽에 붙는다. */
+    void wrap.scrollWidth;
+    wrap.scrollLeft = getRestingScroll().left;
+    wrap.scrollTop = before.st + (_panRoomY - before.y);
+  } else {
+    // 앞쪽(왼/위) 여백이 늘어난 만큼 콘텐츠가 뒤로 밀린다 → 같은 프레임에 스크롤을 보정해
+    // 화면에 보이는 그림이 안 움직이게 한다(같은 JS 태스크 = 페인트 전이라 원자적).
+    wrap.scrollLeft = before.sl + (_panRoomX - before.x);
+    wrap.scrollTop = before.st + (_panRoomY - before.y);
+  }
+}
+
+/** 끝에 닿았을 때 «그 축만» 한 화면 더 늘리고 스크롤을 보정한다.
+ *  @returns {number} 스크롤에 «더한» 보정량 — 호출자가 기준점(scrollStart)을 같이 옮겨야
+ *  `scrollLeft = scrollStart.left - wantDX` 불변식이 유지된다.
+ *  ⛔이 값을 안 쓰고 기준점을 «되맞추면» 그 프레임의 잔여를 잃는다(실측: 300px 끌면 290px 만 감).
+ */
+function growPanRoom(axis) {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !scaler) return 0;
+  if (axis === 'x') {
+    const before = _panRoomX, sl = wrap.scrollLeft;
+    _panRoomX += wrap.clientWidth;
+    _applyPanRoom();
+    const d = _panRoomX - before;
+    wrap.scrollLeft = sl + d;
+    return d;
+  }
+  const before = _panRoomY, st = wrap.scrollTop;
+  _panRoomY += wrap.clientHeight;
+  _applyPanRoom();
+  const d = _panRoomY - before;
+  wrap.scrollTop = st + d;
+  return d;
+}
+
+/* ★[FIX-⑵] 진행 중인 팬의 «기준점»을 여지 변경자들이 볼 수 있게 걸어 둔다.
+   기전: 팬은 매 mousemove 마다 `scrollLeft = scrollStart.left − wantDX` 를 «절대»로 다시 쓴다.
+     그런데 휠 정착 타이머(200ms)의 shrinkPanRoom() 은 margin 을 깎으면서 scrollLeft 도 같이
+     내린다 — 화면은 안 튀지만 «좌표계가 바뀐다». 팬의 기준점은 옛 좌표계 그대로라 다음
+     mousemove 가 옛 값을 다시 써서 깎인 만큼 «툭» 튄다(실측 60px 요청에 −1,450px · 점프 1,510px).
+   ⇒ growPanRoom 이 반환값으로 이미 하고 있던 「여지를 옮겼으면 기준점도 옮겨라」를
+     shrink 에도 적용한다. 팬 블록이 자기 scrollStart «객체 그대로»를 걸어 두므로 즉시 반영된다.
+   ⛔「팬 중엔 타이머를 미룬다/타이머를 늘린다」는 처방은 안 골랐다 —
+     ⓐ 그건 이 호출자 «하나»만 막는다(여지를 깎는 코드가 하나 더 생기면 같은 버그가 재발).
+     ⓑ 정착 자체를 미루면 «여지 회수»가 늦어지거나 사라져, 여백이 상한까지 쌓여
+        「그 다음 제스처가 아예 안 움직인다」는 원래 병(M17 계열)이 돌아온다.
+     ⇒ 정착 타이머는 200ms 그대로 두고 «회수도 그대로 일어나되», 기준점을 같이 옮긴다. */
+let _panScrollBaseline = null;   // 팬 중에만 non-null — 팬 블록의 scrollStart 객체 «그 자체»
+function setPanScrollBaseline(ref) { _panScrollBaseline = ref; }
+
+/**
+ * 여백을 «안전한 만큼만» 줄인다 — 현재 스크롤 위치를 담는 데 필요한 양은 남긴다.
+ * ⛔기본값으로 되돌리면 안 된다: 멀리 밀어낸 상태에서 놓으면 clamp 가 걸려 캔버스가 튄다.
+ */
+function shrinkPanRoom() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !scaler) return;
+  const baseX = wrap.clientWidth, baseY = wrap.clientHeight;
+  /* 한쪽에서 c 를 깎으면 «양쪽» 여백이 줄어 전체 범위가 2c 만큼 준다.
+     ⇒ 안전 조건이 «둘»이다:
+       ⑴ 앞쪽: 줄인 만큼 스크롤도 줄여야 하므로  c ≤ scrollLeft   (안 그러면 음수)
+       ⑵ 뒤쪽: 새 최대(max−2c)가 새 위치(scrollLeft−c) 이상이어야 하므로  c ≤ max − scrollLeft
+     ⛔⑵를 빠뜨렸다가 실측에서 걸렸다 — 끝까지 민 상태에서 되돌리니 브라우저가 clamp 해
+       그 다음 제스처가 «아예 안 움직였다»(이동 0). 「줄이는 방향은 clamp 를 부른다」의 두 번째 얼굴이다. */
+  const maxL = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+  const maxT = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+  const cutX = Math.max(0, Math.min(_panRoomX - baseX, wrap.scrollLeft, maxL - wrap.scrollLeft));
+  const cutY = Math.max(0, Math.min(_panRoomY - baseY, wrap.scrollTop, maxT - wrap.scrollTop));
+  /* [M35] «정착»은 제스처가 끝나고 앱이 상태를 추스르는 지점이다 — 여지를 실제로 깎았든 아니든
+     그때 표시기를 상태에 맞춘다. 이른 return 뒤에 두면 「깎을 게 없던 정착」에서 노치가 어긋난 채 남는다. */
+  scheduleNotchUpdate();
+  if (!cutX && !cutY) return;
+  const sl = wrap.scrollLeft, st = wrap.scrollTop;
+  _panRoomX -= cutX; _panRoomY -= cutY;
+  _applyPanRoom();
+  wrap.scrollLeft = sl - cutX;
+  wrap.scrollTop = st - cutY;
+  /* ★[FIX-⑵] 진행 중인 팬이 있으면 그 기준점도 «같은 양» 옮긴다 —
+     불변식 `scrollLeft = scrollStart.left − wantDX` 를 새 좌표계에서 그대로 유지. */
+  if (_panScrollBaseline) { _panScrollBaseline.left -= cutX; _panScrollBaseline.top -= cutY; }
+}
+/* ═══ [P-W1] 휠/트랙패드 «잔여»를 transform 이 아니라 «여지»로 흡수한다 ═══
+   왜: 잔여를 `panOffset`+transform 으로 처리하면 결함이 «둘» 생긴다 —
+     ⓐ `±clientWidth/2` 상한에 걸려 「원하는 만큼 안 밀린다」(실측 10%에서 1500 요청 → 477px, 32%)
+     ⓑ 그 경로엔 `.panning` 이 «없어» `transition: transform .15s` 가 «켜진 채» 돈다
+        ⇒ 「마우스가 가면 이후에 따라오는 느낌」의 직접 원인(실측 잔여 중 transition-duration=0.15s)
+   ⇒ 여지로 흡수하면 transform 을 «아예 안 쓰므로» ⓑ가 구조적으로 사라진다(타이머 불필요).
+
+   ⛔상한은 «유지»한다. 원래 버그가 실재했다 — `0ab2f72`(2026-06-14):
+     「휠로 콘텐츠 끝을 지나도 panOffset 이 무한 누적돼 빈 공간으로 끝없이 스크롤」.
+     여지도 무한히 키우면 같은 병이 돌아온다. 그래서 «콘텐츠 끝을 지나 최대 OVER 화면»으로 묶는다.
+   ★OVER 값의 근거: 실측이 아니라 «완료조건에서 역산»한 것이다 —
+     10% 배율에서 1500px 요청의 95% 를 채우려면 화면폭(≈954) 기준 약 1.6화면이 필요하다.
+     3 은 거기에 여유를 둔 값이고, 제품 판단이지 측정값이 아니다(현빈 게이트에서 「키우기」로 정해짐). */
+const WHEEL_OVER_SCREENS = 3;
+
+/* ★휠에는 mouseup 이 «없다» — 팬처럼 제스처 끝에 여지를 되돌릴 계기가 없다.
+   안 되돌리면 여지가 상한까지 쌓인 채 남아 «그 다음 제스처가 아예 안 움직인다»
+   (실측: 배율을 옮겨 가며 세 번 밀었더니 세 번째엔 이동 0). ⇒ 제스처가 멎으면 되돌린다.
+   축소는 shrinkPanRoom 이 «현재 위치가 요구하는 만큼»까지만 하므로 clamp 튐이 없다. */
+let _wheelSettleTimer = null;
+function scheduleWheelSettle() {
+  clearTimeout(_wheelSettleTimer);
+  _wheelSettleTimer = setTimeout(() => { _wheelSettleTimer = null; shrinkPanRoom(); }, 200);
+}
+
+function absorbWheelResidual(axis, res) {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !scaler || !res) return 0;
+  const isX = axis === 'x';
+  const client = isX ? wrap.clientWidth : wrap.clientHeight;
+  const cap = client + client * WHEEL_OVER_SCREENS;      // 기본 한 화면 + 여유 OVER 화면
+  const cur = isX ? _panRoomX : _panRoomY;
+  if (cur >= cap) return 0;                              // 상한 도달 — 여기서 멈춘다(원래 상한과 같은 뜻)
+  const grow = Math.min(cap - cur, Math.abs(res));
+  const before = cur;
+  if (isX) { _panRoomX = cur + grow; } else { _panRoomY = cur + grow; }
+  _applyPanRoom();
+  const d = (isX ? _panRoomX : _panRoomY) - before;
+  // 앞쪽 여백이 늘어난 만큼 스크롤을 보정한 뒤, 잔여 방향으로 실제로 민다.
+  if (isX) { wrap.scrollLeft = wrap.scrollLeft + d + res; }
+  else     { wrap.scrollTop  = wrap.scrollTop  + d + res; }
+  return d;
+}
+window.ensurePanRoom = ensurePanRoom;
+window.getPanRoom = () => ({ x: _panRoomX, y: _panRoomY });
+/* ★[FIX-⑴/탭] 팬 여지를 저장된 «값»으로 되돌린다 — 스크롤 보정은 «안 한다»(호출자가 직후에
+   저장된 scrollTop/Left 를 직접 세운다).
+   왜 필요한가: `_panRoomX/Y` 는 모듈 전역이라 «모든 탭이 한 벌을 공유»한다. 그런데 탭 뷰상태는
+   scrollTop 을 «절대값»으로 저장한다 — 저장 시점의 여백을 전제로 한 좌표다. 다른 탭에서 여지가
+   줄면(shrinkPanRoom) 돌아왔을 때 같은 scrollTop 이 «다른 자리»를 가리킨다
+   (실측: room.y 1556→1256 으로 300 줄자 복원이 정확히 300px 어긋났다).
+   ⇒ 좌표를 세우기 «전»에 그 좌표가 전제한 여지를 먼저 세운다.
+   ⛔기본(한 화면) 아래로는 안 내린다 — 그 아래는 가운데정렬이 성립하지 않는 영역이다. */
+window.setPanRoom = (r) => {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!r || !wrap || !scaler || !wrap.clientWidth) return;
+  const x = Math.max(wrap.clientWidth, Math.round(r.x) || 0);
+  const y = Math.max(wrap.clientHeight, Math.round(r.y) || 0);
+  if (x === _panRoomX && y === _panRoomY) return;
+  _panRoomX = x; _panRoomY = y;
+  _applyPanRoom();
+};
+window.shrinkPanRoom = shrinkPanRoom;   // 하네스 검증용(정상 위치 복귀 후 여지 회수 확인)
 
 /* C20: transform:scale은 레이아웃 박스 높이를 안 바꿔 #canvas-wrap.scrollHeight가 미축소 원본 기준으로 잡힘
  *      → 줌아웃 시 마지막 섹션 아래로 빈 회색이 과도하게 스크롤됨. scaler 레이아웃 높이를
@@ -189,6 +588,8 @@ function _syncScalerHeight() {
   }
   const target = Math.round(naturalH * scale) + 'px';
   scaler.style.height = (target !== prev) ? target : prev;
+  // [S2] 팬 여지 보장 — 로드·줌·리사이즈가 전부 이 경로를 탄다. 이미 충분하면 no-op.
+  ensurePanRoom();
 }
 
 /* C20: 섹션/블록 추가·삭제·리사이즈로 #canvas 높이가 바뀌면 scaler 레이아웃 높이도 재동기화.
@@ -205,21 +606,42 @@ function _syncScalerHeight() {
 })();
 
 function resetPanOffset() {
-  panOffsetX = 0;
-  // C14: panOffsetY를 0으로 만들 때 잃는 세로 보정을 wrap.scrollTop으로 흡수해
-  //       콘텐츠 중앙정렬 유지 (applyZoom의 idealScrollTop/clamp 공식 차용).
+  // C14: panOffsetY를 0으로 만들 때 잃는 세로 보정을 wrap.scrollTop으로 흡수해 콘텐츠 중앙정렬 유지.
+  // [S1'] 쉼 위치 공식을 getRestingScroll() «한 곳»으로 모았다 — 여기와 getPanPosition() 이
+  //       같은 쉼 위치를 봐야 「가운데인가」 판정이 갈리지 않는다.
+  /* ★[FIX-⑶] S2 이후 «가로» 변위의 저장소는 transform(panOffsetX) 이 아니라 `scrollLeft` 다.
+     예전 코드는 panOffsetX=0 만 해서, 「가로를 되돌린다」는 노치의 «유일한 일»을 못 했다
+     (실측: 300px 민 뒤 노치 클릭 → 화면 변위 300px 그대로). 세로처럼 «두 저장소를 다» 비운다.
+     dev 에선 가로 저장소가 transform «하나»였기에 panOffsetX=0 으로 충분했다 ⇒ 이건 회귀였다.
+   ~~★[폐기] 「순서: transform 을 «먼저» 비우고 나서 쉼 위치를 잰다 — getRestingScroll 은 캔버스
+     gBCR 로 재는데 gBCR 엔 transform 이 들어 있다. 순서를 바꾸면 옛 변위가 섞인 자리로 간다」~~
+   ★[M46 · 2026-09-05] 순서를 «뒤집었다». 폐기한 문장은 «전이가 없을 때만» 맞다.
+     ⑴ getRestingScroll 은 이미 gBCR 에서 panOffsetX 를 «명시적으로 뺀다»(위 FIX-ⓑ, :219)
+        ⇒ 옛 변위가 «섞이지 않는다». 비우기 «전»에 재도 답은 같다.
+     ⑵ 그런데 이 함수의 «유일한» 호출처인 노치 클릭(:3452)은 바로 앞에서
+        `scaler.style.transition = 'transform 0.3s ease'` 를 켠다. 그러면 transform 을 비운
+        «직후»의 gBCR 은 아직 «옛 자리»다 — 보간이 0.3초에 걸쳐 흐르기 때문이다.
+        `void offsetHeight` 는 «레이아웃»을 강제할 뿐 «전이»를 끝내지 못한다.
+     ⇒ 비운 뒤에 재면 panOffsetX 는 0 인데 gBCR 은 옛 P 를 품고 있어 쉼 위치가 P 만큼 어긋나고,
+       전이가 끝나면 캔버스가 «가운데를 지나쳐» 반대쪽에 선다.
+       [실측] 줌스텝 뒤 노치 클릭: 클릭 «직후» dx=0(도착 성공) → +200ms 169 → +400ms 171.
+              −500.8 → +101(반대쪽), 그런데 노치는 사라진다.
+     ★M44-b 와 «같은 병»이다 — 판정식이 «아직 안 끝난 자기 변화»를 입력으로 쓴다(GEN §31 계열).
+       M44-b 는 전이를 «끄고» 풀었지만 여기서는 못 끈다(0.3s 애니메이션이 이 기능의 «의도»다)
+       ⇒ 끄는 대신 «전이가 시작되기 전»에 재서 같은 결과를 얻는다. */
   const wrap = document.getElementById('canvas-wrap');
   const scalerEl = document.getElementById('canvas-scaler');
-  if (wrap && scalerEl) {
-    void scalerEl.offsetHeight; void wrap.scrollHeight;
-    const scale = currentZoom / 100;
-    const contentH = scalerEl.offsetHeight * scale;
-    const idealScrollTop = Math.round((contentH - wrap.clientHeight) / 2);
-    const maxScroll = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
-    wrap.scrollTop = Math.max(0, Math.min(maxScroll, idealScrollTop));
-  }
+  /* ★재기부터. 이 시점의 transform 은 «정착»해 있고 panOffsetX 도 아직 옛 값이라 식이 정확하다. */
+  const rest = (wrap && scalerEl) ? getRestingScroll() : null;
+  panOffsetX = 0;
   panOffsetY = 0;
-  _applyScalerTransform();
+  _applyScalerTransformAndSync();
+  if (wrap && scalerEl && rest) {
+    void scalerEl.offsetHeight; void wrap.scrollHeight;
+    wrap.scrollTop = rest.top;
+    wrap.scrollLeft = rest.left;
+  }
+  scheduleNotchUpdate();   // [M35] 여기서 dx 가 0 이 된다 — 표시기도 그 사실을 알아야 한다
 }
 function zoomStep(delta) {
   const wrap = document.getElementById('canvas-wrap');
@@ -227,16 +649,31 @@ function zoomStep(delta) {
   if (!wrap || !scaler) { applyZoom(currentZoom + delta); return; }
 
   const s_old = currentZoom / 100;
-  const newZoom = Math.min(400, Math.max(10, currentZoom + delta));
+  const newZoom = Math.round(Math.min(400, Math.max(10, currentZoom + delta)) * 100) / 100;  // [M67] applyZoom 과 같은 눈금
   if (newZoom === currentZoom) return;
   const s_new = newZoom / 100;
+
+  /* ★[M44-b] 앵커를 «재기 전»에 진행 중인 transform 전이를 끝낸다 — 여기가 원래 자리다.
+     이 함수는 아래(원래 :569)에서 `transition='none'` 을 하며 그 이유를 주석 ⑵에 적어 뒀다
+     (「transition 때문에 동기 측정이 예전 scale 을 반영 못 함」). 그런데 «끄는 자리»가
+     «재는 자리»보다 «뒤»였다 — 가드는 있는데 그 대상을 안 보고 있었다.
+     ⇒ scalerRectBefore 가 직전 applyZoom/zoomStep 의 0.15s 보간 «도중» 값으로 잡히고,
+       그 rect 로 계산한 앵커가 panOffsetX 에 잔여를 남긴다.
+     [실측 GREEN] 회차 간격 400ms(전이 종료 후) → panOffsetX 가 12회 «전부 −9» 로 고정.
+                  회차 간격 60~80ms(전이 중)   → −9 → −80 (또는 −1,177) 로 «계속 자란다».
+     ⇒ 사람도 밟는다: 핀치 → ⌘0 → 다시 핀치 를 0.15s 안에 하면 그때마다 잔여가 붙는다.
+     ⛔`transition:'none'` 만으로는 부족하다 — 취소된 전이의 최종값이 rect 에 오려면 리플로가
+       한 번 필요하다(아래 applyZoom 뒤의 `void scaler.offsetHeight` 와 같은 이유). */
+  const prevTransition = scaler.style.transition;
+  scaler.style.transition = 'none';
+  void scaler.offsetWidth;
 
   // 줌인 + 선택 블록 있음: 해당 섹션이 화면 밖일 때만 그쪽으로 점프
   // (이미 화면에 보이는 경우엔 vpCenter 보존 — 사용자가 보던 영역이 갑자기 점프하지 않도록)
   const selectedBlock = delta > 0 && document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected, .speech-bubble-block.selected'
   );
   let targetEl = selectedBlock ? (selectedBlock.closest('.section-block') || selectedBlock) : null;
@@ -256,6 +693,7 @@ function zoomStep(delta) {
   //     예전 scale을 반영하지 못함 → transition 일시 off + reflow.
   //  3) anchor의 untransformed canvas-y를 줌 전 getBoundingClientRect로 측정해서,
   //     줌 후 scrollTop을 직접 계산. scrollTop으로 흡수 불가 영역은 panOffsetY로 보완.
+
   const wrapRectBefore = wrap.getBoundingClientRect();
   const scalerRectBefore = scaler.getBoundingClientRect();
   const anchorScreenY = targetEl
@@ -275,9 +713,7 @@ function zoomStep(delta) {
   const anchorVpY = targetEl ? (wrapRectBefore.height / 2) : (anchorScreenY - wrapRectBefore.top);
   const anchorVpX = targetEl ? (wrapRectBefore.width  / 2) : (anchorScreenX - wrapRectBefore.left);
 
-  // transition 일시 off → 동기 적용
-  const prevTransition = scaler.style.transition;
-  scaler.style.transition = 'none';
+  // transition 은 «앵커를 재기 전»에 이미 껐다(위 M44-b) — 여기서 다시 끄지 않는다.
   // pan 초기화 (panning 기능 없음 가정, scrollTop 우선)
   panOffsetX = 0;
   panOffsetY = 0;
@@ -300,14 +736,41 @@ function zoomStep(delta) {
   // → panOffsetX = anchorVpX - scaler.offsetLeft - scaler.offsetWidth/2 + wrap.scrollLeft - anchorCanvasOffsetX*s_new
   const wantedX = anchorVpX - scaler.offsetLeft - scaler.offsetWidth / 2 + wrap.scrollLeft - anchorCanvasOffsetX * s_new;
   panOffsetX = wantedX;
-  _applyScalerTransform();
+  _applyScalerTransformAndSync();
 
   // transition 복원 (다음 프레임)
   requestAnimationFrame(() => { scaler.style.transition = prevTransition; });
 }
+/** 휠 이벤트 하나를 «노치 저장통»에 담는다. 순수함수 — 검사가 여기를 잡는다. [M67]
+ *  ★[M67] 마우스 «노치»와 트랙패드 «연속량»을 따로 센다 — 한 자로 재면 둘 중 하나가 망가진다
+ *    (노치 하나가 deltaY 100~120 인데 핀치 한 틱은 3~10 이다: 30배 차이).
+ *  ⛔오분류는 «느려지는» 쪽으로만 틀린다 — 큰 핀치가 노치로 세지면 ×1.2 로 «덜» 움직일 뿐이고,
+ *    작은 노치가 핀치로 세져도 상한(×1.728)에 막힌다. 어느 쪽도 폭주하지 않는다. */
+function wheelZoomAccumulate(acc, deltaY) {
+  const d = -deltaY;                                    // 핀치 아웃(확대) → deltaY 음수
+  if (Math.abs(deltaY) >= WHEEL_NOTCH_MIN_DELTA) acc.notches += Math.sign(d);
+  else acc.pinch += d;
+  return acc;
+}
+
+/** 한 스로틀 틱에 모인 저장통을 «노치 수»로 환산한다. 순수함수 — 검사가 여기를 잡는다. [M67] */
+function wheelZoomNotches(acc) {
+  const n = acc.notches + acc.pinch / PINCH_DELTA_PER_NOTCH;
+  return Math.max(-ZOOM_MAX_NOTCHES_PER_TICK, Math.min(ZOOM_MAX_NOTCHES_PER_TICK, n));
+}
+
+/** 배율을 «비율»로 바꾼다(×1.2 처럼). [M67]
+ *  ⛔zoomStep 을 «고쳐서» 곱셈으로 만들지 않는다 — 그 함수의 인자 뜻이 바뀌면 ⌘+/− 와 툴바 ± 가
+ *    같이 끌려간다. 대신 여기서 비율을 «그 배율에서의 %p» 로 환산해 넘긴다. 그러면 zoomStep 이
+ *    쌓아 둔 보장(M44 팬 잔여 폐기 · M44-b 전이 종료 후 측정 · 앵커 보존)을 «한 줄도» 안 건드린다. */
+function zoomByRatio(ratio) {
+  if (!(ratio > 0) || ratio === 1) return;
+  zoomStep(currentZoom * (ratio - 1));
+}
+
 function zoomFit() {
   const wrap = document.getElementById('canvas-wrap');
-  applyZoom(Math.floor(((wrap.clientWidth - 80) / CANVAS_W) * 100));
+  applyZoom(Math.floor(((wrap.clientWidth - 80) / CANVAS_W) * 100), { keepViewportCenter: true });  // [M62]
 }
 
 
@@ -364,7 +827,7 @@ let clipboard = null;
    - Shift+click: range select from last clicked
 ═══════════════════════════════════ */
 const BLOCK_MULTI_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
-  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, ' +
+  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, ' +
   '.icon-text-block, .shape-block';
 
 let _lastClickedBlock = null;
@@ -418,7 +881,7 @@ function _updateFreeLayoutMultiSelPanel() {
  * — freeLayout 블록은 X/Y/W/H 좌표가 있어 전용 패널로 위임,
  *   세로로 쌓인 일반 블록은 좌표가 없어 '몇 개 선택됨' 카운트 패널만 제공 */
 // 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT
-const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
 
 function _countFlowMultiSel() {
   return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(b => !_isInFreeLayout(b)).length;
@@ -466,7 +929,7 @@ function toggleBlockSelect(block, sec) {
  */
 const SIBLING_MULTI_SEL =
   '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
-  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, ' +
+  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, ' +
   '.icon-text-block, .shape-block, .frame-block, ' +
   // 누락 블록 추가 (#14): divider + 카드/말풍선/배너02/비교/목업/벡터/스텝/조커/캔버스 다중선택 지원
   '.speech-bubble-block, .banner02-block, .comparison-block, ' +
@@ -697,7 +1160,7 @@ function duplicateSelected() {
   // freeLayout 프레임 내 블록 복제 (absolute 배치)
   const selBlock = document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-    '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+    '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
     '.graph-block.selected, .table-block.selected, ' +
     '.label-group-block.selected, .icon-text-block.selected, .icon-block.selected'
   );
@@ -713,10 +1176,17 @@ function duplicateSelected() {
       window.pushHistory('복제');
       const clone = absWrapper.cloneNode(true);
       // 새 id 생성
-      clone.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+      // fix(frame-p0#4): absWrapper는 text/shape 프레임뿐 아니라 «맨몸 절대배치 블록»
+      // (예: asset-block)일 수도 있다 — 항상 'ss_'로 찍으면 id 접두사가 실제 타입과
+      // 어긋난다(bindFrameDropZone 이식·MCP 게이트 불일치). 원래 prefix를 보존하고
+      // genId(actorId 포함)를 쓴다(붙여넣기 경로와 동일 관례).
+      const _gid = (p) => (typeof window.genId === 'function'
+        ? window.genId(p)
+        : p + '_' + Math.random().toString(36).slice(2, 9));
+      clone.id = _gid(absWrapper.id.split('_')[0] || 'ss');
       clone.querySelectorAll('[id]').forEach(el => {
         const prefix = el.id.split('_')[0] || 'el';
-        el.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
+        el.id = _gid(prefix);
       });
       // 오프셋 +20px
       const origLeft = parseInt(absWrapper.style.left || '0');
@@ -727,7 +1197,7 @@ function duplicateSelected() {
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
       // 이벤트 재바인딩
-      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
       clone.querySelectorAll(_ALL_BLOCK_SEL).forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
@@ -745,7 +1215,8 @@ function duplicateSelected() {
       }
       clone._dragBound = false;
       clone._subSecBound = false;
-      window.bindFrameDropZone?.(clone);
+      // fix(frame-p0#4): clone이 실제로는 프레임이 아닌 맨몸 블록일 수 있다 — 호출부도 명시 가드.
+      if (clone.classList.contains('frame-block')) window.bindFrameDropZone?.(clone);
       // 기존 선택 해제 후 복제본 선택
       deselectAll();
       const cloneBlock = clone.querySelector('.text-block, .shape-block, .asset-block') || clone;
@@ -776,32 +1247,53 @@ function duplicateSelected() {
   pasteClipboard();
 }
 
+/* 다중선택 «판정» 셀렉터 — copySelected 와 pasteClipboard 가 «같은 집합»을 봐야 한다.
+ * 붙여넣기 기준점을 copy 와 다른 목록으로 고르면 순서가 어긋난다. */
+const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+  '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+  '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+  '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
+  '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
+  '.laurel-block.selected, .joker-block.selected, .speech-bubble-block.selected';
+
+/* 같은 타입 목록이되 «.selected 여부 무관» — 한 행 안의 블록이 «전부» 선택됐는지 판정할 때 쓴다. */
+const ALL_TYPES_SEL = MULTI_SEL.replace(/\.selected\b/g, '');
+
+// 한 행(.row) 안의 «복사 대상이 될 수 있는 블록»이 전부 .selected 인지 판정.
+// (copySelected 멀티셀렉트 전용 — 부분선택 시 미선택 형제까지 행째로 딸려오는 것을 막는 기준)
+function _isRowFullySelected(row, allTypesSel) {
+  const occupants = [...row.querySelectorAll(allTypesSel)];
+  if (!occupants.length) return true; // 판정 불가(구조상 못 찾음) — 기존처럼 행 단위 취급
+  return occupants.every(b => b.classList.contains('selected'));
+}
+
 function copySelected() {
   // 내부 클립보드(섹션/블록) 복사 timestamp — Cmd+V 시 외부 클립보드(스크래치 이미지)와 우선순위 비교용
   window._internalClipboardTime = Date.now();
 
-  const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
-    '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
-    '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
-    '.laurel-block.selected, .joker-block.selected, .speech-bubble-block.selected';
-
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
   if (allSel.length > 1) {
-    // 멀티셀렉트: DOM 순서대로 고유 행 수집 (같은 row 중복 방지)
+    // 멀티셀렉트: DOM 순서대로 고유 항목 수집.
+    // ★한 행의 occupant(블록/shape-frame)가 «전부» 선택된 경우에만 행(.row) 전체를 한 덩어리로
+    //   담는다(중복 페이스트 방지 + 레이아웃 비율 보존). «일부»만 선택됐으면 미선택 형제가
+    //   덩달아 복사되는 것을 막기 위해 선택된 블록만 개별로 담는다(레이아웃 폭은 유실될 수 있음
+    //   — 행 전체가 아니라 «일부만 골랐다»는 사용자 의도를 우선한다).
     const seen = new Set();
     const items = [];
     allSel.forEach(block => {
       let ref;
       if (block.classList.contains('shape-block')) {
         const ss = block.closest('.frame-block');
-        ref = ss?.closest('.row') || ss || block;
+        const rowEl = ss?.closest('.row') || ss || block;
+        ref = (rowEl !== ss && _isRowFullySelected(rowEl, ALL_TYPES_SEL))
+          ? rowEl
+          : (ss || block);
       } else if (block.classList.contains('gap-block')) {
         ref = block;
       } else {
-        ref = block.closest('.row') || block;
+        const rowEl = block.closest('.row');
+        ref = (rowEl && _isRowFullySelected(rowEl, ALL_TYPES_SEL)) ? rowEl : block;
       }
       if (!seen.has(ref)) {
         seen.add(ref);
@@ -842,7 +1334,13 @@ function copySelected() {
       || selNormal.classList.contains('chat-block')
       || selNormal.classList.contains('laurel-block')
       || selNormal.classList.contains('joker-block');
-    const target = (isGapSel || isFloating) ? selNormal : (selNormal.closest('.row') || selNormal);
+    /* ★단일 선택도 «부분 선택»일 수 있다 — 한 행에 블록이 여럿인데 하나만 고른 경우다.
+     * 이전엔 개수와 무관하게 행 전체를 담아, 고르지 않은 형제까지 복사됐다(실기 재현 2→4).
+     * 「행이 통째로 선택됐을 때만 행을 담는다」는 판정은 멀티 분기와 «같은 헬퍼»를 쓴다 —
+     * 두 분기가 다른 기준을 쓰면 개수에 따라 동작이 갈린다(그게 이 버그였다). */
+    const _row1 = selNormal.closest('.row');
+    const target = (isGapSel || isFloating) ? selNormal
+      : ((_row1 && _isRowFullySelected(_row1, ALL_TYPES_SEL)) ? _row1 : selNormal);
     const banner = target.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: target.outerHTML, sourceBannerId: banner?.id || null };
   } else if (selSS) {
@@ -858,8 +1356,11 @@ function copySelected() {
 
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
+  // ★rebindAll 을 «안 지나는» 문 — 승격을 여기서 직접 한다(el 자신이 블록일 수 있다).
+  //   ⛔아래 id 재생성보다 «먼저» 부르지만, 승격은 id 를 건드리지 않으므로 순서 무관하다.
+  window.migrateGridIdentity?.(el);
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -894,7 +1395,7 @@ function _bindPastedEl(el) {
     if (b.classList.contains('chat-block')) { delete b._chatEditBound; window.renderChatBlock?.(b); }
     // bridge-block: data-bridge-*로 path 재생성 + 대상 섹션 패딩 기준 full-bleed 재적용 (붙여넣기, 코덱스 b3-2)
     if (b.classList.contains('bridge-block')) { window.renderBridgeBlock?.(b); window.applyBridgeFullBleed?.(b); }
-    if (b.classList.contains('duo-block')) window.renderDuoBlock?.(b);
+    if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
     if (b.classList.contains('infocard-block')) window.renderInfoCardBlock?.(b);
     if (b.classList.contains('innercard-block')) window.renderInnerCardBlock?.(b);
   });
@@ -921,33 +1422,104 @@ function _normalizePastedAbsolute(el) {
   }
 }
 
-// banner-preset 안에서 복사한 자식이라면 같은 banner 안에 +20px 오프셋으로 복제.
+// ── C3: 잘라내기(⌘X)/복사(⌘C) → 붙여넣기(⌘V) 「현재 보이는 화면」 ──────────────
+// el(캔버스 절대좌표계 조상 — section-block/frame-block/banner 등)이 지금 #canvas-wrap
+// 뷰포트 안에 실제로 보이는지. zoomStep()의 inView 판정(위 244행 부근)과 같은 규약을 재사용한다
+// (새 판정 기준을 만들지 않는다 — INV-C3 조사에서 지적된 "6번째 좌표 스킴" 함정 회피).
+function _isInViewport(el) {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !el) return false;
+  const wrapRect = wrap.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  return r.bottom > wrapRect.top && r.top < wrapRect.bottom &&
+         r.right  > wrapRect.left && r.left < wrapRect.right;
+}
+
+// 잘라내기(⌘X) 직후엔 선택이 비어있는 게 보통이라 pasteClipboard()의 대상 섹션이
+// DOM 마지막 섹션(document.querySelector('.section-block:last-child'))으로 새곤 했다 —
+// 스크롤이 이동해 있으면 화면 밖으로 붙는다. 대신 「지금 화면에 실제로 보이는」 섹션 중
+// 뷰포트 중앙에 가장 가까운 것을 고른다. 못 찾으면 null(호출부가 기존 last-child로 폴백).
+function _pickVisibleSection() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) return null;
+  const wrapRect = wrap.getBoundingClientRect();
+  const wrapCy = wrapRect.top + wrapRect.height / 2;
+  let best = null, bestDist = Infinity;
+  document.querySelectorAll('.section-block').forEach(sec => {
+    if (!_isInViewport(sec)) return;
+    const r = sec.getBoundingClientRect();
+    const dist = Math.abs((r.top + r.bottom) / 2 - wrapCy);
+    if (dist < bestDist) { bestDist = dist; best = sec; }
+  });
+  return best;
+}
+
+// 뷰포트(#canvas-wrap) 중앙을 containerEl 기준 local px(스케일 보정)로 변환 —
+// scratch-pad.js:1367-1372(OS 클립보드 이미지 ⌘V 시 스크래치패드 뷰포트 중앙 배치)와 같은 공식이다.
+// 원점만 #canvas-scaler 대신 containerEl로 바꿔서 「내부 블록 클립보드」가 이미 쓰는
+// frame-local/banner-local/section-local 좌표계 «안»으로 역변환해 넣는다(새 스킴을 만들지 않음).
+// containerEl이 지금 화면 밖이면 null — 호출부가 기존 +20px 오프셋 로직으로 폴백한다.
+function _viewportCenterInContainerLocal(containerEl) {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || !containerEl || !_isInViewport(containerEl)) return null;
+  const scale = currentZoom / 100;
+  const wrapRect = wrap.getBoundingClientRect();
+  const contRect = containerEl.getBoundingClientRect();
+  return {
+    x: (wrapRect.left + wrapRect.width  / 2 - contRect.left) / scale,
+    y: (wrapRect.top  + wrapRect.height / 2 - contRect.top)  / scale,
+  };
+}
+
+// banner-preset 안에서 복사한 자식이라면 같은 banner 안에 복제 —
+// banner가 지금 화면에 보이면 뷰포트 중앙(banner-local)에, 안 보이면 기존처럼 원본 위치 +20px.
 // banner가 더 이상 없으면 null 반환 → 호출부에서 일반 paste 경로로 fallback.
 function _pasteIntoSourceBanner(el, sourceBannerId) {
   if (!sourceBannerId || !el) return null;
   const banner = document.getElementById(sourceBannerId);
   if (!banner || !banner.dataset?.bannerPreset) return null;
   if (banner.dataset?.freeLayout !== 'true') return null;
+  const vp = _viewportCenterInContainerLocal(banner);
+  const origLeft = parseInt(el.style.left || '0', 10);
+  const origTop  = parseInt(el.style.top  || '0', 10);
   banner.appendChild(el);
   el.style.position = 'absolute';
-  const lx = parseInt(el.style.left || '0', 10) + 20;
-  const ly = parseInt(el.style.top  || '0', 10) + 20;
-  el.style.left = lx + 'px';
-  el.style.top  = ly + 'px';
+  el.style.left = (vp ? Math.round(vp.x) : origLeft + 20) + 'px';
+  el.style.top  = (vp ? Math.round(vp.y) : origTop  + 20) + 'px';
   el.style.marginLeft = '';
   el.style.marginTop  = '';
   return banner;
 }
 
 function pasteClipboard() {
-  if (!clipboard) return;
+  if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
   // 현재 DOM 상태가 마지막 히스토리와 다르면 체크포인트 저장
   // (block-factory.js가 push-before라서 최신 N개 블록 상태가 히스토리에 없는 경우 대비)
   window.ensureHistoryCheckpoint?.('붙여넣기 전');
 
   if (clipboard.type === 'multi-block') {
-    const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
-    if (!sec) return;
+    const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
+    if (!sec) { window.showNoSelectionHint?.(); return; }
+    /* ★기준점 = «마지막» 선택 블록 뒤.
+     * insertAfterSelected 는 document.querySelector 로 «첫» 선택을 잡는다(drag-utils.js:174).
+     * 그러면 A 뒤에 A' 가 들어가고 그 뒤에 B' 가 붙어 A A' B' B = «AABB» 가 된다.
+     * 사용자가 기대하는 건 원본 묶음 «뒤»에 사본 묶음이 붙는 A B A' B' = «ABAB» 다. */
+    let anchor = null;
+    {
+      const sels = [...document.querySelectorAll(MULTI_SEL)].filter(e => e.closest('.section-block') === sec);
+      const last = sels[sels.length - 1];
+      if (last) {
+        /* ★행이 «통째로» 선택된 경우에만 행 뒤에 붙인다.
+         * 선택·비선택이 섞인 행에서 행을 기준으로 삼으면 사본이 행 «밖»(.section-inner 직계)에
+         * 떨어진다 — 실기에서 재현됐다. 섞인 행이면 «그 블록» 뒤가 맞다. */
+        const _lastRow = last.closest('.row');
+        anchor = last.classList.contains('gap-block')
+          ? last
+          : (last.closest('.frame-block[data-text-frame]')
+             || ((_lastRow && _isRowFullySelected(_lastRow, ALL_TYPES_SEL)) ? _lastRow : last));
+        if (!anchor.parentElement) anchor = null;   // 떨어져 나간 노드면 폴백
+      }
+    }
     let lastEl = null;
     clipboard.items.forEach(item => {
       const temp = document.createElement('div');
@@ -967,7 +1539,7 @@ function pasteClipboard() {
         const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
         const savedActiveSS = window._activeFrame;
         if (pasteHasSS) window._activeFrame = null;
-        insertAfterSelected(sec, el);
+        if (anchor) anchor.after(el); else insertAfterSelected(sec, el);
         if (pasteHasSS) window._activeFrame = savedActiveSS;
       }
       _bindPastedEl(el);
@@ -990,7 +1562,8 @@ function pasteClipboard() {
       const prefix = child.id.split('_')[0] || 'el';
       child.id = genIdFn(prefix);
     });
-    const refSection = getSelectedSection();
+    // 선택이 없으면(잘라내기 직후 흔함) DOM 끝이 아니라 지금 화면에 보이는 섹션 옆에 붙인다.
+    const refSection = getSelectedSection() || _pickVisibleSection();
     if (refSection) {
       refSection.after(el);
     } else {
@@ -1010,23 +1583,33 @@ function pasteClipboard() {
       || (window._activeFrame?.dataset?.freeLayout ? window._activeFrame : null);
     if (!frame) {
       // 대상 프레임 못 찾음 → 일반 경로 폴백(섹션 끝에 삽입)
-      const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+      const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
       if (sec) { insertAfterSelected(sec, el); _bindPastedEl(el); _normalizePastedAbsolute(el); }
     } else {
       // ★붙여넣기도 «새 블록»이다 — 전역 genId 를 써야 actorId 조각이 붙는다.
       const _gid = (p) => (typeof window.genId === 'function'
         ? window.genId(p)
         : p + '_' + Math.random().toString(36).slice(2, 9));
-      el.id = _gid('ss');
+      // fix(frame-p0#4): 항상 'ss'로 찍으면 실제로는 asset-block 등인 요소가
+      // ss_ 접두사를 얻어 프레임으로 오판된다(bindFrameDropZone 이식·MCP 게이트 불일치의 원인) —
+      // 원래 id의 접두사(요소 실제 타입)를 보존한다.
+      el.id = _gid(el.id.split('_')[0] || 'ss');
       el.querySelectorAll('[id]').forEach(c => { const p = c.id.split('_')[0] || 'el'; c.id = _gid(p); });
       const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
-      el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
-      el.dataset.offsetX = String(ox + 20); el.dataset.offsetY = String(oy + 20);
+      // 프레임이 지금 화면에 보이면 뷰포트 중앙(frame-local)에, 안 보이면 기존처럼 원본 위치 +20px.
+      const vp = _viewportCenterInContainerLocal(frame);
+      const nx = vp ? Math.round(vp.x) : ox + 20;
+      const ny = vp ? Math.round(vp.y) : oy + 20;
+      el.style.left = nx + 'px'; el.style.top = ny + 'px';
+      el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
       frame.appendChild(el);
-      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
       el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
       if (el.matches?.(_ALL)) { delete el._blockBound; window.bindBlock?.(el); }
-      el._dragBound = false; el._subSecBound = false; window.bindFrameDropZone?.(el);
+      el._dragBound = false; el._subSecBound = false;
+      // fix(frame-p0#4): el이 실제로는 프레임이 아닌 맨몸 블록(예: asset-block)일 수 있다 —
+      // bindFrameDropZone은 함수 내부에서도 게이트하지만 호출부도 명시적으로 가드한다.
+      if (el.classList.contains('frame-block')) window.bindFrameDropZone?.(el);
       deselectAll();
       const cb = el.querySelector('.text-block, .shape-block, .asset-block') || el;
       cb.classList.add('selected');
@@ -1039,21 +1622,24 @@ function pasteClipboard() {
       _bindPastedEl(el);
     } else if (el.classList.contains('sticker-block')) {
       // 스티커: section 안에 absolute로 +20px 오프셋해 추가
-      const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
-      if (!sec) return;
+      const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
+      if (!sec) { window.showNoSelectionHint?.(); return; }
+      // 스티커: section 안에 absolute로 배치 — section이 화면에 보이면 뷰포트 중앙(section-local),
+      // 안 보이면 기존처럼 원본 위치 +20px 오프셋.
+      const curX = parseInt(el.dataset.x) || parseInt(el.style.left) || 0;
+      const curY = parseInt(el.dataset.y) || parseInt(el.style.top) || 0;
+      const vp = _viewportCenterInContainerLocal(sec);
       sec.appendChild(el);
       // ID 재생성 (기존 _bindPastedEl이 처리)
       _bindPastedEl(el);
-      // 위치 오프셋
-      const curX = parseInt(el.dataset.x) || parseInt(el.style.left) || 0;
-      const curY = parseInt(el.dataset.y) || parseInt(el.style.top) || 0;
-      el.dataset.x = String(curX + 20);
-      el.dataset.y = String(curY + 20);
+      // 위치 — vp 있으면 뷰포트 중앙, 없으면 기존 +20px 오프셋
+      el.dataset.x = String(vp ? Math.round(vp.x) : curX + 20);
+      el.dataset.y = String(vp ? Math.round(vp.y) : curY + 20);
       window.renderStickerBlock?.(el);
       window.bindStickerSelect?.(el);
     } else {
-      const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
-      if (!sec) return;
+      const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
+      if (!sec) { window.showNoSelectionHint?.(); return; }
       const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
       const savedActiveSS = window._activeFrame;
       if (pasteHasSS) window._activeFrame = null;
@@ -1273,7 +1859,7 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       document.body.classList.contains('preview-mode') ? window.previewZoomStep?.(-10) : zoomStep(-10);
     }
-    if (e.key === '0')                  { e.preventDefault(); applyZoom(100); }
+    if (e.key === '0')                  { e.preventDefault(); applyZoom(100, { keepViewportCenter: true }); }  // [M62]
     if (e.key === 'z' && !e.shiftKey)   { if (document.activeElement?.isContentEditable) return; e.preventDefault(); undo(); return; }
     // ★Shift+z 는 브라우저가 key:'Z'(대문자)로 준다 — 소문자만 검사하면 ⌘⇧Z redo 가 «전혀» 안 먹는다.
     //   바로 아래 취소선(⌘⇧X)이 (e.key==='x'||e.key==='X') 로 둘 다 받는 것과 같은 규약으로 맞춘다.
@@ -1441,7 +2027,7 @@ document.addEventListener('keydown', e => {
       if (activeSec) {
         const allBlocks = activeSec.querySelectorAll(
           '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, ' +
-          '.label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block'
+          '.label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block'
         );
         allBlocks.forEach(b => b.classList.add('selected'));
       }
@@ -1615,7 +2201,7 @@ document.addEventListener('keydown', e => {
     const sel = document.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
       '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
       '.icon-block.selected, .vector-block.selected, .step-block.selected, .shape-block.selected'
     );
@@ -1943,7 +2529,7 @@ function deleteSelectedFromCanvas() {
       const ssHasSelectedChild = selSS.querySelector(
         '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
         '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-        '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected'
+        '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected'
       );
       if (!ssHasSelectedChild) {
         consumed = true;
@@ -2077,10 +2663,13 @@ function selectSection(sec, scrollIntoView = false) {
      * ★공식으로 미리 계산하지 «않는다» — 매번 0 으로 되돌리고 «모자란 만큼»만 준다.
      *   그래야 배율이 낮아 레이아웃과 화면이 어긋날 때도 정확하고, 여백이 누적되지 않는다. */
     if (scalerEl) {
-      scalerEl.style.marginBottom = '0px';
+      /* ★[FIX-⑴] margin 을 직접 쓰지 «않는다» — 꼬리는 자기 값만 정하고, DOM 은 _applyPanRoom 이
+         팬 여지와 «합쳐» 쓴다. 예전엔 이 두 줄이 팬 여지를 덮어써 없앴다.
+         ★기능은 그대로다: 매번 0 으로 되돌리고 «모자란 만큼»만 준다(마지막 섹션도 top+40). */
+      setCanvasTail(0);
       const max = canvasWrapEl.scrollHeight - canvasWrapEl.clientHeight;
       const short = target - max;
-      if (short > 0) scalerEl.style.marginBottom = Math.round(short) + 'px';
+      if (short > 0) setCanvasTail(short);
     }
     canvasWrapEl.scrollTo({ top: target, behavior: 'smooth' });
   }
@@ -2177,6 +2766,20 @@ if (_verBadge) {
     .catch(() => {});
 }
 
+/* [A3] 같은 값을 «상단바»에도 (현빈 2026-09-04).
+ * ⛔여기선 실패 시 「BETA」 같은 대체 문구를 안 쓴다 — 상단바 배지는 «없어도 되는» 자리라
+ *   버전을 모를 때 뭔가 띄우면 그게 버전인 줄 읽힌다. 못 얻으면 숨긴다. */
+const _tbVerBadge = document.getElementById('topbar-version-badge');
+if (_tbVerBadge) {
+  window.electronAPI?.getVersion?.()
+    .then(v => {
+      if (!v) return;
+      _tbVerBadge.textContent = `v${v}`;
+      _tbVerBadge.style.display = '';
+    })
+    .catch(() => {});
+}
+
 // Electron 환경이면 JSON 파일에서 프리셋 로드.
 // _presetsReady: race condition 방지용 Promise — showSectionProperties 등에서 await 후 UI 렌더.
 // Electron 비환경(브라우저)에서는 즉시 resolve하여 PRESET_FALLBACK 사용.
@@ -2194,6 +2797,24 @@ if (window.electronAPI) {
   _presetsReady = Promise.resolve();
 }
 
+
+/* ★[P-A1] 값이 «이미 그 값»이면 쓰지 않는다.
+   왜 이게 성능 처방인가 — 실측(2026-09-05, 진짜 입력):
+     `deselectAll` 자체는 8ms 로 싸다. 그래서 두 번 「범인 아님」으로 기각했다.
+     그런데 이 함수는 «비용»이 아니라 «방아쇠»였다 — 텍스트블록 전체에 contenteditable 을
+     249개 다시 쓰고(값이 같아도 DOM mutation 이다), `autoSaveObserver`(canvasEl,
+     attributes:true, subtree:true — save-load.js:1663)가 그걸 «편집»으로 집계한다.
+     그 옵저버의 필터는 `class` 만 제외하고 `contenteditable` 은 통과시킨다(save-load.js).
+     ⇒ scheduleAutoSave() → 디바운스 1500ms → serializeProject()(90MB) →
+       ★메인스레드 811ms 정지 + IPC 응답 대기 401ms.
+     ⇒ 클릭하고 1.5초 안에 팬하면 그 정지가 «팬 도중»에 떨어진다. 그게 「탁」이다.
+   실측 근거: 표시등 관측으로 예측 2018ms vs 관측 2027ms(오차 9ms).
+     그리고 자동저장을 끄면 팬중 최대가 749~825ms → 16.7ms 로 사라진다(측정용 절제).
+   ⛔이 처방은 «클릭 → 팬» 경로만 막는다. «진짜 편집 → 팬» 은 자동저장이 정당하게 걸리므로
+     여전히 정지한다. 그건 별도 처방(제스처 중 유예)이 필요하다 — 이 커밋으로 끝난 게 아니다. */
+function _setAttrIfChanged(el, name, value) {
+  if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+}
 
 function deselectAll() {
   clearMultiSel();
@@ -2214,13 +2835,13 @@ function deselectAll() {
   canvas.querySelectorAll('.section-block').forEach(s => s.classList.remove('selected'));
   canvas.querySelectorAll('.text-block').forEach(t => {
     t.classList.remove('selected', 'editing');
-    t.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('contenteditable','false'));
+    t.querySelectorAll('[contenteditable]').forEach(el => _setAttrIfChanged(el, 'contenteditable', 'false'));
   });
   canvas.querySelectorAll('.asset-block').forEach(a => {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .annotation-block, .sticker-block').forEach(b => {
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .annotation-block, .sticker-block').forEach(b => {
     b.classList.remove('selected');
     // 어노테이션은 핸들도 함께 정리
     if (b.classList.contains('annotation-block')) b.querySelectorAll('.annot-handle').forEach(h => h.remove());
@@ -2232,11 +2853,11 @@ function deselectAll() {
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
-    b.querySelectorAll('.label-item-text').forEach(el => el.setAttribute('contenteditable','false'));
+    b.querySelectorAll('.label-item-text').forEach(el => _setAttrIfChanged(el, 'contenteditable', 'false'));
   });
   canvas.querySelectorAll('.table-block').forEach(b => {
     b.classList.remove('selected');
-    b.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable','false'));
+    b.querySelectorAll('[contenteditable="true"]').forEach(el => _setAttrIfChanged(el, 'contenteditable', 'false'));
     // #5-b: 셀 선택 마킹도 함께 해제
     b.querySelectorAll('td.cell-selected, th.cell-selected').forEach(c => c.classList.remove('cell-selected'));
   });
@@ -2259,9 +2880,16 @@ function deselectAll() {
   window.hideIconHandles?.();
   window.hideAssetRadiusHandles?.();
   window.hideAssetResizeHandles?.();
+  /* ★아이콘원형 핸들도 «여기서» 정리한다 — 빠져 있었다.
+   * 빠져 있으면 모듈 내부의 `_icbResizeBlock` 이 «선택 해제된 블록»을 계속 가리킨 채 남고,
+   * 같은 블록을 다시 클릭하면 `showIconCircleResizeHandle` 의 동일블록 가드에 걸려 no-op 이 된다.
+   * (핸들 DOM 은 그 사이 다른 정리가 지워버려서 «영영 안 돌아온다» — 실측 재현: 재클릭 시 1→0개.
+   *  에셋 블록은 hide 가 자기 상태변수를 null 로 되돌려서 같은 증상이 없다.) */
+  window.hideIconCircleResizeHandle?.();
   window.hideCanvasRadiusHandles?.();
   window.hideCanvasResizeHandles?.();
   window.hideVectorResizeHandles?.();
+  window.hideGridGutters?.(); // 그리드(듀오) 블록 열 경계 드래그 거터 (P2)
   window._deselectAllGradients?.(); // gradient 블록 선택 해제 + 4모서리 핸들 제거 (deselectAll 셀렉터에 없어 누락됐던 정리)
   window.hideGradientLine?.(); // banner02/comparison 배경 그라데이션 온캔버스 라인 숨김
   canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
@@ -2312,7 +2940,7 @@ function moveSelectedBlocks(direction) {
 
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected';
 
   const selBlocks = [...document.querySelectorAll(BLOCK_SEL)];
@@ -2443,7 +3071,7 @@ document.querySelectorAll('.section-block').forEach(sec => {
     selectSectionWithModifier(sec, e);
     // deselectAll() 이후 row-active 복원 (빈 여백 클릭은 제외 — 섹션 선택만)
     const row = e.target.closest('.row');
-    if (row && !isRowMarginClick(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) {
+    if (row && !isRowMarginClick(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -2464,19 +3092,20 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 (function initTrackpadGestures() {
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap) return;
-  let accum = 0, timer = null;
+  const zoomAcc = { notches: 0, pinch: 0 };   // [M67] 마우스 노치 «개수» / 트랙패드 «연속량» 따로
+  let timer = null;
   wrap.addEventListener('wheel', (e) => {
     if (document.body.classList.contains('preview-mode')) return;
     if (e.ctrlKey) {
-      // 핀치 = 줌
+      // 핀치/휠 = 줌
       e.preventDefault();
-      accum += -e.deltaY; // 핀치 아웃(확대) → deltaY 음수
+      wheelZoomAccumulate(zoomAcc, e.deltaY);   // [M67]
       if (timer) return;
       // setTimeout 스로틀(~60fps) — rAF는 비포커스 윈도우에서 멈춰서 setTimeout 사용
       timer = setTimeout(() => {
-        const d = accum; accum = 0; timer = null;
-        const step = Math.max(-30, Math.min(30, Math.round(d * 2)));
-        if (step !== 0) zoomStep(step);
+        const n = wheelZoomNotches(zoomAcc);
+        zoomAcc.notches = 0; zoomAcc.pinch = 0; timer = null;
+        if (n !== 0) zoomByRatio(Math.pow(ZOOM_RATIO_PER_NOTCH, n));   // [M67] «곱셈» 스텝
       }, 16);
     } else {
       // 두손가락 드래그 = 캔버스 팬. 스크롤로 흡수 가능한 만큼 스크롤하고,
@@ -2488,23 +3117,24 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
       const resY = e.deltaY - (wrap.scrollTop - bt);
       const resX = e.deltaX - (wrap.scrollLeft - bl);
       if (resX || resY) {
-        panOffsetX -= resX;
-        panOffsetY -= resY;
-        // over-scroll 상한: 콘텐츠 끝을 지나 최대 '반 화면'까지만 휠 팬 허용.
-        // ★휠이 실제로 민 축만 클램프(resX/resY 각각) — 세로 over-scroll이 기존 가로 오프셋(줌/스페이스팬)을
-        //   깎거나 노치를 튀게 하지 않도록(Codex 리뷰 반영). 줌/스크롤바/스페이스팬은 이 경로를 안 타므로 무영향.
-        if (resX) { const LIM_X = wrap.clientWidth  / 2; panOffsetX = Math.max(-LIM_X, Math.min(LIM_X, panOffsetX)); }
-        if (resY) { const LIM_Y = wrap.clientHeight / 2; panOffsetY = Math.max(-LIM_Y, Math.min(LIM_Y, panOffsetY)); }
-        _applyScalerTransform();
-        if (window.updateNotchPosition) window.updateNotchPosition();
+        // [P-W1] 잔여를 «여지»로 흡수한다 — transform 을 안 쓰므로 0.15s 보간이 안 걸린다.
+        if (resX) absorbWheelResidual('x', resX);
+        if (resY) absorbWheelResidual('y', resY);
+        scheduleWheelSettle();
+        // 상한은 absorbWheelResidual 안에 «여지 상한»으로 옮겼다(원래 목적 = 콘텐츠 끝 지나
+        // 무한 누적 방지, 0ab2f72). transform 은 여기서 «안» 쓴다.
       }
+      /* ★[M35] 갱신을 «잔여가 있을 때»에 묶어 두면 안 된다 — 잔여 없이 scrollLeft 만 움직인
+         휠도 dx 를 바꾼다. 그 조건문이 MISS_SHOW 25건의 절반이었다(휠 가로·휠 세로 전 배율).
+         ⛔여기서 «직접» 부르지 않는다: 휠은 프레임마다 오고 updateNotchPosition 은 gBCR 을 읽는다. */
+      scheduleNotchUpdate();
     }
   }, { passive: false });
 })();
 
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => window.bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가
@@ -2593,6 +3223,50 @@ function moveSection(sectionId, { beforeId, afterId } = {}) {
 }
 window.moveSection = moveSection;
 
+/* ── 블록 이동 (섹션 내부/섹션 간, beforeId 또는 afterId) ──
+   MCP 결손 조사(INV-B3/B1)에서 1순위로 확정된 기능: move_section만 있고 그 아래
+   단위인 블록 이동이 전무했다(레이어패널 드래그로만 가능).
+   ★실제로 옮기는 DOM 단위는 blockId 그 자체가 아닐 수 있다 — 레이어패널 드래그가 쓰는
+   «재배치 단위» 규칙(js/panels/layer-panel.js의 _dragTarget 배정)과 동일하게:
+     · .row 안에 있는 블록(멀티카드 등 side-by-side 포함) → 그 row 전체가 단위
+     · text-frame(.frame-block[data-text-frame="true"])에 감싸인 text-block → 그 frame이 단위
+   그대로 blockId만 옮기면 row가 쪼개지거나 텍스트가 프레임 밖으로 빠져나가 배경/크기를 잃는다
+   (INV-B3 ①에서 지적된 update_asset_block류 문제와 같은 종류의 "겉보기엔 되는데 구조가 깨지는" 함정).
+   beforeId/afterId도 같은 규칙으로 승격해 기준을 잡는다. */
+function _resolveBlockMoveUnit(el) {
+  if (!el) return null;
+  const row = el.closest?.('.row');
+  if (row) return row;
+  if (el.classList?.contains('text-block')) {
+    const parent = el.parentElement;
+    if (parent && parent.classList?.contains('frame-block') && parent.dataset?.textFrame === 'true') return parent;
+  }
+  return el;
+}
+function moveBlock(blockId, { beforeId, afterId } = {}) {
+  const raw = document.getElementById(blockId);
+  if (!raw || raw.classList.contains('section-block')) return false; // section은 moveSection 사용
+  if (!beforeId && !afterId) return false;
+  const unit = _resolveBlockMoveUnit(raw);
+  if (!unit || !unit.parentElement) return false;
+  let refRaw = null, mode = null;
+  if (beforeId) { refRaw = document.getElementById(beforeId); mode = 'before'; }
+  else { refRaw = document.getElementById(afterId); mode = 'after'; }
+  if (!refRaw || refRaw.classList.contains('section-block')) return false;
+  const refUnit = _resolveBlockMoveUnit(refRaw);
+  if (!refUnit || refUnit === unit) return false;
+  // 순환 방지 — 기준이 이동 대상 내부(또는 그 반대)면 거부
+  if (unit.contains(refUnit) || refUnit.contains(unit)) return false;
+  // ★moveSection의 실수(이동 «후»에 pushHistory → undo가 대기중 변경까지 뭉갬, INV-B3 ②)를
+  //   복제하지 않는다 — 검증을 모두 끝낸 뒤, mutate «전»에 pushHistory.
+  pushHistory('블록 이동 전');
+  if (mode === 'before') refUnit.before(unit); else refUnit.after(unit);
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+  return { movedUnitId: unit.id || null, refUnitId: refUnit.id || null };
+}
+window.moveBlock = moveBlock;
+
 /* ── 특정 블록 뒤에 갭 삽입 (기존 섹션 중간 갭) ── */
 function insertGapAfterBlock(blockId, height) {
   const block = document.getElementById(blockId);
@@ -2669,6 +3343,13 @@ document.addEventListener('click', e => {
       if (!panMode) {
         panMode = true;
         canvasWrap.classList.add('pan-mode');
+        /* [P-A2] ★유예를 «스페이스» 시점에도 건다.
+           mousedown 에만 걸면, 스페이스와 클릭을 «거의 동시에» 누른 회차에서
+           mousedown 이 `panMode === false` 로 early return 해 유예가 «안 걸린다».
+           실측: 유효 회차인데 defer 호출 0회 → 디바운스 그대로 1509ms 에 1983ms 정지.
+           스페이스는 팬의 «시작 신호»이므로 여기서 걸면 순서와 무관하게 걸린다.
+           (재개는 keyup·mouseup·blur·타임아웃 넷이 이미 덮는다) */
+        window.deferAutoSave?.();
       }
     }
   });
@@ -2677,9 +3358,18 @@ document.addEventListener('click', e => {
     if (e.code === 'Space') {
       panMode = false;
       panning = false;
+      scrollStart = null;
+      setPanScrollBaseline(null);   // [FIX-⑵] 스페이스를 «먼저» 떼는 순서에서도 기준점을 남기지 않는다
       canvasWrap.classList.remove('pan-mode', 'panning');
+      // [P-A2] ⑵팬 모드 이탈 — 마우스를 창 «밖»에서 떼면 mouseup 이 안 올 수 있다.
+      //   고착은 곧 「저장이 영영 안 됨」이라 재개 경로를 여러 곳에 둔다.
+      window.resumeAutoSave?.();
     }
   });
+
+  let scrollStart = null;
+  let _swallowPanClick = false;       // [P-R2] 팬 직후 click 한 번을 삼킨다
+  let _swallowPanClickTimer = null;
 
   // capture 단계: 하위 요소 stopPropagation 우회
   canvasWrap.addEventListener('mousedown', e => {
@@ -2687,24 +3377,81 @@ document.addEventListener('click', e => {
     panning = true;
     panStart = { x: e.clientX, y: e.clientY };
     panOffsetStart = { x: panOffsetX, y: panOffsetY };
+    // [P-A2] 미는 동안 자동저장을 «미룬다»(취소 아님 — 놓으면 바로 재예약).
+    //   90MB 직렬화가 811ms + IPC 401ms 라 팬 도중에 터지면 그게 「탁」이다.
+    window.deferAutoSave?.();
+    // [S2] 팬을 «네이티브 스크롤»로 한다 — 시작 시점의 스크롤을 기준점으로 잡는다.
+    ensurePanRoom();
+    scrollStart = { left: canvasWrap.scrollLeft, top: canvasWrap.scrollTop };
+    /* [FIX-⑵] 여지를 깎는 코드(휠 정착 타이머 등)가 이 기준점을 «같이» 옮기게 등록한다.
+       객체 «참조»를 그대로 넘긴다 — 보정이 이 블록의 scrollStart 에 곧바로 반영돼야 한다. */
+    setPanScrollBaseline(scrollStart);
     canvasWrap.classList.add('panning');
     e.preventDefault();
     e.stopPropagation();
   }, true);
 
   window.addEventListener('mousemove', e => {
-    if (!panning) return;
-    panOffsetX = panOffsetStart.x + (e.clientX - panStart.x);
-    panOffsetY = panOffsetStart.y + (e.clientY - panStart.y);
-    _applyScalerTransform();
+    if (!panning || !scrollStart) return;
+    /* [S2] ★팬 중에는 scaler.style.transform 을 «쓰지 않는다».
+       스크롤 컨테이너 안에서 transform 으로 콘텐츠를 옮기면 그 프레임의 표시목록이
+       통째로 다시 기록된다(실측 Paint 27ms → 165ms). 그래서 이동은 전부 스크롤로 한다.
+
+       ★«절대 델타»로 매 프레임 다시 계산한다(증분 += 금지).
+         증분이면 오차가 누적되고, 끝에 닿았다 되돌아올 때 손이 미끄러진 것처럼 느껴진다. */
+    const wantDX = e.clientX - panStart.x;
+    const wantDY = e.clientY - panStart.y;
+    // 팬은 콘텐츠를 손끝이 «따라가게» 한다 → 스크롤은 반대 부호.
+    canvasWrap.scrollLeft = scrollStart.left - wantDX;
+    canvasWrap.scrollTop = scrollStart.top - wantDY;
+    // 끝에 닿아 흡수 못한 만큼이 남으면 «그 축의 여지»를 한 화면 늘리고 다시 시도한다.
+    // (여백을 늘리는 방향은 clamp 가 안 걸린다 — 실측)
+    /* 흡수 못한 잔여가 있으면 «그 축의 여지»를 한 화면 늘리고 «다시» 목표를 적용한다.
+       ★기준점을 «되맞추면» 안 된다 — 그러면 그 프레임의 잔여를 잃어 커서보다 덜 간다
+         (실측: 300px 끌면 290px, 이득비 0.967). 여지 확장이 스크롤에 더한 만큼 기준점을
+         «같이 옮겨» 불변식 `scrollLeft = scrollStart.left - wantDX` 를 지킨다. */
+    if (Math.abs((scrollStart.left - canvasWrap.scrollLeft) - wantDX) > 0.5) {
+      scrollStart.left += growPanRoom('x');
+      canvasWrap.scrollLeft = scrollStart.left - wantDX;
+    }
+    if (Math.abs((scrollStart.top - canvasWrap.scrollTop) - wantDY) > 0.5) {
+      scrollStart.top += growPanRoom('y');
+      canvasWrap.scrollTop = scrollStart.top - wantDY;
+    }
     if (window.updateNotchPosition) window.updateNotchPosition();
   });
 
   window.addEventListener('mouseup', () => {
     if (!panning) return;
     panning = false;
+    scrollStart = null;
+    setPanScrollBaseline(null);   // [FIX-⑵] 아래 shrinkPanRoom «전»에 푼다(팬은 이미 끝났다)
+    /* [P-R2] 팬을 놓으면 뒤이어 `click` 이 «커서 아래 요소»에 정상 발화한다.
+       mousedown 은 캡처에서 막지만 click 은 안 막혀서, 팬을 놓을 때마다 블록이 선택됐다.
+       현빈 확인: 「의도 아님」. ⇒ 팬으로 끝난 제스처의 click «한 번»만 삼킨다. */
+    _swallowPanClick = true;
+    clearTimeout(_swallowPanClickTimer);
+    _swallowPanClickTimer = setTimeout(() => { _swallowPanClick = false; }, 300);
+    // 늘어난 여지를 «안전한 만큼만» 되돌린다(현재 위치가 요구하는 양은 남긴다).
+    // ⛔기본값으로 되돌리면 clamp 가 걸려 놓는 순간 캔버스가 튄다.
+    shrinkPanRoom();
     if (panMode) canvasWrap.classList.remove('panning');
+    // [P-A2] ⑴정상 종료 — 미뤄 둔 자동저장을 «여기서» 다시 건다.
+    //   ⛔즉시 저장이 아니라 «재예약»이다. 놓자마자 811ms 를 태우면 「놓을 때 탁」이 된다.
+    //     원래 디바운스(1500ms)를 이 시점부터 다시 세는 셈이라, 사람이 손을 뗀 뒤 여유가 생긴다.
+    window.resumeAutoSave?.();
   });
+
+  /* [P-R2] 팬 직후의 click 삼키기 — window 캡처라 앱의 어떤 핸들러보다 먼저 본다.
+     ⛔«한 번»만 삼킨다: 타이머로 풀어 두지 않으면 다음 정상 클릭까지 잡아먹는다. */
+  window.addEventListener('click', e => {
+    if (!_swallowPanClick) return;
+    _swallowPanClick = false;
+    clearTimeout(_swallowPanClickTimer);
+    if (!canvasWrap.contains(e.target)) return;   // 캔버스 밖 클릭은 그대로 둔다
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
 }
 
 /* ═══════════════════════════════════
@@ -2741,8 +3488,10 @@ const CANVAS_TAIL_GAP = 40;   // 섹션 위에 남길 여유
      「실제로 문제가 보이면 그때 잡자」 — 지금 clamp 를 넣으면 그 자체로 중앙에서 벗어난다. */
 /** 꼬리 여백을 버린다 — 배율변경·페이지전환·섹션삭제 등 «상태가 바뀌면» 남겨두지 않는다. */
 function resetCanvasTail() {
-  const sc = document.getElementById('canvas-scaler');
-  if (sc && sc.style.marginBottom && sc.style.marginBottom !== '0px') sc.style.marginBottom = '0px';
+  /* ★[FIX-⑴] 예전엔 여기서 `marginBottom='0px'` 로 DOM 을 «직접» 지웠다 — 그 한 줄이 팬 여지를
+     같이 지웠다(applyZoom 끝에서 «항상» 불린다). 이제 꼬리 «값»만 0 으로 내리고 DOM 은
+     소유자(_applyPanRoom)가 팬 여지와 합쳐 다시 쓴다. */
+  setCanvasTail(0);
 }
 window.resetCanvasTail = resetCanvasTail;
 
@@ -2788,21 +3537,30 @@ const FP_FIXED_POPUPS = ['#fp-plugin-panel'];
 
   let _notchHideTimer = null;
 
+  /* ★[N-1] 노치는 «가로 전용»이다.
+     팬이 네이티브 스크롤로 옮겨간 뒤 «세로 팬»과 «세로 스크롤»은 구분이 불가능해졌다.
+     세로까지 보면 휠로 문서를 내려보기만 해도 노치바가 상시로 뜬다 — 명백히 나쁘다.
+     그리고 세로 위치는 «스크롤바»가 이미 알려 준다.
+     ⇒ 가로 스크롤바를 숨기기로 한 결정(현빈) 때문에 «가로 이탈을 알리는 UI 가 노치 하나»가 됐고,
+       노치를 가로 전용으로 두는 것이 그 결정과 정합적이다.
+     ⛔panOffsetX 가 아니라 getPanPosition().x 를 본다 — 팬이 스크롤로 가서 panOffset 은
+       대개 0 이다. panOffset 만 보면 «항상 가운데»라고 거짓말한다(진실의 절반). */
+  const _notchOffX = () => getPanPosition().x;
+
   function updateNotchPosition() {
-    // panOffset 기준으로 노치 위치 표시 (0 = 중앙)
-    const isCentered = Math.abs(panOffsetX) < 5 && Math.abs(panOffsetY) < 5;
+    const dx = _notchOffX();
+    const isCentered = Math.abs(dx) < 5;
     notch.classList.toggle('centered', isCentered);
     // 노치 위치: pill 가로 중앙 기준으로 offset 반영
     const pill = 80;
-    const clampedX = Math.max(4, Math.min(pill - 4, pill / 2 - panOffsetX / 10));
+    const clampedX = Math.max(4, Math.min(pill - 4, pill / 2 - dx / 10));
     notch.style.left = clampedX + 'px';
 
     if (!isCentered) {
       notchBar.classList.add('visible');
       clearTimeout(_notchHideTimer);
       _notchHideTimer = setTimeout(() => {
-        if (Math.abs(panOffsetX) < 5 && Math.abs(panOffsetY) < 5)
-          notchBar.classList.remove('visible');
+        if (Math.abs(_notchOffX()) < 5) notchBar.classList.remove('visible');
       }, 2500);
     }
   }
@@ -2813,10 +3571,16 @@ const FP_FIXED_POPUPS = ['#fp-plugin-panel'];
     scaler.style.transition = 'transform 0.3s ease';
     resetPanOffset();
     setTimeout(() => { scaler.style.transition = ''; }, 320);
-    notchBar.classList.remove('visible');
+    /* ★[FIX-⑶] 숨기는 것은 «실제로 돌아왔을 때만». 예전엔 무조건 숨겨서, 복원에 실패해도
+       노치만 사라지고 변위는 남았다(다음 팬에 다시 등장 = 조용한 무력화). 결과로 판정한다. */
+    if (Math.abs(_notchOffX()) < 5) notchBar.classList.remove('visible');
+    else updateNotchPosition();
   });
 
   setTimeout(updateNotchPosition, 100);
+  /* ★[M35] 창 리사이즈는 clientWidth 를 바꿔 «쉼 위치»를 옮긴다 — 팬을 안 했는데 dx 가 변한다.
+     여태 이 경로엔 노치 갱신이 «아예» 없었다(실측 MISS_SHOW 3/3 배율). */
+  window.addEventListener('resize', scheduleNotchUpdate);
 }
 
 /* ── Col 클릭: capture-phase ── */
@@ -2824,7 +3588,7 @@ canvasEl.addEventListener('click', e => {
   const col = e.target.closest('.col');
   if (!col) return;
   // 블록 클릭은 블록 핸들러에게 위임
-  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) return;
+  if (e.target.closest(BLOCK_DELEGATE_SEL)) return;   // SSOT — globals.js
   // col-add 버튼/메뉴는 통과 (메뉴 열기 동작 유지)
   if (e.target.closest('.col-add-btn, .col-add-menu')) return;
 
@@ -2858,10 +3622,11 @@ window.deselectAll = deselectAll;
 window.getBlockBreadcrumb = getBlockBreadcrumb;
 window.selectSection = selectSection;
 window.zoomStep = zoomStep;
+window.zoomByRatio = zoomByRatio;   // [M67] 계측 하네스·검사가 «비율 스텝»을 직접 부를 수 있게
 window.zoomFit = zoomFit;
 window.applyZoom = applyZoom;
 window.getPanOffset = () => ({ x: panOffsetX, y: panOffsetY });
-window.setPanOffset = (x, y) => { panOffsetX = x; panOffsetY = y; _applyScalerTransform(); };
+window.setPanOffset = (x, y) => { panOffsetX = x; panOffsetY = y; _applyScalerTransform(); scheduleNotchUpdate(); };
 window.toggleAllSections = toggleAllSections;
 window.switchToTab = switchToTab;
 window.initFileTabToggle = initFileTabToggle;
@@ -2996,6 +3761,7 @@ export {
   getBlockBreadcrumb,
   selectSection,
   zoomStep,
+  zoomByRatio,
   zoomFit,
   applyZoom,
   toggleAllSections,
