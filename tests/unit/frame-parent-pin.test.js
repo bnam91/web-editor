@@ -6,11 +6,14 @@
    ⛔이 검사는 «부르지 않아도 초록»이면 안 된다 — 아래 F4 가 그 자리를 지킨다. */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
 const path = require('path');
+/* ⛔날 것으로 읽지 않는다 — CRLF 체크아웃에서 «자르기가 던져» 이 파일이 통째로 안 돈다
+     (win-portability ①-3 이 이 자리를 지킨다. 오늘 또 걸렸다). */
+const { readSrc } = require('./_srcread.js');
 
-const MAIN = fs.readFileSync(path.join(__dirname, '..', '..', 'main.js'), 'utf8');
-const SRV  = fs.readFileSync(path.join(__dirname, '..', '..', 'main', 'claude-pm', 'mcp-server.js'), 'utf8');
+const ROOT = path.join(__dirname, '..', '..');
+const MAIN = readSrc(ROOT, 'main.js');
+const SRV  = readSrc(ROOT, 'main', 'claude-pm', 'mcp-server.js');
 
 test('F1 setActiveFrame 은 «핀»(널 대입 무시 접근자)을 깐다 — 보통 대입이면 deselectAll 이 지운다', () => {
   const fn = MAIN.slice(MAIN.indexOf('async function _invokeRendererSetActiveFrame'));

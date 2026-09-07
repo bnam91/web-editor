@@ -8193,8 +8193,12 @@ async function _handleRpc(msg) {
        ⇒ 여기서 error 를 남긴다. 도구 이름을 알 수 있으면 같이 적는다. */
     try {
       const _n = (params && params.name) || (typeof method === 'string' ? method : null);
+      /* ★「터졌다」만 적으면 «어디서»를 다시 재현해야 한다(2026-09-07 실제로 그러느라 한참 걸렸다).
+           스택 앞 세 줄을 같이 적는다 — 파일·줄·함수이름뿐이라 ⛔인자 값은 안 들어간다(원장 규약 유지). */
+      const _where = String((e && e.stack) || '').split('\n').slice(1, 4)
+                       .map(l => l.trim().replace(/^at /, '')).join(' | ').slice(0, 300) || null;
       _appendAudit({ tool: _n, outcome: 'error', code: 'EXCEPTION',
-                     message: String((e && e.message) || e).slice(0, 200) });
+                     message: String((e && e.message) || e).slice(0, 200), where: _where });
     } catch (_) {}
     return err(-32000, e.message || String(e));
   }

@@ -4397,8 +4397,19 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId, scratc
         const firstSec = document.querySelector('[id^="sec_"]');
         if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
       }
-      const before = document.querySelectorAll('.asset-block').length;
-      const beforeIds = new Set([...document.querySelectorAll('.asset-block')].map(b => b.id));
+      /* ★2026-09-07 img2/img3 거짓음성 수정.
+           앱은 preset img2/img3 을 «의도적으로» canvas-block(cvb_)으로 바꾼다
+           (js/block-factory.js makePresetRow — 2026-06-08 NewGrid 봉인).
+         그런데 여기선 .asset-block «만» 세고 있었다 ⇒ 블록은 «생겼는데» NO_ADD 를 돌려줬다.
+           ⛔이 주석에 백틱을 쓰지 마라 — 이 JS 는 템플릿 리터럴 «안»이라 백틱 하나가 문자열을 닫는다
+             (오늘 두 번 걸렸다: 닫힌 뒤 점-에셋블록 이 「.asset - block」 으로 파싱돼 「block is not defined」).
+             ★이 주석도 처음엔 백틱을 썼다가 새 검사(R2)에 바로 잡혔다.
+         ⛔거짓음성은 거짓양성보다 나쁠 수 있다 — 부르는 쪽이 «재시도»하면 중복이 쌓인다.
+           (실측: ok:false 를 받은 그 호출이 cvb_6vnmq_tt7ckwb 를 실제로 만들어 놨다.)
+         ⇒ 「앱이 실제로 만드는 것」을 센다. 두 종류 다 센다 — 어느 쪽이 될지는 preset 이 정한다. */
+      const _ADDED_SEL = '.asset-block, .canvas-block';
+      const before = document.querySelectorAll(_ADDED_SEL).length;
+      const beforeIds = new Set([...document.querySelectorAll(_ADDED_SEL)].map(b => b.id));
       const scId = ${safeScratch};
       if (scId && typeof window.addAssetBlock === 'function') {
         // scratchId 전달 — renderer가 자체 IndexedDB에서 src 꺼내 박음 (IPC payload 폭발 회피)
@@ -4406,16 +4417,21 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId, scratc
       } else {
         window.addPresetRow(${safePreset});
       }
-      const after = document.querySelectorAll('.asset-block').length;
+      const after = document.querySelectorAll(_ADDED_SEL).length;
       if (after <= before) {
         return { ok: false, code: 'NO_ADD', message: '에셋이 추가되지 않았습니다 (활성 섹션 확인).' };
       }
-      const newAssets = [...document.querySelectorAll('.asset-block')].filter(b => !beforeIds.has(b.id));
+      const newAssets = [...document.querySelectorAll(_ADDED_SEL)].filter(b => !beforeIds.has(b.id));
       const lastNew = newAssets[newAssets.length - 1];
       // sectionId 추가(2026-08-30): put_image 가 «어느 섹션에 붙었나»를 돌려줘야 하는데
       //   sectionId 생략 호출(활성 섹션 사용)에서는 호출자가 그걸 «알 방법이 없었다». 필드 추가만 — 기존 필드는 그대로.
       const secOf = lastNew?.closest('[id^="sec_"]')?.id || sid || null;
-      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after, assetBlockId: lastNew?.id || null, sectionId: secOf, hasImage: !!(lastNew?.querySelector('.asset-img')?.src || lastNew?.dataset?.imgSrc || (lastNew?.classList?.contains('asset-img') && lastNew?.src)) };
+      const _converted = !!(lastNew && lastNew.classList.contains('canvas-block'));
+      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after, assetBlockId: lastNew?.id || null,
+               blockType: _converted ? 'canvas' : 'asset',
+               note: _converted
+                 ? ('preset ' + ${safePreset} + ' 은 앱이 «캔버스(그리드) 블록»으로 만듭니다 — 에셋 블록이 아닙니다(NewGrid 봉인).')
+                 : undefined, sectionId: secOf, hasImage: !!(lastNew?.querySelector('.asset-img')?.src || lastNew?.dataset?.imgSrc || (lastNew?.classList?.contains('asset-img') && lastNew?.src)) };
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {
