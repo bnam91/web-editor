@@ -699,8 +699,18 @@
       <button class="fp-menu-item" onclick="addStepBlock();toggleFpDropdown('fp-component-dropdown')">Step</button>
       <button class="fp-menu-item" onclick="addChatBlock();toggleFpDropdown('fp-component-dropdown')">Chat</button>
       <button class="fp-menu-item" onclick="addGridBlock();toggleFpDropdown('fp-component-dropdown')">Grid</button>
+      <!-- ★[숨김] Info Card · Inner Card — 현빈 2026-09-07 「info카드와 이너카드도 일단 숨김처리해줘」
+           ⛔막는 것은 «새로 넣는 입구»뿐이다. 블록 구현·프로퍼티 패널·레이어 패널·저장/로드는
+             그대로 둔다 — 이미 이 블록이 들어간 프로젝트는 계속 열리고 편집돼야 한다
+             (바로 위 구형 Banner 건과 같은 판단: 코드는 안 지운다).
+           ★실측으로 확인한 «입구»는 이 두 줄뿐이다:
+             addInfoCardBlock/addInnerCardBlock 호출처 = index.html 이 두 줄 + 각 블록 파일 자체 정의
+             + scripts/goditor_runner.js(CDP 자동화 스크립트, 사용자 UI 아님).
+             MCP 표면엔 없다(mcp-server.js·mcp-block-tools.js 에 infocard/innercard 0건).
+           되돌리기 = 이 주석을 풀면 끝. 「일단」이라 지우지 않고 «가려만» 둔다.
       <button class="fp-menu-item" onclick="addInfoCardBlock();toggleFpDropdown('fp-component-dropdown')">Info Card</button>
       <button class="fp-menu-item" onclick="addInnerCardBlock();toggleFpDropdown('fp-component-dropdown')">Inner Card</button>
+      -->
       <!-- ★[MVP 제외] 구형 Banner 제거(현빈 2026-08-28). Banner 2 가 «같은 디자인을 자체
            데이터모델로 포팅»한 후속이고, 실사용 전수에서 구형은 블록 0개·프로젝트 0개다
            (신형 28개·9개). 메뉴에 둘 다 있으면 눌러보고 나서야 다른 걸 안다.
