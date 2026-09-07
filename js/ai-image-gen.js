@@ -5,6 +5,11 @@
    - 공개 API: window.openImageGenModal, closeImageGenModal, generateAIImage
 ══════════════════════════════════════ */
 
+/* ★이 파일은 ES 모듈이다(index.html 의 <script type="module">).
+ * goya-asset:// 변환은 «새로 만들지 않고» io/goya-asset-inline.js 의 공용 문 하나를 쓴다.
+ * (ai-section-fill.js 와 같은 도구 — 결함군을 한 자리에서 닫기 위함) */
+import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.js';
+
 (function () {
   const KRW_PER_IMAGE = { 'gemini-2.5-flash-image': 54, 'gpt-image-1': 56, 'prompt-only': 0 };
   const ACTION_PROMPTS = {
@@ -468,18 +473,38 @@
     const inputs = payload?.inputs || { scratchIds: [], assetBlockIds: [], refDataUrls: [] };
 
     // ref 이미지 src 수집
+    // ★goya-asset:// 를 그대로 실으면 services/imageGenService.js 의 base64 파서(_parseDataUrl)가
+    //   거절하고, 거기서 `if (!p) continue;`(:47) / `if (!p) return;`(:114) 로 «조용히 버려진다».
+    //   사용자는 결과물을 받으므로 «참조가 빠진 줄도 모른다» ⇒ 싣기 «전» 여기서 되돌리고,
+    //   못 되돌린 것은 빼되 «어느 것이 빠졌는지» 토스트로 알린다.
+    //   (⛔`?? alert(` 금지 — showToast 가 undefined 를 반환해 네이티브 alert 이 렌더러를 얼린다)
     const refs = [];
+    const refFailed = [];
     for (const sid of (inputs.scratchIds || [])) {
       const it = window._scratchGetItemById?.(sid);
-      if (it?.src) refs.push({ src: it.src, label: sid });
+      if (!it?.src) continue;
+      let src = it.src;
+      if (isGoyaAssetUrl(src)) {
+        src = await goyaAssetToDrawableSrc(src);
+        if (!src) { refFailed.push(sid); continue; }   // 첨부에서 제외 — 아래에서 «보이게» 알린다
+      }
+      refs.push({ src, label: sid });
     }
     for (const aid of (inputs.assetBlockIds || [])) {
       const el = document.getElementById(aid);
-      const src = el?.querySelector('.asset-img')?.src || el?.dataset?.imgSrc;
-      if (src) refs.push({ src, label: aid });
+      let src = el?.querySelector('.asset-img')?.src || el?.dataset?.imgSrc;
+      if (!src) continue;
+      if (isGoyaAssetUrl(src)) {
+        src = await goyaAssetToDrawableSrc(src);
+        if (!src) { refFailed.push(aid); continue; }
+      }
+      refs.push({ src, label: aid });
     }
     for (const r of (inputs.refDataUrls || [])) {
       if (r?.src) refs.push({ src: r.src, label: r.label || 'ref' });
+    }
+    if (refFailed.length > 0) {
+      window.showToast?.(`❌ 참고 이미지를 읽지 못해 제외: ${refFailed.join(', ')}`);
     }
 
     if (!window.electronAPI?.aiGenerateImage) {
@@ -583,12 +608,17 @@
   // 모달 내부 submit 라우터를 위한 헬퍼 — ai-prompt.js에서 호출
   async function _composeOutpaintPayload(box) {
     if (!box?.src) return null;
-    const { src, padTop, padRight, padBottom, padLeft } = box;
+    const { padTop, padRight, padBottom, padLeft } = box;
+    // ★스크래치 <img>.src 는 저장 후 goya-asset:// 다(outpaint-overlay.js:82 가 그대로 담는다).
+    //   그걸 그대로 drawImage 하면 캔버스가 오염돼 아래 cv1.toDataURL 이 SecurityError 를 던진다.
+    //   ⇒ 그리기 «전» data: URI 로 되돌린다. 못 되돌리면 null 을 돌려 호출부가 토스트를 띄운다.
+    const src = await goyaAssetToDrawableSrc(box.src);
+    if (!src) return null;
     // origW/H는 box의 값이 아니라 현재 자연 이미지 크기 사용 — 합성 정확도
     const img = await new Promise((resolve, reject) => {
       const i = new Image();
       i.onload = () => resolve(i);
-      i.onerror = reject;
+      i.onerror = () => reject(new Error('이미지 로드 실패: ' + String(src).slice(0, 60)));
       i.src = src;
     });
     const ow = img.naturalWidth;
@@ -635,8 +665,16 @@
       if (!box) { window.showToast?.('⚠️ 확장 박스 없음'); return; }
       const sumPad = box.padTop + box.padRight + box.padBottom + box.padLeft;
       if (sumPad === 0) { window.showToast?.('⚠️ 확장 영역이 0 — 핸들로 늘려주세요'); return; }
-      outpaint = await _composeOutpaintPayload(box);
-      if (!outpaint) { window.showToast?.('⚠️ outpaint 합성 실패'); return; }
+      // ★여기는 아래 try/finally «밖»이다. 감싸지 않으면 합성이 던진 예외가 핸들러를 뚫고 나가
+      //   토스트도 스피너도 없이 「눌렀는데 아무 일 없음」이 된다(무증상 실패).
+      try {
+        outpaint = await _composeOutpaintPayload(box);
+      } catch (err) {
+        console.warn('[ai-image-gen] outpaint 합성 실패:', err);
+        window.showToast?.('❌ 확장 이미지 합성 실패 — 이미지를 읽지 못했습니다.');
+        return;
+      }
+      if (!outpaint) { window.showToast?.('⚠️ outpaint 합성 실패 — 이미지를 읽지 못했습니다.'); return; }
     }
 
     const scratchIds = _pickerChips.filter(c => c.type === 'scratch').map(c => c.id);

@@ -38,6 +38,49 @@ function makeElectronAssetReader() {
   };
 }
 
+/**
+ * ★«마지막 문» — 이미지 src 하나를 «캔버스가 오염되지 않는» 형태로 되돌린다.
+ *
+ * 왜 필요한가 (결함군 — 한 건이 아니다):
+ *   v0.8.0 이미지 외부화 이후 이미지 src 는 `goya-asset://<projectId>/<hash>.<ext>` 다.
+ *   렌더러는 file:// origin 이라 이 커스텀 스킴은 **cross-origin** 이고, 그래서
+ *     · `<canvas>` 에 그리면 오염 → `toDataURL()`/`toBlob()` 이 SecurityError 를 던지고
+ *     · 서비스의 base64 파서(`/^data:([^;]+);base64,(.+)$/`)는 «거절»한다.
+ *   이 병이 발견될 때마다 한 자리씩 고쳐 왔다(슬라이스·색보정·AI 텍스트채우기·AI 이미지생성).
+ *   ⇒ 새 변환 로직을 또 만들지 말고 «이 문 하나»를 태워라.
+ *
+ * ★★CSS 렌더(`el.style.backgroundImage = url(...)`)에는 «쓰지 마라».
+ *   main.js:7 의 registerSchemesAsPrivileged({ standard, secure, supportFetchAPI }) 덕분에
+ *   goya-asset 은 **화면에 잘 그려진다**. 캔버스/네트워크 전송만 문제다.
+ *   무늬가 같다고 처분이 같지 않다 — 판정은 한 건씩.
+ *
+ * ★실패 시맨틱은 «null» 이다 — 원본으로 조용히 갈아끼우지 않는다.
+ *   조용히 원본을 흘려보내면 호출부가 「빠진 줄도 모르고」 결과를 낸다(가장 나쁜 실패).
+ *   호출부는 null 을 받으면 그 참조를 «빼고» 사용자에게 보이는 신호(showToast)를 남겨라.
+ *   (⛔`?? alert(` 금지 — showToast 가 undefined 를 반환해 네이티브 alert 이 렌더러를 얼린다)
+ *
+ * @param {string} src   임의의 이미지 src. data:/http(s)/blob: 등 비-goya 는 «그대로» 통과한다.
+ * @param {((projectId:string, filename:string) => Promise<string|null>)|null} [reader]
+ *        주입 안 하면 makeElectronAssetReader() (웹=IPC 없음이면 null → 변환 실패).
+ * @returns {Promise<string|null>} 그릴 수 있는 src, 또는 ★실패 null.
+ */
+async function goyaAssetToDrawableSrc(src, reader) {
+  const s = (typeof src === 'string') ? src : '';
+  if (!s) return null;
+  if (!isGoyaAssetUrl(s)) return s;              // data:/http(s)/blob: — 손대지 않는다
+  const parsed = parseGoyaAssetUrl(s);
+  if (!parsed) return null;
+  const read = (typeof reader === 'function') ? reader : makeElectronAssetReader();
+  if (!read) return null;                        // 웹(IPC 미가용) — «못 읽었다»고 말한다
+  try {
+    const dataUri = await read(parsed.projectId, parsed.filename);
+    return (typeof dataUri === 'string' && dataUri.startsWith('data:')) ? dataUri : null;
+  } catch (err) {
+    console.warn('[goya-asset-inline] goyaAssetToDrawableSrc 실패:', s, err);
+    return null;
+  }
+}
+
 // JSON 트리의 문자열 값을 방문 — 객체/배열 재귀. visit(str) 반환값으로 치환.
 function _walkStrings(node, visit) {
   if (Array.isArray(node)) {
@@ -106,5 +149,6 @@ export {
   isGoyaAssetUrl,
   parseGoyaAssetUrl,
   makeElectronAssetReader,
+  goyaAssetToDrawableSrc,
   inlineGoyaAssetsInJSON,
 };

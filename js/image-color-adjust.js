@@ -234,6 +234,9 @@ function buildExportCSSFilter(adj) {
  */
 // goya-asset:// → data: URI. 커스텀 스킴은 file:// 렌더러 기준 cross-origin 이라 캔버스를
 // 오염시키고 crossOrigin 으로도 못 읽는다. export/스크래치와 같은 IPC 우회를 쓴다.
+// ★TODO(별건): 이제 공용 문이 있다 — io/goya-asset-inline.js 의 goyaAssetToDrawableSrc().
+//   ⛔지금 갈아끼우지 마라: 여기는 실패 시 «원본 src» 를 돌려주고 공용 문은 «null» 을 돌려준다
+//   (아래 `if (!loaded ...) return;` 가 그 원본을 전제로 «아무것도 안 하기»를 고른다).
 async function _toDrawableSrc(src) {
   const m = /^goya-asset:\/\/([^/]+)\/(.+)$/.exec(String(src || ''));
   if (!m || !window.electronAPI?.assetsReadAsDataUri) return String(src || '');
