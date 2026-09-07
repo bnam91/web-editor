@@ -5758,7 +5758,10 @@ async function _invokeRendererAssetsMutate({ op, id, parentId, name, url, title,
              그 대화상자가 렌더러를 통째로 막는다(실측: 호출이 타임아웃났다).
            ⇒ 확인은 «MCP 쪽»에서 받고(confirm:true), 여기서는 confirm 을 잠시 통과시킨다.
              ★사람 확인을 «없애는» 게 아니라 «옮기는» 것이다 — 도구 설명에 confirm 을 요구로 박았다.
-           ⛔반드시 finally 로 원복한다. 안 그러면 앱의 다른 삭제도 조용히 확인 없이 지나간다. */
+           ⛔반드시 finally 로 원복한다. 안 그러면 앱의 다른 삭제도 조용히 확인 없이 지나간다.
+         ⚠️★이 구간엔 «안전망이 없다»(지디 검토 2026-09-07). 프레임 핀은 whereIsBlock 되읽기가
+           잘못된 결과를 잡아 주지만, 여기는 그런 되읽기가 없다 —
+           그 «짧은 창» 동안 다른 삭제가 끼면 사람 확인 없이 지나간다. 지금 막지는 않되, 모르고 두지는 않는다. */
         const _c = window.confirm;
         window.confirm = () => true;
         try { r = await window.assetsDeleteNode(p.id); }
@@ -5871,6 +5874,11 @@ async function _invokeRendererSetActiveFrame({ frameId, pin = true } = {}) {
          ⛔예전 finally 는 prev 를 되세우려고 이 함수를 다시 불렀는데, 그러면 «핀이 다시 깔렸다».
            그러면 사람이 다른 데를 클릭해도 계속 그 프레임 안으로 들어간다(앱을 망가뜨린 채 끝난다). */
       if (${pin ? 'false' : 'true'}) {
+        /* ★★여기서 «prev 를 되돌린다» — null 로 밀지 않는다.
+             ⛔null 로 밀면 사람이 골라 둔 활성 프레임이 MCP 호출 한 번에 «사라진다».
+               (지디가 이 자리를 짚었다. 실측으로 양방향 확인 2026-09-07:
+                정상본 = 전/후 동일 · 이 줄을 null 로 바꾼 변이본 = 후 None.)
+             ⚠️그새 사라진 요소일 수 있다 — getElementById 가 null 이면 «그때만» null. */
         try { delete window._activeFrame; } catch (_) {}
         window._activeFrame = fid ? (document.getElementById(fid) || null) : null;
         window.__mcpActiveFramePinned = null;
@@ -5906,7 +5914,10 @@ async function _invokeRendererSetActiveFrame({ frameId, pin = true } = {}) {
       /* ★★프레임 자체에 .selected 가 붙어 있으면 앱은 «형제»로 넣는다
            (insertAfterSelected: 「프레임 자체가 오브젝트로 선택된 상태 → 안이 아니라 뒤(형제)에 삽입」).
          ⇒ 그건 «사람이 프레임을 클릭한» 맥락의 규칙이다. parentId 를 «명시»한 MCP 호출은
-           의도가 「안에」라서, 그 표시를 잠시 걷는다. ⛔원복은 부르는 쪽이 finally 로 한다. */
+           의도가 「안에」라서, 그 표시를 잠시 걷는다. ⛔원복은 부르는 쪽이 finally 로 한다.
+         ★근거(지디 검토 승인 2026-09-07): 앱 규칙은 «클릭»이라는 «모호한 의도»를 푸는 규칙이고,
+           parentId 는 «안에 넣어라»라는 «명시된 의도»다. 다른 의도를 같은 규칙으로 처리하면
+           그게 오히려 거짓말이 된다. ⇒ 규칙을 비껴가는 게 아니라 «다른 입력»으로 다루는 것이다. */
       const wasSelected = el.classList.contains('selected');
       if (wasSelected) el.classList.remove('selected');
       /* 안에 «선택된 자식»이 있어도 그 뒤에 붙는다 — 그것도 걷어야 «맨 안»으로 들어간다 */
@@ -5922,6 +5933,13 @@ async function _invokeRendererSetActiveFrame({ frameId, pin = true } = {}) {
            null 대입을 무시하는 접근자로 바꾼다. 읽는 쪽(insertAfterSelected)은 그대로다.
          ⛔원복(unpin = frameId:null)은 «부르는 쪽이 finally 로» 한다. 안 풀면 앱이 그 프레임에
            갇힌다(사람이 다른 데를 클릭해도 계속 그 안에 들어간다). */
+      /* ⚠️★재진입 — 핀은 «참조계수»가 아니라 «하나»다(지디 검토 2026-09-07).
+           A 가 frame1 을 핀 → B 가 frame2 로 덮음 → A 의 finally 가 unpin
+           ⇒ B 는 «자기 핀이 걷힌 채» 남은 구간을 돈다.
+         ⇒ 결과는 «잘못된 배치»지 «잠금»이 아니다. 안전망은 _withParent 의 whereIsBlock 되읽기다
+           (못 들어갔으면 NOT_PLACED_INSIDE 로 «말한다»). ⇒ 그래서 막지 않고 «적는다».
+         ⛔새 조건: 오늘 «세션 분리»가 들어와 두 세션이 겹쳐 부를 수 있게 됐다.
+           겹침이 잦아지면 그때는 참조계수(또는 호출 직렬화)로 올려야 한다. */
       let _pin = el;
       try { delete window._activeFrame; } catch (_) {}
       Object.defineProperty(window, '_activeFrame', {

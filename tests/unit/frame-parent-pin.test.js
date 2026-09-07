@@ -41,6 +41,26 @@ test('F3 finally 는 «pin:false» 로 푼다 — 그냥 prev 를 세우면 핀�
     'finally 가 pin:false 로 안 푼다 — 사람 클릭이 계속 그 프레임으로 빨려 들어간다');
 });
 
+test('F5 원복은 «prev 를 되돌린다» — null 로 밀면 사람의 활성 프레임이 사라진다', () => {
+  /* 지디 검토 2026-09-07 이 짚은 자리. 실측 양방향:
+       정상본 = 호출 전/후 활성 프레임 동일 · 이 줄을 null 로 바꾼 변이본 = 후 None.
+     ⛔이 줄이 null 로 되돌아가면 「MCP 호출 한 번에 사람 상태가 날아가는」 병이 된다. */
+  const fn = MAIN.slice(MAIN.indexOf('async function _invokeRendererSetActiveFrame'));
+  const body = fn.slice(0, fn.indexOf('\n}\n'));
+  const i = body.indexOf("if (${pin ? 'false' : 'true'})");
+  assert.ok(i > 0, '원복 전용 경로를 못 찾았다 — 패턴이 썩었다');
+  const seg = body.slice(i, i + 700);
+  assert.match(seg, /window\._activeFrame = fid \? \(document\.getElementById\(fid\) \|\| null\) : null;/,
+    '★원복이 prev 를 안 되돌린다 — 사람이 골라 둔 프레임이 호출 한 번에 사라진다');
+});
+
+test('F6 ★재진입·안전망 없음 구간을 «적어» 뒀다 (지디: 막지 말고 남겨라)', () => {
+  assert.match(MAIN, /핀은 «참조계수»가 아니라 «하나»다/,
+    '재진입 성질을 안 적으면 다음 사람이 참조계수로 착각한다');
+  assert.match(MAIN, /이 구간엔 «안전망이 없다»/,
+    'confirm 을 잠시 참으로 바꾸는 구간엔 되읽기 안전망이 없다 — 그 사실을 남겨야 한다');
+});
+
 test('F4 ★변이대조 — 핀 줄을 지우면 F1 이 «빨개져야» 한다(안 부르면 초록인 검사 금지)', () => {
   const mutated = MAIN.replace(/Object\.defineProperty\(window, '_activeFrame'/g, 'window._activeFrame = (');
   const fn = mutated.slice(mutated.indexOf('async function _invokeRendererSetActiveFrame'));
