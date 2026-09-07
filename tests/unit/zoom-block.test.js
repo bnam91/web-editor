@@ -65,6 +65,8 @@ const RAW = {
   html:   readSrc(ROOT, 'index.html'),
   save:   readSrc(ROOT, 'js', 'io', 'save-load.js'),
   handles: readSrc(ROOT, 'js', 'overlay-handles.js'),
+  dragu:   readSrc(ROOT, 'js', 'drag-utils.js'),
+  multisel: readSrc(ROOT, 'js', 'props', 'prop-multisel.js'),
   overlay: readSrc(ROOT, 'js', 'selection-overlay.js'),
 };
 const SRC = Object.fromEntries(Object.entries(RAW).map(([k, v]) => [k, stripComments(v)]));
@@ -757,6 +759,33 @@ test('ⓑ-19 ★⑧계열 = «플로팅»(스티커) — 행에 넣지 않는다
   assert.ok(/dataset\.selVariant = 'sticker'/.test(b), '선택 오버레이가 보라를 못 고른다');
   // ⑹ 배율은 «정본 함수»에서 온다 — 베끼면 핸들과 갈라진다
   assert.ok(/import \{ _canvasScaleNow \} from '\.\.\/overlay-handles\.js'/.test(b), '배율을 베꼈다');
+});
+
+test('ⓑ-19b ★⑧이 «새로 여는 경계» — 플로팅은 삽입 기준점이 되면 안 된다', () => {
+  /* insertAfterSelected 는 이 목록으로 `ref.after(el)` 의 기준점을 고른다. 플로팅 블록을
+     기준으로 삼으면 새 블록이 «섹션 직속»으로 끼어들어 section-inner 흐름에서 빠진다.
+     ⇒ 확대블럭이 흐름이던 시절 들어갔던 것을 ⑧에서 뺐다. */
+  const d = SRC.dragu;
+  assert.equal(/\.zoom-block\.selected/.test(d), false,
+    '플로팅인데 삽입 기준점 목록에 남아 있다 — 형제 블록이 흐름 밖으로 샌다');
+  /* ★대조 — «같은 토큰 형태»로 잰다. 다른 형태로 재면 0 이 「없다」가 아니라 「못 쟀다」다.
+     흐름 계열(laurel)은 이 목록에 있고, 플로팅 계열(sticker·gradient)은 없다. */
+  assert.ok(/\.laurel-block\.selected/.test(d), '전제: 흐름 계열은 이 목록에 있다(자가 도는지 확인)');
+  assert.equal(/\.sticker-block\.selected/.test(d), false, '전제: 플로팅 계열은 이 목록에 없다');
+});
+
+test('ⓐ-24 ★⑧좌표 경계 — x/y 가 깨져도 NaN 이 새지 않는다', async () => {
+  const g = await loadGeom();
+  // readZoomState 는 _num 으로 걸러 기본값(40)으로 떨어뜨린다 — 그 계약을 «렌더 결과»로 잰다.
+  const b = SRC.block;
+  assert.ok(/x:\s*_num\(d\.x, ZOOM_DEFAULTS\.x\)/.test(b), 'x 를 안 거른다 = left:NaNpx 가 나갈 수 있다');
+  assert.ok(/y:\s*_num\(d\.y, ZOOM_DEFAULTS\.y\)/.test(b), 'y 를 안 거른다');
+  // 음수 좌표는 «허용»이다(⌘ 자유이동). 그때도 마크업이 안 깨져야 한다.
+  for (const st of [{ ...ST, x: -500, y: -300 }, { ...ST, x: 0, y: 0 }]) {
+    const html = g.buildZoomInner(st, null);
+    assert.equal(html.includes('NaN'), false);
+    assert.equal(html.includes('undefined'), false);
+  }
 });
 
 test('ⓑ-17 ⑤핸들 배선 — 아웃라인 상자에 붙고, dataset.w/h 로 커밋한다', () => {
