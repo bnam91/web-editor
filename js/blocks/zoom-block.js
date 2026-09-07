@@ -1,5 +1,7 @@
 // ── Zoom Block (확대블럭) ────────────────────────────────────────────────────
 // 도형(rect/circle/square) + 그 도형에서 «광원 쪽으로» 뻗는 그림자 사다리꼴.
+// ★그림자는 라디오로 끌 수 있다 — 그래서 이 «하나»가 스티커 블록 둘을 대신한다.
+//     끔 = 도형 + 테두리(에셋블럭 스티커) / 켬 = 도형 + 그림자(돋보기)
 // 현빈 발주: 「스티커블럭 추가. 확대블럭이라고 해줘. 들어가야 할 모양은 기본은 사각형이다.
 //            그리고 프리셋으로 원, 정사각형을 넣어줘」
 //
@@ -26,9 +28,21 @@ const ZOOM_DEFAULTS = {
   size:   160,      // 도형 크기(px, 가로 지름)
   rot:    0,        // 도형 회전(도) — silhouette 이 받는 값
   fill:   '#cfd6e0',// 도형 색
+  /* ★그림자 라디오(현빈 2026-09-08) — 이 한 값이 블록 «둘»을 하나로 합친다.
+       'off' = 「에셋블럭 스티커」(도형 + 테두리) · 'on' = 「돋보기」(도형 + 그림자)
+     ⛔off 여도 angle·length·maxop 는 «지우지 않는다». 다시 켜면 그대로 돌아와야 한다. */
+  shadow: 'on',
+  /* 테두리 — 원래 스티커 블록 A-1 의 「우측에서 테두리를 넣을 수 있다」가 여기로 들어왔다.
+     그림자와 배타가 아니다(둘 다 켤 수 있다). ⛔도형 «바깥»에 그린다 — 크기가 줄면 안 된다. */
+  bd:     'off',
+  bdw:    6,        // 두께(px)
+  bdc:    '#ffffff',// 색
+  bdr:    0,        // 모서리(px) — 도형·테두리판이 «같이» 둥글어야 링 두께가 일정하다
 };
 
 const ZOOM_SHAPES = ['rect', 'circle', 'square'];
+/** 라디오 두 벌의 값 — 모르는 값이 들어오면 기본으로 떨어뜨린다(저장본 변조 대비). */
+function _onOff(v, dflt) { return (v === 'on' || v === 'off') ? v : dflt; }
 
 function _num(v, dflt) {
   const n = parseFloat(v);
@@ -50,6 +64,11 @@ function readZoomState(block) {
     size:   _num(d.size,   ZOOM_DEFAULTS.size),
     rot:    _num(d.rot,    ZOOM_DEFAULTS.rot),
     fill:   d.fill || ZOOM_DEFAULTS.fill,
+    shadow: _onOff(d.shadow, ZOOM_DEFAULTS.shadow),
+    bd:     _onOff(d.bd,     ZOOM_DEFAULTS.bd),
+    bdw:    _num(d.bdw, ZOOM_DEFAULTS.bdw),
+    bdc:    d.bdc || ZOOM_DEFAULTS.bdc,
+    bdr:    _num(d.bdr, ZOOM_DEFAULTS.bdr),
   };
 }
 
@@ -149,6 +168,11 @@ function makeZoomBlock(opts = {}) {
   block.dataset.size   = String(opts.size   ?? ZOOM_DEFAULTS.size);
   block.dataset.rot    = String(opts.rot    ?? ZOOM_DEFAULTS.rot);
   block.dataset.fill   = String(opts.fill   ?? ZOOM_DEFAULTS.fill);
+  block.dataset.shadow = _onOff(opts.shadow, ZOOM_DEFAULTS.shadow);
+  block.dataset.bd     = _onOff(opts.bd,     ZOOM_DEFAULTS.bd);
+  block.dataset.bdw    = String(opts.bdw    ?? ZOOM_DEFAULTS.bdw);
+  block.dataset.bdc    = String(opts.bdc    ?? ZOOM_DEFAULTS.bdc);
+  block.dataset.bdr    = String(opts.bdr    ?? ZOOM_DEFAULTS.bdr);
   // ⛔a·b 는 신규 생성 시 «절대» 박지 않는다 — 끌기 전까지 언제나 자동.
   renderZoomBlock(block);
 

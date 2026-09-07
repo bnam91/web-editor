@@ -131,41 +131,91 @@ export function safeColor(v, fallback) {
   return /^[#a-zA-Z0-9(),.%\s_-]{1,64}$/.test(s) ? s : fallback;
 }
 
-export function shapeMarkup(st) {
-  const fill = safeColor(st.fill, '#cfd6e0');
-  const r = (Number(st.size) || 0) / 2;
+/* 도형 하나를 그린다. grow>0 이면 «바깥으로» 그만큼 키운 판(=테두리)이다.
+   ★rect/square 는 polygon 이 아니라 <rect rx>+rotate 로 그린다 — 모서리 라운드(bdr)를
+     회전과 «같이» 쓰려면 그 길뿐이다. 실루엣 계산(shapePts)은 그대로 꼭짓점을 쓴다. */
+function shapeEl(st, grow, fill, cls) {
+  const half = (Number(st.size) || 0) / 2;
+  const bdr = Math.max(0, Number(st.bdr) || 0);
   if (st.shape === 'circle') {
-    return `<circle class="zoom-shape" cx="0" cy="0" r="${r.toFixed(2)}" fill="${fill}"/>`;
+    return `<${''}circle class="${cls}" cx="0" cy="0" r="${(half + grow).toFixed(2)}" fill="${fill}"/>`;
   }
-  const pts = shapePts(st.shape, r, st.rot, 0, 0)
-    .map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
-  return `<polygon class="zoom-shape" points="${pts}" fill="${fill}"/>`;
+  const hw = half + grow;
+  const hh = (st.shape === 'rect' ? half * ZOOM_RECT_RATIO : half) + grow;
+  // ★테두리판의 모서리는 «도형 모서리 + 두께» 여야 링 두께가 어디서나 같다(동심 오프셋).
+  const rx = grow > 0 ? (bdr > 0 ? bdr + grow : 0) : bdr;
+  const rot = Number(st.rot) || 0;
+  return `<rect class="${cls}" x="${(-hw).toFixed(2)}" y="${(-hh).toFixed(2)}" ` +
+    `width="${(hw * 2).toFixed(2)}" height="${(hh * 2).toFixed(2)}" rx="${rx.toFixed(2)}"` +
+    `${rot ? ` transform="rotate(${rot})"` : ''} fill="${fill}"/>`;
+}
+
+export function shapeMarkup(st) {
+  return shapeEl(st, 0, safeColor(st.fill, '#cfd6e0'), 'zoom-shape');
+}
+
+/* 테두리 — ⛔도형 «바깥»에 그린다(크기가 안 줄게).
+   ★stroke 로 그리면 선이 «경계에 걸쳐» 반은 안쪽으로 먹어 도형이 줄어든다.
+     그래서 stroke 가 아니라 «한 겹 큰 판»을 도형 뒤에 깔고 도형을 그 위에 얹는다.
+   ★그림자와 배타가 아니다 — 둘 다 켤 수 있다. */
+export function borderWidthOf(st) {
+  return (st.bd === 'on') ? Math.max(0, Number(st.bdw) || 0) : 0;
+}
+
+export function borderMarkup(st) {
+  const bw = borderWidthOf(st);
+  if (!(bw > 0)) return '';
+  return shapeEl(st, bw, safeColor(st.bdc, '#ffffff'), 'zoom-border');
+}
+
+/** 도형(+테두리)이 차지하는 «실제» 꼭짓점 — 뷰박스가 이걸 담아야 테두리가 안 잘린다. */
+export function outerExtentPts(st) {
+  const half = (Number(st.size) || 0) / 2;
+  const bw = borderWidthOf(st);
+  if (st.shape === 'circle') {
+    const R = half + bw;
+    return [{ x: -R, y: -R }, { x: R, y: R }];
+  }
+  const hw = half + bw;
+  const hh = (st.shape === 'rect' ? half * ZOOM_RECT_RATIO : half) + bw;
+  const th = (Number(st.rot) || 0) * Math.PI / 180;
+  const co = Math.cos(th), si = Math.sin(th);
+  return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]
+    .map(p => ({ x: p[0] * co - p[1] * si, y: p[0] * si + p[1] * co }));
 }
 
 /**
  * 확대블럭의 SVG 전부. 도형 중심이 (0,0) 인 좌표계로 그리고, 뷰박스가 그 상자를 담는다.
- * ★그리는 순서 = 그림자 → 도형 → 핸들. 도형이 «가장 진한 끝»을 덮어야 사다리꼴이 도형에 «붙는다».
+ * ★그리는 순서 = 그림자 → 테두리판 → 도형 → 핸들. 도형이 «가장 진한 끝»을 덮어야 사다리꼴이 도형에 «붙는다».
  * ★a·b 핸들은 «항상» 그린다 — 보이기는 CSS(.zoom-block.selected)가 정한다.
  *   선택은 renderZoomBlock 을 다시 부르지 않으므로 렌더 시점의 선택상태에 기대면 안 된다.
  */
 export function buildZoomSvg(st, pinned) {
   const geo = computeZoomGeometry(st, pinned);
-  const r = (Number(st.size) || 0) / 2;
+
+  /* ★그림자 라디오 — `shadow:'off'` 면 띠를 «아예 안 그린다»(투명도 0 으로 두지 않는다).
+     현빈: 「그림자는 라디오버튼으로 뺄 수 있도록 할까? 그러면 스티커 블럭 2개까진 필요없잖아?」
+       끔 = 「에셋블럭 스티커」(도형 + 테두리) · 켬 = 「돋보기」(도형 + 그라데이션 그림자)
+     ⛔off 여도 angle·length 같은 «그림자 값»은 아무도 지우지 않는다 — 다시 켜면 그대로 돌아온다.
+       (이 함수는 st 를 읽기만 한다. 지우는 일은 dataset 쪽에서도 없어야 한다 — 검사 ⓐ-15·ⓑ-14) */
+  const shadowOn = st.shadow !== 'off';
 
   /* 퇴화면 그림자만 접는다 — 도형은 계속 보여야 한다.
      ★두 갈래다: ①좌표가 새는 경우(NaN) ②A·B 가 «한 점»인 경우.
        ②는 silhouette 의 circle 분기가 광원이 원 안일 때 중심점 둘을 돌려주는 자리다.
        NaN 이 아니라서 ①만 보면 통과해 버리고, 넓이 0 인 띠가 64장 «조용히» 쌓인다
        (검사 ⓐ-13 이 실제로 이걸 잡았다 — 눈으로는 안 보이는 결함이다). */
-  const ok = allFinite([geo.A, geo.B, geo.a, geo.b, geo.L])
+  const ok = shadowOn
+    && allFinite([geo.A, geo.B, geo.a, geo.b, geo.L])
     && Math.hypot(geo.B.x - geo.A.x, geo.B.y - geo.A.y) > 1e-6;
+
   const shadow = ok
     ? strips(geo.A, geo.B, geo.a, geo.b, ZOOM_STRIP_COUNT, (Number(st.curve) || 100) / 100, (Number(st.maxop) || 0) / 100)
     : '';
 
+  // 뷰박스 = 도형«+테두리» + 그림자 + 광원을 전부 담는 최소 상자 + 여백
   const bboxPts = [
-    { x: -r, y: -r }, { x: r, y: r },
-    ...(st.shape === 'circle' ? [] : shapePts(st.shape, r, st.rot, 0, 0)),
+    ...outerExtentPts(st),
     ...(ok ? [geo.A, geo.B, geo.a, geo.b, geo.L] : []),
   ];
   const xs = bboxPts.map(p => p.x), ys = bboxPts.map(p => p.y);
@@ -181,5 +231,5 @@ export function buildZoomSvg(st, pinned) {
   return `<svg class="zoom-svg" width="${w.toFixed(2)}" height="${h.toFixed(2)}" ` +
     `viewBox="${minX.toFixed(2)} ${minY.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}" ` +
     `xmlns="http://www.w3.org/2000/svg">` +
-    `<g class="zoom-shadow">${shadow}</g>${shapeMarkup(st)}${handles}</svg>`;
+    `<g class="zoom-shadow">${shadow}</g>${borderMarkup(st)}${shapeMarkup(st)}${handles}</svg>`;
 }

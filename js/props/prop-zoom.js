@@ -28,6 +28,12 @@ export function showZoomProperties(block) {
   const st = _st(block);
   const pinned = !!(window.readPinnedZoomShortEdge?.(block));
   const fillAlpha = parseAlphaFromColor(st.fill);
+  const bdcAlpha  = parseAlphaFromColor(st.bdc);
+  const shadowOn  = st.shadow !== 'off';
+  const bdOn      = st.bd === 'on';
+  /* ★그림자 «끔»이면 그림자 값들은 흐리게 두되 «지우지 않는다» — 다시 켜면 그대로 돌아온다.
+     (prop-laurel/prop-banner02 의 opacity:0.4;pointer-events:none 관례) */
+  const dim = (on) => on ? '' : 'opacity:0.4;pointer-events:none;';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -71,17 +77,45 @@ export function showZoomProperties(block) {
 
     <div class="prop-section">
       <div class="prop-section-title">Shadow</div>
+      <div class="prop-row">
+        <span class="prop-label">그림자</span>
+        <div class="prop-radio-group" id="zm-shadow-group">
+          <label class="prop-radio"><input type="radio" name="zm-shadow" value="on"${shadowOn ? ' checked' : ''}> 켬</label>
+          <label class="prop-radio"><input type="radio" name="zm-shadow" value="off"${shadowOn ? '' : ' checked'}> 끔</label>
+        </div>
+      </div>
+      <div id="zm-shadow-fields" style="${dim(shadowOn)}">
       ${_pairRow('zm-angle', '방향°', st.angle, -180, 180, 1)}
       ${_pairRow('zm-length', '길이', st.length, 0, 1200, 1)}
       ${_pairRow('zm-spread', '벌림', st.spread, -400, 800, 1)}
       ${_pairRow('zm-maxop', '최대 농도%', st.maxop, 0, 100, 1)}
       ${_pairRow('zm-curve', '농도 곡선', st.curve, 10, 400, 1)}
       ${_pairRow('zm-narrow', '좁아짐%', st.narrow, 0, 100, 1)}
+      </div>
+    </div>
+
+    <div class="prop-section">
+      <div class="prop-section-title">Border</div>
+      <div class="prop-row">
+        <span class="prop-label">테두리</span>
+        <div class="prop-radio-group" id="zm-bd-group">
+          <label class="prop-radio"><input type="radio" name="zm-bd" value="on"${bdOn ? ' checked' : ''}> 켬</label>
+          <label class="prop-radio"><input type="radio" name="zm-bd" value="off"${bdOn ? '' : ' checked'}> 끔</label>
+        </div>
+      </div>
+      <div id="zm-bd-fields" style="${dim(bdOn)}">
+      ${_pairRow('zm-bdw', '두께', st.bdw, 0, 80, 1)}
+      ${_pairRow('zm-bdr', '모서리', st.bdr, 0, 200, 1)}
+      <div class="prop-color-row">
+        <span class="prop-label">색</span>
+        ${colorFieldHTML({ idPrefix: 'zm-bdc', hex: st.bdc, alpha: bdcAlpha })}
+      </div>
+      </div>
     </div>
 
     <div class="prop-section">
       <div class="prop-section-title">짧은 변 (a·b)</div>
-      <div class="prop-row">
+      <div class="prop-row" style="${dim(shadowOn)}">
         <span class="prop-label" style="font-size:10px;color:var(--ui-text-muted);">
           ${pinned ? '수동 — 끌어서 고정됨' : '자동 — 방향·길이를 따라감'}
         </span>
@@ -139,11 +173,36 @@ export function showZoomProperties(block) {
   bindPair('zm-maxop',  'maxop',  '확대블럭 농도',       0, 100);
   bindPair('zm-curve',  'curve',  '확대블럭 농도곡선',  10, 400);
   bindPair('zm-narrow', 'narrow', '확대블럭 좁아짐',     0, 100);
+  bindPair('zm-bdw',    'bdw',    '확대블럭 테두리 두께',  0, 80);
+  bindPair('zm-bdr',    'bdr',    '확대블럭 테두리 모서리', 0, 200);
+
+  /* 라디오 두 벌 — ⛔값을 «지우지 않는다». dataset 에 'on'/'off' 만 쓰고 재렌더한다.
+     그래서 끄고 켜기를 반복해도 방향·길이·농도가 그대로 돌아온다(검사 ⓑ-14·변이 M14). */
+  const bindRadio = (name, key, label) => {
+    propPanel.querySelectorAll(`input[type="radio"][name="${name}"]`).forEach(r => {
+      r.addEventListener('change', () => {
+        if (!r.checked) return;
+        window.pushHistory?.(label);
+        block.dataset[key] = r.value;
+        rerender();
+        showZoomProperties(block);   // 흐리게/진하게 갱신
+        window.triggerAutoSave?.();
+      });
+    });
+  };
+  bindRadio('zm-shadow', 'shadow', '확대블럭 그림자');
+  bindRadio('zm-bd',     'bd',     '확대블럭 테두리');
 
   wireColorField('zm-fill', {
     initialAlpha: fillAlpha,
     onApply: (c) => { block.dataset.fill = c; rerender(); },
     onCommit: () => { window.pushHistory?.('확대블럭 색'); window.triggerAutoSave?.(); },
+  });
+
+  wireColorField('zm-bdc', {
+    initialAlpha: bdcAlpha,
+    onApply: (c) => { block.dataset.bdc = c; rerender(); },
+    onCommit: () => { window.pushHistory?.('확대블럭 테두리 색'); window.triggerAutoSave?.(); },
   });
 
   propPanel.querySelector('#zm-ab-reset')?.addEventListener('click', () => {

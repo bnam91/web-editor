@@ -97,6 +97,7 @@ function loadGeom() {
 const ST = {
   shape: 'rect', angle: 0, length: 170, spread: 0,
   maxop: 30, curve: 100, narrow: 62, size: 160, rot: 0,
+  fill: '#cfd6e0', shadow: 'on', bd: 'off', bdw: 6, bdc: '#ffffff', bdr: 0,
 };
 const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
 
@@ -271,8 +272,7 @@ test('ⓐ-11 뷰박스가 도형·그림자·광원을 «전부» 담는다 (잘
     const vb = svg.match(/viewBox="([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+)"/).slice(1).map(Number);
     const [x, y, w, h] = vb;
     const geo = g.computeZoomGeometry(st, null);
-    const r = st.size / 2;
-    const must = [geo.A, geo.B, geo.a, geo.b, geo.L, { x: -r, y: -r }, { x: r, y: r }];
+    const must = [geo.A, geo.B, geo.a, geo.b, geo.L, ...g.outerExtentPts(st)];
     for (const p of must) {
       assert.ok(p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h,
         `${st.shape}/${st.angle}: (${p.x.toFixed(1)},${p.y.toFixed(1)}) 가 뷰박스 밖`);
@@ -298,6 +298,102 @@ test('ⓐ-13 퇴화(광원이 도형 안)여도 «도형은» 그려지고 NaN �
   assert.equal(svg.includes('NaN'), false);
   assert.equal((svg.match(/class="zoom-shape"/g) || []).length, 1);
   assert.equal((svg.match(/<polygon[^>]*fill="#000"/g) || []).length, 0, '퇴화면 그림자는 접는다');
+});
+
+/* ── ⓐ 그림자 라디오 · 테두리 (현빈 2026-09-08 정정) ────────────────────────
+ * 이 둘이 「스티커 블록 둘 → 확대블럭 하나」의 근거다.
+ *   끔 = 도형 + 테두리(에셋블럭 스티커) · 켬 = 도형 + 그림자(돋보기)
+ * ───────────────────────────────────────────────────────────────────────── */
+test("ⓐ-14 ★shadow:'off' 면 그림자 폴리곤이 «0개»다 (투명도 0 이 아니라 «안 그린다»)", async () => {
+  const g = await loadGeom();
+  const off = g.buildZoomSvg({ ...ST, shadow: 'off' }, null);
+  assert.equal((off.match(/<polygon[^>]*fill="#000"/g) || []).length, 0, '띠가 남아 있으면 DOM 만 무거워진다');
+  assert.equal(off.includes('fill-opacity="0.0000"'), false, '투명도 0 으로 «두는» 것도 안 된다');
+  assert.equal((off.match(/class="zoom-shape"/g) || []).length, 1, '도형은 그대로 있어야 한다');
+  assert.equal((off.match(/class="zoom-handle"/g) || []).length, 0, '그림자가 없으면 a·b 핸들도 뜻이 없다');
+
+  // 대조 — 같은 st 에서 켜면 돌아온다
+  const on = g.buildZoomSvg({ ...ST, shadow: 'on' }, null);
+  assert.equal((on.match(/<polygon[^>]*fill="#000"/g) || []).length, 64);
+});
+
+test("ⓐ-15 ★off→on 왕복에 그림자 값이 «그대로» 돌아온다 (조립기가 st 를 안 건드린다)", async () => {
+  const g = await loadGeom();
+  const on1 = g.buildZoomSvg({ ...ST, shadow: 'on' }, null);
+  g.buildZoomSvg({ ...ST, shadow: 'off' }, null);          // 껐다가
+  const on2 = g.buildZoomSvg({ ...ST, shadow: 'on' }, null); // 다시 켠다
+  assert.equal(on2, on1, '왕복 후 그림이 달라지면 어딘가에서 값이 샜다');
+
+  // ★더 세게 — 얼린 st 로 불러도 던지지 않아야 한다(= 조립기가 상태를 쓰지 않는다)
+  const frozen = Object.freeze({ ...ST, shadow: 'off' });
+  assert.doesNotThrow(() => g.buildZoomSvg(frozen, null));
+  assert.equal(frozen.angle, ST.angle);
+  assert.equal(frozen.length, ST.length);
+});
+
+test('ⓐ-16 ★테두리는 도형 «바깥»에 그린다 — 도형 크기가 안 줄어든다', async () => {
+  const g = await loadGeom();
+  const plain  = g.buildZoomSvg({ ...ST, bd: 'off' }, null);
+  const bd     = g.buildZoomSvg({ ...ST, bd: 'on', bdw: 6 }, null);
+
+  const shapeOf = (svg) => svg.match(/<rect class="zoom-shape"[^>]*>/)[0];
+  assert.equal(shapeOf(bd), shapeOf(plain), '★테두리를 켰다고 도형 마크업이 바뀌면 «안쪽»으로 먹은 것이다');
+
+  const bdEl = bd.match(/<rect class="zoom-border"[^>]*>/)[0];
+  const num = (el, a) => parseFloat(el.match(new RegExp(a + '="([-\\d.]+)"'))[1]);
+  assert.equal(num(bdEl, 'width'),  num(shapeOf(bd), 'width') + 12,  '두께 6 이면 좌우로 6 씩 = +12');
+  assert.equal(num(bdEl, 'height'), num(shapeOf(bd), 'height') + 12);
+  assert.ok(bd.indexOf('zoom-border') < bd.indexOf('zoom-shape'), '테두리판은 도형 «뒤»에 깔려야 한다');
+  assert.equal((plain.match(/zoom-border/g) || []).length, 0, "bd:'off' 면 테두리는 아예 없다");
+});
+
+test('ⓐ-16b 모서리(bdr)를 주면 링 두께가 어디서나 같다 (바깥 rx = 안쪽 rx + 두께)', async () => {
+  const g = await loadGeom();
+  const svg = g.buildZoomSvg({ ...ST, bd: 'on', bdw: 6, bdr: 12 }, null);
+  const rx = (cls) => parseFloat(svg.match(new RegExp('<rect class="' + cls + '"[^>]*rx="([\\d.]+)"'))[1]);
+  assert.equal(rx('zoom-shape'), 12);
+  assert.equal(rx('zoom-border'), 18);
+});
+
+test('ⓐ-17 뷰박스가 «테두리까지» 담는다 (안 담으면 링이 잘린다)', async () => {
+  const g = await loadGeom();
+  /* ★기대값을 outerExtentPts 로 만들면 «계측이 자기 자신을 잰다» — 그 함수를 망가뜨리는 변이(M16)가
+     코드와 기대를 «같이» 줄여서 초록으로 통과했다(실제로 그랬다). ⇒ 여기서 직접 계산한다. */
+  assert.equal(g.ZOOM_RECT_RATIO, 0.625, '비율이 바뀌면 아래 기대식도 같이 고쳐야 한다');
+  const expectPts = (st) => {
+    const half = st.size / 2;
+    const bw = (st.bd === 'on') ? st.bdw : 0;
+    if (st.shape === 'circle') { const R = half + bw; return [{ x: -R, y: -R }, { x: R, y: R }]; }
+    const hw = half + bw;
+    const hh = (st.shape === 'rect' ? half * 0.625 : half) + bw;
+    const th = (st.rot || 0) * Math.PI / 180, co = Math.cos(th), si = Math.sin(th);
+    return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]
+      .map(p => ({ x: p[0] * co - p[1] * si, y: p[0] * si + p[1] * co }));
+  };
+  const cases = [
+    { ...ST, bd: 'on', bdw: 24 },
+    { ...ST, shape: 'circle', bd: 'on', bdw: 24 },
+    { ...ST, shape: 'square', rot: 30, bd: 'on', bdw: 24, shadow: 'off' },
+  ];
+  for (const st of cases) {
+    const svg = g.buildZoomSvg(st, null);
+    const [x, y, w, h] = svg.match(/viewBox="([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+)"/).slice(1).map(Number);
+    for (const p of expectPts(st)) {
+      assert.ok(p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h,
+        `${st.shape}: 테두리 꼭짓점 (${p.x.toFixed(1)},${p.y.toFixed(1)}) 가 뷰박스 [${x.toFixed(1)},${(x + w).toFixed(1)}]×[${y.toFixed(1)},${(y + h).toFixed(1)}] 밖`);
+    }
+    // 대조 — 테두리를 끄면 상자가 «실제로» 줄어든다(그래야 위 통과가 「그냥 커서」가 아님이 증명된다)
+    const noBd = g.buildZoomSvg({ ...st, bd: 'off' }, null);
+    const w0 = parseFloat(noBd.match(/viewBox="[-\d.]+ [-\d.]+ ([-\d.]+)/)[1]);
+    assert.ok(w0 < w, '테두리 유무로 뷰박스가 안 달라지면 이 검사는 아무것도 못 가른다');
+  }
+});
+
+test('ⓐ-18 그림자와 테두리는 «배타가 아니다» — 둘 다 켤 수 있다', async () => {
+  const g = await loadGeom();
+  const both = g.buildZoomSvg({ ...ST, shadow: 'on', bd: 'on' }, null);
+  assert.equal((both.match(/<polygon[^>]*fill="#000"/g) || []).length, 64);
+  assert.equal((both.match(/zoom-border/g) || []).length, 1);
 });
 
 /* ── ⓑ 배선 — 신규 블록 체크리스트 5곳 ────────────────────────────────────── */
@@ -400,6 +496,22 @@ test('ⓑ-10 ⛔makeZoomBlock 은 a·b 를 «박지 않는다» (끌기 전까�
   assert.ok(SRC.block.includes('function clearPinnedShortEdge'), '자동으로 되돌리는 길이 있어야 한다');
 });
 
+test("ⓑ-14 ★그림자·테두리는 «라디오»다 (⛔체크박스 아님) — 그리고 켤 때 값을 «안 지운다»", () => {
+  const s = SRC.prop;
+  assert.equal(/type="checkbox"/.test(s), false, '현빈이 「라디오버튼으로」라고 명시했다');
+  for (const name of ['zm-shadow', 'zm-bd']) {
+    const opts = [...s.matchAll(new RegExp(`type="radio" name="${name}" value="(on|off)"`, 'g'))].map(m => m[1]);
+    assert.deepEqual(opts.sort(), ['off', 'on'], `${name} 라디오가 켬/끔 두 벌이 아니다`);
+  }
+  // ⛔라디오 핸들러가 그림자 값을 지우면 다시 켰을 때 안 돌아온다.
+  const body = sliceFn(s, 'const bindRadio = (name, key, label) =>');
+  for (const k of ['angle', 'length', 'maxop', 'curve', 'narrow', 'spread']) {
+    assert.equal(new RegExp(`delete\\s+block\\.dataset\\.${k}\\b`).test(body), false,
+      `라디오가 dataset.${k} 를 지운다 — 다시 켜면 값이 사라진다`);
+  }
+  assert.ok(/block\.dataset\[key\] = r\.value/.test(body), "라디오는 'on'/'off' 만 쓴다");
+});
+
 test('ⓑ-11 ⛔새 색 토큰을 만들지 않는다 — 다크 단일 테마의 공용 변수만 쓴다', () => {
   const cssBlock = SRC.css.slice(SRC.css.indexOf('.zoom-block {'));
   const zone = cssBlock.slice(0, cssBlock.indexOf('\n.chb-msg'));
@@ -431,5 +543,10 @@ test('ⓑ-13 기본값 — shape=rect(★기본은 사각형) · maxop=30 · len
   assert.equal(pick('maxop'), '30');
   assert.equal(pick('curve'), '100');
   assert.equal(pick('narrow'), '62');
+  assert.equal(pick('shadow'), 'on');    // ★그림자는 «켬»이 기본(돋보기)
+  assert.equal(pick('bd'), 'off');       // ★테두리는 «끔»이 기본
+  assert.equal(pick('bdw'), '6');
+  assert.equal(pick('bdc'), '#ffffff');
+  assert.equal(pick('bdr'), '0');
   assert.ok(/ZOOM_SHAPES = \['rect', 'circle', 'square'\]/.test(SRC.block), '프리셋 셋(사각형·원·정사각형) 누락');
 });
