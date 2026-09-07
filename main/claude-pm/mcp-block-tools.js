@@ -378,8 +378,22 @@ function install({ tools, toolSchemas, registerTool, hide }) {
   registerTool(
     'get_block_schema',
     async ({ type, op = 'both' } = {}) => {
+      /* ★★type 을 «안 주고» 부르는 일이 실제로 많다 — 원장 실측(2026-09-07): 34회 중 11회(32%)가
+           `unknown block type: (missing)`. 스키마를 미뤄 둔 도구인데 «미룬 첫 걸음»이 3분의 1 실패했다.
+         ⛔에러로 끝내면 모델은 왕복을 한 번 더 쓴다 — 아끼려던 토큰을 오히려 더 쓴다.
+         ⇒ 던지지 말고 «고를 수 있는 목록»을 돌려준다. 그 자체가 답이 되게. */
+      if (type == null || type === '') {
+        return {
+          ok: true,
+          need: 'type',
+          message: 'Pass type to get one block\u2019s schema. Here is the catalogue so you can pick without another round trip.',
+          types: BLOCK_TYPES.map(b => ({ type: b.type, idPrefix: b.pfx, use: b.blurb,
+                                         canAdd: !!b.add, canUpdate: !!b.upd })),
+          hint: 'Most common types are already inlined in add_block/update_block descriptions \u2014 check there first; call this only for a type that is not.',
+        };
+      }
       const d = resolveType(type);
-      if (!d) throw new Error(`unknown block type: ${type == null ? '(missing)' : type}. allowed: ${typeList.join(', ')}`);
+      if (!d) throw new Error(`unknown block type: ${type}. allowed: ${typeList.join(', ')}`);
       if (!['add', 'update', 'both'].includes(op)) throw new Error(`invalid op: ${op} (add|update|both)`);
       const pick = (name) => {
         if (!name) return null;
@@ -395,6 +409,7 @@ function install({ tools, toolSchemas, registerTool, hide }) {
     {
       description:
         'Get the full property schema of one block type — call it before add_block/update_block for a type that is not in the inline specs. '
+        + 'Calling it WITHOUT type is fine: it returns the whole type catalogue (name, id prefix, what it is for) so you can pick in one step. '
         + 'op:"add"|"update"|"both"(default). Returns {type, idPrefix, use, add:{description,properties,required}, update:{...}}. '
         + 'This is the deliberate trade: the 26 type schemas are NOT loaded into every request (they cost ~30k tokens), you pull the one you need.',
       inputSchema: {
@@ -403,7 +418,10 @@ function install({ tools, toolSchemas, registerTool, hide }) {
           type: { type: 'string', enum: typeList, description: 'block type (same enum as add_block)' },
           op: { type: 'string', enum: ['add', 'update', 'both'], description: 'which side to return. "add" is half the size.' }
         },
-        required: ['type']
+        /* ★type 은 «선택»이다 — 없으면 타입 목록을 돌려준다(에러 왕복을 없애려고 그렇게 바꿨다).
+             ⛔동작만 바꾸고 required 를 남겨 두면 «계약이 거짓말»을 한다 —
+               계약 검사(F3-1)가 정확히 그 어긋남을 잡았다. */
+        required: []
       }
     }
   );

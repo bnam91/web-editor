@@ -556,12 +556,16 @@
       "mutating": false,
       "switchExempt": true,
       "targetFree": true,
-      "required": [
-        "type"
-      ],
+      "required": [],
       "expectedProjectGuard": false,
-      "noArgs": "rejected",
-      "responseKeys": []
+      "noArgs": "ok",
+      "responseKeys": [
+        "hint",
+        "message",
+        "need",
+        "ok",
+        "types"
+      ]
     },
     "get_canvas_state": {
       "hidden": false,

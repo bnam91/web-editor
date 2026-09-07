@@ -3913,8 +3913,13 @@ async function _invokeRendererSearchSections({ query, limit = 50, caseSensitive 
           hits.push({
             sectionId: sec.id, sectionName: secName || null,
             blockId: b.id || null, type: TYPE(b), where: 'block',
+            /* ★excerpt «만» 싣는다 — text 는 excerpt 를 통째로 품고 있어 100% 중복이었다.
+                 실측(2026-09-08, 실물 102섹션 「보풀」 44건): excerpt 가 text 안에 든 것 44/44.
+                 한 번 호출에 ~1,075 토큰이 중복으로 나갔다.
+               ⛔토큰은 클라이언트가 내는 돈이다 — 같은 글자를 두 번 보내지 않는다.
+               ⇒ 전문이 필요하면 blockId 로 get_canvas_state(sectionId) 를 부르면 된다(그게 더 싸다). */
             excerpt: (from > 0 ? '…' : '') + raw.slice(from, to) + (to < raw.length ? '…' : ''),
-            text: raw.length > 200 ? raw.slice(0, 200) + '…' : raw,
+            chars: raw.length,
           });
         }
         if (truncated) break;

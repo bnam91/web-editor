@@ -2606,7 +2606,9 @@ function _registerDefaultTools() {
       description: 'Find WHERE a phrase appears in the open project — searches every section in one pass. '
         + 'Use this before editing when the user names content instead of an id '
         + '("fix the section with the price table", "\u2018무료배송\u2019 적힌 데 고쳐줘", spell-check, bulk rewording). '
-        + 'Returns {ok, query, matches, hits:[{sectionId, sectionName, blockId, type, where, excerpt, text}], '
+        + 'Returns {ok, query, matches, hits:[{sectionId, sectionName, blockId, type, where, excerpt, chars}], '
+        + 'excerpt is the match with ~24 chars of context; chars is the block\u2019s full length. '
+        + 'For the whole text call get_canvas_state(sectionId) \u2014 the hit is deliberately short to keep responses cheap. '
         + 'scannedSections, scannedBlocks, truncated}. Section NAMES are searched too. '
         + '★scannedSections/scannedBlocks are reported so 0 matches can be told apart from "nothing was scanned" '
         + '(0 scanned means no project is open, not that the phrase is absent). '
@@ -8193,9 +8195,17 @@ async function _handleRpc(msg) {
           try { r = { ...r, warnings: [...(r.warnings || []), _unknownArgWarning(name, _unknown)] }; }
           catch (_) { /* 경고 실패가 응답을 막지 않는다 */ }
         }
+        const _text = JSON.stringify(r);
+        /* ★★원장에 «응답 크기»를 적는다 (2026-09-08).
+             ⛔지금까지 원장은 argBytes(보낸 양)만 셌다 — 그런데 토큰을 먹는 건 «돌아오는 양»이다.
+               ⇒ 「토큰이 녹았다」는 말이 나와도 «어느 도구가 얼마나» 먹었는지 답할 수가 없었다.
+             실측(2026-09-08, 실물 102섹션): get_canvas_state 한 번이 ~2,700 토큰,
+               get_block_schema(canvas) 한 번이 ~3,000 토큰. 이게 본체다.
+             ⛔글자수만 적는다 — 내용은 안 적는다(원장 규약: 값 금지). */
         try { _audit(r && r.ok === false ? 'refused' : 'ok',
-                     r && r.code ? { code: r.code } : null); } catch (_) {}
-        return ok({ content: [{ type: 'text', text: JSON.stringify(r) }], isError: false });
+                     Object.assign({ resultChars: _text.length },
+                                   r && r.code ? { code: r.code } : null)); } catch (_) {}
+        return ok({ content: [{ type: 'text', text: _text }], isError: false });
       };
       /* ★«스키마에 없는 인자»를 여기 «한 자리»에서 다룬다 (2026-09-07 g-mcpmgr).
        *
