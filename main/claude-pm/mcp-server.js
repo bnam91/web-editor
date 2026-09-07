@@ -488,6 +488,87 @@ function _serializeCall(fn) {
   return p;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * 갭 «감수 패스» — 도구 묶음이 «멎으면» 한 번 돈다. (2026-09-07)
+ *
+ * ⓔ 왜 «클로드가 부르는 도구»가 아닌가: 실측으로 확인했다 — 클로드는 도구를 «보고도» 안 부른다.
+ *   서버가 알아서 돌아야 한다. 그래서 여기(디스패처)에 예약을 건다.
+ * ⓔ 왜 «매 호출»이 아닌가: 5섹션 35블록을 짓는 동안 매번 돌면 낭비고 되돌리기 이력도 더러워진다.
+ *   ⇒ 편집이 성공할 때마다 타이머를 «다시» 걸어서, 조용해졌을 때 «한 번» 돈다.
+ * ★그래도 중간에 한 번 더 돌아도 «결과가 안 변한다» — normalizePlan 이 멱등이라서다.
+ *   최악이 「히스토리 한 칸 낭비」인 설계라, 타이밍을 완벽히 맞추려고 애쓰지 않아도 된다.
+ *
+ * ⛔환경변수는 «검사용 구멍»이다: GODITOR_SPACING_DEBOUNCE_MS=0 이면 즉시, 음수면 «끈다».
+ * ───────────────────────────────────────────────────────────────────────── */
+const _spacing = require('./services/spacing');
+const _SPACING_DEBOUNCE_MS = (() => {
+  const raw = process.env.GODITOR_SPACING_DEBOUNCE_MS;
+  const n = raw === undefined || raw === '' ? 1200 : Number(raw);
+  return Number.isFinite(n) ? n : 1200;
+})();
+let _spacingTimer = null;
+/** 마지막 감수 결과 — 진단·검사가 «실제로 무엇이 됐나»를 읽는 자리. */
+let _spacingLastRun = null;
+
+/** 편집 도구가 «성공»할 때마다 감수를 다시 예약한다(=묶음이 이어지면 계속 미뤄진다). */
+/* ⛔«남의 문서»를 여는/만드는 계열은 감수 대상이 아니다. 열자마자 감수가 돌면
+   사람이 손으로 맞춘 기존 프로젝트를 «열기만 해도» 고쳐 쓴다.
+   ★1차 방어는 「히스토리가 움직였나」(호출부)이고, 이건 그게 뚫렸을 때의 2차 방어다. */
+const _SPACING_EXEMPT = new Set([
+  'normalize_spacing',      // 감수가 감수를 부르는 고리
+  'open_project', 'create_project', 'duplicate_project',
+]);
+
+function _scheduleSpacingAudit(toolName) {
+  if (_SPACING_DEBOUNCE_MS < 0) return;                 // 꺼짐
+  if (_SPACING_EXEMPT.has(toolName)) return;
+  if (_spacingTimer) clearTimeout(_spacingTimer);
+  _spacingTimer = setTimeout(() => {
+    _spacingTimer = null;
+    /* 도구와 «같은 줄»에 세운다 — 감수가 편집 도중의 캔버스를 만지지 않게. */
+    _serializeCall(() => runSpacingAudit({ reason: 'batch-idle', trigger: toolName }))
+      .catch((e) => { try { console.warn('[spacing] 감수 실패(무시하고 계속):', e && e.message); } catch (_) {} });
+  }, _SPACING_DEBOUNCE_MS);
+  if (_spacingTimer && typeof _spacingTimer.unref === 'function') _spacingTimer.unref();
+}
+
+/**
+ * 감수 한 바퀴 — 읽고(렌더러) → 계획하고(순수 spacing.js) → 적용한다(렌더러).
+ * ★판단은 «한 곳»에서만 한다: 이 함수는 규격을 하나도 안 들고 있다.
+ */
+async function runSpacingAudit({ sectionId = null, reason = 'manual', trigger = null } = {}) {
+  const inv = _rendererInvoker;
+  if (!inv || typeof inv.readSpacingSequence !== 'function' || typeof inv.applySpacingOps !== 'function') {
+    return (_spacingLastRun = { ok: false, code: 'API_MISSING', reason,
+      message: 'renderer bridge has no readSpacingSequence/applySpacingOps' });
+  }
+  const read = await inv.readSpacingSequence({ sectionId });
+  if (!read || read.ok === false) return (_spacingLastRun = Object.assign({ reason }, read || { ok: false, code: 'CALL_ERROR' }));
+
+  const sections = [];
+  const notes = [];
+  let scanned = 0;
+  for (const sec of (read.sections || [])) {
+    scanned++;
+    const plan = _spacing.normalizePlan(sec.items || []);
+    for (const n of plan.notes) notes.push(`${sec.name || sec.sectionId}: ${n}`);
+    if (plan.ops.length) sections.push({ sectionId: sec.sectionId, ops: plan.ops });
+  }
+  /* ★할 일이 없으면 «아무것도 안 한다» — 히스토리도 안 쌓인다. 멱등의 눈에 보이는 쪽. */
+  if (!sections.length) {
+    return (_spacingLastRun = { ok: true, reason, trigger, scannedSections: scanned, changedSections: 0, applied: 0, notes });
+  }
+  const applied = await inv.applySpacingOps({ sections });
+  /* ★히스토리 꼭대기를 «우리 구간»으로 끌어올린다. 안 하면 undo_last_mcp_change 가
+     방금 쌓인 «감수» 칸을 보고 NOT_OURS 를 내거나, 감수만 물어뜯는다. */
+  if (_lastMcpSeq != null && typeof inv.historyTip === 'function') {
+    try { const t = await inv.historyTip(); if (t && t.ok !== false && t.seq != null) _lastMcpSeq = t.seq; } catch (_) {}
+  }
+  return (_spacingLastRun = { ok: true, reason, trigger, scannedSections: scanned,
+    changedSections: sections.length, ops: sections.reduce((n, s) => n + s.ops.length, 0),
+    applied, notes, plan: sections });
+}
+
 /* API_MISSING = 렌더러에 해당 window.* API가 없다. 대부분 «편집기(index.html)가 안 열려
  * 있어서»다 — 갤러리(projects.html)엔 캔버스 API가 없다(08-25 시연: add_section이
  * 'window.addSection not found'만 내서 원인을 못 알렸다). 원인(화면 상태)+우회(open_project)를
@@ -878,6 +959,31 @@ function _registerDefaultTools() {
       }
     }
   );
+
+  /* ── normalize_spacing (2026-09-07) ── ★«숨김» 도구다 ───────────────────────
+   * ⛔클로드 보라고 만든 게 아니다. hideTool 로 tools/list 에서 빠지므로 사용자 토큰은 0 이다.
+   *   ⓔ 지시대로 감수는 «서버가 알아서» 돈다(_scheduleSpacingAudit). 이 도구는 QA·하네스가
+   *   「지금 돌려라」로 부르고 «실제로 무엇이 됐나»를 읽는 통로다 — 양끝을 재려면 필요하다.
+   *   ⇒ 이 도구가 「도구를 부르게 하는 길」로 되살아나면 안 된다. 숨김을 풀지 마라. */
+  registerTool(
+    'normalize_spacing',
+    async ({ sectionId = null, expectedProject } = {}) => {
+      _assertExpectedProject(expectedProject);
+      return runSpacingAudit({ sectionId: sectionId || null, reason: 'tool' });
+    },
+    {
+      description: '(internal/QA) Run the gap audit pass now and report what changed.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_… — one section only. Omit for the whole page.' },
+          expectedProject: { type: 'string', description: 'proj_<digits>. Refuses if a different project is open.' }
+        },
+        required: []
+      }
+    }
+  );
+  hideTool('normalize_spacing');
 
 
 
@@ -7228,6 +7334,14 @@ async function _handleRpc(msg) {
           if (t && t.ok !== false && !t.empty && t.seq != null && t.seq !== _before) {
             _lastMcpSeqFrom = _before;   // 호출 «전» 꼭대기
             _lastMcpSeq = t.seq;         // 호출 «후» 꼭대기
+            /* ★갭 «감수 패스» 예약. ⛔이 줄은 «여기»여야 한다 — 이유 둘:
+               ⑴tools/call 은 아래에서 _SWITCH_EXEMPT / _serializeCall «두 갈래»로 갈리는데
+                 둘 다 _noteSeq 를 지난다. 갈래 한쪽에 넣으면 다른 쪽이 «조용히» 샌다.
+               ⑵「캔버스가 실제로 바뀌었나」를 «도구 이름표»가 아니라 «히스토리 꼭대기가
+                 움직였나»로 판정한다 — 이름 목록은 도구가 늘 때마다 썩는다.
+                 (실측 2026-09-07: 이름으로 걸었더니 open_project 가 감수를 불러
+                  «프로젝트를 열기만 해도» 남의 갭을 고쳐 쓸 뻔했다.) */
+            _scheduleSpacingAudit(name);
           }
         } catch (_) { /* 추적 실패는 편집을 막지 않는다 — undo 가 NOT_OURS 로 안전측 거절한다 */ }
         return r;

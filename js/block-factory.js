@@ -128,6 +128,9 @@ function makeGapBlock() {
   const gb = document.createElement('div');
   gb.className = 'gap-block'; gb.dataset.type = 'gap';
   gb.id = genId('gb');
+  /* ⓓ 갭 «감수 패스»의 자동/수동 표식. 기계가 만든 갭은 «자동»이라 감수가 보정할 수 있다.
+     사람이 높이를 정하는 순간 markGapManual() 이 이 도장을 뗀다(js/spacing-normalize.js). */
+  gb.dataset.gapAuto = '1';
   return gb;
 }
 
@@ -1369,8 +1372,8 @@ function addSection(opts = {}) {
         <button class="st-btn st-memo-btn" onclick="window.toggleSectionMemoPopover(this)" title="섹션 메모"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M7.4 1.5 H3 A1 1 0 0 0 2 2.5 V9.5 A1 1 0 0 0 3 10.5 H9 A1 1 0 0 0 10 9.5 V4.1"/><path d="M8.2 1.3 L10.7 3.8 L7.2 7.3 L5.6 7.7 L6 6.1 Z"/></svg></button>
       </div>
       <div class="section-inner">
-        <div class="gap-block" data-type="gap" style="height:${gapH}px" id="${genId('gb')}"></div>
-        <div class="gap-block" data-type="gap" style="height:${gapH}px" id="${genId('gb')}"></div>
+        <div class="gap-block" data-type="gap" data-gap-auto="1" style="height:${gapH}px" id="${genId('gb')}"></div>
+        <div class="gap-block" data-type="gap" data-gap-auto="1" style="height:${gapH}px" id="${genId('gb')}"></div>
       </div>`;
   } else {
     const _tfId = genId('ss'), _tbId = genId('tb');
@@ -1381,13 +1384,13 @@ function addSection(opts = {}) {
         <button class="st-btn st-memo-btn" onclick="window.toggleSectionMemoPopover(this)" title="섹션 메모"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M7.4 1.5 H3 A1 1 0 0 0 2 2.5 V9.5 A1 1 0 0 0 3 10.5 H9 A1 1 0 0 0 10 9.5 V4.1"/><path d="M8.2 1.3 L10.7 3.8 L7.2 7.3 L5.6 7.7 L6 6.1 Z"/></svg></button>
       </div>
       <div class="section-inner">
-        <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
+        <div class="gap-block" data-type="gap" data-gap-auto="1" style="height:100px" id="${genId('gb')}"></div>
         <div class="frame-block" data-text-frame="true" id="${_tfId}">
           <div class="text-block" data-type="heading" id="${_tbId}">
             <div class="tb-h2" contenteditable="false" data-placeholder="소제목을 입력하세요" data-is-placeholder="true" style="font-family:'Pretendard', sans-serif">소제목을 입력하세요</div>
           </div>
         </div>
-        <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
+        <div class="gap-block" data-type="gap" data-gap-auto="1" style="height:100px" id="${genId('gb')}"></div>
       </div>`;
   }
 
@@ -3794,6 +3797,9 @@ function updateGapBlock(blockId, partial = {}) {
     const v = Math.round(n);
     block.style.height = v + 'px';
     block.dataset.h = String(v);
+    /* ⓓ 「지어놓고 «고친» 값」은 사람 것이다 — 감수가 되돌리면 안 된다.
+       (add_gap_block 은 반대로 «자동»이다. 지을 때 붙인 값은 감수 대상이다.) */
+    window.markGapManual?.(block);
     applied.height = v;
   }
 

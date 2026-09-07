@@ -1,0 +1,176 @@
+/* spacing-normalize.dom.spec.js — 갭 감수의 «렌더러 쪽 진짜 끝». (2026-09-07 신설)
+ *
+ * ★왜 따로 필요한가 (canvas-state.dom.spec.js 와 같은 이유):
+ *   node 하네스의 가짜 렌더러는 «시퀀스 JSON»을 든다. 그건 js/spacing-normalize.js 가
+ *   「이렇게 읽을 것이다」라는 손으로 적은 기대지 실측이 아니다. 기대가 틀리면 배선 검사
+ *   전체가 거짓 위에 선다 — 특히 «타입을 어떻게 읽느냐»(텍스트 프레임 → heading, row → 자식들)는
+ *   전부 이 파일에만 있다.
+ *   ⇒ 여기서 «진짜» js/spacing-normalize.js 를 크로미움에 띄워, 진짜 DOM 에서 재고
+ *      «진짜 갭 높이»가 그 값이 됐는지 본다. 「DOM 에 있다」 ≠ 「읽힌다」.
+ *
+ * ⛔앱을 «안» 띄운다 — 고디터 인스턴스·MCP 9345 대역 무접촉. 빈 페이지에 스크립트만 얹는다.
+ * ⚠️이 픽스처엔 이미지가 없어서 setContent 로도 안전하다(상대경로 이미지가 있으면 file:// 로 열 것).
+ *
+ * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js spacing-normalize
+ */
+const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+
+const REPO = path.join(__dirname, '..', '..');
+const SRC = path.join(REPO, 'js', 'spacing-normalize.js');
+const SPACING = require(path.join(REPO, 'main', 'claude-pm', 'services', 'spacing.js'));
+
+/** 앱의 진짜 구조 그대로: .section-block > .section-inner > (gap | 텍스트프레임 | row) */
+const gapEl = (id, h, auto) =>
+  `<div class="gap-block" data-type="gap"${auto ? ' data-gap-auto="1"' : ''} style="height:${h}px" id="${id}"></div>`;
+const textEl = (id, type, cls) =>
+  `<div class="frame-block" data-text-frame="true" id="ss_${id}">`
+  + `<div class="text-block" data-type="${type}" id="${id}"><div class="tb-${cls || type}">글</div></div></div>`;
+const rowEl = (id, inner) => `<div class="row" id="row_${id}" data-layout="stack">${inner}</div>`;
+
+const FIXTURE = `
+<div id="canvas">
+  <div class="section-block" data-section="1" id="sec_1" data-name="Section 01">
+    <div class="section-hitzone"><span class="section-label">Section 01</span></div>
+    <div class="section-inner">
+      ${gapEl('gb_top', 100, true)}
+      ${textEl('tb_1', 'label')}
+      ${textEl('tb_2', 'heading', 'h2')}
+      ${textEl('tb_3', 'body')}
+      ${rowEl('r1', '<div class="asset-block" id="ab_1"></div>')}
+      ${textEl('tb_4', 'caption')}
+      <div class="sticker-block" id="stk_1" style="position:absolute;top:0;left:0">스티커</div>
+      ${gapEl('gb_bot', 100, true)}
+    </div>
+  </div>
+  <div class="section-block" data-section="2" id="sec_2" data-name="손맞춤">
+    <div class="section-inner">
+      ${gapEl('gb_t2', 100, true)}
+      ${textEl('tb_5', 'heading', 'h2')}
+      ${gapEl('gb_manual', 37, false)}
+      ${textEl('tb_6', 'body')}
+      ${gapEl('gb_o1', 100, true)}
+      ${gapEl('gb_o2', 100, true)}
+    </div>
+  </div>
+</div>`;
+
+/** 페이지의 «진짜» 갭 높이를 DOM 에서 직접 읽는다(감수 함수를 안 거친다 = 뒤끝). */
+const readDomShape = (page) => page.evaluate(() => {
+  const out = {};
+  document.querySelectorAll('.section-block').forEach((sec) => {
+    out[sec.id] = [...sec.querySelector('.section-inner').children]
+      .filter((el) => getComputedStyle(el).position !== 'absolute')
+      .map((el) => el.classList.contains('gap-block')
+        ? 'gap' + parseInt(el.style.height, 10) + (el.dataset.gapAuto === '1' ? '' : '(수동)')
+        : (el.querySelector('.text-block')?.dataset.type || el.className.split(' ')[0]));
+  });
+  return out;
+});
+
+async function boot(page) {
+  await page.setContent(`<!doctype html><html><body>${FIXTURE}</body></html>`);
+  await page.addScriptTag({ content: fs.readFileSync(SRC, 'utf8') });
+}
+
+test('DOM-① 진짜 DOM 에서 «세로 시퀀스»를 제대로 읽는다 (텍스트프레임→타입 · row→자식들 · 절대배치 제외)', async ({ page }) => {
+  await boot(page);
+  const st = await page.evaluate(() => window.readSpacingSequence());
+  expect(st.ok).toBe(true);
+  const s1 = st.sections.find((s) => s.sectionId === 'sec_1');
+  console.log('  읽은 시퀀스(sec_1):', s1.items.map((i) => i.kind === 'gap' ? `gap${i.height}` : i.type).join(' · '));
+
+  expect(s1.items.map((i) => (i.kind === 'gap' ? 'gap' : i.type)))
+    .toEqual(['gap', 'label', 'heading', 'body', 'row', 'caption', 'gap']);
+  // ★텍스트 프레임은 «껍데기»다 — frame(덩어리) 이 아니라 안의 heading/body/caption 이어야 한다.
+  expect(s1.items[2].type).toBe('heading');
+  // ★절대배치 스티커는 흐름이 아니다 — 시퀀스에 있으면 그 앞뒤에 갭을 넣어 버린다.
+  expect(s1.items.some((i) => i.id === 'stk_1')).toBe(false);
+  // ★row 는 자식이 성격을 정한다 — 이미지 든 줄은 덩어리(3)로 읽혀야 한다.
+  const row = s1.items.find((i) => i.type === 'row');
+  expect(SPACING.weightOfItem(row)).toBe(3);
+  // 자동/수동 도장이 «읽힌다»
+  const s2 = st.sections.find((s) => s.sectionId === 'sec_2');
+  expect(s2.items.find((i) => i.id === 'gb_manual').auto).toBe(false);
+  expect(s2.items.find((i) => i.id === 'gb_t2').auto).toBe(true);
+});
+
+test('DOM-② ★뒤끝 — 계획을 적용하면 «진짜 갭 높이»가 그 값이 된다', async ({ page }) => {
+  await boot(page);
+  const before = await readDomShape(page);
+
+  const st = await page.evaluate(() => window.readSpacingSequence());
+  const sections = [];
+  for (const sec of st.sections) {
+    const plan = SPACING.normalizePlan(sec.items);
+    if (plan.ops.length) sections.push({ sectionId: sec.sectionId, ops: plan.ops });
+  }
+  const applied = await page.evaluate((p) => window.applySpacingOps(p), { sections });
+  const after = await readDomShape(page);
+
+  console.log('  ┌─ 진짜 DOM 전/후 ─────────────────────────────');
+  for (const k of Object.keys(before)) {
+    console.log(`  │ ${k}\n  │   전 : ${before[k].join(' · ')}\n  │   후 : ${after[k].join(' · ')}`);
+  }
+  console.log(`  └ 적용: 삽입 ${applied.inserted} · 크기 ${applied.resized} · 제거 ${applied.removed}`);
+
+  expect(after.sec_1).toEqual([
+    'gap100', 'label', 'gap80', 'heading', 'gap80', 'body', 'gap80', 'row', 'gap16', 'caption', 'gap100',
+  ]);
+  // ★수동 37px 은 살아남고, 고아 갭 둘은 하나로 합쳐진다
+  expect(after.sec_2).toEqual(['gap100', 'heading', 'gap37(수동)', 'body', 'gap100']);
+  expect(applied.misses).toEqual([]);
+});
+
+test('DOM-③ ★멱등 — 한 번 더 돌리면 계획이 «빈 배열»이라 DOM 이 안 움직인다', async ({ page }) => {
+  await boot(page);
+  const run = async () => {
+    const st = await page.evaluate(() => window.readSpacingSequence());
+    const sections = [];
+    for (const sec of st.sections) {
+      const plan = SPACING.normalizePlan(sec.items);
+      if (plan.ops.length) sections.push({ sectionId: sec.sectionId, ops: plan.ops });
+    }
+    if (sections.length) await page.evaluate((p) => window.applySpacingOps(p), { sections });
+    return sections.reduce((n, s) => n + s.ops.length, 0);
+  };
+  const first = await run();
+  const shapeA = await readDomShape(page);
+  const second = await run();
+  const shapeB = await readDomShape(page);
+  console.log(`  1회차 ops ${first}개 → 2회차 ops ${second}개`);
+  expect(first).toBeGreaterThan(0);
+  expect(second).toBe(0);
+  expect(shapeB).toEqual(shapeA);
+});
+
+test('DOM-④ 사람이 손대면 그 갭은 «수동»이 되고, 그 다음 감수가 안 건드린다', async ({ page }) => {
+  await boot(page);
+  // 먼저 규격에 맞춘다(전부 자동)
+  const norm = async () => {
+    const st = await page.evaluate(() => window.readSpacingSequence());
+    const sections = [];
+    for (const sec of st.sections) {
+      const plan = SPACING.normalizePlan(sec.items);
+      if (plan.ops.length) sections.push({ sectionId: sec.sectionId, ops: plan.ops });
+    }
+    if (sections.length) await page.evaluate((p) => window.applySpacingOps(p), { sections });
+    return sections.reduce((n, s) => n + s.ops.length, 0);
+  };
+  await norm();
+
+  // 사람이 sec_1 의 첫 «자동» 갭을 33px 로 맞췄다(=prop-gap.js 가 하는 일)
+  const id = await page.evaluate(() => {
+    const gb = document.querySelector('#sec_1 .section-inner .gap-block');
+    gb.style.height = '33px';
+    window.markGapManual(gb);
+    return gb.id;
+  });
+  expect(await page.evaluate((i) => document.getElementById(i).dataset.gapAuto, id)).toBeUndefined();
+
+  const left = await norm();
+  expect(left).toBe(0);
+  const h = await page.evaluate((i) => document.getElementById(i).style.height, id);
+  expect(h).toBe('33px');   // ★되돌리면 도와준 게 아니라 뺏은 것이다
+});

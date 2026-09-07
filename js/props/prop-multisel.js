@@ -435,6 +435,7 @@ function _applyFlowDistribute(blocks) {
   gaps.forEach(g => {
     g.style.height = avg + 'px';
     if (g.dataset) g.dataset.height = String(avg);
+    window.markGapManual?.(g);   // ⓓ 사람이 «분배»로 정한 높이 — 갭 감수가 되돌리지 않는다
   });
   window.pushHistory?.('세로 분배');
   showFlowMultiSelPanel();

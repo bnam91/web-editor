@@ -268,5 +268,35 @@
     "file": "js/io/figma-publish.js",
     "find": "  if (!window.FIGMA_ENABLED) return;",
     "replace": "  /* MUTANT */"
+  },
+  {
+    "name": "spacing(a) kill: 감수 예약 훅을 통째로 삭제",
+    "file": "main/claude-pm/mcp-server.js",
+    "find": "            _scheduleSpacingAudit(name);\n          }",
+    "replace": "            /* MUTANT: 감수 예약 없음 */\n          }"
+  },
+  {
+    "name": "spacing(b) MOVE: 배선을 「추가 경로」로 옮김(add_*/build_* 만) — 한쪽만 새는 함정",
+    "file": "main/claude-pm/mcp-server.js",
+    "find": "            _scheduleSpacingAudit(name);\n          }",
+    "replace": "            if (/^(add_|build_)/.test(name)) _scheduleSpacingAudit(name);   /* MUTANT: 추가 경로에만 배선 */\n          }"
+  },
+  {
+    "name": "spacing(c) 수동 도장 1곳 삭제(프리셋 버튼) — 사람이 고른 값이 되돌려진다",
+    "file": "js/props/prop-gap.js",
+    "find": "      window.markGapManual?.(gb);   // ⓓ 사람이 고른 프리셋 — 갭 감수가 되돌리지 않는다",
+    "replace": "      /* MUTANT: 수동 도장 없음 */"
+  },
+  {
+    "name": "spacing(d) 자동 도장 삭제(makeGapBlock) — 감수가 아무 갭도 못 만진다",
+    "file": "js/block-factory.js",
+    "find": "  gb.dataset.gapAuto = '1';",
+    "replace": "  /* MUTANT: 자동 도장 없음 */"
+  },
+  {
+    "name": "spacing(e) 규격: 「뒤가 무게0 → XS」 규칙 삭제 — 캡션이 안 붙는다",
+    "file": "main/claude-pm/services/spacing.js",
+    "find": "  if (wn === 0) return SCALE.XS;",
+    "replace": "  /* MUTANT: 꼬리 규칙 없음 */"
   }
 ]
