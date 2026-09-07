@@ -62,6 +62,14 @@ const WEIGHT = Object.freeze({
   /* row = 블록을 «나란히» 담는 DOM 래퍼다. 진짜 무게는 childTypes(자식 중 최대)에서 나오고,
      이 값은 «안을 못 봤을 때»의 폴백이다. 덩어리로 두는 편이 안전하다(여백이 모자란 것보다 낫다). */
   row: 3,
+  /* ★아래 다섯은 «렌더러가 실제로 내는» dataset.type 인데 MCP BLOCK_TYPES 엔 없다
+     (tests/unit/spacing-spec ⑩-b 가 js/ 191개 파일에서 세어 잡았다). 무게가 없으면
+     「모르는 타입」으로 떨어지므로 여기 있어야 한다. */
+  icon: 2,          // .icon-block(icn_) = iconify 와 같은 것, 이름만 다르다
+  bridge: 3,        // .bridge-block — 섹션을 잇는 시각 덩어리
+  infocard: 3,      // .infocard-block — 카드
+  innercard: 3,     // .innercard-block — 카드 안 카드
+  joker: 3,         // .joker-block(sb_) — 피그마 컴포넌트 자리, 통짜 그림
   // 3 — 덩어리
   table: 3,
   asset: 3,
@@ -102,7 +110,14 @@ function resetWarnings() { _warned.clear(); }
  * @returns {number} 0..3
  */
 function weightOf(type) {
-  const t = String(type == null ? '' : type);
+  /* ★DOM 은 «하이픈», 도구 레지스트리는 «밑줄»을 쓴다 — 같은 블록인데 이름이 두 벌이다.
+     `dataset.type` 실측: speech-bubble · label-group · icon-circle · icon-text
+     `BLOCK_TYPES` 실측: speech_bubble · label_group · icon_circle · icon_text
+     ⛔이걸 안 맞추면 «있는 타입»이 조용히 「모르는 타입」으로 떨어진다.
+     2026-09-07 실측: 진짜 앱이 만든 «데일리 수분크림»(8섹션)에서 speech-bubble 이
+     무게 2로 떨어져 `speech-bubble → row` 가 M80 이어야 할 자리에 S40 이 들어갔다.
+     내 픽스처는 전부 밑줄로 적혀 있어서 «영영 안 보였을» 결함이다. */
+  const t = String(type == null ? '' : type).replace(/-/g, '_');
   if (Object.prototype.hasOwnProperty.call(WEIGHT, t)) return WEIGHT[t];
   if (!_warned.has(t)) {
     _warned.add(t);

@@ -20,6 +20,23 @@ const require_ = createRequire(import.meta.url);
 const SPACING_REL = path.join('main', 'claude-pm', 'services', 'spacing.js');
 const S = require_(path.join(REPO, SPACING_REL));
 
+/* ── 렌더러가 «실제로 내는» 블록 타입 ─────────────────────────────────────
+ * 두 SSOT 검사(⑦-b · ⑩-b)가 «같은 근거»를 써야 서로 반대 방향으로 당기지 않는다.
+ * (실제로 처음엔 갈렸다: ⑩-b 는 「넣어라」, ⑦-b 는 「빼라」로 같은 이름을 두고 싸웠다.) */
+function rendererTypes() {
+  const files = [];
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).forEach((e) => {
+    const p = path.join(d, e.name);
+    if (e.isDirectory()) walk(p); else if (e.name.endsWith('.js')) files.push(p);
+  });
+  walk(path.join(REPO, 'js'));
+  const types = new Set();
+  for (const f of files) {
+    for (const m of fs.readFileSync(f, 'utf8').matchAll(/dataset\.type\s*=\s*'([a-z0-9_-]+)'/g)) types.add(m[1]);
+  }
+  return { types, fileCount: files.length };
+}
+
 const blk = (id, type, extra) => Object.assign({ id, kind: 'block', type }, extra || {});
 const gap = (id, height, auto = true) => ({ id, kind: 'gap', height, auto });
 
@@ -195,17 +212,18 @@ test('⑦-b 무게표의 타입 이름은 mcp-block-tools 의 BLOCK_TYPES 와 «
   /* 텍스트 하위타입(heading/body/…)과 DOM 래퍼(row)는 BLOCK_TYPES 에 «없는 게 정상»이다.
      그 밖의 이름이 무게표에만 있으면 «내가 지어낸 이름»이고, 그건 반드시 썩는다. */
   const TEXT_SUB = new Set(['heading', 'h1', 'h2', 'h3', 'body', 'bullet', 'label', 'caption', 'row']);
-  /* ★BLOCK_TYPES 에 «없는데» 무게표엔 있어도 되는 것 — «이유와 함께»만 통과한다.
-     이유 없이 늘리지 마라. 이 줄이 비면 이 검사는 아무것도 안 지킨다. */
-  const ALLOWED_MISSING = {
-    grid: 'DOM 에는 있는데(.grid-block · grd_ · js/blocks/grid-block.js) MCP BLOCK_TYPES 엔 «아직 없다»'
-        + ' — bac5499 기준 실측. 정규화는 DOM 을 읽으므로 여기 무게가 있어야 grid 가 «모르는 타입»으로'
-        + ' 떨어지지 않는다. BLOCK_TYPES 에 grid 가 들어오면 이 줄을 지워라.',
-  };
-  const invented = Object.keys(S.WEIGHT)
-    .filter((t) => !known.has(t) && !TEXT_SUB.has(t) && !(t in ALLOWED_MISSING));
+  /* ★BLOCK_TYPES 에 «없는데» 무게표엔 있어도 되는 것 = «렌더러가 실제로 내는» 타입이다.
+     손으로 적은 목록이 아니라 js/ 를 «세서» 얻는다 — 그래야 ⑩-b 와 같은 근거 위에 선다.
+     (grid 가 그 예다: DOM 에는 .grid-block·grd_ 로 있는데 MCP BLOCK_TYPES 엔 아직 없다.) */
+  const { types: rTypes, fileCount } = rendererTypes();
+  const invented = Object.keys(S.WEIGHT).filter((t) => {
+    if (known.has(t) || TEXT_SUB.has(t)) return false;
+    return !rTypes.has(t) && !rTypes.has(t.replace(/_/g, '-'));
+  });
   assert.deepEqual(invented, [],
-    `무게표에만 있는 «지어낸» 타입: ${invented.join(', ')} — BLOCK_TYPES 이름을 쓰거나, 텍스트 하위타입이면 TEXT_SUB 에, 의도한 선반영이면 ALLOWED_MISSING 에 «이유와 함께» 넣어라`);
+    `무게표에만 있는 «지어낸» 타입: ${invented.join(', ')} — BLOCK_TYPES 이름이거나, `
+    + `렌더러가 실제로 내는 dataset.type 이거나, 텍스트 하위타입이어야 한다 `
+    + `(js/ ${fileCount}개 파일에서 dataset.type ${rTypes.size}종을 셌다)`);
   /* 반대 방향도 본다: BLOCK_TYPES 에 «있는데» 무게가 없는 타입 = 정규화가 못 읽는 타입.
      경고로 떨어지긴 하지만, 그건 사후 발견이다. 여기서 «미리» 잡는다. */
   /* text = 우산 이름이다(진짜 무게는 heading/body/caption… 하위타입에서 나온다).
@@ -290,4 +308,36 @@ test('⑨-c ⚠️「inline height 없음 = 아무도 안 정했다」의 등가
   }
   assert.deepEqual(bad, [],
     '갭 높이를 «클래스»로 주는 경로가 생겼다 — spacing.js 의 isAutoGap ⑵ 갈래가 사람 값을 자동으로 오판한다:\n  ' + bad.join('\n  '));
+});
+
+// ── ⑩ 이름이 «두 벌»이다 — 하이픈(DOM) vs 밑줄(도구 레지스트리) ──────────────
+test('⑩ ★DOM 의 하이픈 이름이 «모르는 타입»으로 떨어지지 않는다', () => {
+  /* 실측(2026-09-07): 진짜 앱이 만든 «데일리 수분크림» 8섹션에서 `speech-bubble` 이
+     무게 2로 떨어져, speech-bubble → row 가 M80 이어야 할 자리에 S40 이 들어갔다.
+     내 픽스처는 전부 «밑줄»로 적혀 있어서 픽스처만으로는 영영 안 보였을 결함이다. */
+  const seen = [];
+  const restore = S.setWarner((m) => seen.push(m));
+  S.resetWarnings();
+  try {
+    const pairs = [['speech-bubble', 'speech_bubble'], ['label-group', 'label_group'],
+                   ['icon-circle', 'icon_circle'], ['icon-text', 'icon_text']];
+    for (const [dash, under] of pairs) {
+      assert.equal(S.weightOf(dash), S.weightOf(under), `${dash} 와 ${under} 의 무게가 다르다`);
+    }
+    assert.equal(S.weightOf('speech-bubble'), 3, 'speech-bubble 은 덩어리다');
+    assert.equal(S.gapFor('speech-bubble', { type: 'row', childTypes: ['asset'] }), S.SCALE.M);
+  } finally { S.setWarner(restore); }
+  assert.deepEqual(seen, [], `하이픈 이름이 «모르는 타입» 경고를 냈다:\n  ${seen.join('\n  ')}`);
+});
+
+test('⑩-b ★렌더러가 «실제로 내는» dataset.type 값이 전부 무게표에 있다 (소스에서 셈)', () => {
+  /* 「없다」를 쓸 때 «어디를 셌는지»: js/ 전체에서 `dataset.type = '...'` 리터럴을 긁는다. */
+  const { types, fileCount: files } = rendererTypes();
+  assert.ok(types.size >= 20, `dataset.type 리터럴을 ${types.size}개만 찾았다 — 패턴이 낡았나?`);
+  /* 무게가 «없어도 되는» 것: 갭 자체 · 섹션 · 하위 항목 · 텍스트 우산 이름 */
+  const NOT_A_FLOW_BLOCK = new Set(['gap', 'section', 'item', 'text', 'annotation']);
+  const missing = [...types].filter((t) => !NOT_A_FLOW_BLOCK.has(t) && !(t.replace(/-/g, '_') in S.WEIGHT));
+  assert.deepEqual(missing.sort(), [],
+    `렌더러가 내는 타입인데 무게표에 «없다»: ${missing.join(', ')} — WEIGHT 에 한 줄씩 추가해라 `
+    + `(js/ 파일 ${files.length}개에서 dataset.type 리터럴 ${types.size}종을 셌다)`);
 });
