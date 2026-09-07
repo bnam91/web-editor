@@ -488,7 +488,7 @@ const _TARGET_FREE = new Set([
   'search_iconify', 'get_block_schema', 'goditor_which_instance',
   /* ★list_assets 는 «자기 대상을 지목하는» 읽기다(projectId 인자를 받는다).
      게이트로 막으면 「어느 프로젝트에 무슨 에셋이 있나」를 «물어볼 수조차» 없어진다 — ⑴의 취지 그대로. */
-  'list_assets',
+  'list_assets', 'list_asset_tree',
   // ⑵ 대상을 «고르는» 도구 = 게이트의 출구
   'open_project',
   // ⑶ 새로 만드는 도구는 대상이 없는 게 «정상»이다(아직 아무것도 안 열었으니).
@@ -3191,13 +3191,77 @@ function _registerDefaultTools() {
      ⛔파일 «내용»은 기본으로 안 싣는다(이미지 dataURL 이 응답에 실리면 대화가 터진다).
        넣기는 기존 put_image(스크래치패드) 를 쓴다 — 여기서 두 번째 경로를 만들지 않는다. */
   registerTool(
+    'list_asset_tree',
+    async () => {
+      if (!_rendererInvoker?.assetsTree) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.assetsTree();
+    },
+    {
+      description: 'List the Assets PANEL tree of the open project — folders, images and URLs as the user sees them '
+        + '(the names they typed, nesting, favorites). Returns {ok, count, items:[{id(ast_*), type, name, depth, '
+        + 'parentId, favorite, url?, hasSrc, blobPath, children}]}. '
+        + 'WARNING: this is NOT list_assets — that one lists raw files on disk (hashed filenames). '
+        + 'Use THIS when the user talks about the Assets panel. Image bytes/dataURLs are never included.',
+      inputSchema: { type: 'object', properties: { expectedProject: { type: 'string' } }, additionalProperties: false },
+    }
+  );
+
+  registerTool(
+    'edit_asset_tree',
+    async (args = {}) => {
+      if (!_rendererInvoker?.assetsMutate) throw new Error('renderer bridge not ready');
+      const OPS = ['createFolder', 'addUrl', 'rename', 'delete', 'move', 'sendToCanvas'];
+      const op = args && args.op;
+      if (!OPS.includes(op)) return { ok: false, code: 'BAD_OP', message: 'op must be one of ' + OPS.join('|') };
+      if (['rename', 'delete', 'move', 'sendToCanvas'].includes(op) && !args.id) {
+        return { ok: false, code: 'INVALID', message: op + ' needs id (ast_xxx) - get it from list_asset_tree' };
+      }
+      if (op === 'rename' && !args.name) return { ok: false, code: 'INVALID', message: 'rename needs name' };
+      /* ★삭제는 «사람 확인»을 여기서 받는다. 앱의 window.confirm 은 MCP 호출에선 렌더러를 막아
+         호출이 통째로 타임아웃난다(실측) ⇒ 확인을 «없애지 않고» 이 층으로 옮겼다. */
+      if (op === 'delete' && args.confirm !== true) {
+        return { ok: false, code: 'CONFIRM_REQUIRED',
+          message: '에셋을 지우려면 confirm:true 를 같이 주세요 — 아무것도 지우지 않았습니다.',
+          hint: 'DESTRUCTIVE. Ask the user first, then retry with confirm:true. NOTHING was deleted.' };
+      }
+      if (op === 'addUrl' && !args.url) return { ok: false, code: 'INVALID', message: 'addUrl needs url' };
+      return await _rendererInvoker.assetsMutate({
+        op, id: args.id, parentId: args.parentId, name: args.name,
+        url: args.url, title: args.title, note: args.note, sectionId: args.sectionId,
+      });
+    },
+    {
+      description: 'Edit the Assets panel tree. op: createFolder (parentId?) | addUrl (url, title?, note?, parentId?) | '
+        + 'rename (id, name) | delete (id) DESTRUCTIVE | move (id, parentId) | '
+        + 'sendToCanvas (id) — places that image onto the canvas (the panel arrow button). '
+        + 'Get ids from list_asset_tree. Returns {ok, treeCount, node, stillExists} — read back from the live tree '
+        + 'after the write, so it says what actually happened (not what you asked for).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          op: { type: 'string', enum: ['createFolder', 'addUrl', 'rename', 'delete', 'move', 'sendToCanvas'] },
+          id: { type: 'string', description: 'ast_xxx target node' },
+          parentId: { type: 'string', description: 'ast_xxx destination folder' },
+          name: { type: 'string' }, url: { type: 'string' }, title: { type: 'string' }, note: { type: 'string' },
+          confirm: { type: 'boolean', description: 'required (true) for op:delete — the app would otherwise block on a dialog' },
+          sectionId: { type: 'string', description: 'sec_xxx — for op:sendToCanvas, the section to place the image into (required unless one is already selected)' },
+          expectedProject: { type: 'string' },
+        },
+        required: ['op'],
+        additionalProperties: false,
+      },
+    }
+  );
+
+  registerTool(
     'list_assets',
     async (args = {}) => {
       if (!_rendererInvoker?.assetsList) throw new Error('renderer bridge not ready');
       return await _rendererInvoker.assetsList({ projectId: args.projectId });
     },
     {
-      description: 'List the files in a project\'s Assets folder (the "Assets" panel tab). '
+      description: 'List the RAW FILES on disk under a project assets/ folder (hashed filenames). '
+        + 'WARNING: NOT the Assets panel tree - for what the user sees there use list_asset_tree. '
         + 'Returns {ok, projectId, dir, count, items:[{blobPath, name, bytes, ext, modifiedAt}]}. '
         + 'projectId defaults to the open project. ⚠️Returns metadata only — NOT the image bytes '
         + '(use the blobPath with the app UI, or put_image to add new ones via the scratch pad). '

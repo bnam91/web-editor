@@ -3679,6 +3679,8 @@ app.whenReady().then(async () => {
       updateGridBlock: _invokeRendererUpdateGridBlock,
       readBlockState: _invokeRendererReadBlockState,   // ★「바꿨다」를 «되읽어» 대조하는 자리
       assetsList: _assetsListImpl,   // ★에셋 목록 — 앱에 list IPC 가 없어 여기서 디스크를 읽는다
+      assetsTree: _invokeRendererAssetsTree,       // ★패널이 보는 «정본» 트리
+      assetsMutate: _invokeRendererAssetsMutate,   // 폴더·URL·이름·삭제·이동·캔버스로
       addChatBlock: _invokeRendererAddChatBlock,
       updateChatBlock: _invokeRendererUpdateChatBlock,
       addGradientBlock: _invokeRendererAddGradientBlock,
@@ -5648,6 +5650,96 @@ async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, 
 function _assetsDirOf(projectId) {
   const pid = _safeSeg(projectId);
   return path.join(PROJECTS_DIR, pid, 'assets');
+}
+
+/* ★★에셋 «트리» — 패널이 보는 정본은 디스크가 아니라 proj.assetsTree 다.
+   ⛔2026-09-07 실측으로 정정: 처음 만든 list_assets 는 «디스크 폴더»(해시 파일명)를 봤는데,
+     Assets 패널은 프로젝트 JSON 의 트리(폴더 이름·중첩·URL 항목)를 본다. «다른 것»이었다.
+     ⇒ 사람이 화면에서 보는 「제품사진 / background / 노트패널」이 하나도 안 나왔다.
+   ⇒ 트리는 «렌더러»에서 읽는다(열린 프로젝트가 정본). 디스크 블롭 목록은 따로 남긴다. */
+async function _invokeRendererAssetsTree() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  const js = `(() => {
+    try {
+      const t = (window.state && window.state.assetsTree) || [];
+      const out = [];
+      (function walk(ns, depth, parent) {
+        for (const n of (ns || [])) {
+          out.push({ id: n.id, type: n.type, name: n.name, depth: depth, parentId: parent,
+                     favorite: !!n.favorite,
+                     url: n.type === 'url' ? (n.url || null) : undefined,
+                     /* ⛔src 는 «절대» 안 싣는다 — dataURL 이 응답에 실리면 대화가 터진다 */
+                     hasSrc: !!(n.src || n.blobPath), blobPath: n.blobPath || null,
+                     children: (n.children || []).length });
+          walk(n.children, depth + 1, n.id);
+        }
+      })(t, 0, null);
+      return { ok: true, count: out.length, items: out };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
+/** 에셋 트리를 «고친다» — 앱 함수에 위임하고 «결과를 다시 읽어» 돌려준다. */
+async function _invokeRendererAssetsMutate({ op, id, parentId, name, url, title, note, sectionId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const a = JSON.stringify({ op, id: id || null, parentId: parentId || null,
+                             name: name || null, url: url || null, title: title || null, note: note || null,
+                             sectionId: sectionId || null });
+  const js = `(async () => {
+    try {
+      const p = ${a};
+      const need = { createFolder:'assetsCreateFolder', addUrl:'assetsAddUrl', rename:'assetsRenameNode',
+                     delete:'assetsDeleteNode', move:'assetsMoveNode', sendToCanvas:'assetsSendToCanvas' }[p.op];
+      if (!need) return { ok:false, code:'BAD_OP', message:'op must be one of createFolder|addUrl|rename|delete|move|sendToCanvas' };
+      if (typeof window[need] !== 'function') return { ok:false, code:'API_MISSING', message: need + ' not found' };
+      const before = JSON.stringify((window.state && window.state.assetsTree) || []).length;
+      let r;
+      if (p.op === 'createFolder')      r = await window.assetsCreateFolder(p.parentId);
+      else if (p.op === 'addUrl')       r = await window.assetsAddUrl({ title: p.title || p.name, url: p.url, note: p.note }, p.parentId);
+      else if (p.op === 'rename')       r = await window.assetsRenameNode(p.id, p.name);
+      else if (p.op === 'delete') {
+        /* ⛔assetsDeleteNode 는 window.confirm 을 부른다 — «사람이 없는» MCP 호출에선
+             그 대화상자가 렌더러를 통째로 막는다(실측: 호출이 타임아웃났다).
+           ⇒ 확인은 «MCP 쪽»에서 받고(confirm:true), 여기서는 confirm 을 잠시 통과시킨다.
+             ★사람 확인을 «없애는» 게 아니라 «옮기는» 것이다 — 도구 설명에 confirm 을 요구로 박았다.
+           ⛔반드시 finally 로 원복한다. 안 그러면 앱의 다른 삭제도 조용히 확인 없이 지나간다. */
+        const _c = window.confirm;
+        window.confirm = () => true;
+        try { r = await window.assetsDeleteNode(p.id); }
+        finally { window.confirm = _c; }
+      }
+      else if (p.op === 'move')         r = await window.assetsMoveNode(p.id, p.parentId);
+      else if (p.op === 'sendToCanvas') {
+        /* ⛔assetsSendToCanvas 는 «섹션이 선택돼 있어야» 한다 — 패널은 사람이 먼저 클릭한 상태를
+             전제하지만 MCP 호출엔 그런 게 없다. 실측: 조용히 false 만 돌아왔다(토스트는 사람만 본다).
+           ⇒ sectionId 를 받으면 «먼저 고르고» 부른다. 없으면 «왜 안 되는지» 말한다. */
+        if (p.sectionId) {
+          const _s = document.getElementById(p.sectionId);
+          if (!_s || !_s.classList.contains('section-block')) {
+            return { ok:false, code:'NOT_FOUND', message:'section not found: ' + p.sectionId };
+          }
+          if (typeof window.selectSection === 'function') window.selectSection(_s);
+        }
+        if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()) {
+          return { ok:false, code:'NO_SECTION_SELECTED',
+            message:'캔버스에 «선택된 섹션»이 없어 이미지를 못 놓았습니다 — 아무것도 안 바꿨습니다.',
+            hint:'Pass sectionId (sec_xxx) so the tool can select it first. NOTHING was placed.' };
+        }
+        r = await window.assetsSendToCanvas(p.id);
+      }
+      /* ★결과를 «다시 읽어» 돌려준다 — 인자를 되읊지 않는다(오늘의 규칙) */
+      const tree = (window.state && window.state.assetsTree) || [];
+      const flat = []; (function w(ns){ for (const n of (ns||[])) { flat.push(n); w(n.children); } })(tree);
+      const found = p.id ? flat.find(n => n.id === p.id) : null;
+      return { ok: r !== false, op: p.op, rawResult: (typeof r === 'object' ? null : r),
+               treeCount: flat.length, treeBytesBefore: before,
+               node: found ? { id: found.id, name: found.name, type: found.type } : null,
+               stillExists: !!found };
+    } catch (e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
 }
 
 async function _assetsListImpl({ projectId } = {}) {
