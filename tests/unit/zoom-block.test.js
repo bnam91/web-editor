@@ -71,6 +71,7 @@ const RAW = {
   overlay: readSrc(ROOT, 'js', 'selection-overlay.js'),
   sticker: readSrc(ROOT, 'js', 'blocks', 'sticker-block.js'),
   stickerSel: readSrc(ROOT, 'js', 'sticker-select.js'),
+  gradientSel: readSrc(ROOT, 'js', 'gradient-select.js'),
   layout:  readSrc(ROOT, 'css', 'editor-layout.css'),
   extra:   readSrc(ROOT, 'css', 'editor-extra.css'),
 };
@@ -839,31 +840,63 @@ test('ⓑ-20 ★⑽D1 — 「흐름 블록 목록」 사본이 «하나»다 (�
   assert.ok(/if \(!sel\) return \[\];/.test(m), '못 읽으면 던진다 — 패널이 통째로 죽는다');
 });
 
-test('ⓑ-20b ★흐름 목록의 기준은 「플로팅이냐」가 «아니다» — 전수로 세서 판정한다', () => {
-  /* ⛔한때 「확대블럭은 플로팅이니 흐름 목록에 있으면 안 된다」로 빼놨었다. 거짓이다.
-     형제를 «둘만» 보고(sticker=0 을 보고 gradient 도 0 이라 단정) 결론을 세운 탓이다.
-     ★기준은 판정기가 말한다 — prop-multisel.js `_isFlowBlock` 는 `position:absolute` 만으론
-       안 빼고 `.frame-block[data-free-layout]` «안»일 때만 뺀다. 섹션 직속 플로팅은 «흐름»이다.
-     ★스티커가 빠진 이유는 따로 있다: js/sticker-select.js 라는 «전용 선택 모듈»이 자기 경로로 훑는다.
-       전용 모듈이 없는 블록을 빼면 대체 경로 없이 기능이 사라진다. */
+test('ⓑ-20b ★흐름 목록의 기준 — «규칙»을 재서 판정한다(손으로 적은 답표가 아니라)', () => {
+  /* ⛔이 검사는 두 번 틀렸다. 기록으로 남긴다.
+     ⑴ 처음엔 「확대블럭은 플로팅이니 목록에 있으면 안 된다」였다 — gradient 가 플로팅인데
+        목록에 «있어» 거짓이었다(형제를 둘만 보고 세운 결론).
+     ⑵ 다음엔 「전용 선택 모듈이 있으면 빠진다」로 적고 표를 손으로 채웠다 — 그런데
+        gradient «도» js/gradient-select.js 를 갖는다. 규칙대로면 gradient 를 빼라는 뜻이 되어
+        코드와 정반대다. ★즉 그 표는 규칙에서 «도출»된 게 아니라 오늘 답에 맞춰 적은 것이었다.
+     ⑶ 지디가 준 「deselectAll 을 부르는가」도 판별자가 아니다 — 재보니 셋 다 부른다
+        (sticker 5 · gradient 3 · zoom 의 선택 경로 2). 그쪽은 zoom-block.js(0건)를 봤는데
+        확대블럭의 «선택 경로»는 js/block-drag.js 의 if (isZoom) 구간이다.
+     ★진짜 판별자 = 「Cmd/Shift 복수선택 분기가 있는가」(toggleBlockSelect·rangeSelectBlocks).
+       복수선택이 되는 블록만 이 목록이 뜻을 갖는다 — 2개를 못 고르면 그 패널이 애초에 안 뜬다. */
   const e = SRC.editor;
   const i = e.indexOf('const FLOW_BLOCK_SEL_SELECTED');
   assert.notEqual(i, -1, '흐름 목록을 못 찾음 — 검사가 대상을 놓쳤다');
   const decl = e.slice(i, e.indexOf(';', i));
-  const members = new Set([...decl.matchAll(/\.([a-z0-9-]+)\.selected/g)].map(m => m[1]));
-  assert.ok(members.size > 20, `목록을 ${members.size}종밖에 못 셌다 — 못 잰 것이다`);
+  const inList = (cls) => decl.includes(`.${cls}.selected`);
+  assert.ok([...decl.matchAll(/\.([a-z0-9-]+)\.selected/g)].length > 20, '목록을 제대로 못 읽었다');
 
-  /* ★대조를 «전수»로 둔다 — 한쪽만 보면 또 뒤집힌다.
-     전용 선택 모듈 «있음» → 목록에 없다 / «없음» → 목록에 있다. */
-  const OWN_MODULE = { 'sticker-block': true, 'gradient-block': false, 'zoom-block': false };
-  for (const [cls, hasOwn] of Object.entries(OWN_MODULE)) {
-    assert.equal(members.has(cls), !hasOwn,
-      hasOwn ? `${cls} 는 전용 모듈이 있어 목록에 «없어야» 한다`
-             : `${cls} 는 전용 모듈이 «없어서» 목록에 있어야 한다 — 빼면 기능이 사라진다`);
+  /* ★전제검사를 «세 계열 다 같은 형태»로 — 각자의 «선택 경로 원문»을 같은 방식으로 뜬다.
+     (예전엔 sticker 만 grep · zoom 만 파일존재 · gradient 는 0 이라 비대칭이었다.) */
+  const handler = (src, marker) => {
+    const j = src.indexOf(marker);
+    assert.notEqual(j, -1, `선택 경로를 못 찾음: ${marker}`);
+    const k = src.indexOf('\n  }\n', j);
+    return k === -1 ? src.slice(j) : src.slice(j, k);
+  };
+  const PATHS = {
+    'sticker-block':  SRC.stickerSel,                       // 전용 모듈 = 파일 전체가 선택 경로
+    'gradient-block': SRC.gradientSel,
+    'zoom-block':     handler(SRC.drag, 'if (isZoom) {'),
+    'laurel-block':   handler(SRC.drag, 'if (isLaurel) {'), // 양성대조(흐름 계열)
+  };
+  const multiSel = {};
+  for (const [cls, src] of Object.entries(PATHS)) {
+    assert.ok(src.length > 100, `${cls}: 선택 경로를 ${src.length}자밖에 못 떴다 — 못 잰 것이다`);
+    multiSel[cls] = /toggleBlockSelect/.test(src) && /rangeSelectBlocks/.test(src);
   }
-  // 전제 — 「전용 모듈 있음/없음」이 실제로 그러한가(표가 썩으면 위 판정이 헛돈다)
-  assert.ok(/\.sticker-block\.selected/.test(SRC.stickerSel), '전제: 스티커 전용 모듈이 자기를 훑는다');
-  assert.equal(RAW.hasZoomSelect, false, '전제: 확대블럭엔 전용 선택 모듈이 없다');
+  // ★계측기가 «상수»를 돌려주지 않는지 — 갈리지 않으면 아무것도 판정 못 한다
+  assert.equal(multiSel['sticker-block'], false, '전제: 스티커는 복수선택 분기가 없다');
+  assert.equal(multiSel['zoom-block'], true, '전제: 확대블럭은 복수선택 분기가 있다');
+  assert.equal(multiSel['laurel-block'], true, '전제(양성대조): 흐름 계열은 복수선택이 된다');
+
+  // ★못박는 것 — 확대블럭: 복수선택이 되니 목록에 «있어야» 한다(빼면 정렬 패널이 안 뜬다)
+  assert.equal(inList('zoom-block'), true,
+    '확대블럭은 Cmd/Shift 복수선택이 되는데 흐름 목록에 없다 — 2개 고르면 패널이 조용히 빈다');
+  assert.equal(inList('sticker-block'), false, '스티커는 복수선택이 안 되니 목록에 없어야 한다');
+
+  /* ⛔gradient 는 규칙과 «어긋난다»(복수선택 분기 없음인데 목록에 있음). ★이건 이 브랜치 밖의
+     «기존 자리»라 여기서 고치지도, 어긋남을 «고정»하지도 않는다(고정하면 남이 고쳤을 때 빨개진다).
+     대신 「어긋난 계열이 늘지 않는다」만 잰다 — 지디 백로그. */
+  const off = Object.keys(PATHS).filter(c => multiSel[c] !== inList(c));
+  assert.ok(off.length <= 1, `규칙과 어긋나는 계열이 늘었다: ${off.join(', ')}`);
+  if (off.length === 1) {
+    assert.equal(off[0], 'gradient-block',
+      `새로 어긋난 계열이 있다(기존에 알려진 것은 gradient-block 뿐): ${off[0]}`);
+  }
 
   // freeLayout 래퍼 수집 목록(BLOCK_SEL)은 «플로팅» 계열을 담는다 — sticker 가 있으니 zoom 도 있어야 한다
   const wrap = SRC.multisel.slice(SRC.multisel.indexOf('const BLOCK_SEL'));
