@@ -97,3 +97,27 @@ test('A6 ★게이트 «순서» — 로그인 거절이 «프로젝트 게이�
       `★프로젝트 사유가 «먼저» 나왔다 — 진짜 원인(로그인)이 가려진다: ${txt.slice(0, 200)}`);
   } finally { H.mod.setAuthProbe(() => ({ authed: true })); H.setActiveProject('proj_1'); }
 });
+
+test('A7 ★list_memories 가 «뿌리 밖»을 못 읽는다 (계정을 넘어 읽던 우회로)', async () => {
+  /* 적대적 리뷰 발견: projectFolder 검증이 «0줄»이라 절대경로 하나로 남의 계정
+     claude-pm/NOTES.md 를 전문 반환했다. ★뿌리를 계정별로 갈라 놓고 «뿌리를 아예 안 쓰는»
+     우회로가 남아 있으면 격리는 없는 것과 같다.
+     ⚠️같은 파일의 export_sections 는 outDir 을 검사한다 — 「이 파일이 원래 검증을 안 한다」가
+       아니라 «여기만» 없었다. */
+  const fs = require('fs'); const os = require('os'); const path = require('path');
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-other-acct-'));
+  fs.writeFileSync(path.join(outside, 'NOTES.md'), '# 철수 대외비 메모\n남의 계정 내용이다');
+
+  const txt = said(await H.call('list_memories', { projectFolder: outside }));
+  assert.ok(/FOLDER_OUT_OF_ROOT/.test(txt), `★뿌리 밖을 읽었다 — 거절해야 한다. 응답: ${txt.slice(0, 200)}`);
+  assert.ok(!/대외비/.test(txt), '★내용이 한 글자도 새면 안 된다');
+
+  // ★양성대조 — 심은 파일이 «진짜 거기 있고 읽히는» 상태여야 이 검사가 의미가 있다
+  assert.strictEqual(fs.readFileSync(path.join(outside, 'NOTES.md'), 'utf8').includes('대외비'), true,
+    '★양성대조: 파일이 실제로 있어야 「못 읽었다」가 의미를 갖는다');
+
+  // 반대방향 — 뿌리 «안»은 통과해야 한다(막기만 하면 도구가 죽는다)
+  const inside = said(await H.call('list_memories', {}));
+  assert.ok(!/FOLDER_OUT_OF_ROOT/.test(inside), '★인자를 안 주면 현재 뿌리를 쓰고 통과해야 한다');
+  fs.rmSync(outside, { recursive: true, force: true });
+});
