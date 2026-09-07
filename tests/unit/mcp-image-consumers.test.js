@@ -22,13 +22,34 @@ const fs = require('node:fs');
 const zlib = require('node:zlib');
 const { _assertImageSrcIntact } = require('../../main/claude-pm/mcp-server.js');
 
-/** externalizer 가 «실제로» 쓰는 정규식을 그 파일에서 읽어 온다. */
-function externalizerRe() {
-  const src = fs.readFileSync(require.resolve('../../main/project-store/externalizer.js'), 'utf8');
-  const m = /const DATA_URI_RE = (\/.*\/)([gimsuy]*);/.exec(src);
-  assert.ok(m, '★externalizer.js 에서 DATA_URI_RE 를 못 찾았다 — 이름이 바뀌었으면 이 검사가 죽은 것이다');
+/** 이름 붙은 정규식을 «그 파일에서» 읽어 온다. ⛔복사하면 갈릴 때 이 검사가 조용히 거짓이 된다. */
+function reFrom(modPath, name) {
+  const src = fs.readFileSync(require.resolve(modPath), 'utf8');
+  const m = new RegExp('const ' + name + ' = (\\/.*\\/)([gimsuy]*);').exec(src);
+  assert.ok(m, `★${modPath} 에서 ${name} 을 못 찾았다 — 이름이 바뀌었으면 이 검사가 죽은 것이다`);
   return new RegExp(m[1].slice(1, -1), m[2].replace('g', ''));
 }
+const externalizerRe = () => reFrom('../../main/project-store/externalizer.js', 'DATA_URI_RE');
+
+/* ★소비자는 «하나가 아니다». 적대검수가 전수로 세어 최소 다섯을 찾았고, 그중 셋이
+   put_image/imgSrc 가 실제로 지나는 길이다. 앞 판의 이 파일은 #2 «하나»만 읽어서,
+   나머지가 갈라져도 초록이었다.
+     #2 main/project-store/externalizer.js  — 저장 시 외부화(메인)
+     #3 js/io/asset-externalize.js          — 렌더러 쪽 «두 번째 사본»(오늘은 #2 와 문자열 동일)
+     #4 js/scratch-pad.js                   — ★put_image 가 지나는 길. 알파벳이 «실제로 다르다»
+                                              (`[^;]+` 서브타입 · base64 는 `.` 라 줄바꿈 불가)
+   ⚠️#4 는 인라인 정규식이라 이름으로 못 읽는다 — «소스에 그 패턴이 아직 있는지»를 같이 확인해서
+     조용히 바뀌면 알게 한다. */
+const CONSUMERS = () => {
+  const spSrc = fs.readFileSync(require.resolve('../../js/scratch-pad.js'), 'utf8');
+  const sp = /\/\^data:\(image\\\/\[\^;\]\+\);base64,\(\.\+\)\$\//.test(spSrc);
+  assert.ok(sp, '★js/scratch-pad.js 의 dataURI 패턴이 바뀌었다 — 이 검사가 낡았다는 뜻이다');
+  return [
+    ['#2 externalizer(메인)', externalizerRe(), 'full'],
+    ['#3 asset-externalize(렌더러 사본)', reFrom('../../js/io/asset-externalize.js', 'DATA_URI_RE'), 'full'],
+    ['#4 scratch-pad(put_image 경로)', /^data:(image\/[^;]+);base64,(.+)$/, 'test']
+  ];
+};
 
 function makePng() {
   const w = 40, h = 24;
@@ -146,4 +167,34 @@ test('★http(s)·assets 경로는 여전히 «검사 대상이 아니다» — 
                    'https://cdn.example/path/data:image/png-lookalike']) {
     assert.equal(_assertImageSrcIntact(s, 'imgSrc').checked, 'skipped:not-a-data-url', s);
   }
+});
+
+
+test('★★소비자를 «전수»로 대조한다 — 하나만 읽으면 나머지가 갈라져도 초록이다', () => {
+  const consumers = CONSUMERS();
+  const ok = [
+    ['정상',          'data:image/png;base64,' + B64],
+    ['패딩 생략',      'data:image/png;base64,' + B64.replace(/=+$/, '')],
+    ['서브타입 대문자',  'data:image/PNG;base64,' + B64],
+    ['svg+xml',      'data:image/svg+xml;base64,' + Buffer.from('<svg/>').toString('base64')],
+    ['x-icon',       'data:image/x-icon;base64,' + B64],
+    ['vnd.ms-photo', 'data:image/vnd.ms-photo;base64,' + B64]
+  ];
+  for (const [name, url] of ok) {
+    assert.doesNotThrow(() => _assertImageSrcIntact(url, 'image'), `${name}: 우리가 통과시켜야 한다`);
+    for (const [cname, re, mode] of consumers) {
+      const reads = mode === 'full'
+        ? (() => { const m = re.exec(url); return !!m && m[0].length === url.length; })()
+        : re.test(url);
+      assert.ok(reads, `★${name}: 우리는 통과시켰는데 «${cname}» 가 못 읽는다 — 그 경로에서 깨진다`);
+    }
+  }
+});
+
+test('★#2 와 #3 은 «사본»이다 — 갈라지면 알아야 한다', () => {
+  const a = reFrom('../../main/project-store/externalizer.js', 'DATA_URI_RE').source;
+  const b = reFrom('../../js/io/asset-externalize.js', 'DATA_URI_RE').source;
+  assert.equal(b, a,
+    '★메인/렌더러의 dataURI 정규식이 갈라졌다. 둘 중 하나만 맞추면 «한쪽 경로에서만» 파손이 난다 — '
+    + '갈라뜨릴 이유가 있으면 이 테스트를 «의식적으로» 고쳐라(조용히 갈리는 것을 막는 자리다).');
 });
