@@ -49,7 +49,7 @@ const ZOOM_DEFAULTS = {
   maxop:  30,       // ★최대 농도(%)
   curve:  100,      // 농도 곡선(= pw 1.0)
   narrow: 62,       // 좁아짐(%)
-  size:   160,      // 도형 크기(px, 가로 지름)
+  size:   240,      // ★도형 크기(px, 가로). 240 × 160 = 3:2 (현빈: 「더 크게」)
   rot:    0,        // 도형 회전(도) — silhouette 이 받는 값
   /* ★기본 배경 = 체크패턴(현빈: 「다른 이미지에셋 들어갈 때처럼」).
      fill 이 'checker' 면 «색이 아니라 무늬»다 — 무늬는 .zoom-bg 가 CSS 로 그린다. */
@@ -162,7 +162,7 @@ function renderZoomBlock(block) {
   else delete block.dataset.rotation;
 
   // ★그림은 «순수 모듈»이 만든다(zoom-geometry.js) — 검사가 실제로 나가는 마크업을 그대로 잰다.
-  block.innerHTML = buildZoomInner(st, readPinnedShortEdge(block));
+  block.innerHTML = buildZoomInner(st, readPinnedShortEdge(block), block._zoomPicked || null);
   _bindZoomHandleDrag(block);
   _bindZoomMoveDrag(block);
   /* ★섹션 밖 크롭 — 스티커 계열의 규약(css/editor-blocks.css 「섹션 밖 크롭」)을 같이 지킨다.
@@ -192,6 +192,8 @@ function _bindZoomMoveDrag(block) {
   block.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (e.target.closest?.('.zoom-handle, .asset-overlay-handle')) return;
+    // 앵커 밖을 누르면 집은 표시를 «푼다»(일러스트와 같다).
+    if (block._zoomPicked) { block._zoomPicked = null; renderZoomBlock(block); }
     let sec = block.closest('.section-block');
     if (!sec) return;
     const zoom = _canvasScaleNow() || 1;
@@ -246,6 +248,13 @@ function _bindZoomHandleDrag(block) {
     if (!h || !block.contains(h)) return;
     if (!block.classList.contains('selected')) return;
     e.preventDefault(); e.stopImmediatePropagation();
+    /* ★집은 앵커 표시(일러스트 관례) — 채움이 흰색 → 파란색. 누른 «하나»만이다.
+       ⛔dataset 이 아니라 JS 속성이라 저장본에 안 실린다(조작 중 상태다).
+       ⛔드래그가 끝나도 유지된다 — 일러스트가 그렇다. 블록의 다른 곳을 누르면 풀린다. */
+    if (block._zoomPicked !== h.dataset.pt) {
+      block._zoomPicked = h.dataset.pt;
+      renderZoomBlock(block);
+    }
 
     const svg = block.querySelector('.zoom-svg');
     const vbW = parseFloat(svg?.getAttribute('viewBox')?.split(/\s+/)[2] || '0');

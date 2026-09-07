@@ -60,7 +60,7 @@ before(async () => {
 
   // ⑷ 최소 전역 — zoom-block.js 는 window.* 를 대입하고, document 는 makeZoomBlock 만 쓴다
   globalThis.window = {};
-  globalThis.document = { createElement: (tag) => makeEl(tag) };
+  globalThis.document = { createElement: (tag) => makeEl(tag), addEventListener() {}, removeEventListener() {} };
   /* ★rAF 를 «즉시 실행»으로 깐다 — 이게 있어야 「그린 뒤에 읽는다」를 검사가 보장한다.
      지디가 실기에서 정확히 이 함정에 빠졌다: 오버레이가 rAF 로 다시 그리는데 그 «앞»을 읽어
      판독 시점마다 답이 달랐다(arcs:4/dLen:150 → len:0). ⇒ 계측은 「그렸나」가 아니라
@@ -237,6 +237,7 @@ test('S-10 makeZoomBlock 의 기본값이 dataset 에 «실제로» 박힌다', 
   assert.equal(b.dataset.bd, 'off');
   assert.equal(b.dataset.angle, '-90');     // ★12시
   assert.equal(b.dataset.maxop, '30');
+  assert.equal(b.dataset.size, '240');      // ★현빈: 「더 크게, 3:2」 → 240×160
   assert.equal(b.dataset.fill, 'checker');  // ★체크패턴
   assert.equal(b.dataset.type, 'zoom');
   assert.equal(b.dataset.selVariant, 'sticker', '보라 갈래를 안 들고 간다');
@@ -244,6 +245,49 @@ test('S-10 makeZoomBlock 의 기본값이 dataset 에 «실제로» 박힌다', 
   // ⛔a·b 와 w/h 는 생성 시 «안» 박는다
   for (const k of ['ax', 'ay', 'bx', 'by', 'w', 'h']) {
     assert.equal(b.dataset[k], undefined, `생성 시 ${k} 를 박으면 프리셋·방향을 바꿔도 안 따라온다`);
+  }
+});
+
+test('S-13 [⑮] a·b 앵커 — 집으면 «채움»이 바뀌고, 그 상태는 «저장에 안 실린다»', () => {
+  // ★그림자를 켜야 a·b 앵커가 «있다»(끄면 짧은 변 자체가 없다 — 기본은 끔).
+  const b = el({ shadow: 'on' });
+  M.renderZoomBlock(b);
+  assert.match(b.innerHTML, /class="zoom-handle" data-pt="a"/, '전제: 앵커가 그려진다');
+  assert.equal(/data-picked/.test(b.innerHTML), false, '아무것도 안 집었는데 집힌 표시가 있다');
+
+  // 집은 상태를 주면 «그 하나»만 표시된다(현빈이 준 일러스트 그림: 하나만 파랗다)
+  b._zoomPicked = 'a';
+  M.renderZoomBlock(b);
+  assert.match(b.innerHTML, /data-pt="a" data-picked="true"/);
+  assert.equal(/data-pt="b" data-picked/.test(b.innerHTML), false, '둘 다 칠했다 — 그림은 하나만이다');
+
+  /* ★여기까지는 「렌더가 표시를 그린다」만 잰다. 아래는 «실제로 집는 경로»를 태운다 —
+     안 태우면 dataset 으로 새는 변이(M58)가 «통과한다»(실제로 통과했다). */
+  const b2 = el({ shadow: 'on' });
+  b2.classList.add('selected');
+  M.renderZoomBlock(b2);
+  /* ⚠️진짜 closest 는 «선택자 목록»('.a, .b')을 처리한다. 처음엔 정확일치로 흉내 냈다가
+     이동 드래그의 가드('.zoom-handle, .asset-overlay-handle')를 «못 태워» 집은 상태가
+     바로 지워졌다 — 가짜가 진짜보다 덜 하면 검사가 «없는 동작»을 재게 된다. */
+  const handle = { dataset: { pt: 'b' },
+    closest: (sel) => (String(sel).split(',').some(x => x.trim() === '.zoom-handle') ? handle : null) };
+  b2.contains = () => true;
+  b2.querySelector = (sel) => (sel === '.zoom-svg'
+    ? { getAttribute: () => '0 0 100 100', getBoundingClientRect: () => ({ width: 100 }) }
+    : (sel === ':scope > .zoom-clip' ? makeEl('div') : null));
+  const md = b2.listeners.filter(l => l.type === 'mousedown');
+  assert.equal(md.length, 2, '전제: mousedown 이 둘이다(앵커 드래그 + 이동 드래그)');
+  md.forEach(l => l.fn({ button: 0, clientX: 0, clientY: 0, target: handle,
+                         preventDefault() {}, stopImmediatePropagation() {} }));
+  assert.equal(b2._zoomPicked, 'b', '집는 경로가 상태를 안 남긴다');
+  assert.match(b2.innerHTML, /data-pt="b" data-picked="true"/, '집었는데 표시가 안 바뀐다');
+
+  /* ⛔조작 중 상태라 dataset 에 «없어야» 한다 — 이 앱의 저장본은 캔버스 HTML 스냅샷이라
+     dataset 에 넣으면 파일에 실린다(section-serialize 가 임시 클래스를 터는 것과 같은 이유). */
+  for (const el2 of [b, b2]) {
+    for (const k of Object.keys(el2.dataset)) {
+      assert.equal(/pick/i.test(k), false, `집은 상태가 dataset.${k} 로 새어 저장본에 실린다`);
+    }
   }
 });
 

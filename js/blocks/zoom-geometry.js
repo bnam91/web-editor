@@ -10,7 +10,10 @@
 //         angle 0° = +x(오른쪽), 시계방향으로 증가.
 
 /** rect 프리셋의 세로/가로 비 — square(1.0) 와 «눈에 띄게» 달라야 프리셋이 프리셋 구실을 한다. */
-export const ZOOM_RECT_RATIO = 0.625;   // 가로:세로 = 1.6 : 1
+/* ★3:2 (현빈 2026-09-08 「더 크게, 3:2」). size 240 → 240×160.
+   ⛔예전엔 0.625(=8:5, 1.6) 였다 — 3:2 는 1.5 다. 눈으로는 비슷해 보여도 다른 비율이라
+     「비슷하다」로 넘기지 말 것. 2/3 을 «분수로» 쓴다(0.6667 로 적으면 240×160.008 이 된다). */
+export const ZOOM_RECT_RATIO = 2 / 3;   // 가로:세로 = 3 : 2
 
 /** 그림자 띠 개수. 많을수록 매끈하지만 노드가 늘어난다(64 = 실측상 밴딩 안 보임). */
 export const ZOOM_STRIP_COUNT = 64;
@@ -313,8 +316,13 @@ export function bgMarkup(st, pinned) {
     (rot ? `transform:rotate(${rot}deg);` : '') + `"></div>`;
 }
 
+/* a·b 핸들 — ★별도 층이다.
+   ★picked('a'|'b'|null) = 사람이 «집은» 앵커. 어도비 일러스트 관례대로 «채움»만 바뀐다
+     (안 집힌 것 = 흰 채움 · 집힌 것 = 파란 채움, 테두리 색은 둘 다 같다 — 현빈이 준 그림 그대로).
+   ⛔이 상태는 dataset 이 아니라 «JS 속성»으로 온다 — 저장본(캔버스 HTML 스냅샷)에 실리면
+     안 되는 «조작 중» 상태다(section-serialize 가 임시 클래스를 털어내는 것과 같은 이유). */
 /** a·b 핸들 — ★별도 층이다. 체크 배경이 SVG 위에 올라오므로 핸들이 그 «위»에 있어야 한다. */
-export function handleLayerMarkup(st, pinned) {
+export function handleLayerMarkup(st, pinned, picked) {
   const box = zoomBox(st, pinned);
   if (!box.ok) return '';
   const geo = box.geo;
@@ -322,8 +330,8 @@ export function handleLayerMarkup(st, pinned) {
     `width="${box.w.toFixed(2)}" height="${box.h.toFixed(2)}" ` +
     `viewBox="${box.minX.toFixed(2)} ${box.minY.toFixed(2)} ${box.w.toFixed(2)} ${box.h.toFixed(2)}" ` +
     `xmlns="http://www.w3.org/2000/svg">` +
-    `<circle class="zoom-handle" data-pt="a" cx="${geo.a.x.toFixed(2)}" cy="${geo.a.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
-    `<circle class="zoom-handle" data-pt="b" cx="${geo.b.x.toFixed(2)}" cy="${geo.b.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
+    `<circle class="zoom-handle" data-pt="a"${picked === 'a' ? ' data-picked="true"' : ''} cx="${geo.a.x.toFixed(2)}" cy="${geo.a.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
+    `<circle class="zoom-handle" data-pt="b"${picked === 'b' ? ' data-picked="true"' : ''} cx="${geo.b.x.toFixed(2)}" cy="${geo.b.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
     `</svg>`;
 }
 
@@ -342,12 +350,12 @@ export function handleLayerMarkup(st, pinned) {
  *    ⇒ 그려지는 것 전부를 감싸는 층(=SVG 상자)을 두고 «그 층»에 클립을 건다.
  *      그러면 인셋이 전부 0 이상이고, 기준 상자가 «그려지는 영역»과 같다.
  *    ⛔블록 상자는 여전히 도형(+테두리)이다 — 아웃라인·핸들은 그대로다. */
-export function buildZoomInner(st, pinned) {
+export function buildZoomInner(st, pinned, picked) {
   const box = zoomBox(st, pinned);
   const off = svgOffset(st, pinned);
   return `<div class="zoom-clip" style="left:${off.left.toFixed(2)}px;top:${off.top.toFixed(2)}px;` +
     `width:${box.w.toFixed(2)}px;height:${box.h.toFixed(2)}px;">` +
-    `${buildZoomSvg(st, pinned)}${bgMarkup(st, pinned)}${handleLayerMarkup(st, pinned)}</div>`;
+    `${buildZoomSvg(st, pinned)}${bgMarkup(st, pinned)}${handleLayerMarkup(st, pinned, picked)}</div>`;
 }
 
 export function buildZoomSvg(st, pinned) {

@@ -70,8 +70,13 @@ const RAW = {
   assets:  readSrc(ROOT, 'js', 'panels', 'assets-panel.js'),
   overlay: readSrc(ROOT, 'js', 'selection-overlay.js'),
   sticker: readSrc(ROOT, 'js', 'blocks', 'sticker-block.js'),
+  stickerSel: readSrc(ROOT, 'js', 'sticker-select.js'),
+  layout:  readSrc(ROOT, 'css', 'editor-layout.css'),
+  extra:   readSrc(ROOT, 'css', 'editor-extra.css'),
 };
 const SRC = Object.fromEntries(Object.entries(RAW).map(([k, v]) => [k, stripComments(v)]));
+// 「확대블럭엔 전용 선택 모듈이 없다」는 «전제»도 재서 쓴다(있으면 위 판정 기준이 달라진다)
+RAW.hasZoomSelect = fs.existsSync(path.join(ROOT, 'js', 'zoom-select.js'));
 
 /* ── ⓑ-0 거르개 자신의 대조 ────────────────────────────────────────────────── */
 test('ⓑ-0-1 거르개는 주석을 «정말» 지운다 (금지어가 주석에만 있는 자리로 잰다)', () => {
@@ -102,7 +107,7 @@ function loadGeom() {
 
 const ST = {
   shape: 'rect', angle: 0, length: 170, spread: 0,
-  maxop: 30, curve: 100, narrow: 62, size: 160, rot: 0,
+  maxop: 30, curve: 100, narrow: 62, size: 240, rot: 0,
   fill: '#cfd6e0', shadow: 'on', bd: 'off', bdw: 6, bdc: '#ffffff', bdr: 0,
   w: null, h: null,
 };
@@ -110,16 +115,16 @@ const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
 
 test('ⓐ-1 rect 실루엣은 «광원을 마주보는 두 꼭짓점»이다 (+양성대조: 무한광원 근사는 다르게 답한다)', async () => {
   const g = await loadGeom();
-  const L = g.lightPoint(0, 170, 0, 0);
-  const [A, B] = g.silhouette('rect', 80, 0, L, 0, 0);
-  // r=80, ZOOM_RECT_RATIO=0.625 → 꼭짓점 (±80, ±50). 광원은 (170,0).
+  const L = g.lightPoint(0, 300, 0, 0);
+  const [A, B] = g.silhouette('rect', 120, 0, L, 0, 0);
+  // ★리터럴로 적는다: r=120, 3:2 → 꼭짓점 (±120, ±80). 광원은 (300,0).
   const got = [A, B].map(p => `${p.x},${p.y}`).sort();
-  assert.deepEqual(got, ['80,-50', '80,50'].sort());
+  assert.deepEqual(got, ['120,-80', '120,80'].sort());
 
   // ★양성대조 — 「축에 수직인 극점」(광원이 «무한히 멀 때»만 맞는 근사)로 골랐다면
   //   각도 기준을 도형 중심에 두게 된다. 그 산식이 «같은 답을 내지 않음»을 보여야
   //   이 검사가 「아무 두 점이나 통과시키는 것」이 아님이 증명된다.
-  const ps = g.shapePts('rect', 80, 0, 0, 0);
+  const ps = g.shapePts('rect', 120, 0, 0, 0);
   const perp = ps.slice().sort((p, q) => Math.abs(q.y) - Math.abs(p.y)).slice(0, 2);
   const perpKeys = perp.map(p => `${p.x},${p.y}`).sort();
   assert.notDeepEqual(perpKeys, got, '두 방식이 같은 답이면 이 검사는 아무것도 못 가른다');
@@ -129,9 +134,9 @@ test('ⓐ-1b ★가까운 광원에서 실루엣은 «지지선» 조건을 만�
   const g = await loadGeom();
   // ★angle=20·length=170(기본 길이) — 실측으로 「두 산식이 갈리는」 자리를 골랐다.
   //   ⓐ-1 의 angle=0 은 도형이 광원 축에 대칭이라 «틀린 산식도 같은 답»을 낸다(변이 M2 가 안 걸렸다).
-  const L = g.lightPoint(20, 170, 0, 0);
-  const [A, B] = g.silhouette('rect', 80, 0, L, 0, 0);
-  const ps = g.shapePts('rect', 80, 0, 0, 0);
+  const L = g.lightPoint(20, 300, 0, 0);
+  const [A, B] = g.silhouette('rect', 120, 0, L, 0, 0);
+  const ps = g.shapePts('rect', 120, 0, 0, 0);
 
   // 지지선 조건: L–P 를 지나는 직선의 «한쪽»에 도형 전체가 있어야 한다.
   const sideOk = (P) => {
@@ -144,7 +149,7 @@ test('ⓐ-1b ★가까운 광원에서 실루엣은 «지지선» 조건을 만�
 
   // 구체값 고정 — 「축에 수직인 극점 / 무한광원 근사」는 여기서 (80,50) 을 고른다.
   const got = [A, B].map(p => `${p.x},${p.y}`).sort();
-  assert.deepEqual(got, ['-80,50', '80,-50'].sort());
+  assert.deepEqual(got, ['-120,80', '120,-80'].sort());
 });
 
 test('ⓐ-2 circle 실루엣은 «접점»이다 — |CA|=r 이고 LA ⊥ CA', async () => {
@@ -383,13 +388,13 @@ test('ⓐ-17 뷰박스가 «테두리까지» 담는다 (안 담으면 링이 �
   const g = await loadGeom();
   /* ★기대값을 outerExtentPts 로 만들면 «계측이 자기 자신을 잰다» — 그 함수를 망가뜨리는 변이(M16)가
      코드와 기대를 «같이» 줄여서 초록으로 통과했다(실제로 그랬다). ⇒ 여기서 직접 계산한다. */
-  assert.equal(g.ZOOM_RECT_RATIO, 0.625, '비율이 바뀌면 아래 기대식도 같이 고쳐야 한다');
+  assert.equal(g.ZOOM_RECT_RATIO, 2 / 3, '★3:2. 비율이 바뀌면 아래 기대식도 같이 고쳐야 한다');
   const expectPts = (st) => {
     const half = st.size / 2;
     const bw = (st.bd === 'on') ? st.bdw : 0;
     if (st.shape === 'circle') { const R = half + bw; return [{ x: -R, y: -R }, { x: R, y: R }]; }
     const hw = half + bw;
-    const hh = (st.shape === 'rect' ? half * 0.625 : half) + bw;
+    const hh = (st.shape === 'rect' ? half * (2 / 3) : half) + bw;
     const th = (st.rot || 0) * Math.PI / 180, co = Math.cos(th), si = Math.sin(th);
     return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]
       .map(p => ({ x: p[0] * co - p[1] * si, y: p[0] * si + p[1] * co }));
@@ -422,17 +427,17 @@ test('ⓐ-18 그림자와 테두리는 «배타가 아니다» — 둘 다 켤 �
 
 test('ⓐ-19 ★그림자는 «테두리 바깥» 윤곽에서 시작한다 — bdw 를 키우면 같이 나간다', async () => {
   const g = await loadGeom();
-  const base = { ...ST, angle: 0, length: 400, bd: 'on' };
+  const base = { ...ST, angle: 0, length: 600, bd: 'on' };
   // 기대값은 «검사 안에서» 독립 계산한다 — 대상 함수로 만들면 같이 틀려서 영원히 초록이다(M16 교훈).
   for (const bdw of [0, 6, 24]) {
     const geo = g.computeZoomGeometry({ ...base, bdw }, null);
-    assert.ok(Math.abs(geo.A.x - (80 + bdw)) < 1e-9, `bdw=${bdw}: A.x=${geo.A.x}, 기대 ${80 + bdw}`);
+    assert.ok(Math.abs(geo.A.x - (120 + bdw)) < 1e-9, `bdw=${bdw}: A.x=${geo.A.x}, 기대 ${120 + bdw}`);
     // ★세로도 «두께만큼» 늘어야 한다. 반지름만 키우면 rect 세로가 (r+두께)·0.625 로 «두께가 줄어든다».
-    assert.ok(Math.abs(Math.abs(geo.A.y) - (50 + bdw)) < 1e-9, `bdw=${bdw}: |A.y|=${geo.A.y}, 기대 ${50 + bdw}`);
+    assert.ok(Math.abs(Math.abs(geo.A.y) - (80 + bdw)) < 1e-9, `bdw=${bdw}: |A.y|=${geo.A.y}, 기대 ${80 + bdw}`);
   }
   // 원은 반지름이 그대로 커진다
   const c = g.computeZoomGeometry({ ...base, shape: 'circle', bdw: 24 }, null);
-  assert.ok(Math.abs(Math.hypot(c.A.x, c.A.y) - 104) < 1e-9, `circle |A|=${Math.hypot(c.A.x, c.A.y)}`);
+  assert.ok(Math.abs(Math.hypot(c.A.x, c.A.y) - 144) < 1e-9, `circle |A|=${Math.hypot(c.A.x, c.A.y)}`);
 });
 
 test("ⓐ-19b ⛔bd:'off' 면 bdw 가 커도 «도형» 실루엣 그대로다 — ★프리셋 «전수»로", async () => {
@@ -441,13 +446,13 @@ test("ⓐ-19b ⛔bd:'off' 면 bdw 가 커도 «도형» 실루엣 그대로다 �
      그 구멍으로 통과했다 — 한 프리셋만 훑는 검사는 «다른 프리셋에서 갈리는 결함»을 못 본다.
      ⇒ rect·circle·square 를 «다» 돈다. 기대값은 검사 안에서 리터럴로 세운다(대상 코드로 만들지 않는다). */
   const EXPECT = {
-    // angle 0 · length 400 · size 160 에서, bd 를 켰을 때/껐을 때의 |A| 성분
-    rect:   { offX: 80,  offY: 50,  onX: 104, onY: 74 },
-    square: { offX: 80,  offY: 80,  onX: 104, onY: 104 },
-    circle: { offR: 80,             onR: 104 },
+    // ★리터럴: angle 0 · length 600 · size 240(3:2) 에서 bd 켬/끔의 |A| 성분
+    rect:   { offX: 120, offY: 80,  onX: 144, onY: 104 },
+    square: { offX: 120, offY: 120, onX: 144, onY: 144 },
+    circle: { offR: 120,            onR: 144 },
   };
   for (const shape of ['rect', 'circle', 'square']) {
-    const base = { ...ST, shape, angle: 0, length: 400, bdw: 24 };
+    const base = { ...ST, shape, angle: 0, length: 600, bdw: 24 };
     const off = g.computeZoomGeometry({ ...base, bd: 'off' }, null);
     const on  = g.computeZoomGeometry({ ...base, bd: 'on' }, null);
     const e = EXPECT[shape];
@@ -470,26 +475,26 @@ test('ⓐ-19c [리팩터 대조] 쪼갠 실루엣이 «리터럴 오라클»과 
   const g = await loadGeom();
   /* ⛔예전 판은 shapeCornerPts ↔ shapePts 를 «서로» 비교했다 — 둘이 «같이» 틀리면 초록이다
      (Evaluator 2026-09-08 지적: 자기일관성 검사). ⇒ 기대값을 «리터럴»로 세운다. */
-  assert.equal(g.ZOOM_RECT_RATIO, 0.625, '비율이 바뀌면 아래 리터럴도 같이 고쳐야 한다');
+  assert.equal(g.ZOOM_RECT_RATIO, 2 / 3, '★3:2. 비율이 바뀌면 아래 리터럴도 같이 고쳐야 한다');
   const key = ps => ps.map(p => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).sort().join('|');
 
-  // size 160 → rect 반치수 80×50, square 80×80. 회전 0.
+  // size 240 → rect 반치수 120×80(3:2), square 120×120. 회전 0.
   assert.equal(key(g.shapeCornerPts({ ...ST, shape: 'rect', rot: 0 }, 0)),
-               key([{x:-80,y:-50},{x:80,y:-50},{x:80,y:50},{x:-80,y:50}]));
+               key([{x:-120,y:-80},{x:120,y:-80},{x:120,y:80},{x:-120,y:80}]));
   assert.equal(key(g.shapeCornerPts({ ...ST, shape: 'square', rot: 0 }, 0)),
-               key([{x:-80,y:-80},{x:80,y:-80},{x:80,y:80},{x:-80,y:80}]));
-  // 회전 90° — (x,y) → (-y, x). rect 80×50 이 50×80 으로 선다.
+               key([{x:-120,y:-120},{x:120,y:-120},{x:120,y:120},{x:-120,y:120}]));
+  // 회전 90° — (x,y) → (-y, x). rect 120×80 이 80×120 으로 선다.
   assert.equal(key(g.shapeCornerPts({ ...ST, shape: 'rect', rot: 90 }, 0)),
-               key([{x:50,y:-80},{x:50,y:80},{x:-50,y:80},{x:-50,y:-80}]));
+               key([{x:80,y:-120},{x:80,y:120},{x:-80,y:120},{x:-80,y:-120}]));
   // grow 는 «각 반치수에 따로» 더한다(비율로 키우지 않는다)
   assert.equal(key(g.shapeCornerPts({ ...ST, shape: 'rect', rot: 0 }, 24)),
-               key([{x:-104,y:-74},{x:104,y:-74},{x:104,y:74},{x:-104,y:74}]));
+               key([{x:-144,y:-104},{x:144,y:-104},{x:144,y:104},{x:-144,y:104}]));
 
   // 겉함수와 쪼갠 알맹이가 같은 답 — 이건 «구조» 대조라 리터럴 위에서만 뜻이 있다
-  const L = g.lightPoint(20, 170, 0, 0);
-  assert.deepEqual(g.silhouette('rect', 80, 0, L, 0, 0),
-                   g.silhouetteFromPts(g.shapePts('rect', 80, 0, 0, 0), L, 0, 0));
-  assert.deepEqual(g.silhouette('circle', 80, 0, L, 0, 0), g.silhouetteCircle(80, L, 0, 0));
+  const L = g.lightPoint(20, 300, 0, 0);
+  assert.deepEqual(g.silhouette('rect', 120, 0, L, 0, 0),
+                   g.silhouetteFromPts(g.shapePts('rect', 120, 0, 0, 0), L, 0, 0));
+  assert.deepEqual(g.silhouette('circle', 120, 0, L, 0, 0), g.silhouetteCircle(120, L, 0, 0));
 });
 
 test('ⓐ-20 ★블록 «자신»이 도형 상자다 — 원이면 원, 테두리 켜면 테두리 바깥', async () => {
@@ -498,7 +503,7 @@ test('ⓐ-20 ★블록 «자신»이 도형 상자다 — 원이면 원, 테두�
   const expect = (st) => {
     const half = st.size / 2, bw = (st.bd === 'on') ? st.bdw : 0;
     const circle = st.shape === 'circle';
-    const hh = (circle ? half : (st.shape === 'rect' ? half * 0.625 : half)) + bw;
+    const hh = (circle ? half : (st.shape === 'rect' ? half * (2 / 3) : half)) + bw;
     return { w: (half + bw) * 2, h: hh * 2,
              radius: circle ? '50%' : (((st.bdr || 0) > 0 ? st.bdr + bw : 0).toFixed(2) + 'px') };
   };
@@ -551,29 +556,29 @@ test('ⓐ-21 ④체크패턴 — 기본 배경은 무늬고, 그때 도형은 «
   /* ★좌표는 «클리핑 층» 기준이다(층이 SVG 상자만큼 왼쪽·위로 나가 있으므로 그만큼 되민다).
      크기는 여전히 «도형» 상자다 — 테두리를 켜도 안 변한다(그게 이 검사의 요지). */
   const off0 = g.svgOffset({ ...ST, fill: g.ZOOM_CHECKER }, null);
-  assert.deepEqual(m(chk), [+(-off0.left).toFixed(2), +(-off0.top).toFixed(2), 160, 100]);
+  assert.deepEqual(m(chk), [+(-off0.left).toFixed(2), +(-off0.top).toFixed(2), 240, 160]);
   const bdSt = { ...ST, fill: g.ZOOM_CHECKER, bd: 'on', bdw: 6 };
   const offB = g.svgOffset(bdSt, null);
   const bd = g.buildZoomInner(bdSt, null);
-  assert.deepEqual(m(bd), [+(6 - offB.left).toFixed(2), +(6 - offB.top).toFixed(2), 160, 100]);
+  assert.deepEqual(m(bd), [+(6 - offB.left).toFixed(2), +(6 - offB.top).toFixed(2), 240, 160]);
   assert.match(g.buildZoomInner({ ...ST, shape: 'circle', fill: g.ZOOM_CHECKER }, null), /class="zoom-bg"[^>]*border-radius:50%/);
 });
 
 test('ⓐ-22 ⑤크기 덧씌우개 — w/h 가 «이기고», 없으면 size+프리셋 비율에서 파생된다', async () => {
   const g = await loadGeom();
   // 파생
-  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'rect' }), { hw: 80, hh: 50 });
-  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'square' }), { hw: 80, hh: 80 });
-  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'circle' }), { hw: 80, hh: 80 });
+  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'rect' }), { hw: 120, hh: 80 });     // ★3:2
+  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'square' }), { hw: 120, hh: 120 });
+  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'circle' }), { hw: 120, hh: 120 });
   // 덧씌우개가 이긴다
   assert.deepEqual(g.shapeHalf({ ...ST, shape: 'rect', w: 300, h: 120 }), { hw: 150, hh: 60 });
   // w 만 주면 square/circle 은 정비율, rect 는 여전히 «비율»로 세로를 만든다
   assert.deepEqual(g.shapeHalf({ ...ST, shape: 'square', w: 300 }), { hw: 150, hh: 150 });
-  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'rect', w: 300 }), { hw: 150, hh: 50 });
+  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'rect', w: 300 }), { hw: 150, hh: 80 });
   // ⛔크기가 바뀌면 실루엣·뷰박스가 «같이» 따라온다
-  const small = g.computeZoomGeometry({ ...ST, angle: 0, length: 400 }, null);
-  const big   = g.computeZoomGeometry({ ...ST, angle: 0, length: 400, w: 300, h: 120 }, null);
-  assert.equal(small.A.x, 80); assert.equal(big.A.x, 150);
+  const small = g.computeZoomGeometry({ ...ST, angle: 0, length: 600 }, null);
+  const big   = g.computeZoomGeometry({ ...ST, angle: 0, length: 600, w: 300, h: 120 }, null);
+  assert.equal(small.A.x, 120); assert.equal(big.A.x, 150);
   assert.ok(Math.abs(big.A.y) === 60);
   assert.ok(g.zoomBox({ ...ST, w: 300, h: 120 }, null).w > g.zoomBox(ST, null).w, '뷰박스가 안 따라왔다');
   // 블록 상자(=아웃라인·핸들이 앉는 자리)도 따라온다
@@ -834,23 +839,97 @@ test('ⓑ-20 ★⑽D1 — 「흐름 블록 목록」 사본이 «하나»다 (�
   assert.ok(/if \(!sel\) return \[\];/.test(m), '못 읽으면 던진다 — 패널이 통째로 죽는다');
 });
 
-test('ⓑ-20b ★확대블럭은 «플로팅»이라 흐름 목록에 «없다» — 스티커와 같은 자리', () => {
+test('ⓑ-20b ★흐름 목록의 기준은 「플로팅이냐」가 «아니다» — 전수로 세서 판정한다', () => {
+  /* ⛔한때 「확대블럭은 플로팅이니 흐름 목록에 있으면 안 된다」로 빼놨었다. 거짓이다.
+     형제를 «둘만» 보고(sticker=0 을 보고 gradient 도 0 이라 단정) 결론을 세운 탓이다.
+     ★기준은 판정기가 말한다 — prop-multisel.js `_isFlowBlock` 는 `position:absolute` 만으론
+       안 빼고 `.frame-block[data-free-layout]` «안»일 때만 뺀다. 섹션 직속 플로팅은 «흐름»이다.
+     ★스티커가 빠진 이유는 따로 있다: js/sticker-select.js 라는 «전용 선택 모듈»이 자기 경로로 훑는다.
+       전용 모듈이 없는 블록을 빼면 대체 경로 없이 기능이 사라진다. */
   const e = SRC.editor;
-  const flow = e.slice(e.indexOf('const FLOW_BLOCK_SEL_SELECTED'));
-  const decl = flow.slice(0, flow.indexOf(';') + 1);
-  assert.equal(/\.zoom-block\.selected/.test(decl), false,
-    '플로팅인데 흐름 목록에 있다 — 흐름 패널이 세기는 하는데 못 찾는다(D1 이 그 결함이었다)');
-  /* ★대조를 «같은 토큰 형태»로 — 형태가 다르면 0 은 「없다」가 아니라 「못 쟀다」다. */
-  assert.ok(/\.laurel-block\.selected/.test(decl), '전제: 흐름 계열은 이 목록에 있다(자가 도는지 확인)');
-  assert.equal(/\.sticker-block\.selected/.test(decl), false, '전제: 플로팅 계열은 이 목록에 없다');
-  // 그래도 «삭제·복사» 목록에는 있어야 한다(스티커도 그렇다)
-  assert.ok(/\.zoom-block\.selected/.test(e), '삭제·복사 대상에서까지 빠지면 안 된다');
-  /* freeLayout 래퍼 수집 목록(BLOCK_SEL)은 «플로팅» 계열을 담는다 — sticker 가 있으니 zoom 도 있어야 한다.
-     여기 빠지면 freeLayout 안에서 확대블럭을 여럿 골랐을 때 래퍼를 못 찾는다. */
+  const i = e.indexOf('const FLOW_BLOCK_SEL_SELECTED');
+  assert.notEqual(i, -1, '흐름 목록을 못 찾음 — 검사가 대상을 놓쳤다');
+  const decl = e.slice(i, e.indexOf(';', i));
+  const members = new Set([...decl.matchAll(/\.([a-z0-9-]+)\.selected/g)].map(m => m[1]));
+  assert.ok(members.size > 20, `목록을 ${members.size}종밖에 못 셌다 — 못 잰 것이다`);
+
+  /* ★대조를 «전수»로 둔다 — 한쪽만 보면 또 뒤집힌다.
+     전용 선택 모듈 «있음» → 목록에 없다 / «없음» → 목록에 있다. */
+  const OWN_MODULE = { 'sticker-block': true, 'gradient-block': false, 'zoom-block': false };
+  for (const [cls, hasOwn] of Object.entries(OWN_MODULE)) {
+    assert.equal(members.has(cls), !hasOwn,
+      hasOwn ? `${cls} 는 전용 모듈이 있어 목록에 «없어야» 한다`
+             : `${cls} 는 전용 모듈이 «없어서» 목록에 있어야 한다 — 빼면 기능이 사라진다`);
+  }
+  // 전제 — 「전용 모듈 있음/없음」이 실제로 그러한가(표가 썩으면 위 판정이 헛돈다)
+  assert.ok(/\.sticker-block\.selected/.test(SRC.stickerSel), '전제: 스티커 전용 모듈이 자기를 훑는다');
+  assert.equal(RAW.hasZoomSelect, false, '전제: 확대블럭엔 전용 선택 모듈이 없다');
+
+  // freeLayout 래퍼 수집 목록(BLOCK_SEL)은 «플로팅» 계열을 담는다 — sticker 가 있으니 zoom 도 있어야 한다
   const wrap = SRC.multisel.slice(SRC.multisel.indexOf('const BLOCK_SEL'));
   const decl2 = wrap.slice(0, wrap.indexOf(';') + 1);
   assert.ok(/\.sticker-block\.selected/.test(decl2), '전제: 플로팅 계열이 이 목록에 있다');
   assert.ok(/\.zoom-block\.selected/.test(decl2), '같은 계열인데 확대블럭만 빠졌다');
+});
+
+test('ⓑ-26 ★⑯모서리 핸들이 «보라» — 그리고 자산 블록은 «안» 물든다', () => {
+  const css = SRC.css;
+  const rule = css.match(/\.asset-overlay-handle\[data-zoom-resize-dir\]\s*\{([^}]*)\}/);
+  assert.ok(rule, '확대블럭 핸들 색 규칙이 없다');
+  assert.match(rule[1], /border-color:\s*var\(--ui-sel-overlay/, '아웃라인과 다른 색이면 한 블록에 두 색이 된다');
+  /* ⛔공용 규칙(.asset-overlay-handle)은 파랑 그대로여야 한다 — 바꾸면 자산 블록이 물든다. */
+  const shared = css.match(/\n\.asset-overlay-handle,\s*\n\.icb-overlay-handle \{([^}]*)\}/);
+  assert.ok(shared, '공용 핸들 규칙을 못 찾았다 — 검사가 대상을 놓쳤다');
+  assert.match(shared[1], /border:[^;]*var\(--sel-color\)/, '공용 핸들을 보라로 바꿨다 — 자산 블록이 같이 물든다');
+  assert.equal(/ui-sel-overlay/.test(shared[1]), false);
+  // 한정 수단이 «실제로» 붙는가 — 안 붙으면 위 규칙이 아무 데도 안 걸린다
+  assert.ok(/dataset\.zoomResizeDir = dir/.test(SRC.handles), '확대블럭 핸들에 한정 표식이 안 붙는다');
+});
+
+test('ⓑ-24 ★⑫z-순서 — 스티커보다 «위», 섹션 UI 는 «안» 덮는다 (실제 숫자를 읽어 잰다)', () => {
+  /* 현빈 2026-09-08 「가장 위에 플로팅되게. 하이라이트 스티커가 밑으로 가는 건 되지만
+     이건 내려가면 안 돼」. ⇒ 순서 «불변식»을 못박는다 — 남의 숫자가 바뀌어도 여기서 잡힌다. */
+  const num = (src, re, what) => {
+    const m = src.match(re);
+    assert.ok(m, `${what} 의 z-index 를 못 찾았다 — 검사가 대상을 놓쳤다`);
+    return parseInt(m[1], 10);
+  };
+  const zoom    = num(SRC.css,    /\.zoom-block \{[^}]*z-index:\s*(\d+)/, '확대블럭');
+  const toolbar = num(SRC.layout, /\.section-toolbar \{[^}]*z-index:\s*(\d+)/, '섹션 툴바');
+  /* ⛔스티커의 z 는 «하나가 아니다» — 리터럴 여섯(1·55·1·55·55·55)이 흩어져 있고
+     1 은 «일부러» 낮춘 하이라이트다(텍스트 아래로 가라는 현빈 확정).
+     ★처음엔 첫 매치만 읽어 1 을 「일반 스티커」로 쓴 탓에, z 를 40 으로 낮추는 변이(M50)가
+       «통과했다». ⇒ 전수로 세고 «일반 스티커 = 최댓값»으로 잡는다. */
+  const zs = [...SRC.sticker.matchAll(/z-index:(\d+);pointer-events:auto/g)].map(m => +m[1]);
+  assert.ok(zs.length >= 4, `스티커 z 를 ${zs.length}개밖에 못 셌다 — 못 잰 것이다`);
+  const sticker = Math.max(...zs);
+  assert.ok(Math.min(...zs) < sticker, '전수 대조: 하이라이트(낮은 값)가 같이 잡혀야 정상이다');
+
+  assert.ok(sticker < zoom, `스티커(${sticker}) 위여야 한다 — 지금 ${zoom}`);
+  assert.ok(zoom < toolbar, `툴바(${toolbar})를 덮으면 툴바가 안 눌린다 — 지금 ${zoom}`);
+  // ★대조 — 세 숫자가 «실제로» 다르다. 같으면 위 비교가 아무것도 안 가른다.
+  assert.equal(new Set([zoom, sticker, toolbar]).size, 3, `세 값이 겹친다: ${zoom}/${sticker}/${toolbar}`);
+  // ⛔JS 렌더에 리터럴로 흩뿌리지 않았다(스티커의 55 가 그렇게 넷으로 흩어져 있다)
+  assert.equal(/z-index:\s*\d+/.test(SRC.block), false, '확대블럭이 z-index 를 JS 에 박았다');
+});
+
+test('ⓑ-25 ★스티커 계열이 지키는 «약속 전수» — 확대블럭이 하나도 안 빠졌다', () => {
+  /* ⛔계열을 옮길 때 약속이 «두 번» 안 따라왔다(⑪ 클리핑 · ⑫ z-순서). 세 번째가 안 나게
+     약속을 «데이터»로 적고 기계로 센다. 새 약속이 생기면 여기 한 줄 늘려라. */
+  const PROMISES = [
+    { name: '섹션 직속 + absolute',   ok: () => /sec\.appendChild\(block\)/.test(SRC.block) && /position:absolute/.test(SRC.block) },
+    { name: 'dataset.x/y 좌표',        ok: () => /dataset\.x = /.test(SRC.block) && /dataset\.y = /.test(SRC.block) },
+    { name: '섹션 밖 크롭(--sec-clip)', ok: () => /\.zoom-block > \.zoom-clip/.test(SRC.css) && /_updateStickerSecClip/.test(SRC.block) },
+    { name: 'z-순서(스티커 위)',        ok: () => /\.zoom-block \{[^}]*z-index:\s*\d+/.test(SRC.css) },
+    { name: '보라 선택 갈래',           ok: () => /dataset\.selVariant = 'sticker'/.test(SRC.block) },
+    { name: '삽입 기준점에서 제외',      ok: () => !/\.zoom-block\.selected/.test(SRC.dragu) },
+    { name: 'freeLayout 래퍼 목록',     ok: () => /\.zoom-block\.selected/.test(SRC.multisel) },
+    { name: '캔버스 선택 폴백 목록',     ok: () => /\.zoom-block\.selected/.test(SRC.assets) },
+    { name: '흐름 목록(전용 모듈 없음)', ok: () => /\.zoom-block\.selected/.test(SRC.editor) },
+  ];
+  const broken = PROMISES.filter(p => !p.ok()).map(p => p.name);
+  assert.deepEqual(broken, [], `계열 약속이 안 지켜졌다: ${broken.join(' · ')}`);
+  assert.ok(PROMISES.length >= 9, '약속 표가 줄었다 — 지우지 말고 늘려라');
 });
 
 test('ⓑ-21 ★⑪계열 약속 ① — 「섹션 밖 크롭」 3규칙에 확대블럭이 «다» 있다', () => {

@@ -880,8 +880,18 @@ function _updateFreeLayoutMultiSelPanel() {
 /* 일반(플로우) 블록 멀티선택 카운트 패널 트리거 (A11)
  * — freeLayout 블록은 X/Y/W/H 좌표가 있어 전용 패널로 위임,
  *   세로로 쌓인 일반 블록은 좌표가 없어 '몇 개 선택됨' 카운트 패널만 제공 */
-// 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT
-const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
+/* ★이 목록의 기준은 「플로팅이냐」가 «아니다» — 「자유배치 프레임 안이냐」다.
+ *   판정기가 그렇게 말한다: prop-multisel.js `_isFlowBlock` / 아래 `_isInFreeLayout` —
+ *   `position:absolute` 하나로는 안 빠지고 `.frame-block[data-free-layout]` «안»일 때만 빠진다.
+ *   ⇒ 섹션 직속 플로팅(그라데이션·확대블럭)은 «흐름»으로 친다.
+ * ★스티커가 빠져 있는 이유는 «플로팅이라서»가 아니라 js/sticker-select.js 라는
+ *   «전용 선택 모듈»이 자기 경로로 훑기 때문이다. 전용 모듈이 없는 블록을 여기서 빼면
+ *   대체 경로 없이 기능이 사라진다(여럿 고르면 정렬 패널이 아예 안 뜬다).
+ *   ⛔한때 확대블럭을 「플로팅이니까」로 뺐다가 되돌렸다 — 그때 형제를 «둘만» 보고
+ *     (sticker=0 을 보고 gradient 도 0 이라 단정) 결론을 세웠다. gradient 는 1 이었다.
+ *     ⇒ 형제 패턴으로 훑되 «전수로 세고» 판정은 한 건씩. (검사 ⓑ-20b 가 이걸 못박는다)
+ * 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT */
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .zoom-block.selected, .chat-block.selected, .speech-bubble-block.selected';
 
 /* ★사본 금지 — js/props/prop-multisel.js 가 «이 상수»를 읽는다(옛날엔 리터럴을 한 벌 더 갖고
  *   있었고, 둘 다 주석에 「SSOT」라 적혀 있었다. 확대블럭이 한쪽에만 들어가 «2개 선택하면
