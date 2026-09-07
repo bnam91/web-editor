@@ -813,7 +813,14 @@ test('ⓑ-19 ★⑧계열 = «플로팅»(스티커) — 행에 넣지 않는다
   const mv = sliceFn(b, 'function _bindZoomMoveDrag(block)');
   assert.ok(/window\._clampToSection/.test(mv) && /window\._findSectionAt/.test(mv),
     '스티커의 좌표 헬퍼를 안 쓰고 새로 만들었다');
-  assert.ok(/dataset\.x = /.test(mv) && /style\.left = /.test(mv), 'dataset 과 style 을 «같이» 밀어야 한다');
+  /* ★⑲ 뒤로 위치 쓰기는 «한 자리»(_applyZoomPos)로 모였다 — 드래그는 그걸 «부르기만» 한다.
+     ⛔두 군데서 각자 쓰면 또 갈린다(지디 실측: style 에 캔버스 절대 y 가 들어가 846 어긋남). */
+  assert.ok(/_applyZoomPos\(block, cx, cy\)/.test(mv), '위치를 «한 자리»에서 안 쓴다');
+  const setPos = sliceFn(b, 'function _applyZoomPos(block, x, y)');
+  assert.ok(/dataset\.x = /.test(setPos) && /dataset\.y = /.test(setPos), 'dataset 을 안 쓴다');
+  /* ★style 은 «dataset 을 되읽어» 쓴다 — 지역 변수에서 따로 쓰면 dataset 에 없는 값이 들어갈 수 있다. */
+  assert.ok(/style\.left = block\.dataset\.x \+ 'px'/.test(setPos), 'style.left 가 dataset 에서 안 온다');
+  assert.ok(/style\.top  = block\.dataset\.y \+ 'px'/.test(setPos), 'style.top 이 dataset 에서 안 온다');
   // ⑸ 보라 갈래는 블록이 «스스로» 든다
   assert.ok(/dataset\.selVariant = 'sticker'/.test(b), '선택 오버레이가 보라를 못 고른다');
   // ⑹ 배율은 «정본 함수»에서 온다 — 베끼면 핸들과 갈라진다
@@ -881,15 +888,20 @@ test('ⓑ-20b ★흐름 목록의 기준 — «규칙»을 재서 판정한다(�
     assert.ok(src.length > 100, `${cls}: 선택 경로를 ${src.length}자밖에 못 떴다 — 못 잰 것이다`);
     multiSel[cls] = /toggleBlockSelect/.test(src) && /rangeSelectBlocks/.test(src);
   }
-  // ★계측기가 «상수»를 돌려주지 않는지 — 갈리지 않으면 아무것도 판정 못 한다
-  assert.equal(multiSel['sticker-block'], false, '전제: 스티커는 복수선택 분기가 없다');
-  assert.equal(multiSel['zoom-block'], true, '전제: 확대블럭은 복수선택 분기가 있다');
-  assert.equal(multiSel['laurel-block'], true, '전제(양성대조): 흐름 계열은 복수선택이 된다');
+  /* ★계측기가 «상수»를 돌려주지 않는지 — 갈리지 않으면 아무것도 판정 못 한다.
+     ⛔계열별 «오늘 답»을 박지 않는다(그게 ⑳에서 잡힌 병이다). 「갈리는가」만 본다. */
+  assert.ok(new Set(Object.values(multiSel)).size > 1,
+    `복수선택 판정이 모두 ${Object.values(multiSel)[0]} 다 — 계측이 상수라 아무것도 못 가른다`);
 
-  // ★못박는 것 — 확대블럭: 복수선택이 되니 목록에 «있어야» 한다(빼면 정렬 패널이 안 뜬다)
-  assert.equal(inList('zoom-block'), true,
-    '확대블럭은 Cmd/Shift 복수선택이 되는데 흐름 목록에 없다 — 2개 고르면 패널이 조용히 빈다');
-  assert.equal(inList('sticker-block'), false, '스티커는 복수선택이 안 되니 목록에 없어야 한다');
+  /* ★못박는 것 — «도출한 값»으로 판정한다. 리터럴 true/false 를 쓰면 규칙이 아니라
+     「오늘 배치」를 잠그는 것이고, 훗날 스티커 복수선택을 «옳게» 구현한 사람이 빨간 검사를 보고
+     「내가 틀렸나」로 읽는다(⑽의 「거꾸로 잠금」과 같은 모양 — Evaluator 가 M60 으로 증명했다). */
+  for (const cls of ['zoom-block', 'sticker-block']) {
+    assert.equal(inList(cls), multiSel[cls],
+      multiSel[cls]
+        ? `${cls} 는 복수선택이 되는데 흐름 목록에 없다 — 2개 고르면 패널이 조용히 빈다`
+        : `${cls} 는 복수선택이 안 되는데 흐름 목록에 있다 — 목록이 뜻을 갖지 않는다`);
+  }
 
   /* ⛔gradient 는 규칙과 «어긋난다»(복수선택 분기 없음인데 목록에 있음). ★이건 이 브랜치 밖의
      «기존 자리»라 여기서 고치지도, 어긋남을 «고정»하지도 않는다(고정하면 남이 고쳤을 때 빨개진다).

@@ -172,6 +172,23 @@ function renderZoomBlock(block) {
   _scheduleZoomSecClip(block);
 }
 
+/* ★위치를 쓰는 «단 하나의» 자리 (⑲).
+   지디 실측: 섹션 간 드래그 뒤 dataset.y=114 인데 style.top=960 이었고,
+   960−114 = 846 = «그 섹션의 offsetTop» 이었다 — style 에 «캔버스 절대 y» 가 들어간 것이다.
+   블록은 position:absolute 이고 offsetParent 가 섹션이라 top 은 «섹션 상대»여야 한다.
+   ⛔막는 법: style 을 지역 변수에서 «따로» 쓰지 않는다. dataset 에 먼저 쓰고,
+     style 은 «그 dataset 을 되읽어» 쓴다 ⇒ style 이 dataset 에 없는 값을 가질 수 «없다».
+   ⚠️x 도 같은 길을 탄다 — 지금은 섹션들의 offsetLeft 가 같아 x 가 «우연히» 맞았을 뿐이다.
+     섹션이 가로로 어긋나는 배치가 생기면 x 도 같은 방식으로 틀린다.
+   (스티커도 같은 값을 쓰지만 «지역 변수»에서 각자 쓴다 — sticker-select.js:428~431.
+    그쪽은 이 브랜치 밖이라 안 건드린다. 별건.) */
+function _applyZoomPos(block, x, y) {
+  block.dataset.x = String(Math.round(x));
+  block.dataset.y = String(Math.round(y));
+  block.style.left = block.dataset.x + 'px';
+  block.style.top  = block.dataset.y + 'px';
+}
+
 /** 그리는 층을 찾아 «섹션 밖 크롭»을 다시 계산한다. 계산식은 스티커와 «같은 함수»를 쓴다. */
 function updateZoomSecClip(block) {
   const layer = block.querySelector?.(':scope > .zoom-clip');
@@ -218,10 +235,7 @@ function _bindZoomMoveDrag(block) {
       const [cx, cy] = free
         ? [rawX, rawY]
         : (window._clampToSection?.(rawX, rawY, sec, block.offsetWidth, block.offsetHeight) || [rawX, rawY]);
-      block.dataset.x = String(Math.round(cx));
-      block.dataset.y = String(Math.round(cy));
-      block.style.left = Math.round(cx) + 'px';
-      block.style.top  = Math.round(cy) + 'px';
+      _applyZoomPos(block, cx, cy);   // ★위치는 «한 자리»에서만 쓴다(⑲)
       // 위치가 바뀌면 섹션 경계와의 관계도 바뀐다 — 스티커와 같이 드래그 중에도 갱신한다.
       updateZoomSecClip(block);
     };

@@ -373,8 +373,10 @@ t2('S-12 [⑪] 공유 클립 함수 — 섹션 «직속» 자식(스티커)에�
  * ───────────────────────────────────────────────────────────────────────── */
 const { test: t3 } = require('node:test');
 
-function mkSection(name, left, top, w, h) {
-  return { name, clientWidth: w, clientHeight: h,
+/* ★offsetTop 은 지디 실측값(섹션 offsetTop = [0, 463, 846])을 쓴다 — 「절대 y 를 썼다」는
+   변이가 «정확히 그 846» 만큼 어긋나야 이 검사가 실제 결함을 재현한 것이 된다. */
+function mkSection(name, left, top, w, h, offsetTop = 0) {
+  return { name, clientWidth: w, clientHeight: h, offsetTop, offsetLeft: 0,
     getBoundingClientRect: () => ({ left, top, width: w, height: h }),
     appendChild(b) { b._parent = this; }, contains: () => true };
 }
@@ -391,8 +393,8 @@ t3('S-14 [⑲] 드래그·섹션이동·재렌더 «전부»에서 dataset.x/y �
   const { _clampToSection } = await import(pathToFileURL(mjs).href);
 
   // ★지디 실측 배치 그대로
-  const sec0 = mkSection('sec0', 545, 84, 344, 145);
-  const sec2 = mkSection('sec2', 545, 422, 344, 193);
+  const sec0 = mkSection('sec0', 545, 84, 344, 145, 0);
+  const sec2 = mkSection('sec2', 545, 422, 344, 193, 846);
   const prevClamp = globalThis.window._clampToSection;
   const prevFind = globalThis.window._findSectionAt;
   globalThis.window._clampToSection = _clampToSection;
@@ -487,8 +489,8 @@ t3('S-15 [⑲] ★«잡은 지점»이 커서를 따라간다 — 섹션이 바�
 
   // ★섹션을 «충분히 크게» 둬서 클램프가 안 걸리게 한다 — 걸리면 오프셋이 «정당하게» 달라져
   //   이 불변식이 못 쓰인다(클램프는 S-14 가 덮는다).
-  const sec0 = mkSection('sec0', 545, 84, 900, 900);
-  const sec2 = mkSection('sec2', 545, 1200, 900, 900);
+  const sec0 = mkSection('sec0', 545, 84, 900, 900, 0);
+  const sec2 = mkSection('sec2', 545, 1200, 900, 900, 846);
   const prevClamp = globalThis.window._clampToSection;
   const prevFind = globalThis.window._findSectionAt;
   globalThis.window._clampToSection = _clampToSection;
