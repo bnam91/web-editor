@@ -116,6 +116,8 @@ async function insertTemplate(tpl) {
     window.showToast?.('❌ 템플릿 불러오기 실패: 파일이 없거나 손상됐습니다.');
     return;
   }
+  // 실패를 «말할» 때 어느 템플릿인지 알려야 다음 행동이 된다(카드가 여러 장이다)
+  const tplName = tpl.name || '이름 없는 템플릿';
 
   // block 타입: 선택된 섹션의 col에 삽입
   if (tpl.type === 'block') {
@@ -125,7 +127,10 @@ async function insertTemplate(tpl) {
     const wrapper = document.createElement('div');
     wrapper.innerHTML = canvas;
     const blockEl = wrapper.firstElementChild;
-    if (!blockEl) return;
+    if (!blockEl) {
+      window.showToast?.(`❌ '${tplName}' 템플릿이 비었거나 손상됐습니다.`);
+      return;
+    }
 
     // row로 감싸서 insertAfterSelected로 삽입 (섹션 패딩/레이아웃 정상 적용)
     const row = document.createElement('div');
@@ -159,7 +164,14 @@ async function insertTemplate(tpl) {
     const tmp = document.createElement('div');
     tmp.innerHTML = canvas;
     const ss = tmp.firstElementChild;
-    if (!ss || !ss.classList.contains('frame-block')) return;
+    if (!ss) {
+      window.showToast?.(`❌ '${tplName}' 템플릿이 비었거나 손상됐습니다.`);
+      return;
+    }
+    if (!ss.classList.contains('frame-block')) {
+      window.showToast?.(`❌ '${tplName}' 은(는) 컴포넌트 템플릿이 아닙니다. 템플릿을 열어 다시 저장해 주세요.`);
+      return;
+    }
 
     // ID 재생성 (중복 방지)
     ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
@@ -207,7 +219,14 @@ async function insertTemplate(tpl) {
   const tmp = document.createElement('div');
   tmp.innerHTML = canvas;
   const sec = tmp.firstElementChild;
-  if (!sec || !sec.classList.contains('section-block')) return;
+  if (!sec) {
+    window.showToast?.(`❌ '${tplName}' 템플릿이 비었거나 손상됐습니다.`);
+    return;
+  }
+  if (!sec.classList.contains('section-block')) {
+    window.showToast?.(`❌ '${tplName}' 은(는) 섹션 템플릿이 아닙니다. 템플릿을 열어 다시 저장해 주세요.`);
+    return;
+  }
 
   // 모든 ID 재생성 (동일 템플릿 2회 삽입 시 중복 ID 방지)
   // ★자체 생성기를 두지 마라 — actorId 조각이 빠져 협업에서 출처를 못 가린다. 전역을 쓴다.
