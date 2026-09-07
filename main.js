@@ -1316,11 +1316,50 @@ function _projectsRoot() { return PROJECTS_DIR; }
      템플릿의 공용 풀은 ★«모든 계정이 읽는» 곳이라 거기에 쓰게 두면 비로그인 저장이 전원에게 보인다.
      그래서 여기서는 비로그인도 격리 폴더로 내린다(읽기는 여전히 공용을 본다 — 못 쓰게 할 뿐이다). */
 let _templatesDirState = null;
+/* «손으로 꺼내는 길»을 격리 폴더 안에 적어 둔다. 프로젝트의 _writeUnresolvedReadme 와 대칭.
+   ⛔파일을 «폴더 안»(templates/)에 쓴다 — 프로젝트 안내문이 부모(accounts/_unresolved/)에
+     같은 이름으로 있어서, 같은 자리에 쓰면 서로 덮어쓴다.
+   ⛔이미 있으면 덮어쓰지 않는다 — 사용자가 손으로 적어 둔 메모까지 날릴 이유가 없다. */
+function _writeTemplatesUnresolvedReadme(why, errMessage) {
+  const fp = path.join(TEMPLATES_DIR_UNRESOLVED, 'README-읽어주세요.txt');
+  try { if (fs.existsSync(fp)) return; } catch (_) {}
+  const txt = [
+    '이 폴더는 GODITOR 가 «어느 계정인지 모를 때» 템플릿을 넣어 두는 임시 격리 폴더입니다.',
+    '',
+    `사유: ${why === 'unresolved' ? 'auth.json 을 읽지 못했습니다(손상 등)' : '로그인하지 않은 상태였습니다'}`,
+    ...(errMessage ? [`상세: ${errMessage}`] : []),
+    `기록 시각: ${new Date().toISOString()}`,
+    '',
+    '■ 왜 여기로 왔나',
+    '  템플릿의 공용 폴더는 ★«모든 계정이 함께 읽는» 곳입니다. 누구인지 모르는 상태로 거기 저장하면',
+    '  내가 만든 템플릿이 «다른 사람 모두에게» 보입니다. 그래서 아무에게도 안 보이는 곳으로 격리했습니다.',
+    '',
+    '■ ★여기 있는 것을 «어디로» 옮기면 되나',
+    '  ⑴ 먼저 앱에 정상적으로 로그인하십시오.',
+    '  ⑵ 그러면 상위 폴더(accounts/)에 «acct_...» 로 시작하는 본인 계정 폴더가 생깁니다.',
+    '  ⑶ 이 폴더의 canvas/ 안 .html 파일들을 그 «acct_.../templates/canvas/» 로 옮기고,',
+    '     index.json 의 항목들을 «acct_.../templates/index.json» 의 배열에 이어 붙이십시오.',
+    '     (index.json 이 없으면 이 폴더의 것을 그대로 옮기면 됩니다.)',
+    '  ⑷ 앱을 다시 켜면 템플릿 패널에 나타납니다.',
+    '',
+    '⚠️앱은 이 폴더를 «스스로 읽지 않습니다». 옮기지 않으면 템플릿 패널에 영영 안 보입니다.',
+    '   ⛔자동 회수(첫 로그인 때 «입양»)는 «일부러» 만들지 않았습니다 — 로그인 게이트 때문에',
+    '     이 폴더로 저장이 실제로 도달하지 못하므로 옮길 것이 생기지 않습니다.',
+    '     저장 경로가 열리는 날 입양도 «같이» 만듭니다.',
+    '⚠️이 폴더가 비어 있으면(canvas/ 에 .html 이 없으면) 그냥 지우셔도 됩니다.',
+    '',
+  ].join('\n');
+  try { fs.writeFileSync(fp, txt, 'utf8'); }
+  catch (e) { console.error('[templates] 격리 폴더 안내문을 못 남겼다 — 손으로 꺼낼 길이 안 적혔다:', (e && e.message) || e); }
+}
 function _repointTemplatesDir(reason) {
   const _land = (why, extra) => {
     try { fs.mkdirSync(path.join(TEMPLATES_DIR_UNRESOLVED, 'canvas'), { recursive: true }); } catch (_) {}
     TEMPLATES_DIR = TEMPLATES_DIR_UNRESOLVED;
-    _templatesDirState = Object.assign({ root: TEMPLATES_DIR, account: null, reason }, extra);
+    /* ★landed 를 남긴다 — 「비로그인」과 「auth 손상」은 사용자에게 할 말이 다르고,
+       account:null 만으로는 둘을 못 가른다. */
+    _templatesDirState = Object.assign({ root: TEMPLATES_DIR, account: null, reason, landed: why }, extra);
+    _writeTemplatesUnresolvedReadme(why, extra && extra.error);
     return _templatesDirState;
   };
   let key;
@@ -3426,6 +3465,15 @@ function _foldLegacyTemplates() {
 }
 _migrateLegacyTemplatesJson();
 _foldLegacyTemplates();
+
+/* 렌더러가 「지금 어디에 저장되는가」를 물어보는 자리.
+   ★사전 고지용이다 — 격리 폴더로 내려앉은 «그 순간»에 사용자에게 말해 주려면 렌더러가 알아야 한다.
+     안내문(README)은 사후 구제라, 그것만 두면 «사라졌다»고 겪은 사람은 영영 안 본다.
+   ⛔경로(root)는 안 넘긴다 — 사용자 홈 경로가 렌더러로 새어나갈 이유가 없다. */
+ipcMain.handle('templates:root-state', () => {
+  const s = _templatesDirState || {};
+  return { account: s.account || null, landed: s.landed || null, unresolved: !!s.unresolved, reason: s.reason || null };
+});
 
 ipcMain.handle('templates:load-index', () => {
   const personalRoot = _templatesRoot();

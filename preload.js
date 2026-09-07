@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadTemplateCanvas:  (id)       => ipcRenderer.invoke('templates:load-canvas', id),
   saveTemplateCanvas:  (id, html) => ipcRenderer.invoke('templates:save-canvas', id, html),
   deleteTemplateCanvas:(id)       => ipcRenderer.invoke('templates:delete-canvas', id),
+  getTemplateRootState:()         => ipcRenderer.invoke('templates:root-state'),
 
   // Figma Upload
   figmaUpload:       (channel, designJSON) => ipcRenderer.invoke('figma:upload', { channel, designJSON }),

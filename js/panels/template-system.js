@@ -106,6 +106,24 @@ async function _loadCanvas(id) {
   return full ? full.canvas : null;
 }
 
+/* 저장이 «격리 폴더»로 갔으면 그 순간에 말한다.
+   ★안내문(README)은 «사후 구제»다 — 「사라졌다」고 겪은 사람은 그 파일을 영영 안 본다.
+     그래서 사전 고지가 본론이다. 장치가 있어도 «닿는 길»이 없으면 없는 것이다.
+   ⛔저장을 «막지» 않는다 — 저장이 끝난 뒤에만 부르고, 여기서 무슨 일이 나도 삼킨다.
+     막으면 사용자는 방금 만든 작업을 잃는다. 우리가 할 일은 «알리»는 것뿐이다.
+   ⛔showToast 단독으로 쓴다. `?? alert(...)` 를 붙이지 마라 — showToast 는 return 이 없어
+     undefined 를 주고, 그러면 ?? 가 통과해 토스트+네이티브 alert 이 «둘 다» 뜨며 렌더러가 얼어붙는다. */
+async function _noticeIfIsolatedRoot() {
+  try {
+    const st = await window.electronAPI?.getTemplateRootState?.();
+    if (!st || st.account) return false;   // 정상 계정 뿌리 — 할 말 없다
+    window.showToast?.(st.landed === 'unresolved'
+      ? '⚠️ 로그인 정보를 읽지 못해 임시 공간에 저장됐습니다. 로그인한 뒤 다시 저장해 주세요.'
+      : '⚠️ 로그인하지 않아 임시 공간에 저장됐습니다. 로그인한 뒤 다시 저장해 주세요.');
+    return true;
+  } catch (_) { return false; }   // 고지가 실패해도 저장은 이미 끝났다
+}
+
 async function saveAsTemplate(el, name, folder, category, tags, type = 'section') {
   const clone = el.cloneNode(true);
   clone.classList.remove('selected', 'sec-bg-editing');
@@ -128,6 +146,7 @@ async function saveAsTemplate(el, name, folder, category, tags, type = 'section'
   templates.unshift({ id, name, folder: folder || '기타', category, tags: tagsArr, createdAt: new Date().toISOString(), thumbnail: null, type: type || 'section' });
   saveTemplates(templates);
   renderTemplatePanel();
+  await _noticeIfIsolatedRoot();   // ★저장이 «끝난 뒤»에만 — 알리기만 하고 막지 않는다
 }
 
 /* 공용 템플릿인가 — 「막는 이유」가 셋 다 같아서 한 곳에서 판정한다. */
@@ -820,8 +839,9 @@ export async function saveBlockAsTemplate(block, name, folder = '블록', tagsSt
   saveTemplates(templates);
   renderTemplatePanel();
 
-  // 토스트
-  window.showToast?.('블록 템플릿 저장됨: ' + name);
+  /* 토스트 — 격리 폴더로 갔으면 «그쪽 경고»가 우선이다.
+     토스트는 자리가 하나라, 「저장됨」을 먼저 띄우면 경고가 그걸 덮어 두 번 깜빡인다. 하나만 띄운다. */
+  if (!(await _noticeIfIsolatedRoot())) window.showToast?.('블록 템플릿 저장됨: ' + name);
 }
 
 // 크로스 모듈 접근용 window 노출
