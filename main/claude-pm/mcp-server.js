@@ -1627,7 +1627,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.addSection({ empty: !!empty, bg, beforeId, afterId, sourceScratchIds: scratch });
     },
     {
-      description: 'Add a new section. Default = appended after selected (or canvas end). Use beforeId/afterId to insert at a specific position. Default body = gap + h2 placeholder + gap. empty:true = only top/bottom gaps. sourceScratchIds: optional sp_xxx[] — auto-records "출처: sp_aa, sp_bb" line into dataset.memo for traceability.',
+      description: 'Add a new CANVAS section (a band on the page). ⚠️NOT a checklist group — if the user said "체크리스트에 … 섹션" use edit_checklist_section(op:"create") instead. Default = appended after selected (or canvas end). Use beforeId/afterId to insert at a specific position. Default body = gap + h2 placeholder + gap. empty:true = only top/bottom gaps. sourceScratchIds: optional sp_xxx[] — auto-records "출처: sp_aa, sp_bb" line into dataset.memo for traceability.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1931,10 +1931,24 @@ function _registerDefaultTools() {
         }
       }
       if (!_rendererInvoker?.addChecklistItem) throw new Error('renderer bridge not ready');
-      return await _rendererInvoker.addChecklistItem({ text, x, y, sectionId, ckSectionId, done, urgent });
+      const _r = await _rendererInvoker.addChecklistItem({ text, x, y, sectionId, ckSectionId, done, urgent });
+      /* ★★2026-09-08 실측: 프롬프트로 「체크리스트에 '검수' 섹션 만들고 거기에 할 일 추가」를 시켰더니
+           모델이 캔버스 sec_ 를 만들고 add_checklist_item{sectionId} 를 불렀다.
+           도구는 ok 를 돌려줬고 항목도 생겼지만 «분류는 안 됐다» — 조용한 오해다.
+         ⇒ 「됐다」만 말하지 않고 «안 된 것»을 같이 말한다. 막지는 않는다(핀 좌표는 정당한 용도다). */
+      if (_r && _r.ok !== false && sectionId && !ckSectionId) {
+        return Object.assign({}, _r, {
+          notGrouped: true,
+          note: 'sectionId 는 «캔버스 섹션»이라 핀 위치만 잡았습니다 — 이 할 일은 어떤 체크리스트 섹션에도 «분류되지 않았습니다».',
+          hint: 'If you meant to file it under a checklist group, create one with edit_checklist_section(op:"create", name) and pass its ck_xxx id as ckSectionId (add_checklist_item or update_checklist_item).',
+        });
+      }
+      return _r;
     },
     {
-      description: 'Add a checklist item (todo). ★Two different "section" concepts: ckSectionId (ck_xxx) files it under a CHECKLIST section in the panel; sectionId (sec_xxx) only positions the canvas PIN. If sectionId given (without x/y), pin auto-positions next to that section on the canvas. If x/y given, pin placed at those canvas coords. Otherwise just a list item (no pin). Use for: section evaluation notes, work-needed todos, scratch-source tracking ("이 섹션은 sp_xxx 출처").',
+      description: 'Add a checklist item (todo). ★★If the user asked to put it under a checklist GROUP, '
+        + 'you must pass ckSectionId (ck_xxx) — passing sectionId (sec_xxx) instead files it NOWHERE and the response will say so. '
+        + '★Two different "section" concepts: ckSectionId (ck_xxx) files it under a CHECKLIST section in the panel; sectionId (sec_xxx) only positions the canvas PIN. If sectionId given (without x/y), pin auto-positions next to that section on the canvas. If x/y given, pin placed at those canvas coords. Otherwise just a list item (no pin). Use for: section evaluation notes, work-needed todos, scratch-source tracking ("이 섹션은 sp_xxx 출처").',
       inputSchema: {
         type: 'object',
         properties: {
@@ -2586,6 +2600,9 @@ function _registerDefaultTools() {
     },
     {
       description: 'Manage CHECKLIST sections — the groups in the Checklist panel that todos are filed under. '
+        + '★USE THIS (not add_section) when the user says "체크리스트에 <이름> 섹션/그룹을 만들어줘", '
+        + '"make a checklist section/group", "그룹으로 묶어줘" — add_section creates a CANVAS section on the page, '
+        + 'which is a completely different thing and will NOT show up in the Checklist panel. '
         + 'op: list | create (name) | rename (id, name) | delete (id, confirm:true). '
         + 'Ids are ck_xxx. ⚠️These are NOT canvas sections (sec_xxx) — different concept, similar name. '
         + 'File a todo under one with add_checklist_item{ckSectionId} or update_checklist_item{ckSectionId}. '
