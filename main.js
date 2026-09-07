@@ -1101,7 +1101,7 @@ function migrateFiles(oldDir, newDir) {
    ⛔PROJECTS_DIR 은 이제 «상수가 아니다». 로그인·로그아웃 때 갈아끼운다.
      그래도 되는 근거: 67 곳의 참조가 «전부 함수 안에서 인자로» 쓰인다(실측).
      값으로 붙잡아 두는 자리는 registerGdtIpc 하나뿐이라 거기만 «게터»로 넘긴다. */
-const PROJECTS_DIR_LEGACY = path.join(USER_DATA_DIR, 'projects');
+const PROJECTS_DIR_LEGACY = path.join(USER_DATA_DIR, 'projects');  // [뿌리-정본] 레거시 공용 풀을 «정의하는» 자리
 const ACCOUNTS_DIR = path.join(USER_DATA_DIR, 'accounts');
 /* ★「누구인지 못 알아냈다」의 착지점. ⛔레거시 공용 풀로 내리지 않는다 —
    거기 쌓인 것은 다음 계정 첫 로그인 때 «입양»되고, 거기 있던 것은 «보인다».

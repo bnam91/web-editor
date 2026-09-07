@@ -107,7 +107,12 @@ function defaultRawInvoker() {
 async function startHarness(opts = {}) {
   const tmproot = require('./_tmproot');
   const userData = tmproot.mkTmpRoot('goya-mcp-');
-  const projectsDir = path.join(userData, 'projects');
+/* ⚠️★[뿌리-하네스] 이 하네스는 «비로그인» 픽스처를 쓴다 — 그래서 앱이 레거시 공용 풀에 앉고
+   여기서 이 경로를 조립하는 것이 «오늘은» 맞다. ⛔그러나 하네스에 «로그인»을 넣는 날
+   진짜 뿌리는 <userData>/accounts/<계정키>/projects 로 옮겨가므로 ★검사가 «빈 폴더»를 재게 된다
+   (초록인데 아무것도 안 잰 상태). 로그인을 넣을 땐 이 줄을 같이 옮겨라.
+   ⇒ 경고를 한 곳에만 적으면 다른 곳은 «없는 것»이 된다(지디 지적) — 그래서 여기에도 적는다. */
+  const projectsDir = path.join(userData, 'projects');  // [뿌리-하네스] 비로그인 픽스처 전용 — 위 경고 참조
   fs.mkdirSync(projectsDir, { recursive: true });
   /* ★디스크 기반 도구(read_project 등)는 «파일이 있어야» 진짜 경로를 탄다.
    *   없으면 'project not found' 만 나서 도구 본문을 한 줄도 안 밟는다 — 초록도 빨강도 아닌
