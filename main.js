@@ -3677,6 +3677,7 @@ app.whenReady().then(async () => {
       updateCanvasBlock: _invokeRendererUpdateCanvasBlock,
       addGridBlock: _invokeRendererAddGridBlock,
       updateGridBlock: _invokeRendererUpdateGridBlock,
+      readBlockState: _invokeRendererReadBlockState,   // ★「바꿨다」를 «되읽어» 대조하는 자리
       addChatBlock: _invokeRendererAddChatBlock,
       updateChatBlock: _invokeRendererUpdateChatBlock,
       addGradientBlock: _invokeRendererAddGradientBlock,
@@ -3965,11 +3966,34 @@ async function _invokeRendererUpdateSection({ sectionId, bg, name } = {}) {
       }
       const nv = ${safeName};
       if (nv !== null) {
-        sec.dataset.name = nv;                       // ★정본은 dataset.name
+        /* ★★정본은 dataset.name «이 아니다» — JS 속성 sec._name 이다(2026-09-07 실측).
+             getSerializedCanvas(js/io/save-load.js:415)가 저장 «직전»에 이렇게 되돌린다:
+               if (sec._name && sec.dataset.name !== sec._name) sec.dataset.name = sec._name;
+             ⇒ dataset 만 쓰면 화면엔 잠깐 보이다가 «1.5초 뒤» 옛 이름으로 돌아간다.
+               (CDP DOM 중단점으로 잡았다 — grep 으로는 안 나왔다. dataset 대입은
+                패치한 setAttribute 를 «우회»해서 덫에도 안 걸렸다)
+           ⛔둘을 «같이» 써야 한다. 하나만 쓰면 조용히 되돌아간다. */
+        sec._name = nv;                              // ★정본
+        sec.dataset.name = nv;                       // 화면·읽기용 미러
         const lbl = sec.querySelector('.section-label');
         if (lbl) lbl.textContent = nv;               // 화면 라벨도 같이(있을 때만)
         applied.name = nv;
-        try { if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave(); } catch(_) {}
+        /* ⛔여기가 이 도구를 «거짓 성공»으로 만든 자리다(2026-09-07 실측).
+             scheduleAutosave 라는 이름은 «없다»(정의 0곳). 앱의 진짜 이름은
+             scheduleAutoSave(대문자 S) 이고 폴백이 triggerAutoSave 다.
+           ⇒ typeof 검사가 조용히 지나가 «저장이 안 걸렸고», 다시 그릴 때 옛 이름으로 되돌아갔다.
+             실측: 바꾼 «직후»엔 '히어로'로 읽히다가 3초 뒤 'Section 01' 로 복귀.
+           ★typeof f === 'function' 폴백은 «오타를 조용히 삼킨다» — 이름을 틀리면 아무 일도 안 일어난다.
+             그래서 아래는 「하나도 못 찾으면 «말한다»」로 둔다. */
+        let _saved = false;
+        try {
+          if (typeof window.scheduleAutoSave === 'function') { window.scheduleAutoSave(); _saved = true; }
+          else if (typeof window.triggerAutoSave === 'function') { window.triggerAutoSave(); _saved = true; }
+        } catch(_) {}
+        if (!_saved) return { ok:false, code:'NO_AUTOSAVE',
+          message:'이름은 화면에만 바뀌고 «저장되지 않습니다» — 자동저장 함수를 못 찾았습니다.',
+          hint:'This would silently revert. Nothing was persisted. Report this as an app bug.' };
+        try { if (typeof window.buildLayerPanel === 'function') window.buildLayerPanel(); } catch(_) {}
       }
       return { ok:true, sectionId: sid, applied };
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
@@ -5607,6 +5631,26 @@ async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, 
   })()`;
   try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
   catch (e) { throw new Error('addGridBlock call failed: ' + e.message); }
+}
+
+/* ★블록 «현재 상태»를 읽어 오는 자리 — 「바꿨다고 말한 것」을 대조하기 위한 것.
+   ⛔왜 필요한가(2026-09-07 실측): 앱의 update_* 들이 `applied` 를 «인자에서» 만든다(93곳).
+     그래서 못 바꿔도 「바꿨다」고 말한다 — `update_section{name}` 이 실제로 그랬다.
+   ⇒ 93곳을 하나씩 고치는 대신 «한 자리»에서 쓰고 나서 되읽어 대조한다. 구조가 검사보다 강하다. */
+async function _invokeRendererReadBlockState({ blockId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) return null;
+  const safeId = JSON.stringify(String(blockId || ''));
+  const js = `(() => {
+    try {
+      const el = document.getElementById(${safeId});
+      if (!el) return null;
+      const ds = {};
+      for (const k in el.dataset) ds[k] = el.dataset[k];
+      return { id: el.id, dataset: ds, text: (el.innerText || '').trim().slice(0, 2000) };
+    } catch (_) { return null; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(js, true); }
+  catch (_) { return null; }
 }
 
 async function _invokeRendererUpdateGridBlock({ blockId, partial } = {}) {

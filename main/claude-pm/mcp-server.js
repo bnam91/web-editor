@@ -7932,6 +7932,50 @@ async function _handleRpc(msg) {
            「왜 안 되는지」조차 못 알아낸다(막힌 이유를 «말할 수 있어야» 한다). */
       const _authRefusal = _AUTH_FREE.has(name) ? null : _authGate(name);
       if (_authRefusal) return _reply(_authRefusal);
+      /* ★★「바꿨다」를 «되읽어» 대조하는 관문 (2026-09-07).
+         ⛔왜: 앱의 update_* 들이 `applied` 를 «인자에서» 만든다(실측 93곳).
+           그래서 못 바꿔도 「바꿨다」고 말한다 — `update_section{name}` 이 실제로 그랬고,
+           나는 그걸 「됐다」로 읽고 커밋했다. 「rc=0 ≠ 눌렸다」의 MCP 판본이다.
+         ⇒ 93곳을 하나씩 고치는 대신 «여기 한 자리»에서 쓰고 나서 블록을 다시 읽어 대조한다.
+           ★구조가 검사보다 강하다 — 새 update 도구가 늘어도 «자동으로» 이 관문을 지난다.
+         ⛔거짓 «빨강»을 만들지 않는다: 값이 정규화되는 경우가 흔하므로(20 → "20px", #FFF → rgb(...))
+           «느슨한» 비교로 어긋남을 찾고, 어긋나면 «거절»이 아니라 `verify` 로 «알린다».
+           판정은 사람과 모델이 한다 — 여기서 막으면 정상 동작까지 죽는다. */
+      const _verifyApplied = async (r) => {
+        try {
+          if (!r || r.ok === false) return r;
+          if (!/^update_.*_block$/.test(name) && name !== 'update_section') return r;
+          const bid = args && (args.blockId || args.sectionId);
+          if (!bid || !_rendererInvoker?.readBlockState) return r;
+          const st = await _rendererInvoker.readBlockState({ blockId: String(bid) });
+          if (!st) {
+            return Object.assign({}, r, { ok: false, code: 'GONE_AFTER_WRITE',
+              error: `${name} 뒤에 ${bid} 를 다시 못 찾았습니다 — 「바꿨다」를 믿지 마세요.` });
+          }
+          const said = (r && typeof r.applied === 'object' && r.applied) || null;
+          if (!said) return Object.assign({}, r, { verified: { readBack: true } });
+          const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/px$/, '').replace(/\s+/g, '');
+          const mismatch = {};
+          for (const k of Object.keys(said)) {
+            const want = said[k];
+            if (want == null || typeof want === 'object') continue;   // 배열·객체는 이 관문이 안 본다
+            const got = st.dataset[k];
+            if (got === undefined) continue;                          // dataset 에 안 사는 값은 대조 못 한다
+            if (norm(got) !== norm(want)) mismatch[k] = { said: want, actual: got };
+          }
+          if (Object.keys(mismatch).length) {
+            return Object.assign({}, r, {
+              verify: {
+                ok: false,
+                note: '★응답의 applied 와 «화면의 실제 값»이 다릅니다 — 「바꿨다」를 그대로 믿지 마세요.',
+                mismatch,
+              },
+            });
+          }
+          return Object.assign({}, r, { verify: { ok: true, checked: Object.keys(said) } });
+        } catch (_) { return r; }   // ⛔관문이 도구를 죽이지 않는다(진단은 편의, 동작이 우선)
+      };
+
       const _gateRefusal = _projectGate(name, args);
       if (_gateRefusal) return _reply(_gateRefusal);
       /* ★open_project 가 성공하면 «그 대화 동안» 확정으로 남긴다(sticky). 실패(load_timeout 등)면 안 남긴다 —
@@ -7975,12 +8019,14 @@ async function _handleRpc(msg) {
         try { const b = await _rendererInvoker.historyTip(); if (b && b.ok !== false) _before = (b.empty || b.seq == null) ? 0 : b.seq; } catch (_) {}
       }
       if (_SWITCH_EXEMPT.has(name)) {
-        return _reply(_noteConfirmed(await _noteSeq(_enrichApiMissing(await handler(args)))));
+        /* ★쓰고 나서 «되읽어» 대조한다 — _verifyApplied 주석 참고 */
+        return _reply(_noteConfirmed(await _verifyApplied(await _noteSeq(_enrichApiMissing(await handler(args))))));
       }
       return await _serializeCall(async () => {
         const blocked = await _awaitSwitchIdle(name, _SWITCH_QUEUE_MAX_MS);
         if (blocked) return _reply(blocked);
-        return _reply(_noteConfirmed(await _noteSeq(_enrichApiMissing(await handler(args)))));
+        /* ★쓰고 나서 «되읽어» 대조한다 — _verifyApplied 주석 참고 */
+        return _reply(_noteConfirmed(await _verifyApplied(await _noteSeq(_enrichApiMissing(await handler(args))))));
       });
     }
 
