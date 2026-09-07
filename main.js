@@ -3358,8 +3358,26 @@ app.whenReady().then(async () => {
   setupAutoUpdater();
   // Claude PM MCP 서버 (포트 9345, port-status 표 9345+ 신규 자유)
   try {
+    /* ★뿌리 주입은 «서버가 듣기 시작하기 전»에 — 뒤에 두면 그 사이에 들어온 요청이
+         주입 없는 상태로 처리된다(이제는 폴백 대신 던지므로 «오류»가 되지만, 애초에
+         그 창을 만들 이유가 없다). ⛔여기서 순서를 바꾸지 마라. */
+    setMcpProjectsRoot(() => PROJECTS_DIR);
     const { port: actualPort, token: mcpToken } = await startMcpServer({
-      port: 9345,
+      /* ★기본은 9345. 격리 인스턴스는 «환경변수»로 옮긴다.
+           ⛔예전엔 기동 스크립트가 이 «소스 줄을 치환»했다. 그래서 그 상태로 커밋되면
+             dev·릴리스가 남의 격리 포트로 떴다(2026-09-07 실제로 6ca0a12 에 딸려 들어갔다).
+           ⇒ 소스를 안 건드리면 «커밋에 딸려갈 자리 자체»가 없어진다.
+             검사(no-isolation-port.test.js)도 남겨 두지만, 구조가 검사보다 강하다. */
+      port: (() => {
+        const raw = process.env.GODITOR_MCP_PORT;
+        if (!raw) return 9345;
+        const n = Number(raw);
+        // 못 읽으면 «조용히 기본값»으로 가지 않는다 — 격리 의도가 소리 없이 사라진다
+        if (!Number.isInteger(n) || n < 1024 || n > 65535) {
+          throw new Error(`GODITOR_MCP_PORT 이 포트가 아니다: ${JSON.stringify(raw)}`);
+        }
+        return n;
+      })(),
       onActiveProject: () => global.currentActiveProjectId || null,
     });
     // EADDRINUSE fallback이 일어나도 ipc 핸들러가 올바른 포트로 ping
@@ -3463,8 +3481,6 @@ app.whenReady().then(async () => {
          list_projects·create_project 는 «로그인 없이도» 통과했다 — 문 «앞»의 도구가 열려 있었다.
          ⇒ 실측: list_projects 통과 · create_project 통과 · open_project 거절.
          ★「막혔나」를 안전한 도구로 재면 「안 막혔다」가 나오는 이유가 이것이다. */
-      // ★MCP 도 «계정별 뿌리»를 봐야 한다(자기 나름의 경로를 만들면 남의 계정을 읽는다).
-      try { setMcpProjectsRoot(() => PROJECTS_DIR); } catch (_) {}
       setMcpAuthProbe(() => ({
         authed: !!(_editorAccessGranted || isAdminAuthorized()),
         // ⛔계정 «식별자»는 넘기지 않는다 — MCP 응답에 실릴 수 있다. 「됐나」만 넘긴다.

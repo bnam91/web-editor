@@ -211,3 +211,97 @@ test('M11 ★writeAuth/clearAuth 가 뿌리를 갈아끼운다 (로그인 경로
   const writers = SRC.split('\n').filter(l => /writeFileSync\(getAuthPath\(\)/.test(l));
   assert.strictEqual(writers.length, 1, `★auth.json 을 쓰는 자리가 ${writers.length} 곳 — 외길목이 아니면 훅 하나론 부족하다`);
 });
+
+/* ────────────────────────────────────────────────────────────────────────────
+   M12·M13 — ★«폴백»이 격리를 조용히 되돌리는 두 자리 (지디 지적, 2026-09-07)
+   내가 「철수 id 를 지목해도 not found」를 격리 증거로 적었는데, 그건 틀렸다.
+   두 번째 뿌리가 «비어 있어서» 못 찾은 것일 수도 있었다(실측: 그 폴더는 아예 없었다).
+   ⇒ 「못 찾았다」를 «막았다»로 읽지 않으려면 «일부러 놔두고» 재야 한다.
+   ──────────────────────────────────────────────────────────────────────────── */
+const os2 = require('os');
+
+function loadMcpServer(env = {}) {
+  // 모듈 캐시를 비워 «호출 시점 환경»이 실제로 먹는지 본다
+  const p = require.resolve('../../main/claude-pm/mcp-server.js');
+  delete require.cache[p];
+  const saved = {};
+  for (const k of Object.keys(env)) { saved[k] = process.env[k]; if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k]; }
+  try { return { mod: require(p), restore: () => { for (const k of Object.keys(saved)) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } } }; }
+  catch (e) { for (const k of Object.keys(saved)) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } throw e; }
+}
+
+test('M12 ★주입이 «끊기면» 조용히 공용 폴더로 가지 않는다 — 던진다', () => {
+  const { mod, restore } = loadMcpServer({ GODITOR_MCP_ALLOW_SHARED_ROOT: undefined });
+  try {
+    const g = mod.__test_getProjectsDir;
+    assert.strictEqual(typeof g, 'function', '★검사할 함수를 못 꺼냈다 — 검사가 대상을 놓쳤다');
+
+    // ⒜ 아예 주입 안 함
+    assert.throws(() => g(), /NO_PROJECTS_ROOT/, '★주입이 없는데 «공용 폴더»를 돌려주면 격리가 조용히 풀린다');
+    // ⒝ 주입 함수가 던짐 — 예전엔 catch 가 삼키고 공용 폴더로 갔다
+    mod.setProjectsRoot(() => { throw new Error('boom'); });
+    assert.throws(() => g(), /boom/, '★주입이 던졌는데 삼키면, 그 뒤는 «남의 계정 것»을 읽는다');
+    // ⒞ 주입 함수가 빈 값
+    mod.setProjectsRoot(() => null);
+    assert.throws(() => g(), /NO_PROJECTS_ROOT/);
+    // ⒟ 제대로 주입되면 «그대로» 나온다 (반대방향 오탐 방지)
+    mod.setProjectsRoot(() => '/tmp/some-root');
+    assert.strictEqual(g(), '/tmp/some-root');
+  } finally { restore(); }
+});
+
+test('M13 ★두 번째 뿌리에 «남의 프로젝트»를 심어도 안 읽힌다 (양성대조)', () => {
+  const shared = path.join(__dirname, '..', '..', 'projects');     // 코드가 뒤지던 두 번째 뿌리
+  const victim = 'proj_9999001';
+  const mine = fs.mkdtempSync(path.join(os2.tmpdir(), 'gdt-mine-'));
+  const planted = path.join(shared, victim);
+  const preexisting = fs.existsSync(shared);
+  fs.mkdirSync(planted, { recursive: true });
+  fs.writeFileSync(path.join(planted, 'proj.json'), JSON.stringify({ id: victim, name: '★남의것-비밀' }));
+  try {
+    const { mod, restore } = loadMcpServer({ GODITOR_MCP_ALLOW_SHARED_ROOT: undefined });
+    try {
+      mod.setProjectsRoot(() => mine);                              // 내 계정 뿌리(비어 있음)
+      const read = mod.__test_readProjectFile;
+      assert.strictEqual(typeof read, 'function', '★검사할 함수를 못 꺼냈다');
+      // ★심어둔 것이 «진짜 거기 있다»는 것부터 보인다 — 「0건」이 «안 심어져서»면 검사가 무의미하다
+      assert.ok(fs.existsSync(path.join(planted, 'proj.json')), '★양성대조 자체가 안 깔렸다');
+      assert.throws(() => read(victim), /project not found/,
+        '★두 번째 뿌리(앱/레포의 공용 projects)를 뒤지면 «계정을 넘어» 읽힌다');
+      // 내 계정 것은 «읽혀야» 한다 — 반대방향 오탐 방지
+      fs.mkdirSync(path.join(mine, 'proj_9999002'), { recursive: true });
+      fs.writeFileSync(path.join(mine, 'proj_9999002', 'proj.json'), JSON.stringify({ id: 'proj_9999002', name: '내것' }));
+      assert.strictEqual(read('proj_9999002').name, '내것');
+    } finally { restore(); }
+  } finally {
+    fs.rmSync(planted, { recursive: true, force: true });
+    if (!preexisting) { try { fs.rmdirSync(shared); } catch (_) {} }
+    fs.rmSync(mine, { recursive: true, force: true });
+  }
+});
+
+test('M14 ★뿌리 주입이 «서버가 듣기 전»에 걸린다 (그 사이 요청이 주입 없이 처리되지 않게)', () => {
+  const iInject = SRC.indexOf('setMcpProjectsRoot(() => PROJECTS_DIR);');
+  const iStart = SRC.indexOf('await startMcpServer({');
+  assert.ok(iInject > 0 && iStart > 0, '★두 자리를 다 못 찾았다 — 검사가 대상을 놓쳤다');
+  assert.ok(iInject < iStart, '★주입이 서버 기동 «뒤»면 그 사이 요청은 뿌리 없이 처리된다');
+});
+
+test('M15 ★PM 폴더 뿌리도 «조용히» 공용 폴더로 폴백하지 않는다', () => {
+  /* 변이 검사에서 이 채널이 «비어 있었다» — ipc.js 를 옛 동작(조용한 폴백)으로 되돌려도
+     M1~M14 가 전부 초록이었다. PM 폴더가 «남의 계정 폴더 아래» 조용히 생기는 길이다. */
+  const p = require.resolve('../../main/claude-pm/ipc.js');
+  delete require.cache[p];
+  const ipc = require(p);
+  const root = ipc._internal && ipc._internal._projectsRootPath;
+  assert.strictEqual(typeof root, 'function', '★검사할 함수를 못 꺼냈다 — 검사가 대상을 놓쳤다');
+
+  assert.throws(() => root(), /NO_PROJECTS_ROOT/, '★주입이 없는데 공용 폴더를 돌려주면 PM 폴더가 엉뚱한 계정 아래 생긴다');
+  ipc.setPmProjectsRoot(() => { throw new Error('boom'); });
+  assert.throws(() => root(), /boom/, '★주입이 던졌는데 삼키면 그대로 공용 폴더로 간다');
+  ipc.setPmProjectsRoot(() => null);
+  assert.throws(() => root(), /NO_PROJECTS_ROOT/);
+  ipc.setPmProjectsRoot(() => '/tmp/pm-root');          // 반대방향 오탐 방지
+  assert.strictEqual(root(), '/tmp/pm-root');
+  ipc.setPmProjectsRoot(null);
+});

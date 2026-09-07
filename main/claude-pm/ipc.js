@@ -40,8 +40,15 @@ function _getUserDataDir() {
 let _pmProjectsRoot = null;
 function setPmProjectsRoot(fn) { _pmProjectsRoot = (typeof fn === 'function') ? fn : null; }
 function _projectsRootPath() {
-  if (_pmProjectsRoot) { try { const r = _pmProjectsRoot(); if (r) return r; } catch (_) {} }
-  return path.join(_getUserDataDir(), 'projects'); // [뿌리-폴백] 주입 실패 시에만
+  /* ⛔조용히 «옛 공용 풀»로 폴백하지 않는다 — PM 폴더가 남의 계정 폴더 아래 생긴다.
+     못 정하면 던진다. 부르는 쪽(handleEnsureClaudePMFolder 등)이 오류로 받는 게
+     「엉뚱한 곳에 조용히 만들어졌다」보다 낫다. */
+  if (_pmProjectsRoot) {
+    const r = _pmProjectsRoot();   // ⛔삼키지 않는다
+    if (r) return r;
+    throw new Error('NO_PROJECTS_ROOT: PM 폴더의 프로젝트 뿌리를 못 정했다(주입 함수가 빈 값).');
+  }
+  throw new Error('NO_PROJECTS_ROOT: PM 폴더의 프로젝트 뿌리가 주입되지 않았다. 공용 폴더로 폴백하지 않는다.');
 }
 function _defaultPmFolderPath(projectId) {
   return path.join(_projectsRootPath(), projectId, 'claude-pm');
@@ -656,6 +663,9 @@ module.exports = {
   _internal: {
     expandHome,
     sanitizeFolderName,
+    /* ⚠️검사 전용 — 「주입이 없으면 던지나」는 이 함수를 직접 흔들어야 잰다.
+       IPC 경유로는 못 닿아서(핸들러가 오류를 감싼다) 검사가 장식이 된다. */
+    _projectsRootPath,
     get MCP_PORT() { return MCP_PORT; },
   },
 };

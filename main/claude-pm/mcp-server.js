@@ -340,16 +340,25 @@ function _recordUnknownArgs(name, unknown, allKeys) {
    ⇒ main.js 가 setProjectsRoot() 로 진짜 뿌리를 꽂아 준다. 안 꽂히면 옛 자리로 폴백. */
 let _projectsRootFn = null;
 function setProjectsRoot(fn) { _projectsRootFn = (typeof fn === 'function') ? fn : null; }
+
+/* 단독 실행(개발)에서만 «공용 projects 폴더»를 허용한다.
+   ⛔«환경»으로 자동 판별하지 않는다 — 판별이 틀리면 조용히 격리가 풀린다.
+     명시 플래그를 «호출 시점»에 읽는다(모듈 로드 시점에 굳히면 테스트가 못 흔든다). */
+function _sharedRootAllowed() { return process.env.GODITOR_MCP_ALLOW_SHARED_ROOT === '1'; }
+
+/* ★프로젝트 뿌리 — 주입이 정본이다.
+   ⛔예전엔 주입이 없거나 던지면 «조용히» userData/projects(옛 공용 풀)로 갔다.
+     그건 격리를 소리 없이 되돌리는 길이었다 — 남의 계정 것을 읽게 된다.
+     「검사가 못 돌았다」가 통과가 아니듯, 「주입이 안 됐다」도 «공용 풀»이 아니다.
+   ⇒ 못 정하면 «던진다». 폴백은 명시 플래그를 켠 단독 실행에만 준다. */
 function _getProjectsDir() {
-  if (_projectsRootFn) { try { const r = _projectsRootFn(); if (r) return r; } catch (_) {} }
-  // 폴백 — main process의 app.getPath('userData') 기준. 단독 실행 시는 web-editor/projects.
-  try {
-    const { app } = require('electron');
-    if (app && app.getPath) {
-      return path.join(app.getPath('userData'), 'projects'); // [뿌리-폴백] 주입 실패 시에만
-    }
-  } catch (_) {}
-  return path.join(__dirname, '..', '..', 'projects');
+  if (_projectsRootFn) {
+    const r = _projectsRootFn();   // ⛔삼키지 않는다 — 던지면 그대로 올라간다
+    if (r) return r;
+    throw new Error('NO_PROJECTS_ROOT: 프로젝트 뿌리를 못 정했다(주입 함수가 빈 값). 공용 폴더로 폴백하지 않는다.');
+  }
+  if (_sharedRootAllowed()) return path.join(__dirname, '..', '..', 'projects'); // [뿌리-폴백] 단독 실행 전용
+  throw new Error('NO_PROJECTS_ROOT: 프로젝트 뿌리가 주입되지 않았다. 계정 격리가 풀릴 수 있어 공용 폴더로 폴백하지 않는다.');
 }
 
 function _readProjectFile(projectId) {
@@ -360,7 +369,13 @@ function _readProjectFile(projectId) {
    *   예전엔 flat(projects/<id>.json)이었고, 이 헬퍼가 flat만 봐서 read_project가
    *   현행 프로젝트에 전부 'project not found'를 냈다(08-25 클로드앱 시연 실측).
    *   ⇒ 폴더 우선 + flat 폴백(구프로젝트 호환) — main.js와 같은 dual-read 순서. */
-  const roots = [_getProjectsDir(), path.join(__dirname, '..', '..', 'projects')]; // 후자=단독 실행/개발 폴백
+  /* ⛔예전엔 두 번째 뿌리를 «항상» 뒤졌다 — 조건이 없었다.
+       그래서 계정 뿌리에 없으면 «앱/레포의 공용 projects»를 읽었다 = 계정을 넘어 읽는다.
+     ★그리고 그게 「못 찾았다」를 «격리 증거»로 오독하게 만든다 — 그 폴더가 비어 있어서
+       못 찾은 것일 뿐인데 막았다고 읽힌다(2026-09-07 내가 실제로 그렇게 잘못 읽었다).
+     ⇒ 계정 뿌리 «하나»만 본다. 공용 폴더는 명시 플래그를 켠 단독 실행에만 붙인다. */
+  const roots = [_getProjectsDir()];
+  if (_sharedRootAllowed()) roots.push(path.join(__dirname, '..', '..', 'projects'));
   const candidates = [];
   for (const dir of roots) {
     candidates.push(path.join(dir, pid, 'proj.json')); // 신 레이아웃(폴더)
@@ -8026,6 +8041,10 @@ function setProjectOps(ops) {
 module.exports = {
   // ★계정별 프로젝트 뿌리 주입 — 경로 조립기를 둘로 만들지 않기 위한 것
   setProjectsRoot,
+  /* ⚠️검사 전용 — «폴백이 격리를 되돌리는지»는 이 두 함수를 직접 흔들어야 잰다.
+     도구 경유로는 그 경로에 못 닿아서(read_project 는 활성 프로젝트만 본다) 검사가 장식이 된다. */
+  __test_getProjectsDir: _getProjectsDir,
+  __test_readProjectFile: _readProjectFile,
   setAuthProbe,
   startMcpServer,
   stopMcpServer,

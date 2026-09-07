@@ -149,6 +149,13 @@ async function startHarness(opts = {}) {
 
   const mod = require(path.join(__dirname, '..', '..', 'main', 'claude-pm', 'mcp-server.js'));
 
+  /* ★프로젝트 «뿌리»는 이제 «주입»이 정본이다(계정별 폴더 격리, 2026-09-07).
+     예전엔 안 꽂아도 userData/projects 로 조용히 폴백했지만, 그 폴백이
+     「남의 계정 것을 읽는」 길이라 닫았다. ⇒ 하네스도 «꽂아야» 한다.
+     ⛔여기를 지우면 도구들이 NO_PROJECTS_ROOT 로 죽는다 — 그건 회귀가 아니라
+       「뿌리를 안 꽂았다」는 정직한 신호다. */
+  if (typeof mod.setProjectsRoot === 'function') mod.setProjectsRoot(() => projectsDir);
+
   /* ── ★가짜 렌더러 = Proxy ──
    * 134종 넘는 메서드를 손으로 못 적는다. Proxy 는 «무슨 이름으로 불렸든» 잡아서
    *   ⑴ 호출 시각·순서·인자를 기록하고
