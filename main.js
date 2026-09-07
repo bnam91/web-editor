@@ -351,6 +351,16 @@ function createWindow() {
   ipcMain.handle('app:git-branch', () => getGitBranch());
   ipcMain.handle('app:is-admin', () => isAdminAuthorized());
   ipcMain.handle('app:debug-port', () => {
+    /* ★배포본·main 에는 «값 자체»를 안 준다
+     *   (현빈 지시 2026-09-07: 「admin 아니어도 되게 / 앱 배포나 메인브랜치에서만 안 보이면 돼」).
+     * ⛔왜 여기냐 — 이전 판은 «렌더러의 표시 조건»(index.html 의 isAdmin 게이트)으로만 막았다.
+     *   표시 조건은 화면을 손대는 사람이 언제든 바꾼다. 그러면 «조용히» 열린다.
+     *   값이 안 나가면 화면 코드가 무엇을 하든 못 그린다 — 검사가 아니라 «구조»로 닫는다.
+     * ⚠️그리고 이 줄은 «우연에 기대지 않겠다»는 뜻이다: 오늘 기준 배포본은 CDP 를 스스로 안 켜니
+     *   argv 에도 없어서 어차피 null 이다. 하지만 「오늘 argv 에 없다」는 «안전장치»가 아니다.
+     *   포장 여부를 직접 물어야 다음에 누가 CDP 를 켜도 이 창구는 닫혀 있다. */
+    if (app.isPackaged) return null;
+    if (getGitBranch() === 'main') return null;   // ★main = 배포 상태. 거기선 안 보인다
     const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
     return a ? a.split('=')[1] : null;
   });
