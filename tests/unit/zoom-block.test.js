@@ -131,29 +131,57 @@ test('ⓐ-1 rect 실루엣은 «광원을 마주보는 두 꼭짓점»이다 (+�
   assert.notDeepEqual(perpKeys, got, '두 방식이 같은 답이면 이 검사는 아무것도 못 가른다');
 });
 
-test('ⓐ-1b ★가까운 광원에서 실루엣은 «지지선» 조건을 만족한다 (무한광원 근사는 여기서 어긋난다)', async () => {
+test('ⓐ-1b ★실루엣은 «지지선» 조건을 만족한다 — 갈리는 자리를 «계산»으로 고른다', async () => {
   const g = await loadGeom();
-  // ★angle=20·length=170(기본 길이) — 실측으로 「두 산식이 갈리는」 자리를 골랐다.
-  //   ⓐ-1 의 angle=0 은 도형이 광원 축에 대칭이라 «틀린 산식도 같은 답»을 낸다(변이 M2 가 안 걸렸다).
-  /* ⚠️비율이 바뀌면 «갈리는 자리»도 바뀐다 — 새 비율(6.5:3.5)에서 다시 찾아 넣었다.
-     (0.625 판에선 20°, 2/3 판에선 20°, 지금은 15° 가 갈린다. 「전과 같겠지」로 두면
-      변이 M2 가 다시 통과한다 — 실제로 한 번 그랬다.) */
-  const L = g.lightPoint(15, 300, 0, 0);
-  const [A, B] = g.silhouette('rect', 130, 0, L, 0, 0);
-  const ps = g.shapePts('rect', 130, 0, 0, 0);
+  /* ⛔예전엔 갈리는 (각도)를 «사람이» 찾아 박아 뒀다. 두 번 놓쳤다:
+       0.625 → 2/3 로 비율이 바뀌자 각도를 20°로 옮겼고, 7/13 에서 다시 15°로 옮겼는데
+       ★그때 «길이»를 300 으로 같이 올려 갈림을 밖으로 밀어냈다 — 한 축만 다시 찾으면
+       다른 축이 그걸 무효로 만든다. 결과: M2 를 «못 잡는» 검사가 됐다(Evaluator 실측).
+     ⇒ 사람이 다시 찾는 구조를 없앤다. 근사 산식을 여기 두고 «참 ≠ 근사» 인 (각도, 길이)를
+       검사가 «찾아서» 그 점에서 잰다. 비율이 또 바뀌어도 안 썩는다. */
+  const R = 130;
+  const approx = (kind, r, rot, L, cx, cy) => {   // 「축에 수직인 극점」 = 무한광원 근사
+    const ps = g.shapePts(kind, r, rot, cx, cy);
+    const base = Math.atan2(cy - L.y, cx - L.x);
+    let lo = ps[0], hi = ps[0], lv = 1e9, hv = -1e9;
+    for (const pt of ps) {
+      let q = Math.atan2(pt.y - cy, pt.x - cx) - base;
+      while (q > Math.PI) q -= 2 * Math.PI; while (q < -Math.PI) q += 2 * Math.PI;
+      if (q < lv) { lv = q; lo = pt; } if (q > hv) { hv = q; hi = pt; }
+    }
+    return [lo, hi];
+  };
+  const key = (pts) => pts.map(pt => `${pt.x.toFixed(3)},${pt.y.toFixed(3)}`).sort().join('|');
 
-  // 지지선 조건: L–P 를 지나는 직선의 «한쪽»에 도형 전체가 있어야 한다.
+  // ★갈리는 자리를 «찾는다» — 각도 × 길이 격자를 훑는다(갈림은 각도만의 성질이 아니다)
+  let pick = null;
+  for (const ang of [5, 10, 15, 20, 25, 30, 40, 50, 60]) {
+    for (const len of [R + 40, 170, 200, 250, 300, 400, 600]) {
+      const L = g.lightPoint(ang, len, 0, 0);
+      if (key(g.silhouette('rect', R, 0, L, 0, 0)) !== key(approx('rect', R, 0, L, 0, 0))) {
+        pick = { ang, len, L }; break;
+      }
+    }
+    if (pick) break;
+  }
+  assert.ok(pick, '★두 산식이 «어디서도» 안 갈린다 — 그러면 이 검사가 M2 를 못 잡는다(구조가 썩었다)');
+
+  const [A, B] = g.silhouette('rect', R, 0, pick.L, 0, 0);
+  const ps = g.shapePts('rect', R, 0, 0, 0);
+
+  /* 지지선 조건: L–P 를 지나는 직선의 «한쪽»에 도형 전체가 있어야 한다.
+     ★근사는 이 조건을 어긴다 — 그래서 M2 가 여기서 잡힌다. */
   const sideOk = (P) => {
-    const ux = P.x - L.x, uy = P.y - L.y;
-    const cr = ps.map(q => ux * (q.y - L.y) - uy * (q.x - L.x));
+    const ux = P.x - pick.L.x, uy = P.y - pick.L.y;
+    const cr = ps.map(q => ux * (q.y - pick.L.y) - uy * (q.x - pick.L.x));
     return cr.every(c => c >= -1e-6) || cr.every(c => c <= 1e-6);
   };
-  assert.ok(sideOk(A), 'A 가 지지선이 아니다 — 그 점은 실루엣이 아니다');
-  assert.ok(sideOk(B), 'B 가 지지선이 아니다 — 그 점은 실루엣이 아니다');
+  assert.ok(sideOk(A), `ang=${pick.ang} len=${pick.len}: A 가 지지선이 아니다 — 실루엣이 아니다`);
+  assert.ok(sideOk(B), `ang=${pick.ang} len=${pick.len}: B 가 지지선이 아니다 — 실루엣이 아니다`);
 
-  // 구체값 고정 — 「축에 수직인 극점 / 무한광원 근사」는 여기서 (80,50) 을 고른다.
-  const got = [A, B].map(p => `${p.x},${p.y}`).sort();
-  assert.deepEqual(got, ['-130,70', '130,-70'].sort());
+  // ★그리고 «그 자리에서» 근사와 답이 다르다 — 이게 이 검사가 M2 를 잡는 이유다
+  assert.notEqual(key([A, B]), key(approx('rect', R, 0, pick.L, 0, 0)),
+    `ang=${pick.ang} len=${pick.len}: 근사와 답이 같다 — 표본이 둘을 못 가른다`);
 });
 
 test('ⓐ-2 circle 실루엣은 «접점»이다 — |CA|=r 이고 LA ⊥ CA', async () => {
@@ -1024,6 +1052,37 @@ test('ⓑ-23 ★⑪계열 약속 ③ — 「캔버스에 뭔가 선택됨」 폴
   assert.ok(canon.size > 20, `정본을 ${canon.size}종밖에 못 셌다 — 못 잰 것이다`);
   const missing = [...canon].filter(c => !fb.has(c));
   assert.deepEqual(missing, [], `폴백에 빠진 블록: ${missing.join(', ')}`);
+});
+
+test('ⓑ-27 ★⑲원인 — 일반 절대드래그가 확대블럭에서 «비켜준다»', () => {
+  /* ★⑲의 원인이다(지디 실측 + 내 코드 대조로 확정):
+       block-drag.js 의 «일반 절대드래그»는 `_getParentFrame(block)` 이 없으면
+       `block.style.position !== 'absolute'` 만 보고 통과시킨다. 확대블럭은 플로팅이라
+       absolute 다 ⇒ 내 _bindZoomMoveDrag 와 «둘 다» 돌았다.
+       그 일반 드래그는 ①섹션이 바뀌는 걸 모르고(startTop + cdy/scale) ②dataset.offsetX/offsetY
+       라는 «다른 키»에 쓴다 ⇒ 마지막에 쓰는 쪽이 style 을 이겨 dataset 과 갈린다.
+       실측: dataset.y=114 · style.top=960 · 차이 846 = 화면델타 338 ÷ 배율 0.4 = 섹션 간 레이아웃 거리.
+       x 가 맞았던 건 그 드래그가 «세로»여서 x 가 안 움직였기 때문 — 우연이다.
+     ⛔스티커는 bindBlock 을 아예 안 타서(bindStickerSelect 전용) 이 병이 없었다. */
+  const d = SRC.drag;
+  const i = d.indexOf("block.addEventListener('mousedown'");
+  assert.notEqual(i, -1, '일반 드래그 핸들러를 못 찾음 — 검사가 대상을 놓쳤다');
+  const head = d.slice(i, i + 2500);
+
+  const gz = head.indexOf('if (isZoom) return;');
+  assert.notEqual(gz, -1, '확대블럭이 일반 절대드래그에서 «안» 비킨다 — 두 드래그가 같이 돌아 좌표가 갈린다');
+  const gp = head.indexOf("if (block.style.position !== 'absolute') return;");
+  assert.notEqual(gp, -1, '전제: 일반 드래그의 absolute 게이트를 못 찾음');
+  assert.ok(gz < gp, '확대블럭 가드가 absolute 게이트 «뒤»에 있으면 이미 통과한 뒤라 늦다');
+
+  /* ★대조 — 다른 절대배치 블록은 «여전히» 이 드래그를 탄다(가드를 통째로 무력화하지 않았다). */
+  assert.ok(/if \(block\.style\.position !== 'absolute'\) return;/.test(head),
+    '일반 드래그가 다른 블록에서도 죽었다 — 남의 기능을 껐다');
+  assert.equal(/if \(isSticker\) return;|if \(isLaurel\) return;/.test(head), false,
+    '다른 계열까지 비키게 만들었다 — 확대블럭만 비켜야 한다');
+
+  // 확대블럭은 «자기» 드래그를 갖는다(비켜도 못 움직이면 안 된다)
+  assert.ok(/function _bindZoomMoveDrag\(block\)/.test(SRC.block), '비켰는데 자기 드래그가 없다');
 });
 
 test('ⓑ-19b ★⑧이 «새로 여는 경계» — 플로팅은 삽입 기준점이 되면 안 된다', () => {

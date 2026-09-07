@@ -37,8 +37,10 @@ before(async () => {
   // ⑵ 브라우저 전용 import → 스텁. ★«못 찾았다»면 던진다(건너뛴 검사는 통과가 아니다).
   const DRAG = "import { bindBlock } from '../drag-drop.js';";
   const SCALE = "import { _canvasScaleNow } from '../overlay-handles.js';";
+  /* ★배율을 «검사가» 정할 수 있게 둔다 — 지디 실측 당시 캔버스 배율은 «0.4» 였다.
+     배율 1 로만 재생하면 「화면 델타 ÷ 배율」이 빠진 결함이 안 보인다(내가 그래서 못 재현했다). */
   for (const [spec, stub] of [[DRAG, 'const bindBlock = () => {};'],
-                              [SCALE, 'const _canvasScaleNow = () => 1;']]) {
+                              [SCALE, 'const _canvasScaleNow = () => (globalThis.__zoomScale || 1);']]) {
     const before_ = src;
     src = src.replace(spec, stub);
     assert.notEqual(src, before_, `소스에서 «${spec}» 를 못 찾음 — 리팩터링됐나? 검사가 대상을 놓쳤다`);
@@ -474,11 +476,14 @@ t3('S-14 [⑲] 드래그·섹션이동·재렌더 «전부»에서 dataset.x/y �
   }
 });
 
-t3('S-15 [⑲] ★«잡은 지점»이 커서를 따라간다 — 섹션이 바뀌어도', async () => {
+t3('S-15 [⑲] ★«잡은 지점»이 커서를 따라간다 — 섹션이 바뀌어도, ★배율 1·0.4 둘 다', async () => {
   /* ⛔S-14(dataset↔style 일치)만으론 부족하다. 둘이 «같이» 틀리면 통과한다 —
-     변이 M62(섹션이 바뀌었는데 «옛 섹션» 기준으로 계산)가 실제로 통과했다.
+     변이 M62(섹션이 바뀌었는데 «옛 섹션» 기준)가 실제로 S-14 를 통과했다.
      ★그게 ⑲의 «모양»이다: 값은 서로 맞는데 «자리»가 섹션 간 차이만큼 어긋난다.
-     ⇒ 진짜 불변식 = 드래그 내내 「커서 − 블록 좌상단」이 처음 잡은 오프셋 그대로다. */
+     ⇒ 진짜 불변식 = 드래그 내내 「커서 − 블록 좌상단」이 처음 잡은 오프셋 그대로다.
+       비교 대상 하나가 «바깥»(커서)에 있어야 둘이 같이 틀려도 눈이 안 먼다.
+     ★★그리고 «배율»을 함께 돈다 — 지디 실측 당시 0.4 였고, 나는 1 로만 재생해 못 재현했다.
+       화면 좌표에는 배율이 곱해져 있으므로 가짜 DOM 도 그렇게 굴어야 진짜를 잰다. */
   const src = readSrc(ROOT, 'js', 'sticker-select.js');
   const i = src.indexOf('function _clampToSection');
   const j = src.indexOf('\n}\n', i);
@@ -487,64 +492,74 @@ t3('S-15 [⑲] ★«잡은 지점»이 커서를 따라간다 — 섹션이 바�
   fs.writeFileSync(mjs, src.slice(i, j + 3) + '\nexport { _clampToSection };\n', 'utf8');
   const { _clampToSection } = await import(pathToFileURL(mjs).href);
 
-  // ★섹션을 «충분히 크게» 둬서 클램프가 안 걸리게 한다 — 걸리면 오프셋이 «정당하게» 달라져
-  //   이 불변식이 못 쓰인다(클램프는 S-14 가 덮는다).
-  const sec0 = mkSection('sec0', 545, 84, 900, 900, 0);
-  const sec2 = mkSection('sec2', 545, 1200, 900, 900, 846);
   const prevClamp = globalThis.window._clampToSection;
   const prevFind = globalThis.window._findSectionAt;
+  const prevScale = globalThis.__zoomScale;
   globalThis.window._clampToSection = _clampToSection;
-  globalThis.window._findSectionAt = (x, y) => {
-    for (const s of [sec0, sec2]) {
-      const r = s.getBoundingClientRect();
-      if (x >= r.left && x <= r.left + r.width && y >= r.top && y <= r.top + r.height) return s;
-    }
-    return null;
-  };
-  globalThis.__docListeners.length = 0;
   try {
-    const b = M.makeZoomBlock({ x: 100, y: 100 });
-    b._parent = sec0;
-    b.closest = () => b._parent;
-    const W = 260, H = 140;
-    b.offsetWidth = W; b.offsetHeight = H;
-    const rectOf = () => {
-      const r = b._parent.getBoundingClientRect();
-      return { left: r.left + Number(b.dataset.x), top: r.top + Number(b.dataset.y) };
-    };
-    b.getBoundingClientRect = () => ({ ...rectOf(), width: W, height: H });
+    for (const S of [1, 0.4]) {          // ★배율 둘
+      globalThis.__zoomScale = S;
+      // 화면 rect — 레이아웃 거리 846 이 배율에 따라 화면에선 846·S 로 보인다(실측 338 ≈ 846×0.4)
+      const sec0 = mkSection('sec0', 545, 84, 900, 900, 0);
+      const sec2 = mkSection('sec2', 545, 84 + 846 * S, 900, 900, 846);
+      globalThis.window._findSectionAt = (x, y) => {
+        for (const sc of [sec2, sec0]) {   // 아래쪽 섹션을 먼저 본다(겹치면 그쪽)
+          const r = sc.getBoundingClientRect();
+          if (x >= r.left && x <= r.left + r.width * S && y >= r.top && y <= r.top + r.height * S) return sc;
+        }
+        return null;
+      };
+      globalThis.__docListeners.length = 0;
 
-    const md = b.listeners.filter(l => l.type === 'mousedown');
-    const start = { clientX: 545 + 100 + 60, clientY: 84 + 100 + 30 };   // 좌상단에서 (60,30)
-    const GRAB = { x: 60, y: 30 };
-    md.forEach(l => l.fn({ button: 0, ...start, target: { closest: () => null },
-                           preventDefault() {}, stopImmediatePropagation() {} }));
-    const move = () => globalThis.__docListeners.filter(l => l.type === 'mousemove');
+      const b = M.makeZoomBlock({ x: 100, y: 100 });
+      b._parent = sec0;
+      b.closest = () => b._parent;
+      const W = 260, H = 140;
+      b.offsetWidth = W; b.offsetHeight = H;
+      // ★화면 rect = 섹션 화면원점 + 레이아웃좌표 × 배율
+      const rectOf = () => {
+        const r = b._parent.getBoundingClientRect();
+        return { left: r.left + Number(b.dataset.x) * S, top: r.top + Number(b.dataset.y) * S };
+      };
+      b.getBoundingClientRect = () => ({ ...rectOf(), width: W * S, height: H * S });
 
-    const grabOk = (tag, ev) => {
-      const r = rectOf();
-      assert.ok(Math.abs((ev.clientX - r.left) - GRAB.x) <= 1,
-        `${tag}: 가로 잡은 지점이 ${(ev.clientX - r.left).toFixed(0)} 로 밀렸다(기대 ${GRAB.x})`);
-      assert.ok(Math.abs((ev.clientY - r.top) - GRAB.y) <= 1,
-        `${tag}: ★세로 잡은 지점이 ${(ev.clientY - r.top).toFixed(0)} 로 밀렸다(기대 ${GRAB.y}) — 블록이 커서에서 떨어졌다`);
-    };
-    let ev = { clientX: start.clientX + 30, clientY: start.clientY + 40, metaKey: false };
-    move().forEach(l => l.fn(ev)); grabOk('같은 섹션 안 이동', ev);
+      const md = b.listeners.filter(l => l.type === 'mousedown');
+      const GRAB = { x: 60, y: 30 };                    // «레이아웃» 단위
+      const start = { clientX: 545 + (100 + GRAB.x) * S, clientY: 84 + (100 + GRAB.y) * S };
+      md.forEach(l => l.fn({ button: 0, ...start, target: { closest: () => null },
+                             preventDefault() {}, stopImmediatePropagation() {} }));
+      const move = () => globalThis.__docListeners.filter(l => l.type === 'mousemove');
+      assert.ok(move().length >= 1, `배율 ${S}: 전제 — 드래그가 mousemove 를 건다`);
 
-    ev = { clientX: start.clientX, clientY: 1200 + 300, metaKey: false };   // ★섹션2 로
-    move().forEach(l => l.fn(ev));
-    assert.equal(b._parent.name, 'sec2', '전제: 섹션2 로 옮겨졌다');
-    grabOk('★섹션2 로 이동', ev);
+      const grabOk = (tag, ev) => {
+        const r = rectOf();
+        assert.ok(Math.abs((ev.clientX - r.left) / S - GRAB.x) <= 1,
+          `배율 ${S} · ${tag}: 가로가 ${((ev.clientX - r.left) / S).toFixed(0)} 로 밀렸다(기대 ${GRAB.x})`);
+        assert.ok(Math.abs((ev.clientY - r.top) / S - GRAB.y) <= 1,
+          `배율 ${S} · ${tag}: ★세로가 ${((ev.clientY - r.top) / S).toFixed(0)} 로 밀렸다(기대 ${GRAB.y}) — 블록이 커서에서 떨어졌다`);
+        assert.equal(b.style.left, `${b.dataset.x}px`, `배율 ${S} · ${tag}: dataset↔style x`);
+        assert.equal(b.style.top, `${b.dataset.y}px`, `배율 ${S} · ${tag}: ★dataset↔style y`);
+      };
 
-    ev = { clientX: start.clientX + 80, clientY: 1200 + 500, metaKey: false };
-    move().forEach(l => l.fn(ev)); grabOk('섹션2 안에서 이동', ev);
+      let ev = { clientX: start.clientX + 30 * S, clientY: start.clientY + 40 * S, metaKey: false };
+      move().forEach(l => l.fn(ev)); grabOk('같은 섹션 안 이동', ev);
 
-    ev = { clientX: start.clientX, clientY: 84 + 300, metaKey: false };     // 되돌아오기
-    move().forEach(l => l.fn(ev));
-    assert.equal(b._parent.name, 'sec0', '전제: 섹션0 으로 되돌아왔다');
-    grabOk('섹션0 으로 되돌림', ev);
+      ev = { clientX: start.clientX, clientY: 84 + (846 + 300) * S, metaKey: false };   // ★섹션2 로
+      move().forEach(l => l.fn(ev));
+      assert.equal(b._parent.name, 'sec2', `배율 ${S}: 전제 — 섹션2 로 옮겨졌다`);
+      grabOk('★섹션2 로 이동', ev);
+
+      ev = { clientX: start.clientX + 80 * S, clientY: 84 + (846 + 500) * S, metaKey: false };
+      move().forEach(l => l.fn(ev)); grabOk('섹션2 안에서 이동', ev);
+
+      ev = { clientX: start.clientX, clientY: 84 + 300 * S, metaKey: false };
+      move().forEach(l => l.fn(ev));
+      assert.equal(b._parent.name, 'sec0', `배율 ${S}: 전제 — 섹션0 으로 되돌아왔다`);
+      grabOk('섹션0 으로 되돌림', ev);
+    }
   } finally {
     globalThis.window._clampToSection = prevClamp;
     globalThis.window._findSectionAt = prevFind;
+    globalThis.__zoomScale = prevScale;
   }
 });

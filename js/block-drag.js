@@ -336,6 +336,18 @@ function bindBlock(block) {
         return;
       }
     } else {
+      /* ★확대블럭은 «자기» 이동 드래그를 갖는다(js/blocks/zoom-block.js _bindZoomMoveDrag) —
+         섹션을 넘나들며 «새 섹션 기준»으로 좌표를 다시 잡아 dataset.x/y 에 쓴다.
+         여기 일반 드래그는 «프레임 자유배치»용이라
+           ① 섹션이 바뀌는 걸 모른다(startTop + cdy/scale 만 더한다)
+           ② dataset.offsetX/offsetY 라는 «다른 키»에 쓴다
+         ⇒ 둘이 같이 돌면 마지막에 쓰는 쪽이 style 을 이겨 dataset 과 갈린다.
+         ★그게 ⑲다(지디 실기): dataset.y=114 인데 style.top=960 · 차이 846.
+           846 = 화면 델타 338 ÷ 배율 0.4 = 섹션 간 «레이아웃» 거리(= 그 섹션의 offsetTop).
+           x 가 맞았던 건 그 드래그가 «세로»여서 x 가 안 움직였기 때문이다 — 우연이다.
+         ⛔스티커는 bindBlock 을 아예 안 탄다(bindStickerSelect 전용)라 이 병이 없었다.
+           확대블럭은 클릭·선택 때문에 bindBlock 을 타므로 «여기서» 비켜줘야 한다. */
+      if (isZoom) return;
       if (block.style.position !== 'absolute') return;
     }
 
