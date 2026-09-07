@@ -4552,18 +4552,22 @@ async function _invokeRendererExport({ sectionId, format, width } = {}) {
   catch (e) { throw new Error('export call failed: ' + e.message); }
 }
 
-async function _invokeRendererGetCanvasState({ sectionId } = {}) {
+async function _invokeRendererGetCanvasState({ sectionId, full } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
   const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  /* ★«한 섹션을 지목»하면 렌더러가 전문을 기본으로 준다(내용을 읽으러 온 것이므로).
+     full 을 명시하면 그걸 따른다 — 전체 훑기에 전문을 요구하면 응답이 커지니 «부르는 쪽»이 정한다. */
+  const safeFull = (full === true || full === false) ? String(full) : 'undefined';
   const atomicJs = `(() => {
     try {
       if (typeof window.getCanvasState !== 'function') {
         return { ok: false, code: 'API_MISSING', message: 'window.getCanvasState not found' };
       }
       const sid = ${safeSectionId};
-      return window.getCanvasState(sid);
+      const fl = ${safeFull};
+      return window.getCanvasState(sid, (typeof fl === 'boolean') ? { full: fl } : undefined);
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {

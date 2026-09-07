@@ -71,7 +71,57 @@
 
   /* ★요약기 — «원본 src 를 안 받는다». 파생값(파일명·치수·개수)만 만든다.
    *   ⛔여기서 dataURL 이 새는 것을 «구조로» 막는 자리다. */
-  function _summarize(el, type) {
+  /* ★«전문 읽기» — 섹션을 «지목해서» 읽을 때만 쓴다(full=true).
+       ⛔왜 필요한가(2026-09-07 실측): 넣은 텍스트 163개 중 «73개만» 읽혔다.
+         표는 행 «내용»이 통째로 없고(개수만), 스텝·비교는 `{items:N}` 만 왔다.
+         그래서 「이 블록 텍스트를 이걸로 바꿔줘」·「오타 검사해줘」 같은 일을 «시작조차» 못 했다.
+       ★읽기의 값은 «그 다음에 행동할 수 있는가»에서 나온다 — 개수만 아는 건 읽은 게 아니다.
+       ⇒ 페이지 전체 훑기는 지금처럼 가볍게 두고, «한 섹션»을 지목했을 때만 전문을 준다.
+         (섹션 단위라 응답 크기가 자연히 묶인다)
+       ⛔여기서도 원본 src·dataURL 은 «절대» 안 싣는다 — 그 경계는 그대로다. */
+  function _fullContent(el, type) {
+    var txt = function (x) { return ((x && x.innerText) || '').trim().replace(/\s+/g, ' '); };
+    try {
+      if (type === 'table') {
+        var trs = [].slice.call(el.querySelectorAll('tr'));
+        var head = [], body = [];
+        trs.forEach(function (tr) {
+          var th = [].slice.call(tr.querySelectorAll('th')).map(txt);
+          var td = [].slice.call(tr.querySelectorAll('td')).map(txt);
+          if (th.length) head = th;
+          if (td.length) body.push(td);
+        });
+        return { headers: head, rows: body };            // ★행 «전부»
+      }
+      if (type === 'step' || type === 'comparison' || type === 'label_group' || type === 'chat') {
+        var items = [].slice.call(el.children).map(function (c) {
+          var lines = [].slice.call(c.querySelectorAll('*'))
+            .filter(function (n) { return n.children.length === 0 && txt(n); })
+            .map(txt);
+          // 자식 요소가 없으면 자기 텍스트라도
+          if (!lines.length && txt(c)) lines = [txt(c)];
+          return lines;
+        }).filter(function (a) { return a.length; });
+        return { items: items };                          // ★칸마다 «줄들»
+      }
+      if (type === 'canvas' || type === 'card') {
+        var cells = [].slice.call(el.querySelectorAll('[class*="cell"], [class*="card"]'))
+          .map(txt).filter(Boolean);
+        if (!cells.length) { var t0 = txt(el); return t0 ? { text: t0 } : {}; }
+        return { cells: cells };                          // ★카드 «전부»
+      }
+      var t = txt(el);
+      return t ? { text: t } : {};                        // ⛔60자로 안 자른다
+    } catch (_) { return {}; }
+  }
+
+  function _summarize(el, type, full) {
+    if (full) {
+      var f = _fullContent(el, type);
+      /* 이미지 계열은 «전문»이라도 파생값이 답이다(원본 src 는 안 싣는다) */
+      if (type === 'asset' || type === 'mockup' || type === 'iconify') f = null;
+      if (f && Object.keys(f).length) return f;
+    }
     try {
       if (type === 'asset' || type === 'mockup' || type === 'iconify') {
         var img = el.querySelector('img');
@@ -105,7 +155,7 @@
   }
 
   // 단일 .section-block → { sectionId, name, blocks: [...] }
-  function _readSection(section) {
+  function _readSection(section, full) {
     const blocks = [];
     const seen = Object.create(null);
     /* ★id 를 가진 후손을 «document order» 로 훑는다 — .text-block 만 보던 것이 이 결함의 원인이었다.
@@ -124,7 +174,7 @@
     if (type === null && !/^[a-z][a-z0-9]{1,5}_/.test(id)) return;   // 블록 id 모양이 아닌 것만 거른다
       seen[id] = 1;
       if (el.classList.contains('text-block')) { blocks.push(_readTextBlock(el)); return; }
-      blocks.push({ blockId: id, type: type, summary: _summarize(el, type) });
+      blocks.push({ blockId: id, type: type, summary: _summarize(el, type, full) });
     });
     return {
       sectionId: section.id || null,
@@ -138,8 +188,11 @@
    * - sectionId 주어지면 해당 섹션만, 없으면 활성 페이지의 모든 .section-block.
    * - { ok:true, sections:[...] } 또는 sectionId 미발견 시 { ok:false, code:'NOT_FOUND', message }.
    */
-  function getCanvasState(sectionId) {
+  function getCanvasState(sectionId, opts) {
     const root = _getCanvasRoot();
+    /* ★«한 섹션을 지목»하면 기본이 «전문»이다 — 그때는 내용을 읽으러 온 것이기 때문이다.
+       페이지 전체 훑기는 지금처럼 요약(응답이 커지면 못 쓴다). full 로 뒤집을 수 있다. */
+    const full = (opts && typeof opts.full === 'boolean') ? opts.full : !!sectionId;
 
     if (sectionId) {
       const section = document.getElementById(sectionId);
@@ -150,14 +203,14 @@
           message: 'section not found: ' + sectionId,
         };
       }
-      return { ok: true, sections: [_readSection(section)] };
+      return { ok: true, full: full, sections: [_readSection(section, full)] };
     }
 
     const sections = [];
     root.querySelectorAll('.section-block').forEach((section) => {
-      sections.push(_readSection(section));
+      sections.push(_readSection(section, full));
     });
-    return { ok: true, sections };
+    return { ok: true, full: full, sections };
   }
 
   window.getCanvasState = getCanvasState;
