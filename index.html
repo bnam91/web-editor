@@ -1282,16 +1282,41 @@
 ══════════════════════════ -->
 <script src="js/variable-binding.js"></script>
 <script>
-  // admin 모드일 때 topbar에 CDP 포트 뱃지 표시
+  /* topbar CDP 포트 뱃지 — 클릭하면 포트 복사 (현빈 지시 2026-09-07)
+   *   「admin 모드가 아니더라도 되게 / 앱 배포나 메인브랜치에서만 안 보이면 돼 / 클릭 후 클립보드 복사」
+   * ⛔admin 게이트를 «뺐다». 그리고 배포·main 차단을 여기로 «옮기지 않았다» —
+   *   그건 main 의 `app:debug-port` 가 «값 자체»를 안 주는 것으로 막는다.
+   *   ★표시 조건으로 막으면 화면을 손대는 사람이 조용히 열 수 있다. 값이 안 오면 못 그린다.
+   *   ⇒ 여기서는 「값이 오면 그린다」만 한다. 판단은 값의 출처가 이미 했다. */
   (async function() {
     const api = window.electronAPI;
-    if (!api?.isAdmin) return;
-    const [isAdmin, debugPort] = await Promise.all([api.isAdmin(), api.debugPort()]);
-    if (!isAdmin || !debugPort) return;
+    if (!api?.debugPort) return;
+    const debugPort = await api.debugPort();
+    if (!debugPort) return;            // 배포본·main·CDP 미기동 — 전부 여기로 온다
     const badge = document.getElementById('debug-port-badge');
     if (!badge) return;
-    badge.textContent = ':' + debugPort;
+    const label = ':' + debugPort;
+    badge.textContent = label;
     badge.style.display = 'inline-block';
+    /* ★상단바는 -webkit-app-region: drag 라 그 위 요소는 클릭·선택이 «안 먹는다».
+     *   이 뱃지가 바로 index.html:1316 주석이 「형제인데 빠뜨렸다」고 적어 둔 그 자리다
+     *   (mcp-token-badge 가 같은 이유로 admin 빌드에서 통째로 안 눌렸었다).
+     *   ⇒ 클릭 복사를 붙이는 지금이 그걸 «실제로» 고치는 자리다. */
+    badge.style.webkitAppRegion = 'no-drag';
+    badge.style.userSelect = 'text';
+    badge.style.cursor = 'pointer';
+    badge.title = 'CDP 포트 — 클릭하면 복사 · 드래그하면 선택';
+    badge.onclick = async () => {
+      /* ★드래그로 «선택 중»이면 복사하지 않는다 — 고른 범위를 클립보드가 덮으면 안 된다.
+       *   (mcp-info-badge 와 같은 어휘로 맞춘다) */
+      const sel = window.getSelection && window.getSelection();
+      if (sel && String(sel).length > 0 && badge.contains(sel.anchorNode)) return;
+      /* ★복사하는 값은 «포트 숫자»다(':' 없이). 옆 MCP 뱃지가 이미 «전체 주소»를 주므로
+       *   이쪽까지 주소를 주면 둘이 같은 것을 준다. 명령줄에 붙일 숫자가 없는 쪽이다. */
+      try { await api.clipboardWriteText(String(debugPort)); } catch (_) {}
+      badge.textContent = '복사됨';
+      setTimeout(() => { badge.textContent = label; }, 1200);
+    };
   })();
 
   // #2 dev-gate — 비admin(패키지빌드 일반사용자)이면 개발용 플로팅 버튼 숨김.
