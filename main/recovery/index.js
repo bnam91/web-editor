@@ -52,6 +52,7 @@ const MAX_REPORT_LINES = 16;
 const MAX_LINE_LEN = 1000;
 
 let _dir = null;
+let _wsDir = null;
 let _crash = null;
 let _guard = null;
 let _log = () => {};
@@ -66,6 +67,7 @@ let _log = () => {};
 function init(o) {
   const opts = o || {};
   _dir = opts.userDataDir || null;
+  _wsDir = opts.workspaceDir || null;   // ★작업물 자리(계정별). 로그는 _dir(기계 것) 그대로.
   _crash = opts.crash || null;
   _guard = opts.saveGuard || null;
   if (typeof opts.log === 'function') _log = opts.log;
@@ -73,7 +75,21 @@ function init(o) {
 }
 
 /* ── 곁장부 — «못 새긴» 파일만 여기 적는다 ──────────────────────────────── */
-function ledgerPath() { return path.join(_dir, 'recovery-state.json'); }
+/* ★★«작업물»과 «기계 것»을 가른다 (2026-09-07 계정별 폴더 격리).
+   ⛔여기 들어가는 것은 «저장 못 한 프로젝트 원문»이다 = 사용자 작업물.
+     그런데 뿌리가 공용(<userData>)이면, 철수의 저장 실패본이 ★민수 복구 화면에 뜨고
+     버튼 한 번에 민수 계정 폴더로 복제된다 — 이번 판이 막으려던 시나리오 그 자체가
+     «손도 안 댄 문»으로 성립한다.
+   ⇒ 작업물은 «계정 작업공간»(= 프로젝트 뿌리의 부모)에 둔다.
+     비로그인이면 그 값이 <userData> 라 ★오늘 동작과 «바이트 동일»이다.
+   ⛔반대로 templates·presets·goditor-market·svg-presets 는 «공유가 맞다» —
+     그건 «사람»이 아니라 «기계»에 붙는 도구다(지디 판단 2026-09-07). 크래시 로그도 같다.
+     ★그 선을 여기 적어 둔다: 「작업물이면 가르고, 도구·진단이면 공유한다」. */
+function _ws() {
+  if (typeof _wsDir === 'function') { try { const r = _wsDir(); if (r) return r; } catch (_) {} }
+  return _wsDir || _dir;   // 미주입이면 예전과 같은 자리(퇴행 없음)
+}
+function ledgerPath() { return path.join(_ws(), 'recovery-state.json'); }
 
 function readLedger() {
   try {

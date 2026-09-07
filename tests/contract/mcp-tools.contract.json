@@ -1,11 +1,11 @@
 {
   "note": "생성물 — tools/mcp-contract-snapshot.mjs 로만 고친다. 손으로 고치지 마라.",
   "counts": {
-    "registered": 85,
-    "visible": 33,
+    "registered": 87,
+    "visible": 35,
     "hidden": 52,
-    "mutating": 72,
-    "gated": 72
+    "mutating": 74,
+    "gated": 74
   },
   "sizeCaps": {
     "_CANVAS_TEXT_CAP": 120,
@@ -438,6 +438,18 @@
       "noArgs": "rejected",
       "responseKeys": []
     },
+    "delete_project": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "projectId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
     "delete_scratch_item": {
       "hidden": false,
       "mutating": true,
@@ -702,6 +714,19 @@
       "targetFree": true,
       "required": [
         "sectionId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "rename_project": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "name",
+        "projectId"
       ],
       "expectedProjectGuard": false,
       "noArgs": "rejected",

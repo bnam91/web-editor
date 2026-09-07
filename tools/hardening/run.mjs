@@ -146,7 +146,7 @@ try {
     if (R.breaker.verdict !== 'HIT') R.notes.push(`⚠️kill9 ${R.breaker.verdict} — ${R.breaker.note}`);
 
   } else if (scenario === 'deny-write') {
-    denyHandle = denyWrite(fx.projectsDir ?? path.join(ud, 'projects'));
+    denyHandle = denyWrite(fx.projectsDir ?? path.join(ud, 'projects'));  // [뿌리-하네스] 비로그인 픽스처 전용 — 위 경고 참조
     denied = denyHandle.denied;
     R.breaker = { ...denyHandle, restore: undefined };
     for (let i = 0; i < EDITS; i++) { await makeEdit(inst.conn, ledger); await sleep(800); }
@@ -181,7 +181,7 @@ try {
   }
 
   /* ── 판정 ─────────────────────────────────────────────────────────────── */
-  R.judges.i7 = judgeI7(path.join(ud, 'projects'), { checkoutDir: CHECKOUT, denied });
+  R.judges.i7 = judgeI7(path.join(ud, 'projects'), { checkoutDir: CHECKOUT, denied });  // [뿌리-하네스] 비로그인 픽스처 전용 — 위 경고 참조
   R.judges.lostWindow = judgeLostWindow(ledger, path.join(fx.dir, 'proj.json'), R.killAt);
   R.judges.crashLog = judgeCrashLog(ud, { sinceMs: logsSince, denied, expect: 'present' });
   R.judges.pii = judgePii(

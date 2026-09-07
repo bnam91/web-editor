@@ -101,9 +101,9 @@ const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
-const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle, handleEnsureClaudePMFolder } = require('./main/claude-pm/ipc');
+const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle, handleEnsureClaudePMFolder, setPmProjectsRoot } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
-const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
+const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, setAuthProbe: setMcpAuthProbe, setProjectsRoot: setMcpProjectsRoot, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
 // Unit B — MCP 접속 토큰(메모리 보관, 화면표시/IPC용). 파일/레포 저장 금지.
 let currentMcpToken = null;
 
@@ -381,6 +381,9 @@ function createWindow() {
   // Claude PM (feature/claude-pm Phase 2) — pickDirectory / createFolder / openInFinder / spawnClaudeTerminal / pingMcp
   // GAP-010: 강력 권한 IPC(터미널/spawn/folder)는 isAdminAuthorized 게이팅(배포 렌더러발 RCE 차단).
   registerClaudePMIPC(ipcMain, () => isAdminAuthorized());
+  // ★PM 폴더도 «계정별 프로젝트 뿌리»를 따라가야 한다(경로 조립기가 둘이 되면 어긋난다).
+  try { setPmProjectsRoot(() => PROJECTS_DIR); }
+  catch (e) { console.error('[projects] ★PM 폴더 뿌리 주입 실패 — PM 폴더가 안 만들어진다:', (e && e.message) || e); }
 
   // Claude PM (Phase 3 F8) — 내부 터미널 패널 PTY 백엔드
   registerTerminalIPC(ipcMain, () => isAdminAuthorized());
@@ -477,6 +480,21 @@ function readAuth() {
     return null;
   }
 }
+/* ★readAuth 는 「없다」·「손상됐다」·「우리 레코드가 아니다」를 «전부 null» 로 뭉갠다.
+     그건 «로그인 판정»에는 맞다(셋 다 「로그인 아님」이니까). 그런데 «프로젝트 뿌리»를
+     정할 땐 다르다 — 「손상」을 「비로그인」으로 읽으면 ★레거시 공용 풀로 내려가고,
+     거기 쌓인 것이 나중에 다른 계정 첫 로그인 때 입양돼 «A 것이 B 에게» 간다.
+   ⇒ 그래서 «가르는» 함수를 따로 둔다. ⛔readAuth 자체는 안 건드린다 — 자격증명 SSOT 라
+     건드리는 값이 크고, 그 함수의 계약(「로그인 아님이면 null」)은 지금 그대로가 맞다.
+   반환: null = «진짜 파일 없음»(로그아웃) · 객체 = 읽힘 · throw = «못 읽었다»(손상 등) */
+function readAuthOrThrow() {
+  const p = getAuthPath();
+  if (!fs.existsSync(p)) return null;              // ★여기만 「진짜 비로그인」이다
+  const raw = JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, ''));   // ⛔던지게 둔다
+  if (!raw || typeof raw !== 'object') throw new Error('auth.json 이 객체가 아니다');
+  return raw.email ? raw : null;                   // 우리 레코드가 아니면 로그인 아님
+}
+
 /* ⚠️★이 함수는 «화이트리스트»다 — 여기 안 적힌 필드는 «조용히» 사라진다.
      그래서 새 필드를 쓰는 호출처를 아무리 잘 짜도, 여기를 안 고치면 **전원이 옛 상태로 퇴행**한다.
      (서명본이 매 저장마다 증발 → 모두 `sig_missing` → 마감 후엔 전원 재검증) */
@@ -505,10 +523,36 @@ function writeAuth(record) {
   } catch (e) {
     console.warn('[auth] 상태 저장 실패:', e.message);
   }
+  /* ★계정이 바뀌면 «프로젝트 뿌리»도 같이 바뀌어야 한다. 여기가 모든 로그인 경로의
+     외길목이라 여기 한 곳만 걸면 된다(auth:login·가입·갱신 전부 writeAuth 를 지난다). */
+  /* ⛔조용히 삼키지 않는다 — 여기서 실패하면 «이전 계정의 뿌리»로 계속 쓴다.
+     그렇다고 로그인 자체를 못 하게 막으면 사용자가 갇히므로, ★소리는 반드시 낸다.
+     그리고 뿌리를 «레거시 공용 풀»로 되돌리지 않는다(그게 남의 것에 닿는 길이다). */
+  try { _repointProjectsDir('login'); }
+  catch (e) { console.error('[projects] ★로그인 뒤 뿌리 전환 실패 — 계정 격리가 서지 않았다:', (e && e.message) || e); }
   return next;
 }
 function clearAuth() {
-  try { fs.unlinkSync(getAuthPath()); } catch (_) {}
+  _revokeEditorAccess();   // ★게이트를 «닫는» 자리 — 이게 없으면 로그아웃이 로그아웃이 아니다
+  /* ★★삭제 실패를 «삼키면» auth.json 이 남고, 그러면 _repointProjectsDir 가 그걸 읽어
+       ★계정 뿌리에 그대로 머문다. 사용자는 로그아웃했다고 믿는데 다음 사람이 앉으면
+       앞사람 프로젝트가 보인다 — 현빈이 걱정한 그 시나리오다.
+     ⇒ 실패를 «알고», 그래도 뿌리는 반드시 공용 풀로 내린다(격리가 우선).
+       로그아웃은 «내려오는» 방향이라 공용 풀이 안전한 착지점이다. */
+  let unlinked = true;
+  try { fs.unlinkSync(getAuthPath()); }
+  catch (e) {
+    if (!e || e.code !== 'ENOENT') {   // 원래 없던 것은 실패가 아니다
+      unlinked = false;
+      console.error('[auth] ★로그아웃 실패 — auth.json 을 못 지웠다:', (e && e.message) || e);
+    }
+  }
+  try { _repointProjectsDir('logout'); }
+  catch (e) { console.error('[projects] 로그아웃 뒤 뿌리 전환 실패:', (e && e.message) || e); }
+  /* ⛔파일이 안 지워졌으면 _repointProjectsDir 는 «아직 로그인»으로 읽는다.
+     그 판단이 맞더라도, 사용자가 로그아웃을 «눌렀다»면 앞사람 것이 보이면 안 된다. */
+  if (!unlinked) PROJECTS_DIR = PROJECTS_DIR_LEGACY;
+  return { ok: unlinked };
 }
 /* ── 자격증명 SSOT 배선 ──────────────────────────────────────────────────────
    ⛔옛 `authAccessValid(a)` 는 **폐기됐다**. 그건 `auth.json` 의 문자열 하나만 봤고,
@@ -606,6 +650,11 @@ async function _dlSettle(expected, timeoutMs = 15000) {
 
 let _editorAccessGranted = false;
 function _grantEditorAccess() { _editorAccessGranted = true; }
+/* ★★여는 자리는 있는데 «닫는 자리»가 없었다(실측: true 대입 1 / false 대입 0).
+   그 결과 로그아웃한 앱에서 MCP 인증 게이트가 계속 `authed:true` 를 돌려주고,
+   그 쓰기는 (clearAuth 가 뿌리를 내려놓은) ★레거시 공용 풀에 떨어진다.
+   「가장 먼저 로그인을 본다」가 로그아웃한 앱에 「예」라고 답하던 것이다. */
+function _revokeEditorAccess() { _editorAccessGranted = false; }
 
 /* ── 로그인 상태 체크 + 초기 페이지 로드 ──
    구버전은 매 실행마다 공인 IP를 조회해 서버에 물었다 → 서버가 죽으면 인증했던
@@ -1050,10 +1099,268 @@ function migrateFiles(oldDir, newDir) {
   });
 }
 
-/* ── IPC: Projects (파일 기반 저장소) ── */
-const PROJECTS_DIR = path.join(USER_DATA_DIR, 'projects');
-migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR); // 구 경로 마이그레이션
-if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true });
+/* ── IPC: Projects (파일 기반 저장소) ──────────────────────────────────────
+   ★★«계정별 폴더»(레포 개념) — 로그인 아이디마다 projects 뿌리를 따로 둔다.
+       비로그인       : <userData>/projects                    (레거시 공용 풀)
+       로그인 <email> : <userData>/accounts/<계정키>/projects
+     이유는 두 가지고, 둘 다 필요하다.
+       ⑴ 보안 — 민수가 로그인한 상태에서 철수 프로젝트가 «목록에조차» 안 뜬다.
+              소유자 «필드»로 거르면 거르는 코드를 빠뜨린 경로가 곧 구멍이 된다.
+              폴더로 가르면 «읽는 뿌리 자체»가 달라서 빠뜨릴 경로가 없다.
+       ⑵ 관리 — 한 폴더에 전부 섞이면 누구 것인지 알 수가 없다.
+   ⛔PROJECTS_DIR 은 이제 «상수가 아니다». 로그인·로그아웃 때 갈아끼운다.
+     그래도 되는 근거: 67 곳의 참조가 «전부 함수 안에서 인자로» 쓰인다(실측).
+     값으로 붙잡아 두는 자리는 registerGdtIpc 하나뿐이라 거기만 «게터»로 넘긴다. */
+const PROJECTS_DIR_LEGACY = path.join(USER_DATA_DIR, 'projects');  // [뿌리-정본] 레거시 공용 풀을 «정의하는» 자리
+const ACCOUNTS_DIR = path.join(USER_DATA_DIR, 'accounts');
+/* ★「누구인지 못 알아냈다」의 착지점. ⛔레거시 공용 풀로 내리지 않는다 —
+   거기 쌓인 것은 다음 계정 첫 로그인 때 «입양»되고, 거기 있던 것은 «보인다».
+   ⛔`acct_` 접두가 «아니라서» _existingAccountKeys 가 계정으로 세지 않는다 — 의도한 것이다
+     (세면 나중에 «진짜» 계정이 첫 로그인 할 때 입양을 못 받는다).
+
+   ★★그런데 이건 «공짜»가 아니다 — «교환»이다. 그 값을 여기 적어 둔다(지디 지적):
+     공용 풀 : 남에게 «보인다»(샌다)          그러나 «회수는 된다»(입양·목록에 잡힌다)
+     격리 폴더: 안 샌다                        그러나 ★«나오는 길이 없다»
+   ⇒ 여기를 읽는 코드는 «0곳»이다. 입양 후보도 아니고 목록에도 안 뜬다.
+     즉 이 판은 「샐 위험」을 「갇힐 위험」과 바꾼 것이다. 나는 그 교환이 맞다고 본다 —
+     새면 «남의 것»이 되지만 갇히면 «내 것»으로 남고, 손으로 꺼낼 수 있기 때문이다.
+   ⇒ ★그래서 «손으로 꺼내는 길»을 폴더 안에 적어 둔다(_writeUnresolvedReadme).
+     ⛔코드로 자동 회수(입양 후보에 넣기)는 «안 한다» — 입양 규칙이 지금 현빈 판단 대기 중이라
+       규칙을 하나 더 늘릴 때가 아니다. 판단이 나오면 그때 같이 정한다.
+   ⚠️오늘 기준 이 폴더는 «빌 것»이다 — 그 상태에선 사용자가 프로젝트를 못 만든다(실측:
+     MCP 는 NOT_LOGGED_IN, 렌더러는 로그인 화면). 즉 «지금 갇히는» 것이 아니다.
+     다만 오늘 비어 있는 이유도 «무관한 게이트 둘»이라, 그게 바뀌면 이쪽으로 열린다. */
+const PROJECTS_DIR_UNRESOLVED = path.join(ACCOUNTS_DIR, '_unresolved', 'projects');  // [뿌리-정본] 격리 착지점을 «만드는» 자리
+let PROJECTS_DIR = PROJECTS_DIR_LEGACY;
+migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR_LEGACY); // 구 경로 마이그레이션 [뿌리-정본] 레거시 풀로만 옮긴다
+if (!fs.existsSync(PROJECTS_DIR_LEGACY)) fs.mkdirSync(PROJECTS_DIR_LEGACY, { recursive: true });
+
+/* 계정 키 — «폴더 이름만 보고 누구 것인지 알 수 있게» 두되, 충돌은 해시로 막는다.
+   (읽을 수 없는 해시만 쓰면 폴더로 가른 목적 ⑵ 가 없어진다.) */
+function _accountKeyFor(email) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return null;
+  const slug = e.replace(/[^a-z0-9._-]+/g, '_').slice(0, 40);
+  const h = require('crypto').createHash('sha1').update(e).digest('hex').slice(0, 8);
+  return `acct_${slug}_${h}`;
+}
+/* ★「읽기 실패」와 「비로그인」을 «같은 값»으로 뭉개지 않는다.
+   ⛔예전엔 readAuth 가 던지면 catch 가 null 을 돌려줬고, 그건 「비로그인」으로 읽혀
+     ★레거시 공용 풀로 갔다. 그 상태로 만든 프로젝트가 공용 풀에 쌓이면,
+     나중에 다른 계정이 첫 로그인 할 때 _adoptLegacyIfSoleAccount 가 «가져간다»
+     = A 의 작업물이 B 에게 입양된다. 현빈이 걱정한 시나리오가 «버그 경유»로 재현된다.
+   ⇒ 못 읽었으면 «던진다». 「없다」와 「못 읽었다」는 다르다.
+   ★null 은 «진짜 비로그인»(파일이 없거나 우리 레코드가 아님)일 때만 나온다 —
+     그 판정은 readAuth 가 이미 한다(`!raw.email` → null). */
+function _currentAccountKey() {
+  /* ⛔readAuth 를 쓰면 «손상»이 null 로 삼켜져 여기까지 예외가 안 온다 —
+     그러면 위층에서 무엇을 해도 「없다」와 「못 읽었다」를 못 가른다(지디 지적, 2026-09-07).
+     ★즉 「던지게 했다」는 «던질 것이 있어야» 말이 된다. */
+  const a = readAuthOrThrow();
+  if (!a || !a.email) return null;   // ★여기 null 은 «진짜» 비로그인이다(파일 없음)
+  const key = _accountKeyFor(a.email);
+  /* ⛔「로그인은 됐는데 키를 못 만들었다」를 «비로그인»으로 읽으면 또 공용 풀로 내려간다
+     (email 이 공백뿐이면 `!a.email` 은 거짓이라 통과하고 _accountKeyFor 는 null 을 준다).
+     ★「비로그인」은 readAuthOrThrow() === null «하나»뿐이어야 한다. */
+  if (!key) throw new Error(`계정키를 못 만들었다(email=${JSON.stringify(String(a.email).slice(0, 40))}) — 공용 풀로 내리지 않는다`);
+  return key;
+}
+function _accountProjectsDir(key) { return path.join(ACCOUNTS_DIR, key, 'projects'); }  // [뿌리-정본] 계정 뿌리를 «만드는» 자리
+/* 고지 문구에 쓸 이메일. ⛔실패해도 입양을 막지 않는다 — 이름을 못 읽은 것이지 옮기지 말라는 뜻이 아니다. */
+function _currentAccountEmail() {
+  try { const a = readAuthOrThrow(); return (a && a.email) ? String(a.email) : null; } catch (_) { return null; }
+}
+function _legacyProjectEntries() {
+  try { return fs.readdirSync(PROJECTS_DIR_LEGACY, { withFileTypes: true }).filter(e => /^proj_/.test(e.name)); }
+  catch (_) { return []; }
+}
+/* ⛔여기서 삼킨 뒤 기본값이 «허용»이다 — `[]` 는 「다른 계정이 없다」로 읽혀 ★입양을 «해도 된다»가 된다.
+   같은 `catch(_){}` 라도 _legacyProjectEntries 의 `[]` 는 「옮길 게 없다」라 거부 착지(방어)인데,
+   이 자리만 반대다. ★무늬가 같다고 처분이 같지 않다 — 삼킨 뒤 «기본값이 어느 쪽인가»를 봐라.
+   ⇒ ENOENT(진짜 첫 로그인)만 `[]`, 못 읽은 것은 «던진다» → _repointProjectsDir 가 _unresolved 로 보낸다. */
+function _existingAccountKeys() {
+  try {
+    return fs.readdirSync(ACCOUNTS_DIR, { withFileTypes: true })
+      .filter(e => e.isDirectory() && /^acct_/.test(e.name)).map(e => e.name);
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return [];   // 아직 계정 폴더가 «하나도 없다» = 진짜 첫 로그인
+    throw e;                                   // 못 읽은 것을 「없다」로 읽으면 남의 것을 가져간다
+  }
+}
+
+/* 「업데이트 이전의 프로젝트를 어떻게 할 것인가」의 답 — ★첫 계정이 물려받는다.
+   업데이트 전 데이터는 «소유자 미상»이다. 그런데 계정 폴더가 «아직 하나도 없다»면
+   그 기계는 사실상 1인용이었다는 뜻이라, 그 경우에만 옮긴다.
+   ⛔이미 다른 계정 폴더가 있으면 손대지 않는다 — 남의 것일 수 있다.
+   ★옮긴 사실은 adopted.json 에 적는다(폴더를 되옮기면 원상복구된다). */
+function _adoptLegacyIfSoleAccount(key, dest, email) {
+  const others = _existingAccountKeys().filter(k => k !== key);
+  if (others.length) return { adopted: 0, skipped: 'other-accounts-exist', others: others.length };
+  const entries = _legacyProjectEntries();
+  if (!entries.length) return { adopted: 0, skipped: 'legacy-empty' };
+  let moved = 0; const failed = [];
+  for (const ent of entries) {
+    const to = path.join(dest, ent.name);
+    if (fs.existsSync(to)) { failed.push(`${ent.name} (대상에 이미 있음)`); continue; }
+    try { fs.renameSync(path.join(PROJECTS_DIR_LEGACY, ent.name), to); moved++; }
+    catch (e) { failed.push(`${ent.name} — ${(e && e.message) || e}`); }
+  }
+  try {
+    fs.writeFileSync(path.join(ACCOUNTS_DIR, key, 'adopted.json'), JSON.stringify({
+      at: new Date().toISOString(), account: key, email, from: PROJECTS_DIR_LEGACY, to: dest,
+      moved, failed,
+      note: '업데이트 이전의 «소유자 미상» 프로젝트를 첫 로그인 계정이 물려받았다. 되돌리려면 to 안의 proj_* 를 from 으로 다시 옮기면 된다.',
+    }, null, 2), 'utf8');
+  } catch (e) {
+    /* ⛔조용하면 안 된다 — 이 기록이 «되돌릴 유일한 길»이다.
+       파일을 이미 옮겨 놓고 어디서 왔는지를 못 적었으면 그건 알려야 할 사고다. */
+    console.error(`[projects] ★입양 기록(adopted.json)을 못 남겼다 — ${moved}건을 옮겼는데 되돌릴 기록이 없다:`, (e && e.message) || e);
+    return { adopted: moved, failed, recordFailed: true };
+  }
+  return { adopted: moved, failed };
+}
+
+/* ★격리 폴더에 «나오는 길»을 적어 둔다. 여기를 읽는 코드가 없으니 사람이 꺼내야 한다.
+   ⛔이 파일을 쓰다 실패해도 격리 자체는 막지 않는다(안전이 먼저) — 대신 소리를 낸다. */
+function _writeUnresolvedReadme(errMessage) {
+  const dir = path.dirname(PROJECTS_DIR_UNRESOLVED);
+  const txt = [
+    '이 폴더는 GODITOR 가 «로그인 계정을 못 알아냈을 때» 쓰는 임시 격리 폴더입니다.',
+    '',
+    `마지막 사유: ${errMessage || '(알 수 없음)'}`,
+    `기록 시각: ${new Date().toISOString()}`,
+    '',
+    '■ 왜 여기로 왔나',
+    '  auth.json 을 «읽지 못했습니다»(손상 등). 누구인지 모르는 상태로 공용 폴더를 쓰면',
+    '  나중에 다른 계정이 그 내용을 가져갈 수 있어, 아무에게도 안 보이는 곳으로 격리했습니다.',
+    '',
+    '■ ★여기 있는 것을 «어디로» 옮기면 되나',
+    '  ⑴ 먼저 앱에 정상적으로 로그인하십시오(로그인하면 auth.json 이 새로 써집니다).',
+    '  ⑵ 그러면 상위 폴더(accounts/)에 «acct_...» 로 시작하는 본인 계정 폴더가 생깁니다.',
+    '  ⑶ 이 폴더의 projects/ 안에 있는 proj_* 폴더를 그 «acct_.../projects/» 안으로 옮기십시오.',
+    '  ⑷ 앱을 다시 켜면 갤러리에 나타납니다.',
+    '',
+    '⚠️앱은 이 폴더를 «스스로 읽지 않습니다». 옮기지 않으면 갤러리에 영영 안 보입니다.',
+    '⚠️이 폴더가 비어 있으면(proj_* 가 없으면) 그냥 지우셔도 됩니다.',
+    '',
+  ].join('\n');
+  try { fs.writeFileSync(path.join(dir, 'README-읽어주세요.txt'), txt, 'utf8'); }
+  catch (e) { console.error('[projects] 격리 폴더 안내문을 못 남겼다 — 손으로 꺼낼 길이 안 적혔다:', (e && e.message) || e); }
+}
+
+/* 계정별 뿌리로 갈아끼운다. 로그인/로그아웃/기동 때 부른다. */
+let _projectsDirState = null;
+function _repointProjectsDir(reason) {
+  let key;
+  try {
+    key = _currentAccountKey();
+  } catch (e) {
+    /* ★「못 읽었다」를 「비로그인」으로 «내려보내지» 않는다. 누구인지 모르면 아무것도 안 보여준다. */
+    console.error(`[projects] ★계정을 «못 읽었다»(손상?) — 공용 풀로 내리지 않고 격리 폴더로 간다:`, (e && e.message) || e);
+    fs.mkdirSync(PROJECTS_DIR_UNRESOLVED, { recursive: true });
+    if (PROJECTS_DIR !== PROJECTS_DIR_UNRESOLVED) { try { global.currentActiveProjectId = null; } catch (_) {} }
+    PROJECTS_DIR = PROJECTS_DIR_UNRESOLVED;
+    _writeUnresolvedReadme((e && e.message) || String(e));
+    _projectsDirState = { root: PROJECTS_DIR, account: null, reason, unresolved: true, error: String((e && e.message) || e) };  // [뿌리-스냅샷] 진단용 기록 — 여기서 읽어 쓰는 곳이 없다
+    return _projectsDirState;
+  }
+  if (!key) {
+    if (PROJECTS_DIR !== PROJECTS_DIR_LEGACY) { try { global.currentActiveProjectId = null; } catch (_) {} }
+    PROJECTS_DIR = PROJECTS_DIR_LEGACY;
+    _projectsDirState = { root: PROJECTS_DIR, account: null, reason };  // [뿌리-스냅샷] 진단용 기록 — 여기서 읽어 쓰는 곳이 없다
+    return _projectsDirState;
+  }
+  const dest = _accountProjectsDir(key);
+  const fresh = !fs.existsSync(dest);
+
+  /* ⛔mkdir 실패를 «삼키고» 그 폴더를 뿌리로 꽂으면, 격리는 안 깨져도
+     사용자 눈엔 「내 프로젝트가 다 사라졌다」가 된다. 조용한 고장이다. */
+  fs.mkdirSync(dest, { recursive: true });
+
+  /* ★★뿌리 확정이 «먼저», 입양은 «그 다음».
+     ⛔예전엔 adopt 를 먼저 하고 그 아래에서 PROJECTS_DIR 을 바꿨다. 그래서 adopt 가
+       던지면 대입에 도달을 못 하고 ★«이전 계정의 뿌리»가 그대로 남았다 —
+       민수가 로그인했는데 PROJECTS_DIR 은 철수 뿌리. 현빈 원 시나리오 그 자체다.
+     ⇒ 순서를 뒤집는다. 입양이 실패해도 «격리»는 이미 서 있다(입양은 편의, 격리는 안전).
+     ⛔여기서 순서를 되돌리지 마라. */
+  /* ★뿌리가 «바뀌면» 이전 계정의 활성 프로젝트 id 는 더는 유효하지 않다.
+     ⛔안 지우면 그 id 로 새 계정 폴더에 «유령 폴더»가 생긴다 — 실측(2026-09-07):
+       민수 것이던 proj_1788763431770 의 claude-pm/ 이 철수 뿌리 아래 만들어졌다
+       (프로젝트 데이터는 없고 PM 껍데기만. 내용이 새진 않지만 «남의 계정 뿌리에 쓴» 것이다).
+     ⇒ 뿌리를 바꾸는 «그 자리»에서 같이 지운다. */
+  if (PROJECTS_DIR !== dest) { try { global.currentActiveProjectId = null; } catch (_) {} }
+  PROJECTS_DIR = dest;
+  _projectsDirState = { root: dest, account: key, reason, adopt: null };
+
+  const adopt = fresh ? _adoptLegacyIfSoleAccount(key, dest, _currentAccountEmail()) : null;
+  _projectsDirState.adopt = adopt;
+  try { console.log(`[projects] 뿌리=${dest} 계정=${key} 사유=${reason}` + (adopt && adopt.adopted ? ` 물려받음=${adopt.adopted}건` : '')); } catch (_) {}
+  return _projectsDirState;
+}
+function _projectsRoot() { return PROJECTS_DIR; }
+/* ★계정 «작업공간» — 프로젝트 뿌리의 «부모». 작업물(비상 사본·복구 장부)이 여기 붙는다.
+     비로그인      : <userData>/projects        → <userData>          ← 오늘과 «바이트 동일»
+     로그인        : <userData>/accounts/<키>/projects → <userData>/accounts/<키>
+     못 알아냄      : …/_unresolved/projects     → …/_unresolved
+   ⛔도구·진단(templates·presets·svg-presets·goditor-market·크래시 로그)은 «공유가 맞다» —
+     그건 사람이 아니라 «기계»에 붙는다(지디 판단). 여기 붙이지 마라. */
+function _accountWorkspaceDir() { return path.dirname(PROJECTS_DIR); }
+
+/* ★★입양 고지 — 「되돌릴 수 있다」를 «말로만 참»으로 두지 않기 위한 것(지디 머지 조건).
+   adopted.json 과 console.log 는 ★사용자가 «영원히» 안 본다. 장치는 있는데 닿는 길이 없으면
+   그건 없는 것과 같다 — 오늘 종일 잡은 그 모양이다.
+   ⇒ 「옮겼다」는 사실을 «화면까지» 올린다. UI 는 지디가 붙인다(층을 안 섞는다).
+   ⇒ 「한 번만」의 근거: 입양은 계정당 1회다. 그런데 «메모리»에만 두면 고지 전에 앱이 죽었을 때
+     영영 안 뜬다 ⇒ adopted.json 에 noticeShownAt 을 적어 «파일»로 소비를 기록한다.
+     그래서 기동할 때 「아직 안 보여준 입양」이 있으면 다시 집어 든다. */
+function _adoptionNoticePath(key) { return path.join(ACCOUNTS_DIR, key, 'adopted.json'); }
+
+/** 아직 «사용자에게 안 보여준» 입양이 있으면 그 내용을, 없으면 null. */
+function _pendingAdoptionNotice() {
+  try {
+    const key = _currentAccountKey();
+    if (!key) return null;
+    const p = _adoptionNoticePath(key);
+    if (!fs.existsSync(p)) return null;
+    const rec = JSON.parse(fs.readFileSync(p, 'utf8'));
+    if (!rec || !rec.moved || rec.noticeShownAt) return null;   // 옮긴 게 없거나 이미 보여줬다
+    return {
+      moved: rec.moved, email: rec.email || null, at: rec.at || null,
+      recordPath: p, from: rec.from || null, to: rec.to || null,
+      failed: Array.isArray(rec.failed) ? rec.failed.length : 0,
+    };
+  } catch (e) {
+    console.error('[projects] 입양 고지를 못 읽었다:', (e && e.message) || e);
+    return null;   // ⛔여기서 던지면 갤러리가 안 뜬다. 고지는 편의, 화면은 필수
+  }
+}
+
+/** 보여줬다고 «파일»에 적는다. 실패하면 다음에 또 뜬다(두 번 뜨는 게 «영영 안 뜨는 것»보다 낫다). */
+function _markAdoptionNoticeShown() {
+  try {
+    const key = _currentAccountKey();
+    if (!key) return false;
+    const p = _adoptionNoticePath(key);
+    if (!fs.existsSync(p)) return false;
+    const rec = JSON.parse(fs.readFileSync(p, 'utf8'));
+    rec.noticeShownAt = new Date().toISOString();
+    fs.writeFileSync(p, JSON.stringify(rec, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('[projects] 입양 고지 «표시함» 기록 실패 — 다음에 또 뜬다:', (e && e.message) || e);
+    return false;
+  }
+}
+
+
+_repointProjectsDir('startup');
+
+/* 렌더러가 «가져간다». ⛔push 로 보내면 리스너를 걸기 전에 도착해 유실된다
+   (gdt:takePendingOpen 이 같은 이유로 pull 이다 — 같은 결로 맞춘다).
+   ⚠️이 배선은 «떼어내 검사하는 블록 밖»에 둔다 — 안에 두면 검사 하네스가 ipcMain 을
+     못 넣어 블록 전체가 못 돈다(실제로 그렇게 깨뜨렸다). 순수 함수와 배선을 섞지 마라. */
+ipcMain.handle('projects:peekAdoptionNotice', () => _pendingAdoptionNotice());
+ipcMain.handle('projects:ackAdoptionNotice', () => _markAdoptionNoticeShown());
 
 /* ── IPC: SVG Presets (사용자 자산 — 모든 프로젝트 공유) ── */
 const SVG_PRESETS_DIR = path.join(USER_DATA_DIR, 'svg-presets');
@@ -1837,7 +2144,7 @@ function _recordSyncSaveFailure(project, reason, error) {
   try {
     if (!project || !project.id) return;
     /* init 은 «준 것만» 덮는다 — dialog·shell 은 before-quit 이 뒤에 얹는다(충돌 없음). */
-    quitSaveGuard.init({ userDataDir: app.getPath('userData'), appVersion: app.getVersion(), log: (m) => console.warn(m) });
+    quitSaveGuard.init({ userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, appVersion: app.getVersion(), log: (m) => console.warn(m) });
     quitSaveGuard.recordSyncSaveFailure({
       projectId: project.id,
       projectName: project.name || null,
@@ -1978,6 +2285,155 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
  *   ⇒ 복제 로직을 두 벌 만들지 않는다. js/market.js 가 saveProject 로 직접 만들다가 에셋을 통째로
  *     빠뜨린 전례가 있다(사본이 원본 폴더를 몰래 참조 → 원본 삭제 시 404).
  */
+// 프로젝트 «삭제» 코어 — MCP delete_project 도구가 사용. (2026-09-07 신설)
+// ★★영구삭제가 «아니라» 휴지통으로 옮긴다(현빈 지시). 이유:
+//   ⑴ 삭제는 되돌릴 수 없는 자원인데, 휴지통이면 «되돌릴 수 있다» ⇒ 위험 등급이 한 칸 내려간다
+//   ⑵ 2026-09-07 실측: MCP 에 삭제 도구가 «없어서» 사람이 파일시스템에서 rm 했다.
+//      그러면 앱이 그걸 «모르고» activeProjectId 가 죽은 id 를 계속 가리킨다 — 이 도구가 그 자리를 닫는다.
+// ⛔마지막 프로젝트도 «지울 수 있다». 갤러리(사람이 쓰는 화면)에 그런 제약이 없고,
+//   0개 상태를 앱이 이미 다룬다(「아직 프로젝트가 없어요」 안내가 뜬다 — 실측).
+//   ⇒ 도구가 사람보다 빡빡하면 그건 안전이 아니라 «불일치»다.
+async function _deleteProjectImpl({ projectId } = {}) {
+  try {
+    if (!projectId || typeof projectId !== 'string')
+      return { ok: false, error: 'projectId 필수', code: 'invalid' };
+    // ⛔경로 세그먼트로 쓰이므로 traversal 가드(_readProjectFile 과 같은 취지)
+    if (!/^proj_[A-Za-z0-9_-]+$/.test(projectId))
+      return { ok: false, error: `invalid projectId: ${projectId} (proj_* 형식이어야 한다)`, code: 'not_proj' };
+
+    // 신 레이아웃(폴더) 우선 + 구 flat 폴백 — _resolveProjectJsonPath 와 같은 순서
+    const dir = path.join(PROJECTS_DIR, projectId);
+    const flat = path.join(PROJECTS_DIR, `${projectId}.json`);
+    const target = fs.existsSync(dir) ? dir : (fs.existsSync(flat) ? flat : null);
+    if (!target) return { ok: false, error: `project not found: ${projectId}`, code: 'not_found' };
+
+    // ★활성이었나를 «지우기 전에» 본다 — 지우고 나면 못 잰다
+    const wasActive = (global.currentActiveProjectId === projectId);
+
+    /* ★휴지통에 «알아볼 수 있는 이름»으로 넣는다 (2026-09-07 현빈 지시).
+       왜: 그전엔 폴더 이름이 `proj_1788758331862` 뿐이라 휴지통을 열어도 «이게 뭔지» 모른다.
+
+       ⛔★2026-09-07 «정정» — 처음엔 `<이름>.gdt` 로 만들었다. **그건 규격 위반이었다.**
+         `.gdt` 는 «이미 확정된» 고디터 프로젝트 «파일 포맷»이다:
+           · zip(deflate) — manifest.json + project.json + images/ (명세 `지디/notes/GDT-SPEC.md`)
+           · package.json 의 fileAssociations 에 mac·win «둘 다» 등록돼 있다(더블클릭 배선까지 있다)
+           · ★`gdt-verify` 의 적대적 픽스처에 `bad_02_plaintext.gdt`(=확장자만 .gdt 인 것)가
+             **«거부»가 정답**으로 박혀 있다 — 내가 만든 게 정확히 그 모양이었다.
+         ⇒ 사용자가 휴지통에서 꺼내 더블클릭하면 «열릴 거라 기대»하는데 «거부»된다.
+         ⇒ ★**규격의 «이름»을 달고 규격이 «아닌» 것이 제일 나쁘다.** 그래서 확장자를 뗀다.
+       ⚠️내가 「코드에 .gdt 가 0건」이라 한 것도 틀렸다 — zsh 가 따옴표 없는 `--include=*.js` 를
+         글롭으로 보고 «명령 자체가 안 돌았다». 에러 줄이 출력에 있었는데 읽고도 0을 결과로 썼다.
+         ⇒ ★「0건」을 볼 땐 «명령이 돌기는 했나»부터 봐라. 실제로는 22개 파일에 있다.
+
+       지금은 «확장자 없이» 프로젝트 이름만 쓴다. 폴더 구조는 그대로 두고(손으로도 복원된다)
+       `restore.json` 이 원래 id·경로·시각을 들고 있다 — 그게 「고디터 것」임을 판별하는 표식이다.
+       ★「알아보기 쉽게」가 「되돌리기 어렵게」가 되면 그건 개선이 아니다. */
+    const bundleName = (() => {
+      let nm = projectId;
+      try {
+        const jp = _resolveProjectJsonPath(projectId);
+        if (jp && fs.existsSync(jp)) nm = JSON.parse(fs.readFileSync(jp, 'utf8')).name || projectId;
+      } catch (_) {}
+      // ⛔파일명에 못 쓰는 글자를 치운다(/ : 등). 한글은 그대로 둔다 — 알아보는 게 목적이다.
+      nm = String(nm).replace(/[/\\:*?"<>|\u0000-\u001f]/g, '_').trim().slice(0, 80) || projectId;
+      return nm;   // ⛔`.gdt` 를 붙이지 마라 — 그건 zip 포맷의 «약속된» 이름이다
+    })();
+    let toTrash = target;
+    try {
+      if (fs.existsSync(dir)) {                       // 폴더 레이아웃일 때만 «담아서» 버린다
+        fs.writeFileSync(path.join(dir, 'restore.json'), JSON.stringify({
+          projectId, originalPath: dir, deletedAt: new Date().toISOString(),
+          note: '고디터 프로젝트. 되돌리려면 이 폴더를 originalPath 로 옮기고 앱을 재시작해라.',
+        }, null, 2));
+        const staged = path.join(PROJECTS_DIR, bundleName);
+        // ⛔같은 이름이 이미 있으면 덮어쓰지 않는다 — 남의 것을 지울 수 있다
+        const uniq = fs.existsSync(staged) ? path.join(PROJECTS_DIR, `${bundleName}-${Date.now()}`) : staged;
+        fs.renameSync(dir, uniq);
+        toTrash = uniq;
+      }
+    } catch (e) {
+      // ★담기에 실패해도 «삭제 자체»는 진행한다 — 옛 경로(폴더)로 버린다.
+      console.warn('[projects:delete] 이름 붙여 담기 실패, 폴더 그대로 버린다:', e.message);
+      toTrash = fs.existsSync(dir) ? dir : target;
+    }
+    // ★휴지통으로. shell.trashItem 은 Electron 이 준다(영구삭제 아님).
+    try {
+      await shell.trashItem(toTrash);
+    } catch (e) {
+      return { ok: false, error: `휴지통으로 못 옮겼다: ${e.message}`, code: 'trash_failed',
+               hint: '파일이 잠겨 있거나 권한이 없다. ⛔영구삭제로 «대신»하지 않는다 — 되돌릴 수 없게 된다.' };
+    }
+    // ★효과 확인 — 「옮겼다」가 아니라 «없어졌나»로 판정한다
+    if (fs.existsSync(toTrash) || fs.existsSync(target))
+      return { ok: false, error: '휴지통 호출은 성공했는데 파일이 그대로다', code: 'trash_noeffect' };
+
+    /* ★★활성이었으면 «활성도 같이» 비운다.
+       안 그러면 activeProjectId 가 «죽은 id» 를 가리키고, 파괴 도구는 「활성」을 대상으로 삼으므로
+       그 뒤 호출이 어디로 갈지 모르게 된다(2026-09-07 실측된 상태). */
+    let activeCleared = false;
+    if (wasActive) {
+      /* ⛔2026-09-07 G2 실측: global 만 비웠더니 «안 비워졌다».
+         원인 = `_activeProjectId()` 는 «두 곳»을 본다 —
+           ⑴ onActiveProject 콜백(= global.currentActiveProjectId)
+           ⑵ ★창 URL 의 `?project=…`  ← 여기가 남아 있으면 «지운 프로젝트»를 계속 가리킨다
+         ⇒ 한 곳만 비우면 「비웠다」가 거짓말이 된다. 읽는 곳을 «전부» 비운다. */
+      try {
+        global.currentActiveProjectId = null;
+        for (const w of BrowserWindow.getAllWindows()) {
+          try {
+            const u = w.webContents && w.webContents.getURL && w.webContents.getURL();
+            if (u && new RegExp(`[?&]project=${projectId}(?:[&#]|$)`).test(u)) {
+              // 갤러리로 되돌린다 — 지워진 프로젝트를 연 채로 두면 편집기가 «없는 것»을 가리킨다
+              const gallery = u.replace(/index\.html.*$/, 'projects.html').split('?')[0];
+              await w.loadURL(gallery.includes('projects.html') ? gallery
+                              : u.split('?')[0].replace(/[^/]*$/, 'projects.html')).catch(() => {});
+            }
+            await w.webContents.executeJavaScript(
+              'try{window.activeProjectId=null}catch(_){}; true', true).catch(() => {});
+          } catch (_) {}
+        }
+        activeCleared = true;
+      } catch (_) { /* 비우기 실패가 삭제를 되돌리진 않는다 — 아래 값으로 «알린다» */ }
+    }
+    return { ok: true, projectId, trashed: true, trashedAs: path.basename(toTrash),
+             wasActive, activeCleared,
+             note: `휴지통에 「${path.basename(toTrash)}」 로 들어갔다(영구삭제 아님). `
+                 + '안에 restore.json 이 있어 원래 위치를 안다.' };
+  } catch (e) {
+    console.error('[projects:delete] 예외:', e);
+    return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
+  }
+}
+
+// 프로젝트 «이름 수정» — MCP rename_project 가 사용. (2026-09-07 신설)
+// ★그전엔 이름을 바꾸는 도구가 «없었다» — 만들 수만 있고 고칠 수가 없었다.
+async function _renameProjectImpl({ projectId, name } = {}) {
+  try {
+    if (!projectId || !/^proj_[A-Za-z0-9_-]+$/.test(String(projectId)))
+      return { ok: false, error: `invalid projectId: ${projectId}`, code: 'not_proj' };
+    const nm = (name == null ? '' : String(name)).trim();
+    if (!nm) return { ok: false, error: 'name 이 비었다(공백만도 안 된다)', code: 'invalid' };
+    if (nm.length > 100) return { ok: false, error: `name too long (${nm.length} > 100)`, code: 'invalid' };
+    const jsonPath = _resolveProjectJsonPath(projectId);
+    if (!jsonPath || !fs.existsSync(jsonPath))
+      return { ok: false, error: `project not found: ${projectId}`, code: 'not_found' };
+    const proj = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    const before = proj.name;
+    if (before === nm) return { ok: true, projectId, name: nm, changed: false, note: '이미 그 이름이다' };
+    proj.name = nm;
+    proj.updatedAt = new Date().toISOString();
+    const r = await _saveProjectImpl(proj);
+    if (!r || r.ok !== true) return { ok: false, error: 'save failed', code: 'io' };
+    /* ★효과로 판정한다 — 「썼다」가 아니라 «디스크에서 다시 읽어» 확인한다. */
+    const after = JSON.parse(fs.readFileSync(jsonPath, 'utf8')).name;
+    if (after !== nm) return { ok: false, error: `저장했는데 값이 다르다: ${after}`, code: 'noeffect' };
+    return { ok: true, projectId, name: nm, previousName: before, changed: true };
+  } catch (e) {
+    console.error('[projects:rename] 예외:', e);
+    return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
+  }
+}
+
 async function _duplicateProjectImpl({ sourceProjectId, newName, sourceData } = {}) {
   try {
     if (!sourceProjectId || typeof sourceProjectId !== 'string')
@@ -3115,7 +3571,7 @@ app.whenReady().then(async () => {
   //   표준 role 템플릿 위에 「파일」을 얹는 방식이라 기본 편집 단축키가 유지된다.
   try {
     const { registerGdtIpc, buildAppMenu } = require('./main/gdt/wire');
-    registerGdtIpc({ projectsDir: PROJECTS_DIR, resolveProjectJsonPath: _resolveProjectJsonPath });
+    registerGdtIpc({ projectsDir: _projectsRoot, resolveProjectJsonPath: _resolveProjectJsonPath }); // ★값이 아니라 «게터» — 계정이 바뀌면 따라가야 한다
     buildAppMenu();
   } catch (e) {
     console.error('[gdt] 초기화 실패 — 메뉴 없이 계속:', e);
@@ -3128,8 +3584,49 @@ app.whenReady().then(async () => {
   setupAutoUpdater();
   // Claude PM MCP 서버 (포트 9345, port-status 표 9345+ 신규 자유)
   try {
+    /* ★뿌리 주입은 «서버가 듣기 시작하기 전»에 — 뒤에 두면 그 사이에 들어온 요청이
+         주입 없는 상태로 처리된다(이제는 폴백 대신 던지므로 «오류»가 되지만, 애초에
+         그 창을 만들 이유가 없다). ⛔여기서 순서를 바꾸지 마라. */
+    setMcpProjectsRoot(() => PROJECTS_DIR);
+    /* ★로그인 게이트 프로브도 «서버가 듣기 전»에 꽂는다.
+       ⛔예전엔 이게 startMcpServer 보다 119줄 «뒤»였다. 그 사이 배선 하나가 던지면 바깥 try 가
+         경고 한 줄만 남기고 — ★MCP 는 이미 듣는데 로그인 게이트는 영영 안 걸린다.
+       ★뿌리 주입과 «같은 자리»에 둔다. 둘의 실패 모드가 갈리면 안 된다. */
+    setMcpAuthProbe(() => ({
+      authed: !!(_editorAccessGranted || isAdminAuthorized()),
+      // ⛔계정 «식별자»는 넘기지 않는다 — MCP 응답에 실릴 수 있다. 「됐나」만 넘긴다.
+      /* ★격리가 «실제로» 걸렸는지 진단할 창.
+         「목록이 0건」이 나왔을 때 «격리돼서 0건»인지 «못 재서 0건»인지 갈라야 한다.
+         ⛔이메일도, 계정키(이메일 slug 포함)도 안 넘긴다 — 지문 8자만 넘긴다. */
+      accountScoped: PROJECTS_DIR !== PROJECTS_DIR_LEGACY && !(_projectsDirState && _projectsDirState.unresolved),
+      /* ★「계정별로 갈렸다」와 「누구인지 못 알아내 격리 폴더에 있다」는 «다른 상태»다.
+         뭉개면 「0건」을 볼 때 또 오독한다. */
+      accountUnresolved: !!(_projectsDirState && _projectsDirState.unresolved),
+      /* ⛔「비로그인이라 없다」와 「못 읽어서 없다」를 같은 null 로 뭉개지 않는다 —
+           이 값은 「0건」을 «격리»와 «고장»으로 가르라고 있는 것이라, 뭉개면 쓸모가 없다. */
+      accountFingerprint: (() => {
+        try {
+          const k = _currentAccountKey();
+          return k ? require('crypto').createHash('sha1').update(k).digest('hex').slice(0, 8) : null;
+        } catch (_) { return 'ERROR'; }
+    })(),
+    }));
     const { port: actualPort, token: mcpToken } = await startMcpServer({
-      port: 9345,
+      /* ★기본은 9345. 격리 인스턴스는 «환경변수»로 옮긴다.
+           ⛔예전엔 기동 스크립트가 이 «소스 줄을 치환»했다. 그래서 그 상태로 커밋되면
+             dev·릴리스가 남의 격리 포트로 떴다(2026-09-07 실제로 6ca0a12 에 딸려 들어갔다).
+           ⇒ 소스를 안 건드리면 «커밋에 딸려갈 자리 자체»가 없어진다.
+             검사(no-isolation-port.test.js)도 남겨 두지만, 구조가 검사보다 강하다. */
+      port: (() => {
+        const raw = process.env.GODITOR_MCP_PORT;
+        if (!raw) return 9345;
+        const n = Number(raw);
+        // 못 읽으면 «조용히 기본값»으로 가지 않는다 — 격리 의도가 소리 없이 사라진다
+        if (!Number.isInteger(n) || n < 1024 || n > 65535) {
+          throw new Error(`GODITOR_MCP_PORT 이 포트가 아니다: ${JSON.stringify(raw)}`);
+        }
+        return n;
+      })(),
       onActiveProject: () => global.currentActiveProjectId || null,
     });
     // EADDRINUSE fallback이 일어나도 ipc 핸들러가 올바른 포트로 ping
@@ -3226,7 +3723,13 @@ app.whenReady().then(async () => {
     }
     // 프로젝트 단위 코어 주입 — MCP duplicate_project/create_project/open_project 도구가 사용.
     if (typeof setMcpProjectOps === 'function') {
-      setMcpProjectOps({ duplicate: _duplicateProjectImpl, create: _createProjectImpl, open: _openProjectImpl, list: _listProjectsImpl });
+      setMcpProjectOps({ duplicate: _duplicateProjectImpl, create: _createProjectImpl, open: _openProjectImpl, list: _listProjectsImpl, delete: _deleteProjectImpl, rename: _renameProjectImpl });
+      /* ★★인증 «상태»를 MCP 에 알린다 — 2026-09-07 현빈 지시:
+         「가장 먼저 로그인되어 있는지로 확인해야 한다」.
+         그전엔 MCP 가 인증을 «아예 안 봤다»(참조 0건). 게이트는 main.js 의 open_project 한 곳뿐이라
+         list_projects·create_project 는 «로그인 없이도» 통과했다 — 문 «앞»의 도구가 열려 있었다.
+         ⇒ 실측: list_projects 통과 · create_project 통과 · open_project 거절.
+         ★「막혔나」를 안전한 도구로 재면 「안 막혔다」가 나오는 이유가 이것이다. */
     }
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -3447,11 +3950,15 @@ async function _invokeRendererUpdateCardBlock({ blockId, title, desc, imgSrc, bg
 }
 
 // ─── update_section — 섹션 속성 (배경 등) 변경 ──────────────────────────────
-async function _invokeRendererUpdateSection({ sectionId, bg } = {}) {
+async function _invokeRendererUpdateSection({ sectionId, bg, name } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
   const safeSid = JSON.stringify(String(sectionId || ''));
   const safeBg  = bg !== undefined ? JSON.stringify(String(bg)) : 'null';
+  /* ★섹션 «이름» — 2026-09-07 신설. 그전엔 이름을 바꾸는 도구가 «아예 없어서»
+     클로드가 update_section{name:…} 을 넣어보고 «조용히 실패»했다(§5-2).
+     이름은 DOM 의 dataset.name 에 산다(section-search.js·section-memo.js 가 같은 곳을 읽는다). */
+  const safeName = name !== undefined ? JSON.stringify(String(name)) : 'null';
   return await mainWindow.webContents.executeJavaScript(
     `(() => { try {
       const sid = ${safeSid};
@@ -3463,6 +3970,14 @@ async function _invokeRendererUpdateSection({ sectionId, bg } = {}) {
         if (typeof window.setSectionBg !== 'function') return { ok:false, code:'API_MISSING' };
         window.setSectionBg(sec, bgv);
         applied.bg = bgv;
+      }
+      const nv = ${safeName};
+      if (nv !== null) {
+        sec.dataset.name = nv;                       // ★정본은 dataset.name
+        const lbl = sec.querySelector('.section-label');
+        if (lbl) lbl.textContent = nv;               // 화면 라벨도 같이(있을 때만)
+        applied.name = nv;
+        try { if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave(); } catch(_) {}
       }
       return { ok:true, sectionId: sid, applied };
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
@@ -6502,7 +7017,7 @@ app.on('before-quit', (event) => {
     event.preventDefault();
     try {
       quitSaveGuard.init({
-        userDataDir: app.getPath('userData'), dialog, shell,
+        userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, dialog, shell,
         appVersion: app.getVersion(), log: (m) => console.log(m),
       });
       quitSaveGuard.notifyWindowGone({ pending, exit: (code) => app.exit(code) });
@@ -6516,7 +7031,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   try {
     quitSaveGuard.init({
-      userDataDir: app.getPath('userData'), dialog, shell,
+      userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, dialog, shell,
       appVersion: app.getVersion(), log: (m) => console.log(m),
     });
     quitSaveGuard.runBeforeQuit({ win, ipcMain, exit: (code) => app.exit(code) });
@@ -6676,9 +7191,9 @@ function ensureRecovery() {
        나중에 dialog·shell 을 얹는 것과 충돌하지 않는다(main/quit/save-guard.js init 참조).
      ⛔이 두 줄이 없으면 emergencyDir() 가 null 위에서 터져 «되살리기가 조용히 not_found» 가 된다
        (실측 2026-09-06: U-H3-W3 이 이걸 잡았다 — 「돌아는 가는데 효과 0」의 전형). */
-  try { quitSaveGuard.init({ userDataDir: app.getPath('userData'), appVersion: app.getVersion() }); } catch (_) {}
+  try { quitSaveGuard.init({ userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, appVersion: app.getVersion() }); } catch (_) {}
   recovery.init({
-    userDataDir: app.getPath('userData'),
+    userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir,
     crash: require('./main/crash'),
     saveGuard: quitSaveGuard,
     log: (m) => console.warn(m),

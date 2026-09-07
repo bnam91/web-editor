@@ -34,9 +34,33 @@ function _getUserDataDir() {
   }
 }
 
-// 신규 PM 폴더 경로: <userData>/projects/<projectId>/claude-pm
+/* PM 폴더 경로 — ★프로젝트 «뿌리»는 계정별로 움직인다(<userData>/accounts/<키>/projects).
+   그래서 여기서 'projects' 를 직접 이어 붙이면 «두 번째 경로 조립기»가 되어 어긋난다.
+   main.js 가 setPmProjectsRoot() 로 진짜 뿌리를 꽂아 준다. 안 꽂히면 옛 자리로 폴백. */
+let _pmProjectsRoot = null;
+function setPmProjectsRoot(fn) { _pmProjectsRoot = (typeof fn === 'function') ? fn : null; }
+function _projectsRootPath() {
+  /* ⛔조용히 «옛 공용 풀»로 폴백하지 않는다 — PM 폴더가 남의 계정 폴더 아래 생긴다.
+     못 정하면 던진다. 부르는 쪽(handleEnsureClaudePMFolder 등)이 오류로 받는 게
+     「엉뚱한 곳에 조용히 만들어졌다」보다 낫다. */
+  if (_pmProjectsRoot) {
+    const r = _pmProjectsRoot();   // ⛔삼키지 않는다
+    if (r) return r;
+    throw new Error('NO_PROJECTS_ROOT: PM 폴더의 프로젝트 뿌리를 못 정했다(주입 함수가 빈 값).');
+  }
+  throw new Error('NO_PROJECTS_ROOT: PM 폴더의 프로젝트 뿌리가 주입되지 않았다. 공용 폴더로 폴백하지 않는다.');
+}
 function _defaultPmFolderPath(projectId) {
-  return path.join(_getUserDataDir(), 'projects', projectId, 'claude-pm');
+  /* ★«현재 뿌리에 그 프로젝트가 있을 때»만 PM 폴더 경로를 준다.
+     ⛔없는데도 주면 mkdir 이 «유령 폴더»를 만든다 — 계정이 바뀐 직후 옛 활성 id 로 실제로 그랬다.
+       (2026-09-07 실측: 민수 것이던 id 의 claude-pm/ 이 철수 뿌리 아래 생겼다)
+     ⇒ 활성 id 를 지우는 것이 1차 처방이고, 이건 «그래도 새면» 막는 2차다. */
+  const root = _projectsRootPath();
+  const projDir = path.join(root, projectId);
+  if (!fs.existsSync(projDir)) {
+    throw new Error(`NO_SUCH_PROJECT_IN_ROOT: ${projectId} 이(가) 현재 계정 뿌리에 없다 — PM 폴더를 만들지 않는다`);
+  }
+  return path.join(projDir, 'claude-pm');
 }
 
 // legacy base — 옛 PM 폴더 부모 (~/Documents/claude-pm-projects)
@@ -640,6 +664,7 @@ function registerClaudePMIPC(ipcMain, isAllowed) {
 module.exports = {
   registerClaudePMIPC,
   setActualMcpPort,
+  setPmProjectsRoot,
   syncClaudePmTitle,
   // MCP create_project(main.js _createProjectImpl)가 갤러리와 동일하게 PM 폴더를 보장할 때 직접 호출.
   handleEnsureClaudePMFolder,
@@ -647,6 +672,9 @@ module.exports = {
   _internal: {
     expandHome,
     sanitizeFolderName,
+    /* ⚠️검사 전용 — 「주입이 없으면 던지나」는 이 함수를 직접 흔들어야 잰다.
+       IPC 경유로는 못 닿아서(핸들러가 오류를 감싼다) 검사가 장식이 된다. */
+    _projectsRootPath,
     get MCP_PORT() { return MCP_PORT; },
   },
 };

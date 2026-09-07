@@ -14,6 +14,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   duplicateProject: ({ sourceProjectId, newName }) =>
     ipcRenderer.invoke('projects:duplicate', { sourceProjectId, newName }),
 
+  /* ★입양 고지 — 「이 기계에 있던 N개를 이 계정으로 옮겼습니다」를 «화면»까지 올린다.
+     ⛔preload 는 화이트리스트다. 여기 안 적으면 main 에 핸들러가 있어도 렌더러가 «못 부른다»
+       = adopted.json 과 똑같이 사용자에게 안 닿는다. 그게 이 고지를 만든 이유였다.
+     peek = 안 지우고 들여다본다 · ack = 「봤다」를 파일에 적는다(재시작을 견딘다).
+     ⇒ UI 는 지디가 붙인다. 여기까지가 신호다. */
+  peekAdoptionNotice: () => ipcRenderer.invoke('projects:peekAdoptionNotice'),
+  ackAdoptionNotice:  () => ipcRenderer.invoke('projects:ackAdoptionNotice'),
+
   // SVG Presets (사용자 자산 — 모든 프로젝트 공유)
   svgPresets: {
     list:           ()                           => ipcRenderer.invoke('svgPresets:list'),
@@ -230,10 +238,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   spawnClaudeTerminal:  (folderPath)             => ipcRenderer.invoke('claudePM:spawnClaudeTerminal', { folderPath }),
   pingClaudePM:         ()                       => ipcRenderer.invoke('claudePM:pingMcp'),
   getMcpInfo:           ()                       => ipcRenderer.invoke('claudePM:getMcpInfo').catch(() => null),
-  // ⚠️실측(08-15): 이걸 «부르는 렌더러 코드가 없다». 그래서 global.currentActiveProjectId는
-  //   늘 null이었고 read_project·read_section·duplicate_project가 항상 죽었다.
-  //   지금은 mcp-server의 _activeProjectId()가 편집기 창 URL을 폴백으로 읽어 살려뒀다.
-  //   여길 실제로 부르게 만들면 그 폴백보다 우선한다.
+  // ★2026-09-07 갱신 — 옛 주석(08-15)은 「이걸 부르는 렌더러 코드가 없다」였는데 «지금은 부른다».
+  //   부르는 자리: js/claude-pm/active-project-sync.js (index.html:1423 에서 싣는다).
+  //   확인법: 프로젝트를 열고 delete_project 로 지웠을 때 응답 activeCleared 가 true 면
+  //   global.currentActiveProjectId 가 채워져 있었다는 뜻이다(실측 true).
+  //   창 URL 폴백은 «여전히» 남겨 둔다 — 이게 아직 안 왔을 때를 받는다.
   setClaudePMActiveProject: (projectId)          => ipcRenderer.invoke('claudePM:setActiveProject', { projectId }),
   // 자동 PM 폴더 보장 — 신규 프로젝트 생성 직후 + 기존 프로젝트 활성화 시 호출
   ensureClaudePMFolder: ({ projectId, projectName, basePath } = {}) =>

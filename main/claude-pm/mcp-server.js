@@ -33,6 +33,39 @@ let _iconifyApi = null;
 // main.js가 setProjectOps({duplicate})로 주입 — 프로젝트 단위 관리(복제 등). main 프로세스 fs 로직.
 let _projectOps = null;
 
+/* ★인증 «상태»를 main.js 가 주입한다. ⛔MCP 는 계정 «식별자»를 안 받는다 — 「됐나」만 안다.
+   2026-09-07 현빈 지시: 「가장 먼저 로그인되어 있는지로 확인해야 한다」. */
+let _authProbe = null;
+function setAuthProbe(fn) { _authProbe = fn; }
+
+/** 로그인 안 됐으면 거절 응답, 됐으면 null. ★못 재면(주입 전) «통과»시킨다 —
+ *  앱 버전이 낡아 주입이 없을 수 있고, 그때 전부 막으면 도구가 통째로 죽는다.
+ *  ⇒ 「없다」와 「안 됐다」를 가른다: 주입이 없으면 «판정 안 함», 있으면 «판정». */
+function _authGate(toolName) {
+  /* ⛔예전엔 여기서 `return null`(=통과) 이었다. 근거는 「앱 버전이 낡아 주입이 없을 수 있다」였는데
+     ★그 근거가 틀렸다 — 프로브를 꽂는 main.js 와 이 파일은 «같은 바이너리»다. 버전이 어긋날 수 없다.
+     남는 경우는 «배선을 빠뜨렸다» 하나뿐이고, 그때 문을 열어 두면 로그인 게이트가 통째로 증발한다.
+     ⇒ 못 재면 «거절»한다. 뿌리 주입(NO_PROJECTS_ROOT)과 실패 모드를 맞춘다 — 둘이 갈리면 안 된다. */
+  if (typeof _authProbe !== 'function') {
+    return { ok:false, code:'AUTH_PROBE_MISSING', tool:toolName,
+      error:`로그인 상태를 확인할 수 없어 ${toolName} 을(를) 실행하지 않았습니다.`,
+      hint:'NOTHING was done. The app did not wire up its login probe — this is an app bug, not a missing feature. Restart the Goditor app; if it persists, report it.' };
+  }
+  let a = null;
+  try { a = _authProbe(); } catch (_) { return null; }
+  if (!a || a.authed) return null;
+  return {
+    ok: false, code: 'NOT_LOGGED_IN', tool: toolName,
+    error: `로그인이 안 되어 있어 ${toolName} 을(를) 실행하지 않았습니다.`,
+    /* ★거절은 곧 «안내»여야 한다 — 「미인증」만 던지면 클로드가 다른 방법을 찾아 헤맨다.
+       그리고 ⛔「도구가 없다」로 읽히면 안 된다(2026-09-07: 클로드가 호출 실패를
+       「기능이 없습니다」로 단정한 실측이 있다). 「지금은 못 한다」로 «갈라» 말한다. */
+    hint: 'NOTHING was done. This is NOT a missing feature — the tool exists but requires sign-in. '
+        + 'Ask the user to sign in to the Goditor app (앱 화면에서 로그인), then retry the same call.',
+  };
+}
+
+
 /* ── MCP undo 추적 (2026-09-06) ────────────────────────────────────────────
  * 「우리가 «마지막으로» 만든 히스토리 항목」의 seq. 편집 도구가 성공할 때마다 갱신.
  * ⛔전역 undo 를 여는 게 아니다 — «우리 것일 때만» 되돌리기 위한 근거다. */
@@ -307,16 +340,33 @@ function _recordUnknownArgs(name, unknown, allKeys) {
   } catch (_) { /* 원장 실패가 도구를 막지 않는다 */ }
 }
 
+/* ★프로젝트 «뿌리»는 계정별로 움직인다(<userData>/accounts/<계정키>/projects).
+   ⛔여기서 userData 에 'projects' 를 직접 이어 붙이면 «세 번째 경로 조립기»가 되어
+     main.js 의 진짜 뿌리와 어긋난다. 실제로 어긋났다 — 2026-09-07 계정 격리를 넣은 뒤
+     read_project 가 «자기 계정의 프로젝트»에도 'project not found' 를 냈다.
+     그리고 그건 반대 방향으로도 샌다: 옛 뿌리(공용 풀)를 보므로 «남의 계정 것»을 읽는다.
+   ⇒ main.js 가 setProjectsRoot() 로 진짜 뿌리를 꽂아 준다. 안 꽂히면 옛 자리로 폴백. */
+let _projectsRootFn = null;
+function setProjectsRoot(fn) { _projectsRootFn = (typeof fn === 'function') ? fn : null; }
+
+/* 단독 실행(개발)에서만 «공용 projects 폴더»를 허용한다.
+   ⛔«환경»으로 자동 판별하지 않는다 — 판별이 틀리면 조용히 격리가 풀린다.
+     명시 플래그를 «호출 시점»에 읽는다(모듈 로드 시점에 굳히면 테스트가 못 흔든다). */
+function _sharedRootAllowed() { return process.env.GODITOR_MCP_ALLOW_SHARED_ROOT === '1'; }
+
+/* ★프로젝트 뿌리 — 주입이 정본이다.
+   ⛔예전엔 주입이 없거나 던지면 «조용히» userData/projects(옛 공용 풀)로 갔다.
+     그건 격리를 소리 없이 되돌리는 길이었다 — 남의 계정 것을 읽게 된다.
+     「검사가 못 돌았다」가 통과가 아니듯, 「주입이 안 됐다」도 «공용 풀»이 아니다.
+   ⇒ 못 정하면 «던진다». 폴백은 명시 플래그를 켠 단독 실행에만 준다. */
 function _getProjectsDir() {
-  // main process의 app.getPath('userData') 기준 projects 폴더가 정석이지만,
-  // 단독 실행 시는 web-editor/projects 사용.
-  try {
-    const { app } = require('electron');
-    if (app && app.getPath) {
-      return path.join(app.getPath('userData'), 'projects');
-    }
-  } catch (_) {}
-  return path.join(__dirname, '..', '..', 'projects');
+  if (_projectsRootFn) {
+    const r = _projectsRootFn();   // ⛔삼키지 않는다 — 던지면 그대로 올라간다
+    if (r) return r;
+    throw new Error('NO_PROJECTS_ROOT: 프로젝트 뿌리를 못 정했다(주입 함수가 빈 값). 공용 폴더로 폴백하지 않는다.');
+  }
+  if (_sharedRootAllowed()) return path.join(__dirname, '..', '..', 'projects'); // [뿌리-폴백] 단독 실행 전용
+  throw new Error('NO_PROJECTS_ROOT: 프로젝트 뿌리가 주입되지 않았다. 계정 격리가 풀릴 수 있어 공용 폴더로 폴백하지 않는다.');
 }
 
 function _readProjectFile(projectId) {
@@ -327,7 +377,13 @@ function _readProjectFile(projectId) {
    *   예전엔 flat(projects/<id>.json)이었고, 이 헬퍼가 flat만 봐서 read_project가
    *   현행 프로젝트에 전부 'project not found'를 냈다(08-25 클로드앱 시연 실측).
    *   ⇒ 폴더 우선 + flat 폴백(구프로젝트 호환) — main.js와 같은 dual-read 순서. */
-  const roots = [_getProjectsDir(), path.join(__dirname, '..', '..', 'projects')]; // 후자=단독 실행/개발 폴백
+  /* ⛔예전엔 두 번째 뿌리를 «항상» 뒤졌다 — 조건이 없었다.
+       그래서 계정 뿌리에 없으면 «앱/레포의 공용 projects»를 읽었다 = 계정을 넘어 읽는다.
+     ★그리고 그게 「못 찾았다」를 «격리 증거»로 오독하게 만든다 — 그 폴더가 비어 있어서
+       못 찾은 것일 뿐인데 막았다고 읽힌다(2026-09-07 내가 실제로 그렇게 잘못 읽었다).
+     ⇒ 계정 뿌리 «하나»만 본다. 공용 폴더는 명시 플래그를 켠 단독 실행에만 붙인다. */
+  const roots = [_getProjectsDir()];
+  if (_sharedRootAllowed()) roots.push(path.join(__dirname, '..', '..', 'projects'));  // [뿌리-폴백] 명시 플래그를 켠 단독 실행에만
   const candidates = [];
   for (const dir of roots) {
     candidates.push(path.join(dir, pid, 'proj.json')); // 신 레이아웃(폴더)
@@ -342,11 +398,17 @@ function _readProjectFile(projectId) {
 // ─────────────────────────────────────────────
 // Default tools
 // ─────────────────────────────────────────────
-// 「지금 열려 있는 프로젝트」의 근거.
-// ⚠️실측: onActiveProjectCb가 읽는 global.currentActiveProjectId는 renderer가
-//   claudePM:setActiveProject를 «부르는 곳이 아예 없어서» 항상 null이다(preload에만 노출돼 있다).
-//   그 결과 read_project·read_section·duplicate_project가 늘 'no active project'로 죽었다.
-//   편집기 창 URL(index.html?project=proj_xxx)이 실제로 열린 프로젝트의 유일한 근거라 이걸 폴백으로 쓴다.
+// 「지금 열려 있는 프로젝트」의 근거 — «두 갈래»다. 둘 다 살아 있다.
+//   ⑴ global.currentActiveProjectId — renderer 의 js/claude-pm/active-project-sync.js 가
+//      claudePM:setActiveProject 로 채운다(index.html:1423 에서 싣는다 → ipc.js 가 전역에 대입).
+//   ⑵ 편집기 창 URL(index.html?project=proj_xxx) — ⑴이 아직 안 왔을 때의 폴백.
+// ★2026-09-07 실측으로 갱신: 예전 주석은 「⑴을 «부르는 곳이 아예 없어서» 항상 null」이라고
+//   적혀 있었는데(08-15 관측), 그 뒤 active-project-sync.js 가 생겨 «지금은 참이 아니다».
+//   재는 법 — 프로젝트를 열고 delete_project 로 그걸 지운다. 응답의 activeCleared 가 true 면
+//   main.js 의 `wasActive = (global.currentActiveProjectId === projectId)` 가 참이었다는 뜻이고,
+//   그건 ⑴이 «채워져 있었다»는 증거다. 실제로 true 였다(health.activeProject 도 null 로 떨어졌다).
+// ⛔낡은 주석이 「이 경로는 안 돈다」고 말하면 다음 사람이 그 위에 잘못된 판단을 세운다.
+//   ★고칠 땐 «어떻게 쟀는지»를 같이 적어라 — 이 문단이 또 낡을 때 다시 잴 수 있게.
 function _activeProjectId() {
   try { const p = onActiveProjectCb ? onActiveProjectCb() : null; if (p) return p; } catch (_) {}
   try {
@@ -402,6 +464,9 @@ function _assertExpectedProject(expectedProject) {
  *   «다음 수»를 응답에 실어 보낸다 — 그래야 클로드가 스스로 open_project 로 회복한다.
  * ⛔읽기 도구는 막지 않는다. 막으면 「지금 뭐가 열렸는지」조차 물어볼 수 없다.
  */
+/** ⛔로그인 게이트를 «면제»하는 도구 — 「왜 안 되는지」를 물어볼 통로는 남겨야 한다. */
+const _AUTH_FREE = new Set(['goditor_which_instance', 'get_block_schema']);
+
 const _TARGET_FREE = new Set([
   // ⑴ 읽기 — ⛔이 줄을 줄이지 마라. 막으면 클로드가 현황을 물어볼 통로가 사라진다.
   'read_project', 'read_section', 'get_canvas_state', 'list_projects', 'list_memories',
@@ -415,9 +480,44 @@ const _TARGET_FREE = new Set([
 ]);
 /* 자기 대상을 «인자로» 직접 지목하는 도구 — 그 인자가 곧 확정이다.
  * duplicate_project 는 활성 프로젝트가 아니라 sourceProjectId 를 복제한다. */
-const _SELF_TARGET_ARG = new Map([['duplicate_project', 'sourceProjectId']]);
+const _SELF_TARGET_ARG = new Map([
+  ['duplicate_project', 'sourceProjectId'],
+  // ★delete_project 도 «지목형»이다 — 활성이 아니라 projectId 를 직접 지운다.
+  //   ⇒ 그 인자가 곧 «확정»이므로 프로젝트 확정 게이트를 따로 태울 이유가 없다.
+  //   (이래서 expectedProject 안전벨트도 안 붙였다 — 벨트는 «지목 안 하는» 도구를 위한 것이다.)
+  ['delete_project', 'projectId'],
+  ['rename_project', 'projectId'],   // 비파괴 + 지목형
+]);
 
-let _confirmedProject = null;   // ★sticky — open_project ok 또는 expectedProject 일치로만 선다
+/* ★★확정(sticky)은 «호출자별»이다 — 예전엔 «프로세스 전역»이었다.
+   ⛔그래서 A 세션이 open_project 로 확정을 세우면, ★같은 인스턴스에 붙은 B 세션의
+     인자 0개짜리 쓰기가 sticky 로 «그냥 통과»했다. 게이트가 「이 대화」라고 말하는 자리들이
+     실제로는 「이 앱 프로세스에 붙은 모두」였다.
+   ⇒ 그리고 그게 브리지의 «포트 자동탐색»(9345~9365 중 최저 포트에 말없이 붙는다)과 곱해지면,
+     다른 CLI 세션이 남의 실사용 인스턴스에 붙어 그 사람의 확정으로 쓰기를 밀어 넣는다.
+   ⇒ 호출자 = 요청의 `Mcp-Session-Id`. 브리지가 프로세스마다 하나 만들어 보낸다.
+     헤더가 없는 호출자(직접 curl 등)는 'anon' 한 칸을 공유한다.
+   ★★이 'anon' 을 «구멍»으로 읽고 되돌리려는 사람이 나올 것이다. 그러지 마라 —
+     ⑴ 헤더 없는 호출자를 «거절»하면 직접 HTTP 로 부르는 도구·검사가 통째로 죽는다.
+     ⑵ 그들을 한 칸에 모으는 것은 «예전과 정확히 같다» — 이 판이 그들을 더 나쁘게 만들지 않는다.
+     ⑶ 막으려던 것은 «브리지를 쓰는 서로 다른 대화»이고, 그건 이제 갈렸다.
+     ⇒ 더 조이려면 「헤더 없으면 거절」이 아니라 「브리지가 반드시 보내게」 쪽이 맞다(이미 그렇다).
+   ⛔Map 이 무한히 자라지 않게 상한을 둔다(오래된 것부터 버린다). */
+const _CONFIRM_MAX = 64;
+const _confirmedByCaller = new Map();
+const { AsyncLocalStorage } = require('node:async_hooks');
+const _callerCtx = new AsyncLocalStorage();
+function _callerId() { try { return _callerCtx.getStore() || 'anon'; } catch (_) { return 'anon'; } }
+function _getConfirmed() { return _confirmedByCaller.get(_callerId()) || null; }
+function _setConfirmed(v) {
+  const k = _callerId();
+  if (!v) { _confirmedByCaller.delete(k); return; }
+  _confirmedByCaller.delete(k);                       // 재삽입해서 «최근 것»으로
+  _confirmedByCaller.set(k, v);
+  while (_confirmedByCaller.size > _CONFIRM_MAX) {
+    _confirmedByCaller.delete(_confirmedByCaller.keys().next().value);
+  }
+}
 
 /** 거절 문구에 «이름»을 실어 준다 — id 만으론 사람이 자기 프로젝트인지 못 알아본다. */
 function _projectName(pid) {
@@ -442,7 +542,19 @@ function _projectGate(toolName, args) {
   const selfArg = _SELF_TARGET_ARG.get(toolName);
   if (selfArg) {
     const v = a[selfArg];
-    if (typeof v === 'string' && /^proj_\d+$/.test(v)) return null;
+    /* ⛔2026-09-07: 「지목했으니 갈음한다」를 «파괴» 도구에까지 주면 안 된다.
+       duplicate 는 지목이 틀려도 «사본이 하나 더 생길» 뿐이지만, delete 는 지목이 틀리면
+       «남의 프로젝트가 사라진다». 되돌릴 수 있느냐(휴지통)와 별개로, 확정 없이 파괴가
+       나가면 「어느 프로젝트를 보고 있었나」를 아무도 모른 채 지우는 것이 된다.
+       ⇒ ★지목형 갈음은 «비파괴»에만. 파괴는 확정(open_project)을 «지나야» 한다.
+         (F3-7 이 이걸 잡았다 — 내가 처음에 delete 를 갈음 대상으로 넣었고 검사가 빨강을 냈다.) */
+    /* ⛔2026-09-07: 「지목했으니 갈음한다」를 «프로젝트 단위 쓰기»에 주면 안 된다.
+       delete 는 파괴라 명백하고, rename 도 «남의 프로젝트 이름이 바뀌는» 일이다.
+       duplicate 는 지목이 틀려도 «사본이 하나 더 생길» 뿐이라 다르다.
+       ⇒ 축은 「파괴냐」가 아니라 ★「지목이 틀렸을 때 «남의 것이 변하느냐»」다. */
+    const projectWrite = (toolName === 'delete_project' || toolName === 'rename_project');
+    const destructive = projectWrite;
+    if (!destructive && typeof v === 'string' && /^proj_\d+$/.test(v)) return null;
   }
 
   const active = _activeProjectId();
@@ -459,7 +571,7 @@ function _projectGate(toolName, args) {
   }
 
   if (!active) {
-    _confirmedProject = null;
+    _setConfirmed(null);
     return {
       ok: false, code: 'NO_ACTIVE_PROJECT', tool: toolName,
       activeProject: null, activeProjectName: null,
@@ -472,7 +584,7 @@ function _projectGate(toolName, args) {
 
   if (hasExpected) {
     if (expected !== active) {
-      _confirmedProject = null;
+      _setConfirmed(null);
       return {
         ok: false, code: 'PROJECT_MISMATCH', tool: toolName,
         activeProject: active, activeProjectName: _projectName(active),
@@ -481,14 +593,15 @@ function _projectGate(toolName, args) {
         hint: `NOTHING was written. Either call open_project("${expected}") first (then retry), or — if you really meant the project that is open — use expectedProject:"${active}". Tell the user which one you are about to change.`,
       };
     }
-    _confirmedProject = active;   // ★명시 지목 = 확정. 이후 같은 대화의 호출은 인자 없이 통과한다.
+    _setConfirmed(active);   // ★명시 지목 = 확정. 이후 «같은 호출자»의 호출은 인자 없이 통과한다.
     return null;
   }
 
-  if (_confirmedProject && _confirmedProject === active) return null;   // sticky 유효
+  const _conf = _getConfirmed();
+  if (_conf && _conf === active) return null;   // sticky 유효 (★이 호출자의 것만)
 
-  const stale = (_confirmedProject && _confirmedProject !== active) ? _confirmedProject : null;
-  _confirmedProject = null;
+  const stale = (_conf && _conf !== active) ? _conf : null;
+  _setConfirmed(null);
   const nm = _projectName(active);
   return {
     ok: false, code: 'PROJECT_NOT_CONFIRMED', tool: toolName,
@@ -631,7 +744,7 @@ let _spacingOwnTipSeq = null;
    ★1차 방어는 「히스토리가 움직였나」(호출부)이고, 이건 그게 뚫렸을 때의 2차 방어다. */
 const _SPACING_EXEMPT = new Set([
   'normalize_spacing',      // 감수가 감수를 부르는 고리
-  'open_project', 'create_project', 'duplicate_project',
+  'open_project', 'create_project', 'duplicate_project', 'delete_project',
 ]);
 
 function _scheduleSpacingAudit(toolName) {
@@ -1133,7 +1246,12 @@ function _registerDefaultTools() {
       return { ok: true, newProjectId: r.newProjectId, newName: r.newName };
     },
     {
-      description: 'Duplicate a Goditor project — full copy (proj.json + assets/images + claude-pm folder), re-keyed to a fresh project id. sourceProjectId optional (defaults to the active project). Use to branch a base template into a new product project. Returns {newProjectId, newName}. Does NOT open it; the user opens it in the editor.',
+      /* ⛔예전 설명은 「full copy (… + claude-pm folder)」였는데 ★거짓이었다 —
+           _duplicateProjectImpl 은 images/·assets/ 만 옮긴다(claude-pm 은 안 따라온다).
+         ★거짓인 것과 기능이 좁은 것은 «별개»고, 거짓은 먼저 멈춘다.
+           이 문장은 «클로드가 읽고 사용자에게 옮기는» 말이라 무겁다 — 사용자는
+           「메모까지 복사됐다」고 «듣는다». (동작 확대는 별건 — 참조 무결성부터 재야 한다) */
+      description: 'Duplicate a Goditor project — copies proj.json + assets/ + images/, re-keyed to a fresh project id. ⚠️Does NOT copy the claude-pm folder (section memos, checklists) — those stay only in the original. sourceProjectId optional (defaults to the active project). Use to branch a base template into a new product project. Returns {newProjectId, newName}. Does NOT open it; the user opens it in the editor.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1141,6 +1259,81 @@ function _registerDefaultTools() {
           newName: { type: 'string', description: '새 프로젝트 이름(생략 시 "원본명 (사본)").' }
         },
         required: []
+      }
+    }
+  );
+
+  /* ★프로젝트 «이름 수정» — 2026-09-07 신설. 그전엔 만들 수만 있고 «고칠 수가 없었다». */
+  registerTool(
+    'rename_project',
+    async ({ projectId, name } = {}) => {
+      if (!_projectOps || typeof _projectOps.rename !== 'function')
+        throw new Error('project ops not initialized (setProjectOps 에 rename 이 없다)');
+      if (!projectId || typeof projectId !== 'string')
+        throw new Error('projectId required (get it from list_projects)');
+      if (typeof name !== 'string' || !name.trim())
+        throw new Error('name required (non-empty string)');
+      const r = await _projectOps.rename({ projectId, name });
+      if (!r || r.ok === false) { const e = new Error((r && r.error) || 'rename failed'); e.code = r && r.code; throw e; }
+      return { ok: true, projectId: r.projectId, name: r.name,
+               previousName: r.previousName, changed: r.changed !== false };
+    },
+    {
+      description: 'Rename a project (its display name in the gallery). Takes projectId directly — does NOT act on the active project. Non-destructive.',
+      inputSchema: { type: 'object',
+        properties: { projectId: { type: 'string', description: 'proj_xxx (from list_projects)' },
+                      name: { type: 'string', description: '새 이름(1~100자)' } },
+        required: ['projectId', 'name'] }
+    }
+  );
+
+  /* ★프로젝트 «삭제» — 2026-09-07 신설. 현빈 지시.
+     왜 없었나: 도구 33개에 삭제가 «없었다». 그래서 프로젝트를 치우려면 사람이 파일시스템에서
+     rm 해야 했고, 그러면 앱이 그걸 «모르고» activeProjectId 가 죽은 id 를 계속 가리켰다(실측).
+     ⇒ ★「MCP 로 만든 것을 MCP 로 못 치운다」가 실물로 확인된 자리다.
+
+     설계 결정 셋(전부 근거가 있다):
+     ⑴ ★휴지통으로 옮긴다 — 영구삭제 «아니다». 되돌릴 수 있으면 위험 등급이 한 칸 내려간다.
+     ⑵ ★마지막 프로젝트도 지울 수 있다. 갤러리(사람 화면)에 그 제약이 없고, 0개 상태를 앱이
+        이미 다룬다(「아직 프로젝트가 없어요」 — 실측). 도구가 사람보다 빡빡하면 «불일치»다.
+        ⚠️`delete_section` 이 마지막 섹션을 막는 것과 «다른 사정»이다 — 섹션 0개는 편집기가
+        빈 껍데기가 되지만, 프로젝트 0개는 갤러리가 정상 안내를 띄운다.
+     ⑶ ⛔`expectedProject` 안전벨트를 «안» 붙인다. 그 벨트는 「대상을 지목 «안» 하는 도구」
+        (delete_section·delete_block 은 「지금 열린 것」에서 지운다)를 위한 것이다.
+        이 도구는 projectId 를 «직접 지목»하므로 지목한 걸 또 확인할 이유가 없다. */
+  registerTool(
+    'delete_project',
+    async ({ projectId } = {}) => {
+      if (!_projectOps || typeof _projectOps.delete !== 'function')
+        throw new Error('project ops not initialized (setProjectOps 에 delete 가 없다 — 앱 버전이 낡았나?)');
+      if (!projectId || typeof projectId !== 'string')
+        throw new Error('projectId required (get it from list_projects). 예: "proj_1788754539358"');
+      const r = await _projectOps.delete({ projectId });
+      if (!r || r.ok === false) {
+        const e = new Error((r && r.error) || 'delete failed');
+        e.code = r && r.code; throw e;
+      }
+      return {
+        ok: true, projectId: r.projectId, trashed: true,
+        wasActive: r.wasActive, activeCleared: r.activeCleared,
+        activeProject: _activeProjectId(),
+        hint: r.wasActive
+          ? '★지운 것이 «활성»이었다 — 활성을 비웠다. 편집을 이어가려면 open_project 로 다른 프로젝트를 열어라.'
+          : '활성 프로젝트는 그대로다.',
+        note: '휴지통으로 옮겼다(영구삭제 아님). 되돌리려면 macOS 휴지통에서 복원해라.',
+      };
+    },
+    {
+      description: 'Delete a project — DESTRUCTIVE but RECOVERABLE: the project folder is moved to the macOS Trash, not erased. '
+        + 'Takes projectId directly (from list_projects), so it does NOT act on the "active" project and needs no expectedProject guard. '
+        + 'The last remaining project CAN be deleted (the gallery shows an empty-state screen). '
+        + 'If the deleted project was the active one, the active target is cleared — open_project another one before editing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string', description: 'proj_xxx to delete (from list_projects). 휴지통으로 이동한다.' }
+        },
+        required: ['projectId']
       }
     }
   );
@@ -1287,7 +1480,20 @@ function _registerDefaultTools() {
       }
 
       // Fallback: 직접 NOTES.md / project.meta.json 스캔 (PM-B 실제 파일명)
-      const folder = projectFolder || _getProjectsDir();
+      /* ⛔여기가 «뿌리를 아예 안 쓰는 우회로»였다 — 호출자가 준 절대경로를 그대로 읽어
+           `<userData>/accounts/acct_철수…/…/claude-pm` 하나면 남의 계정 메모·제목이 나왔다.
+         ★계정별 폴더로 가른 의미가 이 한 줄로 사라진다. 같은 파일의 export_sections 는
+           outDir 을 검사하는데(isAbsolute+statSync) 여기만 «검사가 0줄»이었다.
+         ⇒ 현재 계정 뿌리 «안»으로 봉쇄한다. 밖을 가리키면 실행하지 않는다. */
+      const root = _getProjectsDir();
+      const folder = projectFolder || root;
+      const realRoot = path.resolve(root);
+      const realFolder = path.resolve(folder);
+      if (realFolder !== realRoot && !realFolder.startsWith(realRoot + path.sep)) {
+        return { ok: false, code: 'FOLDER_OUT_OF_ROOT',
+          error: 'list_memories 는 현재 계정의 프로젝트 폴더 안만 읽습니다.',
+          hint: 'Pass a folder inside the active account\'s projects directory, or omit projectFolder to use it.' };
+      }
       if (!fs.existsSync(folder)) {
         return { folder, memories: [], note: 'folder not found' };
       }
@@ -1904,7 +2110,7 @@ function _registerDefaultTools() {
   // PM update_section — 섹션 속성 변경 (배경 등)
   registerTool(
     'update_section',
-    async ({ sectionId, bg, ...rest } = {}) => {
+    async ({ sectionId, bg, name, ...rest } = {}) => {
       if (!sectionId || !sectionId.startsWith('sec_')) throw new Error('sectionId required (sec_xxx)');
       if (bg !== undefined && bg !== null && !/^#?[0-9a-fA-F]{3,8}$|^transparent$|^rgb/.test(String(bg))) {
         throw new Error(`invalid bg: ${bg}`);
@@ -1917,25 +2123,32 @@ function _registerDefaultTools() {
       //     «했다»고 답한다. 「도구가 없다」가 「조용한 거짓 성공」으로 둔갑하던 자리다.
       // ★거절은 곧 «안내»여야 한다 — 무엇을 넣을 수 있는지, 그리고 무엇이 «아예 안 되는지»를
       //   같이 말하지 않으면 클로드는 title·label 로 갈아 끼우며 같은 자리를 돈다.
-      if (bg === undefined) {
+      /* ★2026-09-07 «개통»: name 을 받는다. 아침엔 이 자리가 「이름은 MCP 로 못 바꾼다」고
+         «말하게만» 막아 둔 곳이었다 — 도구가 없었으니 그게 최선이었다. 이제 있으니 그 문장을 «지운다».
+         ⇒ ★거절 문구를 고칠 땐 «기능이 생겼는지»부터 봐라. 안 그러면 되는 걸 안 된다고 말한다. */
+      if (name !== undefined && (typeof name !== 'string' || !name.trim()))
+        throw new Error('name must be a non-empty string (공백만은 안 된다)');
+      if (typeof name === 'string' && [...name].length > 50)
+        throw new Error(`name too long (${[...name].length} > 50)`);
+      if (bg === undefined && name === undefined) {
         const unknown = Object.keys(rest);
         throw new Error(
-          'no fields to update — provide at least one of: bg'
+          'no fields to update — provide at least one of: bg, name'
           + (unknown.length ? ` (received but NOT supported: ${unknown.join(', ')})` : '')
-          + '. Section name/title is NOT settable via MCP — no tool changes it; rename it in the editor UI.'
         );
       }
       if (!_rendererInvoker?.updateSection) throw new Error('renderer bridge not ready');
-      return await _rendererInvoker.updateSection({ sectionId, bg });
+      return await _rendererInvoker.updateSection({ sectionId, bg, name });
     },
     {
-      description: 'Update section properties. ONLY bg (background color) can be changed — bg: hex (#000, #ffffff) or "transparent". '
-        + 'A section NAME/TITLE cannot be changed by this or any other MCP tool; do not pass name/title/label — the call will be refused.',
+      description: 'Update section properties: bg (background color) and/or name (the section label, e.g. "Section 02" → "히어로"). '
+        + 'bg: hex (#000, #ffffff) or "transparent". name: ≤50 chars, non-empty. At least one of the two is required.',
       inputSchema: {
         type: 'object',
         properties: {
           sectionId: { type: 'string', description: 'sec_xxx to update' },
-          bg: { type: 'string', description: 'background color (hex like #000000 or "transparent")' }
+          bg: { type: 'string', description: 'background color (hex like #000000 or "transparent")' },
+          name: { type: 'string', description: '섹션 이름(≤50자). 2026-09-07 신설 — 그전엔 «바꿀 방법이 없었다».' }
         },
         required: ['sectionId']
       }
@@ -7571,6 +7784,29 @@ async function _handleRpc(msg) {
        *   개별 도구 문자열은 손대지 않는다(다이어트 때와 같은 «디스패처 일괄» 패턴). */
       /* ★응답도 «유저 토큰»이다. pretty-print(들여쓰기 2칸)는 같은 정보에 15~25% 를 더 물린다.
        *   compact JSON 은 정보 손실 0 이라 그냥 이득이다(클라이언트는 JSON 으로 파싱한다). */
+      /* ★★도구 «원장» — 2026-09-07 신설(H4). 현빈 보안 논의에서 나온 첫 항목.
+         왜: 브리지 로그는 `method="tools/call"` «횟수»만 남긴다(실측 426건). 도구명도 인자도
+         호출자도 «없다» ⇒ 사고가 나도 「무엇이 새어나갔나」를 답할 수 없다.
+         고디터는 데이터가 «전부 로컬»이라 되물을 서버가 없다 — 원장이 유일한 사후 근거다.
+         ⛔값은 안 적는다(PII·본문 유출). «이름»과 «크기»만. 그거면 세는 데 충분하다. */
+      const _auditStart = Date.now();
+      const _audit = (outcome, extra) => {
+        try {
+          const dir = _stateDir();   // 이미 있는 헬퍼를 쓴다(경로 규칙을 두 벌로 만들지 않는다)
+          fs.mkdirSync(dir, { recursive: true });
+          const a = args || {};
+          fs.appendFileSync(path.join(dir, 'tool-audit.jsonl'), JSON.stringify({
+            at: new Date().toISOString(), tool: name, outcome,
+            argKeys: Object.keys(a).sort(),                       // ⛔이름만. 값은 «안» 적는다
+            argBytes: (() => { try { return JSON.stringify(a).length; } catch (_) { return null; } })(),
+            target: a.projectId || a.sectionId || a.blockId || a.id || null,  // 대상 id 는 «추적»에 필요하다
+            activeProject: (() => { try { return _activeProjectId(); } catch (_) { return null; } })(),
+            ms: Date.now() - _auditStart,
+            ...(extra || {}),
+          }) + '\n');
+        } catch (_) { /* 원장 실패가 도구를 막지 않는다 */ }
+      };
+
       const _reply = (r) => {
         /* ★경고 단계에서는 «조용히» 버리지 않고 한 줄을 붙인다 — 그게 이 결함의 핵심 피해다.
            ⛔기존 키는 안 건드린다(응답 «모양»을 바꾸면 다른 측정이 오염된다). 없던 키만 더한다.
@@ -7582,6 +7818,8 @@ async function _handleRpc(msg) {
           try { r = { ...r, warnings: [...(r.warnings || []), _unknownArgWarning(name, _unknown)] }; }
           catch (_) { /* 경고 실패가 응답을 막지 않는다 */ }
         }
+        try { _audit(r && r.ok === false ? 'refused' : 'ok',
+                     r && r.code ? { code: r.code } : null); } catch (_) {}
         return ok({ content: [{ type: 'text', text: JSON.stringify(r) }], isError: false });
       };
       /* ★«스키마에 없는 인자»를 여기 «한 자리»에서 다룬다 (2026-09-07 g-mcpmgr).
@@ -7613,6 +7851,12 @@ async function _handleRpc(msg) {
       }
       /* ★프로젝트 «싱크» 게이트 — 대상이 확정 안 된 쓰기는 «실행 전에» 거절한다(_projectGate 주석 참고).
        *   여기가 유일한 배선 자리다: 도구를 새로 더해도 _TARGET_FREE 에 안 적으면 «자동으로» 게이트를 탄다. */
+      /* ★★로그인 게이트를 «가장 먼저» 건다(현빈 지시). 프로젝트 확정 게이트보다 «앞»이다 —
+         로그인이 없으면 어느 프로젝트인지 따질 이유도 없다.
+         ⛔단 «순수 진단»은 통과시킨다: 로그인 상태를 물어볼 통로까지 막으면 클로드가
+           「왜 안 되는지」조차 못 알아낸다(막힌 이유를 «말할 수 있어야» 한다). */
+      const _authRefusal = _AUTH_FREE.has(name) ? null : _authGate(name);
+      if (_authRefusal) return _reply(_authRefusal);
       const _gateRefusal = _projectGate(name, args);
       if (_gateRefusal) return _reply(_gateRefusal);
       /* ★open_project 가 성공하면 «그 대화 동안» 확정으로 남긴다(sticky). 실패(load_timeout 등)면 안 남긴다 —
@@ -7620,7 +7864,7 @@ async function _handleRpc(msg) {
       const _noteConfirmed = (r) => {
         try {
           if (name === 'open_project' && r && r.ok !== false) {
-            _confirmedProject = (r.activeProjectId || r.projectId) || null;
+            _setConfirmed((r.activeProjectId || r.projectId) || null);
           }
         } catch (_) {}
         return r;
@@ -7723,6 +7967,23 @@ function _createServer() {
         activeProject: _fromBrowser ? undefined
           : (() => { try { return _activeProjectId(); } catch (_) { return null; } })(),
         tokenFile: _fromBrowser ? undefined : _tokenFilePath,
+        /* ★계정별 프로젝트 격리가 걸렸는지 — 「0건」을 «격리»와 «고장»으로 가르는 표식.
+           지문은 계정키의 해시 8자다(이메일도 계정키도 여기 안 싣는다).
+           브라우저 경계는 위와 같다 — 신원 표식이라 Origin 있는 요청엔 안 준다. */
+        ...(_fromBrowser ? {} : (() => {
+          try {
+            const a = (typeof _authProbe === 'function') ? _authProbe() : null;
+            if (!a || a.accountScoped === undefined) return {};
+            /* ⛔필드를 «만들고 배선을 안 하면» 진단이 조용히 사라진다 —
+                 실제로 accountUnresolved 를 main.js 에 넣고 여기서 안 실어 undefined 였다.
+                 ★「0건」이면 「못 잰 것 아닌가」부터 의심하라는 그 규칙이 «필드»에도 적용된다. */
+            return {
+              accountScoped: !!a.accountScoped,
+              accountUnresolved: !!a.accountUnresolved,   // 「계정을 못 알아냈다」 — 격리 폴더에 있다
+              accountFingerprint: a.accountFingerprint || null,
+            };
+          } catch (_) { return {}; }
+        })()),
         ...(_fromBrowser ? { note: 'cross-origin caller: activeProject/tokenFile omitted' } : {})
       }));
       return;
@@ -7745,7 +8006,10 @@ function _createServer() {
       req.on('end', async () => {
         try {
           const msg = body ? JSON.parse(body) : {};
-          const result = await _handleRpc(msg);
+          /* ★호출자 식별 — 예전엔 Mcp-Session-Id 가 CORS 허용 목록에만 있고 «읽는 코드가 0건»이었다.
+             그래서 확정(sticky)이 호출자를 못 가르고 프로세스 전체가 한 칸을 썼다. */
+          const _cid = String(req.headers['mcp-session-id'] || '').slice(0, 128) || 'anon';
+          const result = await _callerCtx.run(_cid, () => _handleRpc(msg));
           res.writeHead(200, { 'Content-Type': 'application/json' });
           // notification은 null → 빈 객체로 반환
           res.end(JSON.stringify(result === null ? {} : result));
@@ -7846,6 +8110,13 @@ function setProjectOps(ops) {
 }
 
 module.exports = {
+  // ★계정별 프로젝트 뿌리 주입 — 경로 조립기를 둘로 만들지 않기 위한 것
+  setProjectsRoot,
+  /* ⚠️검사 전용 — «폴백이 격리를 되돌리는지»는 이 두 함수를 직접 흔들어야 잰다.
+     도구 경유로는 그 경로에 못 닿아서(read_project 는 활성 프로젝트만 본다) 검사가 장식이 된다. */
+  __test_getProjectsDir: _getProjectsDir,
+  __test_readProjectFile: _readProjectFile,
+  setAuthProbe,
   startMcpServer,
   stopMcpServer,
   registerTool,

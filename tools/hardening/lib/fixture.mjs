@@ -94,7 +94,7 @@ const canvasHtml = (n, marker) =>
  * @param padKb    페이지당 더미 바이트(KB). 저장 시간을 «실측 가능하게» 만드는 손잡이.
  */
 export function makeProject(userDataDir, id, { sections = 3, padKb = 0, name = 'H7 fixture' } = {}) {
-  const projectsDir = path.join(assertWritableTarget(userDataDir), 'projects');
+  const projectsDir = path.join(assertWritableTarget(userDataDir), 'projects');  // [뿌리-하네스] 비로그인 픽스처 전용 — 위 경고 참조
   const dir = path.join(projectsDir, id);
   fs.mkdirSync(path.join(dir, 'proj_history'), { recursive: true });
   let canvas = '';
@@ -120,7 +120,7 @@ export function makeProject(userDataDir, id, { sections = 3, padKb = 0, name = '
  */
 export function copyCorpus(userDataDir, { src = CORPUS_LARGE, id = 'proj_h7_corpus', withAssets = false } = {}) {
   if (!fs.existsSync(src)) throw new HarnessError(`코퍼스가 없다: ${src}`);
-  const projectsDir = path.join(assertWritableTarget(userDataDir), 'projects');
+  const projectsDir = path.join(assertWritableTarget(userDataDir), 'projects');  // [뿌리-하네스] 비로그인 픽스처 전용 — 위 경고 참조
   const dst = path.join(projectsDir, id);
   fs.mkdirSync(dst, { recursive: true });
   const t0 = Date.now();
@@ -190,6 +190,13 @@ export function makeUserDataDir(tag) {
   const ud = path.join(os.homedir(), `srv-지디_qa-ud-h7-${tag}`);
   assertWritableTarget(ud);
   fs.rmSync(ud, { recursive: true, force: true });
-  fs.mkdirSync(path.join(ud, 'projects'), { recursive: true });
+/* ⚠️★[뿌리-하네스] 이 하네스는 «비로그인» 픽스처를 쓴다 — 그래서 앱이 레거시 공용 풀
+   (<userData>/projects)에 앉고, 여기서 그 경로를 조립하는 것이 «오늘은» 맞다.
+   ⛔그러나 하네스에 «로그인»을 넣는 날 이 줄들은 전부 틀린 곳을 가리킨다:
+     로그인하면 진짜 프로젝트 뿌리는 <userData>/accounts/<계정키>/projects 로 옮겨가므로
+     ★릴리스 게이트가 «빈 폴더»를 재게 된다(게이트가 통과하는데 아무것도 안 잰 상태).
+   ⇒ 로그인을 넣을 땐 이 네 자리(fixture.mjs:193 · run.mjs:149,184 · selfcheck.mjs:92)를 같이 옮겨라.
+   ⇒ 검사 M10 이 이 표식으로만 예외를 준다 — 표식을 지우면 M10 이 알린다. */
+  fs.mkdirSync(path.join(ud, 'projects'), { recursive: true });  // [뿌리-하네스] 비로그인 픽스처 전용 — 위 경고 참조
   return ud;
 }

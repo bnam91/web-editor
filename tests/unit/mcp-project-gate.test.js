@@ -15,6 +15,12 @@ const assert = require('node:assert/strict');
 const http = require('http');
 
 const srv = require('../../main/claude-pm/mcp-server.js');
+/* ★로그인 프로브를 «꽂는다» — 2026-09-07 부터 인증 게이트가 fail-closed 다(못 재면 거절).
+   예전엔 미주입이 «통과»라 안 꽂아도 돌았는데, 그 관대함이 곧 「게이트가 증발하는 경로」였다
+   (프로브와 게이트는 «같은 바이너리»라 「버전이 낡아 주입이 없다」는 논거가 성립하지 않는다).
+   ⛔이 줄을 지우면 도구들이 AUTH_PROBE_MISSING 으로 죽는다 — 회귀가 아니라 정직한 신호다. */
+srv.setAuthProbe(() => ({ authed: true }));
+
 
 const PORT = 9411;                    // ⛔9345~9365 밖
 let ACTIVE = null;                    // 「편집기에 열려 있는 프로젝트」 — 테스트가 사람 역할을 한다

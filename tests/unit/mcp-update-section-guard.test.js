@@ -37,12 +37,26 @@ const reached = (r) => (r.rendererCalls || []).some(c => c.method === 'updateSec
  *  ⚠️처음에 rawText 만 보고 «응답이 빈 문자열»이라 헤맸다. 채널을 먼저 확인해라. */
 const said = (r) => JSON.stringify(r.error || r.result || r.rawText || '');
 
-test('G1 ★ {sectionId, name} 은 «거절»된다 — 예전엔 아무 말 없이 ok 였다', async () => {
+test('G1 ⚠️★2026-09-07 «검사를 고쳤다» — name 은 이제 «된다»(기능이 생겼다)', async () => {
+  // ⛔이 검사는 원래 「{sectionId, name} 은 거절된다」였다. 그때는 옳았다 —
+  //   이름을 바꾸는 도구가 «아예 없어서» 조용한 거짓 성공을 막는 게 최선이었다.
+  //   2026-09-07 오후에 update_section 이 name 을 «받게» 됐으므로 그 기대가 «낡았다».
+  //   ★검사가 빨강이 됐을 때 「코드가 틀렸나」가 아니라 「검사가 옳았나」를 먼저 물어 고친 자리다.
+  //   ⇒ 지금 지켜야 할 것은 「거절」이 아니라 「빈 호출은 여전히 막히나」다(아래 G1b).
   H.reset();
   const r = await H.call('update_section', { sectionId: 'sec_fixt_1', name: '새이름' });
   const err = said(r);
+  console.error(`  {sectionId,name} → ${err.slice(0, 140)}`);
+  assert.ok(!/no fields to update/.test(err), `★name 이 이제 되는데 아직 거절한다: ${err.slice(0,200)}`);
+  assert.ok(reached(r), '★거절도 안 하고 렌더러에도 «안» 갔다 — 그럼 아무 일도 안 한 것이다');
+});
 
-  console.error('  ┌─ update_section({sectionId, name}) ───────────────');
+test('G1b ★그래도 «빈 호출»은 막힌다 (원래 이 검사가 지키려던 것)', async () => {
+  H.reset();
+  const r = await H.call('update_section', { sectionId: 'sec_fixt_1' });
+  const err = said(r);
+
+  console.error('  ┌─ update_section({sectionId}) — 아무 필드도 없음 ──');
   console.error(`  │ 응답        : ${err.slice(0, 200)}`);
   console.error(`  │ 렌더러 도달 : ${reached(r)}`);
   console.error('  └──────────────────────────────────────────────────');
@@ -55,17 +69,17 @@ test('G1 ★ {sectionId, name} 은 «거절»된다 — 예전엔 아무 말 없
 
 test('G2 ★거절이 곧 «안내»여야 한다 — 안 그러면 클로드가 같은 자리를 돈다', async () => {
   H.reset();
-  const r = await H.call('update_section', { sectionId: 'sec_fixt_1', name: 'x', title: 'y' });
+  const r = await H.call('update_section', { sectionId: 'sec_fixt_1', title: 'y', zzz: 1 });
   const err = said(r);
 
   // ⑴ 무엇을 «넣을 수 있는지»
-  assert.ok(/at least one of: bg/.test(err), `쓸 수 있는 필드를 안 알려준다: ${err.slice(0, 300)}`);
+  assert.ok(/at least one of: bg, name/.test(err), `쓸 수 있는 필드를 안 알려준다: ${err.slice(0, 300)}`);
   // ⑵ 무엇을 «받았는데 안 쓰는지» — 오타·환각 인자가 여기서 드러난다
-  assert.ok(/name/.test(err) && /title/.test(err),
+  assert.ok(/title/.test(err) && /zzz/.test(err),
     `안 쓰는 인자를 이름으로 안 짚어준다: ${err.slice(0, 300)}`);
   // ⑶ ★무엇이 «아예 안 되는지» — 이게 없으면 title→label→heading 으로 갈아 끼우며 돈다
-  assert.ok(/NOT settable via MCP/i.test(err),
-    `「이름은 MCP 로 못 바꾼다」를 안 말해준다 — 순환이 안 끊긴다: ${err.slice(0, 300)}`);
+  // ⛔이 줄은 «지웠다» — 이제 name 이 되므로 「못 바꾼다」를 말하면 «거짓»이다.
+  //   ★거절 문구를 고칠 땐 «기능이 생겼는지»부터 봐라(2026-09-07).
 });
 
 test('G3 정상 호출은 여전히 «통과»한다 (반대방향 오탐 방지 — 경계는 양쪽을 다 잰다)', async () => {
