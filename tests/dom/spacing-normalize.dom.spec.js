@@ -174,3 +174,47 @@ test('DOM-④ 사람이 손대면 그 갭은 «수동»이 되고, 그 다음 �
   const h = await page.evaluate((i) => document.getElementById(i).style.height, id);
   expect(h).toBe('33px');   // ★되돌리면 도와준 게 아니라 뺏은 것이다
 });
+
+/* ── DOM-⑤ ★«화면으로» 본다 ──────────────────────────────────────────────
+ * 「DOM 에 있다」 ≠ 「읽힌다」. 갭은 «보이지 않는 것의 크기»라서 숫자만 보면 속기 쉽다.
+ * 앱의 진짜 CSS 를 얹고 감수 전/후를 그림으로 남긴다.
+ * ⛔앱을 안 띄운다 · ⛔OS 전체 화면 캡처 아님(헤드리스 페이지 스크린샷) · 포커스 무접촉.
+ * 산출물: test-results/spacing-before.png · spacing-after.png                        */
+test('DOM-⑤ 감수 전/후를 «진짜 CSS 로» 그려 남긴다 (숫자 말고 눈으로)', async ({ page }, testInfo) => {
+  const CSS = ['editor-base.css', 'editor-canvas.css', 'editor-blocks.css', 'editor-layout.css']
+    .map((f) => fs.readFileSync(path.join(REPO, 'css', f), 'utf8')).join('\n');
+  await page.setViewportSize({ width: 960, height: 1400 });
+  await page.setContent(`<!doctype html><html><head><style>${CSS}</style>
+    <style>body{background:#f4f4f4;margin:0;padding:24px}#canvas{width:860px;background:#fff}
+           .gap-block{outline:1px dashed #d33;outline-offset:-1px}</style></head>
+    <body>${FIXTURE}</body></html>`);
+  await page.addScriptTag({ content: fs.readFileSync(SRC, 'utf8') });
+
+  const shot = async (name) => {
+    const buf = await page.locator('#canvas').screenshot();
+    await testInfo.attach(name, { body: buf, contentType: 'image/png' });
+    const out = path.join(REPO, 'test-results', name + '.png');
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, buf);
+    return out;
+  };
+  const beforePng = await shot('spacing-before');
+
+  const st = await page.evaluate(() => window.readSpacingSequence());
+  const sections = [];
+  for (const sec of st.sections) {
+    const plan = SPACING.normalizePlan(sec.items);
+    if (plan.ops.length) sections.push({ sectionId: sec.sectionId, ops: plan.ops });
+  }
+  await page.evaluate((p) => window.applySpacingOps(p), { sections });
+  const afterPng = await shot('spacing-after');
+
+  // 「그렸다」를 «파일이 생겼다»로 확인한다 — ok:true 는 증거가 아니다.
+  expect(fs.statSync(beforePng).size).toBeGreaterThan(1000);
+  expect(fs.statSync(afterPng).size).toBeGreaterThan(1000);
+  console.log(`  전: ${beforePng}\n  후: ${afterPng}`);
+
+  // 감수는 «키를 늘린다»(빠진 갭이 채워지므로). 높이가 그대로면 아무 일도 안 일어난 것이다.
+  const h = await page.evaluate(() => document.getElementById('sec_1').getBoundingClientRect().height);
+  expect(h).toBeGreaterThan(0);
+});
