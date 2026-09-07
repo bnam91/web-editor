@@ -569,3 +569,46 @@ test('★대문자 mime·파라미터는 «저장»이 못 읽으므로 거절�
     assert.equal(e.code, 'IMAGE_INVALID');
   }
 });
+
+/* ══ 「선 옮기기」 변이가 살아남아 드러난 구멍 둘 (2026-09-07) ══
+   ⛔변이를 «선 끊기»로만 짜면 자명하게 빨강이라 「한쪽만 새는」 자리를 못 잡는다(지디).
+   아래 둘은 «살짝 어긋나게» 한 변이가 초록으로 살아남아 발견된 것이다. */
+
+test('★EOI 탐색은 SOS «세그먼트 뒤»에서 시작한다 — 세그먼트 «안»의 ff d9 에 속으면 안 된다', () => {
+  // 변이 「indexOf(ffd9, i) → indexOf(ffd9, sos)」가 초록으로 살아남아 드러난 자리.
+  // SOS 세그먼트 페이로드 안에 ff d9 바이트가 들어 있으면, 탐색을 sos 부터 하면 그걸 EOI 로 오인해
+  // «스캔이 잘린» 파일을 통과시킨다.
+  const sos = outerScanStart(REAL_JPEG);
+  assert.ok(sos > 0, '전제: SOS 를 찾아야 한다');
+  // SOS 세그먼트를 ff d9 를 품은 것으로 «키운다»(길이 필드도 같이 늘린다)
+  let i = 2, sosAt = -1;
+  while (i + 3 < REAL_JPEG.length) {
+    if (REAL_JPEG[i] !== 0xff) { i++; continue; }
+    const m = REAL_JPEG[i + 1];
+    if (m === 0xff) { i++; continue; }
+    if (m === 0xd8 || (m >= 0xd0 && m <= 0xd7) || m === 0x01) { i += 2; continue; }
+    const L = REAL_JPEG.readUInt16BE(i + 2);
+    if (m === 0xda) { sosAt = i; break; }
+    i = i + 2 + L;
+  }
+  const segLen = REAL_JPEG.readUInt16BE(sosAt + 2);
+  const head = Buffer.from(REAL_JPEG.subarray(0, sosAt + 2 + segLen));
+  const pad = Buffer.from([0xff, 0xd9, 0x00, 0x00]);          // 세그먼트 «안»에 심는 ff d9
+  head.writeUInt16BE(segLen + pad.length, sosAt + 2);
+  const crafted = Buffer.concat([head, pad, REAL_JPEG.subarray(sosAt + 2 + segLen, sosAt + 2 + segLen + 30)]);
+  const e = grab(() => _assertImageSrcIntact('data:image/jpeg;base64,' + crafted.toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'JPEG_NO_EOI',
+    '★스캔 이후에 EOI 가 없으므로 거절해야 한다 — 세그먼트 안의 ff d9 는 EOI 가 아니다');
+});
+
+test('★파라미터는 «charset 말고도» 전부 거절한다', () => {
+  // 변이 「if (m[2]) → if (/;charset=/i.test(m[2]))」가 초록으로 살아남아 드러난 자리.
+  // 내 테스트가 charset 하나만 써서, 다른 파라미터는 통째로 새고 있었다.
+  for (const u of [
+    'data:image/png;x=1;base64,' + PNG_B64,
+    'data:image/png;foo=bar;base64,' + PNG_B64
+  ]) {
+    const e = grab(() => _assertImageSrcIntact(u, 'image'));
+    assert.equal(e.detail.reason, 'MIME_PARAMS_NOT_STORABLE', u.slice(0, 40));
+  }
+});
