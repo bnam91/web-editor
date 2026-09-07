@@ -293,6 +293,9 @@ function _getScale() {
 //   렌더러는 file:// origin 이고 커스텀 스킴은 cross-origin 이라 crossOrigin='anonymous' 로도
 //   «로드 자체가» 안 된다(실측). export 쪽이 이미 쓰는 assets:readAsDataUri IPC 로 우회한다.
 //   ⇒ 여기서 data: URI 로 바꿔 오면 same-origin 이라 오염되지 않는다.
+// ★TODO(별건): 이제 공용 문이 있다 — io/goya-asset-inline.js 의 goyaAssetToDrawableSrc().
+//   ⛔지금 갈아끼우지 마라: 여기는 실패 시 «원본 src» 를 돌려주고 공용 문은 «null» 을 돌려준다
+//   (실패 시맨틱이 다르다). 합치려면 호출부의 실패 처리를 같이 봐야 한다.
 async function _toDrawableSrc(src) {
   const info = parseGoyaAssetUrl(src);
   if (!info) return src;                       // data:/http(s)/blob: 는 그대로
