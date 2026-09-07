@@ -276,11 +276,22 @@ const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\
 
 test('Ⓓ ★훅은 «두 갈래가 갈리기 전»에 있다 — handler(args) 호출부가 전부 _noteSeq 안이다', () => {
   const src = stripComments(fs.readFileSync(path.join(REPO, 'main', 'claude-pm', 'mcp-server.js'), 'utf8'));
-  const lines = src.split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => /await handler\(args\)/.test(l));
+  /* ★2026-09-07 패턴 갱신: `await handler(args)` → `await _withParent(() => handler(args))`.
+       (프레임 «안»에 넣기 게이트가 들어오면서 호출부가 한 겹 감싸였다.)
+     ⛔`await` 를 패턴에 넣어 뒀더니 «0곳»이 나왔다 — 0곳이면 아래 naked 검사가 «빈 배열끼리»
+       비교라 자동 통과다. 그래서 lines.length >= 2 가드가 이 자리를 지켰다.
+     ⇒ 감싸개가 또 늘 수 있으니 «호출 자체»로 센다. */
+  const lines = src.split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => /handler\(args\)/.test(l));
   assert.ok(lines.length >= 2, `handler(args) 호출부를 ${lines.length}곳 찾았다 — 리팩터링됐나? 패턴을 갱신하라`);
   const naked = lines.filter(([, l]) => !/_noteSeq\s*\(/.test(l));
   assert.deepEqual(naked.map(([n, l]) => `${n}: ${l.trim()}`), [],
     '★_noteSeq 를 «안 거치는» 도구 호출부가 있다 — 그 갈래는 갭 감수도 undo 추적도 조용히 샌다');
+
+  /* ★parentId 게이트도 «두 갈래 다» 지나야 한다 — 한쪽만 감싸면 그 갈래는 parentId 를
+     조용히 무시하고 프레임 «밖»에 넣는다(그래도 ok:true 라 아무도 모른다). */
+  const noParent = lines.filter(([, l]) => !/_withParent\s*\(/.test(l));
+  assert.deepEqual(noParent.map(([n, l]) => `${n}: ${l.trim()}`), [],
+    '★_withParent 를 «안 거치는» 도구 호출부가 있다 — 그 갈래는 parentId 를 조용히 버린다');
 
   // 정의(function _scheduleSpacingAudit)는 빼고 «호출»만 센다.
   const hooks = [...src.matchAll(/(?<!function )_scheduleSpacingAudit\s*\(/g)];

@@ -3678,6 +3678,8 @@ app.whenReady().then(async () => {
       addGridBlock: _invokeRendererAddGridBlock,
       updateGridBlock: _invokeRendererUpdateGridBlock,
       readBlockState: _invokeRendererReadBlockState,   // ★「바꿨다」를 «되읽어» 대조하는 자리
+      setActiveFrame: _invokeRendererSetActiveFrame,   // ★«이 프레임 안에» 넣기 위한 자리
+      whereIsBlock: _invokeRendererWhereIsBlock,       // ★「정말 거기 들어갔나」를 화면에서 확인
       assetsList: _assetsListImpl,   // ★에셋 목록 — 앱에 list IPC 가 없어 여기서 디스크를 읽는다
       assetsTree: _invokeRendererAssetsTree,       // ★패널이 보는 «정본» 트리
       assetsMutate: _invokeRendererAssetsMutate,   // 폴더·URL·이름·삭제·이동·캔버스로
@@ -5772,6 +5774,116 @@ async function _assetsListImpl({ projectId } = {}) {
   }
   items.sort((a, b) => (a.name < b.name ? -1 : 1));
   return { ok: true, projectId: pid, dir, count: items.length, items };
+}
+
+/* ★★«이 프레임 안에 넣어줘» — 앱은 window._activeFrame 으로 그걸 정한다(이미 있는 기계다).
+   ⛔MCP 는 그걸 안 써서, parentId·frameId 같은 인자를 «6가지 이름으로» 줘도 전부 무시하고
+     ok 를 돌려줬다(2026-09-07 실측 — 조용한 거짓 성공).
+   ⇒ 여기서 «세우고», 도구가 끝나면 «반드시» 원복한다(finally). 안 그러면 사람이 다음에 클릭한
+     블록이 엉뚱한 프레임 안으로 들어간다.
+   ⛔앱이 스스로 거는 규칙을 «그대로» 따른다(insertAfterSelected 참조):
+     text-frame·banner-preset 외곽·shape frame 은 «안에 못 넣는다». 조용히 다른 데 넣지 말고 거절한다. */
+/* ★「정말 그 안에 들어갔나」를 «화면에서» 확인한다.
+   ⛔인자를 되읊으면 안 된다 — 실측(2026-09-07): 텍스트는 «자기 텍스트프레임»으로 감싸여
+     내가 지목한 프레임의 «형제»로 들어갔는데, 나는 placedInto 에 지목한 id 를 그대로 실어
+     「그 안에 넣었다」고 거짓말했다. 오늘 종일 잡은 그 병을 내가 만들었다. */
+async function _invokeRendererWhereIsBlock({ blockId, expectAncestor } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) return null;
+  const a = JSON.stringify(String(blockId || '')), b = JSON.stringify(String(expectAncestor || ''));
+  const js = `(() => {
+    try {
+      const el = document.getElementById(${a});
+      if (!el) return { found:false };
+      const chain = [];
+      for (let p = el.parentElement; p; p = p.parentElement) {
+        if (p.id) chain.push(p.id);
+        if (p.classList && p.classList.contains('section-block')) break;
+      }
+      const want = ${b};
+      return { found:true, chain: chain, parentId: chain[0] || null,
+               insideExpected: want ? chain.indexOf(want) >= 0 : null };
+    } catch (_) { return null; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(js, true); }
+  catch (_) { return null; }
+}
+
+async function _invokeRendererSetActiveFrame({ frameId, pin = true } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  const safe = frameId ? JSON.stringify(String(frameId)) : 'null';
+  const js = `(() => {
+    try {
+      const prev = (window._activeFrame && window._activeFrame.id) || null;
+      const fid = ${safe};
+      /* ★원복 전용 경로 — «핀을 반드시 걷는다».
+         ⛔예전 finally 는 prev 를 되세우려고 이 함수를 다시 불렀는데, 그러면 «핀이 다시 깔렸다».
+           그러면 사람이 다른 데를 클릭해도 계속 그 프레임 안으로 들어간다(앱을 망가뜨린 채 끝난다). */
+      if (${pin ? 'false' : 'true'}) {
+        try { delete window._activeFrame; } catch (_) {}
+        window._activeFrame = fid ? (document.getElementById(fid) || null) : null;
+        window.__mcpActiveFramePinned = null;
+        return { ok: true, prev: prev, set: fid, unpinned: true };
+      }
+      if (!fid) {
+        /* 원복(unpin) — 접근자를 걷고 «보통 속성»으로 되돌린다 */
+        try { delete window._activeFrame; } catch (_) {}
+        window._activeFrame = null;
+        window.__mcpActiveFramePinned = null;
+        return { ok: true, prev: prev, set: null, unpinned: true };
+      }
+      const el = document.getElementById(fid);
+      if (!el) return { ok:false, code:'NOT_FOUND', message:'frame not found: ' + fid, prev: prev };
+      if (!el.classList.contains('frame-block')) {
+        return { ok:false, code:'NOT_A_FRAME',
+          message: fid + ' 은(는) 프레임이 아닙니다 — 블록을 «안에» 넣을 수 있는 것은 frame-block 뿐입니다.',
+          prev: prev };
+      }
+      if (el.dataset && el.dataset.textFrame) {
+        return { ok:false, code:'TEXT_FRAME',
+          message:'텍스트 프레임은 «단순 wrapper»라 안에 직접 넣지 않습니다(앱도 그렇게 막습니다).',
+          hint:'Add the block to the section instead, or target a layout frame.', prev: prev };
+      }
+      if (el.dataset && el.dataset.bannerPreset) {
+        return { ok:false, code:'BANNER_PRESET',
+          message:'배너 프리셋 외곽은 «컴포넌트 단위»라 안에 자식을 직접 받지 않습니다.', prev: prev };
+      }
+      if (el.querySelector(':scope > .shape-block')) {
+        return { ok:false, code:'SHAPE_FRAME',
+          message:'도형 프레임은 «최소 단위»라 안에 넣지 않습니다.', prev: prev };
+      }
+      /* ★★프레임 자체에 .selected 가 붙어 있으면 앱은 «형제»로 넣는다
+           (insertAfterSelected: 「프레임 자체가 오브젝트로 선택된 상태 → 안이 아니라 뒤(형제)에 삽입」).
+         ⇒ 그건 «사람이 프레임을 클릭한» 맥락의 규칙이다. parentId 를 «명시»한 MCP 호출은
+           의도가 「안에」라서, 그 표시를 잠시 걷는다. ⛔원복은 부르는 쪽이 finally 로 한다. */
+      const wasSelected = el.classList.contains('selected');
+      if (wasSelected) el.classList.remove('selected');
+      /* 안에 «선택된 자식»이 있어도 그 뒤에 붙는다 — 그것도 걷어야 «맨 안»으로 들어간다 */
+      const selKids = [].slice.call(el.querySelectorAll('.selected'));
+      selKids.forEach(k => k.classList.remove('selected'));
+      /* ★★핀 — 「지우기 금지」.
+           앱의 addTextBlock 계열은 «자기 IIFE 안에서» selectSection 을 부르고,
+           selectSection → deselectAll(js/editor.js:2877) 이 window._activeFrame 에 null 을 넣는다.
+         ⇒ 핸들러 «밖»에서 세운 _activeFrame 은 «삽입 시점»엔 이미 없다.
+           (실측 2026-09-07: text·asset·divider 3/3 이 프레임 밖 섹션레벨로 떨어졌다.
+            .selected 를 걷는 것만으론 안 고쳐졌다 — 원인이 «선택»이 아니라 «소멸»이라서다.)
+         ⇒ selectSection 을 부르는 핸들러 18곳을 다 고치는 대신, 이 호출 «한 건 동안만»
+           null 대입을 무시하는 접근자로 바꾼다. 읽는 쪽(insertAfterSelected)은 그대로다.
+         ⛔원복(unpin = frameId:null)은 «부르는 쪽이 finally 로» 한다. 안 풀면 앱이 그 프레임에
+           갇힌다(사람이 다른 데를 클릭해도 계속 그 안에 들어간다). */
+      let _pin = el;
+      try { delete window._activeFrame; } catch (_) {}
+      Object.defineProperty(window, '_activeFrame', {
+        configurable: true, enumerable: true,
+        get() { return _pin; },
+        set(v) { if (v == null) return; _pin = v; }
+      });
+      window.__mcpActiveFramePinned = fid;
+      return { ok:true, prev: prev, set: fid, pinned: true, wasSelected: wasSelected, unselectedKids: selKids.length,
+               sectionId: (el.closest('.section-block') || {}).id || null,
+               childrenBefore: el.querySelectorAll(':scope > [id]').length };
+    } catch (e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
 }
 
 async function _invokeRendererReadBlockState({ blockId } = {}) {

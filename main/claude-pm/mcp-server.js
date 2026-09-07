@@ -874,7 +874,9 @@ function _slimCanvasState(raw, detail) {
         sectionId: s.sectionId,
         ...(s.name ? { name: s.name } : {}),
         blocks: (s.blocks || []).length,
-        ...((s.blocks || []).length ? { first: String((s.blocks[0] || {}).text || ('(' + ((s.blocks[0] || {}).type || 'block') + ')')).slice(0, 40) } : {})
+        ...((s.blocks || []).length ? { first: String((s.blocks[0] || {}).text || ('(' + ((s.blocks[0] || {}).type || 'block') + ')')).slice(0, 40) } : {}),
+        /* ★요약에서도 «중첩이 있나»는 알려준다 — 없으면 평평한 페이지로 오해한다 */
+        nested: (s.blocks || []).filter(b => b && b.parentId).length
       })),
       ...(rest > 0 ? { omittedSections: rest } : {}),
       note: 'summary only — call get_canvas_state(sectionId) for one section\'s blocks.'
@@ -888,7 +890,12 @@ function _slimCanvasState(raw, detail) {
       sectionId: s.sectionId,
       ...(s.name ? { name: s.name } : {}),
       blocks: (s.blocks || []).map(b => {
+        /* ★구조(parentId·depth)는 «내용»이 아니라 «뼈대»다 — 응답을 줄인다고 버리면
+             「이 프레임 안에 뭐가 있나」를 영영 못 본다(2026-09-07 실측: 여기서 버려지고 있었다).
+             값도 짧다(id 하나 + 정수 하나). 잘라야 할 것은 «글»이지 구조가 아니다. */
         const o = { blockId: b.blockId, type: b.type };
+        if (b.parentId) o.parentId = b.parentId;
+        if (b.depth) o.depth = b.depth;
         const t = String(b.text == null ? '' : b.text);
         if (t) o.text = t.length > _CANVAS_TEXT_CAP ? t.slice(0, _CANVAS_TEXT_CAP) + '…' : t;
         if (b.color) o.color = b.color;
@@ -8084,6 +8091,46 @@ async function _handleRpc(msg) {
         } catch (_) { return r; }   // ⛔관문이 도구를 죽이지 않는다(진단은 편의, 동작이 우선)
       };
 
+      /* ★★«이 프레임 안에 넣어줘» — parentId 를 받는 자리 (2026-09-07).
+         ⛔예전엔 parentId·frameId 를 «6가지 이름으로» 줘도 전부 조용히 무시하고 ok 를 돌려줬다.
+         ⇒ 앱의 window._activeFrame 을 «세우고» 도구를 돌린 뒤 «반드시» 원복한다.
+           원복을 빠뜨리면 사람이 다음에 만드는 블록이 엉뚱한 프레임 안으로 들어간다. */
+      const _withParent = async (run) => {
+        const wantsParent = /^add_(block|.*_block)$/.test(name) && args && args.parentId;
+        if (!wantsParent || !_rendererInvoker?.setActiveFrame) return await run();
+        const set = await _rendererInvoker.setActiveFrame({ frameId: String(args.parentId) });
+        if (!set || set.ok === false) {
+          return { ...set, ok: false, tool: name,
+            error: (set && set.message) || 'parentId 를 못 세웠습니다 — 아무것도 안 넣었습니다.',
+            hint: 'NOTHING was added. Pick a layout frame (get its id from get_canvas_state — blocks carry parentId/depth).' };
+        }
+        try {
+          const r = await run();
+          /* ★「정말 그 안에 들어갔나」를 «되읽어» 말한다 — 인자를 되읊지 않는다 */
+          /* ★「정말 그 안에 들어갔나」를 «화면에서» 읽어 말한다 — 인자를 되읊지 않는다.
+             실측: 텍스트는 자기 텍스트프레임으로 감싸여 «형제»로 들어가는데, 인자를 되읊으면
+             「그 안에 넣었다」고 거짓말이 된다(내가 그렇게 만들었다가 잡았다). */
+          try {
+            const bid = r && (r.blockId || Object.entries(r).find(([k, v]) => k.toLowerCase().endsWith('blockid') && typeof v === 'string')?.[1]);
+            if (bid && _rendererInvoker.whereIsBlock) {
+              const w = await _rendererInvoker.whereIsBlock({ blockId: bid, expectAncestor: String(args.parentId) });
+              if (w && w.found) {
+                if (w.insideExpected) return { ...r, placedInto: String(args.parentId), ancestors: w.chain };
+                return { ...r, ok: false, code: 'NOT_PLACED_INSIDE',
+                  error: `${bid} 는 ${args.parentId} «안»에 안 들어갔습니다 — 실제 부모는 ${w.parentId || '(섹션)'} 입니다.`,
+                  hint: 'The block WAS created, but not inside the frame you asked for (text blocks get wrapped in their own frame). Delete it or move it if that is wrong.',
+                  actualParent: w.parentId, ancestors: w.chain };
+              }
+            }
+          } catch (_) {}
+          return r;
+        } finally {
+          /* ★pin:false — «핀을 걷는» 원복이다. 그냥 prev 를 다시 세우면 핀이 다시 깔려
+               앱이 그 프레임에 갇힌다(사람 클릭이 안 먹는다). */
+          try { await _rendererInvoker.setActiveFrame({ frameId: set.prev || null, pin: false }); } catch (_) {}
+        }
+      };
+
       const _gateRefusal = _projectGate(name, args);
       if (_gateRefusal) return _reply(_gateRefusal);
       /* ★open_project 가 성공하면 «그 대화 동안» 확정으로 남긴다(sticky). 실패(load_timeout 등)면 안 남긴다 —
@@ -8128,13 +8175,13 @@ async function _handleRpc(msg) {
       }
       if (_SWITCH_EXEMPT.has(name)) {
         /* ★쓰고 나서 «되읽어» 대조한다 — _verifyApplied 주석 참고 */
-        return _reply(_noteConfirmed(await _verifyApplied(await _noteSeq(_enrichApiMissing(await handler(args))))));
+        return _reply(_noteConfirmed(await _verifyApplied(await _noteSeq(_enrichApiMissing(await _withParent(() => handler(args)))))));
       }
       return await _serializeCall(async () => {
         const blocked = await _awaitSwitchIdle(name, _SWITCH_QUEUE_MAX_MS);
         if (blocked) return _reply(blocked);
         /* ★쓰고 나서 «되읽어» 대조한다 — _verifyApplied 주석 참고 */
-        return _reply(_noteConfirmed(await _verifyApplied(await _noteSeq(_enrichApiMissing(await handler(args))))));
+        return _reply(_noteConfirmed(await _verifyApplied(await _noteSeq(_enrichApiMissing(await _withParent(() => handler(args)))))));
       });
     }
 
