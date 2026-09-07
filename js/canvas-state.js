@@ -176,8 +176,32 @@
          옛 프로젝트 파일엔 이미 bn2_ 로 저장돼 있어서, 접두를 바꿔도 «옛것은 그대로 안 읽힌다». */
     if (type === null && !/^[a-z][a-z0-9]{1,5}_/.test(id)) return;   // 블록 id 모양이 아닌 것만 거른다
       seen[id] = 1;
-      if (el.classList.contains('text-block')) { blocks.push(_readTextBlock(el)); return; }
-      blocks.push({ blockId: id, type: type, summary: _summarize(el, type, full) });
+      if (el.classList.contains('text-block')) {
+        /* ⛔텍스트도 «같은» 부모 정보를 실어야 한다 — 안 그러면 텍스트만 구조를 모른다.
+           그리고 텍스트가 프레임 안에 있는 «다수»다(실측 205/246). */
+        let pid = null, dep = 0;
+        for (let a = el.parentElement; a && a !== section; a = a.parentElement) {
+          const aid = a.id || '';
+          if (aid && aid !== section.id && _typeOf(aid) !== null) { if (!pid) pid = aid; dep++; }
+        }
+        blocks.push(Object.assign(_readTextBlock(el), { parentId: pid, depth: dep }));
+        return;
+      }
+      /* ★«어느 블록이 어느 것 안에 있나»를 같이 싣는다 (2026-09-07).
+         ⛔없으면 목록이 «평평»해서, 프레임 안에 이미지 3개가 있어도 형제로 보인다.
+           실측: 실물 프로젝트의 텍스트 246개 중 205개(83%)가 프레임 «안»에 있다 — 중첩이 정상이다.
+           ⇒ 「이 프레임 지워줘」가 무엇을 같이 지우는지, 「이 안에 넣어줘」가 어디인지 알 수가 없었다.
+         ★부모는 «블록 id 를 가진 가장 가까운 조상»이다(섹션은 부모로 안 센다 — 그건 컨테이너가 아니라 뿌리다). */
+      let parentId = null, depth = 0;
+      for (let a = el.parentElement; a && a !== section; a = a.parentElement) {
+        const aid = a.id || '';
+        if (aid && aid !== section.id && _typeOf(aid) !== null) {
+          if (!parentId) parentId = aid;
+          depth++;
+        }
+      }
+      blocks.push({ blockId: id, type: type, parentId: parentId, depth: depth,
+                    summary: _summarize(el, type, full) });
     });
     return {
       sectionId: section.id || null,
