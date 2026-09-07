@@ -60,7 +60,17 @@ before(async () => {
 
   // ⑷ 최소 전역 — zoom-block.js 는 window.* 를 대입하고, document 는 makeZoomBlock 만 쓴다
   globalThis.window = {};
-  globalThis.document = { createElement: (tag) => makeEl(tag), addEventListener() {}, removeEventListener() {} };
+  /* ★document 리스너를 «기록»한다 — 드래그는 document 에 mousemove 를 건다.
+     기록하지 않으면 「드래그를 재생하는」 검사를 아예 못 쓴다. */
+  globalThis.__docListeners = [];
+  globalThis.document = {
+    createElement: (tag) => makeEl(tag),
+    addEventListener: (type, fn) => globalThis.__docListeners.push({ type, fn }),
+    removeEventListener: (t, f) => {
+      const i = globalThis.__docListeners.findIndex(l => l.type === t && l.fn === f);
+      if (i >= 0) globalThis.__docListeners.splice(i, 1);
+    },
+  };
   /* ★rAF 를 «즉시 실행»으로 깐다 — 이게 있어야 「그린 뒤에 읽는다」를 검사가 보장한다.
      지디가 실기에서 정확히 이 함정에 빠졌다: 오버레이가 rAF 로 다시 그리는데 그 «앞»을 읽어
      판독 시점마다 답이 달랐다(arcs:4/dLen:150 → len:0). ⇒ 계측은 「그렸나」가 아니라
@@ -351,4 +361,188 @@ t2('S-12 [⑪] 공유 클립 함수 — 섹션 «직속» 자식(스티커)에�
   // 층의 섹션 내 좌표 = (40-14, 40-134) = (26, -94) ⇒ t=94 · l=0
   assert.equal(props['--sec-clip'], 'inset(94px 0px 0px 0px)',
     '누적이 안 된다 — 그림자가 섹션 밖으로 나가도 «안 잘린다»(⑪ 이 그 결함이었다)');
+});
+
+/* ── ⑲ dataset ↔ style «항상 같다» ────────────────────────────────────────────
+ * 지디 실기: 섹션 간 드래그 뒤 dataset.y=114 인데 style.top=960px 로 갈렸다.
+ *   저장되는 건 dataset 이므로 «화면과 저장본이 다르다» — 치명 부류다.
+ * ★한 경로만 막으면 다른 경로에서 또 난다 ⇒ 이동·섹션이동·되돌림·재렌더를 «다» 훑어
+ *   불변식 하나로 못박는다.
+ * ⛔이 검사는 «우리 코드 경로»만 덮는다 — 담는 상자(offsetParent)가 섹션이 아닌 경우는
+ *   여기서 못 잰다(브라우저 레이아웃이라 헤드리스로는 재현 불가). 보고에 그렇게 적었다.
+ * ───────────────────────────────────────────────────────────────────────── */
+const { test: t3 } = require('node:test');
+
+function mkSection(name, left, top, w, h) {
+  return { name, clientWidth: w, clientHeight: h,
+    getBoundingClientRect: () => ({ left, top, width: w, height: h }),
+    appendChild(b) { b._parent = this; }, contains: () => true };
+}
+
+t3('S-14 [⑲] 드래그·섹션이동·재렌더 «전부»에서 dataset.x/y 와 style.left/top 이 같다', async () => {
+  /* _clampToSection 은 «진짜» 것을 떼어 쓴다 — 식을 베끼면 두 정본이 된다(S-12 와 같은 수법). */
+  const src = readSrc(ROOT, 'js', 'sticker-select.js');
+  const i = src.indexOf('function _clampToSection');
+  assert.notEqual(i, -1, '클램프 함수를 못 찾음 — 검사가 대상을 놓쳤다');
+  const j = src.indexOf('\n}\n', i);
+  const dir = mkTmpRoot('zoom-clamp-');
+  const mjs = path.join(dir, 'clamp.mjs');
+  fs.writeFileSync(mjs, src.slice(i, j + 3) + '\nexport { _clampToSection };\n', 'utf8');
+  const { _clampToSection } = await import(pathToFileURL(mjs).href);
+
+  // ★지디 실측 배치 그대로
+  const sec0 = mkSection('sec0', 545, 84, 344, 145);
+  const sec2 = mkSection('sec2', 545, 422, 344, 193);
+  const prevClamp = globalThis.window._clampToSection;
+  const prevFind = globalThis.window._findSectionAt;
+  globalThis.window._clampToSection = _clampToSection;
+  globalThis.window._findSectionAt = (x, y) => {
+    for (const s of [sec0, sec2]) {
+      const r = s.getBoundingClientRect();
+      if (x >= r.left && x <= r.left + r.width && y >= r.top && y <= r.top + r.height) return s;
+    }
+    return null;
+  };
+  globalThis.__docListeners.length = 0;
+  try {
+    const b = M.makeZoomBlock({ x: 40, y: 40 });
+    b._parent = sec0;
+    b.closest = () => b._parent;
+    const W = 260, H = 140;
+    b.offsetWidth = W; b.offsetHeight = H;
+    b.getBoundingClientRect = () => {
+      const r = b._parent.getBoundingClientRect();
+      return { left: r.left + Number(b.dataset.x), top: r.top + Number(b.dataset.y), width: W, height: H };
+    };
+    /* ★가짜 style 이 cssText 를 «풀어» left/top 에 담아야 한다 — 진짜 브라우저가 그렇게 한다.
+       안 풀면 재렌더 뒤 style.left 가 undefined 라 불변식이 «가짜로» 깨진다(실제로 그랬다). */
+    const raw = b.style;
+    b.style = {
+      get cssText() { return raw.cssText; },
+      set cssText(v) {
+        raw.cssText = v;
+        for (const d of String(v).split(';')) {
+          const [k, val] = d.split(':');
+          if (k && val) this[k.trim()] = val.trim();
+        }
+      },
+      left: '', top: '',
+    };
+    M.renderZoomBlock(b);
+
+    const same = (tag) => {
+      assert.equal(b.style.left, `${b.dataset.x}px`, `${tag}: x 가 갈렸다`);
+      assert.equal(b.style.top, `${b.dataset.y}px`, `${tag}: ★y 가 갈렸다 — 저장본과 화면이 다르다`);
+    };
+    same('생성·렌더 직후');
+
+    const md = b.listeners.filter(l => l.type === 'mousedown');
+    assert.equal(md.length, 2, '전제: mousedown 이 둘이다');
+    const start = { clientX: 545 + 40 + W / 2, clientY: 84 + 40 + H / 2 };
+    md.forEach(l => l.fn({ button: 0, ...start, target: { closest: () => null },
+                           preventDefault() {}, stopImmediatePropagation() {} }));
+    const move = () => globalThis.__docListeners.filter(l => l.type === 'mousemove');
+    assert.ok(move().length >= 1, '전제: 드래그가 document 에 mousemove 를 건다');
+
+    move().forEach(l => l.fn({ clientX: start.clientX, clientY: 422 + 100, metaKey: false }));
+    assert.equal(b._parent.name, 'sec2', '전제: 섹션2 로 옮겨졌다');
+    same('섹션2 로 이동');
+
+    move().forEach(l => l.fn({ clientX: start.clientX + 50, clientY: 422 + 150, metaKey: false }));
+    same('섹션2 안에서 이동');
+
+    move().forEach(l => l.fn({ clientX: start.clientX, clientY: 84 + 60, metaKey: false }));
+    assert.equal(b._parent.name, 'sec0', '전제: 섹션0 으로 되돌아왔다');
+    same('섹션0 으로 되돌림');
+
+    // ⌘ 자유이동(클램프 없음)에서도 갈리면 안 된다
+    move().forEach(l => l.fn({ clientX: start.clientX, clientY: 84 - 200, metaKey: true }));
+    same('⌘ 자유이동');
+
+    M.renderZoomBlock(b);
+    same('재렌더 뒤');
+
+    // 크기가 바뀌어도(핸들 경로) 위치 표기는 안 갈린다
+    b.dataset.w = '400'; b.dataset.h = '200';
+    M.renderZoomBlock(b);
+    same('크기 바꾼 뒤');
+  } finally {
+    globalThis.window._clampToSection = prevClamp;
+    globalThis.window._findSectionAt = prevFind;
+  }
+});
+
+t3('S-15 [⑲] ★«잡은 지점»이 커서를 따라간다 — 섹션이 바뀌어도', async () => {
+  /* ⛔S-14(dataset↔style 일치)만으론 부족하다. 둘이 «같이» 틀리면 통과한다 —
+     변이 M62(섹션이 바뀌었는데 «옛 섹션» 기준으로 계산)가 실제로 통과했다.
+     ★그게 ⑲의 «모양»이다: 값은 서로 맞는데 «자리»가 섹션 간 차이만큼 어긋난다.
+     ⇒ 진짜 불변식 = 드래그 내내 「커서 − 블록 좌상단」이 처음 잡은 오프셋 그대로다. */
+  const src = readSrc(ROOT, 'js', 'sticker-select.js');
+  const i = src.indexOf('function _clampToSection');
+  const j = src.indexOf('\n}\n', i);
+  const dir = mkTmpRoot('zoom-grab-');
+  const mjs = path.join(dir, 'clamp.mjs');
+  fs.writeFileSync(mjs, src.slice(i, j + 3) + '\nexport { _clampToSection };\n', 'utf8');
+  const { _clampToSection } = await import(pathToFileURL(mjs).href);
+
+  // ★섹션을 «충분히 크게» 둬서 클램프가 안 걸리게 한다 — 걸리면 오프셋이 «정당하게» 달라져
+  //   이 불변식이 못 쓰인다(클램프는 S-14 가 덮는다).
+  const sec0 = mkSection('sec0', 545, 84, 900, 900);
+  const sec2 = mkSection('sec2', 545, 1200, 900, 900);
+  const prevClamp = globalThis.window._clampToSection;
+  const prevFind = globalThis.window._findSectionAt;
+  globalThis.window._clampToSection = _clampToSection;
+  globalThis.window._findSectionAt = (x, y) => {
+    for (const s of [sec0, sec2]) {
+      const r = s.getBoundingClientRect();
+      if (x >= r.left && x <= r.left + r.width && y >= r.top && y <= r.top + r.height) return s;
+    }
+    return null;
+  };
+  globalThis.__docListeners.length = 0;
+  try {
+    const b = M.makeZoomBlock({ x: 100, y: 100 });
+    b._parent = sec0;
+    b.closest = () => b._parent;
+    const W = 260, H = 140;
+    b.offsetWidth = W; b.offsetHeight = H;
+    const rectOf = () => {
+      const r = b._parent.getBoundingClientRect();
+      return { left: r.left + Number(b.dataset.x), top: r.top + Number(b.dataset.y) };
+    };
+    b.getBoundingClientRect = () => ({ ...rectOf(), width: W, height: H });
+
+    const md = b.listeners.filter(l => l.type === 'mousedown');
+    const start = { clientX: 545 + 100 + 60, clientY: 84 + 100 + 30 };   // 좌상단에서 (60,30)
+    const GRAB = { x: 60, y: 30 };
+    md.forEach(l => l.fn({ button: 0, ...start, target: { closest: () => null },
+                           preventDefault() {}, stopImmediatePropagation() {} }));
+    const move = () => globalThis.__docListeners.filter(l => l.type === 'mousemove');
+
+    const grabOk = (tag, ev) => {
+      const r = rectOf();
+      assert.ok(Math.abs((ev.clientX - r.left) - GRAB.x) <= 1,
+        `${tag}: 가로 잡은 지점이 ${(ev.clientX - r.left).toFixed(0)} 로 밀렸다(기대 ${GRAB.x})`);
+      assert.ok(Math.abs((ev.clientY - r.top) - GRAB.y) <= 1,
+        `${tag}: ★세로 잡은 지점이 ${(ev.clientY - r.top).toFixed(0)} 로 밀렸다(기대 ${GRAB.y}) — 블록이 커서에서 떨어졌다`);
+    };
+    let ev = { clientX: start.clientX + 30, clientY: start.clientY + 40, metaKey: false };
+    move().forEach(l => l.fn(ev)); grabOk('같은 섹션 안 이동', ev);
+
+    ev = { clientX: start.clientX, clientY: 1200 + 300, metaKey: false };   // ★섹션2 로
+    move().forEach(l => l.fn(ev));
+    assert.equal(b._parent.name, 'sec2', '전제: 섹션2 로 옮겨졌다');
+    grabOk('★섹션2 로 이동', ev);
+
+    ev = { clientX: start.clientX + 80, clientY: 1200 + 500, metaKey: false };
+    move().forEach(l => l.fn(ev)); grabOk('섹션2 안에서 이동', ev);
+
+    ev = { clientX: start.clientX, clientY: 84 + 300, metaKey: false };     // 되돌아오기
+    move().forEach(l => l.fn(ev));
+    assert.equal(b._parent.name, 'sec0', '전제: 섹션0 으로 되돌아왔다');
+    grabOk('섹션0 으로 되돌림', ev);
+  } finally {
+    globalThis.window._clampToSection = prevClamp;
+    globalThis.window._findSectionAt = prevFind;
+  }
 });
