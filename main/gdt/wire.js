@@ -143,6 +143,9 @@ function registerGdtFileAssociations() {
 }
 
 function registerGdtIpc({ projectsDir, resolveProjectJsonPath }) {
+  /* ★projectsDir 은 «문자열이거나 게터»다. 계정별 폴더로 갈리면서 뿌리가 «움직이기»
+     때문에, 한 번 받아 붙잡아 두면 로그인 뒤에도 옛 뿌리로 내보내고 들여온다. */
+  const _pd = () => (typeof projectsDir === 'function' ? projectsDir() : projectsDir);
   // 렌더러가 준비된 뒤 «가져간다». push 방식은 렌더러가 리스너를 걸기 전에 도착하면 유실된다.
   ipcMain.handle('gdt:takePendingOpen', () => {
     // ★배열로 «전부» 넘기고 비운다. 하나씩 주면 렌더러가 나머지를 못 가져간다.
@@ -185,7 +188,7 @@ function registerGdtIpc({ projectsDir, resolveProjectJsonPath }) {
         outPath: filePath,
         meta: { name: projectName || projectId, sourceId: projectId, appVersion: app.getVersion() },
         onProgress,
-        projectsDir,   // goya-asset://<pid>/<file> → <projectsDir>/<pid>/assets/<file> 동봉
+        projectsDir: _pd(),   // goya-asset://<pid>/<file> → <projectsDir>/<pid>/assets/<file> 동봉
       });
       return result;
     } catch (e) {
@@ -218,7 +221,7 @@ function registerGdtIpc({ projectsDir, resolveProjectJsonPath }) {
         }
       };
 
-      return await importGdt({ gdtPath: src, projectsDir, onProgress });
+      return await importGdt({ gdtPath: src, projectsDir: _pd(), onProgress });
     } catch (e) {
       return { ok: false, error: (e && e.message) || String(e) };
     }

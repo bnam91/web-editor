@@ -101,9 +101,9 @@ const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
-const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle, handleEnsureClaudePMFolder } = require('./main/claude-pm/ipc');
+const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle, handleEnsureClaudePMFolder, setPmProjectsRoot } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
-const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, setAuthProbe: setMcpAuthProbe, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
+const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, setAuthProbe: setMcpAuthProbe, setProjectsRoot: setMcpProjectsRoot, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
 // Unit B — MCP 접속 토큰(메모리 보관, 화면표시/IPC용). 파일/레포 저장 금지.
 let currentMcpToken = null;
 
@@ -371,6 +371,8 @@ function createWindow() {
   // Claude PM (feature/claude-pm Phase 2) — pickDirectory / createFolder / openInFinder / spawnClaudeTerminal / pingMcp
   // GAP-010: 강력 권한 IPC(터미널/spawn/folder)는 isAdminAuthorized 게이팅(배포 렌더러발 RCE 차단).
   registerClaudePMIPC(ipcMain, () => isAdminAuthorized());
+  // ★PM 폴더도 «계정별 프로젝트 뿌리»를 따라가야 한다(경로 조립기가 둘이 되면 어긋난다).
+  try { setPmProjectsRoot(() => PROJECTS_DIR); } catch (_) {}
 
   // Claude PM (Phase 3 F8) — 내부 터미널 패널 PTY 백엔드
   registerTerminalIPC(ipcMain, () => isAdminAuthorized());
@@ -495,10 +497,15 @@ function writeAuth(record) {
   } catch (e) {
     console.warn('[auth] 상태 저장 실패:', e.message);
   }
+  /* ★계정이 바뀌면 «프로젝트 뿌리»도 같이 바뀌어야 한다. 여기가 모든 로그인 경로의
+     외길목이라 여기 한 곳만 걸면 된다(auth:login·가입·갱신 전부 writeAuth 를 지난다). */
+  try { _repointProjectsDir('login'); } catch (_) {}
   return next;
 }
 function clearAuth() {
   try { fs.unlinkSync(getAuthPath()); } catch (_) {}
+  /* 로그아웃하면 «레거시 공용 풀»로 돌아간다 — 방금까지 보던 프로젝트가 안 보이는 게 맞다. */
+  try { _repointProjectsDir('logout'); } catch (_) {}
 }
 /* ── 자격증명 SSOT 배선 ──────────────────────────────────────────────────────
    ⛔옛 `authAccessValid(a)` 는 **폐기됐다**. 그건 `auth.json` 의 문자열 하나만 봤고,
@@ -1040,10 +1047,94 @@ function migrateFiles(oldDir, newDir) {
   });
 }
 
-/* ── IPC: Projects (파일 기반 저장소) ── */
-const PROJECTS_DIR = path.join(USER_DATA_DIR, 'projects');
-migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR); // 구 경로 마이그레이션
-if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true });
+/* ── IPC: Projects (파일 기반 저장소) ──────────────────────────────────────
+   ★★«계정별 폴더»(레포 개념) — 로그인 아이디마다 projects 뿌리를 따로 둔다.
+       비로그인       : <userData>/projects                    (레거시 공용 풀)
+       로그인 <email> : <userData>/accounts/<계정키>/projects
+     이유는 두 가지고, 둘 다 필요하다.
+       ⑴ 보안 — 민수가 로그인한 상태에서 철수 프로젝트가 «목록에조차» 안 뜬다.
+              소유자 «필드»로 거르면 거르는 코드를 빠뜨린 경로가 곧 구멍이 된다.
+              폴더로 가르면 «읽는 뿌리 자체»가 달라서 빠뜨릴 경로가 없다.
+       ⑵ 관리 — 한 폴더에 전부 섞이면 누구 것인지 알 수가 없다.
+   ⛔PROJECTS_DIR 은 이제 «상수가 아니다». 로그인·로그아웃 때 갈아끼운다.
+     그래도 되는 근거: 67 곳의 참조가 «전부 함수 안에서 인자로» 쓰인다(실측).
+     값으로 붙잡아 두는 자리는 registerGdtIpc 하나뿐이라 거기만 «게터»로 넘긴다. */
+const PROJECTS_DIR_LEGACY = path.join(USER_DATA_DIR, 'projects');
+const ACCOUNTS_DIR = path.join(USER_DATA_DIR, 'accounts');
+let PROJECTS_DIR = PROJECTS_DIR_LEGACY;
+migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR_LEGACY); // 구 경로 마이그레이션
+if (!fs.existsSync(PROJECTS_DIR_LEGACY)) fs.mkdirSync(PROJECTS_DIR_LEGACY, { recursive: true });
+
+/* 계정 키 — «폴더 이름만 보고 누구 것인지 알 수 있게» 두되, 충돌은 해시로 막는다.
+   (읽을 수 없는 해시만 쓰면 폴더로 가른 목적 ⑵ 가 없어진다.) */
+function _accountKeyFor(email) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return null;
+  const slug = e.replace(/[^a-z0-9._-]+/g, '_').slice(0, 40);
+  const h = require('crypto').createHash('sha1').update(e).digest('hex').slice(0, 8);
+  return `acct_${slug}_${h}`;
+}
+function _currentAccountKey() {
+  try { const a = readAuth(); return a && a.email ? _accountKeyFor(a.email) : null; }
+  catch (_) { return null; }
+}
+function _accountProjectsDir(key) { return path.join(ACCOUNTS_DIR, key, 'projects'); }
+function _legacyProjectEntries() {
+  try { return fs.readdirSync(PROJECTS_DIR_LEGACY, { withFileTypes: true }).filter(e => /^proj_/.test(e.name)); }
+  catch (_) { return []; }
+}
+function _existingAccountKeys() {
+  try { return fs.readdirSync(ACCOUNTS_DIR, { withFileTypes: true }).filter(e => e.isDirectory() && /^acct_/.test(e.name)).map(e => e.name); }
+  catch (_) { return []; }
+}
+
+/* 「업데이트 이전의 프로젝트를 어떻게 할 것인가」의 답 — ★첫 계정이 물려받는다.
+   업데이트 전 데이터는 «소유자 미상»이다. 그런데 계정 폴더가 «아직 하나도 없다»면
+   그 기계는 사실상 1인용이었다는 뜻이라, 그 경우에만 옮긴다.
+   ⛔이미 다른 계정 폴더가 있으면 손대지 않는다 — 남의 것일 수 있다.
+   ★옮긴 사실은 adopted.json 에 적는다(폴더를 되옮기면 원상복구된다). */
+function _adoptLegacyIfSoleAccount(key, dest) {
+  const others = _existingAccountKeys().filter(k => k !== key);
+  if (others.length) return { adopted: 0, skipped: 'other-accounts-exist', others: others.length };
+  const entries = _legacyProjectEntries();
+  if (!entries.length) return { adopted: 0, skipped: 'legacy-empty' };
+  let moved = 0; const failed = [];
+  for (const ent of entries) {
+    const to = path.join(dest, ent.name);
+    if (fs.existsSync(to)) { failed.push(`${ent.name} (대상에 이미 있음)`); continue; }
+    try { fs.renameSync(path.join(PROJECTS_DIR_LEGACY, ent.name), to); moved++; }
+    catch (e) { failed.push(`${ent.name} — ${(e && e.message) || e}`); }
+  }
+  try {
+    fs.writeFileSync(path.join(ACCOUNTS_DIR, key, 'adopted.json'), JSON.stringify({
+      at: new Date().toISOString(), account: key, from: PROJECTS_DIR_LEGACY, to: dest,
+      moved, failed,
+      note: '업데이트 이전의 «소유자 미상» 프로젝트를 첫 로그인 계정이 물려받았다. 되돌리려면 to 안의 proj_* 를 from 으로 다시 옮기면 된다.',
+    }, null, 2), 'utf8');
+  } catch (_) {}
+  return { adopted: moved, failed };
+}
+
+/* 계정별 뿌리로 갈아끼운다. 로그인/로그아웃/기동 때 부른다. */
+let _projectsDirState = null;
+function _repointProjectsDir(reason) {
+  const key = _currentAccountKey();
+  if (!key) {
+    PROJECTS_DIR = PROJECTS_DIR_LEGACY;
+    _projectsDirState = { root: PROJECTS_DIR, account: null, reason };
+    return _projectsDirState;
+  }
+  const dest = _accountProjectsDir(key);
+  const fresh = !fs.existsSync(dest);
+  try { fs.mkdirSync(dest, { recursive: true }); } catch (_) {}
+  const adopt = fresh ? _adoptLegacyIfSoleAccount(key, dest) : null;
+  PROJECTS_DIR = dest;
+  _projectsDirState = { root: dest, account: key, reason, adopt };
+  try { console.log(`[projects] 뿌리=${dest} 계정=${key} 사유=${reason}` + (adopt && adopt.adopted ? ` 물려받음=${adopt.adopted}건` : '')); } catch (_) {}
+  return _projectsDirState;
+}
+function _projectsRoot() { return PROJECTS_DIR; }
+_repointProjectsDir('startup');
 
 /* ── IPC: SVG Presets (사용자 자산 — 모든 프로젝트 공유) ── */
 const SVG_PRESETS_DIR = path.join(USER_DATA_DIR, 'svg-presets');
@@ -3254,7 +3345,7 @@ app.whenReady().then(async () => {
   //   표준 role 템플릿 위에 「파일」을 얹는 방식이라 기본 편집 단축키가 유지된다.
   try {
     const { registerGdtIpc, buildAppMenu } = require('./main/gdt/wire');
-    registerGdtIpc({ projectsDir: PROJECTS_DIR, resolveProjectJsonPath: _resolveProjectJsonPath });
+    registerGdtIpc({ projectsDir: _projectsRoot, resolveProjectJsonPath: _resolveProjectJsonPath }); // ★값이 아니라 «게터» — 계정이 바뀌면 따라가야 한다
     buildAppMenu();
   } catch (e) {
     console.error('[gdt] 초기화 실패 — 메뉴 없이 계속:', e);
@@ -3268,7 +3359,7 @@ app.whenReady().then(async () => {
   // Claude PM MCP 서버 (포트 9345, port-status 표 9345+ 신규 자유)
   try {
     const { port: actualPort, token: mcpToken } = await startMcpServer({
-      port: 9370,   // [mcpmgr] 격리 — 커밋 금지
+      port: 9345,
       onActiveProject: () => global.currentActiveProjectId || null,
     });
     // EADDRINUSE fallback이 일어나도 ipc 핸들러가 올바른 포트로 ping
@@ -3372,9 +3463,21 @@ app.whenReady().then(async () => {
          list_projects·create_project 는 «로그인 없이도» 통과했다 — 문 «앞»의 도구가 열려 있었다.
          ⇒ 실측: list_projects 통과 · create_project 통과 · open_project 거절.
          ★「막혔나」를 안전한 도구로 재면 「안 막혔다」가 나오는 이유가 이것이다. */
+      // ★MCP 도 «계정별 뿌리»를 봐야 한다(자기 나름의 경로를 만들면 남의 계정을 읽는다).
+      try { setMcpProjectsRoot(() => PROJECTS_DIR); } catch (_) {}
       setMcpAuthProbe(() => ({
         authed: !!(_editorAccessGranted || isAdminAuthorized()),
         // ⛔계정 «식별자»는 넘기지 않는다 — MCP 응답에 실릴 수 있다. 「됐나」만 넘긴다.
+        /* ★격리가 «실제로» 걸렸는지 진단할 창.
+           「목록이 0건」이 나왔을 때 «격리돼서 0건»인지 «못 재서 0건»인지 갈라야 한다.
+           ⛔이메일도, 계정키(이메일 slug 포함)도 안 넘긴다 — 지문 8자만 넘긴다. */
+        accountScoped: PROJECTS_DIR !== PROJECTS_DIR_LEGACY,
+        accountFingerprint: (() => {
+          try {
+            const k = _currentAccountKey();
+            return k ? require('crypto').createHash('sha1').update(k).digest('hex').slice(0, 8) : null;
+          } catch (_) { return null; }
+        })(),
       }));
     }
   } catch (e) {

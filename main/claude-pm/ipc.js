@@ -34,9 +34,17 @@ function _getUserDataDir() {
   }
 }
 
-// 신규 PM 폴더 경로: <userData>/projects/<projectId>/claude-pm
+/* PM 폴더 경로 — ★프로젝트 «뿌리»는 계정별로 움직인다(<userData>/accounts/<키>/projects).
+   그래서 여기서 'projects' 를 직접 이어 붙이면 «두 번째 경로 조립기»가 되어 어긋난다.
+   main.js 가 setPmProjectsRoot() 로 진짜 뿌리를 꽂아 준다. 안 꽂히면 옛 자리로 폴백. */
+let _pmProjectsRoot = null;
+function setPmProjectsRoot(fn) { _pmProjectsRoot = (typeof fn === 'function') ? fn : null; }
+function _projectsRootPath() {
+  if (_pmProjectsRoot) { try { const r = _pmProjectsRoot(); if (r) return r; } catch (_) {} }
+  return path.join(_getUserDataDir(), 'projects'); // [뿌리-폴백] 주입 실패 시에만
+}
 function _defaultPmFolderPath(projectId) {
-  return path.join(_getUserDataDir(), 'projects', projectId, 'claude-pm');
+  return path.join(_projectsRootPath(), projectId, 'claude-pm');
 }
 
 // legacy base — 옛 PM 폴더 부모 (~/Documents/claude-pm-projects)
@@ -640,6 +648,7 @@ function registerClaudePMIPC(ipcMain, isAllowed) {
 module.exports = {
   registerClaudePMIPC,
   setActualMcpPort,
+  setPmProjectsRoot,
   syncClaudePmTitle,
   // MCP create_project(main.js _createProjectImpl)가 갤러리와 동일하게 PM 폴더를 보장할 때 직접 호출.
   handleEnsureClaudePMFolder,

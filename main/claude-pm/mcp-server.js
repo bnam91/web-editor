@@ -332,13 +332,21 @@ function _recordUnknownArgs(name, unknown, allKeys) {
   } catch (_) { /* 원장 실패가 도구를 막지 않는다 */ }
 }
 
+/* ★프로젝트 «뿌리»는 계정별로 움직인다(<userData>/accounts/<계정키>/projects).
+   ⛔여기서 userData 에 'projects' 를 직접 이어 붙이면 «세 번째 경로 조립기»가 되어
+     main.js 의 진짜 뿌리와 어긋난다. 실제로 어긋났다 — 2026-09-07 계정 격리를 넣은 뒤
+     read_project 가 «자기 계정의 프로젝트»에도 'project not found' 를 냈다.
+     그리고 그건 반대 방향으로도 샌다: 옛 뿌리(공용 풀)를 보므로 «남의 계정 것»을 읽는다.
+   ⇒ main.js 가 setProjectsRoot() 로 진짜 뿌리를 꽂아 준다. 안 꽂히면 옛 자리로 폴백. */
+let _projectsRootFn = null;
+function setProjectsRoot(fn) { _projectsRootFn = (typeof fn === 'function') ? fn : null; }
 function _getProjectsDir() {
-  // main process의 app.getPath('userData') 기준 projects 폴더가 정석이지만,
-  // 단독 실행 시는 web-editor/projects 사용.
+  if (_projectsRootFn) { try { const r = _projectsRootFn(); if (r) return r; } catch (_) {} }
+  // 폴백 — main process의 app.getPath('userData') 기준. 단독 실행 시는 web-editor/projects.
   try {
     const { app } = require('electron');
     if (app && app.getPath) {
-      return path.join(app.getPath('userData'), 'projects');
+      return path.join(app.getPath('userData'), 'projects'); // [뿌리-폴백] 주입 실패 시에만
     }
   } catch (_) {}
   return path.join(__dirname, '..', '..', 'projects');
@@ -7883,6 +7891,16 @@ function _createServer() {
         activeProject: _fromBrowser ? undefined
           : (() => { try { return _activeProjectId(); } catch (_) { return null; } })(),
         tokenFile: _fromBrowser ? undefined : _tokenFilePath,
+        /* ★계정별 프로젝트 격리가 걸렸는지 — 「0건」을 «격리»와 «고장»으로 가르는 표식.
+           지문은 계정키의 해시 8자다(이메일도 계정키도 여기 안 싣는다).
+           브라우저 경계는 위와 같다 — 신원 표식이라 Origin 있는 요청엔 안 준다. */
+        ...(_fromBrowser ? {} : (() => {
+          try {
+            const a = (typeof _authProbe === 'function') ? _authProbe() : null;
+            if (!a || a.accountScoped === undefined) return {};
+            return { accountScoped: !!a.accountScoped, accountFingerprint: a.accountFingerprint || null };
+          } catch (_) { return {}; }
+        })()),
         ...(_fromBrowser ? { note: 'cross-origin caller: activeProject/tokenFile omitted' } : {})
       }));
       return;
@@ -8005,7 +8023,10 @@ function setProjectOps(ops) {
   _projectOps = ops || null;
 }
 
-module.exports = { setAuthProbe,
+module.exports = {
+  // ★계정별 프로젝트 뿌리 주입 — 경로 조립기를 둘로 만들지 않기 위한 것
+  setProjectsRoot,
+  setAuthProbe,
   startMcpServer,
   stopMcpServer,
   registerTool,
