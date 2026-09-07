@@ -220,6 +220,20 @@ function registerTool(name, handler, schema) {
  *    STRICT 쪽을 «잴 수가 없다». 못 재는 스위치는 스위치가 아니라 주석이다. */
 const _strictArgs = () => String(process.env.GODITOR_MCP_STRICT_ARGS || '') === '1';
 
+/** ★«모르는 인자를 아래로 흘려보내는» 도구 — 여기선 디스패처가 「효과 없음」을 «말할 수 없다».
+ *
+ * 왜 필요한가(2026-09-07 실측): `update_block{blockId, text:'X'}` 에 「text 는 무시됐다」고 경고했는데
+ *   렌더러는 `content:'X'` 를 받아 «글자가 실제로 바뀌었다». 경고가 «거짓말»을 했다.
+ *   기전: 이 둘은 통합 디스패처라 `...rest` 를 `props` 로 «합쳐 아래로» 보내고, 하위 도구의
+ *   «자기 스키마»에서 `normalizeArgs` 가 별칭(text↔content 등)을 해소한다.
+ *   ⇒ 「이 스키마에 그 글자가 없다」와 「그 인자가 안 먹는다」는 **다른 사실**이고,
+ *     둘이 갈리는 자리가 정확히 여기다.
+ * ★전수로 갈랐다 — 노출 도구 33개에 뜬금없는 인자를 하나씩 태워 «렌더러까지 닿나»를 봤다:
+ *     흘려보냄 2 (아래 둘) · 버림 27 · 판정불가 4(렌더러를 안 부르는 도구)
+ * ⇒ 이 둘은 «침묵»한다. 대신 하위 층의 `warnUnknown`(ignoredProps/hint)이 «해소한 뒤» 판정한다.
+ * ⛔이 목록을 손으로 늘리지 마라 — `mcp-unknown-args.test.js` 가 «다시 재서» 어긋나면 빨강을 낸다. */
+const _ARG_FORWARDERS = new Set(['add_block', 'update_block']);
+
 /** 이 도구 스키마가 «선언한» 인자 이름들. 스키마가 없으면 판정하지 않는다(빈 배열이 아니라 null). */
 function _declaredArgKeys(name) {
   const s = toolSchemas.get(name);
@@ -227,10 +241,27 @@ function _declaredArgKeys(name) {
   return props ? Object.keys(props) : null;
 }
 
-/** 스키마에 없는 인자 이름들. ★스키마를 모르면 «못 잰 것»이라 빈 배열을 준다 — 0 을 「없다」로 쓰지 않기 위해. */
+/** ★스키마에 «없는» 인자 — 단, «별칭을 해소한 뒤»에 판정한다.
+ *
+ * ⛔처음에 나는 raw 키를 스키마 prop 과 그냥 대조했다. **그건 거짓 경고를 낸다.**
+ *   실증(2026-09-07): `update_block{blockId, text:'X'}` 에 「text 는 무시됐고 효과가 없다」고 경고했는데
+ *   실제로는 렌더러가 `content:'X'` 를 받아 «글자가 바뀌었다». 경고가 «거짓말»을 한 것이다.
+ * ★원인: 이 코드베이스엔 별칭이 «의도적으로» 있다(`mcp-block-tools.js` `normalizeArgs`):
+ *     ⑴ 표기 정규화 `_canon` — 대소문자·`_`·`-`·공백 무시 (blockID·block_id·BlockId → blockId)
+ *     ⑵ 동의어 표 `SYN` — text↔content · label→title · msg→text · value→text
+ *   ⇒ 「스키마에 그 «글자»가 없다」와 「그 인자가 «안 먹는다»」는 **다른 사실**이다.
+ * ⇒ 그래서 판정을 normalizeArgs 에 위임한다. 그게 «실제로 먹는 규칙»의 정본이다.
+ *   ⚠️normalizeArgs 는 블록 도구에만 걸려 있지만, 그 «해소 규칙»은 여기서 전 도구에 공평하게 쓴다 —
+ *     안 그러면 같은 인자가 도구에 따라 경고가 갈려 더 헷갈린다.
+ * ★스키마를 모르면 «못 잰 것»이라 빈 배열을 준다 — 0 을 「없다」로 쓰지 않기 위해. */
 function _unknownArgKeys(name, args) {
+  const schema = toolSchemas.get(name);
   const declared = _declaredArgKeys(name);
   if (!declared || !args || typeof args !== 'object') return [];
+  try {
+    const { normalizeArgs } = require('./mcp-block-tools');
+    if (typeof normalizeArgs === 'function') return normalizeArgs(schema, args).unknown || [];
+  } catch (_) { /* 별칭 해소기를 못 부르면 아래 보수적 대조로 떨어진다 */ }
   return Object.keys(args).filter(k => !declared.includes(k));
 }
 
@@ -268,7 +299,10 @@ function _recordUnknownArgs(name, unknown, allKeys) {
     if (!dir) dir = path.join(os.tmpdir(), 'goditor-mcp', 'claude-pm');
     fs.mkdirSync(dir, { recursive: true });
     fs.appendFileSync(path.join(dir, 'unknown-args.jsonl'),
-      JSON.stringify({ at: new Date().toISOString(), tool: name, unknown, argKeys: allKeys,
+      // ★필드 이름을 «notInSchema» 로 둔다 — `unknown` 은 「안 먹는다」를 함의하는데
+      //   전달자에선 «먹는다». 원장은 「스키마에 그 글자가 없었다」만 주장한다.
+      JSON.stringify({ at: new Date().toISOString(), tool: name, notInSchema: unknown, argKeys: allKeys,
+                       forwarder: _ARG_FORWARDERS.has(name),
                        strict: _strictArgs() }) + '\n');
   } catch (_) { /* 원장 실패가 도구를 막지 않는다 */ }
 }
@@ -7283,7 +7317,10 @@ async function _handleRpc(msg) {
         /* ★경고 단계에서는 «조용히» 버리지 않고 한 줄을 붙인다 — 그게 이 결함의 핵심 피해다.
            ⛔기존 키는 안 건드린다(응답 «모양»을 바꾸면 다른 측정이 오염된다). 없던 키만 더한다.
            그리고 «인자가 깨끗하면 아무것도 안 붙는다» — 정상 응답은 바이트 하나 안 늘어난다. */
-        if (r && typeof r === 'object' && !Array.isArray(r) && _unknown.length && !_strictArgs()) {
+        // ⛔블록 도구는 이미 `warnUnknown` 이 `ignoredProps`/`hint` 로 «같은 말»을 한다.
+        //   두 번 말하면 「어느 쪽이 맞나」가 생긴다 ⇒ 저쪽이 이미 말했으면 나는 «침묵»한다.
+        if (r && typeof r === 'object' && !Array.isArray(r) && !r.ignoredProps
+            && !_ARG_FORWARDERS.has(name) && _unknown.length && !_strictArgs()) {
           try { r = { ...r, warnings: [...(r.warnings || []), _unknownArgWarning(name, _unknown)] }; }
           catch (_) { /* 경고 실패가 응답을 막지 않는다 */ }
         }
@@ -7313,7 +7350,8 @@ async function _handleRpc(msg) {
       const _unknown = _unknownArgKeys(name, args);
       if (_unknown.length) {
         _recordUnknownArgs(name, _unknown, Object.keys(args || {}));
-        if (_strictArgs()) return _reply(_unknownArgRefusal(name, _unknown));
+        // ⛔전달자에는 STRICT 도 안 건다 — «거짓 거절»은 «거짓 경고»보다 나쁘다(동작을 막는다).
+        if (_strictArgs() && !_ARG_FORWARDERS.has(name)) return _reply(_unknownArgRefusal(name, _unknown));
       }
       /* ★프로젝트 «싱크» 게이트 — 대상이 확정 안 된 쓰기는 «실행 전에» 거절한다(_projectGate 주석 참고).
        *   여기가 유일한 배선 자리다: 도구를 새로 더해도 _TARGET_FREE 에 안 적으면 «자동으로» 게이트를 탄다. */

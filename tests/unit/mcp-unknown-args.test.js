@@ -81,26 +81,37 @@ test('T4 ★STRICT 로 켜면 «거절»하고, 거절이 곧 «안내»다', as
   }
 });
 
-test('T5 ★★STRICT 를 지금 켜면 «무엇이 깨지나» — 세고 나서 결정한다', async () => {
-  const tools = await H.listTools(true);
-  const declared = new Map(tools.map(t => [t.name, Object.keys((t.inputSchema && t.inputSchema.properties) || {})]));
-  const breaks = [];
-  for (const [name, c] of Object.entries(CASES)) {
-    const props = declared.get(name);
-    if (!props) continue;
-    const unknown = Object.keys(c.args || {}).filter(a => !props.includes(a));
-    if (unknown.length) breaks.push(`${name}{${unknown.join(',')}}`);
+test('T5 ★★STRICT 를 지금 켜면 «무엇이 깨지나» — 재도출이 아니라 «실제로 켜서» 센다', async () => {
+  // ⛔앞 판은 「픽스처 인자 vs 스키마 prop」을 «손으로 다시» 대조해 셌다. 그건 «계측기가 자기 자신을
+  //   대상으로 착각»하는 자리다 — 실제 판정 로직(별칭 해소·전달자 면제)과 어긋나면 조용히 틀린다.
+  //   실제로 어긋났다: 손 대조는 3건이라 했지만 STRICT 를 «켜서» 재면 update_text_block{text} 는
+  //   별칭으로 해소돼 안 깨진다. ⇒ ★판정은 «코드를 돌려서» 받는다.
+  const prev = process.env.GODITOR_MCP_STRICT_ARGS;
+  process.env.GODITOR_MCP_STRICT_ARGS = '1';
+  const broke = [];
+  try {
+    for (const [name, c] of Object.entries(CASES)) {
+      H.reset();
+      const r = await H.call(name, c.args || {});
+      const txt = JSON.stringify(r.error || r.result || '');
+      if (/UNKNOWN_ARGS/.test(txt)) {
+        const m = txt.match(/"unknownArgs":\[([^\]]*)\]/);
+        broke.push(`${name}{${(m ? m[1] : '').replace(/"/g, '')}}`);
+      }
+    }
+  } finally {
+    if (prev === undefined) delete process.env.GODITOR_MCP_STRICT_ARGS;
+    else process.env.GODITOR_MCP_STRICT_ARGS = prev;
   }
-  console.error(`\n  ■ 계약 픽스처 ${Object.keys(CASES).length}건 중 STRICT 로 «깨질» 호출 = ${breaks.length}건`);
-  breaks.forEach(b => console.error(`     ⛔ ${b}`));
-  console.error('  ⇒ 0 이 될 때까지 STRICT 로 켜지 마라. 0 이 되면 이 검사가 그때를 «알려준다».\n');
+  console.error(`\n  ■ 계약 픽스처 ${Object.keys(CASES).length}건 · STRICT 를 «실제로 켜서» 잰 거절 = ${broke.length}건`);
+  broke.forEach(b => console.error(`     ⛔ ${b}`));
+  console.error('  ⇒ 0 이 될 때까지 STRICT 를 기본으로 켜지 마라. 0 이 되면 이 검사가 그때를 «알려준다».\n');
 
-  // ★이 검사는 「깨질 게 없어야 한다」가 아니라 「몇 건인지 «알고 있어야» 한다」를 지킨다.
-  //   숫자가 바뀌면 빨강이 나서, 누군가 조용히 늘리거나 줄인 것을 알게 된다.
-  const KNOWN = ['update_card_block{cards}', 'update_scratch_item{name}', 'update_text_block{text}'];
-  assert.deepStrictEqual(breaks.sort(), KNOWN.sort(),
-    '★STRICT 로 깨질 호출 목록이 달라졌다 — 늘었으면 STRICT 가 더 멀어진 것이고, '
-    + '줄었으면 누가 고친 것이다. 어느 쪽이든 «알고» 넘어가라.');
+  // ★「깨질 게 없어야 한다」가 아니라 「몇 건인지 «알고 있어야» 한다」를 지킨다.
+  const KNOWN = ['update_card_block{cards}', 'update_scratch_item{name}'];
+  assert.deepStrictEqual(broke.sort(), KNOWN.sort(),
+    '★STRICT 로 깨질 목록이 달라졌다 — 늘었으면 STRICT 가 더 멀어졌고, 줄었으면 누가 고친 것이다. '
+    + '어느 쪽이든 «알고» 넘어가라. (이 둘은 핸들러가 안 쓰는 «진짜 군더더기»라 픽스처를 고치면 0 이 된다)');
 });
 
 test('T6 ★선언 안 된 «별칭»이 실재한다 — 스키마가 거짓말한다', async () => {
@@ -117,8 +128,18 @@ test('T6 ★선언 안 된 «별칭»이 실재한다 — 스키마가 거짓말
   assert.ok(reachedContent, '스키마가 말하는 이름(content)이 안 먹는다면 그건 더 큰 문제다');
   assert.ok(reachedText,
     'text 가 이제 안 먹는다면 이 항목은 해소된 것이다 — T5 의 KNOWN 목록과 이 검사를 같이 지워라');
-  assert.ok((byText.result || {}).warnings,
-    '★스키마에 없으니 경고는 나와야 한다 — 「먹는다」와 「선언됐다」는 다른 사실이다');
+  // ⚠️2026-09-07 «검사를 고쳤다» — 이 줄은 원래 「스키마에 없으니 경고가 나와야 한다」였다.
+  //   그런데 별칭 해소기(normalizeArgs: _canon + SYN)를 알고 나니 그 기대가 «틀렸다» —
+  //   text 는 update_text_block 의 content 로 «정상 해소»되므로 경고가 «안 나는 게» 맞다.
+  //   ★검사가 빨강이 됐을 때 「코드가 틀렸나」가 아니라 「검사가 옳았나」를 먼저 물어 고친 자리다.
+  assert.ok(!(byText.result || {}).warnings,
+    `★해소되는 별칭인데 「효과 없음」이라고 경고했다 — 거짓 경고다: ${JSON.stringify((byText.result || {}).warnings)}`);
+  // ★그래도 «표류»는 남아 있다: 스키마는 text 를 «선언하지 않는다». 그 사실을 따로 붙들어 둔다.
+  const declared = Object.keys(
+    ((await H.listTools(true)).find(t => t.name === 'update_text_block').inputSchema || {}).properties || {});
+  assert.ok(!declared.includes('text'),
+    'text 가 스키마에 «선언»됐다면 표류가 해소된 것이다 — T5 의 KNOWN 목록과 이 검사를 같이 손봐라');
+  console.error(`  ⇒ 「먹는다」=true · 「선언됐다」=false — 둘은 여전히 다른 사실이다`);
 });
 
 test('T7 ★★원장이 «실제로 디스크에» 써진다 — 빈 catch 가 삼키고 있지 않나', async () => {
@@ -140,11 +161,48 @@ test('T7 ★★원장이 «실제로 디스크에» 써진다 — 빈 catch 가 
   console.error(`  원장 ${lines.length}줄 · 마지막: ${JSON.stringify(lines[lines.length - 1])}`);
   const last = lines[lines.length - 1];
   assert.strictEqual(last.tool, 'list_projects');
-  assert.deepStrictEqual(last.unknown.sort(), ['another_bogus', 'zzz_bogus']);
+  assert.deepStrictEqual(last.notInSchema.sort(), ['another_bogus', 'zzz_bogus']);
   assert.ok(last.at && last.argKeys, '시각·인자이름이 없다 — 나중에 못 센다');
 
   // ★★값은 «안» 적혀야 한다 — 원장에 PII·본문이 새면 안 된다. 이름만으로 세는 데 충분하다.
   const raw = fs.readFileSync(ledger, 'utf8');
   assert.ok(!/"v"/.test(raw) && !raw.includes(':2,') ,
     `★원장에 인자 «값»이 새어 들어갔다 — 이름만 적어야 한다: ${raw.slice(0, 300)}`);
+});
+
+test('T8 ★★거짓 경고를 안 낸다 — «흘려보내는» 도구엔 침묵한다', async () => {
+  // ⛔실증된 결함: `update_block{blockId, text:'X'}` 에 「text 는 무시됐고 효과가 없다」고 경고했는데
+  //   렌더러는 `content:'X'` 를 받아 «글자가 실제로 바뀌었다». 경고가 거짓말을 했다.
+  //   ★거짓 경고는 경고 부재보다 나쁘다 — 클로드가 「안 먹었구나」로 읽고 «다시» 시도한다.
+  H.reset();
+  const r = await H.call('update_block', { blockId: 'tb_fx_h1', text: 'X' });
+  const calls = (r.rendererCalls || []).filter(c => c.method !== 'historyTip');
+  const reached = JSON.stringify(calls, (k, v) => (typeof v === 'bigint' ? String(v) : v));
+  console.error(`  렌더러가 받은 것: ${reached.slice(0, 120)}`);
+  assert.ok(/"content":"X"/.test(reached), '전제가 깨졌다 — text 가 더는 content 로 안 간다면 이 검사를 다시 짜라');
+  assert.ok(!(r.result || {}).warnings,
+    `★효과가 «있었는데» 「효과 없음」이라고 경고했다: ${JSON.stringify((r.result || {}).warnings)}`);
+});
+
+test('T9 ★★전달자 목록을 «다시 재서» 대조한다 — 손으로 적은 목록은 썩는다', async () => {
+  // ⛔`_ARG_FORWARDERS` 를 코드에 박아 뒀다. 박아 둔 목록은 코드가 바뀌면 조용히 틀려진다.
+  //   ⇒ 여기서 «실제로 태워 보고» 목록을 다시 만든다. 어긋나면 빨강.
+  const MARK = 'zzz_probe_marker_0907';
+  const vis = (await H.listTools(false)).map(t => t.name);
+  const flows = [], undecidable = [];
+  for (const name of vis) {
+    const c = CASES[name];
+    if (!c) { undecidable.push(name); continue; }
+    H.reset();
+    const r = await H.call(name, { ...(c.args || {}), [MARK]: 'PROBE' });
+    const calls = (r.rendererCalls || []).filter(x => x.method !== 'historyTip');
+    if (!calls.length) { undecidable.push(name); continue; }
+    if (JSON.stringify(calls, (k, v) => (typeof v === 'bigint' ? String(v) : v)).includes(MARK)) flows.push(name);
+  }
+  console.error(`\n  ■ 노출 ${vis.length}개 · 흘려보냄 ${flows.length} · 판정불가 ${undecidable.length}`);
+  console.error(`     흘려보냄: ${flows.join(' ')}`);
+  console.error(`     ⛔판정불가(렌더러를 안 부름 — 「0」이 아니라 「안 쟀다」): ${undecidable.join(' ')}\n`);
+  assert.deepStrictEqual(flows.sort(), ['add_block', 'update_block'],
+    '★«인자를 아래로 흘려보내는» 도구 집합이 달라졌다 — mcp-server.js 의 _ARG_FORWARDERS 를 같이 고쳐라. '
+    + '늘었는데 안 고치면 그 도구가 «거짓 경고»를 내기 시작한다.');
 });
