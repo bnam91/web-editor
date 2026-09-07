@@ -356,6 +356,20 @@
         </div>
       </div>
       <div class="settings-help" id="settings-externalize-state" style="margin-top:12px"></div>
+      <div class="settings-section-title" style="margin-top:22px">스크래치패드 연결선</div>
+      <div class="settings-help">스크래치패드 참고 이미지와 연결된 섹션을 «점선»으로 잇습니다. 스크래치·섹션이 많아 화면이 산만하면 끄세요. ⚠️끄는 것은 «선을 감추는 것»일 뿐, 연결 자체는 그대로 남습니다(다시 켜면 그대로 보입니다).</div>
+      <div class="settings-egg-list">
+        <div class="settings-egg-row" data-egg="showScratchLinkEdges">
+          <div class="settings-egg-text">
+            <div class="settings-egg-label">연결선 표시</div>
+            <div class="settings-egg-desc">스크래치 이미지 ↔ 섹션 연결을 점선으로 표시합니다. (저장 버튼을 눌러야 반영됨)</div>
+          </div>
+          <label class="settings-egg-toggle">
+            <input type="checkbox" id="settings-show-link-edges" />
+            <span class="settings-egg-slider"></span>
+          </label>
+        </div>
+      </div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
         <button class="settings-btn settings-btn-primary" id="settings-optimize-btn">이미지 최적화 실행</button>
         <button class="settings-btn" id="settings-externalize-rollback-btn" style="display:none">변환 되돌리기</button>
@@ -370,6 +384,17 @@
     const toggle = pane.querySelector('#settings-auto-externalize');
     toggle.checked = !!(_draft && _draft.autoExternalizeOnOpen);
     toggle.addEventListener('change', () => { if (_draft) _draft.autoExternalizeOnOpen = toggle.checked; });
+
+    /* [#16] 연결선 표시 — 위 토글과 «같은 규율»(draft → 저장 버튼이 반영).
+       ★왜 「성능」탭인가 — 새 탭을 만들지 않기로 했고(지디), 이 파일에서 «불리언 표시/동작 옵션»의
+         전례가 여기 하나뿐이다(settings-auto-externalize). 이스터에그 탭은 «숨은 트리거 카탈로그»라
+         trigger/enabledByDefault 를 가진 자료구조인데 이건 숨은 기능이 아니다.
+       ⚠️정직하게 적어둔다 — «성능 이득은 안 쟀다». 끄면 _drawEdges 의 링크당 getBoundingClientRect
+         2회와 문자열 조립이 프레임마다 빠지지만, rAF 루프 자체는 _applyFollow 때문에 계속 돈다.
+         이 토글의 근거는 「산만함」이지 「빨라진다」가 아니다. */
+    const edgeToggle = pane.querySelector('#settings-show-link-edges');
+    edgeToggle.checked = !(_draft && _draft.showScratchLinkEdges === false);
+    edgeToggle.addEventListener('change', () => { if (_draft) _draft.showScratchLinkEdges = edgeToggle.checked; });
 
     // 현재 프로젝트 상태 (main scan: 파싱 없이 수치) + 되돌리기 버튼 노출
     const stateEl = pane.querySelector('#settings-externalize-state');
@@ -567,7 +592,13 @@
         shortcuts: _draft.shortcuts,
         easterEggs: _draft.easterEggs,
         autoExternalizeOnOpen: _draft.autoExternalizeOnOpen === true,
+        // [#16] 기본 ON 이므로 «!== false» 로 읽는다(=== true 로 읽으면 미설정이 OFF 가 된다)
+        showScratchLinkEdges: _draft.showScratchLinkEdges !== false,
       });
+      /* [#16] 저장 즉시 반영 — 모달을 닫고 나서야 선이 바뀌면 「저장이 됐나」를 알 수 없다.
+         ⛔SPLink 가 아직 없을 수 있다(스크립트 로드 순서: settings-modal 이 scratchpad-link 보다 «앞»).
+           그래서 옵셔널 호출이고, 부팅 시 적용은 scratchpad-link 쪽이 «따로» 한 번 더 한다. */
+      try { window.SPLink?.setShowEdges?.(_draft.showScratchLinkEdges !== false); } catch (_) {}
       toast('저장되었습니다.', 'ok');
       closeSettingsModal();
     } catch (e) {
@@ -892,6 +923,7 @@
       shortcuts: { ...(cur.shortcuts || {}) },
       easterEggs: { ...defaultEggEnabled, ...(cur.easterEggs || {}) },
       autoExternalizeOnOpen: cur.autoExternalizeOnOpen === true, // [externalize] 기본 OFF
+      showScratchLinkEdges: cur.showScratchLinkEdges !== false,   // [#16] 기본 ON(기존 동작 보존)
     };
     renderApiPane();
     renderShortcutsPane();

@@ -125,6 +125,11 @@ const DEFAULT_SETTINGS = {
   // [externalize] 프로젝트를 «열 때» 레거시 base64 이미지를 goya-asset 에셋으로 일괄 외부화(기본 OFF).
   // 기본값 ON 전환은 리허설 통과 후 현빈 G2 게이트(DESIGN-asset-batch-externalize.md §3-3).
   autoExternalizeOnOpen: false,
+  // [#16] 스크래치패드↔섹션 «연결선» 표시(기본 ON = 지금까지의 동작 그대로).
+  //   ⚠️기본값을 true 로 두는 이유 — 이 키가 «없는» 기존 사용자는 readSettings 의
+  //     `{...DEFAULT_SETTINGS, ...raw}` 로 여기 값을 받는다. false 로 두면 업데이트만 해도
+  //     선이 «말없이 사라진» 것처럼 보인다. 「없다」를 「지워졌다」로 읽히게 하지 않는다.
+  showScratchLinkEdges: true,
   apiKeys: { openai: '', gemini: '', anthropic: '' },
   shortcuts: {
     addGap:       'KeyG',
