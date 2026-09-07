@@ -1145,6 +1145,10 @@ function _currentAccountKey() {
   return _accountKeyFor(a.email);
 }
 function _accountProjectsDir(key) { return path.join(ACCOUNTS_DIR, key, 'projects'); }
+/* 고지 문구에 쓸 이메일. ⛔실패해도 입양을 막지 않는다 — 이름을 못 읽은 것이지 옮기지 말라는 뜻이 아니다. */
+function _currentAccountEmail() {
+  try { const a = readAuthOrThrow(); return (a && a.email) ? String(a.email) : null; } catch (_) { return null; }
+}
 function _legacyProjectEntries() {
   try { return fs.readdirSync(PROJECTS_DIR_LEGACY, { withFileTypes: true }).filter(e => /^proj_/.test(e.name)); }
   catch (_) { return []; }
@@ -1159,7 +1163,7 @@ function _existingAccountKeys() {
    그 기계는 사실상 1인용이었다는 뜻이라, 그 경우에만 옮긴다.
    ⛔이미 다른 계정 폴더가 있으면 손대지 않는다 — 남의 것일 수 있다.
    ★옮긴 사실은 adopted.json 에 적는다(폴더를 되옮기면 원상복구된다). */
-function _adoptLegacyIfSoleAccount(key, dest) {
+function _adoptLegacyIfSoleAccount(key, dest, email) {
   const others = _existingAccountKeys().filter(k => k !== key);
   if (others.length) return { adopted: 0, skipped: 'other-accounts-exist', others: others.length };
   const entries = _legacyProjectEntries();
@@ -1173,7 +1177,7 @@ function _adoptLegacyIfSoleAccount(key, dest) {
   }
   try {
     fs.writeFileSync(path.join(ACCOUNTS_DIR, key, 'adopted.json'), JSON.stringify({
-      at: new Date().toISOString(), account: key, from: PROJECTS_DIR_LEGACY, to: dest,
+      at: new Date().toISOString(), account: key, email, from: PROJECTS_DIR_LEGACY, to: dest,
       moved, failed,
       note: '업데이트 이전의 «소유자 미상» 프로젝트를 첫 로그인 계정이 물려받았다. 되돌리려면 to 안의 proj_* 를 from 으로 다시 옮기면 된다.',
     }, null, 2), 'utf8');
@@ -1224,12 +1228,14 @@ function _repointProjectsDir(reason) {
     /* ★「못 읽었다」를 「비로그인」으로 «내려보내지» 않는다. 누구인지 모르면 아무것도 안 보여준다. */
     console.error(`[projects] ★계정을 «못 읽었다»(손상?) — 공용 풀로 내리지 않고 격리 폴더로 간다:`, (e && e.message) || e);
     fs.mkdirSync(PROJECTS_DIR_UNRESOLVED, { recursive: true });
+    if (PROJECTS_DIR !== PROJECTS_DIR_UNRESOLVED) { try { global.currentActiveProjectId = null; } catch (_) {} }
     PROJECTS_DIR = PROJECTS_DIR_UNRESOLVED;
     _writeUnresolvedReadme((e && e.message) || String(e));
     _projectsDirState = { root: PROJECTS_DIR, account: null, reason, unresolved: true, error: String((e && e.message) || e) };
     return _projectsDirState;
   }
   if (!key) {
+    if (PROJECTS_DIR !== PROJECTS_DIR_LEGACY) { try { global.currentActiveProjectId = null; } catch (_) {} }
     PROJECTS_DIR = PROJECTS_DIR_LEGACY;
     _projectsDirState = { root: PROJECTS_DIR, account: null, reason };
     return _projectsDirState;
@@ -1247,16 +1253,77 @@ function _repointProjectsDir(reason) {
        민수가 로그인했는데 PROJECTS_DIR 은 철수 뿌리. 현빈 원 시나리오 그 자체다.
      ⇒ 순서를 뒤집는다. 입양이 실패해도 «격리»는 이미 서 있다(입양은 편의, 격리는 안전).
      ⛔여기서 순서를 되돌리지 마라. */
+  /* ★뿌리가 «바뀌면» 이전 계정의 활성 프로젝트 id 는 더는 유효하지 않다.
+     ⛔안 지우면 그 id 로 새 계정 폴더에 «유령 폴더»가 생긴다 — 실측(2026-09-07):
+       민수 것이던 proj_1788763431770 의 claude-pm/ 이 철수 뿌리 아래 만들어졌다
+       (프로젝트 데이터는 없고 PM 껍데기만. 내용이 새진 않지만 «남의 계정 뿌리에 쓴» 것이다).
+     ⇒ 뿌리를 바꾸는 «그 자리»에서 같이 지운다. */
+  if (PROJECTS_DIR !== dest) { try { global.currentActiveProjectId = null; } catch (_) {} }
   PROJECTS_DIR = dest;
   _projectsDirState = { root: dest, account: key, reason, adopt: null };
 
-  const adopt = fresh ? _adoptLegacyIfSoleAccount(key, dest) : null;
+  const adopt = fresh ? _adoptLegacyIfSoleAccount(key, dest, _currentAccountEmail()) : null;
   _projectsDirState.adopt = adopt;
   try { console.log(`[projects] 뿌리=${dest} 계정=${key} 사유=${reason}` + (adopt && adopt.adopted ? ` 물려받음=${adopt.adopted}건` : '')); } catch (_) {}
   return _projectsDirState;
 }
 function _projectsRoot() { return PROJECTS_DIR; }
+
+/* ★★입양 고지 — 「되돌릴 수 있다」를 «말로만 참»으로 두지 않기 위한 것(지디 머지 조건).
+   adopted.json 과 console.log 는 ★사용자가 «영원히» 안 본다. 장치는 있는데 닿는 길이 없으면
+   그건 없는 것과 같다 — 오늘 종일 잡은 그 모양이다.
+   ⇒ 「옮겼다」는 사실을 «화면까지» 올린다. UI 는 지디가 붙인다(층을 안 섞는다).
+   ⇒ 「한 번만」의 근거: 입양은 계정당 1회다. 그런데 «메모리»에만 두면 고지 전에 앱이 죽었을 때
+     영영 안 뜬다 ⇒ adopted.json 에 noticeShownAt 을 적어 «파일»로 소비를 기록한다.
+     그래서 기동할 때 「아직 안 보여준 입양」이 있으면 다시 집어 든다. */
+function _adoptionNoticePath(key) { return path.join(ACCOUNTS_DIR, key, 'adopted.json'); }
+
+/** 아직 «사용자에게 안 보여준» 입양이 있으면 그 내용을, 없으면 null. */
+function _pendingAdoptionNotice() {
+  try {
+    const key = _currentAccountKey();
+    if (!key) return null;
+    const p = _adoptionNoticePath(key);
+    if (!fs.existsSync(p)) return null;
+    const rec = JSON.parse(fs.readFileSync(p, 'utf8'));
+    if (!rec || !rec.moved || rec.noticeShownAt) return null;   // 옮긴 게 없거나 이미 보여줬다
+    return {
+      moved: rec.moved, email: rec.email || null, at: rec.at || null,
+      recordPath: p, from: rec.from || null, to: rec.to || null,
+      failed: Array.isArray(rec.failed) ? rec.failed.length : 0,
+    };
+  } catch (e) {
+    console.error('[projects] 입양 고지를 못 읽었다:', (e && e.message) || e);
+    return null;   // ⛔여기서 던지면 갤러리가 안 뜬다. 고지는 편의, 화면은 필수
+  }
+}
+
+/** 보여줬다고 «파일»에 적는다. 실패하면 다음에 또 뜬다(두 번 뜨는 게 «영영 안 뜨는 것»보다 낫다). */
+function _markAdoptionNoticeShown() {
+  try {
+    const key = _currentAccountKey();
+    if (!key) return false;
+    const p = _adoptionNoticePath(key);
+    if (!fs.existsSync(p)) return false;
+    const rec = JSON.parse(fs.readFileSync(p, 'utf8'));
+    rec.noticeShownAt = new Date().toISOString();
+    fs.writeFileSync(p, JSON.stringify(rec, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('[projects] 입양 고지 «표시함» 기록 실패 — 다음에 또 뜬다:', (e && e.message) || e);
+    return false;
+  }
+}
+
+
 _repointProjectsDir('startup');
+
+/* 렌더러가 «가져간다». ⛔push 로 보내면 리스너를 걸기 전에 도착해 유실된다
+   (gdt:takePendingOpen 이 같은 이유로 pull 이다 — 같은 결로 맞춘다).
+   ⚠️이 배선은 «떼어내 검사하는 블록 밖»에 둔다 — 안에 두면 검사 하네스가 ipcMain 을
+     못 넣어 블록 전체가 못 돈다(실제로 그렇게 깨뜨렸다). 순수 함수와 배선을 섞지 마라. */
+ipcMain.handle('projects:peekAdoptionNotice', () => _pendingAdoptionNotice());
+ipcMain.handle('projects:ackAdoptionNotice', () => _markAdoptionNoticeShown());
 
 /* ── IPC: SVG Presets (사용자 자산 — 모든 프로젝트 공유) ── */
 const SVG_PRESETS_DIR = path.join(USER_DATA_DIR, 'svg-presets');

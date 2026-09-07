@@ -51,7 +51,16 @@ function _projectsRootPath() {
   throw new Error('NO_PROJECTS_ROOT: PM 폴더의 프로젝트 뿌리가 주입되지 않았다. 공용 폴더로 폴백하지 않는다.');
 }
 function _defaultPmFolderPath(projectId) {
-  return path.join(_projectsRootPath(), projectId, 'claude-pm');
+  /* ★«현재 뿌리에 그 프로젝트가 있을 때»만 PM 폴더 경로를 준다.
+     ⛔없는데도 주면 mkdir 이 «유령 폴더»를 만든다 — 계정이 바뀐 직후 옛 활성 id 로 실제로 그랬다.
+       (2026-09-07 실측: 민수 것이던 id 의 claude-pm/ 이 철수 뿌리 아래 생겼다)
+     ⇒ 활성 id 를 지우는 것이 1차 처방이고, 이건 «그래도 새면» 막는 2차다. */
+  const root = _projectsRootPath();
+  const projDir = path.join(root, projectId);
+  if (!fs.existsSync(projDir)) {
+    throw new Error(`NO_SUCH_PROJECT_IN_ROOT: ${projectId} 이(가) 현재 계정 뿌리에 없다 — PM 폴더를 만들지 않는다`);
+  }
+  return path.join(projDir, 'claude-pm');
 }
 
 // legacy base — 옛 PM 폴더 부모 (~/Documents/claude-pm-projects)

@@ -492,11 +492,97 @@ test('M22b ★안내문 쓰기가 실패해도 «격리 자체»는 선다 (안�
   } finally { fs.writeFileSync = realWrite; }
 });
 
-test('M22c ★교환이 «코드에 적혀» 있다 (판단의 근거는 남아야 한다)', () => {
-  /* 「샐 위험 ↔ 갇힐 위험」을 바꾼 것은 «판단»이다. 판단은 근거와 같이 남아야
-     다음 사람이(또는 내가) 되짚을 수 있다. 지디가 지적한 것이 정확히 이 부재였다. */
-  const i = SRC.indexOf('const PROJECTS_DIR_UNRESOLVED');
-  const head = SRC.slice(Math.max(0, i - 2000), i);
-  assert.match(head, /나오는 길이 없다|회수는 된다/, '★교환의 «양쪽»이 적혀야 한다');
-  assert.match(head, /입양 규칙이 지금 현빈 판단 대기/, '★왜 자동 회수를 «안» 했는지가 적혀야 한다');
+test('M22c ★_unresolved 를 «읽는» 코드가 0곳이다 (교환의 근거가 되는 «사실»)', () => {
+  /* ⛔이 검사의 1판은 「주석에 «나오는 길이 없다» 라는 글자가 있나」를 봤다. 두 가지가 틀렸다(지디 지적):
+       ⑴ `SRC.slice(i-2000, i)` 고정 창 — ★오늘 아침 D7 에서 «내가 고친» 바로 그 버그를 다시 만들었다.
+          주석 한 문단만 늘어도 근거가 창 밖으로 밀려 «가짜 빨강»이 난다.
+       ⑵ ★더 큰 것 — «주석이 있나»는 보지만 «주석이 참인가»는 못 본다. 나중에 누가 자동 회수를 얹으면
+          「나오는 길이 없다」가 «거짓»이 되는데 검사는 그대로 초록이다.
+          ⇒ 그 순간 이 검사는 «거짓 문장을 인증하는 장치»가 된다. 검사가 없느니만 못하다.
+     ★규칙: «말»을 검사하지 말고 «말이 가리키는 사실»을 검사해라.
+
+     여기서 지키는 «사실» = 「_unresolved 는 들어가는 길만 있고 «읽는» 코드가 없다」.
+     그게 「샐 위험 ↔ 갇힐 위험」 교환의 근거다. 이 사실이 바뀌면(=회수 경로가 생기면)
+     교환도 바뀐 것이니, 그때 «사람이» 근거를 갱신하도록 여기서 막아선다. */
+  const hits = [...SRC.matchAll(/PROJECTS_DIR_UNRESOLVED/g)].length;
+  /* ★실측: 선언1 · README 경로1 · mkdir1 · 대입1 · 대입 직전 «바뀌었나» 비교1 = 5. 전부 «쓰는» 쪽.
+     ⚠️이 숫자는 2026-09-07 에 4→5 로 «한 번 바뀌었고», 그때 이 검사가 빨개져서 내가 확인했다.
+       (활성 프로젝트를 지우는 줄이 늘었다 — 읽기가 아니라 쓰기다) ⇒ 검사가 장식이 아니라는 증거다.
+     숫자를 고칠 땐 «늘어난 줄이 읽기인지 쓰기인지»를 먼저 보고, 읽기면 교환의 근거를 갱신해라. */
+  const EXPECTED = 5;
+  assert.strictEqual(hits, EXPECTED,
+    `★_unresolved 를 쓰는 자리가 ${EXPECTED}→${hits} 로 «변했다». 회수 경로가 생겼다면
+     「샐 위험을 갇힐 위험과 바꿨다」는 근거가 더는 참이 아니다 — 주석과 README 를 같이 갱신해라.`);
+
+  // ★양성대조 — 「4」가 «못 세서 4」가 아님을 보인다. 하나 늘리면 빨개져야 한다
+  const bumped = [...(SRC + '\nPROJECTS_DIR_UNRESOLVED;').matchAll(/PROJECTS_DIR_UNRESOLVED/g)].length;
+  assert.strictEqual(bumped, EXPECTED + 1, '★세는 방법이 «변화에 반응»하는지부터 확인한다');
+
+  // 그리고 그 4곳이 «전부 쓰는 쪽»인지 — 읽는 모양(readdir/exists/입양 후보)이 섞이지 않았나
+  for (const line of SRC.split('\n').filter(l => l.includes('PROJECTS_DIR_UNRESOLVED'))) {
+    assert.doesNotMatch(line, /readdirSync|_adoptLegacy|roots\s*\.push|\[\s*PROJECTS_DIR_UNRESOLVED/,
+      `★여기가 «읽는» 자리다 — 회수 경로가 생겼으면 교환의 근거를 갱신해라: ${line.trim()}`);
+  }
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+   M23 — ★입양 고지 (지디 머지 조건 ②)
+   「되돌릴 수 있다」는 adopted.json + console.log 뿐이었다. ★사용자는 그 둘을 «영원히» 안 본다.
+   장치는 있는데 «닿는 길»이 없으면 없는 것과 같다 — 오늘 종일 잡은 그 모양이다.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+test('M23 ★입양이 일어나면 «고지할 것»이 생기고, 한 번 보여준 뒤엔 안 생긴다', () => {
+  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const legacy = path.join(ud, 'projects');
+  fs.mkdirSync(path.join(legacy, 'proj_6001'), { recursive: true });
+  fs.mkdirSync(path.join(legacy, 'proj_6002'), { recursive: true });
+
+  const h = load({ email: 'hyunbin@example.com', userData: ud });
+  const rec = JSON.parse(fs.readFileSync(path.join(ud, 'accounts', h.api._accountKeyFor('hyunbin@example.com'), 'adopted.json'), 'utf8'));
+
+  // ★고지에 필요한 셋이 «파일에» 있어야 한다 — 화면 문구는 여기서 나온다
+  assert.strictEqual(rec.moved, 2, '★몇 개를 옮겼나');
+  assert.strictEqual(rec.email, 'hyunbin@example.com', '★«어느 계정»으로 옮겼나 — 이게 없으면 남의 것인지 판단을 못 한다');
+  assert.ok(rec.from && rec.to, '★«어디서 어디로» — 되돌리려면 필요하다');
+  assert.ok(!rec.noticeShownAt, '아직 안 보여줬다');
+});
+
+test('M23b ★고지 «소비»는 메모리가 아니라 파일에 적힌다 (고지 전에 앱이 죽어도 살아남는다)', () => {
+  /* ⛔메모리에만 두면 고지 전에 앱이 죽었을 때 영영 안 뜬다.
+     ⇒ adopted.json 의 noticeShownAt 이 «소비 기록»이다. */
+  assert.match(SRC, /function _pendingAdoptionNotice\(\)/, '★고지를 «집어 드는» 함수가 있어야 한다');
+  assert.match(SRC, /function _markAdoptionNoticeShown\(\)/, '★«보여줬다»를 적는 함수가 있어야 한다');
+  const pend = bodyOf('_pendingAdoptionNotice');
+  assert.match(pend, /rec\.noticeShownAt/, '★파일의 표시를 봐야 재시작을 견딘다');
+  assert.match(pend, /!rec\.moved/, '★옮긴 게 «없으면» 고지하지 않는다 (빈 고지는 소음이다)');
+  const mark = bodyOf('_markAdoptionNoticeShown');
+  assert.match(mark, /noticeShownAt = new Date/, '★파일에 적어야 한다');
+});
+
+test('M23c ★고지가 «화면까지» 닿는 통로가 있다 (없으면 adopted.json 과 똑같이 안 보인다)', () => {
+  assert.match(SRC, /ipcMain\.handle\('projects:peekAdoptionNotice'/, '★렌더러가 «가져갈» 통로');
+  assert.match(SRC, /ipcMain\.handle\('projects:ackAdoptionNotice'/, '★«봤다»를 돌려줄 통로');
+  // ⛔push 가 아니라 pull 이어야 한다 — 리스너를 걸기 전에 도착하면 유실된다(gdt:takePendingOpen 과 같은 결)
+  assert.doesNotMatch(SRC, /send\('projects:adoptionNotice'/, '★push 로 보내면 렌더러 준비 전에 도착해 유실된다');
+});
+
+test('M23d ★고지가 실패해도 «앱»과 «입양»은 선다 (고지는 편의)', () => {
+  const pend = bodyOf('_pendingAdoptionNotice');
+  assert.match(pend, /catch[\s\S]*return null;/, '★고지를 못 읽는다고 갤러리가 안 뜨면 안 된다');
+  const email = bodyOf('_currentAccountEmail');
+  assert.match(email, /catch \(_\) \{ return null; \}/, '★이름을 못 읽은 것이지 «옮기지 말라»는 뜻이 아니다');
+});
+
+test('M23e ★preload 가 고지 채널을 «열어» 준다 (화이트리스트라 안 적으면 못 부른다)', () => {
+  /* ⛔preload 는 화이트리스트다. main 에 ipcMain.handle 이 있어도 여기 없으면 렌더러가 못 부른다
+     ⇒ adopted.json 과 «똑같이» 사용자에게 안 닿는다. 그게 이 고지를 만든 이유였는데
+       preload 를 빠뜨리면 같은 병을 한 층 아래에서 반복하는 것이다. */
+  const pre = fs.readFileSync(path.join(__dirname, '..', '..', 'preload.js'), 'utf8');
+  for (const ch of ['projects:peekAdoptionNotice', 'projects:ackAdoptionNotice']) {
+    assert.ok(pre.includes(ch), `★preload 에 ${ch} 가 없다 — main 에 있어도 렌더러가 못 부른다`);
+    assert.ok(SRC.includes(`ipcMain.handle('${ch}'`), `★main 에 ${ch} 핸들러가 없다`);
+  }
+  // 양성대조 — preload 가 «실제로» 화이트리스트인지(전부 통과시키는 게 아닌지) 확인
+  assert.doesNotMatch(pre, /invoke:\s*\(channel[^)]*\)\s*=>\s*ipcRenderer\.invoke\(channel/,
+    '★preload 가 임의 채널을 통과시키면 이 검사의 전제가 틀린 것이다');
 });
