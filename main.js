@@ -3678,6 +3678,7 @@ app.whenReady().then(async () => {
       addGridBlock: _invokeRendererAddGridBlock,
       updateGridBlock: _invokeRendererUpdateGridBlock,
       readBlockState: _invokeRendererReadBlockState,   // ★「바꿨다」를 «되읽어» 대조하는 자리
+      assetsList: _assetsListImpl,   // ★에셋 목록 — 앱에 list IPC 가 없어 여기서 디스크를 읽는다
       addChatBlock: _invokeRendererAddChatBlock,
       updateChatBlock: _invokeRendererUpdateChatBlock,
       addGradientBlock: _invokeRendererAddGradientBlock,
@@ -5637,6 +5638,50 @@ async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, 
    ⛔왜 필요한가(2026-09-07 실측): 앱의 update_* 들이 `applied` 를 «인자에서» 만든다(93곳).
      그래서 못 바꿔도 「바꿨다」고 말한다 — `update_section{name}` 이 실제로 그랬다.
    ⇒ 93곳을 하나씩 고치는 대신 «한 자리»에서 쓰고 나서 되읽어 대조한다. 구조가 검사보다 강하다. */
+/* ─── 에셋(Assets 패널) — ★MCP 에 «도구가 하나도 없던» 표면 ──────────────────
+   실측(2026-09-07): 앱엔 assets:saveFile·readFile·deleteFile·saveCanvasImage·readAsDataUri
+   IPC 가 «5개» 있는데 MCP 도구는 «0개»였다. 그래서 「에셋 폴더 뭐 있는지 보고 그 이미지를
+   에셋블럭에 넣어줘」 같은 일을 시작조차 못 했다(이미지 넣기는 스크래치패드 경로만 있었다).
+   ⛔경로 봉쇄는 앱 IPC 가 이미 한다(safeRoot + path traversal 검사) — 여기서 두 벌로 만들지 않는다.
+     다만 «목록»은 IPC 가 없어서(패널이 프로젝트 JSON 트리를 쓴다) 여기서 디스크를 읽는다.
+   ⛔파일 «내용»은 기본으로 안 싣는다 — 이미지가 dataURL 로 응답에 실리면 대화가 터진다. */
+function _assetsDirOf(projectId) {
+  const pid = _safeSeg(projectId);
+  return path.join(PROJECTS_DIR, pid, 'assets');
+}
+
+async function _assetsListImpl({ projectId } = {}) {
+  const pid = projectId || global.currentActiveProjectId;
+  if (!pid) return { ok: false, code: 'NO_PROJECT', error: 'projectId 가 없고 열린 프로젝트도 없습니다.' };
+  /* ⛔«없는 프로젝트»와 «에셋이 아직 없는 프로젝트»를 같은 답으로 뭉개지 않는다.
+     실측(2026-09-07): 없는 id 를 줬는데 ok:true + 「에셋 폴더가 아직 없습니다」가 나왔다 —
+     사람은 「그 프로젝트엔 에셋이 없구나」로 읽는다. 오늘 종일 잡은 그 병이다. */
+  if (!_resolveProjectJsonPath(pid)) {
+    return { ok: false, code: 'PROJECT_NOT_FOUND',
+      error: `그런 프로젝트가 없습니다: ${pid}`,
+      hint: 'This is NOT "the project has no assets" — the project itself does not exist. Check the id with list_projects.' };
+  }
+  const dir = _assetsDirOf(pid);
+  let names = [];
+  try { names = fs.readdirSync(dir); }
+  catch (e) {
+    if (e && e.code === 'ENOENT') return { ok: true, projectId: pid, dir, count: 0, items: [], note: '에셋 폴더가 아직 없습니다 — «프로젝트는 있고» 올린 에셋이 0개라는 뜻입니다.' };
+    throw e;   // ⛔「못 읽었다」를 「없다」로 만들지 않는다
+  }
+  const items = [];
+  for (const n of names) {
+    try {
+      const st = fs.statSync(path.join(dir, n));
+      if (!st.isFile()) continue;
+      items.push({ blobPath: 'assets/' + n, name: n, bytes: st.size,
+                   ext: (n.split('.').pop() || '').toLowerCase(),
+                   modifiedAt: new Date(st.mtimeMs).toISOString() });
+    } catch (_) {}
+  }
+  items.sort((a, b) => (a.name < b.name ? -1 : 1));
+  return { ok: true, projectId: pid, dir, count: items.length, items };
+}
+
 async function _invokeRendererReadBlockState({ blockId } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) return null;
   const safeId = JSON.stringify(String(blockId || ''));

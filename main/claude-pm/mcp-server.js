@@ -147,6 +147,20 @@ function _getUserDataDir() {
   return path.join(os.tmpdir(), 'goditor-mcp');
 }
 function _stateDir() { return path.join(_getUserDataDir(), 'claude-pm'); }
+
+/* ★원장에 «한 줄» 적는 모듈 수준 기록기.
+   기존 _audit 은 도구 호출 «안»에만 있어서, 그 밖에서 터진 것(예외·라우팅 실패)은
+   원장에 «안 남았다». 실측: outcome 분포가 ok 666 · refused 20 «둘뿐»이고 error 0건이었다.
+   ⇒ 원장만 보면 「전부 잘 됐다」로 읽힌다. ⛔안 잰 것은 «없는 것»이 된다.
+   ⛔값은 여전히 안 적는다 — 이름·코드·짧은 메시지만. */
+function _appendAudit(rec) {
+  try {
+    const dir = _stateDir();
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, 'tool-audit.jsonl'),
+      JSON.stringify({ at: new Date().toISOString(), ...rec }) + '\n');
+  } catch (_) { /* 원장 실패가 동작을 막지 않는다 */ }
+}
 function getTokenFilePath() { return _tokenFilePath; }
 function getBridgePath() { return _bridgeCopyPath; }
 function getBridgeError() { return _bridgeCopyError; }
@@ -472,6 +486,9 @@ const _TARGET_FREE = new Set([
   'read_project', 'read_section', 'get_canvas_state', 'list_projects', 'list_memories',
   'list_scratch_items', 'read_scratch_item', 'list_checklist_items', 'get_section_memo',
   'search_iconify', 'get_block_schema', 'goditor_which_instance',
+  /* ★list_assets 는 «자기 대상을 지목하는» 읽기다(projectId 인자를 받는다).
+     게이트로 막으면 「어느 프로젝트에 무슨 에셋이 있나」를 «물어볼 수조차» 없어진다 — ⑴의 취지 그대로. */
+  'list_assets',
   // ⑵ 대상을 «고르는» 도구 = 게이트의 출구
   'open_project',
   // ⑶ 새로 만드는 도구는 대상이 없는 게 «정상»이다(아직 아무것도 안 열었으니).
@@ -3166,6 +3183,33 @@ function _registerDefaultTools() {
         },
         required: ['blockId']
       }
+    }
+  );
+
+  /* ─── assets ★2026-09-07 신설 ─────────────────────────────────────────────
+     앱엔 에셋 IPC 가 5개 있는데 MCP 도구는 «0개»였다 — 「에셋 폴더 뭐 있어?」를 물을 수가 없었다.
+     ⛔파일 «내용»은 기본으로 안 싣는다(이미지 dataURL 이 응답에 실리면 대화가 터진다).
+       넣기는 기존 put_image(스크래치패드) 를 쓴다 — 여기서 두 번째 경로를 만들지 않는다. */
+  registerTool(
+    'list_assets',
+    async (args = {}) => {
+      if (!_rendererInvoker?.assetsList) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.assetsList({ projectId: args.projectId });
+    },
+    {
+      description: 'List the files in a project\'s Assets folder (the "Assets" panel tab). '
+        + 'Returns {ok, projectId, dir, count, items:[{blobPath, name, bytes, ext, modifiedAt}]}. '
+        + 'projectId defaults to the open project. ⚠️Returns metadata only — NOT the image bytes '
+        + '(use the blobPath with the app UI, or put_image to add new ones via the scratch pad). '
+        + 'If the folder does not exist yet the call still succeeds with items:[] and says so.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string', description: 'proj_xxx — defaults to the open project' },
+          expectedProject: { type: 'string' },
+        },
+        additionalProperties: false,
+      },
     }
   );
 
@@ -8032,6 +8076,15 @@ async function _handleRpc(msg) {
 
     return err(-32601, `method not found: ${method}`);
   } catch (e) {
+    /* ★★예외로 죽은 호출이 원장에 «안 남고» 있었다 (2026-09-07 실측).
+         원장의 outcome 은 ok 666 · refused 20 «둘뿐»이었다 — 「터진 것」은 0건이다.
+         그래서 원장만 보면 「전부 잘 됐다」로 읽힌다. ⛔안 잰 것은 «없는 것»이 된다.
+       ⇒ 여기서 error 를 남긴다. 도구 이름을 알 수 있으면 같이 적는다. */
+    try {
+      const _n = (params && params.name) || (typeof method === 'string' ? method : null);
+      _appendAudit({ tool: _n, outcome: 'error', code: 'EXCEPTION',
+                     message: String((e && e.message) || e).slice(0, 200) });
+    } catch (_) {}
     return err(-32000, e.message || String(e));
   }
 }
