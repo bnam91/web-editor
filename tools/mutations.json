@@ -268,5 +268,59 @@
     "file": "js/io/figma-publish.js",
     "find": "  if (!window.FIGMA_ENABLED) return;",
     "replace": "  /* MUTANT */"
+  },
+  {
+    "name": "spacing(a) kill: 감수 예약 훅을 통째로 삭제",
+    "file": "main/claude-pm/mcp-server.js",
+    "find": "            _scheduleSpacingAudit(name);\n          }",
+    "replace": "            /* MUTANT: 감수 예약 없음 */\n          }"
+  },
+  {
+    "name": "spacing(b) MOVE: 배선을 「추가 경로」로 옮김(add_*/build_* 만) — 한쪽만 새는 함정",
+    "file": "main/claude-pm/mcp-server.js",
+    "find": "            _scheduleSpacingAudit(name);\n          }",
+    "replace": "            if (/^(add_|build_)/.test(name)) _scheduleSpacingAudit(name);   /* MUTANT: 추가 경로에만 배선 */\n          }"
+  },
+  {
+    "name": "spacing(c) 수동 도장 1곳 삭제(프리셋 버튼) — 사람이 고른 값이 되돌려진다",
+    "file": "js/props/prop-gap.js",
+    "find": "      window.markGapManual?.(gb);   // ⓓ 사람이 고른 프리셋 — 갭 감수가 되돌리지 않는다",
+    "replace": "      /* MUTANT: 수동 도장 없음 */"
+  },
+  {
+    "name": "spacing(d) 자동 도장 삭제(makeGapBlock) — 감수가 아무 갭도 못 만진다",
+    "file": "js/block-factory.js",
+    "find": "  gb.dataset.gapAuto = '1';",
+    "replace": "  /* MUTANT: 자동 도장 없음 */"
+  },
+  {
+    "name": "spacing(e) 규격: 「뒤가 무게0 → XS」 규칙 삭제 — 캡션이 안 붙는다",
+    "file": "main/claude-pm/services/spacing.js",
+    "find": "  if (wn === 0) return SCALE.XS;",
+    "replace": "  /* MUTANT: 꼬리 규칙 없음 */"
+  },
+  {
+    "name": "spacing(f) 2차 방어: _SPACING_EXEMPT 에서 open_project «만» 뺀다",
+    "file": "main/claude-pm/mcp-server.js",
+    "find": "  'open_project', 'create_project', 'duplicate_project',",
+    "replace": "  'create_project', 'duplicate_project',   /* MUTANT: open_project 면제 해제 */"
+  },
+  {
+    "name": "spacing(g) 히스토리 합치기 해제 — 연속 감수가 되돌리기 목록을 도배한다",
+    "file": "main/claude-pm/mcp-server.js",
+    "find": "      if (t && t.ok !== false && t.seq != null && _spacingOwnTipSeq != null && t.seq === _spacingOwnTipSeq) noHistory = true;",
+    "replace": "      /* MUTANT: 합치기 안 함 */"
+  },
+  {
+    "name": "spacing(h) 세 갈래 붕괴 — inline height 없는 갭을 «수동»으로 본다",
+    "file": "main/claude-pm/services/spacing.js",
+    "find": "  if (it.marked !== undefined) return it.marked === true || it.hasInlineHeight === false;",
+    "replace": "  if (it.marked !== undefined) return it.marked === true;   /* MUTANT: 값 없는 갭도 수동 */"
+  },
+  {
+    "name": "spacing(i) 가장자리 갭 무시 — 프레임 «안» 갭 위에 덧쌓아 이중 간격을 만든다",
+    "file": "main/claude-pm/services/spacing.js",
+    "find": "      if ((slot.prev && slot.prev.edgeGapAfter) || (slot.next && slot.next.edgeGapBefore)) {",
+    "replace": "      if (false) {   /* MUTANT: 가장자리 갭 무시 */"
   }
 ]

@@ -38,6 +38,7 @@ export function showGapProperties(gb) {
   slider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   slider.addEventListener('input', () => {
     gb.style.height = slider.value + 'px';
+    window.markGapManual?.(gb);   // ⓓ 사람이 정한 높이 — 갭 감수가 되돌리지 않는다
     number.value = slider.value;
     updatePresetActive(parseInt(slider.value)); // #15 슬라이더 드래그 시에도 프리셋 active 추종
     window.scheduleAutoSave?.();
@@ -46,6 +47,7 @@ export function showGapProperties(gb) {
   number.addEventListener('input', () => {
     const v = Math.min(400, Math.max(0, parseInt(number.value) || 0));
     gb.style.height = v + 'px';
+    window.markGapManual?.(gb);   // ⓓ 사람이 정한 높이 — 갭 감수가 되돌리지 않는다
     slider.value = v;
     updatePresetActive(v);
     window.scheduleAutoSave?.();
@@ -60,6 +62,7 @@ export function showGapProperties(gb) {
       const h = parseInt(btn.dataset.h);
       window.pushHistory?.();
       gb.style.height = h + 'px';
+      window.markGapManual?.(gb);   // ⓓ 사람이 고른 프리셋 — 갭 감수가 되돌리지 않는다
       slider.value = h;
       number.value = h;
       updatePresetActive(h);

@@ -3135,6 +3135,9 @@ app.whenReady().then(async () => {
       scratchAdd: _invokeRendererScratchAdd,
       buildBasicSection: _invokeRendererBuildBasicSection,
       getCanvasState: _invokeRendererGetCanvasState,
+      // 갭 «감수 패스» — 읽기 / 적용. 둘 다 있어야 감수가 돈다(하나만 있으면 API_MISSING).
+      readSpacingSequence: _invokeRendererReadSpacingSequence,
+      applySpacingOps: _invokeRendererApplySpacingOps,
       exportSections: _invokeRendererExport,
       historyTip: _invokeRendererHistoryTip,
       historyHasSeq: _invokeRendererHistoryHasSeq,
@@ -4053,6 +4056,48 @@ async function _invokeRendererGetCanvasState({ sectionId } = {}) {
   } catch (e) {
     throw new Error('getCanvasState call failed: ' + e.message);
   }
+}
+
+// ─── 갭 «감수 패스» 브리지 (2026-09-07) ─────────────────────────────────────
+// 판단은 main/claude-pm/services/spacing.js «한 곳»에 있다. 여기는 렌더러와의 배관만 한다.
+//   readSpacingSequence : 섹션의 세로 시퀀스를 «읽기»만 한다 → 최소화 가드 없음(getCanvasState 와 동형)
+//   applySpacingOps     : 캔버스를 «바꾼다» → 최소화 가드 있음(레포의 편집 도구 관용구)
+async function _invokeRendererReadSpacingSequence({ sectionId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const js = `(() => {
+    try {
+      if (typeof window.readSpacingSequence !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.readSpacingSequence not found' };
+      }
+      return window.readSpacingSequence(${safeSectionId});
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(js, true); }
+  catch (e) { throw new Error('readSpacingSequence call failed: ' + e.message); }
+}
+
+async function _invokeRendererApplySpacingOps(plan) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  // 계획은 «우리가 만든» 구조체다(id/숫자/문자열만). 그래도 통째로 stringify 해 escape 한다.
+  const safePlan = JSON.stringify(plan || {});
+  const js = `(() => {
+    try {
+      if (typeof window.applySpacingOps !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.applySpacingOps not found' };
+      }
+      return window.applySpacingOps(${safePlan});
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(js, true); }
+  catch (e) { throw new Error('applySpacingOps call failed: ' + e.message); }
 }
 
 // ─── set_section_memo — 섹션 dataset.memo 갱신 ───────────────────────────────

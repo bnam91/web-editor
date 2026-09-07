@@ -75,6 +75,9 @@ const CASES = {
   list_scratch_items: { args: {}, sinks: ["listScratchItems"] },
   move_block: { args: {"blockId":"tb_fx_b1","beforeId":"tb_fx_h1"}, sinks: ["moveBlock"] },
   move_section: { args: {"sectionId":"sec_fixt_2","beforeId":"sec_fixt_1"}, sinks: ["moveSection"] },
+  normalize_spacing: { args: {}, sinks: ["readSpacingSequence"] },
+    // ★숨김 도구(QA·하네스 통로). 갭 «감수 패스»를 지금 돌린다 — 읽기가 앞끝이라 sink 는 read 쪽이다
+    // (할 일이 0이면 applySpacingOps 는 «안» 부르는 게 설계라 sink 로 못 쓴다)
   open_project: { args: {"projectId":"proj_1"}, sinks: ["projectOps.open"] },
   put_image: { args: {"image":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAAMBAQD3A0FDAAAAAElFTkSuQmCC"}, sinks: ["scratchAdd","addAssetBlock"] },
     // 보관함(scratchAdd)에 넣고 캔버스(addAssetBlock)에 얹는다 — 둘 다여야 «넣었다»
