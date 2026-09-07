@@ -112,7 +112,12 @@ const CASES = {
   update_liner_block: { args: {"blockId":"lnr_1","preset":"arc-up"}, sinks: ["updateLinerBlock"] },
   update_mockup_block: { args: {"blockId":"mkp_1","deviceKey":"iphone"}, sinks: ["updateMockupBlock"] },
   update_scratch_item: { args: {"id":"sp_br70mc","name":"x","x":24}, sinks: ["updateScratchItem"] },
-  update_section: { args: {"sectionId":"sec_fixt_1","name":"새이름"}, sinks: ["updateSection"] },
+  update_section: { args: {"sectionId":"sec_fixt_1","bg":"#ffffff"}, sinks: ["updateSection"] },
+    // ⚠️2026-09-07 정정(g-mcpmgr): 여기 «성공하는 최소 인자»가 {sectionId, name:"새이름"} 으로
+    //   적혀 있었다. 그건 성공한 게 아니라 «아무것도 안 하고 ok» 였다 — name 은 핸들러
+    //   구조분해에서 버려지고 bg 가 undefined 라 렌더러가 할 일이 없었는데, 「no fields」 가드가
+    //   28개 update_* 중 «이 도구에만» 없어서 통과했다.
+    //   ★결함이 픽스처에 «정답»으로 굳어 있었다 — 검사가 결함을 지켜 주고 있었던 것이다.
   update_shape_block: { args: {"blockId":"shp_1","shapeType":"rectangle"}, sinks: ["updateShapeBlock"] },
   update_speech_bubble_block: { args: {"blockId":"sb_1","tail":"left"}, sinks: ["updateSpeechBubbleBlock"] },
   update_step_block: { args: {"blockId":"stb_1","steps":[{"title":"A","desc":"a","label":"L","text":"t"}]}, sinks: ["updateStepBlock"] },

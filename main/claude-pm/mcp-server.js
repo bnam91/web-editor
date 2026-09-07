@@ -211,6 +211,102 @@ function registerTool(name, handler, schema) {
   if (schema) toolSchemas.set(name, schema);
 }
 
+/* ─── ★스키마에 «없는» 인자 — 한 자리에서 잰다 (2026-09-07 g-mcpmgr) ───────────
+ * 배선 자리는 «디스패처 한 곳»이다(tools/call). 도구별로 고치지 않는다 —
+ * 도구를 새로 더해도 자동으로 이 검사를 탄다(_projectGate 와 같은 패턴). */
+
+/** 기본은 «경고». `GODITOR_MCP_STRICT_ARGS=1` 이면 «거절». ⛔전환은 지디 게이트(2단계).
+ *  ★«모듈 로드 시점 상수»가 아니라 «호출 시점»에 읽는다 — 상수로 두면 프로세스를 새로 띄우지 않고는
+ *    STRICT 쪽을 «잴 수가 없다». 못 재는 스위치는 스위치가 아니라 주석이다. */
+const _strictArgs = () => String(process.env.GODITOR_MCP_STRICT_ARGS || '') === '1';
+
+/** ★«모르는 인자를 아래로 흘려보내는» 도구 — 여기선 디스패처가 「효과 없음」을 «말할 수 없다».
+ *
+ * 왜 필요한가(2026-09-07 실측): `update_block{blockId, text:'X'}` 에 「text 는 무시됐다」고 경고했는데
+ *   렌더러는 `content:'X'` 를 받아 «글자가 실제로 바뀌었다». 경고가 «거짓말»을 했다.
+ *   기전: 이 둘은 통합 디스패처라 `...rest` 를 `props` 로 «합쳐 아래로» 보내고, 하위 도구의
+ *   «자기 스키마»에서 `normalizeArgs` 가 별칭(text↔content 등)을 해소한다.
+ *   ⇒ 「이 스키마에 그 글자가 없다」와 「그 인자가 안 먹는다」는 **다른 사실**이고,
+ *     둘이 갈리는 자리가 정확히 여기다.
+ * ★전수로 갈랐다 — 노출 도구 33개에 뜬금없는 인자를 하나씩 태워 «렌더러까지 닿나»를 봤다:
+ *     흘려보냄 2 (아래 둘) · 버림 27 · 판정불가 4(렌더러를 안 부르는 도구)
+ * ⇒ 이 둘은 «침묵»한다. 대신 하위 층의 `warnUnknown`(ignoredProps/hint)이 «해소한 뒤» 판정한다.
+ * ⛔이 목록을 손으로 늘리지 마라 — `mcp-unknown-args.test.js` 가 «다시 재서» 어긋나면 빨강을 낸다. */
+const _ARG_FORWARDERS = new Set(['add_block', 'update_block']);
+
+/** 이 도구 스키마가 «선언한» 인자 이름들. 스키마가 없으면 판정하지 않는다(빈 배열이 아니라 null). */
+function _declaredArgKeys(name) {
+  const s = toolSchemas.get(name);
+  const props = s && s.inputSchema && s.inputSchema.properties;
+  return props ? Object.keys(props) : null;
+}
+
+/** ★스키마에 «없는» 인자 — 단, «별칭을 해소한 뒤»에 판정한다.
+ *
+ * ⛔처음에 나는 raw 키를 스키마 prop 과 그냥 대조했다. **그건 거짓 경고를 낸다.**
+ *   실증(2026-09-07): `update_block{blockId, text:'X'}` 에 「text 는 무시됐고 효과가 없다」고 경고했는데
+ *   실제로는 렌더러가 `content:'X'` 를 받아 «글자가 바뀌었다». 경고가 «거짓말»을 한 것이다.
+ * ★원인: 이 코드베이스엔 별칭이 «의도적으로» 있다(`mcp-block-tools.js` `normalizeArgs`):
+ *     ⑴ 표기 정규화 `_canon` — 대소문자·`_`·`-`·공백 무시 (blockID·block_id·BlockId → blockId)
+ *     ⑵ 동의어 표 `SYN` — text↔content · label→title · msg→text · value→text
+ *   ⇒ 「스키마에 그 «글자»가 없다」와 「그 인자가 «안 먹는다»」는 **다른 사실**이다.
+ * ⇒ 그래서 판정을 normalizeArgs 에 위임한다. 그게 «실제로 먹는 규칙»의 정본이다.
+ *   ⚠️normalizeArgs 는 블록 도구에만 걸려 있지만, 그 «해소 규칙»은 여기서 전 도구에 공평하게 쓴다 —
+ *     안 그러면 같은 인자가 도구에 따라 경고가 갈려 더 헷갈린다.
+ * ★스키마를 모르면 «못 잰 것»이라 빈 배열을 준다 — 0 을 「없다」로 쓰지 않기 위해. */
+function _unknownArgKeys(name, args) {
+  const schema = toolSchemas.get(name);
+  const declared = _declaredArgKeys(name);
+  if (!declared || !args || typeof args !== 'object') return [];
+  try {
+    const { normalizeArgs } = require('./mcp-block-tools');
+    if (typeof normalizeArgs === 'function') return normalizeArgs(schema, args).unknown || [];
+  } catch (_) { /* 별칭 해소기를 못 부르면 아래 보수적 대조로 떨어진다 */ }
+  return Object.keys(args).filter(k => !declared.includes(k));
+}
+
+/** ★거절은 곧 «안내»여야 한다 — 3단(넣을 수 있는 것 / 받았는데 안 쓰는 것 / 아예 안 되는 것). */
+function _unknownArgRefusal(name, unknown) {
+  const declared = _declaredArgKeys(name) || [];
+  return {
+    ok: false, code: 'UNKNOWN_ARGS', tool: name, unknownArgs: unknown, accepts: declared,
+    error: `unknown argument(s) for ${name}: ${unknown.join(', ')}`
+      + ` — this tool accepts only: ${declared.join(', ') || '(none)'}.`
+      + ' Those arguments were NOT applied and there is no field on this tool that does what they name;'
+      + ' do not retry with a renamed variant — call tools/list and pick a tool that declares it.'
+  };
+}
+
+/** 경고 문구(비파괴 경로). 응답에 «키를 더할» 뿐 기존 키는 안 건드린다. */
+function _unknownArgWarning(name, unknown) {
+  const declared = _declaredArgKeys(name) || [];
+  return `ignored unknown argument(s): ${unknown.join(', ')}`
+    + ` — ${name} accepts only: ${declared.join(', ') || '(none)'}.`
+    + ' They had NO effect. If you meant to change something else, this tool cannot do it.';
+}
+
+/** ★없던 «인자 원장»을 만든다. 브리지 로그는 params 를 안 남겨서 「실제로 몇 건이냐」를 셀 수가 없었다.
+ *  ⛔값은 안 적는다(PII·본문 유출 방지) — «이름»만 적는다. 그거면 세는 데 충분하다. */
+function _recordUnknownArgs(name, unknown, allKeys) {
+  try {
+    let dir;
+    try {
+      const { app } = require('electron');
+      dir = app && app.getPath ? path.join(app.getPath('userData'), 'claude-pm') : null;
+    } catch (_) { dir = null; }
+    // ⛔electron 이 없을 때(단독 node 실행·검사) «저장소 안»에 로그를 쓰지 않는다 —
+    //   실제로 repo 루트에 claude-pm/ 이 생겼다. 원장은 임시 디렉터리로 흘린다.
+    if (!dir) dir = path.join(os.tmpdir(), 'goditor-mcp', 'claude-pm');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, 'unknown-args.jsonl'),
+      // ★필드 이름을 «notInSchema» 로 둔다 — `unknown` 은 「안 먹는다」를 함의하는데
+      //   전달자에선 «먹는다». 원장은 「스키마에 그 글자가 없었다」만 주장한다.
+      JSON.stringify({ at: new Date().toISOString(), tool: name, notInSchema: unknown, argKeys: allKeys,
+                       forwarder: _ARG_FORWARDERS.has(name),
+                       strict: _strictArgs() }) + '\n');
+  } catch (_) { /* 원장 실패가 도구를 막지 않는다 */ }
+}
+
 function _getProjectsDir() {
   // main process의 app.getPath('userData') 기준 projects 폴더가 정석이지만,
   // 단독 실행 시는 web-editor/projects 사용.
@@ -1808,16 +1904,33 @@ function _registerDefaultTools() {
   // PM update_section — 섹션 속성 변경 (배경 등)
   registerTool(
     'update_section',
-    async ({ sectionId, bg } = {}) => {
+    async ({ sectionId, bg, ...rest } = {}) => {
       if (!sectionId || !sectionId.startsWith('sec_')) throw new Error('sectionId required (sec_xxx)');
       if (bg !== undefined && bg !== null && !/^#?[0-9a-fA-F]{3,8}$|^transparent$|^rgb/.test(String(bg))) {
         throw new Error(`invalid bg: ${bg}`);
+      }
+      // ★«아무것도 안 하고 ok» 를 막는다 (2026-09-07 g-mcpmgr).
+      //   registerTool 된 update_* 28개 중 이 가드가 «없던 유일한» 도구였다(나머지 27개는 있다).
+      //   그래서 update_section({sectionId, name:'새이름'}) 이 «아무 말 없이» 성공했다 —
+      //   name 은 구조분해에서 버려지고 bg 는 undefined 라 렌더러가 할 일이 없다.
+      //   ⇒ 클로드는 「섹션 이름 바꿔줘」를 받으면 이 도구에 name 을 넣어 보고, 아무도 안 나무라니
+      //     «했다»고 답한다. 「도구가 없다」가 「조용한 거짓 성공」으로 둔갑하던 자리다.
+      // ★거절은 곧 «안내»여야 한다 — 무엇을 넣을 수 있는지, 그리고 무엇이 «아예 안 되는지»를
+      //   같이 말하지 않으면 클로드는 title·label 로 갈아 끼우며 같은 자리를 돈다.
+      if (bg === undefined) {
+        const unknown = Object.keys(rest);
+        throw new Error(
+          'no fields to update — provide at least one of: bg'
+          + (unknown.length ? ` (received but NOT supported: ${unknown.join(', ')})` : '')
+          + '. Section name/title is NOT settable via MCP — no tool changes it; rename it in the editor UI.'
+        );
       }
       if (!_rendererInvoker?.updateSection) throw new Error('renderer bridge not ready');
       return await _rendererInvoker.updateSection({ sectionId, bg });
     },
     {
-      description: 'Update section properties (bg color, etc.). Use for changing existing section background. bg: hex color (#000, #ffffff) or "transparent".',
+      description: 'Update section properties. ONLY bg (background color) can be changed — bg: hex (#000, #ffffff) or "transparent". '
+        + 'A section NAME/TITLE cannot be changed by this or any other MCP tool; do not pass name/title/label — the call will be refused.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -7458,7 +7571,46 @@ async function _handleRpc(msg) {
        *   개별 도구 문자열은 손대지 않는다(다이어트 때와 같은 «디스패처 일괄» 패턴). */
       /* ★응답도 «유저 토큰»이다. pretty-print(들여쓰기 2칸)는 같은 정보에 15~25% 를 더 물린다.
        *   compact JSON 은 정보 손실 0 이라 그냥 이득이다(클라이언트는 JSON 으로 파싱한다). */
-      const _reply = (r) => ok({ content: [{ type: 'text', text: JSON.stringify(r) }], isError: false });
+      const _reply = (r) => {
+        /* ★경고 단계에서는 «조용히» 버리지 않고 한 줄을 붙인다 — 그게 이 결함의 핵심 피해다.
+           ⛔기존 키는 안 건드린다(응답 «모양»을 바꾸면 다른 측정이 오염된다). 없던 키만 더한다.
+           그리고 «인자가 깨끗하면 아무것도 안 붙는다» — 정상 응답은 바이트 하나 안 늘어난다. */
+        // ⛔블록 도구는 이미 `warnUnknown` 이 `ignoredProps`/`hint` 로 «같은 말»을 한다.
+        //   두 번 말하면 「어느 쪽이 맞나」가 생긴다 ⇒ 저쪽이 이미 말했으면 나는 «침묵»한다.
+        if (r && typeof r === 'object' && !Array.isArray(r) && !r.ignoredProps
+            && !_ARG_FORWARDERS.has(name) && _unknown.length && !_strictArgs()) {
+          try { r = { ...r, warnings: [...(r.warnings || []), _unknownArgWarning(name, _unknown)] }; }
+          catch (_) { /* 경고 실패가 응답을 막지 않는다 */ }
+        }
+        return ok({ content: [{ type: 'text', text: JSON.stringify(r) }], isError: false });
+      };
+      /* ★«스키마에 없는 인자»를 여기 «한 자리»에서 다룬다 (2026-09-07 g-mcpmgr).
+       *
+       * 무엇이 문제였나: 도구 33/33(노출 기준) 전부가 inputSchema 에 `additionalProperties` 를
+       *   안 걸어 뒀고, 핸들러는 구조분해로 받아 나머지를 «말없이» 버린다.
+       *   ⇒ 오타·환각 인자가 조용히 사라지고 `ok` 가 돌아간다. 실측: update_section({sectionId,
+       *      name:'새이름'}) 이 아무 말 없이 성공했다 — 「기능 부재」가 「조용한 거짓 성공」이 된다.
+       *   양성대조: 필수 인자를 빼면 18/18 제대로 거절한다 ⇒ 서버는 «검사할 줄 안다, 안 하는 것뿐»이다.
+       *
+       * ⛔그런데 «바로 거절»로 가지 않는다. 세어 봤기 때문이다(지디 조건 1 — 「없을 것이다」 금지):
+       *   계약 픽스처 84건 중 «스키마에 없는 인자»를 주는 호출이 **3건** 있었다.
+       *     update_card_block   {cards}  ← 핸들러가 안 쓴다(진짜 군더더기)
+       *     update_scratch_item {name}   ← 핸들러가 안 쓴다(진짜 군더더기)
+       *     ★update_text_block  {text}   ← **핸들러가 «먹는다». 스키마에만 없다**(선언 안 된 별칭)
+       *   실측: update_text_block 에 text 로도 content 로도 넣어 봤고 «둘 다» editTextBlock 까지 갔다.
+       *   ⇒ ★지금 거절로 켜면 «오늘 도는 호출»이 깨진다. 그래서 기본은 «경고»다.
+       *   ⇒ 그리고 더 큰 이유: **인자 단위 원장이 «없었다»** — 브리지 로그는
+       *      `params { metadata: undefined }` 라 무슨 인자가 왔는지 아무 데도 안 남는다.
+       *      「실제 트래픽에 몇 건이냐」를 «셀 수가 없었다». 이 줄이 그 원장을 만든다.
+       *   ⇒ 원장이 쌓여 「진짜 별칭」이 스키마에 선언되고 나면 STRICT 로 뒤집는다(2단계, 지디 게이트).
+       * ⚠️이 판정은 «스키마 대비»다 — 핸들러가 실제로 먹는 것과 다를 수 있고(위 text 가 그 예다)
+       *   그 어긋남 자체가 여기 원장에 잡힌다. 그게 이 장치의 두 번째 값어치다. */
+      const _unknown = _unknownArgKeys(name, args);
+      if (_unknown.length) {
+        _recordUnknownArgs(name, _unknown, Object.keys(args || {}));
+        // ⛔전달자에는 STRICT 도 안 건다 — «거짓 거절»은 «거짓 경고»보다 나쁘다(동작을 막는다).
+        if (_strictArgs() && !_ARG_FORWARDERS.has(name)) return _reply(_unknownArgRefusal(name, _unknown));
+      }
       /* ★프로젝트 «싱크» 게이트 — 대상이 확정 안 된 쓰기는 «실행 전에» 거절한다(_projectGate 주석 참고).
        *   여기가 유일한 배선 자리다: 도구를 새로 더해도 _TARGET_FREE 에 안 적으면 «자동으로» 게이트를 탄다. */
       const _gateRefusal = _projectGate(name, args);
