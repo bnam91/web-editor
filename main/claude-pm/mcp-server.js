@@ -501,14 +501,28 @@ function _serializeCall(fn) {
  * ⛔환경변수는 «검사용 구멍»이다: GODITOR_SPACING_DEBOUNCE_MS=0 이면 즉시, 음수면 «끈다».
  * ───────────────────────────────────────────────────────────────────────── */
 const _spacing = require('./services/spacing');
+/* ★12초 — «재서» 정한 값이다(팀리드 지시, 2026-09-07).
+ *   근거 = 실대화 원장(skills/지디/handoff/axgate-0907-evidence 의 *result*.jsonl · live-progress.jsonl):
+ *     턴 86개 중 도구를 «2개 이상» 부른 턴은 10개(최대 4개). 그 턴들의
+ *     «턴 소요 / (도구수-1)» 분포 = p50 5.4s · p90 9.6s · 최대 181.5s(정체 1건).
+ *   ⇒ p90(9.6s)보다 넉넉히 위인 12s. p50 의 두 배가 조금 넘는다.
+ * ⚠️★정직하게: **어떤 값도 「턴 중간에 안 돈다」를 보장하지 못한다**(도구 2개에 181초 걸린
+ *   턴이 실제로 있다). 그래서 타이밍에만 기대지 않는다 —
+ *   ⑴ ops 가 비면 아무것도 안 한다(히스토리 0) ⑵ 연속 감수는 히스토리 칸을 «새로 안 쌓는다»
+ *   ⑶ 멱등이라 결과가 안 변한다. 이 셋이 «중간에 돌아도 해가 없게» 만드는 본체고, 12s 는 낭비를 줄이는 것뿐이다.
+ * ⛔검사용 구멍: GODITOR_SPACING_DEBOUNCE_MS=0 이면 즉시, 음수면 «끈다». */
+const _SPACING_DEBOUNCE_DEFAULT_MS = 12000;
 const _SPACING_DEBOUNCE_MS = (() => {
   const raw = process.env.GODITOR_SPACING_DEBOUNCE_MS;
-  const n = raw === undefined || raw === '' ? 1200 : Number(raw);
-  return Number.isFinite(n) ? n : 1200;
+  const n = raw === undefined || raw === '' ? _SPACING_DEBOUNCE_DEFAULT_MS : Number(raw);
+  return Number.isFinite(n) ? n : _SPACING_DEBOUNCE_DEFAULT_MS;
 })();
 let _spacingTimer = null;
 /** 마지막 감수 결과 — 진단·검사가 «실제로 무엇이 됐나»를 읽는 자리. */
 let _spacingLastRun = null;
+/** ★우리 감수가 히스토리에 칸을 쌓은 «직후»의 꼭대기 seq. 다음 감수가 「그 뒤로 아무 일도
+ *  없었나」를 이걸로 판정해서, 연속 감수가 되돌리기 목록을 도배하지 않게 한다. */
+let _spacingOwnTipSeq = null;
 
 /** 편집 도구가 «성공»할 때마다 감수를 다시 예약한다(=묶음이 이어지면 계속 미뤄진다). */
 /* ⛔«남의 문서»를 여는/만드는 계열은 감수 대상이 아니다. 열자마자 감수가 돌면
@@ -558,15 +572,32 @@ async function runSpacingAudit({ sectionId = null, reason = 'manual', trigger = 
   if (!sections.length) {
     return (_spacingLastRun = { ok: true, reason, trigger, scannedSections: scanned, changedSections: 0, applied: 0, notes });
   }
-  const applied = await inv.applySpacingOps({ sections });
+  /* ★연속 감수는 히스토리 칸을 «새로 쌓지 않는다».
+     조건 = 지금 꼭대기가 «우리가 지난번 감수로 만든 그 칸» 그대로다(=그 뒤로 아무 일도 없었다).
+     그 칸은 이미 «감수 전» 상태를 들고 있으니, 덧쌓지 않아도 되돌리기는 감수 «전»으로 간다.
+     ⛔사람이나 다른 도구가 사이에 뭔가 했으면 꼭대기가 달라지므로 «정상적으로» 새 칸을 쌓는다. */
+  let noHistory = false;
+  if (typeof inv.historyTip === 'function') {
+    try {
+      const t = await inv.historyTip();
+      if (t && t.ok !== false && t.seq != null && _spacingOwnTipSeq != null && t.seq === _spacingOwnTipSeq) noHistory = true;
+    } catch (_) {}
+  }
+  const applied = await inv.applySpacingOps({ sections, noHistory });
   /* ★히스토리 꼭대기를 «우리 구간»으로 끌어올린다. 안 하면 undo_last_mcp_change 가
      방금 쌓인 «감수» 칸을 보고 NOT_OURS 를 내거나, 감수만 물어뜯는다. */
-  if (_lastMcpSeq != null && typeof inv.historyTip === 'function') {
-    try { const t = await inv.historyTip(); if (t && t.ok !== false && t.seq != null) _lastMcpSeq = t.seq; } catch (_) {}
+  if (typeof inv.historyTip === 'function') {
+    try {
+      const t = await inv.historyTip();
+      if (t && t.ok !== false && t.seq != null) {
+        _spacingOwnTipSeq = t.seq;
+        if (_lastMcpSeq != null) _lastMcpSeq = t.seq;
+      }
+    } catch (_) {}
   }
   return (_spacingLastRun = { ok: true, reason, trigger, scannedSections: scanned,
     changedSections: sections.length, ops: sections.reduce((n, s) => n + s.ops.length, 0),
-    applied, notes, plan: sections });
+    applied, noHistory, notes, plan: sections });
 }
 
 /* API_MISSING = 렌더러에 해당 window.* API가 없다. 대부분 «편집기(index.html)가 안 열려

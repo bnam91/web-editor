@@ -24,6 +24,9 @@ const SPACING = require(path.join(REPO, 'main', 'claude-pm', 'services', 'spacin
 /** 앱의 진짜 구조 그대로: .section-block > .section-inner > (gap | 텍스트프레임 | row) */
 const gapEl = (id, h, auto) =>
   `<div class="gap-block" data-type="gap"${auto ? ' data-gap-auto="1"' : ''} style="height:${h}px" id="${id}"></div>`;
+/* ★inline height 가 «아예 없는» 갭 — templates/canvas 19개에 18건 있는 실제 모양이다.
+   CSS 기본값이 보이는 것이지 «사람이 고른 값»이 아니라서 감수가 채워야 한다. */
+const bareGapEl = (id) => `<div class="gap-block" data-type="gap" id="${id}"></div>`;
 const textEl = (id, type, cls) =>
   `<div class="frame-block" data-text-frame="true" id="ss_${id}">`
   + `<div class="text-block" data-type="${type}" id="${id}"><div class="tb-${cls || type}">글</div></div></div>`;
@@ -50,6 +53,8 @@ const FIXTURE = `
       ${textEl('tb_5', 'heading', 'h2')}
       ${gapEl('gb_manual', 37, false)}
       ${textEl('tb_6', 'body')}
+      ${bareGapEl('gb_bare')}
+      ${textEl('tb_7', 'body')}
       ${gapEl('gb_o1', 100, true)}
       ${gapEl('gb_o2', 100, true)}
     </div>
@@ -62,9 +67,17 @@ const readDomShape = (page) => page.evaluate(() => {
   document.querySelectorAll('.section-block').forEach((sec) => {
     out[sec.id] = [...sec.querySelector('.section-inner').children]
       .filter((el) => getComputedStyle(el).position !== 'absolute')
-      .map((el) => el.classList.contains('gap-block')
-        ? 'gap' + parseInt(el.style.height, 10) + (el.dataset.gapAuto === '1' ? '' : '(수동)')
-        : (el.querySelector('.text-block')?.dataset.type || el.className.split(' ')[0]));
+      /* ⚠️표기를 «세 갈래»에 맞춘다. 처음엔 `dataset.gapAuto !== '1'` 이면 전부 (수동)으로 찍었는데,
+         inline height 가 없는 갭이 `gapNaN(수동)` 으로 나와 «증거가 거짓말»을 했다.
+         제품은 옳게 돌고 있었고 틀린 건 이 «자»였다 — 계측기가 스스로를 속인 자리. */
+      .map((el) => {
+        if (!el.classList.contains('gap-block')) {
+          return el.querySelector('.text-block')?.dataset.type || el.className.split(' ')[0];
+        }
+        const raw = parseInt(el.style.height, 10);
+        if (!isFinite(raw)) return 'gap(값없음)';          // 아무도 안 정했다 → 자동
+        return 'gap' + raw + (el.dataset.gapAuto === '1' ? '' : '(수동)');
+      });
   });
   return out;
 });
@@ -90,10 +103,18 @@ test('DOM-① 진짜 DOM 에서 «세로 시퀀스»를 제대로 읽는다 (텍
   // ★row 는 자식이 성격을 정한다 — 이미지 든 줄은 덩어리(3)로 읽혀야 한다.
   const row = s1.items.find((i) => i.type === 'row');
   expect(SPACING.weightOfItem(row)).toBe(3);
-  // 자동/수동 도장이 «읽힌다»
+  /* 자동/수동은 «사실 두 개»로 실린다(판정은 spacing.js 의 isAutoGap 이 한다 — 판단은 한 곳). */
   const s2 = st.sections.find((s) => s.sectionId === 'sec_2');
-  expect(s2.items.find((i) => i.id === 'gb_manual').auto).toBe(false);
-  expect(s2.items.find((i) => i.id === 'gb_t2').auto).toBe(true);
+  const gm = s2.items.find((i) => i.id === 'gb_manual');
+  const gt = s2.items.find((i) => i.id === 'gb_t2');
+  const gb = s2.items.find((i) => i.id === 'gb_bare');
+  expect({ marked: gm.marked, inline: gm.hasInlineHeight }).toEqual({ marked: false, inline: true });
+  expect({ marked: gt.marked, inline: gt.hasInlineHeight }).toEqual({ marked: true, inline: true });
+  // ★inline height 가 «없는» 갭 — 진짜 DOM 에서 그렇게 읽혀야 세 갈래가 산다
+  expect({ marked: gb.marked, inline: gb.hasInlineHeight }).toEqual({ marked: false, inline: false });
+  expect(SPACING.isAutoGap(gm)).toBe(false);
+  expect(SPACING.isAutoGap(gt)).toBe(true);
+  expect(SPACING.isAutoGap(gb)).toBe(true);
 });
 
 test('DOM-② ★뒤끝 — 계획을 적용하면 «진짜 갭 높이»가 그 값이 된다', async ({ page }) => {
@@ -118,8 +139,9 @@ test('DOM-② ★뒤끝 — 계획을 적용하면 «진짜 갭 높이»가 그 
   expect(after.sec_1).toEqual([
     'gap100', 'label', 'gap80', 'heading', 'gap80', 'body', 'gap80', 'row', 'gap16', 'caption', 'gap100',
   ]);
-  // ★수동 37px 은 살아남고, 고아 갭 둘은 하나로 합쳐진다
-  expect(after.sec_2).toEqual(['gap100', 'heading', 'gap37(수동)', 'body', 'gap100']);
+  /* ★수동 37px 은 살아남고 · 값 없던 갭(gb_bare)은 본문↔본문 S=40 으로 «채워지고»
+     · 고아 갭 둘은 하나로 합쳐진다. 세 갈래가 «한 섹션에서» 다 보인다. */
+  expect(after.sec_2).toEqual(['gap100', 'heading', 'gap37(수동)', 'body', 'gap40', 'body', 'gap100']);
   expect(applied.misses).toEqual([]);
 });
 
@@ -234,6 +256,6 @@ test('DOM-⑥ 자동/수동 도장이 «직렬화 세척»을 견딘다 (저장�
     return { total: gaps.length, auto: gaps.filter((g) => g.dataset.gapAuto === '1').length, html: clone.innerHTML.length };
   });
   console.log(`  세척 후 갭 ${out.total}개 중 자동 도장 ${out.auto}개`);
-  expect(out.total).toBe(6);   // 픽스처의 갭 수 (sec_1: 2 · sec_2: 4)
-  expect(out.auto).toBe(5);    // gb_manual 하나만 수동
+  expect(out.total).toBe(7);   // 픽스처의 갭 수 (sec_1: 2 · sec_2: 5)
+  expect(out.auto).toBe(5);    // 도장 찍힌 것 5개 (gb_manual·gb_bare 는 도장 없음)
 });

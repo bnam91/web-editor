@@ -168,6 +168,32 @@ test('Ⓐ-e ★«추가»만이 아니라 삭제·이동도 감수를 부른다 
   }
 });
 
+test('Ⓐ-f ★2차 방어를 «혼자» 재라 — 히스토리가 «움직여도» open_project 는 감수를 안 부른다', async () => {
+  /* ★왜 Ⓐ-d 로는 부족한가(팀리드 지적): Ⓐ-d 는 1차 방어(히스토리 델타)에 막혀서 통과한다.
+     그러면 2차 방어(_SPACING_EXEMPT)는 «있어도 없어도» 초록이라 아무것도 안 지킨다.
+     ⇒ 여기서는 1차 방어를 «일부러 뚫는다» — 진짜 앱에서 open_project 는 문서를 통째로 갈아
+     끼우므로 히스토리 꼭대기가 움직일 수 있다. 그 상황을 만들어 2차 방어만 남긴다. */
+  await new Promise((r) => setTimeout(r, DEBOUNCE * 4));
+  let tip = 500;
+  const restore = H.setCanned('historyTip', async () => {
+    tip += 1;   // 부를 때마다 꼭대기가 «움직인다» = 1차 방어 무력화
+    return { ok: true, seq: tip, empty: false, canUndo: true, len: tip, action: 'x' };
+  });
+  try {
+    const at = H.calls.length;
+    await H.call('open_project', { projectId: 'proj_1' });
+    await new Promise((r) => setTimeout(r, DEBOUNCE * 6));
+    assert.equal(auditCount(at), 0,
+      '★히스토리가 움직였다는 이유로 open_project 가 감수를 불렀다 — 2차 방어(_SPACING_EXEMPT)가 죽었다. '
+      + '기존 프로젝트를 «열기만» 해도 남의 손맞춤 갭이 고쳐 쓰인다.');
+    // 대조군: 같은 조건에서 «편집» 도구는 감수를 부른다(=이 검사가 1차 방어를 정말 뚫었다는 증거)
+    const at2 = H.calls.length;
+    await H.call('add_block', { type: 'text', props: { type: 'body', content: 'z', sectionId: 'sec_1' } });
+    assert.ok(await waitForAudit(at2, 2000),
+      '대조군이 실패했다 — 1차 방어가 아직 살아 있어서 이 검사가 2차 방어를 «안 재고» 있다');
+  } finally { restore(); }
+});
+
 // ── Ⓑ 뒤끝 — 「갭이 실제로 그 값이 됐다」 ────────────────────────────────
 test('Ⓑ ★뒤끝 — 오늘 그 5섹션의 «블록 사이 갭 0개»가 규격값으로 «실제로» 채워진다', async () => {
   CANVAS = makeCanvas(FIVE());
@@ -343,4 +369,57 @@ test('Ⓕ main.js 가 브리지 «두 키»를 다 등록하고, index.html 이 
   for (const w of ['window.readSpacingSequence =', 'window.applySpacingOps =', 'window.markGapManual =', 'window.markGapAuto =']) {
     assert.ok(rend.includes(w), `js/spacing-normalize.js 가 «${w}» 를 안 내보낸다`);
   }
+});
+
+/* ── Ⓖ 히스토리 위생 — 연속 감수가 되돌리기 목록을 «도배하지» 않는다 ──────────
+ * ★타이밍만으로는 「턴 중간에 안 돈다」를 «보장 못 한다»(실측: 도구 2개에 181초 걸린 턴이 있다).
+ *   그래서 「중간에 돌아도 해가 없게」 만드는 쪽이 본체다 — 이 검사가 그 자리다.
+ */
+test('Ⓖ 연속 감수는 히스토리 칸을 «새로 안 쌓는다» (되돌리기 목록 도배 방지)', async () => {
+  /* 감수가 «두 번 연속» 실제로 뭔가를 고치게 만든다: 매번 갭을 빼앗아 다시 채우게. */
+  let hist = 0;
+  CANVAS = makeCanvas([{ sectionId: 'sec_h', name: '히스토리', items: [
+    g('gh_a'), b('t_h1', 'heading'), b('t_h2', 'body'), g('gh_z'),
+  ] }]);
+  const seen = [];
+  H.setCanned('readSpacingSequence', (a) => CANVAS.read(a || {}));
+  H.setCanned('applySpacingOps', async (p) => { seen.push(!!p.noHistory); if (!p.noHistory) hist++; return CANVAS.apply(p); });
+  H.setCanned('historyTip', async () => ({ ok: true, seq: 1000 + hist, empty: false, canUndo: true, len: 1 + hist, action: '간격 감수' }));
+
+  const r1 = await H.call('normalize_spacing', {});
+  assert.equal(r1.result.ok, true);
+  assert.equal(seen[0], false, '첫 감수는 «칸을 쌓아야» 되돌릴 수 있다');
+
+  // 사이에 «아무 일도 없이» 다시 고칠 거리를 만든다 — 사람이 갭을 지운 것과 같은 모양
+  CANVAS.state[0].items = CANVAS.state[0].items.filter((i) => i.kind !== 'gap' || i.id.startsWith('gh_'));
+  const r2 = await H.call('normalize_spacing', {});
+  assert.equal(r2.result.ok, true);
+  assert.equal(r2.result.changedSections, 1, '두 번째도 실제로 고칠 게 있어야 이 검사가 의미가 있다');
+  assert.equal(seen[1], true,
+    '★두 번째 감수가 히스토리 칸을 또 쌓았다 — 긴 턴이면 되돌리기 목록이 「간격 감수」로 도배된다');
+
+  // 사람이 사이에 뭔가 하면(꼭대기가 달라지면) «정상적으로» 새 칸을 쌓는다
+  hist += 5;
+  CANVAS.state[0].items = CANVAS.state[0].items.filter((i) => i.kind !== 'gap' || i.id.startsWith('gh_'));
+  const r3 = await H.call('normalize_spacing', {});
+  assert.equal(r3.result.changedSections, 1);
+  assert.equal(seen[2], false,
+    '★사람이 사이에 편집했는데 칸을 안 쌓았다 — 그러면 되돌리기가 사람 작업을 건너뛴다');
+
+  H.setCanned('applySpacingOps', (p) => CANVAS.apply(p));
+});
+
+test('Ⓗ ★디바운스 기본값은 «잰 값»이다 — 누가 조용히 되돌리지 못하게 못박는다', () => {
+  const src = stripComments(fs.readFileSync(path.join(REPO, 'main', 'claude-pm', 'mcp-server.js'), 'utf8'));
+  const m = src.match(/_SPACING_DEBOUNCE_DEFAULT_MS\s*=\s*(\d+)/);
+  assert.ok(m, '_SPACING_DEBOUNCE_DEFAULT_MS 상수를 못 찾았다 — 값이 리터럴로 흩어졌나?');
+  const ms = Number(m[1]);
+  /* 실측 근거(skills/지디/handoff/axgate-0907-evidence): 도구 2개 이상인 턴 10개의
+     「턴 소요/(도구수-1)」 p50 5.4s · p90 9.6s. p90 «위»여야 한다. */
+  assert.ok(ms >= 9600, `기본 디바운스 ${ms}ms 는 실측 p90(9600ms) «아래»다 — 턴 중간에 도는 낭비가 커진다`);
+  assert.ok(ms <= 60000, `기본 디바운스 ${ms}ms 는 너무 길다 — 사용자가 갭이 안 잡힌다고 느낀다`);
+  /* ★값만 지키면 「왜 그 값인지」가 사라진다. 근거 문장이 «옆에» 있어야 한다. */
+  const raw = fs.readFileSync(path.join(REPO, 'main', 'claude-pm', 'mcp-server.js'), 'utf8');
+  assert.ok(/p90/.test(raw) && /p50/.test(raw),
+    '디바운스 옆에 «잰 근거»(p50/p90)가 적혀 있어야 한다 — 숫자만 있으면 다음 사람이 왜 그 값인지 모른다');
 });

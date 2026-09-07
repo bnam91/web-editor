@@ -176,7 +176,32 @@ function gapFor(prevType, nextType) {
 const SECTION_EDGE = SCALE.L;
 
 function _isGap(it) { return it && it.kind === 'gap'; }
-function _isAuto(it) { return it && it.auto === true; }
+
+/**
+ * ★이 갭을 감수가 만져도 되는가 = «자동»인가.
+ *
+ * 세 갈래다(가운데가 실측으로 «나중에» 생긴 갈래다):
+ *   ⑴ marked=true                       → 자동. 기계가 만들었다(data-gap-auto="1").
+ *   ⑵ marked=false · hasInlineHeight=false → ★자동. «아무도 값을 정한 적이 없다».
+ *   ⑶ marked=false · hasInlineHeight=true  → 수동. 누군가 그 값을 «정했다» — 안 건드린다.
+ *
+ * ★⑵ 가 왜 자동인가 (2026-09-07 실측): templates/canvas 19개에 **inline height 가 아예 없는
+ *   갭이 18개** 있다. 그건 CSS 기본값이 보이는 것이지 «사람이 고른 값»이 아니다.
+ *   ⓓ 규칙(「표식 없으면 수동」)이 지키려는 건 «사람이 정한 값»인데, 정해진 값이 «없다».
+ *   ⇒ 이 앱에서 갭 높이를 바꾸는 자리는 전부 `.style.height` 를 쓴다(prop-gap 3곳 ·
+ *      prop-multisel · updateGapBlock). 그래서 「inline height 없음」 ⇔ 「아무도 안 정했다」가
+ *      «구조적으로» 성립한다. 빈칸을 채우는 것은 뺏는 것이 아니다.
+ *   ⚠️이 등가가 깨지려면 «CSS 클래스로 갭 높이를 주는» 경로가 새로 생겨야 한다. 그런 걸 만들면
+ *      여기부터 고쳐라(tests/unit/spacing-spec 의 ⑨ 가 그 자리를 지킨다).
+ *
+ * `auto` 는 «축약 형태»다 — 검사·하네스가 손으로 시퀀스를 적을 때 쓴다.
+ */
+function isAutoGap(it) {
+  if (!it) return false;
+  if (it.marked !== undefined) return it.marked === true || it.hasInlineHeight === false;
+  return it.auto === true;
+}
+function _isAuto(it) { return isAutoGap(it); }
 
 /**
  * @param {Array} items 섹션의 세로 시퀀스
@@ -294,6 +319,7 @@ function applyPlanToSequence(items, ops, mkId) {
 
 module.exports = {
   SCALE,
+  isAutoGap,
   WEIGHT,
   FALLBACK_WEIGHT,
   SECTION_EDGE,

@@ -244,3 +244,50 @@ test('⑧-b id 없는 «갭»이 낀 슬롯은 통째로 안 건드린다 (set/r
   assert.deepEqual(p.ops, []);
   assert.ok(p.notes.some((n) => /id/.test(n)));
 });
+
+// ── ⑨ 자동/수동 «세 갈래» ────────────────────────────────────────────────
+test('⑨ ★inline height 가 «없는» 갭은 자동이다 — 아무도 값을 정한 적이 없으니까', () => {
+  /* 실측(templates/canvas 19개): inline height 가 아예 없는 갭이 **18개**.
+     그건 CSS 기본값이 보이는 것이지 «사람이 고른 값»이 아니다. ⓓ 가 지키려는 건
+     «사람이 정한 값»인데 정해진 값이 없다 ⇒ 빈칸을 채우는 건 뺏는 게 아니다. */
+  assert.equal(S.isAutoGap({ marked: true, hasInlineHeight: true }), true, '표식 있으면 자동');
+  assert.equal(S.isAutoGap({ marked: true, hasInlineHeight: false }), true);
+  assert.equal(S.isAutoGap({ marked: false, hasInlineHeight: false }), true, '★표식 없고 «값도 없다» → 자동');
+  assert.equal(S.isAutoGap({ marked: false, hasInlineHeight: true }), false, '★표식 없는데 «값이 있다» → 수동(누군가 정했다)');
+  assert.equal(S.isAutoGap({ auto: true }), true, '축약 형태(검사용)도 살아 있어야 한다');
+  assert.equal(S.isAutoGap({ auto: false }), false);
+});
+
+test('⑨-b 세 갈래가 «정규화 결과»까지 간다 — 값 없는 갭은 채워지고, 값 있는 갭은 남는다', () => {
+  const seq = [
+    { id: 'gb_a', kind: 'gap', height: 100, marked: true, hasInlineHeight: true },
+    { id: 'tb_1', kind: 'block', type: 'heading' },
+    { id: 'gb_blank', kind: 'gap', height: 40, marked: false, hasInlineHeight: false },  // 아무도 안 정했다
+    { id: 'tb_2', kind: 'block', type: 'body' },
+    { id: 'gb_hand', kind: 'gap', height: 37, marked: false, hasInlineHeight: true },     // 사람이 정했다
+    { id: 'tb_3', kind: 'block', type: 'body' },
+    { id: 'gb_z', kind: 'gap', height: 100, marked: true, hasInlineHeight: true },
+  ];
+  const p = S.normalizePlan(seq);
+  const after = S.applyPlanToSequence(seq, p.ops);
+  const shape = after.map((i) => (i.kind === 'gap' ? `gap${i.height}` : i.type)).join(' · ');
+  assert.equal(shape, 'gap100 · heading · gap80 · body · gap37 · body · gap100',
+    `값 없던 갭은 M80 으로 채워지고 손맞춤 37 은 남아야 한다: ${shape}`);
+  // 멱등도 이 갈래에서 유지된다
+  assert.deepEqual(S.normalizePlan(after).ops, []);
+});
+
+test('⑨-c ⚠️「inline height 없음 = 아무도 안 정했다」의 등가가 깨지는 경로가 없다', () => {
+  /* 이 등가는 «갭 높이를 바꾸는 모든 자리가 .style.height 를 쓴다»에 기대고 있다.
+     CSS 클래스로 갭 높이를 주는 경로가 새로 생기면 ⑵ 갈래가 «사람이 정한 값»을 자동으로 오판한다. */
+  const files = ['js/props/prop-gap.js', 'js/props/prop-multisel.js', 'js/block-factory.js', 'js/spacing-normalize.js'];
+  const bad = [];
+  for (const rel of files) {
+    const src = fs.readFileSync(path.join(REPO, rel), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    /* 갭에 «클래스로» 높이를 주는 모양: classList.add('gap-h-…') 류. 지금은 0건이어야 한다. */
+    for (const m of src.matchAll(/classList\.add\(\s*['"]gap-[a-z0-9-]*h[a-z0-9-]*['"]/g)) bad.push(`${rel}: ${m[0]}`);
+  }
+  assert.deepEqual(bad, [],
+    '갭 높이를 «클래스»로 주는 경로가 생겼다 — spacing.js 의 isAutoGap ⑵ 갈래가 사람 값을 자동으로 오판한다:\n  ' + bad.join('\n  '));
+});

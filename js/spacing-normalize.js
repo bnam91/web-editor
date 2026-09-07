@@ -100,9 +100,18 @@
       if (!(el instanceof Element)) return;
       if (!_inFlow(el)) return;
       if (el.classList.contains('gap-block')) {
-        var h = parseInt(el.style.height, 10);
-        if (!isFinite(h)) h = el.offsetHeight;
-        items.push({ id: el.id || null, kind: 'gap', height: h, auto: _isAuto(el) });
+        /* ★«사실»만 싣는다 — 자동/수동 «판정»은 spacing.js 의 isAutoGap 이 한다(판단은 한 곳).
+           hasInlineHeight = 「누군가 이 갭의 높이를 정한 적이 있나」의 구조적 대리값이다.
+           이 앱에서 갭 높이를 바꾸는 자리는 전부 .style.height 를 쓴다(prop-gap 3 · multisel ·
+           updateGapBlock). inline height 가 없으면 CSS 기본값이 보이는 것이고, 그건 아무도
+           «고르지 않은» 값이다. */
+        var raw = parseInt(el.style.height, 10);
+        var hasInline = isFinite(raw);
+        items.push({
+          id: el.id || null, kind: 'gap',
+          height: hasInline ? raw : el.offsetHeight,
+          marked: _isAuto(el), hasInlineHeight: hasInline,
+        });
         return;
       }
       var t = _typeOf(el);
@@ -149,7 +158,15 @@
     secs.forEach(function (s) { total += ((s && s.ops) || []).length; });
     if (!total) return { ok: true, applied: 0, inserted: 0, removed: 0, resized: 0, skipped: 'no-ops' };
 
-    if (typeof window.pushHistory === 'function') window.pushHistory('간격 감수');
+    /* ★plan.noHistory = 「직전 히스토리 칸이 «우리 감수»이고 그 뒤로 아무 일도 없었다」.
+       그러면 칸을 «새로 쌓지 않는다» — 그 칸이 이미 «감수 전» 상태를 들고 있어서,
+       되돌리면 어차피 감수 «전»으로 간다. 안 그러면 긴 턴에서 되돌리기 목록이
+       「간격 감수」로 도배된다(팀리드 지적). 판정은 main 이 히스토리 꼭대기로 한다. */
+    var pushed = false;
+    if (!plan.noHistory && typeof window.pushHistory === 'function') {
+      window.pushHistory('간격 감수');
+      pushed = true;
+    }
 
     var inserted = 0, removed = 0, resized = 0, misses = [];
     secs.forEach(function (s) {
@@ -196,7 +213,7 @@
     if (typeof window.buildLayerPanel === 'function') { try { window.buildLayerPanel(); } catch (_) {} }
     if (typeof window.scheduleAutoSave === 'function') { try { window.scheduleAutoSave(); } catch (_) {} }
 
-    return { ok: true, applied: inserted + removed + resized, inserted: inserted, removed: removed, resized: resized, misses: misses };
+    return { ok: true, applied: inserted + removed + resized, inserted: inserted, removed: removed, resized: resized, misses: misses, pushedHistory: pushed };
   }
 
   window.readSpacingSequence = readSpacingSequence;
