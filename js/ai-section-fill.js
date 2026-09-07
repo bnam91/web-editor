@@ -4,6 +4,34 @@
    - UI 구현체는 _openAIFillUI_impl() 한 함수에 모여있어 브랜치별로 교체 가능.
 ══════════════════════════════════════ */
 
+import { isGoyaAssetUrl, parseGoyaAssetUrl, makeElectronAssetReader } from './io/goya-asset-inline.js';
+
+/* ── 스크래치 토큰(#sp_xxxxxx) 첨부 시 goya-asset:// → base64 data URL 재인라인 ──
+ * 왜 필요한가 — 「저장 전엔 되고 저장 후엔 안 됐다」:
+ *   스크래치 패드 이미지의 src는 «붙여넣은 직후엔» base64 data URL이지만,
+ *   프로젝트를 한 번 저장하면 externalizeScratchpad(js/scratch-pad.js)가 이미지를
+ *   `goya-asset://<projectId>/<hash>.<ext>` 로 «외부화»하고 IndexedDB src까지 갱신한다.
+ *   그 뒤 프롬프트에 #sp_xxxxxx 토큰을 넣으면 그 goya-asset URL이 그대로
+ *   imageDataUrls 에 실려 Gemini 호출로 넘어가고, services/geminiService.js 의
+ *   base64 파서가 거절해 「이미지 dataURL 형식 오류」가 났다.
+ *   ⇒ 첨부에 넣기 «전» 마지막 문에서 data URL로 되돌린다. 변환 도구는
+ *     export-html.js / export-figma-json.js 가 쓰는 것과 동일(goya-asset-inline.js).
+ * ★실패는 조용히 넘기지 않는다 — 첨부에서 빼고 어느 토큰이 실패했는지 토스트로 알린다
+ *   (`?? alert(...)` 금지: showToast 가 undefined 를 반환해 네이티브 alert 이 렌더러를 얼린다).
+ * ────────────────────────────────────────────────────────────────── */
+async function _scratchSrcToDataUrl(url) {
+  const parsed = parseGoyaAssetUrl(url);
+  const reader = makeElectronAssetReader();   // 웹/IPC 미가용이면 null
+  if (!parsed || !reader) return null;
+  try {
+    const dataUri = await reader(parsed.projectId, parsed.filename);
+    return (typeof dataUri === 'string' && dataUri.startsWith('data:')) ? dataUri : null;
+  } catch (err) {
+    console.warn('[ai-section-fill] 스크래치 asset 인라인 실패:', url, err);
+    return null;
+  }
+}
+
 /** 섹션에서 채우기 대상 수집 (DOM 순서)
    - .text-block — 직접 textContent 교체
    - .canvas-block[data-card-mode="simple"] — data-cards JSON 배열의 title/desc
@@ -731,18 +759,28 @@ function _ensureAIFillPanel() {
     const baseUrls = (_aiFillState.imageDataUrls || []).slice();
     const tokenMatches = [...promptText.matchAll(/#(sp_[a-z0-9]{6})\b/g)];
     const seen = new Set(); let tokenAttached = 0;
+    const tokenFailed = [];
     for (const m of tokenMatches) {
       const id = m[1];
       if (seen.has(id)) continue;
       seen.add(id);
       const it = window._scratchGetItemById?.(id);
-      if (it?.src && !baseUrls.includes(it.src)) {
-        baseUrls.push(it.src);
-        tokenAttached += 1;
+      if (!it?.src || baseUrls.includes(it.src)) continue;
+      // 저장 후 src는 goya-asset:// 참조라 base64로 되돌려야 Gemini 파서를 통과한다(위 주석 참조)
+      let src = it.src;
+      if (isGoyaAssetUrl(src)) {
+        src = await _scratchSrcToDataUrl(src);
+        if (!src) { tokenFailed.push(id); continue; }   // 첨부에서 제외 — 아래에서 «보이게» 알린다
       }
+      if (baseUrls.includes(src)) continue;
+      baseUrls.push(src);
+      tokenAttached += 1;
     }
     if (tokenAttached > 0) {
       window.showToast?.(`🔗 스크래치 ID로 ${tokenAttached}장 자동 첨부`);
+    }
+    if (tokenFailed.length > 0) {
+      window.showToast?.(`❌ 스크래치 이미지를 읽지 못해 첨부 제외: ${tokenFailed.map(t => '#' + t).join(', ')}`);
     }
     const model = panel.querySelector('#ai-fill-panel-model')?.value || 'gemini-2.5-flash';
     const res = await callGeminiFill({
