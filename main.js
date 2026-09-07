@@ -5699,21 +5699,57 @@ async function _invokeRendererAssetsTree() {
 }
 
 /** 에셋 트리를 «고친다» — 앱 함수에 위임하고 «결과를 다시 읽어» 돌려준다. */
-async function _invokeRendererAssetsMutate({ op, id, parentId, name, url, title, note, sectionId } = {}) {
+async function _invokeRendererAssetsMutate({ op, id, parentId, name, url, title, note, sectionId, image } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
   const a = JSON.stringify({ op, id: id || null, parentId: parentId || null,
                              name: name || null, url: url || null, title: title || null, note: note || null,
-                             sectionId: sectionId || null });
+                             sectionId: sectionId || null, image: image || null });
   const js = `(async () => {
     try {
       const p = ${a};
       const need = { createFolder:'assetsCreateFolder', addUrl:'assetsAddUrl', rename:'assetsRenameNode',
-                     delete:'assetsDeleteNode', move:'assetsMoveNode', sendToCanvas:'assetsSendToCanvas' }[p.op];
-      if (!need) return { ok:false, code:'BAD_OP', message:'op must be one of createFolder|addUrl|rename|delete|move|sendToCanvas' };
+                     delete:'assetsDeleteNode', move:'assetsMoveNode', sendToCanvas:'assetsSendToCanvas',
+                     addImage:'assetsAddImageFiles' }[p.op];
+      if (!need) return { ok:false, code:'BAD_OP', message:'op must be one of createFolder|addUrl|addImage|rename|delete|move|sendToCanvas' };
       if (typeof window[need] !== 'function') return { ok:false, code:'API_MISSING', message: need + ' not found' };
       const before = JSON.stringify((window.state && window.state.assetsTree) || []).length;
       let r;
+      if (p.op === 'addImage') {
+        /* ★이미지 «파일»을 에셋 폴더에 등록한다.
+           ⛔여기서 디스크에 직접 쓰지 않는다 — 그러면 「네 번째 경로 조립기」가 된다.
+             앱 자신의 경로(assetsAddImageFiles → _assetsSaveFile → electronAPI.assetsSaveFile)를
+             그대로 태운다. 그 함수는 FileList 를 받으므로 dataURL 로 File 을 만들어 넘긴다. */
+        const m = String(p.image || '').match(/^data:([^;]+);base64,(.*)$/);
+        if (!m) return { ok:false, code:'BAD_IMAGE', message:'image 는 data:<mime>;base64,<...> 형식이어야 합니다.' };
+        const mime = m[1];
+        const bin = atob(m[2]);
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        const ext = { 'image/png':'.png', 'image/jpeg':'.jpg', 'image/gif':'.gif',
+                      'image/webp':'.webp', 'image/svg+xml':'.svg' }[mime] || '.png';
+        const fname = (p.name && /\.[a-z0-9]+$/i.test(p.name)) ? p.name : ((p.name || 'image') + ext);
+        const file = new File([buf], fname, { type: mime });
+        const idsBefore = [];
+        (function w(ns){ for (const n of (ns||[])) { idsBefore.push(n.id); w(n.children); } })(
+          (window.state && window.state.assetsTree) || []);
+        const ids = await window.assetsAddImageFiles([file], p.parentId);
+        /* ★「무엇이 생겼나」를 «되읽어» 정한다 — 돌려받은 배열을 그대로 믿지 않는다.
+             (앱은 mime 이 목록에 없으면 «조용히 건너뛰고» 빈 배열을 준다.) */
+        const after = [];
+        (function w(ns){ for (const n of (ns||[])) { after.push(n); w(n.children); } })(
+          (window.state && window.state.assetsTree) || []);
+        const fresh = after.filter(n => !idsBefore.includes(n.id));
+        if (!fresh.length) {
+          return { ok:false, code:'NOT_REGISTERED',
+                   message:'에셋이 등록되지 않았습니다 — 지원 형식(png/jpeg/gif/webp/svg)인지, 프로젝트가 열려 있는지 확인하세요.',
+                   returnedIds: Array.isArray(ids) ? ids.length : null };
+        }
+        const n0 = fresh[fresh.length - 1];
+        return { ok:true, op:'addImage', assetId: n0.id, name: n0.name, type: n0.type,
+                 blobPath: n0.blobPath || null, mime: n0.mime || mime, parentId: p.parentId || null,
+                 treeCount: after.length };
+      }
       if (p.op === 'createFolder')      r = await window.assetsCreateFolder(p.parentId);
       else if (p.op === 'addUrl')       r = await window.assetsAddUrl({ title: p.title || p.name, url: p.url, note: p.note }, p.parentId);
       else if (p.op === 'rename')       r = await window.assetsRenameNode(p.id, p.name);

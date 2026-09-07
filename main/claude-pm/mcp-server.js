@@ -3217,7 +3217,7 @@ function _registerDefaultTools() {
     'edit_asset_tree',
     async (args = {}) => {
       if (!_rendererInvoker?.assetsMutate) throw new Error('renderer bridge not ready');
-      const OPS = ['createFolder', 'addUrl', 'rename', 'delete', 'move', 'sendToCanvas'];
+      const OPS = ['createFolder', 'addUrl', 'addImage', 'rename', 'delete', 'move', 'sendToCanvas'];
       const op = args && args.op;
       if (!OPS.includes(op)) return { ok: false, code: 'BAD_OP', message: 'op must be one of ' + OPS.join('|') };
       if (['rename', 'delete', 'move', 'sendToCanvas'].includes(op) && !args.id) {
@@ -3232,13 +3232,31 @@ function _registerDefaultTools() {
           hint: 'DESTRUCTIVE. Ask the user first, then retry with confirm:true. NOTHING was deleted.' };
       }
       if (op === 'addUrl' && !args.url) return { ok: false, code: 'INVALID', message: 'addUrl needs url' };
+      /* ★addImage — 에셋 폴더에 «파일»을 등록한다. put_image(스크래치패드)와 «다른 것»이다.
+         ⛔크기 상한은 put_image 와 같은 자리에서 잰다(대화가 터지지 않게). */
+      if (op === 'addImage') {
+        const img = args.image;
+        if (typeof img !== 'string' || !/^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,/.test(img)) {
+          return { ok: false, code: 'INVALID',
+            message: 'addImage 는 image 가 data:image/<png|jpeg|gif|webp|svg+xml>;base64,<...> 여야 합니다.',
+            hint: 'File paths are not accepted — read the file and pass a data URL.' };
+        }
+        if (img.length > 7_000_000) {
+          return { ok: false, code: 'TOO_LARGE',
+            message: `image 가 너무 큽니다(${img.length} 자) — 약 5MB 까지입니다. 아무것도 등록하지 않았습니다.` };
+        }
+      }
       return await _rendererInvoker.assetsMutate({
         op, id: args.id, parentId: args.parentId, name: args.name,
         url: args.url, title: args.title, note: args.note, sectionId: args.sectionId,
+        image: args.image,
       });
     },
     {
       description: 'Edit the Assets panel tree. op: createFolder (parentId?) | addUrl (url, title?, note?, parentId?) | '
+        + 'addImage (image=data URL, name?, parentId?) — REGISTERS AN IMAGE FILE into the project assets folder, '
+        + 'exactly like dropping a file on the Assets panel (this is NOT put_image, which only fills the scratch pad). '
+        + 'Afterwards use op:sendToCanvas with the returned assetId to place it on the canvas. | '
         + 'rename (id, name) | delete (id) DESTRUCTIVE | move (id, parentId) | '
         + 'sendToCanvas (id) — places that image onto the canvas (the panel arrow button). '
         + 'Get ids from list_asset_tree. Returns {ok, treeCount, node, stillExists} — read back from the live tree '
@@ -3246,7 +3264,8 @@ function _registerDefaultTools() {
       inputSchema: {
         type: 'object',
         properties: {
-          op: { type: 'string', enum: ['createFolder', 'addUrl', 'rename', 'delete', 'move', 'sendToCanvas'] },
+          op: { type: 'string', enum: ['createFolder', 'addUrl', 'addImage', 'rename', 'delete', 'move', 'sendToCanvas'] },
+          image: { type: 'string', description: 'for op:addImage — data:image/<png|jpeg|gif|webp|svg+xml>;base64,<...> (file paths are NOT accepted), up to ~5MB' },
           id: { type: 'string', description: 'ast_xxx target node' },
           parentId: { type: 'string', description: 'ast_xxx destination folder' },
           name: { type: 'string' }, url: { type: 'string' }, title: { type: 'string' }, note: { type: 'string' },
