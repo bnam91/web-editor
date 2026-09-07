@@ -763,7 +763,11 @@ body.preview-mode #preview-navigator { display: flex; }
 /* 바디: 트리 + 카드 — 패널 남은 높이 채움 */
 .tpl-browser-body {
   display: flex;
-  flex: 1 1 0;
+  /* ★flex-basis 는 «auto» 여야 한다. 0 이면 목록이 «높이를 요구하지 않아»
+     패널이 자랄 이유를 못 만들고, body 가 min-height 바닥(80px)으로 주저앉는다.
+     그러면 카드 19장(1296px) 중 «1장»만 보인다 — 실측된 그 증상이다.
+     auto 로 두면 콘텐츠가 자리를 요구하고 #tpl-browser 의 max-height 가 상한을 잡는다. */
+  flex: 1 1 auto;
   min-height: 80px;
   overflow: hidden;
 }
