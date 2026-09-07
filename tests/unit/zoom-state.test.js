@@ -237,7 +237,7 @@ test('S-10 makeZoomBlock 의 기본값이 dataset 에 «실제로» 박힌다', 
   assert.equal(b.dataset.bd, 'off');
   assert.equal(b.dataset.angle, '-90');     // ★12시
   assert.equal(b.dataset.maxop, '30');
-  assert.equal(b.dataset.size, '240');      // ★현빈: 「더 크게, 3:2」 → 240×160
+  assert.equal(b.dataset.size, '260');      // ★현빈 2026-09-08: 6.5:3.5 → 260×140
   assert.equal(b.dataset.fill, 'checker');  // ★체크패턴
   assert.equal(b.dataset.type, 'zoom');
   assert.equal(b.dataset.selVariant, 'sticker', '보라 갈래를 안 들고 간다');

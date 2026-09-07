@@ -108,7 +108,7 @@ function loadGeom() {
 
 const ST = {
   shape: 'rect', angle: 0, length: 170, spread: 0,
-  maxop: 30, curve: 100, narrow: 62, size: 240, rot: 0,
+  maxop: 30, curve: 100, narrow: 62, size: 260, rot: 0,
   fill: '#cfd6e0', shadow: 'on', bd: 'off', bdw: 6, bdc: '#ffffff', bdr: 0,
   w: null, h: null,
 };
@@ -117,15 +117,15 @@ const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
 test('ⓐ-1 rect 실루엣은 «광원을 마주보는 두 꼭짓점»이다 (+양성대조: 무한광원 근사는 다르게 답한다)', async () => {
   const g = await loadGeom();
   const L = g.lightPoint(0, 300, 0, 0);
-  const [A, B] = g.silhouette('rect', 120, 0, L, 0, 0);
-  // ★리터럴로 적는다: r=120, 3:2 → 꼭짓점 (±120, ±80). 광원은 (300,0).
+  const [A, B] = g.silhouette('rect', 130, 0, L, 0, 0);
+  // ★리터럴로 적는다: r=130, 6.5:3.5 → 꼭짓점 (±130, ±70). 광원은 (300,0).
   const got = [A, B].map(p => `${p.x},${p.y}`).sort();
-  assert.deepEqual(got, ['120,-80', '120,80'].sort());
+  assert.deepEqual(got, ['130,-70', '130,70'].sort());
 
   // ★양성대조 — 「축에 수직인 극점」(광원이 «무한히 멀 때»만 맞는 근사)로 골랐다면
   //   각도 기준을 도형 중심에 두게 된다. 그 산식이 «같은 답을 내지 않음»을 보여야
   //   이 검사가 「아무 두 점이나 통과시키는 것」이 아님이 증명된다.
-  const ps = g.shapePts('rect', 120, 0, 0, 0);
+  const ps = g.shapePts('rect', 130, 0, 0, 0);
   const perp = ps.slice().sort((p, q) => Math.abs(q.y) - Math.abs(p.y)).slice(0, 2);
   const perpKeys = perp.map(p => `${p.x},${p.y}`).sort();
   assert.notDeepEqual(perpKeys, got, '두 방식이 같은 답이면 이 검사는 아무것도 못 가른다');
@@ -135,9 +135,12 @@ test('ⓐ-1b ★가까운 광원에서 실루엣은 «지지선» 조건을 만�
   const g = await loadGeom();
   // ★angle=20·length=170(기본 길이) — 실측으로 「두 산식이 갈리는」 자리를 골랐다.
   //   ⓐ-1 의 angle=0 은 도형이 광원 축에 대칭이라 «틀린 산식도 같은 답»을 낸다(변이 M2 가 안 걸렸다).
-  const L = g.lightPoint(20, 300, 0, 0);
-  const [A, B] = g.silhouette('rect', 120, 0, L, 0, 0);
-  const ps = g.shapePts('rect', 120, 0, 0, 0);
+  /* ⚠️비율이 바뀌면 «갈리는 자리»도 바뀐다 — 새 비율(6.5:3.5)에서 다시 찾아 넣었다.
+     (0.625 판에선 20°, 2/3 판에선 20°, 지금은 15° 가 갈린다. 「전과 같겠지」로 두면
+      변이 M2 가 다시 통과한다 — 실제로 한 번 그랬다.) */
+  const L = g.lightPoint(15, 300, 0, 0);
+  const [A, B] = g.silhouette('rect', 130, 0, L, 0, 0);
+  const ps = g.shapePts('rect', 130, 0, 0, 0);
 
   // 지지선 조건: L–P 를 지나는 직선의 «한쪽»에 도형 전체가 있어야 한다.
   const sideOk = (P) => {
@@ -150,7 +153,7 @@ test('ⓐ-1b ★가까운 광원에서 실루엣은 «지지선» 조건을 만�
 
   // 구체값 고정 — 「축에 수직인 극점 / 무한광원 근사」는 여기서 (80,50) 을 고른다.
   const got = [A, B].map(p => `${p.x},${p.y}`).sort();
-  assert.deepEqual(got, ['-120,80', '120,-80'].sort());
+  assert.deepEqual(got, ['-130,70', '130,-70'].sort());
 });
 
 test('ⓐ-2 circle 실루엣은 «접점»이다 — |CA|=r 이고 LA ⊥ CA', async () => {
@@ -389,13 +392,13 @@ test('ⓐ-17 뷰박스가 «테두리까지» 담는다 (안 담으면 링이 �
   const g = await loadGeom();
   /* ★기대값을 outerExtentPts 로 만들면 «계측이 자기 자신을 잰다» — 그 함수를 망가뜨리는 변이(M16)가
      코드와 기대를 «같이» 줄여서 초록으로 통과했다(실제로 그랬다). ⇒ 여기서 직접 계산한다. */
-  assert.equal(g.ZOOM_RECT_RATIO, 2 / 3, '★3:2. 비율이 바뀌면 아래 기대식도 같이 고쳐야 한다');
+  assert.equal(g.ZOOM_RECT_RATIO, 3.5 / 6.5, '★6.5:3.5. 비율이 바뀌면 아래 기대식도 같이 고쳐야 한다');
   const expectPts = (st) => {
     const half = st.size / 2;
     const bw = (st.bd === 'on') ? st.bdw : 0;
     if (st.shape === 'circle') { const R = half + bw; return [{ x: -R, y: -R }, { x: R, y: R }]; }
     const hw = half + bw;
-    const hh = (st.shape === 'rect' ? half * (2 / 3) : half) + bw;
+    const hh = (st.shape === 'rect' ? half * (3.5 / 6.5) : half) + bw;
     const th = (st.rot || 0) * Math.PI / 180, co = Math.cos(th), si = Math.sin(th);
     return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]
       .map(p => ({ x: p[0] * co - p[1] * si, y: p[0] * si + p[1] * co }));
@@ -432,13 +435,13 @@ test('ⓐ-19 ★그림자는 «테두리 바깥» 윤곽에서 시작한다 — 
   // 기대값은 «검사 안에서» 독립 계산한다 — 대상 함수로 만들면 같이 틀려서 영원히 초록이다(M16 교훈).
   for (const bdw of [0, 6, 24]) {
     const geo = g.computeZoomGeometry({ ...base, bdw }, null);
-    assert.ok(Math.abs(geo.A.x - (120 + bdw)) < 1e-9, `bdw=${bdw}: A.x=${geo.A.x}, 기대 ${120 + bdw}`);
+    assert.ok(Math.abs(geo.A.x - (130 + bdw)) < 1e-9, `bdw=${bdw}: A.x=${geo.A.x}, 기대 ${130 + bdw}`);
     // ★세로도 «두께만큼» 늘어야 한다. 반지름만 키우면 rect 세로가 (r+두께)·0.625 로 «두께가 줄어든다».
-    assert.ok(Math.abs(Math.abs(geo.A.y) - (80 + bdw)) < 1e-9, `bdw=${bdw}: |A.y|=${geo.A.y}, 기대 ${80 + bdw}`);
+    assert.ok(Math.abs(Math.abs(geo.A.y) - (70 + bdw)) < 1e-9, `bdw=${bdw}: |A.y|=${geo.A.y}, 기대 ${70 + bdw}`);
   }
   // 원은 반지름이 그대로 커진다
   const c = g.computeZoomGeometry({ ...base, shape: 'circle', bdw: 24 }, null);
-  assert.ok(Math.abs(Math.hypot(c.A.x, c.A.y) - 144) < 1e-9, `circle |A|=${Math.hypot(c.A.x, c.A.y)}`);
+  assert.ok(Math.abs(Math.hypot(c.A.x, c.A.y) - 154) < 1e-9, `circle |A|=${Math.hypot(c.A.x, c.A.y)}`);
 });
 
 test("ⓐ-19b ⛔bd:'off' 면 bdw 가 커도 «도형» 실루엣 그대로다 — ★프리셋 «전수»로", async () => {
@@ -447,10 +450,10 @@ test("ⓐ-19b ⛔bd:'off' 면 bdw 가 커도 «도형» 실루엣 그대로다 �
      그 구멍으로 통과했다 — 한 프리셋만 훑는 검사는 «다른 프리셋에서 갈리는 결함»을 못 본다.
      ⇒ rect·circle·square 를 «다» 돈다. 기대값은 검사 안에서 리터럴로 세운다(대상 코드로 만들지 않는다). */
   const EXPECT = {
-    // ★리터럴: angle 0 · length 600 · size 240(3:2) 에서 bd 켬/끔의 |A| 성분
-    rect:   { offX: 120, offY: 80,  onX: 144, onY: 104 },
-    square: { offX: 120, offY: 120, onX: 144, onY: 144 },
-    circle: { offR: 120,            onR: 144 },
+    // ★리터럴: angle 0 · length 600 · size 260(6.5:3.5) 에서 bd 켬/끔의 |A| 성분
+    rect:   { offX: 130, offY: 70,  onX: 154, onY: 94 },
+    square: { offX: 130, offY: 130, onX: 154, onY: 154 },
+    circle: { offR: 130,            onR: 154 },
   };
   for (const shape of ['rect', 'circle', 'square']) {
     const base = { ...ST, shape, angle: 0, length: 600, bdw: 24 };
@@ -476,26 +479,26 @@ test('ⓐ-19c [리팩터 대조] 쪼갠 실루엣이 «리터럴 오라클»과 
   const g = await loadGeom();
   /* ⛔예전 판은 shapeCornerPts ↔ shapePts 를 «서로» 비교했다 — 둘이 «같이» 틀리면 초록이다
      (Evaluator 2026-09-08 지적: 자기일관성 검사). ⇒ 기대값을 «리터럴»로 세운다. */
-  assert.equal(g.ZOOM_RECT_RATIO, 2 / 3, '★3:2. 비율이 바뀌면 아래 리터럴도 같이 고쳐야 한다');
+  assert.equal(g.ZOOM_RECT_RATIO, 3.5 / 6.5, '★6.5:3.5. 비율이 바뀌면 아래 리터럴도 같이 고쳐야 한다');
   const key = ps => ps.map(p => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).sort().join('|');
 
-  // size 240 → rect 반치수 120×80(3:2), square 120×120. 회전 0.
+  // size 260 → rect 반치수 130×70(6.5:3.5), square 130×130. 회전 0.
   assert.equal(key(g.shapeCornerPts({ ...ST, shape: 'rect', rot: 0 }, 0)),
-               key([{x:-120,y:-80},{x:120,y:-80},{x:120,y:80},{x:-120,y:80}]));
+               key([{x:-130,y:-70},{x:130,y:-70},{x:130,y:70},{x:-130,y:70}]));
   assert.equal(key(g.shapeCornerPts({ ...ST, shape: 'square', rot: 0 }, 0)),
-               key([{x:-120,y:-120},{x:120,y:-120},{x:120,y:120},{x:-120,y:120}]));
-  // 회전 90° — (x,y) → (-y, x). rect 120×80 이 80×120 으로 선다.
+               key([{x:-130,y:-130},{x:130,y:-130},{x:130,y:130},{x:-130,y:130}]));
+  // 회전 90° — (x,y) → (-y, x). rect 130×70 이 70×130 으로 선다.
   assert.equal(key(g.shapeCornerPts({ ...ST, shape: 'rect', rot: 90 }, 0)),
-               key([{x:80,y:-120},{x:80,y:120},{x:-80,y:120},{x:-80,y:-120}]));
+               key([{x:70,y:-130},{x:70,y:130},{x:-70,y:130},{x:-70,y:-130}]));
   // grow 는 «각 반치수에 따로» 더한다(비율로 키우지 않는다)
   assert.equal(key(g.shapeCornerPts({ ...ST, shape: 'rect', rot: 0 }, 24)),
-               key([{x:-144,y:-104},{x:144,y:-104},{x:144,y:104},{x:-144,y:104}]));
+               key([{x:-154,y:-94},{x:154,y:-94},{x:154,y:94},{x:-154,y:94}]));
 
   // 겉함수와 쪼갠 알맹이가 같은 답 — 이건 «구조» 대조라 리터럴 위에서만 뜻이 있다
-  const L = g.lightPoint(20, 300, 0, 0);
-  assert.deepEqual(g.silhouette('rect', 120, 0, L, 0, 0),
-                   g.silhouetteFromPts(g.shapePts('rect', 120, 0, 0, 0), L, 0, 0));
-  assert.deepEqual(g.silhouette('circle', 120, 0, L, 0, 0), g.silhouetteCircle(120, L, 0, 0));
+  const L = g.lightPoint(15, 300, 0, 0);
+  assert.deepEqual(g.silhouette('rect', 130, 0, L, 0, 0),
+                   g.silhouetteFromPts(g.shapePts('rect', 130, 0, 0, 0), L, 0, 0));
+  assert.deepEqual(g.silhouette('circle', 130, 0, L, 0, 0), g.silhouetteCircle(130, L, 0, 0));
 });
 
 test('ⓐ-20 ★블록 «자신»이 도형 상자다 — 원이면 원, 테두리 켜면 테두리 바깥', async () => {
@@ -504,7 +507,7 @@ test('ⓐ-20 ★블록 «자신»이 도형 상자다 — 원이면 원, 테두�
   const expect = (st) => {
     const half = st.size / 2, bw = (st.bd === 'on') ? st.bdw : 0;
     const circle = st.shape === 'circle';
-    const hh = (circle ? half : (st.shape === 'rect' ? half * (2 / 3) : half)) + bw;
+    const hh = (circle ? half : (st.shape === 'rect' ? half * (3.5 / 6.5) : half)) + bw;
     return { w: (half + bw) * 2, h: hh * 2,
              radius: circle ? '50%' : (((st.bdr || 0) > 0 ? st.bdr + bw : 0).toFixed(2) + 'px') };
   };
@@ -557,29 +560,29 @@ test('ⓐ-21 ④체크패턴 — 기본 배경은 무늬고, 그때 도형은 «
   /* ★좌표는 «클리핑 층» 기준이다(층이 SVG 상자만큼 왼쪽·위로 나가 있으므로 그만큼 되민다).
      크기는 여전히 «도형» 상자다 — 테두리를 켜도 안 변한다(그게 이 검사의 요지). */
   const off0 = g.svgOffset({ ...ST, fill: g.ZOOM_CHECKER }, null);
-  assert.deepEqual(m(chk), [+(-off0.left).toFixed(2), +(-off0.top).toFixed(2), 240, 160]);
+  assert.deepEqual(m(chk), [+(-off0.left).toFixed(2), +(-off0.top).toFixed(2), 260, 140]);
   const bdSt = { ...ST, fill: g.ZOOM_CHECKER, bd: 'on', bdw: 6 };
   const offB = g.svgOffset(bdSt, null);
   const bd = g.buildZoomInner(bdSt, null);
-  assert.deepEqual(m(bd), [+(6 - offB.left).toFixed(2), +(6 - offB.top).toFixed(2), 240, 160]);
+  assert.deepEqual(m(bd), [+(6 - offB.left).toFixed(2), +(6 - offB.top).toFixed(2), 260, 140]);
   assert.match(g.buildZoomInner({ ...ST, shape: 'circle', fill: g.ZOOM_CHECKER }, null), /class="zoom-bg"[^>]*border-radius:50%/);
 });
 
 test('ⓐ-22 ⑤크기 덧씌우개 — w/h 가 «이기고», 없으면 size+프리셋 비율에서 파생된다', async () => {
   const g = await loadGeom();
   // 파생
-  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'rect' }), { hw: 120, hh: 80 });     // ★3:2
-  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'square' }), { hw: 120, hh: 120 });
-  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'circle' }), { hw: 120, hh: 120 });
+  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'rect' }), { hw: 130, hh: 70 });     // ★6.5:3.5
+  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'square' }), { hw: 130, hh: 130 });
+  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'circle' }), { hw: 130, hh: 130 });
   // 덧씌우개가 이긴다
   assert.deepEqual(g.shapeHalf({ ...ST, shape: 'rect', w: 300, h: 120 }), { hw: 150, hh: 60 });
   // w 만 주면 square/circle 은 정비율, rect 는 여전히 «비율»로 세로를 만든다
   assert.deepEqual(g.shapeHalf({ ...ST, shape: 'square', w: 300 }), { hw: 150, hh: 150 });
-  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'rect', w: 300 }), { hw: 150, hh: 80 });
+  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'rect', w: 300 }), { hw: 150, hh: 70 });
   // ⛔크기가 바뀌면 실루엣·뷰박스가 «같이» 따라온다
   const small = g.computeZoomGeometry({ ...ST, angle: 0, length: 600 }, null);
   const big   = g.computeZoomGeometry({ ...ST, angle: 0, length: 600, w: 300, h: 120 }, null);
-  assert.equal(small.A.x, 120); assert.equal(big.A.x, 150);
+  assert.equal(small.A.x, 130); assert.equal(big.A.x, 150);
   assert.ok(Math.abs(big.A.y) === 60);
   assert.ok(g.zoomBox({ ...ST, w: 300, h: 120 }, null).w > g.zoomBox(ST, null).w, '뷰박스가 안 따라왔다');
   // 블록 상자(=아웃라인·핸들이 앉는 자리)도 따라온다
