@@ -6180,6 +6180,15 @@ function _assertImageSrcIntact(src, field = 'image') {
   /* ⚠️슬래시를 «안» 요구한다 — `data:imageX/…` 같은 것도 «들어와서» 아래 엄격 게이트에 걸려야 한다.
      슬래시를 요구하면 그런 것이 skipped 로 빠져나간다(적대검수 변이 L13 이 이 자리를 짚었다). */
   if (!/^\s*data:image/i.test(src)) return { checked: 'skipped:not-a-data-url' };
+  /* ★`;base64,` 가 «없는» data URL(비base64 인라인 SVG 등)은 «검사 대상이 아니다».
+   *   ⛔앞 판은 이걸 `SRC_NOT_A_DATA_URL` 로 «거절»했다 — 새 오탐이었다(적대검수 2026-09-07).
+   *   근거 셋: ⑴externalizer 가 그 형태를 «일부러» 제외한다(`externalizer.js:24` 주석:
+   *     「비base64 인라인 SVG 는 … 보통 작은 아이콘이라 bloat 원인이 아니므로 외부화 대상에서 제외」)
+   *     ⇒ 매치 안 되는 게 «실패»가 아니라 «설계»다. 둘을 구별 못 하면 설계를 결함으로 읽는다.
+   *     ⑵브라우저는 읽는다 ⑶베이스라인(`6dc2385`)에서 통과하던 형태다 ⇒ 「되던 게 안 된다」.
+   *   ⚠️우리는 base64 «바이트»의 온전함을 재는 검사다. base64 가 없으면 잴 것이 없다 —
+   *     「못 읽는다」가 아니라 「검사 대상이 아니다」가 사실에 맞는 말이다. */
+  if (!/;base64,/i.test(src)) return { checked: 'skipped:not-base64-data-url' };
   if (!_STORABLE_RE.test(src)) throw _diagnoseUnstorable(src, field);
 
   const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/.exec(src);
