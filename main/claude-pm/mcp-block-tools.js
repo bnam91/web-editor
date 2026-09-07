@@ -89,7 +89,7 @@ const BLOCK_TYPES = [
        목록에 있으니 모델은 계속 시도했고, 매번 왕복 한 번을 버렸다.
      ⇒ add:null 로 두면 add_block 이 「type "banner" has no add tool」로 «먼저» 끊고,
        blurb 가 대안을 알려 준다. 읽기·수정(옛 프로젝트의 ss_ 배너)은 그대로 산다. */
-  { type: 'banner', add: null, upd: 'update_frame_block', pfx: 'ss_',
+  { type: 'banner', add: null, addLegacy: 'add_banner_block', upd: 'update_frame_block', pfx: 'ss_',
     blurb: 'LEGACY horizontal banner — read/update only; to CREATE one use type "banner02"' },
   { type: 'banner02', add: 'add_banner02_block', upd: 'update_banner02_block', pfx: 'bn2_',
     blurb: 'standalone wide banner (label/title/sub + image)' },
@@ -204,7 +204,13 @@ function install({ tools, toolSchemas, registerTool, hide }) {
   // 51개 블록 도구를 «관대한 인자»로 감싸고 목록에서 숨긴다(핸들러는 그대로 = 별칭 생존).
   const managed = new Set();
   for (const d of BLOCK_TYPES) {
-    for (const n of [d.add, d.upd]) {
+    /* ★addLegacy = 「add 는 끊었지만 그 도구는 아직 존재한다」.
+         ⛔add:null 로만 바꿨더니 이 루프를 «못 지나» hide() 가 안 불렸고,
+           죽은 도구 add_banner_block 이 tools/list 에 «올라왔다»(2026-09-08, 지디가 잡음).
+           목록에 오르면 모델이 직접 부르고 → 거절당하고 → 왕복을 버린다.
+           없애려던 낭비가 «다른 문»에서 다시 열린 것이다.
+         ⇒ 끊은 경로일수록 «숨기는 일»을 잊지 않게 이름을 들고 있는다. */
+    for (const n of [d.add, d.addLegacy, d.upd]) {
       if (!n || managed.has(n) || !tools.has(n)) continue;
       managed.add(n);
       const orig = tools.get(n);
