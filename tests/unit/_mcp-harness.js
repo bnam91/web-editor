@@ -194,7 +194,7 @@ async function startHarness(opts = {}) {
     search: async () => ({ ok: true, icons: [{ name: 'ph:house-bold' }] }),
     fetchSvg: async () => ({ ok: true, svg: '<svg viewBox="0 0 24 24"/>' }),
   }, opts.iconifyApi || {})));
-  /* ⚠️projectOps 는 «4개» 다 있어야 한다(list/create/open/duplicate). 하나라도 빠지면
+  /* ⚠️projectOps 는 «6개» 다 있어야 한다(list/create/open/duplicate/delete/rename). 하나라도 빠지면
    *   그 도구는 'project ops not initialized' 로 죽는데, 그건 «도구 결함»이 아니라 하네스 결함이다.
    *   ⇒ 전수 호출을 해봐야 드러난다(실제로 list_projects·create_project 가 그렇게 걸렸다). */
   mod.setProjectOps(logged('projectOps', Object.assign({
@@ -202,6 +202,11 @@ async function startHarness(opts = {}) {
     list: () => ({ ok: true, projects: [{ id: 'proj_1', name: 'fixture' }] }),
     create: async ({ name } = {}) => ({ ok: true, projectId: 'proj_2', name: name || 'new' }),
     open: async ({ projectId } = {}) => { _active = projectId || _active; return { ok: true, projectId }; },
+    // ★2026-09-07 신설 delete_project 용. 진짜 fs 를 안 만지고 «계약»만 잰다 —
+    //   실제 구현은 휴지통 이동(main.js _deleteProjectImpl)이라 여기서 흉내내면 안 된다.
+    delete: async ({ projectId } = {}) => ({ ok: true, projectId, trashed: true,
+                                             wasActive: false, activeCleared: false }),
+    rename: async ({ projectId, name } = {}) => ({ ok: true, projectId, name, previousName: 'old', changed: true }),
   }, opts.projectOps || {})));
 
   const base = opts.basePort || await _freePortIn(BASE_LO, BASE_HI);

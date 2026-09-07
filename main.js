@@ -1968,6 +1968,107 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
  *   ⇒ 복제 로직을 두 벌 만들지 않는다. js/market.js 가 saveProject 로 직접 만들다가 에셋을 통째로
  *     빠뜨린 전례가 있다(사본이 원본 폴더를 몰래 참조 → 원본 삭제 시 404).
  */
+// 프로젝트 «삭제» 코어 — MCP delete_project 도구가 사용. (2026-09-07 신설)
+// ★★영구삭제가 «아니라» 휴지통으로 옮긴다(현빈 지시). 이유:
+//   ⑴ 삭제는 되돌릴 수 없는 자원인데, 휴지통이면 «되돌릴 수 있다» ⇒ 위험 등급이 한 칸 내려간다
+//   ⑵ 2026-09-07 실측: MCP 에 삭제 도구가 «없어서» 사람이 파일시스템에서 rm 했다.
+//      그러면 앱이 그걸 «모르고» activeProjectId 가 죽은 id 를 계속 가리킨다 — 이 도구가 그 자리를 닫는다.
+// ⛔마지막 프로젝트도 «지울 수 있다». 갤러리(사람이 쓰는 화면)에 그런 제약이 없고,
+//   0개 상태를 앱이 이미 다룬다(「아직 프로젝트가 없어요」 안내가 뜬다 — 실측).
+//   ⇒ 도구가 사람보다 빡빡하면 그건 안전이 아니라 «불일치»다.
+async function _deleteProjectImpl({ projectId } = {}) {
+  try {
+    if (!projectId || typeof projectId !== 'string')
+      return { ok: false, error: 'projectId 필수', code: 'invalid' };
+    // ⛔경로 세그먼트로 쓰이므로 traversal 가드(_readProjectFile 과 같은 취지)
+    if (!/^proj_[A-Za-z0-9_-]+$/.test(projectId))
+      return { ok: false, error: `invalid projectId: ${projectId} (proj_* 형식이어야 한다)`, code: 'not_proj' };
+
+    // 신 레이아웃(폴더) 우선 + 구 flat 폴백 — _resolveProjectJsonPath 와 같은 순서
+    const dir = path.join(PROJECTS_DIR, projectId);
+    const flat = path.join(PROJECTS_DIR, `${projectId}.json`);
+    const target = fs.existsSync(dir) ? dir : (fs.existsSync(flat) ? flat : null);
+    if (!target) return { ok: false, error: `project not found: ${projectId}`, code: 'not_found' };
+
+    // ★활성이었나를 «지우기 전에» 본다 — 지우고 나면 못 잰다
+    const wasActive = (global.currentActiveProjectId === projectId);
+
+    // ★휴지통으로. shell.trashItem 은 Electron 이 준다(영구삭제 아님).
+    try {
+      await shell.trashItem(target);
+    } catch (e) {
+      return { ok: false, error: `휴지통으로 못 옮겼다: ${e.message}`, code: 'trash_failed',
+               hint: '파일이 잠겨 있거나 권한이 없다. ⛔영구삭제로 «대신»하지 않는다 — 되돌릴 수 없게 된다.' };
+    }
+    // ★효과 확인 — 「옮겼다」가 아니라 «없어졌나»로 판정한다
+    if (fs.existsSync(target))
+      return { ok: false, error: '휴지통 호출은 성공했는데 파일이 그대로다', code: 'trash_noeffect' };
+
+    /* ★★활성이었으면 «활성도 같이» 비운다.
+       안 그러면 activeProjectId 가 «죽은 id» 를 가리키고, 파괴 도구는 「활성」을 대상으로 삼으므로
+       그 뒤 호출이 어디로 갈지 모르게 된다(2026-09-07 실측된 상태). */
+    let activeCleared = false;
+    if (wasActive) {
+      /* ⛔2026-09-07 G2 실측: global 만 비웠더니 «안 비워졌다».
+         원인 = `_activeProjectId()` 는 «두 곳»을 본다 —
+           ⑴ onActiveProject 콜백(= global.currentActiveProjectId)
+           ⑵ ★창 URL 의 `?project=…`  ← 여기가 남아 있으면 «지운 프로젝트»를 계속 가리킨다
+         ⇒ 한 곳만 비우면 「비웠다」가 거짓말이 된다. 읽는 곳을 «전부» 비운다. */
+      try {
+        global.currentActiveProjectId = null;
+        for (const w of BrowserWindow.getAllWindows()) {
+          try {
+            const u = w.webContents && w.webContents.getURL && w.webContents.getURL();
+            if (u && new RegExp(`[?&]project=${projectId}(?:[&#]|$)`).test(u)) {
+              // 갤러리로 되돌린다 — 지워진 프로젝트를 연 채로 두면 편집기가 «없는 것»을 가리킨다
+              const gallery = u.replace(/index\.html.*$/, 'projects.html').split('?')[0];
+              await w.loadURL(gallery.includes('projects.html') ? gallery
+                              : u.split('?')[0].replace(/[^/]*$/, 'projects.html')).catch(() => {});
+            }
+            await w.webContents.executeJavaScript(
+              'try{window.activeProjectId=null}catch(_){}; true', true).catch(() => {});
+          } catch (_) {}
+        }
+        activeCleared = true;
+      } catch (_) { /* 비우기 실패가 삭제를 되돌리진 않는다 — 아래 값으로 «알린다» */ }
+    }
+    return { ok: true, projectId, trashed: true, wasActive, activeCleared,
+             note: '휴지통으로 옮겼다(영구삭제 아님). 되돌리려면 휴지통에서 복원해라.' };
+  } catch (e) {
+    console.error('[projects:delete] 예외:', e);
+    return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
+  }
+}
+
+// 프로젝트 «이름 수정» — MCP rename_project 가 사용. (2026-09-07 신설)
+// ★그전엔 이름을 바꾸는 도구가 «없었다» — 만들 수만 있고 고칠 수가 없었다.
+async function _renameProjectImpl({ projectId, name } = {}) {
+  try {
+    if (!projectId || !/^proj_[A-Za-z0-9_-]+$/.test(String(projectId)))
+      return { ok: false, error: `invalid projectId: ${projectId}`, code: 'not_proj' };
+    const nm = (name == null ? '' : String(name)).trim();
+    if (!nm) return { ok: false, error: 'name 이 비었다(공백만도 안 된다)', code: 'invalid' };
+    if (nm.length > 100) return { ok: false, error: `name too long (${nm.length} > 100)`, code: 'invalid' };
+    const jsonPath = _resolveProjectJsonPath(projectId);
+    if (!jsonPath || !fs.existsSync(jsonPath))
+      return { ok: false, error: `project not found: ${projectId}`, code: 'not_found' };
+    const proj = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    const before = proj.name;
+    if (before === nm) return { ok: true, projectId, name: nm, changed: false, note: '이미 그 이름이다' };
+    proj.name = nm;
+    proj.updatedAt = new Date().toISOString();
+    const r = await _saveProjectImpl(proj);
+    if (!r || r.ok !== true) return { ok: false, error: 'save failed', code: 'io' };
+    /* ★효과로 판정한다 — 「썼다」가 아니라 «디스크에서 다시 읽어» 확인한다. */
+    const after = JSON.parse(fs.readFileSync(jsonPath, 'utf8')).name;
+    if (after !== nm) return { ok: false, error: `저장했는데 값이 다르다: ${after}`, code: 'noeffect' };
+    return { ok: true, projectId, name: nm, previousName: before, changed: true };
+  } catch (e) {
+    console.error('[projects:rename] 예외:', e);
+    return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
+  }
+}
+
 async function _duplicateProjectImpl({ sourceProjectId, newName, sourceData } = {}) {
   try {
     if (!sourceProjectId || typeof sourceProjectId !== 'string')
@@ -3119,7 +3220,7 @@ app.whenReady().then(async () => {
   // Claude PM MCP 서버 (포트 9345, port-status 표 9345+ 신규 자유)
   try {
     const { port: actualPort, token: mcpToken } = await startMcpServer({
-      port: 9345,
+      port: 9370,   // [mcpmgr] 격리 — 커밋 금지
       onActiveProject: () => global.currentActiveProjectId || null,
     });
     // EADDRINUSE fallback이 일어나도 ipc 핸들러가 올바른 포트로 ping
@@ -3216,7 +3317,7 @@ app.whenReady().then(async () => {
     }
     // 프로젝트 단위 코어 주입 — MCP duplicate_project/create_project/open_project 도구가 사용.
     if (typeof setMcpProjectOps === 'function') {
-      setMcpProjectOps({ duplicate: _duplicateProjectImpl, create: _createProjectImpl, open: _openProjectImpl, list: _listProjectsImpl });
+      setMcpProjectOps({ duplicate: _duplicateProjectImpl, create: _createProjectImpl, open: _openProjectImpl, list: _listProjectsImpl, delete: _deleteProjectImpl, rename: _renameProjectImpl });
     }
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -3437,11 +3538,15 @@ async function _invokeRendererUpdateCardBlock({ blockId, title, desc, imgSrc, bg
 }
 
 // ─── update_section — 섹션 속성 (배경 등) 변경 ──────────────────────────────
-async function _invokeRendererUpdateSection({ sectionId, bg } = {}) {
+async function _invokeRendererUpdateSection({ sectionId, bg, name } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
   const safeSid = JSON.stringify(String(sectionId || ''));
   const safeBg  = bg !== undefined ? JSON.stringify(String(bg)) : 'null';
+  /* ★섹션 «이름» — 2026-09-07 신설. 그전엔 이름을 바꾸는 도구가 «아예 없어서»
+     클로드가 update_section{name:…} 을 넣어보고 «조용히 실패»했다(§5-2).
+     이름은 DOM 의 dataset.name 에 산다(section-search.js·section-memo.js 가 같은 곳을 읽는다). */
+  const safeName = name !== undefined ? JSON.stringify(String(name)) : 'null';
   return await mainWindow.webContents.executeJavaScript(
     `(() => { try {
       const sid = ${safeSid};
@@ -3453,6 +3558,14 @@ async function _invokeRendererUpdateSection({ sectionId, bg } = {}) {
         if (typeof window.setSectionBg !== 'function') return { ok:false, code:'API_MISSING' };
         window.setSectionBg(sec, bgv);
         applied.bg = bgv;
+      }
+      const nv = ${safeName};
+      if (nv !== null) {
+        sec.dataset.name = nv;                       // ★정본은 dataset.name
+        const lbl = sec.querySelector('.section-label');
+        if (lbl) lbl.textContent = nv;               // 화면 라벨도 같이(있을 때만)
+        applied.name = nv;
+        try { if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave(); } catch(_) {}
       }
       return { ok:true, sectionId: sid, applied };
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,

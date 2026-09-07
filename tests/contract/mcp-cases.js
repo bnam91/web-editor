@@ -60,6 +60,12 @@ const CASES = {
   delete_checklist_item: { args: {"id":"ck_1"}, sinks: ["deleteChecklistItem"] },
   delete_scratch_item: { args: {"id":"sp_br70mc"}, sinks: ["deleteScratchItem"] },
   delete_section: { args: {"sectionId":"sec_fixt_1"}, sinks: ["deleteSection"] },
+  delete_project: { args: {"projectId":"proj_1"}, sinks: ["projectOps.delete"] },
+  rename_project: { args: {"projectId":"proj_1","name":"새이름"}, sinks: ["projectOps.rename"] },
+    // ★2026-09-07 신설. ⚠️내가 처음에 sinks 를 «빈 배열»로 적었는데 «틀렸다» —
+    //   「렌더러 브리지를 안 타니 배선이 없다」고 «추측»했지만, 실제로는 main 의
+    //   projectOps.delete 를 부르고 하네스가 그것도 원장에 찍는다(create/open 과 같은 결).
+    //   ⇒ ★sinks 는 «추정»이 아니라 «실측»으로 적어야 한다(이 파일 머리글의 규약 그대로).
   duplicate_project: { args: {}, sinks: ["projectOps.duplicate"] },
   export_sections: { args: {}, sinks: ["exportCollect","exportSections"] },
     // exportCollect(begin/settle/end 객체)와 exportSections(함수) 둘 다 탄다
