@@ -995,7 +995,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 ═══════════════════════════════════ */
 .grid-block,
 .infocard-block,
-.innercard-block {
+.innercard-block,
+.modal-block {
   position: relative;
   width: 100%;
   cursor: pointer;
@@ -1004,10 +1005,28 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 }
 .grid-block:hover::after,
 .infocard-block:hover::after,
+.modal-block:hover::after,
 .innercard-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .grid-block.selected,
 .infocard-block.selected,
+.modal-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+
+/* ── MODAL BLOCK — 변형 6종 (현빈 발주 2026-09-08) ──
+   ★스타일 «값»은 여기 두지 않는다 — bg/radius/padding/border 는 dataset 이 진실이고
+     renderModalBlock 이 인라인으로 쓴다. 여기엔 «구조»만 둔다(레이아웃·슬롯). */
+.modal-block .tb-mdl-title { font-weight: 700; }
+.modal-block .tb-mdl-text,
+.modal-block .tb-mdl-title,
+.modal-block .tb-mdl-cell { outline: none; }
+.modal-block .mdl-icon { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+.modal-block .mdl-icon svg { display: block; width: 100%; height: 100%; }
+/* ★grid-2 칼럼은 «투명»이다(현빈 조정⑴) — 위치만 잡는 용도라 배경·테두리를 주지 않는다.
+   셀은 텍스트 전용이라 드롭존을 달지 않는다 → 모달 안에 모달이 생기지 않는다. */
+.modal-block .mdl-grid { width: 100%; }
+.modal-block .tb-mdl-cell { background: transparent; }
+/* 편집 중인 슬롯 — 텍스트 블록과 같은 관용구 */
+#canvas .modal-block [data-mdl-slot][contenteditable="true"] { cursor: text; }
 
 /* ── 그리드 캔버스 인라인 편집 (P1.5) ──
    ⛔여기서 «어느 줄이 편집 가능한가»를 판정하지 않는다 — 그 판정은 js/block-drag.js 의
@@ -1303,6 +1322,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .frame-block:not(.selected) .grid-block:hover::after,
 .frame-block:not(.selected) .infocard-block:hover::after,
 .frame-block:not(.selected) .innercard-block:hover::after,
+.frame-block:not(.selected) .modal-block:hover::after,
 .frame-block:not(.selected) .label-group-block:hover::after,
 .frame-block:not(.selected) .shape-block:hover::after,
 /* L1(2026-09-05): 위 11종만 있고 아래 10종이 빠져 있었다 — 「미선택 프레임 안 hover 억제」

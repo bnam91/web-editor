@@ -736,6 +736,43 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 116),
       };
     }
+    // ── MODAL BLOCK 전용 (현빈 발주 2026-09-08) ──
+    //  ★type 은 'generic' 을 «그대로» 쓴다. 수신측(Figma 플러그인)이 이미 아는 형태라
+    //    드롭되지 않는다 — 여기서 새 type 을 만들면 «모르는 타입»이 되어 조용히 빠질 수 있다.
+    //    대신 kind='modal' 과 변형·패딩·테두리·간격을 실어 후속 refinement 가 쓸 수 있게 한다.
+    //  ⛔텍스트 수집은 아래 generic 과 «같은 규칙»(tb- 접두)이다 — 두 벌로 갈리지 않게 한 곳에서만 센다.
+    if (el.classList.contains('modal-block')) {
+      const ds = el.dataset || {};
+      /* ★글자는 dataset 에서 읽는다 — DOM 이 아니라.
+         내보내기는 «분리된 문서»(DOMParser 클론)를 걸을 수 있고 거기선 innerText 가 빈 문자열이다
+         (layout 이 없다). dataset 은 이 블록의 진실이므로 붙어 있든 떨어져 있든 같은 값을 준다.
+         안내문구(placeholder)는 dataset 이 애초에 비어 있어 «저절로» 빠진다 — 따로 거르지 않는다. */
+      const fs = parseInt(ds.fontSize) || 14;
+      const color = ds.textColor || '#1c1c1e';
+      const texts = [];
+      const push = (slot, val) => {
+        const tx = String(val ?? '').trim();
+        if (tx) texts.push({ t: tx, fs, color, slot, x: 0, y: 0 });
+      };
+      if (ds.variant === 'titled') { push('title', ds.titleText); push('text', ds.textText); }
+      else if (ds.variant === 'grid-2') { push('cell1', ds.cell1); push('cell2', ds.cell2); }
+      else push('text', ds.textText);
+      const bw = parseInt(ds.borderW) || 0;
+      return {
+        type: 'generic', id: el.id || '', kind: 'modal', variant: ds.variant || 'plain',
+        width: (ds.wMode === 'fixed' && parseInt(ds.width)) || null,
+        height: (ds.hMode === 'fixed' && parseInt(ds.height))
+                || Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0),
+        bg: ds.bg || '', radius: parseInt(ds.radius) || 0,
+        padX: parseInt(ds.padX) || 0, padY: parseInt(ds.padY) || 0,
+        border: bw > 0 ? { width: bw, style: ds.borderStyle || 'solid', color: ds.borderColor || '' } : null,
+        gap: ds.variant === 'grid-2' ? (parseInt(ds.gap) || 0) : 0,
+        align: ds.align || 'left',
+        svg: el.querySelector('.mdl-icon svg')?.outerHTML || '',
+        texts,
+      };
+    }
+
     // ── GENERIC 폴백 (잔여) ──
     //    드롭 방지: 높이 보존 + 배경 + 내부 텍스트/아이콘 살림. (완벽 레이아웃은 후속 refinement)
     if (/(-block)$/.test([...el.classList].find(c => c.endsWith('-block')) || '')) {
@@ -767,7 +804,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       return parsed ? [parsed] : [];
     }
     // col 래퍼 없이 블록이 row 직속 자식인 경우 (stack layout full-width 블록 등)
-    const DIRECT_BLOCK_SEL = ':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .graph-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block';
+    const DIRECT_BLOCK_SEL = ':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .graph-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block, :scope > .modal-block';
     const hasDirectBlocks = rowEl.querySelector(DIRECT_BLOCK_SEL);
     if (hasDirectBlocks && !rowEl.querySelector(':scope > .col')) {
       const blocks = [];
@@ -781,7 +818,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     rowEl.querySelectorAll(':scope > .col').forEach(col => {
       const w = parseInt(col.dataset.width) || 100;
       const blocks = [];
-      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .graph-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block').forEach(b => {
+      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .graph-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block, :scope > .modal-block').forEach(b => {
         const parsed = _block(b, ps);
         if (parsed) blocks.push(parsed);
       });
@@ -804,7 +841,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
 
     const blocks = [];
     function _processFrameBlock(fb) {
-      fb.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block, :scope > .graph-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block').forEach(b => {
+      fb.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block, :scope > .graph-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block, :scope > .modal-block').forEach(b => {
         const parsed = _block(b, psEx);
         if (parsed) blocks.push(parsed);
       });
@@ -849,7 +886,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       } else if (child.classList.contains('frame-block')) {
         if (child.dataset.freeLayout === 'true') blocks.push(_frameBlock(child));
         else _processFrameBlock(child);
-      } else if (child.matches('.text-block, .asset-block, .icon-block, .icon-circle-block, .table-block, .chat-block, .canvas-block, .graph-block, .divider-block, .shape-block, .label-group-block, .banner02-block, .step-block, .comparison-block, .mockup-block, .laurel-block, .liner-block')) {
+      } else if (child.matches('.text-block, .modal-block, .asset-block, .icon-block, .icon-circle-block, .table-block, .chat-block, .canvas-block, .graph-block, .divider-block, .shape-block, .label-group-block, .banner02-block, .step-block, .comparison-block, .mockup-block, .laurel-block, .liner-block')) {
         // section-inner 직속 콘텐츠 블록(row/frame 미포함) — 드롭 방지.
         const parsed = _block(child, psEx);
         if (parsed) blocks.push(parsed);

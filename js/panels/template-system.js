@@ -354,7 +354,7 @@ async function insertTemplate(tpl) {
     // 내부 블록 이벤트 핸들러 재등록 (Section 삽입과 동일 수준)
     // ★rebindAll 비경유 문 — 승격을 직접 한다(2026-09-05 개명).
     window.migrateGridIdentity?.(ss);
-    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .joker-block').forEach(b => window.bindBlock?.(b));
+    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block').forEach(b => window.bindBlock?.(b));
     ss.querySelectorAll('.group-block').forEach(g => window.bindGroupDrag?.(g));
     if (ss.dataset.bg) ss.style.backgroundColor = ss.dataset.bg;
     if (ss.dataset.bgImg && !ss.style.backgroundImage) {
@@ -456,7 +456,7 @@ async function insertTemplate(tpl) {
   bindSectionDropZone(sec);
   // ★rebindAll 비경유 문 — 승격을 직접 한다(2026-09-05 개명).
   window.migrateGridIdentity?.(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block').forEach(b => {
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block').forEach(b => {
     bindBlock(b);
     // ★이 문은 «유일하게» 렌더러를 안 부르던 문이다 — 개명으로 스냅샷(grd-*)과 CSS 가
     //   어긋나면 P1.5 「빈 줄이 손에 안 닿음」이 여기서만 재현된다. save-load.js:979 와 같은 줄.
