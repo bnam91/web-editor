@@ -12,6 +12,10 @@
 //      ⇒ ★클로드PM 으로는 확대블럭을 «못 만들고 못 고친다». 사람이 컴포넌트 메뉴로만 넣을 수 있다.
 //      (읽기 이름만 js/canvas-state.js PFX 에 zmb_ 로 줬다. grid 가 먼저 간 길이다.
 //       도구를 만들면 BLOCK_TYPES 에 넣고 tests/unit/block-prefix-sync.test.js 의 known 에서 빼라.)
+//   ③ bdr(테두리 모서리 라운드)이 «실루엣 계산에 안 들어간다» — 실루엣은 꼭짓점 기준이다.
+//      ⇒ 라운드를 크게 주면 그림자 사다리꼴이 붙는 점이 모서리에서 살짝 뜬다.
+//      (지디 판정 2026-09-08: 지금 고치지 않는다. 고치려면 zoom-geometry.js 의
+//       computeZoomGeometry 가 라운드된 모서리의 «접점»을 풀어야 한다.)
 //   ② Figma export 분기가 없다 — js/io/export-figma-json.js 에 zoom 항목이 «없다».
 //      ⇒ ★피그마로 업로드하면 확대블럭이 «조용히 빠진다»(오류도 안 난다). laurel 처럼 전용 분기가 필요하다.
 //

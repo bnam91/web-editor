@@ -396,6 +396,46 @@ test('ⓐ-18 그림자와 테두리는 «배타가 아니다» — 둘 다 켤 �
   assert.equal((both.match(/zoom-border/g) || []).length, 1);
 });
 
+test('ⓐ-19 ★그림자는 «테두리 바깥» 윤곽에서 시작한다 — bdw 를 키우면 같이 나간다', async () => {
+  const g = await loadGeom();
+  const base = { ...ST, angle: 0, length: 400, bd: 'on' };
+  // 기대값은 «검사 안에서» 독립 계산한다 — 대상 함수로 만들면 같이 틀려서 영원히 초록이다(M16 교훈).
+  for (const bdw of [0, 6, 24]) {
+    const geo = g.computeZoomGeometry({ ...base, bdw }, null);
+    assert.ok(Math.abs(geo.A.x - (80 + bdw)) < 1e-9, `bdw=${bdw}: A.x=${geo.A.x}, 기대 ${80 + bdw}`);
+    // ★세로도 «두께만큼» 늘어야 한다. 반지름만 키우면 rect 세로가 (r+두께)·0.625 로 «두께가 줄어든다».
+    assert.ok(Math.abs(Math.abs(geo.A.y) - (50 + bdw)) < 1e-9, `bdw=${bdw}: |A.y|=${geo.A.y}, 기대 ${50 + bdw}`);
+  }
+  // 원은 반지름이 그대로 커진다
+  const c = g.computeZoomGeometry({ ...base, shape: 'circle', bdw: 24 }, null);
+  assert.ok(Math.abs(Math.hypot(c.A.x, c.A.y) - 104) < 1e-9, `circle |A|=${Math.hypot(c.A.x, c.A.y)}`);
+});
+
+test("ⓐ-19b ⛔bd:'off' 면 bdw 가 커도 «도형» 실루엣 그대로다 (대조 — 게이트가 살아 있나)", async () => {
+  const g = await loadGeom();
+  const off = g.computeZoomGeometry({ ...ST, angle: 0, length: 400, bd: 'off', bdw: 24 }, null);
+  assert.ok(Math.abs(off.A.x - 80) < 1e-9, `테두리를 껐는데 그림자가 나갔다: A.x=${off.A.x}`);
+  assert.ok(Math.abs(Math.abs(off.A.y) - 50) < 1e-9);
+  // 대조 — 같은 bdw 로 켜면 «실제로» 달라진다(안 달라지면 위 검사가 아무것도 못 가른다)
+  const on = g.computeZoomGeometry({ ...ST, angle: 0, length: 400, bd: 'on', bdw: 24 }, null);
+  assert.ok(Math.abs(on.A.x - off.A.x) > 1, '켬/끔이 같은 답이면 이 대조가 무의미하다');
+});
+
+test('ⓐ-19c [리팩터 대조] silhouette 을 쪼갠 뒤에도 «같은 답»이다', async () => {
+  const g = await loadGeom();
+  // shapeCornerPts(st,0) 은 shapePts(kind, size/2, rot) 와 «같은 점»이어야 한다 — 산식이 갈리면 여기서 잡힌다.
+  for (const shape of ['rect', 'square']) {
+    for (const rot of [0, 30]) {
+      const st = { ...ST, shape, rot };
+      assert.deepEqual(g.shapeCornerPts(st, 0), g.shapePts(shape, st.size / 2, rot, 0, 0), `${shape}/${rot}`);
+    }
+  }
+  // 쪼갠 알맹이와 겉함수가 같은 답
+  const L = g.lightPoint(20, 170, 0, 0);
+  assert.deepEqual(g.silhouette('rect', 80, 0, L, 0, 0), g.silhouetteFromPts(g.shapePts('rect', 80, 0, 0, 0), L, 0, 0));
+  assert.deepEqual(g.silhouette('circle', 80, 0, L, 0, 0), g.silhouetteCircle(80, L, 0, 0));
+});
+
 /* ── ⓑ 배선 — 신규 블록 체크리스트 5곳 ────────────────────────────────────── */
 function sliceFn(src, header) {
   const i = src.indexOf(header);

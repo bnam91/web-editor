@@ -31,16 +31,21 @@ export function shapePts(kind, r, rot, cx, cy) {
 }
 
 /* 광원에서 그은 접점 = 그림자 지는 점.
-   ⛔「축에 수직인 극점」은 광원이 «무한히 멀 때»만 맞다 — 가까우면 어긋난다(사각형이면 아래 꼭짓점이 맞다) */
-export function silhouette(kind, r, rot, L, cx, cy) {
-  if (kind === 'circle') {
-    var dx = cx - L.x, dy = cy - L.y, d = Math.hypot(dx, dy);
-    if (d <= r + 0.5) return [{ x: cx, y: cy }, { x: cx, y: cy }];
-    var phi = Math.atan2(-dy, -dx), be = Math.acos(Math.max(-1, Math.min(1, r / d)));
-    return [{ x: cx + r * Math.cos(phi - be), y: cy + r * Math.sin(phi - be) },
-            { x: cx + r * Math.cos(phi + be), y: cy + r * Math.sin(phi + be) }];
-  }
-  var ps = shapePts(kind, r, rot, cx, cy), base = Math.atan2(cy - L.y, cx - L.x);
+   ⛔「축에 수직인 극점」은 광원이 «무한히 멀 때»만 맞다 — 가까우면 어긋난다(사각형이면 아래 꼭짓점이 맞다)
+
+   ★알맹이를 둘로 쪼개 둔 이유: 「그림자가 붙는 윤곽」이 도형일 때도 있고 «테두리 바깥»일 때도 있다.
+     반지름만 키우면 rect 는 틀린다 — rect 의 세로 반치수는 r·0.625 라, r+두께 로 키우면
+     세로가 (r+두께)·0.625 가 되어 «두께가 세로에서 줄어든다». 그래서 «점 목록»을 받는다. */
+export function silhouetteCircle(r, L, cx, cy) {
+  var dx = cx - L.x, dy = cy - L.y, d = Math.hypot(dx, dy);
+  if (d <= r + 0.5) return [{ x: cx, y: cy }, { x: cx, y: cy }];
+  var phi = Math.atan2(-dy, -dx), be = Math.acos(Math.max(-1, Math.min(1, r / d)));
+  return [{ x: cx + r * Math.cos(phi - be), y: cy + r * Math.sin(phi - be) },
+          { x: cx + r * Math.cos(phi + be), y: cy + r * Math.sin(phi + be) }];
+}
+
+export function silhouetteFromPts(ps, L, cx, cy) {
+  var base = Math.atan2(cy - L.y, cx - L.x);
   var lo = ps[0], hi = ps[0], lv = 1e9, hv = -1e9;
   ps.forEach(function (p) {
     var q = Math.atan2(p.y - L.y, p.x - L.x) - base;
@@ -48,6 +53,11 @@ export function silhouette(kind, r, rot, L, cx, cy) {
     if (q < lv) { lv = q; lo = p } if (q > hv) { hv = q; hi = p }
   });
   return [lo, hi];
+}
+
+export function silhouette(kind, r, rot, L, cx, cy) {
+  if (kind === 'circle') return silhouetteCircle(r, L, cx, cy);
+  return silhouetteFromPts(shapePts(kind, r, rot, cx, cy), L, cx, cy);
 }
 
 /* 띠 — A·B(진함) → a·b(투명). pw=농도곡선, MAXOP=최대농도(0~1)
@@ -103,16 +113,24 @@ export function allFinite(pts) {
  * @param {?object} pinned  {a:{x,y}, b:{x,y}} — 사람이 «끈» a·b. 없으면 «언제나» 자동.
  */
 export function computeZoomGeometry(st, pinned) {
-  var kind = st.shape;
-  var r = (Number(st.size) || 0) / 2;
+  /* ★실루엣 = «보이는 바깥 윤곽»이다 (지디 판정 2026-09-08).
+       ⑴ 물리적으로 — 빛은 테두리에도 막힌다. 링이 있는데 그림자가 그 «안»에서 나오면 링이 떠 보인다.
+       ⑵ 사용자 눈에 테두리는 «그 도형의 일부»다.
+     ⛔bd==='off' 면 bw=0 이라 도형 실루엣 그대로다 — 예전 동작이 그대로 남는다.
+     ⚠️알려진 한계: bdr(모서리 라운드)은 실루엣에 «안» 들어간다(꼭짓점 기준). 라운드가 크면
+       사다리꼴 붙는 점이 모서리에서 살짝 뜬다 — 지디 판단으로 지금은 안 고친다. */
+  var half = (Number(st.size) || 0) / 2;
+  var bw = borderWidthOf(st);
   var L = lightPoint(st.angle, st.length, 0, 0);
-  var sil = silhouette(kind, r, st.rot, L, 0, 0);
+  var sil = (st.shape === 'circle')
+    ? silhouetteCircle(half + bw, L, 0, 0)
+    : silhouetteFromPts(shapeCornerPts(st, bw), L, 0, 0);
   var sp = applySpread(sil[0], sil[1], st.spread);
   var A = sp[0], B = sp[1];
   var auto = autoShortEdge(A, B, L, st.narrow);
   var a = (pinned && pinned.a) ? pinned.a : auto[0];
   var b = (pinned && pinned.b) ? pinned.b : auto[1];
-  return { L: L, A: A, B: B, a: a, b: b, autoA: auto[0], autoB: auto[1], r: r };
+  return { L: L, A: A, B: B, a: a, b: b, autoA: auto[0], autoB: auto[1], r: half, bw: bw };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -168,20 +186,26 @@ export function borderMarkup(st) {
   return shapeEl(st, bw, safeColor(st.bdc, '#ffffff'), 'zoom-border');
 }
 
-/** 도형(+테두리)이 차지하는 «실제» 꼭짓점 — 뷰박스가 이걸 담아야 테두리가 안 잘린다. */
-export function outerExtentPts(st) {
+/** rect/square 의 «실제» 꼭짓점. grow 를 각 반치수에 «따로» 더한다(비율로 키우지 않는다). */
+export function shapeCornerPts(st, grow) {
   const half = (Number(st.size) || 0) / 2;
-  const bw = borderWidthOf(st);
-  if (st.shape === 'circle') {
-    const R = half + bw;
-    return [{ x: -R, y: -R }, { x: R, y: R }];
-  }
-  const hw = half + bw;
-  const hh = (st.shape === 'rect' ? half * ZOOM_RECT_RATIO : half) + bw;
+  const hw = half + grow;
+  const hh = (st.shape === 'rect' ? half * ZOOM_RECT_RATIO : half) + grow;
   const th = (Number(st.rot) || 0) * Math.PI / 180;
   const co = Math.cos(th), si = Math.sin(th);
   return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]
     .map(p => ({ x: p[0] * co - p[1] * si, y: p[0] * si + p[1] * co }));
+}
+
+/** 도형(+테두리)이 차지하는 «실제» 꼭짓점 — 뷰박스가 이걸 담아야 테두리가 안 잘린다. */
+export function outerExtentPts(st) {
+  const bw = borderWidthOf(st);
+  const half = (Number(st.size) || 0) / 2;
+  if (st.shape === 'circle') {
+    const R = half + bw;
+    return [{ x: -R, y: -R }, { x: R, y: R }];
+  }
+  return shapeCornerPts(st, bw);
 }
 
 /**
