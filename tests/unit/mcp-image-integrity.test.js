@@ -736,3 +736,66 @@ test('★GIF 은 «어디서» 모자랐는지 그 자리를 말한다 (하위�
   assert.equal(e.detail.reason, 'GIF_TRUNCATED');
   assert.equal(e.detail.at, '하위블록', '★「블록 표식」이 아니라 «하위블록»에서 걸렸다고 말해야 한다');
 });
+
+/* ══ ★「닫은 자리의 «반대 방향»이 비어 있다」 — 오늘 네 번 반복된 모양 ══
+   적대검수가 이번 판에도 5종을 살려냈고, 넷이 «내가 이번에 손댄 줄의 다른 한 칸»이었다:
+     M1  느슨한 입구 `\s*` → `\s?`   (공백 «두 칸»이면 다시 통째로 건너뛴다)
+     M9  EOI 탐색 `i` → `i+1`       (`i-1` 은 닫았는데 `+1` 이 비었다)
+     M11 매직 시그니처 «앞 3바이트»   (2바이트는 닫았는데 3이 비었다)
+     M12 느슨한 입구를 `data:` 까지  (이미지가 «아닌» dataURL 이 거절되는데 아무도 안 잰다)
+   ⇒ 경계를 닫을 땐 «양쪽»을 다 재라. 한쪽만 재면 반대편이 그대로 남는다. */
+
+test('★입구는 공백이 «여러 칸»이어도 검사에 들어온다 (`\\s*` 의 반대 방향)', () => {
+  const cut = truncateLikeIncident(GOOD_PNG).split(';base64,')[1];
+  for (const pad of [' ', '  ', '\t\t', ' \t \t']) {
+    const e = grab(() => _assertImageSrcIntact(pad + 'data:image/png;base64,' + cut, 'image'));
+    assert.equal(e.detail.reason, 'SRC_HAS_SURROUNDING_WHITESPACE',
+      `«${JSON.stringify(pad)}» 로도 검사를 건너뛰면 안 된다`);
+  }
+});
+
+test('★EOI 탐색은 스캔 시작 «바로 그 자리»부터다 (+1 방향 — 한 칸 늦어도 안 된다)', () => {
+  // 스캔의 «첫 두 바이트»가 곧 EOI 인 파일: i 부터면 찾고, i+1 부터면 못 찾아 «온전한 것»을 거절한다.
+  const scan = outerScanStart(REAL_JPEG);
+  const b = Buffer.from(REAL_JPEG.subarray(0, scan + 2));
+  b[scan] = 0xff; b[scan + 1] = 0xd9;
+  const r = _assertImageSrcIntact('data:image/jpeg;base64,' + b.toString('base64'), 'image');
+  assert.equal(r.checked, 'jpeg-structure', '★스캔 첫 자리의 EOI 를 놓치면 «온전한 것»을 막는다(오탐)');
+  assert.equal(r.trailingBytes, 0);
+});
+
+test('★매직 시그니처는 «전체»를 본다 — 3바이트만 봐도 GIF 가 아닌 것이 GIF 가 된다', () => {
+  // GIF 시그니처는 6바이트("GIF87a"/"GIF89a"). 앞 3("GIF")만 보면 "GIFxxx" 가 GIF 로 오인된다.
+  const notGif = Buffer.concat([Buffer.from('GIFxxx', 'latin1'), Buffer.alloc(20, 7)]);
+  const e = grab(() => _assertImageSrcIntact('data:image/gif;base64,' + notGif.toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'NOT_AN_IMAGE',
+    '★시그니처 뒷부분까지 봐야 «그림이 아니다»를 «잘린 GIF»와 구별한다');
+});
+
+test('★이미지가 «아닌» dataURL 은 검사 대상이 아니다 — 거절하면 남의 일을 막는 것이다', () => {
+  for (const s of ['data:text/plain;base64,AAAA', 'data:application/json;base64,e30=',
+                   'data:;base64,AAAA', 'data:,hello']) {
+    assert.equal(_assertImageSrcIntact(s, 'imgSrc').checked, 'skipped:not-a-data-url', s);
+  }
+});
+
+test('★비base64 인라인 SVG 는 «검사 대상이 아니다» — externalizer 가 «일부러» 제외하는 형태다', () => {
+  /* 앞 판은 이걸 SRC_NOT_A_DATA_URL 로 «거절»했다 — 새 오탐이었다.
+     externalizer.js:24 주석이 「비base64 인라인 SVG 는 … 외부화 대상에서 제외(원본 유지)」라고
+     «설계»로 적어 뒀다. 매치 안 되는 것이 «실패»가 아니다. 그리고 베이스라인에선 통과하던 형태다. */
+  const svg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10'/%3E";
+  assert.equal(_assertImageSrcIntact(svg, 'imgSrc').checked, 'skipped:not-base64-data-url');
+  // base64 로 준 SVG 는 계속 «검사 대상»이다(디코드까지)
+  assert.equal(_assertImageSrcIntact('data:image/svg+xml;base64,' + Buffer.from('<svg/>').toString('base64'), 'imgSrc').checked,
+    'decode-only');
+});
+
+test('★「base64 인가」는 «;base64,» 로 본다 — 글자만 들어 있는 것과 구별해야 한다', () => {
+  // 변이 「/;base64,/ → /base64/」가 초록으로 살아남아 드러난 자리.
+  // 내용에 "base64" 라는 «글자»가 있는 비base64 SVG 가 있으면, 느슨하게 보면 검사 대상이 되어
+  // 「저장이 못 읽는다」로 «잘못» 거절된다.
+  const svg = "data:image/svg+xml,%3Csvg id='base64' xmlns='http://www.w3.org/2000/svg'/%3E";
+  assert.ok(svg.includes('base64'), '전제: 글자로는 base64 가 들어 있어야 한다');
+  assert.ok(!/;base64,/.test(svg), '전제: 그러나 «;base64,» 는 아니다');
+  assert.equal(_assertImageSrcIntact(svg, 'imgSrc').checked, 'skipped:not-base64-data-url');
+});
