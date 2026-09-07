@@ -50,7 +50,11 @@ function loadTemplates() {
 function saveTemplates(arr) {
   _templatesCache = arr;
   if (window.electronAPI?.saveTemplateIndex) {
-    window.electronAPI.saveTemplateIndex(arr);
+    /* ★공용(_scope==='shared')은 «개인 index» 에 쓰지 않는다. 메인이 한 번 더 거르지만 여기서도 턴다.
+       ⛔한쪽만 두면 나중에 다른 저장 경로가 생겼을 때 공용이 개인으로 조용히 복제된다. */
+    window.electronAPI.saveTemplateIndex(
+      arr.filter(t => t && t._scope !== 'shared').map(({ _scope, ...meta }) => meta)
+    );
   } else {
     // localStorage: 메타 업데이트하되 canvas 데이터 유지
     _lsFullCache = arr.map(meta => {
@@ -100,7 +104,19 @@ async function saveAsTemplate(el, name, folder, category, tags, type = 'section'
   renderTemplatePanel();
 }
 
+/* 공용 템플릿인가 — 「막는 이유」가 셋 다 같아서 한 곳에서 판정한다. */
+function _isSharedTemplate(id) {
+  const t = loadTemplates().find(x => x.id === id);
+  return { shared: !!(t && t._scope === 'shared'), name: (t && t.name) || '이 템플릿' };
+}
+
 async function deleteTemplate(id) {
+  /* ⛔공용을 지우면 이 계정 하나가 아니라 ★모든 계정의 것이 같이 사라진다. 되돌릴 수도 없다. */
+  const g = _isSharedTemplate(id);
+  if (g.shared) {
+    window.showToast?.(`🔒 '${g.name}' 은(는) 모든 계정이 함께 쓰는 공용 템플릿이라 지울 수 없습니다.`);
+    return;
+  }
   if (window.electronAPI?.deleteTemplateCanvas) {
     await window.electronAPI.deleteTemplateCanvas(id);
   } else {
@@ -505,6 +521,12 @@ function startEditTemplate(id) {
     const newTagsRaw = form.querySelector('.tpl-edit-tags')?.value || '';
     const newTags = newTagsRaw.split(',').map(t => t.trim()).filter(Boolean);
     if (!newName) return;
+    const gEdit = _isSharedTemplate(id);
+    if (gEdit.shared) {
+      window.showToast?.(`🔒 '${gEdit.name}' 은(는) 공용 템플릿이라 수정할 수 없습니다. 캔버스에 넣은 뒤 «템플릿으로 저장»하면 내 것으로 만들 수 있습니다.`);
+      form.remove();
+      return;
+    }
     const templates = loadTemplates();
     const idx = templates.findIndex(t => t.id === id);
     if (idx !== -1) {
@@ -519,6 +541,12 @@ function startEditTemplate(id) {
   });
 
   form.querySelector('.tpl-edit-overwrite').addEventListener('click', async () => {
+    const gOw = _isSharedTemplate(id);
+    if (gOw.shared) {
+      window.showToast?.(`🔒 '${gOw.name}' 은(는) 공용 템플릿이라 덮어쓸 수 없습니다. 캔버스에 넣은 뒤 «템플릿으로 저장»하면 내 것으로 만들 수 있습니다.`);
+      form.remove();
+      return;
+    }
     const sec = canvasEl.querySelector('.section-block.selected');
     if (!sec) { alert('덮어쓸 섹션을 먼저 선택하세요.'); return; }
     const clone = sec.cloneNode(true);

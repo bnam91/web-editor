@@ -528,6 +528,7 @@ function writeAuth(record) {
   /* ⛔조용히 삼키지 않는다 — 여기서 실패하면 «이전 계정의 뿌리»로 계속 쓴다.
      그렇다고 로그인 자체를 못 하게 막으면 사용자가 갇히므로, ★소리는 반드시 낸다.
      그리고 뿌리를 «레거시 공용 풀»로 되돌리지 않는다(그게 남의 것에 닿는 길이다). */
+  try { _repointTemplatesDir('login'); } catch (e) { console.error('[templates] login repoint 실패:', (e && e.message) || e); }
   try { _repointProjectsDir('login'); }
   catch (e) { console.error('[projects] ★로그인 뒤 뿌리 전환 실패 — 계정 격리가 서지 않았다:', (e && e.message) || e); }
   return next;
@@ -547,6 +548,7 @@ function clearAuth() {
       console.error('[auth] ★로그아웃 실패 — auth.json 을 못 지웠다:', (e && e.message) || e);
     }
   }
+  try { _repointTemplatesDir('logout'); } catch (e) { console.error('[templates] logout repoint 실패:', (e && e.message) || e); }
   try { _repointProjectsDir('logout'); }
   catch (e) { console.error('[projects] 로그아웃 뒤 뿌리 전환 실패:', (e && e.message) || e); }
   /* ⛔파일이 안 지워졌으면 _repointProjectsDir 는 «아직 로그인»으로 읽는다.
@@ -1135,6 +1137,16 @@ let PROJECTS_DIR = PROJECTS_DIR_LEGACY;
 migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR_LEGACY); // 구 경로 마이그레이션 [뿌리-정본] 레거시 풀로만 옮긴다
 if (!fs.existsSync(PROJECTS_DIR_LEGACY)) fs.mkdirSync(PROJECTS_DIR_LEGACY, { recursive: true });
 
+/* ── 템플릿 뿌리 ── 프로젝트와 «같은 판»이다(폴더로 가른다. 소유자 «필드»로 거르지 않는다).
+   ⛔다른 점이 하나 있고, 그게 이 기능의 핵심이다:
+     프로젝트의 레거시 풀은 «누군가의 개인 것»이라 첫 로그인 때 입양해서 비운다.
+     템플릿의 공용 풀은 «모두가 계속 읽는» 기본 세트라 ★입양하지 않는다. 읽기전용으로 남긴다.
+   ⇒ 읽기 = 공용 ∪ 개인, 쓰기 = 개인만. */
+const TEMPLATES_DIR_SHARED     = path.join(USER_DATA_DIR, 'templates');                    // [뿌리-정본] 공용(레거시) 풀 — 읽기전용
+const TEMPLATES_DIR_UNRESOLVED = path.join(ACCOUNTS_DIR, '_unresolved', 'templates');      // [뿌리-정본] 「누구인지 모름」 착지점
+let   TEMPLATES_DIR            = TEMPLATES_DIR_UNRESOLVED;                                  // ★상수가 아니다 — 로그인·로그아웃에 갈아끼운다
+function _accountTemplatesDir(key) { return path.join(ACCOUNTS_DIR, key, 'templates'); }   // [뿌리-정본] 계정 뿌리를 «만드는» 자리
+
 /* 계정 키 — «폴더 이름만 보고 누구 것인지 알 수 있게» 두되, 충돌은 해시로 막는다.
    (읽을 수 없는 해시만 쓰면 폴더로 가른 목적 ⑵ 가 없어진다.) */
 function _accountKeyFor(email) {
@@ -1298,6 +1310,37 @@ function _repointProjectsDir(reason) {
   return _projectsDirState;
 }
 function _projectsRoot() { return PROJECTS_DIR; }
+
+/* 계정별 «개인» 템플릿 뿌리로 갈아끼운다. 로그인/로그아웃/기동 때 부른다.
+   ⛔프로젝트와 갈리는 자리가 «비로그인»이다. 프로젝트는 비로그인이면 레거시 공용 풀을 쓰지만,
+     템플릿의 공용 풀은 ★«모든 계정이 읽는» 곳이라 거기에 쓰게 두면 비로그인 저장이 전원에게 보인다.
+     그래서 여기서는 비로그인도 격리 폴더로 내린다(읽기는 여전히 공용을 본다 — 못 쓰게 할 뿐이다). */
+let _templatesDirState = null;
+function _repointTemplatesDir(reason) {
+  const _land = (why, extra) => {
+    try { fs.mkdirSync(path.join(TEMPLATES_DIR_UNRESOLVED, 'canvas'), { recursive: true }); } catch (_) {}
+    TEMPLATES_DIR = TEMPLATES_DIR_UNRESOLVED;
+    _templatesDirState = Object.assign({ root: TEMPLATES_DIR, account: null, reason }, extra);
+    return _templatesDirState;
+  };
+  let key;
+  try {
+    key = _currentAccountKey();
+  } catch (e) {
+    /* ★「못 읽었다」를 「비로그인」으로 뭉개지 않는다 — 프로젝트가 실제로 데인 자리다(주석 1147~). */
+    console.error('[templates] ★계정을 «못 읽었다»(손상?) — 공용 풀에 쓰지 않고 격리로 간다:', (e && e.message) || e);
+    return _land('unresolved', { unresolved: true, error: String((e && e.message) || e) });
+  }
+  if (!key) return _land('anonymous', {});
+  const dest = _accountTemplatesDir(key);
+  /* ⛔mkdir 실패를 삼키고 뿌리를 꽂으면 사용자 눈엔 「내 템플릿이 다 사라졌다」가 된다. */
+  fs.mkdirSync(path.join(dest, 'canvas'), { recursive: true });
+  TEMPLATES_DIR = dest;
+  _templatesDirState = { root: dest, account: key, reason };
+  try { console.log(`[templates] 개인뿌리=${dest} 계정=${key} 사유=${reason}`); } catch (_) {}
+  return _templatesDirState;
+}
+function _templatesRoot() { return TEMPLATES_DIR; }
 /* ★계정 «작업공간» — 프로젝트 뿌리의 «부모». 작업물(비상 사본·복구 장부)이 여기 붙는다.
      비로그인      : <userData>/projects        → <userData>          ← 오늘과 «바이트 동일»
      로그인        : <userData>/accounts/<키>/projects → <userData>/accounts/<키>
@@ -1354,6 +1397,7 @@ function _markAdoptionNoticeShown() {
 
 
 _repointProjectsDir('startup');
+try { _repointTemplatesDir('startup'); } catch (e) { console.error('[templates] startup repoint 실패:', (e && e.message) || e); }
 
 /* 렌더러가 «가져간다». ⛔push 로 보내면 리스너를 걸기 전에 도착해 유실된다
    (gdt:takePendingOpen 이 같은 이유로 pull 이다 — 같은 결로 맞춘다).
@@ -3318,51 +3362,144 @@ ipcMain.handle('figma:write-node-map', (event, nodeMap) => {
 });
 
 /* ── IPC: Templates ── */
-const TEMPLATES_DIR        = path.join(USER_DATA_DIR, 'templates');
-const TEMPLATES_CANVAS_DIR = path.join(TEMPLATES_DIR, 'canvas');
-const TEMPLATES_INDEX_FILE = path.join(TEMPLATES_DIR, 'index.json');
-migrateFiles(path.join(__dirname, 'templates'), TEMPLATES_DIR); // 구 경로 마이그레이션
-if (!fs.existsSync(TEMPLATES_CANVAS_DIR)) fs.mkdirSync(TEMPLATES_CANVAS_DIR, { recursive: true });
+/* ★뿌리 선언은 여기가 아니라 «프로젝트 뿌리 옆»에 있다(startup repoint 보다 먼저 있어야 해서).
+   여기서는 «공용 풀 준비»와 핸들러만 다룬다.
+   ⛔핸들러는 경로를 «값으로 붙잡지» 않는다 — 계정이 바뀌면 뿌리가 갈리므로 매번 게터로 읽는다
+     (프로젝트가 registerGdtIpc 한 곳만 게터로 넘긴 것과 같은 이유. 주석 1113). */
+migrateFiles(path.join(__dirname, 'templates'), TEMPLATES_DIR_SHARED); // 구 경로 마이그레이션 → 공용 풀로만
+if (!fs.existsSync(path.join(TEMPLATES_DIR_SHARED, 'canvas'))) fs.mkdirSync(path.join(TEMPLATES_DIR_SHARED, 'canvas'), { recursive: true });
+
+function _tplIndexFile(root)  { return path.join(root, 'index.json'); }
+function _tplCanvasDir(root)  { return path.join(root, 'canvas'); }
+function _readTplIndex(root) {
+  const f = _tplIndexFile(root);
+  if (!fs.existsSync(f)) return [];
+  try {
+    const v = JSON.parse(fs.readFileSync(f, 'utf8'));
+    return Array.isArray(v) ? v : [];
+  } catch (e) {
+    /* ⛔여기서 삼킨 뒤 «[]» 는 「템플릿이 없다」로 읽힌다 — 그 상태로 save-index 가 오면 덮어써서 «진짜로» 없어진다.
+       ⇒ 최소한 «시끄럽게» 남긴다. 조용히 빈 배열을 돌려주면 손실이 무증상이 된다. */
+    console.error('[templates] ★index 를 못 읽었다(손상?) — 빈 목록으로 진행한다:', f, (e && e.message) || e);
+    return [];
+  }
+}
+
+/* 구버전 templates.json(canvas 내장) → index.json + canvas/ 분리. 공용 풀 기준, 1회성. */
+function _migrateLegacyTemplatesJson() {
+  const oldFile = path.join(TEMPLATES_DIR_SHARED, 'templates.json');
+  if (!fs.existsSync(oldFile)) return;
+  try {
+    const old = JSON.parse(fs.readFileSync(oldFile, 'utf8'));
+    const index = old.map(({ canvas, ...meta }) => {
+      if (canvas) fs.writeFileSync(path.join(_tplCanvasDir(TEMPLATES_DIR_SHARED), `${_safeSeg(meta.id)}.html`), canvas, 'utf8'); // GAP-009
+      return meta;
+    });
+    fs.writeFileSync(_tplIndexFile(TEMPLATES_DIR_SHARED), JSON.stringify(index, null, 2), 'utf8');
+    fs.unlinkSync(oldFile);
+  } catch (e) { console.error('[templates] 구버전 templates.json 마이그레이션 실패:', (e && e.message) || e); }
+}
+
+/* 공용 풀의 기존 항목을 «레거시» 폴더 하나로 모은다(2026-09-07 현빈 지시).
+   ★1회만 — 마커가 있으면 스킵. 마커에 이전 folder 를 «전량» 적어 되돌릴 수 있게 둔다.
+   ⛔파일 이동·삭제·id 변경 «없음». folder 필드만 바꾼다 ⇒ 유실 위험 0.
+   ⚠️migrateFiles(1092)는 dst 가 있으면 스킵이라 «이미 시드된 ud»엔 안 걸린다 —
+     그래서 시드에 얹지 않고 여기서 «따로» 한다. 얹었으면 기존 사용자에겐 영영 안 걸렸다. */
+const TPL_LEGACY_FOLDER = '레거시';
+const TPL_LEGACY_MARKER = path.join(TEMPLATES_DIR_SHARED, '.legacy-foldered.json');
+function _foldLegacyTemplates() {
+  if (fs.existsSync(TPL_LEGACY_MARKER)) return;
+  const f = _tplIndexFile(TEMPLATES_DIR_SHARED);
+  if (!fs.existsSync(f)) return;
+  try {
+    const arr = JSON.parse(fs.readFileSync(f, 'utf8'));
+    if (!Array.isArray(arr) || !arr.length) return;
+    const prev = arr.map(t => ({ id: t.id, prevFolder: (t.folder === undefined ? null : t.folder) }));
+    arr.forEach(t => { t.folder = TPL_LEGACY_FOLDER; });
+    fs.writeFileSync(f, JSON.stringify(arr, null, 2), 'utf8');
+    fs.writeFileSync(TPL_LEGACY_MARKER, JSON.stringify({ at: new Date().toISOString(), folder: TPL_LEGACY_FOLDER, count: prev.length, prev }, null, 2), 'utf8');
+    console.log(`[templates] 공용 ${prev.length}건을 «${TPL_LEGACY_FOLDER}» 폴더로 모았다(1회).`);
+  } catch (e) {
+    /* ⛔실패했으면 마커를 «남기지 않는다» — 남기면 다음 기동에 재시도를 못 하고 절반만 모인 채 굳는다. */
+    console.error('[templates] 레거시 폴더 정리 실패 — 마커 없이 둔다(다음 기동 재시도):', (e && e.message) || e);
+  }
+}
+_migrateLegacyTemplatesJson();
+_foldLegacyTemplates();
 
 ipcMain.handle('templates:load-index', () => {
-  // 구버전 templates.json → 분리 구조로 자동 마이그레이션
-  const oldFile = path.join(TEMPLATES_DIR, 'templates.json');
-  if (fs.existsSync(oldFile)) {
-    try {
-      const old = JSON.parse(fs.readFileSync(oldFile, 'utf8'));
-      const index = old.map(({ canvas, ...meta }) => {
-        if (canvas) fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(meta.id)}.html`), canvas, 'utf8'); // GAP-009
-        return meta;
-      });
-      fs.writeFileSync(TEMPLATES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8');
-      fs.unlinkSync(oldFile);
-      return index;
-    } catch { return []; }
+  const personalRoot = _templatesRoot();
+  const shared = _readTplIndex(TEMPLATES_DIR_SHARED).map(m => Object.assign({}, m, { _scope: 'shared' }));
+  /* 뿌리가 겹치면(이론상) 같은 걸 두 번 세게 된다 — 겹치면 공용만 돌려준다. */
+  if (personalRoot === TEMPLATES_DIR_SHARED) return shared;
+  const personal = _readTplIndex(personalRoot).map(m => Object.assign({}, m, { _scope: 'personal' }));
+  /* ★개인이 «먼저», 그리고 id 충돌 시 개인이 이긴다.
+     근거: 방금 내가 만든 것이 안 보이면 사용자에겐 「내 것이 사라졌다」가 된다. */
+  const seen = new Set();
+  const out = [];
+  for (const t of personal) { if (t && t.id) seen.add(t.id); out.push(t); }
+  for (const t of shared) {
+    if (t && t.id && seen.has(t.id)) { console.warn(`[templates] id 충돌 — 개인이 공용을 가린다: ${t.id}`); continue; }
+    out.push(t);
   }
-  if (!fs.existsSync(TEMPLATES_INDEX_FILE)) return [];
-  try { return JSON.parse(fs.readFileSync(TEMPLATES_INDEX_FILE, 'utf8')); } catch { return []; }
+  return out;
 });
 
 ipcMain.handle('templates:save-index', (event, index) => {
-  fs.writeFileSync(TEMPLATES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8');
+  const root = _templatesRoot();
+  /* ⛔공용 풀에 index 를 쓰면 «모든 계정»의 목록이 바뀐다. 그리고 아래 필터가 공용을 걷어낸 뒤라
+     그대로 쓰면 공용 19건이 통째로 지워진다. 그래서 뿌리부터 막는다. */
+  if (root === TEMPLATES_DIR_SHARED) {
+    console.error('[templates] ⛔공용 풀에 index 쓰기를 거부했다(공용은 읽기전용).');
+    return false;
+  }
+  const arr = Array.isArray(index) ? index : [];
+  /* ★★이 필터가 이 기능의 안전선이다.
+     빠뜨리면 병합돼 온 공용 항목이 «개인 index 로 복제»되고, 그 뒤 공용을 고쳐도 개인 사본이 갈라진다
+     (그리고 공용 건수가 계정마다 불어난다). _scope 는 런타임 표식이라 디스크엔 안 쓴다. */
+  const personal = arr.filter(t => t && t._scope !== 'shared').map(({ _scope, ...meta }) => meta);
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(_tplIndexFile(root), JSON.stringify(personal, null, 2), 'utf8');
   return true;
 });
 
 ipcMain.handle('templates:load-canvas', (event, id) => {
-  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`); // GAP-009
-  if (!fs.existsSync(filePath)) return null;
-  try { return fs.readFileSync(filePath, 'utf8'); } catch { return null; }
+  const seg = _safeSeg(id); // GAP-009
+  /* ★순서 고정: 개인 → 공용. 개인이 공용을 가리는 규칙(load-index)과 같은 방향이어야 한다. */
+  for (const root of [_templatesRoot(), TEMPLATES_DIR_SHARED]) {
+    const fp = path.join(_tplCanvasDir(root), `${seg}.html`);
+    if (!fs.existsSync(fp)) continue;
+    try { return fs.readFileSync(fp, 'utf8'); }
+    catch (e) { console.error('[templates] canvas 읽기 실패:', fp, (e && e.message) || e); return null; }
+  }
+  return null;
 });
 
 ipcMain.handle('templates:save-canvas', (event, id, html) => {
-  fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`), html, 'utf8'); // GAP-009
+  const root = _templatesRoot();
+  if (root === TEMPLATES_DIR_SHARED) {
+    console.error('[templates] ⛔공용 풀에 canvas 쓰기를 거부했다(공용은 읽기전용).');
+    return false;
+  }
+  const dir = _tplCanvasDir(root);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${_safeSeg(id)}.html`), html, 'utf8'); // GAP-009
   return true;
 });
 
 ipcMain.handle('templates:delete-canvas', (event, id) => {
-  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`); // GAP-009
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  return true;
+  const seg = _safeSeg(id); // GAP-009
+  const root = _templatesRoot();
+  if (root === TEMPLATES_DIR_SHARED) return { ok: false, reason: 'shared-readonly' };
+  const own = path.join(_tplCanvasDir(root), `${seg}.html`);
+  if (fs.existsSync(own)) { fs.unlinkSync(own); return { ok: true }; }
+  /* 개인엔 없는데 공용에 있다 = «공용을 지우려 한 것». 거부한다 —
+     지우면 그 계정 하나가 아니라 ★모든 계정의 것이 같이 사라진다. */
+  if (fs.existsSync(path.join(_tplCanvasDir(TEMPLATES_DIR_SHARED), `${seg}.html`))) {
+    console.warn('[templates] 공용 템플릿 삭제 거부:', seg);
+    return { ok: false, reason: 'shared-readonly' };
+  }
+  return { ok: true }; // 이미 없다
 });
 
 /* ── IPC: Section Screenshot (html2canvas flex 버그 우회) ── */

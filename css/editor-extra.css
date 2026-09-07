@@ -1287,6 +1287,20 @@ body.preview-mode #preview-navigator { display: flex; }
 .tb-card-edit-btn:hover { background: var(--ui-bg-input); color: var(--ui-text-sub); }
 .tb-card-del-btn:hover { background: var(--ui-danger-bg); color: var(--ui-danger); }
 
+/* 공용(모든 계정 공유) 템플릿 표식 — ★새 색을 만들지 않는다. 기존 카드 토큰만 재사용. */
+.tb-card-shared {
+  font-size: var(--ui-fs-10);
+  color: var(--ui-text-dim);
+  border: 1px solid var(--ui-border);
+  border-radius: 3px;
+  padding: 0 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* 공용은 수정·삭제 불가 — 보이되 못 누른다(없애면 「왜 나만 안 되지」가 된다) */
+.tb-card-edit-btn:disabled, .tb-card-del-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.tb-card-edit-btn:disabled:hover, .tb-card-del-btn:disabled:hover { background: none; color: var(--ui-text-dim); }
+
 /* ★ 즐겨찾기 버튼 */
 .tb-card-star-btn {
   background: none;
