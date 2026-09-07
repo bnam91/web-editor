@@ -1196,7 +1196,11 @@ function _registerDefaultTools() {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
       if (typeof image !== 'string' || !image) throw new Error('image must be a non-empty dataURL string');
-      if (!/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(image)) {
+      /* ⚠️여기 문지기는 «검사기와 같은 관대함»이어야 한다. 앞 판은 이 줄만 대소문자 구분이라
+       *   `data:IMAGE/PNG;base64,<온전한 PNG>` 를 put_image 가 거절하고 update_block 은 통과시켰다
+       *   — «같은 입력이 문에 따라 갈리는» 오탐이다(적대검수 2026-09-07). 브라우저는 정상 렌더한다.
+       *   ⇒ /i + 파라미터(;charset=…) 허용으로 _assertImageSrcIntact 의 파서와 맞춘다. */
+      if (!/^data:image\/[a-zA-Z0-9.+-]+(?:;[^;,]*)*;base64,/i.test(image)) {
         throw new Error('image must be a data URL: data:image/<type>;base64,<...> (file paths are not accepted)');
       }
       if (image.length > _PUT_IMAGE_MAX) {
@@ -1209,8 +1213,8 @@ function _registerDefaultTools() {
       try {
         imageCheck = _assertImageSrcIntact(image, 'image');
       } catch (e) {
-        if (e && e.code === 'IMAGE_TRUNCATED') {
-          return { ok: false, code: 'IMAGE_TRUNCATED', message: e.message, ...e.detail };
+        if (e && e.imageCheckError) {
+          return { ok: false, code: e.code, message: e.message, ...e.detail };
         }
         throw e;
       }
@@ -3493,8 +3497,8 @@ function _registerDefaultTools() {
       } catch (e) {
         // ★put_image 와 «같은 모양»으로 답한다 — 던지면 JSON-RPC 에러가 되어 code 를 잃고,
         //   호출자(모델)가 「다시 통째로 보내면 된다」를 구조적으로 못 읽는다.
-        if (e && e.code === 'IMAGE_TRUNCATED') {
-          return { ok: false, code: 'IMAGE_TRUNCATED', message: e.message, ...e.detail };
+        if (e && e.imageCheckError) {
+          return { ok: false, code: e.code, message: e.message, ...e.detail };
         }
         throw e;
       }
@@ -5919,11 +5923,25 @@ const _MIME_ALIAS = {
   'image/x-png': 'image/png', 'image/apng': 'image/png'
 };
 
+/* «잘림»인 사유들 — 이 목록에 있을 때만 IMAGE_TRUNCATED 다. */
+const _TRUNCATION_REASONS = new Set([
+  'PNG_CHUNK_TRUNCATED', 'PNG_NO_IEND', 'JPEG_NO_EOI', 'JPEG_NO_SOS',
+  'JPEG_SEGMENT_TRUNCATED', 'GIF_TRUNCATED', 'WEBP_TRUNCATED',
+  'EMPTY_PAYLOAD', 'DECODE_EMPTY'
+]);
 function _imgErr(message, detail) {
-  // ★코드 이름을 «문장 안»에도 넣는다 — 던져진 에러는 JSON-RPC -32000 으로 납작해지면서
-  //   code 필드를 잃는다. 그러면 모델이 「무엇이 잘못됐나」를 문자열로만 알게 된다.
-  const e = new Error('[IMAGE_TRUNCATED] ' + message);
-  e.code = 'IMAGE_TRUNCATED';
+  /* ★코드를 «사유에서» 도출한다.
+   *   앞 판은 사유와 무관하게 전부 `IMAGE_TRUNCATED` 를 박았다 — `BASE64URL_NOT_SUPPORTED`
+   *   도, `NOT_AN_IMAGE` 도, `PNG_CRC_MISMATCH` 도 「잘렸다」로 나갔다.
+   *   1판에서 잡힌 「원인을 거짓으로 말한다」가 «한 층 위로 옮겨갔을 뿐» 그대로였다
+   *   (적대검수 2026-09-07). 게다가 7곳 중 5곳은 던지는 경로라 detail.reason 이 안 보이고
+   *   그 «거짓 태그»만 남는다 — 모델이 읽는 게 정확히 거짓인 부분이다.
+   * ★코드 이름을 문장 안에도 넣는다 — 던져진 에러는 JSON-RPC 로 납작해지며 code 를 잃는다. */
+  const reason = (detail && detail.reason) || 'IMAGE_INVALID';
+  const code = _TRUNCATION_REASONS.has(reason) ? 'IMAGE_TRUNCATED' : 'IMAGE_INVALID';
+  const e = new Error(`[${code}:${reason}] ` + message);
+  e.code = code;
+  e.imageCheckError = true;   // ★디스패처가 «이것»으로 잡는다 — 코드 이름에 안 묶인다
   e.detail = detail || {};
   return e;
 }
@@ -5993,35 +6011,92 @@ function _checkPng(buf, field) {
   }
   return { trailingBytes: buf.length - pos };
 }
-/* JPEG 는 EOI(FF D9)로 끝난다. 잘리면 그게 없다. */
+/* ★네 포맷 «한 정책»: 포맷마다 «구조적 끝 오프셋»을 구하고, 그 뒤는 trailingBytes 로 보고만 한다.
+   ⛔앞 판은 정책이 셋이었다 — PNG·WebP 는 뒤 잔여를 보고 후 통과, GIF 은 «마지막 바이트» 엄격
+     비교(→ 온전한 GIF 뒤 1바이트에도 오탐), JPEG 은 lastIndexOf(→ 잘린 카메라 사진이 뚫림).
+     **구멍과 오탐이 «같은 원인(정책 불일치)»에서 동시에 나왔다**(적대검수 2026-09-07). */
 function _checkJpeg(buf, field) {
-  /* ⚠️「마지막 2바이트가 ff d9 인가」로 박으면 «오탐»이 난다 — EOI 뒤에 EXIF 썸네일이나
-   *   제조사 trailer 가 붙은 JPEG 이 실존한다. 그건 «온전한» 파일이다.
-   *   ⇒ EOI 가 «어딘가 있나»로 완화하고, 그 뒤 길이는 세어서 보고만 한다.
-   *   잘린 JPEG 에는 EOI 자체가 없으므로 잡는 힘은 유지된다.
-   *   (JPEG 은 스캔 데이터에서 ff 를 ff 00 으로 바이트 스터핑하므로 ff d9 가 우연히 나오지 않는다.) */
-  const at = buf.lastIndexOf(Buffer.from([0xff, 0xd9]));
-  if (at < 2) {
+  /* ★EOI 를 «SOS 이후»에서만 찾는다.
+   * 폰 사진은 사실상 전부 APP1(Exif) 안에 «썸네일 JPEG»을 품고 그 썸네일도 자기 EOI 를 갖는다.
+   * 앞 판의 lastIndexOf(ff d9) 는 본체가 스캔 도중 잘려도 «썸네일의 EOI»를 찾아 통과시켰다
+   * (실측: 11,144B 카메라 JPEG 을 60% 에서 자른 6,686B 가 ok:true, trailingBytes 6,359).
+   * 내가 오탐(EOI 뒤 trailer 실존)을 피하려 넣은 완화가 «정확히 그 방어축»을 무력화했고,
+   * ★이 판이 막으려는 사고(클로드앱 첨부 절단)의 «가장 흔한» 형태가 바로 폰 사진이다.
+   * ⇒ 세그먼트를 선언 길이로 걸어 SOS 까지 간다 — APP1 은 통째로 건너뛰므로 썸네일이 안 보인다.
+   *   진짜 trailer 는 EOI 뒤에 남고 그건 trailingBytes 로 보고만 한다(오탐 없음). */
+  if (buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) {
+    throw _imgErr(`${field}: JPEG 이 SOI(ff d8)로 시작하지 않습니다 (받은 ${buf.length}바이트).`,
+      { reason: 'JPEG_NO_SOI', decodedBytes: buf.length });
+  }
+  let i = 2, sos = -1;
+  while (i + 3 < buf.length) {
+    if (buf[i] !== 0xff) { i++; continue; }
+    const marker = buf[i + 1];
+    if (marker === 0xff) { i++; continue; }                                   // 채움 바이트
+    if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) { i += 2; continue; }
+    if (marker === 0xd9) break;                                               // 스캔 «전» EOI = 잘린 것
+    const segLen = buf.readUInt16BE(i + 2);                                   // 길이는 자기 2바이트 포함
+    if (segLen < 2 || i + 2 + segLen > buf.length) {
+      throw _imgErr(_truncMsg(field,
+        `JPEG 세그먼트 ff${marker.toString(16)}(offset ${i})가 ${segLen}바이트를 선언했는데 남은 것은 ${buf.length - (i + 2)}바이트뿐입니다.`,
+        buf.length, i + 2 + segLen),
+        { reason: 'JPEG_SEGMENT_TRUNCATED', marker: 'ff' + marker.toString(16), offset: i,
+          declaredSegmentBytes: segLen, decodedBytes: buf.length, expectedAtLeastBytes: i + 2 + segLen });
+    }
+    if (marker === 0xda) { sos = i; i = i + 2 + segLen; break; }               // SOS — 뒤는 엔트로피 데이터
+    i = i + 2 + segLen;
+  }
+  if (sos < 0) {
+    throw _imgErr(_truncMsg(field,
+      'JPEG 이 SOS(ff da, 스캔 시작)에 «닿기 전»에 끝났습니다 — 헤더만 있고 그림 데이터가 없습니다.',
+      buf.length, buf.length + 2),
+      { reason: 'JPEG_NO_SOS', decodedBytes: buf.length });
+  }
+  const at = buf.indexOf(Buffer.from([0xff, 0xd9]), i);   // ★썸네일 EOI 는 SOS 앞이라 안 걸린다
+  if (at < 0) {
     const tail = Array.from(buf.slice(Math.max(0, buf.length - 4)))
       .map(b => b.toString(16).padStart(2, '0')).join(' ');
     throw _imgErr(_truncMsg(field,
-      `JPEG 에 EOI(ff d9)가 «없습니다» — 끝 4바이트가 [${tail}] 입니다.`, buf.length, buf.length + 2),
-      { reason: 'JPEG_NO_EOI', decodedBytes: buf.length, lastBytesHex: tail });
+      `JPEG 스캔 데이터가 EOI(ff d9) 없이 끝났습니다 — 끝 4바이트가 [${tail}] (SOS 는 offset ${sos}).`,
+      buf.length, buf.length + 2),
+      { reason: 'JPEG_NO_EOI', decodedBytes: buf.length, sosOffset: sos, lastBytesHex: tail });
   }
   return { trailingBytes: buf.length - (at + 2) };
 }
-/* GIF 는 trailer 0x3B 로 끝난다. */
+/* GIF: 블록을 «걸어서» trailer(0x3b) «위치»를 구한다 — 마지막 바이트를 엄격 비교하지 않는다. */
 function _checkGif(buf, field) {
-  if (buf.length < 14 || buf[buf.length - 1] !== 0x3b) {
-    throw _imgErr(_truncMsg(field,
-      `GIF 가 trailer(0x3b)로 끝나지 않습니다 — 끝 바이트가 0x${(buf[buf.length - 1] || 0).toString(16)} 입니다.`,
-      buf.length, buf.length + 1),
-      { reason: 'GIF_NO_TRAILER', decodedBytes: buf.length });
+  const need = (n, what) => {
+    if (n > buf.length) {
+      throw _imgErr(_truncMsg(field, `GIF ${what} 를 읽으려면 ${n}바이트가 필요합니다.`, buf.length, n),
+        { reason: 'GIF_TRUNCATED', at: what, decodedBytes: buf.length, expectedAtLeastBytes: n });
+    }
+  };
+  need(13, '헤더+화면기술자');
+  let i = 13;
+  if (buf[10] & 0x80) { const gct = 3 * (1 << ((buf[10] & 7) + 1)); need(i + gct, '전역 색상표'); i += gct; }
+  const subBlocks = () => {                    // 길이 접두 하위블록 — 0 이 끝
+    for (;;) { need(i + 1, '하위블록 길이'); const n = buf[i]; i += 1; if (n === 0) return; need(i + n, '하위블록'); i += n; }
+  };
+  for (;;) {
+    need(i + 1, '블록 표식');
+    const b = buf[i];
+    if (b === 0x3b) return { trailingBytes: buf.length - (i + 1) };            // ★구조적 끝
+    if (b === 0x21) { need(i + 2, '확장 헤더'); i += 2; subBlocks(); continue; }
+    if (b === 0x2c) {
+      need(i + 10, '이미지 기술자'); const f = buf[i + 9]; i += 10;
+      if (f & 0x80) { const lct = 3 * (1 << ((f & 7) + 1)); need(i + lct, '지역 색상표'); i += lct; }
+      need(i + 1, 'LZW 최소코드'); i += 1; subBlocks(); continue;
+    }
+    throw _imgErr(`${field}: GIF 에 알 수 없는 블록 표식 0x${b.toString(16)} 가 offset ${i} 에 있습니다 — 손상된 파일입니다 (받은 ${buf.length}바이트).`,
+      { reason: 'GIF_BAD_BLOCK', marker: '0x' + b.toString(16), offset: i, decodedBytes: buf.length });
   }
-  return {};
 }
 /* WebP 는 RIFF 헤더 4~8바이트가 «그 뒤 전체 길이»를 선언한다 — 잘리면 그 숫자가 안 맞는다. */
 function _checkWebp(buf, field) {
+  /* ⚠️앞의 `length < 12` 는 «증명 가능하게 잉여»다 — 길이가 11 이하면 toString(8,12) 가
+     최대 3글자라 'WEBP'(4글자)와 절대 같을 수 없어 두 번째 조건이 «항상» 잡는다.
+     ⇒ 이 줄을 11 로 옮기는 변이는 «어떤 입력으로도» 못 죽인다(적대검수 L22, 실측으로 확인).
+     읽기 좋으라고 남겨 두는 것이지 «검사»가 아니다 — 여기에 테스트를 붙이려 애쓰지 마라. */
   if (buf.length < 12 || buf.toString('latin1', 8, 12) !== 'WEBP') {
     throw _imgErr(`${field}: RIFF 컨테이너인데 WEBP 가 아닙니다 (받은 ${buf.length}바이트).`,
       { reason: 'WEBP_BAD_CONTAINER', decodedBytes: buf.length });
@@ -6038,62 +6113,79 @@ function _checkWebp(buf, field) {
 
 /* src 가 data:image/* dataURL 일 때만 «온전한가»를 본다.
    http(s)/assets//blob: 등 우리가 바이트를 안 가진 것은 검사 대상이 아니다 — 그대로 통과. */
+/* ★소비자들이 «전부 온전히» 읽는 형태인가 — 하나의 정규식이 판정한다.
+ *
+ * ⛔앞 판은 «금지할 것을 열거»했다: 대소문자 · 파라미터 · base64 안의 공백…
+ *   그래서 «내가 안 떠올린 것»은 통째로 샜다. 적대검수가 그 목록을 그대로 보여줬다(2026-09-07):
+ *     · 빈 서브타입 `data:image/;`      · 밑줄 서브타입 `data:image/x_y;`
+ *     · mime «안»의 공백 `data:image/png ;`  · base64 «중간»의 `=`
+ *     · ★`^` 앵커 «밖» — 앞에 공백 한 칸(`" data:image/png;base64,…"`)이면 검사를 «아예 안 했다»
+ *   전부 externalizer 가 못 읽거나 부분 매치해서 «저장 시 파손»되는 것들이었다.
+ * ⇒ 열거를 그만둔다. 판정은 «소비자의 패턴»으로 통째로 한다.
+ *   - `^…$` 양끝 앵커      : 앞뒤에 뭐가 붙으면 통과 못 한다
+ *   - 서브타입 문자집합     : externalizer 의 `[a-zA-Z0-9.+-]+` «그대로»(빈 것도 불가)
+ *   - base64 는 `=` 를 «꼬리에만»
+ *   실측으로 12케이스 전부 externalizer 판정과 일치했고, `image/svg+xml`·`image/vnd.ms-photo`·
+ *   패딩 생략 같은 «되던 것»은 그대로 통과한다(좁히다 되던 걸 막는 게 이 판의 상습 실수였다).
+ * ★분류(_diagnoseUnstorable)는 «메시지용»일 뿐이다 — 판정은 이 정규식 «하나»가 한다. */
+const _STORABLE_RE = /^data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$/;
+
+/** 왜 못 쓰는지 «말해 주기» 위한 분류. ⛔여기서 통과/거절을 정하지 않는다. */
+function _diagnoseUnstorable(src, field) {
+  const why = (reason, what) => _imgErr(
+    `${field}: ${what} 브라우저는 읽을 수 있어도 «저장 단계»의 에셋 외부화가 이 형태를 `
+    + '온전히 못 읽어 이미지가 깨지거나 base64 가 프로젝트 파일에 통째로 박힙니다. '
+    + '⛔우리가 고쳐 쓰지 않습니다 — `data:image/<타입>;base64,<공백 없는 base64>` 로 다시 주세요.',
+    { reason });
+  if (src !== src.trim()) return why('SRC_HAS_SURROUNDING_WHITESPACE', 'dataURL 앞뒤에 공백이 있습니다.');
+  const head = /^data:([^;,]*)((?:;[^;,]*)*);base64,([\s\S]*)$/i.exec(src);
+  if (!head) return why('SRC_NOT_A_DATA_URL', 'dataURL 모양이 아닙니다(`;base64,` 를 못 찾았습니다).');
+  const [, type, params, body] = head;
+  if (params) return why('MIME_PARAMS_NOT_STORABLE', `dataURL 에 부가 파라미터(${params})가 있습니다.`);
+  if (!/^data:image\//.test(src)) return why('MIME_CASE_NOT_STORABLE', '앞부분이 소문자 «data:image/» 가 아닙니다.');
+  const sub = type.slice('image/'.length);
+  if (!/^[a-zA-Z0-9.+-]+$/.test(sub)) {
+    return why('MIME_SUBTYPE_NOT_STORABLE',
+      sub === '' ? '이미지 종류(서브타입)가 비어 있습니다.' : `이미지 종류 «${sub}» 에 쓸 수 없는 글자가 있습니다.`);
+  }
+  const ws = /\s/.exec(body);
+  if (ws) return why('BASE64_WHITESPACE_NOT_STORABLE', `base64 안(위치 ${ws.index})에 공백/줄바꿈이 있습니다.`);
+  const url = /[-_]/.exec(body);
+  if (url) return _imgErr(
+    `${field}: base64 에 «${url[0]}» 가 있습니다(위치 ${url.index}). base64url(-, _) 표기는 표준 base64 가 `
+    + '아니라 브라우저의 data URL 파서도, 저장 단계도 «거부»합니다 — 바이트가 온전해도 못 씁니다. '
+    + '표준 base64(+, /)로 다시 주세요. ⛔우리가 고쳐 쓰지 않습니다.',
+    { reason: 'BASE64URL_NOT_SUPPORTED', badChar: url[0], atIndex: url.index });
+  /* ⚠️순서 주의 — «알파벳 밖 글자»를 «패딩 위치»보다 «먼저» 본다.
+     `…!…==` 처럼 둘이 겹치면 패딩 검사가 먼저 걸려 「패딩이 잘못됐다」고 «틀린 사유»를 말한다.
+     사유를 정확히 말하는 게 이 판의 규약이라 순서가 곧 정확성이다(실측으로 잡았다). */
+  const bad = /[^A-Za-z0-9+/=]/.exec(body);
+  if (bad) return _imgErr(
+    `${field}: base64 에 알파벳 밖 글자 «${bad[0]}» 가 있습니다(위치 ${bad.index}) — 전송 중 섞여 들어간 것으로 `
+    + '봅니다. 원본을 «다시» 통째로 보내 주세요. ⛔우리가 고쳐 쓰지 않습니다.',
+    { reason: 'BASE64_BAD_CHARS', badChar: bad[0], atIndex: bad.index });
+  const eq = body.indexOf('=');
+  if (eq >= 0 && !/^[A-Za-z0-9+/]+={1,2}$/.test(body)) {
+    return why('BASE64_PADDING_MISPLACED', `base64 «중간»(위치 ${eq})에 «=» 가 있습니다 — 패딩은 끝에만 올 수 있습니다.`);
+  }
+  if (!body) return _imgErr(`${field}: dataURL 에 base64 본문이 없습니다 (0바이트).`,
+    { reason: 'EMPTY_PAYLOAD', base64Chars: 0, decodedBytes: 0 });
+  return why('SRC_NOT_STORABLE', '저장 소비자가 읽을 수 있는 형태가 아닙니다.');
+}
+
 function _assertImageSrcIntact(src, field = 'image') {
   if (typeof src !== 'string' || !src) return { checked: 'skipped:not-a-string' };
-  // ★대소문자·부가 파라미터(;charset=…)를 «허용»한다 — 이것 때문에 검사를 건너뛰면 우회로가 된다.
-  const m = /^data:([^;,]*)((?:;[^;,]*)*);base64,([\s\S]*)$/i.exec(src);
-  if (!m) return { checked: 'skipped:not-a-data-url' };
-  const declaredRaw = m[1].trim().toLowerCase();
-  if (!declaredRaw.startsWith('image/')) return { checked: 'skipped:not-an-image-data-url' };
-  const declared = _MIME_ALIAS[declaredRaw] || declaredRaw;
+  /* ★들어오는 문은 «느슨하게», 통과하는 문은 «엄격하게».
+     느슨한 쪽이 엄격하면 앵커·대소문자로 빠져나가 검사를 «아예 안 받는다»(적대검수 실측). */
+  /* ⚠️슬래시를 «안» 요구한다 — `data:imageX/…` 같은 것도 «들어와서» 아래 엄격 게이트에 걸려야 한다.
+     슬래시를 요구하면 그런 것이 skipped 로 빠져나간다(적대검수 변이 L13 이 이 자리를 짚었다). */
+  if (!/^\s*data:image/i.test(src)) return { checked: 'skipped:not-a-data-url' };
+  if (!_STORABLE_RE.test(src)) throw _diagnoseUnstorable(src, field);
 
-  // ⑴ base64 «읽기» — 표기 정규화는 수선이 아니다.
-  //    공백/줄바꿈 제거(파이썬 base64.encodebytes 는 76열로 감는다) + 패딩 보정.
-  /* ⛔공백/줄바꿈을 «우리가» 지우지도 않는다 — Node 의 base64 디코더가 이미 무시한다
-   *   (실측: 8열로 감은 base64 → 원본과 동일 바이트). 지우는 줄을 넣었더니 «변이해도 초록»이라
-   *   아무도 안 쓰는 줄이었다. 패딩 보정 줄과 같은 운명으로 지웠다. */
-  const b64 = m[3];
-  if (!b64.trim()) {
-    throw _imgErr(`${field}: dataURL 에 base64 본문이 없습니다 (0바이트).`,
-      { reason: 'EMPTY_PAYLOAD', base64Chars: 0, decodedBytes: 0 });
-  }
-  /* ★알파벳 밖 글자는 거절한다 — 「Node 가 읽으니 괜찮다」가 «틀렸다».
-   *
-   *  판단 기준을 「Node 가 디코드하나」에서 **「우리 소비자(브라우저 data URL 파서)가 읽나」**로
-   *  옮겼다. 그 둘이 «다르다»는 것을 실측했다(WHATWG forgiving-base64 = 브라우저와 같은 알고리즘,
-   *  Node 의 fetch('data:…') 로 확인):
-   *      입력            브라우저 파서      Node Buffer.from
-   *      공백/줄바꿈       통과              통과      ⇒ 표기 차이. 거절하면 오탐(실제로 냈다)
-   *      패딩(=) 생략      통과              통과      ⇒ 같음
-   *      글자 하나(!)      ★거부             통과(원본 바이트)
-   *      base64url(-,_)   ★거부             통과(원본 바이트)
-   *  ⇒ 아래 둘은 «바이트가 온전해도» 저장하면 안 된다. 저장해봐야 앱이 «못 그린다».
-   *     Node 만 보고 통과시키면 「도구는 성공했는데 화면은 깨진 이미지」가 된다 —
-   *     이 판 전체가 막으려던 바로 그 모양이다.
-   *  비용: 5MB(6.7M자)에서 6.6ms(중앙 5회). 「비싸서 안 했다」가 안 서는 값이다.
-   *  ⛔우리가 고쳐 쓰지 않는다(base64url→표준 변환도 «수선»이다) — 거절하고 이유를 정확히 말한다. */
-  const _badChar = /[^A-Za-z0-9+/=\s]/.exec(b64);
-  if (_badChar) {
-    const ch = _badChar[0];
-    const isUrlSafe = ch === '-' || ch === '_';
-    throw _imgErr(
-      `${field}: base64 에 «${ch}» 가 있습니다 (위치 ${_badChar.index}). `
-      + (isUrlSafe
-          ? 'base64url(-, _) 표기는 표준 base64 가 아니라 브라우저의 data URL 파서가 «거부»합니다 — '
-            + '바이트가 온전해도 화면에 못 그립니다. 표준 base64(+, /)로 다시 주세요.'
-          : '이 글자는 base64 알파벳 밖이라 브라우저의 data URL 파서가 «거부»합니다 — '
-            + '전송 중 섞여 들어간 것으로 봅니다. 원본을 «다시» 통째로 보내 주세요.')
-      + ' ⛔우리가 고쳐 쓰지 않습니다.',
-      { reason: isUrlSafe ? 'BASE64URL_NOT_SUPPORTED' : 'BASE64_BAD_CHARS',
-        badChar: ch, atIndex: _badChar.index, base64Chars: b64.length });
-  }
-  /* ⛔base64 «길이»(4의 배수인가)로도 거절하지 않는다. 셋 다 같은 부류의 오탐이었다:
-   *   ⓐ 패딩(=) 생략 — RFC 4648 에서 정상이고 Node 가 그대로 읽는다("AQIDBAU"→5바이트).
-   *   ⓑ 글자 하나가 섞임 — Node 가 건너뛰고 «원본과 같은 바이트»를 준다. 그런데 길이가
-   *      4의 배수에서 벗어나 「나머지 1」이 되어 거절됐다. 되는 그림을 막은 것이다.
-   *   ⇒ 표기(공백·줄바꿈·패딩·길이)로는 «절대» 거절하지 않는다. 내용이 깨졌을 때만 거절한다.
-   *      진짜 방어는 아래 구조검사다 — 실제로 잘렸으면 PNG 청크/CRC, JPEG EOI, GIF trailer,
-   *      WebP 총길이가 잡는다. 표기를 세는 건 비싸고(59%) 틀린다. */
+  const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/.exec(src);
+  const declaredRaw = m[1];
+  const declared = _MIME_ALIAS[declaredRaw] || declaredRaw;
+  const b64 = m[2];
   const buf = Buffer.from(b64, 'base64');
   if (buf.length === 0) {
     throw _imgErr(`${field}: base64 를 디코드했더니 0바이트입니다 (${b64.length}자).`,
@@ -7193,8 +7285,23 @@ async function _handleRpc(msg) {
 
     if (method === 'tools/call') {
       const { name, arguments: args = {} } = params || {};
-      const handler = tools.get(name);
-      if (!handler) return err(-32601, `tool not found: ${name}`);
+      const _rawHandler = tools.get(name);
+      if (!_rawHandler) return err(-32601, `tool not found: ${name}`);
+      /* ★이미지 무결성 거절을 «한 곳»에서 같은 모양으로 만든다.
+       *   앞 판은 put_image·update_asset_block 만 ok:false+code 였고, 나머지 5개 진입점은
+       *   던져서 JSON-RPC -32000 으로 납작해졌다 — code 도 reason 도 숫자 detail 도 사라지고
+       *   문장의 [IMAGE_TRUNCATED] 표식만 남았다. 「호출자가 «구조적으로» 읽어야 한다」는
+       *   내 근거가 7곳 중 2곳에만 적용돼 있었다(적대검수 2026-09-07).
+       *   ⛔7곳에 각각 catch 를 심지 «않는다» — 겹을 늘리면 각 겹이 실제로 일하는지 못 잰다. */
+      const handler = async (a) => {
+        try { return await _rawHandler(a); }
+        catch (e) {
+          if (e && e.imageCheckError) {
+            return { ok: false, code: e.code, message: e.message, ...(e.detail || {}) };
+          }
+          throw e;
+        }
+      };
       /* ★프로젝트 전환 중이면 «실행하지 않고» 기다린다(큐잉). 병렬 호출로 들어온 편집이
        *   곧 교체될 옛 문서에 떨어져 조용히 증발하는 것을 여기서 한 곳으로 막는다.
        *   개별 도구 문자열은 손대지 않는다(다이어트 때와 같은 «디스패처 일괄» 패턴). */
