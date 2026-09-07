@@ -136,3 +136,22 @@ test('D9 ★도구 원장이 «도구명·대상»을 남긴다 (H4 — 사고 �
   const raw = fs.readFileSync(led, 'utf8');
   assert.ok(!/"limit":\s*1/.test(raw), `★원장에 인자 «값»이 새어 들어갔다: ${raw.slice(0, 200)}`);
 });
+
+test('D10 ★휴지통엔 «알아볼 수 있는 이름»으로 — 그리고 되돌릴 «길»을 같이 남긴다', () => {
+  // ⛔그전엔 휴지통에 `proj_1788758331862/` 로 들어갔다 — 열어봐도 «이게 뭔지» 모른다.
+  //   ⇒ `<프로젝트이름>.gdt` 로 담아 버린다(현빈 지시 2026-09-07).
+  // ★그런데 「알아보기 쉽게」가 「되돌리기 어렵게」가 되면 그건 개선이 아니다.
+  //   그래서 ⑴폴더 «구조는 그대로»(안에 proj.json 이 있어 손으로도 복원된다)
+  //          ⑵restore.json 에 원래 id·경로·시각을 적는다.
+  const fs = require('fs'), path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'main.js'), 'utf8');
+  const i = src.indexOf('async function _deleteProjectImpl');
+  const body = src.slice(i, i + 6000);
+  assert.ok(/\.gdt/.test(body), '★.gdt 로 담지 않는다 — 휴지통에서 알아볼 수 없다');
+  assert.ok(/restore\.json/.test(body), '★restore.json 을 안 남긴다 — 어디로 되돌릴지 모르게 된다');
+  assert.ok(/originalPath/.test(body), 'restore.json 에 원래 경로가 없다');
+  // ⛔같은 이름이 있을 때 «덮어쓰면» 남의 것을 지운다
+  assert.ok(/existsSync\(staged\)/.test(body), '★이름 충돌 시 덮어쓴다 — 남의 것을 지울 수 있다');
+  // ★담기에 실패해도 «삭제 자체»는 되어야 한다(그게 사용자가 시킨 일이다)
+  assert.ok(/담기 실패/.test(body), '★.gdt 담기가 실패했을 때의 폴백이 없다');
+});

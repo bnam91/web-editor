@@ -1993,15 +1993,51 @@ async function _deleteProjectImpl({ projectId } = {}) {
     // ★활성이었나를 «지우기 전에» 본다 — 지우고 나면 못 잰다
     const wasActive = (global.currentActiveProjectId === projectId);
 
+    /* ★★휴지통에 «알아볼 수 있는 이름»으로 넣는다 — `<이름>.gdt` (2026-09-07 현빈 지시).
+       왜: 그전엔 폴더 이름이 `proj_1788758331862` 뿐이라 휴지통을 열어도 «이게 뭔지» 모른다.
+           프로젝트 이름도 없고, 고디터 것인지도 모른다.
+       ⇒ 삭제 «직전»에 `<프로젝트이름>.gdt` 로 옮겨 담고 그걸 버린다.
+       ⛔단 이름만 바꾸는 게 아니다 — 되돌릴 «길»을 같이 만들어야 한다. 그래서
+         ⑴ 폴더 «구조는 그대로» 유지한다(안에 proj.json 이 그대로 있다 = 손으로도 복원된다)
+         ⑵ `.gdt/restore.json` 에 원래 id·경로·시각을 적는다(어디로 되돌리는지 기계가 안다)
+         ★「알아보기 쉽게」가 「되돌리기 어렵게」가 되면 그건 개선이 아니다. */
+    const bundleName = (() => {
+      let nm = projectId;
+      try {
+        const jp = _resolveProjectJsonPath(projectId);
+        if (jp && fs.existsSync(jp)) nm = JSON.parse(fs.readFileSync(jp, 'utf8')).name || projectId;
+      } catch (_) {}
+      // ⛔파일명에 못 쓰는 글자를 치운다(/ : 등). 한글은 그대로 둔다 — 알아보는 게 목적이다.
+      nm = String(nm).replace(/[/\\:*?"<>|\u0000-\u001f]/g, '_').trim().slice(0, 80) || projectId;
+      return `${nm}.gdt`;
+    })();
+    let toTrash = target;
+    try {
+      if (fs.existsSync(dir)) {                       // 폴더 레이아웃일 때만 «담아서» 버린다
+        fs.writeFileSync(path.join(dir, 'restore.json'), JSON.stringify({
+          projectId, originalPath: dir, deletedAt: new Date().toISOString(),
+          note: '고디터 프로젝트. 되돌리려면 이 폴더를 originalPath 로 옮기고 앱을 재시작해라.',
+        }, null, 2));
+        const staged = path.join(PROJECTS_DIR, bundleName);
+        // ⛔같은 이름이 이미 있으면 덮어쓰지 않는다 — 남의 것을 지울 수 있다
+        const uniq = fs.existsSync(staged) ? path.join(PROJECTS_DIR, `${bundleName.slice(0, -4)}-${Date.now()}.gdt`) : staged;
+        fs.renameSync(dir, uniq);
+        toTrash = uniq;
+      }
+    } catch (e) {
+      // ★담기에 실패해도 «삭제 자체»는 진행한다 — 옛 경로(폴더)로 버린다.
+      console.warn('[projects:delete] .gdt 로 담기 실패, 폴더 그대로 버린다:', e.message);
+      toTrash = fs.existsSync(dir) ? dir : target;
+    }
     // ★휴지통으로. shell.trashItem 은 Electron 이 준다(영구삭제 아님).
     try {
-      await shell.trashItem(target);
+      await shell.trashItem(toTrash);
     } catch (e) {
       return { ok: false, error: `휴지통으로 못 옮겼다: ${e.message}`, code: 'trash_failed',
                hint: '파일이 잠겨 있거나 권한이 없다. ⛔영구삭제로 «대신»하지 않는다 — 되돌릴 수 없게 된다.' };
     }
     // ★효과 확인 — 「옮겼다」가 아니라 «없어졌나»로 판정한다
-    if (fs.existsSync(target))
+    if (fs.existsSync(toTrash) || fs.existsSync(target))
       return { ok: false, error: '휴지통 호출은 성공했는데 파일이 그대로다', code: 'trash_noeffect' };
 
     /* ★★활성이었으면 «활성도 같이» 비운다.
@@ -2032,8 +2068,10 @@ async function _deleteProjectImpl({ projectId } = {}) {
         activeCleared = true;
       } catch (_) { /* 비우기 실패가 삭제를 되돌리진 않는다 — 아래 값으로 «알린다» */ }
     }
-    return { ok: true, projectId, trashed: true, wasActive, activeCleared,
-             note: '휴지통으로 옮겼다(영구삭제 아님). 되돌리려면 휴지통에서 복원해라.' };
+    return { ok: true, projectId, trashed: true, trashedAs: path.basename(toTrash),
+             wasActive, activeCleared,
+             note: `휴지통에 「${path.basename(toTrash)}」 로 들어갔다(영구삭제 아님). `
+                 + '안에 restore.json 이 있어 원래 위치를 안다.' };
   } catch (e) {
     console.error('[projects:delete] 예외:', e);
     return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
