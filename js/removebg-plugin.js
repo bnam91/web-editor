@@ -1,9 +1,12 @@
 /* ══════════════════════════════════════════════════════════════════════
    removeBG 플러그인 — 스크래치패드 / 이미지블록의 배경 제거
    ──────────────────────────────────────────────────────────────────────
-   ★모델은 «고른다»: 기존 AI 누끼(gemini·openai) 와 remove.bg 전용 API 둘 다.
+   ★모델은 «고른다»: AI 누끼(Gemini) 와 remove.bg 전용 API 둘.
      기본값은 AI 누끼 그대로다 — 기본값을 바꾸면 기존 사용자의 결과물이 «말없이» 달라지고,
      remove.bg 는 키가 있어야 도는데 그게 기본이면 첫 클릭이 실패로 시작한다.
+   ⛔★누끼에 GPT 는 쓰지 않는다(2026-09-08 현빈 결정) — 실측: 1장에 gpt-image-1 49.3초·유료 vs
+     remove.bg 1.0초·무료 50장/월. 느리고 비싸다. ★창작 생성의 GPT 는 «그대로 둔다» — 막은 건 누끼뿐이다.
+     실제 차단은 ai-image-gen.js(누끼따기 토글 + gpt-* 조합)에서 한다 — 그 select 의 주인이 거기다.
 
    ⛔이 파일이 지키는 것 셋
      ⑴ 조용히 실패하지 않는다 — 키가 없으면 «보이게» 말하고 «설정으로 가는 길»을 준다.
@@ -139,7 +142,7 @@
         return b;
       };
       list.append(
-        mk(MODEL_AI, 'AI 누끼 (기본)', '이미지 생성 패널의 «누끼따기»로 처리합니다.', true),
+        mk(MODEL_AI, 'AI 누끼 · Gemini (기본)', '이미지 생성 패널의 «누끼따기»로 처리합니다. 누끼에 GPT 는 쓰지 않습니다.', true),
         mk(MODEL_REMOVEBG, 'remove.bg · 정밀 누끼', '키 필요 · 외부 전송 (이미지가 remove.bg 로 갑니다)', false),
       );
       box.insertBefore(list, row);
@@ -211,9 +214,12 @@
     const model = await _chooseModel();
     if (!model) return;                            // 취소 — 아무것도 하지 않는다
 
-    // ★AI 누끼면 기존 경로로 넘긴다 — 여기서 새 구현을 만들지 않는다
+    /* ★AI 누끼면 기존 경로로 넘긴다 — 여기서 새 구현을 만들지 않는다.
+       ⛔모델을 «여기서» 검사하지 않는다 — #aig-model-select 는 ai-image-gen 의 것이고,
+         이 파일이 그걸 읽지도 쓰지도 않는 것이 위 ⑷ 의 불변식이다(내가 한 번 어겨서 사고를 냈다).
+       ⇒ 「누끼 + GPT」 차단은 그 select 의 주인(ai-image-gen.js)이 한다. 여기선 «어느 모델로 도는지»만 말한다. */
     if (model !== MODEL_REMOVEBG) {
-      window.showToast?.('✂️ AI 누끼는 이미지 생성 패널에서 «누끼따기»를 켜고 실행하세요');
+      window.showToast?.('✂️ AI 누끼(Gemini)는 이미지 생성 패널에서 «누끼따기»를 켜고 실행하세요 — 누끼에 GPT 는 쓰지 않습니다');
       window.openImageGenModal?.();
       return;
     }

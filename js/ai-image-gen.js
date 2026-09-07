@@ -43,6 +43,23 @@
     };
   }
 
+  /* ── ★누끼 + GPT 조합 차단 (2026-09-08 현빈 결정) ──────────────────────
+     실측: 누끼 1장에 gpt-image-1 49.3초·유료 vs remove.bg 1.0초·무료 50장/월. 느리고 비싸다.
+     ⛔막는 것은 «누끼따기가 켜진» 경우뿐이다 — 누끼 OFF 의 GPT 생성은 «창작» 경로라 그대로 둔다.
+       이 구분을 흐리면 멀쩡한 기능을 죽인다. 그래서 술어를 한 곳에 두고 둘 다 여기서만 본다. */
+  function _isGptModel(m) { return /^gpt-/i.test(String(m || '')); }
+  function _isCutoutOn()  { return !!document.getElementById('aig-cutout-toggle')?.checked; }
+  const _CUTOUT_GPT_MSG = '⚠️ 누끼따기는 GPT 를 쓰지 않습니다 (느리고 유료) — Gemini 로 바꾸거나 remove.bg 플러그인을 쓰세요';
+
+  /* 조합이 어긋나면 «보이게» 말한다. ⛔조용히 넘기지 않는다 — 눌렀는데 말이 없는 그 병이다.
+     ⛔native alert 금지(렌더러가 멈춘다). showToast 단독. */
+  function _warnIfCutoutGpt() {
+    const model = document.getElementById('aig-model-select')?.value || '';
+    if (!(_isCutoutOn() && _isGptModel(model))) return false;
+    window.showToast?.(_CUTOUT_GPT_MSG);
+    return true;
+  }
+
   function _onActionToggle(kind) {
     const outTgl = document.getElementById('aig-outpaint-toggle');
     const cutTgl = document.getElementById('aig-cutout-toggle');
@@ -58,6 +75,7 @@
     }
     if (kind === 'cutout' && cutTgl?.checked) {
       if (!currentText || isStockPrompt) promptEl.value = ACTION_PROMPTS.cutout;
+      _warnIfCutoutGpt();   // ★토글을 켜는 «그 순간» 알려준다 — 생성까지 가서야 막히면 늦다
     }
     _syncOutpaint();
   }
@@ -350,6 +368,7 @@
     els.modelSel?.addEventListener('change', () => {
       try { localStorage.setItem('aiImageModel', els.modelSel.value); } catch (_) {}
       _updateCost();
+      _warnIfCutoutGpt();   // ★누끼가 켜진 채 GPT 로 «바꾼» 경우도 같은 자리에서 잡는다
     });
     // model select localStorage 복원
     try {
@@ -466,6 +485,15 @@
     const count = Math.max(1, Math.min(4, parseInt(payload?.count) || 1));
     const prompt = String(payload?.prompt || '').trim();
     const inputs = payload?.inputs || { scratchIds: [], assetBlockIds: [], refDataUrls: [] };
+
+    /* ★누끼 + GPT 차단을 «여기»에도 둔다 — 일하는 함수가 최종 관문이다.
+       제출 핸들러에만 두면 window.generateAIImage 를 «직접» 부르는 경로(플러그인·MCP·콘솔)가
+       그대로 통과한다. 실제로 그 구멍으로 유료 호출이 나간 적이 있다(2026-09-08).
+       ⛔조용히 반환하지 않는다 — 왜 막혔는지 말한다. */
+    if (_isCutoutOn() && _isGptModel(model)) {
+      window.showToast?.(_CUTOUT_GPT_MSG);
+      return { ok: false, error: _CUTOUT_GPT_MSG, blocked: 'cutout-gpt' };
+    }
 
     // ref 이미지 src 수집
     const refs = [];
@@ -620,6 +648,10 @@
   async function handleImageSubmit() {
     const els = _getModalEls();
     let model = els.modelSel?.value || 'gemini-2.5-flash-image';
+    /* ★차단선 — 누끼따기 + GPT 는 여기서 끊는다(2026-09-08 현빈 결정).
+       토글·모델변경 때 이미 경고하지만 그건 «안내»고, 이게 «막는» 자리다.
+       ⛔누끼 OFF 의 GPT 는 통과시킨다 — 창작 경로는 막은 적이 없다. */
+    if (_isCutoutOn() && _isGptModel(model)) { window.showToast?.(_CUTOUT_GPT_MSG); return; }
     const apiMode = document.querySelector('input[name="aig-api-mode"]:checked')?.value || 'direct';
     const isOutpaint = !!els.outpaintTgl?.checked;
     let prompt = els.imgPrompt?.value.trim() || '';
