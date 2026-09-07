@@ -33,6 +33,31 @@ let _iconifyApi = null;
 // main.js가 setProjectOps({duplicate})로 주입 — 프로젝트 단위 관리(복제 등). main 프로세스 fs 로직.
 let _projectOps = null;
 
+/* ★인증 «상태»를 main.js 가 주입한다. ⛔MCP 는 계정 «식별자»를 안 받는다 — 「됐나」만 안다.
+   2026-09-07 현빈 지시: 「가장 먼저 로그인되어 있는지로 확인해야 한다」. */
+let _authProbe = null;
+function setAuthProbe(fn) { _authProbe = fn; }
+
+/** 로그인 안 됐으면 거절 응답, 됐으면 null. ★못 재면(주입 전) «통과»시킨다 —
+ *  앱 버전이 낡아 주입이 없을 수 있고, 그때 전부 막으면 도구가 통째로 죽는다.
+ *  ⇒ 「없다」와 「안 됐다」를 가른다: 주입이 없으면 «판정 안 함», 있으면 «판정». */
+function _authGate(toolName) {
+  if (typeof _authProbe !== 'function') return null;      // 못 잼 — 판정하지 않는다
+  let a = null;
+  try { a = _authProbe(); } catch (_) { return null; }
+  if (!a || a.authed) return null;
+  return {
+    ok: false, code: 'NOT_LOGGED_IN', tool: toolName,
+    error: `로그인이 안 되어 있어 ${toolName} 을(를) 실행하지 않았습니다.`,
+    /* ★거절은 곧 «안내»여야 한다 — 「미인증」만 던지면 클로드가 다른 방법을 찾아 헤맨다.
+       그리고 ⛔「도구가 없다」로 읽히면 안 된다(2026-09-07: 클로드가 호출 실패를
+       「기능이 없습니다」로 단정한 실측이 있다). 「지금은 못 한다」로 «갈라» 말한다. */
+    hint: 'NOTHING was done. This is NOT a missing feature — the tool exists but requires sign-in. '
+        + 'Ask the user to sign in to the Goditor app (앱 화면에서 로그인), then retry the same call.',
+  };
+}
+
+
 /* ── MCP undo 추적 (2026-09-06) ────────────────────────────────────────────
  * 「우리가 «마지막으로» 만든 히스토리 항목」의 seq. 편집 도구가 성공할 때마다 갱신.
  * ⛔전역 undo 를 여는 게 아니다 — «우리 것일 때만» 되돌리기 위한 근거다. */
@@ -402,6 +427,9 @@ function _assertExpectedProject(expectedProject) {
  *   «다음 수»를 응답에 실어 보낸다 — 그래야 클로드가 스스로 open_project 로 회복한다.
  * ⛔읽기 도구는 막지 않는다. 막으면 「지금 뭐가 열렸는지」조차 물어볼 수 없다.
  */
+/** ⛔로그인 게이트를 «면제»하는 도구 — 「왜 안 되는지」를 물어볼 통로는 남겨야 한다. */
+const _AUTH_FREE = new Set(['goditor_which_instance', 'get_block_schema']);
+
 const _TARGET_FREE = new Set([
   // ⑴ 읽기 — ⛔이 줄을 줄이지 마라. 막으면 클로드가 현황을 물어볼 통로가 사라진다.
   'read_project', 'read_section', 'get_canvas_state', 'list_projects', 'list_memories',
@@ -7739,6 +7767,12 @@ async function _handleRpc(msg) {
       }
       /* ★프로젝트 «싱크» 게이트 — 대상이 확정 안 된 쓰기는 «실행 전에» 거절한다(_projectGate 주석 참고).
        *   여기가 유일한 배선 자리다: 도구를 새로 더해도 _TARGET_FREE 에 안 적으면 «자동으로» 게이트를 탄다. */
+      /* ★★로그인 게이트를 «가장 먼저» 건다(현빈 지시). 프로젝트 확정 게이트보다 «앞»이다 —
+         로그인이 없으면 어느 프로젝트인지 따질 이유도 없다.
+         ⛔단 «순수 진단»은 통과시킨다: 로그인 상태를 물어볼 통로까지 막으면 클로드가
+           「왜 안 되는지」조차 못 알아낸다(막힌 이유를 «말할 수 있어야» 한다). */
+      const _authRefusal = _AUTH_FREE.has(name) ? null : _authGate(name);
+      if (_authRefusal) return _reply(_authRefusal);
       const _gateRefusal = _projectGate(name, args);
       if (_gateRefusal) return _reply(_gateRefusal);
       /* ★open_project 가 성공하면 «그 대화 동안» 확정으로 남긴다(sticky). 실패(load_timeout 등)면 안 남긴다 —
@@ -7971,7 +8005,7 @@ function setProjectOps(ops) {
   _projectOps = ops || null;
 }
 
-module.exports = {
+module.exports = { setAuthProbe,
   startMcpServer,
   stopMcpServer,
   registerTool,

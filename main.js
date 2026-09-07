@@ -103,7 +103,7 @@ const { fillSectionTexts: anthropicFill } = require('./services/anthropicService
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
 const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle, handleEnsureClaudePMFolder } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
-const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
+const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, setAuthProbe: setMcpAuthProbe, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
 // Unit B — MCP 접속 토큰(메모리 보관, 화면표시/IPC용). 파일/레포 저장 금지.
 let currentMcpToken = null;
 
@@ -3356,6 +3356,16 @@ app.whenReady().then(async () => {
     // 프로젝트 단위 코어 주입 — MCP duplicate_project/create_project/open_project 도구가 사용.
     if (typeof setMcpProjectOps === 'function') {
       setMcpProjectOps({ duplicate: _duplicateProjectImpl, create: _createProjectImpl, open: _openProjectImpl, list: _listProjectsImpl, delete: _deleteProjectImpl, rename: _renameProjectImpl });
+      /* ★★인증 «상태»를 MCP 에 알린다 — 2026-09-07 현빈 지시:
+         「가장 먼저 로그인되어 있는지로 확인해야 한다」.
+         그전엔 MCP 가 인증을 «아예 안 봤다»(참조 0건). 게이트는 main.js 의 open_project 한 곳뿐이라
+         list_projects·create_project 는 «로그인 없이도» 통과했다 — 문 «앞»의 도구가 열려 있었다.
+         ⇒ 실측: list_projects 통과 · create_project 통과 · open_project 거절.
+         ★「막혔나」를 안전한 도구로 재면 「안 막혔다」가 나오는 이유가 이것이다. */
+      setMcpAuthProbe(() => ({
+        authed: !!(_editorAccessGranted || isAdminAuthorized()),
+        // ⛔계정 «식별자»는 넘기지 않는다 — MCP 응답에 실릴 수 있다. 「됐나」만 넘긴다.
+      }));
     }
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
