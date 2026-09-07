@@ -244,6 +244,24 @@ async function handle(msg) {
     }
     reply(resp && Object.keys(resp).length ? resp : { jsonrpc: '2.0', id: msg.id, result: {} });
   } catch (e) {
+    /* ★★브리지가 «자기 실패»를 남긴다 (2026-09-07 실측에서).
+         서버 원장은 «서버» 것이라, 브리지가 서버에 못 닿거나 응답이 돌아오다 깨지면
+         원장엔 «아무것도 안 남거나 오히려 ok 로 남는다».
+         실측: 앱은 「Failed to call tool "get_canvas_state"」인데 원장은 같은 시각 ok 2건.
+         ⇒ 두 기록을 «맞대 봐야» 그 구간이 보인다. 여기서 브리지 쪽 절반을 남긴다.
+       ⛔인자 «값»은 안 적는다 — 도구 이름·포트·사유만. */
+    try {
+      const fs2 = require('fs'), os2 = require('os'), p2 = require('path');
+      const dir = (health && health.tokenFile) ? p2.dirname(health.tokenFile)
+                : p2.join(os2.tmpdir(), 'goditor-bridge');
+      fs2.mkdirSync(dir, { recursive: true });
+      fs2.appendFileSync(p2.join(dir, 'bridge-audit.jsonl'), JSON.stringify({
+        at: new Date().toISOString(), side: 'bridge', outcome: 'error',
+        tool: (msg && msg.params && msg.params.name) || null,
+        port: port, session: BRIDGE_SESSION_ID,
+        code: (e && e.status) || null, message: String((e && e.message) || e).slice(0, 200),
+      }) + '\n');
+    } catch (_) { /* 원장 실패가 동작을 막지 않는다 */ }
     const was = { port, health: health || {} };
     port = null; health = null; // 끊겼으면 다음 호출 때 재탐색
     if (!ENV_TOKEN) { token = null; tokenSource = null; } // 파일에서 다시 읽는다(토큰 회전 대응)

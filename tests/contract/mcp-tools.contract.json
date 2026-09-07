@@ -1,11 +1,11 @@
 {
   "note": "생성물 — tools/mcp-contract-snapshot.mjs 로만 고친다. 손으로 고치지 마라.",
   "counts": {
-    "registered": 87,
-    "visible": 35,
-    "hidden": 52,
-    "mutating": 74,
-    "gated": 74
+    "registered": 92,
+    "visible": 38,
+    "hidden": 54,
+    "mutating": 79,
+    "gated": 77
   },
   "sizeCaps": {
     "_CANVAS_TEXT_CAP": 120,
@@ -18,6 +18,7 @@
     "frame": "ss_",
     "card": "cvb_",
     "canvas": "cvb_",
+    "grid": "grd_",
     "table": "tbl_",
     "comparison": "cmp_",
     "step": "stb_",
@@ -194,6 +195,18 @@
       ]
     },
     "add_graph_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_grid_block": {
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
@@ -486,6 +499,22 @@
         "ok"
       ]
     },
+    "edit_asset_tree": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "op"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "code",
+        "message",
+        "ok"
+      ]
+    },
     "export_sections": {
       "hidden": false,
       "mutating": false,
@@ -554,6 +583,30 @@
       "expectedProjectGuard": false,
       "noArgs": "rejected",
       "responseKeys": []
+    },
+    "list_asset_tree": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "list_assets": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
     },
     "list_checklist_items": {
       "hidden": false,
@@ -930,6 +983,22 @@
       "expectedProjectGuard": false,
       "noArgs": "rejected",
       "responseKeys": []
+    },
+    "update_grid_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "code",
+        "message",
+        "ok"
+      ]
     },
     "update_icon_circle_block": {
       "hidden": true,
