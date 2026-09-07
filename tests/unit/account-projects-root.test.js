@@ -21,9 +21,9 @@ function extractBlock(src = SRC) {
 }
 
 /* 떼어낸 블록을 «진짜 fs»와 임시 userData 위에서 실행한다. */
-function load({ email = null, block = extractBlock(), userData = null } = {}) {
+function load({ email = null, block = extractBlock(), userData = null, authThrows = false } = {}) {
   const ud = userData || fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
-  const readAuth = () => (email ? { email } : null);
+  const readAuth = () => { if (authThrows) throw new Error('auth.json 깨짐'); return email ? { email } : null; };
   const factory = new Function(
     'path', 'fs', 'USER_DATA_DIR', 'migrateFiles', '__dirname', 'readAuth', 'require', 'console',
     block + `
@@ -35,7 +35,7 @@ function load({ email = null, block = extractBlock(), userData = null } = {}) {
       };`
   );
   const api = factory(path, fs, ud, () => {}, ud, readAuth, require, { log() {}, warn() {} });
-  return { ud, api, setEmail(e) { email = e; } };
+  return { ud, api, setEmail(e) { email = e; }, setAuthThrows(v) { authThrows = v; } };
 }
 
 const mkproj = (root, id) => {
@@ -304,4 +304,88 @@ test('M15 ★PM 폴더 뿌리도 «조용히» 공용 폴더로 폴백하지 않
   ipc.setPmProjectsRoot(() => '/tmp/pm-root');          // 반대방향 오탐 방지
   assert.strictEqual(root(), '/tmp/pm-root');
   ipc.setPmProjectsRoot(null);
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+   M16~M18 — ★같은 «형제 패턴»이 맨 위층(main.js)에 셋 더 있었다 (지디 지적 2차)
+   mcp-server·ipc 에서 「삼키고 공용 풀로」를 지웠는데, 같은 무늬를 main.js 에선 안 훑었다.
+   ★결함 단위를 «함수»가 아니라 «형제 패턴»으로 잡아라.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+test('M16 ★「auth.json 을 못 읽었다」를 「비로그인」으로 뭉개지 않는다', () => {
+  /* 뭉개면 «공용 풀»로 간다. 그 상태로 만든 프로젝트가 공용 풀에 쌓이면,
+     나중에 다른 계정이 첫 로그인 할 때 입양돼 «A 의 작업물이 B 에게» 넘어간다. */
+  const h = load({ email: 'chulsoo@example.com' });   // 정상 기동 뒤에 «깨뜨린다»
+  h.setAuthThrows(true);
+  assert.throws(() => h.api._repointProjectsDir('login'), /auth\.json 깨짐/,
+    '★못 읽었으면 던져야 한다 — 조용히 공용 풀로 가면 남의 것과 섞인다');
+
+  const ok = load({ email: null });   // 진짜 비로그인은 «null» 이고 공용 풀이 맞다
+  assert.strictEqual(ok.api.PROJECTS_DIR, ok.api.PROJECTS_DIR_LEGACY, '반대방향 오탐 방지');
+});
+
+test('M17 ★★입양이 «던져도» 뿌리는 계정 폴더에 서 있다 (공용 풀에 안 남는다)', () => {
+  /* ⛔예전엔 adopt 를 먼저 하고 그 «아래»에서 PROJECTS_DIR 을 바꿨다. adopt 가 던지면
+       대입에 도달을 못 해 ★직전 뿌리(=레거시 공용 풀)가 그대로 남았다.
+       그러면 로그인한 사용자의 새 프로젝트가 «공용 풀»에 쌓이고, 나중에 다른 계정이
+       첫 로그인 할 때 입양돼 넘어간다 — A 의 작업물이 B 에게. 현빈 시나리오다.
+     ⚠️정직하게: «오늘의» adopt 는 rename 실패를 안에서 잡아 사실상 안 던진다.
+       그래서 처음 쓴 M17(renameSync 를 던지게)은 ★양쪽 다 초록인 «장식»이었다(변이 0 빨강).
+       ⇒ adopt 안의 «감싸지지 않은» fs.existsSync 를 던지게 해서 진짜 상황을 만든다.
+       ⇒ 그리고 adopt 가 «실제로 루프까지 도달»하도록 «첫 계정»으로 놓는다
+          (다른 계정 폴더가 있으면 adopt 는 루프 전에 반환한다 — M6). */
+  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const legacy = path.join(ud, 'projects');
+  fs.mkdirSync(path.join(legacy, 'proj_5001'), { recursive: true });
+
+  const h = load({ email: null, userData: ud });          // 비로그인 = 레거시 공용 풀
+  assert.strictEqual(h.api.PROJECTS_DIR, h.api.PROJECTS_DIR_LEGACY, '출발점 확인');
+
+  const realExists = fs.existsSync;
+  fs.existsSync = (p) => {
+    if (String(p).includes('proj_5001')) throw new Error('입양 도중 폭발');   // adopt 루프 안, 감싸지지 않은 자리
+    return realExists(p);
+  };
+  try {
+    h.setEmail('chulsoo@example.com');                     // ★첫 계정 로그인
+    let threw = null;
+    try { h.api._repointProjectsDir('login'); } catch (e) { threw = e; }
+    assert.ok(threw && /입양 도중 폭발/.test(threw.message),
+      '★양성대조: 입양이 «실제로» 던져야 이 검사가 의미가 있다');
+    assert.notStrictEqual(h.api.PROJECTS_DIR, h.api.PROJECTS_DIR_LEGACY,
+      `★입양이 던졌다고 «공용 풀»에 남으면, 새 프로젝트가 거기 쌓여 남에게 입양된다 (지금: ${h.api.PROJECTS_DIR})`);
+    assert.ok(h.api.PROJECTS_DIR.includes('chulsoo'), '★자기 계정 뿌리에 서 있어야 한다');
+  } finally { fs.existsSync = realExists; }
+});
+
+test('M17b ★순서 자체를 못박는다 — 「뿌리 확정」이 「입양」보다 «먼저»', () => {
+  /* 위 검사는 «오늘의» adopt 가 던질 수 있어야 성립한다. adopt 가 나중에 더 단단해져
+     아예 안 던지게 되면 M17 은 조용히 장식이 된다. ⇒ 순서는 «구조»로도 박아 둔다. */
+  const body = bodyOf('_repointProjectsDir');
+  const iRoot = body.indexOf('PROJECTS_DIR = dest;');
+  const iAdopt = body.indexOf('_adoptLegacyIfSoleAccount(');
+  assert.ok(iRoot > 0 && iAdopt > 0, '★두 자리를 다 못 찾았다 — 검사가 대상을 놓쳤다');
+  assert.ok(iRoot < iAdopt, '★입양이 «먼저»면, 입양이 던질 때 이전 계정 뿌리가 그대로 남는다');
+});
+
+test('M18 ★없는 폴더를 «뿌리»로 꽂지 않는다 (mkdir 실패를 삼키지 않는다)', () => {
+  const h = load({ email: null });
+  const realMkdir = fs.mkdirSync;
+  fs.mkdirSync = () => { throw new Error('mkdir 실패'); };
+  try {
+    h.setEmail('chulsoo@example.com');
+    assert.throws(() => h.api._repointProjectsDir('login'), /mkdir 실패/,
+      '★폴더를 못 만들었는데 그걸 뿌리로 쓰면 «내 프로젝트가 다 사라졌다»가 된다');
+  } finally { fs.mkdirSync = realMkdir; }
+});
+
+test('M19 ★로그아웃이 «실패해도» 앞사람 뿌리에 머물지 않는다', () => {
+  /* clearAuth 가 auth.json 을 못 지우면 _repointProjectsDir 는 «아직 로그인»으로 읽는다.
+     판단은 맞아도, 사용자가 로그아웃을 «눌렀다»면 다음 사람에게 앞사람 것이 보이면 안 된다. */
+  const body = bodyOf('clearAuth');
+  assert.doesNotMatch(body, /catch\s*\(\s*_\s*\)\s*\{\s*\}/,
+    '★삭제 실패를 조용히 삼키면 로그아웃한 척하고 계정 뿌리에 머문다');
+  assert.match(body, /PROJECTS_DIR = PROJECTS_DIR_LEGACY/,
+    '★못 지웠으면 뿌리는 반드시 공용 풀로 내려야 한다');
+  assert.match(body, /ENOENT/, '★원래 없던 파일은 «실패»가 아니다 — 그건 갈라야 한다');
 });

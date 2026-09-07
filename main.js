@@ -372,7 +372,8 @@ function createWindow() {
   // GAP-010: 강력 권한 IPC(터미널/spawn/folder)는 isAdminAuthorized 게이팅(배포 렌더러발 RCE 차단).
   registerClaudePMIPC(ipcMain, () => isAdminAuthorized());
   // ★PM 폴더도 «계정별 프로젝트 뿌리»를 따라가야 한다(경로 조립기가 둘이 되면 어긋난다).
-  try { setPmProjectsRoot(() => PROJECTS_DIR); } catch (_) {}
+  try { setPmProjectsRoot(() => PROJECTS_DIR); }
+  catch (e) { console.error('[projects] ★PM 폴더 뿌리 주입 실패 — PM 폴더가 안 만들어진다:', (e && e.message) || e); }
 
   // Claude PM (Phase 3 F8) — 내부 터미널 패널 PTY 백엔드
   registerTerminalIPC(ipcMain, () => isAdminAuthorized());
@@ -499,13 +500,33 @@ function writeAuth(record) {
   }
   /* ★계정이 바뀌면 «프로젝트 뿌리»도 같이 바뀌어야 한다. 여기가 모든 로그인 경로의
      외길목이라 여기 한 곳만 걸면 된다(auth:login·가입·갱신 전부 writeAuth 를 지난다). */
-  try { _repointProjectsDir('login'); } catch (_) {}
+  /* ⛔조용히 삼키지 않는다 — 여기서 실패하면 «이전 계정의 뿌리»로 계속 쓴다.
+     그렇다고 로그인 자체를 못 하게 막으면 사용자가 갇히므로, ★소리는 반드시 낸다.
+     그리고 뿌리를 «레거시 공용 풀»로 되돌리지 않는다(그게 남의 것에 닿는 길이다). */
+  try { _repointProjectsDir('login'); }
+  catch (e) { console.error('[projects] ★로그인 뒤 뿌리 전환 실패 — 계정 격리가 서지 않았다:', (e && e.message) || e); }
   return next;
 }
 function clearAuth() {
-  try { fs.unlinkSync(getAuthPath()); } catch (_) {}
-  /* 로그아웃하면 «레거시 공용 풀»로 돌아간다 — 방금까지 보던 프로젝트가 안 보이는 게 맞다. */
-  try { _repointProjectsDir('logout'); } catch (_) {}
+  /* ★★삭제 실패를 «삼키면» auth.json 이 남고, 그러면 _repointProjectsDir 가 그걸 읽어
+       ★계정 뿌리에 그대로 머문다. 사용자는 로그아웃했다고 믿는데 다음 사람이 앉으면
+       앞사람 프로젝트가 보인다 — 현빈이 걱정한 그 시나리오다.
+     ⇒ 실패를 «알고», 그래도 뿌리는 반드시 공용 풀로 내린다(격리가 우선).
+       로그아웃은 «내려오는» 방향이라 공용 풀이 안전한 착지점이다. */
+  let unlinked = true;
+  try { fs.unlinkSync(getAuthPath()); }
+  catch (e) {
+    if (!e || e.code !== 'ENOENT') {   // 원래 없던 것은 실패가 아니다
+      unlinked = false;
+      console.error('[auth] ★로그아웃 실패 — auth.json 을 못 지웠다:', (e && e.message) || e);
+    }
+  }
+  try { _repointProjectsDir('logout'); }
+  catch (e) { console.error('[projects] 로그아웃 뒤 뿌리 전환 실패:', (e && e.message) || e); }
+  /* ⛔파일이 안 지워졌으면 _repointProjectsDir 는 «아직 로그인»으로 읽는다.
+     그 판단이 맞더라도, 사용자가 로그아웃을 «눌렀다»면 앞사람 것이 보이면 안 된다. */
+  if (!unlinked) PROJECTS_DIR = PROJECTS_DIR_LEGACY;
+  return { ok: unlinked };
 }
 /* ── 자격증명 SSOT 배선 ──────────────────────────────────────────────────────
    ⛔옛 `authAccessValid(a)` 는 **폐기됐다**. 그건 `auth.json` 의 문자열 하나만 봤고,
@@ -1074,9 +1095,18 @@ function _accountKeyFor(email) {
   const h = require('crypto').createHash('sha1').update(e).digest('hex').slice(0, 8);
   return `acct_${slug}_${h}`;
 }
+/* ★「읽기 실패」와 「비로그인」을 «같은 값»으로 뭉개지 않는다.
+   ⛔예전엔 readAuth 가 던지면 catch 가 null 을 돌려줬고, 그건 「비로그인」으로 읽혀
+     ★레거시 공용 풀로 갔다. 그 상태로 만든 프로젝트가 공용 풀에 쌓이면,
+     나중에 다른 계정이 첫 로그인 할 때 _adoptLegacyIfSoleAccount 가 «가져간다»
+     = A 의 작업물이 B 에게 입양된다. 현빈이 걱정한 시나리오가 «버그 경유»로 재현된다.
+   ⇒ 못 읽었으면 «던진다». 「없다」와 「못 읽었다」는 다르다.
+   ★null 은 «진짜 비로그인»(파일이 없거나 우리 레코드가 아님)일 때만 나온다 —
+     그 판정은 readAuth 가 이미 한다(`!raw.email` → null). */
 function _currentAccountKey() {
-  try { const a = readAuth(); return a && a.email ? _accountKeyFor(a.email) : null; }
-  catch (_) { return null; }
+  const a = readAuth();   // ⛔삼키지 않는다 — 던지면 그대로 올라간다
+  if (!a || !a.email) return null;   // 진짜 비로그인
+  return _accountKeyFor(a.email);
 }
 function _accountProjectsDir(key) { return path.join(ACCOUNTS_DIR, key, 'projects'); }
 function _legacyProjectEntries() {
@@ -1111,7 +1141,12 @@ function _adoptLegacyIfSoleAccount(key, dest) {
       moved, failed,
       note: '업데이트 이전의 «소유자 미상» 프로젝트를 첫 로그인 계정이 물려받았다. 되돌리려면 to 안의 proj_* 를 from 으로 다시 옮기면 된다.',
     }, null, 2), 'utf8');
-  } catch (_) {}
+  } catch (e) {
+    /* ⛔조용하면 안 된다 — 이 기록이 «되돌릴 유일한 길»이다.
+       파일을 이미 옮겨 놓고 어디서 왔는지를 못 적었으면 그건 알려야 할 사고다. */
+    console.error(`[projects] ★입양 기록(adopted.json)을 못 남겼다 — ${moved}건을 옮겼는데 되돌릴 기록이 없다:`, (e && e.message) || e);
+    return { adopted: moved, failed, recordFailed: true };
+  }
   return { adopted: moved, failed };
 }
 
@@ -1126,10 +1161,22 @@ function _repointProjectsDir(reason) {
   }
   const dest = _accountProjectsDir(key);
   const fresh = !fs.existsSync(dest);
-  try { fs.mkdirSync(dest, { recursive: true }); } catch (_) {}
-  const adopt = fresh ? _adoptLegacyIfSoleAccount(key, dest) : null;
+
+  /* ⛔mkdir 실패를 «삼키고» 그 폴더를 뿌리로 꽂으면, 격리는 안 깨져도
+     사용자 눈엔 「내 프로젝트가 다 사라졌다」가 된다. 조용한 고장이다. */
+  fs.mkdirSync(dest, { recursive: true });
+
+  /* ★★뿌리 확정이 «먼저», 입양은 «그 다음».
+     ⛔예전엔 adopt 를 먼저 하고 그 아래에서 PROJECTS_DIR 을 바꿨다. 그래서 adopt 가
+       던지면 대입에 도달을 못 하고 ★«이전 계정의 뿌리»가 그대로 남았다 —
+       민수가 로그인했는데 PROJECTS_DIR 은 철수 뿌리. 현빈 원 시나리오 그 자체다.
+     ⇒ 순서를 뒤집는다. 입양이 실패해도 «격리»는 이미 서 있다(입양은 편의, 격리는 안전).
+     ⛔여기서 순서를 되돌리지 마라. */
   PROJECTS_DIR = dest;
-  _projectsDirState = { root: dest, account: key, reason, adopt };
+  _projectsDirState = { root: dest, account: key, reason, adopt: null };
+
+  const adopt = fresh ? _adoptLegacyIfSoleAccount(key, dest) : null;
+  _projectsDirState.adopt = adopt;
   try { console.log(`[projects] 뿌리=${dest} 계정=${key} 사유=${reason}` + (adopt && adopt.adopted ? ` 물려받음=${adopt.adopted}건` : '')); } catch (_) {}
   return _projectsDirState;
 }
@@ -3488,11 +3535,13 @@ app.whenReady().then(async () => {
            「목록이 0건」이 나왔을 때 «격리돼서 0건»인지 «못 재서 0건»인지 갈라야 한다.
            ⛔이메일도, 계정키(이메일 slug 포함)도 안 넘긴다 — 지문 8자만 넘긴다. */
         accountScoped: PROJECTS_DIR !== PROJECTS_DIR_LEGACY,
+        /* ⛔「비로그인이라 없다」와 「못 읽어서 없다」를 같은 null 로 뭉개지 않는다 —
+             이 값은 「0건」을 «격리»와 «고장»으로 가르라고 있는 것이라, 뭉개면 쓸모가 없다. */
         accountFingerprint: (() => {
           try {
             const k = _currentAccountKey();
             return k ? require('crypto').createHash('sha1').update(k).digest('hex').slice(0, 8) : null;
-          } catch (_) { return null; }
+          } catch (_) { return 'ERROR'; }
         })(),
       }));
     }
