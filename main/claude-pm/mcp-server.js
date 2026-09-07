@@ -496,7 +496,12 @@ const _SELF_TARGET_ARG = new Map([
    ⇒ 그리고 그게 브리지의 «포트 자동탐색»(9345~9365 중 최저 포트에 말없이 붙는다)과 곱해지면,
      다른 CLI 세션이 남의 실사용 인스턴스에 붙어 그 사람의 확정으로 쓰기를 밀어 넣는다.
    ⇒ 호출자 = 요청의 `Mcp-Session-Id`. 브리지가 프로세스마다 하나 만들어 보낸다.
-     헤더가 없는 호출자(직접 curl 등)는 'anon' 한 칸을 공유한다 — «예전과 같다», 더 나쁘진 않다.
+     헤더가 없는 호출자(직접 curl 등)는 'anon' 한 칸을 공유한다.
+   ★★이 'anon' 을 «구멍»으로 읽고 되돌리려는 사람이 나올 것이다. 그러지 마라 —
+     ⑴ 헤더 없는 호출자를 «거절»하면 직접 HTTP 로 부르는 도구·검사가 통째로 죽는다.
+     ⑵ 그들을 한 칸에 모으는 것은 «예전과 정확히 같다» — 이 판이 그들을 더 나쁘게 만들지 않는다.
+     ⑶ 막으려던 것은 «브리지를 쓰는 서로 다른 대화»이고, 그건 이제 갈렸다.
+     ⇒ 더 조이려면 「헤더 없으면 거절」이 아니라 「브리지가 반드시 보내게」 쪽이 맞다(이미 그렇다).
    ⛔Map 이 무한히 자라지 않게 상한을 둔다(오래된 것부터 버린다). */
 const _CONFIRM_MAX = 64;
 const _confirmedByCaller = new Map();
@@ -1241,7 +1246,12 @@ function _registerDefaultTools() {
       return { ok: true, newProjectId: r.newProjectId, newName: r.newName };
     },
     {
-      description: 'Duplicate a Goditor project — full copy (proj.json + assets/images + claude-pm folder), re-keyed to a fresh project id. sourceProjectId optional (defaults to the active project). Use to branch a base template into a new product project. Returns {newProjectId, newName}. Does NOT open it; the user opens it in the editor.',
+      /* ⛔예전 설명은 「full copy (… + claude-pm folder)」였는데 ★거짓이었다 —
+           _duplicateProjectImpl 은 images/·assets/ 만 옮긴다(claude-pm 은 안 따라온다).
+         ★거짓인 것과 기능이 좁은 것은 «별개»고, 거짓은 먼저 멈춘다.
+           이 문장은 «클로드가 읽고 사용자에게 옮기는» 말이라 무겁다 — 사용자는
+           「메모까지 복사됐다」고 «듣는다». (동작 확대는 별건 — 참조 무결성부터 재야 한다) */
+      description: 'Duplicate a Goditor project — copies proj.json + assets/ + images/, re-keyed to a fresh project id. ⚠️Does NOT copy the claude-pm folder (section memos, checklists) — those stay only in the original. sourceProjectId optional (defaults to the active project). Use to branch a base template into a new product project. Returns {newProjectId, newName}. Does NOT open it; the user opens it in the editor.',
       inputSchema: {
         type: 'object',
         properties: {

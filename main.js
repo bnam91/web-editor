@@ -1288,6 +1288,13 @@ function _repointProjectsDir(reason) {
   return _projectsDirState;
 }
 function _projectsRoot() { return PROJECTS_DIR; }
+/* ★계정 «작업공간» — 프로젝트 뿌리의 «부모». 작업물(비상 사본·복구 장부)이 여기 붙는다.
+     비로그인      : <userData>/projects        → <userData>          ← 오늘과 «바이트 동일»
+     로그인        : <userData>/accounts/<키>/projects → <userData>/accounts/<키>
+     못 알아냄      : …/_unresolved/projects     → …/_unresolved
+   ⛔도구·진단(templates·presets·svg-presets·goditor-market·크래시 로그)은 «공유가 맞다» —
+     그건 사람이 아니라 «기계»에 붙는다(지디 판단). 여기 붙이지 마라. */
+function _accountWorkspaceDir() { return path.dirname(PROJECTS_DIR); }
 
 /* ★★입양 고지 — 「되돌릴 수 있다」를 «말로만 참»으로 두지 않기 위한 것(지디 머지 조건).
    adopted.json 과 console.log 는 ★사용자가 «영원히» 안 본다. 장치는 있는데 닿는 길이 없으면
@@ -2127,7 +2134,7 @@ function _recordSyncSaveFailure(project, reason, error) {
   try {
     if (!project || !project.id) return;
     /* init 은 «준 것만» 덮는다 — dialog·shell 은 before-quit 이 뒤에 얹는다(충돌 없음). */
-    quitSaveGuard.init({ userDataDir: app.getPath('userData'), appVersion: app.getVersion(), log: (m) => console.warn(m) });
+    quitSaveGuard.init({ userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, appVersion: app.getVersion(), log: (m) => console.warn(m) });
     quitSaveGuard.recordSyncSaveFailure({
       projectId: project.id,
       projectName: project.name || null,
@@ -7000,7 +7007,7 @@ app.on('before-quit', (event) => {
     event.preventDefault();
     try {
       quitSaveGuard.init({
-        userDataDir: app.getPath('userData'), dialog, shell,
+        userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, dialog, shell,
         appVersion: app.getVersion(), log: (m) => console.log(m),
       });
       quitSaveGuard.notifyWindowGone({ pending, exit: (code) => app.exit(code) });
@@ -7014,7 +7021,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   try {
     quitSaveGuard.init({
-      userDataDir: app.getPath('userData'), dialog, shell,
+      userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, dialog, shell,
       appVersion: app.getVersion(), log: (m) => console.log(m),
     });
     quitSaveGuard.runBeforeQuit({ win, ipcMain, exit: (code) => app.exit(code) });
@@ -7174,9 +7181,9 @@ function ensureRecovery() {
        나중에 dialog·shell 을 얹는 것과 충돌하지 않는다(main/quit/save-guard.js init 참조).
      ⛔이 두 줄이 없으면 emergencyDir() 가 null 위에서 터져 «되살리기가 조용히 not_found» 가 된다
        (실측 2026-09-06: U-H3-W3 이 이걸 잡았다 — 「돌아는 가는데 효과 0」의 전형). */
-  try { quitSaveGuard.init({ userDataDir: app.getPath('userData'), appVersion: app.getVersion() }); } catch (_) {}
+  try { quitSaveGuard.init({ userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, appVersion: app.getVersion() }); } catch (_) {}
   recovery.init({
-    userDataDir: app.getPath('userData'),
+    userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir,
     crash: require('./main/crash'),
     saveGuard: quitSaveGuard,
     log: (m) => console.warn(m),

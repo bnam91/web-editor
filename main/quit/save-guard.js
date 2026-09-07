@@ -47,6 +47,7 @@ const MAX_RECORDS = 10;
 const MAX_EMERGENCY_FILES = 5;
 
 let _dir = null;                 // userData
+let _wsDir = null;               // ★계정 작업공간(작업물이 들어갈 자리). 미주입이면 _dir 로 폴백
 let _log = () => {};
 let _dialog = null;              // { showMessageBox(opts) -> Promise<{response}> }
 let _shell = null;               // { showItemInFolder(p) }  — 없으면 버튼을 안 만든다
@@ -56,8 +57,9 @@ let _running = null;             // 재진입 방지(before-quit 은 두 번 올
    말할 수 없다 — 흔적은 «그 자리»에서 남기고, 말하는 건 뒤이어 오는 before-quit 이 한다. */
 let _pendingSync = null;
 
-function init({ userDataDir, log, dialog, shell, appVersion } = {}) {
+function init({ userDataDir, log, dialog, shell, appVersion, workspaceDir} = {}) {
   if (userDataDir) _dir = userDataDir;
+  if (workspaceDir) _wsDir = workspaceDir;
   if (typeof log === 'function') _log = log;
   if (dialog) _dialog = dialog;
   if (shell) _shell = shell;
@@ -65,8 +67,22 @@ function init({ userDataDir, log, dialog, shell, appVersion } = {}) {
 }
 
 /* ── 경로 ─────────────────────────────────────────────────────────────── */
-function markerPath() { return path.join(_dir, 'quit-save-failure.json'); }
-function emergencyDir() { return path.join(_dir, 'emergency-saves'); }
+/* ★★«작업물»과 «기계 것»을 가른다 (2026-09-07 계정별 폴더 격리).
+   ⛔여기 들어가는 것은 «저장 못 한 프로젝트 원문»이다 = 사용자 작업물.
+     그런데 뿌리가 공용(<userData>)이면, 철수의 저장 실패본이 ★민수 복구 화면에 뜨고
+     버튼 한 번에 민수 계정 폴더로 복제된다 — 이번 판이 막으려던 시나리오 그 자체가
+     «손도 안 댄 문»으로 성립한다.
+   ⇒ 작업물은 «계정 작업공간»(= 프로젝트 뿌리의 부모)에 둔다.
+     비로그인이면 그 값이 <userData> 라 ★오늘 동작과 «바이트 동일»이다.
+   ⛔반대로 templates·presets·goditor-market·svg-presets 는 «공유가 맞다» —
+     그건 «사람»이 아니라 «기계»에 붙는 도구다(지디 판단 2026-09-07). 크래시 로그도 같다.
+     ★그 선을 여기 적어 둔다: 「작업물이면 가르고, 도구·진단이면 공유한다」. */
+function _ws() {
+  if (typeof _wsDir === 'function') { try { const r = _wsDir(); if (r) return r; } catch (_) {} }
+  return _wsDir || _dir;   // 미주입이면 예전과 같은 자리(퇴행 없음)
+}
+function markerPath() { return path.join(_ws(), 'quit-save-failure.json'); }
+function emergencyDir() { return path.join(_ws(), 'emergency-saves'); }
 
 /** 렌더러가 준 id 로 «경로»를 만든다 — 그대로 쓰면 ../ 로 밖에 쓸 수 있다. */
 function safeName(id) {

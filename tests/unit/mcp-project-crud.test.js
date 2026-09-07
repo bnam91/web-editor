@@ -383,7 +383,11 @@ test('T4 ★복제의 «범위»를 하나하나 센다 — 진짜 파일시스�
   assert.ok(ids.includes(SRC_ID) && ids.includes(NEW), `목록에 둘 다 없다: ${ids.join(' ')}`);
 });
 
-test('T4b ⚠️claude-pm(섹션메모·체크리스트)은 «안» 따라온다 — 「현행 기록」이지 «정답»이 아니다', () => {
+test('T4b ⚠️현행 동작(정답 아님) — claude-pm 이 «안» 따라온다. 고치면 여기가 빨개진다 · 고칠 때 같이 지워라', () => {
+  /* ⛔이 검사는 «규격이 아니다». 계약 픽스처가 결함을 「정답」으로 굳히는 모양을 막으려고
+     그 사실을 «검사 이름»에 박았다 — 다음 사람이 목록만 보고 규격으로 읽지 못하게.
+     지디 판단(2026-09-07): 설명문은 «오늘» 고친다(거짓이므로), 동작 확대는 «별건»으로 온다
+     — 메모가 가리키는 섹션/블록 id 가 사본에서도 유효한가(참조 무결성)를 안 쟀기 때문이다. */
   /* ★2026-09-07 실측. duplicate_project 의 설명문은
        "full copy (proj.json + assets/images + claude-pm folder)"
      라고 «말하지만», _duplicateProjectImpl 이 tmpDir 로 옮기는 건 images/ 와 assets/ 뿐이다.
