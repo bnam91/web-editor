@@ -123,7 +123,20 @@
         var tb = el.querySelector('.text-block');
         if (tb) { t = _typeOf(tb); kids = null; }
       }
+      /* ★★«가장자리 갭» — 이 블록의 «안쪽 끝»에 이미 갭이 붙어 있나.
+         2026-09-07 실측: 진짜 클로드가 `add_gap_block` 을 부르면 그 갭이 «텍스트 프레임 안»에
+         들어간다(_insertToFlowFrame). DOM 은 이렇게 된다:
+             gap100 · frame-block[ text-block(heading) · gap-block(50) ] · row
+         내 시퀀스 리더는 section-inner «직속 자식»만 보므로 그 gap50 이 «안 보인다» ⇒
+         제목↔이미지 슬롯이 «비었다»고 판단해 gap80 을 «또» 넣는다 = 50+80 = 130px 이중 간격.
+         ⛔이건 「프레임 안은 관리 안 한다」가 아니라 「안 보여서 위에 덧쌓는다」라 결함이다.
+         ⇒ 가장자리에 갭이 있으면 그 슬롯은 «이미 채워진» 것으로 보고 «안 넣는다».
+            (프레임 «안»의 값을 고치지도 않는다 — 우리 관할이 아니다. 덧쌓지만 않는다.) */
+      var kidsAll = [].slice.call(el.children).filter(function (c) { return c instanceof Element && _inFlow(c); });
+      var firstKid = kidsAll[0], lastKid = kidsAll[kidsAll.length - 1];
       var it = { id: el.id || null, kind: 'block', type: t };
+      if (firstKid && firstKid.classList.contains('gap-block')) it.edgeGapBefore = true;
+      if (lastKid && lastKid.classList.contains('gap-block')) it.edgeGapAfter = true;
       /* ⛔`kids.length > 1` 로 걸지 마라 — 이미지 «하나»만 든 줄이 childTypes 없이 나가서
          row 가 「모르는 타입」(무게 2)로 떨어졌다. 제목→이미지줄이 M80 이어야 하는데 S40 이
          됐고, 픽스처로만 재던 노드 하네스는 그걸 «못 봤다»(2026-09-07 DOM 검사가 잡았다). */

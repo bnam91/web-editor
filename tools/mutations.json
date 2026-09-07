@@ -316,5 +316,11 @@
     "file": "main/claude-pm/services/spacing.js",
     "find": "  if (it.marked !== undefined) return it.marked === true || it.hasInlineHeight === false;",
     "replace": "  if (it.marked !== undefined) return it.marked === true;   /* MUTANT: 값 없는 갭도 수동 */"
+  },
+  {
+    "name": "spacing(i) 가장자리 갭 무시 — 프레임 «안» 갭 위에 덧쌓아 이중 간격을 만든다",
+    "file": "main/claude-pm/services/spacing.js",
+    "find": "      if ((slot.prev && slot.prev.edgeGapAfter) || (slot.next && slot.next.edgeGapBefore)) {",
+    "replace": "      if (false) {   /* MUTANT: 가장자리 갭 무시 */"
   }
 ]

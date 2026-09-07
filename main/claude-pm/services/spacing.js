@@ -269,6 +269,16 @@ function normalizePlan(items) {
         notes.push(`${_slotName(slot)} — 앞 블록에 id 가 없어 갭을 넣을 자리를 «지목할 수 없다»(건너뜀).`);
         continue;
       }
+      /* ★★«가장자리 갭» — 이웃 블록의 «안쪽 끝»에 이미 갭이 붙어 있으면 넣지 않는다.
+         실측(2026-09-07, 진짜 클로드가 만든 상세페이지_0907): add_gap_block 이 넣은 갭이
+         «텍스트 프레임 안»에 들어가 있었다(frame[ heading · gap50 ] · row). 시퀀스에는 안 보여서
+         여기서 gap80 을 «또» 넣으면 50+80=130px 이중 간격이 된다.
+         ⇒ 안 보이는 것을 고칠 순 없지만, «위에 덧쌓지는» 않는다. */
+      if ((slot.prev && slot.prev.edgeGapAfter) || (slot.next && slot.next.edgeGapBefore)) {
+        slot.skipped = 'edge-gap';
+        notes.push(`${_slotName(slot)} — 이웃 블록 «안»에 이미 갭이 붙어 있어 넣지 않았다(이중 간격 방지). 목표는 ${target}px 이었다.`);
+        continue;
+      }
       ops.push({ op: 'insert', afterId: slot.prev ? slot.prev.id : null, height: target, slot: _slotName(slot) });
       continue;
     }

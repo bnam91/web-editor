@@ -341,3 +341,42 @@ test('⑩-b ★렌더러가 «실제로 내는» dataset.type 값이 전부 무�
     `렌더러가 내는 타입인데 무게표에 «없다»: ${missing.join(', ')} — WEIGHT 에 한 줄씩 추가해라 `
     + `(js/ 파일 ${files.length}개에서 dataset.type 리터럴 ${types.size}종을 셌다)`);
 });
+
+// ── ⑪ «가장자리 갭» — 안 보이는 갭 위에 «덧쌓지» 않는다 ────────────────────
+test('⑪ ★이웃 «안»에 이미 갭이 붙어 있으면 넣지 않는다 (이중 간격 방지)', () => {
+  /* 실측(2026-09-07, 진짜 클로드가 만든 «상세페이지_0907»): add_gap_block 이 넣은 갭이
+     «텍스트 프레임 안»에 들어가 있었다 —  frame[ heading · gap50 ] · row.
+     시퀀스(section-inner 직속)엔 안 보여서 여기서 gap80 을 또 넣으면 50+80=130px 이 된다.
+     ★「관리 안 한다」와 「안 보여서 덧쌓는다」는 다르다. 뒤엣것은 결함이다. */
+  const seq = [
+    { id: 'gb_a', kind: 'gap', height: 100, auto: true },
+    { id: 'ss_1', kind: 'block', type: 'heading', edgeGapAfter: true },   // 프레임 «안»에 gap50
+    { id: 'row_1', kind: 'block', type: 'row', childTypes: ['canvas'] },
+    { id: 'gb_z', kind: 'gap', height: 100, auto: true },
+  ];
+  const p = S.normalizePlan(seq);
+  assert.deepEqual(p.ops.filter((o) => o.op === 'insert'), [],
+    `가장자리 갭 위에 «덧쌓았다» — 이중 간격이 된다: ${JSON.stringify(p.ops)}`);
+  assert.ok(p.notes.some((n) => /이중 간격/.test(n)), `왜 안 넣었는지 말해야 한다: ${JSON.stringify(p.notes)}`);
+  assert.deepEqual(S.normalizePlan(S.applyPlanToSequence(seq, p.ops)).ops, [], '멱등');
+});
+
+test('⑪-b 반대쪽(next 의 «앞» 가장자리)도 같이 막는다 · 그리고 «없으면» 정상적으로 넣는다', () => {
+  const withNext = [
+    { id: 'ss_1', kind: 'block', type: 'heading' },
+    { id: 'ss_2', kind: 'block', type: 'body', edgeGapBefore: true },
+  ];
+  // ⚠️섹션 «상하» 슬롯은 이 픽스처에 갭이 없어 정상적으로 삽입된다 — 가운데 슬롯만 본다.
+  assert.deepEqual(S.normalizePlan(withNext).ops.filter((o) => o.op === 'insert' && o.afterId === 'ss_1'), [],
+    'next 의 앞 가장자리도 막아야 한다');
+
+  /* ⛔대조군 — 가장자리 갭이 «없으면» 규격대로 넣는다. 이게 없으면 위 검사는
+     「아무것도 안 넣는 코드」도 통과시킨다(변이 ⒤ 가 이 자리를 문다). */
+  const bare = [
+    { id: 'ss_1', kind: 'block', type: 'heading' },
+    { id: 'ss_2', kind: 'block', type: 'body' },
+  ];
+  const ins = S.normalizePlan(bare).ops.filter((o) => o.op === 'insert' && o.afterId === 'ss_1');
+  assert.equal(ins.length, 1, '가장자리 갭이 없으면 넣어야 한다 — 안 넣으면 기능이 죽은 것이다');
+  assert.equal(ins[0].height, S.SCALE.M);
+});

@@ -31,6 +31,13 @@ const textEl = (id, type, cls) =>
   `<div class="frame-block" data-text-frame="true" id="ss_${id}">`
   + `<div class="text-block" data-type="${type}" id="${id}"><div class="tb-${cls || type}">글</div></div></div>`;
 const rowEl = (id, inner) => `<div class="row" id="row_${id}" data-layout="stack">${inner}</div>`;
+/* ★진짜 클로드가 만든 모양 — add_gap_block 이 «텍스트 프레임 안»에 갭을 넣는다.
+   실측: 상세페이지_0907 sec_…5bsq8uo = gap100 · frame[ heading · gap50 ] · row · gap100.
+   시퀀스(section-inner 직속)엔 그 gap50 이 «안 보인다». */
+const textElWithInnerGap = (id, type, h) =>
+  `<div class="frame-block" data-text-frame="true" id="ss_${id}">`
+  + `<div class="text-block" data-type="${type}" id="${id}"><div class="tb-h2">글</div></div>`
+  + `<div class="gap-block" data-type="gap" id="gb_in_${id}" style="height:${h}px"></div></div>`;
 
 const FIXTURE = `
 <div id="canvas">
@@ -45,6 +52,14 @@ const FIXTURE = `
       ${textEl('tb_4', 'caption')}
       <div class="sticker-block" id="stk_1" style="position:absolute;top:0;left:0">스티커</div>
       ${gapEl('gb_bot', 100, true)}
+    </div>
+  </div>
+  <div class="section-block" data-section="3" id="sec_3" data-name="프레임안갭">
+    <div class="section-inner">
+      ${gapEl('gb_t3', 100, true)}
+      ${textElWithInnerGap('tb_x', 'heading', 50)}
+      ${rowEl('r3', '<div class="canvas-block" id="cvb_3"></div>')}
+      ${gapEl('gb_b3', 100, true)}
     </div>
   </div>
   <div class="section-block" data-section="2" id="sec_2" data-name="손맞춤">
@@ -143,6 +158,9 @@ test('DOM-② ★뒤끝 — 계획을 적용하면 «진짜 갭 높이»가 그 
      · 고아 갭 둘은 하나로 합쳐진다. 세 갈래가 «한 섹션에서» 다 보인다. */
   expect(after.sec_2).toEqual(['gap100', 'heading', 'gap37(수동)', 'body', 'gap40', 'body', 'gap100']);
   expect(applied.misses).toEqual([]);
+  /* ★★프레임 «안»에 이미 갭이 있는 자리에는 «덧쌓지 않는다».
+     안 그러면 50(프레임 안) + 80(우리) = 130px 이중 간격이 된다. */
+  expect(after.sec_3).toEqual(['gap100', 'heading', 'row', 'gap100']);
 });
 
 test('DOM-③ ★멱등 — 한 번 더 돌리면 계획이 «빈 배열»이라 DOM 이 안 움직인다', async ({ page }) => {
@@ -256,6 +274,6 @@ test('DOM-⑥ 자동/수동 도장이 «직렬화 세척»을 견딘다 (저장�
     return { total: gaps.length, auto: gaps.filter((g) => g.dataset.gapAuto === '1').length, html: clone.innerHTML.length };
   });
   console.log(`  세척 후 갭 ${out.total}개 중 자동 도장 ${out.auto}개`);
-  expect(out.total).toBe(7);   // 픽스처의 갭 수 (sec_1: 2 · sec_2: 5)
-  expect(out.auto).toBe(5);    // 도장 찍힌 것 5개 (gb_manual·gb_bare 는 도장 없음)
+  expect(out.total).toBe(10);  // 픽스처의 갭 수 (sec_1: 2 · sec_3: 3(프레임 안 1 포함) · sec_2: 5)
+  expect(out.auto).toBe(7);    // 도장 찍힌 것 (gb_manual·gb_bare·gb_in_tb_x 는 도장 없음)
 });

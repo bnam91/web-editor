@@ -414,9 +414,11 @@ test('Ⓗ ★디바운스 기본값은 «잰 값»이다 — 누가 조용히 �
   const m = src.match(/_SPACING_DEBOUNCE_DEFAULT_MS\s*=\s*(\d+)/);
   assert.ok(m, '_SPACING_DEBOUNCE_DEFAULT_MS 상수를 못 찾았다 — 값이 리터럴로 흩어졌나?');
   const ms = Number(m[1]);
-  /* 실측 근거(skills/지디/handoff/axgate-0907-evidence): 도구 2개 이상인 턴 10개의
-     「턴 소요/(도구수-1)」 p50 5.4s · p90 9.6s. p90 «위»여야 한다. */
-  assert.ok(ms >= 9600, `기본 디바운스 ${ms}ms 는 실측 p90(9600ms) «아래»다 — 턴 중간에 도는 낭비가 커진다`);
+  /* ⛔이 바닥값은 «도구 호출 사이 간격»의 실측이 «아니다» — 그건 못 쟀다(원장에 턴 «안»의
+     호출 시각이 없다). 잰 것은 「턴 소요/(도구수−1)」 = «턴당 평균 간격의 상한»이고,
+     도구 2개 이상인 턴 10개에서 p50 5.4s · p90 9.6s 였다. 그 상한 위를 바닥으로 삼는다. */
+  assert.ok(ms >= 9600,
+    `기본 디바운스 ${ms}ms 는 「턴 소요/(도구수−1)」 p90(9600ms) «아래»다 — 턴 중간에 도는 낭비가 커진다`);
   assert.ok(ms <= 60000, `기본 디바운스 ${ms}ms 는 너무 길다 — 사용자가 갭이 안 잡힌다고 느낀다`);
   /* ★값만 지키면 「왜 그 값인지」가 사라진다. 근거 문장이 «옆에» 있어야 한다. */
   const raw = fs.readFileSync(path.join(REPO, 'main', 'claude-pm', 'mcp-server.js'), 'utf8');
