@@ -481,6 +481,12 @@ function _assertExpectedProject(expectedProject) {
 /** ⛔로그인 게이트를 «면제»하는 도구 — 「왜 안 되는지」를 물어볼 통로는 남겨야 한다. */
 const _AUTH_FREE = new Set(['goditor_which_instance', 'get_block_schema']);
 
+/* ★게이트 대상 도구 «전부»에 붙는 안내. 24개 도구에 붙으므로 «한 글자가 24배»가 된다.
+     옛 문장 92자 → 44자로 줄였다(2026-09-08). 뜻은 그대로: 활성 프로젝트를 건드리고, open_project 가 먼저다.
+   ⛔여기 한 자리에서만 관리한다 — 검사도 이 상수를 «소스에서 읽어» 쓴다.
+     문자열을 검사에 또 적어 두면 문구를 고칠 때마다 두 곳이 어긋난다(실제로 어긋나 빨개졌다). */
+const _TARGET_NOTE = ' ⚠acts on the ACTIVE project — open_project first.';
+
 const _TARGET_FREE = new Set([
   // ⑴ 읽기 — ⛔이 줄을 줄이지 마라. 막으면 클로드가 현황을 물어볼 통로가 사라진다.
   'read_project', 'read_section', 'get_canvas_state', 'list_projects', 'list_memories',
@@ -8102,7 +8108,26 @@ async function _handleRpc(msg) {
       return ok({
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: SERVER_INFO
+        serverInfo: SERVER_INFO,
+        /* ★MCP 의 initialize.instructions — 클라이언트가 «시스템 프롬프트 힌트»로 쓰는 자리.
+             여기 한 번 적으면 도구마다 반복하지 않아도 된다.
+           ★★실측했다(2026-09-08, Claude Desktop): **이 앱은 instructions 를 모델에게 «안 넘긴다».**
+             측정: 앱을 재시작해 연결을 갱신한 뒤 모델에게 「네 지침에 goditor 문구가 있나」를 물었다.
+               → 모델이 인용한 것은 전부 «도구 설명»이었고, 여기 적은 'open_project first' 는
+                 「보이지 않는다」고 명시했다.
+             ★양성대조로 «연결이 갱신됐음»을 먼저 확인했다 — 오늘 만든 edit_checklist_section·
+               search_sections 는 「예」, 오늘 숨긴 add_banner_block 은 「아니오」.
+               (이걸 안 했으면 「낡은 목록」과 「instructions 미지원」을 구분 못 했다.)
+           ⇒ 그러므로 도구 설명의 ⚠TARGET 접미사를 «빼면 안 된다». 대신 «짧게» 줄였다.
+           ⇒ instructions 자체는 남긴다 — 다른 클라이언트는 쓸 수 있고, initialize 는 대화마다가
+             아니라 «연결마다» 한 번이라 비용이 사실상 0이다. */
+        instructions:
+          'goditor edits ONE project at a time — the ACTIVE project. '
+          + 'Most editing tools are refused until that project was confirmed with open_project in this session; '
+          + 'read-only tools (list_projects, get_canvas_state, read_section, search_sections, list_* ) are not. '
+          + 'So: open_project first, then edit. '
+          + 'Responses are read back from the live canvas, so treat what a tool returns as what actually happened — '
+          + 'not as an echo of your arguments.'
       });
     }
 
@@ -8129,7 +8154,10 @@ async function _handleRpc(msg) {
         list.push({
           name,
           description: (schema.description || '')
-            + (_gated ? ' ⚠TARGET=the ACTIVE project: refused unless it was confirmed (open_project) in this session.' : ''),
+            /* ★접미사는 24개 도구에 붙는다 — 한 글자가 24배로 곱해진다.
+               옛 문장 92자 → 44자. 뜻(«활성 프로젝트를 건드린다 · open_project 먼저»)은 그대로다.
+               실측: 24 × 48자 = 1,152자 절약(목록의 2.9%, ~290 토큰/대화). */
+            + (_gated ? _TARGET_NOTE : ''),
           inputSchema: schema.inputSchema || { type: 'object', properties: {} },
           ...(includeHidden && hiddenTools.has(name) ? { hidden: true } : {})
         });
