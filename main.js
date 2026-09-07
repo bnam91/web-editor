@@ -3656,6 +3656,7 @@ app.whenReady().then(async () => {
       updateCardBlock: _invokeRendererUpdateCardBlock,
       addChecklistItem: _invokeRendererAddChecklistItem,
       checklistSection: _invokeRendererChecklistSection,
+      searchSections: _invokeRendererSearchSections,
       setSectionMemo: _invokeRendererSetSectionMemo,
       getSectionMemo: _invokeRendererGetSectionMemo,
       updateChecklistItem: _invokeRendererUpdateChecklistItem,
@@ -3854,6 +3855,78 @@ async function _invokeRendererAddChecklistItem({ text, x, y, sectionId, ckSectio
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
     true
   );
+}
+
+/* ─── P2 search_sections — «내용으로» 섹션 찾기 (2026-09-08 현빈 요청) ────────
+   ⛔없을 때 어땠나: 「'무료배송' 적힌 데 고쳐줘」를 하려면 섹션을 «하나씩» 열어야 했다.
+     실물 프로젝트가 102섹션이라 왕복 102번 — 실무에서 못 쓴다.
+   ⇒ 렌더러를 «한 번만» 훑는다. 섹션을 여닫지 않으므로 화면 상태를 안 건드린다. */
+async function _invokeRendererSearchSections({ query, limit = 50, caseSensitive = false, whole = false } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const a = JSON.stringify({ q: String(query), limit: Number(limit) || 50,
+                             cs: !!caseSensitive, whole: !!whole });
+  const js = `(() => {
+    try {
+      const p = ${a};
+      if (!p.q) return { ok:false, code:'INVALID', message:'query required' };
+      const norm = t => p.cs ? String(t) : String(t).toLowerCase();
+      const needle = norm(p.q);
+      const canvas = document.getElementById('canvas') || document;
+      const secs = [...canvas.querySelectorAll('.section-block')];
+      const TYPE = el => {
+        const c = el.classList;
+        if (c.contains('text-block')) {
+          const k = el.querySelector('[class^="tb-"]');
+          const m = k && k.className.match(/tb-(\\w+)/);
+          return m ? m[1] : 'text';
+        }
+        for (const [cls,name] of [['asset-block','asset'],['table-block','table'],['canvas-block','canvas'],
+          ['step-block','step'],['comparison-block','comparison'],['banner02-block','banner02'],
+          ['label-group-block','label'],['laurel-block','laurel'],['grid-block','grid'],
+          ['icon-text-block','icon_text'],['infocard-block','infocard'],['chat-block','chat']])
+          if (c.contains(cls)) return name;
+        return null;
+      };
+      const hits = []; let scannedSections = 0, scannedBlocks = 0, truncated = false;
+      for (const sec of secs) {
+        scannedSections++;
+        const secName = (sec.dataset && sec.dataset.name) || '';
+        /* 섹션 «이름»도 찾는 대상이다 — 사람이 지어 둔 이름이 가장 좋은 단서다 */
+        if (secName && norm(secName).includes(needle)) {
+          hits.push({ sectionId: sec.id, sectionName: secName, where: 'sectionName', text: secName });
+        }
+        const blocks = [...sec.querySelectorAll('[id]')].filter(el => TYPE(el) !== null);
+        for (const b of blocks) {
+          scannedBlocks++;
+          const raw = (b.innerText || '').replace(/\\s+/g, ' ').trim();
+          if (!raw) continue;
+          const i = norm(raw).indexOf(needle);
+          if (i < 0) continue;
+          if (p.whole) {
+            /* 「낱말 전체」 — 앞뒤가 글자·숫자면 걸러낸다(한글은 낱말 경계가 없어 공백/문장부호로 본다) */
+            const before = raw[i-1] || ' ', after = raw[i + p.q.length] || ' ';
+            if (/[\\w가-힣]/.test(before) || /[\\w가-힣]/.test(after)) continue;
+          }
+          if (hits.length >= p.limit) { truncated = true; break; }
+          const from = Math.max(0, i - 24), to = Math.min(raw.length, i + p.q.length + 24);
+          hits.push({
+            sectionId: sec.id, sectionName: secName || null,
+            blockId: b.id || null, type: TYPE(b), where: 'block',
+            excerpt: (from > 0 ? '…' : '') + raw.slice(from, to) + (to < raw.length ? '…' : ''),
+            text: raw.length > 200 ? raw.slice(0, 200) + '…' : raw,
+          });
+        }
+        if (truncated) break;
+      }
+      /* ★「몇 개를 뒤졌는지」를 같이 준다 — 0건일 때 «없다»인지 «못 뒤졌다»인지 갈라야 한다 */
+      return { ok:true, query: p.q, matches: hits.length, hits: hits,
+               scannedSections: scannedSections, scannedBlocks: scannedBlocks,
+               truncated: truncated,
+               note: truncated ? ('limit ' + p.limit + ' 에서 잘렸습니다 — limit 를 올리거나 검색어를 좁히세요.') : undefined };
+    } catch (e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
 }
 
 /* ─── 체크리스트 «섹션» — 만들기·이름·지우기·목록 (2026-09-07 현빈 요청) ──────

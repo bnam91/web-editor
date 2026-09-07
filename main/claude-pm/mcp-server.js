@@ -485,6 +485,7 @@ const _TARGET_FREE = new Set([
   // ⑴ 읽기 — ⛔이 줄을 줄이지 마라. 막으면 클로드가 현황을 물어볼 통로가 사라진다.
   'read_project', 'read_section', 'get_canvas_state', 'list_projects', 'list_memories',
   'list_scratch_items', 'read_scratch_item', 'list_checklist_items', 'get_section_memo',
+  'search_sections',   /* 읽기 전용 — 아무것도 안 바꾼다 */
   /* ⚠️edit_checklist_section 은 «쓰기»라 여기 넣지 않는다 — list op 하나 때문에 게이트를 열면
        create/rename/delete 까지 같이 열린다(도구 «이름»으로 게이트를 걸기 때문이다). */
   'search_iconify', 'get_block_schema', 'goditor_which_instance',
@@ -862,6 +863,27 @@ function _enrichApiMissing(result) {
  *      그래서 «자동 폴백»을 둔다: 다이어트 후에도 큰 페이지는 summary 로 내려간다. */
 const _CANVAS_TEXT_CAP = 120;
 const _CANVAS_AUTO_SUMMARY_CHARS = 24000; // 이 이상이면 summary 로 자동 폴백(≈6~7k토큰)
+/* ★P1 — 목록의 미리보기는 «첫 블록»이 아니라 «첫 글자»여야 한다.
+     ⛔실측(2026-09-08, 끌리젠 102섹션): 문자 그대로 blocks[0] 을 봤더니 «102줄이 전부 (gap)» 였다.
+       섹션은 거의 언제나 여백으로 시작하기 때문이다.
+       그러면 목록을 아무리 불러도 «어느 섹션이 뭔지»를 알 수가 없어서,
+       「가격 나온 섹션 고쳐줘」 한 마디에 102번을 열어봐야 했다.
+     ⇒ 글자가 있는 «첫 블록»을 찾는다. 텍스트가 아닌 블록도 summary.text 를 들고 있다(표·이미지 캡션 등).
+     ⇒ 글자가 하나도 없으면 그때만 «무슨 블록인지»로 답한다 — 단, 여백은 답이 될 수 없으니 건너뛴다. */
+function _firstMeaningful(blocks) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  for (const b of list) {
+    if (!b) continue;
+    const t = (b.text != null && b.text !== '') ? b.text
+            : (b.summary && typeof b.summary === 'object' ? b.summary.text : '');
+    const s = String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
+    if (s) return s.length > 40 ? s.slice(0, 40) + '…' : s;
+  }
+  /* 글자가 없는 섹션(이미지만·도형만)도 «비어 있다»고 말하면 안 된다 — 무슨 블록인지는 말해 준다 */
+  const b = list.find(x => x && x.type && x.type !== 'gap') || list[0];
+  return b && b.type ? '(' + b.type + ')' : '(빈 섹션)';
+}
+
 function _slimCanvasState(raw, detail) {
   if (!raw || raw.ok !== true || !Array.isArray(raw.sections)) return raw;
   if (detail === 'full') return raw;
@@ -876,7 +898,7 @@ function _slimCanvasState(raw, detail) {
         sectionId: s.sectionId,
         ...(s.name ? { name: s.name } : {}),
         blocks: (s.blocks || []).length,
-        ...((s.blocks || []).length ? { first: String((s.blocks[0] || {}).text || ('(' + ((s.blocks[0] || {}).type || 'block') + ')')).slice(0, 40) } : {}),
+        ...((s.blocks || []).length ? { first: _firstMeaningful(s.blocks) } : {}),
         /* ★요약에서도 «중첩이 있나»는 알려준다 — 없으면 평평한 페이지로 오해한다 */
         nested: (s.blocks || []).filter(b => b && b.parentId).length
       })),
@@ -2563,6 +2585,44 @@ function _registerDefaultTools() {
         },
         required: ['id']
       }
+    }
+  );
+
+  /* ─── P2 search_sections — 내용으로 섹션 찾기 (2026-09-08) ─────────────────
+     ⛔이게 없어서 「'무료배송' 적힌 데 고쳐줘」에 102섹션을 하나씩 열어야 했다. */
+  registerTool(
+    'search_sections',
+    async ({ query, limit = 50, caseSensitive = false, wholeWord = false } = {}) => {
+      if (typeof query !== 'string' || !query.trim()) throw new Error('query required (non-empty string)');
+      if (query.length > 200) throw new Error('query too long (>200)');
+      const lim = Number(limit);
+      if (!Number.isInteger(lim) || lim < 1 || lim > 300) throw new Error('limit must be 1..300');
+      if (!_rendererInvoker?.searchSections) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.searchSections({
+        query, limit: lim, caseSensitive: !!caseSensitive, whole: !!wholeWord,
+      });
+    },
+    {
+      description: 'Find WHERE a phrase appears in the open project — searches every section in one pass. '
+        + 'Use this before editing when the user names content instead of an id '
+        + '("fix the section with the price table", "\u2018무료배송\u2019 적힌 데 고쳐줘", spell-check, bulk rewording). '
+        + 'Returns {ok, query, matches, hits:[{sectionId, sectionName, blockId, type, where, excerpt, text}], '
+        + 'scannedSections, scannedBlocks, truncated}. Section NAMES are searched too. '
+        + '★scannedSections/scannedBlocks are reported so 0 matches can be told apart from "nothing was scanned" '
+        + '(0 scanned means no project is open, not that the phrase is absent). '
+        + 'Feed a hit\u2019s blockId straight into update_block, or its sectionId into get_canvas_state(sectionId).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'text to look for (substring, case-insensitive by default)' },
+          limit: { type: 'integer', description: 'max hits, 1..300 (default 50)' },
+          caseSensitive: { type: 'boolean', description: 'default false' },
+          wholeWord: { type: 'boolean', description: 'require a word boundary around the match (default false)' },
+          expectedProject: { type: 'string' },
+        },
+        required: ['query'],
+        additionalProperties: false,
+      },
     }
   );
 
