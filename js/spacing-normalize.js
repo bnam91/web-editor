@@ -66,7 +66,7 @@
   }
 
   var BLOCKISH = '.text-block, .asset-block, .table-block, .canvas-block, .grid-block, .graph-block,'
-    + ' .step-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .label-group-block,'
+    + ' .step-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .zoom-block, .label-group-block,'
     + ' .icon-circle-block, .icon-text-block, .icon-block, .divider-block, .shape-block, .vector-block,'
     + ' .banner02-block, .bridge-block, .infocard-block, .innercard-block, .joker-block, .frame-block';
 

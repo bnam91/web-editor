@@ -13,7 +13,7 @@ const CANVAS_SEL_BLOCKS =
   '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, ' +
   '.canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.mockup-block.selected, .icon-block.selected, .vector-block.selected, ' +
-  '.step-block.selected, .laurel-block.selected, .gradient-block.selected, ' +
+  '.step-block.selected, .laurel-block.selected, .zoom-block.selected, .gradient-block.selected, ' +
   '.sticker-block.selected, .joker-block.selected, .chat-block.selected, ' +
   '.speech-bubble-block.selected';  // 버블(sb_): 복수선택/복사/삭제/⌘X 대상 편입 (#7)
 // shape-block은 ss/row 단위 별도 삭제 경로(allSelShapes)라 위 목록에 포함하지 않음.
@@ -880,8 +880,26 @@ function _updateFreeLayoutMultiSelPanel() {
 /* 일반(플로우) 블록 멀티선택 카운트 패널 트리거 (A11)
  * — freeLayout 블록은 X/Y/W/H 좌표가 있어 전용 패널로 위임,
  *   세로로 쌓인 일반 블록은 좌표가 없어 '몇 개 선택됨' 카운트 패널만 제공 */
-// 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT
-const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
+/* ★이 목록의 기준은 「플로팅이냐」가 «아니다» — 「자유배치 프레임 안이냐」다.
+ *   판정기가 그렇게 말한다: prop-multisel.js `_isFlowBlock` / 아래 `_isInFreeLayout` —
+ *   `position:absolute` 하나로는 안 빠지고 `.frame-block[data-free-layout]` «안»일 때만 빠진다.
+ *   ⇒ 섹션 직속 플로팅(그라데이션·확대블럭)은 «흐름»으로 친다.
+ * ★스티커가 빠져 있는 이유는 «플로팅이라서»가 아니라 js/sticker-select.js 라는
+ *   «전용 선택 모듈»이 자기 경로로 훑기 때문이다. 전용 모듈이 없는 블록을 여기서 빼면
+ *   대체 경로 없이 기능이 사라진다(여럿 고르면 정렬 패널이 아예 안 뜬다).
+ *   ⛔한때 확대블럭을 「플로팅이니까」로 뺐다가 되돌렸다 — 그때 형제를 «둘만» 보고
+ *     (sticker=0 을 보고 gradient 도 0 이라 단정) 결론을 세웠다. gradient 는 1 이었다.
+ *     ⇒ 형제 패턴으로 훑되 «전수로 세고» 판정은 한 건씩. (검사 ⓑ-20b 가 이걸 못박는다)
+ * 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT */
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .zoom-block.selected, .chat-block.selected, .speech-bubble-block.selected';
+
+/* ★사본 금지 — js/props/prop-multisel.js 가 «이 상수»를 읽는다(옛날엔 리터럴을 한 벌 더 갖고
+ *   있었고, 둘 다 주석에 「SSOT」라 적혀 있었다. 확대블럭이 한쪽에만 들어가 «2개 선택하면
+ *   패널이 조용히 비는» 결함이 실제로 났다 — 지디 실측 2026-09-08).
+ *   ⛔목록을 늘릴 때 저쪽에도 적지 마라. 저쪽은 이제 «읽기»만 한다.
+ *   ⚠️로드 순서: prop-multisel(index.html:988)이 editor.js(:1077)보다 «먼저» 로드된다.
+ *     그래서 저쪽은 모듈 최상단이 아니라 «호출 시점»에 읽는다(패널은 사용자 조작 뒤에 뜬다). */
+if (typeof window !== 'undefined') window.FLOW_BLOCK_SEL_SELECTED = FLOW_BLOCK_SEL_SELECTED;
 
 function _countFlowMultiSel() {
   return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(b => !_isInFreeLayout(b)).length;
@@ -935,7 +953,7 @@ const SIBLING_MULTI_SEL =
   '.speech-bubble-block, .banner02-block, .comparison-block, ' +
   '.mockup-block, .vector-block, .step-block, .joker-block, .canvas-block, ' +
   // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel — 다중선택 지원
-  '.iconify-block, .chat-block, .gradient-block, .sticker-block, .laurel-block';
+  '.iconify-block, .chat-block, .gradient-block, .sticker-block, .laurel-block, .zoom-block';
 
 function _toSibling(el) {
   if (!el) return null;
@@ -1197,7 +1215,7 @@ function duplicateSelected() {
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
       // 이벤트 재바인딩
-      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
       clone.querySelectorAll(_ALL_BLOCK_SEL).forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
@@ -1254,7 +1272,7 @@ const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selec
   '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
   '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
-  '.laurel-block.selected, .joker-block.selected, .speech-bubble-block.selected';
+  '.laurel-block.selected, .zoom-block.selected, .joker-block.selected, .speech-bubble-block.selected';
 
 /* 같은 타입 목록이되 «.selected 여부 무관» — 한 행 안의 블록이 «전부» 선택됐는지 판정할 때 쓴다. */
 const ALL_TYPES_SEL = MULTI_SEL.replace(/\.selected\b/g, '');
@@ -1360,7 +1378,7 @@ function _bindPastedEl(el) {
   //   ⛔아래 id 재생성보다 «먼저» 부르지만, 승격은 id 를 건드리지 않으므로 순서 무관하다.
   window.migrateGridIdentity?.(el);
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -1603,7 +1621,7 @@ function pasteClipboard() {
       el.style.left = nx + 'px'; el.style.top = ny + 'px';
       el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
       frame.appendChild(el);
-      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
       el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
       if (el.matches?.(_ALL)) { delete el._blockBound; window.bindBlock?.(el); }
       el._dragBound = false; el._subSecBound = false;
@@ -2841,7 +2859,7 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .annotation-block, .sticker-block').forEach(b => {
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .annotation-block, .sticker-block').forEach(b => {
     b.classList.remove('selected');
     // 어노테이션은 핸들도 함께 정리
     if (b.classList.contains('annotation-block')) b.querySelectorAll('.annot-handle').forEach(h => h.remove());
@@ -3134,7 +3152,7 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => window.bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가

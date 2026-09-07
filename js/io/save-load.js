@@ -1027,7 +1027,7 @@ function rebindAll(opts = {}) {
     window.bindGradientSelect?.(block);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -1045,6 +1045,7 @@ function rebindAll(opts = {}) {
         : b.classList.contains('vector-block') ? 'vb'
         : b.classList.contains('chat-block') ? 'chb'
         : b.classList.contains('laurel-block') ? 'lrb'
+        : b.classList.contains('zoom-block') ? 'zmb'
         : b.classList.contains('divider-block') ? 'dvd'
         : b.classList.contains('bridge-block') ? 'brg'
         : b.classList.contains('grid-block') ? 'grd'   /* ★'grid' 아니다 — GRID_ID_PREFIXES=['grd_','duo_'] 와 같은 토큰이어야 한다(적대검수 C1) */
@@ -1053,6 +1054,9 @@ function rebindAll(opts = {}) {
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
     if (b.classList.contains('laurel-block')) window.renderLaurelBlock?.(b);
+    /* zoom(확대블럭): 저장본은 SVG 스냅샷이라 «그림은 맞지만» a·b 핸들 드래그 위임이 없다
+       (_bindZoomHandleDrag 는 renderZoomBlock 안에서 건다) → laurel/chat 과 같은 패턴으로 재렌더. */
+    if (b.classList.contains('zoom-block')) window.renderZoomBlock?.(b);
     // bridge: data-bridge-*로 path 재생성 + 항상 full-bleed 재적용 (로드 후 현재 섹션 패딩 반영)
     if (b.classList.contains('bridge-block')) { window.renderBridgeBlock?.(b); window.applyBridgeFullBleed?.(b); }
     // grid/infocard: dataset 모델로 재렌더 (직렬 HTML은 스냅샷일 뿐 — 로드 시 dataset이 진실)

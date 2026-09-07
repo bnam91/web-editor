@@ -112,6 +112,12 @@ function insertBeforeBottomGap(section, el) {
 }
 
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
+/* ⛔플로팅 계열(스티커·그라데이션·확대블럭)은 이 목록에 «없다» — 일부러다.
+ *   이 목록은 `ref.after(el)` 의 «기준점»을 고른다. 플로팅 블록은 행(row)·section-inner 밖에
+ *   absolute 로 떠 있어서, 그걸 기준으로 삼으면 새 블록이 «섹션 직속»으로 끼어들어
+ *   section-inner 흐름에서 빠진다(화면에서 사라진 것처럼 보인다).
+ *   ⇒ 새 블록을 만들 때 「흐름이냐 플로팅이냐」를 먼저 정하고, 플로팅이면 여기 넣지 마라.
+ *     (확대블럭이 흐름이던 시절 여기 들어갔다가 ⑧에서 플로팅으로 옮기며 뺐다.) */
 function insertAfterSelected(section, el) {
   // 활성 서브섹션이 있으면 그 안에 삽입 (selected 여부 관계없이)
   const activeSS = window._activeFrame;
