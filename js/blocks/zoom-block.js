@@ -7,6 +7,14 @@
 //
 // 기하·SVG 조립은 전부 ./zoom-geometry.js(순수) — 이 파일은 dataset 읽기·DOM·이벤트만 한다.
 //
+// ⛔이 블록이 «아직 못 하는 것» 둘 — 조용히 빠지는 것이라 여기 적어 둔다(지디 지시 2026-09-08).
+//   ① MCP 표면이 없다 — main/claude-pm 의 BLOCK_TYPES 에 zoom 이 «없다»(add_/update_ 도구 미구현).
+//      ⇒ ★클로드PM 으로는 확대블럭을 «못 만들고 못 고친다». 사람이 컴포넌트 메뉴로만 넣을 수 있다.
+//      (읽기 이름만 js/canvas-state.js PFX 에 zmb_ 로 줬다. grid 가 먼저 간 길이다.
+//       도구를 만들면 BLOCK_TYPES 에 넣고 tests/unit/block-prefix-sync.test.js 의 known 에서 빼라.)
+//   ② Figma export 분기가 없다 — js/io/export-figma-json.js 에 zoom 항목이 «없다».
+//      ⇒ ★피그마로 업로드하면 확대블럭이 «조용히 빠진다»(오류도 안 난다). laurel 처럼 전용 분기가 필요하다.
+//
 // 의존성:
 //   - insertAfterSelected (drag-utils.js)
 //   - bindBlock (drag-drop.js)
