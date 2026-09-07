@@ -422,28 +422,60 @@ test('ⓐ-19 ★그림자는 «테두리 바깥» 윤곽에서 시작한다 — 
   assert.ok(Math.abs(Math.hypot(c.A.x, c.A.y) - 104) < 1e-9, `circle |A|=${Math.hypot(c.A.x, c.A.y)}`);
 });
 
-test("ⓐ-19b ⛔bd:'off' 면 bdw 가 커도 «도형» 실루엣 그대로다 (대조 — 게이트가 살아 있나)", async () => {
+test("ⓐ-19b ⛔bd:'off' 면 bdw 가 커도 «도형» 실루엣 그대로다 — ★프리셋 «전수»로", async () => {
   const g = await loadGeom();
-  const off = g.computeZoomGeometry({ ...ST, angle: 0, length: 400, bd: 'off', bdw: 24 }, null);
-  assert.ok(Math.abs(off.A.x - 80) < 1e-9, `테두리를 껐는데 그림자가 나갔다: A.x=${off.A.x}`);
-  assert.ok(Math.abs(Math.abs(off.A.y) - 50) < 1e-9);
-  // 대조 — 같은 bdw 로 켜면 «실제로» 달라진다(안 달라지면 위 검사가 아무것도 못 가른다)
-  const on = g.computeZoomGeometry({ ...ST, angle: 0, length: 400, bd: 'on', bdw: 24 }, null);
-  assert.ok(Math.abs(on.A.x - off.A.x) > 1, '켬/끔이 같은 답이면 이 대조가 무의미하다');
+  /* ⛔예전엔 ST.shape='rect' «하나»로만 쟀다. Evaluator 사보타주 C6(「원만 테두리 게이트 우회」)이
+     그 구멍으로 통과했다 — 한 프리셋만 훑는 검사는 «다른 프리셋에서 갈리는 결함»을 못 본다.
+     ⇒ rect·circle·square 를 «다» 돈다. 기대값은 검사 안에서 리터럴로 세운다(대상 코드로 만들지 않는다). */
+  const EXPECT = {
+    // angle 0 · length 400 · size 160 에서, bd 를 켰을 때/껐을 때의 |A| 성분
+    rect:   { offX: 80,  offY: 50,  onX: 104, onY: 74 },
+    square: { offX: 80,  offY: 80,  onX: 104, onY: 104 },
+    circle: { offR: 80,             onR: 104 },
+  };
+  for (const shape of ['rect', 'circle', 'square']) {
+    const base = { ...ST, shape, angle: 0, length: 400, bdw: 24 };
+    const off = g.computeZoomGeometry({ ...base, bd: 'off' }, null);
+    const on  = g.computeZoomGeometry({ ...base, bd: 'on' }, null);
+    const e = EXPECT[shape];
+    if (shape === 'circle') {
+      assert.ok(Math.abs(Math.hypot(off.A.x, off.A.y) - e.offR) < 1e-9, `${shape}: 껐는데 나갔다`);
+      assert.ok(Math.abs(Math.hypot(on.A.x, on.A.y) - e.onR) < 1e-9, `${shape}: 켰는데 안 나갔다`);
+    } else {
+      assert.ok(Math.abs(off.A.x - e.offX) < 1e-9 && Math.abs(Math.abs(off.A.y) - e.offY) < 1e-9,
+        `${shape}: bd=off 인데 (${off.A.x},${off.A.y})`);
+      assert.ok(Math.abs(on.A.x - e.onX) < 1e-9 && Math.abs(Math.abs(on.A.y) - e.onY) < 1e-9,
+        `${shape}: bd=on 인데 (${on.A.x},${on.A.y})`);
+    }
+    // ★대조 — 켬/끔이 «실제로» 갈려야 이 프리셋에서 뭔가를 가른다
+    assert.ok(Math.hypot(on.A.x - off.A.x, on.A.y - off.A.y) > 1,
+      `${shape}: 켬/끔이 같은 답이면 이 프리셋에선 아무것도 못 가른다`);
+  }
 });
 
-test('ⓐ-19c [리팩터 대조] silhouette 을 쪼갠 뒤에도 «같은 답»이다', async () => {
+test('ⓐ-19c [리팩터 대조] 쪼갠 실루엣이 «리터럴 오라클»과 같은 답이다', async () => {
   const g = await loadGeom();
-  // shapeCornerPts(st,0) 은 shapePts(kind, size/2, rot) 와 «같은 점»이어야 한다 — 산식이 갈리면 여기서 잡힌다.
-  for (const shape of ['rect', 'square']) {
-    for (const rot of [0, 30]) {
-      const st = { ...ST, shape, rot };
-      assert.deepEqual(g.shapeCornerPts(st, 0), g.shapePts(shape, st.size / 2, rot, 0, 0), `${shape}/${rot}`);
-    }
-  }
-  // 쪼갠 알맹이와 겉함수가 같은 답
+  /* ⛔예전 판은 shapeCornerPts ↔ shapePts 를 «서로» 비교했다 — 둘이 «같이» 틀리면 초록이다
+     (Evaluator 2026-09-08 지적: 자기일관성 검사). ⇒ 기대값을 «리터럴»로 세운다. */
+  assert.equal(g.ZOOM_RECT_RATIO, 0.625, '비율이 바뀌면 아래 리터럴도 같이 고쳐야 한다');
+  const key = ps => ps.map(p => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).sort().join('|');
+
+  // size 160 → rect 반치수 80×50, square 80×80. 회전 0.
+  assert.equal(key(g.shapeCornerPts({ ...ST, shape: 'rect', rot: 0 }, 0)),
+               key([{x:-80,y:-50},{x:80,y:-50},{x:80,y:50},{x:-80,y:50}]));
+  assert.equal(key(g.shapeCornerPts({ ...ST, shape: 'square', rot: 0 }, 0)),
+               key([{x:-80,y:-80},{x:80,y:-80},{x:80,y:80},{x:-80,y:80}]));
+  // 회전 90° — (x,y) → (-y, x). rect 80×50 이 50×80 으로 선다.
+  assert.equal(key(g.shapeCornerPts({ ...ST, shape: 'rect', rot: 90 }, 0)),
+               key([{x:50,y:-80},{x:50,y:80},{x:-50,y:80},{x:-50,y:-80}]));
+  // grow 는 «각 반치수에 따로» 더한다(비율로 키우지 않는다)
+  assert.equal(key(g.shapeCornerPts({ ...ST, shape: 'rect', rot: 0 }, 24)),
+               key([{x:-104,y:-74},{x:104,y:-74},{x:104,y:74},{x:-104,y:74}]));
+
+  // 겉함수와 쪼갠 알맹이가 같은 답 — 이건 «구조» 대조라 리터럴 위에서만 뜻이 있다
   const L = g.lightPoint(20, 170, 0, 0);
-  assert.deepEqual(g.silhouette('rect', 80, 0, L, 0, 0), g.silhouetteFromPts(g.shapePts('rect', 80, 0, 0, 0), L, 0, 0));
+  assert.deepEqual(g.silhouette('rect', 80, 0, L, 0, 0),
+                   g.silhouetteFromPts(g.shapePts('rect', 80, 0, 0, 0), L, 0, 0));
   assert.deepEqual(g.silhouette('circle', 80, 0, L, 0, 0), g.silhouetteCircle(80, L, 0, 0));
 });
 
