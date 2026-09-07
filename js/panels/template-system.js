@@ -4,6 +4,9 @@
 import { canvasEl } from '../globals.js';
 
 const TEMPLATE_KEY = 'sangpe-templates'; // localStorage fallback key
+/* ★1회성 이관 마커 — 「이미 옮겼나」를 «캐시 건수»가 아니라 이걸로 판정한다.
+   건수로 물으면 공용 템플릿이 몇 건이냐에 따라 판정이 흔들린다(그래서 실제로 안 옮겨졌다). */
+const TEMPLATE_MIGRATED_KEY = 'sangpe-templates-migrated';
 
 let _templatesCache = null;  // 메타데이터 전용 (canvas 없음)
 let _lsFullCache    = [];    // 비-Electron 전용: canvas 포함 전체 데이터
@@ -12,28 +15,51 @@ let _lsFullCache    = [];    // 비-Electron 전용: canvas 포함 전체 데이
 async function initTemplates() {
   if (window.electronAPI?.loadTemplateIndex) {
     _templatesCache = await window.electronAPI.loadTemplateIndex();
-    // localStorage 기존 데이터 → 파일로 마이그레이션
+    /* localStorage 기존 데이터 → 파일로 마이그레이션.
+       ⛔판정을 「캐시가 비었나」로 하면 안 된다 — 계정 격리 후 loadTemplateIndex 는 «공용 ∪ 개인»을
+         돌려주므로 공용이 한 건이라도 있으면 그 조건이 «항상 거짓»이 되어 구 데이터가 영영 안 옮겨진다.
+         물어야 할 것은 「이 사용자 것을 «이미 옮겼나»」다. */
     const lsRaw = localStorage.getItem(TEMPLATE_KEY);
-    if (lsRaw && _templatesCache.length === 0) {
+    if (lsRaw && !localStorage.getItem(TEMPLATE_MIGRATED_KEY)) {
       try {
         const old = JSON.parse(lsRaw) || [];
-        const index = [];
+        const migrated = [];
+        let failed = 0;
         for (const tpl of old) {
           const { canvas, ...meta } = tpl;
           if (canvas) {
             try {
               await window.electronAPI.saveTemplateCanvas(tpl.id, canvas);
-              index.push(meta); // canvas 저장 성공한 항목만 index에 추가
+              migrated.push(meta); // canvas 저장 성공한 항목만 index에 추가
             } catch (e) {
+              failed++;
               console.warn('[template] canvas 저장 실패 — index에서 제외:', tpl.id, e);
             }
           } else {
-            index.push(meta); // canvas 없는 메타 전용 항목은 그대로 추가
+            migrated.push(meta); // canvas 없는 메타 전용 항목은 그대로 추가
           }
         }
-        _templatesCache = index;
-        await window.electronAPI.saveTemplateIndex(index);
-        localStorage.removeItem(TEMPLATE_KEY);
+        /* ★«덮어쓰기»가 아니라 «합치기»다. saveTemplateIndex 는 개인 index 를 통째로 «교체»하므로,
+           옛 조건(length===0)이 사라진 지금 그대로 넘기면 기존 개인 템플릿이 사라진다.
+           id 가 겹치면 «기존 것»이 이긴다 — 사용자가 최근까지 쓰던 쪽이다.
+           ⛔공용(_scope==='shared')은 개인으로 넘기지 않는다(main 도 걸러내지만 여기서도 안 넘긴다). */
+        const shared   = _templatesCache.filter(t => t && t._scope === 'shared');
+        const personal = _templatesCache.filter(t => !t || t._scope !== 'shared');
+        const seen     = new Set(personal.map(t => t && t.id).filter(Boolean));
+        const added    = migrated.filter(m => m && m.id && !seen.has(m.id))
+                                 .map(m => Object.assign({}, m, { _scope: 'personal' }));
+        const personalMerged = personal.concat(added);
+        const ok = await window.electronAPI.saveTemplateIndex(personalMerged);
+        _templatesCache = personalMerged.concat(shared); // main 의 load-index 와 «같은» 순서(개인 먼저)
+        /* ★원본 삭제와 마커는 «완전 성공»에만. 부분 실패(canvas 저장 실패)나 저장 거부
+           (비로그인이라 개인 뿌리가 없을 때 main 이 false 를 준다)면 둘 다 안 하고 다음 기동에 재시도한다 —
+           원본을 지웠다가는 «못 옮긴 것»이 그대로 유실된다. */
+        if (ok !== false && failed === 0) {
+          localStorage.removeItem(TEMPLATE_KEY);
+          localStorage.setItem(TEMPLATE_MIGRATED_KEY, new Date().toISOString());
+        } else {
+          console.warn(`[template] 마이그레이션 보류 — 실패 ${failed}건 / 저장결과 ${ok}. 다음 기동에 재시도한다.`);
+        }
       } catch (e) { console.warn('[template] 마이그레이션 실패:', e); }
     }
   } else {
