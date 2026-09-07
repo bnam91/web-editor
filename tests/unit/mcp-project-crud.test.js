@@ -29,10 +29,11 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const { startHarness } = require('./_mcp-harness');
+const { readSrc } = require('./_srcread.js');   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
 const { CASES } = require('../contract/mcp-cases');
 
 const REPO = path.join(__dirname, '..', '..');
-const MAIN_SRC = fs.readFileSync(path.join(REPO, 'main.js'), 'utf8');
+const MAIN_SRC = readSrc(REPO, 'main.js');
 
 /* ── main.js 의 «진짜 함수»를 떼어내 진짜 fs 위에 꽂는다 ────────────────────
  * account-projects-root.test.js 와 같은 수법이다. main.js 는 Electron 없이 통째로 못 읽으니

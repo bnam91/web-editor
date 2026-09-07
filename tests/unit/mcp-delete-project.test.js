@@ -12,6 +12,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const { startHarness } = require('./_mcp-harness');
+const { readSrc } = require('./_srcread.js');   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
 
 
 /** ★`_deleteProjectImpl` 의 «전체» 본문. ⛔고정 길이 창(slice(i, i+4000))을 쓰지 마라 —
@@ -19,7 +20,7 @@ const { startHarness } = require('./_mcp-harness');
  *  검사가 「주석 길이」에 딸려 가면 그건 검사가 아니다. 함수 끝까지 잡는다. */
 function implBody() {
   const fs = require('fs'), path = require('path');
-  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'main.js'), 'utf8');
+  const src = readSrc(__dirname, '..', '..', 'main.js');
   const i = src.indexOf('async function _deleteProjectImpl');
   assert.ok(i > 0, '_deleteProjectImpl 이 없다');
   const j = src.indexOf('\n}\n', i);
