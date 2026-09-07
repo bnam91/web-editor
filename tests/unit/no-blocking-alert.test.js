@@ -1,0 +1,80 @@
+/* ⛔`?? alert(...)` 금지 — 렌더러를 «얼리는» 패턴
+ *
+ * ★무엇이 문제인가 (2026-09-07 툴매니저가 실물로 포착)
+ *   `window.showToast?.(m) ?? alert(m)` 는 「토스트가 없으면 alert 으로 대신한다」로 «읽히지만»
+ *   실제로는 그렇지 않다. showToast(js/drag-utils.js:192)는 **return 이 없어 항상 undefined** 다.
+ *   ⇒ `??` 가 «언제나» 통과 ⇒ 토스트 + 네이티브 alert 이 «둘 다» 뜬다.
+ *   ⇒ 그리고 Electron 의 native alert 은 **렌더러를 막는다.** 사용자는 모달을 눌러 없앨 때까지
+ *     아무것도 못 한다. 실물: CDP 로 `{"type":"alert","message":"섹션을 먼저 선택하세요"}` 포착,
+ *     검증 세션이 실제로 그 자리에서 «얼어붙었다»(스크린샷도 무응답).
+ *
+ * ★왜 «검사»로 닫나
+ *   이 패턴은 읽으면 그럴듯해서 다음 사람이 또 쓴다. 「앞으로 조심」은 닫힌 게 아니다.
+ *   ⇒ 다시 들어오면 «빨강»이 되게 한다.
+ *
+ * ⛔fallback 이 정말 필요하면: 반환값(`??`)이 아니라 «존재 여부»로 갈라라.
+ *     if (window.showToast) window.showToast(m); else alert(m);
+ *   그건 이 검사에 안 걸린다 — 막는 건 «?? 로 alert 을 잇는 것» 하나다.
+ *
+ * ⚠️이 검사가 «안» 보는 것
+ *   · `||` 로 이은 경우(`showToast?.(m) || alert(m)`) — 같은 병인데 아직 실물이 없어 안 막았다.
+ *     ★나오면 여기 규칙을 늘려라(지금 넣으면 «없는 것을 지키는» 검사가 된다).
+ *   · alert 자체의 사용 — 의도적으로 쓰는 자리가 있을 수 있어 «?? 로 이은 것»만 본다.
+ */
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const { readSrc } = require('./_srcread.js');
+
+const ROOT = path.resolve(__dirname, '../..');
+/* ★`??` 뒤에 alert 이 오는 것만 본다. 공백·줄바꿈을 허용한다. */
+const BAD = /\?\?\s*alert\s*\(/;
+
+/** 브라우저로 나가는 소스 전수. ⛔node_modules·dist·검사 자신은 뺀다. */
+function walk(dir, out = []) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === 'node_modules' || e.name === 'dist' || e.name.startsWith('.')) continue;
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) walk(p, out);
+    else if (/\.(js|cjs|mjs|html)$/.test(e.name)) out.push(p);
+  }
+  return out;
+}
+
+const FILES = ['js', 'main', 'services'].flatMap((d) => {
+  const abs = path.join(ROOT, d);
+  return fs.existsSync(abs) ? walk(abs) : [];
+}).concat([path.join(ROOT, 'index.html'), path.join(ROOT, 'main.js')].filter(fs.existsSync));
+
+test('⛔`?? alert(` 가 «0건»이다 (렌더러를 얼리는 패턴)', () => {
+  const hits = [];
+  for (const abs of FILES) {
+    const rel = path.relative(ROOT, abs);
+    const src = readSrc(ROOT, ...rel.split(path.sep));
+    src.split('\n').forEach((line, i) => {
+      if (BAD.test(line) && !line.includes('★') && !line.trimStart().startsWith('*')) {
+        hits.push(`${rel}:${i + 1}`);
+      }
+    });
+  }
+  assert.deepEqual(hits, [], '★`?? alert(` 가 다시 들어왔다: ' + hits.join(' / '));
+});
+
+test('★양성대조 — 이 검사가 «실제로» 파일을 읽고 있다 (0건이 «못 잰 것»이 아니다)', () => {
+  assert.ok(FILES.length > 50, `훑은 파일이 ${FILES.length}개뿐이다 — 수집이 깨졌다`);
+  /* 알려진 문자열이 잡히나 — 잡히면 readSrc·순회가 살아 있다는 뜻 */
+  const idx = FILES.find((f) => f.endsWith(path.join('js', 'drag-utils.js')));
+  assert.ok(idx, 'drag-utils.js 를 못 찾았다 — 파일 수집 범위가 틀렸다');
+  const src = readSrc(ROOT, 'js', 'drag-utils.js');
+  assert.match(src, /function showToast\s*\(/, '★대조 실패 — 파일을 못 읽고 있다');
+});
+
+test('★판정기 대조 — 그 패턴을 «주면» 잡는다 (규칙이 죽지 않았다)', () => {
+  assert.equal(BAD.test("window.showToast?.('x') ?? alert('x');"), true);
+  assert.equal(BAD.test('foo() ??  alert(1)'), true);
+  /* 안 걸려야 하는 것 — 존재 여부로 가른 «올바른» fallback */
+  assert.equal(BAD.test('if (window.showToast) window.showToast(m); else alert(m);'), false);
+  assert.equal(BAD.test("window.showToast?.('x');"), false);
+});

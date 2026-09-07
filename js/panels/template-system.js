@@ -158,7 +158,15 @@ async function insertTemplate(tpl) {
   if (tpl.type === 'subsection') {
     const targetSec = window.getSelectedSection?.();
     if (!targetSec) {
-      window.showToast?.('섹션을 먼저 선택하세요') ?? alert('섹션을 먼저 선택하세요');
+      /* ★`?? alert(...)` 를 «뺐다» (2026-09-07 툴매니저가 실물로 잡음)
+       *   showToast(js/drag-utils.js:192)는 «return 이 없어» 항상 undefined 를 돌려준다.
+       *   ⇒ `??` 가 «언제나» 통과해 토스트 + 네이티브 alert 이 «둘 다» 뜬다.
+       *   ⇒ 그리고 그 alert 이 렌더러를 «막는다» — 사용자는 모달을 눌러 없앨 때까지
+       *     아무것도 못 한다. 실물 포착: CDP 로 {"type":"alert","message":"섹션을 먼저 선택하세요"}.
+       *   ⛔fallback 이 필요해 보이면 `??` 가 아니라 «존재 여부»로 갈라라 — 반환값으로 갈리면 안 된다.
+       *     여기서는 showToast 가 항상 로드되므로(index.html 이 drag-utils.js 를 무조건 싣는다)
+       *     옵셔널 호출 하나로 충분하다. */
+      window.showToast?.('섹션을 먼저 선택하세요');
       return;
     }
     const tmp = document.createElement('div');
