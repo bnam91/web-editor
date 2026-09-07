@@ -192,6 +192,19 @@ export function showPageProperties() {
         <input type="checkbox" id="page-padx-asset" ${padXExcludesAsset ? 'checked' : ''}>
         <span class="prop-label" style="margin:0;width:auto;overflow:visible;white-space:normal;">에셋블록은 일괄패딩적용에서 제외합니다.</span>
       </div>
+      <div class="prop-row" style="align-items:center;gap:4px;">
+        <input type="checkbox" id="page-grid-on">
+        <span class="prop-label" style="margin:0;width:auto;overflow:visible;white-space:normal;">그리드 가이드 (저장·내보내기에는 안 나옵니다)</span>
+      </div>
+      <div class="prop-row" id="page-grid-opts" style="display:none;">
+        <span class="prop-label">칼럼 · 거터</span>
+        <input type="number" class="prop-number" id="page-grid-cols" min="2" max="24" value="12" title="칼럼 수">
+        <input type="number" class="prop-number" id="page-grid-gut" min="0" max="80" value="20" title="칼럼 사이 간격(px)">
+      </div>
+      <div class="prop-row" id="page-grid-mid-row" style="display:none;align-items:center;gap:4px;">
+        <input type="checkbox" id="page-grid-mid">
+        <span class="prop-label" style="margin:0;width:auto;overflow:visible;white-space:normal;">중앙선도 함께</span>
+      </div>
       <div class="prop-row">
         <span class="prop-label">상하 패딩</span>
         <input type="range" class="prop-slider" id="page-pady-slider" min="0" max="200" step="1" value="${padY}">
@@ -234,6 +247,68 @@ export function showPageProperties() {
     window.scheduleAutoSave?.();
   });
 
+  /* ── 그리드 가이드 (편집 보조) ────────────────────────────────────────
+     ★★DOM 도 인라인 스타일도 «안» 건드린다 — 고디터는 캔버스 DOM 을 그대로 직렬화해 저장하므로
+       오버레이 요소나 inner.style 을 쓰면 프로젝트 파일과 내보낸 이미지에 그리드가 섞인다.
+     ⇒ body 클래스 + «문서 단위 CSS 변수»로만 그린다(css/editor-canvas.css).
+     ⇒ 칼럼 폭은 «섹션 콘텐츠 폭»에서 계산한다. 좌우 패딩이 바뀌면 다시 계산해야 하므로
+       applyPagePadX 뒤에서도 부른다.
+     ⛔프로젝트에 저장하지 않는다 — 이건 «보기» 설정이지 문서의 일부가 아니다.
+       다른 사람이 그 프로젝트를 열었을 때 내 가이드가 켜져 있으면 그게 더 이상하다. */
+  const gridOn   = document.getElementById('page-grid-on');
+  const gridOpts = document.getElementById('page-grid-opts');
+  const gridMidRow = document.getElementById('page-grid-mid-row');
+  const gridCols = document.getElementById('page-grid-cols');
+  const gridGut  = document.getElementById('page-grid-gut');
+  const gridMid  = document.getElementById('page-grid-mid');
+
+  const GRID_KEY = 'gdt.gridGuide';
+  const readGridPref = () => {
+    try { return JSON.parse(localStorage.getItem(GRID_KEY) || '{}') || {}; } catch (_) { return {}; }
+  };
+  const saveGridPref = (o) => { try { localStorage.setItem(GRID_KEY, JSON.stringify(o)); } catch (_) {} };
+
+  function refreshGrid() {
+    const on = !!(gridOn && gridOn.checked);
+    const mid = !!(gridMid && gridMid.checked);
+    document.body.classList.toggle('gdt-grid-on', on);
+    document.body.classList.toggle('gdt-grid-mid', on && mid);
+    if (gridOpts) gridOpts.style.display = on ? '' : 'none';
+    if (gridMidRow) gridMidRow.style.display = on ? '' : 'none';
+    if (!on) return;
+    const n = Math.min(24, Math.max(2, parseInt(gridCols?.value) || 12));
+    const g = Math.min(80, Math.max(0, parseInt(gridGut?.value) || 0));
+    /* 콘텐츠 폭 — «화면에서» 잰다. 섹션마다 패딩이 다를 수 있어 첫 섹션을 기준으로 삼는다.
+       ⚠️섹션별로 패딩을 따로 준 곳은 그 섹션에서 어긋난다 — 가이드지 자[尺]가 아니다. */
+    const inner = document.querySelector('#canvas .section-inner');
+    let contentW;
+    if (inner) {
+      const cs = getComputedStyle(inner);
+      contentW = inner.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
+    } else {
+      contentW = 860 - (parseInt(state.pageSettings.padX) || 0) * 2;
+    }
+    const col = Math.max(1, (contentW - g * (n - 1)) / n);
+    const root = document.documentElement.style;
+    root.setProperty('--gdt-grid-col', col.toFixed(2) + 'px');
+    root.setProperty('--gdt-grid-gut', g + 'px');
+    saveGridPref({ on, mid, n, g });
+  }
+  /* 패딩이 바뀌면 그리드도 따라와야 한다 — 이 자리를 빠뜨리면 «켜 두고 패딩만 바꿨을 때» 어긋난다 */
+  window.__gdtRefreshGrid = refreshGrid;
+
+  if (gridOn) {
+    const pref = readGridPref();
+    gridOn.checked = !!pref.on;
+    if (gridMid) gridMid.checked = !!pref.mid;
+    if (gridCols && pref.n) gridCols.value = pref.n;
+    if (gridGut && pref.g != null) gridGut.value = pref.g;
+    [gridOn, gridMid, gridCols, gridGut].forEach(el =>
+      el && el.addEventListener('input', refreshGrid));
+    [gridOn, gridMid].forEach(el => el && el.addEventListener('change', refreshGrid));
+    refreshGrid();
+  }
+
   const padxSlider = document.getElementById('page-padx-slider');
   const padxNumber = document.getElementById('page-padx-number');
   const padxAsset  = document.getElementById('page-padx-asset');
@@ -241,6 +316,7 @@ export function showPageProperties() {
   const applyPadX = (v) => {
     state.pageSettings.padX = v;
     applyPagePadX(v);
+    window.__gdtRefreshGrid?.();   /* ★그리드는 «패딩 안쪽»에 그려진다 — 같이 다시 재야 한다 */
   };
 
   padxSlider.addEventListener('mousedown', () => window.pushHistory?.());

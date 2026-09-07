@@ -427,7 +427,23 @@ export function sectionBgColor(sec) {
      ⑶ 게이트 판정 (파일이 나간 뒤)
      안쪽에 배선하면 ⑴을 통째로 놓친다. 밖에서 감싸면 «세 층 전부»가 한 술어를 지난다.
    ★returnDataUrl 경로는 «건드리지 않는다» — QA·외부검산이 쓰는 길이고 게이트도 안 돈다. */
+/* ★그리드 가이드는 «편집 보조»다 — 내보낸 이미지에 찍히면 안 된다.
+     html2canvas 는 문서를 복제해 캡처하므로 body 클래스도 따라간다. ⇒ 캡처 «동안»만 끈다.
+   ⛔가장 안쪽인 이 함수에 둔다. 전체 내보내기(exportAllSections)도 여길 지나므로
+     경로가 늘어도 새지 않는다 — 바깥에 두면 새 경로가 생길 때마다 빠뜨린다. */
 async function exportSection(sec, format, width, opts) {
+  const _gOn  = document.body.classList.contains('gdt-grid-on');
+  const _gMid = document.body.classList.contains('gdt-grid-mid');
+  if (_gOn || _gMid) document.body.classList.remove('gdt-grid-on', 'gdt-grid-mid');
+  try {
+    return await _exportSectionNoGuide(sec, format, width, opts);
+  } finally {
+    if (_gOn)  document.body.classList.add('gdt-grid-on');
+    if (_gMid) document.body.classList.add('gdt-grid-mid');
+  }
+}
+
+async function _exportSectionNoGuide(sec, format, width, opts) {
   if (opts && opts.returnDataUrl) return _exportSectionInner(sec, format, width, opts);
   const _t0 = performance.now();
   const _own = !isRunOpen();                       // 단일 섹션이면 스스로 «1칸짜리 판»을 연다
