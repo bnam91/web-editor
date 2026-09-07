@@ -1,0 +1,185 @@
+// ── Zoom Block 기하 (확대블럭) ────────────────────────────────────────────────
+// ★이 파일은 «순수 함수만» 둔다 — window·DOM 을 만지지 않는다.
+//   이유: 이 레포는 package.json 이 "type":"commonjs" 라 js/**.js 를 node 가 못 읽고,
+//   검사는 tmp `.mjs` 사본을 동적 import 해서 «진짜 실행»으로 잰다
+//   (tests/unit/aifill-goya-asset.test.js 의 수법). 모듈 최상단에 window 접근이 하나라도
+//   있으면 그 import 가 ReferenceError 로 죽어서 «기하를 잴 수 없다».
+//   ⇒ 렌더·이벤트·dataset 은 전부 zoom-block.js 몫이다.
+//
+// 좌표계: 도형 중심을 (cx,cy) 로 받는다. 화면 좌표(y 아래로 증가) 그대로.
+//         angle 0° = +x(오른쪽), 시계방향으로 증가.
+
+/** rect 프리셋의 세로/가로 비 — square(1.0) 와 «눈에 띄게» 달라야 프리셋이 프리셋 구실을 한다. */
+export const ZOOM_RECT_RATIO = 0.625;   // 가로:세로 = 1.6 : 1
+
+/** 그림자 띠 개수. 많을수록 매끈하지만 노드가 늘어난다(64 = 실측상 밴딩 안 보임). */
+export const ZOOM_STRIP_COUNT = 64;
+
+export function lerp(p, q, t) {
+  return { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t };
+}
+
+/** 도형 꼭짓점 — rect/square 공용. rot 은 도(degree). */
+export function shapePts(kind, r, rot, cx, cy) {
+  const hw = r;
+  const hh = (kind === 'rect') ? r * ZOOM_RECT_RATIO : r;
+  const th = (Number(rot) || 0) * Math.PI / 180;
+  const co = Math.cos(th), si = Math.sin(th);
+  return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(function (p) {
+    return { x: cx + p[0] * co - p[1] * si, y: cy + p[0] * si + p[1] * co };
+  });
+}
+
+/* 광원에서 그은 접점 = 그림자 지는 점.
+   ⛔「축에 수직인 극점」은 광원이 «무한히 멀 때»만 맞다 — 가까우면 어긋난다(사각형이면 아래 꼭짓점이 맞다) */
+export function silhouette(kind, r, rot, L, cx, cy) {
+  if (kind === 'circle') {
+    var dx = cx - L.x, dy = cy - L.y, d = Math.hypot(dx, dy);
+    if (d <= r + 0.5) return [{ x: cx, y: cy }, { x: cx, y: cy }];
+    var phi = Math.atan2(-dy, -dx), be = Math.acos(Math.max(-1, Math.min(1, r / d)));
+    return [{ x: cx + r * Math.cos(phi - be), y: cy + r * Math.sin(phi - be) },
+            { x: cx + r * Math.cos(phi + be), y: cy + r * Math.sin(phi + be) }];
+  }
+  var ps = shapePts(kind, r, rot, cx, cy), base = Math.atan2(cy - L.y, cx - L.x);
+  var lo = ps[0], hi = ps[0], lv = 1e9, hv = -1e9;
+  ps.forEach(function (p) {
+    var q = Math.atan2(p.y - L.y, p.x - L.x) - base;
+    while (q > Math.PI) q -= 2 * Math.PI; while (q < -Math.PI) q += 2 * Math.PI;
+    if (q < lv) { lv = q; lo = p } if (q > hv) { hv = q; hi = p }
+  });
+  return [lo, hi];
+}
+
+/* 띠 — A·B(진함) → a·b(투명). pw=농도곡선, MAXOP=최대농도(0~1)
+   ⛔선형 그라데이션(linearGradient)을 쓰지 마라. 선형은 «축에 수직인» 등농도선을 만들어서
+     a·b 가 축 방향 거리가 다르면 «둘의 농도가 갈린다»(현빈이 실제로 잡은 결함).
+   ⇒ a→A 와 b→B 를 «같은 비율 t» 로 훑는다. 그래야 윗변 전체 0 / 아랫변 전체가 정확히 최대농도다. */
+export function strips(A, B, a, b, n, pw, MAXOP) {
+  var out = '';
+  for (var i = 0; i < n; i++) {
+    var t0 = i / n, t1 = (i + 1) / n, tm = (t0 + t1) / 2;
+    var L0 = lerp(A, a, t0), R0 = lerp(B, b, t0), L1 = lerp(A, a, t1), R1 = lerp(B, b, t1);
+    var o = Math.pow(1 - tm, pw) * MAXOP;
+    out += '<polygon points="' + [L0, R0, R1, L1].map(function (p) { return p.x.toFixed(2) + ',' + p.y.toFixed(2) }).join(' ') +
+      '" fill="#000" fill-opacity="' + o.toFixed(4) + '"/>';
+  }
+  return out;
+}
+
+/** A·B 를 서로 밀어 «벌린다»(spread px, 총량). AB 가 한 점이면(퇴화) 그대로 둔다. */
+export function applySpread(A, B, spread) {
+  var s = Number(spread) || 0;
+  if (!s) return [A, B];
+  var dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy);
+  if (!(d > 1e-6)) return [A, B];
+  var ux = dx / d, uy = dy / d, h = s / 2;
+  return [{ x: A.x - ux * h, y: A.y - uy * h }, { x: B.x + ux * h, y: B.y + uy * h }];
+}
+
+/* a·b 자동값: A·B 를 광원 쪽으로 좁혀서.
+   mid=(A+B)/2, k=1-narrow/100 → 짧은 변은 «광원 위에» 중심을 두고 AB 폭의 k 배가 된다. */
+export function autoShortEdge(A, B, L, narrow) {
+  var mid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+  var k = 1 - (Number(narrow) || 0) / 100;
+  return [{ x: L.x + (A.x - mid.x) * k, y: L.y + (A.y - mid.y) * k },
+          { x: L.x + (B.x - mid.x) * k, y: L.y + (B.y - mid.y) * k }];
+}
+
+/** 광원 L — 도형 중심에서 «방향 각도»로 «길이» 만큼 떨어진 점. */
+export function lightPoint(angle, length, cx, cy) {
+  var th = (Number(angle) || 0) * Math.PI / 180;
+  var len = Number(length) || 0;
+  return { x: cx + Math.cos(th) * len, y: cy + Math.sin(th) * len };
+}
+
+/** 모든 좌표가 유한한지 — 퇴화(광원이 도형 안 등)로 NaN 이 새면 SVG 가 통째로 깨진다. */
+export function allFinite(pts) {
+  return pts.every(function (p) { return p && Number.isFinite(p.x) && Number.isFinite(p.y); });
+}
+
+/**
+ * 한 번에 기하 전부 — 렌더가 «계산»을 하지 않게 한다(같은 산식이 두 군데 생기는 것을 막음).
+ * @param {object} st  {shape,angle,length,spread,maxop,curve,narrow,size,rot}
+ * @param {?object} pinned  {a:{x,y}, b:{x,y}} — 사람이 «끈» a·b. 없으면 «언제나» 자동.
+ */
+export function computeZoomGeometry(st, pinned) {
+  var kind = st.shape;
+  var r = (Number(st.size) || 0) / 2;
+  var L = lightPoint(st.angle, st.length, 0, 0);
+  var sil = silhouette(kind, r, st.rot, L, 0, 0);
+  var sp = applySpread(sil[0], sil[1], st.spread);
+  var A = sp[0], B = sp[1];
+  var auto = autoShortEdge(A, B, L, st.narrow);
+  var a = (pinned && pinned.a) ? pinned.a : auto[0];
+  var b = (pinned && pinned.b) ? pinned.b : auto[1];
+  return { L: L, A: A, B: B, a: a, b: b, autoA: auto[0], autoB: auto[1], r: r };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SVG 조립 — ★여기도 «순수»다.
+   렌더 문자열을 zoom-block.js 에 두면 검사가 「기하는 실행으로, 그림은 눈으로」로 갈린다.
+   여기 두면 검사가 «실제로 나가는 마크업»을 그대로 받아 잴 수 있다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+export const ZOOM_PAD = 14;        // 뷰박스 여백(px)
+export const ZOOM_HANDLE_R = 5;    // a·b 핸들 반지름(px)
+
+/* 색을 마크업에 넣기 전 거른다 — 색 문자열로 태그가 끼어들 자리를 아예 없앤다.
+   허용: #hex · rgb()/rgba()/hsl()/hsla() · CSS 변수 · 이름색. 걸리면 fallback. */
+export function safeColor(v, fallback) {
+  const s = String(v ?? '').trim();
+  return /^[#a-zA-Z0-9(),.%\s_-]{1,64}$/.test(s) ? s : fallback;
+}
+
+export function shapeMarkup(st) {
+  const fill = safeColor(st.fill, '#cfd6e0');
+  const r = (Number(st.size) || 0) / 2;
+  if (st.shape === 'circle') {
+    return `<circle class="zoom-shape" cx="0" cy="0" r="${r.toFixed(2)}" fill="${fill}"/>`;
+  }
+  const pts = shapePts(st.shape, r, st.rot, 0, 0)
+    .map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+  return `<polygon class="zoom-shape" points="${pts}" fill="${fill}"/>`;
+}
+
+/**
+ * 확대블럭의 SVG 전부. 도형 중심이 (0,0) 인 좌표계로 그리고, 뷰박스가 그 상자를 담는다.
+ * ★그리는 순서 = 그림자 → 도형 → 핸들. 도형이 «가장 진한 끝»을 덮어야 사다리꼴이 도형에 «붙는다».
+ * ★a·b 핸들은 «항상» 그린다 — 보이기는 CSS(.zoom-block.selected)가 정한다.
+ *   선택은 renderZoomBlock 을 다시 부르지 않으므로 렌더 시점의 선택상태에 기대면 안 된다.
+ */
+export function buildZoomSvg(st, pinned) {
+  const geo = computeZoomGeometry(st, pinned);
+  const r = (Number(st.size) || 0) / 2;
+
+  /* 퇴화면 그림자만 접는다 — 도형은 계속 보여야 한다.
+     ★두 갈래다: ①좌표가 새는 경우(NaN) ②A·B 가 «한 점»인 경우.
+       ②는 silhouette 의 circle 분기가 광원이 원 안일 때 중심점 둘을 돌려주는 자리다.
+       NaN 이 아니라서 ①만 보면 통과해 버리고, 넓이 0 인 띠가 64장 «조용히» 쌓인다
+       (검사 ⓐ-13 이 실제로 이걸 잡았다 — 눈으로는 안 보이는 결함이다). */
+  const ok = allFinite([geo.A, geo.B, geo.a, geo.b, geo.L])
+    && Math.hypot(geo.B.x - geo.A.x, geo.B.y - geo.A.y) > 1e-6;
+  const shadow = ok
+    ? strips(geo.A, geo.B, geo.a, geo.b, ZOOM_STRIP_COUNT, (Number(st.curve) || 100) / 100, (Number(st.maxop) || 0) / 100)
+    : '';
+
+  const bboxPts = [
+    { x: -r, y: -r }, { x: r, y: r },
+    ...(st.shape === 'circle' ? [] : shapePts(st.shape, r, st.rot, 0, 0)),
+    ...(ok ? [geo.A, geo.B, geo.a, geo.b, geo.L] : []),
+  ];
+  const xs = bboxPts.map(p => p.x), ys = bboxPts.map(p => p.y);
+  const minX = Math.min(...xs) - ZOOM_PAD, maxX = Math.max(...xs) + ZOOM_PAD;
+  const minY = Math.min(...ys) - ZOOM_PAD, maxY = Math.max(...ys) + ZOOM_PAD;
+  const w = Math.max(1, maxX - minX), h = Math.max(1, maxY - minY);
+
+  const handles = ok ? `<g class="zoom-handles">` +
+    `<circle class="zoom-handle" data-pt="a" cx="${geo.a.x.toFixed(2)}" cy="${geo.a.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
+    `<circle class="zoom-handle" data-pt="b" cx="${geo.b.x.toFixed(2)}" cy="${geo.b.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
+    `</g>` : '';
+
+  return `<svg class="zoom-svg" width="${w.toFixed(2)}" height="${h.toFixed(2)}" ` +
+    `viewBox="${minX.toFixed(2)} ${minY.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}" ` +
+    `xmlns="http://www.w3.org/2000/svg">` +
+    `<g class="zoom-shadow">${shadow}</g>${shapeMarkup(st)}${handles}</svg>`;
+}

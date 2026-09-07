@@ -100,6 +100,7 @@ const WEIGHT = Object.freeze({
   banner: 3,
   banner02: 3,
   laurel: 3,
+  zoom: 3,          // .zoom-block(zmb_) — 도형+그림자 사다리꼴, 통짜 시각 덩어리
   liner: 3,
   vector: 3,
   shape: 3,

@@ -1747,6 +1747,42 @@ textarea.cvb-card-input {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));
 }
+
+/* ── Zoom Block (확대블럭) ─────────────────────────────────────────────────
+   도형 + 광원 쪽으로 뻗는 그림자 사다리꼴. SVG 하나가 통째로 블록 내용이다.
+   ★outline 은 «명시»한다(신규 블록 체크리스트 5번째 칸) — 폭은 하드코딩 px 이 아니라
+     `--sel-outline-w`(= calc(1px * var(--inv-zoom,1)), 화면상 1px) 토큰을 쓴다.
+     .claude/rules/css-blocks.md 「선택 outline 표준 — --sel-outline-w 토큰으로 통일」 +
+     바로 위 .laurel-block.selected 전례와 «같은 값»이어야 두께가 안 어긋난다. */
+.zoom-block {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  user-select: none;
+  padding: 8px 0;
+}
+.zoom-block .zoom-svg { display: block; max-width: 100%; height: auto; }
+/* a·b 핸들 — 항상 그려두고 «선택됐을 때만» 보인다(렌더는 선택상태를 안 본다). */
+.zoom-block .zoom-handle {
+  fill: var(--sel-color);
+  stroke: #fff;
+  stroke-width: 1.5;
+  opacity: 0;
+  pointer-events: none;
+  cursor: grab;
+}
+.zoom-block.selected .zoom-handle { opacity: 1; pointer-events: auto; }
+.zoom-block:hover {
+  outline: 1px dashed var(--sel-color);
+  outline-offset: -1px;
+}
+.zoom-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
 .chb-msg {
   display: flex;
   width: 100%;

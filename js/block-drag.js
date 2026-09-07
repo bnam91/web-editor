@@ -283,6 +283,7 @@ function bindBlock(block) {
   const isStep       = block.classList.contains('step-block');
   const isChat       = block.classList.contains('chat-block');
   const isLaurel     = block.classList.contains('laurel-block');
+  const isZoom       = block.classList.contains('zoom-block');
   const isGradient   = block.classList.contains('gradient-block');
 
   // ── 공통: 절대좌표 드래그 (프레임 자유배치 — 모든 블록 타입) ──
@@ -1394,6 +1395,34 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showLaurelProperties?.(block);
+    });
+  }
+
+  if (isZoom) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        e.stopPropagation();
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeFrame = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showFrameProperties?.(ss);
+        return;
+      }
+      window.deselectAll();
+      _restoreParentFrameSelected(block);
+      block.classList.add('selected');
+      window.syncSection(sec);
+      window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
+      window.showZoomProperties?.(block);
     });
   }
 
