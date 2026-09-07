@@ -56,6 +56,12 @@
     /* ★row_ 는 «블록 도구»엔 없지만 DOM 에는 있다(나란히 배치 래퍼).
        move_block 이 「행은 통째로 움직인다」고 말하는 그것이라, 구조를 알려면 보여야 한다. */
     row_: 'row',
+    /* ★정본에 있는데 여기 빠져 있던 것들(2026-09-07 전수 대조로 찾음).
+       bn2_ 는 위 거르개까지 겹쳐 «아예 안 나왔고», grad_ 는 type:null 로 «이름 없이» 나왔다. */
+    bn2_: 'banner02', grad_: 'gradient',
+    /* ★grid 는 «앱에는 있는데 MCP 정본(BLOCK_TYPES)에 없다» — 만들지도 고치지도 못한다.
+       그래도 «읽기»는 이름을 붙여 준다. 「보이는데 못 만진다」가 「안 보인다」보다 낫다. */
+    grd_: 'grid',
   };
   function _typeOf(id) {
     var best = null;
@@ -108,7 +114,14 @@
       const id = el.id || '';
       if (!id || id.indexOf('sec_') === 0 || seen[id]) return;
       const type = _typeOf(id);
-      if (type === null && !/^[a-z]{2,4}_/.test(id)) return;   // 블록 id 모양이 아닌 것만 거른다
+      /* ⛔이 거르개가 «숫자가 든 접두»를 통째로 버렸다 — `bn2_`(banner02)가 그래서 «아예 안 나왔다».
+         실측(2026-09-07, 끌리젠 사본): 디스크에 bn2_ 3개가 있는데 그 섹션을 읽으면 19블록 중 0개.
+         이름이 바뀐 게 아니라 «없는 취급»이었다.
+       ★그리고 바로 위 PFX 주석이 「안 늘려도 빠지지는 않는다」고 «약속»하고 있었다 —
+         이 한 줄이 그 약속을 안 지킨 것이다. 주석이 코드보다 많은 것을 약속한 자리다.
+       ⇒ 접두에 숫자를 허용한다. ⛔블록 «아이디»를 바꾸는 처방은 틀렸다 —
+         옛 프로젝트 파일엔 이미 bn2_ 로 저장돼 있어서, 접두를 바꿔도 «옛것은 그대로 안 읽힌다». */
+    if (type === null && !/^[a-z][a-z0-9]{1,5}_/.test(id)) return;   // 블록 id 모양이 아닌 것만 거른다
       seen[id] = 1;
       if (el.classList.contains('text-block')) { blocks.push(_readTextBlock(el)); return; }
       blocks.push({ blockId: id, type: type, summary: _summarize(el, type) });
