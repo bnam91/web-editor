@@ -1099,8 +1099,21 @@ const PROJECTS_DIR_LEGACY = path.join(USER_DATA_DIR, 'projects');
 const ACCOUNTS_DIR = path.join(USER_DATA_DIR, 'accounts');
 /* ★「누구인지 못 알아냈다」의 착지점. ⛔레거시 공용 풀로 내리지 않는다 —
    거기 쌓인 것은 다음 계정 첫 로그인 때 «입양»되고, 거기 있던 것은 «보인다».
-   비어 있는 격리 폴더라 새는 방향이 양쪽 다 없다. 앱은 계속 돈다(사용자를 가두지 않는다).
-   ⛔`acct_` 접두가 «아니라서» _existingAccountKeys 가 계정으로 세지 않는다 — 의도한 것이다. */
+   ⛔`acct_` 접두가 «아니라서» _existingAccountKeys 가 계정으로 세지 않는다 — 의도한 것이다
+     (세면 나중에 «진짜» 계정이 첫 로그인 할 때 입양을 못 받는다).
+
+   ★★그런데 이건 «공짜»가 아니다 — «교환»이다. 그 값을 여기 적어 둔다(지디 지적):
+     공용 풀 : 남에게 «보인다»(샌다)          그러나 «회수는 된다»(입양·목록에 잡힌다)
+     격리 폴더: 안 샌다                        그러나 ★«나오는 길이 없다»
+   ⇒ 여기를 읽는 코드는 «0곳»이다. 입양 후보도 아니고 목록에도 안 뜬다.
+     즉 이 판은 「샐 위험」을 「갇힐 위험」과 바꾼 것이다. 나는 그 교환이 맞다고 본다 —
+     새면 «남의 것»이 되지만 갇히면 «내 것»으로 남고, 손으로 꺼낼 수 있기 때문이다.
+   ⇒ ★그래서 «손으로 꺼내는 길»을 폴더 안에 적어 둔다(_writeUnresolvedReadme).
+     ⛔코드로 자동 회수(입양 후보에 넣기)는 «안 한다» — 입양 규칙이 지금 현빈 판단 대기 중이라
+       규칙을 하나 더 늘릴 때가 아니다. 판단이 나오면 그때 같이 정한다.
+   ⚠️오늘 기준 이 폴더는 «빌 것»이다 — 그 상태에선 사용자가 프로젝트를 못 만든다(실측:
+     MCP 는 NOT_LOGGED_IN, 렌더러는 로그인 화면). 즉 «지금 갇히는» 것이 아니다.
+     다만 오늘 비어 있는 이유도 «무관한 게이트 둘»이라, 그게 바뀌면 이쪽으로 열린다. */
 const PROJECTS_DIR_UNRESOLVED = path.join(ACCOUNTS_DIR, '_unresolved', 'projects');
 let PROJECTS_DIR = PROJECTS_DIR_LEGACY;
 migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR_LEGACY); // 구 경로 마이그레이션
@@ -1173,6 +1186,34 @@ function _adoptLegacyIfSoleAccount(key, dest) {
   return { adopted: moved, failed };
 }
 
+/* ★격리 폴더에 «나오는 길»을 적어 둔다. 여기를 읽는 코드가 없으니 사람이 꺼내야 한다.
+   ⛔이 파일을 쓰다 실패해도 격리 자체는 막지 않는다(안전이 먼저) — 대신 소리를 낸다. */
+function _writeUnresolvedReadme(errMessage) {
+  const dir = path.dirname(PROJECTS_DIR_UNRESOLVED);
+  const txt = [
+    '이 폴더는 GODITOR 가 «로그인 계정을 못 알아냈을 때» 쓰는 임시 격리 폴더입니다.',
+    '',
+    `마지막 사유: ${errMessage || '(알 수 없음)'}`,
+    `기록 시각: ${new Date().toISOString()}`,
+    '',
+    '■ 왜 여기로 왔나',
+    '  auth.json 을 «읽지 못했습니다»(손상 등). 누구인지 모르는 상태로 공용 폴더를 쓰면',
+    '  나중에 다른 계정이 그 내용을 가져갈 수 있어, 아무에게도 안 보이는 곳으로 격리했습니다.',
+    '',
+    '■ ★여기 있는 것을 «어디로» 옮기면 되나',
+    '  ⑴ 먼저 앱에 정상적으로 로그인하십시오(로그인하면 auth.json 이 새로 써집니다).',
+    '  ⑵ 그러면 상위 폴더(accounts/)에 «acct_...» 로 시작하는 본인 계정 폴더가 생깁니다.',
+    '  ⑶ 이 폴더의 projects/ 안에 있는 proj_* 폴더를 그 «acct_.../projects/» 안으로 옮기십시오.',
+    '  ⑷ 앱을 다시 켜면 갤러리에 나타납니다.',
+    '',
+    '⚠️앱은 이 폴더를 «스스로 읽지 않습니다». 옮기지 않으면 갤러리에 영영 안 보입니다.',
+    '⚠️이 폴더가 비어 있으면(proj_* 가 없으면) 그냥 지우셔도 됩니다.',
+    '',
+  ].join('\n');
+  try { fs.writeFileSync(path.join(dir, 'README-읽어주세요.txt'), txt, 'utf8'); }
+  catch (e) { console.error('[projects] 격리 폴더 안내문을 못 남겼다 — 손으로 꺼낼 길이 안 적혔다:', (e && e.message) || e); }
+}
+
 /* 계정별 뿌리로 갈아끼운다. 로그인/로그아웃/기동 때 부른다. */
 let _projectsDirState = null;
 function _repointProjectsDir(reason) {
@@ -1184,6 +1225,7 @@ function _repointProjectsDir(reason) {
     console.error(`[projects] ★계정을 «못 읽었다»(손상?) — 공용 풀로 내리지 않고 격리 폴더로 간다:`, (e && e.message) || e);
     fs.mkdirSync(PROJECTS_DIR_UNRESOLVED, { recursive: true });
     PROJECTS_DIR = PROJECTS_DIR_UNRESOLVED;
+    _writeUnresolvedReadme((e && e.message) || String(e));
     _projectsDirState = { root: PROJECTS_DIR, account: null, reason, unresolved: true, error: String((e && e.message) || e) };
     return _projectsDirState;
   }

@@ -461,3 +461,42 @@ test('M21 ★진단 필드가 «health 까지» 배선돼 있다 (만들고 안 
     assert.match(mcp, new RegExp(`${f}:\\s*[^,\\n]*a\\.${f}`), `★health(mcp-server.js)가 ${f} 를 안 싣는다 — 만들어도 안 보인다`);
   }
 });
+
+test('M22 ★격리 폴더에 «나오는 길»이 적힌다 (읽는 코드가 0곳이라 사람이 꺼내야 한다)', () => {
+  /* 지디 지적: 나는 「샐 위험」을 「갇힐 위험」과 바꿔놓고 ★그 교환을 아무 데도 안 적었다.
+     _unresolved 를 «읽는» 코드는 0곳이다 — 입양 후보도 아니고 목록에도 안 뜬다.
+     ⇒ 코드로 자동 회수하지 «않는» 대신(입양 규칙은 현빈 판단 대기), 손으로 꺼낼 길을 남긴다. */
+  const h = load({ email: 'chulsoo@example.com' });
+  h.setAuthThrows(true);
+  h.api._repointProjectsDir('login');
+
+  const readme = path.join(h.ud, 'accounts', '_unresolved', 'README-읽어주세요.txt');
+  assert.ok(fs.existsSync(readme), '★나오는 길이 안 적히면 데이터가 «영영» 갇힌다');
+  const txt = fs.readFileSync(readme, 'utf8');
+  assert.match(txt, /acct_/, '★«어느 폴더»로 옮기는지가 적혀야 한다');
+  assert.match(txt, /proj_\*/, '★«무엇»을 옮기는지가 적혀야 한다');
+  assert.match(txt, /스스로 읽지 않습니다/, '★앱이 자동 회수하지 «않는다»는 것을 알려야 한다');
+  assert.match(txt, /깨짐/, '★왜 여기로 왔는지(사유)가 적혀야 한다');
+});
+
+test('M22b ★안내문 쓰기가 실패해도 «격리 자체»는 선다 (안전이 먼저)', () => {
+  const h = load({ email: 'chulsoo@example.com' });
+  h.setAuthThrows(true);
+  const realWrite = fs.writeFileSync;
+  fs.writeFileSync = () => { throw new Error('디스크 꽉 참'); };
+  try {
+    const st = h.api._repointProjectsDir('login');
+    assert.strictEqual(h.api.PROJECTS_DIR, h.api.PROJECTS_DIR_UNRESOLVED,
+      '★안내문을 못 써도 «공용 풀»로 떨어지면 안 된다 — 안내문은 편의, 격리는 안전');
+    assert.strictEqual(st.unresolved, true);
+  } finally { fs.writeFileSync = realWrite; }
+});
+
+test('M22c ★교환이 «코드에 적혀» 있다 (판단의 근거는 남아야 한다)', () => {
+  /* 「샐 위험 ↔ 갇힐 위험」을 바꾼 것은 «판단»이다. 판단은 근거와 같이 남아야
+     다음 사람이(또는 내가) 되짚을 수 있다. 지디가 지적한 것이 정확히 이 부재였다. */
+  const i = SRC.indexOf('const PROJECTS_DIR_UNRESOLVED');
+  const head = SRC.slice(Math.max(0, i - 2000), i);
+  assert.match(head, /나오는 길이 없다|회수는 된다/, '★교환의 «양쪽»이 적혀야 한다');
+  assert.match(head, /입양 규칙이 지금 현빈 판단 대기/, '★왜 자동 회수를 «안» 했는지가 적혀야 한다');
+});
