@@ -11,6 +11,95 @@ const TEMPLATE_MIGRATED_KEY = 'sangpe-templates-migrated';
 let _templatesCache = null;  // 메타데이터 전용 (canvas 없음)
 let _lsFullCache    = [];    // 비-Electron 전용: canvas 포함 전체 데이터
 
+/* ══ 템플릿 «내부» 경로 ID ═══════════════════════════════════════════════════
+   현빈 지시: 템플릿에 저장된 섹션·블록에 가리키기용 이름표를 붙인다.
+   ★「템플릿 안에 있을 때만」 쓰는 것이다 — 캔버스에 들어가면 떼어낸다(_stripTplPath).
+     런타임 정체성은 genId 가 따로 준다. 둘은 수명이 다르다.
+
+   문법   <템플릿id>#<경로>        예) tpl_1775018641878#row2/text1
+   경로   <종류><n> 을 «/» 로 잇는다 · 루트는 «#» 뒤 빈 문자열
+   번호   ★같은 부모·같은 종류 안에서 1-based
+
+   ⛔`id` 속성을 쓰지 않는 이유: insertTemplate 이 [id] 를 전부 새 값으로 덮어쓰고,
+     `el.id.split('_')[0]` 로 접두사를 재사용하는 로직이 깨진다. 별도 속성이어야 한다.
+
+   ★래퍼(section-inner·col·frame-inner)는 «건너뛴다».
+     읽기에 방해이기도 하지만 본론은 따로다 — migrateColsFromDOM 이 stack row 의 col 을
+     «언랩»하므로, col 을 세면 저장본과 런타임의 경로가 갈린다.
+     건너뛰면 col 이 있든 없든 «같은 경로»가 나온다. (실측: 템플릿에 col 88개)
+
+   ★레거시 클래스는 «현행 이름»으로 접는다. 정본 = save-load.js:636 의 리네임
+     (sub-section-block → frame-block). 실측: 템플릿 3파일에 «살아있다».
+     안 접으면 같은 노드가 저장본에선 sub-section1, 런타임에선 frame1 이 된다.
+   ⛔그리드 쪽 옛 이름은 «별칭에 넣지 않았다» — 실측 0건이라 없는 데이터를 위한 보험이고,
+     그 토큰을 코드에 두면 개명 잔존 가드(tests/unit/grid-rename-residue.test.mjs)가 빨강이 된다.
+     그 검사는 「ALLOW 를 늘려 빨강을 끄지 마라」고 못박고 있다. 필요해지면 그때 정본 상수를 import 해라. */
+const _TPL_PATH_ATTR  = 'data-tpl-path';
+const _TPL_KIND_ALIAS = { 'sub-section': 'frame' };
+
+/* 이 엘리먼트가 «경로 한 칸»을 차지하는가 — 아니면 null(투명) */
+function _tplKindOf(el) {
+  const cl = el && el.classList;
+  if (!cl || !cl.length) return null;
+  if (cl.contains('row')) return 'row';
+  for (const c of cl) {
+    const m = /^([a-z][a-z0-9-]*)-block$/.exec(c);
+    if (m) return _TPL_KIND_ALIAS[m[1]] || m[1];
+  }
+  return null;   // col·section-inner·frame-inner·내부 마크업 — 투명하게 뚫고 지나간다
+}
+
+/* 이 범위에 «속하는» 노드들 — 투명한 것은 뚫고 내려가 «같은 범위»로 모은다.
+   ★한 범위의 번호가 여기서 정해진다. col 마다 따로 세면 row1/text1 이 둘 생긴다. */
+function _tplScopeChildren(el) {
+  const out = [];
+  const visit = (node) => {
+    for (const child of node.children) {
+      if (_tplKindOf(child)) out.push(child);
+      else visit(child);
+    }
+  };
+  visit(el);
+  return out;
+}
+
+/* ★파생이 «정본»이다 — 저장·조회가 이 함수 하나를 공유하므로 두 값이 갈릴 수 없다.
+   그리고 조회를 계산으로 하니 «경로가 저장 안 된 구 템플릿»도 마이그레이션 없이 즉시 동작한다. */
+function _tplPathOf(root) {
+  const map = new Map();
+  if (!root || !root.children) return map;
+  const walk = (el, base) => {
+    const counts = Object.create(null);
+    for (const child of _tplScopeChildren(el)) {
+      const kind = _tplKindOf(child);
+      counts[kind] = (counts[kind] || 0) + 1;
+      const path = (base ? base + '/' : '') + kind + counts[kind];
+      map.set(child, path);
+      walk(child, path);
+    }
+  };
+  walk(root, '');
+  return map;
+}
+
+/* 저장본에 «사본»을 심는다(파일만 봐도 읽히게). 정본은 위 파생이다. */
+function _tplStampPath(root) {
+  const map = _tplPathOf(root);
+  map.forEach((path, el) => el.setAttribute(_TPL_PATH_ATTR, path));
+  return map.size;
+}
+
+/* ★캔버스로 새어 들어가지 않게 떼어낸다.
+   ⛔serializeCleanRoot 는 범용 data-* 를 «안» 지운다(data-lazy-bg 하나뿐) —
+     즉 삽입 시점의 이 호출이 «유일한 방벽»이다. 세 분기 중 하나만 빠뜨리면 그 분기만 샌다. */
+function _tplStripPath(root) {
+  if (!root || !root.removeAttribute) return 0;
+  let n = 0;
+  if (root.hasAttribute(_TPL_PATH_ATTR)) { root.removeAttribute(_TPL_PATH_ATTR); n++; }
+  root.querySelectorAll('[' + _TPL_PATH_ATTR + ']').forEach(el => { el.removeAttribute(_TPL_PATH_ATTR); n++; });
+  return n;
+}
+
 // 앱 시작 시 1회 호출
 async function initTemplates() {
   if (window.electronAPI?.loadTemplateIndex) {
@@ -131,6 +220,11 @@ async function saveAsTemplate(el, name, folder, category, tags, type = 'section'
   clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
   clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
   clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .sec-bg-proxy').forEach(el => el.remove());
+  /* ★순서가 중요하다 — «먼저 지우고 그다음 심는다».
+     안 그러면 「삽입됐던 것을 다시 저장」할 때 남의 템플릿 경로가 눌어붙는다.
+     (삽입 시 strip 하지만, 캔버스를 거쳐 온 것에 옛 값이 남아 있을 수 있다) */
+  _tplStripPath(clone);
+  _tplStampPath(clone);
 
   const id  = 'tpl_' + Date.now();
   const html = clone.outerHTML;
@@ -192,6 +286,7 @@ async function insertTemplate(tpl) {
       window.showToast?.(`❌ '${tplName}' 템플릿이 비었거나 손상됐습니다.`);
       return;
     }
+    _tplStripPath(blockEl);   // ★템플릿 안에서만 쓰는 이름표 — 캔버스로 들고 들어가지 않는다
 
     // row로 감싸서 insertAfterSelected로 삽입 (섹션 패딩/레이아웃 정상 적용)
     const row = document.createElement('div');
@@ -234,6 +329,7 @@ async function insertTemplate(tpl) {
       return;
     }
 
+    _tplStripPath(ss);        // ★템플릿 전용 이름표 제거(형제 셋 공통)
     // ID 재생성 (중복 방지)
     ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
     ss._subSecBound = false;
@@ -294,6 +390,7 @@ async function insertTemplate(tpl) {
   const genId = (prefix) => (typeof window.genId === 'function'
     ? window.genId(prefix)
     : prefix + '_' + Math.random().toString(36).slice(2, 9));
+  _tplStripPath(sec);         // ★템플릿 전용 이름표 제거(형제 셋 공통)
   sec.id = genId('sec');
   sec.querySelectorAll('[id]').forEach(el => {
     const prefix = el.id.split('_')[0] || 'el';
@@ -810,6 +907,9 @@ export async function saveBlockAsTemplate(block, name, folder = '블록', tagsSt
   clone.classList.remove('selected', 'hovered');
   clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .sec-bg-proxy, .block-toolbar').forEach(el => el.remove());
   clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
+  /* 블록 저장도 «같은 형제»다 — 현빈 지시가 「섹션이나 블럭들도 모두」였다. 순서는 위와 같다. */
+  _tplStripPath(clone);
+  _tplStampPath(clone);
   const html = clone.outerHTML;
 
   const id = 'btpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
@@ -845,6 +945,52 @@ export async function saveBlockAsTemplate(block, name, folder = '블록', tagsSt
 }
 
 // 크로스 모듈 접근용 window 노출
+/* ══ 템플릿 «가리키기» API ══════════════════════════════════════════════════
+   현빈 목적: MCP·클로드코드에서 「~아이디의 템플릿 추가해줘」처럼 «가리킬» 수 있게.
+   ★캔버스를 건드리지 않는다 — 분리된 DOM 에서 계산만 한다.
+   ⛔MCP 도구 «등록»은 여기서 하지 않는다. mcp-server.js·mcp-block-tools.js 는
+     형제 스킬(goditor-manager-mcp) 소관이라, 그쪽이 이 둘을 부르면 된다. */
+async function _tplRootOf(tplId) {
+  const html = await _loadCanvas(tplId);
+  if (!html) return null;
+  const host = document.createElement('div');
+  host.innerHTML = html;
+  return host.firstElementChild;
+}
+
+function _tplNodeInfo(el, path) {
+  return {
+    path,
+    kind: _tplKindOf(el) || 'root',
+    text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80),
+  };
+}
+
+/* 이 템플릿에 무엇이 있나 — 경로 목록. ★경로가 저장 안 된 «구 템플릿»도 파생이라 그대로 나온다. */
+async function listTemplateNodes(tplId) {
+  const root = await _tplRootOf(tplId);
+  if (!root) return [];
+  /* ★루트를 «목록에 넣는다»(경로 = 빈 문자열).
+     넣지 않으면 block 템플릿(루트가 블록 자신이라 하위 노드가 0개)이 «빈 목록»으로 나와
+     「가리킬 것이 없다」로 읽힌다 — 실제로는 findTemplateNode(id,'') 로 찾아지는데도.
+     목록과 조회가 어긋나면 목록 쪽을 믿는 호출자가 헛다리를 짚는다. */
+  const out = [_tplNodeInfo(root, '')];
+  _tplPathOf(root).forEach((path, el) => out.push(_tplNodeInfo(el, path)));
+  return out;
+}
+
+/* 그 경로가 무엇인가. 경로가 비면 «템플릿 루트» 자체. 못 찾으면 null. */
+async function findTemplateNode(tplId, path) {
+  const root = await _tplRootOf(tplId);
+  if (!root) return null;
+  const want = String(path == null ? '' : path).replace(/^#/, '').trim();
+  if (!want) return Object.assign(_tplNodeInfo(root, ''), { html: root.outerHTML });
+  for (const [el, p] of _tplPathOf(root)) {
+    if (p === want) return Object.assign(_tplNodeInfo(el, p), { html: el.outerHTML });
+  }
+  return null;
+}
+
 window.loadTemplates        = loadTemplates;
 window.loadTemplatesPublic  = loadTemplates;
 window.saveTemplatesPublic  = saveTemplates;
@@ -856,6 +1002,8 @@ window.renderSectionTags    = renderSectionTags;
 window.renderTemplatePanel  = renderTemplatePanel;
 window.initTemplates        = initTemplates;
 window._loadCanvas          = _loadCanvas;
+window.listTemplateNodes    = listTemplateNodes;
+window.findTemplateNode     = findTemplateNode;
 window.showTemplatePreview  = showTemplatePreview;
 
 /* ── 떼어낸 템플릿 창에서 오는 명령 ──
