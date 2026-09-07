@@ -93,31 +93,55 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
     if (!box?.src) { window.showToast?.('⚠️ 스크래치 이미지 없음'); return; }
     const sumPad = box.padTop + box.padRight + box.padBottom + box.padLeft;
     if (sumPad === 0) { window.showToast?.('⚠️ 확장 영역 0 — 핸들로 늘려주세요'); return; }
-    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = box.src; });
-    const ow = img.naturalWidth, oh = img.naturalHeight;
-    const scale = box.origW > 0 ? ow / box.origW : 1;
-    const pt = Math.round(box.padTop    * scale);
-    const pr = Math.round(box.padRight  * scale);
-    const pb = Math.round(box.padBottom * scale);
-    const pl = Math.round(box.padLeft   * scale);
-    const w = ow + pl + pr, h = oh + pt + pb;
-    const cv = document.createElement('canvas');
-    cv.width = w; cv.height = h;
-    const ctx = cv.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, w, h);
-    ctx.drawImage(img, pl, pt);
-    cv.toBlob(blob => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `outpaint_${box.spId}_${w}x${h}.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      window.showToast?.(`⬇ ${w}×${h} 확장 PNG 저장됨 (확장 영역 흰색)`);
-    }, 'image/png');
+    // ★⑶(_composeOutpaintPayload)과 «완전히 같은 사슬»이다 — 저장 후 box.src 는 goya-asset:// 라
+    //   그대로 drawImage 하면 캔버스가 오염되고 아래 cv.toBlob 이 SecurityError 를 던진다.
+    //   ★그리고 ⑶보다 나쁘다: toBlob 은 «콜백형»이라 그 안에서 난 예외는 아무도 못 잡고,
+    //   이미지 로드 promise 도 await 밖에 catch 가 없어 「다운로드 버튼을 눌렀는데 아무 일도 안 남」이 된다.
+    //   ⇒ 같은 문(goyaAssetToDrawableSrc)을 태우고, 로드·합성·toBlob 세 실패 경로를 모두 «말하게» 한다.
+    //   (⛔`?? alert(` 금지 — showToast 가 undefined 를 반환해 네이티브 alert 이 렌더러를 얼린다)
+    const src = await goyaAssetToDrawableSrc(box.src);
+    if (!src) { window.showToast?.('❌ 스크래치 이미지를 읽지 못해 확장 PNG 내보내기를 중단'); return; }
+    let blob, w, h;
+    try {
+      const img = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i);
+        i.onerror = () => rej(new Error('이미지 로드 실패'));
+        i.src = src;
+      });
+      const ow = img.naturalWidth, oh = img.naturalHeight;
+      const scale = box.origW > 0 ? ow / box.origW : 1;
+      const pt = Math.round(box.padTop    * scale);
+      const pr = Math.round(box.padRight  * scale);
+      const pb = Math.round(box.padBottom * scale);
+      const pl = Math.round(box.padLeft   * scale);
+      w = ow + pl + pr; h = oh + pt + pb;
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, pl, pt);
+      // toBlob 을 promise 로 감싸 «콜백이 삼키던» 실패를 밖으로 꺼낸다.
+      // (오염 캔버스면 toBlob 호출 자체가 동기로 SecurityError 를 던지고, 그밖의 실패는 blob=null 로 온다)
+      blob = await new Promise((res, rej) => {
+        try { cv.toBlob(b => (b ? res(b) : rej(new Error('toBlob 이 null 을 돌려줬다'))), 'image/png'); }
+        catch (e) { rej(e); }
+      });
+    } catch (err) {
+      console.warn('[ai-image-gen] 확장 PNG 합성 실패:', err);
+      window.showToast?.('❌ 확장 PNG 내보내기 실패 — 이미지를 읽지 못했습니다.');
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `outpaint_${box.spId}_${w}x${h}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    window.showToast?.(`⬇ ${w}×${h} 확장 PNG 저장됨 (확장 영역 흰색)`);
   }
   window._aigExportOutpaintPng = _exportOutpaintPng;
 

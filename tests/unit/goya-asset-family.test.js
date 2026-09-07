@@ -7,10 +7,14 @@
  *     · `<canvas>` 에 그리면 오염 → `toDataURL()` 이 SecurityError 를 던지고
  *     · services 의 base64 파서 `/^data:([^;]+);base64,(.+)$/` 는 «거절»한다.
  *   발견될 때마다 한 자리씩 고쳐 왔다: 슬라이스(2026-09-03)·색보정·AI 텍스트채우기.
- *   여기서 닫는 셋 —
+ *   여기서 닫는 «넷» — ★⑷ 는 이 작업 중에 찾아서 지디가 «판정»해 추가한 것이다
+ *   (「형제로 보인다」로 넣은 게 아니다. 판정은 한 건씩).
  *     ⑴ ai-image-gen.js  스크래치 참조 수집 (refs.push)
  *     ⑵ ai-image-gen.js  에셋블록 참조 수집 (.asset-img 의 src)
  *     ⑶ ai-image-gen.js  _composeOutpaintPayload → cv1.toDataURL
+ *     ⑷ ai-image-gen.js  _exportOutpaintPng     → cv.toBlob   (「⬇ 확장 PNG 내보내기」 버튼)
+ *        ★⑶보다 나쁘다: toBlob 이 «콜백형»이라 그 안의 예외를 아무도 못 잡고,
+ *          이미지 로드 promise 도 await 밖 catch 가 없어 «무증상 실패»가 된다.
  *
  * ■ ⑴⑵ 가 «오늘 고친 것보다 나쁜» 이유:
  *   변환 없이 넘기면 services/imageGenService.js 의 `if (!p) continue;`(:47) /
@@ -22,7 +26,7 @@
  *   ⓐ 동작 — goya-asset-inline.js 의 goyaAssetToDrawableSrc 를 tmp .mjs 사본으로
  *      **실제 실행**한다(package.json 이 "type":"commonjs" 라 js/**.js 를 직접 못 읽는다.
  *      aifill-goya-asset.test.js 와 같은 수법).
- *   ⓑ 구조 — ai-image-gen.js 의 세 구간을 문자열로 잘라 판정한다. ★양성대조(고치기 전
+ *   ⓑ 구조 — ai-image-gen.js 의 네 구간을 문자열로 잘라 판정한다. ★양성대조(고치기 전
  *      «역사 문자열»)로 판정기가 죽지 않았음을 스스로 보인다.
  *   ⓒ 울타리 — ⛔picker UI 넷은 «고치면 퇴행»이다. 그 자리가 변환을 타면 빨강.
  *   ⓓ 배선 — index.html 의 <script type="module">. 이게 빠지면 import 가 죽어
@@ -64,12 +68,15 @@ const COMPOSE_A = 'async function _composeOutpaintPayload(box) {';
 const COMPOSE_B = "const imageDataUrl = cv1.toDataURL('image/png');";
 const SUBMIT_A = 'let outpaint = null;';
 const SUBMIT_B = "const scratchIds = _pickerChips.filter(c => c.type === 'scratch')";
+const EXPORT_A = 'async function _exportOutpaintPng() {';
+const EXPORT_B = 'window._aigExportOutpaintPng = _exportOutpaintPng;';
 const PICKER_A = 'function _openScratchPopover(anchorBtn) {';
 const PICKER_B = 'function _addReferenceFiles(fileList) {';
 
 const refsRegion    = () => slice(AIG, REFS_A, REFS_B, '⑴⑵ refs 수집');
 const composeRegion = () => slice(AIG, COMPOSE_A, COMPOSE_B, '⑶ outpaint 합성');
 const submitRegion  = () => slice(AIG, SUBMIT_A, SUBMIT_B, '⑶ 호출부');
+const exportRegion  = () => slice(AIG, EXPORT_A, EXPORT_B, '⑷ 확장 PNG 내보내기');
 const pickerRegion  = () => slice(AIG, PICKER_A, PICKER_B, '⛔picker UI');
 
 /* ── 판정기 ── 실제 소스와 «고치기 전» 소스에 «같은» 판정을 쓴다 ─────────────────
@@ -136,6 +143,38 @@ function judgeSubmit(region0) {
   return bad;
 }
 
+/** ⑷ 확장 PNG 내보내기 — ⑶과 같은 사슬 + 콜백이 삼키던 실패까지 «말하게» 하나 */
+function judgeExport(region0) {
+  const region = stripLineComments(region0);
+  const bad = [];
+  if (!/await\s+goyaAssetToDrawableSrc\s*\(\s*box\.src\s*\)/.test(region)) {
+    bad.push('R11 box.src 를 그리기 «전» 변환하지 않는다 → cv.toBlob 이 SecurityError');
+  }
+  if (!/if\s*\(!src\)\s*\{[^}]*showToast/.test(region)) {
+    bad.push('R12 변환 실패를 사용자에게 알리고 «중단»하지 않는다');
+  }
+  const cvt = region.indexOf('goyaAssetToDrawableSrc');
+  const draw = region.indexOf('ctx.drawImage');
+  if (cvt === -1 || draw === -1 || cvt > draw) bad.push('R13 변환이 drawImage «뒤»에 있다(순서가 뒤집혔다)');
+  // ★toBlob 은 콜백형이라 «감싸지 않으면» 예외가 통째로 사라진다.
+  const blobIdx = region.indexOf('.toBlob(');
+  if (blobIdx === -1) { bad.push('R14 toBlob 을 못 찾았다'); }
+  else {
+    const tryIdx = region.lastIndexOf('try {', blobIdx);
+    const catchIdx = region.indexOf('catch', blobIdx);
+    if (tryIdx === -1 || catchIdx === -1) {
+      bad.push('R14 toBlob 이 try/catch «밖»이다 — 오염 캔버스의 SecurityError 를 아무도 못 잡는다');
+    }
+  }
+  // 이미지 로드 promise 의 reject 도 잡히나 (전엔 `i.onerror = rej` 인데 await 밖 catch 가 0개였다)
+  if (/i\.onerror\s*=\s*rej\s*;/.test(region) && !/catch/.test(region)) {
+    bad.push('R15 이미지 로드 실패(reject)를 아무도 안 잡는다 — 「눌렀는데 아무 일 없음」');
+  }
+  if (!/showToast/.test(region)) bad.push('R16 실패를 사용자에게 알리지 않는다');
+  if (/\?\?\s*alert\s*\(/.test(region)) bad.push('R5 `?? alert(` 금지');
+  return bad;
+}
+
 /* ── 고치기 전(dev c99a593) 그대로의 «역사 문자열» — 양성대조용. 다시 바뀌지 않는다. ── */
 const PRE_FIX_REFS = [
   '// ref 이미지 src 수집',
@@ -195,6 +234,41 @@ const PRE_FIX_SUBMIT = [
   '    }',
   '',
   '    ',
+].join('\n');
+
+const PRE_FIX_EXPORT = [
+  'async function _exportOutpaintPng() {',
+  '    const box = window._outpaintGetBox?.();',
+  "    if (!box?.src) { window.showToast?.('⚠️ 스크래치 이미지 없음'); return; }",
+  '    const sumPad = box.padTop + box.padRight + box.padBottom + box.padLeft;',
+  "    if (sumPad === 0) { window.showToast?.('⚠️ 확장 영역 0 — 핸들로 늘려주세요'); return; }",
+  '    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = box.src; });',
+  '    const ow = img.naturalWidth, oh = img.naturalHeight;',
+  '    const scale = box.origW > 0 ? ow / box.origW : 1;',
+  '    const pt = Math.round(box.padTop    * scale);',
+  '    const pr = Math.round(box.padRight  * scale);',
+  '    const pb = Math.round(box.padBottom * scale);',
+  '    const pl = Math.round(box.padLeft   * scale);',
+  '    const w = ow + pl + pr, h = oh + pt + pb;',
+  "    const cv = document.createElement('canvas');",
+  '    cv.width = w; cv.height = h;',
+  "    const ctx = cv.getContext('2d');",
+  "    ctx.fillStyle = '#fff';",
+  '    ctx.fillRect(0, 0, w, h);',
+  '    ctx.drawImage(img, pl, pt);',
+  '    cv.toBlob(blob => {',
+  '      const url = URL.createObjectURL(blob);',
+  "      const a = document.createElement('a');",
+  '      a.href = url;',
+  '      a.download = `outpaint_${box.spId}_${w}x${h}.png`;',
+  '      document.body.appendChild(a);',
+  '      a.click();',
+  '      a.remove();',
+  '      setTimeout(() => URL.revokeObjectURL(url), 1000);',
+  '      window.showToast?.(`⬇ ${w}×${h} 확장 PNG 저장됨 (확장 영역 흰색)`);',
+  "    }, 'image/png');",
+  '  }',
+  '  ',
 ].join('\n');
 
 /* ══════════ ⓐ 동작 — 공용 변환 문을 «진짜로» 태운다 ══════════ */
@@ -296,7 +370,12 @@ test('ⓑ-3 ⑶ 호출부는 예외를 잡아 토스트를 띄운다 (「눌렀�
   assert.deepEqual(bad, [], '위반: ' + bad.join(' / '));
 });
 
-test('ⓑ-4 변환 도구를 새로 만들지 않고 goya-asset-inline.js 것을 쓴다', () => {
+test('ⓑ-4 ⑷ 확장 PNG 내보내기도 같은 문을 타고, 콜백이 삼키던 실패를 «말한다»', () => {
+  const bad = judgeExport(exportRegion());
+  assert.deepEqual(bad, [], '위반: ' + bad.join(' / '));
+});
+
+test('ⓑ-5 변환 도구를 새로 만들지 않고 goya-asset-inline.js 것을 쓴다', () => {
   assert.match(
     AIG,
     /import\s*\{[^}]*\bisGoyaAssetUrl\b[^}]*\bgoyaAssetToDrawableSrc\b[^}]*\}\s*from\s*'\.\/io\/goya-asset-inline\.js'/,
@@ -309,7 +388,7 @@ test('ⓑ-4 변환 도구를 새로 만들지 않고 goya-asset-inline.js 것을
   assert.match(INLINE, /\bgoyaAssetToDrawableSrc,\n\s*inlineGoyaAssetsInJSON/, '공용 문이 export 목록에 없다');
 });
 
-test('ⓑ-5 ★양성대조 — 세 구간을 «고치기 전»으로 되돌리면 판정이 전부 빨강이다', () => {
+test('ⓑ-6 ★양성대조 — 네 구간을 «고치기 전»으로 되돌리면 판정이 전부 빨강이다', () => {
   const revert = (src, a, b, pre) => {
     const i = src.indexOf(a), j = src.indexOf(b, i + a.length);
     return src.slice(0, i) + pre + src.slice(j);
@@ -331,6 +410,13 @@ test('ⓑ-5 ★양성대조 — 세 구간을 «고치기 전»으로 되돌리�
   const old3 = revert(AIG, SUBMIT_A, SUBMIT_B, PRE_FIX_SUBMIT);
   const bad3 = judgeSubmit(slice(old3, SUBMIT_A, SUBMIT_B, '역사 submit'));
   assert.ok(bad3.some(x => x.startsWith('R9')), `R9 이 결함을 못 잡는다: ${bad3.join(' / ')}`);
+
+  const old4 = revert(AIG, EXPORT_A, EXPORT_B, PRE_FIX_EXPORT);
+  const bad4 = judgeExport(slice(old4, EXPORT_A, EXPORT_B, '역사 export'));
+  assert.ok(bad4.length > 0, '양성대조 초록 — judgeExport 는 장식이다');
+  for (const r of ['R11', 'R12', 'R13', 'R14', 'R15']) {
+    assert.ok(bad4.some(x => x.startsWith(r)), `${r} 이 결함을 못 잡는다: ${bad4.join(' / ')}`);
+  }
 });
 
 /* ══════════ ⓒ 울타리 — ⛔picker UI 는 «고치면 퇴행» ══════════ */
