@@ -41,15 +41,31 @@ function stripComments(src) {
       if (e < 0) { out.push(''); continue; }
       l = l.slice(e + 2); inBlock = false;
     }
-    for (;;) {
-      const b = l.indexOf('/*');
-      if (b < 0) break;
-      const e = l.indexOf('*/', b + 2);
-      if (e < 0) { l = l.slice(0, b); inBlock = true; break; }
-      l = l.slice(0, b) + l.slice(e + 2);
+    /* ★따옴표 «안»의 /* · // 는 주석이 아니다 — 한 글자씩 훑어 인용 상태를 들고 간다.
+       ⛔이 줄이 없으면 `inp.accept = 'image/[*]'` 의 [*] 를 주석 시작으로 읽고 «파일 끝까지»
+         삼킨다(실제로 그랬다 — 검사 둘이 「없다」고 빨개져서 잡혔다).
+         `'http://…'` 는 앞서 「줄 맨 앞 // 만」 규칙으로 이미 살렸는데, 이건 그 규칙을 빠져나갔다.
+       ⚠️여러 줄 템플릿 리터럴은 이 한 줄 상태기가 못 따라간다 — 그 안에 /[*] 를 쓰면
+         여전히 잘린다. 이 레포엔 그런 자리가 없다(검사 ⓑ-0-3 이 그걸 «세서» 지킨다). */
+    let res = '', q = null;
+    for (let i = 0; i < l.length; i++) {
+      const c = l[i];
+      if (q) {
+        res += c;
+        if (c === '\\') { if (i + 1 < l.length) { res += l[++i]; } continue; }
+        if (c === q) q = null;
+        continue;
+      }
+      if (c === "'" || c === '"' || c === '`') { q = c; res += c; continue; }
+      if (c === '/' && l[i + 1] === '*') {
+        const e = l.indexOf('*/', i + 2);
+        if (e < 0) { inBlock = true; i = l.length; break; }
+        i = e + 1; continue;                      // 한 줄 안에서 닫히면 건너뛴다
+      }
+      if (c === '/' && l[i + 1] === '/') { i = l.length; break; }   // 줄 나머지는 주석
+      res += c;
     }
-    if (l.trim().startsWith('//')) l = '';
-    out.push(l);
+    out.push(res);
   }
   return out.join('\n');
 }
@@ -113,6 +129,23 @@ const ST = {
   w: null, h: null,
 };
 const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+
+test("ⓑ-0-3 거르개는 «문자열 안»의 /* 를 주석으로 오인하지 않는다", () => {
+  /* ⛔실제로 오인해서 파일 뒤를 통째로 삼켰다(prop-zoom 의 inp.accept = 'image/[*]').
+     ★그때 「없다」로 빨개진 검사가 둘이었고, 그 덕에 잡혔다 — 「0건」은 대조가 있어야 측정이다. */
+  const sample = "const a = 'image/*'; const keep = 1; /* 진짜주석 */ const b = 2;";
+  const got = stripComments(sample);
+  assert.ok(got.includes("'image/*'"), '문자열 안의 별표를 주석으로 읽었다');
+  assert.ok(got.includes('const keep = 1;') && got.includes('const b = 2;'), '뒤가 잘렸다');
+  assert.equal(got.includes('진짜주석'), false, '진짜 주석은 지워야 한다');
+  // ★실물 대조 — 이 레포에서 실제로 그 자리를 갖는 파일이 «끝까지» 살아남나
+  assert.ok(SRC.prop.includes('window.showZoomProperties = showZoomProperties'),
+    'prop-zoom.js 의 마지막 줄이 사라졌다 — 거르개가 중간에서 삼켰다');
+  /* ⚠️한계는 «단언하지 않고» 적는다: 여러 줄 템플릿 리터럴 안의 /[*] 는 이 한 줄 상태기가
+     못 따라간다. 처음엔 「그런 자리가 없다」를 정규식으로 세려 했는데 백틱 짝을 못 맞춰
+     오탐이 났다 — ⛔못 재는 것을 단언하면 그 검사가 거짓말을 한다. 그래서 뺐다.
+     대신 «실물 대조»(위 두 줄)가 실제 파일이 끝까지 살아남는지를 잰다. */
+});
 
 test('ⓐ-1 rect 실루엣은 «광원을 마주보는 두 꼭짓점»이다 (+양성대조: 무한광원 근사는 다르게 답한다)', async () => {
   const g = await loadGeom();
@@ -629,6 +662,61 @@ test('ⓐ-23 ⑥a·b 기본 위치는 «12시»다 — y 가 아래로 증가하
   // ⛔대조 — 옛 기본(0°)은 «오른쪽»이었다. 그게 현빈이 「오른쪽에 두지 말라」고 한 그 자리다.
   const old = g.computeZoomGeometry({ ...ST, angle: 0 }, null);
   assert.ok(old.a.x > 0 && Math.abs(old.a.y) < Math.abs(old.a.x), '대조가 성립 안 하면 이 검사는 무의미');
+});
+
+test('ⓐ-25 ★㉒이미지 — 도형 «안»에 담기고, ★기하는 «한 줄도» 안 바뀐다', async () => {
+  const g = await loadGeom();
+  const IMG = 'data:image/png;base64,iVBORw0KGgo=';
+  /* ★현빈 설계의 핵심 불변식: 이미지는 도형 프레임 «안»이라 바깥 윤곽은 여전히 도형이다.
+     ⇒ 실루엣·그림자·A·B·a·b 가 이미지 유무로 «달라지면 안 된다». 프리셋 3종 전수로 잰다. */
+  for (const shape of ['rect', 'circle', 'square']) {
+    for (const bd of ['off', 'on']) {
+      const base = { ...ST, shape, bd, bdw: 24, angle: 0, length: 600 };
+      const a = g.computeZoomGeometry(base, null);
+      const b = g.computeZoomGeometry({ ...base, imgSrc: IMG }, null);
+      assert.deepEqual({ A: b.A, B: b.B, a: b.a, b: b.b, L: b.L }, { A: a.A, B: a.B, a: a.a, b: a.b, L: a.L },
+        `${shape}/bd=${bd}: 이미지를 넣었더니 기하가 바뀌었다 — 설계 전제가 깨졌다`);
+      // 상자·모서리도 그대로여야 한다(아웃라인·핸들이 안 흔들린다)
+      assert.deepEqual(g.blockBoxSpec({ ...base, imgSrc: IMG }), g.blockBoxSpec(base), `${shape}/bd=${bd}: 상자`);
+    }
+  }
+});
+
+test('ⓐ-26 ★㉒이미지는 «도형 층»에 들어간다 — 블록에 직접 넣지 않는다', async () => {
+  const g = await loadGeom();
+  const IMG = 'data:image/png;base64,iVBORw0KGgo=';
+  const html = g.buildZoomInner({ ...ST, imgSrc: IMG, bd: 'on', bdw: 6 }, null);
+  /* ⛔블록에 직접 넣고 블록을 자르면 «그림자까지» 잘린다. 그래서 도형 크기·도형 모서리를 가진
+     .zoom-bg 안에 넣고 거기서만 자른다. */
+  const bg = html.match(/<div class="zoom-bg"[^>]*>(.*?)<\/div>/);
+  assert.ok(bg, '도형 층을 못 찾았다');
+  assert.match(bg[1], /<img class="zoom-img"/, '이미지가 도형 층 «안»에 없다');
+  assert.equal((html.match(/zoom-img/g) || []).length, 1, '이미지가 둘 이상이다');
+  // 도형 층의 크기 = «도형» 상자다(테두리 제외) — 테두리를 켜도 안 변한다
+  const m = bg[0].match(/width:([\d.]+)px;height:([\d.]+)px/);
+  assert.deepEqual(m.slice(1).map(Number), [260, 140], '이미지 층이 도형 크기가 아니다');
+  // 원이면 이미지도 원으로 잘린다 · 회전은 층이 같이 돈다
+  assert.match(g.buildZoomInner({ ...ST, shape: 'circle', imgSrc: IMG }, null), /class="zoom-bg"[^>]*border-radius:50%/);
+  assert.match(g.buildZoomInner({ ...ST, shape: 'square', rot: 30, imgSrc: IMG }, null), /class="zoom-bg"[^>]*transform:rotate\(30deg\)/);
+});
+
+test('ⓐ-27 ★㉒이미지 URL 을 «걸러서» 넣는다 (속성을 깨고 나올 수 없다)', async () => {
+  const g = await loadGeom();
+  /* ★관문이 «둘»이다: ①따옴표·꺾쇠·공백 거르개 ②접두(data:image·goya-asset·blob·http(s)·상대경로).
+     ⛔처음엔 ②만으로도 다 걸리는 것만 시험해서 ①을 없애는 변이(M69)가 «통과했다».
+       ⇒ ②를 «통과하면서» ①이 필요한 것을 넣는다 — 접두는 맞는데 따옴표로 속성을 깨고 나오는 형태. */
+  for (const bad of ['" onerror=alert(1) x="', 'javascript:alert(1)', 'data:text/html,<script>', 'a b',
+                     'data:image/png;base64,AAA" onerror=alert(1) x="',
+                     'https://a/b.png" onload="x',
+                     'data:image/png;base64,AAA><img src=y onerror=z']) {
+    const html = g.buildZoomInner({ ...ST, imgSrc: bad }, null);
+    assert.equal(/zoom-img/.test(html), false, `걸러야 할 URL 이 들어갔다: ${bad}`);
+    assert.equal(/onerror|<script/.test(html), false);
+  }
+  // ★대조 — 정상 URL 은 그대로 통과한다(거르개가 «전부» 막으면 기능이 죽는다)
+  for (const ok of ['data:image/png;base64,AAA', 'goya-asset://p/abc.png', 'blob:x', 'https://a/b.png', './x.png']) {
+    assert.ok(g.hasZoomImage({ imgSrc: ok }), `정상 URL 을 막았다: ${ok}`);
+  }
 });
 
 /* ── ⓑ 배선 — 신규 블록 체크리스트 5곳 ────────────────────────────────────── */

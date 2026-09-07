@@ -102,6 +102,13 @@ function makeEl(tag = 'div') {
       contains: (c) => _classes.has(c),
       add: (...cs) => cs.forEach(c => _classes.add(c)),
       remove: (...cs) => cs.forEach(c => _classes.delete(c)),
+      /* ⚠️진짜 classList 에 있는 것은 가짜에도 있어야 한다 — 없으면 「없는 동작」을 재게 된다.
+         (실제로 renderZoomBlock 의 has-image 토글이 여기서 TypeError 로 터져 8건이 빨개졌다.) */
+      toggle: (c, force) => {
+        const on = (force === undefined) ? !_classes.has(c) : !!force;
+        if (on) _classes.add(c); else _classes.delete(c);
+        return on;
+      },
     },
     addEventListener: (type, fn) => listeners.push({ type, fn }),
     querySelector: () => null,
@@ -301,6 +308,32 @@ test('S-13 [⑮] a·b 앵커 — 집으면 «채움»이 바뀌고, 그 상태�
       assert.equal(/pick/i.test(k), false, `집은 상태가 dataset.${k} 로 새어 저장본에 실린다`);
     }
   }
+});
+
+test('S-16 [㉒] 이미지는 dataset 이라 저장/로드가 «자동»이다 + has-image 가 체크를 끈다', () => {
+  const IMG = 'data:image/png;base64,iVBORw0KGgo=';
+  const b = el({ imgSrc: IMG });
+  M.renderZoomBlock(b);
+  /* ★저장/로드: 이 앱의 저장본은 «캔버스 HTML 스냅샷»이라 dataset 은 그대로 실린다.
+     ⇒ save-load.js 를 손댈 필요가 없다. 근거 = renderZoomBlock 이 dataset.imgSrc «만» 읽고,
+       로드 후 rebindAll 이 renderZoomBlock 을 다시 부른다(이미 ⓑ-7 이 그 호출을 못박는다). */
+  assert.equal(M.readZoomState(b).imgSrc, IMG, 'dataset 에서 안 읽는다');
+  assert.ok(b.innerHTML.includes('zoom-img'), '이미지가 안 그려졌다');
+  assert.ok(b.classList.contains('has-image'), '★has-image 가 안 붙었다 — 체크무늬가 안 꺼져 Export PNG 에 박힌다');
+
+  // 이미지를 빼면 표시도 빠진다(왕복)
+  delete b.dataset.imgSrc;
+  M.renderZoomBlock(b);
+  assert.equal(b.classList.contains('has-image'), false, 'has-image 가 안 떨어졌다');
+  assert.equal(/zoom-img/.test(b.innerHTML), false);
+
+  // ⛔생성 시에는 이미지를 «안» 박는다(스티커도 다음 생성에서 imgSrc 를 뺀다 — sticker-block.js:442)
+  /* ★생성 시 dataset 에 «키 자체를 안 만든다» — 빈 data-img-src 가 저장본에 실리면
+     블록마다 쓸모없는 속성이 하나씩 붙는다. 읽을 때 readZoomState 가 '' 로 떨어뜨린다. */
+  const fresh = M.makeZoomBlock();
+  assert.equal(fresh.dataset.imgSrc, undefined, '생성 시 빈 imgSrc 키를 만들었다');
+  assert.equal(M.readZoomState(fresh).imgSrc, '', '읽을 때 빈 문자열로 안 떨어진다');
+  assert.equal(fresh.classList.contains('has-image'), false);
 });
 
 test('S-11 makeZoomBlock 은 «행(row)을 만들지 않는다» — 플로팅이라 섹션 직접 자식이다', () => {

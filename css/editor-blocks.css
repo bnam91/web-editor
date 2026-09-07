@@ -1807,6 +1807,19 @@ textarea.cvb-card-input {
 .zoom-block .zoom-bg {
   background:
     repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+  /* ★이미지를 «도형 모양»으로 자르는 자리 — 블록이 아니라 «여기»가 자른다.
+     블록은 그림자가 나가야 해서 안 자른다(자르면 그림자까지 잘린다). */
+  overflow: hidden;
+}
+/* ★㉒ 이미지가 들어오면 체크무늬를 «없앤다» — .icon-circle-block.has-image 전례 그대로.
+   투명 SVG·PNG 의 투명부로 체크가 비쳐 Export PNG 에까지 박히던 버그(현빈). */
+.zoom-block.has-image .zoom-bg { background-image: none; }
+.zoom-block .zoom-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;   /* 클릭·드래그는 블록이 그대로 받는다 */
 }
 /* a·b 핸들 — 선택했을 때만 보이고 잡힌다. */
 /* ★a·b 앵커 — 어도비 일러스트 관례(현빈 2026-09-08 + 첨부 그림):

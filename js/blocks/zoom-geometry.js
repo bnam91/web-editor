@@ -303,19 +303,43 @@ export function svgOffset(st, pinned) {
   return { left: b.w / 2 + box.minX, top: b.h / 2 + box.minY };
 }
 
-/** 체크패턴 층 — «도형» 상자다(테두리 제외). ★좌표는 «클리핑 층» 기준(off 만큼 되민다). */
+/* URL 을 마크업에 넣기 전 거른다 — 따옴표로 속성을 깨고 나오는 자리를 없앤다.
+   ⛔허용: data: · goya-asset: · blob: · http(s): · 상대경로. 그 밖이면 «안 넣는다»(빈 문자열). */
+export function safeImgSrc(v) {
+  const u = String(v ?? '').trim();
+  if (!u) return '';
+  if (/["'<>\s]/.test(u)) return '';                       // 따옴표·꺾쇠·공백은 통째로 거른다
+  return /^(data:image\/|goya-asset:|blob:|https?:|\.{0,2}\/)/.test(u) ? u : '';
+}
+
+/** 도형 층에 «이미지가» 있나 — 체크패턴을 끄는 판정과 같은 자리에서 쓴다. */
+export function hasZoomImage(st) {
+  return !!safeImgSrc(st.imgSrc);
+}
+
+/* 도형 «안»을 채우는 층 — 체크패턴 또는 이미지. «도형» 상자다(테두리 제외).
+   ★현빈 2026-09-08: 「이미지를 넣으면 에셋블럭처럼 도형이라는 프레임 «안»에서 나오니
+     도형이랑 같은 거 아닌가?」 ⇒ 맞다. 바깥 윤곽은 여전히 «도형»이라 ★기하가 한 줄도 안 바뀐다.
+   ⛔이미지를 «블록»에 직접 넣으면 안 된다 — 블록은 그림자가 나가야 해서 안 자르는데,
+     자르려고 overflow 를 걸면 «그림자까지» 잘린다. 그래서 도형 크기·도형 모서리를 가진
+     이 층 안에 넣고 여기서만 자른다.
+   ⛔이미지가 들어오면 체크무늬를 «없앤다» — 투명 PNG 의 투명부로 체크가 비쳐 Export PNG 에
+     박히던 버그(현빈 실제 경험, .icon-circle-block.has-image 전례). CSS 가 .has-image 로 끈다.
+   ★좌표는 «클리핑 층» 기준(off 만큼 되민다). */
 export function bgMarkup(st, pinned) {
-  if (st.fill !== ZOOM_CHECKER) return '';
+  const img = safeImgSrc(st.imgSrc);
+  if (st.fill !== ZOOM_CHECKER && !img) return '';
   const bw = borderWidthOf(st);
   const half = shapeHalf(st);
-  const hw = half.hw, hh = (st.shape === 'circle') ? half.hw : half.hh;
   const bdr = Math.max(0, Number(st.bdr) || 0);
+  const hw = half.hw, hh = (st.shape === 'circle') ? half.hw : half.hh;
+  const o = svgOffset(st, pinned);
   const rot = (st.shape === 'circle') ? 0 : (Number(st.rot) || 0);
-  const off = svgOffset(st, pinned);
-  return `<div class="zoom-bg" style="left:${(bw - off.left).toFixed(2)}px;top:${(bw - off.top).toFixed(2)}px;` +
-    `width:${(hw * 2).toFixed(2)}px;height:${(hh * 2).toFixed(2)}px;` +
-    `border-radius:${st.shape === 'circle' ? '50%' : bdr.toFixed(2) + 'px'};` +
-    (rot ? `transform:rotate(${rot}deg);` : '') + `"></div>`;
+  const radius = st.shape === 'circle' ? '50%' : bdr.toFixed(2) + 'px';
+  const inner = img ? `<img class="zoom-img" src="${img}" draggable="false">` : '';
+  return `<div class="zoom-bg" style="left:${(bw - o.left).toFixed(2)}px;top:${(bw - o.top).toFixed(2)}px;` +
+    `width:${(hw * 2).toFixed(2)}px;height:${(hh * 2).toFixed(2)}px;border-radius:${radius};` +
+    (rot ? `transform:rotate(${rot}deg);` : '') + `">${inner}</div>`;
 }
 
 /* a·b 핸들 — ★별도 층이다.

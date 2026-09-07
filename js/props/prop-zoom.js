@@ -34,6 +34,7 @@ export function showZoomProperties(block) {
   const bdcAlpha  = parseAlphaFromColor(st.bdc);
   const shadowOn  = st.shadow !== 'off';
   const bdOn      = st.bd === 'on';
+  const hasImg    = !!st.imgSrc;
   /* ★그림자 «끔»이면 그림자 값들은 흐리게 두되 «지우지 않는다» — 다시 켜면 그대로 돌아온다.
      (prop-laurel/prop-banner02 의 opacity:0.4;pointer-events:none 관례) */
   const dim = (on) => on ? '' : 'opacity:0.4;pointer-events:none;';
@@ -92,10 +93,20 @@ export function showZoomProperties(block) {
           <label class="prop-radio"><input type="radio" name="zm-bg" value="color"${isChecker ? '' : ' checked'}> 색</label>
         </div>
       </div>
-      <div class="prop-color-row" style="${dim(!isChecker)}">
+      <div class="prop-color-row" style="${dim(!isChecker || hasImg)}">
         <span class="prop-label">색</span>
         ${colorFieldHTML({ idPrefix: 'zm-fill', hex: fillHex, alpha: fillAlpha })}
       </div>
+      <div class="prop-row">
+        <span class="prop-label" style="font-size:10px;color:var(--ui-text-muted);">
+          ${hasImg ? '이미지 — 도형 «안»에 담긴다(모양·기하는 안 바뀐다)' : '이미지를 넣으면 도형 안을 채운다'}
+        </span>
+      </div>
+      <div id="zm-img-drop" style="border:2px dashed var(--ui-border-mid, #444);border-radius:6px;padding:18px 10px;text-align:center;color:var(--ui-text-muted);font-size:11px;cursor:pointer;background:var(--ui-bg-input);">
+        ${hasImg ? `<img src="${_esc(st.imgSrc)}" style="max-width:80px;max-height:80px;object-fit:contain;display:block;margin:0 auto 6px;">` : ''}
+        <div>이미지 드래그앤드롭<br>또는 클릭해서 선택</div>
+      </div>
+      ${hasImg ? `<div class="prop-row"><button class="prop-action-btn" id="zm-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}
     </div>
 
     <div class="prop-section">
@@ -248,6 +259,48 @@ ${bdrRow}
     initialAlpha: bdcAlpha,
     onApply: (c) => { block.dataset.bdc = c; rerender(); },
     onCommit: () => { window.pushHistory?.('확대블럭 테두리 색'); window.triggerAutoSave?.(); },
+  });
+
+  /* ★㉒ 이미지 — 스티커의 전례를 그대로 따른다(prop-sticker.js:673~).
+     ⛔dataset.imgSrc 에 넣는다 ⇒ 캔버스 HTML 스냅샷에 «자동으로» 실린다(저장/로드 별도 작업 없음).
+     ⛔5MB 상한도 전례대로 — 큰 dataURL 은 저장본을 통째로 무겁게 만든다. */
+  const _applyZoomImage = (file) => {
+    if (!file || !file.type?.startsWith('image/')) return;
+    if (file.size > 5 * 1024 * 1024) { window.showToast?.('⚠️ 5MB 이하 이미지만 지원'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      window.pushHistory?.('확대블럭 이미지');
+      block.dataset.imgSrc = ev.target.result;
+      rerender();
+      window.triggerAutoSave?.();
+      showZoomProperties(block);   // 썸네일 + 제거 버튼
+    };
+    reader.readAsDataURL(file);
+  };
+  const drop = propPanel.querySelector('#zm-img-drop');
+  if (drop) {
+    drop.addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = () => _applyZoomImage(inp.files?.[0]);
+      inp.click();
+    });
+    ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      drop.style.borderColor = 'var(--sel-color)';
+    }));
+    ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      drop.style.borderColor = '';
+    }));
+    drop.addEventListener('drop', (e) => _applyZoomImage(e.dataTransfer?.files?.[0]));
+  }
+  propPanel.querySelector('#zm-img-clear')?.addEventListener('click', () => {
+    window.pushHistory?.('확대블럭 이미지 제거');
+    delete block.dataset.imgSrc;
+    rerender();
+    window.triggerAutoSave?.();
+    showZoomProperties(block);
   });
 
   propPanel.querySelector('#zm-ab-reset')?.addEventListener('click', () => {

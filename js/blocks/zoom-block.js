@@ -34,7 +34,7 @@
 import { bindBlock } from '../drag-drop.js';
 // ★배율은 «한 곳»에서만 읽는다 — 베끼면 핸들과 갈라진다(overlay-handles.js 주석 참조).
 import { _canvasScaleNow } from '../overlay-handles.js';
-import { buildZoomInner, blockBoxSpec, computeZoomGeometry, ZOOM_CHECKER } from './zoom-geometry.js';
+import { buildZoomInner, blockBoxSpec, computeZoomGeometry, hasZoomImage, ZOOM_CHECKER } from './zoom-geometry.js';
 
 const ZOOM_DEFAULTS = {
   shape:  'rect',   // ★기본은 사각형. 프리셋 = rect | circle | square
@@ -68,6 +68,10 @@ const ZOOM_DEFAULTS = {
   bd:     'off',
   bdw:    6,        // 두께(px)
   bdc:    '#ffffff',// 색
+  /* ★㉒ 이미지 — 도형 «안»에 담긴다(현빈: 「에셋블럭처럼 도형이라는 프레임 안에서 나오니
+     도형이랑 같은 거 아닌가?」). 바깥 윤곽은 여전히 도형이라 기하는 «한 줄도» 안 바뀐다.
+     ⛔체크패턴과 «같은 층»(.zoom-bg)이다 — 이미지가 들어오면 체크를 끈다(Export PNG 함정). */
+  imgSrc: '',
   bdr:    0,        // 모서리(px) — 도형·테두리판이 «같이» 둥글어야 링 두께가 일정하다
   /* ★플로팅 좌표 — 섹션 좌상단 기준(px). 스티커와 «같은 규약»(dataset.x/y + style.left/top). */
   x:      40,
@@ -104,6 +108,7 @@ function readZoomState(block) {
     size:   _num(d.size,   ZOOM_DEFAULTS.size),
     rot:    _num(d.rot,    ZOOM_DEFAULTS.rot),
     fill:   d.fill || ZOOM_DEFAULTS.fill,
+    imgSrc: d.imgSrc || ZOOM_DEFAULTS.imgSrc,
     w:      _numOrNull(d.w),
     h:      _numOrNull(d.h),
     x:      _num(d.x, ZOOM_DEFAULTS.x),
@@ -160,6 +165,9 @@ function renderZoomBlock(block) {
     `border-radius:${box.radius};`;
   if (box.rot) block.dataset.rotation = String(box.rot);
   else delete block.dataset.rotation;
+  /* ★이미지가 들어오면 체크무늬를 «끈다» — CSS(.zoom-block.has-image .zoom-bg)가 그걸 본다.
+     ⛔안 끄면 투명 PNG 의 투명부로 체크가 비쳐 Export PNG 에 박힌다(현빈 실제 경험). */
+  block.classList.toggle('has-image', hasZoomImage(st));
 
   // ★그림은 «순수 모듈»이 만든다(zoom-geometry.js) — 검사가 실제로 나가는 마크업을 그대로 잰다.
   block.innerHTML = buildZoomInner(st, readPinnedShortEdge(block), block._zoomPicked || null);
