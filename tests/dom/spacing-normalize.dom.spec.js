@@ -218,3 +218,22 @@ test('DOM-⑤ 감수 전/후를 «진짜 CSS 로» 그려 남긴다 (숫자 말�
   const h = await page.evaluate(() => document.getElementById('sec_1').getBoundingClientRect().height);
   expect(h).toBeGreaterThan(0);
 });
+
+/* ── DOM-⑥ 자동/수동 도장이 «저장을 견디나» ──────────────────────────────────
+ * 도장이 직렬화에서 씻겨 나가면, 저장→열기 뒤에 모든 갭이 «수동»이 되어 감수가 통째로 죽는다.
+ * (반대로 수동 도장이 씻기면 사람이 맞춘 값이 다음 감수에 되돌려진다.)
+ * ⇒ 진짜 세척 파이프라인(js/io/section-serialize.js 의 serializeCleanRoot)에 통과시켜 본다.
+ */
+test('DOM-⑥ 자동/수동 도장이 «직렬화 세척»을 견딘다 (저장→열기 뒤에도 감수가 산다)', async ({ page }) => {
+  await boot(page);
+  await page.addScriptTag({ content: fs.readFileSync(path.join(REPO, 'js', 'io', 'section-serialize.js'), 'utf8') });
+  const out = await page.evaluate(() => {
+    const clone = document.getElementById('canvas').cloneNode(true);
+    window.serializeCleanRoot(clone);
+    const gaps = [...clone.querySelectorAll('.gap-block')];
+    return { total: gaps.length, auto: gaps.filter((g) => g.dataset.gapAuto === '1').length, html: clone.innerHTML.length };
+  });
+  console.log(`  세척 후 갭 ${out.total}개 중 자동 도장 ${out.auto}개`);
+  expect(out.total).toBe(6);   // 픽스처의 갭 수 (sec_1: 2 · sec_2: 4)
+  expect(out.auto).toBe(5);    // gb_manual 하나만 수동
+});
