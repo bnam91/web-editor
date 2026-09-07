@@ -165,6 +165,22 @@ function renderZoomBlock(block) {
   block.innerHTML = buildZoomInner(st, readPinnedShortEdge(block));
   _bindZoomHandleDrag(block);
   _bindZoomMoveDrag(block);
+  /* ★섹션 밖 크롭 — 스티커 계열의 규약(css/editor-blocks.css 「섹션 밖 크롭」)을 같이 지킨다.
+     ⛔단 클립은 «블록»이 아니라 «그리는 층»(.zoom-clip)에 건다 — 이유는 zoom-geometry.js
+       buildZoomInner 주석 참조(블록에 걸면 안 잘리거나, 잘리는 순간 그림자가 도형에서 끊긴다).
+     레이아웃이 끝나야 offset 이 나오므로 스티커와 같이 rAF 뒤에 잰다(sticker-block.js:126). */
+  _scheduleZoomSecClip(block);
+}
+
+/** 그리는 층을 찾아 «섹션 밖 크롭»을 다시 계산한다. 계산식은 스티커와 «같은 함수»를 쓴다. */
+function updateZoomSecClip(block) {
+  const layer = block.querySelector?.(':scope > .zoom-clip');
+  if (layer) window._updateStickerSecClip?.(layer);
+}
+
+function _scheduleZoomSecClip(block) {
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => updateZoomSecClip(block));
+  else updateZoomSecClip(block);
 }
 
 /* 위치 드래그 — 스티커와 «같은 규약»: dataset.x/y 에 쓰고 style.left/top 을 같이 민다.
@@ -204,6 +220,8 @@ function _bindZoomMoveDrag(block) {
       block.dataset.y = String(Math.round(cy));
       block.style.left = Math.round(cx) + 'px';
       block.style.top  = Math.round(cy) + 'px';
+      // 위치가 바뀌면 섹션 경계와의 관계도 바뀐다 — 스티커와 같이 드래그 중에도 갱신한다.
+      updateZoomSecClip(block);
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
@@ -322,6 +340,7 @@ window.readZoomState          = readZoomState;
 window.readPinnedZoomShortEdge = readPinnedShortEdge;
 window.clearPinnedZoomShortEdge = clearPinnedShortEdge;
 window.clearZoomSizeOverride  = clearZoomSizeOverride;
+window.updateZoomSecClip      = updateZoomSecClip;
 window.ZOOM_DEFAULTS          = ZOOM_DEFAULTS;
 window.ZOOM_SHAPES            = ZOOM_SHAPES;
 
@@ -333,6 +352,7 @@ export {
   readPinnedShortEdge,
   clearPinnedShortEdge,
   clearZoomSizeOverride,
+  updateZoomSecClip,
   ZOOM_DEFAULTS,
   ZOOM_SHAPES,
 };

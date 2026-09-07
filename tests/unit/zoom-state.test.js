@@ -61,6 +61,11 @@ before(async () => {
   // ⑷ 최소 전역 — zoom-block.js 는 window.* 를 대입하고, document 는 makeZoomBlock 만 쓴다
   globalThis.window = {};
   globalThis.document = { createElement: (tag) => makeEl(tag) };
+  /* ★rAF 를 «즉시 실행»으로 깐다 — 이게 있어야 「그린 뒤에 읽는다」를 검사가 보장한다.
+     지디가 실기에서 정확히 이 함정에 빠졌다: 오버레이가 rAF 로 다시 그리는데 그 «앞»을 읽어
+     판독 시점마다 답이 달랐다(arcs:4/dLen:150 → len:0). ⇒ 계측은 「그렸나」가 아니라
+     「다시 그린 뒤에 읽었나」를 먼저 보장해야 한다. 여기선 rAF 를 동기로 만들어 그 순서를 «고정»한다. */
+  globalThis.requestAnimationFrame = (fn) => { fn(); return 0; };
 
   const dir = mkTmpRoot('zoom-state-');
   const mjs = path.join(dir, 'zoom-block.mjs');
@@ -182,6 +187,30 @@ test('S-8 [C15] renderZoomBlock 은 핸들·이동 드래그를 «실제로» �
   assert.equal(b.listeners.filter(l => l.type === 'mousedown').length, 2, '재렌더마다 리스너가 쌓인다');
 });
 
+test('S-8b [⑪] renderZoomBlock 이 «섹션 밖 크롭»을 실제로 다시 계산한다', () => {
+  /* 스티커 계열의 규약이다. ⛔클립은 «블록»이 아니라 «그리는 층»(.zoom-clip)에 걸어야 한다 —
+     블록 상자는 도형이라 거기 걸면 ①평상시 값 0 이라 안 잘리고 ②잘리는 순간 그림자가 끊긴다. */
+  const seen = [];
+  const prev = globalThis.window._updateStickerSecClip;
+  globalThis.window._updateStickerSecClip = (el) => seen.push(el);
+  try {
+    const layer = makeEl('div');
+    const b = el({});
+    b.querySelector = (sel) => (sel === ':scope > .zoom-clip' ? layer : null);
+    M.renderZoomBlock(b);
+    assert.equal(seen.length, 1, '렌더가 크롭을 다시 계산하지 않는다 — 그림자가 섹션 밖으로 샌다');
+    assert.equal(seen[0], layer, '★블록에 걸었다 — 그리는 층(.zoom-clip)에 걸어야 한다');
+  } finally {
+    globalThis.window._updateStickerSecClip = prev;
+  }
+});
+
+test('S-8c [⑪] 층을 못 찾으면 «조용히 넘어간다»(던지지 않는다)', () => {
+  const b = el({});
+  b.querySelector = () => null;
+  assert.doesNotThrow(() => M.updateZoomSecClip(b));
+});
+
 test('S-9 renderZoomBlock 이 쓰는 상자·회전이 dataset 을 따라간다', () => {
   const c = el({ shape: 'circle', size: '160' });
   M.renderZoomBlock(c);
@@ -223,4 +252,59 @@ test('S-11 makeZoomBlock 은 «행(row)을 만들지 않는다» — 플로팅�
   assert.equal(typeof b.dataset, 'object', '블록 «하나»를 돌려줘야 한다');
   assert.equal(b.row, undefined, '{row, block} 을 돌려주던 흐름 시절로 되돌아갔다');
   assert.match(b.style.cssText, /position:absolute;left:40px;top:40px;/);
+});
+
+/* ── ⑪ 공유 헬퍼 일반화가 «스티커를 안 바꿨나» ─────────────────────────────────
+ * _updateStickerSecClip 은 스티커·목업이 쓰는 «남의 함수»다. 확대블럭의 층은 블록 «안»에
+ * 있어 섹션까지 오프셋을 «누적»하도록 고쳤다. ⇒ 직속 자식(스티커)에서 «값이 같은지»를 잰다.
+ * ★소스를 읽어 «식»을 그대로 실행한다 — 「같을 것이다」라고 논증하지 않는다.
+ * ───────────────────────────────────────────────────────────────────────── */
+const { test: t2 } = require('node:test');
+
+t2('S-12 [⑪] 공유 클립 함수 — 섹션 «직속» 자식(스티커)에서 값이 예전과 같다', async () => {
+  /* ⛔pathToFileURL 을 «별칭»으로 가리지 마라 — tests/unit/win-portability.test.mjs 의 ②-4 가
+     「import() 호출 자리에 file:// 변환이 보이나」를 잰다. 내가 p2u 로 가렸다가 잡혔다.
+     그 규칙이 옳다: 헬퍼로 감싸면 호출 자리에서 안 보이고, 윈도우에서 경로가 조용히 깨진다. */
+  const dir = mkTmpRoot('sticker-clip-');
+
+  // ★함수 본문만 떼어 «진짜 실행»한다(스티커 모듈 전체는 브라우저 의존이 커서 못 띄운다).
+  const src = readSrc(ROOT, 'js', 'blocks', 'sticker-block.js');
+  const i = src.indexOf('function _updateStickerSecClip(block) {');
+  assert.notEqual(i, -1, '공유 클립 함수를 못 찾음 — 검사가 대상을 놓쳤다');
+  const j = src.indexOf('\n}\n', i);
+  assert.notEqual(j, -1, '함수 끝을 못 찾음');
+  const body = src.slice(i, j + 3);
+  const mjs = path.join(dir, 'clip.mjs');
+  fs.writeFileSync(mjs, body + '\nexport { _updateStickerSecClip };\n', 'utf8');
+  const { _updateStickerSecClip: fn } = await import(pathToFileURL(mjs).href);
+
+  // 섹션 직속 스티커 — offsetParent 가 곧 섹션이다(누적 루프가 한 번 돈다)
+  const sec = { clientWidth: 800, clientHeight: 400, contains: () => true };
+  const props = {};
+  const stk = {
+    offsetWidth: 60, offsetHeight: 60, offsetLeft: -20, offsetTop: -30,
+    offsetParent: sec, closest: () => sec,
+    style: { setProperty: (k, v) => { props[k] = v; }, removeProperty: (k) => { delete props[k]; } },
+  };
+  fn(stk);
+  // 예전 식: t=max(0,30)=30 · l=max(0,20)=20 · r=max(0,-20+60-800)=0 · b=max(0,-30+60-400)=0
+  assert.equal(props['--sec-clip'], 'inset(30px 0px 0px 20px)', '직속 자식 값이 달라졌다 — 스티커가 바뀐다');
+
+  // 섹션 «안»에 있으면 변수를 지운다(예전과 같다)
+  const inside = { ...stk, offsetLeft: 10, offsetTop: 10 };
+  fn(inside);
+  assert.equal(props['--sec-clip'], undefined);
+
+  // ★확대블럭 경우 — 한 단계 더 안(블록 안의 층)에서도 «누적»되어 값이 나온다
+  const blk = { offsetLeft: 40, offsetTop: 40, offsetParent: sec, contains: () => true };
+  sec.contains = (el) => el === blk || el === layer;
+  const layer = {
+    offsetWidth: 188, offsetHeight: 248, offsetLeft: -14, offsetTop: -134,
+    offsetParent: blk, closest: () => sec,
+    style: { setProperty: (k, v) => { props[k] = v; }, removeProperty: (k) => { delete props[k]; } },
+  };
+  fn(layer);
+  // 층의 섹션 내 좌표 = (40-14, 40-134) = (26, -94) ⇒ t=94 · l=0
+  assert.equal(props['--sec-clip'], 'inset(94px 0px 0px 0px)',
+    '누적이 안 된다 — 그림자가 섹션 밖으로 나가도 «안 잘린다»(⑪ 이 그 결함이었다)');
 });

@@ -298,15 +298,16 @@ export function svgOffset(st, pinned) {
   return { left: b.w / 2 + box.minX, top: b.h / 2 + box.minY };
 }
 
-/** 체크패턴 층 — «도형» 상자다(테두리 제외). 블록 좌상단 기준. */
-export function bgMarkup(st) {
+/** 체크패턴 층 — «도형» 상자다(테두리 제외). ★좌표는 «클리핑 층» 기준(off 만큼 되민다). */
+export function bgMarkup(st, pinned) {
   if (st.fill !== ZOOM_CHECKER) return '';
   const bw = borderWidthOf(st);
   const half = shapeHalf(st);
   const hw = half.hw, hh = (st.shape === 'circle') ? half.hw : half.hh;
   const bdr = Math.max(0, Number(st.bdr) || 0);
   const rot = (st.shape === 'circle') ? 0 : (Number(st.rot) || 0);
-  return `<div class="zoom-bg" style="left:${bw.toFixed(2)}px;top:${bw.toFixed(2)}px;` +
+  const off = svgOffset(st, pinned);
+  return `<div class="zoom-bg" style="left:${(bw - off.left).toFixed(2)}px;top:${(bw - off.top).toFixed(2)}px;` +
     `width:${(hw * 2).toFixed(2)}px;height:${(hh * 2).toFixed(2)}px;` +
     `border-radius:${st.shape === 'circle' ? '50%' : bdr.toFixed(2) + 'px'};` +
     (rot ? `transform:rotate(${rot}deg);` : '') + `"></div>`;
@@ -317,8 +318,7 @@ export function handleLayerMarkup(st, pinned) {
   const box = zoomBox(st, pinned);
   if (!box.ok) return '';
   const geo = box.geo;
-  const off = svgOffset(st, pinned);
-  return `<svg class="zoom-handle-layer" style="left:${off.left.toFixed(2)}px;top:${off.top.toFixed(2)}px;" ` +
+  return `<svg class="zoom-handle-layer" ` +
     `width="${box.w.toFixed(2)}" height="${box.h.toFixed(2)}" ` +
     `viewBox="${box.minX.toFixed(2)} ${box.minY.toFixed(2)} ${box.w.toFixed(2)} ${box.h.toFixed(2)}" ` +
     `xmlns="http://www.w3.org/2000/svg">` +
@@ -331,9 +331,23 @@ export function handleLayerMarkup(st, pinned) {
  *  ★쌓는 순서 = 그림자·테두리·도형(SVG) → 체크배경 → a·b 핸들.
  *    체크가 SVG «위»인 이유: 테두리판은 «도형보다 큰 판»이라 SVG 안에서 도형 자리를 덮는다.
  *    아래 깔면 테두리를 켠 순간 체크가 사라진다. 그래서 핸들도 체크 «뒤»로 뒀다.
- *  ⛔선택 상자(.zoom-sel-box)는 «없다» — 블록 자신이 그 상자다(blockBoxSpec 주석 참조). */
+ *
+ *  ★★.zoom-clip = «섹션 밖 크롭»(--sec-clip)을 받는 층이다. 왜 층을 따로 두나:
+ *    스티커 계열의 규약은 `.sticker-block { clip-path: var(--sec-clip, none) }` 인데,
+ *    확대블럭에 그걸 «블록»에 걸면 두 번 틀린다 —
+ *      ① --sec-clip 은 «블록 자기 상자»가 섹션 밖으로 나간 만큼만 계산한다(sticker-block.js).
+ *         확대블럭은 블록 상자(도형)가 섹션 «안»인데 그림자가 나간다 ⇒ 값이 0 이라 «안 잘린다».
+ *      ② 값이 붙는 순간엔 clip-path 의 기준 상자가 «블록 border-box»(=도형)라
+ *         그림자가 도형 경계에서 «통째로» 잘린다.
+ *    ⇒ 그려지는 것 전부를 감싸는 층(=SVG 상자)을 두고 «그 층»에 클립을 건다.
+ *      그러면 인셋이 전부 0 이상이고, 기준 상자가 «그려지는 영역»과 같다.
+ *    ⛔블록 상자는 여전히 도형(+테두리)이다 — 아웃라인·핸들은 그대로다. */
 export function buildZoomInner(st, pinned) {
-  return `${buildZoomSvg(st, pinned)}${bgMarkup(st)}${handleLayerMarkup(st, pinned)}`;
+  const box = zoomBox(st, pinned);
+  const off = svgOffset(st, pinned);
+  return `<div class="zoom-clip" style="left:${off.left.toFixed(2)}px;top:${off.top.toFixed(2)}px;` +
+    `width:${box.w.toFixed(2)}px;height:${box.h.toFixed(2)}px;">` +
+    `${buildZoomSvg(st, pinned)}${bgMarkup(st, pinned)}${handleLayerMarkup(st, pinned)}</div>`;
 }
 
 export function buildZoomSvg(st, pinned) {
@@ -344,8 +358,7 @@ export function buildZoomSvg(st, pinned) {
     ? strips(geo.A, geo.B, geo.a, geo.b, ZOOM_STRIP_COUNT, (Number(st.curve) || 100) / 100, (Number(st.maxop) || 0) / 100)
     : '';
 
-  const off = svgOffset(st, pinned);
-  return `<svg class="zoom-svg" style="left:${off.left.toFixed(2)}px;top:${off.top.toFixed(2)}px;" ` +
+  return `<svg class="zoom-svg" ` +
     `width="${box.w.toFixed(2)}" height="${box.h.toFixed(2)}" ` +
     `viewBox="${box.minX.toFixed(2)} ${box.minY.toFixed(2)} ${box.w.toFixed(2)} ${box.h.toFixed(2)}" ` +
     `xmlns="http://www.w3.org/2000/svg">` +

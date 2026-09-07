@@ -403,7 +403,15 @@ function _updateStickerSecClip(block) {
   if (!sec) return;
   const w = block.offsetWidth, h = block.offsetHeight;
   if (!w || !h) { block.style.removeProperty('--sec-clip'); return; }
-  const x = block.offsetLeft, y = block.offsetTop;
+  /* ★섹션까지 «누적» 오프셋.
+     스티커·목업은 섹션 «직속»이라 루프가 한 번 돌고 x=offsetLeft 로 «예전과 같은 값»이 나온다.
+     확대블럭은 그려지는 층(.zoom-clip)이 블록 «안»에 있어 한 단계 더 올라가야 한다
+     (블록 상자는 도형이고 그림자는 그 밖으로 나간다 — 블록에 클립을 걸면 그림자가 잘린다).
+     ⚠️sec.contains 로 묶어 offsetParent 사슬이 섹션 밖으로 새는 것을 막는다. */
+  let x = 0, y = 0;
+  for (let el = block; el && el !== sec && sec.contains(el); el = el.offsetParent) {
+    x += el.offsetLeft; y += el.offsetTop;
+  }
   const t = Math.max(0, -y);
   const l = Math.max(0, -x);
   const r = Math.max(0, x + w - sec.clientWidth);

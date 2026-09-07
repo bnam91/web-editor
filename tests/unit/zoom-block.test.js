@@ -67,7 +67,9 @@ const RAW = {
   handles: readSrc(ROOT, 'js', 'overlay-handles.js'),
   dragu:   readSrc(ROOT, 'js', 'drag-utils.js'),
   multisel: readSrc(ROOT, 'js', 'props', 'prop-multisel.js'),
+  assets:  readSrc(ROOT, 'js', 'panels', 'assets-panel.js'),
   overlay: readSrc(ROOT, 'js', 'selection-overlay.js'),
+  sticker: readSrc(ROOT, 'js', 'blocks', 'sticker-block.js'),
 };
 const SRC = Object.fromEntries(Object.entries(RAW).map(([k, v]) => [k, stripComments(v)]));
 
@@ -270,10 +272,21 @@ test('ⓐ-10 ★마크업 실측 — buildZoomInner 가 실제로 내보내는 �
   const vbs = [...html.matchAll(/viewBox="([^"]+)"/g)].map(m => m[1]);
   assert.equal(vbs.length, 2);
   assert.equal(vbs[0], vbs[1], '두 층의 viewBox 가 다르면 핸들이 엉뚱한 자리에 뜬다');
-  // 두 층은 블록 안에서 «같은 자리»에 놓여야 좌표가 맞는다
-  const lefts = [...html.matchAll(/style="left:([-\d.]+)px;top:([-\d.]+)px;"/g)].map(m => m[1] + ',' + m[2]);
-  assert.equal(lefts.length, 2);
-  assert.equal(lefts[0], lefts[1]);
+  /* ★그리는 것 전부가 «클리핑 층» 하나 안에 든다 — 섹션 밖 크롭이 거기 걸린다.
+     ⛔블록에 걸면 안 잘리거나(값 0) 잘리는 순간 그림자가 도형에서 끊긴다. */
+  assert.equal((html.match(/class="zoom-clip"/g) || []).length, 1, '클리핑 층이 없다');
+  assert.ok(html.startsWith('<div class="zoom-clip"'), '클리핑 층이 «전부»를 감싸야 한다');
+  assert.ok(html.endsWith('</div>'));
+  for (const cls of ['zoom-svg', 'zoom-shape', 'zoom-handle-layer']) {
+    assert.ok(html.indexOf(cls) > html.indexOf('zoom-clip'), `${cls} 가 클리핑 층 밖에 있다`);
+  }
+  // 층의 상자 = SVG 상자여야 인셋이 «그려지는 영역» 기준이 된다
+  const box = g.zoomBox({ ...ST, fill: '#cfd6e0' }, null);
+  const off = g.svgOffset({ ...ST, fill: '#cfd6e0' }, null);
+  const cm = html.match(/class="zoom-clip" style="left:([-\d.]+)px;top:([-\d.]+)px;width:([\d.]+)px;height:([\d.]+)px;"/);
+  assert.ok(cm, '클리핑 층 치수를 못 읽었다');
+  assert.deepEqual(cm.slice(1).map(Number),
+    [+off.left.toFixed(2), +off.top.toFixed(2), +box.w.toFixed(2), +box.h.toFixed(2)]);
 });
 
 test('ⓐ-11 뷰박스가 도형·그림자·광원을 «전부» 담는다 (잘리면 화면에서 사다리꼴 끝이 사라진다)', async () => {
@@ -535,9 +548,14 @@ test('ⓐ-21 ④체크패턴 — 기본 배경은 무늬고, 그때 도형은 «
     assert.ok(x, '무늬 상자 치수를 못 읽었다');
     return x.slice(1).map(Number);
   };
-  assert.deepEqual(m(chk), [0, 0, 160, 100]);          // rect: size 160 × 0.625, 테두리 없음
-  const bd = g.buildZoomInner({ ...ST, fill: g.ZOOM_CHECKER, bd: 'on', bdw: 6 }, null);
-  assert.deepEqual(m(bd), [6, 6, 160, 100]);           // ★테두리를 켜도 «도형 크기»는 그대로
+  /* ★좌표는 «클리핑 층» 기준이다(층이 SVG 상자만큼 왼쪽·위로 나가 있으므로 그만큼 되민다).
+     크기는 여전히 «도형» 상자다 — 테두리를 켜도 안 변한다(그게 이 검사의 요지). */
+  const off0 = g.svgOffset({ ...ST, fill: g.ZOOM_CHECKER }, null);
+  assert.deepEqual(m(chk), [+(-off0.left).toFixed(2), +(-off0.top).toFixed(2), 160, 100]);
+  const bdSt = { ...ST, fill: g.ZOOM_CHECKER, bd: 'on', bdw: 6 };
+  const offB = g.svgOffset(bdSt, null);
+  const bd = g.buildZoomInner(bdSt, null);
+  assert.deepEqual(m(bd), [+(6 - offB.left).toFixed(2), +(6 - offB.top).toFixed(2), 160, 100]);
   assert.match(g.buildZoomInner({ ...ST, shape: 'circle', fill: g.ZOOM_CHECKER }, null), /class="zoom-bg"[^>]*border-radius:50%/);
 });
 
@@ -833,6 +851,52 @@ test('ⓑ-20b ★확대블럭은 «플로팅»이라 흐름 목록에 «없다»
   const decl2 = wrap.slice(0, wrap.indexOf(';') + 1);
   assert.ok(/\.sticker-block\.selected/.test(decl2), '전제: 플로팅 계열이 이 목록에 있다');
   assert.ok(/\.zoom-block\.selected/.test(decl2), '같은 계열인데 확대블럭만 빠졌다');
+});
+
+test('ⓑ-21 ★⑪계열 약속 ① — 「섹션 밖 크롭」 3규칙에 확대블럭이 «다» 있다', () => {
+  /* ⚠️처음엔 「섹션 밖 크롭」이라는 «낱말»로 구간을 잘랐는데, 내가 새로 쓴 주석이 그 낱말을
+     먼저 갖고 있어 엉뚱한 데를 잘랐다. ⇒ 낱말이 아니라 «규칙»으로 잡는다(주석은 거른 뒤). */
+  const rules = [...SRC.css.matchAll(/([^{}]*)\{([^}]*)\}/g)]
+    .map(m => ({ sel: m[1].trim().replace(/\s+/g, ' '), body: m[2].trim().replace(/\s+/g, ' ') }))
+    .filter(r => /clip-path/.test(r.body));
+  assert.ok(rules.length >= 3, `clip-path 규칙을 ${rules.length}개밖에 못 셌다 — 못 잰 것이다`);
+
+  /* 규약은 셋이 «한 벌»이다: 걸기 · 선택 중 해제 · 「섹션 밖 보이기」 해제.
+     하나만 빠져도 조용히 어긋난다(선택 중 해제가 없으면 조작이 잘려 핸들이 안 잡힌다). */
+  const put   = rules.filter(r => /clip-path:\s*var\(--sec-clip/.test(r.body));
+  const onSel = rules.filter(r => /^clip-path:\s*none;?$/.test(r.body) && /\.selected/.test(r.sel));
+  const onOvf = rules.filter(r => /^clip-path:\s*none;?$/.test(r.body) && /data-overflow-visible/.test(r.sel));
+  for (const [name, arr] of [['걸기', put], ['선택 중 해제', onSel], ['섹션 밖 보이기 해제', onOvf]]) {
+    assert.equal(arr.length, 1, `${name} 규칙이 ${arr.length}개 — 하나여야 한다`);
+    assert.ok(arr[0].sel.includes('.zoom-clip'), `${name} 규칙에 확대블럭이 없다`);
+    // ★대조 — 같은 규칙에 전례(sticker/mockup)가 «실제로» 있다. 없으면 이 판정이 헛돈다.
+    assert.ok(/sticker-block|mockup-block/.test(arr[0].sel), `${name}: 전례를 못 찾았다 — 자가 도는지 확인`);
+  }
+  /* ⛔클립은 «블록»이 아니라 «그리는 층»에 건다 — 블록 상자는 도형이라 거기 걸면
+     ①평상시 값 0 이라 안 잘리고 ②잘리는 순간 그림자가 도형에서 끊긴다. */
+  assert.equal(/(^|,)\s*\.zoom-block\s*(,|$)/.test(put[0].sel), false, '블록에 «직접» 걸었다');
+  assert.ok(/\.zoom-block > \.zoom-clip/.test(put[0].sel), '그리는 층에 안 걸었다');
+});
+
+test('ⓑ-22 ★⑪계열 약속 ② — 클립 계산은 «같은 함수»를 쓴다(식을 베끼지 않았다)', () => {
+  assert.ok(/window\._updateStickerSecClip\?\.\(layer\)/.test(SRC.block),
+    '스티커의 계산 함수를 안 쓴다 — 식을 베끼면 두 정본이 된다');
+  assert.equal(/offsetLeft|offsetTop|inset\(/.test(SRC.block), false,
+    '확대블럭이 클립 «식»을 자기가 계산하고 있다');
+  // 공유 함수는 섹션까지 «누적»해야 한다 — 확대블럭의 층은 블록 «안»에 있다
+  assert.ok(/for \(let el = block; el && el !== sec && sec\.contains\(el\); el = el\.offsetParent\)/.test(SRC.sticker),
+    '공유 함수가 한 단계만 본다 — 중첩된 층에서 값이 0 으로 나온다');
+});
+
+test('ⓑ-23 ★⑪계열 약속 ③ — 「캔버스에 뭔가 선택됨」 폴백 목록이 정본과 어긋나지 않는다', () => {
+  /* D1 과 같은 병(사본이 둘). 여기는 폴백이 «역할»이라 지우지 않고, 대신 어긋나면 빨개지게 한다. */
+  const cls = (t) => new Set([...t.matchAll(/\.([a-z0-9-]+)\.selected/g)].map(m => m[1]));
+  const slice = (src, start) => { const i = src.indexOf(start); assert.notEqual(i, -1, start); return src.slice(i, src.indexOf(';', i)); };
+  const canon = cls(slice(SRC.editor, 'const CANVAS_SEL_BLOCKS ='));
+  const fb = cls(slice(SRC.assets, 'const _canvasSel = window.CANVAS_SEL_BLOCKS_AND_SHAPE'));
+  assert.ok(canon.size > 20, `정본을 ${canon.size}종밖에 못 셌다 — 못 잰 것이다`);
+  const missing = [...canon].filter(c => !fb.has(c));
+  assert.deepEqual(missing, [], `폴백에 빠진 블록: ${missing.join(', ')}`);
 });
 
 test('ⓑ-19b ★⑧이 «새로 여는 경계» — 플로팅은 삽입 기준점이 되면 안 된다', () => {

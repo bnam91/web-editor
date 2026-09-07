@@ -1763,12 +1763,17 @@ textarea.cvb-card-input {
   cursor: pointer;
   user-select: none;
 }
+.zoom-block .zoom-clip,
 .zoom-block .zoom-svg,
 .zoom-block .zoom-bg,
 .zoom-block .zoom-handle-layer {
   position: absolute;
   pointer-events: none;
 }
+/* 그리는 것 전부를 담는 층 = SVG 상자. 여기에만 «섹션 밖 크롭»이 걸린다(위 규칙). */
+.zoom-block .zoom-clip { left: 0; top: 0; }
+.zoom-block .zoom-svg,
+.zoom-block .zoom-handle-layer { left: 0; top: 0; }
 .zoom-block .zoom-svg { display: block; overflow: visible; }
 /* ★도형 배경 = 체크패턴(투명 표시용 placeholder). 「다른 이미지에셋 들어갈 때처럼」이 명세라
    .icb-circle 이 쓰는 «그 값 그대로» 재사용한다 — 무늬 정본을 둘로 만들지 않는다.
@@ -2695,15 +2700,21 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
    미리보기/Export 클론에도 인라인 변수가 그대로 복제되어 동일하게 잘림.
 ────────────────────────────────────────────── */
 .sticker-block,
-.mockup-block {
+.mockup-block,
+/* ★확대블럭은 «블록»이 아니라 «그리는 층»(.zoom-clip)에 건다 — 블록 상자는 도형이라
+   거기 걸면 ①평상시엔 값이 0 이라 안 잘리고 ②잘리는 순간 그림자가 도형에서 끊긴다.
+   근거·수치는 js/blocks/zoom-geometry.js 의 buildZoomInner 주석. */
+.zoom-block > .zoom-clip {
   clip-path: var(--sec-clip, none);
 }
 .sticker-block.selected,
-.mockup-block.selected {
+.mockup-block.selected,
+.zoom-block.selected > .zoom-clip {
   clip-path: none;
 }
 .section-block[data-overflow-visible="true"] .sticker-block,
-.section-block[data-overflow-visible="true"] .mockup-block {
+.section-block[data-overflow-visible="true"] .mockup-block,
+.section-block[data-overflow-visible="true"] .zoom-block > .zoom-clip {
   clip-path: none;
 }
 
