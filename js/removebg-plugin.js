@@ -7,14 +7,16 @@
 
    ⛔이 파일이 지키는 것 셋
      ⑴ 조용히 실패하지 않는다 — 키가 없으면 «보이게» 말하고 «설정으로 가는 길»을 준다.
-     ⑵ 모르고 «외부로 보내지» 않는다 — remove.bg 는 사용자 이미지가 제3자에게 나가고 과금된다.
-        되돌릴 수 없으므로 처음 고를 때 한 번 «묻는다».
+     ⑵ 모르고 «외부로 보내지» 않는다 — 모델 고르기에서 remove.bg 줄에 「외부 전송」을 적어 둔다.
+        (막는 고지는 두지 않는다 — 이 앱의 AI 누끼도 외부로 보내는데 거기엔 고지가 없다.)
+     ⑷ ★#aig-model-select 를 «읽지도 쓰지도» 않는다 — 그건 AI 생성 패널의 공용 select 다.
      ⑶ native alert/confirm 을 쓰지 않는다 — 렌더러를 막는다(template-system.js:156 이 그 사고 자리).
    ══════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
 
   const MODEL_REMOVEBG = 'removebg';
+  const MODEL_AI       = 'ai';
 
   /* ── 대상: 스크래치 아이템 / 이미지블록 ─────────────────────────────
      ★두 대상 모두 ai-image-gen 이 «이미» 수집하는 것과 같은 술어를 쓴다.
@@ -58,9 +60,9 @@
     });
   }
 
-  /* ── 안내 — ⛔native alert 금지(렌더러가 멈춘다) ─────────────────────
+  /* ── 패널 껍데기 — ⛔native alert/confirm 금지(렌더러가 멈춘다) ──────
      버튼이 필요한 안내는 토스트로 안 된다(토스트엔 «다음 행동»을 못 넣는다). 작은 패널을 띄운다. */
-  function _notice({ title, body, okLabel, onOk, cancelLabel }) {
+  function _shell({ title, body }) {
     document.getElementById('rb-notice')?.remove();
     const wrap = document.createElement('div');
     wrap.id = 'rb-notice';
@@ -78,24 +80,76 @@
     p.textContent = body;
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
-    const close = () => wrap.remove();
+    box.append(h, p, row); wrap.appendChild(box);
+    document.body.appendChild(wrap);
+    return { wrap, box, row, close: () => wrap.remove() };
+  }
+
+  const _BTN_PLAIN = 'padding:6px 12px;border-radius:6px;cursor:pointer;'
+    + 'background:var(--ui-bg-input,#2e2e2e);color:inherit;border:1px solid var(--ui-border,#3a3a3a);';
+  const _BTN_PRIMARY = 'padding:6px 12px;border-radius:6px;cursor:pointer;border:0;'
+    + 'background:var(--ui-accent-primary,#3b82f6);color:var(--ui-accent-text,#fff);';
+
+  function _notice({ title, body, okLabel, onOk, cancelLabel }) {
+    const { wrap, row, close } = _shell({ title, body });
     if (cancelLabel) {
       const c = document.createElement('button');
       c.textContent = cancelLabel;
-      c.style.cssText = 'padding:6px 12px;border-radius:6px;cursor:pointer;'
-        + 'background:var(--ui-bg-input,#2e2e2e);color:inherit;border:1px solid var(--ui-border,#3a3a3a);';
+      c.style.cssText = _BTN_PLAIN;
       c.addEventListener('click', close);
       row.appendChild(c);
     }
     const ok = document.createElement('button');
     ok.textContent = okLabel;
-    ok.style.cssText = 'padding:6px 12px;border-radius:6px;cursor:pointer;border:0;'
-      + 'background:var(--ui-accent-primary,#3b82f6);color:var(--ui-accent-text,#fff);';
+    ok.style.cssText = _BTN_PRIMARY;
     ok.addEventListener('click', () => { close(); try { onOk?.(); } catch (_) {} });
     row.appendChild(ok);
-    box.append(h, p, row); wrap.appendChild(box);
     wrap.addEventListener('click', e => { if (e.target === wrap) close(); });
-    document.body.appendChild(wrap);
+  }
+
+  /* ── 모델 고르기 — ★이 플러그인 «자기» 선택이다 ─────────────────────
+     ⛔#aig-model-select 를 읽지도 쓰지도 않는다. 그건 ai-image-gen 이 생성 payload 에
+       «그대로» 실어 보내는 공용 select 라, 거기에 removebg 를 끼워 넣으면
+       모르는 모델명이 gemini 경로로 흘러간다(내가 실제로 그렇게 만들었다가 걷어냈다).
+     ★기본은 «AI 누끼» — 지금 동작과 같게 둔다. ⛔저장하지 않는다(고를 때마다 기본이 AI 누끼다). */
+  function _chooseModel() {
+    return new Promise(resolve => {
+      const { wrap, box, row, close } = _shell({
+        title: '배경 제거 모델',
+        body: '어떤 방식으로 배경을 지울지 고르세요.',
+      });
+      let done = false;
+      const finish = (v) => { if (done) return; done = true; close(); resolve(v); };
+      const list = document.createElement('div');
+      list.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin:-8px 0 16px;';
+      const mk = (value, label, desc, primary) => {
+        const b = document.createElement('button');
+        b.dataset.rbModel = value;
+        b.style.cssText = 'text-align:left;padding:10px 12px;border-radius:8px;cursor:pointer;'
+          + 'background:var(--ui-bg-input,#2e2e2e);color:inherit;font:inherit;border:1px solid '
+          + (primary ? 'var(--ui-accent-primary,#3b82f6)' : 'var(--ui-border,#3a3a3a)') + ';';
+        const t = document.createElement('div');
+        t.style.cssText = 'font-weight:600;margin-bottom:2px;';
+        t.textContent = label;
+        const d = document.createElement('div');
+        d.style.cssText = 'font-size:12px;opacity:.7;';
+        d.textContent = desc;
+        b.append(t, d);
+        b.addEventListener('click', () => finish(value));
+        return b;
+      };
+      list.append(
+        mk(MODEL_AI, 'AI 누끼 (기본)', '이미지 생성 패널의 «누끼따기»로 처리합니다.', true),
+        mk(MODEL_REMOVEBG, 'remove.bg · 정밀 누끼', '키 필요 · 외부 전송 (이미지가 remove.bg 로 갑니다)', false),
+      );
+      box.insertBefore(list, row);
+      const c = document.createElement('button');
+      c.textContent = '취소';
+      c.style.cssText = _BTN_PLAIN;
+      c.addEventListener('click', () => finish(null));
+      row.appendChild(c);
+      wrap.addEventListener('click', e => { if (e.target === wrap) finish(null); });
+    });
   }
 
   /* ── 키 없음 — ★조용히 넘어가지 않는다. 「설정 열기」까지 준다 ────── */
@@ -154,9 +208,10 @@
       window.showToast?.('❌ 배경을 지울 이미지를 먼저 선택하세요 (스크래치 항목 또는 이미지 블록)');
       return;
     }
-    const model = document.getElementById('aig-model-select')?.value || 'gemini-2.5-flash-image';
+    const model = await _chooseModel();
+    if (!model) return;                            // 취소 — 아무것도 하지 않는다
 
-    // ★AI 누끼 모델이면 기존 경로로 넘긴다 — 여기서 새 구현을 만들지 않는다
+    // ★AI 누끼면 기존 경로로 넘긴다 — 여기서 새 구현을 만들지 않는다
     if (model !== MODEL_REMOVEBG) {
       window.showToast?.('✂️ AI 누끼는 이미지 생성 패널에서 «누끼따기»를 켜고 실행하세요');
       window.openImageGenModal?.();
@@ -198,19 +253,6 @@
     runRemoveBg();
   }
 
-  /* 모델 select 에서 removebg 를 «고르는 즉시» 키 유무를 알린다 —
-     실행할 때까지 기다렸다 실패시키면 사용자가 헛걸음한다. */
-  function _wireModelSelect() {
-    const sel = document.getElementById('aig-model-select');
-    if (!sel || sel._rbWired) return;
-    sel._rbWired = true;
-    sel.addEventListener('change', async () => {
-      if (sel.value !== MODEL_REMOVEBG) return;
-      await _ensureKey();
-    });
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _wireModelSelect);
-  else _wireModelSelect();
 
   window.openRemoveBgPlugin = openRemoveBgPlugin;
   window.runRemoveBg        = runRemoveBg;
