@@ -84,8 +84,13 @@ const BLOCK_TYPES = [
     blurb: 'raw SVG string with fill-color replacement' },
   { type: 'mockup', add: 'add_mockup_block', upd: 'update_mockup_block', pfx: 'mkp_',
     blurb: 'device frame (phone/tablet/laptop/browser) around a screenshot' },
-  { type: 'banner', add: 'add_banner_block', upd: 'update_frame_block', pfx: 'ss_',
-    blurb: 'preset horizontal banner (frame + auto text/image children)' },
+  /* ★add 를 «끊는다» — 핸들러가 무조건 거절하는 «죽은 경로»였다(mcp-server.js:3158).
+       원장 실측(2026-09-07): 11건이 「add_banner 는 MVP 에서 제외됐다」로 끝났다.
+       목록에 있으니 모델은 계속 시도했고, 매번 왕복 한 번을 버렸다.
+     ⇒ add:null 로 두면 add_block 이 「type "banner" has no add tool」로 «먼저» 끊고,
+       blurb 가 대안을 알려 준다. 읽기·수정(옛 프로젝트의 ss_ 배너)은 그대로 산다. */
+  { type: 'banner', add: null, upd: 'update_frame_block', pfx: 'ss_',
+    blurb: 'LEGACY horizontal banner — read/update only; to CREATE one use type "banner02"' },
   { type: 'banner02', add: 'add_banner02_block', upd: 'update_banner02_block', pfx: 'bn2_',
     blurb: 'standalone wide banner (label/title/sub + image)' },
   { type: 'liner', add: 'add_liner_block', upd: 'update_liner_block', pfx: 'lnr_',
