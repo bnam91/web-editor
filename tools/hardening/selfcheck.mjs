@@ -89,7 +89,7 @@ C('I7-★notMeasured-when-denied', 'I7', 'broken', 'NOT_MEASURED', () => {
 C('I7-★notMeasured-when-empty', 'I7', 'broken', 'NOT_MEASURED', () => {
   // 잴 파일이 «한 개도 없는» 폴더도 판정이 아니다.
   const ud = mkTmpRoot('h7-i7-empty-');
-  const d = path.join(ud, 'projects'); fs.mkdirSync(d, { recursive: true });
+  const d = path.join(ud, 'projects'); fs.mkdirSync(d, { recursive: true });  // [뿌리-하네스] 비로그인 픽스처 전용 — 위 경고 참조
   const r = judgeI7(d, { checkoutDir: CHECKOUT });
   return { pass: r.pass, verdict: r.verdict, detail: r.summary };
 });

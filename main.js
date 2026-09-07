@@ -1120,9 +1120,9 @@ const ACCOUNTS_DIR = path.join(USER_DATA_DIR, 'accounts');
    ⚠️오늘 기준 이 폴더는 «빌 것»이다 — 그 상태에선 사용자가 프로젝트를 못 만든다(실측:
      MCP 는 NOT_LOGGED_IN, 렌더러는 로그인 화면). 즉 «지금 갇히는» 것이 아니다.
      다만 오늘 비어 있는 이유도 «무관한 게이트 둘»이라, 그게 바뀌면 이쪽으로 열린다. */
-const PROJECTS_DIR_UNRESOLVED = path.join(ACCOUNTS_DIR, '_unresolved', 'projects');
+const PROJECTS_DIR_UNRESOLVED = path.join(ACCOUNTS_DIR, '_unresolved', 'projects');  // [뿌리-정본] 격리 착지점을 «만드는» 자리
 let PROJECTS_DIR = PROJECTS_DIR_LEGACY;
-migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR_LEGACY); // 구 경로 마이그레이션
+migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR_LEGACY); // 구 경로 마이그레이션 [뿌리-정본] 레거시 풀로만 옮긴다
 if (!fs.existsSync(PROJECTS_DIR_LEGACY)) fs.mkdirSync(PROJECTS_DIR_LEGACY, { recursive: true });
 
 /* 계정 키 — «폴더 이름만 보고 누구 것인지 알 수 있게» 두되, 충돌은 해시로 막는다.
@@ -1155,7 +1155,7 @@ function _currentAccountKey() {
   if (!key) throw new Error(`계정키를 못 만들었다(email=${JSON.stringify(String(a.email).slice(0, 40))}) — 공용 풀로 내리지 않는다`);
   return key;
 }
-function _accountProjectsDir(key) { return path.join(ACCOUNTS_DIR, key, 'projects'); }
+function _accountProjectsDir(key) { return path.join(ACCOUNTS_DIR, key, 'projects'); }  // [뿌리-정본] 계정 뿌리를 «만드는» 자리
 /* 고지 문구에 쓸 이메일. ⛔실패해도 입양을 막지 않는다 — 이름을 못 읽은 것이지 옮기지 말라는 뜻이 아니다. */
 function _currentAccountEmail() {
   try { const a = readAuthOrThrow(); return (a && a.email) ? String(a.email) : null; } catch (_) { return null; }
@@ -1251,13 +1251,13 @@ function _repointProjectsDir(reason) {
     if (PROJECTS_DIR !== PROJECTS_DIR_UNRESOLVED) { try { global.currentActiveProjectId = null; } catch (_) {} }
     PROJECTS_DIR = PROJECTS_DIR_UNRESOLVED;
     _writeUnresolvedReadme((e && e.message) || String(e));
-    _projectsDirState = { root: PROJECTS_DIR, account: null, reason, unresolved: true, error: String((e && e.message) || e) };
+    _projectsDirState = { root: PROJECTS_DIR, account: null, reason, unresolved: true, error: String((e && e.message) || e) };  // [뿌리-스냅샷] 진단용 기록 — 여기서 읽어 쓰는 곳이 없다
     return _projectsDirState;
   }
   if (!key) {
     if (PROJECTS_DIR !== PROJECTS_DIR_LEGACY) { try { global.currentActiveProjectId = null; } catch (_) {} }
     PROJECTS_DIR = PROJECTS_DIR_LEGACY;
-    _projectsDirState = { root: PROJECTS_DIR, account: null, reason };
+    _projectsDirState = { root: PROJECTS_DIR, account: null, reason };  // [뿌리-스냅샷] 진단용 기록 — 여기서 읽어 쓰는 곳이 없다
     return _projectsDirState;
   }
   const dest = _accountProjectsDir(key);

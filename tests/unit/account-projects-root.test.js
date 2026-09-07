@@ -9,6 +9,12 @@ const path = require('path');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'main.js'), 'utf8');
 
+/* 주석을 «통째로» 지운다 — 줄 단위로 지우면 블록 주석 «안쪽»이 남아 코드로 세어진다
+   (오늘 아침 D7 에서 그걸로 가짜 빨강을 냈다). 문자열 안의 // 는 여기선 문제가 안 된다. */
+function stripComments(src) {
+  return String(src).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
 const BEGIN = 'const PROJECTS_DIR_LEGACY = path.join(USER_DATA_DIR, \'projects\');';
 const END = "_repointProjectsDir('startup');";
 
@@ -138,9 +144,20 @@ test('M9 ★PROJECTS_DIR 을 «한 번만 읽고 보관»하는 자리가 없다
      f(PROJECTS_DIR, id) 처럼 매번 호출할 때 읽는 것은 안전하다 — 재지정이 그대로 먹는다.
      위험한 건 결과가 «오래 사는» 두 모양뿐이다:
        ⒜ const/let/var X = PROJECTS_DIR      ⒝ register…·set…·new 배선에 값으로 넘김 */
-  const lines = SRC.split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => !/PROJECTS_DIR_LEGACY/.test(l));
+  /* 제외는 «그 줄에 적혀 있어야» 한다(주석이 멀어지면 못 잰다):
+       ⑴ PROJECTS_DIR_LEGACY(다른 상수)  ⑵ [뿌리-스냅샷] 표식(진단 기록 — 읽어 쓰는 곳이 없다) */
+  const lines = SRC.split('\n').map((l, i) => [i + 1, l])
+    .filter(([, l]) => !/PROJECTS_DIR_LEGACY/.test(l) && !/\[뿌리-스냅샷\]/.test(l));
   const held = lines.filter(([, l]) => /\b(?:const|let|var)\s+\w+\s*=\s*PROJECTS_DIR\b/.test(l));
-  const wired = lines.filter(([, l]) => /\b(?:register|set)[A-Z]\w*\([^)]*\bPROJECTS_DIR\b(?!\s*\))/.test(l) || /\bnew\s+\w+\([^)]*\bPROJECTS_DIR\b/.test(l));
+  /* ⛔1판의 제외 `(?!\s*\))` 는 정본 `setX(() => PROJECTS_DIR)` 를 빼려던 것인데,
+       ★막으려는 «퇴행» 자체인 `setX(PROJECTS_DIR)` 도 같이 빼 줬다(변이로 확인: 초록).
+       그리고 `held` 가 `const X = PROJECTS_DIR` 만 봐서 «객체 프로퍼티 배선»
+       (`startMcpServer({ projectsDir: PROJECTS_DIR })`)을 못 봤다.
+     ⇒ 제외를 «게터 모양»으로 좁히고, `:` 대입도 붙잡는다. */
+  const wired = lines.filter(([, l]) =>
+    (/\b(?:register|set)[A-Z]\w*\([^)]*\bPROJECTS_DIR\b/.test(l) && !/\(\s*\)\s*=>\s*PROJECTS_DIR/.test(l))
+    || /\bnew\s+\w+\([^)]*\bPROJECTS_DIR\b/.test(l)
+    || (/[:=]\s*PROJECTS_DIR\s*[,}]/.test(l) && !/=>\s*PROJECTS_DIR/.test(l) && !/PROJECTS_DIR =/.test(l)));
   const bad = held.concat(wired);
   assert.deepStrictEqual(bad, [], `★계정이 바뀌어도 옛 뿌리를 보게 된다:\n${bad.map(([n, l]) => `  ${n}: ${l.trim()}`).join('\n')}`);
   assert.match(SRC, /registerGdtIpc\(\{ projectsDir: _projectsRoot,/, '★gdt 는 «게터»로 받아야 한다');
@@ -168,11 +185,22 @@ test('M10 ★projects 경로를 «직접 조립»하는 곳이 남아 있지 않
   for (const f of files) {
     const src = fs.readFileSync(f, 'utf8');
     src.split('\n').forEach((l, i) => {
-      if (/\.join\([^)]*(?:getUserDataDir\(\)|getPath\('userData'\)|USER_DATA_DIR)[^)]*,\s*'projects'/.test(l)) {
+      /* ⛔1판은 「userData 를 «그 줄에서» 부르고 곧바로 'projects' 를 잇는」 모양만 봤다.
+           ★별칭 한 줄(`const ud = _getUserDataDir(); path.join(ud,'projects')`)이나
+             큰따옴표(`"projects"`)면 통과했다(변이로 확인: 둘 다 초록).
+         ⇒ 뒤집는다 — 'projects'/"projects" 가 «경로 세그먼트»로 쓰인 줄을 «전부» 잡고,
+           정당한 것만 표식으로 뺀다. 「이 모양만 잡는다」는 새 모양이 곧 사각지대가 된다. */
+      /* ⛔`[^)]*` 를 쓰면 «안쪽 괄호»에서 멈춘다 — `path.join(_getUserDataDir(), "projects")` 가
+           통과했다(내 변이로 확인: 0 빨강). 인자 안에 함수 호출이 있으면 못 보는 것이다.
+         ⇒ 괄호를 세지 말고 «그 줄에 .join( 과 'projects' 가 같이 있나»로 본다.
+           넓게 잡고 «표식»으로만 뺀다 — 「이 모양만 잡는다」는 새 모양이 곧 사각지대다. */
+      if (/\.join\(.*['"]projects['"]/.test(l)) {
         /* 뺄 것은 둘뿐이다 — 그리고 «그 줄에 적혀 있어야» 뺀다(주석이 멀어지면 못 잰다).
            ⑴ main.js 의 정본 정의(레거시 뿌리 자체)  ⑵ [뿌리-폴백] 표식이 달린 줄 */
         if (/PROJECTS_DIR_LEGACY\s*=/.test(l)) return;
         if (/\[뿌리-폴백\]/.test(l)) return;
+        if (/\[뿌리-하네스\]/.test(l)) return;   // 릴리스 게이트 하네스(비로그인 픽스처) — 그 파일의 경고 참조
+        if (/\[뿌리-정본\]/.test(l)) return;     // 뿌리를 «만드는» 자리(레거시 풀 정의·계정 뿌리 생성)
         offenders.push(`${path.relative(root, f)}:${i + 1}: ${l.trim()}`);
       }
     });
@@ -403,12 +431,24 @@ test('M18 ★없는 폴더를 «뿌리»로 꽂지 않는다 (mkdir 실패를 �
 test('M19 ★로그아웃이 «실패해도» 앞사람 뿌리에 머물지 않는다', () => {
   /* clearAuth 가 auth.json 을 못 지우면 _repointProjectsDir 는 «아직 로그인»으로 읽는다.
      판단은 맞아도, 사용자가 로그아웃을 «눌렀다»면 다음 사람에게 앞사람 것이 보이면 안 된다. */
+  /* ⛔1판은 「PROJECTS_DIR = PROJECTS_DIR_LEGACY 라는 «글자»가 있나」만 봤다. 그래서
+       그 문장을 _repointProjectsDir('logout') «앞»으로 옮기는(현실적인 리팩터) 변이에
+       ★초록이었다 — 앞으로 옮기면 뒤이은 repoint 가 「아직 로그인」으로 읽고 계정 뿌리로
+       되돌려 놓아서, 검사 제목이 말하는 동작이 완전히 깨지는데도.
+     ⇒ M17b 가 _repointProjectsDir 에 한 것과 같이 «순서»를 못박는다. */
   const body = bodyOf('clearAuth');
   assert.doesNotMatch(body, /catch\s*\(\s*_\s*\)\s*\{\s*\}/,
     '★삭제 실패를 조용히 삼키면 로그아웃한 척하고 계정 뿌리에 머문다');
-  assert.match(body, /PROJECTS_DIR = PROJECTS_DIR_LEGACY/,
-    '★못 지웠으면 뿌리는 반드시 공용 풀로 내려야 한다');
   assert.match(body, /ENOENT/, '★원래 없던 파일은 «실패»가 아니다 — 그건 갈라야 한다');
+
+  const iRepoint = body.indexOf("_repointProjectsDir('logout')");
+  const iFallback = body.indexOf('PROJECTS_DIR = PROJECTS_DIR_LEGACY');
+  assert.ok(iRepoint > 0, '★로그아웃이 뿌리를 갈아끼우지 않는다');
+  assert.ok(iFallback > 0, '★못 지웠을 때의 착지점이 없다');
+  assert.ok(iFallback > iRepoint,
+    '★★공용 풀로 내리는 문장이 repoint «앞»에 있으면, 뒤이은 repoint 가 「아직 로그인」으로 읽고 계정 뿌리로 되돌린다');
+  assert.match(body.slice(iRepoint), /if \(!unlinked\)/,
+    '★그 착지는 「못 지웠을 때」로 걸려 있어야 한다(무조건 내리면 정상 로그아웃도 이상해진다)');
 });
 
 test('M20 ★readAuthOrThrow «진짜 함수»가 「없음」과 「손상」을 가른다', () => {
@@ -504,22 +544,15 @@ test('M22c ★_unresolved 를 «읽는» 코드가 0곳이다 (교환의 근거�
      여기서 지키는 «사실» = 「_unresolved 는 들어가는 길만 있고 «읽는» 코드가 없다」.
      그게 「샐 위험 ↔ 갇힐 위험」 교환의 근거다. 이 사실이 바뀌면(=회수 경로가 생기면)
      교환도 바뀐 것이니, 그때 «사람이» 근거를 갱신하도록 여기서 막아선다. */
-  const hits = [...SRC.matchAll(/PROJECTS_DIR_UNRESOLVED/g)].length;
-  /* ★실측: 선언1 · README 경로1 · mkdir1 · 대입1 · 대입 직전 «바뀌었나» 비교1 = 5. 전부 «쓰는» 쪽.
-     ⚠️이 숫자는 2026-09-07 에 4→5 로 «한 번 바뀌었고», 그때 이 검사가 빨개져서 내가 확인했다.
-       (활성 프로젝트를 지우는 줄이 늘었다 — 읽기가 아니라 쓰기다) ⇒ 검사가 장식이 아니라는 증거다.
-     숫자를 고칠 땐 «늘어난 줄이 읽기인지 쓰기인지»를 먼저 보고, 읽기면 교환의 근거를 갱신해라. */
-  const EXPECTED = 5;
-  assert.strictEqual(hits, EXPECTED,
-    `★_unresolved 를 쓰는 자리가 ${EXPECTED}→${hits} 로 «변했다». 회수 경로가 생겼다면
-     「샐 위험을 갇힐 위험과 바꿨다」는 근거가 더는 참이 아니다 — 주석과 README 를 같이 갱신해라.`);
-
-  // ★양성대조 — 「4」가 «못 세서 4」가 아님을 보인다. 하나 늘리면 빨개져야 한다
-  const bumped = [...(SRC + '\nPROJECTS_DIR_UNRESOLVED;').matchAll(/PROJECTS_DIR_UNRESOLVED/g)].length;
-  assert.strictEqual(bumped, EXPECTED + 1, '★세는 방법이 «변화에 반응»하는지부터 확인한다');
-
+  /* ⛔1판은 «문자 등장 횟수»를 셌다 — 그래서 ★주석에 이름을 한 번 더 적기만 해도 빨개졌다
+       (동작은 그대로인데). 반대 방향 오탐이라 「멀쩡한데 빨강」이고, 그게 반복되면
+       다음 사람이 숫자만 올려 버려서 검사가 죽는다.
+     ⇒ «코드 줄»만 센다(줄 주석·블록 주석 제외). 진짜로 지키는 것은 아래 for 루프의
+       「읽는 모양이 없다」이고, 이 숫자는 그 «변화 감지기»다. */
+  const codeLines = stripComments(SRC).split('\n');
+  const hits = codeLines.filter((l) => l.includes('PROJECTS_DIR_UNRESOLVED')).length;
   // 그리고 그 4곳이 «전부 쓰는 쪽»인지 — 읽는 모양(readdir/exists/입양 후보)이 섞이지 않았나
-  for (const line of SRC.split('\n').filter(l => l.includes('PROJECTS_DIR_UNRESOLVED'))) {
+  for (const line of codeLines.filter((l) => l.includes('PROJECTS_DIR_UNRESOLVED'))) {
     assert.doesNotMatch(line, /readdirSync|_adoptLegacy|roots\s*\.push|\[\s*PROJECTS_DIR_UNRESOLVED/,
       `★여기가 «읽는» 자리다 — 회수 경로가 생겼으면 교환의 근거를 갱신해라: ${line.trim()}`);
   }

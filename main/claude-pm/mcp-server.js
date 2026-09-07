@@ -383,7 +383,7 @@ function _readProjectFile(projectId) {
        못 찾은 것일 뿐인데 막았다고 읽힌다(2026-09-07 내가 실제로 그렇게 잘못 읽었다).
      ⇒ 계정 뿌리 «하나»만 본다. 공용 폴더는 명시 플래그를 켠 단독 실행에만 붙인다. */
   const roots = [_getProjectsDir()];
-  if (_sharedRootAllowed()) roots.push(path.join(__dirname, '..', '..', 'projects'));
+  if (_sharedRootAllowed()) roots.push(path.join(__dirname, '..', '..', 'projects'));  // [뿌리-폴백] 명시 플래그를 켠 단독 실행에만
   const candidates = [];
   for (const dir of roots) {
     candidates.push(path.join(dir, pid, 'proj.json')); // 신 레이아웃(폴더)
