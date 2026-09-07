@@ -54,9 +54,15 @@ test('⛔`?? alert(` 가 «0건»이다 (렌더러를 얼리는 패턴)', () => 
     const rel = path.relative(ROOT, abs);
     const src = readSrc(ROOT, ...rel.split(path.sep));
     src.split('\n').forEach((line, i) => {
-      if (BAD.test(line) && !line.includes('★') && !line.trimStart().startsWith('*')) {
-        hits.push(`${rel}:${i + 1}`);
-      }
+      /* ⛔주석은 «센다면 역설»이 된다 — 「이 패턴 쓰지 마라」고 적을수록 검사가 빨개진다.
+       *   ★실제로 그랬다(2026-09-07 머지 직후 dev 가 빨강): ai-image-gen.js 의 «금지 주석» 두 줄이
+       *     그대로 위반으로 잡혔다. 1판 필터가 `★` 포함 여부로 걸렀는데 그 주석엔 ⛔만 있었다.
+       *   ⇒ «장식 문자»로 거르지 마라. 「주석 줄인가」를 «구문»으로 판정한다.
+       *   ⚠️전례: goditor-qa 의 design-gate.sh 가 «토큰 정의 줄»을 하드코딩으로 세서
+       *     토큰을 승격할수록 FAIL 이 나던 역설(v1.2.1 수정). 같은 병이다. */
+      const t = line.trimStart();
+      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+      if (BAD.test(line)) hits.push(`${rel}:${i + 1}`);
     });
   }
   assert.deepEqual(hits, [], '★`?? alert(` 가 다시 들어왔다: ' + hits.join(' / '));
@@ -69,6 +75,31 @@ test('★양성대조 — 이 검사가 «실제로» 파일을 읽고 있다 (0
   assert.ok(idx, 'drag-utils.js 를 못 찾았다 — 파일 수집 범위가 틀렸다');
   const src = readSrc(ROOT, 'js', 'drag-utils.js');
   assert.match(src, /function showToast\s*\(/, '★대조 실패 — 파일을 못 읽고 있다');
+});
+
+test('★주석 필터 대조 — «금지 주석»은 안 잡고 «진짜 코드»는 잡는다', () => {
+  /* ★1판이 여기서 깨졌다. 정규식만 대조하고 «줄 필터»를 안 쟀더니,
+     「이 패턴 쓰지 마라」는 주석이 그대로 위반으로 잡혔다(dev 가 빨강이 됐다).
+     ⇒ 필터도 «판정기»다. 판정기는 전부 대조해야 한다. */
+  const skip = (line) => {
+    const t = line.trimStart();
+    return t.startsWith('//') || t.startsWith('*') || t.startsWith('/*');
+  };
+  const 주석들 = [
+    "    //   (⛔`?? alert(` 금지 — showToast 가 undefined 를 반환해 …)",
+    "     * ⛔`?? alert(` 를 쓰지 마라",
+    "/* window.showToast?.(m) ?? alert(m) 는 렌더러를 얼린다 */",
+  ];
+  for (const c of 주석들) assert.equal(skip(c), true, `★금지 주석을 위반으로 세고 있다: ${c}`);
+
+  const 진짜코드 = [
+    "      window.showToast?.('x') ?? alert('x');",
+    "  foo() ?? alert(1)",
+  ];
+  for (const c of 진짜코드) {
+    assert.equal(skip(c), false, `★진짜 코드를 «건너뛰고» 있다: ${c}`);
+    assert.equal(BAD.test(c), true);
+  }
 });
 
 test('★판정기 대조 — 그 패턴을 «주면» 잡는다 (규칙이 죽지 않았다)', () => {
