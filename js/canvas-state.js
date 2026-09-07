@@ -62,6 +62,9 @@
     /* ★grid 는 «앱에는 있는데 MCP 정본(BLOCK_TYPES)에 없다» — 만들지도 고치지도 못한다.
        그래도 «읽기»는 이름을 붙여 준다. 「보이는데 못 만진다」가 「안 보인다」보다 낫다. */
     grd_: 'grid',
+    /* ★옛 프로젝트의 그리드는 접두가 `duo_` 다(2026 개명 전 — grid-block.js 의 GRID_ID_PREFIXES 참조).
+       ⛔이걸 빼면 «옛 프로젝트에서만» 그리드가 이름 없이 나온다 — 새 프로젝트로 시험하면 안 드러난다. */
+    duo_: 'grid',
   };
   function _typeOf(id) {
     var best = null;

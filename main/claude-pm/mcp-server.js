@@ -3169,6 +3169,81 @@ function _registerDefaultTools() {
     }
   );
 
+  /* ─── grid-block ★2026-09-07 신설 ───────────────────────────────────────
+     앱엔 `window.addGridBlock`/`updateGridBlock` 이 검증까지 갖춰 있는데 MCP 도구가 «없었다».
+     ⇒ 사용자가 「그리드에 글 넣어줘」 하면 클로드가 «그런 기능 없습니다»라고 답했다(실측).
+     ⛔여기서 다시 검증하지 «않는다» — 앱이 정본이다(cols 1~4·rows·cells·gap·valign).
+       두 곳에서 검증하면 둘이 어긋나는 날이 온다. 여기선 «넘기고, 결과를 읽어» 돌려준다. */
+  registerTool(
+    'add_grid_block',
+    async (args = {}) => {
+      if (!_rendererInvoker?.addGridBlock) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.addGridBlock({
+        sectionId: args.sectionId, cols: args.cols, rows: args.rows,
+        cells: args.cells, gap: args.gap, valign: args.valign,
+      });
+    },
+    {
+      description: 'Add a grid block (grd_xxx) — a column grid (1~4 columns × rows) where each cell holds text. '
+        + 'cols = column widths (array, 1~4). rows = row heights ([{height:"auto"|number}]). '
+        + 'cells = cell contents, row-major. gap = px between cells. valign = top|middle|bottom. '
+        + 'Returns {ok, blockId(grd_), cols, cellCount} — cellCount is READ BACK from the canvas, not echoed from the args. '
+        + '⚠️Legacy projects store the same block with a duo_ prefix (renamed); reading handles both.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx to insert into (else uses selected section)' },
+          cols: { type: 'array',
+            description: 'columns — 1~4 entries, each {width:number, lines:[{type:"body"|"h1".., text:"..."}]}. '
+              + '★이것이 «행 0» 이다. 셀 글은 lines[].text 에 들어간다.' },
+          rows: { type: 'array', description: 'row heights — [{height:"auto"|0~N}]' },
+          cells: { type: 'array',
+            description: '★2차원 배열 (행 × 열) — «행 0 포함». 평평한 배열을 주면 «행 N개»로 읽힌다(실측으로 데었다). '
+              + '각 칸은 {lines:[{type,text}]} 꼴. 행이 모자라면 rows 를 «같은 호출»에서 같이 줘야 한다.' },
+          gap: { type: 'number', description: 'gap between cells (px)' },
+          valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+          expectedProject: { type: 'string', description: 'proj_xxx — refuse if a different project is open' },
+        },
+        additionalProperties: false,
+      },
+    }
+  );
+
+  registerTool(
+    'update_grid_block',
+    async (args = {}) => {
+      if (!_rendererInvoker?.updateGridBlock) throw new Error('renderer bridge not ready');
+      const { blockId, expectedProject, ...partial } = args || {};
+      if (!blockId || typeof blockId !== 'string') {
+        return { ok: false, code: 'INVALID', message: 'blockId (grd_xxx) is required' };
+      }
+      if (!Object.keys(partial).length) {
+        return { ok: false, code: 'NOTHING_TO_DO',
+          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / valign' };
+      }
+      return await _rendererInvoker.updateGridBlock({ blockId, partial });
+    },
+    {
+      description: 'Edit an EXISTING grid block (grd_xxx or legacy duo_xxx) — partial update. '
+        + 'Structure fields are exclusive, pass ONE: cols (replace all) | patchCol {index,...} | '
+        + 'rows (replace all) | cells (replace all, row-major) | patchCell {r,c,...}. '
+        + 'Also: gap, valign. Returns {ok, cellCount, cellTexts} — ★cellTexts is READ BACK from the canvas '
+        + 'after the write, so it tells you what actually landed (not what you asked for).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId: { type: 'string', description: 'grd_xxx (or legacy duo_xxx)' },
+          cols: { type: 'array' }, patchCol: { type: 'object' },
+          rows: { type: 'array' }, cells: { type: 'array' }, patchCell: { type: 'object' },
+          gap: { type: 'number' }, valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+          expectedProject: { type: 'string' },
+        },
+        required: ['blockId'],
+        additionalProperties: false,
+      },
+    }
+  );
+
   // ─── add_canvas_block ───
   // ─── add_canvas_block — canvas (Figma 임포트 + Simple Card 그리드) 블록 추가 ──
   // dual-mode: cardMode 미지정이면 레이어 모드(figma import 용 layers[]),

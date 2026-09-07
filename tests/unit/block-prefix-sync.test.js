@@ -64,7 +64,10 @@ test('B3 ★앱에 «있는데 정본에 없는» 블록을 «세어» 남긴다
      ★이 검사는 그 상태를 «기록»으로 못박는다 — 정본에 들어오면 여기가 빨개져서 같이 정리하게 된다. */
   const canon = canonPrefixes(), copy = copyPrefixes();
   const onlyCopy = Object.entries(copy).filter(([p]) => !(p in canon));
-  const known = { row_: 'row', grd_: 'grid' };   // ★«알고 두는» 것만 여기 적는다
+  /* ★«알고 두는» 것만 여기 적는다 — 늘면 빨개져서 「정본에 넣을지 뺄지」를 사람이 정하게 된다.
+     row_  = DOM 의 나란히배치 래퍼(블록 도구엔 없다. move_block 이 「행은 통째로 움직인다」는 그것)
+     duo_  = ★그리드의 «옛 접두»(개명 전). 옛 프로젝트에만 있어서 새 프로젝트로 시험하면 안 드러난다. */
+  const known = { row_: 'row', duo_: 'grid' };
   const unexpected = onlyCopy.filter(([p]) => !(p in known));
   assert.deepStrictEqual(unexpected, [],
     `★읽기 표에만 있는 접두가 늘었다 — 정본에 넣을지 여기서 뺄지 정해라:\n  ${unexpected.map(([p, t]) => `${p} = ${t}`).join('\n  ')}`);

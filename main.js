@@ -3675,6 +3675,8 @@ app.whenReady().then(async () => {
       updateLaurelBlock: _invokeRendererUpdateLaurelBlock,
       addCanvasBlock: _invokeRendererAddCanvasBlock,
       updateCanvasBlock: _invokeRendererUpdateCanvasBlock,
+      addGridBlock: _invokeRendererAddGridBlock,
+      updateGridBlock: _invokeRendererUpdateGridBlock,
       addChatBlock: _invokeRendererAddChatBlock,
       updateChatBlock: _invokeRendererUpdateChatBlock,
       addGradientBlock: _invokeRendererAddGradientBlock,
@@ -5498,7 +5500,54 @@ async function _invokeRendererUpdateCanvasBlock({ blockId, partial } = {}) {
       if (typeof window.updateCanvasBlock !== 'function') {
         return { ok: false, code: 'API_MISSING', message: 'window.updateCanvasBlock not found' };
       }
-      return window.updateCanvasBlock(${safeBlockId}, ${safePartial});
+      const _id = ${safeBlockId};
+      const _p  = Object.assign({}, ${safePartial});
+      const _el = document.getElementById(_id);
+
+      /* ★★카드를 «격자보다 많이» 주면 조용히 잘렸다 — 그리고 ok 라고 했다.
+           실측(2026-09-07): cards 6장 + 격자 3x1 → «3장만» 그려지고 응답은 ok:true.
+           ⇒ 사람은 6장이 들어간 줄 안다. 오늘 잡은 「거짓 성공」과 같은 계열이다.
+         ⇒ ⑴격자를 «자동으로» 키운다(칸 계산을 사람에게 미루지 않는다)
+           ⑵부르는 쪽이 격자를 «명시»했는데 모자라면 조용히 늘리지 «않고» 말해 준다. */
+      let _grew = null, _tooSmall = null;
+      if (_el && Array.isArray(_p.cards) && _p.cards.length) {
+        const need = _p.cards.length;
+        const curCols = parseInt(_el.dataset.gridCols) || 1;
+        const askedCols = (_p.gridCols != null) ? parseInt(_p.gridCols) : null;
+        const askedRows = (_p.gridRows != null) ? parseInt(_p.gridRows) : null;
+        if (askedCols != null || askedRows != null) {
+          const c = askedCols != null ? askedCols : curCols;
+          const r = askedRows != null ? askedRows : (parseInt(_el.dataset.gridRows) || 1);
+          if (c * r < need) _tooSmall = { need: need, capacity: c * r, gridCols: c, gridRows: r };
+        } else {
+          const cols = Math.max(1, Math.min(curCols, need));
+          const rows = Math.ceil(need / cols);
+          const cap = (parseInt(_el.dataset.gridCols) || 1) * (parseInt(_el.dataset.gridRows) || 1);
+          if (cap < need) { _p.gridCols = cols; _p.gridRows = rows; _grew = { from: cap, to: cols * rows, gridCols: cols, gridRows: rows }; }
+        }
+      }
+      if (_tooSmall) {
+        return { ok: false, code: 'GRID_TOO_SMALL',
+          message: '카드 ' + _tooSmall.need + '장을 줬는데 격자가 ' + _tooSmall.gridCols + 'x' + _tooSmall.gridRows +
+                   '(' + _tooSmall.capacity + '칸)이라 다 안 들어갑니다 — 아무것도 바꾸지 않았습니다.',
+          hint: 'gridCols/gridRows 를 늘리거나, 아예 «주지 마세요» — 안 주면 카드 수에 맞춰 자동으로 늘립니다.',
+          detail: _tooSmall };
+      }
+      const _res = window.updateCanvasBlock(_id, _p);
+      /* ★「몇 장이 들어갔나」를 «인자»가 아니라 «화면»에서 읽어 돌려준다.
+           오늘의 규칙: applied 는 「넣으려 한 값」이 아니라 「넣은 결과」여야 한다. */
+      if (_res && _res.ok !== false && _el) {
+        const shown = _el.querySelectorAll('[data-cvb-card-idx]').length;
+        _res.cardsVisible = shown;
+        if (Array.isArray(_p.cards)) {
+          _res.cardsGiven = _p.cards.length;
+          if (shown < _p.cards.length) {
+            _res.warning = '카드 ' + _p.cards.length + '장 중 ' + shown + '장만 화면에 들어갔습니다.';
+          }
+        }
+        if (_grew) _res.gridGrew = _grew;
+      }
+      return _res;
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {
@@ -5506,6 +5555,89 @@ async function _invokeRendererUpdateCanvasBlock({ blockId, partial } = {}) {
   } catch (e) {
     throw new Error('updateCanvasBlock call failed: ' + e.message);
   }
+}
+
+/* ─── grid-block(grd_) — ★MCP 에 «도구가 아예 없던» 블록 ────────────────────
+   실측(2026-09-07): 앱에는 `grid-block` 이 실재하고(block-factory·block-edit·drag 등 여러 곳)
+   `window.addGridBlock`/`updateGridBlock` 까지 갖춰져 있는데, MCP 쪽 BLOCK_TYPES 엔 «0건»이었다.
+   ⇒ 사용자가 「그리드에 글 넣어줘」 하면 클로드가 «그런 기능 없습니다»라고 답한다.
+   ⇒ 앱이 이미 검증(cols 1~4·rows·cells·gap·valign)을 하므로 여기선 «넘겨주고 결과를 읽어» 돌려준다.
+   ⛔`applied` 를 인자에서 만들지 않는다 — 오늘 그 병으로 네 자리가 거짓 성공했다. */
+async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, valign } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const opts = {};
+  if (Array.isArray(cols)) opts.cols = cols;
+  if (Array.isArray(rows)) opts.rows = rows;
+  if (Array.isArray(cells)) opts.cells = cells;
+  if (gap != null) opts.gap = Number(gap);
+  if (valign != null) opts.valign = String(valign);
+  const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const safeOpts = JSON.stringify(opts);
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+        && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      if (userEditing || (Date.now() - (window._lastUserKeydown || 0)) < 1500) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.addGridBlock !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.addGridBlock not found' };
+      const sid = ${safeSid};
+      /* ⛔selectSection 은 «엘리먼트»를 받는다(id 문자열이 아니다) — 실측으로 데었다:
+           id 를 넘겼더니 sec.classList 에서 «Cannot read properties of undefined (reading 'add')» 로 죽었다. */
+      if (sid) {
+        const _sec = document.getElementById(sid);
+        if (!_sec || !_sec.classList.contains('section-block')) {
+          return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        }
+        if (typeof window.selectSection === 'function') window.selectSection(_sec);
+      }
+      const before = document.querySelectorAll('.grid-block').length;
+      const r = window.addGridBlock(${safeOpts});
+      const el = r && r.block;
+      if (!el) return { ok: false, code: 'NOT_CREATED', message: '그리드 블록이 만들어지지 않았습니다 (활성 섹션 확인).' };
+      /* ★결과를 «읽어서» 돌려준다 — 인자를 되읊지 않는다 */
+      const cells = el.querySelectorAll('.grd-cell');   // ★실측 클래스는 grd-cell 이다(grid-cell 아님)
+      return { ok: true, blockId: el.id, sectionId: (el.closest('.section-block') || {}).id || null,
+               gridBefore: before, gridAfter: document.querySelectorAll('.grid-block').length,
+               cols: parseInt(el.dataset.gridCols || '0') || (JSON.parse(el.dataset.cols || '[]').length || null),
+               cellCount: cells.length };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
+  catch (e) { throw new Error('addGridBlock call failed: ' + e.message); }
+}
+
+async function _invokeRendererUpdateGridBlock({ blockId, partial } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const safeId = JSON.stringify(String(blockId || ''));
+  const safeP = JSON.stringify(partial || {});
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+        && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      if (userEditing || (Date.now() - (window._lastUserKeydown || 0)) < 1500) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.updateGridBlock !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.updateGridBlock not found' };
+      const el = document.getElementById(${safeId});
+      if (!el || !el.classList.contains('grid-block')) {
+        return { ok: false, code: 'NOT_FOUND', message: 'grid block not found: ' + ${safeId} };
+      }
+      const r = window.updateGridBlock(${safeId}, ${safeP});
+      if (r && r.ok === false) return r;
+      /* ★바뀐 뒤의 «화면»을 읽어 돌려준다 */
+      const after = document.getElementById(${safeId});
+      const cells = after ? after.querySelectorAll('.grd-cell') : [];   // ★실측 클래스
+      const texts = [].slice.call(cells).map(function (c) { return (c.innerText || '').trim(); });
+      return Object.assign({}, r, { ok: true, blockId: ${safeId}, cellCount: cells.length, cellTexts: texts });
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
+  catch (e) { throw new Error('updateGridBlock call failed: ' + e.message); }
 }
 
 // ─── [APIMCP P1] add_frame_block — frame-block(ss_) 컨테이너 추가 ─────────────
