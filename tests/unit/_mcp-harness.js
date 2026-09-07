@@ -155,6 +155,12 @@ async function startHarness(opts = {}) {
      ⛔여기를 지우면 도구들이 NO_PROJECTS_ROOT 로 죽는다 — 그건 회귀가 아니라
        「뿌리를 안 꽂았다」는 정직한 신호다. */
   if (typeof mod.setProjectsRoot === 'function') mod.setProjectsRoot(() => projectsDir);
+  /* ★로그인 프로브도 «꽂아야» 한다 — 게이트가 fail-closed 로 바뀌었다(못 재면 거절).
+     예전엔 미주입이 «통과»라 안 꽂아도 돌았는데, 그 관대함이 곧 「게이트가 증발하는 경로」였다.
+     ⛔여기를 지우면 도구들이 AUTH_PROBE_MISSING 으로 죽는다 — 회귀가 아니라 정직한 신호다. */
+  if (typeof mod.setAuthProbe === 'function' && opts.authProbe !== null) {
+    mod.setAuthProbe(opts.authProbe || (() => ({ authed: true })));
+  }
 
   /* ── ★가짜 렌더러 = Proxy ──
    * 134종 넘는 메서드를 손으로 못 적는다. Proxy 는 «무슨 이름으로 불렸든» 잡아서

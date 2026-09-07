@@ -42,7 +42,15 @@ function setAuthProbe(fn) { _authProbe = fn; }
  *  앱 버전이 낡아 주입이 없을 수 있고, 그때 전부 막으면 도구가 통째로 죽는다.
  *  ⇒ 「없다」와 「안 됐다」를 가른다: 주입이 없으면 «판정 안 함», 있으면 «판정». */
 function _authGate(toolName) {
-  if (typeof _authProbe !== 'function') return null;      // 못 잼 — 판정하지 않는다
+  /* ⛔예전엔 여기서 `return null`(=통과) 이었다. 근거는 「앱 버전이 낡아 주입이 없을 수 있다」였는데
+     ★그 근거가 틀렸다 — 프로브를 꽂는 main.js 와 이 파일은 «같은 바이너리»다. 버전이 어긋날 수 없다.
+     남는 경우는 «배선을 빠뜨렸다» 하나뿐이고, 그때 문을 열어 두면 로그인 게이트가 통째로 증발한다.
+     ⇒ 못 재면 «거절»한다. 뿌리 주입(NO_PROJECTS_ROOT)과 실패 모드를 맞춘다 — 둘이 갈리면 안 된다. */
+  if (typeof _authProbe !== 'function') {
+    return { ok:false, code:'AUTH_PROBE_MISSING', tool:toolName,
+      error:`로그인 상태를 확인할 수 없어 ${toolName} 을(를) 실행하지 않았습니다.`,
+      hint:'NOTHING was done. The app did not wire up its login probe — this is an app bug, not a missing feature. Restart the Goditor app; if it persists, report it.' };
+  }
   let a = null;
   try { a = _authProbe(); } catch (_) { return null; }
   if (!a || a.authed) return null;
@@ -1438,7 +1446,20 @@ function _registerDefaultTools() {
       }
 
       // Fallback: 직접 NOTES.md / project.meta.json 스캔 (PM-B 실제 파일명)
-      const folder = projectFolder || _getProjectsDir();
+      /* ⛔여기가 «뿌리를 아예 안 쓰는 우회로»였다 — 호출자가 준 절대경로를 그대로 읽어
+           `<userData>/accounts/acct_철수…/…/claude-pm` 하나면 남의 계정 메모·제목이 나왔다.
+         ★계정별 폴더로 가른 의미가 이 한 줄로 사라진다. 같은 파일의 export_sections 는
+           outDir 을 검사하는데(isAbsolute+statSync) 여기만 «검사가 0줄»이었다.
+         ⇒ 현재 계정 뿌리 «안»으로 봉쇄한다. 밖을 가리키면 실행하지 않는다. */
+      const root = _getProjectsDir();
+      const folder = projectFolder || root;
+      const realRoot = path.resolve(root);
+      const realFolder = path.resolve(folder);
+      if (realFolder !== realRoot && !realFolder.startsWith(realRoot + path.sep)) {
+        return { ok: false, code: 'FOLDER_OUT_OF_ROOT',
+          error: 'list_memories 는 현재 계정의 프로젝트 폴더 안만 읽습니다.',
+          hint: 'Pass a folder inside the active account\'s projects directory, or omit projectFolder to use it.' };
+      }
       if (!fs.existsSync(folder)) {
         return { folder, memories: [], note: 'folder not found' };
       }

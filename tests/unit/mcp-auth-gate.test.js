@@ -59,11 +59,20 @@ test('A4 로그인돼 있으면 «그대로» 통과한다 (반대방향 오탐 
   assert.ok(!/NOT_LOGGED_IN/.test(txt), `★로그인했는데 막혔다: ${txt.slice(0, 160)}`);
 });
 
-test('A5 ★«못 잰» 경우(주입 없음)는 판정하지 않는다 — 「없다」와 「안 됐다」를 가른다', async () => {
-  H.mod.setAuthProbe(null);          // 앱 버전이 낡아 주입이 «없는» 상황
+test('A5 ★«못 잰» 경우(프로브 미주입)는 «거절»한다 — fail-closed', async () => {
+  /* ⛔이 검사는 2026-09-07 에 «뒤집혔다». 1판은 「못 재면 판정하지 않는다(통과)」였고
+     근거는 「앱 버전이 낡아 주입이 없을 수 있다」였다. ★그 근거가 틀렸다 —
+     프로브를 꽂는 main.js 와 게이트가 있는 mcp-server.js 는 «같은 바이너리»다. 어긋날 수 없다.
+     남는 경우는 «배선을 빠뜨렸다» 하나뿐이고, 그때 문을 열어 두면 로그인 게이트가 통째로 증발한다.
+     ⇒ 뿌리 주입(NO_PROJECTS_ROOT)과 실패 모드를 맞춘다. 둘이 갈리면 안 된다.
+     ★그리고 거절 사유를 «로그인 안 됨»과 구분한다 — 이건 앱 버그지 사용자 잘못이 아니다. */
+  H.mod.setAuthProbe(null);          // 배선을 «빠뜨린» 상황
   const txt = said(await H.call('list_projects', {}));
+  assert.ok(/AUTH_PROBE_MISSING/.test(txt),
+    '★못 재는데 통과시키면, 배선 하나 빠진 빌드에서 로그인 게이트가 «영영» 안 걸린다');
   assert.ok(!/NOT_LOGGED_IN/.test(txt),
-    '★주입이 «없을» 뿐인데 「로그인 안 됨」으로 단정했다 — 도구가 통째로 죽는다');
+    '★「로그인 안 됨」과 «다른 사유»여야 한다 — 사용자가 로그인해도 안 풀리는 문제다');
+  assert.ok(/app bug|앱/i.test(txt), '★사용자가 무엇을 할지 알려야 한다(재시작·신고)');
   H.mod.setAuthProbe(() => ({ authed: true }));
 });
 

@@ -523,6 +523,7 @@ function writeAuth(record) {
   return next;
 }
 function clearAuth() {
+  _revokeEditorAccess();   // ★게이트를 «닫는» 자리 — 이게 없으면 로그아웃이 로그아웃이 아니다
   /* ★★삭제 실패를 «삼키면» auth.json 이 남고, 그러면 _repointProjectsDir 가 그걸 읽어
        ★계정 뿌리에 그대로 머문다. 사용자는 로그아웃했다고 믿는데 다음 사람이 앉으면
        앞사람 프로젝트가 보인다 — 현빈이 걱정한 그 시나리오다.
@@ -639,6 +640,11 @@ async function _dlSettle(expected, timeoutMs = 15000) {
 
 let _editorAccessGranted = false;
 function _grantEditorAccess() { _editorAccessGranted = true; }
+/* ★★여는 자리는 있는데 «닫는 자리»가 없었다(실측: true 대입 1 / false 대입 0).
+   그 결과 로그아웃한 앱에서 MCP 인증 게이트가 계속 `authed:true` 를 돌려주고,
+   그 쓰기는 (clearAuth 가 뿌리를 내려놓은) ★레거시 공용 풀에 떨어진다.
+   「가장 먼저 로그인을 본다」가 로그아웃한 앱에 「예」라고 답하던 것이다. */
+function _revokeEditorAccess() { _editorAccessGranted = false; }
 
 /* ── 로그인 상태 체크 + 초기 페이지 로드 ──
    구버전은 매 실행마다 공인 IP를 조회해 서버에 물었다 → 서버가 죽으면 인증했던
@@ -1142,7 +1148,12 @@ function _currentAccountKey() {
      ★즉 「던지게 했다」는 «던질 것이 있어야» 말이 된다. */
   const a = readAuthOrThrow();
   if (!a || !a.email) return null;   // ★여기 null 은 «진짜» 비로그인이다(파일 없음)
-  return _accountKeyFor(a.email);
+  const key = _accountKeyFor(a.email);
+  /* ⛔「로그인은 됐는데 키를 못 만들었다」를 «비로그인»으로 읽으면 또 공용 풀로 내려간다
+     (email 이 공백뿐이면 `!a.email` 은 거짓이라 통과하고 _accountKeyFor 는 null 을 준다).
+     ★「비로그인」은 readAuthOrThrow() === null «하나»뿐이어야 한다. */
+  if (!key) throw new Error(`계정키를 못 만들었다(email=${JSON.stringify(String(a.email).slice(0, 40))}) — 공용 풀로 내리지 않는다`);
+  return key;
 }
 function _accountProjectsDir(key) { return path.join(ACCOUNTS_DIR, key, 'projects'); }
 /* 고지 문구에 쓸 이메일. ⛔실패해도 입양을 막지 않는다 — 이름을 못 읽은 것이지 옮기지 말라는 뜻이 아니다. */
@@ -1153,9 +1164,18 @@ function _legacyProjectEntries() {
   try { return fs.readdirSync(PROJECTS_DIR_LEGACY, { withFileTypes: true }).filter(e => /^proj_/.test(e.name)); }
   catch (_) { return []; }
 }
+/* ⛔여기서 삼킨 뒤 기본값이 «허용»이다 — `[]` 는 「다른 계정이 없다」로 읽혀 ★입양을 «해도 된다»가 된다.
+   같은 `catch(_){}` 라도 _legacyProjectEntries 의 `[]` 는 「옮길 게 없다」라 거부 착지(방어)인데,
+   이 자리만 반대다. ★무늬가 같다고 처분이 같지 않다 — 삼킨 뒤 «기본값이 어느 쪽인가»를 봐라.
+   ⇒ ENOENT(진짜 첫 로그인)만 `[]`, 못 읽은 것은 «던진다» → _repointProjectsDir 가 _unresolved 로 보낸다. */
 function _existingAccountKeys() {
-  try { return fs.readdirSync(ACCOUNTS_DIR, { withFileTypes: true }).filter(e => e.isDirectory() && /^acct_/.test(e.name)).map(e => e.name); }
-  catch (_) { return []; }
+  try {
+    return fs.readdirSync(ACCOUNTS_DIR, { withFileTypes: true })
+      .filter(e => e.isDirectory() && /^acct_/.test(e.name)).map(e => e.name);
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return [];   // 아직 계정 폴더가 «하나도 없다» = 진짜 첫 로그인
+    throw e;                                   // 못 읽은 것을 「없다」로 읽으면 남의 것을 가져간다
+  }
 }
 
 /* 「업데이트 이전의 프로젝트를 어떻게 할 것인가」의 답 — ★첫 계정이 물려받는다.
@@ -3551,6 +3571,29 @@ app.whenReady().then(async () => {
          주입 없는 상태로 처리된다(이제는 폴백 대신 던지므로 «오류»가 되지만, 애초에
          그 창을 만들 이유가 없다). ⛔여기서 순서를 바꾸지 마라. */
     setMcpProjectsRoot(() => PROJECTS_DIR);
+    /* ★로그인 게이트 프로브도 «서버가 듣기 전»에 꽂는다.
+       ⛔예전엔 이게 startMcpServer 보다 119줄 «뒤»였다. 그 사이 배선 하나가 던지면 바깥 try 가
+         경고 한 줄만 남기고 — ★MCP 는 이미 듣는데 로그인 게이트는 영영 안 걸린다.
+       ★뿌리 주입과 «같은 자리»에 둔다. 둘의 실패 모드가 갈리면 안 된다. */
+    setMcpAuthProbe(() => ({
+      authed: !!(_editorAccessGranted || isAdminAuthorized()),
+      // ⛔계정 «식별자»는 넘기지 않는다 — MCP 응답에 실릴 수 있다. 「됐나」만 넘긴다.
+      /* ★격리가 «실제로» 걸렸는지 진단할 창.
+         「목록이 0건」이 나왔을 때 «격리돼서 0건»인지 «못 재서 0건»인지 갈라야 한다.
+         ⛔이메일도, 계정키(이메일 slug 포함)도 안 넘긴다 — 지문 8자만 넘긴다. */
+      accountScoped: PROJECTS_DIR !== PROJECTS_DIR_LEGACY && !(_projectsDirState && _projectsDirState.unresolved),
+      /* ★「계정별로 갈렸다」와 「누구인지 못 알아내 격리 폴더에 있다」는 «다른 상태»다.
+         뭉개면 「0건」을 볼 때 또 오독한다. */
+      accountUnresolved: !!(_projectsDirState && _projectsDirState.unresolved),
+      /* ⛔「비로그인이라 없다」와 「못 읽어서 없다」를 같은 null 로 뭉개지 않는다 —
+           이 값은 「0건」을 «격리»와 «고장»으로 가르라고 있는 것이라, 뭉개면 쓸모가 없다. */
+      accountFingerprint: (() => {
+        try {
+          const k = _currentAccountKey();
+          return k ? require('crypto').createHash('sha1').update(k).digest('hex').slice(0, 8) : null;
+        } catch (_) { return 'ERROR'; }
+    })(),
+    }));
     const { port: actualPort, token: mcpToken } = await startMcpServer({
       /* ★기본은 9345. 격리 인스턴스는 «환경변수»로 옮긴다.
            ⛔예전엔 기동 스크립트가 이 «소스 줄을 치환»했다. 그래서 그 상태로 커밋되면
@@ -3670,25 +3713,6 @@ app.whenReady().then(async () => {
          list_projects·create_project 는 «로그인 없이도» 통과했다 — 문 «앞»의 도구가 열려 있었다.
          ⇒ 실측: list_projects 통과 · create_project 통과 · open_project 거절.
          ★「막혔나」를 안전한 도구로 재면 「안 막혔다」가 나오는 이유가 이것이다. */
-      setMcpAuthProbe(() => ({
-        authed: !!(_editorAccessGranted || isAdminAuthorized()),
-        // ⛔계정 «식별자»는 넘기지 않는다 — MCP 응답에 실릴 수 있다. 「됐나」만 넘긴다.
-        /* ★격리가 «실제로» 걸렸는지 진단할 창.
-           「목록이 0건」이 나왔을 때 «격리돼서 0건»인지 «못 재서 0건»인지 갈라야 한다.
-           ⛔이메일도, 계정키(이메일 slug 포함)도 안 넘긴다 — 지문 8자만 넘긴다. */
-        accountScoped: PROJECTS_DIR !== PROJECTS_DIR_LEGACY && !(_projectsDirState && _projectsDirState.unresolved),
-        /* ★「계정별로 갈렸다」와 「누구인지 못 알아내 격리 폴더에 있다」는 «다른 상태»다.
-           뭉개면 「0건」을 볼 때 또 오독한다. */
-        accountUnresolved: !!(_projectsDirState && _projectsDirState.unresolved),
-        /* ⛔「비로그인이라 없다」와 「못 읽어서 없다」를 같은 null 로 뭉개지 않는다 —
-             이 값은 「0건」을 «격리»와 «고장»으로 가르라고 있는 것이라, 뭉개면 쓸모가 없다. */
-        accountFingerprint: (() => {
-          try {
-            const k = _currentAccountKey();
-            return k ? require('crypto').createHash('sha1').update(k).digest('hex').slice(0, 8) : null;
-          } catch (_) { return 'ERROR'; }
-        })(),
-      }));
     }
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);

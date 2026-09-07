@@ -586,3 +586,65 @@ test('M23e ★preload 가 고지 채널을 «열어» 준다 (화이트리스트
   assert.doesNotMatch(pre, /invoke:\s*\(channel[^)]*\)\s*=>\s*ipcRenderer\.invoke\(channel/,
     '★preload 가 임의 채널을 통과시키면 이 검사의 전제가 틀린 것이다');
 });
+
+/* ────────────────────────────────────────────────────────────────────────────
+   M24~M26 — 적대적 리뷰가 찾은 «형제 패턴의 다음 자리» (2026-09-07)
+   ★셋 다 고친 뒤 변이를 돌렸더니 «0 빨강»이었다 = 지키는 검사가 «없었다».
+     고쳤는데 검사가 없으면 닫힌 게 아니다. 여기서 채운다.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+test('M24 ★_existingAccountKeys — 「못 읽었다」를 「계정이 없다」로 읽지 않는다 (fail-open 이었다)', () => {
+  /* `[]` 는 「다른 계정이 없다」로 읽혀 ★입양을 «해도 된다»가 된다 = 삼킨 뒤 기본값이 «허용».
+     같은 catch(_) 라도 _legacyProjectEntries 의 [] 는 「옮길 게 없다」라 거부 착지(방어)인데
+     이 자리만 반대였다. ⇒ ENOENT 만 [], 나머지는 던진다. */
+  const h = load({ email: 'chulsoo@example.com' });
+  const realReaddir = fs.readdirSync;
+  fs.readdirSync = (p, o) => {
+    if (String(p).includes('accounts')) { const e = new Error('EACCES'); e.code = 'EACCES'; throw e; }
+    return realReaddir(p, o);
+  };
+  try {
+    assert.throws(() => h.api._existingAccountKeys(), /EACCES/,
+      '★못 읽은 것을 «빈 목록»으로 돌려주면 남의 공용 풀을 가져간다');
+  } finally { fs.readdirSync = realReaddir; }
+
+  // ENOENT(폴더가 원래 없음 = 진짜 첫 로그인)는 «[]» 가 맞다 — 반대방향 오탐 방지
+  fs.readdirSync = (p, o) => {
+    if (String(p).includes('accounts')) { const e = new Error('ENOENT'); e.code = 'ENOENT'; throw e; }
+    return realReaddir(p, o);
+  };
+  try { assert.deepStrictEqual(h.api._existingAccountKeys(), []); }
+  finally { fs.readdirSync = realReaddir; }
+});
+
+test('M25 ★로그인은 됐는데 «키를 못 만든» 경우도 공용 풀로 안 내려간다', () => {
+  /* email 이 공백뿐이면 `!a.email` 은 거짓이라 통과하고 _accountKeyFor 는 null 을 준다.
+     그 null 을 «비로그인»으로 읽으면 레거시 공용 풀에 앉고, 거기 만든 것은 다음 계정에게 입양된다.
+     ★「비로그인」은 readAuthOrThrow() === null «하나»뿐이어야 한다. */
+  for (const bad of ['   ', '\t\n', '@', '  @  ']) {
+    const h = load({ email: 'chulsoo@example.com' });
+    h.setEmail(bad);
+    let landed = null;
+    try { h.api._repointProjectsDir('login'); } catch (_) { landed = 'threw'; }
+    assert.notStrictEqual(h.api.PROJECTS_DIR, h.api.PROJECTS_DIR_LEGACY,
+      `★email=${JSON.stringify(bad)} 로 «공용 풀»에 앉았다 — 여기 만든 것은 남에게 입양된다`);
+  }
+  // 반대방향 — 멀쩡한 이메일은 자기 폴더로
+  const ok = load({ email: 'chulsoo@example.com' });
+  assert.ok(ok.api.PROJECTS_DIR.includes('chulsoo'));
+});
+
+test('M26 ★게이트를 «여는 자리»와 «닫는 자리»의 수가 맞는다 (로그아웃이 로그아웃이어야 한다)', () => {
+  /* 실측(적대적 리뷰): _editorAccessGranted 를 true 로 «여는» 함수는 있는데
+     false 로 «닫는» 자리가 0곳이었다. ⇒ 로그아웃한 앱에서 MCP 인증 게이트가 계속
+     authed:true 를 돌려주고, 그 쓰기는 (clearAuth 가 내려놓은) 레거시 공용 풀에 떨어진다.
+     ★「가장 먼저 로그인을 본다」가 로그아웃한 앱에 「예」라고 답하던 것이다.
+     ⇒ «비대칭 자체»를 검사로 박는다 — 여는 자리가 늘면 닫는 자리도 있어야 한다. */
+  assert.match(SRC, /function _revokeEditorAccess\(\)\s*\{\s*_editorAccessGranted = false;\s*\}/,
+    '★게이트를 «닫는» 함수가 있어야 한다');
+  assert.match(bodyOf('clearAuth'), /_revokeEditorAccess\(\)/,
+    '★로그아웃이 게이트를 안 닫으면 로그아웃이 아니다');
+  const grants = (SRC.match(/_editorAccessGranted = true/g) || []).length;
+  const revokes = (SRC.match(/_editorAccessGranted = false/g) || []).length;
+  assert.ok(revokes >= 1, `★여는 자리 ${grants} / 닫는 자리 ${revokes} — 닫는 자리가 없다`);
+});
