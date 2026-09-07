@@ -612,3 +612,127 @@ test('★파라미터는 «charset 말고도» 전부 거절한다', () => {
     assert.equal(e.detail.reason, 'MIME_PARAMS_NOT_STORABLE', u.slice(0, 40));
   }
 });
+
+/* ══ 경계값(±1) — 3차 적대검수의 「선 옮기기」 변이 24종 중 16종이 «초록 생존»했다 ══
+   생존한 것들이 전부 «한 가족»이었다: 경계 비교를 한 칸 옮겨도 아무 테스트가 안 물었다.
+   ⇒ 「대표값 하나」로만 재고 있었다는 뜻이다. 아래는 «딱 그 경계»를 재는 시험들이다.
+   ⛔전부는 못 닫는다 — 못 닫은 것은 보고에 목록으로 남긴다. 「전부 닫았다」고 쓰지 않는다. */
+
+test('★경계 — WebP 는 RIFF 가 선언한 길이보다 «1바이트라도» 모자라면 거절한다', () => {
+  const body = Buffer.alloc(40, 9);
+  const mk = (n) => {
+    const b = Buffer.alloc(12 + body.length);
+    b.write('RIFF', 0, 'latin1'); b.writeUInt32LE(4 + body.length, 4); b.write('WEBP', 8, 'latin1');
+    body.copy(b, 12);
+    return b.subarray(0, b.length - n);
+  };
+  assert.equal(_assertImageSrcIntact(dataUrl('image/webp', mk(0)), 'image').checked, 'webp-structure', '딱 맞으면 통과');
+  const e = grab(() => _assertImageSrcIntact(dataUrl('image/webp', mk(1)), 'image'));
+  assert.equal(e.detail.reason, 'WEBP_TRUNCATED', '1바이트 모자라면 거절 — 「>=」 로 옮기면 여기서 샌다');
+});
+
+test('★경계 — GIF 하위블록이 «선언 길이만큼» 없으면 거절한다', () => {
+  // 하위블록 길이 접두를 실제보다 «크게» 만든다 — 길이 대조를 지우면 그냥 통과한다.
+  const g = Buffer.from(REAL_GIF);
+  const at = g.indexOf(0x02, 30);            // LZW 데이터 하위블록의 길이 바이트
+  assert.ok(at > 0, '전제: 하위블록 길이 바이트를 찾아야 한다');
+  const bloated = Buffer.from(g); bloated[at] = 0x40;   // 2 → 64바이트라고 선언
+  const e = grab(() => _assertImageSrcIntact('data:image/gif;base64,' + bloated.toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'GIF_TRUNCATED');
+});
+
+test('★경계 — PNG 청크가 선언 길이보다 «1바이트» 모자라면 거절한다', () => {
+  const cut = png.subarray(0, png.length - 1);   // IEND 의 마지막 CRC 1바이트만 뗀다
+  const e = grab(() => _assertImageSrcIntact('data:image/png;base64,' + cut.toString('base64'), 'image'));
+  assert.equal(e.code, 'IMAGE_TRUNCATED');
+  assert.ok(['PNG_CHUNK_TRUNCATED', 'PNG_NO_IEND'].includes(e.detail.reason), e.detail.reason);
+});
+
+test('★경계 — JPEG 이 SOI(2바이트)뿐이어도 «SOI 없음»이 아니라 «스캔 없음»으로 거절한다', () => {
+  const e = grab(() => _assertImageSrcIntact(dataUrl('image/jpeg', Buffer.from([0xff, 0xd8, 0xff, 0xd9])), 'image'));
+  assert.equal(e.detail.reason, 'JPEG_NO_SOS', '사유가 정확해야 한다 — 헤더는 있고 그림이 없는 것이다');
+});
+
+test('★경계 — base64 패딩은 «0·1·2개»까지만 통과한다', () => {
+  const stripped = PNG_B64.replace(/=+$/, '');
+  for (const n of [0, 1, 2]) {
+    const url = 'data:image/png;base64,' + stripped + '='.repeat(n);
+    // 0·1·2 는 «형태상» 허용 — 실제 통과 여부는 디코드/구조가 정한다
+    assert.doesNotThrow(() => {
+      try { _assertImageSrcIntact(url, 'image'); }
+      catch (e) { if (e.detail && String(e.detail.reason).startsWith('BASE64')) throw e; }
+    }, `패딩 ${n}개는 base64 «형태» 로는 거절되면 안 된다`);
+  }
+  const e = grab(() => _assertImageSrcIntact('data:image/png;base64,' + stripped + '===', 'image'));
+  assert.ok(String(e.detail.reason).startsWith('BASE64') || e.detail.reason === 'SRC_NOT_STORABLE',
+    `패딩 3개는 거절되어야 한다 (got ${e.detail.reason})`);
+});
+
+test('★base64url 은 «- 하나만»으로도 거절한다 (알파벳을 반만 열면 반만 샌다)', () => {
+  // 적대검수 변이 L16(「알파벳에 - 만 허용」)이 초록으로 살아남아 드러난 자리.
+  // 내 base64url 테스트가 -와 _를 «둘 다» 바꾼 픽스처라, 한쪽만 허용해도 _가 걸려서 못 잡았다.
+  // 픽스처 base64 에 + 가 없을 수 있으므로 «+ 가 나오는 바이트»(0xfb 0xef 0xbe → ++++)를 앞에 붙인다
+  const plusB64 = Buffer.concat([Buffer.from([0xfb, 0xef, 0xbe]), png]).toString('base64');
+  assert.ok(plusB64.includes('+'), '전제: base64 에 + 가 있어야 이 시험이 성립한다');
+  const onlyDash = plusB64.replace(/\+/g, '-');          // /는 그대로 둔다
+  assert.ok(!onlyDash.includes('_'), '전제: _ 는 없어야 «- 하나만»을 재는 것이 된다');
+  const e = grab(() => _assertImageSrcIntact('data:image/png;base64,' + onlyDash, 'image'));
+  assert.equal(e.detail.reason, 'BASE64URL_NOT_SUPPORTED');
+  assert.equal(e.detail.badChar, '-');
+});
+
+test('★data:imageX/… 처럼 «비슷한» 것도 검사에 «들어와» 거절된다 — skipped 로 빠져나가면 우회로다', () => {
+  const e = grab(() => _assertImageSrcIntact('data:imageX/png;base64,' + PNG_B64, 'image'));
+  assert.ok(e.imageCheckError, 'skipped 가 아니라 «거절»이어야 한다');
+});
+
+/* ══ 「짧은 입력」의 «사유»가 정확한가 — 적대검수 변이 L24·L6·L7 이 짚은 자리 ══
+   셋 다 「거절은 되는데 «다른 이유»로 거절되는」 변이였다. 거절 여부만 보면 안 잡힌다.
+   사유를 정확히 말하는 게 이 판의 규약이라, 사유까지 재야 이 변이들이 죽는다. */
+
+test('★매직바이트는 «시그니처 전체»를 본다 — 앞 2바이트만 보면 «GIF 아닌 것»이 GIF 가 된다', () => {
+  // "GI" 로 시작하는 그냥 글자. 앞 2바이트만 보면 GIF 로 오인해 「잘린 GIF」라고 «틀린 사유»를 말한다.
+  const notGif = Buffer.from('GI 이건 그림이 아니라 글자다', 'utf8');
+  const e = grab(() => _assertImageSrcIntact('data:image/gif;base64,' + notGif.toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'NOT_AN_IMAGE',
+    '★내용이 아는 형식이 아니면 «그림이 아니다»라고 해야 한다 — 「잘린 GIF」가 아니다');
+});
+
+test('★2~3바이트짜리 JPEG 은 «SOI 없음»으로 잡는다 (최소 길이 경계)', () => {
+  const e = grab(() => _assertImageSrcIntact(dataUrl('image/jpeg', Buffer.from([0xff, 0xd8, 0xff])), 'image'));
+  assert.equal(e.detail.reason, 'JPEG_NO_SOI',
+    '4바이트 미만은 «형식 판정 자체가 불가»다 — 스캔 없음(JPEG_NO_SOS)이 아니다');
+});
+
+test('★12바이트짜리 GIF 은 «헤더+화면기술자»에서 잡는다 (13바이트 경계)', () => {
+  const e = grab(() => _assertImageSrcIntact('data:image/gif;base64,' + REAL_GIF.subarray(0, 12).toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'GIF_TRUNCATED');
+  assert.equal(e.detail.at, '헤더+화면기술자', '어디서 모자랐는지 «그 자리»를 말해야 한다');
+  assert.equal(e.detail.expectedAtLeastBytes, 13);
+});
+
+test('★경계 — SOS 세그먼트 «마지막 바이트가 ff, 스캔 첫 바이트가 d9» 인 경계에서 속지 않는다', () => {
+  /* 적대검수 변이 L3(「EOI 탐색 시작을 i → i-1」)이 초록으로 살아남아 드러난 자리.
+     탐색을 한 칸만 앞에서 시작해도 «세그먼트 끝의 ff» 와 «스캔 첫 d9» 가 이어져 EOI 로 보인다
+     ⇒ 스캔이 통째로 빈 파일이 통과한다. 실제로 그 입력을 만들어 두 판이 갈리는 것을 확인했다. */
+  const scan = outerScanStart(REAL_JPEG);
+  assert.ok(scan > 2, '전제: 스캔 시작을 찾아야 한다');
+  const b = Buffer.from(REAL_JPEG.subarray(0, scan + 1));
+  b[scan - 1] = 0xff;   // 세그먼트의 «마지막» 바이트
+  b[scan] = 0xd9;       // 스캔의 «첫» 바이트
+  const e = grab(() => _assertImageSrcIntact('data:image/jpeg;base64,' + b.toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'JPEG_NO_EOI',
+    '★세그먼트 «끝»의 ff 는 EOI 의 일부가 아니다 — 탐색은 스캔 시작부터여야 한다');
+});
+
+test('★GIF 은 «어디서» 모자랐는지 그 자리를 말한다 (하위블록 길이 대조)', () => {
+  /* 적대검수 변이 L11(「하위블록 길이 대조 삭제」)이 살아남은 자리.
+     지우면 뒤의 「블록 표식」 검사가 대신 잡아 «거절은 되지만 자리를 틀리게» 말한다.
+     사유뿐 아니라 «어디»까지 재야 이 변이가 죽는다. */
+  const at = REAL_GIF.indexOf(0x02, 30);
+  assert.ok(at > 0, '전제: LZW 하위블록 길이 바이트를 찾아야 한다');
+  const over = Buffer.from(REAL_GIF); over[at] = 0x05;   // 실제보다 크게 선언
+  const e = grab(() => _assertImageSrcIntact('data:image/gif;base64,' + over.toString('base64'), 'image'));
+  assert.equal(e.detail.reason, 'GIF_TRUNCATED');
+  assert.equal(e.detail.at, '하위블록', '★「블록 표식」이 아니라 «하위블록»에서 걸렸다고 말해야 한다');
+});
