@@ -1764,7 +1764,19 @@ textarea.cvb-card-input {
   user-select: none;
   padding: 8px 0;
 }
-.zoom-block .zoom-svg { display: block; max-width: 100%; height: auto; }
+/* stage = SVG 의 «정확한 상자». 그 안에서 선택 상자를 절대좌표로 얹는다
+   (블록 자신은 행 전체 폭이라 기준으로 못 쓴다). */
+.zoom-block .zoom-stage { position: relative; display: inline-block; line-height: 0; }
+.zoom-block .zoom-svg { display: block; }
+/* ★선택 아웃라인용 «보이지 않는» 상자 — 도형(+테두리)과 «같은 크기·같은 모서리».
+   js/selection-overlay.js 의 _geomOf 가 이 상자와 border-radius 를 읽어 보라 path 를 그린다.
+   ⇒ 원이면 원, 사각이면 사각. 칠하지도 않고 클릭도 안 받는다(기하 전용). */
+.zoom-block .zoom-sel-box {
+  position: absolute;
+  pointer-events: none;
+  background: none;
+  border: 0;
+}
 /* a·b 핸들 — 항상 그려두고 «선택됐을 때만» 보인다(렌더는 선택상태를 안 본다). */
 .zoom-block .zoom-handle {
   fill: var(--sel-color);
@@ -1775,12 +1787,17 @@ textarea.cvb-card-input {
   cursor: grab;
 }
 .zoom-block.selected .zoom-handle { opacity: 1; pointer-events: auto; }
+/* ★확대블럭 = «스티커 계열»이라 보라다(현빈 2026-09-08 「보라색 테두리로 되어야 되는데」).
+   ⇒ .sticker-block.selected 와 «같은 토큰»(--ui-sel-overlay). 새 색을 만들지 않는다.
+   ★이 아웃라인은 «사각 폴백»이다 — 오버레이 층이 살아 있으면(body.sel-ov) 색이 transparent 로
+     중화되고, 모양을 따라가는 보라 path 는 .zoom-sel-box 를 읽어 오버레이가 그린다.
+     오버레이가 꺼져도 «보라 사각»으로는 남는다(사라지지 않는다). */
 .zoom-block:hover {
-  outline: 1px dashed var(--sel-color);
+  outline: 1px dashed var(--ui-sel-overlay, #9966ff);
   outline-offset: -1px;
 }
 .zoom-block.selected {
-  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline: var(--sel-outline-w) solid var(--ui-sel-overlay, #9966ff);
   outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .chb-msg {

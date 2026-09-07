@@ -27,7 +27,7 @@
 
 import { insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
-import { buildZoomSvg, computeZoomGeometry } from './zoom-geometry.js';
+import { buildZoomStage, computeZoomGeometry } from './zoom-geometry.js';
 
 const ZOOM_DEFAULTS = {
   shape:  'rect',   // ★기본은 사각형. 프리셋 = rect | circle | square
@@ -41,9 +41,10 @@ const ZOOM_DEFAULTS = {
   rot:    0,        // 도형 회전(도) — silhouette 이 받는 값
   fill:   '#cfd6e0',// 도형 색
   /* ★그림자 라디오(현빈 2026-09-08) — 이 한 값이 블록 «둘»을 하나로 합친다.
-       'off' = 「에셋블럭 스티커」(도형 + 테두리) · 'on' = 「돋보기」(도형 + 그림자)
+       'off'(★기본) = 「에셋블럭 스티커」(도형 + 테두리) · 'on' = 「돋보기」(도형 + 그림자)
+     ★현빈 2026-09-08: 「기본적으로 그림자는 Off 인 상태로」 — 스티커가 «먼저»고 돋보기가 옵션이다.
      ⛔off 여도 angle·length·maxop 는 «지우지 않는다». 다시 켜면 그대로 돌아와야 한다. */
-  shadow: 'on',
+  shadow: 'off',
   /* 테두리 — 원래 스티커 블록 A-1 의 「우측에서 테두리를 넣을 수 있다」가 여기로 들어왔다.
      그림자와 배타가 아니다(둘 다 켤 수 있다). ⛔도형 «바깥»에 그린다 — 크기가 줄면 안 된다. */
   bd:     'off',
@@ -112,7 +113,7 @@ function _pinShortEdge(block, a, b) {
 function renderZoomBlock(block) {
   // ★그림은 «순수 모듈»이 만든다(zoom-geometry.js: buildZoomSvg) — 검사가 실제로 나가는
   //   마크업을 그대로 받아 잴 수 있게 하려는 것이다. 여기는 dataset 읽기와 위임 바인딩만.
-  block.innerHTML = buildZoomSvg(readZoomState(block), readPinnedShortEdge(block));
+  block.innerHTML = buildZoomStage(readZoomState(block), readPinnedShortEdge(block));
   _bindZoomHandleDrag(block);
 }
 

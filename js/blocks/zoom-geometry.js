@@ -214,46 +214,83 @@ export function outerExtentPts(st) {
  * ★a·b 핸들은 «항상» 그린다 — 보이기는 CSS(.zoom-block.selected)가 정한다.
  *   선택은 renderZoomBlock 을 다시 부르지 않으므로 렌더 시점의 선택상태에 기대면 안 된다.
  */
-export function buildZoomSvg(st, pinned) {
+/** 뷰박스 상자 — 조립기와 «선택 상자»가 같은 좌표계를 봐야 해서 한 자리로 뽑았다. */
+export function zoomBox(st, pinned) {
   const geo = computeZoomGeometry(st, pinned);
+  const ok = shadowVisible(st, geo);
+  const pts = [
+    ...outerExtentPts(st),
+    ...(ok ? [geo.A, geo.B, geo.a, geo.b, geo.L] : []),
+  ];
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const minX = Math.min(...xs) - ZOOM_PAD, maxX = Math.max(...xs) + ZOOM_PAD;
+  const minY = Math.min(...ys) - ZOOM_PAD, maxY = Math.max(...ys) + ZOOM_PAD;
+  return { minX, minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY), geo, ok };
+}
 
-  /* ★그림자 라디오 — `shadow:'off'` 면 띠를 «아예 안 그린다»(투명도 0 으로 두지 않는다).
-     현빈: 「그림자는 라디오버튼으로 뺄 수 있도록 할까? 그러면 스티커 블럭 2개까진 필요없잖아?」
-       끔 = 「에셋블럭 스티커」(도형 + 테두리) · 켬 = 「돋보기」(도형 + 그라데이션 그림자)
-     ⛔off 여도 angle·length 같은 «그림자 값»은 아무도 지우지 않는다 — 다시 켜면 그대로 돌아온다.
-       (이 함수는 st 를 읽기만 한다. 지우는 일은 dataset 쪽에서도 없어야 한다 — 검사 ⓐ-15·ⓑ-14) */
-  const shadowOn = st.shadow !== 'off';
+/* 그림자를 실제로 그리는가 — 세 갈래를 «한 자리»에 모은다.
+   ① 라디오가 꺼졌다 ② 좌표가 샌다(NaN) ③ A·B 가 «한 점»이다(광원이 도형 안).
+   ③ 은 NaN 이 아니라서 ②만 보면 통과해 버리고, 넓이 0 인 띠가 64장 «조용히» 쌓인다
+   (검사 ⓐ-13 이 실제로 이걸 잡았다 — 눈으로는 안 보이는 결함이다). */
+export function shadowVisible(st, geo) {
+  if (st.shadow === 'off') return false;
+  if (!allFinite([geo.A, geo.B, geo.a, geo.b, geo.L])) return false;
+  return Math.hypot(geo.B.x - geo.A.x, geo.B.y - geo.A.y) > 1e-6;
+}
 
-  /* 퇴화면 그림자만 접는다 — 도형은 계속 보여야 한다.
-     ★두 갈래다: ①좌표가 새는 경우(NaN) ②A·B 가 «한 점»인 경우.
-       ②는 silhouette 의 circle 분기가 광원이 원 안일 때 중심점 둘을 돌려주는 자리다.
-       NaN 이 아니라서 ①만 보면 통과해 버리고, 넓이 0 인 띠가 64장 «조용히» 쌓인다
-       (검사 ⓐ-13 이 실제로 이걸 잡았다 — 눈으로는 안 보이는 결함이다). */
-  const ok = shadowOn
-    && allFinite([geo.A, geo.B, geo.a, geo.b, geo.L])
-    && Math.hypot(geo.B.x - geo.A.x, geo.B.y - geo.A.y) > 1e-6;
+/**
+ * ★선택 아웃라인이 «shape 모양»을 따라가게 하는 상자 (현빈 2026-09-08).
+ *   js/selection-overlay.js 의 _geomOf 는 «요소의 상자 + computed border-radius»로 모양을 만든다
+ *   (원을 따로 아는 게 아니라 border-radius:50% 를 읽어서 원을 그린다).
+ *   ⇒ 그 길에 태우는 방법 = «도형과 똑같은 상자»를 하나 두는 것이다. _geomOf 는 안 건드린다.
+ *   ⛔.zoom-block 자신은 못 쓴다 — 행 전체 폭이라 상자가 그림자까지 감싼다.
+ *   ⚠️테두리가 켜져 있으면 아웃라인도 «테두리 바깥»을 따른다(그림자와 같은 축).
+ *   ⚠️회전은 CSS transform 이 아니라 data-rotation 으로 준다 — _cornerScreen 이 «그것»을 읽는다.
+ */
+export function selBoxSpec(st, pinned) {
+  const half = (Number(st.size) || 0) / 2;
+  const bw = borderWidthOf(st);
+  const circle = st.shape === 'circle';
+  const hw = half + bw;
+  const hh = (circle ? half : (st.shape === 'rect' ? half * ZOOM_RECT_RATIO : half)) + bw;
+  const bdr = Math.max(0, Number(st.bdr) || 0);
+  const box = zoomBox(st, pinned);
+  return {
+    w: hw * 2, h: hh * 2,
+    radius: circle ? '50%' : ((bdr > 0 ? bdr + bw : 0).toFixed(2) + 'px'),
+    left: -box.minX - hw, top: -box.minY - hh,
+    rot: circle ? 0 : (Number(st.rot) || 0),   // 원은 돌려도 같은 모양이다
+  };
+}
+
+export function selBoxMarkup(st, pinned) {
+  const s = selBoxSpec(st, pinned);
+  return `<div class="zoom-sel-box" data-sel-box data-sel-variant="sticker"` +
+    (s.rot ? ` data-rotation="${s.rot}"` : '') +
+    ` style="left:${s.left.toFixed(2)}px;top:${s.top.toFixed(2)}px;` +
+    `width:${s.w.toFixed(2)}px;height:${s.h.toFixed(2)}px;border-radius:${s.radius};"></div>`;
+}
+
+/** 블록 안에 실제로 들어가는 것 전부 — SVG + (보이지 않는) 선택 상자. */
+export function buildZoomStage(st, pinned) {
+  return `<div class="zoom-stage">${buildZoomSvg(st, pinned)}${selBoxMarkup(st, pinned)}</div>`;
+}
+
+export function buildZoomSvg(st, pinned) {
+  const box = zoomBox(st, pinned);
+  const geo = box.geo, ok = box.ok;
 
   const shadow = ok
     ? strips(geo.A, geo.B, geo.a, geo.b, ZOOM_STRIP_COUNT, (Number(st.curve) || 100) / 100, (Number(st.maxop) || 0) / 100)
     : '';
-
-  // 뷰박스 = 도형«+테두리» + 그림자 + 광원을 전부 담는 최소 상자 + 여백
-  const bboxPts = [
-    ...outerExtentPts(st),
-    ...(ok ? [geo.A, geo.B, geo.a, geo.b, geo.L] : []),
-  ];
-  const xs = bboxPts.map(p => p.x), ys = bboxPts.map(p => p.y);
-  const minX = Math.min(...xs) - ZOOM_PAD, maxX = Math.max(...xs) + ZOOM_PAD;
-  const minY = Math.min(...ys) - ZOOM_PAD, maxY = Math.max(...ys) + ZOOM_PAD;
-  const w = Math.max(1, maxX - minX), h = Math.max(1, maxY - minY);
 
   const handles = ok ? `<g class="zoom-handles">` +
     `<circle class="zoom-handle" data-pt="a" cx="${geo.a.x.toFixed(2)}" cy="${geo.a.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
     `<circle class="zoom-handle" data-pt="b" cx="${geo.b.x.toFixed(2)}" cy="${geo.b.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
     `</g>` : '';
 
-  return `<svg class="zoom-svg" width="${w.toFixed(2)}" height="${h.toFixed(2)}" ` +
-    `viewBox="${minX.toFixed(2)} ${minY.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}" ` +
+  return `<svg class="zoom-svg" width="${box.w.toFixed(2)}" height="${box.h.toFixed(2)}" ` +
+    `viewBox="${box.minX.toFixed(2)} ${box.minY.toFixed(2)} ${box.w.toFixed(2)} ${box.h.toFixed(2)}" ` +
     `xmlns="http://www.w3.org/2000/svg">` +
     `<g class="zoom-shadow">${shadow}</g>${borderMarkup(st)}${shapeMarkup(st)}${handles}</svg>`;
 }

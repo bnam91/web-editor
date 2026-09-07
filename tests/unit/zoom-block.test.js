@@ -64,6 +64,7 @@ const RAW = {
   css:    readSrc(ROOT, 'css', 'editor-blocks.css'),
   html:   readSrc(ROOT, 'index.html'),
   save:   readSrc(ROOT, 'js', 'io', 'save-load.js'),
+  overlay: readSrc(ROOT, 'js', 'selection-overlay.js'),
 };
 const SRC = Object.fromEntries(Object.entries(RAW).map(([k, v]) => [k, stripComments(v)]));
 
@@ -436,6 +437,55 @@ test('ⓐ-19c [리팩터 대조] silhouette 을 쪼갠 뒤에도 «같은 답»�
   assert.deepEqual(g.silhouette('circle', 80, 0, L, 0, 0), g.silhouetteCircle(80, L, 0, 0));
 });
 
+test('ⓐ-20 ★선택 상자가 «도형 모양»을 든다 — 원이면 원, 테두리 켜면 테두리 바깥', async () => {
+  const g = await loadGeom();
+  /* 기대값은 검사 «안에서» 독립 계산한다(M16 교훈 — 대상 함수로 만들면 같이 틀린다). */
+  const expect = (st) => {
+    const half = st.size / 2, bw = (st.bd === 'on') ? st.bdw : 0;
+    const circle = st.shape === 'circle';
+    const hh = (circle ? half : (st.shape === 'rect' ? half * 0.625 : half)) + bw;
+    return { w: (half + bw) * 2, h: hh * 2,
+             radius: circle ? '50%' : (((st.bdr || 0) > 0 ? st.bdr + bw : 0).toFixed(2) + 'px') };
+  };
+  const cases = [
+    { ...ST, shape: 'rect' },
+    { ...ST, shape: 'circle' },
+    { ...ST, shape: 'square', rot: 30 },
+    { ...ST, shape: 'rect', bd: 'on', bdw: 6, bdr: 12 },
+    { ...ST, shape: 'circle', bd: 'on', bdw: 24 },
+  ];
+  for (const st of cases) {
+    const sp = g.selBoxSpec(st, null);
+    const e = expect(st);
+    assert.equal(sp.w, e.w, `${st.shape}: 폭`);
+    assert.equal(sp.h, e.h, `${st.shape}: 높이`);
+    assert.equal(sp.radius, e.radius, `${st.shape}: 모서리`);
+    // ★상자 «중심»이 도형 중심(뷰박스 0,0)과 정확히 겹쳐야 아웃라인이 도형 위에 앉는다.
+    const box = g.zoomBox(st, null);
+    assert.ok(Math.abs(sp.left + sp.w / 2 + box.minX) < 1e-9, `${st.shape}: 가로 중심 어긋남`);
+    assert.ok(Math.abs(sp.top + sp.h / 2 + box.minY) < 1e-9, `${st.shape}: 세로 중심 어긋남`);
+  }
+  // 대조 — 원과 사각의 모서리가 «실제로» 갈려야 이 검사가 뭔가를 가른다
+  assert.notEqual(g.selBoxSpec({ ...ST, shape: 'circle' }, null).radius,
+                  g.selBoxSpec({ ...ST, shape: 'rect' }, null).radius);
+});
+
+test('ⓐ-20b 마크업 — 회전은 CSS transform 이 아니라 data-rotation 으로 준다', async () => {
+  const g = await loadGeom();
+  // _cornerScreen 은 dataset(rotateDeg|rotation|shapeRotation)만 읽는다. transform 을 주면 못 본다.
+  const rotHtml = g.selBoxMarkup({ ...ST, shape: 'square', rot: 30 }, null);
+  assert.match(rotHtml, /data-rotation="30"/);
+  assert.equal(/transform:/.test(rotHtml), false, 'CSS transform 은 _cornerScreen 이 «안 읽는다»');
+  assert.match(rotHtml, /data-sel-box/);
+  assert.match(rotHtml, /data-sel-variant="sticker"/);
+  // 원은 돌려도 같은 모양 → 회전을 안 붙인다(쓸데없는 회전 분기 회피)
+  assert.equal(/data-rotation/.test(g.selBoxMarkup({ ...ST, shape: 'circle', rot: 30 }, null)), false);
+  // stage 안에 SVG 와 선택 상자가 «둘 다» 들어간다
+  const stage = g.buildZoomStage(ST, null);
+  assert.match(stage, /^<div class="zoom-stage"><svg/);
+  assert.ok(stage.indexOf('zoom-sel-box') > stage.indexOf('</svg>'), '선택 상자는 SVG 뒤에 온다');
+});
+
 /* ── ⓑ 배선 — 신규 블록 체크리스트 5곳 ────────────────────────────────────── */
 function sliceFn(src, header) {
   const i = src.indexOf(header);
@@ -490,8 +540,8 @@ test('ⓑ-5 [체크리스트⑤] CSS 가 .zoom-block 의 선택 outline 을 «�
   const s = SRC.css;
   const m = s.match(/\.zoom-block\.selected\s*\{([^}]*)\}/);
   assert.ok(m, '.zoom-block.selected 규칙이 없다');
-  assert.ok(/outline:\s*var\(--sel-outline-w\)\s+solid\s+var\(--sel-color\)/.test(m[1]),
-    'outline 폭은 하드코딩 px 이 아니라 --sel-outline-w 토큰(화면상 1px)이어야 한다');
+  assert.ok(/outline:\s*var\(--sel-outline-w\)\s+solid\s+var\(--ui-sel-overlay/.test(m[1]),
+    '★확대블럭은 «스티커 계열»이라 보라(--ui-sel-overlay)다. 폭은 여전히 --sel-outline-w 토큰.');
   assert.ok(/outline-offset:\s*calc\(-1 \* var\(--sel-outline-w\)\)/.test(m[1]), 'offset -1px 상당 누락');
 });
 
@@ -552,6 +602,53 @@ test("ⓑ-14 ★그림자·테두리는 «라디오»다 (⛔체크박스 아님
   assert.ok(/block\.dataset\[key\] = r\.value/.test(body), "라디오는 'on'/'off' 만 쓴다");
 });
 
+test('ⓑ-15 ★확대블럭은 «스티커 계열» 보라다 — hover 도 같은 토큰, 새 색 0건', () => {
+  const s = SRC.css;
+  const hov = s.match(/\.zoom-block:hover\s*\{([^}]*)\}/);
+  assert.ok(hov && /var\(--ui-sel-overlay/.test(hov[1]), 'hover 도 보라여야 계열이 갈리지 않는다');
+  // 대조 — 스티커 원본과 «같은 토큰»인지(색을 새로 만들지 않았는지)
+  const stk = s.match(/\.sticker-block\.selected\s*\{([^}]*)\}/);
+  assert.ok(stk && /var\(--ui-sel-overlay/.test(stk[1]), '전제: 스티커가 그 토큰을 쓴다');
+  // 선택 상자는 «보이지 않아야» 한다(기하 전용) — 칠하면 화면에 네모가 뜬다
+  const box = s.match(/\.zoom-block \.zoom-sel-box\s*\{([^}]*)\}/);
+  assert.ok(box, '.zoom-sel-box 규칙이 없다');
+  assert.match(box[1], /pointer-events:\s*none/);
+  assert.match(box[1], /position:\s*absolute/);
+});
+
+test('ⓑ-16 ★선택 오버레이 배선 — 그리고 «다른 블록 결과가 안 바뀐다»', () => {
+  const s = SRC.overlay;
+  // ⑴ 갈래(보라)를 «선언»으로 받는다 — 블록 이름 목록을 안 늘린다(이 파일 머리의 규칙)
+  assert.ok(/host\.dataset\?\.selVariant/.test(s), 'data-sel-variant 를 안 읽는다 = 보라가 안 붙는다');
+  // ⑵ 선택 상자를 host 로 쓴다
+  assert.ok(/data-sel-box/.test(s), 'data-sel-box 를 안 쓴다 = 아웃라인이 «행 전체 폭»이 된다');
+
+  // ⛔⑶ 퇴행 방지 — _geomOf 는 «한 글자도» 안 건드렸다
+  const geom = sliceFn(s, 'function _geomOf(el, variant, scale)');
+  for (const w of ['zoom', 'sel-box', 'selVariant', 'selBox']) {
+    assert.equal(geom.includes(w), false, `_geomOf 에 ${w} 가 들어갔다 — 공용 함수를 건드렸다`);
+  }
+
+  // ⛔⑷ 기존 입력의 답이 안 바뀐다 = 새 분기가 «옛 분기 뒤»에 온다
+  const variant = sliceFn(s, 'function _variantOf(host)');
+  assert.ok(variant.indexOf("classList.contains('sticker-block')") < variant.indexOf('dataset?.selVariant'),
+    '선언형 분기가 «앞»에 오면 기존 두 블록의 판정이 바뀔 수 있다');
+  const hostOf = sliceFn(s, 'function _hostOf(el)');
+  assert.ok(hostOf.indexOf('TEXT_SELECTOR') < hostOf.indexOf('SEL_BOX_SELECTOR'),
+    '텍스트 분기보다 «앞»에 오면 텍스트 블록의 host 판정이 바뀐다');
+
+  // ⛔⑸ 선택 상자 탐색은 «깊이 두 단계»로 묶는다 — 임의 후손이면 남의 상자를 집는다
+  const sel = s.match(/const SEL_BOX_SELECTOR = '([^']+)'/);
+  assert.ok(sel, 'SEL_BOX_SELECTOR 가 없다');
+  assert.ok(sel[1].split(',').every(p => p.trim().startsWith(':scope >')),
+    `임의 후손 탐색이다: ${sel[1]}`);
+
+  // ⛔⑹ 선 굵기 표를 안 늘렸다(sticker 는 1 그대로)
+  const sw = s.match(/export const STROKE_W = \{([^}]*)\}/);
+  assert.ok(sw && /sticker:\s*1/.test(sw[1]), 'sticker 굵기가 1 이 아니다');
+  assert.equal(sw[1].split(',').filter(x => x.trim()).length, 3, '굵기 갈래를 늘렸다 — sticker 를 그대로 써야 한다');
+});
+
 test('ⓑ-11 ⛔새 색 토큰을 만들지 않는다 — 다크 단일 테마의 공용 변수만 쓴다', () => {
   const cssBlock = SRC.css.slice(SRC.css.indexOf('.zoom-block {'));
   const zone = cssBlock.slice(0, cssBlock.indexOf('\n.chb-msg'));
@@ -583,7 +680,7 @@ test('ⓑ-13 기본값 — shape=rect(★기본은 사각형) · maxop=30 · len
   assert.equal(pick('maxop'), '30');
   assert.equal(pick('curve'), '100');
   assert.equal(pick('narrow'), '62');
-  assert.equal(pick('shadow'), 'on');    // ★그림자는 «켬»이 기본(돋보기)
+  assert.equal(pick('shadow'), 'off');   // ★기본은 «끔» = 에셋블럭 스티커(현빈 2026-09-08)
   assert.equal(pick('bd'), 'off');       // ★테두리는 «끔»이 기본
   assert.equal(pick('bdw'), '6');
   assert.equal(pick('bdc'), '#ffffff');
