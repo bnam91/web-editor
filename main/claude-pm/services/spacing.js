@@ -221,8 +221,22 @@ function normalizePlan(items) {
     }
 
     if (slot.gaps.length === 0) {
-      // 빠진 자리 — prev 뒤에 넣는다. top 슬롯이면 afterId=null(=맨 앞에 붙인다).
+      /* 빠진 자리 — prev 뒤에 넣는다. top 슬롯이면 afterId=null(=맨 앞에 붙인다).
+         ⛔★prev 에 id 가 «없으면» afterId 가 null 이 되어 «맨 앞»에 꽂힌다 — 섹션 한복판에
+           들어갈 갭이 통째로 위로 튄다. id 없는 블록은 지목할 방법이 없으니 «건너뛰고 말한다». */
+      if (slot.prev && !slot.prev.id) {
+        slot.skipped = 'no-id';
+        notes.push(`${_slotName(slot)} — 앞 블록에 id 가 없어 갭을 넣을 자리를 «지목할 수 없다»(건너뜀).`);
+        continue;
+      }
       ops.push({ op: 'insert', afterId: slot.prev ? slot.prev.id : null, height: target, slot: _slotName(slot) });
+      continue;
+    }
+
+    /* id 없는 갭도 지목할 수 없다 — set/remove 가 조용히 빗나가는 대신 슬롯을 통째로 둔다. */
+    if (slot.gaps.some((g) => !g.id)) {
+      slot.skipped = 'no-id';
+      notes.push(`${_slotName(slot)} — id 없는 갭이 있어 손대지 않았다(지목할 수 없다).`);
       continue;
     }
 

@@ -215,3 +215,32 @@ test('⑦-b 무게표의 타입 이름은 mcp-block-tools 의 BLOCK_TYPES 와 «
   assert.deepEqual(unweighted, [],
     `BLOCK_TYPES 에 있는데 무게가 «없는» 타입: ${unweighted.join(', ')} — spacing.js 의 WEIGHT 에 한 줄 추가해라`);
 });
+
+// ── ⑧ id 가 없는 것은 «지목할 수 없다» ──────────────────────────────────
+test('⑧ ★id 없는 블록 뒤의 갭은 «맨 앞»에 꽂히지 않는다 — 건너뛰고 말한다', () => {
+  /* afterId 가 null 이면 적용부는 «맨 앞»에 넣는다(top 슬롯 규약). 그래서 id 없는 블록을
+     그대로 흘려보내면 섹션 한복판에 들어갈 갭이 통째로 위로 튄다. 한 번 보면 바로 안 보이는 종류. */
+  const items = [
+    { id: 'gb_a', kind: 'gap', height: 100, auto: true },
+    { id: null, kind: 'block', type: 'heading' },
+    { id: 'tb_2', kind: 'block', type: 'body' },
+    { id: 'gb_z', kind: 'gap', height: 100, auto: true },
+  ];
+  const p = S.normalizePlan(items);
+  assert.deepEqual(p.ops.filter((o) => o.op === 'insert'), [],
+    `id 없는 블록 뒤에 삽입 op 를 냈다 — afterId=null 이라 «맨 앞»에 꽂힌다: ${JSON.stringify(p.ops)}`);
+  assert.ok(p.notes.some((n) => /id/.test(n)), '왜 건너뛰었는지 말해야 한다');
+});
+
+test('⑧-b id 없는 «갭»이 낀 슬롯은 통째로 안 건드린다 (set/remove 가 빗나가는 대신)', () => {
+  const items = [
+    { id: 'gb_a', kind: 'gap', height: 100, auto: true },
+    { id: 'tb_1', kind: 'block', type: 'heading' },
+    { id: null, kind: 'gap', height: 13, auto: true },
+    { id: 'tb_2', kind: 'block', type: 'body' },
+    { id: 'gb_z', kind: 'gap', height: 100, auto: true },
+  ];
+  const p = S.normalizePlan(items);
+  assert.deepEqual(p.ops, []);
+  assert.ok(p.notes.some((n) => /id/.test(n)));
+});
