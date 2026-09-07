@@ -1993,14 +1993,24 @@ async function _deleteProjectImpl({ projectId } = {}) {
     // ★활성이었나를 «지우기 전에» 본다 — 지우고 나면 못 잰다
     const wasActive = (global.currentActiveProjectId === projectId);
 
-    /* ★★휴지통에 «알아볼 수 있는 이름»으로 넣는다 — `<이름>.gdt` (2026-09-07 현빈 지시).
+    /* ★휴지통에 «알아볼 수 있는 이름»으로 넣는다 (2026-09-07 현빈 지시).
        왜: 그전엔 폴더 이름이 `proj_1788758331862` 뿐이라 휴지통을 열어도 «이게 뭔지» 모른다.
-           프로젝트 이름도 없고, 고디터 것인지도 모른다.
-       ⇒ 삭제 «직전»에 `<프로젝트이름>.gdt` 로 옮겨 담고 그걸 버린다.
-       ⛔단 이름만 바꾸는 게 아니다 — 되돌릴 «길»을 같이 만들어야 한다. 그래서
-         ⑴ 폴더 «구조는 그대로» 유지한다(안에 proj.json 이 그대로 있다 = 손으로도 복원된다)
-         ⑵ `.gdt/restore.json` 에 원래 id·경로·시각을 적는다(어디로 되돌리는지 기계가 안다)
-         ★「알아보기 쉽게」가 「되돌리기 어렵게」가 되면 그건 개선이 아니다. */
+
+       ⛔★2026-09-07 «정정» — 처음엔 `<이름>.gdt` 로 만들었다. **그건 규격 위반이었다.**
+         `.gdt` 는 «이미 확정된» 고디터 프로젝트 «파일 포맷»이다:
+           · zip(deflate) — manifest.json + project.json + images/ (명세 `지디/notes/GDT-SPEC.md`)
+           · package.json 의 fileAssociations 에 mac·win «둘 다» 등록돼 있다(더블클릭 배선까지 있다)
+           · ★`gdt-verify` 의 적대적 픽스처에 `bad_02_plaintext.gdt`(=확장자만 .gdt 인 것)가
+             **«거부»가 정답**으로 박혀 있다 — 내가 만든 게 정확히 그 모양이었다.
+         ⇒ 사용자가 휴지통에서 꺼내 더블클릭하면 «열릴 거라 기대»하는데 «거부»된다.
+         ⇒ ★**규격의 «이름»을 달고 규격이 «아닌» 것이 제일 나쁘다.** 그래서 확장자를 뗀다.
+       ⚠️내가 「코드에 .gdt 가 0건」이라 한 것도 틀렸다 — zsh 가 따옴표 없는 `--include=*.js` 를
+         글롭으로 보고 «명령 자체가 안 돌았다». 에러 줄이 출력에 있었는데 읽고도 0을 결과로 썼다.
+         ⇒ ★「0건」을 볼 땐 «명령이 돌기는 했나»부터 봐라. 실제로는 22개 파일에 있다.
+
+       지금은 «확장자 없이» 프로젝트 이름만 쓴다. 폴더 구조는 그대로 두고(손으로도 복원된다)
+       `restore.json` 이 원래 id·경로·시각을 들고 있다 — 그게 「고디터 것」임을 판별하는 표식이다.
+       ★「알아보기 쉽게」가 「되돌리기 어렵게」가 되면 그건 개선이 아니다. */
     const bundleName = (() => {
       let nm = projectId;
       try {
@@ -2009,7 +2019,7 @@ async function _deleteProjectImpl({ projectId } = {}) {
       } catch (_) {}
       // ⛔파일명에 못 쓰는 글자를 치운다(/ : 등). 한글은 그대로 둔다 — 알아보는 게 목적이다.
       nm = String(nm).replace(/[/\\:*?"<>|\u0000-\u001f]/g, '_').trim().slice(0, 80) || projectId;
-      return `${nm}.gdt`;
+      return nm;   // ⛔`.gdt` 를 붙이지 마라 — 그건 zip 포맷의 «약속된» 이름이다
     })();
     let toTrash = target;
     try {
@@ -2020,13 +2030,13 @@ async function _deleteProjectImpl({ projectId } = {}) {
         }, null, 2));
         const staged = path.join(PROJECTS_DIR, bundleName);
         // ⛔같은 이름이 이미 있으면 덮어쓰지 않는다 — 남의 것을 지울 수 있다
-        const uniq = fs.existsSync(staged) ? path.join(PROJECTS_DIR, `${bundleName.slice(0, -4)}-${Date.now()}.gdt`) : staged;
+        const uniq = fs.existsSync(staged) ? path.join(PROJECTS_DIR, `${bundleName}-${Date.now()}`) : staged;
         fs.renameSync(dir, uniq);
         toTrash = uniq;
       }
     } catch (e) {
       // ★담기에 실패해도 «삭제 자체»는 진행한다 — 옛 경로(폴더)로 버린다.
-      console.warn('[projects:delete] .gdt 로 담기 실패, 폴더 그대로 버린다:', e.message);
+      console.warn('[projects:delete] 이름 붙여 담기 실패, 폴더 그대로 버린다:', e.message);
       toTrash = fs.existsSync(dir) ? dir : target;
     }
     // ★휴지통으로. shell.trashItem 은 Electron 이 준다(영구삭제 아님).

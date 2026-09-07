@@ -13,6 +13,21 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const { startHarness } = require('./_mcp-harness');
 
+
+/** ★`_deleteProjectImpl` 의 «전체» 본문. ⛔고정 길이 창(slice(i, i+4000))을 쓰지 마라 —
+ *  2026-09-07 실측: 주석을 늘렸더니 코드가 «창 밖»으로 밀려 D7 이 «가짜 빨강»을 냈다.
+ *  검사가 「주석 길이」에 딸려 가면 그건 검사가 아니다. 함수 끝까지 잡는다. */
+function implBody() {
+  const fs = require('fs'), path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'main.js'), 'utf8');
+  const i = src.indexOf('async function _deleteProjectImpl');
+  assert.ok(i > 0, '_deleteProjectImpl 이 없다');
+  const j = src.indexOf('\n}\n', i);
+  return src.slice(i, j > 0 ? j : i + 20000);
+}
+/** 주석을 «통째로» 걷어낸 코드만. 줄 단위로 거르면 여러 줄 주석 안쪽이 남는다. */
+const stripComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
 let H = null;
 const trashed = [];          // 가짜 «휴지통» — 무엇이 들어갔나를 «센다»
 let projects = null;
@@ -97,11 +112,7 @@ test('D7 ★활성을 비울 땐 «읽는 곳을 전부» 비운다 (2026-09-07 
   // ⛔G2 실측: global.currentActiveProjectId 만 비웠더니 «안 비워졌다».
   //   원인 = _activeProjectId() 가 «두 곳»을 본다 — ⑴콜백(global) ⑵★창 URL 의 ?project=
   //   한 곳만 비우면 「비웠다」가 «거짓말»이 된다. 이건 소스로만 잴 수 있어 정적 검사로 둔다.
-  const fs = require('fs'), path = require('path');
-  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'main.js'), 'utf8');
-  const i = src.indexOf('async function _deleteProjectImpl');
-  assert.ok(i > 0, '_deleteProjectImpl 이 없다');
-  const body = src.slice(i, i + 4000);
+  const body = implBody();
   assert.ok(/global\.currentActiveProjectId\s*=\s*null/.test(body),
     '★콜백이 읽는 global 을 안 비운다');
   assert.ok(/getURL\(\)/.test(body) && /project=/.test(body),
@@ -137,21 +148,31 @@ test('D9 ★도구 원장이 «도구명·대상»을 남긴다 (H4 — 사고 �
   assert.ok(!/"limit":\s*1/.test(raw), `★원장에 인자 «값»이 새어 들어갔다: ${raw.slice(0, 200)}`);
 });
 
-test('D10 ★휴지통엔 «알아볼 수 있는 이름»으로 — 그리고 되돌릴 «길»을 같이 남긴다', () => {
-  // ⛔그전엔 휴지통에 `proj_1788758331862/` 로 들어갔다 — 열어봐도 «이게 뭔지» 모른다.
-  //   ⇒ `<프로젝트이름>.gdt` 로 담아 버린다(현빈 지시 2026-09-07).
-  // ★그런데 「알아보기 쉽게」가 「되돌리기 어렵게」가 되면 그건 개선이 아니다.
-  //   그래서 ⑴폴더 «구조는 그대로»(안에 proj.json 이 있어 손으로도 복원된다)
-  //          ⑵restore.json 에 원래 id·경로·시각을 적는다.
-  const fs = require('fs'), path = require('path');
-  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'main.js'), 'utf8');
-  const i = src.indexOf('async function _deleteProjectImpl');
-  const body = src.slice(i, i + 6000);
-  assert.ok(/\.gdt/.test(body), '★.gdt 로 담지 않는다 — 휴지통에서 알아볼 수 없다');
-  assert.ok(/restore\.json/.test(body), '★restore.json 을 안 남긴다 — 어디로 되돌릴지 모르게 된다');
+test('D10 ★휴지통엔 «알아볼 수 있는 이름» — 단 ⛔`.gdt` 는 «쓰면 안 된다»', () => {
+  /* ⚠️★2026-09-07 «검사를 고쳤다» — 이 검사는 원래 「.gdt 로 담나」를 «정답»으로 굳혀 뒀다.
+     그건 틀렸다. `.gdt` 는 이미 «확정된» 고디터 프로젝트 파일 포맷이다:
+       zip(deflate) + manifest.json/project.json/images/ · package.json fileAssociations 등록(mac·win)
+       · gdt-verify 적대적 픽스처에 `bad_02_plaintext.gdt`(확장자만 .gdt) = «거부»가 정답
+     ⇒ 내가 만든 게 정확히 그 «거부 대상」이었고, 검사가 그걸 지켜 주고 있었다.
+     ★오늘 계약 픽스처에서 겪은 것과 «같은 모양»이다 — 검사가 결함을 정답으로 굳힌다.
+     ⇒ 지금 지켜야 할 것은 「.gdt 를 «안» 쓰나」 + 「그래도 알아볼 수 있나」 + 「되돌릴 길이 있나」다. */
+  const body = implBody();
+  /* ⛔주석을 «줄 단위»로 거르면 여러 줄 주석 «안쪽»이 코드로 남는다(내가 그걸로 한 번 틀렸다).
+     ⇒ 블록주석(/* … *​/)과 줄주석을 «통째로» 지운 뒤에 본다. */
+  const code = stripComments(body);
+
+  // ★핵심: «코드»가 .gdt 를 만들지 않는다(주석의 설명은 남아도 된다)
+  assert.ok(!/\.gdt/.test(code),
+    `★코드가 아직 .gdt 를 만든다 — 규격의 «이름»을 달고 규격이 «아닌» 것이 제일 나쁘다:\n${
+      code.split('\n').filter(l => /\.gdt/.test(l)).join('\n')}`);
+
+  // 그래도 «알아볼 수 있어야» 한다 — 프로젝트 이름을 쓴다
+  assert.ok(/proj\.name|\.name \|\| projectId/.test(body), '★프로젝트 «이름»을 안 쓴다 — 휴지통에서 못 알아본다');
+  // 되돌릴 길
+  assert.ok(/restore\.json/.test(body), '★restore.json 을 안 남긴다 — 어디로 되돌릴지 모른다');
   assert.ok(/originalPath/.test(body), 'restore.json 에 원래 경로가 없다');
-  // ⛔같은 이름이 있을 때 «덮어쓰면» 남의 것을 지운다
-  assert.ok(/existsSync\(staged\)/.test(body), '★이름 충돌 시 덮어쓴다 — 남의 것을 지울 수 있다');
+  // ⛔이름 충돌 시 덮어쓰면 남의 것을 지운다
+  assert.ok(/existsSync\(staged\)/.test(body), '★이름 충돌 시 덮어쓴다');
   // ★담기에 실패해도 «삭제 자체»는 되어야 한다(그게 사용자가 시킨 일이다)
-  assert.ok(/담기 실패/.test(body), '★.gdt 담기가 실패했을 때의 폴백이 없다');
+  assert.ok(/담기 실패/.test(body), '★담기 실패 시 폴백이 없다');
 });
