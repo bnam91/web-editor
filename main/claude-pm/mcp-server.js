@@ -1662,16 +1662,33 @@ function _registerDefaultTools() {
   // PM update_section — 섹션 속성 변경 (배경 등)
   registerTool(
     'update_section',
-    async ({ sectionId, bg } = {}) => {
+    async ({ sectionId, bg, ...rest } = {}) => {
       if (!sectionId || !sectionId.startsWith('sec_')) throw new Error('sectionId required (sec_xxx)');
       if (bg !== undefined && bg !== null && !/^#?[0-9a-fA-F]{3,8}$|^transparent$|^rgb/.test(String(bg))) {
         throw new Error(`invalid bg: ${bg}`);
+      }
+      // ★«아무것도 안 하고 ok» 를 막는다 (2026-09-07 g-mcpmgr).
+      //   registerTool 된 update_* 28개 중 이 가드가 «없던 유일한» 도구였다(나머지 27개는 있다).
+      //   그래서 update_section({sectionId, name:'새이름'}) 이 «아무 말 없이» 성공했다 —
+      //   name 은 구조분해에서 버려지고 bg 는 undefined 라 렌더러가 할 일이 없다.
+      //   ⇒ 클로드는 「섹션 이름 바꿔줘」를 받으면 이 도구에 name 을 넣어 보고, 아무도 안 나무라니
+      //     «했다»고 답한다. 「도구가 없다」가 「조용한 거짓 성공」으로 둔갑하던 자리다.
+      // ★거절은 곧 «안내»여야 한다 — 무엇을 넣을 수 있는지, 그리고 무엇이 «아예 안 되는지»를
+      //   같이 말하지 않으면 클로드는 title·label 로 갈아 끼우며 같은 자리를 돈다.
+      if (bg === undefined) {
+        const unknown = Object.keys(rest);
+        throw new Error(
+          'no fields to update — provide at least one of: bg'
+          + (unknown.length ? ` (received but NOT supported: ${unknown.join(', ')})` : '')
+          + '. Section name/title is NOT settable via MCP — no tool changes it; rename it in the editor UI.'
+        );
       }
       if (!_rendererInvoker?.updateSection) throw new Error('renderer bridge not ready');
       return await _rendererInvoker.updateSection({ sectionId, bg });
     },
     {
-      description: 'Update section properties (bg color, etc.). Use for changing existing section background. bg: hex color (#000, #ffffff) or "transparent".',
+      description: 'Update section properties. ONLY bg (background color) can be changed — bg: hex (#000, #ffffff) or "transparent". '
+        + 'A section NAME/TITLE cannot be changed by this or any other MCP tool; do not pass name/title/label — the call will be refused.',
       inputSchema: {
         type: 'object',
         properties: {
