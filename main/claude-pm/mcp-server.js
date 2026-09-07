@@ -489,7 +489,30 @@ const _SELF_TARGET_ARG = new Map([
   ['rename_project', 'projectId'],   // 비파괴 + 지목형
 ]);
 
-let _confirmedProject = null;   // ★sticky — open_project ok 또는 expectedProject 일치로만 선다
+/* ★★확정(sticky)은 «호출자별»이다 — 예전엔 «프로세스 전역»이었다.
+   ⛔그래서 A 세션이 open_project 로 확정을 세우면, ★같은 인스턴스에 붙은 B 세션의
+     인자 0개짜리 쓰기가 sticky 로 «그냥 통과»했다. 게이트가 「이 대화」라고 말하는 자리들이
+     실제로는 「이 앱 프로세스에 붙은 모두」였다.
+   ⇒ 그리고 그게 브리지의 «포트 자동탐색»(9345~9365 중 최저 포트에 말없이 붙는다)과 곱해지면,
+     다른 CLI 세션이 남의 실사용 인스턴스에 붙어 그 사람의 확정으로 쓰기를 밀어 넣는다.
+   ⇒ 호출자 = 요청의 `Mcp-Session-Id`. 브리지가 프로세스마다 하나 만들어 보낸다.
+     헤더가 없는 호출자(직접 curl 등)는 'anon' 한 칸을 공유한다 — «예전과 같다», 더 나쁘진 않다.
+   ⛔Map 이 무한히 자라지 않게 상한을 둔다(오래된 것부터 버린다). */
+const _CONFIRM_MAX = 64;
+const _confirmedByCaller = new Map();
+const { AsyncLocalStorage } = require('node:async_hooks');
+const _callerCtx = new AsyncLocalStorage();
+function _callerId() { try { return _callerCtx.getStore() || 'anon'; } catch (_) { return 'anon'; } }
+function _getConfirmed() { return _confirmedByCaller.get(_callerId()) || null; }
+function _setConfirmed(v) {
+  const k = _callerId();
+  if (!v) { _confirmedByCaller.delete(k); return; }
+  _confirmedByCaller.delete(k);                       // 재삽입해서 «최근 것»으로
+  _confirmedByCaller.set(k, v);
+  while (_confirmedByCaller.size > _CONFIRM_MAX) {
+    _confirmedByCaller.delete(_confirmedByCaller.keys().next().value);
+  }
+}
 
 /** 거절 문구에 «이름»을 실어 준다 — id 만으론 사람이 자기 프로젝트인지 못 알아본다. */
 function _projectName(pid) {
@@ -543,7 +566,7 @@ function _projectGate(toolName, args) {
   }
 
   if (!active) {
-    _confirmedProject = null;
+    _setConfirmed(null);
     return {
       ok: false, code: 'NO_ACTIVE_PROJECT', tool: toolName,
       activeProject: null, activeProjectName: null,
@@ -556,7 +579,7 @@ function _projectGate(toolName, args) {
 
   if (hasExpected) {
     if (expected !== active) {
-      _confirmedProject = null;
+      _setConfirmed(null);
       return {
         ok: false, code: 'PROJECT_MISMATCH', tool: toolName,
         activeProject: active, activeProjectName: _projectName(active),
@@ -565,14 +588,15 @@ function _projectGate(toolName, args) {
         hint: `NOTHING was written. Either call open_project("${expected}") first (then retry), or — if you really meant the project that is open — use expectedProject:"${active}". Tell the user which one you are about to change.`,
       };
     }
-    _confirmedProject = active;   // ★명시 지목 = 확정. 이후 같은 대화의 호출은 인자 없이 통과한다.
+    _setConfirmed(active);   // ★명시 지목 = 확정. 이후 «같은 호출자»의 호출은 인자 없이 통과한다.
     return null;
   }
 
-  if (_confirmedProject && _confirmedProject === active) return null;   // sticky 유효
+  const _conf = _getConfirmed();
+  if (_conf && _conf === active) return null;   // sticky 유효 (★이 호출자의 것만)
 
-  const stale = (_confirmedProject && _confirmedProject !== active) ? _confirmedProject : null;
-  _confirmedProject = null;
+  const stale = (_conf && _conf !== active) ? _conf : null;
+  _setConfirmed(null);
   const nm = _projectName(active);
   return {
     ok: false, code: 'PROJECT_NOT_CONFIRMED', tool: toolName,
@@ -7830,7 +7854,7 @@ async function _handleRpc(msg) {
       const _noteConfirmed = (r) => {
         try {
           if (name === 'open_project' && r && r.ok !== false) {
-            _confirmedProject = (r.activeProjectId || r.projectId) || null;
+            _setConfirmed((r.activeProjectId || r.projectId) || null);
           }
         } catch (_) {}
         return r;
@@ -7972,7 +7996,10 @@ function _createServer() {
       req.on('end', async () => {
         try {
           const msg = body ? JSON.parse(body) : {};
-          const result = await _handleRpc(msg);
+          /* ★호출자 식별 — 예전엔 Mcp-Session-Id 가 CORS 허용 목록에만 있고 «읽는 코드가 0건»이었다.
+             그래서 확정(sticky)이 호출자를 못 가르고 프로세스 전체가 한 칸을 썼다. */
+          const _cid = String(req.headers['mcp-session-id'] || '').slice(0, 128) || 'anon';
+          const result = await _callerCtx.run(_cid, () => _handleRpc(msg));
           res.writeHead(200, { 'Content-Type': 'application/json' });
           // notification은 null → 빈 객체로 반환
           res.end(JSON.stringify(result === null ? {} : result));

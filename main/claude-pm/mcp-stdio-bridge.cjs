@@ -28,6 +28,8 @@ const path = require('path');
 
 const PINNED_PORT = process.env.GODITOR_MCP_PORT ? parseInt(process.env.GODITOR_MCP_PORT, 10) : null;
 const SCAN_FROM = 9345, SCAN_TO = 9365;
+// 이 브리지 프로세스 하나를 가리키는 id — 재시작하면 새로 생긴다(그게 맞다: 새 대화다).
+const BRIDGE_SESSION_ID = require('crypto').randomUUID();
 const ENV_TOKEN = process.env.GODITOR_MCP_TOKEN || null;
 
 let port = null;        // 붙기로 정한 포트
@@ -135,6 +137,12 @@ function post(p, body) {
     const data = Buffer.from(JSON.stringify(body));
     const req = http.request({ host: '127.0.0.1', port: p, path: '/mcp', method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': data.length,
+        /* ★★이 브리지 «프로세스»의 신원. 서버는 이걸로 확정(sticky)을 호출자별로 가른다.
+           ⛔없으면 서버가 'anon' 한 칸을 쓰는데, 그러면 ★같은 인스턴스에 붙은 다른 세션이
+             세운 확정으로 내 인자 없는 쓰기가 통과한다(그 반대도 마찬가지다).
+           그리고 이 브리지는 기본값에서 9345~9365 중 «최저 포트»에 말없이 붙으므로,
+           남의 실사용 인스턴스에 붙는 일이 실제로 일어난다 — 그때 확정까지 공유하면 안 된다. */
+        'Mcp-Session-Id': BRIDGE_SESSION_ID,
         ...(token ? { 'x-goditor-token': token } : {}) } }, r => {
       let d = ''; r.on('data', c => d += c);
       r.on('end', () => {
