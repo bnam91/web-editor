@@ -815,6 +815,18 @@
       </div>
       <div class="fp-plugin-badge fp-plugin-badge--new">New</div>
     </div>
+    <div class="fp-plugin-item" id="plugin-removebg" onclick="openRemoveBgPlugin()">
+      <div class="fp-plugin-icon fp-plugin-icon--removebg">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M4 4h7v7H4z"/><path d="M13 13h7v7h-7z"/><path d="M20 4 4 20"/>
+        </svg>
+      </div>
+      <div class="fp-plugin-info">
+        <div class="fp-plugin-name">removeBG</div>
+        <div class="fp-plugin-desc">이미지 배경 제거 · 모델 선택</div>
+      </div>
+      <div class="fp-plugin-badge fp-plugin-badge--new">New</div>
+    </div>
     <div class="fp-plugin-item" id="plugin-mockup" onclick="openMockupModal()">
       <div class="fp-plugin-icon fp-plugin-icon--mockup">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -1182,6 +1194,7 @@
         <select class="aig-select" id="aig-model-select">
           <option value="gemini-2.5-flash-image">Nano Banana (gemini-2.5-flash-image) · 추천</option>
           <option value="gpt-image-1">GPT Image 1 (OpenAI)</option>
+          <option value="removebg">remove.bg · 정밀 누끼 (키 필요 · 외부 전송)</option>
           <option value="prompt-only">프롬프트만 복사 (API 미호출)</option>
         </select>
       </div>
@@ -1456,6 +1469,7 @@
   else run();
 })();
 </script>
+<script src="js/removebg-plugin.js"></script>
 <script src="js/checklist-data.js"></script>
 <script src="js/checklist-panel.js"></script>
 <!-- ══════════════════════════

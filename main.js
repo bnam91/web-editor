@@ -192,6 +192,8 @@ function getApiKey(provider) {
   if (provider === 'openai')    return process.env.OPENAI_API_KEY_GODITOR || process.env.OPENAI_API_KEY || '';
   if (provider === 'gemini')    return process.env.GEMINI_API_KEY || '';
   if (provider === 'anthropic') return process.env.ANTHROPIC_API_KEY || '';
+  /* ★removebg 는 env 폴백을 «두지 않는다» — 개발기 .env 로 조용히 도는 순간
+     「배포하면 각자 키를 쓴다」가 개발기에서만 안 지켜진다(그 착시가 이번 발주의 발단이었다). */
   return '';
 }
 async function testApiKey(provider, key) {
@@ -216,6 +218,11 @@ async function testApiKey(provider, key) {
         body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
       });
       return { ok: r.status === 200, status: r.status, error: r.status === 200 ? null : `Anthropic key invalid (HTTP ${r.status})` };
+    }
+    if (provider === 'removebg') {
+      // 계정 조회로 «키가 유효한가»만 본다 — 이미지 전송 없음 = 과금 없음.
+      const r = await fetch('https://api.remove.bg/v1.0/account', { headers: { 'X-Api-Key': key } });
+      return { ok: r.status === 200, status: r.status, error: r.status === 200 ? null : `remove.bg key invalid (HTTP ${r.status})` };
     }
     return { ok: false, error: 'unknown provider' };
   } catch (e) {
@@ -5260,11 +5267,13 @@ const _ICONIFY_TIMEOUT_MS = 8000;
 
 // Codex Medium 픽스: parse 콜백을 받아 body 읽기까지 같은 AbortController로 보호.
 // 기존엔 fetch resolve 직후 clearTimeout — 본문 stall 시 무한 대기 가능했음.
-async function _fetchWithTimeout(url, parse, ms = _ICONIFY_TIMEOUT_MS) {
+async function _fetchWithTimeout(url, parse, ms = _ICONIFY_TIMEOUT_MS, init = null) {
   const ctl = new AbortController();
   const tid = setTimeout(() => ctl.abort(), ms);
   try {
-    const res = await fetch(url, { signal: ctl.signal, redirect: 'error' });
+    /* ★init 은 «뒤에» 붙인 선택 인자다 — 생략하면 기존 iconify 호출과 «완전히 동일»하게 돈다.
+       ⛔redirect:'error' 를 init 이 덮지 못하게 «뒤»에 다시 박는다(SSRF 가드는 호출자가 못 끈다). */
+    const res = await fetch(url, { ...(init || {}), signal: ctl.signal, redirect: 'error' });
     if (!res.ok) return { ok: false, status: res.status, body: null };
     const body = parse ? await parse(res) : null;
     return { ok: true, status: res.status, body };
@@ -5272,6 +5281,61 @@ async function _fetchWithTimeout(url, parse, ms = _ICONIFY_TIMEOUT_MS) {
     clearTimeout(tid);
   }
 }
+
+/* ═══ remove.bg 누끼 — ★main 에서 부른다 ═══════════════════════════════════
+   렌더러는 CSP 로 외부 fetch 가 막혀 있다(iconify 와 «같은 이유·같은 해법»).
+   ⛔이 경로는 «되돌릴 수 없는» 둘을 갖는다: ⑴사용자 이미지가 제3자에게 나간다 ⑵과금된다.
+     그래서 키가 없으면 «아무것도 보내지 않고» NO_KEY 로 끊는다 — 네트워크를 타기 «전»에 판정한다.
+   ⛔키 값을 로그·에러메시지에 절대 넣지 마라(헤더 통째 출력 금지). */
+const _REMOVEBG_URL        = 'https://api.remove.bg/v1.0/removebg';
+const _REMOVEBG_TIMEOUT_MS = 30000;                 // 이미지 왕복이라 iconify(8s)보다 길다
+const _REMOVEBG_MAX_BYTES  = 12 * 1024 * 1024;      // remove.bg 한도 이내
+const _REMOVEBG_MIME_OK    = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+async function _doRemoveBg({ b64, mime } = {}) {
+  // ⑴ 키 — ★네트워크 전에 본다
+  const key = getApiKey('removebg');
+  if (!key) {
+    return { ok: false, code: 'NO_KEY', message: 'remove.bg API 키가 없습니다. 설정에서 키를 넣어주세요.' };
+  }
+  // ⑵ 입력 가드 — 형식·용량. 여기서 걸러야 «쓸데없이 과금»되지 않는다
+  if (!_REMOVEBG_MIME_OK.has(String(mime || ''))) {
+    return { ok: false, code: 'INVALID', message: 'PNG·JPEG·WEBP 이미지만 배경 제거할 수 있습니다.' };
+  }
+  if (typeof b64 !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(b64) || b64.length < 32) {
+    return { ok: false, code: 'INVALID', message: '이미지 데이터가 올바르지 않습니다.' };
+  }
+  const bytes = Math.floor(b64.length * 3 / 4);
+  if (bytes > _REMOVEBG_MAX_BYTES) {
+    return { ok: false, code: 'INVALID', message: `이미지가 너무 큽니다(${Math.round(bytes / 1024 / 1024)}MB). 12MB 이하만 됩니다.` };
+  }
+  // ⑶ 호출
+  try {
+    const body = new URLSearchParams({ image_file_b64: b64, size: 'auto', format: 'png' });
+    const r = await _fetchWithTimeout(
+      _REMOVEBG_URL,
+      async res => Buffer.from(await res.arrayBuffer()).toString('base64'),
+      _REMOVEBG_TIMEOUT_MS,
+      { method: 'POST', headers: { 'X-Api-Key': key, 'Content-Type': 'application/x-www-form-urlencoded' }, body },
+    );
+    if (!r.ok) {
+      // ★402(크레딧)와 403(키)은 «사용자가 할 행동»이 다르다 — 뭉개지 않는다
+      if (r.status === 402) return { ok: false, code: 'HTTP_ERROR', status: 402, message: 'remove.bg 크레딧이 없습니다. 계정에서 충전 후 다시 시도하세요.' };
+      if (r.status === 403) return { ok: false, code: 'HTTP_ERROR', status: 403, message: 'remove.bg 키가 유효하지 않습니다. 설정에서 키를 확인하세요.' };
+      if (r.status === 429) return { ok: false, code: 'HTTP_ERROR', status: 429, message: 'remove.bg 요청이 너무 잦습니다. 잠시 후 다시 시도하세요.' };
+      return { ok: false, code: 'HTTP_ERROR', status: r.status, message: `remove.bg 호출 실패 (HTTP ${r.status})` };
+    }
+    if (!r.body) return { ok: false, code: 'HTTP_ERROR', message: 'remove.bg 응답이 비었습니다.' };
+    return { ok: true, b64: r.body, mime: 'image/png' };
+  } catch (e) {
+    // ⛔e 에 헤더가 실려 나올 여지를 두지 않는다 — message 만 쓴다
+    const msg = (e && e.name === 'AbortError') ? '시간이 초과됐습니다.' : ((e && e.message) || '네트워크 오류');
+    return { ok: false, code: 'NETWORK_ERROR', message: `remove.bg 연결 실패 — ${msg}` };
+  }
+}
+ipcMain.handle('removebg:cutout', (_e, payload) => _doRemoveBg(payload || {}));
+/* 키 «값»은 렌더러로 안 준다 — 있는지만 알린다. */
+ipcMain.handle('settings:has-key', (_e, provider) => !!getApiKey(String(provider || '')));
 
 async function _doIconifySearch({ query, prefix, limit = 10 } = {}) {
   if (typeof query !== 'string' || !query.trim()) {
