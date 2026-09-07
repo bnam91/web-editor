@@ -16,6 +16,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { HarnessError, waitFor, sleep, withDeadline } from './deadline.mjs';
 import { portAlive, attachPage, assertPageOwnership, evalJs } from './cdp.mjs';
+import { originalUdOffenders } from './fixture.mjs';   // ★「원본 userData 인가」의 «정본» — 두 벌로 두면 갈린다
 
 export const OFFSCREEN_X = -2400;
 export const OFFSCREEN_Y = 0;
@@ -73,8 +74,11 @@ export async function launch({
   if (FORBIDDEN_PORTS.has(port)) throw new HarnessError(`⛔포트 ${port} 는 남의 것이다(9334=현빈 데모 / 9340=남의 인스턴스)`);
   if (port < PORT_RANGE[0] || port > PORT_RANGE[1]) throw new HarnessError(`포트 ${port} 가 대역 ${PORT_RANGE.join('~')} 밖`);
   const udReal = path.resolve(userDataDir);
-  if (udReal.includes('Application Support/GODITOR') || udReal.includes('Application Support/Goya')) {
-    throw new HarnessError(`⛔원본 userData 를 대상으로 지정했다: ${udReal}`);
+  /* ⛔옛 판은 `.includes('Application Support/GODITOR')` 였다 — 윈도우 원본
+     (`…\AppData\Roaming\GODITOR`)엔 그 부분문자열이 «없어» 이 가드가 조용히 무효였다. */
+  const udHits = originalUdOffenders(udReal);
+  if (udHits.length) {
+    throw new HarnessError(`⛔원본 userData 를 대상으로 지정했다: ${udReal} (걸린 규약: ${udHits.join(' · ')})`);
   }
   if (await portAlive(port, 1500)) throw new HarnessError(`포트 ${port} 가 이미 점유돼 있다 — preflight 를 먼저 돌려라`);
 
@@ -201,10 +205,18 @@ export function mainLogLines(inst, { patterns = [/projects:load/, /복구/, /손
   return all.filter(l => patterns.some(p => p.test(l))).slice(-max);
 }
 
-/** 원본 무접촉 후검 — 내 pid 가 원본 ud 를 안 건드렸다는 «자기 증거». */
+/**
+ * 원본 무접촉 후검 — 내 pid 가 원본 ud 를 안 건드렸다는 «자기 증거».
+ *
+ * ★★여기는 «증명»을 내는 자리라 조용히 초록이 나면 제일 나쁘다.
+ *   옛 판은 `ud.includes('Application Support/GODITOR')` 하나뿐이라
+ *   ⑴ 윈도우 원본(`AppData\Roaming\GODITOR`)을 «못 봤고»
+ *   ⑵ 맥의 옛 이름 `Application Support/Goya` 도 «못 봤다»(launch 는 보는데 여기만 안 봤다).
+ *   ⇒ 윈도우에서 원본 ud 를 대상으로 띄웠어도 `clean: true` 를 돌려줬다.
+ *     「우리가 현빈 데이터를 안 만졌다」의 근거가 «아무것도 안 재는» 문장이었다.
+ */
 export function originClean(inst) {
-  const bad = [];
   const ud = inst.userDataDir;
-  if (ud.includes('Application Support/GODITOR')) bad.push(ud);
+  const bad = originalUdOffenders(ud);
   return { clean: bad.length === 0, offenders: bad, userDataDir: ud };
 }

@@ -334,6 +334,70 @@ test('Ⓐ-4 ★«파일 경로»를 `/` 로 쪼개거나 붙이는 자리가 0�
     `★윈도우에서 «안 쪼개지거나 섞인 구분자»가 되는 자리 (${SCANNED.length}개 파일을 셌다)`);
 });
 
+/* ═══ Ⓓ 경로를 «부분문자열»로 대조하는 자리 (관용구 ⑼) ═══════════════════════
+   ★Ⓐ-4 는 「`/` 로 쪼개거나 이어붙이는」 모양만 봤다. `.includes('A/B')` 는 그 그물에
+     안 걸려서 instance.mjs 의 «안전 가드» 두 자리가 그대로 남았다.
+   ★★그 중 `originClean()` 은 「원본 무접촉」을 «증명»하는 함수다 — 윈도우에서는 원본 ud 를
+     대상으로 띄웠어도 `clean:true` 를 돌려줬다. 「검사처럼 생긴 문장」이 안전 증명이 된 자리다.
+*/
+
+test('Ⓓ-1 ★originClean 은 «윈도우 원본 ud»를 clean 으로 보지 않는다 (증명이 거짓말하던 자리)', async () => {
+  const { originClean } = await import(pathToFileURL(path.join(ROOT, 'tools/hardening/lib/instance.mjs')).href);
+  const WIN_UD = 'C:\\Users\\darli\\AppData\\Roaming\\GODITOR';
+  /* [양성대조] 옛 판정식은 이 경로를 «못 본다» — 그래서 clean:true 였다 */
+  assert.equal(WIN_UD.includes('Application Support/GODITOR'), false,
+    '전제 미달 — 윈도우 원본에는 그 부분문자열이 없다는 게 이 검사의 출발점이다');
+
+  for (const ud of [WIN_UD, `${WIN_UD}\\projects`, 'C:\\Users\\darli\\AppData\\Roaming\\Goya']) {
+    assert.equal(originClean({ userDataDir: ud }).clean, false, `★원본 ud 인데 clean:true 다: ${ud}`);
+  }
+  const macUd = path.join(os.homedir(), 'Library/Application Support/GODITOR');
+  assert.equal(originClean({ userDataDir: macUd }).clean, false, '맥 원본도 봐야 한다');
+  assert.equal(originClean({ userDataDir: path.join(os.homedir(), 'Library/Application Support/Goya') }).clean, false,
+    '★맥 «옛 이름»(Goya)은 launch 는 보는데 originClean 만 안 보던 자리다');
+  const safe = path.join(os.tmpdir(), 'goya-run-1', 'h7-scratch');
+  assert.equal(originClean({ userDataDir: safe }).clean, true, `안전한 임시 ud 를 위반으로 봤다: ${safe}`);
+});
+
+test('Ⓓ-2 「원본 userData 인가」의 판정은 «홈 기준 자리»와 «꼬리 조각»을 둘 다 본다', async () => {
+  const { originalUdOffenders } = await import(pathToFileURL(path.join(ROOT, 'tools/hardening/lib/fixture.mjs')).href);
+  const hit = (p) => originalUdOffenders(p).length > 0;
+  assert.equal(hit('C:\\Users\\darli\\AppData\\Roaming\\GODITOR'), true, '윈도우 원본');
+  assert.equal(hit(path.join(os.homedir(), 'Library/Application Support/GODITOR')), true, '맥 원본');
+  assert.equal(hit('/tmp/x/Library/Application Support/GODITOR'), true,
+    '★홈 «밖» 사본 — 옛 instance.mjs 의 부분문자열 판정이 잡던 것이다. 느슨해지면 안 된다');
+  assert.equal(hit(path.join(os.tmpdir(), 'goya-run-1', 'h7-scratch')), false, '안전한 임시 경로를 막았다');
+});
+
+test('Ⓓ-3 ★경로를 «구분자 품은 리터럴»로 대조하는 자리가 0건이다 (관용구 ⑼)', () => {
+  const OP = /\.(?:includes|indexOf|lastIndexOf|startsWith|endsWith)\(\s*(['"])([^'"\n]*\/[^'"\n]*)\1\s*\)/g;
+  const PATHY = /(?:^|[.\]])(?:[A-Za-z_$][\w$]*)?(?:[Pp]ath|[Dd]ir|[Rr]oot|[Hh]ome|real|ud|Ud|UD|cwd|file|File)[\w$]*$/;
+  /* URL·zip 엔트리·소스 원문은 `/` 가 «맞다» — 파일 경로가 아니다. */
+  const URLISH = /^(?:https?|file|goya-asset|gdt|data):|^\/\//;
+  const bad = [];
+  for (const f of SCANNED) {
+    const code = codeOnly(fs.readFileSync(f, 'utf8'));
+    for (const m of code.matchAll(OP)) {
+      const before = code.slice(Math.max(0, m.index - 90), m.index).replace(/\s+$/, '');
+      const recv = (before.match(/([A-Za-z_$][\w$.()[\]]*)$/) || [''])[0];
+      if (!PATHY.test(recv) || /pathname$|^location\./.test(recv)) continue;
+      if (URLISH.test(m[2])) continue;
+      bad.push(`${rel(f)}: ${recv}${m[0]}`);
+    }
+  }
+  assert.deepEqual(bad, [],
+    `★윈도우 경로엔 그 부분문자열이 «없어» 가드가 조용히 무효가 된다 (${SCANNED.length}개 파일을 셌다)`);
+});
+
+test('Ⓓ-4 ★「원본 userData 인가」 규약이 «한 곳»에만 있다 — 두 벌로 두면 갈린다', () => {
+  const inst = readSrc(ROOT, 'tools/hardening/lib/instance.mjs');
+  assert.match(inst, /originalUdOffenders/,
+    '★instance.mjs 가 정본을 안 부르고 자기 판정을 다시 들였다 — 실제로 그래서 갈렸다');
+  const instCode = inst.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  assert.equal(/Application Support\//.test(instCode), false,
+    '★instance.mjs 에 원본 ud 경로 리터럴이 다시 생겼다 — 규약은 fixture.mjs 한 곳이다');
+});
+
 /* ═══ Ⓒ 링크 만들기 — 비승격 윈도우에서 «되는» 방법이어야 한다 (뿌리 C) ═══════
    ★파일 심링크는 승격/개발자모드를 요구하는데, denywrite 는 승격이면 «스스로 던진다».
      ⇒ 한 셸로 전부 초록이 되려면 링크 쪽이 비승격에서 돼야 한다(정션). */

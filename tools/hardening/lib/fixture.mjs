@@ -16,11 +16,17 @@ import { HarnessError } from './deadline.mjs';
 export const CORPUS_DIR = path.join(os.homedir(), 'srv-지디_qa-corpus');
 export const CORPUS_LARGE = path.join(CORPUS_DIR, 'proj_large_safebon');
 /* ⛔건드리면 안 되는 «원본» userData — 맥과 윈도우는 «다른 자리»에 있다.
-   맥만 적어 두면 윈도우에서 이 안전 게이트가 «조용히 무효»가 된다. */
-const ORIGINAL_UD = [
-  path.join(os.homedir(), 'Library/Application Support/GODITOR'),   // macOS
-  path.join(os.homedir(), 'AppData', 'Roaming', 'GODITOR'),         // Windows (%APPDATA%)
+   맥만 적어 두면 윈도우에서 이 안전 게이트가 «조용히 무효»가 된다.
+   ★★규약을 «여기 한 곳»에 둔다 — 두 벌로 두면 갈린다. 실제로 갈렸다:
+     instance.mjs 가 `.includes('Application Support/GODITOR')` 를 따로 들고 있었고,
+     윈도우 원본(`…\AppData\Roaming\GODITOR`)엔 그 부분문자열이 «없어» 두 가드가 무효였다. */
+const ORIGINAL_UD_TAILS = [
+  'Library/Application Support/GODITOR',   // macOS
+  'Library/Application Support/Goya',      // macOS · 옛 이름
+  'AppData/Roaming/GODITOR',               // Windows (%APPDATA%)
+  'AppData/Roaming/Goya',                  // Windows · 옛 이름
 ];
+const ORIGINAL_UD = ORIGINAL_UD_TAILS.map((t) => path.join(os.homedir(), ...t.split('/')));
 
 /**
  * 루트를 뗀 «세그먼트 수». ★플랫폼을 주입할 수 있다 — 윈도우 모양을 «맥에서» 재려면 필요하다.
@@ -40,19 +46,38 @@ export function isRootPath(p, P = path) {
   const real = P.resolve(p);
   return real === P.parse(real).root;
 }
+/** 경로를 «비교 가능한 모양»으로 접는다: 구분자를 `/` 로, win32 면 대소문자까지. */
+export function foldPath(p) {
+  const s = String(p).split(/[\\/]+/).join('/');
+  return process.platform === 'win32' ? s.toLowerCase() : s;
+}
 /** 접두 비교 — ★NTFS 는 대소문자를 안 가린다. 그대로 비교하면 안전 게이트가 새어 나간다. */
-function isUnder(real, base) {
-  const n = (s) => (process.platform === 'win32' ? s.toLowerCase() : s);
-  return n(real).startsWith(n(base));
+export function isUnder(real, base) {
+  return foldPath(real).startsWith(foldPath(base));
+}
+
+/**
+ * ⛔이 경로가 «원본 userData» 인가 — 걸린 근거를 «전부» 돌려준다(빈 배열이어야 안전).
+ * ★두 가지를 «둘 다» 본다. 어느 하나만 두면 각각 구멍이 있다:
+ *   ⑴ 홈 기준 «절대 자리»  — 정확하지만 홈 밖의 사본을 못 본다
+ *   ⑵ «꼬리 조각» 부분문자열 — 홈 밖 사본도 잡는다(옛 instance.mjs 가 하던 것)
+ * ⇒ 합집합이라 옛 두 판정보다 «더 엄격»하다. 안전 게이트는 느슨해지는 쪽으로 바꾸지 않는다.
+ */
+export function originalUdOffenders(p) {
+  const real = path.resolve(String(p));
+  const folded = foldPath(real);
+  const hits = [];
+  for (const ud of ORIGINAL_UD) if (isUnder(real, ud)) hits.push(ud);
+  for (const t of ORIGINAL_UD_TAILS) if (folded.includes(foldPath(t))) hits.push(t);
+  return [...new Set(hits)];
 }
 
 /** ⛔쓰기 대상이 «내 것»인지 매번 확인한다. 이 게이트를 우회하는 경로를 만들지 마라. */
 export function assertWritableTarget(p) {
   const real = path.resolve(p);
   if (isRootPath(real) || pathDepth(real) < 3) throw new HarnessError(`위험한 경로: ${real}`);
-  for (const ud of ORIGINAL_UD) {
-    if (isUnder(real, ud)) throw new HarnessError(`⛔원본 userData 를 쓰려 했다: ${real}`);
-  }
+  const udHits = originalUdOffenders(real);
+  if (udHits.length) throw new HarnessError(`⛔원본 userData 를 쓰려 했다: ${real} (걸린 규약: ${udHits.join(' · ')})`);
   if (isUnder(real, CORPUS_DIR)) throw new HarnessError(`⛔코퍼스 «원본»을 쓰려 했다(복사해서 써라): ${real}`);
   if (isUnder(real, path.join(os.homedir(), 'web-editor-merge'))) throw new HarnessError(`⛔현빈 작업본을 쓰려 했다: ${real}`);
   return real;
