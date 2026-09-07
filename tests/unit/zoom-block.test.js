@@ -761,6 +761,48 @@ test('ⓑ-19 ★⑧계열 = «플로팅»(스티커) — 행에 넣지 않는다
   assert.ok(/import \{ _canvasScaleNow \} from '\.\.\/overlay-handles\.js'/.test(b), '배율을 베꼈다');
 });
 
+test('ⓑ-20 ★⑽D1 — 「흐름 블록 목록」 사본이 «하나»다 (둘이면 조용히 빈 패널이 된다)', () => {
+  /* 실제로 난 결함: editor.js 목록엔 zoom 이 있고 prop-multisel 리터럴엔 없어서
+     _countFlowMultiSel()=2 로 패널은 열리는데 _getSelectedFlowBlocks()=0 이라
+     «아무것도 안 그리고 조용히 return» 했다. 폴백(「N개 선택됨」)도 안 탔다.
+     ⇒ 사본을 없애 구조로 닫는다. 이 검사는 사본이 «되살아나면» 빨개진다. */
+  const m = SRC.multisel;
+  assert.equal(/const FLOW_SEL\s*=/.test(m), false, '리터럴 사본이 되살아났다');
+  /* ⚠️「리터럴이 하나도 없어야 한다」로 재면 «다른 목록»(BLOCK_SEL — freeLayout 래퍼용,
+     shape·sticker 를 포함하고 mockup·banner02 는 없는 «다른 집합»)까지 잡는다. 실제로 잡혔다.
+     ⇒ «흐름 목록의 구별되는 구성원»이 다시 리터럴로 나타났는지만 잰다. */
+  const flowOnly = ['mockup-block', 'banner02-block', 'comparison-block'];
+  assert.equal(flowOnly.every(c => m.includes('.' + c + '.selected')), false,
+    '흐름 목록을 리터럴로 다시 적었다(사본 부활)');
+  // ★대조 — 그 셋이 «정본»에는 실제로 있다. 없으면 위 판정이 아무것도 안 가른다.
+  assert.ok(flowOnly.every(c => SRC.editor.includes('.' + c + '.selected')), '전제: 정본에 그 셋이 있다');
+  assert.ok(/window\.FLOW_BLOCK_SEL_SELECTED/.test(m), '정본을 안 읽는다');
+  // 정본 쪽이 실제로 노출하는지 — 한쪽만 고치면 querySelectorAll(null) 로 죽는다
+  assert.ok(/window\.FLOW_BLOCK_SEL_SELECTED = FLOW_BLOCK_SEL_SELECTED/.test(SRC.editor),
+    'editor.js 가 정본을 노출하지 않는다');
+  // 못 읽었을 때 «던지지 않는다»(로드 순서상 이론적으로 가능)
+  assert.ok(/if \(!sel\) return \[\];/.test(m), '못 읽으면 던진다 — 패널이 통째로 죽는다');
+});
+
+test('ⓑ-20b ★확대블럭은 «플로팅»이라 흐름 목록에 «없다» — 스티커와 같은 자리', () => {
+  const e = SRC.editor;
+  const flow = e.slice(e.indexOf('const FLOW_BLOCK_SEL_SELECTED'));
+  const decl = flow.slice(0, flow.indexOf(';') + 1);
+  assert.equal(/\.zoom-block\.selected/.test(decl), false,
+    '플로팅인데 흐름 목록에 있다 — 흐름 패널이 세기는 하는데 못 찾는다(D1 이 그 결함이었다)');
+  /* ★대조를 «같은 토큰 형태»로 — 형태가 다르면 0 은 「없다」가 아니라 「못 쟀다」다. */
+  assert.ok(/\.laurel-block\.selected/.test(decl), '전제: 흐름 계열은 이 목록에 있다(자가 도는지 확인)');
+  assert.equal(/\.sticker-block\.selected/.test(decl), false, '전제: 플로팅 계열은 이 목록에 없다');
+  // 그래도 «삭제·복사» 목록에는 있어야 한다(스티커도 그렇다)
+  assert.ok(/\.zoom-block\.selected/.test(e), '삭제·복사 대상에서까지 빠지면 안 된다');
+  /* freeLayout 래퍼 수집 목록(BLOCK_SEL)은 «플로팅» 계열을 담는다 — sticker 가 있으니 zoom 도 있어야 한다.
+     여기 빠지면 freeLayout 안에서 확대블럭을 여럿 골랐을 때 래퍼를 못 찾는다. */
+  const wrap = SRC.multisel.slice(SRC.multisel.indexOf('const BLOCK_SEL'));
+  const decl2 = wrap.slice(0, wrap.indexOf(';') + 1);
+  assert.ok(/\.sticker-block\.selected/.test(decl2), '전제: 플로팅 계열이 이 목록에 있다');
+  assert.ok(/\.zoom-block\.selected/.test(decl2), '같은 계열인데 확대블럭만 빠졌다');
+});
+
 test('ⓑ-19b ★⑧이 «새로 여는 경계» — 플로팅은 삽입 기준점이 되면 안 된다', () => {
   /* insertAfterSelected 는 이 목록으로 `ref.after(el)` 의 기준점을 고른다. 플로팅 블록을
      기준으로 삼으면 새 블록이 «섹션 직속»으로 끼어들어 section-inner 흐름에서 빠진다.

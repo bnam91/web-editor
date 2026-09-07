@@ -881,7 +881,15 @@ function _updateFreeLayoutMultiSelPanel() {
  * — freeLayout 블록은 X/Y/W/H 좌표가 있어 전용 패널로 위임,
  *   세로로 쌓인 일반 블록은 좌표가 없어 '몇 개 선택됨' 카운트 패널만 제공 */
 // 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT
-const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .zoom-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
+
+/* ★사본 금지 — js/props/prop-multisel.js 가 «이 상수»를 읽는다(옛날엔 리터럴을 한 벌 더 갖고
+ *   있었고, 둘 다 주석에 「SSOT」라 적혀 있었다. 확대블럭이 한쪽에만 들어가 «2개 선택하면
+ *   패널이 조용히 비는» 결함이 실제로 났다 — 지디 실측 2026-09-08).
+ *   ⛔목록을 늘릴 때 저쪽에도 적지 마라. 저쪽은 이제 «읽기»만 한다.
+ *   ⚠️로드 순서: prop-multisel(index.html:988)이 editor.js(:1077)보다 «먼저» 로드된다.
+ *     그래서 저쪽은 모듈 최상단이 아니라 «호출 시점»에 읽는다(패널은 사용자 조작 뒤에 뜬다). */
+if (typeof window !== 'undefined') window.FLOW_BLOCK_SEL_SELECTED = FLOW_BLOCK_SEL_SELECTED;
 
 function _countFlowMultiSel() {
   return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(b => !_isInFreeLayout(b)).length;
