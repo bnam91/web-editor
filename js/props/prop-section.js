@@ -5,6 +5,34 @@ import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } fro
    SECTION PROPERTIES PANEL
 ═══════════════════════════════════ */
 
+/* ═══════════════════════════════════
+   좌우 패딩 힌트 — 만지는 «동안»만 띠를 비춘다
+   그리는 쪽: css/editor-canvas.css 의 `body.gdt-pad-on .section-inner::before`.
+     테두리 «두께»가 곧 패딩 폭이라 여기선 계산이 없다 — 변수만 넘긴다.
+   ★변수는 «그 섹션의 inner 에» 박는다. body 에 박으면 섹션마다 패딩이 다른데도
+     모든 섹션이 같은 띠를 쓰게 된다. 변수를 안 가진 섹션은 0px 라 저절로 안 보인다.
+   ★400ms 뒤 클래스와 «변수까지» 지운다. 변수를 남기면 인라인 style 이라
+     getSerializedCanvas(= clone.innerHTML)를 타고 «프로젝트 파일»에 실린다.
+     옆집 그리드 가이드가 DOM 을 전혀 안 건드리는 이유가 바로 그것이다.
+     autoSave 디바운스가 1500ms 라 400ms 청소가 «먼저» 끝난다.
+═══════════════════════════════════ */
+let _padHintTimer = null;
+function _showPadXHint(inner, v) {
+  inner.style.setProperty('--gdt-pad-l', v + 'px');
+  inner.style.setProperty('--gdt-pad-r', v + 'px');
+  document.body.classList.add('gdt-pad-on');
+  clearTimeout(_padHintTimer);
+  _padHintTimer = setTimeout(() => {
+    document.body.classList.remove('gdt-pad-on');
+    /* 섹션을 빠르게 갈아타며 만졌을 수 있다 — 남은 변수를 «전부» 거둔다. */
+    document.querySelectorAll('.section-inner').forEach(el => {
+      el.style.removeProperty('--gdt-pad-l');
+      el.style.removeProperty('--gdt-pad-r');
+    });
+  }, 400);
+}
+
+
 /**
  * 섹션 배경 적용 헬퍼 — 이미지와 색을 동시에 합성한다.
  * 우선순위(위→아래): 색(overlay) > 이미지 > 투명
@@ -300,6 +328,7 @@ async function showSectionProperties(sec) {
       inner.style.paddingLeft  = v + 'px';
       inner.style.paddingRight = v + 'px';
       inner.dataset.paddingX   = String(v);
+      _showPadXHint(inner, v);                                       // 만지는 «동안»만 좌우 패딩 띠를 비춘다
       window.syncMergedPartMargins?.(sec, { applyPadding: true });   // 사용자가 «직접» 바꿨으니 아래 몸도 전체 적용
       // 글로벌 padXExcludesAsset도 고려 (prop-page.js의 getEffectiveUsePadx 헬퍼)
       // section-inner의 '직접' 자식 ab만 처리 — row 안에 있는 ab는 row 핸들러가 관리

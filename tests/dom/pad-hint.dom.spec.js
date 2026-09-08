@@ -1,0 +1,253 @@
+/* pad-hint.dom.spec.js — 좌우 패딩 힌트의 «진짜 끝». (2026-09-08 신설)
+ *
+ * ★왜 필요한가
+ *   tests/unit/pad-hint.test.js 는 «소스에 그 문자열이 있나»까지만 안다.
+ *   ⇒ 「CSS 변수가 진짜 테두리 두께가 되나」·「400ms 뒤 진짜 사라지나」·
+ *     「만지지 않은 섹션은 진짜 0px 인가」는 «렌더러가 그린 뒤»에만 답이 나온다.
+ *   그래서 여기서는 진짜 css/editor-canvas.css 와 진짜 js/props/prop-section.js 를
+ *   크로미움에 얹고, 진짜 슬라이더에 진짜 input 을 흘려 getComputedStyle 로 «잰다».
+ *
+ * ⛔앱을 «안» 띄운다 — 고디터 인스턴스·MCP 대역 무접촉. 레포 파일만 얹는다
+ *   (modal-resize.dom.spec.js 의 page.route 하네스를 그대로 쓴다).
+ *
+ * ★★변이를 빨갛게 만드는 책임은 tests/unit/pad-hint.test.js 가 진다
+ *   (tests/dom 은 playwright 라 node --test 스위트에 «안 들어간다»).
+ *   여기는 «그 배선이 실제로 화면을 바꾸나»를 잰다.
+ *
+ * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js pad-hint
+ */
+const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+
+const REPO = path.join(__dirname, '..', '..');
+const ORIGIN = 'http://goditor.dom.test';
+const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
+               '.html': 'text/html', '.png': 'image/png', '.svg': 'image/svg+xml' };
+
+/* ★하네스는 «진짜 index.html» 이다 — 스크립트 태그만 걷어내고 마크업·CSS 는 그대로 쓴다.
+   ⚠️처음엔 손으로 만든 작은 골격을 썼는데 editor.js 가 #zoom-display·bindSectionDropZone …
+     하며 줄줄이 넘어졌다. 골격을 «흉내»내면 그 흉내가 검사의 전제가 된다.
+   ⇒ 진짜 마크업을 쓰면 CSS 캐스케이드도 진짜다(editor-canvas.css 가 혼자 로드될 때와 다르다). */
+const HARNESS = (() => {
+  let h = fs.readFileSync(path.join(REPO, 'index.html'), 'utf8');
+  h = h.replace(/<script\b[\s\S]*?<\/script>/gi, '');
+  return h.replace('</body>', `<script type="module">
+  import { showSectionProperties } from '/js/props/prop-section.js';
+  window.__open = showSectionProperties;
+  window.__ready = true;
+</script></body>`);
+})();
+
+/* 섹션은 «로드 뒤»에 넣는다 — 로드 시점에 캔버스에 섹션이 있으면 editor.js 가
+   플레인 스크립트(bindSectionDropZone)를 찾다 넘어진다. 우리 검사와 무관한 배선이다. */
+const SECTIONS = `
+  <div class="section-block" id="sec_1" data-section="1" data-name="Section 01">
+    <div class="section-hitzone"><span class="section-label">Section 01</span></div>
+    <div class="section-inner" style="min-height:200px"></div>
+  </div>
+  <div class="section-block" id="sec_2" data-section="2" data-name="Section 02">
+    <div class="section-hitzone"><span class="section-label">Section 02</span></div>
+    <div class="section-inner" style="min-height:200px">
+      <div class="asset-block" id="ab_full" style="height:80px;background:#3355ff"></div>
+    </div>
+  </div>`;
+
+async function boot(page) {
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e)));
+  await page.route(`${ORIGIN}/**`, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/__harness.html') return route.fulfill({ contentType: 'text/html', body: HARNESS });
+    const file = path.join(REPO, decodeURIComponent(url.pathname));
+    if (!file.startsWith(REPO) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+      return route.fulfill({ status: 404, body: '' });
+    }
+    return route.fulfill({ contentType: MIME[path.extname(file)] || 'text/plain', body: fs.readFileSync(file) });
+  });
+  await page.goto(`${ORIGIN}/__harness.html`);
+  await page.waitForFunction(() => window.__ready === true);
+  await page.evaluate((html) => { document.getElementById('canvas').innerHTML = html; }, SECTIONS);
+  /* ★입력이 살아 있다 — 섹션이 «실제로» 들어갔나. 0개면 아래 단언이 전부 공회전한다. */
+  const n = await page.locator('#canvas .section-inner').count();
+  expect(n, '섹션이 캔버스에 안 들어갔다 — 이 검사가 잴 대상이 없다').toBe(2);
+  return errs;
+}
+
+/** 섹션 프로퍼티 패널을 «진짜로» 연다. 슬라이더가 나올 때까지 기다린다. */
+async function openPanel(page, secId) {
+  await page.evaluate((id) => window.__open(document.getElementById(id)), secId);
+  await page.waitForSelector('#sec-padx-slider', { state: 'attached' });
+}
+
+/** 진짜 슬라이더에 진짜 input 이벤트를 흘린다(사람이 끄는 것과 같은 경로). */
+async function slide(page, v) {
+  await page.evaluate((v) => {
+    const s = document.getElementById('sec-padx-slider');
+    s.value = String(v);
+    s.dispatchEvent(new Event('input', { bubbles: true }));
+  }, v);
+}
+
+/** 띠의 «진짜» 두께 — 의사요소의 계산된 테두리 폭. */
+const bandOf = (page, secId) => page.evaluate((id) => {
+  const inner = document.querySelector('#' + id + ' .section-inner');
+  const b = getComputedStyle(inner, '::before');
+  const s = getComputedStyle(inner);
+  return {
+    left: b.borderLeftWidth, right: b.borderRightWidth, color: b.borderLeftColor,
+    padL: s.paddingLeft, padR: s.paddingRight,
+    overflowX: s.overflowX, position: s.position,
+    varL: inner.style.getPropertyValue('--gdt-pad-l'),
+    on: document.body.classList.contains('gdt-pad-on'),
+  };
+}, secId);
+
+test('D1 ★슬라이더를 «진짜로» 움직이면 띠 두께 = 패딩값 (양성대조: 만지기 «전»엔 0px)', async ({ page }) => {
+  const errs = await boot(page);
+  await openPanel(page, 'sec_1');
+
+  /* ★입력이 살아 있다 — 슬라이더가 진짜로 있고, 만지기 전엔 띠가 «없다».
+     이 음성대조가 없으면 아래 40px 이 「원래 그랬던 것」과 구별되지 않는다. */
+  expect(await page.locator('#sec-padx-slider').count()).toBe(1);
+  const before = await bandOf(page, 'sec_1');
+  expect(before.on, '만지기 전인데 body 에 gdt-pad-on 이 있다').toBe(false);
+  expect(before.left, '만지기 전인데 띠가 있다').toBe('0px');
+
+  await slide(page, 40);
+  const at40 = await bandOf(page, 'sec_1');
+  expect(at40.on, '슬라이더를 움직였는데 gdt-pad-on 이 안 붙었다').toBe(true);
+  expect(at40.padL, '패딩 자체가 안 먹었다 — 이 검사의 전제가 깨졌다').toBe('40px');
+  expect(at40.left,  '★띠 두께가 패딩값과 다르다(왼쪽)').toBe('40px');
+  expect(at40.right, '★띠 두께가 패딩값과 다르다(오른쪽)').toBe('40px');
+  expect(at40.color, '★색이 핑크 10% 가 아니다').toBe('rgba(255, 0, 128, 0.1)');
+
+  /* ★«따라온다» — 한 값에서만 맞는 건 우연일 수 있다. 다른 값에서도 같아야 계산이 없다는 뜻. */
+  await slide(page, 12);
+  const at12 = await bandOf(page, 'sec_1');
+  expect(at12.left,  '패딩을 12로 줄였는데 띠가 안 따라왔다').toBe('12px');
+  expect(at12.right, '패딩을 12로 줄였는데 띠가 안 따라왔다').toBe('12px');
+
+  expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
+});
+
+test('D2 ★400ms 뒤 저절로 사라진다 — 그리고 «변수까지» 거둔다', async ({ page }) => {
+  const errs = await boot(page);
+  await openPanel(page, 'sec_1');
+  await slide(page, 40);
+
+  const on = await bandOf(page, 'sec_1');
+  expect(on.on, '띠가 뜨지도 않았다 — D2 의 전제가 깨졌다').toBe(true);
+  expect(on.varL, '인라인 변수가 안 박혔다 — D2 의 전제가 깨졌다').toBe('40px');
+
+  /* 디바운스보다 «짧게» 기다렸을 땐 아직 살아 있어야 한다(끄는 «동안» 보이는 게 이 기능이다). */
+  await page.waitForTimeout(150);
+  expect((await bandOf(page, 'sec_1')).on, '150ms 만에 사라졌다 — 끄는 동안 안 보인다').toBe(true);
+
+  await page.waitForTimeout(500);
+  const off = await bandOf(page, 'sec_1');
+  expect(off.on, '★650ms 이 지나도 gdt-pad-on 이 남아 있다 — 디바운스가 없다').toBe(false);
+  expect(off.left, '클래스는 빠졌는데 띠가 남아 있다').toBe('0px');
+  /* ★변수를 안 거두면 인라인 style 이라 getSerializedCanvas(clone.innerHTML)를 타고
+     «프로젝트 파일»에 실린다 — 옆집 그리드 가이드가 DOM 을 안 건드리는 이유. */
+  expect(off.varL, '★인라인 변수가 남았다 — 프로젝트 파일에 실린다').toBe('');
+  expect(await page.evaluate(() => document.querySelector('#sec_1 .section-inner').getAttribute('style')),
+    '★style 속성에 --gdt-pad 가 남았다').not.toContain('--gdt-pad');
+
+  expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
+});
+
+test('D3 ★만지지 «않은» 섹션엔 띠가 0px 다 (변수를 body 에 박으면 여기서 빨강)', async ({ page }) => {
+  const errs = await boot(page);
+
+  /* sec_2 에 «다른» 패딩을 먼저 먹여 둔다 — 두 섹션의 패딩이 다른 상황을 만든다. */
+  await openPanel(page, 'sec_2');
+  await slide(page, 16);
+  await page.waitForTimeout(500);                        // 힌트가 걷힌 뒤부터 대조를 시작한다
+
+  await openPanel(page, 'sec_1');
+  await slide(page, 40);
+
+  const a = await bandOf(page, 'sec_1');
+  const b = await bandOf(page, 'sec_2');
+
+  /* ★입력이 살아 있다 — 두 섹션의 패딩이 «실제로 다르다». 같으면 이 대조는 아무것도 안 잰다. */
+  expect(a.padL, 'sec_1 패딩').toBe('40px');
+  expect(b.padL, 'sec_2 패딩').toBe('16px');
+  expect(a.padL).not.toBe(b.padL);
+
+  expect(a.on, '띠가 켜지지도 않았다').toBe(true);
+  expect(a.left, '만지는 섹션의 띠').toBe('40px');
+  expect(b.left,  '★만지지 않은 sec_2 에 띠가 떴다 — 변수를 body 에 박았나').toBe('0px');
+  expect(b.right, '★만지지 않은 sec_2 에 띠가 떴다 — 변수를 body 에 박았나').toBe('0px');
+
+  expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
+});
+
+test('D4 ★overflow-x:clip 과 position 전환 실측 — 띠가 잘리지 않고, 켤 때만 relative 다', async ({ page }) => {
+  const errs = await boot(page);
+  await openPanel(page, 'sec_1');
+
+  /* ⚠️.section-inner 는 평소 position 이 없다(editor-layout.css). 켜는 «동안»만 relative 다. */
+  const before = await bandOf(page, 'sec_1');
+  expect(before.overflowX, 'overflow-x 가 clip 이 아니다 — 이 검사의 전제가 바뀌었다').toBe('clip');
+  expect(before.position, '켜기 전인데 이미 relative 다').toBe('static');
+
+  await slide(page, 40);
+  const on = await bandOf(page, 'sec_1');
+  expect(on.position, '켜는 동안 relative 가 아니면 inset:0 이 «더 바깥»을 기준으로 잡힌다').toBe('relative');
+
+  /* ★띠는 inner 의 «안쪽»이라 clip 에 안 잘린다 — 의사요소 상자와 inner 상자를 «재서» 확인한다. */
+  const geo = await page.evaluate(() => {
+    const inner = document.querySelector('#sec_1 .section-inner');
+    /* ⚠️getBoundingClientRect 를 쓰면 안 된다 — #canvas-scaler 의 transform: scale 이 곱해진다.
+         실측: 배율 40% 에서 rect.width 344 / 레이아웃 폭 860 으로 «두 배 넘게» 갈렸다.
+         의사요소의 computed width 는 레이아웃 px 이므로 «같은 자»로 재야 한다. */
+    const si = getComputedStyle(inner), sb = getComputedStyle(inner, '::before');
+    return {
+      w: si.width, padL: si.paddingLeft, padR: si.paddingRight,
+      bw: sb.width, bl: sb.borderLeftWidth, br: sb.borderRightWidth,
+    };
+  });
+  expect(parseFloat(geo.w), '섹션 폭이 0 이다 — 잴 대상이 없다').toBeGreaterThan(100);
+  /* ⚠️box-sizing:border-box 라 computed width 는 «테두리 상자»다(콘텐츠 상자가 아니다).
+       ⇒ inset:0 이 제대로 서면 의사요소 테두리 상자 = 부모 폭 «그대로»여야 한다.
+       한 픽셀이라도 넘치면 overflow-x:clip 이 잘라낼 자리가 생긴다 — 넘치지 «않음»을 잰다. */
+  expect(geo.bw, '★의사요소가 부모 폭과 안 맞는다 — 넘치면 clip 이 잘라낸다').toBe(geo.w);
+  /* 그리고 띠가 «먹는» 폭이 정확히 좌우 패딩이다 — 계산이 없다는 말의 실측. */
+  expect(parseFloat(geo.bl) + parseFloat(geo.br),
+    '★띠가 덮는 폭이 좌우 패딩 합과 다르다').toBe(parseFloat(geo.padL) + parseFloat(geo.padR));
+
+  /* 400ms 뒤엔 position 도 원래대로 돌아온다(켤 때마다 생겼다 없어지는 컨테이닝 블록). */
+  await page.waitForTimeout(500);
+  expect((await bandOf(page, 'sec_1')).position, '꺼진 뒤에도 relative 로 남았다').toBe('static');
+
+  expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
+});
+
+test('D5 ★숫자칸도 «같은 손»을 탄다 — 슬라이더만 배선되지 않았다', async ({ page }) => {
+  const errs = await boot(page);
+  await openPanel(page, 'sec_1');
+
+  /* ★입력이 살아 있다 — 숫자칸이 진짜로 있나. 없으면 아래는 아무것도 안 잰다. */
+  expect(await page.locator('#sec-padx-number').count(), '숫자칸이 없다').toBe(1);
+  expect((await bandOf(page, 'sec_1')).left, '만지기 전인데 띠가 있다').toBe('0px');
+
+  /* ⚠️숫자칸은 change 에서 pushHistory() 까지 부른다. 그 함수는 js/io/save-load.js 의
+       window.getSerializedCanvas 를 쓰는데 이 하네스는 그 모듈을 안 얹는다(앱을 안 띄우므로).
+       ⇒ «이 검사가 재려는 것»(숫자칸도 힌트를 부르나)과 무관한 하네스의 구멍이라 여기서만 메운다.
+       ⛔이걸 «기능이 깨졌다»로 읽지 마라 — 실제 앱에는 그 함수가 있다(save-load.js:1993). */
+  await page.evaluate(() => {
+    window.getSerializedCanvas = window.getSerializedCanvas || (() => '');
+    const n = document.getElementById('sec-padx-number');
+    n.value = '28';
+    n.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  const b = await bandOf(page, 'sec_1');
+  expect(b.on, '★숫자칸으로 바꿨는데 띠가 안 떴다 — 슬라이더에만 배선됐다').toBe(true);
+  expect(b.padL, '패딩 자체가 안 먹었다').toBe('28px');
+  expect(b.left, '★띠 두께가 숫자칸 값과 다르다').toBe('28px');
+
+  expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
+});
