@@ -31,6 +31,21 @@ const MODAL_DEFAULTS = {
   iconSize: 24, iconColor: '#f0b429',
 };
 
+/* ★크기·모서리의 «클램프 표» — 패널과 오버레이 핸들이 «같은 표»를 본다.
+   ⛔핸들이 자기 리터럴을 갖는 순간 둘이 갈라진다(이 레포의 고질: 같은 수가 두 벌이 되면
+     한쪽만 고쳐진다). 프로퍼티 패널의 min/max 속성도 여기서 «찍어» 낸다.
+   ⛔min-width/min-height CSS 를 새로 만들지 않는다 — 최소값은 «이미 내용»이다.
+     두면 «두 개의 최소값»이 생겨 어느 쪽이 이겼는지 못 읽는다.
+   ⚠️height 는 «최소 높이»다 — renderModalBlock 이 min-height 로만 쓴다(아래 cssText).
+     그래서 폭400+높이30 이면 실제 높이는 84px 이 된다(실측). 패널 라벨도 「최소」다.
+     ⛔height 로 바꾸고 overflow:hidden 을 걸지 않는다 — 그 순간 내용이 «잘린다».
+       지금은 폭 40 에서도 절대 안 잘린다(실측). 그 성질을 잃는 게 얻는 것보다 크다. */
+const MODAL_LIMITS = {
+  width:  { min: 80, max: 860 },
+  height: { min: 30, max: 900 },
+  radius: { min: 0,  max: 60  },
+};
+
 /* ★변형의 «정체» — 이 변형이 되면 무엇이 달라지는가를 «한 곳»에 모은다.
    삼항이 makeModalBlock 안에만 있어서 변형 전환 때 따라가지 않던 것을 고친다.
    표에 없는 변형은 MODAL_DEFAULTS 를 그대로 쓴다. */
@@ -269,6 +284,7 @@ window.renderModalBlock = renderModalBlock;
 window.commitModalSlot  = commitModalSlot;
 window.applyModalVariant = applyModalVariant;
 window.MODAL_VARIANTS   = MODAL_VARIANTS;
+window.MODAL_LIMITS     = MODAL_LIMITS;
 
 export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, applyModalVariant, _effDefault,
-         MODAL_DEFAULTS, MODAL_VARIANTS, MODAL_VARIANT_IDENTITY, MODAL_PH };
+         MODAL_DEFAULTS, MODAL_VARIANTS, MODAL_VARIANT_IDENTITY, MODAL_PH, MODAL_LIMITS };

@@ -15,6 +15,10 @@ import { resizeColBoundary, resizeRowHeight } from './grid-cell-resize.js';
 //   이라 여기서 dataset.cols/rows 를 직접 재파싱하면 클램프/폴백 로직이 두 곳에 흩어진다
 //   (이 레포의 고질 — P1 IMPL 보고서·P0 EVAL 둘 다 지적한 패턴). 재사용이 맞다.
 import { getGridModel, gridCols, gridRows } from './blocks/grid-block.js';
+/* ★모달 핸들의 클램프는 «패널과 같은 표»를 본다 — 리터럴을 여기 다시 쓰면 갈라진다.
+   (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
+    모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
+import { MODAL_LIMITS } from './blocks/modal-block.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -960,11 +964,68 @@ function _startModalResizeRaf() {
   _modalResizeRafId = requestAnimationFrame(loop);
 }
 
+/** 클램프 — 표는 modal-block.js 의 MODAL_LIMITS 하나뿐이다. */
+const _mdlClamp = (v, lim) => Math.min(lim.max, Math.max(lim.min, Math.round(v)));
+
 function _onModalResizeHandleMouseDown(e, block, dir) {
   if (e.button !== 0) return;
   e.stopPropagation();
   e.preventDefault();
-  // S2 에서 배선한다 — S1 은 «껍데기»만 세운다(여기까지는 되돌리기가 완전하다).
+  const startX = e.clientX, startY = e.clientY;
+  const startW = Math.round(block.offsetWidth);
+  const startH = Math.round(block.offsetHeight);
+  const sx = dir.includes('e') ? 1 : -1;
+  const sy = dir.includes('s') ? 1 : -1;
+  let moved = false;
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    if (!moved) {
+      if (Math.hypot(dx, dy) < 1) return;
+      moved = true;
+      /* ★크기를 «고정»으로 돌리는 것도, 재렌더도 여기 «한 번»뿐이다.
+         full → fixed 는 margin-left/right:auto 를 같이 주므로(가운데 정렬) 상자의 기하가
+         통째로 바뀐다. 그 변화를 드래그 «중»에 인라인으로 흉내 내면 손을 떼는 순간 튄다. */
+      block.dataset.wMode = 'fixed';
+      block.dataset.hMode = 'fixed';
+      block.dataset.width  = String(_mdlClamp(startW, MODAL_LIMITS.width));
+      block.dataset.height = String(_mdlClamp(startH, MODAL_LIMITS.height));
+      window.renderModalBlock?.(block);
+    }
+    /* ★★가로는 Δ = 2·dx 다. wMode:'fixed' 가 margin-left/right:auto 를 같이 주므로 상자가
+       호스트 «정중앙»에 선다(실측: 폭400 이 860 호스트에서 left=230 = 정중앙).
+       가운데 고정 상자는 폭이 Δ 늘 때 각 변이 Δ/2 만 움직인다 ⇒ 에셋 산식(Δ=dx)을 그대로
+       쓰면 «커서 100px 에 모서리 50px» 이 된다. w·e 양쪽 다.
+       ⚠️세로는 1배다 — 위 변이 흐름에 박혀 있어 상자는 아래로만 자란다. */
+    const newW = _mdlClamp(startW + sx * dx * 2, MODAL_LIMITS.width);
+    const newH = _mdlClamp(startH + sy * dy,     MODAL_LIMITS.height);
+    /* ★dataset 이 진실이다 — 인라인 style 은 재렌더가 cssText 를 갈아끼울 때 증발한다. */
+    block.dataset.width  = String(newW);
+    block.dataset.height = String(newH);
+    /* ⛔mousemove 마다 renderModalBlock 을 부르지 않는다 — innerHTML 을 통째로 갈아끼우므로
+       ⑴프레임 드랍 ⑵캐럿·선택 소실 ⑶raster 아이콘의 <img src> 가 매 프레임 새로 만들어져
+       깜빡인다. 드래그 «중»엔 인라인 두 줄만 얹는다(끝나면 재렌더가 같은 값으로 덮는다).
+       ⚠️height 는 min-height 다 — 내용이 더 크면 상자가 내용을 따른다(안 잘린다). */
+    block.style.width = newW + 'px';
+    block.style.minHeight = newH + 'px';
+    const wNum = document.getElementById('mdl-w-number');
+    const hNum = document.getElementById('mdl-h-number');
+    if (wNum) wNum.value = String(newW);
+    if (hNum) hNum.value = String(newH);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (!moved) return;
+    window.renderModalBlock?.(block);       // ★dataset 을 «그림»으로 굳힌다
+    window.showModalProperties?.(block);    // 풀폭/고정 버튼·비활성 상태가 실제와 맞게
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 }
 
 window.showModalResizeHandles = showModalResizeHandles;
