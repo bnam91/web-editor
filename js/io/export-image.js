@@ -434,10 +434,13 @@ export function sectionBgColor(sec) {
 async function exportSection(sec, format, width, opts) {
   const _gOn = document.body.classList.contains('gdt-grid-on');
   if (_gOn) document.body.classList.remove('gdt-grid-on');
+  const _pOn = document.body.classList.contains('gdt-pad-on');
+  if (_pOn) document.body.classList.remove('gdt-pad-on');
   try {
     return await _exportSectionNoGuide(sec, format, width, opts);
   } finally {
     if (_gOn) document.body.classList.add('gdt-grid-on');
+    if (_pOn) document.body.classList.add('gdt-pad-on');
   }
 }
 

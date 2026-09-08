@@ -14,6 +14,33 @@ function getEffectiveUsePadx(ab) {
 }
 window.getEffectiveUsePadx = getEffectiveUsePadx;
 
+/* ── 패딩 비주얼(좌우 패딩 힌트) 켜짐 여부 — «단일 진실원» ──────────────
+   그리는 쪽: css/editor-canvas.css `body.gdt-pad-on .section-inner::before`
+   켜는 쪽:   js/props/prop-section.js `_showPadXHint`
+   ⇒ 두 곳이 각자 localStorage 를 읽으면 «기본값»이 갈린다. 읽고 쓰는 문을 여기 하나로 둔다.
+
+   ★기본은 «켜짐». 현빈이 시안을 보고 「이걸로 하자」고 한 것이 그 동작이다 —
+     끄는 건 «빼는 선택»이지 기본이 아니다. ⇒ 키가 «없으면» true, «있으면» 그 값.
+     ⛔`!!pref.on` 로 쓰지 마라(그리드는 기본 꺼짐이라 그게 맞지만 여기선 반대다).
+   ★키는 GRID_KEY(gdt.gridGuide)와 «따로» 둔다 — 한 키에 섞으면 한쪽 저장이 다른 쪽을 지운다
+     (같은 이유로 EXPORT_KEY 도 따로다).
+   ⛔프로젝트에 저장하지 않는다 — 「보기」 설정이지 문서가 아니다(그리드와 같은 논리).
+   ★모듈 최상위다 — 페이지 패널을 «한 번도 안 열어도» prop-section 이 읽을 수 있어야 한다. */
+const PAD_HINT_KEY = 'gdt.padHint';
+function readPadHintOn() {
+  try {
+    const raw = localStorage.getItem(PAD_HINT_KEY);
+    if (raw === null) return true;                       // 키가 없다 = 아직 아무도 안 껐다 = 켜짐
+    const o = JSON.parse(raw);
+    return o && typeof o.on === 'boolean' ? o.on : true; // 깨진 값도 «켜짐»으로 — 기능이 사라지는 쪽보다 낫다
+  } catch (_) { return true; }
+}
+function savePadHintOn(on) {
+  try { localStorage.setItem(PAD_HINT_KEY, JSON.stringify({ on: !!on })); } catch (_) {}
+}
+window.readPadHintOn = readPadHintOn;
+window.savePadHintOn = savePadHintOn;
+
 /* ── 헬퍼: ab의 «패딩 제외(full-bleed)» 폭 문자열 ──
    패딩제외 상태면 `calc(100% + 2*padX px)`, 아니면 '' (= inline width 제거).
    ⚠️ 리사이즈/슬라이더/MCP가 최대폭에서 width를 ''로 지우면 calc()가 사라져 «패딩제외가 영구히 풀린다»
@@ -209,6 +236,15 @@ export function showPageProperties() {
           <input type="checkbox" id="page-grid-on"> 그리드 가이드
         </label>
       </div>
+      <!-- ★패딩 비주얼 — 그리드 가이드 «바로 아래». 둘 다 「편집 보조」라 같은 절이 맞다.
+           ⚠️어휘를 «섞지» 않는다: 이 절은 이미 체크박스를 쓴다. 옆에 라디오를 놓으면 한 절에 두 어휘가 된다.
+             (줌 패널은 라디오가 강제된 자리지만 — zoom-block.test.js ⓑ-14 — 그건 prop-zoom.js 전용이고
+              이 패널엔 그런 제약이 없다. 실제로 바로 위 줄이 체크박스다.) -->
+      <div class="prop-row">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
+          <input type="checkbox" id="page-pad-hint-on"> 패딩 비주얼
+        </label>
+      </div>
       <!-- ★칼럼·거터를 «한 줄»에 둔다 (2026-09-08 현빈: "칼럼과 거터 하나의 로우에 둬도 될듯해").
            ⚠️그냥 합치면 안 들어간다 — 240px 패널의 가용 폭은 211px 인데
              라벨 56×2 + 숫자칸 44×2 + gap 16 = 216px 로 «라벨만으로» 이미 넘친다(실측).
@@ -289,6 +325,25 @@ export function showPageProperties() {
        applyPagePadX 뒤에서도 부른다.
      ⛔프로젝트에 저장하지 않는다 — 이건 «보기» 설정이지 문서의 일부가 아니다.
        다른 사람이 그 프로젝트를 열었을 때 내 가이드가 켜져 있으면 그게 더 이상하다. */
+  /* ── 패딩 비주얼 체크박스 배선 ──
+     ★읽고 쓰는 것은 «모듈 최상위»의 readPadHintOn/savePadHintOn 하나뿐이다(위 단일 진실원).
+       여기서 localStorage 를 다시 읽지 마라 — 기본값이 두 벌이 되는 순간 갈린다.
+     ★끄면 «즉시» 걷는다 — 슬라이더를 만지던 중에 껐다면 400ms 를 기다릴 이유가 없다. */
+  const padHintOn = document.getElementById('page-pad-hint-on');
+  if (padHintOn) {
+    padHintOn.checked = readPadHintOn();
+    padHintOn.addEventListener('change', () => {
+      savePadHintOn(padHintOn.checked);
+      if (!padHintOn.checked) {
+        document.body.classList.remove('gdt-pad-on');
+        document.querySelectorAll('.section-inner').forEach(el => {
+          el.style.removeProperty('--gdt-pad-l');
+          el.style.removeProperty('--gdt-pad-r');
+        });
+      }
+    });
+  }
+
   const gridOn   = document.getElementById('page-grid-on');
   const gridCols = document.getElementById('page-grid-cols');
   const gridGut  = document.getElementById('page-grid-gut');

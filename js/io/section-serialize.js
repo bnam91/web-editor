@@ -54,6 +54,17 @@
     // group-block 선택/편집 상태 제거
     root.querySelectorAll('.group-block').forEach(g => g.classList.remove('group-selected', 'group-editing'));
     root.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+    /* ★패딩 힌트(편집 보조)의 인라인 변수 — 「만지는 동안」만 사는 것이라 저장에 실리면 안 된다.
+       ⚠️prop-section.js 가 400ms 뒤 «거두지만», 슬라이더를 «놓지 않고 계속 끄는 동안»엔
+         클래스도 변수도 살아 있다. 그 창에 autoSave(1500ms 디바운스)가 겹치면 실린다.
+         실측(2026-09-08): 힌트가 켜진 채로 이 함수를 돌리면 --gdt-pad 가 «2건» 남았다.
+       ⇒ 거두기는 «보통»을 막고, 여기가 «그 창»을 막는다. 두 겹이어야 새지 않는다.
+       ⛔라이브 DOM 이 아니라 «클론»에만 쓴다 — 이 함수의 계약이 그렇다.
+       (tests/dom/pad-hint.dom.spec.js D6 이 이 줄을 지킨다) */
+    root.querySelectorAll('.section-inner').forEach(inner => {
+      inner.style.removeProperty('--gdt-pad-l');
+      inner.style.removeProperty('--gdt-pad-r');
+    });
     // 섹션 임시 스타일 제거 — 미리보기/썸네일용 scale transform 이 저장에 포함되지 않도록
     root.querySelectorAll('.section-block').forEach(sec => {
       sec.style.transform       = '';
