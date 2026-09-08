@@ -295,6 +295,55 @@ export function applySpreadAlongOutline(outline, A, B, L, spread, mag) {
   return [walkPolygon(pts, iA, dp, magneticDist(pts, iA, dp, h, mag)),
           walkPolygon(pts, iB, -dp, magneticDist(pts, iB, -dp, h, mag))];
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   ★접선 규칙 — c·d 는 «광원 L» 이 아니라 «a·b 각자» 에서 그은 접점이다.
+     현빈 승인 2026-09-09. 무엇이 틀렸었나:
+       옛 판은 c·d 를 «광원에서» 잰 실루엣으로 뒀다. 그러면 사람이 a·b 를 끌었을 때
+       c·d 가 «안 따라와서» 도형이 빔 옆선 «밖»으로 삐져나온다.
+       ⇒ 기본 배치(rect 260×140, angle −90, length 170, narrow 62)에서도 8.4px 나갔다.
+     ⇒ 옆선 a→c 가 도형의 «접선»이 되게 만든다. 접선이면 도형은 정의상 그 선 «안쪽»에 있다.
+
+   ★어느 쪽 접점인가 — 접점은 늘 둘이다. 「축 L→도형중심 을 기준으로 P 와 «같은 편»」을 고른다.
+     그래야 a 쪽 옆선이 a 쪽 모서리를 잡고, b 쪽이 b 쪽을 잡아 빔이 «안 꼬인다».
+     둘 다 같은 편이면(동률) «상대 점에서 먼» 쪽 — 그래야 빔이 넓게 열린다.
+     ⚠️동률 가지는 장식이 아니다: rect·square × 회전24 × 광원24 × narrow5 격자에서 3,860번 실제로 탄다.
+
+   ★★sg===0 처방 — 빼면 출시가 막힌다.
+     좁아짐 100% ⇒ k=0 ⇒ a==b==L ⇒ cross(L,중심,P)=0 ⇒ 동률 가지에서 «상대»가 자기 자신 ⇒
+     c==d ⇒ shadowVisible 이 |d−c|>1e-6 로 걸러 «줌 이펙트를 통째로 안 그린다».
+     실측(rect·square × 회전24 × 광원24, size 260, length 250):
+       narrow 0·50·95·99 → 사라짐 0/1152 · ★narrow 100 → 1152/1152 (100%)  ← 벼랑이다
+     처방(sg===0 이면 실루엣으로 떨어진다)을 넣으면 narrow 100 에서도 0/1152. 검사 T4 가 못박는다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** 선분 p→q 를 기준으로 P 가 «어느 쪽»인가(부호). 0 이면 셋이 한 줄 위다. */
+export function crossSide(p, q, P) {
+  return (q.x - p.x) * (P.y - p.y) - (q.y - p.y) * (P.x - p.x);
+}
+
+/**
+ * 점 P 에서 outline 에 그은 접점 중 «축 L→중심» 기준 P 와 같은 편의 것.
+ * @param {object} outline {kind:'poly', pts} | {kind:'circle', r, cx, cy} — ★테두리 포함 판
+ * @param {object} P     접선을 긋는 자리(= a 또는 b)
+ * @param {object} L     축(= 사람이 끈 빛 || mid(a,b))
+ * @param {object} other 반대편 점(= b 또는 a) — 동률일 때 «먼 쪽»을 고르는 자
+ * @param {[object,object]} sil 광원 실루엣 — ★sg===0 처방의 착지점
+ * @param {number} which 0|1 — sil 의 어느 쪽으로 떨어질지
+ */
+export function tangentAt(outline, P, L, other, sil, which) {
+  var sg = Math.sign(crossSide(L, ZERO, P));
+  if (sg === 0) return sil[which];              // ★처방 — 위 주석 참조. 빼면 narrow 100 이 사라진다
+  var two = (outline.kind === 'circle')
+    ? silhouetteCircle(outline.r, P, outline.cx, outline.cy)
+    : silhouetteFromPts(outline.pts, P, 0, 0);
+  var same = two.filter(function (q) { return Math.sign(crossSide(L, ZERO, q)) === sg; });
+  if (same.length === 1) return same[0];
+  return _dist(two[0], other) > _dist(two[1], other) ? two[0] : two[1];
+}
+
+const ZERO = { x: 0, y: 0 };
+function _dist(p, q) { return Math.hypot(p.x - q.x, p.y - q.y); }
+
 /* a·b 자동값: A·B 를 광원 쪽으로 좁혀서.
    mid=(A+B)/2, k=1-narrow/100 → 짧은 변은 «광원 위에» 중심을 두고 AB 폭의 k 배가 된다. */
 export function autoShortEdge(A, B, L, narrow) {
@@ -318,8 +367,21 @@ export function allFinite(pts) {
 
 /**
  * 한 번에 기하 전부 — 렌더가 «계산»을 하지 않게 한다(같은 산식이 두 군데 생기는 것을 막음).
+ *
+ * ★순서가 곧 규칙이다(현빈 승인 2026-09-09) — 손잡이 «셋»(빛 L · a · b):
+ *   ⑴ L0   = 사람이 끈 빛(pinned.L) || lightPoint(angle, length)
+ *   ⑵ sil  = 그 L0 에서 본 실루엣            ← ★손잡이의 «자동값»을 만들려고만 쓴다
+ *   ⑶ auto = autoShortEdge(sil, L0, narrow)
+ *   ⑷ a·b  = 사람이 끈 값 || auto
+ *   ⑸ L    = pinned.L || mid(a,b)            ★축이자 «빛» 표시 위치
+ *   ⑹ c·d  = tangentAt(...)                  ★a·b 각자에서 그은 접선
+ *   ⑺ 벌리기는 «그대로» — 그 뒤에 applySpreadAlongOutline 을 c·d 에 건다
+ *
+ * ⛔⑸ 를 「L = lightPoint」로 되돌리면 사람이 a·b 를 끌 때 축이 안 따라와 빔이 꼬인다(검사 T1·T5).
+ *
  * @param {object} st  {shape,angle,length,spread,maxop,curve,narrow,size,rot}
- * @param {?object} pinned  {a:{x,y}, b:{x,y}} — 사람이 «끈» a·b. 없으면 «언제나» 자동.
+ * @param {?object} pinned  {a?:{x,y}, b?:{x,y}, L?:{x,y}} — 사람이 «끈» 것. ★셋이 따로 온다.
+ *   (a·b 는 한 묶음이고 L 은 «따로» — 옛 저장본은 ax/ay/bx/by 만 갖고 있다. 하위호환.)
  */
 export function computeZoomGeometry(st, pinned) {
   /* ★실루엣 = «보이는 바깥 윤곽»이다 (지디 판정 2026-09-08).
@@ -330,21 +392,26 @@ export function computeZoomGeometry(st, pinned) {
        사다리꼴 붙는 점이 모서리에서 살짝 뜬다 — 지디 판단으로 지금은 안 고친다. */
   var hw = shapeHalf(st).hw;
   var bw = borderWidthOf(st);
-  var L = lightPoint(st.angle, st.length, 0, 0);
+  var lPin = (pinned && pinned.L) ? pinned.L : null;
+  var L0 = lPin || lightPoint(st.angle, st.length, 0, 0);          // ⑴
   /* ★실루엣과 «둘레»가 «같은 점 목록»을 쓴다 — 두 군데서 다르게 계산하면 벌림이
-     윤곽에서 미세하게 떠 버린다(테두리 두께 bw 가 들어간 판이 정본이다). */
+     윤곽에서 미세하게 떠 버린다(테두리 두께 bw 가 들어간 판이 정본이다).
+     ⛔접선(tangentAt)도 «이 판»을 그대로 받는다 — 테두리 없는 판으로 재면 링이 어긋난다. */
   var outline = (st.shape === 'circle')
     ? { kind: 'circle', r: hw + bw, cx: 0, cy: 0 }
     : { kind: 'poly', pts: shapeCornerPts(st, bw) };
-  var sil = (st.shape === 'circle')
-    ? silhouetteCircle(outline.r, L, 0, 0)
-    : silhouetteFromPts(outline.pts, L, 0, 0);
-  var sp = applySpreadAlongOutline(outline, sil[0], sil[1], L, st.spread, zoomMagnet(st));
-  var A = sp[0], B = sp[1];
-  var auto = autoShortEdge(A, B, L, st.narrow);
-  var a = (pinned && pinned.a) ? pinned.a : auto[0];
+  var sil = (st.shape === 'circle')                                // ⑵
+    ? silhouetteCircle(outline.r, L0, 0, 0)
+    : silhouetteFromPts(outline.pts, L0, 0, 0);
+  var auto = autoShortEdge(sil[0], sil[1], L0, st.narrow);         // ⑶
+  var a = (pinned && pinned.a) ? pinned.a : auto[0];               // ⑷
   var b = (pinned && pinned.b) ? pinned.b : auto[1];
-  return { L: L, A: A, B: B, a: a, b: b, autoA: auto[0], autoB: auto[1], r: hw, bw: bw };
+  var L = lPin || { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };      // ⑸ ★축 = 짧은 변의 한가운데
+  var c = tangentAt(outline, a, L, b, sil, 0);                     // ⑹
+  var d = tangentAt(outline, b, L, a, sil, 1);
+  var sp = applySpreadAlongOutline(outline, c, d, L, st.spread, zoomMagnet(st));   // ⑺
+  var A = sp[0], B = sp[1];
+  return { L: L, A: A, B: B, a: a, b: b, autoA: auto[0], autoB: auto[1], c: c, d: d, r: hw, bw: bw };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -354,7 +421,7 @@ export function computeZoomGeometry(st, pinned) {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const ZOOM_PAD = 14;        // 뷰박스 여백(px)
-export const ZOOM_HANDLE_R = 5;    // a·b 핸들 반지름(px)
+export const ZOOM_HANDLE_R = 5;    // 손잡이(L·a·b) 반지름(px)
 
 /* 색을 마크업에 넣기 전 거른다 — 색 문자열로 태그가 끼어들 자리를 아예 없앤다.
    허용: #hex · rgb()/rgba()/hsl()/hsla() · CSS 변수 · 이름색. 걸리면 fallback. */
@@ -549,17 +616,26 @@ export function bgMarkup(st, pinned) {
      (안 집힌 것 = 흰 채움 · 집힌 것 = 파란 채움, 테두리 색은 둘 다 같다 — 현빈이 준 그림 그대로).
    ⛔이 상태는 dataset 이 아니라 «JS 속성»으로 온다 — 저장본(캔버스 HTML 스냅샷)에 실리면
      안 되는 «조작 중» 상태다(section-serialize 가 임시 클래스를 털어내는 것과 같은 이유). */
-/** a·b 핸들 — ★별도 층이다. 체크 배경이 SVG 위에 올라오므로 핸들이 그 «위»에 있어야 한다. */
+/** 손잡이 층 — ★별도 층이다. 체크 배경이 SVG 위에 올라오므로 손잡이가 그 «위»에 있어야 한다.
+ *
+ * ★손잡이는 «셋»이다(현빈 승인 2026-09-09):
+ *   L(빛, 빨강) — 짧은 변을 «통째로» 옮긴다. 지금 「방향°·길이」 슬라이더가 하던 일과 같다.
+ *   a·b(보라)   — 각자 벌린다.
+ * ⛔L 을 «마지막»에 그린다 = 맨 위. 좁아짐 100% 면 셋이 «한 점»에 겹치는데, 그때 사람이
+ *   집어야 하는 것은 「통째로 옮기기」다(a 하나만 끌면 짧은 변이 한쪽으로 찌그러진다).
+ * ⛔색은 CSS 가 정한다(css/editor-blocks.css 의 .zoom-handle[data-pt="L"]) — 여기 리터럴을 쓰지 마라. */
 export function handleLayerMarkup(st, pinned, picked) {
   const box = zoomBox(st, pinned);
   if (!box.ok) return '';
   const geo = box.geo;
+  const dot = (pt, P) =>
+    `<circle class="zoom-handle" data-pt="${pt}"${picked === pt ? ' data-picked="true"' : ''} ` +
+    `cx="${P.x.toFixed(2)}" cy="${P.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>`;
   return `<svg class="zoom-handle-layer" ` +
     `width="${box.w.toFixed(2)}" height="${box.h.toFixed(2)}" ` +
     `viewBox="${box.minX.toFixed(2)} ${box.minY.toFixed(2)} ${box.w.toFixed(2)} ${box.h.toFixed(2)}" ` +
     `xmlns="http://www.w3.org/2000/svg">` +
-    `<circle class="zoom-handle" data-pt="a"${picked === 'a' ? ' data-picked="true"' : ''} cx="${geo.a.x.toFixed(2)}" cy="${geo.a.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
-    `<circle class="zoom-handle" data-pt="b"${picked === 'b' ? ' data-picked="true"' : ''} cx="${geo.b.x.toFixed(2)}" cy="${geo.b.y.toFixed(2)}" r="${ZOOM_HANDLE_R}"/>` +
+    dot('a', geo.a) + dot('b', geo.b) + dot('L', geo.L) +
     `</svg>`;
 }
 

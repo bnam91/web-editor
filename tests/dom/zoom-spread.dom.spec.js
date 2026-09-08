@@ -94,8 +94,11 @@ function onRect(P) {
   return { on: inside && Math.min(dx, dy) < 0.5, inside, dx, dy };
 }
 
-/* ── D1 ★핸들이 «실제로» 보라로 그려진다 ─────────────────────────────────── */
-test('D1 ★a·b 핸들의 stroke 가 렌더 시점에 보라(--ui-sel-overlay)다 — 소스 문자열이 아니라 «칠»을 잰다', async ({ page }) => {
+/* ── D1 ★손잡이가 «실제로» 제 색으로 그려진다 ────────────────────────────────
+   ★2 → 3 : «요구가 바뀌었다»(현빈 승인 2026-09-09 「손잡이 셋」). 그리고 색이 «둘»이 됐다 —
+     빛(L)=빨강(--ui-danger) · a·b=보라(--ui-sel-overlay). 하는 일이 다르면 색도 다르다.
+   ⇒ 「전부 보라」로 훑던 루프를 «갈래별»로 나눈다. 안 나누면 빨강을 되돌려도 못 잡는다. */
+test('D1 ★손잡이 색이 렌더 시점에 갈린다 — a·b 보라 / ★빛 빨강. 소스 문자열이 아니라 «칠»을 잰다', async ({ page }) => {
   const errs = await boot(page);
   await mount(page);
 
@@ -105,26 +108,31 @@ test('D1 ★a·b 핸들의 stroke 가 렌더 시점에 보라(--ui-sel-overlay)�
     const probe = document.createElement('span');           // 토큰을 «실제 색»으로 풀어 본다
     document.body.appendChild(probe);
     const px = (tok) => { probe.style.color = ''; probe.style.color = `var(${tok})`; return getComputedStyle(probe).color; };
-    const 보라 = px('--ui-sel-overlay'), 파랑 = px('--sel-color');
-    const out = { 개수: hs.length, stroke: hs.map(h => getComputedStyle(h).stroke), 보라, 파랑 };
+    const 보라 = px('--ui-sel-overlay'), 파랑 = px('--sel-color'), 빨강 = px('--ui-danger');
+    const out = { 이름: hs.map(h => h.dataset.pt), 보라, 파랑, 빨강,
+                  stroke: hs.map(h => getComputedStyle(h).stroke) };
     hs.forEach(h => h.setAttribute('data-picked', 'true'));
     out.집힌fill = hs.map(h => getComputedStyle(h).fill);
     probe.remove();
     return out;
   });
 
-  // T0 ★입력이 살아 있다 — 잴 대상이 «있고», 두 색이 «실제로 다르다»
-  expect(got.개수, '핸들이 0개다 — 아래 단언은 빈 배열을 훑고 조용히 통과한다').toBe(2);
+  // T0 ★입력이 살아 있다 — 잴 대상이 «있고», 세 색이 «실제로 다르다»
+  expect(got.이름, '손잡이가 셋(a·b·빛)이 아니다 — 아래 단언이 빈 배열을 훑고 조용히 통과한다')
+    .toEqual(['a', 'b', 'L']);
   expect(got.보라, '--ui-sel-overlay 토큰이 안 풀렸다 (editor-base.css 를 안 얹었다)').toMatch(/^rgb/);
   expect(got.파랑, '--sel-color 토큰이 안 풀렸다').toMatch(/^rgb/);
+  expect(got.빨강, '--ui-danger 토큰이 안 풀렸다').toMatch(/^rgb/);
   expect(got.보라, '두 토큰이 «같은 색»이다 — 그러면 이 검사는 되돌림을 못 잡는다').not.toBe(got.파랑);
+  expect(got.빨강, '★빛과 a·b 가 «같은 색»이면 손잡이 셋이 구별되지 않는다').not.toBe(got.보라);
 
-  for (const s of got.stroke) {
-    expect(s, `핸들 테두리가 보라가 아니다 (${s} · 보라=${got.보라} · 파랑=${got.파랑})`).toBe(got.보라);
-  }
-  for (const f of got.집힌fill) {
-    expect(f, `집힌 앵커 채움이 보라가 아니다 (${f})`).toBe(got.보라);
-  }
+  /* ★갈래별로 잰다 — 「전부 보라」로 훑으면 빛의 빨강을 되돌려도 안 잡힌다. */
+  const 기대 = { a: got.보라, b: got.보라, L: got.빨강 };
+  got.이름.forEach((pt, i) => {
+    expect(got.stroke[i], `${pt} 손잡이 테두리 (${got.stroke[i]} · 보라=${got.보라} · 빨강=${got.빨강})`)
+      .toBe(기대[pt]);
+    expect(got.집힌fill[i], `${pt} 를 집었을 때 채움 (${got.집힌fill[i]})`).toBe(기대[pt]);
+  });
   expect(errs, `콘솔 오류: ${errs.join(' | ')}`).toEqual([]);
 });
 

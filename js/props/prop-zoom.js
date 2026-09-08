@@ -189,15 +189,20 @@ ${bdrRow}
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">짧은 변 (a·b)</div>
+      <!-- ★손잡이 셋 — 현빈 승인 2026-09-09. 색은 css/editor-blocks.css 가 칠한다(빨강 L · 보라 a·b).
+           ⛔안내문을 prop-label 안에 넣으면 «폭 56px 라벨 칸»에서 잘린다(이 파일 아래 실측 주석 참조).
+             그래서 제목이 어휘를 지고, 안내문은 폭을 다 쓰는 행에 둔다. -->
+      <div class="prop-section-title">손잡이 (빛 · a · b)</div>
       <div class="prop-row" style="${dim(shadowOn)}">
-        <span class="prop-label" style="font-size:10px;color:var(--ui-text-muted);">
-          ${pinned ? '수동 — 끌어서 고정됨' : '자동 — 방향·길이를 따라감'}
+        <span style="font-size:10px;color:var(--ui-text-muted);line-height:1.5;">
+          빨간 점 = 빛. 짧은 변을 통째로 옮긴다.<br>
+          보라 점 = a·b. 각자 벌린다.<br>
+          ${pinned ? '지금 — 수동(끌어서 고정됨)' : '지금 — 자동(방향·길이를 따라감)'}
         </span>
       </div>
       <div class="prop-row">
         <button class="prop-action-btn" id="zm-ab-reset" ${pinned ? '' : 'disabled'}
-          style="width:100%;${pinned ? '' : 'opacity:0.4;pointer-events:none;'}">자동으로 되돌리기</button>
+          style="width:100%;${pinned ? '' : 'opacity:0.4;pointer-events:none;'}">손잡이 자동으로 되돌리기</button>
       </div>
     </div>`;
 
@@ -252,6 +257,12 @@ ${bdrRow}
       /* ★크기 슬라이더는 «덧씌우개»를 지운다 — 안 지우면 핸들로 한 번 끈 뒤로 슬라이더가
          아무 반응도 안 한다(w/h 가 이기기 때문). a·b 의 「자동으로 되돌리기」와 같은 규율. */
       if (key === 'size') window.clearZoomSizeOverride?.(block);
+      /* ★★방향°·길이는 «빛을 옮기는 슬라이더»다 — 손잡이 셋(ax/ay·bx/by·lx/ly)을 «다» 푼다.
+         ⛔안 풀면 슬라이더를 끝까지 밀어도 화면이 «한 픽셀도» 안 움직인다: 고정이 이기기 때문이다.
+           (크기 슬라이더가 w/h 에서 이미 겪은 그 병 — 같은 처방을 같은 자리에 둔다.)
+         ★셋을 «따로» 풀지 않는다: 빛만 풀고 a·b 를 남기면 축과 짧은 변이 따로 놀아
+           빔이 꼬인다. 손잡이는 한 덩어리로 자동으로 돌아간다. */
+      if (key === 'angle' || key === 'length') window.clearPinnedZoomShortEdge?.(block);
       block.dataset[key] = String(val);
       s.value = val; n.value = val;
       rerender();

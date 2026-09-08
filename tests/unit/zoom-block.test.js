@@ -337,10 +337,15 @@ test('ⓐ-10 ★마크업 실측 — buildZoomInner 가 실제로 내보내는 �
 
   assert.equal(html.includes('NaN'), false, 'NaN 이 한 글자라도 새면 SVG 가 통째로 안 그려진다');
   assert.equal(html.includes('linearGradient'), false, '내보내는 마크업에도 선형이 없어야 한다');
-  assert.equal((html.match(/<svg\b/g) || []).length, 2, 'SVG 는 둘 — 본체 + a·b 핸들 층');
+  assert.equal((html.match(/<svg\b/g) || []).length, 2, 'SVG 는 둘 — 본체 + 손잡이 층');
   assert.equal((html.match(/<polygon[^>]*fill="#000"/g) || []).length, 64, '띠 64장');
   assert.equal((html.match(/class="zoom-shape"/g) || []).length, 1, '도형은 하나');
-  assert.equal((html.match(/class="zoom-handle"/g) || []).length, 2, 'a·b 핸들 둘');
+  /* ★2 → 3 : «요구가 바뀌었다»(현빈 승인 2026-09-09 「손잡이 셋」). 내 코드를 통과시키려
+     기댓값을 낮춘 것이 아니다 — 빛(L) 손잡이가 «새로 생겼고», 그게 이 절의 요지다.
+     ⇒ 셋을 «세는» 것으로 끝내지 않고 «어느 셋인지»를 아래에서 이름으로 못박는다. */
+  assert.equal((html.match(/class="zoom-handle"/g) || []).length, 3, '손잡이 셋 — 빛(L)·a·b');
+  assert.deepEqual([...html.matchAll(/class="zoom-handle" data-pt="([^"]+)"/g)].map(m => m[1]),
+                   ['a', 'b', 'L'], '★L 이 «마지막» = 맨 위. 셋이 겹칠 때 집히는 것은 「통째로 옮기기」다');
   // ⛔플로팅으로 옮기면서 «보조 선택상자»는 없어졌다 — 블록 자신이 그 상자다
   assert.equal(/zoom-sel-box|zoom-stage/.test(html), false, '보조 상자가 되살아났다');
 
@@ -853,6 +858,55 @@ test("ⓑ-14 ★그림자·테두리는 «라디오»다 (⛔체크박스 아님
       `라디오가 dataset.${k} 를 지운다 — 다시 켜면 값이 사라진다`);
   }
   assert.ok(/block\.dataset\[key\] = r\.value/.test(body), "라디오는 'on'/'off' 만 쓴다");
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⓑ-14b — ★방향°·길이 슬라이더는 «손잡이 고정 셋을 다» 푼다 (현빈 승인 2026-09-09)
+   ⛔안 풀면 슬라이더를 끝까지 밀어도 화면이 «한 픽셀도» 안 움직인다 — 고정이 이기기 때문이다.
+     (크기 슬라이더가 w/h 에서 이미 겪은 병. 같은 처방을 같은 자리에 둔다.)
+   ★변이: apply() 의 `if (key === 'angle' || key === 'length') …clearPinned…` 한 줄을 지우면 빨개진다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test("ⓑ-14b 방향°·길이 슬라이더가 «손잡이 고정»을 푼다 (안 풀면 슬라이더가 먹통이 된다)", () => {
+  const body = sliceFn(SRC.prop, 'const bindPair = (id, key, label, min, max) =>');
+  assert.ok(body.length > 100, `전제: bindPair 몸통을 떴다 (${body.length}자)`);
+  const m = body.match(/if \(([^)]*key === '(?:angle|length)'[^)]*)\)\s*window\.clearPinnedZoomShortEdge\?\.\(block\);/);
+  assert.ok(m, '★방향°·길이가 손잡이 고정을 «안» 푼다 — 슬라이더가 먹통이 된다');
+  for (const k of ['angle', 'length']) {
+    assert.ok(new RegExp(`key === '${k}'`).test(m[1]), `${k} 이 조건에서 빠졌다`);
+  }
+  /* ⛔셋을 «따로» 풀지 않는다 — 빛만 풀고 a·b 를 남기면 축과 짧은 변이 따로 논다.
+     그래서 여기서 부르는 것은 «여섯 키를 다 지우는» 한 함수여야 한다. */
+  const clr = sliceFn(SRC.block, 'function clearPinnedShortEdge(block)');
+  for (const k of ['ax', 'ay', 'bx', 'by', 'lx', 'ly']) {
+    assert.ok(new RegExp(`delete block\\.dataset\\.${k}\\b`).test(clr), `clearPinnedShortEdge 가 ${k} 를 안 지운다`);
+  }
+  // 그리고 그 함수가 window 로 나가 있어야 프로퍼티 패널이 부를 수 있다
+  assert.ok(/window\.clearPinnedZoomShortEdge\s*=\s*clearPinnedShortEdge/.test(SRC.block),
+    'clearPinnedZoomShortEdge 가 window 에 안 걸려 있다 — 패널의 호출이 조용히 no-op 이 된다');
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⓑ-15b — ★빛(L) 손잡이는 «빨강», a·b 는 보라 (현빈 승인 2026-09-09)
+   하는 일이 다르면 색도 달라야 한다: L=통째로 옮기기 / a·b=각자 벌리기.
+   ⛔리터럴 hex 로 칠하지 않는다 — 이 레포의 빨강 정본은 --ui-danger 하나다.
+   ★변이: `.zoom-block .zoom-handle[data-pt="L"] { stroke: … }` 규칙을 지우면 빨개진다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test('ⓑ-15b ★빛 손잡이는 빨강 — a·b 보라와 «눈으로» 갈린다', () => {
+  const s = SRC.css;
+  const base = s.match(/\.zoom-block \.zoom-handle \{([^}]*)\}/);
+  assert.ok(base, '전제: 손잡이 기본 규칙이 있다');
+  assert.ok(/var\(--ui-sel-overlay/.test(base[1]), '전제: a·b 는 보라(--ui-sel-overlay)다');
+
+  const rules = [...s.matchAll(/\.zoom-block \.zoom-handle\[data-pt="L"\][^{]*\{([^}]*)\}/g)].map(m => m[1]);
+  assert.ok(rules.length >= 2,
+    `빛 손잡이 규칙이 ${rules.length}개 — 테두리(stroke)와 집힌 채움(fill) 둘이어야 한다`);
+  const all = rules.join(' ');
+  assert.ok(/stroke:\s*var\(--ui-danger/.test(all), '빛 손잡이 테두리가 --ui-danger(빨강)가 아니다');
+  assert.ok(/fill:\s*var\(--ui-danger/.test(all), '집었을 때 채움이 --ui-danger 가 아니다');
+  assert.equal(/var\(--ui-sel-overlay/.test(all), false, '빛 손잡이가 a·b 와 «같은 보라»면 갈리지 않는다');
+  // ⛔새 빨강을 만들지 않았는지 — 토큰 밖 리터럴 hex 가 «채움/테두리 값»으로 들어오면 안 된다
+  assert.equal(/(?:stroke|fill):\s*#[0-9a-fA-F]{3,8}\s*;/.test(all), false,
+    '리터럴 hex 로 칠했다 — 토큰이 정본이다(fallback 은 var() «안»에만 둔다)');
 });
 
 test('ⓑ-15 ★확대블럭은 «스티커 계열» 보라다 — hover 도 같은 토큰, 새 색 0건', () => {

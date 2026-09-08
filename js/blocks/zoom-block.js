@@ -142,24 +142,37 @@ function readZoomState(block) {
   };
 }
 
-/* ★a·b 는 「끌기 전까지 «언제나» 자동」이다.
+/* ★손잡이 셋(L·a·b)은 「끌기 전까지 «언제나» 자동」이다.
    한 번 고정해 두면 방향·길이를 바꿔도 안 따라와서 광원과 그림자가 «따로» 논다
-   (현빈이 실제로 잡은 결함). ⇒ dataset 에 «네 값이 다 있을 때만» 사람이 끈 것으로 본다.
-   끄는 «순간»에만 박는다(_pinShortEdge). */
+   (현빈이 실제로 잡은 결함). ⇒ dataset 에 값이 «다» 있을 때만 사람이 끈 것으로 본다.
+   끄는 «순간»에만 박는다(_pinShortEdge).
+
+   ★★a·b 와 L 을 «따로» 판정한다 — 하위호환이다.
+     이 블록이 세상에 나온 뒤 저장된 프로젝트에는 ax/ay/bx/by «만» 있다(lx/ly 가 없다).
+     셋을 한 묶음으로 보면 그 저장본이 전부 「고정 아님」으로 읽혀 사람이 끌어 둔 짧은 변이
+     조용히 자동으로 되돌아간다. ⇒ 둘을 따로 본다.
+   ⛔키는 «소문자 두 글자»다: dataset.lx / dataset.ly.
+     `lX` 로 쓰면 DOM 이 `data-l-x` 로 직렬화해서 저장본과 조용히 갈라진다(검사 T6 이 못박는다).
+     renderZoomBlock 이 style.cssText·innerHTML 을 매번 통째로 덮으므로 «운반체는 dataset 뿐»이다. */
 function readPinnedShortEdge(block) {
   const d = block.dataset || {};
   const ax = parseFloat(d.ax), ay = parseFloat(d.ay);
   const bx = parseFloat(d.bx), by = parseFloat(d.by);
-  if ([ax, ay, bx, by].every(Number.isFinite)) {
-    return { a: { x: ax, y: ay }, b: { x: bx, y: by } };
-  }
-  return null;
+  const lx = parseFloat(d.lx), ly = parseFloat(d.ly);
+  const abOk = [ax, ay, bx, by].every(Number.isFinite);
+  const lOk  = [lx, ly].every(Number.isFinite);
+  if (!abOk && !lOk) return null;
+  const out = {};
+  if (abOk) { out.a = { x: ax, y: ay }; out.b = { x: bx, y: by }; }
+  if (lOk)  { out.L = { x: lx, y: ly }; }
+  return out;
 }
 
-/** 네 키를 지운다 = 다시 «언제나 자동». */
+/** 여섯 키를 지운다 = 다시 «언제나 자동». */
 function clearPinnedShortEdge(block) {
   delete block.dataset.ax; delete block.dataset.ay;
   delete block.dataset.bx; delete block.dataset.by;
+  delete block.dataset.lx; delete block.dataset.ly;
 }
 
 /** ★크기 덧씌우개를 지운다 = 다시 «size + 프리셋 비율». 프리셋 변경·size 슬라이더가 부른다. */
@@ -168,9 +181,15 @@ function clearZoomSizeOverride(block) {
   delete block.dataset.h;
 }
 
-function _pinShortEdge(block, a, b) {
+/* ★L 을 «주면» 박고, «안 주면» 지운다.
+   왜 지우나: 축은 기본이 mid(a,b) 다. a 나 b 하나만 끌면 축이 «그 새 한가운데»로 따라와야
+   빔이 안 꼬인다(검사 T5). 옛 L 고정을 남겨 두면 축이 낡은 자리에 붙박여 어긋난다.
+   ⇒ 「a·b 를 끈다 = 축을 자동으로 되돌린다」, 「L 을 끈다 = 셋을 한 덩어리로 옮긴다」. */
+function _pinShortEdge(block, a, b, L) {
   block.dataset.ax = a.x.toFixed(2); block.dataset.ay = a.y.toFixed(2);
   block.dataset.bx = b.x.toFixed(2); block.dataset.by = b.y.toFixed(2);
+  if (L) { block.dataset.lx = L.x.toFixed(2); block.dataset.ly = L.y.toFixed(2); }
+  else   { delete block.dataset.lx; delete block.dataset.ly; }
 }
 
 function renderZoomBlock(block) {
@@ -278,7 +297,9 @@ function _bindZoomMoveDrag(block) {
   });
 }
 
-/* a·b 핸들 드래그 — 끄는 «순간»에만 dataset 에 박는다.
+/* 손잡이 드래그 — 끄는 «순간»에만 dataset 에 박는다. ★손잡이는 셋이다(현빈 승인 2026-09-09).
+     a·b — 각자 벌린다.        끌면 ax/ay·bx/by 를 박고 lx/ly 는 «지운다»(축이 mid 로 돌아온다)
+     L   — 짧은 변을 «통째로» 옮긴다. a·b 가 «같은 델타»로 따라가고 lx/ly 도 같이 박힌다.
    ★한쪽만 끌어도 «둘 다» 박는다: 읽기(readPinnedShortEdge)가 네 값을 한 묶음으로 보기 때문이다.
      안 박힌 쪽을 자동으로 두면 「반은 고정·반은 따라옴」이라 축이 어긋난다.
    좌표 변환은 «도형 중심 로컬»로 한다 — 드래그 도중 bbox 가 커져 viewBox 가 움직여도
@@ -304,20 +325,27 @@ function _bindZoomHandleDrag(block) {
     const rect = svg?.getBoundingClientRect();
     const scale = (rect && rect.width > 0 && vbW > 0) ? (rect.width / vbW) : 1;
 
-    const which = h.dataset.pt;               // 'a' | 'b'
+    const which = h.dataset.pt;               // 'a' | 'b' | 'L'
     const st = readZoomState(block);
     const geo = computeZoomGeometry(st, readPinnedShortEdge(block));
-    const start = { a: { ...geo.a }, b: { ...geo.b } };
+    const start = { a: { ...geo.a }, b: { ...geo.b }, L: { ...geo.L } };
     const x0 = e.clientX, y0 = e.clientY;
     let moved = false;
 
     const onMove = ev => {
       const dx = (ev.clientX - x0) / scale, dy = (ev.clientY - y0) / scale;
       if (!moved && Math.hypot(dx, dy) < 1) return;
-      if (!moved) { moved = true; window.pushHistory?.('확대블럭 짧은 변'); }
-      const next = { a: { ...start.a }, b: { ...start.b } };
-      next[which] = { x: start[which].x + dx, y: start[which].y + dy };
-      _pinShortEdge(block, next.a, next.b);
+      if (!moved) { moved = true; window.pushHistory?.(which === 'L' ? '확대블럭 빛' : '확대블럭 짧은 변'); }
+      const mv = (P) => ({ x: P.x + dx, y: P.y + dy });
+      if (which === 'L') {
+        /* ★빛 = 짧은 변을 «통째로» 옮긴다 — 지금 「방향°·길이」 슬라이더가 하던 일과 같다.
+           ⇒ a·b 가 같은 델타로 따라가고, 축(L)도 같이 박힌다. 셋의 상대 배치가 안 흔들린다. */
+        _pinShortEdge(block, mv(start.a), mv(start.b), mv(start.L));
+      } else {
+        const next = { a: { ...start.a }, b: { ...start.b } };
+        next[which] = mv(start[which]);
+        _pinShortEdge(block, next.a, next.b);   // ★L 은 안 넘긴다 = 축이 mid(a,b) 로 돌아온다
+      }
       renderZoomBlock(block);
     };
     const onUp = () => {
