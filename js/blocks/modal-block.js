@@ -46,6 +46,57 @@ const MODAL_LIMITS = {
   radius: { min: 0,  max: 60  },
 };
 
+const MODAL_VALIGNS = ['top', 'center', 'bottom'];
+const _MDL_JUSTIFY_V = { top: 'flex-start', center: 'center', bottom: 'flex-end' };
+const _MDL_JUSTIFY_H = { left: 'flex-start', center: 'center', right: 'flex-end' };
+
+/* ★「늘어나면 가운데」의 «그리는» 쪽 — cssText 안에 접어 넣는다.
+   ⛔전에는 icon/icon-stack 만 cssText «뒤»에 block.style.display='flex' 를 따로 줬다.
+     cssText 는 통째 교체라, 뒤에 붙는 개별 style 대입은 «두 번째 진실»이 된다.
+   ⚠️수평은 «text-align 그대로»다 — align-items 로 하면 자식이 내용 폭으로 줄어
+     여러 줄일 때 모양이 달라진다. align-items 는 stretch 를 지킨다.
+   ⚠️세로쌓기(plain·dashed·titled·grid-2)는 hMode 가 'fixed' 일 때만 flex 로 바꾼다.
+     높이가 내용에 딱 맞으면 나눠 줄 «여백»이 없어 justify-content 가 아무 일도 안 한다
+     ⇒ 보이는 결과는 같고, display:block → flex 라는 회귀 표면만 «높이를 고정한 블록»으로
+       좁아진다. 안 좁히면 모든 모달이 회귀 표면이 된다. */
+function _alignStyles(variant, align, vAlign, hMode) {
+  const jv = _MDL_JUSTIFY_V[vAlign] || _MDL_JUSTIFY_V.top;
+  if (variant === 'icon') {
+    // 가로 배치 — 세로는 align-items, 수평은 justify-content
+    return `display:flex;flex-direction:row;align-items:${jv};justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:11px;`;
+  }
+  if (variant === 'icon-stack') {
+    /* ⛔icon-stack 의 하드코딩 center(align-items·text-align)는 «그대로 둔다».
+       풀면 기존 icon-stack 블록 «전부»의 생김새가 달라진다 — 별도 승인 사안이다.
+       새로 얹는 것은 justify-content 하나뿐이고, 기본값(top)은 지금과 «완전히 같다». */
+    return `display:flex;flex-direction:column;align-items:center;justify-content:${jv};gap:9px;text-align:center;`;
+  }
+  if (hMode !== 'fixed') return '';
+  return `display:flex;flex-direction:column;align-items:stretch;justify-content:${jv};`;
+}
+
+/* ★크기 «모드»를 바꾸는 단 하나의 문 — 「늘어나는 그 순간」을 여기서만 판정한다.
+   패널 버튼도, 오버레이 핸들도 이 문으로 들어온다. 두 곳이 각자 dataset 을 쓰면
+   「처음 늘어난 순간」이 두 벌로 갈라지고 한쪽만 고쳐진다.
+   돌려주는 값 = «이번에 자동 정렬을 채웠는가»(패널이 정렬 버튼을 다시 그려야 하는지). */
+function setModalSizeMode(block, axis, mode) {
+  if (!block || (axis !== 'w' && axis !== 'h')) return false;
+  const key = axis === 'w' ? 'wMode' : 'hMode';
+  const wasFixed = block.dataset[key] === 'fixed';
+  block.dataset[key] = mode;
+  if (wasFixed || mode !== 'fixed') return false;   // «늘어나는 그 순간»이 아니다
+  if (!window.MODAL_AUTOCENTER) return false;       // 킬스위치 — js/feature-flags.js 한 줄
+  /* ⛔★값비교 금지. 「align === 'left' 니까 안 건드린 것」으로 판정하면, 사용자가
+     center → left 로 되돌린 순간 그게 다시 「안 건드림」으로 읽혀 «다음 리사이즈에서 또»
+     center 로 덮인다. 그게 사고다.
+     ⇒ 판정은 «표시키가 있느냐» 하나. 한 번 찍으면 영영 안 채운다. */
+  if ('autoCentered' in block.dataset) return false;
+  block.dataset.vAlign = 'center';
+  block.dataset.align = 'center';
+  block.dataset.autoCentered = '1';
+  return true;
+}
+
 /** 표 하나로 자르는 클램프 — 렌더·패널·오버레이 핸들이 «같은 함수»를 쓴다.
  *  ⛔각자 Math.min/max 를 쓰면 반올림·폴백이 미묘하게 갈라진다. */
 const clampModal = (v, lim) => Math.min(lim.max, Math.max(lim.min, Math.round(Number(v) || 0)));
@@ -158,6 +209,7 @@ function renderModalBlock(block) {
   const gap = _num(block, 'gap', MODAL_DEFAULTS.gap);
   const wMode = block.dataset.wMode === 'fixed' ? 'fixed' : 'full';
   const hMode = block.dataset.hMode === 'fixed' ? 'fixed' : 'auto';
+  const vAlign = MODAL_VALIGNS.includes(block.dataset.vAlign) ? block.dataset.vAlign : 'top';
 
   // titled 는 제목 줄이 자기 패딩을 갖는다 → 루트 패딩 0, 안쪽에서 준다
   const rootPad = (v === 'titled') ? '0' : `${padY}px ${padX}px`;
@@ -168,7 +220,10 @@ function renderModalBlock(block) {
     + `background:${bg};color:${textColor};font-size:${fontSize}px;line-height:1.7;text-align:${align};`
     + (radius > 0 ? `border-radius:${radius}px;` : '')
     + `padding:${rootPad};`
-    + (borderW > 0 ? `border:${borderW}px ${borderStyle} ${borderColor};` : '');
+    + (borderW > 0 ? `border:${borderW}px ${borderStyle} ${borderColor};` : '')
+    /* ★정렬은 «맨 뒤»에 온다 — icon-stack 의 text-align:center 가 위의 text-align:${align} 을
+       이겨야 하기 때문이다(같은 선언 안에서는 뒤가 이긴다). */
+    + _alignStyles(v, align, vAlign, hMode);
 
   const title = block.dataset.titleText;
   const text  = block.dataset.textText;
@@ -193,12 +248,7 @@ function renderModalBlock(block) {
          + _textHtml('tb-mdl-cell', 'cell2', block.dataset.cell2, MODAL_PH.cell)
          + `</div>`;
   } else if (v === 'icon' || v === 'icon-stack') {
-    const stack = (v === 'icon-stack');
-    block.style.display = 'flex';
-    block.style.flexDirection = stack ? 'column' : 'row';
-    block.style.alignItems = stack ? 'center' : 'flex-start';
-    block.style.gap = stack ? '9px' : '11px';
-    if (stack) block.style.textAlign = 'center';
+    // ★display/flex-direction/align-items/gap/text-align 은 이제 _alignStyles 가 cssText «안»에서 준다.
     html = _modalIconHtml(block) + _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text);
   } else {
     // plain · dashed
@@ -293,6 +343,8 @@ window.applyModalVariant = applyModalVariant;
 window.MODAL_VARIANTS   = MODAL_VARIANTS;
 window.MODAL_LIMITS     = MODAL_LIMITS;
 window.clampModal       = clampModal;
+window.setModalSizeMode = setModalSizeMode;
 
 export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, applyModalVariant, _effDefault,
-         MODAL_DEFAULTS, MODAL_VARIANTS, MODAL_VARIANT_IDENTITY, MODAL_PH, MODAL_LIMITS, clampModal };
+         MODAL_DEFAULTS, MODAL_VARIANTS, MODAL_VARIANT_IDENTITY, MODAL_PH, MODAL_LIMITS, clampModal,
+         setModalSizeMode, _alignStyles, MODAL_VALIGNS };

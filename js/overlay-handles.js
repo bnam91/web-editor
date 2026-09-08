@@ -18,7 +18,7 @@ import { getGridModel, gridCols, gridRows } from './blocks/grid-block.js';
 /* ★모달 핸들의 클램프는 «패널과 같은 표»를 본다 — 리터럴을 여기 다시 쓰면 갈라진다.
    (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
     모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
-import { MODAL_LIMITS, clampModal } from './blocks/modal-block.js';
+import { MODAL_LIMITS, clampModal, setModalSizeMode } from './blocks/modal-block.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -1023,8 +1023,10 @@ function _onModalResizeHandleMouseDown(e, block, dir) {
       /* ★크기를 «고정»으로 돌리는 것도, 재렌더도 여기 «한 번»뿐이다.
          full → fixed 는 margin-left/right:auto 를 같이 주므로(가운데 정렬) 상자의 기하가
          통째로 바뀐다. 그 변화를 드래그 «중»에 인라인으로 흉내 내면 손을 떼는 순간 튄다. */
-      block.dataset.wMode = 'fixed';
-      block.dataset.hMode = 'fixed';
+      /* ★모드를 바꾸는 문은 하나다 — 「늘어나는 그 순간」의 자동 가운데정렬도 그 안에서 난다.
+         여기서 dataset 을 직접 쓰면 핸들 드래그만 «그 순간»을 못 만든다. */
+      setModalSizeMode(block, 'w', 'fixed');
+      setModalSizeMode(block, 'h', 'fixed');
       block.dataset.width  = String(clampModal(startW, MODAL_LIMITS.width));
       block.dataset.height = String(clampModal(startH, MODAL_LIMITS.height));
       window.renderModalBlock?.(block);

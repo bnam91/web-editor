@@ -7,7 +7,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { alignBtn } from './_helpers.js';
 /* ★min/max 는 «리터럴로 쓰지 않는다» — modal-block.js 의 MODAL_LIMITS 한 표에서 온다.
    패널과 오버레이 핸들이 같은 표를 봐야 클램프가 갈라지지 않는다. */
-import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModal } from '../blocks/modal-block.js';
+import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModal, setModalSizeMode } from '../blocks/modal-block.js';
 const L = MODAL_LIMITS;
 
 const _MDL_VARIANT_LABELS = {
@@ -233,17 +233,22 @@ export function showModalProperties(block) {
   // ── 크기 모드 ──
   const wNum = document.getElementById('mdl-w-number');
   const hNum = document.getElementById('mdl-h-number');
+  /* ★dataset.wMode 를 여기서 «직접» 쓰지 않는다 — setModalSizeMode 가 단 하나의 문이다.
+     「늘어나는 그 순간」 판정이 패널과 핸들 두 벌로 갈라지면 한쪽만 고쳐진다.
+     돌려주는 값이 true 면 자동 가운데정렬이 채워진 것 ⇒ 정렬 버튼도 다시 그려야 한다. */
   propPanel.querySelectorAll('[data-wm]').forEach(btn => btn.addEventListener('click', () => {
-    block.dataset.wMode = btn.dataset.wm;
+    const filled = setModalSizeMode(block, 'w', btn.dataset.wm);
     propPanel.querySelectorAll('[data-wm]').forEach(b => b.classList.toggle('active', b === btn));
     if (wNum) wNum.disabled = (btn.dataset.wm !== 'fixed');
     rerender(); commit();
+    if (filled) showModalProperties(block);
   }));
   propPanel.querySelectorAll('[data-hm]').forEach(btn => btn.addEventListener('click', () => {
-    block.dataset.hMode = btn.dataset.hm;
+    const filled = setModalSizeMode(block, 'h', btn.dataset.hm);
     propPanel.querySelectorAll('[data-hm]').forEach(b => b.classList.toggle('active', b === btn));
     if (hNum) hNum.disabled = (btn.dataset.hm !== 'fixed');
     rerender(); commit();
+    if (filled) showModalProperties(block);
   }));
   wNum?.addEventListener('change', () => {
     const x = Math.min(L.width.max, Math.max(L.width.min, parseInt(wNum.value) || MODAL_DEFAULTS.width));
