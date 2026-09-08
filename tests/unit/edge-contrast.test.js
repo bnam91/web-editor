@@ -253,6 +253,51 @@ test('A6 ★임의 accent 512종 × 배경 512종에서 min(선,점) ≥ 3 — �
     `★최악 선 ${worstLine.toFixed(3)} · 최악 점 ${worstDot.toFixed(3)}`);
 });
 
+/* ── A7 ★라이브 CSS 변수 — opts 를 «안» 넘기는 갈래가 실제로 실행된다 ──
+   ⛔A0~A6 은 edgeColorFor(…, OPT) 로 accent·shell 을 «명시»로 넘긴다.
+     그래서 유닛에서 _cssVar 등장 = ★0회 였고, 라이브 경로가 «한 번도» 안 돌았다(2026-09-09 실측).
+     DOM 하네스는 기본 테마만 써서 «하드코딩 값과 라이브 값이 우연히 같다».
+   ⇒ 계획서 §4-3 이 가장 세게 박은 「라이브로 읽는다. ⛔하드코딩 금지」가
+     그것을 지키는 검사 «없이» 서 있었다. 적힌 규칙은 다음 사람이 안 읽는다 — 검사로 닫는다.
+   ★여기서는 document/getComputedStyle 을 «갈아 끼워» 변수를 흔들고 결과가 따라오는지 본다. */
+function withCssVars(vars, fn) {
+  const sd = globalThis.document, sg = globalThis.getComputedStyle;
+  globalThis.document = { documentElement: {} };
+  globalThis.getComputedStyle = () => ({ getPropertyValue: (n) => (n in vars ? vars[n] : '') });
+  try { return fn(); } finally { globalThis.document = sd; globalThis.getComputedStyle = sg; }
+}
+test('A7 ★opts 없이 부르면 --ui-bg-app·--ui-accent 를 «라이브로» 읽는다 (하드코딩하면 안 따라온다)', async () => {
+  const { edgeColorFor } = await M();
+  const DEF = { '--ui-accent': '#7cb8ff', '--ui-bg-app': '#1a1a1a' };
+
+  /* ★전제 — 이 갈래가 «실제로 실행»된다(변수를 못 읽으면 아래가 전부 폴백으로 통과해버린다). */
+  assert.strictEqual(withCssVars(DEF, () => edgeColorFor('#000000')), '#7cb8ff',
+    '★기본 테마에서 브랜드색 보존이 안 된다 — 라이브 accent 를 못 읽고 있다');
+
+  /* ① shell 추종 — 배경 알파가 0 이면 답은 «뒤에 있는 것»(--ui-bg-app)이 정한다. */
+  const onDark = withCssVars(DEF, () => edgeColorFor('rgba(130,130,130,0)'));
+  const onLight = withCssVars({ ...DEF, '--ui-bg-app': '#ffffff' }, () => edgeColorFor('rgba(130,130,130,0)'));
+  assert.strictEqual(onDark, '#7cb8ff', '★어두운 shell 위 답이 바뀌었다');
+  assert.strictEqual(onLight, '#000000',
+    '★--ui-bg-app 을 흰색으로 바꿨는데 답이 안 따라온다 — shell 을 라이브로 안 읽고 하드코딩/폴백을 쓰고 있다');
+  assert.notStrictEqual(onDark, onLight, '★shell 이 답을 안 가른다');
+
+  /* ② accent 추종 — 테마가 강조색을 임의 색으로 바꾼다(theme-system.js:105). */
+  const green = withCssVars({ ...DEF, '--ui-accent': '#00ff00' }, () => edgeColorFor('#000000'));
+  assert.strictEqual(green, '#00ff00',
+    '★--ui-accent 를 바꿨는데 답이 안 따라온다 — accent 를 하드코딩하고 있다(브랜드색 추종 상실)');
+
+  /* ③ 변수를 «못 읽는» 환경에서도 죽지 않는다 — 폴백은 살아 있다(무변경이 안전한 실패).
+     ⚠️여기 기댓값은 #7cb8ff 가 «아니다». --ui-accent 가 비면 accent 후보 자체가 빠져 흑백 스냅이 된다.
+       (2026-09-09 실측으로 내 첫 기댓값이 틀렸다 — 「그럴 것 같다」를 측정으로 적지 않는다.)
+       그래도 답은 «shell 폴백 #1a1a1a 위의 답»이어야 한다 — 그걸 명시 opts 로 교차검증한다. */
+  const blind = withCssVars({}, () => edgeColorFor('rgba(130,130,130,0)'));
+  assert.strictEqual(blind, edgeColorFor('rgba(130,130,130,0)', { shell: '#1a1a1a' }),
+    '★변수가 비었을 때 shell 폴백(#1a1a1a)이 안 먹는다');
+  assert.strictEqual(blind, '#ffffff', '★accent 없는 폴백 답이 바뀌었다');
+  assert.ok(blind, '★폴백에서 null 로 죽는다 — 변수를 못 읽는 것이 «못 잰다»가 되면 안 된다');
+});
+
 // ══════════════════════════════════════════════════════════════════
 // C. ★갈래 — 「호출 개수」가 아니라 「그 갈래를 태우면 옳은 색이 나오나」
 //

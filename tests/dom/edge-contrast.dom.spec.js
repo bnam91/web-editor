@@ -173,6 +173,54 @@ test('D2 배경 9종을 «실제로 칠하고» 칠해진 stroke + 읽은 opacit
 });
 
 // ══════════════════════════════════════════════════════════════════
+/* ── D4 ★라이브 변수를 «흔든다» — 계획서 §4-3 「라이브로 읽는다. ⛔하드코딩 금지」의 게이트
+     ⛔이게 없어서 아래 셋이 «게이트 두 겹»을 통과했다(2026-09-09 적대검수):
+       X2  window.__updateEdgeContrast = () => updateEdgeContrast(<현재 배경 읽기>) → updateEdgeContrast('')
+       X7  const sh = _parse(shell ?? _cssVar('--ui-bg-app')) …  →  _parse(shell) …
+       X6  _cssVar('--ui-accent')  →  하드코딩 '#7cb8ff'      (대비는 안 깨지지만 «브랜드색 추종»을 잃는다)
+     유닛은 opts 를 명시로 넘겨 _cssVar 를 0회 실행했고, 하네스는 기본 테마만 써서
+     «하드코딩 값과 라이브 값이 우연히 같았다». ⇒ 값을 «다르게 만들어» 따라오는지 본다. */
+test('D4 ★테마 변수를 흔들면 연결선 색이 따라온다 — --ui-bg-app · --ui-accent · 테마훅 (X7·X6·X2)', async ({ page }) => {
+  const errs = await boot(page);
+  const setVar = (n, v) => page.evaluate(({ n, v }) => document.documentElement.style.setProperty(n, v), { n, v });
+  const readVar = () => page.evaluate(() => document.getElementById('canvas-wrap').style.getPropertyValue('--spl-edge-color'));
+
+  /* ── ① shell(--ui-bg-app) 추종 — 배경 알파가 0 이면 «뒤에 있는 것»이 답을 정한다 (X7) ── */
+  const CLEAR = 'rgba(255,255,255,0)';           // 앞색은 흰데 «완전 투명» → shell 이 실질 배경
+  await measure(page, '', CLEAR);
+  const onDark = await readVar();
+  expect(onDark, '★기본 테마(어두운 shell)에서 브랜드색 보존이 깨졌다 — 전제가 무너지면 아래가 뜻이 없다')
+    .toBe('#7cb8ff');
+
+  await setVar('--ui-bg-app', '#ffffff');
+  await measure(page, '', CLEAR);
+  const onLight = await readVar();
+  expect(onLight, '★--ui-bg-app 을 흰색으로 바꿨는데 색이 안 따라온다 — shell 을 라이브로 안 읽고 있다')
+    .toBe('#000000');
+  expect(onLight, '★shell 이 답을 안 가른다').not.toBe(onDark);
+
+  /* ── ② ★테마 훅(X2) — 배경은 그대로 두고 «변수만» 바꾼 뒤 __updateEdgeContrast() 로 재산출 ──
+       theme-system.js:129 가 실제로 하는 일이 이것이다. 인자를 '' 로 굳히면 여기서 운다. */
+  await setVar('--ui-bg-app', '#1a1a1a');          // 다시 어둡게 — 답이 #7cb8ff 로 «돌아와야» 한다
+  const followed = await page.evaluate(() => {
+    window.__updateEdgeContrast();                 // ⛔applyCanvasBackground 가 아니다 — 훅만 부른다
+    return document.getElementById('canvas-wrap').style.getPropertyValue('--spl-edge-color');
+  });
+  expect(followed, '★테마 훅이 «현재 배경»을 안 읽는다 — 인자가 빈 문자열로 굳으면 색이 통째로 걷힌다')
+    .toBe('#7cb8ff');
+
+  /* ── ③ accent(--ui-accent) 추종 — 테마가 강조색을 임의 색으로 바꾼다 (X6) ── */
+  await measure(page, '', '#000000');
+  expect(await readVar(), '★검은 캔버스에서 브랜드색 보존이 깨졌다').toBe('#7cb8ff');
+  await setVar('--ui-accent', '#00ff00');
+  await measure(page, '', '#000000');
+  expect(await readVar(), '★--ui-accent 를 바꿨는데 색이 안 따라온다 — accent 를 하드코딩하고 있다')
+    .toBe('#00ff00');
+
+  expect(errs, `콘솔 오류: ${errs.join(' | ')}`).toEqual([]);
+});
+
+// ══════════════════════════════════════════════════════════════════
 test('D3 점(fill)이 선(stroke)과 «같은 색» 이면서 opacity 는 1 이다 (한쪽만 고치면 두 물건으로 보인다)', async ({ page }) => {
   const errs = await boot(page);
   let checked = 0;
