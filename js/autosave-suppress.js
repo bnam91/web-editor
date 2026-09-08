@@ -95,7 +95,10 @@
    *   ★이 계열의 «뿌리»라 여기서 막는다 — js/history.js:105·230 · js/collab/sync.js:418 에도
    *     같은 모양(rAF 단독 해제)이 남아 있다. 그쪽은 이 함수를 쓰게 바꾸는 게 정답이다.
    *     ⇒ 티켓 = `_context/BACKLOG-autosave-raf-only.md` (「다 고쳤을 때 무엇을 지우나」까지 적혀 있다)
-   *     ⇒ 집행 = `tests/unit/autosave-overlap.test.js` N6 — 이 셋이 늘어도 줄어도 빨개진다. */
+   *     ⇒ 집행 = `tests/unit/autosave-overlap.test.js` N7 — 이 명부가 늘어도 줄어도 빨개진다.
+   *   ⚠️★같은 병은 rAF 만의 것이 아니다 — ResizeObserver·IntersectionObserver·requestIdleCallback 도
+   *     «렌더링 갱신 단계»에 얹혀 있어 가려진 창에서 안 돈다. 그리고 `else setTimeout(...)` 은
+   *     «폴백»이지 «안전망»이 아니다(rAF 가 «없을 때»만 탄다). N7 이 그 성질로 센다. */
   function endNextFrame(tok) {
     var done = function () { end(tok); };
     if (typeof w.requestAnimationFrame === 'function') w.requestAnimationFrame(done);
