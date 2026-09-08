@@ -158,3 +158,100 @@ test('D4-b ★명부의 «DOM 채널» 이 이 검사가 돌린 갈래와 같다
     '이 검사에 그 채널을 추가해라 (tests/unit/export-channel-roster.test.mjs U6 가 명부 자체를 지킨다).')
     .toEqual(['js/io/export-html.js', 'js/io/export-image.js', 'js/io/section-serialize.js']);
 });
+
+/* ══ D3 — 세 갈래의 «색»이 서로 같다 (§7-ⓐ 가 3분열을 닫았다) ═══════════
+ * 도입 «전»의 실측: 캔버스 #e0e0e0 · PNG #e0e0e0 · HTML «검정». 셋이 갈려 있었다.
+ * 되돌리면 빨강: _GRID_ROLES 에서 body.color «한 항목만» 지우면
+ *   → 캔버스/PNG 는 #e0e0e0(상속), HTML 은 UA 기본 검정 ⇒ 「셋이 같다」가 깨진다. */
+
+/** WCAG 2.x 상대휘도 → 대비. rgb(r, g, b) 문자열을 받는다. */
+function contrastVsWhite(rgb) {
+  const m = String(rgb).match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (!m) return null;
+  const lin = (v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const L = 0.2126 * lin(+m[1]) + 0.7152 * lin(+m[2]) + 0.0722 * lin(+m[3]);
+  return +((1.0 + 0.05) / (L + 0.05)).toFixed(2);
+}
+
+test('D3 ★캔버스 · PNG · HTML 의 줄 색이 «서로 같다» + 흰 배경 대비가 살아 있다', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page);
+
+  const got = await page.evaluate(async () => {
+    const read = (root) => {
+      const out = {};
+      for (const el of root.querySelectorAll('.grd-line')) {
+        const k = `(${el.dataset.r},${el.dataset.c},${el.dataset.line})`;
+        if (!el.dataset.line) continue;
+        out[k] = getComputedStyle(el).color;
+      }
+      return out;
+    };
+
+    // ⓐ 캔버스 — 라이브
+    const canvas = read(window.__block);
+    const secBg = getComputedStyle(document.querySelector('.section-block')).backgroundColor;
+
+    // ⓑ PNG — «실제» export 함수의 클론(라이브 문서 안에 붙는다 ⇒ computed 를 잴 수 있다)
+    const sec = document.querySelector('.section-block');
+    const c3 = await window.__prep(sec, 860, false);
+    const png = read(c3);
+    c3.remove();
+
+    // ⓒ HTML — «실제» exportHTMLFile 의 Blob 을 iframe srcdoc 에 넣어 그 안에서 잰다
+    const realCOU = URL.createObjectURL; const blobs = [];
+    URL.createObjectURL = (b) => { blobs.push(b); return 'blob:x'; };
+    const realClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {};
+    try { await window.exportHTMLFile(); } finally {
+      URL.createObjectURL = realCOU; HTMLAnchorElement.prototype.click = realClick;
+    }
+    const text = blobs.length ? await blobs[blobs.length - 1].text() : null;
+    let html = null;
+    if (text) {
+      const ifr = document.createElement('iframe');
+      ifr.style.cssText = 'position:fixed;left:-99999px;width:900px;height:900px;';
+      document.body.appendChild(ifr);
+      await new Promise((res) => { ifr.onload = res; ifr.srcdoc = text; });
+      html = read(ifr.contentDocument);
+      ifr.remove();
+    }
+    return { canvas, png, html, secBg };
+  });
+
+  expect(errs).toEqual([]);
+  expect(got.html, '★HTML 채널을 못 읽었다 — 셋 중 하나가 «빈 문서»다').not.toBeNull();
+  expect(got.secBg, '섹션 배경이 흰색이 아니다 — editor-canvas.css 를 안 얹었나').toBe('rgb(255, 255, 255)');
+
+  const keys = Object.keys(got.canvas);
+  expect(keys.length, '캔버스에서 줄을 0건 읽었다 — 계수기가 죽었다').toBeGreaterThanOrEqual(8);
+  for (const k of ['png', 'html']) {
+    expect(Object.keys(got[k]).length, `★${k} 채널이 줄을 0건 읽었다 — 「셋이 같다」가 «빈 것끼리» 비교된다`)
+      .toBe(keys.length);
+  }
+
+  // 본 단언 — 갈래 셋이 «같은 색»을 낸다.
+  for (const k of keys) {
+    expect(got.png[k], `★PNG 갈래의 ${k} 색이 캔버스와 다르다`).toBe(got.canvas[k]);
+    expect(got.html[k], `★HTML 갈래의 ${k} 색이 캔버스와 다르다 — ` +
+      `사용자가 화면에서 안 보여 포기한 글자가 내보낸 HTML 에선 «멀쩡히» 보인다`).toBe(got.canvas[k]);
+  }
+
+  // 전제(양성대조) — 명시색 줄이 «세 채널 모두» 빨강. 셋 중 하나가 빈 문서면 여기서 걸린다.
+  expect(got.canvas['(0,1,1)'], '명시색 줄을 캔버스에서 못 읽었다').toBe('rgb(255, 0, 0)');
+  expect(got.png['(0,1,1)'], '명시색이 PNG 갈래에서 사라졌다').toBe('rgb(255, 0, 0)');
+  expect(got.html['(0,1,1)'], '명시색이 HTML 갈래에서 사라졌다').toBe('rgb(255, 0, 0)');
+
+  /* 대비 — 흰 섹션 배경 기준. caption 은 §7-ⓐ 표의 2.85 를 «현재값»으로 못박는다
+     (텍스트블록과 «같은 관례». 올리려면 전 블록 동시 = 별건 발주). */
+  const c = (k) => contrastVsWhite(got.canvas[k]);
+  expect(c('(0,0,0)'), 'h1 대비').toBeGreaterThanOrEqual(4.5);
+  expect(c('(0,0,1)'), 'h2 대비').toBeGreaterThanOrEqual(4.5);
+  expect(c('(1,0,2)'), 'h3 대비').toBeGreaterThanOrEqual(4.5);
+  expect(c('(1,1,1)'), 'body 대비 — AA 본문 4.5:1').toBeGreaterThanOrEqual(4.5);
+  expect(c('(1,1,0)'), 'label 대비 (흰 종이 위 흰 글자가 아니다)').toBeGreaterThanOrEqual(4.5);
+  expect(c('(1,1,2)'), '★caption 은 2.85 로 «못박는다» — 텍스트블록과 같은 관례라 여기만 올리면 갈린다')
+    .toBeCloseTo(2.85, 2);
+  // 도입 전의 값이 «아니다»
+  expect(c('(1,1,1)'), '★body 가 아직 1.32:1(#e0e0e0 상속)이다 — §7-ⓐ 가 안 걸렸다').not.toBeCloseTo(1.32, 2);
+});

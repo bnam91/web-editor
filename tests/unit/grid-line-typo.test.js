@@ -300,3 +300,79 @@ test('U9 ★deselectAll 이 그리드 줄 마커를 걷는다', () => {
   assert.match(src, /querySelectorAll\('\.bn2-line-selected'\)/,
     '이웃 토큰조차 못 찾는다 — 이 소스 훑기가 죽었다(위 단언은 자기통과였다)');
 });
+
+/* ══ U2-b — §7-ⓐ 조건3: 「색을 «명시한» 줄은 불변」 ═════════════════════
+ * ★본문(음성대조)과 짝(양성대조)을 «같은 검사»에 넣는다 — 그래야 「불변」이
+ *   «잣대가 죽어서» 난 불변이 아님이 갈린다.
+ * ★그리고 «그리드 렌더 경로»로 잰다(renderGridBlock) — 헬퍼를 직접 부르면
+ *   useRoleColor 기본값(false) 때문에 «켜지지 않은» 상태를 재게 된다.
+ * 되돌리면 빨강: grid-block.js 의
+ *   `const color = (typeof line.color === 'string' && _GRID_COLOR_RE.test(line.color.trim())) ? line.color.trim() : '';`
+ *   → `const color = role.color;`   ⇒ 명시색 줄이 빨강. */
+
+/** 줄들을 «진짜 그리드 블록»으로 렌더해 innerHTML 을 돌려준다(사용자가 보는 경로). */
+function renderLines(lines) {
+  const { block } = makeGridBlock({ cols: [{ width: 1, lines }] });
+  return block.innerHTML;
+}
+
+test('U2-b ★명시색 줄은 «그대로», 안 정한 줄은 «역할 기본색»으로 (§7-ⓐ 조건3)', () => {
+  const html = renderLines([
+    { type: 'body', text: 'EXPLICIT', color: '#ff0000' },
+    { type: 'body', text: 'IMPLICIT' },
+  ]);
+  // 본문(음성대조) — 명시한 색은 안 바뀐다.
+  assert.match(html, /color:#ff0000;[^>]*>EXPLICIT</,
+    `★사용자가 «명시한» 색이 사라졌다 — 역할색이 명시값을 덮고 있다:\n${html}`);
+  // 짝(양성대조) — «같은 타입»인데 색을 안 준 줄은 «바뀐다». 안 바뀌면 위 단언은 자기통과다.
+  assert.match(html, /color:#555555;[^>]*>IMPLICIT</,
+    `★색을 안 준 body 줄에 역할 기본색이 «안» 들어갔다 — §7-ⓐ 가 안 걸렸다:\n${html}`);
+});
+
+test('U2-b-표 ★역할 6종의 기본색이 계획서 표와 «같다» (전부 --preset-*-color 값)', () => {
+  // 새 색을 하나도 만들지 않았다는 것을 기계가 확인한다.
+  const WANT = { h1: '#111111', h2: '#1a1a1a', h3: '#333333', body: '#555555', caption: '#999999', label: '#555555' };
+  const html = renderLines(Object.keys(WANT).map(type => ({ type, text: `T-${type}` })));
+  for (const [type, hex] of Object.entries(WANT)) {
+    assert.equal(GRID_ROLES[type].color, hex, `역할 ${type} 의 기본색이 ${GRID_ROLES[type].color} 다 (표는 ${hex})`);
+    assert.ok(html.includes(`color:${hex};text-align:left;`) || new RegExp(`color:${hex};[^>]*>T-${type}<`).test(html),
+      `${type} 산출에 ${hex} 가 안 찍힌다:\n${html}`);
+  }
+  /* ⚠️label 은 --preset-label-color(#ffffff)를 «안» 베꼈다 — 그건 「어두운 알약 위 흰 글자」
+     전제고, line.bg 없는 그리드 label 줄은 «흰 종이 위 흰 글자»가 된다. */
+  assert.notEqual(GRID_ROLES.label.color, '#ffffff',
+    '★label 에 #ffffff 를 넣었다 — 뱃지 없는 label 줄이 흰 종이 위 «흰 글자»가 된다');
+});
+
+test('U2-b-뱃지 ★뱃지 분기는 여전히 «바이트 동일» (§7-ⓐ 가 알약 위로 안 샌다)', () => {
+  // 뱃지는 어두운 알약이라 밝은 상속색이 «맞는 결과»다. 여기에 #555 를 박으면 지금보다 나빠진다.
+  const html = renderLines([{ type: 'label', bg: '#111', text: 'X' }]);
+  assert.ok(html.includes('<span class="grd-badge"'), `뱃지가 안 그려졌다:\n${html}`);
+  assert.equal(/grd-badge[^>]*color:/.test(html), false,
+    `★뱃지에 색이 박혔다 — 어두운 알약 위에서 지금보다 «나빠진다»:\n${html}`);
+  // 헬퍼 직접 호출 골든도 그대로(중첩·innercard 계약).
+  assert.equal(gridLineHtml({ type: 'label', bg: '#111', text: 'X' }, 'left', 0, null), BADGE_GOLDEN);
+});
+
+/* ══ U2-c — ★innercard 경로는 «안 바뀐다» ══════════════════════════════
+ * ⚠️계획서 §7-ⓐ 를 «무조건» 적용하면 틀린다 — 이 렌더러는 innercard-block.js 가 같이 쓴다.
+ *   innercard 는 카드 배경 휘도를 보고 color:#f2f2f2|#1a1a1a 를 카드에 걸어 «색 미지정 줄이
+ *   상속하게» 해 뒀다(2026-07-04 제니 발주, 「화이트카드 위 화이트」 방지).
+ *   role.color(#555)를 무조건 박으면 «어두운 카드 위 짙은 회색» — 지금보다 나빠진다.
+ *   ⇒ 뱃지를 안 건드리는 것과 «같은 이유». 계획서는 뱃지만 짚었고 innercard 는 못 짚었다.
+ * 되돌리면 빨강: renderGridBlock 의 `_gridLineHtml(l, align, 0, {r,c,li}, true)` 에서
+ *   useRoleColor 를 «기본 true» 로 바꾸면(= 무조건 적용) → innercard 가 빨강. */
+
+test('U2-c ★innercard 호출 형태(2-인자)는 color 를 «안» 찍는다 (상속을 안 끊는다)', () => {
+  const html = gridLineHtml({ type: 'body', text: '카드 본문' }, 'left');
+  assert.equal(/color:/.test(html), false,
+    '★innercard 경로에 역할색이 박혔다 — 어두운 카드가 색 미지정 줄에 걸어 둔 밝은 상속색을 ' +
+    `끊는다(어두운 카드 위 짙은 회색 = 지금보다 나빠진다):\n${html}`);
+});
+
+test('U2-c-짝 ★그리드 경로(useRoleColor)는 «같은 줄»에 색을 찍는다 (잣대가 죽지 않았다)', () => {
+  // 이게 없으면 U2-c 는 「아무 데도 색이 안 들어간다」로도 통과한다.
+  const same = { type: 'body', text: '카드 본문' };
+  assert.equal(/color:/.test(gridLineHtml(same, 'left', 0, null, true)), true,
+    '★그리드 경로에서도 색이 안 찍힌다 — §7-ⓐ 가 아예 안 걸렸고 U2-c 는 자기통과였다');
+});

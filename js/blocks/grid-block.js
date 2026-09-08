@@ -212,7 +212,7 @@ function getGridModel(block) {
 //   ⛔addr 은 «최상위 라인»에만 찍는다 — 중첩 duo/graph 내부(depth≥1)는 addr 없이 그대로 호출해
 //     기존 출력과 byte-identical 을 유지한다(innercard 등 무변화 요구 — addr=null 이면 이 함수
 //     전체가 P0/P1 이전과 동일 문자열을 낸다).
-function _gridLineHtml(line, colAlign, depth = 0, addr = null) {
+function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = false) {
   if (!line || typeof line !== 'object') return '';
   // ★필드 별칭 정규화 (2026-07-04 bench2 근본픽스): planner/generator는 텍스트블록 어휘(content)를
   // 라인에도 쓴다 — text만 읽으면 "그릇만 있고 내용 없음"(오렌지 바에 빈 텍스트, duo 통째 미렌더).
@@ -249,7 +249,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null) {
     const colsHtml = cols.map(c => {
       const w = Number(c.width) || 1;
       const inner = (Array.isArray(c.lines) ? c.lines : [])
-        .map(l => _gridLineHtml(l, c.align || colAlign, depth + 1)).join('');   // ⛔addr 미전달(중첩은 아직 미주소화)
+        .map(l => _gridLineHtml(l, c.align || colAlign, depth + 1, null, useRoleColor)).join('');   // ⛔addr 미전달(중첩은 아직 미주소화)
       // 바깥 duo 와 «같은» 정렬 축을 쓴다 — 컬럼은 stretch, 정렬은 컬럼 안 내용(justify-content).
       return `<div class="grd-nested-col" style="flex:${w};min-width:0;display:flex;flex-direction:column;justify-content:${valign};">${inner}</div>`;
     }).join('');
@@ -299,7 +299,25 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null) {
     ? line.fontFamily.trim() : '';
   const ffCss = fontFamily ? `font-family:${_esc(fontFamily)};` : '';
   const italicCss = line.italic === '1' ? 'font-style:italic;' : '';
+  /* ★§7-ⓐ 역할 기본색 — «그리드 블록 경로에서만» 켠다(useRoleColor).
+   *   ⛔이것이 «기존 저장 그리드 프로젝트 전부»의 글자색을 로드 즉시 바꾼다.
+   *     데이터(data-cols)는 한 글자도 안 건드리고 «렌더 결과»만 바뀐다 ⇒ 되돌리기는
+   *     커밋 revert 뿐이고 ⌘Z 로는 안 된다. 그래서 이 변경만 «따로» 커밋돼 있다.
+   *   ★병명: 값이 «연했던» 게 아니라 «없어서» body{color:var(--ui-text)} = #e0e0e0
+   *     (어두운 에디터 크롬용 색)이 흰 캔버스로 상속됐다 — 대비 1.32:1 로, 빈 줄
+   *     안내문(#ccc, 1.61:1)보다 «더 연했다». 「바뀐다」는 「보이게 된다」와 같은 말이다.
+   *
+   * ⚠️★왜 «기본값 false» 인가 — 계획서 §7-ⓐ 를 그대로(무조건) 적용하면 «틀린다».
+   *   이 함수는 innercard-block.js 가 «같이» 쓴다(gridLineHtml(l, align) 2-인자).
+   *   그런데 innercard 는 카드 배경 휘도를 보고 `color:#f2f2f2 | #1a1a1a` 를 카드에 걸어
+   *   «색 미지정 줄이 상속하게» 해 뒀다(2026-07-04 제니 발주, 「화이트카드 위 화이트」 방지).
+   *   여기서 role.color(#555)를 무조건 박으면 «어두운 카드 위 짙은 회색» — 지금보다 나빠진다.
+   *   ⇒ 뱃지 분기를 건드리지 않는 것과 «같은 이유»(§7-ⓐ 조건2 보강)다. 계획서가 뱃지는
+   *     짚었지만 innercard 는 못 짚었고, tests/unit/grid-p1.test.js 의 골든이 그걸 잡았다.
+   *   경계 둘: ⑴ line.color 를 «명시한» 줄은 안 바뀐다(U2-b) ⑵ innercard 는 안 바뀐다(U2-c).
+   */
   const strikeCss = line.strike === '1' ? 'text-decoration:line-through;' : '';
+  const effColor = color || (useRoleColor ? role.color : '');
   // 뱃지/필: line.bg 지정 시 inline-block 필로 렌더 — 지정 bg가 조용히 탈락해
   // 카드 위 무배경 텍스트(색 반전처럼 보임)로 뭉개지던 케이스 방지 (2026-07-04 제니 발주)
   const bg = (typeof line.bg === 'string' && _GRID_COLOR_RE.test(line.bg.trim())) ? line.bg.trim() : '';
@@ -311,7 +329,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null) {
       `font-size:${size}px;font-weight:${weight};line-height:1.2;letter-spacing:${role.ls};${color ? `color:${color};` : ''}` +
       `padding:${padV}px ${padH}px;border-radius:${rad}px;white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</span></div>`;
   }
-  return `<div${addrAttr} class="grd-line grd-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${lh};letter-spacing:${ls};text-align:${align};${color ? `color:${color};` : ''}${ffCss}${italicCss}${strikeCss}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
+  return `<div${addrAttr} class="grd-line grd-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${lh};letter-spacing:${ls};text-align:${align};${effColor ? `color:${effColor};` : ''}${ffCss}${italicCss}${strikeCss}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
 }
 
 // ★2026-09-04 P1: flex → CSS grid(PLAN §3-A) — 행 축을 넣으려면 열끼리 «경계가 맞아야»
@@ -352,7 +370,7 @@ function renderGridBlock(block) {
       //   ★2026-09-05 P1.5 부터 «실제로 읽는 소비자»가 있다: js/block-drag.js 의 캔버스 인라인 편집이
       //   blur 때 「어느 셀 몇 번째 줄인가」를 DOM 순서 추측 없이 여기서 바로 읽어 patchCell 로 커밋한다.
       cellsHtml.push(`<div class="grd-cell" data-r="${r}" data-c="${c}" style="min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}">
-        ${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li })).join('')}
+        ${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, true)).join('')}
       </div>`);
     }
   }
