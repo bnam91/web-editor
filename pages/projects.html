@@ -407,7 +407,9 @@ body {
 .gal-tab.is-on { color: #eee; }
 .gal-tab:hover { color: #bbb; }
 .gal-tab:focus-visible { outline: 2px solid var(--ui-accent-primary, #2d6fe8); outline-offset: 3px; border-radius: 3px; }
-#gal-trash-count { font-size: 0.6em; color: #888; margin-left: 5px; vertical-align: middle; }
+/* ★아이콘 탭 — h1 을 그대로 상속하면 이모지가 글자보다 과하게 크다.
+     크기만 낮추고 색·hover·is-on 규칙은 .gal-tab 것을 «그대로» 쓴다(새 색 0). */
+.gal-tab-icon { font-size: 0.72em; line-height: 1; vertical-align: baseline; }
 
 /* ── 휴지통 목록 — 카드가 아니라 «행»이다(되살릴 것을 고르는 화면이지 둘러보는 화면이 아니다) ── */
 #trash-list { padding: 4px 0 40px; }
@@ -493,7 +495,9 @@ body {
          새 줄을 만들면 카드가 한 칸 아래로 밀린다. 선택은 «굵기+밝기»로 표시한다(파란 액센트 금지, 기존 규율). -->
     <h1 id="gallery-title">
       <button type="button" class="gal-tab is-on" id="gal-tab-projects" aria-pressed="true">Projects</button>
-      <button type="button" class="gal-tab" id="gal-tab-trash" aria-pressed="false">휴지통<span id="gal-trash-count"></span></button>
+      <button type="button" class="gal-tab gal-tab-icon" id="gal-tab-trash" aria-pressed="false"
+              title="휴지통" aria-label="휴지통">
+        <span aria-hidden="true">🗑️</span></button>
     </h1>
     <div class="header-actions">
       <!-- ★보기 전환 — 진짜 radio 그룹(시각적으로만 숨김). 선택값은 다음 실행에도 남는다.
@@ -887,7 +891,11 @@ async function _trashItems() {
   catch (_) { return []; }
 }
 
-/** 탭 옆 개수 배지 — 휴지통에 뭔가 있다는 걸 «프로젝트 탭에서도» 알아야 찾아간다. */
+/** 탭 옆 개수 배지.
+ *  ⚠️2026-09-08 현빈 지시(「휴지통에 숫자는 안 알려줘도 돼」)로 «배지를 걷어냈다» —
+ *    #gal-trash-count 가 DOM 에 없으므로 이 함수는 지금 «아무 일도 안 한다»(아래 guard 에서 빠진다).
+ *    ⛔지우지 않고 남긴 이유: 호출부 3곳이 살아 있고, 배지를 되살릴 때 여기만 되돌리면 된다.
+ *    되살리려면 탭 버튼 안에 <span id="gal-trash-count"></span> 를 다시 넣으면 그만이다. */
 async function refreshTrashCount() {
   const el = document.getElementById('gal-trash-count');
   if (!el) return;
