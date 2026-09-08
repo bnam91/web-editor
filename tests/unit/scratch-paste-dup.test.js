@@ -37,7 +37,29 @@
  *   ★js/editor.js 의 pasteClipboard «한 자리»만 지킨다. rewireClonedSection 은 「임의의 분리 상태
  *   섹션을 받는 공개 API」로 만들어 뒀으므로(계획서 §7-A), 나중에 형제 경로에 붙이게 된다:
  *     js/section-variation.js:57 createVariation · :102 addVariation · js/branch-system.js:274
- *   ⛔그쪽을 지키는 검사는 «0개»다. 그리고 이번에 실물로 확인된 실수 셋이 거기서 «그대로» 가능하다:
+ *   ⛔그쪽을 지키는 검사는 «0개»다.
+ *   ★[2026-09-09 갱신] section-variation 둘은 «배선했다» — T-U2-1~4(문장) + T-DOM-12~14(불변식).
+ *     ★그 A/B 기능은 이 고침 «뒤에» 같은 날 들어왔고, 고쳐 놓은 병을 새 문으로 그대로 들여왔다.
+ *       (T-DOM-12 가 그 회귀를 실측으로 재현한다: sec_a→sp_a · sec_b→sp_a · maxPerImage 2)
+ *     ⇒ 이 문단이 예고한 일이 «실제로» 났다. 아래 둘도 같은 값이 있다고 읽어라:
+ *
+ * ★★백로그 BL-SPL-04 — 「A/B 사본의 스크래치 undo」 (2026-09-09 · ⛔이번에 «안» 고쳤다)
+ *   A/B 로 생긴 스크래치 사본은 undo 해도 «안 지워진다» — 패널에 주인 없는 한 장이 남는다.
+ *   (데이터 손실 아님 · 사용자가 지울 수 있음 · 머지 차단 사유 아님)
+ *   ★막힌 자리: sideEffects 는 undo 의 «떠나는 스냅»에서 읽히는데(history.js), A/B 는 머리에서
+ *     push 하므로 떠나는 스냅이 «자동 체크포인트»가 된다. 그리고 ensureHistoryCheckpoint 는
+ *     sideEffects 를 아예 안 싣는다 ⇒ 어디에 실어도 안 탄다.
+ *   ⛔「그럼 꼬리로 옮기면 되지」 — ★해 봤고 «실앱에서 깨졌다». 회귀 1947 전부 초록인 채
+ *     undo 가 섹션을 둘 다 지웠다(섹션 1 → A/B → 2 → undo → ★0). T-U2-2 가 그 자리를 잠근다.
+ *   ⇒ 처방 후보 = ensureHistoryCheckpoint 가 «대기 중인 sideEffects»를 실을 수 있게 하기.
+ *     undo/redo 전체를 건드리므로 별건 게이트.
+ *   ⛔아직 «안 잰» 문 둘 (정직하게 — 「검사가 있으니 됐다」로 읽지 마라):
+ *     · js/branch-system.js:274·276 — `toSec.replaceWith(fromSec.cloneNode(true))`.
+ *       브랜치 전환은 «옮기기»에 가까워 처분이 다를 수 있다(복제가 정답이 아닐 수 있다) ⇒ 판단이 먼저다.
+ *     · js/panels/template-system.js — 저장(:710)이 refLinks 를 «안 벗긴다»
+ *       (js/io/section-serialize.js 에 refLinks 처리 0건 · 벗기는 곳은 export-html.js 하나뿐).
+ *       ⇒ 링크된 섹션을 템플릿으로 저장하면 토큰이 박히고, 다른 프로젝트에 꽂으면 死참조가 된다.
+ *         ⚠️「사고를 봤다」가 아니라 「코드를 읽었다」다 — 재현은 «안 했다». 그리고 이번에 실물로 확인된 실수 셋이 거기서 «그대로» 가능하다:
  *     ⑴ 사본을 넘기기(el.cloneNode(true)) ⑵ 비동기로 감싸기(queueMicrotask/setTimeout/rAF)
  *     ⑶ 재렌더 누락 — 셋 다 전수를 «초록으로» 통과했다(sha 4c53b38f637b · 313bcb8e035a · 7ef7066a48b3).
  *   ⇒ 배선하는 사람은 위 세 단언을 «그 호출 자리에도» 복제해라. 안 그러면 여기만 초록인 채
@@ -54,6 +76,7 @@ const { stripComments } = require('./_strip-comments.js');
 
 const ROOT = path.join(__dirname, '..', '..');
 const RAW = {
+  variation: readSrc(ROOT, 'js', 'section-variation.js'),   // ★BL-SPL-03 형제 경로(2026-09-09 배선)
   editor:  readSrc(ROOT, 'js', 'editor.js'),
   link:    readSrc(ROOT, 'js', 'scratchpad-link.js'),
   scratch: readSrc(ROOT, 'js', 'scratch-pad.js'),
@@ -419,3 +442,110 @@ test('T-U1-10 ★「N>1 은 오늘 없다」 — MULTI_SEL 에 .section-block �
   assert.ok(cs.includes("document.querySelector('.section-block.selected')"),
     '★copySelected 가 섹션을 querySelectorAll(복수)로 담기 시작했다 — 위와 같은 이유로 검사를 늘려야 한다');
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   T-U2-* — ★BL-SPL-03 형제 경로: js/section-variation.js (A/B 베리에이션)  [2026-09-09]
+
+   이 파일 머리의 BL-SPL-03 이 「그쪽을 지키는 검사는 «0개»다」라고 적어 둔 자리다.
+   그리고 그 A/B 기능은 «붙여넣기 고침보다 나중»(같은 날)에 들어와서, 고쳐 놓은 병을
+   새 문으로 그대로 들여왔다 — 링크된 섹션에 A/B 를 누르면 사본이 원본과 «같은 scratchId»를
+   쥐어 「이미지당 1섹션」 규약이 깨진다. `data-ref-links` 는 섹션의 data-* 라 cloneNode 가
+   그대로 데려가고, 그 옆의 id 재작성 루프는 «id 속성»만 훑어서 못 본다.
+
+   ⇒ BL-SPL-03 이 지시한 대로 T-U1-1(문장) · 1b(자가 가드) · 2(sideEffects) · 11(재렌더) 넷을
+     «그 호출 자리에도» 복제한다. ⛔인덱스 비교로 되돌리지 마라 — 실측된 변이 A/B(사본 넘기기·
+     비동기 감싸기)가 인덱스만으로는 «둘 다» 통과했다.
+   ★남은 것: js/branch-system.js:274 (아직 0건). 그건 «옮기기»에 가까워 처분이 다를 수 있어
+     이번에 안 건드렸다 — BL-SPL-03 에 그대로 남는다.
+═══════════════════════════════════════════════════════════════════════════ */
+const VAR_CREATE = fnBody(SRC.variation, 'function createVariation(sec)', 'createVariation');
+const VAR_ADD    = fnBody(SRC.variation, 'function addVariation(sec)', 'addVariation');
+const VAR_SITES = [
+  ['createVariation', VAR_CREATE, 'sec.after(clone)', "window.pushHistory('A/B 베리에이션 생성'"],
+  ['addVariation',    VAR_ADD,    'all[all.length - 1].after(clone)', 'window.pushHistory(`${nextLabel}안 추가`'],
+];
+
+test('T-U2-0 ★양성대조 — section-variation.js 를 «실제로» 읽고 있다 (아래 단언이 못 읽어서 도는 게 아니다)', () => {
+  assert.match(SRC.variation, /function createVariation\s*\(/, '★section-variation.js 를 못 읽고 있다');
+  assert.match(SRC.variation, /function addVariation\s*\(/,    '★addVariation 이 사라졌거나 이름이 바뀌었다');
+  assert.ok(VAR_CREATE.includes('cloneNode(true)'), '★createVariation 이 «복제»를 안 한다 — 이 검사의 대상이 아니다');
+  assert.ok(VAR_ADD.includes('cloneNode(true)'),    '★addVariation 이 «복제»를 안 한다');
+  // 주석 거르개가 실제로 돌았나 — 안 돌면 아래 「0건」이 주석에 걸려 거짓 빨강이 난다
+  assert.ok(RAW.variation.includes('⛔아래로 내리지 마라'), '★원문에 그 경고 주석이 있어야 대조가 성립한다');
+  assert.ok(!VAR_CREATE.includes('아래로 내리지 마라'), '★주석 거르개가 안 돌고 있다 — 몸통에 주석이 남았다');
+});
+
+for (const [name, BODY, INSERT, PUSH] of VAR_SITES) {
+  test(`T-U2-1 ★★순서 — ${name} 은 삽입 «전»에 «clone 그대로·동기로» rewire 한다`, () => {
+    assert.ok(BODY.includes('_spl = window.SPLink?.rewireClonedSection?.(clone) || null;'),
+      `★${name} 의 호출 «문장»이 다르다 — 인자가 clone 이 아니거나(clone.cloneNode(true) 등) `
+      + '콜백으로 감쌌으면(queueMicrotask/setTimeout/rAF) 삽입 «전» 판정이 죽는다. '
+      + '그러면 사본은 만들어지는데 새 토큰이 «버려질 객체»에 적혀 고치기 «전»보다 나빠진다 '
+      + '(붙여넣기에서 실측된 변이A/B — T-U1-1 주석 참조).');
+    const iRewire = BODY.indexOf('rewireClonedSection');
+    const iInsert = BODY.indexOf(INSERT);
+    assert.notStrictEqual(iInsert, -1, `★삽입문(${INSERT})을 못 찾았다 — 바뀌었으면 이 검사부터 고쳐라`);
+    assert.ok(iRewire < iInsert,
+      `★rewire 가 삽입(${INSERT}) «뒤»에 있다(${iRewire} > ${iInsert}) — `
+      + '삽입 뒤에 부르면 sectionIdOf 가 «사본 자신»을 찾아 복제를 건너뛴다.');
+  });
+
+  /* ★★T-U2-2 는 「sideEffects 를 실었나」가 «아니다» — 실물이 그 반대를 가르쳤다(2026-09-09).
+     붙여넣기처럼 pushHistory 를 꼬리로 옮기고 sideEffects 를 실었더니, 회귀 1947건이 전부
+     초록인 채로 ★실앱에서 undo 가 «섹션을 둘 다» 지웠다(섹션 1 → A/B → 2 → undo → ★0).
+     꼬리에서 밀면 tip 의 canvas 가 그 항목과 «같아» ensureHistoryCheckpoint 가 아무것도 안 쌓고,
+     undo 가 「그 앞 항목」(= 섹션이 생기기 «전»)으로 한 번에 건너뛴다.
+     ⇒ 머리 push 는 앞 항목이 없어도 스스로 성립한다. A/B 는 «머리»가 맞다.
+     ⛔그러니 이 검사는 「머리에 있는가」를 지킨다 — 다음 사람이 「붙여넣기랑 다르네」 하고
+       꼬리로 옮기는 것을 막는 것이 목적이다. 그게 이번에 실측으로 깨진 그 수다.
+     ⇒ 스크래치 사본의 undo 는 «안 배선했다»(BL-SPL-04). 검사가 그 사실을 «적어» 둔다. */
+  test(`T-U2-2 ★undo — ${name} 의 pushHistory 는 «머리»에 있고 삽입보다 앞선다`, () => {
+    const iPush = BODY.indexOf('window.pushHistory(');
+    const iInsert = BODY.indexOf(INSERT);
+    assert.notStrictEqual(iPush, -1, `★${name} 이 pushHistory 를 «아예» 안 민다 — undo 가 안 된다`);
+    assert.ok(iPush < iInsert,
+      `★pushHistory 가 삽입 «뒤»로 갔다(${iPush} > ${iInsert}) — 실측: 그러면 undo 가 이 동작뿐 아니라 `
+      + '«그 앞 동작까지» 되돌린다(섹션 1 → A/B → 2 → undo → 0). 이 파일 위 주석의 실측을 보라. '
+      + '⛔붙여넣기(꼬리)를 그대로 베끼지 마라 — 붙여넣기는 앞 항목이 «있다»는 전제 위에 서 있다.');
+    assert.equal(BODY.split('window.pushHistory(').length - 1, 1,
+      `★${name} 이 pushHistory 를 «두 번» 민다 — undo 를 두 번 눌러야 돌아간다`);
+    assert.ok(!BODY.includes('_spl?.sideEffects'),
+      `★${name} 이 sideEffects 를 실었다 — 머리 push 에서는 «떠나는 스냅»이 자동 체크포인트라 `
+      + '그 인자가 영영 안 탄다(history.js undo:leavingSnap · ensureHistoryCheckpoint 는 sideEffects 를 '
+      + '아예 안 넣는다). 실으려면 history.js 부터 고쳐야 한다 = 별건 게이트(BL-SPL-04).');
+  });
+
+  test(`T-U2-3 ★C6 재렌더 — ${name} 꼬리에서 __spLinkRerender 를 부른다`, () => {
+    assert.ok(BODY.includes('window.__spLinkRerender?.();'),
+      `★${name} 에 재렌더가 없다 — _installFollow 의 MutationObserver 는 #canvas-scaler 를 `
+      + 'childList «만»(subtree 아님) 보므로 #canvas 안에 섹션이 들어와도 안 터진다. '
+      + '그러면 A/B 직후 사본의 연결선이 안 그려진다.');
+    assert.ok(BODY.indexOf('window.__spLinkRerender?.();') > BODY.indexOf(INSERT),
+      '★재렌더가 삽입 «앞»으로 갔다 — 그때는 사본이 아직 DOM 에 없다');
+  });
+
+  test(`T-U2-4 ⛔자가 가드 금지 — ${name} 이 SPLink 의 판정을 «베끼지» 않았다`, () => {
+    for (const bad of ['sectionIdOf', '_parse(', 'refLinks', 'dataset.refLinks']) {
+      assert.ok(!BODY.includes(bad),
+        `★${name} 이 링크 판정(${bad})을 손으로 베꼈다 — 판정은 SPLink «한 곳»이어야 한다. `
+        + '두 벌이 되면 따로 늙고, 그때 어느 쪽이 맞는지 아무도 모른다.');
+    }
+  });
+}
+
+/* ⛔T-U2-5 를 「파일 명부 술어」로 세우려다 «걷어냈다» — 정직하게 적는다.
+   시도: 「섹션을 cloneNode 해서 캔버스에 넣는데 rewireClonedSection 을 안 부르는 파일」을 세려 했다.
+   실측 결과 «양쪽으로» 틀렸다:
+     · 거짓양성 — js/io/save-load.js 는 복제(썸네일·직렬화)와 삽입(기존 섹션 «이동»)이 서로
+       «다른 일»인데 파일 단위로 세니 한 건으로 걸렸다. 명부에 넣으면 그 소음이 진짜를 묻는다.
+     · 거짓음성 — js/branch-system.js:274 는 `toSec.replaceWith(fromSec.cloneNode(true))` 라
+       변수에 안 담아서, 변수 이름을 훑는 판에선 «안» 걸렸다.
+     · 그리고 ★기준점이 안 들어온다 — js/editor.js 의 붙여넣기는 cloneNode 가 «아니라»
+       직렬화 HTML 을 파싱해 만든다. 고쳐 놓은 «정답 사례»가 술어에 안 잡히면
+       그 술어는 「무엇을 재는지」를 스스로 증명하지 못한다.
+   ⇒ 정적 술어로는 이 축을 못 센다. ★불변식은 «반대쪽 끝»에 있다 —
+     「캔버스의 두 섹션이 같은 scratchId 를 쥐지 않는다」. 그건 «어떻게 들어왔든» 상관없고,
+     tests/dom/scratch-paste-link.dom.spec.js 의 maxPerImage 가 이미 그걸 잰다.
+     A/B 경로의 그 단언 = 같은 파일 T-DOM-12/13.
+   ⇒ 남은 문은 BL-SPL-03 에 «글»로 남긴다(js/branch-system.js:274 · js/panels/template-system.js).
+     ⛔「검사가 있으니 됐다」로 읽지 마라 — 저 둘은 «안 쟀다». */
