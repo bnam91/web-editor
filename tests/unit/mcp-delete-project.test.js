@@ -220,9 +220,20 @@ test('D10 ★휴지통엔 «알아볼 수 있는 이름» — 단 ⛔`.gdt` 는 
   const src = readSrc(__dirname, '..', '..', 'main', 'trash.js');
   const code = stripComments(src);
 
-  assert.ok(!/\.gdt/.test(code),
-    `★코드가 아직 .gdt 를 만든다 — 규격의 «이름»을 달고 규격이 «아닌» 것이 제일 나쁘다:\n${
-      code.split('\n').filter(l => /\.gdt/.test(l)).join('\n')}`);
+  /* ★★2026-09-08 «전제가 바뀌었다» — 현빈 지시로 만료분을 «진짜» .gdt 로 포장하게 됐다.
+       옛 규칙은 「.gdt 를 쓰지 마라」였는데, 그건 «확장자만 .gdt 인 폴더»를 만들던 시절의 것이다.
+       ★지켜야 할 것은 「.gdt 를 안 쓴다」가 아니라 ⇒ 「.gdt 라는 이름을 달았으면 «진짜여야 한다»」다.
+         (규격의 이름을 달고 규격이 아닌 것이 제일 나쁘다 — 그 원칙은 그대로다.)
+     ⇒ 이제 잰다: ⑴포장기를 «주입»받아 쓰는가(직접 zip 을 흉내내지 않는가)
+                  ⑵포장 «성공을 확인한 뒤에만» 원본을 치우는가 */
+  const gdtLines = code.split('\n').filter(l => /\.gdt/.test(l));
+  if (gdtLines.length) {
+    assert.match(code, /packageGdt/,
+      '★.gdt 를 «직접» 만들고 있다 — 포장은 검증까지 하는 main/gdt/export 에 맡겨야 한다');
+    assert.match(code, /!fs\.existsSync\(out\)/,
+      '★「만들었다」를 «파일이 있나»로 확인하지 않는다 — 거짓 성공에 원본을 잃는다');
+    assert.match(code, /package_failed/, '★포장 실패를 «말하지» 않는다');
+  }
   // 알아볼 수 있어야 한다 — 이름을 «갤러리와 같은 출처»에서 가져온다
   assert.match(code, /proj_meta\.json/, '★갤러리가 쓰는 이름(proj_meta)을 안 본다 — 휴지통에 옛 이름이 뜬다');
   assert.match(code, /name:\s*projName/, '★이름을 안 남긴다 — 휴지통에서 못 알아본다');
