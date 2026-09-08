@@ -1,5 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { alignBtn } from './_helpers.js';
 
 export function applyAssetPadX(ab, padX) {
   const canvasW = 860;
@@ -107,15 +108,9 @@ export function showAssetProperties(ab) {
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="asset-align-group">
-          <button class="prop-align-btn${currentAlign==='left'?' active':''}"   data-align="left"   title="왼쪽 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="2" x2="1" y2="12"/><rect x="3" y="4" width="5" height="6" rx="1"/></svg>
-          </button>
-          <button class="prop-align-btn${currentAlign==='center'?' active':''}" data-align="center" title="가운데 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="7" y1="2" x2="7" y2="12"/><rect x="3" y="4" width="8" height="6" rx="1"/></svg>
-          </button>
-          <button class="prop-align-btn${currentAlign==='right'?' active':''}"  data-align="right"  title="오른쪽 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="13" y1="2" x2="13" y2="12"/><rect x="6" y="4" width="5" height="6" rx="1"/></svg>
-          </button>
+          ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}
+          ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: currentAlign==='center', attrs: { 'data-align': 'center' } })}
+          ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: currentAlign==='right', attrs: { 'data-align': 'right' } })}
         </div>
       </div>
       <div class="prop-row">
@@ -172,15 +167,9 @@ export function showAssetProperties(ab) {
         <div class="prop-row">
           <span class="prop-label">위치</span>
           <div class="prop-align-group" id="overlay-position-group">
-            <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='flex-start'?' active':''}" data-pos="flex-start" title="상단 정렬">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="1" x2="12" y2="1"/><rect x="4" y="3" width="6" height="5" rx="1"/></svg>
-            </button>
-            <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='center'?' active':''}" data-pos="center" title="중앙 정렬">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="7" x2="12" y2="7"/><rect x="4" y="3" width="6" height="8" rx="1"/></svg>
-            </button>
-            <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='flex-end'?' active':''}" data-pos="flex-end" title="하단 정렬">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="13" x2="12" y2="13"/><rect x="4" y="6" width="6" height="5" rx="1"/></svg>
-            </button>
+            ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', active: (overlayEl.style.justifyContent||'center')==='flex-start', attrs: { 'data-pos': 'flex-start' } })}
+            ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: (overlayEl.style.justifyContent||'center')==='center', attrs: { 'data-pos': 'center' } })}
+            ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: (overlayEl.style.justifyContent||'center')==='flex-end', attrs: { 'data-pos': 'flex-end' } })}
           </div>
         </div>
         <div class="prop-hint" style="margin-top:2px;">이 블록 선택 후 중앙 패널로 블록 추가</div>
