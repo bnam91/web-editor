@@ -1,10 +1,11 @@
-import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
+import { canvasEl, state, PAGE_LABELS } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기만 쓴다(직접 대입 재유입 방지) */
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제는 «켠 쪽»이 닫는다
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 import { applyFrameTransform } from '../frame-geometry.js';
+import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
 /* ══════════════════════════════════════
@@ -472,7 +473,13 @@ function applyProjectData(data) {
    *   ⛔바꾸려면 부르는 쪽 셋에 명시적 scheduleAutoSave() 를 같이 넣어야 한다(history.js:223 본보기). */
   // DBG-SEC-LOSS: innerHTML 적용으로 인한 MutationObserver → autoSave 트리거를 봉쇄
   // 적용 도중 사용자 reload/탭전환이 끼어들어 부분 상태가 파일에 저장되는 race 방지
-  state._suppressAutoSave = true;
+  /* ★정본으로 «연다» — 토큰을 받아야 위 finally 에서 깊이 세기가 맞는다.
+     ⛔정본이 없으면(로드 실패) 옛 방식으로 켜되, 아래 finally 가 그 경우도 받는다. */
+  const _AS_open = (typeof window !== 'undefined') ? window.AutoSaveSuppress : null;
+  const _suppressTok = (_AS_open && typeof _AS_open.begin === 'function')
+    ? _AS_open.begin('applyProjectData')
+    : null;
+  if (!_suppressTok) state._suppressAutoSave = true;
   try {
     if (data.version === 2 && Array.isArray(data.pages)) {
       // S8: pages 빈 배열 방어 — 최소 1페이지 보장
@@ -570,8 +577,40 @@ function applyProjectData(data) {
        한가할 때 세고(requestIdleCallback) 읽기만 하므로 이 저장 억제 구간과 부딪치지 않는다. */
     window.gdtFontCheckDocument?.();
   } finally {
-    // MutationObserver는 microtask 후 발화 — rAF로 한 프레임 뒤 해제해 잔여 mutation까지 흡수
-    requestAnimationFrame(() => { state._suppressAutoSave = false; });
+    /* MutationObserver는 microtask 후 발화 — rAF로 한 프레임 뒤 해제해 잔여 mutation까지 흡수.
+       ⛔★2026-09-08 실측 사고: rAF «하나»에만 매달려 있었다.
+         브라우저는 창이 «가려지면»(visibilityState:'hidden') rAF 를 아예 안 돌린다 —
+         실측: hidden 창에서 3초를 기다려도 «한 번도» 안 돌았고, 억제가 그대로 걸려 있었다.
+         ⇒ ⑴자동저장이 «영영» 안 돈다 = 그 창의 편집이 저장되지 않는다(고착이 곧 데이터 손실)
+           ⑵open_project 가 「아직 안 열렸다」로 상한 120초를 꽉 채운다(실측 58~92초 관측의 정체)
+       ★이 파일은 이미 같은 병을 앓고 그 처방을 적어 뒀다 —
+         `_AUTOSAVE_DEFER_MAX_MS`(:1350) 옆 주석: 「고착이 곧 데이터 손실이다 … 재개 경로를 «셋» 둔다」.
+         그런데 이쪽 경로엔 그 안전망이 «없었다». 같은 처방을 여기에도 둔다.
+       ⇒ rAF 의 «뜻»(한 프레임 뒤 = 잔여 mutation 흡수)은 그대로 두고,
+         rAF 가 «안 도는 경우»에만 타이머가 받는다. 둘 중 먼저 오는 쪽이 푼다(한 번만). */
+    /* ★★«새 기계를 만들지 않는다» — 이 문제를 위해 만들어진 정본이 이미 있다:
+         js/autosave-suppress.js 의 AutoSaveSuppress.endNextFrame().
+       그 파일이 갖고 있는 것: ⑴토큰 빗장(tok.released — 한 번만 닫힌다)
+         ⑵깊이 세기(겹친 억제 창에서 «뒤엣것이 앞엣것을 풀지» 못한다)
+         ⑶고착 감시견 ⑷rAF+타이머 «둘 다» 걸기(2026-09-09 내가 그 파일에서 고친 자리)
+       ⛔내가 여기에 «빗장+타이머»를 손으로 또 지으면 그게 두 벌이 된다 —
+         그리고 겹친 로드에서 「뒤엣것이 앞엣것을 푸는」 구멍은 «내 빗장으로는 못 막는다»
+         (빗장은 호출마다 새로 생기는데 억제 플래그는 하나라서다. 지디가 그 구멍을 확인했다).
+       ⇒ 정본을 «쓴다». 없으면(고전 스크립트 로드 실패 등) 옛 동작으로 떨어지되 안전망은 유지한다. */
+    const AS = (typeof window !== 'undefined') ? window.AutoSaveSuppress : null;
+    if (AS && typeof AS.endNextFrame === 'function' && _suppressTok) {
+      AS.endNextFrame(_suppressTok);
+    } else {
+      let _released = false;
+      const _release = () => {
+        if (_released) return;
+        _released = true;
+        state._suppressAutoSave = false;
+      };
+      requestAnimationFrame(_release);
+      /* ⛔rAF «없을 때» 폴백이 아니라 «안 돌 때» 안전망이다 — 가려진 창에선 rAF 가 있어도 안 돈다. */
+      setTimeout(_release, 250);
+    }
   }
 }
 
@@ -620,7 +659,7 @@ function _bgRgba(ps) {
 }
 
 function applyPageSettings() {
-  canvasWrap.style.background = _bgRgba(state.pageSettings);
+  applyCanvasBackground(_bgRgba(state.pageSettings));
   canvasEl.style.gap = state.pageSettings.gap + 'px';
   canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
   // padX: 섹션 물리적 padding 방식으로 적용 (섹션 개별 override 제외)
@@ -1610,7 +1649,7 @@ function initApp() {
     const revertBtn = document.getElementById('revert-btn');
     if (revertBtn) revertBtn.classList.add('has-commit');
   }
-  canvasWrap.style.background = _bgRgba(state.pageSettings);
+  applyCanvasBackground(_bgRgba(state.pageSettings));
   canvasEl.style.gap = state.pageSettings.gap + 'px';
   canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
   // padX: 섹션 물리적 padding 방식으로 적용

@@ -48,7 +48,8 @@ function bindVariationToolbarBtn(sec) {
 
 function createVariation(sec) {
   if (sec.dataset.variationGroup) return;
-  window.pushHistory('A/B 베리에이션 생성');
+  window.pushHistory('A/B 베리에이션 생성');   // ★머리에서 «변경 전»을 민다 — 아래 GAP 주석 참조
+  let _spl = null;
   const groupId = 'vg_' + Math.random().toString(36).slice(2, 8);
   sec.dataset.variationGroup = groupId;
   sec.dataset.variation = 'A';
@@ -65,6 +66,15 @@ function createVariation(sec) {
   });
   clone.dataset.variation = 'B';
   clone.dataset.variationActive = '0';
+/* [#16-DUP / BL-SPL-03] 링크된 섹션의 사본에는 «스크래치 사본»을 딸려 보낸다.
+   안 그러면 한 이미지를 두 섹션이 쥐어 링크체인이 2개가 된다(SPLink 의 「이미지당 1섹션」 규약 위반).
+   ★★반드시 여기 — clone 이 아직 «분리 상태»일 때. DOM 에 «넣은 뒤» 부르면 SPLink.sectionIdOf 가
+     «사본 자신»을 찾아 복제를 건너뛴다. ⛔아래로 내리지 마라.
+   ⛔인자는 clone «그대로» — clone.cloneNode(true) 를 넘기면 새 토큰이 «버려질 객체»에 적혀
+     고치기 «전»보다 나빠진다(붙여넣기에서 실측된 변이A).
+   ⛔비동기로 감싸지 마라(queueMicrotask/setTimeout/rAF) — 텍스트 순서는 그대로인데 실행만
+     삽입 뒤로 밀린다(실측된 변이B). 지키는 검사: tests/unit/scratch-paste-dup.test.js T-U2-*. */
+  _spl = window.SPLink?.rewireClonedSection?.(clone) || null;
   sec.after(clone);
   clone.addEventListener('click', e => { e.stopPropagation(); window.selectSectionWithModifier(clone, e); });
   window.bindSectionDelete(clone);
@@ -74,6 +84,24 @@ function createVariation(sec) {
   clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
   bindVariationToolbarBtn(clone);
   if (window.buildLayerPanel) window.buildLayerPanel();
+  /* ⛔[#16-DUP] 스크래치 사본의 undo 는 «안 배선했다» — 배선하려다 실물에서 깨뜨렸다(2026-09-09 실측).
+     시도: 붙여넣기처럼 pushHistory 를 «꼬리»로 옮기고 _spl.sideEffects 를 실었다.
+       근거는 맞았다 — sideEffects 는 «떠나는 스냅»에서 읽히므로(history.js undo:leavingSnap)
+       머리에서 밀면 그 항목은 «변경 전» 상태라 onUndo 가 영영 안 탄다.
+     ★그런데 실물에서 undo 가 «섹션을 둘 다» 지웠다(실측: 섹션 1 → A/B → 2 → undo → ★0).
+       꼬리에서 밀면 tip 의 canvas 가 그 항목과 «같아» ensureHistoryCheckpoint 가 아무것도 안 쌓고,
+       undo 가 「그 앞 항목」(= 섹션이 생기기도 «전»)으로 한 번에 건너뛴다.
+       ⇒ 머리 push 는 앞 항목이 없어도 스스로 성립한다. 그게 더 튼튼하다.
+     ⚠️회귀 1947건이 «전부 초록»인 채로 이 일이 났다 — 검사는 「문장이 어디 있나」만 봤다.
+   ⇒ 그래서 머리 push 를 «되돌렸다». 남는 값: A/B 를 undo 하면 스크래치 사본 한 장이
+     주인 없이 패널에 남는다(데이터 손실 아님 · 사용자가 지울 수 있음).
+   ⇒ 제대로 고치려면 ensureHistoryCheckpoint 가 «대기 중인 sideEffects»를 실을 수 있어야 한다
+     (지금은 sideEffects 를 아예 안 넣는다 — js/history.js). 그건 undo/redo 전체를 건드리므로
+     별건 게이트다. 티켓 = tests/unit/scratch-paste-dup.test.js 의 BL-SPL-04.
+   ⛔여기서 pushHistory 를 꼬리로 다시 옮기지 마라 — 위 실측이 그 답이다. */
+  /* [#16-DUP] _installFollow 의 MutationObserver 는 #canvas-scaler 를 childList «만»(subtree 아님)
+     보므로 #canvas 안에 섹션이 들어와도 안 터진다 ⇒ 사본을 넣은 뒤 한 번 직접 다시 그린다. */
+  window.__spLinkRerender?.();
 }
 
 function toggleVariation(sec) {
@@ -96,7 +124,8 @@ function addVariation(sec) {
   if (!groupId) return;
   const all = [...document.querySelectorAll(`.section-block[data-variation-group="${groupId}"]`)];
   if (all.length >= VARIATION_LABELS.length) return;
-  window.pushHistory(`${VARIATION_LABELS[all.length]}안 추가`);
+  window.pushHistory(`${VARIATION_LABELS[all.length]}안 추가`);   // ★머리 — 아래 GAP 주석 참조
+  let _spl = null;
   const nextLabel = VARIATION_LABELS[all.length];
   const active = all.find(s => s.dataset.variationActive === '1') || all[0];
   const clone = active.cloneNode(true);
@@ -110,6 +139,15 @@ function addVariation(sec) {
   });
   clone.dataset.variation = nextLabel;
   clone.dataset.variationActive = '0';
+/* [#16-DUP / BL-SPL-03] 링크된 섹션의 사본에는 «스크래치 사본»을 딸려 보낸다.
+   안 그러면 한 이미지를 두 섹션이 쥐어 링크체인이 2개가 된다(SPLink 의 「이미지당 1섹션」 규약 위반).
+   ★★반드시 여기 — clone 이 아직 «분리 상태»일 때. DOM 에 «넣은 뒤» 부르면 SPLink.sectionIdOf 가
+     «사본 자신»을 찾아 복제를 건너뛴다. ⛔아래로 내리지 마라.
+   ⛔인자는 clone «그대로» — clone.cloneNode(true) 를 넘기면 새 토큰이 «버려질 객체»에 적혀
+     고치기 «전»보다 나빠진다(붙여넣기에서 실측된 변이A).
+   ⛔비동기로 감싸지 마라(queueMicrotask/setTimeout/rAF) — 텍스트 순서는 그대로인데 실행만
+     삽입 뒤로 밀린다(실측된 변이B). 지키는 검사: tests/unit/scratch-paste-dup.test.js T-U2-*. */
+  _spl = window.SPLink?.rewireClonedSection?.(clone) || null;
   all[all.length - 1].after(clone);
   clone.addEventListener('click', e => { e.stopPropagation(); window.selectSectionWithModifier(clone, e); });
   window.bindSectionDelete(clone);
@@ -120,6 +158,24 @@ function addVariation(sec) {
   bindVariationToolbarBtn(clone);
   all.forEach(s => bindVariationToolbarBtn(s));
   if (window.buildLayerPanel) window.buildLayerPanel();
+  /* ⛔[#16-DUP] 스크래치 사본의 undo 는 «안 배선했다» — 배선하려다 실물에서 깨뜨렸다(2026-09-09 실측).
+     시도: 붙여넣기처럼 pushHistory 를 «꼬리»로 옮기고 _spl.sideEffects 를 실었다.
+       근거는 맞았다 — sideEffects 는 «떠나는 스냅»에서 읽히므로(history.js undo:leavingSnap)
+       머리에서 밀면 그 항목은 «변경 전» 상태라 onUndo 가 영영 안 탄다.
+     ★그런데 실물에서 undo 가 «섹션을 둘 다» 지웠다(실측: 섹션 1 → A/B → 2 → undo → ★0).
+       꼬리에서 밀면 tip 의 canvas 가 그 항목과 «같아» ensureHistoryCheckpoint 가 아무것도 안 쌓고,
+       undo 가 「그 앞 항목」(= 섹션이 생기기도 «전»)으로 한 번에 건너뛴다.
+       ⇒ 머리 push 는 앞 항목이 없어도 스스로 성립한다. 그게 더 튼튼하다.
+     ⚠️회귀 1947건이 «전부 초록»인 채로 이 일이 났다 — 검사는 「문장이 어디 있나」만 봤다.
+   ⇒ 그래서 머리 push 를 «되돌렸다». 남는 값: A/B 를 undo 하면 스크래치 사본 한 장이
+     주인 없이 패널에 남는다(데이터 손실 아님 · 사용자가 지울 수 있음).
+   ⇒ 제대로 고치려면 ensureHistoryCheckpoint 가 «대기 중인 sideEffects»를 실을 수 있어야 한다
+     (지금은 sideEffects 를 아예 안 넣는다 — js/history.js). 그건 undo/redo 전체를 건드리므로
+     별건 게이트다. 티켓 = tests/unit/scratch-paste-dup.test.js 의 BL-SPL-04.
+   ⛔여기서 pushHistory 를 꼬리로 다시 옮기지 마라 — 위 실측이 그 답이다. */
+  /* [#16-DUP] _installFollow 의 MutationObserver 는 #canvas-scaler 를 childList «만»(subtree 아님)
+     보므로 #canvas 안에 섹션이 들어와도 안 터진다 ⇒ 사본을 넣은 뒤 한 번 직접 다시 그린다. */
+  window.__spLinkRerender?.();
 }
 
 function resolveVariation(sec) {

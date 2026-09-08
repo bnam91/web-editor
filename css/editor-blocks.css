@@ -1082,6 +1082,21 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   cursor: text;
 }
 
+/* ── 줄(line) 선택 표시 — 「지금 우측 패널이 보고 있는 줄」 ──────────────
+   ★그리드엔 이미 선택 표시가 셋이다: 블록=실선(:1034) · 칸=점선(--sel-color-hover) ·
+     줄 편집중=실선+틴트(위 규칙). 넷째를 «겹치지 않게» 넣어야 한다 ⇒ 왼쪽 세로 강조바.
+   ★⛔outline 을 쓰지 않는다 — [M51] 이 정확히 그 자리에서 물렸다(「튀어나가잖아」).
+     .grd-inner padding 0 · 첫 칸 left == 블록 left 라 바깥 offset 은 블록 밖으로 나간다.
+     inset box-shadow 는 요소 «안»만 칠하므로 그 함정이 원리적으로 없다.
+   ★--inv-zoom 을 곱해 «줌 불변» — [M56] 교훈(생짜 1px 은 10%에서 0.1px, 400%에서 4px).
+   ★#canvas 스코프 = export 클론엔 안 샌다. 그래도 클래스는 6자리에서 «따로» 벗긴다
+     (스코프는 그림만 막고, 클래스 글자는 저장본·HTML 에 남기 때문).
+   ⛔.selected 를 재활용하지 않았다 — editor.js 의 querySelectorAll('.selected') 범용 조회가
+     그걸 보고 _sectionOnlySelection() 이 항상 false 가 된다(⌘M 섹션 합치기가 조용히 죽는다). */
+#canvas .grid-block .grd-line-selected {
+  box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
+}
+
 /* ── [M52] 칼럼 경계 가이드 ──────────────────────────────────────────
    현빈 2026-09-05: 「칼럼과 칼럼 사이에 갭이 있는지? 있다면 시각적으로 볼 수 있게.
    칼럼간의 경계가 잘 안 보여서 영역이 어떻게 되는지 모르겠네」

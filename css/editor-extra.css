@@ -1816,7 +1816,17 @@ body.preview-mode #preview-navigator { display: flex; }
      ⇒ 이 한 줄이면 끝난다 — JS 좌표는 이미 맞다. 실측(zoom100/좌측): 파란픽셀 0 → 220.
      ⚠️새 스크롤바는 안 생긴다 — #canvas-wrap 의 overflow:auto 가 바깥으로 새는 것을 막는다. */
 .spl-edges { position: absolute; top: 0; left: 0; z-index: 90; pointer-events: none; overflow: visible; }
-.spl-edges line { stroke: var(--ui-accent, #4f6bed); stroke-width: 2; stroke-dasharray: 5 5; opacity: .55; }
+/* ★연결선 색은 «캔버스 배경 대비»로 고른다 — js/canvas-contrast.js 가 --spl-edge-color 를 싣는다.
+   폴백을 중첩해 둔 것은 «변수를 못 실은 경우 오늘과 같은 색으로» 떨어지게 하려는 것이다(무변경 = 안전한 실패).
+   opacity: .55 로는 3:1 을 못 넘는다 — 24비트 전수 최악 2.435(#ca0000).
+   .70 에서 최악 3.126(#d40000). ★이 값은 js/canvas-contrast.js 의 EDGE_ALPHA 와
+   같아야 한다(검사 B6 이 대조한다).
+   ⛔정확한 금지선은 «규칙 안에 } 를 들이지 마라»다(2026-09-09 실측 정정).
+      scratch-link-toggle.test.js:159 의 정규식이 /\.spl-edges line\s*\{[^}]*stroke-dasharray/ 라
+      중괄호 «안»에 } 가 끼면 남의 검사가 깨진다. 실측: } 를 «포함한» 주석 → 양쪽 RED,
+      } 없는 주석 → GREEN. ⇒ 「규칙 안에 주석 금지」는 실제보다 넓은 금지선이었다.
+      (넓은 금지선은 다음 사람이 이유를 모른 채 어기거나, 필요 없는 제약에 묶인다.) */
+.spl-edges line { stroke: var(--spl-edge-color, var(--ui-accent, #4f6bed)); stroke-width: 2; stroke-dasharray: 5 5; opacity: .70; }
 .spl-sidecar { position: absolute; top: 0; left: 0; z-index: 7; pointer-events: none; }
 .spl-note-group {
   position: absolute; width: 220px; display: flex; flex-direction: column; gap: 9px;
@@ -1898,4 +1908,5 @@ body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed);
 }
 
 /* 연결선 출발점 dot */
-.spl-edges .spl-edge-dot { fill: var(--ui-accent, #4f6bed); }
+/* 점은 «선과 같은 변수»를 읽는다(검사 B3). ⛔알파를 붙이지 않는다 — α=1 유지가 §5 의 min(선,점) 전제다. */
+.spl-edges .spl-edge-dot { fill: var(--spl-edge-color, var(--ui-accent, #4f6bed)); }

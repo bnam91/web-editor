@@ -38,6 +38,7 @@ const FIXDIR = path.join(ROOT, 'tests/fixtures');
 const SRC = {
   template: stripComments(readSrc(ROOT, 'js/props/prop-text-template.js')),
   modal:    stripComments(readSrc(ROOT, 'js/props/prop-modal.js')),
+  grid:     stripComments(readSrc(ROOT, 'js/props/prop-grid.js')),
   typo:     stripComments(readSrc(ROOT, 'js/props/_typo-section.js')),
   fontWire: stripComments(readSrc(ROOT, 'js/props/prop-text-wireup-font.js')),
   picker:   stripComments(readSrc(ROOT, 'js/props/_font-picker.js')),
@@ -123,9 +124,19 @@ function buildSection(name, arg) {
 const IMPORT_TYPO = /import\s*\{[^}]*\bbuildTypographySectionHtml\b[^}]*\}\s*from\s*['"][^'"]*_typo-section\.js['"]/;
 const IMPORT_FILL = /import\s*\{[^}]*\bbuildFillSectionHtml\b[^}]*\}\s*from\s*['"][^'"]*_typo-section\.js['"]/;
 
-test('T2 ★텍스트 패널과 모달 패널이 «둘 다» _typo-section.js 를 import 해서 부른다', () => {
+/* ★U3(2026-09-08) — 그리드 «줄 단위» 타이포 패널이 3번째로 들어왔다.
+   그리드는 「줄 하나」를 다루므로 mix 는 안 쓰지만, 절 마크업은 «같은 한 곳»에서 와야 한다. */
+const PANELS = [
+  ['prop-text-template.js', () => SRC.template],
+  ['prop-modal.js', () => SRC.modal],
+  ['prop-grid.js', () => SRC.grid],
+];
+
+test('T2 ★텍스트·모달·그리드 패널이 «전부» _typo-section.js 를 import 해서 부른다', () => {
   // 되돌리면 빨강: 한쪽을 인라인 마크업으로 되돌리면(이 파일의 존재 이유 그 자체다).
-  for (const [name, src] of [['prop-text-template.js', SRC.template], ['prop-modal.js', SRC.modal]]) {
+  assert.equal(PANELS.length, 3, '패널 명부가 낡았다 — 루프가 한 벌을 안 보고 있다');
+  for (const [name, get] of PANELS) {
+    const src = get();
     assert.match(src, IMPORT_TYPO,
       `${name} 이 buildTypographySectionHtml 을 import 하지 않는다 — 인라인 마크업으로 되돌아갔나. ` +
       `두 패널이 «다른 벌»을 들면 한쪽만 고쳐도 조용히 갈라진다.`);
@@ -142,7 +153,8 @@ test('T2-b ★절의 «알맹이»가 _typo-section.js 밖에 리터럴로 없�
        그래서 «접두사 없는 꼬리»로 잰다. */
   const TAILS = ['-font-trigger"', '-font-dropdown"', '-style-group"', '-lh-number"', '-ls-col"', '-color-chips"'];
   assert.ok(TAILS.length >= 5, '지문이 너무 적다 — 이 검사가 헐거워진다');
-  for (const [name, src] of [['prop-text-template.js', SRC.template], ['prop-modal.js', SRC.modal]]) {
+  for (const [name, get] of PANELS) {
+    const src = get();
     for (const t of TAILS) {
       assert.equal(src.includes(t), false,
         `${name} 에 «${t}» 가 리터럴로 있다 — Typography/Fill 마크업이 호출부로 되돌아왔다. ` +

@@ -70,16 +70,122 @@ const MIN_COLS = 1, MAX_COLS = 4;
 const MIN_ROWS = 1, MAX_ROWS = 4;   // 1행 = 옛 duo 파일과 동일(행 축 신설 이전 기본값).
 
 // 컬럼 스케일 텍스트 롤 기본값 (풀폭 h1 104px는 다단에선 과대 — 컬럼용 축소 기준)
+/* ★role.color — 「역할 기본색」(§7-ⓐ). 새 색을 «하나도» 만들지 않았다: 전부 editor-base.css 의
+ *   --preset-*-color 와 «같은 값»이다(h1 #111 :10 · h2 #1a1a1a :12 · h3 #333 :14 · body #555 :16 ·
+ *   caption #999 :18). 그래야 그리드 줄과 텍스트블록이 같은 말을 한다.
+ * ⚠️label 만 --preset-label-color(#ffffff)를 «안» 베낀다 — 그건 「어두운 알약 위 흰 글자」 전제고,
+ *   line.bg 없는 그리드 label 줄은 «흰 종이 위 흰 글자»가 된다. 뱃지 없는 eyebrow 는 본문 계열로.
+ * ⚠️caption 2.85:1 은 WCAG AA 미달이지만 텍스트블록과 «같은 관례»다 — 여기만 올리면 두 블록의
+ *   캡션이 갈린다. 올리려면 전 블록 동시 = 별건 발주(계획서 §8-8).
+ * ★이 표는 «데이터»다. 렌더러가 이걸 실제로 쓰는 것은 §7-ⓐ 커밋(B) 한 줄이다 — 그 한 줄을
+ *   되돌리면 기존 저장 프로젝트의 렌더가 오늘과 «바이트 동일»로 돌아온다. */
 const _GRID_ROLES = {
-  label:   { size: 16, weight: 600, lh: 1.4, ls: '0.04em' },
-  h1:      { size: 64, weight: 800, lh: 1.1, ls: '-0.02em' },
-  h2:      { size: 40, weight: 700, lh: 1.2, ls: '-0.01em' },
-  h3:      { size: 28, weight: 700, lh: 1.3, ls: '0' },
-  body:    { size: 22, weight: 400, lh: 1.6, ls: '0' },
-  caption: { size: 14, weight: 400, lh: 1.5, ls: '0' },
+  label:   { size: 16, weight: 600, lh: 1.4, ls: '0.04em',  color: '#555555' },
+  h1:      { size: 64, weight: 800, lh: 1.1, ls: '-0.02em', color: '#111111' },
+  h2:      { size: 40, weight: 700, lh: 1.2, ls: '-0.01em', color: '#1a1a1a' },
+  h3:      { size: 28, weight: 700, lh: 1.3, ls: '0',       color: '#333333' },
+  body:    { size: 22, weight: 400, lh: 1.6, ls: '0',       color: '#555555' },
+  caption: { size: 14, weight: 400, lh: 1.5, ls: '0',       color: '#999999' },
 };
 const _GRID_VALIGN = { top: 'flex-start', middle: 'center', bottom: 'flex-end' };
-const _GRID_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+/* ★var(--color-…) 를 «받아야» 한다 — 컬러변수 칩(color-var-chips.js)이 넣는 값이
+   `var(--color-brand, #ff0000)` 형태다. 거부하면 칩이 「눌리는데 안 먹는」 상태가 된다
+   (modal-block.js:166 이 2026-09-08 «정확히 같은 것»에 물려 고친 자국 — 같은 대안절을 쓴다).
+   ⛔여는/닫는 괄호와 허용 글자를 좁게 유지한다 — 세미콜론·중괄호가 새면 선언을 깨고 뒤를 밀어낸다.
+   지키는 검사: tests/unit/grid-color-re.test.mjs (U5). */
+const _GRID_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$|^var\(\s*--[\w-]+\s*(?:,\s*[^;{}()]*)?\)$/;
+/* 폰트 패밀리는 style 속성에 «그대로» 들어간다 — 세미콜론·중괄호가 새면 선언을 깨고
+   그 뒤를 통째로 밀어낸다. modal-block.js 의 _MDL_FONT_RE 와 «같은 글자표»다.
+   ⚠️_esc 는 & < > " 만 막는다 — «;» 와 «:» 는 «안» 막는다. 그래서 그 둘을 여기서 막아야 한다.
+   ★그리고 이 필드는 MCP update_block{patchCell} 로 «검증 없이» 들어온다(스키마가 type:'object').
+   ⇒ 이 정규식이 유일한 문지기다. 지키는 검사: tests/unit/grid-color-re.test.mjs (U10 음성대조).
+   (따옴표는 통과시키되 _esc 가 &quot; 로 바꾼다 — 속성 밖으로 못 나간다.) */
+const _GRID_FONT_RE = /^[\w\s,'"\-().가-힣]+$/;
+/* ═══ patchCell 이 «실제로 그려지는 필드»만 받게 하는 명부 ═══════════════════
+   ★왜 있나 — 2026-09-09. `update_block{patchCell}` 은 `rest` 의 «아무 키나» 받아
+     `applied.patchCell` 에 그대로 되돌려줬다. 렌더러가 안 읽는 이름을 줘도 `ok:true` 다.
+     ⇒ 「우리가 뭘 했나」는 성공인데 「세상이 어떻게 됐나」는 그대로다 — «거짓 성공».
+     그리고 r≥1 에선 `Object.assign` 이라 그 쓰레기가 «파일에 남는다»(r===0 은 조용히 버려진다).
+     둘 다 부르는 쪽엔 안 보인다. 오타 하나가 「됐다는데 화면은 그대로」로 끝난다.
+
+   ⛔이 두 목록을 «손으로» 늘리지 마라. 렌더러가 읽는 것에서 «도출»한 값이다 —
+     `tests/unit/grid-patchcell-reject.test.js` 가 `_gridLineHtml` 과 `renderGridBlock` 을
+     실제로 파싱해 이 목록과 대조한다. 렌더러가 새 필드를 읽기 시작하면 그 검사가 빨개진다.
+     ★대조를 «생성»으로 바꾸지 않는 이유: 생성하면 증인이 둘에서 하나로 준다.
+       상수가 틀리면 설명도 «자신 있게» 같이 틀리고 아무 검사도 안 빨개진다. */
+
+/** `_gridLineHtml` 이 읽는 `line.*` — patchCell{lineIndex} 로 줄 수 있는 필드. */
+const GRID_LINE_FIELDS = new Set([
+  'align', 'barColor', 'bg', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
+  'gap', 'height', 'imgSrc', 'italic', 'items', 'labelColor', 'labelSize',
+  'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV', 'radius', 'strike',
+  'text', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize', 'weight',
+]);
+
+/** `renderGridBlock` 이 셀에서 읽는 것(`cell.lines` + `pick(...)`) — patchCell 로 줄 수 있는 필드.
+ *  ⚠️`width` 는 «열» 속성이라 여기 없다 — 셀로 주면 조용히 버려진다. 거절 메시지가 patchCol 로 보낸다. */
+const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', 'radius']);
+
+/** 오타를 «되돌려» 준다 — 거절이 「틀렸다」로 끝나면 부르는 쪽은 다음에 뭘 할지 모른다. */
+function _gridNearestField(key, allowed) {
+  const k = String(key).toLowerCase();
+  let best = null, bestD = Infinity;
+  for (const a of allowed) {
+    const al = a.toLowerCase();
+    if (al === k) return a;                       // 대소문자만 다르다
+    const d = _gridEditDistance(k, al);
+    if (d < bestD) { bestD = d; best = a; }
+  }
+  return bestD <= Math.max(2, Math.floor(k.length / 3)) ? best : null;
+}
+function _gridEditDistance(a, b) {
+  const m = a.length, n = b.length;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+/** patchCell 의 «내용 키»를 검사한다. 통과면 null, 아니면 «무엇을 하라»까지 적은 거절.
+ *  @param {boolean} isLine  lineIndex 가 주어졌나(=줄 patch 인가)  */
+function _gridRejectUnknownCellFields(rest, isLine) {
+  const allowed = isLine ? GRID_LINE_FIELDS : GRID_CELL_FIELDS;
+  const other   = isLine ? GRID_CELL_FIELDS : GRID_LINE_FIELDS;
+  const bad = Object.keys(rest).filter(k => !allowed.has(k));
+  if (!bad.length) return null;
+
+  const where = isLine ? 'a line (lineIndex given)' : 'a cell (no lineIndex)';
+  const parts = bad.map(k => {
+    if (k === 'width') {
+      return `'${k}' is a COLUMN field, not a cell field — use update_block{patchCol:{c,width}} instead`;
+    }
+    if (other.has(k)) {
+      return isLine
+        ? `'${k}' is a CELL field, not a line field — drop lineIndex to patch the cell, e.g. patchCell:{r,c,${k}:…}`
+        : `'${k}' is a LINE field, not a cell field — add lineIndex to patch one line ` +
+          `(patchCell:{r,c,lineIndex:0,${k}:…}), or pass it inside lines:[{${k}:…}]`;
+    }
+    const near = _gridNearestField(k, allowed);
+    return near
+      ? `'${k}' is not read by the renderer — did you mean '${near}'?`
+      : `'${k}' is not read by the renderer`;
+  });
+
+  return {
+    ok: false,
+    code: 'INVALID',
+    /* ★①「무엇을 하라」까지 말한다 — 그리고 «왜 조용했는지»도. 그래야 다음에 안 당한다. */
+    message: `patchCell: unknown field(s) for ${where} — ${parts.join('; ')}. `
+      + `This would have returned ok:true and changed nothing on screen. `
+      + `Allowed here: ${[...allowed].sort().join(', ')}.`,
+  };
+}
+
 const _esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 function _gridCols(block) {
@@ -135,6 +241,30 @@ function _mergeCellIntoCol(col, cell) {
   return next;
 }
 
+/** 셀의 lines 에서 «한 줄»에만 필드를 병합한 다음 배열. patchCell{lineIndex} 의 심장.
+ *  범위 밖이면 null.
+ *  ★커밋(updateGridBlock)과 패널의 «연속 input 미리보기»(gridPreviewLine)가 «같은 이 함수»를 쓴다 —
+ *    두 벌이 되면 따로 늙는다. tests/unit/grid-line-typo.test.js U2-a·U4 가 그 동일성을 지킨다. */
+function _gridMergeLine(curLines, li, fields) {
+  const lines = Array.isArray(curLines) ? curLines : [];
+  const i = Number(li);
+  if (!Number.isFinite(i) || i < 0 || i >= lines.length) return null;
+  const next = lines.slice();
+  next[i] = Object.assign({}, next[i], fields);
+  return next;
+}
+
+/** 셀 patch 를 «dataset 조각»으로. 행 0 은 cols[c] 자체(단일 진실원), 그 아래는 cells[r-1][c].
+ *  ⚠️cols/extra 를 «제자리»에서 고친다 — 호출부가 넘긴 배열이 그대로 쓰인다(기존 동작 보존). */
+function _gridCellPatchDataset(cols, extra, r, c, cellPatch) {
+  if (r === 0) {
+    cols[c] = _mergeCellIntoCol(cols[c], cellPatch);
+    return { cols: JSON.stringify(cols) };
+  }
+  extra[r - 1][c] = Object.assign({}, extra[r - 1][c], cellPatch);
+  return { cells: JSON.stringify(extra) };
+}
+
 // API 경계(add_block/update_block{cells})는 «행 0 포함 전체 R×C」를 받는다(PLAN §3-A 스키마 그대로) —
 // 내부 저장만 행 0 을 cols 로 흡수한다(단일 진실원). 여기서 그 경계를 나눈다.
 function _splitFullCells(fullCells, cols) {
@@ -170,7 +300,14 @@ function getGridModel(block) {
 //   ⛔addr 은 «최상위 라인»에만 찍는다 — 중첩 duo/graph 내부(depth≥1)는 addr 없이 그대로 호출해
 //     기존 출력과 byte-identical 을 유지한다(innercard 등 무변화 요구 — addr=null 이면 이 함수
 //     전체가 P0/P1 이전과 동일 문자열을 낸다).
-function _gridLineHtml(line, colAlign, depth = 0, addr = null) {
+// ⚠️★위 문장은 «2026-09-08까지» 참이었다. 지우지 않고 옆에 대비를 세운다(사실이던 문장은 남긴다):
+//   그날 5번째 인자 useRoleColor 가 생겨서 이제 «addr 하나»로는 결정되지 않는다.
+//     · addr=null + useRoleColor=false → 여전히 P0/P1 이전과 «동일 문자열»(innercard·중첩이 이 길)
+//     · addr=null + useRoleColor=true  → ★색이 붙는다. renderGridBlock 이 중첩 duo 재귀에
+//       useRoleColor 를 물려 주므로 «중첩 줄»이 정확히 이 조합이다.
+//   ⇒ 「무변화」의 조건은 이제 «addr=null» 이 아니라 «useRoleColor=false» 다.
+//   (지키는 검사: tests/unit/grid-line-typo.test.js U2-c — innercard 2-인자 호출은 color 를 안 찍는다)
+function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = false) {
   if (!line || typeof line !== 'object') return '';
   // ★필드 별칭 정규화 (2026-07-04 bench2 근본픽스): planner/generator는 텍스트블록 어휘(content)를
   // 라인에도 쓴다 — text만 읽으면 "그릇만 있고 내용 없음"(오렌지 바에 빈 텍스트, duo 통째 미렌더).
@@ -207,7 +344,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null) {
     const colsHtml = cols.map(c => {
       const w = Number(c.width) || 1;
       const inner = (Array.isArray(c.lines) ? c.lines : [])
-        .map(l => _gridLineHtml(l, c.align || colAlign, depth + 1)).join('');   // ⛔addr 미전달(중첩은 아직 미주소화)
+        .map(l => _gridLineHtml(l, c.align || colAlign, depth + 1, null, useRoleColor)).join('');   // ⛔addr 미전달(중첩은 아직 미주소화)
       // 바깥 duo 와 «같은» 정렬 축을 쓴다 — 컬럼은 stretch, 정렬은 컬럼 안 내용(justify-content).
       return `<div class="grd-nested-col" style="flex:${w};min-width:0;display:flex;flex-direction:column;justify-content:${valign};">${inner}</div>`;
     }).join('');
@@ -243,6 +380,39 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null) {
   const weight = line.weight !== undefined ? String(line.weight) : String(role.weight);
   const color = (typeof line.color === 'string' && _GRID_COLOR_RE.test(line.color.trim())) ? line.color.trim() : '';
   const align = line.align || colAlign || 'left';
+  /* ★줄별 타이포 — 값이 «있을 때만» 역할값을 가린다(§0-⑷ 가 「role.* 만 먹는다」로 세어 둔 자리).
+   *   ⛔안 준 줄의 산출은 «바이트 동일»이어야 한다 — 기존 저장 프로젝트가 로드만으로 흔들리면 안 된다
+   *     (tests/unit/grid-line-typo.test.js U1-b 가 역할 폴백 생존을, U1-d 가 뱃지 분기 불변을 지킨다).
+   *   ★자간 단위 비대칭은 «의도»다: 역할값은 em(크기에 비례해 따라온다), 사용자가 직접 정하면 px(고정).
+   *     _typo-section 의 ${p}-ls-number 가 px 숫자라 읽고 쓰는 단위를 거기에 맞춘다. */
+  const _lhN = Number(line.lineHeight);
+  const lh = (Number.isFinite(_lhN) && _lhN > 0 && _lhN <= 10) ? String(_lhN) : role.lh;
+  const _lsN = Number(line.letterSpacing);
+  const ls = (line.letterSpacing !== undefined && line.letterSpacing !== '' && Number.isFinite(_lsN) && Math.abs(_lsN) <= 100)
+    ? `${_lsN}px` : role.ls;
+  const fontFamily = (typeof line.fontFamily === 'string' && _GRID_FONT_RE.test(line.fontFamily.trim()))
+    ? line.fontFamily.trim() : '';
+  const ffCss = fontFamily ? `font-family:${_esc(fontFamily)};` : '';
+  const italicCss = line.italic === '1' ? 'font-style:italic;' : '';
+  /* ★§7-ⓐ 역할 기본색 — «그리드 블록 경로에서만» 켠다(useRoleColor).
+   *   ⛔이것이 «기존 저장 그리드 프로젝트 전부»의 글자색을 로드 즉시 바꾼다.
+   *     데이터(data-cols)는 한 글자도 안 건드리고 «렌더 결과»만 바뀐다 ⇒ 되돌리기는
+   *     커밋 revert 뿐이고 ⌘Z 로는 안 된다. 그래서 이 변경만 «따로» 커밋돼 있다.
+   *   ★병명: 값이 «연했던» 게 아니라 «없어서» body{color:var(--ui-text)} = #e0e0e0
+   *     (어두운 에디터 크롬용 색)이 흰 캔버스로 상속됐다 — 대비 1.32:1 로, 빈 줄
+   *     안내문(#ccc, 1.61:1)보다 «더 연했다». 「바뀐다」는 「보이게 된다」와 같은 말이다.
+   *
+   * ⚠️★왜 «기본값 false» 인가 — 계획서 §7-ⓐ 를 그대로(무조건) 적용하면 «틀린다».
+   *   이 함수는 innercard-block.js 가 «같이» 쓴다(gridLineHtml(l, align) 2-인자).
+   *   그런데 innercard 는 카드 배경 휘도를 보고 `color:#f2f2f2 | #1a1a1a` 를 카드에 걸어
+   *   «색 미지정 줄이 상속하게» 해 뒀다(2026-07-04 제니 발주, 「화이트카드 위 화이트」 방지).
+   *   여기서 role.color(#555)를 무조건 박으면 «어두운 카드 위 짙은 회색» — 지금보다 나빠진다.
+   *   ⇒ 뱃지 분기를 건드리지 않는 것과 «같은 이유»(§7-ⓐ 조건2 보강)다. 계획서가 뱃지는
+   *     짚었지만 innercard 는 못 짚었고, tests/unit/grid-p1.test.js 의 골든이 그걸 잡았다.
+   *   경계 둘: ⑴ line.color 를 «명시한» 줄은 안 바뀐다(U2-b) ⑵ innercard 는 안 바뀐다(U2-c).
+   */
+  const strikeCss = line.strike === '1' ? 'text-decoration:line-through;' : '';
+  const effColor = color || (useRoleColor ? role.color : '');
   // 뱃지/필: line.bg 지정 시 inline-block 필로 렌더 — 지정 bg가 조용히 탈락해
   // 카드 위 무배경 텍스트(색 반전처럼 보임)로 뭉개지던 케이스 방지 (2026-07-04 제니 발주)
   const bg = (typeof line.bg === 'string' && _GRID_COLOR_RE.test(line.bg.trim())) ? line.bg.trim() : '';
@@ -254,7 +424,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null) {
       `font-size:${size}px;font-weight:${weight};line-height:1.2;letter-spacing:${role.ls};${color ? `color:${color};` : ''}` +
       `padding:${padV}px ${padH}px;border-radius:${rad}px;white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</span></div>`;
   }
-  return `<div${addrAttr} class="grd-line grd-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${role.lh};letter-spacing:${role.ls};text-align:${align};${color ? `color:${color};` : ''}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
+  return `<div${addrAttr} class="grd-line grd-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${lh};letter-spacing:${ls};text-align:${align};${effColor ? `color:${effColor};` : ''}${ffCss}${italicCss}${strikeCss}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
 }
 
 // ★2026-09-04 P1: flex → CSS grid(PLAN §3-A) — 행 축을 넣으려면 열끼리 «경계가 맞아야»
@@ -295,7 +465,7 @@ function renderGridBlock(block) {
       //   ★2026-09-05 P1.5 부터 «실제로 읽는 소비자»가 있다: js/block-drag.js 의 캔버스 인라인 편집이
       //   blur 때 「어느 셀 몇 번째 줄인가」를 DOM 순서 추측 없이 여기서 바로 읽어 patchCell 로 커밋한다.
       cellsHtml.push(`<div class="grd-cell" data-r="${r}" data-c="${c}" style="min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}">
-        ${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li })).join('')}
+        ${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, true)).join('')}
       </div>`);
     }
   }
@@ -484,6 +654,10 @@ function updateGridBlock(blockId, partial = {}) {
     if (r < 0 || r >= rowCountForValidation) return { ok: false, code: 'INVALID', message: `patchCell.r out of range (0~${rowCountForValidation - 1})` };
     if (c < 0 || c >= cols.length) return { ok: false, code: 'INVALID', message: `patchCell.c out of range (0~${cols.length - 1})` };
     const { r: _r, c: _c, lineIndex, ...rest } = p;
+    /* ★거짓 성공 봉쇄 — 렌더러가 «안 읽는» 이름은 여기서 막는다(2026-09-09).
+       이 줄이 없으면 오타 하나가 ok:true 로 돌아오고 화면은 그대로다. */
+    const _reject = _gridRejectUnknownCellFields(rest, lineIndex !== undefined);
+    if (_reject) return _reject;
     const extra = r > 0 ? _gridExtraRows(block, cols, rowCountForValidation) : null;
     let cellPatch = rest;   // 기본: 셀 전체(부분) patch — 기존 동작 그대로
 
@@ -497,19 +671,11 @@ function updateGridBlock(blockId, partial = {}) {
       if (!Number.isFinite(li) || li < 0 || li >= curLines.length) {
         return { ok: false, code: 'INVALID', message: `patchCell.lineIndex out of range (0~${curLines.length - 1})` };
       }
-      const nextLines = curLines.slice();
-      nextLines[li] = Object.assign({}, nextLines[li], rest);
-      cellPatch = { lines: nextLines };
+      cellPatch = { lines: _gridMergeLine(curLines, li, rest) };
     }
 
-    if (r === 0) {
-      // 행 0 은 늘 cols[c] 자체다(단일 진실원) — patchCol 과 «같은 길」로 보낸다.
-      cols[c] = _mergeCellIntoCol(cols[c], cellPatch);
-      next.cols = JSON.stringify(cols);
-    } else {
-      extra[r - 1][c] = Object.assign({}, extra[r - 1][c], cellPatch);
-      next.cells = JSON.stringify(extra);
-    }
+    // 행 0 은 늘 cols[c] 자체다(단일 진실원) — patchCol 과 «같은 길」로 보낸다.
+    Object.assign(next, _gridCellPatchDataset(cols, extra, r, c, cellPatch));
     applied.patchCell = lineIndex !== undefined ? { r, c, lineIndex: Number(lineIndex), ...rest } : { r, c, ...rest };
   }
   if (partial.gap !== undefined) {
@@ -555,6 +721,51 @@ function updateGridBlock(blockId, partial = {}) {
   return { ok: true, blockId, before, applied };
 }
 
+/** 이 줄이 «글자를 담는가» — 패널이 「Typography 절을 띄울 줄인가」를 이걸로 묻는다.
+ *
+ * ★판정을 «되풀이하지 않는다» — 렌더러를 실제로 돌려 「글자를 담는 요소가 나왔나」로 잰다.
+ *   ⛔목록(gap/image/…)을 패널 쪽에 «베끼면» 두 벌이 되어 조용히 갈라진다. 그리고 그 목록엔
+ *     중첩 그리드의 스키마 enum 이 들어 있는데, 그 이름은 이 파일 «한 곳»에만 살아야 한다
+ *     (tests/unit/grid-rename-residue.test.mjs S1 이 그것을 지킨다 — 실제로 잡혔다).
+ * ★클래스 두 개는 block-drag.js 의 _gridEditable 이 «이미» 보는 것과 같다(hostOf 술어) —
+ *   그쪽이 DOM 에서, 여기가 모델에서 «같은» 질문에 답한다. */
+export function gridLineHasText(line) {
+  if (!line || typeof line !== 'object') return false;
+  const html = _gridLineHtml(line, 'left', 0, null);
+  /* ⚠️«최상위 요소»만 본다 — 부분 문자열로 재면 중첩 그리드가 «자기 안쪽» 줄의 .grd-line 을
+     내보내서 「글자 줄」로 오판한다(실측: 첫 판이 그렇게 틀렸다). _gridEditable 도 바깥 요소의
+     classList / :scope > .grd-badge 만 본다 — 그 판정과 «같은 자리»를 재는 것이다. */
+  return /^<div[^>]*\sclass="grd-line\s/.test(html)          // 보통 줄 = 자기 자신이 글자를 담는다
+      || /^<div[^>]*><span class="grd-badge"/.test(html);     // 뱃지 줄 = 안쪽 span 이 담는다
+}
+
+/* ★패널의 «연속 input 미리보기» 전용 — 줄 하나에 필드를 얹어 block.dataset 에 «바로» 쓰고 재렌더한다.
+ *
+ * ⛔왜 updateGridBlock 을 안 부르나 (계획서 §4-C 「이 작업 최대의 함정」)
+ *   updateGridBlock 은 성공하면 스스로 pushHistory 를 1회 쌓고, 블록이 선택돼 있으면
+ *   window.showGridProperties 를 다시 불러 «패널을 통째로» 새로 그린다(이 파일 아래쪽).
+ *   색 피커를 «드래그하는 동안» 그러면 ⑴ 히스토리가 프레임 수만큼 쌓여 ⌘Z 가 못 쓰게 되고
+ *   ⑵ 포커스가 든 input 이 교체돼 조작이 끊긴다.
+ * ★그렇다고 되쓰기를 «두 벌»로 만들지 않는다 — 줄 병합(_gridMergeLine)과 셀 되쓰기
+ *   (_gridCellPatchDataset) 는 updateGridBlock 이 쓰는 «바로 그 함수»다.
+ * ⛔pushHistory·autosave·패널 재생성은 «여기서 하지 않는다» — 그 정책은 제스처를 아는
+ *   호출부(prop-grid.js)가 정한다(첫 input 에서 «적용 전» pushHistory 1회, change 에서 autosave).
+ * 성공하면 true, 좌표가 범위 밖이면 false(화면·데이터가 갈라진 채 남지 않는다). */
+export function gridPreviewLine(block, r, c, li, fields) {
+  if (!block) return false;
+  const cols = _gridCols(block);
+  const rows = _gridRows(block);
+  const R = Number(r), C = Number(c);
+  if (!(R >= 0 && R < rows.length) || !(C >= 0 && C < cols.length)) return false;
+  const extra = R > 0 ? _gridExtraRows(block, cols, rows.length) : null;
+  const curCell = R === 0 ? cols[C] : extra[R - 1][C];
+  const nextLines = _gridMergeLine(curCell && curCell.lines, li, fields);
+  if (!nextLines) return false;
+  Object.assign(block.dataset, _gridCellPatchDataset(cols, extra, R, C, { lines: nextLines }));
+  renderGridBlock(block);
+  return true;
+}
+
 window.makeGridBlock = makeGridBlock;
 window.addGridBlock = addGridBlock;
 window.updateGridBlock = updateGridBlock;
@@ -574,6 +785,7 @@ window.renderDuoBlock = renderGridBlock;
 export {
   makeGridBlock, addGridBlock, updateGridBlock, renderGridBlock, GRID_DEFAULTS,
   _gridLineHtml as gridLineHtml, _GRID_ROLES as GRID_ROLES,
+  _GRID_COLOR_RE as GRID_COLOR_RE, _GRID_FONT_RE as GRID_FONT_RE,
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS,
 };

@@ -1,7 +1,8 @@
 /* ═══════════════════════════════════
    PROPERTIES PANEL
 ═══════════════════════════════════ */
-import { propPanel, canvasEl, canvasWrap, state } from '../globals.js';
+import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기(applyCanvasBackground)만 쓰므로 «바인딩 자체»를 없앤다(직접 대입 재유입 방지) */
+import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
 
 /* ── 헬퍼: ab의 effective usePadx 결정 ──
    'true' / 'false' 명시 → 그 값 (개별 오버라이드)
@@ -13,6 +14,33 @@ function getEffectiveUsePadx(ab) {
   return !!state.pageSettings.padXExcludesAsset;
 }
 window.getEffectiveUsePadx = getEffectiveUsePadx;
+
+/* ── 패딩 비주얼(좌우 패딩 힌트) 켜짐 여부 — «단일 진실원» ──────────────
+   그리는 쪽: css/editor-canvas.css `body.gdt-pad-on .section-inner::before`
+   켜는 쪽:   js/props/prop-section.js `_showPadXHint`
+   ⇒ 두 곳이 각자 localStorage 를 읽으면 «기본값»이 갈린다. 읽고 쓰는 문을 여기 하나로 둔다.
+
+   ★기본은 «켜짐». 현빈이 시안을 보고 「이걸로 하자」고 한 것이 그 동작이다 —
+     끄는 건 «빼는 선택»이지 기본이 아니다. ⇒ 키가 «없으면» true, «있으면» 그 값.
+     ⛔`!!pref.on` 로 쓰지 마라(그리드는 기본 꺼짐이라 그게 맞지만 여기선 반대다).
+   ★키는 GRID_KEY(gdt.gridGuide)와 «따로» 둔다 — 한 키에 섞으면 한쪽 저장이 다른 쪽을 지운다
+     (같은 이유로 EXPORT_KEY 도 따로다).
+   ⛔프로젝트에 저장하지 않는다 — 「보기」 설정이지 문서가 아니다(그리드와 같은 논리).
+   ★모듈 최상위다 — 페이지 패널을 «한 번도 안 열어도» prop-section 이 읽을 수 있어야 한다. */
+const PAD_HINT_KEY = 'gdt.padHint';
+function readPadHintOn() {
+  try {
+    const raw = localStorage.getItem(PAD_HINT_KEY);
+    if (raw === null) return true;                       // 키가 없다 = 아직 아무도 안 껐다 = 켜짐
+    const o = JSON.parse(raw);
+    return o && typeof o.on === 'boolean' ? o.on : true; // 깨진 값도 «켜짐»으로 — 기능이 사라지는 쪽보다 낫다
+  } catch (_) { return true; }
+}
+function savePadHintOn(on) {
+  try { localStorage.setItem(PAD_HINT_KEY, JSON.stringify({ on: !!on })); } catch (_) {}
+}
+window.readPadHintOn = readPadHintOn;
+window.savePadHintOn = savePadHintOn;
 
 /* ── 헬퍼: ab의 «패딩 제외(full-bleed)» 폭 문자열 ──
    패딩제외 상태면 `calc(100% + 2*padX px)`, 아니면 '' (= inline width 제거).
@@ -136,6 +164,21 @@ function applyPagePadX(padX) {
 window.applyPagePadX = applyPagePadX;
 window.applyPadXToSection = applyPadXToSection;
 
+/* ★켬/끔 «라디오 쌍» 헬퍼 — 체크박스에서 옮겨 오며 생긴 함정 둘을 여기 한 곳에서 막는다.
+ *   ⛔함정①: change 는 «선택된 쪽»에서만 난다. 켬 라디오에만 리스너를 걸면
+ *            사용자가 «끔»을 눌렀을 때 아무 일도 안 일어난다(체크박스는 한 요소라 이 문제가 없었다).
+ *   ⛔함정②: 라디오는 `.checked = false` 로 끌 수 없다 — 그러면 «둘 다 안 켜진» 상태가 된다.
+ *            끄려면 «끔 쪽을 켜야» 한다.
+ *   ⇒ 읽기는 기존대로 `onEl.checked` 가 그대로 통한다(id 를 켬 쪽에 남겨 뒀다). */
+function _radioPairSet(onEl, offEl, val) {
+  if (onEl) onEl.checked = !!val;
+  if (offEl) offEl.checked = !val;
+}
+function _radioPairOn(onEl, offEl, evt, fn) {
+  if (onEl) onEl.addEventListener(evt, fn);
+  if (offEl) offEl.addEventListener(evt, fn);
+}
+
 export function showPageProperties() {
   if (window.setRpIdBadge) window.setRpIdBadge(null);
   const { bg, gap, padX, padY, padXExcludesAsset } = state.pageSettings;
@@ -205,9 +248,22 @@ export function showPageProperties() {
     <div class="prop-section">
       <div class="prop-section-title">Grid</div>
       <div class="prop-row">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
-          <input type="checkbox" id="page-grid-on"> 그리드 가이드
-        </label>
+        <span class="prop-label prop-label--auto">그리드 가이드</span>
+        <div class="prop-radio-group">
+          <label class="prop-radio"><input type="radio" name="page-grid" id="page-grid-on" value="on"> 켬</label>
+          <label class="prop-radio"><input type="radio" name="page-grid" id="page-grid-off" value="off" checked> 끔</label>
+        </div>
+      </div>
+      <!-- ★패딩 비주얼 — 그리드 가이드 «바로 아래». 둘 다 「편집 보조」라 같은 절이 맞다.
+           ⚠️어휘를 «섞지» 않는다: 이 절은 이미 체크박스를 쓴다. 옆에 라디오를 놓으면 한 절에 두 어휘가 된다.
+             (줌 패널은 라디오가 강제된 자리지만 — zoom-block.test.js ⓑ-14 — 그건 prop-zoom.js 전용이고
+              이 패널엔 그런 제약이 없다. 실제로 바로 위 줄이 체크박스다.) -->
+      <div class="prop-row">
+        <span class="prop-label prop-label--auto">패딩 비주얼</span>
+        <div class="prop-radio-group">
+          <label class="prop-radio"><input type="radio" name="page-pad-hint" id="page-pad-hint-on" value="on"> 켬</label>
+          <label class="prop-radio"><input type="radio" name="page-pad-hint" id="page-pad-hint-off" value="off" checked> 끔</label>
+        </div>
       </div>
       <!-- ★칼럼·거터를 «한 줄»에 둔다 (2026-09-08 현빈: "칼럼과 거터 하나의 로우에 둬도 될듯해").
            ⚠️그냥 합치면 안 들어간다 — 240px 패널의 가용 폭은 211px 인데
@@ -289,7 +345,28 @@ export function showPageProperties() {
        applyPagePadX 뒤에서도 부른다.
      ⛔프로젝트에 저장하지 않는다 — 이건 «보기» 설정이지 문서의 일부가 아니다.
        다른 사람이 그 프로젝트를 열었을 때 내 가이드가 켜져 있으면 그게 더 이상하다. */
+  /* ── 패딩 비주얼 체크박스 배선 ──
+     ★읽고 쓰는 것은 «모듈 최상위»의 readPadHintOn/savePadHintOn 하나뿐이다(위 단일 진실원).
+       여기서 localStorage 를 다시 읽지 마라 — 기본값이 두 벌이 되는 순간 갈린다.
+     ★끄면 «즉시» 걷는다 — 슬라이더를 만지던 중에 껐다면 400ms 를 기다릴 이유가 없다. */
+  const padHintOn = document.getElementById('page-pad-hint-on');
+  const padHintOff = document.getElementById('page-pad-hint-off');
+  if (padHintOn) {
+    _radioPairSet(padHintOn, padHintOff, readPadHintOn());
+    _radioPairOn(padHintOn, padHintOff, 'change', () => {
+      savePadHintOn(padHintOn.checked);
+      if (!padHintOn.checked) {
+        document.body.classList.remove('gdt-pad-on');
+        document.querySelectorAll('.section-inner').forEach(el => {
+          el.style.removeProperty('--gdt-pad-l');
+          el.style.removeProperty('--gdt-pad-r');
+        });
+      }
+    });
+  }
+
   const gridOn   = document.getElementById('page-grid-on');
+  const gridOff  = document.getElementById('page-grid-off');
   const gridCols = document.getElementById('page-grid-cols');
   const gridGut  = document.getElementById('page-grid-gut');
   const gridColPresets = document.getElementById('page-grid-col-presets');
@@ -359,9 +436,19 @@ export function showPageProperties() {
     gridOn.checked = !!pref.on;
     if (gridCols && pref.n) gridCols.value = pref.n;
     if (gridGut && pref.g != null) gridGut.value = pref.g;
+    /* ⛔이 배열에 gridOff 를 «넣지 마라» — tests/unit/grid-guide-tidy.test.js 의 runInit 이
+         `[gridOn, gridCols, gridGut]` 를 «끝 닻»으로 초기화 구간을 떠낸다(그 파일이 「손대지 마라」고
+         적어 뒀고, 내가 한 번 어겨서 T-G6 셋이 «아무것도 안 쟀다»로 터졌다).
+       ★그리고 넣을 «이유»도 없다 — 라디오의 켬/끔은 아래 _radioPairOn(…, 'change') 가 «양쪽» 다 받는다. */
     [gridOn, gridCols, gridGut].forEach(el =>
       el && el.addEventListener('input', refreshGrid));
-    gridOn.addEventListener('change', refreshGrid);
+    /* ★끔 라디오는 «여기서» 맞춘다 — 위 초기화 구간 «안»이 아니라.
+       ⛔tests/unit/grid-guide-tidy.test.js 의 runInit 이 `const pref = readGridPref();` ~
+         `[gridOn, gridCols, gridGut]` 사이를 «떠내서 실행»한다. 그 조각은 «자족적»이어야 해서
+         조각 밖 식별자(gridOff·헬퍼)를 쓰면 ReferenceError 로 터진다 — 내가 두 번 그렇게 깨뜨렸다.
+       ⇒ 조각은 한 글자도 안 건드리고, 끔 쪽은 «닻 뒤»에서 켠다. 결과는 같다. */
+    if (gridOff) gridOff.checked = !gridOn.checked;
+    _radioPairOn(gridOn, gridOff, 'change', refreshGrid);
     /* ★클램프 되쓰기는 «change 에만» 건다.
        ⛔input 에 걸면 min=2 라 `1` 을 치는 순간 2로 튀어서 `12` 를 못 친다. */
     if (gridCols) gridCols.addEventListener('change', () => { gridCols.value = clampCols(gridCols.value); refreshGrid(); });
@@ -583,7 +670,7 @@ export function wireCanvasBgControl() {
   };
   const _applyBg = () => {
     const rgba = _bgToRgba();
-    canvasWrap.style.background = rgba;
+    applyCanvasBackground(rgba);          /* 배경 + 연결선 대비 재산출을 «같이» 한다 */
     bgSwatch.style.background = rgba;
   };
 
@@ -636,7 +723,7 @@ export function wireCanvasBgControl() {
   // goya-cp:gradient-commit = 사용자 확정(마우스업·select 변경) → pushHistory.
   // NOTE(B6): export-html/export-image는 아직 solid bg만 읽으므로 내보내기엔 그라데이션 미반영(후속).
   const _applyBgGradient = (css) => {
-    canvasWrap.style.background = css;
+    applyCanvasBackground(css);           /* 그라데이션도 같은 문 — 대비는 «최악 stop» 으로 잰다 */
     bgSwatch.style.background = css;
   };
   if (!bgPicker._gradWired) {

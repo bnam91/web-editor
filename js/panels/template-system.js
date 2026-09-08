@@ -219,7 +219,15 @@ async function saveAsTemplate(el, name, folder, category, tags, type = 'section'
   clone.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
   clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
   clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
-  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .sec-bg-proxy').forEach(el => el.remove());
+  /* ★세척은 «단일 진실원»을 탄다 — js/io/section-serialize.js 의 serializeCleanRoot.
+     ⛔여기서 UI 상태 클래스를 손으로 열거하지 마라: 위 몇 줄이 정확히 그 실수였고,
+       .bn2-line-selected / .grd-line-selected(줄 선택 마커)가 «둘 다» 빠져 있었다.
+       ⇒ 줄을 선택한 채 템플릿으로 저장하면 마커가 템플릿 HTML 에 박히고, 다시 꺼내 넣으면
+         «유령 선택바»가 실제로 그려진다(CSS 스코프가 #canvas 안이라 캔버스에 들어가는 순간 산다).
+     ★명부·검사: tests/_export-channels.js + tests/unit/export-channel-roster.test.mjs (U6).
+       그 glob 은 «cloneNode(true) 로 산출물을 만드는 파일 전수»를 훑는다 — 손으로 적은 명부는
+       다음 문을 못 본다(이 파일이 바로 그 「7번째 문」이었다). */
+  window.serializeCleanRoot?.(clone);
   /* ★순서가 중요하다 — «먼저 지우고 그다음 심는다».
      안 그러면 「삽입됐던 것을 다시 저장」할 때 남의 템플릿 경로가 눌어붙는다.
      (삽입 시 strip 하지만, 캔버스를 거쳐 온 것에 옛 값이 남아 있을 수 있다) */
@@ -704,7 +712,15 @@ function startEditTemplate(id) {
     clone.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
     clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
     clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
-    clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .sec-bg-proxy').forEach(el => el.remove());
+    /* ★세척은 «단일 진실원»을 탄다 — js/io/section-serialize.js 의 serializeCleanRoot.
+       ⛔여기서 UI 상태 클래스를 손으로 열거하지 마라: 위 몇 줄이 정확히 그 실수였고,
+         .bn2-line-selected / .grd-line-selected(줄 선택 마커)가 «둘 다» 빠져 있었다.
+         ⇒ 줄을 선택한 채 템플릿으로 저장하면 마커가 템플릿 HTML 에 박히고, 다시 꺼내 넣으면
+           «유령 선택바»가 실제로 그려진다(CSS 스코프가 #canvas 안이라 캔버스에 들어가는 순간 산다).
+       ★명부·검사: tests/_export-channels.js + tests/unit/export-channel-roster.test.mjs (U6).
+         그 glob 은 «cloneNode(true) 로 산출물을 만드는 파일 전수»를 훑는다 — 손으로 적은 명부는
+         다음 문을 못 본다(이 파일이 바로 그 「7번째 문」이었다). */
+      window.serializeCleanRoot?.(clone);
     if (window.electronAPI?.saveTemplateCanvas) {
       await window.electronAPI.saveTemplateCanvas(id, clone.outerHTML);
     } else {
@@ -914,7 +930,15 @@ export async function saveBlockAsTemplate(block, name, folder = '블록', tagsSt
   const clone = block.cloneNode(true);
   clone.classList.remove('selected', 'hovered');
   clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .sec-bg-proxy, .block-toolbar').forEach(el => el.remove());
-  clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
+  /* ★세척은 «단일 진실원»을 탄다 — js/io/section-serialize.js 의 serializeCleanRoot.
+     ⛔여기서 UI 상태 클래스를 손으로 열거하지 마라: 위 몇 줄이 정확히 그 실수였고,
+       .bn2-line-selected / .grd-line-selected(줄 선택 마커)가 «둘 다» 빠져 있었다.
+       ⇒ 줄을 선택한 채 템플릿으로 저장하면 마커가 템플릿 HTML 에 박히고, 다시 꺼내 넣으면
+         «유령 선택바»가 실제로 그려진다(CSS 스코프가 #canvas 안이라 캔버스에 들어가는 순간 산다).
+     ★명부·검사: tests/_export-channels.js + tests/unit/export-channel-roster.test.mjs (U6).
+       그 glob 은 «cloneNode(true) 로 산출물을 만드는 파일 전수»를 훑는다 — 손으로 적은 명부는
+       다음 문을 못 본다(이 파일이 바로 그 「7번째 문」이었다). */
+  window.serializeCleanRoot?.(clone);
   /* 블록 저장도 «같은 형제»다 — 현빈 지시가 「섹션이나 블럭들도 모두」였다. 순서는 위와 같다. */
   _tplStripPath(clone);
   _tplStampPath(clone);
