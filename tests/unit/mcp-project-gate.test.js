@@ -85,6 +85,17 @@ test.before(async () => {
 test.after(async () => { await srv.stopMcpServer(); });
 
 // ── 판정 ⑴ 인자 없이 add_block → 거절 + 응답에 현재 프로젝트 id·이름·다음 수 ──────────
+/* ★안내 문구는 «서버 소스에서 읽어» 쓴다 — 검사에 또 적어 두면 문구를 고칠 때 두 곳이 어긋난다
+     (2026-09-08 실제로 어긋나 빨개졌다: 92자 → 44자로 줄이자 이 검사가 옛 문장을 찾았다).
+   이 검사가 지켜야 할 것은 «문구»가 아니라 «어느 도구에 붙고 어디엔 안 붙나»다. */
+const _TARGET_NOTE = (() => {
+  const src = require('fs').readFileSync(
+    require('path').join(__dirname, '..', '..', 'main', 'claude-pm', 'mcp-server.js'), 'utf8');
+  const m = src.match(/const _TARGET_NOTE = '([^']+)'/);
+  if (!m) throw new Error('_TARGET_NOTE 를 소스에서 못 찾았다 — 상수가 사라졌나');
+  return m[1].trim();
+})();
+
 test('G1 인자 없이 add_block — 거절되고, 응답이 «지금 열린 프로젝트»와 «다음 수»를 말해 준다', async () => {
   ACTIVE = PROJECTS[0].id;
   await resetGate();
@@ -230,12 +241,12 @@ test('G9 fail-closed — 목록에 없는 쓰기 도구(export_sections·delete_
 test('G10 tools/list — 쓰기 도구 설명엔 TARGET 경고가 붙고 읽기 도구엔 안 붙는다', async () => {
   const r = await rpc('tools/list', {});
   const byName = new Map(r.result.tools.map(t => [t.name, t.description]));
-  assert.match(byName.get('add_block'), /TARGET=the ACTIVE project/);
-  assert.match(byName.get('add_section'), /TARGET=the ACTIVE project/);
-  assert.match(byName.get('duplicate_project'), /TARGET=the ACTIVE project/);
-  assert.doesNotMatch(byName.get('get_canvas_state'), /TARGET=the ACTIVE project/);
-  assert.doesNotMatch(byName.get('list_projects'), /TARGET=the ACTIVE project/);
-  assert.doesNotMatch(byName.get('open_project'), /TARGET=the ACTIVE project/);
+  assert.ok(byName.get('add_block').includes(_TARGET_NOTE), 'add_block 에 안내가 없다');
+  assert.ok(byName.get('add_section').includes(_TARGET_NOTE), 'add_section 에 안내가 없다');
+  assert.ok(byName.get('duplicate_project').includes(_TARGET_NOTE), 'duplicate_project 에 안내가 없다');
+  assert.ok(!byName.get('get_canvas_state').includes(_TARGET_NOTE), 'get_canvas_state 는 읽기·게이트면제라 안내가 붙으면 안 된다');
+  assert.ok(!byName.get('list_projects').includes(_TARGET_NOTE), 'list_projects 는 읽기·게이트면제라 안내가 붙으면 안 된다');
+  assert.ok(!byName.get('open_project').includes(_TARGET_NOTE), 'open_project 는 읽기·게이트면제라 안내가 붙으면 안 된다');
   // expectedProject 가 «부를 수 있는 인자»로 스키마에 있다
   const add = r.result.tools.find(t => t.name === 'add_block');
   assert.ok(add.inputSchema.properties.expectedProject, 'add_block 스키마에 expectedProject 가 없다');

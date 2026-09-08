@@ -388,7 +388,7 @@ function install({ tools, toolSchemas, registerTool, hide }) {
   // ── get_block_schema ─────────────────────────────────────────────────────
   registerTool(
     'get_block_schema',
-    async ({ type, op = 'both' } = {}) => {
+    async ({ type, op = 'both', mode = 'simple' } = {}) => {
       /* ★★type 을 «안 주고» 부르는 일이 실제로 많다 — 원장 실측(2026-09-07): 34회 중 11회(32%)가
            `unknown block type: (missing)`. 스키마를 미뤄 둔 도구인데 «미룬 첫 걸음»이 3분의 1 실패했다.
          ⛔에러로 끝내면 모델은 왕복을 한 번 더 쓴다 — 아끼려던 토큰을 오히려 더 쓴다.
@@ -406,11 +406,41 @@ function install({ tools, toolSchemas, registerTool, hide }) {
       const d = resolveType(type);
       if (!d) throw new Error(`unknown block type: ${type}. allowed: ${typeList.join(', ')}`);
       if (!['add', 'update', 'both'].includes(op)) throw new Error(`invalid op: ${op} (add|update|both)`);
+      if (!['simple', 'layers', 'all'].includes(mode)) throw new Error(`invalid mode: ${mode} (simple|layers|all)`);
+      /* ★★한 스키마가 «두 모드»를 담고 있으면 안 쓰는 쪽까지 매번 실린다.
+           실측(2026-09-08): get_block_schema('canvas') 응답이 11,337자 ≈ 3,030 토큰.
+             그중 레이어 모드(layers·patchLayers)가 2,342자인데,
+             실물 프로젝트의 cvb_ 블록 23개가 «전부 카드 모드»였다. Figma 임포트용 레이어 모드는 안 쓰인다.
+           ⇒ mode 로 갈라 필요한 쪽만 준다. 기본은 «실제로 쓰이는» 카드 모드.
+           ⛔분류 기준을 «새로 만들지 않는다» — 설명에 이미 [simple] / [레이어 모드] 태그가 붙어 있다.
+             그 태그를 읽는다. 새 목록을 만들면 속성이 늘 때마다 두 벌이 어긋난다. */
+      /* ⚠태그가 늘 '[simple]' 꼴은 아니다 — labelPos 는 '[simple,portrait]' 다.
+           완전일치로 재면 layers 모드에서 카드 전용 속성이 «새어 나간다». 여는 이름까지만 본다. */
+      const MODE_TAG = { simple: '[simple', layers: '[레이어 모드' };
+      const other = mode === 'layers' ? MODE_TAG.simple : MODE_TAG.layers;
+      const filterProps = (props) => {
+        if (!mode || mode === 'all' || d.type !== 'canvas') return props;
+        const out = {}; let dropped = 0;
+        for (const [k, v] of Object.entries(props)) {
+          const desc = (v && v.description) || '';
+          if (desc.startsWith(other)) { dropped++; continue; }   // 반대 모드 전용은 뺀다
+          out[k] = v;
+        }
+        out.__droppedForMode = dropped;   // 몇 개를 뺐는지 «말한다» — 조용히 빼지 않는다
+        return out;
+      };
       const pick = (name) => {
         if (!name) return null;
         const s = toolSchemas.get(name);
         if (!s) return null;
-        return { description: s.description, properties: (s.inputSchema && s.inputSchema.properties) || {}, required: (s.inputSchema && s.inputSchema.required) || [] };
+        const props = filterProps((s.inputSchema && s.inputSchema.properties) || {});
+        const dropped = props.__droppedForMode; delete props.__droppedForMode;
+        return {
+          description: s.description,
+          properties: props,
+          required: (s.inputSchema && s.inputSchema.required) || [],
+          ...(dropped ? { omitted: `${dropped} props of the other mode — call again with mode:"${mode === 'layers' ? 'simple' : 'layers'}" to see them` } : {}),
+        };
       };
       const out = { ok: true, type: d.type, idPrefix: d.pfx, use: d.blurb };
       if (op === 'add' || op === 'both') out.add = pick(d.add);
@@ -422,12 +452,14 @@ function install({ tools, toolSchemas, registerTool, hide }) {
         'Get the full property schema of one block type — call it before add_block/update_block for a type that is not in the inline specs. '
         + 'Calling it WITHOUT type is fine: it returns the whole type catalogue (name, id prefix, what it is for) so you can pick in one step. '
         + 'op:"add"|"update"|"both"(default). Returns {type, idPrefix, use, add:{description,properties,required}, update:{...}}. '
+        + 'For type "canvas", mode:"simple"(default) returns card-mode props only; mode:"layers" or "all" for the Figma-import layer mode. '
         + 'This is the deliberate trade: the 26 type schemas are NOT loaded into every request (they cost ~30k tokens), you pull the one you need.',
       inputSchema: {
         type: 'object',
         properties: {
           type: { type: 'string', enum: typeList, description: 'block type (same enum as add_block)' },
-          op: { type: 'string', enum: ['add', 'update', 'both'], description: 'which side to return. "add" is half the size.' }
+          op: { type: 'string', enum: ['add', 'update', 'both'], description: 'which side to return. "add" is half the size.' },
+          mode: { type: 'string', enum: ['simple', 'layers', 'all'], description: 'canvas only. "simple"(default) = card mode, what canvas blocks actually use. "layers" = free-placement Figma-import mode. "all" = both (~2x).' }
         },
         /* ★type 은 «선택»이다 — 없으면 타입 목록을 돌려준다(에러 왕복을 없애려고 그렇게 바꿨다).
              ⛔동작만 바꾸고 required 를 남겨 두면 «계약이 거짓말»을 한다 —
