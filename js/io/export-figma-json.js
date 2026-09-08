@@ -747,7 +747,16 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
          내보내기는 «분리된 문서»(DOMParser 클론)를 걸을 수 있고 거기선 innerText 가 빈 문자열이다
          (layout 이 없다). dataset 은 이 블록의 진실이므로 붙어 있든 떨어져 있든 같은 값을 준다.
          안내문구(placeholder)는 dataset 이 애초에 비어 있어 «저절로» 빠진다 — 따로 거르지 않는다. */
-      const fs = parseInt(ds.fontSize) || 14;
+      /* ★이 숫자는 js/blocks/modal-block.js 의 MODAL_DEFAULTS.fontSize 와 «같은 값»이어야 한다.
+         ⛔import 로 묶지 않는다 — 내보내기는 «분리된 문서»(DOMParser 클론)를 걷는 경로라
+           블록 모듈(window/DOM 에 손대는)을 끌고 오면 안 된다. 결합 대신 검사로 묶었다:
+           tests/unit/modal-text-defaults.test.mjs 의 T1 이 「세 자리가 같은 값을 본다」를
+           소스에서 못박는다 — 한 자리만 고치면 그 검사가 빨개진다.
+         ⚠️폴백 자체는 «남긴다». dataset 이 비어 있는 블록(손수 만든/가져온)에서 fs 가 NaN 이 되면
+           내보낸 JSON 의 fs 가 null 로 나가 수신측이 조용히 깨진다. 없앨 것은 «14 라는 딴 값»이지
+           폴백이 아니다.
+      */
+      const fs = parseInt(ds.fontSize) || 36;
       const color = ds.textColor || '#1c1c1e';
       const texts = [];
       const push = (slot, val) => {

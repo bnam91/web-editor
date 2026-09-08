@@ -4,7 +4,8 @@
    글자 편집은 캔버스에서 더블클릭(block-drag) — 여기선 구조/스타일만 만진다. */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { applyModalVariant, _effDefault } from '../blocks/modal-block.js';
+import { alignBtn } from './_helpers.js';
+import { applyModalVariant, _effDefault, MODAL_DEFAULTS } from '../blocks/modal-block.js';
 
 const _MDL_VARIANT_LABELS = {
   'plain': '기본 박스', 'titled': '제목 + 본문', 'icon': '아이콘 + 텍스트',
@@ -29,7 +30,7 @@ export function showModalProperties(block) {
   const hMode = block.dataset.hMode === 'fixed' ? 'fixed' : 'auto';
   const width = _i('width', 400), height = _i('height', 120);
   const align = block.dataset.align || 'left';
-  const fontSize = _i('fontSize', 14);
+  const fontSize = _i('fontSize', MODAL_DEFAULTS.fontSize);
   const gap = _i('gap', 14);
   const isIcon = (v === 'icon' || v === 'icon-stack');
   const isGrid = (v === 'grid-2');
@@ -73,7 +74,7 @@ export function showModalProperties(block) {
       <div class="prop-section-title">Icon</div>
       <div class="prop-row">
         <span class="prop-label">아이콘</span>
-        <button class="prop-type-btn" id="mdl-icon-pick" style="flex:1">아이콘 고르기</button>
+        <button class="prop-btn-full" id="mdl-icon-pick" style="flex:1">아이콘 고르기</button>
       </div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -154,17 +155,17 @@ export function showModalProperties(block) {
       <div class="prop-section-title">Text</div>
       <div class="prop-row">
         <span class="prop-label">정렬</span>
-        <div class="prop-type-group">
-          <button class="prop-type-btn ${align === 'left' ? 'active' : ''}" data-al="left">왼쪽</button>
-          <button class="prop-type-btn ${align === 'center' ? 'active' : ''}" data-al="center">가운데</button>
-          <button class="prop-type-btn ${align === 'right' ? 'active' : ''}" data-al="right">오른쪽</button>
+        <div class="prop-align-group">
+          ${alignBtn('text', 'left',   { label: '왼쪽 정렬',   title: '왼쪽 정렬',   active: align === 'left',   attrs: { 'data-al': 'left' } })}
+          ${alignBtn('text', 'center', { label: '가운데 정렬', title: '가운데 정렬', active: align === 'center', attrs: { 'data-al': 'center' } })}
+          ${alignBtn('text', 'right',  { label: '오른쪽 정렬', title: '오른쪽 정렬', active: align === 'right',  attrs: { 'data-al': 'right' } })}
         </div>
       </div>
       <div class="prop-row"><span class="prop-label">글자색</span>${colorFieldHTML({ idPrefix: 'mdl-fg', hex: textColor, alpha: parseAlphaFromColor(textColor) })}</div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="mdl-fs-slider" min="10" max="40" step="1" value="${fontSize}">
-        <input type="number" class="prop-number" id="mdl-fs-number" min="10" max="40" value="${fontSize}">
+        <input type="range" class="prop-slider" id="mdl-fs-slider" min="10" max="60" step="1" value="${fontSize}">
+        <input type="number" class="prop-number" id="mdl-fs-number" min="10" max="60" value="${fontSize}">
       </div>
       <div class="prop-row"><span class="prop-label" style="opacity:.6">글자는 캔버스에서 더블클릭해 입력</span></div>
     </div>`;
@@ -207,7 +208,7 @@ export function showModalProperties(block) {
   wireNum('padx', 'padX', 0, 80);
   wireNum('pady', 'padY', 0, 80);
   wireNum('bw', 'borderW', 0, 12);
-  wireNum('fs', 'fontSize', 10, 40);
+  wireNum('fs', 'fontSize', 10, 60);
   if (isGrid) wireNum('gap', 'gap', 0, 40);
   if (isIcon) wireNum('isize', 'iconSize', 12, 96);
 

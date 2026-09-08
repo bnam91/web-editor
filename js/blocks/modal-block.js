@@ -26,7 +26,7 @@ const MODAL_DEFAULTS = {
   borderW: 0, borderStyle: 'solid', borderColor: '#c3c3ca',
   wMode: 'full', width: 400,
   hMode: 'auto', height: 120,
-  align: 'left', textColor: '#1c1c1e', fontSize: 14,
+  align: 'left', textColor: '#1c1c1e', fontSize: 36,
   gap: 14,
   iconSize: 24, iconColor: '#f0b429',
 };

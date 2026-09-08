@@ -28,7 +28,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import vm from 'node:vm';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { readSrc } from './_srcread.js';
 
@@ -44,40 +44,11 @@ function stripComments(src) {
 }
 
 /* ── 하네스 ────────────────────────────────────────────────────────────────
- * ⛔표도 함수도 «베끼지» 않는다 — js/blocks/modal-block.js 를 그대로 vm 에 올려 실행한다.
- *   베끼면 검사가 코드와 조용히 갈라져서, 검사는 초록인데 제품은 깨진 상태가 된다.
- *   ESM 문법 두 가지만 벗긴다(import 줄 · 끝의 export 문) — 나머지 본문은 «한 글자도» 안 건드린다.
- *   DOM 에 닿는 것은 최소로 스텁한다: document.createElement · genId.
- *   (선례: selection-outline-zoom.test.mjs 가 같은 방식으로 _geomOf 를 진짜로 돌린다.) */
-function loadModalModule() {
-  const body = MODAL_SRC
-    .replace(/^import[^\n]*\n/gm, '')
-    .replace(/export\s*\{[\s\S]*?\};/, '');
-  assert.ok(!/^\s*import\s/m.test(body), 'import 줄을 다 못 벗겼다 — 하네스를 고쳐라');
-  assert.ok(!/^\s*export\s/m.test(body), 'export 문을 다 못 벗겼다 — 하네스를 고쳐라');
-
-  let seq = 0;
-  const mkEl = () => ({
-    className: '', id: '', innerHTML: '',
-    dataset: Object.create(null),
-    style: {},
-    appendChild() {},
-    scrollIntoView() {},
-  });
-  const ctx = {
-    document: { createElement: mkEl },
-    window: {},
-    genId: (p) => `${p}_${++seq}`,
-    insertAfterSelected() {}, showNoSelectionHint() {}, bindBlock() {},
-    console,
-  };
-  vm.createContext(ctx);
-  vm.runInContext(
-    body + '\n;globalThis.__M = { MODAL_VARIANT_IDENTITY, MODAL_IDENTITY_KEYS, MODAL_DEFAULTS,'
-         + ' MODAL_VARIANTS, _effDefault, applyModalVariant, makeModalBlock, renderModalBlock };',
-    ctx, { filename: 'js/blocks/modal-block.js' });
-  return ctx.__M;
-}
+ * ★2026-09-08: 이 함수는 «여기에 있었다». modal-text-defaults.test.mjs 가 두 번째 소비자로
+ *   붙으면서 tests/unit/_modal-harness.js 로 뽑았다 — 로직은 «한 글자도» 안 바꿨다.
+ *   ⛔베끼지 않은 이유: 벌이 둘이면 「어느 벌로 쟀는지」에 따라 답이 갈리고 그 갈림은 조용하다.
+ *     같은 날 _strip-comments.js 가 정확히 그 병(사본 11벌 중 9벌 파손)에서 태어났다. */
+const { loadModalModule } = createRequire(import.meta.url)('./_modal-harness.js');
 
 const M = loadModalModule();
 const { MODAL_VARIANT_IDENTITY: TABLE, MODAL_DEFAULTS, MODAL_VARIANTS } = M;
