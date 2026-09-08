@@ -169,6 +169,17 @@ test('D1-b ★칸.value || 칸.placeholder 가 «전부» 비어 있지 않다 (
   expect(got['grd-typo-size-number'].ph, 'body 역할 크기 22 가 회색으로 안 보인다').toBe('22');
   // 명시한 색은 «값»으로 보인다.
   expect(got['grd-typo-color-hex'].value).toBe('FF0000');
+
+  /* ★색을 «안 정한» 줄도 따로 본다 — 위 줄은 색이 명시돼 있어 hex 의 «placeholder 갈래»를
+     전혀 안 지난다. 갈래마다 검사를 세워야 한다(안 그러면 colorHexPh 를 지워도 초록이다). */
+  await open(page, { r: 0, c: 0, li: 1 });          // h2 · 색 미지정
+  const noColor = await page.evaluate(() => {
+    const el = document.getElementById('grd-typo-color-hex');
+    return { value: el.value, ph: el.getAttribute('placeholder') || '' };
+  });
+  expect(noColor.value, '★색을 안 정했는데 hex 에 값이 «박혀» 있다 — 한 번 튀면 데이터에 굳는다').toBe('');
+  expect(noColor.ph, '★역할 기본색(h2 #1a1a1a)이 회색으로 «안» 보인다 — 어느 칸도 회색조차 아니면 ' +
+    '그게 진짜 「빈 채로 떴다」다').toBe('1A1A1A');
   expect(errs).toEqual([]);
 });
 
