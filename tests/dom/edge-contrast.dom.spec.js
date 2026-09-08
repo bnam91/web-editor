@@ -221,6 +221,30 @@ test('D4 ★테마 변수를 흔들면 연결선 색이 따라온다 — --ui-bg
 });
 
 // ══════════════════════════════════════════════════════════════════
+/* ── D5 ★「못 잰 배경」의 뒷정리 (X10) — A5 는 null 을 «돌려주나»만 본다.
+     그때 «이전 값을 걷어내나»는 아무도 안 봤다. removeProperty 를 지워도 게이트가 초록이었다.
+     ⚠️도달 가능성 △ — 배경이 못 재는 값(url(...) 등)이 되는 경로가 오늘 UI 엔 안 보인다.
+       그래도 검사 한 줄이면 되니 넣는다. 실앱에서 그 경로가 실제로 나는지는 «안 쟀다». */
+test('D5 못 재는 배경으로 바뀌면 --spl-edge-color 를 «걷어낸다» — 옛 색이 남으면 안 된다 (X10)', async ({ page }) => {
+  const errs = await boot(page);
+  const readVar = () => page.evaluate(() => document.getElementById('canvas-wrap').style.getPropertyValue('--spl-edge-color'));
+
+  await measure(page, '', '#828282');
+  expect(await readVar(), '★전제 — 먼저 «걷어낼 값»이 실려 있어야 한다').toBe('#000000');
+
+  await measure(page, '', 'url(nope.png)');
+  expect(await readVar(),
+    '★못 재는 배경인데 옛 색이 그대로 남았다 — CSS 폴백(오늘 색)이 받아야 할 자리를 낡은 값이 막는다')
+    .toBe('');
+
+  /* ★양성대조 — 다시 잴 수 있는 배경을 주면 값이 «되돌아온다»(항상 비우는 판이 아니다). */
+  await measure(page, '', '#ffffff');
+  expect(await readVar(), '★양성대조 실패 — 걷어내기만 하고 다시 안 싣는다').toBe('#000000');
+
+  expect(errs, `콘솔 오류: ${errs.join(' | ')}`).toEqual([]);
+});
+
+// ══════════════════════════════════════════════════════════════════
 test('D3 점(fill)이 선(stroke)과 «같은 색» 이면서 opacity 는 1 이다 (한쪽만 고치면 두 물건으로 보인다)', async ({ page }) => {
   const errs = await boot(page);
   let checked = 0;
