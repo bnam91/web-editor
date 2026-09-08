@@ -21,6 +21,8 @@ const ROOT = path.join(__dirname, '..', '..');
 const CSS = readSrc(ROOT, 'css', 'editor-canvas.css');
 const SEC = readSrc(ROOT, 'js', 'props', 'prop-section.js');
 const EXP = readSrc(ROOT, 'js', 'io', 'export-image.js');
+const PAGE = readSrc(ROOT, 'js', 'props', 'prop-page.js');
+const SER  = readSrc(ROOT, 'js', 'io', 'section-serialize.js');
 
 /* ═══ 자르개 ═══
    ⛔고정 창(slice(i, i+900)) 금지 — 위아래 코드가 조금만 자라도 «본 적 없는 곳»을 재게 된다.
@@ -228,4 +230,101 @@ test('T5 ★힌트는 «좌우 패딩» 한 곳에서만 불린다', () => {
   const padB = arrowBodyOf(sec, 'const applyPadB =', 'T5');
   assert.doesNotMatch(padB, /gdt-pad-on|_showPadXHint/,
     '★아래 여백(applyPadB)에까지 힌트가 붙었다 — 이번 범위는 «좌우 패딩» 하나다');
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   켜고 끄기 (2026-09-08 현빈 추가 지시)
+   > 「페이지 프로퍼티 세팅에서 그리드섹션 쪽에 패딩비쥬얼 활성화여부 체크를 가능하게 하자.
+      핑크 색보이게하는것도 꺼둘수 있게 … 혹은」
+   ⚠️문장이 «혹은»에서 끊겼다 — 끊긴 뒤는 짓지 않는다. 확정된 것만 잰다.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ⇐ 되돌리면 빨강: 체크박스 줄을 지우거나, Grid 절 «밖»으로 옮기거나, 라디오로 바꾸면 터진다. */
+test('T6 ★페이지 패널 Grid 절 «안»에 패딩 비주얼 체크박스가 있다', () => {
+  const src = codeOnly(PAGE);
+
+  /* ★입력이 살아 있다 — Grid 절을 «실제로» 찾았나. 못 찾으면 아래는 통째로 공회전이다. */
+  const gi = src.indexOf('<div class="prop-section-title">Grid</div>');
+  assert.ok(gi > 0, 'Grid 절 제목을 못 찾았다 — 페이지 패널 구조가 바뀌었나');
+  /* 절의 끝 = 다음 prop-section 제목(없으면 문서 끝). ⛔고정 창으로 자르지 않는다. */
+  const nx = src.indexOf('<div class="prop-section-title">', gi + 10);
+  const grid = src.slice(gi, nx > 0 ? nx : src.length);
+  assert.ok(grid.length > 200 && grid.length < 6000,
+    `Grid 절을 ${grid.length}자로 떴다 — 0 이면 잴 게 없고, 너무 크면 절 경계를 놓쳤다`);
+
+  /* 형제(그리드 가이드)가 «같은 절 안»에 있나 — 이 절을 제대로 떴다는 양성대조. */
+  assert.match(grid, /id="page-grid-on"/, 'Grid 절 안에 그리드 가이드 체크박스가 없다 — 엉뚱한 덩이를 떴다');
+
+  assert.match(grid, /<input type="checkbox" id="page-pad-hint-on">/,
+    '★Grid 절 안에 패딩 비주얼 «체크박스»가 없다');
+  /* ⛔한 절에 두 어휘를 섞지 않는다. 바로 위 줄이 체크박스다. */
+  assert.doesNotMatch(grid, /type="radio"[^>]*pad-hint/,
+    '★같은 절에 라디오가 섞였다 — 이 절의 어휘는 체크박스다');
+});
+
+/* ⇐ 되돌리면 빨강: `raw === null` 분기를 지우거나 `!!o.on` 으로 바꾸면(=기본 꺼짐) 터진다. */
+test('T7 ★기본은 «켜짐» — 저장된 키가 없으면 true 다', () => {
+  const src = codeOnly(PAGE);
+  const body = bodyOf(src, 'function readPadHintOn', 'T7');
+
+  assert.match(body, /raw\s*===\s*null[\s\S]{0,40}return\s+true/,
+    '★키가 «없을» 때 true 를 돌려주는 분기가 없다 — 기본이 꺼짐이 되어 버린다');
+  assert.doesNotMatch(body, /return\s+!!\s*o?\.?on/,
+    '★`!!pref.on` 꼴이 있다 — 그건 그리드(기본 꺼짐)의 식이다. 여기는 기본이 켜짐이다');
+  /* 깨진 값도 켜짐으로 — 기능이 «사라지는» 쪽보다 낫다 */
+  assert.match(body, /catch[\s\S]{0,30}return\s+true/, '읽기가 던졌을 때 true 로 떨어지지 않는다');
+});
+
+/* ⇐ 되돌리면 빨강: 키를 GRID_KEY 와 합치면(한 키에 섞으면) 터진다. */
+test('T8 ★저장 키는 그리드와 «따로»다 — 한 키에 섞으면 한쪽이 다른 쪽을 지운다', () => {
+  const src = codeOnly(PAGE);
+
+  const padKey  = src.match(/const PAD_HINT_KEY\s*=\s*'([^']+)'/);
+  const gridKey = src.match(/const GRID_KEY\s*=\s*'([^']+)'/);
+  /* ★입력이 살아 있다 — 두 키를 «둘 다» 찾았나. 한쪽이라도 못 찾으면 비교가 무의미하다. */
+  assert.ok(padKey,  'PAD_HINT_KEY 를 못 찾았다');
+  assert.ok(gridKey, 'GRID_KEY 를 못 찾았다 — 그리드 저장이 사라졌나');
+  assert.notStrictEqual(padKey[1], gridKey[1],
+    `★두 설정이 같은 키(${padKey[1]})를 쓴다 — 한쪽 저장이 다른 쪽을 지운다`);
+
+  /* 읽고 쓰는 문이 «하나»인가 — localStorage 를 만지는 자리가 그 두 함수 안에만 있어야 한다. */
+  const uses = [...src.matchAll(/localStorage\.(?:getItem|setItem)\(PAD_HINT_KEY/g)].length;
+  assert.strictEqual(uses, 2,
+    `PAD_HINT_KEY 로 localStorage 를 만지는 곳이 ${uses}군데 — 읽기1+쓰기1 인 2여야 한다(0이면 배선 없음, 3+면 문이 늘었다)`);
+});
+
+/* ⇐ 되돌리면 빨강: 게이트 한 줄을 지우면 꺼도 핑크가 뜬다.
+     ⛔`!window.readPadHintOn?.()` 로 «바꿔도» 빨강이어야 한다 — 그건 기본값을 뒤집는다. */
+test('T9 ★꺼져 있으면 힌트가 아예 안 뜬다 (그리고 기본값을 뒤집지 않는다)', () => {
+  const sec = codeOnly(SEC);
+  const body = bodyOf(sec, 'function _showPadXHint', 'T9');
+
+  /* ⛔이 검사를 «먼저» 둔다 — 순서를 바꾸면 옵셔널 체이닝 변이가
+       「게이트가 없다」라는 뭉툭한 이유로 터져, 진짜 원인(기본값이 뒤집힌다)을 못 댄다. */
+  assert.doesNotMatch(body, /!\s*window\.readPadHintOn\?\.\(\)/,
+    '★`!window.readPadHintOn?.()` 꼴이다 — 함수가 아직 없을 때(로드 순서) 「꺼짐」으로 읽혀 기본값이 뒤집힌다');
+
+  assert.match(body, /if\s*\(\s*window\.readPadHintOn\s*&&\s*window\.readPadHintOn\(\)\s*===\s*false\s*\)\s*return;/,
+    '★「있고 그게 false 일 때만 접는다」 게이트가 없다');
+  /* 게이트는 «클래스·변수를 붙이기 전»에 있어야 한다 — 뒤에 있으면 껐는데도 변수가 박힌다. */
+  const gate = body.indexOf('readPadHintOn');
+  const set  = body.indexOf("setProperty('--gdt-pad-l'");
+  assert.ok(gate > 0 && set > 0 && gate < set,
+    '★게이트가 변수 박기 «뒤»에 있다 — 꺼도 인라인 변수가 남는다');
+});
+
+/* ⇐ 되돌리면 빨강: 세척에서 두 줄을 빼면 「끄는 중 저장」 창으로 변수가 샌다(D6 이 런타임으로 잡는다). */
+test('T10 ★세척(serializeCleanRoot)도 --gdt-pad 를 걷는다 — 거두기가 «못 도는 창»의 그물', () => {
+  const src = codeOnly(SER);
+
+  /* ★입력이 살아 있다 — 세척 함수를 «실제로» 떴나. */
+  const body = bodyOf(src, 'function serializeCleanRoot', 'T10');
+  assert.ok(body.length > 500, `serializeCleanRoot 몸통이 ${body.length}자 — 못 떴다`);
+  assert.match(body, /querySelectorAll\('\.selected'\)/, '형제 세척이 안 보인다 — 엉뚱한 덩이를 떴다');
+
+  assert.match(body, /removeProperty\('--gdt-pad-l'\)/, '★세척이 --gdt-pad-l 을 안 걷는다');
+  assert.match(body, /removeProperty\('--gdt-pad-r'\)/, '★세척이 --gdt-pad-r 을 안 걷는다');
+  /* ⛔라이브 DOM 이 아니라 «클론(root)» 에만 써야 한다 — 이 함수의 계약이다. */
+  assert.match(body, /root\.querySelectorAll\('\.section-inner'\)[\s\S]{0,200}removeProperty\('--gdt-pad-l'\)/,
+    '★root(클론)가 아닌 곳에서 걷고 있다 — 라이브 DOM 을 건드리면 안 된다');
 });

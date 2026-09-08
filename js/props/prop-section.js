@@ -18,6 +18,13 @@ import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } fro
 ═══════════════════════════════════ */
 let _padHintTimer = null;
 function _showPadXHint(inner, v) {
+  /* ★꺼져 있으면 «아예 아무것도 안 한다» — 클래스도, 변수도 안 붙는다.
+     ⇒ 끈 상태에서는 거둘 것도 새어나갈 것도 없다(저장 경합 자체가 생기지 않는다).
+     ★기본은 «켜짐». 그 판단은 prop-page.js 의 readPadHintOn 한 곳에만 있다 —
+       여기서 localStorage 를 다시 읽으면 기본값이 두 벌이 되어 언젠가 갈린다.
+     ⛔`!window.readPadHintOn?.()` 로 쓰지 마라 — 함수가 아직 없을 때(로드 순서)
+       「꺼짐」으로 읽혀 기본값이 뒤집힌다. «있고 그게 false 일 때»만 접는다. */
+  if (window.readPadHintOn && window.readPadHintOn() === false) return;
   inner.style.setProperty('--gdt-pad-l', v + 'px');
   inner.style.setProperty('--gdt-pad-r', v + 'px');
   document.body.classList.add('gdt-pad-on');

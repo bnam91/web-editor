@@ -32,9 +32,13 @@ const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'tex
 const HARNESS = (() => {
   let h = fs.readFileSync(path.join(REPO, 'index.html'), 'utf8');
   h = h.replace(/<script\b[\s\S]*?<\/script>/gi, '');
-  return h.replace('</body>', `<script type="module">
+  /* ★세척 «진짜 함수»를 얹는다 — D6 이 재구현이 아니라 실물을 돌리게. 플레인 스크립트라 단독 로드된다. */
+  return h.replace('</body>', `<script src="/js/io/section-serialize.js"></script>
+<script type="module">
   import { showSectionProperties } from '/js/props/prop-section.js';
+  import { showPageProperties } from '/js/props/prop-page.js';
   window.__open = showSectionProperties;
+  window.__openPage = showPageProperties;
   window.__ready = true;
 </script></body>`);
 })();
@@ -248,6 +252,179 @@ test('D5 ★숫자칸도 «같은 손»을 탄다 — 슬라이더만 배선되�
   expect(b.on, '★숫자칸으로 바꿨는데 띠가 안 떴다 — 슬라이더에만 배선됐다').toBe(true);
   expect(b.padL, '패딩 자체가 안 먹었다').toBe('28px');
   expect(b.left, '★띠 두께가 숫자칸 값과 다르다').toBe('28px');
+
+  expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
+});
+
+/* ═══════════════════════════════════════════════════════════
+   D6 ★저장과의 «경합» — 힌트가 켜진 «그 순간»에 직렬화하면?
+   400ms 거두기는 보통 autoSave(1500ms)보다 먼저 끝난다. 그런데 슬라이더를
+   «놓지 않고 계속 끄는 동안»엔 클래스도 변수도 살아 있다. 그 창에 저장이 겹치면?
+   ⇒ 재본 결과: serializeCleanRoot 는 «거부목록»이라 .section-inner 의 style 을 안 턴다.
+     그래서 세척에 한 줄을 더했다. 이 검사는 그 한 줄이 사라지면 빨개진다.
+   ★말로 「거두니까 괜찮다」로 두지 않는다 — 거두기가 안 도는 창이 실재하기 때문이다.
+   ═══════════════════════════════════════════════════════════ */
+test('D6 ★힌트가 «켜진 채로» 직렬화해도 --gdt-pad 가 0건이다', async ({ page }) => {
+  const errs = await boot(page);
+  await openPanel(page, 'sec_1');
+  await slide(page, 40);
+
+  const r = await page.evaluate(() => {
+    const inner = document.querySelector('#sec_1 .section-inner');
+    return {
+      /* ★입력이 살아 있다 ⑴ — 세척 «진짜 함수»가 실재하나. 없으면 아래는 공회전이다. */
+      hasFn: typeof window.serializeCleanRoot === 'function',
+      /* ★입력이 살아 있다 ⑵ — 지금 «정말로» 힌트가 켜져 있고 변수가 라이브 DOM 에 있나. */
+      on: document.body.classList.contains('gdt-pad-on'),
+      liveVar: inner.style.getPropertyValue('--gdt-pad-l'),
+      /* ★양성대조 — 세척 «전»의 클론에는 변수가 «실제로» 들어 있다.
+         이게 0이면 이 검사는 아무것도 안 재고 있다. */
+      rawHits: (document.getElementById('canvas').cloneNode(true).outerHTML.match(/--gdt-pad/g) || []).length,
+      /* 본 단언 — 세척을 «진짜로» 돌린 결과 */
+      cleanHits: (() => {
+        const clone = document.getElementById('canvas').cloneNode(true);
+        window.serializeCleanRoot(clone);
+        return (clone.innerHTML.match(/--gdt-pad/g) || []).length;
+      })(),
+      /* 세척이 라이브 DOM 을 안 건드렸나 — 클론 전용이어야 한다 */
+      liveVarAfter: inner.style.getPropertyValue('--gdt-pad-l'),
+      /* 세척이 «진짜 편집»인 패딩까지 먹지는 않았나 (과잉 세척 음성대조) */
+      padKept: (() => {
+        const clone = document.getElementById('canvas').cloneNode(true);
+        window.serializeCleanRoot(clone);
+        return (clone.innerHTML.match(/padding-left: 40px/g) || []).length;
+      })(),
+    };
+  });
+
+  expect(r.hasFn, 'serializeCleanRoot 가 없다 — 하네스가 그 스크립트를 안 얹었나').toBe(true);
+  expect(r.on, '힌트가 켜져 있지 않다 — 이 검사의 전제가 깨졌다').toBe(true);
+  expect(r.liveVar, '라이브 DOM 에 변수가 없다 — 잴 대상이 없다').toBe('40px');
+  expect(r.rawHits, '★세척 «전»에도 변수가 0건이다 — 이 검사가 아무것도 안 재고 있다')
+    .toBeGreaterThanOrEqual(2);                       // 좌·우 두 개. 하한을 박는다
+  expect(r.rawHits, '변수가 비정상적으로 많다 — 엉뚱한 것을 세고 있다').toBeLessThan(20);
+
+  expect(r.cleanHits, '★세척한 마크업에 --gdt-pad 가 남았다 — 저장본에 편집 보조가 실린다').toBe(0);
+  expect(r.liveVarAfter, '★세척이 라이브 DOM 을 건드렸다 — 클론 전용이어야 한다').toBe('40px');
+  expect(r.padKept, '★세척이 «진짜 편집»인 패딩까지 먹었다').toBe(1);
+
+  expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
+});
+
+/* ═══════════════════════════════════════════════════════════
+   켜고 끄기 — «런타임». 소스에 문자열이 있나로 끝내지 않는다.
+   ★T-persist 는 «진짜 함수»(readPadHintOn/savePadHintOn + showPageProperties)로 잰다.
+     재구현한 잣대로 재면 재구현이 맞는지를 재는 꼴이 된다.
+   ⚠️여기서 «패널 폭·잘림»은 재지 않는다 — 하네스는 CSS 를 얹은 만큼만 갖는다.
+     폭·잘림은 실앱(CDP)에서 잰다.
+   ═══════════════════════════════════════════════════════════ */
+
+/** 페이지 패널을 «진짜로» 열고 체크박스가 나올 때까지 기다린다. */
+async function openPagePanel(page) {
+  await page.evaluate(() => window.__openPage());
+  await page.waitForSelector('#page-pad-hint-on', { state: 'attached' });
+}
+
+test('D7 ★기본은 켜짐 — 저장값이 «없을 때» 체크돼 있고 띠도 뜬다', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => localStorage.clear());        // 키가 «없는» 상태를 만든다
+  await openPagePanel(page);
+
+  const st = await page.evaluate(() => ({
+    /* ★입력이 살아 있다 — 체크박스가 실제로 있나. 0개면 아래 셋이 전부 공회전한다. */
+    n: document.querySelectorAll('#page-pad-hint-on').length,
+    stored: localStorage.getItem('gdt.padHint'),
+    checked: document.getElementById('page-pad-hint-on').checked,
+    readsOn: window.readPadHintOn(),
+    /* 형제(그리드)와 «같은 절»에 있나 — 자리를 실측한다 */
+    sameSection: !!document.getElementById('page-grid-on')
+      ?.closest('.prop-section')?.querySelector('#page-pad-hint-on'),
+    type: document.getElementById('page-pad-hint-on').type,
+  }));
+  expect(st.n, '체크박스가 없다 — 잴 대상이 없다').toBe(1);
+  expect(st.stored, '저장값이 «없는» 상태여야 이 검사가 뜻이 있다').toBeNull();
+  expect(st.readsOn, '★키가 없는데 readPadHintOn 이 false 다 — 기본이 뒤집혔다').toBe(true);
+  expect(st.checked, '★기본인데 체크가 안 돼 있다').toBe(true);
+  expect(st.sameSection, '★그리드 가이드와 «다른 절»에 있다').toBe(true);
+  expect(st.type, '★어휘가 체크박스가 아니다').toBe('checkbox');
+
+  /* 그리고 «실제로» 뜬다 */
+  await openPanel(page, 'sec_1');
+  await slide(page, 40);
+  expect((await bandOf(page, 'sec_1')).left, '기본 켜짐인데 띠가 안 뜬다').toBe('40px');
+
+  expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
+});
+
+test('D8 ★T-off — 꺼 두면 슬라이더를 만져도 «아예» 안 뜬다', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => localStorage.clear());
+  await openPagePanel(page);
+
+  /* ★양성대조 먼저 — 끄기 «전»엔 뜬다. 이게 없으면 「원래 안 뜨는 것」과 구별이 안 된다. */
+  await openPanel(page, 'sec_1');
+  await slide(page, 40);
+  expect((await bandOf(page, 'sec_1')).left, '끄기 전인데 안 뜬다 — 양성대조가 깨졌다').toBe('40px');
+  await page.waitForTimeout(500);
+
+  /* 진짜 체크박스를 진짜로 클릭해서 끈다 */
+  await openPagePanel(page);
+  await page.click('#page-pad-hint-on');
+  expect(await page.evaluate(() => window.readPadHintOn()), '껐는데 false 로 안 읽힌다').toBe(false);
+
+  await openPanel(page, 'sec_1');
+  await slide(page, 72);
+  const off = await bandOf(page, 'sec_1');
+  expect(off.padL, '패딩 «자체»는 계속 먹어야 한다 — 끈 것은 힌트지 기능이 아니다').toBe('72px');
+  expect(off.on,   '★꺼 뒀는데 body 에 gdt-pad-on 이 붙었다').toBe(false);
+  expect(off.left, '★꺼 뒀는데 띠가 떴다').toBe('0px');
+  expect(off.varL, '★꺼 뒀는데 인라인 변수가 박혔다').toBe('');
+
+  expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
+});
+
+test('D9 ★T-persist — 껐다가 패널을 «다시 열면» 꺼져 있다 (진짜 함수 왕복)', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => localStorage.clear());
+  await openPagePanel(page);
+  expect(await page.evaluate(() => document.getElementById('page-pad-hint-on').checked),
+    '시작 상태가 켜짐이어야 한다').toBe(true);
+
+  await page.click('#page-pad-hint-on');                  // 끈다
+  const saved = await page.evaluate(() => localStorage.getItem('gdt.padHint'));
+  expect(saved, '★저장이 «실제로» 되지 않았다 — 왕복을 잴 수 없다').toBe('{"on":false}');
+
+  /* 패널을 «다시 그린다» — 사람이 다른 것을 만졌다가 돌아온 것과 같은 경로 */
+  await page.evaluate(() => { document.querySelector('#panel-right .panel-body').innerHTML = ''; });
+  await openPagePanel(page);
+  expect(await page.evaluate(() => document.getElementById('page-pad-hint-on').checked),
+    '★다시 열었더니 체크가 되살아났다 — 저장을 안 읽는다').toBe(false);
+
+  /* 다시 켜면 저장도 따라온다(한 방향만 되는 것을 막는다) */
+  await page.click('#page-pad-hint-on');
+  expect(await page.evaluate(() => localStorage.getItem('gdt.padHint')),
+    '다시 켠 것이 저장되지 않았다').toBe('{"on":true}');
+
+  expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
+});
+
+test('D10 ★기존 저장값을 «덮지 않는다» — 꺼진 채 저장돼 있으면 열어도 꺼진 채다', async ({ page }) => {
+  const errs = await boot(page);
+  /* 사람이 예전에 꺼 둔 상태를 «미리» 만든다 */
+  await page.evaluate(() => { localStorage.clear(); localStorage.setItem('gdt.padHint', '{"on":false}'); });
+
+  await openPagePanel(page);
+  const st = await page.evaluate(() => ({
+    stored: localStorage.getItem('gdt.padHint'),
+    checked: document.getElementById('page-pad-hint-on').checked,
+  }));
+  expect(st.checked, '★저장된 «꺼짐»을 무시하고 체크했다').toBe(false);
+  expect(st.stored, '★패널을 열기만 했는데 저장값이 덮였다').toBe('{"on":false}');
+
+  /* 그리고 그 상태에서 슬라이더를 만져도 안 뜬다 */
+  await openPanel(page, 'sec_1');
+  await slide(page, 40);
+  expect((await bandOf(page, 'sec_1')).on, '★저장된 꺼짐인데 띠가 떴다').toBe(false);
 
   expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
 });
