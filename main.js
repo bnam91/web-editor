@@ -2328,6 +2328,10 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
      ⑴ onActiveProject 콜백(= global.currentActiveProjectId)
      ⑵ ★창 URL 의 `?project=…`  ← 여기가 남아 있으면 «지운 프로젝트»를 계속 가리킨다
    ⇒ 한 곳만 비우면 「비웠다」가 거짓말이 된다. 읽는 곳을 «전부» 비운다. */
+/* ★갤러리 페이지 경로의 «정본». 문자열을 여기저기 박으면 하나가 낡는다(2026-09-08 사고).
+     검사 gallery-path.test.js 가 「이 파일이 가리키는 html 이 «실재하나»」를 fs.existsSync 로 잰다. */
+const GALLERY_PAGE = 'pages/projects.html';
+
 async function _clearActiveIfNeeded(projectId, wasActive) {
   if (!wasActive) return false;
   try {
@@ -2336,10 +2340,15 @@ async function _clearActiveIfNeeded(projectId, wasActive) {
       try {
         const u = w.webContents && w.webContents.getURL && w.webContents.getURL();
         if (u && new RegExp(`[?&]project=${projectId}(?:[&#]|$)`).test(u)) {
-          // 갤러리로 되돌린다 — 지워진 프로젝트를 연 채로 두면 편집기가 «없는 것»을 가리킨다
-          const gallery = u.replace(/index\.html.*$/, 'projects.html').split('?')[0];
-          await w.loadURL(gallery.includes('projects.html') ? gallery
-                          : u.split('?')[0].replace(/[^/]*$/, 'projects.html')).catch(() => {});
+          /* 갤러리로 되돌린다 — 지워진 프로젝트를 연 채로 두면 편집기가 «없는 것»을 가리킨다.
+             ⛔★2026-09-08 실측 사고: 여기가 «URL 문자열을 손으로 조립»해서 «없는 경로»를 만들었다.
+                 `file:///…/index.html?project=x` → `file:///…/projects.html` (루트)
+                 그런데 실제 파일은 `pages/projects.html` 이다. 루트엔 없다.
+               ⇒ 활성 프로젝트를 지우면 창이 `chrome-error://chromewebdata/` 로 갔다(제목·본문 빈 화면).
+                 「지웠다」는 성공했는데 «사용자 화면이 죽었다» — 도구가 성공을 답하니 아무도 몰랐다.
+             ★같은 파일이 다른 세 자리에서는 `loadFile('pages/projects.html')` 로 «맞게» 쓰고 있었다.
+               ⇒ 조립하지 말고 그 표현을 쓴다. 경로를 «두 가지 방법»으로 만들면 하나는 반드시 낡는다. */
+          await w.loadFile(GALLERY_PAGE).catch(() => {});
         }
         await w.webContents.executeJavaScript(
           'try{window.activeProjectId=null}catch(_){}; true', true).catch(() => {});
