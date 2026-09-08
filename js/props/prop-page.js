@@ -209,19 +209,23 @@ export function showPageProperties() {
           <input type="checkbox" id="page-grid-on"> 그리드 가이드
         </label>
       </div>
-      <div class="prop-hint" style="font-size:11px;color:#888;">저장·내보내기에는 나오지 않습니다.</div>
+      <!-- ★칼럼·거터를 «한 줄»에 둔다 (2026-09-08 현빈: "칼럼과 거터 하나의 로우에 둬도 될듯해").
+           ⚠️그냥 합치면 안 들어간다 — 240px 패널의 가용 폭은 211px 인데
+             라벨 56×2 + 숫자칸 44×2 + gap 16 = 216px 로 «라벨만으로» 이미 넘친다(실측).
+           ⇒ ⑴ 라벨을 «이 줄에서만» 28px 로 좁히고(.prop-label--narrow — 전역 .prop-label 은 안 건드린다)
+             ⑵ 거터 «슬라이더»를 버렸다. 숫자칸이 같은 값을 받으므로 기능은 그대로고,
+                프리셋 [6][12] 는 현빈 스케치에 남아 있어 지키는 쪽을 골랐다.
+             ⇒ 실측 결과 넘침 0 · 잘린 요소 0 · 여유 +12px.
+           ⛔라벨을 34px 로 되돌리지 마라 — 여유가 0 이라 윈도우 폰트에서 잘린다(실측). -->
       <div class="prop-row" id="page-grid-opts">
-        <span class="prop-label">칼럼</span>
+        <span class="prop-label prop-label--narrow">칼럼</span>
         <div class="prop-type-group" id="page-grid-col-presets">
           <button class="prop-preset-btn prop-type-btn" data-cols="6">6</button>
           <button class="prop-preset-btn prop-type-btn" data-cols="12">12</button>
         </div>
         <input type="number" class="prop-number" id="page-grid-cols" min="2" max="24" value="12" title="칼럼 수 (2~24, 직접 입력)">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">거터</span>
-        <input type="range" class="prop-slider" id="page-grid-gut-slider" min="0" max="80" step="1" value="20">
-        <input type="number" class="prop-number" id="page-grid-gut" min="0" max="80" value="20" title="칼럼 사이 간격(px)">
+        <span class="prop-label prop-label--narrow">거터</span>
+        <input type="number" class="prop-number" id="page-grid-gut" min="0" max="80" value="10" title="칼럼 사이 간격(px)">
       </div>
     </div>
     <!-- ★라벨을 «안» 붙인다 — 절 제목이 이미 「참고 이미지」다. 같은 말을 두 번 하면
@@ -288,7 +292,6 @@ export function showPageProperties() {
   const gridOn   = document.getElementById('page-grid-on');
   const gridCols = document.getElementById('page-grid-cols');
   const gridGut  = document.getElementById('page-grid-gut');
-  const gridGutSlider = document.getElementById('page-grid-gut-slider');
   const gridColPresets = document.getElementById('page-grid-col-presets');
 
   /* ★클램프는 «한 벌»만 둔다 — refreshGrid 가 쓰는 식과 되쓰기가 갈리면
@@ -318,7 +321,7 @@ export function showPageProperties() {
      ⇒ 체크박스는 순수 「꺼짐」이고, 끈다고 설정이 사라질 이유가 없다(피그마의 눈 아이콘과 같은 층). */
   function syncGridDisabled() {
     const on = !!(gridOn && gridOn.checked);
-    [gridCols, gridGut, gridGutSlider].forEach(el => { if (el) el.disabled = !on; });
+    [gridCols, gridGut].forEach(el => { if (el) el.disabled = !on; });
     if (gridColPresets) gridColPresets.querySelectorAll('button').forEach(b => { b.disabled = !on; });
   }
 
@@ -329,7 +332,6 @@ export function showPageProperties() {
     syncColPresets();
     const n = clampCols(gridCols?.value);
     const g = clampGut(gridGut?.value);
-    if (gridGutSlider && gridGutSlider.value !== String(g)) gridGutSlider.value = g;
     /* ★끈 상태도 «기억»한다 — 예전엔 여기서 바로 return 해서 on:false 가 저장되지 않았고,
          꺼 놓고 패널을 다시 열면 가이드가 되살아났다. */
     saveGridPref({ on, n, g });
@@ -357,15 +359,9 @@ export function showPageProperties() {
     gridOn.checked = !!pref.on;
     if (gridCols && pref.n) gridCols.value = pref.n;
     if (gridGut && pref.g != null) gridGut.value = pref.g;
-    if (gridGutSlider) gridGutSlider.value = clampGut(gridGut?.value);
     [gridOn, gridCols, gridGut].forEach(el =>
       el && el.addEventListener('input', refreshGrid));
     gridOn.addEventListener('change', refreshGrid);
-    /* 거터 = 슬라이더 + 숫자칸 한 쌍 (섹션 간격·패딩과 같은 어휘) */
-    if (gridGutSlider) gridGutSlider.addEventListener('input', () => {
-      if (gridGut) gridGut.value = gridGutSlider.value;
-      refreshGrid();
-    });
     /* ★클램프 되쓰기는 «change 에만» 건다.
        ⛔input 에 걸면 min=2 라 `1` 을 치는 순간 2로 튀어서 `12` 를 못 친다. */
     if (gridCols) gridCols.addEventListener('change', () => { gridCols.value = clampCols(gridCols.value); refreshGrid(); });
