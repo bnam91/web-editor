@@ -38,7 +38,7 @@ const HELPERS = 'js/props/_helpers.js';
 /* ★이관 진행도 래칫 — 이관 커밋과 «같은 커밋»에서 올린다. 안 올리면 빨강이 뜬다.
  *   ⛔하한(≥)이 아니라 «등호»다. 하한은 까먹어도 초록이고, 등호는 까먹으면 빨강이다.
  *     그게 의도다 — 이 숫자를 고치는 손이 「내가 몇 개를 옮겼는지」를 한 번은 세게 만든다. */
-const RATCHET = { calls: 10, files: 2 };   // ← B단계(Z계열 10개: image-handling 6 + prop-step 4) 직후 값
+const RATCHET = { calls: 37, files: 6 };   // ← C단계(객체정렬 27곳 추가: frame 6 + asset 6 + grid 6 + multisel 9) 직후 값
 
 /* ── 소스 수집 ───────────────────────────────────────────────────────────── */
 
@@ -169,12 +169,36 @@ test('T1-b ★`active` 앞 공백은 «정확히 한 칸» (prop-align-btnactive
 
 test('T2 ★MIGRATED 파일에 정렬 아이콘(SVG 조각·문자)이 «사전 밖»에 없다', () => {
   assert.ok(ICON_FINGERPRINTS.length > 0, 'ALIGN_ICONS 지문이 0개다 — 사전을 못 읽었다');
+
+  /* ★지문을 «둘로» 가른다 — 2026-09-08 C단계에서 오탐이 실제로 터져서 고쳤다.
+   *   SVG 조각은 길고 유일하다 ⇒ 파일 «어디»에 있든 그건 유출이다. 그대로 전수 검사한다.
+   *   ⚠️그런데 arrow 계열의 «그림»은 ← ↔ → ↑ ↕ ↓ ☰ 즉 «글자 하나»다.
+   *     글자 하나는 산문에도 정상적으로 나온다 — 실측:
+   *       js/props/prop-grid.js:33  <div class="prop-hint">예: 1:1:2 → 25/25/50%</div>
+   *     이건 정렬 아이콘이 아니라 «설명문»이다. 그런데 prop-grid 가 C단계에서 MIGRATED 에
+   *     들어오자 T2 가 이걸 「arrow-h/right 그림이 리터럴로 있다」고 빨갛게 냈다.
+   *   ⇒ 글자 지문은 «align-btn 버튼 안»에 있을 때만 유출로 센다.
+   *     ⛔단언을 «약하게» 한 게 아니다 — 재는 자리를 «맞는 자리»로 옮긴 것이다.
+   *       arrow 버튼을 진짜로 리터럴로 되돌리면 그 글자는 버튼 «안»에 들어오므로 여전히 잡힌다. */
+  const svgFps  = ICON_FINGERPRINTS.filter(fp => fp.frag.includes('<'));
+  const charFps = ICON_FINGERPRINTS.filter(fp => !fp.frag.includes('<'));
+  assert.ok(svgFps.length  > 0, 'SVG 지문이 0개다 — 가르개가 부서졌다. 이 상태로는 전수 검사가 «아무것도» 안 본다');
+  assert.ok(charFps.length > 0, '글자 지문이 0개다 — 가르개가 부서졌다(arrow 계열이 사라졌나)');
+
   for (const f of MIGRATED) {
     const src = norm(SRC.get(f));
-    for (const fp of ICON_FINGERPRINTS) {
+    for (const fp of svgFps) {
       assert.equal(src.includes(fp.frag), false,
         `${f} 에 ${fp.family}/${fp.key} 그림이 리터럴로 있다: ${fp.frag.slice(0, 120)}\n` +
         `→ 그림은 ALIGN_ICONS «한 곳»에만 산다. 호출부는 alignBtn(family, key, …) 로만 고른다.`);
+    }
+    for (const m of SRC.get(f).matchAll(/<button[^>]*class="[^"]*align-btn[^"]*"[^>]*>([\s\S]*?)<\/button>/g)) {
+      const inner = norm(m[1]);
+      for (const fp of charFps) {
+        assert.equal(inner.includes(fp.frag), false,
+          `${f} 의 align-btn 버튼 «안»에 ${fp.family}/${fp.key} 글자(${fp.frag})가 리터럴로 있다:\n  ${norm(m[0]).slice(0, 160)}\n` +
+          `→ alignBtn('${fp.family}', '${fp.key}', { label: '…' }) 로 부르라.`);
+      }
     }
   }
 });
@@ -229,4 +253,111 @@ test('T4 ★text 와 object-h 는 같은 「left」라도 «다른 그림»이�
   assert.deepEqual(Object.keys(ALIGN_ICONS['object-v']), ['top', 'middle', 'bottom']);
   assert.equal(ALIGN_ICONS['arrow-h'].stack, '☰',
     'arrow-h.stack 은 prop-step.js 의 4번째 버튼이 쓰는 그림이다 — 사라지면 그 버튼이 죽는다');
+});
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * C단계 — 객체정렬 27곳을 «채움» 그림 + «이름 6개»로 (2026-09-08)
+ *   현빈: 「외곽선·객체정렬 → 채움으로 일단 바꿔줄래?」 「정렬 6개 버튼으로 모두 되지 않을까?」
+ *         이름은 「수직 수평 넣어서」로 확정.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* ★객체정렬이 사는 4파일. 27곳 = frame 6 + asset 6 + grid 6 + multisel 9 */
+const OBJ_FILES = [
+  'js/props/prop-frame.js',
+  'js/props/prop-asset.js',
+  'js/props/prop-grid.js',
+  'js/props/prop-multisel.js',
+];
+const OBJ_CALLS = 27;
+
+/* ★이름 «여섯». 이 벌을 고른 이유는 다수결이 아니라 «애매함이 없어서»다 —
+ *   전에는 「중앙 정렬」이 파일마다 가로/세로로 갈렸다. (수평)·(수직)이 그걸 없앤다. */
+const OBJ_NAMES = ['왼쪽 정렬', '가운데 정렬 (수평)', '오른쪽 정렬', '위쪽 정렬', '가운데 정렬 (수직)', '아래쪽 정렬'];
+
+/* ★「이 리터럴 버튼이 정렬 버튼인가」의 판정 —
+ *   .prop-align-btn 은 정렬 전용이 아니다(모양·회전·플립도 쓴다). 그래서 클래스로는 못 가른다.
+ *   대신 «무엇이 이 버튼을 붙잡는가»로 가른다: 정렬 배선 속성이 붙어 있으면 정렬 버튼이다.
+ *   ⇒ 안 건드려야 할 6개(data-fit 2 · asset-bg-clear · ss-rotate-90 · ss-flip-h · ss-flip-v)는
+ *     이 중 아무것도 안 갖고 있어서 오탐이 안 난다(실측). */
+const ALIGN_WIRE = /data-align=|data-pos=|data-ha=|data-va=|id="ss-align-/;
+const LITERAL_BTN_FULL = /<button[^>]*class="[^"]*align-btn[\s\S]*?<\/button>/g;
+
+test('C1 ★객체정렬 27곳이 «전부» 헬퍼를 쓴다 (그 4파일에 정렬용 리터럴 버튼 0건)', () => {
+  /* ⛔루프가 0바퀴로 스스로 통과하는 것을 막는다 — 입력이 살아 있음을 «먼저» 세운다. */
+  for (const f of OBJ_FILES) assert.ok(SRC.has(f), `${f} 를 못 읽었다 — 파일이 옮겨졌나. 이 검사는 지금 아무것도 안 보고 있다`);
+  const calls = OBJ_FILES.reduce((n, f) => n + count(SRC.get(f), CALL), 0);
+  assert.equal(calls, OBJ_CALLS,
+    `객체정렬 4파일의 alignBtn 호출이 ${calls}개다 — 27이어야 한다. 한 곳이라도 리터럴로 되돌아갔거나 새로 생겼다.`);
+
+  for (const f of OBJ_FILES) {
+    for (const m of SRC.get(f).matchAll(LITERAL_BTN_FULL)) {
+      const open = m[0].match(/<button([\s\S]*?)>/)[1];
+      assert.equal(ALIGN_WIRE.test(open), false,
+        `${f} 에 «정렬 배선이 붙은» 리터럴 버튼이 남아 있다:\n  ${norm(m[0]).slice(0, 200)}\n` +
+        `→ alignBtn('object-h'|'object-v', key, { label, title, attrs }) 로 부르라. ` +
+        `⚠️T1 은 이걸 못 잡는다 — 옛 «외곽선» 그림은 이제 사전에 없어서 지문에 안 걸린다. 그래서 배선으로 잰다.`);
+    }
+  }
+});
+
+test('C2 ★객체정렬 그림이 «채움»이다 (path+fill 있고, line·rect 외곽선이 없다)', () => {
+  for (const fam of ['object-h', 'object-v']) {
+    const keys = ALIGN_ICONS[fam];
+    assert.ok(keys, `ALIGN_ICONS['${fam}'] 가 없다 — 계열이 사라졌다`);
+    assert.equal(Object.keys(keys).length, 3, `${fam} 는 그림이 3개여야 한다`);
+    for (const [k, icon] of Object.entries(keys)) {
+      assert.match(icon, /<path[^>]*fill="currentColor"/,
+        `${fam}/${k} 에 채움 path 가 없다 — 외곽선으로 되돌아갔다: ${icon.slice(0, 120)}`);
+      assert.doesNotMatch(icon, /<line/, `${fam}/${k} 에 <line> 이 있다 — 외곽선 그림이다: ${icon.slice(0, 120)}`);
+      assert.doesNotMatch(icon, /<rect/, `${fam}/${k} 에 <rect> 가 있다 — 외곽선 그림이다: ${icon.slice(0, 120)}`);
+    }
+  }
+  /* ★fill-h·fill-v 는 C단계에서 object-h·object-v 에 «합쳤다». 되살아나면 «같은 뜻 두 이름»이 다시 생긴다. */
+  assert.equal(ALIGN_ICONS['fill-h'], undefined, "fill-h 가 되살아났다 — object-h 와 같은 뜻이라 C단계에서 합쳤다");
+  assert.equal(ALIGN_ICONS['fill-v'], undefined, "fill-v 가 되살아났다 — object-v 와 같은 뜻이라 C단계에서 합쳤다");
+});
+
+test('C3 ★이름이 «정확히» 그 6개다 — 집합 완전 일치 (여분도 누락도 없다)', () => {
+  const titles = [], labels = [];
+  for (const f of OBJ_FILES) {
+    /* 호출은 한 줄에 하나다 — [^\n] 로 막아 «옆 호출로 새는» 것을 막는다. */
+    for (const m of SRC.get(f).matchAll(/alignBtn\('object-[hv]',[^\n]*?title:\s*'([^']*)'/g)) titles.push(m[1]);
+    for (const m of SRC.get(f).matchAll(/alignBtn\('object-[hv]',[^\n]*?label:\s*'([^']*)'/g)) labels.push(m[1]);
+  }
+  assert.equal(titles.length, OBJ_CALLS, `title 을 ${titles.length}개 찾았다 — 27이어야 한다. 입력이 죽었거나 호출 모양이 바뀌었다`);
+  assert.equal(labels.length, OBJ_CALLS, `label(aria-label) 을 ${labels.length}개 찾았다 — 27이어야 한다`);
+
+  const got = new Set(titles), want = new Set(OBJ_NAMES);
+  /* ★«완전 일치»다. 「6개가 들어 있다」로 재면 일곱 번째가 섞여도 통과한다. */
+  for (const t of got) assert.ok(want.has(t), `여분 이름 "${t}" 가 섞였다 — 쓸 수 있는 이름은 6개뿐이다: ${OBJ_NAMES.join(' · ')}`);
+  for (const t of want) assert.ok(got.has(t), `이름 "${t}" 가 어디에도 없다 — 한 곳을 안 고쳤나`);
+  assert.equal(got.size, 6, `서로 다른 이름이 ${got.size}가지다 — 6가지여야 한다: ${[...got].join(' · ')}`);
+
+  /* aria-label 도 같은 이름이어야 한다 — 눈에 보이는 이름과 읽히는 이름이 갈리면 안 된다. */
+  assert.deepEqual(labels, titles, 'label(aria-label)과 title 이 서로 다르다 — 화면과 스크린리더가 다른 이름을 쓴다');
+});
+
+/* ★텍스트정렬은 이번 범위가 «아니다» — 현빈: 「일단 텍스트 정렬은 두고」.
+ *   특히 prop-iconify 의 「중앙 정렬」은 «텍스트» 정렬이라 그대로 둬야 한다.
+ *   (객체정렬의 「중앙 정렬」 2곳만 「가운데 정렬 (수직)」로 갔다) */
+const TEXT_ALIGN_KEPT = [
+  ['js/props/prop-iconify.js', ['좌측 정렬', '중앙 정렬', '우측 정렬']],
+  ['js/props/prop-chat.js',    ['좌측 정렬', '우측 정렬']],
+  ['js/props/prop-sticker.js', ['왼쪽', '가운데', '오른쪽']],
+];
+
+test('C4 ★텍스트정렬 이름은 «안 건드렸다»', () => {
+  assert.ok(TEXT_ALIGN_KEPT.length > 0, '검사 목록이 비었다 — 그러면 이 검사는 0바퀴로 스스로 통과한다');
+  let checked = 0;
+  for (const [f, names] of TEXT_ALIGN_KEPT) {
+    const src = SRC.get(f);
+    assert.ok(src, `${f} 를 못 읽었다 — 입력이 죽었다`);
+    for (const nm of names) {
+      assert.ok(src.includes(`title="${nm}"`),
+        `${f}: 텍스트정렬 title="${nm}" 가 사라졌다. 이번 작업은 «객체»정렬만 건드린다 — 텍스트정렬은 그대로 둬라.`);
+      checked++;
+    }
+  }
+  assert.equal(checked, 8, `${checked}개만 봤다 — 8개를 봐야 한다`);
 });

@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { alignBtn } from './_helpers.js';
 
 /* ═══════════════════════════════════
    FREELAYOUT MULTI-SELECT PANEL
@@ -259,49 +260,13 @@ export function showFreeLayoutMultiSelPanel() {
     <div class="prop-section">
       <div class="prop-section-title">Align</div>
       <div class="prop-row" style="gap:3px;justify-content:space-between;">
-        <button class="msp-align-btn" data-align="left"    title="왼쪽 정렬">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="2" y1="1" x2="2" y2="13"/>
-            <rect x="3" y="3" width="5" height="3" rx="0.5"/>
-            <rect x="3" y="8" width="8" height="3" rx="0.5"/>
-          </svg>
-        </button>
-        <button class="msp-align-btn" data-align="hcenter" title="가운데 정렬 (수평)">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="7" y1="1" x2="7" y2="13"/>
-            <rect x="3.5" y="3" width="7" height="3" rx="0.5"/>
-            <rect x="2" y="8" width="10" height="3" rx="0.5"/>
-          </svg>
-        </button>
-        <button class="msp-align-btn" data-align="right"   title="오른쪽 정렬">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="12" y1="1" x2="12" y2="13"/>
-            <rect x="6" y="3" width="5" height="3" rx="0.5"/>
-            <rect x="3" y="8" width="8" height="3" rx="0.5"/>
-          </svg>
-        </button>
+        ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { 'data-align': 'left' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { 'data-align': 'hcenter' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', attrs: { 'data-align': 'right' }, base: 'msp-align-btn' })}
         <div style="width:1px;background:var(--ui-border);height:20px;flex-shrink:0;"></div>
-        <button class="msp-align-btn" data-align="top"     title="위쪽 정렬">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="2" x2="13" y2="2"/>
-            <rect x="3" y="3" width="3" height="5" rx="0.5"/>
-            <rect x="8" y="3" width="3" height="8" rx="0.5"/>
-          </svg>
-        </button>
-        <button class="msp-align-btn" data-align="vcenter" title="가운데 정렬 (수직)">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="7" x2="13" y2="7"/>
-            <rect x="3" y="3.5" width="3" height="7" rx="0.5"/>
-            <rect x="8" y="2" width="3" height="10" rx="0.5"/>
-          </svg>
-        </button>
-        <button class="msp-align-btn" data-align="bottom"  title="아래쪽 정렬">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="12" x2="13" y2="12"/>
-            <rect x="3" y="6" width="3" height="5" rx="0.5"/>
-            <rect x="8" y="3" width="3" height="8" rx="0.5"/>
-          </svg>
-        </button>
+        ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', attrs: { 'data-align': 'top' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', attrs: { 'data-align': 'vcenter' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', attrs: { 'data-align': 'bottom' }, base: 'msp-align-btn' })}
       </div>
     </div>
   `;
@@ -497,15 +462,9 @@ export function showFlowMultiSelPanel() {
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group">
-          <button class="prop-align-btn" data-align="left"   title="왼쪽 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="2" x2="1" y2="12"/><rect x="3" y="4" width="5" height="6" rx="1"/></svg>
-          </button>
-          <button class="prop-align-btn" data-align="center" title="가운데 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="7" y1="2" x2="7" y2="12"/><rect x="3" y="4" width="8" height="6" rx="1"/></svg>
-          </button>
-          <button class="prop-align-btn" data-align="right"  title="오른쪽 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="13" y1="2" x2="13" y2="12"/><rect x="6" y="4" width="5" height="6" rx="1"/></svg>
-          </button>
+          ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { 'data-align': 'left' } })}
+          ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { 'data-align': 'center' } })}
+          ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', attrs: { 'data-align': 'right' } })}
         </div>
       </div>
     </div>

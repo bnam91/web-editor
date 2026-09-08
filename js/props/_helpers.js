@@ -166,13 +166,32 @@ export function buildGridPicker(picker, label, onPick, opts = {}) {
  *   이 구분이 무너지면 「그림을 통일하자」는 선의의 리팩터가 «뜻이 다른 버튼 두 개»를
  *   같은 아이콘으로 만들어버린다. align-btn-ssot.test.mjs T4 가 그 순간에 빨강을 낸다.
  *
- *   text      — 글 줄 4개. 문단/텍스트 정렬.            출처: prop-text-template.js·prop-iconify.js
- *   object-h  — 세로 가이드선 + 상자. 가로축 오브젝트.  출처: prop-asset.js·prop-simple-card.js·prop-multisel.js
- *   object-v  — 가로 가이드선 + 상자. 세로축 오브젝트.  출처: prop-asset.js
- *   fill-h    — 칠(solid)로 그린 판, 가로축.            출처: prop-frame.js
- *   fill-v    — 칠(solid)로 그린 판, 세로축.            출처: prop-frame.js
+ *   text      — 글 줄 4개(외곽선). 문단/텍스트 정렬.   출처: prop-text-template.js·prop-iconify.js
+ *   object-h  — ★칠(solid) 판, 가로축 오브젝트.        출처: prop-frame.js·prop-asset.js·prop-grid.js·prop-multisel.js
+ *   object-v  — ★칠(solid) 판, 세로축 오브젝트.        출처: 〃
  *   arrow-h   — ★SVG 가 아니라 «문자» 그대로. 가로축.
  *   arrow-v   — ★SVG 가 아니라 «문자» 그대로. 세로축.
+ *
+ * ★C단계에서 fill-h·fill-v 를 «지웠다» — object-h·object-v 와 같은 뜻이 됐기 때문이다
+ *   현빈: 「외곽선·객체정렬 → 채움으로 일단 바꿔줄래?」 「prop-frame.js 이게 낫다 아웃라인있는것 보다」
+ *   ⇒ 객체정렬 27곳이 전부 «채움»이 되면 object-*(외곽선)와 fill-*(채움)는 «구분할 것이 없다».
+ *
+ *   ★남긴 이름은 object-h·object-v 다. 이유 —
+ *     text 는 «무엇을 정렬하는가»(뜻)로 지은 이름이고, fill 은 «어떻게 그렸는가»(그림체)로 지은 이름이다.
+ *     한 사전 안에서 두 축이 섞이면 다음 사람이 계열을 못 고른다. 그리고 그림체는 «방금 바뀐 것»이고
+ *     또 바뀔 수 있다 — 다음에 누가 이걸 외곽선으로 되돌리면 fill-h 라는 이름은 «거짓»이 되지만
+ *     object-h 는 그대로 참이다. 이름은 안 바뀌는 축에 걸어야 한다.
+ *
+ * ⚠️크기 — width/height 는 14, viewBox 는 «0 0 16 16 그대로»다. 실측하고 정했다
+ *   원래 채움 그림은 16x16(viewBox 16), 외곽선은 14x14(viewBox 14)였다. 그냥 16 으로 옮기면
+ *   갈아끼우는 21곳의 그림이 «눈에 띄게 커진다». 헤드리스 크롬에서 실제 버튼 안 잉크 크기를 쟀다:
+ *     prop-align-btn 가로 — 외곽선@14 = 7x10px · 채움@16 = 10x12px(+43% 폭) · ★채움@14 = 8.75x10.5px(+25%/+5%)
+ *     prop-align-btn 세로 — 외곽선@14 = 10x7px · 채움@16 = 12x10px(+43% 높이) · ★채움@14 = 10.5x8.75px
+ *   ⇒ 14 가 «덜 튄다». 게다가 이 패널들의 집안 크기가 14 다(js/props 아이콘 실측: 14 가 104개, 16 은 31개).
+ *   ⛔viewBox 는 안 건드렸다 — 16 짜리 좌표로 그린 path 를 viewBox 14 로 바꾸면 그림이 «잘린다».
+ *     width/height 만 줄이면 통째로 축소될 뿐 안 잘린다.
+ *   ★대가도 적는다: 원래 16 이던 prop-frame 6곳과 msp 6곳은 잉크가 약 12.5% «작아진다».
+ *     21곳을 최대 43% 키우는 것보다 이쪽이 작다고 봤다. 되돌리려면 이제 여기 한 곳만 고치면 된다.
  *
  * ★SVG 공백은 «없는 판»으로 통일했다. 레포엔 줄바꿈·들여쓰기가 든 복붙본과 한 줄짜리
  *   복붙본이 섞여 있어서(prop-text-template vs prop-iconify), 사전이 둘 중 하나를 안 고르면
@@ -190,24 +209,14 @@ export const ALIGN_ICONS = {
     right:  '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/><line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/></svg>',
   },
   'object-h': {
-    left:   '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="2" x2="1" y2="12"/><rect x="3" y="4" width="5" height="6" rx="1"/></svg>',
-    center: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="7" y1="2" x2="7" y2="12"/><rect x="3" y="4" width="8" height="6" rx="1"/></svg>',
-    right:  '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="13" y1="2" x2="13" y2="12"/><rect x="6" y="4" width="5" height="6" rx="1"/></svg>',
+    left:   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M3 2h1.5v12H3zM6.5 4.5h6a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-6zm0 4h4a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-4z"/></svg>',
+    center: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M7.25 2h1.5v2.5H13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H8.75v1H12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H8.75V14h-1.5v-2.5H4a.5.5 0 0 1-.5-.5V9a.5.5 0 0 1 .5-.5h3.25v-1H4a.5.5 0 0 1-.5-.5V5a.5.5 0 0 1 .5-.5h3.25z"/></svg>',
+    right:  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M11.5 2H13v12h-1.5zM3.5 4.5h6a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-6zm2 4h4a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-4z"/></svg>',
   },
   'object-v': {
-    top:    '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="1" x2="12" y2="1"/><rect x="4" y="3" width="6" height="5" rx="1"/></svg>',
-    middle: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="7" x2="12" y2="7"/><rect x="4" y="3" width="6" height="8" rx="1"/></svg>',
-    bottom: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="13" x2="12" y2="13"/><rect x="4" y="6" width="6" height="5" rx="1"/></svg>',
-  },
-  'fill-h': {
-    left:   '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M3 2h1.5v12H3zM6.5 4.5h6a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-6zm0 4h4a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-4z"/></svg>',
-    center: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M7.25 2h1.5v2.5H13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H8.75v1H12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H8.75V14h-1.5v-2.5H4a.5.5 0 0 1-.5-.5V9a.5.5 0 0 1 .5-.5h3.25v-1H4a.5.5 0 0 1-.5-.5V5a.5.5 0 0 1 .5-.5h3.25z"/></svg>',
-    right:  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M11.5 2H13v12h-1.5zM3.5 4.5h6a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-6zm2 4h4a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-4z"/></svg>',
-  },
-  'fill-v': {
-    top:    '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 3v1.5h12V3zM4.5 6.5v6a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-6zm4 0v4a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-4z"/></svg>',
-    middle: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 7.25h2.5V4a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v3.25h1V4a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v3.25H14v1.5h-2.5V12a.5.5 0 0 1-.5.5H9a.5.5 0 0 1-.5-.5V8.75h-1V12a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5V8.75H2z"/></svg>',
-    bottom: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 11.5v1.5h12v-1.5zM4.5 3.5v6a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-6zm4 2v4a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-4z"/></svg>',
+    top:    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 3v1.5h12V3zM4.5 6.5v6a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-6zm4 0v4a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-4z"/></svg>',
+    middle: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 7.25h2.5V4a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v3.25h1V4a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v3.25H14v1.5h-2.5V12a.5.5 0 0 1-.5.5H9a.5.5 0 0 1-.5-.5V8.75h-1V12a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5V8.75H2z"/></svg>',
+    bottom: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 11.5v1.5h12v-1.5zM4.5 3.5v6a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-6zm4 2v4a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-4z"/></svg>',
   },
   /* ★★여기부터는 SVG 가 «아니다». 레포가 실제로 쓰는 그림이 문자 그 자체다.
    *   SVG 로 «승격»시키면 이관이 1:1 치환이 아니게 되고 렌더가 바뀐다 — 그건 다른 작업이다. */

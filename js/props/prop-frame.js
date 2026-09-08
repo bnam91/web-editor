@@ -3,7 +3,7 @@
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { bindSlider } from './_helpers.js';
+import { bindSlider, alignBtn } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset } from '../frame-geometry.js';
 
 function rgbToHex(rgb) {
@@ -342,12 +342,12 @@ function _renderAutoPanel(ss) {
     <div class="prop-section">
       <div class="prop-section-title">Child Align</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:6px;">
-        <button class="prop-align-btn" id="ss-align-left"    title="왼쪽 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M3 2h1.5v12H3zM6.5 4.5h6a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-6zm0 4h4a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-4z"/></svg></button>
-        <button class="prop-align-btn" id="ss-align-hcenter" title="가운데 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M7.25 2h1.5v2.5H13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H8.75v1H12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H8.75V14h-1.5v-2.5H4a.5.5 0 0 1-.5-.5V9a.5.5 0 0 1 .5-.5h3.25v-1H4a.5.5 0 0 1-.5-.5V5a.5.5 0 0 1 .5-.5h3.25z"/></svg></button>
-        <button class="prop-align-btn" id="ss-align-right"   title="오른쪽 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M11.5 2H13v12h-1.5zM3.5 4.5h6a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-6zm2 4h4a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-4z"/></svg></button>
-        <button class="prop-align-btn" id="ss-align-top"     title="위 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 3v1.5h12V3zM4.5 6.5v6a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-6zm4 0v4a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-4z"/></svg></button>
-        <button class="prop-align-btn" id="ss-align-vcenter" title="세로 가운데"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 7.25h2.5V4a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v3.25h1V4a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v3.25H14v1.5h-2.5V12a.5.5 0 0 1-.5.5H9a.5.5 0 0 1-.5-.5V8.75h-1V12a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5V8.75H2z"/></svg></button>
-        <button class="prop-align-btn" id="ss-align-bottom"  title="아래 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 11.5v1.5h12v-1.5zM4.5 3.5v6a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-6zm4 2v4a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-4z"/></svg></button>
+        ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { id: 'ss-align-left' } })}
+        ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { id: 'ss-align-hcenter' } })}
+        ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', attrs: { id: 'ss-align-right' } })}
+        ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', attrs: { id: 'ss-align-top' } })}
+        ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', attrs: { id: 'ss-align-vcenter' } })}
+        ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', attrs: { id: 'ss-align-bottom' } })}
       </div>
       <div class="prop-row" style="margin-top:8px;">
         <span class="prop-label" style="width:40px;">간격</span>
