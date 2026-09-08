@@ -10,8 +10,8 @@
  *   손으로 베끼면 두 벌이 되고, 두 벌은 조용히 갈라진다.
  *   ⇒ `_typo-section.js` 로 뽑았다. 이 파일이 지키는 것은 «둘»이다:
  *     ⑴ 뽑기가 «동작 무변경»이었다        → 골든 비교 (T1)
- *     ⑵ 폰트 피커 위젯도 «한 벌»이다            → 호출 단언 (T3)
- *   ★모달 패널이 이 함수를 «실제로 부르는가»(T2)는 모달 절이 붙는 커밋에서 이어 붙인다.
+ *     ⑵ 두 패널이 «그 함수를» 실제로 부른다 → 호출 단언 (T2·T3)
+ *   ⛔⑵ 가 없으면 다음 사람이 한쪽을 인라인 마크업으로 되돌려도 검사가 초록이다.
  *     선례: align-btn-ssot.test.mjs · grid-callsite-ssot.test.mjs.
  *
  * ⚠️이 파일은 «동작»과 «소스 문자열»을 둘 다 단언한다. 정상적인 리팩터링에도 빨강이 날 수 있다 —
@@ -37,6 +37,7 @@ const FIXDIR = path.join(ROOT, 'tests/fixtures');
 
 const SRC = {
   template: stripComments(readSrc(ROOT, 'js/props/prop-text-template.js')),
+  modal:    stripComments(readSrc(ROOT, 'js/props/prop-modal.js')),
   typo:     stripComments(readSrc(ROOT, 'js/props/_typo-section.js')),
   fontWire: stripComments(readSrc(ROOT, 'js/props/prop-text-wireup-font.js')),
   picker:   stripComments(readSrc(ROOT, 'js/props/_font-picker.js')),
@@ -116,6 +117,44 @@ function buildSection(name, arg) {
     ctx, { filename: 'js/props/_typo-section.js' });
   return ctx.__F[name](arg);
 }
+
+/* ══ T2 — 두 패널이 «같은 함수»를 부른다 ══════════════════════════════════ */
+
+const IMPORT_TYPO = /import\s*\{[^}]*\bbuildTypographySectionHtml\b[^}]*\}\s*from\s*['"][^'"]*_typo-section\.js['"]/;
+const IMPORT_FILL = /import\s*\{[^}]*\bbuildFillSectionHtml\b[^}]*\}\s*from\s*['"][^'"]*_typo-section\.js['"]/;
+
+test('T2 ★텍스트 패널과 모달 패널이 «둘 다» _typo-section.js 를 import 해서 부른다', () => {
+  // 되돌리면 빨강: 한쪽을 인라인 마크업으로 되돌리면(이 파일의 존재 이유 그 자체다).
+  for (const [name, src] of [['prop-text-template.js', SRC.template], ['prop-modal.js', SRC.modal]]) {
+    assert.match(src, IMPORT_TYPO,
+      `${name} 이 buildTypographySectionHtml 을 import 하지 않는다 — 인라인 마크업으로 되돌아갔나. ` +
+      `두 패널이 «다른 벌»을 들면 한쪽만 고쳐도 조용히 갈라진다.`);
+    assert.match(src, IMPORT_FILL, `${name} 이 buildFillSectionHtml 을 import 하지 않는다`);
+    assert.match(src, /\$\{buildTypographySectionHtml\(/,
+      `${name} 이 buildTypographySectionHtml 을 «부르지» 않는다 — import 만 하고 안 쓰면 소용없다`);
+    assert.match(src, /\$\{buildFillSectionHtml\(/, `${name} 이 buildFillSectionHtml 을 «부르지» 않는다`);
+  }
+});
+
+test('T2-b ★절의 «알맹이»가 _typo-section.js 밖에 리터럴로 없다', () => {
+  /* 지문 = 그 절에만 있는 id 조각들. 호출부에 이게 «글자로» 있으면 마크업이 되돌아온 것이다.
+     ⛔`id="txt-font-picker"` 처럼 접두사 박힌 형태로 재면 모달 쪽 복붙을 못 잡는다 —
+       그래서 «접두사 없는 꼬리»로 잰다. */
+  const TAILS = ['-font-trigger"', '-font-dropdown"', '-style-group"', '-lh-number"', '-ls-col"', '-color-chips"'];
+  assert.ok(TAILS.length >= 5, '지문이 너무 적다 — 이 검사가 헐거워진다');
+  for (const [name, src] of [['prop-text-template.js', SRC.template], ['prop-modal.js', SRC.modal]]) {
+    for (const t of TAILS) {
+      assert.equal(src.includes(t), false,
+        `${name} 에 «${t}» 가 리터럴로 있다 — Typography/Fill 마크업이 호출부로 되돌아왔다. ` +
+        `그림도 id 도 _typo-section.js «한 곳»에만 산다.`);
+    }
+  }
+  // 양성대조 — 지문은 실제로 _typo-section.js «안»에는 있어야 한다(잣대가 살아 있다는 증거).
+  for (const t of TAILS) {
+    assert.ok(SRC.typo.includes(t),
+      `지문 «${t}» 가 _typo-section.js 에도 없다 — 잣대가 낡았다. 이 상태로는 위 루프가 «아무것도» 안 보고 초록이 된다.`);
+  }
+});
 
 /* ══ T3 — 폰트 피커 위젯도 «한 곳»에서 온다 ═══════════════════════════════ */
 
