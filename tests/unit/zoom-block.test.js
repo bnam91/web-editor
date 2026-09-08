@@ -1054,7 +1054,17 @@ test('ⓑ-26 ★⑯모서리 핸들이 «보라» — 그리고 자산 블록은
   assert.ok(rule, '확대블럭 핸들 색 규칙이 없다');
   assert.match(rule[1], /border-color:\s*var\(--ui-sel-overlay/, '아웃라인과 다른 색이면 한 블록에 두 색이 된다');
   /* ⛔공용 규칙(.asset-overlay-handle)은 파랑 그대로여야 한다 — 바꾸면 자산 블록이 물든다. */
-  const shared = css.match(/\n\.asset-overlay-handle,\s*\n\.icb-overlay-handle,\s*\n\.zm-overlay-handle \{([^}]*)\}/);
+  /* ★2026-09-08 «목록»을 못박지 않는다 (툴매니저 지적).
+       전엔 세 셀렉터를 «순서·개행까지» 정규식에 박아 뒀다. 그러면 누가 그 규칙을
+       «공유»하려고 셀렉터를 하나 더할 때마다 빨개진다 — 「복사하지 말고 공유하라」는
+       이 레포의 규율과 «정면으로» 부딪힌다. 검사가 권장 행동을 벌하면 안 된다.
+     ⇒ 재는 것을 「목록이 이 문자열인가」에서 「셋이 그 규칙을 «함께 쓰나»」로 바꾼다.
+       (같은 방식이 zoom-block-polish.test.mjs:238 에 이미 있다 — 그걸 따른다) */
+  const _rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(m => ({ sel: m[1], body: m[2] }));
+  const _r = _rules.find(r => r.sel.includes('.asset-overlay-handle')
+                           && r.sel.includes('.icb-overlay-handle')
+                           && r.sel.includes('.zm-overlay-handle'));
+  const shared = _r ? [null, _r.body] : null;
   assert.ok(shared, '공용 핸들 규칙을 못 찾았다 — 검사가 대상을 놓쳤다');
   assert.match(shared[1], /border:[^;]*var\(--sel-color\)/, '공용 핸들을 보라로 바꿨다 — 자산 블록이 같이 물든다');
   assert.equal(/ui-sel-overlay/.test(shared[1]), false);
