@@ -257,8 +257,10 @@ export function showModalProperties(block) {
   /* B / I / S / H — ⚠️슬롯 «전체»에만 걸린다.
      슬롯 글자는 _esc() 평문으로 dataset 에 저장되므로 «부분 선택 서식»은 원리적으로 불가하다
      (텍스트블록과 다른 점 — 거기선 <b> 태그가 살지만 여기선 «글자로» 보인다). */
-  for (const [id, key] of [['bold', 'bold'], ['italic', 'italic'], ['strike', 'strike'], ['highlight', 'highlight']]) {
-    const btn = document.getElementById(`mdl-typo-${id}-btn`);
+  // ★id 는 «통짜로» 적는다 — 템플릿으로 조립하면 grep 도 검사도 그 배선을 «못 본다».
+  for (const [id, key] of [['mdl-typo-bold-btn', 'bold'], ['mdl-typo-italic-btn', 'italic'],
+                           ['mdl-typo-strike-btn', 'strike'], ['mdl-typo-highlight-btn', 'highlight']]) {
+    const btn = document.getElementById(id);
     btn?.addEventListener('click', () => {
       const next = block.dataset[key] !== '1';
       btn.classList.toggle('active', next);

@@ -212,3 +212,88 @@ test('B-6-b ★컬러변수 var(--color-…) 를 색으로 «받는다»', () =>
   assert.notEqual(bad.block.dataset.textColor, 'red;position:fixed',
     '세미콜론이 든 값을 그대로 받았다 — cssText 선언이 깨지고 그 뒤가 통째로 밀린다');
 });
+
+/* ══ B-7 — 패널 «배선»이 dataset 으로 간다 (소스) ═════════════════════════
+ * ⚠️이 절만 소스 문자열을 잰다. 이유를 적어 둔다:
+ *   위 검사들은 renderModalBlock 을 «진짜로» 돌려서 잰다. 하지만 패널 배선
+ *   (showModalProperties 안의 리스너들)은 propPanel.innerHTML 파싱이 필요해서
+ *   jsdom 없이는 못 돌린다 — 이 레포엔 jsdom 이 없다.
+ *   ⇒ 실물 확인은 CDP QA 가 한다. 여기서는 «배선이 dataset 으로 가는가»만 소스로 못박는다.
+ *   ⛔이게 없으면 setDs 에서 dataset 대입 한 줄만 지워도 «전부 초록»이다(실측: 변이 M2 가
+ *     이 절을 붙이기 전엔 살아남았다).
+ */
+
+const SRC_PANEL = stripComments(readSrc(ROOT, 'js/props/prop-modal.js'));
+
+/** `const name = (…) => { … }` 의 본문을 «중괄호 균형»으로 잘라 온다. ⛔고정 창 금지. */
+function arrowBody(src, name) {
+  const i = src.indexOf(`const ${name} =`);
+  assert.ok(i >= 0, `${name} 을 못 찾았다 — 이 검사는 지금 아무것도 안 보고 있다`);
+  const open = src.indexOf('{', i);
+  assert.ok(open >= 0, `${name}: 여는 중괄호를 못 찾았다`);
+  let depth = 0;
+  for (let j = open; j < src.length; j++) {
+    if (src[j] === '{') depth++;
+    else if (src[j] === '}' && --depth === 0) return src.slice(open, j + 1);
+  }
+  assert.fail(`${name}: 중괄호 짝이 안 맞는다`);
+}
+
+test('B-7 ★setDs 가 «dataset 에 쓰고» 재렌더한다', () => {
+  // 되돌리면 빨강: 대입을 지우거나 rerender() 를 빼면(변이 M2).
+  const body = arrowBody(SRC_PANEL, 'setDs');
+  assert.match(body, /block\.dataset\[key\]\s*=\s*String\(val\)/,
+    `setDs 가 block.dataset 에 «안 쓴다» — 패널을 아무리 만져도 모델이 안 바뀐다.\n  본문: ${body}`);
+  assert.match(body, /delete block\.dataset\[key\]/,
+    'setDs 가 «지우기»를 안 한다 — 값을 끄면(B 를 다시 누르면) 선언이 안 사라진다');
+  assert.match(body, /\brerender\(\)/,
+    `setDs 가 rerender() 를 안 부른다 — dataset 은 바뀌는데 «화면이 안 바뀐다».\n  본문: ${body}`);
+  // ⛔슬롯 인라인으로 새는지도 본다 — 이 파일의 존재 이유다.
+  assert.doesNotMatch(SRC_PANEL, /tb-mdl-(text|title|cell)/,
+    'prop-modal.js 가 슬롯(.tb-mdl-*)을 직접 만진다 — 재렌더가 통째로 지우는 자리다. dataset 에 써라.');
+  assert.doesNotMatch(SRC_PANEL, /\.style\.(fontFamily|fontWeight|lineHeight|letterSpacing)/,
+    'prop-modal.js 가 인라인 style 로 타이포를 박는다 — 재렌더에서 죽는다. dataset 에 써라.');
+});
+
+test('B-7-b ★타이포 컨트롤 «전부»가 배선돼 있다 (id 9종 + setDs 호출)', () => {
+  /* 되돌리면 빨강: 컨트롤 하나의 리스너를 지우면.
+     ⛔먼저 「마크업이 그 id 를 실제로 낸다」를 세운다 — 안 그러면 목록이 낡아도 조용하다. */
+  const IDS = ['mdl-typo-font-weight', 'mdl-typo-size-number', 'mdl-typo-lh-number', 'mdl-typo-ls-number',
+               'mdl-typo-bold-btn', 'mdl-typo-italic-btn', 'mdl-typo-strike-btn', 'mdl-typo-highlight-btn',
+               'mdl-typo-color', 'mdl-typo-color-hex', 'mdl-typo-color-alpha', 'mdl-typo-color-chips'];
+  assert.equal(IDS.length, 12, '목록이 12개가 아니다 — 줄면 빠진 컨트롤을 아무도 안 본다');
+
+  // 양성대조: 그 id 들이 «실제로» 절 마크업에서 나온다.
+  const markup = buildTypoMarkup();
+  for (const id of IDS) {
+    assert.ok(markup.includes(`id="${id}"`),
+      `절 마크업이 «${id}» 를 안 낸다 — id 규칙이 바뀌었다. 이 상태로는 아래 배선 검사가 ` +
+      `「없는 것을 안 배선했다」고 통과하거나, 진짜 배선 누락을 못 잡는다.`);
+  }
+  // 본 단언: 패널이 그 id 를 «집는다».
+  for (const id of IDS) {
+    assert.ok(SRC_PANEL.includes(id),
+      `prop-modal.js 가 «${id}» 를 안 집는다 — 그 컨트롤은 화면에 보이는데 «아무 일도 안 한다».`);
+  }
+  // 그리고 그 배선들이 실제로 dataset 으로 간다(폰트 피커의 onPick 포함).
+  const setDsCalls = (SRC_PANEL.match(/\bsetDs\(/g) || []).length;
+  assert.ok(setDsCalls >= 8,
+    `setDs( 호출이 ${setDsCalls}개다 — 8개 이상이어야 한다(폰트·굵기·크기·B/I/S/H·줄간격·자간·색). ` +
+    `줄었다면 어떤 컨트롤이 dataset 을 안 거치고 있다.`);
+  assert.match(SRC_PANEL, /wireFontPicker\(\{[\s\S]*?onPick:[\s\S]*?setDs\('fontFamily'/,
+    '폰트 피커의 onPick 이 dataset.fontFamily 로 안 간다 — 폰트만 재렌더에서 죽는다');
+});
+
+/** 절 마크업을 «소스 그대로» 돌려서 얻는다(베끼지 않는다). */
+function buildTypoMarkup() {
+  const vm = _req('node:vm');
+  const strip = (rel) => readSrc(ROOT, rel).replace(/^import[^\n]*\n/gm, '').replace(/^export\s+/gm, '');
+  const ctx = { window: {}, console };
+  vm.createContext(ctx);
+  vm.runInContext(`${strip('js/props/prop-text-utils.js')}\n;${strip('js/props/_typo-section.js')}
+    ;globalThis.__O = buildTypographySectionHtml({ p:'mdl-typo', font:'', weight:'', size:36,
+        isBold:false, isItalic:false, isStrike:false, isHighlight:false, lh:1.7, ls:0, sizeMin:10, sizeMax:60 })
+      + buildFillSectionHtml({ p:'mdl-typo', colorHex:'#1c1c1e', alpha:100 });`,
+    ctx, { filename: 'js/props/_typo-section.js' });
+  return ctx.__O;
+}
