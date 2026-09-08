@@ -61,7 +61,12 @@ const OPT = { accent: ACCENT, shell: SHELL };
 // ══════════════════════════════════════════════════════════════════
 
 /* ── A0 ★위생 — 합성식의 «인자 순서»를 못박는다 ───────────────────────
-   계획 단계에서 두 사람이 서로 다른 답을 낸 «바로 그 자리»다. 뒤집히면 여기서 운다. */
+   계획 단계에서 두 사람이 서로 다른 답을 낸 «바로 그 자리»다. 뒤집히면 여기서 운다.
+
+   ⚠️★A0 은 «단독으로는 짝이 없다» — 자기 자신과의 일관성만 본다.
+     _L 이 상수를 뱉는 변이라면 L(합성)==L(전경) 이 «공허하게» 참이 되어 A0 은 초록이다.
+     그 갈래를 실제로 받아 주는 것은 ★A1(골든 표)이다(실측: 그 변이에서 A1·A2·A3·A4·A6 다섯이 동시에 빨강).
+     ⇒ ⛔A1 을 지우면 A0 이 혼자 남아 아무것도 안 지킨다. 지우려거든 A0 부터 다시 세워라. */
 test('A0 ★위생 — α=1 이면 합성색 == 전경, α=0 이면 == 배경 (합성식 인자순서)', async () => {
   const { compositeOver, relativeLuminance } = await M();
   assert.strictEqual(typeof compositeOver, 'function', '★합성 함수를 못 찾았다 — 이름이 바뀌었으면 이 검사부터 고쳐라');
@@ -137,6 +142,24 @@ test('A3 ★그라데이션은 «최악 stop» 으로 잰다 — 첫 stop만/양
   // ★양끝만 보면 «한가운데 흰 구간»을 통째로 놓친다 — parseGradient 가 중간 stop 을 준다.
   const g2 = 'linear-gradient(90deg,#000000 0%,#ffffff 50%,#000000 100%)';
   assert.strictEqual(edgeColorFor(g2, OPT), '#ffffff', '★중간 stop 을 버렸다 — 양끝만 보면 accent 가 나온다');
+
+  /* ★★X1 — stop 의 «알파»가 살아 있는 그라데이션 (2026-09-09 적대검수가 찾은 구멍)
+     위의 g1·g2·g3 는 stop 이 «전부 불투명»이라 `_over(c, sh, 1) === c` 다.
+     ⇒ shell 합성을 통째로 빼는 변이(`out.push(_over(c, sh, s.opacity))` → `out.push(c)`)를 넣어도
+       계산이 «한 글자도» 안 달라져 A3 가 초록이었다. 검사가 «없던» 게 아니라 그 자리를 «안 밟았다».
+     도달 경로는 특수 상태가 아니다 — color-picker.js:194/201 의 gradStartAlpha·gradEndAlpha
+     (그라데이션 탭의 기본 컨트롤)를 100 아래로 내리면 된다.
+     심각도: stop α=0.15 면 화면의 «진짜» 캔버스색은 rgb(60,60,60)(거의 검정)인데
+     변이판은 불투명 흰색으로 착각해 «검은 선»을 고른다 → 선 1.698 · 점 1.904.
+     ⚠️현빈이 「잘 안 보여」라 하신 그 화면이 1.41 이었다. 1.71 은 그 옆자리다. */
+  assert.strictEqual(
+    edgeColorFor('linear-gradient(90deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.2) 100%)', OPT),
+    '#ffffff', '★stop 의 opacity 를 shell 위에 합성하지 않았다 — 흰 stop 을 «불투명»으로 읽고 있다');
+  /* ★짝(양성대조) — ⛔지우지 마라. 이게 없으면 위의 '#ffffff' 가
+     «알파를 합성해서» 나온 건지 «어차피 흰색이라» 나온 건지 구분이 안 된다. */
+  assert.strictEqual(
+    edgeColorFor('linear-gradient(90deg,#ffffff 0%,#ffffff 100%)', OPT), '#000000',
+    '★같은 색을 «불투명»으로 쓰면 답이 달라야 한다 — 짝이 죽으면 위 단언이 공허해진다');
 
   // ★양성대조 — 모든 stop 이 3:1 을 «실제로» 넘는 그라데이션이 있다(하한이 도달 가능한 목표다).
   const g3 = 'linear-gradient(90deg,#ffffff 0%,#acacac 100%)';
