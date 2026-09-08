@@ -119,6 +119,40 @@
     _rerender(); _save();
     return true;
   }
+  /* 일괄 접기/펼치기 — 페이지 전역(현재 캔버스의 모든 링크). → { changed, total }
+     ★setCollapsed 를 루프로 부르지 «않는다». 그 안에서 매번 _rerender() 를 하는데
+       그건 디바운스가 아니라 직통이고, _applyCollapsed 가 매 회 allLinks()(전 섹션 파싱)를
+       돌기 때문에 N번이면 O(N²) 파싱이 된다. 여기서는 섹션마다 _parse/_write 를 «각 1회»만
+       하고, 다시 그리기·저장은 루프가 «끝난 뒤» 한 번만 한다.
+     ★changed===0 이면 아무것도 안 그리고 안 저장한다 — 안 바뀐 것을 다시 그릴 이유가 없다.
+       (호출자는 changed 로 「이미 전부 접혀 있다」를 말할 수 있다. total 은 그 문장의 분모다.)
+     ★pushHistory 는 «한다» — 개별 setCollapsed 와 갈리는 지점이다.
+       개별은 한 번 더 누르면 되돌아가지만 일괄은 N개를 손으로 되돌려야 한다.
+       refLinks 는 섹션 data-* 라 캔버스 스냅샷에 이미 실린다 ⇒ addLink/removeLink 와 같은
+       «표준 pushHistory(변경 전) + 변경» 패턴이면 추가 기계 없이 undo 가 된다. */
+  function setCollapsedAll(val) {
+    const want = !!val;
+    const secs = _allSecs();
+    let total = 0, changed = 0;
+    const pending = [];                       // [sec, arr] — 실제로 바뀐 섹션만
+    for (const sec of secs) {
+      const arr = _parse(sec);
+      if (!arr.length) continue;
+      total += arr.length;
+      let hit = 0;
+      for (const l of arr) if (l.collapsed !== want) { l.collapsed = want; hit++; }
+      if (hit) { changed += hit; pending.push([sec, arr]); }
+    }
+    if (!changed) return { changed: 0, total };
+    window.pushHistory && window.pushHistory(want ? '참고이미지 전부 접기' : '참고이미지 전부 펼치기');
+    for (const [sec, arr] of pending) _write(sec, arr);
+    /* ★접으면 아이템 «높이»가 바뀌는데, _applyFollow 는 섹션 top 이 그대로면 통째로 건너뛴다.
+         그러면 1섹션:N 겹침 stack 이 옛 높이로 남아 겹치거나 빈칸이 생긴다.
+         resyncFollow() 가 lastTop 을 무효화해 다음 프레임에 1회 재적용시킨다(이미 쓰는 관례). */
+    resyncFollow();
+    _rerender(); _save();
+    return { changed, total };
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // [P2 = 오버레이 렌더]  사이드카(note-group·refimg 카드) + 연결선(SVG edges).
@@ -502,7 +536,7 @@
 
   window.SPLink = {
     linksForSection, sectionIdOf, isLinked, linkedScratchIds, allLinks,
-    addLink, removeLink, setCollapsed, setShowEdges,
+    addLink, removeLink, setCollapsed, setCollapsedAll, setShowEdges,
     startLinkMode, endLinkMode,
     rerender: __spLinkRerender,
     resyncFollow,          // undo/redo 좌표복원 직후 추종 기준선 재동기화(scratch-pad.js 호출)
