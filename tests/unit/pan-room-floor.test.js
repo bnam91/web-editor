@@ -168,8 +168,8 @@ test('T1 ⒜ — rAF 를 «절대 안 부르는» 상태에서도 _syncScalerHei
   h.flush();
   const { rafCalls, syncCalls } = h.counts();
   assert.equal(syncCalls, 1,
-    'rAF 가 멈춘 창에서 높이 동기가 «한 번도» 안 돌았다 ⇒ scaler.style.height 가 0px 에 굳는다 ' +
-    '(:344 가 이미 「이 앱은 비포커스 창에서 rAF 가 멈춘다」고 적어 뒀다 — 그 관용구를 쓸 것)');
+    'rAF 가 멈춘 창에서 높이 동기가 «한 번도» 안 돌았다 ⇒ scaler.style.height 가 낡은 값에 굳는다 ' +
+    '(:345 가 이미 「이 앱은 비포커스 창에서 rAF 가 멈춘다」고 적어 뒀다 — 그 관용구를 쓸 것)');
   assert.equal(rafCalls, 0, '디바운스에 rAF 가 남아 있다');
 });
 
@@ -185,7 +185,7 @@ test('T1 ⒜ — 디바운스는 살아 있다 (한 태스크에 여러 번 울�
 test('T1 ⒜ 소스 계약 — 디바운스 자리에 requestAnimationFrame 이 없다', () => {
   const i = SRC.indexOf('const ro = new ResizeObserver(');
   const block = stripComments(SRC.slice(SRC.lastIndexOf('(() => {', i), SRC.indexOf('})();', i)));
-  assert.ok(!/requestAnimationFrame/.test(block), '비포커스 창에서 멈추는 시계다 — :344 · :2930 과 같이 setTimeout 이어야 한다');
+  assert.ok(!/requestAnimationFrame/.test(block), '비포커스 창에서 멈추는 시계다 — :345 · :3146 과 같이 setTimeout 이어야 한다');
   assert.ok(/setTimeout\(/.test(block));
 });
 
