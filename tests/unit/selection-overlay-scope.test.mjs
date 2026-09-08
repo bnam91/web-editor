@@ -10,6 +10,28 @@
  * ★그리고 「블록 이름 목록을 만들지 않았는가」를 «기계로» 고정한다.
  *   이 저장소는 오늘 하루에 「목록이 썩는 병」을 세 번 냈다(텍스트프레임 래퍼 · .cvb-card-ph ·
  *   z-index 17종). 같은 구조를 다시 만들면 여기서 걸린다.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * ★2026-09-09 계약 «변경» — 무엇을 무엇으로 바꿨는지 여기 적는다.
+ *
+ *   [사건] 인스펙터 점프 강조(.insp-jump-flash)가 «선택된 블록»으로 갈 때 100% 안 보였다
+ *     (앱 실측 0/12). 중화 절이 특이성 (1,10,1) 로 강조 (0,1,0) 를 이겨 색을 지운 것이다.
+ *     ⇒ 고치는 방법은 :not() 목록에 .insp-jump-flash 를 «더하는» 것 — 즉 목록이 늘어난다.
+ *
+ *   [그런데 이 파일은 그 변경을 «못 잡았다»] 두 가지 구멍이 있었다. 둘 다 실측으로 확인했다:
+ *     ⑴ 「상태 동거」 검사가 훑는 CSS 가 캔버스 5파일뿐이라, editor-panels.css 에 사는
+ *        .insp-jump-flash 를 «아예 안 봤다». 병이 있는데 검사가 그 자리를 안 밟았다.
+ *     ⑵ 검사가 «한 방향»뿐이었다 — 「삼키면 안 되는 상태가 목록에 있는가」만 봤다.
+ *        그래서 목록에 «뜻 없는» 클래스를 넣어도 초록이었다(:not(.totally-bogus-nonsense)
+ *        를 실제로 주입해 확인 — 9/9 통과). 즉 목록은 «고정되어 있지 않았다».
+ *
+ *   [바꾼 것] 검사를 «지우지» 않고 아래 둘을 더했다:
+ *     ⓐ 근거를 찾는 corpus 를 css/ 폴더 «전체»로 넓힌다(목록이 아니라 readdir — 안 썩는다).
+ *     ⓑ ★역방향 계약 — :not() 목록의 «각 항목»이 다음 둘 중 «하나»로 설명되어야 한다:
+ *          ⒜ 오버레이가 안 그리는 대상   = SKIP_SELECTOR 에 있다(구조 클래스)
+ *          ⒝ 선택과 동시에 걸리는 상태 표시 = 런타임에 classList 로 «붙고»
+ *                                            자기 outline/border 를 «실제로 그린다»
+ *        어느 쪽도 아니면 빨강. ⇒ 목록이 이제 «뜻»으로 고정된다.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,6 +49,23 @@ const JS_CODE = decomment(JS).replace(/^\s*\/\/.*$/gm, '');
 const CANVAS_CSS_FILES = ['css/editor-blocks.css', 'css/editor-layout.css',
                           'css/editor-canvas.css', 'css/editor-extra.css', 'css/editor-graph.css'];
 const CSS = decomment(CANVAS_CSS_FILES.map(rd).join('\n'));
+
+/* ★근거를 찾을 때 쓰는 corpus 는 «폴더를 읽는다» — 파일 목록을 손으로 적으면 그 목록이 썩는다.
+   실제로 그 병이 났다: .insp-jump-flash 는 editor-panels.css 에 사는데 위 5파일에 없어서
+   「상태 동거」 검사가 그 상태를 «한 번도 안 봤다»(2026-09-09). */
+/* ⛔경로는 «문자열로 붙이지» 않는다 — path.join 을 쓴다(win-portability Ⓐ-4 가 이걸 막는다). */
+const lsCss = d => fs.readdirSync(path.join(ROOT, d))
+  .filter(f => f.endsWith('.css')).map(f => path.join(d, f));
+const CSS_ALL = decomment(lsCss('css').map(rd).join('\n'));
+/** js/ 전체(하위 폴더 포함) — «런타임에 실제로 붙는 클래스인가»의 근거를 여기서 찾는다. */
+function lsJs(dir, acc = []) {
+  for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+    if (e.isDirectory()) lsJs(path.join(dir, e.name), acc);
+    else if (e.name.endsWith('.js')) acc.push(path.join(dir, e.name));
+  }
+  return acc;
+}
+const JS_ALL = lsJs('js').map(rd).join('\n');
 
 /** 중화 절의 «본체 셀렉터»(.selected:not(...)...) 한 줄. */
 const NEUTRAL = CSS.match(/body\.sel-ov #canvas \.selected(:not\([^)]*\))+/);
@@ -75,6 +114,52 @@ test('★상태 동거 — 선택과 «동시에» 걸리는 다른 표시를 �
   const missing = [...found].filter(s => !NOTS.includes(s) && !(s in IMPOSSIBLE));
   assert.deepEqual(missing, [],
     '이 상태들은 .selected 와 같이 붙을 수 있는데 중화가 색을 지운다 — 그 표시가 «사라진다»');
+});
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ★역방향 계약(2026-09-09 신설) — 목록의 «각 항목»이 그 뜻대로 물리는가.
+   위의 「상태 동거」는 «들어와야 할 것이 들어왔나»만 본다. 그래서 뜻 없는 클래스를
+   넣어도 초록이었다. 여기서 반대 방향을 막는다.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/** `.cls` 가 «자기 표시를 실제로 그리는» 절을 가졌는가(보이는 outline/border/box-shadow). */
+function marksItself(cls) {
+  const hits = [];
+  for (const m of CSS_ALL.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+    if (!new RegExp('\\.' + cls + '(?![\\w-])').test(m[1])) continue;
+    const d = m[2].match(/(?:^|[;\s])(outline|border|box-shadow)\s*:\s*([^;]+)/);
+    if (!d || /\bnone\b|transparent/.test(d[2])) continue;
+    hits.push(m[1].trim().replace(/\s+/g, ' '));
+  }
+  return hits;
+}
+/** `.cls` 를 런타임에 «붙이는» 코드가 있는가 — 죽은 CSS 를 목록에 넣는 것을 막는다. */
+const appliedByCode = cls =>
+  new RegExp("classList\\.(?:add|toggle)\\('" + cls + "'").test(JS_ALL);
+
+test('★목록 역방향 — :not() 의 «각» 항목이 ⒜ 또는 ⒝ 로 «설명된다»', () => {
+  const m = JS_CODE.match(/SKIP_SELECTOR\s*=\s*'([^']+)'/);
+  assert.ok(m, 'SKIP_SELECTOR 를 못 찾았다');
+  const skip = m[1].split(',').map(s => s.trim().replace(/^\./, ''));
+
+  /* ★자기검증(양성대조) — 근거 찾기가 «아무거나 참»으로 만들고 있지 않은가.
+     이 두 줄이 없으면 아래 루프는 통과해도 아무것도 안 지킨다. */
+  assert.deepEqual(marksItself('no-such-state-zzz'), [], '근거 찾기가 없는 클래스에도 근거를 준다');
+  assert.equal(appliedByCode('no-such-state-zzz'), false, '코드 근거 찾기가 없는 클래스에도 참을 준다');
+  assert.ok(marksItself('insp-jump-flash').length > 0,
+    '★corpus 가 editor-panels.css 를 «안 읽고» 있다 — 이 검사가 그 자리를 안 밟는다');
+
+  const unexplained = [];
+  for (const cls of NOTS) {
+    if (skip.includes(cls)) continue;                       // ⒜ 오버레이가 안 그리는 대상
+    if (marksItself(cls).length && appliedByCode(cls)) continue;  // ⒝ 동거하는 «상태 표시»
+    unexplained.push(cls + (marksItself(cls).length ? '(코드가 안 붙인다)' : '(자기 표시를 안 그린다)'));
+  }
+  assert.deepEqual(unexplained, [],
+    '★:not() 목록에 «뜻 없는» 항목이 있다. 이 목록은 «블록 이름 모음»이 아니라\n' +
+    '  ⒜ 오버레이가 안 그리는 대상(SKIP_SELECTOR) 또는\n' +
+    '  ⒝ 선택과 «동시에» 걸리며 자기 표시를 그리는 상태\n' +
+    '  둘 중 하나여야 한다. 늘릴 때는 «왜»를 CSS 주석에 같이 남겨라');
 });
 
 test('★블록 이름 «목록»을 만들지 않았다', () => {

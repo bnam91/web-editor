@@ -130,7 +130,14 @@
      이 두 목록은 tests/unit/selection-overlay-scope.test.mjs 가 «검사로» 고정한다.
    overlay-tb 가 `!important` 라 우리도 `!important` — 이기는 건 특이성이다
    (body.sel-ov #canvas .selected = id1·class3·elem1 > .overlay-tb.selected = class2). */
-body.sel-ov #canvas .selected:not(.section-block):not(.col):not(.editing):not(.drag-over):not(.ss-drag-over):not(.pos-dragging):not(.bg-pos-dragging):not(.img-editing),
+/* ★insp-jump-flash 추가(2026-09-09) — «⒝ 갈래»의 교과서적인 예다.
+   인스펙터 통계 행으로 점프하면 도착한 블록에 .insp-jump-flash 가 붙는데,
+   그 블록이 «동시에» .selected 이면 여기서 색이 지워져 강조가 통째로 안 보였다.
+   실측(파테나 프로젝트·zoom 40%·클릭 12회): 대상이 선택돼 있으면 0/12,
+   선택 안 됐으면 11/12 — 즉 «선택된 블록으로 점프하면 100% 안 보인다».
+   .insp-jump-flash(특이성 0,1,0) 와 이 절(1,10,1) 이 둘 다 !important 라 특이성이 이긴다.
+   ⇒ 강조는 «선택의 선»이 아니라 «다른 상태의 표시»이므로 중화 대상이 아니다. */
+body.sel-ov #canvas .selected:not(.section-block):not(.col):not(.editing):not(.drag-over):not(.ss-drag-over):not(.pos-dragging):not(.bg-pos-dragging):not(.img-editing):not(.insp-jump-flash),
 body.sel-ov #canvas .row:has(> .text-block.selected),
 body.sel-ov #canvas .row:has(> .speech-bubble-block.selected),
 body.sel-ov #canvas .frame-block[data-text-frame="true"]:has(> .text-block.selected),

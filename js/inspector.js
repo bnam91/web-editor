@@ -38,18 +38,35 @@ function jumpToElement(el) {
   const delta = el.getBoundingClientRect().top - wrap.getBoundingClientRect().top;
   // 블록은 섹션보다 작으니 «가운데»에 놓는다 — 위에 40px 만 두면 뭘 가리키는지 알기 어렵다.
   const center = Math.max(0, wrap.clientHeight / 2 - el.getBoundingClientRect().height / 2);
-  wrap.scrollTo({ top: wrap.scrollTop + delta - center, behavior: 'smooth' });
+  /* 스크롤이 «실제로 일어나는지»를 먼저 안다 — 이미 화면 안이면 scrollend 가 «영영 안 온다».
+     scrollTo 는 범위를 클램프하므로 우리도 같은 클램프로 재야 예측이 맞는다. */
+  const maxTop  = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+  const wantTop = Math.min(maxTop, Math.max(0, wrap.scrollTop + delta - center));
+  const willScroll = Math.abs(wantTop - wrap.scrollTop) > 1;
+  wrap.scrollTo({ top: wantTop, behavior: 'smooth' });
 
   /* ★그 블록을 «고른다» — 깜빡임만으로는 1.2초 뒤 아무 표시도 안 남아
      「어디로 간 건지」를 알 수 없었다(현빈 2026-09-04). 선택하면 아웃라인이 남고
-     우측 패널도 그 블록으로 바뀐다. 섹션이면 selectSection, 블록이면 selectBlock. */
+     우측 패널도 그 블록으로 바뀐다. 섹션이면 selectSection, 블록이면 selectBlock.
+   ★★두 갈래는 «인자가 다르다»(2026-09-09):
+       selectSection(sec)  — editor.js:2686, «요소»를 받는다
+       selectBlock(id)     — block-edit.js:18, «id 문자열»을 받아 getElementById 한다
+     여기서 요소를 넘기고 있었다 ⇒ String(el) = "[object HTMLDivElement]" ⇒ 항상 null ⇒ false.
+     즉 「선택해서 아웃라인을 남긴다」가 블록 대상에선 «처음부터 한 번도» 안 됐다
+     (실측 12/12 클릭에서 .selected 부착 0건). 레포의 다른 호출부는 전부 block.id 를 넘긴다. */
   try {
     if (el.classList.contains('section-block')) window.selectSection?.(el);
-    else if (window.selectBlock) window.selectBlock(el);
+    else if (el.id) window.selectBlock?.(el.id);   // id 없는 블록은 getElementById 로 못 찾는다
   } catch (_) {}
 
-  /* ★깜빡임은 «스크롤이 끝난 뒤»부터 센다 — smooth 스크롤이 구르는 동안 시간이 흘러
-     도착했을 땐 이미 절반 이상 지나 있었다. */
+  /* ★표시는 «클릭 즉시» 붙인다(2026-09-09). 옛 판은 320ms «선지연» 뒤에 붙였는데,
+       목록을 훑는 리듬이 그보다 빠르면 붙기 «전에» 다음 클릭의 _clearFlash 가 지운다
+       ⇒ 화면에 아무 표시도 안 뜬다. 실측(파테나·heading 12개·zoom 40%·클릭 12회):
+         200ms 간격 1/12 · 300ms 1/12 · 500ms 11/12 (1 은 마지막 클릭 — 뒤에 다음 클릭이 없다)
+       400ms 부근이 경계라 사용자에겐 「됐다 안 됐다」로 느껴졌다. 간헐이 아니라 리듬의 함수다.
+     ★지우기는 반대로 «스크롤이 멈춘 뒤»부터 센다 — smooth 스크롤이 구르는 동안 시간이 흘러
+       긴 점프에서는 도착 «전에» 표시가 죽었다(정착 ≈2,050ms vs 강조 종료 ≈1,850ms).
+       scrollend 지원은 이 Electron 에서 확인했다('onscrollend' in #canvas-wrap === true). */
   /* ⛔[M59] 타이머로 «누가» 지울지를 기억하지 마라 — 현빈 2026-09-06:
        「옮겨다니면서 … 파란색 볼드 아웃라인이 시간지나면 사라져야되는데 계속 남아있는 버그」
      옛 코드는 지우기 타이머가 «하나»(_t2)뿐이라, 1.7초(320+1400) 안에 다음 항목을 누르면
@@ -62,12 +79,33 @@ function jumpToElement(el) {
     .forEach(n => n.classList.remove('insp-jump-flash'));
   clearTimeout(jumpToElement._t);
   clearTimeout(jumpToElement._t2);
+  // 앞 클릭이 걸어 둔 scrollend 대기도 «지금» 거둔다 — 안 그러면 리스너가 쌓인다.
+  if (jumpToElement._onEnd) wrap.removeEventListener('scrollend', jumpToElement._onEnd);
+  jumpToElement._onEnd = null;
+
   _clearFlash();                       // 앞 항목의 표시를 «지금» 거둔다(타이머를 안 믿는다)
-  jumpToElement._t = setTimeout(() => {
-    _clearFlash();                     // 스크롤 도중 또 눌렸을 수 있다
-    el.classList.add('insp-jump-flash');
+  el.classList.add('insp-jump-flash'); // ★즉시 — 지연을 두면 훑는 리듬에 먹힌다
+
+  /* 1400ms 를 «스크롤이 멈춘 뒤»부터 센다. 지우는 것은 여전히 _clearFlash —
+     대상을 «기억»하지 않으므로 [M59] 의 「앞 블록이 영구히 남는」 병은 돌아오지 않는다. */
+  const arm = () => {
+    clearTimeout(jumpToElement._t2);
     jumpToElement._t2 = setTimeout(_clearFlash, 1400);
-  }, 320);
+  };
+  if (!willScroll) {
+    arm();                             // 이미 화면 안 — scrollend 는 «영영 안 온다»
+  } else {
+    const onEnd = () => {
+      wrap.removeEventListener('scrollend', onEnd);
+      if (jumpToElement._onEnd === onEnd) jumpToElement._onEnd = null;
+      clearTimeout(jumpToElement._t);
+      arm();
+    };
+    jumpToElement._onEnd = onEnd;
+    wrap.addEventListener('scrollend', onEnd);
+    // 폴백 — scrollend 를 못 받는 판이 와도(또는 스크롤이 삼켜져도) 표시가 영구히 남지 않는다.
+    jumpToElement._t = setTimeout(onEnd, 2500);
+  }
 }
 
 /* 클릭 위임 — 패널은 innerHTML 로 다시 그려지므로 «행마다» 리스너를 달면 새로 그릴 때 사라진다.
