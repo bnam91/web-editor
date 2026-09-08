@@ -337,6 +337,108 @@
     if (dirty) { try { window._scratchSaveSoon && window._scratchSaveSoon(); } catch (_) {} } // ★디바운스(프레임마다 저장 금지)
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // [#16-DUP] 「링크된 섹션의 «사본»에는 스크래치 사본을 딸려 보낸다」 (현빈 2026-09-08 발주)
+  //
+  // 증상: 링크된 섹션을 ⌘C→⌘V 하면 원본과 사본이 «같은 scratchId» 를 둘 다 쥐어
+  //   allLinks() 가 그 이미지를 2건으로 세고 _drawEdges 가 한 이미지에서 선을 두 개 긋는다.
+  //   («링크체인 2개»가 이것이다.) 이 파일의 자료구조는 처음부터 «이미지 1 : 섹션 1» 전제다.
+  //
+  // ★규칙은 «토큰 하나»마다 이 술어를 본다 — 「붙여넣는 순간 그 scratchId 를 «살아있는 섹션»이
+  //   쥐고 있나」. 이 하나가 복사와 잘라내기를 «자동으로» 가른다:
+  //     · 쥐고 있다      → 복사다   → 사본을 만들고 토큰을 새 id 로 바꾼다
+  //     · 아무도 안 쥔다 → 이동이다 → 토큰 그대로(⌘X 로 원본이 사라진 뒤라 재연결이 맞다)
+  //     · 아이템이 없다  → 토큰 그대로. ⛔지우지 않는다 — 다른 페이지이거나 «스크래치가 아직
+  //       로드 전»일 수 있다. 「없다」를 「지워졌다」로 읽으면 링크를 영구 파괴한다.
+  //   ⛔「붙여넣기면 무조건 복제」로 짜면 ⌘X→⌘V «이동»이 «복제»로 변한다.
+  //
+  // ★★부르는 자리 = 섹션을 DOM 에 «넣기 전»(분리 상태). 넣은 뒤에 부르면 sectionIdOf 가
+  //   «사본 자신»을 찾아 복제를 건너뛴다. 그리고 그 실패는 «사용자의 선택 상태»에 따라 갈린다 —
+  //   refSection = getSelectedSection() || _pickVisibleSection() 가 원본 «뒤»면 우연히 맞고
+  //   원본 «앞»이면 버그가 남는다. 손으로 눌러 보면 대체로 고쳐져 보이는 제일 나쁜 종류다.
+  // ⛔그래서 addLink 의 관용구(`if (curSecId === target.id) return false;`)를 여기에 베끼지 마라.
+  //   그 자가 가드는 「대상 섹션이 이미 DOM 에 있다」를 전제한다. 여긴 정반대다. (금지선: T-U1-1b)
+  //
+  // 반환 { dups, sideEffects } — dups 가 비면 sideEffects=null 이고 «오늘과 동작이 같다».
+  //   ★sideEffects 가 필요한 이유: 복사는 «이미지를 만드는» 조작이라 캔버스 스냅샷만으로는
+  //   undo 가 성립하지 않는다(섹션삭제·링크해제와 갈리는 지점). 안 붙이면 ⌘Z 가 섹션만 지우고
+  //   사본 이미지가 주인 없이 남는다 = 고아.
+  // ═══════════════════════════════════════════════════════════════════
+  function _curPageId() {
+    try { return (window.state && window.state.currentPageId) || null; } catch (_) { return null; }
+  }
+
+  function rewireClonedSection(el) {
+    const dups = [];
+    if (!el) return { dups, sideEffects: null };
+    /* ★오늘 N(한 번에 붙는 섹션 수)=1 이지만 «섹션 집합»으로 훑는다 — 비용 0이고,
+       §7-A 형제 경로(section-variation·branch-system)를 나중에 붙이는 게 한 줄이 된다. */
+    const secs = [];
+    if (el.classList && el.classList.contains('section-block')) secs.push(el);
+    if (el.querySelectorAll) secs.push(...el.querySelectorAll('.section-block'));
+
+    for (const sec of secs) {
+      const arr = _parse(sec);
+      if (!arr.length) continue;
+      const next = [];
+      let changed = false;
+      for (const l of arr) {
+        const holder = sectionIdOf(l.scratchId);
+        if (!holder) { next.push(l); continue; }   // 아무도 안 쥔다 = 이동(⌘X 뒤) → 재연결
+        /* 사본은 원본 «옆»에 놓는다 — _applyFollow 의 겹침 회피는 가로가 겹칠 때만 도므로
+           (scratchpad-link.js `if (!(t.x < q.x + q.w …)) continue;`) x 를 벌려 두면 세로가
+           겹쳐도 서로 안 민다. x 는 추종이 안 건드리니 한 번 벌리면 유지된다.
+           ⛔새 간격 상수를 만들지 않는다 — STACK_GAP 을 쓴다. */
+        const srcIt = _item(l.scratchId);
+        const dx = (srcIt && _num(srcIt.w) ? srcIt.w : 0) + STACK_GAP;
+        /* ⛔y 는 계산하지 않는다 — linkDy 를 베끼면 _applyFollow 첫 프레임이
+           y = 새 섹션 top + linkDy 를 1회 강제 적용한다. 붙여넣기 시점엔 레이아웃이 아직 없다. */
+        const r = (typeof window._scratchDuplicateItem === 'function')
+          ? window._scratchDuplicateItem(l.scratchId, { dx, dy: 0 })
+          : { ok: false, code: 'NO_SOURCE' };   // 모듈 미로드 = 「아직 못 본다」와 같은 갈래
+        if (!r || !r.ok) {
+          /* ★처분은 같고(토큰 유지) «소리»가 다르다 — NO_SOURCE 는 정상 갈래(다른 페이지·
+             로드 전)라 조용히, NO_SCALER 는 «만들다 실패»라 결함이므로 소리를 낸다. */
+          if (r && r.code === 'NO_SCALER') {
+            console.warn('[spl] 스크래치 사본 생성 실패(NO_SCALER) — 링크를 원본과 공유한 채 둔다:', l.scratchId);
+          }
+          next.push(l); continue;
+        }
+        dups.push(r.item);
+        next.push({ scratchId: r.item.id, collapsed: l.collapsed });   // ★collapsed 보존
+        changed = true;
+      }
+      if (changed) _write(sec, next);
+    }
+
+    if (!dups.length) return { dups, sideEffects: null };
+
+    /* ★크로스페이지 가드 — restoreSnapshot 은 snap.pageId 가 다르면 «페이지를 바꾼 뒤»
+       onUndo 를 부른다(history.js). ScratchPadDB 는 페이지별 키라 그때 지우면 못 찾고
+       조용히 false 가 난다. 모르는 상태에서 «지우는» 쪽은 되돌릴 수 없다 —
+       안 지우면 고아 하나가 남을 뿐이라 비대칭이 명확하다. 안 지우고 «소리를 낸다». */
+    const pageId = _curPageId();
+    const recs = dups.slice();
+    const _samePage = () => {
+      const now = _curPageId();
+      if (now === pageId) return true;
+      console.warn('[spl] 붙여넣기 undo/redo 를 건너뛴다 — 페이지가 다르다(당시 ' + pageId + ' / 지금 ' + now + ')');
+      return false;
+    };
+    const sideEffects = {
+      onUndo: () => {
+        if (!_samePage()) return;
+        for (const d of recs) { try { window._scratchRemoveById?.(d.id); } catch (_) {} }
+      },
+      onRedo: () => {
+        if (!_samePage()) return;
+        // ★id 를 «그대로» 되살린다 — redo 로 돌아온 스냅샷의 refLinks 토큰이 이 id 를 부른다.
+        for (const d of recs) { try { window._scratchRestoreItem?.(d); } catch (_) {} }
+      },
+    };
+    return { dups: recs, sideEffects };
+  }
+
   let _lastEdgePath = null; // diff-skip 캐시(좌표 불변 시 DOM 미변경)
 
   // 연결선(scaler-local 좌표): 스크래치 아이템 중심 → 섹션 가까운 세로변 중앙. SVG가 scaler 안이라
@@ -559,6 +661,9 @@
     linksForSection, sectionIdOf, isLinked, linkedScratchIds, allLinks,
     addLink, removeLink, setCollapsed, setCollapsedAll, setShowEdges,
     startLinkMode, endLinkMode,
+    /* [#16-DUP] 「임의의 «분리 상태» 섹션 요소」를 받는 공개 API — 붙여넣기가 부른다.
+       ⛔반드시 DOM 삽입 «전»에 부를 것(윗 주석 참조). §7-A 형제 경로 배선은 이번 범위 밖. */
+    rewireClonedSection,
     rerender: __spLinkRerender,
     resyncFollow,          // undo/redo 좌표복원 직후 추종 기준선 재동기화(scratch-pad.js 호출)
     _applyFollow,          // 테스트/강제 1회 적용
