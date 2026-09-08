@@ -156,10 +156,30 @@ test('D11 ★설명이 «런타임과 같은 말»을 한다 — 게이트 계�
   assert.match(said, /NO_ACTIVE_PROJECT|PROJECT_NOT_CONFIRMED/,
     `★확정 없이 통과시켰다 — 파괴 도구가 열린 적 없는 대상에 작용한다: ${said}`);
 
-  // ⑵ 설명 — 그 사실을 «말한다»
+  /* ⑵ ★★«다른 칸»도 밟는다 — expectedProject 는 «대조»가 아니라 «확인 경로 그 자체»다.
+     ⛔내가 한 번 「대조만 한다」로 잘못 적었고(앱매니저가 원자료로 반증), D11 이 그 거짓을 «잠그고» 있었다.
+       원인은 «한쪽 시퀀스만 재고 게이트 전체를 안다고 쓴 것». ⇒ 검사가 두 칸을 다 밟게 만든다. */
+  /* ⛔조건부로 «건너뛰지» 않는다 — 첫 판이 H.activeProjectOf(없는 함수)를 봐서 이 블록이
+       «조용히 건너뛰어졌다»(가짜 초록). 활성은 위 거절 응답이 «들고 있다» — 거기서 꺼낸다. */
+  const active = (r.result && r.result.activeProject) || null;
+  assert.ok(active, `전제: 활성이 서 있어야 «두 번째 칸»을 잴 수 있다 — 응답: ${said}`);
+  const viaExpected = await H.call('delete_project',
+    { projectId: 'proj_1700000000000', expectedProject: active });
+  const s2 = JSON.stringify(viaExpected.result || viaExpected.error || viaExpected.rawText);
+  assert.ok(!/PROJECT_NOT_CONFIRMED/.test(s2),
+    `★expectedProject 를 줬는데도 「지목한 적 없다」고 한다 — 확인 경로가 하나뿐이면 사용자가 갇힌다: ${s2}`);
+
+  // ⑶ 설명 — 그 «두 조건·두 길»을 다 말한다
   assert.match(d, /open_project/, '★확정이 필요한데 설명이 open_project 를 안 말한다');
+  /* ⛔낱말이 «어딘가» 있는 걸로 재면 안 된다 — 변이 M16(「or expectedProject」만 지움)이 살아남았다.
+       설명 안에 `expectedProject alone does NOT satisfy this`(⒜ 쪽 경고)가 따로 있어서 통과해 버렸다.
+     ⇒ 「«또 하나의» 지목 경로」라고 말하는지를 잰다. */
+  assert.match(d, /or\s+you\s+pass\s+expectedProject/i,
+    '★expectedProject 가 «또 하나의 지목 경로»라는 걸 설명이 안 말한다 — 모르면 PROJECT_NOT_CONFIRMED 에 갇힌다');
   assert.ok(!/needs no expectedProject guard|does NOT act on the "active" project/i.test(d),
     '★설명이 아직 「가드가 필요 없다」고 말한다 — 런타임은 요구한다(계약이 거짓말)');
+  assert.ok(!/expectedProject does NOT bypass|only cross-checks/i.test(d),
+    '★설명이 「expectedProject 는 대조만 한다」고 말한다 — 실제로는 «확인 경로»다(내가 틀렸던 자리)');
 });
 
 test('D8 ★rename_project · update_section(name) — 「이름을 못 바꾼다」가 «닫혔나»', async () => {
