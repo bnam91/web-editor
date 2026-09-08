@@ -70,16 +70,34 @@ const MIN_COLS = 1, MAX_COLS = 4;
 const MIN_ROWS = 1, MAX_ROWS = 4;   // 1행 = 옛 duo 파일과 동일(행 축 신설 이전 기본값).
 
 // 컬럼 스케일 텍스트 롤 기본값 (풀폭 h1 104px는 다단에선 과대 — 컬럼용 축소 기준)
+/* ★role.color — 「역할 기본색」(§7-ⓐ). 새 색을 «하나도» 만들지 않았다: 전부 editor-base.css 의
+ *   --preset-*-color 와 «같은 값»이다(h1 #111 :10 · h2 #1a1a1a :12 · h3 #333 :14 · body #555 :16 ·
+ *   caption #999 :18). 그래야 그리드 줄과 텍스트블록이 같은 말을 한다.
+ * ⚠️label 만 --preset-label-color(#ffffff)를 «안» 베낀다 — 그건 「어두운 알약 위 흰 글자」 전제고,
+ *   line.bg 없는 그리드 label 줄은 «흰 종이 위 흰 글자»가 된다. 뱃지 없는 eyebrow 는 본문 계열로.
+ * ⚠️caption 2.85:1 은 WCAG AA 미달이지만 텍스트블록과 «같은 관례»다 — 여기만 올리면 두 블록의
+ *   캡션이 갈린다. 올리려면 전 블록 동시 = 별건 발주(계획서 §8-8).
+ * ★이 표는 «데이터»다. 렌더러가 이걸 실제로 쓰는 것은 §7-ⓐ 커밋(B) 한 줄이다 — 그 한 줄을
+ *   되돌리면 기존 저장 프로젝트의 렌더가 오늘과 «바이트 동일»로 돌아온다. */
 const _GRID_ROLES = {
-  label:   { size: 16, weight: 600, lh: 1.4, ls: '0.04em' },
-  h1:      { size: 64, weight: 800, lh: 1.1, ls: '-0.02em' },
-  h2:      { size: 40, weight: 700, lh: 1.2, ls: '-0.01em' },
-  h3:      { size: 28, weight: 700, lh: 1.3, ls: '0' },
-  body:    { size: 22, weight: 400, lh: 1.6, ls: '0' },
-  caption: { size: 14, weight: 400, lh: 1.5, ls: '0' },
+  label:   { size: 16, weight: 600, lh: 1.4, ls: '0.04em',  color: '#555555' },
+  h1:      { size: 64, weight: 800, lh: 1.1, ls: '-0.02em', color: '#111111' },
+  h2:      { size: 40, weight: 700, lh: 1.2, ls: '-0.01em', color: '#1a1a1a' },
+  h3:      { size: 28, weight: 700, lh: 1.3, ls: '0',       color: '#333333' },
+  body:    { size: 22, weight: 400, lh: 1.6, ls: '0',       color: '#555555' },
+  caption: { size: 14, weight: 400, lh: 1.5, ls: '0',       color: '#999999' },
 };
 const _GRID_VALIGN = { top: 'flex-start', middle: 'center', bottom: 'flex-end' };
-const _GRID_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+/* ★var(--color-…) 를 «받아야» 한다 — 컬러변수 칩(color-var-chips.js)이 넣는 값이
+   `var(--color-brand, #ff0000)` 형태다. 거부하면 칩이 「눌리는데 안 먹는」 상태가 된다
+   (modal-block.js:166 이 2026-09-08 «정확히 같은 것»에 물려 고친 자국 — 같은 대안절을 쓴다).
+   ⛔여는/닫는 괄호와 허용 글자를 좁게 유지한다 — 세미콜론·중괄호가 새면 선언을 깨고 뒤를 밀어낸다.
+   지키는 검사: tests/unit/grid-color-re.test.mjs (U5). */
+const _GRID_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$|^var\(\s*--[\w-]+\s*(?:,\s*[^;{}()]*)?\)$/;
+/* 폰트 패밀리는 style 속성에 «그대로» 들어간다 — 세미콜론·중괄호가 새면 선언을 깨고
+   그 뒤를 통째로 밀어낸다. modal-block.js 의 _MDL_FONT_RE 와 «같은 글자표»다.
+   (따옴표는 통과시키되 _esc 가 &quot; 로 바꾼다 — 속성 밖으로 못 나간다.) */
+const _GRID_FONT_RE = /^[\w\s,'"\-().가-힣]+$/;
 const _esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 function _gridCols(block) {
@@ -133,6 +151,30 @@ function _mergeCellIntoCol(col, cell) {
   if (Array.isArray(cell.lines)) next.lines = cell.lines;
   ['align', 'valign', 'bg', 'padding', 'radius'].forEach(k => { if (cell[k] !== undefined) next[k] = cell[k]; });
   return next;
+}
+
+/** 셀의 lines 에서 «한 줄»에만 필드를 병합한 다음 배열. patchCell{lineIndex} 의 심장.
+ *  범위 밖이면 null.
+ *  ★커밋(updateGridBlock)과 패널의 «연속 input 미리보기»(gridPreviewLine)가 «같은 이 함수»를 쓴다 —
+ *    두 벌이 되면 따로 늙는다. tests/unit/grid-line-typo.test.js U2-a·U4 가 그 동일성을 지킨다. */
+function _gridMergeLine(curLines, li, fields) {
+  const lines = Array.isArray(curLines) ? curLines : [];
+  const i = Number(li);
+  if (!Number.isFinite(i) || i < 0 || i >= lines.length) return null;
+  const next = lines.slice();
+  next[i] = Object.assign({}, next[i], fields);
+  return next;
+}
+
+/** 셀 patch 를 «dataset 조각»으로. 행 0 은 cols[c] 자체(단일 진실원), 그 아래는 cells[r-1][c].
+ *  ⚠️cols/extra 를 «제자리»에서 고친다 — 호출부가 넘긴 배열이 그대로 쓰인다(기존 동작 보존). */
+function _gridCellPatchDataset(cols, extra, r, c, cellPatch) {
+  if (r === 0) {
+    cols[c] = _mergeCellIntoCol(cols[c], cellPatch);
+    return { cols: JSON.stringify(cols) };
+  }
+  extra[r - 1][c] = Object.assign({}, extra[r - 1][c], cellPatch);
+  return { cells: JSON.stringify(extra) };
 }
 
 // API 경계(add_block/update_block{cells})는 «행 0 포함 전체 R×C」를 받는다(PLAN §3-A 스키마 그대로) —
@@ -243,6 +285,21 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null) {
   const weight = line.weight !== undefined ? String(line.weight) : String(role.weight);
   const color = (typeof line.color === 'string' && _GRID_COLOR_RE.test(line.color.trim())) ? line.color.trim() : '';
   const align = line.align || colAlign || 'left';
+  /* ★줄별 타이포 — 값이 «있을 때만» 역할값을 가린다(§0-⑷ 가 「role.* 만 먹는다」로 세어 둔 자리).
+   *   ⛔안 준 줄의 산출은 «바이트 동일»이어야 한다 — 기존 저장 프로젝트가 로드만으로 흔들리면 안 된다
+   *     (tests/unit/grid-line-typo.test.js U1-b 가 역할 폴백 생존을, U1-d 가 뱃지 분기 불변을 지킨다).
+   *   ★자간 단위 비대칭은 «의도»다: 역할값은 em(크기에 비례해 따라온다), 사용자가 직접 정하면 px(고정).
+   *     _typo-section 의 ${p}-ls-number 가 px 숫자라 읽고 쓰는 단위를 거기에 맞춘다. */
+  const _lhN = Number(line.lineHeight);
+  const lh = (Number.isFinite(_lhN) && _lhN > 0 && _lhN <= 10) ? String(_lhN) : role.lh;
+  const _lsN = Number(line.letterSpacing);
+  const ls = (line.letterSpacing !== undefined && line.letterSpacing !== '' && Number.isFinite(_lsN) && Math.abs(_lsN) <= 100)
+    ? `${_lsN}px` : role.ls;
+  const fontFamily = (typeof line.fontFamily === 'string' && _GRID_FONT_RE.test(line.fontFamily.trim()))
+    ? line.fontFamily.trim() : '';
+  const ffCss = fontFamily ? `font-family:${_esc(fontFamily)};` : '';
+  const italicCss = line.italic === '1' ? 'font-style:italic;' : '';
+  const strikeCss = line.strike === '1' ? 'text-decoration:line-through;' : '';
   // 뱃지/필: line.bg 지정 시 inline-block 필로 렌더 — 지정 bg가 조용히 탈락해
   // 카드 위 무배경 텍스트(색 반전처럼 보임)로 뭉개지던 케이스 방지 (2026-07-04 제니 발주)
   const bg = (typeof line.bg === 'string' && _GRID_COLOR_RE.test(line.bg.trim())) ? line.bg.trim() : '';
@@ -254,7 +311,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null) {
       `font-size:${size}px;font-weight:${weight};line-height:1.2;letter-spacing:${role.ls};${color ? `color:${color};` : ''}` +
       `padding:${padV}px ${padH}px;border-radius:${rad}px;white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</span></div>`;
   }
-  return `<div${addrAttr} class="grd-line grd-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${role.lh};letter-spacing:${role.ls};text-align:${align};${color ? `color:${color};` : ''}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
+  return `<div${addrAttr} class="grd-line grd-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${lh};letter-spacing:${ls};text-align:${align};${color ? `color:${color};` : ''}${ffCss}${italicCss}${strikeCss}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
 }
 
 // ★2026-09-04 P1: flex → CSS grid(PLAN §3-A) — 행 축을 넣으려면 열끼리 «경계가 맞아야»
@@ -497,19 +554,11 @@ function updateGridBlock(blockId, partial = {}) {
       if (!Number.isFinite(li) || li < 0 || li >= curLines.length) {
         return { ok: false, code: 'INVALID', message: `patchCell.lineIndex out of range (0~${curLines.length - 1})` };
       }
-      const nextLines = curLines.slice();
-      nextLines[li] = Object.assign({}, nextLines[li], rest);
-      cellPatch = { lines: nextLines };
+      cellPatch = { lines: _gridMergeLine(curLines, li, rest) };
     }
 
-    if (r === 0) {
-      // 행 0 은 늘 cols[c] 자체다(단일 진실원) — patchCol 과 «같은 길」로 보낸다.
-      cols[c] = _mergeCellIntoCol(cols[c], cellPatch);
-      next.cols = JSON.stringify(cols);
-    } else {
-      extra[r - 1][c] = Object.assign({}, extra[r - 1][c], cellPatch);
-      next.cells = JSON.stringify(extra);
-    }
+    // 행 0 은 늘 cols[c] 자체다(단일 진실원) — patchCol 과 «같은 길」로 보낸다.
+    Object.assign(next, _gridCellPatchDataset(cols, extra, r, c, cellPatch));
     applied.patchCell = lineIndex !== undefined ? { r, c, lineIndex: Number(lineIndex), ...rest } : { r, c, ...rest };
   }
   if (partial.gap !== undefined) {
@@ -555,6 +604,51 @@ function updateGridBlock(blockId, partial = {}) {
   return { ok: true, blockId, before, applied };
 }
 
+/** 이 줄이 «글자를 담는가» — 패널이 「Typography 절을 띄울 줄인가」를 이걸로 묻는다.
+ *
+ * ★판정을 «되풀이하지 않는다» — 렌더러를 실제로 돌려 「글자를 담는 요소가 나왔나」로 잰다.
+ *   ⛔목록(gap/image/…)을 패널 쪽에 «베끼면» 두 벌이 되어 조용히 갈라진다. 그리고 그 목록엔
+ *     중첩 그리드의 스키마 enum 이 들어 있는데, 그 이름은 이 파일 «한 곳»에만 살아야 한다
+ *     (tests/unit/grid-rename-residue.test.mjs S1 이 그것을 지킨다 — 실제로 잡혔다).
+ * ★클래스 두 개는 block-drag.js 의 _gridEditable 이 «이미» 보는 것과 같다(hostOf 술어) —
+ *   그쪽이 DOM 에서, 여기가 모델에서 «같은» 질문에 답한다. */
+export function gridLineHasText(line) {
+  if (!line || typeof line !== 'object') return false;
+  const html = _gridLineHtml(line, 'left', 0, null);
+  /* ⚠️«최상위 요소»만 본다 — 부분 문자열로 재면 중첩 그리드가 «자기 안쪽» 줄의 .grd-line 을
+     내보내서 「글자 줄」로 오판한다(실측: 첫 판이 그렇게 틀렸다). _gridEditable 도 바깥 요소의
+     classList / :scope > .grd-badge 만 본다 — 그 판정과 «같은 자리»를 재는 것이다. */
+  return /^<div[^>]*\sclass="grd-line\s/.test(html)          // 보통 줄 = 자기 자신이 글자를 담는다
+      || /^<div[^>]*><span class="grd-badge"/.test(html);     // 뱃지 줄 = 안쪽 span 이 담는다
+}
+
+/* ★패널의 «연속 input 미리보기» 전용 — 줄 하나에 필드를 얹어 block.dataset 에 «바로» 쓰고 재렌더한다.
+ *
+ * ⛔왜 updateGridBlock 을 안 부르나 (계획서 §4-C 「이 작업 최대의 함정」)
+ *   updateGridBlock 은 성공하면 스스로 pushHistory 를 1회 쌓고, 블록이 선택돼 있으면
+ *   window.showGridProperties 를 다시 불러 «패널을 통째로» 새로 그린다(이 파일 아래쪽).
+ *   색 피커를 «드래그하는 동안» 그러면 ⑴ 히스토리가 프레임 수만큼 쌓여 ⌘Z 가 못 쓰게 되고
+ *   ⑵ 포커스가 든 input 이 교체돼 조작이 끊긴다.
+ * ★그렇다고 되쓰기를 «두 벌»로 만들지 않는다 — 줄 병합(_gridMergeLine)과 셀 되쓰기
+ *   (_gridCellPatchDataset) 는 updateGridBlock 이 쓰는 «바로 그 함수»다.
+ * ⛔pushHistory·autosave·패널 재생성은 «여기서 하지 않는다» — 그 정책은 제스처를 아는
+ *   호출부(prop-grid.js)가 정한다(첫 input 에서 «적용 전» pushHistory 1회, change 에서 autosave).
+ * 성공하면 true, 좌표가 범위 밖이면 false(화면·데이터가 갈라진 채 남지 않는다). */
+export function gridPreviewLine(block, r, c, li, fields) {
+  if (!block) return false;
+  const cols = _gridCols(block);
+  const rows = _gridRows(block);
+  const R = Number(r), C = Number(c);
+  if (!(R >= 0 && R < rows.length) || !(C >= 0 && C < cols.length)) return false;
+  const extra = R > 0 ? _gridExtraRows(block, cols, rows.length) : null;
+  const curCell = R === 0 ? cols[C] : extra[R - 1][C];
+  const nextLines = _gridMergeLine(curCell && curCell.lines, li, fields);
+  if (!nextLines) return false;
+  Object.assign(block.dataset, _gridCellPatchDataset(cols, extra, R, C, { lines: nextLines }));
+  renderGridBlock(block);
+  return true;
+}
+
 window.makeGridBlock = makeGridBlock;
 window.addGridBlock = addGridBlock;
 window.updateGridBlock = updateGridBlock;
@@ -573,7 +667,7 @@ window.renderDuoBlock = renderGridBlock;
 //   DOM 없이 순수 데이터(fake block = {dataset:{...}})로 이걸 직접 검사한다.
 export {
   makeGridBlock, addGridBlock, updateGridBlock, renderGridBlock, GRID_DEFAULTS,
-  _gridLineHtml as gridLineHtml, _GRID_ROLES as GRID_ROLES,
+  _gridLineHtml as gridLineHtml, _GRID_ROLES as GRID_ROLES, _GRID_COLOR_RE as GRID_COLOR_RE,
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS,
 };

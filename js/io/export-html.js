@@ -100,6 +100,7 @@ async function exportHTMLFile() {
   clone.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   clone.querySelectorAll('.item-selected').forEach(el => el.classList.remove('item-selected'));
   clone.querySelectorAll('.bn2-line-selected').forEach(el => el.classList.remove('bn2-line-selected')); // ⑧ 편집용 마커
+  clone.querySelectorAll('.grd-line-selected').forEach(el => el.classList.remove('grd-line-selected')); // 그리드 줄 선택 마커(편집용)
   clone.querySelectorAll('.bn2-line-empty').forEach(el => el.classList.remove('bn2-line-empty'));       // ⑸ 빈 줄 플레이스홀더
   /* [M38-b] 빈 카드 이미지 «편집 전용» 체커/'+' — .bn2-line-empty 와 같은 성격이다.
      앱 CSS 가 결과물에 안 실리므로 클래스만 남아도 그려지지는 않지만, «의도»를 여기 남긴다:

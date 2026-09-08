@@ -40,6 +40,11 @@ const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeigh
  * @param {boolean} o.showStyleGroup    B/I/S/H 줄 표시 (liner 는 숨긴다)
  * @param {boolean} o.showLetterSpacing 자간 칸 표시
  * @param {boolean} o.showSize          크기 입력 표시
+ * @param {boolean} o.showHighlight     형광펜(H) 버튼 표시. ★기본 true = 이전과 «바이트 동일»
+ *                                      (T1 골든이 그 동일성을 지킨다). 끄는 쪽은 «왜 끄는지»를
+ *                                      호출부에 적어야 한다 — 그리드가 그 사례다(prop-grid.js).
+ * @param {string}  o.sizePh|lhPh|lsPh  ★값을 «안 정한» 칸의 회색 안내값(역할 기본값). value 는 비우고
+ *                                      이것만 주면 「아무도 안 정했다」가 화면에 보인다. mix 가 이긴다.
  * @param {object}  o.mix               Figma "Mix" 정책 — 섞였으면 빈 값 + placeholder="Mix"
  */
 export function buildTypographySectionHtml({
@@ -47,12 +52,16 @@ export function buildTypographySectionHtml({
   isBold, isItalic, isStrike, isHighlight,
   lh, ls,
   sizeMin = 8, sizeMax = 800,
-  showStyleGroup = true, showLetterSpacing = true, showSize = true,
+  showStyleGroup = true, showLetterSpacing = true, showSize = true, showHighlight = true,
+  sizePh, lhPh, lsPh,
   mix,
 } = {}) {
   const _mix = mix || _NO_MIX;
   const _sizeVal = _mix.fontSize.mixed ? '' : size;
-  const _sizePh  = _mix.fontSize.mixed ? 'Mix' : '';
+  const _sizePh  = _mix.fontSize.mixed ? 'Mix' : (sizePh ?? '');
+  /* ★placeholder 속성은 «값이 있을 때만» 찍는다 — 안 그러면 기본 호출의 산출이 한 글자 늘어
+     T1 골든이 빨개진다. 이 절의 규약: 기본 인자에서는 «바이트 동일». */
+  const _ph = (v) => (v === undefined || v === null || v === '') ? '' : ` placeholder="${v}"`;
   const _weightMixed = _mix.fontWeight.mixed;
 
   return `<div class="prop-section">
@@ -89,8 +98,8 @@ export function buildTypographySectionHtml({
       <div class="prop-style-group" id="${p}-style-group" style="margin-top:6px;display:${showStyleGroup?'flex':'none'}">
         <button class="prop-style-btn ${isBold?'active':''}" id="${p}-bold-btn" title="굵게 (⌘B)"><b>B</b></button>
         <button class="prop-style-btn ${isItalic?'active':''}" id="${p}-italic-btn" title="기울임 (⌘I)"><i>I</i></button>
-        <button class="prop-style-btn ${isStrike?'active':''}" id="${p}-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>
-        <button class="prop-style-btn ${isHighlight?'active':''}" id="${p}-highlight-btn" title="형광펜 (선택 영역 배경칠)">H</button>
+        <button class="prop-style-btn ${isStrike?'active':''}" id="${p}-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>${showHighlight ? `
+        <button class="prop-style-btn ${isHighlight?'active':''}" id="${p}-highlight-btn" title="형광펜 (선택 영역 배경칠)">H</button>` : ''}
       </div>
 
       <div class="prop-lhls-row">
@@ -98,14 +107,14 @@ export function buildTypographySectionHtml({
           <span class="prop-field-label">Line Height</span>
           <div class="prop-icon-input">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M17.5 17a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1zm-5.25-9a.5.5 0 0 1 .476.347l2.25 7a.5.5 0 0 1-.952.306L13.494 14h-2.987l-.531 1.653a.5.5 0 0 1-.952-.306l2.25-7 .03-.075A.5.5 0 0 1 11.75 8zm-1.422 5h2.344L12 9.354zM17.5 6a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1z"/></svg>
-            <input type="number" id="${p}-lh-number" min="1" max="3" step="0.05" value="${lh}" aria-label="줄간격">
+            <input type="number" id="${p}-lh-number" min="1" max="3" step="0.05" value="${lh}"${_ph(lhPh)} aria-label="줄간격">
           </div>
         </div>
         <div class="prop-lhls-col" id="${p}-ls-col" style="display:${showLetterSpacing?'block':'none'}">
           <span class="prop-field-label">Letter Spacing</span>
           <div class="prop-icon-input">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M6.5 6a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 .5-.5m11 0a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 .5-.5m-5.25 3a.5.5 0 0 1 .472.335l1.75 5a.5.5 0 1 1-.944.33l-.407-1.165H10.88l-.407 1.165a.5.5 0 1 1-.944-.33l1.75-5 .032-.072A.5.5 0 0 1 11.75 9zm-1.02 3.5h1.54L12 10.298z"/></svg>
-            <input type="number" id="${p}-ls-number" min="-10" max="40" step="0.5" value="${ls}" aria-label="자간">
+            <input type="number" id="${p}-ls-number" min="-10" max="40" step="0.5" value="${ls}"${_ph(lsPh)} aria-label="자간">
           </div>
         </div>
       </div>
@@ -120,12 +129,17 @@ export function buildTypographySectionHtml({
  * @param {string} o.p         id 접두사
  * @param {string} o.colorHex  현재 색
  * @param {number} o.alpha     불투명도(%)
+ * @param {string} o.colorHexVal ★hex 칸의 value 를 스와치와 «따로» 준다(''=아무도 안 정했다)
+ * @param {string} o.colorHexPh  ★hex 칸의 회색 안내값(역할 기본색 HEX)
  * @param {object} o.mix       섞였으면 체커보드 스와치 + placeholder="Mix"
  */
-export function buildFillSectionHtml({ p, colorHex, alpha, mix } = {}) {
+export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHexPh, mix } = {}) {
   const _mix = mix || _NO_MIX;
-  const _colorHexVal = _mix.color.mixed ? '' : colorHex.replace('#','').toUpperCase();
-  const _colorHexPh  = _mix.color.mixed ? 'Mix' : '';
+  /* ★스와치(colorHex)와 hex 칸(colorHexVal)이 «다른 것»을 말할 수 있다 — 층이 다르기 때문이다:
+     스와치는 「지금 무슨 색인가」(진실), hex 칸은 「누가 그 색을 정했나」(명시/역할 기본).
+     둘 다 안 주면 이전과 «바이트 동일»(hex 칸 = 스와치 색). */
+  const _colorHexVal = _mix.color.mixed ? '' : (colorHexVal ?? colorHex.replace('#','').toUpperCase());
+  const _colorHexPh  = _mix.color.mixed ? 'Mix' : (colorHexPh ?? '');
   const _colorSwatchBg = _mix.color.mixed ? 'linear-gradient(135deg,#bbb 25%,#777 25%,#777 50%,#bbb 50%,#bbb 75%,#777 75%)' : colorHex;
   const _swatchExtraClass = _mix.color.mixed ? ' swatch-mix' : '';
 
