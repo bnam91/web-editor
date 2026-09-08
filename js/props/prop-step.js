@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { alignBtn } from './_helpers.js';
 
 function _stepToken(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -93,10 +94,10 @@ export function showStepProperties(block) {
     <div class="prop-section">
       <div class="prop-section-title">Align</div>
       <div class="prop-align-group" id="stb-align-group">
-        <button class="prop-align-btn${stepAlign === 'left'   ? ' active' : ''}" data-align="left"   style="flex:1">←</button>
-        <button class="prop-align-btn${stepAlign === 'center' ? ' active' : ''}" data-align="center" style="flex:1">↔</button>
-        <button class="prop-align-btn${stepAlign === 'right'  ? ' active' : ''}" data-align="right"  style="flex:1">→</button>
-        <button class="prop-align-btn${stepAlign === 'stack'  ? ' active' : ''}" data-align="stack"  style="flex:1">☰</button>
+        ${alignBtn('arrow-h', 'left',   { label: '왼쪽 정렬',   active: stepAlign === 'left',   attrs: { 'data-align': 'left'   }, style: 'flex:1' })}
+        ${alignBtn('arrow-h', 'center', { label: '가운데 정렬', active: stepAlign === 'center', attrs: { 'data-align': 'center' }, style: 'flex:1' })}
+        ${alignBtn('arrow-h', 'right',  { label: '오른쪽 정렬', active: stepAlign === 'right',  attrs: { 'data-align': 'right'  }, style: 'flex:1' })}
+        ${alignBtn('arrow-h', 'stack',  { label: '세로로 쌓기', active: stepAlign === 'stack',  attrs: { 'data-align': 'stack'  }, style: 'flex:1' })}
       </div>
     </div>
 

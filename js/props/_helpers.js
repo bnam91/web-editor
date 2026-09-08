@@ -142,3 +142,133 @@ export function buildGridPicker(picker, label, onPick, opts = {}) {
     onPick(c, r);
   });
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * 정렬 버튼 SSOT — 그림 사전(ALIGN_ICONS) + 문자열 조립기(alignBtn)
+ * 2026-09-08 신규(A단계). ★이 단계는 «추가만» 한다 — 위쪽 코드는 한 줄도 안 바꿨고,
+ *   호출부도 A단계에선 0 개다. 그래서 A단계만으로는 «렌더가 못 바뀐다».
+ *
+ * ★왜 노드가 아니라 «HTML 문자열»인가
+ *   레포의 정렬 버튼 146/146 이 전부 propPanel.innerHTML 템플릿 리터럴 «안»에 있다.
+ *   createElement 로 만드는 align 버튼은 0 건이다. 노드를 내면 146 곳 전부가
+ *   「문자열 조립 → 노드 조립」으로 «구조»까지 바뀌어야 한다 — 이관 비용이 100 배가 된다.
+ *
+ * ★왜 `buildGridPicker` 옆인가
+ *   위 buildGridPicker 가 정확히 같은 성격의 선례다(복붙 2벌을 한 곳으로). 새 모듈을 파면
+ *   「_helpers 는 무엇을 담는 곳인가」가 두 곳으로 갈린다. 여기가 그 곳이다.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * 정렬 버튼 «그림»의 유일한 출처.
+ *
+ * ★계열(family)은 «무엇을 정렬하는가»가 아니라 «어떤 그림인가»로 갈린다 —
+ *   같은 「왼쪽」이라도 텍스트 정렬(줄 4개)과 오브젝트 정렬(가이드선+상자)은 다른 그림이다.
+ *   이 구분이 무너지면 「그림을 통일하자」는 선의의 리팩터가 «뜻이 다른 버튼 두 개»를
+ *   같은 아이콘으로 만들어버린다. align-btn-ssot.test.mjs T4 가 그 순간에 빨강을 낸다.
+ *
+ *   text      — 글 줄 4개. 문단/텍스트 정렬.            출처: prop-text-template.js·prop-iconify.js
+ *   object-h  — 세로 가이드선 + 상자. 가로축 오브젝트.  출처: prop-asset.js·prop-simple-card.js·prop-multisel.js
+ *   object-v  — 가로 가이드선 + 상자. 세로축 오브젝트.  출처: prop-asset.js
+ *   fill-h    — 칠(solid)로 그린 판, 가로축.            출처: prop-frame.js
+ *   fill-v    — 칠(solid)로 그린 판, 세로축.            출처: prop-frame.js
+ *   arrow-h   — ★SVG 가 아니라 «문자» 그대로. 가로축.
+ *   arrow-v   — ★SVG 가 아니라 «문자» 그대로. 세로축.
+ *
+ * ★SVG 공백은 «없는 판»으로 통일했다. 레포엔 줄바꿈·들여쓰기가 든 복붙본과 한 줄짜리
+ *   복붙본이 섞여 있어서(prop-text-template vs prop-iconify), 사전이 둘 중 하나를 안 고르면
+ *   「같은 그림인데 문자열이 다른」 상태가 사전 «안»으로 따라 들어온다.
+ *
+ * ★키(key)는 계열마다 다르다. 가로축은 left/center/right, 세로축은 top/middle/bottom.
+ *   arrow-h 만 stack(☰)을 하나 더 갖는다 — prop-step.js 의 4번째 버튼이 쓰는 그림이다.
+ *   ⛔키는 «그림 선택자»일 뿐이고 `data-align` 값이 아니다. 우연히 같아 보여도 헬퍼는
+ *     둘을 잇지 않는다(아래 alignBtn 주석 1번 참조).
+ */
+export const ALIGN_ICONS = {
+  text: {
+    left:   '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/><line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/></svg>',
+    center: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="3" y1="6" x2="11" y2="6"/><line x1="2" y1="9" x2="12" y2="9"/><line x1="4" y1="12" x2="10" y2="12"/></svg>',
+    right:  '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/><line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/></svg>',
+  },
+  'object-h': {
+    left:   '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="2" x2="1" y2="12"/><rect x="3" y="4" width="5" height="6" rx="1"/></svg>',
+    center: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="7" y1="2" x2="7" y2="12"/><rect x="3" y="4" width="8" height="6" rx="1"/></svg>',
+    right:  '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="13" y1="2" x2="13" y2="12"/><rect x="6" y="4" width="5" height="6" rx="1"/></svg>',
+  },
+  'object-v': {
+    top:    '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="1" x2="12" y2="1"/><rect x="4" y="3" width="6" height="5" rx="1"/></svg>',
+    middle: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="7" x2="12" y2="7"/><rect x="4" y="3" width="6" height="8" rx="1"/></svg>',
+    bottom: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="13" x2="12" y2="13"/><rect x="4" y="6" width="6" height="5" rx="1"/></svg>',
+  },
+  'fill-h': {
+    left:   '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M3 2h1.5v12H3zM6.5 4.5h6a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-6zm0 4h4a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-4z"/></svg>',
+    center: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M7.25 2h1.5v2.5H13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H8.75v1H12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H8.75V14h-1.5v-2.5H4a.5.5 0 0 1-.5-.5V9a.5.5 0 0 1 .5-.5h3.25v-1H4a.5.5 0 0 1-.5-.5V5a.5.5 0 0 1 .5-.5h3.25z"/></svg>',
+    right:  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M11.5 2H13v12h-1.5zM3.5 4.5h6a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-6zm2 4h4a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-4z"/></svg>',
+  },
+  'fill-v': {
+    top:    '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 3v1.5h12V3zM4.5 6.5v6a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-6zm4 0v4a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-4z"/></svg>',
+    middle: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 7.25h2.5V4a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v3.25h1V4a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v3.25H14v1.5h-2.5V12a.5.5 0 0 1-.5.5H9a.5.5 0 0 1-.5-.5V8.75h-1V12a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5V8.75H2z"/></svg>',
+    bottom: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 11.5v1.5h12v-1.5zM4.5 3.5v6a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-6zm4 2v4a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-4z"/></svg>',
+  },
+  /* ★★여기부터는 SVG 가 «아니다». 레포가 실제로 쓰는 그림이 문자 그 자체다.
+   *   SVG 로 «승격»시키면 이관이 1:1 치환이 아니게 되고 렌더가 바뀐다 — 그건 다른 작업이다. */
+  'arrow-h': { left: '←', center: '↔', right: '→', stack: '☰' },
+  'arrow-v': { top: '↑', middle: '↕', bottom: '↓' },
+};
+
+/**
+ * 정렬 버튼 «하나»의 HTML 문자열을 만든다. ★반환값은 노드가 아니라 문자열이다.
+ *
+ * @param {string} family  ALIGN_ICONS 의 계열 키
+ * @param {string} key     그 계열 안의 그림 키. ★«그림 선택자»일 뿐이다
+ * @param {object} o
+ * @param {string}  o.label   ★필수. aria-label 이 된다. 비면 throw
+ * @param {string}  [o.title] title 속성. ★있던 문자열을 «그대로» 넘기는 자리
+ * @param {boolean} [o.active] true 면 클래스에 ' active' 를 붙인다
+ * @param {string}  [o.cls]   추가 클래스(공백 구분)
+ * @param {object}  [o.attrs] 그대로 통과시킬 속성들. 예: {'data-align':'left', id:'x'}
+ * @param {string}  [o.style] 인라인 style
+ * @param {string}  [o.base='prop-align-btn'] 기반 클래스. 'msp-align-btn' 등으로 «교체»된다
+ * @returns {string} `<button …>ICON</button>`
+ *
+ * ★이 함수가 «하지 않는» 것 — 넷 다 실제 결함에 대응한다
+ *
+ * 1. ⛔`data-align` 을 «자동 생성하지 않는다».
+ *    prop-text-wireup-align.js:9 가 `.prop-align-btn` 을 «전부» 잡아 `dataset.align` 유무로만
+ *    거른다. 즉 정렬이 아닌 버튼(모양·테두리·회전 피커도 이 클래스를 쓴다)에 data-align 이
+ *    실수로 붙으면 «엉뚱한 블록이 조용히 정렬된다». key 가 'left' 라는 이유로 헬퍼가
+ *    data-align 을 붙이면 그 사고가 «전 호출부에서 동시에» 난다. 호출부가 attrs 로
+ *    명시할 때만 나간다.
+ *
+ * 2. ⛔따옴표를 «이스케이프하지 않는다».
+ *    prop-banner02.js:167 이 title 을 `.replace(/"/g,'&quot;')` 로 «이미» 이스케이프해서 넘긴다.
+ *    여기서 또 하면 `&amp;quot;` 가 화면에 보인다. 이스케이프는 지금도 호출부 책임이고,
+ *    그 책임을 옮기는 건 동작 변경이다 — 이 커밋은 현행 동작을 보존한다.
+ *
+ * 3. ★`active` 앞 공백은 «정확히 한 칸».
+ *    현행이 `class="prop-align-btn${… ? ' active' : ''}"` 이다. 붙여 쓰면
+ *    `prop-align-btnactive` 라는 «존재하지 않는 클래스» 하나가 되고, CSS 가 안 걸려도
+ *    콘솔은 조용하다 — 눈으로만 잡히는 종류의 사고다.
+ *
+ * 4. ★`style` 을 «빠뜨리지 않는다».
+ *    prop-step.js 4곳이 `style="flex:1"` 로 폭을 잡는다. 빠지면 버튼 폭이 눈에 띄게 바뀐다.
+ *
+ * ★속성 순서는 class → attrs → style → title → aria-label 로 «고정»이다.
+ *   DOM 엔 영향이 없지만, 순서가 흔들리면 「바이트 단위로 같은가」를 사람이 눈으로 못 맞춘다.
+ */
+export function alignBtn(family, key, o = {}) {
+  const fam = ALIGN_ICONS[family];
+  if (!fam) throw new Error(`alignBtn: 모르는 계열 "${family}" — ALIGN_ICONS 키는 ${Object.keys(ALIGN_ICONS).join(', ')}`);
+  const icon = fam[key];
+  if (icon === undefined) throw new Error(`alignBtn: "${family}" 계열에 "${key}" 그림이 없다 — 쓸 수 있는 키는 ${Object.keys(fam).join(', ')}`);
+  /* ★label 은 «있으면 좋은 것»이 아니라 이 헬퍼의 «존재 이유»다. 지금 레포엔 title 도 없이
+   *   `←` 만 든 버튼이 있고, 스크린리더가 그걸 「왼쪽 화살표」라고 읽는다. 옵셔널로 두면
+   *   급한 호출부가 빠뜨리고, 그 순간 이 작업의 값이 0 이 된다. 그래서 throw 다. */
+  if (!o.label) throw new Error(`alignBtn(${family}, ${key}): label 은 필수다 — aria-label 이 없으면 스크린리더가 그림/문자를 그대로 읽는다`);
+  const { label, title, active, cls, attrs, style, base = 'prop-align-btn' } = o;
+  let out = `<button class="${base}${cls ? ' ' + cls : ''}${active ? ' active' : ''}"`;
+  // ★attrs 는 «해석하지 않고» 원문 그대로 통과시킨다 — 위 1번.
+  for (const [k, v] of Object.entries(attrs || {})) out += ` ${k}="${v}"`;
+  if (style) out += ` style="${style}"`;
+  if (title) out += ` title="${title}"`;
+  return out + ` aria-label="${label}">${icon}</button>`;
+}

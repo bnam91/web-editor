@@ -2,6 +2,7 @@
    이미지 업로드 (Asset)
 ══════════════════════════════════════ */
 import { propPanel } from './globals.js';
+import { alignBtn } from './props/_helpers.js';
 
 /* ── 이미지 업로드 로딩 오버레이 헬퍼 ── */
 export function showAssetLoading(block) {
@@ -127,17 +128,17 @@ function enterImageEditMode(ab, opts = {}) {
         <div class="prop-row">
           <span class="prop-label">가로</span>
           <div class="prop-align-group">
-            <button class="prop-align-btn" id="img-align-hl">←</button>
-            <button class="prop-align-btn" id="img-align-hc">↔</button>
-            <button class="prop-align-btn" id="img-align-hr">→</button>
+            ${alignBtn('arrow-h', 'left',   { label: '왼쪽 정렬',        attrs: { id: 'img-align-hl' } })}
+            ${alignBtn('arrow-h', 'center', { label: '가운데 정렬',      attrs: { id: 'img-align-hc' } })}
+            ${alignBtn('arrow-h', 'right',  { label: '오른쪽 정렬',      attrs: { id: 'img-align-hr' } })}
           </div>
         </div>
         <div class="prop-row">
           <span class="prop-label">세로</span>
           <div class="prop-align-group">
-            <button class="prop-align-btn" id="img-align-vt">↑</button>
-            <button class="prop-align-btn" id="img-align-vc">↕</button>
-            <button class="prop-align-btn" id="img-align-vb">↓</button>
+            ${alignBtn('arrow-v', 'top',    { label: '위쪽 정렬',        attrs: { id: 'img-align-vt' } })}
+            ${alignBtn('arrow-v', 'middle', { label: '가운데 정렬 (수직)', attrs: { id: 'img-align-vc' } })}
+            ${alignBtn('arrow-v', 'bottom', { label: '아래쪽 정렬',      attrs: { id: 'img-align-vb' } })}
           </div>
         </div>
       </div>
