@@ -316,7 +316,11 @@ export function applySpreadAlongOutline(outline, A, B, L, spread, mag) {
      처방(sg===0 이면 실루엣으로 떨어진다)을 넣으면 narrow 100 에서도 0/1152. 검사 T4 가 못박는다.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/** 선분 p→q 를 기준으로 P 가 «어느 쪽»인가(부호). 0 이면 셋이 한 줄 위다. */
+/** 선분 p→q 를 기준으로 P 가 «어느 쪽»인가(부호). 0 이면 셋이 한 줄 위다.
+ *  ⛔여기 나오는 «0» 은 셋 다 뜻이 있다 — 아무 데서나 «어느 편»으로 삼키지 마라(검사 T8 이 못박는다):
+ *    ⑴ 잡는 점 P 가 축 위  ⇒ 접선이 «양쪽 다» 이므로 처방(sg===0 → 실루엣)으로 떨어진다
+ *    ⑵ 후보 q 가 축 위      ⇒ 그 후보는 «어느 편도 아니다» ⇒ 같은 편 고르기에서 «빠진다»
+ *    ⑶ 기준점 ZERO 가 도형 중심이 «아니면» ⑴⑵ 의 0 이 통째로 사라진다 ⇒ 리터럴 {0,0} 이어야 한다 */
 export function crossSide(p, q, P) {
   return (q.x - p.x) * (P.y - p.y) - (q.y - p.y) * (P.x - p.x);
 }
@@ -336,11 +340,15 @@ export function tangentAt(outline, P, L, other, sil, which) {
   var two = (outline.kind === 'circle')
     ? silhouetteCircle(outline.r, P, outline.cx, outline.cy)
     : silhouetteFromPts(outline.pts, P, 0, 0);
+  /* ★Math.sign 이어야 한다 — `> 0 ? 1 : -1` 로 쓰면 «축 위 후보»(0)가 −1 편으로 «삼켜져»
+     엉뚱한 접점이 뽑힌다. 정사각형 꼭짓점이 광원 축 위에 놓이는 배치에서 실제로 갈린다(검사 T8-ⓑ). */
   var same = two.filter(function (q) { return Math.sign(crossSide(L, ZERO, q)) === sg; });
   if (same.length === 1) return same[0];
   return _dist(two[0], other) > _dist(two[1], other) ? two[0] : two[1];
 }
 
+/* ★도형 «중심». 축(L→중심)의 기준점이라 리터럴 {0,0} 이어야 한다 — 1e-12 만 밀어도
+   crossSide 의 «정확히 0»(축 위)이 통째로 사라져 접점 고르기가 갈린다(검사 T8-ⓐ). */
 const ZERO = { x: 0, y: 0 };
 function _dist(p, q) { return Math.hypot(p.x - q.x, p.y - q.y); }
 
