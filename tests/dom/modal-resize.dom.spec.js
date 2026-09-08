@@ -49,6 +49,9 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
   import { showModalProperties } from '/js/props/prop-modal.js';
   import { showHandlesFor, showAssetResizeHandles } from '/js/overlay-handles.js';
   import { bindBlock } from '/js/drag-drop.js';
+  /* ★block-factory.js 를 «진짜로» 얹는다 — D13 이 스텁이 아니라 실제 _insertToFlowFrame 을 탄다.
+     스텁을 쓰면 「그 갈래가 실제로 돈다」를 못 지킨다. */
+  import '/js/block-factory.js';
   window.__mk = makeModalBlock;
   window.__render = renderModalBlock;
   window.__open = showModalProperties;
@@ -452,5 +455,71 @@ test('D12 ★«툴바로 추가한 그 순간» 핸들이 있다 — 한 번 더
   expect(after.resize, '추가 «직후»에 리사이즈 핸들이 없다 — 한 번 더 클릭해야 나온다').toBe(4);
   expect(after.radius, '추가 «직후»에 라디우스 핸들이 없다').toBe(4);
   expect(after.panel, '패널이 모달로 안 열렸다 — showTextProperties 로 샜다').toBe('Modal');
+  expect(errs).toEqual([]);
+});
+
+test('D13 ★«프레임 안»으로 추가하는 갈래도 핸들이 붙는다 (addModalBlock 의 두 번째 문)', async ({ page }) => {
+  /* ★D12 는 «일반 갈래»만 지킨다. addModalBlock 에는 문이 «둘»이다:
+       ⑴ window._insertToFlowFrame 이 참 → 프레임 안에 넣고 «거기서» 끝난다(early return)
+       ⑵ 아니면 섹션에 row 로 넣는다
+     실측으로 확인된 구멍: ⑴의 호출 «한 줄»만 지워도 D12·U 전부 초록이었다.
+     ⛔헬퍼(_selectNewModal)로 «모았기 때문에» 갈래가 하나로 보인다 — 모은 건 옳고,
+       그래서 «갈래마다» 검사가 필요하다.
+     ⛔grep 으로 「파일에 _selectNewModal 이 두 번 있다」로 때우면 안 된다 —
+       한 줄을 지워도 정의 1 + 호출 1 로 «둘»이라 그 검사는 통과한다.
+     ⇐ 되돌리기: 프레임 갈래의 _selectNewModal(made.block) 한 줄을 지우면 여기가 빨강(D12 는 초록). */
+  const errs = await boot(page);
+
+  const made = await page.evaluate(() => {
+    /* _insertToFlowFrame 이 옵셔널 체이닝 «없이» 부르는 것만 최소로 세운다.
+       ⛔핸들·패널 관련은 하나도 안 세운다 — 세우면 검사가 자기 손으로 통과한다. */
+    window.pushHistory = () => {};
+    window.buildLayerPanel = () => {};
+    window.getSelectedSection = () => document.querySelector('.section-block');
+
+    // 자유배치 프레임을 «진짜로» 만들고 활성 프레임으로 둔다
+    const frame = document.createElement('div');
+    frame.className = 'frame-block';
+    frame.id = 'ss_d13';
+    frame.dataset.freeLayout = 'true';
+    frame.style.cssText = 'position:relative;width:600px;height:400px;';
+    document.getElementById('host').appendChild(frame);
+    window._activeFrame = frame;
+
+    try {
+      const r = window.__add({});
+      const b = r && r.block;
+      return {
+        threw: null,
+        insertFn: typeof window._insertToFlowFrame,
+        block: !!b,
+        // ★이 갈래를 «실제로 탔다»는 증거 = 블록이 프레임의 직계 자식이다
+        //   (일반 갈래였다면 .row 에 담겨 section-inner 로 들어간다)
+        parentIsFrame: !!(b && b.parentElement === frame),
+        inFrame: frame.querySelectorAll(':scope > .modal-block').length,
+        inSectionInner: document.querySelectorAll('#host > .row .modal-block').length,
+        selected: !!(b && b.classList.contains('selected')),
+      };
+    } catch (e) {
+      return { threw: String(e && e.message || e) };
+    }
+  });
+
+  /* ★「입력이 살아 있다」 — 이 갈래를 «안 타면» 아래 4+4 는 D12 를 다시 재는 것일 뿐이다. */
+  expect(made.threw, `addModalBlock 이 던졌다: ${made.threw}`).toBeNull();
+  expect(made.insertFn, '_insertToFlowFrame 이 window 에 없다 — block-factory 가 안 실렸다').toBe('function');
+  expect(made.block, 'addModalBlock 이 블록을 못 만들었다').toBe(true);
+  expect(made.parentIsFrame, '★프레임 갈래를 «안 탔다» — 이 검사는 D12 를 다시 재고 있을 뿐이다').toBe(true);
+  expect(made.inFrame, '프레임 안에 모달이 안 들어갔다').toBe(1);
+  expect(made.inSectionInner, '일반 갈래로 샜다 — 프레임 갈래가 아니다').toBe(0);
+  expect(made.selected, '전제: selectBlock 이 «선택»까지는 하고 있다').toBe(true);
+
+  await raf(page);
+  const after = await page.evaluate(() => ({
+    resize: document.querySelectorAll('#ss-handles-overlay .mdl-overlay-handle').length,
+    radius: document.querySelectorAll('#ss-handles-overlay .mdl-radius-handle').length,
+  }));
+  expect(after.resize, '★프레임 안에 추가한 «직후»에 리사이즈 핸들이 없다').toBe(4);
+  expect(after.radius, '★프레임 안에 추가한 «직후»에 라디우스 핸들이 없다').toBe(4);
   expect(errs).toEqual([]);
 });
