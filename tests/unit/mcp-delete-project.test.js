@@ -134,6 +134,34 @@ test('D7 ★활성을 비울 땐 «읽는 곳을 전부» 비운다 (2026-09-07 
     '★헬퍼는 있는데 삭제가 «안 부른다» — 죽은 배선이다');
 });
 
+test('D11 ★설명이 «런타임과 같은 말»을 한다 — 게이트 계약 (앱매니저 제보, 2026-09-08)', async () => {
+  /* ⛔여기 설명은 「projectId 를 직접 받으니 active 에 작용하지 않고 expectedProject 가드가 필요 없다」
+       였는데, 런타임은 확정(open_project 성공)을 «요구»한다. 다른 세션이 그 어긋남에 걸렸다.
+     ★어느 쪽이 맞나: 런타임이 맞다(F3-7 이 옛 면제 시도를 빨강으로 잡았다).
+       축은 「지목했느냐」가 아니라 「지목이 틀렸을 때 남의 것이 변하느냐」다 — 삭제는 변한다.
+     ⇒ 이 검사는 «설명»과 «실제 거절»을 «같은 실행»에서 대조한다. 한쪽만 고치면 빨개진다. */
+  const tool = (await H.listTools(true)).find(t => t.name === 'delete_project');
+  const d = String(tool.description || '');
+
+  /* ⑴ 런타임 — 확정을 «실제로 푼 뒤» projectId 만 주면 거절한다.
+     ⚠️confirmProject 는 하네스 «기동» 옵션이라 호출에 못 쓴다(그렇게 썼다가 못 쟀다).
+       ⇒ 엇갈린 expectedProject 로 게이트를 «한 번 튕겨» 확정을 풀고(그때 _setConfirmed(null) 된다),
+         그 상태에서 다시 부른다. 이게 사용자가 실제로 겪는 순서다. */
+  const bump = await H.call('delete_project',
+    { projectId: 'proj_1700000000000', expectedProject: 'proj_1700000000001' });
+  assert.match(JSON.stringify(bump.result || bump.error), /PROJECT_MISMATCH/,
+    '전제: 엇갈린 expectedProject 가 게이트를 튕겨야 확정이 풀린다');
+  const r = await H.call('delete_project', { projectId: 'proj_1700000000000' });
+  const said = JSON.stringify(r.result || r.error || r.rawText);
+  assert.match(said, /NO_ACTIVE_PROJECT|PROJECT_NOT_CONFIRMED/,
+    `★확정 없이 통과시켰다 — 파괴 도구가 열린 적 없는 대상에 작용한다: ${said}`);
+
+  // ⑵ 설명 — 그 사실을 «말한다»
+  assert.match(d, /open_project/, '★확정이 필요한데 설명이 open_project 를 안 말한다');
+  assert.ok(!/needs no expectedProject guard|does NOT act on the "active" project/i.test(d),
+    '★설명이 아직 「가드가 필요 없다」고 말한다 — 런타임은 요구한다(계약이 거짓말)');
+});
+
 test('D8 ★rename_project · update_section(name) — 「이름을 못 바꾼다」가 «닫혔나»', async () => {
   const names = (await H.listTools(true)).map(t => t.name);
   assert.ok(names.includes('rename_project'), '★rename_project 가 없다');

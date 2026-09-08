@@ -1352,9 +1352,15 @@ function _registerDefaultTools() {
         이미 다룬다(「아직 프로젝트가 없어요」 — 실측). 도구가 사람보다 빡빡하면 «불일치»다.
         ⚠️`delete_section` 이 마지막 섹션을 막는 것과 «다른 사정»이다 — 섹션 0개는 편집기가
         빈 껍데기가 되지만, 프로젝트 0개는 갤러리가 정상 안내를 띄운다.
-     ⑶ ⛔`expectedProject` 안전벨트를 «안» 붙인다. 그 벨트는 「대상을 지목 «안» 하는 도구」
-        (delete_section·delete_block 은 「지금 열린 것」에서 지운다)를 위한 것이다.
-        이 도구는 projectId 를 «직접 지목»하므로 지목한 걸 또 확인할 이유가 없다. */
+     ⑶ ⛔★2026-09-08 «정정» — 여기 「projectId 를 직접 지목하므로 확인할 이유가 없다」고 적혀 있었는데
+        «런타임과 어긋났다». 게이트(_projectGate)는 이 도구를 «파괴적 프로젝트 쓰기»로 보고
+        확정(open_project 성공)을 요구한다 — 그게 «맞는» 쪽이다(F3-7 이 옛 면제 시도를 빨강으로 잡았다).
+        축은 「지목했느냐」가 아니라 ★「지목이 틀렸을 때 «남의 것이 변하느냐»」다. 삭제는 변한다.
+        ⇒ 설명과 이 주석을 «동작에 맞췄다». 실측(2026-09-08, 앱매니저 제보로 확인):
+            projectId 만        → NO_ACTIVE_PROJECT
+            +expectedProject    → 여전히 NO_ACTIVE_PROJECT (활성이 없으면 벨트도 소용없다)
+            open_project 실패 후 → PROJECT_NOT_CONFIRMED (열렸어도 «성공»해야 확정이 선다)
+        ★「동작만 고치고 계약을 남기면 계약이 거짓말을 한다」의 또 한 사례다. */
   registerTool(
     'delete_project',
     async ({ projectId } = {}) => {
@@ -1384,7 +1390,9 @@ function _registerDefaultTools() {
     },
     {
       description: 'Delete a project — DESTRUCTIVE but RECOVERABLE: it goes to the in-app Trash tab and is kept 30 days (then moved to the OS Trash), never erased. '
-        + 'Takes projectId directly (from list_projects), so it does NOT act on the "active" project and needs no expectedProject guard. '
+        + '⚠REQUIRES the target to be CONFIRMED first: open_project(projectId) must SUCCEED, then call this. '
+        + 'projectId alone is refused (NO_ACTIVE_PROJECT), and expectedProject does NOT bypass that — it only cross-checks the already-open one. '
+        + 'This is deliberate: a mistargeted delete destroys someone else\'s project, so pointing at it is not enough — you must have opened it. '
         + 'The last remaining project CAN be deleted (the gallery shows an empty-state screen). '
         + 'If the deleted project was the active one, the active target is cleared — open_project another one before editing.',
       inputSchema: {
