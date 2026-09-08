@@ -3858,11 +3858,12 @@ async function _invokeRendererAddChecklistItem({ text, x, y, sectionId, ckSectio
    ⛔없을 때 어땠나: 「'무료배송' 적힌 데 고쳐줘」를 하려면 섹션을 «하나씩» 열어야 했다.
      실물 프로젝트가 102섹션이라 왕복 102번 — 실무에서 못 쓴다.
    ⇒ 렌더러를 «한 번만» 훑는다. 섹션을 여닫지 않으므로 화면 상태를 안 건드린다. */
-async function _invokeRendererSearchSections({ query, limit = 50, caseSensitive = false, whole = false } = {}) {
+async function _invokeRendererSearchSections({ query, limit = 50, caseSensitive = false, whole = false, includePlaceholder = false } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
   const a = JSON.stringify({ q: String(query), limit: Number(limit) || 50,
-                             cs: !!caseSensitive, whole: !!whole });
+                             cs: !!caseSensitive, whole: !!whole,
+                             includePlaceholder: !!includePlaceholder });
   const js = `(() => {
     try {
       const p = ${a};
@@ -3885,7 +3886,22 @@ async function _invokeRendererSearchSections({ query, limit = 50, caseSensitive 
           if (c.contains(cls)) return name;
         return null;
       };
-      const hits = []; let scannedSections = 0, scannedBlocks = 0, truncated = false;
+      /* 안내문구 판별 — 렌더러의 canvas-state 와 «같은 잣대»(data-is-placeholder / data-blank).
+         ⛔두 곳이 다른 기준을 쓰면 「미리보기엔 안 뜨는데 검색엔 뜨는」 어긋남이 난다. */
+      const _isPh = (el) => {
+        try {
+          const holders = [...el.querySelectorAll('[data-placeholder]')];
+          if (el.hasAttribute('data-placeholder')) holders.push(el);
+          if (!holders.length) return false;
+          for (const h of holders) {
+            if (h.dataset.isPlaceholder === 'true') continue;
+            if (h.dataset.blank === 'true') continue;
+            if ((h.innerText || '').trim()) return false;
+          }
+          return true;
+        } catch (_) { return false; }
+      };
+      const hits = []; let scannedSections = 0, scannedBlocks = 0, truncated = false, phSkipped = 0;
       for (const sec of secs) {
         scannedSections++;
         const secName = (sec.dataset && sec.dataset.name) || '';
@@ -3898,6 +3914,7 @@ async function _invokeRendererSearchSections({ query, limit = 50, caseSensitive 
           scannedBlocks++;
           const raw = (b.innerText || '').replace(/\\s+/g, ' ').trim();
           if (!raw) continue;
+
           const i = norm(raw).indexOf(needle);
           if (i < 0) continue;
           if (p.whole) {
@@ -3905,6 +3922,15 @@ async function _invokeRendererSearchSections({ query, limit = 50, caseSensitive 
             const before = raw[i-1] || ' ', after = raw[i + p.q.length] || ' ';
             if (/[\\w가-힣]/.test(before) || /[\\w가-힣]/.test(after)) continue;
           }
+          /* ★★«안내문구»(고스트 텍스트)는 기본으로 «뺀다» (2026-09-08 현빈 지시).
+               빈 텍스트 블록의 「소제목을 입력하세요」는 진짜 DOM 글자라 그냥 잡힌다 —
+               안 쓴 블록이 많을수록 히트가 쓰레기로 찬다(실측: 블록 3개 중 3개가 그렇게 잡혔다).
+             ⛔★«매치가 성립한 뒤에» 센다. 첫 판은 매치 판정 «전»에 세어서, 질의와 상관없는
+               안내문구 블록까지 셌고 「N개가 매치했다」는 안내가 «거짓»이 됐다
+               (실측: '효과' 로 찾으면 matches=0 인데 skipped=4 — 그 4개는 매치한 적이 없다).
+             ⛔조용히 빼지 않는다 — 몇 개를 뺐는지 «말한다». includePlaceholder:true 면 그대로 준다
+               (「어디가 아직 빈 칸인가」를 찾고 싶을 때가 실제로 있다). */
+          if (_isPh(b)) { phSkipped++; if (!p.includePlaceholder) continue; }
           if (hits.length >= p.limit) { truncated = true; break; }
           const from = Math.max(0, i - 24), to = Math.min(raw.length, i + p.q.length + 24);
           hits.push({
@@ -3923,6 +3949,9 @@ async function _invokeRendererSearchSections({ query, limit = 50, caseSensitive 
       }
       /* ★「몇 개를 뒤졌는지」를 같이 준다 — 0건일 때 «없다»인지 «못 뒤졌다»인지 갈라야 한다 */
       return { ok:true, query: p.q, matches: hits.length, hits: hits,
+        ...(phSkipped ? { placeholderSkipped: phSkipped,
+            placeholderNote: phSkipped + ' block(s) matched only the built-in placeholder text'
+              + ' — those are EMPTY, not written. Pass includePlaceholder:true to see them.' } : {}),
                scannedSections: scannedSections, scannedBlocks: scannedBlocks,
                truncated: truncated,
                note: truncated ? ('limit ' + p.limit + ' 에서 잘렸습니다 — limit 를 올리거나 검색어를 좁히세요.') : undefined };

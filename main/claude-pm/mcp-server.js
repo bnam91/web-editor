@@ -880,6 +880,12 @@ function _firstMeaningful(blocks) {
   const list = Array.isArray(blocks) ? blocks : [];
   for (const b of list) {
     if (!b) continue;
+    /* ★★«안내문구»는 «의미 있는 첫 글자»가 아니다 (2026-09-08 현빈 지시).
+         빈 텍스트 블록의 「소제목을 입력하세요」는 진짜 DOM 글자라, 안 거르면
+         「첫 의미 있는 블록」이라고 이름 붙여 놓고 «의미 없는 걸» 첫째로 집는다.
+       ⛔빈 칸(gap)을 건너뛰는 것과 «같은 이유»다 — 미리보기가 잡음이 되면 미리보기가 아니다. */
+    if (b.placeholder === true) continue;
+    if (b.summary && b.summary.placeholder === true) continue;
     const t = (b.text != null && b.text !== '') ? b.text
             : (b.summary && typeof b.summary === 'object' ? b.summary.text : '');
     const s = String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
@@ -931,6 +937,10 @@ function _slimCanvasState(raw, detail) {
         if (b.color) o.color = b.color;
         if (b.fontSize) o.fontSize = b.fontSize;
         if (b.align) o.align = b.align;
+        /* ★«아직 안 쓴 칸»이라는 표시는 «내용»만큼 중요하다 — 안 실으면 밖에서 보기에
+             빈 블록이 «다 쓴 것»으로 보인다. 바로 아래 경고가 말하는 그 자리에 내가 걸렸다
+             (렌더러는 보내는데 여기 허용목록이 조용히 버렸다, 2026-09-08). */
+        if (b.placeholder === true) o.placeholder = true;
         /* ★2026-09-06 — 이 «허용목록»이 렌더러가 새로 보내는 필드를 «조용히» 버렸다.
            canvas-state 가 이미지·표·갭의 summary 를 실어 보내는데 여기서 사라져,
            블록은 «보이는데» 지목에 필요한 정보만 없는 상태가 됐다(반쯤 고쳐진 모양).
@@ -2618,7 +2628,7 @@ function _registerDefaultTools() {
      ⛔이게 없어서 「'무료배송' 적힌 데 고쳐줘」에 102섹션을 하나씩 열어야 했다. */
   registerTool(
     'search_sections',
-    async ({ query, limit = 50, caseSensitive = false, wholeWord = false } = {}) => {
+    async ({ query, limit = 50, caseSensitive = false, wholeWord = false, includePlaceholder = false } = {}) => {
       if (typeof query !== 'string' || !query.trim()) throw new Error('query required (non-empty string)');
       if (query.length > 200) throw new Error('query too long (>200)');
       const lim = Number(limit);
@@ -2626,6 +2636,7 @@ function _registerDefaultTools() {
       if (!_rendererInvoker?.searchSections) throw new Error('renderer bridge not ready');
       return await _rendererInvoker.searchSections({
         query, limit: lim, caseSensitive: !!caseSensitive, whole: !!wholeWord,
+        includePlaceholder: !!includePlaceholder,
       });
     },
     {
@@ -2638,6 +2649,7 @@ function _registerDefaultTools() {
         + 'scannedSections, scannedBlocks, truncated}. Section NAMES are searched too. '
         + '★scannedSections/scannedBlocks are reported so 0 matches can be told apart from "nothing was scanned" '
         + '(0 scanned means no project is open, not that the phrase is absent). '
+        + '★Blocks that hold ONLY the built-in placeholder text are SKIPPED by default (reported as placeholderSkipped) — they are empty slots, not content; pass includePlaceholder:true to locate them. '
         + 'Feed a hit\u2019s blockId straight into update_block, or its sectionId into get_canvas_state(sectionId).',
       inputSchema: {
         type: 'object',
@@ -2646,6 +2658,7 @@ function _registerDefaultTools() {
           limit: { type: 'integer', description: 'max hits, 1..300 (default 50)' },
           caseSensitive: { type: 'boolean', description: 'default false' },
           wholeWord: { type: 'boolean', description: 'require a word boundary around the match (default false)' },
+          includePlaceholder: { type: 'boolean', description: 'default false. Blocks holding ONLY the built-in placeholder text ("소제목을 입력하세요" etc.) are EMPTY, not written — they are skipped and counted in placeholderSkipped. Set true to find WHERE the empty slots are.' },
           expectedProject: { type: 'string' },
         },
         required: ['query'],

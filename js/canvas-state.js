@@ -25,7 +25,31 @@
     return document.getElementById('canvas') || document;
   }
 
-  // 단일 .text-block → { blockId, type, text, color, fontSize, align }
+  /* ★★«안내문구»(고스트 텍스트)를 «본문»과 가른다 (2026-09-08 현빈 지시).
+       빈 텍스트 블록의 「소제목을 입력하세요」는 CSS 유령이 아니라 «진짜 DOM 글자»다
+       (block-factory.js 가 값으로 넣고 data-is-placeholder='true' 로 표시한다).
+       에디터 UI 는 그 표시를 읽는데(block-drag.js 가 「안내문구가 본문으로 굳는 지뢰 방지」를 한다)
+       MCP 는 «안 읽어서», 밖에서 보면 안 쓴 블록이 «다 쓴 것»으로 보였다.
+     ⛔지우지 «않는다» — 표시한다. AI 가 「여긴 아직 안 썼다」를 «알아야» 채울 수 있다.
+       숨기면 「없다」가 되고, 그럼 채워달라고 시킬 수도 없다. */
+  function _isPlaceholderText(el) {
+    if (!el) return false;
+    try {
+      var holders = [].slice.call(el.querySelectorAll('[data-placeholder]'));
+      if (el.hasAttribute && el.hasAttribute('data-placeholder')) holders.push(el);
+      if (!holders.length) return false;
+      // «글자가 있는» 홀더 중 하나라도 진짜 본문이면 그 블록은 안내문구가 아니다
+      for (var i = 0; i < holders.length; i++) {
+        var h = holders[i];
+        if (h.dataset.isPlaceholder === 'true') continue;   // 안내문구 — 넘어간다
+        if (h.dataset.blank === 'true') continue;           // 의도적 빈 줄 — 글자가 없다
+        if (((h.innerText || '').trim())) return false;     // ★진짜 글자를 찾았다
+      }
+      return true;
+    } catch (_) { return false; }
+  }
+
+  // 단일 .text-block → { blockId, type, text, color, fontSize, align, placeholder? }
   function _readTextBlock(block) {
     const contentEl = block.querySelector('[class^="tb-"]');
     const type = block.dataset.type || '';
@@ -41,6 +65,8 @@
       color: (contentEl && contentEl.style.color) ? contentEl.style.color : '',
       fontSize: (contentEl && contentEl.style.fontSize) ? contentEl.style.fontSize : '',
       align,
+      // ★«아직 안 쓴 칸»이면 그렇게 말한다 — text 는 그대로 싣는다(무슨 안내문구인지도 정보다)
+      ...(_isPlaceholderText(block) ? { placeholder: true } : {}),
     };
   }
 
@@ -114,7 +140,8 @@
         return { cells: cells };                          // ★카드 «전부»
       }
       var t = txt(el);
-      return t ? { text: t } : {};                        // ⛔60자로 안 자른다
+      if (!t) return {};                                  // ⛔60자로 안 자른다
+      return _isPlaceholderText(el) ? { text: t, placeholder: true } : { text: t };
     } catch (_) { return {}; }
   }
 
@@ -153,7 +180,9 @@
       }
       // 그 밖: 사람이 지목할 «한 줄»만
       var t = (el.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 60);
-      return t ? { preview: t } : {};
+      if (!t) return {};
+      // ★프레임 안이 «전부» 안내문구면 그 미리보기는 «내용»이 아니다 — 그렇게 표시한다
+      return _isPlaceholderText(el) ? { preview: t, placeholder: true } : { preview: t };
     } catch (_) { return {}; }
   }
 
