@@ -209,6 +209,83 @@ test('D1-c ★패널 입력 → 대상 줄만 변화, 그리고 «재렌더 한 
   expect(errs).toEqual([]);
 });
 
+/* ══ D7 — pushHistory 는 «적용 전»에, 제스처당 «1회» ═══════════════════
+ * 계획서 §4-C 가 「이 작업 최대의 함정」이라 부른 자리인데 실측(적대 검수) 결과
+ *   const commit = (fields) => { begin(); setLine(fields); end(); };
+ *   → { setLine(fields); begin(); end(); }   (순서 뒤집기)
+ * 로 바꿔도 npm test 1851 · test:dom 64 «전부 초록»이었다. 코드는 맞게 짰고 주석도 길게
+ * 달았는데 «기계는 아무것도 안 지키고» 있었다.
+ *
+ * ★뒤에 부르면 스냅샷이 «이미 바뀐 상태»라 undo 가 두 단계를 한꺼번에 되돌린다 —
+ *   이 레포엔 moveSection 에 그 버그가 «실재»한다. 그걸 재도입하는 변이다.
+ * ⇒ 「호출 «횟수»」와 「호출 «시점»의 dataset」을 둘 다 잰다. 횟수만 재면 순서 뒤집기를 못 잡는다. */
+
+test('D7 ★연속 input 3회 + change 1회 → pushHistory «1회», 그리고 그 시점 dataset 이 «변경 전»', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page);
+  await open(page, { r: 0, c: 0, li: 0 });         // body · 색 미지정
+
+  const r = await page.evaluate(async () => {
+    const B = window.__block;
+    const calls = [];
+    const real = window.pushHistory;
+    // ★스파이 — 부를 때마다 «그 시점의» dataset 을 통째로 찍는다. 시점을 안 찍으면 순서를 못 잰다.
+    window.pushHistory = function (...a) { calls.push(B.dataset.cols); return real?.apply(this, a); };
+
+    const before = B.dataset.cols;
+    const pick = document.getElementById('grd-typo-color');
+    // 색 피커를 «드래그»하는 흉내 — 연속 input 3회, 그다음 change 1회.
+    for (const hex of ['#112233', '#223344', '#334455']) {
+      pick.value = hex;
+      pick.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    pick.dispatchEvent(new Event('change', { bubbles: true }));
+
+    window.pushHistory = real;
+    return { calls, before, after: B.dataset.cols };
+  });
+
+  expect(errs).toEqual([]);
+  // 전제 — 조작이 «실제로» 먹었다. 안 먹었으면 「1회」는 「0회에서 우연히」일 수 있다.
+  expect(r.after, '★색이 dataset 에 안 들어갔다 — 이 검사는 아무것도 안 본 것이다').not.toBe(r.before);
+  expect(r.after).toContain('#334455');
+
+  // 본 단언 ⑴ — 제스처당 «1회». 3회면 ⌘Z 를 세 번 눌러야 하는 상태다.
+  expect(r.calls.length,
+    `★pushHistory 가 ${r.calls.length}회 불렸다 — 연속 input 마다 쌓이면 ⌘Z 가 못 쓰게 된다`).toBe(1);
+
+  // 본 단언 ⑵ — «그 시점»의 스냅샷이 «변경 전»이다. 이게 순서 뒤집기를 잡는 자리다.
+  expect(r.calls[0],
+    '★pushHistory 가 «적용 뒤»에 불렸다 — 스냅샷이 이미 바뀐 상태라 undo 가 두 단계를 ' +
+    '한꺼번에 되돌린다(이 레포 moveSection 에 실재하는 버그다). 어휘는 prop-modal, 기법은 prop-grid.')
+    .toBe(r.before);
+});
+
+test('D7-b ★숫자 칸(change 한 번)도 «적용 전» 1회다', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page);
+  await open(page, { r: 0, c: 0, li: 0 });
+
+  const r = await page.evaluate(async () => {
+    const B = window.__block;
+    const calls = [];
+    const real = window.pushHistory;
+    window.pushHistory = function (...a) { calls.push(B.dataset.cols); return real?.apply(this, a); };
+    const before = B.dataset.cols;
+    const el = document.getElementById('grd-typo-size-number');
+    el.value = '77';
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    window.pushHistory = real;
+    return { calls, before, after: B.dataset.cols };
+  });
+
+  expect(errs).toEqual([]);
+  expect(r.after, '크기가 안 먹었다 — 검사가 헛돈다').not.toBe(r.before);
+  expect(r.after).toContain('"fontSize":77');
+  expect(r.calls.length, `pushHistory 가 ${r.calls.length}회다`).toBe(1);
+  expect(r.calls[0], '★적용 뒤에 찍혔다 — undo 가 두 단계를 한꺼번에 되돌린다').toBe(r.before);
+});
+
 /* ══ D1-d — 마커가 «구분되고» 블록 밖으로 안 나간다 ([M51]) ═════════════ */
 
 test('D1-d ★마커는 이웃·편집중과 다른 서명이고, 블록 rect 를 «안 벗어난다»', async ({ page }) => {
@@ -268,9 +345,15 @@ test('D5-전제 ★잣대가 살아 있다 — 마커는 1건이고, 다른 줄�
   expect(errs).toEqual([]);
 });
 
-/* ★이 단위에서 «제일 놓치기 쉬운» 자리 — 패널이 스스로를 다시 부르는 3곳에 주소를 안 넘기면
-   매 조작마다 선택이 첫 줄로 «튄다». 손으로 눌러 보기 전엔 안 보인다.
-   되돌리면 빨강: prop-grid.js 의 `showGridProperties(block, _curAddr);` → `showGridProperties(block);` */
+/* 패널이 스스로를 다시 부르는 3곳에서 선택이 «첫 줄로 튀지 않는다»를 조작별로 잰다.
+
+   ⚠️★이 검사는 «단독 변이로 안 죽는다» — 그 사실을 여기 적어 둔다.
+     prop-grid.js 의 `showGridProperties(block, _curAddr)` 에서 인자를 빼도(:516·:551·:569 각각)
+     이 3건은 «전부 초록»이다. 실측으로 확인했다. 결함이 아니라 «이중 방어»이기 때문이다:
+     패널이 선택을 WeakMap 으로 «기억»하므로(bn2 선례) 1-인자로 불려도 복구된다.
+   ★그래서 «진짜 지지대»는 여기가 아니라 아래 D6(WeakMap 폴백)다. 되돌리기 변이도 거기 있다.
+     이 3건이 지키는 것은 「어느 조작을 해도 선택이 살아 있다」는 «동작»이지, 특정 한 줄이 아니다.
+   ⛔안심을 주는 문장은 경고 부재보다 나쁘다 — 그래서 「되돌리면 빨강」을 여기 안 적는다. */
 for (const [what, act] of [
   ['세로 정렬', `document.querySelector('[data-va="middle"]').click()`],
   ['가로 정렬', `document.querySelector('[data-ha="center"]').click()`],

@@ -96,6 +96,9 @@ const _GRID_VALIGN = { top: 'flex-start', middle: 'center', bottom: 'flex-end' }
 const _GRID_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$|^var\(\s*--[\w-]+\s*(?:,\s*[^;{}()]*)?\)$/;
 /* 폰트 패밀리는 style 속성에 «그대로» 들어간다 — 세미콜론·중괄호가 새면 선언을 깨고
    그 뒤를 통째로 밀어낸다. modal-block.js 의 _MDL_FONT_RE 와 «같은 글자표»다.
+   ⚠️_esc 는 & < > " 만 막는다 — «;» 와 «:» 는 «안» 막는다. 그래서 그 둘을 여기서 막아야 한다.
+   ★그리고 이 필드는 MCP update_block{patchCell} 로 «검증 없이» 들어온다(스키마가 type:'object').
+   ⇒ 이 정규식이 유일한 문지기다. 지키는 검사: tests/unit/grid-color-re.test.mjs (U10 음성대조).
    (따옴표는 통과시키되 _esc 가 &quot; 로 바꾼다 — 속성 밖으로 못 나간다.) */
 const _GRID_FONT_RE = /^[\w\s,'"\-().가-힣]+$/;
 const _esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -685,7 +688,8 @@ window.renderDuoBlock = renderGridBlock;
 //   DOM 없이 순수 데이터(fake block = {dataset:{...}})로 이걸 직접 검사한다.
 export {
   makeGridBlock, addGridBlock, updateGridBlock, renderGridBlock, GRID_DEFAULTS,
-  _gridLineHtml as gridLineHtml, _GRID_ROLES as GRID_ROLES, _GRID_COLOR_RE as GRID_COLOR_RE,
+  _gridLineHtml as gridLineHtml, _GRID_ROLES as GRID_ROLES,
+  _GRID_COLOR_RE as GRID_COLOR_RE, _GRID_FONT_RE as GRID_FONT_RE,
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS,
 };

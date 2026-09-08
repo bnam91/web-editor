@@ -43,7 +43,7 @@ fs.copyFileSync(path.join(ROOT, 'js/grid-cell-resize.js'), gcr);
 fs.writeFileSync(alias, src);
 globalThis.window = {};
 globalThis.document = { createElement: () => ({ dataset: {}, style: {}, classList: { add() {}, remove() {}, contains: () => false, replace: () => false }, appendChild: (c) => c, scrollIntoView() {} }), getElementById: () => null };
-const { GRID_COLOR_RE } = await import(pathToFileURL(alias).href);
+const { GRID_COLOR_RE, GRID_FONT_RE, gridLineHtml } = await import(pathToFileURL(alias).href);
 fs.unlinkSync(alias); fs.unlinkSync(gcr);
 
 test('U5-0 ★양성대조 — 잣대가 살아 있다 (평범한 hex 는 통과한다)', () => {
@@ -82,4 +82,49 @@ test('U5-c ★음성대조 — 선언을 깨는 값은 «거부»한다 (넓힌 
     assert.equal(GRID_COLOR_RE.test(bad), false,
       `«${bad}» 를 통과시킨다 — 이 값은 style 속성에 그대로 들어가 선언을 깨고 뒤를 밀어낸다`);
   }
+});
+
+/* ══ U10 — _GRID_FONT_RE ═══════════════════════════════════════════════
+ * ★형제(_GRID_COLOR_RE)는 이 파일을 받았는데 같은 커밋의 이 가드는 «아무 검사도» 없었다.
+ *   실측(적대 검수): 가드를 /^[^<>]+$/ 로 전면 개방해도 npm test 1851 · test:dom 64 «전부 초록».
+ *   ⇒ 코드 옆 주석은 「세미콜론·중괄호가 새면 선언을 깨고 그 뒤를 통째로 밀어낸다」고 정확히
+ *     적혀 있는데 그 문장을 무는 것이 없었다 — 「검사처럼 생긴 문장」이다.
+ *
+ * ★왜 이 가드가 유일한 문지기인가
+ *   값은 ${ffCss} 로 style 속성에 «그대로» 들어간다. _esc 는 & < > " 만 막고 «;» 와 «:» 는 안 막는다.
+ *   그리고 이 필드는 MCP update_block{patchCell} 로 «검증 없이» 들어온다(스키마가 type:'object').
+ * 되돌리면 빨강: grid-block.js 의 `const _GRID_FONT_RE = /^[\w\s,'"\-().가-힣]+$/;` 를 넓히면.
+ */
+
+test('U10-0 ★양성대조 — 잣대가 살아 있다 (피커가 주는 체인은 통과한다)', () => {
+  assert.ok(GRID_FONT_RE instanceof RegExp, '정규식을 못 가져왔다 — 아래가 전부 자기통과한다');
+  for (const ok of ["'Inter', sans-serif", "'Noto Sans KR', sans-serif", 'Georgia, serif',
+                    'sans-serif', "'프리텐다드', sans-serif"]) {
+    assert.equal(GRID_FONT_RE.test(ok), true, `«${ok}» 를 거부한다 — 정상 폰트가 안 먹는다`);
+  }
+});
+
+test('U10 ★음성대조 — 선언을 깨는 값을 «거부»한다 (;  와  : 를 막는 건 여기뿐이다)', () => {
+  for (const bad of [
+    'Arial;color:red',                        // 뒤에 선언을 하나 더 붙인다
+    'Arial}#canvas{display:none',             // 중괄호로 규칙을 탈출한다
+    'Arial;background-image:url(http://x/y)', // 외부 요청을 만든다
+    'Arial;position:fixed;top:0;left:0',      // 레이아웃을 덮는다
+    'Arial\n;color:red',
+    '',
+  ]) {
+    assert.equal(GRID_FONT_RE.test(bad), false,
+      `★«${bad}» 를 통과시킨다 — 이 값은 style 속성에 그대로 들어가고 _esc 는 «;» 을 안 막는다. ` +
+      `MCP update_block{patchCell} 이 검증 없이 넣으므로 이 정규식이 유일한 문지기다.`);
+  }
+});
+
+test('U10-b ★가드가 «실제 렌더»에서 그 값을 떨군다 (정규식만 맞고 렌더가 안 쓰면 소용없다)', () => {
+  // 「정규식은 거부하는데 렌더러가 다른 길로 넣는다」를 막는다 — 입구가 아니라 «결과»를 잰다.
+  const html = gridLineHtml({ type: 'body', text: 'X', fontFamily: 'Arial;color:red' }, 'left', 0, null);
+  assert.equal(/font-family:/.test(html), false, `거부된 값이 산출에 들어갔다:\n${html}`);
+  assert.equal(/color:red/.test(html), false, `★주입이 성공했다 — 선언이 깨졌다:\n${html}`);
+  // 짝 — 정상 값은 «실제로» 들어간다(위 단언이 「아무것도 안 들어간다」로 통과하지 않는다).
+  const ok = gridLineHtml({ type: 'body', text: 'X', fontFamily: "'Inter', sans-serif" }, 'left', 0, null);
+  assert.ok(ok.includes("font-family:'Inter', sans-serif;"), `정상 폰트도 안 들어간다:\n${ok}`);
 });
