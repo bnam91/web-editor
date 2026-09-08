@@ -432,14 +432,12 @@ export function sectionBgColor(sec) {
    ⛔가장 안쪽인 이 함수에 둔다. 전체 내보내기(exportAllSections)도 여길 지나므로
      경로가 늘어도 새지 않는다 — 바깥에 두면 새 경로가 생길 때마다 빠뜨린다. */
 async function exportSection(sec, format, width, opts) {
-  const _gOn  = document.body.classList.contains('gdt-grid-on');
-  const _gMid = document.body.classList.contains('gdt-grid-mid');
-  if (_gOn || _gMid) document.body.classList.remove('gdt-grid-on', 'gdt-grid-mid');
+  const _gOn = document.body.classList.contains('gdt-grid-on');
+  if (_gOn) document.body.classList.remove('gdt-grid-on');
   try {
     return await _exportSectionNoGuide(sec, format, width, opts);
   } finally {
-    if (_gOn)  document.body.classList.add('gdt-grid-on');
-    if (_gMid) document.body.classList.add('gdt-grid-mid');
+    if (_gOn) document.body.classList.add('gdt-grid-on');
   }
 }
 

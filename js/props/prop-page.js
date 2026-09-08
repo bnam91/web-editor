@@ -223,11 +223,6 @@ export function showPageProperties() {
         <input type="range" class="prop-slider" id="page-grid-gut-slider" min="0" max="80" step="1" value="20">
         <input type="number" class="prop-number" id="page-grid-gut" min="0" max="80" value="20" title="칼럼 사이 간격(px)">
       </div>
-      <div class="prop-row" id="page-grid-mid-row">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
-          <input type="checkbox" id="page-grid-mid"> 중앙선도 함께
-        </label>
-      </div>
     </div>
     <!-- ★라벨을 «안» 붙인다 — 절 제목이 이미 「참고 이미지」다. 같은 말을 두 번 하면
          240px 패널(가용 ~212px)에서 라벨이 잘리고 버튼 둘이 서로 눌린다(실측).
@@ -294,7 +289,6 @@ export function showPageProperties() {
   const gridCols = document.getElementById('page-grid-cols');
   const gridGut  = document.getElementById('page-grid-gut');
   const gridGutSlider = document.getElementById('page-grid-gut-slider');
-  const gridMid  = document.getElementById('page-grid-mid');
   const gridColPresets = document.getElementById('page-grid-col-presets');
 
   /* ★클램프는 «한 벌»만 둔다 — refreshGrid 가 쓰는 식과 되쓰기가 갈리면
@@ -324,15 +318,13 @@ export function showPageProperties() {
      ⇒ 체크박스는 순수 「꺼짐」이고, 끈다고 설정이 사라질 이유가 없다(피그마의 눈 아이콘과 같은 층). */
   function syncGridDisabled() {
     const on = !!(gridOn && gridOn.checked);
-    [gridCols, gridGut, gridGutSlider, gridMid].forEach(el => { if (el) el.disabled = !on; });
+    [gridCols, gridGut, gridGutSlider].forEach(el => { if (el) el.disabled = !on; });
     if (gridColPresets) gridColPresets.querySelectorAll('button').forEach(b => { b.disabled = !on; });
   }
 
   function refreshGrid() {
     const on = !!(gridOn && gridOn.checked);
-    const mid = !!(gridMid && gridMid.checked);
     document.body.classList.toggle('gdt-grid-on', on);
-    document.body.classList.toggle('gdt-grid-mid', on && mid);
     syncGridDisabled();
     syncColPresets();
     const n = clampCols(gridCols?.value);
@@ -340,7 +332,7 @@ export function showPageProperties() {
     if (gridGutSlider && gridGutSlider.value !== String(g)) gridGutSlider.value = g;
     /* ★끈 상태도 «기억»한다 — 예전엔 여기서 바로 return 해서 on:false 가 저장되지 않았고,
          꺼 놓고 패널을 다시 열면 가이드가 되살아났다. */
-    saveGridPref({ on, mid, n, g });
+    saveGridPref({ on, n, g });
     if (!on) return;
     /* 콘텐츠 폭 — «화면에서» 잰다. 섹션마다 패딩이 다를 수 있어 첫 섹션을 기준으로 삼는다.
        ⚠️섹션별로 패딩을 따로 준 곳은 그 섹션에서 어긋난다 — 가이드지 자[尺]가 아니다. */
@@ -363,13 +355,12 @@ export function showPageProperties() {
   if (gridOn) {
     const pref = readGridPref();
     gridOn.checked = !!pref.on;
-    if (gridMid) gridMid.checked = !!pref.mid;
     if (gridCols && pref.n) gridCols.value = pref.n;
     if (gridGut && pref.g != null) gridGut.value = pref.g;
     if (gridGutSlider) gridGutSlider.value = clampGut(gridGut?.value);
-    [gridOn, gridMid, gridCols, gridGut].forEach(el =>
+    [gridOn, gridCols, gridGut].forEach(el =>
       el && el.addEventListener('input', refreshGrid));
-    [gridOn, gridMid].forEach(el => el && el.addEventListener('change', refreshGrid));
+    gridOn.addEventListener('change', refreshGrid);
     /* 거터 = 슬라이더 + 숫자칸 한 쌍 (섹션 간격·패딩과 같은 어휘) */
     if (gridGutSlider) gridGutSlider.addEventListener('input', () => {
       if (gridGut) gridGut.value = gridGutSlider.value;
