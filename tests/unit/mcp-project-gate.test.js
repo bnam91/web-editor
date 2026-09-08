@@ -22,7 +22,14 @@ const srv = require('../../main/claude-pm/mcp-server.js');
 srv.setAuthProbe(() => ({ authed: true }));
 
 
-const PORT = 9411;                    // ⛔9345~9365 밖
+/* ★고정 포트를 «버렸다» (2026-09-08).
+     9411 을 박아 뒀더니 다른 인스턴스가 그 포트를 쥔 순간 G1~G14 «열넷이 통째로» 빨개졌다.
+     실측: 같은 트리가 한 시간 전 1738/0 → 지금 1724/14. 코드는 한 줄도 안 바뀌었다.
+   ⛔이 레포엔 이미 그 규칙을 못박은 검사가 있다 —
+     google-login-loopback.test.mjs:121 「U-GLOGIN-4 ★포트는 «매번» 새로 받는다(listen(0) — 고정하면 부딪힌다)」
+     규칙이 «옆 파일»에 있는데 이 파일이 안 따랐다.
+   ⇒ 0 을 주고 «받은 포트»를 쓴다. 요청 쪽은 이미 started.port 를 쓰고 있었다(:40). */
+const PORT = 9411;                    // ⛔9345~9365 밖 — «시작 힌트»다. 차 있으면 서버가 옆으로 옮긴다
 let ACTIVE = null;                    // 「편집기에 열려 있는 프로젝트」 — 테스트가 사람 역할을 한다
 let started = null;
 let CALLS = 0;                        // 왕복 비용 측정용
@@ -79,7 +86,10 @@ test.before(async () => {
     listMemories: async () => ({ ok: true, items: [] }),
   });
   started = await srv.startMcpServer({ port: PORT, onActiveProject: () => ACTIVE });
-  assert.equal(started.port, PORT, `port ${PORT} was busy — another process holds it`);
+  /* ★단언을 «지우지» 않는다 — 포트를 못 받았는데 계속 돌면 검사가 «아무 데도 안 붙은 채» 돈다.
+       재는 것을 「9411 인가」에서 「진짜 포트를 받았나」로 바꾼다. */
+  assert.ok(Number.isInteger(started.port) && started.port > 0,
+    `서버가 포트를 못 받았다: ${started.port} — 이 상태로는 아래 검사가 «아무것도» 못 잰다`);
 });
 
 test.after(async () => { await srv.stopMcpServer(); });
