@@ -31,6 +31,19 @@
  *     남는 것은 «저장 레코드가 w:null 로 들어온» 경우뿐인데(기본값은 undefined 에만 적용된다)
  *     그렇게 쓰는 자리를 못 찾았다 ⇒ 「도달 불가」가 아니라 «안 쟀다»로 적는다.
  *   ⇒ 처방 후보 = 폭 미상일 때 _createItem 의 기본값(220)과 «같은 수»를 쓰기. 별건 게이트.
+ *
+ * ★★백로그 BL-SPL-03 — 「이 게이트는 «어디까지» 지키나」 (§7-A 배선하는 사람이 «그때» 볼 것)
+ *   이번 라운드의 검사 셋(T-U1-1 호출 문장 · T-U1-2 sideEffects · T-U1-11 재렌더)은 전부
+ *   ★js/editor.js 의 pasteClipboard «한 자리»만 지킨다. rewireClonedSection 은 「임의의 분리 상태
+ *   섹션을 받는 공개 API」로 만들어 뒀으므로(계획서 §7-A), 나중에 형제 경로에 붙이게 된다:
+ *     js/section-variation.js:57 createVariation · :102 addVariation · js/branch-system.js:274
+ *   ⛔그쪽을 지키는 검사는 «0개»다. 그리고 이번에 실물로 확인된 실수 셋이 거기서 «그대로» 가능하다:
+ *     ⑴ 사본을 넘기기(el.cloneNode(true)) ⑵ 비동기로 감싸기(queueMicrotask/setTimeout/rAF)
+ *     ⑶ 재렌더 누락 — 셋 다 전수를 «초록으로» 통과했다(sha 4c53b38f637b · 313bcb8e035a · 7ef7066a48b3).
+ *   ⇒ 배선하는 사람은 위 세 단언을 «그 호출 자리에도» 복제해라. 안 그러면 여기만 초록인 채
+ *     같은 버그가 다른 문으로 들어온다.
+ *   ★이 문단이 있는 이유: 「검사가 있으니 됐다」로 읽히는 것을 막는 것. 검사가 «못 도는 곳»을
+ *     스스로 적어 두지 않으면, 다음 사람은 초록을 «전 범위 초록»으로 읽는다.
  */
 'use strict';
 const test = require('node:test');
