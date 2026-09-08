@@ -285,6 +285,12 @@ test('T2 ⒝ ensurePanRoom 격자 — 「한 축만 충분한」 칸을 실제�
   }
 });
 
+/* ★★[검수] 이 검사의 «리터럴»(1600 · `= 2`)이 이 파일 전체의 «닻»이다 — 지우지 마라.
+     T3 의 floor 는 `e.SCREENS`(소스 상수)에서 뽑으므로, 상수를 3 으로 바꾸면 T3 의 기대값도
+     «같이 움직여» T3 혼자서는 아무것도 못 잡는다. 상수 변경을 잡는 건 오직 여기의 리터럴이다.
+   ⛔여기를 「식으로 바꾸면 깔끔하겠다」며 `clientHeight * SCREENS` 로만 두는 순간
+     T3 이 «조용히» 풀린다. 지우는 사람은 T2 를 보고 있지 T3 을 보고 있지 않다 ⇒ 그래서 여기에 적는다.
+     (짝이 되는 경고가 T3 쪽에도 있다.) */
 test('T2 ⒝ ensurePanRoom — 세로 바닥이 clientHeight × PAN_ROOM_SCREENS_Y 와 «정확히 같다»', () => {
   const e = makeRoomEnv({ roomX: 0, roomY: 0 });
   assertInputAlive(e);
