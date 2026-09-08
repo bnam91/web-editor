@@ -856,23 +856,27 @@
   <!-- 헤더: 닫기 버튼 -->
   <div class="tpl-browser-header">
     <span class="tpl-browser-title">Templates</span>
-    <!-- ⛔레이아웃은 «기능 미정»이라 disabled 다 — 눌리는데 아무 일도 안 나면 그게 버그다.
-         현빈 설명이 오면 disabled 를 떼고 핸들러를 붙인다. -->
-    <button class="tpl-browser-hbtn" id="tpl-browser-layout" title="레이아웃 전환 (준비 중)" disabled>
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M1 1.5h8v7H1z"/><path d="M4 1.5v7"/>
-      </svg>
-    </button>
-    <button class="tpl-browser-hbtn" id="tpl-browser-popout" title="새 창으로 보기">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M8.5 5.5V9H1V1.5h3.5"/><path d="M6 1h3v3"/><path d="M9 1 5 5"/>
-      </svg>
-    </button>
-    <button class="tpl-browser-hbtn tpl-browser-close" id="tpl-browser-close" title="닫기">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
-        <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
-      </svg>
-    </button>
+    <!-- ★버튼은 «묶어서» 오른쪽 끝에 붙인다. 안 묶으면 헤더의 space-between 이 제목+버튼3 을
+         균등 분산해 89px 씩 흩어진다(현빈 지적: 「위치들 간격을 한번봐줘」). -->
+    <div class="tpl-browser-hbtns">
+      <!-- ⛔레이아웃은 «기능 미정»이라 disabled 다 — 눌리는데 아무 일도 안 나면 그게 버그다.
+           현빈 설명이 오면 disabled 를 떼고 핸들러를 붙인다. -->
+      <button class="tpl-browser-hbtn" id="tpl-browser-layout" title="레이아웃 전환 (준비 중)" disabled>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M1 1.5h8v7H1z"/><path d="M4 1.5v7"/>
+        </svg>
+      </button>
+      <button class="tpl-browser-hbtn" id="tpl-browser-popout" title="새 창으로 보기">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M8.5 5.5V9H1V1.5h3.5"/><path d="M6 1h3v3"/><path d="M9 1 5 5"/>
+        </svg>
+      </button>
+      <button class="tpl-browser-hbtn tpl-browser-close" id="tpl-browser-close" title="닫기">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+        </svg>
+      </button>
+    </div>
   </div>
   <!-- 미리보기 영역 (상단) -->
   <div class="tpl-browser-preview-area" id="tpl-browser-preview-area">

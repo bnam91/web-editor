@@ -386,8 +386,8 @@ body.scratch-hidden-all .scratch-item { display: none; }
 body.gdt-grid-on .section-inner {
   background-image: repeating-linear-gradient(
     to right,
-    var(--gdt-grid-color, rgba(64, 132, 232, .13)) 0,
-    var(--gdt-grid-color, rgba(64, 132, 232, .13)) var(--gdt-grid-col, 33.33px),
+    var(--gdt-grid-color, rgba(255, 0, 0, .10)) 0,
+    var(--gdt-grid-color, rgba(255, 0, 0, .10)) var(--gdt-grid-col, 33.33px),
     transparent var(--gdt-grid-col, 33.33px),
     transparent calc(var(--gdt-grid-col, 33.33px) + var(--gdt-grid-gut, 20px))
   );
@@ -396,15 +396,28 @@ body.gdt-grid-on .section-inner {
   background-repeat: repeat-y;
   background-position: left top;
 }
-/* 중앙선 — 좌우 대칭을 눈으로 확인할 때 */
-body.gdt-grid-mid .section-inner {
-  background-image: linear-gradient(
-    to right,
-    transparent calc(50% - 0.5px),
-    rgba(228, 76, 60, .45) calc(50% - 0.5px),
-    rgba(228, 76, 60, .45) calc(50% + 0.5px),
-    transparent calc(50% + 0.5px)
-  );
+/* 중앙선 — 좌우 대칭을 눈으로 확인할 때
+   ★★칼럼과 «한 줄에» 합성한다. 예전엔 이 규칙이 body.gdt-grid-on 과 «같은 특이도»로
+     background-image 를 따로 세팅해서, 뒤에 오는 중앙선이 이기고 «둘 다 켜면 칼럼이 사라졌다».
+     ⇒ 선택자를 .gdt-grid-on.gdt-grid-mid 로 올리고 두 그라디언트를 콤마로 겹친다.
+       먼저 쓴 레이어가 위에 그려지므로 «중앙선을 먼저, 칼럼을 뒤에».
+   ※UI 상 「중앙선만 켜기」는 없다 — gdt-grid-mid 는 on && mid 일 때만 붙는다(prop-page.js refreshGrid). */
+body.gdt-grid-on.gdt-grid-mid .section-inner {
+  background-image:
+    linear-gradient(
+      to right,
+      transparent calc(50% - 0.5px),
+      rgba(228, 76, 60, .45) calc(50% - 0.5px),
+      rgba(228, 76, 60, .45) calc(50% + 0.5px),
+      transparent calc(50% + 0.5px)
+    ),
+    repeating-linear-gradient(
+      to right,
+      var(--gdt-grid-color, rgba(255, 0, 0, .10)) 0,
+      var(--gdt-grid-color, rgba(255, 0, 0, .10)) var(--gdt-grid-col, 33.33px),
+      transparent var(--gdt-grid-col, 33.33px),
+      transparent calc(var(--gdt-grid-col, 33.33px) + var(--gdt-grid-gut, 20px))
+    );
   background-origin: content-box;
   background-clip: content-box;
   background-repeat: repeat-y;

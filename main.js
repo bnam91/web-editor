@@ -3486,37 +3486,76 @@ ipcMain.handle('templates:root-state', () => {
      template-system.js 가 globals.js 의 canvasEl 을 import 하고 있어서 편집기를 통째로 끌고 들어온다.
      그래서 뷰어 페이지는 electronAPI(IPC)를 «직접» 부른다. */
 let _tplWin = null;
-ipcMain.handle('templates:open-window', () => {
-  // ★살아 있으면 새로 만들지 않고 포커스만 — 창이 두 개 뜨면 어느 쪽이 최신인지 알 수 없다.
-  if (_tplWin && !_tplWin.isDestroyed()) { _tplWin.focus(); return { ok: true, reused: true }; }
-  _tplWin = new BrowserWindow({
-    width: 420,
-    height: 720,
-    minWidth: 320,
-    minHeight: 360,
-    title: '템플릿',
-    alwaysOnTop: true,          // 현빈 지시 — 캔버스와 나란히 두고 보는 용도다
-    /* ★메인 창과 «같은» 분기를 쓴다. 이걸 빠뜨리면 팝아웃만 기본 프레임이 되어
-       맥에서 신호등(빨강·노랑·초록)이 이 창에만 뜬다 — 앱과 모양이 안 맞는다.
-       ⛔frame:false 로 통째로 없애지는 않는다. 창을 옮기고 닫을 길이 사라진다. */
-    /* ⚠️isMac 은 createWindow() «안»의 지역 const 라 여기선 스코프 밖이다 — 그대로 쓰면
-       문법검사는 통과하고 «실행할 때» ReferenceError 가 난다. 여기서 다시 잡는다. */
-    ...(process.platform === 'darwin'
-      ? { titleBarStyle: 'hiddenInset' }
-      : { titleBarStyle: 'default', autoHideMenuBar: true }),
-    parent: mainWindow || undefined,
-    webPreferences: {           // ★mainWindow 와 «동일» — 새 창이라고 권한을 열지 않는다
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  });
-  _tplWin.loadFile(path.join(__dirname, 'pages', 'template-browser.html'));
-  /* ★이걸 빠뜨리면 닫은 뒤 «죽은 참조»를 붙잡아 다시 안 열린다(isDestroyed 로도 걸러지지만
-     참조를 남겨두면 parent 해제·GC 가 늦다). 닫히면 즉시 놓는다. */
-  _tplWin.on('closed', () => { _tplWin = null; });
-  return { ok: true, reused: false };
+ipcMain.handle('templates:open-window', async () => {
+  /* ★실패를 «값으로» 만든다 — 여기서 throw 하면 ipcMain 이 reject 하고, 렌더러의 await 가 던진다.
+     그러면 렌더러는 「패널을 안 닫는」 것까지는 맞게 하지만 «아무 말도 못 한다»(토스트 0건).
+     사용자 눈에는 「버튼을 눌렀는데 아무 일도 안 일어남」 — 이 프로젝트가 이미 한 번 고친
+     «침묵 실패»가 그대로 재발한 자리였다. 실측(고치기 전): throw 시 토스트 0건.
+     ⇒ 던지지 말고 {ok:false,reason} 을 «돌려준다». 그래야 아래 반환 계약이 사실이 된다.
+     계약: { ok:true, reused:true|false } | { ok:false, reason } — ★이제 세 갈래가 «다» 존재한다.
+     ⛔렌더러의 try/catch 를 없애도 된다는 뜻은 아니다 — preload 누락·채널 미등록은 여전히 던진다. */
+  try {
+    // ★살아 있으면 새로 만들지 않고 포커스만 — 창이 두 개 뜨면 어느 쪽이 최신인지 알 수 없다.
+    if (_tplWin && !_tplWin.isDestroyed()) { _tplWin.focus(); return { ok: true, reused: true }; }
+    _tplWin = new BrowserWindow({
+      width: 420,
+      height: 720,
+      minWidth: 320,
+      minHeight: 360,
+      title: '템플릿',
+      alwaysOnTop: true,          // 현빈 지시 — 캔버스와 나란히 두고 보는 용도다
+      /* ★frame:false — 신호등(빨강·노랑·초록)을 «없앤다».
+         이건 「창」이 아니라 «앱 밖으로 떼어낸 패널»이다(포토샵·일러스트의 분리 패널처럼).
+         ⛔이전 주석은 「frame:false 로 통째로 없애지는 않는다. 창을 옮기고 닫을 길이 사라진다」였다.
+           ★그 근거가 틀렸다 — 옮기는 길도 닫는 길도 «이미» 있다:
+             · 옮기기 → pages/template-browser.html 의 .tpl-browser-header{-webkit-app-region:drag}
+                        (버튼은 .tpl-browser-header button{no-drag} 로 빠져 있어 눌린다)
+             · 닫기   → 헤더의 X 버튼(#tpl-browser-close → window.close())
+           titleBarStyle:'hiddenInset' 은 신호등을 «안쪽으로 밀» 뿐 없애지 못해서 바꿨다.
+         ⚠️리사이즈 — 맥은 프레임리스에서도 OS 가 가장자리 리사이즈를 준다고 보고 resizable 을 그대로 둔다.
+           패널 내부 리사이즈 핸들은 «되살리지 않는다» — 창 가장자리와 겹쳐 서로 싸운다.
+         ⚠️Windows 는 프레임리스에서 리사이즈 보더가 사라지는 알려진 차이가 있다.
+           이 기계에서 잴 수 없어 «미확인»으로 남긴다 — 「윈도우에서도 된다」고 읽지 마라. */
+      /* ⚠️isMac 은 createWindow() «안»의 지역 const 라 여기선 스코프 밖이다 — 그대로 쓰면
+         문법검사는 통과하고 «실행할 때» ReferenceError 가 난다. 여기서 다시 잡는다. */
+      ...(process.platform === 'darwin'
+        ? { frame: false }
+        : { frame: false, autoHideMenuBar: true }),
+      parent: mainWindow || undefined,
+      webPreferences: {           // ★mainWindow 와 «동일» — 새 창이라고 권한을 열지 않는다
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+      },
+    });
+    /* ★이걸 빠뜨리면 닫은 뒤 «죽은 참조»를 붙잡아 다시 안 열린다(isDestroyed 로도 걸러지지만
+       참조를 남겨두면 parent 해제·GC 가 늦다). 닫히면 즉시 놓는다.
+       ⚠️loadFile «앞»에 단다 — 로드가 깨져 catch 가 destroy 할 때도 이 정리가 돌아야 한다. */
+    _tplWin.on('closed', () => { _tplWin = null; });
+    /* ★★await 를 «반드시» 붙인다. loadFile 은 Promise 를 돌려주고, 파일이 없거나 로드가 깨지면
+         «비동기로» reject 한다 — 동기 try/catch 는 그걸 «못 잡는다».
+       ⛔.catch() 로 때우면 안 된다: 즉시 반환하니 {ok:true} 가 「로드 성공」을 뜻하지 않게 되고,
+         렌더러는 패널을 «먼저 닫고» 그 뒤에 창이 깨진다 — 고치려던 결함과 똑같은 결말이다.
+       ★설계 결정: 이 IPC 의 { ok:true } 는 「창이 떴다」가 아니라
+         «창이 떴고 내용까지 실렸다»를 뜻한다. 그래야 렌더러의 「성공을 확인한 뒤에만 닫는다」가
+         실제로 성립한다. IPC 가 몇 ms 늦어지는 건 그 대가로 싸다.
+       실측(await 없던 판, pages/template-browser.html 을 «실제로» 치우고): 패널이 닫히고,
+         토스트 0건, chrome-error 빈 창(bodyLen 0 · 헤더·X버튼 없음)이 1개 남았다.
+         frame:false 라 그 창엔 신호등도 없어서 «닫을 길이 아예 없다». */
+    await _tplWin.loadFile(path.join(__dirname, 'pages', 'template-browser.html'));
+    return { ok: true, reused: false };
+  } catch (e) {
+    /* ★원문 에러는 여기 남기고, 사용자에게는 읽을 수 있는 한 줄만 보낸다. */
+    console.error('[templates] 팝아웃 창을 열지 못했다:', e);
+    /* ⚠️생성 도중 터졌으면 «반쯤 만들어진 창»이 남는다 — 참조만 놓으면 안 되고 «없애야» 한다.
+       ★frame:false 라서 그 창엔 신호등도, (내용이 안 실렸으니) 헤더 X 버튼도 없다.
+         그냥 두면 사용자는 「못 열었다」는 토스트를 보면서 «닫을 수 없는 빈 창»을 떠안는다.
+         실측(destroy 없이): loadFile 이 던지게 만들었더니 빈 창이 1개 남았다. */
+    try { if (_tplWin && !_tplWin.isDestroyed()) _tplWin.destroy(); } catch (e2) { /* 이미 죽었으면 그만이다 */ }
+    _tplWin = null;
+    return { ok: false, reason: '새 창을 열지 못했습니다.' };
+  }
 });
 /* 부모가 닫히면 같이 닫는다 — 고아 창이 떠 있으면 앱이 안 꺼진 것처럼 보인다.
    (parent 지정만으로는 맥에서 부모 종료 시 자동으로 안 닫히는 경우가 있어 명시한다.) */
