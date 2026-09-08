@@ -88,16 +88,188 @@ export function strips(A, B, a, b, n, pw, MAXOP) {
   return out;
 }
 
-/** A·B 를 서로 밀어 «벌린다»(spread px, 총량). AB 가 한 점이면(퇴화) 그대로 둔다. */
-export function applySpread(A, B, spread) {
-  var s = Number(spread) || 0;
-  if (!s) return [A, B];
-  var dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy);
-  if (!(d > 1e-6)) return [A, B];
-  var ux = dx / d, uy = dy / d, h = s / 2;
-  return [{ x: A.x - ux * h, y: A.y - uy * h }, { x: B.x + ux * h, y: B.y + uy * h }];
+/* ═══════════════════════════════════════════════════════════════════════════
+   ★벌림 = 「도형 «선»을 따라 미끄러진다」  (현빈 2026-09-08)
+     「벌리기 슬라이드를 하면 c,d의 거리가 벌어지는데 그게아니고, c는 A부터 왼쪽으로
+       쉐이프 선따라서 가고, d는 B의 바깥쪽으로 라인따라 벌려지게」
+       … 「미끄러지는게 맞아 도형선따라서. 모서리 넘어가도 계속 둬.」
+
+   ⛔옛 판(applySpread)은 A·B 를 «둘을 잇는 직선(현)» 방향으로 밀어냈다 ⇒ 두 점이 도형
+     윤곽에서 «떨어져 허공으로» 나갔다. 그래서 통째로 갈아엎었다(그 함수는 지웠다 —
+     남겨 두면 「어느 쪽이 정본인가」가 둘이 된다).
+
+   ★어느 쪽으로 가나 — 두 점은 «빛을 등진 쪽(far arc)»으로 들어간다.
+     실루엣 A·B 는 둘레를 두 호로 가른다. 광원을 마주 보는 호(near)와 등진 호(far)다.
+     far 로 들어가야 원뿔(광원→도형)이 «깊어지고 넓어진다» = 사람이 말하는 「벌어진다」.
+     near 로 가면 둘이 곧장 마주쳐 교차한다(사각형·광원 오른쪽에서 실측: 140px 만에 만난다).
+   ⚠️둘레는 «닫힌 고리»다 — 모서리를 넘어도 안 멈춘다. 한 바퀴가 넘으면 그냥 돈다.
+   ⚠️먼 호의 절반(사각형 기본값에서 spread 660)을 넘기면 두 점이 «지나쳐» 사다리꼴이 뒤집힌다.
+     ⛔여기서 임의로 자르지 않는다 — 현빈이 「계속 둬」라고 못박았고, 겹치는 순간은
+     shadowVisible 이 |AB|≈0 으로 이미 안전하게 처리한다(NaN 이 아니다).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** 닫힌 다각형의 변 길이 — e[i] = pts[i] → pts[(i+1)%n]. */
+export function edgeLengths(pts) {
+  var n = pts.length, out = [];
+  for (var i = 0; i < n; i++) {
+    var p = pts[i], q = pts[(i + 1) % n];
+    out.push(Math.hypot(q.x - p.x, q.y - p.y));
+  }
+  return out;
 }
 
+/** 닫힌 다각형 둘레를 꼭짓점 i0 에서 dir(+1|-1) 로 «거리 t» 만큼 간 점.
+ *  ★t 가 둘레보다 커도 «돈다». t 가 음수면 반대로 간다. */
+export function walkPolygon(pts, i0, dir, t) {
+  var n = pts.length, e = edgeLengths(pts);
+  var P = e.reduce(function (s, v) { return s + v }, 0);
+  if (!(P > 1e-9)) return { x: pts[i0].x, y: pts[i0].y };
+  var s = ((dir >= 0 ? 1 : -1) * (Number(t) || 0)) % P;
+  if (s < 0) s += P;                      // 뒤로 t = 앞으로 (P − t)
+  var i = i0, guard = 0;
+  while (s > e[i] && guard++ < n + 2) { s -= e[i]; i = (i + 1) % n; }
+  var p = pts[i], q = pts[(i + 1) % n];
+  var k = e[i] > 1e-9 ? s / e[i] : 0;
+  return { x: p.x + (q.x - p.x) * k, y: p.y + (q.y - p.y) * k };
+}
+
+/** 원 둘레 — 반지름 r 의 호를 «거리» t 만큼. (호길이 = r·각) */
+export function walkCircle(r, cx, cy, ang0, dir, t) {
+  if (!(r > 1e-9)) return { x: cx, y: cy };
+  var th = ang0 + (dir >= 0 ? 1 : -1) * (Number(t) || 0) / r;
+  return { x: cx + r * Math.cos(th), y: cy + r * Math.sin(th) };
+}
+
+/** 점 P 에 가장 가까운 꼭짓점 index. (실루엣은 «그 배열의 원소»를 돌려주지만 거리로 찾는다) */
+export function nearestVertexIndex(pts, P) {
+  var bi = 0, bd = Infinity;
+  for (var i = 0; i < pts.length; i++) {
+    var d = Math.hypot(pts[i].x - P.x, pts[i].y - P.y);
+    if (d < bd) { bd = d; bi = i }
+  }
+  return bi;
+}
+
+/** iA 에서 dir 로 iB 까지 가는 호의 길이. */
+function arcLenPoly(pts, iA, iB, dir) {
+  var n = pts.length, e = edgeLengths(pts), len = 0, i = iA, guard = 0;
+  while (i !== iB && guard++ < n + 2) {
+    if (dir >= 0) { len += e[i]; i = (i + 1) % n }
+    else { var j = (i - 1 + n) % n; len += e[j]; i = j }
+  }
+  return len;
+}
+
+/** A 에서 «빛을 등진 호(far)»로 들어가는 방향(+1|−1) — 두 호의 «중간점» 중 광원에서 먼 쪽. */
+export function outwardDirPoly(pts, iA, iB, L) {
+  var lp = arcLenPoly(pts, iA, iB, +1), lm = arcLenPoly(pts, iA, iB, -1);
+  var sp = walkPolygon(pts, iA, +1, lp / 2), sm = walkPolygon(pts, iA, -1, lm / 2);
+  return (Math.hypot(sp.x - L.x, sp.y - L.y) > Math.hypot(sm.x - L.x, sm.y - L.y)) ? +1 : -1;
+}
+
+/** 원판 — 각 aA 에서 far 로 들어가는 방향. */
+export function outwardDirCircle(r, cx, cy, aA, aB, L) {
+  var d = aB - aA;
+  while (d <= 0) d += 2 * Math.PI;
+  while (d > 2 * Math.PI) d -= 2 * Math.PI;
+  var sp = walkCircle(r, cx, cy, aA, +1, r * d / 2);
+  var sm = walkCircle(r, cx, cy, aA, -1, r * (2 * Math.PI - d) / 2);
+  return (Math.hypot(sp.x - L.x, sp.y - L.y) > Math.hypot(sm.x - L.x, sm.y - L.y)) ? +1 : -1;
+}
+
+/** i0 에서 dir 로 걸을 때 «꼭짓점을 밟는» 부호 있는 거리들. 0(출발점)은 뺀다.
+ *  ⛔출발점에 걸림을 두면 spread 가 작을 때 슬라이더가 «죽은 것»처럼 느껴진다. */
+export function vertexDistances(pts, i0, dir, reach) {
+  var n = pts.length, e = edgeLengths(pts), out = [];
+  var P = e.reduce(function (s, v) { return s + v }, 0);
+  if (!(P > 1e-9)) return out;
+  var d = dir >= 0 ? 1 : -1;
+  for (var side = 0; side < 2; side++) {
+    var acc = 0, i = i0, guard = 0;
+    var fwd = (side === 0) ? d : -d;                 // side 0 = t>0 쪽, side 1 = t<0 쪽
+    while (acc < reach && guard++ < 4 * n + 8) {
+      var len = fwd > 0 ? e[i] : e[(i - 1 + n) % n];
+      if (!(len > 1e-9)) break;
+      acc += len;
+      i = fwd > 0 ? (i + 1) % n : (i - 1 + n) % n;
+      out.push(side === 0 ? acc : -acc);
+    }
+  }
+  return out.sort(function (x, y) { return x - y });
+}
+
+/* ★마그네틱 — 「각 꼭지점마다, 살짝씩 걸리는 느낌」(현빈)
+   ⛔스냅(딱 붙기)이 «아니다». 지나갈 수 있어야 한다.
+   ⇒ 「슬라이더 값 → 둘레 거리」 사상에 꼭짓점마다 «평평한 구간»을 넣는다.
+      창(±w) 안에서   |u| ≤ s : 출력이 «전혀» 안 변한다  (걸림)
+                      |u| > s : 기울기 1/(1−s) 로 «툭» 따라붙는다 (넘어감)
+      창 끝(u=±1)에서 출력 = 입력이라 «이어진다»(점이 튀지 않는다).
+   ⚠️이웃 꼭짓점과 창이 겹치면 사상이 끊긴다 ⇒ 창을 «이웃까지 거리의 절반»으로 줄인다. */
+export function detent(raw, vertexDists, w, s) {
+  var r = Number(raw) || 0;
+  if (!(w > 0) || !vertexDists || !vertexDists.length) return r;
+  var ss = Math.min(0.99, Math.max(0, Number(s) || 0));
+  var bi = -1, bd = Infinity;
+  for (var i = 0; i < vertexDists.length; i++) {
+    var dd = Math.abs(r - vertexDists[i]);
+    if (dd < bd) { bd = dd; bi = i }
+  }
+  var v = vertexDists[bi], wEff = w;
+  if (bi > 0) wEff = Math.min(wEff, (v - vertexDists[bi - 1]) / 2);
+  if (bi < vertexDists.length - 1) wEff = Math.min(wEff, (vertexDists[bi + 1] - v) / 2);
+  if (!(wEff > 0) || bd >= wEff) return r;
+  var u = (r - v) / wEff;
+  var g = Math.abs(u) <= ss ? 0 : (u < 0 ? -1 : 1) * (Math.abs(u) - ss) / (1 - ss);
+  return v + wEff * g;
+}
+
+/** 걸림 창 반폭(둘레거리 px) — 실측으로 골랐다(보고 ④ 참조). */
+export const ZOOM_DETENT_W = 16;
+/** 그 창 안에서 «완전히 평평한» 비율 — 0.5 ⇒ 평평 구간 ±8px(= 슬라이더 32칸). */
+export const ZOOM_DETENT_S = 0.5;
+
+/** 마그네틱 설정 — ★st.magnet==='off' 면 «걸림만» 끈다. 미끄러짐(둘레 걷기)은 그대로 남는다. */
+export function zoomMagnet(st) {
+  if (st && st.magnet === 'off') return null;
+  return { w: ZOOM_DETENT_W, s: ZOOM_DETENT_S };
+}
+
+/** 걸림을 먹인 «둘레 거리». mag 가 없으면 raw 그대로(⑵만 남는다). */
+function magneticDist(pts, i0, dir, raw, mag) {
+  if (!mag) return raw;
+  return detent(raw, vertexDistances(pts, i0, dir, Math.abs(raw) + mag.w + 1), mag.w, mag.s);
+}
+
+/**
+ * ★벌림 — A·B 를 «도형 둘레를 타고» 서로 멀어지게 미끄러뜨린다(각각 둘레거리 spread/2).
+ * @param {object} outline {kind:'poly', pts} | {kind:'circle', r, cx, cy}
+ * @param {object} A,B 실루엣(접점)
+ * @param {object} L 광원
+ * @param {number} spread 총 벌림(px)
+ * @param {?object} mag  {w,s} — 없으면 마그네틱 없음
+ * @returns {[object, object]} 사다리꼴 긴 변의 두 끝
+ */
+export function applySpreadAlongOutline(outline, A, B, L, spread, mag) {
+  var s = Number(spread) || 0;
+  if (!s) return [A, B];
+  // ★퇴화(광원이 도형 안 ⇒ A==B) — 옛 판의 성질을 그대로 지킨다. 여기서 걷기 시작하면 방향이 없다.
+  if (!(Math.hypot(B.x - A.x, B.y - A.y) > 1e-6)) return [A, B];
+  var h = s / 2;
+  if (outline.kind === 'circle') {
+    var r = outline.r, cx = outline.cx, cy = outline.cy;
+    if (!(r > 1e-6)) return [A, B];
+    var aA = Math.atan2(A.y - cy, A.x - cx), aB = Math.atan2(B.y - cy, B.x - cx);
+    var dc = outwardDirCircle(r, cx, cy, aA, aB, L);
+    // ★원엔 꼭짓점이 없다 ⇒ 걸릴 자리도 없다. 마그네틱을 «안» 건다.
+    return [walkCircle(r, cx, cy, aA, dc, h), walkCircle(r, cx, cy, aB, -dc, h)];
+  }
+  var pts = outline.pts;
+  var iA = nearestVertexIndex(pts, A), iB = nearestVertexIndex(pts, B);
+  if (iA === iB) return [A, B];
+  var dp = outwardDirPoly(pts, iA, iB, L);
+  return [walkPolygon(pts, iA, dp, magneticDist(pts, iA, dp, h, mag)),
+          walkPolygon(pts, iB, -dp, magneticDist(pts, iB, -dp, h, mag))];
+}
 /* a·b 자동값: A·B 를 광원 쪽으로 좁혀서.
    mid=(A+B)/2, k=1-narrow/100 → 짧은 변은 «광원 위에» 중심을 두고 AB 폭의 k 배가 된다. */
 export function autoShortEdge(A, B, L, narrow) {
@@ -134,10 +306,15 @@ export function computeZoomGeometry(st, pinned) {
   var hw = shapeHalf(st).hw;
   var bw = borderWidthOf(st);
   var L = lightPoint(st.angle, st.length, 0, 0);
+  /* ★실루엣과 «둘레»가 «같은 점 목록»을 쓴다 — 두 군데서 다르게 계산하면 벌림이
+     윤곽에서 미세하게 떠 버린다(테두리 두께 bw 가 들어간 판이 정본이다). */
+  var outline = (st.shape === 'circle')
+    ? { kind: 'circle', r: hw + bw, cx: 0, cy: 0 }
+    : { kind: 'poly', pts: shapeCornerPts(st, bw) };
   var sil = (st.shape === 'circle')
-    ? silhouetteCircle(hw + bw, L, 0, 0)
-    : silhouetteFromPts(shapeCornerPts(st, bw), L, 0, 0);
-  var sp = applySpread(sil[0], sil[1], st.spread);
+    ? silhouetteCircle(outline.r, L, 0, 0)
+    : silhouetteFromPts(outline.pts, L, 0, 0);
+  var sp = applySpreadAlongOutline(outline, sil[0], sil[1], L, st.spread, zoomMagnet(st));
   var A = sp[0], B = sp[1];
   var auto = autoShortEdge(A, B, L, st.narrow);
   var a = (pinned && pinned.a) ? pinned.a : auto[0];

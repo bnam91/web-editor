@@ -279,11 +279,23 @@ test('ⓐ-5 ★비대칭 a·b 에서도 «윗변 전체가 한 농도»다 (선�
   assert.ok(gap > 0.02, `선형 모델이 안 갈리면 이 대조가 무의미하다: gap=${gap}`);
 });
 
-test('ⓐ-6 spread 는 A·B 를 «그만큼» 벌린다', async () => {
+/* ★ⓐ-6 은 «갈아엎었다»(2026-09-08). 옛 단언은 「|AB| 가 spread 만큼 커진다」였다 —
+   그건 A·B 를 «직선»으로 밀어내던 판이고, 현빈이 그걸 콕 집어 물렀다:
+     「벌리기 슬라이드를 하면 c,d의 거리가 벌어지는데 «그게아니고», … 쉐이프 선따라서 가고」
+   ⇒ 이제 두 점은 «둘레를 탄다». 사각형에서는 긴 변 길이가 그대로(140)인 채 미끄러진다.
+   ⛔옛 단언을 남겨 두면 «현빈이 무른 동작»을 검사가 도로 강제한다. 그래서 지우고 바꾼다.
+   자세한 그물은 tests/unit/zoom-spread-outline.test.mjs 가 친다. 여기선 «옛 모델이 아니다»만 못박는다. */
+test('ⓐ-6 spread 는 A·B 를 «도형 선을 따라» 미끄러뜨린다 (직선으로 밀어내지 «않는다»)', async () => {
   const g = await loadGeom();
   const base = g.computeZoomGeometry({ ...ST, spread: 0 }, null);
   const wide = g.computeZoomGeometry({ ...ST, spread: 60 }, null);
-  assert.ok(Math.abs((dist(wide.A, wide.B) - dist(base.A, base.B)) - 60) < 1e-9);
+  assert.ok(dist(base.A, wide.A) > 1, '전제: spread 가 A 를 «실제로» 움직였다');
+  // 옛 모델(직선 밀어내기)이 내놓았을 자리 — 그것과 «달라야» 한다
+  const d0 = dist(base.A, base.B), ux = (base.B.x - base.A.x) / d0, uy = (base.B.y - base.A.y) / d0;
+  const oldA = { x: base.A.x - ux * 30, y: base.A.y - uy * 30 };
+  assert.ok(dist(wide.A, oldA) > 1, '직선 밀어내기로 되돌아갔다');
+  // 새 계약: 긴 변 길이는 그대로고(사각형), 점은 «도형 위»에 남는다
+  assert.ok(Math.abs(dist(wide.A, wide.B) - d0) < 1e-9, '사각형에서 긴 변은 미끄러질 뿐 길이가 안 변한다');
 });
 
 test('ⓐ-7 narrow 는 «광원 위에 중심을 둔» 짧은 변을 만든다 (|ab| = |AB|·k)', async () => {
