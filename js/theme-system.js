@@ -123,6 +123,11 @@ const ThemeSystem = (() => {
     // 캔버스 내 inline style 순회 교체
     _replaceCanvasInlineColors(tokens, { primary, text, background });
 
+    /* ★연결선 대비 재산출 — applyTheme 은 --ui-accent(:105)와 --ui-bg-app(:115)을 «둘 다» 바꾼다.
+       여기서 다시 안 재면 테마를 바꾼 뒤 링크 연결선 색이 썩는다(옛 배경 기준으로 굳는다).
+       비-ESM IIFE 라 import 를 못 해 window 경유로 부른다(js/canvas-contrast.js 가 노출). */
+    window.__updateEdgeContrast?.();
+
     return true;
   }
 
