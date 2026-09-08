@@ -59,6 +59,10 @@ const _MDL_JUSTIFY_H = { left: 'flex-start', center: 'center', right: 'flex-end'
      높이가 내용에 딱 맞으면 나눠 줄 «여백»이 없어 justify-content 가 아무 일도 안 한다
      ⇒ 보이는 결과는 같고, display:block → flex 라는 회귀 표면만 «높이를 고정한 블록»으로
        좁아진다. 안 좁히면 모든 모달이 회귀 표면이 된다. */
+/* ⚠️이 헬퍼의 출력은 cssText 의 «맨 뒤»에 붙어야 한다 — icon-stack 의 text-align:center 가
+   앞쪽의 text-align:${align} 을 이겨야 하기 때문이다(같은 선언 안에서는 뒤가 이긴다).
+   ★그리고 정렬 관련 선언은 «전부» 이 함수 안에 있다. cssText 쪽은 «한 줄»만 쓴다 —
+     같은 자리를 만지는 다른 작업(타이포)과의 충돌 면적을 한 줄로 묶어 두기 위해서다. */
 function _alignStyles(variant, align, vAlign, hMode) {
   const jv = _MDL_JUSTIFY_V[vAlign] || _MDL_JUSTIFY_V.top;
   if (variant === 'icon') {
@@ -221,8 +225,6 @@ function renderModalBlock(block) {
     + (radius > 0 ? `border-radius:${radius}px;` : '')
     + `padding:${rootPad};`
     + (borderW > 0 ? `border:${borderW}px ${borderStyle} ${borderColor};` : '')
-    /* ★정렬은 «맨 뒤»에 온다 — icon-stack 의 text-align:center 가 위의 text-align:${align} 을
-       이겨야 하기 때문이다(같은 선언 안에서는 뒤가 이긴다). */
     + _alignStyles(v, align, vAlign, hMode);
 
   const title = block.dataset.titleText;

@@ -177,6 +177,24 @@ test('U4-b ★가로는 2배, 세로는 1배 — 커서 100px 에 모서리 50px
   assert.equal(s.dataset.height, '200', '세로는 1배 — 위 변이 흐름에 박혀 있어 아래로만 자란다');
 });
 
+test('U4-c ★드래그 «중»엔 재렌더를 안 부른다 — 깜빡임은 눈에만 보인다', () => {
+  /* ⇐ 되돌리기: onMove 안에서 renderModalBlock 을 부르면 여기가 빨강.
+     그 변이는 검사 없이는 «초록으로» 통과한다 — 값은 똑같이 맞고 화면만 깜빡이기 때문이다.
+     renderModalBlock 은 block.innerHTML 을 통째로 갈아끼운다 ⇒ 프레임당 한 번이면
+     ⑴프레임 드랍 ⑵캐럿·선택 소실 ⑶raster 아이콘의 <img src> 가 매 프레임 새로 만들어진다. */
+  const b = mkBlock();
+  const moves = Array.from({ length: 12 }, (_, i) => [10 * (i + 1), 5 * (i + 1)]);
+  const r = drive('resize', 'se', b, moves);
+  /* 허용치 = «시작 한 번(full→fixed 로 기하가 통째 바뀐다) + 끝 한 번(굳히기)». 그 이상은 프레임당이다. */
+  assert.ok(r.calls.render <= 2,
+    `mousemove ${moves.length}회에 renderModalBlock 이 ${r.calls.render}번 불렸다 — 프레임마다 부르고 있다`);
+  assert.ok(r.calls.render >= 1, '한 번도 안 불렀다 — 값이 그림이 되지 않는다');
+  // 라디우스도 같다 — 미리보기는 style.borderRadius 한 줄이고 굳히기는 mouseup 한 번이다
+  const rb = mkBlock({ radius: '10' });
+  const rr = drive('radius', 'se', rb, moves.map(([x, y]) => [-x, -y]));
+  assert.ok(rr.calls.render <= 1, `라디우스 드래그에 재렌더가 ${rr.calls.render}번 — 프레임마다 부르고 있다`);
+});
+
 test('U5 리사이즈 클램프 — 표 밖으로 못 나간다', () => {
   // ⇐ 되돌리기: clampModal 을 빼고 날값을 쓰면 여기가 빨강
   const lo = mkBlock(); drive('resize', 'se', lo, [[-9999, -9999]]);

@@ -362,3 +362,40 @@ test('D10 ★«진짜 클릭» — 캔버스에서 모달을 누르면 핸들이
   expect(after.radius).toBe(4);
   expect(errs).toEqual([]);
 });
+
+test('D11 ★작은 상자·낮은 배율에서 라디우스 핸들이 «교차하지 않는다»', async ({ page }) => {
+  /* ⚠️에셋의 INSET=10 은 «화면px» 고정이다. 화면 높이가 20px 미만이면 위·아래 라디우스
+     핸들이 서로를 «지나쳐» 위아래가 뒤집힌다. 모달 기본 높이 60px 는 줌 33% 이하에서
+     실제로 그 구간에 든다. ⇒ 모달 자기 update 에서 INSET 을 상자에 맞춰 좁힌다.
+     ⛔에셋 쪽 INSET 은 공용이라 안 건드린다(고치면 에셋 «모습»이 바뀐다).
+     ⇐ 되돌리기: 모달 update 의 INSET 을 10 고정으로 돌리면 여기가 빨강. */
+  await boot(page);
+  await page.evaluate(() => { document.getElementById('canvas-scaler').style.transform = 'scale(0.5)'; });
+  // 화면 높이 ≈ 15px · 화면 폭 ≈ 15px 로 «일부러» 작게 (min-height 30 이 지배한다)
+  await mount(page, { hMode: 'fixed', height: '30', wMode: 'fixed', width: '80', padX: '0', padY: '0', fontSize: '10' });
+  await select(page);
+
+  const box = await page.evaluate(() => {
+    const r = window.__block.getBoundingClientRect();
+    return { w: r.width, h: r.height };
+  });
+  expect(box.h, '전제: 화면 높이가 20px 미만이어야 이 검사가 무언가를 가른다').toBeLessThan(20);
+
+  const pos = async (dir) => {
+    const b = await page.locator(`#ss-handles-overlay .mdl-radius-handle.${dir}`).boundingBox();
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  };
+  const [nw, ne, sw, se] = await Promise.all([pos('nw'), pos('ne'), pos('sw'), pos('se')]);
+  expect(nw.y, `위 핸들이 아래 핸들보다 «아래»에 있다 (nw.y=${nw.y}, sw.y=${sw.y}) — INSET 이 상자보다 크다`).toBeLessThan(sw.y);
+  expect(ne.y).toBeLessThan(se.y);
+  expect(nw.x, `왼 핸들이 오른 핸들보다 «오른쪽»에 있다 (nw.x=${nw.x}, ne.x=${ne.x})`).toBeLessThan(ne.x);
+  expect(sw.x).toBeLessThan(se.x);
+  // 그리고 «상자 안»에 있다 — 좁히느라 밖으로 나가면 안 된다
+  const r = await page.evaluate(() => { const b = window.__block.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; });
+  for (const [name, p] of [['nw', nw], ['ne', ne], ['sw', sw], ['se', se]]) {
+    expect(p.x, `${name} 이 상자 밖이다`).toBeGreaterThanOrEqual(r.l - 0.5);
+    expect(p.x).toBeLessThanOrEqual(r.r + 0.5);
+    expect(p.y).toBeGreaterThanOrEqual(r.t - 0.5);
+    expect(p.y).toBeLessThanOrEqual(r.b + 0.5);
+  }
+});
