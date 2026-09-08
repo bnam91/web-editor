@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net: electronNet } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net: electronNet, screen: electronScreen } = require('electron');
 
 // ── 캔버스 이미지 외부화: 커스텀 프로토콜 goya-asset://<projectId>/<filename> ──
 // 캔버스 HTML에 박히던 인라인 base64를 proj_<id>/assets/<contenthash>.<ext>로 분리하고,
@@ -3511,7 +3511,29 @@ ipcMain.handle('templates:root-state', () => {
      template-system.js 가 globals.js 의 canvasEl 을 import 하고 있어서 편집기를 통째로 끌고 들어온다.
      그래서 뷰어 페이지는 electronAPI(IPC)를 «직접» 부른다. */
 let _tplWin = null;
-ipcMain.handle('templates:open-window', async () => {
+const { resolvePopoutBounds, POPOUT_MIN_W, POPOUT_MIN_H } = require('./main/popout-geometry');
+/* 렌더러가 잰 「앱 안 패널의 지금 크기·자리」를 «띄울 수 있는» 창 좌표로 바꾼다.
+   ★렌더러 값을 믿지 않는다 — 계산은 popout-geometry 의 순수 함수가 하고(=테스트가 실행해서 잰다),
+     여기서는 «어느 화면의 작업영역을 쓸까»만 고른다.
+   ⛔throw 금지 — screen API 가 없거나(테스트 하네스) 던지면 workArea 를 포기하고 중앙으로 물러난다. */
+function _tplPopoutBounds(geom) {
+  let workArea = null;
+  try {
+    const g = (geom && typeof geom === 'object') ? geom : {};
+    /* 좌표를 받았으면 «그 점이 있는» 화면의 작업영역을 쓴다 — 보조 모니터에서 떼어냈는데
+       주 모니터 기준으로 자르면 창이 엉뚱한 화면으로 끌려간다. */
+    const d = (Number.isFinite(g.x) && Number.isFinite(g.y) && electronScreen
+               && typeof electronScreen.getDisplayNearestPoint === 'function')
+      ? electronScreen.getDisplayNearestPoint({ x: Math.round(g.x), y: Math.round(g.y) })
+      : (electronScreen && electronScreen.getPrimaryDisplay && electronScreen.getPrimaryDisplay());
+    workArea = d && d.workArea;
+  } catch (e) { workArea = null; }
+  return resolvePopoutBounds(geom, workArea);
+}
+/* ★geom = { width, height, x, y } — 렌더러가 #tpl-browser 를 «지금» 재서 보낸 값.
+     localStorage 가 아니라 getBoundingClientRect 다(저장 안 된 상태도 있다).
+   ⛔안 오면(구 preload·다른 호출처) 예전처럼 기본값·중앙으로 뜬다 — 깨지지 않는다. */
+ipcMain.handle('templates:open-window', async (event, geom) => {
   /* ★실패를 «값으로» 만든다 — 여기서 throw 하면 ipcMain 이 reject 하고, 렌더러의 await 가 던진다.
      그러면 렌더러는 「패널을 안 닫는」 것까지는 맞게 하지만 «아무 말도 못 한다»(토스트 0건).
      사용자 눈에는 「버튼을 눌렀는데 아무 일도 안 일어남」 — 이 프로젝트가 이미 한 번 고친
@@ -3522,11 +3544,18 @@ ipcMain.handle('templates:open-window', async () => {
   try {
     // ★살아 있으면 새로 만들지 않고 포커스만 — 창이 두 개 뜨면 어느 쪽이 최신인지 알 수 없다.
     if (_tplWin && !_tplWin.isDestroyed()) { _tplWin.focus(); return { ok: true, reused: true }; }
+    /* ★크기·자리를 «계승»한다 — 「새 창이 열렸다」가 아니라 «패널이 그 자리에서 떨어져 나왔다»로
+         보여야 한다. ⛔여기에 width:420 같은 리터럴을 도로 박지 마라(그러면 계승이 죽는다).
+       ⚠️frame:false 라 창 테두리 두께가 0 이다(실측: getBounds() === getContentBounds()).
+         ⇒ 패널 크기를 «그대로» 줘도 어긋나지 않아 setContentBounds 를 따로 쓸 필요가 없다. */
+    const _b = _tplPopoutBounds(geom);
     _tplWin = new BrowserWindow({
-      width: 420,
-      height: 720,
-      minWidth: 320,
-      minHeight: 360,
+      width: _b.width,
+      height: _b.height,
+      /* 자리를 못 정했으면(좌표 없음·작업영역 불명) 예전처럼 화면 중앙 */
+      ...(_b.centered ? { center: true } : { x: _b.x, y: _b.y }),
+      minWidth: POPOUT_MIN_W,
+      minHeight: POPOUT_MIN_H,
       title: '템플릿',
       alwaysOnTop: true,          // 현빈 지시 — 캔버스와 나란히 두고 보는 용도다
       /* ★frame:false — 신호등(빨강·노랑·초록)을 «없앤다».
@@ -3614,9 +3643,24 @@ ipcMain.handle('templates:insert-in-main', async (event, id) => {
   if (r.ok && mainWindow && !mainWindow.isDestroyed()) mainWindow.focus();
   return r;
 });
-/* 복구 — 창을 닫고 편집기의 인앱 패널을 다시 연다(떼어내기의 «짝»). */
+/* 창의 «지금» 크기. ⛔없거나 이상하면 null — 그러면 편집기는 패널 크기를 «건드리지 않는다».
+   ★getContentBounds 를 쓴다: frame:false 라 getBounds 와 같지만, 프레임이 생기는 날에도
+     「사용자가 보던 내용 영역」이 패널과 짝이 되는 값이다. */
+function _tplWinContentSize() {
+  try {
+    if (!_tplWin || _tplWin.isDestroyed() || typeof _tplWin.getContentBounds !== 'function') return null;
+    const b = _tplWin.getContentBounds() || {};
+    const width = Math.round(Number(b.width)), height = Math.round(Number(b.height));
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+    return { width, height };
+  } catch (e) { return null; }
+}
+/* 복구 — 창을 닫고 편집기의 인앱 패널을 다시 연다(떼어내기의 «짝»).
+   ★크기도 «되돌린다» — 왕복이 대칭이어야 한다. 안 하면 한 번 떼었다 붙일 때마다 크기가 어긋난다.
+   ⛔창을 닫은 «뒤»에 재려 하지 마라 — 그때는 이미 크기를 읽을 수 없다. 그래서 여기서 먼저 잰다. */
 ipcMain.handle('templates:restore-panel', async () => {
-  const r = await _callEditorCommand({ action: 'open-panel' });
+  const size = _tplWinContentSize();
+  const r = await _callEditorCommand({ action: 'open-panel', ...(size || {}) });
   if (r.ok && mainWindow && !mainWindow.isDestroyed()) mainWindow.focus();
   if (_tplWin && !_tplWin.isDestroyed()) _tplWin.close();
   return r;

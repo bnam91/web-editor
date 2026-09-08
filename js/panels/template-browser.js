@@ -7,6 +7,12 @@ let _browserFilter    = { folder: '전체', category: '전체', tag: null, starr
 let _browserSelected  = null;   // 현재 선택된 tpl id
 let _browserSearchQ   = '';
 
+/* ── 패널 크기 한계 ── ★리사이즈 핸들과 「창에서 되돌아온 크기」가 «같은» 한계를 써야 한다.
+   따로 두면 떼었다 붙일 때마다 서로 다른 값으로 잘려 크기가 야금야금 어긋난다. */
+const TPL_MIN_W = 280, TPL_MAX_W = 700;
+const TPL_MIN_H = 300;
+const _tplMaxH = () => window.innerHeight * 0.9;   // 편집기 창 높이에 매여 있어 «부를 때» 잰다
+
 /* ── 즐겨찾기 헬퍼 ── */
 function _getStarred() {
   try { return new Set(JSON.parse(localStorage.getItem('tpl-starred') || '[]')); }
@@ -647,8 +653,6 @@ function initTplResize() {
   const handle = document.getElementById('tpl-resize-handle');
   if (!panel || !handle) return;
 
-  const MIN_W = 280, MAX_W = 700;
-  const MIN_H = 300, MAX_H = window.innerHeight * 0.9;
 
   handle.addEventListener('mousedown', e => {
     e.preventDefault();
@@ -659,8 +663,8 @@ function initTplResize() {
     const startH = panel.offsetHeight;
 
     function onMove(e) {
-      const newW = Math.min(MAX_W, Math.max(MIN_W, startW + (e.clientX - startX)));
-      const newH = Math.min(window.innerHeight * 0.9, Math.max(MIN_H, startH + (e.clientY - startY)));
+      const newW = Math.min(TPL_MAX_W, Math.max(TPL_MIN_W, startW + (e.clientX - startX)));
+      const newH = Math.min(_tplMaxH(), Math.max(TPL_MIN_H, startH + (e.clientY - startY)));
       panel.style.width  = newW + 'px';
       panel.style.height = newH + 'px';
       localStorage.setItem('tpl-browser-size', JSON.stringify({ w: newW, h: newH }));
@@ -681,6 +685,44 @@ function initTplResize() {
   } catch {}
 }
 
+/* 떼어낼 때 넘길 «지금 보고 있는» 패널의 크기·자리(화면 좌표).
+   ★localStorage['tpl-browser-size'] 를 쓰지 않는다 — 사용자가 방금 늘렸는데 아직 저장 안 된
+     상태도 있고, 애초에 저장되는 건 크기뿐이라 «자리»를 모른다. 화면에 있는 것을 그대로 잰다.
+   ★screenX/screenY 는 이 창의 «콘텐츠» 원점이고 rect 는 그 안의 좌표라 둘을 더하면 화면 좌표가 된다.
+     (맥·Electron 에서 실측 확인. 어긋나는 플랫폼이 있으면 main 이 작업영역으로 끌어들인다.)
+   ⛔여기서 클램프하지 마라 — 안전선은 main 이 쥔다. 여기서 «재기»만 한다. */
+function _tplPanelGeometry() {
+  try {
+    const panel = document.getElementById('tpl-browser');
+    if (!panel) return null;
+    const r = panel.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) return null;   // 아직 안 열렸거나 display:none
+    return {
+      width:  Math.round(r.width),
+      height: Math.round(r.height),
+      x: Math.round(window.screenX + r.left),
+      y: Math.round(window.screenY + r.top),
+    };
+  } catch (e) { return null; }
+}
+
+/* 떼어낸 창이 편집기로 «되돌아올» 때 그 창의 크기를 패널에 입힌다 — 왕복을 대칭으로 만든다.
+   ⛔값이 없거나 이상하면 «아무것도 안 한다»(false 를 돌려준다). 0px 패널을 만들면 되돌아올 길이 없다. */
+function applyTemplatePanelSize(w, h) {
+  const panel = document.getElementById('tpl-browser');
+  if (!panel) return false;
+  const nw = Number(w), nh = Number(h);
+  if (!Number.isFinite(nw) || !Number.isFinite(nh) || nw <= 0 || nh <= 0) return false;
+  /* 창은 화면만큼 커질 수 있지만 패널은 편집기 창 «안»에 산다 — 리사이즈 핸들과 같은 한계로 자른다. */
+  const cw = Math.min(TPL_MAX_W, Math.max(TPL_MIN_W, Math.round(nw)));
+  const ch = Math.min(_tplMaxH(),  Math.max(TPL_MIN_H, Math.round(nh)));
+  panel.style.width  = cw + 'px';
+  panel.style.height = ch + 'px';
+  // 다음에 열 때도 유지되게 — initTplResize 의 복원이 읽는 «같은» 열쇠다
+  try { localStorage.setItem('tpl-browser-size', JSON.stringify({ w: cw, h: ch })); } catch {}
+  return true;
+}
+
 /* ── 초기화: 이벤트 바인딩 ── */
 function initTemplateBrowser() {
   document.getElementById('tpl-browser-close')?.addEventListener('click', closeTemplateBrowser);
@@ -698,7 +740,9 @@ function initTemplateBrowser() {
        ⛔r 이 undefined 인 경우(electronAPI 자체가 없음)도 r?.ok 가 falsy 라 아래 토스트로 간다. */
     let r;
     try {
-      r = await window.electronAPI?.openTemplateWindow?.();
+      /* ★크기·자리를 «넘긴다» — 안 넘기면 창이 자기 기본값(420×720)으로 화면 «가운데»에 떠서
+         「패널이 떨어져 나왔다」가 아니라 「새 창이 열렸다」로 보인다(현빈 지적). */
+      r = await window.electronAPI?.openTemplateWindow?.(_tplPanelGeometry());
     } catch (e) {
       console.error('[template] 팝아웃 IPC 실패:', e);
       r = { ok: false, reason: '새 창을 열지 못했습니다.' };
@@ -856,6 +900,7 @@ window.openTemplateBrowser  = openTemplateBrowser;
 window.closeTemplateBrowser = closeTemplateBrowser;
 window.toggleTemplateBrowser = toggleTemplateBrowser;
 window.initTemplateBrowser  = initTemplateBrowser;
+window.applyTemplatePanelSize = applyTemplatePanelSize;
 window._renderBrowserTree   = _renderBrowserTree;
 window._renderBrowserCards  = _renderBrowserCards;
 window._renderTagChips      = _renderTagChips;

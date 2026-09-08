@@ -54,7 +54,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveTemplateCanvas:  (id, html) => ipcRenderer.invoke('templates:save-canvas', id, html),
   deleteTemplateCanvas:(id)       => ipcRenderer.invoke('templates:delete-canvas', id),
   getTemplateRootState:()         => ipcRenderer.invoke('templates:root-state'),
-  openTemplateWindow:  ()         => ipcRenderer.invoke('templates:open-window'),
+  /* ★geom = 렌더러가 «지금» 잰 #tpl-browser 의 {width,height,x,y}(화면 좌표).
+     ⛔여기서 해석·보정하지 마라 — 통과만 시킨다. 판단(클램프·화면 가두기)은 main 이 한다.
+       preload 는 «믿을 수 없는 렌더러»와 같은 편에 있어서 여기서 검사해 봐야 안전선이 못 된다. */
+  openTemplateWindow:  (geom)     => ipcRenderer.invoke('templates:open-window', geom),
   // 팝아웃 창 → 편집기 창 (삽입 위임 · 패널 복구).
   // ★결과를 «받아야» 하므로 main 이 executeJavaScript 로 편집기의 window.__tplEditorCommand 를 부른다.
   //   단방향 send 였을 때 팝아웃이 「보냈다」를 「넣었다」로 말하는 거짓 성공이 났다.
