@@ -7,7 +7,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { alignBtn } from './_helpers.js';
 /* ★min/max 는 «리터럴로 쓰지 않는다» — modal-block.js 의 MODAL_LIMITS 한 표에서 온다.
    패널과 오버레이 핸들이 같은 표를 봐야 클램프가 갈라지지 않는다. */
-import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS } from '../blocks/modal-block.js';
+import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModal } from '../blocks/modal-block.js';
 const L = MODAL_LIMITS;
 
 const _MDL_VARIANT_LABELS = {
@@ -25,7 +25,9 @@ export function showModalProperties(block) {
   const borderColor = block.dataset.borderColor || '#c3c3ca';
   const iconColor = block.dataset.iconColor || '#f0b429';
   const _i = (k, d) => { const n = parseInt(block.dataset[k]); return Number.isFinite(n) ? n : d; };
-  const radius = _i('radius', 0);
+  // ★표 밖의 값(손수 넣은 dataset.radius=75 같은 것)을 «패널만» 다르게 보여 주지 않는다 —
+  //   renderModalBlock 도 같은 clampModal 로 자른다. 셋이 갈라지던 자리다.
+  const radius = clampModal(_i('radius', L.radius.min), L.radius);
   const padX = _i('padX', 20), padY = _i('padY', 18);
   const borderW = _i('borderW', _effDefault(v, 'borderW'));
   const borderStyle = block.dataset.borderStyle || _effDefault(v, 'borderStyle');

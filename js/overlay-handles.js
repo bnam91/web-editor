@@ -18,7 +18,7 @@ import { getGridModel, gridCols, gridRows } from './blocks/grid-block.js';
 /* ★모달 핸들의 클램프는 «패널과 같은 표»를 본다 — 리터럴을 여기 다시 쓰면 갈라진다.
    (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
     모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
-import { MODAL_LIMITS } from './blocks/modal-block.js';
+import { MODAL_LIMITS, clampModal } from './blocks/modal-block.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -905,7 +905,45 @@ function _onModalRadiusHandleMouseDown(e, block, dir) {
   if (e.button !== 0) return;
   e.stopPropagation();
   e.preventDefault();
-  // S3 에서 배선한다 — S1 은 «껍데기»만 세운다(여기까지는 되돌리기가 완전하다).
+  const startX = e.clientX, startY = e.clientY;
+  /* ★시작값을 style.borderRadius 에서 읽지 «않는다»(에셋은 거기서 읽는다).
+     모달은 dataset 이 진실이고, 인라인은 재렌더에 증발하는 미리보기일 뿐이다. */
+  const startR = clampModal(block.dataset.radius, MODAL_LIMITS.radius);
+  let moved = false;
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    if (!moved) {
+      if (Math.hypot(dx, dy) < 1) return;
+      moved = true;
+    }
+    // 모서리에서 «안쪽»으로 끌면 커진다 — 네 모서리의 부호는 에셋 라디우스와 같은 규약
+    const delta = dir === 'nw' ? (dx + dy) / 2
+                : dir === 'ne' ? (-dx + dy) / 2
+                : dir === 'sw' ? (dx - dy) / 2
+                : (-dx - dy) / 2;
+    const newR = clampModal(startR + delta, MODAL_LIMITS.radius);
+    block.dataset.radius = String(newR);              // ★진실
+    block.style.borderRadius = newR + 'px';           // 미리보기(끝나면 재렌더가 같은 값으로 굳힌다)
+    /* 패널의 «두 필드»를 다 맞춘다 — 하나만 맞추면 슬라이더와 숫자가 갈라진다.
+       슬라이더 step 은 1 이어야 홀수를 담는다(prop-modal.js 의 별도 줄). */
+    const slider = document.getElementById('mdl-radius-slider');
+    const num    = document.getElementById('mdl-radius-number');
+    if (slider) slider.value = String(newR);
+    if (num)    num.value    = String(newR);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (!moved) return;
+    window.renderModalBlock?.(block);   // ★dataset 을 «그림»으로 굳힌다
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 }
 
 window.showModalRadiusHandles = showModalRadiusHandles;
@@ -964,9 +1002,6 @@ function _startModalResizeRaf() {
   _modalResizeRafId = requestAnimationFrame(loop);
 }
 
-/** 클램프 — 표는 modal-block.js 의 MODAL_LIMITS 하나뿐이다. */
-const _mdlClamp = (v, lim) => Math.min(lim.max, Math.max(lim.min, Math.round(v)));
-
 function _onModalResizeHandleMouseDown(e, block, dir) {
   if (e.button !== 0) return;
   e.stopPropagation();
@@ -990,8 +1025,8 @@ function _onModalResizeHandleMouseDown(e, block, dir) {
          통째로 바뀐다. 그 변화를 드래그 «중»에 인라인으로 흉내 내면 손을 떼는 순간 튄다. */
       block.dataset.wMode = 'fixed';
       block.dataset.hMode = 'fixed';
-      block.dataset.width  = String(_mdlClamp(startW, MODAL_LIMITS.width));
-      block.dataset.height = String(_mdlClamp(startH, MODAL_LIMITS.height));
+      block.dataset.width  = String(clampModal(startW, MODAL_LIMITS.width));
+      block.dataset.height = String(clampModal(startH, MODAL_LIMITS.height));
       window.renderModalBlock?.(block);
     }
     /* ★★가로는 Δ = 2·dx 다. wMode:'fixed' 가 margin-left/right:auto 를 같이 주므로 상자가
@@ -999,8 +1034,8 @@ function _onModalResizeHandleMouseDown(e, block, dir) {
        가운데 고정 상자는 폭이 Δ 늘 때 각 변이 Δ/2 만 움직인다 ⇒ 에셋 산식(Δ=dx)을 그대로
        쓰면 «커서 100px 에 모서리 50px» 이 된다. w·e 양쪽 다.
        ⚠️세로는 1배다 — 위 변이 흐름에 박혀 있어 상자는 아래로만 자란다. */
-    const newW = _mdlClamp(startW + sx * dx * 2, MODAL_LIMITS.width);
-    const newH = _mdlClamp(startH + sy * dy,     MODAL_LIMITS.height);
+    const newW = clampModal(startW + sx * dx * 2, MODAL_LIMITS.width);
+    const newH = clampModal(startH + sy * dy,     MODAL_LIMITS.height);
     /* ★dataset 이 진실이다 — 인라인 style 은 재렌더가 cssText 를 갈아끼울 때 증발한다. */
     block.dataset.width  = String(newW);
     block.dataset.height = String(newH);

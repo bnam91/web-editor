@@ -46,6 +46,10 @@ const MODAL_LIMITS = {
   radius: { min: 0,  max: 60  },
 };
 
+/** 표 하나로 자르는 클램프 — 렌더·패널·오버레이 핸들이 «같은 함수»를 쓴다.
+ *  ⛔각자 Math.min/max 를 쓰면 반올림·폴백이 미묘하게 갈라진다. */
+const clampModal = (v, lim) => Math.min(lim.max, Math.max(lim.min, Math.round(Number(v) || 0)));
+
 /* ★변형의 «정체» — 이 변형이 되면 무엇이 달라지는가를 «한 곳»에 모은다.
    삼항이 makeModalBlock 안에만 있어서 변형 전환 때 따라가지 않던 것을 고친다.
    표에 없는 변형은 MODAL_DEFAULTS 를 그대로 쓴다. */
@@ -139,7 +143,10 @@ function renderModalBlock(block) {
   const v = MODAL_VARIANTS.includes(block.dataset.variant) ? block.dataset.variant : MODAL_DEFAULTS.variant;
   // 테두리·배경은 «변형의 유효 기본값»으로 폴백한다 — dataset 이 비어 있어도 변형의 정체가 보인다.
   const bg = block.dataset.bg || _effDefault(v, 'bg');
-  const radius = _num(block, 'radius', MODAL_DEFAULTS.radius);
+  /* ★모서리의 진실은 dataset.radius «하나»다. 실측으로 셋이 갈라져 있었다:
+     dataset.radius=75 → 화면 75px / 슬라이더 "60" / 숫자 "75".
+     ⇒ 그리는 자리에서도 «같은 표»로 자른다. 패널·핸들도 같은 clampModal 을 쓴다. */
+  const radius = clampModal(_num(block, 'radius', MODAL_DEFAULTS.radius), MODAL_LIMITS.radius);
   const padX = _num(block, 'padX', MODAL_DEFAULTS.padX);
   const padY = _num(block, 'padY', MODAL_DEFAULTS.padY);
   const borderW = _num(block, 'borderW', _effDefault(v, 'borderW'));
@@ -285,6 +292,7 @@ window.commitModalSlot  = commitModalSlot;
 window.applyModalVariant = applyModalVariant;
 window.MODAL_VARIANTS   = MODAL_VARIANTS;
 window.MODAL_LIMITS     = MODAL_LIMITS;
+window.clampModal       = clampModal;
 
 export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, applyModalVariant, _effDefault,
-         MODAL_DEFAULTS, MODAL_VARIANTS, MODAL_VARIANT_IDENTITY, MODAL_PH, MODAL_LIMITS };
+         MODAL_DEFAULTS, MODAL_VARIANTS, MODAL_VARIANT_IDENTITY, MODAL_PH, MODAL_LIMITS, clampModal };
