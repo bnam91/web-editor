@@ -2273,6 +2273,20 @@ function _recordSyncSaveFailure(project, reason, error) {
  *   OS 휴지통을 거치면 되살릴 때 «새 프로젝트 가져오기»가 된다(.gdt 임포트가 §7-4 로 새 id 를 강제).
  * ⛔여기서 «영구삭제»는 없다. 만료분도 OS 휴지통으로 넘긴다 — 마지막 그물을 우리가 끊지 않는다. */
 const _trash = require('./main/trash');
+/* ★★만료분을 «폴더가 아니라 우리 포맷(.gdt)으로» 싸서 버린다 (2026-09-08 현빈 지시).
+     폴더로 보내면 맥 휴지통에서 `proj_1788…` 로 보여 무엇인지도 모르고 더블클릭해도 안 열린다.
+     `<이름>.gdt` 면 이름이 보이고 더블클릭하면 고디터가 연다(fileAssociations 배선이 이미 있다).
+   ⛔exportGdt 는 `<out>.part` 에 쓰고 «verifyGdt 통과 후에만» 최종 이름이 된다 —
+     즉 여기 out 이 «존재한다»는 것 자체가 「검증을 지났다」는 뜻이다. 그 위에서 원본을 치운다. */
+async function _packageProjectGdt({ srcProjJson, outPath, name }) {
+  try {
+    const { exportGdt } = require('./main/gdt/export');
+    const r = await exportGdt({ srcProjJson, outPath, meta: { name },
+                                projectsDir: _projectsRoot() });
+    return { ok: !!(r && r.ok !== false), ...(r && r.error ? { error: r.error } : {}) };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+}
+
 /* ⛔뿌리는 «값으로» 넘기지 않는다 — 계정이 바뀌면 PROJECTS_DIR 이 재지정되는데
      한 번 붙잡아 두면 «옛 계정의 휴지통»을 계속 본다(검사 M9 가 이 자리를 잡았다).
    ⇒ 호출할 때마다 `_projectsRoot()` 로 «다시 읽는다». */
@@ -2282,7 +2296,8 @@ const _trash = require('./main/trash');
    ⛔영구삭제가 아니다 — OS 휴지통으로 넘긴다. 실패해도 «남겨둔다»(못 지운 게 사라진 것보다 낫다). */
 async function _sweepTrashOnBoot() {
   try {
-    const r = await _trash.sweepTrash({ projectsDir: _projectsRoot(), trashItem: (p) => shell.trashItem(p) });
+    const r = await _trash.sweepTrash({ projectsDir: _projectsRoot(), trashItem: (p) => shell.trashItem(p),
+                                            packageGdt: _packageProjectGdt });
     if (r.swept.length || r.failed.length)
       console.log('[trash] 만료 정리:', r.swept.length, '건 내보냄 ·', r.failed.length, '건 실패');
   } catch (e) { console.warn('[trash] 만료 정리 실패:', e && e.message); }
@@ -2298,7 +2313,8 @@ ipcMain.handle('trash:restore', (_e, id) => {
 });
 ipcMain.handle('trash:purge', async (_e, id) => {
   try { return await _trash.purgeFromTrash({ projectsDir: _projectsRoot(), projectId: String(id || ''),
-                                             trashItem: (p) => shell.trashItem(p) }); }
+                                             trashItem: (p) => shell.trashItem(p),
+                                             packageGdt: _packageProjectGdt }); }
   catch (e) { return { ok: false, code: 'io', error: e.message }; }
 });
 

@@ -203,30 +203,94 @@ function restoreFromTrash({ projectsDir, projectId } = {}) {
   }
 }
 
-/** 휴지통에서 «내보낸다» — 영구삭제가 아니라 OS 휴지통으로. trashItem 은 주입받는다. */
-async function purgeFromTrash({ projectsDir, projectId, trashItem } = {}) {
+/** 파일 이름으로 못 쓰는 글자를 치운다. 한글은 그대로 둔다 — 알아보는 게 목적이다. */
+function _safeName(nm, fallback) {
+  const t = String(nm == null ? '' : nm)
+    .replace(/[/\\:*?"<>|\u0000-\u001f]/g, '_').replace(/^\.+/, '_').trim().slice(0, 80);
+  return t || fallback;
+}
+
+/** 휴지통에서 «내보낸다» — 영구삭제가 아니라 OS 휴지통으로.
+ *
+ * ★★2026-09-08 현빈 지시: «폴더로 버리지 마라». 우리 포맷(.gdt)으로 «싸서» 버린다.
+ *   왜: 폴더로 보내면 사용자가 맥 휴지통에서 보는 것이 `proj_1788828453780` 이다 —
+ *       무엇인지 알아볼 수도, 더블클릭해 열 수도 없다. 파일은 살아 있는데 «되살릴 길»이 없다.
+ *       내가 코드에 「마지막 그물」이라고 써놓고 그물을 안 엮은 자리였다(지디 지적).
+ *   ⇒ `<프로젝트 이름>.gdt` 로 포장하면 이름이 보이고, 꺼내서 더블클릭하면 고디터가 연다
+ *      (package.json 의 fileAssociations 에 mac·win 양쪽 배선이 이미 있다).
+ *
+ * ⛔순서가 안전판이다 — «포장하고 검증까지 통과한 뒤에만» 원본을 치운다.
+ *   포장이 실패하면 «아무것도 지우지 않는다»(F1 과 같은 축: 되돌릴 수 없는 일은 마지막에).
+ * ⛔packageGdt 는 «주입»받는다 — 이 모듈이 electron·zip 에 매이지 않게, 그리고 검사가 실패를 만들 수 있게.
+ *   안 주면 예전처럼 폴더째 보낸다(포장할 방법이 없는데 삭제를 막을 이유는 없다) — 대신 «그렇게 말한다».
+ */
+async function purgeFromTrash({ projectsDir, projectId, trashItem, packageGdt } = {}) {
   if (!isProjId(projectId)) return { ok: false, code: 'invalid_id' };
   if (typeof trashItem !== 'function') return { ok: false, code: 'no_trash_fn', error: 'trashItem 이 필요하다' };
   const dst = entryDir(projectsDir, projectId);
   const mp = metaPath(projectsDir, projectId);
   if (!fs.existsSync(mp) && !fs.existsSync(dst)) return { ok: false, code: 'not_found' };
+
+  let meta = null;
+  try { meta = JSON.parse(fs.readFileSync(mp, 'utf8')); } catch (_) {}
+  const srcProjJson = path.join(dst, 'bundle', 'proj.json');
+  const canPackage = typeof packageGdt === 'function' && fs.existsSync(srcProjJson);
+
   try {
+    if (canPackage) {
+      /* ⑴ 포장 — 이름은 사용자가 «알아볼 수 있는» 프로젝트 이름으로. 같은 이름이 있으면 안 덮는다. */
+      const base = _safeName(meta && meta.name, projectId);
+      let out = path.join(trashDir(projectsDir), base + '.gdt');
+      if (fs.existsSync(out)) out = path.join(trashDir(projectsDir), base + '-' + Date.now() + '.gdt');
+
+      const pr = await packageGdt({ srcProjJson, outPath: out, name: (meta && meta.name) || projectId });
+      /* ⑵ 「만들었다」가 아니라 «있나»로 판정한다 — 포장기가 거짓 성공을 내도 여기서 걸린다. */
+      if (!pr || pr.ok === false || !fs.existsSync(out)) {
+        try { fs.rmSync(out, { force: true }); } catch (_) {}
+        return { ok: false, code: 'package_failed',
+                 error: (pr && (pr.error || pr.code)) || '.gdt 를 만들지 못했다',
+                 hint: '⛔포장이 안 됐으므로 «아무것도 지우지 않았다» — 프로젝트는 휴지통에 그대로 있다' };
+      }
+
+      /* ⑶ 포장본을 OS 휴지통으로. 효과로 판정한다. */
+      await trashItem(out);
+      if (fs.existsSync(out)) {
+        try { fs.rmSync(out, { force: true }); } catch (_) {}
+        return { ok: false, code: 'trash_noeffect', error: 'OS 휴지통 호출은 됐는데 .gdt 가 그대로다',
+                 hint: '⛔원본은 안 건드렸다' };
+      }
+
+      /* ⑷ ★여기서야 원본을 치운다 — 내용은 방금 «검증된 .gdt» 안에 통째로 들어가 OS 휴지통에 있다. */
+      fs.rmSync(dst, { recursive: true, force: true });
+      fs.rmSync(mp, { force: true });
+      /* ⛔★«무엇이 안 담겼는지»를 말한다. .gdt 는 project.json + 이미지«만» 담는 포맷이라
+           버전 기록(proj_history)·메모(claude-pm)·백업은 «안 들어간다»(실측: 폴더 10개 → 복원 2개).
+           안 적으면 「되살릴 수 있다」가 «그물인 척하는 그물»이 된다 — 사용자는 되돌리기가
+           비어 있는 걸 그때야 안다. 포맷 확장은 별건(지디 합의 대기). */
+      return { ok: true, projectId, packaged: true, as: path.basename(out),
+               notIncluded: ['proj_history', 'proj_backup.json', 'claude-pm'],
+               note: '맥 휴지통에 「' + path.basename(out) + '」 로 들어갔다 — 꺼내서 더블클릭하면 고디터가 연다. '
+                   + '⚠단 «버전 기록·메모»는 .gdt 에 안 담긴다(내용과 이미지만 담긴다).' };
+    }
+
+    /* 포장할 방법이 없을 때(주입 안 됨·bundle 없음) — 예전처럼 폴더째. ⛔«그렇게 말한다». */
     if (fs.existsSync(dst)) await trashItem(dst);
     /* ★효과로 판정한다 — 「불렀다」가 아니라 «없어졌나». 남아 있으면 메타를 «안» 지운다
        (메타를 먼저 지우면 목록에서 사라진 채 디스크에만 남는 «유령»이 된다). */
     if (fs.existsSync(dst)) return { ok: false, code: 'trash_noeffect', error: 'OS 휴지통 호출은 됐는데 폴더가 그대로다' };
     fs.rmSync(mp, { force: true });
-    return { ok: true, projectId };
+    return { ok: true, projectId, packaged: false,
+             note: '.gdt 로 못 싸서 폴더째 보냈다 — 맥 휴지통에서 더블클릭으로는 안 열린다' };
   } catch (e) { return { ok: false, code: 'trash_failed', error: e.message }; }
 }
 
 /** 만료분 쓸어내기 — 앱을 켤 때 «지난 날짜를 몰아서» 처리한다(안 켜는 동안 시간이 멈추면 놀란다). */
-async function sweepTrash({ projectsDir, retentionDays = RETENTION_DAYS, trashItem, now = Date.now() } = {}) {
+async function sweepTrash({ projectsDir, retentionDays = RETENTION_DAYS, trashItem, packageGdt, now = Date.now() } = {}) {
   const { items } = listTrash({ projectsDir, retentionDays, now });
   const swept = [], failed = [];
   for (const it of items) {
     if (!it.expired) continue;
-    const r = await purgeFromTrash({ projectsDir, projectId: it.projectId, trashItem });
+    const r = await purgeFromTrash({ projectsDir, projectId: it.projectId, trashItem, packageGdt });
     (r.ok ? swept : failed).push(r.ok ? it.projectId : { projectId: it.projectId, ...r });
   }
   return { ok: true, swept, failed, checked: items.length };

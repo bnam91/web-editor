@@ -234,6 +234,94 @@ test('T17 ⛔되살릴 때도 «메타에 없는» 파일을 조용히 지우지
     `★남겨는 뒀는데 말하지 않는다: ${JSON.stringify(r)}`);
 });
 
+/* ── 만료 배출 = «폴더가 아니라 .gdt» (2026-09-08 현빈 지시) ──────────────
+   「폴더로 버리지 말라」가 요구였다. 폴더로 보내면 사용자가 맥 휴지통에서 보는 것이
+   `proj_1788828453780` 이라 무엇인지도 모르고 더블클릭해도 안 열린다 — 파일은 살아 있는데
+   «되살릴 길»이 없다. 내가 「마지막 그물」이라 써놓고 그물을 안 엮은 자리였다(지디 지적). */
+
+/** 포장기 흉내 — 진짜 zip 대신 «파일 하나»를 만든다(이 검사는 포맷이 아니라 «순서»를 잰다) */
+const fakePkg = (opts = {}) => async ({ srcProjJson, outPath, name }) => {
+  if (opts.fail) return { ok: false, error: '디스크 가득' };
+  if (opts.silentFail) return { ok: true };            // ★«거짓 성공» — 파일을 안 만든다
+  fs.writeFileSync(outPath, 'GDT:' + name + ':' + fs.readFileSync(srcProjJson, 'utf8'));
+  return { ok: true };
+};
+
+test('T18 ★만료분은 «폴더가 아니라 «이름».gdt» 로 나간다', async () => {
+  const dir = makeProjectsDir();
+  const now = Date.now();
+  T.moveToTrash({ projectsDir: dir, projectId: 'proj_1000', now: now - 40 * DAY });
+  const bin = path.join(dir, '__osbin');
+  const r = await T.sweepTrash({ projectsDir: dir, now, trashItem: fakeTrash(bin), packageGdt: fakePkg() });
+  assert.deepEqual(r.swept, ['proj_1000'], JSON.stringify(r));
+  const got = fs.readdirSync(bin);
+  assert.equal(got.length, 1);
+  assert.match(got[0], /^이름-proj_1000\.gdt/,
+    `★«프로젝트 이름».gdt 로 나가야 한다 — 폴더나 id 로 나가면 사용자가 못 알아본다: ${got[0]}`);
+  assert.ok(fs.statSync(path.join(bin, got[0])).isFile(), '★아직 폴더로 나간다');
+  assert.equal(T.listTrash({ projectsDir: dir }).items.length, 0, '휴지통 탭에 남았다');
+  assert.ok(!fs.existsSync(path.join(dir, '.trash', 'proj_1000')), '.trash 에 원본이 남았다');
+});
+
+test('T19 ⛔포장이 «실패»하면 아무것도 안 지운다 (F1 과 같은 축)', async () => {
+  const dir = makeProjectsDir();
+  const now = Date.now();
+  T.moveToTrash({ projectsDir: dir, projectId: 'proj_1000', now: now - 40 * DAY });
+  const bin = path.join(dir, '__osbin');
+  const r = await T.purgeFromTrash({ projectsDir: dir, projectId: 'proj_1000',
+                                     trashItem: fakeTrash(bin), packageGdt: fakePkg({ fail: true }) });
+  assert.equal(r.ok, false); assert.equal(r.code, 'package_failed');
+  assert.ok(fs.existsSync(path.join(dir, '.trash', 'proj_1000', 'bundle', 'proj.json')),
+    '★★포장이 안 됐는데 원본을 지웠다 — 되돌릴 길이 없어진다');
+  assert.equal(T.listTrash({ projectsDir: dir }).items.length, 1, '★휴지통 탭에서도 사라졌다');
+  assert.ok(!fs.existsSync(bin) || !fs.readdirSync(bin).length, 'OS 휴지통에 반쪽이 갔다');
+});
+
+test('T20 ⛔포장기가 «거짓 성공»을 내도 원본을 안 지운다 — 효과로 판정한다', async () => {
+  /* rc 를 믿지 않는다. 「만들었다」가 아니라 «파일이 있나»로 본다. */
+  const dir = makeProjectsDir();
+  T.moveToTrash({ projectsDir: dir, projectId: 'proj_1000', now: Date.now() - 40 * DAY });
+  const r = await T.purgeFromTrash({ projectsDir: dir, projectId: 'proj_1000',
+                                     trashItem: fakeTrash(path.join(dir, '__osbin')),
+                                     packageGdt: fakePkg({ silentFail: true }) });
+  assert.equal(r.ok, false); assert.equal(r.code, 'package_failed');
+  assert.ok(fs.existsSync(path.join(dir, '.trash', 'proj_1000', 'bundle', 'proj.json')),
+    '★ok:true 를 믿고 원본을 지웠다 — 이 앱에서 «거짓 성공»은 전력이 있다');
+});
+
+test('T21 ★OS 휴지통이 «효과 없이» 성공해도 원본을 안 지운다', async () => {
+  const dir = makeProjectsDir();
+  T.moveToTrash({ projectsDir: dir, projectId: 'proj_1000', now: Date.now() - 40 * DAY });
+  const r = await T.purgeFromTrash({ projectsDir: dir, projectId: 'proj_1000',
+                                     trashItem: async () => {},   // 아무 일도 안 한다
+                                     packageGdt: fakePkg() });
+  assert.equal(r.ok, false); assert.equal(r.code, 'trash_noeffect');
+  assert.ok(fs.existsSync(path.join(dir, '.trash', 'proj_1000', 'bundle', 'proj.json')), '★원본을 지웠다');
+  assert.ok(!fs.readdirSync(path.join(dir, '.trash')).some(f => f.endsWith('.gdt')),
+    '★못 보낸 .gdt 가 휴지통 폴더에 쓰레기로 남았다');
+});
+
+test('T22 ★«무엇이 안 담겼는지» 말한다 — 안 적으면 «그물인 척하는 그물»이다', async () => {
+  const dir = makeProjectsDir();
+  T.moveToTrash({ projectsDir: dir, projectId: 'proj_1000', now: Date.now() - 40 * DAY });
+  const r = await T.purgeFromTrash({ projectsDir: dir, projectId: 'proj_1000',
+                                     trashItem: fakeTrash(path.join(dir, '__osbin')), packageGdt: fakePkg() });
+  assert.equal(r.ok, true);
+  assert.ok(Array.isArray(r.notIncluded) && r.notIncluded.includes('proj_history'),
+    '★버전 기록이 안 담긴다는 걸 말하지 않는다 — 사용자는 되돌리기가 빈 걸 그때야 안다');
+  assert.match(String(r.note), /버전 기록/, '★note 가 그 사실을 안 말한다');
+});
+
+test('T23 포장기가 «없으면» 예전처럼 폴더째 — 단 «그렇게 말한다»', async () => {
+  const dir = makeProjectsDir();
+  T.moveToTrash({ projectsDir: dir, projectId: 'proj_1000', now: Date.now() - 40 * DAY });
+  const bin = path.join(dir, '__osbin');
+  const r = await T.purgeFromTrash({ projectsDir: dir, projectId: 'proj_1000', trashItem: fakeTrash(bin) });
+  assert.equal(r.ok, true);
+  assert.equal(r.packaged, false, '★포장 못 했는데 했다고 한다');
+  assert.match(String(r.note), /더블클릭/, '★「더블클릭으로는 안 열린다」를 안 말한다');
+});
+
 test('T14 깨진 메타 하나가 목록 «전체»를 죽이지 않는다', () => {
   const dir = makeProjectsDir(['proj_1000', 'proj_2000']);
   T.moveToTrash({ projectsDir: dir, projectId: 'proj_1000' });

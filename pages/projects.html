@@ -907,7 +907,9 @@ async function renderTrash() {
   const when = (iso) => { const d = new Date(iso); return isNaN(d) ? '—'
     : `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`; };
   box.innerHTML =
-    `<div class="trash-note">지운 프로젝트는 <b>30일</b> 동안 여기 있습니다. 그 뒤에는 컴퓨터 휴지통으로 옮겨집니다 — 그때도 완전히 지워지는 건 아닙니다.</div>`
+    `<div class="trash-note">지운 프로젝트는 <b>30일</b> 동안 여기 있습니다. 여기서 되살리면 <b>버전 기록까지 그대로</b> 돌아옵니다.<br>`
+    + `30일이 지나면 <b>«이름».gdt</b> 파일로 만들어 컴퓨터 휴지통으로 옮깁니다 — 꺼내서 더블클릭하면 열립니다. `
+    + `<b>다만 그때는 버전 기록·메모가 함께 가지 않습니다.</b></div>`
     + items.map(it => `
       <div class="trash-row" data-id="${esc(it.projectId)}">
         <span class="trash-name" title="${esc(it.name)}">${esc(it.name)}</span>
