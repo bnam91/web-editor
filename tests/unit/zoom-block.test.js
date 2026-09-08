@@ -778,12 +778,20 @@ test('ⓑ-5 [체크리스트⑤] CSS 가 .zoom-block 의 선택 outline 을 «�
   assert.ok(/outline-offset:\s*calc\(-1 \* var\(--sel-outline-w\)\)/.test(m[1]), 'offset -1px 상당 누락');
 });
 
-test('ⓑ-6 삽입 입구 — #fp-component-menu 에 형제들과 같은 어휘로 항목이 있다', () => {
-  const menu = SRC.html.slice(SRC.html.indexOf('id="fp-component-menu"'));
+/* ★2026-09-08 이사 — 현빈 「줌블럭은 스티커 패널에 넣어줘야하고」.
+   입구가 #fp-component-menu → #fp-pen-menu 로 옮겼다. 검사의 «뜻»은 안 바뀐다:
+   「형제들과 같은 어휘로, 자기 메뉴를 닫으면서, 한 군데에만 있다」.
+   ⚠️닫는 인자를 같이 안 옮기면 «남의 메뉴»를 닫으라 시켜서 이 메뉴가 안 닫힌다. */
+test('ⓑ-6 삽입 입구 — #fp-pen-menu(스티커 패널)에 형제들과 같은 어휘로 항목이 있다', () => {
+  const menu = SRC.html.slice(SRC.html.indexOf('id="fp-pen-menu"'));
   const end = menu.indexOf('</div>');
   const body = menu.slice(0, end);
-  assert.ok(/onclick="addZoomBlock\(\);toggleFpDropdown\('fp-component-dropdown'\)"/.test(body),
-    '컴포넌트 메뉴에 확대블럭 입구가 없다');
+  assert.ok(/onclick="addZoomBlock\(\);toggleFpDropdown\('fp-pen-dropdown'\)"/.test(body),
+    '스티커 메뉴에 확대블럭 입구가 없다(닫는 인자가 fp-pen-dropdown 인지도 같이 본다)');
+  const comp = SRC.html.slice(SRC.html.indexOf('id="fp-component-menu"'));
+  const compBody = comp.slice(0, comp.indexOf('</div>'));
+  assert.equal((compBody.match(/addZoomBlock/g) || []).length, 0,
+    '컴포넌트 메뉴에 확대블럭이 아직 남아 있다 — 옮긴 게 아니라 «복사»했다');
   assert.ok(SRC.html.includes('src="js/blocks/zoom-block.js"'), '블록 스크립트 태그 없음');
   assert.ok(SRC.html.includes('src="js/props/prop-zoom.js"'), '프로퍼티 스크립트 태그 없음');
 });
@@ -1038,11 +1046,15 @@ test('ⓑ-20b ★흐름 목록의 기준 — «규칙»을 재서 판정한다(�
 
 test('ⓑ-26 ★⑯모서리 핸들이 «보라» — 그리고 자산 블록은 «안» 물든다', () => {
   const css = SRC.css;
-  const rule = css.match(/\.asset-overlay-handle\[data-zoom-resize-dir\]\s*\{([^}]*)\}/);
+  /* ★2026-09-08 클래스 분리 — 확대블럭 핸들이 .asset-overlay-handle 을 «빌려 쓰다가»
+     hideAssetResizeHandles() 의 일괄 제거에 같이 쓸려나갔다(재클릭 4→0, 그 뒤 영영 0).
+     자기 클래스 .zm-overlay-handle 로 갈랐고, 보라 한정자도 «같이» 옮겼다.
+     안 옮기면 확대블럭 핸들만 색을 잃는다 — 그래서 여기 셀렉터도 같이 바뀐다. */
+  const rule = css.match(/\.zm-overlay-handle\[data-zoom-resize-dir\]\s*\{([^}]*)\}/);
   assert.ok(rule, '확대블럭 핸들 색 규칙이 없다');
   assert.match(rule[1], /border-color:\s*var\(--ui-sel-overlay/, '아웃라인과 다른 색이면 한 블록에 두 색이 된다');
   /* ⛔공용 규칙(.asset-overlay-handle)은 파랑 그대로여야 한다 — 바꾸면 자산 블록이 물든다. */
-  const shared = css.match(/\n\.asset-overlay-handle,\s*\n\.icb-overlay-handle \{([^}]*)\}/);
+  const shared = css.match(/\n\.asset-overlay-handle,\s*\n\.icb-overlay-handle,\s*\n\.zm-overlay-handle \{([^}]*)\}/);
   assert.ok(shared, '공용 핸들 규칙을 못 찾았다 — 검사가 대상을 놓쳤다');
   assert.match(shared[1], /border:[^;]*var\(--sel-color\)/, '공용 핸들을 보라로 바꿨다 — 자산 블록이 같이 물든다');
   assert.equal(/ui-sel-overlay/.test(shared[1]), false);
