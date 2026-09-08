@@ -19,10 +19,19 @@ import { fileURLToPath } from 'node:url';
 
 const _req = createRequire(import.meta.url);
 const { readSrc, toPosix } = _req('./_srcread.js');
+const { makeStripper } = _req('./_strip-comments.js');
 const { CHANNELS, MARKER_TOKENS, CLEAN_FN } = _req('../_export-channels.js');
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const JSDIR = path.join(ROOT, 'js');
+
+/** 주석을 걷어낸 «코드»만. ⛔파일 하나마다 새 stripper(블록 주석 상태를 들고 간다).
+ *  이게 없으면 「주석에 적어 둔 함수 이름」을 «호출»로 세어 버린다. */
+function codeOf(rel) {
+  const strip = makeStripper();
+  return readSrc(ROOT, rel).split('\n').map(l => strip(l)).join('\n');
+}
+const countOf = (src, needle) => src.split(needle).length - 1;
 
 /** 실물 — js/ 아래에서 «DOM 을 통째로 클론하는» 파일 전수. ⛔손으로 적지 않는다. */
 function globCloneFiles() {
@@ -73,9 +82,17 @@ test('U6-c ★artifact 채널은 마커를 «전부» 벗긴다 (손 열거든 �
   for (const c of arts) {
     const src = readSrc(ROOT, c.file);
     if (c.strips === CLEAN_FN) {
-      // 위임 — 토큰을 손으로 안 적는 대신 «세척 함수를 부른다»는 것을 확인한다.
-      assert.match(src, new RegExp(`${CLEAN_FN}\\s*\\?\\.\\(|${CLEAN_FN}\\s*\\(`),
-        `${c.file} 이 ${CLEAN_FN} 을 «부르지» 않는다 — 위임한다고 적어 놓고 안 부르면 아무것도 안 벗긴다.\n  (${c.why})`);
+      /* 위임 — 토큰을 손으로 안 적는 대신 «세척 함수를 부른다»는 것을 확인한다.
+         ★그런데 「파일이 그 이름을 갖고 있나」로 재면 «갈래»를 못 센다: 클론이 3곳인데
+           위임을 1곳에만 붙여도 초록이다(실측 2026-09-09, 변이 E-1 이 그렇게 빠져나갔다).
+         ⇒ «클론 수 ≤ 위임 호출 수»로 잰다. 모은 사람이 갈래를 세야 한다. */
+      const code = codeOf(c.file);
+      const clones = countOf(code, 'cloneNode(true)');
+      const cleans = countOf(code, `${CLEAN_FN}?.(`) + countOf(code, `${CLEAN_FN}(`);
+      assert.ok(clones > 0, `${c.file} 에 cloneNode(true) 가 0건이다 — 명부가 낡았다(잣대가 죽는다)`);
+      assert.ok(cleans >= clones,
+        `★${c.file} 의 클론은 ${clones}곳인데 ${CLEAN_FN} 위임은 ${cleans}곳뿐이다 — ` +
+        `${clones - cleans}곳이 «안 씻긴 채» 산출물이 된다. 클론마다 붙여라.\n  (${c.why})`);
       continue;
     }
     for (const tok of MARKER_TOKENS) {
