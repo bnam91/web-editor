@@ -409,11 +409,19 @@ function setCanvasTail(px) {
   _applyPanRoom();
 }
 
-/** 기본 여지 = 사방 한 화면. 이미 그만큼 있으면 아무것도 안 한다. */
+/* ★[M63] 세로 «기본 여지»를 몇 화면으로 둘 것인가 — 현빈 원문 「밑으로 내리는데 생각보다 한계가 있네」.
+   ⛔이 값을 «한 곳»에만 쓰면 안 된다. 세 자리(ensurePanRoom 의 바닥 · shrinkPanRoom 의 회수 하한 ·
+     setPanRoom 의 복원 하한)가 «같은 바닥»을 봐야 한다 — 하나만 올리면 shrinkPanRoom 이 바닥 밑으로
+     깎고 다음 줌·리사이즈가 도로 밀어 올려 «진동»한다.
+   ⛔2 를 넘기지 마라: 휠 상한이 WHEEL_OVER_SCREENS=3 (cap = 1+3 = 4화면)이므로
+     기본이 4 이상이면 휠 잔여가 흡수될 여지가 0 이 돼 「휠이 아예 안 밀린다」가 된다. */
+const PAN_ROOM_SCREENS_Y = 2;   // 아래위 각 2화면
+
+/** 기본 여지 = 좌우 한 화면 · 상하 PAN_ROOM_SCREENS_Y 화면. 이미 그만큼 있으면 아무것도 안 한다. */
 function ensurePanRoom() {
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap || !scaler) return;
-  const needX = wrap.clientWidth, needY = wrap.clientHeight;
+  const needX = wrap.clientWidth, needY = wrap.clientHeight * PAN_ROOM_SCREENS_Y;
   if (!needX || !needY) return;                     // 아직 레이아웃 전
   if (_panRoomX >= needX && _panRoomY >= needY) return;
   const first = (_panRoomX === 0);
@@ -482,7 +490,7 @@ function setPanScrollBaseline(ref) { _panScrollBaseline = ref; }
 function shrinkPanRoom() {
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap || !scaler) return;
-  const baseX = wrap.clientWidth, baseY = wrap.clientHeight;
+  const baseX = wrap.clientWidth, baseY = wrap.clientHeight * PAN_ROOM_SCREENS_Y;   // [M63] ensurePanRoom 과 «같은 바닥»
   /* 한쪽에서 c 를 깎으면 «양쪽» 여백이 줄어 전체 범위가 2c 만큼 준다.
      ⇒ 안전 조건이 «둘»이다:
        ⑴ 앞쪽: 줄인 만큼 스크롤도 줄여야 하므로  c ≤ scrollLeft   (안 그러면 음수)
@@ -563,7 +571,7 @@ window.setPanRoom = (r) => {
   const wrap = document.getElementById('canvas-wrap');
   if (!r || !wrap || !scaler || !wrap.clientWidth) return;
   const x = Math.max(wrap.clientWidth, Math.round(r.x) || 0);
-  const y = Math.max(wrap.clientHeight, Math.round(r.y) || 0);
+  const y = Math.max(wrap.clientHeight * PAN_ROOM_SCREENS_Y, Math.round(r.y) || 0);   // [M63] 같은 바닥
   if (x === _panRoomX && y === _panRoomY) return;
   _panRoomX = x; _panRoomY = y;
   _applyPanRoom();
@@ -593,14 +601,25 @@ function _syncScalerHeight() {
 }
 
 /* C20: 섹션/블록 추가·삭제·리사이즈로 #canvas 높이가 바뀌면 scaler 레이아웃 높이도 재동기화.
- *      scaler.style.height 변경은 #canvas.offsetHeight에 영향 없어 피드백 루프 없음. rAF 디바운스. */
+ *      scaler.style.height 변경은 #canvas.offsetHeight에 영향 없어 피드백 루프 없음.
+ * ★[M63] 디바운스를 rAF → setTimeout 으로 바꿨다. ⚠️이 앱은 비포커스 창에서 rAF 가 멈춘다
+ *   (같은 이유로 노치 갱신 :344 · 트랙패드 스로틀 :2930 이 이미 setTimeout 이다 — 그 관용구 그대로).
+ *   막는 경우: RO 가 «보이는 동안» 울려 rAF 를 예약해 놓고, 다음 프레임 «전»에 창이 가려지는 때.
+ *   그러면 옛 코드는 예약만 남고 sync 가 영영 안 돌아 scaler.style.height 가 낡은 값에 굳는다.
+ *   setTimeout 이면 같은 태스크에서 끝나므로 그 창이 없다.
+ * ⛔이것이 「가려진 창의 0px」을 «전부» 고치지는 않는다 — 실측(9348, document.hidden=true):
+ *   가려진 창에서는 rAF 뿐 아니라 **ResizeObserver 전달 자체가 안 온다**(초기 관측조차 0회).
+ *   둘 다 「렌더링 갱신」 단계에 얹혀 있기 때문이다. 그래서 가려진 동안엔 sync 가 아예 안 돈다.
+ *   ★단, 창이 보이는 순간 밀린 관측이 전달돼 스스로 낫는다(실측: 0px → 2407px, scrollHeight 4159 → 5911).
+ *   ⇒ 「가려진 채로는 어차피 아무도 안 스크롤한다 + 보이면 즉시 낫는다」라서 visibilitychange
+ *     재동기화는 «안» 걸었다. 걸고 싶어지면 먼저 「보여도 안 낫는 경로」를 실측으로 찾아라. */
 (() => {
   const canvasEl = document.getElementById('canvas');
   if (!canvasEl || typeof ResizeObserver === 'undefined') return;
-  let raf = 0;
+  let pending = 0;
   const ro = new ResizeObserver(() => {
-    if (raf) return;
-    raf = requestAnimationFrame(() => { raf = 0; _syncScalerHeight(); });
+    if (pending) return;
+    pending = setTimeout(() => { pending = 0; _syncScalerHeight(); }, 0);
   });
   ro.observe(canvasEl);
 })();
