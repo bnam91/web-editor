@@ -1872,6 +1872,28 @@ textarea.cvb-card-input {
   cursor: grab;
 }
 .zoom-block .zoom-handle[data-picked="true"] { fill: var(--sel-color); }
+
+/* ★★도형 그림자(드롭섀도) — 광원(data-shadow)과 «다른 키»(data-drop-shadow)다.
+     data-shadow     = 'on'|'off'            → 돋보기 광원 사다리꼴(SVG 폴리곤)
+     data-drop-shadow= 'none'|'soft'|'strong'→ 도형 «자체»의 그림자(여기)
+
+   ⛔`box-shadow` 를 쓰면 «안 된다». 실측(회전 30°, rect 260×140):
+     블록 상자는 «축정렬 정사각 + border-radius 0» 인데(회전은 CSS transform 이 아니라
+     data-rotation 이고 도형만 SVG 안에서 돈다) box-shadow 는 «그 블록 상자»를 따른다
+     ⇒ 돌아간 도형 뒤에 «네모 그림자»가 어긋난 채 뜬다. 스크린샷으로 확인했다.
+   ⇒ 알파를 따라가는 `filter: drop-shadow` 로 간다. 선례 = js/blocks/mockup-block.js:296.
+     값도 그 표를 «그대로» 빌렸다(none/soft/strong — 단계 이름까지).
+
+   ★★거는 자리가 «블록»이 아니라 `.zoom-clip` 인 이유 — 둘 다 재고 골랐다:
+     ① 블록에 걸면 필터가 «선택 아웃라인»(3px 보라)까지 먹는다 — 실측 확인.
+        .zoom-clip 에 걸면 아웃라인은 필터 «밖»이라 또렷하게 남는다.
+     ② 렌더 순서가 filter → clip-path 라, 같은 층에 걸면 «섹션 밖 크롭»이 그림자까지
+        같이 자른다(도형은 잘렸는데 그림자만 새어 나가는 일이 없다).
+        블록에 걸면 자식이 먼저 잘린 뒤 그림자가 생겨 섹션 밖으로 «샌다».
+   ⛔인라인 style 로는 못 건다 — renderZoomBlock 이 block.style.cssText 를 통째로 다시 쓴다.
+     그래서 attribute 를 운반체로 쓰고 «칠하는 일은 여기가» 한다. */
+.zoom-block[data-drop-shadow="soft"]   > .zoom-clip { filter: drop-shadow(0 20px 60px rgba(0, 0, 0, 0.25)); }
+.zoom-block[data-drop-shadow="strong"] > .zoom-clip { filter: drop-shadow(0 30px 80px rgba(0, 0, 0, 0.55)); }
 .zoom-block.selected .zoom-handle-layer { pointer-events: auto; }
 .zoom-block.selected .zoom-handle { opacity: 1; pointer-events: auto; }
 /* ★확대블럭 = «스티커 계열»이라 보라다(현빈 「보라색 테두리로 되어야 되는데」).

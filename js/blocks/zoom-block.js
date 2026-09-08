@@ -63,6 +63,21 @@ const ZOOM_DEFAULTS = {
      ★현빈 2026-09-08: 「기본적으로 그림자는 Off 인 상태로」 — 스티커가 «먼저»고 돋보기가 옵션이다.
      ⛔off 여도 angle·length·maxop 는 «지우지 않는다». 다시 켜면 그대로 돌아와야 한다. */
   shadow: 'off',
+  /* ★★도형 그림자(드롭섀도) — 위 `shadow`(광원)와 «완전히 다른 것»이다. 현빈 2026-09-08
+       「그리고 줌블럭에 쉐도우 온오프 기능도 별도로 있도록 해줘」.
+     ⛔같은 키를 나눠 쓰면 둘이 서로를 덮는다 ⇒ 키를 «따로» 둔다:
+        dataset.shadow     = 'on'|'off'          — 돋보기 «광원 사다리꼴»(SVG 폴리곤)
+        dataset.dropShadow = 'none'|'soft'|'strong' — 도형 «자체»가 드리우는 그림자(CSS)
+     ★값 표는 mockup-block.js 의 shadows 를 «그대로» 빌렸다(단계 이름 none/soft/strong 까지).
+       실측 근거 — 260×140(줌 기본)에서 도형 아래 띠의 가장 어두운 픽셀:
+         끔 255 · soft 218(Δ37) · strong 184(Δ71)   ⇒ 그대로도 «충분히 보인다».
+       크기를 줄인 후보(÷2·÷3)도 재 봤지만 soft 는 Δ36~39 로 차이가 없었다.
+       ⇒ 두 번째 값 표를 만들 이유가 «측정에» 없다. 선례를 그대로 쓴다.
+       (mockup 의 기본 폭도 220~520 이라 줌의 260 과 «같은 자릿수»다 — 잘못 맞춘 표가 아니다.)
+     ★★그리는 자리는 CSS 다(css/editor-blocks.css). ⛔여기서 style.filter 를 쓰면 «안 된다» —
+       renderZoomBlock 이 block.style.cssText 를 통째로 다시 쓴다(아래). 실측: 렌더 한 번에
+       인라인 filter·CSS 변수가 둘 다 null 로 날아갔다. 그래서 «attribute» 를 운반체로 쓴다. */
+  dropShadow: 'none',
   /* 테두리 — 원래 스티커 블록 A-1 의 「우측에서 테두리를 넣을 수 있다」가 여기로 들어왔다.
      그림자와 배타가 아니다(둘 다 켤 수 있다). ⛔도형 «바깥»에 그린다 — 크기가 줄면 안 된다. */
   bd:     'off',
@@ -79,6 +94,10 @@ const ZOOM_DEFAULTS = {
 };
 
 const ZOOM_SHAPES = ['rect', 'circle', 'square'];
+/** 도형 그림자의 단계 — mockup-block.js 의 shadows 표와 «같은 이름»이다(어휘를 둘로 만들지 않는다). */
+const ZOOM_DROP_SHADOWS = ['none', 'soft', 'strong'];
+/** 모르는 값이 들어오면 기본으로 떨어뜨린다 — _onOff 와 «같은 규율»(저장본 변조 대비). */
+function _dropShadow(v, dflt) { return ZOOM_DROP_SHADOWS.includes(v) ? v : dflt; }
 /** 라디오 두 벌의 값 — 모르는 값이 들어오면 기본으로 떨어뜨린다(저장본 변조 대비). */
 function _onOff(v, dflt) { return (v === 'on' || v === 'off') ? v : dflt; }
 
@@ -114,6 +133,8 @@ function readZoomState(block) {
     x:      _num(d.x, ZOOM_DEFAULTS.x),
     y:      _num(d.y, ZOOM_DEFAULTS.y),
     shadow: _onOff(d.shadow, ZOOM_DEFAULTS.shadow),
+    /* ⛔`shadow`(광원)를 «안 뺏는다» — 둘은 끝까지 다른 키다. */
+    dropShadow: _dropShadow(d.dropShadow, ZOOM_DEFAULTS.dropShadow),
     bd:     _onOff(d.bd,     ZOOM_DEFAULTS.bd),
     bdw:    _num(d.bdw, ZOOM_DEFAULTS.bdw),
     bdc:    d.bdc || ZOOM_DEFAULTS.bdc,

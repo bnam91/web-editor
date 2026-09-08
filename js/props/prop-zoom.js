@@ -116,9 +116,12 @@ export function showZoomProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">Shadow</div>
+      <!-- ★제목·라벨만 «말을 바꿨다». 라디오 자체(name·value·id·핸들러)는 한 글자도 안 건드렸다.
+           왜 = 이 절은 「도형 그림자」가 아니라 «돋보기 광원»이다. 아래에 진짜 도형 그림자가
+           생기면서 둘 다 「그림자」라고 불리면 사람이 뭐가 뭔지 모른다(현빈 「별도로」의 핵심). -->
+      <div class="prop-section-title">광원 (돋보기)</div>
       <div class="prop-row">
-        <span class="prop-label">그림자</span>
+        <span class="prop-label">광원</span>
         <div class="prop-radio-group" id="zm-shadow-group">
           <label class="prop-radio"><input type="radio" name="zm-shadow" value="on"${shadowOn ? ' checked' : ''}> 켬</label>
           <label class="prop-radio"><input type="radio" name="zm-shadow" value="off"${shadowOn ? '' : ' checked'}> 끔</label>
@@ -151,6 +154,36 @@ ${bdrRow}
         ${colorFieldHTML({ idPrefix: 'zm-bdc', hex: st.bdc, alpha: bdcAlpha })}
       </div>
       </div>
+    </div>
+
+    <!-- ★★도형 그림자 — 현빈 2026-09-08 「줌블럭에 쉐도우 온오프 기능도 «별도로»」.
+         ★「광원」과 이것을 패널에서 가르는 법 = 세 겹으로 갈랐다:
+           ① 말   — 위는 「광원 (돋보기)」, 여기는 「도형 그림자」. 둘 다 '그림자'라 안 부른다.
+           ② 자리 — 붙여 두면 헷갈린다. Border 를 사이에 끼워 «떨어뜨렸다».
+                    그리고 이건 도형의 «생김새»(테두리 옆)지 돋보기 장치가 아니다.
+           ③ 생김 — 광원은 «라디오 켬/끔»(두 갈래), 이건 «버튼 3단»(prop-align-group).
+                    컨트롤 «모양»이 달라 눈으로도 다른 것임을 안다.
+         ⛔체크박스로 만들면 안 된다 — 검사 ⓑ-14 가 이 파일에 체크박스 입력이 «없음»을 단언한다
+           (현빈이 「라디오버튼으로」라고 못박은 것). prop-sticker 의 prop-toggle 을 통째로
+           베끼지 않은 이유가 이것이다. 실측으로 확인하고 골랐다.
+         ⚠️그 «금지된 문자열»을 여기 주석에 그대로 적으면 검사가 오발한다 — 실제로 한 번 물렸다.
+           이 주석은 템플릿 리터럴 «안»이라 JS 주석 걷기가 못 걷어낸다. 말로만 적는다.
+         ★어휘(없음/부드럽게/강하게 · none/soft/strong)는 prop-mockup.js:93-95 를 그대로 빌렸다. -->
+    <div class="prop-section">
+      <div class="prop-section-title">도형 그림자 (광원과 별개)</div>
+      <div class="prop-row">
+        <div class="prop-align-group" id="zm-drop-group">
+          <button class="prop-align-btn${st.dropShadow === 'none'   ? ' active' : ''}" data-val="none">없음</button>
+          <button class="prop-align-btn${st.dropShadow === 'soft'   ? ' active' : ''}" data-val="soft">부드럽게</button>
+          <button class="prop-align-btn${st.dropShadow === 'strong' ? ' active' : ''}" data-val="strong">강하게</button>
+        </div>
+      </div>
+      <!-- ⛔여기에 «안내문 행»을 두면 안 된다 — 실앱 240px 에서 실측하고 뺐다.
+           prop-label 은 폭 ~56px 짜리 «라벨 칸»이라 문장이 「도형이 «자...」로 잘린다.
+           (같은 자리의 이미지 안내문도 「이미지를 넣...」으로 잘려 있다 — 기존 흠이다.)
+           ⇒ 가르는 말은 «절 제목»에 넣는다. 제목은 폭을 다 쓴다(실측 확인).
+           ⚠️이 주석은 템플릿 리터럴 «안»이다 — 백틱을 쓰면 리터럴이 «거기서 끝나» 터진다.
+             실제로 한 번 물렸다(ReferenceError: label is not defined). 백틱 금지. -->
     </div>
 
     <div class="prop-section">
@@ -186,6 +219,23 @@ ${bdrRow}
       window.clearZoomSizeOverride?.(block);
       rerender();
       showZoomProperties(block);
+      window.triggerAutoSave?.();
+    });
+  });
+
+  /* 도형 그림자 3단 — Shape 프리셋 토글과 «같은 하네스»다(새 관용구를 안 만든다).
+     ⛔dataset.shadow(광원)를 «안» 건드린다 — 키가 따로다.
+     ★rerender() 를 안 부른다: 이건 기하가 «한 줄도» 안 바뀐다. 칠하는 일은 CSS 가
+       data-drop-shadow 를 보고 한다(css/editor-blocks.css). 실루엣·A·B·a·b 는 그대로다.
+       ⇒ 괜히 다시 그리면 사람이 집어 둔 앵커(_zoomPicked)만 잃는다. */
+  propPanel.querySelectorAll('#zm-drop-group .prop-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.val;
+      if (block.dataset.dropShadow === next) return;
+      window.pushHistory?.('확대블럭 도형 그림자');
+      propPanel.querySelectorAll('#zm-drop-group .prop-align-btn')
+        .forEach(b => b.classList.toggle('active', b === btn));
+      block.dataset.dropShadow = next;
       window.triggerAutoSave?.();
     });
   });
