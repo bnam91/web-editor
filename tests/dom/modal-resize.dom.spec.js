@@ -444,7 +444,6 @@ test('D12 ★«툴바로 추가한 그 순간» 핸들이 있다 — 한 번 더
      ⛔0 이 「핸들이 없다」와 「잴 블록이 없다」 두 뜻을 갖게 두지 마라. */
   expect(made.block, 'addModalBlock 이 블록을 못 만들었다 — 아래 검사가 공회전한다').toBe(true);
   expect(made.blocksInDom, '캔버스에 모달이 안 들어갔다').toBe(1);
-  expect(made.selected, '전제: selectBlock 이 «선택»까지는 하고 있다(핸들만 빠졌던 것)').toBe(true);
 
   await raf(page);
   const after = await page.evaluate(() => ({
@@ -452,9 +451,14 @@ test('D12 ★«툴바로 추가한 그 순간» 핸들이 있다 — 한 번 더
     radius: document.querySelectorAll('#ss-handles-overlay .mdl-radius-handle').length,
     panel: document.querySelector('#panel-right .prop-block-name')?.textContent ?? null,
   }));
+  /* ★핸들 단언이 «먼저» 온다 — D13 과 같은 이유다.
+     ⛔selected 를 «전제»로 앞에 두면, 호출 한 줄을 통째로 지우는 변이에서 그게 먼저 터져
+       검사가 「핸들이 없다」 대신 「선택이 안 됐다」로 말한다(실측). 본문이 먼저다. */
   expect(after.resize, '추가 «직후»에 리사이즈 핸들이 없다 — 한 번 더 클릭해야 나온다').toBe(4);
   expect(after.radius, '추가 «직후»에 라디우스 핸들이 없다').toBe(4);
   expect(after.panel, '패널이 모달로 안 열렸다 — showTextProperties 로 샜다').toBe('Modal');
+  // 선택 클래스도 같이 따라왔나 (핸들과 «같은» 헬퍼가 맡는다)
+  expect(made.selected, '선택 클래스가 안 붙었다').toBe(true);
   expect(errs).toEqual([]);
 });
 
