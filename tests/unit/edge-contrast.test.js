@@ -6,6 +6,11 @@
  *   A0~A6  «계산기»가 맞나          (js/canvas-contrast.js 를 실제로 import 해서 돌린다)
  *   B1~B6  «배선»이 살아 있나        (소스 원문을 훑는다 — readSrc + makeStripper)
  *
+ * ★기존 기댓값과의 관계 — scratch-link-toggle.test.js:159 의 정규식은
+ *   /\.spl-edges line\s*\{[^}]*stroke-dasharray/ 다. 지켜야 할 것은 「규칙 «안»에 주석 금지」가
+ *   아니라 ★「규칙 안에 } 를 들이지 마라」다(2026-09-09 실측: } 포함 주석 → 양쪽 RED,
+ *   } 없는 주석 → GREEN). 금지선을 실제보다 넓게 적으면 다음 사람이 이유를 모른 채 어긴다.
+ *
  * ⛔이 검사가 «안» 보는 것 (정직하게 적는다)
  *   · 화면에 실제로 칠해지는 색 — tests/dom/edge-contrast.dom.spec.js 몫이다.
  *   · 실기(Electron)에서 «눈으로 보이나» — ⛔현빈 실사용 PC라 창을 안 띄웠다. «안 쟀다».
