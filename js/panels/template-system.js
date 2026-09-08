@@ -200,7 +200,7 @@ async function _loadCanvas(id) {
      그래서 사전 고지가 본론이다. 장치가 있어도 «닿는 길»이 없으면 없는 것이다.
    ⛔저장을 «막지» 않는다 — 저장이 끝난 뒤에만 부르고, 여기서 무슨 일이 나도 삼킨다.
      막으면 사용자는 방금 만든 작업을 잃는다. 우리가 할 일은 «알리»는 것뿐이다.
-   ⛔showToast 단독으로 쓴다. `?? alert(...)` 를 붙이지 마라 — showToast 는 return 이 없어
+   ⛔showToast 단독으로 쓴다. 뒤에 네이티브 alert 폴백을 «붙이지 마라» — showToast 는 return 이 없어
      undefined 를 주고, 그러면 ?? 가 통과해 토스트+네이티브 alert 이 «둘 다» 뜨며 렌더러가 얼어붙는다. */
 async function _noticeIfIsolatedRoot() {
   try {
