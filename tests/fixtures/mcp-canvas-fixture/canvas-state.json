@@ -1,5 +1,6 @@
 {
   "ok": true,
+  "full": false,
   "sections": [
     {
       "sectionId": "sec_fixt_1",
@@ -11,7 +12,9 @@
           "text": "픽스처 제목",
           "color": "rgb(17, 17, 17)",
           "fontSize": "40px",
-          "align": "center"
+          "align": "center",
+          "parentId": null,
+          "depth": 0
         },
         {
           "blockId": "tb_fx_b1",
@@ -19,11 +22,15 @@
           "text": "본문 한 줄. 이 문장은 120자 상한을 «안» 넘긴다 — 잘림 표시가 붙으면 안 된다.",
           "color": "",
           "fontSize": "",
-          "align": "left"
+          "align": "left",
+          "parentId": null,
+          "depth": 0
         },
         {
           "blockId": "gb_fx_1",
           "type": "gap",
+          "parentId": null,
+          "depth": 0,
           "summary": {
             "height": "48px"
           }
@@ -31,6 +38,8 @@
         {
           "blockId": "ab_fx_small_a",
           "type": "asset",
+          "parentId": null,
+          "depth": 0,
           "summary": {
             "image": "small-a.png",
             "natural": "28x28"
@@ -39,6 +48,8 @@
         {
           "blockId": "ab_fx_small_b",
           "type": "asset",
+          "parentId": null,
+          "depth": 0,
           "summary": {
             "image": "(inline data)",
             "natural": "28x28"
@@ -53,6 +64,8 @@
         {
           "blockId": "tbl_fx_1",
           "type": "table",
+          "parentId": null,
+          "depth": 0,
           "summary": {
             "rows": 5,
             "headers": [
@@ -66,6 +79,8 @@
         {
           "blockId": "gb_fx_2",
           "type": "gap",
+          "parentId": null,
+          "depth": 0,
           "summary": {
             "height": "24px"
           }
@@ -73,6 +88,8 @@
         {
           "blockId": "ab_fx_big",
           "type": "asset",
+          "parentId": null,
+          "depth": 0,
           "summary": {
             "image": "(inline data)",
             "natural": "340x340"
@@ -81,6 +98,8 @@
         {
           "blockId": "ss_fx_frame_1",
           "type": "frame",
+          "parentId": null,
+          "depth": 0,
           "summary": {
             "preview": "프레임 «안»의 텍스트 — 이게 빠지면 #1 결함 재발이다."
           }
@@ -91,7 +110,9 @@
           "text": "프레임 «안»의 텍스트 — 이게 빠지면 #1 결함 재발이다.",
           "color": "",
           "fontSize": "",
-          "align": "center"
+          "align": "center",
+          "parentId": "ss_fx_frame_1",
+          "depth": 1
         }
       ]
     }

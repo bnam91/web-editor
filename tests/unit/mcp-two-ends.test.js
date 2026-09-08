@@ -23,7 +23,19 @@ const ALLOWED_DROPS = {
   align: '빈 값일 때만 — 응답 다이어트',
   text: '빈 값일 때만 — 응답 다이어트',
   name: '섹션 이름이 빈 문자열일 때만',
+  /* ★depth 는 «0일 때만» 떨어져도 된다 — 0 은 「최상위」라는 기본값이고 parentId 부재로 이미 말해진다.
+     ⛔이름 전체를 면제하면 depth:2 가 조용히 사라져도 이 검사가 초록이 난다. 그래서 «값 조건»으로 좁힌다.
+     (2026-09-08 — 픽스처가 낡아 depth 가 양끝 계측에 아예 안 들어오고 있었다) */
+  depth: { why: '값이 0(최상위)일 때만 — 응답 다이어트', when: (v) => v === 0 },
 };
+
+/** 이 드롭이 «허용된 축약»인가. 문자열이면 이름 전체 면제, {when} 이면 «그 값일 때만» 면제. */
+function isAllowedDrop(key, value) {
+  const rule = ALLOWED_DROPS[key];
+  if (rule === undefined) return false;
+  if (typeof rule === 'string') return true;
+  return typeof rule.when === 'function' ? rule.when(value) : true;
+}
 
 let H = null;
 before(async () => { H = await startHarness({ activeProject: 'proj_1' }); });
@@ -67,7 +79,7 @@ test('F7-2 ★양끝 — 값이 «있는» 필드는 두 끝 사이에서 안 �
       const v = src[k];
       const empty = v === '' || v == null || (typeof v === 'object' && !Object.keys(v).length);
       if (empty) return false;
-      return !(k in ALLOWED_DROPS);
+      return !isAllowedDrop(k, v);
     });
     rows.push(`${id.padEnd(18)} 렌더러[${Object.keys(src).join(',')}] → 도구[${Object.keys(dst).join(',')}]${dropped.length ? '  버림:' + dropped.join(',') : ''}`);
     if (silent.length) illegal.push(`${id}: «값이 있는데» 버려진 필드 ${silent.join(',')}`);
