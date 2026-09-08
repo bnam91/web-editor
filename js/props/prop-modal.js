@@ -4,6 +4,7 @@
    글자 편집은 캔버스에서 더블클릭(block-drag) — 여기선 구조/스타일만 만진다. */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { applyModalVariant, _effDefault } from '../blocks/modal-block.js';
 
 const _MDL_VARIANT_LABELS = {
   'plain': '기본 박스', 'titled': '제목 + 본문', 'icon': '아이콘 + 텍스트',
@@ -12,15 +13,18 @@ const _MDL_VARIANT_LABELS = {
 
 export function showModalProperties(block) {
   const v = block.dataset.variant || 'plain';
-  const bg = block.dataset.bg || '#f6f7f9';
+  // ★폴백은 «그 변형의 유효 기본값»이어야 한다 — MODAL_VARIANT_IDENTITY 와 같은 표를 본다.
+  //   dataset 키가 없는 블록(손수 만든/가져온)에서 캔버스는 2px dashed 인데 패널만 0/solid 로
+  //   보이던 «화면이 거짓말하는» 자리를 없앤다. renderModalBlock 의 폴백과 같은 값을 쓴다.
+  const bg = block.dataset.bg || _effDefault(v, 'bg');
   const textColor = block.dataset.textColor || '#1c1c1e';
   const borderColor = block.dataset.borderColor || '#c3c3ca';
   const iconColor = block.dataset.iconColor || '#f0b429';
   const _i = (k, d) => { const n = parseInt(block.dataset[k]); return Number.isFinite(n) ? n : d; };
   const radius = _i('radius', 0);
   const padX = _i('padX', 20), padY = _i('padY', 18);
-  const borderW = _i('borderW', 0);
-  const borderStyle = block.dataset.borderStyle || 'solid';
+  const borderW = _i('borderW', _effDefault(v, 'borderW'));
+  const borderStyle = block.dataset.borderStyle || _effDefault(v, 'borderStyle');
   const wMode = block.dataset.wMode === 'fixed' ? 'fixed' : 'full';
   const hMode = block.dataset.hMode === 'fixed' ? 'fixed' : 'auto';
   const width = _i('width', 400), height = _i('height', 120);
@@ -210,8 +214,13 @@ export function showModalProperties(block) {
   // ── 변형 ──
   const sel = document.getElementById('mdl-variant');
   sel?.addEventListener('change', () => {
-    block.dataset.variant = sel.value;
+    // ★순서 고정 — applyModalVariant 가 «채우기 먼저, dataset.variant 갱신 나중»을 한 번에 한다.
+    //   (dataset.variant 를 먼저 쓰면 「이전 변형의 기본값」 판정이 무너진다.)
+    //   변형의 정체(테두리/배경)는 여기서 dataset 에 «박혀야» 한다 —
+    //   dataset.variant 만 바꾸면 렌더된 borderTopStyle 이 none 으로 남는다.
+    applyModalVariant(block, sel.value);
     rerender(); commit();
+    // 재렌더 후 패널을 다시 그린다 — 값 필드(두께/스타일/배경)가 «새 정체»를 반영해야 한다.
     showModalProperties(block);   // 변형에 따라 패널 구성이 달라진다(아이콘/간격 행)
   });
 

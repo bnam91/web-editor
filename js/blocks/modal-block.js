@@ -31,6 +31,48 @@ const MODAL_DEFAULTS = {
   iconSize: 24, iconColor: '#f0b429',
 };
 
+/* ★변형의 «정체» — 이 변형이 되면 무엇이 달라지는가를 «한 곳»에 모은다.
+   삼항이 makeModalBlock 안에만 있어서 변형 전환 때 따라가지 않던 것을 고친다.
+   표에 없는 변형은 MODAL_DEFAULTS 를 그대로 쓴다. */
+const MODAL_VARIANT_IDENTITY = {
+  dashed: { borderW: 2, borderStyle: 'dashed', bg: 'transparent' },
+};
+
+/* 표 전체에 «등장하는» 키의 합집합 — 전환 때 검사할 키 목록.
+   prev 쪽 표에만 있는 키도 되돌릴 수 있어야 하므로 합집합이어야 한다. */
+const MODAL_IDENTITY_KEYS = [...new Set(
+  Object.values(MODAL_VARIANT_IDENTITY).flatMap(o => Object.keys(o))
+)];
+
+/* 그 변형에서의 «유효 기본값» — 표에 없으면 공통 기본값 */
+const _effDefault = (v, key) => (MODAL_VARIANT_IDENTITY[v]?.[key] ?? MODAL_DEFAULTS[key]);
+
+/* 변형 전환 — ★「사용자가 안 건드린 값만 채운다」.
+   현재 값이 «이전 변형의 유효 기본값»과 같으면 = 손 안 댐 → 새 변형의 유효 기본값으로 갈아끼운다.
+   다르면 = 사용자가 고른 값 → 그대로 둔다.
+   ⛔MODAL_DEFAULTS 와만 비교하면 dashed→plain 되돌릴 때 borderW=2 가 «사용자 값»으로 오판돼
+     되돌리기가 실패한다. 반드시 «이전 변형의» 유효 기본값과 비교할 것.
+
+   ⚠️남는 모호성(플래그 없이는 못 가름): 사용자가 «일부러» 이전 변형의 기본값과 똑같은 값을
+     넣어 둔 경우도 「안 건드림」으로 읽혀 덮어써진다. dataset.borderTouched 같은 플래그를 쓰면
+     가를 수 있지만, 기존 블록·저장 왕복본에 플래그가 없어 전부 「안 건드림」으로 읽히므로
+     마이그레이션이 필요해진다 — 그래서 «안 쓴다». 이 오작동은 알고 남긴 것이다. */
+function applyModalVariant(block, next) {
+  if (!block) return false;
+  const nextV = MODAL_VARIANTS.includes(next) ? next : MODAL_DEFAULTS.variant;
+  const prevV = MODAL_VARIANTS.includes(block.dataset.variant) ? block.dataset.variant : MODAL_DEFAULTS.variant;
+  if (prevV === nextV) return false;
+  // ★채우기가 «먼저», variant 갱신이 나중 — 순서가 뒤집히면 prev 판정이 무너진다.
+  for (const key of MODAL_IDENTITY_KEYS) {
+    // dataset 값은 «문자열»이다 — 2 !== '2' 로 물리지 않게 String() 으로 맞춘다.
+    if ((block.dataset[key] ?? '') === String(_effDefault(prevV, key))) {
+      block.dataset[key] = String(_effDefault(nextV, key));
+    }
+  }
+  block.dataset.variant = nextV;
+  return true;
+}
+
 // 플레이스홀더 문구 — 고디터 기존 어휘 그대로(block-factory.js:65)
 const MODAL_PH = {
   title: '소제목을 입력하세요',
@@ -80,12 +122,13 @@ function _textHtml(cls, slot, value, ph) {
 function renderModalBlock(block) {
   if (!block) return;
   const v = MODAL_VARIANTS.includes(block.dataset.variant) ? block.dataset.variant : MODAL_DEFAULTS.variant;
-  const bg = block.dataset.bg || MODAL_DEFAULTS.bg;
+  // 테두리·배경은 «변형의 유효 기본값»으로 폴백한다 — dataset 이 비어 있어도 변형의 정체가 보인다.
+  const bg = block.dataset.bg || _effDefault(v, 'bg');
   const radius = _num(block, 'radius', MODAL_DEFAULTS.radius);
   const padX = _num(block, 'padX', MODAL_DEFAULTS.padX);
   const padY = _num(block, 'padY', MODAL_DEFAULTS.padY);
-  const borderW = _num(block, 'borderW', MODAL_DEFAULTS.borderW);
-  const borderStyle = block.dataset.borderStyle || MODAL_DEFAULTS.borderStyle;
+  const borderW = _num(block, 'borderW', _effDefault(v, 'borderW'));
+  const borderStyle = block.dataset.borderStyle || _effDefault(v, 'borderStyle');
   const borderColor = block.dataset.borderColor || MODAL_DEFAULTS.borderColor;
   const align = ['left', 'center', 'right'].includes(block.dataset.align) ? block.dataset.align : MODAL_DEFAULTS.align;
   const textColor = block.dataset.textColor || MODAL_DEFAULTS.textColor;
@@ -147,17 +190,19 @@ function makeModalBlock(opts = {}) {
   block.className = 'modal-block';
   block.id = genId('mdl');
   block.dataset.type = 'modal';
-  block.dataset.variant = MODAL_VARIANTS.includes(opts.variant) ? opts.variant : MODAL_DEFAULTS.variant;
-  block.dataset.bg = (typeof opts.bg === 'string' && _MDL_COLOR_RE.test(opts.bg.trim())) ? opts.bg.trim() : MODAL_DEFAULTS.bg;
+  const variant = MODAL_VARIANTS.includes(opts.variant) ? opts.variant : MODAL_DEFAULTS.variant;
+  block.dataset.variant = variant;
+  // ⚠️의도한 변경: opts.bg 가 «주어졌지만 형식이 틀린» 경우, 전에는 #f6f7f9 로 굳었다.
+  //   이제는 그 변형의 유효 기본값으로 간다(dashed 면 transparent). 「잘못된 입력은 유효 기본값으로」.
+  block.dataset.bg = (typeof opts.bg === 'string' && _MDL_COLOR_RE.test(opts.bg.trim())) ? opts.bg.trim() : _effDefault(variant, 'bg');
   block.dataset.radius = String(Number.isFinite(Number(opts.radius)) ? Number(opts.radius) : MODAL_DEFAULTS.radius);
   block.dataset.padX = String(Number.isFinite(Number(opts.padX)) ? Number(opts.padX) : MODAL_DEFAULTS.padX);
   block.dataset.padY = String(Number.isFinite(Number(opts.padY)) ? Number(opts.padY) : MODAL_DEFAULTS.padY);
-  // dashed 변형만 테두리를 기본으로 갖는다(그게 그 변형의 정체다). radius 는 조정⑵대로 0 유지.
-  const isDashed = block.dataset.variant === 'dashed';
-  block.dataset.borderW = String(Number.isFinite(Number(opts.borderW)) ? Number(opts.borderW) : (isDashed ? 2 : MODAL_DEFAULTS.borderW));
-  block.dataset.borderStyle = ['solid', 'dashed', 'dotted'].includes(opts.borderStyle) ? opts.borderStyle : (isDashed ? 'dashed' : MODAL_DEFAULTS.borderStyle);
+  // 변형별 기본값은 MODAL_VARIANT_IDENTITY 한 곳에서 온다(예: dashed 만 테두리를 기본으로 갖는다).
+  // radius 는 조정⑵대로 전 변형 0 유지 → 표에 넣지 않는다.
+  block.dataset.borderW = String(Number.isFinite(Number(opts.borderW)) ? Number(opts.borderW) : _effDefault(variant, 'borderW'));
+  block.dataset.borderStyle = ['solid', 'dashed', 'dotted'].includes(opts.borderStyle) ? opts.borderStyle : _effDefault(variant, 'borderStyle');
   block.dataset.borderColor = (typeof opts.borderColor === 'string' && _MDL_COLOR_RE.test(opts.borderColor.trim())) ? opts.borderColor.trim() : MODAL_DEFAULTS.borderColor;
-  if (isDashed && opts.bg === undefined) block.dataset.bg = 'transparent';
   block.dataset.wMode = opts.wMode === 'fixed' ? 'fixed' : MODAL_DEFAULTS.wMode;
   block.dataset.width = String(Number.isFinite(Number(opts.width)) ? Number(opts.width) : MODAL_DEFAULTS.width);
   block.dataset.hMode = opts.hMode === 'fixed' ? 'fixed' : MODAL_DEFAULTS.hMode;
@@ -222,6 +267,8 @@ window.makeModalBlock   = makeModalBlock;
 window.addModalBlock    = addModalBlock;
 window.renderModalBlock = renderModalBlock;
 window.commitModalSlot  = commitModalSlot;
+window.applyModalVariant = applyModalVariant;
 window.MODAL_VARIANTS   = MODAL_VARIANTS;
 
-export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, MODAL_DEFAULTS, MODAL_VARIANTS, MODAL_PH };
+export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, applyModalVariant, _effDefault,
+         MODAL_DEFAULTS, MODAL_VARIANTS, MODAL_VARIANT_IDENTITY, MODAL_PH };
