@@ -19,8 +19,17 @@
 // [P2+] 오버레이 렌더(사이드카/edges/positionTops)·연결 UX·fold/compare 는 후속 단계에서
 //   window.__spLinkRerender() 훅에 주입. 이 파일은 데이터 CRUD + 그 훅 호출까지만.
 //
-// export(HTML/figma/.gdt) 에서는 refLinks 를 strip 한다(死참조 = 배송본 쓰레기) — 저장경로엔 유지.
+// ★설계 «의도»: 배송본에서는 refLinks 를 strip 한다(死참조 = 배송본 쓰레기) — 저장경로엔 유지.
 //   strip 은 export 경로 파일에서 처리(이 파일 아님).
+// ⛔★2026-09-09 실측 정정 — 위 문장은 「HTML/figma/.gdt 에서는 strip 한다」고 «주장»했는데,
+//   실제로 벗기는 곳은 «하나»뿐이다. 그건 안심을 주는 문장이라 경고 부재보다 나쁘다.
+//     js/io/export-html.js:114   removeAttribute('data-ref-links')   ← 유일
+//     js/io/export-figma-json.js  0건 (⚠️dataset 을 «필드별»로 골라 읽어 안 실을 «수도» 있다 — 안 쟀다)
+//     .gdt (main/gdt/export.js)   0건 (project.json 을 그대로 담는다 ⇒ pages[].canvas 에 실린다)
+//     템플릿 저장(js/panels/template-system.js) 0건
+//       ↳ serializeCleanRoot 는 선택 마커·contenteditable 은 «다» 벗기지만 refLinks 는 «안» 벗긴다(실측).
+//   ⇒ 「템플릿·.gdt 가 배송인가 저장인가」는 «판단»이 필요해 안 고쳤다.
+//     티켓 = _context/BACKLOG-reflinks-strip-channels.md · 집행 = tests/unit/reflinks-strip-channels.test.js
 
 (function () {
   'use strict';
