@@ -291,6 +291,45 @@ for (const [what, act] of [
   });
 }
 
+/* ══ D6 — ★계획서가 «못 짚은» 4번째 자기재귀 자리 ══════════════════════
+ * 계획서 §1-A #4 는 자기재귀를 prop-grid.js 3곳으로 셌다. 그런데 grid-block.js 의
+ * updateGridBlock 도 성공하면 «스스로» window.showGridProperties?.(block) 을 «1-인자»로
+ * 다시 부른다 — MCP·인라인 편집 커밋·패널 조작이 전부 그 길을 탄다.
+ * 그 자리엔 넘길 주소가 «없다» ⇒ 패널이 선택을 «기억»해야만 살아남는다(WeakMap, bn2 선례).
+ *
+ * ★그리고 이게 D5 의 변이 3건이 «초록»으로 나온 이유이기도 하다: 기억이 있으면
+ *   자기재귀 3곳에 주소를 안 넘겨도 선택이 안 튄다(그 인자는 이중 방어라 단독 변이로는 안 죽는다).
+ *   ⇒ 진짜 지지대는 여기다. 되돌리면 빨강: prop-grid.js 의
+ *      `addrArg === undefined ? grdGetActiveLine(block) : addrArg` → `addrArg` */
+
+test('D6 ★updateGridBlock 이 «1-인자»로 패널을 다시 그려도 선택 줄이 그대로다', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page);
+  await open(page, { r: 0, c: 1, li: 2 });          // 뱃지 줄
+
+  const before = await page.evaluate(() => document.getElementById('grd-line-summary')?.textContent || '');
+  expect(before, 'Typography 요약이 안 떴다').toContain('3번째 줄');
+
+  // ★패널을 «거치지 않고» 모델만 바꾼다 — updateGridBlock 이 스스로 패널을 다시 그린다.
+  const ok = await page.evaluate(() => window.updateGridBlock(window.__block.id,
+    { patchCell: { r: 1, c: 0, lineIndex: 0, fontSize: 19 } }).ok);
+  expect(ok, 'patch 가 실패했다 — 이 검사는 아무것도 안 본다').toBe(true);
+
+  const after = await page.evaluate(() => {
+    const els = [...document.querySelectorAll('.grd-line-selected')];
+    return {
+      n: els.length,
+      key: els[0] && `(${els[0].dataset.r},${els[0].dataset.c},${els[0].dataset.line})`,
+      summary: document.getElementById('grd-line-summary')?.textContent || '',
+    };
+  });
+  expect(after.key, '★updateGridBlock 의 패널 재표시에서 선택이 «날아갔다» — ' +
+    '그 자리엔 넘길 주소가 없다. 패널이 선택을 기억해야 한다(WeakMap).').toBe('(0,1,2)');
+  expect(after.n, '마커가 여러 개거나 0개다').toBe(1);
+  expect(after.summary, '패널이 다른 줄을 보고 있다').toContain('3번째 줄');
+  expect(errs).toEqual([]);
+});
+
 /* ══ D2 — 저장 → 로드 왕복에서 값이 살아남는다 ═════════════════════════ */
 
 test('D2 ★serializeCleanRoot 왕복 뒤에도 computed 가 «같다» (타이포가 dataset 안에 산다)', async ({ page }) => {
