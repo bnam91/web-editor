@@ -321,3 +321,58 @@ test('T9 ★두 점이 만나는 spread = «먼 호 길이»이고, 광원 각�
   assert.deepEqual([...seen].sort((a, b) => a - b), [400, 540, 660],
     'rect 260×140(둘레 800)의 먼 호는 각도에 따라 400·540·660 이다');
 });
+
+/* ── T10 ★되접힘 법칙 — «미끄러짐»에 대해 정확하다 ────────────────────────── */
+test('T10 ★F 를 지나면 되접힌다 — magnet off 에서 image(s) == image(2F−s) 가 «정확»하다', async () => {
+  /* ⇐ 걷는 «방향»을 뒤집거나 걷는 양을 spread(=2h)로 잘못 주면 빨강.
+     ★왜 이 법칙이 성립하나: 먼 호 길이가 F 이므로 A 는 pA+h, B 는 pA+F−h 에 선다.
+       s → 2F−s (즉 h → F−h) 는 그 둘을 «맞바꿀» 뿐이고, 사다리꼴은 A·B 를 구별하지 않는다.
+
+     ⚠️★단서 — 이 법칙은 «미끄러짐»의 성질이다. 마그네틱을 켜면 «양 끝에서» 조금 어긋난다.
+       원인(실측으로 짚었다): vertexDistances 가 «출발 꼭짓점(거리 0)»을 일부러 뺀다.
+       그런데 «상대»의 출발 꼭짓점은 거리 F 에 있어 목록에 «남는다».
+         angle −140: V_A=[−660,−400,−260,140,400,540] · V_B=[−540,−400,−140,260,400,660]
+         ⇒ 둘 다 400(=F)은 갖고 0 은 없다. h↔F−h 로 뒤집으면 F 의 걸림이 0 으로 가야 하는데 «거기 없다».
+       ⇒ h≈0 과 h≈F 근처에서만 어긋나고, 어긋남은 «죽은 구간 폭»을 못 넘는다(실측 최대 10px).
+       ⛔이건 결함이 아니라 설계다 — 출발점에 걸림을 두면 spread 가 작을 때 슬라이더가 죽은 듯 느껴진다.
+       그래서 아래는 ⑴ magnet off 에서 «정확»을, ⑵ magnet on 에서 «어긋남이 갇혀 있음»을 잰다. */
+  const g = await loadGeom();
+  const near = (st) => {
+    let best = Infinity, at = 0;
+    for (let s = 0; s <= 800; s += 0.5) {
+      const q = g.computeZoomGeometry({ ...st, spread: s }, null);
+      const d = dist(q.A, q.B);
+      if (d < best) { best = d; at = s; }
+    }
+    return at;
+  };
+  const swapped = (p, q) =>
+    Math.max(dist(p.A, q.B), dist(p.B, q.A));      // «맞바꿈»이면 0
+
+  for (const angle of [0, -90, -140]) {
+    const base = { ...ST, angle, length: 260 };
+    const F = near(base);
+    assert.ok(F > 100 && F < 800, `전제: angle=${angle} 의 만나는 자리를 못 찾았다 (F=${F})`);
+
+    let moved = 0, offMax = 0, onMax = 0;
+    for (let s = 20; s <= 800; s += 20) {
+      const m = 2 * F - s;
+      if (m < -400 || m > 800 || Math.abs(m - s) < 1e-9) continue;
+      const a0 = g.computeZoomGeometry({ ...base, spread: s, magnet: 'off' }, null);
+      const b0 = g.computeZoomGeometry({ ...base, spread: m, magnet: 'off' }, null);
+      offMax = Math.max(offMax, swapped(a0, b0));
+      const a1 = g.computeZoomGeometry({ ...base, spread: s }, null);
+      const b1 = g.computeZoomGeometry({ ...base, spread: m }, null);
+      onMax = Math.max(onMax, swapped(a1, b1));
+      moved = Math.max(moved, dist(a0.A, g.computeZoomGeometry({ ...base, spread: 0 }, null).A));
+    }
+    // ★양성대조 — 훑는 동안 점이 «실제로» 움직였다. 안 움직이면 법칙이 공짜로 성립한다
+    assert.ok(moved > 50, `angle=${angle}: 훑는 내내 점이 안 움직였다 = 이 법칙이 공짜로 참이다`);
+    // ⑴ 미끄러짐만이면 «정확»하다
+    assert.ok(offMax < 1e-6,
+      `angle=${angle}: magnet off 인데 되접힘이 안 맞는다 (최대 ${offMax.toFixed(3)}px) — 걷는 방향·양이 틀렸다`);
+    // ⑵ 걸림을 켜면 어긋나되, «죽은 구간 폭» 안에 갇힌다
+    assert.ok(onMax <= g.ZOOM_DETENT_W + 1e-6,
+      `angle=${angle}: 걸림이 되접힘을 ${onMax.toFixed(1)}px 나 흔든다 — 창 폭(${g.ZOOM_DETENT_W})을 넘었다`);
+  }
+});
