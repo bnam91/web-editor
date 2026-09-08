@@ -44,11 +44,13 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
   import { makeModalBlock, renderModalBlock } from '/js/blocks/modal-block.js';
   import { showModalProperties } from '/js/props/prop-modal.js';
   import { showHandlesFor, showAssetResizeHandles } from '/js/overlay-handles.js';
+  import { bindBlock } from '/js/drag-drop.js';
   window.__mk = makeModalBlock;
   window.__render = renderModalBlock;
   window.__open = showModalProperties;
   window.__show = showHandlesFor;
   window.__showAsset = showAssetResizeHandles;
+  window.__bind = bindBlock;
   window.__ready = true;
 </script></body></html>`;
 
@@ -327,4 +329,36 @@ test('D9 ★저장 왕복 — 새 dataset 키(vAlign/autoCentered)가 «실제�
     savedHasVAlign: true, savedHasMarker: true,
     backVAlign: 'center', backMarker: '1', backWMode: 'fixed',
   });
+});
+
+test('D10 ★«진짜 클릭» — 캔버스에서 모달을 누르면 핸들이 붙는다 (등록 지점 ②)', async ({ page }) => {
+  /* ★D1 은 showHandlesFor 를 «직접» 부른다. 그런데 결함이 살던 곳은 그게 아니라
+     block-drag 의 «클릭 경로»였다 — 모달은 grid/infocard 와 함께 공용 루프에 얹혀 있고
+     그 루프엔 핸들 호출이 «아예 없었다». 그래서 여기서는 bindBlock 을 걸고 진짜로 «누른다».
+     ⇒ block-drag 의 showHandlesFor 한 줄을 지우면 여기가 빨개진다. */
+  const errs = await boot(page);
+  const stubbed = await page.evaluate(() => {
+    /* 클릭 핸들러가 «옵셔널 체이닝 없이» 부르는 앱 전역만 최소로 세운다.
+       ⛔핸들 관련은 하나도 안 세운다 — 세우면 이 검사가 자기 손으로 통과한다. */
+    const missing = [];
+    for (const n of ['deselectAll', 'syncSection', 'highlightBlock', 'setBlockAnchor', 'showModalProperties', 'buildLayerPanel']) {
+      if (!window[n]) { window[n] = () => {}; missing.push(n); }
+    }
+    const { row, block } = window.__mk({});
+    document.getElementById('host').appendChild(row);
+    window.__render(block);
+    window.__bind(block);                 // ← 앱이 블록에 거는 «그» 바인딩
+    window.__block = block;
+    return missing;
+  });
+  expect(stubbed).not.toContain('showHandlesFor');
+
+  expect(await counts(page)).toEqual({ resize: 0, radius: 0, asset: 0 });
+  await page.locator('#host .modal-block').click();
+  await raf(page);
+  const after = await counts(page);
+  expect(await page.evaluate(() => window.__block.classList.contains('selected')), '클릭이 선택조차 못 했다').toBe(true);
+  expect(after.resize, '클릭 경로가 핸들을 안 띄운다 — 공용 루프에 호출이 없다').toBe(4);
+  expect(after.radius).toBe(4);
+  expect(errs).toEqual([]);
 });
