@@ -24,7 +24,11 @@
     /* .open 클래스가 늦게 붙어도 «빈 창»이 보이지 않게 처음부터 보이게 둔다 */
     opacity: 1 !important; pointer-events: auto !important;
   }
-  /* 패널 모서리 리사이즈 핸들 — 창에서는 창 테두리가 그 역할을 한다 */
+  /* 패널 모서리 리사이즈 핸들 — 창에서는 OS 가 창 가장자리로 리사이즈를 준다.
+     ⚠️이 창은 frame:false(신호등 제거) 라 «보이는» 테두리가 없다. 그래도 맥은 프레임리스에서도
+       가장자리 리사이즈를 계속 주므로 핸들은 계속 숨긴다.
+     ⛔핸들을 되살리지 마라 — 창 가장자리 리사이즈와 겹쳐 서로 싸운다.
+       (맥에서 실제로 리사이즈되는지는 Evaluator 가 잰다. Windows 거동은 «미확인».) */
   #tpl-resize-handle { display: none !important; }
   /* 헤더로 «창»을 끌 수 있게. 버튼은 눌려야 하니 제외한다. */
   .tpl-browser-header { -webkit-app-region: drag; cursor: default !important; }
@@ -39,24 +43,29 @@
 <div id="tpl-browser" class="tpl-browser" role="dialog" aria-label="템플릿 브라우저" data-user-moved="1">
   <div class="tpl-browser-header">
     <span class="tpl-browser-title">Templates</span>
-    <!-- ⛔레이아웃은 «기능 미정»이라 disabled 다 — 눌리는데 아무 일도 안 나면 그게 버그다. -->
-    <button class="tpl-browser-hbtn" id="tpl-browser-layout" title="레이아웃 전환 (준비 중)" disabled>
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M1 1.5h8v7H1z"/><path d="M4 1.5v7"/>
-      </svg>
-    </button>
-    <!-- ★복구 — 떼어내기의 «짝». 떼어냈으면 되돌릴 길이 있어야 한다.
-         아이콘은 떼어내기(밖으로 나가는 화살)를 뒤집어 «안으로 들어오는» 모양으로 짝을 보인다. -->
-    <button class="tpl-browser-hbtn" id="tpl-browser-restore" title="편집기로 되돌리기">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M8.5 5.5V9H1V1.5h3.5"/><path d="M9 1 5.5 4.5"/><path d="M5.5 1.5v3h3"/>
-      </svg>
-    </button>
-    <button class="tpl-browser-hbtn tpl-browser-close" id="tpl-browser-close" title="창 닫기">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
-        <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
-      </svg>
-    </button>
+    <!-- ★버튼은 «묶어서» 오른쪽 끝에 붙인다(index.html 헤더와 «같은» 구조 — 한쪽만 고치면 헤더가 갈린다).
+         안 묶으면 헤더의 space-between 이 제목+버튼3 을 균등 분산해 89px 씩 흩어진다.
+         ⚠️.tpl-browser-header button{no-drag} 는 자손 선택자라 이 래퍼 «안»의 버튼에도 그대로 닿는다. -->
+    <div class="tpl-browser-hbtns">
+      <!-- ⛔레이아웃은 «기능 미정»이라 disabled 다 — 눌리는데 아무 일도 안 나면 그게 버그다. -->
+      <button class="tpl-browser-hbtn" id="tpl-browser-layout" title="레이아웃 전환 (준비 중)" disabled>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M1 1.5h8v7H1z"/><path d="M4 1.5v7"/>
+        </svg>
+      </button>
+      <!-- ★복구 — 떼어내기의 «짝». 떼어냈으면 되돌릴 길이 있어야 한다.
+           아이콘은 떼어내기(밖으로 나가는 화살)를 뒤집어 «안으로 들어오는» 모양으로 짝을 보인다. -->
+      <button class="tpl-browser-hbtn" id="tpl-browser-restore" title="편집기로 되돌리기">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M8.5 5.5V9H1V1.5h3.5"/><path d="M9 1 5.5 4.5"/><path d="M5.5 1.5v3h3"/>
+        </svg>
+      </button>
+      <button class="tpl-browser-hbtn tpl-browser-close" id="tpl-browser-close" title="창 닫기">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+        </svg>
+      </button>
+    </div>
   </div>
   <!-- 미리보기 영역 (상단) -->
   <div class="tpl-browser-preview-area" id="tpl-browser-preview-area">

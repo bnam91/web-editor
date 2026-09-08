@@ -744,6 +744,15 @@ body.preview-mode #preview-navigator { display: flex; }
   font-size: var(--ui-fs-base);
 }
 .tpl-browser-search::placeholder { color: var(--ui-text-dim); }
+/* 헤더 버튼 «묶음» — 이게 없으면 헤더의 justify-content:space-between 이 자식 4개(제목+버튼3)를
+   균등 분산해 버튼이 89px 씩 흩어진다. 버튼들을 한 덩어리로 묶어 오른쪽 끝에 붙인다.
+   ⛔.tpl-browser-header 의 space-between 은 그대로 둔다 — 제목↔버튼묶음 을 양끝으로 미는 건 여전히 맞다.
+   ★index.html 과 pages/template-browser.html 이 «각자» 자기 헤더 마크업을 갖는다 — 둘 다 이 래퍼를 쓴다. */
+.tpl-browser-hbtns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 /* 헤더 버튼 공용 — 닫기·새창·레이아웃이 «같은 몸통»을 쓴다(값은 옛 .tpl-browser-close 그대로) */
 .tpl-browser-hbtn {
   background: none;

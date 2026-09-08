@@ -687,8 +687,24 @@ function initTemplateBrowser() {
   /* 새 창으로 보기 — 뷰어 전용 창을 main 이 띄운다.
      ⛔#tpl-browser-layout 에는 핸들러를 «달지 않는다». 기능이 아직 없어서 disabled 로 막아 뒀고,
        핸들러만 먼저 달면 disabled 를 떼는 순간 «눌리는데 아무 일도 안 나는» 버튼이 된다. */
-  document.getElementById('tpl-browser-popout')?.addEventListener('click', () => {
-    window.electronAPI?.openTemplateWindow?.();
+  document.getElementById('tpl-browser-popout')?.addEventListener('click', async () => {
+    /* ★떼어냈으면 앱 «안»의 패널은 닫는다 — 같은 패널이 둘이면 어느 쪽이 진짜인지 알 수 없다.
+       ⛔단, 창이 «실제로 떴는지 확인한 뒤»에만 닫는다. 먼저 닫고 창이 안 뜨면 사용자는 패널을 잃는다.
+       ⚠️실패가 오는 길이 «둘»이라 둘 다 막는다 — 두 경로의 «결과가 같아야» 한다(안 닫힘 + 토스트):
+         ⑴ main 이 {ok:false,reason} 을 돌려주는 길 (templates:open-window 의 catch)
+         ⑵ await 자체가 «던지는» 길 — preload 누락·채널 미등록·IPC 자체 실패.
+       ★catch 가 없던 판(2026-09-08)에서는 ⑵ 가 「패널도 안 닫히고 토스트도 안 뜨는」
+         «침묵 실패»였다. 실측: 강제 throw 시 토스트 0건 → catch 추가 후 1건.
+       ⛔r 이 undefined 인 경우(electronAPI 자체가 없음)도 r?.ok 가 falsy 라 아래 토스트로 간다. */
+    let r;
+    try {
+      r = await window.electronAPI?.openTemplateWindow?.();
+    } catch (e) {
+      console.error('[template] 팝아웃 IPC 실패:', e);
+      r = { ok: false, reason: '새 창을 열지 못했습니다.' };
+    }
+    if (r?.ok) closeTemplateBrowser();
+    else window.showToast?.(r?.reason || '새 창을 열지 못했습니다.');
   });
 
   // 헤더 드래그 이동
