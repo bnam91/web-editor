@@ -424,11 +424,19 @@ test('D12 ★«툴바로 추가한 그 순간» 핸들이 있다 — 한 번 더
     /* addModalBlock 이 옵셔널 체이닝 «없이» 기대하는 앱 전역만 최소로 세운다.
        ⛔핸들·패널 관련은 하나도 안 세운다 — 세우면 검사가 자기 손으로 통과한다. */
     window.getSelectedSection = () => document.querySelector('.section-block');
-    const r = window.__add({});
-    return { block: !!(r && r.block), id: r && r.block && r.block.id,
-             blocksInDom: document.querySelectorAll('#canvas .modal-block').length,
-             selected: !!(r && r.block && r.block.classList.contains('selected')) };
+    /* ⛔여기서 «터지게» 두지 마라 — 터지면 playwright 가 TypeError 를 던지고,
+       아래 양성대조가 «자기 말»로 원인을 대지 못한다(실측: 「reading 'classList'」만 남았다). */
+    try {
+      const r = window.__add({});
+      const b = r && r.block;
+      return { threw: null, block: !!b, id: b ? b.id : null,
+               blocksInDom: document.querySelectorAll('#canvas .modal-block').length,
+               selected: !!(b && b.classList.contains('selected')) };
+    } catch (e) {
+      return { threw: String(e && e.message || e), block: false, blocksInDom: 0, selected: false };
+    }
   });
+  expect(made.threw, `addModalBlock 이 던졌다: ${made.threw}`).toBeNull();
   /* ★「입력이 살아 있다」 — 블록이 «안 만들어졌으면» 아래 4+4 검사는 공회전한다.
      ⛔0 이 「핸들이 없다」와 「잴 블록이 없다」 두 뜻을 갖게 두지 마라. */
   expect(made.block, 'addModalBlock 이 블록을 못 만들었다 — 아래 검사가 공회전한다').toBe(true);
