@@ -183,6 +183,57 @@ test('T15 ★옮기는 «순서» — 잔재 먼저, 번들 나중 (좀비 부�
     `★번들이 «마지막»이 아니다: ${order.join(' → ')}`);
 });
 
+test('T16 ⛔롤백이 «실패한» 파일을 그 자리에서 영구히 지우지 않는다 (지디 지적 F1)', () => {
+  /* ★이 파일 머리글의 약속: 「여기서 «영구 삭제»를 하지 않는다 — 마지막 그물을 우리가 끊으면
+       되돌릴 길이 없어진다」. 그런데 실패 경로가 `rmSync(dst, recursive, force)` 를 «조건 없이» 돌았다.
+     롤백이 일부 실패하면 그 파일들은 아직 dst 안에 있는데, 바로 다음 줄이 그걸 지운다.
+     ⇒ 반환값은 「사람이 봐야 한다」인데 «사람이 볼 때는 이미 없다».
+     ★순서 결정(잔재 먼저·번들 나중)의 근거가 「롤백도 실패할 수 있다」였다 —
+       그 전제를 세워놓고 정작 그 경우에 데이터를 지우면 안 된다. */
+  const dir = makeProjectsDir(['proj_1000'], { legacy: true });
+  /* ⚠️자극을 정확히 겨눈다 — 첫 판은 «앞으로 가는 이동»까지 같이 막아서 롤백이 아예 안 돌았다.
+       ⇒ 「전제: 되돌리기가 실제로 실패했나」가 빨개져서 «못 잰 것»을 알았다. 판정 전에 주입부터 확인한다. */
+  const realRename = fs.renameSync;
+  let n = 0, forwardDone = false;
+  fs.renameSync = (a, b) => {
+    n++;
+    if (n === 2) { forwardDone = true; throw new Error('디스크 가득'); }   // 앞으로 옮기다 실패
+    if (forwardDone) throw new Error('EPERM');                            // ★그 «뒤»의 되돌리기는 전부 실패
+    return realRename(a, b);
+  };
+  let r;
+  try { r = T.moveToTrash({ projectsDir: dir, projectId: 'proj_1000' }); }
+  finally { fs.renameSync = realRename; }
+
+  assert.equal(r.ok, false);
+  assert.ok(r.rollbackStuck && r.rollbackStuck.length, '전제: 되돌리기가 «실제로» 실패해야 이 검사가 뜻이 있다');
+  /* ★핵심 — 못 되돌린 파일이 «살아 있어야» 한다. 어디 있든(원자리든 휴지통이든) 디스크에 있어야 한다. */
+  const stuckPath = r.rollbackStuck[0].path;
+  assert.ok(fs.existsSync(stuckPath) || fs.existsSync(path.join(dir, 'proj_1000.json')),
+    `★되돌리지 못한 파일을 그 자리에서 «영구히» 지웠다 — 사람이 볼 때는 이미 없다: ${stuckPath}`);
+  /* ★«살아 있다»만으로는 부족하다 — 어디에 남았는지 «말해야» 사람이 찾는다.
+     조용히 남기면 사용자는 「그냥 실패했다」로 읽고 그 파일들을 영영 모른다. */
+  assert.ok(r.leftInTrash && Array.isArray(r.leftInTrash.entries) && r.leftInTrash.entries.length,
+    `★남겨는 뒀는데 «어디에 무엇이» 남았는지 말하지 않는다: ${JSON.stringify(r)}`);
+  assert.match(String(r.hint), /지우지 않고/, '★hint 가 아직 「되돌렸다」고 말한다 — 사실과 다르다');
+});
+
+test('T17 ⛔되살릴 때도 «메타에 없는» 파일을 조용히 지우지 않는다 (지디 지적 F2)', () => {
+  /* 가능성은 F1 보다 낮다(메타는 이동 «뒤»에 쓰이니 보통 일치한다).
+     ⛔「가능성이 낮다」로 적지 «없다»로 적지 않는다 — 낮은 확률로 데이터가 사라지는 건 여전히 사고다. */
+  const dir = makeProjectsDir();
+  T.moveToTrash({ projectsDir: dir, projectId: 'proj_1000' });
+  // 메타가 모르는 파일이 휴지통 항목 안에 있다(손으로 넣었든, 옛 판이 남겼든)
+  const stray = path.join(dir, '.trash', 'proj_1000', '손으로-넣은-것.txt');
+  fs.writeFileSync(stray, '중요');
+  const r = T.restoreFromTrash({ projectsDir: dir, projectId: 'proj_1000' });
+  assert.equal(r.ok, true);
+  assert.ok(fs.existsSync(stray), '★메타에 없는 파일을 지웠다 — 우리가 모르는 것을 지울 자격은 없다');
+  // ★남겼으면 «말해야» 한다 — 안 말하면 사용자는 그 파일이 있는 줄도 모른다
+  assert.ok(r.leftBehind && r.leftBehind.length,
+    `★남겨는 뒀는데 말하지 않는다: ${JSON.stringify(r)}`);
+});
+
 test('T14 깨진 메타 하나가 목록 «전체»를 죽이지 않는다', () => {
   const dir = makeProjectsDir(['proj_1000', 'proj_2000']);
   T.moveToTrash({ projectsDir: dir, projectId: 'proj_1000' });
