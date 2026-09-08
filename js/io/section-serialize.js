@@ -34,6 +34,7 @@
     root.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
     root.querySelectorAll('.cell-selected').forEach(el => el.classList.remove('cell-selected')); // #5-b 테이블 셀 선택 마킹 (UI 상태 — 저장본 유출 방지)
     root.querySelectorAll('.bn2-line-selected').forEach(el => el.classList.remove('bn2-line-selected')); // ⑧ 배너02 줄 선택 마킹 (UI 상태)
+    root.querySelectorAll('.grd-line-selected').forEach(el => el.classList.remove('grd-line-selected')); // 그리드 줄 선택 마킹 (UI 상태 — 저장본 유출 방지)
     root.querySelectorAll('.bn2-line-empty').forEach(el => el.classList.remove('bn2-line-empty'));       // ⑸ 빈 줄 플레이스홀더 (편집 전용)
     root.querySelectorAll('.editing').forEach(el => el.classList.remove('editing'));
     root.querySelectorAll('.row-active').forEach(el => el.classList.remove('row-active'));

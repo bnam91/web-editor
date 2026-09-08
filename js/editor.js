@@ -2898,6 +2898,8 @@ function deselectAll() {
   if (window._tblSel) window._tblSel = null;
   // ⑧ 배너02 줄 선택 아웃라인도 함께 해제 (label-item 처리와 같은 자리)
   canvas.querySelectorAll('.bn2-line-selected').forEach(el => el.classList.remove('bn2-line-selected'));
+  // 그리드 «줄 선택» 마커도 같은 자리에서 해제 (prop-grid.js 의 _grdSyncLineMark 와 짝)
+  canvas.querySelectorAll('.grd-line-selected').forEach(el => el.classList.remove('grd-line-selected'));
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
 
   // 레이어 패널 선택 해제

@@ -100,3 +100,35 @@ dev 분리 커밋 = `a08bab7`. 되살릴 땐 그 브랜치를 다시 보면 된�
 상세: `feat/block-overlap` 의 `QA-block-overlap.md`.
 
 시안: https://claude.ai/code/artifact/2cfa443e-8fbc-4bf4-ad59-627a5f9be3fe
+
+---
+
+## [그리드 줄 타이포] 후속 티켓 — `feat/grid-line-typo` 에서 «의도적으로» 남긴 것
+
+> 2026-09-09. 본 작업은 커밋 A(패널·선택·배선) / B(§7-ⓐ 역할 기본색) 로 갈라 놨다.
+> 아래는 적대 검수가 잡았지만 «이 단위의 발주 밖»이라 뺀 것들. ⛔「나중에」가 아니라 «티켓»이다.
+
+### C — 중첩 duo 줄의 색 전파가 «무검사»
+- D 픽스처에 `type:'duo'` 줄이 **0건**이라, `renderGridBlock` 이 중첩 재귀에
+  `useRoleColor` 를 물려 주는 그 경로를 «아무도 안 잰다».
+- 중첩 줄은 `addr=null` + `useRoleColor=true` 라는 **새 조합**이다(§7-ⓐ 이전엔 없던 조합).
+- ⇒ 픽스처에 중첩 duo 를 넣고 「중첩 안쪽 줄도 역할색을 받는가 / innercard 안의 중첩은 안 받는가」를 갈라 재라.
+- 관련: `js/blocks/grid-block.js` 의 addr 주석에 이미 «옆에 대비»를 세워 뒀다(사실이던 문장은 안 지웠다).
+
+### F1 — `_GRD_TYPO_FIELDS` 명부와 범위가드가 «무검사»
+- `prop-grid.js` 의 `_GRD_TYPO_FIELDS`(8개)에서 하나를 지워도 전부 초록.
+  ⇒ 「↺ 역할로」가 그 필드를 **안 지우고 남긴다**(사용자는 되돌렸다고 믿는데 값이 남는다).
+- `_gridLineHtml` 의 `lineHeight`(0<n≤10) · `letterSpacing`(|n|≤100) 범위가드를 지워도 초록.
+- ⇒ 「명부 × 렌더러가 실제로 읽는 필드」를 대조하는 검사 + 범위 밖 값의 음성대조.
+
+### F2 — 편집 마커가 «비교 키»와 «스코프 없는 CSS» 로 새는 자리 (★bn2 가 원래부터)
+- `js/market-merge.js:9` · `js/version-diff.js:31` 의 `_RUNTIME_CLS` 에
+  `bn2-line-selected` · `grd-line-selected` 가 **없다** ⇒ 줄을 선택한 것만으로
+  섹션 정규화 문자열이 달라져 협업 머지·버전 비교에서 **「변경됨」 오탐**이 난다.
+  (같은 병: `feedback_watch_diff_by_exact_string` — 변화를 문자열 완전일치로 재면 점검자가 오탐을 만든다)
+- `.bn2-line-selected` 의 CSS 는 `.banner02-block .bn2-line-selected` 로 **스코프가 없다**.
+  그래서 `prop-mockup.js` · `save-load.js` 썸네일처럼 클론을 `document.body` 로 내보내 찍는
+  경로에서 **PNG 에 실제로 그려질 수 있다**. (`.grd-line-selected` 는 `#canvas` 스코프라 안전)
+- ⇒ 처방 둘 중 하나: ⑴ `_RUNTIME_CLS` 를 `tests/_export-channels.js` 의 `MARKER_TOKENS` 와
+  같은 곳에서 받게 하거나 ⑵ bn2 CSS 에 `#canvas` 스코프를 붙인다.
+- 명부(`tests/_export-channels.js`)에 `kind:'compare'` 로 **이미 적어 뒀다** — 숨기지 않았다.

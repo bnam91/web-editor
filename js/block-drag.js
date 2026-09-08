@@ -175,6 +175,10 @@ function _modalEndEdit(block, host) {
 function _gridBeginEdit(hit, e) {
   const { block, host, r, c, li } = hit;
   if (host.getAttribute('contenteditable') === 'true') return;
+  /* ★편집에 들어가는 줄은 «선택된 줄»이기도 하다 — 우측 패널이 그 줄의 Typography·Fill 을 봐야 한다.
+     ⛔focus() «전»에 부른다: 패널은 propPanel(캔버스 밖) 을 다시 그릴 뿐 이 host 를 안 건드리지만,
+       순서를 뒤집으면 나중에 누가 패널에서 캔버스를 만지게 고칠 때 캐럿이 날아간다. */
+  window.showGridProperties?.(block, { r, c, li });
   block.classList.add('editing');   // 공통 mousedown 드래그·dragstart·삭제키 가드가 이걸 본다
   host.setAttribute('contenteditable', 'true');
   // 부모 row 에 draggable="true" 가 걸려 있다 — 안 끄면 «글자 드래그 선택»이 블록 드래그가 된다
@@ -1803,7 +1807,18 @@ function bindBlock(block) {
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
-      window[showFn]?.(block);
+      /* ★그리드는 «누른 줄»의 주소를 같이 넘긴다 — 패널이 그 줄의 Typography·Fill 을 띄운다
+         (bn2 의 [data-line-idx] 선례와 같은 모양, 이 파일 위쪽).
+         ⛔DOM 순서로 역산하지 않는다 — 렌더러가 심어 둔 data-r/data-c/data-line 이 정본이고,
+           그걸 읽는 판정은 _gridEditable «하나»다(글자를 안 담는 gap/image/중첩 줄은 null).
+           여기서 자기 벌을 만들면 「어느 줄이 편집 대상인가」가 두 벌이 되어 조용히 갈라진다.
+         ★2번째 인자는 «선택적»이다 — 다른 셋(infocard/innercard/modal)은 그냥 무시한다. */
+      let _grdAddr;
+      if (showFn === 'showGridProperties') {
+        const _h = _gridEditable(e.target);
+        if (_h && _h.block === block) _grdAddr = { r: _h.r, c: _h.c, li: _h.li };
+      }
+      window[showFn]?.(block, _grdAddr);
       /* ★핸들도 «여기서» 띄운다 — 이 루프엔 호출이 아예 없어서 모달을 클릭하면
          선택 테두리(오버레이)는 그려지는데 «모서리 점»만 안 나왔다(실측 handleCount 0).
          showHandlesFor 는 블록 종류를 스스로 가른다 ⇒ 분기가 없는 grid/infocard/innercard 는
