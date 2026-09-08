@@ -1,11 +1,11 @@
 {
   "note": "생성물 — tools/mcp-contract-snapshot.mjs 로만 고친다. 손으로 고치지 마라.",
   "counts": {
-    "registered": 94,
-    "visible": 40,
+    "registered": 95,
+    "visible": 41,
     "hidden": 54,
-    "mutating": 81,
-    "gated": 78
+    "mutating": 82,
+    "gated": 79
   },
   "sizeCaps": {
     "_CANVAS_TEXT_CAP": 120,
@@ -530,6 +530,19 @@
         "message",
         "ok"
       ]
+    },
+    "edit_variation": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "op",
+        "sectionId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
     },
     "export_sections": {
       "hidden": false,

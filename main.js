@@ -3679,6 +3679,7 @@ app.whenReady().then(async () => {
       addChecklistItem: _invokeRendererAddChecklistItem,
       checklistSection: _invokeRendererChecklistSection,
       searchSections: _invokeRendererSearchSections,
+      variation: _invokeRendererVariation,
       setSectionMemo: _invokeRendererSetSectionMemo,
       getSectionMemo: _invokeRendererGetSectionMemo,
       updateChecklistItem: _invokeRendererUpdateChecklistItem,
@@ -3883,6 +3884,134 @@ async function _invokeRendererAddChecklistItem({ text, x, y, sectionId, ckSectio
    ⛔없을 때 어땠나: 「'무료배송' 적힌 데 고쳐줘」를 하려면 섹션을 «하나씩» 열어야 했다.
      실물 프로젝트가 102섹션이라 왕복 102번 — 실무에서 못 쓴다.
    ⇒ 렌더러를 «한 번만» 훑는다. 섹션을 여닫지 않으므로 화면 상태를 안 건드린다. */
+/* ─── A/B 베리에이션 «쓰기» — 2026-09-08 현빈 지시 ──────────────────────────
+ * ★렌더러에 이미 있는 함수를 «부른다» — 여기서 DOM 을 직접 만들지 않는다.
+ *   createVariation/addVariation/toggleVariation/resolveVariation 이 배지·바인딩·히스토리까지 챙긴다.
+ *   내가 흉내내면 그 배선이 빠진 «반쪽 시안»이 생긴다.
+ * ⛔단 두 가지는 렌더러에 «없어서» 여기서 짓는다:
+ *   ⑴ switch — 렌더러 toggle 은 「다음 안으로」뿐이라 «지목»이 안 된다. to 까지 반복해 돌린다.
+ *   ⑵ delete — 시안 «하나»만 지우는 함수가 아예 없다.
+ * ★모든 판정은 «효과»로 — 함수를 부른 뒤 DOM 을 다시 세어 답한다(rc 를 안 믿는다).
+ */
+async function _invokeRendererVariation({ op, sectionId, to, confirm = false } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const a = JSON.stringify({ op: String(op || ''), sectionId: String(sectionId || ''),
+                             to: to == null ? null : String(to), confirm: !!confirm });
+  const js = `(() => {
+    try {
+      const p = ${a};
+      const sec = document.getElementById(p.sectionId);
+      if (!sec || !sec.classList.contains('section-block'))
+        return { ok:false, code:'SECTION_NOT_FOUND', message:'섹션이 없다: ' + p.sectionId };
+      const grpOf = (el) => el.dataset.variationGroup || '';
+      const membersOf = (g) => g ? [...document.querySelectorAll('.section-block[data-variation-group="' + g + '"]')] : [];
+      const LABELS = ['A','B','C','D','E'];
+      const snap = (g) => membersOf(g)
+        .sort((x,y) => LABELS.indexOf(x.dataset.variation) - LABELS.indexOf(y.dataset.variation))
+        .map(x => ({ sectionId: x.id, variation: x.dataset.variation,
+                     active: x.dataset.variationActive === '1',
+                     visible: getComputedStyle(x).display !== 'none' }));
+
+      if (p.op === 'create') {
+        if (grpOf(sec)) return { ok:false, code:'ALREADY_VARIATION',
+          message:'이미 A/B 묶음이다 — 안을 더 늘리려면 op:"add" 를 써라', group: grpOf(sec), members: snap(grpOf(sec)) };
+        if (typeof window.createVariation !== 'function') return { ok:false, code:'FN_MISSING', message:'createVariation 없음' };
+        window.createVariation(sec);
+        const g = grpOf(sec);
+        if (!g) return { ok:false, code:'NOEFFECT', message:'불렀는데 묶음이 안 생겼다' };
+        return { ok:true, op:'create', group:g, members: snap(g) };
+      }
+
+      const g = grpOf(sec);
+      if (!g) return { ok:false, code:'NOT_A_VARIATION',
+        message:'이 섹션은 A/B 묶음이 아니다 — 먼저 op:"create" 로 만들어라' };
+      const before = snap(g);
+
+      if (p.op === 'add') {
+        /* ⛔렌더러는 상한(5) 초과를 «조용히 무시»한다 — 그러면 호출자는 「됐다」로 읽는다. 여기서 말한다. */
+        if (before.length >= LABELS.length)
+          return { ok:false, code:'VARIATION_LIMIT', limit: LABELS.length, members: before,
+                   message:'시안이 이미 ' + LABELS.length + '개(A~E)다 — 더 못 늘린다' };
+        window.addVariation(sec);
+        const after = snap(g);
+        if (after.length <= before.length) return { ok:false, code:'NOEFFECT', members: after, message:'불렀는데 안 늘었다' };
+        return { ok:true, op:'add', group:g, added: after[after.length-1].variation, members: after };
+      }
+
+      if (p.op === 'switch') {
+        const want = (p.to || '').toUpperCase();
+        if (!LABELS.includes(want)) return { ok:false, code:'BAD_TARGET', message:'to 는 A~E 중 하나여야 한다: ' + p.to };
+        if (!before.some(m => m.variation === want))
+          return { ok:false, code:'NO_SUCH_VARIATION', members: before, message:want + '안이 이 묶음에 없다' };
+        /* 렌더러 toggle 은 「다음 안으로」뿐이라 원하는 안이 «나올 때까지» 돌린다.
+           ⛔무한루프를 막으려고 멤버 수만큼만 돌린다 — 그 안에 못 닿으면 그건 결함이다. */
+        for (let i = 0; i < before.length + 1; i++) {
+          const cur = snap(g).find(m => m.active);
+          if (cur && cur.variation === want) break;
+          window.toggleVariation(sec);
+        }
+        const after = snap(g);
+        const now = after.find(m => m.active);
+        if (!now || now.variation !== want)
+          return { ok:false, code:'NOEFFECT', members: after, message:'전환이 안 먹었다' };
+        /* ★«보이나»까지 확인한다 — active 표시만 바뀌고 화면이 그대로면 사용자에겐 아무 일도 없다 */
+        const shown = after.filter(m => m.visible).map(m => m.variation);
+        return { ok:true, op:'switch', group:g, active: now.variation, visible: shown, members: after };
+      }
+
+      if (p.op === 'resolve') {
+        const active = before.find(m => m.active) || before[0];
+        const willDelete = before.filter(m => m.variation !== active.variation);
+        /* ⛔되돌리기 어려운 일이다 — «무엇이 지워지는지» 먼저 돌려주고, confirm 없으면 «안 한다». */
+        if (!p.confirm)
+          return { ok:false, code:'CONFIRM_REQUIRED', keep: active.variation,
+                   willDelete: willDelete.map(m => ({ variation:m.variation, sectionId:m.sectionId })),
+                   message: active.variation + '안만 남기고 ' + willDelete.length + '개를 지운다. 다시 부를 때 confirm:true 를 줘라' };
+        window.resolveVariation(sec);
+        const left = membersOf(g);
+        if (left.length) return { ok:false, code:'NOEFFECT', message:'확정했는데 묶음이 남아 있다', members: snap(g) };
+        const kept = document.getElementById(active.sectionId);
+        if (!kept) return { ok:false, code:'KEPT_GONE', message:'★남겨야 할 안이 사라졌다 — 사람이 봐야 한다' };
+        return { ok:true, op:'resolve', kept: active.sectionId, keptVariation: active.variation,
+                 deleted: willDelete.map(m => m.sectionId) };
+      }
+
+      if (p.op === 'delete') {
+        /* 렌더러에 «시안 하나만 지우는» 함수가 없어서 여기서 짓는다. */
+        if (before.length <= 1) return { ok:false, code:'LAST_VARIATION', message:'남은 안이 하나뿐이라 못 지운다' };
+        const me = before.find(m => m.sectionId === sec.id);
+        if (!p.confirm)
+          return { ok:false, code:'CONFIRM_REQUIRED', willDelete: me && me.variation,
+                   message: (me && me.variation) + '안을 지운다. 다시 부를 때 confirm:true 를 줘라' };
+        if (window.pushHistory) window.pushHistory((me && me.variation) + '안 삭제');
+        const wasActive = me && me.active;
+        sec.remove();
+        const rest = membersOf(g);
+        /* ★지운 것이 «보이던 안»이면 다른 안을 보이게 해야 한다 — 안 그러면 자리가 통째로 빈다. */
+        if (wasActive && rest.length) {
+          rest.forEach((x,i) => { x.dataset.variationActive = i === 0 ? '1' : '0'; });
+        }
+        /* ★하나만 남으면 더는 «시안»이 아니다 — 표시를 뗀다(배지·A/B 버튼 포함). */
+        if (rest.length === 1) {
+          const one = rest[0];
+          delete one.dataset.variationGroup; delete one.dataset.variation; delete one.dataset.variationActive;
+          one.querySelector('.variation-badge')?.remove();
+          one.querySelector('.st-ab-btn')?.remove();
+          one.querySelector('.st-resolve-btn')?.remove();
+          one.style.display = '';
+        }
+        if (window.buildLayerPanel) window.buildLayerPanel();
+        if (window.scheduleAutoSave) window.scheduleAutoSave();
+        return { ok:true, op:'delete', group:g, deleted: sec.id,
+                 dissolved: rest.length === 1, members: rest.length === 1 ? [] : snap(g) };
+      }
+      return { ok:false, code:'BAD_OP', message:'op 는 create|add|switch|resolve|delete' };
+    } catch (e) { return { ok:false, code:'EXCEPTION', message: String(e && e.message || e) }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
 async function _invokeRendererSearchSections({ query, limit = 50, caseSensitive = false, whole = false, includePlaceholder = false } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
