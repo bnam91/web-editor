@@ -84,6 +84,10 @@ const CASES = {
   list_checklist_items: { args: {}, sinks: ["listChecklistItems"] },
   edit_checklist_section: { args: {"op":"list"}, sinks: ["checklistSection"] },
   search_sections: { args: {"query":"x"}, sinks: ["searchSections"] },
+    /* ★op:"create" 로 잰다 — 배선(variation 싱크)이 도는지만 보면 되고,
+         resolve·delete 는 confirm 게이트가 있어 무인자 호출이 CONFIRM_REQUIRED 로 «먼저» 끊긴다
+         (그러면 싱크에 안 닿아 배선을 못 잰다). switch 는 to 가 없으면 던진다. */
+  edit_variation: { args: {"op":"create","sectionId":"sec_x"}, sinks: ["variation"] },
     // ★op:list 로 잰다 — create 면 «검사가 남는 것»을 만든다(픽스처가 시험마다 불어난다).
     //   ⛔delete 는 confirm 게이트가 있어 무인자 호출이 CONFIRM_REQUIRED 로 «먼저» 끊긴다.
   list_memories: { args: {}, sinks: [], noOkKey: true },

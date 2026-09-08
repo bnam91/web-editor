@@ -909,6 +909,9 @@ function _slimCanvasState(raw, detail) {
       sections: shown.map(s => ({
         sectionId: s.sectionId,
         ...(s.name ? { name: s.name } : {}),
+        /* ★요약(목록)에서 더 중요하다 — 사람이 「섹션이 왜 두 개지」를 보는 자리가 여기다 */
+        ...(s.variationGroup ? { variationGroup: s.variationGroup, variation: s.variation,
+                                 variationActive: s.variationActive } : {}),
         blocks: (s.blocks || []).length,
         ...((s.blocks || []).length ? { first: _firstMeaningful(s.blocks) } : {}),
         /* ★요약에서도 «중첩이 있나»는 알려준다 — 없으면 평평한 페이지로 오해한다 */
@@ -925,6 +928,12 @@ function _slimCanvasState(raw, detail) {
     sections: raw.sections.map(s => ({
       sectionId: s.sectionId,
       ...(s.name ? { name: s.name } : {}),
+      /* ★A/B 베리에이션 — 안 실으면 A안·B안이 «그냥 섹션 두 개»로 보여
+         「정리해줘」에 B안이 «중복»으로 지워질 수 있다(2026-09-08).
+         ⛔이 허용목록이 «렌더러가 새로 보내는 필드를 조용히 버린다»는 경고가 이 파일에 이미 있고,
+           나는 오늘 placeholder 로 «한 번 걸렸다». 두 번째다 — 그래서 섹션 쪽도 같이 채운다. */
+      ...(s.variationGroup ? { variationGroup: s.variationGroup, variation: s.variation,
+                               variationActive: s.variationActive } : {}),
       blocks: (s.blocks || []).map(b => {
         /* ★구조(parentId·depth)는 «내용»이 아니라 «뼈대»다 — 응답을 줄인다고 버리면
              「이 프레임 안에 뭐가 있나」를 영영 못 본다(2026-09-07 실측: 여기서 버려지고 있었다).
@@ -1540,7 +1549,7 @@ function _registerDefaultTools() {
       return { ok: true, sectionId, section: sec, texts };
     },
     {
-      description: 'Read a specific section by id and extract its text content.',
+      description: 'Read a specific section by id and extract its text content. ★If the section is part of an A/B variation group it carries variationGroup/variation/variationActive — sections sharing a variationGroup are ALTERNATIVE DESIGNS for the SAME slot, not duplicates. ⛔Never \"clean up\" one as a duplicate; only variationActive:true is the one currently shown.',
       inputSchema: {
         type: 'object',
         properties: { sectionId: { type: 'string' } },
@@ -2626,6 +2635,49 @@ function _registerDefaultTools() {
 
   /* ─── P2 search_sections — 내용으로 섹션 찾기 (2026-09-08) ─────────────────
      ⛔이게 없어서 「'무료배송' 적힌 데 고쳐줘」에 102섹션을 하나씩 열어야 했다. */
+  /* ─── A/B 베리에이션 «쓰기» (2026-09-08 현빈 지시) ────────────────────────
+     읽기(variationGroup/variation/variationActive)는 f41e251 에서 붙였다. 이건 그 짝이다.
+     ⛔한 도구에 op 를 모은다 — 다섯 도구로 쪼개면 목록이 5칸 길어지고(고정비),
+       이 다섯은 «같은 대상·같은 개념»이라 갈라 둘 이유가 없다. */
+  registerTool(
+    'edit_variation',
+    async ({ op, sectionId, to, confirm = false, expectedProject } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.variation !== 'function')
+        throw new Error('editor not running — edit_variation은 편집기 창이 열려 있어야 합니다(캔버스가 정본).');
+      if (!op) throw new Error('op required: create|add|switch|resolve|delete');
+      if (!sectionId) throw new Error('sectionId required (from get_canvas_state)');
+      if (op === 'switch' && !to) throw new Error('op:"switch" 에는 to 가 필요하다 (예: to:"B")');
+      return await _rendererInvoker.variation({ op, sectionId, to, confirm });
+    },
+    {
+      description: 'A/B variation of a SECTION — several alternative designs stacked in the SAME slot, only one shown at a time. '
+        + 'op:"create" turns a plain section into an A/B pair (A + a copy as B). '
+        + 'op:"add" appends the next one (C, D, E) — max 5; past that you get VARIATION_LIMIT instead of a silent no-op. '
+        + 'op:"switch" + to:"B" makes THAT one the visible one on canvas (the others are display:none). '
+        + 'op:"resolve" keeps only the currently visible one and DELETES the rest — requires confirm:true, and without it returns what WOULD be deleted. '
+        + 'op:"delete" removes ONE alternative — requires confirm:true; if only one is left the group dissolves back into a normal section. '
+        + '★Sections sharing a variationGroup are ALTERNATIVES, never duplicates — read them with get_canvas_state first.'
+        + _TARGET_NOTE,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          op: { type: 'string', enum: ['create', 'add', 'switch', 'resolve', 'delete'],
+                description: 'create=make A/B · add=next letter · switch=show one · resolve=keep one+delete rest · delete=remove one' },
+          sectionId: { type: 'string', description: 'sec_xxx — any member of the group (for switch/resolve it is the group that matters)' },
+          /* ⛔소문자도 «받는다» — 런타임이 toUpperCase() 하므로 enum 을 대문자로만 두면 계약이 거짓말한다
+               (버그헌트 실측 2026-09-08: to:"b" 가 «통했다». 스키마는 거부해야 한다고 말하고 있었다).
+             ⇒ 「동작을 좁히거나, 계약을 넓히거나」 둘 중 하나다. 관대한 쪽이 사용자에게 낫다 — 계약을 넓힌다. */
+          to: { type: 'string', enum: ['A', 'B', 'C', 'D', 'E', 'a', 'b', 'c', 'd', 'e'],
+                description: 'op:"switch" only — which one to show (case-insensitive)' },
+          confirm: { type: 'boolean', description: 'required for resolve/delete. Call once without it to see what would be deleted.' },
+          expectedProject: { type: 'string' },
+        },
+        required: ['op', 'sectionId'],
+        additionalProperties: false,
+      },
+    }
+  );
+
   registerTool(
     'search_sections',
     async ({ query, limit = 50, caseSensitive = false, wholeWord = false, includePlaceholder = false } = {}) => {
