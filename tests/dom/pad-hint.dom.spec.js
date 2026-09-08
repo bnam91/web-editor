@@ -327,14 +327,22 @@ async function openPagePanel(page) {
   await page.waitForSelector('#page-pad-hint-on', { state: 'attached' });
 }
 
+/* ★2026-09-09 — 이 절의 어휘가 «체크박스 → 라디오 쌍»으로 바뀌었다.
+     현빈: 「이건 라디오버튼으로 해주고 섹션이 깨지네」
+   ⇒ «재는 성질»(기본 켜짐 · 끄면 안 뜸 · 껐다 다시 열어도 꺼짐)은 하나도 안 바뀌었다.
+     바뀐 것은 «끄는 방법»뿐이다 — 체크박스는 같은 것을 다시 눌러 껐지만
+     라디오는 «끔 쪽(#page-pad-hint-off)»을 눌러야 꺼진다(같은 것을 다시 눌러도 안 꺼진다).
+   ⛔그래서 단언은 그대로 두고 «조작»만 고쳤다. 초록을 만들려고 기대를 낮춘 게 아니다 —
+     오히려 아래 D9 에 「켬을 다시 눌러도 안 꺼진다」는 라디오 고유 성질을 «하나 더» 세웠다. */
 test('D7 ★기본은 켜짐 — 저장값이 «없을 때» 체크돼 있고 띠도 뜬다', async ({ page }) => {
   const errs = await boot(page);
   await page.evaluate(() => localStorage.clear());        // 키가 «없는» 상태를 만든다
   await openPagePanel(page);
 
   const st = await page.evaluate(() => ({
-    /* ★입력이 살아 있다 — 체크박스가 실제로 있나. 0개면 아래 셋이 전부 공회전한다. */
+    /* ★입력이 살아 있다 — 라디오 «쌍»이 실제로 있나. 0개면 아래 셋이 전부 공회전한다. */
     n: document.querySelectorAll('#page-pad-hint-on').length,
+    nOff: document.querySelectorAll('#page-pad-hint-off').length,
     stored: localStorage.getItem('gdt.padHint'),
     checked: document.getElementById('page-pad-hint-on').checked,
     readsOn: window.readPadHintOn(),
@@ -348,7 +356,8 @@ test('D7 ★기본은 켜짐 — 저장값이 «없을 때» 체크돼 있고 �
   expect(st.readsOn, '★키가 없는데 readPadHintOn 이 false 다 — 기본이 뒤집혔다').toBe(true);
   expect(st.checked, '★기본인데 체크가 안 돼 있다').toBe(true);
   expect(st.sameSection, '★그리드 가이드와 «다른 절»에 있다').toBe(true);
-  expect(st.type, '★어휘가 체크박스가 아니다').toBe('checkbox');
+  expect(st.type, '★어휘가 라디오가 아니다 (현빈 2026-09-09)').toBe('radio');
+  expect(st.nOff, '★끔 라디오가 없다 — 라디오는 «짝»이 있어야 끌 수 있다').toBe(1);
 
   /* 그리고 «실제로» 뜬다 */
   await openPanel(page, 'sec_1');
@@ -369,9 +378,9 @@ test('D8 ★T-off — 꺼 두면 슬라이더를 만져도 «아예» 안 뜬다
   expect((await bandOf(page, 'sec_1')).left, '끄기 전인데 안 뜬다 — 양성대조가 깨졌다').toBe('40px');
   await page.waitForTimeout(500);
 
-  /* 진짜 체크박스를 진짜로 클릭해서 끈다 */
+  /* 진짜 라디오를 진짜로 클릭해서 끈다 — ⛔켬을 다시 누르는 게 아니라 «끔»을 누른다 */
   await openPagePanel(page);
-  await page.click('#page-pad-hint-on');
+  await page.click('#page-pad-hint-off');
   expect(await page.evaluate(() => window.readPadHintOn()), '껐는데 false 로 안 읽힌다').toBe(false);
 
   await openPanel(page, 'sec_1');
@@ -392,7 +401,7 @@ test('D9 ★T-persist — 껐다가 패널을 «다시 열면» 꺼져 있다 (�
   expect(await page.evaluate(() => document.getElementById('page-pad-hint-on').checked),
     '시작 상태가 켜짐이어야 한다').toBe(true);
 
-  await page.click('#page-pad-hint-on');                  // 끈다
+  await page.click('#page-pad-hint-off');                 // 끈다 (라디오는 «끔 쪽»을 누른다)
   const saved = await page.evaluate(() => localStorage.getItem('gdt.padHint'));
   expect(saved, '★저장이 «실제로» 되지 않았다 — 왕복을 잴 수 없다').toBe('{"on":false}');
 
@@ -401,6 +410,12 @@ test('D9 ★T-persist — 껐다가 패널을 «다시 열면» 꺼져 있다 (�
   await openPagePanel(page);
   expect(await page.evaluate(() => document.getElementById('page-pad-hint-on').checked),
     '★다시 열었더니 체크가 되살아났다 — 저장을 안 읽는다').toBe(false);
+
+  /* ★라디오 고유 성질 — «켬을 다시 눌러도» 안 꺼진다(체크박스였다면 꺼졌다).
+     이 줄이 없으면 「끔을 눌러야 꺼진다」가 우연히 맞은 건지 알 수 없다. */
+  await page.click('#page-pad-hint-off');
+  expect(await page.evaluate(() => localStorage.getItem('gdt.padHint')),
+    '★꺼진 상태에서 끔을 다시 눌렀더니 값이 바뀌었다').toBe('{"on":false}');
 
   /* 다시 켜면 저장도 따라온다(한 방향만 되는 것을 막는다) */
   await page.click('#page-pad-hint-on');
