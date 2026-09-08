@@ -2225,9 +2225,14 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
        (그 다음 판단지는 UI 에 이미 있다: 「영구 삭제할까요」 2차 확인) */
   if (!permanent) {
     const r = _trash.moveToTrash({ projectsDir: _projectsRoot(), projectId: safeId });
-    if (r.ok) return { ok: true, trashed: true, appTrash: true, projectId: safeId,
+    if (r.ok) {
+      /* ★사람이 쓰는 화면도 같은 위험에 놓인다 — 편집기에 열려 있으면 자동저장이 되살린다 */
+      const reap = await _reapRevived(safeId);
+      return { ok: true, trashed: true, appTrash: true, projectId: safeId,
                        name: r.name, deletedAt: r.deletedAt,
+                       ...(reap.revived ? { revivedAfterDelete: true, revivedCleaned: reap.cleaned } : {}),
                        note: `앱 휴지통으로 옮겼다(${_trash.RETENTION_DAYS}일 보관). 휴지통 탭에서 되살릴 수 있다.` };
+    }
     if (r.code === 'not_found') return { ok: true, trashed: false, reason: 'not_found', deleted: 0 };
     return { ok: false, trashed: false, reason: 'trash_failed',
              code: r.code, message: r.error, ...(r.rollbackStuck ? { rollbackStuck: r.rollbackStuck } : {}) };
@@ -2328,6 +2333,32 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
      ⑴ onActiveProject 콜백(= global.currentActiveProjectId)
      ⑵ ★창 URL 의 `?project=…`  ← 여기가 남아 있으면 «지운 프로젝트»를 계속 가리킨다
    ⇒ 한 곳만 비우면 「비웠다」가 거짓말이 된다. 읽는 곳을 «전부» 비운다. */
+/* ★★삭제 «뒤에» 되살아나는 것을 거둔다 (2026-09-08 실측 사고).
+     옮기는 건 동기 rename 이라 «그 사이»엔 창이 없다 — 그래서 사후조건을 뺐는데 틀렸다.
+     창은 «삭제 뒤»에 있었다: 자동저장이 옛 DOM 으로 폴더를 다시 썼다(실측 +11ms·+34ms).
+   ⇒ 한 번만 보면 놓친다. «짧게 지켜본다».
+   ⛔남겨두면 같은 id 가 휴지통에도 원래 자리에도 있게 되고, 그 뒤 삭제는 영영 막힌다
+     (already_in_trash — 실물에서 2건이 그렇게 굳었다. 사용자에겐 「안 지워지는 프로젝트」다).
+   ★활성을 비운 «뒤»에 부르므로 자동저장은 이미 멈췄다 — 여기서 치우는 게 안전하다.
+     못 치우면 «말한다»(사람이 봐야 한다). */
+async function _reapRevived(projectId, windowMs = 800, stepMs = 50) {
+  const back = path.join(_projectsRoot(), projectId);
+  let revived = false;
+  const t0 = Date.now();
+  while (Date.now() - t0 < windowMs) {
+    if (fs.existsSync(back)) { revived = true; break; }
+    await new Promise(r => setTimeout(r, stepMs));
+  }
+  if (!revived) return { revived: false, cleaned: false };
+  /* 되살아난 뒤에도 한 번 더 쓸 수 있으니, 지우고 «없어졌나»로 판정한다 */
+  for (let i = 0; i < 3; i++) {
+    try { fs.rmSync(back, { recursive: true, force: true }); } catch (_) {}
+    if (!fs.existsSync(back)) return { revived: true, cleaned: true, waitedMs: Date.now() - t0 };
+    await new Promise(r => setTimeout(r, stepMs));
+  }
+  return { revived: true, cleaned: false, waitedMs: Date.now() - t0 };
+}
+
 /* ★갤러리 페이지 경로의 «정본». 문자열을 여기저기 박으면 하나가 낡는다(2026-09-08 사고).
      검사 gallery-path.test.js 가 「이 파일이 가리키는 html 이 «실재하나»」를 fs.existsSync 로 잰다. */
 const GALLERY_PAGE = 'pages/projects.html';
@@ -2390,8 +2421,19 @@ async function _deleteProjectImpl({ projectId } = {}) {
       const tr = _trash.moveToTrash({ projectsDir: _projectsRoot(), projectId });
       if (tr.ok) {
         const cleared = await _clearActiveIfNeeded(projectId, wasActive);
+        /* ★★«되살아났나»를 본다 (2026-09-08 실측 사고).
+             옮기는 건 동기 rename 이라 그 사이엔 창이 없다 — 그래서 사후조건을 뺐는데 «틀렸다».
+             삭제가 «끝난 뒤» 자동저장이 옛 DOM 으로 폴더를 다시 쓴다(실측: 11ms·34ms 뒤).
+           ⇒ 그러면 같은 id 가 «휴지통에도, 원래 자리에도» 있게 되고,
+             그 뒤 삭제는 영영 'already_in_trash' 로 막힌다(실물에서 2건 그렇게 됐다).
+           ⛔「되살아났다」고 «말만» 하면 좀비가 남는다 — 활성을 비운 «뒤»라 자동저장은 이미 멈췄으니
+             여기서 치우는 게 안전하다. 못 치우면 그때 말한다. */
+        const reap = await _reapRevived(projectId);
+        const revived = reap.revived, revivedCleaned = reap.cleaned;
         return { ok: true, projectId, trashed: true, appTrash: true, name: tr.name,
                  deletedAt: tr.deletedAt, wasActive, activeCleared: cleared,
+                 ...(revived ? { revivedAfterDelete: true, revivedCleaned,
+                     ...(revivedCleaned ? {} : { warning: '삭제 직후 자동저장이 프로젝트를 되살렸고 그걸 못 치웠다 — 같은 id 가 두 곳에 있다. 사람이 봐야 한다' }) } : {}),
                  note: `앱 휴지통으로 옮겼다(${_trash.RETENTION_DAYS}일 보관, 영구삭제 아님). `
                      + '사용자는 갤러리의 휴지통 탭에서 되살릴 수 있다.' };
       }

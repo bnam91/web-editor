@@ -507,17 +507,37 @@ test('U7-16 ★이미 없는 것은 «성공»으로 센다 — 연타에 「영
   assert.equal(r.trashed, true);
 });
 
-test('U7-17 ★삭제가 «비동기 창»을 남기지 않는다 — autosave 가 끼어들 틈이 없다', async () => {
-  /* ★2026-09-08: 예전엔 `await shell.trashItem()` 사이에 autosave 가 프로젝트를 «다시 만들» 수 있어서
-     사후조건(recreated_during_delete)으로 정직하게 답해야 했다.
-     앱 휴지통은 «동기 rename» 한 번이라 그 창이 «아예 없다» — 그러면 사후조건이 아니라
-     「끝난 뒤 정말 없나」를 재는 게 맞다. ⛔창이 없다고 «믿지» 말고 결과로 잰다. */
+test('U7-17 ★삭제 «뒤에» 되살아나면 치운다 — 안 그러면 같은 id 가 두 곳에 생긴다', async () => {
+  /* ⛔★2026-09-08 «내가 틀렸던 자리». 앱 휴지통으로 바꾸면서 이 검사를 이렇게 고쳤었다:
+       「동기 rename 한 번이라 autosave 가 끼어들 «창이 아예 없다»」 —
+       그래서 사후조건을 빼고 「끝난 뒤 정말 없나」만 쟀다.
+     ★실물이 반증했다: 삭제 «11ms·34ms 뒤»에 자동저장이 폴더를 다시 썼다(읽기시험 픽스처 2건).
+       창은 «삭제 도중»이 아니라 «삭제 뒤»에 있었다.
+     ⇒ 그러면 같은 id 가 휴지통에도 원래 자리에도 있게 되고, 그 뒤 삭제는 영영 막힌다
+       (already_in_trash). 실제로 그 두 건이 그렇게 굳었다.
+     ⇒ 「없다」를 «전제»로 두지 말고 «재고», 있으면 치운다. */
   const id = await mkProject(sec('sec_a', 'A'));
+  const back = path.join(DIR, id);
+  /* ★«실제 타이밍»을 흉내낸다 — 삭제가 반환된 «뒤» 수십 ms 에 자동저장이 폴더를 다시 쓴다.
+     삭제 호출과 «같은 시각»에 되살리면 그건 다른 상황(도중)이라 이 검사가 겨누는 게 아니다. */
+  setTimeout(() => {
+    try {
+      fs.mkdirSync(back, { recursive: true });
+      fs.writeFileSync(path.join(back, 'proj.json'), JSON.stringify(proj(id, sec('sec_a', '되살아난 것'))));
+    } catch (_) {}
+  }, 30);
+
   const r = await H.invoke('projects:delete', id);
   assert.equal(r.ok, true);
-  assert.equal(fs.existsSync(path.join(DIR, id)), false, '★지웠다는데 원래 자리에 그대로 있다');
-  const list = await H.invoke('projects:list');
-  assert.ok(!list.some(p => p.id === id), '★목록에 좀비 카드가 남았다');
+  assert.equal(r.revivedAfterDelete, true,
+    `★되살아난 걸 «못 봤다» — 한 번만 보면 놓친다(실측 +11ms·+34ms): ${JSON.stringify(r)}`);
+  assert.equal(r.revivedCleaned, true, '★봤는데 «못 치웠다»');
+  assert.ok(!fs.existsSync(back),
+    '★좀비가 원래 자리에 남았다 — 목록의 낡은 카드가 그걸로 되살아나고, 그 뒤 삭제가 영영 막힌다');
+
+  // ★그리고 같은 id 를 다시 지울 수 있어야 한다(두 곳에 있으면 already_in_trash 로 굳는다)
+  const again = await H.invoke('projects:delete', id);
+  assert.notEqual(again.reason, 'trash_failed', `★삭제가 막혔다: ${JSON.stringify(again)}`);
 });
 
 test('U7-18 «_meta.json» 잔재도 실제로 치운다 — 이 팔은 여태 픽스처가 만들지 않아 죽어 있었다', async () => {
