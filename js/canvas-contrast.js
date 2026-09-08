@@ -143,5 +143,6 @@ if (typeof window !== 'undefined') {
   window.__updateEdgeContrast = () => updateEdgeContrast(
     (typeof document !== 'undefined' && document.getElementById('canvas-wrap')?.style.background) || ''
   );
-  window.applyCanvasBackground = applyCanvasBackground;
+  /* ⛔applyCanvasBackground 는 window 에 «안» 내놓는다 — 부르는 쪽이 전부 ESM 이라 쓸 사람이 없다.
+     안 쓰는 전역은 B1 깔때기 밖에 «두 번째 입구»를 만들어 둘 뿐이다. */
 }
