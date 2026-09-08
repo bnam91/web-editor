@@ -373,11 +373,33 @@ function makeModalBlock(opts = {}) {
   return { row, block };
 }
 
+/* ★새로 만든 모달을 «캔버스 클릭 경로와 같게» 고른다 — 뒤의 두 줄이 핵심이다.
+   현빈 지적: 「처음 버튼 눌러 추가하면 모서리 버튼이 안 보여. 몇 번 클릭해야 보이는데
+   첨부터 핸들이 있어야 되는 거잖아」. 실측으로 그 병을 재현했다 — 추가 직후 핸들 «0개».
+
+   ⛔window.selectBlock 만으로는 안 된다. 그건 js/block-edit.js 의 «MCP 진입점»이라
+     ⑴ 타입→패널 목록에 modal 이 없어 showTextProperties 로 «샌다»
+     ⑵ showHandlesFor 를 «아예» 안 부른다 ⇒ 모서리 핸들이 안 붙는다.
+   ★그래서 「호출은 있는데 핸들은 0개」였다 — 소스에 문자열이 있나로는 안 잡히는 결함이다.
+   선택 클래스·레이어 하이라이트는 그대로 selectBlock 이 맡는다. 분업은 두고 «빠진 두 줄»만
+   여기서 채운다(js/blocks/zoom-block.js 의 addZoomBlock 이 같은 자리를 같은 방식으로 고쳤다).
+
+   ⛔js/block-edit.js 는 건드리지 않는다 — 거기 한 줄은 asset·canvas·vector·icon-circle·
+     zoom·mockup 까지 «일곱 종»의 동작을 동시에 바꾼다. 그건 별건으로 올린다. */
+function _selectNewModal(block) {
+  if (!block) return;
+  try { window.selectBlock?.(block.id); } catch (_) {}
+  try {
+    window.showModalProperties?.(block);
+    window.showHandlesFor?.(block);
+  } catch (_) {}
+}
+
 function addModalBlock(opts = {}) {
   // FRAMEICON 패턴 — free-layout/fullWidth 프레임 안이면 _insertToFlowFrame 이 전부 처리한다.
   let made = null;
   if (window._insertToFlowFrame?.(() => (made = makeModalBlock(opts)))) {
-    if (made) { renderModalBlock(made.block); try { window.selectBlock?.(made.block.id); } catch (_) {} }
+    if (made) { renderModalBlock(made.block); _selectNewModal(made.block); }
     window.triggerAutoSave?.();
     return made;
   }
@@ -389,7 +411,7 @@ function addModalBlock(opts = {}) {
   renderModalBlock(block);
   bindBlock(block);
   window.buildLayerPanel?.();
-  try { window.selectBlock?.(block.id); } catch (_) {}
+  _selectNewModal(block);
   row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   window.triggerAutoSave?.();
   return { row, block };

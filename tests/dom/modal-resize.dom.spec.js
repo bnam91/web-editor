@@ -40,11 +40,18 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <div id="ss-handles-overlay"></div>
 <div id="panel-right"><div class="panel-body"></div></div>
 <script src="/js/feature-flags.js"></script>
+<!-- ★block-edit.js 의 «진짜» selectBlock 을 얹는다(플레인 스크립트).
+     스텁을 쓰면 「selectBlock 만으로는 핸들이 안 붙는다」는 이 검사의 «전제»가 사라진다. -->
+<script src="/js/block-edit.js"></script>
 <script type="module">
-  import { makeModalBlock, renderModalBlock } from '/js/blocks/modal-block.js';
+  import { makeModalBlock, renderModalBlock, addModalBlock } from '/js/blocks/modal-block.js';
+  window.__add = addModalBlock;
   import { showModalProperties } from '/js/props/prop-modal.js';
   import { showHandlesFor, showAssetResizeHandles } from '/js/overlay-handles.js';
   import { bindBlock } from '/js/drag-drop.js';
+  /* ★block-factory.js 를 «진짜로» 얹는다 — D13 이 스텁이 아니라 실제 _insertToFlowFrame 을 탄다.
+     스텁을 쓰면 「그 갈래가 실제로 돈다」를 못 지킨다. */
+  import '/js/block-factory.js';
   window.__mk = makeModalBlock;
   window.__render = renderModalBlock;
   window.__open = showModalProperties;
@@ -247,6 +254,8 @@ test('D6 ★줌 100%가 아닌 상태 — 핸들 크기·자리·드래그 환�
       const r = window.__block.getBoundingClientRect();
       return { right: r.right, bottom: r.bottom, w: r.width };
     });
+    // ★양성대조 — 상자가 «실재»해야 「꼭지점과 일치」가 무언가를 가른다(둘 다 0 이면 그냥 통과한다)
+    expect(br.w, `scale ${scale}: 블록 폭이 ${br.w} — 잴 상자가 없다`).toBeGreaterThan(10);
     expect(Math.abs(hb.x + hb.width / 2 - br.right), `scale ${scale}: se 핸들 x 가 꼭지점에서 벗어났다`).toBeLessThan(0.6);
     expect(Math.abs(hb.y + hb.height / 2 - br.bottom), `scale ${scale}: se 핸들 y 가 꼭지점에서 벗어났다`).toBeLessThan(0.6);
 
@@ -275,12 +284,17 @@ test('D7 ★「늘어나면 가운데」 — 높이 300 고정에서 슬롯이 �
     window.__block.dataset.vAlign = 'center';
     window.__render(window.__block);
   });
-  const gap = await page.evaluate(() => {
+  const m = await page.evaluate(() => {
     const b = window.__block.getBoundingClientRect();
     const s = window.__block.querySelector('[data-mdl-slot]').getBoundingClientRect();
-    return (s.top + s.height / 2) - (b.top + b.height / 2);
+    return { gap: (s.top + s.height / 2) - (b.top + b.height / 2), boxH: b.height, slotH: s.height };
   });
-  expect(Math.abs(gap), `슬롯 중심이 상자 중앙에서 ${gap}px 벗어났다`).toBeLessThan(2);
+  /* ★양성대조가 «먼저» 온다 — 상자와 슬롯이 «둘 다 0» 이면 중심차도 0 이라
+     아래 「±2px 안」이 그냥 통과한다. ⛔0 이 「가운데다」와 「잴 게 없다」 두 뜻을 갖게 두지 마라. */
+  expect(m.boxH, `상자 높이가 ${m.boxH} — 높이 300 을 고정했는데 안 잡혔다`).toBeGreaterThan(280);
+  expect(m.slotH, '슬롯 높이가 0 이다 — 잴 대상이 없다').toBeGreaterThan(0);
+  expect(m.boxH - m.slotH, '슬롯이 상자를 꽉 채우면 «가운데»가 아무것도 안 가른다').toBeGreaterThan(50);
+  expect(Math.abs(m.gap), `슬롯 중심이 상자 중앙에서 ${m.gap}px 벗어났다`).toBeLessThan(2);
 });
 
 test('D8 ★「명시한 왼쪽 정렬」은 리사이즈 뒤에도 남는다 (표시키가 있는 블록)', async ({ page }) => {
@@ -398,4 +412,123 @@ test('D11 ★작은 상자·낮은 배율에서 라디우스 핸들이 «교차�
     expect(p.y).toBeGreaterThanOrEqual(r.t - 0.5);
     expect(p.y).toBeLessThanOrEqual(r.b + 0.5);
   }
+});
+
+test('D12 ★«툴바로 추가한 그 순간» 핸들이 있다 — 한 번 더 클릭해야 나오면 안 된다', async ({ page }) => {
+  /* 현빈 지적: 「처음 버튼 눌러 추가하면 모서리 버튼이 안 보여. 몇 번 클릭해야 보이는데
+     첨부터 핸들이 있어야 되는 거잖아」.
+     ★소스에 문자열이 있나로 끝내지 않는다 — 이 결함이 정확히 그 «틈»에서 살았다.
+       addModalBlock 은 window.selectBlock 을 «부르고 있었다». 그런데 그건 block-edit.js 의
+       MCP 진입점이라 showHandlesFor 를 아예 안 부른다 ⇒ 호출은 있는데 핸들은 0개였다.
+     ⇐ 되돌리기: _selectNewModal 의 showHandlesFor / showModalProperties 두 줄을 지우면 빨강. */
+  const errs = await boot(page);
+
+  const made = await page.evaluate(() => {
+    /* addModalBlock 이 옵셔널 체이닝 «없이» 기대하는 앱 전역만 최소로 세운다.
+       ⛔핸들·패널 관련은 하나도 안 세운다 — 세우면 검사가 자기 손으로 통과한다. */
+    window.getSelectedSection = () => document.querySelector('.section-block');
+    /* ⛔여기서 «터지게» 두지 마라 — 터지면 playwright 가 TypeError 를 던지고,
+       아래 양성대조가 «자기 말»로 원인을 대지 못한다(실측: 「reading 'classList'」만 남았다). */
+    try {
+      const r = window.__add({});
+      const b = r && r.block;
+      return { threw: null, block: !!b, id: b ? b.id : null,
+               blocksInDom: document.querySelectorAll('#canvas .modal-block').length,
+               selected: !!(b && b.classList.contains('selected')) };
+    } catch (e) {
+      return { threw: String(e && e.message || e), block: false, blocksInDom: 0, selected: false };
+    }
+  });
+  expect(made.threw, `addModalBlock 이 던졌다: ${made.threw}`).toBeNull();
+  /* ★「입력이 살아 있다」 — 블록이 «안 만들어졌으면» 아래 4+4 검사는 공회전한다.
+     ⛔0 이 「핸들이 없다」와 「잴 블록이 없다」 두 뜻을 갖게 두지 마라. */
+  expect(made.block, 'addModalBlock 이 블록을 못 만들었다 — 아래 검사가 공회전한다').toBe(true);
+  expect(made.blocksInDom, '캔버스에 모달이 안 들어갔다').toBe(1);
+
+  await raf(page);
+  const after = await page.evaluate(() => ({
+    resize: document.querySelectorAll('#ss-handles-overlay .mdl-overlay-handle').length,
+    radius: document.querySelectorAll('#ss-handles-overlay .mdl-radius-handle').length,
+    panel: document.querySelector('#panel-right .prop-block-name')?.textContent ?? null,
+  }));
+  /* ★핸들 단언이 «먼저» 온다 — D13 과 같은 이유다.
+     ⛔selected 를 «전제»로 앞에 두면, 호출 한 줄을 통째로 지우는 변이에서 그게 먼저 터져
+       검사가 「핸들이 없다」 대신 「선택이 안 됐다」로 말한다(실측). 본문이 먼저다. */
+  expect(after.resize, '추가 «직후»에 리사이즈 핸들이 없다 — 한 번 더 클릭해야 나온다').toBe(4);
+  expect(after.radius, '추가 «직후»에 라디우스 핸들이 없다').toBe(4);
+  expect(after.panel, '패널이 모달로 안 열렸다 — showTextProperties 로 샜다').toBe('Modal');
+  // 선택 클래스도 같이 따라왔나 (핸들과 «같은» 헬퍼가 맡는다)
+  expect(made.selected, '선택 클래스가 안 붙었다').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('D13 ★«프레임 안»으로 추가하는 갈래도 핸들이 붙는다 (addModalBlock 의 두 번째 문)', async ({ page }) => {
+  /* ★D12 는 «일반 갈래»만 지킨다. addModalBlock 에는 문이 «둘»이다:
+       ⑴ window._insertToFlowFrame 이 참 → 프레임 안에 넣고 «거기서» 끝난다(early return)
+       ⑵ 아니면 섹션에 row 로 넣는다
+     실측으로 확인된 구멍: ⑴의 호출 «한 줄»만 지워도 D12·U 전부 초록이었다.
+     ⛔헬퍼(_selectNewModal)로 «모았기 때문에» 갈래가 하나로 보인다 — 모은 건 옳고,
+       그래서 «갈래마다» 검사가 필요하다.
+     ⛔grep 으로 「파일에 _selectNewModal 이 두 번 있다」로 때우면 안 된다 —
+       한 줄을 지워도 정의 1 + 호출 1 로 «둘»이라 그 검사는 통과한다.
+     ⇐ 되돌리기: 프레임 갈래의 _selectNewModal(made.block) 한 줄을 지우면 여기가 빨강(D12 는 초록). */
+  const errs = await boot(page);
+
+  const made = await page.evaluate(() => {
+    /* _insertToFlowFrame 이 옵셔널 체이닝 «없이» 부르는 것만 최소로 세운다.
+       ⛔핸들·패널 관련은 하나도 안 세운다 — 세우면 검사가 자기 손으로 통과한다. */
+    window.pushHistory = () => {};
+    window.buildLayerPanel = () => {};
+    window.getSelectedSection = () => document.querySelector('.section-block');
+
+    // 자유배치 프레임을 «진짜로» 만들고 활성 프레임으로 둔다
+    const frame = document.createElement('div');
+    frame.className = 'frame-block';
+    frame.id = 'ss_d13';
+    frame.dataset.freeLayout = 'true';
+    frame.style.cssText = 'position:relative;width:600px;height:400px;';
+    document.getElementById('host').appendChild(frame);
+    window._activeFrame = frame;
+
+    try {
+      const r = window.__add({});
+      const b = r && r.block;
+      return {
+        threw: null,
+        insertFn: typeof window._insertToFlowFrame,
+        block: !!b,
+        // ★이 갈래를 «실제로 탔다»는 증거 = 블록이 프레임의 직계 자식이다
+        //   (일반 갈래였다면 .row 에 담겨 section-inner 로 들어간다)
+        parentIsFrame: !!(b && b.parentElement === frame),
+        inFrame: frame.querySelectorAll(':scope > .modal-block').length,
+        inSectionInner: document.querySelectorAll('#host > .row .modal-block').length,
+        selected: !!(b && b.classList.contains('selected')),
+      };
+    } catch (e) {
+      return { threw: String(e && e.message || e) };
+    }
+  });
+
+  /* ★「입력이 살아 있다」 — 이 갈래를 «안 타면» 아래 4+4 는 D12 를 다시 재는 것일 뿐이다. */
+  expect(made.threw, `addModalBlock 이 던졌다: ${made.threw}`).toBeNull();
+  expect(made.insertFn, '_insertToFlowFrame 이 window 에 없다 — block-factory 가 안 실렸다').toBe('function');
+  expect(made.block, 'addModalBlock 이 블록을 못 만들었다').toBe(true);
+  expect(made.parentIsFrame, '★프레임 갈래를 «안 탔다» — 이 검사는 D12 를 다시 재고 있을 뿐이다').toBe(true);
+  expect(made.inFrame, '프레임 안에 모달이 안 들어갔다').toBe(1);
+  expect(made.inSectionInner, '일반 갈래로 샜다 — 프레임 갈래가 아니다').toBe(0);
+
+  await raf(page);
+  const after = await page.evaluate(() => ({
+    resize: document.querySelectorAll('#ss-handles-overlay .mdl-overlay-handle').length,
+    radius: document.querySelectorAll('#ss-handles-overlay .mdl-radius-handle').length,
+  }));
+  /* ★핸들 단언이 «먼저» 온다 — 이게 이 검사의 본문이다.
+     ⛔selected 를 «전제»로 앞에 두면 안 된다: 이 갈래에서는 selectBlock 도 같은 헬퍼 안에 있어서
+       호출 한 줄을 지우면 selected 가 먼저 터지고, 검사가 「핸들이 없다」 대신 「선택이 안 됐다」로
+       말한다(실측으로 그 꼴을 봤다). 원인을 «틀리게» 대는 검사는 다음 사람을 헤매게 한다. */
+  expect(after.resize, '★프레임 안에 추가한 «직후»에 리사이즈 핸들이 없다').toBe(4);
+  expect(after.radius, '★프레임 안에 추가한 «직후»에 라디우스 핸들이 없다').toBe(4);
+  // 선택·레이어 하이라이트도 같이 따라왔나 (핸들과 «같은» 헬퍼가 맡는다)
+  expect(made.selected, '선택 클래스가 안 붙었다').toBe(true);
+  expect(errs).toEqual([]);
 });

@@ -52,6 +52,13 @@ function sliceDecl(src, head, what) {
   return src.slice(i, j);
 }
 
+/* ★소스에서 «떠낸» 다섯 덩이 — U0 이 이것들이 «진짜인지»부터 단언한다. */
+const LIMITS_SRC = sliceDecl(CODE.modal, 'const MODAL_LIMITS = ', 'modal-block');
+const CLAMP_SRC  = CODE.modal.match(/const clampModal = [^\n]+;/)[0];
+const SETMODE_SRC = sliceDecl(CODE.modal, 'function setModalSizeMode(', 'modal-block');
+const RESIZE_SRC = sliceDecl(CODE.handles, 'function _onModalResizeHandleMouseDown(', 'overlay-handles');
+const RADIUS_SRC = sliceDecl(CODE.handles, 'function _onModalRadiusHandleMouseDown(', 'overlay-handles');
+
 /* ═══════════════════════════════════════════════════════════════════
    U0 — ★「입력이 살아 있다」. U1~U9 «앞»에 온다.
    아래 검사들은 전부 «소스 문자열»을 훑는다 ⇒ 소스가 비거나 대상 함수가 껍데기가 되면
@@ -69,6 +76,25 @@ test('U0 ★입력이 살아 있다 — 훑는 파일이 실재하고, showHandl
   const kinds = [...fn.matchAll(/contains\('([a-z0-9-]+)'\)/g)].map(m => m[1]);
   assert.ok(kinds.length >= 7,
     `showHandlesFor 의 분기가 ${kinds.length}개뿐이다 — 함수를 비우면 아래 U1 이 아니라 «여기»가 먼저 빨개져야 한다`);
+
+  /* ★★그리고 «떠낸 덩이»가 진짜인지 여기서 못박는다.
+     아래 U4~U9 는 이 다섯을 vm 에 넣고 «실행»한다. 떠내기가 빈 문자열을 돌려주면
+     실행할 것이 없어 검사가 조용히 초록이 된다 —
+     ⛔「코드가 옳아서 난 초록」과 「훑을 게 없어서 난 초록」은 화면에서 똑같이 생겼다.
+     ⇒ 각 덩이가 ⑴비어 있지 않고 ⑵중괄호가 맞고 ⑶«그 덩이여야만 있는» 토큰을 갖는지 본다. */
+  const 떠낸것 = {
+    'MODAL_LIMITS': [LIMITS_SRC, /width:\s*\{/],
+    'clampModal': [CLAMP_SRC, /Math\.min/],
+    'setModalSizeMode': [SETMODE_SRC, /block\.dataset\[key\]/],
+    '리사이즈 mousedown': [RESIZE_SRC, /addEventListener\('mousemove'/],
+    '라디우스 mousedown': [RADIUS_SRC, /addEventListener\('mousemove'/],
+  };
+  for (const [name, [s, token]] of Object.entries(떠낸것)) {
+    assert.ok(s && s.trim().length > 40, `«${name}» 를 떠냈는데 ${s ? s.length : 0}자다 — 떠내기가 헛돌았다`);
+    const open = (s.match(/\{/g) || []).length, close = (s.match(/\}/g) || []).length;
+    assert.equal(open, close, `«${name}» 의 중괄호가 안 맞는다(${open}/${close}) — 덩이를 잘못 잘랐다`);
+    assert.match(s, token, `«${name}» 를 떠냈는데 그 덩이여야만 있는 토큰이 없다 — 엉뚱한 걸 잘랐다`);
+  }
 });
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -105,11 +131,6 @@ test('U3 block-drag 의 공용 클릭 루프가 showHandlesFor 를 부른다', (
    U4~U6 — ★핸들러를 «떼어내 실행»한다. 소스를 «읽는» 검사만으로는
    「dataset 대신 style 에 쓴다」 같은 변이를 못 잡는다.
 ═══════════════════════════════════════════════════════════════════ */
-const LIMITS_SRC = sliceDecl(CODE.modal, 'const MODAL_LIMITS = ', 'modal-block');
-const CLAMP_SRC  = CODE.modal.match(/const clampModal = [^\n]+;/)[0];
-const SETMODE_SRC = sliceDecl(CODE.modal, 'function setModalSizeMode(', 'modal-block');
-const RESIZE_SRC = sliceDecl(CODE.handles, 'function _onModalResizeHandleMouseDown(', 'overlay-handles');
-const RADIUS_SRC = sliceDecl(CODE.handles, 'function _onModalRadiusHandleMouseDown(', 'overlay-handles');
 
 /** 진짜 핸들러를 vm 안에서 돌린다 — DOM 에 닿는 것만 «최소로» 스텁한다. */
 function drive(kind, dir, block, moves, opts = {}) {
@@ -192,6 +213,10 @@ test('U4-c ★드래그 «중»엔 재렌더를 안 부른다 — 깜빡임은 �
   // 라디우스도 같다 — 미리보기는 style.borderRadius 한 줄이고 굳히기는 mouseup 한 번이다
   const rb = mkBlock({ radius: '10' });
   const rr = drive('radius', 'se', rb, moves.map(([x, y]) => [-x, -y]));
+  /* ★양성대조가 «먼저» 온다 — 핸들러가 아무 일도 안 하면 재렌더도 0 이라 「≤1」을 그냥 통과한다.
+     ⛔0 이 두 뜻을 갖게 두지 마라: 「프레임당 안 불렀다」와 「애초에 안 돌았다」. */
+  assert.notEqual(rb.dataset.radius, '10', '라디우스 드래그가 아무 일도 안 했다 — 아래 「≤1」은 그걸 통과시킨다');
+  assert.ok(rr.calls.render >= 1, '드래그가 끝났는데 재렌더가 0 이다 — 값이 그림이 되지 않는다');
   assert.ok(rr.calls.render <= 1, `라디우스 드래그에 재렌더가 ${rr.calls.render}번 — 프레임마다 부르고 있다`);
 });
 
