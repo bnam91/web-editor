@@ -247,6 +247,8 @@ test('D6 ★줌 100%가 아닌 상태 — 핸들 크기·자리·드래그 환�
       const r = window.__block.getBoundingClientRect();
       return { right: r.right, bottom: r.bottom, w: r.width };
     });
+    // ★양성대조 — 상자가 «실재»해야 「꼭지점과 일치」가 무언가를 가른다(둘 다 0 이면 그냥 통과한다)
+    expect(br.w, `scale ${scale}: 블록 폭이 ${br.w} — 잴 상자가 없다`).toBeGreaterThan(10);
     expect(Math.abs(hb.x + hb.width / 2 - br.right), `scale ${scale}: se 핸들 x 가 꼭지점에서 벗어났다`).toBeLessThan(0.6);
     expect(Math.abs(hb.y + hb.height / 2 - br.bottom), `scale ${scale}: se 핸들 y 가 꼭지점에서 벗어났다`).toBeLessThan(0.6);
 
@@ -275,12 +277,17 @@ test('D7 ★「늘어나면 가운데」 — 높이 300 고정에서 슬롯이 �
     window.__block.dataset.vAlign = 'center';
     window.__render(window.__block);
   });
-  const gap = await page.evaluate(() => {
+  const m = await page.evaluate(() => {
     const b = window.__block.getBoundingClientRect();
     const s = window.__block.querySelector('[data-mdl-slot]').getBoundingClientRect();
-    return (s.top + s.height / 2) - (b.top + b.height / 2);
+    return { gap: (s.top + s.height / 2) - (b.top + b.height / 2), boxH: b.height, slotH: s.height };
   });
-  expect(Math.abs(gap), `슬롯 중심이 상자 중앙에서 ${gap}px 벗어났다`).toBeLessThan(2);
+  /* ★양성대조가 «먼저» 온다 — 상자와 슬롯이 «둘 다 0» 이면 중심차도 0 이라
+     아래 「±2px 안」이 그냥 통과한다. ⛔0 이 「가운데다」와 「잴 게 없다」 두 뜻을 갖게 두지 마라. */
+  expect(m.boxH, `상자 높이가 ${m.boxH} — 높이 300 을 고정했는데 안 잡혔다`).toBeGreaterThan(280);
+  expect(m.slotH, '슬롯 높이가 0 이다 — 잴 대상이 없다').toBeGreaterThan(0);
+  expect(m.boxH - m.slotH, '슬롯이 상자를 꽉 채우면 «가운데»가 아무것도 안 가른다').toBeGreaterThan(50);
+  expect(Math.abs(m.gap), `슬롯 중심이 상자 중앙에서 ${m.gap}px 벗어났다`).toBeLessThan(2);
 });
 
 test('D8 ★「명시한 왼쪽 정렬」은 리사이즈 뒤에도 남는다 (표시키가 있는 블록)', async ({ page }) => {
