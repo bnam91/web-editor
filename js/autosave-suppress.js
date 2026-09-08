@@ -76,11 +76,28 @@
     return true;
   }
 
-  /** «한 프레임 뒤» 해제 — MutationObserver 의 잔여 mutation 까지 흡수해야 하는 자리용. */
+  /* ★★안전망 시간 — «타이머가 이기는 유일한 경우 = 창이 가려진 때»에만 쓰인다.
+       보이는 창에선 rAF(~16ms)가 늘 먼저 오고, 토큰은 «한 번만» 닫히므로 타이머는 아무 일도 안 한다.
+       ⇒ 가려진 창에서 250ms 는 아무 의미가 없다(어차피 사람이 안 보고 있다).
+       ⛔숫자만 남기면 다음 사람이 「왜 250?」 하고 줄이거나 늘린다 — 이 문장이 그 답이다.
+       (같은 계열의 선례: io/save-load.js 의 _AUTOSAVE_DEFER_MAX_MS = 30000) */
+  var NEXT_FRAME_FALLBACK_MS = 250;
+
+  /** «한 프레임 뒤» 해제 — MutationObserver 의 잔여 mutation 까지 흡수해야 하는 자리용.
+   *
+   * ⛔★2026-09-09 실측 사고: 여기 `else setTimeout` 은 «rAF 가 없을 때» 폴백이지
+   *   «rAF 가 안 돌 때» 안전망이 아니었다. 브라우저는 창이 «가려지면»(visibilityState:'hidden')
+   *   rAF 를 «갖고 있지만 안 돌린다» — 그래서 else 가지가 «영영» 안 탄다.
+   *   실측: hidden 창에서 3초를 기다려도 rAF 0회 · 억제가 true 로 고착.
+   *   ⇒ 이 파일 머리가 경고하는 그 일이 그대로 났다:
+   *     「자동저장이 조용히 멈춘다 … 대가를 사용자가 «작업물»로 치른다」
+   * ⇒ 폴백이 아니라 «둘 다» 건다. 먼저 오는 쪽이 닫고, 토큰은 released 로 한 번만 닫힌다.
+   *   ★이 계열의 «뿌리»라 여기서 막는다 — js/history.js:105·230 · js/collab/sync.js:418 에도
+   *     같은 모양(rAF 단독 해제)이 남아 있다(백로그). 그쪽은 이 함수를 쓰게 바꾸는 게 정답이다. */
   function endNextFrame(tok) {
     var done = function () { end(tok); };
     if (typeof w.requestAnimationFrame === 'function') w.requestAnimationFrame(done);
-    else setTimeout(done, 0);
+    setTimeout(done, NEXT_FRAME_FALLBACK_MS);
   }
 
   /** 동기 구간을 감싼다 — 예외가 나도 창은 닫히고, 예외는 «그대로 전파»된다. */
