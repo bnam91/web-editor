@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════
    PROPERTIES PANEL
 ═══════════════════════════════════ */
-import { propPanel, canvasEl, canvasWrap, state } from '../globals.js';
+import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기(applyCanvasBackground)만 쓰므로 «바인딩 자체»를 없앤다(직접 대입 재유입 방지) */
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
 
 /* ── 헬퍼: ab의 effective usePadx 결정 ──

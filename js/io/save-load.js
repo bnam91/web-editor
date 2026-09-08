@@ -1,4 +1,4 @@
-import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
+import { canvasEl, state, PAGE_LABELS } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기만 쓴다(직접 대입 재유입 방지) */
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
