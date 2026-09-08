@@ -12,7 +12,14 @@
  */
 'use strict';
 /* ⛔env 는 mcp-server.js 를 require 하기 «전에» 박아야 한다(모듈 로드 시 한 번 읽는다). */
-process.env.GODITOR_SPACING_DEBOUNCE_MS = process.env.GODITOR_SPACING_DEBOUNCE_MS || '40';
+/* ★40ms 였다가 200ms 로 올렸다 (2026-09-08, 지디).
+ *   Ⓐ-c 는 «연달아 3번»을 await 로 «차례로» 부른다. 전체 스위트를 함께 돌리면 그 셋이
+ *   40ms 를 넘겨 디바운스 창이 «사이에서» 만료되고, 감수가 2회 돌아 빨개졌다.
+ *   ⇒ 제품 결함이 아니라 «검사의 시간 가정»이었다. 실측: 지디 1/7 · 1/3 · 1/6 (대략 15%),
+ *     eval-zoom 0/12(부하 프로필이 다른 사본). 하루 종일 머지 판정을 흔들었다.
+ *   ⛔창을 넓히는 건 «불변식을 약화»시키지 않는다 — 재는 것은 여전히 「한 묶음 = 감수 1회」다.
+ *     다만 넓혀도 넘길 수 있으니 아래 _burst() 가 «못 쟀다»를 말하게 한다. */
+process.env.GODITOR_SPACING_DEBOUNCE_MS = process.env.GODITOR_SPACING_DEBOUNCE_MS || '200';
 
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
@@ -130,9 +137,18 @@ test('Ⓐ-b ⛔읽기 전용 도구는 감수를 «안» 부른다 (묶음을 �
 test('Ⓐ-c ★묶음 — 연달아 3번 편집해도 감수는 «한 번»만 돈다', async () => {
   await new Promise((r) => setTimeout(r, DEBOUNCE * 4));
   const at = H.calls.length;
+  /* ★묶음이 «정말 한 창 안»에 들어갔는지 재고 나서 판정한다.
+       안 들어갔으면 그건 「감수가 2번 돌았다」(제품)가 아니라 「내가 못 쟀다」(검사)다.
+       ⛔둘을 같은 빨강으로 만들면 다음 사람이 «없는 결함»을 쫓는다. */
+  const _t0 = Date.now();
   await H.call('add_block', { type: 'text', props: { type: 'body', content: 'a', sectionId: 'sec_5' } });
   await H.call('add_block', { type: 'text', props: { type: 'body', content: 'b', sectionId: 'sec_5' } });
   await H.call('add_block', { type: 'text', props: { type: 'body', content: 'c', sectionId: 'sec_5' } });
+  const _burstMs = Date.now() - _t0;
+  assert.ok(_burstMs < DEBOUNCE,
+    `★못 쟀다 — 세 호출이 ${_burstMs}ms 걸려 디바운스 창(${DEBOUNCE}ms)을 넘겼다.\n` +
+    '  묶음이 «한 창»에 안 들어갔으니 감수가 2번 도는 건 당연하다 — 제품 결함이 아니다.\n' +
+    '  GODITOR_SPACING_DEBOUNCE_MS 를 더 올려서 다시 재라.');
   await waitForAudit(at);
   await new Promise((r) => setTimeout(r, DEBOUNCE * 6));
   assert.equal(auditCount(at), 1, `묶음당 1회여야 한다. 실제 ${auditCount(at)}회 — 예약이 «재설정»되지 않는다는 뜻이다`);
