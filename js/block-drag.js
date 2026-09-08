@@ -1273,23 +1273,32 @@ function bindBlock(block) {
         window.showLabelGroupProperties(block, null);
         return;
       }
+      // ★sec 는 «칩 분기보다 위»에서 잡는다 — 아래 배경 경로에서만 쓰던 것을 끌어올렸다.
+      const sec = block.closest('.section-block');
       // 라벨 아이템 클릭: 아이템 선택
       const item = e.target.closest('.label-item');
       if (item) {
+        // ★수식어 키는 «누른 자리»와 무관하다 — 칩(.label-item) 위에서 눌러도 배경과 같아야 한다.
+        //   ⛔예전엔 이 분기가 ⌘/shift 를 안 봐서 라벨그룹은 «위아래 블록과 동시선택이 안 됐다».
+        //   칩이 왼쪽에 몰려 있어(716x69.5 안에 121.8 짜리 3개) 라벨을 겨냥하면 반드시 이리로 온다.
+        if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+        if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
         if (!block.classList.contains('selected')) {
           window.deselectAll();
           _restoreParentFrameSelected(block);
           block.classList.add('selected');
-          window.syncSection(block.closest('.section-block'));
+          window.syncSection(sec);
           window.highlightBlock(block, block._layerItem);
         }
+        // ★앵커도 배경 경로와 같이 «이 블록»으로 옮긴다 — 안 그러면 칩 클릭 뒤 shift 범위선택이
+        //   «묵은 앵커»에서 뻗어 엉뚱한 범위를 잡는다.
+        window.setBlockAnchor?.(block);
         block.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
         item.classList.add('item-selected');
         window.showLabelGroupProperties(block, item);
         return;
       }
       // 블록 배경 클릭: 블록만 선택
-      const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();

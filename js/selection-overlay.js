@@ -320,6 +320,34 @@ function _span(pa, pb, qa, qb, qlo, qhi) {
   if (Math.abs(pb - qb) < 1e-6) d = qhi;
   return [c, d];
 }
+/** q 의 변에서 «p 가 실제로 그리는 구간»(pIvs)에 해당하는 몫만 뺀다.
+ *  ★불변식: 「선이 «이미 있는» 자리만 지운다」.
+ *  ⛔예전엔 p 의 «생 상자» 폭(pg.L…pg.R)을 통째로 뺐다 — p 에 border-radius 가 있으면
+ *    모퉁이는 «호»가 대신하고 직선은 반경만큼 물러나 있는데, 그 물러난 자리에도 선이
+ *    있는 것으로 치고 q 의 변을 지웠다. 좌우 변까지 같으면 _span 이 qlo..qhi 로 넓혀
+ *    q 의 «윗변을 통째로» 지웠다(현빈 제보: mdl(반경 18) + sb 동시선택 → sb 윗선 소실).
+ *  ⇒ [c,d](생 상자 겹침 + 조건② 연장)를 p 의 «그리는 구간»과 «교집합»한 만큼만 뺀다.
+ *    교집합이므로 지우는 양은 «줄기만» 한다 — 없던 선을 지우는 일이 사라진다.
+ *  ★p 의 edges 는 이 시점에 확정이다: q 는 pi < qi 인 p 하고만 비교하고,
+ *    p 의 변은 «자기보다 앞선» 상자에 의해서만 깎이므로 그 계산은 이미 끝났다.
+ *
+ *  ★★왜 «교집합»이고 «순수형»이 아닌가 — 다음 사람에게 남긴다.
+ *    ⑴ 원칙적으로는 «순수형»(지운 것 = p 가 그리는 구간, [c,d] 를 아예 안 씀)이 더 옳다.
+ *       교집합은 부분 겹침에서 q 의 변 «양끝 0.5px 두 토막»을 남기는데, 그 자리엔 p 의 선도 있다.
+ *    ⑵ 그런데도 안 갔다: 순수형으로 바꾸면 tests/unit/selection-overlay-geometry.test.mjs 의
+ *       「부분 겹침」이 재는 «지운 길이»가 49 → 50 으로 바뀌어 «기존 기댓값을 내가 고쳐야» 한다.
+ *       내 코드를 통과시키려고 남의 기댓값을 고치는 것은 test-fitting 이다. 그래서 안 했다.
+ *    ⑶ ⛔바꾸고 싶으면 «기댓값부터 고치지 마라». 그 0.5px 두 토막이 화면에서 «실제로 무엇인지»를
+ *       먼저 재라(어느 배율에서 몇 디바이스 픽셀인지, 두 줄로 보이는지). 재고 나서 판단해라.
+ *    ★교집합은 «덜» 뺀다 — 없는 선을 지우는 쪽으로는 틀리지 않는다. 우리가 고친 병의 반대쪽이다. */
+function _subEdge(qIvs, c, d, pIvs) {
+  let out = qIvs;
+  for (const [pa, pb] of pIvs) {
+    const lo = Math.max(c, pa), hi = Math.min(d, pb);
+    if (hi > lo) out = subtractInterval(out, lo, hi);
+  }
+  return out;
+}
 function _dedupe(items, eps = _touchEps()) {
   const byB = new Map(), byT = new Map(), byR = new Map(), byL = new Map();
   const put = (m, k, i) => { const a = m.get(k); a ? a.push(i) : m.set(k, [i]); };
@@ -343,28 +371,28 @@ function _dedupe(items, eps = _touchEps()) {
       const pg = items[pi].g;
       if (Math.abs(pg.raw.b - qg.raw.t) >= eps) continue;
       const [c, d] = _span(pg.L, pg.R, qg.L, qg.R, qg.xlo, qg.xhi);
-      if (d > c) q.edges.top = subtractInterval(q.edges.top, c, d);
+      if (d > c) q.edges.top = _subEdge(q.edges.top, c, d, items[pi].edges.bottom);
     }
     for (const pi of near(byT, qg.raw.b)) {          // p 가 «아래», q 의 아랫변이 중복
       if (pi >= qi) continue;
       const pg = items[pi].g;
       if (Math.abs(pg.raw.t - qg.raw.b) >= eps) continue;
       const [c, d] = _span(pg.L, pg.R, qg.L, qg.R, qg.xlo, qg.xhi);
-      if (d > c) q.edges.bottom = subtractInterval(q.edges.bottom, c, d);
+      if (d > c) q.edges.bottom = _subEdge(q.edges.bottom, c, d, items[pi].edges.top);
     }
     for (const pi of near(byR, qg.raw.l)) {          // p 가 «왼쪽», q 의 왼변이 중복
       if (pi >= qi) continue;
       const pg = items[pi].g;
       if (Math.abs(pg.raw.r - qg.raw.l) >= eps) continue;
       const [c, d] = _span(pg.T, pg.B, qg.T, qg.B, qg.ylo, qg.yhi);
-      if (d > c) q.edges.left = subtractInterval(q.edges.left, c, d);
+      if (d > c) q.edges.left = _subEdge(q.edges.left, c, d, items[pi].edges.right);
     }
     for (const pi of near(byL, qg.raw.r)) {          // p 가 «오른쪽», q 의 오른변이 중복
       if (pi >= qi) continue;
       const pg = items[pi].g;
       if (Math.abs(pg.raw.l - qg.raw.r) >= eps) continue;
       const [c, d] = _span(pg.T, pg.B, qg.T, qg.B, qg.ylo, qg.yhi);
-      if (d > c) q.edges.right = subtractInterval(q.edges.right, c, d);
+      if (d > c) q.edges.right = _subEdge(q.edges.right, c, d, items[pi].edges.left);
     }
   });
 }
