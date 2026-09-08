@@ -163,8 +163,8 @@ export function showModalProperties(block) {
       <div class="prop-row"><span class="prop-label">글자색</span>${colorFieldHTML({ idPrefix: 'mdl-fg', hex: textColor, alpha: parseAlphaFromColor(textColor) })}</div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="mdl-fs-slider" min="10" max="40" step="1" value="${fontSize}">
-        <input type="number" class="prop-number" id="mdl-fs-number" min="10" max="40" value="${fontSize}">
+        <input type="range" class="prop-slider" id="mdl-fs-slider" min="10" max="60" step="1" value="${fontSize}">
+        <input type="number" class="prop-number" id="mdl-fs-number" min="10" max="60" value="${fontSize}">
       </div>
       <div class="prop-row"><span class="prop-label" style="opacity:.6">글자는 캔버스에서 더블클릭해 입력</span></div>
     </div>`;
@@ -207,7 +207,7 @@ export function showModalProperties(block) {
   wireNum('padx', 'padX', 0, 80);
   wireNum('pady', 'padY', 0, 80);
   wireNum('bw', 'borderW', 0, 12);
-  wireNum('fs', 'fontSize', 10, 40);
+  wireNum('fs', 'fontSize', 10, 60);
   if (isGrid) wireNum('gap', 'gap', 0, 40);
   if (isIcon) wireNum('isize', 'iconSize', 12, 96);
 
