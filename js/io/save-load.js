@@ -571,8 +571,27 @@ function applyProjectData(data) {
        한가할 때 세고(requestIdleCallback) 읽기만 하므로 이 저장 억제 구간과 부딪치지 않는다. */
     window.gdtFontCheckDocument?.();
   } finally {
-    // MutationObserver는 microtask 후 발화 — rAF로 한 프레임 뒤 해제해 잔여 mutation까지 흡수
-    requestAnimationFrame(() => { state._suppressAutoSave = false; });
+    /* MutationObserver는 microtask 후 발화 — rAF로 한 프레임 뒤 해제해 잔여 mutation까지 흡수.
+       ⛔★2026-09-08 실측 사고: rAF «하나»에만 매달려 있었다.
+         브라우저는 창이 «가려지면»(visibilityState:'hidden') rAF 를 아예 안 돌린다 —
+         실측: hidden 창에서 3초를 기다려도 «한 번도» 안 돌았고, 억제가 그대로 걸려 있었다.
+         ⇒ ⑴자동저장이 «영영» 안 돈다 = 그 창의 편집이 저장되지 않는다(고착이 곧 데이터 손실)
+           ⑵open_project 가 「아직 안 열렸다」로 상한 120초를 꽉 채운다(실측 58~92초 관측의 정체)
+       ★이 파일은 이미 같은 병을 앓고 그 처방을 적어 뒀다 —
+         `_AUTOSAVE_DEFER_MAX_MS`(:1350) 옆 주석: 「고착이 곧 데이터 손실이다 … 재개 경로를 «셋» 둔다」.
+         그런데 이쪽 경로엔 그 안전망이 «없었다». 같은 처방을 여기에도 둔다.
+       ⇒ rAF 의 «뜻»(한 프레임 뒤 = 잔여 mutation 흡수)은 그대로 두고,
+         rAF 가 «안 도는 경우»에만 타이머가 받는다. 둘 중 먼저 오는 쪽이 푼다(한 번만). */
+    let _released = false;
+    const _release = () => {
+      if (_released) return;
+      _released = true;
+      state._suppressAutoSave = false;
+    };
+    requestAnimationFrame(_release);
+    /* ⛔안전망은 «넉넉하되 짧게» — 길면 그동안의 편집이 안 저장되고, 짧으면 잔여 mutation 을 못 흡수한다.
+         보이는 창에서는 rAF 가 먼저(≈16ms) 오므로 이 타이머는 «안 보이는 창»에서만 실질적으로 쓰인다. */
+    setTimeout(_release, 250);
   }
 }
 
