@@ -14,6 +14,10 @@
  * ⛔고정 창(slice(i, i±N)) 금지 — 함수 몸통은 중괄호를 세어 떼어낸다.
  *
  * ★안 잰 것 (정직하게)
+ *   · ★★js/editor.js 를 «실행»해서 재는 검사는 이 레포에 «0개»다 — tests/dom 의 spec 8개 중
+ *     editor.js 를 얹는 것이 0건이고(2026-09-09 실측), editor.js 가 ESM 이라 addScriptTag 로 못 얹는다.
+ *     ⇒ editor.js ↔ SPLink 이음매는 «텍스트 단언»이 전부다. 그 한계가 실제로 물린 사고가
+ *       T-U1-1 주석에 적혀 있다(인덱스 비교만 있던 판에서 발주 버그가 통째로 통과했다).
  *   · 실앱에서 «로드 중 ⌘V» — _scratchLoaded 가 모듈 사설이라 못 만진다. 「안 쟀다」(지디 실기).
  *   · restoreSnapshot 이 페이지를 바꾼 «뒤» onUndo 가 불리는 실앱 «순서». 「안 쟀다」(지디 실기).
  *   · 사본이 화면에 «보이는가» — 렌더 없이 못 잰다. DOM 쪽 T-DOM-6/7 이 좌표까지만 잰다.
@@ -94,7 +98,49 @@ test('T-U1-0 ★양성대조 — 네 파일을 «실제로» 읽고 있다 (아�
   assert.ok(!REWIRE.includes('자가 가드'), '★주석 거르개가 안 돌고 있다 — 몸통에 주석 문장이 남아 있다');
 });
 
-test('T-U1-1 ★★순서 — rewireClonedSection 은 DOM 삽입 «전»에 불린다 (넣은 뒤면 사본이 자기 자신을 찾는다)', () => {
+/* ★★T-U1-1 이 «문장 전체»를 박는 이유 — 인덱스 비교만으로는 발주 버그가 통째로 되살아난다.
+ *
+ * 2026-09-09 적대 검수가 실측으로 잡았고 Generator 가 재현했다. 이 «한 줄»만 바꾸면
+ *   js/editor.js:1588
+ *     원문 : _spl = window.SPLink?.rewireClonedSection?.(el) || null;
+ *     변이A: _spl = window.SPLink?.rewireClonedSection?.(el.cloneNode(true)) || null;   (sha 52d36a3bd0de → 4c53b38f637b)
+ *     변이B: queueMicrotask(() => { window.SPLink?.rewireClonedSection?.(el); });        (sha 52d36a3bd0de → 313bcb8e035a)
+ * 전수가 «둘 다» 초록이었다 — npm test 1835 pass/0 fail · npm run test:dom 62 passed. 빨간 검사 ★0건.
+ *
+ * 변이A 가 실앱에서 하는 일(도달 조건 없음 — 링크된 섹션 ⌘C→⌘V 하면 «매번», ⌘D 도 같다):
+ *   ⑴ rewire 가 «버려질 사본»을 받는다 → holder 는 여전히 살아있는 원본이라 truthy
+ *   ⑵ _scratchDuplicateItem 이 «진짜로» 돈다 — ScratchPadDB 에 레코드가 생기고 이미지가 붙는다
+ *   ⑶ 새 토큰은 «버려질 사본»에 적힌다 ⇒ 삽입되는 el 의 data-ref-links 는 sp_a:0 그대로
+ *   ⇒ 현빈이 신고한 「링크체인 2개」 100% 재현 + 주인 없는 유령 이미지가 붙여넣기마다 한 장씩.
+ *      ★고치기 «전»보다 나쁘다.
+ * 변이B 는 텍스트 «순서»가 안 바뀐 채 «실행»만 삽입 뒤로 밀린다 = 계획서가 「제일 나쁜 종류」라 부른 판.
+ *   ⚠️§Q6 의 「레이아웃이 아직 안 앉았다」가 다음 사람을 정확히 «비동기로 미루기» 쪽으로 유혹한다.
+ *
+ * 왜 셋이 다 못 잡았나 — 같은 방향으로 비어 있었다:
+ *   ⑴ tests/dom 전수가 editor.js 에 «장님»이다(아래 한계 참조)
+ *   ⑵ 인덱스 비교는 호출 «자리»만 본다 — 변이A 는 idx(rewireClonedSection)=3310 이 한 글자도 안 움직인다
+ *   ⑶ T-U1-2 는 꼬리 pushHistory 만 본다 — 그 줄은 안 건드렸으니 통과
+ *
+ * ⛔그러니 「지나치게 빡빡하다」며 이 문장 단언을 인덱스 비교로 «되돌리지 마라».
+ *   되돌리면 위 두 변이가 다시 통과하고, 그때 뚫리는 것은 스타일이 아니라 «발주 버그 그 자체»다.
+ *   문장을 정당하게 바꿔야 한다면(예: 이름 변경) 이 단언의 기대 문자열을 같이 고치고,
+ *   ★그 뒤 위 변이A·B 를 «직접 쳐서» 여전히 빨간지 확인해라. 그게 이 검사가 사는 조건이다.
+ *
+ * ★한계(명시) — 이건 «텍스트»를 본다. js/editor.js 를 «실행»해서 재는 검사는 이 레포에 0개다.
+ *   근거(2026-09-09 실측): tests/dom 의 spec 8개 중 editor.js 를 얹는 것은 0건이다
+ *   — modal-resize 는 소스를 «문자열로» 읽을 뿐이고, pad-hint 는 진짜 index.html 에서
+ *     <script> 를 전부 걷어낸 뒤 필요한 모듈만 다시 얹는다(주석이 「editor.js 가 …줄줄이 넘어졌다」로
+ *     그 이유를 적어 뒀다). editor.js 가 ESM 이라 addScriptTag 로 못 얹는 것이 근본 원인이다.
+ *   ⇒ editor.js ↔ SPLink «이음매»에 대해 지금 가능한 최강이 이 텍스트 단언이다.
+ *     ⛔「검사가 있으니 됐다」로 읽지 마라 — 실행 경로는 지디 실기(§6)가 진다. */
+test('T-U1-1 ★★순서 — rewireClonedSection 은 DOM 삽입 «전»에 «el 그대로·동기로» 불린다', () => {
+  /* ★본문 단언이 맨 앞 — 문장 전체를 박는다. 인자(el)·동기 호출·대입까지 한 덩어리로 봐야
+     el.cloneNode(true) 나 queueMicrotask 감싸기가 걸린다(인덱스 비교는 둘 다 통과시켰다). */
+  assert.ok(PASTE.includes('_spl = window.SPLink?.rewireClonedSection?.(el) || null;'),
+    '★호출 «문장»이 바뀌었다 — 인자가 el 이 아니거나(el.cloneNode(true) 등) 콜백으로 감쌌으면 '
+    + '(queueMicrotask/setTimeout/rAF) 삽입 «전» 판정이 죽는다. 그러면 사본은 만들어지는데 '
+    + '새 토큰이 «버려질 객체»에 적히거나 삽입 뒤에 적혀서, 발주 버그(링크체인 2개)가 100% 되살아나고 '
+    + '주인 없는 유령 이미지까지 쌓인다. 위 주석의 변이A/B 를 보라.');
   const iRewire = PASTE.indexOf('rewireClonedSection');
   const iAfter  = PASTE.indexOf('refSection.after(el)');
   const iAppend = PASTE.indexOf('canvasEl.appendChild(el)');
