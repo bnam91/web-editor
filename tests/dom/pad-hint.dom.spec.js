@@ -33,10 +33,12 @@ const HARNESS = (() => {
   let h = fs.readFileSync(path.join(REPO, 'index.html'), 'utf8');
   h = h.replace(/<script\b[\s\S]*?<\/script>/gi, '');
   /* ★세척 «진짜 함수»를 얹는다 — D6 이 재구현이 아니라 실물을 돌리게. 플레인 스크립트라 단독 로드된다. */
-  return h.replace('</body>', `<script src="/js/io/section-serialize.js"></script>
+  return h.replace('</body>', `<script src="/vendor/html2canvas/html2canvas.min.js"></script>
+<script src="/js/io/section-serialize.js"></script>
 <script type="module">
   import { showSectionProperties } from '/js/props/prop-section.js';
   import { showPageProperties } from '/js/props/prop-page.js';
+  import '/js/io/export-image.js';                 // D12 — window.exportSection 을 «진짜로» 돌린다
   window.__open = showSectionProperties;
   window.__openPage = showPageProperties;
   window.__ready = true;
@@ -544,6 +546,176 @@ test('D11 ★풀블리드 에셋 위에서도 띠가 «보인다» — 화면을
   const off = await samplePixels(page, pts);
   expect(near(off.px[0], BLUE), `★띠가 걷힌 뒤에도 핑크가 남았다 — ${off.px[0]}`).toBe(true);
   expect(near(off.px[1], BLUE), `★띠가 걷힌 뒤에도 핑크가 남았다 — ${off.px[1]}`).toBe(true);
+
+  expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
+});
+
+/* ═══════════════════════════════════════════════════════════
+   D12 ★내보내기 가드가 «실제로 돈다» — 소스가 아니라 런타임으로
+   지금까지 이 가드는 정적 T3 + 정적 변이 M4 뿐이었다.
+   ⇒ 클래스 이름이 바뀌거나 가드가 우회되면 «소스는 그럴듯한데 안 도는» 모양이 된다.
+
+   ★판정은 «화소»로 한다 — team-lead 지시. dataURL 길이·해시로는 안 잰다.
+     ⇒ 가드를 «지난» 그림엔 핑크 0, ★같은 잣대를 «가드를 안 지난» 그림에 먹이면 >0.
+       그 양성대조가 없으면 「0개」가 «가드 덕»인지 «잣대가 죽어서»인지 못 가른다.
+
+   ⚠️★내가 이 자리에서 두 번 헛짚었다 — 남긴다.
+     처음엔 양성대조가 0 이 나와 「html2canvas 는 ::before 를 안 그린다」고 «판정»했다. 틀렸다.
+     ★원인은 «내 400ms 디바운스»였다 — 가드 지난 캡처 + 디코딩에 400ms 넘게 걸려서,
+       양성대조를 찍을 즈음엔 **띠가 이미 걷혀 있었다**. 즉 「띠 없는 그림」을 재고
+       「엔진이 못 그린다」로 결론지은 것이다. ⇒ 디바운스를 «다 태운 뒤» 상태를 세우자
+       같은 엔진이 핑크를 **3840개** 그렸다.
+     ⇒ 교훈은 오늘 것과 같다: **「못 그린다」도 판정이다. 판정에는 근거가 붙어야 한다.**
+
+   ⇐ 되돌리면 빨강: exportSection 의 `classList.remove('gdt-pad-on')` 한 줄을 빼면
+     스파이가 «캡처 도는 동안 gdt-pad-on 이 켜져 있었다»를 잡는다.
+   ═══════════════════════════════════════════════════════════ */
+test('D12 ★내보내기가 «도는 동안» gdt-pad-on 이 꺼져 있다 (그리고 뒤에 원복된다)', async ({ page }) => {
+  const errs = await boot(page);
+
+  /* 그리드 가이드도 «같은 가드»에 얹혀 있다 — 진짜 체크박스로 켜서 덤으로 함께 잰다. */
+  await page.evaluate(() => window.__openPage());
+  await page.waitForSelector('#page-grid-on', { state: 'attached' });
+  await page.click('#page-grid-on');
+  expect(await page.evaluate(() => document.body.classList.contains('gdt-grid-on')),
+    '그리드를 켜지 못했다 — 덤으로 재려던 자리가 사라진다').toBe(true);
+
+  await openPanel(page, 'sec_2');
+  await slide(page, 40);
+
+  /* ★⑴ 먼저 «진짜 배선»이 그 상태를 만드는지 확인한다 — 진짜 슬라이더로. */
+  const live = await bandOf(page, 'sec_2');
+  expect(live.on,   '★진짜 슬라이더가 gdt-pad-on 을 못 붙였다 — 아래가 통째로 공회전이다').toBe(true);
+  expect(live.varL, '★진짜 슬라이더가 --gdt-pad-l 을 못 박았다').toBe('40px');
+
+  /* ★⑵ 그 «다음»에 400ms 디바운스를 «다 태운다».
+     ⛔안 그러면 이 검사가 못 잰다: 캡처는 부하에 따라 0.4~2초가 걸리는데
+       그 사이에 디바운스가 터지면 가드의 finally 가 되돌린 클래스를 곧바로 다시 지운다.
+       ⇒ 「finally 가 살았나」가 «시계와의 경주»가 된다(폴더 전수에서 실제로 갈렸다).
+     ⇒ 타이머를 다 태운 뒤, ⑴이 방금 «진짜로» 만든 것과 «똑같은» 상태를 손으로 세워 잰다.
+       재려는 것은 「가드가 도는가」지 「디바운스가 몇 초인가」가 아니다(그건 D2 가 잰다). */
+  await page.waitForTimeout(600);
+  expect((await bandOf(page, 'sec_2')).on, '디바운스가 안 걷혔다 — 아직 경합이 남는다').toBe(false);
+
+  const r = await page.evaluate(async () => {
+    const inner = document.querySelector('#sec_2 .section-inner');
+    inner.style.setProperty('--gdt-pad-l', '40px');
+    inner.style.setProperty('--gdt-pad-r', '40px');
+    document.body.classList.add('gdt-pad-on');
+
+    /* ★입력이 살아 있다 ⑴ — 내보내기 «직전»에 힌트가 정말 켜져 있나.
+       안 켜져 있으면 「내보낸 그림에 안 찍혔다」는 당연한 소리라 검사가 공회전한다. */
+    const pre = {
+      pad: document.body.classList.contains('gdt-pad-on'),
+      grid: document.body.classList.contains('gdt-grid-on'),
+      varL: inner.style.getPropertyValue('--gdt-pad-l'),
+      band: getComputedStyle(inner, '::before').borderLeftWidth,
+      hasExport: typeof window.exportSection === 'function',
+    };
+
+    const countPink = async (dataUrl) => {
+      const img = new Image(); img.src = dataUrl; await img.decode();
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0);
+      const d = ctx.getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        if (Math.abs(d[i] - 255) <= 8 && Math.abs(d[i + 1] - 230) <= 10 && Math.abs(d[i + 2] - 242) <= 10) n++;
+      }
+      return { n, w: c.width, h: c.height };
+    };
+    /* 잣대 양성대조 ⑴ — 핑크를 «칠한» 그림에서 세는 코드 자체가 사나. */
+    const swatch = document.createElement('canvas');
+    swatch.width = swatch.height = 10;
+    swatch.getContext('2d').fillStyle = 'rgb(255,230,242)';       // 핑크10% over 흰색
+    swatch.getContext('2d').fillRect(0, 0, 10, 10);
+    const yardstickAlive = (await countPink(swatch.toDataURL('image/png'))).n;
+
+    /* ★잣대 양성대조 ⑵ — «가드를 안 지나는» 직행으로 같은 섹션을 같은 엔진으로 찍는다.
+       ⛔반드시 가드 내보내기 «앞»에 둔다. 뒤에 두면 이 대조가 «finally 가 클래스를 되돌렸나»에
+         얽혀서, finally 를 지운 변이가 「잣대가 죽었다」는 엉뚱한 이유를 대게 된다(실제로 그랬다). */
+    const realH2C = window.html2canvas;
+    let unguarded = null;
+    try {
+      const cv = await realH2C(document.getElementById('sec_2'), { backgroundColor: '#ffffff', scale: 1, logging: false });
+      unguarded = await countPink(cv.toDataURL('image/png'));
+    } catch (e) { unguarded = { err: String(e && e.message || e).slice(0, 120) }; }
+
+    /* 캡처 «도는 순간»의 상태를 잡는 스파이 — 「왜」 를 말해 준다. */
+    const spy = { calls: 0, padDuring: null, gridDuring: null };
+    window.html2canvas = function (...args) {
+      spy.calls++;
+      spy.padDuring = document.body.classList.contains('gdt-pad-on');
+      spy.gridDuring = document.body.classList.contains('gdt-grid-on');
+      return realH2C.apply(this, args);
+    };
+    let url = null, err = null;
+    try {
+      url = await window.exportSection(document.getElementById('sec_2'), 'png', 860, { returnDataUrl: true });
+    } catch (e) { err = String(e && e.message || e).slice(0, 200); }
+    window.html2canvas = realH2C;
+
+
+    return {
+      pre, spy, err,
+      isString: typeof url === 'string',
+      isPng: typeof url === 'string' && url.startsWith('data:image/png;base64,'),
+      len: typeof url === 'string' ? url.length : 0,
+      exported: typeof url === 'string' ? await countPink(url) : null,
+      yardstickAlive, unguarded,
+      postPad: document.body.classList.contains('gdt-pad-on'),
+      postGrid: document.body.classList.contains('gdt-grid-on'),
+    };
+  });
+
+  expect(r.err, `내보내기가 던졌다: ${r.err}`).toBeNull();
+
+  /* ★입력이 살아 있다 — 본 단언 «앞»에 전부 */
+  expect(r.pre.hasExport, 'window.exportSection 이 없다 — 하네스가 모듈을 안 얹었나').toBe(true);
+  expect(r.pre.pad,  '★내보내기 직전에 gdt-pad-on 이 꺼져 있었다 — 이 검사는 공회전이다').toBe(true);
+  expect(r.pre.grid, '★내보내기 직전에 gdt-grid-on 이 꺼져 있었다 — 덤 판정이 공회전이다').toBe(true);
+  expect(r.pre.varL, '★--gdt-pad-l 이 안 박혀 있다 — 그릴 띠가 없다').toBe('40px');
+  expect(r.pre.band, '★내보내기 직전에 띠가 «실제로» 40px 이 아니다 — 그릴 것이 없으면 공회전이다').toBe('40px');
+  expect(r.spy.calls, '★캡처가 한 번도 안 돌았다 — 스파이가 아무것도 못 봤다(잣대 죽음)')
+    .toBeGreaterThanOrEqual(1);
+  expect(r.spy.calls, '캡처가 비정상적으로 여러 번 돌았다 — 엉뚱한 것을 잡았나').toBeLessThan(10);
+  expect(r.isPng, `★돌려받은 것이 PNG dataURL 이 아니다 — ${String(r.len)}자`).toBe(true);
+  expect(r.len, '★PNG 가 비어 있다 — 빈 그림에는 핑크가 없는 게 당연하다').toBeGreaterThan(1000);
+  expect(r.exported.w, '내보낸 그림의 폭이 0 이다').toBeGreaterThan(100);
+
+  /* ★잣대 양성대조 — 세는 코드 자체는 살아 있다(핑크를 칠한 그림에서 100개를 센다) */
+  expect(r.yardstickAlive, '★핑크를 칠한 그림에서도 0개다 — countPink 가 죽었다').toBe(100);
+
+  /* ★★잣대 양성대조 ⑵ — «가드를 안 지난» 그림엔 핑크가 «있다».
+     ⛔이게 0 이면 아래 「0개」는 가드가 아니라 잣대가 죽어서 나온 0 이다(내가 실제로 그렇게 속았다).
+     하한과 상한을 «둘 다» 박는다 — 하한 없으면 0도 통과, 상한 없으면 「온통 핑크」도 통과. */
+  expect(r.unguarded.err, `양성대조 캡처가 던졌다: ${r.unguarded.err}`).toBeUndefined();
+  expect(r.unguarded.n,
+    '★가드를 «안» 지난 그림에도 핑크가 없다 — 잣대가 죽었다. 아래 0개는 아무 뜻이 없다')
+    .toBeGreaterThan(200);
+  expect(r.unguarded.n, '★온통 핑크다 — 엉뚱한 것을 세고 있다')
+    .toBeLessThan(r.unguarded.w * r.unguarded.h * 0.9);
+
+  /* ★★본 단언(화소) — 가드를 «지난» 그림엔 핑크가 0 개다.
+     ⇐ exportSection 의 remove('gdt-pad-on') 한 줄을 빼면 여기서 N개가 잡힌다.
+     ★스파이보다 «먼저» 둔다 — 사람이 먼저 알아야 할 것은 「결과물이 더럽혀졌다」는 해악이고,
+       「가드가 안 돌았다」는 그 원인이다. 바로 아래 스파이가 그 원인을 이어서 말한다. */
+  expect(r.exported.n,
+    `★내보낸 PNG 에 핑크가 ${r.exported.n}개 찍혔다 — 가드가 안 돌았다(띠가 결과물에 남는다)`).toBe(0);
+
+  /* 「왜」 0 개인가 — 캡처가 «도는 동안» 가드가 클래스를 내려놓았기 때문이다. */
+  expect(r.spy.padDuring,
+    '★내보내기가 도는 «동안» gdt-pad-on 이 켜져 있었다 — 가드가 안 돈다. 띠가 내보낸 이미지에 찍힌다')
+    .toBe(false);
+  /* 덤 — 그리드 가이드도 «같은 가드»에 얹혀 있다. 함께 지킨다.
+     (화소로는 못 가른다 — 빨강 그리드는 이 잣대의 핑크 범위 밖이다. 그래서 스파이가 맡는다.) */
+  expect(r.spy.gridDuring,
+    '★내보내기가 도는 «동안» gdt-grid-on 이 켜져 있었다 — 형제 가드가 안 돈다').toBe(false);
+
+  /* finally 가 사나 — 실패해도 영영 꺼진 채로 남으면 안 된다 */
+  expect(r.postPad,  '★내보낸 «뒤» gdt-pad-on 이 원복되지 않았다 — finally 가 죽었다').toBe(true);
+  expect(r.postGrid, '★내보낸 «뒤» gdt-grid-on 이 원복되지 않았다').toBe(true);
 
   expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
 });
