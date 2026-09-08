@@ -2376,7 +2376,7 @@ document.addEventListener('keydown', e => {
           e.preventDefault();
           const step = e.shiftKey ? 20 : 4;
           const cur = gb.offsetHeight;
-          const next = Math.min(400, Math.max(0, cur + (isPlus ? step : -step)));
+          const next = Math.min(window.GAP_MAX ?? 1000, Math.max(window.GAP_MIN ?? 0, cur + (isPlus ? step : -step)));
           gb.style.height = next + 'px';
           const sl = document.getElementById('gap-slider');
           const nb = document.getElementById('gap-number');
@@ -2399,7 +2399,7 @@ document.addEventListener('keydown', e => {
       const step = e.shiftKey ? 20 : 4;
       const delta = e.key === 'ArrowUp' ? step : -step;
       const cur = selGap.offsetHeight;
-      const next = Math.min(400, Math.max(0, cur + delta));
+      const next = Math.min(window.GAP_MAX ?? 1000, Math.max(window.GAP_MIN ?? 0, cur + delta));
       selGap.style.height = next + 'px';
       // 패널 슬라이더/숫자 동기화
       const sl = document.getElementById('gap-slider');
