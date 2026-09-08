@@ -909,6 +909,9 @@ function _slimCanvasState(raw, detail) {
       sections: shown.map(s => ({
         sectionId: s.sectionId,
         ...(s.name ? { name: s.name } : {}),
+        /* ★요약(목록)에서 더 중요하다 — 사람이 「섹션이 왜 두 개지」를 보는 자리가 여기다 */
+        ...(s.variationGroup ? { variationGroup: s.variationGroup, variation: s.variation,
+                                 variationActive: s.variationActive } : {}),
         blocks: (s.blocks || []).length,
         ...((s.blocks || []).length ? { first: _firstMeaningful(s.blocks) } : {}),
         /* ★요약에서도 «중첩이 있나»는 알려준다 — 없으면 평평한 페이지로 오해한다 */
@@ -925,6 +928,12 @@ function _slimCanvasState(raw, detail) {
     sections: raw.sections.map(s => ({
       sectionId: s.sectionId,
       ...(s.name ? { name: s.name } : {}),
+      /* ★A/B 베리에이션 — 안 실으면 A안·B안이 «그냥 섹션 두 개»로 보여
+         「정리해줘」에 B안이 «중복»으로 지워질 수 있다(2026-09-08).
+         ⛔이 허용목록이 «렌더러가 새로 보내는 필드를 조용히 버린다»는 경고가 이 파일에 이미 있고,
+           나는 오늘 placeholder 로 «한 번 걸렸다». 두 번째다 — 그래서 섹션 쪽도 같이 채운다. */
+      ...(s.variationGroup ? { variationGroup: s.variationGroup, variation: s.variation,
+                               variationActive: s.variationActive } : {}),
       blocks: (s.blocks || []).map(b => {
         /* ★구조(parentId·depth)는 «내용»이 아니라 «뼈대»다 — 응답을 줄인다고 버리면
              「이 프레임 안에 뭐가 있나」를 영영 못 본다(2026-09-07 실측: 여기서 버려지고 있었다).
@@ -1540,7 +1549,7 @@ function _registerDefaultTools() {
       return { ok: true, sectionId, section: sec, texts };
     },
     {
-      description: 'Read a specific section by id and extract its text content.',
+      description: 'Read a specific section by id and extract its text content. ★If the section is part of an A/B variation group it carries variationGroup/variation/variationActive — sections sharing a variationGroup are ALTERNATIVE DESIGNS for the SAME slot, not duplicates. ⛔Never \"clean up\" one as a duplicate; only variationActive:true is the one currently shown.',
       inputSchema: {
         type: 'object',
         properties: { sectionId: { type: 'string' } },

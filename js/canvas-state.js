@@ -232,9 +232,21 @@
       blocks.push({ blockId: id, type: type, parentId: parentId, depth: depth,
                     summary: _summarize(el, type, full) });
     });
+    /* ★★A/B 베리에이션을 «말한다» (2026-09-08 현빈 지시).
+         A안·B안은 «같은 자리의 두 시안»인데, 이걸 안 실어 보내면 밖에서는 «그냥 섹션 두 개»로 보인다.
+         ⇒ 「섹션 정리해줘」 같은 일에서 B안을 «중복»으로 알고 지우자고 할 수 있다.
+       ⛔숨기지 «않는다» — 표시한다. 안내문구(placeholder)와 같은 원칙이다:
+         AI 가 「이건 같은 자리의 다른 안이다」를 알아야 옳게 다룬다.
+       데이터 출처 = js/section-variation.js 의 createVariation() 이 심는 셋. */
+    const vg = section.dataset.variationGroup || '';
     return {
       sectionId: section.id || null,
       name: section.dataset.name || '',
+      ...(vg ? {
+        variationGroup: vg,
+        variation: section.dataset.variation || '',
+        variationActive: section.dataset.variationActive === '1',
+      } : {}),
       blocks,
     };
   }
