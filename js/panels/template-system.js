@@ -1027,7 +1027,14 @@ window.showTemplatePreview  = showTemplatePreview;
 window.__tplEditorCommand = async (p) => {
   try {
     if (!p || !p.action) return { ok: false, reason: '알 수 없는 명령입니다.' };
-    if (p.action === 'open-panel') { window.openTemplateBrowser?.(); return { ok: true }; }
+    if (p.action === 'open-panel') {
+      /* ★창이 「지금 자기 크기」를 실어 보낸다 — 그걸 패널에 되돌려야 왕복이 대칭이 된다.
+         안 그러면 떼었다 붙일 때마다 패널이 원래(420) 크기로 돌아가 사용자가 맞춰둔 게 사라진다.
+         ⛔크기가 «안 오면» 건드리지 않는다 — applyTemplatePanelSize 가 스스로 걸러 낸다. */
+      window.applyTemplatePanelSize?.(p.width, p.height);
+      window.openTemplateBrowser?.();
+      return { ok: true };
+    }
     if (p.action !== 'insert') return { ok: false, reason: '알 수 없는 명령입니다.' };
 
     const tpl = loadTemplates().find(t => t.id === p.id);
