@@ -101,6 +101,91 @@ const _GRID_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(
    ⇒ 이 정규식이 유일한 문지기다. 지키는 검사: tests/unit/grid-color-re.test.mjs (U10 음성대조).
    (따옴표는 통과시키되 _esc 가 &quot; 로 바꾼다 — 속성 밖으로 못 나간다.) */
 const _GRID_FONT_RE = /^[\w\s,'"\-().가-힣]+$/;
+/* ═══ patchCell 이 «실제로 그려지는 필드»만 받게 하는 명부 ═══════════════════
+   ★왜 있나 — 2026-09-09. `update_block{patchCell}` 은 `rest` 의 «아무 키나» 받아
+     `applied.patchCell` 에 그대로 되돌려줬다. 렌더러가 안 읽는 이름을 줘도 `ok:true` 다.
+     ⇒ 「우리가 뭘 했나」는 성공인데 「세상이 어떻게 됐나」는 그대로다 — «거짓 성공».
+     그리고 r≥1 에선 `Object.assign` 이라 그 쓰레기가 «파일에 남는다»(r===0 은 조용히 버려진다).
+     둘 다 부르는 쪽엔 안 보인다. 오타 하나가 「됐다는데 화면은 그대로」로 끝난다.
+
+   ⛔이 두 목록을 «손으로» 늘리지 마라. 렌더러가 읽는 것에서 «도출»한 값이다 —
+     `tests/unit/grid-patchcell-reject.test.js` 가 `_gridLineHtml` 과 `renderGridBlock` 을
+     실제로 파싱해 이 목록과 대조한다. 렌더러가 새 필드를 읽기 시작하면 그 검사가 빨개진다.
+     ★대조를 «생성»으로 바꾸지 않는 이유: 생성하면 증인이 둘에서 하나로 준다.
+       상수가 틀리면 설명도 «자신 있게» 같이 틀리고 아무 검사도 안 빨개진다. */
+
+/** `_gridLineHtml` 이 읽는 `line.*` — patchCell{lineIndex} 로 줄 수 있는 필드. */
+const GRID_LINE_FIELDS = new Set([
+  'align', 'barColor', 'bg', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
+  'gap', 'height', 'imgSrc', 'italic', 'items', 'labelColor', 'labelSize',
+  'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV', 'radius', 'strike',
+  'text', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize', 'weight',
+]);
+
+/** `renderGridBlock` 이 셀에서 읽는 것(`cell.lines` + `pick(...)`) — patchCell 로 줄 수 있는 필드.
+ *  ⚠️`width` 는 «열» 속성이라 여기 없다 — 셀로 주면 조용히 버려진다. 거절 메시지가 patchCol 로 보낸다. */
+const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', 'radius']);
+
+/** 오타를 «되돌려» 준다 — 거절이 「틀렸다」로 끝나면 부르는 쪽은 다음에 뭘 할지 모른다. */
+function _gridNearestField(key, allowed) {
+  const k = String(key).toLowerCase();
+  let best = null, bestD = Infinity;
+  for (const a of allowed) {
+    const al = a.toLowerCase();
+    if (al === k) return a;                       // 대소문자만 다르다
+    const d = _gridEditDistance(k, al);
+    if (d < bestD) { bestD = d; best = a; }
+  }
+  return bestD <= Math.max(2, Math.floor(k.length / 3)) ? best : null;
+}
+function _gridEditDistance(a, b) {
+  const m = a.length, n = b.length;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+/** patchCell 의 «내용 키»를 검사한다. 통과면 null, 아니면 «무엇을 하라»까지 적은 거절.
+ *  @param {boolean} isLine  lineIndex 가 주어졌나(=줄 patch 인가)  */
+function _gridRejectUnknownCellFields(rest, isLine) {
+  const allowed = isLine ? GRID_LINE_FIELDS : GRID_CELL_FIELDS;
+  const other   = isLine ? GRID_CELL_FIELDS : GRID_LINE_FIELDS;
+  const bad = Object.keys(rest).filter(k => !allowed.has(k));
+  if (!bad.length) return null;
+
+  const where = isLine ? 'a line (lineIndex given)' : 'a cell (no lineIndex)';
+  const parts = bad.map(k => {
+    if (k === 'width') {
+      return `'${k}' is a COLUMN field, not a cell field — use update_block{patchCol:{c,width}} instead`;
+    }
+    if (other.has(k)) {
+      return isLine
+        ? `'${k}' is a CELL field, not a line field — drop lineIndex to patch the cell, e.g. patchCell:{r,c,${k}:…}`
+        : `'${k}' is a LINE field, not a cell field — add lineIndex to patch one line ` +
+          `(patchCell:{r,c,lineIndex:0,${k}:…}), or pass it inside lines:[{${k}:…}]`;
+    }
+    const near = _gridNearestField(k, allowed);
+    return near
+      ? `'${k}' is not read by the renderer — did you mean '${near}'?`
+      : `'${k}' is not read by the renderer`;
+  });
+
+  return {
+    ok: false,
+    code: 'INVALID',
+    /* ★①「무엇을 하라」까지 말한다 — 그리고 «왜 조용했는지»도. 그래야 다음에 안 당한다. */
+    message: `patchCell: unknown field(s) for ${where} — ${parts.join('; ')}. `
+      + `This would have returned ok:true and changed nothing on screen. `
+      + `Allowed here: ${[...allowed].sort().join(', ')}.`,
+  };
+}
+
 const _esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 function _gridCols(block) {
@@ -569,6 +654,10 @@ function updateGridBlock(blockId, partial = {}) {
     if (r < 0 || r >= rowCountForValidation) return { ok: false, code: 'INVALID', message: `patchCell.r out of range (0~${rowCountForValidation - 1})` };
     if (c < 0 || c >= cols.length) return { ok: false, code: 'INVALID', message: `patchCell.c out of range (0~${cols.length - 1})` };
     const { r: _r, c: _c, lineIndex, ...rest } = p;
+    /* ★거짓 성공 봉쇄 — 렌더러가 «안 읽는» 이름은 여기서 막는다(2026-09-09).
+       이 줄이 없으면 오타 하나가 ok:true 로 돌아오고 화면은 그대로다. */
+    const _reject = _gridRejectUnknownCellFields(rest, lineIndex !== undefined);
+    if (_reject) return _reject;
     const extra = r > 0 ? _gridExtraRows(block, cols, rowCountForValidation) : null;
     let cellPatch = rest;   // 기본: 셀 전체(부분) patch — 기존 동작 그대로
 

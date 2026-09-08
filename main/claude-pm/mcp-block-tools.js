@@ -114,7 +114,7 @@ const INLINE_ADD = [
 ];
 const INLINE_UPD = [
   'text(tb_): content(=text) | color | fontSize:8-2000 | fontWeight:100-900|normal|bold | align',
-  'gap(gb_): height:0-400',
+  'gap(gb_): height:0-1000',
   'asset(ab_): imgSrc | width:100-860 | height:200-1600 | borderRadius:0-120 | align | fit:cover|contain | bgColor | overlay/overlayOpacity/overlayPosition | layerName',
   'frame(ss_): bg | bgImage | width/height:20-4000 | paddingY:0-400 | radius:0-400 | bgOpacity:0-1 | borderWidth/Style/Color | alignItems | justifyContent | gap:0-400 | translateX/Y | rotateDeg | flipH/flipV',
   'card(cvb_): title | desc | imgSrc | bgColor | radius | textAlign | titleSize | descSize (multi-card: type:"canvas" + patchCards)',

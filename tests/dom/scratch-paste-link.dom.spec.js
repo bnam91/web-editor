@@ -432,3 +432,64 @@ test('T-DOM-11 ★크로스페이지 undo — 페이지가 바뀌었으면 ⑴�
   expect(r.afterRedo).toBe(2);
   expect(r.afterBack).toBe(1);        // ★가드가 «막기만» 하는 게 아니라 제 페이지에선 실제로 돈다
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   T-DOM-12~14 — ★BL-SPL-03 형제 경로: A/B 베리에이션 (js/section-variation.js)  [2026-09-09]
+
+   위 T-DOM-* 는 «붙여넣기 모양»(직렬화 HTML 을 파싱해 만든 사본)을 잰다.
+   A/B 는 모양이 다르다 — 살아 있는 섹션을 `sec.cloneNode(true)` 하고, 그 옆에서 id 를 다시 쓴 뒤
+   `sec.after(clone)` 한다. ★그 id 재작성 루프가 «못 보는» 것이 이 셋의 주제다.
+   ⛔여기 재는 것은 «패턴»이다(section-variation.js 는 ESM 이라 이 하네스에 못 얹는다).
+     그 파일의 «문장»은 tests/unit/scratch-paste-dup.test.js T-U2-1~4 가 진다. 둘이 짝이다.
+═══════════════════════════════════════════════════════════════════════════ */
+
+/** section-variation.js 의 복제 순서를 «그대로» 옮긴 모형. rewire 만 껐다 켰다 한다. */
+function abClone(withRewire) {
+  return (rw) => {
+    const sec = document.getElementById('sec_a');
+    const clone = sec.cloneNode(true);
+    clone.id = 'sec_b';
+    /* ★실물의 id 재작성 루프 — «id 속성»만 훑는다. data-ref-links 는 섹션의 data-* 라 안 걸린다. */
+    clone.querySelectorAll('[id]').forEach((el) => {
+      const prefix = el.id.split('_')[0];
+      el.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
+    });
+    clone.dataset.variation = 'B';
+    clone.dataset.variationActive = '0';
+    let out = null;
+    if (rw) out = window.SPLink.rewireClonedSection(clone);   // ★아직 DOM 밖
+    sec.after(clone);
+    return { dups: out ? out.dups.length : 0, hasSE: !!(out && out.sideEffects),
+             cloneRaw: clone.dataset.refLinks, m: window.__metrics() };
+  };
+}
+
+test('T-DOM-12 ★★양성대조 — 배선 «없이» A/B 하면 한 이미지를 두 섹션이 쥔다 (내가 만든 회귀)', async ({ page }) => {
+  await boot(page, SECTION('sec_a', 'sp_a:0'), [ITEM_A]);
+  const r = await page.evaluate(`(${abClone.toString()})()(false)`);
+  console.log('  배선 없음 →', r.m.pairs.join(' · '), '| 사본 dataset:', r.cloneRaw);
+  expect(r.cloneRaw).toBe('sp_a:0');       // ★id 재작성 루프가 refLinks 를 «못 봤다»
+  expect(r.m.maxPerImage).toBe(2);         // ★★이게 버그다 — 「이미지당 1섹션」 규약 위반
+  expect(r.m.dbCount).toBe(1);             // 이미지는 하나뿐인데 선이 둘 = 링크체인 2개
+});
+
+test('T-DOM-13 ★배선 뒤 — 사본이 «자기» 이미지를 갖고 이미지당 섹션 수가 전부 1', async ({ page }) => {
+  await boot(page, SECTION('sec_a', 'sp_a:0'), [ITEM_A]);
+  const r = await page.evaluate(`(${abClone.toString()})()(true)`);
+  console.log('  배선 있음 →', r.m.pairs.join(' · '), '| 사본 dataset:', r.cloneRaw);
+  expect(r.dups).toBe(1);
+  expect(r.hasSE).toBe(true);                          // ★undo 로 사본을 거둘 손이 생겼다
+  expect(r.cloneRaw).not.toBe('sp_a:0');               // 사본은 «다른» 토큰을 쥔다
+  expect(new Set(r.m.scratchIds).size).toBe(2);
+  expect(r.m.maxPerImage).toBe(1);                     // ★★불변식
+  expect(r.m.dbCount).toBe(2);
+});
+
+test('T-DOM-14 ★음성대조 — 링크가 «없는» 섹션의 A/B 는 예전과 완전히 같다(회귀 0)', async ({ page }) => {
+  await boot(page, SECTION('sec_a', ''), [ITEM_A]);
+  const r = await page.evaluate(`(${abClone.toString()})()(true)`);
+  expect(r.dups).toBe(0);
+  expect(r.hasSE).toBe(false);      // ★SE 가 null = pushHistory 둘째 인자가 null = 예전 동작 그대로
+  expect(r.m.dbCount).toBe(1);      // 이미지가 «안» 늘었다
+  expect(r.m.sectionCount).toBe(2);
+});
