@@ -393,7 +393,7 @@ body.gdt-grid-on .section-inner {
     var(--gdt-grid-color, rgba(255, 0, 0, .10)) 0,
     var(--gdt-grid-color, rgba(255, 0, 0, .10)) var(--gdt-grid-col, 33.33px),
     transparent var(--gdt-grid-col, 33.33px),
-    transparent calc(var(--gdt-grid-col, 33.33px) + var(--gdt-grid-gut, 20px))
+    transparent calc(var(--gdt-grid-col, 33.33px) + var(--gdt-grid-gut, 10px))
   );
   background-origin: content-box;
   background-clip: content-box;

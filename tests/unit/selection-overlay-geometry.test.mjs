@@ -48,6 +48,7 @@ vm.runInContext(
   ROWE[0] + '\n' +
   slice('export function subtractInterval') + '\n' +
   slice('function _span') + '\n' +
+  slice('function _subEdge') + '\n' +
   slice('function _dedupe') + '\n' +
   slice('function _edgesOf') + '\n' +
   'const _ZERO_R = { nw:[0,0], ne:[0,0], se:[0,0], sw:[0,0] };\n' +

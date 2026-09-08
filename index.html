@@ -685,6 +685,12 @@
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'highlight'});toggleFpDropdown('fp-pen-dropdown')" title="형광펜 — 클릭=마지막 색 / 색·프리셋은 우측 패널에서 선택">Highlight</button>
       <button class="fp-menu-item" onclick="toggleHighlightBMode();toggleFpDropdown('fp-pen-dropdown')" title="선 형광펜 — 두 점 클릭으로 직선 형광펜 추가 · ESC 취소">HighlightB</button>
       <button class="fp-menu-item" onclick="addGradientBlock();toggleFpDropdown('fp-pen-dropdown')" title="그라데이션 페이드 — 섹션 너비 전체, 이미지 끝 자연 페이드 효과">Gradient</button>
+      <!-- ★확대블럭(Zoom) — 현빈 2026-09-08 「줌블럭은 스티커 패널에 넣어줘야하고」.
+           컴포넌트 드롭다운에서 여기로 옮겼다. 줌은 «플로팅»(섹션 직접 자식, absolute)이라
+           행에 얹히는 컴포넌트가 아니라 스티커·그라데이션과 같은 계열이다.
+           ⚠️닫는 인자도 'fp-pen-dropdown' 이어야 한다 — 'fp-component-dropdown' 을 그대로
+             들고 오면 «남의 메뉴»를 닫으라 시켜서 이 메뉴가 안 닫힌다. -->
+      <button class="fp-menu-item" onclick="addZoomBlock();toggleFpDropdown('fp-pen-dropdown')" title="확대블럭 — 돋보기 도형에 이미지를 담아 캔버스에 자유 배치">Zoom</button>
     </div>
   </div>
   <div class="fp-dropdown" id="fp-component-dropdown">
@@ -725,7 +731,6 @@
       <button class="fp-menu-item" onclick="addBanner02Block();toggleFpDropdown('fp-component-dropdown')">Banner 2</button>
       <button class="fp-menu-item" onclick="addComparisonBlock();toggleFpDropdown('fp-component-dropdown')">Comparison</button>
       <button class="fp-menu-item" onclick="addLaurelBlock();toggleFpDropdown('fp-component-dropdown')">Laurel</button>
-      <button class="fp-menu-item" onclick="addZoomBlock();toggleFpDropdown('fp-component-dropdown')">Zoom</button>
       <button class="fp-menu-item" onclick="addBridgeBlock();toggleFpDropdown('fp-component-dropdown')">Bridge</button>
     </div>
   </div>

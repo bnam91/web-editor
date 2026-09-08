@@ -106,6 +106,12 @@ export function showZoomProperties(block) {
         ${hasImg ? `<img src="${_esc(st.imgSrc)}" style="max-width:80px;max-height:80px;object-fit:contain;display:block;margin:0 auto 6px;">` : ''}
         <div>이미지 드래그앤드롭<br>또는 클릭해서 선택</div>
       </div>
+      <!-- ★버튼은 «추가»지 «교체»가 아니다 — 현빈 2026-09-08 「버튼으로 해도되지않을까
+           다른 에셋블럭들처럼?」. 어휘는 prop-asset.js 의 prop-action-btn secondary
+           («이미지 선택...») 를 그대로 빌린다 — 새 클래스를 만들지 않는다.
+           ⛔위 드롭존은 «남긴다». 드래그앤드롭은 지금도 되는 길이라 버튼을 붙였다고
+             막으면 기능이 하나 사라진다. 둘은 같은 _applyZoomImage 로 모인다. -->
+      <button class="prop-action-btn secondary" id="zm-img-btn" style="width:100%;margin-top:6px;">이미지 선택...</button>
       ${hasImg ? `<div class="prop-row"><button class="prop-action-btn" id="zm-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}
     </div>
 
@@ -277,14 +283,17 @@ ${bdrRow}
     };
     reader.readAsDataURL(file);
   };
+  // 파일 선택창 — 버튼과 드롭존 클릭이 «같은» 입구를 쓴다.
+  const _pickZoomImage = () => {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = () => _applyZoomImage(inp.files?.[0]);
+    inp.click();
+  };
+  propPanel.querySelector('#zm-img-btn')?.addEventListener('click', _pickZoomImage);
   const drop = propPanel.querySelector('#zm-img-drop');
   if (drop) {
-    drop.addEventListener('click', () => {
-      const inp = document.createElement('input');
-      inp.type = 'file'; inp.accept = 'image/*';
-      inp.onchange = () => _applyZoomImage(inp.files?.[0]);
-      inp.click();
-    });
+    drop.addEventListener('click', _pickZoomImage);
     ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, (e) => {
       e.preventDefault(); e.stopPropagation();
       drop.style.borderColor = 'var(--sel-color)';

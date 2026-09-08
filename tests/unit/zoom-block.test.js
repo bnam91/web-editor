@@ -778,12 +778,20 @@ test('ⓑ-5 [체크리스트⑤] CSS 가 .zoom-block 의 선택 outline 을 «�
   assert.ok(/outline-offset:\s*calc\(-1 \* var\(--sel-outline-w\)\)/.test(m[1]), 'offset -1px 상당 누락');
 });
 
-test('ⓑ-6 삽입 입구 — #fp-component-menu 에 형제들과 같은 어휘로 항목이 있다', () => {
-  const menu = SRC.html.slice(SRC.html.indexOf('id="fp-component-menu"'));
+/* ★2026-09-08 이사 — 현빈 「줌블럭은 스티커 패널에 넣어줘야하고」.
+   입구가 #fp-component-menu → #fp-pen-menu 로 옮겼다. 검사의 «뜻»은 안 바뀐다:
+   「형제들과 같은 어휘로, 자기 메뉴를 닫으면서, 한 군데에만 있다」.
+   ⚠️닫는 인자를 같이 안 옮기면 «남의 메뉴»를 닫으라 시켜서 이 메뉴가 안 닫힌다. */
+test('ⓑ-6 삽입 입구 — #fp-pen-menu(스티커 패널)에 형제들과 같은 어휘로 항목이 있다', () => {
+  const menu = SRC.html.slice(SRC.html.indexOf('id="fp-pen-menu"'));
   const end = menu.indexOf('</div>');
   const body = menu.slice(0, end);
-  assert.ok(/onclick="addZoomBlock\(\);toggleFpDropdown\('fp-component-dropdown'\)"/.test(body),
-    '컴포넌트 메뉴에 확대블럭 입구가 없다');
+  assert.ok(/onclick="addZoomBlock\(\);toggleFpDropdown\('fp-pen-dropdown'\)"/.test(body),
+    '스티커 메뉴에 확대블럭 입구가 없다(닫는 인자가 fp-pen-dropdown 인지도 같이 본다)');
+  const comp = SRC.html.slice(SRC.html.indexOf('id="fp-component-menu"'));
+  const compBody = comp.slice(0, comp.indexOf('</div>'));
+  assert.equal((compBody.match(/addZoomBlock/g) || []).length, 0,
+    '컴포넌트 메뉴에 확대블럭이 아직 남아 있다 — 옮긴 게 아니라 «복사»했다');
   assert.ok(SRC.html.includes('src="js/blocks/zoom-block.js"'), '블록 스크립트 태그 없음');
   assert.ok(SRC.html.includes('src="js/props/prop-zoom.js"'), '프로퍼티 스크립트 태그 없음');
 });
@@ -1038,25 +1046,28 @@ test('ⓑ-20b ★흐름 목록의 기준 — «규칙»을 재서 판정한다(�
 
 test('ⓑ-26 ★⑯모서리 핸들이 «보라» — 그리고 자산 블록은 «안» 물든다', () => {
   const css = SRC.css;
-  /* ⚠️★이 검사는 두 번 «남의 작업과 부딪혔다». 원인은 같다 — 셀렉터의 «이름»과 «목록 길이»를
-     못박고 있었다. 그런데 이 레포의 규율은 「복사하지 말고 규칙을 공유하라」다.
-     ⇒ 핸들을 새로 만드는 블록이 생길 때마다(모달·확대블럭…) 이 검사가 «옳은 변경에» 빨개졌다.
-     ★고친 방향: 이름·순서·개수를 «세지 않는다». 재는 것은 두 가지 요지뿐이다.
-       ⑴ 확대블럭 한정자 규칙의 본문이 «보라»다 (한정자가 어느 클래스에 붙든)
-       ⑵ 공용 규칙의 본문이 «파랑»이다 (목록에 무엇이 몇 개 얹혔든) */
-  const rule = css.match(/\.[\w-]+\[data-zoom-resize-dir\]\s*\{([^}]*)\}/);
+  /* ★2026-09-08 클래스 분리 — 확대블럭 핸들이 .asset-overlay-handle 을 «빌려 쓰다가»
+     hideAssetResizeHandles() 의 일괄 제거에 같이 쓸려나갔다(재클릭 4→0, 그 뒤 영영 0).
+     자기 클래스 .zm-overlay-handle 로 갈랐고, 보라 한정자도 «같이» 옮겼다.
+     안 옮기면 확대블럭 핸들만 색을 잃는다 — 그래서 여기 셀렉터도 같이 바뀐다. */
+  const rule = css.match(/\.zm-overlay-handle\[data-zoom-resize-dir\]\s*\{([^}]*)\}/);
   assert.ok(rule, '확대블럭 핸들 색 규칙이 없다');
   assert.match(rule[1], /border-color:\s*var\(--ui-sel-overlay/, '아웃라인과 다른 색이면 한 블록에 두 색이 된다');
-  /* ⛔공용 규칙은 파랑 그대로여야 한다 — 바꾸면 자산 블록이 물든다.
-     대상 잡기 = 「.asset-overlay-handle 와 .icb-overlay-handle 이 «같은» 셀렉터 목록에 있는 규칙」.
-     ⛔한정자 규칙(.xxx[data-zoom-resize-dir])은 목록의 마지막이 «순수 클래스»가 아니라 안 걸린다. */
-  const shared = [...css.matchAll(/(?:^|\n)((?:\.[\w-]+\s*,\s*\n)*\.[\w-]+)\s*\{([^}]*)\}/g)]
-    .find(m => /\.asset-overlay-handle\b/.test(m[1]) && /\.icb-overlay-handle\b/.test(m[1]));
+  /* ⛔공용 규칙(.asset-overlay-handle)은 파랑 그대로여야 한다 — 바꾸면 자산 블록이 물든다. */
+  /* ★2026-09-08 «목록»을 못박지 않는다 (툴매니저 지적).
+       전엔 세 셀렉터를 «순서·개행까지» 정규식에 박아 뒀다. 그러면 누가 그 규칙을
+       «공유»하려고 셀렉터를 하나 더할 때마다 빨개진다 — 「복사하지 말고 공유하라」는
+       이 레포의 규율과 «정면으로» 부딪힌다. 검사가 권장 행동을 벌하면 안 된다.
+     ⇒ 재는 것을 「목록이 이 문자열인가」에서 「셋이 그 규칙을 «함께 쓰나»」로 바꾼다.
+       (같은 방식이 zoom-block-polish.test.mjs:238 에 이미 있다 — 그걸 따른다) */
+  const _rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(m => ({ sel: m[1], body: m[2] }));
+  const _r = _rules.find(r => r.sel.includes('.asset-overlay-handle')
+                           && r.sel.includes('.icb-overlay-handle')
+                           && r.sel.includes('.zm-overlay-handle'));
+  const shared = _r ? [null, _r.body] : null;
   assert.ok(shared, '공용 핸들 규칙을 못 찾았다 — 검사가 대상을 놓쳤다');
-  assert.match(shared[2], /border:[^;]*var\(--sel-color\)/, '공용 핸들을 보라로 바꿨다 — 자산 블록이 같이 물든다');
-  assert.equal(/ui-sel-overlay/.test(shared[2]), false);
-  // ★대조 — 두 규칙이 «다른» 규칙이어야 한다. 같으면 위 두 단언이 서로를 부정한다.
-  assert.notEqual(rule[1], shared[2], '한정자 규칙과 공용 규칙을 같은 것으로 잡았다');
+  assert.match(shared[1], /border:[^;]*var\(--sel-color\)/, '공용 핸들을 보라로 바꿨다 — 자산 블록이 같이 물든다');
+  assert.equal(/ui-sel-overlay/.test(shared[1]), false);
   // 한정 수단이 «실제로» 붙는가 — 안 붙으면 위 규칙이 아무 데도 안 걸린다
   assert.ok(/dataset\.zoomResizeDir = dir/.test(SRC.handles), '확대블럭 핸들에 한정 표식이 안 붙는다');
 });

@@ -1811,14 +1811,25 @@ function _zoomOutlineBox(zb) {
 }
 
 function showZoomResizeHandles(zb) {
-  if (_zoomResizeBlock === zb) return;
+  const overlay = _getOverlay();
+  /* ★빗장은 «지워진 상태»를 알아채야 한다 — «같은 블록»인지만 보고 early-return 하면
+   *   핸들이 이미 쓸려나간 뒤에도 «다시 만들지 않는다». 실측 증상: 추가 후 재클릭에서
+   *   4→0 으로 사라지고 그 뒤로는 영영 0 (MutationObserver: REMOVE 4건 / ADD 0건).
+   *   deselectAll() → hideAssetResizeHandles() 가 (클래스를 공유하던 시절) 줌 핸들까지
+   *   쓸어갔는데 _zoomResizeBlock 은 남의 변수가 아니라 안 지워져서 빗장이 계속 닫혀 있었다.
+   * ⇒ «같은 블록»이면서 «핸들이 실제로 DOM 에 있을 때»만 건너뛴다. */
+  if (_zoomResizeBlock === zb && overlay && overlay.querySelector('[data-zoom-resize-dir]')) return;
   hideZoomResizeHandles();
   _zoomResizeBlock = zb;
-  const overlay = _getOverlay();
   if (!overlay) return;
   CORNER_DIRS.forEach(dir => {
     const h = document.createElement('div');
-    h.className = `asset-overlay-handle ${dir}`;   // ★모양은 기존 것을 그대로 쓴다(새 스타일 안 만듦)
+    /* ⚠️클래스는 `.zm-overlay-handle` — `.asset-overlay-handle` 을 «빌려 쓰면»
+     *   `hideAssetResizeHandles()` 의 일괄 제거에 같이 쓸려나간다.
+     *   아이콘원형(.icb-overlay-handle)이 이미 같은 함정을 밟고 이 파일에 경고를 남겼는데
+     *   확대블럭이 그 경고를 그대로 밟았다(842행 부근 주석 참조).
+     *   모양은 css/editor-blocks.css 에서 기존 규칙에 «얹혀» 공유한다 — 복사가 아니다. */
+    h.className = `zm-overlay-handle ${dir}`;
     h.dataset.zoomResizeDir = dir;
     overlay.appendChild(h);
     h.addEventListener('mousedown', e => _onZoomResizeMouseDown(e, zb, dir));

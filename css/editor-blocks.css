@@ -228,8 +228,15 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * 전엔 아이콘원형 핸들이 `.asset-overlay-handle` 클래스를 «빌려» 썼는데,
  * `hideAssetResizeHandles()` 가 오버레이의 `.asset-overlay-handle` 을 «전부» 쓸어담아 지운다.
  * 그래서 deselectAll() 한 번에 남의 정리가 이쪽 핸들을 지워버렸다(실측: 재클릭 시 1→0개). */
+/* ★`.zm-overlay-handle`(확대블럭)도 같은 규칙에 얹는다 — 아이콘원형과 «같은 이유»다.
+ * 확대블럭 핸들은 원래 `.asset-overlay-handle` 을 빌려 썼고, 그래서 deselectAll() 한 번에
+ * hideAssetResizeHandles() 가 같이 쓸어갔다(실측: 재클릭 시 4→0, 그 뒤로 영영 0). */
 .asset-overlay-handle,
 .icb-overlay-handle,
+/* ★`.mdl-overlay-handle`(모달)도 같은 규칙에 얹는다 — 세 번째다.
+ * ⚠️이 목록은 앞으로도 «늘어난다». 그래서 검사는 목록의 «길이»를 못박지 않고
+ *   「셋이 그 규칙을 함께 쓰나」로 잰다(tests/unit/zoom-block.test.js ⓑ-26, 2026-09-08 지디 수정). */
+.zm-overlay-handle,
 .mdl-overlay-handle {
   position: absolute;
   width:  7px;
@@ -246,13 +253,16 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
    한 블록에 두 색이었다(모양을 재사용하느라 자산 계열 파랑이 딸려왔다).
    ⛔.asset-overlay-handle «자체»를 보라로 바꾸면 자산 블록이 같이 물든다 ⇒ 계열 한정.
    ★한정 수단 = overlay-handles.js 가 붙이는 data-zoom-resize-dir (확대블럭 핸들에만 있다). */
-.asset-overlay-handle[data-zoom-resize-dir] {
+/* ★한정자는 클래스가 `.zm-overlay-handle` 로 갈라진 뒤에도 «같이» 따라와야 한다 —
+   안 옮기면 확대블럭 핸들만 보라를 잃고 자산 계열 파랑으로 돌아간다.
+   data-zoom-resize-dir 는 그대로라 셀렉터 앞머리만 바꾼다. */
+.zm-overlay-handle[data-zoom-resize-dir] {
   border-color: var(--ui-sel-overlay, #9966ff);
 }
-.asset-overlay-handle.nw, .icb-overlay-handle.nw { cursor: nw-resize; }
-.asset-overlay-handle.ne, .icb-overlay-handle.ne { cursor: ne-resize; }
-.asset-overlay-handle.sw, .icb-overlay-handle.sw { cursor: sw-resize; }
-.asset-overlay-handle.se, .icb-overlay-handle.se { cursor: se-resize; }
+.asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw { cursor: nw-resize; }
+.asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne { cursor: ne-resize; }
+.asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw { cursor: sw-resize; }
+.asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se { cursor: se-resize; }
 
 /* ── Canvas Block overlay resize handles ── */
 .canvas-overlay-handle {
