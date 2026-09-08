@@ -112,6 +112,36 @@ const SITES = [
   },
 ];
 
+/* ── 정렬 버튼의 잣대 ──────────────────────────────────────────────────────
+ * 호출은 «한 줄에 하나»다(레포 관례 — align-btn-ssot C3 도 같은 가정을 쓴다).
+ * 그래서 줄 단위로 읽는다. 못 찾으면 빈 배열이고, T0-b 가 그걸 빨갛게 만든다. */
+
+function alignCalls(src) {
+  const out = [];
+  for (const line of src.split('\n')) {
+    if (!/\balignBtn\s*\(/.test(line) || !/data-al/.test(line)) continue;
+    const fam = /alignBtn\(\s*'([^']+)'/.exec(line);
+    const key = /alignBtn\(\s*'[^']+'\s*,\s*'([^']+)'/.exec(line);
+    const al  = /'data-al'\s*:\s*'([^']+)'/.exec(line);
+    const lbl = /\blabel\s*:\s*'([^']+)'/.exec(line);
+    out.push({ family: fam && fam[1], key: key && key[1], al: al && al[1], label: lbl && lbl[1] });
+  }
+  return out;
+}
+
+/* 감싸개 — needle 을 «둘러싼» 가장 가까운 <div> 의 class.
+ * ⛔고정 창으로 뒤를 훑지 않는다. 태그 균형으로 짚고, 못 짚으면 «못 짚었다»고 죽는다. */
+function wrapperClassOf(src, needle, what) {
+  const at = src.indexOf(needle);
+  assert.ok(at >= 0, `${what}: «${needle}» 를 못 찾았다 — 이 잣대는 지금 아무것도 안 보고 있다`);
+  const open = src.lastIndexOf('<div', at);
+  assert.ok(open >= 0, `${what}: 감싸개 <div> 를 못 찾았다`);
+  assert.equal(src.slice(open, at).includes('</div>'), false,
+    `${what}: 가장 가까운 <div> 와 «${needle}» 사이에 </div> 가 있다 — 이 잣대가 엉뚱한 것을 짚고 있다`);
+  const m = /<div[^>]*class="([^"]*)"/.exec(src.slice(open));
+  return m ? m[1] : null;
+}
+
 /** 토큰 → 숫자. 이름은 «출처를 따라가서» 푼다 — 그게 이 검사가 재려는 것이다. */
 function resolve(tok, where) {
   assert.notEqual(tok, null, `${where}: 자리를 못 찾았다`);
@@ -134,6 +164,20 @@ test('T0-a ★자리 목록이 «정확히 3»이고 셋 다 소스에서 실제
   }
 });
 
+test('T0-b ★정렬 버튼 탐지가 «정확히 3»이다 (left/center/right)', () => {
+  // 되돌리면 빨강: M4(정렬을 글자 버튼으로 되돌리기) — 탐지가 0 이 되면 T4·T5 가 자기통과한다.
+  const calls = alignCalls(SRC.prop);
+  assert.equal(calls.length, 3,
+    `data-al 이 붙은 alignBtn 호출을 ${calls.length}개 찾았다 — 3이어야 한다. ` +
+    `0이면 T4·T5 가 «아무것도 안 보고» 초록이 된다.`);
+  assert.deepEqual(calls.map((c) => c.key), ['left', 'center', 'right'],
+    `정렬 키가 left/center/right 순서로 셋이 아니다: ${JSON.stringify(calls.map((c) => c.key))}`);
+  for (const c of calls) {
+    assert.ok(c.label, `alignBtn('${c.family}', '${c.key}') 에 label 이 없다 — ` +
+      `_helpers.js:275 가 throw 한다(패널이 통째로 안 뜬다). 소스에서 먼저 잡는다.`);
+  }
+});
+
 test('T0-c ★양성대조 — 「14 를 넣은 가짜 소스」를 잣대에 먹이면 «실제로» 잡힌다', () => {
   // 되돌리면 빨강: 잣대 정규식이 부서져 아무것도 못 읽게 되면(그때 T1 은 자기통과한다).
   const FAKE = [
@@ -148,6 +192,20 @@ test('T0-c ★양성대조 — 「14 를 넣은 가짜 소스」를 잣대에 �
     assert.equal(resolve(tok, `${s.name}(가짜)`), 14,
       `${s.name}: 14 를 넣은 가짜 소스인데 잣대가 «${tok}» 를 읽었다. 이 잣대로는 M1~M3 변이를 못 잡는다.`);
   });
+
+  // ★정렬 잣대도 같이 세운다 — 「틀린 소스를 먹였을 때 틀렸다고 말하는가」.
+  const FAKE_WRONG = [
+    `<div class="prop-type-group">`,
+    `  \${alignBtn('object-h', 'left',   { label: 'L', attrs: { 'data-al': 'left' } })}`,
+    `  \${alignBtn('object-h', 'center', { label: 'C', attrs: { 'data-al': 'center' } })}`,
+    `</div>`,
+  ].join('\n');
+  assert.equal(wrapperClassOf(FAKE_WRONG, "alignBtn('object-h'", '가짜(감싸개)'), 'prop-type-group',
+    '감싸개 잣대가 «prop-type-group» 을 못 읽었다 — 그러면 M6 변이를 못 잡는다');
+  const fakeCalls = alignCalls(FAKE_WRONG);
+  assert.equal(fakeCalls.length, 2, `가짜 소스에서 호출 ${fakeCalls.length}개를 읽었다 — 2여야 한다`);
+  assert.deepEqual(fakeCalls.map((c) => c.family), ['object-h', 'object-h'],
+    '계열 잣대가 «object-h» 를 못 읽었다 — 그러면 M5 변이를 못 잡는다');
 });
 
 /* ══ T1 — 기본값의 «출처가 하나» ═══════════════════════════════════════════ */
@@ -222,4 +280,44 @@ test('T3 ★data-font-size="14" 인 기존 블록은 여전히 14px 로 그려�
   M.renderModalBlock(bare);
   assert.match(bare.style.cssText, new RegExp(`font-size:${WANT_FS}px`),
     `dataset 이 빈 블록의 폴백이 ${WANT_FS} 가 아니다: ${bare.style.cssText}`);
+});
+
+/* ══ T4·T5 — 정렬 «세 버튼» (2026-09-08 ⑵) ════════════════════════════════ */
+
+test('T4 ★계열은 «text» 다 — object-h 가 아니다', () => {
+  // 되돌리면 빨강: M5(계열 text → object-h).
+  const calls = alignCalls(SRC.prop);
+  assert.equal(calls.length, 3, 'T0-b 를 먼저 봐라 — 입력이 죽었다');
+  for (const c of calls) {
+    assert.equal(c.family, 'text',
+      `alignBtn 계열이 «${c.family}» 다 — 'text' 여야 한다.\n` +
+      `★근거는 취향이 아니라 코드다: js/blocks/modal-block.js 의 renderModalBlock 이 이 값을 ` +
+      `\`text-align:\${align}\` 으로 쓴다 — 정렬되는 것은 «상자»가 아니라 상자 «안의 글»이다. ` +
+      `object-h(가이드선+칠한 판)를 쓰면 그림이 뜻과 어긋난다.`);
+  }
+  // 코드가 정말 그렇게 쓰는지도 «같이» 확인한다 — 근거가 낡으면 이 단언이 먼저 알려 준다.
+  assert.match(SRC.modal, /text-align:\$\{align\}/,
+    'modal-block.js 가 align 을 text-align 으로 안 쓴다 — 계열 판단의 근거가 사라졌다. ' +
+    '무엇이 정렬되는지를 다시 보고 계열을 고르라.');
+});
+
+test('T5 ★감싸개가 .prop-align-group 이고 data-al 3값이 «그대로» 실린다', () => {
+  // 되돌리면 빨강: M6(감싸개 → .prop-type-group) · M4(글자 버튼 되돌리기).
+  const wrap = wrapperClassOf(SRC.prop, "alignBtn('text'", 'prop-modal 정렬 감싸개');
+  assert.equal(wrap, 'prop-align-group',
+    `정렬 버튼의 감싸개가 «${wrap}» 다 — 'prop-align-group' 이어야 한다.\n` +
+    `★240px 패널 실측: 감싸개를 prop-type-group 으로 두고 아이콘만 갈아끼우면 줄에 빈자리가 ` +
+    `93px 벌어진다. prop-align-group + prop-align-btn 이면 0px(163px flex 3등분)다.`);
+
+  // ★data-al 은 «원문 그대로» 실려야 한다 — prop-modal 의 핸들러가
+  //   propPanel.querySelectorAll('[data-al]') 로 «속성 기반»이라 이름이 바뀌면 배선이 통째로 죽는다.
+  const calls = alignCalls(SRC.prop);
+  assert.deepEqual(calls.map((c) => c.al), ['left', 'center', 'right'],
+    `data-al 값이 left/center/right 가 아니다: ${JSON.stringify(calls.map((c) => c.al))}`);
+  for (const c of calls) {
+    assert.equal(c.al, c.key,
+      `alignBtn('text','${c.key}') 인데 data-al 이 «${c.al}» 다 — 그림과 실제 정렬이 어긋난다`);
+  }
+  assert.match(SRC.prop, /querySelectorAll\(\s*'\[data-al\]'\s*\)/,
+    "핸들러가 '[data-al]' 로 안 잡는다 — 속성 이름을 바꿨다면 버튼 3개가 조용히 죽는다");
 });
