@@ -101,6 +101,7 @@ function makeRoomEnv({
     ${extractFn('setCanvasTail')}
     ${extractFn('ensurePanRoom')}
     ${extractFn('growPanRoom')}
+    ${extractFn('setPanScrollBaseline')}
     ${extractFn('shrinkPanRoom')}
     ${extractFn('absorbWheelResidual')}
     ${extractFn('_syncScalerHeight')}
@@ -108,7 +109,7 @@ function makeRoomEnv({
     if (initTailY) setCanvasTail(initTailY);            // ← 꼬리도 «소스 함수»로 세운다
     return {
       ensurePanRoom, growPanRoom, shrinkPanRoom, setPanRoom, absorbWheelResidual,
-      setCanvasTail, _syncScalerHeight,
+      setCanvasTail, setPanScrollBaseline, _syncScalerHeight,
       SCREENS: PAN_ROOM_SCREENS_Y,
       room: () => ({ x: _panRoomX, y: _panRoomY }),
       tail: () => _canvasTailY,
@@ -391,6 +392,75 @@ test('T3 — 늘렸다 정착시키는 왕복도 «제자리»로 돌아온다 (
   assert.equal(e.wrap.scrollTop, st0, '깎은 만큼 스크롤을 같이 안 내리면 놓는 순간 캔버스가 «툭» 튄다');
 });
 
+/* ══ T5. ★[검수 H8] 팬이 «진행 중»인 갈래 ═══════════════════════════════
+   왜 필요한가: 격자의 `_panScrollBaseline` 이 «언제나 null» 이라 shrinkPanRoom 의
+   기준점 보정(FIX-⑵)을 **0번** 지났다. H2 와 똑같은 병이다 —
+   「입력이 한 갈래만 지나가면 나머지 갈래는 아무것도 안 지킨다」.
+
+   ★실측(2026-09-09, 이 검사를 붙이기 «전»에 재 봤다):
+     · 분기를 통째로 삭제  → 이 파일 초록 / pan-native-scroll.js 빨강(소스 정규식이 잡는다)
+     · setPanScrollBaseline 을 no-op 으로       → ★둘 다 초록 (완전 무방비)
+     · 참조 대신 «복사본»을 저장                → ★둘 다 초록 (완전 무방비)
+   ⇒ 텍스트 계약은 「그 줄이 있는가」만 본다. 「기준점이 실제로 걸리는가」는 못 본다.
+     둘 다 놓치면 FIX-⑵ 가 고친 「놓는 순간 1,510px 튐」이 조용히 돌아온다. */
+
+/** 기준점 «그 자체»를 흉내 낸다 — left/top 쓰기를 세서 그 갈래를 «몇 번 밟았는지» 잰다.
+ *  ⛔값만 보면 «복사본을 저장하는» 변이를 못 잡는다(복사본에 써도 원본 값은 그대로다). */
+function makeBaselineSpy(left, top) {
+  let _l = left, _t = top, hits = 0;
+  return {
+    get left() { return _l; }, set left(v) { hits++; _l = v; },
+    get top() { return _t; }, set top(v) { hits++; _t = v; },
+    hits: () => hits,
+  };
+}
+
+test('T5 ★[검수 H8] 팬 진행 중이면 여지를 깎을 때 «기준점»도 같은 양 옮긴다', () => {
+  /* 두 축이 «다» 깎이는 배치: baseX=1000·baseY=1600, maxL=2000·maxT=19200
+     ⇒ cutX = min(2000-1000, 1000, 1000) = 1000 · cutY = min(2400-1600, 8000, 11200) = 800 */
+  const e = makeRoomEnv({ roomX: 2000, roomY: 2400, scrollLeft: 1000, scrollTop: 8000 });
+  assertInputAlive(e);
+
+  const L0 = 4000, T0 = 8800;
+  const bl = makeBaselineSpy(L0, T0);
+  e.setPanScrollBaseline(bl);                    // ★소스 함수로 «건다»(직접 대입하지 않는다)
+
+  const beforeX = e.room().x, beforeY = e.room().y;
+  const sl0 = e.wrap.scrollLeft, st0 = e.wrap.scrollTop;
+  e.shrinkPanRoom();
+  const cutX = beforeX - e.room().x, cutY = beforeY - e.room().y;
+
+  /* ★입력 생존 — 본 단언 «앞»에 선다. 이 셋 중 하나라도 0 이면 아래는 아무 갈래도 안 밟은 것이다. */
+  assert.ok(cutX > 0 && cutY > 0,
+    `깎인 양이 (${cutX}, ${cutY}) 다 — 0 이면 shrinkPanRoom 이 이른 return 을 타서 기준점 줄을 안 밟는다`);
+  assert.ok(bl.hits() > 0,
+    `기준점 분기를 ${bl.hits()}회 밟았다 — 0 이면 ⑴분기가 없거나 ⑵기준점이 안 걸렸거나 ` +
+    '⑶«복사본»이 걸린 것이다. 셋 다 「놓는 순간 캔버스가 툭 튄다」로 나타난다');
+  assert.equal(bl.hits(), 2, '두 축을 «각각» 한 번씩 옮겨야 한다');
+
+  /* 본 단언 — 불변식 `scrollLeft = scrollStart.left − wantDX` 를 «새 좌표계»에서 유지한다. */
+  assert.equal(bl.left, L0 - cutX, '가로 기준점을 같이 안 옮기면 다음 mousemove 가 옛 좌표를 다시 쓴다(실측 1,510px 점프)');
+  assert.equal(bl.top, T0 - cutY, '세로도 같다');
+  assert.equal(e.wrap.scrollLeft, sl0 - cutX, '스크롤도 «같은 양» 내려가야 그림이 안 움직인다');
+  assert.equal(e.wrap.scrollTop, st0 - cutY);
+});
+
+test('T5 ★[검수 H8] 팬이 «없을 때»(null)도 같은 만큼 깎는다 — 양쪽 갈래를 다 지난다', () => {
+  const mk = () => makeRoomEnv({ roomX: 2000, roomY: 2400, scrollLeft: 1000, scrollTop: 8000 });
+  const withPan = mk(), noPan = mk();
+  assertInputAlive(withPan); assertInputAlive(noPan);
+
+  const bl = makeBaselineSpy(4000, 8800);
+  withPan.setPanScrollBaseline(bl);
+  withPan.shrinkPanRoom();
+  noPan.shrinkPanRoom();                          // _panScrollBaseline 은 null 그대로
+
+  assert.ok(bl.hits() > 0, '★입력 생존: 팬 있는 쪽이 그 갈래를 실제로 지나야 «비교»가 성립한다');
+  assert.deepEqual(noPan.room(), withPan.room(),
+    '기준점 보정은 «여지»를 바꾸면 안 된다 — 팬 유무로 깎는 양이 달라지면 놓을 때마다 값이 갈린다');
+  assert.equal(noPan.wrap.scrollTop, withPan.wrap.scrollTop, '스크롤 보정도 같아야 한다');
+});
+
 /* ══ T4. 휠 상한은 «그대로» ═════════════════════════════════════════════ */
 
 test('T4 — WHEEL_OVER_SCREENS 는 3 그대로다 (0ab2f72 회귀 핀)', () => {
@@ -425,12 +495,22 @@ test('T4 ⒞ 휠 상한 — absorbWheelResidual 을 «실제로 돌려» 도달 
     '그보다 크면 0ab2f72 가 고친 「빈 공간으로 끝없이 스크롤」이 되살아난다');
 });
 
-test('T4 ⒞ 휠 상한 — 기본 바닥이 상한을 «먹지 않는다» (실행으로 잰 값끼리 비교)', () => {
+/* ★[검수] 이 계에는 «갈라 봐야 하는» 양이 셋이다. 하나로 뭉뚱그리면 회귀를 오해한다.
+     ⑴ 내려갈 수 있는 «깊이»      = 기본 바닥          (1화면 → 2화면. 이번에 늘린 것)
+     ⑵ 휠로 «도달»하는 최대       = cap                (4화면. 절대값이라 안 변했다)
+     ⑶ 휠 한 몸짓이 «더 보태는» 몫 = cap − 바닥         (3화면 → 2화면. ★줄었다)
+   ⑶이 줄어도 «못 가는 곳»은 없다(⑵가 그대로다) — 다만 끝까지 밀 때 몇 번 더 굴린다.
+   ⛔PAN_ROOM_SCREENS_Y 를 4 로 올리면 ⑶이 «정확히 0» 이 되어 휠이 죽는다. 그 선을 여기서 지킨다. */
+test('T4 ⒞ 휠 상한 — ⑶「한 몸짓이 더 보태는 몫」이 남아 있다 (실행으로 잰 값끼리)', () => {
   const e = makeRoomEnv({ roomX: 0, roomY: 0 });
   assertInputAlive(e);
   e.ensurePanRoom();
-  const floorScreens = e.room().y / e.wrap.clientHeight;
-  const reached = runWheelToCap(e, 'y');
-  assert.ok(floorScreens < reached,
-    `기본 여지 ${floorScreens}화면이 휠 도달 ${reached}화면 이상이다 — cur >= cap 가 즉시 참이 돼 휠이 아예 안 밀린다`);
+  const floorScreens = e.room().y / e.wrap.clientHeight;   // ⑴
+  const reached = runWheelToCap(e, 'y');                   // ⑵
+  const headroom = reached - floorScreens;                 // ⑶
+  assert.ok(headroom > 0,
+    `⑶ 이 ${headroom} 화면이다 — 0 이면 absorbWheelResidual 의 cur >= cap 가 즉시 참이 돼 휠이 «아예 안 밀린다»`);
+  assert.equal(floorScreens, 2, '⑴ 기본 바닥');
+  assert.equal(reached, 4, '⑵ 휠 도달 상한');
+  assert.equal(headroom, 2, '⑶ 한 몸짓이 더 보태는 몫 (고치기 전엔 3이었다 — 줄어든 것이 «맞고», 회귀가 아니다)');
 });
