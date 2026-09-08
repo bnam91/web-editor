@@ -120,11 +120,33 @@ test('D1 ★핸들이 «실제로 DOM 에 생긴다» — 4 + 4 (선택 전 0개
   expect(errs).toEqual([]);
 });
 
-test('D2 선택을 떼면 사라진다 — 그리고 «옆의 에셋 핸들»은 그대로 살아 있다', async ({ page }) => {
+/** editor.js 의 deselectAll 이 «실제로 부르는» hide 목록을 소스에서 뽑는다.
+ *  ⛔목록을 여기 베껴 적지 않는다 — 베끼면 deselectAll 에서 줄을 지워도 이 검사는 초록이다. */
+function deselectHideCalls() {
+  const src = fs.readFileSync(path.join(REPO, 'js/editor.js'), 'utf8');
+  const i = src.indexOf('function deselectAll(');
+  let d = 0, j = src.indexOf('{', i);
+  for (let k = j; k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}') { d--; if (!d) { j = k + 1; break; } } }
+  const body = src.slice(i, j);
+  return {
+    all:   [...body.matchAll(/window\.(hide[A-Za-z]+)\?\.\(\)/g)].map(m => m[1]),
+    modal: [...body.matchAll(/window\.(hideModal[A-Za-z]+)\?\.\(\)/g)].map(m => m[1]),
+  };
+}
+
+test('D2 «남의 정리»에 안 쓸리고, deselectAll 로 사라지고, 다시 클릭하면 돌아온다', async ({ page }) => {
   await boot(page);
   await mount(page);
   await select(page);
-  // 에셋 블록 하나를 «같은 오버레이»에 띄워 둔다 — 모달이 남의 핸들을 쓸어가지 않는지 본다
+  const total = () => page.evaluate(() => document.getElementById('ss-handles-overlay').children.length);
+  expect(await counts(page)).toEqual({ resize: 4, radius: 4, asset: 0 });
+  const t0 = await total();
+  expect(t0, '모달 핸들 여덟 개').toBe(8);
+
+  /* ★① 남의 핸들을 띄워도 «내 것»이 안 줄어든다.
+     showAssetResizeHandles 는 자기 시작에 hideAssetResizeHandles() 로 .asset-overlay-handle 을
+     «전부» 쓸어담아 지운다. 모달이 그 클래스를 «빌리면» 여기서 내 핸들이 같이 사라진다
+     — 아이콘 원형이 실제로 그렇게 물렸다(재클릭 시 1→0개). */
   await page.evaluate(() => {
     const ab = document.createElement('div');
     ab.className = 'asset-block selected';
@@ -133,16 +155,31 @@ test('D2 선택을 떼면 사라진다 — 그리고 «옆의 에셋 핸들»은
     window.__showAsset(ab);
   });
   await raf(page);
+  expect(await total(), '남의 정리가 내 핸들을 먹었다 — 클래스를 빌리고 있다').toBe(t0 + 4);
   expect((await counts(page)).asset).toBe(4);
 
+  /* ★② deselectAll 이 «실제로 부르는» 호출만 그대로 실행한다. */
+  const calls = deselectHideCalls();
+  expect(calls.all.length, 'deselectAll 의 hide 목록을 못 찾았다 — 검사가 대상을 놓쳤다').toBeGreaterThanOrEqual(8);
+  await page.evaluate((names) => names.forEach(n => window[n] && window[n]()), calls.modal);
+  const afterDeselect = await counts(page);
+  expect(afterDeselect.resize, 'deselectAll 이 모달 리사이즈 핸들을 안 지운다').toBe(0);
+  expect(afterDeselect.radius, 'deselectAll 이 모달 라디우스 핸들을 안 지운다').toBe(0);
+  expect(afterDeselect.asset, '모달을 정리하면서 에셋 핸들까지 쓸어갔다').toBe(4);
+
+  /* ★③ 다시 클릭하면 돌아온다 — hide 가 자기 «상태변수»를 null 로 되돌리지 않으면
+     동일블록 가드에 걸려 no-op 이 되고 «영영» 안 돌아온다(실측된 병). */
+  await page.evaluate(() => window.__show(window.__block));
+  await raf(page);
+  expect(await counts(page)).toEqual({ resize: 4, radius: 4, asset: 4 });
+
+  /* ★④ rAF 경로 — .selected 만 떼어도 스스로 사라진다. */
   await page.evaluate(() => { window.__block.classList.remove('selected'); });
   await raf(page); await raf(page);
-  const after = await counts(page);
-  expect(after.resize, '선택을 뗐는데 리사이즈 핸들이 남았다').toBe(0);
-  expect(after.radius, '선택을 뗐는데 라디우스 핸들이 남았다').toBe(0);
-  /* ★모달이 «자기» 클래스를 쓰기 때문에 남는다. .asset-[별] 을 빌리면 여기가 0 이 된다
-     (아이콘 원형이 실제로 그렇게 물렸다 — 재클릭 시 1→0개). */
-  expect(after.asset, '모달 핸들을 지우면서 에셋 핸들까지 쓸어갔다').toBe(4);
+  const afterRaf = await counts(page);
+  expect(afterRaf.resize).toBe(0);
+  expect(afterRaf.radius).toBe(0);
+  expect(afterRaf.asset, '에셋 핸들은 그대로다').toBe(4);
 });
 
 test('D3 ★라디우스 — 진짜로 끌면 getComputedStyle 의 border-radius 가 바뀐다', async ({ page }) => {
