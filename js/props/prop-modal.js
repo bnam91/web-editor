@@ -8,7 +8,10 @@ import { alignBtn } from './_helpers.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
-import { applyModalVariant, _effDefault, MODAL_DEFAULTS } from '../blocks/modal-block.js';
+/* ★min/max 는 «리터럴로 쓰지 않는다» — modal-block.js 의 MODAL_LIMITS 한 표에서 온다.
+   패널과 오버레이 핸들이 같은 표를 봐야 클램프가 갈라지지 않는다. */
+import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModal, setModalSizeMode } from '../blocks/modal-block.js';
+const L = MODAL_LIMITS;
 
 /* 스와치·hex 칸에 «보여 줄» 색.
    ⚠️dataset.textColor 는 hex 만 담는 게 아니다 — 컬러변수 칩은 `var(--color-x, #hex)` 를,
@@ -46,7 +49,9 @@ export function showModalProperties(block) {
   const borderColor = block.dataset.borderColor || '#c3c3ca';
   const iconColor = block.dataset.iconColor || '#f0b429';
   const _i = (k, d) => { const n = parseInt(block.dataset[k]); return Number.isFinite(n) ? n : d; };
-  const radius = _i('radius', 0);
+  // ★표 밖의 값(손수 넣은 dataset.radius=75 같은 것)을 «패널만» 다르게 보여 주지 않는다 —
+  //   renderModalBlock 도 같은 clampModal 로 자른다. 셋이 갈라지던 자리다.
+  const radius = clampModal(_i('radius', L.radius.min), L.radius);
   const padX = _i('padX', 20), padY = _i('padY', 18);
   const borderW = _i('borderW', _effDefault(v, 'borderW'));
   const borderStyle = block.dataset.borderStyle || _effDefault(v, 'borderStyle');
@@ -129,15 +134,15 @@ export function showModalProperties(block) {
           <button class="prop-type-btn ${wMode === 'full' ? 'active' : ''}" data-wm="full">풀폭</button>
           <button class="prop-type-btn ${wMode === 'fixed' ? 'active' : ''}" data-wm="fixed">고정</button>
         </div>
-        <input type="number" class="prop-number" id="mdl-w-number" min="80" max="860" value="${width}"${wMode === 'fixed' ? '' : ' disabled'}>
+        <input type="number" class="prop-number" id="mdl-w-number" min="${L.width.min}" max="${L.width.max}" value="${width}"${wMode === 'fixed' ? '' : ' disabled'}>
       </div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <div class="prop-type-group">
           <button class="prop-type-btn ${hMode === 'auto' ? 'active' : ''}" data-hm="auto">자동</button>
-          <button class="prop-type-btn ${hMode === 'fixed' ? 'active' : ''}" data-hm="fixed">고정</button>
+          <button class="prop-type-btn ${hMode === 'fixed' ? 'active' : ''}" data-hm="fixed">최소</button>
         </div>
-        <input type="number" class="prop-number" id="mdl-h-number" min="30" max="900" value="${height}"${hMode === 'fixed' ? '' : ' disabled'}>
+        <input type="number" class="prop-number" id="mdl-h-number" min="${L.height.min}" max="${L.height.max}" value="${height}"${hMode === 'fixed' ? '' : ' disabled'}>
       </div>
     </div>
 
@@ -178,8 +183,8 @@ export function showModalProperties(block) {
       <div class="prop-row"><span class="prop-label">테두리색</span>${colorFieldHTML({ idPrefix: 'mdl-bc', hex: borderColor, alpha: parseAlphaFromColor(borderColor) })}</div>
       <div class="prop-row">
         <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="mdl-radius-slider" min="0" max="60" step="2" value="${radius}">
-        <input type="number" class="prop-number" id="mdl-radius-number" min="0" max="60" value="${radius}">
+        <input type="range" class="prop-slider" id="mdl-radius-slider" min="${L.radius.min}" max="${L.radius.max}" step="1" value="${radius}">
+        <input type="number" class="prop-number" id="mdl-radius-number" min="${L.radius.min}" max="${L.radius.max}" value="${radius}">
       </div>
     </div>
 
@@ -238,7 +243,7 @@ export function showModalProperties(block) {
     s.addEventListener('change', commit);
     n.addEventListener('change', () => { apply(parseInt(n.value)); commit(); });
   };
-  wireNum('radius', 'radius', 0, 60);
+  wireNum('radius', 'radius', L.radius.min, L.radius.max);
   wireNum('padx', 'padX', 0, 80);
   wireNum('pady', 'padY', 0, 80);
   wireNum('bw', 'borderW', 0, 12);
@@ -381,24 +386,29 @@ export function showModalProperties(block) {
   // ── 크기 모드 ──
   const wNum = document.getElementById('mdl-w-number');
   const hNum = document.getElementById('mdl-h-number');
+  /* ★dataset.wMode 를 여기서 «직접» 쓰지 않는다 — setModalSizeMode 가 단 하나의 문이다.
+     「늘어나는 그 순간」 판정이 패널과 핸들 두 벌로 갈라지면 한쪽만 고쳐진다.
+     돌려주는 값이 true 면 자동 가운데정렬이 채워진 것 ⇒ 정렬 버튼도 다시 그려야 한다. */
   propPanel.querySelectorAll('[data-wm]').forEach(btn => btn.addEventListener('click', () => {
-    block.dataset.wMode = btn.dataset.wm;
+    const filled = setModalSizeMode(block, 'w', btn.dataset.wm);
     propPanel.querySelectorAll('[data-wm]').forEach(b => b.classList.toggle('active', b === btn));
     if (wNum) wNum.disabled = (btn.dataset.wm !== 'fixed');
     rerender(); commit();
+    if (filled) showModalProperties(block);
   }));
   propPanel.querySelectorAll('[data-hm]').forEach(btn => btn.addEventListener('click', () => {
-    block.dataset.hMode = btn.dataset.hm;
+    const filled = setModalSizeMode(block, 'h', btn.dataset.hm);
     propPanel.querySelectorAll('[data-hm]').forEach(b => b.classList.toggle('active', b === btn));
     if (hNum) hNum.disabled = (btn.dataset.hm !== 'fixed');
     rerender(); commit();
+    if (filled) showModalProperties(block);
   }));
   wNum?.addEventListener('change', () => {
-    const x = Math.min(860, Math.max(80, parseInt(wNum.value) || 400));
+    const x = Math.min(L.width.max, Math.max(L.width.min, parseInt(wNum.value) || MODAL_DEFAULTS.width));
     block.dataset.width = String(x); wNum.value = x; rerender(); commit();
   });
   hNum?.addEventListener('change', () => {
-    const x = Math.min(900, Math.max(30, parseInt(hNum.value) || 120));
+    const x = Math.min(L.height.max, Math.max(L.height.min, parseInt(hNum.value) || MODAL_DEFAULTS.height));
     block.dataset.height = String(x); hNum.value = x; rerender(); commit();
   });
 

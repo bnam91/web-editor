@@ -15,6 +15,10 @@ import { resizeColBoundary, resizeRowHeight } from './grid-cell-resize.js';
 //   이라 여기서 dataset.cols/rows 를 직접 재파싱하면 클램프/폴백 로직이 두 곳에 흩어진다
 //   (이 레포의 고질 — P1 IMPL 보고서·P0 EVAL 둘 다 지적한 패턴). 재사용이 맞다.
 import { getGridModel, gridCols, gridRows } from './blocks/grid-block.js';
+/* ★모달 핸들의 클램프는 «패널과 같은 표»를 본다 — 리터럴을 여기 다시 쓰면 갈라진다.
+   (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
+    모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
+import { MODAL_LIMITS, clampModal, setModalSizeMode } from './blocks/modal-block.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -823,6 +827,246 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
 
 window.showAssetResizeHandles = showAssetResizeHandles;
 window.hideAssetResizeHandles = hideAssetResizeHandles;
+
+/* ═══════════════════════════════════
+   MODAL BLOCK — CORNER RADIUS + RESIZE HANDLES (overlay)
+
+   ★에셋 핸들을 «뼈대»로 삼되 코드를 베끼지 않았다 — 두 가지가 다르다.
+     ⑴ ★진실이 dataset 이다. renderModalBlock 은 `block.style.cssText = …` 로 인라인 스타일을
+        «통째로» 갈아끼운다 ⇒ 에셋처럼 ab.style.width/borderRadius 에 쓰면 재렌더 한 번에 증발한다.
+        실측: 인라인 {w:300px, h:222px, r:33px} → renderModalBlock 1회 → {860px, 59.8px, 0px}.
+        재렌더는 패널 조작·변형 전환·글자 편집(_modalEndEdit)·로드 어디서든 일어난다.
+        ⇒ 드래그가 «끝나면» dataset 이 남아야 한다. 드래그 «중»의 인라인은 미리보기일 뿐이다.
+     ⑵ ★클래스가 자기 것(.mdl-*)이다. `.asset-overlay-handle` 을 «빌리면»
+        hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다 — 아이콘 원형이 실제로 그렇게
+        물렸다(실측: 재클릭 시 1→0개, css/editor-blocks.css:223-225 에 기록). CSS 는 «규칙»만 공유한다.
+═══════════════════════════════════ */
+let _modalRadiusBlock = null;
+let _modalRadiusRafId = null;
+
+function showModalRadiusHandles(block) {
+  if (_modalRadiusBlock === block) return;
+  hideModalRadiusHandles();
+  _modalRadiusBlock = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+
+  CORNER_DIRS.forEach(dir => {
+    const r = document.createElement('div');
+    r.className = `mdl-radius-handle ${dir}`;
+    r.dataset.modalRadiusDir = dir;
+    r.title = '모서리 반경 조절';
+    overlay.appendChild(r);
+    r.addEventListener('mousedown', e => _onModalRadiusHandleMouseDown(e, block, dir));
+  });
+
+  _updateModalRadiusHandlePositions();
+  _startModalRadiusRaf();
+}
+
+function hideModalRadiusHandles() {
+  if (_modalRadiusRafId) { cancelAnimationFrame(_modalRadiusRafId); _modalRadiusRafId = null; }
+  _modalRadiusBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.mdl-radius-handle').forEach(h => h.remove());
+}
+
+/* ★INSET 을 «상자 크기에 맞춰» 좁힌다 — 에셋의 INSET=10 은 «화면px» 고정이라
+   화면 높이가 20px 미만이면 위·아래 라디우스 핸들이 서로 «교차»한다.
+   모달 기본 높이는 60px 이므로 줌 33% 이하에서 실제로 교차한다(실측).
+   ⛔에셋 쪽 INSET 을 고치면 «에셋 모습»이 바뀐다(공용이다) — 좁히는 일은 이 함수 안에서만 한다. */
+function _updateModalRadiusHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_modalRadiusBlock) return;
+  const box = _modalRadiusBlock.getBoundingClientRect();   // 화면px — 줌이 이미 곱해진 값
+  const INSET = Math.max(0, Math.min(10, box.width / 2 - 4, box.height / 2 - 4));
+  const HALF = 3.5; // 7px 핸들 중앙 정렬
+  overlay.querySelectorAll('.mdl-radius-handle').forEach(h => {
+    const c = _cornerScreen(_modalRadiusBlock, h.dataset.modalRadiusDir, INSET);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+  });
+}
+
+function _startModalRadiusRaf() {
+  function loop() {
+    if (!_modalRadiusBlock) return;
+    if (!_modalRadiusBlock.isConnected || !_modalRadiusBlock.classList.contains('selected')) {
+      hideModalRadiusHandles();
+      return;
+    }
+    _updateModalRadiusHandlePositions();
+    _modalRadiusRafId = requestAnimationFrame(loop);
+  }
+  _modalRadiusRafId = requestAnimationFrame(loop);
+}
+
+function _onModalRadiusHandleMouseDown(e, block, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX, startY = e.clientY;
+  /* ★시작값을 style.borderRadius 에서 읽지 «않는다»(에셋은 거기서 읽는다).
+     모달은 dataset 이 진실이고, 인라인은 재렌더에 증발하는 미리보기일 뿐이다. */
+  const startR = clampModal(block.dataset.radius, MODAL_LIMITS.radius);
+  let moved = false;
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    if (!moved) {
+      if (Math.hypot(dx, dy) < 1) return;
+      moved = true;
+    }
+    // 모서리에서 «안쪽»으로 끌면 커진다 — 네 모서리의 부호는 에셋 라디우스와 같은 규약
+    const delta = dir === 'nw' ? (dx + dy) / 2
+                : dir === 'ne' ? (-dx + dy) / 2
+                : dir === 'sw' ? (dx - dy) / 2
+                : (-dx - dy) / 2;
+    const newR = clampModal(startR + delta, MODAL_LIMITS.radius);
+    block.dataset.radius = String(newR);              // ★진실
+    block.style.borderRadius = newR + 'px';           // 미리보기(끝나면 재렌더가 같은 값으로 굳힌다)
+    /* 패널의 «두 필드»를 다 맞춘다 — 하나만 맞추면 슬라이더와 숫자가 갈라진다.
+       슬라이더 step 은 1 이어야 홀수를 담는다(prop-modal.js 의 별도 줄). */
+    const slider = document.getElementById('mdl-radius-slider');
+    const num    = document.getElementById('mdl-radius-number');
+    if (slider) slider.value = String(newR);
+    if (num)    num.value    = String(newR);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (!moved) return;
+    window.renderModalBlock?.(block);   // ★dataset 을 «그림»으로 굳힌다
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showModalRadiusHandles = showModalRadiusHandles;
+window.hideModalRadiusHandles = hideModalRadiusHandles;
+
+/* ── 모달 리사이즈 핸들 (네 모서리) ── */
+let _modalResizeBlock = null;
+let _modalResizeRafId = null;
+
+function showModalResizeHandles(block) {
+  if (_modalResizeBlock === block) return;
+  hideModalResizeHandles();
+  _modalResizeBlock = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+
+  CORNER_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `mdl-overlay-handle ${dir}`;
+    h.dataset.modalResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onModalResizeHandleMouseDown(e, block, dir));
+  });
+  _updateModalResizeHandlePositions();
+  _startModalResizeRaf();
+}
+
+function hideModalResizeHandles() {
+  if (_modalResizeRafId) { cancelAnimationFrame(_modalResizeRafId); _modalResizeRafId = null; }
+  _modalResizeBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.mdl-overlay-handle').forEach(h => h.remove());
+}
+
+function _updateModalResizeHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_modalResizeBlock) return;
+  const HALF = 3.5;
+  overlay.querySelectorAll('.mdl-overlay-handle').forEach(h => {
+    const c = _cornerScreen(_modalResizeBlock, h.dataset.modalResizeDir);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+  });
+}
+
+function _startModalResizeRaf() {
+  function loop() {
+    if (!_modalResizeBlock) return;
+    if (!_modalResizeBlock.isConnected || !_modalResizeBlock.classList.contains('selected')) {
+      hideModalResizeHandles();
+      return;
+    }
+    _updateModalResizeHandlePositions();
+    _modalResizeRafId = requestAnimationFrame(loop);
+  }
+  _modalResizeRafId = requestAnimationFrame(loop);
+}
+
+function _onModalResizeHandleMouseDown(e, block, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX, startY = e.clientY;
+  const startW = Math.round(block.offsetWidth);
+  const startH = Math.round(block.offsetHeight);
+  const sx = dir.includes('e') ? 1 : -1;
+  const sy = dir.includes('s') ? 1 : -1;
+  let moved = false;
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    if (!moved) {
+      if (Math.hypot(dx, dy) < 1) return;
+      moved = true;
+      /* ★크기를 «고정»으로 돌리는 것도, 재렌더도 여기 «한 번»뿐이다.
+         full → fixed 는 margin-left/right:auto 를 같이 주므로(가운데 정렬) 상자의 기하가
+         통째로 바뀐다. 그 변화를 드래그 «중»에 인라인으로 흉내 내면 손을 떼는 순간 튄다. */
+      /* ★모드를 바꾸는 문은 하나다 — 「늘어나는 그 순간」의 자동 가운데정렬도 그 안에서 난다.
+         여기서 dataset 을 직접 쓰면 핸들 드래그만 «그 순간»을 못 만든다. */
+      setModalSizeMode(block, 'w', 'fixed');
+      setModalSizeMode(block, 'h', 'fixed');
+      block.dataset.width  = String(clampModal(startW, MODAL_LIMITS.width));
+      block.dataset.height = String(clampModal(startH, MODAL_LIMITS.height));
+      window.renderModalBlock?.(block);
+    }
+    /* ★★가로는 Δ = 2·dx 다. wMode:'fixed' 가 margin-left/right:auto 를 같이 주므로 상자가
+       호스트 «정중앙»에 선다(실측: 폭400 이 860 호스트에서 left=230 = 정중앙).
+       가운데 고정 상자는 폭이 Δ 늘 때 각 변이 Δ/2 만 움직인다 ⇒ 에셋 산식(Δ=dx)을 그대로
+       쓰면 «커서 100px 에 모서리 50px» 이 된다. w·e 양쪽 다.
+       ⚠️세로는 1배다 — 위 변이 흐름에 박혀 있어 상자는 아래로만 자란다. */
+    const newW = clampModal(startW + sx * dx * 2, MODAL_LIMITS.width);
+    const newH = clampModal(startH + sy * dy,     MODAL_LIMITS.height);
+    /* ★dataset 이 진실이다 — 인라인 style 은 재렌더가 cssText 를 갈아끼울 때 증발한다. */
+    block.dataset.width  = String(newW);
+    block.dataset.height = String(newH);
+    /* ⛔mousemove 마다 renderModalBlock 을 부르지 않는다 — innerHTML 을 통째로 갈아끼우므로
+       ⑴프레임 드랍 ⑵캐럿·선택 소실 ⑶raster 아이콘의 <img src> 가 매 프레임 새로 만들어져
+       깜빡인다. 드래그 «중»엔 인라인 두 줄만 얹는다(끝나면 재렌더가 같은 값으로 덮는다).
+       ⚠️height 는 min-height 다 — 내용이 더 크면 상자가 내용을 따른다(안 잘린다). */
+    block.style.width = newW + 'px';
+    block.style.minHeight = newH + 'px';
+    const wNum = document.getElementById('mdl-w-number');
+    const hNum = document.getElementById('mdl-h-number');
+    if (wNum) wNum.value = String(newW);
+    if (hNum) hNum.value = String(newH);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (!moved) return;
+    window.renderModalBlock?.(block);       // ★dataset 을 «그림»으로 굳힌다
+    window.showModalProperties?.(block);    // 풀폭/고정 버튼·비활성 상태가 실제와 맞게
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showModalResizeHandles = showModalResizeHandles;
+window.hideModalResizeHandles = hideModalResizeHandles;
 
 /* ═══════════════════════════════════
    ICON-CIRCLE BLOCK RESIZE HANDLE (overlay, east-only, square-constrained)
@@ -1685,6 +1929,9 @@ function showHandlesFor(block) {
     showIconHandles(block);
   } else if (block.classList.contains('mockup-block')) {
     showMockupHandles(block);
+  } else if (block.classList.contains('modal-block')) {
+    showModalRadiusHandles(block);
+    showModalResizeHandles(block);
   }
 }
 window.showHandlesFor = showHandlesFor;
@@ -1700,6 +1947,10 @@ export {
   hideAssetRadiusHandles,
   showAssetResizeHandles,
   hideAssetResizeHandles,
+  showModalRadiusHandles,
+  hideModalRadiusHandles,
+  showModalResizeHandles,
+  hideModalResizeHandles,
   showIconCircleResizeHandle,
   hideIconCircleResizeHandle,
   showCanvasRadiusHandles,

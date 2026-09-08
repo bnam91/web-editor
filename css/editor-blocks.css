@@ -179,7 +179,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 }
 
 /* ── Asset Block corner radius handles (Figma 스타일) ── */
-.asset-radius-handle {
+/* ★`.mdl-radius-handle`(모달)를 «같은 규칙»에 얹는다 — 복사가 아니라 공유다.
+ *   ⛔클래스까지 «빌리면» hideAssetRadiusHandles() 의 일괄 remove 가 모달 핸들을 지운다
+ *     (아이콘 원형이 실제로 그렇게 물렸다 — 아래 .icb-overlay-handle 주석 참조). */
+.asset-radius-handle,
+.mdl-radius-handle {
   position: absolute;
   width:  7px;
   height: 7px;
@@ -192,7 +196,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   cursor: crosshair;
   transition: transform 0.1s;
 }
-.asset-radius-handle:hover {
+.asset-radius-handle:hover,
+.mdl-radius-handle:hover {
   transform: scale(1.4);
   background: var(--sel-color);
 }
@@ -228,7 +233,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * hideAssetResizeHandles() 가 같이 쓸어갔다(실측: 재클릭 시 4→0, 그 뒤로 영영 0). */
 .asset-overlay-handle,
 .icb-overlay-handle,
-.zm-overlay-handle {
+/* ★`.mdl-overlay-handle`(모달)도 같은 규칙에 얹는다 — 세 번째다.
+ * ⚠️이 목록은 앞으로도 «늘어난다». 그래서 검사는 목록의 «길이»를 못박지 않고
+ *   「셋이 그 규칙을 함께 쓰나」로 잰다(tests/unit/zoom-block.test.js ⓑ-26, 2026-09-08 지디 수정). */
+.zm-overlay-handle,
+.mdl-overlay-handle {
   position: absolute;
   width:  7px;
   height: 7px;
