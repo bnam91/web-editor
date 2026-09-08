@@ -358,7 +358,17 @@ function addZoomBlock(opts = {}) {
   sec.appendChild(block);   // ★섹션 직접 자식 (absolute → 섹션 기준). 스티커와 같은 자리.
   bindBlock(block);
   window.buildLayerPanel?.();
+  /* ★선택은 «캔버스 클릭 경로와 같은 두 줄»로 끝낸다 — block-drag.js 의 줌 click 핸들러가
+   *   showZoomProperties + showHandlesFor 를 둘 다 부른다. 추가 경로에만 그게 빠져 있었다.
+   * ⛔window.selectBlock 만으로는 안 된다: 그건 block-edit.js 의 «MCP 진입점»이라
+   *   ⑴ 타입→패널 목록에 zoom 이 없어 showTextProperties 로 새고(패널이 "Section 01" 로 남는다)
+   *   ⑵ showHandlesFor 를 아예 안 부른다 ⇒ 추가 직후 모서리 핸들이 0개였다(실측).
+   *   선택 클래스·레이어 하이라이트는 그대로 selectBlock 이 맡는다. */
   try { window.selectBlock?.(block.id); } catch (_) {}
+  try {
+    window.showZoomProperties?.(block);
+    window.showHandlesFor?.(block);
+  } catch (_) {}
   block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   window.triggerAutoSave?.();
 }
