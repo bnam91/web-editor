@@ -27,6 +27,10 @@ const MODAL_DEFAULTS = {
   wMode: 'full', width: 400,
   hMode: 'auto', height: 120,
   align: 'left', textColor: '#1c1c1e', fontSize: 36,
+  // ★타이포 — 전에는 line-height 만 renderModalBlock 안에 «1.7 리터럴»로 박혀 있었다.
+  //   그러면 패널이 줄간격을 바꿔도 «먹는 척하고 안 먹는다». 출처를 여기 하나로 모은다.
+  fontFamily: '', fontWeight: '', lineHeight: 1.7, letterSpacing: 0,
+  bold: false, italic: false, strike: false, highlight: false,
   gap: 14,
   iconSize: 24, iconColor: '#f0b429',
 };
@@ -80,9 +84,62 @@ const MODAL_PH = {
   cell:  '항목을 입력하세요',
 };
 
-const _MDL_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+/* ★var(--color-…) 를 «받아야» 한다 — 컬러변수 칩(color-var-chips.js)이 넣는 값이
+   `var(--color-brand, #ff0000)` 형태다. 전에는 이 정규식이 그걸 «거부»해서 칩이
+   「눌리는데 안 먹는」 상태였다(실측 2026-09-08). 폴백 hex 까지 통째로 허용한다.
+   ⛔여는/닫는 괄호와 허용 글자를 좁게 유지한다 — cssText 에 그대로 들어가는 값이라
+     세미콜론·중괄호가 새면 선언을 깨고 그 뒤를 밀어낸다. */
+const _MDL_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$|^var\(\s*--[\w-]+\s*(?:,\s*[^;{}()]*)?\)$/;
 const _esc = (s) => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/* 폰트 패밀리는 cssText 에 «그대로» 들어간다 — 세미콜론·중괄호가 새면 선언을 깨고
+   그 뒤를 통째로 밀어낸다. 피커가 주는 체인(예: `Georgia, serif`)만 통과시킨다. */
+const _MDL_FONT_RE = /^[\w\s,'"\-().가-힣]+$/;
+
+/* 그 블록의 «유효 굵기» — B 버튼이 켜져 있으면 그게 이긴다(텍스트 패널과 같은 관례).
+   아무 것도 안 정했으면 null 을 준다 → 선언 자체를 «안 낸다»(현행 화면 보존). */
+function _effWeight(ds) {
+  if (ds.bold === '1') return '700';
+  const w = String(ds.fontWeight || '').trim();
+  return /^[1-9]00$/.test(w) ? w : null;
+}
+
+/* ★타이포 선언은 «이 함수 하나»에서만 나온다.
+   ⛔cssText 에 여러 줄로 흩지 마라 — 같은 자리를 다른 작업(핸들·정렬)이 동시에 만진다.
+   ★dataset 에 아무 것도 없으면 line-height 만 낸다(=예전 하드코딩 1.7 과 «같은 화면»).
+     그래서 이 커밋은 화면을 안 바꾼다. 패널이 값을 넣기 시작할 때 비로소 달라진다. */
+function _typoStyles(block) {
+  const ds = block.dataset;
+  const ff = String(ds.fontFamily || '').trim();
+  const w  = _effWeight(ds);
+  const lhRaw = parseFloat(ds.lineHeight);
+  const lh = Number.isFinite(lhRaw) ? lhRaw : MODAL_DEFAULTS.lineHeight;
+  const lsRaw = parseFloat(ds.letterSpacing);
+  const ls = Number.isFinite(lsRaw) ? lsRaw : 0;
+  return (ff && _MDL_FONT_RE.test(ff) ? `font-family:${ff};` : '')
+       + (w ? `font-weight:${w};` : '')
+       + `line-height:${lh};`
+       + (ls !== 0 ? `letter-spacing:${ls}px;` : '')
+       + (ds.italic === '1' ? 'font-style:italic;' : '')
+       + (ds.strike === '1' ? 'text-decoration:line-through;' : '');
+}
+
+/* ★titled 의 제목만 «따로» 굵기를 박아야 한다 (2026-09-08 실측).
+   css/editor-blocks.css 의 `.modal-block .tb-mdl-title { font-weight: 700 }` 은
+   선택자가 붙은 규칙이라, 루트에 인라인으로 준 굵기가 «상속»으로 내려와도 그걸 못 이긴다.
+   ⇒ 사용자가 굵기를 «정했을 때만» 제목에도 인라인으로 같은 값을 박는다.
+     안 정했으면 아무 것도 안 내서 CSS 의 700(제목은 굵다)이 그대로 산다. */
+function _titleWeightCss(ds) {
+  const w = _effWeight(ds);
+  return w ? `font-weight:${w};` : '';
+}
+
+/* 형광펜 — 슬롯 «글자 뒤»에 칠한다. 루트에 칠하면 배경색(bg)과 싸운다.
+   ⚠️슬롯은 _esc() 평문이라 «부분 선택»은 원리적으로 불가하다 — 슬롯 전체가 칠해진다. */
+function _highlightCss(ds) {
+  return ds.highlight === '1' ? 'background-color:#fff2a8;' : '';
+}
 
 function _num(block, key, def) {
   const n = parseInt(block.dataset[key]);
@@ -112,11 +169,13 @@ function _modalIconHtml(block) {
   return `<div class="mdl-icon" style="width:${size}px;height:${size}px;color:${_esc(color)};">${inner}</div>`;
 }
 
-function _textHtml(cls, slot, value, ph) {
+function _textHtml(cls, slot, value, ph, extraCss = '') {
   const empty = String(value ?? '').trim() === '';
   const shown = empty ? ph : value;
   return `<div class="${cls}" data-mdl-slot="${slot}" contenteditable="false"`
-       + ` data-placeholder="${_esc(ph)}"${empty ? ' data-is-placeholder="true"' : ''}>${_esc(shown)}</div>`;
+       + ` data-placeholder="${_esc(ph)}"${empty ? ' data-is-placeholder="true"' : ''}`
+       + (extraCss ? ` style="${extraCss}"` : '')
+       + `>${_esc(shown)}</div>`;
 }
 
 function renderModalBlock(block) {
@@ -143,7 +202,8 @@ function renderModalBlock(block) {
   block.style.cssText = 'box-sizing:border-box;position:relative;'
     + (wMode === 'fixed' ? `width:${_num(block, 'width', MODAL_DEFAULTS.width)}px;max-width:100%;margin-left:auto;margin-right:auto;` : 'width:100%;')
     + (hMode === 'fixed' ? `min-height:${_num(block, 'height', MODAL_DEFAULTS.height)}px;` : '')
-    + `background:${bg};color:${textColor};font-size:${fontSize}px;line-height:1.7;text-align:${align};`
+    + `background:${bg};color:${textColor};font-size:${fontSize}px;text-align:${align};`
+    + _typoStyles(block)
     + (radius > 0 ? `border-radius:${radius}px;` : '')
     + `padding:${rootPad};`
     + (borderW > 0 ? `border:${borderW}px ${borderStyle} ${borderColor};` : '');
@@ -156,19 +216,19 @@ function renderModalBlock(block) {
     html = `<div class="tb-mdl-title" data-mdl-slot="title" contenteditable="false"`
          + ` data-placeholder="${_esc(MODAL_PH.title)}"`
          + `${String(title ?? '').trim() === '' ? ' data-is-placeholder="true"' : ''}`
-         + ` style="padding:${Math.round(padY * 0.6)}px ${padX}px;">`
+         + ` style="padding:${Math.round(padY * 0.6)}px ${padX}px;${_titleWeightCss(block.dataset)}${_highlightCss(block.dataset)}">`
          + `${_esc(String(title ?? '').trim() === '' ? MODAL_PH.title : title)}</div>`
          + `<div class="tb-mdl-text" data-mdl-slot="text" contenteditable="false"`
          + ` data-placeholder="${_esc(MODAL_PH.text)}"`
          + `${String(text ?? '').trim() === '' ? ' data-is-placeholder="true"' : ''}`
-         + ` style="padding:${padY}px ${padX}px;">`
+         + ` style="padding:${padY}px ${padX}px;${_highlightCss(block.dataset)}">`
          + `${_esc(String(text ?? '').trim() === '' ? MODAL_PH.text : text)}</div>`;
   } else if (v === 'grid-2') {
     // ★현빈 조정⑴ — 칼럼은 «투명 배경». 위치만 잡는 용도라 배경/테두리를 주지 않는다.
     //   셀은 «텍스트 전용»이다(드롭존 미등록) → 모달 안 모달이 안 생긴다.
     html = `<div class="mdl-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:${gap}px;">`
-         + _textHtml('tb-mdl-cell', 'cell1', block.dataset.cell1, MODAL_PH.cell)
-         + _textHtml('tb-mdl-cell', 'cell2', block.dataset.cell2, MODAL_PH.cell)
+         + _textHtml('tb-mdl-cell', 'cell1', block.dataset.cell1, MODAL_PH.cell, _highlightCss(block.dataset))
+         + _textHtml('tb-mdl-cell', 'cell2', block.dataset.cell2, MODAL_PH.cell, _highlightCss(block.dataset))
          + `</div>`;
   } else if (v === 'icon' || v === 'icon-stack') {
     const stack = (v === 'icon-stack');
@@ -177,10 +237,10 @@ function renderModalBlock(block) {
     block.style.alignItems = stack ? 'center' : 'flex-start';
     block.style.gap = stack ? '9px' : '11px';
     if (stack) block.style.textAlign = 'center';
-    html = _modalIconHtml(block) + _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text);
+    html = _modalIconHtml(block) + _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, _highlightCss(block.dataset));
   } else {
     // plain · dashed
-    html = _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text);
+    html = _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, _highlightCss(block.dataset));
   }
   block.innerHTML = html;
 }
@@ -211,6 +271,14 @@ function makeModalBlock(opts = {}) {
   block.dataset.textColor = (typeof opts.textColor === 'string' && _MDL_COLOR_RE.test(opts.textColor.trim())) ? opts.textColor.trim() : MODAL_DEFAULTS.textColor;
   block.dataset.fontSize = String(Number.isFinite(Number(opts.fontSize)) ? Number(opts.fontSize) : MODAL_DEFAULTS.fontSize);
   block.dataset.gap = String(Number.isFinite(Number(opts.gap)) ? Number(opts.gap) : MODAL_DEFAULTS.gap);
+  // ★lineHeight 는 «무조건» 박는다 — 전엔 렌더에 1.7 이 리터럴이라 dataset 이 비어 있었고,
+  //   그래서 저장·로드 왕복에서 「줄간격」이라는 개념 자체가 없었다. 기본값이 1.7 이라 화면은 그대로다.
+  block.dataset.lineHeight = String(Number.isFinite(Number(opts.lineHeight)) ? Number(opts.lineHeight) : MODAL_DEFAULTS.lineHeight);
+  // 나머지 타이포는 «사용자가 정했을 때만» 박는다 — 안 박으면 선언이 안 나가고 현행 화면이 유지된다.
+  if (typeof opts.fontFamily === 'string' && opts.fontFamily.trim()) block.dataset.fontFamily = opts.fontFamily.trim();
+  if (/^[1-9]00$/.test(String(opts.fontWeight || ''))) block.dataset.fontWeight = String(opts.fontWeight);
+  if (Number.isFinite(Number(opts.letterSpacing))) block.dataset.letterSpacing = String(Number(opts.letterSpacing));
+  for (const k of ['bold', 'italic', 'strike', 'highlight']) if (opts[k]) block.dataset[k] = '1';
   block.dataset.iconSize = String(Number.isFinite(Number(opts.iconSize)) ? Number(opts.iconSize) : MODAL_DEFAULTS.iconSize);
   block.dataset.iconColor = (typeof opts.iconColor === 'string' && _MDL_COLOR_RE.test(opts.iconColor.trim())) ? opts.iconColor.trim() : MODAL_DEFAULTS.iconColor;
   // 글자는 비워 둔다 → render 가 placeholder 를 그린다(새로 추가하면 흐린 안내문구가 보인다)
