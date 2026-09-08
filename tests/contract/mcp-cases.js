@@ -35,6 +35,13 @@ const CASES = {
   add_comparison_block: { args: {}, sinks: ["addComparisonBlock"] },
   add_divider_block: { args: {}, sinks: ["addDividerBlock"] },
   add_frame_block: { args: {}, sinks: ["addFrameBlock"] },
+  /* ★2026-09-07 신설 — 앱엔 있는데 MCP 에 «도구가 없던» 그리드 블록.
+     cols 는 «행 0»이고 각 칸의 글은 lines[].text 에 있다(실측으로 알아낸 규격). */
+  list_assets: { args: {}, sinks: ["assetsList"] },
+  list_asset_tree: { args: {}, sinks: ["assetsTree"] },
+  edit_asset_tree: { args: {"op":"createFolder"}, sinks: ["assetsMutate"] },
+  add_grid_block: { args: {"cols":[{"width":1,"lines":[{"type":"body","text":"A"}]},{"width":1,"lines":[{"type":"body","text":"B"}]}]}, sinks: ["addGridBlock"] },
+  update_grid_block: { args: {"blockId":"grd_x","patchCell":{"r":0,"c":0,"lines":[{"type":"body","text":"A"}]}}, sinks: ["updateGridBlock"] },
   add_gap_block: { args: {}, sinks: ["addGapBlock"] },
   add_gradient_block: { args: {}, sinks: ["addGradientBlock"] },
   add_graph_block: { args: {}, sinks: ["addGraphBlock"] },

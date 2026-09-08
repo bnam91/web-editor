@@ -7,7 +7,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'main.js'), 'utf8');
+const { readSrc } = require('./_srcread.js');   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
+const SRC = readSrc(__dirname, '..', '..', 'main.js');
 
 /* 주석을 «통째로» 지운다 — 줄 단위로 지우면 블록 주석 «안쪽»이 남아 코드로 세어진다
    (오늘 아침 D7 에서 그걸로 가짜 빨강을 냈다). 문자열 안의 // 는 여기선 문제가 안 된다. */
@@ -222,6 +223,16 @@ test('M10b ★뿌리를 주입받는 배선이 실제로 걸려 있다', () => {
    M1~M10 은 _repointProjectsDir 를 손으로 부르니 「누가 부르는가」를 못 잰다.
    ⚠️이건 소스 검사다 — 약한 채널인 걸 알고 쓴다. 다만 «함수 몸통을 떼어» 보므로
      주석이나 다른 함수의 같은 문자열에는 속지 않는다. */
+/** ★중괄호 셈이 안 통하는 함수용 — 본문에 «템플릿 리터럴»이 있으면 bodyOf 가 일찍 끊긴다
+    (실측: _invokeRendererUpdateSection). 최상위 `\n}` 까지 잘라 쓴다. */
+function topLevelBody(name) {
+  const i = SRC.indexOf(`function ${name}(`);
+  assert.ok(i >= 0, `★${name} 을 못 찾았다 — 검사가 대상을 놓쳤다`);
+  const j = SRC.indexOf('\n}\n', i);
+  assert.ok(j > i, `★${name} 의 끝을 못 찾았다`);
+  return SRC.slice(i, j);
+}
+
 function bodyOf(name) {
   const i = SRC.indexOf(`function ${name}(`);
   assert.ok(i >= 0, `★${name} 을 못 찾았다 — 검사가 대상을 놓쳤다`);
@@ -680,4 +691,43 @@ test('M26 ★게이트를 «여는 자리»와 «닫는 자리»의 수가 맞�
   const grants = (SRC.match(/_editorAccessGranted = true/g) || []).length;
   const revokes = (SRC.match(/_editorAccessGranted = false/g) || []).length;
   assert.ok(revokes >= 1, `★여는 자리 ${grants} / 닫는 자리 ${revokes} — 닫는 자리가 없다`);
+});
+
+test('W1 ★섹션 이름의 «정본»은 sec._name 이다 — dataset 만 쓰면 저장 직전에 되돌아간다', () => {
+  /* 2026-09-07 실측: update_section{name} 이 dataset.name «만» 써서, 화면엔 1.5초 보이다가
+     옛 이름으로 복귀했다. 범인은 저장 직전의 이 줄이다(js/io/save-load.js getSerializedCanvas):
+       if (sec._name && sec.dataset.name !== sec._name) sec.dataset.name = sec._name;
+     ⇒ ★grep 으로는 안 나왔다. `dataset.name = v` 는 패치한 setAttribute 를 «우회»해서
+       덫에도 안 걸렸고, CDP DOM 중단점으로야 잡혔다.
+     ⇒ 둘을 «같이» 써야 한다. 하나만 쓰면 조용히 되돌아간다. */
+  const body = topLevelBody('_invokeRendererUpdateSection');
+  assert.match(body, /sec\._name = nv;/, '★정본(_name)을 안 쓰면 저장 직전에 덮인다');
+  assert.match(body, /sec\.dataset\.name = nv;/, '★미러(dataset)도 써야 화면·읽기가 맞는다');
+  const iName = body.indexOf('sec._name = nv;');
+  const iDs = body.indexOf('sec.dataset.name = nv;');
+  assert.ok(iName > 0 && iDs > 0);
+
+  // ★반대방향 — 직렬화기가 «여전히» _name 을 정본으로 쓰는지(그게 바뀌면 이 처방이 낡는다)
+  const ser = readSrc(__dirname, '..', '..', 'js', 'io', 'save-load.js');
+  assert.match(ser, /sec\._name && sec\.dataset\.name !== sec\._name/,
+    '★직렬화기가 _name 을 더는 정본으로 안 쓴다면 위 처방을 다시 봐야 한다');
+});
+
+test('W2 ★자동저장 함수 이름을 «틀리게» 부르지 않는다 (오타를 조용히 삼키던 자리)', () => {
+  /* 같은 도구가 window.scheduleAutosave 를 불렀는데 그런 이름은 «없었다»(정의 0곳).
+     진짜 이름은 scheduleAutoSave(대문자 S)이고 폴백이 triggerAutoSave 다.
+     ★`typeof f === 'function'` 폴백은 오타를 «조용히» 삼킨다 — 아무 일도 안 일어난다. */
+  /* ⛔«주석»에는 그 오타가 «일부러» 적혀 있다(무엇이 틀렸었는지 남기려고).
+     검사는 «코드»만 봐야 한다 — 안 그러면 기록을 남긴 것이 빨강이 된다. */
+  const body = stripComments(topLevelBody('_invokeRendererUpdateSection'));
+  assert.doesNotMatch(body, /window\.scheduleAutosave/, '★소문자 s 오타 — 그런 함수는 없다');
+  assert.match(body, /scheduleAutoSave/, '★앱의 진짜 이름');
+  assert.match(body, /triggerAutoSave/, '★폴백도 앱과 같은 순서로');
+  assert.match(body, /NO_AUTOSAVE/, '★하나도 못 찾으면 «말해야» 한다 — 조용히 지나가면 또 데인다');
+
+  // ★양성대조 — 그 이름들이 앱에 «실제로» 있나(없는 이름을 요구하면 이 검사가 거짓말이다)
+  const files = fs.readdirSync(path.join(__dirname, '..', '..', 'js'))
+    .filter((f) => f.endsWith('.js'))
+    .map((f) => fs.readFileSync(path.join(__dirname, '..', '..', 'js', f), 'utf8')).join('\n');
+  assert.ok(/triggerAutoSave/.test(files), '★앱에 triggerAutoSave 가 있어야 이 요구가 성립한다');
 });

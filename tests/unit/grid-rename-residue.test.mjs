@@ -83,6 +83,12 @@ const ALLOW = [
   { file: 'js/blocks/grid-block.js', re: /^if \(line\.type === 'duo'\) \{$/ },
   // ⑸ 안전망 — 옛 정체성이 bindBlock 까지 닿았다면 «문을 놓쳤다»는 신호다(PLAN §3 안전망).
   { file: 'js/block-drag.js', re: /^if \(block\.classList\.contains\('duo-block'\)\) \{$/ },
+  /* ⑹ ★읽기 표의 «옛 접두»(2026-09-07). MCP 가 «옛 프로젝트»의 그리드를 읽으려면 필요하다.
+       ⛔개명은 «앞으로 만드는 것»에만 적용된다 — 이미 디스크에 `duo_` 로 저장된 블록은 그대로다.
+         그 접두를 지우면 옛 프로젝트에서만 그리드가 «이름 없이» 나온다(새 프로젝트로 시험하면 안 드러난다).
+       ⇒ 그래서 여기는 «제거 대상이 아니다» — 읽기는 옛것을 계속 알아봐야 한다.
+         (같은 이유로 GRID_ID_PREFIXES 가 ⑶에서 이미 허용돼 있다 — 이건 그 «소비처»다) */
+  { file: 'js/canvas-state.js', re: /^duo_: 'grid',$/ },
 ];
 
 function targets() {

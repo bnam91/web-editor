@@ -41,6 +41,10 @@
       wrapInFrame: PRIMARY + '+Alt+KeyG',
     },
     autoExternalizeOnOpen: false, // [externalize] 열 때 레거시 base64 일괄 외부화(기본 OFF)
+    /* [#16] 스크래치패드↔섹션 «연결선» 표시(기본 ON = 기존 동작 보존).
+       ⚠️기본값은 «두 벌»이다 — 여기(렌더러 FALLBACK)와 main.js DEFAULT_SETTINGS(정본).
+         단축키 때와 같은 구조라 «둘 다» 같은 값이어야 한다. */
+    showScratchLinkEdges: true,
     easterEggs: {
       fkeyHotkeys:      true,
       jokerBlock:       true,

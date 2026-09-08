@@ -67,6 +67,12 @@
 #canvas-wrap::-webkit-scrollbar-thumb { background: var(--ui-border); border-radius: 3px; }
 #canvas-wrap.scratch-drag-over { outline: 2px dashed rgba(21,146,254,0.45); outline-offset: -6px; }
 
+/* [#16-C] 스크래치패드 «일괄 숨기기» — 표시만 끈다(데이터·연결 무손상).
+   ★새 색·새 간격 0줄 — display 한 줄이 전부다. 다크 단일 테마라 테마 분기도 없다.
+   ⚠️`display:none` 이라 rect 가 0×0 이 된다 → 연결선은 scratchpad-link.js 의
+     «0×0 이면 건너뛴다» 문이 같이 감춰 준다(허공 선 방지). */
+body.scratch-hidden-all .scratch-item { display: none; }
+
 /* ── 스크래치패드 아이템 ── */
 .scratch-item {
   position: absolute;

@@ -125,6 +125,11 @@ const DEFAULT_SETTINGS = {
   // [externalize] 프로젝트를 «열 때» 레거시 base64 이미지를 goya-asset 에셋으로 일괄 외부화(기본 OFF).
   // 기본값 ON 전환은 리허설 통과 후 현빈 G2 게이트(DESIGN-asset-batch-externalize.md §3-3).
   autoExternalizeOnOpen: false,
+  // [#16] 스크래치패드↔섹션 «연결선» 표시(기본 ON = 지금까지의 동작 그대로).
+  //   ⚠️기본값을 true 로 두는 이유 — 이 키가 «없는» 기존 사용자는 readSettings 의
+  //     `{...DEFAULT_SETTINGS, ...raw}` 로 여기 값을 받는다. false 로 두면 업데이트만 해도
+  //     선이 «말없이 사라진» 것처럼 보인다. 「없다」를 「지워졌다」로 읽히게 하지 않는다.
+  showScratchLinkEdges: true,
   apiKeys: { openai: '', gemini: '', anthropic: '' },
   shortcuts: {
     addGap:       'KeyG',
@@ -3955,6 +3960,14 @@ app.whenReady().then(async () => {
       updateLaurelBlock: _invokeRendererUpdateLaurelBlock,
       addCanvasBlock: _invokeRendererAddCanvasBlock,
       updateCanvasBlock: _invokeRendererUpdateCanvasBlock,
+      addGridBlock: _invokeRendererAddGridBlock,
+      updateGridBlock: _invokeRendererUpdateGridBlock,
+      readBlockState: _invokeRendererReadBlockState,   // ★「바꿨다」를 «되읽어» 대조하는 자리
+      setActiveFrame: _invokeRendererSetActiveFrame,   // ★«이 프레임 안에» 넣기 위한 자리
+      whereIsBlock: _invokeRendererWhereIsBlock,       // ★「정말 거기 들어갔나」를 화면에서 확인
+      assetsList: _assetsListImpl,   // ★에셋 목록 — 앱에 list IPC 가 없어 여기서 디스크를 읽는다
+      assetsTree: _invokeRendererAssetsTree,       // ★패널이 보는 «정본» 트리
+      assetsMutate: _invokeRendererAssetsMutate,   // 폴더·URL·이름·삭제·이동·캔버스로
       addChatBlock: _invokeRendererAddChatBlock,
       updateChatBlock: _invokeRendererUpdateChatBlock,
       addGradientBlock: _invokeRendererAddGradientBlock,
@@ -4243,11 +4256,34 @@ async function _invokeRendererUpdateSection({ sectionId, bg, name } = {}) {
       }
       const nv = ${safeName};
       if (nv !== null) {
-        sec.dataset.name = nv;                       // ★정본은 dataset.name
+        /* ★★정본은 dataset.name «이 아니다» — JS 속성 sec._name 이다(2026-09-07 실측).
+             getSerializedCanvas(js/io/save-load.js:415)가 저장 «직전»에 이렇게 되돌린다:
+               if (sec._name && sec.dataset.name !== sec._name) sec.dataset.name = sec._name;
+             ⇒ dataset 만 쓰면 화면엔 잠깐 보이다가 «1.5초 뒤» 옛 이름으로 돌아간다.
+               (CDP DOM 중단점으로 잡았다 — grep 으로는 안 나왔다. dataset 대입은
+                패치한 setAttribute 를 «우회»해서 덫에도 안 걸렸다)
+           ⛔둘을 «같이» 써야 한다. 하나만 쓰면 조용히 되돌아간다. */
+        sec._name = nv;                              // ★정본
+        sec.dataset.name = nv;                       // 화면·읽기용 미러
         const lbl = sec.querySelector('.section-label');
         if (lbl) lbl.textContent = nv;               // 화면 라벨도 같이(있을 때만)
         applied.name = nv;
-        try { if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave(); } catch(_) {}
+        /* ⛔여기가 이 도구를 «거짓 성공»으로 만든 자리다(2026-09-07 실측).
+             scheduleAutosave 라는 이름은 «없다»(정의 0곳). 앱의 진짜 이름은
+             scheduleAutoSave(대문자 S) 이고 폴백이 triggerAutoSave 다.
+           ⇒ typeof 검사가 조용히 지나가 «저장이 안 걸렸고», 다시 그릴 때 옛 이름으로 되돌아갔다.
+             실측: 바꾼 «직후»엔 '히어로'로 읽히다가 3초 뒤 'Section 01' 로 복귀.
+           ★typeof f === 'function' 폴백은 «오타를 조용히 삼킨다» — 이름을 틀리면 아무 일도 안 일어난다.
+             그래서 아래는 「하나도 못 찾으면 «말한다»」로 둔다. */
+        let _saved = false;
+        try {
+          if (typeof window.scheduleAutoSave === 'function') { window.scheduleAutoSave(); _saved = true; }
+          else if (typeof window.triggerAutoSave === 'function') { window.triggerAutoSave(); _saved = true; }
+        } catch(_) {}
+        if (!_saved) return { ok:false, code:'NO_AUTOSAVE',
+          message:'이름은 화면에만 바뀌고 «저장되지 않습니다» — 자동저장 함수를 못 찾았습니다.',
+          hint:'This would silently revert. Nothing was persisted. Report this as an app bug.' };
+        try { if (typeof window.buildLayerPanel === 'function') window.buildLayerPanel(); } catch(_) {}
       }
       return { ok:true, sectionId: sid, applied };
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
@@ -4646,8 +4682,19 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId, scratc
         const firstSec = document.querySelector('[id^="sec_"]');
         if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
       }
-      const before = document.querySelectorAll('.asset-block').length;
-      const beforeIds = new Set([...document.querySelectorAll('.asset-block')].map(b => b.id));
+      /* ★2026-09-07 img2/img3 거짓음성 수정.
+           앱은 preset img2/img3 을 «의도적으로» canvas-block(cvb_)으로 바꾼다
+           (js/block-factory.js makePresetRow — 2026-06-08 NewGrid 봉인).
+         그런데 여기선 .asset-block «만» 세고 있었다 ⇒ 블록은 «생겼는데» NO_ADD 를 돌려줬다.
+           ⛔이 주석에 백틱을 쓰지 마라 — 이 JS 는 템플릿 리터럴 «안»이라 백틱 하나가 문자열을 닫는다
+             (오늘 두 번 걸렸다: 닫힌 뒤 점-에셋블록 이 「.asset - block」 으로 파싱돼 「block is not defined」).
+             ★이 주석도 처음엔 백틱을 썼다가 새 검사(R2)에 바로 잡혔다.
+         ⛔거짓음성은 거짓양성보다 나쁠 수 있다 — 부르는 쪽이 «재시도»하면 중복이 쌓인다.
+           (실측: ok:false 를 받은 그 호출이 cvb_6vnmq_tt7ckwb 를 실제로 만들어 놨다.)
+         ⇒ 「앱이 실제로 만드는 것」을 센다. 두 종류 다 센다 — 어느 쪽이 될지는 preset 이 정한다. */
+      const _ADDED_SEL = '.asset-block, .canvas-block';
+      const before = document.querySelectorAll(_ADDED_SEL).length;
+      const beforeIds = new Set([...document.querySelectorAll(_ADDED_SEL)].map(b => b.id));
       const scId = ${safeScratch};
       if (scId && typeof window.addAssetBlock === 'function') {
         // scratchId 전달 — renderer가 자체 IndexedDB에서 src 꺼내 박음 (IPC payload 폭발 회피)
@@ -4655,16 +4702,21 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId, scratc
       } else {
         window.addPresetRow(${safePreset});
       }
-      const after = document.querySelectorAll('.asset-block').length;
+      const after = document.querySelectorAll(_ADDED_SEL).length;
       if (after <= before) {
         return { ok: false, code: 'NO_ADD', message: '에셋이 추가되지 않았습니다 (활성 섹션 확인).' };
       }
-      const newAssets = [...document.querySelectorAll('.asset-block')].filter(b => !beforeIds.has(b.id));
+      const newAssets = [...document.querySelectorAll(_ADDED_SEL)].filter(b => !beforeIds.has(b.id));
       const lastNew = newAssets[newAssets.length - 1];
       // sectionId 추가(2026-08-30): put_image 가 «어느 섹션에 붙었나»를 돌려줘야 하는데
       //   sectionId 생략 호출(활성 섹션 사용)에서는 호출자가 그걸 «알 방법이 없었다». 필드 추가만 — 기존 필드는 그대로.
       const secOf = lastNew?.closest('[id^="sec_"]')?.id || sid || null;
-      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after, assetBlockId: lastNew?.id || null, sectionId: secOf, hasImage: !!(lastNew?.querySelector('.asset-img')?.src || lastNew?.dataset?.imgSrc || (lastNew?.classList?.contains('asset-img') && lastNew?.src)) };
+      const _converted = !!(lastNew && lastNew.classList.contains('canvas-block'));
+      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after, assetBlockId: lastNew?.id || null,
+               blockType: _converted ? 'canvas' : 'asset',
+               note: _converted
+                 ? ('preset ' + ${safePreset} + ' 은 앱이 «캔버스(그리드) 블록»으로 만듭니다 — 에셋 블록이 아닙니다(NewGrid 봉인).')
+                 : undefined, sectionId: secOf, hasImage: !!(lastNew?.querySelector('.asset-img')?.src || lastNew?.dataset?.imgSrc || (lastNew?.classList?.contains('asset-img') && lastNew?.src)) };
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {
@@ -4832,18 +4884,22 @@ async function _invokeRendererExport({ sectionId, format, width } = {}) {
   catch (e) { throw new Error('export call failed: ' + e.message); }
 }
 
-async function _invokeRendererGetCanvasState({ sectionId } = {}) {
+async function _invokeRendererGetCanvasState({ sectionId, full } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
   const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  /* ★«한 섹션을 지목»하면 렌더러가 전문을 기본으로 준다(내용을 읽으러 온 것이므로).
+     full 을 명시하면 그걸 따른다 — 전체 훑기에 전문을 요구하면 응답이 커지니 «부르는 쪽»이 정한다. */
+  const safeFull = (full === true || full === false) ? String(full) : 'undefined';
   const atomicJs = `(() => {
     try {
       if (typeof window.getCanvasState !== 'function') {
         return { ok: false, code: 'API_MISSING', message: 'window.getCanvasState not found' };
       }
       const sid = ${safeSectionId};
-      return window.getCanvasState(sid);
+      const fl = ${safeFull};
+      return window.getCanvasState(sid, (typeof fl === 'boolean') ? { full: fl } : undefined);
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {
@@ -5831,7 +5887,54 @@ async function _invokeRendererUpdateCanvasBlock({ blockId, partial } = {}) {
       if (typeof window.updateCanvasBlock !== 'function') {
         return { ok: false, code: 'API_MISSING', message: 'window.updateCanvasBlock not found' };
       }
-      return window.updateCanvasBlock(${safeBlockId}, ${safePartial});
+      const _id = ${safeBlockId};
+      const _p  = Object.assign({}, ${safePartial});
+      const _el = document.getElementById(_id);
+
+      /* ★★카드를 «격자보다 많이» 주면 조용히 잘렸다 — 그리고 ok 라고 했다.
+           실측(2026-09-07): cards 6장 + 격자 3x1 → «3장만» 그려지고 응답은 ok:true.
+           ⇒ 사람은 6장이 들어간 줄 안다. 오늘 잡은 「거짓 성공」과 같은 계열이다.
+         ⇒ ⑴격자를 «자동으로» 키운다(칸 계산을 사람에게 미루지 않는다)
+           ⑵부르는 쪽이 격자를 «명시»했는데 모자라면 조용히 늘리지 «않고» 말해 준다. */
+      let _grew = null, _tooSmall = null;
+      if (_el && Array.isArray(_p.cards) && _p.cards.length) {
+        const need = _p.cards.length;
+        const curCols = parseInt(_el.dataset.gridCols) || 1;
+        const askedCols = (_p.gridCols != null) ? parseInt(_p.gridCols) : null;
+        const askedRows = (_p.gridRows != null) ? parseInt(_p.gridRows) : null;
+        if (askedCols != null || askedRows != null) {
+          const c = askedCols != null ? askedCols : curCols;
+          const r = askedRows != null ? askedRows : (parseInt(_el.dataset.gridRows) || 1);
+          if (c * r < need) _tooSmall = { need: need, capacity: c * r, gridCols: c, gridRows: r };
+        } else {
+          const cols = Math.max(1, Math.min(curCols, need));
+          const rows = Math.ceil(need / cols);
+          const cap = (parseInt(_el.dataset.gridCols) || 1) * (parseInt(_el.dataset.gridRows) || 1);
+          if (cap < need) { _p.gridCols = cols; _p.gridRows = rows; _grew = { from: cap, to: cols * rows, gridCols: cols, gridRows: rows }; }
+        }
+      }
+      if (_tooSmall) {
+        return { ok: false, code: 'GRID_TOO_SMALL',
+          message: '카드 ' + _tooSmall.need + '장을 줬는데 격자가 ' + _tooSmall.gridCols + 'x' + _tooSmall.gridRows +
+                   '(' + _tooSmall.capacity + '칸)이라 다 안 들어갑니다 — 아무것도 바꾸지 않았습니다.',
+          hint: 'gridCols/gridRows 를 늘리거나, 아예 «주지 마세요» — 안 주면 카드 수에 맞춰 자동으로 늘립니다.',
+          detail: _tooSmall };
+      }
+      const _res = window.updateCanvasBlock(_id, _p);
+      /* ★「몇 장이 들어갔나」를 «인자»가 아니라 «화면»에서 읽어 돌려준다.
+           오늘의 규칙: applied 는 「넣으려 한 값」이 아니라 「넣은 결과」여야 한다. */
+      if (_res && _res.ok !== false && _el) {
+        const shown = _el.querySelectorAll('[data-cvb-card-idx]').length;
+        _res.cardsVisible = shown;
+        if (Array.isArray(_p.cards)) {
+          _res.cardsGiven = _p.cards.length;
+          if (shown < _p.cards.length) {
+            _res.warning = '카드 ' + _p.cards.length + '장 중 ' + shown + '장만 화면에 들어갔습니다.';
+          }
+        }
+        if (_grew) _res.gridGrew = _grew;
+      }
+      return _res;
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {
@@ -5839,6 +5942,420 @@ async function _invokeRendererUpdateCanvasBlock({ blockId, partial } = {}) {
   } catch (e) {
     throw new Error('updateCanvasBlock call failed: ' + e.message);
   }
+}
+
+/* ─── grid-block(grd_) — ★MCP 에 «도구가 아예 없던» 블록 ────────────────────
+   실측(2026-09-07): 앱에는 `grid-block` 이 실재하고(block-factory·block-edit·drag 등 여러 곳)
+   `window.addGridBlock`/`updateGridBlock` 까지 갖춰져 있는데, MCP 쪽 BLOCK_TYPES 엔 «0건»이었다.
+   ⇒ 사용자가 「그리드에 글 넣어줘」 하면 클로드가 «그런 기능 없습니다»라고 답한다.
+   ⇒ 앱이 이미 검증(cols 1~4·rows·cells·gap·valign)을 하므로 여기선 «넘겨주고 결과를 읽어» 돌려준다.
+   ⛔`applied` 를 인자에서 만들지 않는다 — 오늘 그 병으로 네 자리가 거짓 성공했다. */
+async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, valign } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const opts = {};
+  if (Array.isArray(cols)) opts.cols = cols;
+  if (Array.isArray(rows)) opts.rows = rows;
+  if (Array.isArray(cells)) opts.cells = cells;
+  if (gap != null) opts.gap = Number(gap);
+  if (valign != null) opts.valign = String(valign);
+  const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const safeOpts = JSON.stringify(opts);
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+        && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      if (userEditing || (Date.now() - (window._lastUserKeydown || 0)) < 1500) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.addGridBlock !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.addGridBlock not found' };
+      const sid = ${safeSid};
+      /* ⛔selectSection 은 «엘리먼트»를 받는다(id 문자열이 아니다) — 실측으로 데었다:
+           id 를 넘겼더니 sec.classList 에서 «Cannot read properties of undefined (reading 'add')» 로 죽었다. */
+      if (sid) {
+        const _sec = document.getElementById(sid);
+        if (!_sec || !_sec.classList.contains('section-block')) {
+          return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        }
+        if (typeof window.selectSection === 'function') window.selectSection(_sec);
+      }
+      const before = document.querySelectorAll('.grid-block').length;
+      const r = window.addGridBlock(${safeOpts});
+      const el = r && r.block;
+      if (!el) return { ok: false, code: 'NOT_CREATED', message: '그리드 블록이 만들어지지 않았습니다 (활성 섹션 확인).' };
+      /* ★결과를 «읽어서» 돌려준다 — 인자를 되읊지 않는다 */
+      const cells = el.querySelectorAll('.grd-cell');   // ★실측 클래스는 grd-cell 이다(grid-cell 아님)
+      return { ok: true, blockId: el.id, sectionId: (el.closest('.section-block') || {}).id || null,
+               gridBefore: before, gridAfter: document.querySelectorAll('.grid-block').length,
+               cols: parseInt(el.dataset.gridCols || '0') || (JSON.parse(el.dataset.cols || '[]').length || null),
+               cellCount: cells.length };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
+  catch (e) { throw new Error('addGridBlock call failed: ' + e.message); }
+}
+
+/* ★블록 «현재 상태»를 읽어 오는 자리 — 「바꿨다고 말한 것」을 대조하기 위한 것.
+   ⛔왜 필요한가(2026-09-07 실측): 앱의 update_* 들이 `applied` 를 «인자에서» 만든다(93곳).
+     그래서 못 바꿔도 「바꿨다」고 말한다 — `update_section{name}` 이 실제로 그랬다.
+   ⇒ 93곳을 하나씩 고치는 대신 «한 자리»에서 쓰고 나서 되읽어 대조한다. 구조가 검사보다 강하다. */
+/* ─── 에셋(Assets 패널) — ★MCP 에 «도구가 하나도 없던» 표면 ──────────────────
+   실측(2026-09-07): 앱엔 assets:saveFile·readFile·deleteFile·saveCanvasImage·readAsDataUri
+   IPC 가 «5개» 있는데 MCP 도구는 «0개»였다. 그래서 「에셋 폴더 뭐 있는지 보고 그 이미지를
+   에셋블럭에 넣어줘」 같은 일을 시작조차 못 했다(이미지 넣기는 스크래치패드 경로만 있었다).
+   ⛔경로 봉쇄는 앱 IPC 가 이미 한다(safeRoot + path traversal 검사) — 여기서 두 벌로 만들지 않는다.
+     다만 «목록»은 IPC 가 없어서(패널이 프로젝트 JSON 트리를 쓴다) 여기서 디스크를 읽는다.
+   ⛔파일 «내용»은 기본으로 안 싣는다 — 이미지가 dataURL 로 응답에 실리면 대화가 터진다. */
+function _assetsDirOf(projectId) {
+  const pid = _safeSeg(projectId);
+  return path.join(PROJECTS_DIR, pid, 'assets');
+}
+
+/* ★★에셋 «트리» — 패널이 보는 정본은 디스크가 아니라 proj.assetsTree 다.
+   ⛔2026-09-07 실측으로 정정: 처음 만든 list_assets 는 «디스크 폴더»(해시 파일명)를 봤는데,
+     Assets 패널은 프로젝트 JSON 의 트리(폴더 이름·중첩·URL 항목)를 본다. «다른 것»이었다.
+     ⇒ 사람이 화면에서 보는 「제품사진 / background / 노트패널」이 하나도 안 나왔다.
+   ⇒ 트리는 «렌더러»에서 읽는다(열린 프로젝트가 정본). 디스크 블롭 목록은 따로 남긴다. */
+async function _invokeRendererAssetsTree() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  const js = `(() => {
+    try {
+      const t = (window.state && window.state.assetsTree) || [];
+      const out = [];
+      (function walk(ns, depth, parent) {
+        for (const n of (ns || [])) {
+          out.push({ id: n.id, type: n.type, name: n.name, depth: depth, parentId: parent,
+                     favorite: !!n.favorite,
+                     url: n.type === 'url' ? (n.url || null) : undefined,
+                     /* ⛔src 는 «절대» 안 싣는다 — dataURL 이 응답에 실리면 대화가 터진다 */
+                     hasSrc: !!(n.src || n.blobPath), blobPath: n.blobPath || null,
+                     children: (n.children || []).length });
+          walk(n.children, depth + 1, n.id);
+        }
+      })(t, 0, null);
+      return { ok: true, count: out.length, items: out };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
+/** 에셋 트리를 «고친다» — 앱 함수에 위임하고 «결과를 다시 읽어» 돌려준다. */
+async function _invokeRendererAssetsMutate({ op, id, parentId, name, url, title, note, sectionId, image } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const a = JSON.stringify({ op, id: id || null, parentId: parentId || null,
+                             name: name || null, url: url || null, title: title || null, note: note || null,
+                             sectionId: sectionId || null, image: image || null });
+  const js = `(async () => {
+    try {
+      const p = ${a};
+      const need = { createFolder:'assetsCreateFolder', addUrl:'assetsAddUrl', rename:'assetsRenameNode',
+                     delete:'assetsDeleteNode', move:'assetsMoveNode', sendToCanvas:'assetsSendToCanvas',
+                     addImage:'assetsAddImageFiles' }[p.op];
+      if (!need) return { ok:false, code:'BAD_OP', message:'op must be one of createFolder|addUrl|addImage|rename|delete|move|sendToCanvas' };
+      if (typeof window[need] !== 'function') return { ok:false, code:'API_MISSING', message: need + ' not found' };
+      const before = JSON.stringify((window.state && window.state.assetsTree) || []).length;
+      let r;
+      if (p.op === 'addImage') {
+        /* ★이미지 «파일»을 에셋 폴더에 등록한다.
+           ⛔여기서 디스크에 직접 쓰지 않는다 — 그러면 「네 번째 경로 조립기」가 된다.
+             앱 자신의 경로(assetsAddImageFiles → _assetsSaveFile → electronAPI.assetsSaveFile)를
+             그대로 태운다. 그 함수는 FileList 를 받으므로 dataURL 로 File 을 만들어 넘긴다. */
+        const m = String(p.image || '').match(/^data:([^;]+);base64,(.*)$/);
+        if (!m) return { ok:false, code:'BAD_IMAGE', message:'image 는 data:<mime>;base64,<...> 형식이어야 합니다.' };
+        const mime = m[1];
+        const bin = atob(m[2]);
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        const ext = { 'image/png':'.png', 'image/jpeg':'.jpg', 'image/gif':'.gif',
+                      'image/webp':'.webp', 'image/svg+xml':'.svg' }[mime] || '.png';
+        const fname = (p.name && /\.[a-z0-9]+$/i.test(p.name)) ? p.name : ((p.name || 'image') + ext);
+        const file = new File([buf], fname, { type: mime });
+        const idsBefore = [];
+        (function w(ns){ for (const n of (ns||[])) { idsBefore.push(n.id); w(n.children); } })(
+          (window.state && window.state.assetsTree) || []);
+        const ids = await window.assetsAddImageFiles([file], p.parentId);
+        /* ★「무엇이 생겼나」를 «되읽어» 정한다 — 돌려받은 배열을 그대로 믿지 않는다.
+             (앱은 mime 이 목록에 없으면 «조용히 건너뛰고» 빈 배열을 준다.) */
+        const after = [];
+        (function w(ns){ for (const n of (ns||[])) { after.push(n); w(n.children); } })(
+          (window.state && window.state.assetsTree) || []);
+        const fresh = after.filter(n => !idsBefore.includes(n.id));
+        if (!fresh.length) {
+          return { ok:false, code:'NOT_REGISTERED',
+                   message:'에셋이 등록되지 않았습니다 — 지원 형식(png/jpeg/gif/webp/svg)인지, 프로젝트가 열려 있는지 확인하세요.',
+                   returnedIds: Array.isArray(ids) ? ids.length : null };
+        }
+        const n0 = fresh[fresh.length - 1];
+        return { ok:true, op:'addImage', assetId: n0.id, name: n0.name, type: n0.type,
+                 blobPath: n0.blobPath || null, mime: n0.mime || mime, parentId: p.parentId || null,
+                 treeCount: after.length };
+      }
+      if (p.op === 'createFolder')      r = await window.assetsCreateFolder(p.parentId);
+      else if (p.op === 'addUrl')       r = await window.assetsAddUrl({ title: p.title || p.name, url: p.url, note: p.note }, p.parentId);
+      else if (p.op === 'rename')       r = await window.assetsRenameNode(p.id, p.name);
+      else if (p.op === 'delete') {
+        /* ⛔assetsDeleteNode 는 window.confirm 을 부른다 — «사람이 없는» MCP 호출에선
+             그 대화상자가 렌더러를 통째로 막는다(실측: 호출이 타임아웃났다).
+           ⇒ 확인은 «MCP 쪽»에서 받고(confirm:true), 여기서는 confirm 을 잠시 통과시킨다.
+             ★사람 확인을 «없애는» 게 아니라 «옮기는» 것이다 — 도구 설명에 confirm 을 요구로 박았다.
+           ⛔반드시 finally 로 원복한다. 안 그러면 앱의 다른 삭제도 조용히 확인 없이 지나간다.
+         ⚠️★이 구간엔 «안전망이 없다»(지디 검토 2026-09-07). 프레임 핀은 whereIsBlock 되읽기가
+           잘못된 결과를 잡아 주지만, 여기는 그런 되읽기가 없다 —
+           그 «짧은 창» 동안 다른 삭제가 끼면 사람 확인 없이 지나간다. 지금 막지는 않되, 모르고 두지는 않는다. */
+        const _c = window.confirm;
+        window.confirm = () => true;
+        try { r = await window.assetsDeleteNode(p.id); }
+        finally { window.confirm = _c; }
+      }
+      else if (p.op === 'move')         r = await window.assetsMoveNode(p.id, p.parentId);
+      else if (p.op === 'sendToCanvas') {
+        /* ⛔assetsSendToCanvas 는 «섹션이 선택돼 있어야» 한다 — 패널은 사람이 먼저 클릭한 상태를
+             전제하지만 MCP 호출엔 그런 게 없다. 실측: 조용히 false 만 돌아왔다(토스트는 사람만 본다).
+           ⇒ sectionId 를 받으면 «먼저 고르고» 부른다. 없으면 «왜 안 되는지» 말한다. */
+        if (p.sectionId) {
+          const _s = document.getElementById(p.sectionId);
+          if (!_s || !_s.classList.contains('section-block')) {
+            return { ok:false, code:'NOT_FOUND', message:'section not found: ' + p.sectionId };
+          }
+          if (typeof window.selectSection === 'function') window.selectSection(_s);
+        }
+        if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()) {
+          return { ok:false, code:'NO_SECTION_SELECTED',
+            message:'캔버스에 «선택된 섹션»이 없어 이미지를 못 놓았습니다 — 아무것도 안 바꿨습니다.',
+            hint:'Pass sectionId (sec_xxx) so the tool can select it first. NOTHING was placed.' };
+        }
+        r = await window.assetsSendToCanvas(p.id);
+      }
+      /* ★결과를 «다시 읽어» 돌려준다 — 인자를 되읊지 않는다(오늘의 규칙) */
+      const tree = (window.state && window.state.assetsTree) || [];
+      const flat = []; (function w(ns){ for (const n of (ns||[])) { flat.push(n); w(n.children); } })(tree);
+      const found = p.id ? flat.find(n => n.id === p.id) : null;
+      return { ok: r !== false, op: p.op, rawResult: (typeof r === 'object' ? null : r),
+               treeCount: flat.length, treeBytesBefore: before,
+               node: found ? { id: found.id, name: found.name, type: found.type } : null,
+               stillExists: !!found };
+    } catch (e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
+async function _assetsListImpl({ projectId } = {}) {
+  const pid = projectId || global.currentActiveProjectId;
+  if (!pid) return { ok: false, code: 'NO_PROJECT', error: 'projectId 가 없고 열린 프로젝트도 없습니다.' };
+  /* ⛔«없는 프로젝트»와 «에셋이 아직 없는 프로젝트»를 같은 답으로 뭉개지 않는다.
+     실측(2026-09-07): 없는 id 를 줬는데 ok:true + 「에셋 폴더가 아직 없습니다」가 나왔다 —
+     사람은 「그 프로젝트엔 에셋이 없구나」로 읽는다. 오늘 종일 잡은 그 병이다. */
+  if (!_resolveProjectJsonPath(pid)) {
+    return { ok: false, code: 'PROJECT_NOT_FOUND',
+      error: `그런 프로젝트가 없습니다: ${pid}`,
+      hint: 'This is NOT "the project has no assets" — the project itself does not exist. Check the id with list_projects.' };
+  }
+  const dir = _assetsDirOf(pid);
+  let names = [];
+  try { names = fs.readdirSync(dir); }
+  catch (e) {
+    if (e && e.code === 'ENOENT') return { ok: true, projectId: pid, dir, count: 0, items: [], note: '에셋 폴더가 아직 없습니다 — «프로젝트는 있고» 올린 에셋이 0개라는 뜻입니다.' };
+    throw e;   // ⛔「못 읽었다」를 「없다」로 만들지 않는다
+  }
+  const items = [];
+  for (const n of names) {
+    try {
+      const st = fs.statSync(path.join(dir, n));
+      if (!st.isFile()) continue;
+      items.push({ blobPath: 'assets/' + n, name: n, bytes: st.size,
+                   ext: (n.split('.').pop() || '').toLowerCase(),
+                   modifiedAt: new Date(st.mtimeMs).toISOString() });
+    } catch (_) {}
+  }
+  items.sort((a, b) => (a.name < b.name ? -1 : 1));
+  return { ok: true, projectId: pid, dir, count: items.length, items };
+}
+
+/* ★★«이 프레임 안에 넣어줘» — 앱은 window._activeFrame 으로 그걸 정한다(이미 있는 기계다).
+   ⛔MCP 는 그걸 안 써서, parentId·frameId 같은 인자를 «6가지 이름으로» 줘도 전부 무시하고
+     ok 를 돌려줬다(2026-09-07 실측 — 조용한 거짓 성공).
+   ⇒ 여기서 «세우고», 도구가 끝나면 «반드시» 원복한다(finally). 안 그러면 사람이 다음에 클릭한
+     블록이 엉뚱한 프레임 안으로 들어간다.
+   ⛔앱이 스스로 거는 규칙을 «그대로» 따른다(insertAfterSelected 참조):
+     text-frame·banner-preset 외곽·shape frame 은 «안에 못 넣는다». 조용히 다른 데 넣지 말고 거절한다. */
+/* ★「정말 그 안에 들어갔나」를 «화면에서» 확인한다.
+   ⛔인자를 되읊으면 안 된다 — 실측(2026-09-07): 텍스트는 «자기 텍스트프레임»으로 감싸여
+     내가 지목한 프레임의 «형제»로 들어갔는데, 나는 placedInto 에 지목한 id 를 그대로 실어
+     「그 안에 넣었다」고 거짓말했다. 오늘 종일 잡은 그 병을 내가 만들었다. */
+async function _invokeRendererWhereIsBlock({ blockId, expectAncestor } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) return null;
+  const a = JSON.stringify(String(blockId || '')), b = JSON.stringify(String(expectAncestor || ''));
+  const js = `(() => {
+    try {
+      const el = document.getElementById(${a});
+      if (!el) return { found:false };
+      const chain = [];
+      for (let p = el.parentElement; p; p = p.parentElement) {
+        if (p.id) chain.push(p.id);
+        if (p.classList && p.classList.contains('section-block')) break;
+      }
+      const want = ${b};
+      return { found:true, chain: chain, parentId: chain[0] || null,
+               insideExpected: want ? chain.indexOf(want) >= 0 : null };
+    } catch (_) { return null; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(js, true); }
+  catch (_) { return null; }
+}
+
+async function _invokeRendererSetActiveFrame({ frameId, pin = true } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  const safe = frameId ? JSON.stringify(String(frameId)) : 'null';
+  const js = `(() => {
+    try {
+      const prev = (window._activeFrame && window._activeFrame.id) || null;
+      const fid = ${safe};
+      /* ★원복 전용 경로 — «핀을 반드시 걷는다».
+         ⛔예전 finally 는 prev 를 되세우려고 이 함수를 다시 불렀는데, 그러면 «핀이 다시 깔렸다».
+           그러면 사람이 다른 데를 클릭해도 계속 그 프레임 안으로 들어간다(앱을 망가뜨린 채 끝난다). */
+      if (${pin ? 'false' : 'true'}) {
+        /* ★★여기서 «prev 를 되돌린다» — null 로 밀지 않는다.
+             ⛔null 로 밀면 사람이 골라 둔 활성 프레임이 MCP 호출 한 번에 «사라진다».
+               (지디가 이 자리를 짚었다. 실측으로 양방향 확인 2026-09-07:
+                정상본 = 전/후 동일 · 이 줄을 null 로 바꾼 변이본 = 후 None.)
+             ⚠️그새 사라진 요소일 수 있다 — getElementById 가 null 이면 «그때만» null. */
+        try { delete window._activeFrame; } catch (_) {}
+        window._activeFrame = fid ? (document.getElementById(fid) || null) : null;
+        window.__mcpActiveFramePinned = null;
+        return { ok: true, prev: prev, set: fid, unpinned: true };
+      }
+      if (!fid) {
+        /* 원복(unpin) — 접근자를 걷고 «보통 속성»으로 되돌린다 */
+        try { delete window._activeFrame; } catch (_) {}
+        window._activeFrame = null;
+        window.__mcpActiveFramePinned = null;
+        return { ok: true, prev: prev, set: null, unpinned: true };
+      }
+      const el = document.getElementById(fid);
+      if (!el) return { ok:false, code:'NOT_FOUND', message:'frame not found: ' + fid, prev: prev };
+      if (!el.classList.contains('frame-block')) {
+        return { ok:false, code:'NOT_A_FRAME',
+          message: fid + ' 은(는) 프레임이 아닙니다 — 블록을 «안에» 넣을 수 있는 것은 frame-block 뿐입니다.',
+          prev: prev };
+      }
+      if (el.dataset && el.dataset.textFrame) {
+        return { ok:false, code:'TEXT_FRAME',
+          message:'텍스트 프레임은 «단순 wrapper»라 안에 직접 넣지 않습니다(앱도 그렇게 막습니다).',
+          hint:'Add the block to the section instead, or target a layout frame.', prev: prev };
+      }
+      if (el.dataset && el.dataset.bannerPreset) {
+        return { ok:false, code:'BANNER_PRESET',
+          message:'배너 프리셋 외곽은 «컴포넌트 단위»라 안에 자식을 직접 받지 않습니다.', prev: prev };
+      }
+      if (el.querySelector(':scope > .shape-block')) {
+        return { ok:false, code:'SHAPE_FRAME',
+          message:'도형 프레임은 «최소 단위»라 안에 넣지 않습니다.', prev: prev };
+      }
+      /* ★★프레임 자체에 .selected 가 붙어 있으면 앱은 «형제»로 넣는다
+           (insertAfterSelected: 「프레임 자체가 오브젝트로 선택된 상태 → 안이 아니라 뒤(형제)에 삽입」).
+         ⇒ 그건 «사람이 프레임을 클릭한» 맥락의 규칙이다. parentId 를 «명시»한 MCP 호출은
+           의도가 「안에」라서, 그 표시를 잠시 걷는다. ⛔원복은 부르는 쪽이 finally 로 한다.
+         ★근거(지디 검토 승인 2026-09-07): 앱 규칙은 «클릭»이라는 «모호한 의도»를 푸는 규칙이고,
+           parentId 는 «안에 넣어라»라는 «명시된 의도»다. 다른 의도를 같은 규칙으로 처리하면
+           그게 오히려 거짓말이 된다. ⇒ 규칙을 비껴가는 게 아니라 «다른 입력»으로 다루는 것이다. */
+      const wasSelected = el.classList.contains('selected');
+      if (wasSelected) el.classList.remove('selected');
+      /* 안에 «선택된 자식»이 있어도 그 뒤에 붙는다 — 그것도 걷어야 «맨 안»으로 들어간다 */
+      const selKids = [].slice.call(el.querySelectorAll('.selected'));
+      selKids.forEach(k => k.classList.remove('selected'));
+      /* ★★핀 — 「지우기 금지」.
+           앱의 addTextBlock 계열은 «자기 IIFE 안에서» selectSection 을 부르고,
+           selectSection → deselectAll(js/editor.js:2877) 이 window._activeFrame 에 null 을 넣는다.
+         ⇒ 핸들러 «밖»에서 세운 _activeFrame 은 «삽입 시점»엔 이미 없다.
+           (실측 2026-09-07: text·asset·divider 3/3 이 프레임 밖 섹션레벨로 떨어졌다.
+            .selected 를 걷는 것만으론 안 고쳐졌다 — 원인이 «선택»이 아니라 «소멸»이라서다.)
+         ⇒ selectSection 을 부르는 핸들러 18곳을 다 고치는 대신, 이 호출 «한 건 동안만»
+           null 대입을 무시하는 접근자로 바꾼다. 읽는 쪽(insertAfterSelected)은 그대로다.
+         ⛔원복(unpin = frameId:null)은 «부르는 쪽이 finally 로» 한다. 안 풀면 앱이 그 프레임에
+           갇힌다(사람이 다른 데를 클릭해도 계속 그 안에 들어간다). */
+      /* ⚠️★재진입 — 핀은 «참조계수»가 아니라 «하나»다(지디 검토 2026-09-07).
+           A 가 frame1 을 핀 → B 가 frame2 로 덮음 → A 의 finally 가 unpin
+           ⇒ B 는 «자기 핀이 걷힌 채» 남은 구간을 돈다.
+         ⇒ 결과는 «잘못된 배치»지 «잠금»이 아니다. 안전망은 _withParent 의 whereIsBlock 되읽기다
+           (못 들어갔으면 NOT_PLACED_INSIDE 로 «말한다»). ⇒ 그래서 막지 않고 «적는다».
+         ⛔새 조건: 오늘 «세션 분리»가 들어와 두 세션이 겹쳐 부를 수 있게 됐다.
+           겹침이 잦아지면 그때는 참조계수(또는 호출 직렬화)로 올려야 한다. */
+      let _pin = el;
+      try { delete window._activeFrame; } catch (_) {}
+      Object.defineProperty(window, '_activeFrame', {
+        configurable: true, enumerable: true,
+        get() { return _pin; },
+        set(v) { if (v == null) return; _pin = v; }
+      });
+      window.__mcpActiveFramePinned = fid;
+      return { ok:true, prev: prev, set: fid, pinned: true, wasSelected: wasSelected, unselectedKids: selKids.length,
+               sectionId: (el.closest('.section-block') || {}).id || null,
+               childrenBefore: el.querySelectorAll(':scope > [id]').length };
+    } catch (e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
+async function _invokeRendererReadBlockState({ blockId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) return null;
+  const safeId = JSON.stringify(String(blockId || ''));
+  const js = `(() => {
+    try {
+      const el = document.getElementById(${safeId});
+      if (!el) return null;
+      const ds = {};
+      for (const k in el.dataset) ds[k] = el.dataset[k];
+      /* ★계산된 스타일도 조금 실어 준다 — fontSize·align·color 는 dataset 에 안 살아서
+           관문이 「대조할 자리가 없다」로 «못 재고» 있었다(2026-09-07 실측).
+         ⛔전부 싣지 않는다(응답이 커진다) — 관문이 실제로 쓰는 것만. */
+      /* ★★스타일은 «바깥 블록»에 안 붙는다 — 텍스트 블록은 안쪽 .tb-body 에 붙는다.
+           2026-09-07 실측: 바깥 tb_ 는 16px/start 인데 안쪽은 40px/right 였다.
+           바깥만 재고 「applied 가 거짓말한다」고 판정할 뻔했다 — «내 계측이 틀린» 것이었다.
+         ⇒ 바깥과 «첫 자식» 둘 다 싣는다. 판정은 부르는 쪽이 «둘 중 하나라도 맞으면 맞다»로 한다. */
+      const pick = (n) => { try { const c = getComputedStyle(n);
+        return { fontSize: c.fontSize, textAlign: c.textAlign, color: c.color,
+                 fontWeight: c.fontWeight, backgroundColor: c.backgroundColor }; } catch (_) { return {}; } };
+      const cs = pick(el);
+      const csIn = el.firstElementChild ? pick(el.firstElementChild) : {};
+      return { id: el.id, dataset: ds, computed: cs, computedInner: csIn,
+               text: (el.innerText || '').trim().slice(0, 2000) };
+    } catch (_) { return null; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(js, true); }
+  catch (_) { return null; }
+}
+
+async function _invokeRendererUpdateGridBlock({ blockId, partial } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const safeId = JSON.stringify(String(blockId || ''));
+  const safeP = JSON.stringify(partial || {});
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+        && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      if (userEditing || (Date.now() - (window._lastUserKeydown || 0)) < 1500) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.updateGridBlock !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.updateGridBlock not found' };
+      const el = document.getElementById(${safeId});
+      if (!el || !el.classList.contains('grid-block')) {
+        return { ok: false, code: 'NOT_FOUND', message: 'grid block not found: ' + ${safeId} };
+      }
+      const r = window.updateGridBlock(${safeId}, ${safeP});
+      if (r && r.ok === false) return r;
+      /* ★바뀐 뒤의 «화면»을 읽어 돌려준다 */
+      const after = document.getElementById(${safeId});
+      const cells = after ? after.querySelectorAll('.grd-cell') : [];   // ★실측 클래스
+      const texts = [].slice.call(cells).map(function (c) { return (c.innerText || '').trim(); });
+      return Object.assign({}, r, { ok: true, blockId: ${safeId}, cellCount: cells.length, cellTexts: texts });
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
+  catch (e) { throw new Error('updateGridBlock call failed: ' + e.message); }
 }
 
 // ─── [APIMCP P1] add_frame_block — frame-block(ss_) 컨테이너 추가 ─────────────
