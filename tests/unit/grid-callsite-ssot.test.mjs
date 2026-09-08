@@ -17,13 +17,16 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { stripComments } from './_strip-comments.js';   // ★공용 주석 거르개(image/* 안전)
+
 const read = (rel) => fs.readFileSync(path.join(__dirname, '../../', rel), 'utf8');
 
 /* 주석을 걷어낸다 — 주석에 적힌 옛 리터럴(설명문)을 결함으로 세면 오탐이다.
- * (이 레포의 design-gate 가 예전에 정확히 그 오탐을 냈다.) */
-function stripComments(src) {
-  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-}
+ * (이 레포의 design-gate 가 예전에 정확히 그 오탐을 냈다.)
+ * ★2026-09-08 «공용 부품»으로 옮겼다 — 여기 있던 한 줄 정규식은
+ *   `accept="image/*"` 의 /* 를 블록 주석 시작으로 읽고 뒤를 통째로 삼켰다.
+ *   지금 훑는 두 파일엔 image/* 가 0건이라 «안 물렸지만», 생기는 날 조용히 반만 잰다.
+ *   ⇒ 잠복을 두지 않고 부품으로 닫는다. 근거·한계는 ./_strip-comments.js 머리글. */
 
 test('★행 높이: overlay-handles 의 resizeRowHeight 호출이 min/max 를 «넘기지 않는다»', () => {
   const src = stripComments(read('js/overlay-handles.js'));
@@ -55,7 +58,13 @@ test('★행 높이 상한 4000 은 «상수 밖»에 리터럴로 남아 있지
     const src = stripComments(read(rel));
     assert.equal(/\b4000\b/.test(src), false,
       `${rel} 에 리터럴 4000 이 남아 있다 — ROW_H_MAX 를 import 해서 써라`);
-    assert.equal(/\b2000\b/.test(src), false,
+    /* ★2026-09-08 패턴을 좁혔다. 옛 패턴 /\b2000\b/ 는 SVG 네임스페이스
+         'http://www.w3.org/2000/svg' 의 2000 에도 걸린다.
+       ⛔그런데도 초록이던 이유는 «주석 거르개가 부서져» 그 줄을 통째로 지웠기 때문이다
+         (한 줄 정규식이 //  뒤를 몽땅 잘라 문자열 안의 URL 을 먹었다).
+       ⇒ 거르개를 공용 부품으로 고치자 이 검사가 «잘못된 이유로 초록»이던 게 드러났다.
+         숫자 앞뒤가 / . 이나 낱말이면 «경로·URL»이지 상한 리터럴이 아니다. */
+    assert.equal(/(?<![\/.\w])2000(?![\/\w])/.test(src), false,
       `${rel} 에 리터럴 2000 이 남아 있다 — 드래그 상한이 혼자 절반이던 결함의 재발이다`);
   }
 });
