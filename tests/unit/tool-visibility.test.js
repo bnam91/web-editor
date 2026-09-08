@@ -46,12 +46,29 @@ test('T1b ★★스냅샷이 «라이브»와 같은지 — 안 재면 이 검�
   const { startHarness } = require('./_mcp-harness');
   const h = await startHarness();
   try {
-    const live = (await h.listTools()).length;
-    assert.equal(live, EXPECTED_VISIBLE,
-      `★라이브 노출 ${live} ≠ 기대 ${EXPECTED_VISIBLE}. 도구를 늘렸거나 줄였다 — 여기서 «한 번 멈춰라».`);
-    assert.equal(CONTRACT.counts.visible, live,
-      `★스냅샷(${CONTRACT.counts.visible})이 라이브(${live})와 다르다 — ` +
+    const names = (await h.listTools()).map(t => t.name).sort();
+    assert.equal(names.length, EXPECTED_VISIBLE,
+      `★라이브 노출 ${names.length} ≠ 기대 ${EXPECTED_VISIBLE}. 도구를 늘렸거나 줄였다 — 여기서 «한 번 멈춰라».`);
+    assert.equal(CONTRACT.counts.visible, names.length,
+      `★스냅샷(${CONTRACT.counts.visible})이 라이브(${names.length})와 다르다 — ` +
       'node tools/mcp-contract-snapshot.mjs 로 갱신하고, «수가 변한 이유»를 커밋에 적어라.');
+    /* ⛔★«수»만 세면 «바꿔치기»를 못 잡는다 — 실측(2026-09-08): 도구 이름을 바꾸는 변이를 넣었더니
+         하나 사라지고 하나 생겨 41 그대로라 «살아남았다». 도구가 통째로 딴것이 돼도 초록이다.
+       ⇒ 이름 «집합»으로 잰다. 무엇이 사라지고 무엇이 생겼는지까지 말한다. */
+    /* ⚠️CONTRACT.tools 는 «배열이 아니라 객체»다(도구명 → {hidden, mutating, …}).
+         첫 판은 배열로 알고 잘라서 빈 목록이 됐다 — 그러면 대조가 «조용히» 안 돈다.
+       ⇒ 노출된 것만(hidden !== true) 골라 이름을 뽑는다. */
+    const snap = Object.entries(CONTRACT.tools || {})
+      .filter(([, v]) => v && v.hidden !== true).map(([k]) => k).sort();
+    assert.equal(snap.length, names.length,
+      `★스냅샷의 «노출» 도구 수(${snap.length})가 라이브(${names.length})와 다르다`);
+    {
+      const gone = snap.filter(n => !names.includes(n));
+      const born = names.filter(n => !snap.includes(n));
+      assert.deepEqual({ gone, born }, { gone: [], born: [] },
+        `★노출 도구가 «바꿔치기»됐다 — 수는 같은데 목록이 다르다.\n` +
+        `  사라진 것: ${gone.join(', ') || '(없음)'}\n  생긴 것: ${born.join(', ') || '(없음)'}`);
+    }
   } finally { await h.stop(); }
 });
 

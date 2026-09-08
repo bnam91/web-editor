@@ -15,8 +15,13 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
+const { readSrc } = require('./_srcread.js');   // ⛔CRLF — win-portability ①-3
 const ROOT = path.join(__dirname, '..', '..');
-const SRC = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
+/* ★소스를 «문자열로 잘라» 보는 검사는 반드시 readSrc 를 탄다.
+     윈도우 체크아웃(core.autocrlf=true)에서 \r 이 섞이면 정규식이 조용히 빗나가
+     «검사 파일이 통째로 안 도는» 사고가 난다(실측: 맥 1215 / 윈도우 1108).
+   ⛔내가 이 가드를 어겼고 팀의 win-portability ①-3 이 잡았다 — 가드가 사는 이유다. */
+const SRC = readSrc(ROOT, 'main.js');
 
 test('P1 ★main.js 가 loadFile 로 여는 html 이 «전부 실재한다»', () => {
   const found = [...SRC.matchAll(/loadFile\(\s*'([^']+\.html)'\s*\)/g)].map(m => m[1]);
