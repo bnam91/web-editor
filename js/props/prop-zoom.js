@@ -117,11 +117,13 @@ export function showZoomProperties(block) {
 
     <div class="prop-section">
       <!-- ★제목·라벨만 «말을 바꿨다». 라디오 자체(name·value·id·핸들러)는 한 글자도 안 건드렸다.
-           왜 = 이 절은 「도형 그림자」가 아니라 «돋보기 광원»이다. 아래에 진짜 도형 그림자가
-           생기면서 둘 다 「그림자」라고 불리면 사람이 뭐가 뭔지 모른다(현빈 「별도로」의 핵심). -->
-      <div class="prop-section-title">광원 (돋보기)</div>
+           ★이름 = 현빈 2026-09-09: 「이건 그림자랑 달라 zoom effect라고 우측패널에 바꿔줘」.
+           아래 「도형 그림자」가 현빈이 말한 «박스에 거는 드롭섀도»(x·y로 조절, 텍스트블럭 라디오와
+           같은 갈래 = CSS 그림자)다. 둘 다 「그림자」라 부르면 사람이 뭐가 뭔지 모른다.
+           ⛔상태 키(st.shadow)와 id(zm-shadow*)는 그대로 둔다 — 바꾸면 저장된 프로젝트가 깨진다. -->
+      <div class="prop-section-title">Zoom Effect</div>
       <div class="prop-row">
-        <span class="prop-label">광원</span>
+        <span class="prop-label">줌 이펙트</span>
         <div class="prop-radio-group" id="zm-shadow-group">
           <label class="prop-radio"><input type="radio" name="zm-shadow" value="on"${shadowOn ? ' checked' : ''}> 켬</label>
           <label class="prop-radio"><input type="radio" name="zm-shadow" value="off"${shadowOn ? '' : ' checked'}> 끔</label>
@@ -158,7 +160,7 @@ ${bdrRow}
 
     <!-- ★★도형 그림자 — 현빈 2026-09-08 「줌블럭에 쉐도우 온오프 기능도 «별도로»」.
          ★「광원」과 이것을 패널에서 가르는 법 = 세 겹으로 갈랐다:
-           ① 말   — 위는 「광원 (돋보기)」, 여기는 「도형 그림자」. 둘 다 '그림자'라 안 부른다.
+           ① 말   — 위는 「Zoom Effect」, 여기는 「도형 그림자」. 둘 다 '그림자'라 안 부른다.
            ② 자리 — 붙여 두면 헷갈린다. Border 를 사이에 끼워 «떨어뜨렸다».
                     그리고 이건 도형의 «생김새»(테두리 옆)지 돋보기 장치가 아니다.
            ③ 생김 — 광원은 «라디오 켬/끔»(두 갈래), 이건 «버튼 3단»(prop-align-group).
@@ -170,7 +172,7 @@ ${bdrRow}
            이 주석은 템플릿 리터럴 «안»이라 JS 주석 걷기가 못 걷어낸다. 말로만 적는다.
          ★어휘(없음/부드럽게/강하게 · none/soft/strong)는 prop-mockup.js:93-95 를 그대로 빌렸다. -->
     <div class="prop-section">
-      <div class="prop-section-title">도형 그림자 (광원과 별개)</div>
+      <div class="prop-section-title">도형 그림자 (줌 이펙트와 별개)</div>
       <div class="prop-row">
         <div class="prop-align-group" id="zm-drop-group">
           <button class="prop-align-btn${st.dropShadow === 'none'   ? ' active' : ''}" data-val="none">없음</button>
@@ -187,15 +189,20 @@ ${bdrRow}
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">짧은 변 (a·b)</div>
+      <!-- ★손잡이 셋 — 현빈 승인 2026-09-09. 색은 css/editor-blocks.css 가 칠한다(빨강 L · 보라 a·b).
+           ⛔안내문을 prop-label 안에 넣으면 «폭 56px 라벨 칸»에서 잘린다(이 파일 아래 실측 주석 참조).
+             그래서 제목이 어휘를 지고, 안내문은 폭을 다 쓰는 행에 둔다. -->
+      <div class="prop-section-title">손잡이 (빛 · a · b)</div>
       <div class="prop-row" style="${dim(shadowOn)}">
-        <span class="prop-label" style="font-size:10px;color:var(--ui-text-muted);">
-          ${pinned ? '수동 — 끌어서 고정됨' : '자동 — 방향·길이를 따라감'}
+        <span style="font-size:10px;color:var(--ui-text-muted);line-height:1.5;">
+          빨간 점 = 빛. 짧은 변을 통째로 옮긴다.<br>
+          보라 점 = a·b. 각자 벌린다.<br>
+          ${pinned ? '지금 — 수동(끌어서 고정됨)' : '지금 — 자동(방향·길이를 따라감)'}
         </span>
       </div>
       <div class="prop-row">
         <button class="prop-action-btn" id="zm-ab-reset" ${pinned ? '' : 'disabled'}
-          style="width:100%;${pinned ? '' : 'opacity:0.4;pointer-events:none;'}">자동으로 되돌리기</button>
+          style="width:100%;${pinned ? '' : 'opacity:0.4;pointer-events:none;'}">손잡이 자동으로 되돌리기</button>
       </div>
     </div>`;
 
@@ -250,6 +257,12 @@ ${bdrRow}
       /* ★크기 슬라이더는 «덧씌우개»를 지운다 — 안 지우면 핸들로 한 번 끈 뒤로 슬라이더가
          아무 반응도 안 한다(w/h 가 이기기 때문). a·b 의 「자동으로 되돌리기」와 같은 규율. */
       if (key === 'size') window.clearZoomSizeOverride?.(block);
+      /* ★★방향°·길이는 «빛을 옮기는 슬라이더»다 — 손잡이 셋(ax/ay·bx/by·lx/ly)을 «다» 푼다.
+         ⛔안 풀면 슬라이더를 끝까지 밀어도 화면이 «한 픽셀도» 안 움직인다: 고정이 이기기 때문이다.
+           (크기 슬라이더가 w/h 에서 이미 겪은 그 병 — 같은 처방을 같은 자리에 둔다.)
+         ★셋을 «따로» 풀지 않는다: 빛만 풀고 a·b 를 남기면 축과 짧은 변이 따로 놀아
+           빔이 꼬인다. 손잡이는 한 덩어리로 자동으로 돌아간다. */
+      if (key === 'angle' || key === 'length') window.clearPinnedZoomShortEdge?.(block);
       block.dataset[key] = String(val);
       s.value = val; n.value = val;
       rerender();
@@ -288,7 +301,7 @@ ${bdrRow}
       });
     });
   };
-  bindRadio('zm-shadow', 'shadow', '확대블럭 그림자');
+  bindRadio('zm-shadow', 'shadow', '줌 이펙트');
   /* 배경 라디오 — 'checker' 는 «색이 아니라 무늬»라 dataset.fill 에 그 낱말을 넣는다.
      색으로 되돌릴 땐 피커가 들고 있던 색을 그대로 쓴다(따로 기억해 두지 않는다). */
   propPanel.querySelectorAll('input[type="radio"][name="zm-bg"]').forEach(r => {

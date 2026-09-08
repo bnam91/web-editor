@@ -596,3 +596,151 @@ t3('S-15 [⑲] ★«잡은 지점»이 커서를 따라간다 — 섹션이 바�
     globalThis.__zoomScale = prevScale;
   }
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   T6 — ★손잡이 셋의 «운반체»는 dataset 뿐이다 (현빈 승인 2026-09-09)
+     renderZoomBlock 이 style.cssText 와 innerHTML 을 매번 «통째로» 덮으므로
+     인라인 style·JS 속성에 실으면 렌더 한 번에 날아간다(dropShadow 가 이미 겪은 그 함정).
+   ⛔키는 «소문자 두 글자»다: lx / ly.
+     `lX` 로 쓰면 DOM 이 `data-l-x` 로 직렬화해서 저장본과 조용히 갈라진다.
+     ★이 검사는 그 «갈라짐»을 실제로 잰다 — dataset 에 무엇이 남았는지를 이름으로 확인한다.
+   ★변이표
+     ① `_pinShortEdge` 의 `block.dataset.lx` → `block.dataset.lX`   ⇒ ⑵ 가 빨개진다
+     ② `readPinnedShortEdge` 의 `if (!abOk && !lOk) return null;` → `if (!abOk) return null;`
+                                                                   ⇒ ⑷ 가 빨개진다
+     ③ 같은 함수의 abOk/lOk 를 «한 묶음»으로(`if (!abOk || !lOk) return null;`)
+                                                                   ⇒ ⑸(옛 저장본)이 빨개진다
+     ④ `clearPinnedShortEdge` 에서 lx/ly 삭제 두 줄 제거          ⇒ ⑹ 이 빨개진다
+   ═══════════════════════════════════════════════════════════════════════════ */
+test('T6 [손잡이 셋] lx/ly 왕복 — 렌더 뒤에도 살고, ★ax/ay 만 있는 «옛 저장본»도 안 깨진다', () => {
+  // ⑴ 셋이 다 있으면 셋을 다 읽는다
+  const full = el({ ax: '1', ay: '2', bx: '3', by: '4', lx: '5', ly: '6' });
+  assert.deepEqual(M.readPinnedShortEdge(full),
+    { a: { x: 1, y: 2 }, b: { x: 3, y: 4 }, L: { x: 5, y: 6 } });
+
+  /* ⑵ ★«렌더가 통째로 덮은 뒤»에도 살아 있다 — 여기가 이 검사의 요지다.
+       ⛔dataset «키 이름»을 직접 확인한다: lX 로 쓰면 이 단언이 빨개진다. */
+  const b = el({ shadow: 'on', ax: '10', ay: '20', bx: '30', by: '40', lx: '50', ly: '60' });
+  M.renderZoomBlock(b);
+  assert.deepEqual(
+    Object.keys(b.dataset).filter(k => /^(ax|ay|bx|by|lx|ly)$/.test(k)).sort(),
+    ['ax', 'ay', 'bx', 'by', 'lx', 'ly'],
+    '★렌더 뒤 dataset 에 남은 키 — 대소문자가 하나라도 다르면 저장본과 갈라진다');
+  assert.equal(b.dataset.lx, '50');
+  assert.equal(b.dataset.ly, '60');
+  assert.deepEqual(M.readPinnedShortEdge(b).L, { x: 50, y: 60 });
+
+  // ⑶ 셋이 «다 없으면» 자동이다
+  assert.equal(M.readPinnedShortEdge(el({})), null);
+
+  // ⑷ L 만 있어도 «고정»이다 — a·b 와 «따로» 판정한다
+  assert.deepEqual(M.readPinnedShortEdge(el({ lx: '7', ly: '8' })), { L: { x: 7, y: 8 } });
+  assert.equal(M.readPinnedShortEdge(el({ lx: '7' })), null, 'ly 가 없으면 L 고정이 아니다');
+  assert.equal(M.readPinnedShortEdge(el({ lx: 'x', ly: '8' })), null, '깨진 값은 고정이 아니다');
+
+  /* ⑸ ★하위호환 — 이 블록이 나온 뒤 저장된 프로젝트에는 ax/ay/bx/by «만» 있다.
+       셋을 한 묶음으로 보면 그 저장본이 통째로 「자동」이 되어 사람이 끌어 둔 짧은 변이 사라진다. */
+  const legacy = M.readPinnedShortEdge(el({ ax: '1', ay: '2', bx: '3', by: '4' }));
+  assert.deepEqual(legacy, { a: { x: 1, y: 2 }, b: { x: 3, y: 4 } });
+  assert.equal('L' in legacy, false, '옛 저장본에 없던 L 을 지어내면 안 된다 — 축은 mid(a,b) 로 «파생»된다');
+  const legacyBlock = el({ shadow: 'on', ax: '1', ay: '2', bx: '3', by: '4' });
+  M.renderZoomBlock(legacyBlock);   // ⛔렌더가 안 터진다(L 이 없어도 기하가 축을 만든다)
+  assert.deepEqual(M.readPinnedShortEdge(legacyBlock).a, { x: 1, y: 2 });
+
+  // ⑹ 「자동으로 되돌리기」는 «여섯 키를 다» 지운다
+  const c = el({ ax: '1', ay: '2', bx: '3', by: '4', lx: '5', ly: '6' });
+  M.clearPinnedShortEdge(c);
+  assert.equal(M.readPinnedShortEdge(c), null);
+  for (const k of ['ax', 'ay', 'bx', 'by', 'lx', 'ly']) {
+    assert.equal(c.dataset[k], undefined, `${k} 가 안 지워졌다 — 반만 지우면 반은 고정으로 남는다`);
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   T6b — ★손잡이 «드래그 경로»를 실제로 태운다
+     T6 은 dataset 을 손으로 채워 「읽기」만 잰다. 그래서 «쓰는 쪽»(_pinShortEdge)의 변이가
+     통과해 버렸다 — 실제로 「lx → lX」 변이가 T6 을 초록으로 지나갔다.
+     ⇒ 여기서는 mousedown → document mousemove 를 재생해서 «키가 무엇으로 박히는지»를 잰다.
+   ★변이표
+     ① `_pinShortEdge` 의 `block.dataset.lx` → `block.dataset.lX`      ⇒ ⑵ 가 빨개진다
+     ② L 드래그에서 `mv(start.a), mv(start.b)` → `start.a, start.b`     ⇒ ⑶ 이 빨개진다
+     ③ a 드래그에서 `_pinShortEdge(block, next.a, next.b)` 에 L 을 넘김 ⇒ ⑷ 가 빨개진다
+   ═══════════════════════════════════════════════════════════════════════════ */
+test('T6b [손잡이 셋] 드래그 경로 — L 은 셋을 «통째로» 옮기고, a 는 축을 «자동으로» 되돌린다', () => {
+  /** 손잡이 하나를 잡고 (dx,dy) 만큼 끈다. 반환 = 끌기 «전»의 손잡이 좌표 셋. */
+  const dragHandle = (b, pt, dx, dy) => {
+    const before = {};
+    for (const k of ['a', 'b', 'L']) {
+      const m = b.innerHTML.match(new RegExp(`data-pt="${k}"[^>]*cx="([-\\d.]+)" cy="([-\\d.]+)"`));
+      assert.ok(m, `전제: ${k} 손잡이가 그려진다`);
+      before[k] = { x: parseFloat(m[1]), y: parseFloat(m[2]) };
+    }
+    const handle = { dataset: { pt },
+      closest: (sel) => (String(sel).split(',').some(x => x.trim() === '.zoom-handle') ? handle : null) };
+    globalThis.__docListeners.length = 0;
+    b.listeners.filter(l => l.type === 'mousedown')
+      .forEach(l => l.fn({ button: 0, clientX: 0, clientY: 0, target: handle,
+                           preventDefault() {}, stopImmediatePropagation() {} }));
+    const move = globalThis.__docListeners.filter(l => l.type === 'mousemove');
+    assert.ok(move.length >= 1, '전제: 드래그가 document 에 mousemove 를 건다');
+    move.forEach(l => l.fn({ clientX: dx, clientY: dy }));
+    return before;
+  };
+  /** ★배율 1 이 나오게 viewBox 폭 = 실측 폭. (그래야 화면 델타가 곧 로컬 델타다) */
+  const mkBlock = () => {
+    const b = el({ shadow: 'on' });
+    b.classList.add('selected');
+    b.contains = () => true;
+    b.querySelector = (sel) => (sel === '.zoom-svg'
+      ? { getAttribute: () => '0 0 100 100', getBoundingClientRect: () => ({ width: 100 }) }
+      : (sel === ':scope > .zoom-clip' ? makeEl('div') : null));
+    M.renderZoomBlock(b);
+    return b;
+  };
+
+  // ⑴ 아무것도 안 끌었으면 dataset 에 손잡이 키가 «하나도» 없다
+  {
+    const b = mkBlock();
+    assert.deepEqual(Object.keys(b.dataset).filter(k => /^(ax|ay|bx|by|lx|ly)$/.test(k)), []);
+  }
+
+  /* ⑵⑶ ★빛(L) 을 끌면 — 키 여섯이 «소문자 두 글자»로 박히고, a·b 가 «같은 델타»로 따라간다. */
+  {
+    const b = mkBlock();
+    const was = dragHandle(b, 'L', 37, -23);
+    assert.deepEqual(
+      Object.keys(b.dataset).filter(k => /^(ax|ay|bx|by|lx|ly|lX|lY)$/.test(k)).sort(),
+      ['ax', 'ay', 'bx', 'by', 'lx', 'ly'],
+      '★키 이름 — lX 로 쓰면 DOM 이 data-l-x 로 직렬화해 저장본과 조용히 갈라진다');
+    const got = { a: { x: +b.dataset.ax, y: +b.dataset.ay },
+                  b: { x: +b.dataset.bx, y: +b.dataset.by },
+                  L: { x: +b.dataset.lx, y: +b.dataset.ly } };
+    for (const k of ['a', 'b', 'L']) {
+      assert.ok(Math.abs(got[k].x - (was[k].x + 37)) < 0.02, `${k}.x 가 델타를 안 따라갔다 (${was[k].x} → ${got[k].x})`);
+      assert.ok(Math.abs(got[k].y - (was[k].y - 23)) < 0.02, `${k}.y 가 델타를 안 따라갔다 (${was[k].y} → ${got[k].y})`);
+    }
+    // 짧은 변의 «길이»가 안 변한다 = 통째로 옮긴 것이지 한쪽만 끈 것이 아니다
+    const len = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+    assert.ok(Math.abs(len(got.a, got.b) - len(was.a, was.b)) < 0.02,
+      '★빛을 끌었는데 짧은 변 길이가 변했다 — a·b 가 «같이» 안 움직였다');
+  }
+
+  /* ⑷ ★a 를 끌면 — a 만 움직이고, ★lx/ly 는 «지워진다»(축이 mid(a,b) 로 돌아온다). */
+  {
+    const b = mkBlock();
+    dragHandle(b, 'L', 20, 20);                       // 먼저 L 을 끌어 lx/ly 를 박아 둔다
+    assert.ok(b.dataset.lx !== undefined, '전제: lx 가 박혔다');
+    /* ⚠️델타는 «누적이 아니다» — dragHandle 은 매번 mousedown 을 (0,0) 에서 새로 잡는다.
+       (처음엔 65 로 적었다가 빨개져서 알았다 — 재생기의 규약을 확인하지 않은 탓이다.) */
+    const was = dragHandle(b, 'a', 45, 45);
+    assert.equal(b.dataset.lx, undefined, '★a 를 끌었는데 옛 축이 남았다 — 축이 낡은 자리에 붙박인다');
+    assert.equal(b.dataset.ly, undefined);
+    assert.ok(Math.abs(+b.dataset.ax - (was.a.x + 45)) < 0.02, 'a 가 커서를 안 따라갔다');
+    assert.ok(Math.abs(+b.dataset.bx - was.b.x) < 0.02, '★a 를 끌었는데 b 까지 움직였다');
+    assert.ok(Math.abs(+b.dataset.by - was.b.y) < 0.02);
+    // 그리고 축은 «지금의» 한가운데다
+    const m = b.innerHTML.match(/data-pt="L"[^>]*cx="([-\d.]+)" cy="([-\d.]+)"/);
+    assert.ok(Math.abs(parseFloat(m[1]) - (+b.dataset.ax + +b.dataset.bx) / 2) < 0.02,
+      '★축이 mid(a,b) 로 안 돌아왔다');
+  }
+});
