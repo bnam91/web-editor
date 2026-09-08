@@ -3620,6 +3620,12 @@ function _registerDefaultTools() {
       description: 'Edit an EXISTING grid block (grd_xxx or legacy duo_xxx) — partial update. '
         + 'Structure fields are exclusive, pass ONE: cols (replace all) | patchCol {index,...} | '
         + 'rows (replace all) | cells (replace all, row-major) | patchCell {r,c,...}. '
+        /* ★patchCell 은 «자리»가 둘이다 — lineIndex 유무로 갈린다. 여기 안 적으면 부르는 쪽이
+           한 번 실패해야 안다(거절 메시지가 알려주긴 하지만, 그건 «두 번째» 기회다). */
+        + 'patchCell has TWO modes: with lineIndex → patches ONE line (text, type, fontSize, color, '
+        + 'weight, align, bg, fontFamily, italic, strike, marginTop, ...); without lineIndex → patches '
+        + 'the CELL (lines, align, valign, bg, padding, radius). Column width goes through patchCol. '
+        + '⛔Unknown field names are REJECTED, not silently ignored — the renderer would never read them. '
         + 'Also: gap, valign. Returns {ok, cellCount, cellTexts} — ★cellTexts is READ BACK from the canvas '
         + 'after the write, so it tells you what actually landed (not what you asked for).',
       inputSchema: {
