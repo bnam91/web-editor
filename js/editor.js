@@ -1573,6 +1573,10 @@ function pasteClipboard() {
   temp.innerHTML = clipboard.html;
   const el = temp.firstElementChild;
 
+  /* [#16-DUP] 섹션 붙여넣기가 만든 «스크래치 사본» 결과 — 꼬리의 pushHistory 에 sideEffects 로 싣는다.
+     복제가 0건이면 null 이고 그 경우 이 경로는 오늘과 동작이 «같다». */
+  let _spl = null;
+
   if (clipboard.type === 'section') {
     const genIdFn = window.genId || ((p) => p + '_' + Math.random().toString(36).slice(2, 9));
     el.id = genIdFn('sec');
@@ -1580,6 +1584,12 @@ function pasteClipboard() {
       const prefix = child.id.split('_')[0] || 'el';
       child.id = genIdFn(prefix);
     });
+    /* [#16-DUP] 링크된 섹션의 사본에는 «스크래치 사본»을 딸려 보낸다(안 그러면 한 이미지를
+       두 섹션이 쥐어 링크체인이 2개가 된다 — 현빈 2026-09-08 발주).
+       ★★반드시 여기 — el 이 아직 temp 안(분리 상태)일 때 부른다. DOM 에 «넣은 뒤» 부르면
+         SPLink.sectionIdOf 가 «사본 자신»을 찾아 복제를 건너뛰고, 그 실패가 refSection 이
+         원본 앞/뒤 어디냐(=사용자의 선택 상태)에 따라 갈린다. ⛔아래로 내리지 마라. */
+    _spl = window.SPLink?.rewireClonedSection?.(el) || null;
     // 선택이 없으면(잘라내기 직후 흔함) DOM 끝이 아니라 지금 화면에 보이는 섹션 옆에 붙인다.
     const refSection = getSelectedSection() || _pickVisibleSection();
     if (refSection) {
@@ -1668,7 +1678,13 @@ function pasteClipboard() {
     }
   }
   window.buildLayerPanel();
-  pushHistory('붙여넣기');
+  /* [#16-DUP] 스크래치 사본은 «캔버스 밖»(ScratchPadDB) 이라 캔버스 스냅샷이 못 되돌린다 —
+     onUndo=사본 제거 / onRedo=id 그대로 복원. 복제 0건이면 null 이라 오늘과 같다. */
+  pushHistory('붙여넣기', _spl?.sideEffects || null);
+  /* [#16-DUP] _installFollow 의 MutationObserver 는 #canvas-scaler 를 childList «만»(subtree 아님)
+     보므로 #canvas 안에 섹션이 들어와도 안 터진다 ⇒ 붙여넣기 뒤 한 번 직접 다시 그린다.
+     (링크가 0건이면 _applyFollow/_drawEdges 가 곧바로 빠져나간다.) */
+  window.__spLinkRerender?.();
 }
 
 // Option 키 독립 추적 (Korean IME가 altKey를 먹어버리는 문제 대응)
@@ -3193,6 +3209,12 @@ function deleteSection(secIdOrEl) {
   //   (imageLinks 는 canvas HTML 밖이라 캔버스 스냅샷에 안 잡힘). onUndo=링크 복원 / onRedo=재해제.
   // #16: 섹션에 참고이미지가 연결돼 있어도 특수 처리 불필요 — sec.dataset.refLinks 가 섹션과 함께
   //   제거되고, canvas 스냅샷 기반 undo 가 섹션+refLinks 를 동시 복원한다(이미지는 ScratchPadDB 무접촉).
+  /* ★★위 문장은 참이고, «삭제»에 한해서만 참이다(2026-09-08 범위 명시).
+   *   가르는 기준은 「그 조작이 ScratchPadDB 레코드를 늘리나」다:
+   *     · 연결/해제·섹션 삭제 → 안 늘린다 → 캔버스 스냅샷만으로 undo 성립(위 문장).
+   *     · ★복사·붙여넣기     → «늘린다»  → 캔버스 밖 상태라 스냅샷이 못 되돌린다
+   *       ⇒ pasteClipboard 의 pushHistory('붙여넣기', sideEffects) 참조(#16-DUP).
+   *   ⛔위 문장을 「복사도 무접촉이다」로 넓혀 읽지 마라 — 그러면 ⌘Z 가 사본 이미지를 고아로 남긴다. */
   pushHistory('섹션 삭제 전');
   sec.remove();
   deselectAll();

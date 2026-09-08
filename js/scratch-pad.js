@@ -1571,6 +1571,48 @@ window._scratchAddAndSave = async (src, x, y, w, g, id) => {
   await _saveScratch();
 };
 
+/* ── #16 「링크된 섹션을 붙여넣으면 스크래치도 같이 복제」 (scratchpad-link.js 가 부른다) ──
+ *
+ * ★왜 «동기»인가 — pasteClipboard 는 동기이고 «끝에서» pushHistory 로 캔버스 스냅샷을 찍는다.
+ *   사본 생성이 async 면 그 스냅샷 시점에 새 scratchId 가 아직 없어 refLinks 에 쓸 수가 없다.
+ *   영속화는 _scratchSaveSoon(디바운스)에 맡긴다 — 붙여넣기가 IndexedDB 왕복을 기다릴 이유가 없다
+ *   (_applyFollow 도 같은 구조로 돈다).
+ *
+ * ★왜 «둘»인가 — redo 시점엔 원본 스크래치가 이미 지워졌을 수 있다. srcId 로는 못 되살린다.
+ *   그래서 라이브 경로(_scratchDuplicateItem)와 복원 경로(_scratchRestoreItem)가 갈린다.
+ *
+ * ★반환값은 «뜻»을 갖는다(_scratchDeleteForMcp 의 {ok,code,message} 어휘를 빌린다) —
+ *   NO_SOURCE(정상 갈래: 다른 페이지·이미 삭제·아직 로드 전)와 NO_SCALER(결함: 만들다 실패)는
+ *   부르는 쪽 처분이 «같아도»(토큰 유지) 소리가 달라야 한다. null 하나로 뭉치면 그 구분이 죽는다.
+ *
+ * ⛔픽셀을 새로 만들지 않는다 — src 문자열을 «그대로» 공유한다. 재인코딩하면 해시가 달라져
+ *   assets:saveCanvasImage 의 sha256 dedup(main.js)이 깨지고 디스크가 진짜로 2배가 된다.
+ * ⛔g(그룹)는 안 베낀다 — 사본이 원본 그룹에 들어가면 그룹 리사이즈가 둘을 함께 움직이고
+ *   _scratchUngroup 의 _severLinks 가 «둘의» 링크를 다 끊는다. 사본은 새 섹션에 딸린 독립 재료다.
+ */
+window._scratchDuplicateItem = (srcId, { dx = 0, dy = 0 } = {}) => {
+  if (!srcId || typeof srcId !== 'string') return { ok: false, code: 'BAD_ARGS', message: 'srcId required' };
+  const it = _scratchItems.find(s => s.id === srcId);
+  if (!it) return { ok: false, code: 'NO_SOURCE', message: 'scratch item not found: ' + srcId };
+  const src = it.src;
+  const item = _createItem(src, (it.x || 0) + dx, (it.y || 0) + dy, it.w, undefined, undefined, it.linkDy);
+  if (!item) return { ok: false, code: 'NO_SCALER', message: '#canvas-scaler not found — 사본 생성 실패' };
+  try { window._scratchSaveSoon?.(); } catch (_) {}
+  return { ok: true, item: { id: item.id, src: item.src, x: item.x, y: item.y, w: item.w, linkDy: item.linkDy } };
+};
+
+/* onRedo 전용 — 기록해 둔 레코드로 «id·linkDy 를 그대로» 되살린다.
+ * ★새 id 를 뽑으면 안 된다 — redo 로 되돌아온 캔버스 스냅샷의 refLinks 토큰이 그 id 를 부른다.
+ *   (_deleteScratchItemsWithHistory 가 같은 이유로 id 보존을 못 박아 뒀다.) */
+window._scratchRestoreItem = (rec) => {
+  if (!rec || typeof rec.id !== 'string') return { ok: false, code: 'BAD_ARGS', message: 'rec.id required' };
+  if (_scratchItems.some(s => s.id === rec.id)) return { ok: true, code: 'ALREADY' };
+  const item = _createItem(rec.src, rec.x, rec.y, rec.w, rec.id, undefined, rec.linkDy);
+  if (!item) return { ok: false, code: 'NO_SCALER', message: '#canvas-scaler not found — 복원 실패' };
+  try { window._scratchSaveSoon?.(); } catch (_) {}
+  return { ok: true };
+};
+
 // AI fill 모달 등 외부에서 #sp_xxx ID로 src 조회용
 window._scratchGetItemById = id => {
   const it = _scratchItems.find(s => s.id === id);
