@@ -254,6 +254,146 @@ test('A6 ★임의 accent 512종 × 배경 512종에서 min(선,점) ≥ 3 — �
 });
 
 // ══════════════════════════════════════════════════════════════════
+// C. ★갈래 — 「호출 개수」가 아니라 「그 갈래를 태우면 옳은 색이 나오나」
+//
+// ⛔B2 는 `applyCanvasBackground\s*\(` 를 «세기»만 한다. 인자를 무엇으로 넘기든 개수가 맞으면 통과다.
+//   실측(2026-09-09 적대검수):
+//     X8  prop-page.js  applyCanvasBackground(css)  → applyCanvasBackground(_bgToRgba())   → 게이트 두 겹 초록
+//     X9  save-load.js  applyCanvasBackground(_bgRgba(state.pageSettings)) → applyCanvasBackground()  → 초록
+//   ⇒ ★「모으면 갈래가 하나로 보인다」가 실제로 성립했다. 모으기 «전» 다섯 갈래
+//     (솔리드·그라데이션·알파·로드·부팅) 중 «행동으로» 검증되던 것이 0개였다.
+//   DOM 스펙도 window.__applyBg 를 «직접» 부르므로 prop-page·save-load 를 한 번도 안 지난다.
+//
+// ★그래서 여기서는 «원문에서 그 문을 떼어» 실제로 돌리고, 넘어간 인자를 진짜 edgeColorFor 에
+//   태워 «색»으로 판정한다. 대역을 세우지 않는다 — 원문이 바뀌면 여기가 빨개진다.
+// ⛔고정 창 금지 — 함수 몸통은 중괄호 짝맞춤, 호출문은 괄호 짝맞춤으로 «구조»로 떼어낸다.
+// ══════════════════════════════════════════════════════════════════
+
+/** 원문에서 «중괄호 몸통 안»만 떼어낸다(중괄호 제외). scratch-link-toggle.test.js 의 bodyAfter 관례. */
+function fnBody(src, needle, label) {
+  const i = src.indexOf(needle);
+  assert.notStrictEqual(i, -1, `★"${label}" 를 못 찾았다 — 이름이 바뀌었으면 이 검사부터 고쳐라`);
+  const start = src.indexOf('{', i + needle.length - 1);
+  assert.notStrictEqual(start, -1, `★"${label}" 의 몸통 시작 { 을 못 찾았다`);
+  let depth = 0, j = start;
+  for (; j < src.length; j++) {
+    if (src[j] === '{') depth++;
+    else if (src[j] === '}') { depth--; if (depth === 0) break; }
+  }
+  assert.ok(j < src.length, `★"${label}" 의 몸통이 안 닫힌다`);
+  return src.slice(start + 1, j);
+}
+
+/** 몸통 안의 `applyCanvasBackground( … )` «문 하나»를 괄호 짝맞춰 꺼낸다. */
+function callExprIn(body, label) {
+  const key = 'applyCanvasBackground(';
+  const i = body.indexOf(key);
+  assert.notStrictEqual(i, -1, `★"${label}" 안에 깔때기 호출이 없다 — 이 갈래는 대비를 아예 안 돌린다`);
+  assert.strictEqual(body.indexOf(key, i + 1), -1, `★"${label}" 안에 깔때기 호출이 둘 이상이다 — 떼어낼 문이 모호하다`);
+  let depth = 0, j = i + key.length - 1;
+  for (; j < body.length; j++) {
+    if (body[j] === '(') depth++;
+    else if (body[j] === ')') { depth--; if (depth === 0) break; }
+  }
+  assert.ok(j < body.length, `★"${label}" 의 호출 괄호가 안 닫힌다`);
+  return body.slice(i, j + 1);
+}
+
+const SRC = {
+  propPage: readSrc(path.join(ROOT, 'js', 'props', 'prop-page.js')),
+  saveLoad: readSrc(path.join(ROOT, 'js', 'io', 'save-load.js')),
+};
+
+/* ★대역이 아니라 «원문»을 돌린다 — 알파 산식이 바뀌면 알파 갈래가 빨개진다. */
+const realBgToRgba = (pageSettings) =>
+  new Function('state', fnBody(SRC.propPage, 'const _bgToRgba = () =>', '_bgToRgba'))({ pageSettings });
+const realBgRgba = (ps) =>
+  new Function('ps', fnBody(SRC.saveLoad, 'function _bgRgba(ps)', '_bgRgba'))(ps);
+
+/** 몸통을 «통째로» 태울 때 — 짧고 자족적인 갈래(prop-page)용. 깔때기 호출이 정확히 1개인지 같이 단언한다.
+    ⛔호출문만 떼면 앞줄의 `const rgba = _bgToRgba();` 가 빠져 ReferenceError 로 «엉뚱한 이유»로 빨개진다
+      (2026-09-09 실측 — 규율 4: 검사가 «왜» 빨간지를 말해야 한다). */
+function branchBody(src, needle, label) {
+  const body = fnBody(src, needle, label);
+  callExprIn(body, label);   // 호출이 0개거나 2개 이상이면 여기서 «그 이유»로 운다
+  return body;
+}
+
+/** 갈래 하나를 «태운다» — 원문에서 뗀 코드를 실제로 실행하고, 깔때기가 받은 인자를 돌려준다. */
+function burn(stmt, env = {}) {
+  const got = [];
+  const keys = Object.keys(env);
+  new Function('applyCanvasBackground', ...keys, `${stmt};`)((v) => got.push(v), ...keys.map(k => env[k]));
+  return got;
+}
+
+/** 그 갈래가 «실제로 칠하게 될» 색. 인자를 진짜 계산기에 태운다. */
+const colorOf = async (got) => (await M()).edgeColorFor(got[0], OPT);
+
+/* ── C1 솔리드 갈래 (prop-page `_applyBg`) ─────────────────────────── */
+test('C1 갈래[솔리드] — _applyBg 문을 «태우면» 페이지 설정색 기준 색이 나온다', async () => {
+  const body = branchBody(SRC.propPage, 'const _applyBg = () =>', '_applyBg');
+  const got = burn(body, { _bgToRgba: () => realBgToRgba({ bg: '#828282', bgAlpha: 100 }), bgSwatch: { style: {} } });
+  assert.strictEqual(got.length, 1, '★깔때기가 «한 번» 안 불렸다 — 이 갈래는 대비를 안 돌린다');
+  assert.strictEqual(got[0], 'rgba(130,130,130,1)', `★깔때기에 넘어간 인자가 다르다: ${got[0]}`);
+  assert.strictEqual(await colorOf(got), '#000000', '★솔리드 갈래가 칠하게 될 색이 달라졌다');
+});
+
+/* ── C2 알파 갈래 (같은 문 · 알파 산식은 «원문» _bgToRgba) ─────────── */
+test('C2 갈래[알파] — bgAlpha 를 0 으로 내리면 답이 «갈린다»(shell 위 합성이 실제로 산다)', async () => {
+  const body = branchBody(SRC.propPage, 'const _applyBg = () =>', '_applyBg');
+  const opaque = burn(body, { _bgToRgba: () => realBgToRgba({ bg: '#828282', bgAlpha: 100 }), bgSwatch: { style: {} } });
+  const clear = burn(body, { _bgToRgba: () => realBgToRgba({ bg: '#828282', bgAlpha: 0 }), bgSwatch: { style: {} } });
+  assert.strictEqual(clear[0], 'rgba(130,130,130,0)', `★알파가 인자에 안 실렸다: ${clear[0]}`);
+  const a = await colorOf(clear), b = await colorOf(opaque);
+  assert.strictEqual(a, '#7cb8ff', '★알파 0 인데 shell(--ui-bg-app) 위 합성 결과가 안 나온다');
+  assert.notStrictEqual(a, b, '★알파 0 과 100 이 «같은 답» 이다 — 알파가 갈래를 안 가른다');
+});
+
+/* ── C3 ★그라데이션 갈래 (prop-page `_applyBgGradient`) — X8 이 여기서 운다 ── */
+test('C3 갈래[그라데이션] — «솔리드 기준 색»이 아니라 «최악 stop 기준 색»이 나온다 (X8)', async () => {
+  const body = branchBody(SRC.propPage, 'const _applyBgGradient = (css) =>', '_applyBgGradient');
+  const grad = 'linear-gradient(90deg,#000000 0%,#828282 100%)';
+  const got = burn(body, { css: grad, _bgToRgba: () => realBgToRgba({ bg: '#828282', bgAlpha: 100 }), bgSwatch: { style: {} } });
+  assert.strictEqual(got.length, 1, '★깔때기가 «한 번» 안 불렸다');
+  assert.strictEqual(got[0], grad, `★그라데이션 CSS 가 아니라 다른 값이 넘어갔다: ${got[0]}`);
+  const got_ = await colorOf(got);
+  assert.strictEqual(got_, '#ffffff', '★최악 stop 기준 색이 아니다');
+  /* ★전제 — 「솔리드 기준」과 답이 «실제로 갈린다». 안 갈리면 위 단언이 아무것도 안 겨눈다. */
+  assert.strictEqual((await M()).edgeColorFor('rgba(130,130,130,1)', OPT), '#000000', '전제: 솔리드 기준 답');
+  assert.notStrictEqual(got_, '#000000', '★그라데이션 갈래가 «솔리드 기준»으로 칠하고 있다');
+});
+
+/* ── C4 로드 갈래 (save-load `applyPageSettings`) ──────────────────── */
+test('C4 갈래[로드] — applyPageSettings 문이 state.pageSettings 를 «실제로» 읽는다', async () => {
+  const stmt = callExprIn(fnBody(SRC.saveLoad, 'function applyPageSettings()', 'applyPageSettings'), 'applyPageSettings');
+  const run = (ps) => burn(stmt, { _bgRgba: realBgRgba, state: { pageSettings: ps } });
+  const light = run({ bg: '#ffffff', bgAlpha: 100 }), dark = run({ bg: '#000000', bgAlpha: 100 });
+  assert.strictEqual(light.length, 1, '★깔때기가 «한 번» 안 불렸다');
+  assert.notStrictEqual(light[0], undefined, '★인자 없이 불렀다 — 로드 갈래는 «못 잰다»로 떨어진다');
+  assert.strictEqual(await colorOf(light), '#000000', '★밝은 저장색에서 답이 다르다');
+  assert.strictEqual(await colorOf(dark), '#7cb8ff', '★어두운 저장색에서 브랜드색 보존이 깨졌다');
+  assert.notStrictEqual(await colorOf(light), await colorOf(dark), '★저장색이 답을 안 가른다 — state 를 안 읽고 있다');
+});
+
+/* ── C5 ★부팅 갈래 (save-load `initApp`) — X9 가 여기서 운다 ───────── */
+test('C5 갈래[부팅] — initApp 문이 «인자 없이» 부르지 않는다 (X9)', async () => {
+  const stmt = callExprIn(fnBody(SRC.saveLoad, 'function initApp()', 'initApp'), 'initApp');
+  const run = (ps) => burn(stmt, { _bgRgba: realBgRgba, state: { pageSettings: ps } });
+  const got = run({ bg: '#828282', bgAlpha: 100 });
+  assert.strictEqual(got.length, 1, '★깔때기가 «한 번» 안 불렸다');
+  assert.notStrictEqual(got[0], undefined,
+    '★부팅에서 인자 없이 불렀다 — 배경을 «못 잰다»로 떨어져 부팅 직후 색이 안 실린다');
+  assert.strictEqual(await colorOf(got), '#000000', '★부팅 갈래가 칠하게 될 색이 달라졌다');
+  /* ★양성대조 — 인자를 빼면 이 잣대가 «실제로» 못 잰다(null)로 떨어진다. */
+  assert.strictEqual((await M()).edgeColorFor(undefined, OPT), null,
+    '★양성대조 실패 — 인자 없는 호출이 null 이 아니라면 위 단언이 아무것도 안 겨눈다');
+  /* ★로드 갈래와 «다른 문»이다 — 한쪽만 망가뜨리면 한쪽만 빨개져야 한다. */
+  const loadStmt = callExprIn(fnBody(SRC.saveLoad, 'function applyPageSettings()', 'applyPageSettings'), 'applyPageSettings');
+  assert.ok(loadStmt && stmt, '전제: 두 문이 각각 떼어진다');
+});
+
+// ══════════════════════════════════════════════════════════════════
 // B. 배선 — 소스 원문을 훑는다 (readSrc + makeStripper, ⛔고정 창 금지)
 // ══════════════════════════════════════════════════════════════════
 
