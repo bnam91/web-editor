@@ -3940,6 +3940,8 @@ app.whenReady().then(async () => {
       addCardBlock: _invokeRendererAddCardBlock,
       updateCardBlock: _invokeRendererUpdateCardBlock,
       addChecklistItem: _invokeRendererAddChecklistItem,
+      checklistSection: _invokeRendererChecklistSection,
+      searchSections: _invokeRendererSearchSections,
       setSectionMemo: _invokeRendererSetSectionMemo,
       getSectionMemo: _invokeRendererGetSectionMemo,
       updateChecklistItem: _invokeRendererUpdateChecklistItem,
@@ -4120,18 +4122,133 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId,
 }
 
 // ─── add_checklist_item — 체크리스트 항목(=핀) 추가 ─────────────────────────
-async function _invokeRendererAddChecklistItem({ text, x, y, sectionId, done = false, urgent = false } = {}) {
+async function _invokeRendererAddChecklistItem({ text, x, y, sectionId, ckSectionId, done = false, urgent = false } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
-  const safeArgs = JSON.stringify({ text: String(text||''), x, y, sectionId, done: !!done, urgent: !!urgent });
+  const safeArgs = JSON.stringify({ text: String(text||''), x, y, sectionId, ckSectionId,
+                                    done: !!done, urgent: !!urgent });
   return await mainWindow.webContents.executeJavaScript(
     `(() => { try {
       if (typeof window.addChecklistItem !== 'function') return { ok:false, code:'API_MISSING' };
-      const id = window.addChecklistItem(${safeArgs});
-      return { ok:true, itemId: id };
+      const r = window.addChecklistItem(${safeArgs});
+      /* ⛔addChecklistItem 은 «보통은 id 문자열»이지만 거절할 땐 «객체»를 준다(SECTION_NOT_FOUND).
+           예전 코드는 그걸 itemId 에 그대로 담아 ok:true 로 올렸다 — 거짓 성공이다.
+         ⇒ 모양으로 가른다. 문자열이 아니면 «그 객체를 그대로» 올린다. */
+      if (typeof r !== 'string') return (r && typeof r === 'object') ? r
+        : { ok:false, code:'NO_ID', message:'항목 id 를 못 받았습니다.' };
+      return { ok:true, itemId: r };
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
     true
   );
+}
+
+/* ─── P2 search_sections — «내용으로» 섹션 찾기 (2026-09-08 현빈 요청) ────────
+   ⛔없을 때 어땠나: 「'무료배송' 적힌 데 고쳐줘」를 하려면 섹션을 «하나씩» 열어야 했다.
+     실물 프로젝트가 102섹션이라 왕복 102번 — 실무에서 못 쓴다.
+   ⇒ 렌더러를 «한 번만» 훑는다. 섹션을 여닫지 않으므로 화면 상태를 안 건드린다. */
+async function _invokeRendererSearchSections({ query, limit = 50, caseSensitive = false, whole = false } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const a = JSON.stringify({ q: String(query), limit: Number(limit) || 50,
+                             cs: !!caseSensitive, whole: !!whole });
+  const js = `(() => {
+    try {
+      const p = ${a};
+      if (!p.q) return { ok:false, code:'INVALID', message:'query required' };
+      const norm = t => p.cs ? String(t) : String(t).toLowerCase();
+      const needle = norm(p.q);
+      const canvas = document.getElementById('canvas') || document;
+      const secs = [...canvas.querySelectorAll('.section-block')];
+      const TYPE = el => {
+        const c = el.classList;
+        if (c.contains('text-block')) {
+          const k = el.querySelector('[class^="tb-"]');
+          const m = k && k.className.match(/tb-(\\w+)/);
+          return m ? m[1] : 'text';
+        }
+        for (const [cls,name] of [['asset-block','asset'],['table-block','table'],['canvas-block','canvas'],
+          ['step-block','step'],['comparison-block','comparison'],['banner02-block','banner02'],
+          ['label-group-block','label'],['laurel-block','laurel'],['grid-block','grid'],
+          ['icon-text-block','icon_text'],['infocard-block','infocard'],['chat-block','chat']])
+          if (c.contains(cls)) return name;
+        return null;
+      };
+      const hits = []; let scannedSections = 0, scannedBlocks = 0, truncated = false;
+      for (const sec of secs) {
+        scannedSections++;
+        const secName = (sec.dataset && sec.dataset.name) || '';
+        /* 섹션 «이름»도 찾는 대상이다 — 사람이 지어 둔 이름이 가장 좋은 단서다 */
+        if (secName && norm(secName).includes(needle)) {
+          hits.push({ sectionId: sec.id, sectionName: secName, where: 'sectionName', text: secName });
+        }
+        const blocks = [...sec.querySelectorAll('[id]')].filter(el => TYPE(el) !== null);
+        for (const b of blocks) {
+          scannedBlocks++;
+          const raw = (b.innerText || '').replace(/\\s+/g, ' ').trim();
+          if (!raw) continue;
+          const i = norm(raw).indexOf(needle);
+          if (i < 0) continue;
+          if (p.whole) {
+            /* 「낱말 전체」 — 앞뒤가 글자·숫자면 걸러낸다(한글은 낱말 경계가 없어 공백/문장부호로 본다) */
+            const before = raw[i-1] || ' ', after = raw[i + p.q.length] || ' ';
+            if (/[\\w가-힣]/.test(before) || /[\\w가-힣]/.test(after)) continue;
+          }
+          if (hits.length >= p.limit) { truncated = true; break; }
+          const from = Math.max(0, i - 24), to = Math.min(raw.length, i + p.q.length + 24);
+          hits.push({
+            sectionId: sec.id, sectionName: secName || null,
+            blockId: b.id || null, type: TYPE(b), where: 'block',
+            /* ★excerpt «만» 싣는다 — text 는 excerpt 를 통째로 품고 있어 100% 중복이었다.
+                 실측(2026-09-08, 실물 102섹션 「보풀」 44건): excerpt 가 text 안에 든 것 44/44.
+                 한 번 호출에 ~1,075 토큰이 중복으로 나갔다.
+               ⛔토큰은 클라이언트가 내는 돈이다 — 같은 글자를 두 번 보내지 않는다.
+               ⇒ 전문이 필요하면 blockId 로 get_canvas_state(sectionId) 를 부르면 된다(그게 더 싸다). */
+            excerpt: (from > 0 ? '…' : '') + raw.slice(from, to) + (to < raw.length ? '…' : ''),
+            chars: raw.length,
+          });
+        }
+        if (truncated) break;
+      }
+      /* ★「몇 개를 뒤졌는지」를 같이 준다 — 0건일 때 «없다»인지 «못 뒤졌다»인지 갈라야 한다 */
+      return { ok:true, query: p.q, matches: hits.length, hits: hits,
+               scannedSections: scannedSections, scannedBlocks: scannedBlocks,
+               truncated: truncated,
+               note: truncated ? ('limit ' + p.limit + ' 에서 잘렸습니다 — limit 를 올리거나 검색어를 좁히세요.') : undefined };
+    } catch (e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
+/* ─── 체크리스트 «섹션» — 만들기·이름·지우기·목록 (2026-09-07 현빈 요청) ──────
+   ⛔한 자리에서 op 로 가른다(에셋 트리와 같은 모양) — 도구가 넷으로 흩어지면 목록이 썩는다. */
+async function _invokeRendererChecklistSection({ op, id, name } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const a = JSON.stringify({ op, id: id || null, name: name == null ? null : String(name) });
+  const js = `(() => {
+    try {
+      const p = ${a};
+      const need = { create:'addChecklistSection', rename:'renameChecklistSection',
+                     delete:'deleteChecklistSection', list:'listChecklistSections' }[p.op];
+      if (!need) return { ok:false, code:'BAD_OP', message:'op must be one of create|rename|delete|list' };
+      if (typeof window[need] !== 'function') return { ok:false, code:'API_MISSING', message: need + ' not found' };
+      let r;
+      if (p.op === 'create')      r = window.addChecklistSection({ name: p.name });
+      else if (p.op === 'rename') r = window.renameChecklistSection({ id: p.id, name: p.name });
+      else if (p.op === 'delete') r = window.deleteChecklistSection({ id: p.id });
+      else                        r = { ok: true };
+      /* ★결과를 «되읽어» 돌려준다 — 인자를 되읊지 않는다.
+           create 면 «정말 생겼나», rename 이면 «정말 그 이름인가», delete 면 «정말 없나». */
+      const secs = window.listChecklistSections();
+      const tid = (r && r.sectionId) || p.id || null;
+      const found = tid ? secs.find(s => s.id === tid) : null;
+      return Object.assign({}, r, {
+        op: p.op, sections: secs, sectionCount: secs.length,
+        section: found || null, stillExists: !!found,
+      });
+    } catch (e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
 }
 
 // ─── add_table_block — 표 블록 추가 (headers + rows 데이터 직접 주입) ────────
@@ -5020,7 +5137,7 @@ async function _invokeRendererGetSectionMemo({ sectionId } = {}) {
 // ─── update_checklist_item — 체크리스트 항목 부분 갱신 (text/done/urgent) ────
 // USER_BUSY 가드: 사용자가 체크리스트 인라인 편집 중이면 (.ck-inline-input 등) MCP write 차단.
 // renderChecklistPanel()이 input을 unmount하면서 blur save가 stale closure로 덮는 race 방지 (Codex 리뷰 #1).
-async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y } = {}) {
+async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y, ckSectionId } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
@@ -5033,6 +5150,9 @@ async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y
   if (urgent !== undefined) args.urgent = !!urgent;
   if (x      !== undefined) args.x = (typeof x === 'number') ? x : null;
   if (y      !== undefined) args.y = (typeof y === 'number') ? y : null;
+  /* ★«체크리스트 섹션»(ck_xxx) 이동. 캔버스 섹션(sec_xxx)과 이름이 겹쳐 헷갈리는 자리라
+     밖에서는 ckSectionId 로만 받는다. null 을 «명시»하면 섹션에서 뺀다. */
+  if (ckSectionId !== undefined) args.ckSectionId = (ckSectionId === null || ckSectionId === '') ? null : String(ckSectionId);
   const safeArgs = JSON.stringify(args);
   return await mainWindow.webContents.executeJavaScript(
     `(() => { try {

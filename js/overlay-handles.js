@@ -1545,8 +1545,121 @@ window.hideGridGutters = hideGridGutters;
 // iconify·mockup)이 저마다 손으로 부르던 핸들 호출을 타입→핸들 맵 하나로 모은다.
 // 진입점(레이어패널 등)이 늘어도 여기 한 곳만 맞으면 된다 — SSOT.
 // (캔버스 6곳 자체는 회귀 격리를 위해 P0에서는 그대로 두고 P1에서 이 맵으로 치환한다.)
+/* ═══════════════════════════════════════════════════════════════════════════
+   확대블럭(zoom) 리사이즈 핸들 — 현빈 2026-09-08 「아웃라인으로 핸들로 높이와 너비 조절」
+   ───────────────────────────────────────────────────────────────────────────
+   ★핸들은 «블록 상자»에 붙는다 — 확대블럭은 플로팅(스티커 계열)이라 블록 상자가 곧
+     도형(+테두리) 상자다. 보라 아웃라인이 그리는 상자와 «같은 상자»라 모서리가 정확히 맞는다.
+   ★크기는 style.width/height 가 아니라 dataset.w / dataset.h 에 쓴다.
+     확대블럭의 크기는 CSS 상자가 아니라 «SVG 안 도형»이라, 블록에 width 를 줘도 도형이 안 변한다.
+     ⇒ renderZoomBlock 을 다시 불러 실루엣·그림자·뷰박스가 «같이» 따라오게 한다.
+   ⚠️circle 은 정원만 그릴 수 있다(silhouetteCircle 전제) ⇒ w=h 로 묶어서 쓴다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const ZOOM_MIN = 20, ZOOM_MAX = 1200;
+let _zoomResizeBlock = null;
+let _zoomResizeRafId = null;
+
+/** 핸들이 앉을 상자 = ★블록 «자신». 플로팅(스티커 계열)이라 블록 상자가 곧 도형(+테두리) 상자다.
+ *  ⛔예전엔 보조 상자(.zoom-sel-box)를 뒀다 — 블록이 행 안에 있어 «행 전체 폭»이었기 때문이다.
+ *    플로팅으로 옮기면서 그 보조 상자가 없어졌다(zoom-geometry.js blockBoxSpec 주석 참조). */
+function _zoomOutlineBox(zb) {
+  return zb;
+}
+
+function showZoomResizeHandles(zb) {
+  if (_zoomResizeBlock === zb) return;
+  hideZoomResizeHandles();
+  _zoomResizeBlock = zb;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `asset-overlay-handle ${dir}`;   // ★모양은 기존 것을 그대로 쓴다(새 스타일 안 만듦)
+    h.dataset.zoomResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onZoomResizeMouseDown(e, zb, dir));
+  });
+  _updateZoomHandlePositions();
+  _startZoomResizeRaf();
+}
+
+function hideZoomResizeHandles() {
+  if (_zoomResizeRafId) { cancelAnimationFrame(_zoomResizeRafId); _zoomResizeRafId = null; }
+  _zoomResizeBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('[data-zoom-resize-dir]').forEach(h => h.remove());
+}
+
+function _updateZoomHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_zoomResizeBlock) return;
+  const box = _zoomOutlineBox(_zoomResizeBlock);
+  const HALF = 3.5;
+  overlay.querySelectorAll('[data-zoom-resize-dir]').forEach(h => {
+    const c = _cornerScreen(box, h.dataset.zoomResizeDir);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+  });
+}
+
+function _startZoomResizeRaf() {
+  function loop() {
+    if (!_zoomResizeBlock) return;
+    if (!_zoomResizeBlock.isConnected || !_zoomResizeBlock.classList.contains('selected')) {
+      hideZoomResizeHandles();
+      return;
+    }
+    _updateZoomHandlePositions();
+    _zoomResizeRafId = requestAnimationFrame(loop);
+  }
+  _zoomResizeRafId = requestAnimationFrame(loop);
+}
+
+function _onZoomResizeMouseDown(e, zb, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const st = window.readZoomState?.(zb) || {};
+  const box = _zoomOutlineBox(zb);
+  // 시작 크기 = «도형» 크기. 아웃라인 상자는 테두리만큼 더 크므로 그만큼 뺀다.
+  const bw = (st.bd === 'on') ? Math.max(0, Number(st.bdw) || 0) : 0;
+  const startW = Math.max(ZOOM_MIN, Math.round(box.offsetWidth  - bw * 2));
+  const startH = Math.max(ZOOM_MIN, Math.round(box.offsetHeight - bw * 2));
+  const startX = e.clientX, startY = e.clientY;
+  const isCircle = st.shape === 'circle';
+  let moved = false;
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const d = _unrotateDelta(box, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
+    let dw = dir.includes('e') ? d.dx : dir.includes('w') ? -d.dx : 0;
+    let dh = dir.includes('s') ? d.dy : dir.includes('n') ? -d.dy : 0;
+    if (!moved && Math.hypot(dw, dh) < 1) return;
+    if (!moved) { moved = true; window.pushHistory?.('확대블럭 크기'); }
+    let newW = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(startW + dw)));
+    let newH = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(startH + dh)));
+    // ⚠️원은 정원만 — 큰 쪽으로 묶는다. Shift 는 비율 고정(에셋 핸들과 같은 어휘).
+    if (isCircle) { newW = newH = Math.max(newW, newH); }
+    else if (ev.shiftKey && startH > 0) {
+      if (Math.abs(dw) >= Math.abs(dh)) newH = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(newW * startH / startW)));
+      else newW = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(newH * startW / startH)));
+    }
+    zb.dataset.w = String(newW);
+    zb.dataset.h = String(newH);
+    window.renderZoomBlock?.(zb);   // ★실루엣·그림자·뷰박스가 «같이» 따라온다
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (moved) { window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 function showHandlesFor(block) {
   if (!block || !block.classList) return;
+  if (block.classList.contains('zoom-block')) { showZoomResizeHandles(block); return; }
   if (block.classList.contains('asset-block')) {
     showAssetRadiusHandles(block);
     showAssetResizeHandles(block);

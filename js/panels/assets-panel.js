@@ -101,12 +101,12 @@ function _assetsBindGlobalKeydown() {
       '.col.multi-selected, .frame-block.selected, .group-block.group-selected, ' +
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, ' +
+      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, ' +
       '.shape-block.selected, .speech-bubble-block.selected, .canvas-block.selected, ' +
       '.banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
       '.icon-block.selected, .vector-block.selected, .step-block.selected, ' +
       '.laurel-block.selected, .gradient-block.selected, ' +
-      '.sticker-block.selected, .joker-block.selected, .chat-block.selected');
+      '.sticker-block.selected, .zoom-block.selected, .joker-block.selected, .chat-block.selected');
     // ⚠️ SSOT window.CANVAS_SEL_BLOCKS_AND_SHAPE는 '블럭 전용'이라 섹션/col/frame/group을 포함하지 않는다
     //    (editor.js:1701 블럭 수집 용도). 섹션 선택 상태에서 Backspace 시 자산 삭제 모달이 잘못 뜨고
     //    editor.js가 섹션을 지우는 레이스가 생기므로, 컨테이너급 선택자를 별도로 추가 확인해 양보한다.

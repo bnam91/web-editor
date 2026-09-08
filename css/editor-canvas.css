@@ -371,3 +371,41 @@ body.scratch-hidden-all .scratch-item { display: none; }
 /* (기록) 한때 합쳐 넣은 몸이 아웃라인을 덮어 inset 그림자로 «변만» 되살렸다.
    지금은 선택 아웃라인 자체가 오버레이(::after, z-90)라 어떤 블록·상자가 와도 안 가려진다.
    그 보정을 남기면 «이중선»이 되므로 지웠다. */
+
+/* ═══════════════════════════════════════════════════════════
+   그리드 가이드 (편집 보조) — 2026-09-08
+   ★★DOM 을 «전혀» 안 건드린다. 이유:
+     고디터의 저장은 캔버스 DOM 을 그대로 직렬화한다(js/io/save-load.js getSerializedCanvas).
+     ⇒ 오버레이 <div> 를 넣거나 inner.style 에 쓰면 «프로젝트 파일에 섞인다».
+       그러면 남의 컴퓨터에서 열었을 때도 가이드가 따라가고, 내보낸 이미지에도 찍힌다.
+     ⇒ 그래서 body 클래스 + background-image 로만 그린다.
+       background-origin/clip:content-box 라 «패딩 안쪽»에만 정확히 그려진다 —
+       좌우 패딩을 바꾸면 그리드가 «자동으로» 따라온다(계산을 두 번 하지 않는다).
+   ⛔내보내기 전에는 반드시 꺼야 한다(js/props/prop-page.js 의 export 가드).
+   ═══════════════════════════════════════════════════════════ */
+body.gdt-grid-on .section-inner {
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--gdt-grid-color, rgba(64, 132, 232, .13)) 0,
+    var(--gdt-grid-color, rgba(64, 132, 232, .13)) var(--gdt-grid-col, 33.33px),
+    transparent var(--gdt-grid-col, 33.33px),
+    transparent calc(var(--gdt-grid-col, 33.33px) + var(--gdt-grid-gut, 20px))
+  );
+  background-origin: content-box;
+  background-clip: content-box;
+  background-repeat: repeat-y;
+  background-position: left top;
+}
+/* 중앙선 — 좌우 대칭을 눈으로 확인할 때 */
+body.gdt-grid-mid .section-inner {
+  background-image: linear-gradient(
+    to right,
+    transparent calc(50% - 0.5px),
+    rgba(228, 76, 60, .45) calc(50% - 0.5px),
+    rgba(228, 76, 60, .45) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+  background-origin: content-box;
+  background-clip: content-box;
+  background-repeat: repeat-y;
+}

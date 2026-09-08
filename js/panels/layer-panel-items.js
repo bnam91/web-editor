@@ -58,6 +58,7 @@ const layerIcons = {
   vector:            `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polygon points="6,1 11,5 9,11 3,11 1,5"/></svg>`,
   'speech-bubble':   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1.5" width="10" height="7" rx="2"/><path d="M3 8.5 L2 11" stroke-linecap="round"/></svg>`,
   chat:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 2a1 1 0 011-1h8a1 1 0 011 1v6a1 1 0 01-1 1H7l-2 2V9H2a1 1 0 01-1-1V2z"/></svg>`,
+  zoom:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3.5" width="4.5" height="5" rx="0.6"/><path d="M5.5 4.6 L11 6 L5.5 7.4" stroke-linejoin="round"/></svg>`,
   step:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="2.5" cy="2.5" r="1.5"/><line x1="4.5" y1="2.5" x2="11" y2="2.5"/><circle cx="2.5" cy="6" r="1.5"/><line x1="4.5" y1="6" x2="11" y2="6"/><circle cx="2.5" cy="9.5" r="1.5"/><line x1="4.5" y1="9.5" x2="11" y2="9.5"/></svg>`,
 };
 
@@ -161,6 +162,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isStep       = block.classList.contains('step-block');
   const isChat       = block.classList.contains('chat-block');
   const isLaurel     = block.classList.contains('laurel-block');
+  const isZoom       = block.classList.contains('zoom-block');
   const isGradient   = block.classList.contains('gradient-block');
   const isBanner02   = block.classList.contains('banner02-block');
   const isComparison = block.classList.contains('comparison-block');
@@ -173,8 +175,8 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isInnerCard  = block.classList.contains('innercard-block');
   const isModal      = block.classList.contains('modal-block');
   const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
-  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isGrid ? 'grid' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isModal ? 'modal' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isGradient ? 'gradient' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', grid:'Grid', infocard:'Info Card', innercard:'Inner Card', modal:'Modal', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
+  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isGrid ? 'grid' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isModal ? 'modal' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isZoom ? 'zoom' : isGradient ? 'gradient' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', grid:'Grid', infocard:'Info Card', innercard:'Inner Card', modal:'Modal', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', zoom:'Zoom', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
   /* ★[M55] grid 의 타입 라벨을 'Component' → 'Grid'. 현빈 2026-09-05:
        「여기에 컴퍼넌트라고 영어로 되어있는데 그리드라고 되어야되지 않겠니?」
      ★이 칸의 값어치는 «이름을 바꾼 뒤»에 나온다 — 레이어 이름은 「가격표」처럼 바꿀 수 있고,
@@ -187,7 +189,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
        현빈이 볼 화면을 통째로 바꾸는 일이라 별도 항목으로 올린다.
      ★안전 확인: 이 문자열을 «판정»에 쓰는 코드는 0건이다. 읽는 두 자리
        (layer-panel.js:614·:749)는 aria-label 문구를 조립하는 데만 쓴다 — 기능이 안 깨진다. */
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', grid:'Grid', infocard:'Component', innercard:'Component', modal:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', grid:'Grid', infocard:'Component', innercard:'Component', modal:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', zoom:'Zoom', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -261,6 +263,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isJoker) window.showJokerProperties?.(block);
     else if (isChat) window.showChatProperties?.(block);
     else if (isLaurel) window.showLaurelProperties?.(block);
+    else if (isZoom) window.showZoomProperties?.(block);
     else window.showAssetProperties(block);
     // fix(frame-p0#5): 캔버스 클릭 경로 6곳(asset/icon-circle/canvas/vector/iconify/mockup)이
     // 각자 부르던 코너·리사이즈 핸들 호출이 레이어패널 클릭엔 아예 없어 모서리 핸들 없는
@@ -689,7 +692,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
       } else if (child.classList.contains('row')) {
         appendRowFn(child, ssChildren, depth + 1);
       } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
-                'table-block','graph-block','divider-block','bridge-block','grid-block','infocard-block','innercard-block','modal-block','label-group-block','shape-block','canvas-block','banner02-block','comparison-block','step-block','chat-block']
+                'table-block','graph-block','divider-block','bridge-block','grid-block','infocard-block','innercard-block','modal-block','label-group-block','shape-block','canvas-block','banner02-block','comparison-block','step-block','chat-block','zoom-block']
                 .some(c => child.classList.contains(c))) {
         ssChildren.appendChild(makeLayerBlockItem(child, child, sec, depth + 1));
       }

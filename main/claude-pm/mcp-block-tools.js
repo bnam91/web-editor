@@ -84,8 +84,13 @@ const BLOCK_TYPES = [
     blurb: 'raw SVG string with fill-color replacement' },
   { type: 'mockup', add: 'add_mockup_block', upd: 'update_mockup_block', pfx: 'mkp_',
     blurb: 'device frame (phone/tablet/laptop/browser) around a screenshot' },
-  { type: 'banner', add: 'add_banner_block', upd: 'update_frame_block', pfx: 'ss_',
-    blurb: 'preset horizontal banner (frame + auto text/image children)' },
+  /* ★add 를 «끊는다» — 핸들러가 무조건 거절하는 «죽은 경로»였다(mcp-server.js:3158).
+       원장 실측(2026-09-07): 11건이 「add_banner 는 MVP 에서 제외됐다」로 끝났다.
+       목록에 있으니 모델은 계속 시도했고, 매번 왕복 한 번을 버렸다.
+     ⇒ add:null 로 두면 add_block 이 「type "banner" has no add tool」로 «먼저» 끊고,
+       blurb 가 대안을 알려 준다. 읽기·수정(옛 프로젝트의 ss_ 배너)은 그대로 산다. */
+  { type: 'banner', add: null, addLegacy: 'add_banner_block', upd: 'update_frame_block', pfx: 'ss_',
+    blurb: 'LEGACY horizontal banner — read/update only; to CREATE one use type "banner02"' },
   { type: 'banner02', add: 'add_banner02_block', upd: 'update_banner02_block', pfx: 'bn2_',
     blurb: 'standalone wide banner (label/title/sub + image)' },
   { type: 'liner', add: 'add_liner_block', upd: 'update_liner_block', pfx: 'lnr_',
@@ -199,7 +204,13 @@ function install({ tools, toolSchemas, registerTool, hide }) {
   // 51개 블록 도구를 «관대한 인자»로 감싸고 목록에서 숨긴다(핸들러는 그대로 = 별칭 생존).
   const managed = new Set();
   for (const d of BLOCK_TYPES) {
-    for (const n of [d.add, d.upd]) {
+    /* ★addLegacy = 「add 는 끊었지만 그 도구는 아직 존재한다」.
+         ⛔add:null 로만 바꿨더니 이 루프를 «못 지나» hide() 가 안 불렸고,
+           죽은 도구 add_banner_block 이 tools/list 에 «올라왔다»(2026-09-08, 지디가 잡음).
+           목록에 오르면 모델이 직접 부르고 → 거절당하고 → 왕복을 버린다.
+           없애려던 낭비가 «다른 문»에서 다시 열린 것이다.
+         ⇒ 끊은 경로일수록 «숨기는 일»을 잊지 않게 이름을 들고 있는다. */
+    for (const n of [d.add, d.addLegacy, d.upd]) {
       if (!n || managed.has(n) || !tools.has(n)) continue;
       managed.add(n);
       const orig = tools.get(n);
@@ -378,8 +389,22 @@ function install({ tools, toolSchemas, registerTool, hide }) {
   registerTool(
     'get_block_schema',
     async ({ type, op = 'both' } = {}) => {
+      /* ★★type 을 «안 주고» 부르는 일이 실제로 많다 — 원장 실측(2026-09-07): 34회 중 11회(32%)가
+           `unknown block type: (missing)`. 스키마를 미뤄 둔 도구인데 «미룬 첫 걸음»이 3분의 1 실패했다.
+         ⛔에러로 끝내면 모델은 왕복을 한 번 더 쓴다 — 아끼려던 토큰을 오히려 더 쓴다.
+         ⇒ 던지지 말고 «고를 수 있는 목록»을 돌려준다. 그 자체가 답이 되게. */
+      if (type == null || type === '') {
+        return {
+          ok: true,
+          need: 'type',
+          message: 'Pass type to get one block\u2019s schema. Here is the catalogue so you can pick without another round trip.',
+          types: BLOCK_TYPES.map(b => ({ type: b.type, idPrefix: b.pfx, use: b.blurb,
+                                         canAdd: !!b.add, canUpdate: !!b.upd })),
+          hint: 'Most common types are already inlined in add_block/update_block descriptions \u2014 check there first; call this only for a type that is not.',
+        };
+      }
       const d = resolveType(type);
-      if (!d) throw new Error(`unknown block type: ${type == null ? '(missing)' : type}. allowed: ${typeList.join(', ')}`);
+      if (!d) throw new Error(`unknown block type: ${type}. allowed: ${typeList.join(', ')}`);
       if (!['add', 'update', 'both'].includes(op)) throw new Error(`invalid op: ${op} (add|update|both)`);
       const pick = (name) => {
         if (!name) return null;
@@ -395,6 +420,7 @@ function install({ tools, toolSchemas, registerTool, hide }) {
     {
       description:
         'Get the full property schema of one block type — call it before add_block/update_block for a type that is not in the inline specs. '
+        + 'Calling it WITHOUT type is fine: it returns the whole type catalogue (name, id prefix, what it is for) so you can pick in one step. '
         + 'op:"add"|"update"|"both"(default). Returns {type, idPrefix, use, add:{description,properties,required}, update:{...}}. '
         + 'This is the deliberate trade: the 26 type schemas are NOT loaded into every request (they cost ~30k tokens), you pull the one you need.',
       inputSchema: {
@@ -403,7 +429,10 @@ function install({ tools, toolSchemas, registerTool, hide }) {
           type: { type: 'string', enum: typeList, description: 'block type (same enum as add_block)' },
           op: { type: 'string', enum: ['add', 'update', 'both'], description: 'which side to return. "add" is half the size.' }
         },
-        required: ['type']
+        /* ★type 은 «선택»이다 — 없으면 타입 목록을 돌려준다(에러 왕복을 없애려고 그렇게 바꿨다).
+             ⛔동작만 바꾸고 required 를 남겨 두면 «계약이 거짓말»을 한다 —
+               계약 검사(F3-1)가 정확히 그 어긋남을 잡았다. */
+        required: []
       }
     }
   );

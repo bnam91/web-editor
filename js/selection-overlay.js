@@ -93,6 +93,9 @@ function _hostOf(el) {
 function _variantOf(host) {
   if (host.closest('.asset-overlay')) return 'overlay';
   if (host.classList.contains('sticker-block') || host.classList.contains('gradient-block')) return 'sticker';
+  /* ★선언형 — 위 두 클래스와 «같은 뜻»이지만 이름 목록을 안 늘린다(블록이 자기 갈래를 들고 온다).
+     확대블럭(zoom)이 이 길로 보라를 받는다. */
+  if (host.dataset?.selVariant) return host.dataset.selVariant;
   return '';
 }
 

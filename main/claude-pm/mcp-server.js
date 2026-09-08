@@ -485,6 +485,9 @@ const _TARGET_FREE = new Set([
   // ⑴ 읽기 — ⛔이 줄을 줄이지 마라. 막으면 클로드가 현황을 물어볼 통로가 사라진다.
   'read_project', 'read_section', 'get_canvas_state', 'list_projects', 'list_memories',
   'list_scratch_items', 'read_scratch_item', 'list_checklist_items', 'get_section_memo',
+  'search_sections',   /* 읽기 전용 — 아무것도 안 바꾼다 */
+  /* ⚠️edit_checklist_section 은 «쓰기»라 여기 넣지 않는다 — list op 하나 때문에 게이트를 열면
+       create/rename/delete 까지 같이 열린다(도구 «이름»으로 게이트를 걸기 때문이다). */
   'search_iconify', 'get_block_schema', 'goditor_which_instance',
   /* ★list_assets 는 «자기 대상을 지목하는» 읽기다(projectId 인자를 받는다).
      게이트로 막으면 「어느 프로젝트에 무슨 에셋이 있나」를 «물어볼 수조차» 없어진다 — ⑴의 취지 그대로. */
@@ -860,6 +863,27 @@ function _enrichApiMissing(result) {
  *      그래서 «자동 폴백»을 둔다: 다이어트 후에도 큰 페이지는 summary 로 내려간다. */
 const _CANVAS_TEXT_CAP = 120;
 const _CANVAS_AUTO_SUMMARY_CHARS = 24000; // 이 이상이면 summary 로 자동 폴백(≈6~7k토큰)
+/* ★P1 — 목록의 미리보기는 «첫 블록»이 아니라 «첫 글자»여야 한다.
+     ⛔실측(2026-09-08, 끌리젠 102섹션): 문자 그대로 blocks[0] 을 봤더니 «102줄이 전부 (gap)» 였다.
+       섹션은 거의 언제나 여백으로 시작하기 때문이다.
+       그러면 목록을 아무리 불러도 «어느 섹션이 뭔지»를 알 수가 없어서,
+       「가격 나온 섹션 고쳐줘」 한 마디에 102번을 열어봐야 했다.
+     ⇒ 글자가 있는 «첫 블록»을 찾는다. 텍스트가 아닌 블록도 summary.text 를 들고 있다(표·이미지 캡션 등).
+     ⇒ 글자가 하나도 없으면 그때만 «무슨 블록인지»로 답한다 — 단, 여백은 답이 될 수 없으니 건너뛴다. */
+function _firstMeaningful(blocks) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  for (const b of list) {
+    if (!b) continue;
+    const t = (b.text != null && b.text !== '') ? b.text
+            : (b.summary && typeof b.summary === 'object' ? b.summary.text : '');
+    const s = String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
+    if (s) return s.length > 40 ? s.slice(0, 40) + '…' : s;
+  }
+  /* 글자가 없는 섹션(이미지만·도형만)도 «비어 있다»고 말하면 안 된다 — 무슨 블록인지는 말해 준다 */
+  const b = list.find(x => x && x.type && x.type !== 'gap') || list[0];
+  return b && b.type ? '(' + b.type + ')' : '(빈 섹션)';
+}
+
 function _slimCanvasState(raw, detail) {
   if (!raw || raw.ok !== true || !Array.isArray(raw.sections)) return raw;
   if (detail === 'full') return raw;
@@ -874,7 +898,7 @@ function _slimCanvasState(raw, detail) {
         sectionId: s.sectionId,
         ...(s.name ? { name: s.name } : {}),
         blocks: (s.blocks || []).length,
-        ...((s.blocks || []).length ? { first: String((s.blocks[0] || {}).text || ('(' + ((s.blocks[0] || {}).type || 'block') + ')')).slice(0, 40) } : {}),
+        ...((s.blocks || []).length ? { first: _firstMeaningful(s.blocks) } : {}),
         /* ★요약에서도 «중첩이 있나»는 알려준다 — 없으면 평평한 페이지로 오해한다 */
         nested: (s.blocks || []).filter(b => b && b.parentId).length
       })),
@@ -1625,7 +1649,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.addSection({ empty: !!empty, bg, beforeId, afterId, sourceScratchIds: scratch });
     },
     {
-      description: 'Add a new section. Default = appended after selected (or canvas end). Use beforeId/afterId to insert at a specific position. Default body = gap + h2 placeholder + gap. empty:true = only top/bottom gaps. sourceScratchIds: optional sp_xxx[] — auto-records "출처: sp_aa, sp_bb" line into dataset.memo for traceability.',
+      description: 'Add a new CANVAS section (a band on the page). ⚠️NOT a checklist group — if the user said "체크리스트에 … 섹션" use edit_checklist_section(op:"create") instead. Default = appended after selected (or canvas end). Use beforeId/afterId to insert at a specific position. Default body = gap + h2 placeholder + gap. empty:true = only top/bottom gaps. sourceScratchIds: optional sp_xxx[] — auto-records "출처: sp_aa, sp_bb" line into dataset.memo for traceability.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1913,7 +1937,7 @@ function _registerDefaultTools() {
   // PM add_checklist_item — 체크리스트 항목(=핀) 추가. 평가/todo 등록용.
   registerTool(
     'add_checklist_item',
-    async ({ text, x, y, sectionId, done = false, urgent = false } = {}) => {
+    async ({ text, x, y, sectionId, ckSectionId, done = false, urgent = false } = {}) => {
       if (!text || typeof text !== 'string') throw new Error('text required (string)');
       if (text.length > 500) throw new Error('text too long (>500)');
       if (sectionId !== undefined && sectionId !== null) {
@@ -1921,16 +1945,38 @@ function _registerDefaultTools() {
       }
       if (x !== undefined && x !== null && typeof x !== 'number') throw new Error('x must be number');
       if (y !== undefined && y !== null && typeof y !== 'number') throw new Error('y must be number');
+      /* ★«캔버스 섹션»(sec_) 과 «체크리스트 섹션»(ck_) 은 다른 것이다 — 접두로 가른다.
+         섞어 주면 「분류했다」고 믿는데 실제로는 핀만 움직이는(또는 아무 일도 없는) 일이 난다. */
+      if (ckSectionId !== undefined && ckSectionId !== null) {
+        if (typeof ckSectionId !== 'string' || !ckSectionId.startsWith('ck_')) {
+          throw new Error(`invalid ckSectionId: ${ckSectionId} — expected ck_xxx (a CHECKLIST section, not a canvas sec_). Get ids from list_checklist_items(sections) or edit_checklist_section(op:"list").`);
+        }
+      }
       if (!_rendererInvoker?.addChecklistItem) throw new Error('renderer bridge not ready');
-      return await _rendererInvoker.addChecklistItem({ text, x, y, sectionId, done, urgent });
+      const _r = await _rendererInvoker.addChecklistItem({ text, x, y, sectionId, ckSectionId, done, urgent });
+      /* ★★2026-09-08 실측: 프롬프트로 「체크리스트에 '검수' 섹션 만들고 거기에 할 일 추가」를 시켰더니
+           모델이 캔버스 sec_ 를 만들고 add_checklist_item{sectionId} 를 불렀다.
+           도구는 ok 를 돌려줬고 항목도 생겼지만 «분류는 안 됐다» — 조용한 오해다.
+         ⇒ 「됐다」만 말하지 않고 «안 된 것»을 같이 말한다. 막지는 않는다(핀 좌표는 정당한 용도다). */
+      if (_r && _r.ok !== false && sectionId && !ckSectionId) {
+        return Object.assign({}, _r, {
+          notGrouped: true,
+          note: 'sectionId 는 «캔버스 섹션»이라 핀 위치만 잡았습니다 — 이 할 일은 어떤 체크리스트 섹션에도 «분류되지 않았습니다».',
+          hint: 'If you meant to file it under a checklist group, create one with edit_checklist_section(op:"create", name) and pass its ck_xxx id as ckSectionId (add_checklist_item or update_checklist_item).',
+        });
+      }
+      return _r;
     },
     {
-      description: 'Add a checklist item (todo). If sectionId given (without x/y), pin auto-positions next to that section on the canvas. If x/y given, pin placed at those canvas coords. Otherwise just a list item (no pin). Use for: section evaluation notes, work-needed todos, scratch-source tracking ("이 섹션은 sp_xxx 출처").',
+      description: 'Add a checklist item (todo). ★★If the user asked to put it under a checklist GROUP, '
+        + 'you must pass ckSectionId (ck_xxx) — passing sectionId (sec_xxx) instead files it NOWHERE and the response will say so. '
+        + '★Two different "section" concepts: ckSectionId (ck_xxx) files it under a CHECKLIST section in the panel; sectionId (sec_xxx) only positions the canvas PIN. If sectionId given (without x/y), pin auto-positions next to that section on the canvas. If x/y given, pin placed at those canvas coords. Otherwise just a list item (no pin). Use for: section evaluation notes, work-needed todos, scratch-source tracking ("이 섹션은 sp_xxx 출처").',
       inputSchema: {
         type: 'object',
         properties: {
           text: { type: 'string', description: 'todo/note text (≤500 chars)' },
-          sectionId: { type: 'string', description: 'sec_xxx — auto-position pin next to this section' },
+          sectionId: { type: 'string', description: 'CANVAS section sec_xxx — only auto-positions the PIN next to it. This does NOT file the todo under a checklist section (different concept, confusingly similar name).' },
+          ckSectionId: { type: 'string', description: 'CHECKLIST section ck_xxx — files the todo under that group in the panel. Create one with edit_checklist_section(op:"create"). Refused if it does not exist (nothing is added).' },
           x: { type: 'number', description: 'canvas x coord (overrides sectionId auto-position)' },
           y: { type: 'number', description: 'canvas y coord' },
           done: { type: 'boolean', description: 'mark as already completed. default false' },
@@ -2501,7 +2547,7 @@ function _registerDefaultTools() {
   // PM이 done 토글, 텍스트 수정, 핀 위치 재배치 가능 (이전 add_checklist_item만 있던 한계 해결).
   registerTool(
     'update_checklist_item',
-    async ({ id, text, done, urgent, x, y } = {}) => {
+    async ({ id, text, done, urgent, x, y, ckSectionId } = {}) => {
       if (!_rendererInvoker || typeof _rendererInvoker.updateChecklistItem !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
@@ -2514,13 +2560,18 @@ function _registerDefaultTools() {
       if (urgent !== undefined && typeof urgent !== 'boolean') throw new Error('urgent must be boolean');
       if (x !== undefined && x !== null && typeof x !== 'number') throw new Error('x must be number or null');
       if (y !== undefined && y !== null && typeof y !== 'number') throw new Error('y must be number or null');
+      if (ckSectionId !== undefined && ckSectionId !== null && ckSectionId !== '') {
+        if (typeof ckSectionId !== 'string' || !ckSectionId.startsWith('ck_')) {
+          throw new Error(`invalid ckSectionId: ${ckSectionId} — expected ck_xxx (a CHECKLIST section). Get ids from edit_checklist_section(op:"list").`);
+        }
+      }
       // 최소 1개 필드 필수
-      const has = [text, done, urgent, x, y].some(v => v !== undefined);
-      if (!has) throw new Error('no fields to update — provide at least one of text/done/urgent/x/y');
-      return await _rendererInvoker.updateChecklistItem({ id, text, done, urgent, x, y });
+      const has = [text, done, urgent, x, y, ckSectionId].some(v => v !== undefined);
+      if (!has) throw new Error('no fields to update — provide at least one of text/done/urgent/x/y/ckSectionId');
+      return await _rendererInvoker.updateChecklistItem({ id, text, done, urgent, x, y, ckSectionId });
     },
     {
-      description: 'Update an existing checklist item (ck_xxx) — partial update of text/done/urgent/x/y. Use to toggle done, edit text, reposition pin. Returns {ok, itemId, item}. Pass null for x/y to detach the pin.',
+      description: 'Update an existing checklist item (ck_xxx) — partial update of text/done/urgent/x/y/ckSectionId. Use to toggle done (done:true = 완료), edit text, move it under a checklist section, reposition pin. Returns {ok, itemId, item}. Pass null for x/y to detach the pin.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -2529,10 +2580,109 @@ function _registerDefaultTools() {
           done: { type: 'boolean', description: 'mark complete/incomplete' },
           urgent: { type: 'boolean', description: 'urgent flag' },
           x: { type: ['number', 'null'], description: 'canvas x coord. null = detach pin' },
-          y: { type: ['number', 'null'], description: 'canvas y coord. null = detach pin' }
+          y: { type: ['number', 'null'], description: 'canvas y coord. null = detach pin' },
+          ckSectionId: { type: ['string', 'null'], description: 'CHECKLIST section ck_xxx — move this todo under that group. null = remove it from any group. Refused if the section does not exist (nothing changes).' }
         },
         required: ['id']
       }
+    }
+  );
+
+  /* ─── P2 search_sections — 내용으로 섹션 찾기 (2026-09-08) ─────────────────
+     ⛔이게 없어서 「'무료배송' 적힌 데 고쳐줘」에 102섹션을 하나씩 열어야 했다. */
+  registerTool(
+    'search_sections',
+    async ({ query, limit = 50, caseSensitive = false, wholeWord = false } = {}) => {
+      if (typeof query !== 'string' || !query.trim()) throw new Error('query required (non-empty string)');
+      if (query.length > 200) throw new Error('query too long (>200)');
+      const lim = Number(limit);
+      if (!Number.isInteger(lim) || lim < 1 || lim > 300) throw new Error('limit must be 1..300');
+      if (!_rendererInvoker?.searchSections) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.searchSections({
+        query, limit: lim, caseSensitive: !!caseSensitive, whole: !!wholeWord,
+      });
+    },
+    {
+      description: 'Find WHERE a phrase appears in the open project — searches every section in one pass. '
+        + 'Use this before editing when the user names content instead of an id '
+        + '("fix the section with the price table", "\u2018무료배송\u2019 적힌 데 고쳐줘", spell-check, bulk rewording). '
+        + 'Returns {ok, query, matches, hits:[{sectionId, sectionName, blockId, type, where, excerpt, chars}], '
+        + 'excerpt is the match with ~24 chars of context; chars is the block\u2019s full length. '
+        + 'For the whole text call get_canvas_state(sectionId) \u2014 the hit is deliberately short to keep responses cheap. '
+        + 'scannedSections, scannedBlocks, truncated}. Section NAMES are searched too. '
+        + '★scannedSections/scannedBlocks are reported so 0 matches can be told apart from "nothing was scanned" '
+        + '(0 scanned means no project is open, not that the phrase is absent). '
+        + 'Feed a hit\u2019s blockId straight into update_block, or its sectionId into get_canvas_state(sectionId).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'text to look for (substring, case-insensitive by default)' },
+          limit: { type: 'integer', description: 'max hits, 1..300 (default 50)' },
+          caseSensitive: { type: 'boolean', description: 'default false' },
+          wholeWord: { type: 'boolean', description: 'require a word boundary around the match (default false)' },
+          expectedProject: { type: 'string' },
+        },
+        required: ['query'],
+        additionalProperties: false,
+      },
+    }
+  );
+
+  /* ─── edit_checklist_section — 체크리스트 «섹션» (2026-09-07 현빈 요청) ──────
+     현빈: 「투두 추가, 투두 완수/완료, 섹션명 지정. 핀은 없어도 된다」
+     ⇒ 추가·완료는 add/update_checklist_item 이 이미 한다. «섹션»만 없었다.
+     ⛔도구를 넷으로 흩지 않고 op 로 가른다(에셋 트리와 같은 모양). */
+  registerTool(
+    'edit_checklist_section',
+    async (args = {}) => {
+      const OPS = ['create', 'rename', 'delete', 'list'];
+      const op = args && args.op;
+      if (!OPS.includes(op)) return { ok: false, code: 'BAD_OP', message: 'op must be one of ' + OPS.join('|') };
+      if (['rename', 'delete'].includes(op) && !args.id) {
+        return { ok: false, code: 'INVALID', message: op + ' needs id (ck_xxx) — get it from op:"list"' };
+      }
+      if (args.id !== undefined && args.id !== null && (typeof args.id !== 'string' || !args.id.startsWith('ck_'))) {
+        return { ok: false, code: 'INVALID', message: `invalid id: ${args.id} — expected ck_xxx (a CHECKLIST section, not a canvas sec_)` };
+      }
+      if (['create', 'rename'].includes(op)) {
+        const nm = typeof args.name === 'string' ? args.name.trim() : '';
+        if (!nm) return { ok: false, code: 'INVALID', message: op + ' needs a non-empty name' };
+        if (nm.length > 100) return { ok: false, code: 'INVALID', message: 'name too long (>100)' };
+      }
+      /* ★지우기는 «사람 확인»을 여기서 받는다 — 에셋 삭제와 같은 규칙.
+         ⚠️단 여기는 «항목을 지우지 않는다»(앱 규칙: 섹션만 없어지고 항목은 «섹션 없음»으로 내려간다).
+           그 사실을 메시지에 적어 준다 — 「투두가 날아간다」고 오해하면 필요한 정리를 못 한다. */
+      if (op === 'delete' && args.confirm !== true) {
+        return { ok: false, code: 'CONFIRM_REQUIRED',
+          message: '섹션을 지우려면 confirm:true 를 같이 주세요 — 아무것도 지우지 않았습니다.',
+          hint: 'The TODOS SURVIVE — they just move out of the group (same as the app). Only the group disappears. Ask the user, then retry with confirm:true.' };
+      }
+      if (!_rendererInvoker?.checklistSection) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.checklistSection({ op, id: args.id, name: args.name });
+    },
+    {
+      description: 'Manage CHECKLIST sections — the groups in the Checklist panel that todos are filed under. '
+        + '★USE THIS (not add_section) when the user says "체크리스트에 <이름> 섹션/그룹을 만들어줘", '
+        + '"make a checklist section/group", "그룹으로 묶어줘" — add_section creates a CANVAS section on the page, '
+        + 'which is a completely different thing and will NOT show up in the Checklist panel. '
+        + 'op: list | create (name) | rename (id, name) | delete (id, confirm:true). '
+        + 'Ids are ck_xxx. ⚠️These are NOT canvas sections (sec_xxx) — different concept, similar name. '
+        + 'File a todo under one with add_checklist_item{ckSectionId} or update_checklist_item{ckSectionId}. '
+        + 'op:delete keeps the TODOS (they just leave the group) and removes only the group — same as the app. '
+        + 'Every op returns the full {sections:[{id,name,collapsed,count,doneCount}]} read back AFTER the write, '
+        + 'plus {section, stillExists} — so it reports what actually happened, not what you asked for.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          op: { type: 'string', enum: ['list', 'create', 'rename', 'delete'] },
+          id: { type: 'string', description: 'ck_xxx target section (rename/delete)' },
+          name: { type: 'string', description: 'section name (create/rename), ≤100 chars' },
+          confirm: { type: 'boolean', description: 'required (true) for op:delete. Todos survive; only the group is removed.' },
+          expectedProject: { type: 'string' },
+        },
+        required: ['op'],
+        additionalProperties: false,
+      },
     }
   );
 
@@ -2541,13 +2691,31 @@ function _registerDefaultTools() {
   // 만든 항목을 다시 찾을(그래서 update/delete할) 방법이 없었다.
   registerTool(
     'list_checklist_items',
-    async ({ includeDone = true, sectionId } = {}) => {
+    async ({ includeDone = true, sectionId, ckSectionId } = {}) => {
       if (typeof includeDone !== 'boolean') throw new Error('includeDone must be boolean');
+      /* ⛔★2026-09-07: 이 자리의 sectionId 필터는 «영원히 0건»이었다.
+           여기선 sec_ 만 받게 검사하는데, 항목이 저장하는 sectionId 는 «체크리스트 섹션»(ck_)이다.
+           ⇒ 접두가 겹칠 수가 없어 filter 가 항상 빈 배열을 준다.
+           「0건」이 「없다」로 읽히는 «가장 나쁜» 모양이라, 조용히 두지 않고 «거절»한다. */
       if (sectionId !== undefined && sectionId !== null) {
-        if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) throw new Error(`invalid sectionId: ${sectionId}`);
+        throw new Error('sectionId is not a filter here — checklist items are grouped by CHECKLIST sections (ck_xxx), not canvas sections (sec_xxx). Use ckSectionId instead. (Filtering by sectionId always returned 0 items; it was never a real filter.)');
+      }
+      if (ckSectionId !== undefined && ckSectionId !== null) {
+        if (typeof ckSectionId !== 'string' || !ckSectionId.startsWith('ck_')) throw new Error(`invalid ckSectionId: ${ckSectionId} — expected ck_xxx`);
       }
       if (!_rendererInvoker?.listChecklistItems) throw new Error('renderer bridge not ready');
-      return await _rendererInvoker.listChecklistItems({ includeDone, sectionId });
+      const items = await _rendererInvoker.listChecklistItems({ includeDone, sectionId: ckSectionId });
+      /* ★섹션 목록을 «같이» 준다 — 「섹션명 지정」을 하려면 ck_ id 가 있어야 하는데
+         그걸 얻으려고 도구를 한 번 더 부르게 하면 그 왕복에서 id 를 잃는다. */
+      let sections = null;
+      try {
+        if (_rendererInvoker?.checklistSection) {
+          const r = await _rendererInvoker.checklistSection({ op: 'list' });
+          if (r && Array.isArray(r.sections)) sections = r.sections;
+        }
+      } catch (_) { /* 섹션 조회 실패가 항목 조회를 죽이지 않는다 */ }
+      const base = (items && typeof items === 'object' && !Array.isArray(items)) ? items : { ok: true, items, count: Array.isArray(items) ? items.length : null };
+      return Object.assign({}, base, { sections });
     },
     {
       description: 'List checklist items (todos/pins) in the active project. Returns {ok, items:[{id,text,done,urgent,x,y,sectionId,createdAt,updatedAt}], count}. '
@@ -8027,9 +8195,17 @@ async function _handleRpc(msg) {
           try { r = { ...r, warnings: [...(r.warnings || []), _unknownArgWarning(name, _unknown)] }; }
           catch (_) { /* 경고 실패가 응답을 막지 않는다 */ }
         }
+        const _text = JSON.stringify(r);
+        /* ★★원장에 «응답 크기»를 적는다 (2026-09-08).
+             ⛔지금까지 원장은 argBytes(보낸 양)만 셌다 — 그런데 토큰을 먹는 건 «돌아오는 양»이다.
+               ⇒ 「토큰이 녹았다」는 말이 나와도 «어느 도구가 얼마나» 먹었는지 답할 수가 없었다.
+             실측(2026-09-08, 실물 102섹션): get_canvas_state 한 번이 ~2,700 토큰,
+               get_block_schema(canvas) 한 번이 ~3,000 토큰. 이게 본체다.
+             ⛔글자수만 적는다 — 내용은 안 적는다(원장 규약: 값 금지). */
         try { _audit(r && r.ok === false ? 'refused' : 'ok',
-                     r && r.code ? { code: r.code } : null); } catch (_) {}
-        return ok({ content: [{ type: 'text', text: JSON.stringify(r) }], isError: false });
+                     Object.assign({ resultChars: _text.length },
+                                   r && r.code ? { code: r.code } : null)); } catch (_) {}
+        return ok({ content: [{ type: 'text', text: _text }], isError: false });
       };
       /* ★«스키마에 없는 인자»를 여기 «한 자리»에서 다룬다 (2026-09-07 g-mcpmgr).
        *
