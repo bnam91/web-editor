@@ -179,7 +179,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 }
 
 /* ── Asset Block corner radius handles (Figma 스타일) ── */
-.asset-radius-handle {
+/* ★`.mdl-radius-handle`(모달)를 «같은 규칙»에 얹는다 — 복사가 아니라 공유다.
+ *   ⛔클래스까지 «빌리면» hideAssetRadiusHandles() 의 일괄 remove 가 모달 핸들을 지운다
+ *     (아이콘 원형이 실제로 그렇게 물렸다 — 아래 .icb-overlay-handle 주석 참조). */
+.asset-radius-handle,
+.mdl-radius-handle {
   position: absolute;
   width:  7px;
   height: 7px;
@@ -192,7 +196,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   cursor: crosshair;
   transition: transform 0.1s;
 }
-.asset-radius-handle:hover {
+.asset-radius-handle:hover,
+.mdl-radius-handle:hover {
   transform: scale(1.4);
   background: var(--sel-color);
 }
@@ -224,7 +229,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * `hideAssetResizeHandles()` 가 오버레이의 `.asset-overlay-handle` 을 «전부» 쓸어담아 지운다.
  * 그래서 deselectAll() 한 번에 남의 정리가 이쪽 핸들을 지워버렸다(실측: 재클릭 시 1→0개). */
 .asset-overlay-handle,
-.icb-overlay-handle {
+.icb-overlay-handle,
+.mdl-overlay-handle {
   position: absolute;
   width:  7px;
   height: 7px;

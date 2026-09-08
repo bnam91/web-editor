@@ -1042,7 +1042,10 @@ test('ⓑ-26 ★⑯모서리 핸들이 «보라» — 그리고 자산 블록은
   assert.ok(rule, '확대블럭 핸들 색 규칙이 없다');
   assert.match(rule[1], /border-color:\s*var\(--ui-sel-overlay/, '아웃라인과 다른 색이면 한 블록에 두 색이 된다');
   /* ⛔공용 규칙(.asset-overlay-handle)은 파랑 그대로여야 한다 — 바꾸면 자산 블록이 물든다. */
-  const shared = css.match(/\n\.asset-overlay-handle,\s*\n\.icb-overlay-handle \{([^}]*)\}/);
+  /* ⚠️셀렉터 «목록»은 늘어난다(핸들을 새로 만드는 블록이 이 규칙에 얹힌다 — 복사 금지 규율).
+     ⇒ 목록의 «길이»를 고정하지 말고, 두 이름이 같은 규칙 안에 있는지로 대상을 잡는다.
+     검사의 요지는 그대로다: 이 «공용 규칙의 본문»이 파랑이어야 한다. */
+  const shared = css.match(/\n\.asset-overlay-handle,\s*\n\.icb-overlay-handle[^{]*\{([^}]*)\}/);
   assert.ok(shared, '공용 핸들 규칙을 못 찾았다 — 검사가 대상을 놓쳤다');
   assert.match(shared[1], /border:[^;]*var\(--sel-color\)/, '공용 핸들을 보라로 바꿨다 — 자산 블록이 같이 물든다');
   assert.equal(/ui-sel-overlay/.test(shared[1]), false);

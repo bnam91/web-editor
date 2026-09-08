@@ -1795,6 +1795,11 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window[showFn]?.(block);
+      /* ★핸들도 «여기서» 띄운다 — 이 루프엔 호출이 아예 없어서 모달을 클릭하면
+         선택 테두리(오버레이)는 그려지는데 «모서리 점»만 안 나왔다(실측 handleCount 0).
+         showHandlesFor 는 블록 종류를 스스로 가른다 ⇒ 분기가 없는 grid/infocard/innercard 는
+         no-op 이고(실측 확인), modal 만 새로 잡힌다. */
+      window.showHandlesFor?.(block);
     });
   }
 

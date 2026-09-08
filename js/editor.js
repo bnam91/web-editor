@@ -2898,6 +2898,11 @@ function deselectAll() {
   window.hideIconHandles?.();
   window.hideAssetRadiusHandles?.();
   window.hideAssetResizeHandles?.();
+  /* ★모달 핸들은 «자기» hide 를 갖는다 — .asset-* 클래스를 빌리지 않았기 때문이다.
+     빌렸다면 hideAssetResizeHandles 의 일괄 remove 에 쓸려 나가고(아이콘 원형이 물렸던 병),
+     모듈 안의 _modalResizeBlock 이 해제된 블록을 계속 가리켜 재클릭이 no-op 이 된다. */
+  window.hideModalRadiusHandles?.();
+  window.hideModalResizeHandles?.();
   /* ★아이콘원형 핸들도 «여기서» 정리한다 — 빠져 있었다.
    * 빠져 있으면 모듈 내부의 `_icbResizeBlock` 이 «선택 해제된 블록»을 계속 가리킨 채 남고,
    * 같은 블록을 다시 클릭하면 `showIconCircleResizeHandle` 의 동일블록 가드에 걸려 no-op 이 된다.
