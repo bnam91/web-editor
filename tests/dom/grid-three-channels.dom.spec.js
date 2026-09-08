@@ -152,11 +152,21 @@ test('D4 ★편집용 마커가 저장본·HTML·PNG «어디에도» 안 샌다
   }
 });
 
-test('D4-b ★명부의 «DOM 채널» 이 이 검사가 돌린 갈래와 같다 (7번째 문이 생기면 여기서 걸린다)', () => {
-  const carriers = CHANNELS.filter(c => c.carriesDomClasses).map(c => c.file).sort();
-  expect(carriers, '★DOM 을 나르는 채널 명부가 바뀌었다 — 위 D4 가 «안 돌리는» 갈래가 생겼다. ' +
-    '이 검사에 그 채널을 추가해라 (tests/unit/export-channel-roster.test.mjs U6 가 명부 자체를 지킨다).')
-    .toEqual(['js/io/export-html.js', 'js/io/export-image.js', 'js/io/section-serialize.js']);
+test('D4-b ★artifact 명부가 이 검사가 «돌린» 갈래와 맞는다 (다음 문이 생기면 여기서 걸린다)', () => {
+  const arts = CHANNELS.filter(c => c.kind === 'artifact').map(c => c.file).sort();
+  expect(arts, '★artifact 채널 명부가 바뀌었다 — 위 D4 가 «안 돌리는» 갈래가 생겼을 수 있다. ' +
+    '새 채널을 여기서 실제로 돌리거나, serializeCleanRoot 위임임을 확인해라 ' +
+    '(tests/unit/export-channel-roster.test.mjs U6 가 명부 자체를 지킨다).')
+    .toEqual(['js/io/export-html.js', 'js/io/export-image.js',
+              'js/io/section-serialize.js', 'js/panels/template-system.js']);
+
+  /* ★template-system.js 는 여기서 «직접 안 돌린다» — 그 파일을 이 하네스에 띄우려면
+     에디터 전역(electronAPI·패널·캔버스 상태)이 통째로 필요하다. 대신 두 겹으로 덮는다:
+       ⑴ U6-c 가 「그 파일이 serializeCleanRoot 를 실제로 «부른다»」를 단언하고,
+       ⑵ 위 D4 의 채널 ① 이 「serializeCleanRoot 가 마커를 0건으로 만든다」를 «실제로» 돌려 증명한다.
+     ⇒ 「안 쟀다」가 아니라 「위임 + 위임받는 쪽」을 각각 쟀다. 실기 확인은 지디 몫이다. */
+  const tpl = CHANNELS.find(c => c.file === 'js/panels/template-system.js');
+  expect(tpl.strips, 'template-system 이 위임을 그만뒀다 — 그러면 여기서 직접 돌려야 한다').toBe('serializeCleanRoot');
 });
 
 /* ══ D3 — 세 갈래의 «색»이 서로 같다 (§7-ⓐ 가 3분열을 닫았다) ═══════════

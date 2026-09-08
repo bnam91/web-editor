@@ -1,41 +1,72 @@
-/* _export-channels — 「캔버스 DOM 이 결과물로 나가는 «문»」의 명부. (2026-09-08)
+/* _export-channels — 「캔버스 DOM 을 «클론해서» 무언가를 만드는 문」의 명부. (2026-09-09)
  *
  * ★왜 있나
- *   편집 전용 마커(.selected · .bn2-line-selected · .grd-line-selected …)는 저장본·PNG·HTML
- *   «어디로도» 새면 안 된다. 그런데 그걸 벗기는 자리가 이 레포엔 «흩어져» 있다 —
- *   한 곳만 빠지면 선택 파란 테두리가 배송본에 박힌다.
- *   ⛔그래서 「6자리 다 지웠나」로 세지 않는다. 7번째 문이 생기는 날 조용히 통과하기 때문이다.
- *   ⇒ 문의 «명부»를 여기 두고, tests/unit/export-channel-roster.test.mjs (U6) 가
- *     js/io 를 glob 으로 훑어 «명부 밖 파일 0건»을 강제한다. 새 파일이 생기면 빨강이다.
+ *   편집 전용 마커(.selected · .bn2-line-selected · .grd-line-selected …)는 저장본·PNG·HTML·
+ *   템플릿 «어디로도» 새면 안 된다. 그런데 그걸 벗기는 자리가 이 레포엔 «흩어져» 있다.
+ *   ⛔「6자리 다 지웠나」로 세면 «7번째 문»이 생기는 날 조용히 통과한다.
  *
- * ⛔여기에 파일을 «손으로» 늘려서 빨강을 끄지 마라 — 늘리려면 그 파일이 DOM 클래스를
- *   결과물로 나르는지 «보고» carriesDomClasses 를 정하고, true 면 마커 스트립을 «붙여라».
+ * ★★그리고 그 7번째 문은 «가설이 아니라 실물»이었다 (2026-09-09 적대 검수)
+ *   js/panels/template-system.js 의 cloneNode(true) 3곳이 .selected/.editing 은 벗기면서
+ *   .bn2-line-selected 와 .grd-line-selected 는 «둘 다» 안 벗기고 있었다.
+ *   ⇒ 줄을 선택한 채 템플릿으로 저장하면 마커가 템플릿 HTML 에 박히고, 다시 꺼내 넣으면
+ *     «유령 선택바»가 실제로 그려진다. bn2 는 «원래부터» 새고 있었다.
+ *   ⇒ 그래서 이 명부의 분모를 «js/io/export-*» 에서 «cloneNode(true) 전수»로 넓혔다.
+ *     ★손으로 적은 명부는 다음 문을 못 본다. 분모는 기계가 정해야 한다.
+ *
+ * ⛔여기에 파일을 «손으로» 늘려서 빨강을 끄지 마라 — 늘리려면 그 클론이 무엇을 만드는지
+ *   «보고» kind 를 정해라. artifact 면 마커 스트립을 붙여야 한다(serializeCleanRoot 위임이 정답).
  *
  * 이 파일은 도구다(`_` 로 시작해 테스트 글롭에 안 걸린다).
  */
 'use strict';
 
-/** 편집 전용 마커가 «반드시» 벗겨져야 하는 클래스 토큰 — 채널마다 전부 있어야 한다. */
+/** 편집 전용 마커 — artifact 채널에서 «반드시» 벗겨져야 하는 클래스 토큰. */
 const MARKER_TOKENS = ['bn2-line-selected', 'grd-line-selected'];
 
+/** 세척 단일 진실원. 이걸 부르면 토큰을 손으로 열거하지 않아도 된다(권장). */
+const CLEAN_FN = 'serializeCleanRoot';
+
 /**
- * js/io 아래에서 «결과물을 내는» 파일 전수.
- *   carriesDomClasses: true  = 캔버스 DOM 을 클론해 클래스째 내보낸다 ⇒ 마커를 벗겨야 한다
- *                      false = DOM 클래스를 안 나른다(JSON·게이트·리포트 등) ⇒ 스트립 불필요
+ * kind — 그 클론이 «무엇을 만드는가»
+ *   'artifact'  = 저장·배송되는 산출물이 된다        ⇒ 마커 스트립 «필수»(U6-c 가 검사)
+ *   'compare'   = 비교용 «키 문자열»을 만든다         ⇒ 마커가 남으면 «오탐»을 만든다(백로그 F2)
+ *   'transient' = 라이브 캔버스·리스너 교체·드래그 고스트 ⇒ 스트립 불필요
  */
 const CHANNELS = [
-  { file: 'js/io/section-serialize.js', carriesDomClasses: true,
-    why: '저장본 — getSerializedCanvas 가 캔버스 «클론»을 세척해 innerHTML 로 굳힌다' },
-  { file: 'js/io/export-html.js', carriesDomClasses: true,
-    why: 'HTML 내보내기 — 클론을 그대로 문서로 만든다' },
-  { file: 'js/io/export-image.js', carriesDomClasses: true,
+  // ── artifact — 마커가 새면 결과물에 박힌다 ─────────────────────────────
+  { file: 'js/io/section-serialize.js', kind: 'artifact', strips: 'inline',
+    why: '저장본 — 캔버스 클론을 세척해 innerHTML 로 굳힌다. ★이 파일이 «세척의 단일 진실원»이다' },
+  { file: 'js/io/export-html.js', kind: 'artifact', strips: 'inline',
+    why: 'HTML 내보내기 — 라이브 클론을 그대로 문서로 만든다(serializeCleanRoot 를 안 거친다)' },
+  { file: 'js/io/export-image.js', kind: 'artifact', strips: 'inline',
     why: 'PNG 내보내기 — 라이브 DOM 클론을 캡처한다(재렌더가 마커를 되붙이는 자리도 여기)' },
+  { file: 'js/panels/template-system.js', kind: 'artifact', strips: CLEAN_FN,
+    why: '★템플릿 저장 3곳(섹션·덮어쓰기·블록) — 2026-09-09 까지 마커를 «안» 벗기던 7번째 문. ' +
+         '손 열거 대신 serializeCleanRoot 에 위임한다' },
 
-  { file: 'js/io/export-design-json.js', carriesDomClasses: false, why: '디자인 JSON — 클래스가 아니라 모델을 쓴다' },
-  { file: 'js/io/export-figma-json.js',  carriesDomClasses: false, why: '피그마 JSON — 모델 직렬화' },
-  { file: 'js/io/export-gate-core.js',   carriesDomClasses: false, why: '릴리스 게이트 판정 — 산출물이 없다' },
-  { file: 'js/io/export-gate.js',        carriesDomClasses: false, why: '릴리스 게이트 진입점 — 산출물이 없다' },
-  { file: 'js/io/export-report.js',      carriesDomClasses: false, why: '리포트 — 텍스트 요약이라 DOM 클래스를 안 나른다' },
+  // ── compare — 결과물은 아니지만 «문자열 비교»의 입력이다 ────────────────
+  { file: 'js/market-merge.js', kind: 'compare', strips: null,
+    why: '협업 머지의 섹션 정규화 키. _RUNTIME_CLS 로 UI 클래스를 걷는데 그 목록에 두 마커가 «없다» ' +
+         '⇒ 줄을 선택한 것만으로 「변경됨」 오탐이 난다(백로그 F2, 별건)' },
+  { file: 'js/version-diff.js', kind: 'compare', strips: null,
+    why: '버전 비교의 섹션 정규화 키. market-merge 와 같은 _RUNTIME_CLS 사본을 쓴다(백로그 F2)' },
+
+  // ── transient — 라이브/일시. 결과물이 아니다 ───────────────────────────
+  { file: 'js/io/save-load.js', kind: 'transient', strips: null,
+    why: '⑴ 썸네일 클론은 document.body 로 나가 #canvas 스코프 밖이라 마커가 «안 그려진다» ' +
+         '⑵ 캔버스 직렬화는 serializeCleanRoot 에 위임한다 ⑶ 히트존 리스너 교체' },
+  { file: 'js/props/prop-mockup.js', kind: 'transient', strips: null,
+    why: '목업 이미지 — 클론을 document.body 에 붙여 찍는다. 마커 CSS 가 «#canvas .grid-block» 스코프라 안 그려진다' },
+  { file: 'js/editor.js', kind: 'transient', strips: null,
+    why: '⑴ 절대배치 블록 «복제»(라이브 캔버스로 들어간다) ⑵ 히트존 노드 교체(리스너 초기화)' },
+  { file: 'js/block-factory.js', kind: 'transient', strips: null,
+    why: '히트존 노드 교체(리스너 초기화) — 내용 클론이 아니다' },
+  { file: 'js/branch-system.js', kind: 'transient', strips: null,
+    why: '브랜치 캔버스 간 섹션 «이식» — 라이브 DOM 이고, 저장은 그 뒤 serializeCleanRoot 를 탄다' },
+  { file: 'js/section-variation.js', kind: 'transient', strips: null,
+    why: '섹션 변형 «복제» — 라이브 캔버스로 들어간다(deselectAll 이 마커를 걷는다)' },
+  { file: 'js/tab-system.js', kind: 'transient', strips: null,
+    why: '탭 드래그 «고스트» — 드롭과 함께 사라진다' },
 ];
 
-module.exports = { CHANNELS, MARKER_TOKENS };
+module.exports = { CHANNELS, MARKER_TOKENS, CLEAN_FN };
