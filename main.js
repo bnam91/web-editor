@@ -197,6 +197,8 @@ function getApiKey(provider) {
   if (provider === 'openai')    return process.env.OPENAI_API_KEY_GODITOR || process.env.OPENAI_API_KEY || '';
   if (provider === 'gemini')    return process.env.GEMINI_API_KEY || '';
   if (provider === 'anthropic') return process.env.ANTHROPIC_API_KEY || '';
+  /* ★removebg 는 env 폴백을 «두지 않는다» — 개발기 .env 로 조용히 도는 순간
+     「배포하면 각자 키를 쓴다」가 개발기에서만 안 지켜진다(그 착시가 이번 발주의 발단이었다). */
   return '';
 }
 async function testApiKey(provider, key) {
@@ -221,6 +223,11 @@ async function testApiKey(provider, key) {
         body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
       });
       return { ok: r.status === 200, status: r.status, error: r.status === 200 ? null : `Anthropic key invalid (HTTP ${r.status})` };
+    }
+    if (provider === 'removebg') {
+      // 계정 조회로 «키가 유효한가»만 본다 — 이미지 전송 없음 = 과금 없음.
+      const r = await fetch('https://api.remove.bg/v1.0/account', { headers: { 'X-Api-Key': key } });
+      return { ok: r.status === 200, status: r.status, error: r.status === 200 ? null : `remove.bg key invalid (HTTP ${r.status})` };
     }
     return { ok: false, error: 'unknown provider' };
   } catch (e) {
@@ -533,6 +540,7 @@ function writeAuth(record) {
   /* ⛔조용히 삼키지 않는다 — 여기서 실패하면 «이전 계정의 뿌리»로 계속 쓴다.
      그렇다고 로그인 자체를 못 하게 막으면 사용자가 갇히므로, ★소리는 반드시 낸다.
      그리고 뿌리를 «레거시 공용 풀»로 되돌리지 않는다(그게 남의 것에 닿는 길이다). */
+  try { _repointTemplatesDir('login'); } catch (e) { console.error('[templates] login repoint 실패:', (e && e.message) || e); }
   try { _repointProjectsDir('login'); }
   catch (e) { console.error('[projects] ★로그인 뒤 뿌리 전환 실패 — 계정 격리가 서지 않았다:', (e && e.message) || e); }
   return next;
@@ -552,6 +560,7 @@ function clearAuth() {
       console.error('[auth] ★로그아웃 실패 — auth.json 을 못 지웠다:', (e && e.message) || e);
     }
   }
+  try { _repointTemplatesDir('logout'); } catch (e) { console.error('[templates] logout repoint 실패:', (e && e.message) || e); }
   try { _repointProjectsDir('logout'); }
   catch (e) { console.error('[projects] 로그아웃 뒤 뿌리 전환 실패:', (e && e.message) || e); }
   /* ⛔파일이 안 지워졌으면 _repointProjectsDir 는 «아직 로그인»으로 읽는다.
@@ -1140,6 +1149,16 @@ let PROJECTS_DIR = PROJECTS_DIR_LEGACY;
 migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR_LEGACY); // 구 경로 마이그레이션 [뿌리-정본] 레거시 풀로만 옮긴다
 if (!fs.existsSync(PROJECTS_DIR_LEGACY)) fs.mkdirSync(PROJECTS_DIR_LEGACY, { recursive: true });
 
+/* ── 템플릿 뿌리 ── 프로젝트와 «같은 판»이다(폴더로 가른다. 소유자 «필드»로 거르지 않는다).
+   ⛔다른 점이 하나 있고, 그게 이 기능의 핵심이다:
+     프로젝트의 레거시 풀은 «누군가의 개인 것»이라 첫 로그인 때 입양해서 비운다.
+     템플릿의 공용 풀은 «모두가 계속 읽는» 기본 세트라 ★입양하지 않는다. 읽기전용으로 남긴다.
+   ⇒ 읽기 = 공용 ∪ 개인, 쓰기 = 개인만. */
+const TEMPLATES_DIR_SHARED     = path.join(USER_DATA_DIR, 'templates');                    // [뿌리-정본] 공용(레거시) 풀 — 읽기전용
+const TEMPLATES_DIR_UNRESOLVED = path.join(ACCOUNTS_DIR, '_unresolved', 'templates');      // [뿌리-정본] 「누구인지 모름」 착지점
+let   TEMPLATES_DIR            = TEMPLATES_DIR_UNRESOLVED;                                  // ★상수가 아니다 — 로그인·로그아웃에 갈아끼운다
+function _accountTemplatesDir(key) { return path.join(ACCOUNTS_DIR, key, 'templates'); }   // [뿌리-정본] 계정 뿌리를 «만드는» 자리
+
 /* 계정 키 — «폴더 이름만 보고 누구 것인지 알 수 있게» 두되, 충돌은 해시로 막는다.
    (읽을 수 없는 해시만 쓰면 폴더로 가른 목적 ⑵ 가 없어진다.) */
 function _accountKeyFor(email) {
@@ -1303,6 +1322,76 @@ function _repointProjectsDir(reason) {
   return _projectsDirState;
 }
 function _projectsRoot() { return PROJECTS_DIR; }
+
+/* 계정별 «개인» 템플릿 뿌리로 갈아끼운다. 로그인/로그아웃/기동 때 부른다.
+   ⛔프로젝트와 갈리는 자리가 «비로그인»이다. 프로젝트는 비로그인이면 레거시 공용 풀을 쓰지만,
+     템플릿의 공용 풀은 ★«모든 계정이 읽는» 곳이라 거기에 쓰게 두면 비로그인 저장이 전원에게 보인다.
+     그래서 여기서는 비로그인도 격리 폴더로 내린다(읽기는 여전히 공용을 본다 — 못 쓰게 할 뿐이다). */
+let _templatesDirState = null;
+/* «손으로 꺼내는 길»을 격리 폴더 안에 적어 둔다. 프로젝트의 _writeUnresolvedReadme 와 대칭.
+   ⛔파일을 «폴더 안»(templates/)에 쓴다 — 프로젝트 안내문이 부모(accounts/_unresolved/)에
+     같은 이름으로 있어서, 같은 자리에 쓰면 서로 덮어쓴다.
+   ⛔이미 있으면 덮어쓰지 않는다 — 사용자가 손으로 적어 둔 메모까지 날릴 이유가 없다. */
+function _writeTemplatesUnresolvedReadme(why, errMessage) {
+  const fp = path.join(TEMPLATES_DIR_UNRESOLVED, 'README-읽어주세요.txt');
+  try { if (fs.existsSync(fp)) return; } catch (_) {}
+  const txt = [
+    '이 폴더는 GODITOR 가 «어느 계정인지 모를 때» 템플릿을 넣어 두는 임시 격리 폴더입니다.',
+    '',
+    `사유: ${why === 'unresolved' ? 'auth.json 을 읽지 못했습니다(손상 등)' : '로그인하지 않은 상태였습니다'}`,
+    ...(errMessage ? [`상세: ${errMessage}`] : []),
+    `기록 시각: ${new Date().toISOString()}`,
+    '',
+    '■ 왜 여기로 왔나',
+    '  템플릿의 공용 폴더는 ★«모든 계정이 함께 읽는» 곳입니다. 누구인지 모르는 상태로 거기 저장하면',
+    '  내가 만든 템플릿이 «다른 사람 모두에게» 보입니다. 그래서 아무에게도 안 보이는 곳으로 격리했습니다.',
+    '',
+    '■ ★여기 있는 것을 «어디로» 옮기면 되나',
+    '  ⑴ 먼저 앱에 정상적으로 로그인하십시오.',
+    '  ⑵ 그러면 상위 폴더(accounts/)에 «acct_...» 로 시작하는 본인 계정 폴더가 생깁니다.',
+    '  ⑶ 이 폴더의 canvas/ 안 .html 파일들을 그 «acct_.../templates/canvas/» 로 옮기고,',
+    '     index.json 의 항목들을 «acct_.../templates/index.json» 의 배열에 이어 붙이십시오.',
+    '     (index.json 이 없으면 이 폴더의 것을 그대로 옮기면 됩니다.)',
+    '  ⑷ 앱을 다시 켜면 템플릿 패널에 나타납니다.',
+    '',
+    '⚠️앱은 이 폴더를 «스스로 읽지 않습니다». 옮기지 않으면 템플릿 패널에 영영 안 보입니다.',
+    '   ⛔자동 회수(첫 로그인 때 «입양»)는 «일부러» 만들지 않았습니다 — 로그인 게이트 때문에',
+    '     이 폴더로 저장이 실제로 도달하지 못하므로 옮길 것이 생기지 않습니다.',
+    '     저장 경로가 열리는 날 입양도 «같이» 만듭니다.',
+    '⚠️이 폴더가 비어 있으면(canvas/ 에 .html 이 없으면) 그냥 지우셔도 됩니다.',
+    '',
+  ].join('\n');
+  try { fs.writeFileSync(fp, txt, 'utf8'); }
+  catch (e) { console.error('[templates] 격리 폴더 안내문을 못 남겼다 — 손으로 꺼낼 길이 안 적혔다:', (e && e.message) || e); }
+}
+function _repointTemplatesDir(reason) {
+  const _land = (why, extra) => {
+    try { fs.mkdirSync(path.join(TEMPLATES_DIR_UNRESOLVED, 'canvas'), { recursive: true }); } catch (_) {}
+    TEMPLATES_DIR = TEMPLATES_DIR_UNRESOLVED;
+    /* ★landed 를 남긴다 — 「비로그인」과 「auth 손상」은 사용자에게 할 말이 다르고,
+       account:null 만으로는 둘을 못 가른다. */
+    _templatesDirState = Object.assign({ root: TEMPLATES_DIR, account: null, reason, landed: why }, extra);
+    _writeTemplatesUnresolvedReadme(why, extra && extra.error);
+    return _templatesDirState;
+  };
+  let key;
+  try {
+    key = _currentAccountKey();
+  } catch (e) {
+    /* ★「못 읽었다」를 「비로그인」으로 뭉개지 않는다 — 프로젝트가 실제로 데인 자리다(주석 1147~). */
+    console.error('[templates] ★계정을 «못 읽었다»(손상?) — 공용 풀에 쓰지 않고 격리로 간다:', (e && e.message) || e);
+    return _land('unresolved', { unresolved: true, error: String((e && e.message) || e) });
+  }
+  if (!key) return _land('anonymous', {});
+  const dest = _accountTemplatesDir(key);
+  /* ⛔mkdir 실패를 삼키고 뿌리를 꽂으면 사용자 눈엔 「내 템플릿이 다 사라졌다」가 된다. */
+  fs.mkdirSync(path.join(dest, 'canvas'), { recursive: true });
+  TEMPLATES_DIR = dest;
+  _templatesDirState = { root: dest, account: key, reason };
+  try { console.log(`[templates] 개인뿌리=${dest} 계정=${key} 사유=${reason}`); } catch (_) {}
+  return _templatesDirState;
+}
+function _templatesRoot() { return TEMPLATES_DIR; }
 /* ★계정 «작업공간» — 프로젝트 뿌리의 «부모». 작업물(비상 사본·복구 장부)이 여기 붙는다.
      비로그인      : <userData>/projects        → <userData>          ← 오늘과 «바이트 동일»
      로그인        : <userData>/accounts/<키>/projects → <userData>/accounts/<키>
@@ -1359,6 +1448,7 @@ function _markAdoptionNoticeShown() {
 
 
 _repointProjectsDir('startup');
+try { _repointTemplatesDir('startup'); } catch (e) { console.error('[templates] startup repoint 실패:', (e && e.message) || e); }
 
 /* 렌더러가 «가져간다». ⛔push 로 보내면 리스너를 걸기 전에 도착해 유실된다
    (gdt:takePendingOpen 이 같은 이유로 pull 이다 — 같은 결로 맞춘다).
@@ -3323,51 +3413,231 @@ ipcMain.handle('figma:write-node-map', (event, nodeMap) => {
 });
 
 /* ── IPC: Templates ── */
-const TEMPLATES_DIR        = path.join(USER_DATA_DIR, 'templates');
-const TEMPLATES_CANVAS_DIR = path.join(TEMPLATES_DIR, 'canvas');
-const TEMPLATES_INDEX_FILE = path.join(TEMPLATES_DIR, 'index.json');
-migrateFiles(path.join(__dirname, 'templates'), TEMPLATES_DIR); // 구 경로 마이그레이션
-if (!fs.existsSync(TEMPLATES_CANVAS_DIR)) fs.mkdirSync(TEMPLATES_CANVAS_DIR, { recursive: true });
+/* ★뿌리 선언은 여기가 아니라 «프로젝트 뿌리 옆»에 있다(startup repoint 보다 먼저 있어야 해서).
+   여기서는 «공용 풀 준비»와 핸들러만 다룬다.
+   ⛔핸들러는 경로를 «값으로 붙잡지» 않는다 — 계정이 바뀌면 뿌리가 갈리므로 매번 게터로 읽는다
+     (프로젝트가 registerGdtIpc 한 곳만 게터로 넘긴 것과 같은 이유. 주석 1113). */
+migrateFiles(path.join(__dirname, 'templates'), TEMPLATES_DIR_SHARED); // 구 경로 마이그레이션 → 공용 풀로만
+if (!fs.existsSync(path.join(TEMPLATES_DIR_SHARED, 'canvas'))) fs.mkdirSync(path.join(TEMPLATES_DIR_SHARED, 'canvas'), { recursive: true });
+
+function _tplIndexFile(root)  { return path.join(root, 'index.json'); }
+function _tplCanvasDir(root)  { return path.join(root, 'canvas'); }
+function _readTplIndex(root) {
+  const f = _tplIndexFile(root);
+  if (!fs.existsSync(f)) return [];
+  try {
+    const v = JSON.parse(fs.readFileSync(f, 'utf8'));
+    return Array.isArray(v) ? v : [];
+  } catch (e) {
+    /* ⛔여기서 삼킨 뒤 «[]» 는 「템플릿이 없다」로 읽힌다 — 그 상태로 save-index 가 오면 덮어써서 «진짜로» 없어진다.
+       ⇒ 최소한 «시끄럽게» 남긴다. 조용히 빈 배열을 돌려주면 손실이 무증상이 된다. */
+    console.error('[templates] ★index 를 못 읽었다(손상?) — 빈 목록으로 진행한다:', f, (e && e.message) || e);
+    return [];
+  }
+}
+
+/* 구버전 templates.json(canvas 내장) → index.json + canvas/ 분리. 공용 풀 기준, 1회성. */
+function _migrateLegacyTemplatesJson() {
+  const oldFile = path.join(TEMPLATES_DIR_SHARED, 'templates.json');
+  if (!fs.existsSync(oldFile)) return;
+  try {
+    const old = JSON.parse(fs.readFileSync(oldFile, 'utf8'));
+    const index = old.map(({ canvas, ...meta }) => {
+      if (canvas) fs.writeFileSync(path.join(_tplCanvasDir(TEMPLATES_DIR_SHARED), `${_safeSeg(meta.id)}.html`), canvas, 'utf8'); // GAP-009
+      return meta;
+    });
+    fs.writeFileSync(_tplIndexFile(TEMPLATES_DIR_SHARED), JSON.stringify(index, null, 2), 'utf8');
+    fs.unlinkSync(oldFile);
+  } catch (e) { console.error('[templates] 구버전 templates.json 마이그레이션 실패:', (e && e.message) || e); }
+}
+
+/* 공용 풀의 기존 항목을 «레거시» 폴더 하나로 모은다(2026-09-07 현빈 지시).
+   ★1회만 — 마커가 있으면 스킵. 마커에 이전 folder 를 «전량» 적어 되돌릴 수 있게 둔다.
+   ⛔파일 이동·삭제·id 변경 «없음». folder 필드만 바꾼다 ⇒ 유실 위험 0.
+   ⚠️migrateFiles(1092)는 dst 가 있으면 스킵이라 «이미 시드된 ud»엔 안 걸린다 —
+     그래서 시드에 얹지 않고 여기서 «따로» 한다. 얹었으면 기존 사용자에겐 영영 안 걸렸다. */
+const TPL_LEGACY_FOLDER = '레거시';
+const TPL_LEGACY_MARKER = path.join(TEMPLATES_DIR_SHARED, '.legacy-foldered.json');
+function _foldLegacyTemplates() {
+  if (fs.existsSync(TPL_LEGACY_MARKER)) return;
+  const f = _tplIndexFile(TEMPLATES_DIR_SHARED);
+  if (!fs.existsSync(f)) return;
+  try {
+    const arr = JSON.parse(fs.readFileSync(f, 'utf8'));
+    if (!Array.isArray(arr) || !arr.length) return;
+    const prev = arr.map(t => ({ id: t.id, prevFolder: (t.folder === undefined ? null : t.folder) }));
+    arr.forEach(t => { t.folder = TPL_LEGACY_FOLDER; });
+    fs.writeFileSync(f, JSON.stringify(arr, null, 2), 'utf8');
+    fs.writeFileSync(TPL_LEGACY_MARKER, JSON.stringify({ at: new Date().toISOString(), folder: TPL_LEGACY_FOLDER, count: prev.length, prev }, null, 2), 'utf8');
+    console.log(`[templates] 공용 ${prev.length}건을 «${TPL_LEGACY_FOLDER}» 폴더로 모았다(1회).`);
+  } catch (e) {
+    /* ⛔실패했으면 마커를 «남기지 않는다» — 남기면 다음 기동에 재시도를 못 하고 절반만 모인 채 굳는다. */
+    console.error('[templates] 레거시 폴더 정리 실패 — 마커 없이 둔다(다음 기동 재시도):', (e && e.message) || e);
+  }
+}
+_migrateLegacyTemplatesJson();
+_foldLegacyTemplates();
+
+/* 렌더러가 「지금 어디에 저장되는가」를 물어보는 자리.
+   ★사전 고지용이다 — 격리 폴더로 내려앉은 «그 순간»에 사용자에게 말해 주려면 렌더러가 알아야 한다.
+     안내문(README)은 사후 구제라, 그것만 두면 «사라졌다»고 겪은 사람은 영영 안 본다.
+   ⛔경로(root)는 안 넘긴다 — 사용자 홈 경로가 렌더러로 새어나갈 이유가 없다. */
+ipcMain.handle('templates:root-state', () => {
+  const s = _templatesDirState || {};
+  return { account: s.account || null, landed: s.landed || null, unresolved: !!s.unresolved, reason: s.reason || null };
+});
+
+/* ── 템플릿 «뷰어» 창 (B-4) ─────────────────────────────────────────────
+   ★뷰어 전용이다 — 삽입 기능이 없다. 삽입은 «선택된 섹션»의 주인인 편집기 창에서만 일어나야 한다.
+   ⛔편집기 렌더러 모듈(template-browser.js / template-system.js)을 이 창에 싣지 않는다.
+     template-system.js 가 globals.js 의 canvasEl 을 import 하고 있어서 편집기를 통째로 끌고 들어온다.
+     그래서 뷰어 페이지는 electronAPI(IPC)를 «직접» 부른다. */
+let _tplWin = null;
+ipcMain.handle('templates:open-window', () => {
+  // ★살아 있으면 새로 만들지 않고 포커스만 — 창이 두 개 뜨면 어느 쪽이 최신인지 알 수 없다.
+  if (_tplWin && !_tplWin.isDestroyed()) { _tplWin.focus(); return { ok: true, reused: true }; }
+  _tplWin = new BrowserWindow({
+    width: 420,
+    height: 720,
+    minWidth: 320,
+    minHeight: 360,
+    title: '템플릿',
+    alwaysOnTop: true,          // 현빈 지시 — 캔버스와 나란히 두고 보는 용도다
+    /* ★메인 창과 «같은» 분기를 쓴다. 이걸 빠뜨리면 팝아웃만 기본 프레임이 되어
+       맥에서 신호등(빨강·노랑·초록)이 이 창에만 뜬다 — 앱과 모양이 안 맞는다.
+       ⛔frame:false 로 통째로 없애지는 않는다. 창을 옮기고 닫을 길이 사라진다. */
+    /* ⚠️isMac 은 createWindow() «안»의 지역 const 라 여기선 스코프 밖이다 — 그대로 쓰면
+       문법검사는 통과하고 «실행할 때» ReferenceError 가 난다. 여기서 다시 잡는다. */
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'hiddenInset' }
+      : { titleBarStyle: 'default', autoHideMenuBar: true }),
+    parent: mainWindow || undefined,
+    webPreferences: {           // ★mainWindow 와 «동일» — 새 창이라고 권한을 열지 않는다
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+  _tplWin.loadFile(path.join(__dirname, 'pages', 'template-browser.html'));
+  /* ★이걸 빠뜨리면 닫은 뒤 «죽은 참조»를 붙잡아 다시 안 열린다(isDestroyed 로도 걸러지지만
+     참조를 남겨두면 parent 해제·GC 가 늦다). 닫히면 즉시 놓는다. */
+  _tplWin.on('closed', () => { _tplWin = null; });
+  return { ok: true, reused: false };
+});
+/* 부모가 닫히면 같이 닫는다 — 고아 창이 떠 있으면 앱이 안 꺼진 것처럼 보인다.
+   (parent 지정만으로는 맥에서 부모 종료 시 자동으로 안 닫히는 경우가 있어 명시한다.) */
+app.on('before-quit', () => { if (_tplWin && !_tplWin.isDestroyed()) _tplWin.destroy(); });
+
+/* ★팝아웃 창 → 편집기 창으로 가는 «통로는 하나»다(window.__tplEditorCommand).
+   삽입도 복구도 결국 「편집기가 해야 하는 일」이라, 통로를 늘리지 않고 action 으로 가른다.
+   ⛔통로를 명령마다 새로 만들면 어느 것이 살아 있는지 추적이 안 된다. */
+async function _callEditorCommand(payload) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    return { ok: false, reason: '편집기 창을 찾지 못했습니다. 편집기를 먼저 열어 주세요.' };
+  }
+  /* ★send(단방향) 가 아니라 executeJavaScript 로 «결과를 받아온다».
+     send 였을 때 팝아웃은 「보냈다」를 「넣었다」로 말했고, 안 들어간 경우에도 성공을 띄웠다(거짓 성공).
+     이 앱은 이미 같은 방식을 쓴다 — _invokeRendererUpdateIconifyBlock 참고. */
+  const js = `(window.__tplEditorCommand
+    ? window.__tplEditorCommand(${JSON.stringify(payload)})
+    : { ok:false, reason:'편집기가 아직 준비되지 않았습니다.' })`;
+  try {
+    const r = await mainWindow.webContents.executeJavaScript(js, true);
+    return (r && typeof r === 'object') ? r : { ok: false, reason: '편집기 응답을 읽지 못했습니다.' };
+  } catch (e) {
+    return { ok: false, reason: (e && e.message) || '편집기 호출에 실패했습니다.' };
+  }
+}
+/* 삽입 — ★「어느 섹션에 넣나」의 주인은 편집기다. 팝아웃은 선택 상태를 모르므로 위임한다.
+   (섹션 미선택 안내는 편집기 쪽 기존 흐름이 띄운다 — 여기서 흉내내지 않는다.) */
+ipcMain.handle('templates:insert-in-main', async (event, id) => {
+  const r = await _callEditorCommand({ action: 'insert', id: String(id || '') });
+  // ⛔실패했는데 편집기를 앞으로 끌어오면 «된 것»처럼 보인다. 성공했을 때만 포커스한다.
+  if (r.ok && mainWindow && !mainWindow.isDestroyed()) mainWindow.focus();
+  return r;
+});
+/* 복구 — 창을 닫고 편집기의 인앱 패널을 다시 연다(떼어내기의 «짝»). */
+ipcMain.handle('templates:restore-panel', async () => {
+  const r = await _callEditorCommand({ action: 'open-panel' });
+  if (r.ok && mainWindow && !mainWindow.isDestroyed()) mainWindow.focus();
+  if (_tplWin && !_tplWin.isDestroyed()) _tplWin.close();
+  return r;
+});
 
 ipcMain.handle('templates:load-index', () => {
-  // 구버전 templates.json → 분리 구조로 자동 마이그레이션
-  const oldFile = path.join(TEMPLATES_DIR, 'templates.json');
-  if (fs.existsSync(oldFile)) {
-    try {
-      const old = JSON.parse(fs.readFileSync(oldFile, 'utf8'));
-      const index = old.map(({ canvas, ...meta }) => {
-        if (canvas) fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(meta.id)}.html`), canvas, 'utf8'); // GAP-009
-        return meta;
-      });
-      fs.writeFileSync(TEMPLATES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8');
-      fs.unlinkSync(oldFile);
-      return index;
-    } catch { return []; }
+  const personalRoot = _templatesRoot();
+  const shared = _readTplIndex(TEMPLATES_DIR_SHARED).map(m => Object.assign({}, m, { _scope: 'shared' }));
+  /* 뿌리가 겹치면(이론상) 같은 걸 두 번 세게 된다 — 겹치면 공용만 돌려준다. */
+  if (personalRoot === TEMPLATES_DIR_SHARED) return shared;
+  const personal = _readTplIndex(personalRoot).map(m => Object.assign({}, m, { _scope: 'personal' }));
+  /* ★개인이 «먼저», 그리고 id 충돌 시 개인이 이긴다.
+     근거: 방금 내가 만든 것이 안 보이면 사용자에겐 「내 것이 사라졌다」가 된다. */
+  const seen = new Set();
+  const out = [];
+  for (const t of personal) { if (t && t.id) seen.add(t.id); out.push(t); }
+  for (const t of shared) {
+    if (t && t.id && seen.has(t.id)) { console.warn(`[templates] id 충돌 — 개인이 공용을 가린다: ${t.id}`); continue; }
+    out.push(t);
   }
-  if (!fs.existsSync(TEMPLATES_INDEX_FILE)) return [];
-  try { return JSON.parse(fs.readFileSync(TEMPLATES_INDEX_FILE, 'utf8')); } catch { return []; }
+  return out;
 });
 
 ipcMain.handle('templates:save-index', (event, index) => {
-  fs.writeFileSync(TEMPLATES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8');
+  const root = _templatesRoot();
+  /* ⛔공용 풀에 index 를 쓰면 «모든 계정»의 목록이 바뀐다. 그리고 아래 필터가 공용을 걷어낸 뒤라
+     그대로 쓰면 공용 19건이 통째로 지워진다. 그래서 뿌리부터 막는다. */
+  if (root === TEMPLATES_DIR_SHARED) {
+    console.error('[templates] ⛔공용 풀에 index 쓰기를 거부했다(공용은 읽기전용).');
+    return false;
+  }
+  const arr = Array.isArray(index) ? index : [];
+  /* ★★이 필터가 이 기능의 안전선이다.
+     빠뜨리면 병합돼 온 공용 항목이 «개인 index 로 복제»되고, 그 뒤 공용을 고쳐도 개인 사본이 갈라진다
+     (그리고 공용 건수가 계정마다 불어난다). _scope 는 런타임 표식이라 디스크엔 안 쓴다. */
+  const personal = arr.filter(t => t && t._scope !== 'shared').map(({ _scope, ...meta }) => meta);
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(_tplIndexFile(root), JSON.stringify(personal, null, 2), 'utf8');
   return true;
 });
 
 ipcMain.handle('templates:load-canvas', (event, id) => {
-  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`); // GAP-009
-  if (!fs.existsSync(filePath)) return null;
-  try { return fs.readFileSync(filePath, 'utf8'); } catch { return null; }
+  const seg = _safeSeg(id); // GAP-009
+  /* ★순서 고정: 개인 → 공용. 개인이 공용을 가리는 규칙(load-index)과 같은 방향이어야 한다. */
+  for (const root of [_templatesRoot(), TEMPLATES_DIR_SHARED]) {
+    const fp = path.join(_tplCanvasDir(root), `${seg}.html`);
+    if (!fs.existsSync(fp)) continue;
+    try { return fs.readFileSync(fp, 'utf8'); }
+    catch (e) { console.error('[templates] canvas 읽기 실패:', fp, (e && e.message) || e); return null; }
+  }
+  return null;
 });
 
 ipcMain.handle('templates:save-canvas', (event, id, html) => {
-  fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`), html, 'utf8'); // GAP-009
+  const root = _templatesRoot();
+  if (root === TEMPLATES_DIR_SHARED) {
+    console.error('[templates] ⛔공용 풀에 canvas 쓰기를 거부했다(공용은 읽기전용).');
+    return false;
+  }
+  const dir = _tplCanvasDir(root);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${_safeSeg(id)}.html`), html, 'utf8'); // GAP-009
   return true;
 });
 
 ipcMain.handle('templates:delete-canvas', (event, id) => {
-  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`); // GAP-009
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  return true;
+  const seg = _safeSeg(id); // GAP-009
+  const root = _templatesRoot();
+  if (root === TEMPLATES_DIR_SHARED) return { ok: false, reason: 'shared-readonly' };
+  const own = path.join(_tplCanvasDir(root), `${seg}.html`);
+  if (fs.existsSync(own)) { fs.unlinkSync(own); return { ok: true }; }
+  /* 개인엔 없는데 공용에 있다 = «공용을 지우려 한 것». 거부한다 —
+     지우면 그 계정 하나가 아니라 ★모든 계정의 것이 같이 사라진다. */
+  if (fs.existsSync(path.join(_tplCanvasDir(TEMPLATES_DIR_SHARED), `${seg}.html`))) {
+    console.warn('[templates] 공용 템플릿 삭제 거부:', seg);
+    return { ok: false, reason: 'shared-readonly' };
+  }
+  return { ok: true }; // 이미 없다
 });
 
 /* ── IPC: Section Screenshot (html2canvas flex 버그 우회) ── */
@@ -5173,11 +5443,13 @@ const _ICONIFY_TIMEOUT_MS = 8000;
 
 // Codex Medium 픽스: parse 콜백을 받아 body 읽기까지 같은 AbortController로 보호.
 // 기존엔 fetch resolve 직후 clearTimeout — 본문 stall 시 무한 대기 가능했음.
-async function _fetchWithTimeout(url, parse, ms = _ICONIFY_TIMEOUT_MS) {
+async function _fetchWithTimeout(url, parse, ms = _ICONIFY_TIMEOUT_MS, init = null) {
   const ctl = new AbortController();
   const tid = setTimeout(() => ctl.abort(), ms);
   try {
-    const res = await fetch(url, { signal: ctl.signal, redirect: 'error' });
+    /* ★init 은 «뒤에» 붙인 선택 인자다 — 생략하면 기존 iconify 호출과 «완전히 동일»하게 돈다.
+       ⛔redirect:'error' 를 init 이 덮지 못하게 «뒤»에 다시 박는다(SSRF 가드는 호출자가 못 끈다). */
+    const res = await fetch(url, { ...(init || {}), signal: ctl.signal, redirect: 'error' });
     if (!res.ok) return { ok: false, status: res.status, body: null };
     const body = parse ? await parse(res) : null;
     return { ok: true, status: res.status, body };
@@ -5185,6 +5457,61 @@ async function _fetchWithTimeout(url, parse, ms = _ICONIFY_TIMEOUT_MS) {
     clearTimeout(tid);
   }
 }
+
+/* ═══ remove.bg 누끼 — ★main 에서 부른다 ═══════════════════════════════════
+   렌더러는 CSP 로 외부 fetch 가 막혀 있다(iconify 와 «같은 이유·같은 해법»).
+   ⛔이 경로는 «되돌릴 수 없는» 둘을 갖는다: ⑴사용자 이미지가 제3자에게 나간다 ⑵과금된다.
+     그래서 키가 없으면 «아무것도 보내지 않고» NO_KEY 로 끊는다 — 네트워크를 타기 «전»에 판정한다.
+   ⛔키 값을 로그·에러메시지에 절대 넣지 마라(헤더 통째 출력 금지). */
+const _REMOVEBG_URL        = 'https://api.remove.bg/v1.0/removebg';
+const _REMOVEBG_TIMEOUT_MS = 30000;                 // 이미지 왕복이라 iconify(8s)보다 길다
+const _REMOVEBG_MAX_BYTES  = 12 * 1024 * 1024;      // remove.bg 한도 이내
+const _REMOVEBG_MIME_OK    = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+async function _doRemoveBg({ b64, mime } = {}) {
+  // ⑴ 키 — ★네트워크 전에 본다
+  const key = getApiKey('removebg');
+  if (!key) {
+    return { ok: false, code: 'NO_KEY', message: 'remove.bg API 키가 없습니다. 설정에서 키를 넣어주세요.' };
+  }
+  // ⑵ 입력 가드 — 형식·용량. 여기서 걸러야 «쓸데없이 과금»되지 않는다
+  if (!_REMOVEBG_MIME_OK.has(String(mime || ''))) {
+    return { ok: false, code: 'INVALID', message: 'PNG·JPEG·WEBP 이미지만 배경 제거할 수 있습니다.' };
+  }
+  if (typeof b64 !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(b64) || b64.length < 32) {
+    return { ok: false, code: 'INVALID', message: '이미지 데이터가 올바르지 않습니다.' };
+  }
+  const bytes = Math.floor(b64.length * 3 / 4);
+  if (bytes > _REMOVEBG_MAX_BYTES) {
+    return { ok: false, code: 'INVALID', message: `이미지가 너무 큽니다(${Math.round(bytes / 1024 / 1024)}MB). 12MB 이하만 됩니다.` };
+  }
+  // ⑶ 호출
+  try {
+    const body = new URLSearchParams({ image_file_b64: b64, size: 'auto', format: 'png' });
+    const r = await _fetchWithTimeout(
+      _REMOVEBG_URL,
+      async res => Buffer.from(await res.arrayBuffer()).toString('base64'),
+      _REMOVEBG_TIMEOUT_MS,
+      { method: 'POST', headers: { 'X-Api-Key': key, 'Content-Type': 'application/x-www-form-urlencoded' }, body },
+    );
+    if (!r.ok) {
+      // ★402(크레딧)와 403(키)은 «사용자가 할 행동»이 다르다 — 뭉개지 않는다
+      if (r.status === 402) return { ok: false, code: 'HTTP_ERROR', status: 402, message: 'remove.bg 크레딧이 없습니다. 계정에서 충전 후 다시 시도하세요.' };
+      if (r.status === 403) return { ok: false, code: 'HTTP_ERROR', status: 403, message: 'remove.bg 키가 유효하지 않습니다. 설정에서 키를 확인하세요.' };
+      if (r.status === 429) return { ok: false, code: 'HTTP_ERROR', status: 429, message: 'remove.bg 요청이 너무 잦습니다. 잠시 후 다시 시도하세요.' };
+      return { ok: false, code: 'HTTP_ERROR', status: r.status, message: `remove.bg 호출 실패 (HTTP ${r.status})` };
+    }
+    if (!r.body) return { ok: false, code: 'HTTP_ERROR', message: 'remove.bg 응답이 비었습니다.' };
+    return { ok: true, b64: r.body, mime: 'image/png' };
+  } catch (e) {
+    // ⛔e 에 헤더가 실려 나올 여지를 두지 않는다 — message 만 쓴다
+    const msg = (e && e.name === 'AbortError') ? '시간이 초과됐습니다.' : ((e && e.message) || '네트워크 오류');
+    return { ok: false, code: 'NETWORK_ERROR', message: `remove.bg 연결 실패 — ${msg}` };
+  }
+}
+ipcMain.handle('removebg:cutout', (_e, payload) => _doRemoveBg(payload || {}));
+/* 키 «값»은 렌더러로 안 준다 — 있는지만 알린다. */
+ipcMain.handle('settings:has-key', (_e, provider) => !!getApiKey(String(provider || '')));
 
 async function _doIconifySearch({ query, prefix, limit = 10 } = {}) {
   if (typeof query !== 'string' || !query.trim()) {

@@ -744,7 +744,8 @@ body.preview-mode #preview-navigator { display: flex; }
   font-size: var(--ui-fs-base);
 }
 .tpl-browser-search::placeholder { color: var(--ui-text-dim); }
-.tpl-browser-close {
+/* 헤더 버튼 공용 — 닫기·새창·레이아웃이 «같은 몸통»을 쓴다(값은 옛 .tpl-browser-close 그대로) */
+.tpl-browser-hbtn {
   background: none;
   border: none;
   color: var(--ui-text-dim);
@@ -754,12 +755,19 @@ body.preview-mode #preview-navigator { display: flex; }
   display: flex;
   align-items: center;
 }
-.tpl-browser-close:hover { background: var(--ui-bg-input); color: #ccc; }
+.tpl-browser-hbtn:hover { background: var(--ui-bg-input); color: #ccc; }
+/* 기능 미정 버튼 — 보이되 못 누른다(.tb-card-*-btn:disabled 와 같은 관례) */
+.tpl-browser-hbtn:disabled { opacity: 0.3; cursor: not-allowed; }
+.tpl-browser-hbtn:disabled:hover { background: none; color: var(--ui-text-dim); }
 
 /* 바디: 트리 + 카드 — 패널 남은 높이 채움 */
 .tpl-browser-body {
   display: flex;
-  flex: 1 1 0;
+  /* ★flex-basis 는 «auto» 여야 한다. 0 이면 목록이 «높이를 요구하지 않아»
+     패널이 자랄 이유를 못 만들고, body 가 min-height 바닥(80px)으로 주저앉는다.
+     그러면 카드 19장(1296px) 중 «1장»만 보인다 — 실측된 그 증상이다.
+     auto 로 두면 콘텐츠가 자리를 요구하고 #tpl-browser 의 max-height 가 상한을 잡는다. */
+  flex: 1 1 auto;
   min-height: 80px;
   overflow: hidden;
 }
@@ -1286,6 +1294,20 @@ body.preview-mode #preview-navigator { display: flex; }
 }
 .tb-card-edit-btn:hover { background: var(--ui-bg-input); color: var(--ui-text-sub); }
 .tb-card-del-btn:hover { background: var(--ui-danger-bg); color: var(--ui-danger); }
+
+/* 공용(모든 계정 공유) 템플릿 표식 — ★새 색을 만들지 않는다. 기존 카드 토큰만 재사용. */
+.tb-card-shared {
+  font-size: var(--ui-fs-10);
+  color: var(--ui-text-dim);
+  border: 1px solid var(--ui-border);
+  border-radius: 3px;
+  padding: 0 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* 공용은 수정·삭제 불가 — 보이되 못 누른다(없애면 「왜 나만 안 되지」가 된다) */
+.tb-card-edit-btn:disabled, .tb-card-del-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.tb-card-edit-btn:disabled:hover, .tb-card-del-btn:disabled:hover { background: none; color: var(--ui-text-dim); }
 
 /* ★ 즐겨찾기 버튼 */
 .tb-card-star-btn {

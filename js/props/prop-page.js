@@ -212,6 +212,17 @@ export function showPageProperties() {
       </div>
     </div>
     <div class="prop-section">
+      <div class="prop-section-title">참고 이미지</div>
+      <div class="prop-row">
+        <span class="prop-label">연결</span>
+        <span id="spl-link-count" class="prop-label" style="margin:0;width:auto;">0개</span>
+      </div>
+      <div class="prop-row" style="gap:4px">
+        <button class="prop-btn-full" id="spl-collapse-all">전부 접기</button>
+        <button class="prop-btn-full" id="spl-expand-all">전부 펼치기</button>
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">Export</div>
       <select class="prop-select" id="page-export-format" style="width:100%;margin-bottom:6px;">
         <option value="png">PNG</option>
@@ -380,6 +391,39 @@ export function showPageProperties() {
       window.scheduleAutoSave?.();
     });
   });
+
+  /* ── 참고 이미지 일괄 접기/펼치기 ──────────────────────────────────────
+     ★「연결 N개」를 «먼저» 보여준다 — 0개면 눌러도 아무 일이 안 나는데, 숫자가 없으면
+       사용자는 「고장났다」로 읽는다. 0개면 버튼을 아예 비활성으로 두고 title 로 이유를 말한다.
+     ★버튼은 «둘»이다(토글 아님) — 일부만 접힌 «혼합» 상태가 있어서 토글은 현재 상태를 못 정한다.
+     ⛔절 이름에 「스크래치」를 쓰지 않는다 — 이미 있는 toggleScratchHideAll(«숨기기»)과 헷갈린다.
+       이건 숨기는 게 아니라 연결된 참고 이미지를 «접는» 것이다. */
+  const splCount     = document.getElementById('spl-link-count');
+  const splCollapse  = document.getElementById('spl-collapse-all');
+  const splExpand    = document.getElementById('spl-expand-all');
+  if (splCount && splCollapse && splExpand) {
+    /* ★제자리 갱신 — showPageProperties() 를 다시 부르면 슬라이더 포커스·패널 스크롤이 튄다
+         (사용자가 다른 값을 만지던 중일 수 있다). 텍스트와 disabled 속성만 건드린다. */
+    const _splSync = () => {
+      const n = window.SPLink?.allLinks?.().length ?? 0;
+      splCount.textContent = `${n}개`;
+      const none = n === 0;
+      for (const b of [splCollapse, splExpand]) {
+        b.disabled = none;
+        b.title = none ? '연결된 참고 이미지가 없습니다' : '';
+      }
+    };
+    const _splRun = (val, doneMsg, noopMsg) => {
+      const r = window.SPLink?.setCollapsedAll?.(val);
+      if (!r) return;
+      // ★changed 0 도 «말한다» — 조용히 아무 일도 안 하면 고장으로 읽힌다.
+      window.showToast?.(r.changed ? `${doneMsg} (${r.changed}개)` : noopMsg);
+      _splSync();
+    };
+    splCollapse.addEventListener('click', () => _splRun(true,  '참고 이미지를 접었습니다', '이미 전부 접혀 있습니다'));
+    splExpand  .addEventListener('click', () => _splRun(false, '참고 이미지를 펼쳤습니다', '이미 전부 펼쳐져 있습니다'));
+    _splSync();
+  }
 
   // 전체 내보내기
   const pageExportBtn = document.getElementById('page-export-all-btn');

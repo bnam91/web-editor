@@ -59,7 +59,7 @@ test('⛔라벨을 «판정»에 쓰지 마라 — 라벨을 고치는 순간 �
 test('★남은 뭉뚱그림을 «세어 둔다» — 줄어들면 이 숫자를 같이 내려라(요약이 본문보다 늦는 것 방지)', () => {
   const generic = Object.entries(typeLbls).filter(([, v]) => v === 'Component').map(([k]) => k);
   assert.ok(!generic.includes('grid'), 'grid 가 아직 Component 다');
-  assert.equal(generic.length, 9,
+  assert.equal(generic.length, 10,   // modal 추가(현빈 발주 2026-09-08) — 의도적 갱신
     `'Component' 를 공유하는 타입이 ${generic.length}종이다(${generic.join(', ')}) — ` +
     '의도적으로 바꿨다면 이 숫자를 갱신하고, 아니라면 누가 라벨을 뭉갠 것이다');
 });

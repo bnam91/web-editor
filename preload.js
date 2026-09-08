@@ -49,6 +49,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadTemplateCanvas:  (id)       => ipcRenderer.invoke('templates:load-canvas', id),
   saveTemplateCanvas:  (id, html) => ipcRenderer.invoke('templates:save-canvas', id, html),
   deleteTemplateCanvas:(id)       => ipcRenderer.invoke('templates:delete-canvas', id),
+  getTemplateRootState:()         => ipcRenderer.invoke('templates:root-state'),
+  openTemplateWindow:  ()         => ipcRenderer.invoke('templates:open-window'),
+  // 팝아웃 창 → 편집기 창 (삽입 위임 · 패널 복구).
+  // ★결과를 «받아야» 하므로 main 이 executeJavaScript 로 편집기의 window.__tplEditorCommand 를 부른다.
+  //   단방향 send 였을 때 팝아웃이 「보냈다」를 「넣었다」로 말하는 거짓 성공이 났다.
+  insertTemplateInMain:(id)       => ipcRenderer.invoke('templates:insert-in-main', id),
+  restoreTemplatePanel:()         => ipcRenderer.invoke('templates:restore-panel'),
 
   // Figma Upload
   figmaUpload:       (channel, designJSON) => ipcRenderer.invoke('figma:upload', { channel, designJSON }),
@@ -158,6 +165,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings:  ()              => ipcRenderer.invoke('settings:get'),
   setSettings:  (patch)         => ipcRenderer.invoke('settings:set', patch),
   testApiKey:   (provider, key) => ipcRenderer.invoke('settings:test-key', provider, key),
+  /* ★키 «값»은 넘기지 않는다 — 있는지(boolean)만. 렌더러에 키가 흘러갈 이유가 없다. */
+  hasApiKey:    (provider)      => ipcRenderer.invoke('settings:has-key', provider),
+  /* remove.bg 누끼 — 렌더러는 CSP 로 외부 fetch 가 막혀 있어 main 이 대신 부른다. */
+  removebgCutout: ({ b64, mime }) => ipcRenderer.invoke('removebg:cutout', { b64, mime }),
 
   // ── [Unit B] 버그·피드백 신고 ──
   //   ★sessionToken 은 «메인»이 붙인다(여기로 안 나온다). 렌더러는 내용·이미지만 넘긴다.

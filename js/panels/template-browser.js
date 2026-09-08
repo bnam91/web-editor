@@ -260,6 +260,9 @@ function _renderBrowserCards() {
   container.innerHTML = _searchBadge + templates.map(tpl => {
     const isSelected = _browserSelected === tpl.id;
     const isStarred  = starred.has(tpl.id);
+    /* 공용(모든 계정 공유) 템플릿 — 읽기전용이다. 수정·삭제 입구를 «비활성»으로 두고 이유를 title 에 적는다.
+       ⛔버튼을 아예 없애면 「왜 나만 안 되지」가 된다. 보이되 못 누르는 쪽이 설명이 된다. */
+    const isShared   = tpl._scope === 'shared';
     const thumbColor = (tpl.type === 'section' || tpl.type === 'subsection') ? '#8B5CF6'
                      : tpl.type === 'block' ? '#F59E0B'
                      : '#555';
@@ -275,15 +278,16 @@ function _renderBrowserCards() {
         <div class="tb-card-info">
           <span class="tb-card-name">${_esc(tpl.name)}</span>
           <span class="tb-card-meta">${_esc(tpl.category || '')}${tpl.folder ? ' · ' + _esc(tpl.folder) : ''}</span>
+          ${isShared ? '<span class="tb-card-shared" title="모든 계정이 함께 쓰는 공용 템플릿 — 수정·삭제할 수 없습니다">공용</span>' : ''}
         </div>
         <div class="tb-card-btns">
           <button class="tb-card-star-btn ${isStarred ? 'starred' : ''}" data-tpl-id="${_esc(tpl.id)}" title="${isStarred ? '즐겨찾기 해제' : '즐겨찾기 추가'}">★</button>
-          <button class="tb-card-edit-btn" data-tpl-id="${_esc(tpl.id)}" title="수정">
+          <button class="tb-card-edit-btn" data-tpl-id="${_esc(tpl.id)}" title="${isShared ? '공용 템플릿은 수정할 수 없습니다' : '수정'}"${isShared ? ' disabled' : ''}>
             <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6">
               <path d="M1 9 L2.5 5.5 L7.5 0.5 L9.5 2.5 L4.5 7.5 Z"/><line x1="6" y1="2" x2="8" y2="4"/>
             </svg>
           </button>
-          <button class="tb-card-del-btn" data-tpl-id="${_esc(tpl.id)}" title="삭제">
+          <button class="tb-card-del-btn" data-tpl-id="${_esc(tpl.id)}" title="${isShared ? '공용 템플릿은 삭제할 수 없습니다' : '삭제'}"${isShared ? ' disabled' : ''}>
             <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="currentColor" stroke-width="1.8">
               <line x1="1" y1="1" x2="8" y2="8"/><line x1="8" y1="1" x2="1" y2="8"/>
             </svg>
@@ -680,6 +684,12 @@ function initTplResize() {
 /* ── 초기화: 이벤트 바인딩 ── */
 function initTemplateBrowser() {
   document.getElementById('tpl-browser-close')?.addEventListener('click', closeTemplateBrowser);
+  /* 새 창으로 보기 — 뷰어 전용 창을 main 이 띄운다.
+     ⛔#tpl-browser-layout 에는 핸들러를 «달지 않는다». 기능이 아직 없어서 disabled 로 막아 뒀고,
+       핸들러만 먼저 달면 disabled 를 떼는 순간 «눌리는데 아무 일도 안 나는» 버튼이 된다. */
+  document.getElementById('tpl-browser-popout')?.addEventListener('click', () => {
+    window.electronAPI?.openTemplateWindow?.();
+  });
 
   // 헤더 드래그 이동
   const panel = document.getElementById('tpl-browser');

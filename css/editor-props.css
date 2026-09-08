@@ -494,6 +494,9 @@
   transition: background 0.15s, border-color 0.15s;
 }
 .prop-btn-full:hover { background: var(--ui-bg-card); border-color: var(--ui-divider); }
+/* ★:disabled 가 없으면 «비활성인데 눌릴 것처럼» 보인다 — .prop-btn:disabled(488) 관례 그대로. */
+.prop-btn-full:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.prop-btn-full:disabled:hover { background: var(--ui-bg-app); border-color: var(--ui-border-strong); }
 .prop-btn-sm {
   height: 24px; padding: 0 8px;
   background: var(--ui-bg-app); border: 1px solid var(--ui-border-strong);

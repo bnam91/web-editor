@@ -8,6 +8,7 @@
     { key: 'openai',    label: 'OpenAI (GPT)',     placeholder: 'sk-...' },
     { key: 'gemini',    label: 'Google Gemini',    placeholder: 'AIza...' },
     { key: 'anthropic', label: 'Anthropic (Claude)', placeholder: 'sk-ant-...' },
+    { key: 'removebg',  label: 'remove.bg (누끼)',   placeholder: 'remove.bg API 키' },
   ];
 
   const SHORTCUT_ACTIONS = [
