@@ -4,7 +4,7 @@
    글자 편집은 캔버스에서 더블클릭(block-drag) — 여기선 구조/스타일만 만진다. */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { applyModalVariant, _effDefault } from '../blocks/modal-block.js';
+import { applyModalVariant, _effDefault, MODAL_DEFAULTS } from '../blocks/modal-block.js';
 
 const _MDL_VARIANT_LABELS = {
   'plain': '기본 박스', 'titled': '제목 + 본문', 'icon': '아이콘 + 텍스트',
@@ -29,7 +29,7 @@ export function showModalProperties(block) {
   const hMode = block.dataset.hMode === 'fixed' ? 'fixed' : 'auto';
   const width = _i('width', 400), height = _i('height', 120);
   const align = block.dataset.align || 'left';
-  const fontSize = _i('fontSize', 14);
+  const fontSize = _i('fontSize', MODAL_DEFAULTS.fontSize);
   const gap = _i('gap', 14);
   const isIcon = (v === 'icon' || v === 'icon-stack');
   const isGrid = (v === 'grid-2');
