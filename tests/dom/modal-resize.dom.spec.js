@@ -40,8 +40,12 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <div id="ss-handles-overlay"></div>
 <div id="panel-right"><div class="panel-body"></div></div>
 <script src="/js/feature-flags.js"></script>
+<!-- ★block-edit.js 의 «진짜» selectBlock 을 얹는다(플레인 스크립트).
+     스텁을 쓰면 「selectBlock 만으로는 핸들이 안 붙는다」는 이 검사의 «전제»가 사라진다. -->
+<script src="/js/block-edit.js"></script>
 <script type="module">
-  import { makeModalBlock, renderModalBlock } from '/js/blocks/modal-block.js';
+  import { makeModalBlock, renderModalBlock, addModalBlock } from '/js/blocks/modal-block.js';
+  window.__add = addModalBlock;
   import { showModalProperties } from '/js/props/prop-modal.js';
   import { showHandlesFor, showAssetResizeHandles } from '/js/overlay-handles.js';
   import { bindBlock } from '/js/drag-drop.js';
@@ -405,4 +409,40 @@ test('D11 ★작은 상자·낮은 배율에서 라디우스 핸들이 «교차�
     expect(p.y).toBeGreaterThanOrEqual(r.t - 0.5);
     expect(p.y).toBeLessThanOrEqual(r.b + 0.5);
   }
+});
+
+test('D12 ★«툴바로 추가한 그 순간» 핸들이 있다 — 한 번 더 클릭해야 나오면 안 된다', async ({ page }) => {
+  /* 현빈 지적: 「처음 버튼 눌러 추가하면 모서리 버튼이 안 보여. 몇 번 클릭해야 보이는데
+     첨부터 핸들이 있어야 되는 거잖아」.
+     ★소스에 문자열이 있나로 끝내지 않는다 — 이 결함이 정확히 그 «틈»에서 살았다.
+       addModalBlock 은 window.selectBlock 을 «부르고 있었다». 그런데 그건 block-edit.js 의
+       MCP 진입점이라 showHandlesFor 를 아예 안 부른다 ⇒ 호출은 있는데 핸들은 0개였다.
+     ⇐ 되돌리기: _selectNewModal 의 showHandlesFor / showModalProperties 두 줄을 지우면 빨강. */
+  const errs = await boot(page);
+
+  const made = await page.evaluate(() => {
+    /* addModalBlock 이 옵셔널 체이닝 «없이» 기대하는 앱 전역만 최소로 세운다.
+       ⛔핸들·패널 관련은 하나도 안 세운다 — 세우면 검사가 자기 손으로 통과한다. */
+    window.getSelectedSection = () => document.querySelector('.section-block');
+    const r = window.__add({});
+    return { block: !!(r && r.block), id: r && r.block && r.block.id,
+             blocksInDom: document.querySelectorAll('#canvas .modal-block').length,
+             selected: !!(r && r.block && r.block.classList.contains('selected')) };
+  });
+  /* ★「입력이 살아 있다」 — 블록이 «안 만들어졌으면» 아래 4+4 검사는 공회전한다.
+     ⛔0 이 「핸들이 없다」와 「잴 블록이 없다」 두 뜻을 갖게 두지 마라. */
+  expect(made.block, 'addModalBlock 이 블록을 못 만들었다 — 아래 검사가 공회전한다').toBe(true);
+  expect(made.blocksInDom, '캔버스에 모달이 안 들어갔다').toBe(1);
+  expect(made.selected, '전제: selectBlock 이 «선택»까지는 하고 있다(핸들만 빠졌던 것)').toBe(true);
+
+  await raf(page);
+  const after = await page.evaluate(() => ({
+    resize: document.querySelectorAll('#ss-handles-overlay .mdl-overlay-handle').length,
+    radius: document.querySelectorAll('#ss-handles-overlay .mdl-radius-handle').length,
+    panel: document.querySelector('#panel-right .prop-block-name')?.textContent ?? null,
+  }));
+  expect(after.resize, '추가 «직후»에 리사이즈 핸들이 없다 — 한 번 더 클릭해야 나온다').toBe(4);
+  expect(after.radius, '추가 «직후»에 라디우스 핸들이 없다').toBe(4);
+  expect(after.panel, '패널이 모달로 안 열렸다 — showTextProperties 로 샜다').toBe('Modal');
+  expect(errs).toEqual([]);
 });
