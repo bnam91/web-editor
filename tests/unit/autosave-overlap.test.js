@@ -127,6 +127,7 @@ test('N5 ★배선 — applyProjectData 가 «자기» 빗장을 또 짓지 않�
      그래서 「0 건」이 아니라 「정확히 이 셋」으로 잠근다. 넷째가 생기면 빨강, 셋 중 하나를
      고쳐도 빨강(그때 이 목록을 줄이라는 뜻이다). ⇒ 어느 방향으로 움직여도 사람이 본다. */
 
+/* ★티켓 정본 = _context/BACKLOG-autosave-raf-only.md (고치는 법·다 고쳤을 때 지울 넷까지). */
 const RAF_ONLY_BACKLOG = {
   'js/collab/sync.js': '원격 패치 적용. 고전 스크립트라 import 불가 — endNextFrame 을 window 경유로 부르게 바꿔야 한다',
   'js/history.js': 'restoreSnapshot·restoreSnapshotScoped 둘. 되돌리기는 «보이는 창»에서만 나므로 급하지 않다',
