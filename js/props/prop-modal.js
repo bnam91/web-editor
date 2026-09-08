@@ -5,7 +5,31 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { alignBtn } from './_helpers.js';
+import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
+import { wireFontPicker } from './_font-picker.js';
+import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 import { applyModalVariant, _effDefault, MODAL_DEFAULTS } from '../blocks/modal-block.js';
+
+/* 스와치·hex 칸에 «보여 줄» 색.
+   ⚠️dataset.textColor 는 hex 만 담는 게 아니다 — 컬러변수 칩은 `var(--color-x, #hex)` 를,
+     alpha 조절은 `rgba(...)` 를 넣는다. 그 raw 를 hex 칸에 그대로 꽂으면
+     「VAR(--COLOR…」가 글자로 뜨고 <input type="color"> 는 값을 못 읽어 «검정»으로 죽는다(실측).
+   ⇒ 텍스트 패널과 같은 규칙: 보여 주는 것은 «풀린 hex» 다(변수의 폴백 hex = 그 변수의 현재 색).
+     칩의 active 표시는 raw dataset 을 따로 보므로 바인딩 정보는 안 잃는다. */
+function _swatchHex(v) {
+  const s = String(v || '').trim();
+  const m6 = s.match(/#([0-9a-fA-F]{6})\b/);
+  if (m6) return '#' + m6[1].toLowerCase();
+  const m3 = s.match(/#([0-9a-fA-F]{3})\b/);
+  if (m3) return '#' + m3[1].toLowerCase().split('').map((ch) => ch + ch).join('');
+  const rgb = s.match(/rgba?\(([^)]+)\)/i);
+  if (rgb) {
+    const p = rgb[1].split(',').map((x) => parseInt(x, 10));
+    const to = (n) => Math.max(0, Math.min(255, n | 0)).toString(16).padStart(2, '0');
+    return '#' + to(p[0]) + to(p[1]) + to(p[2]);
+  }
+  return MODAL_DEFAULTS.textColor;
+}
 
 const _MDL_VARIANT_LABELS = {
   'plain': '기본 박스', 'titled': '제목 + 본문', 'icon': '아이콘 + 텍스트',
@@ -32,6 +56,14 @@ export function showModalProperties(block) {
   const align = block.dataset.align || 'left';
   const fontSize = _i('fontSize', MODAL_DEFAULTS.fontSize);
   const gap = _i('gap', 14);
+  // ★타이포 — 텍스트 패널과 «같은 절»을 쓴다(_typo-section.js). dataset 이 진실이다.
+  const fontFamily = block.dataset.fontFamily || '';
+  const fontWeight = block.dataset.fontWeight || '';
+  const _f = (k, d) => { const n = parseFloat(block.dataset[k]); return Number.isFinite(n) ? n : d; };
+  const lineHeight = _f('lineHeight', MODAL_DEFAULTS.lineHeight);
+  const letterSpacing = _f('letterSpacing', 0);
+  const on = (k) => block.dataset[k] === '1';
+
   const isIcon = (v === 'icon' || v === 'icon-stack');
   const isGrid = (v === 'grid-2');
   const isRaster = block.dataset.raster === '1';
@@ -161,14 +193,17 @@ export function showModalProperties(block) {
           ${alignBtn('text', 'right',  { label: '오른쪽 정렬', title: '오른쪽 정렬', active: align === 'right',  attrs: { 'data-al': 'right' } })}
         </div>
       </div>
-      <div class="prop-row"><span class="prop-label">글자색</span>${colorFieldHTML({ idPrefix: 'mdl-fg', hex: textColor, alpha: parseAlphaFromColor(textColor) })}</div>
-      <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="mdl-fs-slider" min="10" max="60" step="1" value="${fontSize}">
-        <input type="number" class="prop-number" id="mdl-fs-number" min="10" max="60" value="${fontSize}">
-      </div>
-      <div class="prop-row"><span class="prop-label" style="opacity:.6">글자는 캔버스에서 더블클릭해 입력</span></div>
-    </div>`;
+    </div>
+
+    ${buildTypographySectionHtml({
+      p: 'mdl-typo',
+      font: fontFamily, weight: fontWeight, size: fontSize,
+      isBold: on('bold'), isItalic: on('italic'), isStrike: on('strike'), isHighlight: on('highlight'),
+      lh: lineHeight, ls: letterSpacing,
+      sizeMin: 10, sizeMax: 60,
+    })}
+
+    ${buildFillSectionHtml({ p: 'mdl-typo', colorHex: _swatchHex(textColor), alpha: parseAlphaFromColor(textColor) })}`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -186,7 +221,6 @@ export function showModalProperties(block) {
   };
   wireColor('mdl-bg', 'bg');
   wireColor('mdl-bc', 'borderColor');
-  wireColor('mdl-fg', 'textColor');
   if (isIcon && !isRaster) wireColor('mdl-ic', 'iconColor');
 
   // ── 슬라이더 + 숫자 «쌍» ──
@@ -208,9 +242,128 @@ export function showModalProperties(block) {
   wireNum('padx', 'padX', 0, 80);
   wireNum('pady', 'padY', 0, 80);
   wireNum('bw', 'borderW', 0, 12);
-  wireNum('fs', 'fontSize', 10, 60);
   if (isGrid) wireNum('gap', 'gap', 0, 40);
   if (isIcon) wireNum('isize', 'iconSize', 12, 96);
+
+  /* ── 타이포 배선 ──────────────────────────────────────────────────────────
+     ★전부 «dataset 에 쓰고 rerender()» 다. ⛔슬롯(.tb-mdl-text)에 인라인으로 박지 마라 —
+       renderModalBlock 이 `block.innerHTML = html` 로 슬롯을 통째로 새로 만들기 때문에
+       인라인은 «첫 측정을 통과하고 조용히 죽는다»(패널의 모든 조작·변형 전환·로드마다 재렌더). */
+  const setDs = (key, val) => {
+    if (val === null || val === '') delete block.dataset[key];
+    else block.dataset[key] = String(val);
+    rerender();
+  };
+
+  // 폰트 — 위젯은 텍스트 패널과 «같은 벌»(_font-picker.js). 우리는 «적용»만 준다.
+  wireFontPicker({
+    root: propPanel,
+    p: 'mdl-typo',
+    getCurrent: () => block.dataset.fontFamily || '',
+    onPick: (rawVal) => { setDs('fontFamily', rawVal); commit(); },
+  });
+
+  // 굵기 select
+  document.getElementById('mdl-typo-font-weight')?.addEventListener('change', (e) => {
+    setDs('fontWeight', e.target.value); commit();
+  });
+
+  // 크기 — ★범위는 10~60 이다(모달 쪽 값을 지킨다). 텍스트 패널의 8~800 이 아니다.
+  const fsNum = document.getElementById('mdl-typo-size-number');
+  fsNum?.addEventListener('change', () => {
+    const x = Math.min(60, Math.max(10, parseInt(fsNum.value) || MODAL_DEFAULTS.fontSize));
+    fsNum.value = x; setDs('fontSize', x); commit();
+  });
+
+  /* B / I / S / H — ⚠️슬롯 «전체»에만 걸린다.
+     슬롯 글자는 _esc() 평문으로 dataset 에 저장되므로 «부분 선택 서식»은 원리적으로 불가하다
+     (텍스트블록과 다른 점 — 거기선 <b> 태그가 살지만 여기선 «글자로» 보인다). */
+  // ★id 는 «통짜로» 적는다 — 템플릿으로 조립하면 grep 도 검사도 그 배선을 «못 본다».
+  for (const [id, key] of [['mdl-typo-bold-btn', 'bold'], ['mdl-typo-italic-btn', 'italic'],
+                           ['mdl-typo-strike-btn', 'strike'], ['mdl-typo-highlight-btn', 'highlight']]) {
+    const btn = document.getElementById(id);
+    btn?.addEventListener('click', () => {
+      const next = block.dataset[key] !== '1';
+      btn.classList.toggle('active', next);
+      setDs(key, next ? '1' : null); commit();
+    });
+  }
+
+  // 줄간격 / 자간
+  const lhNum = document.getElementById('mdl-typo-lh-number');
+  lhNum?.addEventListener('change', () => {
+    const x = Math.min(3, Math.max(1, parseFloat(lhNum.value) || MODAL_DEFAULTS.lineHeight));
+    lhNum.value = x; setDs('lineHeight', x); commit();
+  });
+  const lsNum = document.getElementById('mdl-typo-ls-number');
+  lsNum?.addEventListener('change', () => {
+    const x = Math.min(40, Math.max(-10, parseFloat(lsNum.value) || 0));
+    lsNum.value = x; setDs('letterSpacing', x); commit();
+  });
+
+  /* ── 글자색 (Fill 절) ──
+     ⛔wireColorField 를 못 쓴다 — 그건 `<prefix>-hex` 를 보는데 이 절의 id 는
+       텍스트 패널과 «같은» `<prefix>-color-hex` 다. 절을 공유한 대가로 배선은 여기서 짠다. */
+  const cPick  = document.getElementById('mdl-typo-color');
+  const cHex   = document.getElementById('mdl-typo-color-hex');
+  const cAlpha = document.getElementById('mdl-typo-color-alpha');
+  const cSwatch = cPick?.closest('.prop-color-swatch');
+  // 스와치 «배경»만은 raw 로 — var() 바인딩이면 변수의 실제 색이 보여야 한다.
+  if (cSwatch && textColor) cSwatch.style.background = textColor;
+  let _mdlAlpha = parseAlphaFromColor(textColor);
+  const buildColor = () => {
+    const h = (cPick.value || '#000000').replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    const a = Math.max(0, Math.min(1, _mdlAlpha / 100));
+    return a >= 1 ? cPick.value : `rgba(${r},${g},${b},${a})`;
+  };
+  const applyColor = () => {
+    const c = buildColor();
+    if (cSwatch) cSwatch.style.background = c;
+    setDs('textColor', c);
+  };
+  cPick?.addEventListener('input', () => {
+    // alpha 0 이면 색을 바꿔도 안 보인다 — 사용자가 alpha 를 안 건드렸으면 되살린다.
+    if (_mdlAlpha === 0) { _mdlAlpha = 100; if (cAlpha) cAlpha.value = '100'; }
+    if (cHex) cHex.value = cPick.value.replace('#', '').toUpperCase();
+    applyColor();
+  });
+  cPick?.addEventListener('change', commit);
+  cHex?.addEventListener('input', () => {
+    const val = cHex.value.trim().replace(/^#/, '');
+    if (!/^[0-9a-f]{6}$/i.test(val)) return;
+    cPick.value = '#' + val.toLowerCase();
+    if (_mdlAlpha === 0) { _mdlAlpha = 100; if (cAlpha) cAlpha.value = '100'; }
+    applyColor();
+  });
+  cHex?.addEventListener('change', commit);
+  cAlpha?.addEventListener('change', () => {
+    _mdlAlpha = Math.min(100, Math.max(0, parseInt(cAlpha.value) || 0));
+    cAlpha.value = String(_mdlAlpha);
+    applyColor(); commit();
+  });
+
+  /* 컬러 변수 칩 — 정적 hex 복사가 아니라 var(--color-<name>, #hex) «바인딩»이다.
+     ★modal-block.js 의 _MDL_COLOR_RE 가 var() 를 받도록 넓혔다 — 안 그러면 여기서
+       칩이 「눌리는데 안 먹는」 상태가 된다(2026-09-08 실측). */
+  const chipBox = document.getElementById('mdl-typo-color-chips');
+  if (chipBox) {
+    wireColorVarChips({
+      container: chipBox,
+      getActiveName: () => parseColorVarName(block.dataset.textColor || ''),
+      getFallbackHex: (name, hex) => hex,
+      onPick: (cssRef) => {
+        window.pushHistory?.();
+        setDs('textColor', cssRef);
+        const fb = (String(cssRef).match(/#[0-9a-fA-F]{6}/) || [])[0];
+        if (fb && cPick) { cPick.value = fb; if (cHex) cHex.value = fb.replace('#', '').toUpperCase(); }
+        // var 바인딩이면 불투명도는 100 — 칩 색이 안 보이는 일 방지(텍스트 패널과 같은 관례)
+        _mdlAlpha = 100; if (cAlpha) cAlpha.value = '100';
+        if (cSwatch) cSwatch.style.background = cssRef;
+        window.scheduleAutoSave?.();
+      },
+    });
+  }
 
   // ── 변형 ──
   const sel = document.getElementById('mdl-variant');
