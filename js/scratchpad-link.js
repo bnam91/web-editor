@@ -93,6 +93,7 @@
     //   (다음 추종 프레임이 «현재 보이는 자리»에서 linkDy를 유도 → 연결 순간 이미지는 안 움직인다.)
     _clearAnchor(scratchId);
     _rerender(); _save();
+    _emitSplChanged();
     return true;
   }
   // 해제: refLinks 에서 제거(이미지는 스크래치에 그대로 → pane 자동복귀).
@@ -104,7 +105,25 @@
     _write(sec, _parse(sec).filter(l => l.scratchId !== scratchId));
     _clearAnchor(scratchId); // 해제 = 다시 완전 자유(오프셋 폐기)
     _rerender(); _save();
+    _emitSplChanged();
     return true;
+  }
+  /* ★링크 «상태»가 바뀌었다고 알린다 — 개수(연결/해제)든 접힘이든 «둘 다» 이 하나로 쏜다.
+       이 파일의 상태를 «보여주는» 화면이 낡은 채 남으면 그건 거짓말이 된다. 여기가 진실의 출처다.
+     듣는 쪽(js/props/prop-page.js 의 _splSync)은 allLinks() 로 개수와 접힘을 «같이» 다시 읽어서
+     무엇이 바뀌었는지 구분하지 않는다 ⇒ 이벤트를 쪼갤 이유가 없다.
+     ⛔이름을 다시 좁히지 마라(예전 이름 gdt:spl-collapse-changed). addLink 는 링크를 옮길 때
+       collapsed 를 false 로 되돌리므로 «접힘 전용»이 아니었다 — 반쯤 맞는 이름이 제일 위험하다.
+       틀린 이름은 누가 고치지만 반쯤 맞는 이름은 아무도 의심하지 않는다.
+     ⛔본체 로직은 건드리지 않는다 — 알림 한 줄만 더한다.
+   ★★undo/redo 는 이 이벤트를 «지나지 않는다».
+     js/history.js:240 undo() / :263 redo() 는 캔버스 DOM 스냅샷을 통째로 되돌리는데,
+     refLinks 가 섹션 data 속성이라 그 스냅샷에 실려 있다(설계 의도대로) ⇒ addLink·setCollapsed 를
+     «거치지 않고» 링크 상태가 바뀐다. 그래서 ⌘Z 뒤엔 패널의 개수·.active 가 낡은 채 남는다.
+     막으려면 undo()/redo() 뒤에 이 이벤트를 한 번 쏘면 된다.
+     ⇒ ★이번 라운드 범위 밖이라 «일부러» 안 했다. 빠뜨린 게 아니다. */
+  function _emitSplChanged() {
+    try { window.dispatchEvent(new CustomEvent('gdt:spl-changed')); } catch (_) {}
   }
   // 접기/펼치기(경량 — history 없이 상태만·저장은 함; reload 는 dataset 로 유지)
   function setCollapsed(scratchId, val) {
@@ -117,6 +136,7 @@
     l.collapsed = !!val;
     _write(sec, arr);
     _rerender(); _save();
+    _emitSplChanged();
     return true;
   }
   /* 일괄 접기/펼치기 — 페이지 전역(현재 캔버스의 모든 링크). → { changed, total }
@@ -151,6 +171,7 @@
          resyncFollow() 가 lastTop 을 무효화해 다음 프레임에 1회 재적용시킨다(이미 쓰는 관례). */
     resyncFollow();
     _rerender(); _save();
+    _emitSplChanged();
     return { changed, total };
   }
 

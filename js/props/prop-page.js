@@ -188,52 +188,76 @@ export function showPageProperties() {
         <input type="range" class="prop-slider" id="page-padx-slider" min="0" max="200" step="1" value="${padX}">
         <input type="number" class="prop-number" id="page-padx-number" min="0" max="200" value="${padX}">
       </div>
-      <div class="prop-row" style="align-items:center;gap:4px;">
-        <input type="checkbox" id="page-padx-asset" ${padXExcludesAsset ? 'checked' : ''}>
-        <span class="prop-label" style="margin:0;width:auto;overflow:visible;white-space:normal;">에셋블록은 일괄패딩적용에서 제외합니다.</span>
-      </div>
-      <div class="prop-row" style="align-items:center;gap:4px;">
-        <input type="checkbox" id="page-grid-on">
-        <span class="prop-label" style="margin:0;width:auto;overflow:visible;white-space:normal;">그리드 가이드 (저장·내보내기에는 안 나옵니다)</span>
-      </div>
-      <div class="prop-row" id="page-grid-opts" style="display:none;">
-        <span class="prop-label">칼럼 · 거터</span>
-        <input type="number" class="prop-number" id="page-grid-cols" min="2" max="24" value="12" title="칼럼 수">
-        <input type="number" class="prop-number" id="page-grid-gut" min="0" max="80" value="20" title="칼럼 사이 간격(px)">
-      </div>
-      <div class="prop-row" id="page-grid-mid-row" style="display:none;align-items:center;gap:4px;">
-        <input type="checkbox" id="page-grid-mid">
-        <span class="prop-label" style="margin:0;width:auto;overflow:visible;white-space:normal;">중앙선도 함께</span>
-      </div>
       <div class="prop-row">
         <span class="prop-label">상하 패딩</span>
         <input type="range" class="prop-slider" id="page-pady-slider" min="0" max="200" step="1" value="${padY}">
         <input type="number" class="prop-number" id="page-pady-number" min="0" max="200" value="${padY}">
       </div>
+      <div class="prop-row">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
+          <input type="checkbox" id="page-padx-asset" ${padXExcludesAsset ? 'checked' : ''}> 에셋블록 제외
+        </label>
+      </div>
+      <div class="prop-hint" style="font-size:11px;color:#888;">에셋 블록은 좌우 패딩 일괄 적용에서 제외됩니다.</div>
     </div>
+    <!-- ★Grid 는 «기하»가 아니라 «보기 보조»라 Layout 에서 떼어냈다.
+         예전엔 그리드 3줄이 「좌우 패딩」과 「상하 패딩」 사이에 끼어 패딩 짝을 갈라놨다. -->
+    <div class="prop-section">
+      <div class="prop-section-title">Grid</div>
+      <div class="prop-row">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
+          <input type="checkbox" id="page-grid-on"> 그리드 가이드
+        </label>
+      </div>
+      <div class="prop-hint" style="font-size:11px;color:#888;">저장·내보내기에는 나오지 않습니다.</div>
+      <div class="prop-row" id="page-grid-opts">
+        <span class="prop-label">칼럼</span>
+        <div class="prop-type-group" id="page-grid-col-presets">
+          <button class="prop-preset-btn prop-type-btn" data-cols="6">6</button>
+          <button class="prop-preset-btn prop-type-btn" data-cols="12">12</button>
+        </div>
+        <input type="number" class="prop-number" id="page-grid-cols" min="2" max="24" value="12" title="칼럼 수 (2~24, 직접 입력)">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">거터</span>
+        <input type="range" class="prop-slider" id="page-grid-gut-slider" min="0" max="80" step="1" value="20">
+        <input type="number" class="prop-number" id="page-grid-gut" min="0" max="80" value="20" title="칼럼 사이 간격(px)">
+      </div>
+      <div class="prop-row" id="page-grid-mid-row">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
+          <input type="checkbox" id="page-grid-mid"> 중앙선도 함께
+        </label>
+      </div>
+    </div>
+    <!-- ★라벨을 «안» 붙인다 — 절 제목이 이미 「참고 이미지」다. 같은 말을 두 번 하면
+         240px 패널(가용 ~212px)에서 라벨이 잘리고 버튼 둘이 서로 눌린다(실측).
+         개수는 A-2 와 같은 어휘로 prop-hint 에 내린다. -->
     <div class="prop-section">
       <div class="prop-section-title">참고 이미지</div>
-      <div class="prop-row">
-        <span class="prop-label">연결</span>
-        <span id="spl-link-count" class="prop-label" style="margin:0;width:auto;">0개</span>
+      <div class="prop-type-group">
+        <button class="prop-type-btn" id="spl-collapse-all">접기</button>
+        <button class="prop-type-btn" id="spl-expand-all">펼치기</button>
       </div>
-      <div class="prop-row" style="gap:4px">
-        <button class="prop-btn-full" id="spl-collapse-all">전부 접기</button>
-        <button class="prop-btn-full" id="spl-expand-all">전부 펼치기</button>
-      </div>
+      <div class="prop-hint" style="font-size:11px;color:#888;">연결된 참고 이미지 <span id="spl-link-count">0개</span></div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Export</div>
-      <select class="prop-select" id="page-export-format" style="width:100%;margin-bottom:6px;">
-        <option value="png">PNG</option>
-        <option value="jpg">JPG</option>
-        <option value="gif">GIF (정적)</option>
-        <option value="gif-anim">GIF (애니메이션)</option>
-      </select>
-      <select class="prop-select" id="page-export-width" style="width:100%;margin-bottom:6px;">
-        <option value="860">860px (기본)</option>
-        <option value="780">780px (쿠팡)</option>
-      </select>
+      <div class="prop-row">
+        <span class="prop-label">형식</span>
+        <select class="prop-select" id="page-export-format">
+          <option value="png">PNG</option>
+          <option value="jpg">JPG</option>
+          <option value="gif">GIF (정적)</option>
+          <option value="gif-anim">GIF (애니메이션)</option>
+        </select>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">폭</span>
+        <select class="prop-select" id="page-export-width">
+          <option value="860">860px (기본)</option>
+          <option value="780">780px (쿠팡)</option>
+        </select>
+      </div>
       <button class="prop-export-btn" id="page-export-all-btn">전체 섹션 내보내기</button>
     </div>`;
 
@@ -267,11 +291,18 @@ export function showPageProperties() {
      ⛔프로젝트에 저장하지 않는다 — 이건 «보기» 설정이지 문서의 일부가 아니다.
        다른 사람이 그 프로젝트를 열었을 때 내 가이드가 켜져 있으면 그게 더 이상하다. */
   const gridOn   = document.getElementById('page-grid-on');
-  const gridOpts = document.getElementById('page-grid-opts');
-  const gridMidRow = document.getElementById('page-grid-mid-row');
   const gridCols = document.getElementById('page-grid-cols');
   const gridGut  = document.getElementById('page-grid-gut');
+  const gridGutSlider = document.getElementById('page-grid-gut-slider');
   const gridMid  = document.getElementById('page-grid-mid');
+  const gridColPresets = document.getElementById('page-grid-col-presets');
+
+  /* ★클램프는 «한 벌»만 둔다 — refreshGrid 가 쓰는 식과 되쓰기가 갈리면
+       화면엔 999 가 남는데 실제 그리드는 24인 «거짓말» 상태가 생긴다. */
+  /* ⚠️빈 칸·0 은 min(2) 이 아니라 «기본값 12» 로 간다 — `|| 12` 가 먼저 걸리기 때문이고, 그게 맞다.
+       빈 칸은 「지우는 중」이지 「0을 원한다」가 아니다. 버그로 보고 고치지 마라. */
+  const clampCols = (v) => Math.min(24, Math.max(2, parseInt(v) || 12));
+  const clampGut  = (v) => Math.min(80, Math.max(0, parseInt(v) || 0));
 
   const GRID_KEY = 'gdt.gridGuide';
   const readGridPref = () => {
@@ -279,16 +310,38 @@ export function showPageProperties() {
   };
   const saveGridPref = (o) => { try { localStorage.setItem(GRID_KEY, JSON.stringify(o)); } catch (_) {} };
 
+  /* 프리셋 [6]/[12] — 「직접입력 칸」을 없애지 않는다(2~24 를 프리셋 둘로 못 덮는다).
+     ★.active 는 «현재 값이 정확히 그 값일 때만» — 8을 쳐 놓고 버튼이 눌려 있으면 거짓말이다. */
+  function syncColPresets() {
+    if (!gridColPresets) return;
+    const cur = parseInt(gridCols?.value);
+    gridColPresets.querySelectorAll('.prop-preset-btn').forEach(b =>
+      b.classList.toggle('active', cur === parseInt(b.dataset.cols)));
+  }
+
+  /* ★체크박스 게이트(display:none) 제거 — 줄은 «늘 보이고» 조작만 잠근다.
+     근거: 우리 가이드는 언제나 하나뿐이라(추가·삭제 UI 없음) 「없음」 상태가 아예 없다.
+     ⇒ 체크박스는 순수 「꺼짐」이고, 끈다고 설정이 사라질 이유가 없다(피그마의 눈 아이콘과 같은 층). */
+  function syncGridDisabled() {
+    const on = !!(gridOn && gridOn.checked);
+    [gridCols, gridGut, gridGutSlider, gridMid].forEach(el => { if (el) el.disabled = !on; });
+    if (gridColPresets) gridColPresets.querySelectorAll('button').forEach(b => { b.disabled = !on; });
+  }
+
   function refreshGrid() {
     const on = !!(gridOn && gridOn.checked);
     const mid = !!(gridMid && gridMid.checked);
     document.body.classList.toggle('gdt-grid-on', on);
     document.body.classList.toggle('gdt-grid-mid', on && mid);
-    if (gridOpts) gridOpts.style.display = on ? '' : 'none';
-    if (gridMidRow) gridMidRow.style.display = on ? '' : 'none';
+    syncGridDisabled();
+    syncColPresets();
+    const n = clampCols(gridCols?.value);
+    const g = clampGut(gridGut?.value);
+    if (gridGutSlider && gridGutSlider.value !== String(g)) gridGutSlider.value = g;
+    /* ★끈 상태도 «기억»한다 — 예전엔 여기서 바로 return 해서 on:false 가 저장되지 않았고,
+         꺼 놓고 패널을 다시 열면 가이드가 되살아났다. */
+    saveGridPref({ on, mid, n, g });
     if (!on) return;
-    const n = Math.min(24, Math.max(2, parseInt(gridCols?.value) || 12));
-    const g = Math.min(80, Math.max(0, parseInt(gridGut?.value) || 0));
     /* 콘텐츠 폭 — «화면에서» 잰다. 섹션마다 패딩이 다를 수 있어 첫 섹션을 기준으로 삼는다.
        ⚠️섹션별로 패딩을 따로 준 곳은 그 섹션에서 어긋난다 — 가이드지 자[尺]가 아니다. */
     const inner = document.querySelector('#canvas .section-inner');
@@ -303,7 +356,6 @@ export function showPageProperties() {
     const root = document.documentElement.style;
     root.setProperty('--gdt-grid-col', col.toFixed(2) + 'px');
     root.setProperty('--gdt-grid-gut', g + 'px');
-    saveGridPref({ on, mid, n, g });
   }
   /* 패딩이 바뀌면 그리드도 따라와야 한다 — 이 자리를 빠뜨리면 «켜 두고 패딩만 바꿨을 때» 어긋난다 */
   window.__gdtRefreshGrid = refreshGrid;
@@ -314,9 +366,25 @@ export function showPageProperties() {
     if (gridMid) gridMid.checked = !!pref.mid;
     if (gridCols && pref.n) gridCols.value = pref.n;
     if (gridGut && pref.g != null) gridGut.value = pref.g;
+    if (gridGutSlider) gridGutSlider.value = clampGut(gridGut?.value);
     [gridOn, gridMid, gridCols, gridGut].forEach(el =>
       el && el.addEventListener('input', refreshGrid));
     [gridOn, gridMid].forEach(el => el && el.addEventListener('change', refreshGrid));
+    /* 거터 = 슬라이더 + 숫자칸 한 쌍 (섹션 간격·패딩과 같은 어휘) */
+    if (gridGutSlider) gridGutSlider.addEventListener('input', () => {
+      if (gridGut) gridGut.value = gridGutSlider.value;
+      refreshGrid();
+    });
+    /* ★클램프 되쓰기는 «change 에만» 건다.
+       ⛔input 에 걸면 min=2 라 `1` 을 치는 순간 2로 튀어서 `12` 를 못 친다. */
+    if (gridCols) gridCols.addEventListener('change', () => { gridCols.value = clampCols(gridCols.value); refreshGrid(); });
+    if (gridGut)  gridGut .addEventListener('change', () => { gridGut.value  = clampGut(gridGut.value);   refreshGrid(); });
+    if (gridColPresets) gridColPresets.addEventListener('click', (e) => {
+      const b = e.target.closest('.prop-preset-btn');
+      if (!b || b.disabled || !gridCols) return;
+      gridCols.value = clampCols(b.dataset.cols);
+      refreshGrid();
+    });
     refreshGrid();
   }
 
@@ -405,24 +473,73 @@ export function showPageProperties() {
     /* ★제자리 갱신 — showPageProperties() 를 다시 부르면 슬라이더 포커스·패널 스크롤이 튄다
          (사용자가 다른 값을 만지던 중일 수 있다). 텍스트와 disabled 속성만 건드린다. */
     const _splSync = () => {
-      const n = window.SPLink?.allLinks?.().length ?? 0;
-      splCount.textContent = `${n}개`;
-      const none = n === 0;
+      /* ★판정 근거는 «데이터»(allLinks) 하나로 통일한다 — DOM 으로 세면 고아 링크에 흔들려
+           숫자와 버튼 상태가 서로 다른 말을 한다. */
+      const links = window.SPLink?.allLinks?.() ?? [];
+      const t = links.length;
+      const c = links.filter(l => l.collapsed).length;
+      splCount.textContent = `${t}개`;
+      const none = t === 0;
       for (const b of [splCollapse, splExpand]) {
         b.disabled = none;
         b.title = none ? '연결된 참고 이미지가 없습니다' : '';
       }
+      /* ★혼합(일부만 접힘)이면 «둘 다» 불을 끈다 — 라디오처럼 생긴 버튼이 한쪽만 켜져 있으면
+           「전부 접혀 있다」는 거짓말이 된다. c===t 접기 / c===0 펼치기 / 그 사이는 무표시. */
+      splCollapse.classList.toggle('active', !none && c === t);
+      splExpand  .classList.toggle('active', !none && c === 0);
     };
     const _splRun = (val, doneMsg, noopMsg) => {
       const r = window.SPLink?.setCollapsedAll?.(val);
       if (!r) return;
       // ★changed 0 도 «말한다» — 조용히 아무 일도 안 하면 고장으로 읽힌다.
       window.showToast?.(r.changed ? `${doneMsg} (${r.changed}개)` : noopMsg);
+      /* ★일부러 이중이다 — setCollapsedAll 이 이미 'gdt:spl-changed' 를 쏴서 _splSync 가 한 번 돌았다.
+           멱등이라 두 번 돌아도 결과가 같고, 이벤트가 죽어도 «버튼 동작만은» 살아 있게 남긴다. */
       _splSync();
     };
     splCollapse.addEventListener('click', () => _splRun(true,  '참고 이미지를 접었습니다', '이미 전부 접혀 있습니다'));
     splExpand  .addEventListener('click', () => _splRun(false, '참고 이미지를 펼쳤습니다', '이미 전부 펼쳐져 있습니다'));
+    /* ★패널 밖에서 링크가 바뀌어도 여기 표시가 따라와야 한다 — 스크래치 아이템의 개별 ＋/－ 로
+         접든, 링크를 새로 걸거나 끊든(개수가 바뀐다) 마찬가지다.
+         .active 가 생긴 순간부터 «낡은 표시 = 틀린 정보» 다(A-5 클램프 되쓰기와 같은 종류의 결함).
+         진실의 출처는 js/scratchpad-link.js 이고 거기서 'gdt:spl-changed' 를 쏜다.
+       ⛔리스너를 쌓지 «않는다» — 패널을 여닫을수록 늘어나면 그것도 결함이다.
+         ⑴이전 패널이 걸어둔 것을 먼저 떼고 ⑵다른 패널로 바뀌어 노드가 떨어지면 스스로 떨어진다. */
+    const _splOnChange = () => {
+      if (!splCount.isConnected) { window.removeEventListener('gdt:spl-changed', _splOnChange); return; }
+      _splSync();
+    };
+    if (window.__gdtSplHook) window.removeEventListener('gdt:spl-changed', window.__gdtSplHook);
+    window.__gdtSplHook = _splOnChange;
+    window.addEventListener('gdt:spl-changed', _splOnChange);
     _splSync();
+  }
+
+  /* ── Export 선택 기억 ────────────────────────────────────────────────
+     ⛔프로젝트 데이터에 저장하지 «않는다» — 「형식·폭」은 내 컴퓨터의 도구 설정이지 문서가 아니다.
+       프로젝트에 넣으면 남의 프로젝트를 열 때 내 폭이 따라간다(그리드 설정과 같은 논리).
+     ★키는 GRID_KEY(gdt.gridGuide)와 «따로» 둔다 — 한 키에 섞으면 한쪽 저장이 다른 쪽을 지운다. */
+  const EXPORT_KEY = 'gdt.pageExport';
+  const expFmtSel = document.getElementById('page-export-format');
+  const expWSel   = document.getElementById('page-export-width');
+  if (expFmtSel && expWSel) {
+    try {
+      const p = JSON.parse(localStorage.getItem(EXPORT_KEY) || '{}') || {};
+      /* 없어진 옵션이 저장돼 있으면 «무시»한다 — value 를 그냥 넣으면 select 가 빈 값이 된다 */
+      if (p.fmt && [...expFmtSel.options].some(o => o.value === p.fmt)) expFmtSel.value = p.fmt;
+      if (p.w != null && [...expWSel.options].some(o => o.value === String(p.w))) expWSel.value = String(p.w);
+    } catch (_) {}
+    const _saveExportPref = () => {
+      try {
+        localStorage.setItem(EXPORT_KEY, JSON.stringify({
+          fmt: expFmtSel.value,
+          w: parseInt(expWSel.value) || 860,
+        }));
+      } catch (_) {}
+    };
+    expFmtSel.addEventListener('change', _saveExportPref);
+    expWSel  .addEventListener('change', _saveExportPref);
   }
 
   // 전체 내보내기
