@@ -1374,11 +1374,16 @@ function _registerDefaultTools() {
         hint: r.wasActive
           ? '★지운 것이 «활성»이었다 — 활성을 비웠다. 편집을 이어가려면 open_project 로 다른 프로젝트를 열어라.'
           : '활성 프로젝트는 그대로다.',
-        note: '휴지통으로 옮겼다(영구삭제 아님). 되돌리려면 macOS 휴지통에서 복원해라.',
+        /* ⛔2026-09-08: 여기 「macOS 휴지통에서 복원해라」라고 적혀 있었는데 «거짓말»이 됐다 —
+             동작은 앱 휴지통으로 바뀌었는데 문구를 안 고쳤다. 계약은 동작과 «같이» 움직여야 한다.
+             ⇒ 이제는 main 이 돌려주는 note 를 «그대로» 싣는다(한 곳에서만 말한다). */
+        note: r.note || `앱 휴지통으로 옮겼다(영구삭제 아님). 갤러리의 «휴지통» 탭에서 되살릴 수 있다.`,
+        ...(r.deletedAt ? { deletedAt: r.deletedAt } : {}),
+        ...(r.appTrash ? { appTrash: true } : {}),
       };
     },
     {
-      description: 'Delete a project — DESTRUCTIVE but RECOVERABLE: the project folder is moved to the macOS Trash, not erased. '
+      description: 'Delete a project — DESTRUCTIVE but RECOVERABLE: it goes to the in-app Trash tab and is kept 30 days (then moved to the OS Trash), never erased. '
         + 'Takes projectId directly (from list_projects), so it does NOT act on the "active" project and needs no expectedProject guard. '
         + 'The last remaining project CAN be deleted (the gallery shows an empty-state screen). '
         + 'If the deleted project was the active one, the active target is cleared — open_project another one before editing.',

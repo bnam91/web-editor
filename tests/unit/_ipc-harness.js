@@ -93,6 +93,8 @@ function loadMain(opts) {
     /** electron-updater 의 autoUpdater 스텁. __on 에 등록된 이벤트가 쌓인다 = 「updater 가 무장됐나」. */
     updater: FAKE['electron-updater'].autoUpdater,
     trashDir: path.join(userData, '_Trash'),
+    /* ★앱 «휴지통 탭»(2026-09-08) — 기본 삭제는 이제 여기로 간다. OS 휴지통(_Trash)은 permanent 전용. */
+    appTrashDir: path.join(projectsDir, '.trash'),
     /* ★[H4] electron 스텁 «그 자체» — 테스트가 BrowserWindow.getAllWindows 등을 갈아끼운다. */
     stub,
     /** app.on/once 으로 등록된 «진짜» 핸들러(before-quit 등). */

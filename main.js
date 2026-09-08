@@ -2162,12 +2162,61 @@ function _recordSyncSaveFailure(project, reason, error) {
  *   구조적으로 없었다. trashItem 은 Promise 라 await 사이에 autosave 가 끼어들 수 있다.
  *   ⇒ 호출측(렌더러)이 «그 프로젝트를 안 연 상태»로 부르는 게 전제다 — 갤러리에서만 부른다.
  */
+/* ── 앱 «휴지통 탭» (2026-09-08 현빈 지시) ──────────────────────────────────
+ * ★OS 휴지통이 아니라 «우리 안»에 30일 둔다. 이유는 main/trash.js 머리글.
+ *   요지: 폴더가 우리 영역 안에 있으면 id 가 그대로라 복원이 «되돌리기»다.
+ *   OS 휴지통을 거치면 되살릴 때 «새 프로젝트 가져오기»가 된다(.gdt 임포트가 §7-4 로 새 id 를 강제).
+ * ⛔여기서 «영구삭제»는 없다. 만료분도 OS 휴지통으로 넘긴다 — 마지막 그물을 우리가 끊지 않는다. */
+const _trash = require('./main/trash');
+/* ⛔뿌리는 «값으로» 넘기지 않는다 — 계정이 바뀌면 PROJECTS_DIR 이 재지정되는데
+     한 번 붙잡아 두면 «옛 계정의 휴지통»을 계속 본다(검사 M9 가 이 자리를 잡았다).
+   ⇒ 호출할 때마다 `_projectsRoot()` 로 «다시 읽는다». */
+
+/* ★만료분 쓸어내기 — 앱을 «켤 때» 지난 날짜를 몰아서 처리한다.
+     안 켜는 동안 시간이 멈추면 「30일 지났는데 그대로네」로 사용자가 놀란다.
+   ⛔영구삭제가 아니다 — OS 휴지통으로 넘긴다. 실패해도 «남겨둔다»(못 지운 게 사라진 것보다 낫다). */
+async function _sweepTrashOnBoot() {
+  try {
+    const r = await _trash.sweepTrash({ projectsDir: _projectsRoot(), trashItem: (p) => shell.trashItem(p) });
+    if (r.swept.length || r.failed.length)
+      console.log('[trash] 만료 정리:', r.swept.length, '건 내보냄 ·', r.failed.length, '건 실패');
+  } catch (e) { console.warn('[trash] 만료 정리 실패:', e && e.message); }
+}
+
+ipcMain.handle('trash:list', () => {
+  try { return _trash.listTrash({ projectsDir: _projectsRoot() }); }
+  catch (e) { return { ok: false, error: e.message, items: [] }; }
+});
+ipcMain.handle('trash:restore', (_e, id) => {
+  try { return _trash.restoreFromTrash({ projectsDir: _projectsRoot(), projectId: String(id || '') }); }
+  catch (e) { return { ok: false, code: 'io', error: e.message }; }
+});
+ipcMain.handle('trash:purge', async (_e, id) => {
+  try { return await _trash.purgeFromTrash({ projectsDir: _projectsRoot(), projectId: String(id || ''),
+                                             trashItem: (p) => shell.trashItem(p) }); }
+  catch (e) { return { ok: false, code: 'io', error: e.message }; }
+});
+
 ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
   const safeId = String(id || '').trim();
   if (!safeId || safeId.includes('/') || safeId.includes('\\') || /^\.+$/.test(safeId)) {
     return { ok: false, trashed: false, reason: 'invalid_id' };
   }
   const permanent = opts && opts.permanent === true;   // ★2차 확인을 «거친» 경우에만 true
+
+  /* ★기본 경로 = «앱 휴지통»(30일). OS 휴지통은 permanent 일 때만 (2026-09-08 현빈 지시).
+     ⛔조용히 OS 휴지통으로 폴백하지 «않는다» — 실패는 실패라고 말해야 사용자가 판단한다.
+       (그 다음 판단지는 UI 에 이미 있다: 「영구 삭제할까요」 2차 확인) */
+  if (!permanent) {
+    const r = _trash.moveToTrash({ projectsDir: _projectsRoot(), projectId: safeId });
+    if (r.ok) return { ok: true, trashed: true, appTrash: true, projectId: safeId,
+                       name: r.name, deletedAt: r.deletedAt,
+                       note: `앱 휴지통으로 옮겼다(${_trash.RETENTION_DAYS}일 보관). 휴지통 탭에서 되살릴 수 있다.` };
+    if (r.code === 'not_found') return { ok: true, trashed: false, reason: 'not_found', deleted: 0 };
+    return { ok: false, trashed: false, reason: 'trash_failed',
+             code: r.code, message: r.error, ...(r.rollbackStuck ? { rollbackStuck: r.rollbackStuck } : {}) };
+  }
+
   const projectsBase = path.resolve(PROJECTS_DIR);
   const dirPath = path.resolve(PROJECTS_DIR, safeId);
   const inBase = (p) => p.startsWith(projectsBase + path.sep);
@@ -2186,29 +2235,11 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
   if (inBase(dirPath) && fs.existsSync(dirPath)) targets.push(dirPath);
   if (!targets.length) return { ok: true, trashed: false, reason: 'not_found', deleted: 0 };
 
-  // ★휴지통에서 «찾을 수 있어야» 복구다. proj_178… 폴더가 수십 개면 자기 걸 못 고른다.
-  //   ⛔디렉터리 이름은 «안» 바꾼다 — id 가 곧 디렉터리명이라 trash 실패 시 살아있는 프로젝트가 깨진다.
-  //   어차피 버려질 봉투 «안»에 마커를 넣는 건 위험이 0이다.
-  // ⛔permanent 모드엔 마커가 쓸모없다(휴지통에서 찾을 일이 없다) — 안 쓴다.
-  // ⚠️symlink 로 base 밖을 가리키면 마커가 PROJECTS_DIR 밖에 써진다 → realpath 로 한 번 더 막는다.
-  let markerPath = null;
-  if (!permanent && fs.existsSync(dirPath)) {
-    let realOk = false;
-    try { realOk = fs.realpathSync(dirPath).startsWith(fs.realpathSync(projectsBase) + path.sep); } catch (_) {}
-    if (realOk) {
-    try {
-      let name = safeId, sections = null;
-      try {
-        const m = JSON.parse(fs.readFileSync(path.join(dirPath, 'proj_meta.json'), 'utf8'));
-        if (m && m.name) name = m.name;
-      } catch (_) {}
-      try { sections = _countSections(JSON.parse(fs.readFileSync(path.join(dirPath, 'proj.json'), 'utf8'))); } catch (_) {}
-      markerPath = path.join(dirPath, '_deleted-info.json');
-      fs.writeFileSync(markerPath,
-        JSON.stringify({ name, id: safeId, deletedAt: new Date().toISOString(), sections }, null, 2));
-    } catch (_) { markerPath = null; /* 마커 실패는 삭제를 무르지 않는다 */ }
-    }
-  }
+  /* ⛔2026-09-08: 여기 있던 «_deleted-info.json 마커»는 지웠다 — «죽은 코드»가 됐다.
+       마커는 「OS 휴지통에서 자기 걸 알아보게」 하려던 것인데, 이제 기본 삭제는 앱 휴지통으로 가고
+       (그쪽은 `.trash/<id>.json` 메타가 이름·시각을 든다) 여기는 permanent 전용이다.
+       permanent 는 애초에 마커를 «안» 썼다 — 휴지통에서 찾을 일이 없으니까.
+     ★그래서 이 블록은 어느 경로에서도 안 돌았다. 남겨두면 「어느 쪽이 진짜 마커인가」로 다음 사람이 헤맨다. */
 
   const failed = [];
   let trashedCount = 0;
@@ -2248,7 +2279,6 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
     //   「영구 삭제할까요」를 물으므로, 여기서 거짓을 말하면 사용자가 판단을 그르친다.
     const partial = trashedCount > 0;   // 잔재 일부만 옮겨졌다(프로젝트 본체는 그대로)
     console.warn('[projects:delete] 실패:', JSON.stringify(failed), 'moved=', trashedCount, 'bundleMoved=', bundleMoved);
-    if (markerPath) { try { fs.unlinkSync(markerPath); } catch (_) {} }   // 살아남은 프로젝트에 마커를 남기지 않는다
     return { ok: false, trashed: bundleMoved, bundleIntact: !bundleMoved, deleted: trashedCount,
              reason: permanent ? 'delete_failed' : (partial ? 'trash_partial' : 'trash_failed'),
              message: failed[0].error, failed };
@@ -2275,6 +2305,34 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
  *   ⇒ 복제 로직을 두 벌 만들지 않는다. js/market.js 가 saveProject 로 직접 만들다가 에셋을 통째로
  *     빠뜨린 전례가 있다(사본이 원본 폴더를 몰래 참조 → 원본 삭제 시 404).
  */
+/* ★활성 프로젝트를 지웠으면 «활성도 같이» 비운다 — 두 삭제 경로가 «같은» 것을 쓴다.
+   안 그러면 activeProjectId 가 «죽은 id» 를 가리키고, 파괴 도구는 「활성」을 대상으로 삼으므로
+   그 뒤 호출이 어디로 갈지 모르게 된다(2026-09-07 실측된 상태).
+   ⛔2026-09-07 G2 실측: global 만 비웠더니 «안 비워졌다». `_activeProjectId()` 는 «두 곳»을 본다 —
+     ⑴ onActiveProject 콜백(= global.currentActiveProjectId)
+     ⑵ ★창 URL 의 `?project=…`  ← 여기가 남아 있으면 «지운 프로젝트»를 계속 가리킨다
+   ⇒ 한 곳만 비우면 「비웠다」가 거짓말이 된다. 읽는 곳을 «전부» 비운다. */
+async function _clearActiveIfNeeded(projectId, wasActive) {
+  if (!wasActive) return false;
+  try {
+    global.currentActiveProjectId = null;
+    for (const w of BrowserWindow.getAllWindows()) {
+      try {
+        const u = w.webContents && w.webContents.getURL && w.webContents.getURL();
+        if (u && new RegExp(`[?&]project=${projectId}(?:[&#]|$)`).test(u)) {
+          // 갤러리로 되돌린다 — 지워진 프로젝트를 연 채로 두면 편집기가 «없는 것»을 가리킨다
+          const gallery = u.replace(/index\.html.*$/, 'projects.html').split('?')[0];
+          await w.loadURL(gallery.includes('projects.html') ? gallery
+                          : u.split('?')[0].replace(/[^/]*$/, 'projects.html')).catch(() => {});
+        }
+        await w.webContents.executeJavaScript(
+          'try{window.activeProjectId=null}catch(_){}; true', true).catch(() => {});
+      } catch (_) {}
+    }
+    return true;
+  } catch (_) { return false; }   // 비우기 실패가 삭제를 되돌리진 않는다 — 호출측이 값으로 «알린다»
+}
+
 // 프로젝트 «삭제» 코어 — MCP delete_project 도구가 사용. (2026-09-07 신설)
 // ★★영구삭제가 «아니라» 휴지통으로 옮긴다(현빈 지시). 이유:
 //   ⑴ 삭제는 되돌릴 수 없는 자원인데, 휴지통이면 «되돌릴 수 있다» ⇒ 위험 등급이 한 칸 내려간다
@@ -2300,95 +2358,30 @@ async function _deleteProjectImpl({ projectId } = {}) {
     // ★활성이었나를 «지우기 전에» 본다 — 지우고 나면 못 잰다
     const wasActive = (global.currentActiveProjectId === projectId);
 
-    /* ★휴지통에 «알아볼 수 있는 이름»으로 넣는다 (2026-09-07 현빈 지시).
-       왜: 그전엔 폴더 이름이 `proj_1788758331862` 뿐이라 휴지통을 열어도 «이게 뭔지» 모른다.
-
-       ⛔★2026-09-07 «정정» — 처음엔 `<이름>.gdt` 로 만들었다. **그건 규격 위반이었다.**
-         `.gdt` 는 «이미 확정된» 고디터 프로젝트 «파일 포맷»이다:
-           · zip(deflate) — manifest.json + project.json + images/ (명세 `지디/notes/GDT-SPEC.md`)
-           · package.json 의 fileAssociations 에 mac·win «둘 다» 등록돼 있다(더블클릭 배선까지 있다)
-           · ★`gdt-verify` 의 적대적 픽스처에 `bad_02_plaintext.gdt`(=확장자만 .gdt 인 것)가
-             **«거부»가 정답**으로 박혀 있다 — 내가 만든 게 정확히 그 모양이었다.
-         ⇒ 사용자가 휴지통에서 꺼내 더블클릭하면 «열릴 거라 기대»하는데 «거부»된다.
-         ⇒ ★**규격의 «이름»을 달고 규격이 «아닌» 것이 제일 나쁘다.** 그래서 확장자를 뗀다.
-       ⚠️내가 「코드에 .gdt 가 0건」이라 한 것도 틀렸다 — zsh 가 따옴표 없는 `--include=*.js` 를
-         글롭으로 보고 «명령 자체가 안 돌았다». 에러 줄이 출력에 있었는데 읽고도 0을 결과로 썼다.
-         ⇒ ★「0건」을 볼 땐 «명령이 돌기는 했나»부터 봐라. 실제로는 22개 파일에 있다.
-
-       지금은 «확장자 없이» 프로젝트 이름만 쓴다. 폴더 구조는 그대로 두고(손으로도 복원된다)
-       `restore.json` 이 원래 id·경로·시각을 들고 있다 — 그게 「고디터 것」임을 판별하는 표식이다.
-       ★「알아보기 쉽게」가 「되돌리기 어렵게」가 되면 그건 개선이 아니다. */
-    const bundleName = (() => {
-      let nm = projectId;
-      try {
-        const jp = _resolveProjectJsonPath(projectId);
-        if (jp && fs.existsSync(jp)) nm = JSON.parse(fs.readFileSync(jp, 'utf8')).name || projectId;
-      } catch (_) {}
-      // ⛔파일명에 못 쓰는 글자를 치운다(/ : 등). 한글은 그대로 둔다 — 알아보는 게 목적이다.
-      nm = String(nm).replace(/[/\\:*?"<>|\u0000-\u001f]/g, '_').trim().slice(0, 80) || projectId;
-      return nm;   // ⛔`.gdt` 를 붙이지 마라 — 그건 zip 포맷의 «약속된» 이름이다
-    })();
-    let toTrash = target;
-    try {
-      if (fs.existsSync(dir)) {                       // 폴더 레이아웃일 때만 «담아서» 버린다
-        fs.writeFileSync(path.join(dir, 'restore.json'), JSON.stringify({
-          projectId, originalPath: dir, deletedAt: new Date().toISOString(),
-          note: '고디터 프로젝트. 되돌리려면 이 폴더를 originalPath 로 옮기고 앱을 재시작해라.',
-        }, null, 2));
-        const staged = path.join(PROJECTS_DIR, bundleName);
-        // ⛔같은 이름이 이미 있으면 덮어쓰지 않는다 — 남의 것을 지울 수 있다
-        const uniq = fs.existsSync(staged) ? path.join(PROJECTS_DIR, `${bundleName}-${Date.now()}`) : staged;
-        fs.renameSync(dir, uniq);
-        toTrash = uniq;
+    /* ★MCP 삭제도 «앱 휴지통»으로 간다 (2026-09-08). 사람이 쓰는 화면과 «같은 곳»이어야
+       사용자가 「AI 가 지운 것」을 자기 휴지통 탭에서 찾을 수 있다.
+       ⛔도구만 다른 데로 버리면 사용자는 영영 못 찾는다. */
+    {
+      const tr = _trash.moveToTrash({ projectsDir: _projectsRoot(), projectId });
+      if (tr.ok) {
+        const cleared = await _clearActiveIfNeeded(projectId, wasActive);
+        return { ok: true, projectId, trashed: true, appTrash: true, name: tr.name,
+                 deletedAt: tr.deletedAt, wasActive, activeCleared: cleared,
+                 note: `앱 휴지통으로 옮겼다(${_trash.RETENTION_DAYS}일 보관, 영구삭제 아님). `
+                     + '사용자는 갤러리의 휴지통 탭에서 되살릴 수 있다.' };
       }
-    } catch (e) {
-      // ★담기에 실패해도 «삭제 자체»는 진행한다 — 옛 경로(폴더)로 버린다.
-      console.warn('[projects:delete] 이름 붙여 담기 실패, 폴더 그대로 버린다:', e.message);
-      toTrash = fs.existsSync(dir) ? dir : target;
+      if (tr.code !== 'not_found')
+        return { ok: false, error: tr.error, code: tr.code || 'trash_failed',
+                 hint: '⛔영구삭제로 «대신»하지 않는다 — 되돌릴 수 없게 된다.' };
+      return { ok: false, error: `project not found: ${projectId}`, code: 'not_found' };
     }
-    // ★휴지통으로. shell.trashItem 은 Electron 이 준다(영구삭제 아님).
-    try {
-      await shell.trashItem(toTrash);
-    } catch (e) {
-      return { ok: false, error: `휴지통으로 못 옮겼다: ${e.message}`, code: 'trash_failed',
-               hint: '파일이 잠겨 있거나 권한이 없다. ⛔영구삭제로 «대신»하지 않는다 — 되돌릴 수 없게 된다.' };
-    }
-    // ★효과 확인 — 「옮겼다」가 아니라 «없어졌나»로 판정한다
-    if (fs.existsSync(toTrash) || fs.existsSync(target))
-      return { ok: false, error: '휴지통 호출은 성공했는데 파일이 그대로다', code: 'trash_noeffect' };
 
-    /* ★★활성이었으면 «활성도 같이» 비운다.
-       안 그러면 activeProjectId 가 «죽은 id» 를 가리키고, 파괴 도구는 「활성」을 대상으로 삼으므로
-       그 뒤 호출이 어디로 갈지 모르게 된다(2026-09-07 실측된 상태). */
-    let activeCleared = false;
-    if (wasActive) {
-      /* ⛔2026-09-07 G2 실측: global 만 비웠더니 «안 비워졌다».
-         원인 = `_activeProjectId()` 는 «두 곳»을 본다 —
-           ⑴ onActiveProject 콜백(= global.currentActiveProjectId)
-           ⑵ ★창 URL 의 `?project=…`  ← 여기가 남아 있으면 «지운 프로젝트»를 계속 가리킨다
-         ⇒ 한 곳만 비우면 「비웠다」가 거짓말이 된다. 읽는 곳을 «전부» 비운다. */
-      try {
-        global.currentActiveProjectId = null;
-        for (const w of BrowserWindow.getAllWindows()) {
-          try {
-            const u = w.webContents && w.webContents.getURL && w.webContents.getURL();
-            if (u && new RegExp(`[?&]project=${projectId}(?:[&#]|$)`).test(u)) {
-              // 갤러리로 되돌린다 — 지워진 프로젝트를 연 채로 두면 편집기가 «없는 것»을 가리킨다
-              const gallery = u.replace(/index\.html.*$/, 'projects.html').split('?')[0];
-              await w.loadURL(gallery.includes('projects.html') ? gallery
-                              : u.split('?')[0].replace(/[^/]*$/, 'projects.html')).catch(() => {});
-            }
-            await w.webContents.executeJavaScript(
-              'try{window.activeProjectId=null}catch(_){}; true', true).catch(() => {});
-          } catch (_) {}
-        }
-        activeCleared = true;
-      } catch (_) { /* 비우기 실패가 삭제를 되돌리진 않는다 — 아래 값으로 «알린다» */ }
-    }
-    return { ok: true, projectId, trashed: true, trashedAs: path.basename(toTrash),
-             wasActive, activeCleared,
-             note: `휴지통에 「${path.basename(toTrash)}」 로 들어갔다(영구삭제 아님). `
-                 + '안에 restore.json 이 있어 원래 위치를 안다.' };
+    /* ⛔여기 있던 «OS 휴지통으로 보내던» 코드는 2026-09-08 «앱 휴지통»으로 대체돼 지웠다.
+         남겨두면 「어느 쪽이 진짜인가」를 다음 사람이 헷갈린다 — 죽은 코드는 거짓말을 한다.
+       ★그때 배운 것은 주석으로 «옮겨» 뒀다: `.gdt` 는 확정된 zip 포맷이라
+         «확장자만 .gdt» 인 폴더를 만들면 gdt-verify 가 거부한다(bad_02_plaintext.gdt 픽스처).
+         규격의 «이름»을 달고 규격이 «아닌» 것이 제일 나쁘다. (main/gdt/export.js 명세 참조)
+       ★영구삭제(permanent) 경로는 ipcMain 'projects:delete' 쪽에 그대로 살아 있다. */
   } catch (e) {
     console.error('[projects:delete] 예외:', e);
     return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
@@ -3513,6 +3506,10 @@ module.exports = Object.assign(module.exports || {}, { setupAutoUpdater, _autoUp
 
 /* ── App lifecycle ── */
 app.whenReady().then(async () => {
+  /* ★휴지통 만료 정리 — «기다리지 않는다»(await 없음). 파일 이동이라 느릴 수 있는데
+       그것 때문에 첫 창이 늦게 뜨면 사용자에겐 「앱이 느려졌다」로만 보인다. */
+  _sweepTrashOnBoot();
+
   // goya-asset:// 핸들러 — proj_<id>/assets/<file>을 디스크에서 직접 스트림.
   // path-traversal 가드(assets 루트 밖 거부). 브라우저가 캐시·lazy-load 담당 → JS heap에 base64 없음.
   protocol.handle('goya-asset', (request) => {
