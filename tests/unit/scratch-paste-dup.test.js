@@ -21,6 +21,16 @@
  *   · 실앱에서 «로드 중 ⌘V» — _scratchLoaded 가 모듈 사설이라 못 만진다. 「안 쟀다」(지디 실기).
  *   · restoreSnapshot 이 페이지를 바꾼 «뒤» onUndo 가 불리는 실앱 «순서». 「안 쟀다」(지디 실기).
  *   · 사본이 화면에 «보이는가» — 렌더 없이 못 잰다. DOM 쪽 T-DOM-6/7 이 좌표까지만 잰다.
+ *
+ * ★백로그 BL-SPL-02 — 「사본 x 오프셋의 «폭 미상» 갈래」 (2026-09-09 검수 발견 · ⛔이번에 «안» 고친다)
+ *   js/scratchpad-link.js  const dx = (srcIt && _num(srcIt.w) ? srcIt.w : 0) + STACK_GAP;
+ *   w 가 수가 아니면 dx = 12 뿐이라 사본이 원본에 거의 겹친다 ⇒ §Q6 이 노린 「가로를 벌려
+ *   _applyFollow 가 안 밀게」가 «그 갈래에서만» 무효다. 데이터 파괴 아님 · 머지 차단 사유 아님.
+ *   ⚠️도달 경로는 «못 찾았다»(정직하게): _createItem 의 w 기본값 220 이 항상 적용돼
+ *     item.w 는 현재 모든 생성 경로에서 수다(드롭·슬라이스·로드·MCP 갱신 전부 확인).
+ *     남는 것은 «저장 레코드가 w:null 로 들어온» 경우뿐인데(기본값은 undefined 에만 적용된다)
+ *     그렇게 쓰는 자리를 못 찾았다 ⇒ 「도달 불가」가 아니라 «안 쟀다»로 적는다.
+ *   ⇒ 처방 후보 = 폭 미상일 때 _createItem 의 기본값(220)과 «같은 수»를 쓰기. 별건 게이트.
  */
 'use strict';
 const test = require('node:test');
@@ -154,6 +164,25 @@ test('T-U1-1 ★★순서 — rewireClonedSection 은 DOM 삽입 «전»에 «el
   // 전제(나중) — 두 삽입문이 실재해야 위 비교가 뜻을 갖는다
   assert.notStrictEqual(iAfter, -1, '★refSection.after(el) 을 못 찾았다 — 삽입 문이 바뀌었으면 이 검사부터 고쳐라');
   assert.notStrictEqual(iAppend, -1, '★canvasEl.appendChild(el) 을 못 찾았다');
+});
+
+/* ★C6 를 «따로» 세우는 이유 — C4~C7 중 여기만 검사가 0건이었다(2026-09-09 검수).
+ *   C4=T-U1-1 · C5=T-U1-2 · C7=주석(원래 대상 아님) · ★C6=없음.
+ *   그런데 계획서가 «이유까지» 못 박은 자리다: _installFollow 의 MutationObserver 는
+ *   #canvas-scaler 를 childList «만»(subtree 아님) 보므로 #canvas 안에 섹션이 들어와도 안 터진다.
+ *   ⇒ 이 줄이 없으면 붙여넣기 «직후» 사본의 연결선이 안 그려진다(다음 아무 변화가 있을 때까지).
+ *   실측: 이 한 줄만 지우면 sha 52d36a3bd0de → 7ef7066a48b3 인데 unit 14/14 · dom 12/12 «초록»이었다.
+ *   ⛔데이터 파괴는 아니지만 「검사처럼 생긴 문장」조차 없어서, 누가 「이 줄 뭐지?」 하고 지우면
+ *     조용히 나간다. 그래서 needle 을 박는다.
+ *   ★한계: T-U1-1 과 같다 — 이건 «텍스트»를 본다. 「선이 실제로 그려지는가」는 «안 쟀다»(지디 실기 §6-①). */
+test('T-U1-11 ★C6 재렌더 — 붙여넣기 꼬리에서 __spLinkRerender 를 한 번 부른다', () => {
+  assert.ok(PASTE.includes('window.__spLinkRerender?.();'),
+    '★C6 재렌더가 사라졌다 — _installFollow 의 MutationObserver 가 #canvas-scaler 를 childList «만» '
+    + '보므로 #canvas 안에 섹션이 들어와도 안 터진다. 그러면 붙여넣기 직후 사본의 연결선이 안 그려진다.');
+  // 전제(나중) — 꼬리(pushHistory 뒤)에 있어야 새 섹션이 이미 DOM 에 있다
+  const iPush = PASTE.lastIndexOf("pushHistory('붙여넣기'");
+  assert.ok(PASTE.indexOf('window.__spLinkRerender?.();') > iPush,
+    '★재렌더가 꼬리 pushHistory «앞»으로 갔다 — 스냅샷/삽입 순서 전제가 깨진다');
 });
 
 test('T-U1-1b ⛔자가 가드 금지 — rewireClonedSection 몸통에 `=== sec.id` / `=== target.id` 가 0건', () => {
