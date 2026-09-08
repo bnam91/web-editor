@@ -1,7 +1,8 @@
 /* ═══════════════════════════════════
    PROPERTIES PANEL
 ═══════════════════════════════════ */
-import { propPanel, canvasEl, canvasWrap, state } from '../globals.js';
+import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기(applyCanvasBackground)만 쓰므로 «바인딩 자체»를 없앤다(직접 대입 재유입 방지) */
+import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
 
 /* ── 헬퍼: ab의 effective usePadx 결정 ──
    'true' / 'false' 명시 → 그 값 (개별 오버라이드)
@@ -638,7 +639,7 @@ export function wireCanvasBgControl() {
   };
   const _applyBg = () => {
     const rgba = _bgToRgba();
-    canvasWrap.style.background = rgba;
+    applyCanvasBackground(rgba);          /* 배경 + 연결선 대비 재산출을 «같이» 한다 */
     bgSwatch.style.background = rgba;
   };
 
@@ -691,7 +692,7 @@ export function wireCanvasBgControl() {
   // goya-cp:gradient-commit = 사용자 확정(마우스업·select 변경) → pushHistory.
   // NOTE(B6): export-html/export-image는 아직 solid bg만 읽으므로 내보내기엔 그라데이션 미반영(후속).
   const _applyBgGradient = (css) => {
-    canvasWrap.style.background = css;
+    applyCanvasBackground(css);           /* 그라데이션도 같은 문 — 대비는 «최악 stop» 으로 잰다 */
     bgSwatch.style.background = css;
   };
   if (!bgPicker._gradWired) {

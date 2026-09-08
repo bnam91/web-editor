@@ -1,10 +1,11 @@
-import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
+import { canvasEl, state, PAGE_LABELS } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기만 쓴다(직접 대입 재유입 방지) */
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제는 «켠 쪽»이 닫는다
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 import { applyFrameTransform } from '../frame-geometry.js';
+import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
 /* ══════════════════════════════════════
@@ -620,7 +621,7 @@ function _bgRgba(ps) {
 }
 
 function applyPageSettings() {
-  canvasWrap.style.background = _bgRgba(state.pageSettings);
+  applyCanvasBackground(_bgRgba(state.pageSettings));
   canvasEl.style.gap = state.pageSettings.gap + 'px';
   canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
   // padX: 섹션 물리적 padding 방식으로 적용 (섹션 개별 override 제외)
@@ -1610,7 +1611,7 @@ function initApp() {
     const revertBtn = document.getElementById('revert-btn');
     if (revertBtn) revertBtn.classList.add('has-commit');
   }
-  canvasWrap.style.background = _bgRgba(state.pageSettings);
+  applyCanvasBackground(_bgRgba(state.pageSettings));
   canvasEl.style.gap = state.pageSettings.gap + 'px';
   canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
   // padX: 섹션 물리적 padding 방식으로 적용
