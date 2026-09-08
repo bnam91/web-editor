@@ -1352,9 +1352,22 @@ function _registerDefaultTools() {
         이미 다룬다(「아직 프로젝트가 없어요」 — 실측). 도구가 사람보다 빡빡하면 «불일치»다.
         ⚠️`delete_section` 이 마지막 섹션을 막는 것과 «다른 사정»이다 — 섹션 0개는 편집기가
         빈 껍데기가 되지만, 프로젝트 0개는 갤러리가 정상 안내를 띄운다.
-     ⑶ ⛔`expectedProject` 안전벨트를 «안» 붙인다. 그 벨트는 「대상을 지목 «안» 하는 도구」
-        (delete_section·delete_block 은 「지금 열린 것」에서 지운다)를 위한 것이다.
-        이 도구는 projectId 를 «직접 지목»하므로 지목한 걸 또 확인할 이유가 없다. */
+     ⑶ ⛔★2026-09-08 «정정» — 여기 「projectId 를 직접 지목하므로 확인할 이유가 없다」고 적혀 있었는데
+        «런타임과 어긋났다». 게이트(_projectGate)는 이 도구를 «파괴적 프로젝트 쓰기»로 보고
+        확정(open_project 성공)을 요구한다 — 그게 «맞는» 쪽이다(F3-7 이 옛 면제 시도를 빨강으로 잡았다).
+        축은 「지목했느냐」가 아니라 ★「지목이 틀렸을 때 «남의 것이 변하느냐»」다. 삭제는 변한다.
+        ⇒ 설명과 이 주석을 «동작에 맞췄다». 게이트는 «두 조건»이고 둘째는 «길이 둘»이다:
+          ⒜ 활성이 서 있어야 한다 — 없으면 NO_ACTIVE_PROJECT.
+             ★expectedProject «만»으로는 못 넘는다(실측: 활성 null + expectedProject → NO_ACTIVE_PROJECT).
+          ⒝ 그 세션이 대상을 «지목»했어야 한다 — 없으면 PROJECT_NOT_CONFIRMED.
+             지목의 길은 ⑴open_project 가 «성공»하거나 ⑵expectedProject 를 넘기거나, «둘 중 하나».
+             ★실측(2026-09-08): 활성이 선 «같은 상태»에서 expectedProject 만 더하니 통과했다
+               (없으면 PROJECT_NOT_CONFIRMED). ⇒ expectedProject 는 «대조»가 아니라 «확인 경로 그 자체»다.
+        ⛔★내가 여기 한 번 「expectedProject 는 대조만 한다」로 잘못 적었다(2026-09-08, 앱매니저가 원자료로 반증).
+          한쪽 시퀀스만 재고 «게이트 전체»를 안다고 쓴 것이다 — 두 사람이 «같은 게이트의 다른 칸»을 밟았다.
+          ⇒ 계약을 적을 땐 «내가 밟은 칸»이 아니라 «칸을 다 밟았나»를 물어라.
+        ★그리고 활성은 «타임아웃된 open» 으로도 선다 — 열림·완료신호·지목이 «셋 다 따로 논다».
+          그래서 「열었는데 왜 못 지우지」가 난다. ⛔원인·재현조건은 아직 모른다. */
   registerTool(
     'delete_project',
     async ({ projectId } = {}) => {
@@ -1374,12 +1387,19 @@ function _registerDefaultTools() {
         hint: r.wasActive
           ? '★지운 것이 «활성»이었다 — 활성을 비웠다. 편집을 이어가려면 open_project 로 다른 프로젝트를 열어라.'
           : '활성 프로젝트는 그대로다.',
-        note: '휴지통으로 옮겼다(영구삭제 아님). 되돌리려면 macOS 휴지통에서 복원해라.',
+        /* ⛔2026-09-08: 여기 「macOS 휴지통에서 복원해라」라고 적혀 있었는데 «거짓말»이 됐다 —
+             동작은 앱 휴지통으로 바뀌었는데 문구를 안 고쳤다. 계약은 동작과 «같이» 움직여야 한다.
+             ⇒ 이제는 main 이 돌려주는 note 를 «그대로» 싣는다(한 곳에서만 말한다). */
+        note: r.note || `앱 휴지통으로 옮겼다(영구삭제 아님). 갤러리의 «휴지통» 탭에서 되살릴 수 있다.`,
+        ...(r.deletedAt ? { deletedAt: r.deletedAt } : {}),
+        ...(r.appTrash ? { appTrash: true } : {}),
       };
     },
     {
-      description: 'Delete a project — DESTRUCTIVE but RECOVERABLE: the project folder is moved to the macOS Trash, not erased. '
-        + 'Takes projectId directly (from list_projects), so it does NOT act on the "active" project and needs no expectedProject guard. '
+      description: 'Delete a project — DESTRUCTIVE but RECOVERABLE: it goes to the in-app Trash tab and is kept 30 days (then moved to the OS Trash), never erased. '
+        + '⚠TWO conditions, and the second has TWO paths. (1) A project must be OPEN — with none open you get NO_ACTIVE_PROJECT, and expectedProject alone does NOT satisfy this. '
+        + '(2) You must have DESIGNATED the target in this session — either open_project(projectId) SUCCEEDED, or you pass expectedProject:"proj_…" on this call; otherwise PROJECT_NOT_CONFIRMED. '
+        + 'This is deliberate: a mistargeted delete destroys someone else\'s project, so pointing at it is not enough — you must have opened it. '
         + 'The last remaining project CAN be deleted (the gallery shows an empty-state screen). '
         + 'If the deleted project was the active one, the active target is cleared — open_project another one before editing.',
       inputSchema: {

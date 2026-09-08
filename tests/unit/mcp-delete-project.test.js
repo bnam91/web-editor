@@ -26,6 +26,17 @@ function implBody() {
   const j = src.indexOf('\n}\n', i);
   return src.slice(i, j > 0 ? j : i + 20000);
 }
+/** ★2026-09-08: 활성 비우기가 «두 삭제 경로가 공유하는 헬퍼»로 빠졌다.
+ *   본문만 보면 「사라졌다」로 보이는데 «옮긴 것»이다 — 옮긴 자리를 재고,
+ *   ⛔«실제로 부르는지»도 같이 재라. 안 그러면 헬퍼만 있고 아무도 안 부르는 «죽은 배선»이 초록이 된다. */
+function clearActiveBody() {
+  const src = readSrc(__dirname, '..', '..', 'main.js');
+  const i = src.indexOf('async function _clearActiveIfNeeded');
+  assert.ok(i > 0, '_clearActiveIfNeeded 가 없다 — 활성 비우기가 통째로 사라졌다');
+  const j = src.indexOf('\n}\n', i);
+  return src.slice(i, j > 0 ? j : i + 8000);
+}
+
 /** 주석을 «통째로» 걷어낸 코드만. 줄 단위로 거르면 여러 줄 주석 안쪽이 남는다. */
 const stripComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
@@ -113,11 +124,62 @@ test('D7 ★활성을 비울 땐 «읽는 곳을 전부» 비운다 (2026-09-07 
   // ⛔G2 실측: global.currentActiveProjectId 만 비웠더니 «안 비워졌다».
   //   원인 = _activeProjectId() 가 «두 곳»을 본다 — ⑴콜백(global) ⑵★창 URL 의 ?project=
   //   한 곳만 비우면 「비웠다」가 «거짓말»이 된다. 이건 소스로만 잴 수 있어 정적 검사로 둔다.
-  const body = implBody();
+  const body = clearActiveBody();
   assert.ok(/global\.currentActiveProjectId\s*=\s*null/.test(body),
     '★콜백이 읽는 global 을 안 비운다');
   assert.ok(/getURL\(\)/.test(body) && /project=/.test(body),
     '★창 URL 의 ?project= 를 «안» 본다 — _activeProjectId() 는 거기도 읽는다(그래서 G2 가 실패했다)');
+  // ⛔헬퍼가 «있기만» 하면 안 된다 — 삭제 경로가 실제로 불러야 한다
+  assert.match(implBody(), /_clearActiveIfNeeded\(/,
+    '★헬퍼는 있는데 삭제가 «안 부른다» — 죽은 배선이다');
+});
+
+test('D11 ★설명이 «런타임과 같은 말»을 한다 — 게이트 계약 (앱매니저 제보, 2026-09-08)', async () => {
+  /* ⛔여기 설명은 「projectId 를 직접 받으니 active 에 작용하지 않고 expectedProject 가드가 필요 없다」
+       였는데, 런타임은 확정(open_project 성공)을 «요구»한다. 다른 세션이 그 어긋남에 걸렸다.
+     ★어느 쪽이 맞나: 런타임이 맞다(F3-7 이 옛 면제 시도를 빨강으로 잡았다).
+       축은 「지목했느냐」가 아니라 「지목이 틀렸을 때 남의 것이 변하느냐」다 — 삭제는 변한다.
+     ⇒ 이 검사는 «설명»과 «실제 거절»을 «같은 실행»에서 대조한다. 한쪽만 고치면 빨개진다. */
+  const tool = (await H.listTools(true)).find(t => t.name === 'delete_project');
+  const d = String(tool.description || '');
+
+  /* ⑴ 런타임 — 확정을 «실제로 푼 뒤» projectId 만 주면 거절한다.
+     ⚠️confirmProject 는 하네스 «기동» 옵션이라 호출에 못 쓴다(그렇게 썼다가 못 쟀다).
+       ⇒ 엇갈린 expectedProject 로 게이트를 «한 번 튕겨» 확정을 풀고(그때 _setConfirmed(null) 된다),
+         그 상태에서 다시 부른다. 이게 사용자가 실제로 겪는 순서다. */
+  const bump = await H.call('delete_project',
+    { projectId: 'proj_1700000000000', expectedProject: 'proj_1700000000001' });
+  assert.match(JSON.stringify(bump.result || bump.error), /PROJECT_MISMATCH/,
+    '전제: 엇갈린 expectedProject 가 게이트를 튕겨야 확정이 풀린다');
+  const r = await H.call('delete_project', { projectId: 'proj_1700000000000' });
+  const said = JSON.stringify(r.result || r.error || r.rawText);
+  assert.match(said, /NO_ACTIVE_PROJECT|PROJECT_NOT_CONFIRMED/,
+    `★확정 없이 통과시켰다 — 파괴 도구가 열린 적 없는 대상에 작용한다: ${said}`);
+
+  /* ⑵ ★★«다른 칸»도 밟는다 — expectedProject 는 «대조»가 아니라 «확인 경로 그 자체»다.
+     ⛔내가 한 번 「대조만 한다」로 잘못 적었고(앱매니저가 원자료로 반증), D11 이 그 거짓을 «잠그고» 있었다.
+       원인은 «한쪽 시퀀스만 재고 게이트 전체를 안다고 쓴 것». ⇒ 검사가 두 칸을 다 밟게 만든다. */
+  /* ⛔조건부로 «건너뛰지» 않는다 — 첫 판이 H.activeProjectOf(없는 함수)를 봐서 이 블록이
+       «조용히 건너뛰어졌다»(가짜 초록). 활성은 위 거절 응답이 «들고 있다» — 거기서 꺼낸다. */
+  const active = (r.result && r.result.activeProject) || null;
+  assert.ok(active, `전제: 활성이 서 있어야 «두 번째 칸»을 잴 수 있다 — 응답: ${said}`);
+  const viaExpected = await H.call('delete_project',
+    { projectId: 'proj_1700000000000', expectedProject: active });
+  const s2 = JSON.stringify(viaExpected.result || viaExpected.error || viaExpected.rawText);
+  assert.ok(!/PROJECT_NOT_CONFIRMED/.test(s2),
+    `★expectedProject 를 줬는데도 「지목한 적 없다」고 한다 — 확인 경로가 하나뿐이면 사용자가 갇힌다: ${s2}`);
+
+  // ⑶ 설명 — 그 «두 조건·두 길»을 다 말한다
+  assert.match(d, /open_project/, '★확정이 필요한데 설명이 open_project 를 안 말한다');
+  /* ⛔낱말이 «어딘가» 있는 걸로 재면 안 된다 — 변이 M16(「or expectedProject」만 지움)이 살아남았다.
+       설명 안에 `expectedProject alone does NOT satisfy this`(⒜ 쪽 경고)가 따로 있어서 통과해 버렸다.
+     ⇒ 「«또 하나의» 지목 경로」라고 말하는지를 잰다. */
+  assert.match(d, /or\s+you\s+pass\s+expectedProject/i,
+    '★expectedProject 가 «또 하나의 지목 경로»라는 걸 설명이 안 말한다 — 모르면 PROJECT_NOT_CONFIRMED 에 갇힌다');
+  assert.ok(!/needs no expectedProject guard|does NOT act on the "active" project/i.test(d),
+    '★설명이 아직 「가드가 필요 없다」고 말한다 — 런타임은 요구한다(계약이 거짓말)');
+  assert.ok(!/expectedProject does NOT bypass|only cross-checks/i.test(d),
+    '★설명이 「expectedProject 는 대조만 한다」고 말한다 — 실제로는 «확인 경로»다(내가 틀렸던 자리)');
 });
 
 test('D8 ★rename_project · update_section(name) — 「이름을 못 바꾼다」가 «닫혔나»', async () => {
@@ -150,30 +212,24 @@ test('D9 ★도구 원장이 «도구명·대상»을 남긴다 (H4 — 사고 �
 });
 
 test('D10 ★휴지통엔 «알아볼 수 있는 이름» — 단 ⛔`.gdt` 는 «쓰면 안 된다»', () => {
-  /* ⚠️★2026-09-07 «검사를 고쳤다» — 이 검사는 원래 「.gdt 로 담나」를 «정답»으로 굳혀 뒀다.
-     그건 틀렸다. `.gdt` 는 이미 «확정된» 고디터 프로젝트 파일 포맷이다:
-       zip(deflate) + manifest.json/project.json/images/ · package.json fileAssociations 등록(mac·win)
-       · gdt-verify 적대적 픽스처에 `bad_02_plaintext.gdt`(확장자만 .gdt) = «거부»가 정답
-     ⇒ 내가 만든 게 정확히 그 «거부 대상」이었고, 검사가 그걸 지켜 주고 있었다.
-     ★오늘 계약 픽스처에서 겪은 것과 «같은 모양»이다 — 검사가 결함을 정답으로 굳힌다.
-     ⇒ 지금 지켜야 할 것은 「.gdt 를 «안» 쓰나」 + 「그래도 알아볼 수 있나」 + 「되돌릴 길이 있나」다. */
-  const body = implBody();
-  /* ⛔주석을 «줄 단위»로 거르면 여러 줄 주석 «안쪽»이 코드로 남는다(내가 그걸로 한 번 틀렸다).
-     ⇒ 블록주석(/* … *​/)과 줄주석을 «통째로» 지운 뒤에 본다. */
-  const code = stripComments(body);
+  /* ⚠️★2026-09-07 이 검사는 원래 「.gdt 로 담나」를 «정답»으로 굳혀 뒀다. 그건 틀렸다 —
+       `.gdt` 는 이미 «확정된» zip 포맷이고, gdt-verify 픽스처 `bad_02_plaintext.gdt`(확장자만 .gdt)는
+       «거부»가 정답이다. 내가 만든 게 정확히 그 거부 대상이었고, 검사가 그걸 지켜 줬다.
+     ★2026-09-08 «재는 자리를 옮겼다» — 휴지통 구현이 main/trash.js 로 갔다(현빈 지시, 앱 휴지통 탭).
+       지킬 것은 그대로다: 「.gdt 를 «안» 쓴다」 + 「알아볼 수 있다」 + 「되돌릴 길이 있다」. */
+  const src = readSrc(__dirname, '..', '..', 'main', 'trash.js');
+  const code = stripComments(src);
 
-  // ★핵심: «코드»가 .gdt 를 만들지 않는다(주석의 설명은 남아도 된다)
   assert.ok(!/\.gdt/.test(code),
     `★코드가 아직 .gdt 를 만든다 — 규격의 «이름»을 달고 규격이 «아닌» 것이 제일 나쁘다:\n${
       code.split('\n').filter(l => /\.gdt/.test(l)).join('\n')}`);
-
-  // 그래도 «알아볼 수 있어야» 한다 — 프로젝트 이름을 쓴다
-  assert.ok(/proj\.name|\.name \|\| projectId/.test(body), '★프로젝트 «이름»을 안 쓴다 — 휴지통에서 못 알아본다');
+  // 알아볼 수 있어야 한다 — 이름을 «갤러리와 같은 출처»에서 가져온다
+  assert.match(code, /proj_meta\.json/, '★갤러리가 쓰는 이름(proj_meta)을 안 본다 — 휴지통에 옛 이름이 뜬다');
+  assert.match(code, /name:\s*projName/, '★이름을 안 남긴다 — 휴지통에서 못 알아본다');
   // 되돌릴 길
-  assert.ok(/restore\.json/.test(body), '★restore.json 을 안 남긴다 — 어디로 되돌릴지 모른다');
-  assert.ok(/originalPath/.test(body), 'restore.json 에 원래 경로가 없다');
-  // ⛔이름 충돌 시 덮어쓰면 남의 것을 지운다
-  assert.ok(/existsSync\(staged\)/.test(body), '★이름 충돌 시 덮어쓴다');
-  // ★담기에 실패해도 «삭제 자체»는 되어야 한다(그게 사용자가 시킨 일이다)
-  assert.ok(/담기 실패/.test(body), '★담기 실패 시 폴백이 없다');
+  assert.match(code, /function restoreFromTrash/, '★되살리는 길이 없다');
+  assert.match(code, /deletedAt/, '★언제 지웠는지가 없으면 «며칠 남았나»를 못 센다');
+  // ⛔되살릴 때 «덮어쓰지» 않는다
+  assert.match(code, /id_taken/, '★자리가 차 있어도 덮어쓴다 — 남의 작업이 사라진다');
 });
+
