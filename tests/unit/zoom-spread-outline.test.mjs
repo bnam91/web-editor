@@ -282,3 +282,42 @@ test('T8 a·b 핸들 색이 «토큰» --ui-sel-overlay 다 (리터럴도, 파�
   assert.match(picked, /fill:\s*var\(--ui-sel-overlay\)/, `집힌 앵커 채움이 토큰이 아니다: ${picked}`);
   assert.doesNotMatch(picked, /--sel-color/, '집힌 앵커가 아직 파랑이다');
 });
+
+/* ── T9 ★「만나는 자리」는 «상수가 아니라 먼 호 길이»다 ────────────────────── */
+test('T9 ★두 점이 만나는 spread = «먼 호 길이»이고, 광원 각도마다 «다르다»', async () => {
+  /* ⇐ 이 검사는 «내가 실제로 저지른 실수»를 막는다(2026-09-08 보고에서 팀리드가 잡았다):
+       angle −90 에서 잰 540 을 「사각형 기본값」이라 적어 다른 각도에도 맞는 것처럼 말했다.
+       실제로는 광원이 짧은 변을 보면 660, 긴 변을 보면 540, 대각이면 400 이다.
+     ⇒ 「한 수」로 굳지 않게, «관계»를 못박는다. 자르기(clamp)를 넣으면 여기가 빨개진다. */
+  const g = await loadGeom();
+  const near = (st) => {                          // 실측: |AB| 가 가장 작아지는 spread
+    let best = Infinity, at = 0;
+    for (let s = 0; s <= 800; s += 0.5) {
+      const q = g.computeZoomGeometry({ ...st, spread: s }, null);
+      const d = dist(q.A, q.B);
+      if (d < best) { best = d; at = s; }
+    }
+    return { at, gap: best };
+  };
+  const seen = new Set();
+  for (const angle of [0, -90, -140]) {
+    const st = { ...ST, angle, length: 260 };
+    const g0 = g.computeZoomGeometry({ ...st, spread: 0 }, null);
+    const pts = g.shapeCornerPts(st, g0.bw);
+    const e = g.edgeLengths(pts), per = e.reduce((a, b) => a + b, 0);
+    const iA = g.nearestVertexIndex(pts, g0.A), iB = g.nearestVertexIndex(pts, g0.B);
+    assert.notEqual(iA, iB, `전제: angle=${angle} 에서 실루엣이 «두» 꼭짓점이다`);
+    let plus = 0, i = iA, guard = 0;
+    while (i !== iB && guard++ < 8) { plus += e[i]; i = (i + 1) % pts.length; }
+    const far = g.outwardDirPoly(pts, iA, iB, g0.L) > 0 ? plus : per - plus;
+    const m = near(st);
+    assert.ok(m.gap < 1, `angle=${angle}: 두 점이 «만나지» 않는다(최소 간격 ${m.gap.toFixed(2)})`);
+    assert.ok(Math.abs(m.at - far) < 1,
+      `angle=${angle}: 만나는 spread ${m.at} ≠ 먼 호 ${far} — 「먼 호를 반씩 걷는다」가 깨졌다`);
+    seen.add(far);
+  }
+  // ★양성대조 — 세 각도가 «같은 수»면 「각도마다 다르다」를 이 검사가 못 잰다
+  assert.ok(seen.size >= 3, `먼 호가 각도에 안 따라간다: ${[...seen]}`);
+  assert.deepEqual([...seen].sort((a, b) => a - b), [400, 540, 660],
+    'rect 260×140(둘레 800)의 먼 호는 각도에 따라 400·540·660 이다');
+});
