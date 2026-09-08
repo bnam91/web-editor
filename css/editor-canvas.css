@@ -421,4 +421,14 @@ body.gdt-pad-on .section-inner::before {
   border-left:  var(--gdt-pad-l, 0px) solid rgba(255, 0, 128, .10);
   border-right: var(--gdt-pad-r, 0px) solid rgba(255, 0, 128, .10);
   pointer-events: none;
+  /* ★띠는 «풀블리드 에셋 위에도» 얹힌다 (2026-09-08 현빈 승인 — 팀리드가 그림 보고 결정).
+       왜: 실측에서 에셋이 띠를 «덮어», 패딩 88px 짜리 줄이 55px 로 «읽혔다».
+         이 기능의 유일한 일이 「패딩이 어디까지인가」를 말하는 것인데 틀린 숫자를 가르쳤다 —
+         그것도 하필 «풀블리드냐 아니냐»를 판단해야 하는 바로 그 자리에서.
+       ⇒ 패딩 폭은 내용이 넘쳐도 안 변한다. 「내용이 패딩을 무시한다」는 에셋 자신이 이미 보여준다.
+     ⚠️z-index 는 «1» 이면 족하다. 섹션 선택 아웃라인은 .section-block::after 의 z-index 90 이라
+       그대로 이긴다(실측: 아웃라인 파랑과 띠 핑크가 나란히 보인다).
+     ⛔이 한 줄을 빼면 다시 «소스는 맞는데 화면에서 가려지는» 모양이 된다 —
+       tests/dom/pad-hint.dom.spec.js D11 이 «픽셀로» 그걸 잡는다. */
+  z-index: 1;
 }

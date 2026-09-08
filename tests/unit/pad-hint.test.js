@@ -137,6 +137,12 @@ test('T1 ★띠는 ::before 로 그리고 색은 핑크 10% 다', () => {
   assert.match(rule, /inset:\s*0/, 'inset:0 이 없으면 띠가 섹션 안쪽을 덮지 못한다');
   assert.match(rule, /pointer-events:\s*none/, 'pointer-events:none 이 없으면 띠가 클릭을 먹는다');
 
+  /* ★띠는 풀블리드 에셋 «위»에 얹힌다 — z-index 가 없으면 에셋에 가려 폭이 짧아 «보인다»
+     (실측: 패딩 88px 줄이 55px 로 읽혔다). ⛔이 단언은 「소스에 있나」까지만 안다 —
+     «화면에서 실제로 보이나»는 dom D11 이 픽셀로 잰다. 둘 다 있어야 한다. */
+  assert.match(rule, /z-index:\s*1\b/,
+    '★z-index 가 없다 — 풀블리드 에셋이 띠를 덮어 패딩 폭이 «틀리게» 보인다');
+
   /* 절대배치가 서려면 부모에 position 이 있어야 한다 — .section-inner 는 평소 position 이 없다. */
   assert.match(css, /body\.gdt-pad-on\s+\.section-inner\s*\{[^}]*position:\s*relative/,
     '★부모에 position:relative 가 없다 — inset:0 이 섹션이 아닌 «더 바깥»을 기준으로 잡힌다');

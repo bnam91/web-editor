@@ -428,3 +428,122 @@ test('D10 ★기존 저장값을 «덮지 않는다» — 꺼진 채 저장돼 �
 
   expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
 });
+
+/* ═══════════════════════════════════════════════════════════
+   D11 ★풀블리드 에셋 «위»에서도 띠 폭이 패딩과 같다 — 픽셀로 잰다
+   ⛔getComputedStyle 로 끝내면 안 된다. 이 결함의 모양이 정확히
+     「소스는 맞는데 화면에서 «가려지는»」 것이었다 —
+     실측(2026-09-08 실앱): 패딩 88px 짜리 줄이 에셋 구간에서 55px 로 읽혔다.
+   ⇒ 화면을 «찍어» 그 자리의 색을 직접 읽는다.
+   ⇐ 되돌리면 빨강: CSS 의 z-index 한 줄을 빼면 에셋이 띠를 덮어 파랑만 나온다.
+   ═══════════════════════════════════════════════════════════ */
+
+/** 화면을 찍어 «그 좌표의 색»을 읽는다. 페이지 안 canvas 로 디코딩한다(외부 라이브러리 없음). */
+async function samplePixels(page, pts) {
+  const b64 = (await page.screenshot()).toString('base64');
+  return page.evaluate(async ({ b64, pts }) => {
+    const img = new Image();
+    img.src = 'data:image/png;base64,' + b64;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    c.getContext('2d').drawImage(img, 0, 0);
+    const ctx = c.getContext('2d');
+    /* 스크린샷이 CSS px 와 1:1 인지 «재서» 확인한다 — 아니면 좌표가 어긋난다. */
+    const k = img.naturalWidth / window.innerWidth;
+    return {
+      k, w: img.naturalWidth,
+      px: pts.map(p => [...ctx.getImageData(Math.round(p[0] * k), Math.round(p[1] * k), 1, 1).data].slice(0, 3)),
+    };
+  }, { b64, pts });
+}
+
+const near = (got, want, tol = 4) =>
+  got.length === 3 && got.every((v, i) => Math.abs(v - want[i]) <= tol);
+
+test('D11 ★풀블리드 에셋 위에서도 띠가 «보인다» — 화면을 찍어 색으로 잰다', async ({ page }) => {
+  const errs = await boot(page);
+
+  /* ⚠️하네스는 앱을 안 띄우므로 index.html 의 «프로젝트 로딩 가림막»이 안 걷힌다 —
+       #proj-loading-overlay 가 rgba(0,0,0,.28) 로 화면 전체를 덮어, #3355ff 가 (36,60,181) 로 읽혔다.
+       ⇒ 이 검사만 그걸 걷는다. 재려는 것은 「띠가 에셋 위에 칠해지나」지 가림막이 아니다. */
+  await page.evaluate(() => document.getElementById('proj-loading-overlay')?.remove());
+
+  await openPanel(page, 'sec_2');            // sec_2 의 .section-inner «직속»에 asset-block 이 있다
+  await slide(page, 40);
+
+  /* ★★배치가 «멈출 때까지» 먼저 기다린다.
+     하네스의 줌은 비동기로 자리를 잡는다 — 실측에서 같은 검사가 실행마다 배율 0.46/0.52/0.40 로 갈렸고,
+     그 사이에 좌표를 뜨고 화면을 찍으면 «다른 순간의 둘»을 맞대게 된다.
+     ⛔이걸 안 하면 「띠가 엉뚱한 데 있다」는 거짓 실패가 난다(실제로 세 번 속았다). */
+  await page.waitForFunction(() => {
+    const r = document.querySelector('#sec_2 .section-inner').getBoundingClientRect();
+    const k = Math.round(r.x) + 'x' + Math.round(r.width);
+    const same = window.__padGeoKey === k; window.__padGeoKey = k; return same;
+  }, null, { polling: 250 });
+  await slide(page, 40);                     // 자리가 잡힌 «뒤»에 다시 켠다
+
+  const geo = await page.evaluate(() => {
+    const inner = document.querySelector('#sec_2 .section-inner');
+    const ab = document.getElementById('ab_full');
+    const ir = inner.getBoundingClientRect(), ar = ab.getBoundingClientRect();
+    return {
+      innerX: ir.x, innerW: ir.width, abX: ar.x, abY: ar.y, abH: ar.height,
+      abML: getComputedStyle(ab).marginLeft,
+      band: getComputedStyle(inner, '::before').borderLeftWidth,
+      pad: getComputedStyle(inner).paddingLeft,
+      z: getComputedStyle(inner, '::before').zIndex,
+      on: document.body.classList.contains('gdt-pad-on'),
+      scale: ir.width / parseFloat(getComputedStyle(inner).width),
+    };
+  });
+
+  /* ★입력이 살아 있다 ⑴ — 그 에셋이 «정말로» 풀블리드인가. 음수 마진이 없으면 겹침이 없어 공회전이다. */
+  expect(geo.abML, '★에셋에 음수 마진이 안 걸렸다 — 풀블리드가 아니면 잴 게 없다').toBe('-40px');
+  /* ★입력이 살아 있다 ⑵ — 에셋이 띠 구간을 «실제로» 덮고 있나 */
+  expect(geo.abX, '★에셋이 띠 구간을 안 덮는다 — 겹침이 없으면 이 검사는 공회전이다')
+    .toBeLessThanOrEqual(geo.innerX + 1);
+  expect(geo.abH, '에셋 높이가 0 이다').toBeGreaterThan(10);
+  expect(geo.on, '찍기 직전에 힌트가 꺼져 있었다').toBe(true);
+  expect(geo.band, '띠 폭이 패딩과 다르다').toBe('40px');
+  expect(geo.pad, '패딩이 안 먹었다').toBe('40px');
+  /* 화면 위 띠 폭 — 샘플점을 띠 «안»에 확실히 넣으려면 최소 4px 은 돼야 한다 */
+  const bandPx = 40 * geo.scale;
+  expect(bandPx, `화면상 띠가 ${bandPx.toFixed(1)}px 뿐 — 샘플점을 안에 넣을 수 없다`).toBeGreaterThan(6);
+
+  const y = Math.round(geo.abY + geo.abH / 2);
+  const pts = [[Math.round(geo.innerX + bandPx / 2), y],                    // 왼쪽 띠 «안»
+               [Math.round(geo.innerX + geo.innerW - bandPx / 2), y],       // 오른쪽 띠 «안»
+               [Math.round(geo.innerX + geo.innerW / 2), y]];               // 띠 «밖»(대조군)
+
+  /* ★입력이 살아 있다 ⑶ — 세 점이 «정말로» 그 에셋 위인가
+     (::before 는 pointer-events:none 이라 elementFromPoint 는 아래의 에셋을 돌려준다) */
+  expect(await page.evaluate(p => p.map(q => document.elementFromPoint(q[0], q[1])?.id || 'NULL'), pts),
+    '★샘플점이 그 에셋 위가 아니다 — 엉뚱한 좌표를 찍고 있다').toEqual(['ab_full', 'ab_full', 'ab_full']);
+
+  const BLUE = [51, 85, 255];                  // #3355ff — 에셋 바탕
+  const PINK_ON_BLUE = [71, 77, 242];          // rgba(255,0,128,.10) 을 그 위에 얹은 값
+
+  const on = await samplePixels(page, pts);
+  expect(on.k, '스크린샷과 CSS px 의 자가 1:1 이 아니다 — 좌표가 어긋난다').toBe(1);
+
+  /* ★대조군 먼저 — 띠 «밖»은 순수 에셋 색이어야 한다.
+     여기가 다르면 좌표든 가림막이든 전제가 깨진 것이고 아래 판정은 헛돈다. */
+  expect(near(on.px[2], BLUE),
+    `★대조군(띠 밖)이 에셋 색이 아니다 — 얻은 색 ${on.px[2]}, 기대 ${BLUE}`).toBe(true);
+
+  /* 본 단언 — 띠 «안»은 에셋 위인데도 핑크가 얹힌다.
+     ⇐ CSS 의 z-index 한 줄을 빼면 여기서 «가려져» 순수 파랑이 나온다. */
+  for (const [k, nm] of [[0, '왼쪽'], [1, '오른쪽']]) {
+    expect(near(on.px[k], PINK_ON_BLUE),
+      `★${nm} 띠가 에셋에 가려 안 보인다 — 얻은 색 ${on.px[k]}, 기대 ${PINK_ON_BLUE} (가려지면 ${BLUE})`).toBe(true);
+  }
+
+  /* 음성대조 — 꺼지면 도로 순수 파랑이다(「원래부터 그 색」이 아님을 못 박는다) */
+  await page.waitForTimeout(600);
+  const off = await samplePixels(page, pts);
+  expect(near(off.px[0], BLUE), `★띠가 걷힌 뒤에도 핑크가 남았다 — ${off.px[0]}`).toBe(true);
+  expect(near(off.px[1], BLUE), `★띠가 걷힌 뒤에도 핑크가 남았다 — ${off.px[1]}`).toBe(true);
+
+  expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
+});
