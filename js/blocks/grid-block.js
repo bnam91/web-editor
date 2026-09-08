@@ -215,6 +215,13 @@ function getGridModel(block) {
 //   ⛔addr 은 «최상위 라인»에만 찍는다 — 중첩 duo/graph 내부(depth≥1)는 addr 없이 그대로 호출해
 //     기존 출력과 byte-identical 을 유지한다(innercard 등 무변화 요구 — addr=null 이면 이 함수
 //     전체가 P0/P1 이전과 동일 문자열을 낸다).
+// ⚠️★위 문장은 «2026-09-08까지» 참이었다. 지우지 않고 옆에 대비를 세운다(사실이던 문장은 남긴다):
+//   그날 5번째 인자 useRoleColor 가 생겨서 이제 «addr 하나»로는 결정되지 않는다.
+//     · addr=null + useRoleColor=false → 여전히 P0/P1 이전과 «동일 문자열»(innercard·중첩이 이 길)
+//     · addr=null + useRoleColor=true  → ★색이 붙는다. renderGridBlock 이 중첩 duo 재귀에
+//       useRoleColor 를 물려 주므로 «중첩 줄»이 정확히 이 조합이다.
+//   ⇒ 「무변화」의 조건은 이제 «addr=null» 이 아니라 «useRoleColor=false» 다.
+//   (지키는 검사: tests/unit/grid-line-typo.test.js U2-c — innercard 2-인자 호출은 color 를 안 찍는다)
 function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = false) {
   if (!line || typeof line !== 'object') return '';
   // ★필드 별칭 정규화 (2026-07-04 bench2 근본픽스): planner/generator는 텍스트블록 어휘(content)를
