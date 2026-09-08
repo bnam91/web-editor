@@ -10,6 +10,27 @@ import { wireFontPicker } from './_font-picker.js';
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 import { applyModalVariant, _effDefault, MODAL_DEFAULTS } from '../blocks/modal-block.js';
 
+/* 스와치·hex 칸에 «보여 줄» 색.
+   ⚠️dataset.textColor 는 hex 만 담는 게 아니다 — 컬러변수 칩은 `var(--color-x, #hex)` 를,
+     alpha 조절은 `rgba(...)` 를 넣는다. 그 raw 를 hex 칸에 그대로 꽂으면
+     「VAR(--COLOR…」가 글자로 뜨고 <input type="color"> 는 값을 못 읽어 «검정»으로 죽는다(실측).
+   ⇒ 텍스트 패널과 같은 규칙: 보여 주는 것은 «풀린 hex» 다(변수의 폴백 hex = 그 변수의 현재 색).
+     칩의 active 표시는 raw dataset 을 따로 보므로 바인딩 정보는 안 잃는다. */
+function _swatchHex(v) {
+  const s = String(v || '').trim();
+  const m6 = s.match(/#([0-9a-fA-F]{6})\b/);
+  if (m6) return '#' + m6[1].toLowerCase();
+  const m3 = s.match(/#([0-9a-fA-F]{3})\b/);
+  if (m3) return '#' + m3[1].toLowerCase().split('').map((ch) => ch + ch).join('');
+  const rgb = s.match(/rgba?\(([^)]+)\)/i);
+  if (rgb) {
+    const p = rgb[1].split(',').map((x) => parseInt(x, 10));
+    const to = (n) => Math.max(0, Math.min(255, n | 0)).toString(16).padStart(2, '0');
+    return '#' + to(p[0]) + to(p[1]) + to(p[2]);
+  }
+  return MODAL_DEFAULTS.textColor;
+}
+
 const _MDL_VARIANT_LABELS = {
   'plain': '기본 박스', 'titled': '제목 + 본문', 'icon': '아이콘 + 텍스트',
   'icon-stack': '아이콘 스택', 'grid-2': '2칸 그리드', 'dashed': '점선 테두리',
@@ -182,7 +203,7 @@ export function showModalProperties(block) {
       sizeMin: 10, sizeMax: 60,
     })}
 
-    ${buildFillSectionHtml({ p: 'mdl-typo', colorHex: textColor, alpha: parseAlphaFromColor(textColor) })}`;
+    ${buildFillSectionHtml({ p: 'mdl-typo', colorHex: _swatchHex(textColor), alpha: parseAlphaFromColor(textColor) })}`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -287,6 +308,8 @@ export function showModalProperties(block) {
   const cHex   = document.getElementById('mdl-typo-color-hex');
   const cAlpha = document.getElementById('mdl-typo-color-alpha');
   const cSwatch = cPick?.closest('.prop-color-swatch');
+  // 스와치 «배경»만은 raw 로 — var() 바인딩이면 변수의 실제 색이 보여야 한다.
+  if (cSwatch && textColor) cSwatch.style.background = textColor;
   let _mdlAlpha = parseAlphaFromColor(textColor);
   const buildColor = () => {
     const h = (cPick.value || '#000000').replace('#', '');

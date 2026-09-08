@@ -225,6 +225,21 @@ test('B-6-b ★컬러변수 var(--color-…) 를 색으로 «받는다»', () =>
 
 const SRC_PANEL = stripComments(readSrc(ROOT, 'js/props/prop-modal.js'));
 
+/** `function name(…) { … }` 의 본문을 «중괄호 균형»으로. ⛔고정 창 금지. */
+function fnBody(src, name) {
+  const i = src.indexOf(`function ${name}`);
+  assert.ok(i >= 0, `function ${name} 을 못 찾았다 — 이 검사는 지금 아무것도 안 보고 있다`);
+  let d = 0, j = src.indexOf('(', i);
+  for (; j < src.length; j++) { if (src[j] === '(') d++; else if (src[j] === ')' && --d === 0) break; }
+  const open = src.indexOf('{', j);
+  d = 0;
+  for (let k = open; k < src.length; k++) {
+    if (src[k] === '{') d++;
+    else if (src[k] === '}' && --d === 0) return src.slice(open, k + 1);
+  }
+  assert.fail(`function ${name}: 중괄호 짝이 안 맞는다`);
+}
+
 /** `const name = (…) => { … }` 의 본문을 «중괄호 균형»으로 잘라 온다. ⛔고정 창 금지. */
 function arrowBody(src, name) {
   const i = src.indexOf(`const ${name} =`);
@@ -297,3 +312,27 @@ function buildTypoMarkup() {
     ctx, { filename: 'js/props/_typo-section.js' });
   return ctx.__O;
 }
+
+test('B-8 ★색 칸에 보여 주는 값은 «풀린 hex» 다 (var()·rgba() raw 금지)', () => {
+  /* 되돌리면 빨강: Fill 절에 dataset.textColor 를 raw 로 넘기면.
+     ★CDP 실측(2026-09-08): 칩을 눌러 var(--color-primary, #6b9eff) 가 박히면
+       hex 칸에 「VAR(--COLOR」가 «글자로» 뜨고 <input type="color"> 는 값을 못 읽어 검정이 된다. */
+  const body = fnBody(SRC_PANEL, '_swatchHex');
+  assert.ok(body.length > 40, '_swatchHex 가 비었다');
+  assert.match(SRC_PANEL, /colorHex:\s*_swatchHex\(textColor\)/,
+    'Fill 절에 textColor 를 «raw 로» 넘긴다 — 컬러변수를 바인딩하면 hex 칸이 「VAR(--COLOR」가 된다');
+
+  // 동작 — 소스를 그대로 돌려서 «실제로» 푸는지 본다(베끼지 않는다).
+  const vm = _req('node:vm');
+  const ctx = { window: {}, console, MODAL_DEFAULTS: M.MODAL_DEFAULTS };
+  vm.createContext(ctx);
+  vm.runInContext(`function _swatchHex(v) ${body.replace(/^[\s\S]*?\{/, '{')}\n;globalThis.__H=_swatchHex;`,
+    ctx, { filename: 'js/props/prop-modal.js' });
+  const H = ctx.__H;
+  assert.equal(H('var(--color-primary, #6b9eff)'), '#6b9eff', 'var() 의 폴백 hex 를 못 뽑는다');
+  assert.equal(H('#FF0000'), '#ff0000', 'hex 를 못 읽는다');
+  assert.equal(H('rgba(255,0,0,0.5)'), '#ff0000', 'rgba 를 hex 로 못 바꾼다');
+  assert.equal(H('#abc'), '#aabbcc', '3자리 hex 를 못 편다');
+  assert.equal(H(''), M.MODAL_DEFAULTS.textColor, '빈 값의 폴백이 기본 글자색이 아니다');
+  assert.doesNotMatch(H('var(--color-primary, #6b9eff)'), /var\(/i, 'var( 가 그대로 새어 나온다');
+});
