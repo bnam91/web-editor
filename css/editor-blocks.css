@@ -1860,18 +1860,22 @@ textarea.cvb-card-input {
 /* a·b 핸들 — 선택했을 때만 보이고 잡힌다. */
 /* ★a·b 앵커 — 어도비 일러스트 관례(현빈 2026-09-08 + 첨부 그림):
      안 집힌 것 = «흰 채움» + 색 테두리 · 집힌 것 = «색 채움» + 같은 테두리.
-   ⛔예전엔 반대였다(파란 채움 + 흰 테두리) — 그래서 「집었다」가 안 보였다.
-   ⚠️이건 ⑯(모서리 핸들 보라)과 «다른 것»이다. 현빈이 둘을 따로 말했다:
-     앵커 = 패스 앵커라 «파랑»(일러스트 관례) · 모서리 = 리사이즈 핸들이라 «보라»(계열색). */
+   ⛔예전엔 반대였다(색 채움 + 흰 테두리) — 그래서 「집었다」가 안 보였다.
+
+   ★★그 «색» 은 보라다 — 현빈 2026-09-08 「a,b점의 핸들이 파란색인데 같은 보라색으로 맞춰줄것」.
+   ⛔앞서 이 자리엔 「앵커=파랑(일러스트 관례) · 모서리=보라」로 적혀 있었다. 그 판단을 현빈이 되돌렸다.
+     이유는 그 주석이 스스로 적고 있었다 — «같은 블록 안»의 리사이즈 핸들([data-zoom-resize-dir])이
+     이미 --ui-sel-overlay(보라)라, 앵커만 파랑이면 «한 블록에 핸들 색이 둘»이 된다.
+   ⇒ 둘을 하나로 묶는다. ⛔리터럴 #9966ff 를 쓰지 마라 — 토큰이 정본이다. */
 .zoom-block .zoom-handle {
   fill: #fff;
-  stroke: var(--sel-color);
+  stroke: var(--ui-sel-overlay);
   stroke-width: 1.5;
   opacity: 0;
   pointer-events: none;
   cursor: grab;
 }
-.zoom-block .zoom-handle[data-picked="true"] { fill: var(--sel-color); }
+.zoom-block .zoom-handle[data-picked="true"] { fill: var(--ui-sel-overlay); }
 
 /* ★★도형 그림자(드롭섀도) — 광원(data-shadow)과 «다른 키»(data-drop-shadow)다.
      data-shadow     = 'on'|'off'            → 돋보기 광원 사다리꼴(SVG 폴리곤)
