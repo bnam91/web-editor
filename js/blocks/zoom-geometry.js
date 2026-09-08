@@ -361,6 +361,23 @@ export function autoShortEdge(A, B, L, narrow) {
           { x: L.x + (B.x - mid.x) * k, y: L.y + (B.y - mid.y) * k }];
 }
 
+/* ★손잡이 좌표의 상한 — 도형 중심에서 이만큼까지만 받는다(px).
+   ⛔없으면 dataset 이 lx/ly=99999 를 들고 올 때 SVG 가 100206×100124 로 부풀고,
+     ★선택 중에는 `.zoom-block.selected > .zoom-clip { clip-path: none }` 이라 그 거대한 층이
+     «옆 섹션 위를 덮는다»(css/editor-blocks.css:2827). NaN 은 안 나지만 화면이 가려진다.
+   ★2000 을 고른 근거: 「길이」 슬라이더 최대가 1200 이다(prop-zoom.js). UI 가 스스로 만들 수 있는
+     가장 먼 빛보다 66% 넉넉하고, 그래도 SVG 는 4000px 대에서 멈춘다.
+   ⛔«읽기»(readPinnedShortEdge)에서 자르지 않는다 — 저장본의 값을 조용히 고쳐 쓰면 안 된다.
+     여기서 «쓸 때만» 조인다: 저장본은 그대로, 화면만 안전하다. */
+export const ZOOM_PIN_REACH = 2000;
+
+/** 사람이 끈 점을 상한 안으로. 축이 mid(a,b) 라 a·b 를 조이면 L 도 따라 조여진다. */
+export function clampPin(P) {
+  if (!P || !Number.isFinite(P.x) || !Number.isFinite(P.y)) return P;
+  const R = ZOOM_PIN_REACH;
+  return { x: Math.max(-R, Math.min(R, P.x)), y: Math.max(-R, Math.min(R, P.y)) };
+}
+
 /** 광원 L — 도형 중심에서 «방향 각도»로 «길이» 만큼 떨어진 점. */
 export function lightPoint(angle, length, cx, cy) {
   var th = (Number(angle) || 0) * Math.PI / 180;
@@ -400,7 +417,7 @@ export function computeZoomGeometry(st, pinned) {
        사다리꼴 붙는 점이 모서리에서 살짝 뜬다 — 지디 판단으로 지금은 안 고친다. */
   var hw = shapeHalf(st).hw;
   var bw = borderWidthOf(st);
-  var lPin = (pinned && pinned.L) ? pinned.L : null;
+  var lPin = (pinned && pinned.L) ? clampPin(pinned.L) : null;
   var L0 = lPin || lightPoint(st.angle, st.length, 0, 0);          // ⑴
   /* ★실루엣과 «둘레»가 «같은 점 목록»을 쓴다 — 두 군데서 다르게 계산하면 벌림이
      윤곽에서 미세하게 떠 버린다(테두리 두께 bw 가 들어간 판이 정본이다).
@@ -412,8 +429,8 @@ export function computeZoomGeometry(st, pinned) {
     ? silhouetteCircle(outline.r, L0, 0, 0)
     : silhouetteFromPts(outline.pts, L0, 0, 0);
   var auto = autoShortEdge(sil[0], sil[1], L0, st.narrow);         // ⑶
-  var a = (pinned && pinned.a) ? pinned.a : auto[0];               // ⑷
-  var b = (pinned && pinned.b) ? pinned.b : auto[1];
+  var a = (pinned && pinned.a) ? clampPin(pinned.a) : auto[0];      // ⑷ ★상한은 여기서만 건다
+  var b = (pinned && pinned.b) ? clampPin(pinned.b) : auto[1];
   var L = lPin || { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };      // ⑸ ★축 = 짧은 변의 한가운데
   var c = tangentAt(outline, a, L, b, sil, 0);                     // ⑹
   var d = tangentAt(outline, b, L, a, sil, 1);
@@ -526,14 +543,18 @@ export function outerExtentPts(st) {
 export function zoomBox(st, pinned) {
   const geo = computeZoomGeometry(st, pinned);
   const ok = shadowVisible(st, geo);
+  /* ★손잡이가 남는 경우(띠는 퇴화했는데 이펙트는 켜져 있는 경우)에도 상자가 a·b·L 을 담아야 한다.
+     안 담으면 손잡이가 뷰박스 «밖»에 그려져 잘린다 = 사라진 것과 같다. */
+  const hv = handlesVisible(st, geo);
   const pts = [
     ...outerExtentPts(st),
-    ...(ok ? [geo.A, geo.B, geo.a, geo.b, geo.L] : []),
+    ...(ok ? [geo.A, geo.B] : []),
+    ...(ok || hv ? [geo.a, geo.b, geo.L] : []),
   ];
   const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
   const minX = Math.min(...xs) - ZOOM_PAD, maxX = Math.max(...xs) + ZOOM_PAD;
   const minY = Math.min(...ys) - ZOOM_PAD, maxY = Math.max(...ys) + ZOOM_PAD;
-  return { minX, minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY), geo, ok };
+  return { minX, minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY), geo, ok, handles: hv };
 }
 
 /* 그림자를 실제로 그리는가 — 세 갈래를 «한 자리»에 모은다.
@@ -544,6 +565,21 @@ export function shadowVisible(st, geo) {
   if (st.shadow === 'off') return false;
   if (!allFinite([geo.A, geo.B, geo.a, geo.b, geo.L])) return false;
   return Math.hypot(geo.B.x - geo.A.x, geo.B.y - geo.A.y) > 1e-6;
+}
+
+/* ★★손잡이를 그리나 — 「줌 이펙트를 «켰나»」로만 정한다. ⛔띠가 보이는가와 «따로»다.
+     한때 손잡이가 shadowVisible 을 따라갔다. 그래서 이런 일이 났다(적대적 검수 2026-09-09):
+       원(r=130)에서 빨간 빛 손잡이를 도형 «안»으로 끌면 d ≤ r+0.5 로 실루엣이 퇴화하고
+       A==B 가 되어 shadowVisible 이 false ⇒ ★«방금 끌던 그 점이 커서 밑에서 사라졌다».
+       화면에 다시 집을 것이 없어 우측 패널로만 되돌릴 수 있었다.
+     ⛔게다가 rect·square 는 같은 조작에서 «안 사라지고» 깨진 빔을 그렸다 — 같은 손짓에
+       프리셋마다 결과가 달랐다.
+   ⇒ 띠가 안 보여도 손잡이는 남긴다. ★사람이 되돌릴 «탈출구»가 화면에 있어야 한다.
+   ⛔「광원이 도형 안일 때 기하를 어떻게 할지」는 손대지 않았다 — 그건 현빈 결정 대기다.
+      여기서 고친 것은 «탈출구가 사라지는 것» 하나뿐이다. */
+export function handlesVisible(st, geo) {
+  if (st.shadow === 'off') return false;          // 이펙트를 끈 것 = 스티커. 손잡이가 없다
+  return allFinite([geo.a, geo.b, geo.L]);
 }
 
 /**
@@ -634,7 +670,7 @@ export function bgMarkup(st, pinned) {
  * ⛔색은 CSS 가 정한다(css/editor-blocks.css 의 .zoom-handle[data-pt="L"]) — 여기 리터럴을 쓰지 마라. */
 export function handleLayerMarkup(st, pinned, picked) {
   const box = zoomBox(st, pinned);
-  if (!box.ok) return '';
+  if (!box.handles) return '';        // ★box.ok 가 «아니다» — 위 handlesVisible 주석 참조
   const geo = box.geo;
   const dot = (pt, P) =>
     `<circle class="zoom-handle" data-pt="${pt}"${picked === pt ? ' data-picked="true"' : ''} ` +
