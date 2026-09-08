@@ -512,14 +512,19 @@ test('D13 ★«프레임 안»으로 추가하는 갈래도 핸들이 붙는다 
   expect(made.parentIsFrame, '★프레임 갈래를 «안 탔다» — 이 검사는 D12 를 다시 재고 있을 뿐이다').toBe(true);
   expect(made.inFrame, '프레임 안에 모달이 안 들어갔다').toBe(1);
   expect(made.inSectionInner, '일반 갈래로 샜다 — 프레임 갈래가 아니다').toBe(0);
-  expect(made.selected, '전제: selectBlock 이 «선택»까지는 하고 있다').toBe(true);
 
   await raf(page);
   const after = await page.evaluate(() => ({
     resize: document.querySelectorAll('#ss-handles-overlay .mdl-overlay-handle').length,
     radius: document.querySelectorAll('#ss-handles-overlay .mdl-radius-handle').length,
   }));
+  /* ★핸들 단언이 «먼저» 온다 — 이게 이 검사의 본문이다.
+     ⛔selected 를 «전제»로 앞에 두면 안 된다: 이 갈래에서는 selectBlock 도 같은 헬퍼 안에 있어서
+       호출 한 줄을 지우면 selected 가 먼저 터지고, 검사가 「핸들이 없다」 대신 「선택이 안 됐다」로
+       말한다(실측으로 그 꼴을 봤다). 원인을 «틀리게» 대는 검사는 다음 사람을 헤매게 한다. */
   expect(after.resize, '★프레임 안에 추가한 «직후»에 리사이즈 핸들이 없다').toBe(4);
   expect(after.radius, '★프레임 안에 추가한 «직후»에 라디우스 핸들이 없다').toBe(4);
+  // 선택·레이어 하이라이트도 같이 따라왔나 (핸들과 «같은» 헬퍼가 맡는다)
+  expect(made.selected, '선택 클래스가 안 붙었다').toBe(true);
   expect(errs).toEqual([]);
 });
