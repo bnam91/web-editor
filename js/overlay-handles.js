@@ -1882,6 +1882,23 @@ function _onZoomResizeMouseDown(e, zb, dir) {
   const startH = Math.max(ZOOM_MIN, Math.round(box.offsetHeight - bw * 2));
   const startX = e.clientX, startY = e.clientY;
   const isCircle = st.shape === 'circle';
+  /* ★④ 끄는 코너가 «손끝을 따라온다» — 예전엔 w/h 만 쓰고 x/y 를 안 건드려서 어느 코너를
+     끌든 좌상단이 고정되고 오른쪽·아래로만 자랐다(실측: nw 를 (−80,−50) 끌어도 코너 Δ=(0,0),
+     크기만 260×140 → 340×190. 네 코너 중 se 하나만 «우연히» 맞았다).
+     ⇒ 「끄는 코너의 «맞은편» 코너를 고정한다」로 고친다. 그러면 끄는 코너가 손끝에 붙는다.
+     ★수식(중심 C, 반치수 hw·hh, 회전 θ, 끄는 코너의 로컬 부호 sx·sy):
+         맞은편 코너 = C + R(θ)·(−sx·hw, −sy·hh) 를 «불변»으로 두면
+         ΔC = R(θ)·(sx·Δhw, sy·Δhh)   ⇒   Δ(좌상단) = ΔC − (Δhw, Δhh)
+     ⚠️θ 는 «드래그 내내 안 바뀐다» — 여기서 한 번만 읽는다.
+     ⚠️테두리 두께는 드래그 중 상수라 Δ 반치수는 도형과 상자가 «같다»(bw 가 상쇄된다). */
+  const sx = dir.includes('e') ? 1 : -1;
+  const sy = dir.includes('s') ? 1 : -1;
+  const th = _blockRotationDeg(box) * Math.PI / 180;
+  const cosT = Math.cos(th), sinT = Math.sin(th);
+  /* ⚠️readZoomState 가 없으면 st 는 {} 다 — 그때는 dataset 을 직접 읽는다.
+     ⛔둘 다 없다고 0 으로 떨어뜨리면 블록이 섹션 좌상단으로 «순간이동»한다. */
+  const startPosX = Number(st.x ?? zb.dataset.x) || 0;
+  const startPosY = Number(st.y ?? zb.dataset.y) || 0;
   let moved = false;
 
   function onMove(ev) {
@@ -1901,7 +1918,302 @@ function _onZoomResizeMouseDown(e, zb, dir) {
     }
     zb.dataset.w = String(newW);
     zb.dataset.h = String(newH);
+    /* ★④ 맞은편 코너를 고정 — 위 수식 그대로. ⛔x/y 를 안 쓰면 좌상단이 못박혀
+       「끄는 코너가 안 따라오는」 그 병으로 돌아간다(se 만 우연히 맞는다). */
+    const dHW = (newW - startW) / 2, dHH = (newH - startH) / 2;
+    zb.dataset.x = String(startPosX + (cosT * sx * dHW - sinT * sy * dHH) - dHW);
+    zb.dataset.y = String(startPosY + (sinT * sx * dHW + cosT * sy * dHH) - dHH);
     window.renderZoomBlock?.(zb);   // ★실루엣·그림자·뷰박스가 «같이» 따라온다
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (moved) { window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   확대블럭 — 모서리 라운드 핸들 (.zm-radius-handle)
+   현빈 2026-09-09 「추가되는 사각형의 모서리 라디오도 좀 조절했으면 좋겠어.
+                     다른 사각형 셋 조절할 때 뭐 그렇게 했었잖아」
+
+   ⛔«에셋 핸들을 그대로 베끼면 안 된다». 기존 코너반경 핸들 넷(frame·asset·modal·canvas)은
+     전부 `el.style.borderRadius` 로 DOM 에 «직접» 쓴다. 확대블럭은 그 길이 막혀 있다 —
+     renderZoomBlock(zoom-block.js:200)이 `block.style.cssText` 를 «통째로» 덮으므로
+     끌자마자 다음 렌더에서 값이 날아간다(그리고 «아무 오류도 안 난다»).
+   ⇒ 베낄 대상은 «같은 파일의» _onZoomResizeMouseDown 이다: 「dataset 에 쓰고
+     renderZoomBlock 을 부른다」는 규약이 거기 이미 산다. 여기도 그 규약만 쓴다.
+
+   ⛔클래스로 `.asset-radius-handle` 을 «빌리지» 않는다 — hideAssetRadiusHandles() 의
+     일괄 remove 가 같이 쓸어간다. 이 파일 1827행 주석이 «그 함정을 두 번 밟았다»고 적어 뒀다
+     (아이콘원형이 한 번, 확대블럭 리사이즈 핸들이 또 한 번). 모양만 CSS 에서 «얹어» 쓴다.
+
+   ★★상한(ZOOM_BDR_MAX)에 «잠복 결함»이 걸려 있다 — 아래 상수 주석 참조.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** 모서리 라운드 상한(px). ★이 숫자는 «취향»이 아니라 아래 결함의 크기에서 나왔다.
+ *
+ * ⚠️결함: 그림자(빛줄기)의 실루엣은 도형의 «꼭짓점»에서 잡는다(zoom-geometry.js
+ *   shapeCornerPts → silhouetteFromPts). 그런데 라운드를 주면 실제 윤곽은 그 꼭짓점에서
+ *   호(弧) 쪽으로 «들어간다». 어긋나는 거리는 대각선 방향으로 정확히
+ *       g = bdr · (√2 − 1) ≈ 0.4142 · bdr
+ *   ⇒ 빛줄기의 밑변이 도형에서 g 만큼 «떠서» 모서리 옆에 얇은 쐐기로 비어 보인다.
+ *
+ * ★«눈에 띄는» 치수는 g 가 아니라 둘이다(g 는 «최단»거리라 제일 작게 나온다):
+ *     · 코너 극점에서 빛줄기 밑변이 도형 위로 뜨는 «높이» = bdr «그 자체»
+ *     · 코너 하나당 도형 밖으로 삐져나온 «넓이» = bdr²(1 − π/4)
+ *
+ * ★★재서 골랐다 — 9363 포트, 배율 100%, rect 260×140, shadow on, maxop 60, 광원 12시.
+ *   bdr | 최단 g  | 코너당 넓이 | 극점 높이 | 눈으로
+ *     8 | 3.31px |   13.7 px² |    8px | 안 보인다
+ *    16 | 6.63px |   54.9 px² |   16px | 안 보인다  ← ★여기를 상한으로 잡았다
+ *    24 | 9.94px |  123.6 px² |   24px | 코너에 옅은 쐐기가 «보이기 시작»한다
+ *    40 |16.57px |  343.4 px² |   40px | 확실한 «날개» — 그림자가 도형에서 떨어져 보인다
+ *
+ * ⛔이번에 실루엣을 «고치지 않는다» — 범위 밖이다(현빈 지시는 「모서리 조절」까지다).
+ * ★★이 상한을 올리려면 «실루엣부터» 고쳐야 한다: zoom-geometry.js 의
+ *   silhouetteFromPts 가 shapeCornerPts 의 «꼭짓점»이 아니라 「라운드된 윤곽의 접점」을
+ *   잡도록 바꾸는 일이다. 그걸 안 하고 숫자만 키우면 위 표의 오른쪽으로 그대로 내려간다. */
+const ZOOM_BDR_MAX = 16;
+
+let _zoomRadiusBlock = null;
+let _zoomRadiusRafId = null;
+
+function showZoomRadiusHandles(zb) {
+  const overlay = _getOverlay();
+  /* ★빗장은 _zoomResizeBlock 과 «같은 규율» — 「같은 블록」만 보고 건너뛰면 핸들이 남의
+     정리에 쓸려나간 뒤로 영영 안 돌아온다(1813행 주석의 그 사고). DOM 존재도 같이 본다. */
+  if (_zoomRadiusBlock === zb && overlay && overlay.querySelector('[data-zoom-radius-dir]')) return;
+  hideZoomRadiusHandles();
+  _zoomRadiusBlock = zb;
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `zm-radius-handle ${dir}`;
+    h.dataset.zoomRadiusDir = dir;
+    h.title = '모서리 반경 조절';
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onZoomRadiusMouseDown(e, zb, dir));
+  });
+  _updateZoomRadiusPositions();
+  _startZoomRadiusRaf();
+}
+
+function hideZoomRadiusHandles() {
+  if (_zoomRadiusRafId) { cancelAnimationFrame(_zoomRadiusRafId); _zoomRadiusRafId = null; }
+  _zoomRadiusBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('[data-zoom-radius-dir]').forEach(h => h.remove());
+}
+
+function _updateZoomRadiusPositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_zoomRadiusBlock) return;
+  const box = _zoomOutlineBox(_zoomRadiusBlock);
+  const INSET = 10;   // 코너에서 «안쪽»으로 — 리사이즈 핸들(inset 0)과 자리가 안 겹친다
+  const HALF  = 3.5;  // 7px 핸들 중앙 정렬
+  /* ★원에는 모서리가 없다 — blockBoxSpec 이 radius 를 '50%' 로 못박고 shapeEl 의 circle
+     갈래는 bdr 을 «아예 안 읽는다». ⇒ 핸들을 보이면 「끌어도 아무 일도 안 나는 손잡이」가 된다.
+     ⛔숨기는 자리를 show...() 로 옮기면 안 된다: 프리셋을 원↔사각으로 «선택한 채» 바꿀 때
+       (prop-zoom 은 showZoomProperties 만 다시 부르고 핸들은 안 다시 만든다) 상태가 굳는다.
+       매 프레임 보는 여기서 토글해야 살아 있는 채로 따라온다. */
+  const isCircle = (window.readZoomState?.(_zoomRadiusBlock) || {}).shape === 'circle';
+  overlay.querySelectorAll('[data-zoom-radius-dir]').forEach(h => {
+    h.style.display = isCircle ? 'none' : '';
+    if (isCircle) return;
+    const c = _cornerScreen(box, h.dataset.zoomRadiusDir, INSET);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+  });
+}
+
+function _startZoomRadiusRaf() {
+  function loop() {
+    if (!_zoomRadiusBlock) return;
+    if (!_zoomRadiusBlock.isConnected || !_zoomRadiusBlock.classList.contains('selected')) {
+      hideZoomRadiusHandles();
+      return;
+    }
+    _updateZoomRadiusPositions();
+    _zoomRadiusRafId = requestAnimationFrame(loop);
+  }
+  _zoomRadiusRafId = requestAnimationFrame(loop);
+}
+
+function _onZoomRadiusMouseDown(e, zb, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  /* ★시작값은 «dataset» 에서 읽는다 — ⛔`zb.style.borderRadius` 를 읽으면 안 된다.
+     그 자리엔 렌더가 써 둔 «도형 반경 + 테두리 두께»(blockBoxSpec.radius)가 들어 있어
+     테두리를 켠 순간 시작값이 bdw 만큼 부풀어 손끝이 튄다. */
+  const startR = Math.max(0, Number(window.readZoomState?.(zb)?.bdr) || 0);
+  const startX = e.clientX, startY = e.clientY;
+  let moved = false;
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    // 델타 산식은 _onAssetRadiusHandleMouseDown 그대로 — 「안쪽으로 끌면 커진다」
+    const delta = dir === 'nw' ? (dx + dy) / 2
+                : dir === 'ne' ? (-dx + dy) / 2
+                : dir === 'sw' ? (dx - dy) / 2
+                :                (-dx - dy) / 2;
+    if (!moved && Math.abs(delta) < 1) return;
+    if (!moved) { moved = true; window.pushHistory?.('확대블럭 모서리'); }
+    const newR = Math.min(ZOOM_BDR_MAX, Math.max(0, Math.round(startR + delta)));
+    /* ★★규약 — dataset 에 쓰고 «재렌더»한다.
+       ⛔`zb.style.borderRadius = …` 로 쓰면 다음 renderZoomBlock 의 style.cssText 통짜
+         덮어쓰기에 «조용히» 날아간다. 도형(SVG rect rx)도 안 따라온다. */
+    zb.dataset.bdr = String(newR);
+    window.renderZoomBlock?.(zb);
+    /* 프로퍼티 패널 동기 — ★지금 이 줄들은 «아무것도 못 찾는다»: 모서리 슬라이더가
+       prop-zoom.js 에서 가려져 있다(현빈 「아직」). 그래도 남긴다 — 그 줄의 주석을 옮겨
+       되살리는 순간 이 동기가 «같이» 살아나야 하기 때문이다(그 파일이 쓰는 id 규약은
+       `zm-bdr` · `zm-bdr-num` 이다. ⛔`-slider`/`-number` 가 아니다). */
+    const s = document.getElementById('zm-bdr');
+    const n = document.getElementById('zm-bdr-num');
+    if (s) s.value = String(newR);
+    if (n) n.value = String(newR);
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (moved) { window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   확대블럭 — 회전 핫존 (.zm-rotate-handle)
+   현빈 2026-09-09 「스티커의 모서리 핸들에 마우스를 가져다주면 그게 되잖아 회전 기능이
+                     되게끔. 다른 셋 블록이나. 그런데 지금은 우측 패널에 회전 슬라이드로만
+                     하니까 그것 좀 고쳐줘」
+
+   ★인프라는 이미 있다 — js/asset-rotate.js 의 _makeRotateType 팩토리에 여덟 종이 산다.
+     ⛔그런데 «그 팩토리를 쓰면 안 된다». 팩토리는 host.appendChild 로 핫존을 블록의 «자식»
+       으로 붙이는데, renderZoomBlock 이 innerHTML 을 통째로 덮으므로 첫 재렌더에 죽는다
+       (실측: 붙인 직후 1개 → 재렌더 뒤 0개). 확대블럭에는 「자식으로 붙인다」가 안 통한다.
+     ⇒ ★프레임(.ss-rotate-handle)과 «같은 길»로 간다: 오버레이 트랙(#ss-handles-overlay)에
+       두고 raf 로 좌표를 따라간다. 리사이즈·라운드 핸들이 이미 그렇게 살아 있다.
+
+   ★크기조절과 «어떻게 가르나» = 모서리 «바깥» 링이다(프레임과 같은 수: ROT_OUT 16, 20×20).
+     리사이즈 핸들은 코너에 ±3.5px, 회전은 코너 바깥 6~26px ⇒ 히트영역이 안 겹친다.
+     ⛔수정키(Shift/⌘)로 가르지 않는다 — 현빈은 「마우스를 가져다주면」이라 했다(hover 로
+       알아야 한다). 게다가 Shift 는 비율고정·45°스냅으로 이미 포화, ⌘ 는 자유이동이다.
+     ★갈라지는 실체는 «커서»다: 회전은 _FRAME_ROTATE_CURSOR, 리사이즈는 nw/ne/sw/se-resize
+       (css/editor-blocks.css 의 .zm-overlay-handle.* 규칙).
+   ═══════════════════════════════════════════════════════════════════════════ */
+let _zoomRotateBlock = null;
+let _zoomRotateRafId = null;
+
+function showZoomRotateHandles(zb) {
+  const overlay = _getOverlay();
+  if (_zoomRotateBlock === zb && overlay && overlay.querySelector('[data-zoom-rot-dir]')) return;
+  hideZoomRotateHandles();
+  _zoomRotateBlock = zb;
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const z = document.createElement('div');
+    z.className = `zm-rotate-handle ${dir}`;
+    z.dataset.zoomRotDir = dir;
+    z.title = '회전 (Shift=45° 스냅)';
+    z.style.cssText = 'position:fixed;width:20px;height:20px;z-index:98;pointer-events:auto;'
+      + 'border-radius:50%;cursor:' + _FRAME_ROTATE_CURSOR + ';';
+    overlay.appendChild(z);
+    z.addEventListener('mousedown', e => _onZoomRotateMouseDown(e, zb));
+  });
+  _updateZoomRotatePositions();
+  _startZoomRotateRaf();
+}
+
+function hideZoomRotateHandles() {
+  if (_zoomRotateRafId) { cancelAnimationFrame(_zoomRotateRafId); _zoomRotateRafId = null; }
+  _zoomRotateBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('[data-zoom-rot-dir]').forEach(h => h.remove());
+}
+
+function _updateZoomRotatePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_zoomRotateBlock) return;
+  const box = _zoomOutlineBox(_zoomRotateBlock);
+  const ROT_OUT  = 16;   // 코너에서 «바깥»으로(스크린px) — 프레임과 같은 수
+  const ROT_HALF = 10;   // 20px 핫존 중앙 정렬
+  /* ★원은 돌려도 같은 모양이다 — blockBoxSpec 이 circle 에서 rot 을 0 으로 못박는다.
+     ⇒ 핫존을 보이면 「끌어도 아무 일도 안 나는 손잡이」가 된다. 라운드 핸들과 «같은 규율»로
+       여기(매 프레임)에서 토글해 프리셋을 선택한 채 바꿔도 따라오게 한다. */
+  const isCircle = (window.readZoomState?.(_zoomRotateBlock) || {}).shape === 'circle';
+  overlay.querySelectorAll('[data-zoom-rot-dir]').forEach(h => {
+    h.style.display = isCircle ? 'none' : '';
+    if (isCircle) return;
+    const c = _cornerScreen(box, h.dataset.zoomRotDir, -ROT_OUT);   // 음수 inset = 바깥
+    h.style.top  = (c.y - ROT_HALF) + 'px';
+    h.style.left = (c.x - ROT_HALF) + 'px';
+  });
+}
+
+function _startZoomRotateRaf() {
+  function loop() {
+    if (!_zoomRotateBlock) return;
+    if (!_zoomRotateBlock.isConnected || !_zoomRotateBlock.classList.contains('selected')) {
+      hideZoomRotateHandles();
+      return;
+    }
+    _updateZoomRotatePositions();
+    _zoomRotateRafId = requestAnimationFrame(loop);
+  }
+  _zoomRotateRafId = requestAnimationFrame(loop);
+}
+
+/** 확대블럭 프로퍼티 패널의 회전 입력 동기.
+ *  ⛔asset-rotate.js 의 _syncNumSlider('zm-rot', …) 를 쓰면 «조용히 아무 일도 안 한다» —
+ *    그 헬퍼는 `zm-rot-slider`·`zm-rot-number` 를 찾는데, prop-zoom.js 의 _pairRow 가 만드는
+ *    id 는 `zm-rot`·`zm-rot-num` 이다. 둘 다 null 이라 오류도 안 나고 값도 안 바뀐다.
+ *  ⇒ 전용으로 둔다. prop-zoom.js 의 _pairRow 규약이 바뀌면 «여기»도 같이 바뀌어야 한다. */
+function _syncZoomRotUI(deg) {
+  const s = document.getElementById('zm-rot');
+  const n = document.getElementById('zm-rot-num');
+  if (s) s.value = String(deg);
+  if (n) n.value = String(deg);
+}
+
+function _onZoomRotateMouseDown(e, zb) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const box = _zoomOutlineBox(zb);
+  const br = box.getBoundingClientRect();
+  /* ★중심은 «회전 불변»이라 회전각과 무관하게 rect 중심이 곧 회전 중심이다.
+     ⚠️확대블럭의 DOM 상자는 축정렬 그대로다 — 회전은 CSS transform 이 아니라 SVG «안»에서
+       일어난다(renderZoomBlock 주석). 그래서 이 rect 는 회전해도 안 돌아간다. */
+  const cx = br.left + br.width  / 2;
+  const cy = br.top  + br.height / 2;
+  const init   = Number(window.readZoomState?.(zb)?.rot) || 0;
+  const startA = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+  let moved = false;
+
+  function onMove(ev) {
+    const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
+    let deg = init + (a - startA);
+    deg = window._snapRotate ? window._snapRotate(deg, ev.shiftKey) : Math.round(deg);
+    deg = ((deg % 360) + 360) % 360;
+    if (deg > 180) deg -= 360;   // -180..180 = 패널 슬라이더의 범위와 «같은 어휘»
+    if (!moved && deg === init) return;
+    if (!moved) { moved = true; window.pushHistory?.('확대블럭 회전'); }
+    /* ★★규약 — dataset 에 쓰고 재렌더.
+       ⛔asset-rotate.js 의 _applyRotationDeg 를 쓰면 안 된다: 그건 host.style.transform 에
+         rotate() 를 거는데, 확대블럭이 그러면 «안에 든 SVG 까지» 돌아 그림자 방향이
+         세계좌표를 벗어난다(renderZoomBlock 주석이 그 이유를 적어 뒀다).
+       ★renderZoomBlock 이 st.rot → dataset.rotation 을 미러링하므로 _blockRotationDeg →
+         _cornerScreen·_unrotateDelta 가 «자동으로» 따라온다 = 회전 뒤 리사이즈가 안 깨진다. */
+    zb.dataset.rot = String(deg);
+    window.renderZoomBlock?.(zb);
+    _syncZoomRotUI(deg);
   }
   function onUp() {
     document.removeEventListener('mousemove', onMove);
@@ -1914,7 +2226,12 @@ function _onZoomResizeMouseDown(e, zb, dir) {
 
 function showHandlesFor(block) {
   if (!block || !block.classList) return;
-  if (block.classList.contains('zoom-block')) { showZoomResizeHandles(block); return; }
+  if (block.classList.contains('zoom-block')) {
+    showZoomRadiusHandles(block);
+    showZoomRotateHandles(block);
+    showZoomResizeHandles(block);
+    return;
+  }
   if (block.classList.contains('asset-block')) {
     showAssetRadiusHandles(block);
     showAssetResizeHandles(block);

@@ -7,6 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
 const { readSrc } = require('./_srcread.js');   // ⛔CRLF — win-portability ①-3
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 
 const ROOT = path.join(__dirname, '..', '..');
 const MAIN = readSrc(ROOT, 'main.js');
@@ -19,8 +20,7 @@ test('A0 ★양성대조 — 앱이 그 경로를 «정말» 내놓고 있나(�
 });
 
 test('A1 앱 자신의 경로를 «탄다» — 디스크에 직접 쓰지 않는다', () => {
-  const i = MAIN.indexOf('async function _invokeRendererAssetsMutate');
-  const body = MAIN.slice(i, MAIN.indexOf('\n}\n', i));
+  const body = sliceBlock(MAIN, 'async function _invokeRendererAssetsMutate');
   assert.match(body, /window\.assetsAddImageFiles\(\[file\], p\.parentId\)/,
     '앱 경로를 안 타면 「네 번째 경로 조립기」가 된다 — 저장 규칙이 갈린다');
   assert.doesNotMatch(body, /require\(['"]fs['"]\)|writeFileSync/,

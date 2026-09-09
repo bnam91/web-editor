@@ -1206,7 +1206,14 @@ function duplicateSelected() {
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, ' +
     '.graph-block.selected, .table-block.selected, ' +
-    '.label-group-block.selected, .icon-text-block.selected, .icon-block.selected'
+    '.label-group-block.selected, .icon-text-block.selected, .icon-block.selected, ' +
+    /* ★.zoom-block — 없으면 freeLayout 안의 줌 블록이 이 «정상 경로»를 못 타고
+       아래 copySelected/pasteClipboard 폴백으로 떨어졌다. 결과는 우연히 같았지만
+       (폴백도 같은 여섯 키를 싣는다) 절대배치 +20px 오프셋·id 재발급은 이 경로의 일이다.
+       ⚠️이 목록은 MULTI_SEL(:1294)·_ALL_BLOCK_SEL(아래) 과 «세 번째 사본»이다.
+         셋이 갈려 있고, 여기엔 아직 canvas·banner02·comparison·sticker·chat·step·
+         laurel·joker·speech-bubble 이 빠져 있다(MULTI_SEL 에는 있다). 별건으로 남긴다. */
+    '.zoom-block.selected'
   );
   const selSS = document.querySelector('.frame-block.selected:not([data-text-frame])');
   const selSection = document.querySelector('.section-block.selected');

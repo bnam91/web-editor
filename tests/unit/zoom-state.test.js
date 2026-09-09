@@ -26,6 +26,7 @@ const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { readSrc } = require('./_srcread.js');
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 const { mkTmpRoot } = require('./_tmproot.js');
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -358,11 +359,7 @@ t2('S-12 [⑪] 공유 클립 함수 — 섹션 «직속» 자식(스티커)에�
 
   // ★함수 본문만 떼어 «진짜 실행»한다(스티커 모듈 전체는 브라우저 의존이 커서 못 띄운다).
   const src = readSrc(ROOT, 'js', 'blocks', 'sticker-block.js');
-  const i = src.indexOf('function _updateStickerSecClip(block) {');
-  assert.notEqual(i, -1, '공유 클립 함수를 못 찾음 — 검사가 대상을 놓쳤다');
-  const j = src.indexOf('\n}\n', i);
-  assert.notEqual(j, -1, '함수 끝을 못 찾음');
-  const body = src.slice(i, j + 3);
+  const body = sliceBlock(src, 'function _updateStickerSecClip(block) {', '검사가 대상을 놓쳤다');
   const mjs = path.join(dir, 'clip.mjs');
   fs.writeFileSync(mjs, body + '\nexport { _updateStickerSecClip };\n', 'utf8');
   const { _updateStickerSecClip: fn } = await import(pathToFileURL(mjs).href);
@@ -419,12 +416,10 @@ function mkSection(name, left, top, w, h, offsetTop = 0) {
 t3('S-14 [⑲] 드래그·섹션이동·재렌더 «전부»에서 dataset.x/y 와 style.left/top 이 같다', async () => {
   /* _clampToSection 은 «진짜» 것을 떼어 쓴다 — 식을 베끼면 두 정본이 된다(S-12 와 같은 수법). */
   const src = readSrc(ROOT, 'js', 'sticker-select.js');
-  const i = src.indexOf('function _clampToSection');
-  assert.notEqual(i, -1, '클램프 함수를 못 찾음 — 검사가 대상을 놓쳤다');
-  const j = src.indexOf('\n}\n', i);
+  const clampSrc = sliceBlock(src, 'function _clampToSection', '클램프 함수를 못 찾음');
   const dir = mkTmpRoot('zoom-clamp-');
   const mjs = path.join(dir, 'clamp.mjs');
-  fs.writeFileSync(mjs, src.slice(i, j + 3) + '\nexport { _clampToSection };\n', 'utf8');
+  fs.writeFileSync(mjs, clampSrc + '\nexport { _clampToSection };\n', 'utf8');
   const { _clampToSection } = await import(pathToFileURL(mjs).href);
 
   // ★지디 실측 배치 그대로
@@ -518,11 +513,10 @@ t3('S-15 [⑲] ★«잡은 지점»이 커서를 따라간다 — 섹션이 바�
      ★★그리고 «배율»을 함께 돈다 — 지디 실측 당시 0.4 였고, 나는 1 로만 재생해 못 재현했다.
        화면 좌표에는 배율이 곱해져 있으므로 가짜 DOM 도 그렇게 굴어야 진짜를 잰다. */
   const src = readSrc(ROOT, 'js', 'sticker-select.js');
-  const i = src.indexOf('function _clampToSection');
-  const j = src.indexOf('\n}\n', i);
+  const clampSrc = sliceBlock(src, 'function _clampToSection', '클램프 함수를 못 찾음');
   const dir = mkTmpRoot('zoom-grab-');
   const mjs = path.join(dir, 'clamp.mjs');
-  fs.writeFileSync(mjs, src.slice(i, j + 3) + '\nexport { _clampToSection };\n', 'utf8');
+  fs.writeFileSync(mjs, clampSrc + '\nexport { _clampToSection };\n', 'utf8');
   const { _clampToSection } = await import(pathToFileURL(mjs).href);
 
   const prevClamp = globalThis.window._clampToSection;

@@ -6,14 +6,28 @@
    - DOMParser(렌더러) 사용. mergeBranch(#CSS.escape) 패턴 차용.
 ══════════════════════════════════════ */
 (function () {
-  const _RUNTIME_CLS = ['selected', 'img-editing', 'editing', 'dragging', 'group-selected', 'group-editing', 'ss-drag-over', 'drag-over'];
+  /* ══ 런타임 마커 — 명단은 «여기 없다» ═══════════════════════════════════════
+     ★정본은 js/io/section-serialize.js 의 window.runtimeMarkers 하나다(index.html:993).
+       옛 판은 여기 _RUNTIME_CLS 명단을 «따로» 들고 있었고, 그 명단에 줄 선택 마커
+       (.bn2-line-selected · .grd-line-selected)가 «둘 다» 없었다.
+       ⇒ 줄을 «고르기만» 해도 정규화 키가 달라져 「변경됨」 오탐이 났다(백로그 F2).
+     ⛔여기에 명단을 다시 적지 마라 — 두 벌이면 한쪽만 고쳐지는 날이 온다. 그게 F2 였다.
+       (tests/unit/export-channel-roster.test.mjs U6-e 가 이 줄을 지킨다)
+     ★로드 순서: 이 파일이 section-serialize 보다 «먼저» 실행될 수 있으므로 «부를 때» 찾는다.
+       없으면 (세척 스크립트가 안 실린 컨텍스트) 마커를 못 걷는 대신 «양쪽에 똑같이» 못 걷으므로
+       비교 자체는 성립한다 — 오탐은 나도 오답은 안 난다. */
+  function _stripRuntime(el) {
+    const rm = (typeof window !== 'undefined' && window.runtimeMarkers) || null;
+    if (!rm) return;
+    rm.stripRuntimeMarkers(el);
+    el.querySelectorAll('[class]').forEach(n => rm.stripRuntimeMarkers(n));
+  }
 
   // 섹션 1개의 정규화 outerHTML (비교용 안정 문자열)
   function normSection(secEl) {
     const el = secEl.cloneNode(true);
     el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .annotation-block, .annot-preview').forEach(n => n.remove());
-    el.classList.remove(..._RUNTIME_CLS);
-    el.querySelectorAll('.' + _RUNTIME_CLS.join(', .')).forEach(n => n.classList.remove(..._RUNTIME_CLS));
+    _stripRuntime(el);
     el.querySelectorAll('[contenteditable]').forEach(n => n.removeAttribute('contenteditable'));
     // 공백 정규화(직렬화 비결정성 완화)
     return el.outerHTML.replace(/\s+/g, ' ').trim();

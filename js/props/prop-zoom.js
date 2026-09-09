@@ -39,6 +39,21 @@ export function showZoomProperties(block) {
      (prop-laurel/prop-banner02 의 opacity:0.4;pointer-events:none 관례) */
   const dim = (on) => on ? '' : 'opacity:0.4;pointer-events:none;';
 
+  /* ★★벌림은 «양(陽)만» — 현빈 2026-09-09 「벌림 음수 안 되게 양(陽) 간만」.
+       슬라이더·숫자 상자의 하한을 −400 → 0 으로 올렸다(위 _pairRow 인자, 아래 bindPair 인자).
+     ★옛 저장본에 «음수»가 들어 있을 수 있다 — 하한이 −400 이던 시절의 프로젝트다.
+       그때 무슨 일이 나는가를 재서 골랐다:
+         ⑴ range 입력은 value 가 min 보다 작으면 «스스로» min 으로 올려 잡는다 ⇒ 슬라이더는 0.
+         ⑵ 그런데 number 입력은 min 을 «검사용»으로만 쓴다 ⇒ 숫자 상자엔 −30 이 그대로 뜬다.
+       ⇒ 손대지 않으면 «한 줄에서 슬라이더는 0, 숫자는 −30» 이 된다. 그게 조용히 깨진 꼴이다.
+     ★그래서 «보여 주는 값»을 한 번 접어 둘을 맞춘다. 기하도 같은 자리에서 0 으로 떨어진다
+       (zoom-geometry.js computeZoomGeometry 의 `Math.max(0, …)` — 그 옆에 근거를 적었다).
+       ⇒ 패널·캔버스가 «같은 말»을 한다.
+     ⛔저장본을 말없이 고쳐 쓰지 «않는다» — block.dataset.spread 는 −30 그대로 남는다.
+       사람이 슬라이더를 실제로 만지는 «그 순간»에만 0..800 안의 값으로 덮인다(bindPair 의 clamp).
+       결정이 뒤집히면 옛 값이 그대로 살아나온다. */
+  const spreadShown = Math.max(0, st.spread);
+
   /* ★[숨김] 테두리 «모서리»(bdr) 슬라이더 — 현빈 2026-09-08
        「보더 모서리 라디우스 슬라이드 패널은 숨김처리해줘 «아직»」
      ⛔왜 «아직»인가 = zoom-block.js 머리 ③ 에 적은 그것이다: bdr 은 실루엣 계산에 «안» 들어간다
@@ -51,6 +66,28 @@ export function showZoomProperties(block) {
      ★되돌리기 = 아래 두 줄에서 주석을 옮기면 끝. (전례: index.html 의 Info/Inner Card 숨김) */
   // const bdrRow = _pairRow('zm-bdr', '모서리', st.bdr, 0, 200, 1);
   const bdrRow = '';
+
+  /* ★[숨김] 방향° · 길이 · 좁아짐% — 현빈 2026-09-09
+       「우측 패널에서 이펙트 섹션에서 대부분이 필요 없다. 왜냐면은 캔버스에서 조절하면 될 거
+         같거든. 그래서 방향·길이·좁아짐 이거는 없어도 될 듯해」
+       「좁아짐 슬라이더는 기능 없어도 될 듯」
+     ★위 bdr 과 «똑같은 관용구»다(변수로 빼서 JS 주석으로 막는다). 새 방식을 만들지 않는다 —
+       HTML 주석으로는 못 가린다는 이유도 그대로(템플릿 리터럴 안이라 ${...} 가 먼저 «실행»된다).
+     ⛔상태 키와 기본값은 «살아 있다» — angle −90 · length 170 · narrow 62 (zoom-block.js
+       ZOOM_DEFAULTS). 기하가 여전히 셋을 다 쓴다: lightPoint(angle,length) 가 광원 자리를,
+       autoShortEdge(…, narrow) 가 짧은 변을 잡는다. 지우면 저장된 프로젝트가 통째로 깨진다.
+     ★그럼 방향·길이는 이제 «어디서» 조절하나 — 캔버스의 빨간 「빛」 손잡이다(현빈 논지).
+       빛 손잡이를 끌면 dataset.lx/ly 가 박히고, 그 뒤로는 angle·length 대신 그 자리가 이긴다.
+     ★★되돌릴 길이 «있는가»를 앱에서 확인하고 지웠다 — 아래 「손잡이 자동으로 되돌리기」
+       (zm-ab-reset) 가 여섯 키(ax·ay·bx·by·lx·ly)를 지운다 ⇒ 광원이 다시 angle·length 로
+       돌아간다. 그 버튼이 없어지면 사람이 기본 방향으로 돌아갈 길이 사라진다 ⇒ ⛔지우지 마라.
+     ★되돌리기 = 아래 여섯 줄에서 주석을 옮기면 끝. */
+  // const angleRow  = _pairRow('zm-angle',  '방향°',   st.angle,  -180, 180, 1);
+  const angleRow  = '';
+  // const lengthRow = _pairRow('zm-length', '길이',    st.length,    0, 1200, 1);
+  const lengthRow = '';
+  // const narrowRow = _pairRow('zm-narrow', '좁아짐%', st.narrow,    0, 100, 1);
+  const narrowRow = '';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -82,9 +119,24 @@ export function showZoomProperties(block) {
           <button class="prop-align-btn${st.shape === 'square' ? ' active' : ''}" data-shape="square" title="정사각형">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg>
           </button>
+          <!-- ★A4 세로형 — 현빈 2026-09-09 「프리셋의 A4 사진 사각형도 1개 추가」+ 확답 「세로형」.
+               ⛔가로형은 «안 넣는다» — 시키지 않은 것을 넣지 않는다.
+               ★버튼이 넷이어도 한 줄에 들어간다(실측: 폭 66 → 49px). -->
+          <button class="prop-align-btn${st.shape === 'a4' ? ' active' : ''}" data-shape="a4" title="A4 (세로)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3.75" y="2" width="8.5" height="12" rx="1"/></svg>
+          </button>
         </div>
       </div>
       ${_pairRow('zm-size', '크기', st.size, 20, 600, 2)}
+      <!-- ★회전° 슬라이더는 «남긴다» — 현빈 2026-09-09 의 말은 「회전 슬라이드«로만» 하니까
+             그것 좀 고쳐줘」였다. 고칠 대상은 «로만»이지 슬라이더 자체가 아니다.
+           ⇒ 캔버스 코너 바깥의 회전 핫존(.zm-rotate-handle)을 더해 「로만」을 없앴다.
+           ★남긴 이유 둘: ⑴ 각도를 «정확히» 치는 길이 여기뿐이다(핸들은 45° 스냅 아니면 1° 반올림)
+                          ⑵ 캔버스에서 돌리면 이 두 입력이 «따라 움직인다»(overlay-handles.js
+                             _syncZoomRotUI). 지우면 그 동기가 갈 곳을 잃는다.
+           ⛔id 규약은 zm-rot · zm-rot-num 이다 — -slider / -number 가 «아니다».
+             asset-rotate.js 의 _syncNumSlider 가 찾는 이름과 다르다(그래서 전용 동기를 뒀다).
+           ⚠️여기는 템플릿 리터럴 «안»이라 이 주석에 백틱을 쓰면 리터럴이 끊긴다 — 실제로 끊었다. -->
       ${_pairRow('zm-rot', '회전°', st.rot, -180, 180, 1)}
       <div class="prop-row">
         <span class="prop-label">배경</span>
@@ -130,12 +182,11 @@ export function showZoomProperties(block) {
         </div>
       </div>
       <div id="zm-shadow-fields" style="${dim(shadowOn)}">
-      ${_pairRow('zm-angle', '방향°', st.angle, -180, 180, 1)}
-      ${_pairRow('zm-length', '길이', st.length, 0, 1200, 1)}
-      ${_pairRow('zm-spread', '벌림', st.spread, -400, 800, 1)}
+${angleRow}${lengthRow}
+      ${_pairRow('zm-spread', '벌림', spreadShown, 0, 800, 1)}
       ${_pairRow('zm-maxop', '최대 농도%', st.maxop, 0, 100, 1)}
       ${_pairRow('zm-curve', '농도 곡선', st.curve, 10, 400, 1)}
-      ${_pairRow('zm-narrow', '좁아짐%', st.narrow, 0, 100, 1)}
+${narrowRow}
       </div>
     </div>
 
@@ -262,6 +313,8 @@ ${bdrRow}
            (크기 슬라이더가 w/h 에서 이미 겪은 그 병 — 같은 처방을 같은 자리에 둔다.)
          ★셋을 «따로» 풀지 않는다: 빛만 풀고 a·b 를 남기면 축과 짧은 변이 따로 놀아
            빔이 꼬인다. 손잡이는 한 덩어리로 자동으로 돌아간다. */
+      /* ★지금은 이 두 갈래로 «들어오지 않는다» — 방향°·길이 슬라이더가 가려져 있다(위 [숨김]).
+         ⛔그래도 지우지 않는다: 슬라이더를 되살리는 순간 이 줄이 없으면 그 병이 그대로 돌아온다. */
       if (key === 'angle' || key === 'length') window.clearPinnedZoomShortEdge?.(block);
       block.dataset[key] = String(val);
       s.value = val; n.value = val;
@@ -275,12 +328,14 @@ ${bdrRow}
   };
   bindPair('zm-size',   'size',   '확대블럭 크기',      20, 600);
   bindPair('zm-rot',    'rot',    '확대블럭 회전',    -180, 180);
-  bindPair('zm-angle',  'angle',  '확대블럭 방향',    -180, 180);
-  bindPair('zm-length', 'length', '확대블럭 길이',       0, 1200);
-  bindPair('zm-spread', 'spread', '확대블럭 벌림',    -400, 800);
+  // ★[숨김] 위 angleRow·lengthRow 와 «짝»이다 — UI 가 없는데 바인딩만 남기면 안 된다(bdr 과 같은 규율).
+  // bindPair('zm-angle',  'angle',  '확대블럭 방향',    -180, 180);
+  // bindPair('zm-length', 'length', '확대블럭 길이',       0, 1200);
+  bindPair('zm-spread', 'spread', '확대블럭 벌림',       0, 800);
   bindPair('zm-maxop',  'maxop',  '확대블럭 농도',       0, 100);
   bindPair('zm-curve',  'curve',  '확대블럭 농도곡선',  10, 400);
-  bindPair('zm-narrow', 'narrow', '확대블럭 좁아짐',     0, 100);
+  // ★[숨김] 위 narrowRow 와 «짝». ⛔상태 키 st.narrow 와 기본값 62 는 «살아 있다».
+  // bindPair('zm-narrow', 'narrow', '확대블럭 좁아짐',     0, 100);
   bindPair('zm-bdw',    'bdw',    '확대블럭 테두리 두께',  0, 80);
   // ★[숨김] 위 _pairRow 와 «짝»이다 — UI 가 없는데 바인딩만 남기면 안 된다. 같이 가린다.
   //   (bindPair 는 querySelector 결과가 없으면 조용히 return 하므로 남겨도 «오류는 안 난다» —

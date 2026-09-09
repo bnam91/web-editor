@@ -16,6 +16,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { readSrc } = require('./_srcread.js');   // ⛔CRLF — win-portability ①-3
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 const ROOT = path.join(__dirname, '..', '..');
 /* ★소스를 «문자열로 잘라» 보는 검사는 반드시 readSrc 를 탄다.
      윈도우 체크아웃(core.autocrlf=true)에서 \r 이 섞이면 정규식이 조용히 빗나가
@@ -47,9 +48,7 @@ test('P3 ⛔갤러리로 갈 때 «URL 문자열을 조립»하지 않는다 (�
 });
 
 test('P4 ★활성 삭제 경로가 «그 정본»을 쓴다 — 상수만 있고 안 쓰면 죽은 배선이다', () => {
-  const i = SRC.indexOf('async function _clearActiveIfNeeded');
-  assert.ok(i > 0, '_clearActiveIfNeeded 가 없다');
-  const body = SRC.slice(i, SRC.indexOf('\n}\n', i));
+  const body = sliceBlock(SRC, 'async function _clearActiveIfNeeded', '_clearActiveIfNeeded 가 없다');
   assert.match(body, /loadFile\(GALLERY_PAGE\)/,
     '★활성 프로젝트를 지운 뒤 갤러리로 갈 때 정본 상수를 안 쓴다');
 });

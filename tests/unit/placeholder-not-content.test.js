@@ -17,6 +17,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 
 const readSrc = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
 const CS  = readSrc('..', '..', 'js', 'canvas-state.js');
@@ -94,8 +95,7 @@ test('P1 ★규칙을 «돌려서» 잰다 — 진짜 글자가 하나라도 있
 });
 
 test('P2 ★_firstMeaningful 이 안내문구를 «건너뛴다» — 빈 칸을 건너뛰는 것과 같은 이유', () => {
-  const i = MCP.indexOf('function _firstMeaningful');
-  const body = MCP.slice(i, MCP.indexOf('\n}\n', i));
+  const body = sliceBlock(MCP, 'function _firstMeaningful');
   assert.match(body, /b\.placeholder === true/,
     '★블록의 placeholder 표시를 안 본다 — 「첫 의미 있는 블록」이 의미 없는 걸 집는다');
   assert.match(body, /summary.*placeholder === true/,

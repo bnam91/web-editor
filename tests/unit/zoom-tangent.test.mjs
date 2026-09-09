@@ -43,6 +43,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { sliceBlock } from './_slice-block.js';   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -926,41 +927,88 @@ test('T13 ★[size 20~600] 광원이 도형 «밖»이면 벌림 0 에서 삐져
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ⛔★T14 (지시 ②) — 음수 벌림은 «이 계약 밖»이다. 현빈 결정 대기.
-     슬라이더 범위가 −400..800(prop-zoom.js)이라 «사람이 낼 수 있는 값»인데, 거기서는
-     ★광원이 도형 «밖»인데도 「삐져나감 ≤ |s|/2」가 깨진다 — 양수 쪽과 달리 「광원이 안」으로
-     설명되지 않는다(설명 0칸). 음수 벌림은 두 점을 «빛을 마주 보는 호(near arc)»로 밀어 넣어
-     둘이 곧장 마주치기 때문이다.
-   ⛔「0 에서 자를지 · near arc 를 허용할지」는 제품 결정이라 «오늘 안 고친다».
-   ⇒ 여기서는 «지금 무엇이 나오는지»를 얼려 둔다(드리프트 방지). 계약이 아니라 «현상 기록»이다.
+   ★T14 [승격] — 음수 벌림은 «도메인 밖»이다: 0 과 «같은 그림»으로 떨어진다.
+     ★현빈 결정이 내려왔다(2026-09-09): 「벌림 음수 안 되게 양(陽) 간만」.
+       옛 T14 는 「지금 나오는 값을 얼려 둔다」는 «현상 기록»이었고, 그 마지막 줄에
+       「음수 벌림이 멀쩡해졌다면 현빈 결정이 내려온 것이다 — 이 검사를 계약으로 승격시켜라」
+       라고 적혀 있었다. 그대로 승격한다.
+     ★얼려 뒀던 «깨짐»의 실측을 여기 남긴다 — 지우면 «왜 잘랐는지»가 사라진다.
+       광원이 «밖»인 60,672칸 중 「삐져나감 ≤ |s|/2」를 깬 칸 / 그 최댓값:
+         −30 → 6,774칸 128.55px · −120 → 5,896칸 340.36px · −400 → 7,461칸 389.95px
+       ★양수 쪽과 달리 「광원이 도형 «안»」으로 설명되는 칸이 0 이었다 — 사람이 고른 모양이
+       아니라 «계약이 깨진 그림»이다. 그래서 near arc 를 허용하지 않고 0 에서 잘랐다.
+     ★자르는 자리 = zoom-geometry.js computeZoomGeometry 의 `Math.max(0, Number(st.spread)||0)`.
+       ⛔저장본은 «안» 고친다 — dataset.spread 는 −30 그대로 남고 읽는 자리에서만 떨어진다
+         (zoom-block.js 의 _onOff·_dropShadow 와 «같은 관용구»: 모르는 값 → 기본값).
+       ⛔applySpreadAlongOutline «안»에서 자르지 않았다 — 아래 ③ 양성대조가 그 원시 부품은
+         여전히 음수로 «움직인다»를 보여야, 위 동일성이 「자르기가 만든 것」임이 증명된다.
+     ★변이(실행 확인): 그 Math.max 를 지우면 ②가 「0칸」이 아니라 6,774칸으로 빨개진다.
    ═══════════════════════════════════════════════════════════════════════════ */
-test('⛔T14 [음수 벌림 = 계약 밖 · 현빈 결정 대기] 지금 나오는 값을 «얼려» 둔다', async () => {
+test('★T14 [계약] 음수 벌림은 0 과 «같은 그림»이다 — 도메인 밖 값은 기본(0)으로 떨어진다', async () => {
   const g = await loadGeom();
   const SIZES = [20, 260, 600];
-  /* 실측 — 광원이 «밖»인 칸만 세었다. 양수 쪽이었다면 전부 0 이어야 할 자리다. */
-  const 기대 = { '-30': [6774, 128.55], '-120': [5896, 340.36], '-400': [7461, 389.95] };
-  for (const spread of [-30, -120, -400]) {
-    let n = 0, outside = 0, bad = 0, worst = 0;
+  const key = (geo) => [geo.A, geo.B, geo.a, geo.b, geo.L]
+    .map(P => P.x.toFixed(6) + ',' + P.y.toFixed(6)).join(' ');
+  /* 격자 한 벌을 돌며 fn(st, geo0, geo) 를 부른다. geo0 = «같은 칸의 spread 0». */
+  const sweep = (spread, fn) => {
+    let n = 0;
     for (const size of SIZES) for (const shape of SHAPES) for (const rot of ROTS)
       for (const angle of ANGS) for (const narrow of NARROWS) for (const bd of BDS) {
         const st = { ...ST, shape, rot, angle, narrow, size, spread, length: 250, bd };
-        const geo = g.computeZoomGeometry(st, null); n++;
-        if (insideShape(st, geo.L)) continue;
-        outside++;
-        const v = overshoot(st, geo);
-        if (v > Math.abs(spread) / 2 + 1e-6) { bad++; worst = Math.max(worst, v); }
+        fn(st, g.computeZoomGeometry({ ...st, spread: 0 }, null),
+               g.computeZoomGeometry(st, null));
+        n++;
       }
-    assert.equal(n, SIZES.length * 3 * 24 * 24 * 8 * 2,
-      `★훑은 칸 = ${n} — 전수는 크기3 × 프리셋3 × 회전24 × 광원24 × 좁아짐8 × 테두리2`);
-    assert.equal(outside, 60672, '광원이 «밖»인 칸');
-    const [wantN, wantW] = 기대[String(spread)];
-    assert.equal(bad, wantN,
-      `spread=${spread}: 광원이 «밖»인데 |s|/2 를 넘은 칸 ${bad} (얼려 둔 값 ${wantN})`);
-    assert.ok(Math.abs(worst - wantW) < 0.01,
-      `spread=${spread}: 그 최댓값 ${worst.toFixed(2)}px (얼려 둔 값 ${wantW})`);
-    // ★계약이 «실제로» 깨져 있다는 것 자체를 못박는다 — 0 으로 적으면 거짓이 된다
-    assert.ok(bad > 0, '음수 벌림이 멀쩡해졌다면 현빈 결정이 내려온 것이다 — 이 검사를 계약으로 승격시켜라');
+    return n;
+  };
+  const 전수 = SIZES.length * SHAPES.length * ROTS.length * ANGS.length * NARROWS.length * BDS.length;
+
+  /* ── ① ★「입력이 살아 있다」 — «양수»로 먼저 잰다 ────────────────────────────
+     ⛔이걸 ② 앞에 안 세우면, 기하가 spread 를 «통째로 무시»하게 되어도 ②는 초록이다.
+        (오늘 이 팀이 열 번 밟은 병 = 「검사가 있는데 그 자리를 안 밟는다」) */
+  for (const spread of [30, 120, 400]) {
+    let n = 0, moved = 0;
+    n = sweep(spread, (st, g0, gs) => { if (key(g0) !== key(gs)) moved++; });
+    assert.equal(n, 전수, `★훑은 칸 = ${n} — 전수는 크기3 × 프리셋3 × 회전24 × 광원24 × 좁아짐8 × 테두리2 = ${전수}`);
+    assert.ok(moved > 40000,
+      `전제가 깨졌다 — spread=+${spread} 인데 0 과 «다른» 칸이 ${moved}뿐이다. ` +
+      `벌림이 아예 안 먹는 판이면 아래 ②의 「같다」는 아무것도 증명하지 않는다`);
   }
+
+  /* ── ② ★계약 — 음수는 «0 과 한 픽셀도 다르지 않다» ────────────────────────── */
+  for (const spread of [-30, -120, -400]) {
+    let n = 0, diff = 0, outside = 0, bad = 0, worst = 0, nan = 0;
+    n = sweep(spread, (st, g0, gs) => {
+      if (key(g0) !== key(gs)) diff++;
+      if (!g.allFinite([gs.A, gs.B, gs.a, gs.b, gs.L])) nan++;
+      if (insideShape(st, gs.L)) return;
+      outside++;
+      const v = overshoot(st, gs);
+      if (v > 1e-6) { bad++; worst = Math.max(worst, v); }
+    });
+    assert.equal(n, 전수, `★훑은 칸 = ${n} — 전수 ${전수}`);
+    assert.equal(outside, 60672, '광원이 «밖»인 칸 (얼려 둔 값 — 격자가 바뀌면 이 수가 먼저 빨개진다)');
+    assert.equal(nan, 0, `spread=${spread}: NaN ${nan}칸`);
+    assert.equal(diff, 0,
+      `spread=${spread}: 0 과 «다른 그림»이 나온 칸 ${diff} — 음수를 안 자르고 있다 ` +
+      `(자르는 자리 = zoom-geometry.js computeZoomGeometry 의 Math.max(0, …))`);
+    /* ★그리고 그 「0 의 그림」은 «삐져나가지 않는다» — 옛 기록의 6,774칸이 0 이 된 자리다. */
+    assert.equal(bad, 0,
+      `spread=${spread}: 광원이 «밖»인데 윤곽이 빔 밖으로 나간 칸 ${bad} (최대 ${worst.toFixed(2)}px). ` +
+      `얼려 뒀던 값은 −30→6774 · −120→5896 · −400→7461 이었다`);
+  }
+
+  /* ── ③ ★양성대조 — 원시 부품은 «여전히» 음수로 움직인다 ──────────────────────
+     ⇒ 위 ②의 「같다」는 「기하가 음수를 못 받는다」가 아니라 «우리가 잘라서» 같아진 것이다.
+     ⛔이 단언이 빨개지면 누군가 applySpreadAlongOutline «안»에서 잘랐다는 뜻이다 —
+        그러면 되돌릴 값이 사라지고, ②는 자기 자신을 증명하게 된다. */
+  const st0 = { ...ST, shape: 'rect', rot: 0, angle: -90, narrow: 62, size: 260, spread: 0, length: 250, bd: 'off' };
+  const geo0 = g.computeZoomGeometry(st0, null);
+  const outline = { kind: 'poly', pts: corners(st0) };
+  assert.ok(dist(geo0.c, geo0.d) > 1, '전제: 접점 c·d 가 «두 점»이다 — 아니면 아래가 자기통과한다');
+  const rawNeg = g.applySpreadAlongOutline(outline, geo0.c, geo0.d, geo0.L, -120, g.zoomMagnet(st0));
+  assert.ok(dist(rawNeg[0], geo0.c) > 1 || dist(rawNeg[1], geo0.d) > 1,
+    '원시 부품(applySpreadAlongOutline)이 음수에서 «안 움직인다» — 거기서 잘랐다면 ②의 대조가 사라진다');
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -972,9 +1020,7 @@ test('T15 ★앱 기본은 shadow:"off" 다 — 이 파일의 ST 는 «켠» 값
   /* ⛔`fs.readFileSync(...,'utf8')` 로 읽어서 자르면 안 된다 — CRLF 체크아웃에서 자르기가 어긋나
      «파일이 통째로 안 돈다»(검사 win-portability ①-3 이 그걸 센다). 공용 readSrc 를 탄다. */
   const block = readSrc(ROOT, 'js', 'blocks', 'zoom-block.js');
-  const at = block.indexOf('const ZOOM_DEFAULTS = {');
-  assert.ok(at >= 0, '전제: ZOOM_DEFAULTS 를 찾았다');
-  const body = block.slice(at, block.indexOf('\n};', at));
+  const body = sliceBlock(block, 'const ZOOM_DEFAULTS = {', '전제: ZOOM_DEFAULTS 를 찾았다');
   assert.match(body, /\n\s*shadow:\s*'off'\s*,/,
     "★앱 기본이 shadow:'off' 가 아니게 됐다면, 이 파일 ST 의 주석부터 고쳐라");
   assert.equal(ST.shadow, 'on', '이 파일의 격자는 «켠» 값이어야 한다(꺼 두면 전부 0바퀴다)');

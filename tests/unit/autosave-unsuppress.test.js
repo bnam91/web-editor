@@ -22,6 +22,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
 const { readSrc } = require('./_srcread.js');   // ⛔CRLF — win-portability ①-3
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 
 const ROOT = path.join(__dirname, '..', '..');
 const SL = readSrc(ROOT, 'js', 'io', 'save-load.js');
@@ -30,9 +31,9 @@ const SL = readSrc(ROOT, 'js', 'io', 'save-load.js');
 function releaseBlock() {
   const i = SL.indexOf('state._suppressAutoSave = true;');
   assert.ok(i > 0, '★억제를 «켜는» 자리가 없다 — 이 검사가 겨누는 대상이 사라졌다');
-  const j = SL.indexOf('} finally {', i);
-  assert.ok(j > i, '★finally 블록이 없다');
-  return SL.slice(j, SL.indexOf('\n}\n', j));
+  /* ★`} finally {` «뒤»부터 세서 짝 맞는 `}` 에서 끊는다 — 옛 자(`\n}\n`)는 감싸는
+     함수의 닫는 줄까지 한 줄 더 물었다(구간이 남의 것을 삼키면 단언이 눈이 먼다). */
+  return sliceBlock(SL.slice(i), '} finally {', '★finally 블록이 없다');
 }
 
 test('A1 ★억제를 푸는 길이 «둘»이다 — rAF 하나면 가려진 창에서 영영 안 풀린다', () => {

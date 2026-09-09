@@ -8,6 +8,7 @@ const os = require('os');
 const path = require('path');
 
 const { readSrc } = require('./_srcread.js');   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 const SRC = readSrc(__dirname, '..', '..', 'main.js');
 
 /* 주석을 «통째로» 지운다 — 줄 단위로 지우면 블록 주석 «안쪽»이 남아 코드로 세어진다
@@ -223,26 +224,14 @@ test('M10b ★뿌리를 주입받는 배선이 실제로 걸려 있다', () => {
    M1~M10 은 _repointProjectsDir 를 손으로 부르니 「누가 부르는가」를 못 잰다.
    ⚠️이건 소스 검사다 — 약한 채널인 걸 알고 쓴다. 다만 «함수 몸통을 떼어» 보므로
      주석이나 다른 함수의 같은 문자열에는 속지 않는다. */
-/** ★중괄호 셈이 안 통하는 함수용 — 본문에 «템플릿 리터럴»이 있으면 bodyOf 가 일찍 끊긴다
-    (실측: _invokeRendererUpdateSection). 최상위 `\n}` 까지 잘라 쓴다. */
-function topLevelBody(name) {
-  const i = SRC.indexOf(`function ${name}(`);
-  assert.ok(i >= 0, `★${name} 을 못 찾았다 — 검사가 대상을 놓쳤다`);
-  const j = SRC.indexOf('\n}\n', i);
-  assert.ok(j > i, `★${name} 의 끝을 못 찾았다`);
-  return SRC.slice(i, j);
-}
-
-function bodyOf(name) {
-  const i = SRC.indexOf(`function ${name}(`);
-  assert.ok(i >= 0, `★${name} 을 못 찾았다 — 검사가 대상을 놓쳤다`);
-  let depth = 0, started = false;
-  for (let k = SRC.indexOf('{', i); k < SRC.length; k++) {
-    if (SRC[k] === '{') { depth++; started = true; }
-    else if (SRC[k] === '}') { depth--; if (started && depth === 0) return SRC.slice(i, k + 1); }
-  }
-  assert.fail(`★${name} 의 끝을 못 찾았다`);
-}
+/* ★2026-09-09 — 여기엔 «부서진 자가 둘» 있었고, 둘 다 공용 부품 하나로 합쳤다.
+     ⑴ bodyOf: 괄호를 세긴 했으나 «문자열·주석·템플릿»을 안 가려서, 본문에 템플릿 리터럴이
+        있으면 일찍 끊겼다(실측: _invokeRendererUpdateSection).
+     ⑵ topLevelBody: ⑴을 피하려고 만든 두 번째 자인데 끝을 `\n}\n` 으로 찾았다 —
+        `};` 로 끝나는 구간은 «못 맞추고 다음 최상위 `}` 까지 달려간다».
+   ⇒ 자를 «하나»로 둔다. _slice-block 은 괄호를 세되 문자열·주석·정규식·템플릿을 가린다. */
+const bodyOf = (name) => sliceBlock(SRC, `function ${name}(`, '검사가 대상을 놓쳤다');
+const topLevelBody = bodyOf;   // ★옛 이름 — 이제 «같은 자»다
 
 test('M11 ★writeAuth/clearAuth 가 뿌리를 갈아끼운다 (로그인 경로의 외길목)', () => {
   assert.match(bodyOf('writeAuth'), /_repointProjectsDir\('login'\)/,

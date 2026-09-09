@@ -153,7 +153,14 @@ test('D4 ★편집용 마커가 저장본·HTML·PNG «어디에도» 안 샌다
 });
 
 test('D4-b ★artifact 명부가 이 검사가 «돌린» 갈래와 맞는다 (다음 문이 생기면 여기서 걸린다)', () => {
-  const arts = CHANNELS.filter(c => c.kind === 'artifact').map(c => c.file).sort();
+  /* ★«마커 축»으로 재는 artifact 만 — 위 D4 가 돌리는 것이 마커 세 채널이기 때문이다.
+     (2026-09-09) 명부에 «빠짐 축»(drop) 채널이 생겼다: Figma 업로드는 클래스가 아니라
+     JSON 모델을 내므로 이 검사가 돌릴 갈래가 아니다. 그쪽은 자기 축의 검사가 따로 잰다
+     — tests/dom/figma-export-coverage.dom.spec.js, 그리고 U6-g 가 그 «연결»을 지킨다.
+     ⛔축으로 거르지 않으면 축이 늘 때마다 여기가 «거짓 빨강»이 되고, 사람은 기대값에
+       이름만 더해 끄게 된다 — 그러면 이 단언이 아무것도 안 지킨다. */
+  const arts = CHANNELS.filter(c => c.kind === 'artifact' && c.axes.includes('marker'))
+    .map(c => c.file).sort();
   expect(arts, '★artifact 채널 명부가 바뀌었다 — 위 D4 가 «안 돌리는» 갈래가 생겼을 수 있다. ' +
     '새 채널을 여기서 실제로 돌리거나, serializeCleanRoot 위임임을 확인해라 ' +
     '(tests/unit/export-channel-roster.test.mjs U6 가 명부 자체를 지킨다).')

@@ -21,6 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { readSrc } = require('./_srcread.js');
+const { sliceBlock } = require('./_slice-block.js');
 const { mkTmpRoot } = require('./_tmproot.js');
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -667,6 +668,109 @@ test('ⓐ-22 ⑤크기 덧씌우개 — w/h 가 «이기고», 없으면 size+�
   assert.equal(g.blockBoxSpec({ ...ST, w: 300, h: 120 }).w, 300);
 });
 
+/* ═══ A4 세로형 프리셋 (현빈 2026-09-09) ═══════════════════════════════════
+   ★이 프리셋은 «여섯 자리»를 같이 고쳐야 산다. 아래 검사들은 «한 자리씩» 문다 —
+     한 검사가 여러 자리를 덮으면 어디가 빠졌는지 못 짚는다.
+   ★두 병이 «조용하다»(오류도 경고도 없다) ⇒ 각각에 양성대조를 붙였다:
+       ⑴ ZOOM_SHAPES 에 이름이 없으면 'a4' 가 «조용히» 'rect' 로 떨어진다
+       ⑵ shapeHalf 에 분기가 없으면 «조용히» 정사각(hh=hw)이 된다
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** ZOOM_SHAPES 리터럴을 «소스에서 꺼내 실제로 실행»한다.
+ *  ⛔정규식으로 'a4' 가 «있나»만 보면 안 된다 — 그건 문(門)이 열렸는지가 아니라
+ *    글자가 있는지를 재는 것이다. 여기서는 실제 배열을 만들어 includes() 를 돌린다. */
+function zoomShapesLiteral() {
+  const m = SRC.block.match(/const ZOOM_SHAPES = (\[[^\]]*\]);/);
+  assert.ok(m, 'ZOOM_SHAPES 리터럴을 못 찾았다');
+  return JSON.parse(m[1].replace(/'/g, '"'));
+}
+/** readZoomState(:118)·makeZoomBlock(:373) 이 쓰는 «그 판정»을 그대로 재현한다. */
+const gateShape = (want, shapes) => shapes.includes(want) ? want : 'rect';
+
+test("ⓐ-A4-1 [자리①/정문] 'a4' 가 «조용히» 'rect' 로 떨어지지 않는다 (+양성대조)", () => {
+  const shapes = zoomShapesLiteral();
+  // ★양성대조를 «앞»에 — 이 하네스가 「떨어지는 것」을 실제로 잡아내나부터 본다.
+  assert.equal(gateShape('triangle', shapes), 'rect',
+    '양성대조 실패: 모르는 프리셋이 rect 로 안 떨어지면 이 검사는 아무것도 못 잰다');
+  assert.equal(gateShape('rect', shapes), 'rect');
+  // 본 단언 — 문이 닫혀 있으면 'a4' 도 위 triangle 과 «똑같이» rect 가 된다
+  assert.equal(gateShape('a4', shapes), 'a4',
+    "ZOOM_SHAPES 에 'a4' 가 없다 — 기하를 아무리 고쳐도 'a4' 는 rect 로 떨어진다(오류 없이)");
+  // 기존 셋이 사라지지 않았다(저장된 프로젝트 보호)
+  for (const k of ['rect', 'circle', 'square']) assert.ok(shapes.includes(k), `${k} 가 사라졌다`);
+});
+
+test('ⓐ-A4-2 [자리③] 비율 상수는 99/70 «분수»다 — √2 도 소수도 아니다', async () => {
+  const g = await loadGeom();
+  assert.ok(typeof g.ZOOM_A4_RATIO === 'number', 'ZOOM_A4_RATIO 를 안 내보낸다');
+  assert.equal(g.ZOOM_A4_RATIO, 99 / 70);          // = 297/210, ISO 216 규격 그 자체
+  /* ⛔√2 로 바꾸면 «눈으로는» 못 본다 — 그래서 수로 못박는다.
+     130 × 99/70 = 183.857142…  ·  130 × √2 = 183.847763…  (0.0094px 차) */
+  assert.notEqual(g.ZOOM_A4_RATIO, Math.SQRT2);
+  assert.ok(Math.abs(g.ZOOM_A4_RATIO - Math.SQRT2) > 1e-6, '√2 로 바뀌었다(A4 는 √2 «가» 아니라 √2 에 반올림된 규격이다)');
+  // rect 비율과 «눈에 띄게» 달라야 프리셋이 프리셋 구실을 한다
+  assert.ok(g.ZOOM_A4_RATIO > 1 && g.ZOOM_RECT_RATIO < 1, 'A4 는 세로형, rect 는 가로형이어야 한다');
+});
+
+test('ⓐ-A4-3 [자리②/크기의 유일한 출처] shapeHalf 가 «조용히 정사각»이 되지 않는다 (+양성대조)', async () => {
+  const g = await loadGeom();
+  const half = g.shapeHalf({ ...ST, shape: 'a4' });
+  /* ★양성대조를 «앞»에 — 분기가 없을 때 나오는 값(정사각)을 먼저 계산해 두고,
+     실제 값이 «그것과 다른지»를 본다. 이게 없으면 hh 를 그냥 읽고 초록을 줄 뻔했다. */
+  const IF_NO_BRANCH = { hw: 130, hh: 130 };       // = square/circle 이 내는 값
+  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'square' }), IF_NO_BRANCH,
+    '양성대조 실패: 분기 없을 때의 값이 정사각이 아니면 아래 대조가 뜻을 잃는다');
+  assert.notDeepEqual(half, IF_NO_BRANCH,
+    'shapeHalf 에 a4 분기가 없다 — 오류 없이 «정사각»이 된다');
+  // 본 값 — size 260 → 260 × 367.714285…
+  assert.equal(half.hw, 130);
+  assert.ok(Math.abs(half.hh - 130 * 99 / 70) < 1e-12, `hh=${half.hh}`);
+  assert.ok(half.hh > half.hw, '★A4 는 «세로형»이다(현빈 확답) — 가로형이면 뒤집혔다');
+  // 덧씌우개(w/h)는 A4 에서도 «이긴다» — rect 와 같은 규약
+  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'a4', w: 300, h: 120 }), { hw: 150, hh: 60 });
+  // w 만 주면 rect 와 «같은 관용구»로 size 에서 세로를 만든다
+  assert.equal(g.shapeHalf({ ...ST, shape: 'a4', w: 300 }).hh, 130 * 99 / 70);
+  // 블록 상자·뷰박스가 «같이» 따라온다(한 곳만 고치면 상자와 그림이 갈린다)
+  const box = g.blockBoxSpec({ ...ST, shape: 'a4' });
+  assert.equal(box.w, 260);
+  assert.ok(Math.abs(box.h - 260 * 99 / 70) < 1e-12, `블록 상자 높이가 안 따라왔다: ${box.h}`);
+});
+
+test('ⓐ-A4-4 [자리④] shapePts 도 «같이» 고쳐졌다 (검사 전용 경로라 잊기 쉽다, +양성대조)', async () => {
+  const g = await loadGeom();
+  const pts = g.shapePts('a4', 130, 0, 0, 0);
+  const ys = pts.map(p => Math.abs(p.y));
+  const xs = pts.map(p => Math.abs(p.x));
+  // 양성대조 — 분기가 없으면 정사각(|y| = 130)이 나온다
+  assert.deepEqual(g.shapePts('square', 130, 0, 0, 0).map(p => Math.abs(p.y)), [130, 130, 130, 130],
+    '양성대조 실패: square 가 130 이 아니면 아래 대조가 뜻을 잃는다');
+  assert.ok(ys.every(y => Math.abs(y - 130 * 99 / 70) < 1e-9),
+    `shapePts 에 a4 분기가 없다 — 조용히 정사각이 된다: ${ys.join(',')}`);
+  assert.ok(xs.every(x => Math.abs(x - 130) < 1e-9));
+});
+
+test('ⓐ-A4-5 A4 는 «도형»일 뿐 — 실루엣·그림자가 rect 와 «같은 규약»으로 돈다', async () => {
+  const g = await loadGeom();
+  const D = { ...ST, shape: 'a4', angle: -90, length: 600 };
+  const geo = g.computeZoomGeometry(D, null);
+  const { hh } = g.shapeHalf(D);
+  // 광원이 12시면 실루엣은 «위 두 꼭짓점» — A4 의 세로 반치수를 실제로 쓴다
+  assert.ok(Math.abs(Math.abs(geo.A.y) - hh) < 1e-9, `실루엣이 A4 세로를 안 쓴다: ${geo.A.y} vs ${hh}`);
+  assert.ok(Math.abs(Math.abs(geo.A.x) - 130) < 1e-9);
+  // 마크업이 NaN 없이 나온다
+  const svg = g.buildZoomInner(D, null, null);
+  assert.equal(/NaN/.test(svg), false, '마크업에 NaN 이 샜다');
+  assert.ok(/<rect[^>]*class="zoom-shape"/.test(svg), 'A4 도 rect 엘리먼트로 그린다');
+});
+
+test('ⓑ-A4-6 [자리⑤] 프로퍼티 패널에 A4 버튼이 있다 — 없으면 사람이 못 고른다', () => {
+  assert.ok(/data-shape="a4"/.test(SRC.prop), '#zm-shape-group 에 A4 버튼이 없다');
+  // 활성 표시가 «다른 셋과 같은 관용구»로 붙는다(빠지면 눌러도 눌린 티가 안 난다)
+  assert.ok(/st\.shape === 'a4' \? ' active' : ''/.test(SRC.prop), 'A4 버튼의 active 분기가 없다');
+  // ⛔가로형은 «안 넣는다» — 시키지 않은 것을 넣지 않았나를 같이 잰다
+  assert.equal(/data-shape="a4-landscape"|data-shape="a4l"/.test(SRC.prop), false, '가로형은 지시에 없다');
+});
+
 test('ⓐ-23 ⑥a·b 기본 위치는 «12시»다 — y 가 아래로 증가하니 재서 골랐다', async () => {
   const g = await loadGeom();
   const D = { ...ST, angle: -90 };
@@ -737,16 +841,19 @@ test('ⓐ-27 ★㉒이미지 URL 을 «걸러서» 넣는다 (속성을 깨고 �
 });
 
 /* ── ⓑ 배선 — 신규 블록 체크리스트 5곳 ────────────────────────────────────── */
-function sliceFn(src, header) {
-  const i = src.indexOf(header);
-  assert.notEqual(i, -1, `구간을 못 찾음: ${header}`);   // 못 찾으면 «건너뛰지 않고» 던진다
-  const j = src.indexOf('\n}\n', i);
-  assert.notEqual(j, -1, `구간 끝을 못 찾음: ${header}`);
-  return src.slice(i, j);
-}
+/* ★구간 떠내기는 «공용 부품»(_slice-block.js)을 쓴다 — ⛔여기서 자를 새로 만들지 마라.
+   2026-09-09 이전 이 파일의 sliceFn 은 끝을 `src.indexOf('\n}\n', i)` 로 찾았다.
+   그 자는 `};` 로 끝나는 구간(화살표·객체리터럴)에 «안 걸리고» -1 도 아니라
+   «다음 최상위 `}` 까지 달려간다» ⇒ 구간이 남의 코드를 삼킨다. 실측(HEAD ad39400):
+     const bindPair = … =>       진짜 27줄 → 옛 자로 140줄  (+113)
+     const bindRadio = … =>      진짜 12줄 → 옛 자로  95줄  (+83)
+     const _ROTATE_HANDLERS = {  진짜 10줄 → 옛 자로  17줄  (+7)
+     const ZOOM_DEFAULTS = {     진짜 56줄 → 옛 자로  74줄  (+18)
+   삼킨 구역은 검사를 «양쪽으로» 눈멀게 한다 — 구간 밖의 코드가 단언을 만족시켜 거짓 초록이
+   되고(ad39400 이 실물로 겪었다), 반대로 「이 구간엔 X 가 없다」가 남의 X 로 거짓 빨강이 된다. */
 
 test('ⓑ-1 [체크리스트①] js/editor.js deselectAll() 이 .zoom-block 의 .selected 를 푼다', () => {
-  const body = sliceFn(SRC.editor, 'function deselectAll()');
+  const body = sliceBlock(SRC.editor, 'function deselectAll()');
   assert.ok(body.includes('.zoom-block'), 'deselectAll 안에 .zoom-block 이 없다 = 아웃라인이 안 풀린다');
 });
 
@@ -836,7 +943,7 @@ test('ⓑ-9 ⛔`?? alert(` 금지 (showToast 가 undefined 를 반환해 네이�
 });
 
 test('ⓑ-10 ⛔makeZoomBlock 은 a·b 를 «박지 않는다» (끌기 전까지 언제나 자동)', () => {
-  const body = sliceFn(SRC.block, 'function makeZoomBlock(');
+  const body = sliceBlock(SRC.block, 'function makeZoomBlock(');
   for (const key of ['ax', 'ay', 'bx', 'by']) {
     assert.equal(new RegExp(`dataset\\.${key}\\s*=`).test(body), false,
       `생성 시점에 dataset.${key} 를 박으면 방향·길이를 바꿔도 그림자가 안 따라온다`);
@@ -852,7 +959,7 @@ test("ⓑ-14 ★그림자·테두리는 «라디오»다 (⛔체크박스 아님
     assert.deepEqual(opts.sort(), ['off', 'on'], `${name} 라디오가 켬/끔 두 벌이 아니다`);
   }
   // ⛔라디오 핸들러가 그림자 값을 지우면 다시 켰을 때 안 돌아온다.
-  const body = sliceFn(s, 'const bindRadio = (name, key, label) =>');
+  const body = sliceBlock(s, 'const bindRadio = (name, key, label) =>');
   for (const k of ['angle', 'length', 'maxop', 'curve', 'narrow', 'spread']) {
     assert.equal(new RegExp(`delete\\s+block\\.dataset\\.${k}\\b`).test(body), false,
       `라디오가 dataset.${k} 를 지운다 — 다시 켜면 값이 사라진다`);
@@ -867,7 +974,7 @@ test("ⓑ-14 ★그림자·테두리는 «라디오»다 (⛔체크박스 아님
    ★변이: apply() 의 `if (key === 'angle' || key === 'length') …clearPinned…` 한 줄을 지우면 빨개진다.
    ═══════════════════════════════════════════════════════════════════════════ */
 test("ⓑ-14b 방향°·길이 슬라이더가 «손잡이 고정»을 푼다 (안 풀면 슬라이더가 먹통이 된다)", () => {
-  const body = sliceFn(SRC.prop, 'const bindPair = (id, key, label, min, max) =>');
+  const body = sliceBlock(SRC.prop, 'const bindPair = (id, key, label, min, max) =>');
   assert.ok(body.length > 100, `전제: bindPair 몸통을 떴다 (${body.length}자)`);
   const m = body.match(/if \(([^)]*key === '(?:angle|length)'[^)]*)\)\s*window\.clearPinnedZoomShortEdge\?\.\(block\);/);
   assert.ok(m, '★방향°·길이가 손잡이 고정을 «안» 푼다 — 슬라이더가 먹통이 된다');
@@ -876,7 +983,7 @@ test("ⓑ-14b 방향°·길이 슬라이더가 «손잡이 고정»을 푼다 (�
   }
   /* ⛔셋을 «따로» 풀지 않는다 — 빛만 풀고 a·b 를 남기면 축과 짧은 변이 따로 논다.
      그래서 여기서 부르는 것은 «여섯 키를 다 지우는» 한 함수여야 한다. */
-  const clr = sliceFn(SRC.block, 'function clearPinnedShortEdge(block)');
+  const clr = sliceBlock(SRC.block, 'function clearPinnedShortEdge(block)');
   for (const k of ['ax', 'ay', 'bx', 'by', 'lx', 'ly']) {
     assert.ok(new RegExp(`delete block\\.dataset\\.${k}\\b`).test(clr), `clearPinnedShortEdge 가 ${k} 를 안 지운다`);
   }
@@ -931,17 +1038,17 @@ test('ⓑ-16 ★선택 오버레이 — 변경 표면이 «_variantOf 세 줄»�
   assert.ok(/host\.dataset\?\.selVariant/.test(s), 'data-sel-variant 를 안 읽는다 = 보라가 안 붙는다');
 
   // ⛔⑵ 기존 입력의 답이 안 바뀐다 = 새 분기가 «옛 분기 뒤»에 온다
-  const variant = sliceFn(s, 'function _variantOf(host)');
+  const variant = sliceBlock(s, 'function _variantOf(host)');
   assert.ok(variant.indexOf("classList.contains('sticker-block')") < variant.indexOf('dataset?.selVariant'),
     '선언형 분기가 «앞»에 오면 기존 두 블록의 판정이 바뀔 수 있다');
 
   /* ⛔⑶ 퇴행 방지 — _geomOf 와 _hostOf 는 «한 글자도» 안 건드렸다.
      ★플로팅으로 옮기면서 _hostOf 의 보조상자 분기가 «죽은 가지»가 됐다 — 죽은 가지는 썩으니 지웠다.
        그래서 지금 _hostOf 는 dev 원본과 같아야 한다. */
-  const hostOf = sliceFn(s, 'function _hostOf(el)');
+  const hostOf = sliceBlock(s, 'function _hostOf(el)');
   assert.equal(/sel-box|SEL_BOX|selVariant|zoom/.test(hostOf), false,
     '_hostOf 에 확대블럭 전용 가지가 남아 있다 — 플로팅이면 필요 없다');
-  const geom = sliceFn(s, 'function _geomOf(el, variant, scale)');
+  const geom = sliceBlock(s, 'function _geomOf(el, variant, scale)');
   for (const w of ['zoom', 'sel-box', 'selVariant', 'selBox']) {
     assert.equal(geom.includes(w), false, `_geomOf 에 ${w} 가 들어갔다 — 공용 함수를 건드렸다`);
   }
@@ -987,26 +1094,26 @@ test('ⓑ-11 ⛔새 색을 만들지 않는다 — 체크패턴은 «전례와 �
 test('ⓑ-19 ★⑧계열 = «플로팅»(스티커) — 행에 넣지 않는다', () => {
   const b = SRC.block;
   // ⑴ 삽입 자리 = 섹션 «직접 자식». 스티커와 같은 자리다.
-  const add = sliceFn(b, 'function addZoomBlock(opts = {})');
+  const add = sliceBlock(b, 'function addZoomBlock(opts = {})');
   assert.ok(/sec\.appendChild\(block\)/.test(add), '섹션 직접 자식이 아니다 = 플로팅이 아니다');
   assert.equal(/insertAfterSelected/.test(b), false, '흐름 삽입 헬퍼가 남아 있다');
   // ⑵ 행(row)을 «만들지 않는다»
-  const mk = sliceFn(b, 'function makeZoomBlock(opts = {})');
+  const mk = sliceBlock(b, 'function makeZoomBlock(opts = {})');
   assert.equal(/className = 'row'/.test(mk), false, '행을 다시 만들고 있다');
   assert.ok(/return block;/.test(mk), '행 없이 블록만 돌려줘야 한다');
   // ⑶ 위치 = absolute + left/top(px) + dataset.x/y — 스티커의 cssText 관례
-  const rend = sliceFn(b, 'function renderZoomBlock(block)');
+  const rend = sliceBlock(b, 'function renderZoomBlock(block)');
   assert.ok(/position:absolute;left:\$\{st\.x\}px;top:\$\{st\.y\}px;/.test(rend), '절대 위치를 안 쓴다');
   assert.ok(/width:\$\{box\.w[\s\S]{0,60}?height:\$\{box\.h/.test(rend), 'absolute 면 크기를 스스로 가져야 한다');
   assert.ok(/border-radius:\$\{box\.radius\}/.test(rend), '★블록의 border-radius 가 곧 아웃라인 모양이다');
   // ⑷ 이동 드래그도 «스티커 규약»을 그대로 쓴다(새로 만들지 않는다)
-  const mv = sliceFn(b, 'function _bindZoomMoveDrag(block)');
+  const mv = sliceBlock(b, 'function _bindZoomMoveDrag(block)');
   assert.ok(/window\._clampToSection/.test(mv) && /window\._findSectionAt/.test(mv),
     '스티커의 좌표 헬퍼를 안 쓰고 새로 만들었다');
   /* ★⑲ 뒤로 위치 쓰기는 «한 자리»(_applyZoomPos)로 모였다 — 드래그는 그걸 «부르기만» 한다.
      ⛔두 군데서 각자 쓰면 또 갈린다(지디 실측: style 에 캔버스 절대 y 가 들어가 846 어긋남). */
   assert.ok(/_applyZoomPos\(block, cx, cy\)/.test(mv), '위치를 «한 자리»에서 안 쓴다');
-  const setPos = sliceFn(b, 'function _applyZoomPos(block, x, y)');
+  const setPos = sliceBlock(b, 'function _applyZoomPos(block, x, y)');
   assert.ok(/dataset\.x = /.test(setPos) && /dataset\.y = /.test(setPos), 'dataset 을 안 쓴다');
   /* ★style 은 «dataset 을 되읽어» 쓴다 — 지역 변수에서 따로 쓰면 dataset 에 없는 값이 들어갈 수 있다. */
   assert.ok(/style\.left = block\.dataset\.x \+ 'px'/.test(setPos), 'style.left 가 dataset 에서 안 온다');
@@ -1061,12 +1168,10 @@ test('ⓑ-20b ★흐름 목록의 기준 — «규칙»을 재서 판정한다(�
 
   /* ★전제검사를 «세 계열 다 같은 형태»로 — 각자의 «선택 경로 원문»을 같은 방식으로 뜬다.
      (예전엔 sticker 만 grep · zoom 만 파일존재 · gradient 는 0 이라 비대칭이었다.) */
-  const handler = (src, marker) => {
-    const j = src.indexOf(marker);
-    assert.notEqual(j, -1, `선택 경로를 못 찾음: ${marker}`);
-    const k = src.indexOf('\n  }\n', j);
-    return k === -1 ? src.slice(j) : src.slice(j, k);
-  };
+  /* ⛔1차 수리(af1c90f) 때 여기를 놓쳤다 — 꼬리가 `\n  }\n`(들여쓴 닫기)라 `\n}\n` grep 에
+     안 걸렸다. ★그게 「명부로 세면 다음 변종이 샌다」의 실물이다. 이제 센다.
+     그리고 «못 찾으면 파일 끝까지» 폴백도 없앴다 — 그건 못 잰 것을 통과로 만든다. */
+  const handler = (src, marker) => sliceBlock(src, marker, `선택 경로를 못 찾음: ${marker}`);
   const PATHS = {
     'sticker-block':  SRC.stickerSel,                       // 전용 모듈 = 파일 전체가 선택 경로
     'gradient-block': SRC.gradientSel,
@@ -1292,7 +1397,7 @@ test('ⓑ-17 ⑤핸들 배선 — 아웃라인 상자에 붙고, dataset.w/h 로
   const s = SRC.handles;
   assert.ok(/showHandlesFor[\s\S]{0,300}?zoom-block[\s\S]{0,120}?showZoomResizeHandles/.test(s),
     'showHandlesFor 가 zoom 을 안 태운다 = 핸들이 안 뜬다');
-  const body = sliceFn(s, 'function _onZoomResizeMouseDown(e, zb, dir)');
+  const body = sliceBlock(s, 'function _onZoomResizeMouseDown(e, zb, dir)');
   assert.ok(/zb\.dataset\.w = /.test(body) && /zb\.dataset\.h = /.test(body),
     '★크기를 style.width 로 쓰면 안 된다 — 확대블럭 크기는 CSS 상자가 아니라 SVG 안 도형이다');
   assert.equal(/zb\.style\.width/.test(body), false, 'style.width 로 쓰면 도형이 안 변한다');
@@ -1300,12 +1405,372 @@ test('ⓑ-17 ⑤핸들 배선 — 아웃라인 상자에 붙고, dataset.w/h 로
   assert.ok(/isCircle[\s\S]{0,120}?newW = newH/.test(body), '원은 정원만 그릴 수 있다(w=h 로 묶어야 한다)');
   /* ★핸들 기준 = «블록 자신». 플로팅이라 블록 상자가 곧 도형(+테두리) 상자다.
      ⛔보조 상자를 다시 들이면 블록 상자와 «두 벌»이 되어 아웃라인과 핸들이 갈린다. */
-  const boxFn = sliceFn(s, 'function _zoomOutlineBox(zb)');
+  const boxFn = sliceBlock(s, 'function _zoomOutlineBox(zb)');
   assert.equal(/zoom-sel-box/.test(boxFn), false, '보조 상자가 되살아났다');
   assert.ok(/return zb;/.test(boxFn), '핸들 기준이 블록 자신이 아니다');
   // 캔버스 클릭 경로에서도 불러야 한다(레이어패널만 되면 반쪽이다)
   assert.ok(/if \(isZoom\)[\s\S]{0,1800}?window\.showHandlesFor\?\.\(block\)/.test(SRC.drag),
     '캔버스에서 클릭했을 때 핸들이 안 뜬다');
+});
+
+/* ═══ 모서리 라운드를 «캔버스에서» (현빈 2026-09-09) ══════════════════════════
+   ★두 함정이 «조용하다» — 둘 다 양성대조를 앞에 세워서 문다.
+     ⑴ `.asset-radius-handle` 클래스를 빌리면 hideAssetRadiusHandles() 가 같이 쓸어간다
+     ⑵ `style.borderRadius` 에 쓰면 renderZoomBlock 의 cssText 통짜 덮어쓰기에 날아간다
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test('ⓑ-BDR-1 캔버스에 모서리 핸들이 «뜬다» — showHandlesFor 의 zoom 갈래가 태운다', () => {
+  const s = SRC.handles;
+  assert.ok(/function showZoomRadiusHandles\(zb\)/.test(s), 'showZoomRadiusHandles 가 없다');
+  assert.ok(/showHandlesFor[\s\S]{0,300}?zoom-block[\s\S]{0,200}?showZoomRadiusHandles/.test(s),
+    'showHandlesFor 가 zoom 에서 모서리 핸들을 안 태운다 = 핸들이 영영 안 뜬다');
+  // 형제(리사이즈)를 «밀어내지» 않았다 — 둘 다 떠야 한다
+  assert.ok(/showHandlesFor[\s\S]{0,300}?zoom-block[\s\S]{0,200}?showZoomResizeHandles/.test(s),
+    '모서리를 넣으면서 리사이즈 갈래를 지웠다');
+});
+
+test('ⓑ-BDR-2 ★[함정2] dataset.bdr 에 쓰고 재렌더한다 — style.borderRadius 에 쓰지 «않는다» (+양성대조)', () => {
+  const s = SRC.handles;
+  /* ★양성대조를 «앞»에 — 기존 코너반경 핸들 «넷»은 정말로 style.borderRadius 에 쓴다.
+     그게 사실이 아니면 아래 「확대블럭은 안 그런다」가 아무것도 안 재는 말이 된다. */
+  const asset = sliceBlock(s, 'function _onAssetRadiusHandleMouseDown(e, ab, dir)');
+  assert.ok(/ab\.style\.borderRadius = /.test(asset),
+    '양성대조 실패: 에셋 핸들이 style.borderRadius 를 안 쓰면 이 대조는 뜻이 없다');
+
+  const body = sliceBlock(s, 'function _onZoomRadiusMouseDown(e, zb, dir)');
+  assert.ok(body.length > 200, '_onZoomRadiusMouseDown 를 못 찾았다');
+  // 본 단언 — 확대블럭은 «그 길로 가면 안 된다»
+  assert.equal(/zb\.style\.borderRadius/.test(body), false,
+    '★style.borderRadius 에 썼다 — renderZoomBlock 의 style.cssText 통짜 덮어쓰기에 «조용히» 날아간다');
+  assert.ok(/zb\.dataset\.bdr = String\(newR\)/.test(body), 'dataset.bdr 에 안 쓴다');
+  assert.ok(/window\.renderZoomBlock\?\.\(zb\)/.test(body),
+    '재렌더가 없으면 SVG 안의 rect rx 가 안 따라온다(도형은 그대로, 상자만 둥글어진다)');
+  /* ★시작값도 dataset 에서 읽어야 한다 — style.borderRadius 엔 «도형 반경 + 테두리 두께»가
+     들어 있어(blockBoxSpec.radius) 테두리를 켠 순간 손끝이 bdw 만큼 튄다. */
+  assert.equal(/parseInt\(zb\.style\.borderRadius\)/.test(body), false, '시작값을 style 에서 읽었다');
+  assert.ok(/readZoomState\?\.\(zb\)\?\.bdr/.test(body), '시작값을 dataset(readZoomState)에서 안 읽는다');
+});
+
+test('ⓑ-BDR-3 ★[함정1] 클래스는 `.zm-radius-handle` — 에셋 것을 «빌리지» 않는다 (+양성대조)', () => {
+  const s = SRC.handles;
+  /* ★양성대조 — hideAssetRadiusHandles() 는 «클래스로» 싹 쓸어간다. 그래서 클래스를 빌리면
+     남의 정리 한 번에 이쪽 핸들이 사라진다(이 레포가 두 번 밟은 그 함정). */
+  const hideAsset = sliceBlock(s, 'function hideAssetRadiusHandles()');
+  assert.ok(/querySelectorAll\('\.asset-radius-handle'\)/.test(hideAsset),
+    '양성대조 실패: 에셋 정리가 클래스로 쓸어가지 않으면 이 대조는 뜻이 없다');
+
+  const show = sliceBlock(s, 'function showZoomRadiusHandles(zb)');
+  assert.ok(/`zm-radius-handle \$\{dir\}`/.test(show), '클래스가 zm-radius-handle 이 아니다');
+  assert.equal(/asset-radius-handle/.test(show), false,
+    '★에셋 클래스를 빌렸다 — hideAssetRadiusHandles() 한 번에 같이 쓸려나간다');
+  // 자기 정리는 «자기 표식»으로 — 남의 클래스를 훑지 않는다
+  const hideZoom = sliceBlock(s, 'function hideZoomRadiusHandles()');
+  assert.ok(/\[data-zoom-radius-dir\]/.test(hideZoom), '자기 핸들을 자기 표식으로 안 지운다');
+  // 모양은 CSS 에서 «얹어» 쓴다(복사가 아니라 공유) + 계열 색(보라)이 리사이즈와 같다
+  assert.ok(/\.zm-radius-handle[\s\S]{0,80}?\{[\s\S]{0,400}?border-radius: 50%/.test(SRC.css),
+    'CSS 가 기존 코너반경 규칙에 안 얹혀 있다');
+  assert.ok(/\.zm-radius-handle\[data-zoom-radius-dir\][\s\S]{0,120}?--ui-sel-overlay/.test(SRC.css),
+    '★확대블럭 계열은 보라다 — 모서리 핸들만 파랑이면 한 블록에 두 색이 된다');
+});
+
+test('ⓑ-BDR-4 ★상한은 «실루엣 결함의 크기»에서 나온 수다 — 올리려면 실루엣부터 고쳐야 한다', () => {
+  const s = SRC.handles;
+  const m = s.match(/const ZOOM_BDR_MAX = (\d+);/);
+  assert.ok(m, 'ZOOM_BDR_MAX 상수가 없다 — 상한을 인라인 숫자로 흩뿌리면 근거가 사라진다');
+  const cap = Number(m[1]);
+  /* ★결함: 실루엣은 «꼭짓점»에서 잡는데(shapeCornerPts) 라운드를 주면 실제 윤곽은 안으로
+     들어간다 ⇒ 빛줄기 밑변이 g = bdr·(√2−1) 만큼 «뜬다».
+     ⛔이 검사는 「상한이 얼마인가」가 아니라 「그때 뜨는 양이 얼마인가」를 잰다. */
+  const gap  = cap * (Math.SQRT2 - 1);                 // 꼭짓점 → 호 «최단» 거리
+  const area = cap * cap * (1 - Math.PI / 4);          // 코너 하나당 도형 «밖»으로 삐져나온 넓이
+  /* ★상한 16 은 «재서» 골랐다(9363, 배율 100%, rect 260×140, shadow on, maxop 60):
+       16 → 코너당 54.9px² «안 보인다»  ·  24 → 123.6px² «쐐기가 보이기 시작»  ·  40 → 343.4px² «날개»
+     ⇒ 「안 보인다」의 마지막 칸에서 끊었다. 아래 두 수가 그 칸을 지킨다. */
+  assert.ok(gap <= 7,
+    `상한 ${cap} 이면 빛줄기 밑변이 ${gap.toFixed(2)}px 뜬다(최단) — ★올리려면 «실루엣부터» 고쳐라 ` +
+    '(zoom-geometry.js silhouetteFromPts 가 shapeCornerPts 의 꼭짓점이 아니라 라운드된 윤곽의 접점을 잡도록).');
+  assert.ok(area <= 60,
+    `상한 ${cap} 이면 코너마다 ${area.toFixed(1)}px² 가 도형 밖으로 삐져나온다 — 24 부터 눈에 띈다(실측).`);
+  // 끄는 쪽이 그 상한을 실제로 «쓴다»(상수만 두고 안 쓰면 상한이 없는 것과 같다)
+  const body = sliceBlock(s, 'function _onZoomRadiusMouseDown(e, zb, dir)');
+  assert.ok(/Math\.min\(ZOOM_BDR_MAX,/.test(body), '상한을 안 물린다');
+  assert.ok(/Math\.max\(0,/.test(body), '음수 반경이 들어갈 수 있다');
+});
+
+/* ═══ 회전을 «캔버스에서» (현빈 2026-09-09) ═════════════════════════════════
+   ★인프라(asset-rotate.js _makeRotateType)를 «그대로 붙이면» 셋이 조용히 깨진다.
+     셋 다 양성대조를 앞에 세워서 문다.
+     ⑴ 자식으로 붙이면 renderZoomBlock 의 innerHTML 덮어쓰기에 죽는다
+     ⑵ _applyRotationDeg(style.transform) 를 쓰면 SVG 까지 돌아 그림자가 세계좌표를 벗어난다
+     ⑶ _syncNumSlider('zm-rot') 는 «아무 일도 안 한다»(id 규약이 다르다)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test('ⓑ-ROT-1 ★[함정1] 핫존은 «오버레이 트랙»에 산다 — 블록의 자식으로 붙이지 «않는다» (+양성대조)', () => {
+  const s = SRC.handles;
+  const show = sliceBlock(s, 'function showZoomRotateHandles(zb)');
+  assert.ok(show.length > 200, 'showZoomRotateHandles 가 없다');
+  /* ★양성대조 — asset-rotate.js 의 팩토리는 정말로 «자식»으로 붙인다(host.appendChild).
+     그게 사실이 아니면 「우린 안 그런다」가 아무것도 안 재는 말이 된다. */
+  assert.ok(/host\.appendChild\(z\)/.test(readSrc(ROOT, 'js', 'asset-rotate.js')),
+    '양성대조 실패: 팩토리가 자식으로 안 붙이면 이 대조는 뜻이 없다');
+  // 본 단언 — 확대블럭은 오버레이에 붙인다(재렌더가 innerHTML 을 덮어도 안 죽는다)
+  assert.ok(/overlay\.appendChild\(z\)/.test(show), '핫존을 오버레이에 안 붙인다');
+  assert.equal(/zb\.appendChild/.test(show), false,
+    '★자식으로 붙였다 — renderZoomBlock 의 innerHTML 덮어쓰기에 «조용히» 죽는다');
+  // 형제들과 «같은 트랙»이라 좌표도 같은 함수로 따라간다
+  const pos = sliceBlock(s, 'function _updateZoomRotatePositions()');
+  assert.ok(/_cornerScreen\(box, h\.dataset\.zoomRotDir, -ROT_OUT\)/.test(pos),
+    '좌표를 _cornerScreen 으로 안 얻는다 — 베끼면 핸들과 선이 갈린다');
+  assert.ok(/showHandlesFor[\s\S]{0,300}?zoom-block[\s\S]{0,250}?showZoomRotateHandles/.test(s),
+    'showHandlesFor 가 회전 갈래를 안 태운다');
+});
+
+test('ⓑ-ROT-2 ★[함정2] dataset.rot + 재렌더 — _applyRotationDeg(style.transform)를 쓰지 «않는다» (+양성대조)', () => {
+  const s = SRC.handles;
+  const rot = readSrc(ROOT, 'js', 'asset-rotate.js');
+  /* ★양성대조 — 다른 회전 대상들은 정말로 style.transform 에 rotate() 를 건다. */
+  assert.ok(/function _applyRotationDeg[\s\S]{0,400}?style\.transform/.test(rot),
+    '양성대조 실패: _applyRotationDeg 가 transform 을 안 걸면 이 대조는 뜻이 없다');
+
+  const body = sliceBlock(s, 'function _onZoomRotateMouseDown(e, zb)');
+  assert.ok(body.length > 200, '_onZoomRotateMouseDown 를 못 찾았다');
+  assert.ok(/zb\.dataset\.rot = String\(deg\)/.test(body), 'dataset.rot 에 안 쓴다');
+  assert.ok(/window\.renderZoomBlock\?\.\(zb\)/.test(body), '재렌더가 없으면 도형이 안 돈다');
+  assert.equal(/_applyRotationDeg/.test(body), false,
+    '★_applyRotationDeg 를 썼다 — style.transform 은 «안에 든 SVG 까지» 돌려 그림자가 세계좌표를 벗어난다');
+  assert.equal(/zb\.style\.transform/.test(body), false, 'style.transform 을 직접 걸었다');
+  // 공유 부품은 «빌려» 쓴다(새 스냅 규칙을 만들지 않는다)
+  assert.ok(/window\._snapRotate/.test(body), '45° 스냅을 공유 부품으로 안 쓴다');
+  assert.ok(/Math\.atan2/.test(body), 'atan2 자유회전이 아니다');
+});
+
+test('ⓑ-ROT-3 ★[함정3] 패널 동기는 «전용» — _syncNumSlider 는 조용히 무동작이다 (+양성대조)', () => {
+  const s = SRC.handles;
+  const rot = readSrc(ROOT, 'js', 'asset-rotate.js');
+  /* ★양성대조 «두 겹» — ⑴ 그 헬퍼는 -slider/-number 를 찾는다 ⑵ prop-zoom 이 만드는 id 는
+     zm-rot / zm-rot-num 이다. 둘이 «어긋난다»는 것이 함정의 실체다. */
+  assert.ok(/function _syncNumSlider[\s\S]{0,300}?\$\{prefix\}-slider[\s\S]{0,120}?\$\{prefix\}-number/.test(rot),
+    '양성대조 실패: _syncNumSlider 가 -slider/-number 를 안 찾으면 이 대조는 뜻이 없다');
+  assert.ok(/id="\$\{id\}-num"/.test(SRC.prop),
+    '양성대조 실패: _pairRow 가 -num 을 안 만들면 어긋남이 성립하지 않는다');
+  assert.equal(/id="zm-rot-slider"|id="zm-rot-number"/.test(SRC.prop), false,
+    '★어긋남이 사라졌다 — prop-zoom 이 -slider/-number 를 만들기 시작했다면 이 검사를 다시 써라');
+
+  // 본 단언 — 확대블럭은 «전용» 동기를 쓴다
+  assert.equal(/_syncNumSlider\(\s*'zm-rot'/.test(s), false,
+    "★_syncNumSlider('zm-rot') 를 썼다 — 둘 다 null 이라 오류도 없이 «아무 일도 안 한다»");
+  const sync = sliceBlock(s, 'function _syncZoomRotUI(deg)');
+  assert.ok(/getElementById\('zm-rot'\)/.test(sync) && /getElementById\('zm-rot-num'\)/.test(sync),
+    '전용 동기가 prop-zoom 의 실제 id 를 안 쓴다');
+  const body = sliceBlock(s, 'function _onZoomRotateMouseDown(e, zb)');
+  assert.ok(/_syncZoomRotUI\(deg\)/.test(body), '끄는 동안 패널이 안 따라온다');
+});
+
+test('ⓑ-ROT-4 크기조절과 «영역이 갈린다» — 모서리 «바깥» 링 + 커서가 다르다', () => {
+  const s = SRC.handles;
+  const pos = sliceBlock(s, 'function _updateZoomRotatePositions()');
+  assert.ok(/ROT_OUT\s*=\s*16/.test(pos), '바깥 거리가 프레임(16)과 다르다');
+  assert.ok(/-ROT_OUT/.test(pos), '★음수 inset 이 아니면 «안쪽»에 앉아 리사이즈와 겹친다');
+  const show = sliceBlock(s, 'function showZoomRotateHandles(zb)');
+  assert.ok(/_FRAME_ROTATE_CURSOR/.test(show), '회전 커서를 공유 부품으로 안 쓴다');
+  /* ⛔수정키로 가르지 않았다 — 현빈은 「마우스를 가져다주면」이라 했다(hover 로 알아야 한다).
+     Shift 는 이미 비율고정·45°스냅으로 포화다. */
+  assert.equal(/(altKey|metaKey|ctrlKey)/.test(show), false, '수정키로 회전/크기를 갈랐다');
+  // 리사이즈 쪽 커서는 그대로 resize 다(둘이 커서로 갈린다는 것이 이 기능의 실체)
+  assert.ok(/\.zm-overlay-handle\.nw[^\n]*nw-resize/.test(SRC.css), '리사이즈 커서가 사라졌다');
+});
+
+test('ⓑ-ROT-5 회전 뒤 리사이즈가 «안 깨진다» — dataset.rotation 미러가 살아 있다', () => {
+  /* ★배선: renderZoomBlock 이 st.rot → dataset.rotation 을 미러 → _blockRotationDeg 가 읽어
+     _cornerScreen(핸들 자리)·_unrotateDelta(끄는 방향)를 «자동으로» 보정한다.
+     ⇒ 이 사슬 중 하나만 끊겨도 회전된 블록에서 핸들이 엉뚱한 데 앉는다. 사슬을 통째로 잰다. */
+  assert.ok(/block\.dataset\.rotation = String\(box\.rot\)/.test(SRC.block),
+    'renderZoomBlock 이 rot → dataset.rotation 미러를 안 한다');
+  const deg = sliceBlock(SRC.handles, 'function _blockRotationDeg(el)');
+  assert.ok(/d\.rotation/.test(deg), '_blockRotationDeg 가 dataset.rotation 을 안 읽는다');
+  const rs = sliceBlock(SRC.handles, 'function _onZoomResizeMouseDown(e, zb, dir)');
+  assert.ok(/_unrotateDelta\(box,/.test(rs), '회전된 블록에서 끄는 방향 보정이 없다');
+  const up = sliceBlock(SRC.handles, 'function _updateZoomHandlePositions()');
+  assert.ok(/_cornerScreen\(box, h\.dataset\.zoomResizeDir\)/.test(up), '핸들 자리 보정이 없다');
+});
+
+/* ═══ ④ 「끄는 코너가 손끝을 따라온다」 ══════════════════════════════════════
+   기존 결함(회전과 무관): _onZoomResizeMouseDown 이 dataset.w/h 만 쓰고 x/y 를 안 건드려
+   어느 코너를 끌든 «좌상단이 못박히고» 오른쪽·아래로만 자랐다. 네 코너 중 se 하나만
+   «우연히» 맞았다 — 그래서 오래 안 들켰다.
+   ★검사는 «소스의 그 식을 꺼내 실제로 실행»한다. 식을 베껴 적으면 소스가 바뀌어도
+     검사만 초록으로 남는다(= 검사가 눈머는 길).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** _onZoomResizeMouseDown 의 «앵커 식 네 줄»을 소스에서 꺼내 함수로 만든다. */
+function zoomAnchorFn() {
+  const body = sliceBlock(SRC.handles, 'function _onZoomResizeMouseDown(e, zb, dir)');
+  const sx = body.match(/const sx = (dir\.includes\('e'\) \? 1 : -1);/);
+  const sy = body.match(/const sy = (dir\.includes\('s'\) \? 1 : -1);/);
+  const ex = body.match(/zb\.dataset\.x = String\(([^;]+)\);/);
+  const ey = body.match(/zb\.dataset\.y = String\(([^;]+)\);/);
+  /* ★반치수 줄도 «소스에서» 꺼낸다 — 여기 식을 베껴 적었더니 «/2 를 빼먹는» 변이가
+     초록으로 통과했다(실측). 검사가 자기 사본을 재고 있었던 것이다. */
+  const dh = body.match(/(const dHW = [^;]+;)/);
+  assert.ok(sx && sy, '★sx/sy(끄는 코너의 로컬 부호)를 못 찾았다 — ④ 수정이 통째로 없다');
+  assert.ok(ex && ey, '★dataset.x/y 를 «안 쓴다» — 좌상단이 못박혀 코너가 안 따라온다');
+  assert.ok(dh, '반치수(dHW/dHH) 줄을 못 찾았다');
+  return new Function('dir', 'th', 'startPosX', 'startPosY', 'startW', 'startH', 'newW', 'newH', `
+    const sx = ${sx[1]}, sy = ${sy[1]};
+    const cosT = Math.cos(th), sinT = Math.sin(th);
+    ${dh[1]}
+    return { x: ${ex[1]}, y: ${ey[1]} };
+  `);
+}
+/** 코너 dir 의 «세계» 좌표 — 블록 상자 중심 기준 회전. overlay 의 _cornerScreen 과 같은 모형. */
+function cornerAt(x, y, w, h, th, dir) {
+  const cx = x + w / 2, cy = y + h / 2;
+  const lx = (dir.includes('e') ? 1 : -1) * w / 2;
+  const ly = (dir.includes('s') ? 1 : -1) * h / 2;
+  return { x: cx + lx * Math.cos(th) - ly * Math.sin(th),
+           y: cy + lx * Math.sin(th) + ly * Math.cos(th) };
+}
+const OPP = { nw: 'se', ne: 'sw', sw: 'ne', se: 'nw' };
+
+test('ⓑ-④-1 ★네 코너 «전수» — 끄는 코너의 맞은편이 «안 움직인다» (+양성대조: 옛 판은 se 만 맞았다)', () => {
+  const anchor = zoomAnchorFn();
+  const W0 = 260, H0 = 140, X0 = 120, Y0 = 80;
+  const W1 = 340, H1 = 190;          // 실측과 같은 변화폭 (+80, +50)
+  for (const th of [0, 30 * Math.PI / 180, 45 * Math.PI / 180, Math.PI / 2]) {
+    for (const dir of ['nw', 'ne', 'sw', 'se']) {
+      /* ★양성대조를 «앞»에 — 옛 판(x/y 를 «안» 쓴다)을 같은 오라클로 재서,
+         se 를 뺀 셋에서 맞은편이 «실제로 움직이는지» 먼저 본다. 안 움직이면 이 검사는 무의미. */
+      const oldOpp0 = cornerAt(X0, Y0, W0, H0, th, OPP[dir]);
+      const oldOpp1 = cornerAt(X0, Y0, W1, H1, th, OPP[dir]);   // 위치를 안 고친 판
+      const oldMoved = Math.hypot(oldOpp1.x - oldOpp0.x, oldOpp1.y - oldOpp0.y);
+      if (dir !== 'se') {
+        assert.ok(oldMoved > 1,
+          `양성대조 실패(${dir}, θ=${(th * 180 / Math.PI).toFixed(0)}°): 옛 판에서도 맞은편이 안 움직이면 잴 게 없다`);
+      }
+      // 본 단언 — 새 판에서는 맞은편이 «불변»이어야 한다
+      const p = anchor(dir, th, X0, Y0, W0, H0, W1, H1);
+      const opp0 = cornerAt(X0, Y0, W0, H0, th, OPP[dir]);
+      const opp1 = cornerAt(p.x, p.y, W1, H1, th, OPP[dir]);
+      assert.ok(Math.hypot(opp1.x - opp0.x, opp1.y - opp0.y) < 1e-9,
+        `${dir} (θ=${(th * 180 / Math.PI).toFixed(0)}°): 맞은편 코너가 움직였다 — 끄는 코너가 손끝을 안 따라온다`);
+    }
+  }
+});
+
+test('ⓑ-④-2 se 는 «예전과 똑같이» 좌상단을 고정한다 — 되던 것을 깨지 않았다', () => {
+  const anchor = zoomAnchorFn();
+  const p = anchor('se', 0, 120, 80, 260, 140, 340, 190);
+  assert.ok(Math.abs(p.x - 120) < 1e-9 && Math.abs(p.y - 80) < 1e-9,
+    `se 에서 좌상단이 움직였다: (${p.x},${p.y})`);
+  // nw 는 «반대로» 크기가 자란 만큼 좌상단이 통째로 옮겨간다
+  const q = anchor('nw', 0, 120, 80, 260, 140, 340, 190);
+  assert.ok(Math.abs(q.x - (120 - 80)) < 1e-9 && Math.abs(q.y - (80 - 50)) < 1e-9,
+    `nw 에서 좌상단이 (-80,-50) 만큼 안 옮겨갔다: (${q.x},${q.y})`);
+});
+
+test('ⓑ-④-3 회전각은 «드래그 내내» 한 번만 읽는다 + 크기가 안 변하면 위치도 안 변한다', () => {
+  const body = sliceBlock(SRC.handles, 'function _onZoomResizeMouseDown(e, zb, dir)');
+  /* θ 를 onMove 안에서 읽으면 «드래그 도중 회전이 바뀌는» 경우에 앵커가 흔들린다.
+     ⇒ mousedown 몸통(onMove 앞)에서 한 번만 읽어야 한다. */
+  const beforeMove = body.split('function onMove(')[0];
+  assert.ok(/const th = _blockRotationDeg\(box\)/.test(beforeMove), 'θ 를 mousedown 에서 한 번만 안 읽는다');
+  // 크기 변화가 0 이면 위치도 그대로(끌다가 되돌아왔을 때 블록이 안 흘러야 한다)
+  const anchor = zoomAnchorFn();
+  for (const dir of ['nw', 'ne', 'sw', 'se']) {
+    const p = anchor(dir, 30 * Math.PI / 180, 120, 80, 260, 140, 260, 140);
+    assert.ok(Math.abs(p.x - 120) < 1e-9 && Math.abs(p.y - 80) < 1e-9, `${dir}: 크기가 안 바뀌었는데 위치가 흘렀다`);
+  }
+});
+
+test('ⓑ-ROT-6 ★회전 슬라이더는 «남는다» — 그리고 핸들과 «양방향»으로 맞는다 (+양성대조)', () => {
+  /* ★집 관용구가 「핸들 ＋ 슬라이더, 동기」다 — 핸들이 슬라이더를 «대체»한 전례가 레포에 없다.
+     현빈 원문도 「회전 슬라이드«로만» 하니까」였다: 불만은 「슬라이더가 있다」가 아니라 「그것뿐이다」.
+     ⇒ 핸들을 «더하는» 것이 답이고 빼는 것이 아니다. 아래가 그 결정을 못박는다. */
+  const rot = readSrc(ROOT, 'js', 'asset-rotate.js');
+  /* ★양성대조 ① — 「집 관용구가 핸들 ＋ 슬라이더 동기다」가 사실인가.
+     ⛔2026-09-09 정정: 앞선 판(ad39400)은 근거를 「등록된 회전 8종이 «전부» 동기한다」로 적었다.
+       ★그건 «틀렸다». 8종 중 asset-block·shape-block 은 `{add, remove}` 뿐이라 syncUI 가 «없다».
+       그리고 그때 실제로 «잰» 것은 `_syncNumSlider('<접두>')` 라는 «한 관용구»뿐이었다 —
+       그 관용구를 안 쓰는 둘(iconify=icn-rot-number · vector=vb-rotate-deg)은 세지도 못했다.
+     ★★교훈을 여기 남긴다: «한 관용구를 세고 «성질»을 셌다고 하지 마라.»
+       ⇒ 그러니 아래는 관용구가 아니라 «성질»(syncUI 를 가졌나)을 센다. */
+  const registry = sliceBlock(rot, 'const _ROTATE_HANDLERS = {');
+  const entries = [...registry.matchAll(/^\s*'([\w-]+)':\s*(.+?),\s*$/gm)].map((m) => [m[1], m[2].trim()]);
+  assert.equal(entries.length, 8, `회전 레지스트리가 ${entries.length}종 — 전제(8종)가 바뀌었다면 근거를 다시 재라`);
+  const synced = entries.filter(([, v]) =>
+    /syncUI\s*:/.test(v.startsWith('{') ? v : sliceBlock(rot, `const ${v} = _makeRotateType({`, '회전 설정')));
+  assert.deepEqual(synced.map(([k]) => k).sort(),
+    ['canvas-block', 'icon-block', 'icon-circle-block', 'mockup-block', 'text-block', 'vector-block'],
+    '★동기하는 종류가 바뀌었다 — 근거를 다시 재라(⛔숫자만 고치지 마라)');
+  assert.deepEqual(entries.filter(([k]) => !synced.some(([j]) => j === k)).map(([k]) => k).sort(),
+    ['asset-block', 'shape-block'],
+    '★동기 «안» 하는 둘이 바뀌었다 — 「전부」가 아니라는 사실 자체가 근거의 일부다');
+  /* ⇒ 6/8 이다. 「전부」가 아니므로 슬라이더를 남기는 근거는 «그쪽»이 아니다.
+     ★진짜 근거는 현빈 원문 「회전 슬라이드«로만» 하니까」다 — 고칠 대상은 «로만»이지 슬라이더가 아니다.
+       불만은 「슬라이더가 있다」가 아니라 「그것뿐이다」 ⇒ 핸들을 «더하는» 것이 답이다.
+     ⚠️그리고 「_syncNumSlider 만 grep 해서 «동기 안 한다»」로 읽어도 틀린다 —
+       iconify 는 icn-rot-number, vector 는 vb-rotate-deg 로 «다른 id 관용구»를 쓴다. */
+  for (const [pre, cnt] of [['txt-rot', 1], ['mkp-rot', 1], ['cvb-rot', 1], ['icb-rot', 1]]) {
+    assert.equal((rot.match(new RegExp(`_syncNumSlider\\('${pre}'`, 'g')) || []).length, cnt,
+      `${pre} 가 _syncNumSlider 로 동기하지 않는다 — 이 넷이 그 관용구를 쓰는 «전수»다`);
+  }
+  for (const id of ['icn-rot-number', 'vb-rotate-deg']) {
+    assert.ok(rot.includes(id), `${id} 가 없다 — «다른 id 관용구»로 동기하는 둘이 사라졌다`);
+  }
+
+  /* ★양성대조 ② — 이 파일은 «줄을 가리는» 관용구를 실제로 쓴다(bdr·angle·length·narrow).
+     그러니 「회전은 안 가려져 있다」가 재는 말이 된다. 가려진 것이 하나도 없으면 무의미하다. */
+  for (const hidden of ['zm-bdr', 'zm-angle', 'zm-length', 'zm-narrow']) {
+    // 원본엔 «주석으로» 남아 있고(되살릴 수 있게), 주석을 걷어낸 소스엔 «없다» = 진짜 가려졌다
+    assert.ok(new RegExp(`//\\s*bindPair\\('${hidden}'`).test(RAW.prop),
+      `양성대조 실패: ${hidden} 의 주석 처리된 bindPair 가 없다 — 「가리는 관용구」 전제가 무너진다`);
+    assert.equal(new RegExp(`bindPair\\('${hidden}'`).test(SRC.prop), false,
+      `양성대조 실패: ${hidden} 이 «살아» 있다 — 그러면 「회전만 남았다」가 재는 말이 아니다`);
+  }
+
+  // ── 본 단언 ① 슬라이더가 «살아 있다» (가려지지 않았다 + 바인딩까지 있다)
+  assert.ok(/\$\{_pairRow\('zm-rot', '회전°'/.test(SRC.prop),
+    "★회전 슬라이더가 사라졌다 — 현빈이 고치라 한 것은 「«로만»」이지 슬라이더 자체가 아니다");
+  assert.ok(/bindPair\('zm-rot',\s*'rot'/.test(SRC.prop),
+    '★UI 만 있고 바인딩이 없다 — 슬라이더를 움직여도 아무 일도 안 난다');
+
+  // ── 본 단언 ② 방향 A: 핸들 → 슬라이더
+  const drag = sliceBlock(SRC.handles, 'function _onZoomRotateMouseDown(e, zb)');
+  assert.ok(/_syncZoomRotUI\(deg\)/.test(drag), '핸들로 돌려도 슬라이더가 안 따라온다');
+  const sync = sliceBlock(SRC.handles, 'function _syncZoomRotUI(deg)');
+  assert.ok(/getElementById\('zm-rot'\)/.test(sync) && /getElementById\('zm-rot-num'\)/.test(sync),
+    '전용 동기가 prop-zoom 의 «실제» id 를 안 쓴다');
+  assert.equal(/_syncNumSlider/.test(SRC.handles), false,
+    "★_syncNumSlider 를 썼다 — id 가 -slider/-number 라 zm-rot 에서는 «조용히 무동작»이다");
+
+  /* ── 본 단언 ③ 방향 B: 슬라이더 → 핸들.
+     사슬 = bindPair 가 dataset.rot 을 쓰고 → rerender() → renderZoomBlock 이 dataset.rotation 을
+     미러 → _blockRotationDeg → _cornerScreen(핸들 자리). 한 마디만 끊겨도 슬라이더를 움직였을 때
+     도형만 돌고 핸들이 «제자리에» 남는다. 사슬을 통째로 잰다. */
+  /* ⛔2026-09-09 정정 — 앞선 판(ad39400)의 «진단»이 틀렸었다.
+       그때는 「apply 가 bindPair 안에 «중첩»돼서 `\n}\n` 이 안 맞는다」고 적었다. 아니다:
+       ★중첩된 블록의 `}` 는 들여쓰기돼 있어 `\n}\n` 에 «애초에» 안 걸린다.
+       진짜 기제는 «`};` vs `}`» 다 — bindPair 가 `};` 로 끝나 옛 자가 그걸 못 맞추고
+       «다음 최상위 `}`» 까지 달려가 남의 rerender() 를 삼켰다.
+     ⇒ 진단이 틀려서 처방이 일반화되지 않았다: 그때는 «붙어 있는 세 줄»을 통째로 못박아
+       증상만 덮었고, 화살표·객체리터럴을 구간 머리로 쓰는 자리가 늘 때마다 같은 구멍이 다시 났다.
+     ★이제 자(_slice-block)를 고쳤으니 «구간으로» 잰다 — 그게 뿌리다.
+       그리고 «순서»까지 잰다(dataset 에 쓴 «뒤» 재렌더). 앞뒤가 뒤집히면 낡은 값으로 그린다. */
+  const bindPairBody = sliceBlock(SRC.prop, 'const bindPair = (id, key, label, min, max) =>');
+  const apply = sliceBlock(bindPairBody, 'const apply = v =>', 'bindPair 안의 반영 함수');
+  const iSet = apply.indexOf('block.dataset[key] =');
+  const iRe  = apply.search(/\brerender\(\)/);
+  assert.ok(iSet >= 0, '★apply 가 dataset 에 안 쓴다 — 슬라이더가 값을 못 남긴다');
+  assert.ok(iRe > iSet,
+    '★슬라이더가 dataset 에 쓴 «뒤» 재렌더를 안 부른다 — dataset.rotation 미러가 안 갱신돼 ' +
+    '도형만 돌고 핸들이 «제자리»에 남는다(슬라이더 → 핸들 방향이 끊긴다)');
+  assert.ok(/const rerender = \(\) => window\.renderZoomBlock\?\.\(block\)/.test(SRC.prop),
+    'rerender 가 renderZoomBlock 이 아니다');
+  assert.ok(/block\.dataset\.rotation = String\(box\.rot\)/.test(SRC.block), 'rot → rotation 미러가 없다');
+  for (const fn of ['_updateZoomRotatePositions()', '_updateZoomRadiusPositions()', '_updateZoomHandlePositions()']) {
+    assert.ok(/_cornerScreen\(/.test(sliceBlock(SRC.handles, 'function ' + fn)),
+      `${fn} 이 _cornerScreen 을 안 쓴다 — 회전이 바뀌어도 그 핸들만 안 따라온다`);
+  }
 });
 
 test("ⓑ-18 ⑦bdr 슬라이더는 «가려져» 있다 — 그러나 값·렌더 경로는 살아 있다", () => {
@@ -1325,8 +1790,8 @@ test('ⓑ-12 기하 모듈은 window/document 를 «안 만진다» (그래야 �
   assert.equal(/\bdocument\b/.test(SRC.geom), false);
 });
 
-test('ⓑ-13 기본값 — shape=rect(★기본은 사각형) · maxop=30 · length=170 · narrow=62 · curve=100 · angle=0 · spread=0', () => {
-  const body = sliceFn(SRC.block, 'const ZOOM_DEFAULTS = {');
+test('ⓑ-13 기본값 — shape=rect(★기본은 사각형) · maxop=30 · length=170 · narrow=62 · curve=100 · ★angle=-90(12시) · spread=0', () => {
+  const body = sliceBlock(SRC.block, 'const ZOOM_DEFAULTS = {');
   const pick = (k) => {
     const m = body.match(new RegExp(`${k}:\\s*'?([^,'\\s]+)'?`));
     assert.ok(m, `기본값 ${k} 없음`);
@@ -1345,5 +1810,5 @@ test('ⓑ-13 기본값 — shape=rect(★기본은 사각형) · maxop=30 · len
   assert.equal(pick('bdw'), '6');
   assert.equal(pick('bdc'), '#ffffff');
   assert.equal(pick('bdr'), '0');
-  assert.ok(/ZOOM_SHAPES = \['rect', 'circle', 'square'\]/.test(SRC.block), '프리셋 셋(사각형·원·정사각형) 누락');
+  assert.ok(/ZOOM_SHAPES = \['rect', 'circle', 'square', 'a4'\]/.test(SRC.block), '프리셋 넷(사각형·원·정사각형·A4세로) 누락');
 });

@@ -243,11 +243,17 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     if (el.classList.contains('gap-block')) {
       return { type: 'gap', height: parseFloat(el.style.height) || 50 };
     }
-    if (el.classList.contains('text-block') && !el.classList.contains('liner-block')) {
-      // liner-block(곡선텍스트 SVG)은 text-block 클래스도 갖지만 tb-inner가 없어
-      // 여기서 null 드롭됐었음 → liner-block 핸들러(아래)로 흘려보낸다.
+    // liner-block(곡선텍스트 SVG)은 text-block 클래스도 갖지만 tb-inner가 없어
+    // 여기서 null 드롭됐었음 → liner-block 핸들러(아래)로 흘려보낸다.
+    // ★그리고 그 «같은 병»이 speech-bubble-block 에도 있었다 (2026-09-09 실측):
+    //   class="text-block speech-bubble-block" 인데 안쪽이 .tb-bubble/.tb-sender-name 이라
+    //   tb-* 명부에 안 걸려 `return null` 로 «조용히» 통째로 사라졌다.
+    //   ⇒ 「tb-* 가 있을 때만 텍스트로 다룬다」를 «조건»으로 올린다. 없으면 아래 갈래들을
+    //     지나 GENERIC 폴백이 받는다(높이·배경·내부 텍스트/아이콘 보존). ⛔드롭보다 낫다.
+    //     명부(tb-*)를 늘려 막지 않는 이유가 그거다 — 다음 변종에서 또 샌다.
+    if (el.classList.contains('text-block') && !el.classList.contains('liner-block')
+        && el.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label')) {
       const inner = el.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
-      if (!inner) return null;
       const padX = ps?.padX || 0;
       const variant = inner.classList.contains('tb-h1') ? 'heading'
         : inner.classList.contains('tb-h2') ? 'subheading'
@@ -805,37 +811,81 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     return null;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════
+     순회 판정 — ★명부가 아니라 «성질»로 잡는다.
+
+     ⛔왜 바꿨나 (2026-09-09 실측)
+       순회 셀렉터가 «손으로 적은 명부» 네 벌이었고 이미 서로 어긋나 있었다
+       (row 직속 18개엔 canvas-block 이 없고, 섹션 직속 18개엔 gap-block 이 없었다. 합집합 19).
+       그런데 핸들러 `_block` 은 «GENERIC 폴백»(위 787줄)이 있어 이미 성질로 짜여 있다 —
+       classList 중 `-block` 으로 끝나는 게 하나라도 있으면 잡는다.
+       ⇒ 결함은 「핸들러는 멀쩡한데 순회가 거기까지 못 간다」였다.
+         js/ 가 노출하는 add*Block 38종 중 «11종»이 row 안에서 이 명부에 없어
+         `{"columns":[]}` 빈 껍데기로 나갔다(bridge·grid·infocard·innercard·icon-text·joker·vector…).
+
+     ★그래서 순회를 핸들러에 «맞춘다» — 같은 판정을 쓴다.
+       ⛔네 벌을 «한 곳으로 모으기만» 하면 안 된다. 모아도 그 한 곳이 손 명부면
+         20번째 블록이 생기는 날 또 샌다. 명부는 «제외»에만 쓴다 — 제외는 짧고,
+         한 줄마다 «왜»를 적을 수 있다.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /* 제외 — 「-block 으로 끝나지만 _block() 에 넘기면 «안» 되는 것」. 각 줄에 이유가 붙는다.
+     ⛔여기에 이유 없이 한 줄 더하면 그 종은 조용히 다시 샌다. 늘리려면 이유를 적어라. */
+  const _TRAVERSE_SKIP = {
+    // 자기 «전용 분기»가 이미 있다 — 여기서도 집으면 이중 처리되고, 게다가 GENERIC 폴백이
+    // 프레임 구조(자식·좌표·free-layout)를 납작한 껍데기로 뭉갠다.
+    'frame-block': '전용 분기(_processFrameBlock / _frameBlock)가 자식까지 내려간다',
+    'group-block': '전용 분기(.group-inner > .row)가 안쪽 row 를 따로 돈다',
+    // 컨테이너지 콘텐츠가 아니다. 섹션을 블록으로 집으면 자기 자신을 삼킨다.
+    'section-block': '섹션 컨테이너 — 콘텐츠 블록이 아니다',
+    /* ★뿌리를 «섹션 직속»까지 넓히면서 새로 필요해진 제외 (2026-09-09).
+       어노테이션은 «편집 주석»이지 산출물이 아니다 — 짐작이 아니라 실물 근거가 있다:
+       market-merge.js:29 의 normSection 이 .section-label·.section-toolbar·.variation-badge
+       와 «같은 줄»에서 .annotation-block 을 지운다. 즉 이 레포는 이미 이걸 «내용이 아님»
+       으로 판정하고 있다. 그 판정을 여기서도 따른다. */
+    'annotation-block': '편집 주석 — market-merge normSection 이 이미 «내용 아님»으로 지운다',
+  };
+
+  /** 핸들러(_block GENERIC 폴백)와 «같은» 판정 + 이유 붙은 제외. */
+  function _isContentBlock(el) {
+    if (!el || el.nodeType !== 1 || !el.classList) return false;
+    const cls = [...el.classList];
+    if (!cls.some(c => c.endsWith('-block'))) return false;
+    return !cls.some(c => _TRAVERSE_SKIP[c]);
+  }
+  /** 직속 자식 중 «콘텐츠 블록»만. 네 자리가 전부 이걸 쓴다. */
+  function _blockChildren(parent) {
+    return parent ? [...parent.children].filter(_isContentBlock) : [];
+  }
+
   function _row(rowEl, ps) {
-    // canvas-block이 row 직속 자식인 경우 (col 래퍼 없음)
-    const directCanvas = rowEl.querySelector(':scope > .canvas-block');
-    if (directCanvas) {
-      const parsed = _block(directCanvas, ps);
-      return parsed ? [parsed] : [];
-    }
-    // col 래퍼 없이 블록이 row 직속 자식인 경우 (stack layout full-width 블록 등)
-    const DIRECT_BLOCK_SEL = ':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .graph-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block, :scope > .modal-block';
-    const hasDirectBlocks = rowEl.querySelector(DIRECT_BLOCK_SEL);
-    if (hasDirectBlocks && !rowEl.querySelector(':scope > .col')) {
-      const blocks = [];
-      rowEl.querySelectorAll(DIRECT_BLOCK_SEL).forEach(b => {
-        const parsed = _block(b, ps);
-        if (parsed) blocks.push(parsed);
-      });
-      return blocks;
-    }
-    const cols = [];
-    rowEl.querySelectorAll(':scope > .col').forEach(col => {
-      const w = parseInt(col.dataset.width) || 100;
-      const blocks = [];
-      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .graph-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block, :scope > .modal-block').forEach(b => {
-        const parsed = _block(b, ps);
-        if (parsed) blocks.push(parsed);
-      });
-      cols.push({ width: w, blocks });
-    });
+    /* ★「직속 블록 «이냐» 컬럼 «이냐»」의 갈림길을 없앴다 (2026-09-09).
+       ⛔예전엔 둘 중 하나만 골랐다. 그래서 «둘 다 있는» row 에서 한쪽이 통째로 사라졌다.
+         실측 — row 안에 canvas-block(직속) + col>text 를 같이 두면:
+           고치기 전(canvas 특례) : ["card-grid"]  ← col 의 text 가 사라진다
+           특례만 지웠을 때       : ["text"]       ← 직속 canvas 가 사라진다
+         ⇒ 어느 쪽도 맞지 않았다. 둘 다 모은다.
+       ★그리고 여기서 옛 `directCanvas` 특례(`:scope > .canvas-block` 을 «따로» 집어
+         그것만 돌려주던 자리)를 지웠다. 이제 canvas-block 은 _blockChildren 이 «성질»로
+         잡으므로 중복이고, 남겨 두면 다음 사람이 「특례가 필요한 자리」로 읽는다.
+         (그 특례가 명부에 canvas-block 이 «없다는 사실»을 오래 가려 주고 있었다.) */
+    const toBlocks = (els) => {
+      const out = [];
+      els.forEach(b => { const parsed = _block(b, ps); if (parsed) out.push(parsed); });
+      return out;
+    };
+
+    const directBlocks = toBlocks(_blockChildren(rowEl));
+    const colEls = [...rowEl.children].filter(c => c.classList && c.classList.contains('col'));
+    if (!colEls.length) return directBlocks;
+
+    const cols = colEls.map(col => ({
+      width: parseInt(col.dataset.width) || 100,
+      blocks: toBlocks(_blockChildren(col)),
+    }));
     // stack(단일 컬럼) → blocks 직접 반환, 멀티컬럼 → { columns }
-    if (cols.length === 1) return cols[0].blocks;
-    return [{ columns: cols }];
+    const colPart = (cols.length === 1) ? cols[0].blocks : [{ columns: cols }];
+    return [...directBlocks, ...colPart];
   }
 
   function _section(secEl, ps) {
@@ -850,7 +900,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
 
     const blocks = [];
     function _processFrameBlock(fb) {
-      fb.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block, :scope > .graph-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block, :scope > .modal-block').forEach(b => {
+      _blockChildren(fb).forEach(b => {
         const parsed = _block(b, psEx);
         if (parsed) blocks.push(parsed);
       });
@@ -895,13 +945,46 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       } else if (child.classList.contains('frame-block')) {
         if (child.dataset.freeLayout === 'true') blocks.push(_frameBlock(child));
         else _processFrameBlock(child);
-      } else if (child.matches('.text-block, .modal-block, .asset-block, .icon-block, .icon-circle-block, .table-block, .chat-block, .canvas-block, .graph-block, .divider-block, .shape-block, .label-group-block, .banner02-block, .step-block, .comparison-block, .mockup-block, .laurel-block, .liner-block')) {
+      } else if (_isContentBlock(child)) {
         // section-inner 직속 콘텐츠 블록(row/frame 미포함) — 드롭 방지.
         const parsed = _block(child, psEx);
         if (parsed) blocks.push(parsed);
       }
     };
     [...inner.children].forEach(_walkSectionChild);
+
+    /* ═══ ★순회의 «뿌리»는 .section-inner 하나가 아니다 ═══════════════════════
+       ⛔2026-09-09 까지 이 순회는 `[...inner.children]` «만» 돌았다. 그런데 플로팅 블록
+         (zoom·sticker·gradient…)은 .section-block «직속»에 position:absolute 로 산다
+         — `sec.appendChild(block)` (sticker-block.js:558 · zoom-block.js:411 ·
+         gradient-block.js:150, 셋 다 「섹션 직접 자식 (absolute → 섹션 기준)」이라 적혀 있다).
+         ⇒ .section-inner 의 «형제»라서 방문 «대상 자체»가 아니었다.
+       ★그래서 셀렉터를 아무리 «성질»로 바꿔도 이 부류엔 닿지 않는다. 뿌리를 넓혀야 닿는다.
+         (같은 뿌리에서 PNG 쪽은 「섹션 높이에 기여를 안 해 잘린다」로 나타난다 — 별건.)
+
+       ⛔셋을 «이름»으로 적지 않는다. 그러면 네 번째 플로팅 블록이 생기는 날 조용히 빠진다
+         — 오늘 이 병이 난 이유가 정확히 그것이다. 「.section-inner 가 아닌 섹션 직속
+         콘텐츠 블록」이라는 «구조»로 집는다.
+
+       ⚠️FIGMA_ENABLED=false 이던 시절(globals.js:50 · index.html 킬스위치)에 이 부류가
+         통째로 빠져 있었다. 다음 런칭에 「한 글자」로 켜질 때 바로 맞아야 한다. */
+    [...secEl.children]
+      .filter(c => c !== inner && _isContentBlock(c))
+      .forEach(fc => {
+        const parsed = _block(fc, psEx);
+        if (!parsed) return;
+        /* ★좌표를 «같이» 싣는다 — 순서만 넣으면 위치가 사라진다.
+           ★출처는 dataset.x/y 다. style.left/top 은 «캔버스 절대 y»가 들어가 있을 수 있다
+             (zoom-block.js:227 실측: 섹션 간 드래그 뒤 dataset.y=114 인데 style.top=960,
+              차이 846 = 그 섹션의 offsetTop). dataset 이 단일 진실원이고 style 은 그걸 되읽어 쓴다.
+           ⇒ dataset 을 먼저 보고, 없을 때만 style 로 떨어진다. */
+        const dx = fc.dataset.x, dy = fc.dataset.y;
+        parsed.floating = true;
+        parsed.x = (dx !== undefined && dx !== '') ? (parseFloat(dx) || 0) : (parseFloat(fc.style.left) || 0);
+        parsed.y = (dy !== undefined && dy !== '') ? (parseFloat(dy) || 0) : (parseFloat(fc.style.top)  || 0);
+        blocks.push(parsed);
+      });
+
     const bgColor = secEl.style.backgroundColor || '';
     const styleAttr = secEl.getAttribute('style') || '';
     const bgImgRaw = secEl.style.backgroundImage || (/background(-image)?:\s*([^;]+)/.exec(styleAttr) || [])[2] || '';

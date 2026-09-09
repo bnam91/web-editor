@@ -30,6 +30,7 @@ const fs = require('fs');
 const path = require('path');
 const { startHarness } = require('./_mcp-harness');
 const { readSrc } = require('./_srcread.js');   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 const { CASES } = require('../contract/mcp-cases');
 
 const REPO = path.join(__dirname, '..', '..');
@@ -39,21 +40,17 @@ const MAIN_SRC = readSrc(REPO, 'main.js');
  * account-projects-root.test.js 와 같은 수법이다. main.js 는 Electron 없이 통째로 못 읽으니
  * 대상 함수만 잘라 new Function 으로 다시 세운다.
  * ⛔고정 길이 창(slice(i, i+N)) 금지 — 주석이 늘면 코드가 창 밖으로 밀려 «가짜 빨강»이 난다
- *   (2026-09-07 D7 이 그렇게 한 번 틀렸다). 함수 끝(열 0 의 `}`)까지 잡는다.
+ *   (2026-09-07 D7 이 그렇게 한 번 틀렸다). 함수 끝까지 «괄호를 세서» 잡는다.
+ * ⛔「열 0 의 `}`」로 끝을 찾는 것도 금지 — `};`·`})` 로 끝나는 구간을 못 맞추고 다음 함수까지 삼킨다.
  * ⚠️`async function` 을 «먼저» 찾는다 — `function` 부터 자르면 async 가 떨어져 나가
  *   본문의 await 가 SyntaxError 를 낸다(실제로 그렇게 한 번 죽었다). */
 function fnSrc(name) {
   for (const pat of [`async function ${name}(`, `function ${name}(`, `const ${name} = `]) {
     const i = MAIN_SRC.indexOf(pat);
     if (i < 0) continue;
-    if (pat.startsWith('const')) {
-      const j = MAIN_SRC.indexOf('\n};\n', i);
-      assert.ok(j > i, `★${name} 의 끝을 못 찾았다 — 검사가 «대상을 놓친» 것이지 통과가 아니다`);
-      return MAIN_SRC.slice(i, j + 3);
-    }
-    const j = MAIN_SRC.indexOf('\n}\n', i);
-    assert.ok(j > i, `★${name} 의 끝을 못 찾았다 — 검사가 «대상을 놓친» 것이지 통과가 아니다`);
-    return MAIN_SRC.slice(i, j + 2);
+    /* ★끝은 «균형괄호»로 찾는다 — 꼬리 모양(`}` · `};` · `})`)마다 «명부»를 늘리면
+       다음 모양이 올 때 또 난다. 못 찾으면 던진다(못 잰 것은 통과가 아니다). */
+    return sliceBlock(MAIN_SRC, pat, '검사가 «대상을 놓친» 것이지 통과가 아니다');
   }
   throw new Error(`★main.js 에 ${name} 이(가) 없다 — 이름이 바뀌었으면 이 검사도 «같이» 고쳐라`);
 }
