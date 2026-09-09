@@ -380,6 +380,22 @@ function _dist(p, q) { return Math.hypot(p.x - q.x, p.y - q.y); }
 
 /* a·b 자동값: A·B 를 광원 쪽으로 좁혀서.
    mid=(A+B)/2, k=1-narrow/100 → 짧은 변은 «광원 위에» 중심을 두고 AB 폭의 k 배가 된다. */
+/* ★좁아짐 «상한» — a·b 가 «빨간 원(광원 손잡이)을 지나가지 못하게» 한다.
+     현빈 2026-09-09: 「이동이 살짝만 구현하려는거라서 … ★**빨간 원을 못 지나가게만** 해줌될듯?」
+   기하: autoShortEdge 가 a·b 를 광원 양옆 «k·|AB|/2» 에 둔다(k = 1 − narrow/100).
+     ⇒ dist(a, L) = k·|AB|/2. 두 손잡이 원이 «안 겹치려면» 중심거리 ≥ 2R 이어야 한다.
+     ⇒ k·|AB|/2 ≥ 2R  ⇔  narrow ≤ 100·(1 − 4R/|AB|)
+   ★잰 것(2026-09-09, rect·12시·벌림0): 크기 60 이상이면 상한이 기본값 62 «위»라 아무것도 안 바뀐다.
+       크기  20 → 0.0 · 30 → 33.3 · 40 → 50.0 · ★60 → 66.7 · 260 → 92.3 · 600 → 96.7
+     ⇒ 눌리는 것은 «크기 60 미만»뿐이다. 기본 배치(260)는 손도 안 댄다.
+   ⛔저장본은 «안 고친다» — dataset.narrow 는 그대로 두고 «읽는 자리»에서만 자른다(벌림과 같은 규약).
+     그래야 상한을 나중에 바꿔도 사용자가 고른 값이 안 사라진다. */
+export function narrowLimit(A, B) {
+  var ab = Math.hypot(B.x - A.x, B.y - A.y);
+  if (!(ab > 0)) return 0;
+  return Math.max(0, 100 * (1 - 4 * ZOOM_HANDLE_R / ab));
+}
+
 export function autoShortEdge(A, B, L, narrow) {
   var mid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
   var k = 1 - (Number(narrow) || 0) / 100;
@@ -402,6 +418,21 @@ export function clampPin(P) {
   if (!P || !Number.isFinite(P.x) || !Number.isFinite(P.y)) return P;
   const R = ZOOM_PIN_REACH;
   return { x: Math.max(-R, Math.min(R, P.x)), y: Math.max(-R, Math.min(R, P.y)) };
+}
+
+/** ★손잡이가 «빨간 원(광원)»을 지나가지 못하게 «거리만» 민다 — 방향은 안 바꾼다.
+ *    두 손잡이 원(반지름 R)이 안 겹치려면 중심거리 ≥ 2R 이어야 한다.
+ *    ⚠️P 가 광원과 «정확히 같은 점»이면 방향이 없다 — 그때는 오른쪽(+x)으로 민다(임의지만 결정적).
+ *    ⛔호출자가 없으면 이 함수는 아무것도 안 한다. 되돌리기는 호출부 두 줄이다. */
+export function pushOutOfLight(P, L) {
+  if (!P || !L || !Number.isFinite(P.x) || !Number.isFinite(P.y)) return P;
+  const min = 2 * ZOOM_HANDLE_R;
+  let dx = P.x - L.x, dy = P.y - L.y;
+  const d = Math.hypot(dx, dy);
+  if (d >= min) return P;
+  if (!(d > 0)) { dx = 1; dy = 0; }
+  const k = min / (d > 0 ? d : 1);
+  return { x: L.x + dx * k, y: L.y + dy * k };
 }
 
 /** 광원 L — 도형 중심에서 «방향 각도»로 «길이» 만큼 떨어진 점. */
@@ -454,9 +485,21 @@ export function computeZoomGeometry(st, pinned) {
   var sil = (st.shape === 'circle')                                // ⑵
     ? silhouetteCircle(outline.r, L0, 0, 0)
     : silhouetteFromPts(outline.pts, L0, 0, 0);
-  var auto = autoShortEdge(sil[0], sil[1], L0, st.narrow);         // ⑶
-  var a = (pinned && pinned.a) ? clampPin(pinned.a) : auto[0];      // ⑷ ★상한은 여기서만 건다
+  /* ⑶ ★좁아짐은 «읽는 자리»에서 자른다 — a·b 가 빨간 원을 지나가지 못하게(narrowLimit 주석 참조).
+       ⛔st.narrow(저장본)는 «안» 고친다. 도형이 커지면 원래 값이 그대로 되살아난다. */
+  var nLim = narrowLimit(sil[0], sil[1]);
+  var nEff = Math.max(0, Math.min(Number(st.narrow) || 0, nLim));
+  var auto = autoShortEdge(sil[0], sil[1], L0, nEff);
+  var a = (pinned && pinned.a) ? clampPin(pinned.a) : auto[0];      // ⑷
   var b = (pinned && pinned.b) ? clampPin(pinned.b) : auto[1];
+  /* ★★«손으로 끈» a·b 는 «막지 않는다» — 현빈 2026-09-09 결정.
+       내가 「슬라이더만 막으면 손으로 끌어 겹쳐 놓을 수 있다」며 밀어내기를 넣었는데,
+       현빈이 앱에서 직접 끌어 보고 ★「상한 없이 빨간색 지금 지나가지는 거 «좋은데»?
+         지금 적용된 그대로 둬도 될 것 같아」 로 정정하셨다. ⇒ 넣었던 밀어내기를 «뺐다».
+     ⇒ 갈라 두면 이렇다:
+         · 슬라이더로 «준 값»(⑶ narrow) → ★막는다(빨간 원을 지나가지 못하게)
+         · 손으로 «끈» a·b            → ★자유다(사용자가 «일부러» 한 것)
+     ⛔되살릴 일이 생기면 pushOutOfLight 가 아직 있다(clampPin 아래). 여기서 부르면 된다. */
   var L = lPin || { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };      // ⑸ ★축 = 짧은 변의 한가운데
   var c = tangentAt(outline, a, L, b, sil, 0);                     // ⑹
   var d = tangentAt(outline, b, L, a, sil, 1);
