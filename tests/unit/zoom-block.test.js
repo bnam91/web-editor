@@ -1680,6 +1680,64 @@ test('ⓑ-④-3 회전각은 «드래그 내내» 한 번만 읽는다 + 크기�
   }
 });
 
+test('ⓑ-ROT-6 ★회전 슬라이더는 «남는다» — 그리고 핸들과 «양방향»으로 맞는다 (+양성대조)', () => {
+  /* ★집 관용구가 「핸들 ＋ 슬라이더, 동기」다 — 핸들이 슬라이더를 «대체»한 전례가 레포에 없다.
+     현빈 원문도 「회전 슬라이드«로만» 하니까」였다: 불만은 「슬라이더가 있다」가 아니라 「그것뿐이다」.
+     ⇒ 핸들을 «더하는» 것이 답이고 빼는 것이 아니다. 아래가 그 결정을 못박는다. */
+  const rot = readSrc(ROOT, 'js', 'asset-rotate.js');
+  // ★양성대조 ① — 등록된 회전 8종이 «전부» 패널 컨트롤을 동기한다(그래서 「전례가 없다」가 사실이다)
+  const registry = sliceFn(rot, 'const _ROTATE_HANDLERS = {');
+  assert.ok(/text-block|icon-block|mockup-block|canvas-block/.test(registry), '회전 레지스트리를 못 찾았다');
+  for (const pre of ['txt-rot', 'mkp-rot', 'cvb-rot', 'icb-rot']) {
+    assert.ok(new RegExp(`_syncNumSlider\\('${pre}'`).test(rot),
+      `양성대조 실패: ${pre} 가 패널을 동기 안 하면 「집 관용구」 전제가 무너진다`);
+  }
+
+  /* ★양성대조 ② — 이 파일은 «줄을 가리는» 관용구를 실제로 쓴다(bdr·angle·length·narrow).
+     그러니 「회전은 안 가려져 있다」가 재는 말이 된다. 가려진 것이 하나도 없으면 무의미하다. */
+  for (const hidden of ['zm-bdr', 'zm-angle', 'zm-length', 'zm-narrow']) {
+    // 원본엔 «주석으로» 남아 있고(되살릴 수 있게), 주석을 걷어낸 소스엔 «없다» = 진짜 가려졌다
+    assert.ok(new RegExp(`//\\s*bindPair\\('${hidden}'`).test(RAW.prop),
+      `양성대조 실패: ${hidden} 의 주석 처리된 bindPair 가 없다 — 「가리는 관용구」 전제가 무너진다`);
+    assert.equal(new RegExp(`bindPair\\('${hidden}'`).test(SRC.prop), false,
+      `양성대조 실패: ${hidden} 이 «살아» 있다 — 그러면 「회전만 남았다」가 재는 말이 아니다`);
+  }
+
+  // ── 본 단언 ① 슬라이더가 «살아 있다» (가려지지 않았다 + 바인딩까지 있다)
+  assert.ok(/\$\{_pairRow\('zm-rot', '회전°'/.test(SRC.prop),
+    "★회전 슬라이더가 사라졌다 — 현빈이 고치라 한 것은 「«로만»」이지 슬라이더 자체가 아니다");
+  assert.ok(/bindPair\('zm-rot',\s*'rot'/.test(SRC.prop),
+    '★UI 만 있고 바인딩이 없다 — 슬라이더를 움직여도 아무 일도 안 난다');
+
+  // ── 본 단언 ② 방향 A: 핸들 → 슬라이더
+  const drag = sliceFn(SRC.handles, 'function _onZoomRotateMouseDown(e, zb)');
+  assert.ok(/_syncZoomRotUI\(deg\)/.test(drag), '핸들로 돌려도 슬라이더가 안 따라온다');
+  const sync = sliceFn(SRC.handles, 'function _syncZoomRotUI(deg)');
+  assert.ok(/getElementById\('zm-rot'\)/.test(sync) && /getElementById\('zm-rot-num'\)/.test(sync),
+    '전용 동기가 prop-zoom 의 «실제» id 를 안 쓴다');
+  assert.equal(/_syncNumSlider/.test(SRC.handles), false,
+    "★_syncNumSlider 를 썼다 — id 가 -slider/-number 라 zm-rot 에서는 «조용히 무동작»이다");
+
+  /* ── 본 단언 ③ 방향 B: 슬라이더 → 핸들.
+     사슬 = bindPair 가 dataset.rot 을 쓰고 → rerender() → renderZoomBlock 이 dataset.rotation 을
+     미러 → _blockRotationDeg → _cornerScreen(핸들 자리). 한 마디만 끊겨도 슬라이더를 움직였을 때
+     도형만 돌고 핸들이 «제자리에» 남는다. 사슬을 통째로 잰다. */
+  /* ⚠️sliceFn 을 쓰면 «안 된다» — apply 는 bindPair 안에 «중첩»돼 있어 닫는 줄이 `\n}\n` 이
+     아니다. 그래서 슬라이스가 bindPair 를 지나 다른 rerender() 까지 삼킨다.
+     실측: 그렇게 썼더니 「apply 에서 rerender() 를 빼는」 변이가 «초록으로» 통과했다.
+     ⇒ «붙어 있는 세 줄»을 통째로 못박는다. */
+  assert.ok(/block\.dataset\[key\] = String\(val\);\s*\n\s*s\.value = val; n\.value = val;\s*\n\s*rerender\(\);/.test(SRC.prop),
+    '★슬라이더가 dataset 에 쓴 «직후» 재렌더를 안 부른다 — dataset.rotation 미러가 안 갱신돼 ' +
+    '도형만 돌고 핸들이 «제자리»에 남는다(슬라이더 → 핸들 방향이 끊긴다)');
+  assert.ok(/const rerender = \(\) => window\.renderZoomBlock\?\.\(block\)/.test(SRC.prop),
+    'rerender 가 renderZoomBlock 이 아니다');
+  assert.ok(/block\.dataset\.rotation = String\(box\.rot\)/.test(SRC.block), 'rot → rotation 미러가 없다');
+  for (const fn of ['_updateZoomRotatePositions()', '_updateZoomRadiusPositions()', '_updateZoomHandlePositions()']) {
+    assert.ok(/_cornerScreen\(/.test(sliceFn(SRC.handles, 'function ' + fn)),
+      `${fn} 이 _cornerScreen 을 안 쓴다 — 회전이 바뀌어도 그 핸들만 안 따라온다`);
+  }
+});
+
 test("ⓑ-18 ⑦bdr 슬라이더는 «가려져» 있다 — 그러나 값·렌더 경로는 살아 있다", () => {
   const p = SRC.prop;
   // ⛔거른 소스(주석 제거본)에 zm-bdr 이 «없어야» 숨긴 것이다
