@@ -434,7 +434,25 @@ export function computeZoomGeometry(st, pinned) {
   var L = lPin || { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };      // ⑸ ★축 = 짧은 변의 한가운데
   var c = tangentAt(outline, a, L, b, sil, 0);                     // ⑹
   var d = tangentAt(outline, b, L, a, sil, 1);
-  var sp = applySpreadAlongOutline(outline, c, d, L, st.spread, zoomMagnet(st));   // ⑺
+  /* ★★벌림은 «양(陽)만» — 현빈 2026-09-09 「벌림 음수 안 되게 양(陽) 간만」.
+       패널 슬라이더 하한을 0 으로 올렸다(prop-zoom.js). 그런데 ★«이미 저장된» 음수가 있다 —
+       슬라이더가 −400..800 이던 시절의 프로젝트다. 그 값은 «도메인 밖»이 됐으므로
+       읽는 자리에서 기본값(0)으로 떨어뜨린다.
+     ★왜 «자르는» 쪽을 골랐나 — 셋이다:
+       ① 집 관용구다. zoom-block.js 의 _onOff · _dropShadow 가 이미 같은 규율로 산다 —
+          「모르는 값이 들어오면 기본으로 떨어뜨린다(저장본 변조 대비)」. 새 방식을 안 만든다.
+       ② 음수는 «진짜로 깨진다» — tests/unit/zoom-tangent.test.mjs T14 의 실측:
+          광원이 도형 «밖»인 60,672칸 중 −30 에서 6,774칸이 「삐져나감 ≤ |s|/2」를 깨고
+          (최대 128.55px), −400 에서 7,461칸(389.95px). 양수와 달리 「광원이 도형 안」으로
+          설명되는 칸이 0 이다 — 계약 밖의 그림이지 «사람이 고른 모양»이 아니다.
+       ③ 패널과 화면이 «같은 말»을 하게 된다. 패널은 0 을 보여 주는데 캔버스만 −30 으로
+          그리면 그게 바로 «조용히 깨진» 상태다.
+     ⛔저장본은 «한 글자도» 안 고친다 — dataset.spread 는 −30 으로 그대로 남는다.
+       읽는 자리에서만 떨어뜨린다 ⇒ 결정이 뒤집히면 그 값이 그대로 살아나온다.
+     ⛔applySpreadAlongOutline 안에서 자르지 않는다 — 그건 «원시 부품»이고, 거기서 잘라 버리면
+       «잘라서 같아진 것»을 드러낼 양성대조가 사라진다(T14 가 그것으로 잰다). */
+  var spread = Math.max(0, Number(st.spread) || 0);
+  var sp = applySpreadAlongOutline(outline, c, d, L, spread, zoomMagnet(st));   // ⑺
   var A = sp[0], B = sp[1];
   return { L: L, A: A, B: B, a: a, b: b, autoA: auto[0], autoB: auto[1], c: c, d: d, r: hw, bw: bw };
 }
