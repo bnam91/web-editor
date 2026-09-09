@@ -1,5 +1,6 @@
 import { canvasEl, state } from '../globals.js';
 import { inlineGoyaAssetsInJSON, makeElectronAssetReader } from './goya-asset-inline.js';
+import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';
 
 const CANVAS_W = 860;
 
@@ -132,7 +133,10 @@ async function exportFigmaJSON() {
     const canvasDiv = doc.getElementById('canvas');
     const ps = page.pageSettings || {};
     const sections = [];
-    canvasDiv.querySelectorAll(':scope > .section-block:not([data-ghost])').forEach((sec, i) => {
+    /* ★안 쓰는 A/B 시안은 «배송본에 안 싣는다» — 숨은 시안까지 실어 「Section 01」이 두 번 나가던 자리
+       (2026-09-09 실측). 술어는 js/variation-visibility.js «한 곳»이다.
+     ⚠️저장 경로가 아니다 — 시안은 프로젝트 저장본에 그대로 남는다. */
+    canvasDiv.querySelectorAll(`:scope > .section-block:not([data-ghost])${NOT_HIDDEN_VARIATION}`).forEach((sec, i) => {
       sections.push(parseSection(sec, i, ps));
     });
     return {
@@ -1017,7 +1021,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
   state.pages.forEach(pg => {
     const doc = parser.parseFromString(`<div id="c">${pg.canvas || ''}</div>`, 'text/html');
     const ps  = pg.pageSettings || state.pageSettings;
-    doc.querySelectorAll('#c > .section-block:not([data-ghost])').forEach(sec => {
+    /* ★숨은 A/B 시안은 «업로드에도» 안 싣는다 — 피그마에 안 고른 시안이 한 벌 더 얹히던 자리.
+       exportFigmaJSON(파일 저장)과 «같은 술어»를 본다(js/variation-visibility.js). */
+    doc.querySelectorAll(`#c > .section-block:not([data-ghost])${NOT_HIDDEN_VARIATION}`).forEach(sec => {
       const secId = sec.id || '';
       // selectedIds 필터링 (null 이면 전체 포함)
       if (selectedIds && !selectedIds.includes(secId)) return;

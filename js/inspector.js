@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════
    INSPECTOR PANEL
 ═══════════════════════════════════ */
+import { isJumpTarget } from './variation-visibility.js';
 
 // FIX: buildLayerPanel() 마지막에 Inspector 탭 활성 시 자동 갱신 추가 (layer-panel.js)
 // FIX: step-block, canvas-block, shape-block 카운트 추가
@@ -116,7 +117,9 @@ if (typeof document !== 'undefined' && !window.__inspJumpWired) {
     const row = e.target.closest?.('.insp-jump');
     if (!row) return;
     const key = row.dataset.jump;
-    const list = (_jumpTargets[key] || []).filter(el => el.isConnected);   // 지워진 블록은 건너뛴다
+    /* ★지워진 블록·«숨은 시안» 안의 블록은 건너뛴다 — 셋(여기·statRow·색칩)이 «같은 술어»를 본다.
+       패널을 그린 «뒤» 시안을 전환해도 여기서 한 번 더 걸러 「눌렀는데 안 움직인다」가 안 난다. */
+    const list = (_jumpTargets[key] || []).filter(isJumpTarget);
     if (!list.length) return;
     const i = ((_jumpIdx[key] ?? -1) + 1) % list.length;
     _jumpIdx[key] = i;
@@ -140,19 +143,28 @@ function renderInspectorPanel() {
   if (!panel) return;
 
   // ── 데이터 수집 ──
-  const sections   = [...document.querySelectorAll('.section-block')];
-  const textBlocks = [...document.querySelectorAll('.text-block')];
-  const assetBlocks= [...document.querySelectorAll('.asset-block')];
-  const gapBlocks  = [...document.querySelectorAll('.gap-block')];
-  const iconBlocks = [...document.querySelectorAll('.icon-circle-block')];
-  const tableBlocks= [...document.querySelectorAll('.table-block')];
-  const labelGroupBlocks  = [...document.querySelectorAll('.label-group-block')];
-  const graphBlocks       = [...document.querySelectorAll('.graph-block')];
-  const dividerBlocks     = [...document.querySelectorAll('.divider-block')];
-  const iconTextBlocks    = [...document.querySelectorAll('.icon-text-block')];
-  const stepBlocks        = [...document.querySelectorAll('.step-block')];
-  const canvasBlocks      = [...document.querySelectorAll('.canvas-block')];
-  const shapeBlocks       = [...document.querySelectorAll('.shape-block')];
+  /* ★분모는 «화면에 있는 것» — 숨은 A/B 시안(data-variation-active="0") 안의 블록은 세지 않는다.
+   *   ⑴ 못 가는 곳을 세면 「개수는 9인데 갈 수 있는 건 7」이 된다(2026-09-09 실측 19/24 → 20/20).
+   *   ⑵ ★개요(섹션·전체 블록·텍스트·이미지)도 «같은 분모»를 쓴다 — 한 패널 안에서 위는 문서 전체,
+   *      아래는 보이는 것이면 「텍스트 12인데 구성 합이 9」가 되어 더 헷갈린다.
+   *   ⑶ 그리고 그 분모는 이제 «배송본»과 같다 — 안 고른 시안은 내보내기에서도 빠진다
+   *      (js/io/export-html.js · js/io/export-figma-json.js). 인스펙터가 「나갈 것」을 잰다.
+   *   술어는 js/variation-visibility.js «한 곳». ⛔여기에 조건을 베껴 적지 마라. */
+  const $all = (sel) => [...document.querySelectorAll(sel)].filter(isJumpTarget);
+
+  const sections   = $all('.section-block');
+  const textBlocks = $all('.text-block');
+  const assetBlocks= $all('.asset-block');
+  const gapBlocks  = $all('.gap-block');
+  const iconBlocks = $all('.icon-circle-block');
+  const tableBlocks= $all('.table-block');
+  const labelGroupBlocks  = $all('.label-group-block');
+  const graphBlocks       = $all('.graph-block');
+  const dividerBlocks     = $all('.divider-block');
+  const iconTextBlocks    = $all('.icon-text-block');
+  const stepBlocks        = $all('.step-block');
+  const canvasBlocks      = $all('.canvas-block');
+  const shapeBlocks       = $all('.shape-block');
 
   const logoBlocks = logoBlocksOf(assetBlocks);
 
@@ -161,7 +173,10 @@ function renderInspectorPanel() {
    *   그 배열을 들고 있으면 이동은 공짜다. 스크롤은 selectSection 이 쓰는 것과 같은 방식. */
   _jumpTargets = {};
   const statRow = (key, label, list) => {
-    if (!list || !list.length) return '';
+    /* ★여기가 「개수 = 갈 곳」의 «보장»이다 — 어떤 목록이 들어와도 같은 술어로 한 번 거른 뒤
+       그 «걸러진 것»을 세고, 그 «같은 배열»을 점프 대상으로 넘긴다. 둘이 갈라질 수가 없다. */
+    list = (list || []).filter(isJumpTarget);
+    if (!list.length) return '';
     _jumpTargets[key] = list;
     return `<div class="insp-stat-row insp-jump" data-jump="${key}" title="클릭하면 사용된 곳으로 이동 (${list.length}개)">`
          + `<span class="insp-stat-label">${label}</span>`
@@ -232,8 +247,15 @@ function renderInspectorPanel() {
     });
   });
 
-  /* 많이 쓰인 색부터 — 팔레트에서 «주조색»이 위에 오는 게 읽기 쉽다. */
-  const colors = [...colorMap.entries()].sort((a, b) => b[1].size - a[1].size).map(([hex]) => hex);
+  /* 많이 쓰인 색부터 — 팔레트에서 «주조색»이 위에 오는 게 읽기 쉽다.
+     ★셋 중 세 번째 자리 — 여기서도 같은 isJumpTarget 으로 거른다. 그리고 «갈 곳이 하나도 없는 색»은
+       팔레트에서 뺀다: 숨은 시안에만 있던 색이 「19색」에 끼어 있으면 못 가는 칩이 하나 생긴다. */
+  const colorEntries = [...colorMap.entries()]
+    .map(([hex, els]) => [hex, [...els].filter(isJumpTarget)])
+    .filter(([, els]) => els.length)
+    .sort((a, b) => b[1].length - a[1].length);
+  const colors = colorEntries.map(([hex]) => hex);
+  const colorEls = new Map(colorEntries);
 
   // ── HTML 렌더링 ──
   const variantLabels = {
@@ -272,7 +294,7 @@ function renderInspectorPanel() {
    *   스와치 «위»에 작은 배지로 얹어 세로 높이를 안 늘린다. */
   const colorSwatches = colors.length
     ? colors.map(hex => {
-        const els = [...(colorMap.get(hex) || [])].filter(el => el && el.isConnected);
+        const els = colorEls.get(hex) || [];
         const key = 'c:' + hex;
         if (els.length) _jumpTargets[key] = els;
         return `

@@ -36,7 +36,15 @@ function modalSrc() {
  * DOM 에 닿는 것은 최소로 스텁한다: document.createElement · genId.
  * (선례: selection-outline-zoom.test.mjs 가 같은 방식으로 _geomOf 를 진짜로 돌린다.)
  */
-function loadModalModule() {
+/* @param {object} [opts]
+ * @param {object} [opts.win]  vm 안의 `window` 로 쓸 «그 객체». 안 주면 빈 객체(종전과 같다).
+ *   ★왜 열었나 (2026-09-09, gen-mdl-icon)
+ *     modal-block.js 의 iconBlockNewColor() 가 window.makeIconifyBlock 을 «불러» 아이콘블럭의
+ *     기본색을 읽는다(⑴ 「같은 색」의 출처를 하나로 두는 장치). 하네스가 window 를 못 채우면
+ *     그 길이 «검사에서만» 폴백으로 새어, 두 색이 갈라져도 초록이 뜬다 — 그게 제일 나쁜 통과다.
+ *   ⚠️인자를 «그대로» ctx.window 로 쓴다(복사 X) — 호출자가 같은 객체를 계속 들여다볼 수 있게.
+ *   ⚠️인자 없이 부르면 종전과 «완전히» 같다(기존 세 검사 무영향). */
+function loadModalModule(opts) {
   const body = modalSrc()
     .replace(/^import[^\n]*\n/gm, '')
     .replace(/export\s*\{[\s\S]*?\};/, '');
@@ -53,7 +61,7 @@ function loadModalModule() {
   });
   const ctx = {
     document: { createElement: mkEl },
-    window: {},
+    window: (opts && opts.win) || {},
     genId: (p) => `${p}_${++seq}`,
     insertAfterSelected() {}, showNoSelectionHint() {}, bindBlock() {},
     console,
@@ -61,7 +69,8 @@ function loadModalModule() {
   vm.createContext(ctx);
   vm.runInContext(
     body + '\n;globalThis.__M = { MODAL_VARIANT_IDENTITY, MODAL_IDENTITY_KEYS, MODAL_DEFAULTS,'
-         + ' MODAL_VARIANTS, _effDefault, applyModalVariant, makeModalBlock, renderModalBlock };',
+         + ' MODAL_VARIANTS, _effDefault, applyModalVariant, makeModalBlock, renderModalBlock,'
+         + ' applyPickedIconToModal, iconBlockNewColor };',
     ctx, { filename: MODAL_REL });
   return ctx.__M;
 }

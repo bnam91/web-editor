@@ -376,7 +376,15 @@ export function showPageProperties() {
   /* ⚠️빈 칸·0 은 min(2) 이 아니라 «기본값 12» 로 간다 — `|| 12` 가 먼저 걸리기 때문이고, 그게 맞다.
        빈 칸은 「지우는 중」이지 「0을 원한다」가 아니다. 버그로 보고 고치지 마라. */
   const clampCols = (v) => Math.min(24, Math.max(2, parseInt(v) || 12));
-  const clampGut  = (v) => Math.min(80, Math.max(0, parseInt(v) || 0));
+  /* ⚠️★거터도 «빈 칸 = 지우는 중»이다 — 위 clampCols 와 같은 규약인데 여기만 0 으로 떨어졌다
+       (2026-09-09 현빈 실측: 「거터는 10으로 해달라고 했음 기본」인데 0 이 되어 있었다).
+     ⛔그렇다고 `|| 10` 으로 쓰면 «0 을 못 친다» — 0 이 falsy 라 10 으로 튕긴다.
+       거터는 «0 이 정당한 값»이다(칼럼과 다른 점). ⇒ 「빈 칸/숫자 아님」과 「0」을 갈라야 한다. */
+  const GUT_DEFAULT = 10;
+  const clampGut  = (v) => {
+    const n = parseInt(v);
+    return Number.isFinite(n) ? Math.min(80, Math.max(0, n)) : GUT_DEFAULT;
+  };
 
   const GRID_KEY = 'gdt.gridGuide';
   const readGridPref = () => {

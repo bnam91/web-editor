@@ -1,5 +1,6 @@
 import { canvasEl, state } from '../globals.js';
 import { isGoyaAssetUrl as _isGoyaAsset, parseGoyaAssetUrl as _parseGoyaAssetUrl } from './goya-asset-inline.js';
+import { HIDDEN_VARIATION_SECTION_SEL } from '../variation-visibility.js';
 
 const CANVAS_W = 860;
 
@@ -87,6 +88,14 @@ async function exportHTMLFile() {
 
   // canvas clone — 에디터 UI 요소 제거
   const clone = canvasEl.cloneNode(true);
+  /* ★안 쓰는 A/B 시안은 «배송본에서 아예 뺀다» (2026-09-09 실측: export.html 에 .section-block 2개,
+     data-variation-active="0" 그대로 · 숨기는 CSS 는 이 파일이 쓰는 <style> 에 «없다» ⇒ 받는 사람
+     화면에 A안·B안이 위아래로 둘 다 보였다).
+   ⛔여기서 숨기는 CSS 한 줄을 끼워 넣는 것으로 때우지 마라 — 그러면 «데이터는 여전히 나간다».
+     받는 사람이 소스를 보면 안 고른 시안이 그대로 있다. 배송물에 있을 이유가 없는 것은 «뺀다».
+   ★인라인 «앞»이다 — 뒤로 내리면 버릴 섹션의 이미지까지 base64 로 부풀려 넣고 지우게 된다.
+   ⚠️저장 경로(js/io/section-serialize.js)는 «건드리지 않는다» — 저장본에서 빼면 시안이 지워진다. */
+  clone.querySelectorAll(HIDDEN_VARIATION_SECTION_SEL).forEach(el => el.remove());
   clone.querySelectorAll('.section-label, .section-toolbar, .col-placeholder, .col-add-btn, .col-add-menu, .row-col-add-btn, .row-drop-indicator, .layer-section-drop-indicator').forEach(el => el.remove());
   // BL-CD-10: label-group은 render-재생성형이 아니라 직렬 DOM 보존형 — 에디터 전용 ✕삭제/＋추가
   // 버튼 노드가 저장 HTML에 남아 export에서 그대로 노출됐음. 노드 자체를 제거한다.

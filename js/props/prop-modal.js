@@ -10,7 +10,10 @@ import { wireFontPicker } from './_font-picker.js';
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 /* ★min/max 는 «리터럴로 쓰지 않는다» — modal-block.js 의 MODAL_LIMITS 한 표에서 온다.
    패널과 오버레이 핸들이 같은 표를 봐야 클램프가 갈라지지 않는다. */
-import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModal, setModalSizeMode } from '../blocks/modal-block.js';
+/* ★그림자 단계도 «리터럴 금지» — MODAL_DROP_SHADOWS 한 표에서 온다.
+   패널이 자기 배열을 갖는 순간, 표에 단계를 하나 더해도 패널이 안 따라온다. */
+import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModal, setModalSizeMode,
+         MODAL_DROP_SHADOWS } from '../blocks/modal-block.js';
 const L = MODAL_LIMITS;
 
 /* 스와치·hex 칸에 «보여 줄» 색.
@@ -47,7 +50,8 @@ export function showModalProperties(block) {
   const bg = block.dataset.bg || _effDefault(v, 'bg');
   const textColor = block.dataset.textColor || '#1c1c1e';
   const borderColor = block.dataset.borderColor || '#c3c3ca';
-  const iconColor = block.dataset.iconColor || '#f0b429';
+  // ⛔리터럴 금지 — 폴백은 modal-block.js 의 표에서 온다(같은 수가 두 벌이 되는 자리였다).
+  const iconColor = block.dataset.iconColor || MODAL_DEFAULTS.iconColor;
   const _i = (k, d) => { const n = parseInt(block.dataset[k]); return Number.isFinite(n) ? n : d; };
   // ★표 밖의 값(손수 넣은 dataset.radius=75 같은 것)을 «패널만» 다르게 보여 주지 않는다 —
   //   renderModalBlock 도 같은 clampModal 로 자른다. 셋이 갈라지던 자리다.
@@ -59,6 +63,11 @@ export function showModalProperties(block) {
   const hMode = block.dataset.hMode === 'fixed' ? 'fixed' : 'auto';
   const width = _i('width', 400), height = _i('height', 120);
   const align = block.dataset.align || 'left';
+  /* ★그림자 — 표 밖의 값(손으로 고친 저장본)은 «없음»으로 착지시킨다.
+     renderModalBlock 의 _dropShadow 와 «같은 착지점»이어야 한다 — 여기만 다르면
+     캔버스엔 그림자가 없는데 패널만 「강하게」가 켜져 보이는 «화면이 거짓말하는» 자리가 생긴다. */
+  const dropShadow = MODAL_DROP_SHADOWS.includes(block.dataset.dropShadow)
+    ? block.dataset.dropShadow : MODAL_DEFAULTS.dropShadow;
   const fontSize = _i('fontSize', MODAL_DEFAULTS.fontSize);
   const gap = _i('gap', 14);
   // ★타이포 — 텍스트 패널과 «같은 절»을 쓴다(_typo-section.js). dataset 이 진실이다.
@@ -112,6 +121,11 @@ export function showModalProperties(block) {
       <div class="prop-row">
         <span class="prop-label">아이콘</span>
         <button class="prop-btn-full" id="mdl-icon-pick" style="flex:1">아이콘 고르기</button>
+      </div>
+      <!-- ⑶⑷ 이미지 파일·SVG 프리셋은 «아이콘블럭의 그 패널»을 그대로 연다(아래 showModalIconProperties). -->
+      <div class="prop-row">
+        <span class="prop-label"></span>
+        <button class="prop-btn-full" id="mdl-icon-more" style="flex:1">이미지 파일 · SVG 프리셋 …</button>
       </div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -185,6 +199,24 @@ export function showModalProperties(block) {
         <span class="prop-label">모서리</span>
         <input type="range" class="prop-slider" id="mdl-radius-slider" min="${L.radius.min}" max="${L.radius.max}" step="1" value="${radius}">
         <input type="number" class="prop-number" id="mdl-radius-number" min="${L.radius.min}" max="${L.radius.max}" value="${radius}">
+      </div>
+    </div>
+
+    <!-- ★그림자 — 현빈 발주 2026-09-09. 줌블럭의 「도형 그림자」와 «같은 하네스»다:
+           prop-align-group + prop-align-btn[data-val] 세 개, 어휘도 없음/부드럽게/강하게 그대로
+           (선례 js/props/prop-zoom.js:227-233). ⛔새 컨트롤 종류를 발명하지 않는다.
+         ⚠️줌에는 절 제목에 「(줌 이펙트와 별개)」가 붙는다 — 거기엔 광원(dataset.shadow)이라는
+           «다른 그림자»가 이미 있어 가르는 말이 필요했기 때문이다. 모달에는 그 말이 없어
+           (실측: modal-block.js·prop-modal.js 에 shadow/box-shadow 0건) 제목이 짧다.
+         ⛔안내문 행을 두지 마라 — prop-label 은 폭 ~56px 라 문장이 잘린다(prop-zoom.js 실측 주석). -->
+    <div class="prop-section">
+      <div class="prop-section-title">Shadow</div>
+      <div class="prop-row">
+        <div class="prop-align-group" id="mdl-drop-group">
+          <button class="prop-align-btn${dropShadow === 'none'   ? ' active' : ''}" data-val="none">없음</button>
+          <button class="prop-align-btn${dropShadow === 'soft'   ? ' active' : ''}" data-val="soft">부드럽게</button>
+          <button class="prop-align-btn${dropShadow === 'strong' ? ' active' : ''}" data-val="strong">강하게</button>
+        </div>
       </div>
     </div>
 
@@ -418,23 +450,200 @@ export function showModalProperties(block) {
     propPanel.querySelectorAll('[data-bs]').forEach(b => b.classList.toggle('active', b === btn));
     rerender(); commit();
   }));
+  /* ── 그림자 3단 ──
+     ★줌의 #zm-drop-group 배선(prop-zoom.js:290-302)과 «같은 하네스»다: 선택자를 id 로 좁히고,
+       active 를 갈아끼우고, dataset 에 쓴다.
+     ⚠️★한 가지가 다르다 — 줌은 rerender 를 «안» 부른다(칠하는 일을 CSS 가 하니까).
+       모달은 renderModalBlock 이 cssText 를 «다시 짜야» box-shadow 가 나온다.
+       ⛔block.style.boxShadow 로 직접 박지 마라 — cssText 는 통째 교체라, 다음 재렌더(패널의
+         모든 조작·변형 전환·저장 로드)에서 «조용히 죽는다». 이 파일 타이포 주석과 같은 병이다.
+     ⛔이 절은 «값이 같으면 아무 것도 안 한다» — 히스토리에 빈 칸을 안 쌓는다(줌과 같다). */
+  propPanel.querySelectorAll('#mdl-drop-group .prop-align-btn').forEach(btn => btn.addEventListener('click', () => {
+    const next = btn.dataset.val;
+    if (block.dataset.dropShadow === next) return;
+    propPanel.querySelectorAll('#mdl-drop-group .prop-align-btn')
+      .forEach(b => b.classList.toggle('active', b === btn));
+    block.dataset.dropShadow = next;
+    rerender(); commit();
+  }));
   propPanel.querySelectorAll('[data-al]').forEach(btn => btn.addEventListener('click', () => {
     block.dataset.align = btn.dataset.al;
     propPanel.querySelectorAll('[data-al]').forEach(b => b.classList.toggle('active', b === btn));
     rerender(); commit();
   }));
 
-  // ── 아이콘 고르기 — Iconify 모달(에셋 SVG). 래스터도 같은 콜백으로 들어온다. ──
+  /* ── 아이콘 고르기 ──
+     ★버튼도 «캔버스 클릭과 같은 문»으로 들어간다 — openModalIconPicker(modal-block.js).
+       전에는 고른 값을 dataset 에 앉히는 세 줄이 «이 파일에만» 있었다. ⑵로 캔버스 경로가
+       생기는 순간 그 세 줄이 두 벌이 될 자리였다 ⇒ 옮기지 않고 «부른다». */
   document.getElementById('mdl-icon-pick')?.addEventListener('click', () => {
-    window.openIconifyModal?.((picked) => {
-      if (!picked) return;
-      if (picked.name) block.dataset.iconName = picked.name;
-      if (picked.svg) { block.dataset.iconSvg = picked.svg; delete block.dataset.raster; delete block.dataset.iconSrc; }
-      if (picked.src) { block.dataset.iconSrc = picked.src; block.dataset.raster = '1'; delete block.dataset.iconSvg; }
-      rerender(); commit();
-      showModalProperties(block);   // 래스터면 색 컨트롤이 비활성으로 바뀐다
-    }, { favorites: true });
+    window.openModalIconPicker?.(block);
+  });
+
+  // ⑶⑷ — 아이콘블럭의 «기본 기능들»(이미지 파일·SVG 프리셋·색·크기·회전) 그대로 열기
+  document.getElementById('mdl-icon-more')?.addEventListener('click', () => {
+    showModalIconProperties(block);
   });
 }
+
+/* ═══ ⑶⑷ 모달 아이콘 = «아이콘블럭과 같은 것»으로 다루기 ═══════════════════════════
+   현빈 지시(2026-09-09): 「이미지파일 등의 버튼과 svg 프리셋 절이 나오게 / 아이콘 블럭과
+   같은 역할이라 우측 프로퍼티에서 아이콘 선택 시 아이콘블럭에 있는 기본 기능들 나타나면 됨」
+
+   ★★베끼지 않았다. prop-iconify.js 의 프리셋 라이브러리(카테고리·그리드·저장·삭제)와
+     이미지 파일 불러오기는 «약 200줄»이고, 전부 showIconifyProperties 안에 산다.
+     그 200줄을 이 파일로 옮기면 이 레포가 오늘만 여러 번 밟은 「같은 줄이 두 벌」이 된다.
+   ⇒ 대신 .mdl-icon 슬롯을 «그 순간만» 아이콘블럭의 계약(class=icon-block + id + dataset)에
+     맞춰 입히고 window.showIconifyProperties 를 «그대로» 부른다. 패널의 모든 절이 그
+     아이콘블럭 코드에서 나온다. 아이콘블럭 파일(js/blocks/iconify-block.js ·
+     js/props/prop-iconify.js)은 «한 글자도» 안 고쳤다.
+
+   ★모델은 여전히 「모달의 dataset 이 진실」이다(modal-block.js:8).
+     슬롯은 «보는 창»일 뿐이라, 슬롯에서 바뀐 값은 MutationObserver 로 모달 dataset 에
+     되돌려 놓는다. 안 되돌리면 재렌더·저장·로드 왕복에서 아이콘이 증발한다.
+   ⚠️입힌 것(class=icon-block)은 «임시»다 — 세션이 끝나면 벗기고 재렌더한다. 저장본은
+     innerHTML 스냅샷이지만 로드가 renderModalBlock 으로 다시 그린다(save-load.js:1105)
+     ⇒ 임시 class 가 저장본에 섞여도 로드된 화면에는 남지 않는다. */
+
+/* 모달 dataset 키 ↔ 아이콘블럭 dataset 키. ⛔양쪽에 따로 적지 않는다 — 표 하나. */
+const _MDL_ICON_KEYMAP = [
+  ['iconSize',     'size'],
+  ['iconColor',    'iconColor'],
+  ['iconName',     'iconName'],
+  ['iconSvg',      'iconSvg'],
+  ['iconSrc',      'iconSrc'],
+  ['raster',       'raster'],
+  ['iconRotation', 'rotation'],
+];
+
+/** 모달 → 슬롯 (세션 시작) */
+function _dressIconSlot(block, slot) {
+  slot.classList.add('icon-block');
+  if (!slot.id) slot.id = `${block.id || 'mdl'}__icn`;
+  for (const [mk, ik] of _MDL_ICON_KEYMAP) {
+    const v = block.dataset[mk];
+    if (v === undefined || v === '') delete slot.dataset[ik];
+    else slot.dataset[ik] = v;
+  }
+  if (!slot.dataset.size)     slot.dataset.size = String(MODAL_DEFAULTS.iconSize);
+  if (!slot.dataset.rotation) slot.dataset.rotation = String(MODAL_DEFAULTS.iconRotation);
+  slot.dataset.layerName = '모달 아이콘';
+}
+
+/** 슬롯 → 모달 (변경이 생길 때마다). ★여기가 「dataset 이 진실」을 지키는 자리다. */
+function _syncIconSlotToModal(block, slot) {
+  for (const [mk, ik] of _MDL_ICON_KEYMAP) {
+    const v = slot.dataset[ik];
+    if (v === undefined || v === '') delete block.dataset[mk];
+    else block.dataset[mk] = v;
+  }
+  /* ⚠️벡터 SVG 는 dataset 에 «안 남는 길»이 있다 — updateIconifyBlock 은 새 SVG 를
+       innerHTML 로만 그리고 dataset.iconSvg 를 안 쓴다(iconify-block.js:268~).
+       그 길(로컬 SVG 파일 불러오기)로 들어온 그림을 DOM 에서 «주워» 모달에 남긴다.
+     ⛔iconName 이 없으면 줍지 않는다 — 그건 아직 «자리표시자 SVG»라, 주우면
+       placeholder 가 진짜 아이콘으로 굳어 버린다. */
+  if (slot.dataset.raster === '1') {
+    delete block.dataset.iconSvg;
+  } else {
+    delete block.dataset.raster; delete block.dataset.iconSrc;
+    if (!block.dataset.iconSvg && slot.dataset.iconName) {
+      const svg = slot.querySelector?.('svg')?.outerHTML;
+      if (svg) block.dataset.iconSvg = svg;
+    }
+    /* _applyIconifyBlockStyle 은 cssText 를 통째 갈아끼워 color 를 «지운다».
+       세션 중에는 재렌더를 안 하므로(패널이 슬롯 노드를 붙들고 있다) 여기서 되살린다. */
+    if (block.dataset.iconColor) slot.style.color = block.dataset.iconColor;
+  }
+}
+
+/* ★열려 있는 «아이콘 세션»은 항상 하나다.
+   ⛔둘을 겹치면(교체 → 재렌더 → 다시 열기) 옛 세션의 감시자가 «새» 슬롯을 지우고 나간다.
+     실제로 그 순서가 난다: 재렌더가 슬롯을 갈아끼우고, 옛 감시자는 마이크로태스크 «뒤»에 깬다.
+   ⇒ 새 세션을 시작하기 «전에» 옛 세션을 동기적으로 닫는다. */
+let _iconSession = null;
+
+export function showModalIconProperties(block) {
+  _iconSession?.(false);   // 옛 세션 먼저 닫는다(없으면 no-op)
+  const slot = block?.querySelector?.('.mdl-icon');
+  if (!slot || typeof window.showIconifyProperties !== 'function') {
+    window.showModalProperties?.(block);
+    return false;
+  }
+  _dressIconSlot(block, slot);
+  window.showIconifyProperties(slot);   // ★아이콘블럭의 패널 «그 자체»
+
+  /* ⛔아이콘블럭의 「정렬」만 걷어낸다 — 그 핸들러는 block.closest('.row') 의
+       justifyContent 를 만지는데, 슬롯의 .row 는 «모달 자신의 row» 다.
+       누르면 아이콘이 아니라 모달이 움직인다. 모달 안에서의 아이콘 위치는 모달의
+       정렬(align/vAlign)이 이미 갖고 있으므로 «없는 게» 맞다.
+     ★로직을 베껴 고치는 게 아니라 «안 맞는 칸을 뺀다» — 두 벌이 안 생긴다. */
+  propPanel.querySelector('#icn-align-group')?.closest('.prop-row')?.remove();
+
+  // 돌아가는 문 — 없으면 모달 속성으로 못 돌아온다(아이콘 패널은 모달을 모른다).
+  const back = document.createElement('div');
+  back.className = 'prop-section';
+  back.innerHTML = '<button class="prop-btn-full" id="mdl-icn-back">← 모달 속성으로</button>';
+  propPanel.insertBefore(back, propPanel.firstChild);
+
+  /* ⭐아이콘블럭 패널의 「교체」 두 버튼을 «모달의 문»으로 돌려놓는다.
+     ⛔그대로 두면 사고다 — 그 두 버튼은 콜백 없이 openIconifyModal 을 부르고
+       (prop-iconify.js:360), 콜백이 없으면 iconify-panel 의 _doInsert 가
+       addIconifyBlock 으로 «새 아이콘블럭을 캔버스에 꽂는다»(iconify-panel.js:376).
+       ⇒ 모달 안에서 누르면 아이콘이 바뀌는 대신 «엉뚱한 블록»이 하나 생긴다.
+     ⛔아이콘블럭 파일을 고쳐 콜백을 열지 «않는다» — 여기서 가로챈다.
+     ⛔cloneNode 로 버튼을 갈아끼우지 «않는다» — 이 레포는 clone 경로를 명부로 관리한다
+       (tests/unit/export-channel-roster.test.mjs). UI 버튼 하나 때문에 그 문을 새로 열지 않는다.
+     ★대신 propPanel «조상»에서 캡처 단계로 잡는다 — 캡처는 대상에 닿기 «전»에 돌아서
+       원래 리스너가 아예 안 뜬다(대상 요소에 같이 걸면 등록 순서라 보장이 안 된다).
+     ⚠️propPanel 은 오래 사는 요소다 ⇒ 세션이 끝나면 «반드시» 떼어낸다(아래 finish). */
+  const grabReplace = (e) => {
+    if (done) return;
+    if (!e.target?.closest?.('#icn-replace-btn, #icn-open-modal-btn')) return;
+    e.stopPropagation(); e.preventDefault();
+    window.openModalIconPicker?.(block);
+  };
+  propPanel.addEventListener('click', grabReplace, true);
+
+  let done = false;
+  let obs = null, panelObs = null;
+  const finish = (reopen) => {
+    if (done) return; done = true;
+    if (_iconSession === finish) _iconSession = null;
+    obs?.disconnect(); panelObs?.disconnect();
+    propPanel.removeEventListener('click', grabReplace, true);   // 오래 사는 요소에 안 남긴다
+    if (document.contains(slot)) {
+      _syncIconSlotToModal(block, slot);
+      slot.classList.remove('icon-block');   // 입힌 것을 벗긴다
+      delete slot.dataset.layerName;
+    }
+    window.renderModalBlock?.(block);        // 모달 dataset 을 진실로 다시 그린다
+    window.scheduleAutoSave?.();
+    if (reopen) window.showModalProperties?.(block);
+  };
+  _iconSession = finish;
+
+  /* 한 감시자로 둘을 본다:
+     ⓐ 슬롯의 dataset/style 변화 → 모달로 되돌리기
+     ⓑ 슬롯이 DOM 에서 사라짐(리사이즈 등으로 모달이 재렌더됨) → 세션 종료 */
+  obs = new MutationObserver(() => {
+    if (!document.contains(slot)) { finish(false); return; }
+    _syncIconSlotToModal(block, slot);
+    window.scheduleAutoSave?.();
+  });
+  obs.observe(slot, { attributes: true, childList: true, subtree: true });
+  obs.observe(block, { childList: true });
+
+  /* ⑶ 패널이 «다른 블록»으로 갈아끼워지면 세션도 끝난다 — 안 끝내면 슬롯이 icon-block 을
+       입은 채 남고(선택 아웃라인·spacing 규칙이 딸려온다), 감시자도 영영 산다. */
+  panelObs = new MutationObserver(() => {
+    if (!propPanel.contains(back)) finish(false);
+  });
+  panelObs.observe(propPanel, { childList: true });
+
+  document.getElementById('mdl-icn-back')?.addEventListener('click', () => finish(true));
+  return true;
+}
+
+window.showModalIconProperties = showModalIconProperties;
 
 window.showModalProperties = showModalProperties;

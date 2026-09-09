@@ -67,7 +67,7 @@ function _grdRoleLsPx(role, size) {
   return Number.isFinite(n) ? n : 0;
 }
 
-/* 이 줄이 «직접 지정»할 수 있는 타이포 필드 전부 — 요약 한 줄과 [↺ 역할로] 가 같은 목록을 쓴다. */
+/* 이 줄이 «직접 지정»할 수 있는 타이포 필드 전부 — 요약 한 줄과 [↺ 기본값으로] 가 같은 목록을 쓴다. */
 const _GRD_TYPO_FIELDS = ['fontSize', 'weight', 'color', 'lineHeight', 'letterSpacing', 'fontFamily', 'italic', 'strike'];
 const _grdHas = (line, k) => line[k] !== undefined && line[k] !== null && line[k] !== '';
 
@@ -160,8 +160,8 @@ function _grdTypoSectionsHtml(hit) {
     <div class="prop-section" style="padding-bottom:4px;">
       <div class="prop-row" style="align-items:center;gap:6px;">
         <span class="prop-hint" id="grd-line-summary" style="flex:1;min-width:0;">${summary}</span>
-        <button id="grd-line-reset" title="이 줄의 «직접 지정»을 전부 지우고 역할 기본값으로 되돌린다 (⌘Z 로 복원)"
-                style="height:22px;flex:0 0 auto;padding:0 8px;font-size:11px;white-space:nowrap;background:#262626;color:#e5e5e5;border:1px solid #333;border-radius:4px;cursor:pointer;line-height:1;box-sizing:border-box;">↺ 역할로</button>
+        <button id="grd-line-reset" title="이 줄에 «손으로 준 값»을 전부 지우고 기본값으로 되돌립니다 (⌘Z 로 복원)"
+                style="height:22px;flex:0 0 auto;padding:0 8px;font-size:11px;white-space:nowrap;background:#262626;color:#e5e5e5;border:1px solid #333;border-radius:4px;cursor:pointer;line-height:1;box-sizing:border-box;">↺ 기본값으로</button>
       </div>
     </div>
     ${buildTypographySectionHtml({
@@ -328,7 +328,7 @@ function _grdWireTypo(block, addr) {
     });
   }
 
-  /* ── [↺ 역할로] — 이 줄의 «직접 지정»을 전부 지운다.
+  /* ── [↺ 기본값으로] — 이 줄의 «직접 지정»을 전부 지운다.
        undefined 를 병합하면 JSON.stringify 가 그 키를 떨군다 ⇒ 역할 기본으로 복귀. ⌘Z 로 돌아온다.
        값이 통째로 바뀌므로 패널을 다시 그린다(이 시점엔 포커스가 든 입력이 없다 — 버튼 클릭이다). */
   document.getElementById('grd-line-reset')?.addEventListener('click', () => {

@@ -70,13 +70,25 @@ function loadGeom() {
 /** ★변이판 — 소스를 «치환해서» 따로 물린다. 양성대조를 「말로」가 아니라 «실행»으로 낸다.
  *  ⛔못 찾으면 «하네스가 부서졌다»고 말한다 — 그 빨강은 계약이 문 것이 아니다. */
 const _mutCache = new Map();
-async function loadMutant(from, to) {
-  const key = String(from) + '\u241F' + to;   // ⛔구분자를 «NUL» 로 쓰지 마라 — git 이 소스를 «이진» 으로 보고 diff·blame 이 죽는다
+/* ★변이를 «겹쳐» 쌓을 수 있다 — loadMutant([f1,t1],[f2,t2]) 또는 옛 꼴 loadMutant(f,t).
+     ⚠️왜 필요한가: 2026-09-09 에 computeZoomGeometry 안으로 «좁아짐 상한» 정책층이 들어왔다.
+       그 뒤로 «기하»를 재는 검사의 «안쪽» 변이(처방 제거·손잡이 반지름 키우기 …)를
+       진짜 소스로 뜨면 상한이 먼저 물어 ★대조가 «무의미»해진다(실제로 T4·T12 가 그렇게 빨갰다).
+     ⇒ 그런 자리는 NO_CLAMP_PAIR 를 «같이» 얹어 「상한 없던 판」 위에서 대조한다. */
+async function loadMutant(...args) {
+  const pairs = Array.isArray(args[0]) ? args : [args];
+  const key = pairs.map(([f, t]) => String(f) + '\u241F' + t).join('\u241E');   // ⛔구분자를 «NUL» 로 쓰지 마라 — git 이 소스를 «이진» 으로 보고 diff·blame 이 죽는다
   if (_mutCache.has(key)) return _mutCache.get(key);
   const src = fs.readFileSync(SRC, 'utf8');
-  const out = src.replace(from, to);
+  let out = src;
+  for (const [from, to] of pairs) {
+    const next = out.replace(from, to);
+    assert.notEqual(next, out,
+      `★하네스가 부서졌다(계약이 문 것이 아니다) — 양성대조의 앵커를 못 찾았다: ${from}`);
+    out = next;
+  }
   assert.notEqual(out, src,
-    `★하네스가 부서졌다(계약이 문 것이 아니다) — 양성대조의 앵커를 못 찾았다: ${from}`);
+    `★하네스가 부서졌다(계약이 문 것이 아니다) — 변이가 하나도 안 들어갔다`);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zoom-mutant-'));
   const mjs = path.join(dir, 'zoom-geometry.mjs');
   fs.writeFileSync(mjs, out, 'utf8');
@@ -84,6 +96,18 @@ async function loadMutant(from, to) {
   _mutCache.set(key, p);
   return p;
 }
+/** ★「좁아짐 상한을 «끈» 판」 — 2026-09-09 현빈 「빨간 원을 못 지나가게만」으로
+ *    computeZoomGeometry «안»에 정책층(narrowLimit)이 들어왔다. 그 앞뒤를 갈라야 한다:
+ *      · «기하»(접선·착지·꼬임·문턱)를 재는 계약 — 정책이 없던 때와 «같은 값»이어야 한다
+ *        ⇒ 이 판으로 잰다. 박아 둔 수를 «다시 박지 않는다»(그건 test-fitting 이다)
+ *      · «정책»(상한이 실제로 무나) — 진짜 판으로 잰다. T12 끝에 새로 세웠다.
+ *    ★실측(2026-09-09): 이 판으로 재면 T12 의 여섯 문턱이 «소수점까지» 그대로 살아난다
+ *      (96.16 · 96.33 · 96.16 · 94.04 · 98.34 · 50.00) ⇒ 기하는 «한 톨도» 안 변했다. */
+const NO_CLAMP_PAIR = [
+  '  var nEff = Math.max(0, Math.min(Number(st.narrow) || 0, nLim));',
+  '  var nEff = Math.max(0, Number(st.narrow) || 0);'];
+const NO_CLAMP = () => loadMutant(NO_CLAMP_PAIR);
+
 /** 「c·d 를 옛 실루엣으로 되돌린다」 — 여러 검사가 함께 쓰는 대조. */
 const OLD_RULE = () => loadMutant(
   /  var c = tangentAt\(outline, a, L, b, sil, 0\);.*\n  var d = tangentAt\(outline, b, L, a, sil, 1\);/,
@@ -399,7 +423,8 @@ test('T3 [length 170(앱 기본)] 잔여를 프리셋·w/h 별로 «따로» 세
      · silhouetteCircle 퇴화 문턱 `r+0.5` → `r+50`     ⇒ (iii) 이 빨강
    ═══════════════════════════════════════════════════════════════════════════ */
 test('T4 ★좁아짐 100% — 사라지지 않고, ★착지한 점이 «어느 쪽인지»까지 맞다', async () => {
-  const g = await loadGeom();
+  /* ★좁아짐 100% 착지점 — «기하» 계약이다. 정책층이 100 을 못 주게 막으므로 끈 판으로 잰다. NO_CLAMP 주석 참조. */
+  const g = await NO_CLAMP();
 
   // (i) 사라지지 않는다
   for (const narrow of [0, 50, 95, 99, 100]) {
@@ -451,7 +476,8 @@ test('T4 ★좁아짐 100% — 사라지지 않고, ★착지한 점이 «어느
   }
 
   /* ★양성대조 — 처방 줄을 지우면 narrow 100 이 «전부» 사라진다. 99 에서는 멀쩡하다(벼랑이지 비탈이 아니다). */
-  const bad = await loadMutant(/\n\s*if \(sg === 0\) return sil\[which\];[^\n]*\n/, '\n');
+  /* ★상한 «끈 판» 위에서 대조한다 — 안 그러면 좁아짐 100 이 안 들어가 대조가 무의미하다. */
+  const bad = await loadMutant(NO_CLAMP_PAIR, [/\n\s*if \(sg === 0\) return sil\[which\];[^\n]*\n/, '\n']);
   const opt = { narrows: [100], lengths: [250], shapes: ['rect', 'square'], whs: [null] };
   let gone = 0;
   const n = walk(bad, opt, (st2, geo2) => { if (!bad.shadowVisible(st2, geo2)) gone++; });
@@ -461,9 +487,10 @@ test('T4 ★좁아짐 100% — 사라지지 않고, ★착지한 점이 «어느
   assert.equal(gone99, 0, '★99 에서도 사라지면 「슬라이더 끝의 벼랑」이라는 진단이 틀린 것이다');
 
   /* ★★그리고 «착지 쪽을 맞바꾸는» 변이 — 위 대조는 이걸 못 잡는다(거리가 그대로라서). (ii) 가 잡는다. */
-  const swap = await loadMutant(
+  /* ★상한 «끈 판» 위에서 — 이 격자는 좁아짐 100 을 쓴다(위 대조와 같은 이유). */
+  const swap = await loadMutant(NO_CLAMP_PAIR, [
     'export function tangentAt(outline, P, L, other, sil, which) {',
-    'export function tangentAt(outline, P, L, other, sil, which) {\n  which = 1 - which;');
+    'export function tangentAt(outline, P, L, other, sil, which) {\n  which = 1 - which;']);
   let swapBad = 0;
   const sn = walk(swap, { narrows: [100], lengths: [250, 400] }, (st, geo) => {
     const s = silFrom(st, geo.L);
@@ -529,7 +556,8 @@ test('T5 [벌림 0] 빔이 안 꼬인다 — 옆선 둘이 선분으로 안 만�
    ★변이(실행 확인): tangentAt → 옛 실루엣 ⇒ spread 30 에서 원리 상한(63px)을 깬다
    ═══════════════════════════════════════════════════════════════════════════ */
 test('T7 [★size 260 격자] 벌리기가 여전히 돈다 — 원리 상한 + ★실측 래칫(양쪽으로 못박는다)', async () => {
-  const g = await loadGeom();
+  /* ★벌리기 격자 — 좁아짐 100 칸이 섞여 있다. 꼬임 수는 «기하»의 기록이다. NO_CLAMP 주석 참조. */
+  const g = await NO_CLAMP();
   const W = g.ZOOM_DETENT_W;
   assert.equal(W, 24, '전제: 걸림 창 반폭이 24 다(이 수가 바뀌면 아래 상한도 같이 움직인다)');
   /* 실측 표 — 격자는 프리셋3 × 회전24 × 광원24 × 좁아짐8 × 테두리2 × w·h3 = 82944칸, length 250. */
@@ -642,7 +670,8 @@ test('T8 ★축 «위»에 놓인 접점 후보는 «어느 편도 아니다» �
      · 부등호 뒤집기(먼 쪽 → 가까운 쪽)              ⇒ 위반이 생긴다
    ═══════════════════════════════════════════════════════════════════════════ */
 test('T9 ★동률이면 «상대에서 먼» 쪽을 고른다 — 그 가지를 6,174번 실제로 탄다', async () => {
-  const g = await loadGeom();
+  /* ★동률 가지 횟수 — 격자에 좁아짐 100 이 있다. 이 수도 «기하»의 기록이다. NO_CLAMP 주석 참조. */
+  const g = await NO_CLAMP();
   /** 그 격자에서 동률 가지를 몇 번 타고, 「먼 쪽」이 몇 번 깨지나. */
   const measure = (G) => {
     let tie = 0, viol = 0, off = 0;
@@ -828,7 +857,8 @@ test('T11 ★손잡이 좌표 상한 — 거대한 층이 옆 섹션을 덮지 �
    ★변이(실행 확인): ZOOM_HANDLE_R 을 5 → 8 로 키우면 문턱이 내려가 빨개진다
    ═══════════════════════════════════════════════════════════════════════════ */
 test('T12 ★a·b 가 L 에 가려지는 「좁아짐」 문턱 — 수로 못박고, 배율과 무관함을 보인다', async () => {
-  const g = await loadGeom();
+  /* ★문턱 표 — «상한이 없었다면» 어디였나. 이게 곧 상한의 «양성대조»가 된다. NO_CLAMP 주석 참조. */
+  const g = await NO_CLAMP();
   const Rh = g.ZOOM_HANDLE_R;
   assert.equal(Rh, 5, '전제: 손잡이 반지름 5(이 수가 문턱을 정한다)');
 
@@ -868,13 +898,22 @@ test('T12 ★a·b 가 L 에 가려지는 「좁아짐」 문턱 — 수로 못�
     assert.ok(dist(g97.a, g97.L) * scale <= Rh * scale, `배율 ${scale}: 97 에서 아직 안 가려진다`);
   }
 
-  /* ★되돌릴 길이 «있다» — 좁아짐을 문턱 아래로 내리면 a·b 가 다시 드러난다.
-     (패널의 「손잡이 자동으로 되돌리기」와 좁아짐 슬라이더가 그 길이다) */
+  /* ★되돌릴 길이 «기하에는» 있다 — 좁아짐을 문턱 아래로 내리면 a·b 가 다시 드러난다.
+     ⚠️★그러나 «사람이 그 길로 갈 수 있는지»는 이 단언이 «안 본다».
+       2026-09-09: 현빈 「좁아짐 슬라이더는 기능 없어도 될 듯」으로 그 슬라이더를 지웠다
+       (prop-zoom.js:90 `const narrowRow = ''`). ⛔그래서 옛 주석의 「좁아짐 슬라이더가 그 길이다」는
+       «거짓»이 됐는데 이 검사는 여전히 초록이다 — geoAt(90) 은 기하만 부르지 «UI 에 90 으로 갈
+       수단이 있나»를 안 묻기 때문이다. ★「초록인데 아무것도 안 본」 자리다.
+       ⇒ 남은 UI 경로는 「손잡이 자동으로 되돌리기」(zm-ab-reset) 뿐인데 그것은 ax·ay·bx·by·lx·ly
+         여섯 키만 지우고 narrow 는 «안 건드린다» ⇒ 좁아짐으로 되돌리는 길은 지금 «없다».
+       ⇒ 작업목록 #35 로 올려 두었다(현빈 판단 대기). 그 결정이 나면 이 단언을 «무엇으로 바꿀지»가
+         같이 정해진다 — 지금 손대면 결정 전에 계약을 흔든다. */
   const back = geoAt(90);
   assert.ok(dist(back.a, back.L) > Rh, '좁아짐을 낮춰도 a 가 안 드러나면 되돌릴 길이 없다');
 
   /* ★양성대조 — 손잡이를 키우면 문턱이 «내려간다»(더 일찍 못 집게 된다). */
-  const bad = await loadMutant('export const ZOOM_HANDLE_R = 5;', 'export const ZOOM_HANDLE_R = 8;');
+  /* ★상한 «끈 판» 위에서 — 상한이 물면 문턱 자체가 안 생겨 대조가 무의미하다. */
+  const bad = await loadMutant(NO_CLAMP_PAIR, ['export const ZOOM_HANDLE_R = 5;', 'export const ZOOM_HANDLE_R = 8;']);
   let q = null;
   for (let i = 0; i <= 10000; i++) {
     const geo = bad.computeZoomGeometry({ ...ST, narrow: i / 100 }, null);

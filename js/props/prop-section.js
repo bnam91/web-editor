@@ -170,6 +170,11 @@ async function showSectionProperties(sec) {
     const type = tb.dataset.type;
     if (!typeMap[type]) return;
     const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
+    /* ⛔contentEl 이 «없을 수» 있다 — 그러면 getComputedStyle 이 던지고 ★패널이 통째로 안 열린다.
+         (2026-09-09 현빈 실측: 「Failed to execute 'getComputedStyle' … parameter 1 is not of type 'Element'」
+          → showSectionProperties 가 죽어 섹션 프로퍼티가 «아예» 안 뜬다.)
+       속이 빈 텍스트블럭은 «색을 잴 것이 없다» ⇒ 세지 않고 넘긴다. 패널은 살아야 한다. */
+    if (!contentEl) return;
     const computed = window.getComputedStyle(contentEl);
     const colorHex = contentEl.style.color
       ? (/^#/.test(contentEl.style.color) ? contentEl.style.color : rgbToHex(contentEl.style.color))
