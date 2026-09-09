@@ -5,6 +5,8 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { bindSlider, alignBtn } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset } from '../frame-geometry.js';
+/* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
+import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed } from '../drag-utils.js';
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#ffffff';
@@ -224,6 +226,15 @@ function _renderAutoPanel(ss) {
     ? Math.round(_bgOpa * 100)
     : 100;
 
+  /* ── 「패딩 제외(full-bleed)」 — 에셋블럭 패턴 미러 (2026-09-10 현빈 지시) ──
+     ★기본 «끔»: dataset.fullBleed 가 없으면 지금 동작 그대로다(옛 프레임 무변화).
+     ⛔뚫을 수 없는 자리에서는 «토글 자체를 안 보여준다» — 켜도 아무 일이 안 일어나는
+       스위치는 「고장」으로 읽힌다. 판정은 공용 부품(effectiveSectionPadX)에 맡긴다:
+         · 프레임 «안»의 프레임 = `.frame-block{overflow:hidden}` 이라 잘리기만 한다
+         · 섹션 밖(자유배치 등) = 기준이 없다  ⇒ 둘 다 0 을 돌려준다. */
+  const isFullBleed  = ss.dataset.fullBleed === 'true';
+  const canFullBleed = isFullBleed || effectiveSectionPadX(ss) > 0;
+
   const bannerPreset = ss.dataset.bannerPreset || '';
   const isBanner = !!bannerPreset;
   const bannerOptionsHTML = isBanner
@@ -329,6 +340,15 @@ function _renderAutoPanel(ss) {
         <input type="range" class="prop-slider" id="ss-pady-slider" min="0" max="200" step="4" value="${padY}">
         <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
       </div>
+      ${canFullBleed ? `
+      <div class="prop-row">
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="ss-fullbleed-toggle" ${isFullBleed ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      ` : ''}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Position</div>
@@ -787,8 +807,29 @@ function _renderAutoPanel(ss) {
     }
     ss.dataset.width = newW; ss.style.width = newW + 'px';
     ss.style.margin = '0 auto'; ss.style.alignSelf = 'center';
+    /* ★규약: «제 폭을 먼저 정하고» 마지막에 패딩제외를 덮는다.
+       ⚠️이 한 줄이 없으면 「폭을 만지면 패딩제외가 조용히 풀린다」 — 에셋에서 실제로 났던 병
+       (현빈 08-27 「리사이즈하면 패딩제외가 풀린다」)과 같은 뿌리다. 꺼져 있으면 no-op. */
+    applyBlockFullBleed(ss);
   };
   bindSlider(widthSlider, widthNum, applyWidth, { min: minWidth, max: 860 });
+
+  // 패딩 제외 (full-bleed) — 기본 «끔». 끄면 흔적만 지우고 제 폭을 되살린다.
+  const fbToggle = document.getElementById('ss-fullbleed-toggle');
+  if (fbToggle) {
+    fbToggle.addEventListener('change', e => {
+      window.pushHistory?.('프레임 패딩 제외');
+      if (e.target.checked) {
+        ss.dataset.fullBleed = 'true';
+        applyBlockFullBleed(ss);
+      } else {
+        delete ss.dataset.fullBleed;
+        clearBlockFullBleed(ss);
+        applyWidth(parseInt(ss.dataset.width) || width);   // 자연 폭 복원은 호출부 몫
+      }
+      window.scheduleAutoSave?.();
+    });
+  }
 
   // 패딩
   const padYSlider = document.getElementById('ss-pady-slider');

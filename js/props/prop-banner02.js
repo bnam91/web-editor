@@ -1,6 +1,8 @@
 // prop-banner02.js — banner02 블록 우측 프로퍼티 패널 (prop-canvas 패턴 미러링)
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
+/* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
+import { effectiveSectionPadX, clearBlockFullBleed } from '../drag-utils.js';
 
 // ⑧ 줄 선택 상태 — 배너 안 «어느 줄»을 보고 있는지. 블록별로 기억한다(패널 재생성에도 유지).
 //   activeIdx = null 이면 «전체 보기»(옛 동작: 모든 줄을 한꺼번에 펼침).
@@ -29,6 +31,12 @@ if (typeof window !== 'undefined') window._bn2SyncLineMark = _bn2SyncLineMark;
 export function showBanner02Properties(block, activeIdxArg) {
   const d = block.dataset;
   const bgIsGrad = /gradient\(/.test(d.bg || '');
+  /* ── 「패딩 제외(full-bleed)」 — 프레임(prop-frame.js)과 «같은 규약». (2026-09-10 현빈 지시)
+     ★기본 «끔»: dataset.fullBleed 가 없으면 지금 동작 그대로다(옛 배너 무변화).
+     ⛔뚫을 수 없는 자리(프레임 «안» = overflow:hidden · 섹션 밖)에서는 토글을 «안 보여준다» —
+       켜도 아무 일이 안 일어나는 스위치는 「고장」으로 읽힌다. 판정은 공용 부품에 맡긴다. */
+  const _bn2IsFullBleed  = d.fullBleed === 'true';
+  const _bn2CanFullBleed = _bn2IsFullBleed || effectiveSectionPadX(block) > 0;
   const variants = window.BANNER02_VARIANTS || { frame_8: {}, wide_4x1: {} };
   const variantBtns = Object.keys(variants).map(k =>
     `<button class="prop-align-btn${d.variant === k ? ' active' : ''}" data-variant="${k}" style="flex:1;font-size:11px;">${variants[k].label || k}</button>`
@@ -217,6 +225,15 @@ export function showBanner02Properties(block, activeIdxArg) {
         <span class="prop-label">텍스트 Y</span>
         <input type="number" class="prop-number" id="bn2-ty" value="${d.textYTuned === '1' ? (parseInt(d.textY) || 0) : ''}" placeholder="${parseInt(d.textY) || 0}" min="0" max="1200" title="비우면 프리셋 기본값">
       </div>
+      ${_bn2CanFullBleed ? `
+      <div class="prop-row">
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="bn2-fullbleed-toggle" ${_bn2IsFullBleed ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      ` : ''}
       <div class="prop-row" id="bn2-hint-row" style="display:none">
         <span class="prop-hint" id="bn2-hint"></span>
       </div>
@@ -278,6 +295,19 @@ export function showBanner02Properties(block, activeIdxArg) {
   //   모든 재렌더 경로가 이 헬퍼를 통과하므로 여기서 한 번만 복구한다.
   const rerender = () => { window.renderBanner02?.(block); _bn2SyncLineMark(block, activeIdx); };
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
+
+  /* 패딩 제외 (full-bleed) — 프레임과 «같은 규약». 기본 «끔».
+     ★켜기는 renderBanner02 안의 applyBlockFullBleed 가 «매 렌더» 다시 씌운다 ⇒ 여기선 표식만 세우고 재렌더.
+     ★끄기는 «흔적 지우기»가 먼저다 — 그러지 않으면 calc 폭과 음수마진이 남아 배너가 삐져나간 채 굳는다
+       (프레임에서 실제로 났던 회귀. 검사 F4 가 그 왕복을 문다). 자연 폭 복원은 rerender 몫. */
+  const fbToggle = propPanel.querySelector('#bn2-fullbleed-toggle');
+  fbToggle?.addEventListener('change', e => {
+    window.pushHistory?.('배너2 패딩 제외');
+    if (e.target.checked) block.dataset.fullBleed = 'true';
+    else { delete block.dataset.fullBleed; clearBlockFullBleed(block); }
+    rerender();
+    window.scheduleAutoSave?.();
+  });
 
   // Variant
   propPanel.querySelectorAll('#bn2-variant-group [data-variant]').forEach(btn => {

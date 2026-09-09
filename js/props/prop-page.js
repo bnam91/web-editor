@@ -147,6 +147,12 @@ function applyPadXToSection(inner, padX) {
   inner.querySelectorAll('.canvas-block[data-full-bleed="true"]').forEach(cvb => {
     window.renderCanvas?.(cvb);
   });
+  /* ★그 밖의 「패딩 제외」 블록 — ⛔여기에 «블록 이름 명부»를 만들지 마라.
+     `data-full-bleed="true"` 라는 «표식» 하나로 성질 판정한다(2026-09-10). 새 블록이
+     그 표식을 쓰면 padX 를 바꿔도 저절로 따라온다. 위 canvas 는 제 렌더에 위임하므로 뺀다. */
+  inner.querySelectorAll('[data-full-bleed="true"]:not(.canvas-block)').forEach(el => {
+    window.applyBlockFullBleed?.(el);
+  });
 }
 
 /* ── 페이지 전체 padX 일괄 적용 (섹션 개별 override 제외) ── */

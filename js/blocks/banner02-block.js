@@ -104,6 +104,11 @@ function renderBanner02(block) {
   block.style.width = '100%';
   block.style.maxWidth = designW + 'px';
   block.style.margin = '0 auto';
+  /* ★「패딩 제외(full-bleed)」 — 에셋블럭 패턴 미러의 «세 번째» 답습 (2026-09-10 현빈 지시).
+     ⚠️자리가 «여기»인 이유: 이 렌더는 매번 width/maxWidth/margin 을 다시 박는다. 패널에서만
+       적용하면 다음 렌더에 조용히 지워진다 — chat-block.js:131 이 같은 자리에 같은 것을 둔 이유다.
+     ★규약대로 «제 폭을 먼저 정하고» 마지막에 덮는다. dataset.fullBleed 가 없으면 no-op ⇒ 옛 배너 무변화. */
+  window.applyBlockFullBleed?.(block);
 
   let inner = block.querySelector('.bn2-inner');
   if (!inner) { inner = document.createElement('div'); inner.className = 'bn2-inner'; block.appendChild(inner); }
