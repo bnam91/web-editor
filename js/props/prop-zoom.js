@@ -128,6 +128,15 @@ export function showZoomProperties(block) {
         </div>
       </div>
       ${_pairRow('zm-size', '크기', st.size, 20, 600, 2)}
+      <!-- ★회전° 슬라이더는 «남긴다» — 현빈 2026-09-09 의 말은 「회전 슬라이드«로만» 하니까
+             그것 좀 고쳐줘」였다. 고칠 대상은 «로만»이지 슬라이더 자체가 아니다.
+           ⇒ 캔버스 코너 바깥의 회전 핫존(.zm-rotate-handle)을 더해 「로만」을 없앴다.
+           ★남긴 이유 둘: ⑴ 각도를 «정확히» 치는 길이 여기뿐이다(핸들은 45° 스냅 아니면 1° 반올림)
+                          ⑵ 캔버스에서 돌리면 이 두 입력이 «따라 움직인다»(overlay-handles.js
+                             _syncZoomRotUI). 지우면 그 동기가 갈 곳을 잃는다.
+           ⛔id 규약은 zm-rot · zm-rot-num 이다 — -slider / -number 가 «아니다».
+             asset-rotate.js 의 _syncNumSlider 가 찾는 이름과 다르다(그래서 전용 동기를 뒀다).
+           ⚠️여기는 템플릿 리터럴 «안»이라 이 주석에 백틱을 쓰면 리터럴이 끊긴다 — 실제로 끊었다. -->
       ${_pairRow('zm-rot', '회전°', st.rot, -180, 180, 1)}
       <div class="prop-row">
         <span class="prop-label">배경</span>

@@ -1495,6 +1495,103 @@ test('ⓑ-BDR-4 ★상한은 «실루엣 결함의 크기»에서 나온 수다 
   assert.ok(/Math\.max\(0,/.test(body), '음수 반경이 들어갈 수 있다');
 });
 
+/* ═══ 회전을 «캔버스에서» (현빈 2026-09-09) ═════════════════════════════════
+   ★인프라(asset-rotate.js _makeRotateType)를 «그대로 붙이면» 셋이 조용히 깨진다.
+     셋 다 양성대조를 앞에 세워서 문다.
+     ⑴ 자식으로 붙이면 renderZoomBlock 의 innerHTML 덮어쓰기에 죽는다
+     ⑵ _applyRotationDeg(style.transform) 를 쓰면 SVG 까지 돌아 그림자가 세계좌표를 벗어난다
+     ⑶ _syncNumSlider('zm-rot') 는 «아무 일도 안 한다»(id 규약이 다르다)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test('ⓑ-ROT-1 ★[함정1] 핫존은 «오버레이 트랙»에 산다 — 블록의 자식으로 붙이지 «않는다» (+양성대조)', () => {
+  const s = SRC.handles;
+  const show = sliceFn(s, 'function showZoomRotateHandles(zb)');
+  assert.ok(show.length > 200, 'showZoomRotateHandles 가 없다');
+  /* ★양성대조 — asset-rotate.js 의 팩토리는 정말로 «자식»으로 붙인다(host.appendChild).
+     그게 사실이 아니면 「우린 안 그런다」가 아무것도 안 재는 말이 된다. */
+  assert.ok(/host\.appendChild\(z\)/.test(readSrc(ROOT, 'js', 'asset-rotate.js')),
+    '양성대조 실패: 팩토리가 자식으로 안 붙이면 이 대조는 뜻이 없다');
+  // 본 단언 — 확대블럭은 오버레이에 붙인다(재렌더가 innerHTML 을 덮어도 안 죽는다)
+  assert.ok(/overlay\.appendChild\(z\)/.test(show), '핫존을 오버레이에 안 붙인다');
+  assert.equal(/zb\.appendChild/.test(show), false,
+    '★자식으로 붙였다 — renderZoomBlock 의 innerHTML 덮어쓰기에 «조용히» 죽는다');
+  // 형제들과 «같은 트랙»이라 좌표도 같은 함수로 따라간다
+  const pos = sliceFn(s, 'function _updateZoomRotatePositions()');
+  assert.ok(/_cornerScreen\(box, h\.dataset\.zoomRotDir, -ROT_OUT\)/.test(pos),
+    '좌표를 _cornerScreen 으로 안 얻는다 — 베끼면 핸들과 선이 갈린다');
+  assert.ok(/showHandlesFor[\s\S]{0,300}?zoom-block[\s\S]{0,250}?showZoomRotateHandles/.test(s),
+    'showHandlesFor 가 회전 갈래를 안 태운다');
+});
+
+test('ⓑ-ROT-2 ★[함정2] dataset.rot + 재렌더 — _applyRotationDeg(style.transform)를 쓰지 «않는다» (+양성대조)', () => {
+  const s = SRC.handles;
+  const rot = readSrc(ROOT, 'js', 'asset-rotate.js');
+  /* ★양성대조 — 다른 회전 대상들은 정말로 style.transform 에 rotate() 를 건다. */
+  assert.ok(/function _applyRotationDeg[\s\S]{0,400}?style\.transform/.test(rot),
+    '양성대조 실패: _applyRotationDeg 가 transform 을 안 걸면 이 대조는 뜻이 없다');
+
+  const body = sliceFn(s, 'function _onZoomRotateMouseDown(e, zb)');
+  assert.ok(body.length > 200, '_onZoomRotateMouseDown 를 못 찾았다');
+  assert.ok(/zb\.dataset\.rot = String\(deg\)/.test(body), 'dataset.rot 에 안 쓴다');
+  assert.ok(/window\.renderZoomBlock\?\.\(zb\)/.test(body), '재렌더가 없으면 도형이 안 돈다');
+  assert.equal(/_applyRotationDeg/.test(body), false,
+    '★_applyRotationDeg 를 썼다 — style.transform 은 «안에 든 SVG 까지» 돌려 그림자가 세계좌표를 벗어난다');
+  assert.equal(/zb\.style\.transform/.test(body), false, 'style.transform 을 직접 걸었다');
+  // 공유 부품은 «빌려» 쓴다(새 스냅 규칙을 만들지 않는다)
+  assert.ok(/window\._snapRotate/.test(body), '45° 스냅을 공유 부품으로 안 쓴다');
+  assert.ok(/Math\.atan2/.test(body), 'atan2 자유회전이 아니다');
+});
+
+test('ⓑ-ROT-3 ★[함정3] 패널 동기는 «전용» — _syncNumSlider 는 조용히 무동작이다 (+양성대조)', () => {
+  const s = SRC.handles;
+  const rot = readSrc(ROOT, 'js', 'asset-rotate.js');
+  /* ★양성대조 «두 겹» — ⑴ 그 헬퍼는 -slider/-number 를 찾는다 ⑵ prop-zoom 이 만드는 id 는
+     zm-rot / zm-rot-num 이다. 둘이 «어긋난다»는 것이 함정의 실체다. */
+  assert.ok(/function _syncNumSlider[\s\S]{0,300}?\$\{prefix\}-slider[\s\S]{0,120}?\$\{prefix\}-number/.test(rot),
+    '양성대조 실패: _syncNumSlider 가 -slider/-number 를 안 찾으면 이 대조는 뜻이 없다');
+  assert.ok(/id="\$\{id\}-num"/.test(SRC.prop),
+    '양성대조 실패: _pairRow 가 -num 을 안 만들면 어긋남이 성립하지 않는다');
+  assert.equal(/id="zm-rot-slider"|id="zm-rot-number"/.test(SRC.prop), false,
+    '★어긋남이 사라졌다 — prop-zoom 이 -slider/-number 를 만들기 시작했다면 이 검사를 다시 써라');
+
+  // 본 단언 — 확대블럭은 «전용» 동기를 쓴다
+  assert.equal(/_syncNumSlider\(\s*'zm-rot'/.test(s), false,
+    "★_syncNumSlider('zm-rot') 를 썼다 — 둘 다 null 이라 오류도 없이 «아무 일도 안 한다»");
+  const sync = sliceFn(s, 'function _syncZoomRotUI(deg)');
+  assert.ok(/getElementById\('zm-rot'\)/.test(sync) && /getElementById\('zm-rot-num'\)/.test(sync),
+    '전용 동기가 prop-zoom 의 실제 id 를 안 쓴다');
+  const body = sliceFn(s, 'function _onZoomRotateMouseDown(e, zb)');
+  assert.ok(/_syncZoomRotUI\(deg\)/.test(body), '끄는 동안 패널이 안 따라온다');
+});
+
+test('ⓑ-ROT-4 크기조절과 «영역이 갈린다» — 모서리 «바깥» 링 + 커서가 다르다', () => {
+  const s = SRC.handles;
+  const pos = sliceFn(s, 'function _updateZoomRotatePositions()');
+  assert.ok(/ROT_OUT\s*=\s*16/.test(pos), '바깥 거리가 프레임(16)과 다르다');
+  assert.ok(/-ROT_OUT/.test(pos), '★음수 inset 이 아니면 «안쪽»에 앉아 리사이즈와 겹친다');
+  const show = sliceFn(s, 'function showZoomRotateHandles(zb)');
+  assert.ok(/_FRAME_ROTATE_CURSOR/.test(show), '회전 커서를 공유 부품으로 안 쓴다');
+  /* ⛔수정키로 가르지 않았다 — 현빈은 「마우스를 가져다주면」이라 했다(hover 로 알아야 한다).
+     Shift 는 이미 비율고정·45°스냅으로 포화다. */
+  assert.equal(/(altKey|metaKey|ctrlKey)/.test(show), false, '수정키로 회전/크기를 갈랐다');
+  // 리사이즈 쪽 커서는 그대로 resize 다(둘이 커서로 갈린다는 것이 이 기능의 실체)
+  assert.ok(/\.zm-overlay-handle\.nw[^\n]*nw-resize/.test(SRC.css), '리사이즈 커서가 사라졌다');
+});
+
+test('ⓑ-ROT-5 회전 뒤 리사이즈가 «안 깨진다» — dataset.rotation 미러가 살아 있다', () => {
+  /* ★배선: renderZoomBlock 이 st.rot → dataset.rotation 을 미러 → _blockRotationDeg 가 읽어
+     _cornerScreen(핸들 자리)·_unrotateDelta(끄는 방향)를 «자동으로» 보정한다.
+     ⇒ 이 사슬 중 하나만 끊겨도 회전된 블록에서 핸들이 엉뚱한 데 앉는다. 사슬을 통째로 잰다. */
+  assert.ok(/block\.dataset\.rotation = String\(box\.rot\)/.test(SRC.block),
+    'renderZoomBlock 이 rot → dataset.rotation 미러를 안 한다');
+  const deg = sliceFn(SRC.handles, 'function _blockRotationDeg(el)');
+  assert.ok(/d\.rotation/.test(deg), '_blockRotationDeg 가 dataset.rotation 을 안 읽는다');
+  const rs = sliceFn(SRC.handles, 'function _onZoomResizeMouseDown(e, zb, dir)');
+  assert.ok(/_unrotateDelta\(box,/.test(rs), '회전된 블록에서 끄는 방향 보정이 없다');
+  const up = sliceFn(SRC.handles, 'function _updateZoomHandlePositions()');
+  assert.ok(/_cornerScreen\(box, h\.dataset\.zoomResizeDir\)/.test(up), '핸들 자리 보정이 없다');
+});
+
 test("ⓑ-18 ⑦bdr 슬라이더는 «가려져» 있다 — 그러나 값·렌더 경로는 살아 있다", () => {
   const p = SRC.prop;
   // ⛔거른 소스(주석 제거본)에 zm-bdr 이 «없어야» 숨긴 것이다

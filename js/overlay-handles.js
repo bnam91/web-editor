@@ -2066,10 +2066,147 @@ function _onZoomRadiusMouseDown(e, zb, dir) {
   document.addEventListener('mouseup', onUp);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   확대블럭 — 회전 핫존 (.zm-rotate-handle)
+   현빈 2026-09-09 「스티커의 모서리 핸들에 마우스를 가져다주면 그게 되잖아 회전 기능이
+                     되게끔. 다른 셋 블록이나. 그런데 지금은 우측 패널에 회전 슬라이드로만
+                     하니까 그것 좀 고쳐줘」
+
+   ★인프라는 이미 있다 — js/asset-rotate.js 의 _makeRotateType 팩토리에 여덟 종이 산다.
+     ⛔그런데 «그 팩토리를 쓰면 안 된다». 팩토리는 host.appendChild 로 핫존을 블록의 «자식»
+       으로 붙이는데, renderZoomBlock 이 innerHTML 을 통째로 덮으므로 첫 재렌더에 죽는다
+       (실측: 붙인 직후 1개 → 재렌더 뒤 0개). 확대블럭에는 「자식으로 붙인다」가 안 통한다.
+     ⇒ ★프레임(.ss-rotate-handle)과 «같은 길»로 간다: 오버레이 트랙(#ss-handles-overlay)에
+       두고 raf 로 좌표를 따라간다. 리사이즈·라운드 핸들이 이미 그렇게 살아 있다.
+
+   ★크기조절과 «어떻게 가르나» = 모서리 «바깥» 링이다(프레임과 같은 수: ROT_OUT 16, 20×20).
+     리사이즈 핸들은 코너에 ±3.5px, 회전은 코너 바깥 6~26px ⇒ 히트영역이 안 겹친다.
+     ⛔수정키(Shift/⌘)로 가르지 않는다 — 현빈은 「마우스를 가져다주면」이라 했다(hover 로
+       알아야 한다). 게다가 Shift 는 비율고정·45°스냅으로 이미 포화, ⌘ 는 자유이동이다.
+     ★갈라지는 실체는 «커서»다: 회전은 _FRAME_ROTATE_CURSOR, 리사이즈는 nw/ne/sw/se-resize
+       (css/editor-blocks.css 의 .zm-overlay-handle.* 규칙).
+   ═══════════════════════════════════════════════════════════════════════════ */
+let _zoomRotateBlock = null;
+let _zoomRotateRafId = null;
+
+function showZoomRotateHandles(zb) {
+  const overlay = _getOverlay();
+  if (_zoomRotateBlock === zb && overlay && overlay.querySelector('[data-zoom-rot-dir]')) return;
+  hideZoomRotateHandles();
+  _zoomRotateBlock = zb;
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const z = document.createElement('div');
+    z.className = `zm-rotate-handle ${dir}`;
+    z.dataset.zoomRotDir = dir;
+    z.title = '회전 (Shift=45° 스냅)';
+    z.style.cssText = 'position:fixed;width:20px;height:20px;z-index:98;pointer-events:auto;'
+      + 'border-radius:50%;cursor:' + _FRAME_ROTATE_CURSOR + ';';
+    overlay.appendChild(z);
+    z.addEventListener('mousedown', e => _onZoomRotateMouseDown(e, zb));
+  });
+  _updateZoomRotatePositions();
+  _startZoomRotateRaf();
+}
+
+function hideZoomRotateHandles() {
+  if (_zoomRotateRafId) { cancelAnimationFrame(_zoomRotateRafId); _zoomRotateRafId = null; }
+  _zoomRotateBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('[data-zoom-rot-dir]').forEach(h => h.remove());
+}
+
+function _updateZoomRotatePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_zoomRotateBlock) return;
+  const box = _zoomOutlineBox(_zoomRotateBlock);
+  const ROT_OUT  = 16;   // 코너에서 «바깥»으로(스크린px) — 프레임과 같은 수
+  const ROT_HALF = 10;   // 20px 핫존 중앙 정렬
+  /* ★원은 돌려도 같은 모양이다 — blockBoxSpec 이 circle 에서 rot 을 0 으로 못박는다.
+     ⇒ 핫존을 보이면 「끌어도 아무 일도 안 나는 손잡이」가 된다. 라운드 핸들과 «같은 규율»로
+       여기(매 프레임)에서 토글해 프리셋을 선택한 채 바꿔도 따라오게 한다. */
+  const isCircle = (window.readZoomState?.(_zoomRotateBlock) || {}).shape === 'circle';
+  overlay.querySelectorAll('[data-zoom-rot-dir]').forEach(h => {
+    h.style.display = isCircle ? 'none' : '';
+    if (isCircle) return;
+    const c = _cornerScreen(box, h.dataset.zoomRotDir, -ROT_OUT);   // 음수 inset = 바깥
+    h.style.top  = (c.y - ROT_HALF) + 'px';
+    h.style.left = (c.x - ROT_HALF) + 'px';
+  });
+}
+
+function _startZoomRotateRaf() {
+  function loop() {
+    if (!_zoomRotateBlock) return;
+    if (!_zoomRotateBlock.isConnected || !_zoomRotateBlock.classList.contains('selected')) {
+      hideZoomRotateHandles();
+      return;
+    }
+    _updateZoomRotatePositions();
+    _zoomRotateRafId = requestAnimationFrame(loop);
+  }
+  _zoomRotateRafId = requestAnimationFrame(loop);
+}
+
+/** 확대블럭 프로퍼티 패널의 회전 입력 동기.
+ *  ⛔asset-rotate.js 의 _syncNumSlider('zm-rot', …) 를 쓰면 «조용히 아무 일도 안 한다» —
+ *    그 헬퍼는 `zm-rot-slider`·`zm-rot-number` 를 찾는데, prop-zoom.js 의 _pairRow 가 만드는
+ *    id 는 `zm-rot`·`zm-rot-num` 이다. 둘 다 null 이라 오류도 안 나고 값도 안 바뀐다.
+ *  ⇒ 전용으로 둔다. prop-zoom.js 의 _pairRow 규약이 바뀌면 «여기»도 같이 바뀌어야 한다. */
+function _syncZoomRotUI(deg) {
+  const s = document.getElementById('zm-rot');
+  const n = document.getElementById('zm-rot-num');
+  if (s) s.value = String(deg);
+  if (n) n.value = String(deg);
+}
+
+function _onZoomRotateMouseDown(e, zb) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const box = _zoomOutlineBox(zb);
+  const br = box.getBoundingClientRect();
+  /* ★중심은 «회전 불변»이라 회전각과 무관하게 rect 중심이 곧 회전 중심이다.
+     ⚠️확대블럭의 DOM 상자는 축정렬 그대로다 — 회전은 CSS transform 이 아니라 SVG «안»에서
+       일어난다(renderZoomBlock 주석). 그래서 이 rect 는 회전해도 안 돌아간다. */
+  const cx = br.left + br.width  / 2;
+  const cy = br.top  + br.height / 2;
+  const init   = Number(window.readZoomState?.(zb)?.rot) || 0;
+  const startA = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+  let moved = false;
+
+  function onMove(ev) {
+    const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
+    let deg = init + (a - startA);
+    deg = window._snapRotate ? window._snapRotate(deg, ev.shiftKey) : Math.round(deg);
+    deg = ((deg % 360) + 360) % 360;
+    if (deg > 180) deg -= 360;   // -180..180 = 패널 슬라이더의 범위와 «같은 어휘»
+    if (!moved && deg === init) return;
+    if (!moved) { moved = true; window.pushHistory?.('확대블럭 회전'); }
+    /* ★★규약 — dataset 에 쓰고 재렌더.
+       ⛔asset-rotate.js 의 _applyRotationDeg 를 쓰면 안 된다: 그건 host.style.transform 에
+         rotate() 를 거는데, 확대블럭이 그러면 «안에 든 SVG 까지» 돌아 그림자 방향이
+         세계좌표를 벗어난다(renderZoomBlock 주석이 그 이유를 적어 뒀다).
+       ★renderZoomBlock 이 st.rot → dataset.rotation 을 미러링하므로 _blockRotationDeg →
+         _cornerScreen·_unrotateDelta 가 «자동으로» 따라온다 = 회전 뒤 리사이즈가 안 깨진다. */
+    zb.dataset.rot = String(deg);
+    window.renderZoomBlock?.(zb);
+    _syncZoomRotUI(deg);
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (moved) { window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 function showHandlesFor(block) {
   if (!block || !block.classList) return;
   if (block.classList.contains('zoom-block')) {
     showZoomRadiusHandles(block);
+    showZoomRotateHandles(block);
     showZoomResizeHandles(block);
     return;
   }
