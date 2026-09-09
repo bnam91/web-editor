@@ -1912,9 +1912,167 @@ function _onZoomResizeMouseDown(e, zb, dir) {
   document.addEventListener('mouseup', onUp);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   확대블럭 — 모서리 라운드 핸들 (.zm-radius-handle)
+   현빈 2026-09-09 「추가되는 사각형의 모서리 라디오도 좀 조절했으면 좋겠어.
+                     다른 사각형 셋 조절할 때 뭐 그렇게 했었잖아」
+
+   ⛔«에셋 핸들을 그대로 베끼면 안 된다». 기존 코너반경 핸들 넷(frame·asset·modal·canvas)은
+     전부 `el.style.borderRadius` 로 DOM 에 «직접» 쓴다. 확대블럭은 그 길이 막혀 있다 —
+     renderZoomBlock(zoom-block.js:200)이 `block.style.cssText` 를 «통째로» 덮으므로
+     끌자마자 다음 렌더에서 값이 날아간다(그리고 «아무 오류도 안 난다»).
+   ⇒ 베낄 대상은 «같은 파일의» _onZoomResizeMouseDown 이다: 「dataset 에 쓰고
+     renderZoomBlock 을 부른다」는 규약이 거기 이미 산다. 여기도 그 규약만 쓴다.
+
+   ⛔클래스로 `.asset-radius-handle` 을 «빌리지» 않는다 — hideAssetRadiusHandles() 의
+     일괄 remove 가 같이 쓸어간다. 이 파일 1827행 주석이 «그 함정을 두 번 밟았다»고 적어 뒀다
+     (아이콘원형이 한 번, 확대블럭 리사이즈 핸들이 또 한 번). 모양만 CSS 에서 «얹어» 쓴다.
+
+   ★★상한(ZOOM_BDR_MAX)에 «잠복 결함»이 걸려 있다 — 아래 상수 주석 참조.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** 모서리 라운드 상한(px). ★이 숫자는 «취향»이 아니라 아래 결함의 크기에서 나왔다.
+ *
+ * ⚠️결함: 그림자(빛줄기)의 실루엣은 도형의 «꼭짓점»에서 잡는다(zoom-geometry.js
+ *   shapeCornerPts → silhouetteFromPts). 그런데 라운드를 주면 실제 윤곽은 그 꼭짓점에서
+ *   호(弧) 쪽으로 «들어간다». 어긋나는 거리는 대각선 방향으로 정확히
+ *       g = bdr · (√2 − 1) ≈ 0.4142 · bdr
+ *   ⇒ 빛줄기의 밑변이 도형에서 g 만큼 «떠서» 모서리 옆에 얇은 쐐기로 비어 보인다.
+ *
+ * ★«눈에 띄는» 치수는 g 가 아니라 둘이다(g 는 «최단»거리라 제일 작게 나온다):
+ *     · 코너 극점에서 빛줄기 밑변이 도형 위로 뜨는 «높이» = bdr «그 자체»
+ *     · 코너 하나당 도형 밖으로 삐져나온 «넓이» = bdr²(1 − π/4)
+ *
+ * ★★재서 골랐다 — 9363 포트, 배율 100%, rect 260×140, shadow on, maxop 60, 광원 12시.
+ *   bdr | 최단 g  | 코너당 넓이 | 극점 높이 | 눈으로
+ *     8 | 3.31px |   13.7 px² |    8px | 안 보인다
+ *    16 | 6.63px |   54.9 px² |   16px | 안 보인다  ← ★여기를 상한으로 잡았다
+ *    24 | 9.94px |  123.6 px² |   24px | 코너에 옅은 쐐기가 «보이기 시작»한다
+ *    40 |16.57px |  343.4 px² |   40px | 확실한 «날개» — 그림자가 도형에서 떨어져 보인다
+ *
+ * ⛔이번에 실루엣을 «고치지 않는다» — 범위 밖이다(현빈 지시는 「모서리 조절」까지다).
+ * ★★이 상한을 올리려면 «실루엣부터» 고쳐야 한다: zoom-geometry.js 의
+ *   silhouetteFromPts 가 shapeCornerPts 의 «꼭짓점»이 아니라 「라운드된 윤곽의 접점」을
+ *   잡도록 바꾸는 일이다. 그걸 안 하고 숫자만 키우면 위 표의 오른쪽으로 그대로 내려간다. */
+const ZOOM_BDR_MAX = 16;
+
+let _zoomRadiusBlock = null;
+let _zoomRadiusRafId = null;
+
+function showZoomRadiusHandles(zb) {
+  const overlay = _getOverlay();
+  /* ★빗장은 _zoomResizeBlock 과 «같은 규율» — 「같은 블록」만 보고 건너뛰면 핸들이 남의
+     정리에 쓸려나간 뒤로 영영 안 돌아온다(1813행 주석의 그 사고). DOM 존재도 같이 본다. */
+  if (_zoomRadiusBlock === zb && overlay && overlay.querySelector('[data-zoom-radius-dir]')) return;
+  hideZoomRadiusHandles();
+  _zoomRadiusBlock = zb;
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `zm-radius-handle ${dir}`;
+    h.dataset.zoomRadiusDir = dir;
+    h.title = '모서리 반경 조절';
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onZoomRadiusMouseDown(e, zb, dir));
+  });
+  _updateZoomRadiusPositions();
+  _startZoomRadiusRaf();
+}
+
+function hideZoomRadiusHandles() {
+  if (_zoomRadiusRafId) { cancelAnimationFrame(_zoomRadiusRafId); _zoomRadiusRafId = null; }
+  _zoomRadiusBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('[data-zoom-radius-dir]').forEach(h => h.remove());
+}
+
+function _updateZoomRadiusPositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_zoomRadiusBlock) return;
+  const box = _zoomOutlineBox(_zoomRadiusBlock);
+  const INSET = 10;   // 코너에서 «안쪽»으로 — 리사이즈 핸들(inset 0)과 자리가 안 겹친다
+  const HALF  = 3.5;  // 7px 핸들 중앙 정렬
+  /* ★원에는 모서리가 없다 — blockBoxSpec 이 radius 를 '50%' 로 못박고 shapeEl 의 circle
+     갈래는 bdr 을 «아예 안 읽는다». ⇒ 핸들을 보이면 「끌어도 아무 일도 안 나는 손잡이」가 된다.
+     ⛔숨기는 자리를 show...() 로 옮기면 안 된다: 프리셋을 원↔사각으로 «선택한 채» 바꿀 때
+       (prop-zoom 은 showZoomProperties 만 다시 부르고 핸들은 안 다시 만든다) 상태가 굳는다.
+       매 프레임 보는 여기서 토글해야 살아 있는 채로 따라온다. */
+  const isCircle = (window.readZoomState?.(_zoomRadiusBlock) || {}).shape === 'circle';
+  overlay.querySelectorAll('[data-zoom-radius-dir]').forEach(h => {
+    h.style.display = isCircle ? 'none' : '';
+    if (isCircle) return;
+    const c = _cornerScreen(box, h.dataset.zoomRadiusDir, INSET);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+  });
+}
+
+function _startZoomRadiusRaf() {
+  function loop() {
+    if (!_zoomRadiusBlock) return;
+    if (!_zoomRadiusBlock.isConnected || !_zoomRadiusBlock.classList.contains('selected')) {
+      hideZoomRadiusHandles();
+      return;
+    }
+    _updateZoomRadiusPositions();
+    _zoomRadiusRafId = requestAnimationFrame(loop);
+  }
+  _zoomRadiusRafId = requestAnimationFrame(loop);
+}
+
+function _onZoomRadiusMouseDown(e, zb, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  /* ★시작값은 «dataset» 에서 읽는다 — ⛔`zb.style.borderRadius` 를 읽으면 안 된다.
+     그 자리엔 렌더가 써 둔 «도형 반경 + 테두리 두께»(blockBoxSpec.radius)가 들어 있어
+     테두리를 켠 순간 시작값이 bdw 만큼 부풀어 손끝이 튄다. */
+  const startR = Math.max(0, Number(window.readZoomState?.(zb)?.bdr) || 0);
+  const startX = e.clientX, startY = e.clientY;
+  let moved = false;
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    // 델타 산식은 _onAssetRadiusHandleMouseDown 그대로 — 「안쪽으로 끌면 커진다」
+    const delta = dir === 'nw' ? (dx + dy) / 2
+                : dir === 'ne' ? (-dx + dy) / 2
+                : dir === 'sw' ? (dx - dy) / 2
+                :                (-dx - dy) / 2;
+    if (!moved && Math.abs(delta) < 1) return;
+    if (!moved) { moved = true; window.pushHistory?.('확대블럭 모서리'); }
+    const newR = Math.min(ZOOM_BDR_MAX, Math.max(0, Math.round(startR + delta)));
+    /* ★★규약 — dataset 에 쓰고 «재렌더»한다.
+       ⛔`zb.style.borderRadius = …` 로 쓰면 다음 renderZoomBlock 의 style.cssText 통짜
+         덮어쓰기에 «조용히» 날아간다. 도형(SVG rect rx)도 안 따라온다. */
+    zb.dataset.bdr = String(newR);
+    window.renderZoomBlock?.(zb);
+    /* 프로퍼티 패널 동기 — ★지금 이 줄들은 «아무것도 못 찾는다»: 모서리 슬라이더가
+       prop-zoom.js 에서 가려져 있다(현빈 「아직」). 그래도 남긴다 — 그 줄의 주석을 옮겨
+       되살리는 순간 이 동기가 «같이» 살아나야 하기 때문이다(그 파일이 쓰는 id 규약은
+       `zm-bdr` · `zm-bdr-num` 이다. ⛔`-slider`/`-number` 가 아니다). */
+    const s = document.getElementById('zm-bdr');
+    const n = document.getElementById('zm-bdr-num');
+    if (s) s.value = String(newR);
+    if (n) n.value = String(newR);
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (moved) { window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 function showHandlesFor(block) {
   if (!block || !block.classList) return;
-  if (block.classList.contains('zoom-block')) { showZoomResizeHandles(block); return; }
+  if (block.classList.contains('zoom-block')) {
+    showZoomRadiusHandles(block);
+    showZoomResizeHandles(block);
+    return;
+  }
   if (block.classList.contains('asset-block')) {
     showAssetRadiusHandles(block);
     showAssetResizeHandles(block);

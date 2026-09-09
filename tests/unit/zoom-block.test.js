@@ -1411,6 +1411,90 @@ test('ⓑ-17 ⑤핸들 배선 — 아웃라인 상자에 붙고, dataset.w/h 로
     '캔버스에서 클릭했을 때 핸들이 안 뜬다');
 });
 
+/* ═══ 모서리 라운드를 «캔버스에서» (현빈 2026-09-09) ══════════════════════════
+   ★두 함정이 «조용하다» — 둘 다 양성대조를 앞에 세워서 문다.
+     ⑴ `.asset-radius-handle` 클래스를 빌리면 hideAssetRadiusHandles() 가 같이 쓸어간다
+     ⑵ `style.borderRadius` 에 쓰면 renderZoomBlock 의 cssText 통짜 덮어쓰기에 날아간다
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test('ⓑ-BDR-1 캔버스에 모서리 핸들이 «뜬다» — showHandlesFor 의 zoom 갈래가 태운다', () => {
+  const s = SRC.handles;
+  assert.ok(/function showZoomRadiusHandles\(zb\)/.test(s), 'showZoomRadiusHandles 가 없다');
+  assert.ok(/showHandlesFor[\s\S]{0,300}?zoom-block[\s\S]{0,200}?showZoomRadiusHandles/.test(s),
+    'showHandlesFor 가 zoom 에서 모서리 핸들을 안 태운다 = 핸들이 영영 안 뜬다');
+  // 형제(리사이즈)를 «밀어내지» 않았다 — 둘 다 떠야 한다
+  assert.ok(/showHandlesFor[\s\S]{0,300}?zoom-block[\s\S]{0,200}?showZoomResizeHandles/.test(s),
+    '모서리를 넣으면서 리사이즈 갈래를 지웠다');
+});
+
+test('ⓑ-BDR-2 ★[함정2] dataset.bdr 에 쓰고 재렌더한다 — style.borderRadius 에 쓰지 «않는다» (+양성대조)', () => {
+  const s = SRC.handles;
+  /* ★양성대조를 «앞»에 — 기존 코너반경 핸들 «넷»은 정말로 style.borderRadius 에 쓴다.
+     그게 사실이 아니면 아래 「확대블럭은 안 그런다」가 아무것도 안 재는 말이 된다. */
+  const asset = sliceFn(s, 'function _onAssetRadiusHandleMouseDown(e, ab, dir)');
+  assert.ok(/ab\.style\.borderRadius = /.test(asset),
+    '양성대조 실패: 에셋 핸들이 style.borderRadius 를 안 쓰면 이 대조는 뜻이 없다');
+
+  const body = sliceFn(s, 'function _onZoomRadiusMouseDown(e, zb, dir)');
+  assert.ok(body.length > 200, '_onZoomRadiusMouseDown 를 못 찾았다');
+  // 본 단언 — 확대블럭은 «그 길로 가면 안 된다»
+  assert.equal(/zb\.style\.borderRadius/.test(body), false,
+    '★style.borderRadius 에 썼다 — renderZoomBlock 의 style.cssText 통짜 덮어쓰기에 «조용히» 날아간다');
+  assert.ok(/zb\.dataset\.bdr = String\(newR\)/.test(body), 'dataset.bdr 에 안 쓴다');
+  assert.ok(/window\.renderZoomBlock\?\.\(zb\)/.test(body),
+    '재렌더가 없으면 SVG 안의 rect rx 가 안 따라온다(도형은 그대로, 상자만 둥글어진다)');
+  /* ★시작값도 dataset 에서 읽어야 한다 — style.borderRadius 엔 «도형 반경 + 테두리 두께»가
+     들어 있어(blockBoxSpec.radius) 테두리를 켠 순간 손끝이 bdw 만큼 튄다. */
+  assert.equal(/parseInt\(zb\.style\.borderRadius\)/.test(body), false, '시작값을 style 에서 읽었다');
+  assert.ok(/readZoomState\?\.\(zb\)\?\.bdr/.test(body), '시작값을 dataset(readZoomState)에서 안 읽는다');
+});
+
+test('ⓑ-BDR-3 ★[함정1] 클래스는 `.zm-radius-handle` — 에셋 것을 «빌리지» 않는다 (+양성대조)', () => {
+  const s = SRC.handles;
+  /* ★양성대조 — hideAssetRadiusHandles() 는 «클래스로» 싹 쓸어간다. 그래서 클래스를 빌리면
+     남의 정리 한 번에 이쪽 핸들이 사라진다(이 레포가 두 번 밟은 그 함정). */
+  const hideAsset = sliceFn(s, 'function hideAssetRadiusHandles()');
+  assert.ok(/querySelectorAll\('\.asset-radius-handle'\)/.test(hideAsset),
+    '양성대조 실패: 에셋 정리가 클래스로 쓸어가지 않으면 이 대조는 뜻이 없다');
+
+  const show = sliceFn(s, 'function showZoomRadiusHandles(zb)');
+  assert.ok(/`zm-radius-handle \$\{dir\}`/.test(show), '클래스가 zm-radius-handle 이 아니다');
+  assert.equal(/asset-radius-handle/.test(show), false,
+    '★에셋 클래스를 빌렸다 — hideAssetRadiusHandles() 한 번에 같이 쓸려나간다');
+  // 자기 정리는 «자기 표식»으로 — 남의 클래스를 훑지 않는다
+  const hideZoom = sliceFn(s, 'function hideZoomRadiusHandles()');
+  assert.ok(/\[data-zoom-radius-dir\]/.test(hideZoom), '자기 핸들을 자기 표식으로 안 지운다');
+  // 모양은 CSS 에서 «얹어» 쓴다(복사가 아니라 공유) + 계열 색(보라)이 리사이즈와 같다
+  assert.ok(/\.zm-radius-handle[\s\S]{0,80}?\{[\s\S]{0,400}?border-radius: 50%/.test(SRC.css),
+    'CSS 가 기존 코너반경 규칙에 안 얹혀 있다');
+  assert.ok(/\.zm-radius-handle\[data-zoom-radius-dir\][\s\S]{0,120}?--ui-sel-overlay/.test(SRC.css),
+    '★확대블럭 계열은 보라다 — 모서리 핸들만 파랑이면 한 블록에 두 색이 된다');
+});
+
+test('ⓑ-BDR-4 ★상한은 «실루엣 결함의 크기»에서 나온 수다 — 올리려면 실루엣부터 고쳐야 한다', () => {
+  const s = SRC.handles;
+  const m = s.match(/const ZOOM_BDR_MAX = (\d+);/);
+  assert.ok(m, 'ZOOM_BDR_MAX 상수가 없다 — 상한을 인라인 숫자로 흩뿌리면 근거가 사라진다');
+  const cap = Number(m[1]);
+  /* ★결함: 실루엣은 «꼭짓점»에서 잡는데(shapeCornerPts) 라운드를 주면 실제 윤곽은 안으로
+     들어간다 ⇒ 빛줄기 밑변이 g = bdr·(√2−1) 만큼 «뜬다».
+     ⛔이 검사는 「상한이 얼마인가」가 아니라 「그때 뜨는 양이 얼마인가」를 잰다. */
+  const gap  = cap * (Math.SQRT2 - 1);                 // 꼭짓점 → 호 «최단» 거리
+  const area = cap * cap * (1 - Math.PI / 4);          // 코너 하나당 도형 «밖»으로 삐져나온 넓이
+  /* ★상한 16 은 «재서» 골랐다(9363, 배율 100%, rect 260×140, shadow on, maxop 60):
+       16 → 코너당 54.9px² «안 보인다»  ·  24 → 123.6px² «쐐기가 보이기 시작»  ·  40 → 343.4px² «날개»
+     ⇒ 「안 보인다」의 마지막 칸에서 끊었다. 아래 두 수가 그 칸을 지킨다. */
+  assert.ok(gap <= 7,
+    `상한 ${cap} 이면 빛줄기 밑변이 ${gap.toFixed(2)}px 뜬다(최단) — ★올리려면 «실루엣부터» 고쳐라 ` +
+    '(zoom-geometry.js silhouetteFromPts 가 shapeCornerPts 의 꼭짓점이 아니라 라운드된 윤곽의 접점을 잡도록).');
+  assert.ok(area <= 60,
+    `상한 ${cap} 이면 코너마다 ${area.toFixed(1)}px² 가 도형 밖으로 삐져나온다 — 24 부터 눈에 띈다(실측).`);
+  // 끄는 쪽이 그 상한을 실제로 «쓴다»(상수만 두고 안 쓰면 상한이 없는 것과 같다)
+  const body = sliceFn(s, 'function _onZoomRadiusMouseDown(e, zb, dir)');
+  assert.ok(/Math\.min\(ZOOM_BDR_MAX,/.test(body), '상한을 안 물린다');
+  assert.ok(/Math\.max\(0,/.test(body), '음수 반경이 들어갈 수 있다');
+});
+
 test("ⓑ-18 ⑦bdr 슬라이더는 «가려져» 있다 — 그러나 값·렌더 경로는 살아 있다", () => {
   const p = SRC.prop;
   // ⛔거른 소스(주석 제거본)에 zm-bdr 이 «없어야» 숨긴 것이다

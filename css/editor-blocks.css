@@ -189,8 +189,13 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 /* ★`.mdl-radius-handle`(모달)를 «같은 규칙»에 얹는다 — 복사가 아니라 공유다.
  *   ⛔클래스까지 «빌리면» hideAssetRadiusHandles() 의 일괄 remove 가 모달 핸들을 지운다
  *     (아이콘 원형이 실제로 그렇게 물렸다 — 아래 .icb-overlay-handle 주석 참조). */
+/* ★`.zm-radius-handle`(확대블럭)도 «같은 규칙»에 얹는다 — 세 번째다. 복사가 아니라 공유.
+ *   ⛔클래스를 «빌리면» hideAssetRadiusHandles() 의 일괄 remove 가 확대블럭 핸들을 지운다.
+ *     이 레포는 그 함정을 이미 두 번 밟았다(아이콘원형 → .asset-overlay-handle,
+ *     확대블럭 리사이즈 → 같은 자리). js/overlay-handles.js 1827행 주석 참조. */
 .asset-radius-handle,
-.mdl-radius-handle {
+.mdl-radius-handle,
+.zm-radius-handle {
   position: absolute;
   width:  7px;
   height: 7px;
@@ -204,7 +209,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   transition: transform 0.1s;
 }
 .asset-radius-handle:hover,
-.mdl-radius-handle:hover {
+.mdl-radius-handle:hover,
+.zm-radius-handle:hover {
   transform: scale(1.4);
   background: var(--sel-color);
 }
@@ -264,6 +270,12 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
    안 옮기면 확대블럭 핸들만 보라를 잃고 자산 계열 파랑으로 돌아간다.
    data-zoom-resize-dir 는 그대로라 셀렉터 앞머리만 바꾼다. */
 .zm-overlay-handle[data-zoom-resize-dir] {
+  border-color: var(--ui-sel-overlay, #9966ff);
+}
+/* ★모서리 라운드 핸들도 «같이» 보라 — 안 맞추면 한 블록에 파랑·보라가 섞인다.
+   그게 현빈이 2026-09-08 에 지적한 바로 그 자리다(「왜 핸들 모서리는 파란색이야」).
+   ★한정자는 리사이즈와 같은 관용구 = overlay-handles.js 가 붙이는 data-zoom-radius-dir. */
+.zm-radius-handle[data-zoom-radius-dir] {
   border-color: var(--ui-sel-overlay, #9966ff);
 }
 .asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw { cursor: nw-resize; }
