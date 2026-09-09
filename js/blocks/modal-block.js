@@ -18,12 +18,45 @@ import { bindBlock } from '../drag-drop.js';
 
 const MODAL_VARIANTS = ['plain', 'titled', 'icon', 'icon-stack', 'grid-2', 'dashed'];
 
+/* ★⑴ 「모달 아이콘의 색 = 아이콘블럭을 «새로 넣을 때»의 색」 (현빈 발주 2026-09-09)
+   ⛔여기에 «수»를 적지 않는다. 적는 순간 같은 수가 두 벌이 되고, 아이콘블럭이 기본색을
+     바꿔도 모달만 옛 색에 남는다 — 이 레포가 여러 번 밟은 그 병이다.
+   ⇒ 아이콘블럭의 팩토리(makeIconifyBlock)를 «불러» 그 결과에서 «읽는다». 출처는 하나다.
+   ★창구를 window 로 잡은 이유 = iconify-block.js 가 이미 window.makeIconifyBlock 을 내놓고
+     있고(그 파일 :325), 이 레포의 아이콘 기능은 전부 그 창구로 오간다
+     (window.openIconifyModal · window.updateIconifyBlock · window.showIconifyProperties).
+     새 import 간선을 놓는 대신 «있는 창구»를 쓴다 — 아이콘블럭 파일은 한 글자도 안 고쳤다.
+   ⚠️읽기 실패(로드 순서·비브라우저)는 MODAL_DEFAULTS.iconColor 로 떨어진다. 그건 «옛 기본색»이라
+     못 읽었을 때의 화면이 지금과 같다.
+   ★한 번만 읽고 기억한다 — 클릭마다 요소를 만들 이유가 없다. */
+let _icnNewColorMemo;
+function iconBlockNewColor() {
+  if (_icnNewColorMemo !== undefined) return _icnNewColorMemo;
+  let c;
+  try { c = (typeof window !== 'undefined' ? window.makeIconifyBlock : null)?.()?.block?.dataset?.iconColor; }
+  catch { c = undefined; }
+  _icnNewColorMemo = (typeof c === 'string' && _MDL_COLOR_RE.test(c.trim())) ? c.trim() : MODAL_DEFAULTS.iconColor;
+  return _icnNewColorMemo;
+}
+
 const MODAL_DEFAULTS = {
   variant: 'plain',
   bg: '#f6f7f9',
   radius: 0,            // ★현빈 조정⑵ — 처음엔 라디우스 없음(전 변형 공통)
   padX: 20, padY: 18,
   borderW: 0, borderStyle: 'solid', borderColor: '#c3c3ca',
+  /* ★그림자 — 현빈 발주 2026-09-09: 「쉐도우도 온오프 기능있으면 좋겠다. 모달박스에
+       (이 쉐도우 기능은 줌 블럭의 온오프로 작동하는 것과 같음)」
+     ⇒ 줌블럭(js/blocks/zoom-block.js:80 dropShadow)과 «같은 어휘·같은 세 단계»다.
+       none/soft/strong 이라는 이름도, 값도 mockup-block.js:290 의 shadows 표에서 왔다.
+       어휘를 셋으로 늘리지 않으려고 «있는 표»를 그대로 빌린다.
+     ★키 이름을 굳이 `dropShadow` 로 한 이유 = 줌과 «같은 이름»이면 나중에 두 패널을
+       한 부품으로 묶을 때 개명이 필요 없다. 모달에는 `shadow` 라는 말이 «아직» 없어
+       (실측: modal-block.js·prop-modal.js 에 shadow/box-shadow 0건) 충돌은 없지만,
+       줌이 광원(shadow) 때문에 dropShadow 로 갈라 놓은 그 이름을 따라간다.
+     ★기본값이 'none' 이고, renderModalBlock 은 none 일 때 «선언을 한 글자도 안 낸다»
+       ⇒ 이미 만들어 둔 모달블럭의 cssText 는 바이트 단위로 그대로다. */
+  dropShadow: 'none',
   wMode: 'full', width: 400,
   hMode: 'auto', height: 120,
   align: 'left', textColor: '#1c1c1e', fontSize: 36,
@@ -32,7 +65,12 @@ const MODAL_DEFAULTS = {
   fontFamily: '', fontWeight: '', lineHeight: 1.7, letterSpacing: 0,
   bold: false, italic: false, strike: false, highlight: false,
   gap: 14,
+  /* ⚠️iconColor 는 «옛 기본색»이고 «렌더 폴백 전용»이다 — 새로 만드는 모달은 이 값을 안 쓴다
+       (makeModalBlock 이 iconBlockNewColor() 를 쓴다).
+     ⛔이 값을 새 색으로 바꾸지 마라. 바꾸는 순간 dataset.iconColor 가 없는 «옛 블록»의
+       화면이 같이 움직인다 — 줌블럭 narrow 때와 같은 규약: 새것은 새 기본값, 옛것은 저장값. */
   iconSize: 24, iconColor: '#f0b429',
+  iconRotation: 0,
 };
 
 /* ★크기·모서리의 «클램프 표» — 패널과 오버레이 핸들이 «같은 표»를 본다.
@@ -49,6 +87,41 @@ const MODAL_LIMITS = {
   height: { min: 30, max: 900 },
   radius: { min: 0,  max: 60  },
 };
+
+/* ★그림자의 «세 단계» — 값 표는 mockup-block.js:290 의 shadows 를 그대로 빌렸다.
+     zoom 도 같은 표를 빌렸다(css/editor-blocks.css:1948-1949 의 soft/strong 이 같은 수다).
+     ⇒ 이 레포에서 「도형 그림자」는 어디서나 같은 세 수를 뜻한다. 넷째 벌을 만들지 않는다.
+
+   ⚠️★줌과 «다른 점» — 그리는 방법이 다르다. 그리고 그건 의도다.
+     줌: `filter: drop-shadow(...)` — 실루엣이 clip-path 로 잘린 도형이라 box-shadow 는
+         «잘리기 전 사각형»에 그림자를 드리워 모양이 안 맞는다(editor-blocks.css:1937 실측 주석).
+     모달: `box-shadow` — 모달은 그냥 사각형이고 border-radius 를 갖는다. box-shadow 는
+         반경을 «따라가고», filter 와 달리 안쪽 글자를 흐리게 만들 위험이 없다.
+     ★그래서 값 표는 같고 «칠하는 속성»만 다르다.
+
+   ⚠️그리고 «칠하는 자리»도 다르다. 줌은 CSS 파일(data-drop-shadow 선택자)이 칠하고,
+     모달은 renderModalBlock 이 cssText 에 «직접» 낸다 — 모달의 규율이 「dataset 이 진실,
+     render 가 DOM 을 그린다」(이 파일 :8)라서, 스타일을 CSS 파일로 빼면 이 블록에서만
+     진실이 두 곳(dataset + 스타일시트)이 된다. ⇒ 새 CSS 를 «한 줄도» 안 만든다. */
+const MODAL_DROP_SHADOWS = ['none', 'soft', 'strong'];
+const MODAL_SHADOW_CSS = {
+  none:   '',
+  soft:   '0 20px 60px rgba(0,0,0,0.25)',
+  strong: '0 30px 80px rgba(0,0,0,0.55)',
+};
+
+/** 표에 없는 값은 «기본값»(none)으로 — 저장본이 손으로 고쳐졌을 때의 착지점. */
+function _dropShadow(v, dflt = MODAL_DEFAULTS.dropShadow) {
+  return MODAL_DROP_SHADOWS.includes(v) ? v : dflt;
+}
+
+/* 그리는 쪽 — ★'none' 이면 «빈 문자열»이다(선언을 안 낸다).
+   ⛔`box-shadow:none;` 을 내면 안 된다. 그러면 기존 모달의 cssText 가 «달라지고»,
+     나중에 바깥 CSS 가 모달에 그림자를 주고 싶어도 인라인 none 이 영영 이긴다. */
+function _shadowStyles(block) {
+  const css = MODAL_SHADOW_CSS[_dropShadow(block.dataset.dropShadow)];
+  return css ? `box-shadow:${css};` : '';
+}
 
 const MODAL_VALIGNS = ['top', 'center', 'bottom'];
 const _MDL_JUSTIFY_V = { top: 'flex-start', center: 'center', bottom: 'flex-end' };
@@ -223,6 +296,18 @@ function _num(block, key, def) {
 /* 아이콘 슬롯 — ★현빈 조정⑶: 하드코딩 SVG 가 아니라 «아이콘 에셋» 구조를 쓴다.
    iconify-block 과 «같은 키»(iconName/iconSrc/raster/iconColor/iconSize)를 써서
    나중에 Iconify 모달·래스터 에셋이 그대로 물린다. 비어 있으면 placeholder SVG. */
+/* ★슬롯의 «공통 머리» — 두 분기(래스터/벡터)가 같은 속성표를 쓰게 한다.
+   ⛔두 분기에 각각 적으면 한쪽만 고쳐진다(이 파일이 이미 그 병으로 주석을 달아 뒀다).
+   ⚠️cursor:pointer 는 ⑵의 «버튼처럼» 때문이다 — 레이아웃은 한 픽셀도 안 움직인다.
+   ⚠️iconRotation 기본값 0 ⇒ 선언을 «아예 안 낸다» ⇒ 이미 만든 모달의 cssText 는 그대로다. */
+function _modalIconAttrs(block, size, extraCss = '') {
+  const rot = _num(block, 'iconRotation', MODAL_DEFAULTS.iconRotation);
+  return `class="mdl-icon" data-mdl-icon="1" title="클릭하면 아이콘을 바꿔요"`
+       + ` style="width:${size}px;height:${size}px;cursor:pointer;${extraCss}`
+       + (rot ? `transform:rotate(${rot}deg);` : '')
+       + `"`;
+}
+
 function _modalIconHtml(block) {
   const size = _num(block, 'iconSize', MODAL_DEFAULTS.iconSize);
   const color = block.dataset.iconColor || MODAL_DEFAULTS.iconColor;
@@ -230,7 +315,7 @@ function _modalIconHtml(block) {
   if (block.dataset.raster === '1') {
     const src = block.dataset.iconSrc || '';
     if (src) {
-      return `<div class="mdl-icon" style="width:${size}px;height:${size}px;">`
+      return `<div ${_modalIconAttrs(block, size)}>`
            + `<img src="${_esc(src)}" width="${size}" height="${size}" `
            + `style="width:${size}px;height:${size}px;object-fit:contain;display:block;pointer-events:none;" `
            + `draggable="false" alt=""></div>`;
@@ -240,7 +325,35 @@ function _modalIconHtml(block) {
   const inner = svg
     ? svg
     : `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
-  return `<div class="mdl-icon" style="width:${size}px;height:${size}px;color:${_esc(color)};">${inner}</div>`;
+  return `<div ${_modalIconAttrs(block, size, `color:${_esc(color)};`)}>${inner}</div>`;
+}
+
+/* ★⑵ 「캔버스에서 아이콘을 누르면 바로 교체」 (현빈 발주 2026-09-09)
+   ⛔고르기 UI 를 새로 짜지 않는다 — 아이콘블럭·스티커·심플카드가 쓰는 그 모달
+     (window.openIconifyModal) 을 «그대로» 부른다.
+   ★고른 결과가 dataset 에 앉는 자리는 applyPickedIconToModal «한 곳»이다 —
+     패널의 「아이콘 고르기」 버튼도 같은 함수로 들어온다(prop-modal.js).
+     전에는 그 세 줄이 패널 쪽에만 있었고, 캔버스 경로가 생기면 두 벌이 될 자리였다. */
+function applyPickedIconToModal(block, picked) {
+  if (!block || !picked) return false;
+  if (picked.name) block.dataset.iconName = picked.name;
+  if (picked.svg) { block.dataset.iconSvg = picked.svg; delete block.dataset.raster; delete block.dataset.iconSrc; }
+  if (picked.src) { block.dataset.iconSrc = picked.src; block.dataset.raster = '1'; delete block.dataset.iconSvg; }
+  return true;
+}
+
+/* 캔버스 슬롯 클릭 → 고르기 모달 → 적용 → 재렌더 → ⑷ 「아이콘블럭의 기본 기능들」 패널.
+   ⛔e.stopPropagation 을 «안» 건다 — 클릭은 그대로 위로 올라가 모달블럭이 선택돼야 한다
+     (선택을 막으면 핸들·레이어 하이라이트가 안 붙는다). */
+function openModalIconPicker(block) {
+  window.openIconifyModal?.((picked) => {
+    if (!applyPickedIconToModal(block, picked)) return;
+    renderModalBlock(block);
+    window.pushHistory?.('모달 아이콘 교체');
+    window.scheduleAutoSave?.();
+    // 아이콘을 «고른 뒤»에 아이콘블럭 패널로 넘긴다 — 현빈 지시 ⑷ 그대로.
+    (window.showModalIconProperties || window.showModalProperties)?.(block);
+  }, { favorites: true });
 }
 
 function _textHtml(cls, slot, value, ph, extraCss = '') {
@@ -285,6 +398,10 @@ function renderModalBlock(block) {
     + (radius > 0 ? `border-radius:${radius}px;` : '')
     + `padding:${rootPad};`
     + (borderW > 0 ? `border:${borderW}px ${borderStyle} ${borderColor};` : '')
+    /* ★_alignStyles «앞»에 둔다 — 그 함수는 「맨 뒤여야 한다」는 계약을 갖고 있다
+       (icon-stack 의 text-align:center 가 앞의 text-align 을 이겨야 한다).
+       box-shadow 는 다른 어떤 선언과도 같은 자리를 다투지 않으므로 순서에 안 걸린다. */
+    + _shadowStyles(block)
     + _alignStyles(v, align, vAlign, hMode);
 
   const title = block.dataset.titleText;
@@ -319,6 +436,18 @@ function renderModalBlock(block) {
     html = _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, _highlightCss(block.dataset));
   }
   block.innerHTML = html;
+
+  /* ⑵ 아이콘 슬롯의 클릭 위임 — ★재렌더가 innerHTML 을 통째 갈아끼우므로 «여기서» 다시 건다
+     (슬롯 인라인 편집이 block-drag 에서 위임으로 사는 것과 같은 이유).
+     ⚠️addEventListener 를 슬롯에 직접 건다 — 슬롯은 매 렌더마다 «새 노드»라 중복이 안 쌓인다. */
+  const _slot = block.querySelector?.('.mdl-icon');
+  if (_slot?.addEventListener) {
+    _slot.addEventListener('click', (e) => {
+      if (block.classList?.contains('editing')) return;   // 글자 편집 중이면 비켜준다
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return;    // 다중선택 제스처는 블록에 양보
+      openModalIconPicker(block);
+    });
+  }
 }
 
 function makeModalBlock(opts = {}) {
@@ -339,6 +468,10 @@ function makeModalBlock(opts = {}) {
   block.dataset.borderW = String(Number.isFinite(Number(opts.borderW)) ? Number(opts.borderW) : _effDefault(variant, 'borderW'));
   block.dataset.borderStyle = ['solid', 'dashed', 'dotted'].includes(opts.borderStyle) ? opts.borderStyle : _effDefault(variant, 'borderStyle');
   block.dataset.borderColor = (typeof opts.borderColor === 'string' && _MDL_COLOR_RE.test(opts.borderColor.trim())) ? opts.borderColor.trim() : MODAL_DEFAULTS.borderColor;
+  /* ★lineHeight 와 «같은 이유»로 무조건 박는다 — 안 박으면 「그림자」라는 개념이
+     저장·로드 왕복에서 아예 없는 것이 되어, 나중에 기본값을 바꾸는 순간 «이미 만든 블록»까지
+     같이 움직인다. 기본값이 'none' 이라 화면은 그대로다(렌더가 선언을 안 낸다). */
+  block.dataset.dropShadow = _dropShadow(opts.dropShadow);
   block.dataset.wMode = opts.wMode === 'fixed' ? 'fixed' : MODAL_DEFAULTS.wMode;
   block.dataset.width = String(Number.isFinite(Number(opts.width)) ? Number(opts.width) : MODAL_DEFAULTS.width);
   block.dataset.hMode = opts.hMode === 'fixed' ? 'fixed' : MODAL_DEFAULTS.hMode;
@@ -356,7 +489,10 @@ function makeModalBlock(opts = {}) {
   if (Number.isFinite(Number(opts.letterSpacing))) block.dataset.letterSpacing = String(Number(opts.letterSpacing));
   for (const k of ['bold', 'italic', 'strike', 'highlight']) if (opts[k]) block.dataset[k] = '1';
   block.dataset.iconSize = String(Number.isFinite(Number(opts.iconSize)) ? Number(opts.iconSize) : MODAL_DEFAULTS.iconSize);
-  block.dataset.iconColor = (typeof opts.iconColor === 'string' && _MDL_COLOR_RE.test(opts.iconColor.trim())) ? opts.iconColor.trim() : MODAL_DEFAULTS.iconColor;
+  /* ★⑴ — «새로 만드는» 모달만 아이콘블럭의 기본색을 따라간다.
+     ⛔MODAL_DEFAULTS.iconColor 를 쓰지 않는다(그건 옛 블록용 렌더 폴백이다).
+     저장된 모달은 dataset.iconColor 를 이미 갖고 있어 이 줄을 «지나가지도» 않는다 ⇒ 안 바뀐다. */
+  block.dataset.iconColor = (typeof opts.iconColor === 'string' && _MDL_COLOR_RE.test(opts.iconColor.trim())) ? opts.iconColor.trim() : iconBlockNewColor();
   // 글자는 비워 둔다 → render 가 placeholder 를 그린다(새로 추가하면 흐린 안내문구가 보인다)
   if (typeof opts.title === 'string') block.dataset.titleText = opts.title;
   if (typeof opts.text === 'string') block.dataset.textText = opts.text;
@@ -438,7 +574,13 @@ window.MODAL_VARIANTS   = MODAL_VARIANTS;
 window.MODAL_LIMITS     = MODAL_LIMITS;
 window.clampModal       = clampModal;
 window.setModalSizeMode = setModalSizeMode;
+window.MODAL_DROP_SHADOWS = MODAL_DROP_SHADOWS;
+window.applyPickedIconToModal = applyPickedIconToModal;
+window.openModalIconPicker    = openModalIconPicker;
+window.iconBlockNewColor      = iconBlockNewColor;
 
 export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, applyModalVariant, _effDefault,
+         applyPickedIconToModal, openModalIconPicker, iconBlockNewColor,
          MODAL_DEFAULTS, MODAL_VARIANTS, MODAL_VARIANT_IDENTITY, MODAL_PH, MODAL_LIMITS, clampModal,
-         setModalSizeMode, _alignStyles, MODAL_VALIGNS };
+         setModalSizeMode, _alignStyles, MODAL_VALIGNS,
+         MODAL_DROP_SHADOWS, MODAL_SHADOW_CSS, _dropShadow, _shadowStyles };
