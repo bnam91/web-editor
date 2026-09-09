@@ -171,15 +171,21 @@ function extractFn(src, name) {
 
 test('D3 ★저장→로드 왕복 뒤에도 도형 그림자가 «칠까지» 남는다 (진짜 저장 함수로)', async ({ page }) => {
   const errs = await boot(page);
-  const SER = extractFn(fs.readFileSync(path.join(REPO, 'js/io/section-serialize.js'), 'utf8'), 'serializeCleanRoot');
+  /* ★serializeCleanRoot 는 «떠내지» 않는다 — 파일 전체(IIFE)를 그대로 싣는다.
+     ⛔2026-09-09 실측: 그 함수가 같은 IIFE 안의 형제(stripRuntimeMarkers)를 부르게 되자
+       extractFn 으로 떠낸 덩이는 ReferenceError 로 죽었다. 「함수 하나만 떠내면 된다」는
+       그 함수가 «닫힌» 동안만 참인 가정이었다. 파일을 싣는 쪽은 그 가정이 아예 없다. */
+  const SER = fs.readFileSync(path.join(REPO, 'js/io/section-serialize.js'), 'utf8');
   const SAN = extractFn(fs.readFileSync(path.join(REPO, 'js/io/save-load.js'), 'utf8'), 'sanitizeCanvasHtml');
-  // T0 ★떠낸 덩이가 «비어 있지 않다» — 못 떼었으면 아래는 빈 함수를 돌리고 통과한다.
-  expect(SER.length, 'serializeCleanRoot 를 못 떼었다').toBeGreaterThan(500);
+  // T0 ★실은 덩이가 «비어 있지 않다» — 못 실었으면 아래는 빈 함수를 돌리고 통과한다.
+  expect(SER.length, 'section-serialize.js 를 못 읽었다').toBeGreaterThan(500);
   expect(SAN.length, 'sanitizeCanvasHtml 을 못 떼었다').toBeGreaterThan(200);
 
   await mount(page, { shadow: 'on', dropShadow: 'soft' });
   const out = await page.evaluate(([serSrc, sanSrc]) => {
-    const serializeCleanRoot = eval('(' + serSrc + ')');
+    (0, eval)(serSrc);                                   // window.serializeCleanRoot 를 심는다
+    const serializeCleanRoot = window.serializeCleanRoot;
+    if (typeof serializeCleanRoot !== 'function') return { 되살아났나: false, 세척없음: true };
     const sanitizeCanvasHtml = eval('(' + sanSrc + ')');
     const canvas = document.getElementById('canvas');
     const before = getComputedStyle(window.__z.querySelector(':scope > .zoom-clip')).filter;
@@ -202,6 +208,7 @@ test('D3 ★저장→로드 왕복 뒤에도 도형 그림자가 «칠까지» �
     };
   }, [SER, SAN]);
 
+  expect(out.세척없음, '★window.serializeCleanRoot 가 안 심겼다 — 세척을 «안 돌린» 것이다').toBeUndefined();
   expect(out.되살아났나, '왕복 뒤 블록이 사라졌다').toBe(true);
   expect(out.before, '왕복 «전»에 이미 칠이 없다 — 이 검사는 잴 것이 없었다').toContain('drop-shadow');
   expect(out.dropShadow, '저장 왕복에 도형 그림자 키가 안 실렸다').toBe('soft');

@@ -25,6 +25,9 @@ const MARKER_TOKENS = ['bn2-line-selected', 'grd-line-selected'];
 
 /** 세척 단일 진실원. 이걸 부르면 토큰을 손으로 열거하지 않아도 된다(권장). */
 const CLEAN_FN = 'serializeCleanRoot';
+/** root «자신»까지 씻는 판. root 가 캔버스가 아니라 «섹션/블록 1개»인 채널은 이걸 불러야 한다
+ *  (Root 판은 querySelectorAll 만 써서 구조적으로 root 자신을 못 본다). */
+const CLEAN_SELF_FN = 'serializeCleanSelf';
 
 /**
  * kind — 그 클론이 «무엇을 만드는가»
@@ -40,16 +43,19 @@ const CHANNELS = [
     why: 'HTML 내보내기 — 라이브 클론을 그대로 문서로 만든다(serializeCleanRoot 를 안 거친다)' },
   { file: 'js/io/export-image.js', kind: 'artifact', strips: 'inline',
     why: 'PNG 내보내기 — 라이브 DOM 클론을 캡처한다(재렌더가 마커를 되붙이는 자리도 여기)' },
-  { file: 'js/panels/template-system.js', kind: 'artifact', strips: CLEAN_FN,
+  { file: 'js/panels/template-system.js', kind: 'artifact', strips: CLEAN_FN, via: '_cleanTemplateClone',
     why: '★템플릿 저장 3곳(섹션·덮어쓰기·블록) — 2026-09-09 까지 마커를 «안» 벗기던 7번째 문. ' +
-         '손 열거 대신 serializeCleanRoot 에 위임한다' },
+         '손 열거 대신 세척에 위임한다. ★클론 3곳이 «파일 안의 문 하나»(_cleanTemplateClone)를 ' +
+         '거쳐서 간다 — 같은 위임을 세 번 적으면 네 번째가 생기는 날 한 곳만 빠진다' },
 
   // ── compare — 결과물은 아니지만 «문자열 비교»의 입력이다 ────────────────
-  { file: 'js/market-merge.js', kind: 'compare', strips: null,
-    why: '협업 머지의 섹션 정규화 키. _RUNTIME_CLS 로 UI 클래스를 걷는데 그 목록에 두 마커가 «없다» ' +
-         '⇒ 줄을 선택한 것만으로 「변경됨」 오탐이 난다(백로그 F2, 별건)' },
-  { file: 'js/version-diff.js', kind: 'compare', strips: null,
-    why: '버전 비교의 섹션 정규화 키. market-merge 와 같은 _RUNTIME_CLS 사본을 쓴다(백로그 F2)' },
+  { file: 'js/market-merge.js', kind: 'compare', strips: 'runtimeMarkers',
+    why: '협업 머지의 섹션 정규화 키. 2026-09-09 까지 자기 _RUNTIME_CLS 명단으로 걷었고 그 명단에 ' +
+         '두 줄 마커가 «없어» 줄을 고른 것만으로 「변경됨」 오탐이 났다(백로그 F2). ' +
+         '이제 window.runtimeMarkers(section-serialize) 를 읽는다' },
+  { file: 'js/version-diff.js', kind: 'compare', strips: 'runtimeMarkers',
+    why: '버전 비교의 섹션 정규화 키. market-merge 와 «같은» window.runtimeMarkers 를 읽는다 ' +
+         '— 두 벌 명단이면 한쪽만 고쳐지는 날이 온다(백로그 F2)' },
 
   // ── transient — 라이브/일시. 결과물이 아니다 ───────────────────────────
   { file: 'js/io/save-load.js', kind: 'transient', strips: null,
@@ -69,4 +75,4 @@ const CHANNELS = [
     why: '탭 드래그 «고스트» — 드롭과 함께 사라진다' },
 ];
 
-module.exports = { CHANNELS, MARKER_TOKENS, CLEAN_FN };
+module.exports = { CHANNELS, MARKER_TOKENS, CLEAN_FN, CLEAN_SELF_FN };

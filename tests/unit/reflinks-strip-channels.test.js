@@ -116,10 +116,26 @@ test('R3 ★전제 — serializeCleanRoot 는 «선택 마커»는 벗기고 ref
      세척은 꼼꼼하고 refLinks «하나»만 빠졌다 — 두 증상이 아니라 한 증상이다.
      이 단언이 무너지면 BL-SPL-05 §0 의 반증도 같이 무너지므로 여기 박아 둔다. */
   const src = readSrc(ROOT, 'js', 'io', 'section-serialize.js');
+  /* ★2026-09-09 — 「소스에 '.marker' 라는 «글자»가 있나」로 재던 자리다. 그 계약은 세척이
+     성질 기반 sweep 으로 바뀌자(행동은 더 좋아졌는데) 빨강이 났다. 이제 판정을 «부른다». */
+  const win = {};
+  new Function('window', src)(win);
+  const rm = win.runtimeMarkers;
+  assert.ok(rm && typeof rm.isRuntimeMarker === 'function',
+    '★window.runtimeMarkers 가 없다 — 세척의 마커 판정이 통째로 사라졌다');
   for (const marker of ['bn2-line-selected', 'grd-line-selected', 'cell-selected']) {
-    assert.ok(src.includes(`.${marker}`),
+    assert.ok(rm.isRuntimeMarker(marker),
       `★serializeCleanRoot 가 ${marker} 를 «안» 벗긴다 — BL-SPL-05 §0 의 반증 전제가 깨졌다`);
   }
+  /* ★음성대조 — 아무 클래스나 «다» 벗기는 것이 아니다(그러면 위 초록이 공짜다). */
+  for (const keep of ['section-block', 'text-block', 'grd-line', 'urgent-active']) {
+    assert.ok(!rm.isRuntimeMarker(keep),
+      `★«${keep}» 까지 런타임 마커로 본다 — 세척이 «내용»을 지운다`);
+  }
+  /* ★성질이 산다 — 아직 «없는» 줄 마커도 이름 규칙만으로 잡힌다. 그래야 다음 컴포넌트가
+     자기 마커를 만드는 날 아무도 이 파일을 안 고쳐도 안 샌다. */
+  assert.ok(rm.isRuntimeMarker('xyz-line-selected'),
+    '★-line-selected 성질이 죽었다 — 앞으로 생길 줄 마커는 «명단에 적어야만» 벗겨진다(그날 샌다)');
   assert.ok(!STRIP_RE.test(src),
     '★serializeCleanRoot 가 refLinks 를 벗기기 시작했다 — 그러면 그건 «처분이 정해졌다»는 뜻이니 ' +
     'R1 명부와 BL-SPL-05 를 같이 고쳐라');

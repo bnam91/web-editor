@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 const _req = createRequire(import.meta.url);
 const { readSrc, toPosix } = _req('./_srcread.js');
 const { makeStripper } = _req('./_strip-comments.js');
-const { CHANNELS, MARKER_TOKENS, CLEAN_FN } = _req('../_export-channels.js');
+const { CHANNELS, MARKER_TOKENS, CLEAN_FN, CLEAN_SELF_FN } = _req('../_export-channels.js');
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const JSDIR = path.join(ROOT, 'js');
@@ -32,6 +32,37 @@ function codeOf(rel) {
   return readSrc(ROOT, rel).split('\n').map(l => strip(l)).join('\n');
 }
 const countOf = (src, needle) => src.split(needle).length - 1;
+
+/** 함수 «전체»(선언 포함)를 떠낸다 — 그대로 평가해 돌려 볼 수 있게.
+ *  ⚠️f(opts = {}) 의 «기본값 중괄호»를 몸통으로 오인하지 않도록 매개변수 괄호를 먼저 닫는다. */
+function extractFn(code, name) {
+  const m = new RegExp(`function\\s+${name}\\s*\\(`).exec(code);
+  if (!m) throw new Error('함수를 못 찾았다: ' + name);
+  let i = m.index + m[0].length - 1, d = 0;
+  for (; i < code.length; i++) {
+    if (code[i] === '(') d++;
+    else if (code[i] === ')') { d--; if (d === 0) { i++; break; } }
+  }
+  while (i < code.length && code[i] !== '{') i++;
+  let b = 0;
+  for (; i < code.length; i++) {
+    if (code[i] === '{') b++;
+    else if (code[i] === '}') { b--; if (b === 0) { i++; break; } }
+  }
+  return code.slice(m.index, i);
+}
+
+/** 함수 몸통을 «중괄호 균형»으로 떠낸다. 정규식으로 자르면 안쪽 블록에서 끊긴다. */
+function bodyOf(code, head) {
+  const i = code.indexOf(head);
+  if (i === -1) return '';
+  let j = code.indexOf('{', i), depth = 0;
+  for (let k = j; k < code.length; k++) {
+    if (code[k] === '{') depth++;
+    else if (code[k] === '}' && --depth === 0) return code.slice(j, k + 1);
+  }
+  return code.slice(j);
+}
 
 /** 실물 — js/ 아래에서 «DOM 을 통째로 클론하는» 파일 전수. ⛔손으로 적지 않는다. */
 function globCloneFiles() {
@@ -85,13 +116,46 @@ test('U6-c ★artifact 채널은 마커를 «전부» 벗긴다 (손 열거든 �
       /* 위임 — 토큰을 손으로 안 적는 대신 «세척 함수를 부른다»는 것을 확인한다.
          ★그런데 「파일이 그 이름을 갖고 있나」로 재면 «갈래»를 못 센다: 클론이 3곳인데
            위임을 1곳에만 붙여도 초록이다(실측 2026-09-09, 변이 E-1 이 그렇게 빠져나갔다).
-         ⇒ «클론 수 ≤ 위임 호출 수»로 잰다. 모은 사람이 갈래를 세야 한다. */
+         ⇒ «클론 수 ≤ 세척에 «닿는» 호출 수»로 잰다. 모은 사람이 갈래를 세야 한다.
+
+         ★2026-09-09 개정 — «파일 안의 문 하나»(via)를 인정한다.
+           옛 잣대는 세척 «호출»만 셌다. 그러면 위임을 한 헬퍼로 모으는 «옳은» 리팩터가
+           빨강이 되고, 사람은 같은 줄을 세 번 베끼는 쪽으로 몰린다 — 그게 바로 이 검사가
+           막으려던 병(네 번째 문이 생기는 날 한 곳만 빠진다)의 원인이다.
+           ⇒ via 를 선언하면 ⑴ 그 함수가 «실제로» 세척을 부르는지 보고 ⑵ 그 함수 호출도 센다.
+             via 가 세척을 안 부르면 «허공 위임»이라 여기서 빨강이 난다. */
       const code = codeOf(c.file);
       const clones = countOf(code, 'cloneNode(true)');
-      const cleans = countOf(code, `${CLEAN_FN}?.(`) + countOf(code, `${CLEAN_FN}(`);
+      let cleans = countOf(code, `${CLEAN_FN}?.(`) + countOf(code, `${CLEAN_FN}(`)
+                 + countOf(code, `${CLEAN_SELF_FN}?.(`) + countOf(code, `${CLEAN_SELF_FN}(`);
+      if (c.via) {
+        const def = new RegExp(`function\\s+${c.via}\\s*\\(`);
+        assert.match(code, def, `★${c.file} 이 via:'${c.via}' 를 선언했는데 그 함수가 «없다» — 명부가 낡았다`);
+        /* ★그 문이 세척을 «부르는지»를 «돌려서» 본다.
+           ⛔「몸통에 그 이름이 있나」로 재면 안 된다 — 실측(2026-09-09 변이 M3b):
+             `const wash = window.serializeCleanSelf || …` 만 남기고 `wash(clone)` 를 지워도
+             이름은 그대로 있어 «초록»이었다. 이름은 배선이 아니다.
+           ⇒ 가짜 window 에 스파이를 심고 실제로 부른다. DOM 이 필요 없다 —
+             이 문은 받은 것을 세척에 넘기는 «배선»일 뿐이라 sentinel 하나면 잡힌다. */
+        const viaSrc = extractFn(code, c.via);
+        const seen = [];
+        const spy = (x) => { seen.push(x); return x; };
+        const fakeWin = { serializeCleanRoot: spy, serializeCleanSelf: spy };
+        const fn = new Function('window', 'console', `return (${viaSrc});`)(
+          fakeWin, { warn() {}, log() {}, error() {} });
+        const sentinel = { __sentinel: true, classList: { remove() {} }, getAttribute: () => '',
+                           querySelectorAll: () => [] };
+        fn(sentinel);
+        assert.equal(seen.length, 1,
+          `★${c.file} 의 ${c.via} 가 세척(${CLEAN_FN}/${CLEAN_SELF_FN})을 «안 불렀다»(${seen.length}회) — 위임이 허공을 가리킨다`);
+        assert.equal(seen[0], sentinel,
+          `★${c.file} 의 ${c.via} 가 세척에 «받은 것»을 안 넘긴다 — 엉뚱한 걸 씻고 클론은 그대로 나간다`);
+        // 정의 1건은 «호출»이 아니므로 뺀다.
+        cleans += Math.max(0, countOf(code, `${c.via}(`) - 1);
+      }
       assert.ok(clones > 0, `${c.file} 에 cloneNode(true) 가 0건이다 — 명부가 낡았다(잣대가 죽는다)`);
       assert.ok(cleans >= clones,
-        `★${c.file} 의 클론은 ${clones}곳인데 ${CLEAN_FN} 위임은 ${cleans}곳뿐이다 — ` +
+        `★${c.file} 의 클론은 ${clones}곳인데 세척에 닿는 호출은 ${cleans}곳뿐이다 — ` +
         `${clones - cleans}곳이 «안 씻긴 채» 산출물이 된다. 클론마다 붙여라.\n  (${c.why})`);
       continue;
     }
@@ -102,12 +166,33 @@ test('U6-c ★artifact 채널은 마커를 «전부» 벗긴다 (손 열거든 �
   }
 });
 
-test('U6-c-전제 ★위임 대상(serializeCleanRoot)이 실제로 그 토큰들을 벗긴다', () => {
+test('U6-c-전제 ★위임 대상(serializeCleanRoot/Self)이 실제로 그 토큰들을 벗긴다', () => {
   // 위임을 허용하려면 «위임받는 쪽»이 진짜 하는지 봐야 한다. 안 그러면 U6-c 가 자기통과한다.
   const src = readSrc(ROOT, 'js/io/section-serialize.js');
-  assert.match(src, new RegExp(`function ${CLEAN_FN}`), `${CLEAN_FN} 이 거기 없다 — 위임이 허공을 가리킨다`);
+  for (const fn of [CLEAN_FN, CLEAN_SELF_FN]) {
+    assert.match(src, new RegExp(`function ${fn}`), `${fn} 이 거기 없다 — 위임이 허공을 가리킨다`);
+  }
   for (const tok of MARKER_TOKENS) {
     assert.ok(src.includes(tok), `★${CLEAN_FN} 이 «${tok}» 을 안 벗긴다 — 위임한 채널이 전부 새고 있다`);
+  }
+  /* ★root «자신»까지 씻는 판이 정말 root 를 본다 — Root 판은 querySelectorAll 만 써서
+     구조적으로 root 자신을 못 본다. Self 판이 그걸 «래퍼»로 뒤집는 게 요점이다. */
+  const selfBody = bodyOf(src, `function ${CLEAN_SELF_FN}(`);
+  assert.ok(/appendChild\(el\)/.test(selfBody) && selfBody.includes(CLEAN_FN),
+    `★${CLEAN_SELF_FN} 이 el 을 래퍼에 넣어 ${CLEAN_FN} 을 돌리지 않는다 — root 자신의 마커가 그대로 남는다`);
+});
+
+/* ══ U6-e — compare 채널이 «두 벌 명단»으로 돌아가지 않는다 ═════════════════
+ * 되돌리면 빨강: js/market-merge.js 에 const _RUNTIME_CLS = [...] 를 되살리면 → 빨강.
+ * ★왜 중요한가: 명단이 두 벌이면 한쪽만 고쳐지는 날이 온다. 실제로 그랬다 — market-merge 의
+ *   명단에 두 줄 마커가 없어서, 줄을 «고르기만» 해도 「변경됨」 오탐이 났다(백로그 F2). */
+test('U6-e ★compare 채널이 자기 마커 명단을 «따로» 들고 있지 않다', () => {
+  for (const c of CHANNELS.filter(x => x.kind === 'compare')) {
+    const code = codeOf(c.file);
+    assert.ok(!/_RUNTIME_CLS\s*=\s*\[/.test(code),
+      `★${c.file} 이 자기 _RUNTIME_CLS 명단을 다시 들고 있다 — 단일 진실원(window.runtimeMarkers)이 갈렸다.\n  (${c.why})`);
+    assert.ok(code.includes('runtimeMarkers'),
+      `★${c.file} 이 window.runtimeMarkers 를 «안 읽는다» — 무엇으로 마커를 걷고 있나.\n  (${c.why})`);
   }
 });
 

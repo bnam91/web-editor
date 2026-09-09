@@ -24,6 +24,17 @@ const EXP = readSrc(ROOT, 'js', 'io', 'export-image.js');
 const PAGE = readSrc(ROOT, 'js', 'props', 'prop-page.js');
 const SER  = readSrc(ROOT, 'js', 'io', 'section-serialize.js');
 
+/* ★런타임 마커 판정을 «실제로 돌려» 본다 — 소스에 그 줄이 «있나»로 재던 자리다.
+   ⛔「querySelectorAll('.selected') 가 보이나」는 «모양»을 재는 계약이라, 성질 기반
+     sweep 으로 바꾸면 행동이 더 좋아졌는데도 빨강이 났다(2026-09-09 실측).
+     ⇒ 이제 IIFE 를 가짜 window 에 실어 판정 함수를 «부른다». DOM 없이 돈다. */
+function loadRuntimeMarkers(serSrc) {
+  const win = {};
+  new Function('window', serSrc)(win);
+  return win.runtimeMarkers;
+}
+
+
 /* ═══ 자르개 ═══
    ⛔고정 창(slice(i, i+900)) 금지 — 위아래 코드가 조금만 자라도 «본 적 없는 곳»을 재게 된다.
    ⚠️함정: `function f(opts = {})` 의 «기본값 중괄호»를 몸통으로 오인한다.
@@ -333,7 +344,11 @@ test('T10 ★세척(serializeCleanRoot)도 --gdt-pad 를 걷는다 — 거두기
   /* ★입력이 살아 있다 — 세척 함수를 «실제로» 떴나. */
   const body = bodyOf(src, 'function serializeCleanRoot', 'T10');
   assert.ok(body.length > 500, `serializeCleanRoot 몸통이 ${body.length}자 — 못 떴다`);
-  assert.match(body, /querySelectorAll\('\.selected'\)/, '형제 세척이 안 보인다 — 엉뚱한 덩이를 떴다');
+  assert.match(body, /root\.querySelectorAll\('\[class\]'\)/, '형제 세척(런타임 마커 sweep)이 안 보인다 — 엉뚱한 덩이를 떴다');
+  /* ★그 sweep 이 «진짜 마커를 잡는가» — 모양이 아니라 행동으로 확인한다. */
+  const rm = loadRuntimeMarkers(SER);
+  assert.ok(rm && rm.isRuntimeMarker('selected') && rm.isRuntimeMarker('bn2-line-selected'),
+    '★런타임 마커 판정이 죽었다 — sweep 이 돌아도 아무것도 안 걷는다');
 
   assert.match(body, /removeProperty\('--gdt-pad-l'\)/, '★세척이 --gdt-pad-l 을 안 걷는다');
   assert.match(body, /removeProperty\('--gdt-pad-r'\)/, '★세척이 --gdt-pad-r 을 안 걷는다');
