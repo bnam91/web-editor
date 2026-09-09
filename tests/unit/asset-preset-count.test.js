@@ -8,20 +8,17 @@ const test = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
 const { readSrc } = require('./_srcread.js');   // ⛔CRLF — win-portability ①-3
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 
 const ROOT = path.join(__dirname, '..', '..');
 const MAIN = readSrc(ROOT, 'main.js');
 const FACTORY = readSrc(ROOT, 'js', 'block-factory.js');
 
-const assetFn = () => {
-  const i = MAIN.indexOf('async function _invokeRendererAddAssetBlock');
-  assert.ok(i > 0, '_invokeRendererAddAssetBlock 이 없다');
-  return MAIN.slice(i, MAIN.indexOf('\n}\n', i));
-};
+const assetFn = () => sliceBlock(MAIN, 'async function _invokeRendererAddAssetBlock',
+  '_invokeRendererAddAssetBlock 이 없다');
 
 test('P0 ★양성대조 — 앱이 «정말» img2/img3 을 캔버스로 바꾸나(전제부터 확인)', () => {
-  const i = FACTORY.indexOf('function makePresetRow');
-  const body = FACTORY.slice(i, FACTORY.indexOf('\n}\n', i));
+  const body = sliceBlock(FACTORY, 'function makePresetRow');
   assert.match(body, /type === 'img2' \|\| type === 'img3'/,
     '앱이 더는 그렇게 안 한다면 이 검사의 «이유»가 사라진 것이다 — 지우지 말고 다시 재라');
   assert.match(body, /makeCanvasBlock/, 'canvas-block 으로 바꾸는 코드가 없다');
@@ -43,8 +40,7 @@ test('P2 바뀌어 만들어진 사실을 «숨기지 않는다»', () => {
 test('P3 ★변이대조 — 셀렉터를 옛것으로 되돌리면 P1 이 빨개져야 한다', () => {
   const mutated = MAIN.replace(/_ADDED_SEL = '\.asset-block, \.canvas-block'/,
                                "_ADDED_SEL = '.asset-block'");
-  const i = mutated.indexOf('async function _invokeRendererAddAssetBlock');
-  const body = mutated.slice(i, mutated.indexOf('\n}\n', i));
+  const body = sliceBlock(mutated, 'async function _invokeRendererAddAssetBlock');
   assert.doesNotMatch(body, /_ADDED_SEL = '\.asset-block, \.canvas-block'/,
     '변이가 안 먹었다 = P1 은 이 배선을 «안» 보고 있다');
 });

@@ -21,20 +21,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSrc } from './_srcread.js';        // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
+import { sliceBlock } from './_slice-block.js';   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
 const SRC = readSrc(ROOT, 'js/editor.js');
 
-/** editor.js 에서 applyZoom «원문»을 잘라낸다(최상위 함수는 0열 `}` 로 끝난다). */
-function sliceApplyZoom(src) {
-  const head = 'function applyZoom(z, opts) {';
-  const i = src.indexOf(head);
-  assert.ok(i >= 0, 'applyZoom(z, opts) 시그니처를 못 찾음 — 검사가 옛 소스를 보고 있다');
-  const end = src.indexOf('\n}\n', i);
-  assert.ok(end > i, 'applyZoom 끝(0열 `}`)을 못 찾음');
-  return src.slice(i, end + 3);
-}
+/** editor.js 에서 applyZoom «원문»을 잘라낸다 — 끝은 «균형괄호»로 찾는다. */
+const sliceApplyZoom = (src) =>
+  sliceBlock(src, 'function applyZoom(z, opts) {', '검사가 옛 소스를 보고 있다');
 
 const APPLY_SRC = sliceApplyZoom(SRC);
 

@@ -21,19 +21,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSrc } from './_srcread.js';        // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
+import { sliceBlock } from './_slice-block.js';   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
 const SRC = readSrc(ROOT, 'js/editor.js');
 
-/** 최상위 함수를 «원문 그대로» 잘라낸다(0열 `}` 로 끝난다). */
-function slice(head) {
-  const i = SRC.indexOf(head);
-  assert.ok(i >= 0, `${head} 를 못 찾음 — 검사가 옛 소스를 보고 있다`);
-  const end = SRC.indexOf('\n}\n', i);
-  assert.ok(end > i, `${head} 의 끝(0열 \`}\`)을 못 찾음`);
-  return SRC.slice(i, end + 3);
-}
+/** 최상위 함수를 «원문 그대로» 잘라낸다 — 끝은 «균형괄호»로 찾는다. */
+const slice = (head) => sliceBlock(SRC, head, '검사가 옛 소스를 보고 있다');
 /** 주석을 지운다 — 「부르는 이름」을 세는 자가 주석 속 낱말을 세면 안 된다. */
 function stripComments(src) {
   return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:'"\\])\/\/[^\n]*/g, '$1');

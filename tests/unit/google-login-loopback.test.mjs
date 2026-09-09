@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
+import { sliceBlock } from './_slice-block.js';   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { readSrc } from './_srcread.js';        // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
@@ -26,14 +27,8 @@ const ROOT = path.join(__dirname, '../..');
 const require_ = createRequire(import.meta.url);
 const SRC = readSrc(ROOT, 'main.js');
 
-/** main.js 에서 최상위 함수 «원문»을 잘라낸다(최상위 함수는 0열 `}` 로 끝난다). */
-function sliceFn(head) {
-  const i = SRC.indexOf(head);
-  assert.ok(i >= 0, `${head} 를 못 찾음 — 검사가 옛 소스를 보고 있다`);
-  const end = SRC.indexOf('\n}\n', i);
-  assert.ok(end > i, `${head} 의 끝을 못 찾음`);
-  return SRC.slice(i, end + 3);
-}
+/** main.js 에서 함수 «원문»을 잘라낸다 — 끝은 «균형괄호»로 찾는다. */
+const sliceFn = (head) => sliceBlock(SRC, head, '검사가 옛 소스를 보고 있다');
 const sliceLoopback = () => sliceFn('function _startGoogleLoopback() {');
 
 /* ★[2026-09-06 자수] 이 검사가 «매달렸다».

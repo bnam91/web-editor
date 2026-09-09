@@ -11,6 +11,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
 const { readSrc } = require('./_srcread.js');   // ⛔CRLF — win-portability ①-3
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 
 const ROOT = path.join(__dirname, '..', '..');
 const DATA = readSrc(ROOT, 'js', 'checklist-data.js');
@@ -66,8 +67,7 @@ test('K5 ★「영원히 0건」이던 죽은 필터를 «거절»로 바꿨다'
 });
 
 test('K6 add 브리지가 «거절 객체»를 itemId 로 싣지 않는다', () => {
-  const i = MAIN.indexOf('async function _invokeRendererAddChecklistItem');
-  const body = MAIN.slice(i, MAIN.indexOf('\n}\n', i));
+  const body = sliceBlock(MAIN, 'async function _invokeRendererAddChecklistItem');
   assert.match(body, /if \(typeof r !== 'string'\)/,
     'addChecklistItem 은 거절 시 «객체»를 준다 — 그대로 itemId 에 담으면 거짓 성공이다');
 });

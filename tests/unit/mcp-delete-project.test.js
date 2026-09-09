@@ -13,6 +13,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const { startHarness } = require('./_mcp-harness');
 const { readSrc } = require('./_srcread.js');   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 
 
 /** ★`_deleteProjectImpl` 의 «전체» 본문. ⛔고정 길이 창(slice(i, i+4000))을 쓰지 마라 —
@@ -21,20 +22,17 @@ const { readSrc } = require('./_srcread.js');   // ★CRLF 체크아웃 방어(�
 function implBody() {
   const fs = require('fs'), path = require('path');
   const src = readSrc(__dirname, '..', '..', 'main.js');
-  const i = src.indexOf('async function _deleteProjectImpl');
-  assert.ok(i > 0, '_deleteProjectImpl 이 없다');
-  const j = src.indexOf('\n}\n', i);
-  return src.slice(i, j > 0 ? j : i + 20000);
+  /* ⛔「끝을 못 찾으면 고정 길이 창」 폴백을 없앴다 — 그 폴백은 «못 잰 것»을 통과로 만든다.
+     못 찾으면 sliceBlock 이 던진다. */
+  return sliceBlock(src, 'async function _deleteProjectImpl', '_deleteProjectImpl 이 없다');
 }
 /** ★2026-09-08: 활성 비우기가 «두 삭제 경로가 공유하는 헬퍼»로 빠졌다.
  *   본문만 보면 「사라졌다」로 보이는데 «옮긴 것»이다 — 옮긴 자리를 재고,
  *   ⛔«실제로 부르는지»도 같이 재라. 안 그러면 헬퍼만 있고 아무도 안 부르는 «죽은 배선»이 초록이 된다. */
 function clearActiveBody() {
   const src = readSrc(__dirname, '..', '..', 'main.js');
-  const i = src.indexOf('async function _clearActiveIfNeeded');
-  assert.ok(i > 0, '_clearActiveIfNeeded 가 없다 — 활성 비우기가 통째로 사라졌다');
-  const j = src.indexOf('\n}\n', i);
-  return src.slice(i, j > 0 ? j : i + 8000);
+  return sliceBlock(src, 'async function _clearActiveIfNeeded',
+    '_clearActiveIfNeeded 가 없다 — 활성 비우기가 통째로 사라졌다');
 }
 
 /** 주석을 «통째로» 걷어낸 코드만. 줄 단위로 거르면 여러 줄 주석 안쪽이 남는다. */

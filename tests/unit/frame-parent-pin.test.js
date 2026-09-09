@@ -10,14 +10,14 @@ const path = require('path');
 /* ⛔날 것으로 읽지 않는다 — CRLF 체크아웃에서 «자르기가 던져» 이 파일이 통째로 안 돈다
      (win-portability ①-3 이 이 자리를 지킨다. 오늘 또 걸렸다). */
 const { readSrc } = require('./_srcread.js');
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 
 const ROOT = path.join(__dirname, '..', '..');
 const MAIN = readSrc(ROOT, 'main.js');
 const SRV  = readSrc(ROOT, 'main', 'claude-pm', 'mcp-server.js');
 
 test('F1 setActiveFrame 은 «핀»(널 대입 무시 접근자)을 깐다 — 보통 대입이면 deselectAll 이 지운다', () => {
-  const fn = MAIN.slice(MAIN.indexOf('async function _invokeRendererSetActiveFrame'));
-  const body = fn.slice(0, fn.indexOf('\n}\n'));
+  const body = sliceBlock(MAIN, 'async function _invokeRendererSetActiveFrame');
   assert.match(body, /Object\.defineProperty\(window, '_activeFrame'/,
     '핀이 없다 — 보통 대입은 deselectAll 에 지워진다');
   assert.match(body, /set\(v\)\s*\{\s*if \(v == null\) return;/,
@@ -25,8 +25,7 @@ test('F1 setActiveFrame 은 «핀»(널 대입 무시 접근자)을 깐다 — �
 });
 
 test('F2 핀은 «걷는 길»이 있다 — pin:false 가 접근자를 delete 한다', () => {
-  const fn = MAIN.slice(MAIN.indexOf('async function _invokeRendererSetActiveFrame'));
-  const body = fn.slice(0, fn.indexOf('\n}\n'));
+  const body = sliceBlock(MAIN, 'async function _invokeRendererSetActiveFrame');
   assert.match(MAIN, /_invokeRendererSetActiveFrame\(\{ frameId, pin = true \} = \{\}\)/,
     'pin 인자가 없으면 원복 경로가 없다');
   assert.match(body, /delete window\._activeFrame/, '접근자를 걷는 코드가 없다');
@@ -45,8 +44,7 @@ test('F5 원복은 «prev 를 되돌린다» — null 로 밀면 사람의 활�
   /* 지디 검토 2026-09-07 이 짚은 자리. 실측 양방향:
        정상본 = 호출 전/후 활성 프레임 동일 · 이 줄을 null 로 바꾼 변이본 = 후 None.
      ⛔이 줄이 null 로 되돌아가면 「MCP 호출 한 번에 사람 상태가 날아가는」 병이 된다. */
-  const fn = MAIN.slice(MAIN.indexOf('async function _invokeRendererSetActiveFrame'));
-  const body = fn.slice(0, fn.indexOf('\n}\n'));
+  const body = sliceBlock(MAIN, 'async function _invokeRendererSetActiveFrame');
   const i = body.indexOf("if (${pin ? 'false' : 'true'})");
   assert.ok(i > 0, '원복 전용 경로를 못 찾았다 — 패턴이 썩었다');
   const seg = body.slice(i, i + 700);
@@ -63,8 +61,7 @@ test('F6 ★재진입·안전망 없음 구간을 «적어» 뒀다 (지디: 막
 
 test('F4 ★변이대조 — 핀 줄을 지우면 F1 이 «빨개져야» 한다(안 부르면 초록인 검사 금지)', () => {
   const mutated = MAIN.replace(/Object\.defineProperty\(window, '_activeFrame'/g, 'window._activeFrame = (');
-  const fn = mutated.slice(mutated.indexOf('async function _invokeRendererSetActiveFrame'));
-  const body = fn.slice(0, fn.indexOf('\n}\n'));
+  const body = sliceBlock(mutated, 'async function _invokeRendererSetActiveFrame');
   assert.doesNotMatch(body, /Object\.defineProperty\(window, '_activeFrame'/,
     '변이가 안 먹었다 = F1 은 이 배선을 «안» 보고 있다');
 });

@@ -15,6 +15,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
 const { readSrc } = require('./_srcread.js');   // ⛔CRLF — win-portability ①-3
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 
 const ROOT = path.join(__dirname, '..', '..');
 const LIM = readSrc(ROOT, 'js', 'blocks', 'gap-limits.js');
@@ -66,9 +67,8 @@ test('G0 ★★«집행하는» 자리가 정본을 따른다 — 스키마는 �
   /* ⚠️`_int('height', …)` 는 파일에 «여덟 자리»가 있다(배너·프레임·오버레이·캔버스…).
        첫 판은 그냥 첫 히트를 잡아 «엉뚱한 상한»을 재고 빨개졌다 — 「못 잰 것」이었다.
      ⇒ _validateGapOpts «함수 안»으로 범위를 좁혀서 잰다. */
-  const fi = MCP.indexOf('function _validateGapOpts');
-  assert.ok(fi > 0, '★_validateGapOpts 가 없다 — 갭 검증기가 사라졌거나 이름이 바뀌었다');
-  const body = MCP.slice(fi, MCP.indexOf('\n}\n', fi));
+  const body = sliceBlock(MCP, 'function _validateGapOpts',
+    '★갭 검증기가 사라졌거나 이름이 바뀌었다');
   const m = body.match(/_int\('height',\s*(\d+),\s*(\d+)\)/);
   assert.ok(m, '★_validateGapOpts 안에서 height 집행을 못 찾았다');
   assert.equal(Number(m[2]), max,
