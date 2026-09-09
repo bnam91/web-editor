@@ -243,11 +243,17 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     if (el.classList.contains('gap-block')) {
       return { type: 'gap', height: parseFloat(el.style.height) || 50 };
     }
-    if (el.classList.contains('text-block') && !el.classList.contains('liner-block')) {
-      // liner-block(곡선텍스트 SVG)은 text-block 클래스도 갖지만 tb-inner가 없어
-      // 여기서 null 드롭됐었음 → liner-block 핸들러(아래)로 흘려보낸다.
+    // liner-block(곡선텍스트 SVG)은 text-block 클래스도 갖지만 tb-inner가 없어
+    // 여기서 null 드롭됐었음 → liner-block 핸들러(아래)로 흘려보낸다.
+    // ★그리고 그 «같은 병»이 speech-bubble-block 에도 있었다 (2026-09-09 실측):
+    //   class="text-block speech-bubble-block" 인데 안쪽이 .tb-bubble/.tb-sender-name 이라
+    //   tb-* 명부에 안 걸려 `return null` 로 «조용히» 통째로 사라졌다.
+    //   ⇒ 「tb-* 가 있을 때만 텍스트로 다룬다」를 «조건»으로 올린다. 없으면 아래 갈래들을
+    //     지나 GENERIC 폴백이 받는다(높이·배경·내부 텍스트/아이콘 보존). ⛔드롭보다 낫다.
+    //     명부(tb-*)를 늘려 막지 않는 이유가 그거다 — 다음 변종에서 또 샌다.
+    if (el.classList.contains('text-block') && !el.classList.contains('liner-block')
+        && el.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label')) {
       const inner = el.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
-      if (!inner) return null;
       const padX = ps?.padX || 0;
       const variant = inner.classList.contains('tb-h1') ? 'heading'
         : inner.classList.contains('tb-h2') ? 'subheading'
@@ -805,19 +811,61 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     return null;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════
+     순회 판정 — ★명부가 아니라 «성질»로 잡는다.
+
+     ⛔왜 바꿨나 (2026-09-09 실측)
+       순회 셀렉터가 «손으로 적은 명부» 네 벌이었고 이미 서로 어긋나 있었다
+       (row 직속 18개엔 canvas-block 이 없고, 섹션 직속 18개엔 gap-block 이 없었다. 합집합 19).
+       그런데 핸들러 `_block` 은 «GENERIC 폴백»(위 787줄)이 있어 이미 성질로 짜여 있다 —
+       classList 중 `-block` 으로 끝나는 게 하나라도 있으면 잡는다.
+       ⇒ 결함은 「핸들러는 멀쩡한데 순회가 거기까지 못 간다」였다.
+         js/ 가 노출하는 add*Block 38종 중 «11종»이 row 안에서 이 명부에 없어
+         `{"columns":[]}` 빈 껍데기로 나갔다(bridge·grid·infocard·innercard·icon-text·joker·vector…).
+
+     ★그래서 순회를 핸들러에 «맞춘다» — 같은 판정을 쓴다.
+       ⛔네 벌을 «한 곳으로 모으기만» 하면 안 된다. 모아도 그 한 곳이 손 명부면
+         20번째 블록이 생기는 날 또 샌다. 명부는 «제외»에만 쓴다 — 제외는 짧고,
+         한 줄마다 «왜»를 적을 수 있다.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /* 제외 — 「-block 으로 끝나지만 _block() 에 넘기면 «안» 되는 것」. 각 줄에 이유가 붙는다.
+     ⛔여기에 이유 없이 한 줄 더하면 그 종은 조용히 다시 샌다. 늘리려면 이유를 적어라. */
+  const _TRAVERSE_SKIP = {
+    // 자기 «전용 분기»가 이미 있다 — 여기서도 집으면 이중 처리되고, 게다가 GENERIC 폴백이
+    // 프레임 구조(자식·좌표·free-layout)를 납작한 껍데기로 뭉갠다.
+    'frame-block': '전용 분기(_processFrameBlock / _frameBlock)가 자식까지 내려간다',
+    'group-block': '전용 분기(.group-inner > .row)가 안쪽 row 를 따로 돈다',
+    // 컨테이너지 콘텐츠가 아니다. 섹션을 블록으로 집으면 자기 자신을 삼킨다.
+    'section-block': '섹션 컨테이너 — 콘텐츠 블록이 아니다',
+  };
+
+  /** 핸들러(_block GENERIC 폴백)와 «같은» 판정 + 이유 붙은 제외. */
+  function _isContentBlock(el) {
+    if (!el || el.nodeType !== 1 || !el.classList) return false;
+    const cls = [...el.classList];
+    if (!cls.some(c => c.endsWith('-block'))) return false;
+    return !cls.some(c => _TRAVERSE_SKIP[c]);
+  }
+  /** 직속 자식 중 «콘텐츠 블록»만. 네 자리가 전부 이걸 쓴다. */
+  function _blockChildren(parent) {
+    return parent ? [...parent.children].filter(_isContentBlock) : [];
+  }
+
   function _row(rowEl, ps) {
     // canvas-block이 row 직속 자식인 경우 (col 래퍼 없음)
+    // ⚠️이 특례는 이제 아래 «직속 블록» 갈래가 구조적으로 덮는다(성질로 잡히므로).
+    //   남겨 둔 이유는 「canvas 하나만 돌려준다」는 기존 반환 모양을 유지하기 위해서다.
     const directCanvas = rowEl.querySelector(':scope > .canvas-block');
     if (directCanvas) {
       const parsed = _block(directCanvas, ps);
       return parsed ? [parsed] : [];
     }
     // col 래퍼 없이 블록이 row 직속 자식인 경우 (stack layout full-width 블록 등)
-    const DIRECT_BLOCK_SEL = ':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .graph-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block, :scope > .modal-block';
-    const hasDirectBlocks = rowEl.querySelector(DIRECT_BLOCK_SEL);
-    if (hasDirectBlocks && !rowEl.querySelector(':scope > .col')) {
+    const direct = _blockChildren(rowEl);
+    if (direct.length && !rowEl.querySelector(':scope > .col')) {
       const blocks = [];
-      rowEl.querySelectorAll(DIRECT_BLOCK_SEL).forEach(b => {
+      direct.forEach(b => {
         const parsed = _block(b, ps);
         if (parsed) blocks.push(parsed);
       });
@@ -827,7 +875,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     rowEl.querySelectorAll(':scope > .col').forEach(col => {
       const w = parseInt(col.dataset.width) || 100;
       const blocks = [];
-      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .graph-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block, :scope > .modal-block').forEach(b => {
+      _blockChildren(col).forEach(b => {
         const parsed = _block(b, ps);
         if (parsed) blocks.push(parsed);
       });
@@ -850,7 +898,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
 
     const blocks = [];
     function _processFrameBlock(fb) {
-      fb.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block, :scope > .graph-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block, :scope > .modal-block').forEach(b => {
+      _blockChildren(fb).forEach(b => {
         const parsed = _block(b, psEx);
         if (parsed) blocks.push(parsed);
       });
@@ -895,7 +943,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       } else if (child.classList.contains('frame-block')) {
         if (child.dataset.freeLayout === 'true') blocks.push(_frameBlock(child));
         else _processFrameBlock(child);
-      } else if (child.matches('.text-block, .modal-block, .asset-block, .icon-block, .icon-circle-block, .table-block, .chat-block, .canvas-block, .graph-block, .divider-block, .shape-block, .label-group-block, .banner02-block, .step-block, .comparison-block, .mockup-block, .laurel-block, .liner-block')) {
+      } else if (_isContentBlock(child)) {
         // section-inner 직속 콘텐츠 블록(row/frame 미포함) — 드롭 방지.
         const parsed = _block(child, psEx);
         if (parsed) blocks.push(parsed);
