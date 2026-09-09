@@ -1728,11 +1728,23 @@ function _registerDefaultTools() {
   const _PUT_IMAGE_MAX = 7 * 1024 * 1024; // = _MKP_MAX_IMGSRC (base64 7M chars ≈ 원본 5MB)
   registerTool(
     'put_image',
-    async ({ image, target = 'canvas', sectionId, preset = 'img1', width } = {}) => {
+    async ({ image, path: imgPath, target = 'canvas', sectionId, preset = 'img1', width } = {}) => {
       if (!_rendererInvoker || typeof _rendererInvoker.scratchAdd !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
-      if (typeof image !== 'string' || !image) throw new Error('image must be a non-empty dataURL string');
+      /* ★path 로도 받는다 (2026-09-10 현빈 발주) — 클로드앱에 «첨부»한 이미지는 모델이
+         그림으로 «볼» 뿐 원본 바이트를 못 얻어서 넣을 방법이 원리적으로 없었다.
+         ⇒ 경로를 주면 «앱이 직접» 읽는다. 데이터가 모델 컨텍스트를 통과하지 않는다.
+         ⛔둘을 같이 주면 «어느 것이 쓰였는지» 모르게 된다 — 거절한다(조용히 하나를 고르지 않는다). */
+      let fileInfo = null;
+      if (imgPath !== undefined && imgPath !== null && imgPath !== '') {
+        if (typeof image === 'string' && image) {
+          throw new Error('pass either image (data URL) or path (local file) — not both');
+        }
+        fileInfo = _imageFileToDataUrl(imgPath, _PUT_IMAGE_MAX);
+        image = fileInfo.dataUrl;
+      }
+      if (typeof image !== 'string' || !image) throw new Error('image must be a non-empty dataURL string — or pass path (local file)');
       /* ⚠️여기 문지기는 «검사기와 같은 관대함»이어야 한다. 앞 판은 이 줄만 대소문자 구분이라
        *   `data:IMAGE/PNG;base64,<온전한 PNG>` 를 put_image 가 거절하고 update_block 은 통과시켰다
        *   — «같은 입력이 문에 따라 갈리는» 오탐이다(적대검수 2026-09-07). 브라우저는 정상 렌더한다.
@@ -1767,7 +1779,8 @@ function _registerDefaultTools() {
       const put = await _rendererInvoker.scratchAdd({ src: image, width });
       if (!put || put.ok !== true) return put || { ok: false, code: 'SCRATCH_FAILED' };
       if (target === 'scratch') {
-        return { ok: true, target: 'scratch', scratchId: put.scratchId, x: put.x, y: put.y, imageCheck };
+        return { ok: true, target: 'scratch', scratchId: put.scratchId, x: put.x, y: put.y, imageCheck,
+                 ...(fileInfo ? { source: { path: fileInfo.resolvedPath, bytes: fileInfo.bytes, format: fileInfo.format } } : {}) };
       }
 
       // ⑵ 캔버스에는 «기존 도구»로 붙인다
@@ -1786,17 +1799,19 @@ function _registerDefaultTools() {
                hasImage: att.hasImage === true, imageCheck };
     },
     {
-      description: 'Put an image into GODITOR. Default target=canvas: the image is stored in the scratch pad and immediately attached to a section as an asset block. target=scratch stores it in the scratch pad only (canvas untouched). ⚠️A project must be OPEN for either target — the scratch pad is scoped to project+page. Image must be a data URL (max ~5MB); oversized images are rejected, never silently downscaled.',
+      description: '★If the user ATTACHED an image to the chat, you CANNOT read its bytes — ask for the file path and pass it as `path` instead. Put an image into GODITOR. Default target=canvas: the image is stored in the scratch pad and immediately attached to a section as an asset block. target=scratch stores it in the scratch pad only (canvas untouched). ⚠️A project must be OPEN for either target — the scratch pad is scoped to project+page. Image must be a data URL (max ~5MB); oversized images are rejected, never silently downscaled.',
       inputSchema: {
         type: 'object',
         properties: {
-          image: { type: 'string', description: 'data:image/<type>;base64,<...>  (file paths are not accepted)' },
+          image: { type: 'string', description: 'data:image/<type>;base64,<...>  (mutually exclusive with path)' },
+          path: { type: 'string', description: '★local image file path, e.g. ~/Downloads/shot.png — the app reads it directly (data never passes through the model). Use this when the user attached an image to chat: you CANNOT read attached image bytes, so ask for the file path instead. png/jpeg/gif/webp only, under the home directory, ≤5MB. Mutually exclusive with image.' },
           target: { type: 'string', enum: ['canvas', 'scratch'], description: 'canvas (default) = scratch + attach to section; scratch = scratch pad only' },
           sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, uses the currently selected section (canvas target only)' },
           preset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout preset (default img1)' },
           width: { type: 'number', description: 'optional scratch item width in px (default 860 — same as folder import)' }
         },
-        required: ['image']
+        /* ★둘 중 하나면 된다 — 핸들러가 「둘 다」와 「둘 다 없음」을 각각 거절한다. */
+        required: []
       }
     }
   );
@@ -7117,6 +7132,71 @@ function _diagnoseUnstorable(src, field) {
   if (!body) return _imgErr(`${field}: dataURL 에 base64 본문이 없습니다 (0바이트).`,
     { reason: 'EMPTY_PAYLOAD', base64Chars: 0, decodedBytes: 0 });
   return why('SRC_NOT_STORABLE', '저장 소비자가 읽을 수 있는 형태가 아닙니다.');
+}
+
+/* ★로컬 이미지 «파일 경로» → dataURL. put_image(path) 전용. (2026-09-10 현빈 발주)
+ *
+ * ★왜 필요한가: 클로드앱에 이미지를 «첨부»하면 모델은 그림을 «볼» 뿐 원본 바이트를 못 얻는다.
+ *   그래서 「이 이미지 넣어줘」가 원리적으로 불가능했다 — 모델이 헤매다 응답이 끊겼다(현빈 실측).
+ *   ⇒ 경로를 받아 «앱이 직접» 읽는다. 데이터가 모델 컨텍스트를 통과하지 않는다.
+ *
+ * ⛔새 검사기를 짓지 않는다 — 여기서는 «읽어서 dataURL 로 만들 뿐»이고,
+ *   온전성·형식 판정은 기존 _assertImageSrcIntact 가 그대로 한다(매직바이트·구조까지 본다).
+ *   ★그래서 「.png 로 이름만 바꾼 남의 파일」도 그 검사기에서 NOT_AN_IMAGE 로 걸린다.
+ *
+ * ★방어선 셋(순서대로 — 싼 것부터, 그리고 «읽기 전»에 거른다):
+ *   ⑴ 홈 디렉토리 «아래»만        — /etc/passwd 같은 곳을 원천 차단. 심링크는 realpath 로 편 뒤 본다
+ *   ⑵ 앞 12바이트가 «이미지 매직» — 아니면 전체를 읽지도 않는다
+ *   ⑶ 크기 상한                   — 기존 _PUT_IMAGE_MAX 와 «같은 자» (base64 환산)
+ */
+function _imageFileToDataUrl(filePath, maxB64Chars) {
+  if (typeof filePath !== 'string' || !filePath.trim()) {
+    throw new Error('path must be a non-empty string');
+  }
+  const home = os.homedir();
+  let abs = filePath.trim();
+  if (abs === '~') abs = home;
+  else if (abs.startsWith('~/')) abs = path.join(home, abs.slice(2));
+  abs = path.resolve(abs);
+
+  let st;
+  try { st = fs.statSync(abs); }
+  catch (_) { throw new Error(`file not found: ${abs}`); }
+  if (!st.isFile()) throw new Error(`not a file: ${abs}`);
+
+  /* ⑴ ★심링크를 «편 뒤에» 홈 아래인지 본다 — 안 그러면 홈 안의 링크로 밖을 읽는다. */
+  let real;
+  try { real = fs.realpathSync(abs); } catch (_) { real = abs; }
+  const homeReal = (() => { try { return fs.realpathSync(home); } catch (_) { return home; } })();
+  if (real !== homeReal && !real.startsWith(homeReal + path.sep)) {
+    throw new Error(`path outside home directory is not allowed: ${real}`);
+  }
+
+  /* ⑶ 크기 — base64 는 원본의 4/3 이다. 기존 상한과 «같은 자»를 쓴다. */
+  const maxBytes = Math.floor((maxB64Chars * 3) / 4);
+  if (st.size > maxBytes) {
+    throw new Error(`image file too large (${st.size} bytes > ${maxBytes} ≈ ${Math.round(maxBytes / 1048576)}MB). `
+      + '줄여서 다시 주세요 — 우리가 임의로 축소하지 않습니다.');
+  }
+  if (st.size === 0) throw new Error(`empty file: ${real}`);
+
+  /* ⑵ ★앞머리만 읽어 «이미지인지» 먼저 본다. 아니면 전체를 안 읽는다. */
+  const head = Buffer.alloc(Math.min(12, st.size));
+  const fd = fs.openSync(real, 'r');
+  try { fs.readSync(fd, head, 0, head.length, 0); } finally { fs.closeSync(fd); }
+  const hit = _IMG_SNIFF.find(e => e.sig.every((b, i) => head[i] === b));
+  if (!hit) {
+    const got = Array.from(head.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+    throw new Error(`not an image file — 앞 바이트 [${got}]. `
+      + 'png/jpeg/gif/webp 만 받습니다(확장자가 아니라 «내용»으로 판정합니다).');
+  }
+  /* ★webp 는 RIFF 로만 판정하면 wav·avi 도 걸린다 — 8~12바이트가 'WEBP' 인지 마저 본다. */
+  if (hit.fmt === 'webp' && head.slice(8, 12).toString('ascii') !== 'WEBP') {
+    throw new Error('not an image file — RIFF 컨테이너지만 WEBP 가 아닙니다.');
+  }
+
+  const b64 = fs.readFileSync(real).toString('base64');
+  return { dataUrl: `data:${hit.mime};base64,${b64}`, resolvedPath: real, bytes: st.size, format: hit.mime };
 }
 
 function _assertImageSrcIntact(src, field = 'image') {
