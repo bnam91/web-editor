@@ -2015,7 +2015,7 @@ document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
       copySelected();
-      deleteSelectedFromCanvas();
+      deleteSelectedFromCanvas({ isCut: true });   // [#16-DEL] ⌘X=이동 ⇒ ⛔스크래치를 안 건드린다
       return;
     }
     if (e.key === 'd') {
@@ -2523,10 +2523,26 @@ document.addEventListener('keydown', e => {
   }
 });
 
+/* [#16-DEL] 섹션 삭제의 «링크 처분» — ⛔묻지 않는다(현빈 2026-09-09 정정: 「그냥 같이 삭제」).
+ *   _splReleaseSections(secs) : ★①링크를 끊고 ②«고아»(아무 섹션도 안 쓰는) 이미지만 지운다.
+ *     그다음 호출자가 ③remove(). 반환한 sideEffects 를 «변경 뒤» pushHistory 에 실어야
+ *     ⌘Z 가 이미지를 되살린다 — 이제 이미지가 말없이 지워지므로 그게 데이터 손실 방지선이다.
+ * ★★반드시 ensureHistoryCheckpoint «뒤»에 부른다 — 체크포인트가 «링크가 살아있는» 캔버스를
+ *   찍어야 ⌘Z 로 링크가 돌아온다. 앞에 두면 되돌린 섹션에 refLinks 가 «빠진 채» 살아난다
+ *   (2026-09-09 실측으로 확인한 실패 모드: 링크 1 → undo 후 0). */
+function _splReleaseSections(secs) {
+  try { return window.SPLink?.releaseSectionsForDelete?.(secs) || null; } catch (_) { return null; }
+}
+
 // 캔버스 선택(블록/도형/행/열/섹션/프레임) 삭제 — Delete/Backspace 핸들러와 ⌘X 잘라내기가 공유.
 // 동작보존 추출: 원래 인라인 e.preventDefault()는 consumed 플래그로 대체(호출부가 preventDefault).
 // 반환값: 무언가를 소비(삭제 시도/보호차단 등 기본동작 차단)했으면 true.
-function deleteSelectedFromCanvas() {
+/* ★isCut — ⌘X 는 «이동»이지 삭제가 아니다. ⛔링크 처분을 «아예» 안 지난다.
+   붙여넣기 쪽 규칙이 「그 scratchId 를 살아있는 섹션이 «아무도 안 쥐면» = 이동 → 토큰 그대로」라
+   (scratchpad-link.js rewireClonedSection), 섹션만 사라지면 재연결이 «저절로» 맞는다.
+   여기서 이미지를 지우면 ⌘X→⌘V 가 「잘라냈더니 참고이미지가 증발」이 된다 —
+   그리고 되붙인 섹션의 refLinks 토큰은 死참조가 된다. */
+function deleteSelectedFromCanvas({ isCut = false } = {}) {
   let consumed = false;
     // 이미지 편집 모드 중이면 이미지 삭제
     const imgEditBlock = document.querySelector('.asset-block.img-editing');
@@ -2563,13 +2579,14 @@ function deleteSelectedFromCanvas() {
         window.showToast(`🔒 보호된 섹션 ${skipped}개 제외 (메모: "삭제하지말것" 자동 감지)`);
       }
       if (toDelete.length === 0) { clearMultiSel(); deselectAll(); return consumed; }
-      ensureHistoryCheckpoint('섹션 다중 삭제 전');
-      toDelete.forEach(s => s.remove());
+      ensureHistoryCheckpoint('섹션 다중 삭제 전');   // ★링크가 «살아있는» 상태를 찍는다(⌘Z 복원선)
+      const _splRel = isCut ? null : _splReleaseSections(toDelete);   // ①링크 끊기 →②고아 삭제
+      toDelete.forEach(s => s.remove());                              // ③섹션 삭제
       clearMultiSel();
       deselectAll();
       if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
       window.buildLayerPanel();
-      pushHistory('섹션 삭제');
+      pushHistory('섹션 삭제', _splRel?.sideEffects || null);
       return consumed;
     }
     const selText    = document.querySelector('.text-block.selected');
@@ -2678,11 +2695,13 @@ function deleteSelectedFromCanvas() {
             window.showToast(`🔒 보호된 섹션 ${skipped}개 제외`);
           }
           if (toDelete.length === 0) { deselectAll(); return consumed; }
-          toDelete.forEach(s => s.remove());
+          ensureHistoryCheckpoint('섹션 삭제 전');
+          const _splRel = isCut ? null : _splReleaseSections(toDelete);   // ①링크 끊기 →②고아 삭제
+          toDelete.forEach(s => s.remove());                              // ③섹션 삭제
           deselectAll();
           if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
           window.buildLayerPanel();
-          pushHistory('섹션 삭제');
+          pushHistory('섹션 삭제', _splRel?.sideEffects || null);
         } else {
           if (isProtected(selSection)) {
             if (typeof window.showToast === 'function') {
@@ -2690,11 +2709,17 @@ function deleteSelectedFromCanvas() {
             }
             return consumed;
           }
-          selSection.remove();
+          /* ★체크포인트를 «여기서» 찍는다 — 원래 이 갈래엔 없었고, 그래서 ⌘Z 가 섹션을
+             되살려도 refLinks 가 «빠진 채» 살아났다(2026-09-09 실측: 링크 1 → undo 후 0).
+             pushHistory 가 «변경 뒤»에 오는 갈래라 직전 항목이 addLink 의 «연결 전» 스냅이었다.
+             ensureHistoryCheckpoint 는 라이브가 꼭대기와 «다를 때만» 찍으므로 ⌘Z 횟수는 안 는다. */
+          ensureHistoryCheckpoint('섹션 삭제 전');
+          const _splRel = isCut ? null : _splReleaseSections([selSection]);   // ①링크 끊기 →②고아 삭제
+          selSection.remove();                                                // ③섹션 삭제
           deselectAll();
           if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
           window.buildLayerPanel();
-          pushHistory('섹션 삭제');
+          pushHistory('섹션 삭제', _splRel?.sideEffects || null);
         }
       }
     }
@@ -3251,6 +3276,19 @@ function deleteSection(secIdOrEl) {
    *       ⇒ pasteClipboard 의 pushHistory('붙여넣기', sideEffects) 참조(#16-DUP).
    *   ⛔위 문장을 「복사도 무접촉이다」로 넓혀 읽지 마라 — 그러면 ⌘Z 가 사본 이미지를 고아로 남긴다. */
   pushHistory('섹션 삭제 전');
+  /* [#16-DEL] ★여기만 «이미지를 안 지운다» — 링크만 끊는다. 이유는 취향이 아니라 «실측»이다:
+   *   이 함수는 pushHistory 를 «변경 전»에 찍는다(바로 위 줄). 그런데 history.js 의 undo() 는
+   *   ⑴꼭대기면 ensureHistoryCheckpoint 로 «현재 상태» 항목을 먼저 끼워 넣고
+   *   ⑵ «떠나는 스냅»의 sideEffects.onUndo 를 부른다.
+   *   ⇒ 끼워 넣어진 그 항목엔 sideEffects 가 «없어서»(ensureHistoryCheckpoint 는 아예 안 싣는다)
+   *     여기에 sideEffects 를 달아도 ★영영 안 탄다 = 지운 이미지를 ⌘Z 로 못 되살린다.
+   *     (자매 파일 tests/unit/scratch-paste-dup.test.js 의 BL-SPL-04 가 같은 자리를 기록해 뒀다.)
+   *   ★그리고 이 문은 MCP(delete_section)·자동화가 쓴다(main.js) — 사람이 안 보는 곳에서
+   *     되돌릴 수 없게 이미지를 지우는 것은 «데이터 손실»이다. 안 지우면 한 장 남을 뿐이다.
+   *   ⇒ 사람이 누르는 경로(Delete/Backspace)는 위 deleteSelectedFromCanvas 가 «같이» 지운다.
+   *   ⛔여기를 「같이 삭제」로 넓히려면 먼저 pushHistory 를 «변경 뒤»로 옮겨야 하는데,
+   *     그건 MCP undo 의 seq 셈(main/claude-pm/mcp-server.js)을 건드린다 = 별건 게이트. */
+  try { window.SPLink?.releaseSectionsForDelete?.([sec], { deleteOrphans: false }); } catch (_) {}
   sec.remove();
   deselectAll();
   window.buildLayerPanel?.();

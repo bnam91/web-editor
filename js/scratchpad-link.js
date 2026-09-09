@@ -185,6 +185,125 @@
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // [#16-DEL] 「링크된 섹션을 지우면 스크래치패드도 «같이» 지운다」
+  //   현빈 2026-09-09 (★정정 — 처음엔 「물어라」였는데 알럿을 직접 보고 「그냥 같이 삭제」로 바꿨다.
+  //   ⛔확인 대화상자를 다시 들이지 마라: `confirm` 호출 0건이 계약이다. 집행 = D4)
+  //
+  // ★★단 하나의 예외 = 「남이 쓰는 스크래치패드」.
+  //   한 이미지를 «두 섹션»이 링크한 상태에서 한쪽만 지웠는데 이미지를 지우면
+  //   남은 섹션의 refLinks 토큰이 死참조가 된다 — 화면엔 링크가 있다고 적혀 있는데 그림이 없다.
+  //   ⇒ ★참조가 «0일 때만» 지운다. 그리고 그 수는 ⛔손으로 적지 않는다:
+  //     `[data-ref-links]` 를 가진 섹션 «전수»를 훑어 «기계가» 센다(_holderSecs → refCount).
+  //     («링크를 쥐고 있다»의 유일한 표식이 그 속성이다. .section-block 목록을 따로 적으면
+  //      그 목록이 낡는 날 조용히 틀린다.)
+  //
+  // ★★순서가 «계약»이면서 동시에 «분모를 만든다» — ①링크 끊기 → ②고아만 삭제 → 호출자가 ③섹션 제거.
+  //   ①을 먼저 하기 «때문에» ② 시점의 `[data-ref-links]` 에 남는 것이 정확히
+  //   「이 삭제와 무관하게 그 이미지를 아직 쓰는 섹션」이 된다. 순서를 바꾸면 지우는 섹션이
+  //   자기 자신을 세어 «항상 참조 ≥1» 이 되고, 고아가 하나도 안 지워진다.  ⛔거꾸로 하지 마라.
+  //
+  // ★왜 removeLink() 를 «안» 쓰나 — 그건 호출마다 pushHistory 를 따로 쌓는다. 섹션 삭제와
+  //   합치면 ⌘Z 가 «두 번»으로 쪼개져 「한 번 눌렀는데 섹션만 돌아온다」가 된다.
+  //   js/scratch-pad.js `_severLinks` 가 «같은 이유»로 dataset 을 직접 고친다 — 같은 관례를 쓴다.
+  //
+  // ★★undo 는 «데이터 손실 방지선»이다 — 이제 이미지가 «말없이» 지워지므로.
+  //   이미지는 ScratchPadDB(캔버스 밖)라 캔버스 스냅샷이 못 되돌린다 ⇒ sideEffects 로 되살린다.
+  //   붙여넣기 사본(#16-DUP)과 «정확히 같은» 기제·같은 id 보존 규칙을 쓴다.
+  //   ⛔호출자는 이 sideEffects 를 «변경 뒤» pushHistory 에 실어야 한다(history.js 는 undo 때
+  //     «떠나는 스냅»의 onUndo 를 부른다). push-before 항목에 실으면 «영영 안 탄다».
+  // ═══════════════════════════════════════════════════════════════════
+
+  /** 넘겨받은 섹션들이 «쥐고 있는» 링크 전수. 분모를 손으로 세지 않기 위한 유일한 출처. */
+  function linksOfSections(secs) {
+    const out = [];
+    for (const sec of (secs || [])) {
+      if (!sec || !sec.dataset) continue;
+      for (const l of _parse(sec)) out.push({ sectionId: sec.id, scratchId: l.scratchId, collapsed: l.collapsed });
+    }
+    return out;
+  }
+
+  /* ★「링크를 쥐고 있는 섹션」의 «전수». ⛔.section-block 목록을 손으로 적지 않는다 —
+     쥐고 있음의 표식은 `data-ref-links` 속성 하나뿐이고, _write 가 링크 0이면 그 속성을 지운다. */
+  function _holderSecs() {
+    try { return [...document.querySelectorAll('[data-ref-links]')]; } catch (_) { return []; }
+  }
+  /** 그 scratchId 를 «아직» 쥐고 있는 섹션 수. 0 이면 고아 = 지워도 아무도 안 잃는다. */
+  function refCount(scratchId) {
+    let n = 0;
+    for (const sec of _holderSecs()) if (_parse(sec).some(l => l.scratchId === scratchId)) n++;
+    return n;
+  }
+
+  /** ★①링크를 끊고 ②고아 이미지만 지운다. 섹션 제거는 «호출자가 이 뒤에» 한다.
+   *  반환 { links, removedScratch, keptShared, sideEffects, order }
+   *    · keptShared — 「남이 아직 쓰고 있어 «안» 지운 것」. 조용히 넘기지 않고 세어서 돌려준다.
+   *
+   *  ⛔deleteOrphans:false 는 «사용자 경로에서 쓰라고 만든 게 아니다». 유일한 손님은
+   *    js/editor.js 의 deleteSection()(MCP·자동화)이고, 그 이유는 취향이 아니라 실측이다 —
+   *    그 함수는 pushHistory 를 «변경 전»에 찍어서 sideEffects 가 «영영 안 탄다»
+   *    ⇒ 지우면 ⌘Z 로 못 되살린다 = 데이터 손실. 그 자리 주석에 근거를 적어 뒀다.
+   *    ★사용자 경로(Delete/Backspace)에서 이 옵션을 쓰면 발주(「그냥 같이 삭제」)를 어긴다. */
+  function releaseSectionsForDelete(secs, { deleteOrphans = true } = {}) {
+    const order = [];
+    const links = linksOfSections(secs);
+    if (!links.length) return { links: [], removedScratch: [], keptShared: [], sideEffects: null, order };
+
+    /* ★① 링크 끊기 — 섹션이 «아직 DOM 에 있을 때». _clearAnchor 가 linkDy 를 버려야
+       살아남는 이미지가 죽은 섹션을 가리키는 앵커를 안 물고 간다. */
+    for (const sec of (secs || [])) {
+      if (sec && sec.dataset && sec.dataset[ATTR]) _write(sec, []);
+    }
+    for (const l of links) _clearAnchor(l.scratchId);
+    order.push('sever');
+
+    /* ★② 고아만 지운다 — 참조를 «지금» 센다(①이 끝난 뒤라 분모가 「남이 쓰는 것」뿐이다). */
+    const removedScratch = [], keptShared = [], seen = new Set();
+    for (const l of (deleteOrphans ? links : [])) {
+      if (seen.has(l.scratchId)) continue;          // 한 이미지를 여러 섹션이 쥔 경우 1회만
+      seen.add(l.scratchId);
+      const still = refCount(l.scratchId);
+      if (still > 0) { keptShared.push({ scratchId: l.scratchId, stillUsedBy: still }); continue; }
+      const it = _item(l.scratchId);
+      if (!it) continue;                            // 다른 페이지·이미 삭제 = 조용히 넘긴다
+      // ★레코드를 «먼저» 뜬다 — 지운 뒤엔 못 뜬다. 이게 onUndo 의 유일한 근거다.
+      removedScratch.push({ id: it.id, src: it.src, x: it.x, y: it.y, w: it.w, linkDy: it.linkDy });
+    }
+    for (const rec of removedScratch) { try { window._scratchRemoveById?.(rec.id); } catch (_) {} }
+    if (deleteOrphans) order.push('deleteOrphans');
+
+    _rerender(); _save();
+    _emitSplChanged();
+
+    if (!removedScratch.length) return { links, removedScratch, keptShared, sideEffects: null, order };
+
+    /* 크로스페이지 가드 — rewireClonedSection 과 «같은» 이유·같은 문구(history.js 가 페이지를
+       바꾼 뒤 onUndo 를 부를 수 있고 ScratchPadDB 는 페이지별 키다). */
+    const pageId = _curPageId();
+    const recs = removedScratch.slice();
+    const _samePage = () => {
+      const now = _curPageId();
+      if (now === pageId) return true;
+      console.warn('[spl] 섹션삭제 undo/redo 를 건너뛴다 — 페이지가 다르다(당시 ' + pageId + ' / 지금 ' + now + ')');
+      return false;
+    };
+    const sideEffects = {
+      // ★id 를 «그대로» 되살린다 — 되돌아온 캔버스 스냅샷의 refLinks 토큰이 이 id 를 부른다.
+      onUndo: () => {
+        if (!_samePage()) return;
+        for (const d of recs) { try { window._scratchRestoreItem?.(d); } catch (_) {} }
+        _rerender(); _emitSplChanged();
+      },
+      onRedo: () => {
+        if (!_samePage()) return;
+        for (const d of recs) { try { window._scratchRemoveById?.(d.id); } catch (_) {} }
+        _rerender(); _emitSplChanged();
+      },
+    };
+    return { links, removedScratch, keptShared, sideEffects, order };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // [P2 = 오버레이 렌더]  사이드카(note-group·refimg 카드) + 연결선(SVG edges).
   //   · 오버레이는 #canvas-wrap «안», #canvas-scaler(줌/팬 transform) «밖»에 둔다(스크린 좌표).
   //     → serializeCleanRoot(#canvas 대상)가 못 봐서 export 오염0. 위치는 getBoundingClientRect
@@ -673,6 +792,9 @@
     /* [#16-DUP] 「임의의 «분리 상태» 섹션 요소」를 받는 공개 API — 붙여넣기가 부른다.
        ⛔반드시 DOM 삽입 «전»에 부를 것(윗 주석 참조). §7-A 형제 경로 배선은 이번 범위 밖. */
     rewireClonedSection,
+    /* [#16-DEL] 섹션 삭제의 «링크 처분» — 호출 순서가 계약이다:
+         release(①링크 끊기 →②고아 삭제) → 호출자가 ③sec.remove() → pushHistory(…, sideEffects) */
+    linksOfSections, refCount, releaseSectionsForDelete,
     rerender: __spLinkRerender,
     resyncFollow,          // undo/redo 좌표복원 직후 추종 기준선 재동기화(scratch-pad.js 호출)
     _applyFollow,          // 테스트/강제 1회 적용
