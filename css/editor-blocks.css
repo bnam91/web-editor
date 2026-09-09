@@ -278,10 +278,14 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .zm-radius-handle[data-zoom-radius-dir] {
   border-color: var(--ui-sel-overlay, #9966ff);
 }
-.asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw { cursor: nw-resize; }
-.asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne { cursor: ne-resize; }
-.asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw { cursor: sw-resize; }
-.asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se { cursor: se-resize; }
+/* ★커서는 «손 목록»이라 새 블록이 생길 때마다 빠진다 — 실제로 모달이 빠져 있었다
+     (2026-09-09 현빈 실측: 「모달블럭 > 모서리 핸들 마우스 커서 모양 안 바뀜」).
+   ⚠️모양 규칙(:253)엔 얹혀 있는데 «커서만» 안 얹혀서, 손잡이는 보이는데 커서가 화살표 그대로였다.
+   ⇒ ★다음에 오버레이 손잡이를 가진 블록을 만들면 «여기도» 더해라. 검사가 이 짝을 못박는다. */
+.asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw, .mdl-overlay-handle.nw { cursor: nw-resize; }
+.asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne { cursor: ne-resize; }
+.asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw { cursor: sw-resize; }
+.asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se { cursor: se-resize; }
 
 /* ── Canvas Block overlay resize handles ── */
 .canvas-overlay-handle {
