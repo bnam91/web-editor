@@ -17,6 +17,19 @@
      눈으로는 다 「가로로 긴 사각형」이라 «비슷하다»로 넘기면 안 된다. 검사가 리터럴로 못박는다. */
 export const ZOOM_RECT_RATIO = 3.5 / 6.5;   // = 7/13. 가로:세로 = 6.5 : 3.5
 
+/** A4 «세로형» 프리셋의 세로/가로 비 — ISO 216 A4 = 210 × 297 mm (현빈 2026-09-09 확답: 세로형).
+   ★«분수»로 쓴다 — 297/210 = 99/70 «그 자체»다. 이게 규격이고, 반올림한 소수가 아니다.
+   ⛔`Math.SQRT2`(1.41421356…) 로 적지 마라 — A4 는 √2 «에 수렴하도록 반올림된» 규격이지
+     √2 «가» 아니다(99/70 = 1.4142857…, √2 = 1.4142135…, 1e-5 만큼 다르다).
+   ⛔소수로도 적지 마라 — 이 파일이 이미 그 값을 치렀다(ZOOM_RECT_RATIO 주석: 0.5385 로
+     적었더니 140 대신 140.01 이 나왔다).
+   ★size 260 → 260 × 367.71px «딱 안 떨어진다»(260·99/70 = 367.714285…).
+     어디서 티가 나나 = ⑴ Export PNG 의 픽셀 경계(367.71 → 반픽셀 흐림) ⑵ 블록 상자
+     height 문자열이 `.toFixed(2)` 로 잘려 «367.71» 이 되므로 기하(367.714285…)와 상자가
+     0.004px 어긋난다. 둘 다 눈에 안 보이는 크기다.
+   ⛔«프리셋별 기본 size» 는 여기서 안 고친다 — 별건이다(280 이면 280·99/70 = 396 «정수»). */
+export const ZOOM_A4_RATIO = 99 / 70;   // = 297/210. 가로:세로 = 210 : 297 (세로형)
+
 /** 그림자 띠 개수. 많을수록 매끈하지만 노드가 늘어난다(64 = 실측상 밴딩 안 보임). */
 export const ZOOM_STRIP_COUNT = 64;
 
@@ -34,7 +47,12 @@ export function lerp(p, q, t) {
 /** 도형 꼭짓점 — rect/square 공용. rot 은 도(degree). */
 export function shapePts(kind, r, rot, cx, cy) {
   const hw = r;
-  const hh = (kind === 'rect') ? r * ZOOM_RECT_RATIO : r;
+  /* ⚠️여기는 «라이브 렌더 경로가 아니다»(검사 전용) — 실제 크기는 shapeHalf 가 낸다.
+     그래도 프리셋을 늘릴 때 «같이» 고친다: 한쪽만 고치면 검사가 라이브와 다른 도형을
+     재면서도 조용히 초록으로 남는다(= 검사가 눈머는 길). */
+  const hh = (kind === 'rect') ? r * ZOOM_RECT_RATIO
+           : (kind === 'a4')   ? r * ZOOM_A4_RATIO
+           : r;
   const th = (Number(rot) || 0) * Math.PI / 180;
   const co = Math.cos(th), si = Math.sin(th);
   return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(function (p) {
@@ -491,8 +509,12 @@ export function shapeHalf(st) {
   const half = (Number(st.size) || 0) / 2;
   const wv = Number(st.w), hv = Number(st.h);
   const hw = (Number.isFinite(wv) && wv > 0) ? wv / 2 : half;
+  /* ★프리셋 비율은 «여기»가 정본이다. 분기를 안 늘리면 새 프리셋이 조용히 정사각(hh=hw)이
+     된다 — 값이 틀린 게 아니라 «프리셋이 아예 없던 것처럼» 굴어서 알아채기 어렵다. */
   const hh = (Number.isFinite(hv) && hv > 0) ? hv / 2
-           : (st.shape === 'rect' ? half * ZOOM_RECT_RATIO : hw);
+           : st.shape === 'rect' ? half * ZOOM_RECT_RATIO
+           : st.shape === 'a4'   ? half * ZOOM_A4_RATIO
+           : hw;
   return { hw, hh };
 }
 

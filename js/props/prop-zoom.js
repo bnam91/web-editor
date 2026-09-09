@@ -119,6 +119,12 @@ export function showZoomProperties(block) {
           <button class="prop-align-btn${st.shape === 'square' ? ' active' : ''}" data-shape="square" title="정사각형">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg>
           </button>
+          <!-- ★A4 세로형 — 현빈 2026-09-09 「프리셋의 A4 사진 사각형도 1개 추가」+ 확답 「세로형」.
+               ⛔가로형은 «안 넣는다» — 시키지 않은 것을 넣지 않는다.
+               ★버튼이 넷이어도 한 줄에 들어간다(실측: 폭 66 → 49px). -->
+          <button class="prop-align-btn${st.shape === 'a4' ? ' active' : ''}" data-shape="a4" title="A4 (세로)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3.75" y="2" width="8.5" height="12" rx="1"/></svg>
+          </button>
         </div>
       </div>
       ${_pairRow('zm-size', '크기', st.size, 20, 600, 2)}

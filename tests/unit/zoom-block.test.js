@@ -667,6 +667,109 @@ test('ⓐ-22 ⑤크기 덧씌우개 — w/h 가 «이기고», 없으면 size+�
   assert.equal(g.blockBoxSpec({ ...ST, w: 300, h: 120 }).w, 300);
 });
 
+/* ═══ A4 세로형 프리셋 (현빈 2026-09-09) ═══════════════════════════════════
+   ★이 프리셋은 «여섯 자리»를 같이 고쳐야 산다. 아래 검사들은 «한 자리씩» 문다 —
+     한 검사가 여러 자리를 덮으면 어디가 빠졌는지 못 짚는다.
+   ★두 병이 «조용하다»(오류도 경고도 없다) ⇒ 각각에 양성대조를 붙였다:
+       ⑴ ZOOM_SHAPES 에 이름이 없으면 'a4' 가 «조용히» 'rect' 로 떨어진다
+       ⑵ shapeHalf 에 분기가 없으면 «조용히» 정사각(hh=hw)이 된다
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** ZOOM_SHAPES 리터럴을 «소스에서 꺼내 실제로 실행»한다.
+ *  ⛔정규식으로 'a4' 가 «있나»만 보면 안 된다 — 그건 문(門)이 열렸는지가 아니라
+ *    글자가 있는지를 재는 것이다. 여기서는 실제 배열을 만들어 includes() 를 돌린다. */
+function zoomShapesLiteral() {
+  const m = SRC.block.match(/const ZOOM_SHAPES = (\[[^\]]*\]);/);
+  assert.ok(m, 'ZOOM_SHAPES 리터럴을 못 찾았다');
+  return JSON.parse(m[1].replace(/'/g, '"'));
+}
+/** readZoomState(:118)·makeZoomBlock(:373) 이 쓰는 «그 판정»을 그대로 재현한다. */
+const gateShape = (want, shapes) => shapes.includes(want) ? want : 'rect';
+
+test("ⓐ-A4-1 [자리①/정문] 'a4' 가 «조용히» 'rect' 로 떨어지지 않는다 (+양성대조)", () => {
+  const shapes = zoomShapesLiteral();
+  // ★양성대조를 «앞»에 — 이 하네스가 「떨어지는 것」을 실제로 잡아내나부터 본다.
+  assert.equal(gateShape('triangle', shapes), 'rect',
+    '양성대조 실패: 모르는 프리셋이 rect 로 안 떨어지면 이 검사는 아무것도 못 잰다');
+  assert.equal(gateShape('rect', shapes), 'rect');
+  // 본 단언 — 문이 닫혀 있으면 'a4' 도 위 triangle 과 «똑같이» rect 가 된다
+  assert.equal(gateShape('a4', shapes), 'a4',
+    "ZOOM_SHAPES 에 'a4' 가 없다 — 기하를 아무리 고쳐도 'a4' 는 rect 로 떨어진다(오류 없이)");
+  // 기존 셋이 사라지지 않았다(저장된 프로젝트 보호)
+  for (const k of ['rect', 'circle', 'square']) assert.ok(shapes.includes(k), `${k} 가 사라졌다`);
+});
+
+test('ⓐ-A4-2 [자리③] 비율 상수는 99/70 «분수»다 — √2 도 소수도 아니다', async () => {
+  const g = await loadGeom();
+  assert.ok(typeof g.ZOOM_A4_RATIO === 'number', 'ZOOM_A4_RATIO 를 안 내보낸다');
+  assert.equal(g.ZOOM_A4_RATIO, 99 / 70);          // = 297/210, ISO 216 규격 그 자체
+  /* ⛔√2 로 바꾸면 «눈으로는» 못 본다 — 그래서 수로 못박는다.
+     130 × 99/70 = 183.857142…  ·  130 × √2 = 183.847763…  (0.0094px 차) */
+  assert.notEqual(g.ZOOM_A4_RATIO, Math.SQRT2);
+  assert.ok(Math.abs(g.ZOOM_A4_RATIO - Math.SQRT2) > 1e-6, '√2 로 바뀌었다(A4 는 √2 «가» 아니라 √2 에 반올림된 규격이다)');
+  // rect 비율과 «눈에 띄게» 달라야 프리셋이 프리셋 구실을 한다
+  assert.ok(g.ZOOM_A4_RATIO > 1 && g.ZOOM_RECT_RATIO < 1, 'A4 는 세로형, rect 는 가로형이어야 한다');
+});
+
+test('ⓐ-A4-3 [자리②/크기의 유일한 출처] shapeHalf 가 «조용히 정사각»이 되지 않는다 (+양성대조)', async () => {
+  const g = await loadGeom();
+  const half = g.shapeHalf({ ...ST, shape: 'a4' });
+  /* ★양성대조를 «앞»에 — 분기가 없을 때 나오는 값(정사각)을 먼저 계산해 두고,
+     실제 값이 «그것과 다른지»를 본다. 이게 없으면 hh 를 그냥 읽고 초록을 줄 뻔했다. */
+  const IF_NO_BRANCH = { hw: 130, hh: 130 };       // = square/circle 이 내는 값
+  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'square' }), IF_NO_BRANCH,
+    '양성대조 실패: 분기 없을 때의 값이 정사각이 아니면 아래 대조가 뜻을 잃는다');
+  assert.notDeepEqual(half, IF_NO_BRANCH,
+    'shapeHalf 에 a4 분기가 없다 — 오류 없이 «정사각»이 된다');
+  // 본 값 — size 260 → 260 × 367.714285…
+  assert.equal(half.hw, 130);
+  assert.ok(Math.abs(half.hh - 130 * 99 / 70) < 1e-12, `hh=${half.hh}`);
+  assert.ok(half.hh > half.hw, '★A4 는 «세로형»이다(현빈 확답) — 가로형이면 뒤집혔다');
+  // 덧씌우개(w/h)는 A4 에서도 «이긴다» — rect 와 같은 규약
+  assert.deepEqual(g.shapeHalf({ ...ST, shape: 'a4', w: 300, h: 120 }), { hw: 150, hh: 60 });
+  // w 만 주면 rect 와 «같은 관용구»로 size 에서 세로를 만든다
+  assert.equal(g.shapeHalf({ ...ST, shape: 'a4', w: 300 }).hh, 130 * 99 / 70);
+  // 블록 상자·뷰박스가 «같이» 따라온다(한 곳만 고치면 상자와 그림이 갈린다)
+  const box = g.blockBoxSpec({ ...ST, shape: 'a4' });
+  assert.equal(box.w, 260);
+  assert.ok(Math.abs(box.h - 260 * 99 / 70) < 1e-12, `블록 상자 높이가 안 따라왔다: ${box.h}`);
+});
+
+test('ⓐ-A4-4 [자리④] shapePts 도 «같이» 고쳐졌다 (검사 전용 경로라 잊기 쉽다, +양성대조)', async () => {
+  const g = await loadGeom();
+  const pts = g.shapePts('a4', 130, 0, 0, 0);
+  const ys = pts.map(p => Math.abs(p.y));
+  const xs = pts.map(p => Math.abs(p.x));
+  // 양성대조 — 분기가 없으면 정사각(|y| = 130)이 나온다
+  assert.deepEqual(g.shapePts('square', 130, 0, 0, 0).map(p => Math.abs(p.y)), [130, 130, 130, 130],
+    '양성대조 실패: square 가 130 이 아니면 아래 대조가 뜻을 잃는다');
+  assert.ok(ys.every(y => Math.abs(y - 130 * 99 / 70) < 1e-9),
+    `shapePts 에 a4 분기가 없다 — 조용히 정사각이 된다: ${ys.join(',')}`);
+  assert.ok(xs.every(x => Math.abs(x - 130) < 1e-9));
+});
+
+test('ⓐ-A4-5 A4 는 «도형»일 뿐 — 실루엣·그림자가 rect 와 «같은 규약»으로 돈다', async () => {
+  const g = await loadGeom();
+  const D = { ...ST, shape: 'a4', angle: -90, length: 600 };
+  const geo = g.computeZoomGeometry(D, null);
+  const { hh } = g.shapeHalf(D);
+  // 광원이 12시면 실루엣은 «위 두 꼭짓점» — A4 의 세로 반치수를 실제로 쓴다
+  assert.ok(Math.abs(Math.abs(geo.A.y) - hh) < 1e-9, `실루엣이 A4 세로를 안 쓴다: ${geo.A.y} vs ${hh}`);
+  assert.ok(Math.abs(Math.abs(geo.A.x) - 130) < 1e-9);
+  // 마크업이 NaN 없이 나온다
+  const svg = g.buildZoomInner(D, null, null);
+  assert.equal(/NaN/.test(svg), false, '마크업에 NaN 이 샜다');
+  assert.ok(/<rect[^>]*class="zoom-shape"/.test(svg), 'A4 도 rect 엘리먼트로 그린다');
+});
+
+test('ⓑ-A4-6 [자리⑤] 프로퍼티 패널에 A4 버튼이 있다 — 없으면 사람이 못 고른다', () => {
+  assert.ok(/data-shape="a4"/.test(SRC.prop), '#zm-shape-group 에 A4 버튼이 없다');
+  // 활성 표시가 «다른 셋과 같은 관용구»로 붙는다(빠지면 눌러도 눌린 티가 안 난다)
+  assert.ok(/st\.shape === 'a4' \? ' active' : ''/.test(SRC.prop), 'A4 버튼의 active 분기가 없다');
+  // ⛔가로형은 «안 넣는다» — 시키지 않은 것을 넣지 않았나를 같이 잰다
+  assert.equal(/data-shape="a4-landscape"|data-shape="a4l"/.test(SRC.prop), false, '가로형은 지시에 없다');
+});
+
 test('ⓐ-23 ⑥a·b 기본 위치는 «12시»다 — y 가 아래로 증가하니 재서 골랐다', async () => {
   const g = await loadGeom();
   const D = { ...ST, angle: -90 };
@@ -1345,5 +1448,5 @@ test('ⓑ-13 기본값 — shape=rect(★기본은 사각형) · maxop=30 · len
   assert.equal(pick('bdw'), '6');
   assert.equal(pick('bdc'), '#ffffff');
   assert.equal(pick('bdr'), '0');
-  assert.ok(/ZOOM_SHAPES = \['rect', 'circle', 'square'\]/.test(SRC.block), '프리셋 셋(사각형·원·정사각형) 누락');
+  assert.ok(/ZOOM_SHAPES = \['rect', 'circle', 'square', 'a4'\]/.test(SRC.block), '프리셋 넷(사각형·원·정사각형·A4세로) 누락');
 });

@@ -93,7 +93,11 @@ const ZOOM_DEFAULTS = {
   y:      40,
 };
 
-const ZOOM_SHAPES = ['rect', 'circle', 'square'];
+/* ★프리셋의 «정문». readZoomState(:118)·makeZoomBlock(:373) 이 includes() 로 거르므로
+   여기 이름이 없으면 그 프리셋은 조용히 ZOOM_DEFAULTS.shape(='rect')로 떨어진다 —
+   오류도 경고도 없이 «사각형이 하나 더 생긴 것처럼» 보인다. 기하만 고치면 이 병에 걸린다.
+   ★'a4' = A4 세로형(210:297). 비율은 zoom-geometry.js ZOOM_A4_RATIO 가 정본. */
+const ZOOM_SHAPES = ['rect', 'circle', 'square', 'a4'];
 /** 도형 그림자의 단계 — mockup-block.js 의 shadows 표와 «같은 이름»이다(어휘를 둘로 만들지 않는다). */
 const ZOOM_DROP_SHADOWS = ['none', 'soft', 'strong'];
 /** 모르는 값이 들어오면 기본으로 떨어뜨린다 — _onOff 와 «같은 규율»(저장본 변조 대비). */
