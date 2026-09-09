@@ -13,7 +13,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { sliceBlock, findBlockEnd } = require('./_slice-block.js');
+const { sliceBlock, sliceCall, findBlockEnd } = require('./_slice-block.js');
 const { readSrc } = require('./_srcread.js');
 const { stripComments } = require('./_strip-comments.js');
 
@@ -233,6 +233,20 @@ const REAL = [
   ['main/claude-pm/mcp-server.js', 'function _firstMeaningful'],
   // 세 번째 칸 = «여기서부터 찾아라» 표시(호출부가 실제로 그렇게 좁혀서 쓴다)
   ['js/io/save-load.js', '} finally {', 'state._suppressAutoSave = true;'],
+  /* ── 2026-09-09 2차: «반대 방향» 변종(`\n};` · `\n}` · `\n  }` · `\n});`)에서 갈아끼운 자리 ── */
+  ['js/checklist-data.js', 'window.deleteChecklistSection'],
+  ['js/props/prop-page.js', 'function refreshGrid'],
+  ['js/props/prop-page.js', 'function _radioPairOn('],
+  ['js/props/prop-page.js', 'function _radioPairSet('],
+  ['js/block-drag.js', 'if (isZoom) {'],
+  ['js/block-drag.js', 'if (isLaurel) {'],
+  ['services/authService.js', 'function isPackagedRuntime'],
+  ['js/report-modal.js', 'function renderDisclosure()'],
+];
+
+/* sliceCall 이 지는 짐 — 여는 `{` 가 «괄호 안»이라 sliceBlock 으로는 못 뜨는 자리. */
+const REAL_CALL = [
+  ['main.js', "ipcMain.handle('auth:google-login'"],
 ];
 
 /** REAL 한 줄을 실제 호출부와 «같은 방식»으로 떠낸다. */
@@ -246,7 +260,7 @@ function sliceReal(rel, header, after) {
   return { src, got: sliceBlock(src, header, `${rel} 의 구간이 사라졌거나 이름이 바뀌었다`) };
 }
 
-test(`SB-13 ★떠낸 조각이 «구문으로 온전»하다 — 실제 구간 ${REAL.length}개 전수`, () => {
+test(`SB-13 ★떠낸 조각이 «구문으로 온전»하다 — 실제 구간 ${REAL.length + REAL_CALL.length}개 전수`, () => {
   /* 넘치면 괄호가 안 맞아 파싱이 던진다. 모자라도 마찬가지다.
      ⇒ 「길이가 줄었다」보다 강한 잣대다: 조각 자신이 «한 덩이»임을 파서가 보증한다. */
   let checked = 0;
@@ -258,10 +272,17 @@ test(`SB-13 ★떠낸 조각이 «구문으로 온전»하다 — 실제 구간 
       `★${rel} — «${header}» 조각이 구문으로 안 온전하다(넘쳤거나 모자라다)`);
     checked++;
   }
-  assert.equal(checked, REAL.length, `전수 ${REAL.length}개를 다 재지 못했다`);
+  for (const [rel, header] of REAL_CALL) {
+    const got = sliceCall(readSrc(ROOT, rel), header, `${rel} 의 구간이 사라졌거나 이름이 바뀌었다`);
+    assert.doesNotThrow(() => new Function(got),
+      `★${rel} — «${header}» 조각이 구문으로 안 온전하다`);
+    checked++;
+  }
+  assert.equal(checked, REAL.length + REAL_CALL.length,
+    `전수 ${REAL.length + REAL_CALL.length}개를 다 재지 못했다`);
 });
 
-test('SB-14 ★양성대조 — 옛 자로 재면 실제 구간 21개 중 «5개»가 달라진다 (그게 고친 병이다)', () => {
+test(`SB-14 ★양성대조 — 옛 자(\\n}\\n)로 재면 실제 구간 ${REAL.length}개 중 «10개»가 달라진다`, () => {
   /* ⛔「구문이 깨지나」로는 못 잰다 — 함수 하나를 통째로 더 삼켜도 «파싱은 된다».
        그래서 여기서는 조각 자체를 «글자로» 대조한다. 이게 진짜 잣대다.
      ★옛 자의 `+3` 은 닫는 `}` 뒤 개행까지 문다 ⇒ 꼬리 개행만 떼고 견준다(길이 트집 금지). */
@@ -281,8 +302,10 @@ test('SB-14 ★양성대조 — 옛 자로 재면 실제 구간 21개 중 «5개
     assert.ok(wrong.some((w) => w.endsWith(must)),
       `★«${must}» 에서 옛 자가 «안» 틀렸다 — 대조가 죽었다(고칠 병이 없었다는 뜻이 된다)`);
   }
-  assert.ok(wrong.length >= 5,
-    `★옛 자가 ${wrong.length}개만 틀린다 — 알려진 것보다 적다. 무엇이 바뀐 건지 «재고» 이 수를 고쳐라`);
+  /* ★2026-09-09 2차에 REAL 이 21 → 29 로 늘면서 틀리는 수도 5 → 10 이 됐다.
+     ⛔「>= 5」로 두고 넘어가면 이 수가 «무엇의 전수»인지 잃는다 — 실측대로 못박고 움직이면 재라. */
+  assert.equal(wrong.length, 10,
+    `★옛 자가 ${wrong.length}개 틀린다(알려진 값 10). 늘었으면 «새로 샌 자리»고 줄었으면 «대조가 죽은 것»이다 — 재고 고쳐라:\n  ` + wrong.join('\n  '));
 });
 
 test('SB-15 ★실측 — bindPair·bindRadio 를 옛 자로 재면 «몇 배로» 부푼다', () => {
@@ -299,7 +322,37 @@ test('SB-15 ★실측 — bindPair·bindRadio 를 옛 자로 재면 «몇 배로
 
 /* ── ⑤ 사본이 늘지 못하게 하는 가드 ──────────────────────────────────────── */
 
-test("SB-16 ⛔새 검사가 «자기 `indexOf('\\n}\\n')` 자»를 만들지 못한다 — 공용 부품을 써라", () => {
+test('SB-16 ⛔새 검사가 «구간 끝을 문자열 짝맞추기로» 찾지 못한다 — 꼬리 모양과 무관하게', () => {
+  /* ★2026-09-09 2차에서 배운 것: 1차 가드는 옛 관용구 «하나»(`\n}\n`)만 막는 «명부»였다.
+     그날 바로 세 번째·네 번째 변종이 났다 — 리드가 둘을 찾았고, 성질로 다시 훑으니 «열 자리»였다:
+       `\n}\n`(1차) · `\n};` · `\n}` · `\n  }` · `\n  }\n` · `\n});\n`   ← 꼬리 모양 여섯
+     ★그중 `\n  }\n` 는 내가 이미 고친 파일(zoom-block.test.js) «안»에 있었는데도
+       1차 grep 에 안 걸렸다. 명부는 그렇게 샌다.
+     ⇒ 이 가드는 모양을 세지 않는다. «성질»을 센다:
+       「구간의 끝을 «개행 + 닫는 괄호»로 시작하는 문자열/정규식으로 찾는다」는 것 자체를 막는다. */
+  const END_BY_TAIL = /(?:indexOf|lastIndexOf|search)\(\s*(?:['"`]|\/)\\n[ \t]*\\?[}\])]/;
+
+  /* ★잣대가 여섯 모양을 «다» 잡는지 먼저 본다 — 양성대조를 «앞»에 세운다.
+     ⛔이게 없으면 「아무도 안 걸림 = 통과」가 「잣대가 죽음 = 통과」와 구별이 안 된다. */
+  const SHAPES = [
+    ["indexOf('\\n}\\n', i)", '1차에 고친 모양'],
+    ["indexOf('\\n};', at)", '리드가 찾은 모양 ①'],
+    ["indexOf('\\n}', at)", '리드가 찾은 모양 ②'],
+    ["indexOf('\\n  }', i)", '들여쓴 닫기'],
+    ["indexOf('\\n  }\\n', j)", '들여쓴 닫기 + 개행'],
+    ["indexOf('\\n});\\n', i)", '★`})` 꼬리 — 명부였으면 여기서 또 났다'],
+    ['search(/\\n\\}/)', '정규식으로 쓴 같은 짓'],
+    ["lastIndexOf('\\n}')", '뒤에서 찾아도 같은 짓'],
+  ];
+  for (const [code, why] of SHAPES) {
+    assert.ok(END_BY_TAIL.test(code), `★잣대가 «${code}» 를 못 잡는다 (${why}) — 명부로 돌아갔다`);
+  }
+  // ⛔반대 방향 — 멀쩡한 코드를 벌하면 안 된다
+  for (const ok of ["src.indexOf('\\n')", "s.split('\\n')", "body.indexOf('return {')",
+                    "src.indexOf('\\n\\n')", "s.search(/\\n\\s*const/)"]) {
+    assert.equal(END_BY_TAIL.test(ok), false, `★멀쩡한 «${ok}» 를 잡는다 — 오탐이다`);
+  }
+
   /* ★허용목록은 «오늘의 빚»이다. 줄면 여기서 지워라. ⛔늘리려면 «왜»를 커밋에 적어라. */
   const LEGACY = new Set([
     // 이 관용구를 «재는» 검사다 — CRLF 체크아웃에서 `\n}\n` 이 안 걸리는 것을 증명한다.
@@ -312,18 +365,46 @@ test("SB-16 ⛔새 검사가 «자기 `indexOf('\\n}\\n')` 자»를 만들지 �
     if (!/\.test\.(js|mjs)$/.test(n) || LEGACY.has(n)) continue;
     if (n === path.basename(__filename)) continue;   // ★자기 자신 — 옛 구현 사본이 «여기 있어서» 걸린다
     const code = stripComments(fs.readFileSync(path.join(UNIT, n), 'utf8'));
-    if (/indexOf\('\\n\}\\n'/.test(code)) own.push(n);
+    if (END_BY_TAIL.test(code)) own.push(n);
   }
   assert.deepEqual(own, [],
-    "★자기 `indexOf('\\n}\\n')` 자를 든 검사가 있다 — ./_slice-block.js 의 sliceBlock 을 써라:\n  " + own.join('\n  '));
+    '★구간 끝을 «꼬리 문자열»로 찾는 검사가 있다 — ./_slice-block.js 의 sliceBlock/sliceCall 을 써라:\n  ' + own.join('\n  '));
 
-  // ★양성대조 — 이 잣대가 «실제로» 잡는다
+  // ★양성대조 — 이 잣대가 «실물»에서도 잡는다(허용목록이 비면 전부 걸려야 한다)
   const wouldCatch = [...LEGACY].filter((n) => {
-    try { return /indexOf\('\\n\}\\n'/.test(stripComments(fs.readFileSync(path.join(UNIT, n), 'utf8'))); }
+    try { return END_BY_TAIL.test(stripComments(fs.readFileSync(path.join(UNIT, n), 'utf8'))); }
     catch { return false; }
   });
   assert.equal(wouldCatch.length, LEGACY.size,
     `★잣대가 죽었다 — 허용목록 ${LEGACY.size}개 중 ${wouldCatch.length}개만 잡힌다`);
+});
+
+test('SB-18 sliceCall — 여는 `{` 가 «괄호 안»인 자리 (`f(…, cb => { … })`)', () => {
+  const src = [
+    "ipcMain.handle('x', async () => {",
+    '  return { ok: true };',
+    '});',
+    'function AFTER() {',
+    '  const swallowed = 1;',
+    '}',
+    '',
+  ].join('\n');
+  assert.equal(sliceCall(src, "ipcMain.handle('x'"),
+    "ipcMain.handle('x', async () => {\n  return { ok: true };\n})");
+  /* ★sliceBlock 은 여기서 «틀린다» — 머리 뒤 첫 «최상위» `{` 가 없어 다음 구문까지 달려간다.
+     그래서 이름을 나눴다. 이름이 다르다는 것 자체가 검사다. */
+  assert.ok(/swallowed/.test(sliceBlock(src, "ipcMain.handle('x'")),
+    '★sliceBlock 이 여기서 안 틀렸다면 sliceCall 을 따로 둘 이유가 없다 — 대조가 죽었다');
+});
+
+test('SB-19 sliceCall 은 꼬리 «모양»에 안 흔들린다 (`})` · `}])` · `}));`)', () => {
+  for (const [tail, why] of [['});', '흔한 꼴'], ['}]);', '배열로 감쌌다'], ['}));', '한 겹 더']]) {
+    const open = { '});': 'reg({', '}]);': 'reg([{', '}));': 'reg(({' }[tail];
+    const src = `const w = ${open}\n  a: 1,\n${tail}\nfunction AFTER() {\n  const swallowed = 1;\n}\n`;
+    const got = sliceCall(src, 'const w = reg(');
+    assert.equal(/swallowed/.test(got), false, `★${why}(${tail})에서 달려갔다`);
+    assert.ok(got.includes('a: 1'), `★${why}(${tail})에서 본문을 못 떴다`);
+  }
 });
 
 test('SB-17 findBlockEnd 도 같이 나가 있다 (조각이 아니라 «자리»가 필요한 자리용)', () => {
