@@ -365,7 +365,20 @@ async function _doInsert() {
     try {
       // SVG 콘텐츠 fetch (인라인 삽입)
       const res = await fetch(`${ICONIFY_API}/${prefix}/${iconName}.svg`);
-      svgText = await res.text();
+      /* ★★HTTP 오류를 «성공»으로 읽으면 «에러 문서»가 캔버스에 들어간다 — 그리고 저장된다.
+           2026-09-10 실측: 격자가 한 검색에 SVG 를 80건 «동시에» 받아 API 가 우리를 막았다
+           (연속 8회 = 480건 중 401건 HTTP 429, Cloudflare, retry-after 78).
+         ⚠️★fetch 는 429 를 «성공으로 resolve» 한다 — 아래 catch 에 «안 걸린다».
+           그래서 Cloudflare 안내 HTML(≈7KB)이 svgText 가 되어 addIconifyBlock 으로 들어가고,
+           삽입 시점엔 세척기가 없어(sanitizeCanvasHtml 은 «로드 때만» 돈다) 프로젝트에 그대로 저장된다.
+           ⇒ 사용자는 모르는 채 프로젝트가 오염되고, 되돌리려면 손으로 찾아 지워야 한다.
+         ⇒ ★던져서 아래 «img 폴백»으로 보낸다 — 폴백은 <img src> 라 서버가 회복되면 «저절로» 그려진다.
+         ⛔이 줄을 지우지 마라. 지우면 위 오염이 조용히 돌아온다(검사가 문다). */
+      if (!res.ok) throw new Error(`iconify ${res.status}`);
+      const body = await res.text();
+      /* ★그리고 «SVG 인지» 본다 — 200 인데 에러 문서를 주는 경우가 있다(프록시·캡티브 포털). */
+      if (!/^\s*<svg[\s>]/i.test(body)) throw new Error('iconify: not svg');
+      svgText = body;
     } catch {
       // fetch 실패 시 img fallback
       svgText = `<img src="${ICONIFY_API}/${prefix}/${iconName}.svg" width="${size}" height="${size}" style="display:block;">`;
