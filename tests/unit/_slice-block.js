@@ -36,6 +36,12 @@
  *     const arrow = sliceBlock(SRC, 'const bindPair = (id, key, label, min, max) =>');
  *   구간 머리(header)는 «여는 `{` 앞까지»만 적어도 된다 — 머리 뒤 첫 최상위 `{` 를 본문으로 본다.
  *   ★머리가 `{` 로 «끝나면» 그 `{` 를 본문으로 본다(`const w = register({` 처럼 `(` 안에서 여는 자리용).
+ *
+ *   ★여는 `{` 가 괄호 «안»에 있고 머리에 그걸 못 적는 자리 — `ipcMain.handle('x', async () => {` 처럼 —
+ *     는 sliceCall 을 써라. 머리부터 «열린 괄호가 전부 닫히는» 자리까지(닫는 `)` 포함) 돌려준다.
+ *         sliceCall(SRC, "ipcMain.handle('auth:google-login'")
+ *     ⛔sliceBlock 을 그 자리에 쓰면 «머리 뒤 첫 최상위 `{`» 를 못 찾아 다음 구문까지 달려간다
+ *       (실측 2026-09-09: 진짜 53줄인 핸들러를 129줄로 떠냈다). 이름이 다른 이유가 그거다.
  *   돌려주는 것은 «머리부터 짝 맞는 `}` 까지»(닫는 괄호 «포함») 원문 그대로다.
  *     ⇒ 옛 관용구의 `src.slice(i, j + 3)`(원문 그대로) 자리에 그대로 놓을 수 있다.
  *       옛 `src.slice(i, j)`(닫는 줄 제외) 자리에도 놓을 수 있다 — 단언이 보는 것은
@@ -100,7 +106,7 @@ function _skipRegex(src, i, where) {
  * `from` 부터 «첫 최상위 `{`» 를 찾아 그 짝이 되는 `}` 의 «인덱스»를 돌려준다.
  * 문자열·주석·정규식·템플릿 안의 괄호에 속지 않는다.
  */
-function findBlockEnd(src, from, where = '(이름 없음)') {
+function findBlockEnd(src, from, where = '(이름 없음)', callMode = false) {
   /* frames — 지금 어느 «세계»에 있나. 'code' 는 괄호를 세는 세계, 'tpl' 은 템플릿 글자 세계.
      `${` 를 만나면 템플릿 «안»에 새 code 세계가 열리고, 그 `}` 로 다시 템플릿으로 돌아간다. */
   const frames = [{ kind: 'code', depth: 0 }];
@@ -132,12 +138,16 @@ function findBlockEnd(src, from, where = '(이름 없음)') {
 
     if (c === '(' || c === '[') { f.depth++; prev = c; i++; continue; }
     if (c === '{') {
-      if (frames.length === 1 && f.depth === 0 && !opened) opened = true;
+      /* call 모드에서는 «괄호 안»의 `{` 도 본문으로 인정한다 — 그게 이 모드의 존재 이유다. */
+      if (frames.length === 1 && (callMode || f.depth === 0) && !opened) opened = true;
       f.depth++; prev = c; i++; continue;
     }
     if (c === ')' || c === ']') {
       f.depth--;
       if (f.depth < 0) throw new Error(`_slice-block: 짝 없는 '${c}' — ${where}`);
+      /* ★call 모드 — 여는 `{` 를 한 번이라도 봤고 괄호가 «전부» 닫혔으면 거기가 끝이다.
+         `f(… => { … })` · `f({ … })` · `f([{ … }])` 를 꼬리 «모양»과 무관하게 끊는다. */
+      if (callMode && frames.length === 1 && f.depth === 0 && opened) return i;
       prev = c; i++; continue;
     }
     if (c === '}') {
@@ -177,4 +187,16 @@ function sliceBlock(src, header, note) {
   return src.slice(i, end + 1);
 }
 
-module.exports = { sliceBlock, findBlockEnd };
+/**
+ * 호출식 «통째»로 — `f(…, cb => { … })` 처럼 여는 `{` 가 괄호 «안»에 있는 자리용.
+ * 머리부터 «열린 괄호가 전부 닫히는» 자리까지(닫는 `)`·`]` 포함) 돌려준다.
+ * ⛔꼬리 «모양»(`})` · `}])` · `}));`)을 명부로 들지 않는다 — 세어서 찾는다.
+ */
+function sliceCall(src, header, note) {
+  const i = String(src).indexOf(header);
+  if (i < 0) throw new Error(`_slice-block: 구간 머리를 못 찾음: ${header}${note ? ` — ${note}` : ''}`);
+  const end = findBlockEnd(src, i, header + (note ? ` — ${note}` : ''), true);
+  return src.slice(i, end + 1);
+}
+
+module.exports = { sliceBlock, sliceCall, findBlockEnd };
