@@ -1592,6 +1592,94 @@ test('ⓑ-ROT-5 회전 뒤 리사이즈가 «안 깨진다» — dataset.rotatio
   assert.ok(/_cornerScreen\(box, h\.dataset\.zoomResizeDir\)/.test(up), '핸들 자리 보정이 없다');
 });
 
+/* ═══ ④ 「끄는 코너가 손끝을 따라온다」 ══════════════════════════════════════
+   기존 결함(회전과 무관): _onZoomResizeMouseDown 이 dataset.w/h 만 쓰고 x/y 를 안 건드려
+   어느 코너를 끌든 «좌상단이 못박히고» 오른쪽·아래로만 자랐다. 네 코너 중 se 하나만
+   «우연히» 맞았다 — 그래서 오래 안 들켰다.
+   ★검사는 «소스의 그 식을 꺼내 실제로 실행»한다. 식을 베껴 적으면 소스가 바뀌어도
+     검사만 초록으로 남는다(= 검사가 눈머는 길).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** _onZoomResizeMouseDown 의 «앵커 식 네 줄»을 소스에서 꺼내 함수로 만든다. */
+function zoomAnchorFn() {
+  const body = sliceFn(SRC.handles, 'function _onZoomResizeMouseDown(e, zb, dir)');
+  const sx = body.match(/const sx = (dir\.includes\('e'\) \? 1 : -1);/);
+  const sy = body.match(/const sy = (dir\.includes\('s'\) \? 1 : -1);/);
+  const ex = body.match(/zb\.dataset\.x = String\(([^;]+)\);/);
+  const ey = body.match(/zb\.dataset\.y = String\(([^;]+)\);/);
+  /* ★반치수 줄도 «소스에서» 꺼낸다 — 여기 식을 베껴 적었더니 «/2 를 빼먹는» 변이가
+     초록으로 통과했다(실측). 검사가 자기 사본을 재고 있었던 것이다. */
+  const dh = body.match(/(const dHW = [^;]+;)/);
+  assert.ok(sx && sy, '★sx/sy(끄는 코너의 로컬 부호)를 못 찾았다 — ④ 수정이 통째로 없다');
+  assert.ok(ex && ey, '★dataset.x/y 를 «안 쓴다» — 좌상단이 못박혀 코너가 안 따라온다');
+  assert.ok(dh, '반치수(dHW/dHH) 줄을 못 찾았다');
+  return new Function('dir', 'th', 'startPosX', 'startPosY', 'startW', 'startH', 'newW', 'newH', `
+    const sx = ${sx[1]}, sy = ${sy[1]};
+    const cosT = Math.cos(th), sinT = Math.sin(th);
+    ${dh[1]}
+    return { x: ${ex[1]}, y: ${ey[1]} };
+  `);
+}
+/** 코너 dir 의 «세계» 좌표 — 블록 상자 중심 기준 회전. overlay 의 _cornerScreen 과 같은 모형. */
+function cornerAt(x, y, w, h, th, dir) {
+  const cx = x + w / 2, cy = y + h / 2;
+  const lx = (dir.includes('e') ? 1 : -1) * w / 2;
+  const ly = (dir.includes('s') ? 1 : -1) * h / 2;
+  return { x: cx + lx * Math.cos(th) - ly * Math.sin(th),
+           y: cy + lx * Math.sin(th) + ly * Math.cos(th) };
+}
+const OPP = { nw: 'se', ne: 'sw', sw: 'ne', se: 'nw' };
+
+test('ⓑ-④-1 ★네 코너 «전수» — 끄는 코너의 맞은편이 «안 움직인다» (+양성대조: 옛 판은 se 만 맞았다)', () => {
+  const anchor = zoomAnchorFn();
+  const W0 = 260, H0 = 140, X0 = 120, Y0 = 80;
+  const W1 = 340, H1 = 190;          // 실측과 같은 변화폭 (+80, +50)
+  for (const th of [0, 30 * Math.PI / 180, 45 * Math.PI / 180, Math.PI / 2]) {
+    for (const dir of ['nw', 'ne', 'sw', 'se']) {
+      /* ★양성대조를 «앞»에 — 옛 판(x/y 를 «안» 쓴다)을 같은 오라클로 재서,
+         se 를 뺀 셋에서 맞은편이 «실제로 움직이는지» 먼저 본다. 안 움직이면 이 검사는 무의미. */
+      const oldOpp0 = cornerAt(X0, Y0, W0, H0, th, OPP[dir]);
+      const oldOpp1 = cornerAt(X0, Y0, W1, H1, th, OPP[dir]);   // 위치를 안 고친 판
+      const oldMoved = Math.hypot(oldOpp1.x - oldOpp0.x, oldOpp1.y - oldOpp0.y);
+      if (dir !== 'se') {
+        assert.ok(oldMoved > 1,
+          `양성대조 실패(${dir}, θ=${(th * 180 / Math.PI).toFixed(0)}°): 옛 판에서도 맞은편이 안 움직이면 잴 게 없다`);
+      }
+      // 본 단언 — 새 판에서는 맞은편이 «불변»이어야 한다
+      const p = anchor(dir, th, X0, Y0, W0, H0, W1, H1);
+      const opp0 = cornerAt(X0, Y0, W0, H0, th, OPP[dir]);
+      const opp1 = cornerAt(p.x, p.y, W1, H1, th, OPP[dir]);
+      assert.ok(Math.hypot(opp1.x - opp0.x, opp1.y - opp0.y) < 1e-9,
+        `${dir} (θ=${(th * 180 / Math.PI).toFixed(0)}°): 맞은편 코너가 움직였다 — 끄는 코너가 손끝을 안 따라온다`);
+    }
+  }
+});
+
+test('ⓑ-④-2 se 는 «예전과 똑같이» 좌상단을 고정한다 — 되던 것을 깨지 않았다', () => {
+  const anchor = zoomAnchorFn();
+  const p = anchor('se', 0, 120, 80, 260, 140, 340, 190);
+  assert.ok(Math.abs(p.x - 120) < 1e-9 && Math.abs(p.y - 80) < 1e-9,
+    `se 에서 좌상단이 움직였다: (${p.x},${p.y})`);
+  // nw 는 «반대로» 크기가 자란 만큼 좌상단이 통째로 옮겨간다
+  const q = anchor('nw', 0, 120, 80, 260, 140, 340, 190);
+  assert.ok(Math.abs(q.x - (120 - 80)) < 1e-9 && Math.abs(q.y - (80 - 50)) < 1e-9,
+    `nw 에서 좌상단이 (-80,-50) 만큼 안 옮겨갔다: (${q.x},${q.y})`);
+});
+
+test('ⓑ-④-3 회전각은 «드래그 내내» 한 번만 읽는다 + 크기가 안 변하면 위치도 안 변한다', () => {
+  const body = sliceFn(SRC.handles, 'function _onZoomResizeMouseDown(e, zb, dir)');
+  /* θ 를 onMove 안에서 읽으면 «드래그 도중 회전이 바뀌는» 경우에 앵커가 흔들린다.
+     ⇒ mousedown 몸통(onMove 앞)에서 한 번만 읽어야 한다. */
+  const beforeMove = body.split('function onMove(')[0];
+  assert.ok(/const th = _blockRotationDeg\(box\)/.test(beforeMove), 'θ 를 mousedown 에서 한 번만 안 읽는다');
+  // 크기 변화가 0 이면 위치도 그대로(끌다가 되돌아왔을 때 블록이 안 흘러야 한다)
+  const anchor = zoomAnchorFn();
+  for (const dir of ['nw', 'ne', 'sw', 'se']) {
+    const p = anchor(dir, 30 * Math.PI / 180, 120, 80, 260, 140, 260, 140);
+    assert.ok(Math.abs(p.x - 120) < 1e-9 && Math.abs(p.y - 80) < 1e-9, `${dir}: 크기가 안 바뀌었는데 위치가 흘렀다`);
+  }
+});
+
 test("ⓑ-18 ⑦bdr 슬라이더는 «가려져» 있다 — 그러나 값·렌더 경로는 살아 있다", () => {
   const p = SRC.prop;
   // ⛔거른 소스(주석 제거본)에 zm-bdr 이 «없어야» 숨긴 것이다

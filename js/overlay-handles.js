@@ -1882,6 +1882,23 @@ function _onZoomResizeMouseDown(e, zb, dir) {
   const startH = Math.max(ZOOM_MIN, Math.round(box.offsetHeight - bw * 2));
   const startX = e.clientX, startY = e.clientY;
   const isCircle = st.shape === 'circle';
+  /* ★④ 끄는 코너가 «손끝을 따라온다» — 예전엔 w/h 만 쓰고 x/y 를 안 건드려서 어느 코너를
+     끌든 좌상단이 고정되고 오른쪽·아래로만 자랐다(실측: nw 를 (−80,−50) 끌어도 코너 Δ=(0,0),
+     크기만 260×140 → 340×190. 네 코너 중 se 하나만 «우연히» 맞았다).
+     ⇒ 「끄는 코너의 «맞은편» 코너를 고정한다」로 고친다. 그러면 끄는 코너가 손끝에 붙는다.
+     ★수식(중심 C, 반치수 hw·hh, 회전 θ, 끄는 코너의 로컬 부호 sx·sy):
+         맞은편 코너 = C + R(θ)·(−sx·hw, −sy·hh) 를 «불변»으로 두면
+         ΔC = R(θ)·(sx·Δhw, sy·Δhh)   ⇒   Δ(좌상단) = ΔC − (Δhw, Δhh)
+     ⚠️θ 는 «드래그 내내 안 바뀐다» — 여기서 한 번만 읽는다.
+     ⚠️테두리 두께는 드래그 중 상수라 Δ 반치수는 도형과 상자가 «같다»(bw 가 상쇄된다). */
+  const sx = dir.includes('e') ? 1 : -1;
+  const sy = dir.includes('s') ? 1 : -1;
+  const th = _blockRotationDeg(box) * Math.PI / 180;
+  const cosT = Math.cos(th), sinT = Math.sin(th);
+  /* ⚠️readZoomState 가 없으면 st 는 {} 다 — 그때는 dataset 을 직접 읽는다.
+     ⛔둘 다 없다고 0 으로 떨어뜨리면 블록이 섹션 좌상단으로 «순간이동»한다. */
+  const startPosX = Number(st.x ?? zb.dataset.x) || 0;
+  const startPosY = Number(st.y ?? zb.dataset.y) || 0;
   let moved = false;
 
   function onMove(ev) {
@@ -1901,6 +1918,11 @@ function _onZoomResizeMouseDown(e, zb, dir) {
     }
     zb.dataset.w = String(newW);
     zb.dataset.h = String(newH);
+    /* ★④ 맞은편 코너를 고정 — 위 수식 그대로. ⛔x/y 를 안 쓰면 좌상단이 못박혀
+       「끄는 코너가 안 따라오는」 그 병으로 돌아간다(se 만 우연히 맞는다). */
+    const dHW = (newW - startW) / 2, dHH = (newH - startH) / 2;
+    zb.dataset.x = String(startPosX + (cosT * sx * dHW - sinT * sy * dHH) - dHW);
+    zb.dataset.y = String(startPosY + (sinT * sx * dHW + cosT * sy * dHH) - dHH);
     window.renderZoomBlock?.(zb);   // ★실루엣·그림자·뷰박스가 «같이» 따라온다
   }
   function onUp() {
