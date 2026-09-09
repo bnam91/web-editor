@@ -77,6 +77,13 @@ const PLACE = {
   L: { left: -300, top: 380 },   // 중심 local (-210, 435) — 섹션 왼쪽. x<0 ⇒ 옛 코드에선 통째 클립
   R: { left: 980, top: 380 },   // 중심 local (1070, 435) — 섹션 오른쪽. scrollWidth 가 같이 커져 «안» 잘렸다
   U: { left: 340, top: -190 },   // 중심 local (430, -135) — 섹션 위. y<0 ⇒ 위쪽 토막이 클립
+  /* ★2026-09-09 추가 — 「좌·우·상 셋만 재고 있었다」를 닫는다.
+     D  아래쪽: scrollHeight 는 «아래로는» 자라므로 우측과 같은 이유로 안 잘릴 «것 같다» — 재 본다.
+        ★안 깨져 있어도 검사로 못박는 값이 있다: 다음 사람이 「아래는 봤나」를 다시 안 물어도 된다.
+     LU 좌+상 «동시»: 한 축씩만 재면 두 클립이 «같은 프레임에» 걸리는 경우를 못 본다.
+        (overflow 를 축별로 나눠 쓰는 실수 — overflow-x 만 visible — 은 여기서만 잡힌다) */
+  D:  { left: 340, top: 700 },    // 중심 local (430, 755) — 섹션 아래
+  LU: { left: -300, top: -190 },  // 중심 local (-210, -135) — 섹션 왼쪽 «그리고» 위. x<0 && y<0
 };
 
 /** 스크래치 아이템을 배치하고 줌을 걸고, 선이 다시 그려질 때까지 기다린다. */
@@ -180,6 +187,11 @@ test('T0 ★입력이 살아 있다 — 링크 1개 + <line> 1개 + 파란픽셀
   expect(g.stroke, `stroke 가 안 풀렸다(${g.stroke}) — editor-base.css 를 안 얹었다`).toMatch(/^rgb/);
   expect(g.stroke, 'stroke 가 검정이다 — --ui-accent 토큰이 죽었다').not.toBe('rgb(0, 0, 0)');
 
+  /* ★ⓒ overflow 를 «로그로만» 찍고 있었다 — 찍기만 하면 그 값이 hidden 으로 돌아가도
+     아무도 안 본다. 이게 좌·상 잘림의 «직접 원인»이므로 여기서 못박는다.
+     ⛔축별로 나누지 마라(overflow-x 만 visible) — 그러면 아래 T-LU 가 빨개진다. */
+  expect(g.svgOverflow, '★.spl-edges 의 overflow 가 visible 이 아니다 — SVG 뷰포트가 다시 자른다').toBe('visible');
+
   // 양성 대조 — 링크가 «생기면» 파란 픽셀이 실제로 늘어난다
   const after = await paint(page);
   console.log(`[T0] 링크전 파란픽셀=${before.n} · 링크후(우측/zoom100)=${after.n} · stroke=${g.stroke}`);
@@ -261,5 +273,102 @@ test('T-U ★섹션 «위쪽» 배치에서도 안 잘린다 — 칠이 섹션 �
     expect(p.minY, `zoom${zoom} 위쪽: 칠이 섹션 위쪽 경계(${g.secVp.top.toFixed(1)}) 위로 안 올라갔다`)
       .toBeLessThan(g.secVp.top - 5);
   }
+  expect(errs, `콘솔 오류: ${errs.join(' | ')}`).toEqual([]);
+});
+
+/* ── T-D ★아래쪽 — 「셋만 재고 있었다」의 나머지 ①. 안 깨져 있어도 «검사로» 못박는다 ───── */
+test('T-D ★섹션 «아래쪽» 배치에서도 안 잘린다 — 칠이 섹션 아래 경계보다 아래까지 간다', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => window.SPLink.addLink('sec_1', 's_1'));
+
+  for (const zoom of ZOOMS) {
+    await scene(page, 'D', zoom);
+    const g = await geom(page);
+    const p = await paint(page);
+    console.log(`[T-D zoom${zoom}] 파란픽셀=${p.n} · bbox.maxY=${p.maxY} · 섹션.bottom(vp)=${g.secVp.bottom.toFixed(1)}`
+      + ` · line.y1(local)=${g.line.y1} · 섹션.bottom(local)=${g.secLocal.bottom.toFixed(1)}`
+      + ` · svg=${g.svgW}x${g.svgH} overflow=${g.svgOverflow} · wrap.scroll=${g.wrapScroll.sw}x${g.wrapScroll.sh}`);
+
+    // ★입력이 살아 있다 — 출발점이 «섹션 아래»여야 이 검사가 잴 것이 있다.
+    expect(g.line.y1, `zoom${zoom} 아래 배치인데 출발점이 섹션 아래가 아니다: y1=${g.line.y1}`)
+      .toBeGreaterThan(g.secLocal.bottom);
+    /* ★붙는 점은 «아래 변»이 아니다 — 실측으로 갈렸다(첫 판에서 내가 틀렸다).
+       js/scratchpad-link.js:478 은 붙는 점을 «좌·우 변의 중간 높이»로만 고른다
+       (attachRight 하나뿐 · sy = 섹션 중앙 y). 위·아래 변에 붙는 길이 «없다».
+       ⇒ 아래 배치에서도 선은 섹션 왼쪽/오른쪽 변 중앙으로 간다. 그게 «설계»이므로
+         여기서 그렇게 못박는다 — 나중에 위·아래 앵커가 생기면 이 줄이 먼저 빨개진다. */
+    expect(Math.abs(g.line.y2 - (g.secLocal.top + g.secLocal.bottom) / 2),
+      `zoom${zoom} 붙는 점이 섹션 «중간 높이»가 아니다: y2=${g.line.y2}`).toBeLessThan(1.5);
+    expect(Math.min(Math.abs(g.line.x2 - g.secLocal.left), Math.abs(g.line.x2 - g.secLocal.right)),
+      `zoom${zoom} 붙는 점이 섹션 좌·우 변 어느 쪽도 아니다: x2=${g.line.x2}`).toBeLessThan(1.5);
+
+    expect(p.n, `zoom${zoom} 아래 배치에서 선이 «한 점도» 안 칠해졌다`).toBeGreaterThan(40);
+    expect(p.maxY, `zoom${zoom} 아래: 칠이 섹션 아래 경계(${g.secVp.bottom.toFixed(1)}) 밖까지 안 갔다`)
+      .toBeGreaterThan(g.secVp.bottom + 5);
+  }
+  expect(errs, `콘솔 오류: ${errs.join(' | ')}`).toEqual([]);
+});
+
+/* ── T-LU ★좌+상 «동시» — 한 축씩 재면 못 보는 자리 ────────────────────────────
+ * ⛔축을 나눠 고치는 실수(overflow-x: visible 만)는 T-L 도 T-U 도 통과시킨다.
+ *   «두 클립이 같은 프레임에» 걸려야 잡힌다. */
+test('T-LU ★«왼쪽 그리고 위» 동시 배치에서도 안 잘린다 — 칠이 SVG 뷰포트의 좌·상 밖으로 «둘 다» 나간다', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => window.SPLink.addLink('sec_1', 's_1'));
+
+  for (const zoom of ZOOMS) {
+    await scene(page, 'LU', zoom);
+    const g = await geom(page);
+    const p = await paint(page);
+    console.log(`[T-LU zoom${zoom}] 파란픽셀=${p.n} · bbox=(${p.minX},${p.minY}) · SVG뷰포트=(${g.svgVp.left.toFixed(1)},${g.svgVp.top.toFixed(1)})`
+      + ` · line=(${g.line.x1},${g.line.y1})→(${g.line.x2},${g.line.y2})`
+      + ` · svg=${g.svgW}x${g.svgH} overflow=${g.svgOverflow} · wrap.scroll=${g.wrapScroll.sw}x${g.wrapScroll.sh}`);
+
+    // ★입력이 살아 있다 — 출발점이 «두 축 다» 음수여야 이 검사가 두 클립을 동시에 잰다.
+    expect(g.line.x1, `zoom${zoom} x1 이 음수가 아니다 — 좌측 클립을 잴 자리가 아니다: x1=${g.line.x1}`).toBeLessThan(0);
+    expect(g.line.y1, `zoom${zoom} y1 이 음수가 아니다 — 상단 클립을 잴 자리가 아니다: y1=${g.line.y1}`).toBeLessThan(0);
+
+    expect(p.n, `zoom${zoom} 좌+상 동시 배치에서 선이 «한 점도» 안 칠해졌다`).toBeGreaterThan(40);
+    expect(p.minX, `zoom${zoom} 좌+상: 칠이 SVG 뷰포트 «왼쪽»(${g.svgVp.left.toFixed(1)}) 밖으로 안 나갔다 = x축이 잘렸다`)
+      .toBeLessThan(g.svgVp.left - 5);
+    expect(p.minY, `zoom${zoom} 좌+상: 칠이 SVG 뷰포트 «위»(${g.svgVp.top.toFixed(1)}) 밖으로 안 나갔다 = y축이 잘렸다`)
+      .toBeLessThan(g.svgVp.top - 5);
+  }
+  expect(errs, `콘솔 오류: ${errs.join(' | ')}`).toEqual([]);
+});
+
+/* ── T-SC ★사이드카(노트 카드 층) — 「안 봤다」를 닫는다 ──────────────────────────
+ * ★결론부터: .spl-sidecar 는 «잘리지 않는다. 만들어지지 않기 때문»이다.
+ *   현빈 재설계로 #link-sidecar 는 폐기됐고(js/scratchpad-link.js:203), _ensureEdges 가
+ *   부를 때마다 «구 잔재»를 지운다(:210). css/editor-extra.css:1830 의 규칙만 남아 있어
+ *   소스를 읽는 사람에게 「살아 있는 층」으로 보인다 — 그게 이 질문이 나온 이유다.
+ * ⇒ 「div 라 안 잘릴 «것 같다»」로 두지 않고, «없다»는 사실 자체를 검사로 박는다.
+ *   되살아나면(누가 사이드카를 다시 만들면) 여기가 빨개지고, 그때 클립도 같이 재야 한다. */
+test('T-SC ★사이드카 층은 «만들어지지 않는다» — 잘릴 층 자체가 없다(잔재가 있어도 걷힌다)', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => window.SPLink.addLink('sec_1', 's_1'));
+  await scene(page, 'L', 100);
+
+  const got = await page.evaluate(() => {
+    const q = () => ({
+      byId: !!document.getElementById('link-sidecar'),
+      byCls: document.querySelectorAll('.spl-sidecar').length,
+    });
+    const 평소 = q();
+    // ★양성대조 — «잔재»를 손으로 심어 본다. 안 심으면 「0」이 「걷혀서 0」인지 «원래 0»인지 모른다.
+    const stale = document.createElement('div');
+    stale.id = 'link-sidecar'; stale.className = 'spl-sidecar';
+    document.getElementById('canvas-scaler').appendChild(stale);
+    const 심은직후 = q();
+    window.SPLink.rerender();
+    return { 평소, 심은직후, 렌더후: q() };
+  });
+
+  expect(got.평소.byId, '★사이드카가 «평소에» 만들어진다 — 폐기됐다는 전제가 깨졌다. 클립도 다시 재라').toBe(false);
+  expect(got.평소.byCls, '★.spl-sidecar 층이 살아 있다 — 폐기 전제가 깨졌다').toBe(0);
+  expect(got.심은직후.byId, '★잔재를 못 심었다 — 아래 「걷혔다」는 공짜 초록이다').toBe(true);
+  expect(got.렌더후.byId, '★구 사이드카 잔재가 안 걷힌다(scratchpad-link.js:210)').toBe(false);
+  expect(got.렌더후.byCls, '★.spl-sidecar 가 렌더 뒤에도 남는다').toBe(0);
+
   expect(errs, `콘솔 오류: ${errs.join(' | ')}`).toEqual([]);
 });

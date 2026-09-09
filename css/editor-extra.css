@@ -1827,6 +1827,14 @@ body.preview-mode #preview-navigator { display: flex; }
       } 없는 주석 → GREEN. ⇒ 「규칙 안에 주석 금지」는 실제보다 넓은 금지선이었다.
       (넓은 금지선은 다음 사람이 이유를 모른 채 어기거나, 필요 없는 제약에 묶인다.) */
 .spl-edges line { stroke: var(--spl-edge-color, var(--ui-accent, #4f6bed)); stroke-width: 2; stroke-dasharray: 5 5; opacity: .70; }
+/* ⚠️.spl-sidecar 는 «죽은 규칙»이다 — 이 층은 만들어지지 않는다.
+   사이드카(#link-sidecar)는 현빈 재설계로 폐기됐고(js/scratchpad-link.js:203), _ensureEdges 가
+   부를 때마다 구 잔재를 지운다(:210). 만드는 코드는 레포에 0건이다.
+   ⛔이 규칙만 남아 있어 소스를 읽는 사람에겐 «살아 있는 노트 카드 층»으로 보인다 —
+     실제로 「사이드카도 왼쪽에서 잘리나」라는 질문이 여기서 나왔다(2026-09-09).
+   ⇒ 옛 저장본의 잔재가 잠깐 뜨는 경우를 위해 남겨 두되, 여기 사실을 적는다.
+     되살릴 거면 클립(.spl-edges 의 overflow:visible)도 같이 봐야 한다.
+   ★사실을 지키는 검사: tests/dom/scratch-link-edges.dom.spec.js 의 T-SC. */
 .spl-sidecar { position: absolute; top: 0; left: 0; z-index: 7; pointer-events: none; }
 .spl-note-group {
   position: absolute; width: 220px; display: flex; flex-direction: column; gap: 9px;
