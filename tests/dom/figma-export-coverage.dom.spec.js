@@ -45,11 +45,11 @@ const ADD_FILES = sh(`grep -rlE 'window\\.add[A-Za-z0-9]*Block[[:space:]]*=' js/
 const DEP_FILES = ['js/banner-presets.js', 'js/panels/mockup-devices.js'];
 
 /* ★★아직 «못 고친» 것 — 여기 이름이 있으면 그 종은 내보내기에서 빠진다는 뜻이다.
- *   기제가 다르다: 이 셋은 .section-block «직속»(플로팅·absolute)이라 .section-inner
- *   흐름 밖에 있고, 순회는 inner.children 만 돈다. 명부 문제가 아니라 «배치(좌표)» 문제다.
- *   흐름 블록으로 그냥 집어넣으면 위치가 틀린 채 나가서 «빠지는 것보다 나쁠 수» 있다.
- *   ⇒ 별건으로 남긴다. 단 ⛔여기 «한 줄이라도 늘면» 이 검사가 빨개진다 — 조용히 못 자란다. */
-const KNOWN_DROPPED = ['addGradientBlock', 'addStickerBlock', 'addZoomBlock'];
+ *   2026-09-09 오후: «비었다». 한때 zoom·sticker·gradient 셋이 여기 있었다 —
+ *   .section-block 직속(플로팅·absolute)이라 순회 뿌리(inner.children) «밖»이었다.
+ *   순회의 뿌리를 넓혀 셋 다 닫혔다(모드 B). ⇒ 이제 빠지는 종은 0이어야 한다.
+ *   ⛔여기 «한 줄이라도 늘면» 빨개진다 — 조용히 못 자란다. */
+const KNOWN_DROPPED = [];
 
 function harness() {
   const imports = [...DEP_FILES, ...ADD_FILES]
@@ -136,9 +136,16 @@ async function sweep(page, FNS) {
       sec.querySelectorAll('*').forEach(el => el.classList.forEach(c => {
         if (/-block$/.test(c) && c !== 'section-block') cls.add(c);
       }));
+      /* ★«플로팅»인지를 «구조»로 판정한다 — 이름 명부가 아니다.
+         정의: .section-block 직속이면서 .section-inner 가 «아닌» 콘텐츠 블록.
+         (sticker/zoom/gradient 가 sec.appendChild 로 사는 자리. 네 번째가 생기면 자동으로 잡힌다.) */
+      const floatEl = [...sec.children].find(c => c !== inner &&
+        [...c.classList].some(x => x.endsWith('-block')));
       rows.push({ fn, err, classes: [...cls].sort(), secId: sec.id,
                   /* 흐름(section-inner) 안인가, 섹션 직속(플로팅)인가 — 순회가 보는 자리가 다르다 */
                   inFlow: inner.children.length > 0,
+                  floating: !!floatEl,
+                  floatDs: floatEl ? { x: floatEl.dataset.x, y: floatEl.dataset.y } : null,
                   made: sec.querySelectorAll('*').length > 1 });
     }
 
@@ -176,6 +183,22 @@ async function sweep(page, FNS) {
       }));
     }
 
+    /* ★음성대조 — 플로팅의 style.left/top 을 «오염»시킨다.
+       실물에서 이 값은 실제로 어긋난다: 섹션 간 드래그 뒤 dataset.y=114 인데 style.top=960
+       (차이 846 = 그 섹션의 offsetTop) — 캔버스 절대 y 가 들어간다(zoom-block.js:227 실측).
+       ⇒ dataset 이 단일 진실원이다. 오염시켜 두면 「style 에서 읽는」 변이가 «빨개진다».
+       ⛔이게 없으면 sweep 안에서 dataset 과 style 이 같은 값이라 출처를 바꿔도 안 걸린다. */
+    const POISON = 9999;
+    for (const r of rows) {
+      if (!r.floating) continue;
+      const sec = document.getElementById(r.secId);
+      const inner = sec.querySelector('.section-inner');
+      [...sec.children].filter(c => c !== inner &&
+        [...c.classList].some(x => x.endsWith('-block'))).forEach(el => {
+          el.style.left = POISON + 'px'; el.style.top = POISON + 'px';
+        });
+    }
+
     /* ── 진짜 내보내기 — 살아 있는 채널 ── */
     const ps = { bg: '#eeeeee', padX: 0 };
     window.__state.pages = [{ canvas: canvas.innerHTML, pageSettings: ps }];
@@ -197,6 +220,8 @@ async function sweep(page, FNS) {
       const s = bySec[r.secId];
       r.exported = !isHollow(s);
       r.kinds = s ? (s.blocks || []).map(b => b.type || '(빈껍데기)') : [];
+      const fb = s && (s.blocks || []).find(b => b && b.floating);
+      r.gotFloat = fb ? { floating: fb.floating, x: fb.x, y: fb.y } : null;
     }
     const arranged = placed.filter(Boolean).map(p => ({ ...p, exported: !isHollow(bySec[p.secId]) }));
     /* 「자리 옮기기」에 쓸 «콘텐츠 블록»이 아예 없던 add fn — 컨테이너만 만드는 것들이다. */
@@ -319,9 +344,55 @@ test('FX-3 ★순회가 «성질»로 잡는다 — 손 명부로 되돌리는 �
     '★_TRAVERSE_SKIP(제외 목록)이 바뀌었다.',
     '  ⛔제외에 콘텐츠 블록을 넣으면 그 종은 내보내기에서 «조용히» 사라진다.',
     '  늘리려면: 왜 _block() 에 넘기면 «안 되는지» 한 줄로 적고, 이 기대도 같이 고쳐라.',
-  ].join('\n')).toEqual(['frame-block', 'group-block', 'section-block']);
+  ].join('\n')).toEqual(['annotation-block', 'frame-block', 'group-block', 'section-block']);
+  /* annotation-block 은 «뿌리를 섹션 직속까지 넓히면서» 새로 필요해진 제외다.
+     ⛔짐작이 아니다 — market-merge.js 의 normSection 이 .section-label·.variation-badge 와
+       «같은 줄»에서 .annotation-block 을 지운다. 이 레포가 이미 「내용 아님」으로 판정한 것이다.
+     그 근거가 사라지면 제외의 정당성도 사라지므로 여기서 같이 지킨다. */
+  const mm = fs.readFileSync(path.join(REPO, 'js', 'market-merge.js'), 'utf8');
+  expect(mm, '★market-merge normSection 이 annotation-block 을 더는 «내용 아님»으로 안 지운다 — ' +
+    '그러면 순회에서 제외할 근거가 사라진다. 제외를 다시 판단해라').toContain('.annotation-block');
 
   // 각 제외에 «이유»가 실제로 붙어 있나 (빈 문자열로 형식만 맞추는 것을 막는다)
   for (const [cls, why] of entries)
     expect(why.length, `★제외 '${cls}' 에 이유가 없다 — 제외는 이유가 있을 때만 정당하다`).toBeGreaterThan(10);
+});
+
+/* ══ FX-4 — ★모드 B: 순회의 «뿌리». 셀렉터를 성질로 바꿔도 여기엔 닿지 않는다 ═════════
+ * ★왜 따로인가 — 세 가지 병이 «다른» 병이라서다. 검사도 갈라야 어느 것이 깨졌는지 보인다:
+ *     모드 A 셀렉터가 안 잡는다        → FX-2 의 col/frame 자리별 단언이 잡는다
+ *     모드 C 핸들러가 null 을 낸다      → FX-2 의 native 단언이 잡는다
+ *     ★모드 B 순회가 «보지도» 않는다   → 여기서 잡는다
+ *   2026-09-09 실측: zoom·sticker·gradient 는 .section-block «직속»(absolute)이라
+ *   `[...inner.children]` 만 도는 순회에겐 «방문 대상 자체»가 아니었다.
+ *
+ * ⛔셋을 이름으로 적지 않는다 — 분모를 «구조»로 센다(.section-inner 가 아닌 섹션 직속 블록).
+ *   네 번째 플로팅 블록이 생기면 «자동으로» 이 검사의 분모에 들어온다. 그게 요점이다. */
+test('FX-4 ★플로팅 블록(섹션 직속 absolute)이 좌표와 «함께» 나온다 — 순회 뿌리', async ({ page }) => {
+  await boot(page);
+  const { rows } = await sweep(page, ADD_FNS);
+
+  /* 분모 — 기계가 «구조»로 센다. ⛔이름 목록이 아니다. */
+  const floats = rows.filter(r => r.floating);
+  console.log(`  플로팅(섹션 직속) = ${floats.length}종 → ${floats.map(r => r.fn).join(' ')}`);
+
+  /* ★양성대조 — 이 실행이 플로팅을 «실제로» 만들었나. 0이면 아래 단언은 공회전이다. */
+  expect(floats.length, '★플로팅 블록을 하나도 못 만들었다 — 분모가 0이면 아래는 아무 뜻이 없다. ' +
+    '구조 판정(.section-inner 가 아닌 섹션 직속 블록)이 낡았는지 봐라').toBeGreaterThan(0);
+
+  for (const r of floats) {
+    // ① 빠지지 않는다
+    expect(r.exported, `★${r.fn} 이 내보내기에서 빠진다. 순회 «뿌리»가 .section-inner 로 좁혀졌나 ` +
+      `— 플로팅은 .section-block 직속이라 inner.children 만 돌면 안 보인다`).toBe(true);
+    // ② ★좌표가 «같이» 실린다 — 노드만 나오고 위치가 없으면 제자리를 잃는다
+    expect(r.gotFloat, `★${r.fn} 이 나오긴 하는데 floating 표시가 없다 — 위치 없이 흐름에 끼면 자리가 사라진다`)
+      .not.toBeNull();
+    const wx = parseFloat(r.floatDs.x), wy = parseFloat(r.floatDs.y);
+    if (Number.isFinite(wx) && Number.isFinite(wy)) {
+      expect({ x: r.gotFloat.x, y: r.gotFloat.y },
+        `★${r.fn} 의 좌표가 dataset.x/y 와 다르다. ★출처는 dataset 이어야 한다 — ` +
+        `style.left/top 에는 «캔버스 절대 y»가 들어가 있을 수 있다(zoom-block.js:227 실측)`)
+        .toEqual({ x: wx, y: wy });
+    }
+  }
 });
