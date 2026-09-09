@@ -35,8 +35,11 @@ test('K1 섹션 CRUD 가 window 로 나와 있다', () => {
 });
 
 test('K2 섹션 삭제는 «항목을 안 지운다» — 섹션만 뗀다(앱과 같은 규칙)', () => {
-  const i = DATA.indexOf('window.deleteChecklistSection');
-  const body = DATA.slice(i, DATA.indexOf('\n};', i));
+  /* ★2026-09-09 — 여기 자는 `\n};` «만» 찾았다. 지금 이 구간은 실제로 `};` 로 끝나서
+     «맞게» 재고 있었지만(실측 13줄, 진짜 14줄 — 차이는 닫는 `}` 포함 여부뿐),
+     이 함수가 `function deleteChecklistSection(…) { … }` 선언으로 바뀌는 날 끝을 «영영»
+     못 찾고 −1 이 되어 `slice(i, -1)` 이 파일 끝까지 삼킨다. 꼬리 모양에 안 걸리게 센다. */
+  const body = sliceBlock(DATA, 'window.deleteChecklistSection');
   assert.match(body, /sectionId === id \? \{ \.\.\.it, sectionId: null \}/,
     '항목을 지우면 앱과 «다른» 동작이 된다 — 사람이 투두를 잃는다');
   assert.match(body, /detachedItems/, '몇 개가 떨어졌는지 말해 줘야 한다');

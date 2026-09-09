@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
-import { sliceBlock } from './_slice-block.js';   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
+import { sliceBlock, sliceCall } from './_slice-block.js';   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { readSrc } from './_srcread.js';        // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
@@ -133,9 +133,10 @@ test('U-GLOGIN-5 토큰 없는 콜백은 no_token — «성공»으로 새지 �
 });
 
 test('U-GLOGIN-6 ⛔세션 토큰이 렌더러로 새지 않는다 (auth:google-login 반환값)', () => {
-  const i = SRC.indexOf("ipcMain.handle('auth:google-login'");
-  assert.ok(i >= 0, 'auth:google-login 핸들러를 못 찾음');
-  const body = SRC.slice(i, SRC.indexOf('\n});\n', i));
+  /* ★여는 `{` 가 «괄호 안»(콜백)이라 sliceBlock 이 아니라 sliceCall 이다 —
+     열린 괄호가 «전부» 닫히는 자리까지 센다. ⛔꼬리 `\n});\n` 를 명부로 들지 않는다.
+     (실측: 이 핸들러는 진짜 54줄인데 sliceBlock 으로 뜨면 129줄이 나온다 — 이름이 다른 이유다.) */
+  const body = sliceCall(SRC, "ipcMain.handle('auth:google-login'", 'auth:google-login 핸들러를 못 찾음');
   const returns = [...body.matchAll(/return\s+\{[^}]*\}/g)].map(m => m[0]);
   assert.ok(returns.length > 0, 'return 문을 못 찾음 — 검사가 헛돈다');
   for (const r of returns) {

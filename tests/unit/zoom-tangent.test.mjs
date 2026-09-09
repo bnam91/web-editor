@@ -43,6 +43,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { sliceBlock } from './_slice-block.js';   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -1019,9 +1020,7 @@ test('T15 ★앱 기본은 shadow:"off" 다 — 이 파일의 ST 는 «켠» 값
   /* ⛔`fs.readFileSync(...,'utf8')` 로 읽어서 자르면 안 된다 — CRLF 체크아웃에서 자르기가 어긋나
      «파일이 통째로 안 돈다»(검사 win-portability ①-3 이 그걸 센다). 공용 readSrc 를 탄다. */
   const block = readSrc(ROOT, 'js', 'blocks', 'zoom-block.js');
-  const at = block.indexOf('const ZOOM_DEFAULTS = {');
-  assert.ok(at >= 0, '전제: ZOOM_DEFAULTS 를 찾았다');
-  const body = block.slice(at, block.indexOf('\n};', at));
+  const body = sliceBlock(block, 'const ZOOM_DEFAULTS = {', '전제: ZOOM_DEFAULTS 를 찾았다');
   assert.match(body, /\n\s*shadow:\s*'off'\s*,/,
     "★앱 기본이 shadow:'off' 가 아니게 됐다면, 이 파일 ST 의 주석부터 고쳐라");
   assert.equal(ST.shadow, 'on', '이 파일의 격자는 «켠» 값이어야 한다(꺼 두면 전부 0바퀴다)');

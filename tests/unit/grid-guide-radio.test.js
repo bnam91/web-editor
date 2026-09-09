@@ -23,6 +23,7 @@ const { makeStripper } = require('./_strip-comments.js');
 const readSrc = (rel) => { const s = makeStripper(); return fs.readFileSync(path.join(ROOT, rel), 'utf8').split('\n').map(s).join('\n'); };
 
 const PAGE = readSrc('js/props/prop-page.js');
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 const CSS  = readSrc('css/editor-props.css');
 
 const PAIRS = [
@@ -43,9 +44,7 @@ test('R-1 ★Grid 절의 토글이 «라디오 쌍»이다 (체크박스 잔재 
 test('R-2 ★★리스너가 «양쪽»에 걸린다 — 켬에만 걸면 «끔»을 눌러도 아무 일이 없다', () => {
   assert.ok(/function _radioPairOn\(/.test(PAGE), '_radioPairOn 헬퍼가 없다');
   /* 헬퍼가 «둘 다»에 거는지 본문으로 확인 — 이름만 보고 믿지 않는다 */
-  const body = PAGE.slice(PAGE.indexOf('function _radioPairOn('));
-  const end = body.indexOf('\n}');
-  const fn = body.slice(0, end);
+  const fn = sliceBlock(PAGE, 'function _radioPairOn(');
   assert.ok(/onEl\.addEventListener/.test(fn) && /offEl\.addEventListener/.test(fn),
     '★_radioPairOn 이 한쪽에만 건다 — 「끔」을 눌러도 반응이 없다');
   /* 실제 배선이 그 헬퍼를 «쓰는지» */
@@ -55,8 +54,7 @@ test('R-2 ★★리스너가 «양쪽»에 걸린다 — 켬에만 걸면 «끔�
 
 test('R-3 ★끄기는 «끔 쪽을 켜는» 것이다 (.checked=false 로는 못 끈다)', () => {
   assert.ok(/function _radioPairSet\(/.test(PAGE), '_radioPairSet 헬퍼가 없다');
-  const body = PAGE.slice(PAGE.indexOf('function _radioPairSet('));
-  const fn = body.slice(0, body.indexOf('\n}'));
+  const fn = sliceBlock(PAGE, 'function _radioPairSet(');
   assert.ok(/offEl\.checked\s*=\s*!val/.test(fn),
     '★끔 쪽을 «켜지» 않는다 — 둘 다 꺼진 상태가 생긴다');
   /* ★그리드 쪽은 «헬퍼를 못 쓴다» — grid-guide-tidy.test.js 의 runInit 이 초기화 구간을

@@ -1168,12 +1168,10 @@ test('ⓑ-20b ★흐름 목록의 기준 — «규칙»을 재서 판정한다(�
 
   /* ★전제검사를 «세 계열 다 같은 형태»로 — 각자의 «선택 경로 원문»을 같은 방식으로 뜬다.
      (예전엔 sticker 만 grep · zoom 만 파일존재 · gradient 는 0 이라 비대칭이었다.) */
-  const handler = (src, marker) => {
-    const j = src.indexOf(marker);
-    assert.notEqual(j, -1, `선택 경로를 못 찾음: ${marker}`);
-    const k = src.indexOf('\n  }\n', j);
-    return k === -1 ? src.slice(j) : src.slice(j, k);
-  };
+  /* ⛔1차 수리(af1c90f) 때 여기를 놓쳤다 — 꼬리가 `\n  }\n`(들여쓴 닫기)라 `\n}\n` grep 에
+     안 걸렸다. ★그게 「명부로 세면 다음 변종이 샌다」의 실물이다. 이제 센다.
+     그리고 «못 찾으면 파일 끝까지» 폴백도 없앴다 — 그건 못 잰 것을 통과로 만든다. */
+  const handler = (src, marker) => sliceBlock(src, marker, `선택 경로를 못 찾음: ${marker}`);
   const PATHS = {
     'sticker-block':  SRC.stickerSel,                       // 전용 모듈 = 파일 전체가 선택 경로
     'gradient-block': SRC.gradientSel,

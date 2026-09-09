@@ -17,6 +17,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { sliceBlock } from './_slice-block.js';   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -231,9 +232,8 @@ test('T5 ★「손잡이 자동으로 되돌리기」가 살아 있고 여섯 �
     '되돌린 뒤 다시 그리지 않는다 — 값만 바뀌고 화면은 그대로다');
 
   // ⑵ ★그 함수가 «여섯 키»를 다 지운다 — 하나라도 남으면 반은 고정·반은 자동이 된다
-  const at = SRC.block.indexOf('function clearPinnedShortEdge(block)');
-  assert.ok(at >= 0, 'clearPinnedShortEdge 를 못 찾았다 — 아래가 자기통과한다');
-  const fn = SRC.block.slice(at, SRC.block.indexOf('\n}', at));
+  const fn = sliceBlock(SRC.block, 'function clearPinnedShortEdge(block)',
+    'clearPinnedShortEdge 를 못 찾았다 — 아래가 자기통과한다');
   assert.ok(fn.length > 40, `함수 몸통이 비었다(${fn.length}자)`);
   for (const k of ['ax', 'ay', 'bx', 'by', 'lx', 'ly']) {
     assert.ok(new RegExp(`delete block\\.dataset\\.${k}\\b`).test(fn),

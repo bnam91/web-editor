@@ -25,6 +25,7 @@ const SAVE = readSrc(ROOT, 'js', 'io', 'save-load.js');
      ⇒ 자기 거르개를 썼다면 M1 에 눈먼 자리가 생겼을 것이다. */
 const { stripComments } = require('./_strip-comments.js');
 const codeOnly = stripComments;
+const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 
 test('G0 ★양성대조 — 저장이 «DOM 을 직렬화»하는 게 맞나 (이 검사의 전제)', () => {
   assert.match(SAVE, /function getSerializedCanvas/,
@@ -50,9 +51,7 @@ test('G1 클래스는 «body 에만» 붙는다 — 캔버스 안에는 흔적�
 
 test('G2 ★섹션에 «인라인 스타일»을 쓰지 않는다 — 그게 저장에 섞이는 두 번째 길', () => {
   const src = codeOnly(PAGE);
-  const i = src.indexOf('function refreshGrid');
-  assert.ok(i > 0, 'refreshGrid 가 없다');
-  const body = src.slice(i, src.indexOf('\n  }', i));
+  const body = sliceBlock(src, 'function refreshGrid', 'refreshGrid 가 없다');
   assert.doesNotMatch(body, /\.section-inner[^)]*\)\.style|inner\.style\.setProperty/,
     '섹션에 직접 스타일을 쓰고 있다 — 인라인 스타일은 그대로 저장된다');
   assert.match(body, /documentElement\.style/,

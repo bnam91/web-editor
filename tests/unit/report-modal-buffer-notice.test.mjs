@@ -13,6 +13,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { sliceBlock } from './_slice-block.js';   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
@@ -62,9 +63,7 @@ test('U-H3-B3 ★복구 줄이 실려 있어도 «안 모은다»는 사실은 �
 
 test('U-H3-B4 ★판정은 «버퍼가 있는지»로 한다 — 화면 이름으로 하면 화면이 늘 때마다 낡는다', () => {
   const src = fs.readFileSync(path.join(ROOT, 'js/report-modal.js'), 'utf8');
-  const i = src.indexOf('function renderDisclosure()');
-  assert.ok(i > 0, 'renderDisclosure 를 못 찾았다');
-  const body = src.slice(i, src.indexOf('\n  }', i));
+  const body = sliceBlock(src, 'function renderDisclosure()', 'renderDisclosure 를 못 찾았다');
   assert.ok(/w\.ReportBuffer && typeof w\.ReportBuffer\.list === 'function'/.test(body),
     '★hasBuffer 를 ReportBuffer 존재로 안 정한다: ' + body);
   assert.ok(!/location|pathname|projects\.html|index\.html/.test(body),

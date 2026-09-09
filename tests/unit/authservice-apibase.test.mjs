@@ -12,6 +12,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { sliceBlock } from './_slice-block.js';
+import { stripComments } from './_strip-comments.js';   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 import { createRequire } from 'node:module';
 import { readSrc } from './_srcread.js';   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
 
@@ -73,10 +75,13 @@ test('U-AB-6 ★★ⓓ 어떤 env 로도 런타임 판정을 dev 로 못 돌린�
 
 test('U-AB-7 ★ⓓ 판정 근거는 execPath 와 __dirname 뿐이다 (env 낱말이 소스에 없다)', () => {
   const src = readSrc(require.resolve('../../services/authService.js'));
-  /* ★주석을 «먼저» 지운다 — 안 그러면 자기가 쓴 설명문에 걸려 빨개진다. */
-  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
-  const body = code.slice(code.indexOf('function isPackagedRuntime'));
-  const fn = body.slice(0, body.indexOf('\n}') + 2);
+  /* ★주석을 «먼저» 지운다 — 안 그러면 자기가 쓴 설명문에 걸려 빨개진다.
+     ⛔2026-09-09: 여기 있던 거르개는 이 레포에서 «9벌이 같은 형태로» 부서져 있던 그 정규식
+       (`/\/\*[\s\S]*?\*\//g`)이었다 — `image/*` 같은 문자열의 `/*` 를 주석 시작으로 읽고
+       그 뒤를 삼킨다. 이름을 안 붙여 써서 strip-comments 가드(S-6)에도 안 걸리고 있었다.
+       ⇒ 공용 거르개로 바꿨다. */
+  const code = stripComments(src);
+  const fn = sliceBlock(code, 'function isPackagedRuntime');
   assert.ok(fn.includes('process.execPath'), 'execPath 근거가 사라졌다');
   assert.ok(/asar/.test(fn), 'asar 근거가 사라졌다');
   assert.ok(!/process\.env/.test(fn), '★판정 함수가 env 를 읽는다 — 사용자가 답을 만들 수 있다');
