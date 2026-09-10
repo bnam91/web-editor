@@ -1,11 +1,11 @@
 {
   "note": "생성물 — tools/mcp-contract-snapshot.mjs 로만 고친다. 손으로 고치지 마라.",
   "counts": {
-    "registered": 84,
-    "visible": 33,
-    "hidden": 51,
-    "mutating": 71,
-    "gated": 71
+    "registered": 95,
+    "visible": 41,
+    "hidden": 54,
+    "mutating": 82,
+    "gated": 79
   },
   "sizeCaps": {
     "_CANVAS_TEXT_CAP": 120,
@@ -18,6 +18,7 @@
     "frame": "ss_",
     "card": "cvb_",
     "canvas": "cvb_",
+    "grid": "grd_",
     "table": "tbl_",
     "comparison": "cmp_",
     "step": "stb_",
@@ -194,6 +195,18 @@
       ]
     },
     "add_graph_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_grid_block": {
       "hidden": true,
       "mutating": true,
       "switchExempt": false,
@@ -438,6 +451,18 @@
       "noArgs": "rejected",
       "responseKeys": []
     },
+    "delete_project": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "projectId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
     "delete_scratch_item": {
       "hidden": false,
       "mutating": true,
@@ -474,6 +499,51 @@
         "ok"
       ]
     },
+    "edit_asset_tree": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "op"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "code",
+        "message",
+        "ok"
+      ]
+    },
+    "edit_checklist_section": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "op"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "code",
+        "message",
+        "ok"
+      ]
+    },
+    "edit_variation": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "op",
+        "sectionId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
     "export_sections": {
       "hidden": false,
       "mutating": false,
@@ -499,12 +569,16 @@
       "mutating": false,
       "switchExempt": true,
       "targetFree": true,
-      "required": [
-        "type"
-      ],
+      "required": [],
       "expectedProjectGuard": false,
-      "noArgs": "rejected",
-      "responseKeys": []
+      "noArgs": "ok",
+      "responseKeys": [
+        "hint",
+        "message",
+        "need",
+        "ok",
+        "types"
+      ]
     },
     "get_canvas_state": {
       "hidden": false,
@@ -543,6 +617,30 @@
       "noArgs": "rejected",
       "responseKeys": []
     },
+    "list_asset_tree": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "list_assets": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": true,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
     "list_checklist_items": {
       "hidden": false,
       "mutating": false,
@@ -553,7 +651,8 @@
       "noArgs": "ok",
       "responseKeys": [
         "items",
-        "ok"
+        "ok",
+        "sections"
       ]
     },
     "list_memories": {
@@ -624,6 +723,24 @@
       "noArgs": "rejected",
       "responseKeys": []
     },
+    "normalize_spacing": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [],
+      "expectedProjectGuard": true,
+      "noArgs": "ok",
+      "responseKeys": [
+        "applied",
+        "changedSections",
+        "notes",
+        "ok",
+        "reason",
+        "scannedSections",
+        "trigger"
+      ]
+    },
     "open_project": {
       "hidden": false,
       "mutating": true,
@@ -689,10 +806,35 @@
       "noArgs": "rejected",
       "responseKeys": []
     },
+    "rename_project": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "name",
+        "projectId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
     "search_iconify": {
       "hidden": false,
       "mutating": false,
       "switchExempt": true,
+      "targetFree": true,
+      "required": [
+        "query"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "rejected",
+      "responseKeys": []
+    },
+    "search_sections": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
       "targetFree": true,
       "required": [
         "query"
@@ -887,6 +1029,22 @@
       "expectedProjectGuard": false,
       "noArgs": "rejected",
       "responseKeys": []
+    },
+    "update_grid_block": {
+      "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "code",
+        "message",
+        "ok"
+      ]
     },
     "update_icon_circle_block": {
       "hidden": true,

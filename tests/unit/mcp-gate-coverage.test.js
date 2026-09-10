@@ -96,12 +96,22 @@ test('F3-9 확정하면 통과하고, 사람이 «다른 프로젝트를 열면�
 
 test('F3-10 계약 스냅샷의 targetFree 가 실제 tools/list 경고와 일치한다', async (t) => {
   if (!GATE_PRESENT()) return t.skip(SKIP_MSG);
-  /* 게이트는 tools/list «설명»에 ⚠TARGET= 을 기계적으로 붙인다.
-     계약(targetFree)과 설명(경고 유무)이 어긋나면 둘 중 하나가 거짓말이다. */
+  /* 게이트는 tools/list «설명»에 안내를 기계적으로 붙인다.
+     계약(targetFree)과 설명(경고 유무)이 어긋나면 둘 중 하나가 거짓말이다.
+     ★문구는 «서버 소스의 상수»에서 읽는다 — 여기 또 적어 두면 문구를 고칠 때 어긋난다
+       (2026-09-08 실제로 어긋났다: 92자 → 44자로 줄이자 이 검사가 옛 문장을 찾았다).
+       이 검사가 지킬 것은 «문구»가 아니라 «계약과 설명이 같은 말을 하나»다. */
+  const NOTE = (() => {
+    const src = require('fs').readFileSync(
+      require('path').join(__dirname, '..', '..', 'main', 'claude-pm', 'mcp-server.js'), 'utf8');
+    const m = src.match(/const _TARGET_NOTE = '([^']+)'/);
+    if (!m) throw new Error('_TARGET_NOTE 를 소스에서 못 찾았다 — 상수가 사라졌나');
+    return m[1].trim();
+  })();
   const listed = await H.listTools(true);
   const mismatch = [];
   for (const t of listed) {
-    const warned = /⚠TARGET=/.test(t.description || '');
+    const warned = (t.description || '').includes(NOTE);
     const c = CONTRACT.tools[t.name];
     if (!c) { mismatch.push(`${t.name}: 계약에 없다`); continue; }
     if (warned === c.targetFree) mismatch.push(`${t.name}: 계약 targetFree=${c.targetFree} 인데 설명 경고=${warned}`);

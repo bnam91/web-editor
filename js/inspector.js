@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════
    INSPECTOR PANEL
 ═══════════════════════════════════ */
+import { isJumpTarget } from './variation-visibility.js';
 
 // FIX: buildLayerPanel() 마지막에 Inspector 탭 활성 시 자동 갱신 추가 (layer-panel.js)
 // FIX: step-block, canvas-block, shape-block 카운트 추가
@@ -38,18 +39,35 @@ function jumpToElement(el) {
   const delta = el.getBoundingClientRect().top - wrap.getBoundingClientRect().top;
   // 블록은 섹션보다 작으니 «가운데»에 놓는다 — 위에 40px 만 두면 뭘 가리키는지 알기 어렵다.
   const center = Math.max(0, wrap.clientHeight / 2 - el.getBoundingClientRect().height / 2);
-  wrap.scrollTo({ top: wrap.scrollTop + delta - center, behavior: 'smooth' });
+  /* 스크롤이 «실제로 일어나는지»를 먼저 안다 — 이미 화면 안이면 scrollend 가 «영영 안 온다».
+     scrollTo 는 범위를 클램프하므로 우리도 같은 클램프로 재야 예측이 맞는다. */
+  const maxTop  = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+  const wantTop = Math.min(maxTop, Math.max(0, wrap.scrollTop + delta - center));
+  const willScroll = Math.abs(wantTop - wrap.scrollTop) > 1;
+  wrap.scrollTo({ top: wantTop, behavior: 'smooth' });
 
   /* ★그 블록을 «고른다» — 깜빡임만으로는 1.2초 뒤 아무 표시도 안 남아
      「어디로 간 건지」를 알 수 없었다(현빈 2026-09-04). 선택하면 아웃라인이 남고
-     우측 패널도 그 블록으로 바뀐다. 섹션이면 selectSection, 블록이면 selectBlock. */
+     우측 패널도 그 블록으로 바뀐다. 섹션이면 selectSection, 블록이면 selectBlock.
+   ★★두 갈래는 «인자가 다르다»(2026-09-09):
+       selectSection(sec)  — editor.js:2686, «요소»를 받는다
+       selectBlock(id)     — block-edit.js:18, «id 문자열»을 받아 getElementById 한다
+     여기서 요소를 넘기고 있었다 ⇒ String(el) = "[object HTMLDivElement]" ⇒ 항상 null ⇒ false.
+     즉 「선택해서 아웃라인을 남긴다」가 블록 대상에선 «처음부터 한 번도» 안 됐다
+     (실측 12/12 클릭에서 .selected 부착 0건). 레포의 다른 호출부는 전부 block.id 를 넘긴다. */
   try {
     if (el.classList.contains('section-block')) window.selectSection?.(el);
-    else if (window.selectBlock) window.selectBlock(el);
+    else if (el.id) window.selectBlock?.(el.id);   // id 없는 블록은 getElementById 로 못 찾는다
   } catch (_) {}
 
-  /* ★깜빡임은 «스크롤이 끝난 뒤»부터 센다 — smooth 스크롤이 구르는 동안 시간이 흘러
-     도착했을 땐 이미 절반 이상 지나 있었다. */
+  /* ★표시는 «클릭 즉시» 붙인다(2026-09-09). 옛 판은 320ms «선지연» 뒤에 붙였는데,
+       목록을 훑는 리듬이 그보다 빠르면 붙기 «전에» 다음 클릭의 _clearFlash 가 지운다
+       ⇒ 화면에 아무 표시도 안 뜬다. 실측(파테나·heading 12개·zoom 40%·클릭 12회):
+         200ms 간격 1/12 · 300ms 1/12 · 500ms 11/12 (1 은 마지막 클릭 — 뒤에 다음 클릭이 없다)
+       400ms 부근이 경계라 사용자에겐 「됐다 안 됐다」로 느껴졌다. 간헐이 아니라 리듬의 함수다.
+     ★지우기는 반대로 «스크롤이 멈춘 뒤»부터 센다 — smooth 스크롤이 구르는 동안 시간이 흘러
+       긴 점프에서는 도착 «전에» 표시가 죽었다(정착 ≈2,050ms vs 강조 종료 ≈1,850ms).
+       scrollend 지원은 이 Electron 에서 확인했다('onscrollend' in #canvas-wrap === true). */
   /* ⛔[M59] 타이머로 «누가» 지울지를 기억하지 마라 — 현빈 2026-09-06:
        「옮겨다니면서 … 파란색 볼드 아웃라인이 시간지나면 사라져야되는데 계속 남아있는 버그」
      옛 코드는 지우기 타이머가 «하나»(_t2)뿐이라, 1.7초(320+1400) 안에 다음 항목을 누르면
@@ -62,12 +80,33 @@ function jumpToElement(el) {
     .forEach(n => n.classList.remove('insp-jump-flash'));
   clearTimeout(jumpToElement._t);
   clearTimeout(jumpToElement._t2);
+  // 앞 클릭이 걸어 둔 scrollend 대기도 «지금» 거둔다 — 안 그러면 리스너가 쌓인다.
+  if (jumpToElement._onEnd) wrap.removeEventListener('scrollend', jumpToElement._onEnd);
+  jumpToElement._onEnd = null;
+
   _clearFlash();                       // 앞 항목의 표시를 «지금» 거둔다(타이머를 안 믿는다)
-  jumpToElement._t = setTimeout(() => {
-    _clearFlash();                     // 스크롤 도중 또 눌렸을 수 있다
-    el.classList.add('insp-jump-flash');
+  el.classList.add('insp-jump-flash'); // ★즉시 — 지연을 두면 훑는 리듬에 먹힌다
+
+  /* 1400ms 를 «스크롤이 멈춘 뒤»부터 센다. 지우는 것은 여전히 _clearFlash —
+     대상을 «기억»하지 않으므로 [M59] 의 「앞 블록이 영구히 남는」 병은 돌아오지 않는다. */
+  const arm = () => {
+    clearTimeout(jumpToElement._t2);
     jumpToElement._t2 = setTimeout(_clearFlash, 1400);
-  }, 320);
+  };
+  if (!willScroll) {
+    arm();                             // 이미 화면 안 — scrollend 는 «영영 안 온다»
+  } else {
+    const onEnd = () => {
+      wrap.removeEventListener('scrollend', onEnd);
+      if (jumpToElement._onEnd === onEnd) jumpToElement._onEnd = null;
+      clearTimeout(jumpToElement._t);
+      arm();
+    };
+    jumpToElement._onEnd = onEnd;
+    wrap.addEventListener('scrollend', onEnd);
+    // 폴백 — scrollend 를 못 받는 판이 와도(또는 스크롤이 삼켜져도) 표시가 영구히 남지 않는다.
+    jumpToElement._t = setTimeout(onEnd, 2500);
+  }
 }
 
 /* 클릭 위임 — 패널은 innerHTML 로 다시 그려지므로 «행마다» 리스너를 달면 새로 그릴 때 사라진다.
@@ -78,7 +117,9 @@ if (typeof document !== 'undefined' && !window.__inspJumpWired) {
     const row = e.target.closest?.('.insp-jump');
     if (!row) return;
     const key = row.dataset.jump;
-    const list = (_jumpTargets[key] || []).filter(el => el.isConnected);   // 지워진 블록은 건너뛴다
+    /* ★지워진 블록·«숨은 시안» 안의 블록은 건너뛴다 — 셋(여기·statRow·색칩)이 «같은 술어»를 본다.
+       패널을 그린 «뒤» 시안을 전환해도 여기서 한 번 더 걸러 「눌렀는데 안 움직인다」가 안 난다. */
+    const list = (_jumpTargets[key] || []).filter(isJumpTarget);
     if (!list.length) return;
     const i = ((_jumpIdx[key] ?? -1) + 1) % list.length;
     _jumpIdx[key] = i;
@@ -102,19 +143,28 @@ function renderInspectorPanel() {
   if (!panel) return;
 
   // ── 데이터 수집 ──
-  const sections   = [...document.querySelectorAll('.section-block')];
-  const textBlocks = [...document.querySelectorAll('.text-block')];
-  const assetBlocks= [...document.querySelectorAll('.asset-block')];
-  const gapBlocks  = [...document.querySelectorAll('.gap-block')];
-  const iconBlocks = [...document.querySelectorAll('.icon-circle-block')];
-  const tableBlocks= [...document.querySelectorAll('.table-block')];
-  const labelGroupBlocks  = [...document.querySelectorAll('.label-group-block')];
-  const graphBlocks       = [...document.querySelectorAll('.graph-block')];
-  const dividerBlocks     = [...document.querySelectorAll('.divider-block')];
-  const iconTextBlocks    = [...document.querySelectorAll('.icon-text-block')];
-  const stepBlocks        = [...document.querySelectorAll('.step-block')];
-  const canvasBlocks      = [...document.querySelectorAll('.canvas-block')];
-  const shapeBlocks       = [...document.querySelectorAll('.shape-block')];
+  /* ★분모는 «화면에 있는 것» — 숨은 A/B 시안(data-variation-active="0") 안의 블록은 세지 않는다.
+   *   ⑴ 못 가는 곳을 세면 「개수는 9인데 갈 수 있는 건 7」이 된다(2026-09-09 실측 19/24 → 20/20).
+   *   ⑵ ★개요(섹션·전체 블록·텍스트·이미지)도 «같은 분모»를 쓴다 — 한 패널 안에서 위는 문서 전체,
+   *      아래는 보이는 것이면 「텍스트 12인데 구성 합이 9」가 되어 더 헷갈린다.
+   *   ⑶ 그리고 그 분모는 이제 «배송본»과 같다 — 안 고른 시안은 내보내기에서도 빠진다
+   *      (js/io/export-html.js · js/io/export-figma-json.js). 인스펙터가 「나갈 것」을 잰다.
+   *   술어는 js/variation-visibility.js «한 곳». ⛔여기에 조건을 베껴 적지 마라. */
+  const $all = (sel) => [...document.querySelectorAll(sel)].filter(isJumpTarget);
+
+  const sections   = $all('.section-block');
+  const textBlocks = $all('.text-block');
+  const assetBlocks= $all('.asset-block');
+  const gapBlocks  = $all('.gap-block');
+  const iconBlocks = $all('.icon-circle-block');
+  const tableBlocks= $all('.table-block');
+  const labelGroupBlocks  = $all('.label-group-block');
+  const graphBlocks       = $all('.graph-block');
+  const dividerBlocks     = $all('.divider-block');
+  const iconTextBlocks    = $all('.icon-text-block');
+  const stepBlocks        = $all('.step-block');
+  const canvasBlocks      = $all('.canvas-block');
+  const shapeBlocks       = $all('.shape-block');
 
   const logoBlocks = logoBlocksOf(assetBlocks);
 
@@ -123,7 +173,10 @@ function renderInspectorPanel() {
    *   그 배열을 들고 있으면 이동은 공짜다. 스크롤은 selectSection 이 쓰는 것과 같은 방식. */
   _jumpTargets = {};
   const statRow = (key, label, list) => {
-    if (!list || !list.length) return '';
+    /* ★여기가 「개수 = 갈 곳」의 «보장»이다 — 어떤 목록이 들어와도 같은 술어로 한 번 거른 뒤
+       그 «걸러진 것»을 세고, 그 «같은 배열»을 점프 대상으로 넘긴다. 둘이 갈라질 수가 없다. */
+    list = (list || []).filter(isJumpTarget);
+    if (!list.length) return '';
     _jumpTargets[key] = list;
     return `<div class="insp-stat-row insp-jump" data-jump="${key}" title="클릭하면 사용된 곳으로 이동 (${list.length}개)">`
          + `<span class="insp-stat-label">${label}</span>`
@@ -194,8 +247,15 @@ function renderInspectorPanel() {
     });
   });
 
-  /* 많이 쓰인 색부터 — 팔레트에서 «주조색»이 위에 오는 게 읽기 쉽다. */
-  const colors = [...colorMap.entries()].sort((a, b) => b[1].size - a[1].size).map(([hex]) => hex);
+  /* 많이 쓰인 색부터 — 팔레트에서 «주조색»이 위에 오는 게 읽기 쉽다.
+     ★셋 중 세 번째 자리 — 여기서도 같은 isJumpTarget 으로 거른다. 그리고 «갈 곳이 하나도 없는 색»은
+       팔레트에서 뺀다: 숨은 시안에만 있던 색이 「19색」에 끼어 있으면 못 가는 칩이 하나 생긴다. */
+  const colorEntries = [...colorMap.entries()]
+    .map(([hex, els]) => [hex, [...els].filter(isJumpTarget)])
+    .filter(([, els]) => els.length)
+    .sort((a, b) => b[1].length - a[1].length);
+  const colors = colorEntries.map(([hex]) => hex);
+  const colorEls = new Map(colorEntries);
 
   // ── HTML 렌더링 ──
   const variantLabels = {
@@ -234,7 +294,7 @@ function renderInspectorPanel() {
    *   스와치 «위»에 작은 배지로 얹어 세로 높이를 안 늘린다. */
   const colorSwatches = colors.length
     ? colors.map(hex => {
-        const els = [...(colorMap.get(hex) || [])].filter(el => el && el.isConnected);
+        const els = colorEls.get(hex) || [];
         const key = 'c:' + hex;
         if (els.length) _jumpTargets[key] = els;
         return `

@@ -147,8 +147,14 @@ const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'version-diff
 /* ★vm.createContext 를 쓰지 않는다 — 다른 realm 에서 만든 배열/객체는 prototype 이 달라
  *   assert.deepEqual 이 「구조는 같은데 reference-equal 이 아니다」로 전부 빨강이 된다.
  *   같은 realm 에서 window 만 인자로 넣어 평가한다(모듈은 DOMParser 를 typeof 로 가드한다). */
+/* ★세척 단일 진실원(js/io/section-serialize.js) — 런타임 마커 «명단»이 사는 유일한 곳.
+   index.html 이 version-diff «앞»에서 이걸 싣는다(993 → 1092). 그 계약을 여기서도 재현한다.
+   ⛔안 실으면 normSection 이 마커를 못 걷고, 「줄을 골랐을 뿐인데 변경됨」이 초록으로 통과한다. */
+const SER_SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'io', 'section-serialize.js'), 'utf8');
+
 function load(windowExtras) {
   const win = Object.assign({}, windowExtras || {});
+  new Function('window', SER_SRC)(win);
   new Function('window', SRC)(win);
   return { vd: win.versionDiff, win };
 }
@@ -448,6 +454,7 @@ test('CD15 lossDiff 와 changeDiff 가 같은 사고에 «같은 답»을 낸다
 test('SY1 ★로컬 사본이 market-merge.normSection 과 «같은 답»을 낸다 — 표준(js/market-merge.js:12)이 바뀌었는데 여기 사본이 안 따라오면 이 테스트가 빨강이 된다', () => {
   // market-merge.js 도 같은 방식(IIFE + window)이라 같은 realm 에서 로드된다.
   const mmWin = {};
+  new Function('window', SER_SRC)(mmWin);   // ★market-merge 도 같은 명단을 읽는다(index.html:990/993)
   new Function('window', fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'market-merge.js'), 'utf8'))(mmWin);
   assert.equal(typeof mmWin.marketMerge.normSection, 'function');
 

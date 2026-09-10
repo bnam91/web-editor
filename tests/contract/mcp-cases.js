@@ -35,6 +35,13 @@ const CASES = {
   add_comparison_block: { args: {}, sinks: ["addComparisonBlock"] },
   add_divider_block: { args: {}, sinks: ["addDividerBlock"] },
   add_frame_block: { args: {}, sinks: ["addFrameBlock"] },
+  /* ★2026-09-07 신설 — 앱엔 있는데 MCP 에 «도구가 없던» 그리드 블록.
+     cols 는 «행 0»이고 각 칸의 글은 lines[].text 에 있다(실측으로 알아낸 규격). */
+  list_assets: { args: {}, sinks: ["assetsList"] },
+  list_asset_tree: { args: {}, sinks: ["assetsTree"] },
+  edit_asset_tree: { args: {"op":"createFolder"}, sinks: ["assetsMutate"] },
+  add_grid_block: { args: {"cols":[{"width":1,"lines":[{"type":"body","text":"A"}]},{"width":1,"lines":[{"type":"body","text":"B"}]}]}, sinks: ["addGridBlock"] },
+  update_grid_block: { args: {"blockId":"grd_x","patchCell":{"r":0,"c":0,"lines":[{"type":"body","text":"A"}]}}, sinks: ["updateGridBlock"] },
   add_gap_block: { args: {}, sinks: ["addGapBlock"] },
   add_gradient_block: { args: {}, sinks: ["addGradientBlock"] },
   add_graph_block: { args: {}, sinks: ["addGraphBlock"] },
@@ -60,6 +67,12 @@ const CASES = {
   delete_checklist_item: { args: {"id":"ck_1"}, sinks: ["deleteChecklistItem"] },
   delete_scratch_item: { args: {"id":"sp_br70mc"}, sinks: ["deleteScratchItem"] },
   delete_section: { args: {"sectionId":"sec_fixt_1"}, sinks: ["deleteSection"] },
+  delete_project: { args: {"projectId":"proj_1"}, sinks: ["projectOps.delete"] },
+  rename_project: { args: {"projectId":"proj_1","name":"새이름"}, sinks: ["projectOps.rename"] },
+    // ★2026-09-07 신설. ⚠️내가 처음에 sinks 를 «빈 배열»로 적었는데 «틀렸다» —
+    //   「렌더러 브리지를 안 타니 배선이 없다」고 «추측»했지만, 실제로는 main 의
+    //   projectOps.delete 를 부르고 하네스가 그것도 원장에 찍는다(create/open 과 같은 결).
+    //   ⇒ ★sinks 는 «추정»이 아니라 «실측»으로 적어야 한다(이 파일 머리글의 규약 그대로).
   duplicate_project: { args: {}, sinks: ["projectOps.duplicate"] },
   export_sections: { args: {}, sinks: ["exportCollect","exportSections"] },
     // exportCollect(begin/settle/end 객체)와 exportSections(함수) 둘 다 탄다
@@ -69,12 +82,23 @@ const CASES = {
   get_section_memo: { args: {"sectionId":"sec_fixt_1"}, sinks: ["getSectionMemo"] },
   insert_gap_after_block: { args: {"blockId":"tb_fx_h1","height":24}, sinks: ["insertGapAfterBlock"] },
   list_checklist_items: { args: {}, sinks: ["listChecklistItems"] },
+  edit_checklist_section: { args: {"op":"list"}, sinks: ["checklistSection"] },
+  search_sections: { args: {"query":"x"}, sinks: ["searchSections"] },
+    /* ★op:"create" 로 잰다 — 배선(variation 싱크)이 도는지만 보면 되고,
+         resolve·delete 는 confirm 게이트가 있어 무인자 호출이 CONFIRM_REQUIRED 로 «먼저» 끊긴다
+         (그러면 싱크에 안 닿아 배선을 못 잰다). switch 는 to 가 없으면 던진다. */
+  edit_variation: { args: {"op":"create","sectionId":"sec_x"}, sinks: ["variation"] },
+    // ★op:list 로 잰다 — create 면 «검사가 남는 것»을 만든다(픽스처가 시험마다 불어난다).
+    //   ⛔delete 는 confirm 게이트가 있어 무인자 호출이 CONFIRM_REQUIRED 로 «먼저» 끊긴다.
   list_memories: { args: {}, sinks: [], noOkKey: true },
     // 디스크 스캔 — 배선 없음. ★응답에 ok 키가 없다(현행 계약)
   list_projects: { args: {}, sinks: ["projectOps.list"] },
   list_scratch_items: { args: {}, sinks: ["listScratchItems"] },
   move_block: { args: {"blockId":"tb_fx_b1","beforeId":"tb_fx_h1"}, sinks: ["moveBlock"] },
   move_section: { args: {"sectionId":"sec_fixt_2","beforeId":"sec_fixt_1"}, sinks: ["moveSection"] },
+  normalize_spacing: { args: {}, sinks: ["readSpacingSequence"] },
+    // ★숨김 도구(QA·하네스 통로). 갭 «감수 패스»를 지금 돌린다 — 읽기가 앞끝이라 sink 는 read 쪽이다
+    // (할 일이 0이면 applySpacingOps 는 «안» 부르는 게 설계라 sink 로 못 쓴다)
   open_project: { args: {"projectId":"proj_1"}, sinks: ["projectOps.open"] },
   put_image: { args: {"image":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAAMBAQD3A0FDAAAAAElFTkSuQmCC"}, sinks: ["scratchAdd","addAssetBlock"] },
     // 보관함(scratchAdd)에 넣고 캔버스(addAssetBlock)에 얹는다 — 둘 다여야 «넣었다»
@@ -109,7 +133,12 @@ const CASES = {
   update_liner_block: { args: {"blockId":"lnr_1","preset":"arc-up"}, sinks: ["updateLinerBlock"] },
   update_mockup_block: { args: {"blockId":"mkp_1","deviceKey":"iphone"}, sinks: ["updateMockupBlock"] },
   update_scratch_item: { args: {"id":"sp_br70mc","name":"x","x":24}, sinks: ["updateScratchItem"] },
-  update_section: { args: {"sectionId":"sec_fixt_1","name":"새이름"}, sinks: ["updateSection"] },
+  update_section: { args: {"sectionId":"sec_fixt_1","bg":"#ffffff"}, sinks: ["updateSection"] },
+    // ⚠️2026-09-07 정정(g-mcpmgr): 여기 «성공하는 최소 인자»가 {sectionId, name:"새이름"} 으로
+    //   적혀 있었다. 그건 성공한 게 아니라 «아무것도 안 하고 ok» 였다 — name 은 핸들러
+    //   구조분해에서 버려지고 bg 가 undefined 라 렌더러가 할 일이 없었는데, 「no fields」 가드가
+    //   28개 update_* 중 «이 도구에만» 없어서 통과했다.
+    //   ★결함이 픽스처에 «정답»으로 굳어 있었다 — 검사가 결함을 지켜 주고 있었던 것이다.
   update_shape_block: { args: {"blockId":"shp_1","shapeType":"rectangle"}, sinks: ["updateShapeBlock"] },
   update_speech_bubble_block: { args: {"blockId":"sb_1","tail":"left"}, sinks: ["updateSpeechBubbleBlock"] },
   update_step_block: { args: {"blockId":"stb_1","steps":[{"title":"A","desc":"a","label":"L","text":"t"}]}, sinks: ["updateStepBlock"] },

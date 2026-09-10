@@ -144,9 +144,41 @@ function _gridEndEdit(block, host, addr) {
   if (res && res.ok === false) window.showToast?.(`줄 수정 실패: ${res.message || res.code}`);
 }
 
+/* modal 슬롯 편집 종료 — dataset 에 커밋하고 재렌더.
+   ★placeholder 지뢰 방지: 안내문구 그대로 두고 나가면(더블클릭 후 무입력) «아무것도 쓰지 않는다».
+     그러면 dataset 은 빈 채로 남고 render 가 다시 안내문구를 흐리게 그린다.
+     여기서 문구를 데이터로 굳히면 그 블록은 영영 「본문이 안내문구인」 블록이 된다. */
+function _modalEndEdit(block, host) {
+  if (host.getAttribute('contenteditable') !== 'true') return;
+  host.setAttribute('contenteditable', 'false');
+  host.removeAttribute('draggable');
+  block.classList.remove('editing');
+  const before = host._mdlBefore;
+  const slot = host.dataset.mdlSlot;
+  const ph = host.dataset.placeholder || '';
+  const text = host.innerText;
+  if (before == null || !slot) return;
+  const isPh = text.trim() === '' || text.trim() === ph.trim();
+  const next = isPh ? '' : text;
+  // 값이 그대로면 아무것도 하지 않는다 — 재렌더도 히스토리도 없다
+  if ((block.dataset[{ title: 'titleText', text: 'textText', cell1: 'cell1', cell2: 'cell2' }[slot]] || '') === next) {
+    if (isPh) window.renderModalBlock?.(block);   // 안내문구 복원(흐린 상태)만 다시 그린다
+    return;
+  }
+  host.innerText = before;                        // 커밋 전 DOM 을 편집 «전»으로
+  window.pushHistory?.();
+  window.commitModalSlot?.(block, slot, next);
+  window.renderModalBlock?.(block);
+  window.scheduleAutoSave?.();
+}
+
 function _gridBeginEdit(hit, e) {
   const { block, host, r, c, li } = hit;
   if (host.getAttribute('contenteditable') === 'true') return;
+  /* ★편집에 들어가는 줄은 «선택된 줄»이기도 하다 — 우측 패널이 그 줄의 Typography·Fill 을 봐야 한다.
+     ⛔focus() «전»에 부른다: 패널은 propPanel(캔버스 밖) 을 다시 그릴 뿐 이 host 를 안 건드리지만,
+       순서를 뒤집으면 나중에 누가 패널에서 캔버스를 만지게 고칠 때 캐럿이 날아간다. */
+  window.showGridProperties?.(block, { r, c, li });
   block.classList.add('editing');   // 공통 mousedown 드래그·dragstart·삭제키 가드가 이걸 본다
   host.setAttribute('contenteditable', 'true');
   // 부모 row 에 draggable="true" 가 걸려 있다 — 안 끄면 «글자 드래그 선택»이 블록 드래그가 된다
@@ -271,6 +303,7 @@ function bindBlock(block) {
   const isGrid         = block.classList.contains('grid-block');
   const isInfoCard    = block.classList.contains('infocard-block');
   const isInnerCard   = block.classList.contains('innercard-block');
+  const isModal       = block.classList.contains('modal-block');
   const isJoker      = block.classList.contains('joker-block');
   const isShape      = block.classList.contains('shape-block');
   const isCanvas     = block.classList.contains('canvas-block');
@@ -283,6 +316,7 @@ function bindBlock(block) {
   const isStep       = block.classList.contains('step-block');
   const isChat       = block.classList.contains('chat-block');
   const isLaurel     = block.classList.contains('laurel-block');
+  const isZoom       = block.classList.contains('zoom-block');
   const isGradient   = block.classList.contains('gradient-block');
 
   // ── 공통: 절대좌표 드래그 (프레임 자유배치 — 모든 블록 타입) ──
@@ -335,6 +369,18 @@ function bindBlock(block) {
         return;
       }
     } else {
+      /* ★확대블럭은 «자기» 이동 드래그를 갖는다(js/blocks/zoom-block.js _bindZoomMoveDrag) —
+         섹션을 넘나들며 «새 섹션 기준»으로 좌표를 다시 잡아 dataset.x/y 에 쓴다.
+         여기 일반 드래그는 «프레임 자유배치»용이라
+           ① 섹션이 바뀌는 걸 모른다(startTop + cdy/scale 만 더한다)
+           ② dataset.offsetX/offsetY 라는 «다른 키»에 쓴다
+         ⇒ 둘이 같이 돌면 마지막에 쓰는 쪽이 style 을 이겨 dataset 과 갈린다.
+         ★그게 ⑲다(지디 실기): dataset.y=114 인데 style.top=960 · 차이 846.
+           846 = 화면 델타 338 ÷ 배율 0.4 = 섹션 간 «레이아웃» 거리(= 그 섹션의 offsetTop).
+           x 가 맞았던 건 그 드래그가 «세로»여서 x 가 안 움직였기 때문이다 — 우연이다.
+         ⛔스티커는 bindBlock 을 아예 안 탄다(bindStickerSelect 전용)라 이 병이 없었다.
+           확대블럭은 클릭·선택 때문에 bindBlock 을 타므로 «여기서» 비켜줘야 한다. */
+      if (isZoom) return;
       if (block.style.position !== 'absolute') return;
     }
 
@@ -1231,23 +1277,32 @@ function bindBlock(block) {
         window.showLabelGroupProperties(block, null);
         return;
       }
+      // ★sec 는 «칩 분기보다 위»에서 잡는다 — 아래 배경 경로에서만 쓰던 것을 끌어올렸다.
+      const sec = block.closest('.section-block');
       // 라벨 아이템 클릭: 아이템 선택
       const item = e.target.closest('.label-item');
       if (item) {
+        // ★수식어 키는 «누른 자리»와 무관하다 — 칩(.label-item) 위에서 눌러도 배경과 같아야 한다.
+        //   ⛔예전엔 이 분기가 ⌘/shift 를 안 봐서 라벨그룹은 «위아래 블록과 동시선택이 안 됐다».
+        //   칩이 왼쪽에 몰려 있어(716x69.5 안에 121.8 짜리 3개) 라벨을 겨냥하면 반드시 이리로 온다.
+        if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+        if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
         if (!block.classList.contains('selected')) {
           window.deselectAll();
           _restoreParentFrameSelected(block);
           block.classList.add('selected');
-          window.syncSection(block.closest('.section-block'));
+          window.syncSection(sec);
           window.highlightBlock(block, block._layerItem);
         }
+        // ★앵커도 배경 경로와 같이 «이 블록»으로 옮긴다 — 안 그러면 칩 클릭 뒤 shift 범위선택이
+        //   «묵은 앵커»에서 뻗어 엉뚱한 범위를 잡는다.
+        window.setBlockAnchor?.(block);
         block.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
         item.classList.add('item-selected');
         window.showLabelGroupProperties(block, item);
         return;
       }
       // 블록 배경 클릭: 블록만 선택
-      const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
@@ -1394,6 +1449,36 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showLaurelProperties?.(block);
+    });
+  }
+
+  if (isZoom) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        e.stopPropagation();
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeFrame = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showFrameProperties?.(ss);
+        return;
+      }
+      window.deselectAll();
+      _restoreParentFrameSelected(block);
+      block.classList.add('selected');
+      window.syncSection(sec);
+      window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
+      window.showZoomProperties?.(block);
+      // ★아웃라인 모서리 리사이즈 핸들 — 레이어패널 경로(showHandlesFor)와 «같은» 입구를 쓴다.
+      window.showHandlesFor?.(block);
     });
   }
 
@@ -1688,7 +1773,7 @@ function bindBlock(block) {
   }
 
   // grid/infocard: bridge와 동일한 클릭-선택 (dataset 모델 정적 블록)
-  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties']]) {
+  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties']]) {
     if (!flag) continue;
     block.addEventListener('click', e => {
       e.stopPropagation();
@@ -1722,7 +1807,23 @@ function bindBlock(block) {
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
-      window[showFn]?.(block);
+      /* ★그리드는 «누른 줄»의 주소를 같이 넘긴다 — 패널이 그 줄의 Typography·Fill 을 띄운다
+         (bn2 의 [data-line-idx] 선례와 같은 모양, 이 파일 위쪽).
+         ⛔DOM 순서로 역산하지 않는다 — 렌더러가 심어 둔 data-r/data-c/data-line 이 정본이고,
+           그걸 읽는 판정은 _gridEditable «하나»다(글자를 안 담는 gap/image/중첩 줄은 null).
+           여기서 자기 벌을 만들면 「어느 줄이 편집 대상인가」가 두 벌이 되어 조용히 갈라진다.
+         ★2번째 인자는 «선택적»이다 — 다른 셋(infocard/innercard/modal)은 그냥 무시한다. */
+      let _grdAddr;
+      if (showFn === 'showGridProperties') {
+        const _h = _gridEditable(e.target);
+        if (_h && _h.block === block) _grdAddr = { r: _h.r, c: _h.c, li: _h.li };
+      }
+      window[showFn]?.(block, _grdAddr);
+      /* ★핸들도 «여기서» 띄운다 — 이 루프엔 호출이 아예 없어서 모달을 클릭하면
+         선택 테두리(오버레이)는 그려지는데 «모서리 점»만 안 나왔다(실측 handleCount 0).
+         showHandlesFor 는 블록 종류를 스스로 가른다 ⇒ 분기가 없는 grid/infocard/innercard 는
+         no-op 이고(실측 확인), modal 만 새로 잡힌다. */
+      window.showHandlesFor?.(block);
     });
   }
 
@@ -1740,6 +1841,51 @@ function bindBlock(block) {
       if (!hit || hit.block !== block) return;   // gap/image/중첩 줄 = 편집 대상 아님
       e.stopPropagation();
       _gridBeginEdit(hit, e);
+    });
+  }
+
+  /* ── modal: 슬롯 인라인 편집 ──
+     ★grid 와 «같은 규율»이다 — dataset 이 진실이므로 blur 에서 DOM 을 편집 «전»으로 되돌린 뒤
+       dataset 에 커밋하고 재렌더한다(히스토리 스냅샷이 「옛 dataset + 새 글자」로 어긋나는 것 방지). */
+  if (isModal) {
+    block.addEventListener('dblclick', e => {
+      /* ★두 후보를 «둘 다» 본다 — grid 의 dblclick 과 같은 규약.
+         앞선 커밋이 innerHTML 을 갈아끼웠으면 첫 클릭 타깃이 detach 돼 elementFromPoint 가
+         엉뚱한 요소를 준다. 그때 e.target 으로 폴백하지 않으면 편집이 «안 열린다». */
+      const _slot = (n) => {
+        const s = n && n.closest ? n.closest('[data-mdl-slot]') : null;
+        return (s && block.contains(s)) ? s : null;
+      };
+      const host = _slot(document.elementFromPoint(e.clientX, e.clientY)) || _slot(e.target);
+      if (!host) return;
+      e.stopPropagation();
+      if (host.getAttribute('contenteditable') === 'true') return;
+      block.classList.add('editing');          // 드래그·삭제키 가드가 이걸 본다
+      host.setAttribute('contenteditable', 'true');
+      // 부모 row 가 draggable 이라 안 끄면 «글자 드래그 선택»이 블록 드래그가 된다
+      host.setAttribute('draggable', 'false');
+      host._mdlBefore = host.innerText;
+      host._mdlWasPh  = host.dataset.isPlaceholder === 'true';
+      if (!host._mdlEditBound) {
+        host._mdlEditBound = true;
+        host.addEventListener('blur', () => _modalEndEdit(block, host));
+        host.addEventListener('keydown', ev => {
+          if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); host.blur(); }
+        });
+      }
+      host.focus();
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        const r = document.createRange();
+        if (host._mdlWasPh) r.selectNodeContents(host);   // 안내문구면 전체 선택 → 타이핑으로 즉시 교체
+        else {
+          const cr = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+          if (cr) { sel.addRange(cr); return; }
+          r.selectNodeContents(host); r.collapse(false);
+        }
+        sel.addRange(r);
+      }
     });
   }
 
@@ -1887,7 +2033,7 @@ function bindFrameDropZone(ss) {
     // B의 mousedown이 drag를 시작할 수 있도록 (text-frame은 투명 래퍼라 드래그 시작점으로 써도 됨)
     const CHILD_BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
       '.icon-block, ' +
-      '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, ' +
+      '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, ' +
       '.icon-text-block, .shape-block, .mockup-block';
 
     ss.addEventListener('mousedown', e => {
@@ -2058,7 +2204,7 @@ function bindFrameDropZone(ss) {
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
     const isFreeLayout = ss.dataset.freeLayout === 'true';
-    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block';
+    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block';
     const SS_W = 860; // 캔버스 기준 너비
 
     if (!isFreeLayout) {
@@ -2199,7 +2345,7 @@ function bindFrameDropZone(ss) {
   // 직후 mousedown drag 핸들러의 selected 체크에 걸려 드래그 시작이 막힘 (asset 등 다른 블록은 정상)
   ss.addEventListener('pointerdown', e => {
     // I4-F1: .icon-block 누락 → free-layout 아이콘이 pointerdown drag-disable에서 빠져 이동 막힘. drop/multi 셀렉터(BLOCK_SEL)와 정합.
-    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block');
+    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block');
     if (isInnerBlock) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');

@@ -128,6 +128,9 @@ function makeGapBlock() {
   const gb = document.createElement('div');
   gb.className = 'gap-block'; gb.dataset.type = 'gap';
   gb.id = genId('gb');
+  /* ⓓ 갭 «감수 패스»의 자동/수동 표식. 기계가 만든 갭은 «자동»이라 감수가 보정할 수 있다.
+     사람이 높이를 정하는 순간 markGapManual() 이 이 도장을 뗀다(js/spacing-normalize.js). */
+  gb.dataset.gapAuto = '1';
   return gb;
 }
 
@@ -1369,8 +1372,8 @@ function addSection(opts = {}) {
         <button class="st-btn st-memo-btn" onclick="window.toggleSectionMemoPopover(this)" title="섹션 메모"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M7.4 1.5 H3 A1 1 0 0 0 2 2.5 V9.5 A1 1 0 0 0 3 10.5 H9 A1 1 0 0 0 10 9.5 V4.1"/><path d="M8.2 1.3 L10.7 3.8 L7.2 7.3 L5.6 7.7 L6 6.1 Z"/></svg></button>
       </div>
       <div class="section-inner">
-        <div class="gap-block" data-type="gap" style="height:${gapH}px" id="${genId('gb')}"></div>
-        <div class="gap-block" data-type="gap" style="height:${gapH}px" id="${genId('gb')}"></div>
+        <div class="gap-block" data-type="gap" data-gap-auto="1" style="height:${gapH}px" id="${genId('gb')}"></div>
+        <div class="gap-block" data-type="gap" data-gap-auto="1" style="height:${gapH}px" id="${genId('gb')}"></div>
       </div>`;
   } else {
     const _tfId = genId('ss'), _tbId = genId('tb');
@@ -1381,13 +1384,13 @@ function addSection(opts = {}) {
         <button class="st-btn st-memo-btn" onclick="window.toggleSectionMemoPopover(this)" title="섹션 메모"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M7.4 1.5 H3 A1 1 0 0 0 2 2.5 V9.5 A1 1 0 0 0 3 10.5 H9 A1 1 0 0 0 10 9.5 V4.1"/><path d="M8.2 1.3 L10.7 3.8 L7.2 7.3 L5.6 7.7 L6 6.1 Z"/></svg></button>
       </div>
       <div class="section-inner">
-        <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
+        <div class="gap-block" data-type="gap" data-gap-auto="1" style="height:100px" id="${genId('gb')}"></div>
         <div class="frame-block" data-text-frame="true" id="${_tfId}">
           <div class="text-block" data-type="heading" id="${_tbId}">
             <div class="tb-h2" contenteditable="false" data-placeholder="소제목을 입력하세요" data-is-placeholder="true" style="font-family:'Pretendard', sans-serif">소제목을 입력하세요</div>
           </div>
         </div>
-        <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
+        <div class="gap-block" data-type="gap" data-gap-auto="1" style="height:100px" id="${genId('gb')}"></div>
       </div>`;
   }
 
@@ -1462,7 +1465,7 @@ function addSection(opts = {}) {
   // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
@@ -1796,7 +1799,7 @@ function _nextGroupName() {
 function wrapSelectedBlocksInFrame(opts = {}) {
   const asGroup = opts.asGroup === true;
   // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .zoom-block, .step-block, .frame-block';
   let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
@@ -3788,12 +3791,15 @@ function updateGapBlock(blockId, partial = {}) {
     if (!Number.isFinite(n)) {
       return { ok: false, code: 'INVALID', message: `height must be number, got ${partial.height}` };
     }
-    if (n < 0 || n > 400) {
-      return { ok: false, code: 'INVALID', message: `height out of range [0,400]: ${n}` };
+    if (n < (window.GAP_MIN ?? 0) || n > (window.GAP_MAX ?? 1000)) {
+      return { ok: false, code: 'INVALID', message: `height out of range [${window.GAP_MIN ?? 0},${window.GAP_MAX ?? 1000}]: ${n}` };
     }
     const v = Math.round(n);
     block.style.height = v + 'px';
     block.dataset.h = String(v);
+    /* ⓓ 「지어놓고 «고친» 값」은 사람 것이다 — 감수가 되돌리면 안 된다.
+       (add_gap_block 은 반대로 «자동»이다. 지을 때 붙인 값은 감수 대상이다.) */
+    window.markGapManual?.(block);
     applied.height = v;
   }
 

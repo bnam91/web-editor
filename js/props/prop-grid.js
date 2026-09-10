@@ -1,10 +1,75 @@
 /* ── Grid(다단) 블록 프로퍼티 패널 ──
    구조(컬럼/라인 추가·삭제)는 CDP/updateGridBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
-import { parseRatio, buildGridPicker } from './_helpers.js';
+import { parseRatio, buildGridPicker, alignBtn } from './_helpers.js';
 import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★상한은 한 곳에서만 온다
-import { gridRows, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT } from '../blocks/grid-block.js';
+import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
+         MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT } from '../blocks/grid-block.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
+import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
+import { wireFontPicker } from './_font-picker.js';
+import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
+import { parseAlphaFromColor, swatchHex } from './color-picker.js';
+
+/* ══ 줄(line) 선택 — 「지금 우측 패널이 보고 있는 줄」 ═══════════════════════
+ * ★블록별로 «주소»(r,c,li)를 기억한다. prop-banner02.js 의 _bn2ActiveLine 선례(어휘까지 빌린다).
+ * ⛔DOM 노드 참조로 들지 마라 — renderGridBlock 이 innerHTML 을 통째로 갈아끼워 매 조작마다 죽는다.
+ *   그래서 «주소»를 들고, 렌더 뒤에 _grdSyncLineMark 로 «다시» 붙인다. */
+const _grdActiveLine = new WeakMap();
+export function grdSetActiveLine(block, addr) { _grdActiveLine.set(block, addr || null); }
+export function grdGetActiveLine(block) { return _grdActiveLine.get(block) || null; }
+if (typeof window !== 'undefined') {
+  window.grdSetActiveLine = grdSetActiveLine;
+  window.grdGetActiveLine = grdGetActiveLine;
+}
+
+/* 캔버스에서 선택된 줄에 마커. ⛔`.selected` 재활용 금지 — editor.js 의
+   querySelectorAll('.selected') 범용 조회가 그걸 보고 ⌘M 섹션 합치기가 조용히 죽는다. */
+function _grdSyncLineMark(block, addr) {
+  document.querySelectorAll('.grd-line-selected').forEach(el => el.classList.remove('grd-line-selected'));
+  if (!addr || !block) return;
+  block.querySelector(`[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`)
+    ?.classList.add('grd-line-selected');
+}
+if (typeof window !== 'undefined') window._grdSyncLineMark = _grdSyncLineMark;
+
+/** 주소가 «지금도 유효한 글자 줄»인지 확인해 {r,c,li,line} 으로 돌려준다. 아니면 null.
+ *  ⛔DOM 순서 역산 금지 — data-r/data-c/data-line 이 정본이다(grid-block.js 의 addr 규약). */
+function _grdResolveAddr(block, addr) {
+  if (!addr || !block) return null;
+  const r = Number(addr.r), c = Number(addr.c), li = Number(addr.li);
+  if (![r, c, li].every(Number.isInteger)) return null;
+  let cells;
+  try { cells = getGridModel(block).cells; } catch (_) { return null; }
+  const line = cells?.[r]?.[c]?.lines?.[li];
+  if (!line || typeof line !== 'object') return null;
+  // ⛔「글자를 담는 줄인가」를 여기서 «다시 판정하지» 않는다 — grid-block.js 가 렌더러로 답한다.
+  if (!gridLineHasText(line)) return null;
+  return { r, c, li, line };
+}
+
+/** 지금 그 줄의 «살아 있는» 데이터(재렌더 뒤에도 최신). */
+function _grdLine(block, addr) {
+  const hit = _grdResolveAddr(block, addr);
+  return hit ? hit.line : null;
+}
+
+const _grdRoleOf = (line) => GRID_ROLES[line && line.type] || GRID_ROLES.body;
+
+/* ⚠️자간 «단위 불일치» — 역할값은 em 문자열('0.04em'), 패널의 ${p}-ls-number 는 px 숫자다.
+   읽을 땐 px = em × size 로 환산(실측 대조: label 16 × 0.04 = 0.64px · h1 64 × −0.02 = −1.28px),
+   쓸 땐 px 를 그대로 저장한다. ⇒ 안 건드린 줄은 계속 em 이라 크기를 바꾸면 자간이 따라오고,
+   «직접 정한» 줄만 px 로 고정된다 — 의도된 비대칭(U1-b 가 못박는다). */
+function _grdRoleLsPx(role, size) {
+  const m = String(role.ls ?? '0').trim().match(/^(-?[\d.]+)em$/);
+  if (m) return +(Number(m[1]) * size).toFixed(2);
+  const n = Number(role.ls);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/* 이 줄이 «직접 지정»할 수 있는 타이포 필드 전부 — 요약 한 줄과 [↺ 기본값으로] 가 같은 목록을 쓴다. */
+const _GRD_TYPO_FIELDS = ['fontSize', 'weight', 'color', 'lineHeight', 'letterSpacing', 'fontFamily', 'italic', 'strike'];
+const _grdHas = (line, k) => line[k] !== undefined && line[k] !== null && line[k] !== '';
 
 /* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
  * 렌더러(grid-block.js)는 이미 임의 비율을 지원한다 — 각 컬럼에 flex:(w/총합*100).
@@ -55,7 +120,246 @@ function _rowHeightHtml(rows) {
       <div class="prop-hint">비우면 자동(내용 높이) · 값은 «최소» 높이(내용이 더 크면 늘어난다)</div>`;
 }
 
-export function showGridProperties(block) {
+/* ══ Typography·Fill 절 — 마크업은 «부품»이 낸다 ═══════════════════════════
+ * ⛔여기에 절 마크업을 «베끼지» 마라 — _typo-section.js 한 곳에서만 온다.
+ *   tests/unit/typo-section-ssot.test.mjs T2·T2-b 가 이 파일도 같은 루프로 검사한다.
+ *
+ * ★value(명시) vs placeholder(역할 기본값)를 «구분»한다.
+ *   이 레포가 이미 쓰는 말이다 — 위 _rowHeightHtml 의 행 높이가 `placeholder="auto" value=""`
+ *   («비우면 자동»)이고, prop-banner02 의 Size 절도 같다. 새 관용구를 만들지 않는다.
+ *   ⛔구분을 안 하면: 값을 채워 두면 사용자가 「이 줄은 16px 로 정해뒀다」고 착각하고,
+ *     더 나쁘게는 «아무것도 안 만졌는데» change 가 한 번 튀기만 해도 역할 폴백이
+ *     데이터에 «굳어버린다»(line.fontSize:16 이 박혀 이후 역할 변경에 영영 안 따라온다).
+ *   ★스와치는 «진실»(지금 무슨 색인가)을, hex 칸은 «누가 정했나»를 말한다 — 층이 다르다.
+ *
+ * ★실패 판정식(계획서 §4-B): `칸.value || 칸.placeholder` 가 빈 문자열이면 실패.
+ *   회색 22 는 「빈 채로 떴다」가 아니다. D1-b 가 이 식을 그대로 단언한다. */
+function _grdTypoSectionsHtml(hit) {
+  if (!hit) {
+    return `
+    <div class="prop-section">
+      <div class="prop-section-title">Typography</div>
+      <div class="prop-hint">캔버스에서 «줄을 클릭»하면 그 줄의 Typography·Fill 이 여기 뜬다.</div>
+    </div>`;
+  }
+  const { r, c, li, line } = hit;
+  const role = _grdRoleOf(line);
+  const size = Number(line.fontSize) || role.size;
+  const weight = String(line.weight ?? role.weight);
+  const roleLsPx = _grdRoleLsPx(role, size);
+
+  const colorRaw = (_grdHas(line, 'color') && GRID_COLOR_RE.test(String(line.color).trim()))
+    ? String(line.color).trim() : '';
+  const swatch = colorRaw ? swatchHex(colorRaw, role.color) : role.color;
+
+  const nSet = _GRD_TYPO_FIELDS.filter(k => _grdHas(line, k)).length;
+  const summary = `${r + 1}행 ${c + 1}열 · ${li + 1}번째 줄 (${line.type || 'body'}) — `
+    + `직접 지정 ${nSet} · 역할 기본 ${_GRD_TYPO_FIELDS.length - nSet}`;
+
+  return `
+    <div class="prop-section" style="padding-bottom:4px;">
+      <div class="prop-row" style="align-items:center;gap:6px;">
+        <span class="prop-hint" id="grd-line-summary" style="flex:1;min-width:0;">${summary}</span>
+        <button id="grd-line-reset" title="이 줄에 «손으로 준 값»을 전부 지우고 기본값으로 되돌립니다 (⌘Z 로 복원)"
+                style="height:22px;flex:0 0 auto;padding:0 8px;font-size:11px;white-space:nowrap;background:#262626;color:#e5e5e5;border:1px solid #333;border-radius:4px;cursor:pointer;line-height:1;box-sizing:border-box;">↺ 기본값으로</button>
+      </div>
+    </div>
+    ${buildTypographySectionHtml({
+      p: 'grd-typo',
+      font: _grdHas(line, 'fontFamily') ? String(line.fontFamily) : '',
+      weight,
+      size: _grdHas(line, 'fontSize') ? size : '',
+      sizePh: String(role.size),
+      isBold: Number(weight) >= 700,
+      isItalic: line.italic === '1',
+      isStrike: line.strike === '1',
+      lh: _grdHas(line, 'lineHeight') ? Number(line.lineHeight) : '',
+      lhPh: String(role.lh),
+      ls: _grdHas(line, 'letterSpacing') ? Number(line.letterSpacing) : '',
+      lsPh: String(roleLsPx),
+      /* ★그리드 h1 은 64px 다 — 모달의 10~60 을 그대로 쓰면 «기본값이 상한 밖»이 된다. */
+      sizeMin: 8, sizeMax: 800,
+      /* ⛔showHighlight:false — 「빠뜨린 것」이 아니다. 그리드 줄에서 «글자 배경»은 line.bg 이고,
+         line.bg 가 있으면 렌더러가 «뱃지» 분기(grid-block.js 의 `if (bg)`)로 갈아탄다 —
+         inline-block + padding + border-radius:999px, 즉 형광펜이 «알약»이 된다.
+         형광펜을 원하면 line.bg 를 넓히는 별건 발주다. 다음 사람이 「빠졌네」 하고
+         true 로 되돌리면 tests/unit/grid-line-typo.test.js U1-c 가 빨강을 낸다. */
+      showHighlight: false,
+    })}
+    ${buildFillSectionHtml({
+      p: 'grd-typo',
+      colorHex: swatch,                                    // 스와치·피커 = «진실»
+      alpha: colorRaw ? parseAlphaFromColor(colorRaw) : 100,
+      colorHexVal: colorRaw ? swatch.replace('#', '').toUpperCase() : '',   // «누가 정했나»
+      colorHexPh: String(role.color).replace('#', '').toUpperCase(),
+    })}`;
+}
+
+/* ══ Typography·Fill 배선 ══════════════════════════════════════════════════
+ * ★어휘는 prop-modal(setDs/commit), «기법»은 prop-grid.
+ *   ⛔prop-modal 의 commit 은 슬라이더 change 에서 pushHistory 를 «나중»에 부른다.
+ *     뒤에 부르면 스냅샷이 «이미 바뀐 상태»라 undo 가 두 단계를 한꺼번에 되돌린다 —
+ *     이 레포엔 moveSection 에 그 버그가 실재한다. ⇒ 제스처의 «첫 적용 전»에 1회.
+ * ★진실은 dataset 이다(모달 계보). ⛔DOM 인라인 스타일에 쓰지 마라 — renderGridBlock 이
+ *   innerHTML 을 통째로 새로 만들어 «첫 측정을 통과하고 조용히 죽는다»(D1-c 가 2차 측정을 한다). */
+function _grdWireTypo(block, addr) {
+  let _gesture = false;
+  const begin = () => { if (_gesture) return; _gesture = true; window.pushHistory?.(); };   // ★적용 «전»
+  const end   = () => { _gesture = false; window.scheduleAutoSave?.(); };
+
+  /* 줄 하나에 필드를 얹는다 — 되쓰기는 grid-block.js 의 gridPreviewLine «한 곳»이고,
+     그것은 updateGridBlock 과 «같은» _gridMergeLine/_gridCellPatchDataset 을 쓴다.
+     ⛔updateGridBlock 을 직접 부르지 않는 이유: 그건 스스로 pushHistory 를 쌓고 패널을 통째로
+       다시 그린다 — 색 피커를 드래그하는 동안 그러면 히스토리가 폭주하고 포커스가 끊긴다. */
+  const setLine = (fields) => {
+    gridPreviewLine(block, addr.r, addr.c, addr.li, fields);
+    _grdSyncLineMark(block, addr);       // 재렌더가 마커를 지웠다 — 다시 붙인다
+    _grdRefreshSummary(block, addr);
+  };
+  const commit = (fields) => { begin(); setLine(fields); end(); };
+
+  // ── 폰트 — 위젯은 «한 벌»(_font-picker.js). 우리는 «적용»만 준다(prop-modal :264 선례).
+  wireFontPicker({
+    root: propPanel, p: 'grd-typo',
+    getCurrent: () => _grdLine(block, addr)?.fontFamily || '',
+    onPick: (rawVal) => commit({ fontFamily: rawVal || undefined }),
+  });
+
+  // ── 굵기 select — 명시값이 없으면 «역할 기본값» option 이 선택돼 있다(select 엔 placeholder 가 없다).
+  const wSel = document.getElementById('grd-typo-font-weight');
+  if (wSel && !_grdHas(_grdLine(block, addr) || {}, 'weight')) wSel.title = '역할 기본값';
+  wSel?.addEventListener('change', () => commit({ weight: wSel.value }));
+
+  /* ── 숫자 칸 — change(blur·Enter)에서만 커밋한다(비율·행높이 입력과 동일 원칙).
+       ★비우면 undefined 를 써서 «역할 기본»으로 되돌린다 — 회색 placeholder 가 다시 뜬다. */
+  const numWire = (id, field, min, max, parse) => {
+    const el = document.getElementById(id);
+    el?.addEventListener('change', () => {
+      const raw = String(el.value).trim();
+      if (raw === '') { commit({ [field]: undefined }); el.value = ''; return; }
+      const x = Math.min(max, Math.max(min, parse(raw)));
+      el.value = x;
+      commit({ [field]: x });
+    });
+  };
+  numWire('grd-typo-size-number', 'fontSize', 8, 800, v => parseInt(v, 10) || 0);
+  numWire('grd-typo-lh-number', 'lineHeight', 1, 3, v => parseFloat(v) || 1);
+  numWire('grd-typo-ls-number', 'letterSpacing', -10, 40, v => parseFloat(v) || 0);
+
+  /* ── B / I / S — H 는 «없다»(showHighlight:false, 위 주석 참조).
+       B 는 별개다: 그리드 줄엔 bold 플래그가 없고 weight 가 진실이다 ⇒ 700 ↔ 400 토글. */
+  const boldBtn = document.getElementById('grd-typo-bold-btn');
+  boldBtn?.addEventListener('click', () => {
+    const line = _grdLine(block, addr) || {};
+    const next = Number(line.weight ?? _grdRoleOf(line).weight) >= 700 ? 400 : 700;
+    boldBtn.classList.toggle('active', next >= 700);
+    if (wSel) wSel.value = String(next);
+    commit({ weight: next });
+  });
+  for (const [id, key] of [['grd-typo-italic-btn', 'italic'], ['grd-typo-strike-btn', 'strike']]) {
+    const btn = document.getElementById(id);
+    btn?.addEventListener('click', () => {
+      const on = (_grdLine(block, addr) || {})[key] === '1';
+      btn.classList.toggle('active', !on);
+      commit({ [key]: on ? undefined : '1' });
+    });
+  }
+
+  /* ── 글자색 (Fill 절) ──
+     ⛔wireColorField 를 못 쓴다 — 그건 `<prefix>-hex` 를 보는데 이 절의 id 는 텍스트·모달과
+       «같은» `<prefix>-color-hex` 다. 절을 공유한 대가로 배선은 여기서 짠다(prop-modal 과 같은 처지). */
+  const cPick   = document.getElementById('grd-typo-color');
+  const cHex    = document.getElementById('grd-typo-color-hex');
+  const cAlpha  = document.getElementById('grd-typo-color-alpha');
+  const cSwatch = cPick?.closest('.prop-color-swatch');
+  const raw0 = String((_grdLine(block, addr) || {}).color || '');
+  // 스와치 «배경»만은 raw 로 — var() 바인딩이면 변수의 실제 색이 보여야 한다.
+  if (cSwatch && raw0) cSwatch.style.background = raw0;
+  let _alpha = raw0 ? parseAlphaFromColor(raw0) : 100;
+  const buildColor = () => {
+    const h = (cPick?.value || '#000000').replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    const a = Math.max(0, Math.min(1, _alpha / 100));
+    return a >= 1 ? (cPick?.value || '#000000') : `rgba(${r},${g},${b},${a})`;
+  };
+  const applyColor = () => {
+    const cc = buildColor();
+    if (cSwatch) cSwatch.style.background = cc;
+    begin();                       // ★연속 input 의 «첫» 한 번만 히스토리를 찍는다
+    setLine({ color: cc });
+  };
+  cPick?.addEventListener('input', () => {
+    // alpha 0 이면 색을 바꿔도 안 보인다 — 사용자가 alpha 를 안 건드렸으면 되살린다.
+    if (_alpha === 0) { _alpha = 100; if (cAlpha) cAlpha.value = '100'; }
+    if (cHex) cHex.value = cPick.value.replace('#', '').toUpperCase();
+    applyColor();
+  });
+  cPick?.addEventListener('change', end);
+  cHex?.addEventListener('input', () => {
+    const v = cHex.value.trim().replace(/^#/, '');
+    if (!/^[0-9a-f]{6}$/i.test(v)) return;
+    if (cPick) cPick.value = '#' + v.toLowerCase();
+    if (_alpha === 0) { _alpha = 100; if (cAlpha) cAlpha.value = '100'; }
+    applyColor();
+  });
+  cHex?.addEventListener('change', end);
+  cAlpha?.addEventListener('change', () => {
+    _alpha = Math.min(100, Math.max(0, parseInt(cAlpha.value, 10) || 0));
+    cAlpha.value = String(_alpha);
+    applyColor(); end();
+  });
+
+  /* 컬러 변수 칩 — 정적 hex 복사가 아니라 var(--color-<name>, #hex) «바인딩»이다.
+     ★_GRID_COLOR_RE 를 var() 까지 넓혔다 — 안 그러면 칩이 「눌리는데 안 먹는」 상태가 된다
+       (modal-block.js 가 2026-09-08 같은 것에 물렸다). tests/unit/grid-color-re.test.mjs 가 지킨다. */
+  const chipBox = document.getElementById('grd-typo-color-chips');
+  if (chipBox) {
+    wireColorVarChips({
+      container: chipBox,
+      getActiveName: () => parseColorVarName((_grdLine(block, addr) || {}).color || ''),
+      getFallbackHex: (name, hex) => hex,
+      onPick: (cssRef) => {
+        commit({ color: cssRef });
+        const fb = (String(cssRef).match(/#[0-9a-fA-F]{6}/) || [])[0];
+        if (fb && cPick) { cPick.value = fb; if (cHex) cHex.value = fb.replace('#', '').toUpperCase(); }
+        _alpha = 100; if (cAlpha) cAlpha.value = '100';
+        if (cSwatch) cSwatch.style.background = cssRef;
+      },
+    });
+  }
+
+  /* ── [↺ 기본값으로] — 이 줄의 «직접 지정»을 전부 지운다.
+       undefined 를 병합하면 JSON.stringify 가 그 키를 떨군다 ⇒ 역할 기본으로 복귀. ⌘Z 로 돌아온다.
+       값이 통째로 바뀌므로 패널을 다시 그린다(이 시점엔 포커스가 든 입력이 없다 — 버튼 클릭이다). */
+  document.getElementById('grd-line-reset')?.addEventListener('click', () => {
+    const cleared = {};
+    _GRD_TYPO_FIELDS.forEach(k => { cleared[k] = undefined; });
+    commit(cleared);
+    showGridProperties(block, addr);
+  });
+}
+
+/** 요약 한 줄의 «직접 지정 N» 만 제자리에서 고친다 — 패널을 다시 그리지 않는다(포커스 보존). */
+function _grdRefreshSummary(block, addr) {
+  const el = document.getElementById('grd-line-summary');
+  const line = _grdLine(block, addr);
+  if (!el || !line) return;
+  const n = _GRD_TYPO_FIELDS.filter(k => _grdHas(line, k)).length;
+  el.textContent = `${addr.r + 1}행 ${addr.c + 1}열 · ${addr.li + 1}번째 줄 (${line.type || 'body'}) — `
+    + `직접 지정 ${n} · 역할 기본 ${_GRD_TYPO_FIELDS.length - n}`;
+}
+
+/**
+ * @param {HTMLElement} block
+ * @param {{r:number,c:number,li:number}|null} [addrArg] 선택된 «줄» 주소.
+ *   ⛔반드시 «선택적»이어야 한다 — tools/duo-align-probe/run.cjs 가 4곳에서 1-인자로 부르고,
+ *     updateGridBlock 도 1-인자로 되부른다. 안 주면 «기억하고 있던» 줄을 그대로 쓴다.
+ *   null 을 «명시»하면 선택 해제다(undefined 와 다르다).
+ */
+export function showGridProperties(block, addrArg) {
+  const _hit = _grdResolveAddr(block, addrArg === undefined ? grdGetActiveLine(block) : addrArg);
+  const _curAddr = _hit ? { r: _hit.r, c: _hit.c, li: _hit.li } : null;
+  grdSetActiveLine(block, _curAddr);
   let cols = [];
   try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) {}
   const rows = gridRows(block);   // 없으면(옛 파일) [{height:'auto'}] 1행 — grid-block.js 승격 로직과 공유
@@ -99,33 +403,22 @@ export function showGridProperties(block) {
       <div class="prop-row">
         <span class="prop-label">가로 정렬</span>
         <div class="prop-align-group" id="grd-halign-group">
-          <button class="prop-align-btn${halign === 'left' ? ' active' : ''}"   data-ha="left"   title="왼쪽 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="2" x2="1" y2="12"/><rect x="3" y="4" width="5" height="6" rx="1"/></svg>
-          </button>
-          <button class="prop-align-btn${halign === 'center' ? ' active' : ''}" data-ha="center" title="가운데 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="7" y1="2" x2="7" y2="12"/><rect x="3" y="4" width="8" height="6" rx="1"/></svg>
-          </button>
-          <button class="prop-align-btn${halign === 'right' ? ' active' : ''}"  data-ha="right"  title="오른쪽 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="13" y1="2" x2="13" y2="12"/><rect x="6" y="4" width="5" height="6" rx="1"/></svg>
-          </button>
+          ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: halign === 'left', attrs: { 'data-ha': 'left' } })}
+          ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: halign === 'center', attrs: { 'data-ha': 'center' } })}
+          ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: halign === 'right', attrs: { 'data-ha': 'right' } })}
         </div>
       </div>
       <div class="prop-row">
         <span class="prop-label">세로 정렬</span>
         <div class="prop-align-group" id="grd-valign-group">
-          <button class="prop-align-btn${valign === 'top' ? ' active' : ''}"    data-va="top"    title="상단 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="1" x2="12" y2="1"/><rect x="4" y="3" width="6" height="5" rx="1"/></svg>
-          </button>
-          <button class="prop-align-btn${valign === 'middle' ? ' active' : ''}" data-va="middle" title="중앙 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="7" x2="12" y2="7"/><rect x="4" y="3" width="6" height="8" rx="1"/></svg>
-          </button>
-          <button class="prop-align-btn${valign === 'bottom' ? ' active' : ''}" data-va="bottom" title="하단 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="13" x2="12" y2="13"/><rect x="4" y="6" width="6" height="5" rx="1"/></svg>
-          </button>
+          ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', active: valign === 'top', attrs: { 'data-va': 'top' } })}
+          ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: valign === 'middle', attrs: { 'data-va': 'middle' } })}
+          ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: valign === 'bottom', attrs: { 'data-va': 'bottom' } })}
         </div>
       </div>
       <div class="prop-hint" style="margin-top:2px;">세로 정렬은 컬럼 높이가 서로 다를 때만 움직인다</div>
     </div>
+    ${_grdTypoSectionsHtml(_hit)}
     <div class="prop-section">
       <div class="prop-row"><span class="prop-label" style="opacity:.6">글자는 «캔버스에서 줄을 더블클릭»해 고친다 · 라인 구조(추가·삭제) 변경은 updateGridBlock API 사용</span></div>
     </div>`;
@@ -218,7 +511,9 @@ export function showGridProperties(block) {
        * 실측: 2x1 → 3x3 으로 바꿔도 거터가 col 1개 그대로였다(2초 뒤에도).
        * 격자 «수»가 바뀌는 건 이 경로뿐이라 여기서 한 번 정리한다. */
       hideGridGutters();
-      showGridProperties(block);
+      /* ★자기재귀 — 현재 «줄 주소»를 같이 넘긴다. 안 넘기면 조작마다 선택이 첫 줄로 튄다
+         (손으로 눌러 보기 전엔 안 보이는 자리 — tests/dom/grid-typo.dom.spec.js D5 가 검사). */
+      showGridProperties(block, _curAddr);
       showGridGutters(block);                   // 패널 재생성(칸/행 수가 바뀌면 섹션도 바뀐다)
     },
     { max: MAX_COLS, maxRows: MAX_ROWS, minCols: MIN_COLS, minRows: MIN_ROWS }
@@ -253,7 +548,7 @@ export function showGridProperties(block) {
     block.dataset.valign = btn.dataset.va;
     window.renderGridBlock?.(block);
     window.pushHistory?.(); window.scheduleAutoSave?.();
-    showGridProperties(block);
+    showGridProperties(block, _curAddr);        // ★줄 선택 유지 (D5)
   }));
 
   // 가로 정렬 — 컬럼 단위(col.align)로 일괄 적용.
@@ -271,7 +566,7 @@ export function showGridProperties(block) {
       block.dataset.cols = JSON.stringify(c);
       window.renderGridBlock?.(block);
       window.pushHistory?.(); window.scheduleAutoSave?.();
-      showGridProperties(block);
+      showGridProperties(block, _curAddr);      // ★줄 선택 유지 (D5)
     } catch (_) {}
   }));
 
@@ -295,7 +590,12 @@ export function showGridProperties(block) {
   // ★2026-09-04 P2: 캔버스 셀 경계 드래그 거터(overlay-handles.js) — 패널이 뜨는 자리마다
   //   같이 띄운다(클릭 선택·레이어패널 선택·updateGridBlock 후 재선택 모두 이 함수를 거친다,
   //   PLAN-gridblock.md §5). 해제는 editor.js deselectAll()의 hideGridGutters 로 일괄.
+  if (_hit) _grdWireTypo(block, _curAddr);
+
   showGridGutters(block);
+  /* ★마커는 «맨 끝»에 다시 붙인다 — 이 함수가 불리는 모든 경로(클릭·레이어패널·MCP·
+     updateGridBlock 후 재표시)에서 재렌더가 innerHTML 을 갈아끼웠을 수 있다(bn2 :22~26 과 동형). */
+  _grdSyncLineMark(block, _curAddr);
 }
 
 window.showGridProperties = showGridProperties;

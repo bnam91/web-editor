@@ -10,10 +10,10 @@ import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './histor
 const CANVAS_SEL_BLOCKS =
   '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
   '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-  '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, ' +
+  '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, ' +
   '.canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.mockup-block.selected, .icon-block.selected, .vector-block.selected, ' +
-  '.step-block.selected, .laurel-block.selected, .gradient-block.selected, ' +
+  '.step-block.selected, .laurel-block.selected, .zoom-block.selected, .gradient-block.selected, ' +
   '.sticker-block.selected, .joker-block.selected, .chat-block.selected, ' +
   '.speech-bubble-block.selected';  // 버블(sb_): 복수선택/복사/삭제/⌘X 대상 편입 (#7)
 // shape-block은 ss/row 단위 별도 삭제 경로(allSelShapes)라 위 목록에 포함하지 않음.
@@ -409,11 +409,19 @@ function setCanvasTail(px) {
   _applyPanRoom();
 }
 
-/** 기본 여지 = 사방 한 화면. 이미 그만큼 있으면 아무것도 안 한다. */
+/* ★[M63] 세로 «기본 여지»를 몇 화면으로 둘 것인가 — 현빈 원문 「밑으로 내리는데 생각보다 한계가 있네」.
+   ⛔이 값을 «한 곳»에만 쓰면 안 된다. 세 자리(ensurePanRoom 의 바닥 · shrinkPanRoom 의 회수 하한 ·
+     setPanRoom 의 복원 하한)가 «같은 바닥»을 봐야 한다 — 하나만 올리면 shrinkPanRoom 이 바닥 밑으로
+     깎고 다음 줌·리사이즈가 도로 밀어 올려 «진동»한다.
+   ⛔2 를 넘기지 마라: 휠 상한이 WHEEL_OVER_SCREENS=3 (cap = 1+3 = 4화면)이므로
+     기본이 4 이상이면 휠 잔여가 흡수될 여지가 0 이 돼 「휠이 아예 안 밀린다」가 된다. */
+const PAN_ROOM_SCREENS_Y = 2;   // 아래위 각 2화면
+
+/** 기본 여지 = 좌우 한 화면 · 상하 PAN_ROOM_SCREENS_Y 화면. 이미 그만큼 있으면 아무것도 안 한다. */
 function ensurePanRoom() {
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap || !scaler) return;
-  const needX = wrap.clientWidth, needY = wrap.clientHeight;
+  const needX = wrap.clientWidth, needY = wrap.clientHeight * PAN_ROOM_SCREENS_Y;
   if (!needX || !needY) return;                     // 아직 레이아웃 전
   if (_panRoomX >= needX && _panRoomY >= needY) return;
   const first = (_panRoomX === 0);
@@ -482,7 +490,7 @@ function setPanScrollBaseline(ref) { _panScrollBaseline = ref; }
 function shrinkPanRoom() {
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap || !scaler) return;
-  const baseX = wrap.clientWidth, baseY = wrap.clientHeight;
+  const baseX = wrap.clientWidth, baseY = wrap.clientHeight * PAN_ROOM_SCREENS_Y;   // [M63] ensurePanRoom 과 «같은 바닥»
   /* 한쪽에서 c 를 깎으면 «양쪽» 여백이 줄어 전체 범위가 2c 만큼 준다.
      ⇒ 안전 조건이 «둘»이다:
        ⑴ 앞쪽: 줄인 만큼 스크롤도 줄여야 하므로  c ≤ scrollLeft   (안 그러면 음수)
@@ -563,7 +571,7 @@ window.setPanRoom = (r) => {
   const wrap = document.getElementById('canvas-wrap');
   if (!r || !wrap || !scaler || !wrap.clientWidth) return;
   const x = Math.max(wrap.clientWidth, Math.round(r.x) || 0);
-  const y = Math.max(wrap.clientHeight, Math.round(r.y) || 0);
+  const y = Math.max(wrap.clientHeight * PAN_ROOM_SCREENS_Y, Math.round(r.y) || 0);   // [M63] 같은 바닥
   if (x === _panRoomX && y === _panRoomY) return;
   _panRoomX = x; _panRoomY = y;
   _applyPanRoom();
@@ -593,14 +601,32 @@ function _syncScalerHeight() {
 }
 
 /* C20: 섹션/블록 추가·삭제·리사이즈로 #canvas 높이가 바뀌면 scaler 레이아웃 높이도 재동기화.
- *      scaler.style.height 변경은 #canvas.offsetHeight에 영향 없어 피드백 루프 없음. rAF 디바운스. */
+ *      scaler.style.height 변경은 #canvas.offsetHeight에 영향 없어 피드백 루프 없음.
+ * ★[M63] 디바운스를 rAF → setTimeout 으로 바꿨다.
+ * ★★이 파일은 이미 같은 경고를 «두 번» 적어 뒀다 — :345 「이 앱은 비포커스 창에서 rAF 가 멈춘다」와
+ *   :3146 트랙패드 스로틀. 그런데 그 경고가 «같은 파일 안에서도 옆 줄까지 안 갔다»: 그 둘은
+ *   setTimeout 으로 고쳐 놓고 바로 아래 이 자리는 rAF 로 남아 있었다. ⇒ 그게 이 버그의 진짜 교훈이다.
+ *   ⛔범위: 「rAF 가 빗장을 푸는」 같은 모양이 레포에 19곳 더 있다(editor.js:255 포함). **별건 티켓**이다 —
+ *     여기서 같이 고치지 마라. 무엇이 무엇을 고쳤는지 안 갈린다. 전수 검사도 그 티켓에서 세운다.
+ * ⇒ 어휘는 `js/io/save-load.js`(adb8618)의 처방을 따르되 «그대로»는 아니다. 거기는 «빗장을 푸는»
+ *   자리라 rAF 의 뜻(한 프레임 뒤 = 잔여 mutation 흡수)을 지켜야 해서 「rAF ＋ 타이머, 먼저 오는 쪽이
+ *   한 번만」이 필요했다. 여기는 «높이를 다시 재는» 디바운스라 한 프레임을 기다릴 «뜻»이 없다
+ *   ⇒ setTimeout 하나로 족하다. 새 관용구를 만들지 않는다.
+ *   막는 경우: RO 가 «보이는 동안» 울려 rAF 를 예약해 놓고, 다음 프레임 «전»에 창이 가려지는 때.
+ *   그러면 옛 코드는 예약만 남고 sync 가 영영 안 돌아 scaler.style.height 가 낡은 값에 굳는다.
+ * ⛔이것이 「가려진 창의 0px」을 «전부» 고치지는 않는다 — 실측(9348, document.hidden=true):
+ *   가려진 창에서는 rAF 뿐 아니라 **ResizeObserver 전달 자체가 안 온다**(초기 관측조차 0회).
+ *   둘 다 「렌더링 갱신」 단계에 얹혀 있기 때문이다. 그래서 가려진 동안엔 sync 가 아예 안 돈다.
+ *   ★단, 창이 보이는 순간 밀린 관측이 전달돼 스스로 낫는다(실측: 0px → 2407px, scrollHeight 4159 → 5911).
+ *   ⇒ 「가려진 채로는 어차피 아무도 안 스크롤한다 + 보이면 즉시 낫는다」라서 visibilitychange
+ *     재동기화는 «안» 걸었다. 걸고 싶어지면 먼저 「보여도 안 낫는 경로」를 실측으로 찾아라. */
 (() => {
   const canvasEl = document.getElementById('canvas');
   if (!canvasEl || typeof ResizeObserver === 'undefined') return;
-  let raf = 0;
+  let pending = 0;
   const ro = new ResizeObserver(() => {
-    if (raf) return;
-    raf = requestAnimationFrame(() => { raf = 0; _syncScalerHeight(); });
+    if (pending) return;
+    pending = setTimeout(() => { pending = 0; _syncScalerHeight(); }, 0);
   });
   ro.observe(canvasEl);
 })();
@@ -673,7 +699,7 @@ function zoomStep(delta) {
   const selectedBlock = delta > 0 && document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected, .speech-bubble-block.selected'
   );
   let targetEl = selectedBlock ? (selectedBlock.closest('.section-block') || selectedBlock) : null;
@@ -827,7 +853,7 @@ let clipboard = null;
    - Shift+click: range select from last clicked
 ═══════════════════════════════════ */
 const BLOCK_MULTI_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
-  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, ' +
+  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, ' +
   '.icon-text-block, .shape-block';
 
 let _lastClickedBlock = null;
@@ -880,8 +906,26 @@ function _updateFreeLayoutMultiSelPanel() {
 /* 일반(플로우) 블록 멀티선택 카운트 패널 트리거 (A11)
  * — freeLayout 블록은 X/Y/W/H 좌표가 있어 전용 패널로 위임,
  *   세로로 쌓인 일반 블록은 좌표가 없어 '몇 개 선택됨' 카운트 패널만 제공 */
-// 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT
-const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
+/* ★이 목록의 기준은 「플로팅이냐」가 «아니다» — 「자유배치 프레임 안이냐」다.
+ *   판정기가 그렇게 말한다: prop-multisel.js `_isFlowBlock` / 아래 `_isInFreeLayout` —
+ *   `position:absolute` 하나로는 안 빠지고 `.frame-block[data-free-layout]` «안»일 때만 빠진다.
+ *   ⇒ 섹션 직속 플로팅(그라데이션·확대블럭)은 «흐름»으로 친다.
+ * ★스티커가 빠져 있는 이유는 «플로팅이라서»가 아니라 js/sticker-select.js 라는
+ *   «전용 선택 모듈»이 자기 경로로 훑기 때문이다. 전용 모듈이 없는 블록을 여기서 빼면
+ *   대체 경로 없이 기능이 사라진다(여럿 고르면 정렬 패널이 아예 안 뜬다).
+ *   ⛔한때 확대블럭을 「플로팅이니까」로 뺐다가 되돌렸다 — 그때 형제를 «둘만» 보고
+ *     (sticker=0 을 보고 gradient 도 0 이라 단정) 결론을 세웠다. gradient 는 1 이었다.
+ *     ⇒ 형제 패턴으로 훑되 «전수로 세고» 판정은 한 건씩. (검사 ⓑ-20b 가 이걸 못박는다)
+ * 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT */
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .zoom-block.selected, .chat-block.selected, .speech-bubble-block.selected';
+
+/* ★사본 금지 — js/props/prop-multisel.js 가 «이 상수»를 읽는다(옛날엔 리터럴을 한 벌 더 갖고
+ *   있었고, 둘 다 주석에 「SSOT」라 적혀 있었다. 확대블럭이 한쪽에만 들어가 «2개 선택하면
+ *   패널이 조용히 비는» 결함이 실제로 났다 — 지디 실측 2026-09-08).
+ *   ⛔목록을 늘릴 때 저쪽에도 적지 마라. 저쪽은 이제 «읽기»만 한다.
+ *   ⚠️로드 순서: prop-multisel(index.html:988)이 editor.js(:1077)보다 «먼저» 로드된다.
+ *     그래서 저쪽은 모듈 최상단이 아니라 «호출 시점»에 읽는다(패널은 사용자 조작 뒤에 뜬다). */
+if (typeof window !== 'undefined') window.FLOW_BLOCK_SEL_SELECTED = FLOW_BLOCK_SEL_SELECTED;
 
 function _countFlowMultiSel() {
   return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(b => !_isInFreeLayout(b)).length;
@@ -929,13 +973,13 @@ function toggleBlockSelect(block, sec) {
  */
 const SIBLING_MULTI_SEL =
   '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
-  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, ' +
+  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, ' +
   '.icon-text-block, .shape-block, .frame-block, ' +
   // 누락 블록 추가 (#14): divider + 카드/말풍선/배너02/비교/목업/벡터/스텝/조커/캔버스 다중선택 지원
   '.speech-bubble-block, .banner02-block, .comparison-block, ' +
   '.mockup-block, .vector-block, .step-block, .joker-block, .canvas-block, ' +
   // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel — 다중선택 지원
-  '.iconify-block, .chat-block, .gradient-block, .sticker-block, .laurel-block';
+  '.iconify-block, .chat-block, .gradient-block, .sticker-block, .laurel-block, .zoom-block';
 
 function _toSibling(el) {
   if (!el) return null;
@@ -1160,9 +1204,16 @@ function duplicateSelected() {
   // freeLayout 프레임 내 블록 복제 (absolute 배치)
   const selBlock = document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-    '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+    '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, ' +
     '.graph-block.selected, .table-block.selected, ' +
-    '.label-group-block.selected, .icon-text-block.selected, .icon-block.selected'
+    '.label-group-block.selected, .icon-text-block.selected, .icon-block.selected, ' +
+    /* ★.zoom-block — 없으면 freeLayout 안의 줌 블록이 이 «정상 경로»를 못 타고
+       아래 copySelected/pasteClipboard 폴백으로 떨어졌다. 결과는 우연히 같았지만
+       (폴백도 같은 여섯 키를 싣는다) 절대배치 +20px 오프셋·id 재발급은 이 경로의 일이다.
+       ⚠️이 목록은 MULTI_SEL(:1294)·_ALL_BLOCK_SEL(아래) 과 «세 번째 사본»이다.
+         셋이 갈려 있고, 여기엔 아직 canvas·banner02·comparison·sticker·chat·step·
+         laurel·joker·speech-bubble 이 빠져 있다(MULTI_SEL 에는 있다). 별건으로 남긴다. */
+    '.zoom-block.selected'
   );
   const selSS = document.querySelector('.frame-block.selected:not([data-text-frame])');
   const selSection = document.querySelector('.section-block.selected');
@@ -1197,7 +1248,7 @@ function duplicateSelected() {
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
       // 이벤트 재바인딩
-      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
       clone.querySelectorAll(_ALL_BLOCK_SEL).forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
@@ -1251,10 +1302,10 @@ function duplicateSelected() {
  * 붙여넣기 기준점을 copy 와 다른 목록으로 고르면 순서가 어긋난다. */
 const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
   '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-  '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+  '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, ' +
   '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
-  '.laurel-block.selected, .joker-block.selected, .speech-bubble-block.selected';
+  '.laurel-block.selected, .zoom-block.selected, .joker-block.selected, .speech-bubble-block.selected';
 
 /* 같은 타입 목록이되 «.selected 여부 무관» — 한 행 안의 블록이 «전부» 선택됐는지 판정할 때 쓴다. */
 const ALL_TYPES_SEL = MULTI_SEL.replace(/\.selected\b/g, '');
@@ -1360,7 +1411,7 @@ function _bindPastedEl(el) {
   //   ⛔아래 id 재생성보다 «먼저» 부르지만, 승격은 id 를 건드리지 않으므로 순서 무관하다.
   window.migrateGridIdentity?.(el);
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -1555,6 +1606,10 @@ function pasteClipboard() {
   temp.innerHTML = clipboard.html;
   const el = temp.firstElementChild;
 
+  /* [#16-DUP] 섹션 붙여넣기가 만든 «스크래치 사본» 결과 — 꼬리의 pushHistory 에 sideEffects 로 싣는다.
+     복제가 0건이면 null 이고 그 경우 이 경로는 오늘과 동작이 «같다». */
+  let _spl = null;
+
   if (clipboard.type === 'section') {
     const genIdFn = window.genId || ((p) => p + '_' + Math.random().toString(36).slice(2, 9));
     el.id = genIdFn('sec');
@@ -1562,6 +1617,12 @@ function pasteClipboard() {
       const prefix = child.id.split('_')[0] || 'el';
       child.id = genIdFn(prefix);
     });
+    /* [#16-DUP] 링크된 섹션의 사본에는 «스크래치 사본»을 딸려 보낸다(안 그러면 한 이미지를
+       두 섹션이 쥐어 링크체인이 2개가 된다 — 현빈 2026-09-08 발주).
+       ★★반드시 여기 — el 이 아직 temp 안(분리 상태)일 때 부른다. DOM 에 «넣은 뒤» 부르면
+         SPLink.sectionIdOf 가 «사본 자신»을 찾아 복제를 건너뛰고, 그 실패가 refSection 이
+         원본 앞/뒤 어디냐(=사용자의 선택 상태)에 따라 갈린다. ⛔아래로 내리지 마라. */
+    _spl = window.SPLink?.rewireClonedSection?.(el) || null;
     // 선택이 없으면(잘라내기 직후 흔함) DOM 끝이 아니라 지금 화면에 보이는 섹션 옆에 붙인다.
     const refSection = getSelectedSection() || _pickVisibleSection();
     if (refSection) {
@@ -1603,7 +1664,7 @@ function pasteClipboard() {
       el.style.left = nx + 'px'; el.style.top = ny + 'px';
       el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
       frame.appendChild(el);
-      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
       el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
       if (el.matches?.(_ALL)) { delete el._blockBound; window.bindBlock?.(el); }
       el._dragBound = false; el._subSecBound = false;
@@ -1650,7 +1711,13 @@ function pasteClipboard() {
     }
   }
   window.buildLayerPanel();
-  pushHistory('붙여넣기');
+  /* [#16-DUP] 스크래치 사본은 «캔버스 밖»(ScratchPadDB) 이라 캔버스 스냅샷이 못 되돌린다 —
+     onUndo=사본 제거 / onRedo=id 그대로 복원. 복제 0건이면 null 이라 오늘과 같다. */
+  pushHistory('붙여넣기', _spl?.sideEffects || null);
+  /* [#16-DUP] _installFollow 의 MutationObserver 는 #canvas-scaler 를 childList «만»(subtree 아님)
+     보므로 #canvas 안에 섹션이 들어와도 안 터진다 ⇒ 붙여넣기 뒤 한 번 직접 다시 그린다.
+     (링크가 0건이면 _applyFollow/_drawEdges 가 곧바로 빠져나간다.) */
+  window.__spLinkRerender?.();
 }
 
 // Option 키 독립 추적 (Korean IME가 altKey를 먹어버리는 문제 대응)
@@ -1948,7 +2015,7 @@ document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
       copySelected();
-      deleteSelectedFromCanvas();
+      deleteSelectedFromCanvas({ isCut: true });   // [#16-DEL] ⌘X=이동 ⇒ ⛔스크래치를 안 건드린다
       return;
     }
     if (e.key === 'd') {
@@ -2027,7 +2094,7 @@ document.addEventListener('keydown', e => {
       if (activeSec) {
         const allBlocks = activeSec.querySelectorAll(
           '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, ' +
-          '.label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block'
+          '.label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block'
         );
         allBlocks.forEach(b => b.classList.add('selected'));
       }
@@ -2201,7 +2268,7 @@ document.addEventListener('keydown', e => {
     const sel = document.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, ' +
       '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
       '.icon-block.selected, .vector-block.selected, .step-block.selected, .shape-block.selected'
     );
@@ -2358,7 +2425,7 @@ document.addEventListener('keydown', e => {
           e.preventDefault();
           const step = e.shiftKey ? 20 : 4;
           const cur = gb.offsetHeight;
-          const next = Math.min(400, Math.max(0, cur + (isPlus ? step : -step)));
+          const next = Math.min(window.GAP_MAX ?? 1000, Math.max(window.GAP_MIN ?? 0, cur + (isPlus ? step : -step)));
           gb.style.height = next + 'px';
           const sl = document.getElementById('gap-slider');
           const nb = document.getElementById('gap-number');
@@ -2381,7 +2448,7 @@ document.addEventListener('keydown', e => {
       const step = e.shiftKey ? 20 : 4;
       const delta = e.key === 'ArrowUp' ? step : -step;
       const cur = selGap.offsetHeight;
-      const next = Math.min(400, Math.max(0, cur + delta));
+      const next = Math.min(window.GAP_MAX ?? 1000, Math.max(window.GAP_MIN ?? 0, cur + delta));
       selGap.style.height = next + 'px';
       // 패널 슬라이더/숫자 동기화
       const sl = document.getElementById('gap-slider');
@@ -2456,10 +2523,26 @@ document.addEventListener('keydown', e => {
   }
 });
 
+/* [#16-DEL] 섹션 삭제의 «링크 처분» — ⛔묻지 않는다(현빈 2026-09-09 정정: 「그냥 같이 삭제」).
+ *   _splReleaseSections(secs) : ★①링크를 끊고 ②«고아»(아무 섹션도 안 쓰는) 이미지만 지운다.
+ *     그다음 호출자가 ③remove(). 반환한 sideEffects 를 «변경 뒤» pushHistory 에 실어야
+ *     ⌘Z 가 이미지를 되살린다 — 이제 이미지가 말없이 지워지므로 그게 데이터 손실 방지선이다.
+ * ★★반드시 ensureHistoryCheckpoint «뒤»에 부른다 — 체크포인트가 «링크가 살아있는» 캔버스를
+ *   찍어야 ⌘Z 로 링크가 돌아온다. 앞에 두면 되돌린 섹션에 refLinks 가 «빠진 채» 살아난다
+ *   (2026-09-09 실측으로 확인한 실패 모드: 링크 1 → undo 후 0). */
+function _splReleaseSections(secs) {
+  try { return window.SPLink?.releaseSectionsForDelete?.(secs) || null; } catch (_) { return null; }
+}
+
 // 캔버스 선택(블록/도형/행/열/섹션/프레임) 삭제 — Delete/Backspace 핸들러와 ⌘X 잘라내기가 공유.
 // 동작보존 추출: 원래 인라인 e.preventDefault()는 consumed 플래그로 대체(호출부가 preventDefault).
 // 반환값: 무언가를 소비(삭제 시도/보호차단 등 기본동작 차단)했으면 true.
-function deleteSelectedFromCanvas() {
+/* ★isCut — ⌘X 는 «이동»이지 삭제가 아니다. ⛔링크 처분을 «아예» 안 지난다.
+   붙여넣기 쪽 규칙이 「그 scratchId 를 살아있는 섹션이 «아무도 안 쥐면» = 이동 → 토큰 그대로」라
+   (scratchpad-link.js rewireClonedSection), 섹션만 사라지면 재연결이 «저절로» 맞는다.
+   여기서 이미지를 지우면 ⌘X→⌘V 가 「잘라냈더니 참고이미지가 증발」이 된다 —
+   그리고 되붙인 섹션의 refLinks 토큰은 死참조가 된다. */
+function deleteSelectedFromCanvas({ isCut = false } = {}) {
   let consumed = false;
     // 이미지 편집 모드 중이면 이미지 삭제
     const imgEditBlock = document.querySelector('.asset-block.img-editing');
@@ -2496,13 +2579,14 @@ function deleteSelectedFromCanvas() {
         window.showToast(`🔒 보호된 섹션 ${skipped}개 제외 (메모: "삭제하지말것" 자동 감지)`);
       }
       if (toDelete.length === 0) { clearMultiSel(); deselectAll(); return consumed; }
-      ensureHistoryCheckpoint('섹션 다중 삭제 전');
-      toDelete.forEach(s => s.remove());
+      ensureHistoryCheckpoint('섹션 다중 삭제 전');   // ★링크가 «살아있는» 상태를 찍는다(⌘Z 복원선)
+      const _splRel = isCut ? null : _splReleaseSections(toDelete);   // ①링크 끊기 →②고아 삭제
+      toDelete.forEach(s => s.remove());                              // ③섹션 삭제
       clearMultiSel();
       deselectAll();
       if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
       window.buildLayerPanel();
-      pushHistory('섹션 삭제');
+      pushHistory('섹션 삭제', _splRel?.sideEffects || null);
       return consumed;
     }
     const selText    = document.querySelector('.text-block.selected');
@@ -2529,7 +2613,7 @@ function deleteSelectedFromCanvas() {
       const ssHasSelectedChild = selSS.querySelector(
         '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
         '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-        '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected'
+        '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected'
       );
       if (!ssHasSelectedChild) {
         consumed = true;
@@ -2611,11 +2695,13 @@ function deleteSelectedFromCanvas() {
             window.showToast(`🔒 보호된 섹션 ${skipped}개 제외`);
           }
           if (toDelete.length === 0) { deselectAll(); return consumed; }
-          toDelete.forEach(s => s.remove());
+          ensureHistoryCheckpoint('섹션 삭제 전');
+          const _splRel = isCut ? null : _splReleaseSections(toDelete);   // ①링크 끊기 →②고아 삭제
+          toDelete.forEach(s => s.remove());                              // ③섹션 삭제
           deselectAll();
           if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
           window.buildLayerPanel();
-          pushHistory('섹션 삭제');
+          pushHistory('섹션 삭제', _splRel?.sideEffects || null);
         } else {
           if (isProtected(selSection)) {
             if (typeof window.showToast === 'function') {
@@ -2623,11 +2709,17 @@ function deleteSelectedFromCanvas() {
             }
             return consumed;
           }
-          selSection.remove();
+          /* ★체크포인트를 «여기서» 찍는다 — 원래 이 갈래엔 없었고, 그래서 ⌘Z 가 섹션을
+             되살려도 refLinks 가 «빠진 채» 살아났다(2026-09-09 실측: 링크 1 → undo 후 0).
+             pushHistory 가 «변경 뒤»에 오는 갈래라 직전 항목이 addLink 의 «연결 전» 스냅이었다.
+             ensureHistoryCheckpoint 는 라이브가 꼭대기와 «다를 때만» 찍으므로 ⌘Z 횟수는 안 는다. */
+          ensureHistoryCheckpoint('섹션 삭제 전');
+          const _splRel = isCut ? null : _splReleaseSections([selSection]);   // ①링크 끊기 →②고아 삭제
+          selSection.remove();                                                // ③섹션 삭제
           deselectAll();
           if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
           window.buildLayerPanel();
-          pushHistory('섹션 삭제');
+          pushHistory('섹션 삭제', _splRel?.sideEffects || null);
         }
       }
     }
@@ -2822,7 +2914,7 @@ function deselectAll() {
   // 텍스트 편집 중인 블록이 있으면 편집 종료 전 현재 상태 히스토리에 저장
   // (입력한 텍스트가 undo 복원 대상이 되도록)
   if (!window._historyPaused) {
-    const editingBlock = canvasEl?.querySelector('.text-block.editing, .icon-text-block.editing, .label-group-block.editing');
+    const editingBlock = canvasEl?.querySelector('.text-block.editing, .icon-text-block.editing, .label-group-block.editing, .modal-block.editing');
     if (editingBlock) pushHistory('텍스트 편집');
   }
   // perf(qa-perf): canvas/layerPanel 범위 한정으로 document 전체 탐색 제거
@@ -2841,7 +2933,7 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .annotation-block, .sticker-block').forEach(b => {
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .annotation-block, .sticker-block').forEach(b => {
     b.classList.remove('selected');
     // 어노테이션은 핸들도 함께 정리
     if (b.classList.contains('annotation-block')) b.querySelectorAll('.annot-handle').forEach(h => h.remove());
@@ -2864,6 +2956,8 @@ function deselectAll() {
   if (window._tblSel) window._tblSel = null;
   // ⑧ 배너02 줄 선택 아웃라인도 함께 해제 (label-item 처리와 같은 자리)
   canvas.querySelectorAll('.bn2-line-selected').forEach(el => el.classList.remove('bn2-line-selected'));
+  // 그리드 «줄 선택» 마커도 같은 자리에서 해제 (prop-grid.js 의 _grdSyncLineMark 와 짝)
+  canvas.querySelectorAll('.grd-line-selected').forEach(el => el.classList.remove('grd-line-selected'));
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
 
   // 레이어 패널 선택 해제
@@ -2880,6 +2974,11 @@ function deselectAll() {
   window.hideIconHandles?.();
   window.hideAssetRadiusHandles?.();
   window.hideAssetResizeHandles?.();
+  /* ★모달 핸들은 «자기» hide 를 갖는다 — .asset-* 클래스를 빌리지 않았기 때문이다.
+     빌렸다면 hideAssetResizeHandles 의 일괄 remove 에 쓸려 나가고(아이콘 원형이 물렸던 병),
+     모듈 안의 _modalResizeBlock 이 해제된 블록을 계속 가리켜 재클릭이 no-op 이 된다. */
+  window.hideModalRadiusHandles?.();
+  window.hideModalResizeHandles?.();
   /* ★아이콘원형 핸들도 «여기서» 정리한다 — 빠져 있었다.
    * 빠져 있으면 모듈 내부의 `_icbResizeBlock` 이 «선택 해제된 블록»을 계속 가리킨 채 남고,
    * 같은 블록을 다시 클릭하면 `showIconCircleResizeHandle` 의 동일블록 가드에 걸려 no-op 이 된다.
@@ -2940,7 +3039,7 @@ function moveSelectedBlocks(direction) {
 
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected';
 
   const selBlocks = [...document.querySelectorAll(BLOCK_SEL)];
@@ -3071,7 +3170,7 @@ document.querySelectorAll('.section-block').forEach(sec => {
     selectSectionWithModifier(sec, e);
     // deselectAll() 이후 row-active 복원 (빈 여백 클릭은 제외 — 섹션 선택만)
     const row = e.target.closest('.row');
-    if (row && !isRowMarginClick(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) {
+    if (row && !isRowMarginClick(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -3134,7 +3233,7 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => window.bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가
@@ -3170,7 +3269,26 @@ function deleteSection(secIdOrEl) {
   //   (imageLinks 는 canvas HTML 밖이라 캔버스 스냅샷에 안 잡힘). onUndo=링크 복원 / onRedo=재해제.
   // #16: 섹션에 참고이미지가 연결돼 있어도 특수 처리 불필요 — sec.dataset.refLinks 가 섹션과 함께
   //   제거되고, canvas 스냅샷 기반 undo 가 섹션+refLinks 를 동시 복원한다(이미지는 ScratchPadDB 무접촉).
+  /* ★★위 문장은 참이고, «삭제»에 한해서만 참이다(2026-09-08 범위 명시).
+   *   가르는 기준은 「그 조작이 ScratchPadDB 레코드를 늘리나」다:
+   *     · 연결/해제·섹션 삭제 → 안 늘린다 → 캔버스 스냅샷만으로 undo 성립(위 문장).
+   *     · ★복사·붙여넣기     → «늘린다»  → 캔버스 밖 상태라 스냅샷이 못 되돌린다
+   *       ⇒ pasteClipboard 의 pushHistory('붙여넣기', sideEffects) 참조(#16-DUP).
+   *   ⛔위 문장을 「복사도 무접촉이다」로 넓혀 읽지 마라 — 그러면 ⌘Z 가 사본 이미지를 고아로 남긴다. */
   pushHistory('섹션 삭제 전');
+  /* [#16-DEL] ★여기만 «이미지를 안 지운다» — 링크만 끊는다. 이유는 취향이 아니라 «실측»이다:
+   *   이 함수는 pushHistory 를 «변경 전»에 찍는다(바로 위 줄). 그런데 history.js 의 undo() 는
+   *   ⑴꼭대기면 ensureHistoryCheckpoint 로 «현재 상태» 항목을 먼저 끼워 넣고
+   *   ⑵ «떠나는 스냅»의 sideEffects.onUndo 를 부른다.
+   *   ⇒ 끼워 넣어진 그 항목엔 sideEffects 가 «없어서»(ensureHistoryCheckpoint 는 아예 안 싣는다)
+   *     여기에 sideEffects 를 달아도 ★영영 안 탄다 = 지운 이미지를 ⌘Z 로 못 되살린다.
+   *     (자매 파일 tests/unit/scratch-paste-dup.test.js 의 BL-SPL-04 가 같은 자리를 기록해 뒀다.)
+   *   ★그리고 이 문은 MCP(delete_section)·자동화가 쓴다(main.js) — 사람이 안 보는 곳에서
+   *     되돌릴 수 없게 이미지를 지우는 것은 «데이터 손실»이다. 안 지우면 한 장 남을 뿐이다.
+   *   ⇒ 사람이 누르는 경로(Delete/Backspace)는 위 deleteSelectedFromCanvas 가 «같이» 지운다.
+   *   ⛔여기를 「같이 삭제」로 넓히려면 먼저 pushHistory 를 «변경 뒤»로 옮겨야 하는데,
+   *     그건 MCP undo 의 seq 셈(main/claude-pm/mcp-server.js)을 건드린다 = 별건 게이트. */
+  try { window.SPLink?.releaseSectionsForDelete?.([sec], { deleteOrphans: false }); } catch (_) {}
   sec.remove();
   deselectAll();
   window.buildLayerPanel?.();

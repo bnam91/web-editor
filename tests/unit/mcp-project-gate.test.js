@@ -15,8 +15,21 @@ const assert = require('node:assert/strict');
 const http = require('http');
 
 const srv = require('../../main/claude-pm/mcp-server.js');
+/* ★로그인 프로브를 «꽂는다» — 2026-09-07 부터 인증 게이트가 fail-closed 다(못 재면 거절).
+   예전엔 미주입이 «통과»라 안 꽂아도 돌았는데, 그 관대함이 곧 「게이트가 증발하는 경로」였다
+   (프로브와 게이트는 «같은 바이너리»라 「버전이 낡아 주입이 없다」는 논거가 성립하지 않는다).
+   ⛔이 줄을 지우면 도구들이 AUTH_PROBE_MISSING 으로 죽는다 — 회귀가 아니라 정직한 신호다. */
+srv.setAuthProbe(() => ({ authed: true }));
 
-const PORT = 9411;                    // ⛔9345~9365 밖
+
+/* ★고정 포트를 «버렸다» (2026-09-08).
+     9411 을 박아 뒀더니 다른 인스턴스가 그 포트를 쥔 순간 G1~G14 «열넷이 통째로» 빨개졌다.
+     실측: 같은 트리가 한 시간 전 1738/0 → 지금 1724/14. 코드는 한 줄도 안 바뀌었다.
+   ⛔이 레포엔 이미 그 규칙을 못박은 검사가 있다 —
+     google-login-loopback.test.mjs:121 「U-GLOGIN-4 ★포트는 «매번» 새로 받는다(listen(0) — 고정하면 부딪힌다)」
+     규칙이 «옆 파일»에 있는데 이 파일이 안 따랐다.
+   ⇒ 0 을 주고 «받은 포트»를 쓴다. 요청 쪽은 이미 started.port 를 쓰고 있었다(:40). */
+const PORT = 9411;                    // ⛔9345~9365 밖 — «시작 힌트»다. 차 있으면 서버가 옆으로 옮긴다
 let ACTIVE = null;                    // 「편집기에 열려 있는 프로젝트」 — 테스트가 사람 역할을 한다
 let started = null;
 let CALLS = 0;                        // 왕복 비용 측정용
@@ -73,12 +86,26 @@ test.before(async () => {
     listMemories: async () => ({ ok: true, items: [] }),
   });
   started = await srv.startMcpServer({ port: PORT, onActiveProject: () => ACTIVE });
-  assert.equal(started.port, PORT, `port ${PORT} was busy — another process holds it`);
+  /* ★단언을 «지우지» 않는다 — 포트를 못 받았는데 계속 돌면 검사가 «아무 데도 안 붙은 채» 돈다.
+       재는 것을 「9411 인가」에서 「진짜 포트를 받았나」로 바꾼다. */
+  assert.ok(Number.isInteger(started.port) && started.port > 0,
+    `서버가 포트를 못 받았다: ${started.port} — 이 상태로는 아래 검사가 «아무것도» 못 잰다`);
 });
 
 test.after(async () => { await srv.stopMcpServer(); });
 
 // ── 판정 ⑴ 인자 없이 add_block → 거절 + 응답에 현재 프로젝트 id·이름·다음 수 ──────────
+/* ★안내 문구는 «서버 소스에서 읽어» 쓴다 — 검사에 또 적어 두면 문구를 고칠 때 두 곳이 어긋난다
+     (2026-09-08 실제로 어긋나 빨개졌다: 92자 → 44자로 줄이자 이 검사가 옛 문장을 찾았다).
+   이 검사가 지켜야 할 것은 «문구»가 아니라 «어느 도구에 붙고 어디엔 안 붙나»다. */
+const _TARGET_NOTE = (() => {
+  const src = require('fs').readFileSync(
+    require('path').join(__dirname, '..', '..', 'main', 'claude-pm', 'mcp-server.js'), 'utf8');
+  const m = src.match(/const _TARGET_NOTE = '([^']+)'/);
+  if (!m) throw new Error('_TARGET_NOTE 를 소스에서 못 찾았다 — 상수가 사라졌나');
+  return m[1].trim();
+})();
+
 test('G1 인자 없이 add_block — 거절되고, 응답이 «지금 열린 프로젝트»와 «다음 수»를 말해 준다', async () => {
   ACTIVE = PROJECTS[0].id;
   await resetGate();
@@ -224,12 +251,12 @@ test('G9 fail-closed — 목록에 없는 쓰기 도구(export_sections·delete_
 test('G10 tools/list — 쓰기 도구 설명엔 TARGET 경고가 붙고 읽기 도구엔 안 붙는다', async () => {
   const r = await rpc('tools/list', {});
   const byName = new Map(r.result.tools.map(t => [t.name, t.description]));
-  assert.match(byName.get('add_block'), /TARGET=the ACTIVE project/);
-  assert.match(byName.get('add_section'), /TARGET=the ACTIVE project/);
-  assert.match(byName.get('duplicate_project'), /TARGET=the ACTIVE project/);
-  assert.doesNotMatch(byName.get('get_canvas_state'), /TARGET=the ACTIVE project/);
-  assert.doesNotMatch(byName.get('list_projects'), /TARGET=the ACTIVE project/);
-  assert.doesNotMatch(byName.get('open_project'), /TARGET=the ACTIVE project/);
+  assert.ok(byName.get('add_block').includes(_TARGET_NOTE), 'add_block 에 안내가 없다');
+  assert.ok(byName.get('add_section').includes(_TARGET_NOTE), 'add_section 에 안내가 없다');
+  assert.ok(byName.get('duplicate_project').includes(_TARGET_NOTE), 'duplicate_project 에 안내가 없다');
+  assert.ok(!byName.get('get_canvas_state').includes(_TARGET_NOTE), 'get_canvas_state 는 읽기·게이트면제라 안내가 붙으면 안 된다');
+  assert.ok(!byName.get('list_projects').includes(_TARGET_NOTE), 'list_projects 는 읽기·게이트면제라 안내가 붙으면 안 된다');
+  assert.ok(!byName.get('open_project').includes(_TARGET_NOTE), 'open_project 는 읽기·게이트면제라 안내가 붙으면 안 된다');
   // expectedProject 가 «부를 수 있는 인자»로 스키마에 있다
   const add = r.result.tools.find(t => t.name === 'add_block');
   assert.ok(add.inputSchema.properties.expectedProject, 'add_block 스키마에 expectedProject 가 없다');

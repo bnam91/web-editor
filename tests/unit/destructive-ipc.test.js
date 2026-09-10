@@ -135,10 +135,16 @@ test('A3a ★잔재 하나가 실패하면 번들은 건드리지 않는다 — 
   fs.writeFileSync(path.join(leftover, '1756000000000.json'),
     JSON.stringify(proj(id, sec('sec_old', '1년 전 옛것'))));
 
-  // ★«잔재만» 실패시킨다 — 전부 실패시키면 「번들이 안 갔다」가 저절로 참이 돼서 가드를 못 잰다.
-  H.failTrash('EPERM: operation not permitted', `${id}_history`);
-  const r = await H.invoke('projects:delete', id, {});
-  H.failTrash(null);
+  /* ★2026-09-08: 기본 삭제가 «앱 휴지통»으로 바뀌어 OS 휴지통(shell.trashItem)을 안 부른다.
+       ⇒ 자극을 «실제로 도는 것»(fs.rename)으로 바꾼다. 안 바꾸면 아무것도 안 깨진 채 초록이 뜬다.
+     ★«잔재만» 실패시킨다 — 전부 실패시키면 「번들이 안 갔다」가 저절로 참이 돼서 가드를 못 잰다. */
+  const realRename = fs.renameSync;
+  fs.renameSync = (a, b) => {
+    if (String(a).includes(`${id}_history`)) throw new Error('EPERM: operation not permitted');
+    return realRename(a, b);
+  };
+  let r;
+  try { r = await H.invoke('projects:delete', id, {}); } finally { fs.renameSync = realRename; }
 
   assert.equal(r.ok, false);
   assert.ok(fs.existsSync(path.join(DIR, id, 'proj.json')),
@@ -150,11 +156,17 @@ test('A3a ★잔재 하나가 실패하면 번들은 건드리지 않는다 — 
 test('A3b 첫 잔재만 실패해도 «그 뒤 잔재까지» 안 건드린다 — 부분 파괴 없음', async () => {
   const id = await mkProject(sec('sec_new', '새'));
   for (const n of [`${id}.json`, `${id}_backup.json`]) fs.writeFileSync(path.join(DIR, n), '{}');
-  H.failTrash('EPERM', `${id}.json`);   // ★«첫» 잔재만 실패
-  const r = await H.invoke('projects:delete', id, {});
-  H.failTrash(null);
+  const realRename = fs.renameSync;
+  fs.renameSync = (a, b) => {                       // ★«첫» 잔재만 실패
+    if (String(a).endsWith(`${id}.json`)) throw new Error('EPERM');
+    return realRename(a, b);
+  };
+  let r;
+  try { r = await H.invoke('projects:delete', id, {}); } finally { fs.renameSync = realRename; }
   assert.equal(r.ok, false);
-  assert.equal(r.deleted, 0, `★첫 실패 뒤에도 계속 지웠다(deleted=${r.deleted})`);
+  /* ★앱 휴지통은 «전부-아니면-전무»라 실패하면 옮긴 것을 «되돌린다».
+     그래서 「그 뒤를 안 건드린다」가 「하나도 안 옮겨진 상태로 끝난다」로 강해졌다. */
+  assert.ok(!fs.existsSync(path.join(H.appTrashDir, id)), '★휴지통에 반쪽이 남았다');
   assert.ok(fs.existsSync(path.join(DIR, `${id}.json`)) && fs.existsSync(path.join(DIR, `${id}_backup.json`)));
   assert.ok(fs.existsSync(path.join(DIR, id, 'proj.json')));
 });
@@ -165,9 +177,11 @@ test('A3c 양성대조 — 실패가 없으면 «전부» 휴지통으로 간다
   const r = await H.invoke('projects:delete', id, {});
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.trashed, true);
-  assert.ok(r.deleted >= 2, `deleted=${r.deleted}`);
   assert.ok(!fs.existsSync(path.join(DIR, id)), '번들이 안 갔다');
   assert.ok(!fs.existsSync(path.join(DIR, `${id}.json`)), '잔재가 안 갔다');
+  // ★«어디로» 갔는지까지 본다 — 「없어졌다」만 재면 영구삭제여도 초록이다
+  assert.ok(fs.existsSync(path.join(H.appTrashDir, id, 'bundle', 'proj.json')), '번들이 휴지통에 없다');
+  assert.ok(fs.existsSync(path.join(H.appTrashDir, id, 'legacy', `${id}.json`)), '잔재가 휴지통에 없다');
 });
 
 /* ═══ [D] 변이 스윕이 「지워도 전부 초록」이라 짚은 자리들 ════════════════

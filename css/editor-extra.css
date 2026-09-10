@@ -744,7 +744,17 @@ body.preview-mode #preview-navigator { display: flex; }
   font-size: var(--ui-fs-base);
 }
 .tpl-browser-search::placeholder { color: var(--ui-text-dim); }
-.tpl-browser-close {
+/* 헤더 버튼 «묶음» — 이게 없으면 헤더의 justify-content:space-between 이 자식 4개(제목+버튼3)를
+   균등 분산해 버튼이 89px 씩 흩어진다. 버튼들을 한 덩어리로 묶어 오른쪽 끝에 붙인다.
+   ⛔.tpl-browser-header 의 space-between 은 그대로 둔다 — 제목↔버튼묶음 을 양끝으로 미는 건 여전히 맞다.
+   ★index.html 과 pages/template-browser.html 이 «각자» 자기 헤더 마크업을 갖는다 — 둘 다 이 래퍼를 쓴다. */
+.tpl-browser-hbtns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+/* 헤더 버튼 공용 — 닫기·새창·레이아웃이 «같은 몸통»을 쓴다(값은 옛 .tpl-browser-close 그대로) */
+.tpl-browser-hbtn {
   background: none;
   border: none;
   color: var(--ui-text-dim);
@@ -754,12 +764,19 @@ body.preview-mode #preview-navigator { display: flex; }
   display: flex;
   align-items: center;
 }
-.tpl-browser-close:hover { background: var(--ui-bg-input); color: #ccc; }
+.tpl-browser-hbtn:hover { background: var(--ui-bg-input); color: #ccc; }
+/* 기능 미정 버튼 — 보이되 못 누른다(.tb-card-*-btn:disabled 와 같은 관례) */
+.tpl-browser-hbtn:disabled { opacity: 0.3; cursor: not-allowed; }
+.tpl-browser-hbtn:disabled:hover { background: none; color: var(--ui-text-dim); }
 
 /* 바디: 트리 + 카드 — 패널 남은 높이 채움 */
 .tpl-browser-body {
   display: flex;
-  flex: 1 1 0;
+  /* ★flex-basis 는 «auto» 여야 한다. 0 이면 목록이 «높이를 요구하지 않아»
+     패널이 자랄 이유를 못 만들고, body 가 min-height 바닥(80px)으로 주저앉는다.
+     그러면 카드 19장(1296px) 중 «1장»만 보인다 — 실측된 그 증상이다.
+     auto 로 두면 콘텐츠가 자리를 요구하고 #tpl-browser 의 max-height 가 상한을 잡는다. */
+  flex: 1 1 auto;
   min-height: 80px;
   overflow: hidden;
 }
@@ -1287,6 +1304,20 @@ body.preview-mode #preview-navigator { display: flex; }
 .tb-card-edit-btn:hover { background: var(--ui-bg-input); color: var(--ui-text-sub); }
 .tb-card-del-btn:hover { background: var(--ui-danger-bg); color: var(--ui-danger); }
 
+/* 공용(모든 계정 공유) 템플릿 표식 — ★새 색을 만들지 않는다. 기존 카드 토큰만 재사용. */
+.tb-card-shared {
+  font-size: var(--ui-fs-10);
+  color: var(--ui-text-dim);
+  border: 1px solid var(--ui-border);
+  border-radius: 3px;
+  padding: 0 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* 공용은 수정·삭제 불가 — 보이되 못 누른다(없애면 「왜 나만 안 되지」가 된다) */
+.tb-card-edit-btn:disabled, .tb-card-del-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.tb-card-edit-btn:disabled:hover, .tb-card-del-btn:disabled:hover { background: none; color: var(--ui-text-dim); }
+
 /* ★ 즐겨찾기 버튼 */
 .tb-card-star-btn {
   background: none;
@@ -1776,8 +1807,34 @@ body.preview-mode #preview-navigator { display: flex; }
    · 사이드카 컨테이너는 pointer-events:none, 카드/그룹만 auto(캔버스 클릭 방해 금지).
 ═══════════════════════════════════════════════ */
 /* #16: 연결선 SVG는 #canvas-scaler 안. z-index=90 → 섹션 «앞» + 스크래치아이템(z:100) «뒤»(현빈). */
-.spl-edges { position: absolute; top: 0; left: 0; z-index: 90; pointer-events: none; }
-.spl-edges line { stroke: var(--ui-accent, #4f6bed); stroke-width: 2; stroke-dasharray: 5 5; opacity: .55; }
+/* ★overflow:visible 가 «없으면» 왼쪽·위쪽 점선이 통째로 사라진다 (현빈 보고: 「좌측으로 옮기면 안 보임」).
+     · #link-edges 에 viewBox 가 없다 ⇒ 사용자좌표 원점 = SVG 자기 좌상단 = scaler-local (0,0).
+     · outer <svg> 의 overflow UA 기본값은 hidden ⇒ [0,W]×[0,H] «밖»이 잘린다.
+     · scratchpad-link.js 의 W = max(scaler.scrollWidth, …) 인데 ★scrollWidth 는 «왼쪽으로는 안 자란다»
+       (#canvas-scaler 는 flex item + width auto = #canvas 폭 그대로. 폭을 주는 코드가 없다).
+     ⇒ 오른쪽 아이템은 scrollWidth 가 같이 커져 덮이고, 왼쪽/위쪽 아이템은 좌표가 음수라 통째로 클립.
+     ⇒ 이 한 줄이면 끝난다 — JS 좌표는 이미 맞다. 실측(zoom100/좌측): 파란픽셀 0 → 220.
+     ⚠️새 스크롤바는 안 생긴다 — #canvas-wrap 의 overflow:auto 가 바깥으로 새는 것을 막는다. */
+.spl-edges { position: absolute; top: 0; left: 0; z-index: 90; pointer-events: none; overflow: visible; }
+/* ★연결선 색은 «캔버스 배경 대비»로 고른다 — js/canvas-contrast.js 가 --spl-edge-color 를 싣는다.
+   폴백을 중첩해 둔 것은 «변수를 못 실은 경우 오늘과 같은 색으로» 떨어지게 하려는 것이다(무변경 = 안전한 실패).
+   opacity: .55 로는 3:1 을 못 넘는다 — 24비트 전수 최악 2.435(#ca0000).
+   .70 에서 최악 3.126(#d40000). ★이 값은 js/canvas-contrast.js 의 EDGE_ALPHA 와
+   같아야 한다(검사 B6 이 대조한다).
+   ⛔정확한 금지선은 «규칙 안에 } 를 들이지 마라»다(2026-09-09 실측 정정).
+      scratch-link-toggle.test.js:159 의 정규식이 /\.spl-edges line\s*\{[^}]*stroke-dasharray/ 라
+      중괄호 «안»에 } 가 끼면 남의 검사가 깨진다. 실측: } 를 «포함한» 주석 → 양쪽 RED,
+      } 없는 주석 → GREEN. ⇒ 「규칙 안에 주석 금지」는 실제보다 넓은 금지선이었다.
+      (넓은 금지선은 다음 사람이 이유를 모른 채 어기거나, 필요 없는 제약에 묶인다.) */
+.spl-edges line { stroke: var(--spl-edge-color, var(--ui-accent, #4f6bed)); stroke-width: 2; stroke-dasharray: 5 5; opacity: .70; }
+/* ⚠️.spl-sidecar 는 «죽은 규칙»이다 — 이 층은 만들어지지 않는다.
+   사이드카(#link-sidecar)는 현빈 재설계로 폐기됐고(js/scratchpad-link.js:203), _ensureEdges 가
+   부를 때마다 구 잔재를 지운다(:210). 만드는 코드는 레포에 0건이다.
+   ⛔이 규칙만 남아 있어 소스를 읽는 사람에겐 «살아 있는 노트 카드 층»으로 보인다 —
+     실제로 「사이드카도 왼쪽에서 잘리나」라는 질문이 여기서 나왔다(2026-09-09).
+   ⇒ 옛 저장본의 잔재가 잠깐 뜨는 경우를 위해 남겨 두되, 여기 사실을 적는다.
+     되살릴 거면 클립(.spl-edges 의 overflow:visible)도 같이 봐야 한다.
+   ★사실을 지키는 검사: tests/dom/scratch-link-edges.dom.spec.js 의 T-SC. */
 .spl-sidecar { position: absolute; top: 0; left: 0; z-index: 7; pointer-events: none; }
 .spl-note-group {
   position: absolute; width: 220px; display: flex; flex-direction: column; gap: 9px;
@@ -1859,4 +1916,5 @@ body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed);
 }
 
 /* 연결선 출발점 dot */
-.spl-edges .spl-edge-dot { fill: var(--ui-accent, #4f6bed); }
+/* 점은 «선과 같은 변수»를 읽는다(검사 B3). ⛔알파를 붙이지 않는다 — α=1 유지가 §5 의 min(선,점) 전제다. */
+.spl-edges .spl-edge-dot { fill: var(--spl-edge-color, var(--ui-accent, #4f6bed)); }

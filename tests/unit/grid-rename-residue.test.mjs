@@ -24,7 +24,18 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
  *   (`a${b ? `c` : ''}d`)과 따옴표를 품은 정규식(/['"]/)을 쓴다.
  *   둘 중 하나만 놓쳐도 상태가 어긋나 «주석이 코드로, 코드가 주석으로» 보인다.
  *   ⇒ 템플릿은 스택으로, 정규식은 «직전 유의미 토큰»으로 판정한다.
- *   이 함수 자체를 아래 «제거기 자기검사» 5건이 지킨다. */
+ *   이 함수 자체를 아래 «제거기 자기검사»가 지킨다.
+ *
+ * ⛔★2026-09-09 실측 결함 — 「템플릿 «안»인가」를 «맨 먼저» 물어야 한다.
+ *   초판은 `/*` · `//` · 따옴표 분기가 템플릿 분기보다 «위»에 있었다. 그래서 템플릿 리터럴
+ *   안의 평범한 글자가 코드로 읽혔다. 실측 세 갈래(전부 이 레포에 나올 수 있는 모양):
+ *     `it's ${x}`        → 「'」 를 문자열 시작으로 읽어 그 뒤 주석이 «코드»가 됐다
+ *     `https://a.com`    → 「//」 를 줄 주석으로 읽어 «줄 나머지를 통째로» 먹었다
+ *     `a /* b *\/ c`      → 「/*」 를 블록 주석으로 읽었다
+ *   ⇒ 첫째 갈래를 grid-block.js 의 새 거절 메시지가 실제로 밟아 S1 이 «주석 12줄»을
+ *     코드로 신고했다. 검사가 «틀린 것»을 신고하면 진짜 잔존은 그 소음에 묻힌다.
+ *   ★그리고 이건 자기검사 5건이 «전부 초록»인 채로 났다 — 셋 다 검사에 없던 모양이었다.
+ *     「검사가 있다」 ≠ 「그 모양을 밟는다」. 그래서 셋을 아래에 «전부» 박았다. */
 function stripComments(src) {
   const out = [];
   const stack = [];              // 템플릿 리터럴 중첩 깊이(`${` 안의 `)
@@ -34,10 +45,8 @@ function stripComments(src) {
   const blank = (c) => out.push(c === '\n' ? '\n' : ' ');
   while (i < n) {
     const c = src[i], c2 = src.slice(i, i + 2);
-    if (c2 === '/*') { i += 2; out.push('  '); while (i < n && src.slice(i, i + 2) !== '*/') blank(src[i++]); i += 2; out.push('  '); continue; }
-    if (c2 === '//') { i += 2; out.push('  '); while (i < n && src[i] !== '\n') blank(src[i++]); continue; }
-    if (c === '"' || c === "'") { keep(c); i++; while (i < n && src[i] !== c) { if (src[i] === '\\') { out.push('  '); i += 2; } else { out.push(src[i] === '\n' ? '\n' : src[i]); i++; } } keep(src[i] ?? ''); i++; continue; }
-    if (c === '`') { stack.push('`'); keep(c); i++; continue; }
+    /* ★★「템플릿 «안»인가」가 «맨 먼저» — 위 주석의 실측 결함. 여기가 아래로 내려가면
+       템플릿 안의 `'` · `//` · `/*` 가 각각 문자열·주석으로 읽혀 상태가 통째로 어긋난다. */
     if (stack.length && stack[stack.length - 1] === '`') {
       // 템플릿 리터럴 «안» — `${` 를 만나면 코드 모드로 돌아간다(중첩 가능).
       if (c === '\\') { out.push('  '); i += 2; continue; }
@@ -45,6 +54,10 @@ function stripComments(src) {
       if (c === '`') { stack.pop(); keep(c); i++; continue; }
       out.push(c === '\n' ? '\n' : c); i++; continue;
     }
+    if (c2 === '/*') { i += 2; out.push('  '); while (i < n && src.slice(i, i + 2) !== '*/') blank(src[i++]); i += 2; out.push('  '); continue; }
+    if (c2 === '//') { i += 2; out.push('  '); while (i < n && src[i] !== '\n') blank(src[i++]); continue; }
+    if (c === '"' || c === "'") { keep(c); i++; while (i < n && src[i] !== c) { if (src[i] === '\\') { out.push('  '); i += 2; } else { out.push(src[i] === '\n' ? '\n' : src[i]); i++; } } keep(src[i] ?? ''); i++; continue; }
+    if (c === '`') { stack.push('`'); keep(c); i++; continue; }
     if (c === '}' && stack[stack.length - 1] === '${') { stack.pop(); keep(c); i++; continue; }
     if (c === '/') {
       // 정규식 리터럴인가? 직전 유의미 문자가 «값의 끝»이면 나눗셈, 아니면 정규식.
@@ -83,6 +96,12 @@ const ALLOW = [
   { file: 'js/blocks/grid-block.js', re: /^if \(line\.type === 'duo'\) \{$/ },
   // ⑸ 안전망 — 옛 정체성이 bindBlock 까지 닿았다면 «문을 놓쳤다»는 신호다(PLAN §3 안전망).
   { file: 'js/block-drag.js', re: /^if \(block\.classList\.contains\('duo-block'\)\) \{$/ },
+  /* ⑹ ★읽기 표의 «옛 접두»(2026-09-07). MCP 가 «옛 프로젝트»의 그리드를 읽으려면 필요하다.
+       ⛔개명은 «앞으로 만드는 것»에만 적용된다 — 이미 디스크에 `duo_` 로 저장된 블록은 그대로다.
+         그 접두를 지우면 옛 프로젝트에서만 그리드가 «이름 없이» 나온다(새 프로젝트로 시험하면 안 드러난다).
+       ⇒ 그래서 여기는 «제거 대상이 아니다» — 읽기는 옛것을 계속 알아봐야 한다.
+         (같은 이유로 GRID_ID_PREFIXES 가 ⑶에서 이미 허용돼 있다 — 이건 그 «소비처»다) */
+  { file: 'js/canvas-state.js', re: /^duo_: 'grid',$/ },
 ];
 
 function targets() {
@@ -145,6 +164,18 @@ test('S1 제거기 자기검사 — 주석/문자열/중첩템플릿/정규식�
   assert.equal(has('const r = /[\'"]/;\n// duo'), false, '정규식 뒤의 주석도 걷힌다');
   assert.equal(has('const r = /a\\/duo/;'), true, '정규식 «안»의 토큰은 코드다');
   assert.equal(stripComments('a\n// x\nb').split('\n').length, 3, '줄 수가 보존된다(줄번호 신뢰성)');
+
+  /* ★★2026-09-09 실측 결함 세 갈래 — 「템플릿 «안»인가」를 맨 먼저 안 물어서 났다.
+     ⛔셋 다 자기검사 5건이 «전부 초록»인 채로 실물에서 터졌다. 「검사가 있다」 ≠ 「그 모양을 밟는다」. */
+  assert.equal(has("const m = `it's ${x} here`;\n// duo"), false,
+    "★템플릿 안의 따옴표를 «문자열 시작»으로 읽었다 — 그 뒤 주석이 통째로 코드가 된다");
+  assert.equal(has('const u = `https://a.com/x`;\nconst duo = 1;'), true,
+    '★템플릿 안의 「//」 를 줄 주석으로 읽어 «줄 나머지»를 먹었다(그 줄의 코드가 사라진다)');
+  assert.equal(has('const s = `a /* b */ duo c`;'), true,
+    '★템플릿 안의 「/*」 를 블록 주석으로 읽었다 — 템플릿 «내용»은 코드다');
+  /* 음성대조 — 넓히다 반대로 새지 않았나. 템플릿 «밖»은 여전히 옛 규칙 그대로다. */
+  assert.equal(has('const s = `a`;\n// duo'), false, '템플릿이 «닫힌 뒤»의 주석은 그대로 걷힌다');
+  assert.equal(has('const s = `a${/* duo */ 1}b`;'), false, '`${}` «안»은 코드 모드라 주석이 걷힌다');
 });
 
 /* ★적대검수 C1 — 로드 폴백 id 접두가 «다른 자리와 같은 토큰»인가.

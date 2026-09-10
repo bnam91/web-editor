@@ -5,6 +5,41 @@ import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } fro
    SECTION PROPERTIES PANEL
 ═══════════════════════════════════ */
 
+/* ═══════════════════════════════════
+   좌우 패딩 힌트 — 만지는 «동안»만 띠를 비춘다
+   그리는 쪽: css/editor-canvas.css 의 `body.gdt-pad-on .section-inner::before`.
+     테두리 «두께»가 곧 패딩 폭이라 여기선 계산이 없다 — 변수만 넘긴다.
+   ★변수는 «그 섹션의 inner 에» 박는다. body 에 박으면 섹션마다 패딩이 다른데도
+     모든 섹션이 같은 띠를 쓰게 된다. 변수를 안 가진 섹션은 0px 라 저절로 안 보인다.
+   ★400ms 뒤 클래스와 «변수까지» 지운다. 변수를 남기면 인라인 style 이라
+     getSerializedCanvas(= clone.innerHTML)를 타고 «프로젝트 파일»에 실린다.
+     옆집 그리드 가이드가 DOM 을 전혀 안 건드리는 이유가 바로 그것이다.
+     autoSave 디바운스가 1500ms 라 400ms 청소가 «먼저» 끝난다.
+═══════════════════════════════════ */
+let _padHintTimer = null;
+function _showPadXHint(inner, v) {
+  /* ★꺼져 있으면 «아예 아무것도 안 한다» — 클래스도, 변수도 안 붙는다.
+     ⇒ 끈 상태에서는 거둘 것도 새어나갈 것도 없다(저장 경합 자체가 생기지 않는다).
+     ★기본은 «켜짐». 그 판단은 prop-page.js 의 readPadHintOn 한 곳에만 있다 —
+       여기서 localStorage 를 다시 읽으면 기본값이 두 벌이 되어 언젠가 갈린다.
+     ⛔`!window.readPadHintOn?.()` 로 쓰지 마라 — 함수가 아직 없을 때(로드 순서)
+       「꺼짐」으로 읽혀 기본값이 뒤집힌다. «있고 그게 false 일 때»만 접는다. */
+  if (window.readPadHintOn && window.readPadHintOn() === false) return;
+  inner.style.setProperty('--gdt-pad-l', v + 'px');
+  inner.style.setProperty('--gdt-pad-r', v + 'px');
+  document.body.classList.add('gdt-pad-on');
+  clearTimeout(_padHintTimer);
+  _padHintTimer = setTimeout(() => {
+    document.body.classList.remove('gdt-pad-on');
+    /* 섹션을 빠르게 갈아타며 만졌을 수 있다 — 남은 변수를 «전부» 거둔다. */
+    document.querySelectorAll('.section-inner').forEach(el => {
+      el.style.removeProperty('--gdt-pad-l');
+      el.style.removeProperty('--gdt-pad-r');
+    });
+  }, 400);
+}
+
+
 /**
  * 섹션 배경 적용 헬퍼 — 이미지와 색을 동시에 합성한다.
  * 우선순위(위→아래): 색(overlay) > 이미지 > 투명
@@ -135,6 +170,11 @@ async function showSectionProperties(sec) {
     const type = tb.dataset.type;
     if (!typeMap[type]) return;
     const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
+    /* ⛔contentEl 이 «없을 수» 있다 — 그러면 getComputedStyle 이 던지고 ★패널이 통째로 안 열린다.
+         (2026-09-09 현빈 실측: 「Failed to execute 'getComputedStyle' … parameter 1 is not of type 'Element'」
+          → showSectionProperties 가 죽어 섹션 프로퍼티가 «아예» 안 뜬다.)
+       속이 빈 텍스트블럭은 «색을 잴 것이 없다» ⇒ 세지 않고 넘긴다. 패널은 살아야 한다. */
+    if (!contentEl) return;
     const computed = window.getComputedStyle(contentEl);
     const colorHex = contentEl.style.color
       ? (/^#/.test(contentEl.style.color) ? contentEl.style.color : rgbToHex(contentEl.style.color))
@@ -300,6 +340,7 @@ async function showSectionProperties(sec) {
       inner.style.paddingLeft  = v + 'px';
       inner.style.paddingRight = v + 'px';
       inner.dataset.paddingX   = String(v);
+      _showPadXHint(inner, v);                                       // 만지는 «동안»만 좌우 패딩 띠를 비춘다
       window.syncMergedPartMargins?.(sec, { applyPadding: true });   // 사용자가 «직접» 바꿨으니 아래 몸도 전체 적용
       // 글로벌 padXExcludesAsset도 고려 (prop-page.js의 getEffectiveUsePadx 헬퍼)
       // section-inner의 '직접' 자식 ab만 처리 — row 안에 있는 ab는 row 핸들러가 관리

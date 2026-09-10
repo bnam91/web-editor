@@ -111,6 +111,114 @@ function insertBeforeBottomGap(section, el) {
   else inner.appendChild(el);
 }
 
+/* ── 「패딩 제외(full-bleed)」 공용 부품 ────────────────────────────────────
+ * 섹션 좌우패딩을 무시하고 «섹션 가장자리까지» 넓히는 장치. 뿌리는 에셋블럭이고
+ * (prop-asset.js 의 `dataset.usePadx` + prop-page.js 의 applyAssetFullBleed),
+ * 비(非)에셋 블록은 그 패턴을 **per-block `dataset.fullBleed`** 로 미러해 왔다
+ * (js/blocks/chat-block.js · canvas-block.js — 둘 다 주석에 「에셋블럭 패턴 미러」).
+ *
+ * ⚠️`state.pageSettings.padXExcludesAsset` 과는 «겹치지 않는다» — 그건 에셋 «전역 기본값»이고
+ *   여기는 블록 하나하나의 스위치다. ⇒ 기본은 언제나 «끔»(dataset 없음 = 지금 동작 그대로).
+ *
+ * ★호출 규약: «먼저 제 폭을 정하고», 마지막에 applyBlockFullBleed 를 부른다.
+ *   꺼져 있으면 이 함수는 «아무것도 안 만진다» — 옛 블록 무변화가 그래서 담보된다.
+ *
+ * ⚠️width 만 키우면 위치가 안 밀려 우측이 잘린다(`.section-inner{overflow-x:hidden}`).
+ *   그래서 width + marginLeft + marginRight 를 «항상 세트로» 쓴다 — 정본 세 곳과 같은 규약. */
+
+/** el 이 뚫고 나가야 할 좌우 패딩(px). 뚫을 수 없는 자리면 0. */
+function effectiveSectionPadX(el) {
+  const parent = el?.parentElement;
+  if (!parent) return 0;
+  /* ⛔프레임 «안»은 못 뚫는다 — `.frame-block{overflow:hidden}` 이라 넘친 폭이 잘리기만 한다.
+     (자유배치 프레임은 절대배치라 애초에 무의미.) assetFullBleedWidth 의 가드와 같은 뜻. */
+  if (parent.closest?.('.frame-block')) return 0;
+  /* ⚠️row 의 패딩 키가 «두 가지»다: 생성 경로는 `paddingX`, 패널 슬라이더는 `padX`.
+     하나만 보면 조용히 글로벌로 샌다 — assetFullBleedWidth 와 같은 함정. */
+  if (parent.classList?.contains('row')) {
+    const d = parent.dataset || {};
+    const v = (d.padX !== undefined && d.padX !== '') ? d.padX
+            : (d.paddingX !== undefined && d.paddingX !== '') ? d.paddingX : undefined;
+    if (v !== undefined) return parseInt(v) || 0;
+  }
+  const inner = el.closest?.('.section-inner');
+  if (!inner) return 0;
+  const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
+  const padX = hasOverride ? parseInt(inner.dataset.paddingX) : parseInt(state?.pageSettings?.padX);
+  return padX || 0;
+}
+
+/** dataset.fullBleed 가 'true' 일 때만 폭·마진 세트를 «덮어쓴다». 적용한 padX 를 돌려준다(껐으면 0). */
+function applyBlockFullBleed(el) {
+  if (!el?.style || el.dataset?.fullBleed !== 'true') return 0;   // 기본 «끔» — 무접촉
+  const padX = effectiveSectionPadX(el);
+  if (padX <= 0) return 0;
+  el.style.marginLeft  = -padX + 'px';
+  el.style.marginRight = -padX + 'px';
+  el.style.width       = `calc(100% + ${padX * 2}px)`;
+  /* ⚠️maxWidth 가 남아 있으면 폭이 «안 넓어진다» — 프레임은 inline `max-width:100%` 를 달고 태어난다.
+     ★그래서 «원래 값을 적어 두고» 푼다. 실측(2026-09-10, 프레임): 적어 두지 않으면 끌 때
+       max-width:none 이 남아 860px 가 안 잘리고 «섹션 밖으로 삐져나간 채» 굳었다.
+     ⛔이미 적어 둔 게 있으면 덮어쓰지 마라 — padX 가 바뀔 때마다 이 함수가 다시 불린다. */
+  if (el.dataset.fbMaxW === undefined) el.dataset.fbMaxW = el.style.maxWidth || '';
+  el.style.maxWidth = 'none';
+  return padX;
+}
+
+/** 패딩제외를 끌 때 «그 흔적만» 지운다. 자연 폭 복원은 호출부 몫(제 규약을 아는 건 호출부다). */
+function clearBlockFullBleed(el) {
+  if (!el?.style) return;
+  el.style.marginLeft  = '';
+  el.style.marginRight = '';
+  if (!el.style.width || el.style.width.includes('calc')) el.style.width = '';
+  if (el.dataset?.fbMaxW !== undefined) {         // 켤 때 적어 둔 «원래» maxWidth 로 되돌린다
+    el.style.maxWidth = el.dataset.fbMaxW;
+    delete el.dataset.fbMaxW;
+  }
+}
+
+/* ── 삽입 «기준점» 판정 — ★명부가 아니라 «성질»로 집는다 ───────────────────
+ *
+ * ★왜 명부를 버렸나 (2026-09-10, 현빈 「모달블럭 추가하고 g 를 누르면 안 된다」)
+ *   여기에는 `.text-block.selected, .asset-block.selected, …` 를 «손으로 적은» 목록이
+ *   두 벌(프레임 안 / 섹션 레벨) 있었다. 새 블록이 생길 때마다 두 곳에 같이 적어야 했고,
+ *   실제로 셋이 빠져 있었다. 실측(앱 9396, 25종 전수, 「뒤에 표지 블록 하나 더」 픽스처):
+ *     modal · mockup · joker → 갭이 «바로 아래»가 아니라 «섹션 맨 끝»에 붙었다.
+ *     (블록이 하나뿐인 픽스처로 재면 셋 다 «통과»로 보인다 — 그 자리에선 「바로 아래」와
+ *      「맨 끝」이 같은 자리라서다. 양성대조 없는 통과였다.)
+ *
+ * ★성질 둘 — 이 둘이면 명부가 필요 없다
+ *   ⑴ 클래스에 `*-block` 이 하나라도 있다.
+ *   ⑵ «흐름»이다 = 인라인 position:absolute/fixed 가 아니다.
+ *      플로팅 계열(스티커·그라데이션·확대블럭)은 전부 `sec.appendChild` 로 섹션 직속에 놓이고
+ *      `block.style.cssText = 'position:absolute;…'` 를 «인라인으로» 박는다.
+ *      (어노테이션은 CSS 로 absolute 지만 역시 섹션 직속이라 .section-inner 요구로 걸러진다.)
+ *   ⛔플로팅을 기준점으로 삼으면 새 블록이 «섹션 직속»으로 끼어들어 section-inner 흐름에서
+ *     빠진다(화면에서 사라진 것처럼 보인다). 그게 옛 주석이 지키려던 것 — 그 뜻은 그대로다.
+ *
+ * ⚠️컨테이너 셋(section/frame/shape)은 위쪽 분기에서 «이미 따로» 처리된다 — 여기서 뺀다.
+ *   이건 「무엇이 새 블록의 앞자리인가」 판정이지 「무엇을 선택된 것으로 볼 것인가」가 아니다.
+ *   ⛔globals.js 의 BLOCK_DELEGATE_SEL 과 합치지 마라 — 역할이 다르다. */
+const _ANCHOR_EXCLUDE_CLASSES = ['section-block', 'frame-block', 'shape-block'];
+
+function isFlowAnchorBlock(el) {
+  if (!el || el.nodeType !== 1 || !el.classList) return false;
+  for (const c of _ANCHOR_EXCLUDE_CLASSES) if (el.classList.contains(c)) return false;
+  const pos = el.style?.position;
+  if (pos === 'absolute' || pos === 'fixed') return false;   // 플로팅 계열
+  for (const c of el.classList) if (c.endsWith('-block')) return true;
+  return false;
+}
+
+/** root 안에서 «기준점이 될 수 있는» 첫 선택 블록. scoped=true 면 .section-inner 안만 본다. */
+function findFlowAnchorSelected(root, scoped) {
+  if (!root?.querySelectorAll) return null;
+  for (const el of root.querySelectorAll(scoped ? '.section-inner .selected' : '.selected')) {
+    if (isFlowAnchorBlock(el)) return el;
+  }
+  return null;
+}
+
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
   // 활성 서브섹션이 있으면 그 안에 삽입 (selected 여부 관계없이)
@@ -127,11 +235,8 @@ function insertAfterSelected(section, el) {
     }
 
     const ssInner = activeSS;
-    const sel = ssInner.querySelector(
-      '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-      '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.card-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .icon-block.selected, .step-block.selected, .vector-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .laurel-block.selected, .chat-block.selected'
-    );
+    // ssInner 는 이미 .section-inner «안»이라 scoped 불필요 (성질 판정만으로 충분)
+    const sel = findFlowAnchorSelected(ssInner, false);
     if (sel) {
       const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
       ref.after(el);
@@ -171,7 +276,9 @@ function insertAfterSelected(section, el) {
     return;
   }
 
-  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .icon-block.selected, .step-block.selected, .vector-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .laurel-block.selected, .chat-block.selected');
+  // ★문서 전체에서 «첫» 후보를 집고 나서 섹션을 대조한다 — 옛 판(document.querySelector)과 같은 순서.
+  //   scoped=true 로 .section-inner 안만 본다 ⇒ 섹션 직속 플로팅(어노테이션 등)은 애초에 안 걸린다.
+  const sel = findFlowAnchorSelected(document, true);
 
   if (sel && sel.closest('.section-block') === section) {
     const isGap = sel.classList.contains('gap-block');
@@ -580,6 +687,11 @@ export {
   makeLabelItem,
   insertBeforeBottomGap,
   insertAfterSelected,
+  effectiveSectionPadX,
+  applyBlockFullBleed,
+  clearBlockFullBleed,
+  isFlowAnchorBlock,
+  findFlowAnchorSelected,
   showNoSelectionHint,
   showToast,
   getSectionAlign,
@@ -601,6 +713,11 @@ window.clearLayerSectionIndicators= clearLayerSectionIndicators;
 window.makeLabelItem              = makeLabelItem;
 window.insertBeforeBottomGap      = insertBeforeBottomGap;
 window.insertAfterSelected        = insertAfterSelected;
+window.effectiveSectionPadX       = effectiveSectionPadX;
+window.applyBlockFullBleed        = applyBlockFullBleed;
+window.clearBlockFullBleed        = clearBlockFullBleed;
+window.isFlowAnchorBlock          = isFlowAnchorBlock;
+window.findFlowAnchorSelected     = findFlowAnchorSelected;
 window.showNoSelectionHint        = showNoSelectionHint;
 window.showToast                  = showToast;
 window.getSectionAlign            = getSectionAlign;

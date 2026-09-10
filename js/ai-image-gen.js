@@ -5,6 +5,11 @@
    - 공개 API: window.openImageGenModal, closeImageGenModal, generateAIImage
 ══════════════════════════════════════ */
 
+/* ★이 파일은 ES 모듈이다(index.html 의 <script type="module">).
+ * goya-asset:// 변환은 «새로 만들지 않고» io/goya-asset-inline.js 의 공용 문 하나를 쓴다.
+ * (ai-section-fill.js 와 같은 도구 — 결함군을 한 자리에서 닫기 위함) */
+import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.js';
+
 (function () {
   const KRW_PER_IMAGE = { 'gemini-2.5-flash-image': 54, 'gpt-image-1': 56, 'prompt-only': 0 };
   const ACTION_PROMPTS = {
@@ -43,6 +48,23 @@
     };
   }
 
+  /* ── ★누끼 + GPT 조합 차단 (2026-09-08 현빈 결정) ──────────────────────
+     실측: 누끼 1장에 gpt-image-1 49.3초·유료 vs remove.bg 1.0초·무료 50장/월. 느리고 비싸다.
+     ⛔막는 것은 «누끼따기가 켜진» 경우뿐이다 — 누끼 OFF 의 GPT 생성은 «창작» 경로라 그대로 둔다.
+       이 구분을 흐리면 멀쩡한 기능을 죽인다. 그래서 술어를 한 곳에 두고 둘 다 여기서만 본다. */
+  function _isGptModel(m) { return /^gpt-/i.test(String(m || '')); }
+  function _isCutoutOn()  { return !!document.getElementById('aig-cutout-toggle')?.checked; }
+  const _CUTOUT_GPT_MSG = '⚠️ 누끼따기는 GPT 를 쓰지 않습니다 (느리고 유료) — Gemini 로 바꾸거나 remove.bg 플러그인을 쓰세요';
+
+  /* 조합이 어긋나면 «보이게» 말한다. ⛔조용히 넘기지 않는다 — 눌렀는데 말이 없는 그 병이다.
+     ⛔native alert 금지(렌더러가 멈춘다). showToast 단독. */
+  function _warnIfCutoutGpt() {
+    const model = document.getElementById('aig-model-select')?.value || '';
+    if (!(_isCutoutOn() && _isGptModel(model))) return false;
+    window.showToast?.(_CUTOUT_GPT_MSG);
+    return true;
+  }
+
   function _onActionToggle(kind) {
     const outTgl = document.getElementById('aig-outpaint-toggle');
     const cutTgl = document.getElementById('aig-cutout-toggle');
@@ -58,6 +80,7 @@
     }
     if (kind === 'cutout' && cutTgl?.checked) {
       if (!currentText || isStockPrompt) promptEl.value = ACTION_PROMPTS.cutout;
+      _warnIfCutoutGpt();   // ★토글을 켜는 «그 순간» 알려준다 — 생성까지 가서야 막히면 늦다
     }
     _syncOutpaint();
   }
@@ -88,31 +111,55 @@
     if (!box?.src) { window.showToast?.('⚠️ 스크래치 이미지 없음'); return; }
     const sumPad = box.padTop + box.padRight + box.padBottom + box.padLeft;
     if (sumPad === 0) { window.showToast?.('⚠️ 확장 영역 0 — 핸들로 늘려주세요'); return; }
-    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = box.src; });
-    const ow = img.naturalWidth, oh = img.naturalHeight;
-    const scale = box.origW > 0 ? ow / box.origW : 1;
-    const pt = Math.round(box.padTop    * scale);
-    const pr = Math.round(box.padRight  * scale);
-    const pb = Math.round(box.padBottom * scale);
-    const pl = Math.round(box.padLeft   * scale);
-    const w = ow + pl + pr, h = oh + pt + pb;
-    const cv = document.createElement('canvas');
-    cv.width = w; cv.height = h;
-    const ctx = cv.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, w, h);
-    ctx.drawImage(img, pl, pt);
-    cv.toBlob(blob => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `outpaint_${box.spId}_${w}x${h}.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      window.showToast?.(`⬇ ${w}×${h} 확장 PNG 저장됨 (확장 영역 흰색)`);
-    }, 'image/png');
+    // ★⑶(_composeOutpaintPayload)과 «완전히 같은 사슬»이다 — 저장 후 box.src 는 goya-asset:// 라
+    //   그대로 drawImage 하면 캔버스가 오염되고 아래 cv.toBlob 이 SecurityError 를 던진다.
+    //   ★그리고 ⑶보다 나쁘다: toBlob 은 «콜백형»이라 그 안에서 난 예외는 아무도 못 잡고,
+    //   이미지 로드 promise 도 await 밖에 catch 가 없어 「다운로드 버튼을 눌렀는데 아무 일도 안 남」이 된다.
+    //   ⇒ 같은 문(goyaAssetToDrawableSrc)을 태우고, 로드·합성·toBlob 세 실패 경로를 모두 «말하게» 한다.
+    //   (⛔`?? alert(` 금지 — showToast 가 undefined 를 반환해 네이티브 alert 이 렌더러를 얼린다)
+    const src = await goyaAssetToDrawableSrc(box.src);
+    if (!src) { window.showToast?.('❌ 스크래치 이미지를 읽지 못해 확장 PNG 내보내기를 중단'); return; }
+    let blob, w, h;
+    try {
+      const img = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i);
+        i.onerror = () => rej(new Error('이미지 로드 실패'));
+        i.src = src;
+      });
+      const ow = img.naturalWidth, oh = img.naturalHeight;
+      const scale = box.origW > 0 ? ow / box.origW : 1;
+      const pt = Math.round(box.padTop    * scale);
+      const pr = Math.round(box.padRight  * scale);
+      const pb = Math.round(box.padBottom * scale);
+      const pl = Math.round(box.padLeft   * scale);
+      w = ow + pl + pr; h = oh + pt + pb;
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, pl, pt);
+      // toBlob 을 promise 로 감싸 «콜백이 삼키던» 실패를 밖으로 꺼낸다.
+      // (오염 캔버스면 toBlob 호출 자체가 동기로 SecurityError 를 던지고, 그밖의 실패는 blob=null 로 온다)
+      blob = await new Promise((res, rej) => {
+        try { cv.toBlob(b => (b ? res(b) : rej(new Error('toBlob 이 null 을 돌려줬다'))), 'image/png'); }
+        catch (e) { rej(e); }
+      });
+    } catch (err) {
+      console.warn('[ai-image-gen] 확장 PNG 합성 실패:', err);
+      window.showToast?.('❌ 확장 PNG 내보내기 실패 — 이미지를 읽지 못했습니다.');
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `outpaint_${box.spId}_${w}x${h}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    window.showToast?.(`⬇ ${w}×${h} 확장 PNG 저장됨 (확장 영역 흰색)`);
   }
   window._aigExportOutpaintPng = _exportOutpaintPng;
 
@@ -350,6 +397,7 @@
     els.modelSel?.addEventListener('change', () => {
       try { localStorage.setItem('aiImageModel', els.modelSel.value); } catch (_) {}
       _updateCost();
+      _warnIfCutoutGpt();   // ★누끼가 켜진 채 GPT 로 «바꾼» 경우도 같은 자리에서 잡는다
     });
     // model select localStorage 복원
     try {
@@ -467,19 +515,48 @@
     const prompt = String(payload?.prompt || '').trim();
     const inputs = payload?.inputs || { scratchIds: [], assetBlockIds: [], refDataUrls: [] };
 
+    /* ★누끼 + GPT 차단을 «여기»에도 둔다 — 일하는 함수가 최종 관문이다.
+       제출 핸들러에만 두면 window.generateAIImage 를 «직접» 부르는 경로(플러그인·MCP·콘솔)가
+       그대로 통과한다. 실제로 그 구멍으로 유료 호출이 나간 적이 있다(2026-09-08).
+       ⛔조용히 반환하지 않는다 — 왜 막혔는지 말한다. */
+    if (_isCutoutOn() && _isGptModel(model)) {
+      window.showToast?.(_CUTOUT_GPT_MSG);
+      return { ok: false, error: _CUTOUT_GPT_MSG, blocked: 'cutout-gpt' };
+    }
+
     // ref 이미지 src 수집
+    // ★goya-asset:// 를 그대로 실으면 services/imageGenService.js 의 base64 파서(_parseDataUrl)가
+    //   거절하고, 거기서 `if (!p) continue;`(:47) / `if (!p) return;`(:114) 로 «조용히 버려진다».
+    //   사용자는 결과물을 받으므로 «참조가 빠진 줄도 모른다» ⇒ 싣기 «전» 여기서 되돌리고,
+    //   못 되돌린 것은 빼되 «어느 것이 빠졌는지» 토스트로 알린다.
+    //   (⛔`?? alert(` 금지 — showToast 가 undefined 를 반환해 네이티브 alert 이 렌더러를 얼린다)
     const refs = [];
+    const refFailed = [];
     for (const sid of (inputs.scratchIds || [])) {
       const it = window._scratchGetItemById?.(sid);
-      if (it?.src) refs.push({ src: it.src, label: sid });
+      if (!it?.src) continue;
+      let src = it.src;
+      if (isGoyaAssetUrl(src)) {
+        src = await goyaAssetToDrawableSrc(src);
+        if (!src) { refFailed.push(sid); continue; }   // 첨부에서 제외 — 아래에서 «보이게» 알린다
+      }
+      refs.push({ src, label: sid });
     }
     for (const aid of (inputs.assetBlockIds || [])) {
       const el = document.getElementById(aid);
-      const src = el?.querySelector('.asset-img')?.src || el?.dataset?.imgSrc;
-      if (src) refs.push({ src, label: aid });
+      let src = el?.querySelector('.asset-img')?.src || el?.dataset?.imgSrc;
+      if (!src) continue;
+      if (isGoyaAssetUrl(src)) {
+        src = await goyaAssetToDrawableSrc(src);
+        if (!src) { refFailed.push(aid); continue; }
+      }
+      refs.push({ src, label: aid });
     }
     for (const r of (inputs.refDataUrls || [])) {
       if (r?.src) refs.push({ src: r.src, label: r.label || 'ref' });
+    }
+    if (refFailed.length > 0) {
+      window.showToast?.(`❌ 참고 이미지를 읽지 못해 제외: ${refFailed.join(', ')}`);
     }
 
     if (!window.electronAPI?.aiGenerateImage) {
@@ -583,12 +660,17 @@
   // 모달 내부 submit 라우터를 위한 헬퍼 — ai-prompt.js에서 호출
   async function _composeOutpaintPayload(box) {
     if (!box?.src) return null;
-    const { src, padTop, padRight, padBottom, padLeft } = box;
+    const { padTop, padRight, padBottom, padLeft } = box;
+    // ★스크래치 <img>.src 는 저장 후 goya-asset:// 다(outpaint-overlay.js:82 가 그대로 담는다).
+    //   그걸 그대로 drawImage 하면 캔버스가 오염돼 아래 cv1.toDataURL 이 SecurityError 를 던진다.
+    //   ⇒ 그리기 «전» data: URI 로 되돌린다. 못 되돌리면 null 을 돌려 호출부가 토스트를 띄운다.
+    const src = await goyaAssetToDrawableSrc(box.src);
+    if (!src) return null;
     // origW/H는 box의 값이 아니라 현재 자연 이미지 크기 사용 — 합성 정확도
     const img = await new Promise((resolve, reject) => {
       const i = new Image();
       i.onload = () => resolve(i);
-      i.onerror = reject;
+      i.onerror = () => reject(new Error('이미지 로드 실패: ' + String(src).slice(0, 60)));
       i.src = src;
     });
     const ow = img.naturalWidth;
@@ -620,6 +702,10 @@
   async function handleImageSubmit() {
     const els = _getModalEls();
     let model = els.modelSel?.value || 'gemini-2.5-flash-image';
+    /* ★차단선 — 누끼따기 + GPT 는 여기서 끊는다(2026-09-08 현빈 결정).
+       토글·모델변경 때 이미 경고하지만 그건 «안내»고, 이게 «막는» 자리다.
+       ⛔누끼 OFF 의 GPT 는 통과시킨다 — 창작 경로는 막은 적이 없다. */
+    if (_isCutoutOn() && _isGptModel(model)) { window.showToast?.(_CUTOUT_GPT_MSG); return; }
     const apiMode = document.querySelector('input[name="aig-api-mode"]:checked')?.value || 'direct';
     const isOutpaint = !!els.outpaintTgl?.checked;
     let prompt = els.imgPrompt?.value.trim() || '';
@@ -635,8 +721,16 @@
       if (!box) { window.showToast?.('⚠️ 확장 박스 없음'); return; }
       const sumPad = box.padTop + box.padRight + box.padBottom + box.padLeft;
       if (sumPad === 0) { window.showToast?.('⚠️ 확장 영역이 0 — 핸들로 늘려주세요'); return; }
-      outpaint = await _composeOutpaintPayload(box);
-      if (!outpaint) { window.showToast?.('⚠️ outpaint 합성 실패'); return; }
+      // ★여기는 아래 try/finally «밖»이다. 감싸지 않으면 합성이 던진 예외가 핸들러를 뚫고 나가
+      //   토스트도 스피너도 없이 「눌렀는데 아무 일 없음」이 된다(무증상 실패).
+      try {
+        outpaint = await _composeOutpaintPayload(box);
+      } catch (err) {
+        console.warn('[ai-image-gen] outpaint 합성 실패:', err);
+        window.showToast?.('❌ 확장 이미지 합성 실패 — 이미지를 읽지 못했습니다.');
+        return;
+      }
+      if (!outpaint) { window.showToast?.('⚠️ outpaint 합성 실패 — 이미지를 읽지 못했습니다.'); return; }
     }
 
     const scratchIds = _pickerChips.filter(c => c.type === 'scratch').map(c => c.id);

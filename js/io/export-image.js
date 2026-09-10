@@ -255,10 +255,11 @@ export async function prepareCloneForCapture(sec, w, useNative) {
   clone.classList.remove('selected', 'sec-bg-editing');
   // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 내보내기 오염 방지)
   clone.querySelectorAll(
-    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected, .bn2-line-selected, .bn2-line-empty'
+    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected, .bn2-line-selected, .bn2-line-empty, .grd-line-selected'
   ).forEach(el => {
     el.classList.remove('selected', 'img-editing', 'editing', 'dragging',
-      'group-selected', 'group-editing', 'ss-drag-over', 'drag-over', 'item-selected', 'bn2-line-selected', 'bn2-line-empty');
+      'group-selected', 'group-editing', 'ss-drag-over', 'drag-over', 'item-selected', 'bn2-line-selected', 'bn2-line-empty',
+      'grd-line-selected');
   });
   // CDP captureBeyondViewport로 off-screen 좌표도 캡쳐 가능 — clone을 화면 밖에 두어
   // export 중 사용자 화면에 큰 박스가 튀어나오는 "ghosting" 현상 제거
@@ -332,8 +333,8 @@ export function renderComponentsInClone(clone) {
       if (_cmp._cmpRO) { _cmp._cmpRO.disconnect(); _cmp._cmpRO = null; }
     }
   }
-  clone.querySelectorAll('.bn2-line-selected, .bn2-line-empty').forEach(_el =>
-    _el.classList.remove('bn2-line-selected', 'bn2-line-empty'));
+  clone.querySelectorAll('.bn2-line-selected, .bn2-line-empty, .grd-line-selected').forEach(_el =>
+    _el.classList.remove('bn2-line-selected', 'bn2-line-empty', 'grd-line-selected'));
   clone.getBoundingClientRect();
 }
 
@@ -427,7 +428,24 @@ export function sectionBgColor(sec) {
      ⑶ 게이트 판정 (파일이 나간 뒤)
      안쪽에 배선하면 ⑴을 통째로 놓친다. 밖에서 감싸면 «세 층 전부»가 한 술어를 지난다.
    ★returnDataUrl 경로는 «건드리지 않는다» — QA·외부검산이 쓰는 길이고 게이트도 안 돈다. */
+/* ★그리드 가이드는 «편집 보조»다 — 내보낸 이미지에 찍히면 안 된다.
+     html2canvas 는 문서를 복제해 캡처하므로 body 클래스도 따라간다. ⇒ 캡처 «동안»만 끈다.
+   ⛔가장 안쪽인 이 함수에 둔다. 전체 내보내기(exportAllSections)도 여길 지나므로
+     경로가 늘어도 새지 않는다 — 바깥에 두면 새 경로가 생길 때마다 빠뜨린다. */
 async function exportSection(sec, format, width, opts) {
+  const _gOn = document.body.classList.contains('gdt-grid-on');
+  if (_gOn) document.body.classList.remove('gdt-grid-on');
+  const _pOn = document.body.classList.contains('gdt-pad-on');
+  if (_pOn) document.body.classList.remove('gdt-pad-on');
+  try {
+    return await _exportSectionNoGuide(sec, format, width, opts);
+  } finally {
+    if (_gOn) document.body.classList.add('gdt-grid-on');
+    if (_pOn) document.body.classList.add('gdt-pad-on');
+  }
+}
+
+async function _exportSectionNoGuide(sec, format, width, opts) {
   if (opts && opts.returnDataUrl) return _exportSectionInner(sec, format, width, opts);
   const _t0 = performance.now();
   const _own = !isRunOpen();                       // 단일 섹션이면 스스로 «1칸짜리 판»을 연다

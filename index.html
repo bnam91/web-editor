@@ -165,6 +165,12 @@
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3h3l1 1h6v6H1V3z"/><path d="M3.5 7l1.5 1.5L8 6"/></svg>
         참고 이미지 일괄 추가<input type="file" id="scratchpad-folder-input" webkitdirectory multiple style="display:none" onchange="window.loadScratchpadFolder(event)">
       </label>
+      <!-- [#16-C] 스크래치패드 일괄 숨기기 — «일괄 추가» 바로 옆(같은 어휘·같은 pub-dd-item, 새 CSS 0줄).
+           ⛔지우는 게 아니라 «표시만» 끈다. 라벨이 상태를 말한다(숨기기 ↔ 다시 보기). -->
+      <div class="pub-dd-item" id="scratch-hide-all-item" onclick="window.toggleScratchHideAll?.(); closePublishDropdown()" title="스크래치패드 참고 이미지를 화면에서만 감춥니다 (데이터·연결은 그대로)">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 6s2-3.5 5-3.5S11 6 11 6s-2 3.5-5 3.5S1 6 1 6z"/><circle cx="6" cy="6" r="1.3"/><path d="M2 10L10 2"/></svg>
+        <span id="scratch-hide-all-label">참고 이미지 일괄 숨기기</span>
+      </div>
     </div>
   </div>
   <div class="divider"></div>
@@ -679,6 +685,12 @@
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'highlight'});toggleFpDropdown('fp-pen-dropdown')" title="형광펜 — 클릭=마지막 색 / 색·프리셋은 우측 패널에서 선택">Highlight</button>
       <button class="fp-menu-item" onclick="toggleHighlightBMode();toggleFpDropdown('fp-pen-dropdown')" title="선 형광펜 — 두 점 클릭으로 직선 형광펜 추가 · ESC 취소">HighlightB</button>
       <button class="fp-menu-item" onclick="addGradientBlock();toggleFpDropdown('fp-pen-dropdown')" title="그라데이션 페이드 — 섹션 너비 전체, 이미지 끝 자연 페이드 효과">Gradient</button>
+      <!-- ★확대블럭(Zoom) — 현빈 2026-09-08 「줌블럭은 스티커 패널에 넣어줘야하고」.
+           컴포넌트 드롭다운에서 여기로 옮겼다. 줌은 «플로팅»(섹션 직접 자식, absolute)이라
+           행에 얹히는 컴포넌트가 아니라 스티커·그라데이션과 같은 계열이다.
+           ⚠️닫는 인자도 'fp-pen-dropdown' 이어야 한다 — 'fp-component-dropdown' 을 그대로
+             들고 오면 «남의 메뉴»를 닫으라 시켜서 이 메뉴가 안 닫힌다. -->
+      <button class="fp-menu-item" onclick="addZoomBlock();toggleFpDropdown('fp-pen-dropdown')" title="확대블럭 — 돋보기 도형에 이미지를 담아 캔버스에 자유 배치">Zoom</button>
     </div>
   </div>
   <div class="fp-dropdown" id="fp-component-dropdown">
@@ -699,8 +711,19 @@
       <button class="fp-menu-item" onclick="addStepBlock();toggleFpDropdown('fp-component-dropdown')">Step</button>
       <button class="fp-menu-item" onclick="addChatBlock();toggleFpDropdown('fp-component-dropdown')">Chat</button>
       <button class="fp-menu-item" onclick="addGridBlock();toggleFpDropdown('fp-component-dropdown')">Grid</button>
+      <button class="fp-menu-item" onclick="addModalBlock();toggleFpDropdown('fp-component-dropdown')">Modal</button>
+      <!-- ★[숨김] Info Card · Inner Card — 현빈 2026-09-07 「info카드와 이너카드도 일단 숨김처리해줘」
+           ⛔막는 것은 «새로 넣는 입구»뿐이다. 블록 구현·프로퍼티 패널·레이어 패널·저장/로드는
+             그대로 둔다 — 이미 이 블록이 들어간 프로젝트는 계속 열리고 편집돼야 한다
+             (바로 위 구형 Banner 건과 같은 판단: 코드는 안 지운다).
+           ★실측으로 확인한 «입구»는 이 두 줄뿐이다:
+             addInfoCardBlock/addInnerCardBlock 호출처 = index.html 이 두 줄 + 각 블록 파일 자체 정의
+             + scripts/goditor_runner.js(CDP 자동화 스크립트, 사용자 UI 아님).
+             MCP 표면엔 없다(mcp-server.js·mcp-block-tools.js 에 infocard/innercard 0건).
+           되돌리기 = 이 주석을 풀면 끝. 「일단」이라 지우지 않고 «가려만» 둔다.
       <button class="fp-menu-item" onclick="addInfoCardBlock();toggleFpDropdown('fp-component-dropdown')">Info Card</button>
       <button class="fp-menu-item" onclick="addInnerCardBlock();toggleFpDropdown('fp-component-dropdown')">Inner Card</button>
+      -->
       <!-- ★[MVP 제외] 구형 Banner 제거(현빈 2026-08-28). Banner 2 가 «같은 디자인을 자체
            데이터모델로 포팅»한 후속이고, 실사용 전수에서 구형은 블록 0개·프로젝트 0개다
            (신형 28개·9개). 메뉴에 둘 다 있으면 눌러보고 나서야 다른 걸 안다.
@@ -805,6 +828,18 @@
       </div>
       <div class="fp-plugin-badge fp-plugin-badge--new">New</div>
     </div>
+    <div class="fp-plugin-item" id="plugin-removebg" onclick="openRemoveBgPlugin()">
+      <div class="fp-plugin-icon fp-plugin-icon--removebg">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M4 4h7v7H4z"/><path d="M13 13h7v7h-7z"/><path d="M20 4 4 20"/>
+        </svg>
+      </div>
+      <div class="fp-plugin-info">
+        <div class="fp-plugin-name">removeBG</div>
+        <div class="fp-plugin-desc">이미지 배경 제거 · 모델 선택</div>
+      </div>
+      <div class="fp-plugin-badge fp-plugin-badge--new">New</div>
+    </div>
     <div class="fp-plugin-item" id="plugin-mockup" onclick="openMockupModal()">
       <div class="fp-plugin-icon fp-plugin-icon--mockup">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -826,11 +861,27 @@
   <!-- 헤더: 닫기 버튼 -->
   <div class="tpl-browser-header">
     <span class="tpl-browser-title">Templates</span>
-    <button class="tpl-browser-close" id="tpl-browser-close" title="닫기">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
-        <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
-      </svg>
-    </button>
+    <!-- ★버튼은 «묶어서» 오른쪽 끝에 붙인다. 안 묶으면 헤더의 space-between 이 제목+버튼3 을
+         균등 분산해 89px 씩 흩어진다(현빈 지적: 「위치들 간격을 한번봐줘」). -->
+    <div class="tpl-browser-hbtns">
+      <!-- ⛔레이아웃은 «기능 미정»이라 disabled 다 — 눌리는데 아무 일도 안 나면 그게 버그다.
+           현빈 설명이 오면 disabled 를 떼고 핸들러를 붙인다. -->
+      <button class="tpl-browser-hbtn" id="tpl-browser-layout" title="레이아웃 전환 (준비 중)" disabled>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M1 1.5h8v7H1z"/><path d="M4 1.5v7"/>
+        </svg>
+      </button>
+      <button class="tpl-browser-hbtn" id="tpl-browser-popout" title="새 창으로 보기">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M8.5 5.5V9H1V1.5h3.5"/><path d="M6 1h3v3"/><path d="M9 1 5 5"/>
+        </svg>
+      </button>
+      <button class="tpl-browser-hbtn tpl-browser-close" id="tpl-browser-close" title="닫기">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+        </svg>
+      </button>
+    </div>
   </div>
   <!-- 미리보기 영역 (상단) -->
   <div class="tpl-browser-preview-area" id="tpl-browser-preview-area">
@@ -989,8 +1040,10 @@
 <script type="module" src="js/props/prop-grid.js"></script>
 <script type="module" src="js/props/prop-infocard.js"></script>
 <script type="module" src="js/props/prop-innercard.js"></script>
+<script type="module" src="js/props/prop-modal.js"></script>
 <script type="module" src="js/props/prop-sticker.js"></script>
 <script type="module" src="js/props/prop-laurel.js"></script>
+<script type="module" src="js/props/prop-zoom.js"></script>
 <script type="module" src="js/props/prop-gradient.js"></script>
 <script type="module" src="js/props/prop-label-group.js"></script>
 <script type="module" src="js/props/prop-row.js"></script>
@@ -1007,11 +1060,13 @@
 <script type="module" src="js/blocks/grid-block.js"></script>
 <script type="module" src="js/blocks/infocard-block.js"></script>
 <script type="module" src="js/blocks/innercard-block.js"></script>
+<script type="module" src="js/blocks/modal-block.js"></script>
 <script type="module" src="js/blocks/banner-block.js"></script>
 <script type="module" src="js/blocks/banner02-block.js"></script>
 <script type="module" src="js/blocks/comparison-block.js"></script>
 <script type="module" src="js/blocks/chat-block.js"></script>
 <script type="module" src="js/blocks/laurel-block.js"></script>
+<script type="module" src="js/blocks/zoom-block.js"></script>
 <script type="module" src="js/blocks/sticker-block.js"></script>
 <script type="module" src="js/blocks/vector-block.js"></script>
 <script type="module" src="js/blocks/gradient-block.js"></script>
@@ -1228,7 +1283,7 @@
 
 <script type="module" src="js/ai-prompt.js"></script>
 <script src="js/outpaint-overlay.js"></script>
-<script src="js/ai-image-gen.js"></script>
+<script type="module" src="js/ai-image-gen.js"></script>
 <script src="js/panels/ai-image-gallery.js"></script>
 <script src="js/panels/assets-panel.js"></script>
 <script src="js/theme-system.js"></script>
@@ -1282,16 +1337,41 @@
 ══════════════════════════ -->
 <script src="js/variable-binding.js"></script>
 <script>
-  // admin 모드일 때 topbar에 CDP 포트 뱃지 표시
+  /* topbar CDP 포트 뱃지 — 클릭하면 포트 복사 (현빈 지시 2026-09-07)
+   *   「admin 모드가 아니더라도 되게 / 앱 배포나 메인브랜치에서만 안 보이면 돼 / 클릭 후 클립보드 복사」
+   * ⛔admin 게이트를 «뺐다». 그리고 배포·main 차단을 여기로 «옮기지 않았다» —
+   *   그건 main 의 `app:debug-port` 가 «값 자체»를 안 주는 것으로 막는다.
+   *   ★표시 조건으로 막으면 화면을 손대는 사람이 조용히 열 수 있다. 값이 안 오면 못 그린다.
+   *   ⇒ 여기서는 「값이 오면 그린다」만 한다. 판단은 값의 출처가 이미 했다. */
   (async function() {
     const api = window.electronAPI;
-    if (!api?.isAdmin) return;
-    const [isAdmin, debugPort] = await Promise.all([api.isAdmin(), api.debugPort()]);
-    if (!isAdmin || !debugPort) return;
+    if (!api?.debugPort) return;
+    const debugPort = await api.debugPort();
+    if (!debugPort) return;            // 배포본·main·CDP 미기동 — 전부 여기로 온다
     const badge = document.getElementById('debug-port-badge');
     if (!badge) return;
-    badge.textContent = ':' + debugPort;
+    const label = ':' + debugPort;
+    badge.textContent = label;
     badge.style.display = 'inline-block';
+    /* ★상단바는 -webkit-app-region: drag 라 그 위 요소는 클릭·선택이 «안 먹는다».
+     *   이 뱃지가 바로 index.html:1316 주석이 「형제인데 빠뜨렸다」고 적어 둔 그 자리다
+     *   (mcp-token-badge 가 같은 이유로 admin 빌드에서 통째로 안 눌렸었다).
+     *   ⇒ 클릭 복사를 붙이는 지금이 그걸 «실제로» 고치는 자리다. */
+    badge.style.webkitAppRegion = 'no-drag';
+    badge.style.userSelect = 'text';
+    badge.style.cursor = 'pointer';
+    badge.title = 'CDP 포트 — 클릭하면 복사 · 드래그하면 선택';
+    badge.onclick = async () => {
+      /* ★드래그로 «선택 중»이면 복사하지 않는다 — 고른 범위를 클립보드가 덮으면 안 된다.
+       *   (mcp-info-badge 와 같은 어휘로 맞춘다) */
+      const sel = window.getSelection && window.getSelection();
+      if (sel && String(sel).length > 0 && badge.contains(sel.anchorNode)) return;
+      /* ★복사하는 값은 «포트 숫자»다(':' 없이). 옆 MCP 뱃지가 이미 «전체 주소»를 주므로
+       *   이쪽까지 주소를 주면 둘이 같은 것을 준다. 명령줄에 붙일 숫자가 없는 쪽이다. */
+      try { await api.clipboardWriteText(String(debugPort)); } catch (_) {}
+      badge.textContent = '복사됨';
+      setTimeout(() => { badge.textContent = label; }, 1200);
+    };
   })();
 
   // #2 dev-gate — 비admin(패키지빌드 일반사용자)이면 개발용 플로팅 버튼 숨김.
@@ -1409,6 +1489,7 @@
   else run();
 })();
 </script>
+<script src="js/removebg-plugin.js"></script>
 <script src="js/checklist-data.js"></script>
 <script src="js/checklist-panel.js"></script>
 <!-- ══════════════════════════
@@ -1423,6 +1504,8 @@
 <script src="js/claude-pm/active-project-sync.js"></script>
 <script src="js/claude-pm/terminal-panel.js"></script>
 <script src="js/canvas-state.js"></script>
+<!-- 갭 «감수 패스»의 렌더러 쪽(읽기 + 적용). 규격/판단은 main/claude-pm/services/spacing.js 에 있다. -->
+<script src="js/spacing-normalize.js"></script>
 <script src="js/section-memo.js"></script>
 <script src="js/section-protection.js"></script>
 <script src="js/section-cleanup.js"></script>

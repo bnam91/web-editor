@@ -1,5 +1,5 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
-import { _fontDisplayName } from './prop-text-utils.js';
+import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 
 export function buildTextPropsHtml(state) {
   const {
@@ -35,13 +35,6 @@ export function buildTextPropsHtml(state) {
 
   // Figma "Mix" 정책: 자식들의 스타일이 섞여있으면 input 을 빈 값 + placeholder="Mix" 로 표시
   const _mix = mix || { color:{mixed:false}, fontSize:{mixed:false}, fontWeight:{mixed:false} };
-  const _sizeVal      = _mix.fontSize.mixed   ? '' : currentSize;
-  const _sizePh       = _mix.fontSize.mixed   ? 'Mix' : '';
-  const _colorHexVal  = _mix.color.mixed      ? '' : currentColor.replace('#','').toUpperCase();
-  const _colorHexPh   = _mix.color.mixed      ? 'Mix' : '';
-  const _colorSwatchBg = _mix.color.mixed     ? 'linear-gradient(135deg,#bbb 25%,#777 25%,#777 50%,#bbb 50%,#bbb 75%,#777 75%)' : currentColor;
-  const _swatchExtraClass = _mix.color.mixed  ? ' swatch-mix' : '';
-  const _weightMixed   = _mix.fontWeight.mixed;
 
   return `
     <div class="prop-section">
@@ -118,80 +111,17 @@ export function buildTextPropsHtml(state) {
       </div>
     </div>
 
-    <div class="prop-section">
-      <div class="prop-section-title">Typography</div>
+    ${buildTypographySectionHtml({
+      p: 'txt',
+      font: currentFont, weight: currentWeight, size: currentSize,
+      isBold, isItalic, isStrike, isHighlight,
+      lh: currentLH, ls: currentLS,
+      sizeMin: 8, sizeMax: 800,
+      showStyleGroup: !isLiner, showLetterSpacing: !isLiner, showSize: !isLiner,
+      mix: _mix,
+    })}
 
-      <span class="prop-field-label">Font</span>
-      <div class="font-picker" id="txt-font-picker">
-        <button class="font-picker-trigger" id="txt-font-trigger" type="button">
-          <span class="font-picker-current" id="txt-font-name">${currentFont ? _fontDisplayName(currentFont) : '기본 (시스템)'}</span>
-          <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
-        </button>
-        <div class="font-picker-dropdown" id="txt-font-dropdown" style="display:none">
-          <input class="font-picker-search" id="txt-font-search" type="text" placeholder="폰트 검색..." autocomplete="off" spellcheck="false">
-          <div class="font-picker-list" id="txt-font-list"></div>
-        </div>
-      </div>
-
-      <div class="prop-row">
-        <select class="prop-select" id="txt-font-weight" style="flex:1">
-          ${_weightMixed ? '<option value="" selected disabled>Mix</option>' : ''}
-          <option value="100" ${!_weightMixed && currentWeight==='100'?'selected':''}>Thin 100</option>
-          <option value="200" ${!_weightMixed && currentWeight==='200'?'selected':''}>ExtraLight 200</option>
-          <option value="300" ${!_weightMixed && currentWeight==='300'?'selected':''}>Light 300</option>
-          <option value="400" ${!_weightMixed && (!currentWeight||currentWeight==='400')?'selected':''}>Regular 400</option>
-          <option value="500" ${!_weightMixed && currentWeight==='500'?'selected':''}>Medium 500</option>
-          <option value="600" ${!_weightMixed && currentWeight==='600'?'selected':''}>SemiBold 600</option>
-          <option value="700" ${!_weightMixed && currentWeight==='700'?'selected':''}>Bold 700</option>
-          <option value="800" ${!_weightMixed && currentWeight==='800'?'selected':''}>ExtraBold 800</option>
-          <option value="900" ${!_weightMixed && currentWeight==='900'?'selected':''}>Black 900</option>
-        </select>
-        <input type="number" class="prop-number prop-number-select" id="txt-size-number" min="8" max="800" value="${_sizeVal}" placeholder="${_sizePh}" style="flex:1;min-width:0;display:${isLiner?'none':'block'}">
-      </div>
-
-      <div class="prop-style-group" id="txt-style-group" style="margin-top:6px;display:${isLiner?'none':'flex'}">
-        <button class="prop-style-btn ${isBold?'active':''}" id="txt-bold-btn" title="굵게 (⌘B)"><b>B</b></button>
-        <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (⌘I)"><i>I</i></button>
-        <button class="prop-style-btn ${isStrike?'active':''}" id="txt-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>
-        <button class="prop-style-btn ${isHighlight?'active':''}" id="txt-highlight-btn" title="형광펜 (선택 영역 배경칠)">H</button>
-      </div>
-
-      <div class="prop-lhls-row">
-        <div class="prop-lhls-col">
-          <span class="prop-field-label">Line Height</span>
-          <div class="prop-icon-input">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M17.5 17a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1zm-5.25-9a.5.5 0 0 1 .476.347l2.25 7a.5.5 0 0 1-.952.306L13.494 14h-2.987l-.531 1.653a.5.5 0 0 1-.952-.306l2.25-7 .03-.075A.5.5 0 0 1 11.75 8zm-1.422 5h2.344L12 9.354zM17.5 6a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1z"/></svg>
-            <input type="number" id="txt-lh-number" min="1" max="3" step="0.05" value="${currentLH}" aria-label="줄간격">
-          </div>
-        </div>
-        <div class="prop-lhls-col" id="txt-ls-col" style="display:${isLiner?'none':'block'}">
-          <span class="prop-field-label">Letter Spacing</span>
-          <div class="prop-icon-input">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M6.5 6a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 .5-.5m11 0a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 .5-.5m-5.25 3a.5.5 0 0 1 .472.335l1.75 5a.5.5 0 1 1-.944.33l-.407-1.165H10.88l-.407 1.165a.5.5 0 1 1-.944-.33l1.75-5 .032-.072A.5.5 0 0 1 11.75 9zm-1.02 3.5h1.54L12 10.298z"/></svg>
-            <input type="number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}" aria-label="자간">
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Fill</div>
-      <div class="prop-color-row">
-        <span class="prop-label">글자색</span>
-        <div class="prop-color-field">
-          <div class="prop-color-swatch${_swatchExtraClass}" style="background:${_colorSwatchBg}" title="${_mix.color.mixed?'Mix — 일부 선택 후 색상 변경':''}">
-            <input type="color" id="txt-color" value="${currentColor}">
-          </div>
-          <input type="text" class="prop-color-hex" id="txt-color-hex" value="${_colorHexVal}" placeholder="${_colorHexPh}" maxlength="6" aria-label="Color">
-          <label class="prop-color-alpha" title="Opacity">
-            <input type="text" class="prop-color-alpha-input" id="txt-color-alpha" value="${currentColorAlpha}" aria-label="Opacity">
-            <span class="prop-color-alpha-suffix">%</span>
-          </label>
-        </div>
-      </div>
-      <div class="cv-chips" id="txt-color-chips" hidden></div>
-    </div>
+    ${buildFillSectionHtml({ p: 'txt', colorHex: currentColor, alpha: currentColorAlpha, mix: _mix })}
 
     <div class="prop-section" id="txt-shadow-section">
       <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">

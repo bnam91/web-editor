@@ -36,8 +36,37 @@ function loadMain(opts) {
       commandLine: { appendSwitch: noop }, setAboutPanelOptions: noop, dock: { setIcon: noop },
       relaunch: noop, getLoginItemSettings: () => ({}), setLoginItemSettings: noop,
     },
+    /* ★[기하] 창을 «만들 때 받은 옵션»을 잡아 둔다 — 이게 없으면 「크기·자리를 계승하는가」를
+       영영 소스 문자열로만 잴 수 있다(로직이 망가져도 초록인 그 검사). stub.__windows 로 꺼내 쓴다.
+       ⚠️추가만 했다 — 기존 필드·반환 모양은 그대로다.
+       ★loadFile 은 이제 «Promise 를 돌려준다». stub.__loadFileFails 를 «부를 때» 읽으므로
+         테스트가 비동기 reject 를 실제로 만들어낼 수 있다(await 누락·destroy 누락을 런타임으로 잰다). */
     BrowserWindow: Object.assign(
-      function () { return { loadFile: noop, loadURL: noop, on: noop, once: noop, webContents, show: noop, focus: noop, isDestroyed: () => false, close: noop }; },
+      function (opts) {
+        const o = (opts && typeof opts === 'object') ? opts : {};
+        const win = {
+          __opts: o,
+          __destroyed: false,
+          __closed: 0,
+          __bounds: {
+            x: Number.isFinite(o.x) ? o.x : 0, y: Number.isFinite(o.y) ? o.y : 0,
+            width: Number.isFinite(o.width) ? o.width : 0, height: Number.isFinite(o.height) ? o.height : 0,
+          },
+          loadFile: () => stub.__loadFileFails
+            ? Promise.reject(new Error(stub.__loadFileFails))
+            : Promise.resolve(),
+          loadURL: noop, on: noop, once: noop, webContents, show: noop, focus: noop,
+          isDestroyed() { return this.__destroyed; },
+          close() { this.__closed++; },
+          destroy() { this.__destroyed = true; },
+          getBounds() { return { ...this.__bounds }; },
+          getContentBounds() { return { ...this.__bounds }; },
+          setBounds(b) { Object.assign(this.__bounds, b || {}); },
+          setContentBounds(b) { Object.assign(this.__bounds, b || {}); },
+        };
+        stub.__windows.push(win);
+        return win;
+      },
       { getAllWindows: () => [], fromWebContents: () => null, getFocusedWindow: () => null }),
     ipcMain: { handle: (c, f) => handlers.set(c, f), on: (c, f) => syncHandlers.set(c, f), once: (c, f) => syncHandlers.set(c, f), removeHandler: (c) => handlers.delete(c), handleOnce: (c, f) => handlers.set(c, f), removeAllListeners: noop },
     dialog: { showOpenDialog: async () => ({ canceled: true }), showSaveDialog: async () => ({ canceled: true }), showMessageBox: async () => ({ response: 0 }), showErrorBox: noop },
@@ -64,11 +93,22 @@ function loadMain(opts) {
     MenuItem: function () {},
     nativeImage: { createFromPath: () => ({ isEmpty: () => true }), createEmpty: () => ({}) },
     clipboard: { writeText: noop, readText: () => '' },
-    screen: { getPrimaryDisplay: () => ({ workAreaSize: { width: 1920, height: 1080 } }), on: noop },
+    /* ★[기하] workArea 와 getDisplayNearestPoint 를 «추가»했다 — 화면 밖 클램프를 런타임으로 재려면
+       작업영역이 있어야 한다. stub.__display 로 테스트가 갈아끼운다. workAreaSize 는 그대로 둔다. */
+    screen: {
+      getPrimaryDisplay: () => (stub.__display || { workAreaSize: { width: 1920, height: 1080 }, workArea: { x: 0, y: 0, width: 1920, height: 1080 } }),
+      getDisplayNearestPoint: () => (stub.__display || { workAreaSize: { width: 1920, height: 1080 }, workArea: { x: 0, y: 0, width: 1920, height: 1080 } }),
+      on: noop,
+    },
     powerSaveBlocker: { start: () => 1, stop: noop },
     session: { defaultSession: { webRequest: { onBeforeSendHeaders: noop, onHeadersReceived: noop }, setPermissionRequestHandler: noop, clearCache: async () => {} } },
     globalShortcut: { register: () => true, unregisterAll: noop },
   };
+  /* ★[기하] 생성된 «모든» BrowserWindow. 테스트가 「무슨 옵션으로 만들었나」를 여기서 읽는다. */
+  stub.__windows = [];
+  stub.__display = null;
+  stub.__loadFileFails = null;
+
   const FAKE = {
     electron: stub,
     'electron-updater': { autoUpdater: { __on: [], on(ev) { this.__on.push(ev); }, checkForUpdates: async () => null, checkForUpdatesAndNotify: async () => null, setFeedURL: noop, downloadUpdate: async () => [], quitAndInstall: noop, logger: null, autoDownload: false, allowPrerelease: false, channel: null, currentVersion: { version: '0.0.0' } } },
@@ -81,13 +121,20 @@ function loadMain(opts) {
 
   require(path.join(__dirname, '../../main.js'));
 
-  const projectsDir = path.join(userData, 'projects');
+/* ⚠️★[뿌리-하네스] 이 하네스는 «비로그인» 픽스처를 쓴다 — 그래서 앱이 레거시 공용 풀에 앉고
+   여기서 이 경로를 조립하는 것이 «오늘은» 맞다. ⛔그러나 하네스에 «로그인»을 넣는 날
+   진짜 뿌리는 <userData>/accounts/<계정키>/projects 로 옮겨가므로 ★검사가 «빈 폴더»를 재게 된다
+   (초록인데 아무것도 안 잰 상태). 로그인을 넣을 땐 이 줄을 같이 옮겨라.
+   ⇒ 경고를 한 곳에만 적으면 다른 곳은 «없는 것»이 된다(지디 지적) — 그래서 여기에도 적는다. */
+  const projectsDir = path.join(userData, 'projects');  // [뿌리-하네스] 비로그인 픽스처 전용 — 위 경고 참조
   fs.mkdirSync(projectsDir, { recursive: true });
   return {
     userData, projectsDir, sent,
     /** electron-updater 의 autoUpdater 스텁. __on 에 등록된 이벤트가 쌓인다 = 「updater 가 무장됐나」. */
     updater: FAKE['electron-updater'].autoUpdater,
     trashDir: path.join(userData, '_Trash'),
+    /* ★앱 «휴지통 탭»(2026-09-08) — 기본 삭제는 이제 여기로 간다. OS 휴지통(_Trash)은 permanent 전용. */
+    appTrashDir: path.join(projectsDir, '.trash'),
     /* ★[H4] electron 스텁 «그 자체» — 테스트가 BrowserWindow.getAllWindows 등을 갈아끼운다. */
     stub,
     /** app.on/once 으로 등록된 «진짜» 핸들러(before-quit 등). */

@@ -28,19 +28,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSrc } from './_srcread.js';        // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
+import { sliceBlock } from './_slice-block.js';   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
 const SRC = readSrc(ROOT, 'js/overlay-handles.js');
 
-/** 최상위 함수를 «원문 그대로» 잘라낸다(0열 `}` 로 끝난다). */
-function sliceFn(head) {
-  const i = SRC.indexOf(head);
-  assert.ok(i >= 0, `${head} 를 못 찾음 — 검사가 옛 소스를 보고 있다`);
-  const end = SRC.indexOf('\n}\n', i);
-  assert.ok(end > i, `${head} 의 끝(0열 \`}\`)을 못 찾음`);
-  return SRC.slice(i, end + 3);
-}
+/** 최상위 함수를 «원문 그대로» 잘라낸다 — 끝은 «균형괄호»로 찾는다(0열 `}` 를 믿지 않는다). */
+const sliceFn = (head) => sliceBlock(SRC, head, '검사가 옛 소스를 보고 있다');
 /** `const NAME = <값>;` 한 줄을 원문에서 뽑는다 — 상수를 검사가 «베끼면» 갈라진다. */
 function sliceConst(name) {
   const m = SRC.match(new RegExp(`^const ${name}\\s*=\\s*[^;]+;`, 'm'));
@@ -187,7 +182,7 @@ test('U-M64-6 _rowContentEdge 는 «열을 전부» 훑는다 — 한 열만 보
 test('U-M64-7 ★호출부가 실제로 이 띠를 쓴다 — 순수함수만 고치고 «안 꽂으면» 아무것도 안 바뀐다', () => {
   const i = SRC.indexOf('function _updateGridGutterPositions() {');
   assert.ok(i >= 0, '_updateGridGutterPositions 를 못 찾음');
-  const body = SRC.slice(i, SRC.indexOf('\n}\n', i));
+  const body = sliceBlock(SRC, 'function _updateGridGutterPositions() {');
   const rowPart = body.slice(body.indexOf(`data-axis="row"`));
   assert.ok(/_rowGutterBand\(/.test(rowPart), '행 거터 갱신이 _rowGutterBand 를 «안 부른다»');
   assert.ok(/g\.style\.height\s*=\s*band\.height/.test(rowPart), '계산한 두께를 height 에 «안 쓴다»');

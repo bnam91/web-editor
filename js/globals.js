@@ -42,7 +42,10 @@ export const MARKET_ENABLED = false;
 window.MARKET_ENABLED = MARKET_ENABLED;
 
 /** ★킬스위치: Figma 연동 — 이번 MVP 에서 «제외»한다(현빈 2026-08-28).
- * false 면 아래가 «그려지지 않고», 브릿지 상태 조회·기동도 안 돈다:
+ * ⚠️★현빈 정정(index.html:1462) 뒤로 «그리기»는 안 막는다 — 「익스포트 패널에 일단 «보이는데»
+ *   클릭만 안되게 해주면 됐어」. ⇒ 화면 결과 = 「보인다. 흐릿하고(opacity .4), 눌러도 안 먹는다」.
+ *   ⛔이 줄이 한동안 「그려지지 않고」라고 «거짓»을 적고 있었다 — 그걸 믿고 「메뉴가 없겠거니」 하면 틀린다.
+ * false 면 아래가 «눌리지 않고»(capture 단계 차단), 브릿지 상태 조회·기동도 안 돈다:
  *   ⒜ Export 드롭다운의 Figma Bridge · Figma 업로드 · Figma 가져오기
  *   ⒝ Plugins 패널의 Figma Upload · Figma Import  (★Iconify 는 Figma 무관이라 «남긴다»)
  * ★메뉴만 감추고 뒤에서 도는 게 최악이라, 드롭다운 열 때 도는 initFigmaBridge 도 막는다.

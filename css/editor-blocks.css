@@ -130,7 +130,14 @@
      이 두 목록은 tests/unit/selection-overlay-scope.test.mjs 가 «검사로» 고정한다.
    overlay-tb 가 `!important` 라 우리도 `!important` — 이기는 건 특이성이다
    (body.sel-ov #canvas .selected = id1·class3·elem1 > .overlay-tb.selected = class2). */
-body.sel-ov #canvas .selected:not(.section-block):not(.col):not(.editing):not(.drag-over):not(.ss-drag-over):not(.pos-dragging):not(.bg-pos-dragging):not(.img-editing),
+/* ★insp-jump-flash 추가(2026-09-09) — «⒝ 갈래»의 교과서적인 예다.
+   인스펙터 통계 행으로 점프하면 도착한 블록에 .insp-jump-flash 가 붙는데,
+   그 블록이 «동시에» .selected 이면 여기서 색이 지워져 강조가 통째로 안 보였다.
+   실측(파테나 프로젝트·zoom 40%·클릭 12회): 대상이 선택돼 있으면 0/12,
+   선택 안 됐으면 11/12 — 즉 «선택된 블록으로 점프하면 100% 안 보인다».
+   .insp-jump-flash(특이성 0,1,0) 와 이 절(1,10,1) 이 둘 다 !important 라 특이성이 이긴다.
+   ⇒ 강조는 «선택의 선»이 아니라 «다른 상태의 표시»이므로 중화 대상이 아니다. */
+body.sel-ov #canvas .selected:not(.section-block):not(.col):not(.editing):not(.drag-over):not(.ss-drag-over):not(.pos-dragging):not(.bg-pos-dragging):not(.img-editing):not(.insp-jump-flash),
 body.sel-ov #canvas .row:has(> .text-block.selected),
 body.sel-ov #canvas .row:has(> .speech-bubble-block.selected),
 body.sel-ov #canvas .frame-block[data-text-frame="true"]:has(> .text-block.selected),
@@ -179,7 +186,16 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 }
 
 /* ── Asset Block corner radius handles (Figma 스타일) ── */
-.asset-radius-handle {
+/* ★`.mdl-radius-handle`(모달)를 «같은 규칙»에 얹는다 — 복사가 아니라 공유다.
+ *   ⛔클래스까지 «빌리면» hideAssetRadiusHandles() 의 일괄 remove 가 모달 핸들을 지운다
+ *     (아이콘 원형이 실제로 그렇게 물렸다 — 아래 .icb-overlay-handle 주석 참조). */
+/* ★`.zm-radius-handle`(확대블럭)도 «같은 규칙»에 얹는다 — 세 번째다. 복사가 아니라 공유.
+ *   ⛔클래스를 «빌리면» hideAssetRadiusHandles() 의 일괄 remove 가 확대블럭 핸들을 지운다.
+ *     이 레포는 그 함정을 이미 두 번 밟았다(아이콘원형 → .asset-overlay-handle,
+ *     확대블럭 리사이즈 → 같은 자리). js/overlay-handles.js 1827행 주석 참조. */
+.asset-radius-handle,
+.mdl-radius-handle,
+.zm-radius-handle {
   position: absolute;
   width:  7px;
   height: 7px;
@@ -192,7 +208,9 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   cursor: crosshair;
   transition: transform 0.1s;
 }
-.asset-radius-handle:hover {
+.asset-radius-handle:hover,
+.mdl-radius-handle:hover,
+.zm-radius-handle:hover {
   transform: scale(1.4);
   background: var(--sel-color);
 }
@@ -223,8 +241,16 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * 전엔 아이콘원형 핸들이 `.asset-overlay-handle` 클래스를 «빌려» 썼는데,
  * `hideAssetResizeHandles()` 가 오버레이의 `.asset-overlay-handle` 을 «전부» 쓸어담아 지운다.
  * 그래서 deselectAll() 한 번에 남의 정리가 이쪽 핸들을 지워버렸다(실측: 재클릭 시 1→0개). */
+/* ★`.zm-overlay-handle`(확대블럭)도 같은 규칙에 얹는다 — 아이콘원형과 «같은 이유»다.
+ * 확대블럭 핸들은 원래 `.asset-overlay-handle` 을 빌려 썼고, 그래서 deselectAll() 한 번에
+ * hideAssetResizeHandles() 가 같이 쓸어갔다(실측: 재클릭 시 4→0, 그 뒤로 영영 0). */
 .asset-overlay-handle,
-.icb-overlay-handle {
+.icb-overlay-handle,
+/* ★`.mdl-overlay-handle`(모달)도 같은 규칙에 얹는다 — 세 번째다.
+ * ⚠️이 목록은 앞으로도 «늘어난다». 그래서 검사는 목록의 «길이»를 못박지 않고
+ *   「셋이 그 규칙을 함께 쓰나」로 잰다(tests/unit/zoom-block.test.js ⓑ-26, 2026-09-08 지디 수정). */
+.zm-overlay-handle,
+.mdl-overlay-handle {
   position: absolute;
   width:  7px;
   height: 7px;
@@ -235,10 +261,31 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   pointer-events: auto;
   box-sizing: border-box;
 }
-.asset-overlay-handle.nw, .icb-overlay-handle.nw { cursor: nw-resize; }
-.asset-overlay-handle.ne, .icb-overlay-handle.ne { cursor: ne-resize; }
-.asset-overlay-handle.sw, .icb-overlay-handle.sw { cursor: sw-resize; }
-.asset-overlay-handle.se, .icb-overlay-handle.se { cursor: se-resize; }
+/* ★확대블럭의 모서리 핸들만 «보라» — 현빈 2026-09-08 「왜 핸들 모서리는 파란색이야
+   보라색으로 해야 되는 거 아냐? 다른 거처럼?」. 맞다: 아웃라인은 보라인데 핸들만 파랑이라
+   한 블록에 두 색이었다(모양을 재사용하느라 자산 계열 파랑이 딸려왔다).
+   ⛔.asset-overlay-handle «자체»를 보라로 바꾸면 자산 블록이 같이 물든다 ⇒ 계열 한정.
+   ★한정 수단 = overlay-handles.js 가 붙이는 data-zoom-resize-dir (확대블럭 핸들에만 있다). */
+/* ★한정자는 클래스가 `.zm-overlay-handle` 로 갈라진 뒤에도 «같이» 따라와야 한다 —
+   안 옮기면 확대블럭 핸들만 보라를 잃고 자산 계열 파랑으로 돌아간다.
+   data-zoom-resize-dir 는 그대로라 셀렉터 앞머리만 바꾼다. */
+.zm-overlay-handle[data-zoom-resize-dir] {
+  border-color: var(--ui-sel-overlay, #9966ff);
+}
+/* ★모서리 라운드 핸들도 «같이» 보라 — 안 맞추면 한 블록에 파랑·보라가 섞인다.
+   그게 현빈이 2026-09-08 에 지적한 바로 그 자리다(「왜 핸들 모서리는 파란색이야」).
+   ★한정자는 리사이즈와 같은 관용구 = overlay-handles.js 가 붙이는 data-zoom-radius-dir. */
+.zm-radius-handle[data-zoom-radius-dir] {
+  border-color: var(--ui-sel-overlay, #9966ff);
+}
+/* ★커서는 «손 목록»이라 새 블록이 생길 때마다 빠진다 — 실제로 모달이 빠져 있었다
+     (2026-09-09 현빈 실측: 「모달블럭 > 모서리 핸들 마우스 커서 모양 안 바뀜」).
+   ⚠️모양 규칙(:253)엔 얹혀 있는데 «커서만» 안 얹혀서, 손잡이는 보이는데 커서가 화살표 그대로였다.
+   ⇒ ★다음에 오버레이 손잡이를 가진 블록을 만들면 «여기도» 더해라. 검사가 이 짝을 못박는다. */
+.asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw, .mdl-overlay-handle.nw { cursor: nw-resize; }
+.asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne { cursor: ne-resize; }
+.asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw { cursor: sw-resize; }
+.asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se { cursor: se-resize; }
 
 /* ── Canvas Block overlay resize handles ── */
 .canvas-overlay-handle {
@@ -995,7 +1042,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 ═══════════════════════════════════ */
 .grid-block,
 .infocard-block,
-.innercard-block {
+.innercard-block,
+.modal-block {
   position: relative;
   width: 100%;
   cursor: pointer;
@@ -1004,10 +1052,28 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 }
 .grid-block:hover::after,
 .infocard-block:hover::after,
+.modal-block:hover::after,
 .innercard-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .grid-block.selected,
 .infocard-block.selected,
+.modal-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+
+/* ── MODAL BLOCK — 변형 6종 (현빈 발주 2026-09-08) ──
+   ★스타일 «값»은 여기 두지 않는다 — bg/radius/padding/border 는 dataset 이 진실이고
+     renderModalBlock 이 인라인으로 쓴다. 여기엔 «구조»만 둔다(레이아웃·슬롯). */
+.modal-block .tb-mdl-title { font-weight: 700; }
+.modal-block .tb-mdl-text,
+.modal-block .tb-mdl-title,
+.modal-block .tb-mdl-cell { outline: none; }
+.modal-block .mdl-icon { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+.modal-block .mdl-icon svg { display: block; width: 100%; height: 100%; }
+/* ★grid-2 칼럼은 «투명»이다(현빈 조정⑴) — 위치만 잡는 용도라 배경·테두리를 주지 않는다.
+   셀은 텍스트 전용이라 드롭존을 달지 않는다 → 모달 안에 모달이 생기지 않는다. */
+.modal-block .mdl-grid { width: 100%; }
+.modal-block .tb-mdl-cell { background: transparent; }
+/* 편집 중인 슬롯 — 텍스트 블록과 같은 관용구 */
+#canvas .modal-block [data-mdl-slot][contenteditable="true"] { cursor: text; }
 
 /* ── 그리드 캔버스 인라인 편집 (P1.5) ──
    ⛔여기서 «어느 줄이 편집 가능한가»를 판정하지 않는다 — 그 판정은 js/block-drag.js 의
@@ -1030,6 +1096,21 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   outline-offset: calc(-1 * var(--sel-outline-w));
   background: var(--sel-color-fill);
   cursor: text;
+}
+
+/* ── 줄(line) 선택 표시 — 「지금 우측 패널이 보고 있는 줄」 ──────────────
+   ★그리드엔 이미 선택 표시가 셋이다: 블록=실선(:1034) · 칸=점선(--sel-color-hover) ·
+     줄 편집중=실선+틴트(위 규칙). 넷째를 «겹치지 않게» 넣어야 한다 ⇒ 왼쪽 세로 강조바.
+   ★⛔outline 을 쓰지 않는다 — [M51] 이 정확히 그 자리에서 물렸다(「튀어나가잖아」).
+     .grd-inner padding 0 · 첫 칸 left == 블록 left 라 바깥 offset 은 블록 밖으로 나간다.
+     inset box-shadow 는 요소 «안»만 칠하므로 그 함정이 원리적으로 없다.
+   ★--inv-zoom 을 곱해 «줌 불변» — [M56] 교훈(생짜 1px 은 10%에서 0.1px, 400%에서 4px).
+   ★#canvas 스코프 = export 클론엔 안 샌다. 그래도 클래스는 6자리에서 «따로» 벗긴다
+     (스코프는 그림만 막고, 클래스 글자는 저장본·HTML 에 남기 때문).
+   ⛔.selected 를 재활용하지 않았다 — editor.js 의 querySelectorAll('.selected') 범용 조회가
+     그걸 보고 _sectionOnlySelection() 이 항상 false 가 된다(⌘M 섹션 합치기가 조용히 죽는다). */
+#canvas .grid-block .grd-line-selected {
+  box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
 }
 
 /* ── [M52] 칼럼 경계 가이드 ──────────────────────────────────────────
@@ -1303,6 +1384,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .frame-block:not(.selected) .grid-block:hover::after,
 .frame-block:not(.selected) .infocard-block:hover::after,
 .frame-block:not(.selected) .innercard-block:hover::after,
+.frame-block:not(.selected) .modal-block:hover::after,
 .frame-block:not(.selected) .label-group-block:hover::after,
 .frame-block:not(.selected) .shape-block:hover::after,
 /* L1(2026-09-05): 위 11종만 있고 아래 10종이 빠져 있었다 — 「미선택 프레임 안 hover 억제」
@@ -1747,6 +1829,139 @@ textarea.cvb-card-input {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));
 }
+
+/* ── Zoom Block (확대블럭) — ★스티커 계열(플로팅) ─────────────────────────
+   현빈 2026-09-08 「스티커 블럭인데 왜 블럭 안에 있어? 플로팅되어야 되는 거 아냐?」
+   ⛔예전엔 행(row) 안에 흐름으로 들어가 position:relative + width:100% 였다. 그 탓에
+     블록 상자가 «행 전체 폭»이라 선택 아웃라인이 도형과 상관없는 네모로 떴다.
+   ⇒ 섹션 직접 자식 + absolute (css/editor-blocks.css 의 .sticker-block 과 같은 어휘).
+     위치·크기·모서리는 renderZoomBlock 이 인라인으로 쓴다(스티커의 cssText 관례와 동일).
+   ★블록 상자 = 도형(+테두리) 상자다 ⇒ 선택 오버레이가 이 상자의 border-radius 를 읽어
+     «원이면 원»으로 그린다. 보조 선택상자가 필요 없다.
+   ★그림자는 블록 «밖»으로 삐져나간다(overflow 는 자르지 않는다). 플로팅이라 아무것도 안 밀린다. */
+.zoom-block {
+  position: absolute;
+  box-sizing: border-box;
+  /* 이제 끌어서 옮긴다(스티커와 같은 규약) — 커서도 그렇게 말해야 한다. */
+  cursor: move;
+  user-select: none;
+  /* ★z-순서 — 현빈 2026-09-08 「가장 위에 플로팅되게. 하이라이트 스티커가 레이어 밑으로
+     가는 건 되지만 이건 내려가면 안 돼」.
+     실측한 이웃(전수):
+       1   하이라이트 스티커 (sticker-block.js:155 — 일부러 텍스트 아래)
+       8   .section-hitzone            (editor-extra.css:1364)
+       55  일반 스티커                 (sticker-block.js:226·249·372·385 — ★리터럴 넷)
+       90  섹션 «선택 선» ::after      (editor-canvas.css — 툴바 아래로 일부러 낮춤)
+       200 .section-toolbar            (editor-layout.css:43)
+     ⇒ 55 < 60 < 200. 툴바를 덮지 않고, 섹션 선택 선(90)도 안 가린다.
+       그 둘은 «블록»이 아니라 섹션 UI 라 확대블럭이 덮으면 안 된다.
+     ⛔JS 렌더 cssText 에 리터럴로 흩뿌리지 않는다 — 스티커의 55 가 그렇게 넷으로 흩어져
+       «같은 자리»가 없다. 확대블럭은 여기 «한 자리»에 둔다.
+       순서 불변식은 검사 ⓑ-24 가 실제 숫자를 읽어 못박는다. */
+  z-index: 60;
+}
+.zoom-block .zoom-clip,
+.zoom-block .zoom-svg,
+.zoom-block .zoom-bg,
+.zoom-block .zoom-handle-layer {
+  position: absolute;
+  pointer-events: none;
+}
+/* 그리는 것 전부를 담는 층 = SVG 상자. 여기에만 «섹션 밖 크롭»이 걸린다(위 규칙). */
+.zoom-block .zoom-clip { left: 0; top: 0; }
+.zoom-block .zoom-svg,
+.zoom-block .zoom-handle-layer { left: 0; top: 0; }
+.zoom-block .zoom-svg { display: block; overflow: visible; }
+/* ★도형 배경 = 체크패턴(투명 표시용 placeholder). 「다른 이미지에셋 들어갈 때처럼」이 명세라
+   .icb-circle 이 쓰는 «그 값 그대로» 재사용한다 — 무늬 정본을 둘로 만들지 않는다.
+   ⚠️전례 주석의 사고를 그대로 물려받는다: 이미지가 들어오면 체크를 «없애야» 한다.
+     투명 SVG 의 투명부로 체크가 비쳐 Export PNG 에까지 박혔던 버그(현빈).
+     ⇒ 확대블럭은 «아직 이미지 입력이 없다». 생기면 .icon-circle-block.has-image 전례대로
+       `.zoom-block.has-image .zoom-bg { background-image: none; }` 를 여기에 더해라. */
+.zoom-block .zoom-bg {
+  background:
+    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+  /* ★이미지를 «도형 모양»으로 자르는 자리 — 블록이 아니라 «여기»가 자른다.
+     블록은 그림자가 나가야 해서 안 자른다(자르면 그림자까지 잘린다). */
+  overflow: hidden;
+}
+/* ★㉒ 이미지가 들어오면 체크무늬를 «없앤다» — .icon-circle-block.has-image 전례 그대로.
+   투명 SVG·PNG 의 투명부로 체크가 비쳐 Export PNG 에까지 박히던 버그(현빈). */
+.zoom-block.has-image .zoom-bg { background-image: none; }
+.zoom-block .zoom-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;   /* 클릭·드래그는 블록이 그대로 받는다 */
+}
+/* a·b 핸들 — 선택했을 때만 보이고 잡힌다. */
+/* ★a·b 앵커 — 어도비 일러스트 관례(현빈 2026-09-08 + 첨부 그림):
+     안 집힌 것 = «흰 채움» + 색 테두리 · 집힌 것 = «색 채움» + 같은 테두리.
+   ⛔예전엔 반대였다(색 채움 + 흰 테두리) — 그래서 「집었다」가 안 보였다.
+
+   ★★그 «색» 은 보라다 — 현빈 2026-09-08 「a,b점의 핸들이 파란색인데 같은 보라색으로 맞춰줄것」.
+   ⛔앞서 이 자리엔 「앵커=파랑(일러스트 관례) · 모서리=보라」로 적혀 있었다. 그 판단을 현빈이 되돌렸다.
+     이유는 그 주석이 스스로 적고 있었다 — «같은 블록 안»의 리사이즈 핸들([data-zoom-resize-dir])이
+     이미 --ui-sel-overlay(보라)라, 앵커만 파랑이면 «한 블록에 핸들 색이 둘»이 된다.
+   ⇒ 둘을 하나로 묶는다. ⛔리터럴 #9966ff 를 쓰지 마라 — 토큰이 정본이다. */
+.zoom-block .zoom-handle {
+  fill: #fff;
+  stroke: var(--ui-sel-overlay);
+  stroke-width: 1.5;
+  opacity: 0;
+  pointer-events: none;
+  cursor: grab;
+}
+.zoom-block .zoom-handle[data-picked="true"] { fill: var(--ui-sel-overlay); }
+
+/* ★★빛 손잡이(L) 는 «빨강» — 현빈 승인 2026-09-09. 손잡이가 셋이 되면서 갈래가 둘이 됐다:
+     빨강 L = 「짧은 변을 통째로 옮긴다」(= 방향°·길이 슬라이더가 하던 일)
+     보라 a·b = 「각자 벌린다」
+   ⇒ 하는 일이 다르면 색도 달라야 한다. 같은 보라로 두면 셋이 «같은 것 셋»으로 읽힌다.
+   ⛔리터럴 hex 를 쓰지 마라 — 이 레포의 빨강 정본은 --ui-danger(editor-base.css) 하나다.
+     뜻이 「위험」이라 이름은 안 맞지만, 두 번째 빨강을 만들면 색이 조용히 갈라진다.
+     (같은 판단을 앵커 색에서 이미 한 번 했다 — 바로 위 주석의 「토큰이 정본이다」)
+   ★채움 규약은 a·b 와 «똑같다» — 안 집힌 것 = 흰 채움, 집힌 것 = 제 색 채움. */
+.zoom-block .zoom-handle[data-pt="L"] { stroke: var(--ui-danger, #e06c6c); }
+.zoom-block .zoom-handle[data-pt="L"][data-picked="true"] { fill: var(--ui-danger, #e06c6c); }
+
+/* ★★도형 그림자(드롭섀도) — 광원(data-shadow)과 «다른 키»(data-drop-shadow)다.
+     data-shadow     = 'on'|'off'            → 돋보기 광원 사다리꼴(SVG 폴리곤)
+     data-drop-shadow= 'none'|'soft'|'strong'→ 도형 «자체»의 그림자(여기)
+
+   ⛔`box-shadow` 를 쓰면 «안 된다». 실측(회전 30°, rect 260×140):
+     블록 상자는 «축정렬 정사각 + border-radius 0» 인데(회전은 CSS transform 이 아니라
+     data-rotation 이고 도형만 SVG 안에서 돈다) box-shadow 는 «그 블록 상자»를 따른다
+     ⇒ 돌아간 도형 뒤에 «네모 그림자»가 어긋난 채 뜬다. 스크린샷으로 확인했다.
+   ⇒ 알파를 따라가는 `filter: drop-shadow` 로 간다. 선례 = js/blocks/mockup-block.js:296.
+     값도 그 표를 «그대로» 빌렸다(none/soft/strong — 단계 이름까지).
+
+   ★★거는 자리가 «블록»이 아니라 `.zoom-clip` 인 이유 — 둘 다 재고 골랐다:
+     ① 블록에 걸면 필터가 «선택 아웃라인»(3px 보라)까지 먹는다 — 실측 확인.
+        .zoom-clip 에 걸면 아웃라인은 필터 «밖»이라 또렷하게 남는다.
+     ② 렌더 순서가 filter → clip-path 라, 같은 층에 걸면 «섹션 밖 크롭»이 그림자까지
+        같이 자른다(도형은 잘렸는데 그림자만 새어 나가는 일이 없다).
+        블록에 걸면 자식이 먼저 잘린 뒤 그림자가 생겨 섹션 밖으로 «샌다».
+   ⛔인라인 style 로는 못 건다 — renderZoomBlock 이 block.style.cssText 를 통째로 다시 쓴다.
+     그래서 attribute 를 운반체로 쓰고 «칠하는 일은 여기가» 한다. */
+.zoom-block[data-drop-shadow="soft"]   > .zoom-clip { filter: drop-shadow(0 20px 60px rgba(0, 0, 0, 0.25)); }
+.zoom-block[data-drop-shadow="strong"] > .zoom-clip { filter: drop-shadow(0 30px 80px rgba(0, 0, 0, 0.55)); }
+.zoom-block.selected .zoom-handle-layer { pointer-events: auto; }
+.zoom-block.selected .zoom-handle { opacity: 1; pointer-events: auto; }
+/* ★확대블럭 = «스티커 계열»이라 보라다(현빈 「보라색 테두리로 되어야 되는데」).
+   ⇒ .sticker-block.selected 와 «같은 토큰»(--ui-sel-overlay). 새 색을 만들지 않는다.
+   ★이 아웃라인은 «사각 폴백»이다 — 오버레이 층이 살아 있으면(body.sel-ov) 색이 transparent 로
+     중화되고, 모양을 따라가는 보라 path 는 «블록 상자 + border-radius»를 읽어 오버레이가 그린다. */
+.zoom-block:hover {
+  outline: 1px dashed var(--ui-sel-overlay, #9966ff);
+  outline-offset: -1px;
+}
+.zoom-block.selected {
+  outline: var(--sel-outline-w) solid var(--ui-sel-overlay, #9966ff);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
+
 .chb-msg {
   display: flex;
   width: 100%;
@@ -2638,15 +2853,21 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
    미리보기/Export 클론에도 인라인 변수가 그대로 복제되어 동일하게 잘림.
 ────────────────────────────────────────────── */
 .sticker-block,
-.mockup-block {
+.mockup-block,
+/* ★확대블럭은 «블록»이 아니라 «그리는 층»(.zoom-clip)에 건다 — 블록 상자는 도형이라
+   거기 걸면 ①평상시엔 값이 0 이라 안 잘리고 ②잘리는 순간 그림자가 도형에서 끊긴다.
+   근거·수치는 js/blocks/zoom-geometry.js 의 buildZoomInner 주석. */
+.zoom-block > .zoom-clip {
   clip-path: var(--sec-clip, none);
 }
 .sticker-block.selected,
-.mockup-block.selected {
+.mockup-block.selected,
+.zoom-block.selected > .zoom-clip {
   clip-path: none;
 }
 .section-block[data-overflow-visible="true"] .sticker-block,
-.section-block[data-overflow-visible="true"] .mockup-block {
+.section-block[data-overflow-visible="true"] .mockup-block,
+.section-block[data-overflow-visible="true"] .zoom-block > .zoom-clip {
   clip-path: none;
 }
 

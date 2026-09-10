@@ -11,8 +11,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // [U7] 삭제 = «휴지통으로 이동»이 기본. permanent:true 는 휴지통이 실패해 사용자가 «2차 확인으로 선택»했을 때만.
   //   반환은 { ok, trashed, reason } — 「지웠나」와 「휴지통이냐 영구냐」를 구분한다(구 boolean 은 못 나눴다).
   deleteProject:  (id, opts) => ipcRenderer.invoke('projects:delete', id, opts || {}),
+  /* 앱 «휴지통 탭» (2026-09-08) — 삭제는 여기로 가고 30일 뒤 OS 휴지통으로 넘어간다 */
+  trashList:      ()        => ipcRenderer.invoke('trash:list'),
+  trashRestore:   (id)      => ipcRenderer.invoke('trash:restore', id),
+  trashPurge:     (id)      => ipcRenderer.invoke('trash:purge', id),
   duplicateProject: ({ sourceProjectId, newName }) =>
     ipcRenderer.invoke('projects:duplicate', { sourceProjectId, newName }),
+
+  /* ★입양 고지 — 「이 기계에 있던 N개를 이 계정으로 옮겼습니다」를 «화면»까지 올린다.
+     ⛔preload 는 화이트리스트다. 여기 안 적으면 main 에 핸들러가 있어도 렌더러가 «못 부른다»
+       = adopted.json 과 똑같이 사용자에게 안 닿는다. 그게 이 고지를 만든 이유였다.
+     peek = 안 지우고 들여다본다 · ack = 「봤다」를 파일에 적는다(재시작을 견딘다).
+     ⇒ UI 는 지디가 붙인다. 여기까지가 신호다. */
+  peekAdoptionNotice: () => ipcRenderer.invoke('projects:peekAdoptionNotice'),
+  ackAdoptionNotice:  () => ipcRenderer.invoke('projects:ackAdoptionNotice'),
 
   // SVG Presets (사용자 자산 — 모든 프로젝트 공유)
   svgPresets: {
@@ -41,6 +53,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadTemplateCanvas:  (id)       => ipcRenderer.invoke('templates:load-canvas', id),
   saveTemplateCanvas:  (id, html) => ipcRenderer.invoke('templates:save-canvas', id, html),
   deleteTemplateCanvas:(id)       => ipcRenderer.invoke('templates:delete-canvas', id),
+  getTemplateRootState:()         => ipcRenderer.invoke('templates:root-state'),
+  /* ★geom = 렌더러가 «지금» 잰 #tpl-browser 의 {width,height,x,y}(화면 좌표).
+     ⛔여기서 해석·보정하지 마라 — 통과만 시킨다. 판단(클램프·화면 가두기)은 main 이 한다.
+       preload 는 «믿을 수 없는 렌더러»와 같은 편에 있어서 여기서 검사해 봐야 안전선이 못 된다. */
+  openTemplateWindow:  (geom)     => ipcRenderer.invoke('templates:open-window', geom),
+  // 팝아웃 창 → 편집기 창 (삽입 위임 · 패널 복구).
+  // ★결과를 «받아야» 하므로 main 이 executeJavaScript 로 편집기의 window.__tplEditorCommand 를 부른다.
+  //   단방향 send 였을 때 팝아웃이 「보냈다」를 「넣었다」로 말하는 거짓 성공이 났다.
+  insertTemplateInMain:(id)       => ipcRenderer.invoke('templates:insert-in-main', id),
+  restoreTemplatePanel:()         => ipcRenderer.invoke('templates:restore-panel'),
 
   // Figma Upload
   figmaUpload:       (channel, designJSON) => ipcRenderer.invoke('figma:upload', { channel, designJSON }),
@@ -150,6 +172,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings:  ()              => ipcRenderer.invoke('settings:get'),
   setSettings:  (patch)         => ipcRenderer.invoke('settings:set', patch),
   testApiKey:   (provider, key) => ipcRenderer.invoke('settings:test-key', provider, key),
+  /* ★키 «값»은 넘기지 않는다 — 있는지(boolean)만. 렌더러에 키가 흘러갈 이유가 없다. */
+  hasApiKey:    (provider)      => ipcRenderer.invoke('settings:has-key', provider),
+  /* remove.bg 누끼 — 렌더러는 CSP 로 외부 fetch 가 막혀 있어 main 이 대신 부른다. */
+  removebgCutout: ({ b64, mime }) => ipcRenderer.invoke('removebg:cutout', { b64, mime }),
 
   // ── [Unit B] 버그·피드백 신고 ──
   //   ★sessionToken 은 «메인»이 붙인다(여기로 안 나온다). 렌더러는 내용·이미지만 넘긴다.
@@ -230,10 +256,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   spawnClaudeTerminal:  (folderPath)             => ipcRenderer.invoke('claudePM:spawnClaudeTerminal', { folderPath }),
   pingClaudePM:         ()                       => ipcRenderer.invoke('claudePM:pingMcp'),
   getMcpInfo:           ()                       => ipcRenderer.invoke('claudePM:getMcpInfo').catch(() => null),
-  // ⚠️실측(08-15): 이걸 «부르는 렌더러 코드가 없다». 그래서 global.currentActiveProjectId는
-  //   늘 null이었고 read_project·read_section·duplicate_project가 항상 죽었다.
-  //   지금은 mcp-server의 _activeProjectId()가 편집기 창 URL을 폴백으로 읽어 살려뒀다.
-  //   여길 실제로 부르게 만들면 그 폴백보다 우선한다.
+  // ★2026-09-07 갱신 — 옛 주석(08-15)은 「이걸 부르는 렌더러 코드가 없다」였는데 «지금은 부른다».
+  //   부르는 자리: js/claude-pm/active-project-sync.js (index.html:1423 에서 싣는다).
+  //   확인법: 프로젝트를 열고 delete_project 로 지웠을 때 응답 activeCleared 가 true 면
+  //   global.currentActiveProjectId 가 채워져 있었다는 뜻이다(실측 true).
+  //   창 URL 폴백은 «여전히» 남겨 둔다 — 이게 아직 안 왔을 때를 받는다.
   setClaudePMActiveProject: (projectId)          => ipcRenderer.invoke('claudePM:setActiveProject', { projectId }),
   // 자동 PM 폴더 보장 — 신규 프로젝트 생성 직후 + 기존 프로젝트 활성화 시 호출
   ensureClaudePMFolder: ({ projectId, projectName, basePath } = {}) =>

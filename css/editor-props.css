@@ -22,6 +22,14 @@
 .prop-toggle-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; row-gap: 6px; margin-bottom: 6px; }
 .prop-toggle-grid .prop-row { margin-bottom: 0; min-width: 0; }
 .prop-label { font-size: var(--ui-fs-base); color: var(--ui-text-muted, #6b6b6b); width: 56px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ★한정 라벨 — 한 줄에 «라벨 두 개»가 들어가는 줄에서만 쓴다 (Grid 절의 칼럼+거터).
+   ⛔전역 .prop-label 의 56px 을 내리지 마라 — 「배경색」·「테두리」 같은 긴 라벨이 «전 패널에서» 잘린다.
+   28px 은 두 글자(칼럼·거터)가 들어가는 실측 하한이고, 34px 은 그 줄의 여유를 0 으로 만든다. */
+.prop-label--narrow { width: 28px; }
+/* ★내용폭 라벨 — 「그리드 가이드」처럼 56px 를 넘는 말이 «잘리지» 않게. (2026-09-09 실측: sw60/w56)
+   ⛔전역 .prop-label(56px)은 안 건드린다 — 그 고정폭이 패널의 «세로 정렬»을 만든다.
+     이 변형은 «라벨 하나 + 남는 폭을 다 쓰는 컨트롤» 인 줄에서만 쓴다. */
+.prop-label--auto { width: auto; flex: 0 0 auto; }
 .prop-field-label { font-size: var(--ui-fs-10); color: var(--ui-text-muted, #6b6b6b); margin-bottom: 4px; display: block; }
 
 /* 아이콘 prefix 인풋 (피그마 스타일 — LH/LS 등) */
@@ -229,6 +237,34 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
 }
+/* ★#page-grid-col-presets «만» 예외 — 공용 3칸 그리드가 여기선 «깨진다».
+     실측(240px 패널, 격리 인스턴스): 그 줄의 나머지가 전부 flex-shrink:0 이라
+     그룹 몫이 51px 인데, repeat(3,1fr) 은 칸을 14.3px 로 쪼갠다. 버튼은 «둘»뿐인데 칸이 «셋»이다.
+     ⇒ 버튼이 칸 밖으로 밀려 [6]↔[12] 가 ★1.3px 겹치고, 빈 3번째 칸에 18.3px 가 죽는다.
+     ⇒ flex + 내용폭으로 바꾸면 겹침 0 · 그룹 47.7px(여유 3.3px). 실측으로 갈랐다.
+   ⛔공용 규칙(:has(.prop-preset-btn))은 «건드리지 마라» — prop-asset.js 가 프리셋 «6개»를
+     3칸 두 줄로 쓴다. 그게 그 규칙이 있는 이유다. 여기만 좁힌다. */
+#page-grid-col-presets.prop-type-group:has(.prop-preset-btn) {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 0;
+}
+#page-grid-col-presets .prop-preset-btn.prop-type-btn { flex: 0 0 auto; min-width: 0; }
+/* ★★이 그룹은 «떨어뜨려» 둔다(위 gap:4px) — 그런데 .prop-type-btn 의 «이어 붙은 버튼» 규칙이
+     같이 걸려 «왼쪽 테두리를 지우고» 모서리를 반쪽으로 만든다(:first/:last-child 규칙).
+     2026-09-09 현빈 실측 + 픽셀 확인: 「12」(마지막 버튼·active)가 테두리 «1/1/1/0» 이었다 —
+       파란 테두리가 왼쪽만 «뚫려» 보였다. 6 은 1/1/1/1 로 멀쩡했다(그래서 눈에 덜 띄었다).
+   ⇒ 이 그룹 «안에서만» 되돌린다. ⛔공용 .prop-type-btn 규칙은 안 건드린다 — 진짜로 이어 붙은
+     세그먼트 컨트롤(타이포 H1/H2/H3 …)이 그 규칙으로 산다. */
+#page-grid-col-presets .prop-preset-btn.prop-type-btn,
+#page-grid-col-presets .prop-preset-btn.prop-type-btn:first-child,
+#page-grid-col-presets .prop-preset-btn.prop-type-btn:last-child,
+#page-grid-col-presets .prop-preset-btn.prop-type-btn:not(:first-child):not(:last-child) {
+  border-left-width: 1px;
+  border-left-style: solid;
+  border-radius: 4px;
+}
+
 .prop-type-group:has(.prop-preset-btn) .prop-preset-btn.prop-type-btn {
   flex-direction: row;
   align-items: center;
@@ -494,6 +530,24 @@
   transition: background 0.15s, border-color 0.15s;
 }
 .prop-btn-full:hover { background: var(--ui-bg-card); border-color: var(--ui-divider); }
+/* ★:disabled 가 없으면 «비활성인데 눌릴 것처럼» 보인다 — .prop-btn:disabled(488) 관례 그대로. */
+.prop-btn-full:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.prop-btn-full:disabled:hover { background: var(--ui-bg-app); border-color: var(--ui-border-strong); }
+/* ★그리드 절이 「꺼짐」일 때 줄은 그대로 보이고 조작만 잠근다(js/props/prop-page.js syncGridDisabled).
+   :disabled 표시가 없으면 «비활성인데 눌릴 것처럼» 보인다 — .prop-btn:disabled(488) 관례 그대로,
+   새 색·새 값은 쓰지 않고 각자의 기본 선언을 되돌려 hover 반응만 죽인다. */
+.prop-number:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.prop-number:disabled:hover { border-color: transparent; }
+.prop-slider:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.prop-type-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.prop-type-btn:disabled:hover { border-color: var(--ui-border-mid); color: var(--ui-text-dim); }
+.prop-preset-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.prop-preset-group .prop-preset-btn:disabled:hover { background: var(--ui-bg-app); border-color: var(--ui-border); }
+/* ★프리셋 «과» 직접입력이 한 줄에 섞이면 셋이 똑같은 회색 칸으로 읽힌다(240px 실측).
+   테두리·글자색은 이미 다르지만(버튼 --ui-border-mid/dim, 입력칸 transparent/밝은 글자) 1x 에선 약하다.
+   ⇒ 직접입력 칸을 «다른 줄의 숫자칸과 같은 세로줄»(행 오른쪽 끝)로 민다. 프리셋과 사이가 벌어져
+     [6][12] 는 한 덩어리, 입력칸은 「내가 치는 값」으로 갈린다. 새 색·새 클래스 0건 — 자리만 옮긴다. */
+.prop-row > .prop-type-group + .prop-number { margin-left: auto; }
 .prop-btn-sm {
   height: 24px; padding: 0 8px;
   background: var(--ui-bg-app); border: 1px solid var(--ui-border-strong);
@@ -854,3 +908,16 @@
 .prop-input:hover  { border-color: var(--ui-border-mid); }
 .prop-input:focus  { border-color: var(--ui-accent-primary); }
 .prop-input::placeholder { color: var(--ui-text-dim); }
+
+/* ── 확대블럭(zoom) 라디오 — 그림자 켬/끔 · 테두리 켬/끔 ────────────────────
+   ⛔체크박스가 아니라 «라디오»다(현빈 2026-09-08 명시). 두 상태 중 «하나»를 고르는 것이라
+     체크박스로 두면 「끔」이 상태가 아니라 「안 누른 것」으로 읽힌다.
+   ★새 색을 만들지 않는다 — 패널 공용 토큰만 쓴다. */
+.prop-radio-group { display: flex; gap: 12px; align-items: center; flex: 1; }
+.prop-radio {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--ui-fs-base); color: var(--ui-text-muted, #6b6b6b);
+  cursor: pointer; user-select: none;
+}
+.prop-radio input[type="radio"] { accent-color: var(--sel-color); margin: 0; cursor: pointer; }
+.prop-radio:has(input[type="radio"]:checked) { color: var(--ui-text, #e6e6e6); }

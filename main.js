@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net: electronNet } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net: electronNet, screen: electronScreen } = require('electron');
 
 // ── 캔버스 이미지 외부화: 커스텀 프로토콜 goya-asset://<projectId>/<filename> ──
 // 캔버스 HTML에 박히던 인라인 base64를 proj_<id>/assets/<contenthash>.<ext>로 분리하고,
@@ -101,9 +101,9 @@ const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
-const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle, handleEnsureClaudePMFolder } = require('./main/claude-pm/ipc');
+const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle, handleEnsureClaudePMFolder, setPmProjectsRoot } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
-const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
+const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, setAuthProbe: setMcpAuthProbe, setProjectsRoot: setMcpProjectsRoot, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
 // Unit B — MCP 접속 토큰(메모리 보관, 화면표시/IPC용). 파일/레포 저장 금지.
 let currentMcpToken = null;
 
@@ -125,6 +125,11 @@ const DEFAULT_SETTINGS = {
   // [externalize] 프로젝트를 «열 때» 레거시 base64 이미지를 goya-asset 에셋으로 일괄 외부화(기본 OFF).
   // 기본값 ON 전환은 리허설 통과 후 현빈 G2 게이트(DESIGN-asset-batch-externalize.md §3-3).
   autoExternalizeOnOpen: false,
+  // [#16] 스크래치패드↔섹션 «연결선» 표시(기본 ON = 지금까지의 동작 그대로).
+  //   ⚠️기본값을 true 로 두는 이유 — 이 키가 «없는» 기존 사용자는 readSettings 의
+  //     `{...DEFAULT_SETTINGS, ...raw}` 로 여기 값을 받는다. false 로 두면 업데이트만 해도
+  //     선이 «말없이 사라진» 것처럼 보인다. 「없다」를 「지워졌다」로 읽히게 하지 않는다.
+  showScratchLinkEdges: true,
   apiKeys: { openai: '', gemini: '', anthropic: '' },
   shortcuts: {
     addGap:       'KeyG',
@@ -192,6 +197,8 @@ function getApiKey(provider) {
   if (provider === 'openai')    return process.env.OPENAI_API_KEY_GODITOR || process.env.OPENAI_API_KEY || '';
   if (provider === 'gemini')    return process.env.GEMINI_API_KEY || '';
   if (provider === 'anthropic') return process.env.ANTHROPIC_API_KEY || '';
+  /* ★removebg 는 env 폴백을 «두지 않는다» — 개발기 .env 로 조용히 도는 순간
+     「배포하면 각자 키를 쓴다」가 개발기에서만 안 지켜진다(그 착시가 이번 발주의 발단이었다). */
   return '';
 }
 async function testApiKey(provider, key) {
@@ -216,6 +223,11 @@ async function testApiKey(provider, key) {
         body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
       });
       return { ok: r.status === 200, status: r.status, error: r.status === 200 ? null : `Anthropic key invalid (HTTP ${r.status})` };
+    }
+    if (provider === 'removebg') {
+      // 계정 조회로 «키가 유효한가»만 본다 — 이미지 전송 없음 = 과금 없음.
+      const r = await fetch('https://api.remove.bg/v1.0/account', { headers: { 'X-Api-Key': key } });
+      return { ok: r.status === 200, status: r.status, error: r.status === 200 ? null : `remove.bg key invalid (HTTP ${r.status})` };
     }
     return { ok: false, error: 'unknown provider' };
   } catch (e) {
@@ -351,6 +363,16 @@ function createWindow() {
   ipcMain.handle('app:git-branch', () => getGitBranch());
   ipcMain.handle('app:is-admin', () => isAdminAuthorized());
   ipcMain.handle('app:debug-port', () => {
+    /* ★배포본·main 에는 «값 자체»를 안 준다
+     *   (현빈 지시 2026-09-07: 「admin 아니어도 되게 / 앱 배포나 메인브랜치에서만 안 보이면 돼」).
+     * ⛔왜 여기냐 — 이전 판은 «렌더러의 표시 조건»(index.html 의 isAdmin 게이트)으로만 막았다.
+     *   표시 조건은 화면을 손대는 사람이 언제든 바꾼다. 그러면 «조용히» 열린다.
+     *   값이 안 나가면 화면 코드가 무엇을 하든 못 그린다 — 검사가 아니라 «구조»로 닫는다.
+     * ⚠️그리고 이 줄은 «우연에 기대지 않겠다»는 뜻이다: 오늘 기준 배포본은 CDP 를 스스로 안 켜니
+     *   argv 에도 없어서 어차피 null 이다. 하지만 「오늘 argv 에 없다」는 «안전장치»가 아니다.
+     *   포장 여부를 직접 물어야 다음에 누가 CDP 를 켜도 이 창구는 닫혀 있다. */
+    if (app.isPackaged) return null;
+    if (getGitBranch() === 'main') return null;   // ★main = 배포 상태. 거기선 안 보인다
     const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
     return a ? a.split('=')[1] : null;
   });
@@ -371,6 +393,9 @@ function createWindow() {
   // Claude PM (feature/claude-pm Phase 2) — pickDirectory / createFolder / openInFinder / spawnClaudeTerminal / pingMcp
   // GAP-010: 강력 권한 IPC(터미널/spawn/folder)는 isAdminAuthorized 게이팅(배포 렌더러발 RCE 차단).
   registerClaudePMIPC(ipcMain, () => isAdminAuthorized());
+  // ★PM 폴더도 «계정별 프로젝트 뿌리»를 따라가야 한다(경로 조립기가 둘이 되면 어긋난다).
+  try { setPmProjectsRoot(() => PROJECTS_DIR); }
+  catch (e) { console.error('[projects] ★PM 폴더 뿌리 주입 실패 — PM 폴더가 안 만들어진다:', (e && e.message) || e); }
 
   // Claude PM (Phase 3 F8) — 내부 터미널 패널 PTY 백엔드
   registerTerminalIPC(ipcMain, () => isAdminAuthorized());
@@ -467,6 +492,21 @@ function readAuth() {
     return null;
   }
 }
+/* ★readAuth 는 「없다」·「손상됐다」·「우리 레코드가 아니다」를 «전부 null» 로 뭉갠다.
+     그건 «로그인 판정»에는 맞다(셋 다 「로그인 아님」이니까). 그런데 «프로젝트 뿌리»를
+     정할 땐 다르다 — 「손상」을 「비로그인」으로 읽으면 ★레거시 공용 풀로 내려가고,
+     거기 쌓인 것이 나중에 다른 계정 첫 로그인 때 입양돼 «A 것이 B 에게» 간다.
+   ⇒ 그래서 «가르는» 함수를 따로 둔다. ⛔readAuth 자체는 안 건드린다 — 자격증명 SSOT 라
+     건드리는 값이 크고, 그 함수의 계약(「로그인 아님이면 null」)은 지금 그대로가 맞다.
+   반환: null = «진짜 파일 없음»(로그아웃) · 객체 = 읽힘 · throw = «못 읽었다»(손상 등) */
+function readAuthOrThrow() {
+  const p = getAuthPath();
+  if (!fs.existsSync(p)) return null;              // ★여기만 「진짜 비로그인」이다
+  const raw = JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, ''));   // ⛔던지게 둔다
+  if (!raw || typeof raw !== 'object') throw new Error('auth.json 이 객체가 아니다');
+  return raw.email ? raw : null;                   // 우리 레코드가 아니면 로그인 아님
+}
+
 /* ⚠️★이 함수는 «화이트리스트»다 — 여기 안 적힌 필드는 «조용히» 사라진다.
      그래서 새 필드를 쓰는 호출처를 아무리 잘 짜도, 여기를 안 고치면 **전원이 옛 상태로 퇴행**한다.
      (서명본이 매 저장마다 증발 → 모두 `sig_missing` → 마감 후엔 전원 재검증) */
@@ -495,10 +535,38 @@ function writeAuth(record) {
   } catch (e) {
     console.warn('[auth] 상태 저장 실패:', e.message);
   }
+  /* ★계정이 바뀌면 «프로젝트 뿌리»도 같이 바뀌어야 한다. 여기가 모든 로그인 경로의
+     외길목이라 여기 한 곳만 걸면 된다(auth:login·가입·갱신 전부 writeAuth 를 지난다). */
+  /* ⛔조용히 삼키지 않는다 — 여기서 실패하면 «이전 계정의 뿌리»로 계속 쓴다.
+     그렇다고 로그인 자체를 못 하게 막으면 사용자가 갇히므로, ★소리는 반드시 낸다.
+     그리고 뿌리를 «레거시 공용 풀»로 되돌리지 않는다(그게 남의 것에 닿는 길이다). */
+  try { _repointTemplatesDir('login'); } catch (e) { console.error('[templates] login repoint 실패:', (e && e.message) || e); }
+  try { _repointProjectsDir('login'); }
+  catch (e) { console.error('[projects] ★로그인 뒤 뿌리 전환 실패 — 계정 격리가 서지 않았다:', (e && e.message) || e); }
   return next;
 }
 function clearAuth() {
-  try { fs.unlinkSync(getAuthPath()); } catch (_) {}
+  _revokeEditorAccess();   // ★게이트를 «닫는» 자리 — 이게 없으면 로그아웃이 로그아웃이 아니다
+  /* ★★삭제 실패를 «삼키면» auth.json 이 남고, 그러면 _repointProjectsDir 가 그걸 읽어
+       ★계정 뿌리에 그대로 머문다. 사용자는 로그아웃했다고 믿는데 다음 사람이 앉으면
+       앞사람 프로젝트가 보인다 — 현빈이 걱정한 그 시나리오다.
+     ⇒ 실패를 «알고», 그래도 뿌리는 반드시 공용 풀로 내린다(격리가 우선).
+       로그아웃은 «내려오는» 방향이라 공용 풀이 안전한 착지점이다. */
+  let unlinked = true;
+  try { fs.unlinkSync(getAuthPath()); }
+  catch (e) {
+    if (!e || e.code !== 'ENOENT') {   // 원래 없던 것은 실패가 아니다
+      unlinked = false;
+      console.error('[auth] ★로그아웃 실패 — auth.json 을 못 지웠다:', (e && e.message) || e);
+    }
+  }
+  try { _repointTemplatesDir('logout'); } catch (e) { console.error('[templates] logout repoint 실패:', (e && e.message) || e); }
+  try { _repointProjectsDir('logout'); }
+  catch (e) { console.error('[projects] 로그아웃 뒤 뿌리 전환 실패:', (e && e.message) || e); }
+  /* ⛔파일이 안 지워졌으면 _repointProjectsDir 는 «아직 로그인»으로 읽는다.
+     그 판단이 맞더라도, 사용자가 로그아웃을 «눌렀다»면 앞사람 것이 보이면 안 된다. */
+  if (!unlinked) PROJECTS_DIR = PROJECTS_DIR_LEGACY;
+  return { ok: unlinked };
 }
 /* ── 자격증명 SSOT 배선 ──────────────────────────────────────────────────────
    ⛔옛 `authAccessValid(a)` 는 **폐기됐다**. 그건 `auth.json` 의 문자열 하나만 봤고,
@@ -596,6 +664,11 @@ async function _dlSettle(expected, timeoutMs = 15000) {
 
 let _editorAccessGranted = false;
 function _grantEditorAccess() { _editorAccessGranted = true; }
+/* ★★여는 자리는 있는데 «닫는 자리»가 없었다(실측: true 대입 1 / false 대입 0).
+   그 결과 로그아웃한 앱에서 MCP 인증 게이트가 계속 `authed:true` 를 돌려주고,
+   그 쓰기는 (clearAuth 가 뿌리를 내려놓은) ★레거시 공용 풀에 떨어진다.
+   「가장 먼저 로그인을 본다」가 로그아웃한 앱에 「예」라고 답하던 것이다. */
+function _revokeEditorAccess() { _editorAccessGranted = false; }
 
 /* ── 로그인 상태 체크 + 초기 페이지 로드 ──
    구버전은 매 실행마다 공인 IP를 조회해 서버에 물었다 → 서버가 죽으면 인증했던
@@ -1040,10 +1113,349 @@ function migrateFiles(oldDir, newDir) {
   });
 }
 
-/* ── IPC: Projects (파일 기반 저장소) ── */
-const PROJECTS_DIR = path.join(USER_DATA_DIR, 'projects');
-migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR); // 구 경로 마이그레이션
-if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true });
+/* ── IPC: Projects (파일 기반 저장소) ──────────────────────────────────────
+   ★★«계정별 폴더»(레포 개념) — 로그인 아이디마다 projects 뿌리를 따로 둔다.
+       비로그인       : <userData>/projects                    (레거시 공용 풀)
+       로그인 <email> : <userData>/accounts/<계정키>/projects
+     이유는 두 가지고, 둘 다 필요하다.
+       ⑴ 보안 — 민수가 로그인한 상태에서 철수 프로젝트가 «목록에조차» 안 뜬다.
+              소유자 «필드»로 거르면 거르는 코드를 빠뜨린 경로가 곧 구멍이 된다.
+              폴더로 가르면 «읽는 뿌리 자체»가 달라서 빠뜨릴 경로가 없다.
+       ⑵ 관리 — 한 폴더에 전부 섞이면 누구 것인지 알 수가 없다.
+   ⛔PROJECTS_DIR 은 이제 «상수가 아니다». 로그인·로그아웃 때 갈아끼운다.
+     그래도 되는 근거: 67 곳의 참조가 «전부 함수 안에서 인자로» 쓰인다(실측).
+     값으로 붙잡아 두는 자리는 registerGdtIpc 하나뿐이라 거기만 «게터»로 넘긴다. */
+const PROJECTS_DIR_LEGACY = path.join(USER_DATA_DIR, 'projects');  // [뿌리-정본] 레거시 공용 풀을 «정의하는» 자리
+const ACCOUNTS_DIR = path.join(USER_DATA_DIR, 'accounts');
+/* ★「누구인지 못 알아냈다」의 착지점. ⛔레거시 공용 풀로 내리지 않는다 —
+   거기 쌓인 것은 다음 계정 첫 로그인 때 «입양»되고, 거기 있던 것은 «보인다».
+   ⛔`acct_` 접두가 «아니라서» _existingAccountKeys 가 계정으로 세지 않는다 — 의도한 것이다
+     (세면 나중에 «진짜» 계정이 첫 로그인 할 때 입양을 못 받는다).
+
+   ★★그런데 이건 «공짜»가 아니다 — «교환»이다. 그 값을 여기 적어 둔다(지디 지적):
+     공용 풀 : 남에게 «보인다»(샌다)          그러나 «회수는 된다»(입양·목록에 잡힌다)
+     격리 폴더: 안 샌다                        그러나 ★«나오는 길이 없다»
+   ⇒ 여기를 읽는 코드는 «0곳»이다. 입양 후보도 아니고 목록에도 안 뜬다.
+     즉 이 판은 「샐 위험」을 「갇힐 위험」과 바꾼 것이다. 나는 그 교환이 맞다고 본다 —
+     새면 «남의 것»이 되지만 갇히면 «내 것»으로 남고, 손으로 꺼낼 수 있기 때문이다.
+   ⇒ ★그래서 «손으로 꺼내는 길»을 폴더 안에 적어 둔다(_writeUnresolvedReadme).
+     ⛔코드로 자동 회수(입양 후보에 넣기)는 «안 한다» — 입양 규칙이 지금 현빈 판단 대기 중이라
+       규칙을 하나 더 늘릴 때가 아니다. 판단이 나오면 그때 같이 정한다.
+   ⚠️오늘 기준 이 폴더는 «빌 것»이다 — 그 상태에선 사용자가 프로젝트를 못 만든다(실측:
+     MCP 는 NOT_LOGGED_IN, 렌더러는 로그인 화면). 즉 «지금 갇히는» 것이 아니다.
+     다만 오늘 비어 있는 이유도 «무관한 게이트 둘»이라, 그게 바뀌면 이쪽으로 열린다. */
+const PROJECTS_DIR_UNRESOLVED = path.join(ACCOUNTS_DIR, '_unresolved', 'projects');  // [뿌리-정본] 격리 착지점을 «만드는» 자리
+let PROJECTS_DIR = PROJECTS_DIR_LEGACY;
+migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR_LEGACY); // 구 경로 마이그레이션 [뿌리-정본] 레거시 풀로만 옮긴다
+if (!fs.existsSync(PROJECTS_DIR_LEGACY)) fs.mkdirSync(PROJECTS_DIR_LEGACY, { recursive: true });
+
+/* ── 템플릿 뿌리 ── 프로젝트와 «같은 판»이다(폴더로 가른다. 소유자 «필드»로 거르지 않는다).
+   ⛔다른 점이 하나 있고, 그게 이 기능의 핵심이다:
+     프로젝트의 레거시 풀은 «누군가의 개인 것»이라 첫 로그인 때 입양해서 비운다.
+     템플릿의 공용 풀은 «모두가 계속 읽는» 기본 세트라 ★입양하지 않는다. 읽기전용으로 남긴다.
+   ⇒ 읽기 = 공용 ∪ 개인, 쓰기 = 개인만. */
+const TEMPLATES_DIR_SHARED     = path.join(USER_DATA_DIR, 'templates');                    // [뿌리-정본] 공용(레거시) 풀 — 읽기전용
+const TEMPLATES_DIR_UNRESOLVED = path.join(ACCOUNTS_DIR, '_unresolved', 'templates');      // [뿌리-정본] 「누구인지 모름」 착지점
+let   TEMPLATES_DIR            = TEMPLATES_DIR_UNRESOLVED;                                  // ★상수가 아니다 — 로그인·로그아웃에 갈아끼운다
+function _accountTemplatesDir(key) { return path.join(ACCOUNTS_DIR, key, 'templates'); }   // [뿌리-정본] 계정 뿌리를 «만드는» 자리
+
+/* 계정 키 — «폴더 이름만 보고 누구 것인지 알 수 있게» 두되, 충돌은 해시로 막는다.
+   (읽을 수 없는 해시만 쓰면 폴더로 가른 목적 ⑵ 가 없어진다.) */
+function _accountKeyFor(email) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return null;
+  const slug = e.replace(/[^a-z0-9._-]+/g, '_').slice(0, 40);
+  const h = require('crypto').createHash('sha1').update(e).digest('hex').slice(0, 8);
+  return `acct_${slug}_${h}`;
+}
+/* ★「읽기 실패」와 「비로그인」을 «같은 값»으로 뭉개지 않는다.
+   ⛔예전엔 readAuth 가 던지면 catch 가 null 을 돌려줬고, 그건 「비로그인」으로 읽혀
+     ★레거시 공용 풀로 갔다. 그 상태로 만든 프로젝트가 공용 풀에 쌓이면,
+     나중에 다른 계정이 첫 로그인 할 때 _adoptLegacyIfSoleAccount 가 «가져간다»
+     = A 의 작업물이 B 에게 입양된다. 현빈이 걱정한 시나리오가 «버그 경유»로 재현된다.
+   ⇒ 못 읽었으면 «던진다». 「없다」와 「못 읽었다」는 다르다.
+   ★null 은 «진짜 비로그인»(파일이 없거나 우리 레코드가 아님)일 때만 나온다 —
+     그 판정은 readAuth 가 이미 한다(`!raw.email` → null). */
+function _currentAccountKey() {
+  /* ⛔readAuth 를 쓰면 «손상»이 null 로 삼켜져 여기까지 예외가 안 온다 —
+     그러면 위층에서 무엇을 해도 「없다」와 「못 읽었다」를 못 가른다(지디 지적, 2026-09-07).
+     ★즉 「던지게 했다」는 «던질 것이 있어야» 말이 된다. */
+  const a = readAuthOrThrow();
+  if (!a || !a.email) return null;   // ★여기 null 은 «진짜» 비로그인이다(파일 없음)
+  const key = _accountKeyFor(a.email);
+  /* ⛔「로그인은 됐는데 키를 못 만들었다」를 «비로그인»으로 읽으면 또 공용 풀로 내려간다
+     (email 이 공백뿐이면 `!a.email` 은 거짓이라 통과하고 _accountKeyFor 는 null 을 준다).
+     ★「비로그인」은 readAuthOrThrow() === null «하나»뿐이어야 한다. */
+  if (!key) throw new Error(`계정키를 못 만들었다(email=${JSON.stringify(String(a.email).slice(0, 40))}) — 공용 풀로 내리지 않는다`);
+  return key;
+}
+function _accountProjectsDir(key) { return path.join(ACCOUNTS_DIR, key, 'projects'); }  // [뿌리-정본] 계정 뿌리를 «만드는» 자리
+/* 고지 문구에 쓸 이메일. ⛔실패해도 입양을 막지 않는다 — 이름을 못 읽은 것이지 옮기지 말라는 뜻이 아니다. */
+function _currentAccountEmail() {
+  try { const a = readAuthOrThrow(); return (a && a.email) ? String(a.email) : null; } catch (_) { return null; }
+}
+function _legacyProjectEntries() {
+  try { return fs.readdirSync(PROJECTS_DIR_LEGACY, { withFileTypes: true }).filter(e => /^proj_/.test(e.name)); }
+  catch (_) { return []; }
+}
+/* ⛔여기서 삼킨 뒤 기본값이 «허용»이다 — `[]` 는 「다른 계정이 없다」로 읽혀 ★입양을 «해도 된다»가 된다.
+   같은 `catch(_){}` 라도 _legacyProjectEntries 의 `[]` 는 「옮길 게 없다」라 거부 착지(방어)인데,
+   이 자리만 반대다. ★무늬가 같다고 처분이 같지 않다 — 삼킨 뒤 «기본값이 어느 쪽인가»를 봐라.
+   ⇒ ENOENT(진짜 첫 로그인)만 `[]`, 못 읽은 것은 «던진다» → _repointProjectsDir 가 _unresolved 로 보낸다. */
+function _existingAccountKeys() {
+  try {
+    return fs.readdirSync(ACCOUNTS_DIR, { withFileTypes: true })
+      .filter(e => e.isDirectory() && /^acct_/.test(e.name)).map(e => e.name);
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return [];   // 아직 계정 폴더가 «하나도 없다» = 진짜 첫 로그인
+    throw e;                                   // 못 읽은 것을 「없다」로 읽으면 남의 것을 가져간다
+  }
+}
+
+/* 「업데이트 이전의 프로젝트를 어떻게 할 것인가」의 답 — ★첫 계정이 물려받는다.
+   업데이트 전 데이터는 «소유자 미상»이다. 그런데 계정 폴더가 «아직 하나도 없다»면
+   그 기계는 사실상 1인용이었다는 뜻이라, 그 경우에만 옮긴다.
+   ⛔이미 다른 계정 폴더가 있으면 손대지 않는다 — 남의 것일 수 있다.
+   ★옮긴 사실은 adopted.json 에 적는다(폴더를 되옮기면 원상복구된다). */
+function _adoptLegacyIfSoleAccount(key, dest, email) {
+  const others = _existingAccountKeys().filter(k => k !== key);
+  if (others.length) return { adopted: 0, skipped: 'other-accounts-exist', others: others.length };
+  const entries = _legacyProjectEntries();
+  if (!entries.length) return { adopted: 0, skipped: 'legacy-empty' };
+  let moved = 0; const failed = [];
+  for (const ent of entries) {
+    const to = path.join(dest, ent.name);
+    if (fs.existsSync(to)) { failed.push(`${ent.name} (대상에 이미 있음)`); continue; }
+    try { fs.renameSync(path.join(PROJECTS_DIR_LEGACY, ent.name), to); moved++; }
+    catch (e) { failed.push(`${ent.name} — ${(e && e.message) || e}`); }
+  }
+  try {
+    fs.writeFileSync(path.join(ACCOUNTS_DIR, key, 'adopted.json'), JSON.stringify({
+      at: new Date().toISOString(), account: key, email, from: PROJECTS_DIR_LEGACY, to: dest,
+      moved, failed,
+      note: '업데이트 이전의 «소유자 미상» 프로젝트를 첫 로그인 계정이 물려받았다. 되돌리려면 to 안의 proj_* 를 from 으로 다시 옮기면 된다.',
+    }, null, 2), 'utf8');
+  } catch (e) {
+    /* ⛔조용하면 안 된다 — 이 기록이 «되돌릴 유일한 길»이다.
+       파일을 이미 옮겨 놓고 어디서 왔는지를 못 적었으면 그건 알려야 할 사고다. */
+    console.error(`[projects] ★입양 기록(adopted.json)을 못 남겼다 — ${moved}건을 옮겼는데 되돌릴 기록이 없다:`, (e && e.message) || e);
+    return { adopted: moved, failed, recordFailed: true };
+  }
+  return { adopted: moved, failed };
+}
+
+/* ★격리 폴더에 «나오는 길»을 적어 둔다. 여기를 읽는 코드가 없으니 사람이 꺼내야 한다.
+   ⛔이 파일을 쓰다 실패해도 격리 자체는 막지 않는다(안전이 먼저) — 대신 소리를 낸다. */
+function _writeUnresolvedReadme(errMessage) {
+  const dir = path.dirname(PROJECTS_DIR_UNRESOLVED);
+  const txt = [
+    '이 폴더는 GODITOR 가 «로그인 계정을 못 알아냈을 때» 쓰는 임시 격리 폴더입니다.',
+    '',
+    `마지막 사유: ${errMessage || '(알 수 없음)'}`,
+    `기록 시각: ${new Date().toISOString()}`,
+    '',
+    '■ 왜 여기로 왔나',
+    '  auth.json 을 «읽지 못했습니다»(손상 등). 누구인지 모르는 상태로 공용 폴더를 쓰면',
+    '  나중에 다른 계정이 그 내용을 가져갈 수 있어, 아무에게도 안 보이는 곳으로 격리했습니다.',
+    '',
+    '■ ★여기 있는 것을 «어디로» 옮기면 되나',
+    '  ⑴ 먼저 앱에 정상적으로 로그인하십시오(로그인하면 auth.json 이 새로 써집니다).',
+    '  ⑵ 그러면 상위 폴더(accounts/)에 «acct_...» 로 시작하는 본인 계정 폴더가 생깁니다.',
+    '  ⑶ 이 폴더의 projects/ 안에 있는 proj_* 폴더를 그 «acct_.../projects/» 안으로 옮기십시오.',
+    '  ⑷ 앱을 다시 켜면 갤러리에 나타납니다.',
+    '',
+    '⚠️앱은 이 폴더를 «스스로 읽지 않습니다». 옮기지 않으면 갤러리에 영영 안 보입니다.',
+    '⚠️이 폴더가 비어 있으면(proj_* 가 없으면) 그냥 지우셔도 됩니다.',
+    '',
+  ].join('\n');
+  try { fs.writeFileSync(path.join(dir, 'README-읽어주세요.txt'), txt, 'utf8'); }
+  catch (e) { console.error('[projects] 격리 폴더 안내문을 못 남겼다 — 손으로 꺼낼 길이 안 적혔다:', (e && e.message) || e); }
+}
+
+/* 계정별 뿌리로 갈아끼운다. 로그인/로그아웃/기동 때 부른다. */
+let _projectsDirState = null;
+function _repointProjectsDir(reason) {
+  let key;
+  try {
+    key = _currentAccountKey();
+  } catch (e) {
+    /* ★「못 읽었다」를 「비로그인」으로 «내려보내지» 않는다. 누구인지 모르면 아무것도 안 보여준다. */
+    console.error(`[projects] ★계정을 «못 읽었다»(손상?) — 공용 풀로 내리지 않고 격리 폴더로 간다:`, (e && e.message) || e);
+    fs.mkdirSync(PROJECTS_DIR_UNRESOLVED, { recursive: true });
+    if (PROJECTS_DIR !== PROJECTS_DIR_UNRESOLVED) { try { global.currentActiveProjectId = null; } catch (_) {} }
+    PROJECTS_DIR = PROJECTS_DIR_UNRESOLVED;
+    _writeUnresolvedReadme((e && e.message) || String(e));
+    _projectsDirState = { root: PROJECTS_DIR, account: null, reason, unresolved: true, error: String((e && e.message) || e) };  // [뿌리-스냅샷] 진단용 기록 — 여기서 읽어 쓰는 곳이 없다
+    return _projectsDirState;
+  }
+  if (!key) {
+    if (PROJECTS_DIR !== PROJECTS_DIR_LEGACY) { try { global.currentActiveProjectId = null; } catch (_) {} }
+    PROJECTS_DIR = PROJECTS_DIR_LEGACY;
+    _projectsDirState = { root: PROJECTS_DIR, account: null, reason };  // [뿌리-스냅샷] 진단용 기록 — 여기서 읽어 쓰는 곳이 없다
+    return _projectsDirState;
+  }
+  const dest = _accountProjectsDir(key);
+  const fresh = !fs.existsSync(dest);
+
+  /* ⛔mkdir 실패를 «삼키고» 그 폴더를 뿌리로 꽂으면, 격리는 안 깨져도
+     사용자 눈엔 「내 프로젝트가 다 사라졌다」가 된다. 조용한 고장이다. */
+  fs.mkdirSync(dest, { recursive: true });
+
+  /* ★★뿌리 확정이 «먼저», 입양은 «그 다음».
+     ⛔예전엔 adopt 를 먼저 하고 그 아래에서 PROJECTS_DIR 을 바꿨다. 그래서 adopt 가
+       던지면 대입에 도달을 못 하고 ★«이전 계정의 뿌리»가 그대로 남았다 —
+       민수가 로그인했는데 PROJECTS_DIR 은 철수 뿌리. 현빈 원 시나리오 그 자체다.
+     ⇒ 순서를 뒤집는다. 입양이 실패해도 «격리»는 이미 서 있다(입양은 편의, 격리는 안전).
+     ⛔여기서 순서를 되돌리지 마라. */
+  /* ★뿌리가 «바뀌면» 이전 계정의 활성 프로젝트 id 는 더는 유효하지 않다.
+     ⛔안 지우면 그 id 로 새 계정 폴더에 «유령 폴더»가 생긴다 — 실측(2026-09-07):
+       민수 것이던 proj_1788763431770 의 claude-pm/ 이 철수 뿌리 아래 만들어졌다
+       (프로젝트 데이터는 없고 PM 껍데기만. 내용이 새진 않지만 «남의 계정 뿌리에 쓴» 것이다).
+     ⇒ 뿌리를 바꾸는 «그 자리»에서 같이 지운다. */
+  if (PROJECTS_DIR !== dest) { try { global.currentActiveProjectId = null; } catch (_) {} }
+  PROJECTS_DIR = dest;
+  _projectsDirState = { root: dest, account: key, reason, adopt: null };
+
+  const adopt = fresh ? _adoptLegacyIfSoleAccount(key, dest, _currentAccountEmail()) : null;
+  _projectsDirState.adopt = adopt;
+  try { console.log(`[projects] 뿌리=${dest} 계정=${key} 사유=${reason}` + (adopt && adopt.adopted ? ` 물려받음=${adopt.adopted}건` : '')); } catch (_) {}
+  return _projectsDirState;
+}
+function _projectsRoot() { return PROJECTS_DIR; }
+
+/* 계정별 «개인» 템플릿 뿌리로 갈아끼운다. 로그인/로그아웃/기동 때 부른다.
+   ⛔프로젝트와 갈리는 자리가 «비로그인»이다. 프로젝트는 비로그인이면 레거시 공용 풀을 쓰지만,
+     템플릿의 공용 풀은 ★«모든 계정이 읽는» 곳이라 거기에 쓰게 두면 비로그인 저장이 전원에게 보인다.
+     그래서 여기서는 비로그인도 격리 폴더로 내린다(읽기는 여전히 공용을 본다 — 못 쓰게 할 뿐이다). */
+let _templatesDirState = null;
+/* «손으로 꺼내는 길»을 격리 폴더 안에 적어 둔다. 프로젝트의 _writeUnresolvedReadme 와 대칭.
+   ⛔파일을 «폴더 안»(templates/)에 쓴다 — 프로젝트 안내문이 부모(accounts/_unresolved/)에
+     같은 이름으로 있어서, 같은 자리에 쓰면 서로 덮어쓴다.
+   ⛔이미 있으면 덮어쓰지 않는다 — 사용자가 손으로 적어 둔 메모까지 날릴 이유가 없다. */
+function _writeTemplatesUnresolvedReadme(why, errMessage) {
+  const fp = path.join(TEMPLATES_DIR_UNRESOLVED, 'README-읽어주세요.txt');
+  try { if (fs.existsSync(fp)) return; } catch (_) {}
+  const txt = [
+    '이 폴더는 GODITOR 가 «어느 계정인지 모를 때» 템플릿을 넣어 두는 임시 격리 폴더입니다.',
+    '',
+    `사유: ${why === 'unresolved' ? 'auth.json 을 읽지 못했습니다(손상 등)' : '로그인하지 않은 상태였습니다'}`,
+    ...(errMessage ? [`상세: ${errMessage}`] : []),
+    `기록 시각: ${new Date().toISOString()}`,
+    '',
+    '■ 왜 여기로 왔나',
+    '  템플릿의 공용 폴더는 ★«모든 계정이 함께 읽는» 곳입니다. 누구인지 모르는 상태로 거기 저장하면',
+    '  내가 만든 템플릿이 «다른 사람 모두에게» 보입니다. 그래서 아무에게도 안 보이는 곳으로 격리했습니다.',
+    '',
+    '■ ★여기 있는 것을 «어디로» 옮기면 되나',
+    '  ⑴ 먼저 앱에 정상적으로 로그인하십시오.',
+    '  ⑵ 그러면 상위 폴더(accounts/)에 «acct_...» 로 시작하는 본인 계정 폴더가 생깁니다.',
+    '  ⑶ 이 폴더의 canvas/ 안 .html 파일들을 그 «acct_.../templates/canvas/» 로 옮기고,',
+    '     index.json 의 항목들을 «acct_.../templates/index.json» 의 배열에 이어 붙이십시오.',
+    '     (index.json 이 없으면 이 폴더의 것을 그대로 옮기면 됩니다.)',
+    '  ⑷ 앱을 다시 켜면 템플릿 패널에 나타납니다.',
+    '',
+    '⚠️앱은 이 폴더를 «스스로 읽지 않습니다». 옮기지 않으면 템플릿 패널에 영영 안 보입니다.',
+    '   ⛔자동 회수(첫 로그인 때 «입양»)는 «일부러» 만들지 않았습니다 — 로그인 게이트 때문에',
+    '     이 폴더로 저장이 실제로 도달하지 못하므로 옮길 것이 생기지 않습니다.',
+    '     저장 경로가 열리는 날 입양도 «같이» 만듭니다.',
+    '⚠️이 폴더가 비어 있으면(canvas/ 에 .html 이 없으면) 그냥 지우셔도 됩니다.',
+    '',
+  ].join('\n');
+  try { fs.writeFileSync(fp, txt, 'utf8'); }
+  catch (e) { console.error('[templates] 격리 폴더 안내문을 못 남겼다 — 손으로 꺼낼 길이 안 적혔다:', (e && e.message) || e); }
+}
+function _repointTemplatesDir(reason) {
+  const _land = (why, extra) => {
+    try { fs.mkdirSync(path.join(TEMPLATES_DIR_UNRESOLVED, 'canvas'), { recursive: true }); } catch (_) {}
+    TEMPLATES_DIR = TEMPLATES_DIR_UNRESOLVED;
+    /* ★landed 를 남긴다 — 「비로그인」과 「auth 손상」은 사용자에게 할 말이 다르고,
+       account:null 만으로는 둘을 못 가른다. */
+    _templatesDirState = Object.assign({ root: TEMPLATES_DIR, account: null, reason, landed: why }, extra);
+    _writeTemplatesUnresolvedReadme(why, extra && extra.error);
+    return _templatesDirState;
+  };
+  let key;
+  try {
+    key = _currentAccountKey();
+  } catch (e) {
+    /* ★「못 읽었다」를 「비로그인」으로 뭉개지 않는다 — 프로젝트가 실제로 데인 자리다(주석 1147~). */
+    console.error('[templates] ★계정을 «못 읽었다»(손상?) — 공용 풀에 쓰지 않고 격리로 간다:', (e && e.message) || e);
+    return _land('unresolved', { unresolved: true, error: String((e && e.message) || e) });
+  }
+  if (!key) return _land('anonymous', {});
+  const dest = _accountTemplatesDir(key);
+  /* ⛔mkdir 실패를 삼키고 뿌리를 꽂으면 사용자 눈엔 「내 템플릿이 다 사라졌다」가 된다. */
+  fs.mkdirSync(path.join(dest, 'canvas'), { recursive: true });
+  TEMPLATES_DIR = dest;
+  _templatesDirState = { root: dest, account: key, reason };
+  try { console.log(`[templates] 개인뿌리=${dest} 계정=${key} 사유=${reason}`); } catch (_) {}
+  return _templatesDirState;
+}
+function _templatesRoot() { return TEMPLATES_DIR; }
+/* ★계정 «작업공간» — 프로젝트 뿌리의 «부모». 작업물(비상 사본·복구 장부)이 여기 붙는다.
+     비로그인      : <userData>/projects        → <userData>          ← 오늘과 «바이트 동일»
+     로그인        : <userData>/accounts/<키>/projects → <userData>/accounts/<키>
+     못 알아냄      : …/_unresolved/projects     → …/_unresolved
+   ⛔도구·진단(templates·presets·svg-presets·goditor-market·크래시 로그)은 «공유가 맞다» —
+     그건 사람이 아니라 «기계»에 붙는다(지디 판단). 여기 붙이지 마라. */
+function _accountWorkspaceDir() { return path.dirname(PROJECTS_DIR); }
+
+/* ★★입양 고지 — 「되돌릴 수 있다」를 «말로만 참»으로 두지 않기 위한 것(지디 머지 조건).
+   adopted.json 과 console.log 는 ★사용자가 «영원히» 안 본다. 장치는 있는데 닿는 길이 없으면
+   그건 없는 것과 같다 — 오늘 종일 잡은 그 모양이다.
+   ⇒ 「옮겼다」는 사실을 «화면까지» 올린다. UI 는 지디가 붙인다(층을 안 섞는다).
+   ⇒ 「한 번만」의 근거: 입양은 계정당 1회다. 그런데 «메모리»에만 두면 고지 전에 앱이 죽었을 때
+     영영 안 뜬다 ⇒ adopted.json 에 noticeShownAt 을 적어 «파일»로 소비를 기록한다.
+     그래서 기동할 때 「아직 안 보여준 입양」이 있으면 다시 집어 든다. */
+function _adoptionNoticePath(key) { return path.join(ACCOUNTS_DIR, key, 'adopted.json'); }
+
+/** 아직 «사용자에게 안 보여준» 입양이 있으면 그 내용을, 없으면 null. */
+function _pendingAdoptionNotice() {
+  try {
+    const key = _currentAccountKey();
+    if (!key) return null;
+    const p = _adoptionNoticePath(key);
+    if (!fs.existsSync(p)) return null;
+    const rec = JSON.parse(fs.readFileSync(p, 'utf8'));
+    if (!rec || !rec.moved || rec.noticeShownAt) return null;   // 옮긴 게 없거나 이미 보여줬다
+    return {
+      moved: rec.moved, email: rec.email || null, at: rec.at || null,
+      recordPath: p, from: rec.from || null, to: rec.to || null,
+      failed: Array.isArray(rec.failed) ? rec.failed.length : 0,
+    };
+  } catch (e) {
+    console.error('[projects] 입양 고지를 못 읽었다:', (e && e.message) || e);
+    return null;   // ⛔여기서 던지면 갤러리가 안 뜬다. 고지는 편의, 화면은 필수
+  }
+}
+
+/** 보여줬다고 «파일»에 적는다. 실패하면 다음에 또 뜬다(두 번 뜨는 게 «영영 안 뜨는 것»보다 낫다). */
+function _markAdoptionNoticeShown() {
+  try {
+    const key = _currentAccountKey();
+    if (!key) return false;
+    const p = _adoptionNoticePath(key);
+    if (!fs.existsSync(p)) return false;
+    const rec = JSON.parse(fs.readFileSync(p, 'utf8'));
+    rec.noticeShownAt = new Date().toISOString();
+    fs.writeFileSync(p, JSON.stringify(rec, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('[projects] 입양 고지 «표시함» 기록 실패 — 다음에 또 뜬다:', (e && e.message) || e);
+    return false;
+  }
+}
+
+
+_repointProjectsDir('startup');
+try { _repointTemplatesDir('startup'); } catch (e) { console.error('[templates] startup repoint 실패:', (e && e.message) || e); }
+
+/* 렌더러가 «가져간다». ⛔push 로 보내면 리스너를 걸기 전에 도착해 유실된다
+   (gdt:takePendingOpen 이 같은 이유로 pull 이다 — 같은 결로 맞춘다).
+   ⚠️이 배선은 «떼어내 검사하는 블록 밖»에 둔다 — 안에 두면 검사 하네스가 ipcMain 을
+     못 넣어 블록 전체가 못 돈다(실제로 그렇게 깨뜨렸다). 순수 함수와 배선을 섞지 마라. */
+ipcMain.handle('projects:peekAdoptionNotice', () => _pendingAdoptionNotice());
+ipcMain.handle('projects:ackAdoptionNotice', () => _markAdoptionNoticeShown());
 
 /* ── IPC: SVG Presets (사용자 자산 — 모든 프로젝트 공유) ── */
 const SVG_PRESETS_DIR = path.join(USER_DATA_DIR, 'svg-presets');
@@ -1827,7 +2239,7 @@ function _recordSyncSaveFailure(project, reason, error) {
   try {
     if (!project || !project.id) return;
     /* init 은 «준 것만» 덮는다 — dialog·shell 은 before-quit 이 뒤에 얹는다(충돌 없음). */
-    quitSaveGuard.init({ userDataDir: app.getPath('userData'), appVersion: app.getVersion(), log: (m) => console.warn(m) });
+    quitSaveGuard.init({ userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, appVersion: app.getVersion(), log: (m) => console.warn(m) });
     quitSaveGuard.recordSyncSaveFailure({
       projectId: project.id,
       projectName: project.name || null,
@@ -1855,12 +2267,82 @@ function _recordSyncSaveFailure(project, reason, error) {
  *   구조적으로 없었다. trashItem 은 Promise 라 await 사이에 autosave 가 끼어들 수 있다.
  *   ⇒ 호출측(렌더러)이 «그 프로젝트를 안 연 상태»로 부르는 게 전제다 — 갤러리에서만 부른다.
  */
+/* ── 앱 «휴지통 탭» (2026-09-08 현빈 지시) ──────────────────────────────────
+ * ★OS 휴지통이 아니라 «우리 안»에 30일 둔다. 이유는 main/trash.js 머리글.
+ *   요지: 폴더가 우리 영역 안에 있으면 id 가 그대로라 복원이 «되돌리기»다.
+ *   OS 휴지통을 거치면 되살릴 때 «새 프로젝트 가져오기»가 된다(.gdt 임포트가 §7-4 로 새 id 를 강제).
+ * ⛔여기서 «영구삭제»는 없다. 만료분도 OS 휴지통으로 넘긴다 — 마지막 그물을 우리가 끊지 않는다. */
+const _trash = require('./main/trash');
+/* ★★만료분을 «폴더가 아니라 우리 포맷(.gdt)으로» 싸서 버린다 (2026-09-08 현빈 지시).
+     폴더로 보내면 맥 휴지통에서 `proj_1788…` 로 보여 무엇인지도 모르고 더블클릭해도 안 열린다.
+     `<이름>.gdt` 면 이름이 보이고 더블클릭하면 고디터가 연다(fileAssociations 배선이 이미 있다).
+   ⛔exportGdt 는 `<out>.part` 에 쓰고 «verifyGdt 통과 후에만» 최종 이름이 된다 —
+     즉 여기 out 이 «존재한다»는 것 자체가 「검증을 지났다」는 뜻이다. 그 위에서 원본을 치운다. */
+async function _packageProjectGdt({ srcProjJson, outPath, name }) {
+  try {
+    const { exportGdt } = require('./main/gdt/export');
+    const r = await exportGdt({ srcProjJson, outPath, meta: { name },
+                                projectsDir: _projectsRoot() });
+    return { ok: !!(r && r.ok !== false), ...(r && r.error ? { error: r.error } : {}) };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+}
+
+/* ⛔뿌리는 «값으로» 넘기지 않는다 — 계정이 바뀌면 PROJECTS_DIR 이 재지정되는데
+     한 번 붙잡아 두면 «옛 계정의 휴지통»을 계속 본다(검사 M9 가 이 자리를 잡았다).
+   ⇒ 호출할 때마다 `_projectsRoot()` 로 «다시 읽는다». */
+
+/* ★만료분 쓸어내기 — 앱을 «켤 때» 지난 날짜를 몰아서 처리한다.
+     안 켜는 동안 시간이 멈추면 「30일 지났는데 그대로네」로 사용자가 놀란다.
+   ⛔영구삭제가 아니다 — OS 휴지통으로 넘긴다. 실패해도 «남겨둔다»(못 지운 게 사라진 것보다 낫다). */
+async function _sweepTrashOnBoot() {
+  try {
+    const r = await _trash.sweepTrash({ projectsDir: _projectsRoot(), trashItem: (p) => shell.trashItem(p),
+                                            packageGdt: _packageProjectGdt });
+    if (r.swept.length || r.failed.length)
+      console.log('[trash] 만료 정리:', r.swept.length, '건 내보냄 ·', r.failed.length, '건 실패');
+  } catch (e) { console.warn('[trash] 만료 정리 실패:', e && e.message); }
+}
+
+ipcMain.handle('trash:list', () => {
+  try { return _trash.listTrash({ projectsDir: _projectsRoot() }); }
+  catch (e) { return { ok: false, error: e.message, items: [] }; }
+});
+ipcMain.handle('trash:restore', (_e, id) => {
+  try { return _trash.restoreFromTrash({ projectsDir: _projectsRoot(), projectId: String(id || '') }); }
+  catch (e) { return { ok: false, code: 'io', error: e.message }; }
+});
+ipcMain.handle('trash:purge', async (_e, id) => {
+  try { return await _trash.purgeFromTrash({ projectsDir: _projectsRoot(), projectId: String(id || ''),
+                                             trashItem: (p) => shell.trashItem(p),
+                                             packageGdt: _packageProjectGdt }); }
+  catch (e) { return { ok: false, code: 'io', error: e.message }; }
+});
+
 ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
   const safeId = String(id || '').trim();
   if (!safeId || safeId.includes('/') || safeId.includes('\\') || /^\.+$/.test(safeId)) {
     return { ok: false, trashed: false, reason: 'invalid_id' };
   }
   const permanent = opts && opts.permanent === true;   // ★2차 확인을 «거친» 경우에만 true
+
+  /* ★기본 경로 = «앱 휴지통»(30일). OS 휴지통은 permanent 일 때만 (2026-09-08 현빈 지시).
+     ⛔조용히 OS 휴지통으로 폴백하지 «않는다» — 실패는 실패라고 말해야 사용자가 판단한다.
+       (그 다음 판단지는 UI 에 이미 있다: 「영구 삭제할까요」 2차 확인) */
+  if (!permanent) {
+    const r = _trash.moveToTrash({ projectsDir: _projectsRoot(), projectId: safeId });
+    if (r.ok) {
+      /* ★사람이 쓰는 화면도 같은 위험에 놓인다 — 편집기에 열려 있으면 자동저장이 되살린다 */
+      const reap = await _reapRevived(safeId);
+      return { ok: true, trashed: true, appTrash: true, projectId: safeId,
+                       name: r.name, deletedAt: r.deletedAt,
+                       ...(reap.revived ? { revivedAfterDelete: true, revivedCleaned: reap.cleaned } : {}),
+                       note: `앱 휴지통으로 옮겼다(${_trash.RETENTION_DAYS}일 보관). 휴지통 탭에서 되살릴 수 있다.` };
+    }
+    if (r.code === 'not_found') return { ok: true, trashed: false, reason: 'not_found', deleted: 0 };
+    return { ok: false, trashed: false, reason: 'trash_failed',
+             code: r.code, message: r.error, ...(r.rollbackStuck ? { rollbackStuck: r.rollbackStuck } : {}) };
+  }
+
   const projectsBase = path.resolve(PROJECTS_DIR);
   const dirPath = path.resolve(PROJECTS_DIR, safeId);
   const inBase = (p) => p.startsWith(projectsBase + path.sep);
@@ -1879,29 +2361,11 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
   if (inBase(dirPath) && fs.existsSync(dirPath)) targets.push(dirPath);
   if (!targets.length) return { ok: true, trashed: false, reason: 'not_found', deleted: 0 };
 
-  // ★휴지통에서 «찾을 수 있어야» 복구다. proj_178… 폴더가 수십 개면 자기 걸 못 고른다.
-  //   ⛔디렉터리 이름은 «안» 바꾼다 — id 가 곧 디렉터리명이라 trash 실패 시 살아있는 프로젝트가 깨진다.
-  //   어차피 버려질 봉투 «안»에 마커를 넣는 건 위험이 0이다.
-  // ⛔permanent 모드엔 마커가 쓸모없다(휴지통에서 찾을 일이 없다) — 안 쓴다.
-  // ⚠️symlink 로 base 밖을 가리키면 마커가 PROJECTS_DIR 밖에 써진다 → realpath 로 한 번 더 막는다.
-  let markerPath = null;
-  if (!permanent && fs.existsSync(dirPath)) {
-    let realOk = false;
-    try { realOk = fs.realpathSync(dirPath).startsWith(fs.realpathSync(projectsBase) + path.sep); } catch (_) {}
-    if (realOk) {
-    try {
-      let name = safeId, sections = null;
-      try {
-        const m = JSON.parse(fs.readFileSync(path.join(dirPath, 'proj_meta.json'), 'utf8'));
-        if (m && m.name) name = m.name;
-      } catch (_) {}
-      try { sections = _countSections(JSON.parse(fs.readFileSync(path.join(dirPath, 'proj.json'), 'utf8'))); } catch (_) {}
-      markerPath = path.join(dirPath, '_deleted-info.json');
-      fs.writeFileSync(markerPath,
-        JSON.stringify({ name, id: safeId, deletedAt: new Date().toISOString(), sections }, null, 2));
-    } catch (_) { markerPath = null; /* 마커 실패는 삭제를 무르지 않는다 */ }
-    }
-  }
+  /* ⛔2026-09-08: 여기 있던 «_deleted-info.json 마커»는 지웠다 — «죽은 코드»가 됐다.
+       마커는 「OS 휴지통에서 자기 걸 알아보게」 하려던 것인데, 이제 기본 삭제는 앱 휴지통으로 가고
+       (그쪽은 `.trash/<id>.json` 메타가 이름·시각을 든다) 여기는 permanent 전용이다.
+       permanent 는 애초에 마커를 «안» 썼다 — 휴지통에서 찾을 일이 없으니까.
+     ★그래서 이 블록은 어느 경로에서도 안 돌았다. 남겨두면 「어느 쪽이 진짜 마커인가」로 다음 사람이 헤맨다. */
 
   const failed = [];
   let trashedCount = 0;
@@ -1941,7 +2405,6 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
     //   「영구 삭제할까요」를 물으므로, 여기서 거짓을 말하면 사용자가 판단을 그르친다.
     const partial = trashedCount > 0;   // 잔재 일부만 옮겨졌다(프로젝트 본체는 그대로)
     console.warn('[projects:delete] 실패:', JSON.stringify(failed), 'moved=', trashedCount, 'bundleMoved=', bundleMoved);
-    if (markerPath) { try { fs.unlinkSync(markerPath); } catch (_) {} }   // 살아남은 프로젝트에 마커를 남기지 않는다
     return { ok: false, trashed: bundleMoved, bundleIntact: !bundleMoved, deleted: trashedCount,
              reason: permanent ? 'delete_failed' : (partial ? 'trash_partial' : 'trash_failed'),
              message: failed[0].error, failed };
@@ -1968,6 +2431,164 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
  *   ⇒ 복제 로직을 두 벌 만들지 않는다. js/market.js 가 saveProject 로 직접 만들다가 에셋을 통째로
  *     빠뜨린 전례가 있다(사본이 원본 폴더를 몰래 참조 → 원본 삭제 시 404).
  */
+/* ★활성 프로젝트를 지웠으면 «활성도 같이» 비운다 — 두 삭제 경로가 «같은» 것을 쓴다.
+   안 그러면 activeProjectId 가 «죽은 id» 를 가리키고, 파괴 도구는 「활성」을 대상으로 삼으므로
+   그 뒤 호출이 어디로 갈지 모르게 된다(2026-09-07 실측된 상태).
+   ⛔2026-09-07 G2 실측: global 만 비웠더니 «안 비워졌다». `_activeProjectId()` 는 «두 곳»을 본다 —
+     ⑴ onActiveProject 콜백(= global.currentActiveProjectId)
+     ⑵ ★창 URL 의 `?project=…`  ← 여기가 남아 있으면 «지운 프로젝트»를 계속 가리킨다
+   ⇒ 한 곳만 비우면 「비웠다」가 거짓말이 된다. 읽는 곳을 «전부» 비운다. */
+/* ★★삭제 «뒤에» 되살아나는 것을 거둔다 (2026-09-08 실측 사고).
+     옮기는 건 동기 rename 이라 «그 사이»엔 창이 없다 — 그래서 사후조건을 뺐는데 틀렸다.
+     창은 «삭제 뒤»에 있었다: 자동저장이 옛 DOM 으로 폴더를 다시 썼다(실측 +11ms·+34ms).
+   ⇒ 한 번만 보면 놓친다. «짧게 지켜본다».
+   ⛔남겨두면 같은 id 가 휴지통에도 원래 자리에도 있게 되고, 그 뒤 삭제는 영영 막힌다
+     (already_in_trash — 실물에서 2건이 그렇게 굳었다. 사용자에겐 「안 지워지는 프로젝트」다).
+   ★활성을 비운 «뒤»에 부르므로 자동저장은 이미 멈췄다 — 여기서 치우는 게 안전하다.
+     못 치우면 «말한다»(사람이 봐야 한다). */
+async function _reapRevived(projectId, windowMs = 800, stepMs = 50) {
+  const back = path.join(_projectsRoot(), projectId);
+  let revived = false;
+  const t0 = Date.now();
+  while (Date.now() - t0 < windowMs) {
+    if (fs.existsSync(back)) { revived = true; break; }
+    await new Promise(r => setTimeout(r, stepMs));
+  }
+  if (!revived) return { revived: false, cleaned: false };
+  /* 되살아난 뒤에도 한 번 더 쓸 수 있으니, 지우고 «없어졌나»로 판정한다 */
+  for (let i = 0; i < 3; i++) {
+    try { fs.rmSync(back, { recursive: true, force: true }); } catch (_) {}
+    if (!fs.existsSync(back)) return { revived: true, cleaned: true, waitedMs: Date.now() - t0 };
+    await new Promise(r => setTimeout(r, stepMs));
+  }
+  return { revived: true, cleaned: false, waitedMs: Date.now() - t0 };
+}
+
+/* ★갤러리 페이지 경로의 «정본». 문자열을 여기저기 박으면 하나가 낡는다(2026-09-08 사고).
+     검사 gallery-path.test.js 가 「이 파일이 가리키는 html 이 «실재하나»」를 fs.existsSync 로 잰다. */
+const GALLERY_PAGE = 'pages/projects.html';
+
+async function _clearActiveIfNeeded(projectId, wasActive) {
+  if (!wasActive) return false;
+  try {
+    global.currentActiveProjectId = null;
+    for (const w of BrowserWindow.getAllWindows()) {
+      try {
+        const u = w.webContents && w.webContents.getURL && w.webContents.getURL();
+        if (u && new RegExp(`[?&]project=${projectId}(?:[&#]|$)`).test(u)) {
+          /* 갤러리로 되돌린다 — 지워진 프로젝트를 연 채로 두면 편집기가 «없는 것»을 가리킨다.
+             ⛔★2026-09-08 실측 사고: 여기가 «URL 문자열을 손으로 조립»해서 «없는 경로»를 만들었다.
+                 `file:///…/index.html?project=x` → `file:///…/projects.html` (루트)
+                 그런데 실제 파일은 `pages/projects.html` 이다. 루트엔 없다.
+               ⇒ 활성 프로젝트를 지우면 창이 `chrome-error://chromewebdata/` 로 갔다(제목·본문 빈 화면).
+                 「지웠다」는 성공했는데 «사용자 화면이 죽었다» — 도구가 성공을 답하니 아무도 몰랐다.
+             ★같은 파일이 다른 세 자리에서는 `loadFile('pages/projects.html')` 로 «맞게» 쓰고 있었다.
+               ⇒ 조립하지 말고 그 표현을 쓴다. 경로를 «두 가지 방법»으로 만들면 하나는 반드시 낡는다. */
+          await w.loadFile(GALLERY_PAGE).catch(() => {});
+        }
+        await w.webContents.executeJavaScript(
+          'try{window.activeProjectId=null}catch(_){}; true', true).catch(() => {});
+      } catch (_) {}
+    }
+    return true;
+  } catch (_) { return false; }   // 비우기 실패가 삭제를 되돌리진 않는다 — 호출측이 값으로 «알린다»
+}
+
+// 프로젝트 «삭제» 코어 — MCP delete_project 도구가 사용. (2026-09-07 신설)
+// ★★영구삭제가 «아니라» 휴지통으로 옮긴다(현빈 지시). 이유:
+//   ⑴ 삭제는 되돌릴 수 없는 자원인데, 휴지통이면 «되돌릴 수 있다» ⇒ 위험 등급이 한 칸 내려간다
+//   ⑵ 2026-09-07 실측: MCP 에 삭제 도구가 «없어서» 사람이 파일시스템에서 rm 했다.
+//      그러면 앱이 그걸 «모르고» activeProjectId 가 죽은 id 를 계속 가리킨다 — 이 도구가 그 자리를 닫는다.
+// ⛔마지막 프로젝트도 «지울 수 있다». 갤러리(사람이 쓰는 화면)에 그런 제약이 없고,
+//   0개 상태를 앱이 이미 다룬다(「아직 프로젝트가 없어요」 안내가 뜬다 — 실측).
+//   ⇒ 도구가 사람보다 빡빡하면 그건 안전이 아니라 «불일치»다.
+async function _deleteProjectImpl({ projectId } = {}) {
+  try {
+    if (!projectId || typeof projectId !== 'string')
+      return { ok: false, error: 'projectId 필수', code: 'invalid' };
+    // ⛔경로 세그먼트로 쓰이므로 traversal 가드(_readProjectFile 과 같은 취지)
+    if (!/^proj_[A-Za-z0-9_-]+$/.test(projectId))
+      return { ok: false, error: `invalid projectId: ${projectId} (proj_* 형식이어야 한다)`, code: 'not_proj' };
+
+    // 신 레이아웃(폴더) 우선 + 구 flat 폴백 — _resolveProjectJsonPath 와 같은 순서
+    const dir = path.join(PROJECTS_DIR, projectId);
+    const flat = path.join(PROJECTS_DIR, `${projectId}.json`);
+    const target = fs.existsSync(dir) ? dir : (fs.existsSync(flat) ? flat : null);
+    if (!target) return { ok: false, error: `project not found: ${projectId}`, code: 'not_found' };
+
+    // ★활성이었나를 «지우기 전에» 본다 — 지우고 나면 못 잰다
+    const wasActive = (global.currentActiveProjectId === projectId);
+
+    /* ★MCP 삭제도 «앱 휴지통»으로 간다 (2026-09-08). 사람이 쓰는 화면과 «같은 곳»이어야
+       사용자가 「AI 가 지운 것」을 자기 휴지통 탭에서 찾을 수 있다.
+       ⛔도구만 다른 데로 버리면 사용자는 영영 못 찾는다. */
+    {
+      const tr = _trash.moveToTrash({ projectsDir: _projectsRoot(), projectId });
+      if (tr.ok) {
+        const cleared = await _clearActiveIfNeeded(projectId, wasActive);
+        /* ★★«되살아났나»를 본다 (2026-09-08 실측 사고).
+             옮기는 건 동기 rename 이라 그 사이엔 창이 없다 — 그래서 사후조건을 뺐는데 «틀렸다».
+             삭제가 «끝난 뒤» 자동저장이 옛 DOM 으로 폴더를 다시 쓴다(실측: 11ms·34ms 뒤).
+           ⇒ 그러면 같은 id 가 «휴지통에도, 원래 자리에도» 있게 되고,
+             그 뒤 삭제는 영영 'already_in_trash' 로 막힌다(실물에서 2건 그렇게 됐다).
+           ⛔「되살아났다」고 «말만» 하면 좀비가 남는다 — 활성을 비운 «뒤»라 자동저장은 이미 멈췄으니
+             여기서 치우는 게 안전하다. 못 치우면 그때 말한다. */
+        const reap = await _reapRevived(projectId);
+        const revived = reap.revived, revivedCleaned = reap.cleaned;
+        return { ok: true, projectId, trashed: true, appTrash: true, name: tr.name,
+                 deletedAt: tr.deletedAt, wasActive, activeCleared: cleared,
+                 ...(revived ? { revivedAfterDelete: true, revivedCleaned,
+                     ...(revivedCleaned ? {} : { warning: '삭제 직후 자동저장이 프로젝트를 되살렸고 그걸 못 치웠다 — 같은 id 가 두 곳에 있다. 사람이 봐야 한다' }) } : {}),
+                 note: `앱 휴지통으로 옮겼다(${_trash.RETENTION_DAYS}일 보관, 영구삭제 아님). `
+                     + '사용자는 갤러리의 휴지통 탭에서 되살릴 수 있다.' };
+      }
+      if (tr.code !== 'not_found')
+        return { ok: false, error: tr.error, code: tr.code || 'trash_failed',
+                 hint: '⛔영구삭제로 «대신»하지 않는다 — 되돌릴 수 없게 된다.' };
+      return { ok: false, error: `project not found: ${projectId}`, code: 'not_found' };
+    }
+
+    /* ⛔여기 있던 «OS 휴지통으로 보내던» 코드는 2026-09-08 «앱 휴지통»으로 대체돼 지웠다.
+         남겨두면 「어느 쪽이 진짜인가」를 다음 사람이 헷갈린다 — 죽은 코드는 거짓말을 한다.
+       ★그때 배운 것은 주석으로 «옮겨» 뒀다: `.gdt` 는 확정된 zip 포맷이라
+         «확장자만 .gdt» 인 폴더를 만들면 gdt-verify 가 거부한다(bad_02_plaintext.gdt 픽스처).
+         규격의 «이름»을 달고 규격이 «아닌» 것이 제일 나쁘다. (main/gdt/export.js 명세 참조)
+       ★영구삭제(permanent) 경로는 ipcMain 'projects:delete' 쪽에 그대로 살아 있다. */
+  } catch (e) {
+    console.error('[projects:delete] 예외:', e);
+    return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
+  }
+}
+
+// 프로젝트 «이름 수정» — MCP rename_project 가 사용. (2026-09-07 신설)
+// ★그전엔 이름을 바꾸는 도구가 «없었다» — 만들 수만 있고 고칠 수가 없었다.
+async function _renameProjectImpl({ projectId, name } = {}) {
+  try {
+    if (!projectId || !/^proj_[A-Za-z0-9_-]+$/.test(String(projectId)))
+      return { ok: false, error: `invalid projectId: ${projectId}`, code: 'not_proj' };
+    const nm = (name == null ? '' : String(name)).trim();
+    if (!nm) return { ok: false, error: 'name 이 비었다(공백만도 안 된다)', code: 'invalid' };
+    if (nm.length > 100) return { ok: false, error: `name too long (${nm.length} > 100)`, code: 'invalid' };
+    const jsonPath = _resolveProjectJsonPath(projectId);
+    if (!jsonPath || !fs.existsSync(jsonPath))
+      return { ok: false, error: `project not found: ${projectId}`, code: 'not_found' };
+    const proj = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    const before = proj.name;
+    if (before === nm) return { ok: true, projectId, name: nm, changed: false, note: '이미 그 이름이다' };
+    proj.name = nm;
+    proj.updatedAt = new Date().toISOString();
+    const r = await _saveProjectImpl(proj);
+    if (!r || r.ok !== true) return { ok: false, error: 'save failed', code: 'io' };
+    /* ★효과로 판정한다 — 「썼다」가 아니라 «디스크에서 다시 읽어» 확인한다. */
+    const after = JSON.parse(fs.readFileSync(jsonPath, 'utf8')).name;
+    if (after !== nm) return { ok: false, error: `저장했는데 값이 다르다: ${after}`, code: 'noeffect' };
+    return { ok: true, projectId, name: nm, previousName: before, changed: true };
+  } catch (e) {
+    console.error('[projects:rename] 예외:', e);
+    return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
+  }
+}
+
 async function _duplicateProjectImpl({ sourceProjectId, newName, sourceData } = {}) {
   try {
     if (!sourceProjectId || typeof sourceProjectId !== 'string')
@@ -2852,51 +3473,314 @@ ipcMain.handle('figma:write-node-map', (event, nodeMap) => {
 });
 
 /* ── IPC: Templates ── */
-const TEMPLATES_DIR        = path.join(USER_DATA_DIR, 'templates');
-const TEMPLATES_CANVAS_DIR = path.join(TEMPLATES_DIR, 'canvas');
-const TEMPLATES_INDEX_FILE = path.join(TEMPLATES_DIR, 'index.json');
-migrateFiles(path.join(__dirname, 'templates'), TEMPLATES_DIR); // 구 경로 마이그레이션
-if (!fs.existsSync(TEMPLATES_CANVAS_DIR)) fs.mkdirSync(TEMPLATES_CANVAS_DIR, { recursive: true });
+/* ★뿌리 선언은 여기가 아니라 «프로젝트 뿌리 옆»에 있다(startup repoint 보다 먼저 있어야 해서).
+   여기서는 «공용 풀 준비»와 핸들러만 다룬다.
+   ⛔핸들러는 경로를 «값으로 붙잡지» 않는다 — 계정이 바뀌면 뿌리가 갈리므로 매번 게터로 읽는다
+     (프로젝트가 registerGdtIpc 한 곳만 게터로 넘긴 것과 같은 이유. 주석 1113). */
+migrateFiles(path.join(__dirname, 'templates'), TEMPLATES_DIR_SHARED); // 구 경로 마이그레이션 → 공용 풀로만
+if (!fs.existsSync(path.join(TEMPLATES_DIR_SHARED, 'canvas'))) fs.mkdirSync(path.join(TEMPLATES_DIR_SHARED, 'canvas'), { recursive: true });
+
+function _tplIndexFile(root)  { return path.join(root, 'index.json'); }
+function _tplCanvasDir(root)  { return path.join(root, 'canvas'); }
+function _readTplIndex(root) {
+  const f = _tplIndexFile(root);
+  if (!fs.existsSync(f)) return [];
+  try {
+    const v = JSON.parse(fs.readFileSync(f, 'utf8'));
+    return Array.isArray(v) ? v : [];
+  } catch (e) {
+    /* ⛔여기서 삼킨 뒤 «[]» 는 「템플릿이 없다」로 읽힌다 — 그 상태로 save-index 가 오면 덮어써서 «진짜로» 없어진다.
+       ⇒ 최소한 «시끄럽게» 남긴다. 조용히 빈 배열을 돌려주면 손실이 무증상이 된다. */
+    console.error('[templates] ★index 를 못 읽었다(손상?) — 빈 목록으로 진행한다:', f, (e && e.message) || e);
+    return [];
+  }
+}
+
+/* 구버전 templates.json(canvas 내장) → index.json + canvas/ 분리. 공용 풀 기준, 1회성. */
+function _migrateLegacyTemplatesJson() {
+  const oldFile = path.join(TEMPLATES_DIR_SHARED, 'templates.json');
+  if (!fs.existsSync(oldFile)) return;
+  try {
+    const old = JSON.parse(fs.readFileSync(oldFile, 'utf8'));
+    const index = old.map(({ canvas, ...meta }) => {
+      if (canvas) fs.writeFileSync(path.join(_tplCanvasDir(TEMPLATES_DIR_SHARED), `${_safeSeg(meta.id)}.html`), canvas, 'utf8'); // GAP-009
+      return meta;
+    });
+    fs.writeFileSync(_tplIndexFile(TEMPLATES_DIR_SHARED), JSON.stringify(index, null, 2), 'utf8');
+    fs.unlinkSync(oldFile);
+  } catch (e) { console.error('[templates] 구버전 templates.json 마이그레이션 실패:', (e && e.message) || e); }
+}
+
+/* 공용 풀의 기존 항목을 «레거시» 폴더 하나로 모은다(2026-09-07 현빈 지시).
+   ★1회만 — 마커가 있으면 스킵. 마커에 이전 folder 를 «전량» 적어 되돌릴 수 있게 둔다.
+   ⛔파일 이동·삭제·id 변경 «없음». folder 필드만 바꾼다 ⇒ 유실 위험 0.
+   ⚠️migrateFiles(1092)는 dst 가 있으면 스킵이라 «이미 시드된 ud»엔 안 걸린다 —
+     그래서 시드에 얹지 않고 여기서 «따로» 한다. 얹었으면 기존 사용자에겐 영영 안 걸렸다. */
+const TPL_LEGACY_FOLDER = '레거시';
+const TPL_LEGACY_MARKER = path.join(TEMPLATES_DIR_SHARED, '.legacy-foldered.json');
+function _foldLegacyTemplates() {
+  if (fs.existsSync(TPL_LEGACY_MARKER)) return;
+  const f = _tplIndexFile(TEMPLATES_DIR_SHARED);
+  if (!fs.existsSync(f)) return;
+  try {
+    const arr = JSON.parse(fs.readFileSync(f, 'utf8'));
+    if (!Array.isArray(arr) || !arr.length) return;
+    const prev = arr.map(t => ({ id: t.id, prevFolder: (t.folder === undefined ? null : t.folder) }));
+    arr.forEach(t => { t.folder = TPL_LEGACY_FOLDER; });
+    fs.writeFileSync(f, JSON.stringify(arr, null, 2), 'utf8');
+    fs.writeFileSync(TPL_LEGACY_MARKER, JSON.stringify({ at: new Date().toISOString(), folder: TPL_LEGACY_FOLDER, count: prev.length, prev }, null, 2), 'utf8');
+    console.log(`[templates] 공용 ${prev.length}건을 «${TPL_LEGACY_FOLDER}» 폴더로 모았다(1회).`);
+  } catch (e) {
+    /* ⛔실패했으면 마커를 «남기지 않는다» — 남기면 다음 기동에 재시도를 못 하고 절반만 모인 채 굳는다. */
+    console.error('[templates] 레거시 폴더 정리 실패 — 마커 없이 둔다(다음 기동 재시도):', (e && e.message) || e);
+  }
+}
+_migrateLegacyTemplatesJson();
+_foldLegacyTemplates();
+
+/* 렌더러가 「지금 어디에 저장되는가」를 물어보는 자리.
+   ★사전 고지용이다 — 격리 폴더로 내려앉은 «그 순간»에 사용자에게 말해 주려면 렌더러가 알아야 한다.
+     안내문(README)은 사후 구제라, 그것만 두면 «사라졌다»고 겪은 사람은 영영 안 본다.
+   ⛔경로(root)는 안 넘긴다 — 사용자 홈 경로가 렌더러로 새어나갈 이유가 없다. */
+ipcMain.handle('templates:root-state', () => {
+  const s = _templatesDirState || {};
+  return { account: s.account || null, landed: s.landed || null, unresolved: !!s.unresolved, reason: s.reason || null };
+});
+
+/* ── 템플릿 «뷰어» 창 (B-4) ─────────────────────────────────────────────
+   ★뷰어 전용이다 — 삽입 기능이 없다. 삽입은 «선택된 섹션»의 주인인 편집기 창에서만 일어나야 한다.
+   ⛔편집기 렌더러 모듈(template-browser.js / template-system.js)을 이 창에 싣지 않는다.
+     template-system.js 가 globals.js 의 canvasEl 을 import 하고 있어서 편집기를 통째로 끌고 들어온다.
+     그래서 뷰어 페이지는 electronAPI(IPC)를 «직접» 부른다. */
+let _tplWin = null;
+const { resolvePopoutBounds, POPOUT_MIN_W, POPOUT_MIN_H } = require('./main/popout-geometry');
+/* 렌더러가 잰 「앱 안 패널의 지금 크기·자리」를 «띄울 수 있는» 창 좌표로 바꾼다.
+   ★렌더러 값을 믿지 않는다 — 계산은 popout-geometry 의 순수 함수가 하고(=테스트가 실행해서 잰다),
+     여기서는 «어느 화면의 작업영역을 쓸까»만 고른다.
+   ⛔throw 금지 — screen API 가 없거나(테스트 하네스) 던지면 workArea 를 포기하고 중앙으로 물러난다. */
+function _tplPopoutBounds(geom) {
+  let workArea = null;
+  try {
+    const g = (geom && typeof geom === 'object') ? geom : {};
+    /* 좌표를 받았으면 «그 점이 있는» 화면의 작업영역을 쓴다 — 보조 모니터에서 떼어냈는데
+       주 모니터 기준으로 자르면 창이 엉뚱한 화면으로 끌려간다. */
+    const d = (Number.isFinite(g.x) && Number.isFinite(g.y) && electronScreen
+               && typeof electronScreen.getDisplayNearestPoint === 'function')
+      ? electronScreen.getDisplayNearestPoint({ x: Math.round(g.x), y: Math.round(g.y) })
+      : (electronScreen && electronScreen.getPrimaryDisplay && electronScreen.getPrimaryDisplay());
+    workArea = d && d.workArea;
+  } catch (e) { workArea = null; }
+  return resolvePopoutBounds(geom, workArea);
+}
+/* ★geom = { width, height, x, y } — 렌더러가 #tpl-browser 를 «지금» 재서 보낸 값.
+     localStorage 가 아니라 getBoundingClientRect 다(저장 안 된 상태도 있다).
+   ⛔안 오면(구 preload·다른 호출처) 예전처럼 기본값·중앙으로 뜬다 — 깨지지 않는다. */
+ipcMain.handle('templates:open-window', async (event, geom) => {
+  /* ★실패를 «값으로» 만든다 — 여기서 throw 하면 ipcMain 이 reject 하고, 렌더러의 await 가 던진다.
+     그러면 렌더러는 「패널을 안 닫는」 것까지는 맞게 하지만 «아무 말도 못 한다»(토스트 0건).
+     사용자 눈에는 「버튼을 눌렀는데 아무 일도 안 일어남」 — 이 프로젝트가 이미 한 번 고친
+     «침묵 실패»가 그대로 재발한 자리였다. 실측(고치기 전): throw 시 토스트 0건.
+     ⇒ 던지지 말고 {ok:false,reason} 을 «돌려준다». 그래야 아래 반환 계약이 사실이 된다.
+     계약: { ok:true, reused:true|false } | { ok:false, reason } — ★이제 세 갈래가 «다» 존재한다.
+     ⛔렌더러의 try/catch 를 없애도 된다는 뜻은 아니다 — preload 누락·채널 미등록은 여전히 던진다. */
+  try {
+    // ★살아 있으면 새로 만들지 않고 포커스만 — 창이 두 개 뜨면 어느 쪽이 최신인지 알 수 없다.
+    if (_tplWin && !_tplWin.isDestroyed()) { _tplWin.focus(); return { ok: true, reused: true }; }
+    /* ★크기·자리를 «계승»한다 — 「새 창이 열렸다」가 아니라 «패널이 그 자리에서 떨어져 나왔다»로
+         보여야 한다. ⛔여기에 width:420 같은 리터럴을 도로 박지 마라(그러면 계승이 죽는다).
+       ⚠️frame:false 라 창 테두리 두께가 0 이다(실측: getBounds() === getContentBounds()).
+         ⇒ 패널 크기를 «그대로» 줘도 어긋나지 않아 setContentBounds 를 따로 쓸 필요가 없다. */
+    const _b = _tplPopoutBounds(geom);
+    _tplWin = new BrowserWindow({
+      width: _b.width,
+      height: _b.height,
+      /* 자리를 못 정했으면(좌표 없음·작업영역 불명) 예전처럼 화면 중앙 */
+      ...(_b.centered ? { center: true } : { x: _b.x, y: _b.y }),
+      minWidth: POPOUT_MIN_W,
+      minHeight: POPOUT_MIN_H,
+      title: '템플릿',
+      alwaysOnTop: true,          // 현빈 지시 — 캔버스와 나란히 두고 보는 용도다
+      /* ★frame:false — 신호등(빨강·노랑·초록)을 «없앤다».
+         이건 「창」이 아니라 «앱 밖으로 떼어낸 패널»이다(포토샵·일러스트의 분리 패널처럼).
+         ⛔이전 주석은 「frame:false 로 통째로 없애지는 않는다. 창을 옮기고 닫을 길이 사라진다」였다.
+           ★그 근거가 틀렸다 — 옮기는 길도 닫는 길도 «이미» 있다:
+             · 옮기기 → pages/template-browser.html 의 .tpl-browser-header{-webkit-app-region:drag}
+                        (버튼은 .tpl-browser-header button{no-drag} 로 빠져 있어 눌린다)
+             · 닫기   → 헤더의 X 버튼(#tpl-browser-close → window.close())
+           titleBarStyle:'hiddenInset' 은 신호등을 «안쪽으로 밀» 뿐 없애지 못해서 바꿨다.
+         ⚠️리사이즈 — 맥은 프레임리스에서도 OS 가 가장자리 리사이즈를 준다고 보고 resizable 을 그대로 둔다.
+           패널 내부 리사이즈 핸들은 «되살리지 않는다» — 창 가장자리와 겹쳐 서로 싸운다.
+         ⚠️Windows 는 프레임리스에서 리사이즈 보더가 사라지는 알려진 차이가 있다.
+           이 기계에서 잴 수 없어 «미확인»으로 남긴다 — 「윈도우에서도 된다」고 읽지 마라. */
+      /* ⚠️isMac 은 createWindow() «안»의 지역 const 라 여기선 스코프 밖이다 — 그대로 쓰면
+         문법검사는 통과하고 «실행할 때» ReferenceError 가 난다. 여기서 다시 잡는다. */
+      ...(process.platform === 'darwin'
+        ? { frame: false }
+        : { frame: false, autoHideMenuBar: true }),
+      parent: mainWindow || undefined,
+      webPreferences: {           // ★mainWindow 와 «동일» — 새 창이라고 권한을 열지 않는다
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+      },
+    });
+    /* ★이걸 빠뜨리면 닫은 뒤 «죽은 참조»를 붙잡아 다시 안 열린다(isDestroyed 로도 걸러지지만
+       참조를 남겨두면 parent 해제·GC 가 늦다). 닫히면 즉시 놓는다.
+       ⚠️loadFile «앞»에 단다 — 로드가 깨져 catch 가 destroy 할 때도 이 정리가 돌아야 한다. */
+    _tplWin.on('closed', () => { _tplWin = null; });
+    /* ★★await 를 «반드시» 붙인다. loadFile 은 Promise 를 돌려주고, 파일이 없거나 로드가 깨지면
+         «비동기로» reject 한다 — 동기 try/catch 는 그걸 «못 잡는다».
+       ⛔.catch() 로 때우면 안 된다: 즉시 반환하니 {ok:true} 가 「로드 성공」을 뜻하지 않게 되고,
+         렌더러는 패널을 «먼저 닫고» 그 뒤에 창이 깨진다 — 고치려던 결함과 똑같은 결말이다.
+       ★설계 결정: 이 IPC 의 { ok:true } 는 「창이 떴다」가 아니라
+         «창이 떴고 내용까지 실렸다»를 뜻한다. 그래야 렌더러의 「성공을 확인한 뒤에만 닫는다」가
+         실제로 성립한다. IPC 가 몇 ms 늦어지는 건 그 대가로 싸다.
+       실측(await 없던 판, pages/template-browser.html 을 «실제로» 치우고): 패널이 닫히고,
+         토스트 0건, chrome-error 빈 창(bodyLen 0 · 헤더·X버튼 없음)이 1개 남았다.
+         frame:false 라 그 창엔 신호등도 없어서 «닫을 길이 아예 없다». */
+    await _tplWin.loadFile(path.join(__dirname, 'pages', 'template-browser.html'));
+    return { ok: true, reused: false };
+  } catch (e) {
+    /* ★원문 에러는 여기 남기고, 사용자에게는 읽을 수 있는 한 줄만 보낸다. */
+    console.error('[templates] 팝아웃 창을 열지 못했다:', e);
+    /* ⚠️생성 도중 터졌으면 «반쯤 만들어진 창»이 남는다 — 참조만 놓으면 안 되고 «없애야» 한다.
+       ★frame:false 라서 그 창엔 신호등도, (내용이 안 실렸으니) 헤더 X 버튼도 없다.
+         그냥 두면 사용자는 「못 열었다」는 토스트를 보면서 «닫을 수 없는 빈 창»을 떠안는다.
+         실측(destroy 없이): loadFile 이 던지게 만들었더니 빈 창이 1개 남았다. */
+    try { if (_tplWin && !_tplWin.isDestroyed()) _tplWin.destroy(); } catch (e2) { /* 이미 죽었으면 그만이다 */ }
+    _tplWin = null;
+    return { ok: false, reason: '새 창을 열지 못했습니다.' };
+  }
+});
+/* 부모가 닫히면 같이 닫는다 — 고아 창이 떠 있으면 앱이 안 꺼진 것처럼 보인다.
+   (parent 지정만으로는 맥에서 부모 종료 시 자동으로 안 닫히는 경우가 있어 명시한다.) */
+app.on('before-quit', () => { if (_tplWin && !_tplWin.isDestroyed()) _tplWin.destroy(); });
+
+/* ★팝아웃 창 → 편집기 창으로 가는 «통로는 하나»다(window.__tplEditorCommand).
+   삽입도 복구도 결국 「편집기가 해야 하는 일」이라, 통로를 늘리지 않고 action 으로 가른다.
+   ⛔통로를 명령마다 새로 만들면 어느 것이 살아 있는지 추적이 안 된다. */
+async function _callEditorCommand(payload) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    return { ok: false, reason: '편집기 창을 찾지 못했습니다. 편집기를 먼저 열어 주세요.' };
+  }
+  /* ★send(단방향) 가 아니라 executeJavaScript 로 «결과를 받아온다».
+     send 였을 때 팝아웃은 「보냈다」를 「넣었다」로 말했고, 안 들어간 경우에도 성공을 띄웠다(거짓 성공).
+     이 앱은 이미 같은 방식을 쓴다 — _invokeRendererUpdateIconifyBlock 참고. */
+  const js = `(window.__tplEditorCommand
+    ? window.__tplEditorCommand(${JSON.stringify(payload)})
+    : { ok:false, reason:'편집기가 아직 준비되지 않았습니다.' })`;
+  try {
+    const r = await mainWindow.webContents.executeJavaScript(js, true);
+    return (r && typeof r === 'object') ? r : { ok: false, reason: '편집기 응답을 읽지 못했습니다.' };
+  } catch (e) {
+    return { ok: false, reason: (e && e.message) || '편집기 호출에 실패했습니다.' };
+  }
+}
+/* 삽입 — ★「어느 섹션에 넣나」의 주인은 편집기다. 팝아웃은 선택 상태를 모르므로 위임한다.
+   (섹션 미선택 안내는 편집기 쪽 기존 흐름이 띄운다 — 여기서 흉내내지 않는다.) */
+ipcMain.handle('templates:insert-in-main', async (event, id) => {
+  const r = await _callEditorCommand({ action: 'insert', id: String(id || '') });
+  // ⛔실패했는데 편집기를 앞으로 끌어오면 «된 것»처럼 보인다. 성공했을 때만 포커스한다.
+  if (r.ok && mainWindow && !mainWindow.isDestroyed()) mainWindow.focus();
+  return r;
+});
+/* 창의 «지금» 크기. ⛔없거나 이상하면 null — 그러면 편집기는 패널 크기를 «건드리지 않는다».
+   ★getContentBounds 를 쓴다: frame:false 라 getBounds 와 같지만, 프레임이 생기는 날에도
+     「사용자가 보던 내용 영역」이 패널과 짝이 되는 값이다. */
+function _tplWinContentSize() {
+  try {
+    if (!_tplWin || _tplWin.isDestroyed() || typeof _tplWin.getContentBounds !== 'function') return null;
+    const b = _tplWin.getContentBounds() || {};
+    const width = Math.round(Number(b.width)), height = Math.round(Number(b.height));
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+    return { width, height };
+  } catch (e) { return null; }
+}
+/* 복구 — 창을 닫고 편집기의 인앱 패널을 다시 연다(떼어내기의 «짝»).
+   ★크기도 «되돌린다» — 왕복이 대칭이어야 한다. 안 하면 한 번 떼었다 붙일 때마다 크기가 어긋난다.
+   ⛔창을 닫은 «뒤»에 재려 하지 마라 — 그때는 이미 크기를 읽을 수 없다. 그래서 여기서 먼저 잰다. */
+ipcMain.handle('templates:restore-panel', async () => {
+  const size = _tplWinContentSize();
+  const r = await _callEditorCommand({ action: 'open-panel', ...(size || {}) });
+  if (r.ok && mainWindow && !mainWindow.isDestroyed()) mainWindow.focus();
+  if (_tplWin && !_tplWin.isDestroyed()) _tplWin.close();
+  return r;
+});
 
 ipcMain.handle('templates:load-index', () => {
-  // 구버전 templates.json → 분리 구조로 자동 마이그레이션
-  const oldFile = path.join(TEMPLATES_DIR, 'templates.json');
-  if (fs.existsSync(oldFile)) {
-    try {
-      const old = JSON.parse(fs.readFileSync(oldFile, 'utf8'));
-      const index = old.map(({ canvas, ...meta }) => {
-        if (canvas) fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(meta.id)}.html`), canvas, 'utf8'); // GAP-009
-        return meta;
-      });
-      fs.writeFileSync(TEMPLATES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8');
-      fs.unlinkSync(oldFile);
-      return index;
-    } catch { return []; }
+  const personalRoot = _templatesRoot();
+  const shared = _readTplIndex(TEMPLATES_DIR_SHARED).map(m => Object.assign({}, m, { _scope: 'shared' }));
+  /* 뿌리가 겹치면(이론상) 같은 걸 두 번 세게 된다 — 겹치면 공용만 돌려준다. */
+  if (personalRoot === TEMPLATES_DIR_SHARED) return shared;
+  const personal = _readTplIndex(personalRoot).map(m => Object.assign({}, m, { _scope: 'personal' }));
+  /* ★개인이 «먼저», 그리고 id 충돌 시 개인이 이긴다.
+     근거: 방금 내가 만든 것이 안 보이면 사용자에겐 「내 것이 사라졌다」가 된다. */
+  const seen = new Set();
+  const out = [];
+  for (const t of personal) { if (t && t.id) seen.add(t.id); out.push(t); }
+  for (const t of shared) {
+    if (t && t.id && seen.has(t.id)) { console.warn(`[templates] id 충돌 — 개인이 공용을 가린다: ${t.id}`); continue; }
+    out.push(t);
   }
-  if (!fs.existsSync(TEMPLATES_INDEX_FILE)) return [];
-  try { return JSON.parse(fs.readFileSync(TEMPLATES_INDEX_FILE, 'utf8')); } catch { return []; }
+  return out;
 });
 
 ipcMain.handle('templates:save-index', (event, index) => {
-  fs.writeFileSync(TEMPLATES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8');
+  const root = _templatesRoot();
+  /* ⛔공용 풀에 index 를 쓰면 «모든 계정»의 목록이 바뀐다. 그리고 아래 필터가 공용을 걷어낸 뒤라
+     그대로 쓰면 공용 19건이 통째로 지워진다. 그래서 뿌리부터 막는다. */
+  if (root === TEMPLATES_DIR_SHARED) {
+    console.error('[templates] ⛔공용 풀에 index 쓰기를 거부했다(공용은 읽기전용).');
+    return false;
+  }
+  const arr = Array.isArray(index) ? index : [];
+  /* ★★이 필터가 이 기능의 안전선이다.
+     빠뜨리면 병합돼 온 공용 항목이 «개인 index 로 복제»되고, 그 뒤 공용을 고쳐도 개인 사본이 갈라진다
+     (그리고 공용 건수가 계정마다 불어난다). _scope 는 런타임 표식이라 디스크엔 안 쓴다. */
+  const personal = arr.filter(t => t && t._scope !== 'shared').map(({ _scope, ...meta }) => meta);
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(_tplIndexFile(root), JSON.stringify(personal, null, 2), 'utf8');
   return true;
 });
 
 ipcMain.handle('templates:load-canvas', (event, id) => {
-  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`); // GAP-009
-  if (!fs.existsSync(filePath)) return null;
-  try { return fs.readFileSync(filePath, 'utf8'); } catch { return null; }
+  const seg = _safeSeg(id); // GAP-009
+  /* ★순서 고정: 개인 → 공용. 개인이 공용을 가리는 규칙(load-index)과 같은 방향이어야 한다. */
+  for (const root of [_templatesRoot(), TEMPLATES_DIR_SHARED]) {
+    const fp = path.join(_tplCanvasDir(root), `${seg}.html`);
+    if (!fs.existsSync(fp)) continue;
+    try { return fs.readFileSync(fp, 'utf8'); }
+    catch (e) { console.error('[templates] canvas 읽기 실패:', fp, (e && e.message) || e); return null; }
+  }
+  return null;
 });
 
 ipcMain.handle('templates:save-canvas', (event, id, html) => {
-  fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`), html, 'utf8'); // GAP-009
+  const root = _templatesRoot();
+  if (root === TEMPLATES_DIR_SHARED) {
+    console.error('[templates] ⛔공용 풀에 canvas 쓰기를 거부했다(공용은 읽기전용).');
+    return false;
+  }
+  const dir = _tplCanvasDir(root);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${_safeSeg(id)}.html`), html, 'utf8'); // GAP-009
   return true;
 });
 
 ipcMain.handle('templates:delete-canvas', (event, id) => {
-  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`); // GAP-009
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  return true;
+  const seg = _safeSeg(id); // GAP-009
+  const root = _templatesRoot();
+  if (root === TEMPLATES_DIR_SHARED) return { ok: false, reason: 'shared-readonly' };
+  const own = path.join(_tplCanvasDir(root), `${seg}.html`);
+  if (fs.existsSync(own)) { fs.unlinkSync(own); return { ok: true }; }
+  /* 개인엔 없는데 공용에 있다 = «공용을 지우려 한 것». 거부한다 —
+     지우면 그 계정 하나가 아니라 ★모든 계정의 것이 같이 사라진다. */
+  if (fs.existsSync(path.join(_tplCanvasDir(TEMPLATES_DIR_SHARED), `${seg}.html`))) {
+    console.warn('[templates] 공용 템플릿 삭제 거부:', seg);
+    return { ok: false, reason: 'shared-readonly' };
+  }
+  return { ok: true }; // 이미 없다
 });
 
 /* ── IPC: Section Screenshot (html2canvas flex 버그 우회) ── */
@@ -3057,6 +3941,10 @@ module.exports = Object.assign(module.exports || {}, { setupAutoUpdater, _autoUp
 
 /* ── App lifecycle ── */
 app.whenReady().then(async () => {
+  /* ★휴지통 만료 정리 — «기다리지 않는다»(await 없음). 파일 이동이라 느릴 수 있는데
+       그것 때문에 첫 창이 늦게 뜨면 사용자에겐 「앱이 느려졌다」로만 보인다. */
+  _sweepTrashOnBoot();
+
   // goya-asset:// 핸들러 — proj_<id>/assets/<file>을 디스크에서 직접 스트림.
   // path-traversal 가드(assets 루트 밖 거부). 브라우저가 캐시·lazy-load 담당 → JS heap에 base64 없음.
   protocol.handle('goya-asset', (request) => {
@@ -3105,7 +3993,7 @@ app.whenReady().then(async () => {
   //   표준 role 템플릿 위에 「파일」을 얹는 방식이라 기본 편집 단축키가 유지된다.
   try {
     const { registerGdtIpc, buildAppMenu } = require('./main/gdt/wire');
-    registerGdtIpc({ projectsDir: PROJECTS_DIR, resolveProjectJsonPath: _resolveProjectJsonPath });
+    registerGdtIpc({ projectsDir: _projectsRoot, resolveProjectJsonPath: _resolveProjectJsonPath }); // ★값이 아니라 «게터» — 계정이 바뀌면 따라가야 한다
     buildAppMenu();
   } catch (e) {
     console.error('[gdt] 초기화 실패 — 메뉴 없이 계속:', e);
@@ -3118,8 +4006,49 @@ app.whenReady().then(async () => {
   setupAutoUpdater();
   // Claude PM MCP 서버 (포트 9345, port-status 표 9345+ 신규 자유)
   try {
+    /* ★뿌리 주입은 «서버가 듣기 시작하기 전»에 — 뒤에 두면 그 사이에 들어온 요청이
+         주입 없는 상태로 처리된다(이제는 폴백 대신 던지므로 «오류»가 되지만, 애초에
+         그 창을 만들 이유가 없다). ⛔여기서 순서를 바꾸지 마라. */
+    setMcpProjectsRoot(() => PROJECTS_DIR);
+    /* ★로그인 게이트 프로브도 «서버가 듣기 전»에 꽂는다.
+       ⛔예전엔 이게 startMcpServer 보다 119줄 «뒤»였다. 그 사이 배선 하나가 던지면 바깥 try 가
+         경고 한 줄만 남기고 — ★MCP 는 이미 듣는데 로그인 게이트는 영영 안 걸린다.
+       ★뿌리 주입과 «같은 자리»에 둔다. 둘의 실패 모드가 갈리면 안 된다. */
+    setMcpAuthProbe(() => ({
+      authed: !!(_editorAccessGranted || isAdminAuthorized()),
+      // ⛔계정 «식별자»는 넘기지 않는다 — MCP 응답에 실릴 수 있다. 「됐나」만 넘긴다.
+      /* ★격리가 «실제로» 걸렸는지 진단할 창.
+         「목록이 0건」이 나왔을 때 «격리돼서 0건»인지 «못 재서 0건»인지 갈라야 한다.
+         ⛔이메일도, 계정키(이메일 slug 포함)도 안 넘긴다 — 지문 8자만 넘긴다. */
+      accountScoped: PROJECTS_DIR !== PROJECTS_DIR_LEGACY && !(_projectsDirState && _projectsDirState.unresolved),
+      /* ★「계정별로 갈렸다」와 「누구인지 못 알아내 격리 폴더에 있다」는 «다른 상태»다.
+         뭉개면 「0건」을 볼 때 또 오독한다. */
+      accountUnresolved: !!(_projectsDirState && _projectsDirState.unresolved),
+      /* ⛔「비로그인이라 없다」와 「못 읽어서 없다」를 같은 null 로 뭉개지 않는다 —
+           이 값은 「0건」을 «격리»와 «고장»으로 가르라고 있는 것이라, 뭉개면 쓸모가 없다. */
+      accountFingerprint: (() => {
+        try {
+          const k = _currentAccountKey();
+          return k ? require('crypto').createHash('sha1').update(k).digest('hex').slice(0, 8) : null;
+        } catch (_) { return 'ERROR'; }
+    })(),
+    }));
     const { port: actualPort, token: mcpToken } = await startMcpServer({
-      port: 9345,
+      /* ★기본은 9345. 격리 인스턴스는 «환경변수»로 옮긴다.
+           ⛔예전엔 기동 스크립트가 이 «소스 줄을 치환»했다. 그래서 그 상태로 커밋되면
+             dev·릴리스가 남의 격리 포트로 떴다(2026-09-07 실제로 6ca0a12 에 딸려 들어갔다).
+           ⇒ 소스를 안 건드리면 «커밋에 딸려갈 자리 자체»가 없어진다.
+             검사(no-isolation-port.test.js)도 남겨 두지만, 구조가 검사보다 강하다. */
+      port: (() => {
+        const raw = process.env.GODITOR_MCP_PORT;
+        if (!raw) return 9345;
+        const n = Number(raw);
+        // 못 읽으면 «조용히 기본값»으로 가지 않는다 — 격리 의도가 소리 없이 사라진다
+        if (!Number.isInteger(n) || n < 1024 || n > 65535) {
+          throw new Error(`GODITOR_MCP_PORT 이 포트가 아니다: ${JSON.stringify(raw)}`);
+        }
+        return n;
+      })(),
       onActiveProject: () => global.currentActiveProjectId || null,
     });
     // EADDRINUSE fallback이 일어나도 ipc 핸들러가 올바른 포트로 ping
@@ -3135,6 +4064,9 @@ app.whenReady().then(async () => {
       scratchAdd: _invokeRendererScratchAdd,
       buildBasicSection: _invokeRendererBuildBasicSection,
       getCanvasState: _invokeRendererGetCanvasState,
+      // 갭 «감수 패스» — 읽기 / 적용. 둘 다 있어야 감수가 돈다(하나만 있으면 API_MISSING).
+      readSpacingSequence: _invokeRendererReadSpacingSequence,
+      applySpacingOps: _invokeRendererApplySpacingOps,
       exportSections: _invokeRendererExport,
       historyTip: _invokeRendererHistoryTip,
       historyHasSeq: _invokeRendererHistoryHasSeq,
@@ -3155,6 +4087,9 @@ app.whenReady().then(async () => {
       addCardBlock: _invokeRendererAddCardBlock,
       updateCardBlock: _invokeRendererUpdateCardBlock,
       addChecklistItem: _invokeRendererAddChecklistItem,
+      checklistSection: _invokeRendererChecklistSection,
+      searchSections: _invokeRendererSearchSections,
+      variation: _invokeRendererVariation,
       setSectionMemo: _invokeRendererSetSectionMemo,
       getSectionMemo: _invokeRendererGetSectionMemo,
       updateChecklistItem: _invokeRendererUpdateChecklistItem,
@@ -3175,6 +4110,14 @@ app.whenReady().then(async () => {
       updateLaurelBlock: _invokeRendererUpdateLaurelBlock,
       addCanvasBlock: _invokeRendererAddCanvasBlock,
       updateCanvasBlock: _invokeRendererUpdateCanvasBlock,
+      addGridBlock: _invokeRendererAddGridBlock,
+      updateGridBlock: _invokeRendererUpdateGridBlock,
+      readBlockState: _invokeRendererReadBlockState,   // ★「바꿨다」를 «되읽어» 대조하는 자리
+      setActiveFrame: _invokeRendererSetActiveFrame,   // ★«이 프레임 안에» 넣기 위한 자리
+      whereIsBlock: _invokeRendererWhereIsBlock,       // ★「정말 거기 들어갔나」를 화면에서 확인
+      assetsList: _assetsListImpl,   // ★에셋 목록 — 앱에 list IPC 가 없어 여기서 디스크를 읽는다
+      assetsTree: _invokeRendererAssetsTree,       // ★패널이 보는 «정본» 트리
+      assetsMutate: _invokeRendererAssetsMutate,   // 폴더·URL·이름·삭제·이동·캔버스로
       addChatBlock: _invokeRendererAddChatBlock,
       updateChatBlock: _invokeRendererUpdateChatBlock,
       addGradientBlock: _invokeRendererAddGradientBlock,
@@ -3213,7 +4156,13 @@ app.whenReady().then(async () => {
     }
     // 프로젝트 단위 코어 주입 — MCP duplicate_project/create_project/open_project 도구가 사용.
     if (typeof setMcpProjectOps === 'function') {
-      setMcpProjectOps({ duplicate: _duplicateProjectImpl, create: _createProjectImpl, open: _openProjectImpl, list: _listProjectsImpl });
+      setMcpProjectOps({ duplicate: _duplicateProjectImpl, create: _createProjectImpl, open: _openProjectImpl, list: _listProjectsImpl, delete: _deleteProjectImpl, rename: _renameProjectImpl });
+      /* ★★인증 «상태»를 MCP 에 알린다 — 2026-09-07 현빈 지시:
+         「가장 먼저 로그인되어 있는지로 확인해야 한다」.
+         그전엔 MCP 가 인증을 «아예 안 봤다»(참조 0건). 게이트는 main.js 의 open_project 한 곳뿐이라
+         list_projects·create_project 는 «로그인 없이도» 통과했다 — 문 «앞»의 도구가 열려 있었다.
+         ⇒ 실측: list_projects 통과 · create_project 통과 · open_project 거절.
+         ★「막혔나」를 안전한 도구로 재면 「안 막혔다」가 나오는 이유가 이것이다. */
     }
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -3321,18 +4270,290 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId,
 }
 
 // ─── add_checklist_item — 체크리스트 항목(=핀) 추가 ─────────────────────────
-async function _invokeRendererAddChecklistItem({ text, x, y, sectionId, done = false, urgent = false } = {}) {
+async function _invokeRendererAddChecklistItem({ text, x, y, sectionId, ckSectionId, done = false, urgent = false } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
-  const safeArgs = JSON.stringify({ text: String(text||''), x, y, sectionId, done: !!done, urgent: !!urgent });
+  const safeArgs = JSON.stringify({ text: String(text||''), x, y, sectionId, ckSectionId,
+                                    done: !!done, urgent: !!urgent });
   return await mainWindow.webContents.executeJavaScript(
     `(() => { try {
       if (typeof window.addChecklistItem !== 'function') return { ok:false, code:'API_MISSING' };
-      const id = window.addChecklistItem(${safeArgs});
-      return { ok:true, itemId: id };
+      const r = window.addChecklistItem(${safeArgs});
+      /* ⛔addChecklistItem 은 «보통은 id 문자열»이지만 거절할 땐 «객체»를 준다(SECTION_NOT_FOUND).
+           예전 코드는 그걸 itemId 에 그대로 담아 ok:true 로 올렸다 — 거짓 성공이다.
+         ⇒ 모양으로 가른다. 문자열이 아니면 «그 객체를 그대로» 올린다. */
+      if (typeof r !== 'string') return (r && typeof r === 'object') ? r
+        : { ok:false, code:'NO_ID', message:'항목 id 를 못 받았습니다.' };
+      return { ok:true, itemId: r };
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
     true
   );
+}
+
+/* ─── P2 search_sections — «내용으로» 섹션 찾기 (2026-09-08 현빈 요청) ────────
+   ⛔없을 때 어땠나: 「'무료배송' 적힌 데 고쳐줘」를 하려면 섹션을 «하나씩» 열어야 했다.
+     실물 프로젝트가 102섹션이라 왕복 102번 — 실무에서 못 쓴다.
+   ⇒ 렌더러를 «한 번만» 훑는다. 섹션을 여닫지 않으므로 화면 상태를 안 건드린다. */
+/* ─── A/B 베리에이션 «쓰기» — 2026-09-08 현빈 지시 ──────────────────────────
+ * ★렌더러에 이미 있는 함수를 «부른다» — 여기서 DOM 을 직접 만들지 않는다.
+ *   createVariation/addVariation/toggleVariation/resolveVariation 이 배지·바인딩·히스토리까지 챙긴다.
+ *   내가 흉내내면 그 배선이 빠진 «반쪽 시안»이 생긴다.
+ * ⛔단 두 가지는 렌더러에 «없어서» 여기서 짓는다:
+ *   ⑴ switch — 렌더러 toggle 은 「다음 안으로」뿐이라 «지목»이 안 된다. to 까지 반복해 돌린다.
+ *   ⑵ delete — 시안 «하나»만 지우는 함수가 아예 없다.
+ * ★모든 판정은 «효과»로 — 함수를 부른 뒤 DOM 을 다시 세어 답한다(rc 를 안 믿는다).
+ */
+async function _invokeRendererVariation({ op, sectionId, to, confirm = false } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const a = JSON.stringify({ op: String(op || ''), sectionId: String(sectionId || ''),
+                             to: to == null ? null : String(to), confirm: !!confirm });
+  const js = `(() => {
+    try {
+      const p = ${a};
+      const sec = document.getElementById(p.sectionId);
+      if (!sec || !sec.classList.contains('section-block'))
+        return { ok:false, code:'SECTION_NOT_FOUND', message:'섹션이 없다: ' + p.sectionId };
+      const grpOf = (el) => el.dataset.variationGroup || '';
+      const membersOf = (g) => g ? [...document.querySelectorAll('.section-block[data-variation-group="' + g + '"]')] : [];
+      const LABELS = ['A','B','C','D','E'];
+      const snap = (g) => membersOf(g)
+        .sort((x,y) => LABELS.indexOf(x.dataset.variation) - LABELS.indexOf(y.dataset.variation))
+        .map(x => ({ sectionId: x.id, variation: x.dataset.variation,
+                     active: x.dataset.variationActive === '1',
+                     visible: getComputedStyle(x).display !== 'none' }));
+
+      if (p.op === 'create') {
+        if (grpOf(sec)) return { ok:false, code:'ALREADY_VARIATION',
+          message:'이미 A/B 묶음이다 — 안을 더 늘리려면 op:"add" 를 써라', group: grpOf(sec), members: snap(grpOf(sec)) };
+        if (typeof window.createVariation !== 'function') return { ok:false, code:'FN_MISSING', message:'createVariation 없음' };
+        window.createVariation(sec);
+        const g = grpOf(sec);
+        if (!g) return { ok:false, code:'NOEFFECT', message:'불렀는데 묶음이 안 생겼다' };
+        return { ok:true, op:'create', group:g, members: snap(g) };
+      }
+
+      const g = grpOf(sec);
+      if (!g) return { ok:false, code:'NOT_A_VARIATION',
+        message:'이 섹션은 A/B 묶음이 아니다 — 먼저 op:"create" 로 만들어라' };
+      const before = snap(g);
+
+      if (p.op === 'add') {
+        /* ⛔렌더러는 상한(5) 초과를 «조용히 무시»한다 — 그러면 호출자는 「됐다」로 읽는다. 여기서 말한다. */
+        if (before.length >= LABELS.length)
+          return { ok:false, code:'VARIATION_LIMIT', limit: LABELS.length, members: before,
+                   message:'시안이 이미 ' + LABELS.length + '개(A~E)다 — 더 못 늘린다' };
+        window.addVariation(sec);
+        const after = snap(g);
+        if (after.length <= before.length) return { ok:false, code:'NOEFFECT', members: after, message:'불렀는데 안 늘었다' };
+        return { ok:true, op:'add', group:g, added: after[after.length-1].variation, members: after };
+      }
+
+      if (p.op === 'switch') {
+        const want = (p.to || '').toUpperCase();
+        if (!LABELS.includes(want)) return { ok:false, code:'BAD_TARGET', message:'to 는 A~E 중 하나여야 한다: ' + p.to };
+        if (!before.some(m => m.variation === want))
+          return { ok:false, code:'NO_SUCH_VARIATION', members: before, message:want + '안이 이 묶음에 없다' };
+        /* 렌더러 toggle 은 「다음 안으로」뿐이라 원하는 안이 «나올 때까지» 돌린다.
+           ⛔무한루프를 막으려고 멤버 수만큼만 돌린다 — 그 안에 못 닿으면 그건 결함이다. */
+        for (let i = 0; i < before.length + 1; i++) {
+          const cur = snap(g).find(m => m.active);
+          if (cur && cur.variation === want) break;
+          window.toggleVariation(sec);
+        }
+        const after = snap(g);
+        const now = after.find(m => m.active);
+        if (!now || now.variation !== want)
+          return { ok:false, code:'NOEFFECT', members: after, message:'전환이 안 먹었다' };
+        /* ★«보이나»까지 확인한다 — active 표시만 바뀌고 화면이 그대로면 사용자에겐 아무 일도 없다 */
+        const shown = after.filter(m => m.visible).map(m => m.variation);
+        return { ok:true, op:'switch', group:g, active: now.variation, visible: shown, members: after };
+      }
+
+      if (p.op === 'resolve') {
+        const active = before.find(m => m.active) || before[0];
+        const willDelete = before.filter(m => m.variation !== active.variation);
+        /* ⛔되돌리기 어려운 일이다 — «무엇이 지워지는지» 먼저 돌려주고, confirm 없으면 «안 한다». */
+        if (!p.confirm)
+          return { ok:false, code:'CONFIRM_REQUIRED', keep: active.variation,
+                   willDelete: willDelete.map(m => ({ variation:m.variation, sectionId:m.sectionId })),
+                   message: active.variation + '안만 남기고 ' + willDelete.length + '개를 지운다. 다시 부를 때 confirm:true 를 줘라' };
+        window.resolveVariation(sec);
+        const left = membersOf(g);
+        if (left.length) return { ok:false, code:'NOEFFECT', message:'확정했는데 묶음이 남아 있다', members: snap(g) };
+        const kept = document.getElementById(active.sectionId);
+        if (!kept) return { ok:false, code:'KEPT_GONE', message:'★남겨야 할 안이 사라졌다 — 사람이 봐야 한다' };
+        return { ok:true, op:'resolve', kept: active.sectionId, keptVariation: active.variation,
+                 deleted: willDelete.map(m => m.sectionId) };
+      }
+
+      if (p.op === 'delete') {
+        /* 렌더러에 «시안 하나만 지우는» 함수가 없어서 여기서 짓는다. */
+        if (before.length <= 1) return { ok:false, code:'LAST_VARIATION', message:'남은 안이 하나뿐이라 못 지운다' };
+        const me = before.find(m => m.sectionId === sec.id);
+        if (!p.confirm)
+          return { ok:false, code:'CONFIRM_REQUIRED', willDelete: me && me.variation,
+                   message: (me && me.variation) + '안을 지운다. 다시 부를 때 confirm:true 를 줘라' };
+        if (window.pushHistory) window.pushHistory((me && me.variation) + '안 삭제');
+        const wasActive = me && me.active;
+        sec.remove();
+        const rest = membersOf(g);
+        /* ★지운 것이 «보이던 안»이면 다른 안을 보이게 해야 한다 — 안 그러면 자리가 통째로 빈다. */
+        if (wasActive && rest.length) {
+          rest.forEach((x,i) => { x.dataset.variationActive = i === 0 ? '1' : '0'; });
+        }
+        /* ★하나만 남으면 더는 «시안»이 아니다 — 표시를 뗀다(배지·A/B 버튼 포함). */
+        if (rest.length === 1) {
+          const one = rest[0];
+          delete one.dataset.variationGroup; delete one.dataset.variation; delete one.dataset.variationActive;
+          one.querySelector('.variation-badge')?.remove();
+          one.querySelector('.st-ab-btn')?.remove();
+          one.querySelector('.st-resolve-btn')?.remove();
+          one.style.display = '';
+        }
+        if (window.buildLayerPanel) window.buildLayerPanel();
+        if (window.scheduleAutoSave) window.scheduleAutoSave();
+        return { ok:true, op:'delete', group:g, deleted: sec.id,
+                 dissolved: rest.length === 1, members: rest.length === 1 ? [] : snap(g) };
+      }
+      return { ok:false, code:'BAD_OP', message:'op 는 create|add|switch|resolve|delete' };
+    } catch (e) { return { ok:false, code:'EXCEPTION', message: String(e && e.message || e) }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
+async function _invokeRendererSearchSections({ query, limit = 50, caseSensitive = false, whole = false, includePlaceholder = false } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const a = JSON.stringify({ q: String(query), limit: Number(limit) || 50,
+                             cs: !!caseSensitive, whole: !!whole,
+                             includePlaceholder: !!includePlaceholder });
+  const js = `(() => {
+    try {
+      const p = ${a};
+      if (!p.q) return { ok:false, code:'INVALID', message:'query required' };
+      const norm = t => p.cs ? String(t) : String(t).toLowerCase();
+      const needle = norm(p.q);
+      const canvas = document.getElementById('canvas') || document;
+      const secs = [...canvas.querySelectorAll('.section-block')];
+      const TYPE = el => {
+        const c = el.classList;
+        if (c.contains('text-block')) {
+          const k = el.querySelector('[class^="tb-"]');
+          const m = k && k.className.match(/tb-(\\w+)/);
+          return m ? m[1] : 'text';
+        }
+        for (const [cls,name] of [['asset-block','asset'],['table-block','table'],['canvas-block','canvas'],
+          ['step-block','step'],['comparison-block','comparison'],['banner02-block','banner02'],
+          ['label-group-block','label'],['laurel-block','laurel'],['grid-block','grid'],
+          ['icon-text-block','icon_text'],['infocard-block','infocard'],['chat-block','chat']])
+          if (c.contains(cls)) return name;
+        return null;
+      };
+      /* 안내문구 판별 — 렌더러의 canvas-state 와 «같은 잣대»(data-is-placeholder / data-blank).
+         ⛔두 곳이 다른 기준을 쓰면 「미리보기엔 안 뜨는데 검색엔 뜨는」 어긋남이 난다. */
+      const _isPh = (el) => {
+        try {
+          const holders = [...el.querySelectorAll('[data-placeholder]')];
+          if (el.hasAttribute('data-placeholder')) holders.push(el);
+          if (!holders.length) return false;
+          for (const h of holders) {
+            if (h.dataset.isPlaceholder === 'true') continue;
+            if (h.dataset.blank === 'true') continue;
+            if ((h.innerText || '').trim()) return false;
+          }
+          return true;
+        } catch (_) { return false; }
+      };
+      const hits = []; let scannedSections = 0, scannedBlocks = 0, truncated = false, phSkipped = 0;
+      for (const sec of secs) {
+        scannedSections++;
+        const secName = (sec.dataset && sec.dataset.name) || '';
+        /* 섹션 «이름»도 찾는 대상이다 — 사람이 지어 둔 이름이 가장 좋은 단서다 */
+        if (secName && norm(secName).includes(needle)) {
+          hits.push({ sectionId: sec.id, sectionName: secName, where: 'sectionName', text: secName });
+        }
+        const blocks = [...sec.querySelectorAll('[id]')].filter(el => TYPE(el) !== null);
+        for (const b of blocks) {
+          scannedBlocks++;
+          const raw = (b.innerText || '').replace(/\\s+/g, ' ').trim();
+          if (!raw) continue;
+
+          const i = norm(raw).indexOf(needle);
+          if (i < 0) continue;
+          if (p.whole) {
+            /* 「낱말 전체」 — 앞뒤가 글자·숫자면 걸러낸다(한글은 낱말 경계가 없어 공백/문장부호로 본다) */
+            const before = raw[i-1] || ' ', after = raw[i + p.q.length] || ' ';
+            if (/[\\w가-힣]/.test(before) || /[\\w가-힣]/.test(after)) continue;
+          }
+          /* ★★«안내문구»(고스트 텍스트)는 기본으로 «뺀다» (2026-09-08 현빈 지시).
+               빈 텍스트 블록의 「소제목을 입력하세요」는 진짜 DOM 글자라 그냥 잡힌다 —
+               안 쓴 블록이 많을수록 히트가 쓰레기로 찬다(실측: 블록 3개 중 3개가 그렇게 잡혔다).
+             ⛔★«매치가 성립한 뒤에» 센다. 첫 판은 매치 판정 «전»에 세어서, 질의와 상관없는
+               안내문구 블록까지 셌고 「N개가 매치했다」는 안내가 «거짓»이 됐다
+               (실측: '효과' 로 찾으면 matches=0 인데 skipped=4 — 그 4개는 매치한 적이 없다).
+             ⛔조용히 빼지 않는다 — 몇 개를 뺐는지 «말한다». includePlaceholder:true 면 그대로 준다
+               (「어디가 아직 빈 칸인가」를 찾고 싶을 때가 실제로 있다). */
+          if (_isPh(b)) { phSkipped++; if (!p.includePlaceholder) continue; }
+          if (hits.length >= p.limit) { truncated = true; break; }
+          const from = Math.max(0, i - 24), to = Math.min(raw.length, i + p.q.length + 24);
+          hits.push({
+            sectionId: sec.id, sectionName: secName || null,
+            blockId: b.id || null, type: TYPE(b), where: 'block',
+            /* ★excerpt «만» 싣는다 — text 는 excerpt 를 통째로 품고 있어 100% 중복이었다.
+                 실측(2026-09-08, 실물 102섹션 「보풀」 44건): excerpt 가 text 안에 든 것 44/44.
+                 한 번 호출에 ~1,075 토큰이 중복으로 나갔다.
+               ⛔토큰은 클라이언트가 내는 돈이다 — 같은 글자를 두 번 보내지 않는다.
+               ⇒ 전문이 필요하면 blockId 로 get_canvas_state(sectionId) 를 부르면 된다(그게 더 싸다). */
+            excerpt: (from > 0 ? '…' : '') + raw.slice(from, to) + (to < raw.length ? '…' : ''),
+            chars: raw.length,
+          });
+        }
+        if (truncated) break;
+      }
+      /* ★「몇 개를 뒤졌는지」를 같이 준다 — 0건일 때 «없다»인지 «못 뒤졌다»인지 갈라야 한다 */
+      return { ok:true, query: p.q, matches: hits.length, hits: hits,
+        ...(phSkipped ? { placeholderSkipped: phSkipped,
+            placeholderNote: phSkipped + ' block(s) matched only the built-in placeholder text'
+              + ' — those are EMPTY, not written. Pass includePlaceholder:true to see them.' } : {}),
+               scannedSections: scannedSections, scannedBlocks: scannedBlocks,
+               truncated: truncated,
+               note: truncated ? ('limit ' + p.limit + ' 에서 잘렸습니다 — limit 를 올리거나 검색어를 좁히세요.') : undefined };
+    } catch (e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
+/* ─── 체크리스트 «섹션» — 만들기·이름·지우기·목록 (2026-09-07 현빈 요청) ──────
+   ⛔한 자리에서 op 로 가른다(에셋 트리와 같은 모양) — 도구가 넷으로 흩어지면 목록이 썩는다. */
+async function _invokeRendererChecklistSection({ op, id, name } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const a = JSON.stringify({ op, id: id || null, name: name == null ? null : String(name) });
+  const js = `(() => {
+    try {
+      const p = ${a};
+      const need = { create:'addChecklistSection', rename:'renameChecklistSection',
+                     delete:'deleteChecklistSection', list:'listChecklistSections' }[p.op];
+      if (!need) return { ok:false, code:'BAD_OP', message:'op must be one of create|rename|delete|list' };
+      if (typeof window[need] !== 'function') return { ok:false, code:'API_MISSING', message: need + ' not found' };
+      let r;
+      if (p.op === 'create')      r = window.addChecklistSection({ name: p.name });
+      else if (p.op === 'rename') r = window.renameChecklistSection({ id: p.id, name: p.name });
+      else if (p.op === 'delete') r = window.deleteChecklistSection({ id: p.id });
+      else                        r = { ok: true };
+      /* ★결과를 «되읽어» 돌려준다 — 인자를 되읊지 않는다.
+           create 면 «정말 생겼나», rename 이면 «정말 그 이름인가», delete 면 «정말 없나». */
+      const secs = window.listChecklistSections();
+      const tid = (r && r.sectionId) || p.id || null;
+      const found = tid ? secs.find(s => s.id === tid) : null;
+      return Object.assign({}, r, {
+        op: p.op, sections: secs, sectionCount: secs.length,
+        section: found || null, stillExists: !!found,
+      });
+    } catch (e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
 }
 
 // ─── add_table_block — 표 블록 추가 (headers + rows 데이터 직접 주입) ────────
@@ -3434,11 +4655,15 @@ async function _invokeRendererUpdateCardBlock({ blockId, title, desc, imgSrc, bg
 }
 
 // ─── update_section — 섹션 속성 (배경 등) 변경 ──────────────────────────────
-async function _invokeRendererUpdateSection({ sectionId, bg } = {}) {
+async function _invokeRendererUpdateSection({ sectionId, bg, name } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
   const safeSid = JSON.stringify(String(sectionId || ''));
   const safeBg  = bg !== undefined ? JSON.stringify(String(bg)) : 'null';
+  /* ★섹션 «이름» — 2026-09-07 신설. 그전엔 이름을 바꾸는 도구가 «아예 없어서»
+     클로드가 update_section{name:…} 을 넣어보고 «조용히 실패»했다(§5-2).
+     이름은 DOM 의 dataset.name 에 산다(section-search.js·section-memo.js 가 같은 곳을 읽는다). */
+  const safeName = name !== undefined ? JSON.stringify(String(name)) : 'null';
   return await mainWindow.webContents.executeJavaScript(
     `(() => { try {
       const sid = ${safeSid};
@@ -3450,6 +4675,37 @@ async function _invokeRendererUpdateSection({ sectionId, bg } = {}) {
         if (typeof window.setSectionBg !== 'function') return { ok:false, code:'API_MISSING' };
         window.setSectionBg(sec, bgv);
         applied.bg = bgv;
+      }
+      const nv = ${safeName};
+      if (nv !== null) {
+        /* ★★정본은 dataset.name «이 아니다» — JS 속성 sec._name 이다(2026-09-07 실측).
+             getSerializedCanvas(js/io/save-load.js:415)가 저장 «직전»에 이렇게 되돌린다:
+               if (sec._name && sec.dataset.name !== sec._name) sec.dataset.name = sec._name;
+             ⇒ dataset 만 쓰면 화면엔 잠깐 보이다가 «1.5초 뒤» 옛 이름으로 돌아간다.
+               (CDP DOM 중단점으로 잡았다 — grep 으로는 안 나왔다. dataset 대입은
+                패치한 setAttribute 를 «우회»해서 덫에도 안 걸렸다)
+           ⛔둘을 «같이» 써야 한다. 하나만 쓰면 조용히 되돌아간다. */
+        sec._name = nv;                              // ★정본
+        sec.dataset.name = nv;                       // 화면·읽기용 미러
+        const lbl = sec.querySelector('.section-label');
+        if (lbl) lbl.textContent = nv;               // 화면 라벨도 같이(있을 때만)
+        applied.name = nv;
+        /* ⛔여기가 이 도구를 «거짓 성공»으로 만든 자리다(2026-09-07 실측).
+             scheduleAutosave 라는 이름은 «없다»(정의 0곳). 앱의 진짜 이름은
+             scheduleAutoSave(대문자 S) 이고 폴백이 triggerAutoSave 다.
+           ⇒ typeof 검사가 조용히 지나가 «저장이 안 걸렸고», 다시 그릴 때 옛 이름으로 되돌아갔다.
+             실측: 바꾼 «직후»엔 '히어로'로 읽히다가 3초 뒤 'Section 01' 로 복귀.
+           ★typeof f === 'function' 폴백은 «오타를 조용히 삼킨다» — 이름을 틀리면 아무 일도 안 일어난다.
+             그래서 아래는 「하나도 못 찾으면 «말한다»」로 둔다. */
+        let _saved = false;
+        try {
+          if (typeof window.scheduleAutoSave === 'function') { window.scheduleAutoSave(); _saved = true; }
+          else if (typeof window.triggerAutoSave === 'function') { window.triggerAutoSave(); _saved = true; }
+        } catch(_) {}
+        if (!_saved) return { ok:false, code:'NO_AUTOSAVE',
+          message:'이름은 화면에만 바뀌고 «저장되지 않습니다» — 자동저장 함수를 못 찾았습니다.',
+          hint:'This would silently revert. Nothing was persisted. Report this as an app bug.' };
+        try { if (typeof window.buildLayerPanel === 'function') window.buildLayerPanel(); } catch(_) {}
       }
       return { ok:true, sectionId: sid, applied };
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
@@ -3848,8 +5104,19 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId, scratc
         const firstSec = document.querySelector('[id^="sec_"]');
         if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
       }
-      const before = document.querySelectorAll('.asset-block').length;
-      const beforeIds = new Set([...document.querySelectorAll('.asset-block')].map(b => b.id));
+      /* ★2026-09-07 img2/img3 거짓음성 수정.
+           앱은 preset img2/img3 을 «의도적으로» canvas-block(cvb_)으로 바꾼다
+           (js/block-factory.js makePresetRow — 2026-06-08 NewGrid 봉인).
+         그런데 여기선 .asset-block «만» 세고 있었다 ⇒ 블록은 «생겼는데» NO_ADD 를 돌려줬다.
+           ⛔이 주석에 백틱을 쓰지 마라 — 이 JS 는 템플릿 리터럴 «안»이라 백틱 하나가 문자열을 닫는다
+             (오늘 두 번 걸렸다: 닫힌 뒤 점-에셋블록 이 「.asset - block」 으로 파싱돼 「block is not defined」).
+             ★이 주석도 처음엔 백틱을 썼다가 새 검사(R2)에 바로 잡혔다.
+         ⛔거짓음성은 거짓양성보다 나쁠 수 있다 — 부르는 쪽이 «재시도»하면 중복이 쌓인다.
+           (실측: ok:false 를 받은 그 호출이 cvb_6vnmq_tt7ckwb 를 실제로 만들어 놨다.)
+         ⇒ 「앱이 실제로 만드는 것」을 센다. 두 종류 다 센다 — 어느 쪽이 될지는 preset 이 정한다. */
+      const _ADDED_SEL = '.asset-block, .canvas-block';
+      const before = document.querySelectorAll(_ADDED_SEL).length;
+      const beforeIds = new Set([...document.querySelectorAll(_ADDED_SEL)].map(b => b.id));
       const scId = ${safeScratch};
       if (scId && typeof window.addAssetBlock === 'function') {
         // scratchId 전달 — renderer가 자체 IndexedDB에서 src 꺼내 박음 (IPC payload 폭발 회피)
@@ -3857,16 +5124,21 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId, scratc
       } else {
         window.addPresetRow(${safePreset});
       }
-      const after = document.querySelectorAll('.asset-block').length;
+      const after = document.querySelectorAll(_ADDED_SEL).length;
       if (after <= before) {
         return { ok: false, code: 'NO_ADD', message: '에셋이 추가되지 않았습니다 (활성 섹션 확인).' };
       }
-      const newAssets = [...document.querySelectorAll('.asset-block')].filter(b => !beforeIds.has(b.id));
+      const newAssets = [...document.querySelectorAll(_ADDED_SEL)].filter(b => !beforeIds.has(b.id));
       const lastNew = newAssets[newAssets.length - 1];
       // sectionId 추가(2026-08-30): put_image 가 «어느 섹션에 붙었나»를 돌려줘야 하는데
       //   sectionId 생략 호출(활성 섹션 사용)에서는 호출자가 그걸 «알 방법이 없었다». 필드 추가만 — 기존 필드는 그대로.
       const secOf = lastNew?.closest('[id^="sec_"]')?.id || sid || null;
-      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after, assetBlockId: lastNew?.id || null, sectionId: secOf, hasImage: !!(lastNew?.querySelector('.asset-img')?.src || lastNew?.dataset?.imgSrc || (lastNew?.classList?.contains('asset-img') && lastNew?.src)) };
+      const _converted = !!(lastNew && lastNew.classList.contains('canvas-block'));
+      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after, assetBlockId: lastNew?.id || null,
+               blockType: _converted ? 'canvas' : 'asset',
+               note: _converted
+                 ? ('preset ' + ${safePreset} + ' 은 앱이 «캔버스(그리드) 블록»으로 만듭니다 — 에셋 블록이 아닙니다(NewGrid 봉인).')
+                 : undefined, sectionId: secOf, hasImage: !!(lastNew?.querySelector('.asset-img')?.src || lastNew?.dataset?.imgSrc || (lastNew?.classList?.contains('asset-img') && lastNew?.src)) };
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {
@@ -4034,18 +5306,22 @@ async function _invokeRendererExport({ sectionId, format, width } = {}) {
   catch (e) { throw new Error('export call failed: ' + e.message); }
 }
 
-async function _invokeRendererGetCanvasState({ sectionId } = {}) {
+async function _invokeRendererGetCanvasState({ sectionId, full } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
   const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  /* ★«한 섹션을 지목»하면 렌더러가 전문을 기본으로 준다(내용을 읽으러 온 것이므로).
+     full 을 명시하면 그걸 따른다 — 전체 훑기에 전문을 요구하면 응답이 커지니 «부르는 쪽»이 정한다. */
+  const safeFull = (full === true || full === false) ? String(full) : 'undefined';
   const atomicJs = `(() => {
     try {
       if (typeof window.getCanvasState !== 'function') {
         return { ok: false, code: 'API_MISSING', message: 'window.getCanvasState not found' };
       }
       const sid = ${safeSectionId};
-      return window.getCanvasState(sid);
+      const fl = ${safeFull};
+      return window.getCanvasState(sid, (typeof fl === 'boolean') ? { full: fl } : undefined);
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {
@@ -4053,6 +5329,48 @@ async function _invokeRendererGetCanvasState({ sectionId } = {}) {
   } catch (e) {
     throw new Error('getCanvasState call failed: ' + e.message);
   }
+}
+
+// ─── 갭 «감수 패스» 브리지 (2026-09-07) ─────────────────────────────────────
+// 판단은 main/claude-pm/services/spacing.js «한 곳»에 있다. 여기는 렌더러와의 배관만 한다.
+//   readSpacingSequence : 섹션의 세로 시퀀스를 «읽기»만 한다 → 최소화 가드 없음(getCanvasState 와 동형)
+//   applySpacingOps     : 캔버스를 «바꾼다» → 최소화 가드 있음(레포의 편집 도구 관용구)
+async function _invokeRendererReadSpacingSequence({ sectionId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const js = `(() => {
+    try {
+      if (typeof window.readSpacingSequence !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.readSpacingSequence not found' };
+      }
+      return window.readSpacingSequence(${safeSectionId});
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(js, true); }
+  catch (e) { throw new Error('readSpacingSequence call failed: ' + e.message); }
+}
+
+async function _invokeRendererApplySpacingOps(plan) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  // 계획은 «우리가 만든» 구조체다(id/숫자/문자열만). 그래도 통째로 stringify 해 escape 한다.
+  const safePlan = JSON.stringify(plan || {});
+  const js = `(() => {
+    try {
+      if (typeof window.applySpacingOps !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.applySpacingOps not found' };
+      }
+      return window.applySpacingOps(${safePlan});
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(js, true); }
+  catch (e) { throw new Error('applySpacingOps call failed: ' + e.message); }
 }
 
 // ─── set_section_memo — 섹션 dataset.memo 갱신 ───────────────────────────────
@@ -4124,7 +5442,7 @@ async function _invokeRendererGetSectionMemo({ sectionId } = {}) {
 // ─── update_checklist_item — 체크리스트 항목 부분 갱신 (text/done/urgent) ────
 // USER_BUSY 가드: 사용자가 체크리스트 인라인 편집 중이면 (.ck-inline-input 등) MCP write 차단.
 // renderChecklistPanel()이 input을 unmount하면서 blur save가 stale closure로 덮는 race 방지 (Codex 리뷰 #1).
-async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y } = {}) {
+async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y, ckSectionId } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
@@ -4137,6 +5455,9 @@ async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y
   if (urgent !== undefined) args.urgent = !!urgent;
   if (x      !== undefined) args.x = (typeof x === 'number') ? x : null;
   if (y      !== undefined) args.y = (typeof y === 'number') ? y : null;
+  /* ★«체크리스트 섹션»(ck_xxx) 이동. 캔버스 섹션(sec_xxx)과 이름이 겹쳐 헷갈리는 자리라
+     밖에서는 ckSectionId 로만 받는다. null 을 «명시»하면 섹션에서 뺀다. */
+  if (ckSectionId !== undefined) args.ckSectionId = (ckSectionId === null || ckSectionId === '') ? null : String(ckSectionId);
   const safeArgs = JSON.stringify(args);
   return await mainWindow.webContents.executeJavaScript(
     `(() => { try {
@@ -4427,11 +5748,13 @@ const _ICONIFY_TIMEOUT_MS = 8000;
 
 // Codex Medium 픽스: parse 콜백을 받아 body 읽기까지 같은 AbortController로 보호.
 // 기존엔 fetch resolve 직후 clearTimeout — 본문 stall 시 무한 대기 가능했음.
-async function _fetchWithTimeout(url, parse, ms = _ICONIFY_TIMEOUT_MS) {
+async function _fetchWithTimeout(url, parse, ms = _ICONIFY_TIMEOUT_MS, init = null) {
   const ctl = new AbortController();
   const tid = setTimeout(() => ctl.abort(), ms);
   try {
-    const res = await fetch(url, { signal: ctl.signal, redirect: 'error' });
+    /* ★init 은 «뒤에» 붙인 선택 인자다 — 생략하면 기존 iconify 호출과 «완전히 동일»하게 돈다.
+       ⛔redirect:'error' 를 init 이 덮지 못하게 «뒤»에 다시 박는다(SSRF 가드는 호출자가 못 끈다). */
+    const res = await fetch(url, { ...(init || {}), signal: ctl.signal, redirect: 'error' });
     if (!res.ok) return { ok: false, status: res.status, body: null };
     const body = parse ? await parse(res) : null;
     return { ok: true, status: res.status, body };
@@ -4439,6 +5762,61 @@ async function _fetchWithTimeout(url, parse, ms = _ICONIFY_TIMEOUT_MS) {
     clearTimeout(tid);
   }
 }
+
+/* ═══ remove.bg 누끼 — ★main 에서 부른다 ═══════════════════════════════════
+   렌더러는 CSP 로 외부 fetch 가 막혀 있다(iconify 와 «같은 이유·같은 해법»).
+   ⛔이 경로는 «되돌릴 수 없는» 둘을 갖는다: ⑴사용자 이미지가 제3자에게 나간다 ⑵과금된다.
+     그래서 키가 없으면 «아무것도 보내지 않고» NO_KEY 로 끊는다 — 네트워크를 타기 «전»에 판정한다.
+   ⛔키 값을 로그·에러메시지에 절대 넣지 마라(헤더 통째 출력 금지). */
+const _REMOVEBG_URL        = 'https://api.remove.bg/v1.0/removebg';
+const _REMOVEBG_TIMEOUT_MS = 30000;                 // 이미지 왕복이라 iconify(8s)보다 길다
+const _REMOVEBG_MAX_BYTES  = 12 * 1024 * 1024;      // remove.bg 한도 이내
+const _REMOVEBG_MIME_OK    = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+async function _doRemoveBg({ b64, mime } = {}) {
+  // ⑴ 키 — ★네트워크 전에 본다
+  const key = getApiKey('removebg');
+  if (!key) {
+    return { ok: false, code: 'NO_KEY', message: 'remove.bg API 키가 없습니다. 설정에서 키를 넣어주세요.' };
+  }
+  // ⑵ 입력 가드 — 형식·용량. 여기서 걸러야 «쓸데없이 과금»되지 않는다
+  if (!_REMOVEBG_MIME_OK.has(String(mime || ''))) {
+    return { ok: false, code: 'INVALID', message: 'PNG·JPEG·WEBP 이미지만 배경 제거할 수 있습니다.' };
+  }
+  if (typeof b64 !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(b64) || b64.length < 32) {
+    return { ok: false, code: 'INVALID', message: '이미지 데이터가 올바르지 않습니다.' };
+  }
+  const bytes = Math.floor(b64.length * 3 / 4);
+  if (bytes > _REMOVEBG_MAX_BYTES) {
+    return { ok: false, code: 'INVALID', message: `이미지가 너무 큽니다(${Math.round(bytes / 1024 / 1024)}MB). 12MB 이하만 됩니다.` };
+  }
+  // ⑶ 호출
+  try {
+    const body = new URLSearchParams({ image_file_b64: b64, size: 'auto', format: 'png' });
+    const r = await _fetchWithTimeout(
+      _REMOVEBG_URL,
+      async res => Buffer.from(await res.arrayBuffer()).toString('base64'),
+      _REMOVEBG_TIMEOUT_MS,
+      { method: 'POST', headers: { 'X-Api-Key': key, 'Content-Type': 'application/x-www-form-urlencoded' }, body },
+    );
+    if (!r.ok) {
+      // ★402(크레딧)와 403(키)은 «사용자가 할 행동»이 다르다 — 뭉개지 않는다
+      if (r.status === 402) return { ok: false, code: 'HTTP_ERROR', status: 402, message: 'remove.bg 크레딧이 없습니다. 계정에서 충전 후 다시 시도하세요.' };
+      if (r.status === 403) return { ok: false, code: 'HTTP_ERROR', status: 403, message: 'remove.bg 키가 유효하지 않습니다. 설정에서 키를 확인하세요.' };
+      if (r.status === 429) return { ok: false, code: 'HTTP_ERROR', status: 429, message: 'remove.bg 요청이 너무 잦습니다. 잠시 후 다시 시도하세요.' };
+      return { ok: false, code: 'HTTP_ERROR', status: r.status, message: `remove.bg 호출 실패 (HTTP ${r.status})` };
+    }
+    if (!r.body) return { ok: false, code: 'HTTP_ERROR', message: 'remove.bg 응답이 비었습니다.' };
+    return { ok: true, b64: r.body, mime: 'image/png' };
+  } catch (e) {
+    // ⛔e 에 헤더가 실려 나올 여지를 두지 않는다 — message 만 쓴다
+    const msg = (e && e.name === 'AbortError') ? '시간이 초과됐습니다.' : ((e && e.message) || '네트워크 오류');
+    return { ok: false, code: 'NETWORK_ERROR', message: `remove.bg 연결 실패 — ${msg}` };
+  }
+}
+ipcMain.handle('removebg:cutout', (_e, payload) => _doRemoveBg(payload || {}));
+/* 키 «값»은 렌더러로 안 준다 — 있는지만 알린다. */
+ipcMain.handle('settings:has-key', (_e, provider) => !!getApiKey(String(provider || '')));
 
 async function _doIconifySearch({ query, prefix, limit = 10 } = {}) {
   if (typeof query !== 'string' || !query.trim()) {
@@ -4934,7 +6312,54 @@ async function _invokeRendererUpdateCanvasBlock({ blockId, partial } = {}) {
       if (typeof window.updateCanvasBlock !== 'function') {
         return { ok: false, code: 'API_MISSING', message: 'window.updateCanvasBlock not found' };
       }
-      return window.updateCanvasBlock(${safeBlockId}, ${safePartial});
+      const _id = ${safeBlockId};
+      const _p  = Object.assign({}, ${safePartial});
+      const _el = document.getElementById(_id);
+
+      /* ★★카드를 «격자보다 많이» 주면 조용히 잘렸다 — 그리고 ok 라고 했다.
+           실측(2026-09-07): cards 6장 + 격자 3x1 → «3장만» 그려지고 응답은 ok:true.
+           ⇒ 사람은 6장이 들어간 줄 안다. 오늘 잡은 「거짓 성공」과 같은 계열이다.
+         ⇒ ⑴격자를 «자동으로» 키운다(칸 계산을 사람에게 미루지 않는다)
+           ⑵부르는 쪽이 격자를 «명시»했는데 모자라면 조용히 늘리지 «않고» 말해 준다. */
+      let _grew = null, _tooSmall = null;
+      if (_el && Array.isArray(_p.cards) && _p.cards.length) {
+        const need = _p.cards.length;
+        const curCols = parseInt(_el.dataset.gridCols) || 1;
+        const askedCols = (_p.gridCols != null) ? parseInt(_p.gridCols) : null;
+        const askedRows = (_p.gridRows != null) ? parseInt(_p.gridRows) : null;
+        if (askedCols != null || askedRows != null) {
+          const c = askedCols != null ? askedCols : curCols;
+          const r = askedRows != null ? askedRows : (parseInt(_el.dataset.gridRows) || 1);
+          if (c * r < need) _tooSmall = { need: need, capacity: c * r, gridCols: c, gridRows: r };
+        } else {
+          const cols = Math.max(1, Math.min(curCols, need));
+          const rows = Math.ceil(need / cols);
+          const cap = (parseInt(_el.dataset.gridCols) || 1) * (parseInt(_el.dataset.gridRows) || 1);
+          if (cap < need) { _p.gridCols = cols; _p.gridRows = rows; _grew = { from: cap, to: cols * rows, gridCols: cols, gridRows: rows }; }
+        }
+      }
+      if (_tooSmall) {
+        return { ok: false, code: 'GRID_TOO_SMALL',
+          message: '카드 ' + _tooSmall.need + '장을 줬는데 격자가 ' + _tooSmall.gridCols + 'x' + _tooSmall.gridRows +
+                   '(' + _tooSmall.capacity + '칸)이라 다 안 들어갑니다 — 아무것도 바꾸지 않았습니다.',
+          hint: 'gridCols/gridRows 를 늘리거나, 아예 «주지 마세요» — 안 주면 카드 수에 맞춰 자동으로 늘립니다.',
+          detail: _tooSmall };
+      }
+      const _res = window.updateCanvasBlock(_id, _p);
+      /* ★「몇 장이 들어갔나」를 «인자»가 아니라 «화면»에서 읽어 돌려준다.
+           오늘의 규칙: applied 는 「넣으려 한 값」이 아니라 「넣은 결과」여야 한다. */
+      if (_res && _res.ok !== false && _el) {
+        const shown = _el.querySelectorAll('[data-cvb-card-idx]').length;
+        _res.cardsVisible = shown;
+        if (Array.isArray(_p.cards)) {
+          _res.cardsGiven = _p.cards.length;
+          if (shown < _p.cards.length) {
+            _res.warning = '카드 ' + _p.cards.length + '장 중 ' + shown + '장만 화면에 들어갔습니다.';
+          }
+        }
+        if (_grew) _res.gridGrew = _grew;
+      }
+      return _res;
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {
@@ -4942,6 +6367,420 @@ async function _invokeRendererUpdateCanvasBlock({ blockId, partial } = {}) {
   } catch (e) {
     throw new Error('updateCanvasBlock call failed: ' + e.message);
   }
+}
+
+/* ─── grid-block(grd_) — ★MCP 에 «도구가 아예 없던» 블록 ────────────────────
+   실측(2026-09-07): 앱에는 `grid-block` 이 실재하고(block-factory·block-edit·drag 등 여러 곳)
+   `window.addGridBlock`/`updateGridBlock` 까지 갖춰져 있는데, MCP 쪽 BLOCK_TYPES 엔 «0건»이었다.
+   ⇒ 사용자가 「그리드에 글 넣어줘」 하면 클로드가 «그런 기능 없습니다»라고 답한다.
+   ⇒ 앱이 이미 검증(cols 1~4·rows·cells·gap·valign)을 하므로 여기선 «넘겨주고 결과를 읽어» 돌려준다.
+   ⛔`applied` 를 인자에서 만들지 않는다 — 오늘 그 병으로 네 자리가 거짓 성공했다. */
+async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, valign } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const opts = {};
+  if (Array.isArray(cols)) opts.cols = cols;
+  if (Array.isArray(rows)) opts.rows = rows;
+  if (Array.isArray(cells)) opts.cells = cells;
+  if (gap != null) opts.gap = Number(gap);
+  if (valign != null) opts.valign = String(valign);
+  const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const safeOpts = JSON.stringify(opts);
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+        && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      if (userEditing || (Date.now() - (window._lastUserKeydown || 0)) < 1500) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.addGridBlock !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.addGridBlock not found' };
+      const sid = ${safeSid};
+      /* ⛔selectSection 은 «엘리먼트»를 받는다(id 문자열이 아니다) — 실측으로 데었다:
+           id 를 넘겼더니 sec.classList 에서 «Cannot read properties of undefined (reading 'add')» 로 죽었다. */
+      if (sid) {
+        const _sec = document.getElementById(sid);
+        if (!_sec || !_sec.classList.contains('section-block')) {
+          return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        }
+        if (typeof window.selectSection === 'function') window.selectSection(_sec);
+      }
+      const before = document.querySelectorAll('.grid-block').length;
+      const r = window.addGridBlock(${safeOpts});
+      const el = r && r.block;
+      if (!el) return { ok: false, code: 'NOT_CREATED', message: '그리드 블록이 만들어지지 않았습니다 (활성 섹션 확인).' };
+      /* ★결과를 «읽어서» 돌려준다 — 인자를 되읊지 않는다 */
+      const cells = el.querySelectorAll('.grd-cell');   // ★실측 클래스는 grd-cell 이다(grid-cell 아님)
+      return { ok: true, blockId: el.id, sectionId: (el.closest('.section-block') || {}).id || null,
+               gridBefore: before, gridAfter: document.querySelectorAll('.grid-block').length,
+               cols: parseInt(el.dataset.gridCols || '0') || (JSON.parse(el.dataset.cols || '[]').length || null),
+               cellCount: cells.length };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
+  catch (e) { throw new Error('addGridBlock call failed: ' + e.message); }
+}
+
+/* ★블록 «현재 상태»를 읽어 오는 자리 — 「바꿨다고 말한 것」을 대조하기 위한 것.
+   ⛔왜 필요한가(2026-09-07 실측): 앱의 update_* 들이 `applied` 를 «인자에서» 만든다(93곳).
+     그래서 못 바꿔도 「바꿨다」고 말한다 — `update_section{name}` 이 실제로 그랬다.
+   ⇒ 93곳을 하나씩 고치는 대신 «한 자리»에서 쓰고 나서 되읽어 대조한다. 구조가 검사보다 강하다. */
+/* ─── 에셋(Assets 패널) — ★MCP 에 «도구가 하나도 없던» 표면 ──────────────────
+   실측(2026-09-07): 앱엔 assets:saveFile·readFile·deleteFile·saveCanvasImage·readAsDataUri
+   IPC 가 «5개» 있는데 MCP 도구는 «0개»였다. 그래서 「에셋 폴더 뭐 있는지 보고 그 이미지를
+   에셋블럭에 넣어줘」 같은 일을 시작조차 못 했다(이미지 넣기는 스크래치패드 경로만 있었다).
+   ⛔경로 봉쇄는 앱 IPC 가 이미 한다(safeRoot + path traversal 검사) — 여기서 두 벌로 만들지 않는다.
+     다만 «목록»은 IPC 가 없어서(패널이 프로젝트 JSON 트리를 쓴다) 여기서 디스크를 읽는다.
+   ⛔파일 «내용»은 기본으로 안 싣는다 — 이미지가 dataURL 로 응답에 실리면 대화가 터진다. */
+function _assetsDirOf(projectId) {
+  const pid = _safeSeg(projectId);
+  return path.join(PROJECTS_DIR, pid, 'assets');
+}
+
+/* ★★에셋 «트리» — 패널이 보는 정본은 디스크가 아니라 proj.assetsTree 다.
+   ⛔2026-09-07 실측으로 정정: 처음 만든 list_assets 는 «디스크 폴더»(해시 파일명)를 봤는데,
+     Assets 패널은 프로젝트 JSON 의 트리(폴더 이름·중첩·URL 항목)를 본다. «다른 것»이었다.
+     ⇒ 사람이 화면에서 보는 「제품사진 / background / 노트패널」이 하나도 안 나왔다.
+   ⇒ 트리는 «렌더러»에서 읽는다(열린 프로젝트가 정본). 디스크 블롭 목록은 따로 남긴다. */
+async function _invokeRendererAssetsTree() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  const js = `(() => {
+    try {
+      const t = (window.state && window.state.assetsTree) || [];
+      const out = [];
+      (function walk(ns, depth, parent) {
+        for (const n of (ns || [])) {
+          out.push({ id: n.id, type: n.type, name: n.name, depth: depth, parentId: parent,
+                     favorite: !!n.favorite,
+                     url: n.type === 'url' ? (n.url || null) : undefined,
+                     /* ⛔src 는 «절대» 안 싣는다 — dataURL 이 응답에 실리면 대화가 터진다 */
+                     hasSrc: !!(n.src || n.blobPath), blobPath: n.blobPath || null,
+                     children: (n.children || []).length });
+          walk(n.children, depth + 1, n.id);
+        }
+      })(t, 0, null);
+      return { ok: true, count: out.length, items: out };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
+/** 에셋 트리를 «고친다» — 앱 함수에 위임하고 «결과를 다시 읽어» 돌려준다. */
+async function _invokeRendererAssetsMutate({ op, id, parentId, name, url, title, note, sectionId, image } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const a = JSON.stringify({ op, id: id || null, parentId: parentId || null,
+                             name: name || null, url: url || null, title: title || null, note: note || null,
+                             sectionId: sectionId || null, image: image || null });
+  const js = `(async () => {
+    try {
+      const p = ${a};
+      const need = { createFolder:'assetsCreateFolder', addUrl:'assetsAddUrl', rename:'assetsRenameNode',
+                     delete:'assetsDeleteNode', move:'assetsMoveNode', sendToCanvas:'assetsSendToCanvas',
+                     addImage:'assetsAddImageFiles' }[p.op];
+      if (!need) return { ok:false, code:'BAD_OP', message:'op must be one of createFolder|addUrl|addImage|rename|delete|move|sendToCanvas' };
+      if (typeof window[need] !== 'function') return { ok:false, code:'API_MISSING', message: need + ' not found' };
+      const before = JSON.stringify((window.state && window.state.assetsTree) || []).length;
+      let r;
+      if (p.op === 'addImage') {
+        /* ★이미지 «파일»을 에셋 폴더에 등록한다.
+           ⛔여기서 디스크에 직접 쓰지 않는다 — 그러면 「네 번째 경로 조립기」가 된다.
+             앱 자신의 경로(assetsAddImageFiles → _assetsSaveFile → electronAPI.assetsSaveFile)를
+             그대로 태운다. 그 함수는 FileList 를 받으므로 dataURL 로 File 을 만들어 넘긴다. */
+        const m = String(p.image || '').match(/^data:([^;]+);base64,(.*)$/);
+        if (!m) return { ok:false, code:'BAD_IMAGE', message:'image 는 data:<mime>;base64,<...> 형식이어야 합니다.' };
+        const mime = m[1];
+        const bin = atob(m[2]);
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        const ext = { 'image/png':'.png', 'image/jpeg':'.jpg', 'image/gif':'.gif',
+                      'image/webp':'.webp', 'image/svg+xml':'.svg' }[mime] || '.png';
+        const fname = (p.name && /\.[a-z0-9]+$/i.test(p.name)) ? p.name : ((p.name || 'image') + ext);
+        const file = new File([buf], fname, { type: mime });
+        const idsBefore = [];
+        (function w(ns){ for (const n of (ns||[])) { idsBefore.push(n.id); w(n.children); } })(
+          (window.state && window.state.assetsTree) || []);
+        const ids = await window.assetsAddImageFiles([file], p.parentId);
+        /* ★「무엇이 생겼나」를 «되읽어» 정한다 — 돌려받은 배열을 그대로 믿지 않는다.
+             (앱은 mime 이 목록에 없으면 «조용히 건너뛰고» 빈 배열을 준다.) */
+        const after = [];
+        (function w(ns){ for (const n of (ns||[])) { after.push(n); w(n.children); } })(
+          (window.state && window.state.assetsTree) || []);
+        const fresh = after.filter(n => !idsBefore.includes(n.id));
+        if (!fresh.length) {
+          return { ok:false, code:'NOT_REGISTERED',
+                   message:'에셋이 등록되지 않았습니다 — 지원 형식(png/jpeg/gif/webp/svg)인지, 프로젝트가 열려 있는지 확인하세요.',
+                   returnedIds: Array.isArray(ids) ? ids.length : null };
+        }
+        const n0 = fresh[fresh.length - 1];
+        return { ok:true, op:'addImage', assetId: n0.id, name: n0.name, type: n0.type,
+                 blobPath: n0.blobPath || null, mime: n0.mime || mime, parentId: p.parentId || null,
+                 treeCount: after.length };
+      }
+      if (p.op === 'createFolder')      r = await window.assetsCreateFolder(p.parentId);
+      else if (p.op === 'addUrl')       r = await window.assetsAddUrl({ title: p.title || p.name, url: p.url, note: p.note }, p.parentId);
+      else if (p.op === 'rename')       r = await window.assetsRenameNode(p.id, p.name);
+      else if (p.op === 'delete') {
+        /* ⛔assetsDeleteNode 는 window.confirm 을 부른다 — «사람이 없는» MCP 호출에선
+             그 대화상자가 렌더러를 통째로 막는다(실측: 호출이 타임아웃났다).
+           ⇒ 확인은 «MCP 쪽»에서 받고(confirm:true), 여기서는 confirm 을 잠시 통과시킨다.
+             ★사람 확인을 «없애는» 게 아니라 «옮기는» 것이다 — 도구 설명에 confirm 을 요구로 박았다.
+           ⛔반드시 finally 로 원복한다. 안 그러면 앱의 다른 삭제도 조용히 확인 없이 지나간다.
+         ⚠️★이 구간엔 «안전망이 없다»(지디 검토 2026-09-07). 프레임 핀은 whereIsBlock 되읽기가
+           잘못된 결과를 잡아 주지만, 여기는 그런 되읽기가 없다 —
+           그 «짧은 창» 동안 다른 삭제가 끼면 사람 확인 없이 지나간다. 지금 막지는 않되, 모르고 두지는 않는다. */
+        const _c = window.confirm;
+        window.confirm = () => true;
+        try { r = await window.assetsDeleteNode(p.id); }
+        finally { window.confirm = _c; }
+      }
+      else if (p.op === 'move')         r = await window.assetsMoveNode(p.id, p.parentId);
+      else if (p.op === 'sendToCanvas') {
+        /* ⛔assetsSendToCanvas 는 «섹션이 선택돼 있어야» 한다 — 패널은 사람이 먼저 클릭한 상태를
+             전제하지만 MCP 호출엔 그런 게 없다. 실측: 조용히 false 만 돌아왔다(토스트는 사람만 본다).
+           ⇒ sectionId 를 받으면 «먼저 고르고» 부른다. 없으면 «왜 안 되는지» 말한다. */
+        if (p.sectionId) {
+          const _s = document.getElementById(p.sectionId);
+          if (!_s || !_s.classList.contains('section-block')) {
+            return { ok:false, code:'NOT_FOUND', message:'section not found: ' + p.sectionId };
+          }
+          if (typeof window.selectSection === 'function') window.selectSection(_s);
+        }
+        if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()) {
+          return { ok:false, code:'NO_SECTION_SELECTED',
+            message:'캔버스에 «선택된 섹션»이 없어 이미지를 못 놓았습니다 — 아무것도 안 바꿨습니다.',
+            hint:'Pass sectionId (sec_xxx) so the tool can select it first. NOTHING was placed.' };
+        }
+        r = await window.assetsSendToCanvas(p.id);
+      }
+      /* ★결과를 «다시 읽어» 돌려준다 — 인자를 되읊지 않는다(오늘의 규칙) */
+      const tree = (window.state && window.state.assetsTree) || [];
+      const flat = []; (function w(ns){ for (const n of (ns||[])) { flat.push(n); w(n.children); } })(tree);
+      const found = p.id ? flat.find(n => n.id === p.id) : null;
+      return { ok: r !== false, op: p.op, rawResult: (typeof r === 'object' ? null : r),
+               treeCount: flat.length, treeBytesBefore: before,
+               node: found ? { id: found.id, name: found.name, type: found.type } : null,
+               stillExists: !!found };
+    } catch (e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
+async function _assetsListImpl({ projectId } = {}) {
+  const pid = projectId || global.currentActiveProjectId;
+  if (!pid) return { ok: false, code: 'NO_PROJECT', error: 'projectId 가 없고 열린 프로젝트도 없습니다.' };
+  /* ⛔«없는 프로젝트»와 «에셋이 아직 없는 프로젝트»를 같은 답으로 뭉개지 않는다.
+     실측(2026-09-07): 없는 id 를 줬는데 ok:true + 「에셋 폴더가 아직 없습니다」가 나왔다 —
+     사람은 「그 프로젝트엔 에셋이 없구나」로 읽는다. 오늘 종일 잡은 그 병이다. */
+  if (!_resolveProjectJsonPath(pid)) {
+    return { ok: false, code: 'PROJECT_NOT_FOUND',
+      error: `그런 프로젝트가 없습니다: ${pid}`,
+      hint: 'This is NOT "the project has no assets" — the project itself does not exist. Check the id with list_projects.' };
+  }
+  const dir = _assetsDirOf(pid);
+  let names = [];
+  try { names = fs.readdirSync(dir); }
+  catch (e) {
+    if (e && e.code === 'ENOENT') return { ok: true, projectId: pid, dir, count: 0, items: [], note: '에셋 폴더가 아직 없습니다 — «프로젝트는 있고» 올린 에셋이 0개라는 뜻입니다.' };
+    throw e;   // ⛔「못 읽었다」를 「없다」로 만들지 않는다
+  }
+  const items = [];
+  for (const n of names) {
+    try {
+      const st = fs.statSync(path.join(dir, n));
+      if (!st.isFile()) continue;
+      items.push({ blobPath: 'assets/' + n, name: n, bytes: st.size,
+                   ext: (n.split('.').pop() || '').toLowerCase(),
+                   modifiedAt: new Date(st.mtimeMs).toISOString() });
+    } catch (_) {}
+  }
+  items.sort((a, b) => (a.name < b.name ? -1 : 1));
+  return { ok: true, projectId: pid, dir, count: items.length, items };
+}
+
+/* ★★«이 프레임 안에 넣어줘» — 앱은 window._activeFrame 으로 그걸 정한다(이미 있는 기계다).
+   ⛔MCP 는 그걸 안 써서, parentId·frameId 같은 인자를 «6가지 이름으로» 줘도 전부 무시하고
+     ok 를 돌려줬다(2026-09-07 실측 — 조용한 거짓 성공).
+   ⇒ 여기서 «세우고», 도구가 끝나면 «반드시» 원복한다(finally). 안 그러면 사람이 다음에 클릭한
+     블록이 엉뚱한 프레임 안으로 들어간다.
+   ⛔앱이 스스로 거는 규칙을 «그대로» 따른다(insertAfterSelected 참조):
+     text-frame·banner-preset 외곽·shape frame 은 «안에 못 넣는다». 조용히 다른 데 넣지 말고 거절한다. */
+/* ★「정말 그 안에 들어갔나」를 «화면에서» 확인한다.
+   ⛔인자를 되읊으면 안 된다 — 실측(2026-09-07): 텍스트는 «자기 텍스트프레임»으로 감싸여
+     내가 지목한 프레임의 «형제»로 들어갔는데, 나는 placedInto 에 지목한 id 를 그대로 실어
+     「그 안에 넣었다」고 거짓말했다. 오늘 종일 잡은 그 병을 내가 만들었다. */
+async function _invokeRendererWhereIsBlock({ blockId, expectAncestor } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) return null;
+  const a = JSON.stringify(String(blockId || '')), b = JSON.stringify(String(expectAncestor || ''));
+  const js = `(() => {
+    try {
+      const el = document.getElementById(${a});
+      if (!el) return { found:false };
+      const chain = [];
+      for (let p = el.parentElement; p; p = p.parentElement) {
+        if (p.id) chain.push(p.id);
+        if (p.classList && p.classList.contains('section-block')) break;
+      }
+      const want = ${b};
+      return { found:true, chain: chain, parentId: chain[0] || null,
+               insideExpected: want ? chain.indexOf(want) >= 0 : null };
+    } catch (_) { return null; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(js, true); }
+  catch (_) { return null; }
+}
+
+async function _invokeRendererSetActiveFrame({ frameId, pin = true } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  const safe = frameId ? JSON.stringify(String(frameId)) : 'null';
+  const js = `(() => {
+    try {
+      const prev = (window._activeFrame && window._activeFrame.id) || null;
+      const fid = ${safe};
+      /* ★원복 전용 경로 — «핀을 반드시 걷는다».
+         ⛔예전 finally 는 prev 를 되세우려고 이 함수를 다시 불렀는데, 그러면 «핀이 다시 깔렸다».
+           그러면 사람이 다른 데를 클릭해도 계속 그 프레임 안으로 들어간다(앱을 망가뜨린 채 끝난다). */
+      if (${pin ? 'false' : 'true'}) {
+        /* ★★여기서 «prev 를 되돌린다» — null 로 밀지 않는다.
+             ⛔null 로 밀면 사람이 골라 둔 활성 프레임이 MCP 호출 한 번에 «사라진다».
+               (지디가 이 자리를 짚었다. 실측으로 양방향 확인 2026-09-07:
+                정상본 = 전/후 동일 · 이 줄을 null 로 바꾼 변이본 = 후 None.)
+             ⚠️그새 사라진 요소일 수 있다 — getElementById 가 null 이면 «그때만» null. */
+        try { delete window._activeFrame; } catch (_) {}
+        window._activeFrame = fid ? (document.getElementById(fid) || null) : null;
+        window.__mcpActiveFramePinned = null;
+        return { ok: true, prev: prev, set: fid, unpinned: true };
+      }
+      if (!fid) {
+        /* 원복(unpin) — 접근자를 걷고 «보통 속성»으로 되돌린다 */
+        try { delete window._activeFrame; } catch (_) {}
+        window._activeFrame = null;
+        window.__mcpActiveFramePinned = null;
+        return { ok: true, prev: prev, set: null, unpinned: true };
+      }
+      const el = document.getElementById(fid);
+      if (!el) return { ok:false, code:'NOT_FOUND', message:'frame not found: ' + fid, prev: prev };
+      if (!el.classList.contains('frame-block')) {
+        return { ok:false, code:'NOT_A_FRAME',
+          message: fid + ' 은(는) 프레임이 아닙니다 — 블록을 «안에» 넣을 수 있는 것은 frame-block 뿐입니다.',
+          prev: prev };
+      }
+      if (el.dataset && el.dataset.textFrame) {
+        return { ok:false, code:'TEXT_FRAME',
+          message:'텍스트 프레임은 «단순 wrapper»라 안에 직접 넣지 않습니다(앱도 그렇게 막습니다).',
+          hint:'Add the block to the section instead, or target a layout frame.', prev: prev };
+      }
+      if (el.dataset && el.dataset.bannerPreset) {
+        return { ok:false, code:'BANNER_PRESET',
+          message:'배너 프리셋 외곽은 «컴포넌트 단위»라 안에 자식을 직접 받지 않습니다.', prev: prev };
+      }
+      if (el.querySelector(':scope > .shape-block')) {
+        return { ok:false, code:'SHAPE_FRAME',
+          message:'도형 프레임은 «최소 단위»라 안에 넣지 않습니다.', prev: prev };
+      }
+      /* ★★프레임 자체에 .selected 가 붙어 있으면 앱은 «형제»로 넣는다
+           (insertAfterSelected: 「프레임 자체가 오브젝트로 선택된 상태 → 안이 아니라 뒤(형제)에 삽입」).
+         ⇒ 그건 «사람이 프레임을 클릭한» 맥락의 규칙이다. parentId 를 «명시»한 MCP 호출은
+           의도가 「안에」라서, 그 표시를 잠시 걷는다. ⛔원복은 부르는 쪽이 finally 로 한다.
+         ★근거(지디 검토 승인 2026-09-07): 앱 규칙은 «클릭»이라는 «모호한 의도»를 푸는 규칙이고,
+           parentId 는 «안에 넣어라»라는 «명시된 의도»다. 다른 의도를 같은 규칙으로 처리하면
+           그게 오히려 거짓말이 된다. ⇒ 규칙을 비껴가는 게 아니라 «다른 입력»으로 다루는 것이다. */
+      const wasSelected = el.classList.contains('selected');
+      if (wasSelected) el.classList.remove('selected');
+      /* 안에 «선택된 자식»이 있어도 그 뒤에 붙는다 — 그것도 걷어야 «맨 안»으로 들어간다 */
+      const selKids = [].slice.call(el.querySelectorAll('.selected'));
+      selKids.forEach(k => k.classList.remove('selected'));
+      /* ★★핀 — 「지우기 금지」.
+           앱의 addTextBlock 계열은 «자기 IIFE 안에서» selectSection 을 부르고,
+           selectSection → deselectAll(js/editor.js:2877) 이 window._activeFrame 에 null 을 넣는다.
+         ⇒ 핸들러 «밖»에서 세운 _activeFrame 은 «삽입 시점»엔 이미 없다.
+           (실측 2026-09-07: text·asset·divider 3/3 이 프레임 밖 섹션레벨로 떨어졌다.
+            .selected 를 걷는 것만으론 안 고쳐졌다 — 원인이 «선택»이 아니라 «소멸»이라서다.)
+         ⇒ selectSection 을 부르는 핸들러 18곳을 다 고치는 대신, 이 호출 «한 건 동안만»
+           null 대입을 무시하는 접근자로 바꾼다. 읽는 쪽(insertAfterSelected)은 그대로다.
+         ⛔원복(unpin = frameId:null)은 «부르는 쪽이 finally 로» 한다. 안 풀면 앱이 그 프레임에
+           갇힌다(사람이 다른 데를 클릭해도 계속 그 안에 들어간다). */
+      /* ⚠️★재진입 — 핀은 «참조계수»가 아니라 «하나»다(지디 검토 2026-09-07).
+           A 가 frame1 을 핀 → B 가 frame2 로 덮음 → A 의 finally 가 unpin
+           ⇒ B 는 «자기 핀이 걷힌 채» 남은 구간을 돈다.
+         ⇒ 결과는 «잘못된 배치»지 «잠금»이 아니다. 안전망은 _withParent 의 whereIsBlock 되읽기다
+           (못 들어갔으면 NOT_PLACED_INSIDE 로 «말한다»). ⇒ 그래서 막지 않고 «적는다».
+         ⛔새 조건: 오늘 «세션 분리»가 들어와 두 세션이 겹쳐 부를 수 있게 됐다.
+           겹침이 잦아지면 그때는 참조계수(또는 호출 직렬화)로 올려야 한다. */
+      let _pin = el;
+      try { delete window._activeFrame; } catch (_) {}
+      Object.defineProperty(window, '_activeFrame', {
+        configurable: true, enumerable: true,
+        get() { return _pin; },
+        set(v) { if (v == null) return; _pin = v; }
+      });
+      window.__mcpActiveFramePinned = fid;
+      return { ok:true, prev: prev, set: fid, pinned: true, wasSelected: wasSelected, unselectedKids: selKids.length,
+               sectionId: (el.closest('.section-block') || {}).id || null,
+               childrenBefore: el.querySelectorAll(':scope > [id]').length };
+    } catch (e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(js, true);
+}
+
+async function _invokeRendererReadBlockState({ blockId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) return null;
+  const safeId = JSON.stringify(String(blockId || ''));
+  const js = `(() => {
+    try {
+      const el = document.getElementById(${safeId});
+      if (!el) return null;
+      const ds = {};
+      for (const k in el.dataset) ds[k] = el.dataset[k];
+      /* ★계산된 스타일도 조금 실어 준다 — fontSize·align·color 는 dataset 에 안 살아서
+           관문이 「대조할 자리가 없다」로 «못 재고» 있었다(2026-09-07 실측).
+         ⛔전부 싣지 않는다(응답이 커진다) — 관문이 실제로 쓰는 것만. */
+      /* ★★스타일은 «바깥 블록»에 안 붙는다 — 텍스트 블록은 안쪽 .tb-body 에 붙는다.
+           2026-09-07 실측: 바깥 tb_ 는 16px/start 인데 안쪽은 40px/right 였다.
+           바깥만 재고 「applied 가 거짓말한다」고 판정할 뻔했다 — «내 계측이 틀린» 것이었다.
+         ⇒ 바깥과 «첫 자식» 둘 다 싣는다. 판정은 부르는 쪽이 «둘 중 하나라도 맞으면 맞다»로 한다. */
+      const pick = (n) => { try { const c = getComputedStyle(n);
+        return { fontSize: c.fontSize, textAlign: c.textAlign, color: c.color,
+                 fontWeight: c.fontWeight, backgroundColor: c.backgroundColor }; } catch (_) { return {}; } };
+      const cs = pick(el);
+      const csIn = el.firstElementChild ? pick(el.firstElementChild) : {};
+      return { id: el.id, dataset: ds, computed: cs, computedInner: csIn,
+               text: (el.innerText || '').trim().slice(0, 2000) };
+    } catch (_) { return null; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(js, true); }
+  catch (_) { return null; }
+}
+
+async function _invokeRendererUpdateGridBlock({ blockId, partial } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const safeId = JSON.stringify(String(blockId || ''));
+  const safeP = JSON.stringify(partial || {});
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+        && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      if (userEditing || (Date.now() - (window._lastUserKeydown || 0)) < 1500) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.updateGridBlock !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.updateGridBlock not found' };
+      const el = document.getElementById(${safeId});
+      if (!el || !el.classList.contains('grid-block')) {
+        return { ok: false, code: 'NOT_FOUND', message: 'grid block not found: ' + ${safeId} };
+      }
+      const r = window.updateGridBlock(${safeId}, ${safeP});
+      if (r && r.ok === false) return r;
+      /* ★바뀐 뒤의 «화면»을 읽어 돌려준다 */
+      const after = document.getElementById(${safeId});
+      const cells = after ? after.querySelectorAll('.grd-cell') : [];   // ★실측 클래스
+      const texts = [].slice.call(cells).map(function (c) { return (c.innerText || '').trim(); });
+      return Object.assign({}, r, { ok: true, blockId: ${safeId}, cellCount: cells.length, cellTexts: texts });
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
+  catch (e) { throw new Error('updateGridBlock call failed: ' + e.message); }
 }
 
 // ─── [APIMCP P1] add_frame_block — frame-block(ss_) 컨테이너 추가 ─────────────
@@ -6447,7 +8286,7 @@ app.on('before-quit', (event) => {
     event.preventDefault();
     try {
       quitSaveGuard.init({
-        userDataDir: app.getPath('userData'), dialog, shell,
+        userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, dialog, shell,
         appVersion: app.getVersion(), log: (m) => console.log(m),
       });
       quitSaveGuard.notifyWindowGone({ pending, exit: (code) => app.exit(code) });
@@ -6461,7 +8300,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   try {
     quitSaveGuard.init({
-      userDataDir: app.getPath('userData'), dialog, shell,
+      userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, dialog, shell,
       appVersion: app.getVersion(), log: (m) => console.log(m),
     });
     quitSaveGuard.runBeforeQuit({ win, ipcMain, exit: (code) => app.exit(code) });
@@ -6621,9 +8460,9 @@ function ensureRecovery() {
        나중에 dialog·shell 을 얹는 것과 충돌하지 않는다(main/quit/save-guard.js init 참조).
      ⛔이 두 줄이 없으면 emergencyDir() 가 null 위에서 터져 «되살리기가 조용히 not_found» 가 된다
        (실측 2026-09-06: U-H3-W3 이 이걸 잡았다 — 「돌아는 가는데 효과 0」의 전형). */
-  try { quitSaveGuard.init({ userDataDir: app.getPath('userData'), appVersion: app.getVersion() }); } catch (_) {}
+  try { quitSaveGuard.init({ userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, appVersion: app.getVersion() }); } catch (_) {}
   recovery.init({
-    userDataDir: app.getPath('userData'),
+    userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir,
     crash: require('./main/crash'),
     saveGuard: quitSaveGuard,
     log: (m) => console.warn(m),

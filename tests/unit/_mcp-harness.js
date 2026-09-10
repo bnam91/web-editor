@@ -107,7 +107,12 @@ function defaultRawInvoker() {
 async function startHarness(opts = {}) {
   const tmproot = require('./_tmproot');
   const userData = tmproot.mkTmpRoot('goya-mcp-');
-  const projectsDir = path.join(userData, 'projects');
+/* ⚠️★[뿌리-하네스] 이 하네스는 «비로그인» 픽스처를 쓴다 — 그래서 앱이 레거시 공용 풀에 앉고
+   여기서 이 경로를 조립하는 것이 «오늘은» 맞다. ⛔그러나 하네스에 «로그인»을 넣는 날
+   진짜 뿌리는 <userData>/accounts/<계정키>/projects 로 옮겨가므로 ★검사가 «빈 폴더»를 재게 된다
+   (초록인데 아무것도 안 잰 상태). 로그인을 넣을 땐 이 줄을 같이 옮겨라.
+   ⇒ 경고를 한 곳에만 적으면 다른 곳은 «없는 것»이 된다(지디 지적) — 그래서 여기에도 적는다. */
+  const projectsDir = path.join(userData, 'projects');  // [뿌리-하네스] 비로그인 픽스처 전용 — 위 경고 참조
   fs.mkdirSync(projectsDir, { recursive: true });
   /* ★디스크 기반 도구(read_project 등)는 «파일이 있어야» 진짜 경로를 탄다.
    *   없으면 'project not found' 만 나서 도구 본문을 한 줄도 안 밟는다 — 초록도 빨강도 아닌
@@ -148,6 +153,19 @@ async function startHarness(opts = {}) {
   function activeUrl() { const p = activeProjectOf(); return p ? `file:///index.html?project=${p}` : null; }
 
   const mod = require(path.join(__dirname, '..', '..', 'main', 'claude-pm', 'mcp-server.js'));
+
+  /* ★프로젝트 «뿌리»는 이제 «주입»이 정본이다(계정별 폴더 격리, 2026-09-07).
+     예전엔 안 꽂아도 userData/projects 로 조용히 폴백했지만, 그 폴백이
+     「남의 계정 것을 읽는」 길이라 닫았다. ⇒ 하네스도 «꽂아야» 한다.
+     ⛔여기를 지우면 도구들이 NO_PROJECTS_ROOT 로 죽는다 — 그건 회귀가 아니라
+       「뿌리를 안 꽂았다」는 정직한 신호다. */
+  if (typeof mod.setProjectsRoot === 'function') mod.setProjectsRoot(() => projectsDir);
+  /* ★로그인 프로브도 «꽂아야» 한다 — 게이트가 fail-closed 로 바뀌었다(못 재면 거절).
+     예전엔 미주입이 «통과»라 안 꽂아도 돌았는데, 그 관대함이 곧 「게이트가 증발하는 경로」였다.
+     ⛔여기를 지우면 도구들이 AUTH_PROBE_MISSING 으로 죽는다 — 회귀가 아니라 정직한 신호다. */
+  if (typeof mod.setAuthProbe === 'function' && opts.authProbe !== null) {
+    mod.setAuthProbe(opts.authProbe || (() => ({ authed: true })));
+  }
 
   /* ── ★가짜 렌더러 = Proxy ──
    * 134종 넘는 메서드를 손으로 못 적는다. Proxy 는 «무슨 이름으로 불렸든» 잡아서
@@ -194,7 +212,7 @@ async function startHarness(opts = {}) {
     search: async () => ({ ok: true, icons: [{ name: 'ph:house-bold' }] }),
     fetchSvg: async () => ({ ok: true, svg: '<svg viewBox="0 0 24 24"/>' }),
   }, opts.iconifyApi || {})));
-  /* ⚠️projectOps 는 «4개» 다 있어야 한다(list/create/open/duplicate). 하나라도 빠지면
+  /* ⚠️projectOps 는 «6개» 다 있어야 한다(list/create/open/duplicate/delete/rename). 하나라도 빠지면
    *   그 도구는 'project ops not initialized' 로 죽는데, 그건 «도구 결함»이 아니라 하네스 결함이다.
    *   ⇒ 전수 호출을 해봐야 드러난다(실제로 list_projects·create_project 가 그렇게 걸렸다). */
   mod.setProjectOps(logged('projectOps', Object.assign({
@@ -202,6 +220,11 @@ async function startHarness(opts = {}) {
     list: () => ({ ok: true, projects: [{ id: 'proj_1', name: 'fixture' }] }),
     create: async ({ name } = {}) => ({ ok: true, projectId: 'proj_2', name: name || 'new' }),
     open: async ({ projectId } = {}) => { _active = projectId || _active; return { ok: true, projectId }; },
+    // ★2026-09-07 신설 delete_project 용. 진짜 fs 를 안 만지고 «계약»만 잰다 —
+    //   실제 구현은 휴지통 이동(main.js _deleteProjectImpl)이라 여기서 흉내내면 안 된다.
+    delete: async ({ projectId } = {}) => ({ ok: true, projectId, trashed: true,
+                                             wasActive: false, activeCleared: false }),
+    rename: async ({ projectId, name } = {}) => ({ ok: true, projectId, name, previousName: 'old', changed: true }),
   }, opts.projectOps || {})));
 
   const base = opts.basePort || await _freePortIn(BASE_LO, BASE_HI);

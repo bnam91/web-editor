@@ -520,3 +520,244 @@ test('★FIX-ⓑ 계약: 쉼 가로는 gBCR 에서 panOffsetX 를 «뺀다» (�
   assert.ok(/-\s*panOffsetX/.test(body),
     'gBCR 엔 transform 이 이미 들어 있다 — 안 빼면 getPanPosition().x 가 panOffsetX 를 두 번 센다');
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   H. [2026-09-09] 팬 제스처 «배선»을 정규식이 아니라 «행동»으로 잡는다
+   ───────────────────────────────────────────────────────────────────────────
+   ★왜 새로 쓰나 — 위 ★FIX-⑵ 계약(정규식)이 «왜 약한지» 실물로 드러났다.
+     그 단언은 이렇게 생겼다:
+       /setPanScrollBaseline\s*\(\s*scrollStart\s*\)/.test(mousedown 소스)
+     이건 「그 줄의 «글자»가 있나」만 본다. ⇒ 다음 둘을 «둘 다» 통과시킨다:
+       ⓐ setPanScrollBaseline 이 no-op 이 된 경우 — 호출 «자리»는 그대로다
+       ⓑ 걸리는 것이 참조가 아니라 «복사본»인 경우 — 중간에 한 줄만 끼우면 글자는 남는다
+     어젯밤 캔버스 단위에서 정확히 이 변이 둘이 14/14 초록으로 통과했다.
+   ⇒ 값이 아니라 «쓰기»를 세는 접근자 스파이 + 실제로 끌어 보는 하네스로 닫는다
+     (tests/unit/pan-room-floor.test.js 의 관용구를 그대로 빌린다).
+
+   ★이 하네스가 재는 것 — 「기준점이 살아 있나」의 «관측 가능한 결과»
+     팬 도중 휠 정착 타이머가 shrinkPanRoom() 을 부르면 여백이 깎이며 scrollLeft 도 같이
+     내려간다(화면은 안 튀지만 «좌표계»가 바뀐다). 기준점이 제대로 걸려 있으면 shrink 가
+     그 기준점을 «같은 양» 옮겨서 다음 mousemove 가 제자리를 지킨다.
+     기준점이 null(ⓐ)이거나 복사본(ⓑ)이면 그 보정이 «산 것에 안 닿아» 다음 프레임이 튄다.
+   ⇒ 「기준점을 걸었나」를 직접 묻지 않는다. «끌어 보고 튀는지»를 잰다.
+════════════════════════════════════════════════════════════════════════════ */
+
+/** 하네스가 읽는 «현재 소스». 기본값은 실제 js/editor.js — 양성대조만 잠깐 바꿔 끼운다. */
+const SRC_REF = { value: SRC };
+
+/** `target.addEventListener('name', <arrow>` 에서 «화살표 함수»만 뽑는다. */
+function extractHandler(src, target, name) {
+  const head = `${target}.addEventListener('${name}'`;
+  const i = src.indexOf(head);
+  assert.notEqual(i, -1, `${head} 를 못 찾음 — 배선이 바뀌었나?`);
+  const argStart = src.indexOf(',', i + head.length) + 1;
+  const arrowAt = src.indexOf('=>', argStart);
+  assert.notEqual(arrowAt, -1, `${head} 의 핸들러가 화살표 함수가 아니다`);
+  const params = src.slice(argStart, arrowAt).trim();
+  let d = 0, started = false;
+  for (let k = src.indexOf('{', arrowAt); k < src.length; k++) {
+    if (src[k] === '{') { d++; started = true; }
+    else if (src[k] === '}') { d--; if (started && d === 0) return `(${params.replace(/^\(|\)$/g, '')}) => ${src.slice(src.indexOf('{', arrowAt), k + 1)}`; }
+  }
+  assert.fail(`${head} 핸들러의 끝을 못 찾음`);
+}
+
+/** 팬 제스처 하네스 — 세 핸들러와 여지 함수들을 «소스 그대로» 한 스코프에 올린다. */
+function makeGestureEnv({ contentW = 860, contentH = 2000, clientW = 1000, clientH = 800 } = {}) {
+  const writes = { scrollLeft: 0, scrollTop: 0 };   // ★값이 아니라 «쓰기»를 센다
+  let _sl = 0, _st = 0;
+  let roomX = 0, roomY = 0, tail = 0;
+
+  const wrap = {
+    clientWidth: clientW, clientHeight: clientH,
+    classList: { add() {}, remove() {}, contains: () => false },
+    contains: () => true,
+    /* 스크롤 범위는 «여백»을 따라 움직인다 — 이게 shrink/grow 산술의 무대다.
+       ⛔브라우저처럼 clamp 한다: 이 코드가 방어하는 병이 정확히 clamp 다. */
+    get scrollWidth()  { return contentW + 2 * roomX; },
+    get scrollHeight() { return contentH + 2 * roomY + tail; },
+    get scrollLeft() { return _sl; },
+    set scrollLeft(v) { writes.scrollLeft++; _sl = Math.max(0, Math.min(v, this.scrollWidth - this.clientWidth)); },
+    get scrollTop() { return _st; },
+    set scrollTop(v) { writes.scrollTop++; _st = Math.max(0, Math.min(v, this.scrollHeight - this.clientHeight)); },
+  };
+  const scaler = { style: {}, children: [], offsetHeight: contentH };
+  const document = { getElementById: (id) => (id === 'canvas-wrap' ? wrap : id === 'canvas-scaler' ? scaler : null) };
+
+  /* ★소스를 «갈아 끼울 수 있게» 한 겹 둔다 — H1/H2 양성대조가 「변이를 심은 소스」로
+     같은 하네스를 돌린다. ⛔전역 SRC 를 직접 쓰면 변이를 못 심고, 「빨개질 것이다」를
+     «믿는» 수밖에 없어진다. 그게 이 파일이 고치려는 병이다. */
+  const src = SRC_REF.value;
+  const factory = new Function(
+    'document', 'wrap', 'scaler', 'roomIO', 'currentZoom', 'getRestingScroll', 'scheduleNotchUpdate', 'window',
+    `
+    'use strict';
+    let _panRoomX = 0, _panRoomY = 0, _canvasTailY = 0, _panScrollBaseline = null;
+    const PAN_ROOM_SCREENS_Y = ${/^const PAN_ROOM_SCREENS_Y = ([^;]+);/m.exec(src)[1]};
+    ${extractFn(src, '_applyPanRoom')}
+    ${extractFn(src, 'ensurePanRoom')}
+    ${extractFn(src, 'growPanRoom')}
+    ${extractFn(src, 'setPanScrollBaseline')}
+    ${extractFn(src, 'shrinkPanRoom')}
+    /* ★여백 «값»을 하네스의 scrollWidth/Height 계산으로 흘려보낸다 —
+       _applyPanRoom 이 style 에만 쓰므로, 그 style 을 읽어 무대에 반영한다. */
+    const _sync = () => roomIO(parseFloat(scaler.style.marginLeft) || 0,
+                              parseFloat(scaler.style.marginTop) || 0,
+                              (parseFloat(scaler.style.marginBottom) || 0) - (parseFloat(scaler.style.marginTop) || 0));
+    const _wrapApply = _applyPanRoom;
+    _applyPanRoom = function () { _wrapApply(); _sync(); };
+
+    // ── 팬 블록의 지역 상태(editor.js 의 그 블록과 같은 이름·같은 초기값) ──
+    let panMode = true, panning = false, panStart = null, panOffsetStart = null;
+    let panOffsetX = 0, panOffsetY = 0;
+    let scrollStart = null;
+    let _swallowPanClick = false, _swallowPanClickTimer = null;
+    const canvasWrap = wrap;
+
+    const md = ${extractHandler(src, 'canvasWrap', 'mousedown')};
+    const mm = ${extractHandler(src, 'window', 'mousemove')};
+    const mu = ${extractHandler(src, 'window', 'mouseup')};
+
+    return {
+      md, mm, mu,
+      ensurePanRoom, growPanRoom, shrinkPanRoom, setPanScrollBaseline,
+      room: () => ({ x: _panRoomX, y: _panRoomY }),
+      baseline: () => _panScrollBaseline,
+      scrollStart: () => scrollStart,
+      panning: () => panning,
+    };
+    `
+  );
+  const api = factory(
+    document, wrap, scaler,
+    (rx, ry, t) => { roomX = rx; roomY = ry; tail = t; },
+    100,
+    () => ({ left: 0, top: 0 }),
+    () => {},
+    { deferAutoSave() {}, resumeAutoSave() {}, updateNotchPosition: null }
+  );
+  return { wrap, scaler, writes, ...api };
+}
+
+const MD = (x, y) => ({ button: 0, clientX: x, clientY: y, preventDefault() {}, stopPropagation() {} });
+const MV = (x, y) => ({ clientX: x, clientY: y });
+
+test('★H0 하네스 자가검증 — 세 핸들러를 «실제로» 떴고, 끌면 scroll 에 «쓰기»가 일어난다', () => {
+  const e = makeGestureEnv();
+  for (const [n, f] of [['mousedown', e.md], ['mousemove', e.mm], ['mouseup', e.mu]]) {
+    assert.equal(typeof f, 'function', `${n} 핸들러를 못 떴다 — 아래 검사는 아무것도 안 잰다`);
+  }
+  e.md(MD(500, 400));
+  assert.equal(e.panning(), true, 'mousedown 이 팬을 «안» 켰다 — 하네스가 그 블록을 못 태웠다');
+
+  const w0 = e.writes.scrollLeft;
+  e.mm(MV(300, 400));
+  assert.ok(e.writes.scrollLeft > w0,
+    '★mousemove 가 scrollLeft 에 «한 번도 안 썼다» — 값을 비교하기 전에 이게 먼저다');
+});
+
+test('★H1 ⓐ변이 잡기 — 기준점이 «안 걸리면» 팬 도중 여지 회수에서 캔버스가 튄다', () => {
+  const e = makeGestureEnv();
+  e.ensurePanRoom();                       // 기본 여지 확보(실제 mousedown 도 이걸 부른다)
+  e.wrap.scrollLeft = e.room().x;          // 왼쪽 여백 한가운데 — shrink 가 깎을 게 남는 자리
+  e.wrap.scrollTop = e.room().y;
+  e.growPanRoom('x'); e.growPanRoom('y');  // 여분을 만들어 둔다(안 그러면 cut 이 0 이라 못 잰다)
+
+  e.md(MD(500, 400));
+  e.mm(MV(440, 400));                      // 60px 끌었다
+  const 끌린뒤 = { l: e.wrap.scrollLeft, t: e.wrap.scrollTop };
+
+  /* ★입력이 살아 있다 — shrink 가 «실제로 깎아야» 이 검사가 잴 것이 있다.
+     cut 이 0 이면 기준점이 null 이든 아니든 아무 일도 안 나고 「튐 없음」이 공짜로 초록이 된다. */
+  const 여지전 = e.room();
+  e.shrinkPanRoom();                       // ← 휠 정착 타이머(200ms)가 팬 «도중»에 부르는 그 길
+  const 여지후 = e.room();
+  const cut = (여지전.x - 여지후.x) + (여지전.y - 여지후.y);
+  assert.ok(cut > 0, `★shrinkPanRoom 이 아무것도 안 깎았다(cut=${cut}) — 잴 자리가 아니다`);
+
+  // 같은 커서 자리에서 한 프레임 더 — 좌표계가 바뀌었어도 «화면은 그대로»여야 한다
+  e.mm(MV(440, 400));
+  const 점프 = Math.abs(e.wrap.scrollLeft - (끌린뒤.l - (여지전.x - 여지후.x)))
+             + Math.abs(e.wrap.scrollTop  - (끌린뒤.t - (여지전.y - 여지후.y)));
+  assert.ok(점프 < 1.5,
+    `★여지 회수 뒤 다음 프레임이 ${점프.toFixed(1)}px 튀었다 — 기준점이 «산 것»에 안 걸려 있다 ` +
+    `(setPanScrollBaseline 이 no-op 이거나 «복사본»을 받았다)`);
+});
+
+test('★H1-양성대조 — setPanScrollBaseline 을 no-op 으로 바꾸면 H1 이 «실제로» 빨개진다', () => {
+  /* ⛔「빨개질 것이다」라고 «믿지» 않는다. 이 자리에서 변이를 돌려 본다.
+     소스의 그 한 줄만 갈아 끼운 하네스를 만들어, 같은 시나리오가 튀는지 «잰다». */
+  const poisoned = SRC.replace(
+    'function setPanScrollBaseline(ref) { _panScrollBaseline = ref; }',
+    'function setPanScrollBaseline(ref) { /* MUT: no-op */ }');
+  assert.notEqual(poisoned, SRC, '★변이를 못 심었다 — 이 양성대조는 아무것도 안 재고 있다');
+
+  const 튐 = (src) => {
+    const saved = SRC_REF.value; SRC_REF.value = src;
+    try {
+      const e = makeGestureEnv();
+      e.ensurePanRoom();
+      e.wrap.scrollLeft = e.room().x; e.wrap.scrollTop = e.room().y;
+      e.growPanRoom('x'); e.growPanRoom('y');
+      e.md(MD(500, 400));
+      e.mm(MV(440, 400));
+      const a = { l: e.wrap.scrollLeft, t: e.wrap.scrollTop };
+      const r0 = e.room(); e.shrinkPanRoom(); const r1 = e.room();
+      e.mm(MV(440, 400));
+      return Math.abs(e.wrap.scrollLeft - (a.l - (r0.x - r1.x)))
+           + Math.abs(e.wrap.scrollTop  - (a.t - (r0.y - r1.y)));
+    } finally { SRC_REF.value = saved; }
+  };
+
+  assert.ok(튐(SRC) < 1.5, '★현재 소스가 이미 튄다 — 아래 대조가 뜻을 잃는다');
+  const 변이튐 = 튐(poisoned);
+  assert.ok(변이튐 > 1.5,
+    `★no-op 변이인데도 안 튀었다(${변이튐.toFixed(1)}px) — H1 은 이 변이를 «못 잡는다»`);
+});
+
+test('★H2 ⓑ변이 잡기 — 기준점에 «복사본»을 걸면 보정이 산 것에 안 닿는다', () => {
+  const poisoned = SRC.replace(
+    'setPanScrollBaseline(scrollStart);',
+    'setPanScrollBaseline(Object.assign({}, scrollStart));   /* MUT: 복사본 */');
+  assert.notEqual(poisoned, SRC, '★변이를 못 심었다 — 이 대조는 아무것도 안 잰다');
+
+  const 튐 = (src) => {
+    const saved = SRC_REF.value; SRC_REF.value = src;
+    try {
+      const e = makeGestureEnv();
+      e.ensurePanRoom();
+      e.wrap.scrollLeft = e.room().x; e.wrap.scrollTop = e.room().y;
+      e.growPanRoom('x'); e.growPanRoom('y');
+      e.md(MD(500, 400));
+      e.mm(MV(440, 400));
+      const a = { l: e.wrap.scrollLeft, t: e.wrap.scrollTop };
+      const r0 = e.room(); e.shrinkPanRoom(); const r1 = e.room();
+      e.mm(MV(440, 400));
+      return Math.abs(e.wrap.scrollLeft - (a.l - (r0.x - r1.x)))
+           + Math.abs(e.wrap.scrollTop  - (a.t - (r0.y - r1.y)));
+    } finally { SRC_REF.value = saved; }
+  };
+  const 변이튐 = 튐(poisoned);
+  assert.ok(변이튐 > 1.5,
+    `★복사본 변이인데도 안 튀었다(${변이튐.toFixed(1)}px) — «참조여야 한다»가 안 지켜지고 있다`);
+});
+
+test('★H3 mouseup 이 기준점을 «내린다» — 팬이 끝난 뒤의 회수가 산 것을 건드리면 안 된다', () => {
+  const e = makeGestureEnv();
+  e.ensurePanRoom();
+  e.md(MD(500, 400));
+  assert.notEqual(e.baseline(), null, '★mousedown 이 기준점을 «안 걸었다»');
+  assert.equal(e.baseline(), e.scrollStart(),
+    '★기준점이 팬 블록의 scrollStart «그 객체»가 아니다 — 복사본이면 보정이 안 닿는다');
+
+  e.mm(MV(440, 400));
+  e.mu();
+  assert.equal(e.baseline(), null, '★mouseup 뒤에도 기준점이 남아 있다 — 다음 회수가 유령을 고친다');
+  assert.equal(e.panning(), false, '★mouseup 이 팬을 «안» 껐다');
+
+  // 팬이 끝난 «뒤»의 회수는 아무 기준점도 안 건드린다 — 남아 있었으면 여기서 어긋난다
+  const w = e.writes.scrollLeft;
+  e.shrinkPanRoom();
+  assert.equal(e.baseline(), null, '★팬 종료 뒤 회수가 기준점을 되살렸다');
+  assert.ok(e.writes.scrollLeft >= w, '스크롤 쓰기 계수기가 죽었다');
+});

@@ -67,6 +67,12 @@
 #canvas-wrap::-webkit-scrollbar-thumb { background: var(--ui-border); border-radius: 3px; }
 #canvas-wrap.scratch-drag-over { outline: 2px dashed rgba(21,146,254,0.45); outline-offset: -6px; }
 
+/* [#16-C] 스크래치패드 «일괄 숨기기» — 표시만 끈다(데이터·연결 무손상).
+   ★새 색·새 간격 0줄 — display 한 줄이 전부다. 다크 단일 테마라 테마 분기도 없다.
+   ⚠️`display:none` 이라 rect 가 0×0 이 된다 → 연결선은 scratchpad-link.js 의
+     «0×0 이면 건너뛴다» 문이 같이 감춰 준다(허공 선 방지). */
+body.scratch-hidden-all .scratch-item { display: none; }
+
 /* ── 스크래치패드 아이템 ── */
 .scratch-item {
   position: absolute;
@@ -365,3 +371,64 @@
 /* (기록) 한때 합쳐 넣은 몸이 아웃라인을 덮어 inset 그림자로 «변만» 되살렸다.
    지금은 선택 아웃라인 자체가 오버레이(::after, z-90)라 어떤 블록·상자가 와도 안 가려진다.
    그 보정을 남기면 «이중선»이 되므로 지웠다. */
+
+/* ═══════════════════════════════════════════════════════════
+   그리드 가이드 (편집 보조) — 2026-09-08
+   ★★DOM 을 «전혀» 안 건드린다. 이유:
+     고디터의 저장은 캔버스 DOM 을 그대로 직렬화한다(js/io/save-load.js getSerializedCanvas).
+     ⇒ 오버레이 <div> 를 넣거나 inner.style 에 쓰면 «프로젝트 파일에 섞인다».
+       그러면 남의 컴퓨터에서 열었을 때도 가이드가 따라가고, 내보낸 이미지에도 찍힌다.
+     ⇒ 그래서 body 클래스 + background-image 로만 그린다.
+       background-origin/clip:content-box 라 «패딩 안쪽»에만 정확히 그려진다 —
+       좌우 패딩을 바꾸면 그리드가 «자동으로» 따라온다(계산을 두 번 하지 않는다).
+   ⛔내보내기 전에는 반드시 꺼야 한다(js/props/prop-page.js 의 export 가드).
+   ═══════════════════════════════════════════════════════════ */
+/* (기록) 중앙선(`gdt-grid-mid`)이 있던 시절, 이 규칙과 중앙선 규칙이 «같은 특이도»로
+   background-image 를 각각 세팅해 뒤가 이기면서 «칼럼이 지워지던» 결함이 있었다
+   (두 그라디언트를 한 선언에 콤마로 겹쳐 막았다). 중앙선을 걷어내(현빈 지시) 그 자리가 없어졌다.
+   ⇒ 이 규칙에 background-image 를 «따로» 세팅하는 형제 규칙을 다시 만들지 마라 — 같은 결함이 돌아온다. */
+body.gdt-grid-on .section-inner {
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--gdt-grid-color, rgba(255, 0, 0, .10)) 0,
+    var(--gdt-grid-color, rgba(255, 0, 0, .10)) var(--gdt-grid-col, 33.33px),
+    transparent var(--gdt-grid-col, 33.33px),
+    transparent calc(var(--gdt-grid-col, 33.33px) + var(--gdt-grid-gut, 10px))
+  );
+  background-origin: content-box;
+  background-clip: content-box;
+  background-repeat: repeat-y;
+  background-position: left top;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   좌우 패딩 힌트 (편집 보조) — 2026-09-08
+   섹션 패널의 «좌우 패딩» 슬라이더를 만지는 «동안»만, 패딩이 먹는 좌·우 띠를
+   핑크 10% 로 비춘다. 400ms 뒤 저절로 사라진다(js/props/prop-section.js).
+   ★테두리 «두께»가 곧 패딩 폭이다 — 계산이 없다. 패딩이 바뀌면 변수만 따라 바뀐다.
+   ⛔::after 는 쓸 수 없다 — 섹션 선택 아웃라인(.section-block.selected::after)과
+     hover fill 이 이미 ::after 를 쓴다. 섹션은 «선택된 채로» 슬라이더를 만지므로 충돌이 확정.
+   ⚠️.section-inner 는 평소 position 이 없다(editor-layout.css 의 .section-inner).
+     켜는 «동안»만 relative 라 그 사이엔 절대배치 자손의 컨테이닝 블록이 여기가 된다.
+   ⛔내보내기 전에는 반드시 꺼야 한다(js/io/export-image.js 의 exportSection 가드).
+   ═══════════════════════════════════════════════════════════ */
+body.gdt-pad-on .section-inner { position: relative; }
+body.gdt-pad-on .section-inner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-left:  var(--gdt-pad-l, 0px) solid rgba(255, 0, 128, .10);
+  border-right: var(--gdt-pad-r, 0px) solid rgba(255, 0, 128, .10);
+  pointer-events: none;
+  /* ★띠는 «풀블리드 에셋 위에도» 얹힌다 (2026-09-08 현빈 승인 — 팀리드가 그림 보고 결정).
+       왜: 실측에서 에셋이 띠를 «덮어», 패딩 88px 짜리 줄이 55px 로 «읽혔다».
+         이 기능의 유일한 일이 「패딩이 어디까지인가」를 말하는 것인데 틀린 숫자를 가르쳤다 —
+         그것도 하필 «풀블리드냐 아니냐»를 판단해야 하는 바로 그 자리에서.
+       ⇒ 패딩 폭은 내용이 넘쳐도 안 변한다. 「내용이 패딩을 무시한다」는 에셋 자신이 이미 보여준다.
+     ⚠️z-index 는 «1» 이면 족하다. 섹션 선택 아웃라인은 .section-block::after 의 z-index 90 이라
+       그대로 이긴다(실측: 아웃라인 파랑과 띠 핑크가 나란히 보인다).
+     ⛔이 한 줄을 빼면 다시 «소스는 맞는데 화면에서 가려지는» 모양이 된다 —
+       tests/dom/pad-hint.dom.spec.js D11 이 «픽셀로» 그걸 잡는다. */
+  z-index: 1;
+}

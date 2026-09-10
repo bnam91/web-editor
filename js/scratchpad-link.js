@@ -19,8 +19,17 @@
 // [P2+] 오버레이 렌더(사이드카/edges/positionTops)·연결 UX·fold/compare 는 후속 단계에서
 //   window.__spLinkRerender() 훅에 주입. 이 파일은 데이터 CRUD + 그 훅 호출까지만.
 //
-// export(HTML/figma/.gdt) 에서는 refLinks 를 strip 한다(死참조 = 배송본 쓰레기) — 저장경로엔 유지.
+// ★설계 «의도»: 배송본에서는 refLinks 를 strip 한다(死참조 = 배송본 쓰레기) — 저장경로엔 유지.
 //   strip 은 export 경로 파일에서 처리(이 파일 아님).
+// ⛔★2026-09-09 실측 정정 — 위 문장은 「HTML/figma/.gdt 에서는 strip 한다」고 «주장»했는데,
+//   실제로 벗기는 곳은 «하나»뿐이다. 그건 안심을 주는 문장이라 경고 부재보다 나쁘다.
+//     js/io/export-html.js:114   removeAttribute('data-ref-links')   ← 유일
+//     js/io/export-figma-json.js  0건 (⚠️dataset 을 «필드별»로 골라 읽어 안 실을 «수도» 있다 — 안 쟀다)
+//     .gdt (main/gdt/export.js)   0건 (project.json 을 그대로 담는다 ⇒ pages[].canvas 에 실린다)
+//     템플릿 저장(js/panels/template-system.js) 0건
+//       ↳ serializeCleanRoot 는 선택 마커·contenteditable 은 «다» 벗기지만 refLinks 는 «안» 벗긴다(실측).
+//   ⇒ 「템플릿·.gdt 가 배송인가 저장인가」는 «판단»이 필요해 안 고쳤다.
+//     티켓 = _context/BACKLOG-reflinks-strip-channels.md · 집행 = tests/unit/reflinks-strip-channels.test.js
 
 (function () {
   'use strict';
@@ -93,6 +102,7 @@
     //   (다음 추종 프레임이 «현재 보이는 자리»에서 linkDy를 유도 → 연결 순간 이미지는 안 움직인다.)
     _clearAnchor(scratchId);
     _rerender(); _save();
+    _emitSplChanged();
     return true;
   }
   // 해제: refLinks 에서 제거(이미지는 스크래치에 그대로 → pane 자동복귀).
@@ -104,7 +114,25 @@
     _write(sec, _parse(sec).filter(l => l.scratchId !== scratchId));
     _clearAnchor(scratchId); // 해제 = 다시 완전 자유(오프셋 폐기)
     _rerender(); _save();
+    _emitSplChanged();
     return true;
+  }
+  /* ★링크 «상태»가 바뀌었다고 알린다 — 개수(연결/해제)든 접힘이든 «둘 다» 이 하나로 쏜다.
+       이 파일의 상태를 «보여주는» 화면이 낡은 채 남으면 그건 거짓말이 된다. 여기가 진실의 출처다.
+     듣는 쪽(js/props/prop-page.js 의 _splSync)은 allLinks() 로 개수와 접힘을 «같이» 다시 읽어서
+     무엇이 바뀌었는지 구분하지 않는다 ⇒ 이벤트를 쪼갤 이유가 없다.
+     ⛔이름을 다시 좁히지 마라(예전 이름 gdt:spl-collapse-changed). addLink 는 링크를 옮길 때
+       collapsed 를 false 로 되돌리므로 «접힘 전용»이 아니었다 — 반쯤 맞는 이름이 제일 위험하다.
+       틀린 이름은 누가 고치지만 반쯤 맞는 이름은 아무도 의심하지 않는다.
+     ⛔본체 로직은 건드리지 않는다 — 알림 한 줄만 더한다.
+   ★★undo/redo 는 이 이벤트를 «지나지 않는다».
+     js/history.js:240 undo() / :263 redo() 는 캔버스 DOM 스냅샷을 통째로 되돌리는데,
+     refLinks 가 섹션 data 속성이라 그 스냅샷에 실려 있다(설계 의도대로) ⇒ addLink·setCollapsed 를
+     «거치지 않고» 링크 상태가 바뀐다. 그래서 ⌘Z 뒤엔 패널의 개수·.active 가 낡은 채 남는다.
+     막으려면 undo()/redo() 뒤에 이 이벤트를 한 번 쏘면 된다.
+     ⇒ ★이번 라운드 범위 밖이라 «일부러» 안 했다. 빠뜨린 게 아니다. */
+  function _emitSplChanged() {
+    try { window.dispatchEvent(new CustomEvent('gdt:spl-changed')); } catch (_) {}
   }
   // 접기/펼치기(경량 — history 없이 상태만·저장은 함; reload 는 dataset 로 유지)
   function setCollapsed(scratchId, val) {
@@ -117,7 +145,162 @@
     l.collapsed = !!val;
     _write(sec, arr);
     _rerender(); _save();
+    _emitSplChanged();
     return true;
+  }
+  /* 일괄 접기/펼치기 — 페이지 전역(현재 캔버스의 모든 링크). → { changed, total }
+     ★setCollapsed 를 루프로 부르지 «않는다». 그 안에서 매번 _rerender() 를 하는데
+       그건 디바운스가 아니라 직통이고, _applyCollapsed 가 매 회 allLinks()(전 섹션 파싱)를
+       돌기 때문에 N번이면 O(N²) 파싱이 된다. 여기서는 섹션마다 _parse/_write 를 «각 1회»만
+       하고, 다시 그리기·저장은 루프가 «끝난 뒤» 한 번만 한다.
+     ★changed===0 이면 아무것도 안 그리고 안 저장한다 — 안 바뀐 것을 다시 그릴 이유가 없다.
+       (호출자는 changed 로 「이미 전부 접혀 있다」를 말할 수 있다. total 은 그 문장의 분모다.)
+     ★pushHistory 는 «한다» — 개별 setCollapsed 와 갈리는 지점이다.
+       개별은 한 번 더 누르면 되돌아가지만 일괄은 N개를 손으로 되돌려야 한다.
+       refLinks 는 섹션 data-* 라 캔버스 스냅샷에 이미 실린다 ⇒ addLink/removeLink 와 같은
+       «표준 pushHistory(변경 전) + 변경» 패턴이면 추가 기계 없이 undo 가 된다. */
+  function setCollapsedAll(val) {
+    const want = !!val;
+    const secs = _allSecs();
+    let total = 0, changed = 0;
+    const pending = [];                       // [sec, arr] — 실제로 바뀐 섹션만
+    for (const sec of secs) {
+      const arr = _parse(sec);
+      if (!arr.length) continue;
+      total += arr.length;
+      let hit = 0;
+      for (const l of arr) if (l.collapsed !== want) { l.collapsed = want; hit++; }
+      if (hit) { changed += hit; pending.push([sec, arr]); }
+    }
+    if (!changed) return { changed: 0, total };
+    window.pushHistory && window.pushHistory(want ? '참고이미지 전부 접기' : '참고이미지 전부 펼치기');
+    for (const [sec, arr] of pending) _write(sec, arr);
+    /* ★접으면 아이템 «높이»가 바뀌는데, _applyFollow 는 섹션 top 이 그대로면 통째로 건너뛴다.
+         그러면 1섹션:N 겹침 stack 이 옛 높이로 남아 겹치거나 빈칸이 생긴다.
+         resyncFollow() 가 lastTop 을 무효화해 다음 프레임에 1회 재적용시킨다(이미 쓰는 관례). */
+    resyncFollow();
+    _rerender(); _save();
+    _emitSplChanged();
+    return { changed, total };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // [#16-DEL] 「링크된 섹션을 지우면 스크래치패드도 «같이» 지운다」
+  //   현빈 2026-09-09 (★정정 — 처음엔 「물어라」였는데 알럿을 직접 보고 「그냥 같이 삭제」로 바꿨다.
+  //   ⛔확인 대화상자를 다시 들이지 마라: `confirm` 호출 0건이 계약이다. 집행 = D4)
+  //
+  // ★★단 하나의 예외 = 「남이 쓰는 스크래치패드」.
+  //   한 이미지를 «두 섹션»이 링크한 상태에서 한쪽만 지웠는데 이미지를 지우면
+  //   남은 섹션의 refLinks 토큰이 死참조가 된다 — 화면엔 링크가 있다고 적혀 있는데 그림이 없다.
+  //   ⇒ ★참조가 «0일 때만» 지운다. 그리고 그 수는 ⛔손으로 적지 않는다:
+  //     `[data-ref-links]` 를 가진 섹션 «전수»를 훑어 «기계가» 센다(_holderSecs → refCount).
+  //     («링크를 쥐고 있다»의 유일한 표식이 그 속성이다. .section-block 목록을 따로 적으면
+  //      그 목록이 낡는 날 조용히 틀린다.)
+  //
+  // ★★순서가 «계약»이면서 동시에 «분모를 만든다» — ①링크 끊기 → ②고아만 삭제 → 호출자가 ③섹션 제거.
+  //   ①을 먼저 하기 «때문에» ② 시점의 `[data-ref-links]` 에 남는 것이 정확히
+  //   「이 삭제와 무관하게 그 이미지를 아직 쓰는 섹션」이 된다. 순서를 바꾸면 지우는 섹션이
+  //   자기 자신을 세어 «항상 참조 ≥1» 이 되고, 고아가 하나도 안 지워진다.  ⛔거꾸로 하지 마라.
+  //
+  // ★왜 removeLink() 를 «안» 쓰나 — 그건 호출마다 pushHistory 를 따로 쌓는다. 섹션 삭제와
+  //   합치면 ⌘Z 가 «두 번»으로 쪼개져 「한 번 눌렀는데 섹션만 돌아온다」가 된다.
+  //   js/scratch-pad.js `_severLinks` 가 «같은 이유»로 dataset 을 직접 고친다 — 같은 관례를 쓴다.
+  //
+  // ★★undo 는 «데이터 손실 방지선»이다 — 이제 이미지가 «말없이» 지워지므로.
+  //   이미지는 ScratchPadDB(캔버스 밖)라 캔버스 스냅샷이 못 되돌린다 ⇒ sideEffects 로 되살린다.
+  //   붙여넣기 사본(#16-DUP)과 «정확히 같은» 기제·같은 id 보존 규칙을 쓴다.
+  //   ⛔호출자는 이 sideEffects 를 «변경 뒤» pushHistory 에 실어야 한다(history.js 는 undo 때
+  //     «떠나는 스냅»의 onUndo 를 부른다). push-before 항목에 실으면 «영영 안 탄다».
+  // ═══════════════════════════════════════════════════════════════════
+
+  /** 넘겨받은 섹션들이 «쥐고 있는» 링크 전수. 분모를 손으로 세지 않기 위한 유일한 출처. */
+  function linksOfSections(secs) {
+    const out = [];
+    for (const sec of (secs || [])) {
+      if (!sec || !sec.dataset) continue;
+      for (const l of _parse(sec)) out.push({ sectionId: sec.id, scratchId: l.scratchId, collapsed: l.collapsed });
+    }
+    return out;
+  }
+
+  /* ★「링크를 쥐고 있는 섹션」의 «전수». ⛔.section-block 목록을 손으로 적지 않는다 —
+     쥐고 있음의 표식은 `data-ref-links` 속성 하나뿐이고, _write 가 링크 0이면 그 속성을 지운다. */
+  function _holderSecs() {
+    try { return [...document.querySelectorAll('[data-ref-links]')]; } catch (_) { return []; }
+  }
+  /** 그 scratchId 를 «아직» 쥐고 있는 섹션 수. 0 이면 고아 = 지워도 아무도 안 잃는다. */
+  function refCount(scratchId) {
+    let n = 0;
+    for (const sec of _holderSecs()) if (_parse(sec).some(l => l.scratchId === scratchId)) n++;
+    return n;
+  }
+
+  /** ★①링크를 끊고 ②고아 이미지만 지운다. 섹션 제거는 «호출자가 이 뒤에» 한다.
+   *  반환 { links, removedScratch, keptShared, sideEffects, order }
+   *    · keptShared — 「남이 아직 쓰고 있어 «안» 지운 것」. 조용히 넘기지 않고 세어서 돌려준다.
+   *
+   *  ⛔deleteOrphans:false 는 «사용자 경로에서 쓰라고 만든 게 아니다». 유일한 손님은
+   *    js/editor.js 의 deleteSection()(MCP·자동화)이고, 그 이유는 취향이 아니라 실측이다 —
+   *    그 함수는 pushHistory 를 «변경 전»에 찍어서 sideEffects 가 «영영 안 탄다»
+   *    ⇒ 지우면 ⌘Z 로 못 되살린다 = 데이터 손실. 그 자리 주석에 근거를 적어 뒀다.
+   *    ★사용자 경로(Delete/Backspace)에서 이 옵션을 쓰면 발주(「그냥 같이 삭제」)를 어긴다. */
+  function releaseSectionsForDelete(secs, { deleteOrphans = true } = {}) {
+    const order = [];
+    const links = linksOfSections(secs);
+    if (!links.length) return { links: [], removedScratch: [], keptShared: [], sideEffects: null, order };
+
+    /* ★① 링크 끊기 — 섹션이 «아직 DOM 에 있을 때». _clearAnchor 가 linkDy 를 버려야
+       살아남는 이미지가 죽은 섹션을 가리키는 앵커를 안 물고 간다. */
+    for (const sec of (secs || [])) {
+      if (sec && sec.dataset && sec.dataset[ATTR]) _write(sec, []);
+    }
+    for (const l of links) _clearAnchor(l.scratchId);
+    order.push('sever');
+
+    /* ★② 고아만 지운다 — 참조를 «지금» 센다(①이 끝난 뒤라 분모가 「남이 쓰는 것」뿐이다). */
+    const removedScratch = [], keptShared = [], seen = new Set();
+    for (const l of (deleteOrphans ? links : [])) {
+      if (seen.has(l.scratchId)) continue;          // 한 이미지를 여러 섹션이 쥔 경우 1회만
+      seen.add(l.scratchId);
+      const still = refCount(l.scratchId);
+      if (still > 0) { keptShared.push({ scratchId: l.scratchId, stillUsedBy: still }); continue; }
+      const it = _item(l.scratchId);
+      if (!it) continue;                            // 다른 페이지·이미 삭제 = 조용히 넘긴다
+      // ★레코드를 «먼저» 뜬다 — 지운 뒤엔 못 뜬다. 이게 onUndo 의 유일한 근거다.
+      removedScratch.push({ id: it.id, src: it.src, x: it.x, y: it.y, w: it.w, linkDy: it.linkDy });
+    }
+    for (const rec of removedScratch) { try { window._scratchRemoveById?.(rec.id); } catch (_) {} }
+    if (deleteOrphans) order.push('deleteOrphans');
+
+    _rerender(); _save();
+    _emitSplChanged();
+
+    if (!removedScratch.length) return { links, removedScratch, keptShared, sideEffects: null, order };
+
+    /* 크로스페이지 가드 — rewireClonedSection 과 «같은» 이유·같은 문구(history.js 가 페이지를
+       바꾼 뒤 onUndo 를 부를 수 있고 ScratchPadDB 는 페이지별 키다). */
+    const pageId = _curPageId();
+    const recs = removedScratch.slice();
+    const _samePage = () => {
+      const now = _curPageId();
+      if (now === pageId) return true;
+      console.warn('[spl] 섹션삭제 undo/redo 를 건너뛴다 — 페이지가 다르다(당시 ' + pageId + ' / 지금 ' + now + ')');
+      return false;
+    };
+    const sideEffects = {
+      // ★id 를 «그대로» 되살린다 — 되돌아온 캔버스 스냅샷의 refLinks 토큰이 이 id 를 부른다.
+      onUndo: () => {
+        if (!_samePage()) return;
+        for (const d of recs) { try { window._scratchRestoreItem?.(d); } catch (_) {} }
+        _rerender(); _emitSplChanged();
+      },
+      onRedo: () => {
+        if (!_samePage()) return;
+        for (const d of recs) { try { window._scratchRemoveById?.(d.id); } catch (_) {} }
+        _rerender(); _emitSplChanged();
+      },
+    };
+    return { links, removedScratch, keptShared, sideEffects, order };
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -282,6 +465,108 @@
     if (dirty) { try { window._scratchSaveSoon && window._scratchSaveSoon(); } catch (_) {} } // ★디바운스(프레임마다 저장 금지)
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // [#16-DUP] 「링크된 섹션의 «사본»에는 스크래치 사본을 딸려 보낸다」 (현빈 2026-09-08 발주)
+  //
+  // 증상: 링크된 섹션을 ⌘C→⌘V 하면 원본과 사본이 «같은 scratchId» 를 둘 다 쥐어
+  //   allLinks() 가 그 이미지를 2건으로 세고 _drawEdges 가 한 이미지에서 선을 두 개 긋는다.
+  //   («링크체인 2개»가 이것이다.) 이 파일의 자료구조는 처음부터 «이미지 1 : 섹션 1» 전제다.
+  //
+  // ★규칙은 «토큰 하나»마다 이 술어를 본다 — 「붙여넣는 순간 그 scratchId 를 «살아있는 섹션»이
+  //   쥐고 있나」. 이 하나가 복사와 잘라내기를 «자동으로» 가른다:
+  //     · 쥐고 있다      → 복사다   → 사본을 만들고 토큰을 새 id 로 바꾼다
+  //     · 아무도 안 쥔다 → 이동이다 → 토큰 그대로(⌘X 로 원본이 사라진 뒤라 재연결이 맞다)
+  //     · 아이템이 없다  → 토큰 그대로. ⛔지우지 않는다 — 다른 페이지이거나 «스크래치가 아직
+  //       로드 전»일 수 있다. 「없다」를 「지워졌다」로 읽으면 링크를 영구 파괴한다.
+  //   ⛔「붙여넣기면 무조건 복제」로 짜면 ⌘X→⌘V «이동»이 «복제»로 변한다.
+  //
+  // ★★부르는 자리 = 섹션을 DOM 에 «넣기 전»(분리 상태). 넣은 뒤에 부르면 sectionIdOf 가
+  //   «사본 자신»을 찾아 복제를 건너뛴다. 그리고 그 실패는 «사용자의 선택 상태»에 따라 갈린다 —
+  //   refSection = getSelectedSection() || _pickVisibleSection() 가 원본 «뒤»면 우연히 맞고
+  //   원본 «앞»이면 버그가 남는다. 손으로 눌러 보면 대체로 고쳐져 보이는 제일 나쁜 종류다.
+  // ⛔그래서 addLink 의 관용구(`if (curSecId === target.id) return false;`)를 여기에 베끼지 마라.
+  //   그 자가 가드는 「대상 섹션이 이미 DOM 에 있다」를 전제한다. 여긴 정반대다. (금지선: T-U1-1b)
+  //
+  // 반환 { dups, sideEffects } — dups 가 비면 sideEffects=null 이고 «오늘과 동작이 같다».
+  //   ★sideEffects 가 필요한 이유: 복사는 «이미지를 만드는» 조작이라 캔버스 스냅샷만으로는
+  //   undo 가 성립하지 않는다(섹션삭제·링크해제와 갈리는 지점). 안 붙이면 ⌘Z 가 섹션만 지우고
+  //   사본 이미지가 주인 없이 남는다 = 고아.
+  // ═══════════════════════════════════════════════════════════════════
+  function _curPageId() {
+    try { return (window.state && window.state.currentPageId) || null; } catch (_) { return null; }
+  }
+
+  function rewireClonedSection(el) {
+    const dups = [];
+    if (!el) return { dups, sideEffects: null };
+    /* ★오늘 N(한 번에 붙는 섹션 수)=1 이지만 «섹션 집합»으로 훑는다 — 비용 0이고,
+       §7-A 형제 경로(section-variation·branch-system)를 나중에 붙이는 게 한 줄이 된다. */
+    const secs = [];
+    if (el.classList && el.classList.contains('section-block')) secs.push(el);
+    if (el.querySelectorAll) secs.push(...el.querySelectorAll('.section-block'));
+
+    for (const sec of secs) {
+      const arr = _parse(sec);
+      if (!arr.length) continue;
+      const next = [];
+      let changed = false;
+      for (const l of arr) {
+        const holder = sectionIdOf(l.scratchId);
+        if (!holder) { next.push(l); continue; }   // 아무도 안 쥔다 = 이동(⌘X 뒤) → 재연결
+        /* 사본은 원본 «옆»에 놓는다 — _applyFollow 의 겹침 회피는 가로가 겹칠 때만 도므로
+           (scratchpad-link.js `if (!(t.x < q.x + q.w …)) continue;`) x 를 벌려 두면 세로가
+           겹쳐도 서로 안 민다. x 는 추종이 안 건드리니 한 번 벌리면 유지된다.
+           ⛔새 간격 상수를 만들지 않는다 — STACK_GAP 을 쓴다. */
+        const srcIt = _item(l.scratchId);
+        const dx = (srcIt && _num(srcIt.w) ? srcIt.w : 0) + STACK_GAP;
+        /* ⛔y 는 계산하지 않는다 — linkDy 를 베끼면 _applyFollow 첫 프레임이
+           y = 새 섹션 top + linkDy 를 1회 강제 적용한다. 붙여넣기 시점엔 레이아웃이 아직 없다. */
+        const r = (typeof window._scratchDuplicateItem === 'function')
+          ? window._scratchDuplicateItem(l.scratchId, { dx, dy: 0 })
+          : { ok: false, code: 'NO_SOURCE' };   // 모듈 미로드 = 「아직 못 본다」와 같은 갈래
+        if (!r || !r.ok) {
+          /* ★처분은 같고(토큰 유지) «소리»가 다르다 — NO_SOURCE 는 정상 갈래(다른 페이지·
+             로드 전)라 조용히, NO_SCALER 는 «만들다 실패»라 결함이므로 소리를 낸다. */
+          if (r && r.code === 'NO_SCALER') {
+            console.warn('[spl] 스크래치 사본 생성 실패(NO_SCALER) — 링크를 원본과 공유한 채 둔다:', l.scratchId);
+          }
+          next.push(l); continue;
+        }
+        dups.push(r.item);
+        next.push({ scratchId: r.item.id, collapsed: l.collapsed });   // ★collapsed 보존
+        changed = true;
+      }
+      if (changed) _write(sec, next);
+    }
+
+    if (!dups.length) return { dups, sideEffects: null };
+
+    /* ★크로스페이지 가드 — restoreSnapshot 은 snap.pageId 가 다르면 «페이지를 바꾼 뒤»
+       onUndo 를 부른다(history.js). ScratchPadDB 는 페이지별 키라 그때 지우면 못 찾고
+       조용히 false 가 난다. 모르는 상태에서 «지우는» 쪽은 되돌릴 수 없다 —
+       안 지우면 고아 하나가 남을 뿐이라 비대칭이 명확하다. 안 지우고 «소리를 낸다». */
+    const pageId = _curPageId();
+    const recs = dups.slice();
+    const _samePage = () => {
+      const now = _curPageId();
+      if (now === pageId) return true;
+      console.warn('[spl] 붙여넣기 undo/redo 를 건너뛴다 — 페이지가 다르다(당시 ' + pageId + ' / 지금 ' + now + ')');
+      return false;
+    };
+    const sideEffects = {
+      onUndo: () => {
+        if (!_samePage()) return;
+        for (const d of recs) { try { window._scratchRemoveById?.(d.id); } catch (_) {} }
+      },
+      onRedo: () => {
+        if (!_samePage()) return;
+        // ★id 를 «그대로» 되살린다 — redo 로 돌아온 스냅샷의 refLinks 토큰이 이 id 를 부른다.
+        for (const d of recs) { try { window._scratchRestoreItem?.(d); } catch (_) {} }
+      },
+    };
+    return { dups: recs, sideEffects };
+  }
+
   let _lastEdgePath = null; // diff-skip 캐시(좌표 불변 시 DOM 미변경)
 
   // 연결선(scaler-local 좌표): 스크래치 아이템 중심 → 섹션 가까운 세로변 중앙. SVG가 scaler 안이라
@@ -301,6 +586,13 @@
         const item = _scEl(scratchId);
         if (!sec || !item) continue;
         const ir = item.getBoundingClientRect(), sr = sec.getBoundingClientRect();
+        /* [#16-C] 안 그려진 쪽으로는 선을 긋지 않는다 — display:none 인 요소의 rect 는 «전부 0» 이라
+         *   그대로 두면 선이 캔버스 좌상단(0,0)으로 뻗는 «허공 선»이 된다.
+         *   ★스크래치 일괄 숨기기(window.toggleScratchHideAll)가 바로 이 상태를 만든다.
+         *   ★특정 기능이 아니라 «rect 로» 판정한다 — 숨김 경로가 늘어도 이 문 하나로 닫힌다
+         *     (클래스명으로 판정하면 다음 숨김 경로에서 같은 버그가 다시 난다).
+         *   ⚠️0×0 은 「없다」가 아니라 「안 보인다」다 — 데이터·연결은 그대로 살아 있다. */
+        if ((ir.width === 0 && ir.height === 0) || (sr.width === 0 && sr.height === 0)) continue;
         const ix = toLocalX(ir.left + ir.width / 2), iy = toLocalY(ir.top + ir.height / 2); // 스크래치 중심
         const attachRight = (ir.left + ir.width / 2) > (sr.left + sr.width / 2);
         const sx = toLocalX(attachRight ? sr.right : sr.left), sy = toLocalY(sr.top + sr.height / 2);
@@ -346,6 +638,23 @@
   window.__spLinkRerender = __spLinkRerender;
   window.__spLinkRelayout = () => { _lastEdgePath = null; _drawEdges(); };
   function setShowEdges(v) { _showEdges = !!v; _lastEdgePath = null; _drawEdges(); }
+
+  /* [#16-B] 저장된 「연결선 표시」(환경설정 > 성능)를 «부팅 시» 한 번 적용한다.
+   *   ★왜 여기서 읽나 — 스크립트 순서가 settings-store(948) → settings-modal(961) → 이 파일(1033)이고,
+   *     settings:ready 는 main IPC 를 «기다렸다가» 뜬다. 즉 «둘 중 뭐가 먼저인지 보장이 없다».
+   *     ⇒ 양쪽을 다 건다: (a) 이벤트가 나중이면 리스너가 받고, (b) 이벤트가 먼저였으면
+   *        _boot 에서 window._settings 를 직접 읽는다. 한쪽만 걸면 부팅 때 값이 «가끔» 무시된다.
+   *   ⚠️키가 «없으면» ON 이다 — 기본값이 true 이므로 undefined 를 OFF 로 읽으면 안 된다. */
+  function _applySavedShowEdges() {
+    try {
+      const s = window._settings;
+      if (!s) return false;                       // 아직 안 왔다 — 이벤트가 받아준다
+      setShowEdges(s.showScratchLinkEdges !== false);
+      return true;
+    } catch (_) { return false; }
+  }
+  window.addEventListener('settings:ready',   _applySavedShowEdges);
+  window.addEventListener('settings:changed', _applySavedShowEdges);
 
   // ── 추종 트리거: 스크롤/리사이즈/스케일러 transform 변화 → rAF 스로틀 relayout ──
   function _installFollow() {
@@ -467,6 +776,7 @@
   }
 
   function _boot() {
+    _applySavedShowEdges();   // [#16-B] 이벤트가 «이미» 지나갔을 경우의 두 번째 문
     _installFollow();
     _installLinkUX();
     if (!_installSectionHook()) setTimeout(_installSectionHook, 300);
@@ -477,8 +787,14 @@
 
   window.SPLink = {
     linksForSection, sectionIdOf, isLinked, linkedScratchIds, allLinks,
-    addLink, removeLink, setCollapsed, setShowEdges,
+    addLink, removeLink, setCollapsed, setCollapsedAll, setShowEdges,
     startLinkMode, endLinkMode,
+    /* [#16-DUP] 「임의의 «분리 상태» 섹션 요소」를 받는 공개 API — 붙여넣기가 부른다.
+       ⛔반드시 DOM 삽입 «전»에 부를 것(윗 주석 참조). §7-A 형제 경로 배선은 이번 범위 밖. */
+    rewireClonedSection,
+    /* [#16-DEL] 섹션 삭제의 «링크 처분» — 호출 순서가 계약이다:
+         release(①링크 끊기 →②고아 삭제) → 호출자가 ③sec.remove() → pushHistory(…, sideEffects) */
+    linksOfSections, refCount, releaseSectionsForDelete,
     rerender: __spLinkRerender,
     resyncFollow,          // undo/redo 좌표복원 직후 추종 기준선 재동기화(scratch-pad.js 호출)
     _applyFollow,          // 테스트/강제 1회 적용

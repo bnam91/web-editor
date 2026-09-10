@@ -293,6 +293,9 @@ function _getScale() {
 //   렌더러는 file:// origin 이고 커스텀 스킴은 cross-origin 이라 crossOrigin='anonymous' 로도
 //   «로드 자체가» 안 된다(실측). export 쪽이 이미 쓰는 assets:readAsDataUri IPC 로 우회한다.
 //   ⇒ 여기서 data: URI 로 바꿔 오면 same-origin 이라 오염되지 않는다.
+// ★TODO(별건): 이제 공용 문이 있다 — io/goya-asset-inline.js 의 goyaAssetToDrawableSrc().
+//   ⛔지금 갈아끼우지 마라: 여기는 실패 시 «원본 src» 를 돌려주고 공용 문은 «null» 을 돌려준다
+//   (실패 시맨틱이 다르다). 합치려면 호출부의 실패 처리를 같이 봐야 한다.
 async function _toDrawableSrc(src) {
   const info = parseGoyaAssetUrl(src);
   if (!info) return src;                       // data:/http(s)/blob: 는 그대로
@@ -1568,6 +1571,48 @@ window._scratchAddAndSave = async (src, x, y, w, g, id) => {
   await _saveScratch();
 };
 
+/* ── #16 「링크된 섹션을 붙여넣으면 스크래치도 같이 복제」 (scratchpad-link.js 가 부른다) ──
+ *
+ * ★왜 «동기»인가 — pasteClipboard 는 동기이고 «끝에서» pushHistory 로 캔버스 스냅샷을 찍는다.
+ *   사본 생성이 async 면 그 스냅샷 시점에 새 scratchId 가 아직 없어 refLinks 에 쓸 수가 없다.
+ *   영속화는 _scratchSaveSoon(디바운스)에 맡긴다 — 붙여넣기가 IndexedDB 왕복을 기다릴 이유가 없다
+ *   (_applyFollow 도 같은 구조로 돈다).
+ *
+ * ★왜 «둘»인가 — redo 시점엔 원본 스크래치가 이미 지워졌을 수 있다. srcId 로는 못 되살린다.
+ *   그래서 라이브 경로(_scratchDuplicateItem)와 복원 경로(_scratchRestoreItem)가 갈린다.
+ *
+ * ★반환값은 «뜻»을 갖는다(_scratchDeleteForMcp 의 {ok,code,message} 어휘를 빌린다) —
+ *   NO_SOURCE(정상 갈래: 다른 페이지·이미 삭제·아직 로드 전)와 NO_SCALER(결함: 만들다 실패)는
+ *   부르는 쪽 처분이 «같아도»(토큰 유지) 소리가 달라야 한다. null 하나로 뭉치면 그 구분이 죽는다.
+ *
+ * ⛔픽셀을 새로 만들지 않는다 — src 문자열을 «그대로» 공유한다. 재인코딩하면 해시가 달라져
+ *   assets:saveCanvasImage 의 sha256 dedup(main.js)이 깨지고 디스크가 진짜로 2배가 된다.
+ * ⛔g(그룹)는 안 베낀다 — 사본이 원본 그룹에 들어가면 그룹 리사이즈가 둘을 함께 움직이고
+ *   _scratchUngroup 의 _severLinks 가 «둘의» 링크를 다 끊는다. 사본은 새 섹션에 딸린 독립 재료다.
+ */
+window._scratchDuplicateItem = (srcId, { dx = 0, dy = 0 } = {}) => {
+  if (!srcId || typeof srcId !== 'string') return { ok: false, code: 'BAD_ARGS', message: 'srcId required' };
+  const it = _scratchItems.find(s => s.id === srcId);
+  if (!it) return { ok: false, code: 'NO_SOURCE', message: 'scratch item not found: ' + srcId };
+  const src = it.src;
+  const item = _createItem(src, (it.x || 0) + dx, (it.y || 0) + dy, it.w, undefined, undefined, it.linkDy);
+  if (!item) return { ok: false, code: 'NO_SCALER', message: '#canvas-scaler not found — 사본 생성 실패' };
+  try { window._scratchSaveSoon?.(); } catch (_) {}
+  return { ok: true, item: { id: item.id, src: item.src, x: item.x, y: item.y, w: item.w, linkDy: item.linkDy } };
+};
+
+/* onRedo 전용 — 기록해 둔 레코드로 «id·linkDy 를 그대로» 되살린다.
+ * ★새 id 를 뽑으면 안 된다 — redo 로 되돌아온 캔버스 스냅샷의 refLinks 토큰이 그 id 를 부른다.
+ *   (_deleteScratchItemsWithHistory 가 같은 이유로 id 보존을 못 박아 뒀다.) */
+window._scratchRestoreItem = (rec) => {
+  if (!rec || typeof rec.id !== 'string') return { ok: false, code: 'BAD_ARGS', message: 'rec.id required' };
+  if (_scratchItems.some(s => s.id === rec.id)) return { ok: true, code: 'ALREADY' };
+  const item = _createItem(rec.src, rec.x, rec.y, rec.w, rec.id, undefined, rec.linkDy);
+  if (!item) return { ok: false, code: 'NO_SCALER', message: '#canvas-scaler not found — 복원 실패' };
+  try { window._scratchSaveSoon?.(); } catch (_) {}
+  return { ok: true };
+};
+
 // AI fill 모달 등 외부에서 #sp_xxx ID로 src 조회용
 window._scratchGetItemById = id => {
   const it = _scratchItems.find(s => s.id === id);
@@ -1626,6 +1671,48 @@ window._scratchImportAll = async (newProjectId, scratchBlock) => {
   });
   return n;
 };
+
+// ════════════════════════════════════════════════════════════════════════
+// [#16-C] 스크래치패드 «일괄 숨기기» — 산만할 때 화면에서만 치운다
+//
+// ⛔데이터는 «절대» 안 건드린다. _scratchRemoveById / _scratchAddAndSave 호출 0.
+//   IndexedDB(ScratchPadDB)도, 섹션의 data-ref-links(연결)도 그대로다.
+//   하는 일은 body 클래스 토글 하나 → css/editor-canvas.css 의 display:none 한 줄.
+//
+// ★상태는 «세션 한정»이다(저장 안 함). 왜:
+//   숨김은 「지금 이 순간 산만하다」는 일시적 요구지 프로젝트의 속성이 아니다.
+//   저장해 두면 며칠 뒤 프로젝트를 연 사람이 «빈 캔버스»를 보고 「참고 이미지가 날아갔다」고
+//   읽는다 — 실제로 데이터는 멀쩡한데도. 「없다」와 「안 보인다」를 사용자가 구분할 수 있는
+//   유일한 보증이 「껐다 켜면 돌아온다」이므로, 껐다 켜면 «항상» 보이는 쪽을 택했다.
+//   (원하면 나중에 settings 키 하나로 승격 가능하지만, 그건 별건 게이트다.)
+//
+// ★연결선(#16-B)은 여기서 «따로» 끄지 않는다 — 끄면 사용자의 환경설정 값을 덮어쓴다.
+//   숨겨진 아이템의 rect 가 0×0 이라 scratchpad-link 의 «0×0 건너뛰기»가 알아서 감춘다.
+//   즉시 반영을 위해 __spLinkRelayout 만 한 번 두드린다(rAF 루프가 없을 때 대비).
+// ════════════════════════════════════════════════════════════════════════
+let _scratchHiddenAll = false;
+
+window.isScratchHiddenAll = () => _scratchHiddenAll;
+
+window.toggleScratchHideAll = (force) => {
+  const next = (force === undefined) ? !_scratchHiddenAll : !!force;
+  _scratchHiddenAll = next;
+  document.body.classList.toggle('scratch-hidden-all', next);
+  _syncScratchHideAllLabel();
+  // 연결선 즉시 재계산(허공 선 방지). 링크 0이면 rAF 루프가 안 도니 여기서 한 번 그린다.
+  try { window.__spLinkRelayout?.(); } catch (_) {}
+  // ⛔네이티브 alert 로 «폴백» 시키지 마라 — showToast 는 undefined 를 반환해서 그 폴백이 항상 터지고, 그 alert 이 렌더러를 얼린다.
+  window.showToast?.(next
+    ? '🙈 스크래치패드를 숨겼습니다 (데이터는 그대로)'
+    : '👁 스크래치패드를 다시 표시합니다');
+  return next;
+};
+
+// 메뉴 항목의 «라벨»이 현재 상태를 말하게 한다 — 누르기 전에 무슨 일이 날지 보여야 한다.
+function _syncScratchHideAllLabel() {
+  const el = document.getElementById('scratch-hide-all-label');
+  if (el) el.textContent = _scratchHiddenAll ? '참고 이미지 다시 보기' : '참고 이미지 일괄 숨기기';
+}
 
 // ── 스크래치 그룹화 (Cmd+G — editor.js 단축키 분기) ──────
 // 다중 선택된 스크래치들에 data-scratch-group만 박음 — 위치/크기는 보이는 그대로 불변.

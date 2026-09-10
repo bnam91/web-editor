@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<!-- GAP-006 CSP(Phase1): 원격 스크립트·eval·플러그인 차단. ★페이지마다 «따로» 필요하다(상속 안 됨). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' https: ws://localhost:* http://localhost:*; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https:; object-src 'none'; base-uri 'none'">
+<title>템플릿</title>
+<!-- ★편집기와 «같은» CSS 를 문다. 레이아웃을 새로 짜지 않는 것이 이 페이지의 요점이다.
+     editor-base 가 --ui-* 토큰의 정본이라 먼저 온다. -->
+<link rel="stylesheet" href="../css/editor-base.css">
+<link rel="stylesheet" href="../css/editor-extra.css">
+<link rel="stylesheet" href="../css/editor-toast.css">
+<style>
+  /* ★오버라이드는 «창에 맞춰 펴는 것»까지만. 패널의 내부 레이아웃(트리·칩·카드·프리뷰)은 손대지 않는다.
+     #tpl-browser 는 편집기 안에서 «떠 있는 패널»이라 fixed + 420px + 그림자다.
+     창에서는 그 창 자체가 패널이므로 크기·테두리만 편다. */
+  html, body { height: 100%; margin: 0; overflow: hidden; background: var(--ui-bg-app); }
+  #tpl-browser {
+    position: fixed !important;
+    left: 0 !important; top: 0 !important;
+    width: 100% !important; height: 100% !important;
+    min-height: 0 !important; max-height: none !important;
+    border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+    /* .open 클래스가 늦게 붙어도 «빈 창»이 보이지 않게 처음부터 보이게 둔다 */
+    opacity: 1 !important; pointer-events: auto !important;
+  }
+  /* 패널 모서리 리사이즈 핸들 — 창에서는 OS 가 창 가장자리로 리사이즈를 준다.
+     ⚠️이 창은 frame:false(신호등 제거) 라 «보이는» 테두리가 없다. 그래도 맥은 프레임리스에서도
+       가장자리 리사이즈를 계속 주므로 핸들은 계속 숨긴다.
+     ⛔핸들을 되살리지 마라 — 창 가장자리 리사이즈와 겹쳐 서로 싸운다.
+       (맥에서 실제로 리사이즈되는지는 Evaluator 가 잰다. Windows 거동은 «미확인».) */
+  #tpl-resize-handle { display: none !important; }
+  /* 헤더로 «창»을 끌 수 있게. 버튼은 눌려야 하니 제외한다. */
+  .tpl-browser-header { -webkit-app-region: drag; cursor: default !important; }
+  .tpl-browser-header button { -webkit-app-region: no-drag; }
+</style>
+</head>
+<body>
+
+<!-- ★index.html 의 #tpl-browser 구조 «그대로». 다른 점은 둘뿐이다:
+     ⑴ 떼어내기 버튼 없음(창 안에서 또 떼는 건 무의미)
+     ⑵ data-user-moved — openTemplateBrowser 가 left/top 을 계산해 넣지 않게 막는다(창은 이미 제자리다) -->
+<div id="tpl-browser" class="tpl-browser" role="dialog" aria-label="템플릿 브라우저" data-user-moved="1">
+  <div class="tpl-browser-header">
+    <span class="tpl-browser-title">Templates</span>
+    <!-- ★버튼은 «묶어서» 오른쪽 끝에 붙인다(index.html 헤더와 «같은» 구조 — 한쪽만 고치면 헤더가 갈린다).
+         안 묶으면 헤더의 space-between 이 제목+버튼3 을 균등 분산해 89px 씩 흩어진다.
+         ⚠️.tpl-browser-header button{no-drag} 는 자손 선택자라 이 래퍼 «안»의 버튼에도 그대로 닿는다. -->
+    <div class="tpl-browser-hbtns">
+      <!-- ⛔레이아웃은 «기능 미정»이라 disabled 다 — 눌리는데 아무 일도 안 나면 그게 버그다. -->
+      <button class="tpl-browser-hbtn" id="tpl-browser-layout" title="레이아웃 전환 (준비 중)" disabled>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M1 1.5h8v7H1z"/><path d="M4 1.5v7"/>
+        </svg>
+      </button>
+      <!-- ★복구 — 떼어내기의 «짝». 떼어냈으면 되돌릴 길이 있어야 한다.
+           아이콘은 떼어내기(밖으로 나가는 화살)를 뒤집어 «안으로 들어오는» 모양으로 짝을 보인다. -->
+      <button class="tpl-browser-hbtn" id="tpl-browser-restore" title="편집기로 되돌리기">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M8.5 5.5V9H1V1.5h3.5"/><path d="M9 1 5.5 4.5"/><path d="M5.5 1.5v3h3"/>
+        </svg>
+      </button>
+      <button class="tpl-browser-hbtn tpl-browser-close" id="tpl-browser-close" title="창 닫기">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <!-- 미리보기 영역 (상단) -->
+  <div class="tpl-browser-preview-area" id="tpl-browser-preview-area">
+    <div class="tpl-browser-preview-empty" id="tpl-browser-preview-empty">
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="#444" stroke-width="1.4">
+        <rect x="3" y="3" width="26" height="26" rx="3"/>
+        <line x1="3" y1="12" x2="29" y2="12"/>
+        <line x1="10" y1="3" x2="10" y2="12"/>
+      </svg>
+      <span>템플릿을 선택하면<br>미리보기가 표시됩니다</span>
+    </div>
+    <div class="tpl-browser-preview-canvas" id="tpl-browser-preview-canvas" style="display:none"></div>
+    <div class="tpl-browser-preview-footer" id="tpl-browser-preview-footer" style="display:none">
+      <span class="tpl-browser-preview-name" id="tpl-browser-preview-name"></span>
+      <span class="tpl-browser-preview-sep">·</span>
+      <span class="tpl-browser-preview-cat" id="tpl-browser-preview-cat"></span>
+    </div>
+    <div class="tpl-preview-resize-handle" id="tpl-preview-resize-handle"></div>
+  </div>
+  <!-- 검색 바 + 섹션 추가 버튼 (중간) -->
+  <div class="tpl-browser-search-wrap">
+    <select class="tpl-browser-search-mode" id="tpl-browser-search-mode" title="검색 기준">
+      <option value="all">전체</option>
+      <option value="name">파일명</option>
+      <option value="tag">태그</option>
+    </select>
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#777" stroke-width="1.6">
+      <circle cx="5" cy="5" r="3.5"/><line x1="7.7" y1="7.7" x2="11" y2="11"/>
+    </svg>
+    <input class="tpl-browser-search" id="tpl-browser-search" type="text" placeholder="검색...">
+    <button class="tpl-browser-insert-btn" id="tpl-browser-insert-btn">+ 섹션 추가</button>
+  </div>
+  <!-- 태그 칩 필터 (태그 모드일 때만 표시) -->
+  <div class="tpl-browser-tag-chips" id="tpl-browser-tag-chips" style="display:none"></div>
+  <!-- 하단 body: 카테고리 트리 + 카드 리스트 -->
+  <div class="tpl-browser-body">
+    <div class="tpl-browser-tree" id="tpl-browser-tree"></div>
+    <div class="tpl-browser-cards" id="tpl-browser-cards"></div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   전역 셔밍 — ★template-browser.js 를 «그대로» 쓰기 위한 최소 받침대.
+
+   그 파일은 import 가 0 개이고 바깥 의존이 넷뿐이다:
+     loadTemplates(8) · insertTemplate(4) · deleteTemplate(1) · _loadCanvas(1)
+   넷의 «정의»는 template-system.js 에 있는데 그 파일은 `import { canvasEl }` 로
+   편집기에 묶여 있어 이 창에 실을 수 없다(실으면 편집기를 통째로 끌고 온다).
+   ⇒ 그래서 «데이터원만» IPC 로 갈아 끼운다. 렌더 코드는 원본 그대로 돌아가고,
+      트리·태그칩·즐겨찾기·카드·프리뷰가 편집기와 «같은 코드»로 그려진다.
+   ⛔이 파일에 렌더 로직을 복사하지 마라 — 복사하는 순간 두 벌이 갈라진다.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ★loadTemplates 는 «동기»다(호출 8곳이 즉시 배열을 기대한다).
+   그래서 IPC 로 미리 채워 두고 캐시를 돌려준다. 캐시가 비면 트리·카드가 통째로 빈다. */
+let _cache = [];
+window.loadTemplates = () => _cache;
+
+/* 토스트 — 이 페이지엔 drag-utils.js(showToast 정본)가 없다.
+   ⛔`?? alert` 패턴을 쓰지 마라: showToast 는 undefined 를 반환하므로 ?? 가 통과해
+     토스트와 네이티브 alert 이 «둘 다» 뜨고, 그 alert 이 렌더러를 멈춘다. */
+window.showToast = (msg) => {
+  let t = document.getElementById('editor-toast');
+  if (!t) { t = document.createElement('div'); t.id = 'editor-toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+};
+
+const _isShared = (id) => {
+  const t = _cache.find(x => x.id === id);
+  return { shared: !!(t && t._scope === 'shared'), name: (t && t.name) || '이 템플릿' };
+};
+
+async function _reload() {
+  _cache = (await window.electronAPI.loadTemplateIndex()) || [];
+}
+function _rerender() {
+  window._renderBrowserTree?.();
+  window._renderBrowserCards?.();
+}
+/* 편집기의 좌측 패널 목록 갱신 함수 — 이 창엔 그 패널이 없다.
+   template-system 쪽 코드가 부를 수 있어 «없는 함수» 오류가 나지 않게 자리만 둔다. */
+window.renderTemplatePanel = () => {};
+
+window._loadCanvas = (id) => window.electronAPI.loadTemplateCanvas(id);
+
+/* 인라인 편집(이름·폴더·태그)과 즐겨찾기가 이걸 부른다. 공용은 main 이 걸러내므로
+   여기서 개인 것만 남길 필요는 없지만, «무엇이 저장되는지»를 창 쪽에서도 분명히 해 둔다. */
+window.saveTemplatesPublic = async (arr) => {
+  _cache = Array.isArray(arr) ? arr : _cache;
+  try { await window.electronAPI.saveTemplateIndex(_cache); }
+  catch (e) { window.showToast('❌ 템플릿 목록 저장에 실패했습니다.'); }
+  await _reload();
+  _rerender();
+};
+
+window.deleteTemplate = async (id) => {
+  /* ⛔공용을 지우면 이 계정 하나가 아니라 모든 계정의 것이 같이 사라진다 — main 도 거부하지만
+     여기서 «왜» 막혔는지를 먼저 말한다(편집기 쪽 문구와 같은 어휘). */
+  const g = _isShared(id);
+  if (g.shared) {
+    window.showToast(`🔒 '${g.name}' 은(는) 모든 계정이 함께 쓰는 공용 템플릿이라 지울 수 없습니다.`);
+    return;
+  }
+  await window.electronAPI.deleteTemplateCanvas(id);
+  await window.electronAPI.saveTemplateIndex(_cache.filter(t => t.id !== id));
+  await _reload();
+  _rerender();
+};
+
+/* ★삽입은 «편집기 창»에서 일어나야 한다.
+   「어느 섹션에 넣나」의 주인은 편집기다 — 이 창은 선택 상태를 모른다.
+   ⛔여기서 조용히 아무것도 안 하면, 우리가 【A】에서 고친 「눌렀는데 말이 없다」를 새로 만드는 것이다. */
+window.insertTemplate = async (tpl) => {
+  if (!tpl || !tpl.id) return;
+  const name = tpl.name || '이름 없는 템플릿';
+  try {
+    /* ★결과를 «받아서» 사실대로 말한다. 예전엔 「보냈다」를 「넣었다」로 말해서,
+       실제로는 안 들어갔는데 앞 창이 성공을 띄웠다(거짓 성공).
+       ⛔사용자는 «이 창»을 보고 있다 — 편집기 뒤창의 경고는 안 보인다. 여기서 말해야 한다. */
+    const r = await window.electronAPI.insertTemplateInMain(tpl.id);
+    if (r && r.ok) window.showToast(`'${name}' 을(를) 편집기 창에 넣었습니다.`);
+    else window.showToast(`❌ '${name}' 을(를) 넣지 못했습니다 — ${(r && r.reason) || '편집기 창을 찾지 못했습니다.'}`);
+  } catch (e) {
+    window.showToast('❌ 편집기 창에 보내지 못했습니다.');
+  }
+};
+</script>
+
+<!-- ★원본을 «그대로» 싣는다(복사 아님) — 이게 「기존 레이아웃 그대로」의 실체다. -->
+<script src="../js/panels/template-browser.js"></script>
+
+<script>
+(async () => {
+  /* ★순서가 중요하다: 캐시를 «먼저» 채우고 나서 렌더를 시작한다.
+     loadTemplates 가 동기라 비어 있는 채로 그리면 트리 0·카드 0 이 된다. */
+  await _reload();
+  window.initTemplateBrowser?.();
+  window.openTemplateBrowser?.();
+
+  /* 창에서는 X 가 «창»을 닫는다. initTemplateBrowser 가 붙인 기본 핸들러(패널 숨김)도 같이 돌지만,
+     창이 닫히므로 결과는 같다. */
+  document.getElementById('tpl-browser-close')?.addEventListener('click', () => window.close());
+
+  /* 복구 — main 이 편집기 패널을 다시 열고 이 창을 닫는다(순서도 main 이 쥔다).
+     ⛔여기서 window.close() 를 먼저 부르지 마라 — 창이 사라진 뒤 invoke 결과를 못 받는다. */
+  document.getElementById('tpl-browser-restore')?.addEventListener('click', async () => {
+    try {
+      const r = await window.electronAPI.restoreTemplatePanel();
+      if (!(r && r.ok)) window.showToast('❌ 편집기 창을 찾지 못했습니다.');
+    } catch (e) { window.showToast('❌ 편집기로 되돌리지 못했습니다.'); }
+  });
+})();
+</script>
+</body>
+</html>

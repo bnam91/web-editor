@@ -33,6 +33,39 @@ let _iconifyApi = null;
 // main.js가 setProjectOps({duplicate})로 주입 — 프로젝트 단위 관리(복제 등). main 프로세스 fs 로직.
 let _projectOps = null;
 
+/* ★인증 «상태»를 main.js 가 주입한다. ⛔MCP 는 계정 «식별자»를 안 받는다 — 「됐나」만 안다.
+   2026-09-07 현빈 지시: 「가장 먼저 로그인되어 있는지로 확인해야 한다」. */
+let _authProbe = null;
+function setAuthProbe(fn) { _authProbe = fn; }
+
+/** 로그인 안 됐으면 거절 응답, 됐으면 null. ★못 재면(주입 전) «통과»시킨다 —
+ *  앱 버전이 낡아 주입이 없을 수 있고, 그때 전부 막으면 도구가 통째로 죽는다.
+ *  ⇒ 「없다」와 「안 됐다」를 가른다: 주입이 없으면 «판정 안 함», 있으면 «판정». */
+function _authGate(toolName) {
+  /* ⛔예전엔 여기서 `return null`(=통과) 이었다. 근거는 「앱 버전이 낡아 주입이 없을 수 있다」였는데
+     ★그 근거가 틀렸다 — 프로브를 꽂는 main.js 와 이 파일은 «같은 바이너리»다. 버전이 어긋날 수 없다.
+     남는 경우는 «배선을 빠뜨렸다» 하나뿐이고, 그때 문을 열어 두면 로그인 게이트가 통째로 증발한다.
+     ⇒ 못 재면 «거절»한다. 뿌리 주입(NO_PROJECTS_ROOT)과 실패 모드를 맞춘다 — 둘이 갈리면 안 된다. */
+  if (typeof _authProbe !== 'function') {
+    return { ok:false, code:'AUTH_PROBE_MISSING', tool:toolName,
+      error:`로그인 상태를 확인할 수 없어 ${toolName} 을(를) 실행하지 않았습니다.`,
+      hint:'NOTHING was done. The app did not wire up its login probe — this is an app bug, not a missing feature. Restart the Goditor app; if it persists, report it.' };
+  }
+  let a = null;
+  try { a = _authProbe(); } catch (_) { return null; }
+  if (!a || a.authed) return null;
+  return {
+    ok: false, code: 'NOT_LOGGED_IN', tool: toolName,
+    error: `로그인이 안 되어 있어 ${toolName} 을(를) 실행하지 않았습니다.`,
+    /* ★거절은 곧 «안내»여야 한다 — 「미인증」만 던지면 클로드가 다른 방법을 찾아 헤맨다.
+       그리고 ⛔「도구가 없다」로 읽히면 안 된다(2026-09-07: 클로드가 호출 실패를
+       「기능이 없습니다」로 단정한 실측이 있다). 「지금은 못 한다」로 «갈라» 말한다. */
+    hint: 'NOTHING was done. This is NOT a missing feature — the tool exists but requires sign-in. '
+        + 'Ask the user to sign in to the Goditor app (앱 화면에서 로그인), then retry the same call.',
+  };
+}
+
+
 /* ── MCP undo 추적 (2026-09-06) ────────────────────────────────────────────
  * 「우리가 «마지막으로» 만든 히스토리 항목」의 seq. 편집 도구가 성공할 때마다 갱신.
  * ⛔전역 undo 를 여는 게 아니다 — «우리 것일 때만» 되돌리기 위한 근거다. */
@@ -114,6 +147,20 @@ function _getUserDataDir() {
   return path.join(os.tmpdir(), 'goditor-mcp');
 }
 function _stateDir() { return path.join(_getUserDataDir(), 'claude-pm'); }
+
+/* ★원장에 «한 줄» 적는 모듈 수준 기록기.
+   기존 _audit 은 도구 호출 «안»에만 있어서, 그 밖에서 터진 것(예외·라우팅 실패)은
+   원장에 «안 남았다». 실측: outcome 분포가 ok 666 · refused 20 «둘뿐»이고 error 0건이었다.
+   ⇒ 원장만 보면 「전부 잘 됐다」로 읽힌다. ⛔안 잰 것은 «없는 것»이 된다.
+   ⛔값은 여전히 안 적는다 — 이름·코드·짧은 메시지만. */
+function _appendAudit(rec) {
+  try {
+    const dir = _stateDir();
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, 'tool-audit.jsonl'),
+      JSON.stringify({ at: new Date().toISOString(), ...rec }) + '\n');
+  } catch (_) { /* 원장 실패가 동작을 막지 않는다 */ }
+}
 function getTokenFilePath() { return _tokenFilePath; }
 function getBridgePath() { return _bridgeCopyPath; }
 function getBridgeError() { return _bridgeCopyError; }
@@ -211,16 +258,129 @@ function registerTool(name, handler, schema) {
   if (schema) toolSchemas.set(name, schema);
 }
 
-function _getProjectsDir() {
-  // main process의 app.getPath('userData') 기준 projects 폴더가 정석이지만,
-  // 단독 실행 시는 web-editor/projects 사용.
+/* ─── ★스키마에 «없는» 인자 — 한 자리에서 잰다 (2026-09-07 g-mcpmgr) ───────────
+ * 배선 자리는 «디스패처 한 곳»이다(tools/call). 도구별로 고치지 않는다 —
+ * 도구를 새로 더해도 자동으로 이 검사를 탄다(_projectGate 와 같은 패턴). */
+
+/** 기본은 «경고». `GODITOR_MCP_STRICT_ARGS=1` 이면 «거절». ⛔전환은 지디 게이트(2단계).
+ *  ★«모듈 로드 시점 상수»가 아니라 «호출 시점»에 읽는다 — 상수로 두면 프로세스를 새로 띄우지 않고는
+ *    STRICT 쪽을 «잴 수가 없다». 못 재는 스위치는 스위치가 아니라 주석이다. */
+const _strictArgs = () => String(process.env.GODITOR_MCP_STRICT_ARGS || '') === '1';
+
+/** ★«모르는 인자를 아래로 흘려보내는» 도구 — 여기선 디스패처가 「효과 없음」을 «말할 수 없다».
+ *
+ * 왜 필요한가(2026-09-07 실측): `update_block{blockId, text:'X'}` 에 「text 는 무시됐다」고 경고했는데
+ *   렌더러는 `content:'X'` 를 받아 «글자가 실제로 바뀌었다». 경고가 «거짓말»을 했다.
+ *   기전: 이 둘은 통합 디스패처라 `...rest` 를 `props` 로 «합쳐 아래로» 보내고, 하위 도구의
+ *   «자기 스키마»에서 `normalizeArgs` 가 별칭(text↔content 등)을 해소한다.
+ *   ⇒ 「이 스키마에 그 글자가 없다」와 「그 인자가 안 먹는다」는 **다른 사실**이고,
+ *     둘이 갈리는 자리가 정확히 여기다.
+ * ★전수로 갈랐다 — 노출 도구 33개에 뜬금없는 인자를 하나씩 태워 «렌더러까지 닿나»를 봤다:
+ *     흘려보냄 2 (아래 둘) · 버림 27 · 판정불가 4(렌더러를 안 부르는 도구)
+ * ⇒ 이 둘은 «침묵»한다. 대신 하위 층의 `warnUnknown`(ignoredProps/hint)이 «해소한 뒤» 판정한다.
+ * ⛔이 목록을 손으로 늘리지 마라 — `mcp-unknown-args.test.js` 가 «다시 재서» 어긋나면 빨강을 낸다. */
+const _ARG_FORWARDERS = new Set(['add_block', 'update_block']);
+
+/** 이 도구 스키마가 «선언한» 인자 이름들. 스키마가 없으면 판정하지 않는다(빈 배열이 아니라 null). */
+function _declaredArgKeys(name) {
+  const s = toolSchemas.get(name);
+  const props = s && s.inputSchema && s.inputSchema.properties;
+  return props ? Object.keys(props) : null;
+}
+
+/** ★스키마에 «없는» 인자 — 단, «별칭을 해소한 뒤»에 판정한다.
+ *
+ * ⛔처음에 나는 raw 키를 스키마 prop 과 그냥 대조했다. **그건 거짓 경고를 낸다.**
+ *   실증(2026-09-07): `update_block{blockId, text:'X'}` 에 「text 는 무시됐고 효과가 없다」고 경고했는데
+ *   실제로는 렌더러가 `content:'X'` 를 받아 «글자가 바뀌었다». 경고가 «거짓말»을 한 것이다.
+ * ★원인: 이 코드베이스엔 별칭이 «의도적으로» 있다(`mcp-block-tools.js` `normalizeArgs`):
+ *     ⑴ 표기 정규화 `_canon` — 대소문자·`_`·`-`·공백 무시 (blockID·block_id·BlockId → blockId)
+ *     ⑵ 동의어 표 `SYN` — text↔content · label→title · msg→text · value→text
+ *   ⇒ 「스키마에 그 «글자»가 없다」와 「그 인자가 «안 먹는다»」는 **다른 사실**이다.
+ * ⇒ 그래서 판정을 normalizeArgs 에 위임한다. 그게 «실제로 먹는 규칙»의 정본이다.
+ *   ⚠️normalizeArgs 는 블록 도구에만 걸려 있지만, 그 «해소 규칙»은 여기서 전 도구에 공평하게 쓴다 —
+ *     안 그러면 같은 인자가 도구에 따라 경고가 갈려 더 헷갈린다.
+ * ★스키마를 모르면 «못 잰 것»이라 빈 배열을 준다 — 0 을 「없다」로 쓰지 않기 위해. */
+function _unknownArgKeys(name, args) {
+  const schema = toolSchemas.get(name);
+  const declared = _declaredArgKeys(name);
+  if (!declared || !args || typeof args !== 'object') return [];
   try {
-    const { app } = require('electron');
-    if (app && app.getPath) {
-      return path.join(app.getPath('userData'), 'projects');
-    }
-  } catch (_) {}
-  return path.join(__dirname, '..', '..', 'projects');
+    const { normalizeArgs } = require('./mcp-block-tools');
+    if (typeof normalizeArgs === 'function') return normalizeArgs(schema, args).unknown || [];
+  } catch (_) { /* 별칭 해소기를 못 부르면 아래 보수적 대조로 떨어진다 */ }
+  return Object.keys(args).filter(k => !declared.includes(k));
+}
+
+/** ★거절은 곧 «안내»여야 한다 — 3단(넣을 수 있는 것 / 받았는데 안 쓰는 것 / 아예 안 되는 것). */
+function _unknownArgRefusal(name, unknown) {
+  const declared = _declaredArgKeys(name) || [];
+  return {
+    ok: false, code: 'UNKNOWN_ARGS', tool: name, unknownArgs: unknown, accepts: declared,
+    error: `unknown argument(s) for ${name}: ${unknown.join(', ')}`
+      + ` — this tool accepts only: ${declared.join(', ') || '(none)'}.`
+      + ' Those arguments were NOT applied and there is no field on this tool that does what they name;'
+      + ' do not retry with a renamed variant — call tools/list and pick a tool that declares it.'
+  };
+}
+
+/** 경고 문구(비파괴 경로). 응답에 «키를 더할» 뿐 기존 키는 안 건드린다. */
+function _unknownArgWarning(name, unknown) {
+  const declared = _declaredArgKeys(name) || [];
+  return `ignored unknown argument(s): ${unknown.join(', ')}`
+    + ` — ${name} accepts only: ${declared.join(', ') || '(none)'}.`
+    + ' They had NO effect. If you meant to change something else, this tool cannot do it.';
+}
+
+/** ★없던 «인자 원장»을 만든다. 브리지 로그는 params 를 안 남겨서 「실제로 몇 건이냐」를 셀 수가 없었다.
+ *  ⛔값은 안 적는다(PII·본문 유출 방지) — «이름»만 적는다. 그거면 세는 데 충분하다. */
+function _recordUnknownArgs(name, unknown, allKeys) {
+  try {
+    let dir;
+    try {
+      const { app } = require('electron');
+      dir = app && app.getPath ? path.join(app.getPath('userData'), 'claude-pm') : null;
+    } catch (_) { dir = null; }
+    // ⛔electron 이 없을 때(단독 node 실행·검사) «저장소 안»에 로그를 쓰지 않는다 —
+    //   실제로 repo 루트에 claude-pm/ 이 생겼다. 원장은 임시 디렉터리로 흘린다.
+    if (!dir) dir = path.join(os.tmpdir(), 'goditor-mcp', 'claude-pm');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, 'unknown-args.jsonl'),
+      // ★필드 이름을 «notInSchema» 로 둔다 — `unknown` 은 「안 먹는다」를 함의하는데
+      //   전달자에선 «먹는다». 원장은 「스키마에 그 글자가 없었다」만 주장한다.
+      JSON.stringify({ at: new Date().toISOString(), tool: name, notInSchema: unknown, argKeys: allKeys,
+                       forwarder: _ARG_FORWARDERS.has(name),
+                       strict: _strictArgs() }) + '\n');
+  } catch (_) { /* 원장 실패가 도구를 막지 않는다 */ }
+}
+
+/* ★프로젝트 «뿌리»는 계정별로 움직인다(<userData>/accounts/<계정키>/projects).
+   ⛔여기서 userData 에 'projects' 를 직접 이어 붙이면 «세 번째 경로 조립기»가 되어
+     main.js 의 진짜 뿌리와 어긋난다. 실제로 어긋났다 — 2026-09-07 계정 격리를 넣은 뒤
+     read_project 가 «자기 계정의 프로젝트»에도 'project not found' 를 냈다.
+     그리고 그건 반대 방향으로도 샌다: 옛 뿌리(공용 풀)를 보므로 «남의 계정 것»을 읽는다.
+   ⇒ main.js 가 setProjectsRoot() 로 진짜 뿌리를 꽂아 준다. 안 꽂히면 옛 자리로 폴백. */
+let _projectsRootFn = null;
+function setProjectsRoot(fn) { _projectsRootFn = (typeof fn === 'function') ? fn : null; }
+
+/* 단독 실행(개발)에서만 «공용 projects 폴더»를 허용한다.
+   ⛔«환경»으로 자동 판별하지 않는다 — 판별이 틀리면 조용히 격리가 풀린다.
+     명시 플래그를 «호출 시점»에 읽는다(모듈 로드 시점에 굳히면 테스트가 못 흔든다). */
+function _sharedRootAllowed() { return process.env.GODITOR_MCP_ALLOW_SHARED_ROOT === '1'; }
+
+/* ★프로젝트 뿌리 — 주입이 정본이다.
+   ⛔예전엔 주입이 없거나 던지면 «조용히» userData/projects(옛 공용 풀)로 갔다.
+     그건 격리를 소리 없이 되돌리는 길이었다 — 남의 계정 것을 읽게 된다.
+     「검사가 못 돌았다」가 통과가 아니듯, 「주입이 안 됐다」도 «공용 풀»이 아니다.
+   ⇒ 못 정하면 «던진다». 폴백은 명시 플래그를 켠 단독 실행에만 준다. */
+function _getProjectsDir() {
+  if (_projectsRootFn) {
+    const r = _projectsRootFn();   // ⛔삼키지 않는다 — 던지면 그대로 올라간다
+    if (r) return r;
+    throw new Error('NO_PROJECTS_ROOT: 프로젝트 뿌리를 못 정했다(주입 함수가 빈 값). 공용 폴더로 폴백하지 않는다.');
+  }
+  if (_sharedRootAllowed()) return path.join(__dirname, '..', '..', 'projects'); // [뿌리-폴백] 단독 실행 전용
+  throw new Error('NO_PROJECTS_ROOT: 프로젝트 뿌리가 주입되지 않았다. 계정 격리가 풀릴 수 있어 공용 폴더로 폴백하지 않는다.');
 }
 
 function _readProjectFile(projectId) {
@@ -231,7 +391,13 @@ function _readProjectFile(projectId) {
    *   예전엔 flat(projects/<id>.json)이었고, 이 헬퍼가 flat만 봐서 read_project가
    *   현행 프로젝트에 전부 'project not found'를 냈다(08-25 클로드앱 시연 실측).
    *   ⇒ 폴더 우선 + flat 폴백(구프로젝트 호환) — main.js와 같은 dual-read 순서. */
-  const roots = [_getProjectsDir(), path.join(__dirname, '..', '..', 'projects')]; // 후자=단독 실행/개발 폴백
+  /* ⛔예전엔 두 번째 뿌리를 «항상» 뒤졌다 — 조건이 없었다.
+       그래서 계정 뿌리에 없으면 «앱/레포의 공용 projects»를 읽었다 = 계정을 넘어 읽는다.
+     ★그리고 그게 「못 찾았다」를 «격리 증거»로 오독하게 만든다 — 그 폴더가 비어 있어서
+       못 찾은 것일 뿐인데 막았다고 읽힌다(2026-09-07 내가 실제로 그렇게 잘못 읽었다).
+     ⇒ 계정 뿌리 «하나»만 본다. 공용 폴더는 명시 플래그를 켠 단독 실행에만 붙인다. */
+  const roots = [_getProjectsDir()];
+  if (_sharedRootAllowed()) roots.push(path.join(__dirname, '..', '..', 'projects'));  // [뿌리-폴백] 명시 플래그를 켠 단독 실행에만
   const candidates = [];
   for (const dir of roots) {
     candidates.push(path.join(dir, pid, 'proj.json')); // 신 레이아웃(폴더)
@@ -246,11 +412,17 @@ function _readProjectFile(projectId) {
 // ─────────────────────────────────────────────
 // Default tools
 // ─────────────────────────────────────────────
-// 「지금 열려 있는 프로젝트」의 근거.
-// ⚠️실측: onActiveProjectCb가 읽는 global.currentActiveProjectId는 renderer가
-//   claudePM:setActiveProject를 «부르는 곳이 아예 없어서» 항상 null이다(preload에만 노출돼 있다).
-//   그 결과 read_project·read_section·duplicate_project가 늘 'no active project'로 죽었다.
-//   편집기 창 URL(index.html?project=proj_xxx)이 실제로 열린 프로젝트의 유일한 근거라 이걸 폴백으로 쓴다.
+// 「지금 열려 있는 프로젝트」의 근거 — «두 갈래»다. 둘 다 살아 있다.
+//   ⑴ global.currentActiveProjectId — renderer 의 js/claude-pm/active-project-sync.js 가
+//      claudePM:setActiveProject 로 채운다(index.html:1423 에서 싣는다 → ipc.js 가 전역에 대입).
+//   ⑵ 편집기 창 URL(index.html?project=proj_xxx) — ⑴이 아직 안 왔을 때의 폴백.
+// ★2026-09-07 실측으로 갱신: 예전 주석은 「⑴을 «부르는 곳이 아예 없어서» 항상 null」이라고
+//   적혀 있었는데(08-15 관측), 그 뒤 active-project-sync.js 가 생겨 «지금은 참이 아니다».
+//   재는 법 — 프로젝트를 열고 delete_project 로 그걸 지운다. 응답의 activeCleared 가 true 면
+//   main.js 의 `wasActive = (global.currentActiveProjectId === projectId)` 가 참이었다는 뜻이고,
+//   그건 ⑴이 «채워져 있었다»는 증거다. 실제로 true 였다(health.activeProject 도 null 로 떨어졌다).
+// ⛔낡은 주석이 「이 경로는 안 돈다」고 말하면 다음 사람이 그 위에 잘못된 판단을 세운다.
+//   ★고칠 땐 «어떻게 쟀는지»를 같이 적어라 — 이 문단이 또 낡을 때 다시 잴 수 있게.
 function _activeProjectId() {
   try { const p = onActiveProjectCb ? onActiveProjectCb() : null; if (p) return p; } catch (_) {}
   try {
@@ -306,11 +478,26 @@ function _assertExpectedProject(expectedProject) {
  *   «다음 수»를 응답에 실어 보낸다 — 그래야 클로드가 스스로 open_project 로 회복한다.
  * ⛔읽기 도구는 막지 않는다. 막으면 「지금 뭐가 열렸는지」조차 물어볼 수 없다.
  */
+/** ⛔로그인 게이트를 «면제»하는 도구 — 「왜 안 되는지」를 물어볼 통로는 남겨야 한다. */
+const _AUTH_FREE = new Set(['goditor_which_instance', 'get_block_schema']);
+
+/* ★게이트 대상 도구 «전부»에 붙는 안내. 24개 도구에 붙으므로 «한 글자가 24배»가 된다.
+     옛 문장 92자 → 44자로 줄였다(2026-09-08). 뜻은 그대로: 활성 프로젝트를 건드리고, open_project 가 먼저다.
+   ⛔여기 한 자리에서만 관리한다 — 검사도 이 상수를 «소스에서 읽어» 쓴다.
+     문자열을 검사에 또 적어 두면 문구를 고칠 때마다 두 곳이 어긋난다(실제로 어긋나 빨개졌다). */
+const _TARGET_NOTE = ' ⚠acts on the ACTIVE project — open_project first.';
+
 const _TARGET_FREE = new Set([
   // ⑴ 읽기 — ⛔이 줄을 줄이지 마라. 막으면 클로드가 현황을 물어볼 통로가 사라진다.
   'read_project', 'read_section', 'get_canvas_state', 'list_projects', 'list_memories',
   'list_scratch_items', 'read_scratch_item', 'list_checklist_items', 'get_section_memo',
+  'search_sections',   /* 읽기 전용 — 아무것도 안 바꾼다 */
+  /* ⚠️edit_checklist_section 은 «쓰기»라 여기 넣지 않는다 — list op 하나 때문에 게이트를 열면
+       create/rename/delete 까지 같이 열린다(도구 «이름»으로 게이트를 걸기 때문이다). */
   'search_iconify', 'get_block_schema', 'goditor_which_instance',
+  /* ★list_assets 는 «자기 대상을 지목하는» 읽기다(projectId 인자를 받는다).
+     게이트로 막으면 「어느 프로젝트에 무슨 에셋이 있나」를 «물어볼 수조차» 없어진다 — ⑴의 취지 그대로. */
+  'list_assets', 'list_asset_tree',
   // ⑵ 대상을 «고르는» 도구 = 게이트의 출구
   'open_project',
   // ⑶ 새로 만드는 도구는 대상이 없는 게 «정상»이다(아직 아무것도 안 열었으니).
@@ -319,9 +506,44 @@ const _TARGET_FREE = new Set([
 ]);
 /* 자기 대상을 «인자로» 직접 지목하는 도구 — 그 인자가 곧 확정이다.
  * duplicate_project 는 활성 프로젝트가 아니라 sourceProjectId 를 복제한다. */
-const _SELF_TARGET_ARG = new Map([['duplicate_project', 'sourceProjectId']]);
+const _SELF_TARGET_ARG = new Map([
+  ['duplicate_project', 'sourceProjectId'],
+  // ★delete_project 도 «지목형»이다 — 활성이 아니라 projectId 를 직접 지운다.
+  //   ⇒ 그 인자가 곧 «확정»이므로 프로젝트 확정 게이트를 따로 태울 이유가 없다.
+  //   (이래서 expectedProject 안전벨트도 안 붙였다 — 벨트는 «지목 안 하는» 도구를 위한 것이다.)
+  ['delete_project', 'projectId'],
+  ['rename_project', 'projectId'],   // 비파괴 + 지목형
+]);
 
-let _confirmedProject = null;   // ★sticky — open_project ok 또는 expectedProject 일치로만 선다
+/* ★★확정(sticky)은 «호출자별»이다 — 예전엔 «프로세스 전역»이었다.
+   ⛔그래서 A 세션이 open_project 로 확정을 세우면, ★같은 인스턴스에 붙은 B 세션의
+     인자 0개짜리 쓰기가 sticky 로 «그냥 통과»했다. 게이트가 「이 대화」라고 말하는 자리들이
+     실제로는 「이 앱 프로세스에 붙은 모두」였다.
+   ⇒ 그리고 그게 브리지의 «포트 자동탐색»(9345~9365 중 최저 포트에 말없이 붙는다)과 곱해지면,
+     다른 CLI 세션이 남의 실사용 인스턴스에 붙어 그 사람의 확정으로 쓰기를 밀어 넣는다.
+   ⇒ 호출자 = 요청의 `Mcp-Session-Id`. 브리지가 프로세스마다 하나 만들어 보낸다.
+     헤더가 없는 호출자(직접 curl 등)는 'anon' 한 칸을 공유한다.
+   ★★이 'anon' 을 «구멍»으로 읽고 되돌리려는 사람이 나올 것이다. 그러지 마라 —
+     ⑴ 헤더 없는 호출자를 «거절»하면 직접 HTTP 로 부르는 도구·검사가 통째로 죽는다.
+     ⑵ 그들을 한 칸에 모으는 것은 «예전과 정확히 같다» — 이 판이 그들을 더 나쁘게 만들지 않는다.
+     ⑶ 막으려던 것은 «브리지를 쓰는 서로 다른 대화»이고, 그건 이제 갈렸다.
+     ⇒ 더 조이려면 「헤더 없으면 거절」이 아니라 「브리지가 반드시 보내게」 쪽이 맞다(이미 그렇다).
+   ⛔Map 이 무한히 자라지 않게 상한을 둔다(오래된 것부터 버린다). */
+const _CONFIRM_MAX = 64;
+const _confirmedByCaller = new Map();
+const { AsyncLocalStorage } = require('node:async_hooks');
+const _callerCtx = new AsyncLocalStorage();
+function _callerId() { try { return _callerCtx.getStore() || 'anon'; } catch (_) { return 'anon'; } }
+function _getConfirmed() { return _confirmedByCaller.get(_callerId()) || null; }
+function _setConfirmed(v) {
+  const k = _callerId();
+  if (!v) { _confirmedByCaller.delete(k); return; }
+  _confirmedByCaller.delete(k);                       // 재삽입해서 «최근 것»으로
+  _confirmedByCaller.set(k, v);
+  while (_confirmedByCaller.size > _CONFIRM_MAX) {
+    _confirmedByCaller.delete(_confirmedByCaller.keys().next().value);
+  }
+}
 
 /** 거절 문구에 «이름»을 실어 준다 — id 만으론 사람이 자기 프로젝트인지 못 알아본다. */
 function _projectName(pid) {
@@ -346,7 +568,19 @@ function _projectGate(toolName, args) {
   const selfArg = _SELF_TARGET_ARG.get(toolName);
   if (selfArg) {
     const v = a[selfArg];
-    if (typeof v === 'string' && /^proj_\d+$/.test(v)) return null;
+    /* ⛔2026-09-07: 「지목했으니 갈음한다」를 «파괴» 도구에까지 주면 안 된다.
+       duplicate 는 지목이 틀려도 «사본이 하나 더 생길» 뿐이지만, delete 는 지목이 틀리면
+       «남의 프로젝트가 사라진다». 되돌릴 수 있느냐(휴지통)와 별개로, 확정 없이 파괴가
+       나가면 「어느 프로젝트를 보고 있었나」를 아무도 모른 채 지우는 것이 된다.
+       ⇒ ★지목형 갈음은 «비파괴»에만. 파괴는 확정(open_project)을 «지나야» 한다.
+         (F3-7 이 이걸 잡았다 — 내가 처음에 delete 를 갈음 대상으로 넣었고 검사가 빨강을 냈다.) */
+    /* ⛔2026-09-07: 「지목했으니 갈음한다」를 «프로젝트 단위 쓰기»에 주면 안 된다.
+       delete 는 파괴라 명백하고, rename 도 «남의 프로젝트 이름이 바뀌는» 일이다.
+       duplicate 는 지목이 틀려도 «사본이 하나 더 생길» 뿐이라 다르다.
+       ⇒ 축은 「파괴냐」가 아니라 ★「지목이 틀렸을 때 «남의 것이 변하느냐»」다. */
+    const projectWrite = (toolName === 'delete_project' || toolName === 'rename_project');
+    const destructive = projectWrite;
+    if (!destructive && typeof v === 'string' && /^proj_\d+$/.test(v)) return null;
   }
 
   const active = _activeProjectId();
@@ -363,7 +597,7 @@ function _projectGate(toolName, args) {
   }
 
   if (!active) {
-    _confirmedProject = null;
+    _setConfirmed(null);
     return {
       ok: false, code: 'NO_ACTIVE_PROJECT', tool: toolName,
       activeProject: null, activeProjectName: null,
@@ -376,7 +610,7 @@ function _projectGate(toolName, args) {
 
   if (hasExpected) {
     if (expected !== active) {
-      _confirmedProject = null;
+      _setConfirmed(null);
       return {
         ok: false, code: 'PROJECT_MISMATCH', tool: toolName,
         activeProject: active, activeProjectName: _projectName(active),
@@ -385,14 +619,15 @@ function _projectGate(toolName, args) {
         hint: `NOTHING was written. Either call open_project("${expected}") first (then retry), or — if you really meant the project that is open — use expectedProject:"${active}". Tell the user which one you are about to change.`,
       };
     }
-    _confirmedProject = active;   // ★명시 지목 = 확정. 이후 같은 대화의 호출은 인자 없이 통과한다.
+    _setConfirmed(active);   // ★명시 지목 = 확정. 이후 «같은 호출자»의 호출은 인자 없이 통과한다.
     return null;
   }
 
-  if (_confirmedProject && _confirmedProject === active) return null;   // sticky 유효
+  const _conf = _getConfirmed();
+  if (_conf && _conf === active) return null;   // sticky 유효 (★이 호출자의 것만)
 
-  const stale = (_confirmedProject && _confirmedProject !== active) ? _confirmedProject : null;
-  _confirmedProject = null;
+  const stale = (_conf && _conf !== active) ? _conf : null;
+  _setConfirmed(null);
   const nm = _projectName(active);
   return {
     ok: false, code: 'PROJECT_NOT_CONFIRMED', tool: toolName,
@@ -488,6 +723,123 @@ function _serializeCall(fn) {
   return p;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * 갭 «감수 패스» — 도구 묶음이 «멎으면» 한 번 돈다. (2026-09-07)
+ *
+ * ⓔ 왜 «클로드가 부르는 도구»가 아닌가: 실측으로 확인했다 — 클로드는 도구를 «보고도» 안 부른다.
+ *   서버가 알아서 돌아야 한다. 그래서 여기(디스패처)에 예약을 건다.
+ * ⓔ 왜 «매 호출»이 아닌가: 5섹션 35블록을 짓는 동안 매번 돌면 낭비고 되돌리기 이력도 더러워진다.
+ *   ⇒ 편집이 성공할 때마다 타이머를 «다시» 걸어서, 조용해졌을 때 «한 번» 돈다.
+ * ★그래도 중간에 한 번 더 돌아도 «결과가 안 변한다» — normalizePlan 이 멱등이라서다.
+ *   최악이 「히스토리 한 칸 낭비」인 설계라, 타이밍을 완벽히 맞추려고 애쓰지 않아도 된다.
+ *
+ * ⛔환경변수는 «검사용 구멍»이다: GODITOR_SPACING_DEBOUNCE_MS=0 이면 즉시, 음수면 «끈다».
+ * ───────────────────────────────────────────────────────────────────────── */
+const _spacing = require('./services/spacing');
+/* ★12초 — ⛔«도구 호출 사이 간격»을 직접 잰 값이 «아니다». 그건 못 쟀다.
+ *   원장(live-progress·*result*.jsonl)에 턴 «안»의 «도구 호출 시각»이 안 남는다. 남는 건
+ *   턴 소요(elapsed)와 도구 «수»뿐이라, 여기서 얻을 수 있는 건 «턴당 평균 간격의 상한»이다.
+ *   근거 = 실대화 원장(skills/지디/handoff/axgate-0907-evidence 의 *result*.jsonl · live-progress.jsonl):
+ *     턴 86개 중 도구를 «2개 이상» 부른 턴은 10개(최대 4개). 그 턴들의
+ *     «턴 소요 / (도구수-1)» 분포 = p50 5.4s · p90 9.6s · 최대 181.5s(정체 1건).
+ *   ⇒ p90(9.6s)보다 넉넉히 위인 12s. p50 의 두 배가 조금 넘는다.
+ *   ⚠️이 값들은 «평균 간격의 상한»이지 «최대 간격»이 아니다. 최대 간격은 알 수 없다.
+ *   ⚠️팀리드 실대화 실측(별도): 한 턴이 38~48초였고 그 안에서 도구가 «몰려» 왔다 —
+ *      12s 도 그 묶음을 «가를» 가능성이 남아 있다. 그래서 아래 ⑴⑵⑶ 이 본체다.
+ * ⚠️★정직하게: **어떤 값도 「턴 중간에 안 돈다」를 보장하지 못한다**(도구 2개에 181초 걸린
+ *   턴이 실제로 있다). 그래서 타이밍에만 기대지 않는다 —
+ *   ⑴ ops 가 비면 아무것도 안 한다(히스토리 0) ⑵ 연속 감수는 히스토리 칸을 «새로 안 쌓는다»
+ *   ⑶ 멱등이라 결과가 안 변한다. 이 셋이 «중간에 돌아도 해가 없게» 만드는 본체고, 12s 는 낭비를 줄이는 것뿐이다.
+ * ⛔검사용 구멍: GODITOR_SPACING_DEBOUNCE_MS=0 이면 즉시, 음수면 «끈다». */
+const _SPACING_DEBOUNCE_DEFAULT_MS = 12000;
+const _SPACING_DEBOUNCE_MS = (() => {
+  const raw = process.env.GODITOR_SPACING_DEBOUNCE_MS;
+  const n = raw === undefined || raw === '' ? _SPACING_DEBOUNCE_DEFAULT_MS : Number(raw);
+  return Number.isFinite(n) ? n : _SPACING_DEBOUNCE_DEFAULT_MS;
+})();
+let _spacingTimer = null;
+/** 마지막 감수 결과 — 진단·검사가 «실제로 무엇이 됐나»를 읽는 자리. */
+let _spacingLastRun = null;
+/** ★우리 감수가 히스토리에 칸을 쌓은 «직후»의 꼭대기 seq. 다음 감수가 「그 뒤로 아무 일도
+ *  없었나」를 이걸로 판정해서, 연속 감수가 되돌리기 목록을 도배하지 않게 한다. */
+let _spacingOwnTipSeq = null;
+
+/** 편집 도구가 «성공»할 때마다 감수를 다시 예약한다(=묶음이 이어지면 계속 미뤄진다). */
+/* ⛔«남의 문서»를 여는/만드는 계열은 감수 대상이 아니다. 열자마자 감수가 돌면
+   사람이 손으로 맞춘 기존 프로젝트를 «열기만 해도» 고쳐 쓴다.
+   ★1차 방어는 「히스토리가 움직였나」(호출부)이고, 이건 그게 뚫렸을 때의 2차 방어다. */
+const _SPACING_EXEMPT = new Set([
+  'normalize_spacing',      // 감수가 감수를 부르는 고리
+  'open_project', 'create_project', 'duplicate_project', 'delete_project',
+]);
+
+function _scheduleSpacingAudit(toolName) {
+  if (_SPACING_DEBOUNCE_MS < 0) return;                 // 꺼짐
+  if (_SPACING_EXEMPT.has(toolName)) return;
+  if (_spacingTimer) clearTimeout(_spacingTimer);
+  _spacingTimer = setTimeout(() => {
+    _spacingTimer = null;
+    /* 도구와 «같은 줄»에 세운다 — 감수가 편집 도중의 캔버스를 만지지 않게. */
+    _serializeCall(() => runSpacingAudit({ reason: 'batch-idle', trigger: toolName }))
+      .catch((e) => { try { console.warn('[spacing] 감수 실패(무시하고 계속):', e && e.message); } catch (_) {} });
+  }, _SPACING_DEBOUNCE_MS);
+  if (_spacingTimer && typeof _spacingTimer.unref === 'function') _spacingTimer.unref();
+}
+
+/**
+ * 감수 한 바퀴 — 읽고(렌더러) → 계획하고(순수 spacing.js) → 적용한다(렌더러).
+ * ★판단은 «한 곳»에서만 한다: 이 함수는 규격을 하나도 안 들고 있다.
+ */
+async function runSpacingAudit({ sectionId = null, reason = 'manual', trigger = null } = {}) {
+  const inv = _rendererInvoker;
+  if (!inv || typeof inv.readSpacingSequence !== 'function' || typeof inv.applySpacingOps !== 'function') {
+    return (_spacingLastRun = { ok: false, code: 'API_MISSING', reason,
+      message: 'renderer bridge has no readSpacingSequence/applySpacingOps' });
+  }
+  const read = await inv.readSpacingSequence({ sectionId });
+  if (!read || read.ok === false) return (_spacingLastRun = Object.assign({ reason }, read || { ok: false, code: 'CALL_ERROR' }));
+
+  const sections = [];
+  const notes = [];
+  let scanned = 0;
+  for (const sec of (read.sections || [])) {
+    scanned++;
+    const plan = _spacing.normalizePlan(sec.items || []);
+    for (const n of plan.notes) notes.push(`${sec.name || sec.sectionId}: ${n}`);
+    if (plan.ops.length) sections.push({ sectionId: sec.sectionId, ops: plan.ops });
+  }
+  /* ★할 일이 없으면 «아무것도 안 한다» — 히스토리도 안 쌓인다. 멱등의 눈에 보이는 쪽. */
+  if (!sections.length) {
+    return (_spacingLastRun = { ok: true, reason, trigger, scannedSections: scanned, changedSections: 0, applied: 0, notes });
+  }
+  /* ★연속 감수는 히스토리 칸을 «새로 쌓지 않는다».
+     조건 = 지금 꼭대기가 «우리가 지난번 감수로 만든 그 칸» 그대로다(=그 뒤로 아무 일도 없었다).
+     그 칸은 이미 «감수 전» 상태를 들고 있으니, 덧쌓지 않아도 되돌리기는 감수 «전»으로 간다.
+     ⛔사람이나 다른 도구가 사이에 뭔가 했으면 꼭대기가 달라지므로 «정상적으로» 새 칸을 쌓는다. */
+  let noHistory = false;
+  if (typeof inv.historyTip === 'function') {
+    try {
+      const t = await inv.historyTip();
+      if (t && t.ok !== false && t.seq != null && _spacingOwnTipSeq != null && t.seq === _spacingOwnTipSeq) noHistory = true;
+    } catch (_) {}
+  }
+  const applied = await inv.applySpacingOps({ sections, noHistory });
+  /* ★히스토리 꼭대기를 «우리 구간»으로 끌어올린다. 안 하면 undo_last_mcp_change 가
+     방금 쌓인 «감수» 칸을 보고 NOT_OURS 를 내거나, 감수만 물어뜯는다. */
+  if (typeof inv.historyTip === 'function') {
+    try {
+      const t = await inv.historyTip();
+      if (t && t.ok !== false && t.seq != null) {
+        _spacingOwnTipSeq = t.seq;
+        if (_lastMcpSeq != null) _lastMcpSeq = t.seq;
+      }
+    } catch (_) {}
+  }
+  return (_spacingLastRun = { ok: true, reason, trigger, scannedSections: scanned,
+    changedSections: sections.length, ops: sections.reduce((n, s) => n + s.ops.length, 0),
+    applied, noHistory, notes, plan: sections });
+}
+
 /* API_MISSING = 렌더러에 해당 window.* API가 없다. 대부분 «편집기(index.html)가 안 열려
  * 있어서»다 — 갤러리(projects.html)엔 캔버스 API가 없다(08-25 시연: add_section이
  * 'window.addSection not found'만 내서 원인을 못 알렸다). 원인(화면 상태)+우회(open_project)를
@@ -517,6 +869,33 @@ function _enrichApiMissing(result) {
  *      그래서 «자동 폴백»을 둔다: 다이어트 후에도 큰 페이지는 summary 로 내려간다. */
 const _CANVAS_TEXT_CAP = 120;
 const _CANVAS_AUTO_SUMMARY_CHARS = 24000; // 이 이상이면 summary 로 자동 폴백(≈6~7k토큰)
+/* ★P1 — 목록의 미리보기는 «첫 블록»이 아니라 «첫 글자»여야 한다.
+     ⛔실측(2026-09-08, 끌리젠 102섹션): 문자 그대로 blocks[0] 을 봤더니 «102줄이 전부 (gap)» 였다.
+       섹션은 거의 언제나 여백으로 시작하기 때문이다.
+       그러면 목록을 아무리 불러도 «어느 섹션이 뭔지»를 알 수가 없어서,
+       「가격 나온 섹션 고쳐줘」 한 마디에 102번을 열어봐야 했다.
+     ⇒ 글자가 있는 «첫 블록»을 찾는다. 텍스트가 아닌 블록도 summary.text 를 들고 있다(표·이미지 캡션 등).
+     ⇒ 글자가 하나도 없으면 그때만 «무슨 블록인지»로 답한다 — 단, 여백은 답이 될 수 없으니 건너뛴다. */
+function _firstMeaningful(blocks) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  for (const b of list) {
+    if (!b) continue;
+    /* ★★«안내문구»는 «의미 있는 첫 글자»가 아니다 (2026-09-08 현빈 지시).
+         빈 텍스트 블록의 「소제목을 입력하세요」는 진짜 DOM 글자라, 안 거르면
+         「첫 의미 있는 블록」이라고 이름 붙여 놓고 «의미 없는 걸» 첫째로 집는다.
+       ⛔빈 칸(gap)을 건너뛰는 것과 «같은 이유»다 — 미리보기가 잡음이 되면 미리보기가 아니다. */
+    if (b.placeholder === true) continue;
+    if (b.summary && b.summary.placeholder === true) continue;
+    const t = (b.text != null && b.text !== '') ? b.text
+            : (b.summary && typeof b.summary === 'object' ? b.summary.text : '');
+    const s = String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
+    if (s) return s.length > 40 ? s.slice(0, 40) + '…' : s;
+  }
+  /* 글자가 없는 섹션(이미지만·도형만)도 «비어 있다»고 말하면 안 된다 — 무슨 블록인지는 말해 준다 */
+  const b = list.find(x => x && x.type && x.type !== 'gap') || list[0];
+  return b && b.type ? '(' + b.type + ')' : '(빈 섹션)';
+}
+
 function _slimCanvasState(raw, detail) {
   if (!raw || raw.ok !== true || !Array.isArray(raw.sections)) return raw;
   if (detail === 'full') return raw;
@@ -530,8 +909,13 @@ function _slimCanvasState(raw, detail) {
       sections: shown.map(s => ({
         sectionId: s.sectionId,
         ...(s.name ? { name: s.name } : {}),
+        /* ★요약(목록)에서 더 중요하다 — 사람이 「섹션이 왜 두 개지」를 보는 자리가 여기다 */
+        ...(s.variationGroup ? { variationGroup: s.variationGroup, variation: s.variation,
+                                 variationActive: s.variationActive } : {}),
         blocks: (s.blocks || []).length,
-        ...((s.blocks || []).length ? { first: String((s.blocks[0] || {}).text || ('(' + ((s.blocks[0] || {}).type || 'block') + ')')).slice(0, 40) } : {})
+        ...((s.blocks || []).length ? { first: _firstMeaningful(s.blocks) } : {}),
+        /* ★요약에서도 «중첩이 있나»는 알려준다 — 없으면 평평한 페이지로 오해한다 */
+        nested: (s.blocks || []).filter(b => b && b.parentId).length
       })),
       ...(rest > 0 ? { omittedSections: rest } : {}),
       note: 'summary only — call get_canvas_state(sectionId) for one section\'s blocks.'
@@ -544,13 +928,28 @@ function _slimCanvasState(raw, detail) {
     sections: raw.sections.map(s => ({
       sectionId: s.sectionId,
       ...(s.name ? { name: s.name } : {}),
+      /* ★A/B 베리에이션 — 안 실으면 A안·B안이 «그냥 섹션 두 개»로 보여
+         「정리해줘」에 B안이 «중복»으로 지워질 수 있다(2026-09-08).
+         ⛔이 허용목록이 «렌더러가 새로 보내는 필드를 조용히 버린다»는 경고가 이 파일에 이미 있고,
+           나는 오늘 placeholder 로 «한 번 걸렸다». 두 번째다 — 그래서 섹션 쪽도 같이 채운다. */
+      ...(s.variationGroup ? { variationGroup: s.variationGroup, variation: s.variation,
+                               variationActive: s.variationActive } : {}),
       blocks: (s.blocks || []).map(b => {
+        /* ★구조(parentId·depth)는 «내용»이 아니라 «뼈대»다 — 응답을 줄인다고 버리면
+             「이 프레임 안에 뭐가 있나」를 영영 못 본다(2026-09-07 실측: 여기서 버려지고 있었다).
+             값도 짧다(id 하나 + 정수 하나). 잘라야 할 것은 «글»이지 구조가 아니다. */
         const o = { blockId: b.blockId, type: b.type };
+        if (b.parentId) o.parentId = b.parentId;
+        if (b.depth) o.depth = b.depth;
         const t = String(b.text == null ? '' : b.text);
         if (t) o.text = t.length > _CANVAS_TEXT_CAP ? t.slice(0, _CANVAS_TEXT_CAP) + '…' : t;
         if (b.color) o.color = b.color;
         if (b.fontSize) o.fontSize = b.fontSize;
         if (b.align) o.align = b.align;
+        /* ★«아직 안 쓴 칸»이라는 표시는 «내용»만큼 중요하다 — 안 실으면 밖에서 보기에
+             빈 블록이 «다 쓴 것»으로 보인다. 바로 아래 경고가 말하는 그 자리에 내가 걸렸다
+             (렌더러는 보내는데 여기 허용목록이 조용히 버렸다, 2026-09-08). */
+        if (b.placeholder === true) o.placeholder = true;
         /* ★2026-09-06 — 이 «허용목록»이 렌더러가 새로 보내는 필드를 «조용히» 버렸다.
            canvas-state 가 이미지·표·갭의 summary 를 실어 보내는데 여기서 사라져,
            블록은 «보이는데» 지목에 필요한 정보만 없는 상태가 됐다(반쯤 고쳐진 모양).
@@ -879,6 +1278,31 @@ function _registerDefaultTools() {
     }
   );
 
+  /* ── normalize_spacing (2026-09-07) ── ★«숨김» 도구다 ───────────────────────
+   * ⛔클로드 보라고 만든 게 아니다. hideTool 로 tools/list 에서 빠지므로 사용자 토큰은 0 이다.
+   *   ⓔ 지시대로 감수는 «서버가 알아서» 돈다(_scheduleSpacingAudit). 이 도구는 QA·하네스가
+   *   「지금 돌려라」로 부르고 «실제로 무엇이 됐나»를 읽는 통로다 — 양끝을 재려면 필요하다.
+   *   ⇒ 이 도구가 「도구를 부르게 하는 길」로 되살아나면 안 된다. 숨김을 풀지 마라. */
+  registerTool(
+    'normalize_spacing',
+    async ({ sectionId = null, expectedProject } = {}) => {
+      _assertExpectedProject(expectedProject);
+      return runSpacingAudit({ sectionId: sectionId || null, reason: 'tool' });
+    },
+    {
+      description: '(internal/QA) Run the gap audit pass now and report what changed.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_… — one section only. Omit for the whole page.' },
+          expectedProject: { type: 'string', description: 'proj_<digits>. Refuses if a different project is open.' }
+        },
+        required: []
+      }
+    }
+  );
+  hideTool('normalize_spacing');
+
 
 
 
@@ -895,7 +1319,12 @@ function _registerDefaultTools() {
       return { ok: true, newProjectId: r.newProjectId, newName: r.newName };
     },
     {
-      description: 'Duplicate a Goditor project — full copy (proj.json + assets/images + claude-pm folder), re-keyed to a fresh project id. sourceProjectId optional (defaults to the active project). Use to branch a base template into a new product project. Returns {newProjectId, newName}. Does NOT open it; the user opens it in the editor.',
+      /* ⛔예전 설명은 「full copy (… + claude-pm folder)」였는데 ★거짓이었다 —
+           _duplicateProjectImpl 은 images/·assets/ 만 옮긴다(claude-pm 은 안 따라온다).
+         ★거짓인 것과 기능이 좁은 것은 «별개»고, 거짓은 먼저 멈춘다.
+           이 문장은 «클로드가 읽고 사용자에게 옮기는» 말이라 무겁다 — 사용자는
+           「메모까지 복사됐다」고 «듣는다». (동작 확대는 별건 — 참조 무결성부터 재야 한다) */
+      description: 'Duplicate a Goditor project — copies proj.json + assets/ + images/, re-keyed to a fresh project id. ⚠️Does NOT copy the claude-pm folder (section memos, checklists) — those stay only in the original. sourceProjectId optional (defaults to the active project). Use to branch a base template into a new product project. Returns {newProjectId, newName}. Does NOT open it; the user opens it in the editor.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -903,6 +1332,101 @@ function _registerDefaultTools() {
           newName: { type: 'string', description: '새 프로젝트 이름(생략 시 "원본명 (사본)").' }
         },
         required: []
+      }
+    }
+  );
+
+  /* ★프로젝트 «이름 수정» — 2026-09-07 신설. 그전엔 만들 수만 있고 «고칠 수가 없었다». */
+  registerTool(
+    'rename_project',
+    async ({ projectId, name } = {}) => {
+      if (!_projectOps || typeof _projectOps.rename !== 'function')
+        throw new Error('project ops not initialized (setProjectOps 에 rename 이 없다)');
+      if (!projectId || typeof projectId !== 'string')
+        throw new Error('projectId required (get it from list_projects)');
+      if (typeof name !== 'string' || !name.trim())
+        throw new Error('name required (non-empty string)');
+      const r = await _projectOps.rename({ projectId, name });
+      if (!r || r.ok === false) { const e = new Error((r && r.error) || 'rename failed'); e.code = r && r.code; throw e; }
+      return { ok: true, projectId: r.projectId, name: r.name,
+               previousName: r.previousName, changed: r.changed !== false };
+    },
+    {
+      description: 'Rename a project (its display name in the gallery). Takes projectId directly — does NOT act on the active project. Non-destructive.',
+      inputSchema: { type: 'object',
+        properties: { projectId: { type: 'string', description: 'proj_xxx (from list_projects)' },
+                      name: { type: 'string', description: '새 이름(1~100자)' } },
+        required: ['projectId', 'name'] }
+    }
+  );
+
+  /* ★프로젝트 «삭제» — 2026-09-07 신설. 현빈 지시.
+     왜 없었나: 도구 33개에 삭제가 «없었다». 그래서 프로젝트를 치우려면 사람이 파일시스템에서
+     rm 해야 했고, 그러면 앱이 그걸 «모르고» activeProjectId 가 죽은 id 를 계속 가리켰다(실측).
+     ⇒ ★「MCP 로 만든 것을 MCP 로 못 치운다」가 실물로 확인된 자리다.
+
+     설계 결정 셋(전부 근거가 있다):
+     ⑴ ★휴지통으로 옮긴다 — 영구삭제 «아니다». 되돌릴 수 있으면 위험 등급이 한 칸 내려간다.
+     ⑵ ★마지막 프로젝트도 지울 수 있다. 갤러리(사람 화면)에 그 제약이 없고, 0개 상태를 앱이
+        이미 다룬다(「아직 프로젝트가 없어요」 — 실측). 도구가 사람보다 빡빡하면 «불일치»다.
+        ⚠️`delete_section` 이 마지막 섹션을 막는 것과 «다른 사정»이다 — 섹션 0개는 편집기가
+        빈 껍데기가 되지만, 프로젝트 0개는 갤러리가 정상 안내를 띄운다.
+     ⑶ ⛔★2026-09-08 «정정» — 여기 「projectId 를 직접 지목하므로 확인할 이유가 없다」고 적혀 있었는데
+        «런타임과 어긋났다». 게이트(_projectGate)는 이 도구를 «파괴적 프로젝트 쓰기»로 보고
+        확정(open_project 성공)을 요구한다 — 그게 «맞는» 쪽이다(F3-7 이 옛 면제 시도를 빨강으로 잡았다).
+        축은 「지목했느냐」가 아니라 ★「지목이 틀렸을 때 «남의 것이 변하느냐»」다. 삭제는 변한다.
+        ⇒ 설명과 이 주석을 «동작에 맞췄다». 게이트는 «두 조건»이고 둘째는 «길이 둘»이다:
+          ⒜ 활성이 서 있어야 한다 — 없으면 NO_ACTIVE_PROJECT.
+             ★expectedProject «만»으로는 못 넘는다(실측: 활성 null + expectedProject → NO_ACTIVE_PROJECT).
+          ⒝ 그 세션이 대상을 «지목»했어야 한다 — 없으면 PROJECT_NOT_CONFIRMED.
+             지목의 길은 ⑴open_project 가 «성공»하거나 ⑵expectedProject 를 넘기거나, «둘 중 하나».
+             ★실측(2026-09-08): 활성이 선 «같은 상태»에서 expectedProject 만 더하니 통과했다
+               (없으면 PROJECT_NOT_CONFIRMED). ⇒ expectedProject 는 «대조»가 아니라 «확인 경로 그 자체»다.
+        ⛔★내가 여기 한 번 「expectedProject 는 대조만 한다」로 잘못 적었다(2026-09-08, 앱매니저가 원자료로 반증).
+          한쪽 시퀀스만 재고 «게이트 전체»를 안다고 쓴 것이다 — 두 사람이 «같은 게이트의 다른 칸»을 밟았다.
+          ⇒ 계약을 적을 땐 «내가 밟은 칸»이 아니라 «칸을 다 밟았나»를 물어라.
+        ★그리고 활성은 «타임아웃된 open» 으로도 선다 — 열림·완료신호·지목이 «셋 다 따로 논다».
+          그래서 「열었는데 왜 못 지우지」가 난다. ⛔원인·재현조건은 아직 모른다. */
+  registerTool(
+    'delete_project',
+    async ({ projectId } = {}) => {
+      if (!_projectOps || typeof _projectOps.delete !== 'function')
+        throw new Error('project ops not initialized (setProjectOps 에 delete 가 없다 — 앱 버전이 낡았나?)');
+      if (!projectId || typeof projectId !== 'string')
+        throw new Error('projectId required (get it from list_projects). 예: "proj_1788754539358"');
+      const r = await _projectOps.delete({ projectId });
+      if (!r || r.ok === false) {
+        const e = new Error((r && r.error) || 'delete failed');
+        e.code = r && r.code; throw e;
+      }
+      return {
+        ok: true, projectId: r.projectId, trashed: true,
+        wasActive: r.wasActive, activeCleared: r.activeCleared,
+        activeProject: _activeProjectId(),
+        hint: r.wasActive
+          ? '★지운 것이 «활성»이었다 — 활성을 비웠다. 편집을 이어가려면 open_project 로 다른 프로젝트를 열어라.'
+          : '활성 프로젝트는 그대로다.',
+        /* ⛔2026-09-08: 여기 「macOS 휴지통에서 복원해라」라고 적혀 있었는데 «거짓말»이 됐다 —
+             동작은 앱 휴지통으로 바뀌었는데 문구를 안 고쳤다. 계약은 동작과 «같이» 움직여야 한다.
+             ⇒ 이제는 main 이 돌려주는 note 를 «그대로» 싣는다(한 곳에서만 말한다). */
+        note: r.note || `앱 휴지통으로 옮겼다(영구삭제 아님). 갤러리의 «휴지통» 탭에서 되살릴 수 있다.`,
+        ...(r.deletedAt ? { deletedAt: r.deletedAt } : {}),
+        ...(r.appTrash ? { appTrash: true } : {}),
+      };
+    },
+    {
+      description: 'Delete a project — DESTRUCTIVE but RECOVERABLE: it goes to the in-app Trash tab and is kept 30 days (then moved to the OS Trash), never erased. '
+        + '⚠TWO conditions, and the second has TWO paths. (1) A project must be OPEN — with none open you get NO_ACTIVE_PROJECT, and expectedProject alone does NOT satisfy this. '
+        + '(2) You must have DESIGNATED the target in this session — either open_project(projectId) SUCCEEDED, or you pass expectedProject:"proj_…" on this call; otherwise PROJECT_NOT_CONFIRMED. '
+        + 'This is deliberate: a mistargeted delete destroys someone else\'s project, so pointing at it is not enough — you must have opened it. '
+        + 'The last remaining project CAN be deleted (the gallery shows an empty-state screen). '
+        + 'If the deleted project was the active one, the active target is cleared — open_project another one before editing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string', description: 'proj_xxx to delete (from list_projects). 휴지통으로 이동한다.' }
+        },
+        required: ['projectId']
       }
     }
   );
@@ -1025,7 +1549,7 @@ function _registerDefaultTools() {
       return { ok: true, sectionId, section: sec, texts };
     },
     {
-      description: 'Read a specific section by id and extract its text content.',
+      description: 'Read a specific section by id and extract its text content. ★If the section is part of an A/B variation group it carries variationGroup/variation/variationActive — sections sharing a variationGroup are ALTERNATIVE DESIGNS for the SAME slot, not duplicates. ⛔Never \"clean up\" one as a duplicate; only variationActive:true is the one currently shown.',
       inputSchema: {
         type: 'object',
         properties: { sectionId: { type: 'string' } },
@@ -1049,7 +1573,20 @@ function _registerDefaultTools() {
       }
 
       // Fallback: 직접 NOTES.md / project.meta.json 스캔 (PM-B 실제 파일명)
-      const folder = projectFolder || _getProjectsDir();
+      /* ⛔여기가 «뿌리를 아예 안 쓰는 우회로»였다 — 호출자가 준 절대경로를 그대로 읽어
+           `<userData>/accounts/acct_철수…/…/claude-pm` 하나면 남의 계정 메모·제목이 나왔다.
+         ★계정별 폴더로 가른 의미가 이 한 줄로 사라진다. 같은 파일의 export_sections 는
+           outDir 을 검사하는데(isAbsolute+statSync) 여기만 «검사가 0줄»이었다.
+         ⇒ 현재 계정 뿌리 «안»으로 봉쇄한다. 밖을 가리키면 실행하지 않는다. */
+      const root = _getProjectsDir();
+      const folder = projectFolder || root;
+      const realRoot = path.resolve(root);
+      const realFolder = path.resolve(folder);
+      if (realFolder !== realRoot && !realFolder.startsWith(realRoot + path.sep)) {
+        return { ok: false, code: 'FOLDER_OUT_OF_ROOT',
+          error: 'list_memories 는 현재 계정의 프로젝트 폴더 안만 읽습니다.',
+          hint: 'Pass a folder inside the active account\'s projects directory, or omit projectFolder to use it.' };
+      }
       if (!fs.existsSync(folder)) {
         return { folder, memories: [], note: 'folder not found' };
       }
@@ -1157,7 +1694,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.addSection({ empty: !!empty, bg, beforeId, afterId, sourceScratchIds: scratch });
     },
     {
-      description: 'Add a new section. Default = appended after selected (or canvas end). Use beforeId/afterId to insert at a specific position. Default body = gap + h2 placeholder + gap. empty:true = only top/bottom gaps. sourceScratchIds: optional sp_xxx[] — auto-records "출처: sp_aa, sp_bb" line into dataset.memo for traceability.',
+      description: 'Add a new CANVAS section (a band on the page). ⚠️NOT a checklist group — if the user said "체크리스트에 … 섹션" use edit_checklist_section(op:"create") instead. Default = appended after selected (or canvas end). Use beforeId/afterId to insert at a specific position. Default body = gap + h2 placeholder + gap. empty:true = only top/bottom gaps. sourceScratchIds: optional sp_xxx[] — auto-records "출처: sp_aa, sp_bb" line into dataset.memo for traceability.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1191,11 +1728,23 @@ function _registerDefaultTools() {
   const _PUT_IMAGE_MAX = 7 * 1024 * 1024; // = _MKP_MAX_IMGSRC (base64 7M chars ≈ 원본 5MB)
   registerTool(
     'put_image',
-    async ({ image, target = 'canvas', sectionId, preset = 'img1', width } = {}) => {
+    async ({ image, path: imgPath, target = 'canvas', sectionId, preset = 'img1', width } = {}) => {
       if (!_rendererInvoker || typeof _rendererInvoker.scratchAdd !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
-      if (typeof image !== 'string' || !image) throw new Error('image must be a non-empty dataURL string');
+      /* ★path 로도 받는다 (2026-09-10 현빈 발주) — 클로드앱에 «첨부»한 이미지는 모델이
+         그림으로 «볼» 뿐 원본 바이트를 못 얻어서 넣을 방법이 원리적으로 없었다.
+         ⇒ 경로를 주면 «앱이 직접» 읽는다. 데이터가 모델 컨텍스트를 통과하지 않는다.
+         ⛔둘을 같이 주면 «어느 것이 쓰였는지» 모르게 된다 — 거절한다(조용히 하나를 고르지 않는다). */
+      let fileInfo = null;
+      if (imgPath !== undefined && imgPath !== null && imgPath !== '') {
+        if (typeof image === 'string' && image) {
+          throw new Error('pass either image (data URL) or path (local file) — not both');
+        }
+        fileInfo = _imageFileToDataUrl(imgPath, _PUT_IMAGE_MAX);
+        image = fileInfo.dataUrl;
+      }
+      if (typeof image !== 'string' || !image) throw new Error('image must be a non-empty dataURL string — or pass path (local file)');
       /* ⚠️여기 문지기는 «검사기와 같은 관대함»이어야 한다. 앞 판은 이 줄만 대소문자 구분이라
        *   `data:IMAGE/PNG;base64,<온전한 PNG>` 를 put_image 가 거절하고 update_block 은 통과시켰다
        *   — «같은 입력이 문에 따라 갈리는» 오탐이다(적대검수 2026-09-07). 브라우저는 정상 렌더한다.
@@ -1230,7 +1779,8 @@ function _registerDefaultTools() {
       const put = await _rendererInvoker.scratchAdd({ src: image, width });
       if (!put || put.ok !== true) return put || { ok: false, code: 'SCRATCH_FAILED' };
       if (target === 'scratch') {
-        return { ok: true, target: 'scratch', scratchId: put.scratchId, x: put.x, y: put.y, imageCheck };
+        return { ok: true, target: 'scratch', scratchId: put.scratchId, x: put.x, y: put.y, imageCheck,
+                 ...(fileInfo ? { source: { path: fileInfo.resolvedPath, bytes: fileInfo.bytes, format: fileInfo.format } } : {}) };
       }
 
       // ⑵ 캔버스에는 «기존 도구»로 붙인다
@@ -1249,17 +1799,19 @@ function _registerDefaultTools() {
                hasImage: att.hasImage === true, imageCheck };
     },
     {
-      description: 'Put an image into GODITOR. Default target=canvas: the image is stored in the scratch pad and immediately attached to a section as an asset block. target=scratch stores it in the scratch pad only (canvas untouched). ⚠️A project must be OPEN for either target — the scratch pad is scoped to project+page. Image must be a data URL (max ~5MB); oversized images are rejected, never silently downscaled.',
+      description: '★If the user ATTACHED an image to the chat, you CANNOT read its bytes — ask for the file path and pass it as `path` instead. Put an image into GODITOR. Default target=canvas: the image is stored in the scratch pad and immediately attached to a section as an asset block. target=scratch stores it in the scratch pad only (canvas untouched). ⚠️A project must be OPEN for either target — the scratch pad is scoped to project+page. Image must be a data URL (max ~5MB); oversized images are rejected, never silently downscaled.',
       inputSchema: {
         type: 'object',
         properties: {
-          image: { type: 'string', description: 'data:image/<type>;base64,<...>  (file paths are not accepted)' },
+          image: { type: 'string', description: 'data:image/<type>;base64,<...>  (mutually exclusive with path)' },
+          path: { type: 'string', description: '★local image file path, e.g. ~/Downloads/shot.png — the app reads it directly (data never passes through the model). Use this when the user attached an image to chat: you CANNOT read attached image bytes, so ask for the file path instead. png/jpeg/gif/webp only, under the home directory, ≤5MB. Mutually exclusive with image.' },
           target: { type: 'string', enum: ['canvas', 'scratch'], description: 'canvas (default) = scratch + attach to section; scratch = scratch pad only' },
           sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, uses the currently selected section (canvas target only)' },
           preset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout preset (default img1)' },
           width: { type: 'number', description: 'optional scratch item width in px (default 860 — same as folder import)' }
         },
-        required: ['image']
+        /* ★둘 중 하나면 된다 — 핸들러가 「둘 다」와 「둘 다 없음」을 각각 거절한다. */
+        required: []
       }
     }
   );
@@ -1445,7 +1997,7 @@ function _registerDefaultTools() {
   // PM add_checklist_item — 체크리스트 항목(=핀) 추가. 평가/todo 등록용.
   registerTool(
     'add_checklist_item',
-    async ({ text, x, y, sectionId, done = false, urgent = false } = {}) => {
+    async ({ text, x, y, sectionId, ckSectionId, done = false, urgent = false } = {}) => {
       if (!text || typeof text !== 'string') throw new Error('text required (string)');
       if (text.length > 500) throw new Error('text too long (>500)');
       if (sectionId !== undefined && sectionId !== null) {
@@ -1453,16 +2005,38 @@ function _registerDefaultTools() {
       }
       if (x !== undefined && x !== null && typeof x !== 'number') throw new Error('x must be number');
       if (y !== undefined && y !== null && typeof y !== 'number') throw new Error('y must be number');
+      /* ★«캔버스 섹션»(sec_) 과 «체크리스트 섹션»(ck_) 은 다른 것이다 — 접두로 가른다.
+         섞어 주면 「분류했다」고 믿는데 실제로는 핀만 움직이는(또는 아무 일도 없는) 일이 난다. */
+      if (ckSectionId !== undefined && ckSectionId !== null) {
+        if (typeof ckSectionId !== 'string' || !ckSectionId.startsWith('ck_')) {
+          throw new Error(`invalid ckSectionId: ${ckSectionId} — expected ck_xxx (a CHECKLIST section, not a canvas sec_). Get ids from list_checklist_items(sections) or edit_checklist_section(op:"list").`);
+        }
+      }
       if (!_rendererInvoker?.addChecklistItem) throw new Error('renderer bridge not ready');
-      return await _rendererInvoker.addChecklistItem({ text, x, y, sectionId, done, urgent });
+      const _r = await _rendererInvoker.addChecklistItem({ text, x, y, sectionId, ckSectionId, done, urgent });
+      /* ★★2026-09-08 실측: 프롬프트로 「체크리스트에 '검수' 섹션 만들고 거기에 할 일 추가」를 시켰더니
+           모델이 캔버스 sec_ 를 만들고 add_checklist_item{sectionId} 를 불렀다.
+           도구는 ok 를 돌려줬고 항목도 생겼지만 «분류는 안 됐다» — 조용한 오해다.
+         ⇒ 「됐다」만 말하지 않고 «안 된 것»을 같이 말한다. 막지는 않는다(핀 좌표는 정당한 용도다). */
+      if (_r && _r.ok !== false && sectionId && !ckSectionId) {
+        return Object.assign({}, _r, {
+          notGrouped: true,
+          note: 'sectionId 는 «캔버스 섹션»이라 핀 위치만 잡았습니다 — 이 할 일은 어떤 체크리스트 섹션에도 «분류되지 않았습니다».',
+          hint: 'If you meant to file it under a checklist group, create one with edit_checklist_section(op:"create", name) and pass its ck_xxx id as ckSectionId (add_checklist_item or update_checklist_item).',
+        });
+      }
+      return _r;
     },
     {
-      description: 'Add a checklist item (todo). If sectionId given (without x/y), pin auto-positions next to that section on the canvas. If x/y given, pin placed at those canvas coords. Otherwise just a list item (no pin). Use for: section evaluation notes, work-needed todos, scratch-source tracking ("이 섹션은 sp_xxx 출처").',
+      description: 'Add a checklist item (todo). ★★If the user asked to put it under a checklist GROUP, '
+        + 'you must pass ckSectionId (ck_xxx) — passing sectionId (sec_xxx) instead files it NOWHERE and the response will say so. '
+        + '★Two different "section" concepts: ckSectionId (ck_xxx) files it under a CHECKLIST section in the panel; sectionId (sec_xxx) only positions the canvas PIN. If sectionId given (without x/y), pin auto-positions next to that section on the canvas. If x/y given, pin placed at those canvas coords. Otherwise just a list item (no pin). Use for: section evaluation notes, work-needed todos, scratch-source tracking ("이 섹션은 sp_xxx 출처").',
       inputSchema: {
         type: 'object',
         properties: {
           text: { type: 'string', description: 'todo/note text (≤500 chars)' },
-          sectionId: { type: 'string', description: 'sec_xxx — auto-position pin next to this section' },
+          sectionId: { type: 'string', description: 'CANVAS section sec_xxx — only auto-positions the PIN next to it. This does NOT file the todo under a checklist section (different concept, confusingly similar name).' },
+          ckSectionId: { type: 'string', description: 'CHECKLIST section ck_xxx — files the todo under that group in the panel. Create one with edit_checklist_section(op:"create"). Refused if it does not exist (nothing is added).' },
           x: { type: 'number', description: 'canvas x coord (overrides sectionId auto-position)' },
           y: { type: 'number', description: 'canvas y coord' },
           done: { type: 'boolean', description: 'mark as already completed. default false' },
@@ -1666,21 +2240,45 @@ function _registerDefaultTools() {
   // PM update_section — 섹션 속성 변경 (배경 등)
   registerTool(
     'update_section',
-    async ({ sectionId, bg } = {}) => {
+    async ({ sectionId, bg, name, ...rest } = {}) => {
       if (!sectionId || !sectionId.startsWith('sec_')) throw new Error('sectionId required (sec_xxx)');
       if (bg !== undefined && bg !== null && !/^#?[0-9a-fA-F]{3,8}$|^transparent$|^rgb/.test(String(bg))) {
         throw new Error(`invalid bg: ${bg}`);
       }
+      // ★«아무것도 안 하고 ok» 를 막는다 (2026-09-07 g-mcpmgr).
+      //   registerTool 된 update_* 28개 중 이 가드가 «없던 유일한» 도구였다(나머지 27개는 있다).
+      //   그래서 update_section({sectionId, name:'새이름'}) 이 «아무 말 없이» 성공했다 —
+      //   name 은 구조분해에서 버려지고 bg 는 undefined 라 렌더러가 할 일이 없다.
+      //   ⇒ 클로드는 「섹션 이름 바꿔줘」를 받으면 이 도구에 name 을 넣어 보고, 아무도 안 나무라니
+      //     «했다»고 답한다. 「도구가 없다」가 「조용한 거짓 성공」으로 둔갑하던 자리다.
+      // ★거절은 곧 «안내»여야 한다 — 무엇을 넣을 수 있는지, 그리고 무엇이 «아예 안 되는지»를
+      //   같이 말하지 않으면 클로드는 title·label 로 갈아 끼우며 같은 자리를 돈다.
+      /* ★2026-09-07 «개통»: name 을 받는다. 아침엔 이 자리가 「이름은 MCP 로 못 바꾼다」고
+         «말하게만» 막아 둔 곳이었다 — 도구가 없었으니 그게 최선이었다. 이제 있으니 그 문장을 «지운다».
+         ⇒ ★거절 문구를 고칠 땐 «기능이 생겼는지»부터 봐라. 안 그러면 되는 걸 안 된다고 말한다. */
+      if (name !== undefined && (typeof name !== 'string' || !name.trim()))
+        throw new Error('name must be a non-empty string (공백만은 안 된다)');
+      if (typeof name === 'string' && [...name].length > 50)
+        throw new Error(`name too long (${[...name].length} > 50)`);
+      if (bg === undefined && name === undefined) {
+        const unknown = Object.keys(rest);
+        throw new Error(
+          'no fields to update — provide at least one of: bg, name'
+          + (unknown.length ? ` (received but NOT supported: ${unknown.join(', ')})` : '')
+        );
+      }
       if (!_rendererInvoker?.updateSection) throw new Error('renderer bridge not ready');
-      return await _rendererInvoker.updateSection({ sectionId, bg });
+      return await _rendererInvoker.updateSection({ sectionId, bg, name });
     },
     {
-      description: 'Update section properties (bg color, etc.). Use for changing existing section background. bg: hex color (#000, #ffffff) or "transparent".',
+      description: 'Update section properties: bg (background color) and/or name (the section label, e.g. "Section 02" → "히어로"). '
+        + 'bg: hex (#000, #ffffff) or "transparent". name: ≤50 chars, non-empty. At least one of the two is required.',
       inputSchema: {
         type: 'object',
         properties: {
           sectionId: { type: 'string', description: 'sec_xxx to update' },
-          bg: { type: 'string', description: 'background color (hex like #000000 or "transparent")' }
+          bg: { type: 'string', description: 'background color (hex like #000000 or "transparent")' },
+          name: { type: 'string', description: '섹션 이름(≤50자). 2026-09-07 신설 — 그전엔 «바꿀 방법이 없었다».' }
         },
         required: ['sectionId']
       }
@@ -1813,7 +2411,7 @@ function _registerDefaultTools() {
         type: 'object',
         properties: {
           blockId: { type: 'string', description: 'block id to insert gap after (any non-section block)' },
-          height: { type: 'number', description: 'gap height in px (4–800). Default 40.', default: 40 }
+          height: { type: 'number', description: 'gap height in px (0–1000). Default 40.', default: 40 }
         },
         required: ['blockId']
       }
@@ -1841,7 +2439,7 @@ function _registerDefaultTools() {
       inputSchema: {
         type: 'object',
         properties: {
-          height: { type: 'number', description: 'Gap height in px (4–800). Default 40.', default: 40 },
+          height: { type: 'number', description: 'Gap height in px (0–1000). Default 40.', default: 40 },
           sectionId: { type: 'string', description: 'Target section (sec_xxx). If omitted, adds to currently selected section.' }
         },
         required: []
@@ -2009,7 +2607,7 @@ function _registerDefaultTools() {
   // PM이 done 토글, 텍스트 수정, 핀 위치 재배치 가능 (이전 add_checklist_item만 있던 한계 해결).
   registerTool(
     'update_checklist_item',
-    async ({ id, text, done, urgent, x, y } = {}) => {
+    async ({ id, text, done, urgent, x, y, ckSectionId } = {}) => {
       if (!_rendererInvoker || typeof _rendererInvoker.updateChecklistItem !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
@@ -2022,13 +2620,18 @@ function _registerDefaultTools() {
       if (urgent !== undefined && typeof urgent !== 'boolean') throw new Error('urgent must be boolean');
       if (x !== undefined && x !== null && typeof x !== 'number') throw new Error('x must be number or null');
       if (y !== undefined && y !== null && typeof y !== 'number') throw new Error('y must be number or null');
+      if (ckSectionId !== undefined && ckSectionId !== null && ckSectionId !== '') {
+        if (typeof ckSectionId !== 'string' || !ckSectionId.startsWith('ck_')) {
+          throw new Error(`invalid ckSectionId: ${ckSectionId} — expected ck_xxx (a CHECKLIST section). Get ids from edit_checklist_section(op:"list").`);
+        }
+      }
       // 최소 1개 필드 필수
-      const has = [text, done, urgent, x, y].some(v => v !== undefined);
-      if (!has) throw new Error('no fields to update — provide at least one of text/done/urgent/x/y');
-      return await _rendererInvoker.updateChecklistItem({ id, text, done, urgent, x, y });
+      const has = [text, done, urgent, x, y, ckSectionId].some(v => v !== undefined);
+      if (!has) throw new Error('no fields to update — provide at least one of text/done/urgent/x/y/ckSectionId');
+      return await _rendererInvoker.updateChecklistItem({ id, text, done, urgent, x, y, ckSectionId });
     },
     {
-      description: 'Update an existing checklist item (ck_xxx) — partial update of text/done/urgent/x/y. Use to toggle done, edit text, reposition pin. Returns {ok, itemId, item}. Pass null for x/y to detach the pin.',
+      description: 'Update an existing checklist item (ck_xxx) — partial update of text/done/urgent/x/y/ckSectionId. Use to toggle done (done:true = 완료), edit text, move it under a checklist section, reposition pin. Returns {ok, itemId, item}. Pass null for x/y to detach the pin.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -2037,10 +2640,155 @@ function _registerDefaultTools() {
           done: { type: 'boolean', description: 'mark complete/incomplete' },
           urgent: { type: 'boolean', description: 'urgent flag' },
           x: { type: ['number', 'null'], description: 'canvas x coord. null = detach pin' },
-          y: { type: ['number', 'null'], description: 'canvas y coord. null = detach pin' }
+          y: { type: ['number', 'null'], description: 'canvas y coord. null = detach pin' },
+          ckSectionId: { type: ['string', 'null'], description: 'CHECKLIST section ck_xxx — move this todo under that group. null = remove it from any group. Refused if the section does not exist (nothing changes).' }
         },
         required: ['id']
       }
+    }
+  );
+
+  /* ─── P2 search_sections — 내용으로 섹션 찾기 (2026-09-08) ─────────────────
+     ⛔이게 없어서 「'무료배송' 적힌 데 고쳐줘」에 102섹션을 하나씩 열어야 했다. */
+  /* ─── A/B 베리에이션 «쓰기» (2026-09-08 현빈 지시) ────────────────────────
+     읽기(variationGroup/variation/variationActive)는 f41e251 에서 붙였다. 이건 그 짝이다.
+     ⛔한 도구에 op 를 모은다 — 다섯 도구로 쪼개면 목록이 5칸 길어지고(고정비),
+       이 다섯은 «같은 대상·같은 개념»이라 갈라 둘 이유가 없다. */
+  registerTool(
+    'edit_variation',
+    async ({ op, sectionId, to, confirm = false, expectedProject } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.variation !== 'function')
+        throw new Error('editor not running — edit_variation은 편집기 창이 열려 있어야 합니다(캔버스가 정본).');
+      if (!op) throw new Error('op required: create|add|switch|resolve|delete');
+      if (!sectionId) throw new Error('sectionId required (from get_canvas_state)');
+      if (op === 'switch' && !to) throw new Error('op:"switch" 에는 to 가 필요하다 (예: to:"B")');
+      return await _rendererInvoker.variation({ op, sectionId, to, confirm });
+    },
+    {
+      description: 'A/B variation of a SECTION — several alternative designs stacked in the SAME slot, only one shown at a time. '
+        + 'op:"create" turns a plain section into an A/B pair (A + a copy as B). '
+        + 'op:"add" appends the next one (C, D, E) — max 5; past that you get VARIATION_LIMIT instead of a silent no-op. '
+        + 'op:"switch" + to:"B" makes THAT one the visible one on canvas (the others are display:none). '
+        + 'op:"resolve" keeps only the currently visible one and DELETES the rest — requires confirm:true, and without it returns what WOULD be deleted. '
+        + 'op:"delete" removes ONE alternative — requires confirm:true; if only one is left the group dissolves back into a normal section. '
+        + '★Sections sharing a variationGroup are ALTERNATIVES, never duplicates — read them with get_canvas_state first.'
+        + _TARGET_NOTE,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          op: { type: 'string', enum: ['create', 'add', 'switch', 'resolve', 'delete'],
+                description: 'create=make A/B · add=next letter · switch=show one · resolve=keep one+delete rest · delete=remove one' },
+          sectionId: { type: 'string', description: 'sec_xxx — any member of the group (for switch/resolve it is the group that matters)' },
+          /* ⛔소문자도 «받는다» — 런타임이 toUpperCase() 하므로 enum 을 대문자로만 두면 계약이 거짓말한다
+               (버그헌트 실측 2026-09-08: to:"b" 가 «통했다». 스키마는 거부해야 한다고 말하고 있었다).
+             ⇒ 「동작을 좁히거나, 계약을 넓히거나」 둘 중 하나다. 관대한 쪽이 사용자에게 낫다 — 계약을 넓힌다. */
+          to: { type: 'string', enum: ['A', 'B', 'C', 'D', 'E', 'a', 'b', 'c', 'd', 'e'],
+                description: 'op:"switch" only — which one to show (case-insensitive)' },
+          confirm: { type: 'boolean', description: 'required for resolve/delete. Call once without it to see what would be deleted.' },
+          expectedProject: { type: 'string' },
+        },
+        required: ['op', 'sectionId'],
+        additionalProperties: false,
+      },
+    }
+  );
+
+  registerTool(
+    'search_sections',
+    async ({ query, limit = 50, caseSensitive = false, wholeWord = false, includePlaceholder = false } = {}) => {
+      if (typeof query !== 'string' || !query.trim()) throw new Error('query required (non-empty string)');
+      if (query.length > 200) throw new Error('query too long (>200)');
+      const lim = Number(limit);
+      if (!Number.isInteger(lim) || lim < 1 || lim > 300) throw new Error('limit must be 1..300');
+      if (!_rendererInvoker?.searchSections) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.searchSections({
+        query, limit: lim, caseSensitive: !!caseSensitive, whole: !!wholeWord,
+        includePlaceholder: !!includePlaceholder,
+      });
+    },
+    {
+      description: 'Find WHERE a phrase appears in the open project — searches every section in one pass. '
+        + 'Use this before editing when the user names content instead of an id '
+        + '("fix the section with the price table", "\u2018무료배송\u2019 적힌 데 고쳐줘", spell-check, bulk rewording). '
+        + 'Returns {ok, query, matches, hits:[{sectionId, sectionName, blockId, type, where, excerpt, chars}], '
+        + 'excerpt is the match with ~24 chars of context; chars is the block\u2019s full length. '
+        + 'For the whole text call get_canvas_state(sectionId) \u2014 the hit is deliberately short to keep responses cheap. '
+        + 'scannedSections, scannedBlocks, truncated}. Section NAMES are searched too. '
+        + '★scannedSections/scannedBlocks are reported so 0 matches can be told apart from "nothing was scanned" '
+        + '(0 scanned means no project is open, not that the phrase is absent). '
+        + '★Blocks that hold ONLY the built-in placeholder text are SKIPPED by default (reported as placeholderSkipped) — they are empty slots, not content; pass includePlaceholder:true to locate them. '
+        + 'Feed a hit\u2019s blockId straight into update_block, or its sectionId into get_canvas_state(sectionId).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'text to look for (substring, case-insensitive by default)' },
+          limit: { type: 'integer', description: 'max hits, 1..300 (default 50)' },
+          caseSensitive: { type: 'boolean', description: 'default false' },
+          wholeWord: { type: 'boolean', description: 'require a word boundary around the match (default false)' },
+          includePlaceholder: { type: 'boolean', description: 'default false. Blocks holding ONLY the built-in placeholder text ("소제목을 입력하세요" etc.) are EMPTY, not written — they are skipped and counted in placeholderSkipped. Set true to find WHERE the empty slots are.' },
+          expectedProject: { type: 'string' },
+        },
+        required: ['query'],
+        additionalProperties: false,
+      },
+    }
+  );
+
+  /* ─── edit_checklist_section — 체크리스트 «섹션» (2026-09-07 현빈 요청) ──────
+     현빈: 「투두 추가, 투두 완수/완료, 섹션명 지정. 핀은 없어도 된다」
+     ⇒ 추가·완료는 add/update_checklist_item 이 이미 한다. «섹션»만 없었다.
+     ⛔도구를 넷으로 흩지 않고 op 로 가른다(에셋 트리와 같은 모양). */
+  registerTool(
+    'edit_checklist_section',
+    async (args = {}) => {
+      const OPS = ['create', 'rename', 'delete', 'list'];
+      const op = args && args.op;
+      if (!OPS.includes(op)) return { ok: false, code: 'BAD_OP', message: 'op must be one of ' + OPS.join('|') };
+      if (['rename', 'delete'].includes(op) && !args.id) {
+        return { ok: false, code: 'INVALID', message: op + ' needs id (ck_xxx) — get it from op:"list"' };
+      }
+      if (args.id !== undefined && args.id !== null && (typeof args.id !== 'string' || !args.id.startsWith('ck_'))) {
+        return { ok: false, code: 'INVALID', message: `invalid id: ${args.id} — expected ck_xxx (a CHECKLIST section, not a canvas sec_)` };
+      }
+      if (['create', 'rename'].includes(op)) {
+        const nm = typeof args.name === 'string' ? args.name.trim() : '';
+        if (!nm) return { ok: false, code: 'INVALID', message: op + ' needs a non-empty name' };
+        if (nm.length > 100) return { ok: false, code: 'INVALID', message: 'name too long (>100)' };
+      }
+      /* ★지우기는 «사람 확인»을 여기서 받는다 — 에셋 삭제와 같은 규칙.
+         ⚠️단 여기는 «항목을 지우지 않는다»(앱 규칙: 섹션만 없어지고 항목은 «섹션 없음»으로 내려간다).
+           그 사실을 메시지에 적어 준다 — 「투두가 날아간다」고 오해하면 필요한 정리를 못 한다. */
+      if (op === 'delete' && args.confirm !== true) {
+        return { ok: false, code: 'CONFIRM_REQUIRED',
+          message: '섹션을 지우려면 confirm:true 를 같이 주세요 — 아무것도 지우지 않았습니다.',
+          hint: 'The TODOS SURVIVE — they just move out of the group (same as the app). Only the group disappears. Ask the user, then retry with confirm:true.' };
+      }
+      if (!_rendererInvoker?.checklistSection) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.checklistSection({ op, id: args.id, name: args.name });
+    },
+    {
+      description: 'Manage CHECKLIST sections — the groups in the Checklist panel that todos are filed under. '
+        + '★USE THIS (not add_section) when the user says "체크리스트에 <이름> 섹션/그룹을 만들어줘", '
+        + '"make a checklist section/group", "그룹으로 묶어줘" — add_section creates a CANVAS section on the page, '
+        + 'which is a completely different thing and will NOT show up in the Checklist panel. '
+        + 'op: list | create (name) | rename (id, name) | delete (id, confirm:true). '
+        + 'Ids are ck_xxx. ⚠️These are NOT canvas sections (sec_xxx) — different concept, similar name. '
+        + 'File a todo under one with add_checklist_item{ckSectionId} or update_checklist_item{ckSectionId}. '
+        + 'op:delete keeps the TODOS (they just leave the group) and removes only the group — same as the app. '
+        + 'Every op returns the full {sections:[{id,name,collapsed,count,doneCount}]} read back AFTER the write, '
+        + 'plus {section, stillExists} — so it reports what actually happened, not what you asked for.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          op: { type: 'string', enum: ['list', 'create', 'rename', 'delete'] },
+          id: { type: 'string', description: 'ck_xxx target section (rename/delete)' },
+          name: { type: 'string', description: 'section name (create/rename), ≤100 chars' },
+          confirm: { type: 'boolean', description: 'required (true) for op:delete. Todos survive; only the group is removed.' },
+          expectedProject: { type: 'string' },
+        },
+        required: ['op'],
+        additionalProperties: false,
+      },
     }
   );
 
@@ -2049,13 +2797,31 @@ function _registerDefaultTools() {
   // 만든 항목을 다시 찾을(그래서 update/delete할) 방법이 없었다.
   registerTool(
     'list_checklist_items',
-    async ({ includeDone = true, sectionId } = {}) => {
+    async ({ includeDone = true, sectionId, ckSectionId } = {}) => {
       if (typeof includeDone !== 'boolean') throw new Error('includeDone must be boolean');
+      /* ⛔★2026-09-07: 이 자리의 sectionId 필터는 «영원히 0건»이었다.
+           여기선 sec_ 만 받게 검사하는데, 항목이 저장하는 sectionId 는 «체크리스트 섹션»(ck_)이다.
+           ⇒ 접두가 겹칠 수가 없어 filter 가 항상 빈 배열을 준다.
+           「0건」이 「없다」로 읽히는 «가장 나쁜» 모양이라, 조용히 두지 않고 «거절»한다. */
       if (sectionId !== undefined && sectionId !== null) {
-        if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) throw new Error(`invalid sectionId: ${sectionId}`);
+        throw new Error('sectionId is not a filter here — checklist items are grouped by CHECKLIST sections (ck_xxx), not canvas sections (sec_xxx). Use ckSectionId instead. (Filtering by sectionId always returned 0 items; it was never a real filter.)');
+      }
+      if (ckSectionId !== undefined && ckSectionId !== null) {
+        if (typeof ckSectionId !== 'string' || !ckSectionId.startsWith('ck_')) throw new Error(`invalid ckSectionId: ${ckSectionId} — expected ck_xxx`);
       }
       if (!_rendererInvoker?.listChecklistItems) throw new Error('renderer bridge not ready');
-      return await _rendererInvoker.listChecklistItems({ includeDone, sectionId });
+      const items = await _rendererInvoker.listChecklistItems({ includeDone, sectionId: ckSectionId });
+      /* ★섹션 목록을 «같이» 준다 — 「섹션명 지정」을 하려면 ck_ id 가 있어야 하는데
+         그걸 얻으려고 도구를 한 번 더 부르게 하면 그 왕복에서 id 를 잃는다. */
+      let sections = null;
+      try {
+        if (_rendererInvoker?.checklistSection) {
+          const r = await _rendererInvoker.checklistSection({ op: 'list' });
+          if (r && Array.isArray(r.sections)) sections = r.sections;
+        }
+      } catch (_) { /* 섹션 조회 실패가 항목 조회를 죽이지 않는다 */ }
+      const base = (items && typeof items === 'object' && !Array.isArray(items)) ? items : { ok: true, items, count: Array.isArray(items) ? items.length : null };
+      return Object.assign({}, base, { sections });
     },
     {
       description: 'List checklist items (todos/pins) in the active project. Returns {ok, items:[{id,text,done,urgent,x,y,sectionId,createdAt,updatedAt}], count}. '
@@ -2698,6 +3464,197 @@ function _registerDefaultTools() {
         },
         required: ['blockId']
       }
+    }
+  );
+
+  /* ─── assets ★2026-09-07 신설 ─────────────────────────────────────────────
+     앱엔 에셋 IPC 가 5개 있는데 MCP 도구는 «0개»였다 — 「에셋 폴더 뭐 있어?」를 물을 수가 없었다.
+     ⛔파일 «내용»은 기본으로 안 싣는다(이미지 dataURL 이 응답에 실리면 대화가 터진다).
+       넣기는 기존 put_image(스크래치패드) 를 쓴다 — 여기서 두 번째 경로를 만들지 않는다. */
+  registerTool(
+    'list_asset_tree',
+    async () => {
+      if (!_rendererInvoker?.assetsTree) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.assetsTree();
+    },
+    {
+      description: 'List the Assets PANEL tree of the open project — folders, images and URLs as the user sees them '
+        + '(the names they typed, nesting, favorites). Returns {ok, count, items:[{id(ast_*), type, name, depth, '
+        + 'parentId, favorite, url?, hasSrc, blobPath, children}]}. '
+        + 'WARNING: this is NOT list_assets — that one lists raw files on disk (hashed filenames). '
+        + 'Use THIS when the user talks about the Assets panel. Image bytes/dataURLs are never included.',
+      inputSchema: { type: 'object', properties: { expectedProject: { type: 'string' } }, additionalProperties: false },
+    }
+  );
+
+  registerTool(
+    'edit_asset_tree',
+    async (args = {}) => {
+      if (!_rendererInvoker?.assetsMutate) throw new Error('renderer bridge not ready');
+      const OPS = ['createFolder', 'addUrl', 'addImage', 'rename', 'delete', 'move', 'sendToCanvas'];
+      const op = args && args.op;
+      if (!OPS.includes(op)) return { ok: false, code: 'BAD_OP', message: 'op must be one of ' + OPS.join('|') };
+      if (['rename', 'delete', 'move', 'sendToCanvas'].includes(op) && !args.id) {
+        return { ok: false, code: 'INVALID', message: op + ' needs id (ast_xxx) - get it from list_asset_tree' };
+      }
+      if (op === 'rename' && !args.name) return { ok: false, code: 'INVALID', message: 'rename needs name' };
+      /* ★삭제는 «사람 확인»을 여기서 받는다. 앱의 window.confirm 은 MCP 호출에선 렌더러를 막아
+         호출이 통째로 타임아웃난다(실측) ⇒ 확인을 «없애지 않고» 이 층으로 옮겼다. */
+      if (op === 'delete' && args.confirm !== true) {
+        return { ok: false, code: 'CONFIRM_REQUIRED',
+          message: '에셋을 지우려면 confirm:true 를 같이 주세요 — 아무것도 지우지 않았습니다.',
+          hint: 'DESTRUCTIVE. Ask the user first, then retry with confirm:true. NOTHING was deleted.' };
+      }
+      if (op === 'addUrl' && !args.url) return { ok: false, code: 'INVALID', message: 'addUrl needs url' };
+      /* ★addImage — 에셋 폴더에 «파일»을 등록한다. put_image(스크래치패드)와 «다른 것»이다.
+         ⛔크기 상한은 put_image 와 같은 자리에서 잰다(대화가 터지지 않게). */
+      if (op === 'addImage') {
+        const img = args.image;
+        if (typeof img !== 'string' || !/^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,/.test(img)) {
+          return { ok: false, code: 'INVALID',
+            message: 'addImage 는 image 가 data:image/<png|jpeg|gif|webp|svg+xml>;base64,<...> 여야 합니다.',
+            hint: 'File paths are not accepted — read the file and pass a data URL.' };
+        }
+        if (img.length > 7_000_000) {
+          return { ok: false, code: 'TOO_LARGE',
+            message: `image 가 너무 큽니다(${img.length} 자) — 약 5MB 까지입니다. 아무것도 등록하지 않았습니다.` };
+        }
+      }
+      return await _rendererInvoker.assetsMutate({
+        op, id: args.id, parentId: args.parentId, name: args.name,
+        url: args.url, title: args.title, note: args.note, sectionId: args.sectionId,
+        image: args.image,
+      });
+    },
+    {
+      description: 'Edit the Assets panel tree. op: createFolder (parentId?) | addUrl (url, title?, note?, parentId?) | '
+        + 'addImage (image=data URL, name?, parentId?) — REGISTERS AN IMAGE FILE into the project assets folder, '
+        + 'exactly like dropping a file on the Assets panel (this is NOT put_image, which only fills the scratch pad). '
+        + 'Afterwards use op:sendToCanvas with the returned assetId to place it on the canvas. | '
+        + 'rename (id, name) | delete (id) DESTRUCTIVE | move (id, parentId) | '
+        + 'sendToCanvas (id) — places that image onto the canvas (the panel arrow button). '
+        + 'Get ids from list_asset_tree. Returns {ok, treeCount, node, stillExists} — read back from the live tree '
+        + 'after the write, so it says what actually happened (not what you asked for).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          op: { type: 'string', enum: ['createFolder', 'addUrl', 'addImage', 'rename', 'delete', 'move', 'sendToCanvas'] },
+          image: { type: 'string', description: 'for op:addImage — data:image/<png|jpeg|gif|webp|svg+xml>;base64,<...> (file paths are NOT accepted), up to ~5MB' },
+          id: { type: 'string', description: 'ast_xxx target node' },
+          parentId: { type: 'string', description: 'ast_xxx destination folder' },
+          name: { type: 'string' }, url: { type: 'string' }, title: { type: 'string' }, note: { type: 'string' },
+          confirm: { type: 'boolean', description: 'required (true) for op:delete — the app would otherwise block on a dialog' },
+          sectionId: { type: 'string', description: 'sec_xxx — for op:sendToCanvas, the section to place the image into (required unless one is already selected)' },
+          expectedProject: { type: 'string' },
+        },
+        required: ['op'],
+        additionalProperties: false,
+      },
+    }
+  );
+
+  registerTool(
+    'list_assets',
+    async (args = {}) => {
+      if (!_rendererInvoker?.assetsList) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.assetsList({ projectId: args.projectId });
+    },
+    {
+      description: 'List the RAW FILES on disk under a project assets/ folder (hashed filenames). '
+        + 'WARNING: NOT the Assets panel tree - for what the user sees there use list_asset_tree. '
+        + 'Returns {ok, projectId, dir, count, items:[{blobPath, name, bytes, ext, modifiedAt}]}. '
+        + 'projectId defaults to the open project. ⚠️Returns metadata only — NOT the image bytes '
+        + '(use the blobPath with the app UI, or put_image to add new ones via the scratch pad). '
+        + 'If the folder does not exist yet the call still succeeds with items:[] and says so.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string', description: 'proj_xxx — defaults to the open project' },
+          expectedProject: { type: 'string' },
+        },
+        additionalProperties: false,
+      },
+    }
+  );
+
+  /* ─── grid-block ★2026-09-07 신설 ───────────────────────────────────────
+     앱엔 `window.addGridBlock`/`updateGridBlock` 이 검증까지 갖춰 있는데 MCP 도구가 «없었다».
+     ⇒ 사용자가 「그리드에 글 넣어줘」 하면 클로드가 «그런 기능 없습니다»라고 답했다(실측).
+     ⛔여기서 다시 검증하지 «않는다» — 앱이 정본이다(cols 1~4·rows·cells·gap·valign).
+       두 곳에서 검증하면 둘이 어긋나는 날이 온다. 여기선 «넘기고, 결과를 읽어» 돌려준다. */
+  registerTool(
+    'add_grid_block',
+    async (args = {}) => {
+      if (!_rendererInvoker?.addGridBlock) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.addGridBlock({
+        sectionId: args.sectionId, cols: args.cols, rows: args.rows,
+        cells: args.cells, gap: args.gap, valign: args.valign,
+      });
+    },
+    {
+      description: 'Add a grid block (grd_xxx) — a column grid (1~4 columns × rows) where each cell holds text. '
+        + 'cols = column widths (array, 1~4). rows = row heights ([{height:"auto"|number}]). '
+        + 'cells = cell contents, row-major. gap = px between cells. valign = top|middle|bottom. '
+        + 'Returns {ok, blockId(grd_), cols, cellCount} — cellCount is READ BACK from the canvas, not echoed from the args. '
+        + '⚠️Legacy projects store the same block with a duo_ prefix (renamed); reading handles both.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx to insert into (else uses selected section)' },
+          cols: { type: 'array',
+            description: 'columns — 1~4 entries, each {width:number, lines:[{type:"body"|"h1".., text:"..."}]}. '
+              + '★이것이 «행 0» 이다. 셀 글은 lines[].text 에 들어간다.' },
+          rows: { type: 'array', description: 'row heights — [{height:"auto"|0~N}]' },
+          cells: { type: 'array',
+            description: '★2차원 배열 (행 × 열) — «행 0 포함». 평평한 배열을 주면 «행 N개»로 읽힌다(실측으로 데었다). '
+              + '각 칸은 {lines:[{type,text}]} 꼴. 행이 모자라면 rows 를 «같은 호출»에서 같이 줘야 한다.' },
+          gap: { type: 'number', description: 'gap between cells (px)' },
+          valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+          expectedProject: { type: 'string', description: 'proj_xxx — refuse if a different project is open' },
+        },
+        additionalProperties: false,
+      },
+    }
+  );
+
+  registerTool(
+    'update_grid_block',
+    async (args = {}) => {
+      if (!_rendererInvoker?.updateGridBlock) throw new Error('renderer bridge not ready');
+      const { blockId, expectedProject, ...partial } = args || {};
+      if (!blockId || typeof blockId !== 'string') {
+        return { ok: false, code: 'INVALID', message: 'blockId (grd_xxx) is required' };
+      }
+      if (!Object.keys(partial).length) {
+        return { ok: false, code: 'NOTHING_TO_DO',
+          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / valign' };
+      }
+      return await _rendererInvoker.updateGridBlock({ blockId, partial });
+    },
+    {
+      description: 'Edit an EXISTING grid block (grd_xxx or legacy duo_xxx) — partial update. '
+        + 'Structure fields are exclusive, pass ONE: cols (replace all) | patchCol {index,...} | '
+        + 'rows (replace all) | cells (replace all, row-major) | patchCell {r,c,...}. '
+        /* ★patchCell 은 «자리»가 둘이다 — lineIndex 유무로 갈린다. 여기 안 적으면 부르는 쪽이
+           한 번 실패해야 안다(거절 메시지가 알려주긴 하지만, 그건 «두 번째» 기회다). */
+        + 'patchCell has TWO modes: with lineIndex → patches ONE line (text, type, fontSize, color, '
+        + 'weight, align, bg, fontFamily, italic, strike, marginTop, ...); without lineIndex → patches '
+        + 'the CELL (lines, align, valign, bg, padding, radius). Column width goes through patchCol. '
+        + '⛔Unknown field names are REJECTED, not silently ignored — the renderer would never read them. '
+        + 'Also: gap, valign. Returns {ok, cellCount, cellTexts} — ★cellTexts is READ BACK from the canvas '
+        + 'after the write, so it tells you what actually landed (not what you asked for).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId: { type: 'string', description: 'grd_xxx (or legacy duo_xxx)' },
+          cols: { type: 'array' }, patchCol: { type: 'object' },
+          rows: { type: 'array' }, cells: { type: 'array' }, patchCell: { type: 'object' },
+          gap: { type: 'number' }, valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+          expectedProject: { type: 'string' },
+        },
+        required: ['blockId'],
+        additionalProperties: false,
+      },
     }
   );
 
@@ -3800,7 +4757,11 @@ function _registerDefaultTools() {
         type: 'object',
         properties: {
           blockId: { type: 'string', description: 'gb_xxx (gap block id)' },
-          height: { type: 'integer', minimum: 0, maximum: 400, description: 'Gap height in px (0–400). style.height + dataset.h 동시 갱신.' }
+          /* ⛔★2026-09-09 실측: 렌더러 상한이 400 → 1000 으로 올랐는데(ac9ce2b, js/blocks/gap-limits.js)
+               «여기»가 안 따라와 MCP 로는 401 부터 거부됐다. 사용자는 패널에서 1000 을 넣는데 AI 는 못 넣는다.
+             ★그 커밋의 주석이 「여섯 군데에 흩어져 있었다」며 «MCP updateGapBlock 검증»을 그 하나로 꼽아 뒀는데,
+               정작 이 스키마는 안 고쳐졌다 — 「단일 진실원을 만들었다」와 「모두가 그걸 본다」는 다른 문장이다. */
+          height: { type: 'integer', minimum: 0, maximum: 1000, description: 'Gap height in px (0–1000). style.height + dataset.h 동시 갱신.' }
         },
         required: ['blockId']
       }
@@ -6173,6 +7134,71 @@ function _diagnoseUnstorable(src, field) {
   return why('SRC_NOT_STORABLE', '저장 소비자가 읽을 수 있는 형태가 아닙니다.');
 }
 
+/* ★로컬 이미지 «파일 경로» → dataURL. put_image(path) 전용. (2026-09-10 현빈 발주)
+ *
+ * ★왜 필요한가: 클로드앱에 이미지를 «첨부»하면 모델은 그림을 «볼» 뿐 원본 바이트를 못 얻는다.
+ *   그래서 「이 이미지 넣어줘」가 원리적으로 불가능했다 — 모델이 헤매다 응답이 끊겼다(현빈 실측).
+ *   ⇒ 경로를 받아 «앱이 직접» 읽는다. 데이터가 모델 컨텍스트를 통과하지 않는다.
+ *
+ * ⛔새 검사기를 짓지 않는다 — 여기서는 «읽어서 dataURL 로 만들 뿐»이고,
+ *   온전성·형식 판정은 기존 _assertImageSrcIntact 가 그대로 한다(매직바이트·구조까지 본다).
+ *   ★그래서 「.png 로 이름만 바꾼 남의 파일」도 그 검사기에서 NOT_AN_IMAGE 로 걸린다.
+ *
+ * ★방어선 셋(순서대로 — 싼 것부터, 그리고 «읽기 전»에 거른다):
+ *   ⑴ 홈 디렉토리 «아래»만        — /etc/passwd 같은 곳을 원천 차단. 심링크는 realpath 로 편 뒤 본다
+ *   ⑵ 앞 12바이트가 «이미지 매직» — 아니면 전체를 읽지도 않는다
+ *   ⑶ 크기 상한                   — 기존 _PUT_IMAGE_MAX 와 «같은 자» (base64 환산)
+ */
+function _imageFileToDataUrl(filePath, maxB64Chars) {
+  if (typeof filePath !== 'string' || !filePath.trim()) {
+    throw new Error('path must be a non-empty string');
+  }
+  const home = os.homedir();
+  let abs = filePath.trim();
+  if (abs === '~') abs = home;
+  else if (abs.startsWith('~/')) abs = path.join(home, abs.slice(2));
+  abs = path.resolve(abs);
+
+  let st;
+  try { st = fs.statSync(abs); }
+  catch (_) { throw new Error(`file not found: ${abs}`); }
+  if (!st.isFile()) throw new Error(`not a file: ${abs}`);
+
+  /* ⑴ ★심링크를 «편 뒤에» 홈 아래인지 본다 — 안 그러면 홈 안의 링크로 밖을 읽는다. */
+  let real;
+  try { real = fs.realpathSync(abs); } catch (_) { real = abs; }
+  const homeReal = (() => { try { return fs.realpathSync(home); } catch (_) { return home; } })();
+  if (real !== homeReal && !real.startsWith(homeReal + path.sep)) {
+    throw new Error(`path outside home directory is not allowed: ${real}`);
+  }
+
+  /* ⑶ 크기 — base64 는 원본의 4/3 이다. 기존 상한과 «같은 자»를 쓴다. */
+  const maxBytes = Math.floor((maxB64Chars * 3) / 4);
+  if (st.size > maxBytes) {
+    throw new Error(`image file too large (${st.size} bytes > ${maxBytes} ≈ ${Math.round(maxBytes / 1048576)}MB). `
+      + '줄여서 다시 주세요 — 우리가 임의로 축소하지 않습니다.');
+  }
+  if (st.size === 0) throw new Error(`empty file: ${real}`);
+
+  /* ⑵ ★앞머리만 읽어 «이미지인지» 먼저 본다. 아니면 전체를 안 읽는다. */
+  const head = Buffer.alloc(Math.min(12, st.size));
+  const fd = fs.openSync(real, 'r');
+  try { fs.readSync(fd, head, 0, head.length, 0); } finally { fs.closeSync(fd); }
+  const hit = _IMG_SNIFF.find(e => e.sig.every((b, i) => head[i] === b));
+  if (!hit) {
+    const got = Array.from(head.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+    throw new Error(`not an image file — 앞 바이트 [${got}]. `
+      + 'png/jpeg/gif/webp 만 받습니다(확장자가 아니라 «내용»으로 판정합니다).');
+  }
+  /* ★webp 는 RIFF 로만 판정하면 wav·avi 도 걸린다 — 8~12바이트가 'WEBP' 인지 마저 본다. */
+  if (hit.fmt === 'webp' && head.slice(8, 12).toString('ascii') !== 'WEBP') {
+    throw new Error('not an image file — RIFF 컨테이너지만 WEBP 가 아닙니다.');
+  }
+
+  const b64 = fs.readFileSync(real).toString('base64');
+  return { dataUrl: `data:${hit.mime};base64,${b64}`, resolvedPath: real, bytes: st.size, format: hit.mime };
+}
+
 function _assertImageSrcIntact(src, field = 'image') {
   if (typeof src !== 'string' || !src) return { checked: 'skipped:not-a-string' };
   /* ★들어오는 문은 «느슨하게», 통과하는 문은 «엄격하게».
@@ -6705,7 +7731,13 @@ function _validateGapOpts(args, { mode } = {}) {
     out[key] = n;
   };
 
-  _int('height', 0, 400);
+  /* ⛔★2026-09-09: «진짜 문지기»는 여기다. 스키마(maximum)만 고치면 못 넘는다 —
+       스키마는 «설명»이고 이 함수가 «집행»한다. 실제로 스키마를 1000 으로 고쳤는데도
+       401 이 `height > 400` 으로 거부됐고, 그 문구가 이 줄에서 나왔다.
+     ★렌더러 정본은 js/blocks/gap-limits.js 의 GAP_MAX(=1000). 여기가 그걸 따라가야 한다.
+       ⇒ 검사 gap-max-mcp-follows.test.js 가 «정본에서 값을 읽어» 세 자리(스키마·설명·인라인)와
+         이 집행값을 대조한다. 손으로 두 번 적지 않는다. */
+  _int('height', 0, 1000);
 
   return out;
 }
@@ -7257,7 +8289,26 @@ async function _handleRpc(msg) {
       return ok({
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: SERVER_INFO
+        serverInfo: SERVER_INFO,
+        /* ★MCP 의 initialize.instructions — 클라이언트가 «시스템 프롬프트 힌트»로 쓰는 자리.
+             여기 한 번 적으면 도구마다 반복하지 않아도 된다.
+           ★★실측했다(2026-09-08, Claude Desktop): **이 앱은 instructions 를 모델에게 «안 넘긴다».**
+             측정: 앱을 재시작해 연결을 갱신한 뒤 모델에게 「네 지침에 goditor 문구가 있나」를 물었다.
+               → 모델이 인용한 것은 전부 «도구 설명»이었고, 여기 적은 'open_project first' 는
+                 「보이지 않는다」고 명시했다.
+             ★양성대조로 «연결이 갱신됐음»을 먼저 확인했다 — 오늘 만든 edit_checklist_section·
+               search_sections 는 「예」, 오늘 숨긴 add_banner_block 은 「아니오」.
+               (이걸 안 했으면 「낡은 목록」과 「instructions 미지원」을 구분 못 했다.)
+           ⇒ 그러므로 도구 설명의 ⚠TARGET 접미사를 «빼면 안 된다». 대신 «짧게» 줄였다.
+           ⇒ instructions 자체는 남긴다 — 다른 클라이언트는 쓸 수 있고, initialize 는 대화마다가
+             아니라 «연결마다» 한 번이라 비용이 사실상 0이다. */
+        instructions:
+          'goditor edits ONE project at a time — the ACTIVE project. '
+          + 'Most editing tools are refused until that project was confirmed with open_project in this session; '
+          + 'read-only tools (list_projects, get_canvas_state, read_section, search_sections, list_* ) are not. '
+          + 'So: open_project first, then edit. '
+          + 'Responses are read back from the live canvas, so treat what a tool returns as what actually happened — '
+          + 'not as an echo of your arguments.'
       });
     }
 
@@ -7284,7 +8335,10 @@ async function _handleRpc(msg) {
         list.push({
           name,
           description: (schema.description || '')
-            + (_gated ? ' ⚠TARGET=the ACTIVE project: refused unless it was confirmed (open_project) in this session.' : ''),
+            /* ★접미사는 24개 도구에 붙는다 — 한 글자가 24배로 곱해진다.
+               옛 문장 92자 → 44자. 뜻(«활성 프로젝트를 건드린다 · open_project 먼저»)은 그대로다.
+               실측: 24 × 48자 = 1,152자 절약(목록의 2.9%, ~290 토큰/대화). */
+            + (_gated ? _TARGET_NOTE : ''),
           inputSchema: schema.inputSchema || { type: 'object', properties: {} },
           ...(includeHidden && hiddenTools.has(name) ? { hidden: true } : {})
         });
@@ -7316,9 +8370,242 @@ async function _handleRpc(msg) {
        *   개별 도구 문자열은 손대지 않는다(다이어트 때와 같은 «디스패처 일괄» 패턴). */
       /* ★응답도 «유저 토큰»이다. pretty-print(들여쓰기 2칸)는 같은 정보에 15~25% 를 더 물린다.
        *   compact JSON 은 정보 손실 0 이라 그냥 이득이다(클라이언트는 JSON 으로 파싱한다). */
-      const _reply = (r) => ok({ content: [{ type: 'text', text: JSON.stringify(r) }], isError: false });
+      /* ★★도구 «원장» — 2026-09-07 신설(H4). 현빈 보안 논의에서 나온 첫 항목.
+         왜: 브리지 로그는 `method="tools/call"` «횟수»만 남긴다(실측 426건). 도구명도 인자도
+         호출자도 «없다» ⇒ 사고가 나도 「무엇이 새어나갔나」를 답할 수 없다.
+         고디터는 데이터가 «전부 로컬»이라 되물을 서버가 없다 — 원장이 유일한 사후 근거다.
+         ⛔값은 안 적는다(PII·본문 유출). «이름»과 «크기»만. 그거면 세는 데 충분하다. */
+      const _auditStart = Date.now();
+      const _audit = (outcome, extra) => {
+        try {
+          const dir = _stateDir();   // 이미 있는 헬퍼를 쓴다(경로 규칙을 두 벌로 만들지 않는다)
+          fs.mkdirSync(dir, { recursive: true });
+          const a = args || {};
+          fs.appendFileSync(path.join(dir, 'tool-audit.jsonl'), JSON.stringify({
+            at: new Date().toISOString(), tool: name, outcome,
+            argKeys: Object.keys(a).sort(),                       // ⛔이름만. 값은 «안» 적는다
+            argBytes: (() => { try { return JSON.stringify(a).length; } catch (_) { return null; } })(),
+            target: a.projectId || a.sectionId || a.blockId || a.id || null,  // 대상 id 는 «추적»에 필요하다
+            activeProject: (() => { try { return _activeProjectId(); } catch (_) { return null; } })(),
+            ms: Date.now() - _auditStart,
+            ...(extra || {}),
+          }) + '\n');
+        } catch (_) { /* 원장 실패가 도구를 막지 않는다 */ }
+      };
+
+      const _reply = (r) => {
+        /* ★경고 단계에서는 «조용히» 버리지 않고 한 줄을 붙인다 — 그게 이 결함의 핵심 피해다.
+           ⛔기존 키는 안 건드린다(응답 «모양»을 바꾸면 다른 측정이 오염된다). 없던 키만 더한다.
+           그리고 «인자가 깨끗하면 아무것도 안 붙는다» — 정상 응답은 바이트 하나 안 늘어난다. */
+        // ⛔블록 도구는 이미 `warnUnknown` 이 `ignoredProps`/`hint` 로 «같은 말»을 한다.
+        //   두 번 말하면 「어느 쪽이 맞나」가 생긴다 ⇒ 저쪽이 이미 말했으면 나는 «침묵»한다.
+        if (r && typeof r === 'object' && !Array.isArray(r) && !r.ignoredProps
+            && !_ARG_FORWARDERS.has(name) && _unknown.length && !_strictArgs()) {
+          try { r = { ...r, warnings: [...(r.warnings || []), _unknownArgWarning(name, _unknown)] }; }
+          catch (_) { /* 경고 실패가 응답을 막지 않는다 */ }
+        }
+        const _text = JSON.stringify(r);
+        /* ★★원장에 «응답 크기»를 적는다 (2026-09-08).
+             ⛔지금까지 원장은 argBytes(보낸 양)만 셌다 — 그런데 토큰을 먹는 건 «돌아오는 양»이다.
+               ⇒ 「토큰이 녹았다」는 말이 나와도 «어느 도구가 얼마나» 먹었는지 답할 수가 없었다.
+             실측(2026-09-08, 실물 102섹션): get_canvas_state 한 번이 ~2,700 토큰,
+               get_block_schema(canvas) 한 번이 ~3,000 토큰. 이게 본체다.
+             ⛔글자수만 적는다 — 내용은 안 적는다(원장 규약: 값 금지). */
+        try { _audit(r && r.ok === false ? 'refused' : 'ok',
+                     Object.assign({ resultChars: _text.length },
+                                   r && r.code ? { code: r.code } : null)); } catch (_) {}
+        return ok({ content: [{ type: 'text', text: _text }], isError: false });
+      };
+      /* ★«스키마에 없는 인자»를 여기 «한 자리»에서 다룬다 (2026-09-07 g-mcpmgr).
+       *
+       * 무엇이 문제였나: 도구 33/33(노출 기준) 전부가 inputSchema 에 `additionalProperties` 를
+       *   안 걸어 뒀고, 핸들러는 구조분해로 받아 나머지를 «말없이» 버린다.
+       *   ⇒ 오타·환각 인자가 조용히 사라지고 `ok` 가 돌아간다. 실측: update_section({sectionId,
+       *      name:'새이름'}) 이 아무 말 없이 성공했다 — 「기능 부재」가 「조용한 거짓 성공」이 된다.
+       *   양성대조: 필수 인자를 빼면 18/18 제대로 거절한다 ⇒ 서버는 «검사할 줄 안다, 안 하는 것뿐»이다.
+       *
+       * ⛔그런데 «바로 거절»로 가지 않는다. 세어 봤기 때문이다(지디 조건 1 — 「없을 것이다」 금지):
+       *   계약 픽스처 84건 중 «스키마에 없는 인자»를 주는 호출이 **3건** 있었다.
+       *     update_card_block   {cards}  ← 핸들러가 안 쓴다(진짜 군더더기)
+       *     update_scratch_item {name}   ← 핸들러가 안 쓴다(진짜 군더더기)
+       *     ★update_text_block  {text}   ← **핸들러가 «먹는다». 스키마에만 없다**(선언 안 된 별칭)
+       *   실측: update_text_block 에 text 로도 content 로도 넣어 봤고 «둘 다» editTextBlock 까지 갔다.
+       *   ⇒ ★지금 거절로 켜면 «오늘 도는 호출»이 깨진다. 그래서 기본은 «경고»다.
+       *   ⇒ 그리고 더 큰 이유: **인자 단위 원장이 «없었다»** — 브리지 로그는
+       *      `params { metadata: undefined }` 라 무슨 인자가 왔는지 아무 데도 안 남는다.
+       *      「실제 트래픽에 몇 건이냐」를 «셀 수가 없었다». 이 줄이 그 원장을 만든다.
+       *   ⇒ 원장이 쌓여 「진짜 별칭」이 스키마에 선언되고 나면 STRICT 로 뒤집는다(2단계, 지디 게이트).
+       * ⚠️이 판정은 «스키마 대비»다 — 핸들러가 실제로 먹는 것과 다를 수 있고(위 text 가 그 예다)
+       *   그 어긋남 자체가 여기 원장에 잡힌다. 그게 이 장치의 두 번째 값어치다. */
+      const _unknown = _unknownArgKeys(name, args);
+      if (_unknown.length) {
+        _recordUnknownArgs(name, _unknown, Object.keys(args || {}));
+        // ⛔전달자에는 STRICT 도 안 건다 — «거짓 거절»은 «거짓 경고»보다 나쁘다(동작을 막는다).
+        if (_strictArgs() && !_ARG_FORWARDERS.has(name)) return _reply(_unknownArgRefusal(name, _unknown));
+      }
       /* ★프로젝트 «싱크» 게이트 — 대상이 확정 안 된 쓰기는 «실행 전에» 거절한다(_projectGate 주석 참고).
        *   여기가 유일한 배선 자리다: 도구를 새로 더해도 _TARGET_FREE 에 안 적으면 «자동으로» 게이트를 탄다. */
+      /* ★★로그인 게이트를 «가장 먼저» 건다(현빈 지시). 프로젝트 확정 게이트보다 «앞»이다 —
+         로그인이 없으면 어느 프로젝트인지 따질 이유도 없다.
+         ⛔단 «순수 진단»은 통과시킨다: 로그인 상태를 물어볼 통로까지 막으면 클로드가
+           「왜 안 되는지」조차 못 알아낸다(막힌 이유를 «말할 수 있어야» 한다). */
+      const _authRefusal = _AUTH_FREE.has(name) ? null : _authGate(name);
+      if (_authRefusal) return _reply(_authRefusal);
+      /* ★★「바꿨다」를 «되읽어» 대조하는 관문 (2026-09-07).
+         ⛔왜: 앱의 update_* 들이 `applied` 를 «인자에서» 만든다(실측 93곳).
+           그래서 못 바꿔도 「바꿨다」고 말한다 — `update_section{name}` 이 실제로 그랬고,
+           나는 그걸 「됐다」로 읽고 커밋했다. 「rc=0 ≠ 눌렸다」의 MCP 판본이다.
+         ⇒ 93곳을 하나씩 고치는 대신 «여기 한 자리»에서 쓰고 나서 블록을 다시 읽어 대조한다.
+           ★구조가 검사보다 강하다 — 새 update 도구가 늘어도 «자동으로» 이 관문을 지난다.
+         ⛔거짓 «빨강»을 만들지 않는다: 값이 정규화되는 경우가 흔하므로(20 → "20px", #FFF → rgb(...))
+           «느슨한» 비교로 어긋남을 찾고, 어긋나면 «거절»이 아니라 `verify` 로 «알린다».
+           판정은 사람과 모델이 한다 — 여기서 막으면 정상 동작까지 죽는다. */
+      const _verifyApplied = async (r) => {
+        try {
+          if (!r || r.ok === false) return r;
+          /* ⛔옛 조건 `^update_.*_block$` 은 «update_block» 을 «안» 잡았다 (2026-09-07 실측: verify:null).
+               그게 통합 도구라 제일 많이 쓰이는 이름인데, 관문이 그것만 비껴갔다.
+               ⇒ 「검사가 초록이다」 이전에 «검사가 돌기는 하나»를 먼저 재라. */
+          if (!/^update_/.test(name)) return r;
+          const bid = args && (args.blockId || args.sectionId);
+          if (!bid || !_rendererInvoker?.readBlockState) return r;
+          const st = await _rendererInvoker.readBlockState({ blockId: String(bid) });
+          if (!st) {
+            return Object.assign({}, r, { ok: false, code: 'GONE_AFTER_WRITE',
+              error: `${name} 뒤에 ${bid} 를 다시 못 찾았습니다 — 「바꿨다」를 믿지 마세요.` });
+          }
+          const said = (r && typeof r.applied === 'object' && r.applied) || null;
+          if (!said) return Object.assign({}, r, { verified: { readBack: true } });
+          const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/px$/, '').replace(/\s+/g, '');
+          /* ★색은 «표기»가 갈린다: 우리는 #ff0000 을 보내고 화면은 rgb(255,0,0) 를 돌려준다.
+             표기가 다르다고 「안 먹었다」로 읽으면 거짓 빨강이다 ⇒ 한 모양(rgb 3튜플)으로 맞춰 비교한다. */
+          const rgb = (v) => {
+            const t = String(v == null ? '' : v).trim().toLowerCase();
+            let m = t.match(/^#([0-9a-f]{3})$/);
+            if (m) return m[1].split('').map(c => parseInt(c + c, 16)).join(',');
+            m = t.match(/^#([0-9a-f]{6})$/);
+            if (m) return [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)).join(',');
+            m = t.match(/^rgba?\(([^)]+)\)$/);
+            if (m) return m[1].split(',').slice(0, 3).map(x => parseInt(x.trim(), 10)).join(',');
+            return null;   // 못 알아보는 표기는 «못 잰» 것으로 둔다
+          };
+          /* ★★「검사가 초록이다」는 «검사가 본 범위»와 같이 적어야 뜻이 있다.
+             ⛔옛 판은 «못 잰» 키까지 checked 에 넣고 ok:true 를 냈다 — 실측: content 를 바꾸면
+               dataset 에 content 가 없어 대조를 «건너뛰고» verify:{ok:true, checked:['content']} 를 줬다.
+               읽는 쪽은 「내용이 확인됐다」로 읽는다. 그건 거짓 초록이다.
+             ⇒ 잰 것(checked)과 «못 잰 것»(notChecked)을 갈라 적는다. 하나도 못 쟀으면 ok 를 «안» 준다. */
+          const TEXTISH = new Set(['content', 'text', 'title', 'label', 'name']);
+          const mismatch = {}; const checked = []; const notChecked = {};
+          for (const k of Object.keys(said)) {
+            const want = said[k];
+            if (want == null || typeof want === 'object') { notChecked[k] = '배열·객체는 이 관문이 안 본다'; continue; }
+            const got = st.dataset[k];
+            if (got !== undefined) {
+              checked.push(k);
+              if (norm(got) !== norm(want)) mismatch[k] = { said: want, actual: got, via: 'dataset' };
+              continue;
+            }
+            /* ★글자류는 dataset 이 아니라 «화면 글자»에 산다 — readBlockState 가 text 를 이미 준다.
+               (현빈이 제일 많이 시키는 일이 「이 텍스트를 이걸로 바꿔줘」다. 그게 안 재지고 있었다.) */
+            if (TEXTISH.has(k) && typeof st.text === 'string') {
+              checked.push(k);
+              if (!norm(st.text).includes(norm(want))) {
+                mismatch[k] = { said: want, actual: String(st.text).slice(0, 120), via: 'innerText' };
+              }
+              continue;
+            }
+            /* ★계산된 스타일로 잴 수 있는 것 — dataset 에 안 살 뿐 «화면엔 있다» */
+            const CSSMAP = { fontSize: 'fontSize', align: 'textAlign', textAlign: 'textAlign',
+                             color: 'color', fontWeight: 'fontWeight', bgColor: 'backgroundColor' };
+            const ck = CSSMAP[k];
+            /* ★바깥·안쪽 «둘 다» 본다 — 스타일은 안쪽 자식에 붙는다(.tb-body).
+               ⛔바깥만 보면 「applied 가 거짓말한다」는 «거짓 빨강»이 난다(2026-09-07 실제로 냈다). */
+            const outer = st.computed && st.computed[ck];
+            const inner = st.computedInner && st.computedInner[ck];
+            if (ck && (outer != null || inner != null)) {
+              checked.push(k);
+              const w = norm(want);
+              const cands = [outer, inner].filter(v => v != null).map(norm);
+              const a = cands.includes(w) ? w : (norm(inner != null ? inner : outer));
+              /* 숫자는 단위가 붙어 온다(40 vs 40px) — norm 이 px 를 떼므로 그대로 비교된다.
+                 색은 표기가 갈린다(#fff vs rgb(255,255,255)) — «어긋났다»고 단정하지 않고 못 잰 것으로 둔다. */
+              const colorish = /^(color|bgColor)$/.test(k);
+              if (colorish) {
+                const wr = rgb(want);
+                const cr = [outer, inner].filter(v => v != null).map(rgb).filter(Boolean);
+                if (wr == null || !cr.length) {
+                  checked.pop();
+                  notChecked[k] = '색 표기를 못 알아봐 대조 불가 — 어긋났다는 뜻이 아니다';
+                } else if (!cr.includes(wr)) {
+                  mismatch[k] = { said: want, actual: (inner != null ? inner : outer), via: 'computed(rgb)' };
+                }
+              } else if (a !== w) {
+                mismatch[k] = { said: want, actual: (inner != null ? inner : outer), via: 'computed' };
+              }
+              continue;
+            }
+            notChecked[k] = 'dataset 에도 없고 글자류·스타일도 아니라 대조할 자리가 없다';
+          }
+          if (Object.keys(mismatch).length) {
+            return Object.assign({}, r, {
+              verify: {
+                ok: false, checked, notChecked,
+                note: '★응답의 applied 와 «화면의 실제 값»이 다릅니다 — 「바꿨다」를 그대로 믿지 마세요.',
+                mismatch,
+              },
+            });
+          }
+          if (!checked.length) {
+            /* ⛔「어긋난 게 없다」를 「확인했다」로 쓰지 않는다 — 한 개도 못 쟀으면 «못 잰» 것이다. */
+            return Object.assign({}, r, {
+              verify: { ok: null, measured: false, checked: [], notChecked,
+                        note: '★되읽기는 했지만 «대조할 수 있는 값이 없었다» — 확인된 게 아닙니다.' },
+            });
+          }
+          return Object.assign({}, r, { verify: { ok: true, checked, notChecked } });
+        } catch (_) { return r; }   // ⛔관문이 도구를 죽이지 않는다(진단은 편의, 동작이 우선)
+      };
+
+      /* ★★«이 프레임 안에 넣어줘» — parentId 를 받는 자리 (2026-09-07).
+         ⛔예전엔 parentId·frameId 를 «6가지 이름으로» 줘도 전부 조용히 무시하고 ok 를 돌려줬다.
+         ⇒ 앱의 window._activeFrame 을 «세우고» 도구를 돌린 뒤 «반드시» 원복한다.
+           원복을 빠뜨리면 사람이 다음에 만드는 블록이 엉뚱한 프레임 안으로 들어간다. */
+      const _withParent = async (run) => {
+        const wantsParent = /^add_(block|.*_block)$/.test(name) && args && args.parentId;
+        if (!wantsParent || !_rendererInvoker?.setActiveFrame) return await run();
+        const set = await _rendererInvoker.setActiveFrame({ frameId: String(args.parentId) });
+        if (!set || set.ok === false) {
+          return { ...set, ok: false, tool: name,
+            error: (set && set.message) || 'parentId 를 못 세웠습니다 — 아무것도 안 넣었습니다.',
+            hint: 'NOTHING was added. Pick a layout frame (get its id from get_canvas_state — blocks carry parentId/depth).' };
+        }
+        try {
+          const r = await run();
+          /* ★「정말 그 안에 들어갔나」를 «되읽어» 말한다 — 인자를 되읊지 않는다 */
+          /* ★「정말 그 안에 들어갔나」를 «화면에서» 읽어 말한다 — 인자를 되읊지 않는다.
+             실측: 텍스트는 자기 텍스트프레임으로 감싸여 «형제»로 들어가는데, 인자를 되읊으면
+             「그 안에 넣었다」고 거짓말이 된다(내가 그렇게 만들었다가 잡았다). */
+          try {
+            const bid = r && (r.blockId || Object.entries(r).find(([k, v]) => k.toLowerCase().endsWith('blockid') && typeof v === 'string')?.[1]);
+            if (bid && _rendererInvoker.whereIsBlock) {
+              const w = await _rendererInvoker.whereIsBlock({ blockId: bid, expectAncestor: String(args.parentId) });
+              if (w && w.found) {
+                if (w.insideExpected) return { ...r, placedInto: String(args.parentId), ancestors: w.chain };
+                return { ...r, ok: false, code: 'NOT_PLACED_INSIDE',
+                  error: `${bid} 는 ${args.parentId} «안»에 안 들어갔습니다 — 실제 부모는 ${w.parentId || '(섹션)'} 입니다.`,
+                  hint: 'The block WAS created, but not inside the frame you asked for (text blocks get wrapped in their own frame). Delete it or move it if that is wrong.',
+                  actualParent: w.parentId, ancestors: w.chain };
+              }
+            }
+          } catch (_) {}
+          return r;
+        } finally {
+          /* ★pin:false — «핀을 걷는» 원복이다. 그냥 prev 를 다시 세우면 핀이 다시 깔려
+               앱이 그 프레임에 갇힌다(사람 클릭이 안 먹는다). */
+          try { await _rendererInvoker.setActiveFrame({ frameId: set.prev || null, pin: false }); } catch (_) {}
+        }
+      };
+
       const _gateRefusal = _projectGate(name, args);
       if (_gateRefusal) return _reply(_gateRefusal);
       /* ★open_project 가 성공하면 «그 대화 동안» 확정으로 남긴다(sticky). 실패(load_timeout 등)면 안 남긴다 —
@@ -7326,7 +8613,7 @@ async function _handleRpc(msg) {
       const _noteConfirmed = (r) => {
         try {
           if (name === 'open_project' && r && r.ok !== false) {
-            _confirmedProject = (r.activeProjectId || r.projectId) || null;
+            _setConfirmed((r.activeProjectId || r.projectId) || null);
           }
         } catch (_) {}
         return r;
@@ -7344,6 +8631,14 @@ async function _handleRpc(msg) {
           if (t && t.ok !== false && !t.empty && t.seq != null && t.seq !== _before) {
             _lastMcpSeqFrom = _before;   // 호출 «전» 꼭대기
             _lastMcpSeq = t.seq;         // 호출 «후» 꼭대기
+            /* ★갭 «감수 패스» 예약. ⛔이 줄은 «여기»여야 한다 — 이유 둘:
+               ⑴tools/call 은 아래에서 _SWITCH_EXEMPT / _serializeCall «두 갈래»로 갈리는데
+                 둘 다 _noteSeq 를 지난다. 갈래 한쪽에 넣으면 다른 쪽이 «조용히» 샌다.
+               ⑵「캔버스가 실제로 바뀌었나」를 «도구 이름표»가 아니라 «히스토리 꼭대기가
+                 움직였나»로 판정한다 — 이름 목록은 도구가 늘 때마다 썩는다.
+                 (실측 2026-09-07: 이름으로 걸었더니 open_project 가 감수를 불러
+                  «프로젝트를 열기만 해도» 남의 갭을 고쳐 쓸 뻔했다.) */
+            _scheduleSpacingAudit(name);
           }
         } catch (_) { /* 추적 실패는 편집을 막지 않는다 — undo 가 NOT_OURS 로 안전측 거절한다 */ }
         return r;
@@ -7354,17 +8649,32 @@ async function _handleRpc(msg) {
         try { const b = await _rendererInvoker.historyTip(); if (b && b.ok !== false) _before = (b.empty || b.seq == null) ? 0 : b.seq; } catch (_) {}
       }
       if (_SWITCH_EXEMPT.has(name)) {
-        return _reply(_noteConfirmed(await _noteSeq(_enrichApiMissing(await handler(args)))));
+        /* ★쓰고 나서 «되읽어» 대조한다 — _verifyApplied 주석 참고 */
+        return _reply(_noteConfirmed(await _verifyApplied(await _noteSeq(_enrichApiMissing(await _withParent(() => handler(args)))))));
       }
       return await _serializeCall(async () => {
         const blocked = await _awaitSwitchIdle(name, _SWITCH_QUEUE_MAX_MS);
         if (blocked) return _reply(blocked);
-        return _reply(_noteConfirmed(await _noteSeq(_enrichApiMissing(await handler(args)))));
+        /* ★쓰고 나서 «되읽어» 대조한다 — _verifyApplied 주석 참고 */
+        return _reply(_noteConfirmed(await _verifyApplied(await _noteSeq(_enrichApiMissing(await _withParent(() => handler(args)))))));
       });
     }
 
     return err(-32601, `method not found: ${method}`);
   } catch (e) {
+    /* ★★예외로 죽은 호출이 원장에 «안 남고» 있었다 (2026-09-07 실측).
+         원장의 outcome 은 ok 666 · refused 20 «둘뿐»이었다 — 「터진 것」은 0건이다.
+         그래서 원장만 보면 「전부 잘 됐다」로 읽힌다. ⛔안 잰 것은 «없는 것»이 된다.
+       ⇒ 여기서 error 를 남긴다. 도구 이름을 알 수 있으면 같이 적는다. */
+    try {
+      const _n = (params && params.name) || (typeof method === 'string' ? method : null);
+      /* ★「터졌다」만 적으면 «어디서»를 다시 재현해야 한다(2026-09-07 실제로 그러느라 한참 걸렸다).
+           스택 앞 세 줄을 같이 적는다 — 파일·줄·함수이름뿐이라 ⛔인자 값은 안 들어간다(원장 규약 유지). */
+      const _where = String((e && e.stack) || '').split('\n').slice(1, 4)
+                       .map(l => l.trim().replace(/^at /, '')).join(' | ').slice(0, 300) || null;
+      _appendAudit({ tool: _n, outcome: 'error', code: 'EXCEPTION',
+                     message: String((e && e.message) || e).slice(0, 200), where: _where });
+    } catch (_) {}
     return err(-32000, e.message || String(e));
   }
 }
@@ -7421,6 +8731,23 @@ function _createServer() {
         activeProject: _fromBrowser ? undefined
           : (() => { try { return _activeProjectId(); } catch (_) { return null; } })(),
         tokenFile: _fromBrowser ? undefined : _tokenFilePath,
+        /* ★계정별 프로젝트 격리가 걸렸는지 — 「0건」을 «격리»와 «고장»으로 가르는 표식.
+           지문은 계정키의 해시 8자다(이메일도 계정키도 여기 안 싣는다).
+           브라우저 경계는 위와 같다 — 신원 표식이라 Origin 있는 요청엔 안 준다. */
+        ...(_fromBrowser ? {} : (() => {
+          try {
+            const a = (typeof _authProbe === 'function') ? _authProbe() : null;
+            if (!a || a.accountScoped === undefined) return {};
+            /* ⛔필드를 «만들고 배선을 안 하면» 진단이 조용히 사라진다 —
+                 실제로 accountUnresolved 를 main.js 에 넣고 여기서 안 실어 undefined 였다.
+                 ★「0건」이면 「못 잰 것 아닌가」부터 의심하라는 그 규칙이 «필드»에도 적용된다. */
+            return {
+              accountScoped: !!a.accountScoped,
+              accountUnresolved: !!a.accountUnresolved,   // 「계정을 못 알아냈다」 — 격리 폴더에 있다
+              accountFingerprint: a.accountFingerprint || null,
+            };
+          } catch (_) { return {}; }
+        })()),
         ...(_fromBrowser ? { note: 'cross-origin caller: activeProject/tokenFile omitted' } : {})
       }));
       return;
@@ -7443,7 +8770,10 @@ function _createServer() {
       req.on('end', async () => {
         try {
           const msg = body ? JSON.parse(body) : {};
-          const result = await _handleRpc(msg);
+          /* ★호출자 식별 — 예전엔 Mcp-Session-Id 가 CORS 허용 목록에만 있고 «읽는 코드가 0건»이었다.
+             그래서 확정(sticky)이 호출자를 못 가르고 프로세스 전체가 한 칸을 썼다. */
+          const _cid = String(req.headers['mcp-session-id'] || '').slice(0, 128) || 'anon';
+          const result = await _callerCtx.run(_cid, () => _handleRpc(msg));
           res.writeHead(200, { 'Content-Type': 'application/json' });
           // notification은 null → 빈 객체로 반환
           res.end(JSON.stringify(result === null ? {} : result));
@@ -7544,6 +8874,13 @@ function setProjectOps(ops) {
 }
 
 module.exports = {
+  // ★계정별 프로젝트 뿌리 주입 — 경로 조립기를 둘로 만들지 않기 위한 것
+  setProjectsRoot,
+  /* ⚠️검사 전용 — «폴백이 격리를 되돌리는지»는 이 두 함수를 직접 흔들어야 잰다.
+     도구 경유로는 그 경로에 못 닿아서(read_project 는 활성 프로젝트만 본다) 검사가 장식이 된다. */
+  __test_getProjectsDir: _getProjectsDir,
+  __test_readProjectFile: _readProjectFile,
+  setAuthProbe,
   startMcpServer,
   stopMcpServer,
   registerTool,

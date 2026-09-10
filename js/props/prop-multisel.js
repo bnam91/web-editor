@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { alignBtn } from './_helpers.js';
 
 /* ═══════════════════════════════════
    FREELAYOUT MULTI-SELECT PANEL
@@ -17,7 +18,8 @@ function _getSelectedFrameWrappers() {
     '.icon-text-block.selected, .shape-block.selected, ' +
     // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel
     '.iconify-block.selected, .chat-block.selected, .gradient-block.selected, ' +
-    '.sticker-block.selected, .laurel-block.selected';
+    // ★확대블럭도 «플로팅»이라 sticker 와 같은 자리다(absolute → wrapper=자기 자신 분기를 탄다).
+    '.sticker-block.selected, .zoom-block.selected, .laurel-block.selected';
 
   const blocks = [...document.querySelectorAll(BLOCK_SEL)];
   const wrappers = new Set();
@@ -258,49 +260,13 @@ export function showFreeLayoutMultiSelPanel() {
     <div class="prop-section">
       <div class="prop-section-title">Align</div>
       <div class="prop-row" style="gap:3px;justify-content:space-between;">
-        <button class="msp-align-btn" data-align="left"    title="왼쪽 정렬">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="2" y1="1" x2="2" y2="13"/>
-            <rect x="3" y="3" width="5" height="3" rx="0.5"/>
-            <rect x="3" y="8" width="8" height="3" rx="0.5"/>
-          </svg>
-        </button>
-        <button class="msp-align-btn" data-align="hcenter" title="가운데 정렬 (수평)">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="7" y1="1" x2="7" y2="13"/>
-            <rect x="3.5" y="3" width="7" height="3" rx="0.5"/>
-            <rect x="2" y="8" width="10" height="3" rx="0.5"/>
-          </svg>
-        </button>
-        <button class="msp-align-btn" data-align="right"   title="오른쪽 정렬">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="12" y1="1" x2="12" y2="13"/>
-            <rect x="6" y="3" width="5" height="3" rx="0.5"/>
-            <rect x="3" y="8" width="8" height="3" rx="0.5"/>
-          </svg>
-        </button>
+        ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { 'data-align': 'left' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { 'data-align': 'hcenter' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', attrs: { 'data-align': 'right' }, base: 'msp-align-btn' })}
         <div style="width:1px;background:var(--ui-border);height:20px;flex-shrink:0;"></div>
-        <button class="msp-align-btn" data-align="top"     title="위쪽 정렬">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="2" x2="13" y2="2"/>
-            <rect x="3" y="3" width="3" height="5" rx="0.5"/>
-            <rect x="8" y="3" width="3" height="8" rx="0.5"/>
-          </svg>
-        </button>
-        <button class="msp-align-btn" data-align="vcenter" title="가운데 정렬 (수직)">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="7" x2="13" y2="7"/>
-            <rect x="3" y="3.5" width="3" height="7" rx="0.5"/>
-            <rect x="8" y="2" width="3" height="10" rx="0.5"/>
-          </svg>
-        </button>
-        <button class="msp-align-btn" data-align="bottom"  title="아래쪽 정렬">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="12" x2="13" y2="12"/>
-            <rect x="3" y="6" width="3" height="5" rx="0.5"/>
-            <rect x="8" y="3" width="3" height="8" rx="0.5"/>
-          </svg>
-        </button>
+        ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', attrs: { 'data-align': 'top' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', attrs: { 'data-align': 'vcenter' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', attrs: { 'data-align': 'bottom' }, base: 'msp-align-btn' })}
       </div>
     </div>
   `;
@@ -359,13 +325,16 @@ window.hasFreeLayoutMultiSel = hasFreeLayoutMultiSel;
    FLOW(세로 스택) MULTI-SELECT PANEL  (B15/B18)
 ═══════════════════════════════════ */
 
-// editor.js:348 FLOW_BLOCK_SEL_SELECTED와 동일 셀렉터 — SSOT
-const FLOW_SEL =
-  '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, ' +
-  '.table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
-  '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
-  '.mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, ' +
-  '.laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
+/* ★SSOT 는 js/editor.js 의 FLOW_BLOCK_SEL_SELECTED «하나»다 — 여기는 «읽기»만 한다.
+ *   ⛔예전엔 같은 목록을 리터럴로 한 벌 더 갖고 있었고 «둘 다» 주석에 「SSOT」라 적혀 있었다.
+ *     확대블럭이 한쪽에만 들어가서, 2개 선택하면 _countFlowMultiSel()=2 로 패널은 열리는데
+ *     _getSelectedFlowBlocks()=0 이라 «아무것도 안 그리고 조용히 return» 하는 결함이 났다
+ *     (지디 실측 2026-09-08). 사본이 둘이면 다음 블록에서 또 난다 ⇒ 사본을 없앤다.
+ *   ⚠️로드 순서상 이 파일이 editor.js 보다 «먼저» 실행된다 — 그래서 모듈 최상단이 아니라
+ *     «호출 시점»에 읽는다. 못 읽으면 던지지 말고 빈 목록으로 떨어뜨린다(패널만 안 뜬다). */
+function _flowSel() {
+  return (typeof window !== 'undefined' && window.FLOW_BLOCK_SEL_SELECTED) || null;
+}
 
 // editor.js _isInFreeLayout 역미러: freeLayout 래퍼 밖(=플로우)만 true
 function _isFlowBlock(b) {
@@ -375,7 +344,9 @@ function _isFlowBlock(b) {
 }
 
 function _getSelectedFlowBlocks() {
-  return [...document.querySelectorAll(FLOW_SEL)].filter(_isFlowBlock); // DOM 순서 보존
+  const sel = _flowSel();
+  if (!sel) return [];   // editor.js 가 아직 안 올라왔다 — 던지지 않는다
+  return [...document.querySelectorAll(sel)].filter(_isFlowBlock); // DOM 순서 보존
 }
 
 export function hasFlowMultiSel() {
@@ -435,6 +406,7 @@ function _applyFlowDistribute(blocks) {
   gaps.forEach(g => {
     g.style.height = avg + 'px';
     if (g.dataset) g.dataset.height = String(avg);
+    window.markGapManual?.(g);   // ⓓ 사람이 «분배»로 정한 높이 — 갭 감수가 되돌리지 않는다
   });
   window.pushHistory?.('세로 분배');
   showFlowMultiSelPanel();
@@ -490,15 +462,9 @@ export function showFlowMultiSelPanel() {
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group">
-          <button class="prop-align-btn" data-align="left"   title="왼쪽 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="2" x2="1" y2="12"/><rect x="3" y="4" width="5" height="6" rx="1"/></svg>
-          </button>
-          <button class="prop-align-btn" data-align="center" title="가운데 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="7" y1="2" x2="7" y2="12"/><rect x="3" y="4" width="8" height="6" rx="1"/></svg>
-          </button>
-          <button class="prop-align-btn" data-align="right"  title="오른쪽 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="13" y1="2" x2="13" y2="12"/><rect x="6" y="4" width="5" height="6" rx="1"/></svg>
-          </button>
+          ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { 'data-align': 'left' } })}
+          ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { 'data-align': 'center' } })}
+          ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', attrs: { 'data-align': 'right' } })}
         </div>
       </div>
     </div>

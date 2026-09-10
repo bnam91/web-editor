@@ -788,6 +788,27 @@ function _hex6(v) {
   return '#000000';
 }
 
+/** raw 색값에서 «보여 줄 hex» 를 뽑는다 — 스와치와 <input type="color"> 가 읽을 수 있는 형태.
+ *  ⚠️저장된 색은 hex 만이 아니다: 컬러변수 칩은 `var(--color-x, #hex)` 를, alpha 조절은 `rgba(...)`
+ *    를 넣는다. 그 raw 를 hex 칸에 그대로 꽂으면 「VAR(--COLOR…」가 글자로 뜨고
+ *    <input type="color"> 는 값을 못 읽어 «검정»으로 죽는다(prop-modal 실측 2026-09-08).
+ *  ★var() 는 «폴백 hex» = 그 변수의 현재 색으로 푼다. 바인딩 정보는 raw dataset 이 따로 갖는다.
+ *  ⛔패널마다 자기 벌을 만들지 마라 — 이 레포는 그 병(사본 11벌)으로 이미 앓았다. */
+export function swatchHex(v, fallback = '#000000') {
+  const s = String(v || '').trim();
+  const m6 = s.match(/#([0-9a-fA-F]{6})\b/);
+  if (m6) return '#' + m6[1].toLowerCase();
+  const m3 = s.match(/#([0-9a-fA-F]{3})\b/);
+  if (m3) return '#' + m3[1].toLowerCase().split('').map((ch) => ch + ch).join('');
+  const rgb = s.match(/rgba?\(([^)]+)\)/i);
+  if (rgb) {
+    const p = rgb[1].split(',').map((x) => parseInt(x, 10));
+    const to = (n) => Math.max(0, Math.min(255, n | 0)).toString(16).padStart(2, '0');
+    return '#' + to(p[0]) + to(p[1]) + to(p[2]);
+  }
+  return fallback;
+}
+
 export function parseAlphaFromColor(cssColor) {
   const v = String(cssColor || '').trim().toLowerCase();
   // 빈값/transparent는 alpha 0으로 인식 (기존엔 100을 반환해 hex만 보고 적용 불가)
