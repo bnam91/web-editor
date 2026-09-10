@@ -1021,11 +1021,26 @@ ipcMain.handle('auth:google-login', async () => {
     const gapplied = entitlement.applyServerAnswer(grec, v, { now: Date.now(), keys: entKeys(), C: entitlement.CONSTANTS });
     _noteServer(gapplied.diag);
     if (!gapplied.clear && gapplied.record) grec = gapplied.record;
-    writeAuth(grec);
-    /* ★next = 추가정보(휴대전화·약관동의)가 아직 안 채워진 계정. 앱 «안»에서 받지 않는다 —
-       약관 링크가 필요해서다(규격서 §1). 브라우저로 열어 사람이 채우게 한다. */
+    /* ★★next = 추가정보(휴대전화·약관동의)가 «아직 안 채워진» 계정 — 가입이 안 끝났다.
+         앱 «안»에서 받지 않는다(약관 링크가 필요해서다, 규격서 §1). 브라우저로 열어 사람이 채우게 한다.
+       ⛔★그리고 «저장하지 않는다» — 2026-09-10 지디 발주.
+         왜: 화면(license.html)이 next 면 navigateToProjects() 를 «안 부르게» 됐다(먼저 들어간 고침).
+             ⇒ 그 자리에선 못 넘어간다. ★그런데 writeAuth 는 6필드
+               (email·plan·accessUntil·sessionToken·savedAt·signed)만 담고 `next` 를 «안 담는다».
+               그래서 부팅 판정(authVerdict → entitlement.classify)이 「가입이 안 끝났다」를 «알 길이 없다»
+             ⇒ ★앱을 껐다 켜면 checkAuthAndLoad 가 저장된 인증으로 «그냥» 들여보낸다. 화면만 막으면 반쪽이다.
+         ⇒ 저장을 «미룬다». 사람이 브라우저에서 채우고 «다시 로그인»하면 그때 next 가 안 오고,
+           그 호출이 정상적으로 저장한다.
+       ⛔writeAuth 도 entitlement.classify 도 «한 글자도» 안 고쳤다 — «부르지 않을 뿐»이다.
+         (지디: 「막으려던 건 세션·토큰 «로직»을 다시 쓰는 것이지 저장 «시점»을 옮기는 것이 아니다」)
+       ⛔저장 «형식»에 next 필드를 더하는 길은 «안 갔다» — entitlement 는 서명·판정 핵심이고
+         릴리스 근처에서 손댈 자리가 아니다.
+       ★여기가 «구글 로그인 성공» 경로 하나뿐이다 — 다른 writeAuth 넷(:613 :790 :801 :1012)은
+         다른 길이라 기존 회원의 자동 로그인·이미 저장된 인증에 손대지 않는다(전수 확인 + 실측). */
     if (r.next) {
       try { shell.openExternal(AUTH_API_BASE + r.next); } catch (_) {}
+    } else {
+      writeAuth(grec);
     }
     return {
       ok: true, email: grec.email, plan: grec.plan, next: r.next || '',
