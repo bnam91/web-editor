@@ -1373,10 +1373,21 @@ test('ⓑ-19b ★⑧이 «새로 여는 경계» — 플로팅은 삽입 기준�
   const d = SRC.dragu;
   assert.equal(/\.zoom-block\.selected/.test(d), false,
     '플로팅인데 삽입 기준점 목록에 남아 있다 — 형제 블록이 흐름 밖으로 샌다');
-  /* ★대조 — «같은 토큰 형태»로 잰다. 다른 형태로 재면 0 이 「없다」가 아니라 「못 쟀다」다.
-     흐름 계열(laurel)은 이 목록에 있고, 플로팅 계열(sticker·gradient)은 없다. */
-  assert.ok(/\.laurel-block\.selected/.test(d), '전제: 흐름 계열은 이 목록에 있다(자가 도는지 확인)');
   assert.equal(/\.sticker-block\.selected/.test(d), false, '전제: 플로팅 계열은 이 목록에 없다');
+  /* ★계기를 옮겼다 (2026-09-10) — 이 판정은 이제 «명부»가 아니라 «성질»이다.
+     insertAfterSelected 가 modal·mockup·joker 를 명부에서 빠뜨려 g 가 갭을 엉뚱한 데 붙이던 병을
+     고치며 목록을 통째로 걷어냈다(drag-utils.isFlowAnchorBlock). 그래서 옛 양성대조였던
+     `.laurel-block.selected` 는 «있을 수가 없다» — 대조를 다른 토큰으로 옮긴다.
+     ⛔대조를 «지우지» 마라. 대조 없이 「없다」만 재면 0 이 「없다」가 아니라 「못 쟀다」다. */
+  assert.ok(/\.shape-block\.selected/.test(d),
+    '전제: 같은 토큰 형태가 이 파일에 실재한다(컨테이너 특례) — 정규식이 자가 도는지 확인');
+  /* ★그리고 «판정 자체»가 플로팅을 튕기는 근거 둘이 살아 있어야 한다.
+     ⑴ 인라인 position:absolute 배제  ⑵ .section-inner 안으로 한정(섹션 직속 플로팅 배제) */
+  assert.ok(/'absolute'[\s\S]{0,40}'fixed'/.test(d),
+    '성질 판정에서 «인라인 absolute/fixed 배제»가 사라졌다 — 플로팅이 기준점이 된다');
+  assert.ok(/'\.section-inner \.selected'/.test(d),
+    '성질 판정에서 «.section-inner 한정»이 사라졌다 — 섹션 직속 플로팅이 기준점이 된다');
+  // 세부 계약은 tests/unit/insert-anchor-property.test.mjs 가 전수로 잠근다.
 });
 
 test('ⓐ-24 ★⑧좌표 경계 — x/y 가 깨져도 NaN 이 새지 않는다', async () => {
