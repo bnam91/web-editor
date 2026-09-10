@@ -595,11 +595,16 @@
     btn.innerHTML = label;
 
     if (result && result.ok) {
-      /* next = 추가정보 미기입 계정. main 이 이미 브라우저로 그 페이지를 열었다 —
-         여기선 «왜 브라우저가 또 떴는지»만 알려준다(안 알리면 사고로 보인다). */
-      setStatus(statusEl, result.next
-        ? '로그인 완료! 추가 정보를 브라우저에서 입력해 주세요.'
-        : '로그인 완료! 잠시 후 이동합니다...', 'success');
+      /* ★next = 추가정보(휴대전화·약관) 미기입 = «가입 미완» 계정.
+         ⛔들여보내지 않는다 — navigateToProjects 를 «부르지 않고» 로그인 화면에 머문다.
+         이걸 통과시키면 「가입 안 했는데 그냥 들어와진다」가 된다(현빈 지적).
+         main 이 이미 브라우저로 추가정보 페이지를 열었다 → 사람이 거기서 마친 뒤
+         이 화면에서 «다시» 구글 로그인을 누르면(버튼은 위에서 이미 재활성화됨) next 없이 통과한다. */
+      if (result.next) {
+        setStatus(statusEl, '가입이 아직 끝나지 않았습니다. 브라우저에서 추가 정보(휴대전화·약관)를 입력한 뒤 «다시 로그인»해 주세요.', 'info');
+        return;
+      }
+      setStatus(statusEl, '로그인 완료! 잠시 후 이동합니다...', 'success');
       setTimeout(() => { api.navigateToProjects(); }, 600);
       return;
     }
