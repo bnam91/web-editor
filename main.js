@@ -93,7 +93,13 @@ if (typeof _authService.applyRuntime === 'function') {
   try { _pkg2 = app.isPackaged; } catch (_) { _pkg2 = false; }
   _authService.applyRuntime({ isPackaged: _pkg2 });
 }
-const { login: authLogin, verifySession: authVerifySession, urlIsLive: authUrlIsLive, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL, API_BASE: AUTH_API_BASE } = _authService;
+const { login: authLogin, verifySession: authVerifySession, goditorUse: authGoditorUse, urlIsLive: authUrlIsLive, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL, API_BASE: AUTH_API_BASE } = _authService;
+/* ★로그인 성공 신호(fire-and-forget). ⛔await 하지 않는다 — 이 신호가 늦거나 실패해도
+     로그인은 이미 끝난 뒤라야 한다(2026-09-11 지디 발주). 두 로그인 경로(이메일·구글)의
+     «진짜 성공» 지점(= writeAuth 가 실제로 도는 자리)에서만 부른다 — next 대기·만료 분기는 제외. */
+function _notifyGoditorUse(sessionToken) {
+  try { authGoditorUse(sessionToken).catch(() => {}); } catch (_) {}
+}
 /* ★자격증명 판정의 SSOT. 이 파일에는 «판정 규칙»을 두지 않는다 — 규칙이 둘이 되면 갈라진다.
    여기가 하는 일은 「디스크·네트워크·화면을 그 답에 «배선»하는 것」뿐이다. */
 const entitlement = require('./services/entitlement');
@@ -788,6 +794,7 @@ ipcMain.handle('auth:login', async (_event, email, password) => {
     _noteServer(applied.diag);
     if (!applied.clear && applied.record) rec = applied.record;
     writeAuth(rec);
+    _notifyGoditorUse(rec.sessionToken);
     // 세션토큰은 반환하지 않는다(렌더러 노출 최소화).
     return {
       ok: true, email: rec.email, plan: rec.plan,
@@ -1041,6 +1048,7 @@ ipcMain.handle('auth:google-login', async () => {
       try { shell.openExternal(AUTH_API_BASE + r.next); } catch (_) {}
     } else {
       writeAuth(grec);
+      _notifyGoditorUse(grec.sessionToken);   // ★가입 미완(next)에는 안 보낸다 — 아직 «로그인 성공»이 아니다
     }
     return {
       ok: true, email: grec.email, plan: grec.plan, next: r.next || '',

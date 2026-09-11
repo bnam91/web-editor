@@ -36,13 +36,14 @@ function segOf(src) {
 function run(rNext, src = MAIN) {
   const seg = segOf(src);
   if (!seg) throw new Error('구간을 못 떠냈다 — 하네스가 부서졌다');
-  let saved = 0, opened = 0;
-  new Function('r', 'v', 'entitlement', '_noteServer', 'writeAuth', 'shell', 'AUTH_API_BASE', 'entKeys', seg)(
+  let saved = 0, opened = 0, notified = 0;
+  new Function('r', 'v', 'entitlement', '_noteServer', 'writeAuth', 'shell', 'AUTH_API_BASE', 'entKeys', '_notifyGoditorUse', seg)(
     { email: 'x@y.z', token: 't', next: rNext },
     { plan: 'pro', accessUntil: '2027-01-01' },
     { applyServerAnswer: (rec) => ({ clear: false, record: rec, diag: {} }), CONSTANTS: {} },
-    () => {}, () => { saved++; }, { openExternal: () => { opened++; } }, 'https://x/', () => ({}));
-  return { saved, opened };
+    () => {}, () => { saved++; }, { openExternal: () => { opened++; } }, 'https://x/', () => ({}),
+    () => { notified++; });   // ★2026-09-11 지디 발주 — 이 검사는 그 신호를 재는 게 아니라 스텁만 준다
+  return { saved, opened, notified };
 }
 
 test('W0 ★「입력이 살아 있다」 — 저장 구간을 실제로 떠냈다', () => {
@@ -56,17 +57,21 @@ test('W1 ★next 가 «있으면» 저장하지 않는다 (앱을 껐다 켜도 
   assert.equal(r.saved, 0,
     `★가입 미완인데 writeAuth 가 ${r.saved}번 불렸다 — 재시작하면 그냥 들어간다`);
   assert.equal(r.opened, 1, '추가정보 페이지를 안 열었다 — 사용자가 어디서 채우는지 모른다');
+  // ★2026-09-11 지디 발주 — 가입 미완은 «로그인 성공»이 아니다. 사용 신호도 같이 안 나가야 한다.
+  assert.equal(r.notified, 0, '가입 미완인데 goditor-use 신호가 나갔다 — next 대기엔 보내면 안 된다');
 });
 
 test('W2 ★[양성대조] next 가 «없으면» 저장한다 — 기존 회원을 막으면 «전원 재로그인» 사고다', () => {
   const r = run('');
   assert.equal(r.saved, 1, `★기존 회원인데 writeAuth 가 ${r.saved}번 — 다음에 자동 로그인이 깨진다`);
   assert.equal(r.opened, 0, '기존 회원인데 브라우저를 열었다');
+  assert.equal(r.notified, 1, '★진짜 로그인 성공인데 goditor-use 신호가 안 나갔다 — writeAuth 와 짝이 깨졌다');
 });
 
 test('W2b [양성대조] next 키가 «아예 없어도» 저장한다 (서버가 필드를 안 줄 때)', () => {
   const r = run(undefined);
   assert.equal(r.saved, 1, 'next 필드가 없는데 저장을 안 했다 — 옛 서버 응답에서 잠긴다');
+  assert.equal(r.notified, 1, 'next 필드가 없는데 goditor-use 신호가 안 나갔다');
 });
 
 test('W3 ★writeAuth «함수 자체»는 안 고쳤다 — 6필드 그대로', () => {
@@ -92,7 +97,10 @@ test('W5 ★[⑷ 핵심] 남의 길의 writeAuth 는 «그대로 남아 있다»
 });
 
 test('W6 [변이] 저장 미루기를 되돌리면 W1 이 «실제로» 빨개진다', () => {
-  const mutated = MAIN.replace(/\}\s*else\s*\{\s*writeAuth\(grec\);\s*\}/, '}\n    writeAuth(grec);');
+  /* ★else 블록 «안쪽»(writeAuth 바로 뒤에 뭐가 있는지)에 앵커를 걸지 않는다 —
+     그러면 그 안에 문장이 하나 늘 때마다(예: 이 신호 호출) 이 검사 자체가 부서진다.
+     대신 «조건»을 죽여 else 가 항상 타게 만든다 — 안쪽 내용이 뭐든 이걸로 충분하다. */
+  const mutated = MAIN.replace('if (r.next) {', 'if (false && r.next) {');
   assert.notEqual(mutated, MAIN, '★하네스가 부서졌다 — 변이 앵커를 못 찾았다');
   const r = run('/signup/extra', mutated);
   assert.ok(r.saved > 0,
