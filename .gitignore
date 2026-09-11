@@ -14,3 +14,10 @@ claude-talk-to-figma-mcp/
 .tasks/
 
 .claude/worktrees/
+
+# 재생성물 — 커밋하지 않는다 (2026-09-12)
+# ⚠️build/ 전체나 build/*.png 로 넓히지 «말 것» — build/icon.png · icon-master-1024.png ·
+#   gdt-icon-1024.png 은 «추적 중인 앱 아이콘»이다. 아래는 QA 렌더 산출물만 좁게 가린다.
+.DS_Store
+build/render_qa_*.png
+build/patena_*.png
