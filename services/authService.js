@@ -76,7 +76,7 @@ let _packaged = true;
 /** @returns {boolean} 이 실행이 「배포본」인가 (dev = false) */
 function isPackaged() { return _packaged; }
 
-let API_BASE, LOGIN_URL, SESSION_URL, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL;
+let API_BASE, LOGIN_URL, SESSION_URL, GODITOR_USE_URL, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL;
 
 /** 주소 하나에서 파생 URL 전부를 다시 만든다. ⛔여기 말고 다른 데서 조립하지 마라. */
 function _recompute(base) {
@@ -86,6 +86,9 @@ function _recompute(base) {
   // "판단 불가"로 처리하고 로컬 캐시를 그대로 신뢰한다(=오프라인 유예와 동일 경로).
   // 백엔드가 이 엔드포인트를 열면 코드 수정 없이 갱신이 살아난다.
   SESSION_URL = `${API_BASE}/api/license/session`;
+  // ★로그인 성공 «신호»용(2026-09-11 지디 발주). 판정에 쓰지 않는다 — 실패해도 로그인은 이미 끝난 뒤다.
+  //   서버 스위치가 꺼져 있으면 {ok:true, recorded:false, reason:'not_enabled'} 로 온다 — 이게 정상이다.
+  GODITOR_USE_URL = `${API_BASE}/api/license/goditor-use`;
   SIGNUP_URL  = `${API_BASE}/signup.html`;
   PRICING_URL = `${API_BASE}/pricing.html`;
   // 계정 찾기.
@@ -295,9 +298,28 @@ async function verifySession(email, sessionToken) {
   return { ok: false, reason: j.reason || 'unknown', plan: j.plan || '', ...accessUntilField(j), ...signedField(j) };
 }
 
+/**
+ * 로그인 성공 «직후» 보내는 사용 신호(fire-and-forget) — 2026-09-11 지디 발주.
+ * ★판정에 안 쓴다. 이 호출이 실패해도 로그인은 이미 끝나 있어야 한다(호출부가 안 막는다).
+ * ⛔throw 하지 않는다 — 네트워크 실패·타임아웃·형식 오류 전부 여기서 삼킨다.
+ * @returns {Promise<object|null>} 서버 응답 JSON 그대로(예: {ok:true, recorded:false, reason:'not_enabled'})
+ *   또는 null(네트워크 실패 등 — 무시해도 된다. «에러»가 아니라 «몰라도 그만»인 신호이기 때문이다)
+ * @param {string} sessionToken
+ */
+async function goditorUse(sessionToken) {
+  if (!sessionToken) return null;
+  try {
+    const r = await postJson(GODITOR_USE_URL, { sessionToken, kind: 'use' });
+    return r.json || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 module.exports = {
   login,
   verifySession,
+  goditorUse,
   resolveApiBase,
   applyRuntime,
   isPackaged,
