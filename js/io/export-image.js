@@ -255,11 +255,11 @@ export async function prepareCloneForCapture(sec, w, useNative) {
   clone.classList.remove('selected', 'sec-bg-editing');
   // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 내보내기 오염 방지)
   clone.querySelectorAll(
-    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected, .bn2-line-selected, .bn2-line-empty, .grd-line-selected'
+    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected, .bn2-line-selected, .bn2-line-empty, .grd-line-selected, .stb-line-selected, .stb-step-selected'
   ).forEach(el => {
     el.classList.remove('selected', 'img-editing', 'editing', 'dragging',
       'group-selected', 'group-editing', 'ss-drag-over', 'drag-over', 'item-selected', 'bn2-line-selected', 'bn2-line-empty',
-      'grd-line-selected');
+      'grd-line-selected', 'stb-line-selected', 'stb-step-selected');
   });
   // CDP captureBeyondViewport로 off-screen 좌표도 캡쳐 가능 — clone을 화면 밖에 두어
   // export 중 사용자 화면에 큰 박스가 튀어나오는 "ghosting" 현상 제거
@@ -333,8 +333,8 @@ export function renderComponentsInClone(clone) {
       if (_cmp._cmpRO) { _cmp._cmpRO.disconnect(); _cmp._cmpRO = null; }
     }
   }
-  clone.querySelectorAll('.bn2-line-selected, .bn2-line-empty, .grd-line-selected').forEach(_el =>
-    _el.classList.remove('bn2-line-selected', 'bn2-line-empty', 'grd-line-selected'));
+  clone.querySelectorAll('.bn2-line-selected, .bn2-line-empty, .grd-line-selected, .stb-line-selected, .stb-step-selected').forEach(_el =>
+    _el.classList.remove('bn2-line-selected', 'bn2-line-empty', 'grd-line-selected', 'stb-line-selected', 'stb-step-selected'));
   clone.getBoundingClientRect();
 }
 

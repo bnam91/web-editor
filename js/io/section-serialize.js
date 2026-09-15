@@ -31,6 +31,7 @@
     'selected', 'cell-selected', 'ci-selected', 'ci-active', 'row-active',
     'bn2-line-selected', 'grd-line-selected',   // ★RE 가 이미 잡는다. 「현재 무엇이 있나」를 사람이 읽으라고 남긴다
     'bn2-line-empty',                            // 빈 줄 플레이스홀더 (편집 전용)
+    'stb-step-selected',                         // 스텝 마커의 «옛 이름» — 규칙 밖 이름이라 저장본에 샜다(2026-09-15). 새 이름 stb-line-selected 는 RE 가 잡는다
     'editing', 'img-editing', 'sec-bg-editing', 'group-selected', 'group-editing',
     'dragging', 'ss-drag-over', 'drag-over', 'hovered',
   ];
