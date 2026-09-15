@@ -1777,6 +1777,11 @@ textarea.cvb-card-input {
   outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .step-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+/* ⑨ 캔버스에서 «지금 우측 패널이 보고 있는 스텝» 표시 — 선택 토큰 재사용(bn2-line-selected 선례와 동일) */
+.step-block .stb-step-selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: 2px;
+}
 
 /* ── Chat Block ─────────────────────────────────────────────────────────────── */
 .chat-block {
