@@ -131,6 +131,14 @@
         window.clearAssetImage?.(ab);
       });
       ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; window.bindBlock?.(b); });
+      /* ★최초 업로드 경로(image-handling.js setAssetVideoFromSrc)와 같은 재생 동작 — 되살린
+       * <video> 도 loadedmetadata 뒤 재생을 건다(a1-a3 지적, 2026-09-15: 안 걸면 undo/redo·
+       * 페이지전환 뒤 되살아난 미리보기가 첫 프레임에 멈춰 있다). ⛔trimIn/trimOut 은 거기와
+       * 달리 «리셋하지 않는다» — 여긴 새 업로드가 아니라 복원이라 캐시된 트림값을 그대로 쓴다. */
+      const _video = ab.querySelector('.asset-video');
+      if (_video) {
+        _video.addEventListener('loadedmetadata', () => { _video.play().catch(() => {}); }, { once: true });
+      }
     });
   }
 
