@@ -813,6 +813,14 @@ function rebindAll(opts = {}) {
     overlay.removeAttribute('contenteditable');
     [...overlay.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).forEach(n => n.remove());
   });
+  /* ★T-033: video-pending(트림 확정 전 영상)은 js/io/section-serialize.js 의 T-012 안전장치가
+   *   세척된 문자열(undo 스냅샷·페이지 canvas·탭 _cache·파일)에서 "빈 업로드대기"로 되돌린다.
+   *   rebindAll 은 undo/redo 복원(history.js) · 페이지 전환(switchPage/deletePage) · 탭 전환·
+   *   프로젝트 로드(applyProjectData) · 협업 패치 적용까지 «canvasEl.innerHTML 을 새로 앉힌 뒤»
+   *   공통으로 거치는 단일 지점이다 — 여기 한 곳에서 부르면 그 모든 복원 경로가 한 번에
+   *   커버된다(경로마다 따로 심으면 하나를 빠뜨리는 날 그 경로만 샌다, 2026-09-15 지적).
+   *   캐시에 없는 블록(=진짜 파일 리로드로 새 세션)은 손대지 않는다(T-031 의도된 동작). */
+  window.reattachVideoPendingBlocks?.(canvasEl);
 
   canvasEl.querySelectorAll('.section-block').forEach(sec => {
     if (!sec.id) sec.id = 'sec_' + Math.random().toString(36).slice(2, 9);
