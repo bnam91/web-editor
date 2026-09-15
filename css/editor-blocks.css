@@ -1338,6 +1338,18 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   background: rgba(255,255,255,0.001); /* Safari: backdrop-filter가 완전투명 배경에선 씹히는 경우 방지 */
   backdrop-filter: blur(var(--redact-blur, 8px));
   -webkit-backdrop-filter: blur(var(--redact-blur, 8px));
+  /* ★프라이버시(2026-09-15, fix-mosaic-precapture-exposure 실측+근본원인 확정) — 진짜 원인은
+     캡처/굽기 버그가 아니라 순수 z-index 충돌이었다: .text-block(editor-layout.css)은
+     «무조건» z-index:2인데 .shape-block은 «선택돼 있을 때만»(.shape-block.selected) 2를
+     받는다. 라이브 에디터에서 방금 만든/만지는 redact 도형은 보통 selected 상태라 동률→DOM
+     순서로 이겨서 위에 그려져 "안전해 보였다". export의 prepareCloneForCapture가 clone에서
+     .selected를 (정당하게) 벗겨내면 redact 도형이 z-index:auto로 떨어져 텍스트블록의 «무조건»
+     2가 이기고 — 실측: 텍스트블록 위에 얹은 redact를 export하면 주민등록번호 전체가 단순
+     threshold(레벨조정) 처리만으로 복원됨(픽셀 히스토그램에 원문 색 ~26% 혼합 확인).
+     blur/mosaic 두 모드 다(이 규칙은 공용 .shape-redact 베이스) 선택 여부와 무관하게
+     텍스트블록보다 항상 위여야 한다 — !important는 다른 z-index 규칙에 밀리면 안 되는
+     프라이버시 요구라 아래 fill:none !important와 같은 이유로 붙인다. */
+  z-index: 3 !important;
 }
 .shape-block.shape-redact[data-shape-type="ellipse"] {
   border-radius: 50%;
