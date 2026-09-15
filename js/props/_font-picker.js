@@ -45,6 +45,7 @@ export function wireFontPicker({ root, p, getCurrent, onPick }) {
   const _fpSearch   = root.querySelector(`#${p}-font-search`);
   const _fpList     = root.querySelector(`#${p}-font-list`);
   const _fpNameEl   = root.querySelector(`#${p}-font-name`);
+  const _fpNoonnu   = root.querySelector(`#${p}-font-noonnu`);
 
   // ★체인은 fontChain()이 만든다 — 번들 Pretendard를 generic 앞에 끼워 «폰트 없는 기기»에서
   //   OS 기본 글꼴로 떨어지는 걸 막는다. serif 2종(Noto Serif KR·Playfair)은 제외(sans로 뒤집히니까).
@@ -180,6 +181,12 @@ export function wireFontPicker({ root, p, getCurrent, onPick }) {
       _fpClose();
     }
   });
+
+  // ★고정 목적지 하나만 연다 — 렌더러가 임의 URL을 주는 통로가 아니다(main.js의
+  //   auth:open-external 이 이미 「임의 URL 오픈 금지」로 막아둔 원칙과 동일하게,
+  //   여기도 인자 없는 전용 핸들러로 간다).
+  _fpNoonnu?.addEventListener('mousedown', e => e.preventDefault());
+  _fpNoonnu?.addEventListener('click', () => { window.electronAPI?.openNoonnu?.(); _fpClose(); });
 
   /* 시스템 폰트 비동기 로드 */
   _loadSystemFonts().then(() => {

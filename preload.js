@@ -134,6 +134,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternalUrl:    (url)                => ipcRenderer.invoke('auth:open-external', url),
   navigateToProjects: ()                   => ipcRenderer.invoke('license:navigate-projects'),
 
+  // 폰트 피커 → 눈누(noonnu.cc) 바로가기. 인자 없음 — 고정 목적지 하나만 연다.
+  openNoonnu: () => ipcRenderer.invoke('external:open-noonnu'),
+
   // AI section text fill (Gemini)
   aiFillSectionTexts: (payload) => ipcRenderer.invoke('ai:fillSectionTexts', payload),
 
