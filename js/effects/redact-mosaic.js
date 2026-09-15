@@ -123,10 +123,39 @@ export async function captureMosaicSnapshot(block, opts) {
     return false;
   }
   if (!captured || !captured.width || !captured.height) return false;
+  /* ★프라이버시(2026-09-15, export 조사 중 발견 — fix-mosaic-precapture-exposure): export
+   * 도중(오프스크린 clone이 document에 떠 있는 특정 맥락) html2canvas가 크기는 정상인데
+   * «완전 투명»한 캡처를 돌려주는 경우가 확인됐다(정확한 근본원인은 미확정 — html2canvas
+   * 내부가 offscreen clone 존재로 뭔가 오작동하는 것으로 추정). 그걸 그대로 신뢰해
+   * _capturedBlocks 에 "캡처됨"으로 마킹하면, 실제로는 빈 비트맵이 기존의 «정상 스냅샷»
+   * (또는 안전실패 회색)을 덮어써 finalizeMosaicForClone 이 원본을 그대로 내보내는 사고로
+   * 이어진다(라이브는 안전한데 export PNG 만 새는 형태로 실측됨). 완전 투명이면 "캡처 실패"로
+   * 취급해 기존 상태(_fullResCache/canvas)를 그대로 둔다 — 원인을 못 밝혀도 결과는 안전하게. */
+  if (_isFullyTransparent(captured)) return false;
 
   _fullResCache.set(block, captured);
   redrawFromFullRes(block, captured);
   return true;
+}
+
+/** canvas 가 «완전 투명»(알파 전부 0에 가까움)인지 저해상도 샘플링으로 빠르게 판정.
+ *  읽기 실패(오염된 캔버스 등)는 "투명 아님"으로 취급해 기존 흐름을 막지 않는다 — 이 함수의
+ *  목적은 새로운 실패를 만드는 게 아니라 «이미 관측된 특정 실패 모드»만 걸러내는 것이다. */
+function _isFullyTransparent(canvas) {
+  try {
+    const sw = Math.min(canvas.width, 16) || 1, sh = Math.min(canvas.height, 16) || 1;
+    const probe = document.createElement('canvas');
+    probe.width = sw; probe.height = sh;
+    const pctx = probe.getContext('2d');
+    pctx.drawImage(canvas, 0, 0, sw, sh);
+    const data = pctx.getImageData(0, 0, sw, sh).data;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] > 8) return false; // 알파가 조금이라도 있으면 "내용 있음"
+    }
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 let _refreshTimer = null;
