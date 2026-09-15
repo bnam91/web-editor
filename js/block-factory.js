@@ -4266,8 +4266,11 @@ function updateShapeBlock(blockId, partial = {}) {
     // 남아 "안 보이는 블러 도형"이 될 수 있으므로 함께 해제
     if (block.dataset.shapeRedact === 'true' && partial.shapeType !== 'rectangle' && partial.shapeType !== 'ellipse') {
       delete block.dataset.shapeRedact;
+      delete block.dataset.shapeRedactMode;
+      delete block.dataset.mosaicCaptured;
       block.classList.remove('shape-redact');
       block.style.removeProperty('--redact-blur');
+      block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
       applied.shapeRedact = false;
     }
   }
@@ -4341,19 +4344,49 @@ function updateShapeBlock(blockId, partial = {}) {
       // ★최소 2px — 0이면 사실상 안 가려지는데 토글만 켜진 채 남는다(적대적 QA 발견).
       const clamped = Math.max(2, Math.min(20, Math.round(bp)));
       block.dataset.shapeRedactBlur = String(clamped);
-      block.style.setProperty('--redact-blur', `${clamped}px`);
+      const mode = partial.shapeRedactMode !== undefined
+        ? (partial.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur')
+        : (block.dataset.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur');
+      block.dataset.shapeRedactMode = mode;
+      if (mode === 'blur') {
+        block.style.setProperty('--redact-blur', `${clamped}px`);
+      } else {
+        block.style.removeProperty('--redact-blur');
+        try { window.captureMosaicSnapshot?.(block); } catch (_) {}
+      }
       applied.shapeRedactBlur = clamped;
+      applied.shapeRedactMode = mode;
     } else {
       delete block.dataset.shapeRedact;
+      delete block.dataset.shapeRedactMode;
+      delete block.dataset.mosaicCaptured;
       block.style.removeProperty('--redact-blur');
+      block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
     }
     applied.shapeRedact = on;
+  } else if (partial.shapeRedactMode !== undefined && partial.shapeRedactMode !== null && block.dataset.shapeRedact === 'true') {
+    const mode = partial.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur';
+    block.dataset.shapeRedactMode = mode;
+    if (mode === 'blur') {
+      const bp = Number(block.dataset.shapeRedactBlur) || 8;
+      block.style.setProperty('--redact-blur', `${bp}px`);
+    } else {
+      block.style.removeProperty('--redact-blur');
+      try { window.captureMosaicSnapshot?.(block); } catch (_) {}
+    }
+    applied.shapeRedactMode = mode;
   } else if (partial.shapeRedactBlur !== undefined && partial.shapeRedactBlur !== null) {
     // ★최소 2px — 0이면 사실상 안 가려지는데 토글만 켜진 채 남는다(적대적 QA 발견).
     const bp = _setInt('shapeRedactBlur', partial.shapeRedactBlur, 2, 20);
     if (bp === null) return { ok: false, code: 'INVALID', message: 'shapeRedactBlur must be finite number' };
     block.dataset.shapeRedactBlur = String(bp);
-    if (block.dataset.shapeRedact === 'true') block.style.setProperty('--redact-blur', `${bp}px`);
+    if (block.dataset.shapeRedact === 'true') {
+      if (block.dataset.shapeRedactMode === 'mosaic') {
+        try { window.captureMosaicSnapshot?.(block, { reuseFullRes: true }); } catch (_) {}
+      } else {
+        block.style.setProperty('--redact-blur', `${bp}px`);
+      }
+    }
     applied.shapeRedactBlur = bp;
   }
 

@@ -34,7 +34,7 @@ async function captureTruth(sec, w, bgColor) {
     renderComponentsInClone(clone);
     await document.fonts.ready;
     clone.getBoundingClientRect();
-    return await captureCloneToCanvas(clone, w, bgColor, true);
+    return await captureCloneToCanvas(clone, w, bgColor, true, sec);
   } finally {
     if (clone.parentNode) clone.parentNode.removeChild(clone);
   }
