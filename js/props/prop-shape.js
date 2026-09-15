@@ -212,6 +212,16 @@ export function showShapeProperties(block) {
     shapeColorInput._gradWired = true;
     shapeColorInput.addEventListener('goya-cp:gradient', (e) => {
       applyGradient(e.detail);
+      // ★재오픈 시드 — color-picker.js openPicker가 이 dataset을 보고 gradient 탭/스톱을
+      //   복원한다(wireColorField의 onGradient 경로는 안 타서 여기서 직접 채워야 한다).
+      //   적대적 QA(qa-adversarial-gradient) 발견: 없으면 재오픈마다 solid+기본 2스톱으로 리셋.
+      if (e.detail) {
+        try {
+          shapeColorInput.dataset.cpGradient = JSON.stringify({
+            type: e.detail.type, angle: e.detail.angle, stops: e.detail.stops,
+          });
+        } catch (_) {}
+      }
       // detail.commit 플래그가 있을 때만 history 발행 — 평소엔 라이브 미리보기.
       if (e.detail && e.detail.commit) window.pushHistory?.();
     });

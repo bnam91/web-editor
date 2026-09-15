@@ -743,6 +743,10 @@ export function wireCanvasBgControl() {
         angle: e.detail.angle,
         stops: e.detail.stops,
       });
+      // ★재오픈 시드 — color-picker.js openPicker가 이 dataset을 보고 gradient 탭/스톱을
+      //   복원한다. 적대적 QA(qa-adversarial-gradient) 발견: 없으면 재오픈마다 solid+기본
+      //   2스톱으로 리셋(값은 state.pageSettings.bgGradient에 이미 맞게 저장돼 있었음).
+      bgPicker.dataset.cpGradient = state.pageSettings.bgGradient;
       _applyBgGradient(e.detail.css);
       if (e.detail.commit) window.pushHistory?.();
       window.scheduleAutoSave?.();
