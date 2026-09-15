@@ -12,6 +12,7 @@ import { wireSpacingSection }  from './prop-text-wireup-spacing.js';
 import { wirePositionSection } from './prop-text-wireup-position.js';
 import { wirePaddingSection }  from './prop-text-wireup-padding.js';
 import { wireShadowSection, readShadowState } from './prop-text-wireup-shadow.js';
+import { wireOverlaySection }  from './prop-text-wireup-overlay.js';
 
 export function showTextProperties(tb) {
   const isOverlayTb = tb.classList.contains('overlay-tb');
@@ -129,6 +130,10 @@ export function showTextProperties(tb) {
   const _tf         = tb.closest('.frame-block[data-text-frame="true"]');
   const _posEl      = _tf || tb;  // freeLayout 안: text-frame, 그 외: tb
   const isAbsolute  = _posEl.style.position === 'absolute';
+  // 오버레이(플로팅) 토글 — Figma "오버레이"와 같은 개념. isAbsolute(freeLayout 절대배치)와
+  // 갈래를 나눠 dataset 플래그로 판정한다: freeLayout 섹션에 새로 추가된 절대배치 블록은
+  // 이 플래그가 없어 "오버레이 아님"으로 남는다(별개 기존 기능, 이번 범위 아님).
+  const isOverlayBlock = _posEl.dataset.overlayBlock === 'true';
   const currentX    = parseInt(_posEl.style.left  || _posEl.dataset.offsetX || '0');
   const currentY    = parseInt(_posEl.style.top   || _posEl.dataset.offsetY || '0');
   const currentRotation = parseFloat(_posEl.dataset.rotation || '0') || 0;
@@ -157,6 +162,7 @@ export function showTextProperties(tb) {
     isBold,
     isItalic,
     isHighlight,
+    isOverlayBlock,
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(tb.id || null);
@@ -176,6 +182,7 @@ export function showTextProperties(tb) {
   wireShadowSection({ ctx, initial: shadow });
   if (!isOverlayTb) wirePositionSection({ tb });
   if (!isOverlayTb) wirePaddingSection({ tb, phLinked });
+  if (!isOverlayTb) wireOverlaySection({ tb });
 
   /* 애니메이션 GIF 버튼 */
   // BUG-FIX: 텍스트블록 선택마다 이 함수가 실행되므로 리스너 중복 방지

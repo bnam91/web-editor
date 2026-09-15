@@ -533,6 +533,15 @@
 /* ★:disabled 가 없으면 «비활성인데 눌릴 것처럼» 보인다 — .prop-btn:disabled(488) 관례 그대로. */
 .prop-btn-full:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
 .prop-btn-full:disabled:hover { background: var(--ui-bg-app); border-color: var(--ui-border-strong); }
+/* 텍스트블록 오버레이(플로팅) 토글 — .prop-btn-full 재사용, ON 상태만 색을 바꾼다.
+   보라 = --ui-sel-overlay(스티커/확대블럭과 같은 토큰) · 배경 rgba 변환은 .prop-chain-btn.active(125행)와 같은 패턴. */
+.prop-overlay-toggle { display: flex; align-items: center; justify-content: center; }
+.prop-overlay-toggle.active {
+  background: rgba(153,102,255,0.14);
+  border-color: var(--ui-sel-overlay, #9966ff);
+  color: var(--ui-sel-overlay, #9966ff);
+}
+.prop-overlay-toggle.active:hover { background: rgba(153,102,255,0.22); }
 /* ★그리드 절이 「꺼짐」일 때 줄은 그대로 보이고 조작만 잠근다(js/props/prop-page.js syncGridDisabled).
    :disabled 표시가 없으면 «비활성인데 눌릴 것처럼» 보인다 — .prop-btn:disabled(488) 관례 그대로,
    새 색·새 값은 쓰지 않고 각자의 기본 선언을 되돌려 hover 반응만 죽인다. */
