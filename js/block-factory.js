@@ -20,6 +20,7 @@ import {
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame } from './frame-geometry.js';
+import { getGridModel } from './blocks/grid-block.js';
 
 /* ═══════════════════════════════════
    BLOCK FACTORY — make* / add* / addSection
@@ -4511,12 +4512,47 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
 
   let _targetBlock = null;
   let _targetCell = null; // #5-b: 우클릭한 테이블 바디셀 (병합/해제 대상)
+  let _targetGridAddr = null; // 그리드 블록: 우클릭한 셀 {r,c,li} — li는 «기존 이미지 줄»이 있을 때만 숫자
 
   // 메뉴 닫기
   function closeMenu() {
     menu.style.display = 'none';
     _targetBlock = null;
     _targetCell = null;
+    _targetGridAddr = null;
+  }
+
+  /* 그리드 블록 우클릭 → 「어느 셀인가」(및 그 셀에 이미 이미지 줄이 있는가).
+     ⛔DOM 순서 역산 금지 — renderGridBlock 이 심은 data-r/data-c/data-line 이 정본이다
+       (grid-block.js _gridEditable/block-drag.js 와 같은 규약). */
+  function _gridCellAddrAt(e, block) {
+    if (!block.classList.contains('grid-block')) return null;
+    const atPoint = document.elementFromPoint(e.clientX, e.clientY);
+    const node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+    if (!node || !node.closest) return null;
+    const lineEl = node.closest('[data-line]');
+    const cellEl = node.closest('.grd-cell');
+    let r, c;
+    if (lineEl && block.contains(lineEl)) {
+      r = Number(lineEl.dataset.r); c = Number(lineEl.dataset.c);
+    } else if (cellEl && block.contains(cellEl)) {
+      r = Number(cellEl.dataset.r); c = Number(cellEl.dataset.c);
+    } else {
+      return null;
+    }
+    if (!Number.isInteger(r) || !Number.isInteger(c)) return null;
+    let li = null;
+    try {
+      const lines = getGridModel(block).cells?.[r]?.[c]?.lines;
+      if (Array.isArray(lines)) {
+        const clickedLi = lineEl ? Number(lineEl.dataset.line) : NaN;
+        li = (Number.isInteger(clickedLi) && lines[clickedLi]?.type === 'image')
+          ? clickedLi
+          : lines.findIndex(l => l && l.type === 'image');
+        if (li < 0) li = null;
+      }
+    } catch (_) {}
+    return { r, c, li };
   }
 
   // 메뉴 열기
@@ -4566,6 +4602,17 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
         (parseInt(_targetCell.getAttribute('colspan') || '1', 10) || 1) > 1
       );
       cellUnmergeItem.style.display = merged ? 'flex' : 'none';
+    }
+
+    // 그리드 블록 셀 우클릭 → "이미지 추가/교체" (현빈 2026-09-15 요청: 그리드 셀 이미지 지원)
+    const gridImgItem = document.getElementById('bcm-grid-img');
+    const gridImgLabel = document.getElementById('bcm-grid-img-label');
+    _targetGridAddr = block.classList.contains('grid-block') ? _gridCellAddrAt(e, block) : null;
+    if (gridImgItem) {
+      gridImgItem.style.display = _targetGridAddr ? 'flex' : 'none';
+      if (_targetGridAddr && gridImgLabel) {
+        gridImgLabel.textContent = _targetGridAddr.li != null ? '이미지 교체' : '이미지 추가';
+      }
     }
 
     const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
@@ -4638,6 +4685,40 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     const cell = _targetCell;
     closeMenu();
     window.unmergeCell?.(cell);
+  });
+
+  // 그리드 셀 이미지 추가/교체 — 다른 블록의 「이미지 선택...」과 같은 방식(FileReader→dataURL)을
+  // 재사용한다(prop-simple-card.js cvb-card-img-btn · prop-zoom.js · prop-icon-circle.js 선례).
+  // ⛔goya-asset:// 외부화는 여기서 하지 않는다 — 그 셋도 안 한다(외부화는 저장 시점의 별도 관심사).
+  document.getElementById('bcm-grid-img')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    const addr = _targetGridAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = () => {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const imgSrc = ev.target.result;
+        const patchCell = (addr.li != null)
+          ? { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc }
+          : (() => {
+              const lines = getGridModel(block).cells?.[addr.r]?.[addr.c]?.lines;
+              const nextLines = (Array.isArray(lines) ? lines.slice() : []);
+              nextLines.push({ type: 'image', imgSrc, height: 0 });
+              return { r: addr.r, c: addr.c, lines: nextLines };
+            })();
+        const res = window.updateGridBlock?.(block.id, { patchCell });
+        if (res && res.ok === false) window.showToast?.('❌ 이미지 추가 실패: ' + res.message);
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
   });
 
   nameConfirm?.addEventListener('click', e => {
