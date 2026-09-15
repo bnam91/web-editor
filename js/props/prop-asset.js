@@ -43,13 +43,10 @@ export function showAssetProperties(ab) {
   const overlayColor = overlayEl.style.color || '#ffffff';
   const overlayOpacity = parseFloat(overlayEl.dataset.ovOpacity ?? '0.35');
 
-  // 그레인(필름 노이즈) — asset-overlay와 같은 패턴: 형제 오버레이 div + dataset
+  // 그레인(필름 노이즈) — asset-overlay와 같은 패턴: 형제 오버레이 div + dataset.
+  // ⛔패널을 열기만 해도 만들면 안 된다(적대적 QA a1-a3 지적) — 실제로 강도를 설정할 때만
+  //   만든다(아래 슬라이더 핸들러). 여기선 이미 있으면 값만 읽는다.
   let grainEl = ab.querySelector('.asset-grain');
-  if (hasImage && !grainEl) {
-    grainEl = document.createElement('div');
-    grainEl.className = 'asset-grain';
-    ab.appendChild(grainEl);
-  }
   const grainIntensity = grainEl ? Math.round(parseInt(grainEl.dataset.grainIntensity ?? '0', 10)) : 0;
 
   const currentBgColor = ab.dataset.bgColor || '#a0a0a0';
@@ -502,8 +499,14 @@ export function showAssetProperties(ab) {
   });
 
   // ── 그레인 이벤트 바인딩 ──
-  if (hasImage && grainEl) {
+  if (hasImage) {
     const applyGrain = intensity => {
+      // ★여기서만 만든다 — 사용자가 실제로 강도를 만진 순간에만 층이 생긴다(위 주석 참고).
+      if (!grainEl) {
+        grainEl = document.createElement('div');
+        grainEl.className = 'asset-grain';
+        ab.appendChild(grainEl);
+      }
       grainEl.style.opacity = String(intensity / 100);
       grainEl.dataset.grainIntensity = String(intensity);
     };

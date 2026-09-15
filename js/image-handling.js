@@ -637,10 +637,23 @@ function setAssetImageFromSrc(ab, src) {
   const prevOverlayEl = ab.querySelector('.asset-overlay');
   const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
   const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
+  // ★그레인도 같은 방식으로 보존 — 안 그러면 이미지 교체·영상 프레임 썸네일 고정(이 함수를
+  //   그 경로도 재사용) 때 그레인 층이 조용히 사라진다(적대적 QA a1-a3 지적, T-001 폭 잔존과
+  //   같은 유형의 결함).
+  const prevGrainEl = ab.querySelector('.asset-grain');
+  const prevGrainStyle = prevGrainEl ? prevGrainEl.getAttribute('style') || '' : '';
+  const prevGrainIntensity = prevGrainEl ? prevGrainEl.dataset.grainIntensity || '' : '';
   ab.innerHTML = `
     <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'"></div>
     <button class="asset-overlay-clear" title="이미지 제거">✕</button>
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
+  if (prevGrainEl) {
+    const grainEl = document.createElement('div');
+    grainEl.className = 'asset-grain';
+    if (prevGrainStyle) grainEl.setAttribute('style', prevGrainStyle);
+    if (prevGrainIntensity) grainEl.dataset.grainIntensity = prevGrainIntensity;
+    ab.appendChild(grainEl);
+  }
   ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
     e.stopPropagation();
     clearAssetImage(ab);
