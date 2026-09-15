@@ -1,8 +1,51 @@
 /* ══════════════════════════════════════
-   영상/GIF 에셋 — 트림·프레임 컨트롤 (프로토타입, feature/video-trim-controls)
+   영상/GIF 에셋 — 트림·프레임 컨트롤 (feature/video-trim-controls + video-gif-export)
    디자인 스펙: video-trim-mockup.html (지디 확정) — 필름스트립은 1차 구현 범위 밖(플레이스홀더).
    GIF 인코딩은 js/animation-engine.js(exportAnimGif)와 같은 벤더 라이브러리 재사용(js/gif.js·js/gif.worker.js).
 ══════════════════════════════════════ */
+import { canvasToGifBlob } from '../io/export-image.js';
+
+const GIF_TARGET_INTERVAL_MS = 120;  // 목표 프레임 간격
+const GIF_MAX_FRAMES         = 60;   // 상한 — js/io/export-image.js 와 동일값(무한렌더 방지)
+const GIF_BASE_MAX_WIDTH     = 480;  // 기본 해상도 상한
+const GIF_REDUCED_MAX_WIDTH  = 320;  // 프레임수 상한에 걸렸을 때 추가로 낮추는 해상도
+const GIF_SEEK_TIMEOUT_MS    = 1500; // seeked 이벤트가 안 오는 코덱/구간 대비 폴백
+
+// 트림 구간 길이에 맞춰 프레임수/간격/해상도를 정한다.
+// 구간이 길어 naive 프레임수가 상한을 넘으면 프레임수를 상한으로 고정하고(간격↑) 해상도도 낮춘다.
+function planGifExport(video, inT, outT) {
+  const trimDur = Math.max(0.05, outT - inT);
+  const naiveFrames = Math.ceil((trimDur * 1000) / GIF_TARGET_INTERVAL_MS);
+  const capped = naiveFrames > GIF_MAX_FRAMES;
+  const frameCount = Math.max(2, Math.min(naiveFrames, GIF_MAX_FRAMES));
+  const intervalSec = trimDur / frameCount;
+  const maxW = capped ? GIF_REDUCED_MAX_WIDTH : GIF_BASE_MAX_WIDTH;
+  const vw = video.videoWidth || 640;
+  const vh = video.videoHeight || 360;
+  const scale = Math.min(1, maxW / vw);
+  return {
+    frameCount,
+    intervalSec,
+    width:  Math.max(2, Math.round(vw * scale)),
+    height: Math.max(2, Math.round(vh * scale)),
+    capped,
+  };
+}
+
+function seekTo(video, t) {
+  return new Promise(resolve => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      video.removeEventListener('seeked', finish);
+      resolve();
+    };
+    video.addEventListener('seeked', finish);
+    video.currentTime = t;
+    setTimeout(finish, GIF_SEEK_TIMEOUT_MS);
+  });
+}
 
 /* 캔버스 표시용 — IN/OUT 밖으로 나가면 IN으로 되돌려 "구간만 재생"을 만든다.
    패널이 닫혀 있어도(즉 bindBlock 시점에) 걸어 둔다 — 트림 편집과 캔버스 재생을 분리. */
@@ -22,6 +65,47 @@ export function attachAssetVideoTrimLoop(ab) {
 
 function fmtT(s) {
   return Number.isFinite(s) ? s.toFixed(1) + 's' : '—';
+}
+
+// 트림 구간을 GIF blob으로 인코딩 — "GIF로 적용"(finalize)과 "GIF로 내보내기"(download) 두
+// 버튼이 공유하는 핵심 인코딩 경로(T-012). onProgress(text)로 버튼 라벨을 갱신한다.
+async function encodeTrimToGif(video, inT, outT, speed, onProgress) {
+  const plan = planGifExport(video, inT, outT);
+  if (plan.capped) {
+    window.showToast?.(`⚠️ 트림 구간이 길어 프레임 ${plan.frameCount}장·${plan.width}×${plan.height}로 자동 축소했습니다`);
+  }
+  const delayMs = Math.max(20, Math.round((plan.intervalSec * 1000) / (speed || 1)));
+
+  const frameCanvases = [];
+  const frameDelays = [];
+  for (let i = 0; i < plan.frameCount; i++) {
+    onProgress?.(`프레임 캡처 중... (${i + 1}/${plan.frameCount})`);
+    const t = Math.min(outT, inT + i * plan.intervalSec);
+    await seekTo(video, t);
+    const cv = document.createElement('canvas');
+    cv.width = plan.width;
+    cv.height = plan.height;
+    cv.getContext('2d').drawImage(video, 0, 0, plan.width, plan.height);
+    frameCanvases.push(cv);
+    frameDelays.push(delayMs);
+  }
+
+  onProgress?.('GIF 인코딩 중... 0%');
+  const blob = await canvasToGifBlob(frameCanvases, frameDelays, {
+    repeat: 0,
+    background: '#ffffff',
+    onProgress: p => onProgress?.(`GIF 인코딩 중... ${Math.round(p * 100)}%`),
+  });
+  return { blob, plan };
+}
+
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 export function videoTrimSectionHTML(ab) {
@@ -65,8 +149,10 @@ export function videoTrimSectionHTML(ab) {
           <option value="2"${speed === '2' ? ' selected' : ''}>2×</option>
         </select>
       </div>
-      <button class="prop-action-btn secondary" id="vtrim-export-frame-btn" style="margin-top:8px;">현재 프레임 이미지로 내보내기</button>
-      <button class="prop-action-btn primary" id="vtrim-export-gif-btn" style="margin-top:6px;">GIF로 내보내기</button>
+      <button class="prop-action-btn primary" id="vtrim-apply-gif-btn" style="margin-top:12px;">✓ GIF로 적용</button>
+      <div class="prop-hint" style="text-align:center;margin-top:2px;">트림 구간을 구워 이 블록의 최종 이미지(GIF)로 확정합니다</div>
+      <button class="prop-action-btn secondary" id="vtrim-export-frame-btn" style="margin-top:10px;">현재 프레임 이미지로 내보내기</button>
+      <button class="prop-action-btn secondary" id="vtrim-export-gif-btn" style="margin-top:6px;">GIF로 내보내기(다운로드)</button>
     </div>`;
 }
 
@@ -198,97 +284,71 @@ export function wireVideoTrim(ab) {
     }, 'image/png');
   });
 
-  document.getElementById('vtrim-export-gif-btn').addEventListener('click', () => {
-    exportVideoGif(ab, video, inT(), outT());
-  });
-}
+  document.getElementById('vtrim-export-gif-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('vtrim-export-gif-btn');
+    if (btn.dataset.busy) return;
+    btn.dataset.busy = '1';
+    const originalLabel = btn.textContent;
+    const wasPaused = video.paused;
+    video.pause();
+    try {
+      const speed = parseFloat(ab.dataset.playbackRate) || 1;
+      const { blob, plan } = await encodeTrimToGif(video, inT(), outT(), speed, text => { btn.textContent = text; });
 
-/* 트림 구간(IN~OUT)을 GIF로 인코딩 — 기존 카드뉴스 애니메이션(js/animation-engine.js exportAnimGif)과
-   같은 벤더 라이브러리(js/gif.js + js/gif.worker.js, 전역 GIF)를 재사용한다. */
-const VTRIM_GIF_FPS = 10;
-const VTRIM_GIF_MAX_FRAMES = 80; // 프로토타입 안전판 — 8초(10fps) 상당
-const VTRIM_GIF_MAX_W = 480;     // 파일 크기 방지용 다운스케일 상한
-
-function exportVideoGif(ab, video, inT, outT) {
-  const btn = document.getElementById('vtrim-export-gif-btn');
-  if (!btn || btn.dataset.busy === '1') return;
-  if (typeof window.GIF !== 'function') { window.showToast?.('❌ GIF 라이브러리를 불러오지 못했습니다'); return; }
-  if (!Number.isFinite(inT) || !Number.isFinite(outT) || outT <= inT) return;
-
-  const origText = btn.textContent;
-  btn.dataset.busy = '1';
-  btn.disabled = true;
-  btn.textContent = 'GIF 생성 중...';
-
-  const wasPaused  = video.paused;
-  const savedTime  = video.currentTime;
-  const rate       = parseFloat(ab.dataset.playbackRate) || 1;
-  video.pause();
-
-  const vw = video.videoWidth  || 480;
-  const vh = video.videoHeight || 270;
-  const scale = Math.min(1, VTRIM_GIF_MAX_W / vw);
-  const W = Math.max(2, Math.round(vw * scale));
-  const H = Math.max(2, Math.round(vh * scale));
-
-  const rangeDur   = outT - inT;
-  const frameCount = Math.max(2, Math.min(VTRIM_GIF_MAX_FRAMES, Math.round(rangeDur * VTRIM_GIF_FPS)));
-  const dt         = rangeDur / frameCount;
-  // GIF 프레임 delay는 재생속도를 그대로 반영(2배속 선택 시 delay를 절반으로 → 감상 시 2배처럼 보임).
-  // 대부분 뷰어가 <20ms는 100ms로 취급하므로 하한을 둔다.
-  const delayMs    = Math.max(20, Math.round((dt * 1000) / rate));
-
-  const cv  = document.createElement('canvas');
-  cv.width  = W;
-  cv.height = H;
-  const ctx = cv.getContext('2d');
-
-  const seekTo = t => new Promise(resolve => {
-    let done = false;
-    const finish = () => { if (done) return; done = true; video.removeEventListener('seeked', finish); resolve(); };
-    video.addEventListener('seeked', finish);
-    video.currentTime = t;
-    setTimeout(finish, 500); // seeked 미발화 대비 안전망
-  });
-
-  const cleanupAndRestore = () => {
-    video.currentTime = savedTime;
-    if (!wasPaused) video.play().catch(() => {});
-    btn.disabled = false;
-    btn.dataset.busy = '0';
-    btn.textContent = origText;
-  };
-
-  (async () => {
-    const gif = new window.GIF({
-      workers: 2, quality: 10, width: W, height: H,
-      workerScript: 'js/gif.worker.js', repeat: 0,
-    });
-    for (let i = 0; i < frameCount; i++) {
-      const t = Math.min(outT, inT + i * dt);
-      await seekTo(t);
-      ctx.drawImage(video, 0, 0, W, H);
-      gif.addFrame(ctx, { copy: true, delay: delayMs });
-    }
-    gif.on('progress', p => { btn.textContent = `GIF 생성 중... ${Math.round(p * 100)}%`; });
-    gif.on('finished', blob => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `video-trim-${Date.now()}.gif`;
+      a.download = `video-trim-${Math.round(inT() * 10)}-${Math.round(outT() * 10)}.gif`;
       a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      cleanupAndRestore();
-      window.showToast?.('✅ GIF 저장 완료!');
-    });
-    gif.render();
-  })().catch(err => {
-    console.warn('[asset-video-trim] GIF 생성 실패:', err);
-    cleanupAndRestore();
-    window.showToast?.('❌ GIF 생성 실패: ' + (err?.message || err));
+      window.showToast?.(`GIF 내보내기 완료 (${plan.frameCount}프레임 · ${(blob.size / 1024).toFixed(0)}KB)`);
+    } catch (err) {
+      console.error('[GIF export]', err);
+      window.showToast?.('GIF 내보내기 실패: ' + (err?.message || err));
+    } finally {
+      video.currentTime = inT();
+      if (!wasPaused) video.play().catch(() => {});
+      btn.textContent = originalLabel;
+      delete btn.dataset.busy;
+    }
+  });
+
+  // T-012 핵심 플로우: 트림 구간을 GIF로 구워 이 블록의 최종 자산(정지프레임+GIF)으로 확정한다.
+  // 확정 후 <video>는 사라지고 setAssetImageFromSrc의 일반 이미지/GIF 파이프라인으로 넘어간다.
+  document.getElementById('vtrim-apply-gif-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('vtrim-apply-gif-btn');
+    if (btn.dataset.busy) return;
+    btn.dataset.busy = '1';
+    const originalLabel = btn.textContent;
+    video.pause();
+    try {
+      const speed = parseFloat(ab.dataset.playbackRate) || 1;
+      await seekTo(video, inT());
+      const stillDataUrl = captureFrame().toDataURL('image/png');
+
+      const { blob, plan } = await encodeTrimToGif(video, inT(), outT(), speed, text => { btn.textContent = text; });
+      if (blob.size > 20 * 1024 * 1024) {
+        // 네이버 상세설명 이미지 등록 상한(20MB) — 인코더가 프레임/해상도를 이미 축소하므로
+        // 실무상 거의 도달하지 않지만, 혹시 넘으면 적용을 막고 트림 구간을 줄이도록 안내한다.
+        window.showToast?.(`⚠️ 인코딩된 GIF가 ${(blob.size / 1024 / 1024).toFixed(1)}MB로 20MB를 초과합니다 — 트림 구간을 줄여주세요`);
+        return;
+      }
+      const gifDataUrl = await blobToDataURL(blob);
+
+      window.pushHistory?.('영상 → GIF 적용');
+      window.setAssetImageFromSrc?.(ab, stillDataUrl, gifDataUrl);
+      window.scheduleAutoSave?.();
+      window.showToast?.(`GIF로 적용 완료 (${plan.frameCount}프레임 · ${(blob.size / 1024).toFixed(0)}KB)`);
+    } catch (err) {
+      console.error('[GIF apply]', err);
+      window.showToast?.('GIF 적용 실패: ' + (err?.message || err));
+    } finally {
+      btn.textContent = originalLabel;
+      delete btn.dataset.busy;
+    }
   });
 }
 
