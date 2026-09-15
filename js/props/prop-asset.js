@@ -43,6 +43,15 @@ export function showAssetProperties(ab) {
   const overlayColor = overlayEl.style.color || '#ffffff';
   const overlayOpacity = parseFloat(overlayEl.dataset.ovOpacity ?? '0.35');
 
+  // 그레인(필름 노이즈) — asset-overlay와 같은 패턴: 형제 오버레이 div + dataset
+  let grainEl = ab.querySelector('.asset-grain');
+  if (hasImage && !grainEl) {
+    grainEl = document.createElement('div');
+    grainEl.className = 'asset-grain';
+    ab.appendChild(grainEl);
+  }
+  const grainIntensity = grainEl ? Math.round(parseInt(grainEl.dataset.grainIntensity ?? '0', 10)) : 0;
+
   const currentBgColor = ab.dataset.bgColor || '#a0a0a0';
   const currentBgAlpha = parseAlphaFromColor(currentBgColor);
   const currentFit = ab.dataset.fit || 'cover';
@@ -152,6 +161,15 @@ export function showAssetProperties(ab) {
       </div>
     </div>
     ${imageSection}
+    ${hasImage ? `
+    <div class="prop-section">
+      <div class="prop-section-title">그레인</div>
+      <div class="prop-row">
+        <span class="prop-label">강도</span>
+        <input type="range" class="prop-slider" id="asset-grain-slider" min="0" max="100" step="1" value="${grainIntensity}">
+        <input type="number" class="prop-number" id="asset-grain-number" min="0" max="100" value="${grainIntensity}">
+      </div>
+    </div>` : ''}
     <div class="prop-section">
       <div class="prop-section-title">Text Overlay</div>
       <div class="prop-row">
@@ -482,6 +500,28 @@ export function showAssetProperties(ab) {
       window.pushHistory();
     });
   });
+
+  // ── 그레인 이벤트 바인딩 ──
+  if (hasImage && grainEl) {
+    const applyGrain = intensity => {
+      grainEl.style.opacity = String(intensity / 100);
+      grainEl.dataset.grainIntensity = String(intensity);
+    };
+    const grainSlider = document.getElementById('asset-grain-slider');
+    const grainNumber = document.getElementById('asset-grain-number');
+    grainSlider.addEventListener('input', () => {
+      const v = parseInt(grainSlider.value);
+      grainNumber.value = v;
+      applyGrain(v);
+    });
+    grainSlider.addEventListener('change', () => { window.pushHistory?.(); });
+    grainNumber.addEventListener('change', () => {
+      const v = Math.min(100, Math.max(0, parseInt(grainNumber.value) || 0));
+      grainSlider.value = v;
+      applyGrain(v);
+      window.pushHistory?.();
+    });
+  }
 
 }
 
