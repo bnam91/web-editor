@@ -1,6 +1,7 @@
 /* ══════════════════════════════════════
    영상/GIF 에셋 — 트림·프레임 컨트롤 (프로토타입, feature/video-trim-controls)
    디자인 스펙: video-trim-mockup.html (지디 확정) — 필름스트립은 1차 구현 범위 밖(플레이스홀더).
+   GIF 인코딩은 js/animation-engine.js(exportAnimGif)와 같은 벤더 라이브러리 재사용(js/gif.js·js/gif.worker.js).
 ══════════════════════════════════════ */
 
 /* 캔버스 표시용 — IN/OUT 밖으로 나가면 IN으로 되돌려 "구간만 재생"을 만든다.
@@ -65,7 +66,7 @@ export function videoTrimSectionHTML(ab) {
         </select>
       </div>
       <button class="prop-action-btn secondary" id="vtrim-export-frame-btn" style="margin-top:8px;">현재 프레임 이미지로 내보내기</button>
-      <button class="prop-action-btn secondary" id="vtrim-export-gif-btn" title="다음 라운드 예정 — 인코딩 라이브러리 조사 필요" disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed;">GIF로 내보내기 (준비중)</button>
+      <button class="prop-action-btn primary" id="vtrim-export-gif-btn" style="margin-top:6px;">GIF로 내보내기</button>
     </div>`;
 }
 
@@ -190,6 +191,99 @@ export function wireVideoTrim(ab) {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }, 'image/png');
+  });
+
+  document.getElementById('vtrim-export-gif-btn').addEventListener('click', () => {
+    exportVideoGif(ab, video, inT(), outT());
+  });
+}
+
+/* 트림 구간(IN~OUT)을 GIF로 인코딩 — 기존 카드뉴스 애니메이션(js/animation-engine.js exportAnimGif)과
+   같은 벤더 라이브러리(js/gif.js + js/gif.worker.js, 전역 GIF)를 재사용한다. */
+const VTRIM_GIF_FPS = 10;
+const VTRIM_GIF_MAX_FRAMES = 80; // 프로토타입 안전판 — 8초(10fps) 상당
+const VTRIM_GIF_MAX_W = 480;     // 파일 크기 방지용 다운스케일 상한
+
+function exportVideoGif(ab, video, inT, outT) {
+  const btn = document.getElementById('vtrim-export-gif-btn');
+  if (!btn || btn.dataset.busy === '1') return;
+  if (typeof window.GIF !== 'function') { window.showToast?.('❌ GIF 라이브러리를 불러오지 못했습니다'); return; }
+  if (!Number.isFinite(inT) || !Number.isFinite(outT) || outT <= inT) return;
+
+  const origText = btn.textContent;
+  btn.dataset.busy = '1';
+  btn.disabled = true;
+  btn.textContent = 'GIF 생성 중...';
+
+  const wasPaused  = video.paused;
+  const savedTime  = video.currentTime;
+  const rate       = parseFloat(ab.dataset.playbackRate) || 1;
+  video.pause();
+
+  const vw = video.videoWidth  || 480;
+  const vh = video.videoHeight || 270;
+  const scale = Math.min(1, VTRIM_GIF_MAX_W / vw);
+  const W = Math.max(2, Math.round(vw * scale));
+  const H = Math.max(2, Math.round(vh * scale));
+
+  const rangeDur   = outT - inT;
+  const frameCount = Math.max(2, Math.min(VTRIM_GIF_MAX_FRAMES, Math.round(rangeDur * VTRIM_GIF_FPS)));
+  const dt         = rangeDur / frameCount;
+  // GIF 프레임 delay는 재생속도를 그대로 반영(2배속 선택 시 delay를 절반으로 → 감상 시 2배처럼 보임).
+  // 대부분 뷰어가 <20ms는 100ms로 취급하므로 하한을 둔다.
+  const delayMs    = Math.max(20, Math.round((dt * 1000) / rate));
+
+  const cv  = document.createElement('canvas');
+  cv.width  = W;
+  cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  const seekTo = t => new Promise(resolve => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; video.removeEventListener('seeked', finish); resolve(); };
+    video.addEventListener('seeked', finish);
+    video.currentTime = t;
+    setTimeout(finish, 500); // seeked 미발화 대비 안전망
+  });
+
+  const cleanupAndRestore = () => {
+    video.currentTime = savedTime;
+    if (!wasPaused) video.play().catch(() => {});
+    btn.disabled = false;
+    btn.dataset.busy = '0';
+    btn.textContent = origText;
+  };
+
+  (async () => {
+    const gif = new window.GIF({
+      workers: 2, quality: 10, width: W, height: H,
+      workerScript: 'js/gif.worker.js', repeat: 0,
+    });
+    for (let i = 0; i < frameCount; i++) {
+      const t = Math.min(outT, inT + i * dt);
+      await seekTo(t);
+      ctx.drawImage(video, 0, 0, W, H);
+      gif.addFrame(ctx, { copy: true, delay: delayMs });
+    }
+    gif.on('progress', p => { btn.textContent = `GIF 생성 중... ${Math.round(p * 100)}%`; });
+    gif.on('finished', blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `video-trim-${Date.now()}.gif`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      cleanupAndRestore();
+      window.showToast?.('✅ GIF 저장 완료!');
+    });
+    gif.render();
+  })().catch(err => {
+    console.warn('[asset-video-trim] GIF 생성 실패:', err);
+    cleanupAndRestore();
+    window.showToast?.('❌ GIF 생성 실패: ' + (err?.message || err));
   });
 }
 
