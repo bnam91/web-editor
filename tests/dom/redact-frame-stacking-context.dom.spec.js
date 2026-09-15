@@ -151,3 +151,31 @@ test('F3 ★근본 고침(라이브 화면) — export 클론이 아니라 «편
   expect(out.topId, '★라이브 화면(편집 중, export 없음)에서도 텍스트가 미선택 redact 도형을 이긴다 — 화면공유·스크린샷 노출').toBe('shp1');
   expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });
+
+test('F4 ★2차수정 핵심 — .frame-block이 «아닌» 클래스의 transform 컨테이너도 커버한다(fix-mosaic-precapture-exposure 실측: canvas-block류+목업 경로에서 육안 노출 확인)', async ({ page }) => {
+  const errs = await boot(page);
+  const out = await page.evaluate(() => {
+    // ★.frame-block이 아니라 임의의(가상의) 클래스 — canvas-block/banner02류가 자기 자신에
+    //   inline transform:scale()을 쓰는 것과 같은 패턴을 흉내낸다. 클래스명을 나열하는 접근
+    //   (예전 .frame-block:has(...))이었다면 이 케이스는 절대 안 잡혔을 것 — 이게 핵심 검증.
+    //   기존 sec1과 안 겹치게 별도 좌표로 절대배치한다.
+    document.body.insertAdjacentHTML('beforeend', `
+      <div id="sec2" style="position:absolute;left:0;top:300px;width:400px;height:200px;">
+        <div class="totally-not-frame-block" id="weird1" style="position:relative;transform:scale(1);width:200px;height:100px;">
+          <div class="shape-block shape-redact" id="shp2" data-shape-type="rect"
+               data-shape-redact-mode="mosaic" style="position:absolute;left:0;top:0;width:200px;height:60px;"></div>
+        </div>
+        <div class="text-block" id="txt2" style="position:absolute;left:10px;top:10px;">여권번호 M87654321</div>
+      </div>`);
+    const weird = document.getElementById('weird1');
+    const weirdRect = weird.getBoundingClientRect();
+    const top = document.elementFromPoint(weirdRect.left + 30, weirdRect.top + 20);
+    return {
+      weirdZ: getComputedStyle(weird).zIndex,
+      topId: top ? top.id : null,
+    };
+  });
+  expect(out.weirdZ, '★.frame-block이 아닌 클래스의 transform 컨테이너는 클래스 한정 :has() 규칙이 안 잡는다 — 속성선택자여야 한다').toBe('3');
+  expect(out.topId, '★회귀 — 클래스명이 다른 transform 컨테이너 안의 redact가 밖의 텍스트에 진다').toBe('shp2');
+  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
+});
