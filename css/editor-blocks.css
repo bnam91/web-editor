@@ -32,7 +32,20 @@
  * 타입이 생겨도(inline transform 패턴만 같으면) 이름을 안 적어도 자동으로 커버된다.
  * JS 훅이 전혀 필요 없다 — 브라우저(html2canvas 포함, 실측 확인됨)가 DOM 변화마다 자동
  * 재평가하므로 라이브 화면·모든 export/썸네일/목업 클론 경로에 한 번에 적용된다. */
-[style*="transform"]:has(.shape-block.shape-redact) {
+/* ★3차수정(2026-09-15, a1-a3 지적 — 진짜 UI 회귀): #canvas-scaler(캔버스 줌 뷰포트 래퍼,
+ * editor-canvas.css)도 줌 때문에 인라인 transform:scale() 을 들고 있다(block-drag.js:428
+ * 등). 프로젝트 어디든 redact 도형이 하나라도 있으면 :has() 의 후손 매칭(깊이 무관)이
+ * #canvas-scaler «자신»까지 걸려 z-index:3 !important 를 받는다 — 눈금자·섹션 라벨·툴바·
+ * 드롭 표시 같은 캔버스 형제 UI(보통 z-index 1~2 대)가 캔버스 아래로 깔릴 수 있다(redact
+ * 켜기/끄기로 UI 가 사라졌다 나타나는 회귀). #canvas-scaler 는 «콘텐츠 컨테이너»가 아니라
+ * 앱 뷰포트 래퍼라 이 규칙의 대상이 아니다 — 명시적으로 제외한다.
+ * ★.row/.col-active(2026-09-15 a1-a3 지적): editor-blocks.css 다른 규칙이 .row.row-active/
+ * .col.col-active 에 z-index:1 을 준다(활성 줄/칸 강조) — transform 이 아니라 클래스 기반
+ * z-index 라 위 속성선택자로는 안 잡힌다. .row/.col 은 그 자체로 스태킹 컨텍스트가 되므로
+ * (position:relative + z-index) 같은 조건(redact 를 품음)이면 따로 명시해 같이 끌어올린다. */
+[style*="transform"]:has(.shape-block.shape-redact):not(#canvas-scaler),
+.row:has(.shape-block.shape-redact),
+.col:has(.shape-block.shape-redact) {
   z-index: 3 !important;
 }
 .frame-block.selected {

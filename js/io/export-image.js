@@ -255,12 +255,18 @@ export async function prepareCloneForCapture(sec, w, useNative) {
   clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary').forEach(el => el.remove());
   clone.classList.remove('selected', 'sec-bg-editing');
   // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 내보내기 오염 방지)
+  // ★row-active/col-active(2026-09-15 a1-a3 지적): editor-blocks.css가 이 둘에 z-index:1을
+  //   줘서(활성 줄/칸 강조용) .row/.col이 스태킹 컨텍스트가 된다 — 벗기기 목록에 없으면
+  //   export 클론에 그대로 남아, 그 안의 redact 도형이 z-index:3을 받아도(:has() 규칙)
+  //   «줄 전체»가 z-index:1에 갇혀 겹치는 다른 줄의 글자(z-index:2)보다 아래일 수 있다
+  //   (회전·오버플로로 겹칠 때만 — section-serialize.js RUNTIME_MARKER_CLS는 이미 row-active를
+  //   걷지만 이 파일의 별도 목록엔 빠져 있었다).
   clone.querySelectorAll(
-    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected, .bn2-line-selected, .bn2-line-empty, .grd-line-selected, .stb-line-selected, .stb-step-selected'
+    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected, .bn2-line-selected, .bn2-line-empty, .grd-line-selected, .stb-line-selected, .stb-step-selected, .row-active, .col-active'
   ).forEach(el => {
     el.classList.remove('selected', 'img-editing', 'editing', 'dragging',
       'group-selected', 'group-editing', 'ss-drag-over', 'drag-over', 'item-selected', 'bn2-line-selected', 'bn2-line-empty',
-      'grd-line-selected', 'stb-line-selected', 'stb-step-selected');
+      'grd-line-selected', 'stb-line-selected', 'stb-step-selected', 'row-active', 'col-active');
   });
   /* ★프라이버시(2026-09-15, a1-a3 지적+elementFromPoint 실측 확인 — T-027 z-index 수정
    * (editor-blocks.css .shape-block.shape-redact z-index:3)의 잔여 구멍): transform이

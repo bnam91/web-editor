@@ -179,3 +179,45 @@ test('F4 ★2차수정 핵심 — .frame-block이 «아닌» 클래스의 transf
   expect(out.topId, '★회귀 — 클래스명이 다른 transform 컨테이너 안의 redact가 밖의 텍스트에 진다').toBe('shp2');
   expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });
+
+test('F5 ★3차수정 — #canvas-scaler(줌 뷰포트 래퍼)는 명시적으로 제외한다(a1-a3 지적: 안 빼면 redact 하나로 캔버스 형제 UI가 밑에 깔림)', async ({ page }) => {
+  const errs = await boot(page);
+  const out = await page.evaluate(() => {
+    // #canvas-scaler도 줌 때문에 인라인 transform:scale()을 들고, 프로젝트 어디든 redact가
+    // 있으면 :has() 후손매칭(깊이무관)이 #canvas-scaler 자신까지 건드릴 수 있다 — 실제 앱
+    // 구조를 흉내낸다(scaler 안에 섹션, 섹션 밖에 형제 UI).
+    document.body.insertAdjacentHTML('beforeend', `
+      <div id="canvas-wrap">
+        <div id="ruler-ui" style="position:relative;z-index:2;">눈금자</div>
+        <div id="canvas-scaler" style="position:relative;transform:scale(0.4);">
+          <div class="section-block"><div class="frame-block" style="position:relative;transform:translate(0px,0px);">
+            <div class="shape-block shape-redact" data-shape-redact-mode="mosaic" style="position:absolute;inset:0;"></div>
+          </div></div>
+        </div>
+      </div>`);
+    return { scalerZ: getComputedStyle(document.getElementById('canvas-scaler')).zIndex };
+  });
+  expect(out.scalerZ, '★#canvas-scaler 자신이 z-index:3을 받았다 — 캔버스 형제 UI(눈금자·툴바 등)가 밑에 깔리는 회귀').not.toBe('3');
+  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
+});
+
+test('F6 ★3차수정 — .row-active/.col-active(transform 아니라 z-index:1 클래스규칙)로 인한 쌓임 맥락도 커버한다(a1-a3 지적)', async ({ page }) => {
+  const errs = await boot(page);
+  const out = await page.evaluate(() => {
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="section-block" id="sec3" style="position:absolute;left:0;top:600px;width:400px;height:200px;">
+        <div class="row row-active" id="row1" style="width:200px;height:100px;">
+          <div class="shape-block shape-redact" id="shp3" data-shape-type="rect"
+               data-shape-redact-mode="mosaic" style="position:absolute;left:0;top:0;width:200px;height:60px;"></div>
+        </div>
+        <div class="text-block" id="txt3" style="position:absolute;left:10px;top:10px;">겹치는 텍스트</div>
+      </div>`);
+    const row = document.getElementById('row1');
+    const rowRect = row.getBoundingClientRect();
+    const top = document.elementFromPoint(rowRect.left + 30, rowRect.top + 20);
+    return { rowZ: getComputedStyle(row).zIndex, topId: top ? top.id : null };
+  });
+  expect(out.rowZ, '★.row.row-active(z-index:1) 안에 redact가 있는데 규칙이 안 끌어올렸다').toBe('3');
+  expect(out.topId, '★활성 줄 안의 redact가 겹치는 텍스트에 진다').toBe('shp3');
+  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
+});
