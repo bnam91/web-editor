@@ -361,6 +361,10 @@ function _grdWireTypo(block, addr) {
   document.getElementById('grd-line-add-btn')?.addEventListener('click', () => {
     let curLines;
     try { curLines = getGridModel(block).cells?.[addr.r]?.[addr.c]?.lines || []; } catch (_) { curLines = []; }
+    // ★상한(updateGridBlock 의 patchCell{lines} 가드, 20)을 여기서 먼저 확인한다 — 실패가
+    //   확실한 호출 앞에서 grdSetActiveLine 을 먼저 불러두면(아래 순서 주석 참고) 존재하지
+    //   않는 li 를 가리키게 되므로, 그 경우는 호출 자체를 건너뛴다.
+    if (curLines.length >= 20) { window.showToast?.('⚠️ 줄 추가 실패: 셀당 최대 20줄'); return; }
     const newLines = curLines.slice();
     newLines.splice(addr.li + 1, 0, { type: 'body', text: '' });
     grdSetActiveLine(block, { r: addr.r, c: addr.c, li: addr.li + 1 });

@@ -664,6 +664,20 @@ function updateGridBlock(blockId, partial = {}) {
     const _oversize = [rest.imgSrc, ...(Array.isArray(rest.lines) ? rest.lines.map(l => l && l.imgSrc) : [])]
       .some(s => typeof s === 'string' && s.length > 200000);
     if (_oversize) return { ok: false, code: 'TOO_LARGE', message: 'imgSrc too long (>200000)' };
+    /* ★셀 lines 배열 길이 가드 — 우클릭 "이미지 삭제"·좌패널 "줄 삭제"·"+줄 추가"·MCP 전부
+       이 patchCell{lines} 한 길목을 지나므로 여기 한 번만 막으면 전부 막힌다
+       (banner02/laurel/innercard는 이미 있던 가드, grid만 없었다 — 2026-09-15 적대적 QA 지적).
+       0개: 컨텍스트메뉴로 마지막 한 줄을 지우면 셀이 lines:[]로 비어 [data-line]이
+       사라지고 좌패널 진입로도 없어져 ⌘Z 외엔 복구 불가능했다.
+       상한: "+줄 추가" 연타에 실측 무한증식(15클릭→16줄) — 형제 블록과 같은 20으로 캡. */
+    if (Array.isArray(rest.lines)) {
+      if (rest.lines.length === 0) {
+        return { ok: false, code: 'INVALID', message: 'cell lines cannot be emptied — remove the row/column instead' };
+      }
+      if (rest.lines.length > 20) {
+        return { ok: false, code: 'INVALID', message: `patchCell.lines limit reached (20, got ${rest.lines.length})` };
+      }
+    }
     const extra = r > 0 ? _gridExtraRows(block, cols, rowCountForValidation) : null;
     let cellPatch = rest;   // 기본: 셀 전체(부분) patch — 기존 동작 그대로
 
