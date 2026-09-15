@@ -105,19 +105,23 @@ export async function captureMosaicSnapshot(block, opts) {
   const capW = Math.max(1, Math.round(w / zf));
   const capH = Math.max(1, Math.round(h / zf));
 
-  const prevVisibility = block.style.visibility;
-  block.style.visibility = 'hidden'; // 자기 자신(캔버스 포함)을 캡처하지 않도록
+  // ★프라이버시(2026-09-15): 예전엔 block.style.visibility='hidden'으로 라이브 DOM을
+  // 실제로 숨긴 뒤 await 하고 되돌렸다 — html2canvas가 밑 콘텐츠를 찍는 수백ms 동안
+  // 화면의 가림막(회색/모자이크)이 통째로 사라져 재캡처 때마다(슬라이더 드래그, 다른
+  // 블록 이동 등 임의의 mouseup) 원본이 깜빡이며 노출됐다(a1-a3 코드리뷰 지적, T-027).
+  // html2canvas의 ignoreElements로 "이 블록만 캡처 대상에서 제외"하면, 라이브 화면은
+  // 한순간도 안 바뀐 채(가림막 계속 보임) 오프스크린 캡처 결과에서만 그 블록이 빠져
+  // 밑 콘텐츠가 드러난다 — 같은 효과를 화면에 아무 변화 없이 얻는다.
   let captured;
   try {
     captured = await window.html2canvas(scope, {
       x: relX, y: relY, width: capW, height: capH,
       backgroundColor: null, logging: false, useCORS: true,
+      ignoreElements: (el) => el === block,
     });
   } catch (_) {
-    block.style.visibility = prevVisibility;
     return false;
   }
-  block.style.visibility = prevVisibility;
   if (!captured || !captured.width || !captured.height) return false;
 
   _fullResCache.set(block, captured);
