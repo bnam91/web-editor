@@ -1385,12 +1385,19 @@ function copySelected() {
       || selNormal.classList.contains('chat-block')
       || selNormal.classList.contains('laurel-block')
       || selNormal.classList.contains('joker-block');
+    /* ★텍스트블록 오버레이(플로팅) — .frame-block[data-text-frame] 래퍼를 section-block에
+     * 직접 붙이는 방식이라 위 _flWrapper/_flFrame 판정(data-free-layout 필요)에 안 걸린다.
+     * 여기서 안 잡으면 아래 일반 경로로 떨어져 절대배치·아웃라인이 통째로 소실된다
+     * (2026-09-15 적대적 QA qa-adversarial-overlay 발견). */
+    const _overlayWrapper = selNormal.closest('.frame-block[data-text-frame]');
+    const isOverlayFloating = _overlayWrapper?.dataset.overlayBlock === 'true';
     /* ★단일 선택도 «부분 선택»일 수 있다 — 한 행에 블록이 여럿인데 하나만 고른 경우다.
      * 이전엔 개수와 무관하게 행 전체를 담아, 고르지 않은 형제까지 복사됐다(실기 재현 2→4).
      * 「행이 통째로 선택됐을 때만 행을 담는다」는 판정은 멀티 분기와 «같은 헬퍼»를 쓴다 —
      * 두 분기가 다른 기준을 쓰면 개수에 따라 동작이 갈린다(그게 이 버그였다). */
     const _row1 = selNormal.closest('.row');
-    const target = (isGapSel || isFloating) ? selNormal
+    const target = isOverlayFloating ? _overlayWrapper
+      : (isGapSel || isFloating) ? selNormal
       : ((_row1 && _isRowFullySelected(_row1, ALL_TYPES_SEL)) ? _row1 : selNormal);
     const banner = target.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: target.outerHTML, sourceBannerId: banner?.id || null };
@@ -1698,6 +1705,28 @@ function pasteClipboard() {
       el.dataset.y = String(vp ? Math.round(vp.y) : curY + 20);
       window.renderStickerBlock?.(el);
       window.bindStickerSelect?.(el);
+    } else if (el.classList.contains('frame-block') && el.dataset.textFrame === 'true' && el.dataset.overlayBlock === 'true') {
+      /* ★텍스트블록 오버레이(플로팅) — 스티커와 같은 취급: section 밑에 absolute로 직접 붙인다.
+       * 아래 일반 경로(_normalizePastedAbsolute)를 태우면 absolute가 통째로 벗겨진다
+       * (2026-09-15 적대적 QA 발견 → 이 분기 신설). */
+      const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
+      if (!sec) { window.showNoSelectionHint?.(); return; }
+      const curX = parseInt(el.style.left) || 0;
+      const curY = parseInt(el.style.top) || 0;
+      const vp = _viewportCenterInContainerLocal(sec);
+      const nx = vp ? Math.round(vp.x) : curX + 20;
+      const ny = vp ? Math.round(vp.y) : curY + 20;
+      sec.appendChild(el);
+      _bindPastedEl(el);
+      el.style.left = nx + 'px'; el.style.top = ny + 'px';
+      el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
+      // 복귀정보는 원본 것을 그대로 물려받으면 안 된다(원본 부모에 잘못 꽂힌다) —
+      // 지워서 exitOverlay의 기존 폴백(섹션 맨 앞)을 타게 한다.
+      delete el.dataset.overlayReturnParent;
+      delete el.dataset.overlayReturnAfter;
+      deselectAll();
+      (el.querySelector('.text-block') || el).classList.add('selected');
+      sec.classList.add('selected');
     } else {
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
       if (!sec) { window.showNoSelectionHint?.(); return; }
