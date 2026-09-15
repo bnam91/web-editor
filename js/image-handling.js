@@ -644,10 +644,23 @@ function setAssetVideoFromSrc(ab, src) {
   const prevOverlayEl = ab.querySelector('.asset-overlay');
   const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
   const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
+  // ★그레인 보존 — setAssetImageFromSrc 와 같은 이유(적대적 QA 지적, 2026-09-15): innerHTML
+  //   갈아엎기 전에 .asset-grain 을 캡처해 재삽입하지 않으면 그레인 있던 이미지를 영상으로
+  //   교체할 때 그레인 층이 조용히 사라진다.
+  const prevGrainEl = ab.querySelector('.asset-grain');
+  const prevGrainStyle = prevGrainEl ? prevGrainEl.getAttribute('style') || '' : '';
+  const prevGrainIntensity = prevGrainEl ? prevGrainEl.dataset.grainIntensity || '' : '';
   ab.innerHTML = `
     <div class="asset-img-clip"><video class="asset-img asset-video" src="${src}" style="object-fit:${ab.dataset.fit}" muted loop playsinline></video></div>
     <button class="asset-overlay-clear" title="영상 제거">✕</button>
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
+  if (prevGrainEl) {
+    const grainEl = document.createElement('div');
+    grainEl.className = 'asset-grain';
+    if (prevGrainStyle) grainEl.setAttribute('style', prevGrainStyle);
+    if (prevGrainIntensity) grainEl.dataset.grainIntensity = prevGrainIntensity;
+    ab.appendChild(grainEl);
+  }
   ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
     e.stopPropagation();
     clearAssetImage(ab);

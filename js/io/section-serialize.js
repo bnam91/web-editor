@@ -60,6 +60,22 @@
       el.removeAttribute('data-lazy-bg');
     });
     root.querySelectorAll('.section-block.lazy-unloaded').forEach(el => el.classList.remove('lazy-unloaded'));
+    /* T-012 안전장치: video-pending(트림 확정 «전» 임시 상태, js/image-handling.js
+       setAssetVideoFromSrc 참고)은 저장 대상이 아니다 — "GIF로 적용"을 안 누른 채 저장하면
+       원본 영상 data URL(최대 ~50MB×1.33 팽창)이 proj.json «과» 모든 undo 스냅샷(트림 핸들
+       드래그마다 최대 50개)에 통째로 영구 저장된다(2026-09-15 적대적 QA 실측). T-012 의 원칙
+       "확정된 PNG/GIF 만 저장된다"를 이 임시 상태가 깨고 있었다 — clearAssetImage 와 같은
+       delete 목록으로 되돌려 «업로드 대기» 빈 상태로 저장한다(트림 진행은 잃지만 원본 영구
+       저장 방지가 우선; 스크래치패드가 이미 같은 이유로 스냅샷 밖에 있다). */
+    root.querySelectorAll('.asset-block[data-asset-type="video-pending"]').forEach(ab => {
+      ab.classList.remove('has-image');
+      ['imgSrc', 'fit', 'imgW', 'imgX', 'imgY', 'imgPosition', 'assetType', 'trimIn', 'trimOut', 'playbackRate', 'motion', 'gifSrc', 'gifPlaying']
+        .forEach(k => delete ab.dataset[k]);
+      const overlayEl = ab.querySelector('.asset-overlay');
+      const overlayHTML  = overlayEl ? overlayEl.innerHTML : '';
+      const overlayStyle = overlayEl ? overlayEl.getAttribute('style') || '' : '';
+      ab.innerHTML = `<div class="asset-overlay" ${overlayStyle ? `style="${overlayStyle}"` : ''}>${overlayHTML}</div>`;
+    });
     // ghost 섹션은 저장에서 제외
     root.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
     root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy').forEach(el => el.remove());
