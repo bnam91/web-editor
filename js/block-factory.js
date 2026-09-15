@@ -4813,7 +4813,12 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     if (!Array.isArray(lines)) return;
     const nextLines = lines.filter((_, i) => i !== addr.li);
     const res = window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lines: nextLines } });
-    if (res && res.ok === false) window.showToast?.('❌ 이미지 삭제 실패: ' + res.message);
+    if (res && res.ok === false) {
+      const msg = res.code === 'EMPTY_CELL_LINES'
+        ? '⚠️ 마지막 줄은 지울 수 없습니다 — 칸을 통째로 지우려면 행/열을 삭제하세요'
+        : '❌ 이미지 삭제 실패: ' + res.message;
+      window.showToast?.(msg);
+    }
   });
 
   nameConfirm?.addEventListener('click', e => {

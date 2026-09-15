@@ -186,6 +186,23 @@ function _gridRejectUnknownCellFields(rest, isLine) {
   };
 }
 
+/* ★셀 lines 배열 길이 가드 — patchCell{lines} 뿐 아니라 partial.cells(통째 R×C, MCP가 오는 길)도
+   같은 셀 모양을 쓰므로 같이 통과시킨다(2026-09-15 a1-a3 지적 — patchCell만 막으면 통째 경로가
+   그대로 뚫려 있었다). 0개: 우클릭 "이미지 삭제"가 마지막 줄까지 지워 [data-line]이 통째로
+   사라지던 것. 상한 20: "+ 줄 추가" 무한증식(banner02/laurel과 같은 값).
+   ★코드를 둘로 나눈다(EMPTY_CELL_LINES/TOO_MANY_LINES) — 호출부(block-factory.js)가 res.message를
+   그대로 토스트에 얹지 않고 code로 한국어 문구를 고르게 하기 위해서다. */
+function _gridRejectLinesLength(lines) {
+  if (!Array.isArray(lines)) return null;
+  if (lines.length === 0) {
+    return { ok: false, code: 'EMPTY_CELL_LINES', message: 'cell lines cannot be emptied — remove the row/column instead' };
+  }
+  if (lines.length > 20) {
+    return { ok: false, code: 'TOO_MANY_LINES', message: `patchCell.lines limit reached (20, got ${lines.length})` };
+  }
+  return null;
+}
+
 const _esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 function _gridCols(block) {
@@ -638,6 +655,13 @@ function updateGridBlock(blockId, partial = {}) {
     if (partial.cells.length > rowCountForValidation) {
       return { ok: false, code: 'INVALID', message: `cells has ${partial.cells.length} rows but grid has ${rowCountForValidation} rows — pass rows in the same call to grow the grid first` };
     }
+    for (const row of partial.cells) {
+      if (!Array.isArray(row)) continue;
+      for (const cell of row) {
+        const _reject = _gridRejectLinesLength(cell && cell.lines);
+        if (_reject) return _reject;
+      }
+    }
     const baseCols = _gridCols(block);
     const { cols: mergedCols, extra } = _splitFullCells(partial.cells, baseCols);
     next.cols = JSON.stringify(mergedCols);
@@ -664,20 +688,8 @@ function updateGridBlock(blockId, partial = {}) {
     const _oversize = [rest.imgSrc, ...(Array.isArray(rest.lines) ? rest.lines.map(l => l && l.imgSrc) : [])]
       .some(s => typeof s === 'string' && s.length > 200000);
     if (_oversize) return { ok: false, code: 'TOO_LARGE', message: 'imgSrc too long (>200000)' };
-    /* ★셀 lines 배열 길이 가드 — 우클릭 "이미지 삭제"·좌패널 "줄 삭제"·"+줄 추가"·MCP 전부
-       이 patchCell{lines} 한 길목을 지나므로 여기 한 번만 막으면 전부 막힌다
-       (banner02/laurel/innercard는 이미 있던 가드, grid만 없었다 — 2026-09-15 적대적 QA 지적).
-       0개: 컨텍스트메뉴로 마지막 한 줄을 지우면 셀이 lines:[]로 비어 [data-line]이
-       사라지고 좌패널 진입로도 없어져 ⌘Z 외엔 복구 불가능했다.
-       상한: "+줄 추가" 연타에 실측 무한증식(15클릭→16줄) — 형제 블록과 같은 20으로 캡. */
-    if (Array.isArray(rest.lines)) {
-      if (rest.lines.length === 0) {
-        return { ok: false, code: 'INVALID', message: 'cell lines cannot be emptied — remove the row/column instead' };
-      }
-      if (rest.lines.length > 20) {
-        return { ok: false, code: 'INVALID', message: `patchCell.lines limit reached (20, got ${rest.lines.length})` };
-      }
-    }
+    const _linesReject = _gridRejectLinesLength(rest.lines);
+    if (_linesReject) return _linesReject;
     const extra = r > 0 ? _gridExtraRows(block, cols, rowCountForValidation) : null;
     let cellPatch = rest;   // 기본: 셀 전체(부분) patch — 기존 동작 그대로
 
