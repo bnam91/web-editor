@@ -65,6 +65,8 @@ export function showShapeProperties(block) {
   const canRedact   = shapeType === 'rectangle' || shapeType === 'ellipse';
   const isRedact    = canRedact && block.dataset.shapeRedact === 'true';
   const redactBlur  = parseInt(block.dataset.shapeRedactBlur || '8');
+  // 모드: 'blur'(기본, backdrop-filter 실시간) | 'mosaic'(스냅샷 픽셀화, js/effects/redact-mosaic.js)
+  const redactMode  = block.dataset.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -90,11 +92,23 @@ export function showShapeProperties(block) {
       </div>
       <div id="shape-redact-controls" style="${isRedact ? '' : 'display:none'}">
         <div class="prop-row" style="margin-top:8px;">
+          <span class="prop-label">방식</span>
+          <div class="prop-segmented" id="shape-redact-mode-seg">
+            <button type="button" class="prop-segmented-btn${redactMode === 'blur' ? ' active' : ''}" data-mode="blur">블러</button>
+            <button type="button" class="prop-segmented-btn${redactMode === 'mosaic' ? ' active' : ''}" data-mode="mosaic">모자이크</button>
+          </div>
+        </div>
+        <div class="prop-row" style="margin-top:8px;">
           <span class="prop-label">강도</span>
           <input type="range" class="prop-slider" id="shape-redact-blur-slider" min="0" max="20" step="1" value="${redactBlur}">
           <input type="number" class="prop-number" id="shape-redact-blur-num" min="0" max="20" value="${redactBlur}">
         </div>
+        ${redactMode === 'mosaic' ? `
+        <button type="button" class="prop-btn" id="shape-redact-mosaic-refresh" style="margin-top:8px;width:100%;">지금 스냅샷 새로고침</button>
+        <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 그 순간 밑 콘텐츠를 캡처해 픽셀 모자이크로 가립니다. 실시간 추적이 아니라 도형을 옮기거나(이동/리사이즈 종료) 편집을 마칠 때(mouseup) 자동으로 다시 찍습니다 — 안 맞으면 위 버튼으로 즉시 새로고침하세요. 채우기 색상은 무시됩니다.</div>
+        ` : `
         <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 밑에 깔린 콘텐츠가 실시간으로 흐려집니다. 채우기 색상은 무시됩니다.</div>
+        `}
       </div>
     </div>` : ''}
 
@@ -174,30 +188,44 @@ export function showShapeProperties(block) {
   // ── 가림막(Redact) ── dataset.shapeColor/shapeGradient는 건드리지 않는다 —
   // 시각효과는 CSS 클래스(.shape-redact)가 fill을 덮어쓰는 방식이라 꺼도 원래 색/그라데이션이
   // 그대로 복원된다(editor-blocks.css 참고).
-  function applyRedact(on, blurPx) {
+  // mode: 'blur'(backdrop-filter 실시간) | 'mosaic'(js/effects/redact-mosaic.js 스냅샷 픽셀화)
+  function applyRedact(on, blurPx, mode) {
     block.classList.toggle('shape-redact', !!on);
     if (on) {
       block.dataset.shapeRedact = 'true';
       const bp = Math.max(0, Math.min(20, parseInt(blurPx) || 0));
       block.dataset.shapeRedactBlur = String(bp);
-      block.style.setProperty('--redact-blur', `${bp}px`);
+      const m = mode === 'mosaic' ? 'mosaic' : 'blur';
+      block.dataset.shapeRedactMode = m;
+      if (m === 'blur') {
+        block.style.setProperty('--redact-blur', `${bp}px`);
+      } else {
+        block.style.removeProperty('--redact-blur');
+        window.captureMosaicSnapshot?.(block, { reuseFullRes: true });
+      }
     } else {
       delete block.dataset.shapeRedact;
+      delete block.dataset.shapeRedactMode;
+      delete block.dataset.mosaicCaptured;
       block.style.removeProperty('--redact-blur');
+      block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
     }
     window.scheduleAutoSave?.();
   }
   // 저장된 프로젝트 로드 등으로 dataset과 클래스가 어긋났을 때 방어적으로 동기화
   if (canRedact) {
     block.classList.toggle('shape-redact', isRedact);
-    if (isRedact) block.style.setProperty('--redact-blur', `${redactBlur}px`);
+    if (isRedact) {
+      if (redactMode === 'blur') block.style.setProperty('--redact-blur', `${redactBlur}px`);
+      else if (!window.isMosaicCaptured?.(block)) window.captureMosaicSnapshot?.(block);
+    }
   }
 
   const redactToggleEl = document.getElementById('shape-redact-toggle');
   if (redactToggleEl) {
     redactToggleEl.addEventListener('change', () => {
       const on = redactToggleEl.checked;
-      applyRedact(on, redactBlur);
+      applyRedact(on, redactBlur, redactMode);
       const fillRow = document.getElementById('shape-fill-row');
       if (fillRow) fillRow.style.display = on ? 'none' : '';
       const controls = document.getElementById('shape-redact-controls');
@@ -205,20 +233,40 @@ export function showShapeProperties(block) {
       window.pushHistory?.();
     });
   }
+  const redactModeSeg = document.getElementById('shape-redact-mode-seg');
+  if (redactModeSeg) {
+    redactModeSeg.querySelectorAll('.prop-segmented-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const m = btn.dataset.mode;
+        if (m === redactMode) return;
+        applyRedact(true, redactBlurSliderValue(), m);
+        window.pushHistory?.();
+        showShapeProperties(block); // 강도 힌트/새로고침 버튼 등 모드별 UI 다시 그림
+      });
+    });
+  }
+  function redactBlurSliderValue() {
+    const el = document.getElementById('shape-redact-blur-slider');
+    return el ? el.value : redactBlur;
+  }
   const redactBlurSlider = document.getElementById('shape-redact-blur-slider');
   const redactBlurNum    = document.getElementById('shape-redact-blur-num');
   if (redactBlurSlider && redactBlurNum) {
     redactBlurSlider.addEventListener('input', () => {
       redactBlurNum.value = redactBlurSlider.value;
-      applyRedact(true, redactBlurSlider.value);
+      applyRedact(true, redactBlurSlider.value, redactMode);
     });
     redactBlurSlider.addEventListener('change', () => window.pushHistory?.());
     redactBlurNum.addEventListener('input', () => {
       const v = Math.min(20, Math.max(0, parseInt(redactBlurNum.value) || 0));
       redactBlurSlider.value = v;
-      applyRedact(true, v);
+      applyRedact(true, v, redactMode);
     });
     redactBlurNum.addEventListener('change', () => window.pushHistory?.());
+  }
+  const redactMosaicRefreshBtn = document.getElementById('shape-redact-mosaic-refresh');
+  if (redactMosaicRefreshBtn) {
+    redactMosaicRefreshBtn.addEventListener('click', () => { window.captureMosaicSnapshot?.(block); });
   }
 
   function applyColor(hex) {

@@ -351,7 +351,13 @@ export function isNativeCapture(opts) {
    반환 { canvas, imgTimedOut, native } — imgTimedOut 이 true 면 export 도 truth 도
    «빈 그림»일 수 있어 둘이 같아도 PASS 라고 말하면 안 된다(판정에서 unmeasured 로 간다).
    ══════════════════════════════════════════════════════════════════════════ */
-export async function captureCloneToCanvas(clone, w, bgColor, useNative) {
+export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec) {
+    // 모자이크 redact(js/effects/redact-mosaic.js)는 cloneNode에 캔버스 비트맵이 안 딸려온다.
+    // native(CDP)든 html2canvas든 «둘 다» clone을 찍으므로, 어느 경로든 타기 전에 라이브
+    // 캔버스를 clone에 구워 넣는다 — 실패 시 함수 내부에서 불투명 회색 안전실패(원본 미노출).
+    if (window.finalizeMosaicForClone) {
+      try { await window.finalizeMosaicForClone(liveSec || null, clone); } catch (_) {}
+    }
     if (useNative) {
       // ⚠️ 'background' 단축속성으로 폴백색을 넣으면 안 됨: data-URL 이미지배경은
       // background shorthand getter가 ''를 반환해서 `clone.style.background || bgColor`가
@@ -724,7 +730,7 @@ async function _exportSectionInner(sec, format, width, opts) {
   //   마지막 캡처의 상태를 들고 있다가 검사(⑥)에 넘긴다 — 애니메이션 GIF 는 frame 마다 부른다.
   let _lastCap = null;
   const capture = async () => {
-    _lastCap = await captureCloneToCanvas(clone, w, bgColor, useNative);
+    _lastCap = await captureCloneToCanvas(clone, w, bgColor, useNative, sec);
     return _lastCap.canvas;
   };
 

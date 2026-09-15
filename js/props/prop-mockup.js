@@ -213,6 +213,7 @@ async function _captureAndApply(block, sec) {
     clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;box-shadow:none;';
     document.body.appendChild(clone);
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
+    if (window.finalizeMosaicForClone) { try { await window.finalizeMosaicForClone(sec, clone); } catch (_) {} }
 
     const bgColor = sec.style.backgroundColor || sec.style.background || '#ffffff';
     const canvas = await html2canvas(clone, {

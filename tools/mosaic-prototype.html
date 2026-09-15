@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>mosaic prototype</title>
+<script src="../vendor/html2canvas/html2canvas.min.js"></script>
+<style>
+  body { margin:0; font-family:sans-serif; }
+  #stage { position:relative; width:600px; height:400px; background:#eee; }
+  #photo { position:absolute; left:0; top:0; width:600px; height:400px;
+           background: linear-gradient(135deg, #f06, #4a90d9 40%, #ffd23f 80%);
+  }
+  #photo::after {
+    content: 'FACE 얼굴 텍스트 12345';
+    position:absolute; left:40px; top:150px; font-size:28px; color:#fff; font-weight:bold;
+  }
+  .redact { position:absolute; left:150px; top:100px; width:220px; height:140px;
+            border: 2px solid rgba(255,0,0,.4); overflow:hidden; }
+  canvas.mosaic-canvas { position:absolute; left:0; top:0; width:100%; height:100%;
+            image-rendering: pixelated; image-rendering: -moz-crisp-edges; }
+  #out { margin-top:16px; }
+  #out img { border:1px solid #999; }
+  button { margin:8px 8px 0 0; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="photo"></div>
+  <div class="redact" id="redactBox"><canvas class="mosaic-canvas" id="mosaicCanvas"></canvas></div>
+</div>
+<button id="snap">1) Snapshot underlying → mosaic canvas</button>
+<button id="h2c">2) html2canvas capture whole stage (export sim)</button>
+<div id="out"></div>
+<script>
+async function snapshotMosaic() {
+  const box = document.getElementById('redactBox');
+  const canvas = document.getElementById('mosaicCanvas');
+  const stage = document.getElementById('stage');
+  const rect = box.getBoundingClientRect();
+  const stageRect = stage.getBoundingClientRect();
+  const relX = rect.left - stageRect.left;
+  const relY = rect.top - stageRect.top;
+  const w = Math.round(rect.width), h = Math.round(rect.height);
+
+  // hide the redact box itself during capture so we don't capture our own canvas
+  box.style.visibility = 'hidden';
+  const captured = await html2canvas(stage, { x: relX, y: relY, width: w, height: h, backgroundColor: null, logging:false });
+  box.style.visibility = '';
+
+  // downscale factor -> mosaic block size ~14px
+  const BLOCK = 14;
+  const dw = Math.max(1, Math.round(w / BLOCK));
+  const dh = Math.max(1, Math.round(h / BLOCK));
+  const small = document.createElement('canvas');
+  small.width = dw; small.height = dh;
+  const sctx = small.getContext('2d');
+  sctx.imageSmoothingEnabled = true; // smooth average when downscaling
+  sctx.drawImage(captured, 0, 0, dw, dh);
+
+  // set the visible canvas's PIXEL buffer to the small size, CSS size stays 100% (upscale via CSS pixelated)
+  canvas.width = dw; canvas.height = dh;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(small, 0, 0);
+
+  document.getElementById('out').innerHTML = '<p>snapshot done: ' + dw + 'x' + dh + ' buffer, displayed at ' + w + 'x' + h + '</p>';
+}
+document.getElementById('snap').onclick = snapshotMosaic;
+document.getElementById('h2c').onclick = async () => {
+  const stage = document.getElementById('stage');
+  const shot = await html2canvas(stage, { logging:false });
+  const img = new Image();
+  img.src = shot.toDataURL();
+  document.getElementById('out').innerHTML = '<p>html2canvas full-stage capture (this is what export would produce):</p>';
+  document.getElementById('out').appendChild(img);
+};
+</script>
+</body></html>

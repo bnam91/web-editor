@@ -85,6 +85,9 @@ async function captureThumbnail() {
     clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;';
     document.body.appendChild(clone);
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
+    // 모자이크 redact(js/effects/redact-mosaic.js)는 cloneNode에 캔버스 비트맵이 안 딸려오므로
+    // clone에 라이브 캔버스를 구워 넣는다 — 실패 시 함수 내부에서 불투명 회색 안전실패.
+    if (window.finalizeMosaicForClone) { try { await window.finalizeMosaicForClone(firstSec, clone); } catch (_) {} }
 
     const bgColor = firstSec.style.background || firstSec.style.backgroundColor || '#ffffff';
     const canvas = await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false });
