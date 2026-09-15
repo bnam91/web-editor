@@ -964,3 +964,43 @@
   content: ''; position: absolute; top: -3px; left: 50%; width: 7px; height: 7px;
   background: var(--ui-danger); border-radius: 50%; transform: translateX(-50%);
 }
+
+/* ── 그라데이션 스탑 핸들 (prop-gradient.js, 전용 Gradient 블록 패널) ──────────
+   기존엔 각진 사각 손잡이(10×30 슬랩)라 범용 <input type=range> 같은 인상이었다.
+   ★새 모양을 발명하지 않는다(디자인 일관성 게이트) — 팝업 컬러피커 그라데이션 탭
+   (color-picker.css .goya-cp-grad-thumb, T-011)이 이미 일러스트/피그마식 원형 퍽으로
+   재설계돼 있으므로 그 패턴을 그대로 재사용한다. 몸통 색만 스탑 고유색
+   (--stop-color, JS가 채움)이라 예외. */
+.grad-stops-bar {
+  position: relative;
+  height: 24px;
+  margin: 10px 0 8px;
+  border-radius: 4px;
+  border: 1px solid var(--ui-border);
+  cursor: copy;
+  background: var(--ui-bg-input);
+}
+.grad-stop-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: var(--stop-color, #000);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 1px 4px rgba(0,0,0,.5);
+  cursor: grab;
+  z-index: 2;
+  transition: box-shadow .1s, transform .05s;
+}
+.grad-stop-thumb:hover {
+  box-shadow: 0 0 0 1px var(--ui-accent-primary), 0 1px 4px rgba(0,0,0,.5);
+}
+.grad-stop-thumb.dragging {
+  cursor: grabbing;
+  border-color: var(--ui-accent-primary);
+  transform: translateY(-50%) scale(1.2);
+  z-index: 3;
+}

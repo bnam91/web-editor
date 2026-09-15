@@ -80,7 +80,7 @@ export function showGradientProperties(block) {
 
     <div class="prop-section">
       <div class="prop-section-title">Color Stops</div>
-      <div class="grad-stops-bar" id="grad-stops-bar" style="position:relative;height:24px;border-radius:4px;border:1px solid var(--border,#2a2a2a);cursor:copy;margin-bottom:8px;background:#222;"></div>
+      <div class="grad-stops-bar" id="grad-stops-bar"></div>
       <div class="prop-hint" style="font-size:11px;color:#999;margin:-2px 0 8px">바를 클릭해 중간색 추가 · 핸들 드래그로 위치 · ×로 삭제(최소 2개)</div>
       <div id="grad-stops-list"></div>
       <button type="button" id="grad-add-stop" class="prop-btn" style="margin-top:6px;width:100%;font-size:12px;">+ 중간색 추가</button>
@@ -152,10 +152,12 @@ export function showGradientProperties(block) {
     stops.forEach((s, i) => {
       const t = document.createElement('div');
       t.className = 'grad-stop-thumb'; t.dataset.idx = String(i);
-      t.style.cssText = `position:absolute;top:-3px;width:10px;height:30px;margin-left:-5px;left:${s.offset*100}%;border:2px solid #fff;border-radius:3px;box-shadow:0 0 0 1px #000;background:${s.color};cursor:ew-resize;`;
+      t.style.left = (s.offset * 100) + '%';
+      t.style.setProperty('--stop-color', s.color);
       barEl.appendChild(t);
       t.addEventListener('mousedown', (e) => {
         e.preventDefault(); e.stopPropagation();
+        t.classList.add('dragging');
         const arr = STOP();
         // 라이브 드래그 중엔 DOM을 재생성하지 않는다 — paintBar()는 매 프레임 모든
         // .grad-stop-thumb 을 지우고 다시 만들어 드래그가 끊겨 보였다(createElement × N/frame).
@@ -173,7 +175,7 @@ export function showGradientProperties(block) {
             'linear-gradient(to right, ' + sorted.map(s => `${_toRgba(s.color,s.alpha)} ${Math.round(s.offset*100)}%`).join(', ') + ')'
             + ', repeating-conic-gradient(#666 0% 25%, #888 0% 50%) 0/10px 10px';
         };
-        const onUp = () => { window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp); setStops(STOP(), true); };
+        const onUp = () => { window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp); t.classList.remove('dragging'); setStops(STOP(), true); };
         window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
       });
     });
