@@ -221,6 +221,32 @@ registerGradientTarget({
   },
 });
 
+// shape-block: fill is painted via SVG <linearGradient>/<radialGradient> defs (not CSS
+// background), but block.dataset.shapeColor still stores the CSS gradient string for
+// display/round-trip (byte-identical to prop-shape.js applyGradient()). set() replays the
+// same write path prop-shape.js uses (window._applyShapeGradient + dataset + autosave/history)
+// so on-canvas drags stay indistinguishable from popup edits.
+registerGradientTarget({
+  match: (el) => el.classList.contains('shape-block'),
+  make: (block) => {
+    const svg = () => block.querySelector('svg');
+    return {
+      rect: () => (svg() || block).getBoundingClientRect(),
+      get: () => block.dataset.shapeColor || '',
+      set: (css, commit) => {
+        const s = svg();
+        const g = parseGradient(css);
+        if (!s || !g) return;
+        window._applyShapeGradient?.(block, s, { css, type: g.type, angle: g.angle, stops: g.stops });
+        block.dataset.shapeColor = css;
+        block.dataset.shapeGradient = JSON.stringify({ type: g.type, angle: g.angle, stops: g.stops });
+        window.scheduleAutoSave?.();
+        if (commit) window.pushHistory?.();
+      },
+    };
+  },
+});
+
 // getGradientTarget(blockEl) -> { rect(), get(), set(css, commit) } | null
 // null for excluded blocks (.gradient-block has its own system) or non-gradient backgrounds.
 function getGradientTarget(blockEl) {

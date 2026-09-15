@@ -1,6 +1,20 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
+// 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
+// 모달이 열려 있을 때 스와치 미리보기만 동기화한다. bg 쓰기/재렌더는 이미
+// gradient-model.js의 shape-block set()이 처리하므로 여기서 중복 적용하지 않는다(루프 방지).
+let _applyingExternalShapeGrad = false;
+document.addEventListener('gradient-line:change', (e) => {
+  if (e.detail?.source !== 'canvas') return;
+  const block = e.target?.closest?.('.shape-block');
+  if (!block || !e.detail?.css) return;
+  _applyingExternalShapeGrad = true;
+  const sw = document.getElementById('shape-color-color')?.closest('.prop-color-swatch');
+  if (sw) sw.style.background = e.detail.css; // 모달이 열려 있으면 스와치 미리보기 갱신
+  _applyingExternalShapeGrad = false;
+});
+
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#cccccc';
   if (/^#/.test(rgb)) return rgb;
@@ -137,7 +151,7 @@ export function showShapeProperties(block) {
     block.dataset.shapeColor = hex;
     if (svg) {
       // 그라데이션이 적용돼 있을 때만 clear 수행 (대부분의 솔리드 드래그에선 no-op이라 skip)
-      if (block.dataset.shapeGradient) _clearShapeGradient(block);
+      if (block.dataset.shapeGradient) { _clearShapeGradient(block); window.hideGradientLine?.(block); }
       // svg.style.color 도 값이 같으면 스킵 (실제로 같을 일은 드물지만 안전망)
       if (svg.style.color !== hex) svg.style.color = hex;
     }
@@ -224,11 +238,16 @@ export function showShapeProperties(block) {
       }
       // detail.commit 플래그가 있을 때만 history 발행 — 평소엔 라이브 미리보기.
       if (e.detail && e.detail.commit) window.pushHistory?.();
+      // 팝업 편집 → 캔버스 핸들 각도 재배치 (banner02/comparison과 동일 패턴)
+      if (!_applyingExternalShapeGrad) window.showGradientLine?.(block);
     });
     shapeColorInput.addEventListener('goya-cp:gradient-commit', () => {
       window.pushHistory?.();
     });
   }
+
+  // 선택 시 채우기가 그라데이션이면 캔버스 위 그라데이션 라인 표시 (아니면 overlay가 no-op)
+  window.showGradientLine?.(block);
 
   // ── 스트로크 두께 ──
   const strokeSlider = document.getElementById('shape-stroke-slider');
