@@ -91,11 +91,11 @@ function restoreSnapshot(snap) {
     Object.assign(state.pageSettings, snap.settings);
     const canvasEl = document.getElementById('canvas');
     canvasEl.innerHTML = snap.canvas;
-    window.rebindAll();
     // ★T-033: video-pending(트림 확정 전 영상)은 스냅샷에 "빈 업로드대기"로 찍힌다
-    //   (js/io/section-serialize.js T-012 안전장치) — 같은 세션 런타임 캐시에 원본이
-    //   있으면 여기서 다시 붙여, undo 가 트림이 아니라 영상 자체를 지워버리는 걸 막는다.
-    window.reattachVideoPendingBlocks?.(canvasEl);
+    //   (js/io/section-serialize.js T-012 안전장치) — rebindAll 이 그 원본을 같은 세션
+    //   런타임 캐시에서 다시 붙인다(js/io/save-load.js rebindAll 참고 — undo/redo 뿐 아니라
+    //   페이지·탭전환·프로젝트로드까지 이 한 지점에서 공통으로 커버한다).
+    window.rebindAll();
     window.deselectAll();
     window.applyPageSettings();
     if (window.buildLayerPanel) window.buildLayerPanel();
@@ -222,10 +222,7 @@ function restoreSnapshotScoped(fromSnap, toSnap, laterSnap) {
   try {
     Object.assign(state.pageSettings, toSnap.settings || {});
     skipped = _applyScopedDiff(fromSnap, toSnap, laterSnap);
-    window.rebindAll();
-    // ★T-033: 전체복원(restoreSnapshot)과 같은 이유 — 스코프 복원도 diff 의 html 조각이
-    //   같은 세척(video-pending → 빈 업로드대기)을 거친 문자열이라 동일하게 필요하다.
-    window.reattachVideoPendingBlocks?.(document.getElementById('canvas'));
+    window.rebindAll(); // ★T-033: video-pending 재연결도 rebindAll 안에서 같이 커버된다(위 참고)
     window.deselectAll();
     window.applyPageSettings();
     if (window.buildLayerPanel) window.buildLayerPanel();

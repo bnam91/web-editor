@@ -1408,7 +1408,15 @@ function copySelected() {
   } else if (selRow) {
     clipboard = { type: 'block', html: selRow.outerHTML };
   } else if (selSection) {
-    clipboard = { type: 'section', html: selSection.outerHTML };
+    /* ★T-033 — 원본 outerHTML 을 그대로 복사하면 video-pending(트림 확정 전 영상)의
+     *   원본 data URL 이 세척 없이 클립보드 객체에 «한 벌 더» 남는다(T-012 는 저장·undo
+     *   스냅샷 경로만 세척했지 이 경로는 걸러지지 않았다 — 반대방향 누수, 2026-09-15 지적).
+     *   serializeSectionClone 은 라이브를 안 건드리고 클론만 세척해 문자열을 낸다(section-
+     *   serialize.js 단일 진실원과 같은 경로) — 붙여넣기 결과는 "빈 업로드대기"가 되지만
+     *   그건 이미 저장·새 탭 로드가 똑같이 보이는 T-031 의도된 모습이다.
+     *   ⛔블록/행/멀티선택 복사(위 target.outerHTML 등)는 같은 계열이지만 이번 지시 범위 밖 —
+     *     범위를 넓히려면 그쪽도 같은 clone-세척 패턴으로 바꿔야 한다. */
+    clipboard = { type: 'section', html: window.serializeSectionClone(selSection) };
   }
 }
 
