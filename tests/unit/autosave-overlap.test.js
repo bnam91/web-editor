@@ -220,7 +220,7 @@ function unnettedReleases(files, flags) {
    ★아래 둘은 검사를 넓히다 «새로 찾은» 것이다 — 이번에 고친 것과 갈라 적는다. */
 const UNNETTED_BACKLOG = {
   'js/collab/sync.js':          [418],
-  'js/history.js':              [109, 234],
+  'js/history.js':              [115, 243],
   'js/io/lazy-sections.js':     [59],    // ★신규 — `_lazyRenderPass` (플래그 축을 넓혀서 보였다)
   'js/version-history-ui.js':   [407],   // ★신규 — `else setTimeout` 이 안전망이 아님을 알고 보였다
 };

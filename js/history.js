@@ -41,7 +41,13 @@ function pushHistory(action = '작업', sideEffects = null) {
   historyStack = historyStack.slice(0, historyPos + 1);
   // sideEffects: { onUndo?: fn, onRedo?: fn } — DOM 외 상태(예: 스크래치패드 IDB) 복원용
   // remoteKeys: 직전 체크포인트 이후 적용된 원격 섹션 키 셋(스코프 undo 가 제외에 사용)
-  historyStack.push({ canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), seq: ++_seq });
+  const _canvas = window.getSerializedCanvas();
+  // ★T-031 2차: getSerializedCanvas() 가 «방금» 발견한 video-pending 원본을 이 스냅샷
+  //   «자신»에 붙인다(같은 동기 구간에서 읽어야 한다 — js/io/section-serialize.js
+  //   getLastVideoPendingSidecar 주석 참고). 전역 캐시가 아니라 이 스냅샷 전용이라,
+  //   나중에 이 스냅샷이 아닌 다른 스냅샷을 복원할 땐 여기 안 실린다.
+  const _videoPendingSidecar = window.getLastVideoPendingSidecar?.();
+  historyStack.push({ canvas: _canvas, videoPendingSidecar: _videoPendingSidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), seq: ++_seq });
   if (historyStack.length > MAX_HISTORY) {
     historyStack.shift(); // 가장 오래된 항목 제거
     historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -92,10 +98,10 @@ function restoreSnapshot(snap) {
     const canvasEl = document.getElementById('canvas');
     canvasEl.innerHTML = snap.canvas;
     // ★T-031: video-pending(트림 확정 전 영상)은 스냅샷에 "빈 업로드대기"로 찍힌다
-    //   (js/io/section-serialize.js T-012 안전장치) — rebindAll 이 그 원본을 같은 세션
-    //   런타임 캐시에서 다시 붙인다(js/io/save-load.js rebindAll 참고 — undo/redo 뿐 아니라
-    //   페이지·탭전환·프로젝트로드까지 이 한 지점에서 공통으로 커버한다).
-    window.rebindAll();
+    //   (js/io/section-serialize.js T-012 안전장치) — rebindAll 이 «이 snap 자신의»
+    //   videoPendingSidecar(pushHistory 가 이 스냅샷을 만들 때 같이 붙여둔 것, 2차수정
+    //   스냅샷 스코프)로 원본을 다시 붙인다. 다른 스냅샷·다른 섹션 것은 안 섞인다.
+    window.rebindAll({ videoPendingSidecar: snap.videoPendingSidecar });
     window.deselectAll();
     window.applyPageSettings();
     if (window.buildLayerPanel) window.buildLayerPanel();
@@ -222,7 +228,10 @@ function restoreSnapshotScoped(fromSnap, toSnap, laterSnap) {
   try {
     Object.assign(state.pageSettings, toSnap.settings || {});
     skipped = _applyScopedDiff(fromSnap, toSnap, laterSnap);
-    window.rebindAll(); // ★T-031: video-pending 재연결도 rebindAll 안에서 같이 커버된다(위 참고)
+    // ★T-031: toSnap 자신의 videoPendingSidecar만 쓴다 — 스코프 diff가 손 안 댄 다른 섹션의
+    //   블록은 sidecar에 없어(그 블록은 toSnap 생성 시 video-pending이 아니었을 것이므로)
+    //   자연히 안 건드려진다.
+    window.rebindAll({ videoPendingSidecar: toSnap.videoPendingSidecar });
     window.deselectAll();
     window.applyPageSettings();
     if (window.buildLayerPanel) window.buildLayerPanel();
@@ -286,7 +295,8 @@ function clearHistory() {
   // 초기 상태를 스냅샷으로 저장해 첫 번째 액션도 Undo 가능하게 함
   // 프로젝트 격리: 이전 프로젝트에서 누적된 원격 키 잔량을 버린다(빈 셋으로 초기화).
   _remoteSinceCheckpoint = new Set();
-  const init = { canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set(), seq: ++_seq };
+  const _initCanvas = window.getSerializedCanvas();
+  const init = { canvas: _initCanvas, videoPendingSidecar: window.getLastVideoPendingSidecar?.(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set(), seq: ++_seq };
   historyStack = [init];
   historyPos   = 0;
   state._canvasDirty = false;

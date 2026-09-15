@@ -1,5 +1,5 @@
 /* video-pending-undo-reattach.dom.spec.js — T-031: video-pending 상태에서 트림하다 ⌘Z 하면
- * «트림이 아니라 영상 자체»가 사라지던 회귀의 원문 게이트. (2026-09-15)
+ * «트림이 아니라 영상 자체»가 사라지던 회귀의 원문 게이트. (2026-09-15, 2차수정 스냅샷스코프)
  *
  * ★배경
  *   T-012 는 video-pending(트림 확정 전 임시 상태)이 저장본·undo 스냅샷에 원본 영상 data URL을
@@ -8,13 +8,21 @@
  *   거친다 — 그래서 트림 핸들을 드래그할 때마다(js/props/asset-video-trim.js pushHistory) 찍히는
  *   undo 스냅샷도 전부 "빈 에셋"이 되어, ⌘Z 한 번에 트림 위치가 아니라 영상 자체가 사라진다.
  *
- * ★고침
- *   js/io/section-serialize.js 에 세션 한정 런타임 캐시(_videoPendingCache, block.id 키)를 두고
- *   지우기 «직전»에 원본(imgSrc/fit/trimIn/trimOut/playbackRate)을 캡처한다. undo/redo 로 캔버스가
- *   갈린 뒤(js/history.js restoreSnapshot/restoreSnapshotScoped 가 rebindAll 직후) 호출하는
- *   reattachVideoPendingBlocks 가 그 캐시로 원본을 다시 붙인다. 진짜 파일 리로드(새 세션)는
- *   캐시가 비어 있어 자연히 "빈 업로드대기"(T-031 의도된 동작)로 떨어진다 — 그걸 T3 이 잰다.
- *   같은 자리에서 그레인(.asset-grain)이 video-pending 세척에 같이 빠지던 부수피해도 고쳤다 — T4.
+ * ★고침(1차 → 2차)
+ *   1차: js/io/section-serialize.js 에 세션 한정 전역 Map(_videoPendingCache, block.id 키)을
+ *   두고 지우기 직전 원본을 캐시, reattachVideoPendingBlocks 가 되살렸다. 그런데 a1-a3 코드리뷰가
+ *   전역 last-write-wins 구조의 구멍을 찾았다 — 지운 영상 → 무관한 편집 → ⌘Z 한 번(=그 편집만
+ *   취소해야 정상)에도 «이미 지운» 영상이 되살아나고, 트림을 여러 번 고친 뒤 되돌려도 구간이
+ *   «그 시점 값»이 아니라 «최신 값»으로 붙었다.
+ *   2차: 전역 캐시를 없애고, getLastVideoPendingSidecar()가 «바로 직전 serializeCleanRoot
+ *   호출 하나»가 발견한 것만 돌려주게 했다 — 호출자(history.js pushHistory/init, save-load.js
+ *   flushCurrentPage)가 자기 스냅샷/페이지 객체에 videoPendingSidecar로 붙여 «그 시점 전용»으로
+ *   들고 다닌다. reattachVideoPendingBlocks(root, sidecar)는 이제 sidecar 를 «명시적으로»
+ *   받아야 하고(2번째 인자 필수 — 안 주면 아무것도 안 한다, fail-closed), 그 스냅샷 자신의
+ *   sidecar 만 쓰므로 무관한 스냅샷을 복원할 땐 되살아나지 않는다.
+ *   진짜 파일 리로드(새 세션)는 sidecar 필드 자체가 없어 자연히 "빈 업로드대기"(T-031 의도된
+ *   동작)로 떨어진다 — 그걸 T3 이 잰다. 같은 자리에서 그레인(.asset-grain)이 video-pending
+ *   세척에 같이 빠지던 부수피해도 고쳤다 — T4.
  *
  * ⛔앱을 «안» 띄운다 — 고디터 인스턴스·MCP 9345 대역 무접촉. section-serialize.js 만 얹는다
  *   (template-marker-leak.dom.spec.js 와 같은 하네스).
@@ -114,14 +122,18 @@ test('T2 ★⌘Z 재현 — 트림 2번(pushHistory 2회) 뒤 undo 로 캔버스
     clone = canvas.cloneNode(true);
     window.serializeCleanRoot(clone);
     const snap = clone.innerHTML; // ← historyStack 에 실제로 찍히는 문자열과 동일
+    // ★2차수정: history.js pushHistory 는 getSerializedCanvas() 직후 같은 동기 구간에서
+    // getLastVideoPendingSidecar() 를 읽어 이 스냅샷 «자신»에 붙인다 — 여기서도 같은 타이밍으로
+    // 읽어야 한다(늦게 읽으면 다음 serializeCleanRoot 호출에 덮어써질 수 있다).
+    const sidecar = window.getLastVideoPendingSidecar();
 
     // ⌘Z — js/history.js restoreSnapshot 과 같은 수순: 캔버스를 스냅샷으로 통째 교체.
     canvas.innerHTML = snap;
     const abAfterRestore = document.getElementById('ab_1');
     const buggedGone = !abAfterRestore.dataset.imgSrc; // ★고치기 전엔 여기서 영상이 이미 사라져 있다
 
-    // js/history.js 가 rebindAll 직후 부르는 자리.
-    window.reattachVideoPendingBlocks(canvas);
+    // js/history.js 가 rebindAll 직후 부르는 자리 — 이 스냅샷 자신의 sidecar 만 넘긴다.
+    window.reattachVideoPendingBlocks(canvas, sidecar);
 
     const ab = document.getElementById('ab_1');
     return {
@@ -150,11 +162,12 @@ test('T2 ★⌘Z 재현 — 트림 2번(pushHistory 2회) 뒤 undo 로 캔버스
   expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });
 
-test('T3 ★진짜 리로드(새 세션·캐시 없음)는 reattach 가 손대지 않는다 — T-031 의도된 "빈 업로드대기" 유지', async ({ page }) => {
+test('T3 ★진짜 리로드(새 세션·sidecar 없음)는 reattach 가 손대지 않는다 — T-031 의도된 "빈 업로드대기" 유지', async ({ page }) => {
   const errs = await boot(page);
   const out = await page.evaluate(() => {
     const canvas = document.getElementById('canvas');
-    // ★이 page 는 방금 새로 boot 됐다 — _videoPendingCache 는 비어 있다(캡처를 한 번도 안 했다).
+    // ★이 page 는 방금 새로 boot 됐다 — 이 시나리오엔 sidecar 자체가 없다(캡처를 한 번도 안
+    // 했다 — 진짜 파일에서 로드한 데이터에도 videoPendingSidecar 필드가 없는 것과 같은 모양).
     // 아래 HTML 은 serializeCleanRoot 가 실제로 만드는 "빈 업로드대기" 모양 그대로다(T1/T4 로
     // 이미 검증됨) — data-asset-type 도 삭제 목록에 있어 실제 스냅샷엔 안 남는다.
     canvas.innerHTML = `
@@ -164,12 +177,86 @@ test('T3 ★진짜 리로드(새 세션·캐시 없음)는 reattach 가 손대�
           <div class="asset-grain" style="opacity:0.4" data-grain-intensity="35"></div>
         </div>
       </div></div>`;
-    window.reattachVideoPendingBlocks(canvas);
+    window.reattachVideoPendingBlocks(canvas, undefined); // ★applyProjectData/협업패치처럼 sidecar 없이 부르는 경우
     const ab = document.getElementById('ab_1');
     return { imgSrc: ab.dataset.imgSrc || null, hasImage: ab.classList.contains('has-image') };
   });
-  expect(out.imgSrc, '★캐시가 없는데도 원본이 나타났다 — 있어선 안 될 출처').toBeNull();
-  expect(out.hasImage, '★캐시 없이도 has-image 가 켜졌다').toBe(false);
+  expect(out.imgSrc, '★sidecar 가 없는데도 원본이 나타났다 — 있어선 안 될 출처').toBeNull();
+  expect(out.hasImage, '★sidecar 없이도 has-image 가 켜졌다').toBe(false);
+  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
+});
+
+test('T5 ★2차수정 핵심 — 지운 영상 → 무관한 편집(pushHistory) → 그 편집만 ⌘Z 해도 영상이 되살아나지 «않는다» (a1-a3 지적 회귀)', async ({ page }) => {
+  const errs = await boot(page);
+  const out = await page.evaluate((fx) => {
+    const canvas = document.getElementById('canvas');
+    canvas.innerHTML = fx;
+
+    // S1 — clearAssetImage 가 지우기 «직전» 부르는 pushHistory: 아직 video-pending이라
+    // 이 스냅샷의 sidecar엔 원본이 실린다(= "지운 것을 즉시 ⌘Z로 되돌리기" 위한 정상 캡처).
+    let clone = canvas.cloneNode(true);
+    window.serializeCleanRoot(clone);
+    const s1Sidecar = window.getLastVideoPendingSidecar();
+
+    // 실제 지우기(clearAssetImage 가 하는 일 그대로 — dataset 클리어 + 빈 오버레이만 남김).
+    const ab = document.getElementById('ab_1');
+    ab.classList.remove('has-image');
+    ['imgSrc','fit','imgW','imgX','imgY','imgPosition','assetType','trimIn','trimOut','playbackRate']
+      .forEach(k => delete ab.dataset[k]);
+    ab.innerHTML = '<div class="asset-overlay" style="color:#fff">문구</div>';
+
+    // S2 — 무관한 편집(예: 다른 텍스트 수정)의 pushHistory. 이 블록은 이미 안 비어있는
+    // video-pending 이 아니므로(assetType 없음) 이 스윕은 이 id 를 sidecar에 «안 담는다».
+    clone = canvas.cloneNode(true);
+    window.serializeCleanRoot(clone);
+    const s2Snap = clone.innerHTML;
+    const s2Sidecar = window.getLastVideoPendingSidecar();
+
+    // ⌘Z 한 번 — S2 를 복원(= "무관한 편집"만 취소하는 게 정상). S1 이 아니라 S2 의 sidecar 를 써야 한다.
+    canvas.innerHTML = s2Snap;
+    window.reattachVideoPendingBlocks(canvas, s2Sidecar);
+    const afterOneUndo = document.getElementById('ab_1');
+
+    return {
+      s1HadIt: !!s1Sidecar['ab_1'],
+      s2HasIt: !!s2Sidecar['ab_1'],
+      imgSrcAfterOneUndo: afterOneUndo.dataset.imgSrc || null,
+      hasImageAfterOneUndo: afterOneUndo.classList.contains('has-image'),
+    };
+  }, fixture());
+
+  expect(out.s1HadIt, '★전제 확인 — 지우기 직전 스냅샷(S1)엔 원본이 있어야 한다(즉시 ⌘Z 복구용)').toBe(true);
+  expect(out.s2HasIt, '★전제 확인 — 지운 뒤의 스냅샷(S2)엔 원본이 없어야 한다').toBe(false);
+  expect(out.imgSrcAfterOneUndo, '★회귀 — 무관한 편집 하나만 ⌘Z 했는데 지운 영상이 되살아났다').toBeNull();
+  expect(out.hasImageAfterOneUndo, '★회귀 — has-image 가 잘못 켜졌다').toBe(false);
+  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
+});
+
+test('T6 ★대조 — 지운 직후 «그 자리에서» ⌘Z 하면(S1 복원) 정상적으로 되살아난다(toast "⌘Z로 되돌리기" 약속 유지)', async ({ page }) => {
+  const errs = await boot(page);
+  const out = await page.evaluate((fx) => {
+    const canvas = document.getElementById('canvas');
+    canvas.innerHTML = fx;
+
+    let clone = canvas.cloneNode(true);
+    window.serializeCleanRoot(clone);
+    const s1Snap = clone.innerHTML;
+    const s1Sidecar = window.getLastVideoPendingSidecar();
+
+    const ab = document.getElementById('ab_1');
+    ab.classList.remove('has-image');
+    ['imgSrc','fit','imgW','imgX','imgY','imgPosition','assetType','trimIn','trimOut','playbackRate']
+      .forEach(k => delete ab.dataset[k]);
+    ab.innerHTML = '<div class="asset-overlay" style="color:#fff">문구</div>';
+
+    // ⌘Z 한 번 — 지우기 자체를 취소(S1 복원).
+    canvas.innerHTML = s1Snap;
+    window.reattachVideoPendingBlocks(canvas, s1Sidecar);
+    const restored = document.getElementById('ab_1');
+    return { imgSrc: restored.dataset.imgSrc || null };
+  }, fixture());
+
+  expect(out.imgSrc, '★지운 직후 첫 ⌘Z 가 원본을 못 살렸다 — toast 의 약속이 깨졌다').toBe(IMG_SRC);
   expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });
 

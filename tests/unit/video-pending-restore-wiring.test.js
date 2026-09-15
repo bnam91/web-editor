@@ -82,31 +82,55 @@ test('W1 ★rebindAll 이 reattachVideoPendingBlocks 를 부른다 — 단일 �
     '★rebindAll 이 video-pending 재연결을 안 부른다 — 이 함수를 거치는 모든 복원 경로가 샌다');
 });
 
-test('W2 ★페이지 전환(switchPage)이 rebindAll 을 거친다 — 직접 손대지 않는다', () => {
-  assert.match(SWITCH_PAGE_BODY, /\brebindAll\(\)/,
-    '★switchPage 가 rebindAll 을 안 부른다 — page.canvas(세척된 문자열) 복원 뒤 video-pending 재연결 경로가 없다');
+test('W2 ★페이지 전환(switchPage)이 rebindAll 을 거친다 — 자기 page의 sidecar를 넘긴다', () => {
+  assert.match(SWITCH_PAGE_BODY, /\brebindAll\(\s*\{\s*videoPendingSidecar:\s*page\.videoPendingSidecar\s*\}\s*\)/,
+    '★switchPage 가 rebindAll 에 page.videoPendingSidecar 를 안 넘긴다 — 스냅샷 스코프(T-031 2차) 배선이 끊겼거나 남의 sidecar 를 쓸 위험');
 });
 
-test('W3 ★페이지 삭제 후 남은 페이지 복원(deletePage)도 rebindAll 을 거친다', () => {
-  assert.match(DELETE_PAGE_BODY, /\brebindAll\(\)/,
-    '★deletePage 의 활성페이지 복원 분기가 rebindAll 을 안 부른다');
+test('W3 ★페이지 삭제 후 남은 페이지 복원(deletePage)도 rebindAll 을 거친다 — next의 sidecar를 넘긴다', () => {
+  assert.match(DELETE_PAGE_BODY, /\brebindAll\(\s*\{\s*videoPendingSidecar:\s*next\.videoPendingSidecar\s*\}\s*\)/,
+    '★deletePage 의 활성페이지 복원 분기가 rebindAll 에 next.videoPendingSidecar 를 안 넘긴다');
 });
 
-test('W4 ★applyProjectData(탭전환·프로젝트로드·브랜치전환 공유 지점)가 rebindAll 을 거친다', () => {
+test('W4 ★applyProjectData(탭전환·프로젝트로드·브랜치전환 공유 지점)가 rebindAll 을 거친다 — sidecar 없이(진짜 파일 로드는 되살릴 원본이 없다)', () => {
   assert.match(APPLY_PROJECT_DATA_BODY, /\brebindAll\(\)/,
     '★applyProjectData 가 rebindAll 을 안 부른다 — 탭전환/프로젝트로드/브랜치전환 전부가 새는 경로가 된다');
 });
 
-test('W5 ★undo(restoreSnapshot)도 rebindAll 을 거친다 — 중복 재연결 호출을 직접 들고 있지 않다', () => {
-  assert.match(RESTORE_SNAPSHOT_BODY, /\brebindAll\(\)/, 'restoreSnapshot 이 rebindAll 을 안 부른다');
+test('W5 ★undo(restoreSnapshot)도 rebindAll 을 거친다 — 자기 snap의 sidecar만 쓰고, 중복 재연결 호출을 직접 들고 있지 않다', () => {
+  assert.match(RESTORE_SNAPSHOT_BODY, /\brebindAll\(\s*\{\s*videoPendingSidecar:\s*snap\.videoPendingSidecar\s*\}\s*\)/,
+    'restoreSnapshot 이 rebindAll 에 snap.videoPendingSidecar 를 안 넘긴다');
   assert.doesNotMatch(RESTORE_SNAPSHOT_BODY, /reattachVideoPendingBlocks/,
     '★restoreSnapshot 이 reattachVideoPendingBlocks 를 «직접» 부른다 — rebindAll 과 중복이다(단일 진실원 원칙 위반, drift 위험)');
 });
 
-test('W6 ★스코프 undo(restoreSnapshotScoped)도 rebindAll 을 거친다 — 중복 호출 없음', () => {
-  assert.match(RESTORE_SCOPED_BODY, /\brebindAll\(\)/, 'restoreSnapshotScoped 가 rebindAll 을 안 부른다');
+test('W6 ★스코프 undo(restoreSnapshotScoped)도 rebindAll 을 거친다 — toSnap의 sidecar만 쓰고, 중복 호출 없음', () => {
+  assert.match(RESTORE_SCOPED_BODY, /\brebindAll\(\s*\{\s*videoPendingSidecar:\s*toSnap\.videoPendingSidecar\s*\}\s*\)/,
+    'restoreSnapshotScoped 가 rebindAll 에 toSnap.videoPendingSidecar 를 안 넘긴다');
   assert.doesNotMatch(RESTORE_SCOPED_BODY, /reattachVideoPendingBlocks/,
     '★restoreSnapshotScoped 가 reattachVideoPendingBlocks 를 «직접» 부른다 — rebindAll 과 중복이다');
+});
+
+test('W8 ★rebindAll 자신은 opts.videoPendingSidecar 없이 부르면 아무것도 되살리지 않는다(fail-closed) — 협업 패치·프로젝트로드가 자동으로 안전해지는 근거', () => {
+  assert.match(REBIND_ALL_BODY, /reattachVideoPendingBlocks\??\.\(\s*canvasEl\s*,\s*opts\.videoPendingSidecar\s*\)/,
+    '★rebindAll 이 opts.videoPendingSidecar 를 그대로 넘기지 않는다 — sidecar 없는 호출자(협업·프로젝트로드)가 되살릴 위험이 생긴다');
+});
+
+test('W10 ★flushCurrentPage 가 떠나는 page 객체 자신에 videoPendingSidecar 를 붙인다', () => {
+  const FLUSH_BODY = codeOnly(extractFn(SAVE_LOAD_SRC, 'flushCurrentPage'));
+  assert.match(FLUSH_BODY, /page\.videoPendingSidecar\s*=\s*window\.getLastVideoPendingSidecar/,
+    '★flushCurrentPage 가 page.videoPendingSidecar 를 안 붙인다 — switchPage/deletePage 로 돌아왔을 때 되살릴 것이 없다');
+});
+
+test('W9 ★pushHistory/초기스냅샷이 스냅샷 자신에 videoPendingSidecar 를 붙인다(전역 캐시 아님)', () => {
+  const PUSH_HISTORY_BODY = codeOnly(extractFn(HISTORY_SRC, 'pushHistory'));
+  const CLEAR_HISTORY_BODY = codeOnly(extractFn(HISTORY_SRC, 'clearHistory'));
+  assert.match(PUSH_HISTORY_BODY, /getLastVideoPendingSidecar/,
+    '★pushHistory 가 getLastVideoPendingSidecar 를 안 읽는다 — 이 스냅샷 전용 sidecar 를 못 붙인다');
+  assert.match(PUSH_HISTORY_BODY, /videoPendingSidecar\s*:/,
+    '★pushHistory 가 만드는 스냅샷 객체에 videoPendingSidecar 필드가 없다');
+  assert.match(CLEAR_HISTORY_BODY, /getLastVideoPendingSidecar/,
+    '★clearHistory(초기 스냅샷)도 같은 sidecar 배선이 있어야 한다');
 });
 
 test('W7 ★섹션 복사(editor.js)가 raw outerHTML 대신 세척된 clone 을 clipboard 에 담는다', () => {

@@ -329,6 +329,10 @@ function flushCurrentPage() {
   const page = getCurrentPage();
   if (!page) return;
   page.canvas = getSerializedCanvas();
+  // ★T-031 2차: 떠나는 이 페이지의 video-pending 원본을 이 page 객체 «자신»에 붙인다
+  // (같은 동기 구간에서 읽어야 한다 — section-serialize.js 참고). 돌아왔을 때(switchPage/
+  // deletePage) rebindAll({videoPendingSidecar: page.videoPendingSidecar})로만 되살린다.
+  page.videoPendingSidecar = window.getLastVideoPendingSidecar?.();
   page.pageSettings = { ...state.pageSettings };
 }
 
@@ -366,7 +370,9 @@ async function switchPage(pageId) {
     // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
     const propPanel = document.querySelector('#panel-right .panel-body');
     if (propPanel) propPanel.innerHTML = '';
-    rebindAll();
+    // ★T-031 2차: 이 page 객체가 (떠났다가 돌아왔을 때를 위해) flushCurrentPage에서
+    //   붙여둔 자기 자신의 sidecar만 쓴다 — 다른 페이지/스냅샷 것과 안 섞인다.
+    rebindAll({ videoPendingSidecar: page.videoPendingSidecar });
     refreshLazyObservation(); // 새 페이지의 section-block을 lazy 관찰 등록 (innerHTML 교체 후)
     applyPageSettings();
     window.deselectAll();
@@ -415,7 +421,8 @@ function deletePage(pageId) {
       if (next.pageSettings) Object.assign(state.pageSettings, next.pageSettings);
       canvasEl.innerHTML = sanitizeCanvasHtml(next.canvas || '');
       canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
-      rebindAll();
+      // ★T-031 2차: next 페이지 자신의 sidecar만 쓴다(위 switchPage와 같은 이유).
+      rebindAll({ videoPendingSidecar: next.videoPendingSidecar });
       applyPageSettings();
       window.deselectAll();
       window.showPageProperties();
@@ -814,13 +821,18 @@ function rebindAll(opts = {}) {
     [...overlay.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).forEach(n => n.remove());
   });
   /* ★T-031: video-pending(트림 확정 전 영상)은 js/io/section-serialize.js 의 T-012 안전장치가
-   *   세척된 문자열(undo 스냅샷·페이지 canvas·탭 _cache·파일)에서 "빈 업로드대기"로 되돌린다.
-   *   rebindAll 은 undo/redo 복원(history.js) · 페이지 전환(switchPage/deletePage) · 탭 전환·
-   *   프로젝트 로드(applyProjectData) · 협업 패치 적용까지 «canvasEl.innerHTML 을 새로 앉힌 뒤»
-   *   공통으로 거치는 단일 지점이다 — 여기 한 곳에서 부르면 그 모든 복원 경로가 한 번에
-   *   커버된다(경로마다 따로 심으면 하나를 빠뜨리는 날 그 경로만 샌다, 2026-09-15 지적).
-   *   캐시에 없는 블록(=진짜 파일 리로드로 새 세션)은 손대지 않는다(T-031 의도된 동작). */
-  window.reattachVideoPendingBlocks?.(canvasEl);
+   *   세척된 문자열(undo 스냅샷·페이지 canvas)에서 "빈 업로드대기"로 되돌린다. rebindAll 은
+   *   undo/redo 복원(history.js) · 페이지 전환(switchPage/deletePage) · 프로젝트 로드
+   *   (applyProjectData) · 협업 패치 적용까지 «canvasEl.innerHTML 을 새로 앉힌 뒤» 공통으로
+   *   거치는 단일 지점이다 — 여기 한 곳에서 부르면 그 모든 복원 경로가 한 번에 커버된다
+   *   (경로마다 따로 심으면 하나를 빠뜨리는 날 그 경로만 샌다, 2026-09-15 지적).
+   *   ★2차수정(a1-a3 지적): opts.videoPendingSidecar «없이» 부르면(협업 패치·프로젝트 로드처럼
+   *   「이 복원이 어느 스냅샷/페이지인지」모르거나 진짜 파일 리로드인 호출) 아무것도 되살리지
+   *   않는다 — «실패 시 안전»(fail-closed) 쪽으로 기본값을 바꿨다. 예전 전역 캐시는 누가 부르든
+   *   "id 가 한 번이라도 video-pending 이었으면" 되살려 협업 중 남의 화면·프로젝트 재로드에서도
+   *   부활할 수 있었다. undo/redo·페이지전환처럼 「이 시점에 실제로 video-pending 이었나」를
+   *   아는 호출자만 자기 스냅샷/페이지의 sidecar를 opts로 넘겨 명시적으로 되살린다. */
+  window.reattachVideoPendingBlocks?.(canvasEl, opts.videoPendingSidecar);
 
   canvasEl.querySelectorAll('.section-block').forEach(sec => {
     if (!sec.id) sec.id = 'sec_' + Math.random().toString(36).slice(2, 9);

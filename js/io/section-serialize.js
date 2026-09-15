@@ -26,53 +26,80 @@
        ⇒ 늘어날 수 있다. 늘릴 땐 «여기 한 곳만» 고친다 — market-merge·version-diff 도 이걸 읽는다.
      ⚠️'tiny'(스티커)·'lazy-unloaded'(가상화)는 여기 안 넣는다 — 조건부(특정 블록에서만)라
        전역 sweep 대상이 아니다. 아래 serializeCleanRoot 안에서 따로 걷는다. */
-  /* ══ T-031 video-pending 같은 세션 undo/redo 복원용 런타임 캐시 ═════════════════
+  /* ══ T-031 video-pending 스냅샷 스코프 사이드카 ═══════════════════════════════
      문제: 아래 serializeCleanRoot 의 T-012 안전장치(video-pending → "업로드대기" 빈
      상태로 세척)는 pushHistory 가 쓰는 getSerializedCanvas 스냅샷도 «그대로» 거친다.
      그래서 트림 핸들을 드래그할 때마다(js/props/asset-video-trim.js pushHistory) 찍히는
      undo 스냅샷도 전부 "빈 에셋"으로 찍혀, ⌘Z 한 번에 트림이 아니라 «영상 자체»가
      사라지는 데이터손실 회귀가 난다(2026-09-15, T-012 직후 예측·실측 재현).
-     ⇒ 원본(dataURL/파일)은 직렬화되는 문자열 «밖»의 이 런타임 전용 캐시(block.id 키,
-       세션 한정 — 재시작하면 비워짐)에 따로 보관하고, undo/redo 로 스냅샷을 되돌릴 때
-       (js/history.js restoreSnapshot/restoreSnapshotScoped, rebindAll 직후) 여기서
-       원본을 찾아 다시 연결한다. js/effects/redact-mosaic.js 의 _fullResCache 와
-       원리는 같다(무거운 데이터를 직렬화 밖에 둔다) — 다만 그쪽은 DOM 노드 «자신»을
-       키로 쓰는 WeakMap 이고(같은 인스턴스가 유지됨), 여긴 undo/redo 가 캔버스
-       innerHTML 을 통째로 교체해 DOM «인스턴스 자체»가 갈리므로(같은 id, 다른 노드)
-       노드가 아니라 block.id 문자열을 키로 쓰는 일반 Map 이어야 한다.
-     ⛔진짜 파일 리로드(앱 재시작 후 프로젝트 다시 열기)에는 안 쓰인다 — 그땐 캐시가
-       비어 있어 자연히 T-031 의도된 "빈 업로드대기" 로 떨어진다. */
-  const _videoPendingCache = new Map();
+     ⇒ 원본(dataURL/파일)은 직렬화되는 문자열 «밖»에 따로 보관하고, undo/redo·페이지전환
+       으로 스냅샷을 되돌릴 때 (js/history.js restoreSnapshot/restoreSnapshotScoped,
+       js/io/save-load.js switchPage/deletePage, rebindAll 직후) 원본을 찾아 다시
+       연결한다.
+     ★2026-09-15 2차 수정(a1-a3 코드리뷰 지적): 최초 구현은 block.id → 마지막 값 «하나»만
+       덮어쓰는 전역 Map 이었다 — 그러면 (1) 지운 영상 → 무관한 편집 → ⌘Z 한 번 만으로도
+       "무관한 편집"이 아니라 «지운 영상»이 되살아나고(그 스냅샷은 삭제 후 상태인데도
+       전역 캐시엔 삭제 전 값이 여전히 남아있어서), (2) 트림을 여러 번 고친 뒤 되돌려도
+       구간이 «그 시점 값»이 아니라 «최신 값»으로 붙었다(전역 슬롯이 하나뿐이라 되돌릴
+       스냅샷마다 다른 값을 못 가짐), (3) 세션 내내 모든 video-pending 블록의 원본
+       dataURL(블록당 최대 ~66MB)이 한 번 캐시되면 안 비워졌다.
+       ⇒ 캐시를 전역 Map 이 아니라 «각 스냅샷/페이지 객체가 직접 들고 다니는 사이드카
+       객체»로 바꾼다 — getLastVideoPendingSidecar() 가 «바로 직전» serializeCleanRoot
+       호출(=이 스냅샷을 만든 그 호출) 하나가 발견한 것만 돌려주므로, 호출자(history.js
+       pushHistory/init, save-load.js flushCurrentPage)가 그 스냅샷/페이지 객체에
+       videoPendingSidecar 로 붙여 «그 시점 전용»으로 들고 다닌다. reattachVideoPendingBlocks
+       는 복원하는 «그 스냅샷의» 사이드카만 받아쓰므로, 무관한 스냅샷을 복원할 땐 그
+       스냅샷의 사이드카가 비어 있어(또는 다른 값이라) 잘못 되살아나지 않는다. 메모리도
+       history MAX_HISTORY(50)·페이지 수만큼만 살아있는 만큼만 쥔다(전역 누적 없음).
+       js/effects/redact-mosaic.js 의 _fullResCache(WeakMap, DOM 노드 자신이 키)와 원리는
+       같다(무거운 데이터를 직렬화 밖에 둔다) — 다만 여긴 undo/redo 가 캔버스 innerHTML 을
+       통째로 교체해 DOM 인스턴스 자체가 갈리므로(같은 id, 다른 노드) 노드가 아니라
+       block.id 문자열을 키로 쓰는 «그때그때의» 일반 객체다.
+     ⛔진짜 파일 리로드(앱 재시작 후 프로젝트 다시 열기)에는 안 쓰인다 — 로드된 데이터에
+       videoPendingSidecar 필드 자체가 없어(저장 파일엔 안 실린다) 자연히 T-031 의도된
+       "빈 업로드대기" 로 떨어진다. */
+  let _lastSweepSidecar = null;
 
-  /** 지우기 «직전»에 원본을 캐시에 남긴다. ab 는 (라이브가 아니라) 클론일 수 있지만
+  /** 지우기 «직전»에 원본을 «이번 sweep 전용» 사이드카에 남긴다(serializeCleanRoot 가
+   *  호출 때마다 새로 연다 — 전역이 아니다). ab 는 (라이브가 아니라) 클론일 수 있지만
    *  cloneNode(true) 가 dataset 을 그대로 복사하므로 값은 동일하다. */
   function captureVideoPendingState(ab) {
-    if (!ab || !ab.id) return;
+    if (!_lastSweepSidecar || !ab || !ab.id) return;
     const imgSrc = ab.dataset.imgSrc;
     if (!imgSrc) return; // 아직 업로드 전(진짜 빈 상태) — 캐시할 게 없다
-    _videoPendingCache.set(ab.id, {
+    _lastSweepSidecar[ab.id] = {
       imgSrc,
       fit: ab.dataset.fit || 'cover',
       trimIn: ab.dataset.trimIn,
       trimOut: ab.dataset.trimOut,
       playbackRate: ab.dataset.playbackRate,
-    });
+    };
   }
 
-  /** undo/redo 로 캔버스가 통째로(또는 부분) 갈린 뒤 호출 — «빈 업로드대기»로 찍힌
-   *  video-pending 블록 중 같은 세션에서 캐시된 원본이 있으면 다시 붙인다.
-   *  root 는 보통 #canvas. js/history.js restoreSnapshot/restoreSnapshotScoped 가
-   *  rebindAll 직후 호출한다. */
-  function reattachVideoPendingBlocks(root) {
-    if (!root || !root.querySelectorAll) return;
+  /** «바로 직전» serializeCleanRoot 호출(=getSerializedCanvas 로 방금 만든 그 스냅샷)이
+   *  발견한 video-pending 원본들. 호출자는 getSerializedCanvas() 직후 «같은 동기 구간»
+   *  에서 이걸 읽어 자기 스냅샷/페이지 객체에 videoPendingSidecar 로 붙여야 한다 — 다음
+   *  serializeCleanRoot 호출(다른 스냅샷·템플릿저장·섹션복사 등 무엇이든)이 오면 갱신돼
+   *  버린다. */
+  function getLastVideoPendingSidecar() {
+    return _lastSweepSidecar || {};
+  }
+
+  /** undo/redo·페이지전환으로 캔버스가 통째로(또는 부분) 갈린 뒤 호출 — «빈 업로드대기»로
+   *  찍힌 video-pending 블록 중 «지금 복원하는 이 스냅샷/페이지 자신의» sidecar 에 원본이
+   *  있으면 다시 붙인다. root 는 보통 #canvas. sidecar 는 복원 대상 스냅샷/페이지 객체가
+   *  들고 있던 videoPendingSidecar(js/history.js·js/io/save-load.js 가 rebindAll(opts)로
+   *  넘긴다) — 없으면(진짜 파일 리로드 등) 아무것도 되살리지 않는다. */
+  function reattachVideoPendingBlocks(root, sidecar) {
+    if (!root || !root.querySelectorAll || !sidecar) return;
     /* ⛔[data-asset-type="video-pending"] 로는 못 고른다 — 지우기 자체가 assetType 도
        delete 목록에 넣는다(위 T-012 목록: 'assetType' 포함), 그래서 스냅샷 문자열엔 이
-       마커가 «이미 없다». id 가 캐시에 있는지만으로 판정한다 — 캐시는 애초에 video-pending
-       이었던 블록만 담는다(captureVideoPendingState 가 그때만 채운다). */
+       마커가 «이미 없다». id 가 sidecar 에 있는지만으로 판정한다 — sidecar 는 애초에
+       «이 스냅샷을 만들 때» video-pending 이었던 블록만 담는다. */
     root.querySelectorAll('.asset-block').forEach(ab => {
       if (ab.dataset.imgSrc) return; // 이미 원본이 있다 — 손대지 않는다
-      const cached = ab.id ? _videoPendingCache.get(ab.id) : null;
-      if (!cached) return; // 캐시 없음 — 의도된 "빈 업로드대기" 그대로 둔다(T-031)
+      const cached = ab.id ? sidecar[ab.id] : null;
+      if (!cached) return; // 이 스냅샷의 sidecar 엔 없음 — 의도된 "빈 업로드대기" 그대로 둔다(T-031)
       ab.classList.add('has-image');
       ab.dataset.assetType = 'video-pending';
       ab.dataset.imgSrc = cached.imgSrc;
@@ -134,6 +161,8 @@
    * clone 생성 이후 return 직전까지의 연산을 «그대로»(순서 포함) 옮긴 것. root 를 반환한다. */
   function serializeCleanRoot(root) {
     if (!root) return root;
+    // ★이 호출 전용 sidecar 를 새로 연다(전역 아님) — captureVideoPendingState 가 여기 채운다.
+    _lastSweepSidecar = {};
     // LAZY: 뷰포트 가상화로 언로드된 섹션은 라이브 style.backgroundImage 가 'none' 이고
     // 원본은 data-lazy-bg 에 보관돼 있다 — 클론에서 원복해 저장 HTML 에 배경이 정확히 들어가게.
     root.querySelectorAll('[data-lazy-bg]').forEach(el => {
@@ -149,8 +178,8 @@
        delete 목록으로 되돌려 «업로드 대기» 빈 상태로 저장한다(트림 진행은 잃지만 원본 영구
        저장 방지가 우선; 스크래치패드가 이미 같은 이유로 스냅샷 밖에 있다). */
     root.querySelectorAll('.asset-block[data-asset-type="video-pending"]').forEach(ab => {
-      // ★지우기 전에 원본을 런타임 캐시에 남긴다(같은 세션 undo/redo 복원용 —
-      //   위 _videoPendingCache 정의부 참고). 저장되는 문자열엔 영향 없다.
+      // ★지우기 전에 원본을 이번 sweep 전용 sidecar 에 남긴다(undo/redo·페이지전환 복원용 —
+      //   위 _lastSweepSidecar 정의부 참고). 저장되는 문자열엔 영향 없다.
       captureVideoPendingState(ab);
       ab.classList.remove('has-image');
       ['imgSrc', 'fit', 'imgW', 'imgX', 'imgY', 'imgPosition', 'assetType', 'trimIn', 'trimOut', 'playbackRate', 'motion', 'gifSrc', 'gifPlaying']
@@ -254,6 +283,7 @@
   window.serializeCleanSelf = serializeCleanSelf;
   window.serializeSectionClone = serializeSectionClone;
   window.reattachVideoPendingBlocks = reattachVideoPendingBlocks;
+  window.getLastVideoPendingSidecar = getLastVideoPendingSidecar;
   /* ★비교 채널(js/market-merge.js · js/version-diff.js)이 «같은 자»를 쓰게 내준다.
      그쪽은 결과물이 아니라 «비교 키»를 만들지만, 마커가 남으면 「줄을 골랐을 뿐인데 변경됨」
      오탐이 난다. 목록이 두 벌이면 한쪽만 고쳐지는 날이 온다 — 그래서 여기가 유일한 원본이다. */
