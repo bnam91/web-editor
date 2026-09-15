@@ -47,12 +47,15 @@ function _enterOverlay(posEl) {
   posEl.dataset.overlayReturnAfter  = prevSib ? _ensureId(prevSib) : '';
 
   // 폭 고정 — absolute 전환 시 콘텐츠 폭으로 쪼그라들지 않게 현재 렌더 폭을 그대로 굳힌다.
+  // ⛔dataset.width 는 Position 절의 «수동 너비」로도 쓰이는 필드다(prop-text-wireup-position.js) —
+  //   여기서 새로 심은 것만 exit 시 지워야, 원래 수동 너비가 있던 블록의 값을 안 날린다.
   if (!posEl.dataset.width) {
     const w = Math.round(posEl.offsetWidth);
     if (w > 0) {
       posEl.style.width = w + 'px';
       posEl.style.maxWidth = '100%';
       posEl.dataset.width = String(w);
+      posEl.dataset.overlayIntroducedWidth = 'true';
     }
   }
 
@@ -98,6 +101,13 @@ function _exitOverlay(posEl) {
   delete posEl.dataset.overlayReturnParent;
   delete posEl.dataset.overlayReturnAfter;
   delete posEl.dataset.selVariant;
+  // ★enterOverlay 가 새로 심은 폭만 되돌린다 — 원래 있던 수동 너비는 그대로 둔다(위 주석 참고).
+  if (posEl.dataset.overlayIntroducedWidth === 'true') {
+    posEl.style.width = '';
+    posEl.style.maxWidth = '';
+    delete posEl.dataset.width;
+    delete posEl.dataset.overlayIntroducedWidth;
+  }
 }
 
 export function wireOverlaySection({ tb }) {
