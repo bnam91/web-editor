@@ -191,10 +191,15 @@ function _gridRejectUnknownCellFields(rest, isLine) {
    그대로 뚫려 있었다). 0개: 우클릭 "이미지 삭제"가 마지막 줄까지 지워 [data-line]이 통째로
    사라지던 것. 상한 20: "+ 줄 추가" 무한증식(banner02/laurel과 같은 값).
    ★코드를 둘로 나눈다(EMPTY_CELL_LINES/TOO_MANY_LINES) — 호출부(block-factory.js)가 res.message를
-   그대로 토스트에 얹지 않고 code로 한국어 문구를 고르게 하기 위해서다. */
-function _gridRejectLinesLength(lines) {
+   그대로 토스트에 얹지 않고 code로 한국어 문구를 고르게 하기 위해서다.
+   ★allowEmpty(2026-09-15 a1-a3 2차 지적, 반례로 반박됨): 0개 거부는 patchCell(기존 줄을
+   «지우는» 동작)에만 건다. cells 통째 경로는 read(getGridModel) → 한 칸만 고쳐 → 통째로
+   다시 쓰기가 정상 MCP 왕복이라, 다른 칸이 «원래부터» 빈 채(새 행/열의 의도된 초기상태,
+   getGridModel이 lines:[]로 정규화해 돌려준다)로 껴 있으면 그 칸과 무관하게 호출 전체가
+   막힌다 — 상한(20)만 걸고 0개는 통과시킨다. */
+function _gridRejectLinesLength(lines, allowEmpty) {
   if (!Array.isArray(lines)) return null;
-  if (lines.length === 0) {
+  if (lines.length === 0 && !allowEmpty) {
     return { ok: false, code: 'EMPTY_CELL_LINES', message: 'cell lines cannot be emptied — remove the row/column instead' };
   }
   if (lines.length > 20) {
@@ -658,7 +663,7 @@ function updateGridBlock(blockId, partial = {}) {
     for (const row of partial.cells) {
       if (!Array.isArray(row)) continue;
       for (const cell of row) {
-        const _reject = _gridRejectLinesLength(cell && cell.lines);
+        const _reject = _gridRejectLinesLength(cell && cell.lines, /* allowEmpty */ true);
         if (_reject) return _reject;
       }
     }
