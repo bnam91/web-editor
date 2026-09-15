@@ -277,10 +277,10 @@ function applyMockupScreenImage(block, src) {
   }
   const safe = _cssEscapeUrl(src);
   screen.style.backgroundImage    = `url('${safe}')`;
-  screen.style.backgroundSize     = '100% auto';
+  screen.style.backgroundSize     = 'cover';
   screen.style.backgroundPosition = 'top center';
   screen.style.backgroundRepeat   = 'no-repeat';
-  screen.style.background         = `url('${safe}') top center / 100% auto no-repeat, ${_MKP_CHECKER_BG}`;
+  screen.style.background         = `url('${safe}') top center / cover no-repeat, ${_MKP_CHECKER_BG}`;
   screen.innerHTML = '';
 }
 
