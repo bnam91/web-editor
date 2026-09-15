@@ -442,6 +442,9 @@ export function showStepProperties(block, activeIdxArg) {
   });
 
   propPanel.querySelector('#stb-add-step').addEventListener('click', () => {
+    // ★UI도 API(updateStepBlock, step-block.js:419)와 같은 상한(10) — QA 실측(적대적 QA)
+    //   에서 UI만 무제한이라 36개까지 만들어져 상태 불일치가 났다(2026-09-15).
+    if (steps.length >= 10) { window.showToast?.('스텝은 최대 10개까지입니다'); return; }
     window.pushHistory?.();
     steps.push({ title: `${steps.length + 1}단계`, desc: '' });
     block.dataset.steps = JSON.stringify(steps);
