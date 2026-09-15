@@ -3,6 +3,7 @@
 ══════════════════════════════════════ */
 import { propPanel } from './globals.js';
 import { alignBtn } from './props/_helpers.js';
+import { decodeGifFrames } from './io/export-image.js';
 
 /* ── 이미지 업로드 로딩 오버레이 헬퍼 ── */
 export function showAssetLoading(block) {
@@ -524,9 +525,31 @@ function exitImageEditMode(ab) {
   try { opts.afterExit?.(ab); } catch (err) { console.warn('[imgEdit] afterExit 실패', err); }
 }
 
-// 프로토타입: 영상은 data URL로 인라인 저장(goya-asset 외부화 미적용, DATA_URI_RE가 image/*만 매칭) —
-// base64 팽창(약 1.33배)까지 감안해 이미지(10MB)보다 낮춰 잡는다. 정식 반영 전 asset-externalize 확장 필요.
-const ASSET_VIDEO_MAX_BYTES = 15 * 1024 * 1024;
+// T-012: 최종 저장 형태는 항상 이미지(정지) 또는 GIF(애니메이션) — video는 트림 미리보기 단계에서만
+// 존재하는 임시 상태(assetType='video-pending')다. 업로드 용량 상한은 네이버 스마트스토어 상세설명
+// 이미지 등록 기준(장당 최대 20MB, JPG/PNG/GIF)을 따른다 — photio.io/1minutesangse.com 등 실무 가이드
+// 다수가 동일 수치(20MB)로 교차 확인됨(공식 페이지 직접 인용은 접근 제한으로 미확보).
+const ASSET_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
+// 영상 원본은 트림 단계에서만 메모리에 올라가는 임시 입력이라 Naver 기준(최종 이미지/GIF 용량) 대상이
+// 아니다 — FileReader data URL 변환 시 base64 팽창(약 1.33배)만 고려해 실무적으로 넉넉히 잡는다.
+const ASSET_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
+
+function captureDetachedFirstFrame(gifSrc) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = img.naturalWidth || 1;
+        cv.height = img.naturalHeight || 1;
+        cv.getContext('2d').drawImage(img, 0, 0);
+        resolve(cv.toDataURL('image/png'));
+      } catch (err) { reject(err); }
+    };
+    img.onerror = reject;
+    img.src = gifSrc;
+  });
+}
 
 function triggerAssetUpload(ab) {
   const input = document.createElement('input');
@@ -543,14 +566,39 @@ function triggerAssetUpload(ab) {
 
 function loadImageToAsset(ab, file) {
   if (!file || !file.type.startsWith('image/')) return;
-  if (file.size > 10 * 1024 * 1024) { alert('이미지 파일은 10MB 이하만 업로드할 수 있습니다.'); return; }
+  if (file.size > ASSET_IMAGE_MAX_BYTES) {
+    alert(`이미지 파일은 ${Math.round(ASSET_IMAGE_MAX_BYTES / (1024 * 1024))}MB 이하만 업로드할 수 있습니다.`);
+    return;
+  }
   exitImageEditMode(ab);
   pushHistory();
   showAssetLoading(ab);
   const reader = new FileReader();
-  reader.onload = ev => {
-    hideAssetLoading(ab);
-    setAssetImageFromSrc(ab, ev.target.result);
+  reader.onload = async ev => {
+    const src = ev.target.result;
+    const isGif = file.type === 'image/gif' || /^data:image\/gif[;,]/i.test(src);
+    if (isGif) {
+      // 애니메이션 GIF 직접 업로드 — 기본 표시는 정지 프레임(첫 프레임), 재생은 토글로.
+      // 1차: export-image.js의 decodeGifFrames(ImageDecoder 기반, 있으면 정확).
+      // 2차 폴백: 화면에 붙이지 않은 <img>는 애니메이션이 진행되지 않는다(실측 확인) —
+      // 그 상태로 캔버스에 한 번 그리면 항상 프레임0이 나온다. ImageDecoder 미지원 런타임(실측:
+      // 이 Electron 빌드가 그렇다) 대비 안전망.
+      let stillSrc = src;
+      try {
+        const frames = await decodeGifFrames(src, { maxFrames: 1 });
+        if (frames?.[0]?.dataURL) stillSrc = frames[0].dataURL;
+        else stillSrc = await captureDetachedFirstFrame(src);
+      } catch (err) {
+        console.warn('[gif] 정지 프레임 추출 실패(1차) — 폴백 시도', err);
+        try { stillSrc = await captureDetachedFirstFrame(src); }
+        catch (err2) { console.warn('[gif] 정지 프레임 추출 실패(2차) — 원본을 그대로 사용', err2); }
+      }
+      hideAssetLoading(ab);
+      setAssetImageFromSrc(ab, stillSrc, src);
+    } else {
+      hideAssetLoading(ab);
+      setAssetImageFromSrc(ab, src);
+    }
   };
   reader.onerror = () => hideAssetLoading(ab);
   reader.readAsDataURL(file);
@@ -574,14 +622,17 @@ function loadVideoToAsset(ab, file) {
   reader.readAsDataURL(file);
 }
 
-/* 영상 에셋 적용 — setAssetImageFromSrc와 대응 구조(같은 컨테이너 클래스·overlay 보존).
-   .asset-img 클래스는 <video>에도 그대로 붙여 기존 fit/overlay/scratch 전송 코드와 호환시킨다. */
+/* 영상 에셋 «미리보기» 단계 — 최종 저장물이 아니다. 트림 패널에서 "GIF로 적용"을 눌러야
+   setAssetImageFromSrc(정지프레임 + GIF)로 확정된다(js/props/asset-video-trim.js applyVideoTrimAsGif 참고).
+   assetType='video-pending'인 동안에는 일반 이미지 파이프라인(위치조절/드래그리사이즈 등) 대상에서 제외된다. */
 function setAssetVideoFromSrc(ab, src) {
   if (!ab || !src) return;
   ab.classList.add('has-image');
   ab.dataset.imgSrc = src;
-  ab.dataset.assetType = 'video';
+  ab.dataset.assetType = 'video-pending';
   delete ab.dataset.motion;
+  delete ab.dataset.gifSrc;
+  delete ab.dataset.gifPlaying;
   delete ab.dataset.trimIn;
   delete ab.dataset.trimOut;
   delete ab.dataset.playbackRate;
@@ -613,20 +664,30 @@ function setAssetVideoFromSrc(ab, src) {
 }
 
 /* 스크래치 → 에셋 블록 이미지 적용 (loadImageToAsset의 FileReader.onload 본문 재사용)
-   ⚠️ pushHistory / showAssetProperties 호출은 caller에서 결정 (직접 적용용 헬퍼) */
-function setAssetImageFromSrc(ab, src) {
+   ⚠️ pushHistory / showAssetProperties 호출은 caller에서 결정 (직접 적용용 헬퍼)
+   motionSrc: 있으면 GIF 애니메이션 소스(src는 그 정지 프레임/썸네일) — T-012 통합 모션 자산 모델.
+   video 업로드(트림→GIF 적용)와 .gif 직접 업로드 두 경로 모두 이 함수로 수렴한다. */
+function setAssetImageFromSrc(ab, src, motionSrc) {
   if (!ab || !src) return;
   ab.classList.add('has-image');
   ab.dataset.imgSrc = src;
-  // 영상 → 정지 이미지 전환(프레임 썸네일 고정 등) 경로 대비 — video 전용 트림 필드 잔존 방지
+  // 영상 미리보기 → 정지 이미지/GIF 확정 전환 경로 대비 — video 전용 트림 필드 잔존 방지
   delete ab.dataset.assetType;
   delete ab.dataset.trimIn;
   delete ab.dataset.trimOut;
   delete ab.dataset.playbackRate;
-  // U10(BL-BOL-01/016): 애니메이션 GIF 감지 마커 — <img>는 원래 GIF를 그대로 재생하므로
-  // 파이프라인 변경 없이 에디터 인지용 배지(css [data-motion])와 워커 판별에만 쓰인다.
-  if (/^data:image\/gif[;,]/i.test(src) || /\.gif([?#]|$)/i.test(src)) ab.dataset.motion = 'gif';
-  else delete ab.dataset.motion;
+  // U10(BL-BOL-01/016) 확장: motionSrc가 명시되면 그걸 애니메이션 소스로, 아니면 src 자체가
+  // .gif면(레거시 경로 호환) 정지프레임 분리 없이 그대로 애니메이션 소스로 쓴다.
+  const isGif = !!motionSrc || /^data:image\/gif[;,]/i.test(src) || /\.gif([?#]|$)/i.test(src);
+  if (isGif) {
+    ab.dataset.motion = 'gif';
+    ab.dataset.gifSrc = motionSrc || src;
+    ab.dataset.gifPlaying = 'false';
+  } else {
+    delete ab.dataset.motion;
+    delete ab.dataset.gifSrc;
+    delete ab.dataset.gifPlaying;
+  }
   if (!ab.dataset.fit) ab.dataset.fit = 'cover';
   // 기존 위치/크기/포지션 초기화
   delete ab.dataset.imgW;
@@ -640,14 +701,40 @@ function setAssetImageFromSrc(ab, src) {
   ab.innerHTML = `
     <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'"></div>
     <button class="asset-overlay-clear" title="이미지 제거">✕</button>
+    ${isGif ? '<button class="asset-gif-toggle" title="GIF 재생">▶ GIF 재생</button>' : ''}
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
   ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
     e.stopPropagation();
     clearAssetImage(ab);
   });
+  ab.querySelector('.asset-gif-toggle')?.addEventListener('click', e => {
+    e.stopPropagation();
+    toggleAssetGifPlayback(ab);
+  });
   // overlay-tb 블록 재바인딩
   ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
   showAssetProperties(ab);
+}
+
+/* GIF 재생/정지 토글 — img.src만 스와핑한다(썸네일 유튜브 호버재생과 동일 감각).
+   저장 시 SSOT는 항상 dataset.imgSrc(정지)이며, 로드/undo 복원 시 항상 정지 상태로 되돌린다
+   (js/block-drag.js 참고) — "재생 중" 상태 자체는 저장 대상이 아니다. */
+function toggleAssetGifPlayback(ab) {
+  const img = ab?.querySelector('.asset-img');
+  const btn = ab?.querySelector('.asset-gif-toggle');
+  if (!img || !btn || !ab.dataset.gifSrc) return;
+  const playing = ab.dataset.gifPlaying === 'true';
+  if (playing) {
+    img.src = ab.dataset.imgSrc;
+    ab.dataset.gifPlaying = 'false';
+    btn.textContent = '▶ GIF 재생';
+    btn.classList.remove('active');
+  } else {
+    img.src = ab.dataset.gifSrc;
+    ab.dataset.gifPlaying = 'true';
+    btn.textContent = '■ 정지';
+    btn.classList.add('active');
+  }
 }
 
 function clearAssetImage(ab) {
@@ -663,6 +750,9 @@ function clearAssetImage(ab) {
   delete ab.dataset.trimIn;
   delete ab.dataset.trimOut;
   delete ab.dataset.playbackRate;
+  delete ab.dataset.motion;
+  delete ab.dataset.gifSrc;
+  delete ab.dataset.gifPlaying;
   const prevOverlayEl2 = ab.querySelector('.asset-overlay');
   const prevOverlayHTML2 = prevOverlayEl2 ? prevOverlayEl2.innerHTML : '';
   const prevOverlayStyle2 = prevOverlayEl2 ? prevOverlayEl2.getAttribute('style') || '' : '';
@@ -1128,6 +1218,7 @@ window.loadImageToAsset   = loadImageToAsset;
 window.setAssetImageFromSrc = setAssetImageFromSrc;
 window.loadVideoToAsset     = loadVideoToAsset;
 window.setAssetVideoFromSrc = setAssetVideoFromSrc;
+window.toggleAssetGifPlayback = toggleAssetGifPlayback;
 
 window.triggerCircleUpload        = triggerCircleUpload;
 window.loadImageToCircle          = loadImageToCircle;

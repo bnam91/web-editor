@@ -524,6 +524,33 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .asset-block.has-image.selected .asset-overlay-clear { opacity: 1; }
 .asset-block.drag-over { outline: 2px dashed var(--sel-color) !important; outline-offset: -3px; }
 
+/* T-012: GIF 재생/정지 토글 — .asset-overlay-clear와 같은 비주얼 어휘(반투명 검정 필+흰 글자),
+   충돌 방지를 위해 좌하단에 배치(우상단은 제거버튼+GIF 배지가 이미 씀). */
+.asset-gif-toggle {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  height: 28px;
+  padding: 0 12px;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+  z-index: 6;
+}
+.asset-block.has-image:hover .asset-gif-toggle,
+.asset-block.has-image.selected .asset-gif-toggle { opacity: 1; }
+.asset-gif-toggle.active { background: var(--ui-accent-primary); }
+
 /* U10: 애니메이션 GIF 인지 배지 — 에디터 전용(#canvas 스코프라 export 오프스크린 클론엔 미적용).
    비주얼은 section-label 계열(--ui-bg-input/--ui-text-muted), --inv-zoom 카운터스케일로 줌 불변 크기. */
 #canvas .asset-block[data-motion="gif"]::after {

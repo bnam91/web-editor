@@ -50,7 +50,7 @@ export function showAssetProperties(ab) {
   const currentStrokeWidth = parseInt(ab.dataset.strokeWidth || '0');
   const currentStrokeColor = ab.dataset.strokeColor || '#000000';
   const currentStrokeAlpha = parseAlphaFromColor(currentStrokeColor);
-  const isVideo = ab.dataset.assetType === 'video';
+  const isVideo = ab.dataset.assetType === 'video-pending';
   const imageSection = hasImage ? `
     <div class="prop-section">
       <div class="prop-section-title">${isVideo ? 'Video' : 'Image'}</div>

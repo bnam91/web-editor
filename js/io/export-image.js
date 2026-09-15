@@ -21,7 +21,7 @@ async function _fetchAsArrayBuffer(url) {
   return await res.arrayBuffer();
 }
 
-async function decodeGifFrames(url, opts = {}) {
+export async function decodeGifFrames(url, opts = {}) {
   // ImageDecoder가 없으면 single-frame fallback
   if (typeof ImageDecoder !== 'function') {
     return [{ url, delay: 100, single: true }];
