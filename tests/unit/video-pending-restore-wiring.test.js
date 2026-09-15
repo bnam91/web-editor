@@ -141,6 +141,15 @@ test('W12 ★_pageVideoPendingSidecars 는 모듈 스코프 변수다 — state.
     '★_pageVideoPendingSidecars 선언을 못 찾았다 — 런타임 전용 Map 설계 자체가 없어졌다');
 });
 
+test('W13 ★applyProjectData(탭전환·브랜치전환·프로젝트로드 공유 지점)가 _pageVideoPendingSidecars 를 비운다 — pageId 는 프로젝트마다 고유하지 않다', () => {
+  // ★2026-09-15 a1-a3 지적: 기본 첫 페이지 id('page_1', globals.js)를 모든 프로젝트가
+  //   공유한다 — 안 비우면 프로젝트 A의 sidecar가 같은 id를 쓰는 프로젝트 B 탭으로 넘어가
+  //   엉뚱한 영상이 되살아날 수 있다(resetAllPageHistory가 이미 같은 이유로 스택을 비우는
+  //   것과 같은 자리에 있어야 한다).
+  assert.match(APPLY_PROJECT_DATA_BODY, /_pageVideoPendingSidecars\.clear\(\)/,
+    '★applyProjectData 가 _pageVideoPendingSidecars.clear() 를 안 부른다 — 프로젝트 격리가 깨진다');
+});
+
 test('W9 ★pushHistory/초기스냅샷/ensureHistoryCheckpoint 가 스냅샷 자신에 videoPendingSidecar 를 붙인다(전역 캐시 아님)', () => {
   const PUSH_HISTORY_BODY = codeOnly(extractFn(HISTORY_SRC, 'pushHistory'));
   const CLEAR_HISTORY_BODY = codeOnly(extractFn(HISTORY_SRC, 'clearHistory'));

@@ -606,6 +606,12 @@ function applyProjectData(data) {
     // D1: 페이지간 히스토리(stash Map)도 전부 비워 프로젝트 격리 (프로젝트 B 로드 시 A stash 오염 방지)
     window.resetAllPageHistory?.();
     window.clearHistory?.();
+    /* ★T-031 3차 — 같은 이유로 _pageVideoPendingSidecars(pageId 키)도 비운다(a1-a3 지적,
+     * 2026-09-15). pageId는 프로젝트마다 고유하지 않다(기본 첫 페이지가 전부 'page_1' —
+     * globals.js) — 비우지 않으면 "1페이지에 미확정 영상 남긴 채 2페이지로 이동(Map에
+     * 저장) → 탭/브랜치 전환(같은 id를 쓰는 다른 프로젝트 데이터가 얹힘, 그 블록은 빈
+     * 상태) → 1페이지로 복귀"에서 전환 전 영상이 엉뚱하게 되살아날 수 있다. */
+    _pageVideoPendingSidecars.clear();
     /* ★문서를 «열 때» 없는 글꼴을 알린다(일러스트·피그마와 같은 시점).
        여기가 최초 로드·탭 전환·브랜치 전환이 모두 지나가는 자리다.
        한가할 때 세고(requestIdleCallback) 읽기만 하므로 이 저장 억제 구간과 부딪치지 않는다. */
