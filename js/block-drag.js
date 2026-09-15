@@ -973,6 +973,8 @@ function bindBlock(block) {
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
+      // 영상 에셋은 pan/zoom 편집 미지원(프로퍼티 패널 트림 UI로 조작) — enterImageEditMode 미스매치 방지
+      if (block.dataset.assetType === 'video') return;
       if (block.classList.contains('has-image')) {
         window.enterImageEditMode(block);
       } else {
@@ -996,9 +998,13 @@ function bindBlock(block) {
       e.stopPropagation();
       block.classList.remove('drag-over');
       const file = e.dataTransfer.files[0];
-      // TODO-QA: 비이미지 파일 드롭 시 사용자 피드백 없음 (무시됨). 토스트 안내 추가 검토
-      if (file && !file.type.startsWith('image/')) { window.showToast?.('이미지 파일만 업로드할 수 있습니다.'); return; }
-      if (file) window.loadImageToAsset(block, file);
+      // TODO-QA: 비이미지/영상 파일 드롭 시 사용자 피드백 없음(무시됨). 토스트 안내 추가 검토
+      if (file && !file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+        window.showToast?.('이미지 또는 영상 파일만 업로드할 수 있습니다.');
+        return;
+      }
+      if (file && file.type.startsWith('video/')) window.loadVideoToAsset(block, file);
+      else if (file) window.loadImageToAsset(block, file);
     });
     // 로드/undo 후 has-image 상태 복원
     if (block.classList.contains('has-image')) {
@@ -1007,12 +1013,16 @@ function bindBlock(block) {
         e.stopPropagation();
         window.clearAssetImage(block);
       });
-      // 수동 편집된 위치/크기 복원 (imgW가 있으면 절대 위치 모드)
-      window.applyImageTransform(block);
-      // 수동 편집 없으면 object-fit 적용
-      if (!block.dataset.imgW) {
-        const img = block.querySelector('.asset-img');
-        if (img) img.style.objectFit = block.dataset.fit || 'cover';
+      if (block.dataset.assetType === 'video') {
+        window.attachAssetVideoTrimLoop?.(block);
+      } else {
+        // 수동 편집된 위치/크기 복원 (imgW가 있으면 절대 위치 모드)
+        window.applyImageTransform(block);
+        // 수동 편집 없으면 object-fit 적용
+        if (!block.dataset.imgW) {
+          const img = block.querySelector('.asset-img');
+          if (img) img.style.objectFit = block.dataset.fit || 'cover';
+        }
       }
     }
   }

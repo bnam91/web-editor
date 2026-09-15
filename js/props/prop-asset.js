@@ -1,6 +1,7 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { alignBtn } from './_helpers.js';
+import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
 
 export function applyAssetPadX(ab, padX) {
   const canvasW = 860;
@@ -49,9 +50,10 @@ export function showAssetProperties(ab) {
   const currentStrokeWidth = parseInt(ab.dataset.strokeWidth || '0');
   const currentStrokeColor = ab.dataset.strokeColor || '#000000';
   const currentStrokeAlpha = parseAlphaFromColor(currentStrokeColor);
+  const isVideo = ab.dataset.assetType === 'video';
   const imageSection = hasImage ? `
     <div class="prop-section">
-      <div class="prop-section-title">Image</div>
+      <div class="prop-section-title">${isVideo ? 'Video' : 'Image'}</div>
       <div class="prop-row">
         <span class="prop-label">Fit</span>
         <div class="prop-align-group" id="asset-fit-group">
@@ -59,10 +61,11 @@ export function showAssetProperties(ab) {
           <button class="prop-align-btn${currentFit==='contain'?' active':''}" data-fit="contain" title="원본 비율">원본 비율</button>
         </div>
       </div>
-      <button class="prop-action-btn secondary" id="asset-pos-btn">이미지 위치 조절</button>
-      <button class="prop-action-btn secondary" id="asset-replace-btn">이미지 교체</button>
-      <button class="prop-action-btn danger"    id="asset-remove-btn">이미지 제거</button>
-    </div>` : `
+      ${isVideo ? '' : '<button class="prop-action-btn secondary" id="asset-pos-btn">이미지 위치 조절</button>'}
+      <button class="prop-action-btn secondary" id="asset-replace-btn">${isVideo ? '영상' : '이미지'} 교체</button>
+      <button class="prop-action-btn danger"    id="asset-remove-btn">${isVideo ? '영상' : '이미지'} 제거</button>
+    </div>
+    ${isVideo ? videoTrimSectionHTML(ab) : ''}` : `
     <div class="prop-section">
       <div class="prop-section-title">Image</div>
       <div class="prop-hint" style="text-align:center;padding:8px 0 4px;">더블클릭하여 이미지 추가</div>
@@ -426,9 +429,10 @@ export function showAssetProperties(ab) {
       document.querySelectorAll('#asset-fit-group [data-fit]').forEach(b => b.classList.toggle('active', b === btn));
       window.pushHistory?.();
     });
-    document.getElementById('asset-pos-btn').addEventListener('click', () => window.enterPosDragMode(ab));
+    document.getElementById('asset-pos-btn')?.addEventListener('click', () => window.enterPosDragMode(ab));
     document.getElementById('asset-replace-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
     document.getElementById('asset-remove-btn').addEventListener('click', () => window.clearAssetImage(ab));
+    if (isVideo) wireVideoTrim(ab);
   } else {
     document.getElementById('asset-upload-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
     const bgField = wireColorField('asset-bg', {

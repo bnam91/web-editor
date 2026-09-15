@@ -524,13 +524,19 @@ function exitImageEditMode(ab) {
   try { opts.afterExit?.(ab); } catch (err) { console.warn('[imgEdit] afterExit 실패', err); }
 }
 
+// 프로토타입: 영상은 data URL로 인라인 저장(goya-asset 외부화 미적용, DATA_URI_RE가 image/*만 매칭) —
+// base64 팽창(약 1.33배)까지 감안해 이미지(10MB)보다 낮춰 잡는다. 정식 반영 전 asset-externalize 확장 필요.
+const ASSET_VIDEO_MAX_BYTES = 15 * 1024 * 1024;
+
 function triggerAssetUpload(ab) {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = 'image/*';
+  input.accept = 'image/*,video/mp4,video/webm,video/quicktime';
   input.onchange = e => {
     const file = e.target.files[0];
-    if (file) loadImageToAsset(ab, file);
+    if (!file) return;
+    if (file.type.startsWith('video/')) loadVideoToAsset(ab, file);
+    else loadImageToAsset(ab, file);
   };
   input.click();
 }
@@ -550,12 +556,73 @@ function loadImageToAsset(ab, file) {
   reader.readAsDataURL(file);
 }
 
+function loadVideoToAsset(ab, file) {
+  if (!file || !file.type.startsWith('video/')) return;
+  if (file.size > ASSET_VIDEO_MAX_BYTES) {
+    alert(`영상 파일은 ${Math.round(ASSET_VIDEO_MAX_BYTES / (1024 * 1024))}MB 이하만 업로드할 수 있습니다.`);
+    return;
+  }
+  exitImageEditMode(ab);
+  pushHistory();
+  showAssetLoading(ab);
+  const reader = new FileReader();
+  reader.onload = ev => {
+    hideAssetLoading(ab);
+    setAssetVideoFromSrc(ab, ev.target.result);
+  };
+  reader.onerror = () => hideAssetLoading(ab);
+  reader.readAsDataURL(file);
+}
+
+/* 영상 에셋 적용 — setAssetImageFromSrc와 대응 구조(같은 컨테이너 클래스·overlay 보존).
+   .asset-img 클래스는 <video>에도 그대로 붙여 기존 fit/overlay/scratch 전송 코드와 호환시킨다. */
+function setAssetVideoFromSrc(ab, src) {
+  if (!ab || !src) return;
+  ab.classList.add('has-image');
+  ab.dataset.imgSrc = src;
+  ab.dataset.assetType = 'video';
+  delete ab.dataset.motion;
+  delete ab.dataset.trimIn;
+  delete ab.dataset.trimOut;
+  delete ab.dataset.playbackRate;
+  if (!ab.dataset.fit) ab.dataset.fit = 'cover';
+  delete ab.dataset.imgW;
+  delete ab.dataset.imgX;
+  delete ab.dataset.imgY;
+  delete ab.dataset.imgPosition;
+  const prevOverlayEl = ab.querySelector('.asset-overlay');
+  const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
+  const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
+  ab.innerHTML = `
+    <div class="asset-img-clip"><video class="asset-img asset-video" src="${src}" style="object-fit:${ab.dataset.fit}" muted loop playsinline></video></div>
+    <button class="asset-overlay-clear" title="영상 제거">✕</button>
+    <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
+  ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
+    e.stopPropagation();
+    clearAssetImage(ab);
+  });
+  ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
+  const video = ab.querySelector('.asset-video');
+  video.addEventListener('loadedmetadata', () => {
+    ab.dataset.trimIn = '0';
+    ab.dataset.trimOut = String(video.duration || 0);
+    video.play().catch(() => {});
+    if (ab.classList.contains('selected')) showAssetProperties(ab);
+  }, { once: true });
+  showAssetProperties(ab);
+}
+
 /* 스크래치 → 에셋 블록 이미지 적용 (loadImageToAsset의 FileReader.onload 본문 재사용)
    ⚠️ pushHistory / showAssetProperties 호출은 caller에서 결정 (직접 적용용 헬퍼) */
 function setAssetImageFromSrc(ab, src) {
   if (!ab || !src) return;
   ab.classList.add('has-image');
   ab.dataset.imgSrc = src;
+  // 영상 → 정지 이미지 전환(프레임 썸네일 고정 등) 경로 대비 — video 전용 트림 필드 잔존 방지
+  delete ab.dataset.assetType;
+  delete ab.dataset.trimIn;
+  delete ab.dataset.trimOut;
+  delete ab.dataset.playbackRate;
   // U10(BL-BOL-01/016): 애니메이션 GIF 감지 마커 — <img>는 원래 GIF를 그대로 재생하므로
   // 파이프라인 변경 없이 에디터 인지용 배지(css [data-motion])와 워커 판별에만 쓰인다.
   if (/^data:image\/gif[;,]/i.test(src) || /\.gif([?#]|$)/i.test(src)) ab.dataset.motion = 'gif';
@@ -592,6 +659,10 @@ function clearAssetImage(ab) {
   delete ab.dataset.imgW;
   delete ab.dataset.imgX;
   delete ab.dataset.imgY;
+  delete ab.dataset.assetType;
+  delete ab.dataset.trimIn;
+  delete ab.dataset.trimOut;
+  delete ab.dataset.playbackRate;
   const prevOverlayEl2 = ab.querySelector('.asset-overlay');
   const prevOverlayHTML2 = prevOverlayEl2 ? prevOverlayEl2.innerHTML : '';
   const prevOverlayStyle2 = prevOverlayEl2 ? prevOverlayEl2.getAttribute('style') || '' : '';
@@ -1055,6 +1126,8 @@ window.triggerAssetUpload = triggerAssetUpload;
 window.clearAssetImage    = clearAssetImage;
 window.loadImageToAsset   = loadImageToAsset;
 window.setAssetImageFromSrc = setAssetImageFromSrc;
+window.loadVideoToAsset     = loadVideoToAsset;
+window.setAssetVideoFromSrc = setAssetVideoFromSrc;
 
 window.triggerCircleUpload        = triggerCircleUpload;
 window.loadImageToCircle          = loadImageToCircle;
