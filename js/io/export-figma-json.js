@@ -989,6 +989,31 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         blocks.push(parsed);
       });
 
+    /* ★오버레이(플로팅) 텍스트 — js/props/prop-text-wireup-overlay.js 의 _enterOverlay 가
+       `sec.appendChild(posEl)` 로 심는 posEl 은 .text-block 이 아니라 그 «래퍼»
+       .frame-block[data-text-frame="true"] 다(텍스트는 항상 이 래퍼에 담겨 만들어진다 —
+       block-factory.js:1389). 위 순회는 frame-block 을 통째로 제외한다(_TRAVERSE_SKIP —
+       「전용 분기(_processFrameBlock/_frameBlock)가 자식까지 내려간다」는 이유인데, 그 전용
+       분기는 «inner.children 을 도는 _walkSectionChild»에서만 불린다. 이 래퍼는 inner 의
+       형제(섹션 직속)라 그 순회를 타지 않는다 ⇒ 어느 쪽에도 안 걸려 통째로 드롭됐다
+       (2026-09-15 실측: 오버레이로 전환만 해도 내보내기에서 사라진다 — 프레임 드롭과 무관).
+       ★위치 출처는 dataset.x/y 가 아니라 dataset.offsetX/offsetY 다(다른 키 — _enterOverlay
+       가 이 키에 쓴다, prop-text-wireup-overlay.js:73-74). style.left/top 은 항상 최신이므로
+       폴백으로 쓴다. */
+    [...secEl.children]
+      .filter(c => c !== inner && c.classList.contains('frame-block') && c.dataset.textFrame === 'true')
+      .forEach(tf => {
+        const tb = tf.querySelector('.text-block');
+        if (!tb) return;
+        const parsed = _block(tb, psEx);
+        if (!parsed) return;
+        const dx = tf.dataset.offsetX, dy = tf.dataset.offsetY;
+        parsed.floating = true;
+        parsed.x = (dx !== undefined && dx !== '') ? (parseFloat(dx) || 0) : (parseFloat(tf.style.left) || 0);
+        parsed.y = (dy !== undefined && dy !== '') ? (parseFloat(dy) || 0) : (parseFloat(tf.style.top)  || 0);
+        blocks.push(parsed);
+      });
+
     const bgColor = secEl.style.backgroundColor || '';
     const styleAttr = secEl.getAttribute('style') || '';
     const bgImgRaw = secEl.style.backgroundImage || (/background(-image)?:\s*([^;]+)/.exec(styleAttr) || [])[2] || '';
