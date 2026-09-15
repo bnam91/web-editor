@@ -2959,6 +2959,11 @@ function deselectAll() {
     t.querySelectorAll('[contenteditable]').forEach(el => _setAttrIfChanged(el, 'contenteditable', 'false'));
   });
   canvas.querySelectorAll('.asset-block').forEach(a => {
+    // ★T-012: video-pending(트림 확정 전) 상태로 이 블록의 패널을 벗어나면 저장 시
+    // 원본 영상이 사라진다(section-serialize.js 참고) — 막지는 않되 알려는 준다.
+    if (a.classList.contains('selected') && a.dataset.assetType === 'video-pending') {
+      window.showToast?.('⚠️ 영상이 아직 GIF로 적용되지 않았습니다 — 저장하면 사라집니다');
+    }
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });

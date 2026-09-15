@@ -307,8 +307,16 @@ async function setProjectName(name) {
 async function goHome() {
   const curTab = openTabs.find(t => t.id === activeProjectId);
   if (curTab) curTab._cache = serializeProject();
+  // ★T-012: video-pending(트림 확정 전) 상태로 저장·홈이동하면 원본 영상이 저장에서 빠진다
+  // (section-serialize.js — 원본을 영구저장하는 쪽보다 안전하다는 게 결정 사항). 막지는
+  // 않되, 사라진다는 사실은 알려준다 — 토스트가 실제로 보이도록 이동을 살짝 늦춘다.
+  const hasPendingVideo = !!canvasEl?.querySelector('.asset-block[data-asset-type="video-pending"]');
+  if (hasPendingVideo) {
+    window.showToast?.('⚠️ 영상이 아직 GIF로 적용되지 않았습니다 — 저장하면 사라집니다');
+  }
   await saveProjectToFile(serializeProject()); // 홈으로 나갈 때 썸네일 캡처
   window.saveTabState();
+  if (hasPendingVideo) await new Promise(r => setTimeout(r, 900));
   window.location.href = 'pages/projects.html';
 }
 

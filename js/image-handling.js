@@ -622,6 +622,24 @@ function loadVideoToAsset(ab, file) {
   reader.readAsDataURL(file);
 }
 
+/* ★그레인(.asset-grain) 보존 공용 헬퍼 — setAssetImageFromSrc·setAssetVideoFromSrc 둘 다
+   innerHTML을 통째로 갈아엎기 «전에» 캡처해서 «후에» 재삽입해야 한다(안 그러면 이미지 교체·
+   영상 업로드 때 그레인 층이 조용히 사라진다, 적대적 QA 지적 2026-09-15). 두 함수가 각자
+   복붙하면 세 번째 사본이 생겨 드리프트가 나므로 여기 한 곳으로 뽑는다. */
+function captureAssetGrain(ab) {
+  const el = ab.querySelector('.asset-grain');
+  if (!el) return null;
+  return { style: el.getAttribute('style') || '', intensity: el.dataset.grainIntensity || '' };
+}
+function restoreAssetGrain(ab, snap) {
+  if (!snap) return;
+  const grainEl = document.createElement('div');
+  grainEl.className = 'asset-grain';
+  if (snap.style) grainEl.setAttribute('style', snap.style);
+  if (snap.intensity) grainEl.dataset.grainIntensity = snap.intensity;
+  ab.appendChild(grainEl);
+}
+
 /* 영상 에셋 «미리보기» 단계 — 최종 저장물이 아니다. 트림 패널에서 "GIF로 적용"을 눌러야
    setAssetImageFromSrc(정지프레임 + GIF)로 확정된다(js/props/asset-video-trim.js applyVideoTrimAsGif 참고).
    assetType='video-pending'인 동안에는 일반 이미지 파이프라인(위치조절/드래그리사이즈 등) 대상에서 제외된다. */
@@ -644,23 +662,12 @@ function setAssetVideoFromSrc(ab, src) {
   const prevOverlayEl = ab.querySelector('.asset-overlay');
   const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
   const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
-  // ★그레인 보존 — setAssetImageFromSrc 와 같은 이유(적대적 QA 지적, 2026-09-15): innerHTML
-  //   갈아엎기 전에 .asset-grain 을 캡처해 재삽입하지 않으면 그레인 있던 이미지를 영상으로
-  //   교체할 때 그레인 층이 조용히 사라진다.
-  const prevGrainEl = ab.querySelector('.asset-grain');
-  const prevGrainStyle = prevGrainEl ? prevGrainEl.getAttribute('style') || '' : '';
-  const prevGrainIntensity = prevGrainEl ? prevGrainEl.dataset.grainIntensity || '' : '';
+  const prevGrainSnap = captureAssetGrain(ab);
   ab.innerHTML = `
     <div class="asset-img-clip"><video class="asset-img asset-video" src="${src}" style="object-fit:${ab.dataset.fit}" muted loop playsinline></video></div>
     <button class="asset-overlay-clear" title="영상 제거">✕</button>
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
-  if (prevGrainEl) {
-    const grainEl = document.createElement('div');
-    grainEl.className = 'asset-grain';
-    if (prevGrainStyle) grainEl.setAttribute('style', prevGrainStyle);
-    if (prevGrainIntensity) grainEl.dataset.grainIntensity = prevGrainIntensity;
-    ab.appendChild(grainEl);
-  }
+  restoreAssetGrain(ab, prevGrainSnap);
   ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
     e.stopPropagation();
     clearAssetImage(ab);
@@ -713,22 +720,14 @@ function setAssetImageFromSrc(ab, src, motionSrc) {
   const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
   // ★그레인도 같은 방식으로 보존 — 안 그러면 이미지 교체·영상 프레임 썸네일 고정(이 함수를
   //   그 경로도 재사용) 때 그레인 층이 조용히 사라진다(적대적 QA a1-a3 지적, T-001 폭 잔존과
-  //   같은 유형의 결함).
-  const prevGrainEl = ab.querySelector('.asset-grain');
-  const prevGrainStyle = prevGrainEl ? prevGrainEl.getAttribute('style') || '' : '';
-  const prevGrainIntensity = prevGrainEl ? prevGrainEl.dataset.grainIntensity || '' : '';
+  //   같은 유형의 결함). captureAssetGrain/restoreAssetGrain 공용 헬퍼(위)를 쓴다.
+  const prevGrainSnap = captureAssetGrain(ab);
   ab.innerHTML = `
     <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'"></div>
     <button class="asset-overlay-clear" title="이미지 제거">✕</button>
     ${isGif ? '<button class="asset-gif-toggle" title="GIF 재생">▶ GIF 재생</button>' : ''}
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
-  if (prevGrainEl) {
-    const grainEl = document.createElement('div');
-    grainEl.className = 'asset-grain';
-    if (prevGrainStyle) grainEl.setAttribute('style', prevGrainStyle);
-    if (prevGrainIntensity) grainEl.dataset.grainIntensity = prevGrainIntensity;
-    ab.appendChild(grainEl);
-  }
+  restoreAssetGrain(ab, prevGrainSnap);
   ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
     e.stopPropagation();
     clearAssetImage(ab);
