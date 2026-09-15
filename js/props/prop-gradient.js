@@ -157,12 +157,21 @@ export function showGradientProperties(block) {
       t.addEventListener('mousedown', (e) => {
         e.preventDefault(); e.stopPropagation();
         const arr = STOP();
+        // 라이브 드래그 중엔 DOM을 재생성하지 않는다 — paintBar()는 매 프레임 모든
+        // .grad-stop-thumb 을 지우고 다시 만들어 드래그가 끊겨 보였다(createElement × N/frame).
+        // 위치만 바뀌므로: 잡은 핸들(t) 자신의 left만 갱신 + 바 배경만 다시 칠한다.
+        // 순서 재정렬(paintBar 재호출)은 mouseup 커밋 시 setStops()가 1회만 수행.
+        const r = barEl.getBoundingClientRect();
         const onMove = (ev) => {
-          const r = barEl.getBoundingClientRect();
           const p = Math.max(0, Math.min(1, (ev.clientX - r.left)/r.width));
           arr[i].offset = p;
           block.dataset.gradStops = JSON.stringify(arr.slice().sort((a,b)=>a.offset-b.offset));
-          rerender(); paintBar(arr.slice().sort((a,b)=>a.offset-b.offset));
+          rerender();
+          t.style.left = (p * 100) + '%';
+          const sorted = arr.slice().sort((a,b)=>a.offset-b.offset);
+          barEl.style.background =
+            'linear-gradient(to right, ' + sorted.map(s => `${_toRgba(s.color,s.alpha)} ${Math.round(s.offset*100)}%`).join(', ') + ')'
+            + ', repeating-conic-gradient(#666 0% 25%, #888 0% 50%) 0/10px 10px';
         };
         const onUp = () => { window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp); setStops(STOP(), true); };
         window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);

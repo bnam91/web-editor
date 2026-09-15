@@ -63,7 +63,7 @@ function _resolveStops(block) {
   ];
 }
 
-function renderGradientBlock(block) {
+function renderGradientBlock(block, hint) {
   const style       = block.dataset.gradStyle      || GRADIENT_DEFAULTS.style;
   const direction   = block.dataset.gradDirection  || GRADIENT_DEFAULTS.direction;
   const startColor  = block.dataset.gradStart      || GRADIENT_DEFAULTS.startColor;
@@ -106,10 +106,12 @@ function renderGradientBlock(block) {
   gradFill.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:0;background:${bg};`;
 
   // 섹션 박스를 기준으로 fill 클리핑 (선택 outline + 코너 핸들은 블록 요소에 있어 영향 없음)
+  // hint.secW/secH: 드래그 중 호출자가 캐싱해둔 값. 없으면 즉시 읽는다(레이아웃 강제 재계산 —
+  // 드래그가 아닌 1회성 호출에서만 감내: 프로퍼티 패널 슬라이더, MCP 갱신 등).
   const sec = block.closest('.section-block');
   if (sec) {
-    const secW = sec.offsetWidth;
-    const secH = sec.offsetHeight;
+    const secW = hint?.secW ?? sec.offsetWidth;
+    const secH = hint?.secH ?? sec.offsetHeight;
     const clipTop    = Math.max(0, -y);
     const clipRight  = Math.max(0, (x + width)  - secW);
     const clipBottom = Math.max(0, (y + height) - secH);

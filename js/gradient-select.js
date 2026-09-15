@@ -51,6 +51,11 @@ function _bindGradientCornerDrag(handle, block, corner) {
     const aspect = initH > 0 ? initW / initH : 1;
     const startCX = e.clientX, startCY = e.clientY;
     const MIN = 20;
+    // 드래그 시작 시 1회만 읽는다 — 섹션 박스는 리사이즈 중 바뀌지 않으므로,
+    // 매 mousemove마다 다시 읽으면(쓰기 직후 읽기) 강제 동기 레이아웃이 걸린다.
+    const sec  = block.closest('.section-block');
+    const secW = sec ? sec.offsetWidth  : 0;
+    const secH = sec ? sec.offsetHeight : 0;
 
     const onMove = (ev) => {
       _hideGradSnap();
@@ -73,8 +78,6 @@ function _bindGradientCornerDrag(handle, block, corner) {
       newW = Math.max(MIN, Math.round(newW));
       newH = Math.max(MIN, Math.round(newH));
       // ── 섹션 너비 스냅 (width only) ──────────────────────────────────────
-      const sec = block.closest('.section-block');
-      const secW = sec ? sec.offsetWidth : 0;
       const snapTh = GRAD_SNAP_SCREEN / zoom; // 화면 px → 섹션 로컬 px
       if (secW > 0 && Math.abs(newW - secW) <= snapTh) {
         newW = secW;
@@ -93,7 +96,7 @@ function _bindGradientCornerDrag(handle, block, corner) {
       block.dataset.gradHeight = String(newH);
       block.dataset.x = String(newX);
       block.dataset.y = String(newY);
-      window.renderGradientBlock?.(block);
+      window.renderGradientBlock?.(block, { secW, secH });
       // 우측 패널 슬라이더 동기화 (선택된 상태에서 패널이 열려있으면)
       const wSlider = document.getElementById('grad-width-slider');
       const wNum    = document.getElementById('grad-width-num');
@@ -141,11 +144,14 @@ function _showGradSnapEdge(el, side) {
 }
 
 // 섹션 로컬 좌표(x,y)에서 형제 블록 변에 맞닿기 스냅. 적용된 좌표 + 하이라이트할 변 반환.
-function _gradEdgeSnap(block, sec, x, y) {
-  const bw = block.offsetWidth, bh = block.offsetHeight;
+// bw/bh/secRect: 호출자가 드래그 시작 시 캐싱한 값(블록 크기·섹션 박스는 move 드래그 중 불변) —
+// 넘기지 않으면 직접 읽는다(리사이즈 등 드래그 루프 밖 호출 대비 하위호환).
+function _gradEdgeSnap(block, sec, x, y, bw, bh, secRect) {
+  if (bw == null) bw = block.offsetWidth;
+  if (bh == null) bh = block.offsetHeight;
   const zoom = (window.currentZoom || 40) / 100;
   const GRAD_SNAP_TH = GRAD_SNAP_SCREEN / zoom; // 화면 px → 섹션 로컬 px 환산 (줌 무관 체감)
-  const secRect = sec.getBoundingClientRect();
+  if (!secRect) secRect = sec.getBoundingClientRect();
   const toLocal = r => ({
     L: (r.left  - secRect.left) / zoom, R: (r.right  - secRect.left) / zoom,
     T: (r.top   - secRect.top)  / zoom, B: (r.bottom - secRect.top)  / zoom,
@@ -215,17 +221,23 @@ function bindGradientSelect(block) {
     const blockRect = block.getBoundingClientRect();
     const grabOffX = (startX - blockRect.left) / zoom;
     const grabOffY = (startY - blockRect.top)  / zoom;
+    // 드래그 동안 불변인 값은 1회만 읽는다 — 매 mousemove마다 다시 읽으면
+    // (직전 프레임의 style 쓰기 직후 읽기가 되어) 강제 동기 레이아웃(reflow)이 걸린다.
+    // 블록 크기는 move 드래그 중 안 바뀌고, 섹션 박스는 섹션이 바뀔 때만 다시 잰다.
+    const blockW = block.offsetWidth  || 0;
+    const blockH = block.offsetHeight || 0;
+    let secRect = sec.getBoundingClientRect();
+    let secW = sec.offsetWidth, secH = sec.offsetHeight;
 
     const onMove = (ev) => {
       _hideGradSnap();
-      const blockW = block.offsetWidth  || 0;
-      const blockH = block.offsetHeight || 0;
       // 섹션 이동 (커서가 다른 섹션 위로 가면 부모 교체)
       const hoverSec = window._findSectionAt ? window._findSectionAt(ev.clientX, ev.clientY) : null;
       if (hoverSec && hoverSec !== sec) {
         hoverSec.appendChild(block);
         sec = hoverSec;
-        const secRect = sec.getBoundingClientRect();
+        secRect = sec.getBoundingClientRect();
+        secW = sec.offsetWidth; secH = sec.offsetHeight;
         const newXraw = (ev.clientX - secRect.left) / zoom - grabOffX;
         const newYraw = (ev.clientY - secRect.top)  / zoom - grabOffY;
         const [cx, cy] = window._clampToSection
@@ -235,12 +247,9 @@ function bindGradientSelect(block) {
         origY = Math.round(cy);
         block.dataset.x = String(origX);
         block.dataset.y = String(origY);
-        block.style.left = origX + 'px';
-        block.style.top  = origY + 'px';
-        window.renderGradientBlock?.(block);
+        window.renderGradientBlock?.(block, { secW, secH });
         return;
       }
-      const secRect = sec.getBoundingClientRect();
       const newXraw = (ev.clientX - secRect.left) / zoom - grabOffX;
       const newYraw = (ev.clientY - secRect.top)  / zoom - grabOffY;
       const [cx, cy] = window._clampToSection
@@ -255,10 +264,9 @@ function bindGradientSelect(block) {
       if (snapped.edgeY) _showGradSnapEdge(snapped.edgeY.el, snapped.edgeY.side);
       block.dataset.x = String(newX);
       block.dataset.y = String(newY);
-      block.style.left = newX + 'px';
-      block.style.top  = newY + 'px';
       // fill 클리핑을 새 위치에 맞게 갱신 (outline + 핸들은 블록 요소에 있어 영향 없음)
-      window.renderGradientBlock?.(block);
+      // renderGradientBlock이 left/top을 포함한 cssText 전체를 다시 쓰므로 별도 스타일 쓰기 불필요.
+      window.renderGradientBlock?.(block, { secW, secH });
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
