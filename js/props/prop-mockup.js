@@ -240,14 +240,17 @@ async function _captureAndApply(block, sec) {
 // asset-block과 동일한 체커보드 패턴
 const _CHECKER_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
 
+// backgroundSize 'cover'(디자인 규약 — asset/section/banner 등 전 블록 공용 기본값)로 화면을 꽉 채운다.
+// 예전 '100% auto'는 원본 섹션이 폰 화면(세로로 긴 화면)보다 넓고 낮은 게 보통이라
+// 상단 슬라이스만 채워지고 나머지가 체커보드로 비어 보이는 문제(2026-09-15 현빈 신고: "섹션 비율이 짜부라진다")가 있었다.
 function _applyScreenImage(block, src) {
   const screen = block.querySelector('.mkp-screen');
   if (!screen) return;
   screen.style.backgroundImage    = `url('${src}')`;
-  screen.style.backgroundSize     = '100% auto';
+  screen.style.backgroundSize     = 'cover';
   screen.style.backgroundPosition = 'top center';
   screen.style.backgroundRepeat   = 'no-repeat';
-  screen.style.background         = `url('${src}') top center / 100% auto no-repeat, ${_CHECKER_BG}`;
+  screen.style.background         = `url('${src}') top center / cover no-repeat, ${_CHECKER_BG}`;
   screen.innerHTML = '';
 }
 

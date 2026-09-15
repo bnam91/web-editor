@@ -1250,7 +1250,7 @@ function rebindAll(opts = {}) {
     if (imgSrc) {
       const screen = block.querySelector('.mkp-screen');
       if (screen) {
-        screen.style.background = `url('${imgSrc}') top center / 100% auto no-repeat, repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px`;
+        screen.style.background = `url('${imgSrc}') top center / cover no-repeat, repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px`;
         screen.innerHTML = '';
       }
     }
