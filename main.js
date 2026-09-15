@@ -1102,6 +1102,13 @@ ipcMain.handle('auth:open-external', async (_event, url) => {
   return { ok: true };
 });
 
+// 폰트 피커의 「눈누에서 폰트 더 받기」 바로가기. 렌더러가 URL을 주지 않는다 —
+// 목적지가 고정이라 auth:open-external 같은 화이트리스트 검사 자체가 필요 없다.
+ipcMain.handle('external:open-noonnu', () => {
+  shell.openExternal('https://noonnu.cc');
+  return { ok: true };
+});
+
 ipcMain.handle('license:navigate-projects', () => {
   // GAP-008: 인증 검증 강제 — 인증 없이 navigate로 에디터에 진입하던 우회 차단.
   // (기존: 무조건 projects.html 로드 → license 화면 콘솔에서 navigateToProjects() 한 줄로 우회)

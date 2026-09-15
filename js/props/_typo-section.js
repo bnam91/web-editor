@@ -76,6 +76,7 @@ export function buildTypographySectionHtml({
         <div class="font-picker-dropdown" id="${p}-font-dropdown" style="display:none">
           <input class="font-picker-search" id="${p}-font-search" type="text" placeholder="폰트 검색..." autocomplete="off" spellcheck="false">
           <div class="font-picker-list" id="${p}-font-list"></div>
+          <button class="font-picker-noonnu" id="${p}-font-noonnu" type="button">🔗 눈누에서 폰트 더 받기</button>
         </div>
       </div>
 
