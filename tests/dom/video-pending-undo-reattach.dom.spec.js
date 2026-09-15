@@ -1,4 +1,4 @@
-/* video-pending-undo-reattach.dom.spec.js — T-033: video-pending 상태에서 트림하다 ⌘Z 하면
+/* video-pending-undo-reattach.dom.spec.js — T-031: video-pending 상태에서 트림하다 ⌘Z 하면
  * «트림이 아니라 영상 자체»가 사라지던 회귀의 원문 게이트. (2026-09-15)
  *
  * ★배경

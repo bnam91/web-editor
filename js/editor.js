@@ -1408,7 +1408,7 @@ function copySelected() {
   } else if (selRow) {
     clipboard = { type: 'block', html: selRow.outerHTML };
   } else if (selSection) {
-    /* ★T-033 — 원본 outerHTML 을 그대로 복사하면 video-pending(트림 확정 전 영상)의
+    /* ★T-031 — 원본 outerHTML 을 그대로 복사하면 video-pending(트림 확정 전 영상)의
      *   원본 data URL 이 세척 없이 클립보드 객체에 «한 벌 더» 남는다(T-012 는 저장·undo
      *   스냅샷 경로만 세척했지 이 경로는 걸러지지 않았다 — 반대방향 누수, 2026-09-15 지적).
      *   serializeSectionClone 은 라이브를 안 건드리고 클론만 세척해 문자열을 낸다(section-

@@ -1,4 +1,4 @@
-/* video-pending-restore-wiring.test.js — T-033 범위확장 «원문 게이트» (2026-09-15)
+/* video-pending-restore-wiring.test.js — T-031 범위확장 «원문 게이트» (2026-09-15)
  *
  * ★배경
  *   video-pending(트림 확정 전 영상)이 undo 뿐 아니라 «캔버스를 통째로 갈아 앉히는 모든

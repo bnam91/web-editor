@@ -26,7 +26,7 @@
        ⇒ 늘어날 수 있다. 늘릴 땐 «여기 한 곳만» 고친다 — market-merge·version-diff 도 이걸 읽는다.
      ⚠️'tiny'(스티커)·'lazy-unloaded'(가상화)는 여기 안 넣는다 — 조건부(특정 블록에서만)라
        전역 sweep 대상이 아니다. 아래 serializeCleanRoot 안에서 따로 걷는다. */
-  /* ══ T-033 video-pending 같은 세션 undo/redo 복원용 런타임 캐시 ═════════════════
+  /* ══ T-031 video-pending 같은 세션 undo/redo 복원용 런타임 캐시 ═════════════════
      문제: 아래 serializeCleanRoot 의 T-012 안전장치(video-pending → "업로드대기" 빈
      상태로 세척)는 pushHistory 가 쓰는 getSerializedCanvas 스냅샷도 «그대로» 거친다.
      그래서 트림 핸들을 드래그할 때마다(js/props/asset-video-trim.js pushHistory) 찍히는

@@ -91,7 +91,7 @@ function restoreSnapshot(snap) {
     Object.assign(state.pageSettings, snap.settings);
     const canvasEl = document.getElementById('canvas');
     canvasEl.innerHTML = snap.canvas;
-    // ★T-033: video-pending(트림 확정 전 영상)은 스냅샷에 "빈 업로드대기"로 찍힌다
+    // ★T-031: video-pending(트림 확정 전 영상)은 스냅샷에 "빈 업로드대기"로 찍힌다
     //   (js/io/section-serialize.js T-012 안전장치) — rebindAll 이 그 원본을 같은 세션
     //   런타임 캐시에서 다시 붙인다(js/io/save-load.js rebindAll 참고 — undo/redo 뿐 아니라
     //   페이지·탭전환·프로젝트로드까지 이 한 지점에서 공통으로 커버한다).
@@ -222,7 +222,7 @@ function restoreSnapshotScoped(fromSnap, toSnap, laterSnap) {
   try {
     Object.assign(state.pageSettings, toSnap.settings || {});
     skipped = _applyScopedDiff(fromSnap, toSnap, laterSnap);
-    window.rebindAll(); // ★T-033: video-pending 재연결도 rebindAll 안에서 같이 커버된다(위 참고)
+    window.rebindAll(); // ★T-031: video-pending 재연결도 rebindAll 안에서 같이 커버된다(위 참고)
     window.deselectAll();
     window.applyPageSettings();
     if (window.buildLayerPanel) window.buildLayerPanel();
