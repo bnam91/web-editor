@@ -262,6 +262,26 @@ export async function prepareCloneForCapture(sec, w, useNative) {
       'group-selected', 'group-editing', 'ss-drag-over', 'drag-over', 'item-selected', 'bn2-line-selected', 'bn2-line-empty',
       'grd-line-selected', 'stb-line-selected', 'stb-step-selected');
   });
+  /* ★프라이버시(2026-09-15, a1-a3 지적+elementFromPoint 실측 확인 — T-027 z-index 수정
+   * (editor-blocks.css .shape-block.shape-redact z-index:3)의 잔여 구멍): transform이
+   * 걸린 조상은 «새 스태킹 컨텍스트»를 만든다 — 그 안의 redact 도형은 z-index:3이어도
+   * «조상 밖»의 형제(.text-block 등, z-index:2)와 직접 비교되지 못한다. 조상 자신이
+   * z-index:auto면 밖의 형제가 조상 전체(=속의 redact 도형까지) 위에 그려질 수 있다.
+   * frame-block은 applyFrameTransform(frame-geometry.js)이 거의 항상 인라인 transform을
+   * 써서 이 조건에 걸린다 — 재현: 프레임 안에 redact 도형, 프레임 밖에 민감 텍스트,
+   * elementFromPoint로 텍스트가 위에 잡힘을 확인.
+   * ⇒ 특정 클래스(.frame-block 등)를 나열하지 않고 «인라인 transform이 있는 조상 전부»를
+   * redact 도형마다 훑어 같이 z-index를 끌어올린다 — 새 컨테이너 타입이 생겨도(현재 프레임
+   * 외엔 확인 안 됨) inline transform 패턴만 같으면 자동으로 커버된다. 클론에만 적용 —
+   * 라이브 DOM·selected 상태의 실제 스태킹 동작은 안 건드린다. */
+  clone.querySelectorAll('.shape-block.shape-redact').forEach(shp => {
+    for (let anc = shp.parentElement; anc && anc !== clone; anc = anc.parentElement) {
+      if (anc.style && anc.style.transform && anc.style.transform !== 'none') {
+        const curZ = parseInt(anc.style.zIndex, 10);
+        if (!Number.isFinite(curZ) || curZ < 3) anc.style.zIndex = '3';
+      }
+    }
+  });
   // CDP captureBeyondViewport로 off-screen 좌표도 캡쳐 가능 — clone을 화면 밖에 두어
   // export 중 사용자 화면에 큰 박스가 튀어나오는 "ghosting" 현상 제거
   clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + w + 'px;margin:0;outline:none;';
