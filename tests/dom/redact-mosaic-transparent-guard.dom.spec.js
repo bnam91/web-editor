@@ -4,6 +4,12 @@
  * 않는지 — 신뢰하면 기존 정상 스냅샷/안전실패 회색을 빈 비트맵이 덮어써 export PNG에
  * 원본이 그대로 노출되는 사고로 이어진다(2026-09-15).
  *
+ * ★2차수정(a1-a3 코드리뷰 지적, G4/G5): 1차 방어는 "완전 투명"만 걸러 (1) 다운샘플
+ * 평균으로 옅게 뭉개진 «부분» 누수를 놓치고 (2) 읽기 실패(CORS 오염 등)를 "투명 아님"
+ * (=신뢰)으로 기본값 잡아 실패열림이었다. _isSuspiciouslyBlank 로 이름을 바꾸고
+ * (1)불투명 픽셀 5% 미만이면 의심 + 작은 캔버스는 다운샘플 없이 전체 픽셀 확인,
+ * (2)읽기 실패는 "의심스러움"(실패닫힘)으로 고쳤다 — G4/G5 가 이 둘을 잰다.
+ *
  * ⛔앱을 «안» 띄운다 — 고디터 인스턴스·MCP 9345 대역 무접촉. redact-mosaic.js 만 얹고
  *   window.html2canvas 는 이 파일이 직접 흉내낸다(template-marker-leak.dom.spec.js 와
  *   같은 하네스 패턴).
@@ -103,5 +109,55 @@ test('G3 ★기존 정상 캡처가 있는 상태에서 재캡처가 투명하�
   expect(out.ok2, '★재캡처(투명) 자체는 실패로 보고돼야 한다').toBe(false);
   expect(out.unchanged, '★재캡처가 투명하게 실패했는데 기존 정상 캔버스 내용이 바뀌었다 — export가 이 빈 내용을 쓸 위험').toBe(true);
   expect(out.stillCaptured, '★재캡처 실패로 isMosaicCaptured 가 꺼지면 안 된다(1차 캡처는 여전히 유효)').toBe(true);
+  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
+});
+
+test('G4 ★부분 누수(대부분 투명+일부만 찍힘)도 "성공"으로 신뢰하지 않는다 — 다운샘플 평균에 옅게 뭉개져 통과하던 구멍(a1-a3 지적①)', async ({ page }) => {
+  const errs = await boot(page, { transparent: false });
+  const out = await page.evaluate(async () => {
+    // html2canvas가 "블록 크기(100×60) 전체"를 돌려주되, 그중 2%(약 120px)만 내용이 있고
+    // 나머지는 완전 투명한 경우를 흉내낸다 — 다운샘플(특히 평균/블렌딩)로 스무딩되면
+    // "옅게 뭉개진 알파"가 예전 문턱(>8, 아무 픽셀 하나)을 통과해버릴 수 있었다.
+    window.html2canvas = async () => {
+      const c = document.createElement('canvas');
+      c.width = 100; c.height = 60;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = 'red';
+      ctx.fillRect(0, 0, 4, 30); // 100×60=6000px 중 120px ≈ 2% 만 불투명
+      return c;
+    };
+    const block = document.getElementById('shp_1');
+    const ok = await window.captureMosaicSnapshot(block);
+    return { ok, captured: window.isMosaicCaptured(block) };
+  });
+  expect(out.ok, '★불투명 픽셀이 5% 미만(약 2%)인 부분 캡처를 "성공"으로 잘못 신뢰했다').toBe(false);
+  expect(out.captured, '★부분 누수 캡처인데도 isMosaicCaptured 가 true 로 마킹됐다').toBe(false);
+  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
+});
+
+test('G5 ★캔버스 읽기 실패(예: CORS 오염)는 "투명 아님"(신뢰)이 아니라 "의심스러움"(실패닫힘)으로 취급한다(a1-a3 지적②)', async ({ page }) => {
+  const errs = await boot(page, { transparent: false });
+  const out = await page.evaluate(async () => {
+    // getImageData 가 던지는 상황(SecurityError 등)을 직접 흉내낸다 — 진짜 cross-origin
+    // 이미지 없이도 "읽기 실패" 분기 자체를 검증할 수 있다.
+    window.html2canvas = async () => {
+      const c = document.createElement('canvas');
+      c.width = 100; c.height = 60;
+      const realGetContext = c.getContext.bind(c);
+      c.getContext = (type, ...rest) => {
+        const ctx = realGetContext(type, ...rest);
+        if (type === '2d') {
+          ctx.getImageData = () => { throw new Error('SecurityError: tainted canvas (simulated)'); };
+        }
+        return ctx;
+      };
+      return c;
+    };
+    const block = document.getElementById('shp_1');
+    const ok = await window.captureMosaicSnapshot(block);
+    return { ok, captured: window.isMosaicCaptured(block) };
+  });
+  expect(out.ok, '★읽기 실패(오염된 캔버스)를 "성공"으로 잘못 신뢰했다 — 예전엔 catch에서 false(투명 아님)를 돌려줘 이 캡처가 실제로 투명 버그 결과여도 걸러내지 못했다').toBe(false);
+  expect(out.captured, '★읽기 실패 캡처인데도 isMosaicCaptured 가 true 로 마킹됐다').toBe(false);
   expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });

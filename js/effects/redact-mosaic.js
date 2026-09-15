@@ -125,36 +125,66 @@ export async function captureMosaicSnapshot(block, opts) {
   if (!captured || !captured.width || !captured.height) return false;
   /* ★프라이버시(2026-09-15, export 조사 중 발견 — fix-mosaic-precapture-exposure): export
    * 도중(오프스크린 clone이 document에 떠 있는 특정 맥락) html2canvas가 크기는 정상인데
-   * «완전 투명»한 캡처를 돌려주는 경우가 확인됐다(정확한 근본원인은 미확정 — html2canvas
+   * «거의 다 투명»한 캡처를 돌려주는 경우가 확인됐다(정확한 근본원인은 미확정 — html2canvas
    * 내부가 offscreen clone 존재로 뭔가 오작동하는 것으로 추정). 그걸 그대로 신뢰해
-   * _capturedBlocks 에 "캡처됨"으로 마킹하면, 실제로는 빈 비트맵이 기존의 «정상 스냅샷»
-   * (또는 안전실패 회색)을 덮어써 finalizeMosaicForClone 이 원본을 그대로 내보내는 사고로
-   * 이어진다(라이브는 안전한데 export PNG 만 새는 형태로 실측됨). 완전 투명이면 "캡처 실패"로
-   * 취급해 기존 상태(_fullResCache/canvas)를 그대로 둔다 — 원인을 못 밝혀도 결과는 안전하게. */
-  if (_isFullyTransparent(captured)) return false;
+   * _capturedBlocks 에 "캡처됨"으로 마킹하면, 실제로는 빈(또는 거의 빈) 비트맵이 기존의
+   * «정상 스냅샷»(또는 안전실패 회색)을 덮어써 finalizeMosaicForClone 이 원본을 그대로
+   * 내보내는 사고로 이어진다(라이브는 안전한데 export PNG 만 새는 형태로 실측됨). 의심스러운
+   * 결과는 "캡처 실패"로 취급해 기존 상태(_fullResCache/canvas)를 그대로 둔다 — 원인을 못
+   * 밝혀도 결과는 안전하게.
+   * ★2차수정(a1-a3 코드리뷰 지적, 2건 모두 타당해서 반영):
+   *   ① 예전엔 "완전 투명(알파 전부 0)"만 걸렀는데, 16×16 다운샘플이 스무딩(평균/블렌딩)을
+   *      쓰면 "대부분 투명 + 일부만 찍힌" 부분 누수가 옅게 뭉개져 알파>8 기준을 통과해
+   *      버린다. ⇒ 작은 캔버스(≤250,000px)는 다운샘플 없이 «전체 픽셀»을 그대로 읽고, 큰
+   *      캔버스만 스무딩을 «끈» 근접샘플(평균 없음)로 촘촘히 본다. 그리고 "완전 투명"이 아니라
+   *      "불투명 픽셀 비율 5% 미만"이면 의심 — 부분 누수도 대부분 이 문턱에 걸린다.
+   *   ② 예전엔 getImageData 가 던지면(CORS 오염된 캔버스 등) "투명 아님(=신뢰)"으로
+   *      기본값을 잡았다 — 검증 실패를 "괜찮음"으로 읽는 실패열림(fail-open)이었다. 검증
+   *      불가는 "의심"과 같은 취급이어야 한다(실패닫힘) — catch 에서도 true(의심스러움)를
+   *      돌려준다. */
+  if (_isSuspiciouslyBlank(captured)) return false;
 
   _fullResCache.set(block, captured);
   redrawFromFullRes(block, captured);
   return true;
 }
 
-/** canvas 가 «완전 투명»(알파 전부 0에 가까움)인지 저해상도 샘플링으로 빠르게 판정.
- *  읽기 실패(오염된 캔버스 등)는 "투명 아님"으로 취급해 기존 흐름을 막지 않는다 — 이 함수의
- *  목적은 새로운 실패를 만드는 게 아니라 «이미 관측된 특정 실패 모드»만 걸러내는 것이다. */
-function _isFullyTransparent(canvas) {
+/** canvas 가 «의심스럽게 비어있는»(불투명 픽셀이 사실상 없는) 결과인지 판정.
+ *  ⛔"완전 투명"만 보지 않는다 — 다운샘플 평균으로 옅게 뭉개진 부분 누수도 잡으려면
+ *    "거의 다 투명"(5% 미만)까지 걸러야 한다(위 ① 참고).
+ *  ⛔읽기 실패는 "의심 아님"이 아니라 "의심스러움"으로 처리한다(실패닫힘, 위 ② 참고) —
+ *    이 함수는 «검증됐다»고 확신할 때만 false 를 돌려줘야 한다. */
+function _isSuspiciouslyBlank(canvas) {
   try {
-    const sw = Math.min(canvas.width, 16) || 1, sh = Math.min(canvas.height, 16) || 1;
-    const probe = document.createElement('canvas');
-    probe.width = sw; probe.height = sh;
-    const pctx = probe.getContext('2d');
-    pctx.drawImage(canvas, 0, 0, sw, sh);
-    const data = pctx.getImageData(0, 0, sw, sh).data;
-    for (let i = 3; i < data.length; i += 4) {
-      if (data[i] > 8) return false; // 알파가 조금이라도 있으면 "내용 있음"
+    const w = canvas.width, h = canvas.height;
+    if (!w || !h) return true;
+    let data, total;
+    const area = w * h;
+    if (area <= 250000) {
+      // 작은 캔버스(모자이크 redact 블록은 보통 이 범위)는 다운샘플 없이 «전체»를 읽는다 —
+      // 평균으로 옅게 뭉개져 부분 누수가 숨는 것을 막는다.
+      const ctx = canvas.getContext('2d');
+      data = ctx.getImageData(0, 0, w, h).data;
+      total = w * h;
+    } else {
+      // 큰 캔버스는 스무딩을 «끈» 근접샘플(블렌딩 없음)로 촘촘히 — 다운샘플은 하되
+      // 평균은 안 낸다.
+      const sw = 64, sh = 64;
+      const probe = document.createElement('canvas');
+      probe.width = sw; probe.height = sh;
+      const pctx = probe.getContext('2d');
+      pctx.imageSmoothingEnabled = false;
+      pctx.drawImage(canvas, 0, 0, sw, sh);
+      data = pctx.getImageData(0, 0, sw, sh).data;
+      total = sw * sh;
     }
-    return true;
+    let opaque = 0;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] > 8) opaque++;
+    }
+    return (opaque / total) < 0.05; // 불투명 픽셀이 5% 미만이면 의심스럽다.
   } catch (_) {
-    return false;
+    return true; // 읽기 실패 = 검증 불가 = 의심스러움(실패닫힘) — "투명 아님"으로 단정하지 않는다.
   }
 }
 
