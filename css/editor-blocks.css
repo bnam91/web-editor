@@ -16,6 +16,23 @@
 .frame-block[data-text-frame] {
   min-height: unset;
 }
+/* ★프라이버시(2026-09-15, a1-a3 지적 — e0ba9c7 의 export-only 수정을 «라이브 화면»까지
+ * 넓힌다): .shape-block.shape-redact 는 선택 여부와 무관하게 z-index:3 을 받지만(위쪽
+ * 규칙), transform 이 걸린 조상(.frame-block — frame-geometry.js applyFrameTransform 이
+ * 프레임을 만들 때마다 거의 항상 인라인 transform 을 쓴다)은 «새 스태킹 컨텍스트»를 만든다.
+ * 그 안의 redact 도형의 z-index:3 은 프레임 «안»에서만 유효하고, 프레임 자신은 z-index:auto
+ * 라 프레임 밖의 형제(.text-block 등, z-index:2)에 «프레임 전체»가 진다 — 편집 화면에서
+ * «선택 안 된» 가림막이 프레임 안에 있고 가릴 글자가 프레임 밖에 있으면, 그 글자가 가림막
+ * 위에 그대로 그려진다(화면공유·스크린샷에 그대로 노출). e0ba9c7 는 export 클론에만
+ * (JS 로 조상 z-index 를 그때그때) 적용했는데, «라이브 DOM»은 못 건드려 이 노출은 그대로
+ * 남아있었다.
+ * ⇒ CSS `:has()`로 «redact 도형을 품은 프레임 자신»에 직접 z-index 를 준다 — JS 훅 없이
+ * 브라우저가 DOM 변화(프레임 생성·이동·언두/리두·프로젝트로드)마다 자동으로 재평가하므로
+ * 라이브 화면·모든 export 경로(썸네일·목업 등 e0ba9c7 가 안 닿는 클론 경로 포함)에 전부
+ * 한 번에 적용된다. */
+.frame-block:has(.shape-block.shape-redact) {
+  z-index: 3 !important;
+}
 .frame-block.selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));

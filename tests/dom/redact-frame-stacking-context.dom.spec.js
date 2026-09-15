@@ -57,11 +57,18 @@ async function boot(page) {
   return errs;
 }
 
-test('F1 ★양성대조(고치기 전 메커니즘 확인) — transform 조상 안의 redact(z:3)는 조상 밖 text-block(z:2)에 진다', async ({ page }) => {
+test('F1 ★양성대조(고치기 전 메커니즘 확인) — transform 조상 안의 도형(z:3, 프레임은 안 올림)은 조상 밖 text-block(z:2)에 진다', async ({ page }) => {
   const errs = await boot(page);
   const out = await page.evaluate(() => {
     const shp = document.getElementById('shp1');
-    shp.style.zIndex = '3'; // editor-blocks.css 규칙과 같은 값을 직접 흉내(prepareCloneForCapture 개입 없이)
+    // ★.shape-redact 클래스를 빼야 한다 — 지금은 editor-blocks.css의
+    //   .frame-block:has(.shape-block.shape-redact) 규칙(F3가 지키는 라이브 고침)이 이
+    //   클래스를 보고 frame1을 «자동으로» 끌어올려버려서, "프레임은 안 올린 채 도형만
+    //   올린" 순수 메커니즘 재현이 이 클래스를 달고는 더 이상 안 된다(고침이 하네스보다
+    //   먼저 개입). 메커니즘 자체(F2/F3와 무관하게 브라우저 스태킹 규칙이 이렇다는 것)만
+    //   보이려는 시험이라 클래스를 떼고 z-index만 수동으로 흉내낸다.
+    shp.classList.remove('shape-redact');
+    shp.style.zIndex = '3';
     // (30,20): frame1(0-200,0-100) 안, shp1(0-60) 안, txt1(10,10 부근) 겹치는 지점.
     const top = document.elementFromPoint(30, 20);
     return { topId: top ? top.id : null };
@@ -117,5 +124,30 @@ test('F2 ★고침 — prepareCloneForCapture 를 거친 클론에서는 redact 
   expect(out.frameZ, '★prepareCloneForCapture 가 transform 걸린 조상(frame1)의 z-index 를 끌어올리지 않았다').toBe('3');
   expect(out.topIsCloneTxt, '★회귀 — 클론 자신의 text-block이 클론 자신의 redact 도형 위에 그려진다').toBe(false);
   expect(out.topIsCloneShp, '★클론의 redact 도형(또는 프레임)이 최상단이 아니다').toBe(true);
+  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
+});
+
+test('F3 ★근본 고침(라이브 화면) — export 클론이 아니라 «편집 화면 그 자체»에서도 프레임 안 redact가 프레임 밖 텍스트를 이긴다', async ({ page }) => {
+  // ★a1-a3 지적(②, 가장 심각): e0ba9c7는 export 클론(JS)만 고쳤다 — 편집 화면에서
+  //   «선택 안 된» 가림막이 transform 프레임 안에 있고 가릴 글자가 프레임 밖에 있으면,
+  //   화면공유·스크린샷에 그대로 노출된다(clone도 export도 없는, 순수 라이브 DOM 문제).
+  //   CSS `:has()`(editor-blocks.css .frame-block:has(.shape-block.shape-redact))로
+  //   고쳤다 — 브라우저가 DOM 변화마다 자동 재평가하므로 JS 훅이 전혀 필요 없다.
+  const errs = await boot(page);
+  const out = await page.evaluate(() => {
+    // ★.selected 를 «안 준다» — 이게 바로 6c476ef 이전에 "라이브는 안전해 보였던" 이유
+    //   (라이브에서 만지는 도형은 보통 selected라 우연히 이겼다)였던 것과 반대 조건이다.
+    const shp = document.getElementById('shp1');
+    const frame = document.getElementById('frame1');
+    const top = document.elementFromPoint(30, 20);
+    return {
+      topId: top ? top.id : null,
+      frameZ: getComputedStyle(frame).zIndex,
+      shpSelected: shp.classList.contains('selected'),
+    };
+  });
+  expect(out.shpSelected, '★전제 — 도형이 선택 안 된 상태여야 이 시나리오다').toBe(false);
+  expect(out.frameZ, '★:has() 규칙이 프레임 자신의 z-index를 안 끌어올렸다').toBe('3');
+  expect(out.topId, '★라이브 화면(편집 중, export 없음)에서도 텍스트가 미선택 redact 도형을 이긴다 — 화면공유·스크린샷 노출').toBe('shp1');
   expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });
