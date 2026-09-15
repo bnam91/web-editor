@@ -106,7 +106,7 @@ function _gifBgUrl(bgValue) {
   return m ? m[1] : null;
 }
 
-async function canvasToGifBlob(canvases, delays, opts = {}) {
+export async function canvasToGifBlob(canvases, delays, opts = {}) {
   // canvases: HTMLCanvasElement[] (다중) — 모두 같은 width/height
   // delays:   number[] (ms) — canvases.length 와 동일
   if (typeof GIF !== 'function') {
