@@ -82,14 +82,25 @@ test('W1 ★rebindAll 이 reattachVideoPendingBlocks 를 부른다 — 단일 �
     '★rebindAll 이 video-pending 재연결을 안 부른다 — 이 함수를 거치는 모든 복원 경로가 샌다');
 });
 
-test('W2 ★페이지 전환(switchPage)이 rebindAll 을 거친다 — 자기 page의 sidecar를 넘긴다', () => {
-  assert.match(SWITCH_PAGE_BODY, /\brebindAll\(\s*\{\s*videoPendingSidecar:\s*page\.videoPendingSidecar\s*\}\s*\)/,
-    '★switchPage 가 rebindAll 에 page.videoPendingSidecar 를 안 넘긴다 — 스냅샷 스코프(T-031 2차) 배선이 끊겼거나 남의 sidecar 를 쓸 위험');
+test('W2 ★페이지 전환(switchPage)이 rebindAll 을 거친다 — 런타임 전용 Map에서 자기 page의 sidecar를 읽는다', () => {
+  assert.match(SWITCH_PAGE_BODY, /\brebindAll\(\s*\{\s*videoPendingSidecar:\s*_pageVideoPendingSidecars\.get\(\s*page\.id\s*\)\s*\}\s*\)/,
+    '★switchPage 가 rebindAll 에 _pageVideoPendingSidecars.get(page.id) 를 안 넘긴다');
 });
 
-test('W3 ★페이지 삭제 후 남은 페이지 복원(deletePage)도 rebindAll 을 거친다 — next의 sidecar를 넘긴다', () => {
-  assert.match(DELETE_PAGE_BODY, /\brebindAll\(\s*\{\s*videoPendingSidecar:\s*next\.videoPendingSidecar\s*\}\s*\)/,
-    '★deletePage 의 활성페이지 복원 분기가 rebindAll 에 next.videoPendingSidecar 를 안 넘긴다');
+test('W3 ★페이지 삭제 후 남은 페이지 복원(deletePage)도 rebindAll 을 거친다 — 런타임 전용 Map에서 next의 sidecar를 읽는다', () => {
+  assert.match(DELETE_PAGE_BODY, /\brebindAll\(\s*\{\s*videoPendingSidecar:\s*_pageVideoPendingSidecars\.get\(\s*next\.id\s*\)\s*\}\s*\)/,
+    '★deletePage 의 활성페이지 복원 분기가 rebindAll 에 _pageVideoPendingSidecars.get(next.id) 를 안 넘긴다');
+});
+
+test('W11 ★치명 회귀 게이트 — switchPage/deletePage 가 page.videoPendingSidecar(page 객체 프로퍼티)를 «절대» 읽지 않는다', () => {
+  // ★2026-09-15 a1-a3 지적: page 객체 «자신»에 sidecar를 붙이면(2차수정) serializeProject가
+  //   JSON.stringify({pages: state.pages})로 그 원본을 proj.json에 그대로 영구 저장한다 —
+  //   T-012가 막으려던 사고가 재발한다. 3차수정(런타임 전용 Map)이 다시 이 프로퍼티 접근
+  //   패턴으로 되돌아가지 않는지 이 테스트가 지킨다.
+  assert.doesNotMatch(SWITCH_PAGE_BODY, /\bpage\.videoPendingSidecar\b/,
+    '★switchPage 가 page.videoPendingSidecar(page 객체 프로퍼티)를 읽는다 — proj.json 유출 회귀');
+  assert.doesNotMatch(DELETE_PAGE_BODY, /\bnext\.videoPendingSidecar\b/,
+    '★deletePage 가 next.videoPendingSidecar(page 객체 프로퍼티)를 읽는다 — proj.json 유출 회귀');
 });
 
 test('W4 ★applyProjectData(탭전환·프로젝트로드·브랜치전환 공유 지점)가 rebindAll 을 거친다 — sidecar 없이(진짜 파일 로드는 되살릴 원본이 없다)', () => {
@@ -116,21 +127,37 @@ test('W8 ★rebindAll 자신은 opts.videoPendingSidecar 없이 부르면 아무
     '★rebindAll 이 opts.videoPendingSidecar 를 그대로 넘기지 않는다 — sidecar 없는 호출자(협업·프로젝트로드)가 되살릴 위험이 생긴다');
 });
 
-test('W10 ★flushCurrentPage 가 떠나는 page 객체 자신에 videoPendingSidecar 를 붙인다', () => {
+test('W10 ★flushCurrentPage 가 런타임 전용 Map(_pageVideoPendingSidecars)에 sidecar를 남긴다 — page 객체엔 절대 안 붙인다', () => {
   const FLUSH_BODY = codeOnly(extractFn(SAVE_LOAD_SRC, 'flushCurrentPage'));
-  assert.match(FLUSH_BODY, /page\.videoPendingSidecar\s*=\s*window\.getLastVideoPendingSidecar/,
-    '★flushCurrentPage 가 page.videoPendingSidecar 를 안 붙인다 — switchPage/deletePage 로 돌아왔을 때 되살릴 것이 없다');
+  assert.match(FLUSH_BODY, /_pageVideoPendingSidecars\.set\(\s*page\.id\s*,\s*window\.getLastVideoPendingSidecar/,
+    '★flushCurrentPage 가 _pageVideoPendingSidecars.set(page.id, …) 를 안 부른다 — switchPage/deletePage 로 돌아왔을 때 되살릴 것이 없다');
+  assert.doesNotMatch(FLUSH_BODY, /\bpage\.videoPendingSidecar\s*=/,
+    '★치명 회귀 — flushCurrentPage 가 page.videoPendingSidecar 를 page 객체(저장 대상)에 직접 붙인다. ' +
+    'serializeProject 가 JSON.stringify({pages: state.pages}) 로 그대로 저장하므로 원본 영상 dataURL 이 proj.json 에 영구 저장된다(T-012 재붕괴).');
 });
 
-test('W9 ★pushHistory/초기스냅샷이 스냅샷 자신에 videoPendingSidecar 를 붙인다(전역 캐시 아님)', () => {
+test('W12 ★_pageVideoPendingSidecars 는 모듈 스코프 변수다 — state.pages(저장 대상) 소속이 아니다', () => {
+  assert.match(SAVE_LOAD_SRC, /const\s+_pageVideoPendingSidecars\s*=\s*new\s+Map\(\)/,
+    '★_pageVideoPendingSidecars 선언을 못 찾았다 — 런타임 전용 Map 설계 자체가 없어졌다');
+});
+
+test('W9 ★pushHistory/초기스냅샷/ensureHistoryCheckpoint 가 스냅샷 자신에 videoPendingSidecar 를 붙인다(전역 캐시 아님)', () => {
   const PUSH_HISTORY_BODY = codeOnly(extractFn(HISTORY_SRC, 'pushHistory'));
   const CLEAR_HISTORY_BODY = codeOnly(extractFn(HISTORY_SRC, 'clearHistory'));
+  const ENSURE_CHECKPOINT_BODY = codeOnly(extractFn(HISTORY_SRC, 'ensureHistoryCheckpoint'));
   assert.match(PUSH_HISTORY_BODY, /getLastVideoPendingSidecar/,
     '★pushHistory 가 getLastVideoPendingSidecar 를 안 읽는다 — 이 스냅샷 전용 sidecar 를 못 붙인다');
   assert.match(PUSH_HISTORY_BODY, /videoPendingSidecar\s*:/,
     '★pushHistory 가 만드는 스냅샷 객체에 videoPendingSidecar 필드가 없다');
   assert.match(CLEAR_HISTORY_BODY, /getLastVideoPendingSidecar/,
     '★clearHistory(초기 스냅샷)도 같은 sidecar 배선이 있어야 한다');
+  // ★2026-09-15 a1-a3 지적: ensureHistoryCheckpoint(undo 첫 스텝이 «현재 상태»를 선적재하는
+  //   경로)가 sidecar 없이 쌓이면, 그 체크포인트로 ⌘⇧Z(redo)해 돌아왔을 때 video-pending이
+  //   되살아나지 않고 사라진다(재현: 영상 넣기 → 다른 블록 비우기 → ⌘Z → ⌘⇧Z).
+  assert.match(ENSURE_CHECKPOINT_BODY, /getLastVideoPendingSidecar/,
+    '★ensureHistoryCheckpoint 가 getLastVideoPendingSidecar 를 안 읽는다 — ⌘Z→⌘⇧Z 에서 video-pending 소실 회귀');
+  assert.match(ENSURE_CHECKPOINT_BODY, /videoPendingSidecar\s*:/,
+    '★ensureHistoryCheckpoint 가 만드는 체크포인트 객체에 videoPendingSidecar 필드가 없다');
 });
 
 test('W7 ★섹션 복사(editor.js)가 raw outerHTML 대신 세척된 clone 을 clipboard 에 담는다', () => {

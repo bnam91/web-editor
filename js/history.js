@@ -343,12 +343,18 @@ function resetAllPageHistory() {
 function ensureHistoryCheckpoint(action = 'checkpoint') {
   if (_historyPaused) return;
   const current = window.getSerializedCanvas?.();
+  // ★T-031 3차(a1-a3 지적 — 치명): pushHistory/clearHistory와 «같은 동기 구간»에서
+  //   sidecar를 같이 잡아야 한다. 이게 없으면 ensure가 선적재하는 항목엔 sidecar가
+  //   없어(undefined) — ⌘Z(undo, 이 checkpoint로 되돌아옴)까지는 괜찮아도 ⌘⇧Z(redo, 다시
+  //   이 checkpoint로 돌아옴)에서 video-pending이 되살아나지 않고 사라진다(재현: 영상 넣기
+  //   → 다른 블록 비우기 → ⌘Z → ⌘⇧Z).
+  const _sidecar = window.getLastVideoPendingSidecar?.();
   if (!current) return;
   if (historyStack[historyPos]?.canvas !== current) {
     historyStack = historyStack.slice(0, historyPos + 1);
     // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
     //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
-    historyStack.push({ canvas: current, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), seq: ++_seq });
+    historyStack.push({ canvas: current, videoPendingSidecar: _sidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), seq: ++_seq });
     if (historyStack.length > MAX_HISTORY) {
       historyStack.shift(); // 가장 오래된 항목 제거
       historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정

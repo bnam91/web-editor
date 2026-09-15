@@ -325,14 +325,26 @@ function getCurrentPage() {
   return state.pages.find(p => p.id === state.currentPageId) || state.pages[0];
 }
 
+/* ★T-031 3차수정(2026-09-15, a1-a3 지적 — 치명): 2차수정은 page.videoPendingSidecar를
+ * «page 객체 자신»에 붙였는데, serializeProject()가 JSON.stringify({pages: state.pages})로
+ * «그 객체를 그대로» 저장한다 — 원본 영상 dataURL이 매 저장마다 proj.json에 통째로 영구
+ * 저장되는, T-012가 막으려던 바로 그 사고가 재발했다(자동저장·탭캐시·커밋/브랜치 스냅샷
+ * 전부 포함). page.canvas는 serializeCleanRoot를 거친 "세척된 문자열"이라 안전했지만,
+ * videoPendingSidecar는 세척 «밖»의 원본 그 자체라 같은 객체에 둘 수 없다.
+ * ⇒ state.pages(저장 대상)에는 «전혀» 안 붙인다. pageId → sidecar 런타임 전용 Map(모듈
+ * 스코프, JSON.stringify 대상 밖)에 따로 둔다 — js/history.js가 스냅샷 객체 자신에 붙이는
+ * 것과 원리는 같되(그쪽은애초에 historyStack 자체가 메모리 전용이라 안전했다), 여긴
+ * page 객체가 저장 대상이라 아예 분리해야 한다. */
+const _pageVideoPendingSidecars = new Map(); // pageId -> sidecar. ⛔ state.pages 에 절대 붙이지 않는다.
+
 function flushCurrentPage() {
   const page = getCurrentPage();
   if (!page) return;
   page.canvas = getSerializedCanvas();
-  // ★T-031 2차: 떠나는 이 페이지의 video-pending 원본을 이 page 객체 «자신»에 붙인다
-  // (같은 동기 구간에서 읽어야 한다 — section-serialize.js 참고). 돌아왔을 때(switchPage/
-  // deletePage) rebindAll({videoPendingSidecar: page.videoPendingSidecar})로만 되살린다.
-  page.videoPendingSidecar = window.getLastVideoPendingSidecar?.();
+  // ★떠나는 이 페이지의 video-pending 원본을 «런타임 전용 Map»에 남긴다(같은 동기 구간에서
+  // 읽어야 한다 — section-serialize.js 참고). 돌아왔을 때(switchPage/deletePage)
+  // rebindAll({videoPendingSidecar: _pageVideoPendingSidecars.get(page.id)})로만 되살린다.
+  _pageVideoPendingSidecars.set(page.id, window.getLastVideoPendingSidecar?.());
   page.pageSettings = { ...state.pageSettings };
 }
 
@@ -370,9 +382,10 @@ async function switchPage(pageId) {
     // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
     const propPanel = document.querySelector('#panel-right .panel-body');
     if (propPanel) propPanel.innerHTML = '';
-    // ★T-031 2차: 이 page 객체가 (떠났다가 돌아왔을 때를 위해) flushCurrentPage에서
-    //   붙여둔 자기 자신의 sidecar만 쓴다 — 다른 페이지/스냅샷 것과 안 섞인다.
-    rebindAll({ videoPendingSidecar: page.videoPendingSidecar });
+    // ★T-031 3차: page 객체가 아니라 런타임 전용 _pageVideoPendingSidecars Map에서 읽는다
+    //   (flushCurrentPage가 이 페이지를 떠날 때 거기 남겨둔 것 — page 객체 자신엔 절대
+    //   안 붙인다, 위 정의부 주석 참고 — proj.json에 원본이 실리는 사고 재발 방지).
+    rebindAll({ videoPendingSidecar: _pageVideoPendingSidecars.get(page.id) });
     refreshLazyObservation(); // 새 페이지의 section-block을 lazy 관찰 등록 (innerHTML 교체 후)
     applyPageSettings();
     window.deselectAll();
@@ -410,6 +423,7 @@ function deletePage(pageId) {
   state.pages.splice(idx, 1);
   // D1: 삭제된 페이지의 히스토리 stash 정리 (메모리 누수 방지)
   window.dropHistoryFor?.(pageId);
+  _pageVideoPendingSidecars.delete(pageId); // 같은 이유로 sidecar도 같이 정리
   if (wasActive) {
     const next = state.pages[Math.min(idx, state.pages.length - 1)];
     /* ★[H6] 억제는 «구조»로 연다 — 아래 rebindAll·applyPageSettings·showPageProperties 중
@@ -421,8 +435,8 @@ function deletePage(pageId) {
       if (next.pageSettings) Object.assign(state.pageSettings, next.pageSettings);
       canvasEl.innerHTML = sanitizeCanvasHtml(next.canvas || '');
       canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
-      // ★T-031 2차: next 페이지 자신의 sidecar만 쓴다(위 switchPage와 같은 이유).
-      rebindAll({ videoPendingSidecar: next.videoPendingSidecar });
+      // ★T-031 3차: next 페이지 자신의 sidecar만 쓴다(_pageVideoPendingSidecars Map, 위 switchPage와 같은 이유).
+      rebindAll({ videoPendingSidecar: _pageVideoPendingSidecars.get(next.id) });
       applyPageSettings();
       window.deselectAll();
       window.showPageProperties();
