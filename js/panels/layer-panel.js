@@ -279,6 +279,33 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
     }
     [...(sectionInner ? sectionInner.children : [])].forEach(walkInnerChild);
 
+    /* ★섹션 직속 플로팅 블록(확대·스티커·그라데이션·오버레이 텍스트…) — section-inner 의
+       «형제»라 위 walkInnerChild 순회(section-inner 자식만 돈다)에 안 걸려 레이어패널에서
+       통째로 빠졌다(2026-09-15, 현빈 실사용 재현 — 오버레이 전환 즉시 사라짐, 토글만 해도
+       드래그 전부터 이미 그렇다). export-figma-json.js 가 같은 구조(「섹션 직속」이
+       section-inner 순회 밖에 있다)로 먼저 겪은 맹점과 «같은 병»이다.
+       ★«이름 나열» 대신 «성질»로 잡는다 — -block 로 끝나는 클래스가 있으면 콘텐츠.
+       주석 도구 미리보기(annot-preview 등)·A/B 배지(variation-badge)·배경편집 프록시
+       (sec-bg-proxy)는 -block 클래스가 «없어서» 이 판정 하나로 자동 제외된다. */
+    [...sec.children]
+      .filter(c => c !== sectionInner && c.nodeType === 1 && c.classList
+        && [...c.classList].some(cn => cn.endsWith('-block')))
+      .forEach(fc => {
+        if (fc.classList.contains('frame-block') && fc.dataset.textFrame === 'true') {
+          // 오버레이 텍스트 — text-frame 래퍼는 투명, 내부 text-block을 직접 렌더 (drag target은 래퍼)
+          const tb = fc.querySelector(':scope > .text-block');
+          if (tb) children.appendChild(makeLayerBlockItem(tb, fc, sec, 1));
+        } else if (fc.classList.contains('frame-block')) {
+          children.appendChild(makeLayerFrameItem(fc, sec, appendRowToLayer));
+        } else if (fc.classList.contains('group-block')) {
+          children.appendChild(makeLayerGroupItem(fc, sec, appendRowToLayer));
+        } else if (fc.classList.contains('asset-block')) {
+          children.appendChild(makeLayerAssetItem(fc, fc, sec));
+        } else {
+          children.appendChild(makeLayerBlockItem(fc, fc, sec, 1));
+        }
+      });
+
     // 레이어 패널 드롭존 (Row/Gap 단위 재배치)
     // rAF throttle: getLayerDragAfterItem 내 getBoundingClientRect 호출 최적화 (DBG-11)
     let _layerDragRafId = null;

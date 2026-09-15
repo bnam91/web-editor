@@ -4,12 +4,20 @@
  * position:absolute 로 띄운다. 다시 누르면 원래 있던 부모 · 순서로 복귀한다.
  *
  * ★기존 자산 재사용:
- *   - 절대배치 판정/이동/드래그는 freeLayout(B모드)이 이미 쓰는 것과 같은 방식
- *     (position:absolute + left/top + dataset.offsetX/Y) — js/block-drag.js 가
- *     `style.position === 'absolute'` 만 보고 커스텀 드래그로 전환하므로 별도 배선 불필요.
  *   - 선택 아웃라인 보라는 새 CSS가 아니라 js/selection-overlay.js 의 선언형 경로
  *     (`host.dataset.selVariant` → 'sticker' 변형 stroke = --ui-sel-overlay) 그대로 탄다.
  *     확대블럭(zoom-block.js)이 이미 쓰는 같은 길.
+ *   - ⛔이동 드래그는 «별도 배선 불필요」가 아니었다(2026-09-15 정정). js/block-drag.js 의
+ *     일반 절대배치 드래그는 «자기 free-layout 프레임 안에서만» 움직이는 것을 전제해서
+ *     (부모 조상에 `.frame-block[data-free-layout]` 가 있어야 clamp/스냅이 돈다) 섹션 직속
+ *     오버레이(부모가 .section-block 자체)엔 그 전제가 아예 없다 — clamp 분기가 전부
+ *     스킵되고 드래그 델타가 그대로 style.left/top 에 꽂혀 다음 섹션 영역을 침범하고,
+ *     DOM 은 원래 섹션에 그대로 남아 있어(재부모 없음) 그 섹션의 background 아래 깔려
+ *     보이지 않게 됐다(현빈 실사용 재현, proj_1789467632756/tb_fks3h_svn05sy).
+ *     ⇒ 확대블럭이 zoom-block.js:383 `if (isZoom) return`로 일반 드래그를 비켜가고
+ *       자기만의 크로스섹션 드래그(_bindZoomMoveDrag)를 쓰는 것과 «같은 패턴»을 오버레이에도
+ *       적용한다 — 아래 _bindOverlayMoveDrag. js/block-drag.js 쪽엔 `tf.dataset.overlayBlock
+ *       === 'true'` 면 일반 드래그를 return 하는 대칭 변경이 있다(block-drag.js 참고).
  */
 
 function _zoom() {
@@ -31,6 +39,15 @@ function _ensureId(el) {
 
 function _isOverlay(posEl) {
   return posEl.dataset.overlayBlock === 'true';
+}
+
+/* ★위치를 쓰는 «단 하나의» 자리 — zoom-block.js _applyZoomPos(⑲)와 같은 규약.
+   dataset.offsetX/offsetY 가 SSOT 고, style 은 그걸 되읽어 쓴다. */
+function _applyOverlayPos(posEl, x, y) {
+  posEl.dataset.offsetX = String(Math.round(x));
+  posEl.dataset.offsetY = String(Math.round(y));
+  posEl.style.left = posEl.dataset.offsetX + 'px';
+  posEl.style.top  = posEl.dataset.offsetY + 'px';
 }
 
 // 오토레이아웃 → 오버레이(플로팅) 전환
@@ -68,12 +85,10 @@ function _enterOverlay(posEl) {
 
   sec.appendChild(posEl); // 섹션 직접 자식 — 스티커/확대블럭과 같은 스태킹(DOM 뒤 = 맨 위)
   posEl.style.position = 'absolute';
-  posEl.style.left = x + 'px';
-  posEl.style.top  = y + 'px';
-  posEl.dataset.offsetX = String(x);
-  posEl.dataset.offsetY = String(y);
+  _applyOverlayPos(posEl, x, y);
   posEl.dataset.overlayBlock = 'true';
   posEl.dataset.selVariant   = 'sticker'; // 선택 아웃라인 보라 — js/selection-overlay.js 선언형 경로
+  window._bindOverlayMoveDrag?.(posEl); // 보통 bindBlock 에서 이미 걸렸지만(아래 참고) 방어적으로 한 번 더
   return true;
 }
 
@@ -109,6 +124,62 @@ function _exitOverlay(posEl) {
     delete posEl.dataset.overlayIntroducedWidth;
   }
 }
+
+/* 오버레이(플로팅) 텍스트 — 크로스섹션 이동 드래그. zoom-block.js _bindZoomMoveDrag 와
+   ★같은 패턴(재사용 아님 — 파일이 다르고 DOM 셀렉터 기반이라 옮겨적었다. 로직이 갈라지면
+   여기서 따로 고친다는 뜻이다): 매 mousemove 마다 커서 아래 섹션을 hit-test 해서, 지금 담긴
+   섹션과 다르면 그 섹션으로 실제로 appendChild 하고(재부모) 그 새 섹션 기준으로 좌표를 다시 잰다.
+   ⛔섹션 clamp 를 안 하면(⌘ 드래그는 예외) 다음 섹션 영역을 침범해 배경 밑에 깔린다 — 그게
+     이 함수가 고치는 버그다(파일 상단 주석 참고).
+   posEl 자체(=tf, text-frame 래퍼)에 건다 — block-drag.js 의 bindBlock 이 자식 .text-block
+   1개당 1회 호출한다(그쪽 참고), 함수 내부에서 dataset.overlayBlock 을 매번 live로 재확인하므로
+   오버레이가 아닌 상태에서 걸어놔도 안전하다(그때는 그냥 조용히 빠진다). */
+function _bindOverlayMoveDrag(posEl) {
+  if (posEl._overlayMoveBound) return;
+  posEl._overlayMoveBound = true;
+  posEl.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (posEl.dataset.overlayBlock !== 'true') return; // 오버레이 아니면 일반 드래그(block-drag.js) 몫
+    if (e.target.closest('.resize-handle, [contenteditable]')) return;
+    e.stopPropagation();
+
+    let sec = posEl.closest('.section-block');
+    if (!sec) return;
+    const zoom = _zoom();
+    const r = posEl.getBoundingClientRect();
+    const grabX = (e.clientX - r.left) / zoom;
+    const grabY = (e.clientY - r.top) / zoom;
+    let moved = false;
+
+    const onMove = ev => {
+      if (!moved) {
+        if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
+        moved = true;
+        window.pushHistory?.('오버레이 이동');
+      }
+      // ⌘ 드래그 = 자유 이동(섹션 경계 clamp 없이) — zoom·스티커와 같은 어휘.
+      const free = ev.metaKey;
+      const hover = (!free && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;
+      if (hover && hover !== sec) { hover.appendChild(posEl); sec = hover; }
+      const sr = sec.getBoundingClientRect();
+      const rawX = (ev.clientX - sr.left) / zoom - grabX;
+      const rawY = (ev.clientY - sr.top) / zoom - grabY;
+      const [cx, cy] = free
+        ? [rawX, rawY]
+        : (window._clampToSection?.(rawX, rawY, sec, posEl.offsetWidth, posEl.offsetHeight) || [rawX, rawY]);
+      _applyOverlayPos(posEl, cx, cy);
+      window.scheduleAutoSave?.();
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (moved) window.triggerAutoSave?.();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+window._bindOverlayMoveDrag = _bindOverlayMoveDrag;
 
 export function wireOverlaySection({ tb }) {
   const btn = document.getElementById('txt-overlay-toggle');
