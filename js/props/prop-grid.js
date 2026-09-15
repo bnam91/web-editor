@@ -134,7 +134,7 @@ function _rowHeightHtml(rows) {
  *
  * ★실패 판정식(계획서 §4-B): `칸.value || 칸.placeholder` 가 빈 문자열이면 실패.
  *   회색 22 는 「빈 채로 떴다」가 아니다. D1-b 가 이 식을 그대로 단언한다. */
-function _grdTypoSectionsHtml(hit) {
+function _grdTypoSectionsHtml(hit, block) {
   if (!hit) {
     return `
     <div class="prop-section">
@@ -156,12 +156,27 @@ function _grdTypoSectionsHtml(hit) {
   const summary = `${r + 1}행 ${c + 1}열 · ${li + 1}번째 줄 (${line.type || 'body'}) — `
     + `직접 지정 ${nSet} · 역할 기본 ${_GRD_TYPO_FIELDS.length - nSet}`;
 
+  /* ★줄 추가/삭제 — 우측패널이 「구조는 API 전용」이라 안내문만 띄우던 자리(P1, 그리드 UX
+   * 리뷰 항목1). ⛔셀 전체 lines 를 다시 쓰는 patchCell{r,c,lines} 경로를 쓴다(lineIndex 없이) —
+   * updateGridBlock 이 그 자체로 pushHistory + 재렌더 + 패널 재표시를 해주므로 여기선 다음
+   * 활성 줄 주소만 미리 정해 grdSetActiveLine 로 남겨둔다(showGridProperties 가 1-인자로
+   * 되불릴 때 그 주소를 읽는다 — :359 문서화된 규약). */
+  let cellLineCount = 1;
+  try { cellLineCount = (getGridModel(block).cells?.[r]?.[c]?.lines || []).length || 1; } catch (_) {}
+  const canDeleteLine = cellLineCount > 1;
+  const smallBtnStyle = 'height:22px;flex:0 0 auto;padding:0 8px;font-size:11px;white-space:nowrap;background:#262626;color:#e5e5e5;border:1px solid #333;border-radius:4px;cursor:pointer;line-height:1;box-sizing:border-box;';
+
   return `
     <div class="prop-section" style="padding-bottom:4px;">
-      <div class="prop-row" style="align-items:center;gap:6px;">
+      <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">
         <span class="prop-hint" id="grd-line-summary" style="flex:1;min-width:0;">${summary}</span>
+        <button id="grd-line-add-btn" title="이 줄 다음에 새 줄을 추가합니다"
+                style="${smallBtnStyle}">+ 줄 추가</button>
+        <button id="grd-line-del-btn" ${canDeleteLine ? '' : 'disabled'}
+                title="${canDeleteLine ? '이 줄을 삭제합니다' : '칸에 남은 마지막 줄은 지울 수 없습니다'}"
+                style="${smallBtnStyle}${canDeleteLine ? '' : 'opacity:.45;cursor:not-allowed;'}">줄 삭제</button>
         <button id="grd-line-reset" title="이 줄에 «손으로 준 값»을 전부 지우고 기본값으로 되돌립니다 (⌘Z 로 복원)"
-                style="height:22px;flex:0 0 auto;padding:0 8px;font-size:11px;white-space:nowrap;background:#262626;color:#e5e5e5;border:1px solid #333;border-radius:4px;cursor:pointer;line-height:1;box-sizing:border-box;">↺ 기본값으로</button>
+                style="${smallBtnStyle}">↺ 기본값으로</button>
       </div>
     </div>
     ${buildTypographySectionHtml({
@@ -337,6 +352,30 @@ function _grdWireTypo(block, addr) {
     commit(cleared);
     showGridProperties(block, addr);
   });
+
+  /* ── [+ 줄 추가] / [줄 삭제] — 셀 lines 배열 구조 자체를 바꾼다(색·굵기 같은 «값»이 아니다).
+       ⛔commit/setLine(gridPreviewLine)을 안 쓴다 — 그건 «값만» 병합하고 배열 길이는 그대로 둔다.
+       updateGridBlock(patchCell{lines})이 pushHistory + 재렌더 + 패널 재표시를 다 해주므로,
+       다음에 선택될 줄 주소만 미리 grdSetActiveLine 로 남겨둔다(showGridProperties 1-인자
+       재호출 규약, :359 문서화). */
+  document.getElementById('grd-line-add-btn')?.addEventListener('click', () => {
+    let curLines;
+    try { curLines = getGridModel(block).cells?.[addr.r]?.[addr.c]?.lines || []; } catch (_) { curLines = []; }
+    const newLines = curLines.slice();
+    newLines.splice(addr.li + 1, 0, { type: 'body', text: '' });
+    grdSetActiveLine(block, { r: addr.r, c: addr.c, li: addr.li + 1 });
+    window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lines: newLines } });
+  });
+  document.getElementById('grd-line-del-btn')?.addEventListener('click', (e) => {
+    if (e.currentTarget.disabled) return;
+    let curLines;
+    try { curLines = getGridModel(block).cells?.[addr.r]?.[addr.c]?.lines || []; } catch (_) { curLines = []; }
+    if (curLines.length <= 1) return;   // 마지막 한 줄은 지우지 않는다(버튼도 disabled)
+    const newLines = curLines.filter((_, i) => i !== addr.li);
+    const newLi = Math.min(addr.li, newLines.length - 1);
+    grdSetActiveLine(block, newLines.length ? { r: addr.r, c: addr.c, li: newLi } : null);
+    window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lines: newLines } });
+  });
 }
 
 /** 요약 한 줄의 «직접 지정 N» 만 제자리에서 고친다 — 패널을 다시 그리지 않는다(포커스 보존). */
@@ -418,9 +457,9 @@ export function showGridProperties(block, addrArg) {
       </div>
       <div class="prop-hint" style="margin-top:2px;">세로 정렬은 컬럼 높이가 서로 다를 때만 움직인다</div>
     </div>
-    ${_grdTypoSectionsHtml(_hit)}
+    ${_grdTypoSectionsHtml(_hit, block)}
     <div class="prop-section">
-      <div class="prop-row"><span class="prop-label" style="opacity:.6">글자는 «캔버스에서 줄을 더블클릭»해 고친다 · 라인 구조(추가·삭제) 변경은 updateGridBlock API 사용</span></div>
+      <div class="prop-row"><span class="prop-label" style="opacity:.6">글자는 «캔버스에서 줄을 더블클릭»해 고친다</span></div>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);

@@ -4607,12 +4607,16 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     // 그리드 블록 셀 우클릭 → "이미지 추가/교체" (현빈 2026-09-15 요청: 그리드 셀 이미지 지원)
     const gridImgItem = document.getElementById('bcm-grid-img');
     const gridImgLabel = document.getElementById('bcm-grid-img-label');
+    const gridImgDelItem = document.getElementById('bcm-grid-img-del');
     _targetGridAddr = block.classList.contains('grid-block') ? _gridCellAddrAt(e, block) : null;
     if (gridImgItem) {
       gridImgItem.style.display = _targetGridAddr ? 'flex' : 'none';
       if (_targetGridAddr && gridImgLabel) {
         gridImgLabel.textContent = _targetGridAddr.li != null ? '이미지 교체' : '이미지 추가';
       }
+    }
+    if (gridImgDelItem) {
+      gridImgDelItem.style.display = (_targetGridAddr && _targetGridAddr.li != null) ? 'flex' : 'none';
     }
 
     const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
@@ -4714,11 +4718,30 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
               return { r: addr.r, c: addr.c, lines: nextLines };
             })();
         const res = window.updateGridBlock?.(block.id, { patchCell });
-        if (res && res.ok === false) window.showToast?.('❌ 이미지 추가 실패: ' + res.message);
+        if (res && res.ok === false) {
+          const msg = res.code === 'TOO_LARGE'
+            ? '⚠️ 이미지가 너무 큽니다 — 더 작은 파일로 다시 시도해 주세요'
+            : '❌ 이미지 추가 실패: ' + res.message;
+          window.showToast?.(msg);
+        }
       };
       reader.readAsDataURL(file);
     };
     input.click();
+  });
+
+  // 그리드 셀 이미지 삭제 — 그 줄을 lines 배열에서 제거(패치는 이미지 추가와 같은 patchCell{lines} 경로).
+  document.getElementById('bcm-grid-img-del')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    const addr = _targetGridAddr;
+    closeMenu();
+    if (!block || !addr || addr.li == null) return;
+    const lines = getGridModel(block).cells?.[addr.r]?.[addr.c]?.lines;
+    if (!Array.isArray(lines)) return;
+    const nextLines = lines.filter((_, i) => i !== addr.li);
+    const res = window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lines: nextLines } });
+    if (res && res.ok === false) window.showToast?.('❌ 이미지 삭제 실패: ' + res.message);
   });
 
   nameConfirm?.addEventListener('click', e => {
