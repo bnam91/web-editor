@@ -221,3 +221,21 @@ test('F6 ★3차수정 — .row-active/.col-active(transform 아니라 z-index:1
   expect(out.topId, '★활성 줄 안의 redact가 겹치는 텍스트에 진다').toBe('shp3');
   expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });
+
+test('F7 ★모드 무관 확인 — blur 모드(data-shape-redact-mode 없음)도 프레임 시나리오에서 mosaic과 똑같이 커버된다', async ({ page }) => {
+  // ★a1-a3 지적: 이번 라운드(프레임·2중중첩·목업) 실측이 전부 mosaic으로만 쟀다 — blur는
+  //   6c476ef 기본 케이스("실제로 흐려짐")만 확인됨. CSS 선택자([style*="transform"]:has(
+  //   .shape-block.shape-redact))는 data-shape-redact-mode를 «전혀 참조하지 않는다» —
+  //   즉 메커니즘 자체가 모드 무관임을 이 테스트로 증명한다(모자이크 전용 mock 없이 실제
+  //   CSS 파일 그대로).
+  const errs = await boot(page);
+  const out = await page.evaluate(() => {
+    document.getElementById('shp1').removeAttribute('data-shape-redact-mode'); // → blur(기본 모드)
+    const frame = document.getElementById('frame1');
+    const top = document.elementFromPoint(30, 20);
+    return { frameZ: getComputedStyle(frame).zIndex, topId: top ? top.id : null };
+  });
+  expect(out.frameZ, '★blur 모드일 때 :has() 규칙이 프레임 z-index를 안 끌어올렸다').toBe('3');
+  expect(out.topId, '★blur 모드 redact가 프레임 밖 텍스트에 진다 — mosaic과 다르게 취급됨').toBe('shp1');
+  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
+});
