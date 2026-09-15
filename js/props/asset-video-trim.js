@@ -104,6 +104,11 @@ export function wireVideoTrim(ab) {
   paint();
   paintPlayhead();
 
+  // ★패널 재오픈마다 이 함수가 다시 불린다 — 가드 없이 addEventListener만 하면
+  //   video(패널과 달리 재생성 안 됨)에 리스너가 계속 쌓인다(적대적 QA 실측: 6회 재선택 후 7개
+  //   누적, 죽은 #vtrim-playhead 참조). attachAssetVideoTrimLoop과 같은 방식으로 직전 것만 뗀다.
+  if (video._paintPlayheadFn) video.removeEventListener('timeupdate', video._paintPlayheadFn);
+  video._paintPlayheadFn = paintPlayhead;
   video.addEventListener('timeupdate', paintPlayhead);
 
   const dragHandle = (el, isIn) => {
