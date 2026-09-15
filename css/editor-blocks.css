@@ -1824,9 +1824,10 @@ textarea.cvb-card-input {
 }
 .step-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 /* ⑨ 캔버스에서 «지금 우측 패널이 보고 있는 스텝» 표시 — 선택 토큰 재사용(bn2-line-selected 선례와 동일) */
-.step-block .stb-step-selected {
+.step-block .stb-line-selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
-  outline-offset: 2px;
+  /* ★안쪽으로 — 스텝 줄은 블럭 폭을 꽉 채워서 바깥 2px 이면 블럭 선택 테두리 «밖»으로 삐져나왔다(현빈 «안맞으며», 2026-09-15). */
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 
 /* ── Chat Block ─────────────────────────────────────────────────────────────── */

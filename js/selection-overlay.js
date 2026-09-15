@@ -168,6 +168,8 @@ const _strokeOf = v => STROKE_W[v] || 1;
  *   ⚠️네 모서리가 «각각 다를 수 있다»(M39 의 코너 반경 핸들이 모서리별로 조절한다).
  *   ⚠️각 모서리는 타원(rx, ry)일 수 있고, %는 상자 크기 기준이다.
  *   ⚠️합이 변 길이를 넘으면 CSS 규약대로 «전부 같은 비율로» 줄인다. */
+/** 선택 테두리가 블럭 반경을 따라 둥글게 그려지는가 — 현빈 결정(2026-09-15)으로 false(네모). */
+export const SEL_FOLLOW_RADIUS = false;
 const _RAD_PROPS = { nw: 'borderTopLeftRadius', ne: 'borderTopRightRadius',
                      se: 'borderBottomRightRadius', sw: 'borderBottomLeftRadius' };
 function _radiiOf(el, scale) {
@@ -218,7 +220,11 @@ function _geomOf(el, variant, scale) {
   const [nw, ne, sw_, se] = CORNER_DIRS.map(d => _cornerScreen(el, d, 0));
   const axis = Math.abs(nw.y - ne.y) < 0.02 && Math.abs(sw_.y - se.y) < 0.02
             && Math.abs(nw.x - sw_.x) < 0.02 && Math.abs(ne.x - se.x) < 0.02;
-  const rawR = _radiiOf(el, scale);
+  /* ★2026-09-15 현빈: 선택 테두리는 «모든 블럭에서 네모»다 — 반경을 따라 둥글게 그리지 않는다.
+   *   원문 「icd…, bn2… 이배너 아웃라인이 다른건 일반 사각형인데 라디우스가 들어가있어」.
+   *   ⇒ 조건①(반경 따라가기)을 «뒤집었다». 반경 0 인 블럭이 대부분이라 둥근 블럭만 튀었다.
+   *   _radiiOf 이하 산술은 남긴다(SEL_FOLLOW_RADIUS 를 켜면 옛 동작 — 단위검사가 그 산술을 계속 지킨다). */
+  const rawR = SEL_FOLLOW_RADIUS ? _radiiOf(el, scale) : null;
 
   if (!axis) {
     // 회전 — 로컬 축(u,v)으로 반굵기만큼 «안쪽»으로 민다. 스냅은 하지 않는다(격자가 기울어 있다).

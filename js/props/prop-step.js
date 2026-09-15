@@ -20,9 +20,12 @@ if (typeof window !== 'undefined') {
 
 // 캔버스에서 «지금 패널이 보고 있는 스텝»에 아웃라인 — 기존 선택 토큰만 쓴다(bn2SyncLineMark 미러).
 function _stbSyncMark(block, activeIdx) {
-  block.querySelectorAll('.stb-step-selected').forEach(el => el.classList.remove('stb-step-selected'));
+  /* ★이름은 «-line-selected» 로 끝나야 한다(2026-09-15 현빈 제보: 선택 해제해도 테두리가 안 사라짐).
+   *   옛 이름 stb-step-selected 는 이 레포의 규칙(section-serialize.js RUNTIME_MARKER_RE)에 안 걸려
+   *   선택 해제 sweep·저장·PNG 어디서도 안 걷혔다. 옛 이름도 같이 걷는다(이미 저장된 프로젝트). */
+  block.querySelectorAll('.stb-line-selected, .stb-step-selected').forEach(el => el.classList.remove('stb-line-selected', 'stb-step-selected'));
   if (activeIdx == null) return;
-  block.querySelector(`[data-step-idx="${activeIdx}"]`)?.classList.add('stb-step-selected');
+  block.querySelector(`[data-step-idx="${activeIdx}"]`)?.classList.add('stb-line-selected');
 }
 if (typeof window !== 'undefined') window._stbSyncMark = _stbSyncMark;
 
@@ -446,7 +449,12 @@ export function showStepProperties(block, activeIdxArg) {
     //   에서 UI만 무제한이라 36개까지 만들어져 상태 불일치가 났다(2026-09-15).
     if (steps.length >= 10) { window.showToast?.('스텝은 최대 10개까지입니다'); return; }
     window.pushHistory?.();
-    steps.push({ title: `${steps.length + 1}단계`, desc: '' });
+    /* ★기본 설명도 넣는다 — 캔버스는 설명이 비면 설명 칸 자체를 안 그려(step-block.js 변형 9곳)
+     *   캔버스에서 설명을 넣을 자리가 없었다(2026-09-15 현빈 제보: 4단계 추가 시 설명 없음).
+     *   기본 3단계(step-block.js:15~17)와 같은 말투. 상한 10(위) 까지만 필요하다. */
+    const _ORD = ['첫', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열'];
+    const _n = steps.length;
+    steps.push({ title: `${_n + 1}단계`, desc: `${_ORD[_n] || (_n + 1)} 번째 단계 설명` });
     block.dataset.steps = JSON.stringify(steps);
     rerender();
     // 새로 추가한 스텝을 바로 펼쳐준다(전체 보기 중이면 전체 유지) — bn2-line-add와 동일 규약.
