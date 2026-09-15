@@ -26,6 +26,87 @@
        ⇒ 늘어날 수 있다. 늘릴 땐 «여기 한 곳만» 고친다 — market-merge·version-diff 도 이걸 읽는다.
      ⚠️'tiny'(스티커)·'lazy-unloaded'(가상화)는 여기 안 넣는다 — 조건부(특정 블록에서만)라
        전역 sweep 대상이 아니다. 아래 serializeCleanRoot 안에서 따로 걷는다. */
+  /* ══ T-033 video-pending 같은 세션 undo/redo 복원용 런타임 캐시 ═════════════════
+     문제: 아래 serializeCleanRoot 의 T-012 안전장치(video-pending → "업로드대기" 빈
+     상태로 세척)는 pushHistory 가 쓰는 getSerializedCanvas 스냅샷도 «그대로» 거친다.
+     그래서 트림 핸들을 드래그할 때마다(js/props/asset-video-trim.js pushHistory) 찍히는
+     undo 스냅샷도 전부 "빈 에셋"으로 찍혀, ⌘Z 한 번에 트림이 아니라 «영상 자체»가
+     사라지는 데이터손실 회귀가 난다(2026-09-15, T-012 직후 예측·실측 재현).
+     ⇒ 원본(dataURL/파일)은 직렬화되는 문자열 «밖»의 이 런타임 전용 캐시(block.id 키,
+       세션 한정 — 재시작하면 비워짐)에 따로 보관하고, undo/redo 로 스냅샷을 되돌릴 때
+       (js/history.js restoreSnapshot/restoreSnapshotScoped, rebindAll 직후) 여기서
+       원본을 찾아 다시 연결한다. js/effects/redact-mosaic.js 의 _fullResCache 와
+       원리는 같다(무거운 데이터를 직렬화 밖에 둔다) — 다만 그쪽은 DOM 노드 «자신»을
+       키로 쓰는 WeakMap 이고(같은 인스턴스가 유지됨), 여긴 undo/redo 가 캔버스
+       innerHTML 을 통째로 교체해 DOM «인스턴스 자체»가 갈리므로(같은 id, 다른 노드)
+       노드가 아니라 block.id 문자열을 키로 쓰는 일반 Map 이어야 한다.
+     ⛔진짜 파일 리로드(앱 재시작 후 프로젝트 다시 열기)에는 안 쓰인다 — 그땐 캐시가
+       비어 있어 자연히 T-031 의도된 "빈 업로드대기" 로 떨어진다. */
+  const _videoPendingCache = new Map();
+
+  /** 지우기 «직전»에 원본을 캐시에 남긴다. ab 는 (라이브가 아니라) 클론일 수 있지만
+   *  cloneNode(true) 가 dataset 을 그대로 복사하므로 값은 동일하다. */
+  function captureVideoPendingState(ab) {
+    if (!ab || !ab.id) return;
+    const imgSrc = ab.dataset.imgSrc;
+    if (!imgSrc) return; // 아직 업로드 전(진짜 빈 상태) — 캐시할 게 없다
+    _videoPendingCache.set(ab.id, {
+      imgSrc,
+      fit: ab.dataset.fit || 'cover',
+      trimIn: ab.dataset.trimIn,
+      trimOut: ab.dataset.trimOut,
+      playbackRate: ab.dataset.playbackRate,
+    });
+  }
+
+  /** undo/redo 로 캔버스가 통째로(또는 부분) 갈린 뒤 호출 — «빈 업로드대기»로 찍힌
+   *  video-pending 블록 중 같은 세션에서 캐시된 원본이 있으면 다시 붙인다.
+   *  root 는 보통 #canvas. js/history.js restoreSnapshot/restoreSnapshotScoped 가
+   *  rebindAll 직후 호출한다. */
+  function reattachVideoPendingBlocks(root) {
+    if (!root || !root.querySelectorAll) return;
+    /* ⛔[data-asset-type="video-pending"] 로는 못 고른다 — 지우기 자체가 assetType 도
+       delete 목록에 넣는다(위 T-012 목록: 'assetType' 포함), 그래서 스냅샷 문자열엔 이
+       마커가 «이미 없다». id 가 캐시에 있는지만으로 판정한다 — 캐시는 애초에 video-pending
+       이었던 블록만 담는다(captureVideoPendingState 가 그때만 채운다). */
+    root.querySelectorAll('.asset-block').forEach(ab => {
+      if (ab.dataset.imgSrc) return; // 이미 원본이 있다 — 손대지 않는다
+      const cached = ab.id ? _videoPendingCache.get(ab.id) : null;
+      if (!cached) return; // 캐시 없음 — 의도된 "빈 업로드대기" 그대로 둔다(T-031)
+      ab.classList.add('has-image');
+      ab.dataset.assetType = 'video-pending';
+      ab.dataset.imgSrc = cached.imgSrc;
+      ab.dataset.fit = cached.fit;
+      if (cached.trimIn  != null) ab.dataset.trimIn  = cached.trimIn;
+      if (cached.trimOut != null) ab.dataset.trimOut = cached.trimOut;
+      if (cached.playbackRate != null) ab.dataset.playbackRate = cached.playbackRate;
+      const overlayEl = ab.querySelector('.asset-overlay');
+      const overlayHTML  = overlayEl ? overlayEl.innerHTML : '';
+      const overlayStyle = overlayEl ? overlayEl.getAttribute('style') || '' : '';
+      const grainEl = ab.querySelector('.asset-grain');
+      const grainStyle = grainEl ? grainEl.getAttribute('style') || '' : '';
+      const grainIntensity = grainEl ? grainEl.dataset.grainIntensity || '' : '';
+      ab.innerHTML = `
+        <div class="asset-img-clip"><video class="asset-img asset-video" src="${cached.imgSrc}" style="object-fit:${ab.dataset.fit}" muted loop playsinline></video></div>
+        <button class="asset-overlay-clear" title="영상 제거">✕</button>
+        <div class="asset-overlay" ${overlayStyle ? `style="${overlayStyle}"` : ''}>${overlayHTML}</div>`;
+      if (grainEl) {
+        const doc = ab.ownerDocument || document;
+        const newGrain = doc.createElement('div');
+        newGrain.className = 'asset-grain';
+        if (grainStyle) newGrain.setAttribute('style', grainStyle);
+        if (grainIntensity) newGrain.dataset.grainIntensity = grainIntensity;
+        ab.appendChild(newGrain);
+      }
+      const clearBtn = ab.querySelector('.asset-overlay-clear');
+      if (clearBtn) clearBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        window.clearAssetImage?.(ab);
+      });
+      ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; window.bindBlock?.(b); });
+    });
+  }
+
   const RUNTIME_MARKER_RE  = /(?:^|-)line-selected$/;
   const RUNTIME_MARKER_CLS = [
     'selected', 'cell-selected', 'ci-selected', 'ci-active', 'row-active',
@@ -68,13 +149,31 @@
        delete 목록으로 되돌려 «업로드 대기» 빈 상태로 저장한다(트림 진행은 잃지만 원본 영구
        저장 방지가 우선; 스크래치패드가 이미 같은 이유로 스냅샷 밖에 있다). */
     root.querySelectorAll('.asset-block[data-asset-type="video-pending"]').forEach(ab => {
+      // ★지우기 전에 원본을 런타임 캐시에 남긴다(같은 세션 undo/redo 복원용 —
+      //   위 _videoPendingCache 정의부 참고). 저장되는 문자열엔 영향 없다.
+      captureVideoPendingState(ab);
       ab.classList.remove('has-image');
       ['imgSrc', 'fit', 'imgW', 'imgX', 'imgY', 'imgPosition', 'assetType', 'trimIn', 'trimOut', 'playbackRate', 'motion', 'gifSrc', 'gifPlaying']
         .forEach(k => delete ab.dataset[k]);
       const overlayEl = ab.querySelector('.asset-overlay');
       const overlayHTML  = overlayEl ? overlayEl.innerHTML : '';
       const overlayStyle = overlayEl ? overlayEl.getAttribute('style') || '' : '';
+      // ★그레인 보존 — image-handling.js setAssetVideoFromSrc/setAssetImageFromSrc 와 같은
+      //   패턴(적대적 QA 지적, 2026-09-15): innerHTML 을 통째로 갈아엎으면 형제 .asset-grain
+      //   이 같이 사라진다 — video-pending 세척만 이 규칙에서 예외일 이유가 없다(섹션
+      //   복사/템플릿 저장 경로에서 그레인이 조용히 빠지는 부수피해였다).
+      const grainEl = ab.querySelector('.asset-grain');
+      const grainStyle = grainEl ? grainEl.getAttribute('style') || '' : '';
+      const grainIntensity = grainEl ? grainEl.dataset.grainIntensity || '' : '';
       ab.innerHTML = `<div class="asset-overlay" ${overlayStyle ? `style="${overlayStyle}"` : ''}>${overlayHTML}</div>`;
+      if (grainEl) {
+        const doc = ab.ownerDocument || document;
+        const newGrain = doc.createElement('div');
+        newGrain.className = 'asset-grain';
+        if (grainStyle) newGrain.setAttribute('style', grainStyle);
+        if (grainIntensity) newGrain.dataset.grainIntensity = grainIntensity;
+        ab.appendChild(newGrain);
+      }
     });
     // ghost 섹션은 저장에서 제외
     root.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
@@ -154,6 +253,7 @@
   window.serializeCleanRoot = serializeCleanRoot;
   window.serializeCleanSelf = serializeCleanSelf;
   window.serializeSectionClone = serializeSectionClone;
+  window.reattachVideoPendingBlocks = reattachVideoPendingBlocks;
   /* ★비교 채널(js/market-merge.js · js/version-diff.js)이 «같은 자»를 쓰게 내준다.
      그쪽은 결과물이 아니라 «비교 키»를 만들지만, 마커가 남으면 「줄을 골랐을 뿐인데 변경됨」
      오탐이 난다. 목록이 두 벌이면 한쪽만 고쳐지는 날이 온다 — 그래서 여기가 유일한 원본이다. */

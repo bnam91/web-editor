@@ -37,8 +37,8 @@
 
 | 파일:줄 | 무엇을 하는 자리 | 왜 미뤘나 |
 |---|---|---|
-| `js/history.js:105` | `restoreSnapshot` — 되돌리기 | 되돌리기는 «사람이 보고 있는 창»에서만 난다. 가려진 창에서 ⌘Z 가 오는 경로가 없다 ⇒ 급하지 않다 |
-| `js/history.js:230` | `restoreSnapshotScoped` — 범위 되돌리기 | 위와 같다. 게다가 `window.scheduleAutoSave?.()` 를 같이 불러 재무장까지 한다 |
+| `js/history.js:109` | `restoreSnapshot` — 되돌리기 | 되돌리기는 «사람이 보고 있는 창»에서만 난다. 가려진 창에서 ⌘Z 가 오는 경로가 없다 ⇒ 급하지 않다 |
+| `js/history.js:237` | `restoreSnapshotScoped` — 범위 되돌리기 | 위와 같다. 게다가 `window.scheduleAutoSave?.()` 를 같이 불러 재무장까지 한다 |
 | `js/collab/sync.js:418` | 원격 패치 적용 | ★여기가 진짜 위험하다 — 원격 패치는 **가려진 창에도 온다**. 다만 collab 은 배포 경로에서 꺼져 있어 이번 판의 사고 원인이 아니었다 |
 
 ### ⓑ ★검사를 넓히다 «새로» 찾은 둘 — 이번에 고친 것과 갈라 적는다
