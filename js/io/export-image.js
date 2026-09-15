@@ -1,6 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
+import { neutralizeRedactForH2C } from './capture-safety.js';
 
 const CANVAS_W = 860;
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
@@ -398,6 +399,9 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative) {
       return { canvas: outCanvas, imgTimedOut: _to, native: true };
     }
     // html2canvas 폴백 — CDP 가 없는 빌드(웹). 검사는 여기서 «안» 돈다(isGateSupported=false).
+    // ⚠️ 이 분기에서만 neutralize한다 — 위 native 분기는 clone을 그대로 CDP로 스크린샷하므로
+    //   backdrop-filter가 정상 렌더링된다(건드리면 정상 블러가 망가진다).
+    neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
     const _to2 = await _waitImagesReady(clone);
     const _h2c = await html2canvas(clone, {
       scale: 1,

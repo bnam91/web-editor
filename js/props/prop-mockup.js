@@ -1,6 +1,7 @@
 // prop-mockup.js — 디바이스 목업 블록 프로퍼티 패널
 
 import { propPanel } from '../globals.js';
+import { neutralizeRedactForH2C } from '../io/capture-safety.js';
 
 export function showMockupProperties(block) {
   const deviceKey = block.dataset.device || 'iphone';
@@ -211,6 +212,7 @@ async function _captureAndApply(block, sec) {
     clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
     clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;box-shadow:none;';
     document.body.appendChild(clone);
+    neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
 
     const bgColor = sec.style.backgroundColor || sec.style.background || '#ffffff';
     const canvas = await html2canvas(clone, {

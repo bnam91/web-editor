@@ -6,6 +6,7 @@ import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 import { applyFrameTransform } from '../frame-geometry.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
+import { neutralizeRedactForH2C } from './capture-safety.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
 /* ══════════════════════════════════════
@@ -83,6 +84,7 @@ async function captureThumbnail() {
     clone.classList.remove('selected');
     clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;';
     document.body.appendChild(clone);
+    neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
 
     const bgColor = firstSec.style.background || firstSec.style.backgroundColor || '#ffffff';
     const canvas = await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false });
