@@ -4196,6 +4196,8 @@ function updateShapeBlock(blockId, partial = {}) {
     shapeStrokeColor: block.dataset.shapeStrokeColor,
     shapeStrokeWidth: block.dataset.shapeStrokeWidth,
     shapeRotation:    block.dataset.shapeRotation,
+    shapeRedact:      block.dataset.shapeRedact === 'true',
+    shapeRedactBlur:  block.dataset.shapeRedactBlur,
     width:  frame ? (frame.dataset.width  || (parseInt(frame.style.width)  || null)) : null,
     height: frame ? (frame.dataset.height || (parseInt(frame.style.height) || null)) : null,
   };
@@ -4260,6 +4262,14 @@ function updateShapeBlock(blockId, partial = {}) {
     }
     block.dataset.shapeType = partial.shapeType;
     applied.shapeType = partial.shapeType;
+    // 가림막(redact)은 rectangle/ellipse 전용 — 다른 타입으로 바뀌면 걸어둔 상태로
+    // 남아 "안 보이는 블러 도형"이 될 수 있으므로 함께 해제
+    if (block.dataset.shapeRedact === 'true' && partial.shapeType !== 'rectangle' && partial.shapeType !== 'ellipse') {
+      delete block.dataset.shapeRedact;
+      block.classList.remove('shape-redact');
+      block.style.removeProperty('--redact-blur');
+      applied.shapeRedact = false;
+    }
   }
 
   if (partial.shapeColor !== undefined && partial.shapeColor !== null) {
@@ -4316,6 +4326,33 @@ function updateShapeBlock(blockId, partial = {}) {
       block.style.transformOrigin = 'center center';
     }
     applied.shapeRotation = deg;
+  }
+
+  if (partial.shapeRedact !== undefined && partial.shapeRedact !== null) {
+    const curType = block.dataset.shapeType || 'rectangle';
+    const on = !!partial.shapeRedact;
+    if (on && curType !== 'rectangle' && curType !== 'ellipse') {
+      return { ok: false, code: 'INVALID', message: `shapeRedact only supported for rectangle/ellipse (current: ${curType})` };
+    }
+    block.classList.toggle('shape-redact', on);
+    if (on) {
+      block.dataset.shapeRedact = 'true';
+      const bp = Number.isFinite(Number(partial.shapeRedactBlur)) ? Number(partial.shapeRedactBlur) : (Number(block.dataset.shapeRedactBlur) || 8);
+      const clamped = Math.max(0, Math.min(20, Math.round(bp)));
+      block.dataset.shapeRedactBlur = String(clamped);
+      block.style.setProperty('--redact-blur', `${clamped}px`);
+      applied.shapeRedactBlur = clamped;
+    } else {
+      delete block.dataset.shapeRedact;
+      block.style.removeProperty('--redact-blur');
+    }
+    applied.shapeRedact = on;
+  } else if (partial.shapeRedactBlur !== undefined && partial.shapeRedactBlur !== null) {
+    const bp = _setInt('shapeRedactBlur', partial.shapeRedactBlur, 0, 20);
+    if (bp === null) return { ok: false, code: 'INVALID', message: 'shapeRedactBlur must be finite number' };
+    block.dataset.shapeRedactBlur = String(bp);
+    if (block.dataset.shapeRedact === 'true') block.style.setProperty('--redact-blur', `${bp}px`);
+    applied.shapeRedactBlur = bp;
   }
 
   if (partial.width !== undefined && partial.width !== null) {
