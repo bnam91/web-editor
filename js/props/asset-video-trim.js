@@ -330,6 +330,10 @@ export function wireVideoTrim(ab) {
       const stillDataUrl = captureFrame().toDataURL('image/png');
 
       const { blob, plan } = await encodeTrimToGif(video, inT(), outT(), speed, text => { btn.textContent = text; });
+      // ★인코딩(수 초 걸리는 await)이 도는 동안 사용자가 블록을 삭제하거나(✕)·undo 했을 수
+      //   있다 — 그러면 ab는 캔버스에서 떨어진 죽은 참조라 여기서 계속 쓰면 유령 히스토리/
+      //   좀비 갱신이 된다(팀리드 지적, 2026-09-15). 결과는 조용히 버린다.
+      if (!ab.isConnected) return;
       if (blob.size > 20 * 1024 * 1024) {
         // 네이버 상세설명 이미지 등록 상한(20MB) — 인코더가 프레임/해상도를 이미 축소하므로
         // 실무상 거의 도달하지 않지만, 혹시 넘으면 적용을 막고 트림 구간을 줄이도록 안내한다.
@@ -337,6 +341,7 @@ export function wireVideoTrim(ab) {
         return;
       }
       const gifDataUrl = await blobToDataURL(blob);
+      if (!ab.isConnected) return;
 
       window.pushHistory?.('영상 → GIF 적용');
       window.setAssetImageFromSrc?.(ab, stillDataUrl, gifDataUrl);
