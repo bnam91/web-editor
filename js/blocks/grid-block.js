@@ -658,6 +658,12 @@ function updateGridBlock(blockId, partial = {}) {
        이 줄이 없으면 오타 하나가 ok:true 로 돌아오고 화면은 그대로다. */
     const _reject = _gridRejectUnknownCellFields(rest, lineIndex !== undefined);
     if (_reject) return _reject;
+    /* ★imgSrc 상한 — block-factory.js 의 다른 이미지 삽입 API들(add_asset_block 등)과
+       동일하게 200000자로 막는다. 없으면 dataset.cells JSON 이 그대로 커져 proj.json 이
+       무한정 부풀 수 있다(2026-09-15 a1-a3 QA 지적). */
+    const _oversize = [rest.imgSrc, ...(Array.isArray(rest.lines) ? rest.lines.map(l => l && l.imgSrc) : [])]
+      .some(s => typeof s === 'string' && s.length > 200000);
+    if (_oversize) return { ok: false, code: 'TOO_LARGE', message: 'imgSrc too long (>200000)' };
     const extra = r > 0 ? _gridExtraRows(block, cols, rowCountForValidation) : null;
     let cellPatch = rest;   // 기본: 셀 전체(부분) patch — 기존 동작 그대로
 
