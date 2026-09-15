@@ -91,8 +91,8 @@ export function showShapeProperties(block) {
       <div id="shape-redact-controls" style="${isRedact ? '' : 'display:none'}">
         <div class="prop-row" style="margin-top:8px;">
           <span class="prop-label">강도</span>
-          <input type="range" class="prop-slider" id="shape-redact-blur-slider" min="0" max="20" step="1" value="${redactBlur}">
-          <input type="number" class="prop-number" id="shape-redact-blur-num" min="0" max="20" value="${redactBlur}">
+          <input type="range" class="prop-slider" id="shape-redact-blur-slider" min="2" max="20" step="1" value="${redactBlur}">
+          <input type="number" class="prop-number" id="shape-redact-blur-num" min="2" max="20" value="${redactBlur}">
         </div>
         <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 밑에 깔린 콘텐츠가 실시간으로 흐려집니다. 채우기 색상은 무시됩니다.</div>
       </div>
@@ -178,7 +178,9 @@ export function showShapeProperties(block) {
     block.classList.toggle('shape-redact', !!on);
     if (on) {
       block.dataset.shapeRedact = 'true';
-      const bp = Math.max(0, Math.min(20, parseInt(blurPx) || 0));
+      // ★최소 2px — 0(무의미한 흐림)인데 토글만 켜진 채 남는 "가려진 줄 착각" 방지
+      //   (적대적 QA 발견, 2026-09-15). 이 함수가 UI 두 컨트롤의 단일 창구다.
+      const bp = Math.max(2, Math.min(20, parseInt(blurPx) || 2));
       block.dataset.shapeRedactBlur = String(bp);
       block.style.setProperty('--redact-blur', `${bp}px`);
     } else {
@@ -214,7 +216,9 @@ export function showShapeProperties(block) {
     });
     redactBlurSlider.addEventListener('change', () => window.pushHistory?.());
     redactBlurNum.addEventListener('input', () => {
-      const v = Math.min(20, Math.max(0, parseInt(redactBlurNum.value) || 0));
+      // ★최소 2px — 0(사실상 안 가려짐)인데 토글은 "켜짐"으로 남는 걸 막는다
+      //   (적대적 QA 발견: 강도 0에서도 토글이 켜져 있어 사용자가 가려졌다고 착각할 위험).
+      const v = Math.min(20, Math.max(2, parseInt(redactBlurNum.value) || 2));
       redactBlurSlider.value = v;
       applyRedact(true, v);
     });
