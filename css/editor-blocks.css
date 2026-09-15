@@ -1349,10 +1349,17 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 
 /* ── Redact 모자이크(픽셀화) 모드 ── backdrop-filter 대신 캡처해둔 스냅샷을
    image-rendering:pixelated로 확대해서 보여준다(js/effects/redact-mosaic.js).
-   실시간 추적이 아니라 이벤트 시점 스냅샷이라 backdrop-filter를 끈다. */
+   실시간 추적이 아니라 이벤트 시점 스냅샷이라 backdrop-filter를 끈다.
+   ★프라이버시 안전기본값(2026-09-15): 첫 캡처 전 canvas는 투명하다(기본 300×150 빈
+   비트맵). base .shape-redact 규칙의 배경(rgba(255,255,255,0.001), 사실상 투명)이
+   그대로 남으면 캡처 전까지 «가려야 할 원본이 맨눈으로 그대로» 보인다. 그래서 이
+   모드에선 background를 캔버스와 같은 안전실패색(js: MOSAIC_FAIL_SAFE_FILL)으로
+   불투명하게 깔아 "실패 시 항상 회색이 바닥"을 보장한다 — 캔버스가 실제 비트맵을
+   그리면(캡처 완료) 자식 요소라 부모 배경 위에 그려져 회색을 덮는다. */
 .shape-block.shape-redact[data-shape-redact-mode="mosaic"] {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  background: #4a4a4a;
 }
 .shape-block.shape-redact canvas.redact-mosaic-canvas {
   display: none;

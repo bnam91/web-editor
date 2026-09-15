@@ -23,10 +23,13 @@ const MOSAIC_FAIL_SAFE_FILL = '#4a4a4a';
 // 빠질 수 있다(2026-09-15 실측: 프로젝트 리로드 후 4x3 캔버스가 전부 투명인데 플래그만 남음).
 const _capturedBlocks = new WeakSet();
 
-/** 슬라이더 0~20 → 모자이크 블록 픽셀 크기 6~44px (0에 가까울수록 잘게, 20이면 큼직하게). */
+/** 슬라이더 0~20 → 모자이크 블록 픽셀 크기 16~44px (0에 가까울수록 잘게, 20이면 큼직하게).
+ *  ★프라이버시(2026-09-15): 옛 하한 6px(슬라이더 최소 2로도 실제 블록 약 10px)는 40px+
+ *  큰 글씨(제목·강조 텍스트 등)를 가릴 만큼 크지 않을 수 있다는 지적 반영 — 슬라이더
+ *  전 구간에서 "충분히 안 읽히는" 블록 크기를 보장하도록 하한을 16px로 올림. */
 export function mosaicBlockPxFromSlider(v) {
   const n = Math.max(0, Math.min(20, parseInt(v, 10) || 0));
-  return Math.round(6 + (n / 20) * 38);
+  return Math.round(16 + (n / 20) * 28);
 }
 
 function ensureMosaicCanvas(block) {
@@ -90,15 +93,24 @@ export async function captureMosaicSnapshot(block, opts) {
   const scopeRect = scope.getBoundingClientRect();
   const w = Math.max(1, Math.round(rect.width));
   const h = Math.max(1, Math.round(rect.height));
-  const relX = rect.left - scopeRect.left;
-  const relY = rect.top - scopeRect.top;
+  // ★프라이버시(2026-09-15 실측): html2canvas는 scope(섹션)를 #canvas-scaler의 CSS
+  // transform:scale(줌) 밖에서(=원본 크기로) 렌더링한다 — 그런데 x/y/width/height는 여기까지
+  // «화면(줌 적용) 좌표»로 계산돼 있었다. 100% 미만 줌(신규 프로젝트 기본값이 40%!)에서는 실제
+  // 콘텐츠의 일부만 크롭 요청하는 꼴이 되어, 캡처가 "성공"해도(isMosaicCaptured=true) 크롭
+  // 밖으로 밀린 나머지 부분은 원본 그대로 아래 비쳐 보인다(1000×1000 텍스트 블록 중 뒤쪽 60%가
+  // 그대로 노출되는 것을 실측). scope의 렌더 좌표계(=원본, 줌 무관)로 환산해서 크롭해야 한다.
+  const zf = (window.currentZoom || 100) / 100;
+  const relX = (rect.left - scopeRect.left) / zf;
+  const relY = (rect.top - scopeRect.top) / zf;
+  const capW = Math.max(1, Math.round(w / zf));
+  const capH = Math.max(1, Math.round(h / zf));
 
   const prevVisibility = block.style.visibility;
   block.style.visibility = 'hidden'; // 자기 자신(캔버스 포함)을 캡처하지 않도록
   let captured;
   try {
     captured = await window.html2canvas(scope, {
-      x: relX, y: relY, width: w, height: h,
+      x: relX, y: relY, width: capW, height: capH,
       backgroundColor: null, logging: false, useCORS: true,
     });
   } catch (_) {
