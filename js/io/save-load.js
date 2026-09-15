@@ -997,6 +997,19 @@ function rebindAll(opts = {}) {
     if (parentFrame) parentFrame.style.height = parentFrame.dataset.height ? `${parentFrame.dataset.height}px` : '';
   });
 
+  // ★프라이버시(2026-09-15): 모자이크 redact는 "캡처된 적 있는 이 런타임 인스턴스"만
+  // 안전하다(isMosaicCaptured, WeakSet 기반 — 저장 HTML엔 비트맵이 안 담긴다). 즉 프로젝트를
+  // 새로 열면(undo/redo 복원, 협업 수신 포함) 모든 모자이크 캔버스가 "한 번도 캡처 안 된"
+  // 상태로 시작한다 — CSS 안전배경(#4a4a4a)이 1차 방어선이지만, 사용자가 실제 모자이크를
+  // 보려면 어차피 첫 캡처가 필요하므로 그 노출/대기 창을 최소화하도록 여기서 즉시(사용자
+  // 행동 없이) 일괄 캡처한다. captureMosaicSnapshot은 실패해도 조용히 무시 — 안전배경이
+  // 계속 바닥을 지킨다.
+  canvasEl.querySelectorAll('.shape-block.shape-redact[data-shape-redact-mode="mosaic"]').forEach(b => {
+    if (!window.isMosaicCaptured?.(b)) {
+      try { window.captureMosaicSnapshot?.(b); } catch (_) {}
+    }
+  });
+
   // ── annotation-block 복원 (펜툴 Phase 2: 폴리라인 + 스타일 props) ──
   canvasEl.querySelectorAll('.annotation-block').forEach(block => {
     if (!block.id) block.id = 'ant_' + Math.random().toString(36).slice(2, 9);
