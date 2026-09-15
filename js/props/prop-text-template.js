@@ -18,6 +18,7 @@ export function buildTextPropsHtml(state) {
     isBold,
     isItalic,
     isHighlight,
+    isOverlayBlock,
   } = state;
 
   // Shadow defaults (prop-text-wireup-shadow.js SHADOW_DEFAULTS와 동기화)
@@ -67,6 +68,17 @@ export function buildTextPropsHtml(state) {
 
     <div class="prop-section">
       <div class="prop-section-title">Position</div>
+      ${isOverlayTb ? '' : `
+      <div class="prop-row" style="margin-bottom:8px">
+        <button type="button" class="prop-btn-full prop-overlay-toggle${isOverlayBlock ? ' active' : ''}" id="txt-overlay-toggle"
+          aria-pressed="${isOverlayBlock ? 'true' : 'false'}"
+          title="오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 오버레이와 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" style="vertical-align:-1px;margin-right:5px">
+            <rect x="1" y="4" width="6" height="6" rx="1"/>
+            <rect x="5" y="1" width="6" height="6" rx="1" fill="var(--ui-bg-card)"/>
+          </svg>${isOverlayBlock ? '오버레이 해제' : '오버레이로 전환'}
+        </button>
+      </div>`}
       <span class="prop-field-label">Alignment</span>
       <div class="prop-align-group" style="margin-bottom:6px">
           <button class="prop-align-btn ${currentAlign==='left'||currentAlign===''?'active':''}" data-align="left">
