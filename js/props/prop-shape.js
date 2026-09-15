@@ -45,6 +45,12 @@ export function showShapeProperties(block) {
   const iconSvg     = SHAPE_ICONS[shapeType] || SHAPE_ICONS.rectangle;
   const shapeName   = SHAPE_NAMES[shapeType] || shapeType;
   const id          = block.id || '';
+  // 가림막(redact) — 얼굴/주민번호 등 밑에 깔린 콘텐츠를 backdrop-filter로 흐리는 모드.
+  // rect/ellipse만 지원: backdrop-filter는 요소의 border-box(+border-radius)로만 클립되어
+  // polygon/star/line/arrow처럼 실제 윤곽이 사각형이 아닌 도형엔 시각적으로 안 맞는다.
+  const canRedact   = shapeType === 'rectangle' || shapeType === 'ellipse';
+  const isRedact    = canRedact && block.dataset.shapeRedact === 'true';
+  const redactBlur  = parseInt(block.dataset.shapeRedactBlur || '8');
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -58,13 +64,33 @@ export function showShapeProperties(block) {
       </div>
     </div>
 
+    ${canRedact ? `
+    <div class="prop-section">
+      <div class="prop-section-title">가림막 (Redact)</div>
+      <div class="prop-row">
+        <span class="prop-label">블러로 가리기</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="shape-redact-toggle" ${isRedact ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div id="shape-redact-controls" style="${isRedact ? '' : 'display:none'}">
+        <div class="prop-row" style="margin-top:8px;">
+          <span class="prop-label">강도</span>
+          <input type="range" class="prop-slider" id="shape-redact-blur-slider" min="0" max="20" step="1" value="${redactBlur}">
+          <input type="number" class="prop-number" id="shape-redact-blur-num" min="0" max="20" value="${redactBlur}">
+        </div>
+        <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 밑에 깔린 콘텐츠가 실시간으로 흐려집니다. 채우기 색상은 무시됩니다.</div>
+      </div>
+    </div>` : ''}
+
     <div class="prop-section">
       <div class="prop-section-title">Color</div>
-      <div class="prop-color-row">
+      <div class="prop-color-row" id="shape-fill-row" style="${isRedact ? 'display:none' : ''}">
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha, gradientCss })}
       </div>
-      <div class="prop-color-row" style="margin-top:8px;">
+      <div class="prop-color-row" style="margin-top:${isRedact ? '0' : '8px'};">
         <span class="prop-label">외곽선</span>
         ${colorFieldHTML({ idPrefix: 'shape-stroke-color', hex: strokeColor, alpha: strokeColorAlpha })}
       </div>
@@ -130,6 +156,56 @@ export function showShapeProperties(block) {
     }
   }
   _extendShapeFrameToSection();
+
+  // ── 가림막(Redact) ── dataset.shapeColor/shapeGradient는 건드리지 않는다 —
+  // 시각효과는 CSS 클래스(.shape-redact)가 fill을 덮어쓰는 방식이라 꺼도 원래 색/그라데이션이
+  // 그대로 복원된다(editor-blocks.css 참고).
+  function applyRedact(on, blurPx) {
+    block.classList.toggle('shape-redact', !!on);
+    if (on) {
+      block.dataset.shapeRedact = 'true';
+      const bp = Math.max(0, Math.min(20, parseInt(blurPx) || 0));
+      block.dataset.shapeRedactBlur = String(bp);
+      block.style.setProperty('--redact-blur', `${bp}px`);
+    } else {
+      delete block.dataset.shapeRedact;
+      block.style.removeProperty('--redact-blur');
+    }
+    window.scheduleAutoSave?.();
+  }
+  // 저장된 프로젝트 로드 등으로 dataset과 클래스가 어긋났을 때 방어적으로 동기화
+  if (canRedact) {
+    block.classList.toggle('shape-redact', isRedact);
+    if (isRedact) block.style.setProperty('--redact-blur', `${redactBlur}px`);
+  }
+
+  const redactToggleEl = document.getElementById('shape-redact-toggle');
+  if (redactToggleEl) {
+    redactToggleEl.addEventListener('change', () => {
+      const on = redactToggleEl.checked;
+      applyRedact(on, redactBlur);
+      const fillRow = document.getElementById('shape-fill-row');
+      if (fillRow) fillRow.style.display = on ? 'none' : '';
+      const controls = document.getElementById('shape-redact-controls');
+      if (controls) controls.style.display = on ? '' : 'none';
+      window.pushHistory?.();
+    });
+  }
+  const redactBlurSlider = document.getElementById('shape-redact-blur-slider');
+  const redactBlurNum    = document.getElementById('shape-redact-blur-num');
+  if (redactBlurSlider && redactBlurNum) {
+    redactBlurSlider.addEventListener('input', () => {
+      redactBlurNum.value = redactBlurSlider.value;
+      applyRedact(true, redactBlurSlider.value);
+    });
+    redactBlurSlider.addEventListener('change', () => window.pushHistory?.());
+    redactBlurNum.addEventListener('input', () => {
+      const v = Math.min(20, Math.max(0, parseInt(redactBlurNum.value) || 0));
+      redactBlurSlider.value = v;
+      applyRedact(true, v);
+    });
+    redactBlurNum.addEventListener('change', () => window.pushHistory?.());
+  }
 
   function applyColor(hex) {
     // perf: 동일 색이면 데이터·DOM 변경 자체를 스킵 → MutationObserver autosave 트리거 회피

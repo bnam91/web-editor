@@ -1328,6 +1328,25 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   z-index: 1;
 }
 
+/* ── Redact(가림막) 모드 — rectangle/ellipse 전용 ──
+   dataset.shapeColor/shapeGradient는 그대로 둔 채, 이 클래스가 fill을
+   CSS 우선순위로 덮어써서(presentation attribute보다 스타일시트가 항상 이긴다)
+   투명하게 만들고 대신 backdrop-filter로 «밑에 깔린 콘텐츠»를 흐린다.
+   →재오프 시 클래스만 떼면 원래 색/그라데이션이 그대로 복원된다(파괴적 변경 없음).
+   ellipse는 border-radius로 원형 클립을 맞춰야 backdrop-filter가 사각형으로 안 샌다. */
+.shape-block.shape-redact {
+  background: rgba(255,255,255,0.001); /* Safari: backdrop-filter가 완전투명 배경에선 씹히는 경우 방지 */
+  backdrop-filter: blur(var(--redact-blur, 8px));
+  -webkit-backdrop-filter: blur(var(--redact-blur, 8px));
+}
+.shape-block.shape-redact[data-shape-type="ellipse"] {
+  border-radius: 50%;
+}
+.shape-block.shape-redact .shape-svg,
+.shape-block.shape-redact .shape-svg * {
+  fill: none !important;
+}
+
 /* shape 선택 시 부모 overflow 해제 — shape-handle이 잘리지 않도록 */
 .frame-block:has(.shape-block.selected) {
   overflow: visible;
