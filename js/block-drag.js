@@ -349,6 +349,13 @@ function bindBlock(block) {
       dragEl = ss;
     } else if (isText) {
       const tf = block.closest('.frame-block[data-text-frame="true"]');
+      /* ★오버레이(플로팅) 텍스트는 이 일반 드래그(자기 free-layout 프레임 안에서만 움직이는 것)를
+         안 쓴다 — 섹션 경계 clamp·크로스섹션 재부모가 필요해서 전용 드래그
+         (prop-text-wireup-overlay.js _bindOverlayMoveDrag, tf 에 바인딩)로 넘긴다.
+         ⛔stopPropagation 전에 return 해야 그 전용 리스너까지 이벤트가 버블된다 —
+           확대블럭이 :383 `if (isZoom) return`로 이 일반 드래그를 비켜가는 것과 같은 패턴
+           (2026-09-15, 오버레이를 다른 섹션으로 끌면 배경 밑에 깔리던 버그의 근본 수정). */
+      if (tf?.dataset.overlayBlock === 'true') return;
       if (tf && tf.style.position === 'absolute') {
         // TF가 절대배치 B 안에 있는 경우: B가 selected이면 B drag handler에 위임
         // (Fix3로 C가 selected된 상태에서 드래그 → TF가 아닌 B가 움직여야 함)
@@ -827,6 +834,12 @@ function bindBlock(block) {
   }
 
   if (isText) {
+    // ★오버레이 전용 크로스섹션 드래그를 여기서(=bindBlock, text-block당 1회) 걸어둔다 —
+    // 토글 시점뿐 아니라 프로젝트 로드로 이미 오버레이 상태인 블록도 이 경로 하나로 잡힌다.
+    // 함수 자체가 매 mousedown마다 dataset.overlayBlock 을 live로 재확인하므로 미리 걸어도
+    // 오버레이가 아닐 때는 그냥 조용히 빠진다(prop-text-wireup-overlay.js 참고).
+    const _tfForOverlay = block.closest('.frame-block[data-text-frame="true"]');
+    if (_tfForOverlay) window._bindOverlayMoveDrag?.(_tfForOverlay);
     block.addEventListener('click', e => {
       e.stopPropagation();
       // 편집 모드 중 클릭은 무시 (커서 이동/텍스트 선택 기본 동작 유지)
