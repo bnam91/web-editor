@@ -1402,7 +1402,10 @@ function bindBlock(block) {
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
-      window.showStepProperties?.(block);
+      // ⑨ 「눌린 스텝」을 우측 패널에 같이 넘긴다 — 그 스텝만 펼친다(bn2의 [data-line-idx] 선례와 동일 모양).
+      const _stbItem = e.target.closest?.('[data-step-idx]');
+      const _stbIdx = (_stbItem && block.contains(_stbItem)) ? parseInt(_stbItem.dataset.stepIdx, 10) : undefined;
+      window.showStepProperties?.(block, Number.isFinite(_stbIdx) ? _stbIdx : undefined);
     });
   }
 
