@@ -4338,7 +4338,8 @@ function updateShapeBlock(blockId, partial = {}) {
     if (on) {
       block.dataset.shapeRedact = 'true';
       const bp = Number.isFinite(Number(partial.shapeRedactBlur)) ? Number(partial.shapeRedactBlur) : (Number(block.dataset.shapeRedactBlur) || 8);
-      const clamped = Math.max(0, Math.min(20, Math.round(bp)));
+      // ★최소 2px — 0이면 사실상 안 가려지는데 토글만 켜진 채 남는다(적대적 QA 발견).
+      const clamped = Math.max(2, Math.min(20, Math.round(bp)));
       block.dataset.shapeRedactBlur = String(clamped);
       block.style.setProperty('--redact-blur', `${clamped}px`);
       applied.shapeRedactBlur = clamped;
@@ -4348,7 +4349,8 @@ function updateShapeBlock(blockId, partial = {}) {
     }
     applied.shapeRedact = on;
   } else if (partial.shapeRedactBlur !== undefined && partial.shapeRedactBlur !== null) {
-    const bp = _setInt('shapeRedactBlur', partial.shapeRedactBlur, 0, 20);
+    // ★최소 2px — 0이면 사실상 안 가려지는데 토글만 켜진 채 남는다(적대적 QA 발견).
+    const bp = _setInt('shapeRedactBlur', partial.shapeRedactBlur, 2, 20);
     if (bp === null) return { ok: false, code: 'INVALID', message: 'shapeRedactBlur must be finite number' };
     block.dataset.shapeRedactBlur = String(bp);
     if (block.dataset.shapeRedact === 'true') block.style.setProperty('--redact-blur', `${bp}px`);
