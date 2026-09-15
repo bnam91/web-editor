@@ -638,7 +638,7 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg) {
   idChip.className = 'scratch-id-chip';
   idChip.textContent = '#' + id;
   idChip.title = '클릭하면 ID 복사 (AI 모달 프롬프트에 #sp_xxx로 참조)';
-  idChip.style.cssText = 'position:absolute;top:4px;left:4px;background:rgba(0,0,0,0.72);color:#fff;border:none;border-radius:3px;padding:2px 6px;font-size:11px;font-family:ui-monospace,Menlo,monospace;cursor:pointer;display:none;z-index:10;line-height:1.2;';
+  idChip.style.cssText = 'position:absolute;top:4px;left:4px;background:rgba(0,0,0,0.72);color:#fff;border:none;border-radius:3px;padding:4px 8px;font-size:12px;font-family:ui-monospace,Menlo,monospace;cursor:pointer;display:none;z-index:10;line-height:1.2;';
   idChip.addEventListener('mousedown', e => { e.stopPropagation(); });
   idChip.addEventListener('click', async e => {
     e.stopPropagation();
