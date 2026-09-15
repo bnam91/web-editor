@@ -973,8 +973,8 @@ function bindBlock(block) {
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
-      // 영상 에셋은 pan/zoom 편집 미지원(프로퍼티 패널 트림 UI로 조작) — enterImageEditMode 미스매치 방지
-      if (block.dataset.assetType === 'video') return;
+      // 영상 트림 미리보기 단계는 pan/zoom 편집 미지원(프로퍼티 패널 트림 UI로 조작) — enterImageEditMode 미스매치 방지
+      if (block.dataset.assetType === 'video-pending') return;
       if (block.classList.contains('has-image')) {
         window.enterImageEditMode(block);
       } else {
@@ -1013,7 +1013,7 @@ function bindBlock(block) {
         e.stopPropagation();
         window.clearAssetImage(block);
       });
-      if (block.dataset.assetType === 'video') {
+      if (block.dataset.assetType === 'video-pending') {
         window.attachAssetVideoTrimLoop?.(block);
       } else {
         // 수동 편집된 위치/크기 복원 (imgW가 있으면 절대 위치 모드)
@@ -1022,6 +1022,19 @@ function bindBlock(block) {
         if (!block.dataset.imgW) {
           const img = block.querySelector('.asset-img');
           if (img) img.style.objectFit = block.dataset.fit || 'cover';
+        }
+        // GIF 토글 버튼 재바인딩 + 항상 정지 상태로 복원(재생 중 상태는 저장 대상이 아님)
+        const gifBtn = block.querySelector('.asset-gif-toggle');
+        if (gifBtn && block.dataset.gifSrc) {
+          block.dataset.gifPlaying = 'false';
+          gifBtn.textContent = '▶ GIF 재생';
+          gifBtn.classList.remove('active');
+          const img = block.querySelector('.asset-img');
+          if (img && block.dataset.imgSrc) img.src = block.dataset.imgSrc;
+          gifBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            window.toggleAssetGifPlayback(block);
+          });
         }
       }
     }

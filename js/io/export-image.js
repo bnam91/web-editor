@@ -21,7 +21,7 @@ async function _fetchAsArrayBuffer(url) {
   return await res.arrayBuffer();
 }
 
-async function decodeGifFrames(url, opts = {}) {
+export async function decodeGifFrames(url, opts = {}) {
   // ImageDecoder가 없으면 single-frame fallback
   if (typeof ImageDecoder !== 'function') {
     return [{ url, delay: 100, single: true }];
@@ -106,7 +106,7 @@ function _gifBgUrl(bgValue) {
   return m ? m[1] : null;
 }
 
-async function canvasToGifBlob(canvases, delays, opts = {}) {
+export async function canvasToGifBlob(canvases, delays, opts = {}) {
   // canvases: HTMLCanvasElement[] (다중) — 모두 같은 width/height
   // delays:   number[] (ms) — canvases.length 와 동일
   if (typeof GIF !== 'function') {
