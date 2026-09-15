@@ -302,7 +302,7 @@
   flex-shrink: 0;
 }
 
-/* ── Gradient tab ── */
+/* ── Gradient tab — N-stop bar + angle dial (2026-09 재설계) ── */
 .goya-cp-gradient-bar {
   position: relative;
   margin: 10px 0 0;
@@ -313,42 +313,90 @@
                     linear-gradient(45deg, #666 25%, transparent 25%, transparent 75%, #666 75%);
   background-size: 8px 8px; background-position: 0 0, 4px 4px;
   background-color: #fff;
-  /* B7: 바를 눌러 stop 위치를 지정하는 어포던스 — thumb의 grab/grabbing과 구분 */
-  cursor: crosshair;
+  /* 더블클릭으로 스톱을 추가하는 바 — thumb의 grab/grabbing과 어포던스를 구분 */
+  cursor: copy;
 }
 .goya-cp-gradient-fill {
   position: absolute; inset: 0;
   border-radius: 3px;
   pointer-events: none;
 }
-/* Stop slider thumb on gradient bar */
+.goya-cp-grad-hint {
+  font-size: var(--ui-fs-10);
+  color: var(--ui-text-muted, #888);
+  margin: 5px 0 0;
+  line-height: 1.4;
+}
+/* Stop thumb on gradient bar — 개수 무제한, 드래그로 위치 이동 */
 .goya-cp-grad-thumb {
   position: absolute;
   top: 50%;
   width: 12px; height: 12px;
   margin-left: -6px;
-  background: #fff;
-  border: 2px solid var(--ui-accent-primary, #2d6fe8);
+  border: 2px solid #fff;
   border-radius: 50%;
   transform: translateY(-50%);
   cursor: grab;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.5);
   z-index: 2;
-  transition: border-color 0.1s, box-shadow 0.1s, transform 0.05s;
+  transition: box-shadow 0.1s, transform 0.05s;
 }
-.goya-cp-grad-thumb:hover { border-color: #2d8eff; }
+.goya-cp-grad-thumb:hover { box-shadow: 0 0 0 1px var(--ui-accent-primary, #2d6fe8), 0 1px 4px rgba(0,0,0,0.5); }
 .goya-cp-grad-thumb.is-active {
-  border-color: #ffffff;
-  background: var(--ui-accent-primary, #2d6fe8);
-  transform: translateY(-50%) scale(1.15);
+  border-color: var(--ui-accent-primary, #2d6fe8);
+  transform: translateY(-50%) scale(1.2);
+  z-index: 3;
 }
 .goya-cp-grad-thumb.is-dragging { cursor: grabbing; }
-.goya-cp-gradient-opts {
+
+/* 각도 다이얼 + 숫자 입력 + Linear/Radial */
+.goya-cp-grad-controls-row {
   display: flex;
-  gap: 4px;
-  padding: 8px 0 0;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 0;
 }
-.goya-cp-gradient-opts select {
+.goya-cp-angle-dial {
+  position: relative;
+  flex: none;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--ui-border, #3a3a3a);
+  background: var(--ui-bg-input, #1a1a1a);
+  cursor: grab;
+}
+.goya-cp-angle-dial:active { cursor: grabbing; }
+.goya-cp-angle-needle {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 2px; height: 10px;
+  background: var(--ui-accent-primary, #2d6fe8);
+  transform-origin: top center;
+  transform: translateX(-50%) rotate(90deg);
+  pointer-events: none;
+}
+.goya-cp-angle-num-field {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.goya-cp-angle-num-field input[type="number"] {
+  width: 40px;
+  background: var(--ui-bg-input, #1a1a1a);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--ui-text, #ddd);
+  font-size: var(--ui-fs-10);
+  height: 24px;
+  padding: 0 4px;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.goya-cp-angle-num-field input[type="number"]:hover,
+.goya-cp-angle-num-field input[type="number"]:focus { border-color: var(--ui-border-mid, #555); }
+.goya-cp-angle-num-field .goya-cp-suffix { font-size: var(--ui-fs-10); color: rgba(255,255,255,0.4); }
+.goya-cp-grad-type-select {
   flex: 1;
   background: var(--ui-bg-input, #1a1a1a);
   border: 1px solid transparent;
@@ -360,7 +408,53 @@
   outline: none;
   cursor: pointer;
 }
-.goya-cp-gradient-opts select:hover { border-color: var(--ui-border-mid, #555); }
+.goya-cp-grad-type-select:hover { border-color: var(--ui-border-mid, #555); }
+/* radial엔 각도가 없다 — 다이얼/숫자만 숨기고 타입 select는 유지 */
+.goya-cp-grad-controls-row.is-radial .goya-cp-angle-dial,
+.goya-cp-grad-controls-row.is-radial .goya-cp-angle-num-field { display: none; }
+
+/* 선택된 스톱의 색상/투명도/삭제 */
+.goya-cp-grad-stop-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 0;
+}
+.goya-cp-grad-stop-editor input[type="color"] {
+  width: 28px; height: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  flex: none;
+}
+.goya-cp-grad-stop-editor .goya-cp-hex { flex: 1; min-width: 0; }
+.goya-cp-grad-opacity-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.goya-cp-grad-opacity-field input[type="range"] { width: 60px; }
+.goya-cp-grad-opacity-field span {
+  font-size: var(--ui-fs-10);
+  color: var(--ui-text-muted, #888);
+  width: 30px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.goya-cp-grad-stop-del {
+  flex: none;
+  width: 20px; height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--ui-text-muted, #888);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.goya-cp-grad-stop-del:hover:not(:disabled) { color: #d1483f; background: rgba(255,255,255,0.06); }
+.goya-cp-grad-stop-del:disabled { opacity: 0.3; cursor: default; }
 
 /* Gradient inner solid controls use same spectrum/slider/format styling */
 
@@ -414,7 +508,6 @@
 /* ── Panels ── */
 .goya-cp-panel { display: none; padding: 0 12px; }
 .goya-cp-panel.active { display: block; }
-.goya-cp-panel[data-panel="gradient"] .goya-cp-grad-stops { padding-right: 2px; }
 
 /* ── Focus-visible ── */
 .goya-cp-tab:focus-visible,
