@@ -134,6 +134,16 @@
 }
 .prop-chain-btn:hover { border-color: #888; color: var(--ui-text-sub); }
 .prop-chain-btn.active { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); background: rgba(45,111,232,0.12); }
+/* ★텍스트블록 오버레이(플로팅) 토글 — 2026-09-16g 재배치(T-001, 현빈 정정): Figma의
+   "Ignore Auto Layout" 아이콘은 Alignment 줄이 아니라 "Position" «섹션 제목과 같은 줄»
+   오른쪽 끝에 있었다(스크린샷 재확인). .prop-ph-header(제목 행 space-between) +
+   .prop-chain-btn(22×22 아이콘 버튼, 기존 컴포넌트) 그대로 재사용 — ON 색만 이 블록
+   전용 보라(--ui-sel-overlay, 스티커/확대블럭과 같은 토큰, 새 색 아님)로 바꾼다. */
+.prop-chain-btn--overlay.active {
+  border-color: var(--ui-sel-overlay, #9966ff); color: var(--ui-sel-overlay, #9966ff);
+  background: rgba(153,102,255,0.14);
+}
+.prop-chain-btn--overlay.active:hover { background: rgba(153,102,255,0.22); }
 
 .prop-select {
   flex: 1; min-width: 0; width: 0; height: 24px;
@@ -311,24 +321,6 @@
 .prop-align-btn:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); background: var(--ui-bg-elevated); }
 .prop-align-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
 
-/* ★텍스트블록 오버레이(플로팅) 토글 — 2026-09-16 재배치(T-001, 현빈 지시): Figma의 Position
-   패널이 "Ignore Auto Layout" 토글을 Alignment 아이콘과 «같은 줄» 오른쪽 끝에 아이콘 버튼
-   하나로 두는 것과 같은 자리·모양으로 옮겼다(예전엔 위에 별도 가로폭 텍스트버튼이었다).
-   .prop-align-btn 규격 재사용 + flex:0 0 auto(늘어나는 정렬버튼들과 안 같이 안 늘어남) +
-   margin-left:auto(오른쪽 끝 고정) + 왼쪽 divider(Figma 레퍼런스와 같은 시각적 구분).
-   ON 색은 옛 .prop-overlay-toggle.active(재배치로 참조 0건이 돼 이 커밋에서 같이 지움)이
-   쓰던 값을 그대로 옮긴 보라(--ui-sel-overlay, 스티커/확대블럭 공용) — 새 색 아님. */
-.prop-align-btn--overlay {
-  flex: 0 0 auto; margin-left: auto;
-  border-left: 1px solid var(--ui-divider); border-top-left-radius: 0; border-bottom-left-radius: 0;
-  padding-left: 6px;
-}
-.prop-align-btn--overlay.active {
-  background: rgba(153,102,255,0.14);
-  border-color: var(--ui-sel-overlay, #9966ff); border-left-color: var(--ui-sel-overlay, #9966ff);
-  color: var(--ui-sel-overlay, #9966ff);
-}
-.prop-align-btn--overlay.active:hover { background: rgba(153,102,255,0.22); }
 
 /* 그라데이션 프리셋 버튼 (배경만 인라인, 나머지 공통) */
 .cvb-grad-preset { flex: 1; color: #fff; text-shadow: 0 0 2px #000; }
