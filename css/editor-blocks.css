@@ -16,6 +16,15 @@
 .frame-block[data-text-frame] {
   min-height: unset;
 }
+/* ★오버레이(플로팅) 텍스트 z-index(2026-09-16, 현빈 실측 — "오버레이 텍스트를 클릭하려고
+   해도 쉽게 잘 안 된다"). position:absolute만 있고 z-index가 없어(기본 auto) 섹션 본문
+   흐름 콘텐츠(.tb-body 등)와 겹치면 DOM 순서에 따라 오버레이가 «아래로» 깔릴 수 있었다 —
+   실측: elementFromPoint가 오버레이 자기 중심 좌표에서도 밑에 깔린 .tb-body를 돌려줌.
+   섹션 콘텐츠 위 계층(--z 관례 80, .sec-bg-proxy와 같은 자리 — 선택 아웃라인 90·
+   리사이즈핸들 9990대보다는 아래)으로 고정해 항상 클릭 가능하게 한다. */
+.frame-block[data-text-frame="true"][data-overlay-block="true"] {
+  z-index: 80;
+}
 /* ★프라이버시(2026-09-15, a1-a3 지적 — e0ba9c7 의 export-only 수정을 «라이브 화면»까지
  * 넓힌다): .shape-block.shape-redact 는 선택 여부와 무관하게 z-index:3 을 받지만(위쪽
  * 규칙), transform 이 걸린 조상은 «새 스태킹 컨텍스트»를 만든다. 그 안의 redact 도형의
