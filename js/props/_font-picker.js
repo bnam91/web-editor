@@ -144,6 +144,16 @@ export function wireFontPicker({ root, p, getCurrent, onPick }) {
     _fpTrigger.classList.add('open');
     _fpSearch.value = '';
     _fpBuildList('');
+    // ★모달 패널처럼 트리거가 절 아래쪽(Variant/Size/Padding/…뒤)에 있으면 r.bottom 기준
+    //   배치만으론 목록이 창 하단 밖으로 나가 «보이지만 잘려서» 뜬다(색피커 _position()과
+    //   같은 문제 — color-picker.js:753 하단 잘림 클램프 선례). 실제 렌더 높이로 재측정해
+    //   아래 공간이 모자라면 트리거 위로 뒤집는다.
+    const gap = 6;
+    const dh = _fpDropdown.getBoundingClientRect().height;
+    if (r.bottom + 2 + dh + gap > window.innerHeight) {
+      const above = r.top - dh - 2;
+      _fpDropdown.style.top = Math.max(gap, above) + 'px';
+    }
     setTimeout(() => _fpSearch.focus(), 10);
 
     const outside = (e) => {
