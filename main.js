@@ -1267,6 +1267,8 @@ function _adoptLegacyIfSoleAccount(key, dest, email) {
   // ★★리터럴 'folders.json' — main/folders.js 의 FOLDERS_FILE 과 «같은 값»이어야 한다.
   //   이 함수는 tests/unit/account-projects-root.test.js 가 소스에서 «떼어내» 도는 블록 안에 있어
   //   여기서 require('./main/folders') 를 쓰면 그 검사의 인젝션 계약(순수 require, 경로 리매핑 없음)이 깨진다.
+  // ★실패해도 던지지 않는다 — 폴더 «이름»만 잃고(자가치유로 미분류에 그대로 뜬다) 입양 자체는 계속돼야 한다.
+  let foldersCarried = false;
   try {
     const FOLDERS_FILE_NAME = 'folders.json';
     const legacyFolders = path.join(PROJECTS_DIR_LEGACY, FOLDERS_FILE_NAME);
@@ -1274,12 +1276,13 @@ function _adoptLegacyIfSoleAccount(key, dest, email) {
     if (fs.existsSync(legacyFolders) && !fs.existsSync(destFolders)) {
       fs.renameSync(legacyFolders, destFolders);
       moved++;
+      foldersCarried = true;
     }
   } catch (e) { failed.push(`folders.json — ${(e && e.message) || e}`); }
   try {
     fs.writeFileSync(path.join(ACCOUNTS_DIR, key, 'adopted.json'), JSON.stringify({
       at: new Date().toISOString(), account: key, email, from: PROJECTS_DIR_LEGACY, to: dest,
-      moved, failed,
+      moved, failed, foldersCarried,
       note: '업데이트 이전의 «소유자 미상» 프로젝트를 첫 로그인 계정이 물려받았다. 되돌리려면 to 안의 proj_* 를 from 으로 다시 옮기면 된다.',
     }, null, 2), 'utf8');
   } catch (e) {
@@ -1974,7 +1977,13 @@ function _listProjectsImpl(opts) {
     if (!/^proj_\d+\.json$/.test(ent.name)) continue;
     try {
       const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, ent.name), 'utf8'));
-      if (!data.id || data.id === 'undefined' || seen.has(data.id)) continue;
+      // ★[XSS 근원차단] data.id 는 파일 내용(사용자가 손 댈 수 있는 JSON)이라 파일명과 다를 수 있다.
+      //   이 id 는 렌더러가 onclick="fn(event, '${proj.id}')" 처럼 «홑따옴표 JS 문자열 리터럴 안»에
+      //   그대로 박는다 — 형식이 어긋난 id(따옴표·백슬래시 등)가 들어오면 HTML 이스케이프로도
+      //   못 막는 인라인 핸들러 탈출이 가능하다(HTML 파서가 속성값을 먼저 디코드한 뒤 JS로 넘긴다).
+      //   신 레이아웃은 디렉터리명 정규식(/^proj_\d+$/)이 이미 이 모양을 강제하므로, 여기(레거시
+      //   flat 폴백)도 같은 모양만 받는다 — 형식이 다르면 조용히 목록에서 뺀다(자가치유 원칙과 동일).
+      if (!data.id || data.id === 'undefined' || seen.has(data.id) || !/^proj_\d+$/.test(data.id)) continue;
       let thumbnail = data.thumbnail || null;
       const metaPath = _resolveMetaJsonPath(data.id);
       if (metaPath && fs.existsSync(metaPath)) {

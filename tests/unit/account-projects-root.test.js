@@ -682,6 +682,72 @@ test('M26 ★게이트를 «여는 자리»와 «닫는 자리»의 수가 맞�
   assert.ok(revokes >= 1, `★여는 자리 ${grants} / 닫는 자리 ${revokes} — 닫는 자리가 없다`);
 });
 
+/* ────────────────────────────────────────────────────────────────────────────
+   T-A(2026-09-16) — 비로그인 상태에서 만든 folders.json 도 legacy 입양 때 같이 옮긴다.
+   ★같은 「단독 계정일 때만·이미 있으면 안 건드림」 규율을 proj_* 뿐 아니라 folders.json 에도
+     지켜야 한다 — 안 옮기면 폴더 «이름»만 조용히 사라진다(프로젝트 자체는 자가치유로 미분류에 뜬다).
+   ──────────────────────────────────────────────────────────────────────────── */
+
+test('T-A1 ★첫 로그인 입양 때 legacy folders.json 도 같이 옮긴다', () => {
+  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const legacy = path.join(ud, 'projects');
+  mkproj(legacy, 'proj_7001');
+  fs.writeFileSync(path.join(legacy, 'folders.json'),
+    JSON.stringify({ version: 1, folders: [{ id: 'fold_x', name: '여름신상', parentId: null, order: 1000 }] }));
+
+  const h = load({ email: 'chulsoo@example.com', userData: ud });
+  const dest = h.api.PROJECTS_DIR;
+  assert.ok(fs.existsSync(path.join(dest, 'folders.json')), '★folders.json 이 계정 폴더로 안 옮겨졌다');
+  assert.ok(!fs.existsSync(path.join(legacy, 'folders.json')), 'legacy 자리에 그대로 남아 있다(옮긴 게 아니라 복사?)');
+  const carried = JSON.parse(fs.readFileSync(path.join(dest, 'folders.json'), 'utf8'));
+  assert.equal(carried.folders[0].name, '여름신상', '내용이 달라졌다');
+
+  const adopted = JSON.parse(fs.readFileSync(path.join(ud, 'accounts', h.api._accountKeyFor('chulsoo@example.com'), 'adopted.json'), 'utf8'));
+  assert.equal(adopted.foldersCarried, true, '★adopted.json 에 foldersCarried:true 가 안 적혔다');
+});
+
+test('T-A2 대상에 이미 folders.json 이 있으면 «덮지 않는다»', () => {
+  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const legacy = path.join(ud, 'projects');
+  mkproj(legacy, 'proj_7002');
+  fs.writeFileSync(path.join(legacy, 'folders.json'), JSON.stringify({ version: 1, folders: [{ id: 'fold_legacy', name: '레거시폴더' }] }));
+
+  // 대상 계정 폴더를 미리 만들어 두고 자기 folders.json 을 심어둔다(먼저 로그인해 만든 자기 것)
+  // ★키 산식을 여기서 다시 구현하지 않는다 — load() 로 한 번 «비파괴» 접근해 실제 키를 얻는다.
+  const probe = load({ email: 'chulsoo@example.com', userData: fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-probe-')) });
+  const realKey = probe.api._accountKeyFor('chulsoo@example.com');
+  const destDir = path.join(ud, 'accounts', realKey, 'projects');
+  fs.mkdirSync(destDir, { recursive: true });
+  fs.writeFileSync(path.join(destDir, 'folders.json'), JSON.stringify({ version: 1, folders: [{ id: 'fold_own', name: '내폴더' }] }));
+
+  load({ email: 'chulsoo@example.com', userData: ud });
+  const kept = JSON.parse(fs.readFileSync(path.join(destDir, 'folders.json'), 'utf8'));
+  assert.equal(kept.folders[0].name, '내폴더', '★대상에 이미 있는 folders.json 을 legacy 로 덮어썼다');
+});
+
+test('T-A3 ⛔folders.json 이동이 실패해도 입양(proj_*) 자체는 막지 않는다', () => {
+  /* ★던지지 않는다 — 실패하면 폴더 «이름»만 잃고 프로젝트는 자가치유(미분류)로 그대로 뜨면 된다. */
+  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const legacy = path.join(ud, 'projects');
+  mkproj(legacy, 'proj_7003');
+  fs.writeFileSync(path.join(legacy, 'folders.json'), '{}');
+
+  const realRename = fs.renameSync;
+  fs.renameSync = (a, b) => {
+    if (String(a).endsWith('folders.json')) throw new Error('디스크 가득');
+    return realRename(a, b);
+  };
+  try {
+    const h = load({ email: 'chulsoo@example.com', userData: ud });
+    assert.ok(fs.existsSync(path.join(h.api.PROJECTS_DIR, 'proj_7003')),
+      '★folders.json 이동 실패가 proj_* 입양까지 막았다');
+    const adopted = JSON.parse(fs.readFileSync(
+      path.join(ud, 'accounts', h.api._accountKeyFor('chulsoo@example.com'), 'adopted.json'), 'utf8'));
+    assert.equal(adopted.foldersCarried, false, 'foldersCarried 가 실패인데 true 로 적혔다');
+    assert.ok(adopted.failed.some(f => /folders\.json/.test(f)), '실패 사실을 어디에도 안 적었다');
+  } finally { fs.renameSync = realRename; }
+});
+
 test('W1 ★섹션 이름의 «정본»은 sec._name 이다 — dataset 만 쓰면 저장 직전에 되돌아간다', () => {
   /* 2026-09-07 실측: update_section{name} 이 dataset.name «만» 써서, 화면엔 1.5초 보이다가
      옛 이름으로 복귀했다. 범인은 저장 직전의 이 줄이다(js/io/save-load.js getSerializedCanvas):

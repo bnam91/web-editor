@@ -129,7 +129,7 @@ body {
 #proj-search-clear:hover { background: var(--ui-bg-hover, #3a3a3a); color: #fff; }
 
 /* ── 검색이 찾은 폴더 — 결과 위에 «칩»으로 (T-B) ── */
-#search-folder-chips { display: none; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+#search-folder-hits { display: none; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .sfc-chip {
   display: inline-flex; align-items: center; gap: 5px;
   height: 26px; padding: 0 10px; border-radius: 13px; cursor: pointer;
@@ -138,9 +138,6 @@ body {
 }
 .sfc-chip:hover { background: var(--ui-bg-hover); color: #fff; }
 .sfc-chip svg { opacity: 0.6; }
-
-/* 카드에 표시하는 «소속 폴더 이름»(검색 중에만) */
-.card-folder-tag { font-size: 10px; color: var(--ui-text-dim, #777); margin-top: 2px; }
 
 /* ── E3-b ㉯ 예고 배너 ── 정보지 제한이 아니다: [hidden]이면 레이아웃 자리도 안 먹는다
    (기본이 거의 언제나 이 상태다 — 창 밖이면 뜰 일이 없다). 모달·오버레이 금지, 한 줄. */
@@ -249,6 +246,15 @@ body {
   display: inline-flex; align-items: center; gap: 3px;
   font-size: 10px; font-weight: 700; color: #6fa3f7;
   background: rgba(45,111,232,0.18); border: 1px solid rgba(45,111,232,0.45);
+  border-radius: 4px; padding: 1px 6px; margin-bottom: 4px;
+}
+/* ── 소속 폴더 배지(T-B) — 검색 결과일 때만 뜬다(평소엔 레일 선택이 이미 말해준다) ──
+ * ★.planning-badge/.collab-badge 와 «같은 꼴»(크기·굵기·radius·padding) — 새 룩 신설 금지.
+ *   색만 다르다: 파란/초록 액센트가 아니라 --ui-text-dim + 옅은 흰 배경(중립 정보 배지). */
+.folder-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 700; color: var(--ui-text-dim, #969696);
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
   border-radius: 4px; padding: 1px 6px; margin-bottom: 4px;
 }
 .header-actions {
@@ -407,7 +413,8 @@ body {
 #project-grid.is-list .card-name { flex: 1; min-width: 0; margin-bottom: 0; }
 #project-grid.is-list .card-date { flex-shrink: 0; }
 #project-grid.is-list .planning-badge,
-#project-grid.is-list .collab-badge   { margin-bottom: 0; flex-shrink: 0; order: -1; }
+#project-grid.is-list .collab-badge,
+#project-grid.is-list .folder-badge   { margin-bottom: 0; flex-shrink: 0; order: -1; }
 #project-grid.is-list .fsub-card-badge { margin-top: 0; flex-shrink: 0; }
 #project-grid.is-list .card-actions { top: 50%; transform: translateY(-50%); right: 10px; }
 
@@ -735,7 +742,7 @@ body {
     <small id="recovery-say" role="status" aria-live="polite" style="display:none"></small>
     <div id="recovery-detail"></div>
   </div>
-  <div id="search-folder-chips"></div>
+  <div id="search-folder-hits"></div>
   <div id="project-grid"></div>
   <div id="trash-list" style="display:none"></div>
   <div id="empty-state">
@@ -879,17 +886,38 @@ function _matchingFolders(nq) {
   return _foldersCache.filter(f => _norm(f.name).includes(nq));
 }
 
+/* ★검색 중엔 폴더 필터가 무시되므로(전체범위 검색), 레일의 선택 표시도 «시각적으로»
+ *   해제한다 — 안 그러면 폴더를 보는 척 하면서 실제로는 전체를 찾아 사용자가 헷갈린다.
+ *   _selectedFolderId 값 자체는 그대로 둔다(검색을 지우면 보던 폴더로 «돌아가야» 하니까). */
+function _isSearching() { return !!_norm(_searchQuery); }
+
+/* [R4] 폴더 선택 «진입점» — 레일 클릭·검색 칩 클릭이 «둘 다» 이걸 거친다.
+ *   검색어를 지우는 것까지 여기서 책임진다 — 칩을 눌러 폴더로 갈 땐 검색 결과를 보던 게 아니라
+ *   그 폴더 «안»을 보고 싶다는 뜻이라 검색은 끝난 것으로 다룬다. */
+function selectFolder(folderId) {
+  _setSelectedFolder(folderId || null);
+  _searchQuery = '';
+  const input = document.getElementById('proj-search-input');
+  if (input) input.value = '';
+  const clearBtn = document.getElementById('proj-search-clear');
+  if (clearBtn) clearBtn.style.display = 'none';
+  renderFolderRail();
+  _renderGridFromCache();
+}
+
 function renderFolderRail() {
   const rail = document.getElementById('folder-rail');
   if (!rail) return;
+  const searching = _isSearching();
   const total = _allProjectsCache.length;
   const unassigned = _allProjectsCache.filter(p => !p.folderId).length;
   const counts = new Map();
   for (const p of _allProjectsCache) { if (p.folderId) counts.set(p.folderId, (counts.get(p.folderId) || 0) + 1); }
 
   const fixed = document.getElementById('fr-fixed');
+  const isSel = (key) => !searching && _selectedFolderId === key;
   const row = (key, name, count, extraAttrs = '') => `
-    <button type="button" class="tab-add-item${_selectedFolderId === key ? ' is-selected' : ''}" data-folder-key="${key === null ? '' : _escHtml(key)}" ${extraAttrs}>
+    <button type="button" class="tab-add-item${isSel(key) ? ' is-selected' : ''}" data-folder-key="${key === null ? '' : _escHtml(key)}" ${extraAttrs}>
       <span class="tab-add-item-name">${_escHtml(name)}</span>
       <span class="tab-add-item-date">${count}</span>
     </button>`;
@@ -901,7 +929,7 @@ function renderFolderRail() {
   //   ⇒ 행을 .fr-row 로 감싸고, 삭제 버튼은 그 안에서 «형제»로 절대배치한다.
   listEl.innerHTML = _foldersCache.map(f => `
     <div class="fr-row">
-      <button type="button" class="tab-add-item${_selectedFolderId === f.id ? ' is-selected' : ''}" data-folder-key="${_escHtml(f.id)}" data-folder-name="${_escHtml(f.name)}">
+      <button type="button" class="tab-add-item${isSel(f.id) ? ' is-selected' : ''}" data-folder-key="${_escHtml(f.id)}" data-folder-name="${_escHtml(f.name)}">
         <span class="tab-add-item-name">${_escHtml(f.name)}</span>
         <span class="tab-add-item-date">${counts.get(f.id) || 0}</span>
       </button>
@@ -935,10 +963,7 @@ function renderFolderRail() {
     }
     const btn = e.target.closest('[data-folder-key]');
     if (btn) {
-      const key = btn.dataset.folderKey || null;
-      _setSelectedFolder(key || null);
-      _renderGridFromCache();
-      renderFolderRail();
+      selectFolder(btn.dataset.folderKey || null);
     }
   });
 
@@ -1030,6 +1055,7 @@ function renderFolderRail() {
     _searchQuery = input.value;
     clearBtn.style.display = _searchQuery ? '' : 'none';
     _renderGridFromCache();
+    renderFolderRail();   // ★검색 시작/종료에 따라 레일의 선택 표시를 지우거나 되살린다
   };
   input.addEventListener('compositionstart', () => { composing = true; });
   input.addEventListener('compositionend', () => { composing = false; apply(); });
@@ -1039,7 +1065,9 @@ function renderFolderRail() {
     debounceT = setTimeout(apply, 130);
   });
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { input.value = ''; apply(); input.blur(); }
+    // ★검색칸에 포커스가 있을 때만 가로챈다(stopPropagation) — 그 밖엔 기존 계정메뉴 Esc 로직이
+    //   그대로 동작해야 한다(document 레벨 리스너와 겹쳐 이중 반응하면 안 된다).
+    if (e.key === 'Escape') { e.stopPropagation(); input.value = ''; apply(); input.blur(); }
   });
   clearBtn.addEventListener('click', () => { input.value = ''; input.focus(); apply(); });
   document.addEventListener('keydown', (e) => {
@@ -1060,7 +1088,7 @@ function _setEmptyState(html) {
 /** 검색·폴더 필터를 적용해 «다시 그린다» — IPC 를 새로 부르지 않는다(캐시 재사용, T-B). */
 function _renderGridFromCache() {
   const grid = document.getElementById('project-grid');
-  const chipsBox = document.getElementById('search-folder-chips');
+  const chipsBox = document.getElementById('search-folder-hits');
   const nq = _norm(_searchQuery);
   let list = _allProjectsCache;
 
@@ -1098,6 +1126,7 @@ function _renderGridFromCache() {
       input.value = ''; input.dispatchEvent(new Event('input'));
       _searchQuery = ''; document.getElementById('proj-search-clear').style.display = 'none';
       _renderGridFromCache();
+      renderFolderRail();
     });
     return;
   }
@@ -1121,14 +1150,23 @@ function _renderGridFromCache() {
       : (isPlanning
         ? `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c48a" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="12" y2="16"/></svg>`
         : `<svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#555" stroke-width="1.2"><rect x="5" y="5" width="30" height="30" rx="2"/><line x1="11" y1="15" x2="29" y2="15"/><line x1="11" y1="21" x2="29" y2="21"/><line x1="11" y1="27" x2="22" y2="27"/></svg>`);
-    // 배지는 «둘 다» 붙을 수 있다(기획 프로젝트를 공유하는 경우) — 하나로 뭉치지 않는다.
+    // 검색 중일 때만 소속 폴더 배지를 붙인다(T-B) — 평소엔 레일 선택이 이미 말해준다.
+    //   ★.planning-badge/.collab-badge 와 «같은 자리»(badgeHtml)에 «같은 꼴»로 합류시킨다 —
+    //     이름 아래 별도 줄(옛 .card-folder-tag)로 두면 배지 두 종류가 카드마다 다른 언어를 쓰게 된다.
+    const folderBadgeHtml = (nq && proj.folderId && _folderNameById(proj.folderId))
+      ? `<div class="folder-badge">📁 ${_escHtml(_folderNameById(proj.folderId))}</div>` : '';
+    // 배지는 «셋 다» 붙을 수 있다(기획+공동작업+검색중 폴더매치) — 하나로 뭉치지 않는다.
     const badgeHtml = (isPlanning ? `<div class="planning-badge">📋 기획</div>` : '')
-      + (isCollab ? `<div class="collab-badge" title="${proj.collabRef.role === 'owner' ? '내가 올린 공동작업본' : '초대받아 참여 중'}">👥 공동작업</div>` : '');
+      + (isCollab ? `<div class="collab-badge" title="${proj.collabRef.role === 'owner' ? '내가 올린 공동작업본' : '초대받아 참여 중'}">👥 공동작업</div>` : '')
+      + folderBadgeHtml;
     /* ★「없는 글꼴」 배지는 카드를 다 그린 «뒤에» 따로 칠한다 — paintFontBadges() 참고
        (이 인라인 스크립트는 font-substitute.js보다 «먼저» 실행된다) */
+    // ★id 는 신 레이아웃 디렉터리명(/^proj_\d+$/)·검증된 레거시·plan_<숫자> 뿐이라 원래도 안전하지만,
+    //   onclick="fn(event, '${id}')" 는 HTML속성+JS문자열 이중 문맥이라 «방어 두 겹»으로 이스케이프한다.
+    const safeId = _escHtml(proj.id);
     const duplicateBtnHtml = isPlanning
       ? ''
-      : `<button class="card-action card-duplicate" onclick="duplicateProjectUI(event, '${proj.id}')" title="복제">⎘</button>`;
+      : `<button class="card-action card-duplicate" onclick="duplicateProjectUI(event, '${safeId}')" title="복제">⎘</button>`;
     // ★「원격으로 올리기」는 «아직 안 올린 카드»에만 뜬다. 이미 올린 카드에서 또 누르면
     //   무슨 일이 나는지 사용자가 알 수 없다 — 버튼을 없애서 그 질문 자체를 없앴다.
     //   (끊기·초대 관리는 환경설정 「협업」 탭이 맡는다. 카드에 다 넣으면 카드가 도구상자가 된다.)
@@ -1136,31 +1174,27 @@ function _renderGridFromCache() {
     //   안 봤다. 그래서 스위치를 꺼도 이 버튼만 살아남아 「눌리는데 서버가 404」였다.
     const shareBtnHtml = (!window.COLLAB_ENABLED || isCollab || !window.electronAPI?.collab)
       ? ''
-      : `<button class="card-action card-share" onclick="shareProjectUI(event, '${proj.id}')" title="원격으로 올리기 — 다른 사람을 초대해 같이 편집합니다">👥</button>`;
+      : `<button class="card-action card-share" onclick="shareProjectUI(event, '${safeId}')" title="원격으로 올리기 — 다른 사람을 초대해 같이 편집합니다">👥</button>`;
     // [T-A] 폴더로 이동 — 항상 뜬다(기획 프로젝트도 폴더에 들어갈 수 있다).
     const folderBtnHtml = window.electronAPI?.folders
-      ? `<button class="card-action card-folder-move" onclick="openFolderMenuUI(event, '${proj.id}')" title="폴더로 이동">📁</button>`
+      ? `<button class="card-action card-folder-move" onclick="openFolderMenuUI(event, '${safeId}')" title="폴더로 이동">📁</button>`
       : '';
-    // 검색 중일 때만 소속 폴더 이름을 작게 보여준다(T-B) — 평소엔 레일 선택이 이미 말해준다.
-    const folderTagHtml = (nq && proj.folderId && _folderNameById(proj.folderId))
-      ? `<div class="card-folder-tag">📁 ${_escHtml(_folderNameById(proj.folderId))}</div>` : '';
     card.innerHTML = `
       <div class="card-thumb">${thumbContent}</div>
       <div class="card-body">
         ${badgeHtml}
-        <div class="card-name" data-id="${proj.id}" ondblclick="startRename(event, '${proj.id}')" title="더블클릭하여 이름 변경">${_escHtml(proj.name || '이름 없음')}</div>
+        <div class="card-name" data-id="${safeId}" ondblclick="startRename(event, '${safeId}')" title="더블클릭하여 이름 변경">${_escHtml(proj.name || '이름 없음')}</div>
         <div class="card-date">${formatDate(proj.updatedAt)}</div>
-        ${folderTagHtml}
       </div>
       <div class="card-actions">
         <button class="card-action card-fav${proj.favorite ? ' on' : ''}"
-                onclick="toggleFavorite(event, '${proj.id}')"
+                onclick="toggleFavorite(event, '${safeId}')"
                 title="${proj.favorite ? '즐겨찾기 해제' : '즐겨찾기 — 목록 맨 위로'}"
                 aria-pressed="${proj.favorite ? 'true' : 'false'}">${proj.favorite ? '★' : '☆'}</button>
         ${folderBtnHtml}
         ${shareBtnHtml}
         ${duplicateBtnHtml}
-        <button class="card-action card-delete" onclick="deleteProject(event, '${proj.id}')" title="삭제">✕</button>
+        <button class="card-action card-delete" onclick="deleteProject(event, '${safeId}')" title="삭제">✕</button>
       </div>
     `;
     card.addEventListener('click', (e) => {
@@ -1227,15 +1261,10 @@ async function openFolderMenuUI(e, projectId) {
 }
 
 /* 검색 칩(매칭된 폴더) 클릭 → 그 폴더로 이동 — 위임(칩이 검색 재실행마다 다시 그려지므로) */
-document.getElementById('search-folder-chips').addEventListener('click', (e) => {
+document.getElementById('search-folder-hits').addEventListener('click', (e) => {
   const chip = e.target.closest('[data-goto-folder]');
   if (!chip) return;
-  const input = document.getElementById('proj-search-input');
-  input.value = ''; _searchQuery = '';
-  document.getElementById('proj-search-clear').style.display = 'none';
-  _setSelectedFolder(chip.dataset.gotoFolder);
-  _renderGridFromCache();
-  renderFolderRail();
+  selectFolder(chip.dataset.gotoFolder);
 });
 
 async function renderGrid() {

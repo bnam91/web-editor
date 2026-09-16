@@ -96,3 +96,52 @@ test('L4 ★「전체」 개념 — list_projects 는 folderId 값과 무관하�
   const items = R._listProjectsImpl();
   assert.equal(items.length, 2, '★목록 코어가 folderId 로 걸러버렸다 — 필터링은 렌더러 몫이어야 한다');
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * L5 — ★[XSS 근원차단] 레거시 flat 폴백(proj_<id>.json)의 data.id 형식 검증(T-B 보강안).
+ *   data.id 는 파일 «내용»이라 파일명(proj_<숫자>.json)과 다를 수 있다. 렌더러가 이 id 를
+ *   onclick="fn(event, '${id}')" 처럼 홑따옴표 JS 문자열 리터럴 안에 그대로 박으므로,
+ *   형식이 어긋난 id(따옴표 포함 등)가 여기를 통과하면 HTML 이스케이프로도 못 막는
+ *   인라인 핸들러 탈출이 가능하다. ⇒ /^proj_\d+$/ 가 아니면 목록에서 조용히 뺀다.
+ * ══════════════════════════════════════════════════════════════════════════ */
+function writeFlat(dir, filename, dataId, name) {
+  fs.writeFileSync(path.join(dir, filename), JSON.stringify({ id: dataId, name, pages: [{ id: 'page_1', canvas: '' }] }));
+}
+
+test('L5 ★레거시 flat — data.id 가 /^proj_\\d+$/ 형식이 아니면 목록에서 «조용히» 빠진다', () => {
+  const dir = tmp();
+  writeFlat(dir, 'proj_5001.json', "proj_5001', onerror=alert(1), x='", '나쁜 id');
+  const R = loadRealImpls(dir);
+  const items = R._listProjectsImpl();
+  assert.equal(items.length, 0, '★형식이 어긋난 id 를 그대로 통과시켰다 — 인라인 onclick 탈출 경로다');
+});
+
+test('L5b 양성대조 — 형식이 «맞는» 레거시 flat id 는 정상적으로 목록에 뜬다', () => {
+  const dir = tmp();
+  writeFlat(dir, 'proj_5002.json', 'proj_5002', '정상 이름');
+  const R = loadRealImpls(dir);
+  const items = R._listProjectsImpl();
+  assert.equal(items.length, 1, '★검증을 너무 세게 걸어 «정상 id»까지 걸러냈다');
+  assert.equal(items[0].id, 'proj_5002');
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * L6 — ★[인수시험 4] 폴더에 넣은 프로젝트를 저장(에디터 왕복)해도 folderId 가 생존한다.
+ *   _refreshListMeta 는 name/type/createdAt/updatedAt/marketRef/listMetaV «만» 덮어쓰고
+ *   기존 merged 를 스프레드하므로 folderId 가 살아야 한다 — read-merge-write 계약을 실측으로 못박는다.
+ * ══════════════════════════════════════════════════════════════════════════ */
+test('L6 ★저장(에디터 왕복) 후에도 folderId 가 살아남는다(_refreshListMeta read-merge-write)', () => {
+  const dir = tmp();
+  seed(dir, 'proj_6000', '원래이름');
+  // 폴더 배정(= main/folders.js 가 하는 것과 같은 결과 상태) 흉내
+  const metaPath = path.join(dir, 'proj_6000', 'proj_meta.json');
+  fs.writeFileSync(metaPath, JSON.stringify({ id: 'proj_6000', folderId: 'fold_abc' }));
+
+  const R = loadRealImpls(dir);
+  // 사용자가 이름을 바꾸고 «저장»한 상황 — _refreshListMeta 가 목록 캐시 필드를 갱신한다
+  R._refreshListMeta('proj_6000', { name: '바뀐이름', type: null, createdAt: '2026-01-01', updatedAt: '2026-02-02', marketRef: null });
+
+  const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  assert.equal(meta.name, '바뀐이름', '이름 갱신이 안 됐다 — 애초에 저장이 안 도는 것이면 이 검사가 무의미하다');
+  assert.equal(meta.folderId, 'fold_abc', '★저장 왕복에 folderId 가 살아남지 못했다 — read-merge-write 가 깨졌다');
+});

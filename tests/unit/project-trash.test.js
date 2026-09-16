@@ -11,6 +11,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const T = require('../../main/trash');
+const F = require('../../main/folders');
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -330,4 +331,30 @@ test('T14 깨진 메타 하나가 목록 «전체»를 죽이지 않는다', () 
   const l = T.listTrash({ projectsDir: dir });
   assert.equal(l.items.length, 1, '멀쩡한 것까지 안 보인다');
   assert.equal(l.items[0].projectId, 'proj_2000');
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * T-A × 휴지통(2026-09-16, 인수시험 3) — 폴더에 넣은 프로젝트를 휴지통→되살리기 하면
+ *   폴더 소속(folderId)이 복원돼야 한다.
+ * ★코드 변경 없이 성립해야 «맞는» 설계다 — moveToTrash/restoreFromTrash 는 proj_<id> 폴더
+ *   «통째로»(proj_meta.json 포함) 옮기므로, folderId 는 애초에 그 파일 안에 실려 같이 간다.
+ *   이 검사는 그 전제를 실측으로 못박는다(회귀가 나면 즉시 빨강이 되어야 한다).
+ * ══════════════════════════════════════════════════════════════════════════ */
+test('TF1 ★폴더에 넣은 프로젝트를 휴지통→되살리기 하면 folderId 가 복원된다', () => {
+  const dir = makeProjectsDir(['proj_8000']);
+  const f = F.createFolder({ projectsDir: dir, name: '여름신상' }).folder;
+  F.assignFolder({ projectsDir: dir, projectIds: ['proj_8000'], folderId: f.id });
+
+  const before = JSON.parse(fs.readFileSync(path.join(dir, 'proj_8000', 'proj_meta.json'), 'utf8'));
+  assert.equal(before.folderId, f.id, '전제: 배정이 실제로 됐어야 한다');
+
+  const tr = T.moveToTrash({ projectsDir: dir, projectId: 'proj_8000' });
+  assert.ok(tr.ok, JSON.stringify(tr));
+  const rs = T.restoreFromTrash({ projectsDir: dir, projectId: 'proj_8000' });
+  assert.ok(rs.ok, JSON.stringify(rs));
+
+  const after = JSON.parse(fs.readFileSync(path.join(dir, 'proj_8000', 'proj_meta.json'), 'utf8'));
+  assert.equal(after.folderId, f.id, '★휴지통 왕복 후 폴더 소속을 잃었다');
+  // 폴더 레코드 자체도 안 건드려졌어야 한다(휴지통이 folders.json 을 열 이유가 없다)
+  assert.equal(F.listFolders({ projectsDir: dir }).folders.length, 1);
 });

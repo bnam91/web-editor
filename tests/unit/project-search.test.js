@@ -109,3 +109,74 @@ test('PM-4 빈 질의는 전부 통과한다', () => {
   const { _matchesQuery } = loadMatcher();
   assert.ok(_matchesQuery({ id: 'proj_1', name: 'x' }, ''));
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * T-B 보강안(2026-09-16) — 검색↔폴더 필터 통합, R4(selectFolder 진입점), id 이중 이스케이프.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+test('PS-11 검색 결과 위 «매칭된 폴더» 컨테이너 id 는 #search-folder-hits 다(칩 아님)', () => {
+  assert.match(CODE, /<div id="search-folder-hits"><\/div>/, '#search-folder-hits 컨테이너가 없다');
+  assert.match(CODE, /getElementById\('search-folder-hits'\)/, 'JS 가 그 id 를 참조하지 않는다');
+});
+
+test('PS-12 ★[R4] selectFolder(folderId) 진입점이 있고, 레일 클릭·칩 클릭이 «둘 다» 그걸 거친다', () => {
+  assert.match(CODE, /function selectFolder\(folderId\)/, 'selectFolder 진입점 함수가 없다');
+  const selectFolderFn = sliceBlock(CODE, 'function selectFolder(folderId) {');
+  assert.match(selectFolderFn, /renderFolderRail\(\)/, 'selectFolder 가 레일 하이라이트를 갱신 안 한다');
+  assert.match(selectFolderFn, /_renderGridFromCache\(\)/, 'selectFolder 가 그리드를 다시 안 그린다');
+
+  // 레일 클릭 — data-folder-key 브랜치가 selectFolder 를 부르는지
+  const railClick = sliceBlock(CODE, "rail.addEventListener('click', async (e) => {");
+  assert.match(railClick, /selectFolder\(btn\.dataset\.folderKey \|\| null\)/, '레일 클릭이 selectFolder 를 안 거친다');
+
+  // 칩 클릭
+  const chipClick = sliceBlock(CODE, "document.getElementById('search-folder-hits').addEventListener('click', (e) => {");
+  assert.match(chipClick, /selectFolder\(chip\.dataset\.gotoFolder\)/, '칩 클릭이 selectFolder 를 안 거친다');
+});
+
+test('PS-13 검색어가 있으면 레일 선택 표시를 «시각적으로» 해제한다(값은 유지)', () => {
+  const rail = sliceBlock(CODE, 'function renderFolderRail() {');
+  assert.match(rail, /_isSearching\(\)/, 'renderFolderRail 이 검색 중 여부를 안 본다');
+  assert.match(rail, /!searching && _selectedFolderId/, '검색 중엔 is-selected 를 안 끄는 조건이다');
+});
+
+test('PS-14 검색 apply() 가 렌더 후 레일도 다시 그린다(선택 표시 해제/복원 반영)', () => {
+  const applyFn = sliceBlock(CODE, 'const apply = () => {');
+  assert.match(applyFn, /renderFolderRail\(\)/, 'apply() 가 레일을 다시 안 그려 선택 표시가 안 바뀐다');
+});
+
+test('PS-15 ★Esc 는 검색칸에 포커스가 있을 때만 가로챈다 — 계정메뉴 Esc 로 안 번진다(stopPropagation)', () => {
+  const inputKeydown = CODE.slice(
+    CODE.indexOf("input.addEventListener('keydown', (e) => {"),
+    CODE.indexOf("input.addEventListener('keydown', (e) => {") + 220);
+  assert.match(inputKeydown, /e\.stopPropagation\(\)/, '검색 input 의 Esc 처리가 stopPropagation 을 안 한다');
+});
+
+test('PS-16 ★id 이중 이스케이프 — onclick/data-id 에 들어가는 proj.id 는 safeId(_escHtml) 를 쓴다', () => {
+  const fn = sliceBlock(CODE, 'function _renderGridFromCache() {');
+  assert.match(fn, /const safeId = _escHtml\(proj\.id\)/, 'safeId 변수가 없다');
+  assert.ok(!/'\$\{proj\.id\}'/.test(fn), '★onclick 안에 이스케이프 안 된 proj.id 가 그대로 남아 있다');
+  // 네 개 이상의 액션(복제·즐겨찾기·폴더이동·삭제·이름변경·data-id)이 safeId 를 써야 한다
+  const uses = (fn.match(/\$\{safeId\}/g) || []).length;
+  assert.ok(uses >= 5, `safeId 사용처가 너무 적다(${uses}) — 일부 onclick 이 원본 id 를 그대로 쓴다`);
+});
+
+test('PS-17 소속 폴더 배지(.folder-badge) — 검색 중일 때만, badgeHtml 로 합류(별도 줄 아님)', () => {
+  const fn = sliceBlock(CODE, 'function _renderGridFromCache() {');
+  assert.match(fn, /class="folder-badge"/, '.folder-badge 마크업이 없다');
+  assert.match(fn, /const badgeHtml = [\s\S]*?folderBadgeHtml/, 'folderBadgeHtml 이 badgeHtml 조합에 안 들어간다');
+  assert.ok(!/card-folder-tag/.test(fn), '★옛 .card-folder-tag(이름 아래 별도 줄)가 되살아났다');
+});
+
+test('PS-18 ★리스트 뷰에서도 .folder-badge 가 안 깨진다 — planning/collab 과 같은 셀렉터에 있다', () => {
+  assert.match(CODE, /#project-grid\.is-list \.planning-badge,\s*\n#project-grid\.is-list \.collab-badge,\s*\n#project-grid\.is-list \.folder-badge/,
+    '리스트 뷰 셀렉터 목록에 .folder-badge 가 없다 — 리스트 뷰에서만 배지 줄이 깨진다');
+});
+
+test('PS-19 ★빈 상태 조기반환보다 칩(폴더 매치) 렌더가 «먼저» 온다', () => {
+  const fn = sliceBlock(CODE, 'function _renderGridFromCache() {');
+  const chipsIdx = fn.indexOf('_matchingFolders(nq)');
+  const returnIdx = fn.indexOf('if (!list.length) {');
+  assert.ok(chipsIdx > -1 && returnIdx > -1, '칩 로직 또는 빈-목록 분기를 못 찾았다');
+  assert.ok(chipsIdx < returnIdx, '★칩 렌더가 조기반환 «뒤»에 있다 — 폴더는 걸리고 프로젝트 0건이면 칩이 안 뜬다');
+});
