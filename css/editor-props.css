@@ -562,6 +562,7 @@
   background: var(--ui-bg-app); border: 1px solid var(--ui-border-strong);
   border-radius: 4px; color: #ccc;
   font-size: var(--ui-fs-base); cursor: pointer;
+  white-space: nowrap; flex-shrink: 0;
   transition: background 0.15s, border-color 0.15s;
 }
 .prop-btn-sm:hover { background: var(--ui-bg-card); border-color: var(--ui-divider); }
