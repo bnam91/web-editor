@@ -196,30 +196,37 @@ test('C1 ★핵심 — 90° 회전된 넓은 박스는 클램프가 «회전 후
     .toBeGreaterThan(300);
 });
 
-test('C2 클램프 상한은 «회전 후 축정렬 폭»(83) 기준 — 섹션 밖으로는 안 나간다', async ({ page }) => {
+test('C2 «회전 후 축정렬 폭»(83) 기준 경계는 여전히 맞다 — 옛 하드캡(460.5) 근처에서 저항이 걸린다', async ({ page }) => {
+  // ★2026-09-16k 이후: 하드클램프 → 탄성클램프로 바뀌어 "섹션 밖으로 절대 안 나간다"는
+  //   더 이상 사실이 아니다(현빈 지시 — 저항만 있고 결국은 나간다). 이 테스트는 «경계 위치
+  //   자체는 여전히 회전 후 축정렬 폭(83) 기준으로 맞게 계산된다»만 검증한다 — 옛 하드캡
+  //   경계(460.5) 바로 앞(살짝 안쪽)에서는 거의 그 값 근처에, 훨씬 크게 끌면 그 값을
+  //   넘어선다(저항 구간을 다 채우고 자유로워짐).
   await boot(page, { rotationDeg: 90, zoom: 100, boxW: 716, boxH: 83, secW: 860, secH: 776, useRealClamp: true });
   await page.evaluate(() => { const el = document.getElementById('tf1'); el.style.left = '0px'; el.style.top = '30px'; });
-  await dragBy(page, 'tf1', 5000, 0);   // 극단적으로 크게 끌어 상한에 확실히 닿게 한다
-  const { left, rect, secRect } = await page.evaluate(() => {
+  await dragBy(page, 'tf1', 360, 0);   // 옛 하드캡(460.5) 바로 못 미치게 끌어본다
+  const left1 = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  expect(left1, `경계(460.5) 안쪽인데 이미 넘어갔다: left=${left1}`).toBeLessThan(460.5);
+  await dragBy(page, 'tf1', 5000, 0);   // 극단적으로 크게 끌면 — 저항 구간을 다 채우고 나간다
+  const { left: left2, rect, secRect } = await page.evaluate(() => {
     const el = document.getElementById('tf1');
     const sec = document.getElementById('sec1');
     return { left: parseFloat(el.style.left), rect: el.getBoundingClientRect(), secRect: sec.getBoundingClientRect() };
   });
-  // 기대 상한: 클램프는 «화면 축정렬 박스»(clampW=83) 기준으로 걸리지만, 여기 비교하는
-  // left는 «회전 전 프레임 원점»(offsetWidth=716 기준)이다 — 둘은 중심(회전축)을 공유하므로
-  // maxLeft = secW - clampW/2 - offsetWidth/2 = 860 - 41.5 - 358 = 460.5.
-  expect(Math.abs(left - 460.5), `클램프 상한이 안 맞다: left=${left} (기대 460.5 근처)`).toBeLessThan(2);
-  // 화면상으로도 회전된 박스(짧은 변 83)가 섹션 오른쪽 경계 안에 들어와 있어야 한다.
-  expect(rect.x + rect.width, `화면상 박스 오른쪽 끝이 섹션 밖으로 나갔다`).toBeLessThanOrEqual(secRect.x + secRect.width + 1);
+  expect(left2, `극단적으로 끌었는데도 옛 하드캡(460.5)을 못 넘었다 — 탄성 대신 하드클램프로 되돌아간 회귀`).toBeGreaterThan(460.5);
+  // 화면상 박스가 섹션 경계를 «넘어» 있어야 한다(탄성 설계 — 저항만 있지 못 나가는 게 아님).
+  expect(rect.x + rect.width, `극단적으로 끌었는데 화면상 박스가 여전히 섹션 안에 갇혀 있다`).toBeGreaterThan(secRect.x + secRect.width);
 });
 
-test('C3 회전 0°에서는 클램프 범위가 그대로다(회귀 없음) — offsetWidth 그대로 쓰는 경로', async ({ page }) => {
+test('C3 회전 0°에서도 경계(500) 안쪽까진 그대로 움직이고, 넘기면 저항 뒤 빠져나간다', async ({ page }) => {
   await boot(page, { rotationDeg: 0, zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600, useRealClamp: true });
   await page.evaluate(() => { const el = document.getElementById('tf1'); el.style.left = '0px'; el.style.top = '30px'; });
-  await dragBy(page, 'tf1', 5000, 0);
-  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
-  // maxX = secW - boxW = 800 - 300 = 500 (회전 0°에서는 clampW===offsetWidth).
-  expect(left, `회전 0°의 클램프 상한이 바뀌었다: left=${left} (기대 500 근처)`).toBeCloseTo(500, 0);
+  await dragBy(page, 'tf1', 450, 0);   // maxX(500) 안쪽 — 저항 없이 그대로 따라가야 한다
+  const left1 = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  expect(left1, `경계(500) 한참 안쪽인데 이미 저항이 걸렸다: left=${left1} (기대 450 근처)`).toBeCloseTo(450, 0);
+  await dragBy(page, 'tf1', 4550, 0);  // 극단적으로 크게 끌면 — 500을 넘어 계속 나간다(옛 하드캡 회귀 아님).
+  const left2 = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  expect(left2, `극단적으로 끌었는데도 옛 하드캡(500)에 막혀 있다 — 탄성 대신 하드클램프로 되돌아간 회귀`).toBeGreaterThan(500);
 });
 
 test('R6 [양성대조] getBoundingClientRect 기반 옛 산식으로 되돌리면 R2가 실패한다', async ({ page }) => {

@@ -52,6 +52,41 @@ function _applyOverlayPos(posEl, x, y) {
   posEl.style.top  = posEl.dataset.offsetY + 'px';
 }
 
+/* ★2026-09-16k 현빈 지시 — "커맨드 눌러야만 나가는 게 필요하냐, 마그네틱/방울처럼 턱이
+   있는 느낌으로 기본으로 되면 좋겠다"(나갈 때·들어올 때 둘 다 저항). 하드 클램프(옛
+   window._clampToSection, 경계에서 뚝 멈춤)를 기본 드래그의 «탄성 클램프»로 바꾼다 —
+   경계를 넘는 만큼(over)을 RESIST_ZONE(40px, 로컬 단위) 안에서는 RESIST_FACTOR(0.35)로
+   눌러 움직임이 «무겁게» 느껴지다가, 그 구간을 다 채우면(=턱을 넘으면) 그 지점부터
+   다시 1:1 로 완전히 자유롭게 움직인다(방울이 막을 뚫고 나가는 느낌 — 무한정 늘어나며
+   저항만 커지는 고전 러버밴드와 다르다, 실제로 "나가진다"). 이 함수는 위치 기반 순수
+   함수라 되돌아올 때도 «같은 곡선»을 그대로 반대로 타 — 들어올 때도 같은 저항이 자동으로
+   생긴다(설계 요구사항).
+   ⌘(Cmd)는 이 저항을 완전히 끄는 파워유저 단축키로 남긴다(기존 "자유 이동" 자리를 그대로
+   재사용 — 의미만 "저항 없음"으로 좁힘). */
+const OVERLAY_RESIST_ZONE = 40;
+const OVERLAY_RESIST_FACTOR = 0.35;
+function _elasticAxis(raw, boundMax) {
+  if (raw < 0) {
+    const over = -raw;
+    return over <= OVERLAY_RESIST_ZONE
+      ? -(over * OVERLAY_RESIST_FACTOR)
+      : -(OVERLAY_RESIST_ZONE * OVERLAY_RESIST_FACTOR + (over - OVERLAY_RESIST_ZONE));
+  }
+  if (raw > boundMax) {
+    const over = raw - boundMax;
+    return over <= OVERLAY_RESIST_ZONE
+      ? boundMax + over * OVERLAY_RESIST_FACTOR
+      : boundMax + OVERLAY_RESIST_ZONE * OVERLAY_RESIST_FACTOR + (over - OVERLAY_RESIST_ZONE);
+  }
+  return raw;
+}
+/* window._clampToSection(x,y,sec,blockW,blockH)과 같은 시그니처 — 안만 다르다(하드→탄성). */
+function _elasticClampToSection(x, y, sec, blockW, blockH) {
+  const secW = sec.clientWidth || 0, secH = sec.clientHeight || 0;
+  const maxX = Math.max(0, secW - (blockW || 0)), maxY = Math.max(0, secH - (blockH || 0));
+  return [_elasticAxis(x, maxX), _elasticAxis(y, maxY)];
+}
+
 // 오토레이아웃 → 오버레이(플로팅) 전환
 function _enterOverlay(posEl) {
   const sec = posEl.closest('.section-block');
@@ -193,9 +228,12 @@ function _bindOverlayMoveDrag(posEl) {
         moved = true;
         window.pushHistory?.('오버레이 이동');
       }
-      // ⌘ 드래그 = 자유 이동(섹션 경계 clamp 없이) — zoom·스티커와 같은 어휘.
-      const free = ev.metaKey;
-      const hover = (!free && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;
+      // ★2026-09-16k — ⌘ 드래그 = «저항 없는» 완전 자유 이동(하드 클램프였던 옛 뜻과 달리,
+      //   기본 드래그도 이제 섹션 밖으로 나간다 — 다만 탄성 저항이 걸린다. ⌘는 그 저항마저
+      //   끄는 파워유저용). 재부모(다른 섹션 위로 호버)는 여전히 ⌘가 아닐 때만 — ⌘는 "이
+      //   섹션 좌표계에 그대로 둔 채 자유롭게"라는 기존 어휘를 그대로 지킨다.
+      const trulyFree = ev.metaKey;
+      const hover = (!trulyFree && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;
       if (hover && hover !== sec) {
         // 재부모 — 지금까지의 로컬 좌표를 확정해 새 섹션 기준으로 다시 앵커를 잡는다.
         const dxs0 = (ev.clientX - startClientX) / zoom, dys0 = (ev.clientY - startClientY) / zoom;
@@ -207,14 +245,14 @@ function _bindOverlayMoveDrag(posEl) {
       const rawX = startLeft + (ev.clientX - startClientX) / zoom;
       const rawY = startTop  + (ev.clientY - startClientY) / zoom;
       let cx = rawX, cy = rawY;
-      if (!free && window._clampToSection) {
-        // ★회전 보정 — 클램프는 «화면에 실제로 보이는» 축정렬 박스(clampW×clampH) 기준으로
-        //   해야 한다. 프레임 중심(회전 원점, transform-origin:center center)은 회전과
-        //   무관하게 rawX+W/2, rawY+H/2 그대로다 — 그 중심에서 화면 박스의 좌상단(visLeft/Top)
-        //   을 구해 클램프하고, 클램프된 중심을 다시 프레임 원점(left/top)으로 되돌린다.
+      if (!trulyFree) {
+        // ★회전 보정 — 탄성 클램프도 «화면에 실제로 보이는» 축정렬 박스(clampW×clampH)
+        //   기준으로 해야 한다. 프레임 중심(회전 원점, transform-origin:center center)은
+        //   회전과 무관하게 rawX+W/2, rawY+H/2 그대로다 — 그 중심에서 화면 박스의
+        //   좌상단(visLeft/Top)을 구해 탄성 클램프하고, 다시 프레임 원점(left/top)으로 되돌린다.
         const cxCenter = rawX + posEl.offsetWidth / 2, cyCenter = rawY + posEl.offsetHeight / 2;
         const visLeft = cxCenter - clampW / 2, visTop = cyCenter - clampH / 2;
-        const [clVisLeft, clVisTop] = window._clampToSection(visLeft, visTop, sec, clampW, clampH);
+        const [clVisLeft, clVisTop] = _elasticClampToSection(visLeft, visTop, sec, clampW, clampH);
         cx = clVisLeft + clampW / 2 - posEl.offsetWidth / 2;
         cy = clVisTop + clampH / 2 - posEl.offsetHeight / 2;
       }
