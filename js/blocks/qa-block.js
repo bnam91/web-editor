@@ -10,22 +10,40 @@
 import { insertAfterSelected, genId } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 
+/* ★2026-09-16b 현빈 실기 피드백 3건 반영 — 크기(16px 기준)·체크박스 클릭·항목별 코멘트.
+   체크박스 실측: hover::after 오버레이(pointer-events:none)는 문제가 아니었다 — 원인은
+   버튼 히트타깃이 16px(줌 축소 시 화면상 몇 px)뿐이라 실사용 클릭이 거의 안 먹혔던 것.
+   ⇒ 체크박스 히트타깃을 22px로, 아이콘 자체도 16px로 키운다(아래 SVG·CSS 동반 수정). */
 const QA_CHECK_SVG_DONE =
-  '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,6 5,9 10,3"/></svg>';
+  '<svg width="16" height="16" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="2,6 5,9 10,3"/></svg>';
 const QA_CHECK_SVG_UNDONE =
-  '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="9" height="9" rx="2"/></svg>';
+  '<svg width="16" height="16" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="9" height="9" rx="2"/></svg>';
+const QA_COMMENT_BADGE_SVG =
+  '<svg class="qa-comment-badge" width="13" height="13" viewBox="0 0 12 12" fill="currentColor"><path d="M1 2a1 1 0 011-1h8a1 1 0 011 1v5a1 1 0 01-1 1H6l-2.5 2.2V8H2a1 1 0 01-1-1V2z"/></svg>';
 
 function _escHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-/** dataset.items(JSON) → 정규화된 배열. 깨진 JSON·비배열은 빈 배열로 폴백(화면이 죽지 않게). */
+/** dataset.items(JSON) → 정규화된 배열. 깨진 JSON·비배열은 빈 배열로 폴백(화면이 죽지 않게).
+ *  ★comment 는 2026-09-16b 신설 — 옛 저장본(comment 없음)은 빈 문자열로 승격(하위호환). */
 function _qaItems(block) {
   try {
     const arr = JSON.parse(block.dataset.items || '[]');
     if (!Array.isArray(arr)) return [];
-    return arr.map(it => ({ text: String((it && it.text) != null ? it.text : ''), done: !!(it && it.done) }));
+    return arr.map(it => ({
+      text: String((it && it.text) != null ? it.text : ''),
+      done: !!(it && it.done),
+      comment: String((it && it.comment) != null ? it.comment : ''),
+    }));
   } catch (_) { return []; }
+}
+
+/** 지금 펼쳐진 코멘트 아코디언의 항목 인덱스 집합 — ★저장 대상이 아니다(전적으로 화면 상태).
+ *  block 엘리먼트의 JS 프로퍼티로만 살아서 재렌더를 견딘다(block._qaBound 와 같은 자리). */
+function _qaExpanded(block) {
+  if (!(block._qaExpanded instanceof Set)) block._qaExpanded = new Set();
+  return block._qaExpanded;
 }
 
 /** items·feedback 으로 상태칩을 정한다 — 대기중(파랑)/피드백있음(주황)/통과(초록). */
@@ -46,7 +64,7 @@ function makeQABlock(opts = {}) {
   block.dataset.ticket = String(opts.ticket || '');
   block.dataset.title = String(opts.title || '');
   const items = Array.isArray(opts.items)
-    ? opts.items.map(it => ({ text: String((it && it.text) != null ? it.text : ''), done: false }))
+    ? opts.items.map(it => ({ text: String((it && it.text) != null ? it.text : ''), done: false, comment: '' }))
     : [];
   block.dataset.items = JSON.stringify(items);
   block.dataset.feedback = '';
@@ -85,12 +103,24 @@ function renderQABlock(block) {
   const status = _qaStatus(items, feedback);
   const pct = status.total > 0 ? Math.round((status.done / status.total) * 100) : 0;
 
-  const checklistHtml = items.map((it, i) => `
-    <div class="qa-item${it.done ? ' qa-item--done' : ''}" data-idx="${i}">
-      <button type="button" class="qa-check" title="완료 토글">${it.done ? QA_CHECK_SVG_DONE : QA_CHECK_SVG_UNDONE}</button>
-      <span class="qa-item-num">${i + 1}.</span>
-      <span class="qa-item-text">${_escHtml(it.text)}</span>
-    </div>`).join('');
+  const expanded = _qaExpanded(block);
+  const checklistHtml = items.map((it, i) => {
+    const isExpanded = expanded.has(i);
+    const hasComment = !!it.comment.trim();
+    return `
+    <div class="qa-item-wrap">
+      <div class="qa-item${it.done ? ' qa-item--done' : ''}" data-idx="${i}" tabindex="0">
+        <button type="button" class="qa-check" title="완료 토글">${it.done ? QA_CHECK_SVG_DONE : QA_CHECK_SVG_UNDONE}</button>
+        <span class="qa-item-num">${i + 1}.</span>
+        <span class="qa-item-text">${_escHtml(it.text)}</span>
+        ${hasComment ? QA_COMMENT_BADGE_SVG : ''}
+      </div>
+      ${isExpanded ? `
+      <div class="qa-item-comment">
+        <textarea class="qa-item-comment-input" data-idx="${i}" placeholder="이 항목에 대한 코멘트...">${_escHtml(it.comment)}</textarea>
+      </div>` : ''}
+    </div>`;
+  }).join('');
 
   const bodyHtml = collapsed ? '' : `
     <div class="qa-body">
@@ -107,7 +137,7 @@ function renderQABlock(block) {
 
   block.innerHTML = `
     <div class="qa-badge">
-      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V3.5a2 2 0 0 1 4 0v2"/></svg>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V3.5a2 2 0 0 1 4 0v2"/></svg>
       <span>ADMIN QA</span>
     </div>
     <div class="qa-header">
@@ -145,9 +175,12 @@ function updateQABlock(blockId, partial = {}) {
     const normItems = [];
     for (const it of partial.items) {
       if (!it || typeof it !== 'object' || typeof it.text !== 'string' || typeof it.done !== 'boolean') {
-        return { ok: false, code: 'INVALID', message: 'each item must be {text:string, done:boolean}' };
+        return { ok: false, code: 'INVALID', message: 'each item must be {text:string, done:boolean, comment?:string}' };
       }
-      normItems.push({ text: it.text, done: it.done });
+      if (it.comment !== undefined && typeof it.comment !== 'string') {
+        return { ok: false, code: 'INVALID', message: 'item.comment must be a string' };
+      }
+      normItems.push({ text: it.text, done: it.done, comment: typeof it.comment === 'string' ? it.comment : '' });
     }
     next.items = JSON.stringify(normItems);
     applied.items = normItems;
@@ -214,12 +247,17 @@ function bindQABlockEvents(block) {
         items[idx].done = !items[idx].done;
         block.dataset.items = JSON.stringify(items);
         renderQABlock(block);
+        // ★체크박스 클릭 = 토글 + «항목 행»에 포커스(버튼 자신이 아니라) — Enter 로 코멘트를
+        //   열 수 있게. 재렌더가 DOM 을 통째로 갈아치우므로 idx 로 새 노드를 다시 찾는다.
+        block.querySelector(`.qa-item[data-idx="${idx}"]`)?.focus();
         try { window.buildLayerPanel?.(); } catch (_) {}
         window.scheduleAutoSave?.();
       }
       return;
     }
-    if (e.target.closest('.qa-feedback-input')) return;   // 입력 중 — 선택/토글 개입 금지
+    if (e.target.closest('.qa-feedback-input, .qa-item-comment-input')) return;   // 입력 중 — 선택/토글 개입 금지
+    // 항목 «텍스트/행» 클릭 — 완료 토글은 없고, tabindex 덕에 브라우저가 알아서 포커스만 준다.
+    if (e.target.closest('.qa-item')) return;
     const header = e.target.closest('.qa-header');
     if (header) {
       e.stopPropagation();
@@ -232,15 +270,52 @@ function bindQABlockEvents(block) {
     }
   });
 
+  // ★항목별 코멘트 아코디언 — Enter 로 토글(현빈 2026-09-16b 지시).
+  //   ⛔e.target 이 «정확히» .qa-item 자신일 때만 반응한다 — closest 로 느슨하게 잡으면
+  //     코멘트 textarea 안에서 줄바꿈하려고 누른 Enter 까지 아코디언을 접어버린다.
+  block.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    if (!e.target.classList || !e.target.classList.contains('qa-item')) return;
+    e.preventDefault();
+    const idx = Number(e.target.dataset.idx);
+    if (!Number.isFinite(idx)) return;
+    const expanded = _qaExpanded(block);
+    const willExpand = !expanded.has(idx);
+    if (willExpand) expanded.add(idx); else expanded.delete(idx);
+    renderQABlock(block);
+    if (willExpand) {
+      // 펼치자마자 바로 타이핑할 수 있게 코멘트 입력창에 포커스.
+      block.querySelector(`.qa-item-comment-input[data-idx="${idx}"]`)?.focus();
+    } else {
+      block.querySelector(`.qa-item[data-idx="${idx}"]`)?.focus();
+    }
+  });
+
   // blur 는 버블링하지 않는다 — focusout(버블) 으로 위임해서 재렌더에도 살아남게 한다.
   block.addEventListener('focusout', e => {
-    const ta = e.target.closest?.('.qa-feedback-input');
-    if (!ta) return;
-    if (ta.value === (block.dataset.feedback || '')) return;   // 변화 없으면 커밋하지 않는다
-    window.pushHistory?.();
-    block.dataset.feedback = ta.value;
-    renderQABlock(block);
-    window.scheduleAutoSave?.();
+    const feedbackTa = e.target.closest?.('.qa-feedback-input');
+    if (feedbackTa) {
+      if (feedbackTa.value === (block.dataset.feedback || '')) return;   // 변화 없으면 커밋하지 않는다
+      window.pushHistory?.();
+      block.dataset.feedback = feedbackTa.value;
+      renderQABlock(block);
+      window.scheduleAutoSave?.();
+      return;
+    }
+    const commentTa = e.target.closest?.('.qa-item-comment-input');
+    if (commentTa) {
+      const idx = Number(commentTa.dataset.idx);
+      const items = _qaItems(block);
+      if (!Number.isFinite(idx) || !items[idx]) return;
+      if (commentTa.value === items[idx].comment) return;   // 변화 없으면 커밋하지 않는다
+      window.pushHistory?.();
+      items[idx].comment = commentTa.value;
+      block.dataset.items = JSON.stringify(items);
+      renderQABlock(block);
+      try { window.buildLayerPanel?.(); } catch (_) {}
+      window.scheduleAutoSave?.();
+      return;
+    }
   });
 }
 

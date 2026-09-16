@@ -3709,7 +3709,8 @@ function _registerDefaultTools() {
     },
     {
       description: '⚠️admin/QA 전용. 기존 QA 체크리스트 블록(qa_xxx)을 갱신한다 — partial update. '
-        + 'items: 체크상태 포함 전체 배열([{text,done}, ...])로 교체(부분 아님). feedback: 피드백 문자열. '
+        + 'items: 체크상태·항목별 코멘트 포함 전체 배열([{text,done,comment?}, ...])로 교체(부분 아님, '
+        + 'comment 생략 시 빈 문자열). feedback: 블록 전체 피드백 문자열(항목별 comment 와는 별개). '
         + 'collapsed: 접힘 여부(boolean). 여러 필드를 한 번에 줄 수 있다. '
         + 'Returns {ok, blockId, items, feedback, collapsed} — 쓴 뒤 화면에서 다시 읽어 돌려준다.',
       inputSchema: {
@@ -3717,7 +3718,9 @@ function _registerDefaultTools() {
         properties: {
           blockId: { type: 'string', description: 'qa_xxx' },
           items: { type: 'array', items: { type: 'object',
-            properties: { text: { type: 'string' }, done: { type: 'boolean' } }, required: ['text', 'done'] } },
+            properties: { text: { type: 'string' }, done: { type: 'boolean' },
+              comment: { type: 'string', description: '이 항목 전용 코멘트(캔버스에서 Enter로 펼치는 아코디언). 생략 시 빈 문자열.' } },
+            required: ['text', 'done'] } },
           feedback: { type: 'string' },
           collapsed: { type: 'boolean' },
           expectedProject: { type: 'string' },

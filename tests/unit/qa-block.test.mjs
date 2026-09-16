@@ -25,12 +25,12 @@ test('A-1 makeQABlock: 기본 dataset이 전부 채워진다 (ticket/title/items
   assert.equal(block.dataset.title, '눈누 기능추가 확인');
   assert.equal(block.dataset.feedback, '');
   assert.equal(block.dataset.collapsed, 'false');
-  assert.deepEqual(JSON.parse(block.dataset.items), [{ text: '1번', done: false }, { text: '2번', done: false }]);
+  assert.deepEqual(JSON.parse(block.dataset.items), [{ text: '1번', done: false, comment: '' }, { text: '2번', done: false, comment: '' }]);
 });
 
 test('A-2 ★makeQABlock: items에 done:true를 줘도 «항상» false로 시작한다 (admin 생성 직후는 미완료)', () => {
   const { block } = M.makeQABlock({ items: [{ text: 'x', done: true }] });
-  assert.deepEqual(JSON.parse(block.dataset.items), [{ text: 'x', done: false }]);
+  assert.deepEqual(JSON.parse(block.dataset.items), [{ text: 'x', done: false, comment: '' }]);
 });
 
 test('A-3 makeQABlock: items 생략/비배열이면 빈 체크리스트로 만들어진다(죽지 않는다)', () => {
@@ -103,6 +103,53 @@ test('B-5 renderQABlock: 항목 텍스트의 HTML이 이스케이프된다 (XSS/
   assert.match(b.innerHTML, /&lt;img/);
 });
 
+/* ══ B-9 — 항목별 코멘트(현빈 2026-09-16b 지시): 배지·아코디언·이스케이프 ══════════════ */
+
+test('B-9 renderQABlock: 코멘트가 있으면 말풍선 배지가 뜬다 — 없으면 안 뜬다', () => {
+  const withC = fakeBlock({ items: JSON.stringify([{ text: 'a', done: false, comment: '이상함' }]) });
+  M.renderQABlock(withC);
+  assert.match(withC.innerHTML, /qa-comment-badge/, '코멘트가 있는데 배지가 없다');
+
+  const noC = fakeBlock({ items: JSON.stringify([{ text: 'a', done: false, comment: '' }]) });
+  M.renderQABlock(noC);
+  assert.doesNotMatch(noC.innerHTML, /qa-comment-badge/, '코멘트가 없는데 배지가 떴다');
+
+  const blankC = fakeBlock({ items: JSON.stringify([{ text: 'a', done: false, comment: '   ' }]) });
+  M.renderQABlock(blankC);
+  assert.doesNotMatch(blankC.innerHTML, /qa-comment-badge/, '공백뿐인 코멘트인데 배지가 떴다');
+});
+
+test('B-9b renderQABlock: 옛 저장본(comment 필드 없음)도 죽지 않고 comment=\'\' 로 승격한다', () => {
+  const b = fakeBlock({ items: JSON.stringify([{ text: 'a', done: true }]) });   // comment 필드 자체가 없다
+  assert.doesNotThrow(() => M.renderQABlock(b));
+  assert.doesNotMatch(b.innerHTML, /qa-comment-badge/);
+});
+
+test('B-9c renderQABlock: block._qaExpanded 에 담긴 인덱스만 아코디언이 펼쳐진다', () => {
+  const b = fakeBlock({ items: JSON.stringify([{ text: 'a', done: false, comment: '' }, { text: 'b', done: false, comment: '' }]) });
+  M.renderQABlock(b);
+  assert.doesNotMatch(b.innerHTML, /qa-item-comment-input/, '아무 것도 안 펼쳤는데 코멘트 입력창이 있다');
+
+  b._qaExpanded = new Set([1]);
+  M.renderQABlock(b);
+  const inputs = [...b.innerHTML.matchAll(/qa-item-comment-input" data-idx="(\d+)"/g)].map(m => m[1]);
+  assert.deepEqual(inputs, ['1'], '펼친 인덱스만 입력창이 나와야 한다');
+});
+
+test('B-9d renderQABlock: 항목 행(.qa-item)에 tabindex="0" 과 data-idx 가 있다', () => {
+  const b = fakeBlock({ items: JSON.stringify([{ text: 'a', done: false, comment: '' }]) });
+  M.renderQABlock(b);
+  assert.match(b.innerHTML, /class="qa-item" data-idx="0" tabindex="0"/);
+});
+
+test('B-9e renderQABlock: 코멘트 텍스트도 이스케이프된다', () => {
+  const b = fakeBlock({ items: JSON.stringify([{ text: 'a', done: false, comment: '<script>x</script>' }]) });
+  b._qaExpanded = new Set([0]);
+  M.renderQABlock(b);
+  assert.doesNotMatch(b.innerHTML, /<script>x/);
+  assert.match(b.innerHTML, /&lt;script&gt;x/);
+});
+
 test('B-6 renderQABlock: 깨진 items JSON도 빈 체크리스트로 폴백한다(화면이 죽지 않는다)', () => {
   const b = fakeBlock({ items: '{not valid json' });
   assert.doesNotThrow(() => M.renderQABlock(b));
@@ -148,10 +195,28 @@ test('D-1 ★items 정상 커밋 — done 토글이 dataset과 렌더 양쪽에 
 
   const r = M2.updateQABlock(block.id, { items: [{ text: 'a', done: true }] });
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.deepEqual(JSON.parse(block.dataset.items), [{ text: 'a', done: true }]);
+  assert.deepEqual(JSON.parse(block.dataset.items), [{ text: 'a', done: true, comment: '' }]);
   assert.match(block.innerHTML, /qa-item--done/);
   // ★vm 컨텍스트의 객체는 이 realm의 Object와 다른 prototype을 가진다 — JSON 왕복으로 정규화 후 비교.
-  assert.deepEqual(JSON.parse(JSON.stringify(r.applied.items)), [{ text: 'a', done: true }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(r.applied.items)), [{ text: 'a', done: true, comment: '' }]);
+});
+
+test('D-1b ★item.comment 정상 커밋 — 지정하면 그대로, 생략하면 빈 문자열로 정규화된다', () => {
+  const block = fakeBlock({ items: JSON.stringify([{ text: 'a', done: false, comment: '' }]) });
+  block.classList.add('qa-block');
+  const M2 = loadQAModule({ byId: { [block.id]: block } });
+
+  const r = M2.updateQABlock(block.id, { items: [{ text: 'a', done: false, comment: '버튼이 안 눌려요' }] });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(JSON.parse(block.dataset.items), [{ text: 'a', done: false, comment: '버튼이 안 눌려요' }]);
+  assert.match(block.innerHTML, /qa-comment-badge/);
+
+  const r2 = M2.updateQABlock(block.id, { items: [{ text: 'a', done: false }] });   // comment 생략
+  assert.equal(r2.ok, true);
+  assert.deepEqual(JSON.parse(block.dataset.items), [{ text: 'a', done: false, comment: '' }]);
+
+  const r3 = M2.updateQABlock(block.id, { items: [{ text: 'a', done: false, comment: 123 }] });
+  assert.equal(r3.ok, false, 'comment이 문자열이 아닌데 받아들였다');
 });
 
 test('D-2 items 검증: 배열이 아니거나 필드 타입이 틀리면 거부되고 dataset은 그대로다', () => {
