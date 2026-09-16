@@ -34,6 +34,7 @@ function selectBlock(id) {
     else if (cl.contains('grid-block')) window.showGridProperties?.(block);
     else if (cl.contains('infocard-block')) window.showInfoCardProperties?.(block);
     else if (cl.contains('innercard-block')) window.showInnerCardProperties?.(block);
+    else if (cl.contains('qa-block')) window.showQAProperties?.(block);
     else window.showTextProperties?.(block);
   } catch (_) {}
   return true;

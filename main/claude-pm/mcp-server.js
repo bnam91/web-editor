@@ -279,7 +279,11 @@ const _strictArgs = () => String(process.env.GODITOR_MCP_STRICT_ARGS || '') === 
  *     흘려보냄 2 (아래 둘) · 버림 27 · 판정불가 4(렌더러를 안 부르는 도구)
  * ⇒ 이 둘은 «침묵»한다. 대신 하위 층의 `warnUnknown`(ignoredProps/hint)이 «해소한 뒤» 판정한다.
  * ⛔이 목록을 손으로 늘리지 마라 — `mcp-unknown-args.test.js` 가 «다시 재서» 어긋나면 빨강을 낸다. */
-const _ARG_FORWARDERS = new Set(['add_block', 'update_block']);
+const _ARG_FORWARDERS = new Set(['add_block', 'update_block', 'update_qa_block']);
+/* ★update_qa_block 은 2026-09-16 추가 — { blockId, expectedProject, ...partial } 로 나머지 전부를
+ * 렌더러에 «그대로» 넘긴다(grid-block류 update_* 와 같은 얼개). mcp-unknown-args.test.js T9 이
+ * 실측으로 이걸 잡아 여기 등록을 요구했다 — 등록 안 하면 실제로는 렌더러까지 닿는 인자를
+ * 「무시됐다」고 거짓 경고하게 된다. */
 
 /** 이 도구 스키마가 «선언한» 인자 이름들. 스키마가 없으면 판정하지 않는다(빈 배열이 아니라 null). */
 function _declaredArgKeys(name) {
@@ -3650,6 +3654,72 @@ function _registerDefaultTools() {
           cols: { type: 'array' }, patchCol: { type: 'object' },
           rows: { type: 'array' }, cells: { type: 'array' }, patchCell: { type: 'object' },
           gap: { type: 'number' }, valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+          expectedProject: { type: 'string' },
+        },
+        required: ['blockId'],
+        additionalProperties: false,
+      },
+    }
+  );
+
+  /* ─── qa-block ★2026-09-16 신설 — admin/QA 전용 체크리스트 ───────────────
+     ⚠️이 도구가 이 블록의 유일한 생성/조작 경로다 — UI 블록 추가 메뉴에는 절대 노출하지 않는다.
+     지디(팀장) QA 워크플로우 전용: 티켓별 체크리스트를 캔버스에 심어 현빈이 직접 체크/피드백. */
+  registerTool(
+    'add_qa_block',
+    async (args = {}) => {
+      if (!_rendererInvoker?.addQABlock) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.addQABlock({
+        sectionId: args.sectionId, ticket: args.ticket, title: args.title, items: args.items,
+      });
+    },
+    {
+      description: '⚠️admin/QA 전용 — 실제 고객 프로젝트에는 절대 추가하지 말 것. 지디(웹에디터 팀장) '
+        + 'QA 워크플로우 전용 블록(qa_xxx)이다. 캔버스에 접이식 체크리스트 카드를 만든다 — 티켓ID·제목·'
+        + '체크리스트 항목(문자열 배열, done은 항상 false로 시작)을 받는다. 사람(현빈)이 캔버스에서 직접 '
+        + '체크박스를 클릭하고 피드백을 입력한다. PNG/Figma/HTML 어느 내보내기에도 나가지 않는다. '
+        + 'Returns {ok, blockId(qa_), sectionId, itemCount}.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx to insert into (else uses selected section)' },
+          ticket: { type: 'string', description: '티켓 ID, 예: "T-020"' },
+          title: { type: 'string', description: '체크리스트 제목' },
+          items: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+            description: '체크리스트 항목 — [{text:"..."}]. done 은 항상 false 로 시작한다.' },
+          expectedProject: { type: 'string', description: 'proj_xxx — refuse if a different project is open' },
+        },
+        additionalProperties: false,
+      },
+    }
+  );
+
+  registerTool(
+    'update_qa_block',
+    async (args = {}) => {
+      if (!_rendererInvoker?.updateQABlock) throw new Error('renderer bridge not ready');
+      const { blockId, expectedProject, ...partial } = args || {};
+      if (!blockId || typeof blockId !== 'string') {
+        return { ok: false, code: 'INVALID', message: 'blockId (qa_xxx) is required' };
+      }
+      if (!Object.keys(partial).length) {
+        return { ok: false, code: 'NOTHING_TO_DO', message: 'no fields to update — pass items / feedback / collapsed' };
+      }
+      return await _rendererInvoker.updateQABlock({ blockId, partial });
+    },
+    {
+      description: '⚠️admin/QA 전용. 기존 QA 체크리스트 블록(qa_xxx)을 갱신한다 — partial update. '
+        + 'items: 체크상태 포함 전체 배열([{text,done}, ...])로 교체(부분 아님). feedback: 피드백 문자열. '
+        + 'collapsed: 접힘 여부(boolean). 여러 필드를 한 번에 줄 수 있다. '
+        + 'Returns {ok, blockId, items, feedback, collapsed} — 쓴 뒤 화면에서 다시 읽어 돌려준다.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId: { type: 'string', description: 'qa_xxx' },
+          items: { type: 'array', items: { type: 'object',
+            properties: { text: { type: 'string' }, done: { type: 'boolean' } }, required: ['text', 'done'] } },
+          feedback: { type: 'string' },
+          collapsed: { type: 'boolean' },
           expectedProject: { type: 'string' },
         },
         required: ['blockId'],

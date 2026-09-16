@@ -272,7 +272,8 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
               || child.classList.contains('infocard-block')
               || child.classList.contains('innercard-block')
               || child.classList.contains('icon-text-block')
-              || child.classList.contains('shape-block')) {
+              || child.classList.contains('shape-block')
+              || child.classList.contains('qa-block')) {
         // section-inner 직접 자식 블록 (frame-block으로 감싸지지 않은 케이스) — 안전망
         children.appendChild(makeLayerBlockItem(child, child, sec, 1));
       }

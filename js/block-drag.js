@@ -301,6 +301,7 @@ function bindBlock(block) {
   const isDivider     = block.classList.contains('divider-block');
   const isBridge      = block.classList.contains('bridge-block');
   const isGrid         = block.classList.contains('grid-block');
+  const isQA           = block.classList.contains('qa-block');
   const isInfoCard    = block.classList.contains('infocard-block');
   const isInnerCard   = block.classList.contains('innercard-block');
   const isModal       = block.classList.contains('modal-block');
@@ -312,6 +313,7 @@ function bindBlock(block) {
   const isIconify    = block.classList.contains('icon-block');
   const isMockup     = block.classList.contains('mockup-block');
   if (isMockup) window.initMockupCrop?.(block);  // ⌘드래그 오프셋+섹션 밖 크롭 초기화(로드/생성 보편)
+  if (isQA) window.bindQABlockEvents?.(block);   // 체크박스/헤더접기/피드백/ID복사 — admin QA 전용 인터랙션
   const isVector     = block.classList.contains('vector-block');
   const isStep       = block.classList.contains('step-block');
   const isChat       = block.classList.contains('chat-block');
@@ -400,7 +402,7 @@ function bindBlock(block) {
           '.icon-block.selected,' +
           '.gap-block.selected,.icon-circle-block.selected,.table-block.selected,' +
           '.label-group-block.selected,.graph-block.selected,.canvas-block.selected, .banner02-block.selected, .comparison-block.selected,' +
-          '.divider-block.selected, .bridge-block.selected,.grid-block.selected,.infocard-block.selected,.innercard-block.selected,.mockup-block.selected,.vector-block.selected,.step-block.selected'
+          '.divider-block.selected, .bridge-block.selected,.grid-block.selected,.infocard-block.selected,.innercard-block.selected,.mockup-block.selected,.vector-block.selected,.step-block.selected,.qa-block.selected'
         );
         if (hasSelected) {
           multiPeers.push({
@@ -1773,7 +1775,7 @@ function bindBlock(block) {
   }
 
   // grid/infocard: bridge와 동일한 클릭-선택 (dataset 모델 정적 블록)
-  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties']]) {
+  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties']]) {
     if (!flag) continue;
     block.addEventListener('click', e => {
       e.stopPropagation();

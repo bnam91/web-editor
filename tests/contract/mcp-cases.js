@@ -42,6 +42,8 @@ const CASES = {
   edit_asset_tree: { args: {"op":"createFolder"}, sinks: ["assetsMutate"] },
   add_grid_block: { args: {"cols":[{"width":1,"lines":[{"type":"body","text":"A"}]},{"width":1,"lines":[{"type":"body","text":"B"}]}]}, sinks: ["addGridBlock"] },
   update_grid_block: { args: {"blockId":"grd_x","patchCell":{"r":0,"c":0,"lines":[{"type":"body","text":"A"}]}}, sinks: ["updateGridBlock"] },
+  add_qa_block: { args: {"ticket":"T-020","title":"QA","items":[{"text":"1"}]}, sinks: ["addQABlock"] },
+  update_qa_block: { args: {"blockId":"qa_x","feedback":"버튼이 안 눌려요"}, sinks: ["updateQABlock"] },
   add_gap_block: { args: {}, sinks: ["addGapBlock"] },
   add_gradient_block: { args: {}, sinks: ["addGradientBlock"] },
   add_graph_block: { args: {}, sinks: ["addGraphBlock"] },

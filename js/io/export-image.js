@@ -241,6 +241,13 @@ export async function prepareCloneForCapture(sec, w, useNative) {
   // C18: 펜툴 어노테이션(리뷰용 주석)과 진행중 미리보기는 리뷰 표시일 뿐 — export 산출 이미지에 박히면 안 됨.
   // (대조: todo-pin은 #todo-pin-overlay로 섹션 밖이라 애초에 export 클론에 안 들어감)
   clone.querySelectorAll('.annotation-block, .annot-preview').forEach(el => el.remove());
+  // admin QA 체크리스트 블록 — 콘텐츠가 아니라 작업 메타데이터다. 자리도 차지하면 안 되므로
+  // 숨기지 않고 완전히 remove() 한다(annotation-block과 같은 원칙). 감싸는 .row 까지 지워야
+  // 그 블록이 차지하던 세로 공간도 같이 사라진다.
+  clone.querySelectorAll('.qa-block').forEach(el => {
+    const row = el.closest('.row');
+    if (row) row.remove(); else el.remove();
+  });
   // 미입력 placeholder 안내문구는 export 결과에 박히면 안 됨.
   // data-is-placeholder="true"는 실제 글자가 들어가면 즉시 삭제되므로,
   // 클론에 true로 남은 요소는 미입력 placeholder가 확정 → 안내문구 가시성만
