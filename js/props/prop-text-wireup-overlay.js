@@ -260,8 +260,22 @@ function _bindOverlayMoveDrag(posEl) {
       const hover = (!trulyFree && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;
       if (hover && hover !== sec) {
         // 재부모 — 지금까지의 로컬 좌표를 확정해 새 섹션 기준으로 다시 앵커를 잡는다.
+        //
+        // ★2026-09-16n P0(현빈 실측 — "오버레이하고 바로 밑 섹션으로 옮기려니 그 밑에
+        //   섹션으로 좌표가 이동돼. 섹션 밑으로 위치되어서 가려서 잘 안보여") — 옛 섹션
+        //   기준 로컬 좌표(curLeft/curTop)를 «변환 없이» 그대로 새 섹션 기준으로 썼다. 옛
+        //   섹션이 새 섹션보다 훨씬 크면(여기 재현: 910px 섹션 → 283px 섹션) 옛 top값(예:
+        //   909)이 새 섹션 높이를 한참 넘어 — DOM 부모는 올바른 "바로 다음 섹션"이 됐는데
+        //   화면상으로는 그 섹션의 바닥을 한참 지나 «그 다음» 섹션 영역에 그려졌다(재현
+        //   확정: parentId는 바로 다음 섹션인데 cy가 그 다음다음 섹션 범위에 찍힘).
+        //   ⇒ 화면상 «같은 자리»를 유지한 채 새 섹션 기준으로 재앵커해야 한다 — 두 섹션의
+        //   화면 좌상단 차이(screen, zoom 보정)를 옛 로컬 좌표에 더해 새 로컬 좌표로 바꾼다.
         const dxs0 = (ev.clientX - startClientX) / zoom, dys0 = (ev.clientY - startClientY) / zoom;
-        startLeft += dxs0; startTop += dys0;
+        const curLeft = startLeft + dxs0, curTop = startTop + dys0;
+        const oldRect = sec.getBoundingClientRect();
+        const newRect = hover.getBoundingClientRect();
+        startLeft = curLeft + (oldRect.left - newRect.left) / zoom;
+        startTop  = curTop  + (oldRect.top  - newRect.top ) / zoom;
         hover.appendChild(posEl);
         sec = hover;
         startClientX = ev.clientX; startClientY = ev.clientY;
