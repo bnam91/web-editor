@@ -152,9 +152,21 @@ function _bindOverlayMoveDrag(posEl) {
     let sec = posEl.closest('.section-block');
     if (!sec) return;
     const zoom = _zoom();
-    const r = posEl.getBoundingClientRect();
-    const grabX = (e.clientX - r.left) / zoom;
-    const grabY = (e.clientY - r.top) / zoom;
+    /* ★2026-09-16h P0(현빈 실측 — "90도 회전 후 좌우 이동이 안 된다") — 회전된 오버레이는
+       getBoundingClientRect()가 회전 «후» 화면상 축정렬 bounding box를 돌려준다(T-026과
+       같은 병 — 90°에서 폭·높이가 통째로 뒤바뀐다). 그 rect로 잡은 grabX/grabY가 실제
+       style.left/top 기준과 어긋나 90°에서는 가로로만 끌어도 top이 요동쳤다(실측: 가로
+       100px만 끌었는데 top이 -100 바뀜).
+       ⇒ getBoundingClientRect를 아예 안 쓴다. style.left/top은 «회전 전 프레임»의 위치이고
+       transform:rotate()는 그 프레임을 자기 중심으로 돌리기만 할 뿐 위치는 안 옮기므로,
+       left/top을 화면 스크린 델타만큼 그대로 더하면 회전각과 «무관하게» 박스 전체가
+       스크린에서 정확히 그만큼 움직인다(회전은 그 델타에 영향을 안 준다 — 처음에 회전
+       행렬로 델타를 보정하려 했던 건 잘못된 접근이었다, 실측으로 되짚어 확인).
+       마우스다운 시점의 로컬 left/top과 스크린좌표를 저장해두고 매 프레임 순수 델타만
+       더한다 — 회전 0°에서는 기존 산식과 완전히 같다(회귀 없음). */
+    let startClientX = e.clientX, startClientY = e.clientY;
+    let startLeft = parseFloat(posEl.style.left) || 0;
+    let startTop = parseFloat(posEl.style.top) || 0;
     let moved = false;
 
     const onMove = ev => {
@@ -166,10 +178,16 @@ function _bindOverlayMoveDrag(posEl) {
       // ⌘ 드래그 = 자유 이동(섹션 경계 clamp 없이) — zoom·스티커와 같은 어휘.
       const free = ev.metaKey;
       const hover = (!free && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;
-      if (hover && hover !== sec) { hover.appendChild(posEl); sec = hover; }
-      const sr = sec.getBoundingClientRect();
-      const rawX = (ev.clientX - sr.left) / zoom - grabX;
-      const rawY = (ev.clientY - sr.top) / zoom - grabY;
+      if (hover && hover !== sec) {
+        // 재부모 — 지금까지의 로컬 좌표를 확정해 새 섹션 기준으로 다시 앵커를 잡는다.
+        const dxs0 = (ev.clientX - startClientX) / zoom, dys0 = (ev.clientY - startClientY) / zoom;
+        startLeft += dxs0; startTop += dys0;
+        hover.appendChild(posEl);
+        sec = hover;
+        startClientX = ev.clientX; startClientY = ev.clientY;
+      }
+      const rawX = startLeft + (ev.clientX - startClientX) / zoom;
+      const rawY = startTop  + (ev.clientY - startClientY) / zoom;
       const [cx, cy] = free
         ? [rawX, rawY]
         : (window._clampToSection?.(rawX, rawY, sec, posEl.offsetWidth, posEl.offsetHeight) || [rawX, rawY]);
