@@ -178,6 +178,16 @@ test('B-10c renderQABlock: verdict=fail 면 FAIL 버튼만 active, 블록에 qa-
   assert.ok(b.classList.contains('qa-verdict-fail'));
 });
 
+test('B-10f renderQABlock: verdict=revise 면 REVISE 버튼만 active, 블록에 qa-verdict-revise 클래스', () => {
+  const b = fakeBlock({ items: '[]', verdict: 'revise' });
+  M.renderQABlock(b);
+  assert.match(b.innerHTML, /qa-verdict-btn--revise qa-verdict-btn--active/);
+  assert.doesNotMatch(b.innerHTML, /qa-verdict-btn--pass qa-verdict-btn--active/);
+  assert.doesNotMatch(b.innerHTML, /qa-verdict-btn--fail qa-verdict-btn--active/);
+  assert.ok(b.classList.contains('qa-verdict-revise'));
+  assert.equal(b.classList.contains('qa-verdict-fail'), false);
+});
+
 test('B-10d renderQABlock: 옛 저장본(verdict 필드 없음)·모르는 값은 미정(none)으로 폴백한다', () => {
   const noField = fakeBlock({ items: '[]' });   // verdict 자체가 없다
   assert.doesNotThrow(() => M.renderQABlock(noField));
@@ -322,7 +332,12 @@ test('D-4b verdict 정상 커밋 + 값 검증 (none/pass/fail만 허용, 렌더�
   assert.equal(r3.ok, true);
   assert.equal(block.dataset.verdict, 'none');
 
-  assert.equal(M2.updateQABlock(block.id, { verdict: 'maybe' }).ok, false, 'none/pass/fail 이외 값을 받아들였다');
+  const r4 = M2.updateQABlock(block.id, { verdict: 'revise' });
+  assert.equal(r4.ok, true, JSON.stringify(r4));
+  assert.equal(block.dataset.verdict, 'revise');
+  assert.match(block.innerHTML, /qa-verdict-btn--revise qa-verdict-btn--active/);
+
+  assert.equal(M2.updateQABlock(block.id, { verdict: 'maybe' }).ok, false, 'none/pass/fail/revise 이외 값을 받아들였다');
   assert.equal(M2.updateQABlock(block.id, { verdict: true }).ok, false, 'boolean을 받아들였다');
 });
 

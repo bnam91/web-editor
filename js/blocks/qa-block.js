@@ -25,8 +25,11 @@ const QA_COMMENT_BADGE_SVG =
 /* ★2026-09-16d 현빈 지시 — 체크리스트 완료여부와는 별개로, "내가 이 블록을 실제로 검토해서
    pass/fail 판정했는지"를 표시. qa-status(대기중/피드백있음/통과)는 항목 체크 진행률의
    자동계산값이고, verdict 는 현빈 본인이 명시적으로 누르는 최종 판정 — 서로 다른 축이다.
-   ⇒ 완전히 별도 필드(dataset.verdict)로 둔다. 기본값 'none'(미정). */
-const QA_VERDICT_VALUES = ['none', 'pass', 'fail'];
+   ⇒ 완전히 별도 필드(dataset.verdict)로 둔다. 기본값 'none'(미정).
+   ★2026-09-16e 추가 — «원래 스펙대로 안 됨»(fail)과 «스펙대로 됐지만 개선하고 싶다/방향을
+   바꾸고 싶다»는 다른 얘기라 REVISE 를 별도 판정으로 뒀다(현빈 지시: 처리는 fail 과 같은
+   흐름 — 같은 티켓에서 계속 이어간다. PASS 로 새로 «닫히기» 전까지 판정만 다를 뿐). */
+const QA_VERDICT_VALUES = ['none', 'pass', 'fail', 'revise'];
 
 function _escHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -151,6 +154,7 @@ function renderQABlock(block) {
     </div>
     <div class="qa-verdict" title="현빈 검수 판정">
       <button type="button" class="qa-verdict-btn qa-verdict-btn--pass${verdict === 'pass' ? ' qa-verdict-btn--active' : ''}" data-verdict="pass">PASS</button>
+      <button type="button" class="qa-verdict-btn qa-verdict-btn--revise${verdict === 'revise' ? ' qa-verdict-btn--active' : ''}" data-verdict="revise">REVISE</button>
       <button type="button" class="qa-verdict-btn qa-verdict-btn--fail${verdict === 'fail' ? ' qa-verdict-btn--active' : ''}" data-verdict="fail">FAIL</button>
     </div>
     <div class="qa-header">
@@ -164,6 +168,7 @@ function renderQABlock(block) {
   block.classList.toggle('qa-collapsed', collapsed);
   block.classList.toggle('qa-verdict-pass', verdict === 'pass');
   block.classList.toggle('qa-verdict-fail', verdict === 'fail');
+  block.classList.toggle('qa-verdict-revise', verdict === 'revise');
 }
 
 /** updateStepBlock/updateGridBlock 미러 — validate-then-commit. */
