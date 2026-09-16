@@ -226,12 +226,32 @@ registerGradientTarget({
 // display/round-trip (byte-identical to prop-shape.js applyGradient()). set() replays the
 // same write path prop-shape.js uses (window._applyShapeGradient + dataset + autosave/history)
 // so on-canvas drags stay indistinguishable from popup edits.
+//
+// ★rect(): unlike banner02/comparison (never rotated), shape-block carries its own CSS
+// transform:rotate(deg) (prop-shape.js _updateFrameForRotation). getBoundingClientRect() on a
+// rotated element returns the axis-aligned bounding box, which is INFLATED vs the shape's true
+// local size for any non-90°-multiple angle (×√2 at 45°) — using that directly as the overlay's
+// box size makes the handle line render oversized/detached from the visible shape. Position
+// (left/top) still comes from getBoundingClientRect() since blockEl's own rect is computed the
+// same (equally inflated) way in gradient-line-overlay.js's _computeBox, so the (cr-br) offset
+// still cancels out; only width/height must come from the untransformed layout box.
 registerGradientTarget({
   match: (el) => el.classList.contains('shape-block'),
   make: (block) => {
     const svg = () => block.querySelector('svg');
     return {
-      rect: () => (svg() || block).getBoundingClientRect(),
+      rect: () => {
+        const el = svg() || block;
+        const r = el.getBoundingClientRect();
+        // ★block.offsetWidth/Height, not el's — el may be the <svg>, and SVGElement doesn't
+        // implement offsetWidth/offsetHeight (undefined, not 0) so `el.offsetWidth || r.width`
+        // silently falls through to the inflated rotated rect every time. block is always a
+        // plain HTMLElement (the .shape-block div) and its offsetWidth/Height are unaffected by
+        // the CSS rotate() transform regardless of which element (svg or block) painted `r`.
+        const w = block.offsetWidth || r.width;
+        const h = block.offsetHeight || r.height;
+        return { left: r.left, top: r.top, width: w, height: h, right: r.left + w, bottom: r.top + h };
+      },
       get: () => block.dataset.shapeColor || '',
       set: (css, commit) => {
         const s = svg();
