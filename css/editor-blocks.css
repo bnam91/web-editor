@@ -1212,6 +1212,23 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 #canvas .grid-block .grd-caption:empty::before { content: '캡션을 입력하세요'; }
 #canvas .grid-block .grd-label:empty::before   { content: 'Label'; }
 
+/* ★빈 «칸»(줄이 하나도 없다)도 손에 닿게 한다(T-A, 2026-09-16) — 위 :empty::before 와
+ * «같은 관용구»(#ccc, pointer-events:none), 대상만 줄이 아니라 칸이다.
+ * ⛔#canvas 스코프 필수 — export 클론엔 안내문이 안 새게(위 규칙과 같은 이유). */
+#canvas .grid-block .grd-cell-empty::before {
+  content: '+ 내용 추가 (T/G/K)';
+  color: #ccc;
+  pointer-events: none;
+}
+#canvas .grid-block .grd-cell-empty { min-height: 48px; }
+
+/* ★빈 칸 «선택» 표시 — .grd-line-selected(:1171)와 같은 기법(inset box-shadow, 줌 불변).
+ * ⛔.selected 재활용 금지(editor.js 의 범용 조회가 깨진다, 위 .grd-line-selected 주석과 같은 이유).
+ * ⛔outline 금지 — [M51] 이 같은 자리에서 물렸다(그리드 안쪽 여백 0 이라 바깥 offset 이 블록 밖으로 샌다). */
+#canvas .grid-block .grd-cell-selected {
+  box-shadow: inset 0 0 0 calc(2px * var(--inv-zoom, 1)) var(--sel-color);
+}
+
 /* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
 .row:has(.text-block.selected),
 .frame-block[data-text-frame="true"]:has(.text-block.selected) {

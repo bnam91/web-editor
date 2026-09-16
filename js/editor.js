@@ -2353,9 +2353,24 @@ document.addEventListener('keydown', e => {
     const _isAddGap   = _ms ? _ms(e, 'addGap')   : (e.code === 'KeyG');
     const _isAddText  = _ms ? _ms(e, 'addText')  : (e.code === 'KeyT');
     const _isAddAsset = _ms ? _ms(e, 'addAsset') : (e.code === 'KeyA');
-    if (_isAddGap)   { e.preventDefault(); window.addGapBlock?.(); return; }
-    if (_isAddText)  { e.preventDefault(); window.addTextBlock?.('body'); return; }
+    /* ★그리드 우선처리(T-A, 2026-09-16) — 그리드 셀/줄이 선택돼 있으면 T/G 가 «그 칸에
+       줄을 추가»하고 소진된다(전역 텍스트/갭 블록 추가로 안 흘러간다). isComposing 가드는
+       한글 조합 중 keydown 이 «두 번」 튀는 사고(korean-ime-enter-double-commit 계열)를 막는다. */
+    if (_isAddGap && !e.isComposing) {
+      e.preventDefault();
+      if (window.grdAddLineToSelectedCell?.('gap')) return;
+      window.addGapBlock?.(); return;
+    }
+    if (_isAddText && !e.isComposing) {
+      e.preventDefault();
+      if (window.grdAddLineToSelectedCell?.('body')) return;
+      window.addTextBlock?.('body'); return;
+    }
     if (_isAddAsset) { e.preventDefault(); window.toggleFpDropdown?.('fp-asset-dropdown'); return; }
+    // ★아이콘 새 줄(K) — 그리드 전용, 하드코딩(설정 리매핑 레지스트리는 이번 범위 밖).
+    if (e.code === 'KeyK' && !e.isComposing) {
+      if (window.grdAddIconToSelectedCell?.()) { e.preventDefault(); return; }
+    }
 
     // Enter → 선택된 텍스트 블록 편집 모드 진입
     if (e.code === 'Enter') {
@@ -3000,6 +3015,8 @@ function deselectAll() {
   canvas.querySelectorAll('.bn2-line-selected').forEach(el => el.classList.remove('bn2-line-selected'));
   // 그리드 «줄 선택» 마커도 같은 자리에서 해제 (prop-grid.js 의 _grdSyncLineMark 와 짝)
   canvas.querySelectorAll('.grd-line-selected').forEach(el => el.classList.remove('grd-line-selected'));
+  // 그리드 «빈 셀 선택» 마커도 같은 자리에서 해제 (T-A, _grdSyncLineMark 의 셀 모드 짝)
+  canvas.querySelectorAll('.grd-cell-selected').forEach(el => el.classList.remove('grd-cell-selected'));
   // 스텝 «지금 보는 스텝» 마커도 같은 자리에서 (prop-step.js 의 _stbSyncMark 와 짝 · 옛 이름 포함)
   canvas.querySelectorAll('.stb-line-selected, .stb-step-selected').forEach(el => el.classList.remove('stb-line-selected', 'stb-step-selected'));
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));

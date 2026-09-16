@@ -565,6 +565,10 @@
   transition: background 0.15s, border-color 0.15s;
 }
 .prop-btn-sm:hover { background: var(--ui-bg-card); border-color: var(--ui-divider); }
+/* ★:disabled 가 없으면 「비활성인데 눌릴 것처럼」 보인다 — .prop-btn:disabled(524) 관례 그대로.
+   그리드 줄바(prop-grid.js _grdLineBarHtml)의 [줄 삭제]·[↺ 기본값으로]가 이 상태를 쓴다. */
+.prop-btn-sm:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.prop-btn-sm:disabled:hover { background: var(--ui-bg-app); border-color: var(--ui-border-strong); }
 .prop-btn-danger { background: var(--ui-danger-bg); border-color: var(--ui-danger-border); color: var(--ui-danger); }
 .prop-btn-danger:hover { background: var(--ui-danger-bg); border-color: var(--ui-danger-hover); color: var(--ui-danger-hover); }
 /* deprecated: use .prop-btn-full */
