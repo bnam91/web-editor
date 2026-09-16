@@ -2624,6 +2624,35 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
       return consumed;
     }
 
+    /* ★그리드 셀 안 «줄»이 선택돼 있으면(우측 패널이 그 줄의 줄바/Image/Typography 절을
+       띄운 상태 — grdGetActiveLine) 백스페이스/⌘X 는 «그 줄 하나»만 지운다.
+       T-009 버그B: 캔버스에서 줄을 클릭해도 DOM 선택은 여전히 .grid-block 전체다(줄은
+       모델(WeakMap)에만 「선택」되고 클래스가 안 붙는다) — 아래 CANVAS_SEL_BLOCKS 가
+       .grid-block.selected 를 그대로 주워가 «블록 전체»를 삭제하던 사고. 줄 삭제 로직은
+       prop-grid.js 의 grd-line-del-btn(줄바)·grd-img-remove-btn(이미지 제거)과 같은 경로
+       (patchCell{lines}) — 세 벌로 갈라지지 않게 여기서도 그 함수들을 그대로 부른다. */
+    const gridSel = document.querySelector('.grid-block.selected');
+    const gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
+    if (gridSel && gridAddr && gridAddr.li !== null && gridAddr.li !== undefined) {
+      consumed = true;
+      let lines;
+      try { lines = window.getGridModel?.(gridSel).cells?.[gridAddr.r]?.[gridAddr.c]?.lines; } catch (_) { lines = null; }
+      const li = Number(gridAddr.li);
+      if (!Array.isArray(lines) || !Number.isInteger(li) || li < 0 || li >= lines.length) {
+        return consumed;   // 주소가 이미 무효(그 사이 데이터가 바뀜) — 블록 삭제로 새지 않는다.
+      }
+      if (lines.length <= 1) {
+        // 칸에 남은 마지막 줄 — 줄바 [줄 삭제] 버튼과 같은 보호(disabled). 블록 전체 삭제로도 새지 않는다.
+        window.showToast?.('⚠️ 칸에 남은 마지막 줄은 지울 수 없습니다 — 행/열을 삭제하려면 우측 패널을 쓰세요');
+        return consumed;
+      }
+      const newLines = lines.filter((_, i) => i !== li);
+      const newLi = Math.min(li, newLines.length - 1);
+      window.grdSetActiveLine?.(gridSel, newLines.length ? { r: gridAddr.r, c: gridAddr.c, li: newLi } : null);
+      window.updateGridBlock?.(gridSel.id, { patchCell: { r: gridAddr.r, c: gridAddr.c, lines: newLines } });
+      return consumed;
+    }
+
     // 다중 선택 삭제: col 다중
     if (multiSel.cols.size > 1) {
       consumed = true;
