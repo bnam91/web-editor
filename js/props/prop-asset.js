@@ -452,12 +452,24 @@ export function showAssetProperties(ab) {
     document.getElementById('asset-upload-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
     const bgField = wireColorField('asset-bg', {
       initialAlpha: currentBgAlpha,
-      onApply: (c) => { ab.dataset.bgColor = c; ab.style.backgroundColor = c; },
+      onApply: (c) => {
+        // 이전 그라데이션 제거 후 솔리드 적용 (prop-frame.js ss-bg와 동일 패턴)
+        ab.style.background = '';
+        ab.dataset.bgColor = c;
+        ab.style.backgroundColor = c;
+      },
+      onGradient: (css, commit) => {
+        ab.style.backgroundColor = '';
+        ab.style.background = css;
+        ab.dataset.bgColor = css;
+        if (commit) window.pushHistory?.();
+      },
       onCommit: () => window.pushHistory?.(),
     });
     document.getElementById('asset-bg-clear').addEventListener('click', () => {
       delete ab.dataset.bgColor;
       ab.style.backgroundColor = '';
+      ab.style.background = '';
       bgField?.setHex('#a0a0a0');
       window.pushHistory?.();
     });
