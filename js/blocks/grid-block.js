@@ -68,6 +68,10 @@ const ROW_DEFAULT = { height: 'auto' };
  * ═══════════════════════════════════════════════════════════════════════════════ */
 const MIN_COLS = 1, MAX_COLS = 4;
 const MIN_ROWS = 1, MAX_ROWS = 4;   // 1행 = 옛 duo 파일과 동일(행 축 신설 이전 기본값).
+/* ★셀당 줄 개수 상한 — SSOT(2026-09-16). 이전엔 이 파일(:205)과 prop-grid.js(:367)가 각자
+ *   리터럴 20을 들고 있었다(하드코딩 2건 반복 — MIN_COLS/MAX_COLS 사고와 같은 유형).
+ *   grdAddLine(prop-grid.js)이 이 값을 import 해서 사전 확인한다. */
+const MAX_CELL_LINES = 20;
 
 /* ★행/열 간격 상한 — 「클램프가 여러 곳에 흩어져 하나만 고쳐지는」 사고 반복 방지, 한 곳에 모은다.
  *   updateGridBlock 검증(gap/rowGap/colGap)·prop-grid.js 슬라이더 max 가 전부 이 값을 본다. */
@@ -225,8 +229,8 @@ function _gridRejectLinesLength(lines, allowEmpty) {
   if (lines.length === 0 && !allowEmpty) {
     return { ok: false, code: 'EMPTY_CELL_LINES', message: 'cell lines cannot be emptied — remove the row/column instead' };
   }
-  if (lines.length > 20) {
-    return { ok: false, code: 'TOO_MANY_LINES', message: `patchCell.lines limit reached (20, got ${lines.length})` };
+  if (lines.length > MAX_CELL_LINES) {
+    return { ok: false, code: 'TOO_MANY_LINES', message: `patchCell.lines limit reached (${MAX_CELL_LINES}, got ${lines.length})` };
   }
   return null;
 }
@@ -508,7 +512,10 @@ function renderGridBlock(block) {
       // ★각 라인에도 좌표를 심는다(data-r/data-c/data-line) — 현빈 2026-09-04 지시.
       //   ★2026-09-05 P1.5 부터 «실제로 읽는 소비자»가 있다: js/block-drag.js 의 캔버스 인라인 편집이
       //   blur 때 「어느 셀 몇 번째 줄인가」를 DOM 순서 추측 없이 여기서 바로 읽어 patchCell 로 커밋한다.
-      cellsHtml.push(`<div class="grd-cell" data-r="${r}" data-c="${c}" style="min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}">
+      // ★grd-cell-empty(T-A) — 아직 줄이 하나도 없는 칸. CSS 안내문(+ 내용 추가)과 클릭 판정
+      //   (block-drag.js _gridAddrAt)이 「진짜 빈 칸」을 이 표식으로 가른다.
+      const emptyCls = lines.length === 0 ? ' grd-cell-empty' : '';
+      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}">
         ${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, true)).join('')}
       </div>`);
     }
@@ -850,6 +857,10 @@ window.addGridBlock = addGridBlock;
 window.updateGridBlock = updateGridBlock;
 window.renderGridBlock = renderGridBlock;
 window.migrateGridIdentity = migrateGridIdentity;
+// ★getGridModel(T-A, 2026-09-16) — block-drag.js 의 _gridAddrAt 이 「진짜 빈 셀」인지(lines.length===0)
+//   판정하려고 window 경유로 부른다(block-drag.js 는 이 파일을 import 하지 않는다 — 기존 관례
+//   그대로 window.updateGridBlock/renderGridBlock 과 같은 다리를 쓴다).
+window.getGridModel = getGridModel;
 
 // ★deprecated 별칭 — 2026-09-05 개명 이전 이름. scripts/goditor_runner.js 와 외부 스킬 md·
 //   다른 맥의 CDP 스크립트가 아직 이 이름을 부른다. 제거는 P1(러너·스킬 md 갱신 «후»).
@@ -866,6 +877,6 @@ export {
   _gridLineHtml as gridLineHtml, _GRID_ROLES as GRID_ROLES,
   _GRID_COLOR_RE as GRID_COLOR_RE, _GRID_FONT_RE as GRID_FONT_RE,
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
-  MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS,
+  MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, MAX_CELL_LINES,
   _gridGaps as gridGaps,
 };

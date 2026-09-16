@@ -244,15 +244,16 @@ test('renderGridBlock — grid-template-columns 는 fr, grid-template-rows 는 m
   assert.match(block.innerHTML, /display:grid/);
   assert.match(block.innerHTML, /grid-template-columns:1fr 3fr/);
   assert.match(block.innerHTML, /grid-template-rows:auto minmax\(120px, auto\)/);
-  // 2열×2행 = 4개 셀
-  assert.equal((block.innerHTML.match(/class="grd-cell"/g) || []).length, 4);
+  // 2열×2행 = 4개 셀. ★모든 칸이 lines:[] 라 grd-cell-empty(T-A, 2026-09-16)도 같이 찍힌다.
+  assert.equal((block.innerHTML.match(/class="grd-cell grd-cell-empty"/g) || []).length, 4);
 });
 
 test('renderGridBlock — 옛 1행 파일도 grid 로 렌더되지만 셀 수는 열 수와 같다(회귀: flex 시절과 시각적 동치)', () => {
   const block = { dataset: { cols: JSON.stringify([{ width: 1, lines: [] }, { width: 1, lines: [] }, { width: 2, lines: [] }]) }, style: {} };
   renderGridBlock(block);
   assert.match(block.innerHTML, /grid-template-columns:1fr 1fr 2fr/);
-  assert.equal((block.innerHTML.match(/class="grd-cell"/g) || []).length, 3);
+  // ★모든 칸이 lines:[] 라 grd-cell-empty(T-A, 2026-09-16)도 같이 찍힌다.
+  assert.equal((block.innerHTML.match(/class="grd-cell grd-cell-empty"/g) || []).length, 3);
 });
 
 /* ═══ ⑤-b 행/열 간격(rowGap/colGap) — T-D (2026-09-16) ═══

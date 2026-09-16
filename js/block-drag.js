@@ -108,6 +108,32 @@ function _gridEditable(node) {
   return { block, line, host, r, c, li };
 }
 
+/* ★클릭 «선택» 주소 통합(T-A, 2026-09-16) — 줄(글자/이미지/갭 «전부»)과 «진짜 빈 셀»을
+ *   하나의 술어로 뽑는다. ⛔_gridEditable 은 그대로 둔다(인라인 편집 판정 전용 — 넓히면
+ *   이미지/갭 줄에 contenteditable 이 붙는 부작용이 생긴다).
+ *   ★[data-line] 범용 셀렉터라 이미지·갭 줄도 잡는다(_gridEditable 은 글자 담는 줄만 인정).
+ *   ★줄이 «있는» 셀의 여백을 클릭하면 undefined 를 돌려준다 — 호출부가 그걸 보고 «기존
+ *     선택을 그대로 둔다»(showGridProperties 는 addrArg===undefined 면 grdGetActiveLine 을
+ *     쓴다) — 선택이 안 튄다(D5 와 같은 보호). 「진짜 빈 셀」(lines.length===0)만 셀 모드로. */
+function _gridAddrAt(node, block) {
+  const lineEl = node && node.closest ? node.closest('[data-r][data-c][data-line]') : null;
+  if (lineEl && block.contains(lineEl)) {
+    const r = Number(lineEl.dataset.r), c = Number(lineEl.dataset.c), li = Number(lineEl.dataset.line);
+    if (!Number.isInteger(r) || !Number.isInteger(c) || !Number.isInteger(li)) return undefined;
+    return { r, c, li };
+  }
+  const cellEl = node && node.closest ? node.closest('.grd-cell[data-r][data-c]') : null;
+  if (cellEl && block.contains(cellEl)) {
+    const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
+    if (!Number.isInteger(r) || !Number.isInteger(c)) return undefined;
+    let lines;
+    try { lines = window.getGridModel?.(block)?.cells?.[r]?.[c]?.lines; } catch (_) { lines = null; }
+    if (Array.isArray(lines) && lines.length === 0) return { r, c, li: null };
+    return undefined;   // 줄이 있는 셀의 여백 — 기존 선택 유지
+  }
+  return undefined;
+}
+
 /* 화면 글자 → 데이터 문자열. 렌더러가 white-space:pre-wrap 이라 줄바꿈이 그대로 살아난다
    → textContent(줄바꿈 소실) 가 아니라 innerText 를 쓴다. */
 function _gridReadText(host) {
@@ -1854,8 +1880,10 @@ function bindBlock(block) {
          ★2번째 인자는 «선택적»이다 — 다른 셋(infocard/innercard/modal)은 그냥 무시한다. */
       let _grdAddr;
       if (showFn === 'showGridProperties') {
-        const _h = _gridEditable(e.target);
-        if (_h && _h.block === block) _grdAddr = { r: _h.r, c: _h.c, li: _h.li };
+        /* ★_gridAddrAt — 줄(글자/이미지/갭)과 «진짜 빈 셀」을 모두 잡는다(위 정의).
+           undefined 면 «기존 선택 유지」다(줄이 있는 셀의 여백 클릭 — D5 와 같은 보호). */
+        const _at = _gridAddrAt(e.target, block);
+        if (_at !== undefined) _grdAddr = _at;
       }
       window[showFn]?.(block, _grdAddr);
       /* ★핸들도 «여기서» 띄운다 — 이 루프엔 호출이 아예 없어서 모달을 클릭하면
@@ -1875,8 +1903,38 @@ function bindBlock(block) {
          앞선 줄의 커밋이 innerHTML 을 갈아끼웠으면 첫 클릭의 타깃이 이미 detach 돼
          dblclick 타깃이 .grid-block 까지 올라온다(그러면 closest 가 null → 편집이 안 열린다).
          텍스트 블록의 dblclick 도 같은 이유로 elementFromPoint 로 대상을 고른다(이 파일 isText 분기). */
-      const hit = _gridEditable(document.elementFromPoint(e.clientX, e.clientY))
-               || _gridEditable(e.target);
+      const atPoint = document.elementFromPoint(e.clientX, e.clientY);
+      const node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+      /* ★빈 이미지 슬롯 더블클릭 → 파일 선택(T-B, prop-table.js `_bindTableRowImg` 의
+         더블클릭 관용구 재사용). 우클릭 메뉴·프로퍼티 패널 [이미지 선택…]과 같은
+         FileReader→dataURL→patchCell{lineIndex,imgSrc} 경로다. */
+      const emptyImg = node && node.closest ? node.closest('.grd-img-empty[data-line]') : null;
+      if (emptyImg && block.contains(emptyImg)) {
+        e.stopPropagation();
+        const r = Number(emptyImg.dataset.r), c = Number(emptyImg.dataset.c), li = Number(emptyImg.dataset.line);
+        if (!Number.isInteger(r) || !Number.isInteger(c) || !Number.isInteger(li)) return;
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = () => {
+          const file = input.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = ev => {
+            const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lineIndex: li, imgSrc: ev.target.result } });
+            if (res && res.ok === false) {
+              const msg = res.code === 'TOO_LARGE'
+                ? '⚠️ 이미지가 너무 큽니다 — 더 작은 파일로 다시 시도해 주세요'
+                : '❌ 이미지 추가 실패: ' + res.message;
+              window.showToast?.(msg);
+            }
+          };
+          reader.readAsDataURL(file);
+        };
+        input.click();
+        return;
+      }
+      const hit = _gridEditable(atPoint) || _gridEditable(e.target);
       if (!hit || hit.block !== block) return;   // gap/image/중첩 줄 = 편집 대상 아님
       e.stopPropagation();
       _gridBeginEdit(hit, e);

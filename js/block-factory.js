@@ -21,6 +21,7 @@ import {
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame } from './frame-geometry.js';
 import { getGridModel } from './blocks/grid-block.js';
+import { grdAddLine } from './props/prop-grid.js';
 
 /* ═══════════════════════════════════
    BLOCK FACTORY — make* / add* / addSection
@@ -4781,21 +4782,19 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       const reader = new FileReader();
       reader.onload = ev => {
         const imgSrc = ev.target.result;
-        const patchCell = (addr.li != null)
-          ? { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc }
-          : (() => {
-              const lines = getGridModel(block).cells?.[addr.r]?.[addr.c]?.lines;
-              const nextLines = (Array.isArray(lines) ? lines.slice() : []);
-              nextLines.push({ type: 'image', imgSrc, height: 0 });
-              return { r: addr.r, c: addr.c, lines: nextLines };
-            })();
-        const res = window.updateGridBlock?.(block.id, { patchCell });
-        if (res && res.ok === false) {
-          const msg = res.code === 'TOO_LARGE'
-            ? '⚠️ 이미지가 너무 큽니다 — 더 작은 파일로 다시 시도해 주세요'
-            : '❌ 이미지 추가 실패: ' + res.message;
-          window.showToast?.(msg);
+        // ★기존 이미지 줄 교체는 patchCell{lineIndex} — 새 줄 추가는 grdAddLine 공용 함수로
+        //   통합됐다(2026-09-16, 패널 [+ 줄 추가]·빈 셀 버튼·단축키와 같은 함수).
+        if (addr.li != null) {
+          const res = window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc } });
+          if (res && res.ok === false) {
+            const msg = res.code === 'TOO_LARGE'
+              ? '⚠️ 이미지가 너무 큽니다 — 더 작은 파일로 다시 시도해 주세요'
+              : '❌ 이미지 추가 실패: ' + res.message;
+            window.showToast?.(msg);
+          }
+          return;
         }
+        grdAddLine(block, { r: addr.r, c: addr.c }, null, { type: 'image', imgSrc, height: 0 });
       };
       reader.readAsDataURL(file);
     };
