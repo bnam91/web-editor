@@ -22,6 +22,12 @@ const QA_CHECK_SVG_UNDONE =
 const QA_COMMENT_BADGE_SVG =
   '<svg class="qa-comment-badge" width="13" height="13" viewBox="0 0 12 12" fill="currentColor"><path d="M1 2a1 1 0 011-1h8a1 1 0 011 1v5a1 1 0 01-1 1H6l-2.5 2.2V8H2a1 1 0 01-1-1V2z"/></svg>';
 
+/* ★2026-09-16d 현빈 지시 — 체크리스트 완료여부와는 별개로, "내가 이 블록을 실제로 검토해서
+   pass/fail 판정했는지"를 표시. qa-status(대기중/피드백있음/통과)는 항목 체크 진행률의
+   자동계산값이고, verdict 는 현빈 본인이 명시적으로 누르는 최종 판정 — 서로 다른 축이다.
+   ⇒ 완전히 별도 필드(dataset.verdict)로 둔다. 기본값 'none'(미정). */
+const QA_VERDICT_VALUES = ['none', 'pass', 'fail'];
+
 function _escHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -70,6 +76,7 @@ function makeQABlock(opts = {}) {
   block.dataset.items = JSON.stringify(items);
   block.dataset.feedback = '';
   block.dataset.collapsed = 'false';
+  block.dataset.verdict = 'none';
   renderQABlock(block);
 
   const row = document.createElement('div');
@@ -101,6 +108,7 @@ function renderQABlock(block) {
   const items = _qaItems(block);
   const feedback = block.dataset.feedback || '';
   const collapsed = block.dataset.collapsed === 'true';
+  const verdict = QA_VERDICT_VALUES.includes(block.dataset.verdict) ? block.dataset.verdict : 'none';
   const status = _qaStatus(items, feedback);
   const pct = status.total > 0 ? Math.round((status.done / status.total) * 100) : 0;
 
@@ -141,6 +149,10 @@ function renderQABlock(block) {
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V3.5a2 2 0 0 1 4 0v2"/></svg>
       <span>ADMIN QA</span>
     </div>
+    <div class="qa-verdict" title="현빈 검수 판정">
+      <button type="button" class="qa-verdict-btn qa-verdict-btn--pass${verdict === 'pass' ? ' qa-verdict-btn--active' : ''}" data-verdict="pass">PASS</button>
+      <button type="button" class="qa-verdict-btn qa-verdict-btn--fail${verdict === 'fail' ? ' qa-verdict-btn--active' : ''}" data-verdict="fail">FAIL</button>
+    </div>
     <div class="qa-header">
       <span class="qa-ticket">${_escHtml(ticket)}</span>
       <span class="qa-title">${_escHtml(title)}</span>
@@ -150,6 +162,8 @@ function renderQABlock(block) {
     <div class="qa-progress"><div class="qa-progress-fill${pct >= 100 ? ' qa-progress-fill--done' : ''}" style="width:${pct}%"></div></div>
     ${bodyHtml}`;
   block.classList.toggle('qa-collapsed', collapsed);
+  block.classList.toggle('qa-verdict-pass', verdict === 'pass');
+  block.classList.toggle('qa-verdict-fail', verdict === 'fail');
 }
 
 /** updateStepBlock/updateGridBlock 미러 — validate-then-commit. */
@@ -200,13 +214,20 @@ function updateQABlock(blockId, partial = {}) {
     next.collapsed = String(partial.collapsed);
     applied.collapsed = partial.collapsed;
   }
+  if (partial.verdict !== undefined) {
+    if (!QA_VERDICT_VALUES.includes(partial.verdict)) {
+      return { ok: false, code: 'INVALID', message: `verdict must be one of ${QA_VERDICT_VALUES.join('/')}` };
+    }
+    next.verdict = partial.verdict;
+    applied.verdict = partial.verdict;
+  }
   if (Object.keys(next).length === 0) {
-    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of items/feedback/collapsed' };
+    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of items/feedback/collapsed/verdict' };
   }
 
-  const before = { items: block.dataset.items, feedback: block.dataset.feedback, collapsed: block.dataset.collapsed };
+  const before = { items: block.dataset.items, feedback: block.dataset.feedback, collapsed: block.dataset.collapsed, verdict: block.dataset.verdict };
   const restore = (snap) => {
-    ['items', 'feedback', 'collapsed'].forEach(k => {
+    ['items', 'feedback', 'collapsed', 'verdict'].forEach(k => {
       if (snap[k] === undefined) delete block.dataset[k]; else block.dataset[k] = snap[k];
     });
   };
@@ -231,6 +252,18 @@ function bindQABlockEvents(block) {
   block._qaBound = true;
 
   block.addEventListener('click', e => {
+    const verdictBtn = e.target.closest('.qa-verdict-btn');
+    if (verdictBtn) {
+      e.stopPropagation();
+      const clicked = verdictBtn.dataset.verdict;   // 'pass' | 'fail'
+      const current = QA_VERDICT_VALUES.includes(block.dataset.verdict) ? block.dataset.verdict : 'none';
+      window.pushHistory?.();
+      block.dataset.verdict = current === clicked ? 'none' : clicked;   // 다시 누르면 미정으로 해제
+      renderQABlock(block);
+      try { window.buildLayerPanel?.(); } catch (_) {}
+      window.scheduleAutoSave?.();
+      return;
+    }
     const idChip = e.target.closest('.qa-id-chip');
     if (idChip) {
       e.stopPropagation();

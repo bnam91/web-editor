@@ -21,11 +21,14 @@ function _items(block) {
   } catch (_) { return []; }
 }
 
+const _VERDICT_LABEL = { none: '미정', pass: 'PASS', fail: 'FAIL' };
+
 export function showQAProperties(block) {
   const ticket = block.dataset.ticket || '';
   const title = block.dataset.title || '';
   const feedback = block.dataset.feedback || '';
   const items = _items(block);
+  const verdict = _VERDICT_LABEL[block.dataset.verdict] ? block.dataset.verdict : 'none';
 
   const itemsHtml = items.length ? items.map((it, i) => `
     <div class="prop-row" style="align-items:flex-start; gap:8px; padding:4px 0;">
@@ -57,6 +60,7 @@ export function showQAProperties(block) {
         <span class="prop-label" style="padding-top:2px;">제목</span>
         <span class="prop-value-text" style="white-space:normal; word-break:break-word;">${_esc(title) || '—'}</span>
       </div>
+      <div class="prop-row"><span class="prop-label">판정</span><span class="prop-value-text">${_esc(_VERDICT_LABEL[verdict])}</span></div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">체크리스트 (전문)</div>

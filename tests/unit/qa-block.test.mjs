@@ -25,6 +25,7 @@ test('A-1 makeQABlock: 기본 dataset이 전부 채워진다 (ticket/title/items
   assert.equal(block.dataset.title, '눈누 기능추가 확인');
   assert.equal(block.dataset.feedback, '');
   assert.equal(block.dataset.collapsed, 'false');
+  assert.equal(block.dataset.verdict, 'none', '새 QA 블록의 판정은 항상 미정(none)으로 시작해야 한다');
   assert.deepEqual(JSON.parse(block.dataset.items), [{ text: '1번', done: false, comment: '' }, { text: '2번', done: false, comment: '' }]);
 });
 
@@ -150,6 +151,50 @@ test('B-9e renderQABlock: 코멘트 텍스트도 이스케이프된다', () => {
   assert.match(b.innerHTML, /&lt;script&gt;x/);
 });
 
+/* ══ B-10 — verdict(현빈 pass/fail 판정, 2026-09-16d): qa-status(체크 진행률)와 별개 축 ══ */
+
+test('B-10 renderQABlock: verdict=none 이면 PASS/FAIL 버튼 둘 다 active 클래스가 없다', () => {
+  const b = fakeBlock({ items: '[]', verdict: 'none' });
+  M.renderQABlock(b);
+  assert.doesNotMatch(b.innerHTML, /qa-verdict-btn--active/);
+  assert.equal(b.classList.contains('qa-verdict-pass'), false);
+  assert.equal(b.classList.contains('qa-verdict-fail'), false);
+});
+
+test('B-10b renderQABlock: verdict=pass 면 PASS 버튼만 active, 블록에 qa-verdict-pass 클래스', () => {
+  const b = fakeBlock({ items: '[]', verdict: 'pass' });
+  M.renderQABlock(b);
+  assert.match(b.innerHTML, /qa-verdict-btn--pass qa-verdict-btn--active/);
+  assert.doesNotMatch(b.innerHTML, /qa-verdict-btn--fail qa-verdict-btn--active/);
+  assert.ok(b.classList.contains('qa-verdict-pass'));
+  assert.equal(b.classList.contains('qa-verdict-fail'), false);
+});
+
+test('B-10c renderQABlock: verdict=fail 면 FAIL 버튼만 active, 블록에 qa-verdict-fail 클래스', () => {
+  const b = fakeBlock({ items: '[]', verdict: 'fail' });
+  M.renderQABlock(b);
+  assert.match(b.innerHTML, /qa-verdict-btn--fail qa-verdict-btn--active/);
+  assert.doesNotMatch(b.innerHTML, /qa-verdict-btn--pass qa-verdict-btn--active/);
+  assert.ok(b.classList.contains('qa-verdict-fail'));
+});
+
+test('B-10d renderQABlock: 옛 저장본(verdict 필드 없음)·모르는 값은 미정(none)으로 폴백한다', () => {
+  const noField = fakeBlock({ items: '[]' });   // verdict 자체가 없다
+  assert.doesNotThrow(() => M.renderQABlock(noField));
+  assert.doesNotMatch(noField.innerHTML, /qa-verdict-btn--active/);
+
+  const bogus = fakeBlock({ items: '[]', verdict: 'maybe' });
+  M.renderQABlock(bogus);
+  assert.doesNotMatch(bogus.innerHTML, /qa-verdict-btn--active/);
+});
+
+test('B-10e renderQABlock: verdict 버튼은 접힌 상태(collapsed)에서도 그려진다(qa-body 밖)', () => {
+  const b = fakeBlock({ items: '[]', verdict: 'pass', collapsed: 'true' });
+  M.renderQABlock(b);
+  assert.doesNotMatch(b.innerHTML, /qa-body/);
+  assert.match(b.innerHTML, /qa-verdict-btn--pass qa-verdict-btn--active/);
+});
+
 test('B-6 renderQABlock: 깨진 items JSON도 빈 체크리스트로 폴백한다(화면이 죽지 않는다)', () => {
   const b = fakeBlock({ items: '{not valid json' });
   assert.doesNotThrow(() => M.renderQABlock(b));
@@ -257,6 +302,28 @@ test('D-4 collapsed 정상 커밋 + 타입 검증 (렌더 결과로 실제로 �
   assert.doesNotMatch(block.innerHTML, /qa-body/, 'collapsed:true 인데 본문이 남아있다');
 
   assert.equal(M2.updateQABlock(block.id, { collapsed: 'true' }).ok, false, 'collapsed가 문자열인데 받아들였다(boolean만 허용)');
+});
+
+test('D-4b verdict 정상 커밋 + 값 검증 (none/pass/fail만 허용, 렌더에 반영)', () => {
+  const block = fakeBlock({ items: '[]', verdict: 'none' });
+  block.classList.add('qa-block');
+  const M2 = loadQAModule({ byId: { [block.id]: block } });
+
+  const r = M2.updateQABlock(block.id, { verdict: 'fail' });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(block.dataset.verdict, 'fail');
+  assert.match(block.innerHTML, /qa-verdict-btn--fail qa-verdict-btn--active/);
+
+  const r2 = M2.updateQABlock(block.id, { verdict: 'pass' });
+  assert.equal(r2.ok, true);
+  assert.equal(block.dataset.verdict, 'pass');
+
+  const r3 = M2.updateQABlock(block.id, { verdict: 'none' });
+  assert.equal(r3.ok, true);
+  assert.equal(block.dataset.verdict, 'none');
+
+  assert.equal(M2.updateQABlock(block.id, { verdict: 'maybe' }).ok, false, 'none/pass/fail 이외 값을 받아들였다');
+  assert.equal(M2.updateQABlock(block.id, { verdict: true }).ok, false, 'boolean을 받아들였다');
 });
 
 test('D-5 빈 partial / 미인식 필드(ticket 등)는 거부된다', () => {
