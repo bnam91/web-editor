@@ -62,29 +62,39 @@ function _applyOverlayPos(posEl, x, y) {
    함수라 되돌아올 때도 «같은 곡선»을 그대로 반대로 타 — 들어올 때도 같은 저항이 자동으로
    생긴다(설계 요구사항).
    ⌘(Cmd)는 이 저항을 완전히 끄는 파워유저 단축키로 남긴다(기존 "자유 이동" 자리를 그대로
-   재사용 — 의미만 "저항 없음"으로 좁힘). */
-const OVERLAY_RESIST_ZONE = 40;
+   재사용 — 의미만 "저항 없음"으로 좁힘).
+
+   ★2026-09-16l 현빈 실측 — "섹션 밖으로 옮길 때 약간의 저항도 없니 지금은? 마그네틱같은"
+   → 실제론 있었는데 «줌 40%»에서는 못 느껴질 정도였다: RESIST_ZONE(40)을 로컬(문서) 단위
+   상수로 고정해뒀더니, 화면 픽셀로는 zoom(0.4)을 곱한 16px밖에 안 돼(마우스를 16px만
+   움직여도 저항구간을 다 지나 자유로워짐) — 100% 줌에서 테스트할 땐 40px 그대로라 느껴졌지만
+   낮은 줌에서는 사실상 없는 것과 같았다. ⇒ 저항의 "손맛"은 화면(스크린) 픽셀 기준으로
+   일정해야 하는 촉각적 UI 효과이지 문서 공간 거리가 아니다 — 매 드래그마다 그 시점의
+   zoom으로 나눠(zone = OVERLAY_RESIST_ZONE_SCREEN_PX / zoom) 로컬 단위 존 폭을 다시 구한다
+   (100% 줌에서는 40 그대로라 회귀 없음, 40% 줌에서는 100 로컬px = 여전히 화면 40px). */
+const OVERLAY_RESIST_ZONE_SCREEN_PX = 40;
 const OVERLAY_RESIST_FACTOR = 0.35;
-function _elasticAxis(raw, boundMax) {
+function _elasticAxis(raw, boundMax, zone) {
   if (raw < 0) {
     const over = -raw;
-    return over <= OVERLAY_RESIST_ZONE
+    return over <= zone
       ? -(over * OVERLAY_RESIST_FACTOR)
-      : -(OVERLAY_RESIST_ZONE * OVERLAY_RESIST_FACTOR + (over - OVERLAY_RESIST_ZONE));
+      : -(zone * OVERLAY_RESIST_FACTOR + (over - zone));
   }
   if (raw > boundMax) {
     const over = raw - boundMax;
-    return over <= OVERLAY_RESIST_ZONE
+    return over <= zone
       ? boundMax + over * OVERLAY_RESIST_FACTOR
-      : boundMax + OVERLAY_RESIST_ZONE * OVERLAY_RESIST_FACTOR + (over - OVERLAY_RESIST_ZONE);
+      : boundMax + zone * OVERLAY_RESIST_FACTOR + (over - zone);
   }
   return raw;
 }
-/* window._clampToSection(x,y,sec,blockW,blockH)과 같은 시그니처 — 안만 다르다(하드→탄성). */
-function _elasticClampToSection(x, y, sec, blockW, blockH) {
+/* window._clampToSection(x,y,sec,blockW,blockH)과 같은 시그니처 — 안만 다르다(하드→탄성).
+   zone은 «화면 픽셀 기준 저항폭»을 그 순간 zoom으로 로컬 단위로 환산한 값(호출부에서 계산). */
+function _elasticClampToSection(x, y, sec, blockW, blockH, zone) {
   const secW = sec.clientWidth || 0, secH = sec.clientHeight || 0;
   const maxX = Math.max(0, secW - (blockW || 0)), maxY = Math.max(0, secH - (blockH || 0));
-  return [_elasticAxis(x, maxX), _elasticAxis(y, maxY)];
+  return [_elasticAxis(x, maxX, zone), _elasticAxis(y, maxY, zone)];
 }
 
 // 오토레이아웃 → 오버레이(플로팅) 전환
@@ -252,7 +262,8 @@ function _bindOverlayMoveDrag(posEl) {
         //   좌상단(visLeft/Top)을 구해 탄성 클램프하고, 다시 프레임 원점(left/top)으로 되돌린다.
         const cxCenter = rawX + posEl.offsetWidth / 2, cyCenter = rawY + posEl.offsetHeight / 2;
         const visLeft = cxCenter - clampW / 2, visTop = cyCenter - clampH / 2;
-        const [clVisLeft, clVisTop] = _elasticClampToSection(visLeft, visTop, sec, clampW, clampH);
+        const resistZone = OVERLAY_RESIST_ZONE_SCREEN_PX / zoom;
+        const [clVisLeft, clVisTop] = _elasticClampToSection(visLeft, visTop, sec, clampW, clampH, resistZone);
         cx = clVisLeft + clampW / 2 - posEl.offsetWidth / 2;
         cy = clVisTop + clampH / 2 - posEl.offsetHeight / 2;
       }

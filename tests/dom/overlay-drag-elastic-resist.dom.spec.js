@@ -25,23 +25,24 @@ const ORIGIN = 'http://goditor.dom.test';
 const OVERLAY_JS = fs.readFileSync(path.join(REPO, 'js/props/prop-text-wireup-overlay.js'), 'utf8');
 const FRAME_GEOMETRY_JS = fs.readFileSync(path.join(REPO, 'js/frame-geometry.js'), 'utf8');
 
-const RESIST_ZONE = 40;
+const RESIST_ZONE_SCREEN_PX = 40;
 const RESIST_FACTOR = 0.35;
 /* 원본 _elasticAxis와 같은 식 — 테스트가 기대값을 독립적으로 계산한다(원본을 베껴 항상
-   맞는 게 아니라, 같은 수학을 테스트 쪽에서도 재도출). */
-function expectedElastic(raw, boundMax) {
+   맞는 게 아니라, 같은 수학을 테스트 쪽에서도 재도출). zone은 «로컬 단위로 환산된» 저항폭
+   (zoom 100%면 RESIST_ZONE_SCREEN_PX와 같다 — 기본 인자로 기존 테스트 호환). */
+function expectedElastic(raw, boundMax, zone = RESIST_ZONE_SCREEN_PX) {
   if (raw < 0) {
     const over = -raw;
-    return over <= RESIST_ZONE ? -(over * RESIST_FACTOR) : -(RESIST_ZONE * RESIST_FACTOR + (over - RESIST_ZONE));
+    return over <= zone ? -(over * RESIST_FACTOR) : -(zone * RESIST_FACTOR + (over - zone));
   }
   if (raw > boundMax) {
     const over = raw - boundMax;
-    return over <= RESIST_ZONE ? boundMax + over * RESIST_FACTOR : boundMax + RESIST_ZONE * RESIST_FACTOR + (over - RESIST_ZONE);
+    return over <= zone ? boundMax + over * RESIST_FACTOR : boundMax + zone * RESIST_FACTOR + (over - zone);
   }
   return raw;
 }
 
-async function boot(page, { rotationDeg = 0, zoom = 100, boxW = 300, boxH = 40, secW = 800, secH = 600, hardClampRegression = false } = {}) {
+async function boot(page, { rotationDeg = 0, zoom = 100, boxW = 300, boxH = 40, secW = 800, secH = 600, hardClampRegression = false, zoomObliviousZoneRegression = false } = {}) {
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/__harness.html') {
@@ -91,6 +92,34 @@ async function boot(page, { rotationDeg = 0, zoom = 100, boxW = 300, boxH = 40, 
               document.addEventListener('mouseup', onUp);
             }, true);
             ` : ''}
+            ${zoomObliviousZoneRegression ? `
+            // ★양성대조용 — 2026-09-16l 고치기 «전» 버그를 흉내낸다: RESIST_ZONE을 zoom으로
+            // 안 나누고 로컬 40px 그대로 쓰면(옛 코드), 낮은 줌에서 저항 구간이 화면상 아주
+            // 좁아진다(zoom 40%면 화면 16px밖에 안 됨).
+            const posEl = document.getElementById('tf1');
+            const zoomFrac = ${zoom / 100};
+            posEl.addEventListener('mousedown', e => {
+              const startLeft = parseFloat(posEl.style.left) || 0;
+              const startClientX = e.clientX;
+              const onMove = ev => {
+                const raw = startLeft + (ev.clientX - startClientX) / zoomFrac;
+                const boundMax = ${secW} - ${boxW};
+                const zone = 40; // ⛔zoom으로 안 나눈 옛 고정 로컬 상수 — 이게 회귀 지점
+                let out = raw;
+                if (raw < 0) {
+                  const over = -raw;
+                  out = over <= zone ? -(over * 0.35) : -(zone * 0.35 + (over - zone));
+                } else if (raw > boundMax) {
+                  const over = raw - boundMax;
+                  out = over <= zone ? boundMax + over * 0.35 : boundMax + zone * 0.35 + (over - zone);
+                }
+                posEl.style.left = out + 'px';
+              };
+              const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+              document.addEventListener('mousemove', onMove);
+              document.addEventListener('mouseup', onUp);
+            }, true);
+            ` : ''}
           </script>
           </body></html>`,
       });
@@ -106,7 +135,7 @@ async function boot(page, { rotationDeg = 0, zoom = 100, boxW = 300, boxH = 40, 
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
   await page.goto(`${ORIGIN}/__harness.html`);
-  if (!hardClampRegression) {
+  if (!hardClampRegression && !zoomObliviousZoneRegression) {
     await page.waitForFunction(() => !!window._bindOverlayMoveDrag);
     await page.evaluate(() => window._bindOverlayMoveDrag(document.getElementById('tf1')));
   }
@@ -177,4 +206,31 @@ test('E5 [양성대조] 탄성 대신 하드클램프였다면 E2 기대값(-74)
   await dragBy(page, 'tf1', -100, 0);
   const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
   expect(left, `양성대조가 재현 안 됨 — 하드클램프도 -74 근처로 나갔다면 E2가 이 회귀를 못 잡는다는 뜻`).toBe(0);
+});
+
+/* ── F. 줌 무관 저항폭(2026-09-16l 현빈 실측 — "섹션 밖으로 옮길 때 약간의 저항도 없니
+ * 지금은? 마그네틱같은") ──
+ * 저항 존(RESIST_ZONE)이 «로컬 단위» 상수로 고정돼 있으면, 화면 픽셀로는 zoom을 곱한 값이라
+ * 낮은 줌(예: 40%)에서는 저항구간이 화면상 아주 좁아져(40px → 16px) 실제 마우스 드래그로는
+ * 거의 못 느낀다. 저항은 매 드래그 시점의 zoom으로 나눠 «화면 픽셀 기준»으로 일정해야 한다.
+ */
+test('E6 ★핵심 — 줌 40%에서도 저항폭은 «화면 30px» 기준으로 일정하다(로컬 40px 아님)', async ({ page }) => {
+  await boot(page, { zoom: 40, boxW: 300, boxH: 40, secW: 800, secH: 600 });
+  await page.evaluate(() => { document.getElementById('tf1').style.left = '500px'; }); // 경계(boundMax=500)에 둔다
+  await dragBy(page, 'tf1', 30, 0); // 화면 30px만 오른쪽으로 — 옛(줌 무관) 버그라면 이미 저항구간(화면 16px) 밖
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  // 로컬 delta = 30 / 0.4 = 75. zone(로컬) = 40(화면px) / 0.4 = 100 → over=75<=100, 저항구간 안.
+  const expected = expectedElastic(500 + 30 / 0.4, 500, 40 / 0.4); // ≈ 526.25
+  expect(left, `줌 40%에서 화면 30px 드래그의 기대 저항값(${expected})과 다르다: left=${left}`).toBeCloseTo(expected, 0);
+  // ★옛(줌 무관 로컬 40px 고정) 버그였다면 이미 저항구간을 벗어나 1:1 자유였을 것(≈549, 훨씬 큼).
+  expect(left, `줌 낮을 때 저항이 화면상 너무 일찍 끝났다 — 로컬 고정폭 회귀`).toBeLessThan(540);
+});
+
+test('E7 [양성대조] 저항폭을 zoom으로 안 나눈 옛 산식이면 E6가 실패한다(화면 30px에 이미 자유)', async ({ page }) => {
+  await boot(page, { zoom: 40, boxW: 300, boxH: 40, secW: 800, secH: 600, zoomObliviousZoneRegression: true });
+  await page.evaluate(() => { document.getElementById('tf1').style.left = '500px'; });
+  await dragBy(page, 'tf1', 30, 0);
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  // 옛 산식: zone=40(로컬 고정), over=75>40 → 자유구간: 500+40*0.35+(75-40)=549.
+  expect(left, `양성대조가 재현 안 됨 — 옛(줌 무관) 산식도 E6와 같은 값이 나오면 E6가 이 회귀를 못 잡는다는 뜻`).toBeCloseTo(549, 0);
 });
