@@ -48,6 +48,10 @@ function loadQAModule(opts) {
     genId: (p) => `${p}_${++seq}`,
     insertAfterSelected() {}, showNoSelectionHint() {}, bindBlock() {},
     console,
+    /* ★Set 은 이 realm(테스트 파일)의 것을 «그대로» 준다 — vm 이 새 전역을 쓰면 vm 밖에서
+       만든 `new Set()` 이 vm 안의 `instanceof Set` 을 통과 못 한다(qa-block.js 의
+       _qaExpanded 가 바로 이 검사를 한다). 실제로 이 병으로 B-9c 류 검사가 조용히 죽었었다. */
+    Set,
   };
   vm.createContext(ctx);
   vm.runInContext(
