@@ -1126,10 +1126,13 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
    ★캔버스 콘텐츠 톤(흰 배경·어두운 글자)을 쓴다 — 앱 다크 크롬(--ui-*) 이 아니다.
      이 카드는 캔버스 «위에 얹히는» 콘텐츠라서다(MCP로만 생성, UI 팔레트 미노출).
 ═══════════════════════════════════ */
-/* ★2026-09-16b 현빈 실기 피드백 — 「너무 작게 보여」+「체크박스 글자는 최소 16, 그걸 기준으로
-   나머지도 맞춰라」. 아래 전부 item-text=16px 를 기준(1.3배)으로 다시 잡은 척도다.
-   ⛔절대 px 를 감으로 고치지 않는다 — item-text(16) : title(20) : ticket/status(14) :
-   badge/id-chip(13) : feedback-label(13) 비율을 옛 목업(12.5:13:11:10:10.5)에서 그대로 늘렸다. */
+/* ★2026-09-16c 현빈 재지시 — 「16은 너무 작네, 24로 폰트 올리자」. item-text 기준을
+   16→24(×1.5)로 다시 올리고, «그걸 기준으로 나머지도 맞춰라」는 기존 원칙 그대로 전부
+   같은 1.5배로 재조정했다(폰트뿐 아니라 히트타깃·아이콘·패딩·라운드·여백도 동반 확대 —
+   16px 히트타깃이 줌 축소 시 안 눌리던 실기버그의 재발 방지 원칙과 같은 이유).
+   ⛔절대 px 를 감으로 고치지 않는다 — item-text(24) : title(30) : ticket/status(20) :
+   badge/id-chip(20) : feedback-label(20) 비율을 2026-09-16b 척도(16:20:13:13:13)에서
+   그대로 ×1.5 했다. */
 .qa-block {
   position: relative;
   width: 100%;
@@ -1138,101 +1141,102 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   outline: 2px solid transparent;
   background: #ffffff;
   border: 2px dashed #2d6fe8;
-  border-radius: 13px;
-  padding: 18px 20px 20px;
+  border-radius: 20px;
+  padding: 27px 30px 30px;
   color: #1c1c1e;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
-.qa-block:hover::after { content:''; position:absolute; inset:0; border-radius:13px; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+.qa-block:hover::after { content:''; position:absolute; inset:0; border-radius:20px; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .qa-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 
 .qa-block .qa-badge {
-  position: absolute; top: -14px; left: 14px;
-  display: inline-flex; align-items: center; gap: 5px;
+  position: absolute; top: -21px; left: 21px;
+  display: inline-flex; align-items: center; gap: 8px;
   background: #2d6fe8; color: #ffffff;
-  font-size: 13px; font-weight: 700; letter-spacing: 0.03em;
-  padding: 4px 10px; border-radius: 999px;
+  font-size: 20px; font-weight: 700; letter-spacing: 0.03em;
+  padding: 6px 15px; border-radius: 999px;
   z-index: 1;
 }
 .qa-block .qa-badge svg { flex: 0 0 auto; }
 
 .qa-block .qa-header {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 15px;
   position: relative; z-index: 1;
-  margin-top: 5px;
+  margin-top: 8px;
 }
 .qa-block .qa-ticket {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 14px; font-weight: 700; color: #2d6fe8;
+  font-size: 21px; font-weight: 700; color: #2d6fe8;
   background: rgba(45, 111, 232, 0.1);
-  padding: 3px 9px; border-radius: 6px; flex: 0 0 auto;
+  padding: 5px 14px; border-radius: 9px; flex: 0 0 auto;
 }
-.qa-block .qa-title { font-size: 20px; font-weight: 700; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-block .qa-title { font-size: 30px; font-weight: 700; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qa-block .qa-status {
-  flex: 0 0 auto; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+  flex: 0 0 auto; font-size: 20px; font-weight: 600; padding: 6px 15px; border-radius: 999px;
 }
 .qa-block .qa-status--wait     { background: rgba(45, 111, 232, 0.12); color: #2d6fe8; }
 .qa-block .qa-status--feedback { background: rgba(245, 158, 11, 0.14); color: #b4720a; }
 .qa-block .qa-status--pass     { background: rgba(74, 222, 128, 0.18); color: #1c8a4a; }
-.qa-block .qa-chevron { flex: 0 0 auto; width: 16px; height: 16px; color: #8a8a90; transition: transform 0.15s ease; }
+.qa-block .qa-chevron { flex: 0 0 auto; width: 24px; height: 24px; color: #8a8a90; transition: transform 0.15s ease; }
 .qa-block.qa-collapsed .qa-chevron { transform: rotate(-90deg); }
 
-.qa-block .qa-progress { position: relative; z-index: 1; margin-top: 13px; height: 5px; border-radius: 999px; background: rgba(0,0,0,0.08); overflow: hidden; }
+.qa-block .qa-progress { position: relative; z-index: 1; margin-top: 20px; height: 8px; border-radius: 999px; background: rgba(0,0,0,0.08); overflow: hidden; }
 .qa-block .qa-progress-fill { height: 100%; background: #2d6fe8; border-radius: 999px; transition: width 0.2s ease; }
 .qa-block .qa-progress-fill--done { background: #4ade80; }
 
-.qa-block .qa-body { position: relative; z-index: 1; margin-top: 15px; }
-.qa-block .qa-checklist { display: flex; flex-direction: column; gap: 4px; }
-.qa-block .qa-item-wrap + .qa-item-wrap { margin-top: 4px; }
+.qa-block .qa-body { position: relative; z-index: 1; margin-top: 23px; }
+.qa-block .qa-checklist { display: flex; flex-direction: column; gap: 6px; }
+.qa-block .qa-item-wrap + .qa-item-wrap { margin-top: 6px; }
 /* ★항목 행 — tabindex 로 포커스 가능(코멘트 아코디언용, 현빈 2026-09-16b).
-   체크박스 히트타깃(22px)이 곧 이 실기버그의 수정: 옛 16px 는 줌 축소 시 실사용 클릭이 거의 안 됐다. */
+   체크박스 히트타깃(옛 22→33px)이 곧 그 실기버그의 수정: 옛 16px 는 줌 축소 시 실사용
+   클릭이 거의 안 됐다 — 2026-09-16c 로 폰트와 같이 한 번 더 키웠다. */
 .qa-block .qa-item {
-  display: flex; align-items: flex-start; gap: 9px;
-  border-radius: 6px; padding: 4px 6px; margin: 0 -6px;
+  display: flex; align-items: flex-start; gap: 14px;
+  border-radius: 9px; padding: 6px 9px; margin: 0 -9px;
   outline: none; cursor: pointer;
 }
 .qa-block .qa-item:focus,
 .qa-block .qa-item-wrap:focus-within .qa-item {
   background: rgba(45, 111, 232, 0.08);
-  box-shadow: inset 3px 0 0 #2d6fe8;
+  box-shadow: inset 5px 0 0 #2d6fe8;
 }
 .qa-block .qa-check {
-  flex: 0 0 auto; width: 22px; height: 22px; margin-top: 1px;
+  flex: 0 0 auto; width: 33px; height: 33px; margin-top: 1px;
   display: flex; align-items: center; justify-content: center;
   border: none; background: transparent; padding: 0; cursor: pointer; color: #8a8a90;
 }
 .qa-block .qa-item--done .qa-check { color: #4ade80; }
-.qa-block .qa-item-num { font-size: 16px; color: #8a8a90; flex: 0 0 auto; padding-top: 2px; }
-.qa-block .qa-item-text { font-size: 16px; line-height: 1.5; padding-top: 2px; }
+.qa-block .qa-item-num { font-size: 24px; color: #8a8a90; flex: 0 0 auto; padding-top: 2px; }
+.qa-block .qa-item-text { font-size: 24px; line-height: 1.5; padding-top: 2px; }
 .qa-block .qa-item--done .qa-item-text { color: #a0a0a6; text-decoration: line-through; }
-.qa-block .qa-comment-badge { flex: 0 0 auto; margin-top: 4px; color: #f59e0b; }
+.qa-block .qa-comment-badge { flex: 0 0 auto; margin-top: 6px; color: #f59e0b; }
 
 /* ── 항목별 코멘트 아코디언(현빈 2026-09-16b 지시) — Enter 로 펼침/접힘. ── */
-.qa-block .qa-item-comment { padding: 2px 6px 6px 37px; }
+.qa-block .qa-item-comment { padding: 3px 9px 9px 56px; }
 .qa-block .qa-item-comment-input {
-  width: 100%; min-height: 44px; resize: vertical; box-sizing: border-box;
-  border: 1px solid rgba(45, 111, 232, 0.35); border-radius: 6px;
+  width: 100%; min-height: 66px; resize: vertical; box-sizing: border-box;
+  border: 1px solid rgba(45, 111, 232, 0.35); border-radius: 9px;
   background: rgba(45, 111, 232, 0.05);
-  font: inherit; font-size: 14px; padding: 8px 10px; color: #1c1c1e;
+  font: inherit; font-size: 21px; padding: 12px 15px; color: #1c1c1e;
 }
 .qa-block .qa-item-comment-input:focus { outline: none; border-color: #2d6fe8; background: rgba(45, 111, 232, 0.08); }
 
-.qa-block .qa-divider { height: 1px; background: rgba(0,0,0,0.08); margin: 15px 0; }
+.qa-block .qa-divider { height: 1px; background: rgba(0,0,0,0.08); margin: 23px 0; }
 
-.qa-block .qa-feedback-label { font-size: 13px; font-weight: 700; color: #8a8a90; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+.qa-block .qa-feedback-label { font-size: 20px; font-weight: 700; color: #8a8a90; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 9px; }
 .qa-block .qa-feedback-input {
-  width: 100%; min-height: 65px; resize: vertical; box-sizing: border-box;
-  border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 7px;
+  width: 100%; min-height: 98px; resize: vertical; box-sizing: border-box;
+  border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 11px;
   background: rgba(245, 158, 11, 0.06);
-  font: inherit; font-size: 15px; padding: 9px 12px; color: #1c1c1e;
+  font: inherit; font-size: 23px; padding: 14px 18px; color: #1c1c1e;
 }
 .qa-block .qa-feedback-input:focus { outline: none; border-color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
 
-.qa-block .qa-footer { display: flex; justify-content: flex-end; margin-top: 13px; }
+.qa-block .qa-footer { display: flex; justify-content: flex-end; margin-top: 20px; }
 .qa-block .qa-id-chip {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 13px; color: #8a8a90; cursor: pointer; padding: 3px 8px;
-  border-radius: 5px; background: rgba(0,0,0,0.04);
+  font-size: 20px; color: #8a8a90; cursor: pointer; padding: 5px 12px;
+  border-radius: 8px; background: rgba(0,0,0,0.04);
 }
 .qa-block .qa-id-chip:hover { background: rgba(0,0,0,0.08); color: #1c1c1e; }
 

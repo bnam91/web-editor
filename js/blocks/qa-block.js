@@ -14,10 +14,11 @@ import { bindBlock } from '../drag-drop.js';
    체크박스 실측: hover::after 오버레이(pointer-events:none)는 문제가 아니었다 — 원인은
    버튼 히트타깃이 16px(줌 축소 시 화면상 몇 px)뿐이라 실사용 클릭이 거의 안 먹혔던 것.
    ⇒ 체크박스 히트타깃을 22px로, 아이콘 자체도 16px로 키운다(아래 SVG·CSS 동반 수정). */
+/* ★2026-09-16c — 히트타깃(css .qa-check, 22→33px)과 같이 1.5배로 키웠다. */
 const QA_CHECK_SVG_DONE =
-  '<svg width="16" height="16" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="2,6 5,9 10,3"/></svg>';
+  '<svg width="24" height="24" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="2,6 5,9 10,3"/></svg>';
 const QA_CHECK_SVG_UNDONE =
-  '<svg width="16" height="16" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="9" height="9" rx="2"/></svg>';
+  '<svg width="24" height="24" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="9" height="9" rx="2"/></svg>';
 const QA_COMMENT_BADGE_SVG =
   '<svg class="qa-comment-badge" width="13" height="13" viewBox="0 0 12 12" fill="currentColor"><path d="M1 2a1 1 0 011-1h8a1 1 0 011 1v5a1 1 0 01-1 1H6l-2.5 2.2V8H2a1 1 0 01-1-1V2z"/></svg>';
 
