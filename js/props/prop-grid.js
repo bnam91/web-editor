@@ -269,11 +269,18 @@ function _grdWireLineBar(block, addr) {
  * ★다른 블록의 「이미지 선택…」과 같은 방식(FileReader→dataURL)을 재사용한다
  *   (prop-simple-card.js cvb-card-img-btn · prop-zoom.js 선례). goya-asset:// 외부화는
  *   여기서 하지 않는다(그 둘도 안 한다 — 외부화는 저장 시점의 별도 관심사). */
-function _grdImageSectionHtml(anyHit) {
+function _grdImageSectionHtml(anyHit, block) {
   if (!anyHit || anyHit.li === null || !anyHit.line || anyHit.line.type !== 'image') return '';
-  const { line } = anyHit;
+  const { r, c, line } = anyHit;
   const h = Number(line.height) || '';
   const rad = Number(line.radius) || '';
+  /* ★「이미지 제거」= «줄 삭제»와 같은 동작(줄 자체를 지운다, imgSrc만 비우지 않는다) —
+   *   T-009 버그A: imgSrc만 비우면 line.type==='image'가 그대로 남아 렌더러가 빈 이미지
+   *   placeholder(회색 배경, grid-block.js:385)를 영구히 그린다. 「제거」가 곧 「줄 삭제」이므로
+   *   마지막 한 줄 보호도 줄바(_grdLineBarHtml)의 canDeleteLine과 «같은 조건»을 쓴다. */
+  let cellLineCount = 1;
+  try { cellLineCount = (getGridModel(block).cells?.[r]?.[c]?.lines || []).length || 1; } catch (_) {}
+  const canRemove = !!line.imgSrc && cellLineCount > 1;
   return `
     <div class="prop-section">
       <div class="prop-section-title">Image</div>
@@ -289,7 +296,8 @@ function _grdImageSectionHtml(anyHit) {
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="0" value="${rad}">
       </div>
       <div class="prop-row">
-        <button id="grd-img-remove-btn" class="prop-btn-full prop-btn-danger" ${line.imgSrc ? '' : 'disabled'}>이미지 제거</button>
+        <button id="grd-img-remove-btn" class="prop-btn-full prop-btn-danger" ${canRemove ? '' : 'disabled'}
+                title="${cellLineCount > 1 ? '이 이미지 줄을 삭제합니다' : '칸에 남은 마지막 줄은 지울 수 없습니다'}">이미지 제거</button>
       </div>
     </div>`;
 }
@@ -336,7 +344,15 @@ function _grdWireImageSection(block, addr) {
 
   document.getElementById('grd-img-remove-btn')?.addEventListener('click', (e) => {
     if (e.currentTarget.disabled) return;
-    const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lineIndex: li, imgSrc: undefined } });
+    // ★줄 삭제(_grdWireLineBar의 grd-line-del-btn)와 «같은 경로» — imgSrc만 비우면
+    //   type:'image' 줄이 그대로 남아 빈 이미지 placeholder(회색 배경)가 영구히 남는다(T-009 버그A).
+    let curLines;
+    try { curLines = getGridModel(block).cells?.[r]?.[c]?.lines || []; } catch (_) { curLines = []; }
+    if (curLines.length <= 1) return;   // 마지막 한 줄은 지우지 않는다(버튼도 disabled)
+    const newLines = curLines.filter((_, i) => i !== li);
+    const newLi = Math.min(li, newLines.length - 1);
+    grdSetActiveLine(block, newLines.length ? { r, c, li: newLi } : null);
+    const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } });
     if (res && res.ok === false) window.showToast?.('❌ 이미지 제거 실패: ' + res.message);
   });
 }
@@ -707,7 +723,7 @@ export function showGridProperties(block, addrArg) {
       <div class="prop-hint" style="margin-top:2px;">세로 정렬은 컬럼 높이가 서로 다를 때만 움직인다</div>
     </div>
     ${_grdLineBarHtml(_anyHit, block)}
-    ${_grdImageSectionHtml(_anyHit)}
+    ${_grdImageSectionHtml(_anyHit, block)}
     ${_grdTypoSectionsHtml(_hit, block)}
     <div class="prop-section">
       <div class="prop-row"><span class="prop-label" style="opacity:.6">글자는 «캔버스에서 줄을 더블클릭»해 고친다</span></div>
