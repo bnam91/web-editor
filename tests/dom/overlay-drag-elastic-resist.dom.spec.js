@@ -26,23 +26,29 @@ const OVERLAY_JS = fs.readFileSync(path.join(REPO, 'js/props/prop-text-wireup-ov
 const FRAME_GEOMETRY_JS = fs.readFileSync(path.join(REPO, 'js/frame-geometry.js'), 'utf8');
 
 const RESIST_ZONE_SCREEN_PX = 40;
+const MAGNET_ZONE_SCREEN_PX = 10;
+const MAGNET_FRACTION = MAGNET_ZONE_SCREEN_PX / RESIST_ZONE_SCREEN_PX;
 const RESIST_FACTOR = 0.35;
 /* 원본 _elasticAxis와 같은 식 — 테스트가 기대값을 독립적으로 계산한다(원본을 베껴 항상
    맞는 게 아니라, 같은 수학을 테스트 쪽에서도 재도출). zone은 «로컬 단위로 환산된» 저항폭
-   (zoom 100%면 RESIST_ZONE_SCREEN_PX와 같다 — 기본 인자로 기존 테스트 호환). */
+   (zoom 100%면 RESIST_ZONE_SCREEN_PX와 같다 — 기본 인자로 기존 테스트 호환). 경계 바로
+   옆(zone*MAGNET_FRACTION)은 마그네틱 캐치 — 위치가 경계값에 딱 붙어 고정된다(2026-09-16m). */
 function expectedElastic(raw, boundMax, zone = RESIST_ZONE_SCREEN_PX) {
+  const magnet = zone * MAGNET_FRACTION;
   if (raw < 0) {
     const over = -raw;
-    return over <= zone ? -(over * RESIST_FACTOR) : -(zone * RESIST_FACTOR + (over - zone));
+    if (over <= magnet) return 0;
+    return over <= zone ? -((over - magnet) * RESIST_FACTOR) : -((zone - magnet) * RESIST_FACTOR + (over - zone));
   }
   if (raw > boundMax) {
     const over = raw - boundMax;
-    return over <= zone ? boundMax + over * RESIST_FACTOR : boundMax + zone * RESIST_FACTOR + (over - zone);
+    if (over <= magnet) return boundMax;
+    return over <= zone ? boundMax + (over - magnet) * RESIST_FACTOR : boundMax + (zone - magnet) * RESIST_FACTOR + (over - zone);
   }
   return raw;
 }
 
-async function boot(page, { rotationDeg = 0, zoom = 100, boxW = 300, boxH = 40, secW = 800, secH = 600, hardClampRegression = false, zoomObliviousZoneRegression = false } = {}) {
+async function boot(page, { rotationDeg = 0, zoom = 100, boxW = 300, boxH = 40, secW = 800, secH = 600, hardClampRegression = false, zoomObliviousZoneRegression = false, noMagnetRegression = false } = {}) {
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/__harness.html') {
@@ -120,6 +126,33 @@ async function boot(page, { rotationDeg = 0, zoom = 100, boxW = 300, boxH = 40, 
               document.addEventListener('mouseup', onUp);
             }, true);
             ` : ''}
+            ${noMagnetRegression ? `
+            // ★양성대조용 — 2026-09-16m 고치기 «전» 버그를 흉내낸다: magnet 캐치 없이
+            // 저항 커브만(0.35배 감쇠) 그대로 — 경계 바로 옆에서도 «조금씩» 움직인다.
+            const posEl = document.getElementById('tf1');
+            const zoomFrac = ${zoom / 100};
+            posEl.addEventListener('mousedown', e => {
+              const startLeft = parseFloat(posEl.style.left) || 0;
+              const startClientX = e.clientX;
+              const onMove = ev => {
+                const raw = startLeft + (ev.clientX - startClientX) / zoomFrac;
+                const boundMax = ${secW} - ${boxW};
+                const zone = 40;   // magnet 없음 — over 전체를 0.35배로만 누른다
+                let out = raw;
+                if (raw < 0) {
+                  const over = -raw;
+                  out = over <= zone ? -(over * 0.35) : -(zone * 0.35 + (over - zone));
+                } else if (raw > boundMax) {
+                  const over = raw - boundMax;
+                  out = over <= zone ? boundMax + over * 0.35 : boundMax + zone * 0.35 + (over - zone);
+                }
+                posEl.style.left = out + 'px';
+              };
+              const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+              document.addEventListener('mousemove', onMove);
+              document.addEventListener('mouseup', onUp);
+            }, true);
+            ` : ''}
           </script>
           </body></html>`,
       });
@@ -135,7 +168,7 @@ async function boot(page, { rotationDeg = 0, zoom = 100, boxW = 300, boxH = 40, 
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
   await page.goto(`${ORIGIN}/__harness.html`);
-  if (!hardClampRegression && !zoomObliviousZoneRegression) {
+  if (!hardClampRegression && !zoomObliviousZoneRegression && !noMagnetRegression) {
     await page.waitForFunction(() => !!window._bindOverlayMoveDrag);
     await page.evaluate(() => window._bindOverlayMoveDrag(document.getElementById('tf1')));
   }
@@ -160,17 +193,24 @@ async function dragBy(page, fromId, dxPage, dyPage, { meta = false } = {}) {
   if (meta) await page.keyboard.up('Meta');
 }
 
+/* _applyOverlayPos가 Math.round를 거치므로(SSOT — dataset.offsetX/Y는 정수) 기대값과 최대
+   0.5px 반올림 오차가 날 수 있다. toBeCloseTo(x,0)의 임계(0.5)는 부동소수점 경계에서 그
+   0.5 자체와 부딪혀 깨지므로, 1px 여유를 명시적으로 준다. */
+function expectNear(left, expected, msg) {
+  expect(Math.abs(left - expected), `${msg}: left=${left}, expected=${expected}`).toBeLessThanOrEqual(1);
+}
+
 test('전제 — window._bindOverlayMoveDrag가 실제로 로드된다', async ({ page }) => {
   const errs = await boot(page);
   expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });
 
-test('E1 저항구간 안(over<=40) — 화면 20px 왼쪽 드래그는 로컬 -7px 근처로 눌린다(0.35배)', async ({ page }) => {
+test('E1 저항구간 안(magnet<over<=zone) — 화면 20px 왼쪽 드래그는 로컬 -3.5px 근처로 눌린다', async ({ page }) => {
   await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
   await dragBy(page, 'tf1', -20, 0);
   const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
-  const expected = expectedElastic(-20, 500); // boundMax = secW-boxW = 500
-  expect(left, `raw=-20일 때 기대 저항값(${expected})과 다르다: left=${left}`).toBeCloseTo(expected, 0);
+  const expected = expectedElastic(-20, 500); // boundMax = secW-boxW = 500, magnet(10) 지나 저항구간
+  expectNear(left, expected, `raw=-20일 때 기대 저항값(${expected})과 다르다: left=${left}`);
   expect(Math.abs(left), `저항 없이 그대로 -20 움직였다(고침 전 하드클램프/무저항과 구분 안 됨)`).toBeLessThan(15);
 });
 
@@ -178,8 +218,8 @@ test('E2 저항구간을 다 채우고 나가면(over>40) 그 지점부터 1:1�
   await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
   await dragBy(page, 'tf1', -100, 0);
   const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
-  const expected = expectedElastic(-100, 500); // = -(40*0.35 + 60) = -74
-  expect(left, `raw=-100일 때 기대값(${expected})과 다르다: left=${left}`).toBeCloseTo(expected, 0);
+  const expected = expectedElastic(-100, 500); // = -((40-10)*0.35 + 60) = -70.5
+  expectNear(left, expected, `raw=-100일 때 기대값(${expected})과 다르다: left=${left}`);
   // ★옛 하드클램프였다면 0에서 뚝 멈췄을 것 — 실제로는 경계(0)를 넘어 음수로 나갔다.
   expect(left, `섹션 경계(0)를 못 넘었다 — 하드클램프로 되돌아간 회귀`).toBeLessThan(-1);
 });
@@ -187,10 +227,10 @@ test('E2 저항구간을 다 채우고 나가면(over>40) 그 지점부터 1:1�
 test('E3 재진입 — 이미 저항구간 밖(-74)에서 오른쪽으로 끌면 다시 같은 곡선으로 저항이 걸린다(대칭)', async ({ page }) => {
   await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
   await page.evaluate(() => { document.getElementById('tf1').style.left = '-74px'; });
-  await dragBy(page, 'tf1', 50, 0); // raw = -74 + 50 = -24 (저항구간 안)
+  await dragBy(page, 'tf1', 50, 0); // raw = -74 + 50 = -24 (magnet 지나 저항구간 안)
   const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
-  const expected = expectedElastic(-24, 500); // -(24*0.35) = -8.4
-  expect(left, `재진입 시 기대 저항값(${expected})과 다르다: left=${left}`).toBeCloseTo(expected, 0);
+  const expected = expectedElastic(-24, 500); // -((24-10)*0.35) = -4.9
+  expectNear(left, expected, `재진입 시 기대 저항값(${expected})과 다르다: left=${left}`);
 });
 
 test('E4 ⌘(Cmd) 드래그 — 저항을 완전히 끄고 1:1 자유이동(파워유저 단축키)', async ({ page }) => {
@@ -201,11 +241,40 @@ test('E4 ⌘(Cmd) 드래그 — 저항을 완전히 끄고 1:1 자유이동(파�
   expect(left, `⌘ 드래그인데 저항이 걸렸다(raw=-100 그대로여야 함): left=${left}`).toBeCloseTo(-100, 0);
 });
 
-test('E5 [양성대조] 탄성 대신 하드클램프였다면 E2 기대값(-74)이 안 나오고 0에서 멈춘다', async ({ page }) => {
+test('E5 [양성대조] 탄성 대신 하드클램프였다면 E2 기대값(-70.5)이 안 나오고 0에서 멈춘다', async ({ page }) => {
   await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600, hardClampRegression: true });
   await dragBy(page, 'tf1', -100, 0);
   const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
-  expect(left, `양성대조가 재현 안 됨 — 하드클램프도 -74 근처로 나갔다면 E2가 이 회귀를 못 잡는다는 뜻`).toBe(0);
+  expect(left, `양성대조가 재현 안 됨 — 하드클램프도 -70.5 근처로 나갔다면 E2가 이 회귀를 못 잡는다는 뜻`).toBe(0);
+});
+
+/* ── M. 마그네틱 캐치(2026-09-16m 현빈 실측 — "지금도 없는거 같은데?" → "아니면 살짝
+ * 마그네틱 기능이 있으면 나으려나?") ──
+ * 부드러운 감쇠 커브만으로는 빠른 실제 드래그에서 저항이 잘 안 느껴진다는 실측 피드백에 따라,
+ * 경계 바로 옆(화면 10px, magnet = zone*MAGNET_FRACTION)은 위치가 경계값에 «딱 붙어 고정»
+ * 되는 캐치 구간을 추가했다 — 커서가 그만큼 지나가도 블록은 안 움직인다.
+ */
+test('M1 ★핵심 — magnet구간 안(over<=10)에서는 경계값에 «딱 붙어» 전혀 안 움직인다', async ({ page }) => {
+  await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
+  await dragBy(page, 'tf1', -7, 0); // over=7 <= magnet(10)
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  expect(left, `magnet구간 안인데도 경계(0)에 안 붙고 움직였다: left=${left}`).toBe(0);
+});
+
+test('M2 magnet구간을 넘으면(over>10) 그때부터 저항 커브를 따라 움직이기 시작한다', async ({ page }) => {
+  await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
+  await dragBy(page, 'tf1', -15, 0); // over=15 > magnet(10)
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  const expected = expectedElastic(-15, 500); // -((15-10)*0.35) = -1.75
+  expectNear(left, expected, `magnet 넘은 뒤 기대값(${expected})과 다르다: left=${left}`);
+  expect(left, `magnet구간을 넘었는데도 여전히 0에 붙어 있다 — 캐치가 안 풀리는 회귀`).toBeLessThan(0);
+});
+
+test('M3 [양성대조] magnet 캐치가 없으면 M1의 -7 드래그도 이미 움직인다(0이 안 나옴)', async ({ page }) => {
+  await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600, noMagnetRegression: true });
+  await dragBy(page, 'tf1', -7, 0);
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  expect(left, `양성대조가 재현 안 됨 — magnet 없이도 -7 드래그가 0으로 나오면 M1이 이 회귀를 못 잡는다는 뜻`).not.toBe(0);
 });
 
 /* ── F. 줌 무관 저항폭(2026-09-16l 현빈 실측 — "섹션 밖으로 옮길 때 약간의 저항도 없니
@@ -221,7 +290,7 @@ test('E6 ★핵심 — 줌 40%에서도 저항폭은 «화면 30px» 기준으�
   const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
   // 로컬 delta = 30 / 0.4 = 75. zone(로컬) = 40(화면px) / 0.4 = 100 → over=75<=100, 저항구간 안.
   const expected = expectedElastic(500 + 30 / 0.4, 500, 40 / 0.4); // ≈ 526.25
-  expect(left, `줌 40%에서 화면 30px 드래그의 기대 저항값(${expected})과 다르다: left=${left}`).toBeCloseTo(expected, 0);
+  expectNear(left, expected, `줌 40%에서 화면 30px 드래그의 기대 저항값(${expected})과 다르다: left=${left}`);
   // ★옛(줌 무관 로컬 40px 고정) 버그였다면 이미 저항구간을 벗어나 1:1 자유였을 것(≈549, 훨씬 큼).
   expect(left, `줌 낮을 때 저항이 화면상 너무 일찍 끝났다 — 로컬 고정폭 회귀`).toBeLessThan(540);
 });
