@@ -1,11 +1,11 @@
 {
   "note": "생성물 — tools/mcp-contract-snapshot.mjs 로만 고친다. 손으로 고치지 마라.",
   "counts": {
-    "registered": 95,
-    "visible": 41,
+    "registered": 97,
+    "visible": 43,
     "hidden": 54,
-    "mutating": 82,
-    "gated": 79
+    "mutating": 84,
+    "gated": 81
   },
   "sizeCaps": {
     "_CANVAS_TEXT_CAP": 120,
@@ -292,6 +292,18 @@
     },
     "add_mockup_block": {
       "hidden": true,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "ok"
+      ]
+    },
+    "add_qa_block": {
+      "hidden": false,
       "mutating": true,
       "switchExempt": false,
       "targetFree": false,
@@ -758,9 +770,7 @@
       "mutating": true,
       "switchExempt": false,
       "targetFree": false,
-      "required": [
-        "image"
-      ],
+      "required": [],
       "expectedProjectGuard": false,
       "noArgs": "rejected",
       "responseKeys": []
@@ -1129,6 +1139,22 @@
       "expectedProjectGuard": false,
       "noArgs": "rejected",
       "responseKeys": []
+    },
+    "update_qa_block": {
+      "hidden": false,
+      "mutating": true,
+      "switchExempt": false,
+      "targetFree": false,
+      "required": [
+        "blockId"
+      ],
+      "expectedProjectGuard": false,
+      "noArgs": "ok",
+      "responseKeys": [
+        "code",
+        "message",
+        "ok"
+      ]
     },
     "update_scratch_item": {
       "hidden": false,

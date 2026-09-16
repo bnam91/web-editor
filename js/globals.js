@@ -80,5 +80,5 @@ export const BLOCK_DELEGATE_SEL = [
   '.label-group-block', '.graph-block', '.divider-block', '.bridge-block', '.grid-block',
   '.infocard-block', '.innercard-block', '.icon-text-block', '.joker-block', '.shape-block',
   '.canvas-block', '.banner02-block', '.comparison-block', '.mockup-block', '.vector-block',
-  '.step-block',
+  '.step-block', '.qa-block',
 ].join(', ');

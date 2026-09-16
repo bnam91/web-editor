@@ -335,7 +335,9 @@ test('⑩-b ★렌더러가 «실제로 내는» dataset.type 값이 전부 무�
   const { types, fileCount: files } = rendererTypes();
   assert.ok(types.size >= 20, `dataset.type 리터럴을 ${types.size}개만 찾았다 — 패턴이 낡았나?`);
   /* 무게가 «없어도 되는» 것: 갭 자체 · 섹션 · 하위 항목 · 텍스트 우산 이름 */
-  const NOT_A_FLOW_BLOCK = new Set(['gap', 'section', 'item', 'text', 'annotation']);
+  // qa: admin QA 체크리스트(js/blocks/qa-block.js) — annotation과 같은 이유로 제외.
+  // 콘텐츠가 아니라 작업 메타데이터라 spacing-normalize의 간격 산정 대상이 아니다(export에서도 제외됨).
+  const NOT_A_FLOW_BLOCK = new Set(['gap', 'section', 'item', 'text', 'annotation', 'qa']);
   const missing = [...types].filter((t) => !NOT_A_FLOW_BLOCK.has(t) && !(t.replace(/-/g, '_') in S.WEIGHT));
   assert.deepEqual(missing.sort(), [],
     `렌더러가 내는 타입인데 무게표에 «없다»: ${missing.join(', ')} — WEIGHT 에 한 줄씩 추가해라 `

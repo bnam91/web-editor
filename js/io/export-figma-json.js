@@ -848,6 +848,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
        와 «같은 줄»에서 .annotation-block 을 지운다. 즉 이 레포는 이미 이걸 «내용이 아님»
        으로 판정하고 있다. 그 판정을 여기서도 따른다. */
     'annotation-block': '편집 주석 — market-merge normSection 이 이미 «내용 아님»으로 지운다',
+    'qa-block': 'admin QA 전용 체크리스트 — 콘텐츠가 아니라 작업 메타데이터다(export-image.js 와 같은 원칙)',
   };
 
   /** 핸들러(_block GENERIC 폴백)와 «같은» 판정 + 이유 붙은 제외. */
