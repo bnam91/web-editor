@@ -26,6 +26,7 @@ const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 const OVERLAY_JS = fs.readFileSync(path.join(REPO, 'js/props/prop-text-wireup-overlay.js'), 'utf8');
 const STICKER_SELECT_JS = fs.readFileSync(path.join(REPO, 'js/sticker-select.js'), 'utf8');
+const FRAME_GEOMETRY_JS = fs.readFileSync(path.join(REPO, 'js/frame-geometry.js'), 'utf8');
 
 async function boot(page, { rotationDeg = 0, zoom = 40, boxW = 300, boxH = 40, secW = 800, secH = 600, useRealClamp = false } = {}) {
   await page.route(`${ORIGIN}/**`, async (route) => {
@@ -45,7 +46,7 @@ async function boot(page, { rotationDeg = 0, zoom = 40, boxW = 300, boxH = 40, s
             }
           </style>
           ${useRealClamp ? '<script src="/sticker-select.js"></script>' : ''}
-          <script type="module" src="/overlay-wireup.js"></script>
+          <script type="module" src="/props/overlay-wireup.js"></script>
           </head><body>
           <div class="section-block" id="sec1">
             <div class="frame-block" data-text-frame="true" data-overlay-block="true" id="tf1"
@@ -65,11 +66,14 @@ async function boot(page, { rotationDeg = 0, zoom = 40, boxW = 300, boxH = 40, s
           </body></html>`,
       });
     }
-    if (url.pathname === '/overlay-wireup.js') {
+    if (url.pathname === '/props/overlay-wireup.js') {
       return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_JS });
     }
     if (url.pathname === '/sticker-select.js') {
       return route.fulfill({ contentType: 'application/javascript', body: STICKER_SELECT_JS });
+    }
+    if (url.pathname === '/frame-geometry.js') {
+      return route.fulfill({ contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
     }
     return route.fulfill({ status: 404, body: '' });
   });

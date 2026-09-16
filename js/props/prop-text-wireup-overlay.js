@@ -20,6 +20,8 @@
  *       === 'true'` 면 일반 드래그를 return 하는 대칭 변경이 있다(block-drag.js 참고).
  */
 
+import { rotatedAABB } from '../frame-geometry.js';
+
 function _zoom() {
   return (window.currentZoom || 40) / 100;
 }
@@ -173,13 +175,17 @@ function _bindOverlayMoveDrag(posEl) {
        posEl.offsetWidth/offsetHeight(회전 «전» 크기)를 그대로 넘겨서, 예를 들어 가로로
        넓고 얇은(716×83) 텍스트를 90° 돌려 화면상 33×286짜리 세로 막대로 보여도 클램프는
        여전히 "가로 716짜리"로 여겨 움직일 수 있는 가로 범위를 거의 다 깎아먹었다(섹션
-       860 중 716을 예약 → 남는 건 144뿐). 회전 후 «실제 화면 폭·높이»(축정렬 bounding box,
-       T-026이 캔버스 손잡이에서 쓴 것과 같은 공식)로 클램프해야 한다. */
+       860 중 716을 예약 → 남는 건 144뿐). 회전 후 «실제 화면 폭·높이»(축정렬 bounding box)
+       로 클램프해야 한다.
+       ★2026-09-16j 정정(작업목록매니저 지적) — 이 계산을 처음엔 손으로 다시 적었는데,
+       이미 js/frame-geometry.js의 rotatedAABB(w,h,deg)가 SSOT다(그 파일 머리말 — "복사하면
+       한 곳만 고쳐도 나머지가 안 따라온다, 이 레포에서 실제로 난 사고"). 180의 배수 가드
+       (Math.sin(Math.PI)=1.2e-16 오차 방지)도 거기 이미 있어 손으로 다시 짜면 놓치기 쉽다.
+       그 함수를 그대로 쓴다 — 사본을 만들지 않는다.
+       ⛔지난 주석의 "T-026이 쓴 것과 같은 공식"은 틀렸다 — T-026(gradient-model.js)은
+       회전 «전» offsetWidth/Height를 그대로 쓰는 정반대 방식으로 이 계산 자체를 피한다. */
     const rotDeg = parseFloat(posEl.dataset.rotation) || 0;
-    const rotRad = rotDeg * Math.PI / 180;
-    const cosR = Math.abs(Math.cos(rotRad)), sinR = Math.abs(Math.sin(rotRad));
-    const clampW = posEl.offsetWidth * cosR + posEl.offsetHeight * sinR;
-    const clampH = posEl.offsetWidth * sinR + posEl.offsetHeight * cosR;
+    const { w: clampW, h: clampH } = rotatedAABB(posEl.offsetWidth, posEl.offsetHeight, rotDeg);
 
     const onMove = ev => {
       if (!moved) {
