@@ -6405,7 +6405,7 @@ async function _invokeRendererUpdateCanvasBlock({ blockId, partial } = {}) {
    ⇒ 사용자가 「그리드에 글 넣어줘」 하면 클로드가 «그런 기능 없습니다»라고 답한다.
    ⇒ 앱이 이미 검증(cols 1~4·rows·cells·gap·valign)을 하므로 여기선 «넘겨주고 결과를 읽어» 돌려준다.
    ⛔`applied` 를 인자에서 만들지 않는다 — 오늘 그 병으로 네 자리가 거짓 성공했다. */
-async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, valign } = {}) {
+async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, rowGap, colGap, valign } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
   const opts = {};
@@ -6413,6 +6413,8 @@ async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, 
   if (Array.isArray(rows)) opts.rows = rows;
   if (Array.isArray(cells)) opts.cells = cells;
   if (gap != null) opts.gap = Number(gap);
+  if (rowGap != null) opts.rowGap = Number(rowGap);
+  if (colGap != null) opts.colGap = Number(colGap);
   if (valign != null) opts.valign = String(valign);
   const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
   const safeOpts = JSON.stringify(opts);

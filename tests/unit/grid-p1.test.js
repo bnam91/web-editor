@@ -79,6 +79,7 @@ function makeFakeDom() {
 
 let getGridModel, gridRows, gridCols, makeGridBlock, updateGridBlock, renderGridBlock, gridLineHtml, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS;
 let migrateGridIdentity, LEGACY_GRID_CLASS, LEGACY_GRID_TYPE, GRID_ID_PREFIXES;
+let gridGaps, GRID_GAP_MAX;
 
 before(async () => {
   const aliasPath = path.join(os.tmpdir(), `grid-p1-alias-${process.pid}.mjs`);
@@ -93,6 +94,7 @@ before(async () => {
   fs.unlinkSync(gcrAliasPath);
   ({ getGridModel, gridRows, gridCols, makeGridBlock, updateGridBlock, renderGridBlock, gridLineHtml, MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS } = mod);
   ({ migrateGridIdentity, LEGACY_GRID_CLASS, LEGACY_GRID_TYPE, GRID_ID_PREFIXES } = mod);
+  ({ gridGaps, GRID_GAP_MAX } = mod);
 });
 
 /* ═══ 상수 회귀 ═══ */
@@ -251,6 +253,98 @@ test('renderGridBlock — 옛 1행 파일도 grid 로 렌더되지만 셀 수는
   renderGridBlock(block);
   assert.match(block.innerHTML, /grid-template-columns:1fr 1fr 2fr/);
   assert.equal((block.innerHTML.match(/class="grd-cell"/g) || []).length, 3);
+});
+
+/* ═══ ⑤-b 행/열 간격(rowGap/colGap) — T-D (2026-09-16) ═══
+ * ★09-05 에 지운 「간격」(양축 동시) 슬라이더의 재도입이 아니다 — 열/행을 «따로» 조작한다.
+ * ⛔`parseInt(x) || 24` 금지 대상 — gap=0 이 24 로 되살아나면 안 된다(Number.isFinite 로만 판정). */
+test('gridGaps — 레거시 dataset.gap 만 있는 옛 프로젝트는 양축 모두 그 값으로 폴백한다', () => {
+  const block = { dataset: { gap: '40' } };
+  assert.deepEqual(gridGaps(block), { row: 40, col: 40 });
+});
+
+test('gridGaps — dataset.gap 도 없는 완전 옛 파일은 GRID_DEFAULTS.gap(24)로 폴백한다', () => {
+  const block = { dataset: {} };
+  assert.deepEqual(gridGaps(block), { row: 24, col: 24 });
+});
+
+test('gridGaps — gap=0 은 24 로 되살아나지 않는다(||24 금지 대상)', () => {
+  const block = { dataset: { gap: '0' } };
+  assert.deepEqual(gridGaps(block), { row: 0, col: 0 });
+});
+
+test('gridGaps — rowGap=0 + colGap=60 비대칭도 각각 그대로 읽힌다(0 이 유효값)', () => {
+  const block = { dataset: { gap: '24', rowGap: '0', colGap: '60' } };
+  assert.deepEqual(gridGaps(block), { row: 0, col: 60 });
+});
+
+test('gridGaps — rowGap/colGap 이 있으면 legacy gap 보다 우선한다', () => {
+  const block = { dataset: { gap: '24', rowGap: '80', colGap: '10' } };
+  assert.deepEqual(gridGaps(block), { row: 80, col: 10 });
+});
+
+test('renderGridBlock — row-gap/column-gap 이 longhand 로 각각 찍힌다(shorthand gap 아님)', () => {
+  const block = {
+    dataset: {
+      cols: JSON.stringify([{ width: 1, lines: [] }, { width: 1, lines: [] }]),
+      rowGap: '8', colGap: '32',
+    },
+    style: {},
+  };
+  renderGridBlock(block);
+  assert.match(block.innerHTML, /row-gap:8px/);
+  assert.match(block.innerHTML, /column-gap:32px/);
+  assert.doesNotMatch(block.innerHTML, /[^-]gap:\d+px/, '단축속성 gap: 이 아니라 row-gap/column-gap longhand 여야 한다');
+});
+
+test('updateGridBlock — partial.gap 은 gap·rowGap·colGap 셋 다 갱신한다(CSS 단축속성 의미, 거짓성공 봉쇄)', () => {
+  const block = freshBlock({ cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }] });
+  updateGridBlock(block.id, { rowGap: 5, colGap: 90 });   // 먼저 비대칭으로 만들어둔다
+  const r = updateGridBlock(block.id, { gap: 50 });
+  assert.equal(r.ok, true);
+  assert.equal(block.dataset.gap, '50');
+  assert.equal(block.dataset.rowGap, '50', 'gap 호출은 rowGap 도 같이 갱신해야 한다 — 안 하면 화면은 그대로인데 ok:true');
+  assert.equal(block.dataset.colGap, '50', 'gap 호출은 colGap 도 같이 갱신해야 한다');
+  assert.deepEqual(r.applied, { gap: 50 });
+});
+
+test('updateGridBlock — partial.rowGap/colGap 은 각자 자기 키만 반영한다(legacy gap 은 그대로 둔다)', () => {
+  const block = freshBlock({ cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }] });
+  const r1 = updateGridBlock(block.id, { rowGap: 0 });
+  assert.equal(r1.ok, true);
+  assert.equal(block.dataset.rowGap, '0', 'rowGap=0 이 유효값으로 반영돼야 한다');
+  assert.equal(block.dataset.colGap, undefined, 'colGap 은 아직 안 건드렸다');
+  assert.equal(block.dataset.gap, '24', '레거시 gap 은 패널/rowGap-only 호출로 안 바뀐다');
+  assert.deepEqual(r1.applied, { rowGap: 0 });
+
+  const r2 = updateGridBlock(block.id, { colGap: 60 });
+  assert.equal(r2.ok, true);
+  assert.equal(block.dataset.colGap, '60');
+  assert.equal(block.dataset.rowGap, '0', '앞서 준 rowGap 은 유지된다');
+});
+
+test('updateGridBlock — gap/rowGap/colGap 은 GRID_GAP_MAX 범위 밖이면 거부된다(상한 자체는 통과)', () => {
+  const block = freshBlock({ cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }] });
+  assert.equal(updateGridBlock(block.id, { gap: -1 }).ok, false);
+  assert.equal(updateGridBlock(block.id, { gap: GRID_GAP_MAX + 1 }).ok, false);
+  assert.equal(updateGridBlock(block.id, { rowGap: GRID_GAP_MAX + 1 }).ok, false);
+  assert.equal(updateGridBlock(block.id, { colGap: -1 }).ok, false);
+  assert.equal(updateGridBlock(block.id, { gap: GRID_GAP_MAX }).ok, true, '상한 값 자체는 통과해야 한다');
+  assert.equal(updateGridBlock(block.id, { rowGap: 0 }).ok, true, '0 은 유효값이다');
+});
+
+test('updateGridBlock — before/restore 스냅샷 왕복에 rowGap/colGap 이 포함된다(undo 정확성)', () => {
+  const block = freshBlock({ cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }] });
+  updateGridBlock(block.id, { rowGap: 10, colGap: 20 });
+  const r = updateGridBlock(block.id, { rowGap: 99 });
+  assert.equal(r.ok, true);
+  assert.equal(r.before.rowGap, '10', 'before 스냅샷에 이전 rowGap 이 있어야 한다');
+  assert.equal(r.before.colGap, '20', 'before 스냅샷에 이전 colGap 이 있어야 한다');
+  // RENDER_ERROR 롤백 경로가 restore(before) 로 이 값을 되돌릴 수 있어야 하므로, before 가
+  // 실제로 되돌릴 수 있는 값인지도 같이 확인한다(왕복).
+  block.dataset.rowGap = r.before.rowGap;
+  block.dataset.colGap = r.before.colGap;
+  assert.deepEqual(gridGaps(block), { row: 10, col: 20 });
 });
 
 test('renderGridBlock — 각 라인에 data-r/data-c/data-line 좌표가 심긴다(P1.5 캔버스 인라인 편집 전제, 현빈 지시)', () => {

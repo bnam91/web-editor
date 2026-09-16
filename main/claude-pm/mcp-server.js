@@ -3588,13 +3588,14 @@ function _registerDefaultTools() {
       if (!_rendererInvoker?.addGridBlock) throw new Error('renderer bridge not ready');
       return await _rendererInvoker.addGridBlock({
         sectionId: args.sectionId, cols: args.cols, rows: args.rows,
-        cells: args.cells, gap: args.gap, valign: args.valign,
+        cells: args.cells, gap: args.gap, rowGap: args.rowGap, colGap: args.colGap, valign: args.valign,
       });
     },
     {
       description: 'Add a grid block (grd_xxx) — a column grid (1~4 columns × rows) where each cell holds text. '
         + 'cols = column widths (array, 1~4). rows = row heights ([{height:"auto"|number}]). '
-        + 'cells = cell contents, row-major. gap = px between cells. valign = top|middle|bottom. '
+        + 'cells = cell contents, row-major. gap = px between cells (both axes). rowGap/colGap = per-axis '
+        + 'override (0~200px, optional — omit to use gap for both). valign = top|middle|bottom. '
         + 'Returns {ok, blockId(grd_), cols, cellCount} — cellCount is READ BACK from the canvas, not echoed from the args. '
         + '⚠️Legacy projects store the same block with a duo_ prefix (renamed); reading handles both.',
       inputSchema: {
@@ -3608,7 +3609,9 @@ function _registerDefaultTools() {
           cells: { type: 'array',
             description: '★2차원 배열 (행 × 열) — «행 0 포함». 평평한 배열을 주면 «행 N개»로 읽힌다(실측으로 데었다). '
               + '각 칸은 {lines:[{type,text}]} 꼴. 행이 모자라면 rows 를 «같은 호출»에서 같이 줘야 한다.' },
-          gap: { type: 'number', description: 'gap between cells (px)' },
+          gap: { type: 'number', description: 'gap between cells, both axes (px, 0~200)' },
+          rowGap: { type: 'number', description: 'row gap override (px, 0~200) — omit to use gap' },
+          colGap: { type: 'number', description: 'column gap override (px, 0~200) — omit to use gap' },
           valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
           expectedProject: { type: 'string', description: 'proj_xxx — refuse if a different project is open' },
         },
@@ -3627,7 +3630,7 @@ function _registerDefaultTools() {
       }
       if (!Object.keys(partial).length) {
         return { ok: false, code: 'NOTHING_TO_DO',
-          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / valign' };
+          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / rowGap / colGap / valign' };
       }
       return await _rendererInvoker.updateGridBlock({ blockId, partial });
     },
@@ -3641,7 +3644,8 @@ function _registerDefaultTools() {
         + 'weight, align, bg, fontFamily, italic, strike, marginTop, ...); without lineIndex → patches '
         + 'the CELL (lines, align, valign, bg, padding, radius). Column width goes through patchCol. '
         + '⛔Unknown field names are REJECTED, not silently ignored — the renderer would never read them. '
-        + 'Also: gap, valign. Returns {ok, cellCount, cellTexts} — ★cellTexts is READ BACK from the canvas '
+        + 'Also: gap (sets both row/column gap, px 0~200), rowGap/colGap (per-axis override, px 0~200), valign. '
+        + 'Returns {ok, cellCount, cellTexts} — ★cellTexts is READ BACK from the canvas '
         + 'after the write, so it tells you what actually landed (not what you asked for).',
       inputSchema: {
         type: 'object',
@@ -3649,7 +3653,10 @@ function _registerDefaultTools() {
           blockId: { type: 'string', description: 'grd_xxx (or legacy duo_xxx)' },
           cols: { type: 'array' }, patchCol: { type: 'object' },
           rows: { type: 'array' }, cells: { type: 'array' }, patchCell: { type: 'object' },
-          gap: { type: 'number' }, valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+          gap: { type: 'number', description: 'sets both row/column gap (px, 0~200)' },
+          rowGap: { type: 'number', description: 'row gap only (px, 0~200)' },
+          colGap: { type: 'number', description: 'column gap only (px, 0~200)' },
+          valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
           expectedProject: { type: 'string' },
         },
         required: ['blockId'],
