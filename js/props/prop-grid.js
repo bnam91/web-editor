@@ -43,6 +43,10 @@ if (typeof window !== 'undefined') window._grdSyncLineMark = _grdSyncLineMark;
  *  ⛔DOM 순서 역산 금지 — data-r/data-c/data-line 이 정본이다(grid-block.js 의 addr 규약). */
 function _grdResolveAddr(block, addr) {
   if (!addr || !block) return null;
+  // ★addr.li===null 은 「빈 셀」(셀 모드, T-A) 표식이다 — Number(null)===0 이라 그냥 두면
+  //   li:0 처럼 통과해 버릴 수 있다(그 사이 다른 경로가 그 칸에 줄을 채워 넣은 드문 동시성
+  //   케이스). 글자 줄 전용 판정이니 셀 모드는 여기서 명시적으로 걸러낸다.
+  if (addr.li === null) return null;
   const r = Number(addr.r), c = Number(addr.c), li = Number(addr.li);
   if (![r, c, li].every(Number.isInteger)) return null;
   let cells;
