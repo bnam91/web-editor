@@ -1148,6 +1148,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 }
 .qa-block:hover::after { content:''; position:absolute; inset:0; border-radius:20px; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .qa-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+.qa-block.qa-verdict-pass { border-color: #4ade80; }
+.qa-block.qa-verdict-fail { border-color: var(--ui-danger-border); }
 
 .qa-block .qa-badge {
   position: absolute; top: -21px; left: 21px;
@@ -1158,6 +1160,27 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   z-index: 1;
 }
 .qa-block .qa-badge svg { flex: 0 0 auto; }
+
+/* ★verdict(현빈 pass/fail 판정, 2026-09-16d) — qa-badge 와 대칭으로 반대쪽 모서리에 띄운다.
+   qa-status(체크 진행률 자동계산)와는 별개 축이라 자리도 분리했다 — 접힌 상태에서도 항상
+   보여야 스크롤하며 훑어보다 바로 판정을 누를 수 있다(qa-badge/qa-header 와 같은 티어). */
+.qa-block .qa-verdict {
+  position: absolute; top: -21px; right: 21px;
+  display: inline-flex; gap: 6px; z-index: 1;
+}
+.qa-block .qa-verdict-btn {
+  font: inherit; font-size: 18px; font-weight: 700; letter-spacing: 0.03em;
+  padding: 6px 15px; border-radius: 999px; cursor: pointer;
+  background: #ffffff; border: 2px solid rgba(0,0,0,0.14); color: #8a8a90;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.qa-block .qa-verdict-btn:hover { border-color: rgba(0,0,0,0.28); color: #1c1c1e; }
+.qa-block .qa-verdict-btn--pass.qa-verdict-btn--active {
+  background: rgba(74, 222, 128, 0.18); border-color: #4ade80; color: #1c8a4a;
+}
+.qa-block .qa-verdict-btn--fail.qa-verdict-btn--active {
+  background: var(--ui-danger-bg); border-color: var(--ui-danger-border); color: var(--ui-danger);
+}
 
 .qa-block .qa-header {
   display: flex; align-items: center; gap: 15px;

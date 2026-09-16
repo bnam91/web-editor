@@ -6942,7 +6942,8 @@ async function _invokeRendererUpdateQABlock({ blockId, partial } = {}) {
       let items = [];
       try { items = JSON.parse((after && after.dataset.items) || '[]'); } catch (_) {}
       return Object.assign({}, r, { ok: true, blockId: ${safeId}, items,
-        feedback: (after && after.dataset.feedback) || '', collapsed: (after && after.dataset.collapsed) === 'true' });
+        feedback: (after && after.dataset.feedback) || '', collapsed: (after && after.dataset.collapsed) === 'true',
+        verdict: (after && after.dataset.verdict) || 'none' });
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
