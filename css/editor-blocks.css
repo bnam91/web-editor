@@ -1121,6 +1121,94 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .modal-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 
+/* ═══════════════════════════════════
+   QA BLOCK — admin 전용 체크리스트 (2026-09-16)
+   ★캔버스 콘텐츠 톤(흰 배경·어두운 글자)을 쓴다 — 앱 다크 크롬(--ui-*) 이 아니다.
+     이 카드는 캔버스 «위에 얹히는» 콘텐츠라서다(MCP로만 생성, UI 팔레트 미노출).
+═══════════════════════════════════ */
+.qa-block {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  background: #ffffff;
+  border: 1.5px dashed #2d6fe8;
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+  color: #1c1c1e;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.qa-block:hover::after { content:''; position:absolute; inset:0; border-radius:10px; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+.qa-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+
+.qa-block .qa-badge {
+  position: absolute; top: -11px; left: 12px;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #2d6fe8; color: #ffffff;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
+  padding: 3px 8px; border-radius: 999px;
+  z-index: 1;
+}
+.qa-block .qa-badge svg { flex: 0 0 auto; }
+
+.qa-block .qa-header {
+  display: flex; align-items: center; gap: 8px;
+  position: relative; z-index: 1;
+  margin-top: 4px;
+}
+.qa-block .qa-ticket {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px; font-weight: 700; color: #2d6fe8;
+  background: rgba(45, 111, 232, 0.1);
+  padding: 2px 7px; border-radius: 5px; flex: 0 0 auto;
+}
+.qa-block .qa-title { font-size: 13px; font-weight: 700; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-block .qa-status {
+  flex: 0 0 auto; font-size: 10.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+}
+.qa-block .qa-status--wait     { background: rgba(45, 111, 232, 0.12); color: #2d6fe8; }
+.qa-block .qa-status--feedback { background: rgba(245, 158, 11, 0.14); color: #b4720a; }
+.qa-block .qa-status--pass     { background: rgba(74, 222, 128, 0.18); color: #1c8a4a; }
+.qa-block .qa-chevron { flex: 0 0 auto; width: 12px; height: 12px; color: #8a8a90; transition: transform 0.15s ease; }
+.qa-block.qa-collapsed .qa-chevron { transform: rotate(-90deg); }
+
+.qa-block .qa-progress { position: relative; z-index: 1; margin-top: 10px; height: 4px; border-radius: 999px; background: rgba(0,0,0,0.08); overflow: hidden; }
+.qa-block .qa-progress-fill { height: 100%; background: #2d6fe8; border-radius: 999px; transition: width 0.2s ease; }
+.qa-block .qa-progress-fill--done { background: #4ade80; }
+
+.qa-block .qa-body { position: relative; z-index: 1; margin-top: 12px; }
+.qa-block .qa-checklist { display: flex; flex-direction: column; gap: 6px; }
+.qa-block .qa-item { display: flex; align-items: flex-start; gap: 7px; }
+.qa-block .qa-check {
+  flex: 0 0 auto; width: 16px; height: 16px; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; padding: 0; cursor: pointer; color: #8a8a90;
+}
+.qa-block .qa-item--done .qa-check { color: #4ade80; }
+.qa-block .qa-item-num { font-size: 12.5px; color: #8a8a90; flex: 0 0 auto; }
+.qa-block .qa-item-text { font-size: 12.5px; line-height: 1.5; }
+.qa-block .qa-item--done .qa-item-text { color: #a0a0a6; text-decoration: line-through; }
+
+.qa-block .qa-divider { height: 1px; background: rgba(0,0,0,0.08); margin: 12px 0; }
+
+.qa-block .qa-feedback-label { font-size: 10.5px; font-weight: 700; color: #8a8a90; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
+.qa-block .qa-feedback-input {
+  width: 100%; min-height: 52px; resize: vertical; box-sizing: border-box;
+  border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 6px;
+  background: rgba(245, 158, 11, 0.06);
+  font: inherit; font-size: 12px; padding: 7px 9px; color: #1c1c1e;
+}
+.qa-block .qa-feedback-input:focus { outline: none; border-color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
+
+.qa-block .qa-footer { display: flex; justify-content: flex-end; margin-top: 10px; }
+.qa-block .qa-id-chip {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px; color: #8a8a90; cursor: pointer; padding: 2px 6px;
+  border-radius: 4px; background: rgba(0,0,0,0.04);
+}
+.qa-block .qa-id-chip:hover { background: rgba(0,0,0,0.08); color: #1c1c1e; }
+
 /* ── MODAL BLOCK — 변형 6종 (현빈 발주 2026-09-08) ──
    ★스타일 «값»은 여기 두지 않는다 — bg/radius/padding/border 는 dataset 이 진실이고
      renderModalBlock 이 인라인으로 쓴다. 여기엔 «구조»만 둔다(레이아웃·슬롯). */
@@ -1512,7 +1600,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .frame-block:not(.selected) .infocard-block:hover,
 .frame-block:not(.selected) .innercard-block:hover,
 .frame-block:not(.selected) .icon-text-block:hover,
-.frame-block:not(.selected) .shape-block:hover {
+.frame-block:not(.selected) .shape-block:hover,
+.frame-block:not(.selected) .qa-block:hover {
   outline: none !important;
 }
 .frame-block:not(.selected) .gap-block:hover::after,
@@ -1542,7 +1631,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .frame-block:not(.selected) .comparison-block:hover::after,
 .frame-block:not(.selected) .mockup-block:hover::after,
 .frame-block:not(.selected) .vector-block:hover::after,
-.frame-block:not(.selected) .chat-block:hover::after {
+.frame-block:not(.selected) .chat-block:hover::after,
+.frame-block:not(.selected) .qa-block:hover::after {
   display: none !important;
 }
 /* speech-bubble-block은 fit-content 폭 → text-block:hover::after (editor-layout.css)와

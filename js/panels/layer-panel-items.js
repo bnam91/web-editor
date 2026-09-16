@@ -60,6 +60,7 @@ const layerIcons = {
   chat:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 2a1 1 0 011-1h8a1 1 0 011 1v6a1 1 0 01-1 1H7l-2 2V9H2a1 1 0 01-1-1V2z"/></svg>`,
   zoom:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3.5" width="4.5" height="5" rx="0.6"/><path d="M5.5 4.6 L11 6 L5.5 7.4" stroke-linejoin="round"/></svg>`,
   step:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="2.5" cy="2.5" r="1.5"/><line x1="4.5" y1="2.5" x2="11" y2="2.5"/><circle cx="2.5" cy="6" r="1.5"/><line x1="4.5" y1="6" x2="11" y2="6"/><circle cx="2.5" cy="9.5" r="1.5"/><line x1="4.5" y1="9.5" x2="11" y2="9.5"/></svg>`,
+  qa:                `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V3.5a2 2 0 0 1 4 0v2"/></svg>`,
 };
 
 /* 레이어 아이템 이름 더블클릭 인라인 편집 헬퍼 */
@@ -174,9 +175,10 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isInfoCard   = block.classList.contains('infocard-block');
   const isInnerCard  = block.classList.contains('innercard-block');
   const isModal      = block.classList.contains('modal-block');
+  const isQA         = block.classList.contains('qa-block');
   const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
-  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isGrid ? 'grid' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isModal ? 'modal' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isZoom ? 'zoom' : isGradient ? 'gradient' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', grid:'Grid', infocard:'Info Card', innercard:'Inner Card', modal:'Modal', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', zoom:'Zoom', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
+  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isGrid ? 'grid' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isModal ? 'modal' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isZoom ? 'zoom' : isGradient ? 'gradient' : isQA ? 'qa' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', grid:'Grid', infocard:'Info Card', innercard:'Inner Card', modal:'Modal', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', zoom:'Zoom', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star', qa:'QA Check' };
   /* ★[M55] grid 의 타입 라벨을 'Component' → 'Grid'. 현빈 2026-09-05:
        「여기에 컴퍼넌트라고 영어로 되어있는데 그리드라고 되어야되지 않겠니?」
      ★이 칸의 값어치는 «이름을 바꾼 뒤»에 나온다 — 레이어 이름은 「가격표」처럼 바꿀 수 있고,
@@ -189,7 +191,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
        현빈이 볼 화면을 통째로 바꾸는 일이라 별도 항목으로 올린다.
      ★안전 확인: 이 문자열을 «판정»에 쓰는 코드는 0건이다. 읽는 두 자리
        (layer-panel.js:614·:749)는 aria-label 문구를 조립하는 데만 쓴다 — 기능이 안 깨진다. */
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', grid:'Grid', infocard:'Component', innercard:'Component', modal:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', zoom:'Zoom', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', grid:'Grid', infocard:'Component', innercard:'Component', modal:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', zoom:'Zoom', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape', qa:'Component' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -259,6 +261,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isInfoCard) window.showInfoCardProperties?.(block);
     else if (isInnerCard) window.showInnerCardProperties?.(block);
     else if (isModal) window.showModalProperties?.(block);
+    else if (isQA) window.showQAProperties?.(block);
     else if (isLabelGroup) window.showLabelGroupProperties?.(block);
     else if (isJoker) window.showJokerProperties?.(block);
     else if (isChat) window.showChatProperties?.(block);

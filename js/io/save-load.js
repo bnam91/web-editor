@@ -1132,7 +1132,7 @@ function rebindAll(opts = {}) {
     window.bindGradientSelect?.(block);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .qa-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -1155,7 +1155,8 @@ function rebindAll(opts = {}) {
         : b.classList.contains('bridge-block') ? 'brg'
         : b.classList.contains('grid-block') ? 'grd'   /* ★'grid' 아니다 — GRID_ID_PREFIXES=['grd_','duo_'] 와 같은 토큰이어야 한다(적대검수 C1) */
         : b.classList.contains('infocard-block') ? 'ifc'
-        : b.classList.contains('innercard-block') ? 'icd' : 'tbl';
+        : b.classList.contains('innercard-block') ? 'icd'
+        : b.classList.contains('qa-block') ? 'qa' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
     if (b.classList.contains('laurel-block')) window.renderLaurelBlock?.(b);
@@ -1178,6 +1179,9 @@ function rebindAll(opts = {}) {
     // canvas-block(cvb): 저장본 innerHTML은 정적이라 더블클릭 인라인 편집 핸들러(_bindCvbDblEdit)가
     // 없음 → renderCanvas로 재렌더해 위임 바인딩 (chat/banner02와 동일 패턴, 누락돼 있던 것)
     if (b.classList.contains('canvas-block')) window.renderCanvas?.(b);
+    // qa-block(admin QA): dataset이 진실 — 저장본 innerHTML은 스냅샷일 뿐이고,
+    // 재렌더가 체크박스/피드백/접기 클릭 위임(bindQABlockEvents)도 되살린다.
+    if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
     window.bindBlock(b);
   });
 

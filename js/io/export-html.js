@@ -97,6 +97,12 @@ async function exportHTMLFile() {
    ⚠️저장 경로(js/io/section-serialize.js)는 «건드리지 않는다» — 저장본에서 빼면 시안이 지워진다. */
   clone.querySelectorAll(HIDDEN_VARIATION_SECTION_SEL).forEach(el => el.remove());
   clone.querySelectorAll('.section-label, .section-toolbar, .col-placeholder, .col-add-btn, .col-add-menu, .row-col-add-btn, .row-drop-indicator, .layer-section-drop-indicator').forEach(el => el.remove());
+  // admin QA 체크리스트 블록 — 콘텐츠가 아니라 작업 메타데이터다(export-image.js·export-figma-json.js 와 같은 원칙).
+  // 감싸는 .row 까지 지워야 그 블록이 차지하던 세로 공간도 같이 사라진다.
+  clone.querySelectorAll('.qa-block').forEach(el => {
+    const row = el.closest('.row');
+    if (row) row.remove(); else el.remove();
+  });
   // BL-CD-10: label-group은 render-재생성형이 아니라 직렬 DOM 보존형 — 에디터 전용 ✕삭제/＋추가
   // 버튼 노드가 저장 HTML에 남아 export에서 그대로 노출됐음. 노드 자체를 제거한다.
   clone.querySelectorAll('.label-item-delete-btn, .label-group-add-btn').forEach(el => el.remove());

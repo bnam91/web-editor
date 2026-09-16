@@ -14,7 +14,7 @@ import { alignBtn } from './_helpers.js';
 function _getSelectedFrameWrappers() {
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .qa-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected, ' +
     // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel
     '.iconify-block.selected, .chat-block.selected, .gradient-block.selected, ' +

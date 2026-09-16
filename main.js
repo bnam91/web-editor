@@ -4142,6 +4142,8 @@ app.whenReady().then(async () => {
       updateCanvasBlock: _invokeRendererUpdateCanvasBlock,
       addGridBlock: _invokeRendererAddGridBlock,
       updateGridBlock: _invokeRendererUpdateGridBlock,
+      addQABlock: _invokeRendererAddQABlock,
+      updateQABlock: _invokeRendererUpdateQABlock,
       readBlockState: _invokeRendererReadBlockState,   // ★「바꿨다」를 «되읽어» 대조하는 자리
       setActiveFrame: _invokeRendererSetActiveFrame,   // ★«이 프레임 안에» 넣기 위한 자리
       whereIsBlock: _invokeRendererWhereIsBlock,       // ★「정말 거기 들어갔나」를 화면에서 확인
@@ -6813,6 +6815,81 @@ async function _invokeRendererUpdateGridBlock({ blockId, partial } = {}) {
   })()`;
   try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
   catch (e) { throw new Error('updateGridBlock call failed: ' + e.message); }
+}
+
+/* ─── qa-block(qa_) — admin 전용 QA 체크리스트 (2026-09-16 신설) ────────────
+   ⛔UI 블록 추가 팔레트에 노출하지 않는다 — 생성 경로는 이 MCP 도구 하나뿐이다.
+   ⛔여기서 items/feedback/collapsed 를 다시 검증하지 않는다 — 앱(window.addQABlock/
+     updateQABlock)이 정본이다. 두 곳에서 검증하면 둘이 어긋나는 날이 온다. */
+async function _invokeRendererAddQABlock({ sectionId, ticket, title, items } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const opts = {};
+  if (ticket != null) opts.ticket = String(ticket);
+  if (title != null) opts.title = String(title);
+  if (Array.isArray(items)) opts.items = items;
+  const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const safeOpts = JSON.stringify(opts);
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+        && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      if (userEditing || (Date.now() - (window._lastUserKeydown || 0)) < 1500) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.addQABlock !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.addQABlock not found' };
+      const sid = ${safeSid};
+      if (sid) {
+        const _sec = document.getElementById(sid);
+        if (!_sec || !_sec.classList.contains('section-block')) {
+          return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        }
+        if (typeof window.selectSection === 'function') window.selectSection(_sec);
+      }
+      const before = document.querySelectorAll('.qa-block').length;
+      const r = window.addQABlock(${safeOpts});
+      const el = r && r.block;
+      if (!el) return { ok: false, code: 'NOT_CREATED', message: 'QA 블록이 만들어지지 않았습니다 (활성 섹션 확인).' };
+      const itemsN = (() => { try { return JSON.parse(el.dataset.items || '[]').length; } catch (_) { return 0; } })();
+      return { ok: true, blockId: el.id, sectionId: (el.closest('.section-block') || {}).id || null,
+               qaBefore: before, qaAfter: document.querySelectorAll('.qa-block').length, itemCount: itemsN };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
+  catch (e) { throw new Error('addQABlock call failed: ' + e.message); }
+}
+
+async function _invokeRendererUpdateQABlock({ blockId, partial } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const safeId = JSON.stringify(String(blockId || ''));
+  const safeP = JSON.stringify(partial || {});
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+        && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      if (userEditing || (Date.now() - (window._lastUserKeydown || 0)) < 1500) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.updateQABlock !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.updateQABlock not found' };
+      const el = document.getElementById(${safeId});
+      if (!el || !el.classList.contains('qa-block')) {
+        return { ok: false, code: 'NOT_FOUND', message: 'qa block not found: ' + ${safeId} };
+      }
+      const r = window.updateQABlock(${safeId}, ${safeP});
+      if (r && r.ok === false) return r;
+      /* ★바뀐 뒤의 «화면»을 읽어 돌려준다 */
+      const after = document.getElementById(${safeId});
+      let items = [];
+      try { items = JSON.parse((after && after.dataset.items) || '[]'); } catch (_) {}
+      return Object.assign({}, r, { ok: true, blockId: ${safeId}, items,
+        feedback: (after && after.dataset.feedback) || '', collapsed: (after && after.dataset.collapsed) === 'true' });
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
+  catch (e) { throw new Error('updateQABlock call failed: ' + e.message); }
 }
 
 // ─── [APIMCP P1] add_frame_block — frame-block(ss_) 컨테이너 추가 ─────────────
