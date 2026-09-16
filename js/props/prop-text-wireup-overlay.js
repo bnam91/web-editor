@@ -169,6 +169,18 @@ function _bindOverlayMoveDrag(posEl) {
     let startTop = parseFloat(posEl.style.top) || 0;
     let moved = false;
 
+    /* ★2026-09-16i P0(현빈 실측 — "움직임 범위에도 한정되어 있다") — _clampToSection에
+       posEl.offsetWidth/offsetHeight(회전 «전» 크기)를 그대로 넘겨서, 예를 들어 가로로
+       넓고 얇은(716×83) 텍스트를 90° 돌려 화면상 33×286짜리 세로 막대로 보여도 클램프는
+       여전히 "가로 716짜리"로 여겨 움직일 수 있는 가로 범위를 거의 다 깎아먹었다(섹션
+       860 중 716을 예약 → 남는 건 144뿐). 회전 후 «실제 화면 폭·높이»(축정렬 bounding box,
+       T-026이 캔버스 손잡이에서 쓴 것과 같은 공식)로 클램프해야 한다. */
+    const rotDeg = parseFloat(posEl.dataset.rotation) || 0;
+    const rotRad = rotDeg * Math.PI / 180;
+    const cosR = Math.abs(Math.cos(rotRad)), sinR = Math.abs(Math.sin(rotRad));
+    const clampW = posEl.offsetWidth * cosR + posEl.offsetHeight * sinR;
+    const clampH = posEl.offsetWidth * sinR + posEl.offsetHeight * cosR;
+
     const onMove = ev => {
       if (!moved) {
         if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
@@ -188,9 +200,18 @@ function _bindOverlayMoveDrag(posEl) {
       }
       const rawX = startLeft + (ev.clientX - startClientX) / zoom;
       const rawY = startTop  + (ev.clientY - startClientY) / zoom;
-      const [cx, cy] = free
-        ? [rawX, rawY]
-        : (window._clampToSection?.(rawX, rawY, sec, posEl.offsetWidth, posEl.offsetHeight) || [rawX, rawY]);
+      let cx = rawX, cy = rawY;
+      if (!free && window._clampToSection) {
+        // ★회전 보정 — 클램프는 «화면에 실제로 보이는» 축정렬 박스(clampW×clampH) 기준으로
+        //   해야 한다. 프레임 중심(회전 원점, transform-origin:center center)은 회전과
+        //   무관하게 rawX+W/2, rawY+H/2 그대로다 — 그 중심에서 화면 박스의 좌상단(visLeft/Top)
+        //   을 구해 클램프하고, 클램프된 중심을 다시 프레임 원점(left/top)으로 되돌린다.
+        const cxCenter = rawX + posEl.offsetWidth / 2, cyCenter = rawY + posEl.offsetHeight / 2;
+        const visLeft = cxCenter - clampW / 2, visTop = cyCenter - clampH / 2;
+        const [clVisLeft, clVisTop] = window._clampToSection(visLeft, visTop, sec, clampW, clampH);
+        cx = clVisLeft + clampW / 2 - posEl.offsetWidth / 2;
+        cy = clVisTop + clampH / 2 - posEl.offsetHeight / 2;
+      }
       _applyOverlayPos(posEl, cx, cy);
       window.scheduleAutoSave?.();
     };

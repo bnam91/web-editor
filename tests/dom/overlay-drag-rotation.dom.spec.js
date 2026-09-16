@@ -25,8 +25,9 @@ const path = require('path');
 const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 const OVERLAY_JS = fs.readFileSync(path.join(REPO, 'js/props/prop-text-wireup-overlay.js'), 'utf8');
+const STICKER_SELECT_JS = fs.readFileSync(path.join(REPO, 'js/sticker-select.js'), 'utf8');
 
-async function boot(page, { rotationDeg = 0, zoom = 40 } = {}) {
+async function boot(page, { rotationDeg = 0, zoom = 40, boxW = 300, boxH = 40, secW = 800, secH = 600, useRealClamp = false } = {}) {
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/__harness.html') {
@@ -36,17 +37,19 @@ async function boot(page, { rotationDeg = 0, zoom = 40 } = {}) {
           <style>
             * { box-sizing: border-box; }
             body { margin: 0; }
-            .section-block { position: relative; width: 800px; height: 600px; background: #fff; }
+            .section-block { position: relative; width: ${secW}px; height: ${secH}px; background: #fff; }
             .frame-block[data-text-frame="true"] {
-              position: absolute; width: 300px; height: 40px;
+              position: absolute; width: ${boxW}px; height: ${boxH}px;
               transform-origin: center center;
               background: rgba(0,0,255,0.15);
             }
           </style>
+          ${useRealClamp ? '<script src="/sticker-select.js"></script>' : ''}
           <script type="module" src="/overlay-wireup.js"></script>
           </head><body>
           <div class="section-block" id="sec1">
             <div class="frame-block" data-text-frame="true" data-overlay-block="true" id="tf1"
+                 ${rotationDeg ? `data-rotation="${rotationDeg}"` : ''}
                  style="left:100px; top:150px; transform: rotate(${rotationDeg}deg);">
               <div class="tb-h2" contenteditable="false" id="txt1" style="width:100%;height:100%;">텍스트</div>
             </div>
@@ -57,13 +60,16 @@ async function boot(page, { rotationDeg = 0, zoom = 40 } = {}) {
             window.scheduleAutoSave = () => {};
             window.triggerAutoSave = () => {};
             window._findSectionAt = () => null;   // 다른 섹션 없음 — 재부모 경로는 이 파일에서 안 잰다
-            window._clampToSection = (x, y) => [x, y];  // 클램프 무시(이 파일은 순수 델타만 잰다)
+            ${useRealClamp ? '' : "window._clampToSection = (x, y) => [x, y];"}  // 클램프 무시(회전 델타 검사는 클램프 밖에서 잰다)
           </script>
           </body></html>`,
       });
     }
     if (url.pathname === '/overlay-wireup.js') {
       return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_JS });
+    }
+    if (url.pathname === '/sticker-select.js') {
+      return route.fulfill({ contentType: 'application/javascript', body: STICKER_SELECT_JS });
     }
     return route.fulfill({ status: 404, body: '' });
   });
@@ -166,6 +172,50 @@ test('R5 줌 40%에서도 드래그량이 줌 배율만큼 정확히 나뉜다(�
   await dragBy(page, 'tf1', 0, 100);   // 화면 100px, 줌 40% → 로컬 250px
   const after = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.top));
   expect(after - before, `줌 보정이 안 맞다: Δtop=${after - before} (기대 250 근처)`).toBeCloseTo(250, 0);
+});
+
+/* ── C. 클램프 범위 회귀(현빈 실측 — "움직임 범위에도 한정되어 있다") ──
+ * _clampToSection에 posEl.offsetWidth/offsetHeight(회전 «전» 크기)를 그대로 넘기면,
+ * 가로로 넓고 얇은 박스(예: 716×83)를 90° 돌려 화면상 33×286짜리 세로 막대로 보여도
+ * 클램프는 여전히 "가로 716짜리"로 계산해 가로 이동 범위를 거의 다 깎아먹는다
+ * (860 섹션 폭 중 716을 예약 → 남는 건 144뿐, 실측). 이 스위트는 useRealClamp:true로
+ * js/sticker-select.js의 진짜 _clampToSection을 그대로 로드해서 잰다(대역 아님).
+ */
+test('C1 ★핵심 — 90° 회전된 넓은 박스는 클램프가 «회전 후 폭»(짧은 쪽) 기준으로 넉넉한 가로 범위를 준다', async ({ page }) => {
+  // 실측 수치 재현: 박스 716×83, 섹션 860×776 (0.9.4 QA 프로젝트 실물 값).
+  await boot(page, { rotationDeg: 90, zoom: 100, boxW: 716, boxH: 83, secW: 860, secH: 776, useRealClamp: true });
+  // 왼쪽 끝(0)에 두고 아주 크게 오른쪽으로 끌어본다 — 옛 클램프라면 maxX=860-716=144에서 막힌다.
+  await page.evaluate(() => { const el = document.getElementById('tf1'); el.style.left = '0px'; el.style.top = '30px'; });
+  await dragBy(page, 'tf1', 1000, 0);   // 화면 1000px, 줌 100% → 훨씬 더 크게 끌어본다
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  expect(left, `가로 이동이 옛 클램프(maxX≈144)에 막혔다 — 회전 후 실제 폭(83) 기준이 아니라 원래 폭(716) 기준으로 클램프되는 회귀: left=${left}`)
+    .toBeGreaterThan(300);
+});
+
+test('C2 클램프 상한은 «회전 후 축정렬 폭»(83) 기준 — 섹션 밖으로는 안 나간다', async ({ page }) => {
+  await boot(page, { rotationDeg: 90, zoom: 100, boxW: 716, boxH: 83, secW: 860, secH: 776, useRealClamp: true });
+  await page.evaluate(() => { const el = document.getElementById('tf1'); el.style.left = '0px'; el.style.top = '30px'; });
+  await dragBy(page, 'tf1', 5000, 0);   // 극단적으로 크게 끌어 상한에 확실히 닿게 한다
+  const { left, rect, secRect } = await page.evaluate(() => {
+    const el = document.getElementById('tf1');
+    const sec = document.getElementById('sec1');
+    return { left: parseFloat(el.style.left), rect: el.getBoundingClientRect(), secRect: sec.getBoundingClientRect() };
+  });
+  // 기대 상한: 클램프는 «화면 축정렬 박스»(clampW=83) 기준으로 걸리지만, 여기 비교하는
+  // left는 «회전 전 프레임 원점»(offsetWidth=716 기준)이다 — 둘은 중심(회전축)을 공유하므로
+  // maxLeft = secW - clampW/2 - offsetWidth/2 = 860 - 41.5 - 358 = 460.5.
+  expect(Math.abs(left - 460.5), `클램프 상한이 안 맞다: left=${left} (기대 460.5 근처)`).toBeLessThan(2);
+  // 화면상으로도 회전된 박스(짧은 변 83)가 섹션 오른쪽 경계 안에 들어와 있어야 한다.
+  expect(rect.x + rect.width, `화면상 박스 오른쪽 끝이 섹션 밖으로 나갔다`).toBeLessThanOrEqual(secRect.x + secRect.width + 1);
+});
+
+test('C3 회전 0°에서는 클램프 범위가 그대로다(회귀 없음) — offsetWidth 그대로 쓰는 경로', async ({ page }) => {
+  await boot(page, { rotationDeg: 0, zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600, useRealClamp: true });
+  await page.evaluate(() => { const el = document.getElementById('tf1'); el.style.left = '0px'; el.style.top = '30px'; });
+  await dragBy(page, 'tf1', 5000, 0);
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  // maxX = secW - boxW = 800 - 300 = 500 (회전 0°에서는 clampW===offsetWidth).
+  expect(left, `회전 0°의 클램프 상한이 바뀌었다: left=${left} (기대 500 근처)`).toBeCloseTo(500, 0);
 });
 
 test('R6 [양성대조] getBoundingClientRect 기반 옛 산식으로 되돌리면 R2가 실패한다', async ({ page }) => {
