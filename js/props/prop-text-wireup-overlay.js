@@ -140,7 +140,13 @@ function _bindOverlayMoveDrag(posEl) {
   posEl.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (posEl.dataset.overlayBlock !== 'true') return; // 오버레이 아니면 일반 드래그(block-drag.js) 몫
-    if (e.target.closest('.resize-handle, [contenteditable]')) return;
+    // ★T-037 P0(2026-09-16, 실측 QA 발견) — 텍스트 블록은 편집 중이 아닐 때도 항상
+    //   contenteditable="false"를 달고 있다(block-factory.js 다수 자리). CSS 속성선택자
+    //   [contenteditable]는 값과 무관하게 «속성 존재»만 보므로 false여도 걸려, 오버레이
+    //   글자 «어디를 눌러도» 이 가드가 mousedown을 즉시 삼켜 크로스섹션 드래그가 통째로
+    //   막혀 있었다(재현 100% — 실사용에서 마우스로 끌면 텍스트 네이티브 셀렉션만 되고
+    //   블록은 1px도 안 움직임). 편집 중(=true로 전환된 상태)만 걸러야 하므로 값을 좁힌다.
+    if (e.target.closest('.resize-handle, [contenteditable="true"]')) return;
     e.stopPropagation();
 
     let sec = posEl.closest('.section-block');
