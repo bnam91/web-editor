@@ -71,21 +71,35 @@ function _applyOverlayPos(posEl, x, y) {
    낮은 줌에서는 사실상 없는 것과 같았다. ⇒ 저항의 "손맛"은 화면(스크린) 픽셀 기준으로
    일정해야 하는 촉각적 UI 효과이지 문서 공간 거리가 아니다 — 매 드래그마다 그 시점의
    zoom으로 나눠(zone = OVERLAY_RESIST_ZONE_SCREEN_PX / zoom) 로컬 단위 존 폭을 다시 구한다
-   (100% 줌에서는 40 그대로라 회귀 없음, 40% 줌에서는 100 로컬px = 여전히 화면 40px). */
+   (100% 줌에서는 40 그대로라 회귀 없음, 40% 줌에서는 100 로컬px = 여전히 화면 40px).
+
+   ★2026-09-16m 현빈 실측 — "지금도 없는거 같은데?" → 재실측(CDP)해 보니 수학적으론 정확한
+   자리에서 걸리고 있었다(회전 보정된 경계 근처에서 속도가 0.35배로 뚜렷이 떨어짐). 다만
+   «부드럽게 느려지기만» 하는 커브는 실제 트랙패드/마우스로 빠르게 훑을 때는 잘 안 느껴진다
+   — 현빈 제안: "살짝 마그네틱 기능이 있으면 나으려나?" ⇒ 경계 바로 옆(화면 10px)은 위치가
+   «경계에 딱 붙어 고정»되는 캐치 구간을 추가한다 — 커서가 그만큼 지나가도 블록은 안 움직여
+   "턱에 걸린" 게 뚜렷이 느껴지고, 그 구간을 넘으면 기존 탄성 구간(0.35배 저항)이 이어서
+   걸리다 완전히 자유로워진다. 캐치 폭은 저항 폭의 1/4 비율(MAGNET_FRACTION)로 둬 zoom
+   변환을 따로 안 해도 된다 — 두 폭 다 같은 1/zoom을 곱하므로 비율은 zoom과 무관하다. */
 const OVERLAY_RESIST_ZONE_SCREEN_PX = 40;
+const OVERLAY_MAGNET_ZONE_SCREEN_PX = 10;
+const OVERLAY_MAGNET_FRACTION = OVERLAY_MAGNET_ZONE_SCREEN_PX / OVERLAY_RESIST_ZONE_SCREEN_PX;
 const OVERLAY_RESIST_FACTOR = 0.35;
 function _elasticAxis(raw, boundMax, zone) {
+  const magnet = zone * OVERLAY_MAGNET_FRACTION;
   if (raw < 0) {
     const over = -raw;
+    if (over <= magnet) return 0;   // ★경계에 딱 붙어 고정 — 마그네틱 캐치
     return over <= zone
-      ? -(over * OVERLAY_RESIST_FACTOR)
-      : -(zone * OVERLAY_RESIST_FACTOR + (over - zone));
+      ? -((over - magnet) * OVERLAY_RESIST_FACTOR)
+      : -((zone - magnet) * OVERLAY_RESIST_FACTOR + (over - zone));
   }
   if (raw > boundMax) {
     const over = raw - boundMax;
+    if (over <= magnet) return boundMax;   // ★경계에 딱 붙어 고정 — 마그네틱 캐치
     return over <= zone
-      ? boundMax + over * OVERLAY_RESIST_FACTOR
-      : boundMax + zone * OVERLAY_RESIST_FACTOR + (over - zone);
+      ? boundMax + (over - magnet) * OVERLAY_RESIST_FACTOR
+      : boundMax + (zone - magnet) * OVERLAY_RESIST_FACTOR + (over - zone);
   }
   return raw;
 }
