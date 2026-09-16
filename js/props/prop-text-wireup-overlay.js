@@ -155,12 +155,22 @@ function _enterOverlay(posEl) {
 
 // 오버레이(플로팅) → 오토레이아웃 복귀
 function _exitOverlay(posEl) {
+  const currentSec = posEl.closest('.section-block');
   const parentId = posEl.dataset.overlayReturnParent;
   const afterId  = posEl.dataset.overlayReturnAfter;
   const parent = parentId ? document.getElementById(parentId) : null;
   // 원래 부모가 그 사이 사라졌으면(행 정리 등) 섹션 본문 맨 앞으로 폴백
-  const fallback = posEl.closest('.section-block')?.querySelector('.section-inner');
-  const target = (parent && parent.isConnected) ? parent : fallback;
+  const fallback = currentSec?.querySelector('.section-inner');
+  /* ★2026-09-16o P0(현빈 실측 — "오버레이를 한 상태로 다른 섹션 위로 올려는 뒀어. 그
+     상태에서 오버레이 버튼을 풀었더니 다시 처음 섹션으로 가지거든?") — overlayReturnParent
+     는 «오버레이 진입 당시」의 원래 부모를 고정 기억한 값이다. 오버레이 상태로 다른
+     섹션으로 드래그해 옮긴 뒤 해제하면, 원래 부모가 여전히 DOM에 살아있으니(isConnected)
+     무조건 그리로 되돌아가 — 지금 눈에 보이는(옮겨간) 섹션이 아니라 «처음» 섹션 본문으로
+     순간이동했다. ⇒ 원래 부모가 지금도 «같은 섹션» 소속일 때만 정확한 원위치로 복귀하고,
+     오버레이 중 다른 섹션으로 옮겨졌으면 그 되돌리기를 포기하고 지금 있는 섹션 본문
+     맨 앞으로 넣는다(=fallback, 사라진 부모 케이스와 같은 경로). */
+  const returnParentSameSection = parent && parent.isConnected && parent.closest('.section-block') === currentSec;
+  const target = returnParentSameSection ? parent : fallback;
 
   if (target) {
     const afterEl = afterId ? document.getElementById(afterId) : null;
