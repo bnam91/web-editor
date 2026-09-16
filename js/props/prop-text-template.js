@@ -68,18 +68,11 @@ export function buildTextPropsHtml(state) {
 
     <div class="prop-section">
       <div class="prop-section-title">Position</div>
-      ${isOverlayTb ? '' : `
-      <div class="prop-row" style="margin-bottom:8px">
-        <button type="button" class="prop-btn-full prop-overlay-toggle${isOverlayBlock ? ' active' : ''}" id="txt-overlay-toggle"
-          aria-pressed="${isOverlayBlock ? 'true' : 'false'}"
-          title="오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 오버레이와 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.">
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" style="vertical-align:-1px;margin-right:5px">
-            <rect x="1" y="4" width="6" height="6" rx="1"/>
-            <rect x="5" y="1" width="6" height="6" rx="1" fill="var(--ui-bg-card)"/>
-          </svg>${isOverlayBlock ? '오버레이 해제' : '오버레이로 전환'}
-        </button>
-      </div>`}
       <span class="prop-field-label">Alignment</span>
+      <!-- ★2026-09-16 현빈 지시(T-001) — Figma의 Position 패널처럼 "Ignore Auto Layout" 토글이
+           Alignment 아이콘과 같은 줄, 오른쪽 끝에 아이콘 버튼으로 붙는다(예전엔 위에 별도
+           가로폭 버튼이었다). id·클릭 배선(prop-text-wireup-overlay.js wireOverlaySection)은
+           그대로 — 여기서는 마크업/자리만 옮긴다. -->
       <div class="prop-align-group" style="margin-bottom:6px">
           <button class="prop-align-btn ${currentAlign==='left'||currentAlign===''?'active':''}" data-align="left">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -99,6 +92,15 @@ export function buildTextPropsHtml(state) {
               <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
             </svg>
           </button>
+          ${isOverlayTb ? '' : `
+          <button type="button" class="prop-align-btn prop-align-btn--overlay${isOverlayBlock ? ' active' : ''}" id="txt-overlay-toggle"
+            aria-pressed="${isOverlayBlock ? 'true' : 'false'}"
+            title="오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.">
+            <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2">
+              <rect x="1" y="4" width="6" height="6" rx="1"/>
+              <rect x="5" y="1" width="6" height="6" rx="1" fill="var(--ui-bg-card)"/>
+            </svg>
+          </button>`}
       </div>
       <span class="prop-field-label">Position</span>
       <div class="prop-lhls-row">
