@@ -659,6 +659,31 @@ export function showPageProperties() {
    ★마크업(id·.prop-color-swatch 구조)은 «그대로» 옮겼다 — 커스텀 컬러피커의 그라데이션 탭이
      그 구조에 붙기 때문에(color-picker.js openPicker), 모양을 바꾸면 그 기능이 조용히 사라진다.
    ★요소가 DS 패널에 «상주»하므로 패널을 열 때마다 다시 걸 필요가 없다 — 중복 배선 가드. */
+/* ★T-054 후속 — 저장된 그라데이션이 있으면 스와치·재오픈 씨앗(dataset.cpGradient)을 채운다.
+   goya-cp:gradient가 최소 한 번 발화하기 전까지 이 값이 비어 있으면 첫 재오픈이 «솔리드+
+   기본 2스톱»으로 리셋된다(save-load.js _bgCss가 읽는 값과 같은 state.pageSettings.bgGradient
+   — 같은 JSON을 그대로 시드로 쓴다).
+   ★applyPageSettings()가 매번 이 함수를 부른다(save-load.js) — wireCanvasBgControl() 한 번만
+   불러선 부족했다: 실측(2026-09-16)으로 부팅 직후 첫 호출 시점엔 state.pageSettings 가 아직
+   프로젝트 파일에서 채워지기 전이라(레이스) 시드가 비어버렸다. applyPageSettings()는 그 뒤
+   실제 프로젝트가 열릴 때(switchPage 등)도 항상 다시 불리므로 거기 얹으면 레이스가 없다. */
+export function seedPageBgGradientPicker() {
+  const bgPicker = document.getElementById('page-bg-color');
+  if (!bgPicker) return;   // 아직 DOM 미구성(초초기 부팅) — 다음 applyPageSettings에서 다시 시도된다
+  const bgSwatch = bgPicker.closest('.prop-color-swatch');
+  if (!bgSwatch) return;
+  if (!state.pageSettings.bgGradient) {
+    delete bgPicker.dataset.cpGradient;   // 솔리드로 복귀한 프로젝트에 옛 그라데이션 씨앗이 안 남게
+    return;
+  }
+  try {
+    const model = JSON.parse(state.pageSettings.bgGradient);
+    const css = window.GradientModel?.toCss?.(model);
+    if (css) { bgPicker.dataset.cpGradient = state.pageSettings.bgGradient; bgSwatch.style.background = css; }
+  } catch (_) { /* 깨진 JSON — 솔리드 스와치(native input value)로 둔다 */ }
+}
+window.seedPageBgGradientPicker = seedPageBgGradientPicker;
+
 export function wireCanvasBgControl() {
   const _probe = document.getElementById('page-bg-color');
   if (!_probe || _probe._canvasBgWired) return;
@@ -667,6 +692,8 @@ export function wireCanvasBgControl() {
   const bgHex      = document.getElementById('page-bg-hex');
   const bgAlphaInp = document.getElementById('page-bg-alpha-input');
   const bgSwatch   = bgPicker.closest('.prop-color-swatch');
+
+  seedPageBgGradientPicker();
 
   const _bgToRgba = () => {
     const h = (state.pageSettings.bg || '#000000').replace('#','');
