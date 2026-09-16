@@ -698,8 +698,25 @@ function _bgRgba(ps) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
+/* ★T-054(2026-09-16, 작업목록매니저 코드감사 발견) — ps.bgGradient(JSON {type,angle,stops},
+   prop-page.js goya-cp:gradient 핸들러가 씀)는 저장 파일엔 그대로 남는데, 페이지를 다시 열면
+   여기(_bgRgba)만 불려 항상 «솔리드»로 칠해졌다. 그라데이션이 있으면 그걸 우선한다 —
+   window.GradientModel.toCss(model)가 gradient-model.js(ES 모듈, 이 시점엔 이미 로드완료)의
+   같은 직렬화 규약을 쓴다(prop-page.js가 goya-cp:gradient 로 받는 것과 동일 포맷). */
+function _bgCss(ps) {
+  if (ps.bgGradient) {
+    try {
+      const model = JSON.parse(ps.bgGradient);
+      const css = window.GradientModel?.toCss?.(model);
+      if (css) return css;
+    } catch (_) { /* 깨진 JSON — 솔리드로 폴백 */ }
+  }
+  return _bgRgba(ps);
+}
+
 function applyPageSettings() {
-  applyCanvasBackground(_bgRgba(state.pageSettings));
+  applyCanvasBackground(_bgCss(state.pageSettings));
+  window.seedPageBgGradientPicker?.();   // T-054 후속 — 재오픈 씨앗도 캔버스 칠과 같은 타이밍에 갱신
   canvasEl.style.gap = state.pageSettings.gap + 'px';
   canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
   // padX: 섹션 물리적 padding 방식으로 적용 (섹션 개별 override 제외)
@@ -1719,7 +1736,7 @@ function initApp() {
     const revertBtn = document.getElementById('revert-btn');
     if (revertBtn) revertBtn.classList.add('has-commit');
   }
-  applyCanvasBackground(_bgRgba(state.pageSettings));
+  applyCanvasBackground(_bgCss(state.pageSettings));
   canvasEl.style.gap = state.pageSettings.gap + 'px';
   canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
   // padX: 섹션 물리적 padding 방식으로 적용
