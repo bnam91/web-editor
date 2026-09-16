@@ -96,7 +96,7 @@ body.scratch-hidden-all .scratch-item { display: none; }
 .scratch-close {
   position: absolute;
   top: 4px; right: 4px;
-  transform: scale(var(--inv-zoom, 1));
+  transform: scale(var(--scratch-inv-zoom, 1));
   transform-origin: top right;
   width: 20px;
   height: 20px;
@@ -119,8 +119,8 @@ body.scratch-hidden-all .scratch-item { display: none; }
 .scratch-slice-btn {
   position: absolute;
   top: 4px;
-  right: calc(4px + 24px * var(--inv-zoom, 1)); /* close 너비(20) + 간격(4) 줌 보정 */
-  transform: scale(var(--inv-zoom, 1));
+  right: calc(4px + 24px * var(--scratch-inv-zoom, 1)); /* close 너비(20) + 간격(4) 줌 보정 */
+  transform: scale(var(--scratch-inv-zoom, 1));
   transform-origin: top right;
   width: 20px; height: 20px;
   background: rgba(28,28,28,0.88);
@@ -143,8 +143,8 @@ body.scratch-hidden-all .scratch-item { display: none; }
 .scratch-ai-btn {
   position: absolute;
   top: 4px;
-  right: calc(4px + 48px * var(--inv-zoom, 1)); /* close(20) + gap(4) + slice(20) + gap(4) */
-  transform: scale(var(--inv-zoom, 1));
+  right: calc(4px + 48px * var(--scratch-inv-zoom, 1)); /* close(20) + gap(4) + slice(20) + gap(4) */
+  transform: scale(var(--scratch-inv-zoom, 1));
   transform-origin: top right;
   width: 20px; height: 20px;
   background: rgba(28,28,28,0.88);
@@ -197,7 +197,7 @@ body.scratch-hidden-all .scratch-item { display: none; }
 .scratch-resize {
   position: absolute;
   bottom: 0; right: 0;
-  transform: translate(50%, 50%) scale(var(--inv-zoom, 1));
+  transform: translate(50%, 50%) scale(var(--scratch-inv-zoom, 1));
   transform-origin: center center;
   width: 8px;
   height: 8px;

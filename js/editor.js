@@ -169,15 +169,23 @@ const PINCH_DELTA_PER_NOTCH = 10;
 /* 한 스로틀 틱(16ms)에 몰린 입력의 상한. 옛 판의 ±30%p 클램프가 하던 «폭주 방지»를 잇는다
    (상한에 걸려도 ×1.728 — 옛 판이 40% 에서 한 노치에 내던 ×1.75 를 넘지 않는다). */
 const ZOOM_MAX_NOTCHES_PER_TICK = 3;
-/* [T-007] --inv-zoom(줌 역-스케일, editor-canvas.css 등 스크래치패드 버튼·리사이즈 핸들·
-   선택 아웃라인이 두루 참조) 상한. 캔버스를 최소 배율(10%)까지 축소하면 역-스케일이
-   10배까지 커져 버튼이 이미지보다 훨씬 크게 보인다(현빈 QA FAIL, T-007).
+/* [T-007] 스크래치패드 버튼 전용 역-스케일 상한.
+   ★2026-09-16f 정정(작업목록매니저 내용게이트 지적) — 처음엔 이 상한을 «전역» --inv-zoom
+   자체에 걸었는데, 그 토큰은 선택 아웃라인(--sel-outline-w, editor-base.css:9)·도형 리사이즈
+   핸들(.shape-handle, editor-blocks.css:1633)·에셋 회전 핫존(asset-rotate.js:47) 등 «화면상
+   진짜 고정 크기»가 필요한 곳도 같이 참조하는 공유 토큰이었다 — 거기에 상한을 걸면 10% 줌에서
+   그 요소들이 «진짜 10배»가 아니라 2.5배로만 커져, 핸들이 손가락보다 작아지고 선택 아웃라인이
+   가늘어지는 회귀가 났다(현빈이 아직 보고하기 전에 코드게이트가 잡음). ⇒ 전역 --inv-zoom 은
+   그대로 두고(아래 원래 계산식 복원), 스크래치패드 전용 --scratch-inv-zoom 을 별도로 만들어
+   그 값에만 상한을 건다.
+   캔버스를 최소 배율(10%)까지 축소하면 역-스케일이 10배까지 커져 스크래치 버튼(닫기·자르기·
+   연결·접기)이 이미지보다 훨씬 크게 보인다(현빈 QA FAIL, T-007).
    ★상한 2.5 근거(실측 2026-09-16, 격리 인스턴스 9511): 스크래치 버튼 기본 20px 기준
    ×2.5=50px는 40% 줌(이 앱 기본 배율)에서 보이는 크기와 같다 — 10%까지 더 축소해도
    버튼이 «40% 줌 때 크기»보다 커지지 않게 고정한다. 그 아래로는 화면상 이미지 자체가
    버튼보다 작아지는 지점이라 더 얹어도 가독성 이득이 없다(직전 줄 --ui-scale 이
    1.6 cap 을 쓰는 것과 같은 이유 — 여기는 버튼이 라벨보다 절대크기가 커서 배수를 더 준다). */
-const INV_ZOOM_CAP = 2.5;
+const SCRATCH_INV_ZOOM_CAP = 2.5;
 let currentZoom = 40;
 const scaler = document.getElementById('canvas-scaler');
 const zoomDisplay = document.getElementById('zoom-display');
@@ -243,7 +251,8 @@ function applyZoom(z, opts) {
   window.currentZoom = currentZoom;
   _applyScalerTransformAndSync();
   zoomDisplay.textContent = Math.round(currentZoom) + '%';   // [M67] 표시는 정수 — 내부 배율만 소수를 갖는다
-  document.documentElement.style.setProperty('--inv-zoom', Math.min(INV_ZOOM_CAP, 100 / currentZoom).toFixed(4));
+  document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
+  document.documentElement.style.setProperty('--scratch-inv-zoom', Math.min(SCRATCH_INV_ZOOM_CAP, 100 / currentZoom).toFixed(4));
   // 섹션 라벨/툴바 카운터-스케일
   // - zoom ≥ 80%: 자연 스케일 (1.0) — 라벨이 섹션과 분리돼 보이지 않게
   // - zoom < 80%: 점진적으로 키워서 가독성 유지, 최대 1.6 cap (겹침 방지는 max-width+ellipsis가 담당)

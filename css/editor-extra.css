@@ -1885,11 +1885,12 @@ body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed);
    #16 재설계(현빈) — 참고이미지 «제자리», 연결은 «선»만. 사이드카 폐기.
    스크래치 아이템 버튼그룹(가위 옆)·접힘·연결선 dot.
 ═══════════════════════════════════════════════ */
-/* 버튼그룹: 기존 close(+4)·slice(+26) 클러스터 왼쪽(가위 옆). inv-zoom로 화면크기 고정. */
+/* 버튼그룹: 기존 close(+4)·slice(+26) 클러스터 왼쪽(가위 옆). --scratch-inv-zoom(상한 있음,
+   T-007)으로 화면크기 고정 — 전역 --inv-zoom 이 아니다(2026-09-16f, editor.js 주석 참고). */
 .scratch-item > .spl-btns {
   position: absolute; top: 4px;
-  right: calc(4px + 48px * var(--inv-zoom, 1)); /* close(20)+gap(4)+slice(20)+gap(4) = 48, ai-btn 클러스터 오프셋과 동일 보정 */
-  transform: scale(var(--inv-zoom, 1)); transform-origin: top right;
+  right: calc(4px + 48px * var(--scratch-inv-zoom, 1)); /* close(20)+gap(4)+slice(20)+gap(4) = 48, ai-btn 클러스터 오프셋과 동일 보정 */
+  transform: scale(var(--scratch-inv-zoom, 1)); transform-origin: top right;
   display: flex; gap: 4px; z-index: 10; opacity: 0; transition: opacity .15s;
 }
 /* ★가시성은 ✕✨✂ 클러스터와 «완전 동일»하게 hover 전용(현빈 2026-08-25 지시).

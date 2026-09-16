@@ -48,7 +48,7 @@ const DEPS = [
   'function wheelZoomNotches(acc) {',
 ].map(slice);
 const CONSTS = ['ZOOM_RATIO_PER_NOTCH', 'WHEEL_NOTCH_MIN_DELTA', 'PINCH_DELTA_PER_NOTCH',
-                'ZOOM_MAX_NOTCHES_PER_TICK', 'INV_ZOOM_CAP'].map(constLine);
+                'ZOOM_MAX_NOTCHES_PER_TICK', 'SCRATCH_INV_ZOOM_CAP'].map(constLine);
 
 /* ── 가짜 환경 ──
  *   canvas-wrap 을 없는 셈 치면 zoomStep 이 «앵커 계산 없이» applyZoom 으로 빠진다(소스 첫 줄의 가드).

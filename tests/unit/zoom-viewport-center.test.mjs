@@ -72,7 +72,7 @@ function makeEnv(applySrc) {
 
   /* currentZoom 을 «배율 모형»과 묶는다 — 실제 코드에선 _applyScalerTransformAndSync 가 하는 일이다. */
   const prelude = `
-    const INV_ZOOM_CAP = 2.5;
+    const SCRATCH_INV_ZOOM_CAP = 2.5;
     let currentZoom = 40;
     function _applyScalerTransformAndSync() { __model.scale = currentZoom / 100; }
     function scheduleNotchUpdate() {}
