@@ -1150,6 +1150,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .qa-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 .qa-block.qa-verdict-pass { border-color: #4ade80; }
 .qa-block.qa-verdict-fail { border-color: var(--ui-danger-border); }
+.qa-block.qa-verdict-revise { border-color: #f59e0b; }
 
 .qa-block .qa-badge {
   position: absolute; top: -21px; left: 21px;
@@ -1180,6 +1181,10 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 }
 .qa-block .qa-verdict-btn--fail.qa-verdict-btn--active {
   background: var(--ui-danger-bg); border-color: var(--ui-danger-border); color: var(--ui-danger);
+}
+/* REVISE — 이 블록 안에서 이미 "피드백있음" 상태(qa-status--feedback)에 쓰는 앰버를 그대로 재사용 */
+.qa-block .qa-verdict-btn--revise.qa-verdict-btn--active {
+  background: rgba(245, 158, 11, 0.14); border-color: #f59e0b; color: #b4720a;
 }
 
 .qa-block .qa-header {

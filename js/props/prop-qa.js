@@ -21,7 +21,7 @@ function _items(block) {
   } catch (_) { return []; }
 }
 
-const _VERDICT_LABEL = { none: '미정', pass: 'PASS', fail: 'FAIL' };
+const _VERDICT_LABEL = { none: '미정', pass: 'PASS', fail: 'FAIL', revise: 'REVISE' };
 
 export function showQAProperties(block) {
   const ticket = block.dataset.ticket || '';

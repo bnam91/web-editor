@@ -3718,9 +3718,11 @@ function _registerDefaultTools() {
       description: '⚠️admin/QA 전용. 기존 QA 체크리스트 블록(qa_xxx)을 갱신한다 — partial update. '
         + 'items: 체크상태·항목별 코멘트 포함 전체 배열([{text,done,comment?}, ...])로 교체(부분 아님, '
         + 'comment 생략 시 빈 문자열). feedback: 블록 전체 피드백 문자열(항목별 comment 와는 별개). '
-        + 'collapsed: 접힘 여부(boolean). verdict: 현빈의 최종 pass/fail 판정("none"|"pass"|"fail") — '
-        + '체크리스트 진행률(qa-status)과는 별개 축이다. 이 값을 클로드가 임의로 pass 로 세팅하지 말 것 — '
-        + '현빈이 캔버스에서 직접 누른 값을 읽는 용도가 기본이고, fail 을 고쳐서 재검수를 요청할 때 '
+        + 'collapsed: 접힘 여부(boolean). verdict: 현빈의 최종 판정("none"|"pass"|"fail"|"revise") — '
+        + '체크리스트 진행률(qa-status)과는 별개 축이다. fail=원래 스펙대로 안 됨(버그), '
+        + 'revise=스펙대로는 됐지만 개선하고 싶다/방향을 바꾸고 싶다(버그 아님) — 처리 흐름은 둘 다 '
+        + '같은 티켓에서 계속 이어간다는 점에서 동일하다. 이 값을 클로드가 임의로 pass 로 세팅하지 말 것 — '
+        + '현빈이 캔버스에서 직접 누른 값을 읽는 용도가 기본이고, fail/revise 를 고쳐서 재검수를 요청할 때 '
         + '"none"으로 되돌리는 정도만 클로드가 써도 된다. 여러 필드를 한 번에 줄 수 있다. '
         + 'Returns {ok, blockId, items, feedback, collapsed, verdict} — 쓴 뒤 화면에서 다시 읽어 돌려준다.',
       inputSchema: {
@@ -3733,7 +3735,7 @@ function _registerDefaultTools() {
             required: ['text', 'done'] } },
           feedback: { type: 'string' },
           collapsed: { type: 'boolean' },
-          verdict: { type: 'string', enum: ['none', 'pass', 'fail'], description: '현빈의 최종 판정. 기본은 클로드가 "none"으로 재설정하는 용도로만.' },
+          verdict: { type: 'string', enum: ['none', 'pass', 'fail', 'revise'], description: '현빈의 최종 판정. 기본은 클로드가 "none"으로 재설정하는 용도로만.' },
           expectedProject: { type: 'string' },
         },
         required: ['blockId'],
