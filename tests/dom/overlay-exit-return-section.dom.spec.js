@@ -153,3 +153,111 @@ test('X3 [양성대조] "원래 부모로 무조건 복귀"였다면 X2가 실�
   const parentId = await page.evaluate(() => document.getElementById('tf1').parentElement.id);
   expect(parentId, '양성대조가 재현 안 됨 — 옛 산식도 innerB에 남으면 X2가 이 회귀를 못 잡는다는 뜻').toBe('innerA');
 });
+
+/* ── Q. 작업목록매니저(a1-a3) 독립 리뷰에서 확인한 조합 — 결과를 스펙으로 고정 ──
+ * a1-a3가 이 파일의 하네스를 그대로 써서 조사용 검사를 돌리고 지웠다("저장소에 안
+ * 남겼다") — 재현 불가능한 결론이라는 내용 게이트 지적을 받아, 그 세 조합을 여기 정식
+ * 스펙으로 옮긴다(Q1·Q2는 a1-a3 조사 결과 그대로 "정상"을 고정, Q3도 동일).
+ * ★Q2는 "그 섹션 맨 앞에 들어간다"는 현빈 검수(🔎㉗)에서 바뀔 수 있는 항목이다 — 바뀌면
+ *   이 테스트가 빨개져서 알려준다(의도적으로 "지금 값을 고정"하는 스펙).
+ */
+test('Q1 다른 섹션(secB)으로 옮겼다가 원래 섹션(secA)으로 되돌아온 뒤 이탈 — 정확히 원래 자리(tbwrap)로 복귀한다', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => document.getElementById('txt-overlay-toggle').click()); // 진입 (secA)
+  await page.evaluate(() => {
+    document.getElementById('secB').appendChild(document.getElementById('tf1')); // secA → secB
+    document.getElementById('secA').appendChild(document.getElementById('tf1')); // secB → secA (되돌아옴)
+  });
+  await page.evaluate(() => document.getElementById('txt-overlay-toggle').click()); // 이탈
+  const parentId = await page.evaluate(() => document.getElementById('tf1').parentElement.id);
+  expect(parentId, `원래 섹션으로 되돌아왔는데도 원래 자리(tbwrap)로 복귀 안 함: ${parentId}`).toBe('tbwrap');
+});
+
+test('Q2 [현재값 고정 — 🔎㉗ 현빈 검수 대기] 기존 블럭이 있는 섹션으로 옮겨 이탈하면 그 섹션 «맨 앞»(자리 0)에 들어간다', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => {
+    // innerB에 기존 블럭 셋을 미리 넣어 둔다(a1-a3 조사와 동일 조건).
+    const inner = document.getElementById('innerB');
+    for (let i = 0; i < 3; i++) {
+      const d = document.createElement('div');
+      d.id = `existing${i}`;
+      inner.appendChild(d);
+    }
+  });
+  await page.evaluate(() => document.getElementById('txt-overlay-toggle').click()); // 진입 (secA)
+  await page.evaluate(() => document.getElementById('secB').appendChild(document.getElementById('tf1')));
+  await page.evaluate(() => document.getElementById('txt-overlay-toggle').click()); // 이탈 → innerB로 폴백
+  const { parentId, indexInParent } = await page.evaluate(() => {
+    const f = document.getElementById('tf1');
+    return { parentId: f.parentElement.id, indexInParent: [...f.parentElement.children].indexOf(f) };
+  });
+  expect(parentId).toBe('innerB');
+  // ★현재 동작(target.prepend) 고정 — "놓아 둔 높이 근처"로 바뀌면 여기가 빨개진다(의도적).
+  expect(indexInParent, `innerB 안에서 맨 앞(0)이 아니다 — target.prepend 동작이 바뀌었다: index=${indexInParent}`).toBe(0);
+});
+
+test('Q3 원래 부모가 자유배치 프레임(data-free-layout)이어도 다른 섹션으로 옮겨 이탈하면 innerB로 들어가고 position·width가 정리된다', async ({ page }) => {
+  await page.route(`${ORIGIN}/**`, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/__harness.html') {
+      return route.fulfill({
+        contentType: 'text/html',
+        body: `<!doctype html><html><head><meta charset="utf-8">
+          <style>
+            * { box-sizing: border-box; }
+            body { margin: 0; }
+            .section-block { position: relative; width: 800px; height: 300px; background: #fff; }
+          </style>
+          <script type="module">
+            import { wireOverlaySection } from '/props/overlay-wireup.js';
+            window.__wireOverlaySection = wireOverlaySection;
+          </script>
+          </head><body>
+          <button id="txt-overlay-toggle" style="display:none;"></button>
+          <div class="section-block" id="secA">
+            <div class="section-inner" id="innerA">
+              <div class="frame-block" data-free-layout="true" id="tbwrap" style="position:relative;">
+                <div class="frame-block" data-text-frame="true" id="tf1"
+                     style="position:relative; width:200px; height:40px; background:rgba(0,0,255,0.15);">
+                  <div class="tb-h2" id="tb1" contenteditable="false" style="width:100%;height:100%;">텍스트</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="section-block" id="secB">
+            <div class="section-inner" id="innerB"></div>
+          </div>
+          <script>
+            window.currentZoom = 100;
+            window.pushHistory = () => {};
+            window.scheduleAutoSave = () => {};
+            window.triggerAutoSave = () => {};
+            window.buildLayerPanel = () => {};
+            window.showTextProperties = () => {};
+            window._bindOverlayMoveDrag = () => {};
+          </script>
+          </body></html>`,
+      });
+    }
+    if (url.pathname === '/props/overlay-wireup.js') {
+      return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_JS });
+    }
+    if (url.pathname === '/frame-geometry.js') {
+      return route.fulfill({ contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
+    }
+    return route.fulfill({ status: 404, body: '' });
+  });
+  await page.goto(`${ORIGIN}/__harness.html`);
+  await page.waitForFunction(() => !!window.__wireOverlaySection);
+  await page.evaluate(() => window.__wireOverlaySection({ tb: document.getElementById('tb1') }));
+  await page.evaluate(() => document.getElementById('txt-overlay-toggle').click()); // 진입 (원래 부모=자유배치 프레임)
+  await page.evaluate(() => document.getElementById('secB').appendChild(document.getElementById('tf1')));
+  await page.evaluate(() => document.getElementById('txt-overlay-toggle').click()); // 이탈
+  const state = await page.evaluate(() => {
+    const f = document.getElementById('tf1');
+    return { parentId: f.parentElement.id, position: f.style.position, width: f.style.width };
+  });
+  expect(state.parentId, `원래 부모가 자유배치 프레임이었는데 innerB로 안 들어감: ${state.parentId}`).toBe('innerB');
+  expect(state.position, `position이 안 비워졌다: "${state.position}"`).toBe('');
+  expect(state.width, `overlay가 새로 심은 width가 안 비워졌다: "${state.width}"`).toBe('');
+});
