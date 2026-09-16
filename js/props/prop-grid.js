@@ -1,10 +1,11 @@
 /* ── Grid(다단) 블록 프로퍼티 패널 ──
    구조(컬럼/라인 추가·삭제)는 CDP/updateGridBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
-import { parseRatio, buildGridPicker, alignBtn } from './_helpers.js';
+import { parseRatio, buildGridPicker, alignBtn, bindSlider } from './_helpers.js';
 import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★상한은 한 곳에서만 온다
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
-         MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT } from '../blocks/grid-block.js';
+         MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT,
+         gridGaps, GRID_GAP_MAX } from '../blocks/grid-block.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
@@ -118,6 +119,34 @@ function _rowHeightHtml(rows) {
         <div class="grd-rowh-list" style="display:flex;flex-direction:column;gap:4px;flex:1;">${items}</div>
       </div>
       <div class="prop-hint">비우면 자동(내용 높이) · 값은 «최소» 높이(내용이 더 크면 늘어난다)</div>`;
+}
+
+/* ── 열/행 「간격」 UI ───────────────────────────────────────────────────────
+ * ★2026-09-16(T-D): 09-05 에 지운 「간격」(양축 동시) 슬라이더의 재도입이 아니다 — 그건
+ *   재도입하지 않는다(현빈 지시). 이번엔 열 간격/행 간격을 따로 조작한다(월계수 블록의
+ *   "셀 가로/세로 간격" 2슬라이더 선례와 같은 형태, 라벨/필드명은 그리드 고유 어휘로 확정).
+ * ★1열/1행에서는 그 축 갭이 화면에 효과가 없어 죽은 컨트롤이 된다 — cols.length>=2 /
+ *   rows.length>=2 일 때만 각각 노출한다(_ratioRowHtml/_rowHeightHtml 과 같은 술어). */
+function _gapRowHtml(cols, rows, colGap, rowGap) {
+  let html = '';
+  if (cols.length >= 2) {
+    html += `
+      <div class="prop-row">
+        <span class="prop-label">열 간격</span>
+        <input type="range" class="prop-slider" id="grd-col-gap-slider" min="0" max="${GRID_GAP_MAX}" step="2" value="${colGap}">
+        <input type="number" class="prop-number" id="grd-col-gap-number" min="0" max="${GRID_GAP_MAX}" value="${colGap}">
+      </div>`;
+  }
+  if (rows.length >= 2) {
+    html += `
+      <div class="prop-row">
+        <span class="prop-label">행 간격</span>
+        <input type="range" class="prop-slider" id="grd-row-gap-slider" min="0" max="${GRID_GAP_MAX}" step="2" value="${rowGap}">
+        <input type="number" class="prop-number" id="grd-row-gap-number" min="0" max="${GRID_GAP_MAX}" value="${rowGap}">
+      </div>`;
+  }
+  if (!html) return '';
+  return html + `<div class="prop-hint">행/열 사이 간격(px)</div>`;
 }
 
 /* ══ Typography·Fill 절 — 마크업은 «부품»이 낸다 ═══════════════════════════
@@ -406,10 +435,11 @@ export function showGridProperties(block, addrArg) {
   let cols = [];
   try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) {}
   const rows = gridRows(block);   // 없으면(옛 파일) [{height:'auto'}] 1행 — grid-block.js 승격 로직과 공유
-  /* ★2026-09-05 현빈 지시로 「간격」 슬라이더를 패널에서 걷어냈다.
-   * ⛔데이터와 렌더러는 «그대로»다 — `block.dataset.gap` 은 계속 살아 있고 grid-block.js 가
-   *   읽어서 그린다(기존 프로젝트의 간격 값이 사라지면 안 된다). 없앤 건 «조절 UI» 하나뿐이다.
-   * 바꾸려면 updateGridBlock API / MCP 로는 여전히 된다. */
+  /* ★2026-09-05 현빈 지시로 「간격」(양축 동시) 슬라이더를 패널에서 걷어냈다 — «그» 편의 슬라이더는
+   * 재도입하지 않는다. 2026-09-16(T-D) 부터는 열 간격/행 간격을 «따로» 조작하는 슬라이더 2개가 있다
+   * (아래 _gapRowHtml). ⛔데이터와 렌더러는 그대로다 — `block.dataset.gap` 은 레거시 기준값 겸
+   * 단축값으로 계속 산다(옛 프로젝트 호환), rowGap/colGap 없는 블록은 이 값으로 폴백한다. */
+  const { row: _rowGap, col: _colGap } = gridGaps(block);
   const valign = block.dataset.valign || 'top';
   // 가로 정렬은 컬럼 모델(col.align)에 산다. 컬럼마다 다르면(혼합) 어느 버튼도 active 로 켜지 않는다.
   const _aligns = cols.map(c => c.align || 'left');
@@ -443,6 +473,7 @@ export function showGridProperties(block, addrArg) {
       <div class="prop-section-title">Layout</div>
       ${_ratioRowHtml(cols)}
       ${_rowHeightHtml(rows)}
+      ${_gapRowHtml(cols, rows, _colGap, _rowGap)}
       <div class="prop-row">
         <span class="prop-label">가로 정렬</span>
         <div class="prop-align-group" id="grd-halign-group">
@@ -586,6 +617,30 @@ export function showGridProperties(block, addrArg) {
     _applyRatioInput(equal);
     window.scheduleAutoSave?.();
   });
+
+  /* ── 열 간격 / 행 간격 슬라이더 — 공용 bindSlider(_helpers.js) 재사용(prop-frame.js:512 선례).
+   * ⛔showGridProperties 를 재호출하지 않는다 — 그러면 매 드래그 프레임마다 패널을 통째로
+   *   다시 그려 포커스가 든 input 이 교체되고 타이핑/드래그가 끊긴다(색 피커·비율 입력과 같은 함정).
+   * ★dataset.gap(레거시 균일값)은 여기서 손대지 않는다 — 패널 슬라이더 조작은 rowGap/colGap 만
+   *   갱신한다(현빈 확정 정책: API 의 gap 호출만 양축 동시 갱신, 패널은 축별). */
+  const colGapSlider = document.getElementById('grd-col-gap-slider');
+  const colGapNumber = document.getElementById('grd-col-gap-number');
+  if (colGapSlider && colGapNumber) {
+    bindSlider(colGapSlider, colGapNumber, (v) => {
+      block.dataset.colGap = String(v);
+      window.renderGridBlock?.(block);
+      window._grdSyncLineMark?.(block, grdGetActiveLine(block));
+    }, { min: 0, max: GRID_GAP_MAX });
+  }
+  const rowGapSlider = document.getElementById('grd-row-gap-slider');
+  const rowGapNumber = document.getElementById('grd-row-gap-number');
+  if (rowGapSlider && rowGapNumber) {
+    bindSlider(rowGapSlider, rowGapNumber, (v) => {
+      block.dataset.rowGap = String(v);
+      window.renderGridBlock?.(block);
+      window._grdSyncLineMark?.(block, grdGetActiveLine(block));
+    }, { min: 0, max: GRID_GAP_MAX });
+  }
 
   propPanel.querySelectorAll('[data-va]').forEach(btn => btn.addEventListener('click', () => {
     block.dataset.valign = btn.dataset.va;

@@ -69,6 +69,29 @@ const ROW_DEFAULT = { height: 'auto' };
 const MIN_COLS = 1, MAX_COLS = 4;
 const MIN_ROWS = 1, MAX_ROWS = 4;   // 1행 = 옛 duo 파일과 동일(행 축 신설 이전 기본값).
 
+/* ★행/열 간격 상한 — 「클램프가 여러 곳에 흩어져 하나만 고쳐지는」 사고 반복 방지, 한 곳에 모은다.
+ *   updateGridBlock 검증(gap/rowGap/colGap)·prop-grid.js 슬라이더 max 가 전부 이 값을 본다. */
+export const GRID_GAP_MAX = 200;
+
+/* ★2026-09-16(T-D) — 우측패널 「행 간격/열 간격」 분리 슬라이더 재도입(09-05 제거된 「간격」 슬라이더와는
+ *   다른 것 — 양축 동시 편의 슬라이더는 «재도입하지 않는다», 축별로만 조작한다).
+ *   `dataset.gap` 은 레거시 기준값 겸 단축값으로 «그대로» 남는다(옛 프로젝트 호환).
+ *   ⛔`parseInt(x) || 24` 금지 — gap=0 이 유효값인데 `||` 폴백이 0 을 삼킨다. Number.isFinite 로만 판정. */
+function _gridGaps(block) {
+  const ds = (block && block.dataset) || {};
+  const legacy = Number.isFinite(+ds.gap) && ds.gap !== '' ? +ds.gap : GRID_DEFAULTS.gap;
+  const row = (Number.isFinite(+ds.rowGap) && ds.rowGap !== '') ? +ds.rowGap : legacy;
+  const col = (Number.isFinite(+ds.colGap) && ds.colGap !== '') ? +ds.colGap : legacy;
+  return { row, col };
+}
+
+/** gap/rowGap/colGap 공용 검증 — 0~GRID_GAP_MAX. 통과면 정수, 아니면 null. */
+function _gridValidateGap(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > GRID_GAP_MAX) return null;
+  return Math.round(n);
+}
+
 // 컬럼 스케일 텍스트 롤 기본값 (풀폭 h1 104px는 다단에선 과대 — 컬럼용 축소 기준)
 /* ★role.color — 「역할 기본색」(§7-ⓐ). 새 색을 «하나도» 만들지 않았다: 전부 editor-base.css 의
  *   --preset-*-color 와 «같은 값»이다(h1 #111 :10 · h2 #1a1a1a :12 · h3 #333 :14 · body #555 :16 ·
@@ -455,8 +478,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
 //   수학적으로 같은 분배지만 반올림 경로가 달라 1px 안팎 흔들릴 수 있다(완료조건, QA 대상).
 function renderGridBlock(block) {
   const { cols, rows, cells } = getGridModel(block);
-  const gap = parseInt(block.dataset.gap);
-  const gapPx = Number.isFinite(gap) ? gap : GRID_DEFAULTS.gap;
+  const { row: rowGapPx, col: colGapPx } = _gridGaps(block);
   const blockValign = _GRID_VALIGN[block.dataset.valign] || 'flex-start';
 
   block.style.width = '100%';
@@ -492,7 +514,7 @@ function renderGridBlock(block) {
     }
   }
 
-  block.innerHTML = `<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};gap:${gapPx}px;width:100%;">
+  block.innerHTML = `<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${rowGapPx}px;column-gap:${colGapPx}px;width:100%;">
     ${cellsHtml.join('')}
   </div>`;
 }
@@ -532,6 +554,9 @@ function makeGridBlock(opts = {}) {
   block.dataset.type = 'grid';
   let cols = (Array.isArray(opts.cols) && opts.cols.length >= MIN_COLS) ? opts.cols.slice(0, MAX_COLS) : JSON.parse(JSON.stringify(GRID_DEFAULTS.cols));
   block.dataset.gap = String(Number.isFinite(Number(opts.gap)) ? Number(opts.gap) : GRID_DEFAULTS.gap);
+  // ★rowGap/colGap 은 «주어졌을 때만» dataset 에 쓴다 — 안 주면 옛 파일과 완전히 같은 모양(legacy gap 폴백).
+  if (opts.rowGap !== undefined) { const v = _gridValidateGap(opts.rowGap); if (v !== null) block.dataset.rowGap = String(v); }
+  if (opts.colGap !== undefined) { const v = _gridValidateGap(opts.colGap); if (v !== null) block.dataset.colGap = String(v); }
   block.dataset.valign = ['top', 'middle', 'bottom'].includes(opts.valign) ? opts.valign : GRID_DEFAULTS.valign;
 
   // ★P1: rows/cells(선택) — 안 주면 옛 duo 와 완전히 같은 1행 블록(dataset.rows/cells 아예 안 씀).
@@ -716,10 +741,26 @@ function updateGridBlock(blockId, partial = {}) {
     applied.patchCell = lineIndex !== undefined ? { r, c, lineIndex: Number(lineIndex), ...rest } : { r, c, ...rest };
   }
   if (partial.gap !== undefined) {
-    const n = Number(partial.gap);
-    if (!Number.isFinite(n) || n < 0 || n > 200) return { ok: false, code: 'INVALID', message: 'gap must be 0~200' };
-    next.gap = String(Math.round(n));
-    applied.gap = Math.round(n);
+    // ★CSS 단축속성 의미로 확장 — gap · rowGap · colGap 셋 다 쓴다. rowGap/colGap 이 이미 있는
+    //   블록에서 gap 만 바꾸면 "ok:true인데 화면은 그대로"인 거짓 성공이 된다(양축 갱신으로 봉쇄).
+    const v = _gridValidateGap(partial.gap);
+    if (v === null) return { ok: false, code: 'INVALID', message: `gap must be 0~${GRID_GAP_MAX}` };
+    next.gap = String(v);
+    next.rowGap = String(v);
+    next.colGap = String(v);
+    applied.gap = v;
+  }
+  if (partial.rowGap !== undefined) {
+    const v = _gridValidateGap(partial.rowGap);
+    if (v === null) return { ok: false, code: 'INVALID', message: `rowGap must be 0~${GRID_GAP_MAX}` };
+    next.rowGap = String(v);
+    applied.rowGap = v;
+  }
+  if (partial.colGap !== undefined) {
+    const v = _gridValidateGap(partial.colGap);
+    if (v === null) return { ok: false, code: 'INVALID', message: `colGap must be 0~${GRID_GAP_MAX}` };
+    next.colGap = String(v);
+    applied.colGap = v;
   }
   if (partial.valign !== undefined) {
     if (!['top', 'middle', 'bottom'].includes(partial.valign)) {
@@ -729,15 +770,16 @@ function updateGridBlock(blockId, partial = {}) {
     applied.valign = partial.valign;
   }
   if (Object.keys(next).length === 0) {
-    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/valign' };
+    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign' };
   }
 
   const before = {
     cols: block.dataset.cols, gap: block.dataset.gap, valign: block.dataset.valign,
     rows: block.dataset.rows, cells: block.dataset.cells,
+    rowGap: block.dataset.rowGap, colGap: block.dataset.colGap,
   };
   const restore = (snap) => {
-    ['cols', 'gap', 'valign', 'rows', 'cells'].forEach(k => {
+    ['cols', 'gap', 'valign', 'rows', 'cells', 'rowGap', 'colGap'].forEach(k => {
       if (snap[k] === undefined) delete block.dataset[k]; else block.dataset[k] = snap[k];
     });
   };
@@ -825,4 +867,5 @@ export {
   _GRID_COLOR_RE as GRID_COLOR_RE, _GRID_FONT_RE as GRID_FONT_RE,
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS,
+  _gridGaps as gridGaps,
 };
