@@ -1251,7 +1251,10 @@ function _adoptLegacyIfSoleAccount(key, dest, email) {
   const others = _existingAccountKeys().filter(k => k !== key);
   if (others.length) return { adopted: 0, skipped: 'other-accounts-exist', others: others.length };
   const entries = _legacyProjectEntries();
-  if (!entries.length) return { adopted: 0, skipped: 'legacy-empty' };
+  // [T-A] folders.json 은 proj_* 가 하나도 없어도 있을 수 있다(다 지우고 폴더만 남은 드문 경우) —
+  //   entries 만 보고 조기 종료하면 그 folders.json 은 영영 못 옮긴다.
+  const legacyFoldersExists = (() => { try { return fs.existsSync(path.join(PROJECTS_DIR_LEGACY, 'folders.json')); } catch (_) { return false; } })();
+  if (!entries.length && !legacyFoldersExists) return { adopted: 0, skipped: 'legacy-empty' };
   let moved = 0; const failed = [];
   for (const ent of entries) {
     const to = path.join(dest, ent.name);
@@ -1259,10 +1262,27 @@ function _adoptLegacyIfSoleAccount(key, dest, email) {
     try { fs.renameSync(path.join(PROJECTS_DIR_LEGACY, ent.name), to); moved++; }
     catch (e) { failed.push(`${ent.name} — ${(e && e.message) || e}`); }
   }
+  // [T-A] 비로그인 상태에서 만든 folders.json 도 «같이» 옮긴다 — 대상에 이미 있으면 건드리지 않는다
+  // (남의 폴더 이름을 지울 이유가 없다. 위 proj_* 이동과 같은 already-exists 규율).
+  // ★★리터럴 'folders.json' — main/folders.js 의 FOLDERS_FILE 과 «같은 값»이어야 한다.
+  //   이 함수는 tests/unit/account-projects-root.test.js 가 소스에서 «떼어내» 도는 블록 안에 있어
+  //   여기서 require('./main/folders') 를 쓰면 그 검사의 인젝션 계약(순수 require, 경로 리매핑 없음)이 깨진다.
+  // ★실패해도 던지지 않는다 — 폴더 «이름»만 잃고(자가치유로 미분류에 그대로 뜬다) 입양 자체는 계속돼야 한다.
+  let foldersCarried = false;
+  try {
+    const FOLDERS_FILE_NAME = 'folders.json';
+    const legacyFolders = path.join(PROJECTS_DIR_LEGACY, FOLDERS_FILE_NAME);
+    const destFolders = path.join(dest, FOLDERS_FILE_NAME);
+    if (fs.existsSync(legacyFolders) && !fs.existsSync(destFolders)) {
+      fs.renameSync(legacyFolders, destFolders);
+      moved++;
+      foldersCarried = true;
+    }
+  } catch (e) { failed.push(`folders.json — ${(e && e.message) || e}`); }
   try {
     fs.writeFileSync(path.join(ACCOUNTS_DIR, key, 'adopted.json'), JSON.stringify({
       at: new Date().toISOString(), account: key, email, from: PROJECTS_DIR_LEGACY, to: dest,
-      moved, failed,
+      moved, failed, foldersCarried,
       note: '업데이트 이전의 «소유자 미상» 프로젝트를 첫 로그인 계정이 물려받았다. 되돌리려면 to 안의 proj_* 를 from 으로 다시 옮기면 된다.',
     }, null, 2), 'utf8');
   } catch (e) {
@@ -1707,7 +1727,10 @@ function _listItemFor(id, projPath, metaFast) {
                    updatedAt: meta.updatedAt || null, thumbnail: meta.thumbnail || null, marketRef: meta.marketRef || null,
                    collabRef: meta.collabRef || null,
                    // ★즐겨찾기는 collabRef 와 같은 «이 설치의 상태» — proj.json(문서)이 아니라 meta 에 산다
-                   favorite: meta.favorite === true };
+                   favorite: meta.favorite === true,
+                   // [T-A] 폴더 소속도 collabRef·favorite 과 «같은 자리»(meta) — 두 반환 경로 «둘 다»에 추가한다.
+                   //   ★한쪽만 고치면 「일부 프로젝트만 폴더/검색에 안 걸리는」 재현 어려운 버그가 된다(favorite 이 겪은 실수와 같은 자리).
+                   folderId: meta.folderId || null };
         }
       }
     } catch (_) { /* stat/parse 실패 → 풀파싱 폴백 */ }
@@ -1720,17 +1743,19 @@ function _listItemFor(id, projPath, metaFast) {
   //   그래서 풀파싱 폴백 경로에서도 meta 를 읽어 와야 배지가 안 사라진다.
   let collabRef = null;
   let favorite = false;
+  let folderId = null;   // [T-A] 폴더 소속 — 빠른 경로와 «같은 곳»(meta)에서 읽는다(favorite 과 같은 규율)
   if (metaPath && fs.existsSync(metaPath)) {
     try {
       const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
       if (meta.thumbnail) thumbnail = meta.thumbnail;
       collabRef = meta.collabRef || null;
       favorite = meta.favorite === true;   // ★빠른 경로와 «같은 곳»에서 읽는다 — 갈리면 배지가 깜빡인다
+      folderId = meta.folderId || null;
     } catch {}
   }
   if (metaFast) { try { _refreshListMeta(data.id, data); } catch (_) {} }
   return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt,
-           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, collabRef, favorite };
+           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, collabRef, favorite, folderId };
 }
 
 /* ── IPC: AI Image Gen ──
@@ -1952,7 +1977,13 @@ function _listProjectsImpl(opts) {
     if (!/^proj_\d+\.json$/.test(ent.name)) continue;
     try {
       const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, ent.name), 'utf8'));
-      if (!data.id || data.id === 'undefined' || seen.has(data.id)) continue;
+      // ★[XSS 근원차단] data.id 는 파일 내용(사용자가 손 댈 수 있는 JSON)이라 파일명과 다를 수 있다.
+      //   이 id 는 렌더러가 onclick="fn(event, '${proj.id}')" 처럼 «홑따옴표 JS 문자열 리터럴 안»에
+      //   그대로 박는다 — 형식이 어긋난 id(따옴표·백슬래시 등)가 들어오면 HTML 이스케이프로도
+      //   못 막는 인라인 핸들러 탈출이 가능하다(HTML 파서가 속성값을 먼저 디코드한 뒤 JS로 넘긴다).
+      //   신 레이아웃은 디렉터리명 정규식(/^proj_\d+$/)이 이미 이 모양을 강제하므로, 여기(레거시
+      //   flat 폴백)도 같은 모양만 받는다 — 형식이 다르면 조용히 목록에서 뺀다(자가치유 원칙과 동일).
+      if (!data.id || data.id === 'undefined' || seen.has(data.id) || !/^proj_\d+$/.test(data.id)) continue;
       let thumbnail = data.thumbnail || null;
       const metaPath = _resolveMetaJsonPath(data.id);
       if (metaPath && fs.existsSync(metaPath)) {
@@ -1962,7 +1993,9 @@ function _listProjectsImpl(opts) {
         } catch {}
       }
       seen.add(data.id);
-      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null });
+      // [T-A] flat 레거시 폴백 — folderId: null 고정(레거시 잔재는 폴더에 안 들어간다는 뜻이 아니라
+      //   여기까지 온 것은 아직 신 레이아웃으로 안 옮겨진 항목이라 meta 를 다시 안 뒤진다. 자가치유로 «미분류» 취급).
+      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, folderId: null });
     } catch {}
   }
 
@@ -2303,6 +2336,7 @@ function _recordSyncSaveFailure(project, reason, error) {
  *   OS 휴지통을 거치면 되살릴 때 «새 프로젝트 가져오기»가 된다(.gdt 임포트가 §7-4 로 새 id 를 강제).
  * ⛔여기서 «영구삭제»는 없다. 만료분도 OS 휴지통으로 넘긴다 — 마지막 그물을 우리가 끊지 않는다. */
 const _trash = require('./main/trash');
+const _folders = require('./main/folders');
 /* ★★만료분을 «폴더가 아니라 우리 포맷(.gdt)으로» 싸서 버린다 (2026-09-08 현빈 지시).
      폴더로 보내면 맥 휴지통에서 `proj_1788…` 로 보여 무엇인지도 모르고 더블클릭해도 안 열린다.
      `<이름>.gdt` 면 이름이 보이고 더블클릭하면 고디터가 연다(fileAssociations 배선이 이미 있다).
@@ -2346,6 +2380,29 @@ ipcMain.handle('trash:purge', async (_e, id) => {
                                              trashItem: (p) => shell.trashItem(p),
                                              packageGdt: _packageProjectGdt }); }
   catch (e) { return { ok: false, code: 'io', error: e.message }; }
+});
+
+/* ── IPC: Folders (T-A, 2026-09-16) ── 폴더는 «가상» — main/folders.js 머리글 참조.
+   ★PROJECTS_DIR 을 호출마다 «다시» 읽는다(_projectsRoot()) — 계정 전환이 자동으로 따라오게. */
+ipcMain.handle('folders:list', () => {
+  try { return _folders.listFolders({ projectsDir: _projectsRoot() }); }
+  catch (e) { return { ok: false, error: e.message, folders: [] }; }
+});
+ipcMain.handle('folders:create', (_e, { name } = {}) => {
+  try { return _folders.createFolder({ projectsDir: _projectsRoot(), name }); }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('folders:rename', (_e, { id, name } = {}) => {
+  try { return _folders.renameFolder({ projectsDir: _projectsRoot(), id, name }); }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('folders:delete', (_e, { id } = {}) => {
+  try { return _folders.deleteFolder({ projectsDir: _projectsRoot(), id }); }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('folders:assign', (_e, { projectIds, folderId } = {}) => {
+  try { return _folders.assignFolder({ projectsDir: _projectsRoot(), projectIds, folderId: folderId || null }); }
+  catch (e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
