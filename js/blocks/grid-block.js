@@ -146,7 +146,7 @@ const GRID_LINE_FIELDS = new Set([
   'align', 'barColor', 'bg', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
   'gap', 'height', 'imgSrc', 'italic', 'items', 'labelColor', 'labelSize',
   'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV', 'radius', 'strike',
-  'text', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize', 'weight',
+  'text', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize', 'weight', 'widthPct',
 ]);
 
 /** `renderGridBlock` 이 셀에서 읽는 것(`cell.lines` + `pick(...)`) — patchCell 로 줄 수 있는 필드.
@@ -372,14 +372,24 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
   if (line.type === 'image') {
     const h = Number(line.height) || 0;
     const r = Number(line.radius) || 0;
+    // ★widthPct(T-C, 코너 리사이즈 핸들) — 없으면 100(기존과 바이트 동일).
+    const wpRaw = Number(line.widthPct);
+    const wp = Number.isFinite(wpRaw) ? Math.max(5, Math.min(100, wpRaw)) : 100;
+    const widthCss = `width:${wp}%;`;
+    // ⚠️<img style="display:block">엔 text-align 이 안 먹는다 — 폭을 100% 미만으로 줄이면
+    //   margin-inline 없이는 항상 왼쪽에 붙는다. colAlign 은 이 줄이 속한 «셀의 유효 align»
+    //   (renderGridBlock 의 pick('align') — 글자 줄과 같은 값)이라 그대로 재사용한다.
+    const alignCss = wp < 100
+      ? (colAlign === 'center' ? 'margin-left:auto;margin-right:auto;' : colAlign === 'right' ? 'margin-left:auto;' : '')
+      : '';
     if (!line.imgSrc) {
       // 빈 이미지 슬롯: 발주 대기 placeholder (기존 ''=투명 소실 → 카드가 깨져 보이던 문제)
       const ph = h > 0 ? h : 180;
-      return `<div${addrAttr} class="grd-img grd-img-empty" style="width:100%;height:${ph}px;background:#e8e8e8;` +
-        `border-radius:${r > 0 ? r : 8}px;${mtCss}"></div>`;
+      return `<div${addrAttr} class="grd-img grd-img-empty" style="${widthCss}height:${ph}px;background:#e8e8e8;` +
+        `border-radius:${r > 0 ? r : 8}px;${alignCss}${mtCss}"></div>`;
     }
     const sizeCss = h > 0 ? `height:${h}px;object-fit:cover;` : 'height:auto;';
-    return `<img${addrAttr} class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;${sizeCss}${r > 0 ? `border-radius:${r}px;` : ''}${mtCss}">`;
+    return `<img${addrAttr} class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;${widthCss}${sizeCss}${r > 0 ? `border-radius:${r}px;` : ''}${alignCss}${mtCss}">`;
   }
   // 중첩 duo: {type:'duo', gap, valign, cols:[{width, lines[]}]} — innercard 후기카드 등 (BL-SFB-01)
   if (line.type === 'duo') {

@@ -5,7 +5,7 @@
 ═══════════════════════════════════ */
 import { applyFrameTransform, applyFrameRotationMargin } from './frame-geometry.js';
 
-import { resizeColBoundary, resizeRowHeight } from './grid-cell-resize.js';
+import { resizeColBoundary, resizeRowHeight, resizeGridImage } from './grid-cell-resize.js';
 // ★grid-block.js → drag-drop.js → overlay-handles.js(이 파일) 로 이미 순환 임포트가 있다
 //   (grid-block.js 가 drag-drop.js 의 bindBlock 을 쓰고, drag-drop.js 는 `export * from
 //   './overlay-handles.js'`). 여기서 grid-block.js 를 다시 임포트해도 사이클이 «닫힐» 뿐
@@ -14,7 +14,7 @@ import { resizeColBoundary, resizeRowHeight } from './grid-cell-resize.js';
 //   그래프가 이미 링크된 뒤) 쓰인다 — 이 셋(gridCols/gridRows/getGridModel)이 «단일 진실원»
 //   이라 여기서 dataset.cols/rows 를 직접 재파싱하면 클램프/폴백 로직이 두 곳에 흩어진다
 //   (이 레포의 고질 — P1 IMPL 보고서·P0 EVAL 둘 다 지적한 패턴). 재사용이 맞다.
-import { getGridModel, gridCols, gridRows } from './blocks/grid-block.js';
+import { getGridModel, gridCols, gridRows, gridPreviewLine } from './blocks/grid-block.js';
 /* ★모달 핸들의 클램프는 «패널과 같은 표»를 본다 — 리터럴을 여기 다시 쓰면 갈라진다.
    (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
     모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
@@ -1785,6 +1785,169 @@ function _onGridRowMouseDown(e, block, i) {
 window.showGridGutters = showGridGutters;
 window.hideGridGutters = hideGridGutters;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   GRID 이미지/아이콘 줄 — 코너 리사이즈 핸들 (T-C, 2026-09-16)
+   ───────────────────────────────────────────────────────────────────────────
+   ★대상은 «지금 선택된(포커스된) 이미지 줄» 하나뿐이다 — grdGetActiveLine(block) 로
+     주소를 얻고, getGridModel(block) 으로 그 줄이 type==='image' 인지 확인한다.
+     빈 이미지 슬롯(.grd-img-empty)도 같은 addr·같은 필드라 그대로 포함된다.
+   ★핸들은 자산(asset) 블록 코너 핸들(_onAssetResizeHandleMouseDown)의 수학을 형틀로 쓴다 —
+     이미지도 「흐름 배치」라 확대블럭(플로팅)보다 이쪽이 정확한 선례다.
+   ⛔클래스는 `.grd-img-overlay-handle` — `.asset-overlay-handle` 을 빌리면
+     hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다(이 파일 위쪽 주석들이 같은 함정을
+     이미 두 번 적어 뒀다: 아이콘원형·확대블럭).
+   ★DOM 은 addr(data-r/data-c/data-line)로 매 프레임 재조회한다 — 재렌더로 <img> 가
+     통째로 교체될 수 있어 DOM 참조를 들고 있으면 죽은 참조가 된다. */
+let _gridImgResizeBlock = null;
+let _gridImgResizeAddr = null;   // {r,c,li}
+let _gridImgResizeRafId = null;
+const GRID_IMG_HANDLE_MIN_SCREEN_PX = 24;   // 낮은 배율 방어 — 거터의 M64 대책과 같은 원칙
+
+function _gridImgFindEl(block, addr) {
+  if (!block || !addr || addr.li === null || addr.li === undefined) return null;
+  return block.querySelector(`.grd-img[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
+}
+
+function _gridImgActiveImageLine(block) {
+  const addr = window.grdGetActiveLine ? window.grdGetActiveLine(block) : null;
+  if (!addr || addr.li === null || addr.li === undefined) return null;
+  let line = null;
+  try { line = getGridModel(block).cells[addr.r][addr.c].lines[addr.li]; } catch (_) { line = null; }
+  if (!line || line.type !== 'image') return null;
+  return { addr, line };
+}
+
+function showGridImageResizeHandle(block) {
+  const hit = _gridImgActiveImageLine(block);
+  if (!hit) { hideGridImageResizeHandle(); return; }
+  const el = _gridImgFindEl(block, hit.addr);
+  if (!el) { hideGridImageResizeHandle(); return; }
+
+  const same = _gridImgResizeBlock === block && _gridImgResizeAddr
+    && _gridImgResizeAddr.r === hit.addr.r && _gridImgResizeAddr.c === hit.addr.c && _gridImgResizeAddr.li === hit.addr.li;
+  const overlay0 = _getOverlay();
+  if (same && overlay0 && overlay0.querySelector('.grd-img-overlay-handle')) {
+    _updateGridImgResizeHandlePositions();
+    return;
+  }
+  hideGridImageResizeHandle();
+  _gridImgResizeBlock = block;
+  _gridImgResizeAddr = hit.addr;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `grd-img-overlay-handle ${dir}`;
+    h.dataset.gridImgResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onGridImageResizeHandleMouseDown(e, block, hit.addr, dir));
+  });
+  _updateGridImgResizeHandlePositions();
+  _startGridImgResizeRaf();
+}
+
+function hideGridImageResizeHandle() {
+  if (_gridImgResizeRafId) { cancelAnimationFrame(_gridImgResizeRafId); _gridImgResizeRafId = null; }
+  _gridImgResizeBlock = null;
+  _gridImgResizeAddr = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.grd-img-overlay-handle').forEach(h => h.remove());
+}
+
+function _updateGridImgResizeHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_gridImgResizeBlock || !_gridImgResizeAddr) return;
+  const el = _gridImgFindEl(_gridImgResizeBlock, _gridImgResizeAddr);
+  if (!el) { hideGridImageResizeHandle(); return; }
+  const rect = el.getBoundingClientRect();
+  const handles = overlay.querySelectorAll('.grd-img-overlay-handle');
+  if (rect.width < GRID_IMG_HANDLE_MIN_SCREEN_PX || rect.height < GRID_IMG_HANDLE_MIN_SCREEN_PX) {
+    handles.forEach(h => { h.style.display = 'none'; });
+    return;
+  }
+  const HALF = 3.5;
+  handles.forEach(h => {
+    h.style.display = '';
+    const c = _cornerScreen(el, h.dataset.gridImgResizeDir);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+  });
+}
+
+function _startGridImgResizeRaf() {
+  function loop() {
+    if (!_gridImgResizeBlock) return;
+    const el = _gridImgFindEl(_gridImgResizeBlock, _gridImgResizeAddr);
+    if (!_gridImgResizeBlock.isConnected || !el) { hideGridImageResizeHandle(); return; }
+    _updateGridImgResizeHandlePositions();
+    _gridImgResizeRafId = requestAnimationFrame(loop);
+  }
+  _gridImgResizeRafId = requestAnimationFrame(loop);
+}
+
+function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const { r, c, li } = addr;
+  const el0 = _gridImgFindEl(block, addr);
+  if (!el0) return;
+
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+  const scale0 = _canvasScaleNow();
+  const rect0 = el0.getBoundingClientRect();
+  const startW = rect0.width / scale0;
+  const startH = rect0.height / scale0;
+
+  let line = null;
+  try { line = getGridModel(block).cells[r][c].lines[li]; } catch (_) { line = null; }
+  const curPctN = line ? Number(line.widthPct) : NaN;
+  const curPct = Number.isFinite(curPctN) && curPctN > 0 ? curPctN : 100;
+  const cellW = startW / (curPct / 100);   // widthPct=100 일 때의 «셀 콘텐츠 폭»(px) 역산
+  const aspect = (el0.tagName === 'IMG' && el0.naturalWidth > 0 && el0.naturalHeight > 0)
+    ? el0.naturalWidth / el0.naturalHeight
+    : (startH > 0 ? startW / startH : 1);
+
+  const startX = e.clientX, startY = e.clientY;
+  let moved = false;
+  let lastResult = null;
+
+  function onMove(ev) {
+    const el = _gridImgFindEl(block, addr);   // 매 프레임 addr 로 재조회(재렌더로 교체될 수 있음)
+    if (!el) return;
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    if (!moved && Math.hypot(dx, dy) < 1) return;
+    if (!moved) { moved = true; window.pushHistory?.('그리드 이미지 크기'); }
+    const result = resizeGridImage({ startW, startH, dir, dx, dy, cellW, aspect, lockAspect: ev.shiftKey });
+    lastResult = result;
+    el.style.width = result.widthPct + '%';
+    el.style.height = result.height + 'px';
+    // 우측 패널 「높이(px)」 입력만 직접 갱신 — 드래그 중 패널 재렌더 금지(gutter 와 같은 원칙,
+    // prop-grid.js 의 「이미지 절」에는 폭 입력이 없어(신작 UI 미추가) 높이만 동기화한다.
+    const hNum = document.getElementById('grd-img-height');
+    if (hNum) hNum.value = result.height;
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+    if (moved && lastResult) {
+      gridPreviewLine(block, r, c, li, { widthPct: lastResult.widthPct, height: lastResult.height });
+      window._grdSyncLineMark?.(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
+      window.scheduleAutoSave?.();
+      showGridImageResizeHandle(block);         // 재렌더로 교체된 새 <img> 에 핸들을 다시 붙인다
+    }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showGridImageResizeHandle = showGridImageResizeHandle;
+window.hideGridImageResizeHandle = hideGridImageResizeHandle;
+
 // fix(frame-p0#5): 캔버스 클릭 핸들러 6곳(block-drag.js asset·icon-circle·canvas·vector·
 // iconify·mockup)이 저마다 손으로 부르던 핸들 호출을 타입→핸들 맵 하나로 모은다.
 // 진입점(레이어패널 등)이 늘어도 여기 한 곳만 맞으면 된다 — SSOT.
@@ -2278,6 +2441,8 @@ export {
   hideVectorResizeHandles,
   showGridGutters,
   hideGridGutters,
+  showGridImageResizeHandle,
+  hideGridImageResizeHandle,
 
   showHandlesFor,
 };

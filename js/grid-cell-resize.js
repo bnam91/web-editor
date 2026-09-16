@@ -56,5 +56,49 @@ function resizeRowHeight(startH, deltaPx, minPx = ROW_H_MIN, maxPx = ROW_H_MAX) 
   return Math.round(Math.max(minPx, Math.min(maxPx, h + d)));
 }
 
+// ── 그리드 이미지/아이콘 줄 리사이즈 (T-C, 코너 핸들) ────────────────────────
+// ⛔ROW_H_MIN 을 빌려 쓰지 않는다(위 26행 주석 참조 — 「행 드래그 전용 바닥」이라 통일 금지).
+//   값이 24 로 같아도 별도 상수로 둔다.
+const IMG_MIN_PX = 24;    // 화면상 최소 높이(px). 폭 최소도 같은 값을 하한으로 쓴다(비율 최소와 둘 중 큰 쪽).
+const IMG_MIN_PCT = 5;    // 셀 콘텐츠 폭 대비 최소 비율(%).
+
+// startW/startH = 드래그 시작 시점 렌더 크기(px, scale 로 나눈 캔버스 px, mousedown 1회 스냅샷).
+// cellW         = «셀 콘텐츠 폭»(widthPct=100 일 때의 px, mousedown 1회 스냅샷) — 폭 클램프의 100% 기준.
+// dir           = 'nw'|'ne'|'sw'|'se'. dx,dy = mousemove 누적 델타(캔버스 px).
+// aspect        = startW/startH (또는 자연 이미지 비율) — lockAspect 일 때만 쓰인다.
+// 반환: { widthPct, height } — widthPct 는 IMG_MIN_PCT~100, height 는 IMG_MIN_PX~ROW_H_MAX.
+function resizeGridImage({ startW, startH, dir, dx, dy, cellW, aspect, lockAspect }) {
+  const cw = Number.isFinite(cellW) && cellW > 0 ? cellW : 1;
+  const sw = Number.isFinite(startW) && startW > 0 ? startW : cw;
+  const sh = Number.isFinite(startH) && startH > 0 ? startH : IMG_MIN_PX;
+  const ddx = Number.isFinite(dx) ? dx : 0;
+  const ddy = Number.isFinite(dy) ? dy : 0;
+  const ar = Number.isFinite(aspect) && aspect > 0 ? aspect : (sw / sh);
+  const minWPx = Math.max(IMG_MIN_PX, cw * IMG_MIN_PCT / 100);
+
+  let newW = sw, newH = sh;
+  if (lockAspect) {
+    const dw = dir.includes('e') ? ddx : dir.includes('w') ? -ddx : 0;
+    const dh = dir.includes('s') ? ddy : dir.includes('n') ? -ddy : 0;
+    if (Math.abs(dw) >= Math.abs(dh)) {
+      newW = Math.min(cw, Math.max(minWPx, sw + dw));
+      newH = Math.round(newW / ar);
+    } else {
+      newH = sh + dh;
+      newW = Math.min(cw, Math.max(minWPx, Math.round(newH * ar)));
+    }
+  } else {
+    if (dir.includes('e')) newW = sw + ddx;
+    if (dir.includes('w')) newW = sw - ddx;
+    if (dir.includes('s')) newH = sh + ddy;
+    if (dir.includes('n')) newH = sh - ddy;
+    newW = Math.min(cw, Math.max(minWPx, newW));
+  }
+  newH = Math.min(ROW_H_MAX, Math.max(IMG_MIN_PX, Math.round(newH)));
+  const widthPct = Math.max(IMG_MIN_PCT, Math.min(100, Math.round((newW / cw) * 100)));
+  return { widthPct, height: newH };
+}
+
 export {
-  ROW_H_MAX, ROW_H_MIN, COL_MIN_PX, resizeColBoundary, resizeRowHeight };
+  ROW_H_MAX, ROW_H_MIN, COL_MIN_PX, resizeColBoundary, resizeRowHeight,
+  IMG_MIN_PX, IMG_MIN_PCT, resizeGridImage };

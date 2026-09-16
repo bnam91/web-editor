@@ -3050,6 +3050,7 @@ function deselectAll() {
   window.hideCanvasResizeHandles?.();
   window.hideVectorResizeHandles?.();
   window.hideGridGutters?.(); // 그리드(듀오) 블록 열 경계 드래그 거터 (P2)
+  window.hideGridImageResizeHandle?.(); // 그리드 이미지/아이콘 줄 코너 리사이즈 핸들 (T-C)
   window._deselectAllGradients?.(); // gradient 블록 선택 해제 + 4모서리 핸들 제거 (deselectAll 셀렉터에 없어 누락됐던 정리)
   window.hideGradientLine?.(); // banner02/comparison 배경 그라데이션 온캔버스 라인 숨김
   canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
