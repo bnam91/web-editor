@@ -208,7 +208,7 @@ function _grdLineBarHtml(anyHit, block) {
   return `
     <div class="prop-section" style="padding-bottom:4px;">
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">
-        <span class="prop-hint" id="grd-line-summary" style="flex:1;min-width:0;">${summary}</span>
+        <span class="prop-hint" id="grd-line-summary" style="flex:1 1 100%;min-width:0;">${summary}</span>
         <button id="grd-line-add-btn" class="prop-btn-sm" title="이 줄 다음에 새 줄을 추가합니다">+ 줄 추가</button>
         <button id="grd-line-del-btn" class="prop-btn-sm" ${canDeleteLine ? '' : 'disabled'}
                 title="${canDeleteLine ? '이 줄을 삭제합니다' : '칸에 남은 마지막 줄은 지울 수 없습니다'}">줄 삭제</button>
