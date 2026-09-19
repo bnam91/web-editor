@@ -2194,8 +2194,10 @@ document.addEventListener('keydown', e => {
             // ★changed로 조건화 — 동일색 재추출(전건 스킵)에 빈 undo 스텝이 쌓이던 것 방지(고디터QA LOW).
             let changed = 0;
             shapeTargets.forEach(sb => {
-              if (sb.dataset.shapeColor === hex && !sb.dataset.shapeGradient) return;
+              if (sb.dataset.shapeColor === hex && !sb.dataset.shapeGradient && !sb.dataset.shapeFill) return;
               sb.dataset.shapeColor = hex;
+              // 이미지(에셋)/바둑판 모드 해제(0918 picker) — 스포이드로 색을 찍으면 단색이다
+              if (sb.dataset.shapeFill) window._clearShapeImage?.(sb);
               const svg = sb.querySelector('svg');
               if (svg) {
                 if (sb.dataset.shapeGradient) window._clearShapeGradient?.(sb);

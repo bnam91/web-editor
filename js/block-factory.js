@@ -4312,6 +4312,15 @@ function updateShapeBlock(blockId, partial = {}) {
     }
     block.dataset.shapeType = partial.shapeType;
     applied.shapeType = partial.shapeType;
+    // 이미지(에셋) 채우기 모드(0918 picker) — 면 없는 타입(선·화살표)이면 해제, 면 있으면 모양 clip 을 새 타입으로
+    if (block.dataset.shapeFill) {
+      if (!['rectangle', 'ellipse', 'polygon', 'star'].includes(partial.shapeType)) {
+        try { window._clearShapeImage?.(block); } catch (_) {}
+      } else {
+        if (block.dataset.shapeImage) svg.style.fill = 'transparent';
+        try { window._syncShapeImageClip?.(block); } catch (_) {}
+      }
+    }
     // 가림막(redact)은 rectangle/ellipse 전용 — 다른 타입으로 바뀌면 걸어둔 상태로
     // 남아 "안 보이는 블러 도형"이 될 수 있으므로 함께 해제
     if (block.dataset.shapeRedact === 'true' && partial.shapeType !== 'rectangle' && partial.shapeType !== 'ellipse') {
@@ -4332,6 +4341,12 @@ function updateShapeBlock(blockId, partial = {}) {
     const c = String(partial.shapeColor).trim();
     if (block.dataset.shapeGradient && typeof window._clearShapeGradient === 'function') {
       try { window._clearShapeGradient(block); } catch (_) {}
+    }
+    // 이미지(에셋)/바둑판 모드 해제 — 안 하면 «색을 바꿨는데 바둑판이 그대로»(0918 picker)
+    if (block.dataset.shapeFill) {
+      try { window._clearShapeImage?.(block); } catch (_) {}
+      delete block.dataset.shapeFill;
+      delete block.dataset.shapeImage;
     }
     block.dataset.shapeColor = c;
     svg.style.color = c;

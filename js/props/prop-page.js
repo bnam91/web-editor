@@ -692,6 +692,8 @@ export function wireCanvasBgControl() {
   const bgHex      = document.getElementById('page-bg-hex');
   const bgAlphaInp = document.getElementById('page-bg-alpha-input');
   const bgSwatch   = bgPicker.closest('.prop-color-swatch');
+  // 탭 능력 선언(0918 picker) — 페이지 바탕은 단색·그라데이션만 받는다(이미지 탭은 막힘)
+  bgPicker.dataset.cpModes = 'solid,gradient';
 
   seedPageBgGradientPicker();
 
@@ -714,6 +716,8 @@ export function wireCanvasBgControl() {
     bgHex.value = bgPicker.value.replace('#','').toUpperCase();
     // 솔리드 색 선택 시 그라데이션 해제(잔상 방지) — 솔리드로 복귀
     delete state.pageSettings.bgGradient;
+    // 재오픈 시드도 같이 — 안 지우면 솔리드로 돌아간 뒤 다시 열 때 그라데이션 탭이 뜬다(0918 picker)
+    delete bgPicker.dataset.cpGradient;
     _applyBg();
   });
   bgPicker.addEventListener('change', () => {
@@ -775,7 +779,7 @@ export function wireCanvasBgControl() {
       //   2스톱으로 리셋(값은 state.pageSettings.bgGradient에 이미 맞게 저장돼 있었음).
       bgPicker.dataset.cpGradient = state.pageSettings.bgGradient;
       _applyBgGradient(e.detail.css);
-      if (e.detail.commit) window.pushHistory?.();
+      // ★기록은 gradient-commit 한 곳에서만 — 여기서도 하면 커밋 1번에 기록 2개(0918 picker)
       window.scheduleAutoSave?.();
     });
     bgPicker.addEventListener('goya-cp:gradient-commit', () => {

@@ -47,8 +47,10 @@ export function showShapeProperties(block) {
   const isGradient  = !!gradientMeta || /gradient/.test(rawColor);
   const gradientCss = isGradient ? rawColor : '';
   // picker/hex 표시용 hex — 그라데이션이면 첫 stop, 아니면 그대로
+  // ★shapeColor 에 그라데이션 CSS 가 남았는데 메타가 없으면(이미지 모드 등) 첫 스톱을 모른다 →
+  //   회색 기본값 대신 svg 의 마지막 단색으로(0918 picker: 이미지→솔리드 = 마지막 단색)
   const color       = isGradient
-    ? (gradientMeta?.stops?.[0]?.color || '#cccccc')
+    ? (gradientMeta?.stops?.[0]?.color || _lastSolidOf(block) || '#cccccc')
     : rawColor;
   const colorAlpha  = parseAlphaFromColor(color);
   const strokeWidth = parseInt(block.dataset.shapeStrokeWidth || '3');
@@ -275,7 +277,13 @@ export function showShapeProperties(block) {
 
   function applyColor(hex) {
     // perf: 동일 색이면 데이터·DOM 변경 자체를 스킵 → MutationObserver autosave 트리거 회피
-    if (block.dataset.shapeColor === hex && !block.dataset.shapeGradient) return;
+    // ★이미지(체커) 모드면 같은 색이라도 빠져나와야 한다(0918 picker: 이미지→솔리드 탭 = 마지막 단색 복귀)
+    if (block.dataset.shapeColor === hex && !block.dataset.shapeGradient && !block.dataset.shapeFill) return;
+    if (block.dataset.shapeFill) {
+      _clearShapeImage(block);
+      const inp = document.getElementById('shape-color-color');
+      if (inp) delete inp.dataset.cpFill;
+    }
     block.dataset.shapeColor = hex;
     if (svg) {
       // 그라데이션이 적용돼 있을 때만 clear 수행 (대부분의 솔리드 드래그에선 no-op이라 skip)
@@ -288,6 +296,11 @@ export function showShapeProperties(block) {
 
   function applyGradient(detail) {
     if (!svg || !detail) return;
+    if (block.dataset.shapeFill) {
+      _clearShapeImage(block);
+      const inp = document.getElementById('shape-color-color');
+      if (inp) delete inp.dataset.cpFill;
+    }
     _applyShapeGradient(block, svg, detail);
     block.dataset.shapeColor = detail.css || '';
     block.dataset.shapeGradient = JSON.stringify({
@@ -327,6 +340,18 @@ export function showShapeProperties(block) {
   }
 
   // ── 색상 피커 ──
+  // 탭 능력 선언 + 재오픈 시드(0918 picker). ★wireColorField 보다 «먼저» — 거기선 비어 있으면 'solid' 로 채운다.
+  //   이미지 채우기는 면이 있는 도형만(선·화살표는 fill 이 없어 바둑판을 칠할 면이 없다).
+  {
+    const inp = document.getElementById('shape-color-color');
+    if (inp) {
+      const hasFace = !!SHAPE_FACE_TYPES[shapeType];
+      inp.dataset.cpModes = hasFace ? 'solid,gradient,image' : 'solid,gradient';
+      // 패널을 다시 그리면 native input 이 새로 만들어져 시드가 사라진다 → 블럭 dataset 에서 다시 채운다
+      if (block.dataset.shapeGradient) inp.dataset.cpGradient = block.dataset.shapeGradient;
+      if (hasFace && block.dataset.shapeFill === 'image') inp.dataset.cpFill = 'image';
+    }
+  }
   wireColorField('shape-color', {
     initialAlpha: colorAlpha,
     onApply: (c) => applyColor(c),
@@ -364,14 +389,43 @@ export function showShapeProperties(block) {
           });
         } catch (_) {}
       }
-      // detail.commit 플래그가 있을 때만 history 발행 — 평소엔 라이브 미리보기.
-      if (e.detail && e.detail.commit) window.pushHistory?.();
+      // ★기록은 여기서 하지 않는다 — commit 이면 바로 뒤에 goya-cp:gradient-commit 이 «또» 온다.
+      //   전엔 둘 다 pushHistory 해서 커밋 1번에 기록 2개(되돌리기 1번에 아무 변화 없음) — 0918 picker 에서 제거.
       // 팝업 편집 → 캔버스 핸들 각도 재배치 (banner02/comparison과 동일 패턴)
       if (!_applyingExternalShapeGrad) window.showGradientLine?.(block);
     });
     shapeColorInput.addEventListener('goya-cp:gradient-commit', () => {
       window.pushHistory?.();
     });
+    // ── 이미지(에셋) 탭 수신 — 0918 picker ──
+    //   src 없음(탭만 누름) = 바둑판(체커) 표시 «이미지 넣기 전» 상태. src 있음(업로드) = 이미지 채우기.
+    shapeColorInput.addEventListener('goya-cp:image', (e) => {
+      const d = e.detail || {};
+      if (!svg || !SHAPE_FACE_TYPES[block.dataset.shapeType || 'rectangle']) return;
+      // ★그라데이션을 거쳐 왔으면 shapeColor 에 그라데이션 CSS 가 남는다 → «마지막 단색»으로 되돌려 둔다.
+      //   안 그러면 패널 재그리기 때 회색(#cccccc)으로 시드돼 솔리드 복귀가 회색이 되고, 피그마 내보내기엔
+      //   color 로 'linear-gradient(...)' 문자열이 실린다(이벨류에이터 0918 지적).
+      if (/gradient/.test(block.dataset.shapeColor || '')) {
+        let meta = null; try { meta = JSON.parse(block.dataset.shapeGradient || 'null'); } catch (_) {}
+        block.dataset.shapeColor = _lastSolidOf(block) || meta?.stops?.[0]?.color || '#cccccc';
+      }
+      if (block.dataset.shapeGradient) { _clearShapeGradient(block); window.hideGradientLine?.(block); }
+      delete shapeColorInput.dataset.cpGradient;
+      if (d.src) _applyShapeImage(block, d.src, d.fit);
+      else _enterShapeChecker(block);
+      shapeColorInput.dataset.cpFill = 'image';
+      const sw = shapeColorInput.closest('.prop-color-swatch');
+      if (sw) sw.style.background = d.src ? `center / cover no-repeat url("${d.src}")` : CHECKER_SWATCH_BG;
+      window.scheduleAutoSave?.();
+      if (d.commit) window.pushHistory?.();
+    });
+  }
+  // 이미지(체커) 모드 도형은 스와치도 바둑판/사진으로 — 패널을 다시 그려도 «지금 뭐가 칠해졌나»가 보이게
+  if (block.dataset.shapeFill === 'image') {
+    const sw = document.getElementById('shape-color-color')?.closest('.prop-color-swatch');
+    const img = block.querySelector(':scope > .shape-img-fill');
+    const src = img ? (img.style.backgroundImage || '') : '';
+    if (sw) sw.style.background = src ? `center / cover no-repeat ${src}` : CHECKER_SWATCH_BG;
   }
 
   // 선택 시 채우기가 그라데이션이면 캔버스 위 그라데이션 라인 표시 (아니면 overlay가 no-op)
@@ -591,3 +645,99 @@ function _applyShapeGradient(block, svg, detail) {
 
 window._applyShapeGradient = _applyShapeGradient;
 window._clearShapeGradient = _clearShapeGradient;
+
+/* ── 이미지(에셋) 채우기 — 0918 picker ──────────────────────────────────────
+ * 상태는 dataset 두 개로만 말한다(클래스 X — section-serialize RUNTIME_MARKER 규약과 안 부딪히고 저장·로드 뒤에도 남는다):
+ *   data-shape-fill="image"            이미지 모드(= 칠이 색이 아니라 이미지)
+ *   data-shape-image="1"                실제 이미지가 들어 있음(없으면 «넣기 전» = 바둑판)
+ * ★바둑판은 «CSS 자리»에 둔다(정본 선례 .asset-block / .cvb-img-empty — editor-blocks.css 주석):
+ *   CSS 규칙이 SVG 면을 url(#goya-shape-checker) 로 칠한다. 패턴 정의는 #canvas 밖(body)에 1번만 주입 →
+ *   직렬화·내보내기에 안 실린다. export-image 는 clone 에서 data-shape-fill 을 떼서 마지막 단색으로 낸다.
+ * ★실제 이미지는 «인라인»(저장·HTML 내보내기에 실려야 하므로): 블럭 직속 div.shape-img-fill 에
+ *   background:cover + 도형 모양 clip-path. SVG 면은 inline fill:transparent 로 비워 밑의 사진이 보이게 한다.
+ *   (SVG <pattern><image> 는 도형 svg 가 preserveAspectRatio="none" 이라 사진이 늘어나 버려서 쓰지 않는다.)
+ * ★svg.style.color(마지막 단색)는 건드리지 않는다 → 외곽선(currentColor)은 그대로, 솔리드 복귀 = 그 색. */
+const SHAPE_FACE_TYPES = { rectangle: true, ellipse: true, polygon: true, star: true };
+const CHECKER_SWATCH_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 10px 10px';
+// SHAPE_DEFS(block-factory.js) 좌표를 %로 옮긴 것 — polygon: viewBox 200×180, star: 200×190.
+const SHAPE_IMG_CLIP = {
+  rectangle: '',
+  ellipse: 'ellipse(50% 50% at 50% 50%)',
+  polygon: 'polygon(50% 4.44%, 97% 95.56%, 3% 95.56%)',
+  star: 'polygon(50% 4.21%, 61% 36.84%, 94% 36.84%, 67.5% 57.89%, 77.5% 90.53%, 50% 69.47%, 22.5% 90.53%, 32.5% 57.89%, 6% 36.84%, 39% 36.84%)',
+};
+
+/* 도형의 «마지막 단색» — svg.style.color(applyColor 가 쓰고, 그라데이션·이미지 모드는 안 건드림)를
+   shapeColor 저장 형식(#rrggbb 또는 rgba(r,g,b,a))으로. 없으면 ''. */
+function _lastSolidOf(block) {
+  const svg = block && (block.querySelector('svg.shape-svg') || block.querySelector('svg'));
+  const v = svg ? (svg.style.color || '') : '';
+  if (!v || v === 'currentcolor' || v === 'currentColor') return '';
+  if (/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
+  const m = v.match(/rgba?\(([^)]+)\)/i);
+  if (!m) return '';
+  const p = m[1].split(',').map(x => x.trim());
+  const to = (n) => Math.max(0, Math.min(255, parseInt(n, 10) | 0)).toString(16).padStart(2, '0');
+  if (p.length === 4 && parseFloat(p[3]) < 1) return `rgba(${parseInt(p[0], 10)},${parseInt(p[1], 10)},${parseInt(p[2], 10)},${parseFloat(p[3])})`;
+  return '#' + to(p[0]) + to(p[1]) + to(p[2]);
+}
+
+function _ensureShapeCheckerDefs() {
+  if (typeof document === 'undefined' || document.getElementById('goya-shape-checker-defs')) return;
+  const holder = document.createElementNS(SVG_NS, 'svg');
+  holder.setAttribute('id', 'goya-shape-checker-defs');
+  holder.setAttribute('width', '0');
+  holder.setAttribute('height', '0');
+  holder.setAttribute('aria-hidden', 'true');
+  holder.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;';
+  // 8×8 칸 바둑판 — objectBoundingBox 라 도형 크기와 무관하게 칸 수가 같다. 색 = 앱 체커 토큰(#d8d8d8/#f0f0f0).
+  holder.innerHTML = `<defs><pattern id="goya-shape-checker" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width="0.25" height="0.25">
+    <rect x="0" y="0" width="0.25" height="0.25" fill="#f0f0f0"/>
+    <rect x="0" y="0" width="0.125" height="0.125" fill="#d8d8d8"/>
+    <rect x="0.125" y="0.125" width="0.125" height="0.125" fill="#d8d8d8"/>
+  </pattern></defs>`;
+  (document.body || document.documentElement).appendChild(holder);
+}
+
+function _syncShapeImageClip(block) {
+  const img = block && block.querySelector(':scope > .shape-img-fill');
+  if (!img) return;
+  const clip = SHAPE_IMG_CLIP[block.dataset.shapeType || 'rectangle'] || '';
+  if (clip) img.style.clipPath = clip; else img.style.removeProperty('clip-path');
+}
+
+function _clearShapeImage(block) {
+  if (!block) return;
+  block.querySelector(':scope > .shape-img-fill')?.remove();
+  const svg = block.querySelector('svg.shape-svg') || block.querySelector('svg');
+  if (svg && svg.style.fill === 'transparent') svg.style.fill = 'currentColor';
+  delete block.dataset.shapeFill;
+  delete block.dataset.shapeImage;
+}
+
+function _enterShapeChecker(block) {
+  _ensureShapeCheckerDefs();
+  _clearShapeImage(block);
+  block.dataset.shapeFill = 'image';
+}
+
+function _applyShapeImage(block, src, fit) {
+  if (!block || !src) return;
+  _clearShapeImage(block);
+  const img = document.createElement('div');
+  img.className = 'shape-img-fill';
+  img.setAttribute('aria-hidden', 'true');
+  const size = fit === 'fit' ? 'contain' : fit === 'tile' ? 'auto' : 'cover';
+  const repeat = fit === 'tile' ? 'repeat' : 'no-repeat';
+  img.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:0;background-image:url("${src}");background-size:${size};background-position:center;background-repeat:${repeat};`;
+  block.insertBefore(img, block.firstChild);
+  _syncShapeImageClip(block);
+  const svg = block.querySelector('svg.shape-svg') || block.querySelector('svg');
+  if (svg) svg.style.fill = 'transparent';
+  block.dataset.shapeFill = 'image';
+  block.dataset.shapeImage = '1';
+}
+
+_ensureShapeCheckerDefs();
+window._clearShapeImage = _clearShapeImage;
+window._syncShapeImageClip = _syncShapeImageClip;

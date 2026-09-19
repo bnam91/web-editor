@@ -257,6 +257,12 @@ registerGradientTarget({
         const s = svg();
         const g = parseGradient(css);
         if (!s || !g) return;
+        // 이미지(에셋)/바둑판 모드였다면 해제 — 그라데이션이 칠해지는 순간 이미지 모드가 아니다(0918 picker)
+        if (block.dataset.shapeFill) {
+          window._clearShapeImage?.(block);
+          delete block.dataset.shapeFill;
+          delete block.dataset.shapeImage;
+        }
         window._applyShapeGradient?.(block, s, { css, type: g.type, angle: g.angle, stops: g.stops });
         block.dataset.shapeColor = css;
         block.dataset.shapeGradient = JSON.stringify({ type: g.type, angle: g.angle, stops: g.stops });

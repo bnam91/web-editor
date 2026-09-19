@@ -293,6 +293,10 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
     colorSwatch.style.background = c;
   });
   colorPicker.addEventListener('change', () => { _savedColorSel = null; _colorSpan = null; window.pushHistory?.(); });
+  // 탭 능력 선언(0918 picker, T-059 ②안) — 글자색엔 그라데이션·이미지 칠 기능이 없다.
+  //   그라데이션 탭은 비활성 + 호버로 이유 안내(글자 그라데이션 신규 기능은 현빈 결정 대기라 만들지 않음).
+  colorPicker.dataset.cpModes = 'solid';
+  colorPicker.dataset.cpModesNote = '글자색은 아직 단색만 돼요 (그라데이션·이미지 미지원)';
   colorHex.addEventListener('input', () => {
     const v = colorHex.value.trim().replace(/^#/, '');
     if (/^[0-9a-f]{6}$/i.test(v)) {

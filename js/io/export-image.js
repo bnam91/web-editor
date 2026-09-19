@@ -260,6 +260,12 @@ export async function prepareCloneForCapture(sec, w, useNative) {
   });
   // 편집 전용 임시 DOM — 내보내기 클론에 새어 나가면 PNG 에 박힌다.
   clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary').forEach(el => el.remove());
+  // 도형 «이미지 넣기 전» 바둑판(0918 picker) — 편집 전용 표시다. CSS 규칙이 data-shape-fill="image"
+  //   (이미지 없음)에 걸리므로 클론에서 그 속성을 떼면 마지막 단색(svg color)으로 나간다. 이미지가
+  //   실제로 들어간 도형(data-shape-image)은 인라인 div 라 그대로 둔다.
+  clone.querySelectorAll('.shape-block[data-shape-fill="image"]:not([data-shape-image])').forEach(el => {
+    el.removeAttribute('data-shape-fill');
+  });
   clone.classList.remove('selected', 'sec-bg-editing');
   // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 내보내기 오염 방지)
   // ★row-active/col-active(2026-09-15 a1-a3 지적): editor-blocks.css가 이 둘에 z-index:1을

@@ -75,12 +75,12 @@ function _ensurePopover() {
   _pop.innerHTML = `
     <div class="goya-cp-header">
       <div class="goya-cp-tabs" role="tablist">
-        <button class="goya-cp-tab active" data-tab="solid" title="Solid" aria-label="Solid">
+        <button class="goya-cp-tab active" data-tab="solid" aria-label="단색" data-tip="단색 채우기" data-tip-base="단색 채우기">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             <rect x="3" y="3" width="10" height="10" rx="1.5"/>
           </svg>
         </button>
-        <button class="goya-cp-tab" data-tab="gradient" title="Gradient" aria-label="Gradient">
+        <button class="goya-cp-tab" data-tab="gradient" aria-label="그라데이션" data-tip="그라데이션 채우기 — 누르면 바로 적용" data-tip-base="그라데이션 채우기 — 누르면 바로 적용">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <defs>
               <linearGradient id="goyaCpGradIcon" x1="0" y1="0" x2="1" y2="0">
@@ -92,7 +92,7 @@ function _ensurePopover() {
             <rect x="3" y="3" width="10" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1"/>
           </svg>
         </button>
-        <button class="goya-cp-tab" data-tab="image" title="Image" aria-label="Image">
+        <button class="goya-cp-tab" data-tab="image" aria-label="이미지" data-tip="이미지 채우기 — 누르면 바둑판 표시 후 이미지 선택" data-tip-base="이미지 채우기 — 누르면 바둑판 표시 후 이미지 선택">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true">
             <rect x="2.5" y="3" width="11" height="10" rx="1.3"/>
             <circle cx="6" cy="6.5" r="1" fill="currentColor" stroke="none"/>
@@ -332,15 +332,43 @@ function _drag(el, handler) {
   });
 }
 
-function _wireEvents(pop) {
-  /* 탭 전환 */
-  pop.querySelectorAll('.goya-cp-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      const name = tab.dataset.tab;
-      pop.querySelectorAll('.goya-cp-tab').forEach(t => t.classList.toggle('active', t === tab));
-      pop.querySelectorAll('.goya-cp-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === name));
-    });
+/* ─── 탭: «보여주기»와 «적용하기»를 나눈다 (0918 picker) ───
+   _showTab   = UI만(탭 active·패널 전환). openPicker 초기화·seed 복원이 쓴다 → 열기만 해선 문서가 안 바뀐다.
+   _activateTab(= _wireEvents 안) = 사용자가 탭을 «눌렀을 때» 전용. 모드가 바뀌면 그 모드로 즉시 1회 커밋
+   (피그마처럼: 그라데이션 탭 = 바로 그라데이션, 솔리드 탭 = 마지막 단색, 이미지 탭 = 바둑판).
+   ⛔seed/openPicker 가 _activateTab 을 부르면 «열기만 해도» 기록이 쌓인다 — 반드시 _showTab. */
+const CP_MODES = ['solid', 'gradient', 'image'];
+function _showTab(name) {
+  if (!_pop) return;
+  _pop.querySelectorAll('.goya-cp-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  _pop.querySelectorAll('.goya-cp-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === name));
+}
+/* 대상 능력 게이트 — native input 의 dataset.cpModes('solid,gradient,image').
+   ★속성이 없으면 'solid' 만 연다: 그라데이션/이미지를 «받는 쪽»이 없는 필드에서 탭을 눌러도
+   아무 일도 안 일어나던 것(텍스트 등 약 40개 필드)을 없앤다. 받는 쪽은 스스로 선언한다
+   (wireColorField onGradient → 자동, prop-shape/prop-page/텍스트 → 직접). */
+function _targetModes(inp) {
+  const raw = (inp && inp.dataset && inp.dataset.cpModes) || 'solid';
+  const set = new Set(raw.split(',').map(s => s.trim()).filter(Boolean));
+  set.add('solid');
+  return set;
+}
+const _MODE_LABEL = { gradient: '그라데이션', image: '이미지' };
+function _applyModeGate(inp) {
+  if (!_pop) return;
+  const modes = _targetModes(inp);
+  const note = (inp && inp.dataset && inp.dataset.cpModesNote) || '';
+  _pop.querySelectorAll('.goya-cp-tab').forEach(t => {
+    const ok = modes.has(t.dataset.tab);
+    t.disabled = !ok;
+    t.setAttribute('aria-disabled', ok ? 'false' : 'true');
+    t.dataset.tip = ok ? (t.dataset.tipBase || '') : (note || `이 항목은 ${_MODE_LABEL[t.dataset.tab] || t.dataset.tab} 채우기를 지원하지 않아요`);
   });
+  return modes;
+}
+
+function _wireEvents(pop) {
+  /* 탭 전환 — 클릭 = 모드 전환 + 즉시 커밋 (아래 _activateTab, 그라데이션 클로저가 필요해 맨 끝에서 배선) */
 
   /* 헤더 버튼 */
   pop.querySelectorAll('.goya-cp-headbtn').forEach(btn => {
@@ -439,9 +467,10 @@ function _wireEvents(pop) {
         imgZone.style.backgroundImage = `url('${e.target.result}')`;
         imgZone.classList.add('has-image');
         imgZone.innerHTML = '';
-        // target 입력이 image 모드를 지원하는 필드라면 여기서 이벤트 발행 가능
+        // target 입력이 image 모드를 지원하는 필드(dataset.cpModes 에 image)면 받는다 — 업로드 = 확정 1회
+        if (_state) _state.mode = 'image';
         _targetInput?.dispatchEvent(new CustomEvent('goya-cp:image', {
-          bubbles: true, detail: { src: e.target.result, fit: pop.querySelector('[data-el="imgFit"]').value }
+          bubbles: true, detail: { src: e.target.result, fit: pop.querySelector('[data-el="imgFit"]').value, commit: true }
         }));
       };
       reader.readAsDataURL(file);
@@ -466,10 +495,16 @@ function _wireEvents(pop) {
   const gradStopDel     = _els.gradStopDel;
   const gradControlsRow = _els.gradControlsRow;
 
-  const _defaultGradStops = () => ([
-    { color: '#ff5e3a', offset: 0, opacity: 1 },
-    { color: '#1aa6ff', offset: 1, opacity: 1 },
-  ]);
+  /* 첫 진입 기본값 = «지금 색 100% → 같은 색 0%» (현빈 확정 2026-09-19).
+     지금 색 = 솔리드 상태(_state.h/s/v). alpha(_state.a)는 무시하고 1→0 으로 고정한다 —
+     alpha 0 인 단색에서 만들어도 첫 스톱이 보이게. */
+  const _defaultGradStops = () => {
+    const cur = _state ? hexFromHsv(_state.h, _state.s, _state.v) : '#000000';
+    return [
+      { color: cur, offset: 0, opacity: 1 },
+      { color: cur, offset: 1, opacity: 0 },
+    ];
+  };
   // D6: grad 상태를 per-target(openPicker마다 새 _state)으로 격리 — 스와치 간 누수 방지.
   const _grad = () => (_state && (_state.grad ??= { stops: _defaultGradStops(), selectedIdx: 0 })) || { stops: _defaultGradStops(), selectedIdx: 0 };
   const _aClamp = (v) => Math.max(0, Math.min(100, parseInt(v) || 0));
@@ -724,17 +759,56 @@ function _wireEvents(pop) {
     if (!e.detail) return;
     const ok = _seedGradientUI(e.detail);
     if (ok) {
-      // gradient 탭으로 전환
-      pop.querySelectorAll('.goya-cp-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'gradient'));
-      pop.querySelectorAll('.goya-cp-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === 'gradient'));
+      // gradient 탭으로 «보여주기만» — 커밋 없음(열기만 해선 기록이 안 쌓인다)
+      if (_state) _state.mode = 'gradient';
+      _showTab('gradient');
     }
   });
 
-  // 탭 진입 시 초기 프리뷰 (openPicker에서 grad 상태를 기본값으로 리셋한 뒤 호출됨)
-  pop.querySelector('.goya-cp-tab[data-tab="gradient"]').addEventListener('click', () => {
-    _syncGradAngleVis();
-    _renderGradStops();
-    _syncSelectedStopUI();
+  /* ── 탭 클릭 = 모드 전환 + 즉시 커밋 ── (0918 picker, 피그마식)
+     같은 모드 탭을 다시 누르면 UI만 — 기록이 쌓이지 않는다.
+     커밋은 동기(rAF 안 씀): 탭 한 번 = pushHistory 한 번 = 되돌리기 한 번. */
+  function _activateTab(name) {
+    if (!_state || !CP_MODES.includes(name)) return;
+    if (!_targetModes(_targetInput).has(name)) return;   // 게이트(disabled 버튼이면 click 자체가 안 오지만 이중 안전)
+    const prev = _state.mode || 'solid';
+    _showTab(name);
+    if (name === 'gradient') {
+      if (_state.grad == null) {
+        // 이 세션 첫 그라데이션 — 기본값(지금 색 100%→0%, linear 90°)으로 UI까지 리셋.
+        // ★팝오버가 싱글턴이라 type/angle 을 안 리셋하면 이전 스와치의 radial·각도가 넘어온다.
+        gradType.value = 'linear';
+        if (gradAngleNum) gradAngleNum.value = '90';
+        _updateAngleNeedle(90);
+      }
+      _grad();                 // null 이면 여기서 기본 스톱 생성(같은 세션 재진입이면 직전 스톱 그대로)
+      _syncGradAngleVis();
+      _renderGradStops();
+      _syncSelectedStopUI();
+      if (prev === 'gradient') return;
+      _state.mode = 'gradient';
+      _emitGradientNow(true);
+      return;
+    }
+    if (prev === name) return;
+    _state.mode = name;
+    if (name === 'solid') {
+      // 마지막 단색 = _state.h/s/v/a (그라데이션 탭은 이 값을 안 건드린다) → input+change 1회
+      _applySolidAndEmit({ commit: true });
+      return;
+    }
+    if (name === 'image') {
+      // 이미지 넣기 전 = 캔버스에 바둑판(체커). 받는 쪽(prop-shape)이 표시·기록 1회.
+      _targetInput?.dispatchEvent(new CustomEvent('goya-cp:image', {
+        bubbles: true, detail: { src: null, placeholder: true, commit: true },
+      }));
+    }
+  }
+  pop.querySelectorAll('.goya-cp-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (tab.disabled) return;
+      _activateTab(tab.dataset.tab);
+    });
   });
 }
 
@@ -766,17 +840,23 @@ function openPicker(swatch) {
   const currentHex = nativeInp.value || '#000000';
   const { r, g, b } = hexToRgb(currentHex);
   const { h, s, v } = rgbToHsv(r, g, b);
-  // D6: grad 서브상태를 매 open마다 기본값으로 초기화 → 스와치 간 offset 누수 방지
+  // D6: grad 서브상태를 매 open마다 비운다(null) → 스와치 간 스톱 누수 방지.
+  //   null = «이 세션에선 아직 그라데이션을 안 만들었다» — 그라데이션 탭을 처음 누를 때
+  //   지금 색 기준 기본값(_defaultGradStops)으로 만들고 type/angle UI 도 리셋한다.
   const cpAlpha = nativeInp.dataset.cpAlpha != null && nativeInp.dataset.cpAlpha !== ''
     ? Math.max(0, Math.min(1, (parseInt(nativeInp.dataset.cpAlpha) || 0) / 100)) : 1;
-  _state = { h, s, v, a: cpAlpha, grad: { stops: [
-    { color: '#ff5e3a', offset: 0, opacity: 1 },
-    { color: '#1aa6ff', offset: 1, opacity: 1 },
-  ], selectedIdx: 0 } };
+  _state = { h, s, v, a: cpAlpha, grad: null, mode: 'solid' };
 
-  // solid 탭으로 초기화
-  _pop.querySelectorAll('.goya-cp-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'solid'));
-  _pop.querySelectorAll('.goya-cp-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === 'solid'));
+  // 탭 능력 게이트 + solid 탭으로 초기화(UI만)
+  const modes = _applyModeGate(nativeInp);
+  _showTab('solid');
+  // 이미지 드롭존은 스와치마다 새로 — 이전 스와치에 올린 사진이 남아 보이지 않게
+  const imgZone = _els && _els.imgZone;
+  if (imgZone && imgZone.classList.contains('has-image')) {
+    imgZone.classList.remove('has-image');
+    imgZone.style.backgroundImage = '';
+    imgZone.innerHTML = '이미지를 클릭하거나<br>드래그해서 업로드';
+  }
 
   _pop.hidden = false;
   _position(swatch);
@@ -785,8 +865,12 @@ function openPicker(swatch) {
   // A16: target에 gradient 컨텍스트(dataset.cpGradient)가 있으면 gradient 탭으로 복원.
   // 시드 로직은 _wireEvents 클로저에 갇혀 있어 직접 못 부르므로 이벤트 브리지로 전달한다.
   // (잘못된 시드 방지: stops>=2 + 유효 JSON 파싱 성공 시에만)
-  const gctx = nativeInp.dataset.cpGradient;
-  if (gctx) {
+  const gctx = modes.has('gradient') ? nativeInp.dataset.cpGradient : '';
+  if (modes.has('image') && nativeInp.dataset.cpFill === 'image') {
+    // 이미지(체커) 모드인 대상 — 이미지 탭으로 «보여주기만»
+    _state.mode = 'image';
+    _showTab('image');
+  } else if (gctx) {
     try {
       const g = JSON.parse(gctx);
       if (g && Array.isArray(g.stops) && g.stops.length >= 2) {
@@ -913,6 +997,9 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
   const alpha  = document.getElementById(`${idPrefix}-alpha`);
   const swatch = picker?.closest('.prop-color-swatch');
   if (!picker || !hex || !alpha || !swatch) return null;
+
+  // 탭 능력 선언 — 호출측이 이미 정했으면 존중, 아니면 onGradient 유무로 자동(color-picker 게이트가 읽음)
+  if (!picker.dataset.cpModes) picker.dataset.cpModes = onGradient ? 'solid,gradient' : 'solid';
 
   // 그라데이션 탭에서 emit되는 커스텀 이벤트 수신 (solid onApply와 별개 경로)
   if (onGradient) {
