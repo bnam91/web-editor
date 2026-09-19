@@ -519,6 +519,12 @@ function _wireEvents(pop) {
   };
   // CSS/detail 로 내보낼 때만 offset 오름차순 정렬 — 내부 g.stops 순서(=드래그 중 index 안정성)는 안 건드린다.
   const _sortedStops = (g) => g.stops.map(s => ({ ...s })).sort((a, b) => a.offset - b.offset);
+  // 내부 selectedIdx → 정렬(내보내기) 순서 인덱스. _sortedStops 와 같은 안정 정렬.
+  const _sortedSelIdx = () => {
+    const g = _grad();
+    const order = g.stops.map((s, i) => ({ o: s.offset, i })).sort((a, b) => a.o - b.o);
+    return Math.max(0, order.findIndex(e => e.i === g.selectedIdx));
+  };
   const _currentAngle = () => Math.max(0, Math.min(360, parseInt(gradAngleNum?.value) || 0));
 
   function _buildGradientCSS() {
@@ -560,6 +566,8 @@ function _wireEvents(pop) {
       angle: _currentAngle(),
       stops: _sortedStops(_grad()).map(s => ({ color: s.color, offset: s.offset, opacity: (s.opacity == null) ? 1 : s.opacity })),
       commit: !!commit,
+      // 0918 canvasgrad: 선택 스탑(정렬 인덱스) — 캔버스 바가 같은 칩을 선택 표시한다.
+      selectedIdx: _sortedSelIdx(),
     };
     _targetInput.dispatchEvent(new CustomEvent('goya-cp:gradient', { bubbles: true, detail }));
     if (commit) {
@@ -572,9 +580,12 @@ function _wireEvents(pop) {
   function _positionGradStops() {
     const g = _grad();
     const thumbs = gradBar.querySelectorAll('.goya-cp-grad-thumb');
-    thumbs.forEach((t, i) => { if (g.stops[i]) t.style.left = (g.stops[i].offset * 100) + '%'; });
+    thumbs.forEach((t, i) => { if (g.stops[i]) t.style.left = _thumbLeft(g.stops[i].offset); });
     gradFill.style.background = _buildGradientCSS();
   }
+  // 0918 canvasgrad: 캔버스 바 끝점을 박스 밖으로 끌면 스탑이 0% 미만·100% 초과가 된다 —
+  // 값은 그대로 두고(저장 CSS 보존) 썸네일 «표시»만 바 안으로.
+  function _thumbLeft(off) { return (Math.max(0, Math.min(1, off || 0)) * 100) + '%'; }
   function _bindStopThumbDrag(thumbEl, idx) {
     thumbEl.addEventListener('mousedown', (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -582,6 +593,8 @@ function _wireEvents(pop) {
       g.selectedIdx = idx;
       gradBar.querySelectorAll('.goya-cp-grad-thumb').forEach((t, i) => t.classList.toggle('is-active', i === idx));
       _syncSelectedStopUI();
+      // 0918 canvasgrad: 썸네일 선택 → 캔버스 바 칩 선택 이동(bindGradientLinePicker 가 수신)
+      _targetInput?.dispatchEvent(new CustomEvent('goya-cp:gradient-select', { bubbles: true, detail: { selectedIdx: _sortedSelIdx() } }));
       thumbEl.classList.add('is-dragging');
       const onMove = (ev) => {
         const r = gradBar.getBoundingClientRect();
@@ -606,7 +619,7 @@ function _wireEvents(pop) {
     g.stops.forEach((s, i) => {
       const t = document.createElement('div');
       t.className = 'goya-cp-grad-thumb' + (i === g.selectedIdx ? ' is-active' : '');
-      t.style.left = (s.offset * 100) + '%';
+      t.style.left = _thumbLeft(s.offset);
       t.style.background = s.color;
       t.title = Math.round(s.offset * 100) + '%';
       gradBar.appendChild(t);
@@ -735,25 +748,38 @@ function _wireEvents(pop) {
   gradType.addEventListener('change', () => { _syncGradAngleVis(); _scheduleEmitGradient(true); });
 
   // A16: gradient 컨텍스트 시드 브리지 — openPicker가 dataset.cpGradient를 goya-cp:seed-gradient로 넘기면 여기서 복원.
-  function _seedGradientUI(g) {
+  // opts.emit=false: 외부(캔버스 바) 동기화 — 되쏘지 않는다(루프 방지). opts.selectedIdx: 선택 스탑.
+  function _seedGradientUI(g, opts = {}) {
     if (!g || !Array.isArray(g.stops) || g.stops.length < 2) return false;
     if (gradType) gradType.value = (g.type === 'radial') ? 'radial' : 'linear';
-    const angle = Math.max(0, Math.min(360, parseInt(g.angle) || 90));
+    // ★angle 0 은 유효값 — parseInt(0)||90 이 0°를 90°로 둔갑시키던 결함(0918 canvasgrad)
+    const _a = Number(g.angle);
+    const angle = Math.max(0, Math.min(360, Number.isFinite(_a) ? Math.round(_a) : 90));
     if (gradAngleNum) gradAngleNum.value = String(angle);
     _updateAngleNeedle(angle);
     const gr = _grad();
     gr.stops = g.stops.map(s => ({
       color: _hex6(s.color),
-      offset: Math.max(0, Math.min(1, s.offset ?? 0)),
+      // 0918 canvasgrad: 범위 밖 offset 보존(캔버스 바 자유 끝점) — 표시만 _thumbLeft 가 클램프
+      offset: Number.isFinite(Number(s.offset)) ? Number(s.offset) : 0,
       opacity: (s.opacity == null) ? 1 : Math.max(0, Math.min(1, s.opacity)),
     }));
-    gr.selectedIdx = 0;
+    const si = Number(opts.selectedIdx);
+    gr.selectedIdx = Number.isFinite(si) ? Math.max(0, Math.min(gr.stops.length - 1, si | 0)) : 0;
     _renderGradStops();
     _syncSelectedStopUI();
     _syncGradAngleVis();
-    _emitGradientNow(false);
+    if (opts.emit === false) gradFill.style.background = _buildGradientCSS();
+    else _emitGradientNow(false);
     return true;
   }
+  // 0918 canvasgrad: 캔버스 바 → 열린 피커 UI 동기(syncPickerGradient 가 _pop 에 직접 dispatch).
+  //   탭은 전환하지 않고, emit 하지 않는다(goya-cp:gradient 재발행 0회 = 루프 없음).
+  pop.addEventListener('goya-cp:sync-gradient', (e) => {
+    const d = e.detail;
+    if (!d || !d.g) return;
+    _seedGradientUI(d.g, { emit: false, selectedIdx: d.selectedIdx });
+  });
   // openPicker가 _pop에 직접 dispatch하는 시드 이벤트를 수신 (_pop은 body 직속이라 bubbling 미사용)
   pop.addEventListener('goya-cp:seed-gradient', (e) => {
     if (!e.detail) return;
@@ -879,6 +905,8 @@ function openPicker(swatch) {
       }
     } catch (_) { /* 손상된 컨텍스트 무시 → solid 탭 유지 */ }
   }
+  // 0918 canvasgrad: 열린 피커가 캔버스 그라데이션 바를 가리면 바 쪽이 피커를 비킨다(gradient-line-overlay).
+  document.dispatchEvent(new CustomEvent('goya-cp:opened', { detail: { input: nativeInp } }));
 
   // outside click close — composedPath로 swatch 포함 검사 + 충분한 지연으로 자기 mousedown 회피
   // ※ 이전 openPicker 호출이 남긴 outside-handler를 먼저 제거한다.
@@ -891,6 +919,8 @@ function openPicker(swatch) {
   _outsideHandler = (ev) => {
     const path = typeof ev.composedPath === 'function' ? ev.composedPath() : [];
     if (_pop.contains(ev.target) || path.includes(_pop)) return;
+    // 0918 canvasgrad: 캔버스 그라데이션 바(칩·끝 원)는 피커와 한 몸 — 잡아도 피커를 닫지 않는다.
+    if (ev.target?.closest?.('.grad-line-overlay')) return;
     if (path.includes(swatch) || ev.target.closest('.prop-color-swatch') === swatch) return;
     _closePicker();
   };
@@ -920,6 +950,15 @@ document.addEventListener('click', (e) => {
 }, true);
 
 window.openGoyaColorPicker = openPicker;
+
+/** 0918 canvasgrad — 캔버스 그라데이션 바에서 바꾼 값을 «열려 있는» 피커 UI 에 반영한다.
+ *  inputEl 이 지금 피커 대상일 때만(다른 스와치의 피커를 건드리지 않게). emit 없음 → 루프 없음. */
+export function syncPickerGradient(inputEl, g, { selectedIdx } = {}) {
+  if (!_pop || _pop.hidden || !_targetInput || _targetInput !== inputEl) return false;
+  _pop.dispatchEvent(new CustomEvent('goya-cp:sync-gradient', { detail: { g, selectedIdx } }));
+  return true;
+}
+window.syncPickerGradient = syncPickerGradient;
 window.closeGoyaColorPicker = _closePicker;
 
 /* ═══════════════════════════════════
