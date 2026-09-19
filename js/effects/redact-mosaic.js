@@ -75,20 +75,98 @@ export function isMosaicCaptured(block) {
   return !!block && _capturedBlocks.has(block);
 }
 
+// ── 블록별 캡처 합치기(coalescing) + 세대 번호 (2026-09-19, fix/0918-redact) ──
+// 예전엔 모자이크 버튼 한 번에 applyRedact·패널 재렌더·mouseup 디바운스가 각자 html2canvas 를
+// 불러 «문서 전체 복제»가 최대 3번 겹쳤다(실측 9502: 1회 클릭 = 3회 호출, 1.0~1.3초). 그리고
+// await 이 끝난 뒤 블록이 여전히 모자이크인지 안 봐서, 늦게 끝난 캡처가 블러/해제 뒤에 캔버스를
+// 되살렸다. 이제:
+//  - 진행 중 캡처가 있으면 새 요청은 dirty 표시만 하고 «같은 Promise»를 받는다. 진행 중 캡처가
+//    끝나면 dirty 일 때 딱 1회 더 찍는다 — 그래서 어떤 요청이든 «요청 이후에 시작된 캡처»가
+//    끝나야 resolve 된다(export 의 finalizeMosaicForClone 도 옛 스냅샷을 받지 않는다).
+//  - invalidateMosaic 이 세대 번호를 올리면, 그 전에 시작된 캡처 결과는 버려진다.
+// ⚠️ 전부 WeakMap/WeakSet(런타임 전용) — dataset 에 두면 저장 HTML·undo 스냅샷에 섞인다
+//    (dataset.mosaicCaptured 사고, 2026-09-15).
+const _inflight = new WeakMap(); // block → { dirty:boolean, promise:Promise<boolean> }
+const _gen = new WeakMap();      // block → number (invalidate 마다 +1)
+
+function _genOf(block) { return _gen.get(block) || 0; }
+
+/** 이 블록이 «지금» 모자이크 가림막 상태인가 — 캡처 결과를 쓸 자격 확인. */
+function _isLiveMosaic(block) {
+  return !!block && block.isConnected
+    && block.classList.contains('shape-redact')
+    && block.dataset.shapeRedactMode === 'mosaic';
+}
+
+/** 캡처가 진행 중인가(패널 「캡처 중…」 표시용, 런타임 전용). */
+export function isMosaicPending(block) {
+  return !!block && _inflight.has(block);
+}
+
+/** 이 블록의 모자이크 상태를 전부 무효화한다 — 블러 전환·가림막 해제·타입 변경 시의 단일 창구.
+ *  캐시·«캡처됨» 표시·캔버스를 지우고, 이미 진행 중인 캡처의 결과도 버려지게 세대 번호를 올린다. */
+export function invalidateMosaic(block) {
+  if (!block) return;
+  _gen.set(block, _genOf(block) + 1);
+  _fullResCache.delete(block);
+  _capturedBlocks.delete(block);
+  const inf = _inflight.get(block);
+  if (inf) inf.dirty = false; // 뒤따르는 캡처 예약 취소(모드가 다시 mosaic 이 되면 새 요청이 다시 건다)
+  block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
+  delete block.dataset.mosaicCaptured;
+}
+
 /** block 밑에 깔린 콘텐츠를 캡처해 모자이크 캔버스를 갱신한다. 실패해도 조용히 무시(라이브
  *  캔버스는 이전 스냅샷을 그대로 들고 있으므로 안전 — export 단계의 안전실패가 최종 방어선).
  *  opts.reuseFullRes: true면 DOM을 다시 찍지 않고 캐시된 원본해상도 캡처만 재다운스케일
- *  (강도 슬라이더 드래그 중처럼 밑 콘텐츠는 그대로고 블록 크기만 바뀔 때). */
-export async function captureMosaicSnapshot(block, opts) {
-  if (!block) return false;
+ *  (강도 슬라이더 드래그 중처럼 밑 콘텐츠는 그대로고 블록 크기만 바뀔 때).
+ *  ★같은 블록에 진행 중 캡처가 있으면 합쳐진다(위 주석) — 반환 Promise 는 이 요청 «이후»
+ *   시작된 캡처가 끝난 뒤 resolve 된다(opts.join 이면 예외: 진행 중 캡처 결과를 그대로 받음). */
+export function captureMosaicSnapshot(block, opts) {
+  if (!block) return Promise.resolve(false);
   if (opts?.reuseFullRes && _fullResCache.has(block)) {
+    if (!_isLiveMosaic(block)) return Promise.resolve(false);
     redrawFromFullRes(block, _fullResCache.get(block));
-    return true;
+    return Promise.resolve(true);
   }
+  const running = _inflight.get(block);
+  if (running) {
+    // opts.join: «이미 도는 캡처에 결과만 얻어 타기»(패널 재렌더의 방어 동기화처럼, 새 변화가
+    // 없는데 같은 순간 두 번 부르는 경우) — 뒤따르는 캡처를 예약하지 않는다.
+    if (!opts?.join) running.dirty = true;
+    return running.promise;
+  }
+  const entry = { dirty: false, promise: null };
+  entry.promise = (async () => {
+    let result = false;
+    try {
+      for (;;) {
+        entry.dirty = false;
+        result = await _captureOnce(block);
+        if (!(entry.dirty && _isLiveMosaic(block))) break;
+        // 뒤따르는 캡처 전에 한 턴 양보 — html2canvas 의 동기 문서 복제가 바로 이어지면 방금 그린
+        // 첫 결과가 화면에 칠해지지 못한 채 ~0.4초 더 묶인다(실측 9502: 캡처 완료 410ms 인데
+        // 화면 반영 715ms). 양보하면 첫 결과가 먼저 보이고 뒤따르는 캡처는 그 뒤에 덮어쓴다.
+        await new Promise((r) => setTimeout(r, 32));
+        if (!(entry.dirty && _isLiveMosaic(block))) break;
+      }
+    } catch (_) {
+      result = false;
+    } finally {
+      if (_inflight.get(block) === entry) _inflight.delete(block);
+    }
+    return result;
+  })();
+  _inflight.set(block, entry);
+  return entry.promise;
+}
+
+async function _captureOnce(block) {
+  if (!_isLiveMosaic(block)) return false;
   if (typeof window.html2canvas !== 'function') return false;
   const scope = block.closest('.section-block') || block.parentElement;
   if (!scope) return false;
-
+  const gen = _genOf(block);
   const rect = block.getBoundingClientRect();
   const scopeRect = scope.getBoundingClientRect();
   const w = Math.max(1, Math.round(rect.width));
@@ -143,6 +221,10 @@ export async function captureMosaicSnapshot(block, opts) {
    *      불가는 "의심"과 같은 취급이어야 한다(실패닫힘) — catch 에서도 true(의심스러움)를
    *      돌려준다. */
   if (_isSuspiciouslyBlank(captured)) return false;
+  // ★늦게 끝난 캡처 차단(2026-09-19): await 사이에 블러로 바뀌었거나, 가림막이 꺼졌거나,
+  //   DOM 에서 떨어졌거나(undo/redo 가 노드를 새로 만듦), invalidate 됐으면 결과를 버린다 —
+  //   캔버스·캐시·«캡처됨» 표시를 건드리지 않는다(예전엔 여기서 캔버스를 되살렸다).
+  if (!_isLiveMosaic(block) || _genOf(block) !== gen) return false;
 
   _fullResCache.set(block, captured);
   redrawFromFullRes(block, captured);
@@ -259,5 +341,7 @@ window.wireMosaicAutoRefresh   = wireMosaicAutoRefresh;
 window.finalizeMosaicForClone  = finalizeMosaicForClone;
 window.mosaicBlockPxFromSlider = mosaicBlockPxFromSlider;
 window.isMosaicCaptured        = isMosaicCaptured;
+window.invalidateMosaic        = invalidateMosaic;
+window.isMosaicPending         = isMosaicPending;
 
 wireMosaicAutoRefresh();

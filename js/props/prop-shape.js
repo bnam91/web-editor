@@ -93,9 +93,9 @@ export function showShapeProperties(block) {
       <div id="shape-redact-controls" style="${isRedact ? '' : 'display:none'}">
         <div class="prop-row" style="margin-top:8px;">
           <span class="prop-label">방식</span>
-          <div class="prop-segmented" id="shape-redact-mode-seg">
-            <button type="button" class="prop-segmented-btn${redactMode === 'blur' ? ' active' : ''}" data-mode="blur">블러</button>
-            <button type="button" class="prop-segmented-btn${redactMode === 'mosaic' ? ' active' : ''}" data-mode="mosaic">모자이크</button>
+          <div class="prop-align-group" id="shape-redact-mode-seg">
+            <button type="button" class="prop-align-btn${redactMode === 'blur' ? ' active' : ''}" data-mode="blur" aria-pressed="${redactMode === 'blur'}" title="블러 — 밑 콘텐츠를 실시간으로 흐림">블러</button>
+            <button type="button" class="prop-align-btn${redactMode === 'mosaic' ? ' active' : ''}" data-mode="mosaic" aria-pressed="${redactMode === 'mosaic'}" title="모자이크 — 밑 화면을 찍어 픽셀화(이동·편집이 끝날 때 다시 찍음)">모자이크</button>
           </div>
         </div>
         <div class="prop-row" style="margin-top:8px;">
@@ -104,7 +104,7 @@ export function showShapeProperties(block) {
           <input type="number" class="prop-number" id="shape-redact-blur-num" min="2" max="20" value="${redactBlur}">
         </div>
         ${redactMode === 'mosaic' ? `
-        <button type="button" class="prop-btn" id="shape-redact-mosaic-refresh" style="margin-top:8px;width:100%;">지금 스냅샷 새로고침</button>
+        <button type="button" class="prop-btn" id="shape-redact-mosaic-refresh" style="margin-top:8px;width:100%;">${window.isMosaicPending?.(block) ? '캡처 중…' : '지금 스냅샷 새로고침'}</button>
         <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 그 순간 밑 콘텐츠를 캡처해 픽셀 모자이크로 가립니다. 실시간 추적이 아니라 도형을 옮기거나(이동/리사이즈 종료) 편집을 마칠 때(mouseup) 자동으로 다시 찍습니다 — 안 맞으면 위 버튼으로 즉시 새로고침하세요. 채우기 색상은 무시됩니다.</div>
         ` : `
         <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 밑에 깔린 콘텐츠가 실시간으로 흐려집니다. 채우기 색상은 무시됩니다.</div>
@@ -190,6 +190,9 @@ export function showShapeProperties(block) {
   // 그대로 복원된다(editor-blocks.css 참고).
   // mode: 'blur'(backdrop-filter 실시간) | 'mosaic'(js/effects/redact-mosaic.js 스냅샷 픽셀화)
   function applyRedact(on, blurPx, mode) {
+    // 모드가 «바뀌는» 순간인지(강도 슬라이더처럼 같은 모드 안의 변경과 구분) — 바뀌면 옛 캡처를
+    // 다시 쓰면 안 된다(2026-09-19: 모자이크→블러→이동→모자이크 에서 옛 위치 모자이크가 뜨던 버그).
+    const wasMosaic = block.dataset.shapeRedact === 'true' && block.dataset.shapeRedactMode === 'mosaic';
     block.classList.toggle('shape-redact', !!on);
     if (on) {
       block.dataset.shapeRedact = 'true';
@@ -201,25 +204,44 @@ export function showShapeProperties(block) {
       block.dataset.shapeRedactMode = m;
       if (m === 'blur') {
         block.style.setProperty('--redact-blur', `${bp}px`);
+        if (wasMosaic) _invalidateMosaic();
       } else {
         block.style.removeProperty('--redact-blur');
-        window.captureMosaicSnapshot?.(block, { reuseFullRes: true });
+        // 같은 모자이크 안의 강도 변경만 캐시 재사용, 모드 전환·새로 켬은 항상 새로 찍는다.
+        _trackMosaicCapture(window.captureMosaicSnapshot?.(block, wasMosaic ? { reuseFullRes: true } : undefined));
       }
     } else {
       delete block.dataset.shapeRedact;
       delete block.dataset.shapeRedactMode;
-      delete block.dataset.mosaicCaptured;
       block.style.removeProperty('--redact-blur');
-      block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
+      _invalidateMosaic();
     }
     window.scheduleAutoSave?.();
+  }
+  function _invalidateMosaic() {
+    if (window.invalidateMosaic) window.invalidateMosaic(block);
+    else {
+      delete block.dataset.mosaicCaptured;
+      block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
+    }
+  }
+  // 캡처가 도는 동안 새로고침 버튼에 「캡처 중…」 — 상태는 redact-mosaic.js 의 WeakMap(런타임
+  // 전용)에서 읽는다. ⛔dataset 에 pending 플래그를 두지 않는다(저장 HTML 누수).
+  function _trackMosaicCapture(p) {
+    const setLabel = () => {
+      const btn = document.getElementById('shape-redact-mosaic-refresh');
+      if (!btn) return;
+      btn.textContent = window.isMosaicPending?.(block) ? '캡처 중…' : '지금 스냅샷 새로고침';
+    };
+    setLabel();
+    if (p && typeof p.then === 'function') p.then(setLabel, setLabel);
   }
   // 저장된 프로젝트 로드 등으로 dataset과 클래스가 어긋났을 때 방어적으로 동기화
   if (canRedact) {
     block.classList.toggle('shape-redact', isRedact);
     if (isRedact) {
       if (redactMode === 'blur') block.style.setProperty('--redact-blur', `${redactBlur}px`);
-      else if (!window.isMosaicCaptured?.(block)) window.captureMosaicSnapshot?.(block);
+      else if (!window.isMosaicCaptured?.(block)) _trackMosaicCapture(window.captureMosaicSnapshot?.(block, { join: true }));
     }
   }
 
@@ -237,7 +259,7 @@ export function showShapeProperties(block) {
   }
   const redactModeSeg = document.getElementById('shape-redact-mode-seg');
   if (redactModeSeg) {
-    redactModeSeg.querySelectorAll('.prop-segmented-btn').forEach((btn) => {
+    redactModeSeg.querySelectorAll('.prop-align-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const m = btn.dataset.mode;
         if (m === redactMode) return;
@@ -270,7 +292,7 @@ export function showShapeProperties(block) {
   }
   const redactMosaicRefreshBtn = document.getElementById('shape-redact-mosaic-refresh');
   if (redactMosaicRefreshBtn) {
-    redactMosaicRefreshBtn.addEventListener('click', () => { window.captureMosaicSnapshot?.(block); });
+    redactMosaicRefreshBtn.addEventListener('click', () => { _trackMosaicCapture(window.captureMosaicSnapshot?.(block)); });
   }
 
   function applyColor(hex) {

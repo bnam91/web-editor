@@ -4172,6 +4172,14 @@ function updateLabelGroupBlock(blockId, partial = {}) {
   return { ok: true, blockId, before, applied, warnings };
 }
 
+// 모자이크 가림막 상태 무효화 — redact-mosaic.js invalidateMosaic 단일 창구(캐시·캡처표시·캔버스·
+// 진행 중 캡처 세대). 모듈이 아직 안 올라왔으면 캔버스만 떼는 옛 동작으로 폴백.
+function _invalidateRedactMosaic(block) {
+  if (typeof window.invalidateMosaic === 'function') { try { window.invalidateMosaic(block); return; } catch (_) {} }
+  delete block.dataset.mosaicCaptured;
+  block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
+}
+
 // ── updateShapeBlock: shape 블록 부분 수정 ────────────────────────────────
 function updateShapeBlock(blockId, partial = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
@@ -4268,10 +4276,9 @@ function updateShapeBlock(blockId, partial = {}) {
     if (block.dataset.shapeRedact === 'true' && partial.shapeType !== 'rectangle' && partial.shapeType !== 'ellipse') {
       delete block.dataset.shapeRedact;
       delete block.dataset.shapeRedactMode;
-      delete block.dataset.mosaicCaptured;
       block.classList.remove('shape-redact');
       block.style.removeProperty('--redact-blur');
-      block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
+      _invalidateRedactMosaic(block);
       applied.shapeRedact = false;
     }
   }
@@ -4345,12 +4352,14 @@ function updateShapeBlock(blockId, partial = {}) {
       // ★최소 2px — 0이면 사실상 안 가려지는데 토글만 켜진 채 남는다(적대적 QA 발견).
       const clamped = Math.max(2, Math.min(20, Math.round(bp)));
       block.dataset.shapeRedactBlur = String(clamped);
+      const wasMosaic = block.dataset.shapeRedactMode === 'mosaic';
       const mode = partial.shapeRedactMode !== undefined
         ? (partial.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur')
         : (block.dataset.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur');
       block.dataset.shapeRedactMode = mode;
       if (mode === 'blur') {
         block.style.setProperty('--redact-blur', `${clamped}px`);
+        if (wasMosaic) _invalidateRedactMosaic(block);
       } else {
         block.style.removeProperty('--redact-blur');
         try { window.captureMosaicSnapshot?.(block); } catch (_) {}
@@ -4360,17 +4369,18 @@ function updateShapeBlock(blockId, partial = {}) {
     } else {
       delete block.dataset.shapeRedact;
       delete block.dataset.shapeRedactMode;
-      delete block.dataset.mosaicCaptured;
       block.style.removeProperty('--redact-blur');
-      block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
+      _invalidateRedactMosaic(block);
     }
     applied.shapeRedact = on;
   } else if (partial.shapeRedactMode !== undefined && partial.shapeRedactMode !== null && block.dataset.shapeRedact === 'true') {
     const mode = partial.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur';
+    const wasMosaic = block.dataset.shapeRedactMode === 'mosaic';
     block.dataset.shapeRedactMode = mode;
     if (mode === 'blur') {
       const bp = Number(block.dataset.shapeRedactBlur) || 8;
       block.style.setProperty('--redact-blur', `${bp}px`);
+      if (wasMosaic) _invalidateRedactMosaic(block);
     } else {
       block.style.removeProperty('--redact-blur');
       try { window.captureMosaicSnapshot?.(block); } catch (_) {}
