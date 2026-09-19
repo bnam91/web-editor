@@ -156,6 +156,85 @@ function projectOffset(p0, p1, P) {
 }
 
 /* ------------------------------------------------------------------ *
+ * 3b) canvas bar geometry (0918 canvasgrad — 피그마식 캔버스 그라데이션 바)
+ *
+ * 두 좌표 공간이 있다 — 어댑터(registerGradientTarget)의 space 필드로 고른다.
+ *   · 'css'  : CSS background gradient(banner02/comparison). 색 선 길이
+ *              L = |w·sinA| + |h·cosA| (px) — 박스 밖으로 나갈 수 있다 → «클램프 금지».
+ *              각도·투영은 px 공간에서 한다(비정사각형에서 정규화 공간 각도 ≠ 렌더 각도).
+ *   · 'bbox' : SVG objectBoundingBox(shape). prop-shape.js _applyShapeGradient 의
+ *              x1,y1,x2,y2 = 0.5 ∓ 0.5·(sinA, −cosA) 와 «같은» 선. 각도·투영은 정규화 공간.
+ * 점은 전부 정규화(0-1 = 타겟 박스) 좌표로 돌려준다. px 로 바꾸는 건 호출자(×w, ×h).
+ * ------------------------------------------------------------------ */
+
+// model → { p0, p1, radial } (정규화). radial: p0=중심, p1=오른쪽 반경 끝.
+function gradientLine(model, { space = 'bbox', w = 1, h = 1 } = {}) {
+  const W = w || 1, H = h || 1;
+  if (model && model.type === 'radial') {
+    if (space === 'css') {
+      // radial-gradient(circle, …) 기본 크기 = farthest-corner → 반경 = 중심→모서리 거리(px)
+      const r = Math.hypot(W / 2, H / 2);
+      return { p0: { x: 0.5, y: 0.5 }, p1: { x: 0.5 + r / W, y: 0.5 }, radial: true };
+    }
+    return { p0: { x: 0.5, y: 0.5 }, p1: { x: 1, y: 0.5 }, radial: true }; // SVG r=50% bbox
+  }
+  const deg = (model && model.angle != null) ? Number(model.angle) : 180;
+  const rad = deg * Math.PI / 180;
+  const ux = Math.sin(rad), uy = -Math.cos(rad);
+  if (space === 'css') {
+    const L = Math.abs(W * ux) + Math.abs(H * uy);
+    const hx = (ux * L / 2) / W, hy = (uy * L / 2) / H;
+    return { p0: { x: 0.5 - hx, y: 0.5 - hy }, p1: { x: 0.5 + hx, y: 0.5 + hy }, radial: false };
+  }
+  return { p0: { x: 0.5 - 0.5 * ux, y: 0.5 - 0.5 * uy }, p1: { x: 0.5 + 0.5 * ux, y: 0.5 + 0.5 * uy }, radial: false };
+}
+
+// 중심→커서 방향으로 CSS 각도(0=위, 시계방향, 0~360). center/cursor 는 정규화.
+function angleFromDrag(center, cursor, { space = 'bbox', w = 1, h = 1 } = {}) {
+  const sx = space === 'css' ? (w || 1) : 1;
+  const sy = space === 'css' ? (h || 1) : 1;
+  return handlesToAngle({ x: center.x * sx, y: center.y * sy }, { x: cursor.x * sx, y: cursor.y * sy });
+}
+
+// 정규화 점 P 가 선 위 어느 offset(0~1)에 해당하나 — 공간에 맞게 투영.
+function offsetOnLine(line, P, { space = 'bbox', w = 1, h = 1 } = {}) {
+  const sx = space === 'css' ? (w || 1) : 1;
+  const sy = space === 'css' ? (h || 1) : 1;
+  const m = (p) => ({ x: p.x * sx, y: p.y * sy });
+  return projectOffset(m(line.p0), m(line.p1), m(P));
+}
+
+// px 선(p0px→p1px) 위 offset 점에서 법선 n=(sinθ, −cosθ) 방향으로 d 만큼 띄운 칩 중심 + 회전각.
+// θ = 선의 화면 각도(atan2(dy,dx)). θ=0(오른쪽으로 뻗은 선)이면 칩은 선 «위쪽»에 뜬다.
+function chipPlacement(p0px, p1px, offset, dPx) {
+  const dx = p1px.x - p0px.x, dy = p1px.y - p0px.y;
+  const th = Math.atan2(dy, dx);
+  const t = Math.max(0, Math.min(1, offset || 0));
+  const px = p0px.x + dx * t, py = p0px.y + dy * t;
+  return {
+    x: px + Math.sin(th) * dPx,
+    y: py - Math.cos(th) * dPx,
+    rotDeg: th * 180 / Math.PI,
+    onLine: { x: px, y: py },
+  };
+}
+
+// 칩 드래그 후 정렬 — 배열을 offset 오름차순으로 «제자리» 정렬하고, 선택돼 있던 스탑 «객체»의
+// 새 인덱스를 돌려준다(드래그 중엔 순서를 고정하므로 mouseup 에서 한 번만 부른다).
+function sortStopsKeepSelection(stops, selectedIdx) {
+  const sel = stops[selectedIdx];
+  stops.sort((a, b) => (a.offset || 0) - (b.offset || 0));
+  const i = stops.indexOf(sel);
+  return i < 0 ? 0 : i;
+}
+
+// 정렬 «사본»과, 원본 인덱스 idx 가 정렬 사본에서 몇 번째인지(피커 _sortedStops 관례와 같은 안정 정렬).
+function sortedIndexOf(stops, idx) {
+  const order = stops.map((s, i) => ({ o: s.offset || 0, i })).sort((a, b) => a.o - b.o);
+  return order.findIndex(e => e.i === idx);
+}
+
+/* ------------------------------------------------------------------ *
  * 4) getGradientTarget — block-agnostic adapter registry
  * ------------------------------------------------------------------ */
 
@@ -168,6 +247,7 @@ function registerGradientTarget(entry) { _registry.push(entry); }
 registerGradientTarget({
   match: (el) => el.classList.contains('banner02-block'),
   make: (block) => ({
+    space: 'css',
     rect: () => {
       const inner = block.querySelector('.bn2-inner');
       // The visible background is painted on `block` itself; .bn2-inner is a 0-origin scaled
@@ -202,6 +282,7 @@ registerGradientTarget({
           || block;
     };
     return {
+      space: 'css',
       rect: () => colEl().getBoundingClientRect(),
       get: () => {
         const cols = window.getComparisonCols?.(block.dataset) || [];
@@ -240,6 +321,8 @@ registerGradientTarget({
   make: (block) => {
     const svg = () => block.querySelector('svg');
     return {
+      space: 'bbox',
+      rotation: () => parseFloat(block.dataset.shapeRotation) || 0,
       rect: () => {
         const el = svg() || block;
         const r = el.getBoundingClientRect();
@@ -293,6 +376,12 @@ const GradientModel = {
   handlesToAngle,
   angleToHandles,
   projectOffset,
+  gradientLine,
+  angleFromDrag,
+  offsetOnLine,
+  chipPlacement,
+  sortStopsKeepSelection,
+  sortedIndexOf,
   getGradientTarget,
   registerGradientTarget,
 };
@@ -308,6 +397,12 @@ export {
   handlesToAngle,
   angleToHandles,
   projectOffset,
+  gradientLine,
+  angleFromDrag,
+  offsetOnLine,
+  chipPlacement,
+  sortStopsKeepSelection,
+  sortedIndexOf,
   getGradientTarget,
   registerGradientTarget,
   GradientModel,

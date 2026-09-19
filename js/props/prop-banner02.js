@@ -533,6 +533,8 @@ export function showBanner02Properties(block, activeIdxArg) {
 
   // 선택 시 배경이 그라데이션이면 캔버스 위 그라데이션 라인 표시 (gradient가 아니면 overlay가 no-op)
   window.showGradientLine?.(block);
+  // 0918 canvasgrad: 캔버스 바 ↔ 피커 스탑 양방향 배선 + 재오픈 시드(dataset.cpGradient)
+  window.bindGradientLinePicker?.(block, document.getElementById('bn2-bg-color'));
 }
 
 // 캔버스에서 그라데이션 라인을 드래그하면(source==='canvas') 모달 피커 스와치만 동기화.

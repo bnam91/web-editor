@@ -376,6 +376,8 @@ export function showShapeProperties(block) {
 
   // 선택 시 채우기가 그라데이션이면 캔버스 위 그라데이션 라인 표시 (아니면 overlay가 no-op)
   window.showGradientLine?.(block);
+  // 0918 canvasgrad: 캔버스 바 ↔ 피커 스탑 양방향 배선 + 재오픈 시드(dataset.cpGradient)
+  window.bindGradientLinePicker?.(block, shapeColorInput);
 
   // ── 스트로크 두께 ──
   const strokeSlider = document.getElementById('shape-stroke-slider');

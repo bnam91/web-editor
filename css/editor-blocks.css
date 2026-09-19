@@ -1624,6 +1624,18 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   overflow: visible;
 }
 
+/* 0918 canvasgrad — 캔버스 그라데이션 바(.grad-line-overlay)가 떠 있는 동안 overflow 해제.
+   CSS 그라데이션 선(banner02/comparison)은 길이 |w·sinA|+|h·cosA| 라 박스 밖으로 나가고,
+   스탑 칩은 선 옆에 뜬다 — 잘리면 손잡이를 못 잡는다. shape 선택 시 해제와 같은 정책
+   (대가: 선택 중엔 border-radius 클리핑이 풀린다). banner02 는 renderBanner02 가 인라인
+   overflow:hidden 을 넣으므로 !important 로만 이긴다 — 오버레이가 있을 때(=선택 중)만. */
+.frame-block:has(.grad-line-overlay) {
+  overflow: visible;
+}
+.banner02-block:has(> .grad-line-overlay) {
+  overflow: visible !important;
+}
+
 /* speech-bubble 포함 시 overflow 해제 — 말꼬리 SVG 클리핑 방지 */
 .frame-block:has(.speech-bubble-block) {
   overflow: visible;
