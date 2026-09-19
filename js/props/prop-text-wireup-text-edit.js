@@ -91,6 +91,48 @@ function _applyColorSpanToRange(color, host, savedRange, prevSpan) {
   return { span, range: newRange.cloneRange() };
 }
 
+/* ── 텍스트 블럭 «전체» 그라데이션 글자 (0918 picker) ──
+ * 색상 피커 그라데이션 탭 → contentEl 에 background-image + background-clip:text + text-fill 투명.
+ * 재오픈 시드·판별용으로 data-text-gradient(JSON) 를 같이 둔다 — 인라인이라 저장·HTML 내보내기에 실린다.
+ * ★범위는 «블럭 전체»만: 부분 선택 span 에 그라데이션을 거는 기능은 없다. 단색을 (부분이든 전체든)
+ *   다시 칠하면 블럭 그라데이션은 풀린다(text-fill 투명이 상속돼 부분 색이 안 보이게 되므로). */
+export function applyTextGradient(host, detail) {
+  if (!host || !detail || !detail.css) return false;
+  host.style.backgroundImage = detail.css;
+  host.style.setProperty('-webkit-background-clip', 'text');
+  host.style.setProperty('background-clip', 'text');
+  host.style.setProperty('-webkit-text-fill-color', 'transparent');
+  try {
+    host.dataset.textGradient = JSON.stringify({ type: detail.type, angle: detail.angle, stops: detail.stops });
+  } catch (_) {}
+  return true;
+}
+export function clearTextGradient(host) {
+  if (!host || !host.dataset || !host.dataset.textGradient) return false;
+  host.style.removeProperty('background-image');
+  host.style.removeProperty('-webkit-background-clip');
+  host.style.removeProperty('background-clip');
+  host.style.removeProperty('-webkit-text-fill-color');
+  delete host.dataset.textGradient;
+  return true;
+}
+/* 이 글자에 그라데이션을 걸 수 없는 이유(없으면 '') — 배경을 쓰는 다른 기능과 background 를 같이 못 쓴다 */
+export function textGradientBlockedReason(host) {
+  if (!host) return '글자 요소를 못 찾았어요';
+  if (host.classList.contains('text-effect')) return '텍스트 효과를 쓰는 중이라 그라데이션을 못 써요';
+  let bg = '';
+  try { bg = getComputedStyle(host).backgroundColor || ''; } catch (_) {}
+  const m = bg.match(/rgba?\(([^)]+)\)/i);
+  const alpha = m ? (m[1].split(',').length === 4 ? parseFloat(m[1].split(',')[3]) : 1) : (bg === 'transparent' || !bg ? 0 : 1);
+  if (alpha > 0) return '배경(라벨·말풍선·강조)이 있는 글자는 그라데이션을 못 써요';
+  if (host.querySelector('[style*="background"]')) return '형광펜이 칠해진 글자는 그라데이션을 못 써요';
+  return '';
+}
+if (typeof window !== 'undefined') {
+  window.applyTextGradient = applyTextGradient;
+  window.clearTextGradient = clearTextGradient;
+}
+
 /* 전역 진입점: savedRange(비-collapsed) 있으면 부분 span, 없으면 host 전체.
    반환 {span, range} (부분 적용 시 연속 input 재사용용 — prevSpan 으로 다시 넘길 것). */
 export function applyColorToSelection(color, host, savedRange = null, prevSpan = null) {
@@ -274,6 +316,8 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
   };
 
   const applyColorToSel = (color) => {
+    // 단색을 칠하면 블럭 그라데이션 글자는 풀린다(0918 picker) — 재오픈 시드도 같이
+    if (clearTextGradient(ctx.contentEl)) delete colorPicker.dataset.cpGradient;
     if (!_savedColorSel) {
       // selection 없으면 전체 contentEl에 일괄 적용
       // mix 상태(내부 span별 부분 색)를 풀어줘야 contentEl.style.color가 우선됨
@@ -293,6 +337,31 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
     colorSwatch.style.background = c;
   });
   colorPicker.addEventListener('change', () => { _savedColorSel = null; _colorSpan = null; window.pushHistory?.(); });
+
+  /* ── 그라데이션 글자 (0918 picker) — 색상 피커 그라데이션 탭 수신 ──
+   * 탭 능력 선언: 배경을 쓰는 다른 기능(텍스트 효과·라벨/말풍선 배경·형광펜)과는 같이 못 쓰므로 그땐 막고 이유를 툴팁으로. */
+  {
+    const host = ctx.contentEl;
+    const blocked = textGradientBlockedReason(host);
+    colorPicker.dataset.cpModes = blocked ? 'solid' : 'solid,gradient';
+    if (blocked) colorPicker.dataset.cpModesNote = blocked; else delete colorPicker.dataset.cpModesNote;
+    if (host && host.dataset.textGradient) {
+      colorPicker.dataset.cpGradient = host.dataset.textGradient;   // 재오픈 시 그라데이션 탭·스톱 복원
+      if (host.style.backgroundImage) colorSwatch.style.background = host.style.backgroundImage;
+    }
+    if (!colorPicker._txtGradWired) {
+      colorPicker._txtGradWired = true;
+      colorPicker.addEventListener('goya-cp:gradient', (e) => {
+        const d = e.detail;
+        if (!d || !d.css || !applyTextGradient(ctx.contentEl, d)) return;
+        colorPicker.dataset.cpGradient = ctx.contentEl.dataset.textGradient || '';
+        colorSwatch.style.background = d.css;
+        window.scheduleAutoSave?.();
+      });
+      // 기록은 커밋 이벤트 한 곳에서만(탭 1번·드래그 끝 1번 = 되돌리기 1번)
+      colorPicker.addEventListener('goya-cp:gradient-commit', () => { window.pushHistory?.(); });
+    }
+  }
   colorHex.addEventListener('input', () => {
     const v = colorHex.value.trim().replace(/^#/, '');
     if (/^[0-9a-f]{6}$/i.test(v)) {

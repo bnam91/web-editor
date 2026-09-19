@@ -52,6 +52,8 @@ window.applyTextBlockColor = function (blockEl, color) {
     }
   });
   contentEl.style.color = color;
+  // 블럭 그라데이션 글자였다면 해제(0918 picker) — 안 풀면 text-fill 투명이라 새 색이 안 보인다
+  window.clearTextGradient?.(contentEl);
 
   window.pushHistory?.('글자색 추출');
   window.scheduleAutoSave?.();
