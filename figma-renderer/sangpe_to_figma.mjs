@@ -14,6 +14,7 @@ import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import os from 'os';
+import { cssGradientToFigmaPaint } from './gradient-paint.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -522,6 +523,16 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       //    goditor 행간(예 body 1.6)과 일치한다.
       const textBoxH = Math.max(1, totalH - (p.top || 0) - (p.bottom || 0));
       run('resize_node', { nodeId: node.id, width: textWrapW, height: textBoxH });
+
+      // 0918r2 textgrad: 글자 그라데이션 — 텍스트 노드 fills 를 그라데이션으로(실패하면 fontColor 단색 그대로).
+      //   박스 = 텍스트 노드(textWrapW × textBoxH). CSS 는 contentEl 박스 기준이라 여유폭만큼 스탑이 약간 어긋날 수 있다.
+      if (s.fill && s.fill.kind === 'gradient') {
+        const _paint = cssGradientToFigmaPaint(s.fill, textWrapW, textBoxH);
+        if (_paint) {
+          const _gr = run('set_gradient', { nodeId: node.id, ..._paint });
+          if (!_gr) console.log(`      ⚠️ text gradient 실패 → 단색 폴백 ${block.id}`);
+        }
+      }
 
       // text-effect(네온 등) 글로우 — CSS text-shadow를 Figma DROP_SHADOW effect로 적용(회차12 chart 크림글로우 fix)
       const _fx = parseTextShadowToEffects(s.textShadow);

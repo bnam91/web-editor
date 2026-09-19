@@ -42,6 +42,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
   ${SHAPE('shpB', 'rectangle', '#22aa44')}
   <div class="text-block" id="tb1"><div class="tb-body" contenteditable="false" style="font-size:40px;">그라데이션 글자</div></div>
   <div class="text-block" id="tb2"><div class="tb-body text-effect tfx-neon" contenteditable="false">효과 글자</div></div>
+  <div class="text-block" id="tb3"><div class="tb-label" contenteditable="false">라벨 글자</div></div>
 </div></div></div>
 <div id="panel-right"><div class="panel-body"></div></div>
 <div id="ds-page-bg" style="position:fixed;left:300px;top:0;">
@@ -343,16 +344,36 @@ test('T9 페이지 바탕: 그라데이션 탭 = 기록 정확히 1회(이중 �
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('T10 ★텍스트(②안): 글자색 피커는 그라데이션·이미지 탭 비활성 + 이유 툴팁, 눌러도 글자·기록 불변', async ({ page }) => {
+test('T10 ★텍스트(0918r2 textgrad — 현빈 결정 = 피그마 기준, T-059 확장): 본문 글자색은 그라데이션 탭 = 즉시 «지금 색 100%→0%» 기록 1회 · 라벨은 막힘+이유', async ({ page }) => {
+  // ⤷ 1라운드 ②안(«글자색 그라데이션 탭 비활성»)을 «뒤집는» 단언이다. 현빈 결정(2026-09-19 오후) = 글자 그라데이션 지원.
   const errs = await boot(page);
+  await page.evaluate(() => { document.querySelector('#tb1 .tb-body').style.color = '#cc2244'; });
   await page.evaluate(() => window.__text(document.getElementById('tb1')));
   const h0 = await hist(page);
   await openSwatchOf(page, 'txt-color');
-  expect(await tab(page, 'solid').isDisabled()).toBe(false);
-  expect(await tab(page, 'gradient').isDisabled(), '글자색에서 그라데이션 탭이 열려 있다(②안 위반)').toBe(true);
+  expect(await tab(page, 'gradient').isDisabled(), '본문 글자색에서 그라데이션 탭이 막혀 있다(피그마 기준 위반)').toBe(false);
   expect(await tab(page, 'image').isDisabled()).toBe(true);
+  await tab(page, 'gradient').click();
+  const cs = await page.evaluate(() => {
+    const el = document.querySelector('#tb1 .tb-body');
+    const c = getComputedStyle(el);
+    return { clip: c.backgroundClip, wclip: c.webkitBackgroundClip, fillc: c.webkitTextFillColor, img: c.backgroundImage,
+             active: document.querySelector('.goya-cp-tab.active')?.dataset.tab, tg: window.getTextGradient(el) };
+  });
+  expect(cs.clip, '그라데이션 탭을 눌렀는데 글자에 그라데이션이 안 걸렸다').toBe('text');
+  expect(cs.fillc).toBe('rgba(0, 0, 0, 0)');
+  expect(cs.img).toContain('linear-gradient');
+  expect(cs.active).toBe('gradient');
+  expect(cs.tg.stops.map(s => [s.color, s.opacity])).toEqual([['#cc2244', 1], ['#cc2244', 0]]);
+  expect(await hist(page) - h0, '탭 한 번 = 기록 한 번(되돌리기 한 번)').toBe(1);
+
+  // 라벨: 막힘 + 이유 툴팁, 눌러도 불변
+  await page.mouse.click(5, 700);
+  await page.evaluate(() => window.__text(document.getElementById('tb3')));
+  const h1 = await hist(page);
+  await openSwatchOf(page, 'txt-color');
+  expect(await tab(page, 'gradient').isDisabled(), '라벨(박스 배경이 같이 잘림)에서 그라데이션 탭이 열려 있다').toBe(true);
   expect(await tab(page, 'gradient').getAttribute('data-tip')).toContain('단색만');
-  // ★막힌 탭 자신에 opacity 를 주면 쌓임 맥락이 생겨 호버 설명(::after)이 흐려지고 SV 박스 밑에 깔린다(실앱 9503 실측)
   const op = await page.evaluate(() => {
     const t = document.querySelector('.goya-cp-tab[data-tab="gradient"]');
     return { tab: getComputedStyle(t).opacity, child: getComputedStyle(t.firstElementChild).opacity };
@@ -360,19 +381,9 @@ test('T10 ★텍스트(②안): 글자색 피커는 그라데이션·이미지 �
   expect(op.tab, '막힌 탭 자신이 흐려져 툴팁까지 흐려지고 밑에 깔린다').toBe('1');
   expect(Number(op.child)).toBeLessThan(1);
   await tab(page, 'gradient').click({ force: true });
-  const cs = await page.evaluate(() => {
-    const el = document.querySelector('#tb1 .tb-body');
-    const c = getComputedStyle(el);
-    return { clip: c.webkitBackgroundClip || c.backgroundClip, fillc: c.webkitTextFillColor, img: c.backgroundImage, tg: el.dataset.textGradient || null,
-             active: document.querySelector('.goya-cp-tab.active')?.dataset.tab };
-  });
-  expect(cs.clip).not.toBe('text');
-  expect(cs.img).toBe('none');
-  expect(cs.tg).toBeNull();
-  expect(cs.active).toBe('solid');
-  expect(await hist(page) - h0).toBe(0);
-  // 글자 그라데이션 신규 기능 코드가 로드돼 있지 않다
-  expect(await page.evaluate(() => typeof window.applyTextGradient)).toBe('undefined');
+  const lb = await page.evaluate(() => getComputedStyle(document.querySelector('#tb3 .tb-label')).backgroundClip);
+  expect(lb).not.toBe('text');
+  expect(await hist(page) - h1).toBe(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

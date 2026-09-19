@@ -47,12 +47,30 @@ export function wireTypeSection({ tb, propPanel, ctx }) {
       // label로 전환 시 기본 스타일 적용, 다른 타입으로 전환 시 초기화
       if (cls === 'tb-label') {
         if (!contentEl.style.backgroundColor) contentEl.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--preset-label-bg').trim() || '#111111';
+        // textgrad-ok: 라벨 전환 — 아래에서 clearTextGradient(라벨은 그라데이션 불가)
         if (!contentEl.style.color) contentEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--preset-label-color').trim() || '#ffffff';
         if (!contentEl.style.borderRadius) contentEl.style.borderRadius = '4px';
       } else {
         contentEl.style.backgroundColor = '';
         contentEl.style.borderRadius = '';
       }
+
+      // 0918r2 textgrad: 라벨·불릿은 글자 그라데이션을 못 받는다(박스 배경이 같이 잘림 / ::marker 투명).
+      //   그쪽으로 바꾸면 그라데이션을 풀고(인라인 color = «마지막 단색»이 그대로 드러난다), 글자색 피커 게이트도 다시 잰다.
+      if (!window.textGradientAllowed?.(contentEl)) window.clearTextGradient?.(contentEl);
+      // 타입 전환은 클래스 기본 글자색을 바꾼다(본문 #555 → H2 #1a1a1a) — 패널을 다시 안 그리므로
+      //   글자색 입력값(= 솔리드 상태·그라데이션 탭 «지금 색» 기본값)을 실제 색으로 맞춘다. 안 맞추면 옛 타입 색이 시드된다.
+      const _cp = document.getElementById('txt-color');
+      const _m = (getComputedStyle(contentEl).color || '').match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+      if (_cp && _m) {
+        const _hex = '#' + [_m[1], _m[2], _m[3]].map(n => (+n).toString(16).padStart(2, '0')).join('');
+        _cp.value = _hex;
+        const _hx = document.getElementById('txt-color-hex');
+        if (_hx) _hx.value = _hex.slice(1).toUpperCase();
+        const _sw = _cp.closest('.prop-color-swatch');
+        if (_sw) _sw.style.background = _hex;
+      }
+      _cp?.__textGradRegate?.();
     });
   });
 }

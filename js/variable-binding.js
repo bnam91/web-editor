@@ -122,6 +122,8 @@ function applyAllBindings() {
     // text-block: contenteditable 자식의 color
     const contentEl = el.querySelector('[contenteditable]');
     if (contentEl) {
+      // 0918r2 textgrad: 색 변수 바인딩 = 단색 — 글자 그라데이션 해제
+      window.clearTextGradient?.(contentEl);
       contentEl.style.color = val;
     }
     // asset-block, card-block 등: background 적용

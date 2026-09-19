@@ -93,6 +93,14 @@ function applyTextEffect(tb, opts) {
   textEl.style.setProperty('--tfx-glow-color', cfg.glowColor || cfg.color);
   textEl.style.setProperty('--tfx-intensity', String(cfg.intensity / 100));
   textEl.style.setProperty('--tfx-grain', String(cfg.grain / 100));
+  // 0918r2 textgrad: 글자를 «자기 배경»으로 칠하는 효과(metallic/grunge/vintage/cinematic)는 CSS !important 로
+  //   사용자 글자 그라데이션을 캔버스에서 이긴다 — 둘은 함께 못 쓴다. 효과를 걸면 그라데이션을 푼다(마지막 동작이 이김).
+  //   (반대 방향 — 효과가 있는 동안 그라데이션 탭은 이유 툴팁과 함께 막힌다: text-block-color.js textGradientAllowed)
+  if (['metallic', 'grunge', 'vintage', 'cinematic'].includes(cfg.preset)) {
+    window.clearTextGradient?.(textEl);
+  }
+  try { document.getElementById('txt-color')?.__textGradRegate?.(); } catch (_) {}
+
   // grunge에서만 texture 변형 클래스 적용
   if (cfg.preset === 'grunge' && cfg.texture) {
     textEl.classList.add('tfx-tex-' + cfg.texture);
@@ -271,6 +279,7 @@ function enhanceTextEffectPropPanel(tb, opts = {}) {
   propPanel.querySelector('#tfx-grain')?.addEventListener('change', () => { window.pushHistory?.('텍스트 효과 그레인'); window.scheduleAutoSave?.(); });
   propPanel.querySelector('#tfx-remove')?.addEventListener('click', () => {
     _remove(tb);
+    try { document.getElementById('txt-color')?.__textGradRegate?.(); } catch (_) {}  // 0918r2 textgrad: 효과 해제 → 그라데이션 탭 다시 열림
     propPanel.querySelector('#text-effect-controls-section')?.remove();
     window.pushHistory?.('텍스트 효과 제거'); window.scheduleAutoSave?.();
   });

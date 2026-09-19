@@ -83,6 +83,8 @@ function editTextBlock(blockId, opts = {}) {
     applied.content = text;
   }
   if (opts.color !== undefined && opts.color !== null) {
+    // 0918r2 textgrad: 단색 지정 = 글자 그라데이션 해제(안 풀면 그라데이션이 단색을 가린다)
+    window.clearTextGradient?.(contentEl);
     contentEl.style.color = opts.color;
     applied.color = opts.color;
   }

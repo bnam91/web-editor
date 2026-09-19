@@ -12,6 +12,10 @@
  */
 
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
+import {
+  applyTextGradient, clearTextGradient, getTextGradient, hasTextGradient,
+  textGradientBlockedReason,
+} from './text-block-color.js';
 
 /* ─────────────────────────────────────────────────────────────
  * 전역 색상 적용 헬퍼 (text-block content + 테이블 셀 공용)
@@ -43,6 +47,8 @@ function _flattenAncestorWithPropIn(newSpan, prop, host) {
 // 선택 없음: host(contentEl or 셀) 전체에 색 일괄 — 내부 color span 정리 후 host.style.color
 function _applyColorWholeEditable(color, host) {
   if (!host) return;
+  // 0918r2 textgrad: 단색 전체 적용 = 글자 그라데이션 해제(안 풀면 그라데이션이 새 단색을 가린다)
+  clearTextGradient(host);
   host.querySelectorAll('span[style*="color"]').forEach(s => {
     s.style.color = '';
     const styleStr = s.getAttribute('style') || '';
@@ -60,8 +66,12 @@ function _applyColorWholeEditable(color, host) {
 // 반환 { span, range } — 호출측이 다음 input 시퀀스를 위해 보존.
 function _applyColorSpanToRange(color, host, savedRange, prevSpan) {
   if (!host || !savedRange) return { span: null, range: savedRange || null };
+  // 0918r2 textgrad: 그라데이션 글자(host 가 text-fill:transparent) 안의 부분 단색은
+  //   채움색도 같이 줘야 보인다 — 안 주면 상속된 transparent 때문에 글자가 사라진다.
+  const _gradHost = hasTextGradient(host);
   if (prevSpan && prevSpan.isConnected) {
     prevSpan.style.color = color;
+    if (_gradHost) prevSpan.style.setProperty('-webkit-text-fill-color', color);
     return { span: prevSpan, range: savedRange };
   }
   const r = savedRange.cloneRange();
@@ -70,6 +80,7 @@ function _applyColorSpanToRange(color, host, savedRange, prevSpan) {
   frag.querySelectorAll('span').forEach(s => {
     if (s.style && s.style.color) {
       s.style.color = '';
+      s.style.removeProperty('-webkit-text-fill-color');
       const styleStr = s.getAttribute('style') || '';
       if (!styleStr.replace(/;|\s/g, '')) {
         const parent = s.parentNode;
@@ -80,6 +91,7 @@ function _applyColorSpanToRange(color, host, savedRange, prevSpan) {
   });
   const span = document.createElement('span');
   span.style.color = color;
+  if (_gradHost) span.style.setProperty('-webkit-text-fill-color', color);
   span.appendChild(frag);
   r.insertNode(span);
   _flattenAncestorWithPropIn(span, 'color', host);
@@ -277,7 +289,10 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
     if (!_savedColorSel) {
       // selection 없으면 전체 contentEl에 일괄 적용
       // mix 상태(내부 span별 부분 색)를 풀어줘야 contentEl.style.color가 우선됨
+      // 0918r2 textgrad: 단색 전체 = 그라데이션 해제 + 재오픈 시드 폐기(다음에 솔리드 탭으로 열린다)
       _applyColorWholeEditable(color, ctx.contentEl);
+      delete colorPicker.dataset.cpGradient;
+      _syncGradUi();
       return;
     }
     // 부분 선택 — 전역 primitive 로 위임(연속 input 은 _colorSpan 재사용).
@@ -293,10 +308,65 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
     colorSwatch.style.background = c;
   });
   colorPicker.addEventListener('change', () => { _savedColorSel = null; _colorSpan = null; window.pushHistory?.(); });
-  // 탭 능력 선언(0918 picker, T-059 ②안) — 글자색엔 그라데이션·이미지 칠 기능이 없다.
-  //   그라데이션 탭은 비활성 + 호버로 이유 안내(글자 그라데이션 신규 기능은 현빈 결정 대기라 만들지 않음).
-  colorPicker.dataset.cpModes = 'solid';
-  colorPicker.dataset.cpModesNote = '글자색은 아직 단색만 돼요 (그라데이션·이미지 미지원)';
+
+  /* ── 글자 그라데이션 (0918r2 textgrad · T-059 확장, 현빈 결정 = 피그마 기준) ──
+     탭 능력: 제목·본문·캡션 = 단색+그라데이션, 라벨·불릿·곡선·말풍선 = 단색만(이유 툴팁).
+     그라데이션 탭 한 번 = color-picker _activateTab → goya-cp:gradient(+commit) 동기 1회 = 되돌리기 1단위.
+     ★colorPicker.value 는 건드리지 않는다 — 솔리드 탭으로 돌아가면 그 값(=마지막 단색)이 다시 칠해진다. */
+  function _syncGradUi() {
+    const el = ctx.contentEl;
+    const g = getTextGradient(el);
+    if (g) {
+      colorSwatch.style.background = g.css;
+      if (g.stops[0]) colorHex.value = g.stops[0].color.replace('#', '').toUpperCase();
+    }
+    // 형광펜은 그라데이션과 함께 못 쓴다(블럭 형광펜은 글자 모양으로 잘려 «글자 속 색»이 된다)
+    const hl = document.getElementById('txt-highlight-btn');
+    if (hl) {
+      hl.disabled = !!g;
+      hl.title = g ? '그라데이션 글자엔 형광펜을 쓸 수 없어요 (단색으로 바꾸면 켜져요)' : '형광펜 (선택 영역 배경칠)';
+    }
+  }
+  function _gateTextModes() {
+    const why = textGradientBlockedReason(ctx.contentEl);   // 라벨·불릿 등 / 칠하는 글자 효과(메탈릭 등)
+    const ok = !why;
+    colorPicker.dataset.cpModes = ok ? 'solid,gradient' : 'solid';
+    colorPicker.dataset.cpModesNote = ok ? '글자색은 이미지 채우기를 지원하지 않아요' : why;
+    // 재오픈 시드 = 블럭의 «실제» 그라데이션(기본값으로 덮어쓰지 않게) — 저장소(인라인 스타일)에서 매번 되읽는다.
+    const g = ok ? getTextGradient(ctx.contentEl) : null;
+    if (g) colorPicker.dataset.cpGradient = JSON.stringify({ type: g.type, angle: g.angle, stops: g.stops });
+    else delete colorPicker.dataset.cpGradient;
+  }
+  _gateTextModes();
+  _syncGradUi();
+  // 타입 전환(본문→라벨 등)이 게이트를 다시 계산하게 노출
+  colorPicker.__textGradRegate = () => { _gateTextModes(); _syncGradUi(); };
+
+  // ★스와치 mousedown 은 color-picker 의 document(capture) 델리게이션이 «먼저» 받아 피커를 연다 —
+  //   그보다 앞(window capture)에서 시드를 고쳐 둔다: 부분 선택이 있으면 솔리드로(부분 단색),
+  //   없으면 블럭 실제 그라데이션으로.
+  const _preOpen = (e) => {
+    if (!colorSwatch.isConnected) { window.removeEventListener('mousedown', _preOpen, true); return; }
+    if (!colorSwatch.contains(e.target)) return;
+    _gateTextModes();
+    if (hasSel()) delete colorPicker.dataset.cpGradient;
+  };
+  if (window.__textGradPreOpen) window.removeEventListener('mousedown', window.__textGradPreOpen, true);
+  window.__textGradPreOpen = _preOpen;
+  window.addEventListener('mousedown', _preOpen, true);
+
+  const _onGrad = (e, commit) => {
+    const d = e.detail;
+    if (!d || !d.css) return;
+    if (!applyTextGradient(ctx.contentEl, d, { commit })) return;
+    _savedColorSel = null; _colorSpan = null;   // 그라데이션은 블럭 전체 — 이후 솔리드 복귀도 전체
+    try {
+      colorPicker.dataset.cpGradient = JSON.stringify({ type: d.type, angle: d.angle, stops: d.stops });
+    } catch (_) {}
+    _syncGradUi();
+  };
+  colorPicker.addEventListener('goya-cp:gradient', (e) => _onGrad(e, false));
+  colorPicker.addEventListener('goya-cp:gradient-commit', (e) => _onGrad(e, true));
   colorHex.addEventListener('input', () => {
     const v = colorHex.value.trim().replace(/^#/, '');
     if (/^[0-9a-f]{6}$/i.test(v)) {

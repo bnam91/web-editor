@@ -505,6 +505,8 @@ async function showSectionProperties(sec) {
     const applyColor = (val) => {
       blocks.forEach(tb => {
         const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
+        // 0918r2 textgrad: 섹션 일괄 글자색 = 단색 — 글자 그라데이션 해제
+        window.clearTextGradient?.(contentEl);
         contentEl.style.color = val;
       });
     };

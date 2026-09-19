@@ -3312,3 +3312,18 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 /* 그리드 피커 — 아직 못 만드는 조합(행 축 도입 전 2행 이상)은 «죽은 칸»으로 보인다.
    눌러도 아무 일 없는 것보다, 안 눌린다는 게 보이는 편이 정직하다. */
 .grid-picker-cell--off { opacity: .28; cursor: default; }
+
+/* ── 글자 그라데이션 (0918r2 textgrad · T-059 확장) ──
+   저장소 = contentEl 인라인 스타일(background-clip:text + -webkit-text-fill-color:transparent).
+   클래스 대신 속성 선택자 — 인라인 단일 저장소 원칙을 지킨다.
+   ① 편집 중 선택 영역: 채움색이 transparent 라 선택하면 글자가 사라진다 → 선택 영역에서만 시스템 선택색으로.
+   ② 부분 형광펜 span: span 배경이 부모의 «글자 모양 그라데이션»을 덮어 글자가 안 보인다 → 그 span 만 글자색으로 채운다. */
+[style*="background-clip: text"]::selection,
+[style*="background-clip: text"] *::selection {
+  background-color: Highlight;
+  color: HighlightText;
+  -webkit-text-fill-color: HighlightText;
+}
+[style*="background-clip: text"] span[style*="background-color"] {
+  -webkit-text-fill-color: currentColor;
+}

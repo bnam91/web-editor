@@ -379,6 +379,7 @@ function applyTextOpts(block, frame, opts, type) {
     if (type === 'label') block.style.textAlign = opts.align;
     else if (contentEl) contentEl.style.textAlign = opts.align;
   }
+  // textgrad-ok: 방금 만든 새 블럭 — 그라데이션이 있을 수 없다
   if (opts.color && contentEl) contentEl.style.color = opts.color;
   if (opts.fontSize && contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
   _applyTextExtras(contentEl, opts);
@@ -414,6 +415,7 @@ function addTextBlock(type, opts = {}) {
     }
     if (opts.color) {
       const contentEl = block.querySelector('[class^="tb-"]');
+      // textgrad-ok: 방금 만든 새 블럭 — 그라데이션이 있을 수 없다
       if (contentEl) contentEl.style.color = opts.color;
     }
     if (opts.fontSize) {
