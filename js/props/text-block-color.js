@@ -274,8 +274,68 @@ function _ensureSvgShadowFilter(id, items) {
     const f = tpl.firstElementChild;
     if (!f) return false;
     svg.appendChild(f);
+    // 새 정의가 생길 때마다 안 쓰이는 정의를 치운다(슬라이더 드래그 = input 마다 새 목록 → 새 정의).
+    //   ⚠️지금 만든 id 는 아직 어떤 글자도 참조하지 않는다(호출자가 이 뒤에 --tgs-filter 를 쓴다) → keep.
+    if (svg.childElementCount > _TGS_DEFS_HARD_CAP) gcTextGradShadowFilters(id);
+    _scheduleSvgGc();
     return true;
   } catch (_) { return false; }
+}
+
+// 안 쓰이는 SVG 필터 정의 치우기 (0919r3 이벨류: 네온 색 슬라이더 300번 = 정의 301개 누적)
+//   쓰임 = 문서 안 어떤 요소의 인라인 --tgs-filter 가 url(#id) 로 가리킴(캔버스·native PNG 클론 모두 포함).
+//   undo 스냅샷이 가리키던 정의를 지워도 안전하다 — 복원(노드 삽입) 때 관찰자의 sync 가 같은 id 로 다시 만든다.
+const _TGS_DEFS_HARD_CAP = 64;
+let _gcTimer = 0;
+function _scheduleSvgGc() {
+  try {
+    if (_gcTimer) clearTimeout(_gcTimer);
+    _gcTimer = setTimeout(() => { _gcTimer = 0; gcTextGradShadowFilters(); }, 300);
+  } catch (_) {}
+}
+const _URL_ID = /url\(\s*["']?#(tgs-f-[0-9a-z]+)["']?\s*\)/g;
+function _usedFilterIds(root) {
+  const used = new Set();
+  const scope = root || document;
+  const list = [];
+  if (scope.nodeType === 1 && scope.matches && scope.matches('[style*="--tgs-filter"]')) list.push(scope);
+  scope.querySelectorAll && list.push(...scope.querySelectorAll('[style*="--tgs-filter"]'));
+  for (const el of list) {
+    const v = el.style ? el.style.getPropertyValue('--tgs-filter') : '';
+    if (!v) continue;
+    for (const m of v.matchAll(_URL_ID)) used.add(m[1]);
+  }
+  return used;
+}
+/** 안 쓰이는 필터 정의를 지운다. keepId 는 남긴다. 지운 개수를 돌려준다. */
+export function gcTextGradShadowFilters(keepId) {
+  try {
+    const svg = document.getElementById('tgs-svg-defs');
+    if (!svg) return 0;
+    const used = _usedFilterIds(document);
+    if (keepId) used.add(keepId);
+    let n = 0;
+    for (const f of [...svg.children]) {
+      if (!used.has(f.id)) { f.remove(); n++; }
+    }
+    return n;
+  } catch (_) { return 0; }
+}
+
+/** root 안 글자들이 쓰는 SVG 필터 정의만 담은 <svg> 마크업 — 내보낸 HTML 처럼 문서 «밖»으로 나가는 사본용. 없으면 ''. */
+export function textGradShadowDefsMarkup(root) {
+  try {
+    const used = _usedFilterIds(root);
+    if (!used.size) return '';
+    let inner = '';
+    for (const id of used) {
+      const f = document.getElementById(id);
+      if (f && f.closest('#tgs-svg-defs')) inner += f.outerHTML;
+    }
+    if (!inner) return '';
+    return '<svg id="tgs-svg-defs" aria-hidden="true" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none">'
+      + inner + '</svg>';
+  } catch (_) { return ''; }
 }
 
 export function syncTextGradShadow(contentEl) {
@@ -335,6 +395,27 @@ function _syncTree(node) {
 if (typeof window !== 'undefined') {
   window.syncTextGradShadow = syncTextGradShadow;
   window.textShadowSource = textShadowSource;
+  window.gcTextGradShadowFilters = gcTextGradShadowFilters;
+  window.textGradShadowDefsMarkup = textGradShadowDefsMarkup;
+  // 편집 중 선택 하이라이트 번짐 (0919r3 이벨류): filter 는 «요소가 칠한 전부» — ::selection 사각형까지 —
+  //   를 흐려 선택 박스 둘레에 글로우가 번진다. 편집 중인(포커스) 그라데이션 글자에 «펼친 선택»이 있는 동안만
+  //   html.tgs-selecting 을 달아 CSS 가 filter 를 끄고 원래 text-shadow(--tgs-src)로 잠시 돌린다.
+  //   html 클래스라 캔버스 저장본에는 안 실린다.
+  try {
+    document.addEventListener('selectionchange', () => {
+      let on = false;
+      try {
+        const sel = document.getSelection();
+        if (sel && sel.rangeCount && !sel.isCollapsed) {
+          const n = sel.anchorNode;
+          const el = n && (n.nodeType === 1 ? n : n.parentElement);
+          const t = el && el.closest && el.closest('.tgs');
+          on = !!(t && t.isContentEditable);
+        }
+      } catch (_) {}
+      document.documentElement.classList.toggle('tgs-selecting', on);
+    });
+  } catch (_) {}
   // 로드 정규화: 캔버스 로드·undo 복원(innerHTML)·붙여넣기로 들어온 노드를 한 번 맞춘다.
   //   이 변경 전에 저장된 «그라데이션 + 그림자» 프로젝트도 열면 글자 뒤 그림자로 보인다.
   //   (sync 는 속성만 바꾸므로 childList 관찰과 되먹임 고리가 없다)

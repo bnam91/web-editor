@@ -100,7 +100,10 @@ function parseTextShadowToEffects(ts) {
     const nums = (p.replace(colMatch[0], '').match(/-?\d*\.?\d+px/g) || []).map(n => parseFloat(n));
     const c = hex(colMatch[0]);
     if (!c) continue;
-    // showShadowBehindNode:false — 그림자는 칠해진 글자(그라데이션 알파) «뒤»에만(0919r3 textshadow, 캔버스 drop-shadow 와 같은 뜻)
+    // showShadowBehindNode:false — 글자 «모양» 안쪽엔 그림자를 안 비춘다(0919r3 textshadow: 0% 쪽 글자 안이 그림자색으로 메워지던 증상 방지).
+    // ⚠️캔버스와 «같은 뜻» 아님(미실측): 캔버스 drop-shadow/SVG 필터는 칠해진 알파 기준이라 0% 쪽에선 그림자도 사라지고
+    //   반투명 글자 안쪽으로 그림자가 비친다. 피그마 DROP_SHADOW 는 노드 모양 기준(채움 불투명도 무관)으로 알려져 있어
+    //   0% 쪽에도 안 보이는 글자 윤곽을 따라 그림자가 원래 세기로 남을 수 있다 — 피그마 실측 전까지 «불일치 가능»으로 둔다.
     effects.push({ type: 'DROP_SHADOW', color: c, offset: { x: nums[0] || 0, y: nums[1] || 0 },
       radius: nums[2] || 0, spread: 0, visible: true, blendMode: 'NORMAL', showShadowBehindNode: false });
   }

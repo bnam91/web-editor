@@ -3050,6 +3050,13 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   text-shadow: none !important;
   filter: var(--tgs-filter) !important;
 }
+/* 편집 중 «펼친 선택»이 있는 동안: filter 가 선택 하이라이트 사각형까지 흐려 번지므로 잠시 원래 text-shadow 로
+   (html.tgs-selecting 은 text-block-color.js 의 selectionchange 가 단다 — 캔버스 저장본에 안 실림). */
+html.tgs-selecting .tgs:focus,
+html.tgs-selecting .tgs:focus-within {
+  filter: none !important;
+  text-shadow: var(--tgs-src) !important;
+}
 
 /* 2. Metallic — silver/gold linear-gradient + 입체감 */
 .text-effect.tfx-metallic {

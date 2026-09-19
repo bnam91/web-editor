@@ -633,3 +633,105 @@ test('G20 html2canvas 대체(neutralizeTextGradForH2C) 뒤 .tgs·--tgs-* 없음,
   expect(r.color).toBe('rgb(255, 0, 0)');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ── 0919r3 textshadow 픽스 라운드 (이벨류 지적) ── */
+
+test('G21 SVG 필터 정의가 쌓이지 않는다: 네온 글로우색 300번 바꿔도 정의 = 지금 쓰는 것만 · 옛 스냅샷 복원 = 정의 재생성', async ({ page }) => {
+  const errs = await boot(page);
+  await addProbe(page);
+  await page.evaluate((css) => window.applyTextGradient(document.getElementById('tb5'), { css }, { commit: true }), RED_FADE);
+  await page.evaluate(() => window.applyTextEffect(document.getElementById('tb5'), { preset: 'neon', color: '#0033ff', glowColor: '#0033ff', intensity: 100 }));
+  const snapA = await page.evaluate(() => ({ html: document.getElementById('host').innerHTML, f: document.querySelector('#tb5 .tb-body').style.getPropertyValue('--tgs-filter') }));
+  const peak = await page.evaluate(() => {
+    const tb = document.getElementById('tb5');
+    let max = 0;
+    for (let i = 0; i < 300; i++) {
+      const c = '#' + (0x100000 + i * 97).toString(16).slice(-6);
+      window.applyTextEffect(tb, { preset: 'neon', color: c, glowColor: c, intensity: 100 });
+      max = Math.max(max, document.getElementById('tgs-svg-defs').childElementCount);
+    }
+    return max;
+  });
+  expect(peak, `드래그 도중 정의가 상한 없이 쌓였다 (최대 ${peak})`).toBeLessThanOrEqual(66);
+  await page.waitForTimeout(450);   // 디바운스 GC
+  const after = await page.evaluate(() => {
+    const f = document.querySelector('#tb5 .tb-body').style.getPropertyValue('--tgs-filter');
+    const defs = document.getElementById('tgs-svg-defs');
+    return { n: defs.childElementCount, ids: [...defs.children].map(x => x.id), f };
+  });
+  expect(after.n, `정의가 ${after.n}개 남았다: ${after.ids.join(',')}`).toBe(1);
+  expect(after.f).toBe(`url(#${after.ids[0]})`);
+  // 옛 스냅샷(지워진 정의를 가리킴) 복원 → 관찰자가 같은 id 로 다시 만든다
+  const re = await page.evaluate(async (a) => {
+    document.getElementById('host').innerHTML = a.html;
+    await new Promise(r => setTimeout(r, 0));
+    const el = document.querySelector('#tb5 .tb-body');
+    const f = el.style.getPropertyValue('--tgs-filter');
+    return { f, exists: !!document.getElementById(f.slice(5, -1)), filter: getComputedStyle(el).filter };
+  }, snapA);
+  expect(re.f).toBe(snapA.f);
+  expect(re.exists, '복원한 글자가 가리키는 필터 정의가 없다(글로우가 사라짐)').toBe(true);
+  expect(re.filter).toMatch(/^url\(/);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G22 편집 중 전체 선택: 선택 하이라이트에 필터 글로우가 번지지 않는다(펼친 선택 동안만 원래 text-shadow) · 선택 해제 = 글자 뒤 그림자 복귀', async ({ page }) => {
+  const errs = await boot(page);
+  await addProbe(page);
+  await page.evaluate((css) => window.applyTextGradient(document.getElementById('tb5'), { css }, { commit: true }), RED_FADE);
+  await page.evaluate(() => window.applyTextEffect(document.getElementById('tb5'), { preset: 'neon', color: '#0033ff', glowColor: '#0033ff', intensity: 100 }));
+  // 선택 박스 둘레 = contentEl 박스 위쪽 바깥 띠(패딩 24px 안) — 글로우가 번지면 파랗게(R↓) 물든다
+  const band = async () => {
+    const b = await page.evaluate(() => { const r = document.querySelector('#tb5 .tb-body').getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width }; });
+    const b64 = (await page.screenshot({ clip: { x: Math.round(b.x) + 10, y: Math.round(b.y) - 14, width: Math.round(b.w) - 20, height: 10 } })).toString('base64');
+    return page.evaluate(async (b64) => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+      const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height).data; let s = 0, n = 0;
+      for (let i = 0; i < d.length; i += 4) { s += d[i]; n++; }
+      return s / n;
+    }, b64);
+  };
+  await page.evaluate(() => { const el = document.querySelector('#tb5 .tb-body'); el.setAttribute('contenteditable', 'true'); el.focus(); });
+  const idleR = await band();
+  await page.evaluate(() => { const el = document.querySelector('#tb5 .tb-body'); const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); });
+  await page.waitForFunction(() => document.documentElement.classList.contains('tgs-selecting'));
+  const selLook = await tgsLook(page);
+  expect(selLook.filter, '펼친 선택 중인데 filter 가 켜져 있다(선택 박스에 글로우 번짐)').toBe('none');
+  expect(selLook.ts).not.toBe('none');
+  const selR = await band();
+  expect(selR, `선택 박스 둘레가 글로우로 물들었다 (평균 R ${selR.toFixed(1)} vs 선택 전 ${idleR.toFixed(1)})`).toBeGreaterThanOrEqual(idleR - 8);
+  await page.evaluate(() => getSelection().collapseToEnd());
+  await page.waitForFunction(() => !document.documentElement.classList.contains('tgs-selecting'));
+  const back = await tgsLook(page);
+  expect(back.filter).toMatch(/^url\(/);
+  expect(back.ts).toBe('none');
+  // 저장본(캔버스 HTML)에 선택 표식이 안 실린다
+  expect(await page.evaluate(() => /tgs-selecting/.test(document.getElementById('host').innerHTML))).toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G23 HTML 내보내기용 필터 정의: 클론이 쓰는 url(#…) 정의만 담는다(안 쓰는 것·캔버스 밖 것 제외)', async ({ page }) => {
+  const errs = await boot(page);
+  await addProbe(page);
+  await page.evaluate((css) => window.applyTextGradient(document.getElementById('tb5'), { css }, { commit: true }), RED_FADE);
+  await page.evaluate(() => window.applyTextEffect(document.getElementById('tb5'), { preset: 'neon', color: '#0033ff', glowColor: '#0033ff', intensity: 100 }));
+  const r = await page.evaluate(() => {
+    const f = document.querySelector('#tb5 .tb-body').style.getPropertyValue('--tgs-filter');
+    const id = f.slice(5, -1);
+    const clone = document.getElementById('canvas').cloneNode(true);
+    const withNeon = window.textGradShadowDefsMarkup(clone);
+    clone.querySelector('#tb5').remove();
+    const without = window.textGradShadowDefsMarkup(clone);
+    // 새 문서에 붙여 실제로 필터가 걸리는지(내보낸 HTML 과 같은 조건)
+    const doc = document.implementation.createHTMLDocument('x');
+    doc.body.innerHTML = withNeon;
+    return { id, has: withNeon.includes(`id="${id}"`), n: (withNeon.match(/<filter /g) || []).length, without, parsed: !!doc.getElementById(id) };
+  });
+  expect(r.has).toBe(true);
+  expect(r.n).toBe(1);
+  expect(r.without).toBe('');
+  expect(r.parsed).toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
