@@ -161,7 +161,7 @@ test('OS-9 ★[R1] 배정 결과를 버리지 않는다 — 실패·moved 0(기�
 test('OS-10 목록 보기 — #gallery-col 에 is-list-mode 를 달아 타일 줄을 압축형으로(줄은 유지)', () => {
   const fn = sliceBlock(CODE, 'function applyViewMode(');
   assert.match(fn, /getElementById\('gallery-col'\)\?\.classList\.toggle\('is-list-mode', m === 'list'\)/);
-  assert.match(CODE, /\.is-list-mode #folder-tiles \{[^}]*minmax\(180px, 1fr\)/);
+  assert.match(CODE, /\.is-list-mode #folder-tiles \{[^}]*display: flex; flex-wrap: wrap/);   // ★고정폭 격자 아님(polish5, OS-21)
   assert.ok(!/\.is-list-mode #folder-(zone|tiles) \{[^}]*display:\s*none/.test(CODE), '★목록 보기에서 타일 줄을 숨긴다');
 });
 
@@ -259,4 +259,18 @@ test('OS-20 R1 기획 카드 📁 — 비활성(aria-disabled, ⛔disabled 속�
                       "up.addEventListener('dragover', (e) => {", "up.addEventListener('drop', async (e) => {"]) {
     assert.match(sliceBlock(CODE, head), /if \(_isPlanningDrag\(e\)\) return;/, `${head} 가 기획 카드 드래그를 안 거른다`);
   }
+});
+
+/* ── 5라운드 마무리(polish5, T-062, 09-20) ── 실제 폭은 tests/dom/projects-onescreen.dom.spec.js ⓥ */
+test('OS-21 목록 보기 타일은 고정폭 칸(auto-fill minmax)에 갇히지 않는다 — 줄바꿈 flex 로 가용 폭 사용', () => {
+  const m = CODE.match(/\.is-list-mode #folder-tiles \{[^}]*\}/);
+  assert.ok(m, '.is-list-mode #folder-tiles 규칙이 없다');
+  assert.ok(!/minmax\(/.test(m[0]), '★목록 보기 타일이 아직 고정폭 격자 칸(minmax)에 묶여 긴 이름이 잘린다');
+  assert.match(m[0], /display: flex; flex-wrap: wrap/);
+  // 타일은 제 내용만큼 쓰되 줄 폭을 안 넘는다
+  assert.match(CODE, /\.is-list-mode #folder-tiles > \* \{ flex: 0 1 auto; min-width: 0; max-width: 100%; \}/);
+  // 「+ 새 폴더」(#folder-tiles 직계 .ft-tile)는 width:100% 를 벗어야 줄을 통째로 안 먹는다
+  assert.match(CODE, /\.is-list-mode #folder-tiles > \.ft-tile \{ width: auto; \}/);
+  // 격자 보기 기본 규칙은 그대로
+  assert.match(CODE, /\n#folder-tiles \{ display: grid; grid-template-columns: repeat\(auto-fill, minmax\(210px, 1fr\)\); gap: 10px; \}/);
 });

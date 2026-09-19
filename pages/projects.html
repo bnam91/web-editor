@@ -111,7 +111,12 @@ body {
 /* 메뉴 구분선 — 카드 📁 메뉴·타일 ⋯ 메뉴가 같이 쓴다 */
 .fr-divider { height: 1px; background: var(--ui-border); margin: 8px 4px; }
 /* ★목록 보기 — 타일 줄은 «유지»하고 압축형으로만(분기 = #gallery-col.is-list-mode 클래스 하나) */
-.is-list-mode #folder-tiles { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+/* ★고정폭 칸 금지(09-20 polish5) — auto-fill minmax 격자는 모든 타일을 같은 폭(~185~210px)으로 묶어,
+ *   줄에 자리가 남아도 긴 이름이 먼저 잘렸다. 목록 보기에선 «줄 바꿈 flex»로 타일이 제 내용만큼 쓰게 한다:
+ *   짧은 이름은 그만큼만, 긴 이름은 줄 폭까지 넓어지고(이름 우선), 줄보다 길 때만 말줄임(max-width:100%). */
+.is-list-mode #folder-tiles { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px; }
+.is-list-mode #folder-tiles > * { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.is-list-mode #folder-tiles > .ft-tile { width: auto; }   /* 「+ 새 폴더」는 #folder-tiles 의 직계 — width:100% 면 줄을 통째로 먹는다 */
 .is-list-mode .ft-tile { padding: 6px 10px; }
 .is-list-mode .ft-cell .ft-tile { padding-right: 36px; }
 .is-list-mode .ft-text { flex-direction: row; align-items: baseline; gap: 8px; flex: 1; overflow: hidden; }
