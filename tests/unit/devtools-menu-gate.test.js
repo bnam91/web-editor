@@ -176,6 +176,8 @@ test('M11 빌드 퓨즈: RunAsNode·NODE_OPTIONS·--inspect(+SIGUSR1) 를 끈다
   assert.strictEqual(f.runAsNode, false);
   assert.strictEqual(f.enableNodeOptionsEnvironmentVariable, false);
   assert.strictEqual(f.enableNodeCliInspectArguments, false);
+  // 퓨즈를 바꾸면 arm64 ad-hoc 서명이 깨질 수 있어 electron-builder 가 다시 서명하게 한다(T-056 2라운드)
+  assert.strictEqual(f.resetAdHocDarwinSignature, true);
   // runAsNode=false 면 main 의 child_process.fork 가 깨진다 — 앱 코드에 fork 가 없어야 한다
   const files = ['main.js', ...walk(path.join(ROOT, 'main')).map(p => path.relative(ROOT, p)), ...walk(path.join(ROOT, 'services')).map(p => path.relative(ROOT, p))]
     .filter(p => /\.m?js$/.test(p));

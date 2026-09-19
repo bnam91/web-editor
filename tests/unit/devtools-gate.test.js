@@ -254,6 +254,24 @@ test('⑬ IPC: state 는 이메일을 안 내보내고, open 은 잠김이면 �
   assert.strictEqual(locked.allowed, false);
 });
 
+test('⑬b lock 은 «코드 해제»만 되돌린다 — 관리자 계정은 그대로 허용(화면이 버튼을 숨기는 근거) · 코드 해제 때 열린 도구는 닫힌다', async () => {
+  const handlers = {};
+  const ipc = { handle: (ch, fn) => { handlers[ch] = fn; } };
+  const a = mk(signedIn('coq3820@gmail.com'));
+  a.gate.registerIpc(ipc);
+  const st = await handlers['devtools:lock']();
+  assert.deepStrictEqual({ allowed: st.allowed, reason: st.reason }, { allowed: true, reason: 'admin-email' });
+
+  const wcs = [fakeWc()];
+  const b = mk({ getAllWebContents: () => wcs });
+  assert.strictEqual(b.gate.verifyCode(TEST_CODE).ok, true);
+  b.gate.toggleFor(wcs[0]);
+  assert.strictEqual(wcs[0].opened, true);
+  b.gate.lock();
+  assert.strictEqual(b.gate.reason(), 'locked');
+  assert.strictEqual(wcs[0].opened, false, 'lock 뒤 열린 개발자 도구가 닫혀야 한다');
+});
+
 test('⑭ admin-arg(운영자 빌드) 호환: 진짜 배포판에서 isAdminAuthorized()=true 면 허용', () => {
   const { gate } = mk({ isAdminAuthorized: () => true });
   assert.strictEqual(gate.reason(), 'admin-arg');

@@ -26,7 +26,8 @@
     "electronFuses": {
       "runAsNode": false,
       "enableNodeOptionsEnvironmentVariable": false,
-      "enableNodeCliInspectArguments": false
+      "enableNodeCliInspectArguments": false,
+      "resetAdHocDarwinSignature": true
     },
     "productName": "GODITOR",
     "publish": {
