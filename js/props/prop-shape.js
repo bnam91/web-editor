@@ -47,8 +47,10 @@ export function showShapeProperties(block) {
   const isGradient  = !!gradientMeta || /gradient/.test(rawColor);
   const gradientCss = isGradient ? rawColor : '';
   // picker/hex 표시용 hex — 그라데이션이면 첫 stop, 아니면 그대로
+  // ★shapeColor 에 그라데이션 CSS 가 남았는데 메타가 없으면(이미지 모드 등) 첫 스톱을 모른다 →
+  //   회색 기본값 대신 svg 의 마지막 단색으로(0918 picker: 이미지→솔리드 = 마지막 단색)
   const color       = isGradient
-    ? (gradientMeta?.stops?.[0]?.color || '#cccccc')
+    ? (gradientMeta?.stops?.[0]?.color || _lastSolidOf(block) || '#cccccc')
     : rawColor;
   const colorAlpha  = parseAlphaFromColor(color);
   const strokeWidth = parseInt(block.dataset.shapeStrokeWidth || '3');
@@ -400,6 +402,13 @@ export function showShapeProperties(block) {
     shapeColorInput.addEventListener('goya-cp:image', (e) => {
       const d = e.detail || {};
       if (!svg || !SHAPE_FACE_TYPES[block.dataset.shapeType || 'rectangle']) return;
+      // ★그라데이션을 거쳐 왔으면 shapeColor 에 그라데이션 CSS 가 남는다 → «마지막 단색»으로 되돌려 둔다.
+      //   안 그러면 패널 재그리기 때 회색(#cccccc)으로 시드돼 솔리드 복귀가 회색이 되고, 피그마 내보내기엔
+      //   color 로 'linear-gradient(...)' 문자열이 실린다(이벨류에이터 0918 지적).
+      if (/gradient/.test(block.dataset.shapeColor || '')) {
+        let meta = null; try { meta = JSON.parse(block.dataset.shapeGradient || 'null'); } catch (_) {}
+        block.dataset.shapeColor = _lastSolidOf(block) || meta?.stops?.[0]?.color || '#cccccc';
+      }
       if (block.dataset.shapeGradient) { _clearShapeGradient(block); window.hideGradientLine?.(block); }
       delete shapeColorInput.dataset.cpGradient;
       if (d.src) _applyShapeImage(block, d.src, d.fit);
@@ -657,6 +666,21 @@ const SHAPE_IMG_CLIP = {
   polygon: 'polygon(50% 4.44%, 97% 95.56%, 3% 95.56%)',
   star: 'polygon(50% 4.21%, 61% 36.84%, 94% 36.84%, 67.5% 57.89%, 77.5% 90.53%, 50% 69.47%, 22.5% 90.53%, 32.5% 57.89%, 6% 36.84%, 39% 36.84%)',
 };
+
+/* 도형의 «마지막 단색» — svg.style.color(applyColor 가 쓰고, 그라데이션·이미지 모드는 안 건드림)를
+   shapeColor 저장 형식(#rrggbb 또는 rgba(r,g,b,a))으로. 없으면 ''. */
+function _lastSolidOf(block) {
+  const svg = block && (block.querySelector('svg.shape-svg') || block.querySelector('svg'));
+  const v = svg ? (svg.style.color || '') : '';
+  if (!v || v === 'currentcolor' || v === 'currentColor') return '';
+  if (/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
+  const m = v.match(/rgba?\(([^)]+)\)/i);
+  if (!m) return '';
+  const p = m[1].split(',').map(x => x.trim());
+  const to = (n) => Math.max(0, Math.min(255, parseInt(n, 10) | 0)).toString(16).padStart(2, '0');
+  if (p.length === 4 && parseFloat(p[3]) < 1) return `rgba(${parseInt(p[0], 10)},${parseInt(p[1], 10)},${parseInt(p[2], 10)},${parseFloat(p[3])})`;
+  return '#' + to(p[0]) + to(p[1]) + to(p[2]);
+}
 
 function _ensureShapeCheckerDefs() {
   if (typeof document === 'undefined' || document.getElementById('goya-shape-checker-defs')) return;

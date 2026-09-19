@@ -165,6 +165,48 @@ test('T4 ★도형: 이미지 탭 = 바둑판(계산된 fill 이 체커 패턴),
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
+test('T4c ★도형: 그라데이션→이미지 뒤 패널을 다시 그려도 솔리드 복귀 = 마지막 단색(회색 #cccccc 아님), shapeColor 에 그라데이션 CSS 안 남음', async ({ page }) => {
+  const errs = await boot(page);
+  await openShape(page, 'shpA');
+  await openSwatchOf(page, 'shape-color-color');
+  await tab(page, 'gradient').click();
+  await tab(page, 'image').click();
+  let sc = await page.evaluate(() => document.getElementById('shpA').dataset.shapeColor);
+  expect(sc, '이미지 모드인데 shapeColor 에 그라데이션 CSS 가 남았다(피그마 내보내기 오염)').toBe('#3366ff');
+  await page.evaluate(() => window.closeGoyaColorPicker());
+  // 선택 해제 → 재선택 = 패널 재그리기(native input 새로 생성)
+  await openShape(page, 'shpA');
+  expect(await page.evaluate(() => document.getElementById('shape-color-color').value)).toBe('#3366ff');
+  await openSwatchOf(page, 'shape-color-color');
+  expect(await page.evaluate(() => document.querySelector('.goya-cp-tab.active')?.dataset.tab)).toBe('image');
+  const h0 = await hist(page);
+  await tab(page, 'solid').click();
+  const s = await shapeState(page, 'shpA');
+  expect(s.shapeFill).toBeNull();
+  expect(s.computedFill, '솔리드 복귀가 마지막 단색이 아니다').toBe('rgb(51, 102, 255)');
+  expect(await page.evaluate(() => document.getElementById('shpA').dataset.shapeColor)).toBe('#3366ff');
+  expect(await hist(page) - h0).toBe(1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T4d 바둑판은 편집 캔버스 전용 — 미리보기(#preview-overlay 로 복사된 같은 도형)엔 마지막 단색', async ({ page }) => {
+  const errs = await boot(page);
+  await openShape(page, 'shpA');
+  await openSwatchOf(page, 'shape-color-color');
+  await tab(page, 'image').click();
+  const r = await page.evaluate(() => {
+    const ov = document.createElement('div');
+    ov.id = 'preview-overlay';
+    ov.innerHTML = '<div class="preview-page-inner">' + document.getElementById('shpA').outerHTML.replace('id="shpA"', 'id="shpA-prev"') + '</div>';
+    document.body.appendChild(ov);
+    const fillOf = (sel) => getComputedStyle(document.querySelector(sel + ' svg.shape-svg rect')).fill;
+    return { canvas: fillOf('#shpA'), preview: fillOf('#shpA-prev') };
+  });
+  expect(r.canvas).toContain('goya-shape-checker');
+  expect(r.preview, '미리보기에 바둑판이 보인다').toBe('rgb(51, 102, 255)');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
 test('T4b 도형: 이미지 모드에서 가림막이 켜지면 바둑판이 아니라 가림막(fill:none)이 이긴다', async ({ page }) => {
   await boot(page);
   await openShape(page, 'shpA');
@@ -301,41 +343,29 @@ test('T9 페이지 바탕: 그라데이션 탭 = 기록 정확히 1회(이중 �
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('T10 ★텍스트: 그라데이션 탭 = 글자에 즉시 그라데이션(background-clip:text), 솔리드 = 해제 — 텍스트효과 블럭은 막힘', async ({ page }) => {
+test('T10 ★텍스트(②안): 글자색 피커는 그라데이션·이미지 탭 비활성 + 이유 툴팁, 눌러도 글자·기록 불변', async ({ page }) => {
   const errs = await boot(page);
   await page.evaluate(() => window.__text(document.getElementById('tb1')));
   const h0 = await hist(page);
   await openSwatchOf(page, 'txt-color');
-  expect(await tab(page, 'gradient').isDisabled()).toBe(false);
+  expect(await tab(page, 'solid').isDisabled()).toBe(false);
+  expect(await tab(page, 'gradient').isDisabled(), '글자색에서 그라데이션 탭이 열려 있다(②안 위반)').toBe(true);
   expect(await tab(page, 'image').isDisabled()).toBe(true);
-  await tab(page, 'gradient').click();
-  let cs = await page.evaluate(() => {
+  expect(await tab(page, 'gradient').getAttribute('data-tip')).toContain('단색만');
+  await tab(page, 'gradient').click({ force: true });
+  const cs = await page.evaluate(() => {
     const el = document.querySelector('#tb1 .tb-body');
     const c = getComputedStyle(el);
-    return { clip: c.webkitBackgroundClip || c.backgroundClip, fillc: c.webkitTextFillColor, img: c.backgroundImage, tg: el.dataset.textGradient || null };
-  });
-  expect(cs.clip).toBe('text');
-  expect(cs.fillc).toBe('rgba(0, 0, 0, 0)');
-  expect(cs.img).toContain('linear-gradient');
-  expect(cs.tg).not.toBeNull();
-  expect(await hist(page) - h0).toBe(1);
-
-  await tab(page, 'solid').click();
-  cs = await page.evaluate(() => {
-    const el = document.querySelector('#tb1 .tb-body');
-    const c = getComputedStyle(el);
-    return { clip: c.webkitBackgroundClip || c.backgroundClip, img: c.backgroundImage, tg: el.dataset.textGradient || null };
+    return { clip: c.webkitBackgroundClip || c.backgroundClip, fillc: c.webkitTextFillColor, img: c.backgroundImage, tg: el.dataset.textGradient || null,
+             active: document.querySelector('.goya-cp-tab.active')?.dataset.tab };
   });
   expect(cs.clip).not.toBe('text');
   expect(cs.img).toBe('none');
   expect(cs.tg).toBeNull();
-  expect(await hist(page) - h0).toBe(2);
-  await page.evaluate(() => window.closeGoyaColorPicker());
-
-  await page.evaluate(() => window.__text(document.getElementById('tb2')));
-  await openSwatchOf(page, 'txt-color');
-  expect(await tab(page, 'gradient').isDisabled(), '텍스트 효과 블럭에서 그라데이션 탭이 열려 있다').toBe(true);
-  expect(await tab(page, 'gradient').getAttribute('data-tip')).toContain('텍스트 효과');
+  expect(cs.active).toBe('solid');
+  expect(await hist(page) - h0).toBe(0);
+  // 글자 그라데이션 신규 기능 코드가 로드돼 있지 않다
+  expect(await page.evaluate(() => typeof window.applyTextGradient)).toBe('undefined');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

@@ -85,3 +85,17 @@ test('⑹ 바둑판 CSS 는 가림막을 이기지 않는다(:not(.shape-redact)
   assert.ok(line, '바둑판 규칙이 없다');
   assert.match(line, /:not\(\.shape-redact\)/);
 });
+
+test('⑺ T-059 ②안: 글자색 피커는 단색만 선언하고, 글자 그라데이션 신규 기능(background-clip:text)은 없다', () => {
+  const s = src('js/props/prop-text-wireup-text-edit.js');
+  assert.match(s, /colorPicker\.dataset\.cpModes\s*=\s*'solid'/, '글자색 피커가 단색 전용으로 선언돼 있지 않다');
+  assert.doesNotMatch(s, /background-clip|text-fill-color|textGradient/, '현빈 결정 전 글자 그라데이션 구현이 들어왔다');
+  assert.doesNotMatch(src('js/props/text-block-color.js'), /clearTextGradient/);
+});
+
+test('⑻ 이미지(바둑판) 모드 진입 시 shapeColor 에 그라데이션 CSS 를 남기지 않는다(마지막 단색으로)', () => {
+  const s = src('js/props/prop-shape.js');
+  const i = s.indexOf("'goya-cp:image'");
+  assert.ok(i > 0);
+  assert.match(s.slice(i, i + 1200), /_lastSolidOf\(block\)/, '이미지 모드 진입이 shapeColor 를 마지막 단색으로 안 되돌린다');
+});
