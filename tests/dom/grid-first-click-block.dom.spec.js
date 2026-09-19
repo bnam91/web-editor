@@ -251,3 +251,67 @@ test('T-058-7 ★프레임 안 그리드: 부모 프레임·섹션의 selected �
   expect(s.active, '그리드가 선택된 뒤 클릭은 줄 선택').toEqual({ r: 0, c: 0, li: 0 });
   expect(errs).toEqual([]);
 });
+
+/* ── 픽스 라운드: 다중선택에서 블럭 삭제 의도가 줄 삭제로 새던 누수(이벨류 실측 9501) ──
+ * ⌘클릭은 editor.js toggleBlockSelect 가 받는다 — «실물 소스»를 떠서 window 에 건다(앱과 같은 진입). */
+const TOGGLE_SRC = extractFn(EDITOR_SRC, 'toggleBlockSelect');
+async function installToggle(page) {
+  await page.evaluate((src) => {
+    const scope = {
+      _getBlockLayerItem: () => null, _lastClickedBlock: null, _isInFreeLayout: () => false,
+      _restoreFreeLayoutFrameSelected: () => {}, _updateFreeLayoutMultiSelPanel: () => {}, _updateMultiSelPanel: () => {},
+      canvasEl: document.getElementById('canvas'),
+    };
+    const names = Object.keys(scope);
+    window.toggleBlockSelect = new Function(...names, `${src}; return toggleBlockSelect;`)(...names.map(n => scope[n]));
+  }, TOGGLE_SRC);
+}
+const THREE_LINES = { cols: [
+  { width: 1, lines: [{ type: 'body', text: 'A1' }, { type: 'body', text: 'A2' }, { type: 'body', text: 'A3' }] },
+  { width: 1, lines: [{ type: 'body', text: 'B' }] },
+] };
+const counts = (page) => page.evaluate(() => window.__blocks.map(b => document.body.contains(b)
+  ? window.__model(b).cells[0].map(c => c.lines.length) : 'gone'));
+
+test('T-058-8 ★A 줄 선택(2회 클릭) → B ⌘클릭 → ⌫ = 두 블럭 삭제, 줄 누수 0 (이벨류 repro)', async ({ page }) => {
+  const errs = await boot(page);
+  await installToggle(page);
+  await mount(page, THREE_LINES);
+  await mount(page, ONE_LINE);
+  await lineLoc(page, 0, 1, 0).click();
+  await gap(page);
+  await lineLoc(page, 0, 1, 0).click();
+  const [a, b] = await page.evaluate(() => window.__blocks);
+  expect(await page.evaluate(() => window.__getActive(window.__blocks[0]))).toEqual({ r: 0, c: 0, li: 1 });
+  await gap(page);
+  await lineLoc(page, 0, 0, 1).click({ modifiers: ['Meta'] });
+  const mid = await page.evaluate(() => ({
+    sel: window.__blocks.map(b => b.classList.contains('selected')),
+    aActive: window.__getActive(window.__blocks[0]),
+    marks: document.querySelectorAll('.grd-line-selected').length,
+  }));
+  expect(mid, '⌘클릭 뒤에도 A 의 줄 선택이 남았다').toEqual({ sel: [true, true], aActive: null, marks: 0 });
+  const r = await runDelete(page);
+  expect(r.calls.showToast).toEqual([]);
+  expect(await counts(page), '★두 블럭이 남고 A 의 줄만 줄었다 = 누수').toEqual(['gone', 'gone']);
+  expect(errs).toEqual([]);
+});
+
+for (const order of ['A줄+B', 'B줄+A']) {
+  test(`T-058-9 ★[줄 선택 그리드 + 다른 그리드] 가 함께 selected(붙여넣기 뒤 상태, ${order}) → ⌫ = 줄 삭제로 새지 않는다`, async ({ page }) => {
+    const errs = await boot(page);
+    await mount(page, THREE_LINES);
+    await mount(page, THREE_LINES);
+    const lineIdx = order === 'A줄+B' ? 0 : 1;
+    await lineLoc(page, 0, 1, lineIdx).click();
+    await gap(page);
+    await lineLoc(page, 0, 1, lineIdx).click();
+    /* 붙여넣기 사본은 «selected 가 붙은 채» 들어온다(copySelected 의 outerHTML) — 활성줄은 원본에 남은 채 */
+    await page.evaluate((i) => window.__blocks[1 - i].classList.add('selected'), lineIdx);
+    expect(await page.evaluate((i) => window.__getActive(window.__blocks[i]), lineIdx)).toEqual({ r: 0, c: 0, li: 1 });
+    const r = await runDelete(page);
+    expect(r.calls.showToast).toEqual([]);
+    expect(await counts(page), '★블럭은 남고 원본 줄 하나만 사라졌다(DOM 순서에 따라 갈리던 누수)').toEqual(['gone', 'gone']);
+    expect(errs).toEqual([]);
+  });
+}

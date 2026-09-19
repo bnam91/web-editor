@@ -127,12 +127,16 @@ test('0918r2 (g) 소스 가드: «이미 선택됐나» 캡처는 deselectAll «
   assert.ok(iPrevDes < iPrev, '캡처와 _grdPrevAddr 사이에 deselectAll 이 끼면 안 된다');
   const iRes = src.indexOf('wasSelected: _grdWasSelected', iCap);
   assert.ok(iDes > iCap && iRes > iDes, '순서: 캡처 → deselectAll → 판정(뒤집으면 항상 false → 줄 선택 불가)');
-  /* 조상 제외 헬퍼 — 프레임 안 그리드가 «늘 이미 선택됨»으로 보이면 원 버그가 부활한다 */
-  const helper = extractFn(src, '_isSoleSelectedBlock');
+  /* 조상 제외 헬퍼 — 프레임 안 그리드가 «늘 이미 선택됨»으로 보이면 원 버그가 부활한다.
+     본체는 prop-grid.js grdIsSoleSelected «한 곳»(editor.js 줄 삭제 게이트와 공유), block-drag 는 위임만. */
+  const helper = extractFn(PROP_GRID, 'grdIsSoleSelected');
   assert.match(helper, /el\.contains\(block\)/, '조상(부모 프레임·섹션) selected 를 빼지 않는다');
   assert.match(helper, /classList\.contains\('selected'\)/);
+  const deleg = extractFn(src, '_isSoleSelectedBlock');
+  assert.match(deleg, /window\.grdIsSoleSelected/, 'block-drag 가 판정 사본을 따로 들고 있다(두 판정이 갈린다)');
+  assert.match(deleg, /: false/, '헬퍼 부재 시 «블럭 선택»(false) 쪽으로 떨어져야 한다');
 });
-test('0918r2 (h) _isSoleSelectedBlock: 조상/자손 selected 는 무시, 형제 selected 는 다중선택', () => {
+test('0918r2 (h) grdIsSoleSelected: 조상/자손 selected 는 무시, 형제 selected 는 다중선택', () => {
   const src = read('js/block-drag.js');
   const mk = (sel, kids = []) => {
     const n = { sel, kids, parent: null,
@@ -144,7 +148,7 @@ test('0918r2 (h) _isSoleSelectedBlock: 조상/자손 selected 는 무시, 형제
   const all = (n) => [n, ...n.kids.flatMap(all)];
   const run = (root, block) => {
     const doc = { getElementById: () => ({ querySelectorAll: () => all(root).filter(x => x.sel) }) };
-    return new Function('document', `${extractFn(src, '_isSoleSelectedBlock')}; return _isSoleSelectedBlock;`)(doc)(block);
+    return new Function('document', `${extractFn(PROP_GRID, 'grdIsSoleSelected')}; return grdIsSoleSelected;`)(doc)(block);
   };
   let g = mk(true); let fr = mk(true, [g]); let sec = mk(true, [fr]);
   assert.equal(run(mk(false, [sec]), g), true, '프레임·섹션 selected 는 조상 → 단독 선택');
@@ -152,4 +156,40 @@ test('0918r2 (h) _isSoleSelectedBlock: 조상/자손 selected 는 무시, 형제
   assert.equal(run(mk(false, [sec]), g), false, '그리드 자신이 selected 가 아니면 false');
   g = mk(true); const other = mk(true); sec = mk(true, [g, other]);
   assert.equal(run(mk(false, [sec]), g), false, '형제 블럭도 selected(다중선택) → false');
+});
+
+/* ── 0918r2 T-058 픽스 라운드: 다중선택에서 블럭 삭제 의도가 줄 삭제로 새던 누수 ──
+ * ⌘클릭(toggleBlockSelect)은 활성줄을 안 지웠고, deleteSelectedFromCanvas 줄 삭제 분기는 선택 개수를 안 보고
+ * «첫» .grid-block.selected 의 활성줄만 봤다 → [A(줄 선택)+B] 에서 ⌫/⌘X = 두 블럭 다 남고 A 의 줄 하나만 삭제.
+ * 붙여넣기 뒤 [원본(줄)+사본] 도 같은 상태(사본이 selected 로 들어온다). */
+test('0918r2 (i) 소스 가드: 줄 삭제 분기 «앞»에서 단독 선택(grdIsSoleSelected)을 확인하고, 아니면 줄 선택을 끝낸다', () => {
+  const del = extractFn(read('js/editor.js'), 'deleteSelectedFromCanvas');
+  const iGate = del.indexOf('grdIsSoleSelected(gridSel)');
+  const iBranch = del.indexOf('if (gridSel && gridAddr && gridAddr.li !== null');
+  assert.ok(iGate > 0, '줄 삭제 분기가 선택 개수를 안 본다(다중선택 ⌫ 가 줄로 샌다)');
+  assert.ok(iGate < iBranch, '게이트는 줄 삭제 분기 «앞»이어야 한다');
+  const gate = del.slice(iGate, iBranch);
+  assert.match(gate, /grdDropLineSelection/);
+  assert.match(gate, /gridAddr = null/);
+});
+test('0918r2 (j) 소스 가드: ⌘클릭 토글·붙여넣기는 그리드 줄 선택을 끝낸다', () => {
+  const ed = read('js/editor.js');
+  assert.match(extractFn(ed, 'toggleBlockSelect'), /grdDropLineSelection\?\.\(/, '⌘클릭이 활성줄을 남긴다');
+  assert.match(extractFn(ed, 'pasteClipboard'), /grdDropLineSelection\?\.\(/, '붙여넣기가 활성줄을 남긴다');
+});
+test('0918r2 (k) grdDropLineSelection: 모델 + 줄/칸 마커를 모두 지운다', () => {
+  const fn = new Function(`const _m = new Map();
+    function grdSetActiveLine(b, a) { _m.set(b, a || null); }
+    ${extractFn(PROP_GRID, 'grdClearAllActiveLines')}
+    ${extractFn(PROP_GRID, 'grdDropLineSelection')}
+    return { drop: grdDropLineSelection, get: (b) => _m.get(b) ?? null, set: grdSetActiveLine };`)();
+  const g = { id: 'g' };
+  fn.set(g, { r: 0, c: 0, li: 1 });
+  const removed = [];
+  const mark = (cls) => ({ classList: { remove: (c) => removed.push([cls, c]) } });
+  const root = { querySelectorAll: (sel) => sel === '.grid-block' ? [g]
+    : sel === '.grd-line-selected' ? [mark('L')] : sel === '.grd-cell-selected' ? [mark('C')] : [] };
+  fn.drop(root);
+  assert.equal(fn.get(g), null);
+  assert.deepEqual(removed, [['L', 'grd-line-selected'], ['C', 'grd-cell-selected']]);
 });

@@ -46,17 +46,11 @@ function _getParentFrame(block) {
   return block.closest('.frame-block');
 }
 /* ★0918r2 grid(T-058) — «이 블럭 하나만» 선택돼 있었는가(피그마식 드릴다운 판정).
-   조상(부모 프레임·섹션)의 .selected 는 뺀다 — _restoreParentFrameSelected 가 그 둘에도 selected 를
-   붙이므로, 빼지 않으면 프레임 안 그리드는 «늘 이미 선택됨»으로 보여 첫 클릭이 다시 줄이 된다.
-   자기 자손(.selected 가 붙은 내부 요소)도 뺀다. 그 밖에 하나라도 selected 면 다중선택 → false. */
+   판정 본체는 prop-grid.js grdIsSoleSelected «한 곳» — editor.js 줄 삭제 게이트도 같은 걸 부른다.
+   (조상 프레임·섹션/자손 selected 는 무시, 그 밖에 하나라도 selected 면 다중선택 → false)
+   부재 시 false = «블럭 선택» 쪽으로 안전하게 떨어진다(⌫ 가 줄로 새지 않는다). */
 function _isSoleSelectedBlock(block) {
-  if (!block || !block.classList.contains('selected')) return false;
-  const scope = document.getElementById('canvas') || document;
-  for (const el of scope.querySelectorAll('.selected')) {
-    if (el === block || el.contains(block) || block.contains(el)) continue;
-    return false;
-  }
-  return true;
+  return typeof window.grdIsSoleSelected === 'function' ? !!window.grdIsSoleSelected(block) : false;
 }
 function _isInsideUnselectedFrame(block) {
   const ss = _getParentFrame(block);

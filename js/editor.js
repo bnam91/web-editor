@@ -965,6 +965,9 @@ function _updateMultiSelPanel(block) {
 
 /* Cmd+클릭: 단일 블록 토글 */
 function toggleBlockSelect(block, sec) {
+  /* ★0918r2 T-058 — ⌘클릭은 «블럭 단위» 선택이다. 그리드 줄 선택(활성줄)을 남겨 두면 다중선택
+     상태에서 ⌫/⌘X 가 그 줄 하나로 샜다. Shift 범위선택(deselectAll 경유)과 똑같이 끝낸다. */
+  window.grdDropLineSelection?.(canvasEl);
   const layerItem = _getBlockLayerItem(block);
   if (block.classList.contains('selected')) {
     block.classList.remove('selected');
@@ -1585,6 +1588,9 @@ function _pasteIntoSourceBanner(el, sourceBannerId) {
 
 function pasteClipboard() {
   if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
+  /* ★0918r2 T-058 — 붙여넣으면 선택이 «블럭 단위»로 바뀐다(사본이 selected 로 들어와 원본과 함께 잡힌다).
+     그리드 줄 선택(활성줄+마커)을 남기면 [원본(줄)+사본] 상태의 ⌫ 가 원본의 줄로 샜다. */
+  window.grdDropLineSelection?.(canvasEl);
   // 현재 DOM 상태가 마지막 히스토리와 다르면 체크포인트 저장
   // (block-factory.js가 push-before라서 최신 N개 블록 상태가 히스토리에 없는 경우 대비)
   window.ensureHistoryCheckpoint?.('붙여넣기 전');
@@ -2651,7 +2657,15 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
        prop-grid.js 의 grd-line-del-btn(줄바)·grd-img-remove-btn(이미지 제거)과 같은 경로
        (patchCell{lines}) — 세 벌로 갈라지지 않게 여기서도 그 함수들을 그대로 부른다. */
     const gridSel = document.querySelector('.grid-block.selected');
-    const gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
+    let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
+    /* ★0918r2 T-058 — 줄 삭제는 «그 그리드 하나만» 선택됐을 때만. ⌘클릭 다중선택·붙여넣기 뒤
+       [원본(활성줄)+사본] 처럼 블럭이 여럿 골라진 상태는 사용자가 «블럭들»을 보고 있다 —
+       여기서 첫 그리드의 활성줄만 보고 줄 하나를 지우면 블럭은 다 남고 줄만 조용히 사라졌다
+       (DOM 순서에 따라 결과까지 갈렸다). 그땐 줄 선택을 끝내고 아래 블럭 삭제로 흘려보낸다. */
+    if (gridAddr && typeof window.grdIsSoleSelected === 'function' && !window.grdIsSoleSelected(gridSel)) {
+      window.grdDropLineSelection?.(document.getElementById('canvas'));
+      gridAddr = null;
+    }
     if (gridSel && gridAddr && gridAddr.li !== null && gridAddr.li !== undefined) {
       consumed = true;
       let lines;
