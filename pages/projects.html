@@ -99,6 +99,10 @@ body {
  *   갈 길이 없었다(09-19 이벨류). 투명이어도 Tab 으로 오면 :focus-visible 로 드러난다. */
 .ft-cell:hover .ft-more, .ft-cell:focus-within .ft-more, .ft-more:focus-visible, .ft-more[aria-expanded="true"] { opacity: 1; }
 .ft-more:hover { background: var(--ui-bg-hover, #3a3a3a); color: #fff; }
+/* 이름 입력 중(.ft-editing)엔 ⋯ 를 감춘다 — ★JS 인라인 display:none 으로 하지 않는다. 그렇게 하면 «되돌리는» 코드가
+ *   확정 갈래에만 있어 Esc 취소 뒤 ⋯ 가 영영 안 보였다(09-19 2라운드 ①). :has 는 입력칸이 «있는 동안만» 참이라
+ *   확정·취소·실패·blur 어느 갈래로 끝나도 저절로 풀린다(되돌릴 상태가 없다). */
+.ft-cell:has(.ft-editing) .ft-more { display: none; }
 /* 인라인 이름 입력(새 폴더·이름 바꾸기) — 레일 시절 규칙에서 #folder-rail 한정자만 벗겼다 */
 .fr-name-input {
   flex: 1; min-width: 0; font: inherit; font-size: 12px; color: #e0e0e0; background: #333; border: 1px solid #555;
@@ -110,7 +114,11 @@ body {
 .is-list-mode #folder-tiles { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
 .is-list-mode .ft-tile { padding: 6px 10px; }
 .is-list-mode .ft-cell .ft-tile { padding-right: 36px; }
-.is-list-mode .ft-text { flex-direction: row; align-items: baseline; gap: 8px; }
+.is-list-mode .ft-text { flex-direction: row; align-items: baseline; gap: 8px; flex: 1; overflow: hidden; }
+/* ★이름 우선(09-19 2라운드 ②) — 가로 줄에선 .ft-sub(nowrap, min-width:auto)는 안 줄고 .ft-name(overflow:hidden → 최소폭 0)만
+ *   줄어 이름이 먼저 잘렸다. 이름은 줄지 않게(칸보다 길 때만 말줄임), 「N개 · 언제」가 먼저 줄고 먼저 사라진다. 목록 보기 한정. */
+.is-list-mode .ft-name { flex: 0 0 auto; max-width: 100%; }
+.is-list-mode .ft-sub { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .is-list-mode .ft-ico svg { width: 14px; height: 14px; }
 .is-list-mode #folder-zone { margin-bottom: 22px; }
 .is-list-mode #folder-zone.is-empty { margin-bottom: 16px; }
@@ -509,6 +517,8 @@ body {
   line-height: 1;
 }
 .card-action:hover { background: #2d6fe8; border-color: #2d6fe8; color: #fff; }
+/* [R1] 비활성 카드 버튼(기획 카드의 📁) — ⛔disabled 속성 대신 aria-disabled: disabled 버튼은 크로미움에서 hover 가 안 와 title 툴팁이 안 뜬다 */
+.card-action.is-disabled, .card-action.is-disabled:hover { opacity: .4; cursor: not-allowed; background: rgba(24,24,24,0.9); border-color: #3a3a3a; color: #666; }
 .card-delete:hover { background: #c0392b; border-color: #c0392b; }
 
 /* ── 즐겨찾기 ──
@@ -1070,7 +1080,8 @@ function renderFolderChrome() {
 }
 
 /** 폴더 배정 — 결과를 «버리지 않는다»(U7 규율). moved 0 이면 조용히 성공처럼 보이지 않게 알린다.
- *  ⚠️[R1] main/folders.js 의 isProjId 가 proj_* 만 받는다 — 기획(plan_*) 프로젝트는 지금 폴더에 못 들어간다. */
+ *  [R1] main/folders.js 의 isProjId 가 proj_* 만 받는다 — 기획(plan_*) 프로젝트는 폴더에 못 들어간다.
+ *    ⇒ UI 에서 막는다(카드 📁 비활성 + 드래그 표지 text/x-goditor-planning 을 타일·경로가 거절). moved 0 알림은 마지막 방어선. */
 async function _assignToFolder(projectIds, folderId) {
   let r;
   try { r = await window.electronAPI.folders.assign({ projectIds, folderId }); }
@@ -1143,7 +1154,6 @@ function startRenameFolder(id) {
     ? document.getElementById('gal-crumb-name')
     : [...document.querySelectorAll('#folder-tiles .ft-tile[data-folder-key]')].find(t => t.dataset.folderKey === id);
   if (!target) return null;
-  if (!inside) target.parentElement?.querySelector('.ft-more')?.style.setProperty('display', 'none');
   return _swapToNameInput(target, { initial: f.name, placeholder: '폴더 이름', holder: inside ? 'inline' : 'tile' }, async (nm, restore) => {
     // ★확정·실패·취소 «모든» 갈래에서 먼저 원래 요소로 되돌린다. 경로(inline)에선 input 이 #gal-crumb-name
     //   «자체»를 갈아 끼웠으므로, 안 되돌리면 그 span 이 DOM 에서 영영 사라지고 경로가 옛 이름에 굳는다(09-19 이벨류 실측).
@@ -1166,8 +1176,45 @@ async function deleteFolderUI(id) {
   await renderGrid();
 }
 
+/** 떠 있는 메뉴(타일 ⋯ · 카드 📁) 닫기 규약 «한 벌» — 두 메뉴가 같이 쓴다(09-19 2라운드 ③: 카드 📁 만 Esc 가 안 먹었다).
+ *  · Esc 는 캡처 단계에서 «바로» 받는다(키보드로 열자마자 Esc 가 새지 않게) + stopPropagation·preventDefault
+ *    → 전역 «폴더 밖으로(Esc)»까지 안 간다(우선순위: 메뉴 → 입력칸 → 폴더 밖).
+ *  · ★메뉴 «안» 이름 입력칸(.fr-name-input, 카드 메뉴 「+ 새 폴더 만들어 넣기」)의 Esc 는 그 입력칸의 것이다 —
+ *    캡처가 먼저 받아 메뉴째 닫으면 안 된다. 첫 Esc = 입력 취소, 두 번째 Esc = 메뉴 닫기. 한글 조합 중 Esc 도 넘긴다.
+ *  · 바깥 클릭은 한 틱 미뤄 받는다(여는 클릭에 바로 닫히지 않게). 닫을 때 리스너 둘 다 뗀다.
+ *  · 새 메뉴를 열면 앞 메뉴의 리스너까지 정리한다(DOM 만 지우면 옛 Esc 리스너가 남아 다음 Esc 를 삼킨다). */
+let _openMenuClose = null;
+function _wireMenuDismiss(menu, anchor) {
+  if (_openMenuClose) _openMenuClose();
+  let closed = false;
+  const close = (opts) => {
+    if (closed) return;
+    closed = true;
+    menu.remove();
+    if (anchor) anchor.removeAttribute('aria-expanded');
+    document.removeEventListener('click', onDocClick, true);
+    document.removeEventListener('keydown', onKey, true);
+    if (_openMenuClose === close) _openMenuClose = null;
+    if (opts && opts.refocus && anchor && anchor.isConnected) anchor.focus();   // Esc 로 닫으면 누른 버튼으로 포커스 복귀
+  };
+  const onDocClick = (ev) => { if (!menu.contains(ev.target)) close(); };
+  const onKey = (ev) => {
+    if (ev.key !== 'Escape') return;
+    if (ev.isComposing || ev.keyCode === 229) return;
+    if (menu.contains(ev.target) && ev.target.closest?.('.fr-name-input')) return;
+    ev.stopPropagation(); ev.preventDefault();
+    close({ refocus: true });
+  };
+  if (anchor) anchor.setAttribute('aria-expanded', 'true');
+  document.addEventListener('keydown', onKey, true);
+  setTimeout(() => { if (!closed) document.addEventListener('click', onDocClick, true); }, 0);
+  _openMenuClose = close;
+  return close;
+}
+
 /** 타일 ⋯ 메뉴(우클릭도 같은 메뉴) — 껍데기는 카드 📁 메뉴(.card-folder-menu)·항목은 .tab-add-item 재사용. */
 function openFolderTileMenu(anchor, folderId, pt) {
+  if (_openMenuClose) _openMenuClose();
   document.querySelectorAll('.card-folder-menu').forEach(m => m.remove());
   if (!_foldersCache.some(f => f.id === folderId)) return null;
   const menu = document.createElement('div');
@@ -1183,19 +1230,7 @@ function openFolderTileMenu(anchor, folderId, pt) {
   else { const r = anchor.getBoundingClientRect(); top = r.bottom + 4; left = r.right - menu.offsetWidth; }
   menu.style.top = Math.max(8, Math.min(top, window.innerHeight - menu.offsetHeight - 8)) + 'px';
   menu.style.left = Math.max(8, Math.min(left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
-  if (anchor) anchor.setAttribute('aria-expanded', 'true');
-
-  const close = () => {
-    menu.remove();
-    if (anchor) anchor.removeAttribute('aria-expanded');
-    document.removeEventListener('click', onDocClick, true);
-    document.removeEventListener('keydown', onKey, true);
-  };
-  const onDocClick = (ev) => { if (!menu.contains(ev.target)) close(); };
-  const onKey = (ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); ev.preventDefault(); close(); } };
-  // Esc 는 «바로» 받는다(키보드로 열자마자 Esc 가 새지 않게 — 09-19 실측). 바깥 클릭만 여는 클릭을 피하려고 한 틱 미룬다.
-  document.addEventListener('keydown', onKey, true);
-  setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
+  const close = _wireMenuDismiss(menu, anchor);
   menu.addEventListener('click', async (ev) => {
     const it = ev.target.closest('[data-ft-act]');
     if (!it) return;
@@ -1205,6 +1240,12 @@ function openFolderTileMenu(anchor, folderId, pt) {
     else await deleteFolderUI(folderId);
   });
   return menu;
+}
+
+/** [R1] 끌고 있는 게 기획 카드인가 — dragstart 가 붙인 종류 표지로 본다(dragover 는 값 대신 types 만 읽힌다). */
+function _isPlanningDrag(e) {
+  const types = e.dataTransfer && e.dataTransfer.types;
+  return !!types && Array.from(types).includes('text/x-goditor-planning');
 }
 
 /* ── 폴더 구역 결선(한 번만) — 타일은 매번 다시 그려지므로 «위임»으로 받는다 ── */
@@ -1232,6 +1273,7 @@ function openFolderTileMenu(anchor, folderId, pt) {
   tiles.addEventListener('dragover', (e) => {
     const tile = e.target.closest('.ft-tile[data-folder-key]');
     if (!tile || tile.classList.contains('ft-add')) return;   // 「+ 새 폴더」엔 못 놓는다(뜻이 없다)
+    if (_isPlanningDrag(e)) return;                            // [R1] 기획 카드는 폴더에 못 들어간다 — 드롭 표시도 안 한다
     e.preventDefault();
     tile.classList.add('is-drop-target');
   });
@@ -1242,6 +1284,7 @@ function openFolderTileMenu(anchor, folderId, pt) {
   tiles.addEventListener('drop', async (e) => {
     const tile = e.target.closest('.ft-tile[data-folder-key]');
     if (!tile || tile.classList.contains('ft-add')) return;
+    if (_isPlanningDrag(e)) return;   // [R1]
     e.preventDefault();
     tile.classList.remove('is-drop-target');
     const projectId = e.dataTransfer.getData('text/x-goditor-project-id');
@@ -1261,12 +1304,14 @@ function openFolderTileMenu(anchor, folderId, pt) {
   const canDropUp = () => _viewMode() === 'inside';
   up.addEventListener('dragover', (e) => {
     if (!canDropUp()) return;
+    if (_isPlanningDrag(e)) return;   // [R1] 기획 카드는 원래 폴더 밖이다 — 뺄 것도 없다
     e.preventDefault();
     up.classList.add('is-drop-target');
   });
   up.addEventListener('dragleave', () => up.classList.remove('is-drop-target'));
   up.addEventListener('drop', async (e) => {
     if (!canDropUp()) return;
+    if (_isPlanningDrag(e)) return;
     e.preventDefault();
     up.classList.remove('is-drop-target');
     const projectId = e.dataTransfer.getData('text/x-goditor-project-id');
@@ -1422,10 +1467,12 @@ function _renderGridFromCache() {
       ? ''
       : `<button class="card-action card-share" onclick="shareProjectUI(event, '${safeId}')" title="원격으로 올리기 — 다른 사람을 초대해 같이 편집합니다">👥</button>`;
     // [T-A] 폴더로 이동 — 항상 뜬다.
-    //   ⚠️[R1] 기획(plan_*) 프로젝트는 main/folders.js isProjId 가 거른다(moved 0) — _assignToFolder 가 알린다.
-    const folderBtnHtml = window.electronAPI?.folders
-      ? `<button class="card-action card-folder-move" onclick="openFolderMenuUI(event, '${safeId}')" title="폴더로 이동">📁</button>`
-      : '';
+    //   [R1] 기획(plan_*) 프로젝트는 main/folders.js isProjId 가 거른다(moved 0) ⇒ UI 에서 막는다: 버튼은 «보이되» 비활성 + 이유 툴팁.
+    //     ⛔disabled 속성 금지 — 크로미움은 disabled 버튼에 hover 를 안 줘 title 툴팁이 안 뜬다. onclick 도 안 단다.
+    const folderBtnHtml = !window.electronAPI?.folders ? ''
+      : isPlanning
+        ? `<button type="button" class="card-action card-folder-move is-disabled" aria-disabled="true" title="기획 프로젝트는 아직 폴더에 넣을 수 없습니다">📁</button>`
+        : `<button class="card-action card-folder-move" onclick="openFolderMenuUI(event, '${safeId}')" title="폴더로 이동">📁</button>`;
     card.innerHTML = `
       <div class="card-thumb">${thumbContent}</div>
       <div class="card-body">
@@ -1451,6 +1498,8 @@ function _renderGridFromCache() {
     });
     card.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/x-goditor-project-id', proj.id);
+      // [R1] 기획 카드 표지 — dragover 에선 데이터 «값»을 못 읽고 «종류(types)»만 보이므로 종류로 알린다(타일·경로가 거절)
+      if (isPlanning) e.dataTransfer.setData('text/x-goditor-planning', '1');
       e.dataTransfer.effectAllowed = 'move';
     });
     grid.appendChild(card);
@@ -1462,6 +1511,7 @@ function _renderGridFromCache() {
  * ★prompt() 는 Electron 이 차단한다(duplicateProjectUI 주석 참고) — 새 폴더는 인라인 input. */
 async function openFolderMenuUI(e, projectId) {
   e.stopPropagation();
+  if (_openMenuClose) _openMenuClose();
   document.querySelectorAll('.card-folder-menu').forEach(m => m.remove());
   const btn = e.currentTarget;
   const proj = _allProjectsCache.find(p => p.id === projectId);
@@ -1483,9 +1533,7 @@ async function openFolderMenuUI(e, projectId) {
   menu.style.top = (r.bottom + 4 + window.scrollY) + 'px';
   menu.style.left = Math.max(8, r.right - menu.offsetWidth) + 'px';
 
-  const close = () => { menu.remove(); document.removeEventListener('click', onDocClick, true); };
-  const onDocClick = (ev) => { if (!menu.contains(ev.target)) close(); };
-  setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
+  const close = _wireMenuDismiss(menu, btn);   // Esc·바깥 클릭·aria-expanded — 타일 ⋯ 메뉴와 같은 규약
 
   menu.addEventListener('click', async (ev) => {
     const item = ev.target.closest('[data-goto]');
@@ -1558,6 +1606,16 @@ function paintFontBadges() {
 }
 window.addEventListener('load', paintFontBadges);
 
+/** 폴더 «안»에서 새로 생긴 프로젝트(새로 만들기·가져오기·복제)를 «지금 보고 있는» 폴더 소속으로 — 한 벌.
+ *  ★루트·검색 중·휴지통에선 아무것도 안 한다(_viewMode() === 'inside' 일 때만). 실패해도 흐름은 막지 않는다(경고만).
+ *  (meta 는 projects:save-meta·folders:assign 이 read-merge-write 라 뒤이은 저장이 folderId 를 지우지 않는다.)
+ *  ★기획(plan_*)은 main 이 거른다(moved 0) — 여기선 알림을 띄우지 않는다(사용자가 «넣으려 한» 게 아니다). */
+async function _adoptIntoCurrentFolder(id) {
+  if (!id || _viewMode() !== 'inside' || !window.electronAPI?.folders) return;
+  try { await window.electronAPI.folders.assign({ projectIds: [id], folderId: _selectedFolderId }); }
+  catch (e) { console.warn('[projects] 새 프로젝트 폴더 배정 실패:', e?.message || e); }
+}
+
 async function createProject() {
   const id = 'proj_' + Date.now();
   const now = new Date().toISOString();
@@ -1579,11 +1637,7 @@ async function createProject() {
   };
   await saveNewProject(proj);
   // [B안] 폴더 «안»에서 만들면 그 폴더 소속으로 — 실패해도 프로젝트 진입은 막지 않는다.
-  //   (meta 는 projects:save-meta 가 read-merge-write 라 뒤이은 저장이 folderId 를 지우지 않는다.)
-  if (_selectedFolderId && !_isSearching() && window.electronAPI?.folders) {
-    try { await window.electronAPI.folders.assign({ projectIds: [id], folderId: _selectedFolderId }); }
-    catch (e) { console.warn('[projects] 새 프로젝트 폴더 배정 실패:', e?.message || e); }
-  }
+  await _adoptIntoCurrentFolder(id);
   // 자동 PM 폴더 보장 (Goditor 프로젝트만) — 실패해도 프로젝트 진입 막지 않음
   try {
     if (IS_ELECTRON && window.electronAPI?.ensureClaudePMFolder) {
@@ -1857,6 +1911,9 @@ async function duplicateProjectUI(e, id) {
   const newName = (input ?? '').trim() || defaultName;
   const res = await window.electronAPI.duplicateProject({ sourceProjectId: id, newName });
   if (!res?.ok) { alert('복제 실패: ' + (res?.error || '알 수 없는 오류')); return; }
+  // ④ 폴더 안에서 복제하면 사본도 그 폴더에(09-19 2라운드 R2). main 이 원본 meta 를 복사해 이미 같은 값이지만(9370 실측)
+  //   그 «우연»에 기대지 않는 방어선 — 같은 값을 다시 쓸 뿐이라 해가 없다. 루트·검색 중엔 원본 소속 그대로.
+  await _adoptIntoCurrentFolder(res.newProjectId);
   await renderGrid();
   requestAnimationFrame(() => {
     const card = document.querySelector(`.project-card[data-id="${res.newProjectId}"]`);
@@ -2052,7 +2109,13 @@ function renderHomeTabs() {
 /* ── .gdt 불러오기 (「파일 → 프로젝트 불러오기…」) ──
    실제 흐름은 js/io/gdt-import.js가 갖고 있다(편집기 페이지와 공용). 여기선
    «불러온 뒤 목록을 다시 그리는 것»만 등록한다 — 안 하면 새 프로젝트가 새로고침 전까지 안 보인다. */
-window.__gdtOnImported = async () => { await renderGrid(); };
+// ④ 폴더 «안»에서 불러오면 그 폴더 소속으로(09-19 2라운드 R2 — main/gdt/import.js 가 folderId 없이 meta 를 만들어
+//   결과가 폴더 밖에 생기고 지금 화면엔 안 보였다). 폴더는 «불러오기가 끝난 시점»에 보고 있는 곳. 결과 없이 부르는
+//   옛 호출(font-substitute.js 의 새로고침)도 그대로 돈다.
+window.__gdtOnImported = async (result) => {
+  if (result && result.ok && result.projectId) await _adoptIntoCurrentFolder(result.projectId);
+  await renderGrid();
+};
 
 /* ── 「없는 글꼴」 다시 열기 ──
    불러올 때 뜬 대화상자를 닫았어도, 카드 배지로 언제든 다시 연다.

@@ -99,15 +99,19 @@ test('OS-4 ★[R4] 「Projects」 클릭 — 프로젝트 탭에서 폴더를 �
 });
 
 test('OS-5 폴더 안에서 새 프로젝트 → 그 폴더 소속(try 로 감싸 진입을 막지 않고, openProject 보다 먼저)', () => {
+  // 2라운드: 배정은 공용 _adoptIntoCurrentFolder(새로 만들기·가져오기·복제가 같이 쓴다)로 옮겼다 — 의도(순서·가드·try)는 그대로 잰다
   const fn = sliceBlock(CODE, 'async function createProject() {');
-  const iAssign = fn.indexOf('folders.assign({ projectIds: [id], folderId: _selectedFolderId })');
+  const iAssign = fn.indexOf('await _adoptIntoCurrentFolder(id)');
   const iSave = fn.indexOf('await saveNewProject(proj)');
   const iOpen = fn.indexOf('openProject(id)');
   assert.ok(iAssign > -1, '새 프로젝트를 현재 폴더에 배정하지 않는다');
   assert.ok(iSave < iAssign && iAssign < iOpen, '★배정 순서가 틀렸다(저장 뒤·열기 전이어야 한다)');
-  const around = fn.slice(fn.lastIndexOf('if (', iAssign), iAssign);
-  assert.match(around, /_selectedFolderId && !_isSearching\(\) && window\.electronAPI\?\.folders/, '배정 조건 가드가 없다');
-  assert.match(fn.slice(iAssign - 50, iAssign), /try \{/, '★배정이 try 로 안 감싸져 실패 시 진입이 막힌다');
+  const helper = sliceBlock(CODE, 'async function _adoptIntoCurrentFolder(id) {');
+  assert.match(helper, /_viewMode\(\) !== 'inside'/, '배정 조건 가드(폴더 안일 때만 — 검색·루트·휴지통 제외)가 없다');
+  assert.match(helper, /window\.electronAPI\?\.folders/, 'folders API 존재 가드가 없다');
+  const iA = helper.indexOf('folders.assign({ projectIds: [id], folderId: _selectedFolderId })');
+  assert.ok(iA > -1, '지금 보는 폴더로 배정하지 않는다');
+  assert.match(helper.slice(iA - 50, iA), /try \{/, '★배정이 try 로 안 감싸져 실패 시 진입이 막힌다');
 });
 
 test('OS-6 ★XSS — 타일·⋯메뉴 템플릿의 폴더 이름/id 는 전부 _escHtml 을 거친다', () => {
@@ -149,9 +153,9 @@ test('OS-9 ★[R1] 배정 결과를 버리지 않는다 — 실패·moved 0(기�
   const fn = sliceBlock(CODE, 'async function _assignToFolder(');
   assert.match(fn, /r\.ok !== true/, '실패를 안 본다');
   assert.match(fn, /r\.moved === 0/, 'moved 0(조용한 no-op)을 안 본다');
-  // 사용자 경로(카드 메뉴·타일 드롭·경로 드롭)는 전부 이걸 거친다 — 맨 assign 호출은 createProject 하나뿐
+  // 사용자 경로(카드 메뉴·타일 드롭·경로 드롭)는 전부 이걸 거친다 — 맨 assign 호출은 _adoptIntoCurrentFolder 하나뿐
   const bare = CODE.match(/window\.electronAPI\.folders\.assign\(/g) || [];
-  assert.equal(bare.length, 2, `folders.assign 직접 호출이 ${bare.length}곳 — _assignToFolder·createProject 외엔 없어야 한다`);
+  assert.equal(bare.length, 2, `folders.assign 직접 호출이 ${bare.length}곳 — _assignToFolder·_adoptIntoCurrentFolder 외엔 없어야 한다`);
 });
 
 test('OS-10 목록 보기 — #gallery-col 에 is-list-mode 를 달아 타일 줄을 압축형으로(줄은 유지)', () => {
@@ -202,4 +206,57 @@ test('OS-14 타일 ⋯ 는 display:none 으로 숨기지 않는다(Tab 포커스
 test('OS-15 헤더 검색칸 자리 고정 — 양옆이 같은 몫(flex 1 1 0)', () => {
   assert.match(CODE, /#header > h1 \{ flex: 1 1 0; min-width: 0; \}/);
   assert.match(CODE, /#header > \.header-actions \{ flex: 1 1 0; justify-content: flex-end; \}/);
+});
+
+/* ── 2라운드(T-062 후속, 09-19 오후) ── 실제 화면은 tests/dom/projects-onescreen.dom.spec.js ⓠ~ⓤ */
+test('OS-16 ① 이름 입력 중 ⋯ 숨김은 CSS :has 로만 — JS 인라인 display:none 이 없다(Esc 취소 뒤 영영 안 보이던 버그)', () => {
+  assert.match(CODE, /\.ft-cell:has\(\.ft-editing\) \.ft-more \{ display: none; \}/);
+  const fn = sliceBlock(CODE, 'function startRenameFolder(');
+  assert.ok(!/ft-more/.test(fn), '★startRenameFolder 가 아직 ⋯ 를 직접 만진다');
+  assert.ok(!/\.ft-more'\)\?\.style/.test(CODE), '★어딘가에서 ⋯ 인라인 스타일을 건다');
+});
+
+test('OS-17 ② 목록 보기 이름 우선 — .ft-name 은 안 줄고(0 0 auto), .ft-sub 가 줄어든다(min-width:0) · 목록 보기 한정', () => {
+  assert.match(CODE, /\.is-list-mode \.ft-name \{ flex: 0 0 auto; max-width: 100%; \}/);
+  assert.match(CODE, /\.is-list-mode \.ft-sub \{ flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; \}/);
+  // 격자 보기 기본 규칙은 그대로(바뀐 건 .is-list-mode 한정)
+  assert.match(CODE, /\n\.ft-name \{ font-size: 12px;[^}]*overflow: hidden; text-overflow: ellipsis; \}/);
+  assert.match(CODE, /\n\.ft-sub \{ font-size: 11px; color: var\(--ui-text-dim\); white-space: nowrap; \}/);
+});
+
+test('OS-18 ③ 타일 ⋯·카드 📁 메뉴가 닫기 규약 한 벌(_wireMenuDismiss)을 쓴다 — Esc 캡처·입력칸 Esc 양보·리스너 해제', () => {
+  const h = sliceBlock(CODE, 'function _wireMenuDismiss(menu, anchor) {');
+  assert.match(h, /document\.addEventListener\('keydown', onKey, true\)/, 'Esc 를 캡처 단계에서 안 받는다');
+  assert.match(h, /ev\.stopPropagation\(\); ev\.preventDefault\(\);/);
+  assert.match(h, /\.fr-name-input/, '★메뉴 안 이름 입력칸의 Esc 를 메뉴가 가로챈다');
+  assert.match(h, /ev\.isComposing/, '한글 조합 중 Esc 가드가 없다');
+  assert.match(h, /removeEventListener\('keydown', onKey, true\)/);
+  assert.match(h, /removeEventListener\('click', onDocClick, true\)/);
+  assert.match(sliceBlock(CODE, 'function openFolderTileMenu('), /_wireMenuDismiss\(menu, anchor\)/);
+  assert.match(sliceBlock(CODE, 'async function openFolderMenuUI('), /_wireMenuDismiss\(menu, btn\)/, '★카드 📁 메뉴가 Esc 규약을 안 쓴다');
+});
+
+test('OS-19 ④ 가져오기 완료 훅이 결과를 받아 지금 폴더로 · 복제도 같은 방어선', () => {
+  const i = CODE.indexOf('window.__gdtOnImported = async (result) =>');
+  assert.ok(i > -1, '★__gdtOnImported 가 결과를 안 받는다(가져온 프로젝트가 폴더 밖에 떨어진다)');
+  const blk = CODE.slice(i, CODE.indexOf('};', i));
+  assert.match(blk, /result && result\.ok && result\.projectId/, 'ok 확인 없이 배정한다');
+  assert.ok(blk.indexOf('_adoptIntoCurrentFolder(result.projectId)') > -1);
+  assert.ok(blk.indexOf('_adoptIntoCurrentFolder') < blk.indexOf('renderGrid()'), '배정 전에 다시 그린다');
+  const dup = sliceBlock(CODE, 'async function duplicateProjectUI(');
+  const iAdopt = dup.indexOf('_adoptIntoCurrentFolder(res.newProjectId)');
+  assert.ok(iAdopt > -1 && iAdopt > dup.indexOf('if (!res?.ok)') && iAdopt < dup.indexOf('await renderGrid()'), '복제 방어선이 없다/순서가 틀렸다');
+});
+
+test('OS-20 R1 기획 카드 📁 — 비활성(aria-disabled, ⛔disabled 속성) + 이유 툴팁 · 드래그 표지를 타일·경로가 거절', () => {
+  const i = CODE.indexOf('const folderBtnHtml =');
+  const blk = CODE.slice(i, CODE.indexOf(';', CODE.indexOf('openFolderMenuUI(event', i)));
+  assert.match(blk, /isPlanning\s*\?\s*`<button type="button" class="card-action card-folder-move is-disabled" aria-disabled="true" title="기획 프로젝트는 아직 폴더에 넣을 수 없습니다">/);
+  const planBtn = blk.slice(blk.indexOf('is-disabled'), blk.indexOf('📁'));
+  assert.ok(!/onclick|\sdisabled[\s>=]/.test(planBtn), '★기획 📁 에 onclick 이나 disabled 속성이 붙었다(툴팁이 안 뜬다)');
+  assert.match(CODE, /if \(isPlanning\) e\.dataTransfer\.setData\('text\/x-goditor-planning', '1'\)/);
+  for (const head of ["tiles.addEventListener('dragover', (e) => {", "tiles.addEventListener('drop', async (e) => {",
+                      "up.addEventListener('dragover', (e) => {", "up.addEventListener('drop', async (e) => {"]) {
+    assert.match(sliceBlock(CODE, head), /if \(_isPlanningDrag\(e\)\) return;/, `${head} 가 기획 카드 드래그를 안 거른다`);
+  }
 });

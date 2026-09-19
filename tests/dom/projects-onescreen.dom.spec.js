@@ -52,11 +52,21 @@ function installMock(initial) {
   window.__calls = [];
   const log = (name, arg) => { window.__calls.push({ name, arg: JSON.parse(JSON.stringify(arg == null ? null : arg)) }); };
   let seq = 0;
+  // ★2라운드(T-062 후속) — 가져오기(.gdt) 결과가 «디스크에 생긴 것»을 흉내 낸다(목의 db 에 직접 넣기).
+  window.__mockAddProject = (p) => { db.projects.push({ folderId: null, ...p }); save(); };
   window.electronAPI = {
     isElectron: true,
     listProjects: async () => db.projects.map(p => ({ ...p })),
     trashList: async () => ({ ok: true, items: [] }),
     getAuthState: async () => ({ signedIn: false }),
+    // 복제 — ★일부러 «소속을 잃은» 사본을 만든다(folderId:null). 실제 main 은 원본 meta 를 복사해 소속이 살아남지만(9370 실측),
+    //   목록 페이지의 방어선(_adoptIntoCurrentFolder)이 «그것에 기대지 않고» 지금 보는 폴더로 넣는지를 잰다.
+    duplicateProject: async ({ sourceProjectId, newName }) => {
+      log('duplicateProject', { sourceProjectId });
+      const id = 'proj_dup' + (++seq);
+      db.projects.push({ id, name: newName, updatedAt: new Date().toISOString(), folderId: null }); save();
+      return { ok: true, newProjectId: id };
+    },
     saveProject: async (p) => { log('saveProject', { id: p.id }); db.projects.push({ id: p.id, name: p.name, updatedAt: p.updatedAt, folderId: null }); save(); return { ok: true }; },
     folders: {
       list: async () => ({ ok: true, folders: db.folders.map(f => ({ ...f })) }),
@@ -433,4 +443,186 @@ test('ⓟ 키보드 — Tab 으로 타일 ⋯ 에 닿고 Enter 로 폴더 메뉴
   const items = await page.$$eval('.card-folder-menu .tab-add-item-name', els => els.map(e => e.textContent.trim()));
   expect(items[0]).toBe('폴더에서 빼기');
   expect(items).not.toContain('미분류로 빼기');
+});
+
+/* ── 2라운드(T-062 후속, 09-19 오후) — ① 이름변경 Esc 뒤 ⋯ · ② 목록 보기 이름 우선 · ③ 카드 📁 Esc · ④ 폴더 안 가져오기/복제 소속 · R1 기획 ── */
+
+const moreSel = (key) => `.ft-cell:has([data-folder-key="${key}"]) .ft-more`;
+async function renameViaMenu(page, key) {
+  await page.hover(`.ft-cell:has([data-folder-key="${key}"])`);
+  await page.click(moreSel(key));
+  await page.click('.card-folder-menu [data-ft-act="rename"]');
+  await expect(page.locator('#folder-tiles .ft-editing .fr-name-input')).toBeFocused();
+}
+async function expectMoreAlive(page, key) {
+  // 인라인 display:none 이 남으면 hover·Tab 어느 쪽으로도 메뉴에 못 간다(09-19 이벨류 ①)
+  expect(await page.$eval(moreSel(key), el => getComputedStyle(el).display)).not.toBe('none');
+  expect(await page.$eval(moreSel(key), el => el.style.display)).toBe('');
+  await page.hover(`.ft-cell:has([data-folder-key="${key}"])`);
+  await expect.poll(() => page.$eval(moreSel(key), el => getComputedStyle(el).opacity)).toBe('1');
+  await page.mouse.move(5, 790);
+  await page.focus(`.ft-tile[data-folder-key="${key}"]`);
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement && document.activeElement.dataset.folderMenu)).toBe(key);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.card-folder-menu [data-ft-act="rename"]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.card-folder-menu')).toHaveCount(0);
+}
+
+test('ⓠ ① 타일 ⋯ → 이름 바꾸기 → Esc(취소)·Enter(같은 이름·다른 이름) 뒤에도 그 타일 ⋯ 가 살아 있다(hover·Tab·Enter)', async ({ page }) => {
+  const errs = await boot(page, seed());
+  // 편집 중엔 ⋯ 가 안 보인다(입력칸과 겹치지 않게) — CSS :has 로만
+  await renameViaMenu(page, 'fold_a');
+  expect(await page.$eval('.ft-cell:has(.ft-editing) .ft-more', el => getComputedStyle(el).display)).toBe('none');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#folder-tiles .ft-editing')).toHaveCount(0);
+  await expectMoreAlive(page, 'fold_a');
+  // Enter — 같은 이름
+  await renameViaMenu(page, 'fold_b');
+  await page.keyboard.press('Enter');
+  await expectMoreAlive(page, 'fold_b');
+  // Enter — 다른 이름
+  await renameViaMenu(page, 'fold_c');
+  await page.locator('#folder-tiles .ft-editing .fr-name-input').fill('보관함');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.ft-tile[data-folder-key="fold_c"] .ft-name')).toHaveText('보관함');
+  await expectMoreAlive(page, 'fold_c');
+  expect(await page.evaluate(() => window.__calls.filter(c => c.name === 'rename').map(c => c.arg))).toEqual([{ id: 'fold_c', name: '보관함' }]);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('ⓡ ② 목록 보기 압축형 — 긴 이름이 「N개·언제」보다 먼저 잘리지 않는다(이름 우선) · 격자 보기 크기는 그대로', async ({ page }) => {
+  const d = seed();
+  d.folders[1].name = '고디터 QA 아주 긴 폴더이름 열네';   // 한글 위주 14자 남짓
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await boot(page, d);
+  const box = (sel) => page.$eval(sel, el => { const r = el.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; });
+  const gridBefore = await box('.ft-tile[data-folder-key="fold_b"]');
+  await page.click('#view-toggle label[title="목록으로 보기"]');
+  await expect(page.locator('#gallery-col')).toHaveClass(/is-list-mode/);
+  const m = await page.$eval('.ft-cell:has([data-folder-key="fold_b"])', c => {
+    const n = c.querySelector('.ft-name'), s = c.querySelector('.ft-sub'), t = c.querySelector('.ft-text');
+    return { nameW: n.clientWidth, nameSW: n.scrollWidth, subW: s.clientWidth, textW: t.clientWidth };
+  });
+  // 이름은 «자기 글자 폭» 또는 «글자 칸 전체» 중 작은 쪽까지 다 쓴다 — 「N개·언제」에 자리를 뺏기지 않는다
+  expect(m.nameW, JSON.stringify(m)).toBeGreaterThanOrEqual(Math.min(m.nameSW, m.textW) - 1);
+  expect(m.nameW, JSON.stringify(m)).toBeGreaterThanOrEqual(m.subW);
+  // 짧은 이름 타일은 「N개·언제」까지 온전히 보인다(공간이 있으면 줄이지 않는다)
+  const short = await page.$eval('.ft-cell:has([data-folder-key="fold_c"])', c => {
+    const n = c.querySelector('.ft-name'), s = c.querySelector('.ft-sub');
+    return { n: n.scrollWidth <= n.clientWidth, s: s.scrollWidth <= s.clientWidth };
+  });
+  expect(short).toEqual({ n: true, s: true });
+  // 격자 보기로 돌아오면 타일 크기 전후 동일(목록 보기 한정 규칙)
+  await page.click('#view-toggle label[title="바둑판으로 보기"]');
+  await expect(page.locator('#gallery-col')).not.toHaveClass(/is-list-mode/);
+  expect(await box('.ft-tile[data-folder-key="fold_b"]')).toEqual(gridBefore);
+});
+
+test('ⓢ ③ 카드 📁 메뉴 Esc — 루트·폴더 안(경로 유지)에서 닫힘 · 새 폴더 입력칸 Esc 는 입력만 취소, 두 번째 Esc 에 메뉴 닫힘', async ({ page }) => {
+  const errs = await boot(page, seed());
+  const openCardMenu = async (id) => {
+    await page.hover(`#project-grid .project-card[data-id="${id}"]`);
+    await page.click(`#project-grid .project-card[data-id="${id}"] .card-folder-move`);
+    await expect(page.locator('.card-folder-menu')).toHaveCount(1);
+  };
+  // 루트
+  await openCardMenu('proj_1');
+  expect(await page.$eval('.project-card[data-id="proj_1"] .card-folder-move', el => el.getAttribute('aria-expanded'))).toBe('true');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.card-folder-menu')).toHaveCount(0);
+  expect(await page.$eval('.project-card[data-id="proj_1"] .card-folder-move', el => el.getAttribute('aria-expanded'))).toBe(null);
+  // 폴더 안 — Esc 는 메뉴만 닫고 폴더 밖으로 나가지 않는다(우선순위: 메뉴 → 폴더 밖)
+  await page.click('.ft-tile[data-folder-key="fold_a"]');
+  await openCardMenu('proj_4');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.card-folder-menu')).toHaveCount(0);
+  await expect(page.locator('#gal-crumb')).toBeVisible();
+  await expect(page.locator('#gal-crumb-name')).toHaveText('파테나');
+  // 새 폴더 입력칸 — 첫 Esc = 입력 취소(메뉴 유지), 두 번째 Esc = 메뉴 닫기, 폴더는 안 만들어진다
+  await openCardMenu('proj_4');
+  await page.click('.card-folder-menu #cfm-new-folder');
+  await expect(page.locator('.card-folder-menu .fr-name-input')).toBeFocused();
+  await page.keyboard.type('만들지 않을 폴더');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.card-folder-menu')).toHaveCount(1);
+  await expect(page.locator('.card-folder-menu .fr-name-input')).toHaveCount(0);
+  await expect(page.locator('.card-folder-menu #cfm-new-folder')).toBeVisible();
+  await expect(page.locator('#gal-crumb')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.card-folder-menu')).toHaveCount(0);
+  await expect(page.locator('#gal-crumb')).toBeVisible();
+  expect(await page.evaluate(() => window.__calls.filter(c => c.name === 'create').length)).toBe(0);
+  // 메뉴가 닫힌 뒤의 Esc 는 다시 «폴더 밖으로»(닫힌 메뉴의 키 리스너가 남아 Esc 를 삼키지 않는다)
+  await page.mouse.click(5, 500);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#gal-crumb')).toBeHidden();
+  await expect(page.locator('#folder-zone')).toBeVisible();
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('ⓣ ④ 폴더 안에서 복제·가져오기 → 지금 보는 폴더 소속 · 루트·검색 중엔 배정 안 함', async ({ page }) => {
+  const errs = await boot(page, seed());
+  const assigns = () => page.evaluate(() => window.__calls.filter(c => c.name === 'assign').map(c => c.arg));
+  // 폴더 안 — 복제
+  await page.click('.ft-tile[data-folder-key="fold_a"]');
+  await page.evaluate(() => duplicateProjectUI({ stopPropagation() {} }, 'proj_4'));
+  await page.waitForFunction(() => document.querySelector('.project-card[data-id="proj_dup1"]'));
+  expect(await assigns()).toEqual([{ projectIds: ['proj_dup1'], folderId: 'fold_a' }]);
+  expect(await cardIds(page)).toEqual(['proj_4', 'proj_5', 'proj_dup1']);
+  // 폴더 안 — 가져오기(.gdt) 완료 훅이 결과를 받아 지금 폴더로
+  await page.evaluate(() => window.__mockAddProject({ id: 'proj_9', name: '가져온 것', updatedAt: new Date().toISOString() }));
+  await page.evaluate(() => window.__gdtOnImported({ ok: true, projectId: 'proj_9' }));
+  await page.waitForFunction(() => document.querySelector('.project-card[data-id="proj_9"]'));
+  expect((await assigns()).pop()).toEqual({ projectIds: ['proj_9'], folderId: 'fold_a' });
+  // 결과 없이 불리는 옛 호출(글꼴 대체 뒤 새로고침)도 안 깨진다
+  await page.evaluate(() => window.__gdtOnImported());
+  const n = (await assigns()).length;
+  // 루트 — 배정 없음
+  await page.click('#gal-tab-projects');
+  await page.evaluate(() => duplicateProjectUI({ stopPropagation() {} }, 'proj_1'));
+  await page.waitForFunction(() => document.querySelector('.project-card[data-id="proj_dup2"]'));
+  await page.evaluate(() => window.__mockAddProject({ id: 'proj_10', name: '루트로 가져옴', updatedAt: new Date().toISOString() }));
+  await page.evaluate(() => window.__gdtOnImported({ ok: true, projectId: 'proj_10' }));
+  // 검색 중(폴더 안에서 검색해도 전체 범위) — 배정 없음
+  await page.click('.ft-tile[data-folder-key="fold_b"]');
+  await page.fill('#proj-search-input', 'QA');
+  await page.waitForTimeout(300);
+  await page.evaluate(() => duplicateProjectUI({ stopPropagation() {} }, 'proj_6'));
+  await page.evaluate(() => window.__mockAddProject({ id: 'proj_11', name: '검색 중 가져옴', updatedAt: new Date().toISOString() }));
+  await page.evaluate(() => window.__gdtOnImported({ ok: true, projectId: 'proj_11' }));
+  // 실패 결과(ok:false)도 배정 안 함
+  await page.fill('#proj-search-input', '');
+  await page.waitForTimeout(300);
+  await page.evaluate(() => window.__gdtOnImported({ ok: false, projectId: 'proj_12' }));
+  expect((await assigns()).length).toBe(n);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('ⓤ R1 기획(plan_*) 카드 — 📁 는 보이되 비활성(aria-disabled·이유 툴팁·메뉴 안 열림) · 타일/경로로 끌어도 안 받는다', async ({ page }) => {
+  const d = seed();
+  d.projects.push({ id: 'plan_1', name: '기획 하나', type: 'planning', updatedAt: iso(1), folderId: null });
+  const errs = await boot(page, d);
+  const btn = '#project-grid .project-card[data-id="plan_1"] .card-folder-move';
+  await expect(page.locator(btn)).toHaveCount(1);
+  expect(await page.$eval(btn, el => ({ dis: el.getAttribute('aria-disabled'), cls: el.classList.contains('is-disabled'), title: el.title, onclick: el.getAttribute('onclick'), disabledAttr: el.hasAttribute('disabled') })))
+    .toEqual({ dis: 'true', cls: true, title: '기획 프로젝트는 아직 폴더에 넣을 수 없습니다', onclick: null, disabledAttr: false });
+  await page.hover('#project-grid .project-card[data-id="plan_1"]');
+  // page.click 은 aria-disabled 를 «못 누름»으로 보고 기다린다 — 사용자처럼 그 좌표를 진짜로 누른다
+  const bb = await page.locator(btn).boundingBox();
+  await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2);
+  await page.waitForTimeout(150);
+  await expect(page.locator('.card-folder-menu')).toHaveCount(0);
+  expect(page.url()).toContain('projects.html');   // 카드 열기로 번지지 않았다
+  // 드래그 — 타일이 받지 않는다(드롭 표시도 없음)
+  const r = await dragCardTo(page, 'plan_1', '.ft-tile[data-folder-key="fold_a"]');
+  expect(r.accepted).toBe(false);
+  expect(r.hl).toBe(false);
+  expect(await page.evaluate(() => window.__calls.filter(c => c.name === 'assign').length)).toBe(0);
+  // 일반 카드 📁 는 그대로
+  expect(await page.$eval('#project-grid .project-card[data-id="proj_1"] .card-folder-move', el => el.getAttribute('aria-disabled'))).toBe(null);
+  const ok = await dragCardTo(page, 'proj_1', '.ft-tile[data-folder-key="fold_a"]');
+  expect(ok.accepted).toBe(true);
+  expect(errs, errs.join('\n')).toEqual([]);
 });
