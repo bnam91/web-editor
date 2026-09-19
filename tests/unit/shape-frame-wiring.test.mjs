@@ -131,3 +131,11 @@ test('⑤ export-figma-json — strokeWidth 0 보존', () => {
   assert.equal(f('5'), 5);
   assert.equal(f(undefined), 1);
 });
+
+test('⑥ ⌘G/⌘⌥G(wrapSelectedBlocksInFrame) — 도형은 래퍼째 한 단위, 부모 판정은 parentElement 부터', () => {
+  const body = sliceBlock(BF, 'function wrapSelectedBlocksInFrame(');
+  assert.ok(!/data-shape-frame/.test(body), '죽은 셀렉터 data-shape-frame 이 남았다');
+  assert.ok(/selected\.map\(el => shapeFrameOf\(el\) \|\| el\)/.test(body), 'shape-block → 래퍼 정규화 없음');
+  assert.ok(!/selected\[0\]\.closest\('\.frame-block\[data-free-layout\]'\)/.test(body), '자기 자신을 잡는 closest');
+  assert.ok(/b\.parentElement\?\.closest\('\.frame-block\[data-free-layout\]'\)/.test(body));
+});

@@ -22,7 +22,7 @@ import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame } from './frame-geometry.js';
 import { getGridModel } from './blocks/grid-block.js';
 import { grdAddLine } from './props/prop-grid.js';
-import { isShapeFrame, resolveInsertFrame } from './shape-frame.js';
+import { isShapeFrame, shapeFrameOf, resolveInsertFrame } from './shape-frame.js';
 
 /* ═══════════════════════════════════
    BLOCK FACTORY — make* / add* / addSection
@@ -1807,6 +1807,10 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   )];
   // text-frame 래퍼는 그룹 대상이 아님 (안의 text-block이 실제 선택 단위)
   selected = selected.filter(el => el.dataset?.textFrame !== 'true');
+  // ★도형은 «래퍼째» 한 단위다(0918 A안, T-057) — shape-block 을 그 도형 래퍼로 바꿔 묶는다.
+  //   안 바꾸면 ① freeLayout 분기에서 closest 가 도형 래퍼 자신을 잡아 새 그룹/프레임이 래퍼 «안»에 생기고
+  //   ② flow 분기에서 row 단위가 shape-block 이 돼 새 프레임이 래퍼 안에 들어가고 도형이 삭제됐다.
+  selected = [...new Set(selected.map(el => shapeFrameOf(el) || el))];
   // 다른 선택 항목을 포함하는 컨테이너(드릴인된 부모 프레임/그룹)는 제외 — 리프 선택만 그룹화
   selected = selected.filter(el => !selected.some(o => o !== el && el.contains(o)));
   if (selected.length < 1) {
@@ -1826,16 +1830,19 @@ function wrapSelectedBlocksInFrame(opts = {}) {
 
   // ── freeLayout 내부 묶기: X/Y 좌표 유지 ──────────────────────────────────
   // 선택된 블록들이 동일한 freeLayout 프레임 안에 있으면 절대좌표 기반으로 처리
-  const parentFreeFrame = selected[0].closest('.frame-block[data-free-layout]');
+  // ★«부모» 자유배치 프레임 — parentElement 에서 찾는다(선택 항목 자신이 자유배치 프레임/도형 래퍼면
+  //   b.closest 가 자기 자신을 잡아 새 프레임을 자기 안에 만든다).
+  const _parentFree = b => b.parentElement?.closest('.frame-block[data-free-layout]') || null;
+  const parentFreeFrame = _parentFree(selected[0]);
   const allInSameFreeFrame = parentFreeFrame &&
-    selected.every(b => b.closest('.frame-block[data-free-layout]') === parentFreeFrame);
+    selected.every(b => _parentFree(b) === parentFreeFrame);
 
   if (allInSameFreeFrame) {
     // 각 블록의 absolute wrapper(text-frame 또는 블록 자체) 수집
     const wrappers = [];
     selected.forEach(b => {
       const w = b.closest('.frame-block[data-text-frame]') ||
-                b.closest('.frame-block[data-shape-frame]') ||
+                shapeFrameOf(b) ||
                 (b.style.position === 'absolute' ? b : null);
       if (w && !wrappers.includes(w)) wrappers.push(w);
     });
@@ -1897,13 +1904,29 @@ function wrapSelectedBlocksInFrame(opts = {}) {
 
   // ── 섹션 레벨(flow) 블록 묶기: 기존 stack 방식 ───────────────────────────
   const sectionInner = sec.querySelector('.section-inner');
-  const childrenInOrder = [...sectionInner.children];
   const rows = [];
   selected.forEach(b => {
     const row = b.classList.contains('gap-block') ? b : (b.closest('.frame-block[data-text-frame]') || b.closest('.row') || b);
     if (row && !rows.includes(row)) rows.push(row);
   });
-  rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
+  // 문서 순서 정렬 — section-inner 직속이 아닌 단위(merged-part 등)도 -1 로 맨 앞에 끼지 않게
+  rows.sort((a, b) => (a === b ? 0 : (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)));
+  // 도형 래퍼의 보이는 가로 위치(섹션 기준) — 래퍼째 옮길 때 left 로 보존
+  const _innerRect = sectionInner?.getBoundingClientRect?.();
+  const _scale = (_innerRect && sectionInner.offsetWidth) ? (_innerRect.width / sectionInner.offsetWidth) || 1 : 1;
+  const _shapeLeft = new Map();
+  rows.forEach(row => {
+    const sfs = isShapeFrame(row) ? [row] : [...row.querySelectorAll('.frame-block')].filter(isShapeFrame);
+    sfs.forEach(w => {
+      const r = w.getBoundingClientRect();
+      _shapeLeft.set(w, _innerRect ? Math.round((r.left - _innerRect.left) / _scale) : 0);
+    });
+  });
+  // row 안에서 옮길 블록 — 도형 래퍼 «안»의 shape-block 은 래퍼째 옮기므로 따로 뽑지 않는다
+  const _insideShapeFrame = (x, row) => {
+    for (let p = x.parentElement; p && p !== row; p = p.parentElement) if (isShapeFrame(p)) return true;
+    return false;
+  };
 
   // 선택 블록들의 총 높이 계산 (프레임 높이 결정)
   const GAP = 0;
@@ -1927,11 +1950,25 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   rows.forEach(row => {
     const rowH = row.offsetHeight || 60;
     const isGapRow = row.classList.contains('gap-block');
-    const blocks = isGapRow ? [row] : [...row.querySelectorAll(BLOCK_SEL)];
+    const isShapeRow = isShapeFrame(row);
+    const blocks = (isGapRow || isShapeRow) ? [row]
+      : [...row.querySelectorAll(BLOCK_SEL)].filter(x => !_insideShapeFrame(x, row));
     blocks.forEach(block => {
       block.style.position = 'absolute';
-      block.style.left = '0px';
       block.style.top = stackY + 'px';
+      if (isShapeFrame(block)) {
+        // 도형 래퍼 — 크기 유지, 보이는 가로 위치 유지(width:100% 로 늘리지 않는다)
+        const l = _shapeLeft.get(block) || 0;
+        block.style.left = l + 'px';
+        block.style.margin = '0';
+        block.dataset.offsetX = String(l);
+        block.dataset.offsetY = String(stackY);
+        block.style.transform = '';
+        block.classList.remove('selected');
+        ss.appendChild(block);
+        return;
+      }
+      block.style.left = '0px';
       block.style.width = '100%';
       block.style.transform = '';
       block.classList.remove('selected');
@@ -1939,7 +1976,7 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       ss.appendChild(block);
     });
     stackY += rowH + GAP;
-    if (!isGapRow) row.remove();
+    if (!isGapRow && !isShapeRow) row.remove();
   });
 
   window.bindFrameDropZone?.(ss);
