@@ -300,3 +300,22 @@ test('B8 줌 200%(--inv-zoom 0.5) — 화면상 칩 크기 18px 일정, 칩 중�
   expect(errs).toEqual([]);
 });
 
+
+test('B9 ★칩 드래그·클릭 뒤 click 이 블록 선택 핸들러로 새지 않는다(9504 실앱: 새면 패널 재렌더 → 피커 동기 끊김)', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => {
+    window.__clicks = 0;
+    document.addEventListener('click', () => { window.__clicks++; });   // 에디터 선택 핸들러 자리(버블)
+    window.showGradientLine(document.getElementById('shp'));
+  });
+  await dragChip(page, 'shp', 1, 0.8);            // mouseup 은 칩 밖(선 위) → click 대상 = 공통 조상
+  const c = await page.evaluate(() => { const r = document.getElementById('shp')._gradLine.chips[0].getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  await page.mouse.click(c.x, c.y);               // 클릭만
+  const out = await page.evaluate(() => ({ clicks: window.__clicks, css: document.getElementById('shp').dataset.shapeColor }));
+  expect(out.css).toBe('linear-gradient(90deg, #ff0000 0%, #00ff00 80%, #0000ff 100%)');
+  expect(out.clicks).toBe(0);
+  // 음성대조 성격: 오버레이 밖 클릭은 그대로 전달된다(삼킴이 과하지 않다)
+  await page.mouse.click(5, 5);
+  expect(await page.evaluate(() => window.__clicks)).toBe(1);
+  expect(errs).toEqual([]);
+});

@@ -270,11 +270,26 @@ function _startDrag(e, onMoveLocal, onEnd) {
   const onUp = () => {
     document.removeEventListener('mousemove', onMove, true);
     document.removeEventListener('mouseup', onUp, true);
+    // ★드래그 뒤 브라우저가 쏘는 click(대상 = mousedown·mouseup 공통 조상 = 블록/캔버스)을 삼킨다.
+    //   안 삼키면 에디터가 블록을 «다시 선택» → 속성 패널 재렌더 → 열린 피커의 대상 input 이
+    //   떨어져 나가 캔버스→피커 동기가 끊긴다(9504 실앱 실측, 0918).
+    if (moved) _swallowNextClick();
     onEnd(moved);
   };
   document.addEventListener('mousemove', onMove, true);
   document.addEventListener('mouseup', onUp, true);
 }
+
+function _swallowNextClick() {
+  const kill = (ev) => { ev.stopImmediatePropagation(); ev.stopPropagation(); ev.preventDefault(); cleanup(); };
+  const cleanup = () => { window.removeEventListener('click', kill, true); clearTimeout(tm); };
+  const tm = setTimeout(cleanup, 300);
+  window.addEventListener('click', kill, true);
+}
+// 칩·끝 원을 «클릭만» 했을 때도 click 이 블록 선택 핸들러로 새지 않게(같은 재렌더 이유).
+document.addEventListener('click', (ev) => {
+  if (ev.target?.closest?.('.grad-line-overlay')) { ev.stopImmediatePropagation(); ev.stopPropagation(); }
+}, true);
 
 function _swallow(e) {
   e.preventDefault();
