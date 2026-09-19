@@ -7,6 +7,8 @@
  * ⛔앱을 «안» 띄운다. color-picker.js(import 없는 모듈) + gradient-model.js + gradient-line-overlay.js
  *   + editor-blocks.css + color-picker.css 원문만 로드. prop-shape.js 의 배선(goya-cp:gradient →
  *   dataset 쓰기 → showGradientLine)은 하네스에서 같은 모양으로 흉내 낸다.
+ * 통합(int/0918): picker 유닛의 탭 능력 게이트(dataset.cpModes, 없으면 solid 만)가 들어와서
+ *   prop-shape.js:381 이 실앱에서 붙이는 data-cp-modes 를 하네스 input 에도 똑같이 붙인다.
  * 실행: npm run test:dom -- gradient-canvas-picker-sync
  */
 const { test, expect } = require('@playwright/test');
@@ -64,7 +66,7 @@ async function boot(page, { bind = true } = {}) {
             </div>
             <div style="position:absolute;left:560px;top:40px;" class="prop-color-field">
               <div class="prop-color-swatch" id="sw" style="width:24px;height:24px;background:${CSS3}">
-                <input type="color" id="shape-color-color" value="#ff0000">
+                <input type="color" id="shape-color-color" value="#ff0000" data-cp-modes="solid,gradient,image">
               </div>
             </div>
           </div>
