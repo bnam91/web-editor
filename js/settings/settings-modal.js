@@ -368,6 +368,14 @@
     let st = null;
     try { st = await api.state(); } catch (_) { st = null; }
     if (!st) st = { allowed: false, reason: 'locked' };
+    /* «다시 잠그기»(T-056 2라운드): main 의 lock() 은 «코드로 푼 해제»만 되돌린다.
+     *   관리자 계정·운영자 빌드·개발 빌드에선 눌러도 아무 일이 없으므로 버튼을 안 보인다(대신 한 줄 안내).
+     *   옛 preload(api.lock 없음)도 버튼 없음. */
+    const canLock = st.allowed && st.reason === 'unlocked' && typeof api.lock === 'function';
+    const lockHelp = !st.allowed ? '' : ({
+      'admin-email': '관리자 계정에서 로그아웃하면 다시 잠깁니다.',
+      'admin-arg':   '운영자 빌드가 아닌 일반 실행이면 잠깁니다.',
+    })[st.reason] || '';
 
     pane.innerHTML = `
       <div class="settings-section-title">디버깅</div>
@@ -391,8 +399,10 @@
         <div class="settings-api-row">
           <div class="settings-api-input-wrap">
             <button class="settings-btn settings-btn-primary" data-debug-open>개발자 도구 열기</button>
+            ${canLock ? '<button class="settings-btn" data-debug-lock title="열려 있는 개발자 도구도 닫힙니다">다시 잠그기</button>' : ''}
           </div>
           <div class="settings-api-status" data-debug-msg></div>
+          ${lockHelp ? `<div class="settings-help" data-debug-lockhelp>${_escapeHtml(lockHelp)}</div>` : ''}
         </div>` : ''}
       </div>`;
 
@@ -426,6 +436,16 @@
       setTimeout(() => { try { input.focus(); } catch (_) {} }, 0);
     }
     if (unlockBtn) unlockBtn.addEventListener('click', submit);
+    const lockBtn = pane.querySelector('[data-debug-lock]');
+    if (lockBtn) lockBtn.addEventListener('click', async () => {
+      lockBtn.disabled = true;               // 두 번 누름 방지
+      let r = null;
+      try { r = await api.lock(); } catch (_) { r = null; }
+      if (r && !r.allowed) { renderDebugPane(); return; }
+      lockBtn.disabled = false;
+      msg.textContent = '잠그지 못했습니다';
+      msg.className = 'settings-api-status err';
+    });
     if (openBtn) openBtn.addEventListener('click', async () => {
       let r = null;
       try { r = await api.open(); } catch (_) { r = null; }

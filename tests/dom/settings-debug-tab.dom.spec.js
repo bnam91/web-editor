@@ -21,7 +21,7 @@ const HARNESS = (() => {
   h = h.replace(/<script\b[\s\S]*?<\/script>/gi, '');
   return h.replace('</body>', `<script>
   /* 가짜 main — 코드 «정답»은 여기 없다. 'GOOD' 이라는 임의 문자열만 받아 준다(평문 금지 규약). */
-  window.__calls = { state: 0, unlock: [], open: 0 };
+  window.__calls = { state: 0, unlock: [], open: 0, lock: 0 };
   window.__st = { allowed: false, reason: 'locked', packaged: true };
   window.__fails = 0;
   window.electronAPI = { devtools: {
@@ -33,6 +33,13 @@ const HARNESS = (() => {
       return { ok: false, reason: window.__fails >= 5 ? 'rate_limited' : 'bad_code' };
     },
     open: async () => { window.__calls.open++; return window.__st.allowed ? { ok: true } : { ok: false, reason: 'locked' }; },
+    /* main 의 lock() 과 같은 규칙: «코드로 푼 해제»만 되돌린다. 관리자 계정·운영자 빌드·개발 빌드는 그대로 허용. */
+    lock: async () => {
+      window.__calls.lock++;
+      if (window.__lockThrows) throw new Error('ipc down');
+      if (window.__st.reason === 'unlocked') window.__st = { allowed: false, reason: 'locked', packaged: true };
+      return { ...window.__st };
+    },
   } };
   /* 에디터 전역 단축키 대역 — document «버블» 단계에서 키를 받으면 기록한다(Backspace = 블럭 삭제 자리). */
   window.__docKeys = [];
@@ -145,4 +152,70 @@ test('DBG5 관리자 계정 로그인 상태면 코드 입력 없이 「관리�
   await page.waitForSelector('[data-debug-code]');
   expect(await page.evaluate(() => window.__calls.state)).toBeGreaterThan(n1);
   await expect(page.locator('[data-debug-state]')).toHaveText('잠김');
+});
+
+test('DBG6 코드로 해제 → [다시 잠그기] → 잠김·코드칸 복귀 · 다시 풀 수 있다', async ({ page }) => {
+  const errs = await boot(page);
+  await page.click('#settings-modal .settings-tab[data-tab="debug"]');
+  await page.waitForSelector('[data-debug-code]');
+  expect(await page.locator('[data-debug-lock]').count(), '잠김 상태에서 잠그기 버튼이 있다').toBe(0);
+  await page.fill('[data-debug-code]', 'GOOD');
+  await page.click('[data-debug-unlock]');
+  await page.waitForSelector('[data-debug-lock]');
+  await expect(page.locator('[data-debug-state]')).toContainText('이 세션에서 해제됨');
+  await expect(page.locator('[data-debug-lock]')).toBeVisible();
+  expect(await page.locator('[data-debug-lock]').evaluate((b) => b.classList.contains('settings-btn')), '새 룩 금지 — settings-btn').toBe(true);
+
+  await page.click('[data-debug-lock]');
+  await page.waitForSelector('[data-debug-code]');
+  expect(await page.evaluate(() => window.__calls.lock)).toBe(1);
+  await expect(page.locator('[data-debug-state]')).toHaveText('잠김');
+  expect(await page.locator('[data-debug-open]').count()).toBe(0);
+  expect(await page.locator('[data-debug-lock]').count()).toBe(0);
+
+  // 다시 풀 수 있다
+  await page.fill('[data-debug-code]', 'GOOD');
+  await page.press('[data-debug-code]', 'Enter');
+  await page.waitForSelector('[data-debug-open]');
+  await expect(page.locator('[data-debug-state]')).toContainText('이 세션에서 해제됨');
+  expect(errs).toEqual([]);
+});
+
+test('DBG7 코드 해제가 아니면(관리자 계정·운영자 빌드·개발 빌드) 잠그기 버튼 없음 — 양성대조 unlocked=1', async ({ page }) => {
+  await boot(page);
+  const count = async (reason) => {
+    await page.evaluate((r) => { window.__st = { allowed: true, reason: r, packaged: r !== 'dev' }; }, reason);
+    await page.click('#settings-modal .settings-tab[data-tab="api"]');
+    await page.click('#settings-modal .settings-tab[data-tab="debug"]');
+    await page.waitForSelector('[data-debug-open]');
+    await expect(page.locator('[data-debug-state]')).not.toHaveText('잠김');
+    return page.locator('[data-debug-lock]').count();
+  };
+  expect(await count('unlocked'), '양성대조: 코드 해제면 버튼 1개').toBe(1);
+  expect(await count('admin-email')).toBe(0);
+  expect(await count('admin-arg')).toBe(0);
+  expect(await count('dev')).toBe(0);
+  // 관리자 계정일 땐 버튼 대신 어떻게 잠기는지 한 줄 안내
+  await count('admin-email');
+  await expect(page.locator('[data-debug-lockhelp]')).toContainText('로그아웃');
+});
+
+test('DBG8 옛 preload(api.lock 없음)면 unlocked 여도 버튼 없음 · pageerror 0', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => { delete window.electronAPI.devtools.lock; window.__st = { allowed: true, reason: 'unlocked', packaged: true }; });
+  await page.click('#settings-modal .settings-tab[data-tab="debug"]');
+  await page.waitForSelector('[data-debug-open]');
+  expect(await page.locator('[data-debug-lock]').count()).toBe(0);
+  expect(errs).toEqual([]);
+});
+
+test('DBG9 잠그기 IPC 가 실패하면 「잠그지 못했습니다」 · 버튼은 다시 눌 수 있게', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => { window.__st = { allowed: true, reason: 'unlocked', packaged: true }; window.__lockThrows = true; });
+  await page.click('#settings-modal .settings-tab[data-tab="debug"]');
+  await page.waitForSelector('[data-debug-lock]');
+  await page.click('[data-debug-lock]');
+  await expect(page.locator('[data-debug-msg]')).toHaveText('잠그지 못했습니다');
+  expect(await page.locator('[data-debug-lock]').isDisabled()).toBe(false);
+  expect(await page.evaluate(() => window.__calls.lock)).toBe(1);
 });
