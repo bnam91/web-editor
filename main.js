@@ -26,9 +26,10 @@ const os = require('os');
    devtools-gate 의 devtools-opened 가드는 «창에서 여는» 길만 본다. 앱을
    `--remote-debugging-port`/`--remote-debugging-pipe`(CDP) 나 `--inspect*`(메인 Node 디버거)로
    띄우면 그 가드를 안 거치고 렌더러 전체를 조작할 수 있다 → 배포판이면 «뜨기 전에» 끈다.
-   ★예외 없음(0919 QA) — 옛 운영자 admin(인자 + GODITOR_ADMIN_TOKEN + userData/admin.allow) 예외는 셋 다 사용자 손에 있어 뺐다.
+   ★예외 없음(0919 QA) — 운영자 admin(isAdminAuthorized)도 예외가 아니다. 옛 판정(인자 + GODITOR_ADMIN_TOKEN + admin.allow)은
+   셋 다 사용자 손이라 뺐고, 3라운드에 서명 operator.allow 로 바뀐 뒤에도 CDP·개발자 도구 예외는 되살리지 않는다.
    ⛔관리자 이메일·관리자코드는 여기 예외가 아니다(띄우는 시점엔 아직 판정할 수 없고, 코드 해제는 «창 안»의 일이다).
-   ★자리: path·fs 선언 «뒤»(isAdminAuthorized 가 쓴다), 그 밖의 모든 초기화 «앞».
+   ★자리: path·fs 선언 «뒤», 그 밖의 모든 초기화 «앞».
    ★퓨즈(package.json build.electronFuses: runAsNode·nodeOptions·nodeCliInspect=false)가 첫 자물쇠, 이게 둘째다.
    dev(!isPackaged)는 CDP 로 검증하므로 건드리지 않는다. */
 (function _blockDebugLaunchInPackaged() {
@@ -44,8 +45,9 @@ const os = require('os');
     inspectorUrl: () => { try { return require('inspector').url(); } catch (_) { return undefined; } },
   });
   if (!hits.length) return;
-  /* ⛔0919 QA(high): isAdminAuthorized() 예외를 뺐다 — 'admin' 인자·GODITOR_ADMIN_TOKEN·userData/admin.allow 는
+  /* ⛔0919 QA(high): isAdminAuthorized() 예외를 뺐다 — 옛 판정('admin' 인자·GODITOR_ADMIN_TOKEN·admin.allow)은
      셋 다 사용자 손에 있어 누구나 자가 발급으로 CDP 포트를 연 채 배포판을 띄울 수 있었다(렌더러 전체 조작).
+     3라운드(adminsig)에 운영자 판정이 서명 operator.allow 로 바뀌었어도 여기 예외로 되살리지 않는다.
      배포판 CDP 검증(tools/qa/entitlement/app-runner.mjs)은 이제 못 돈다 — 현빈 결정 사항. */
   console.error('[devtools-gate] 배포판에서 디버깅 실행 인자 감지 — 종료:', hits.join(','));
   try { app.exit(1); } catch (_) {}
@@ -112,8 +114,8 @@ if (typeof _authService.applyRuntime === 'function') {
    ⑴ <앱>/.env  ⑵ ~/.config/secrets/.env — GEMINI_API_KEY 등. 외부 자격증명 저장소를
    ~/.config/secrets 로 일원화한 건 iCloud dataless(EDEADLK) 회피 때문이다.
    ★★배포본에선 «한 줄도 안 읽는다» — ⑵는 사용자 홈이라, 거기 한 줄 쓰는 것만으로
-     `GODITOR_LICENSE_API`·`GODITOR_ENTITLEMENT_PUBKEY`·`GODITOR_ADMIN_TOKEN` 게이트가
-     전부 열렸다(2026-09-06). 판정·읽기는 main/env-file.js 가 한다(거기 이유를 적어 뒀다).
+     `GODITOR_LICENSE_API`·`GODITOR_ENTITLEMENT_PUBKEY`·(당시)`GODITOR_ADMIN_TOKEN` 게이트가
+     전부 열렸다(2026-09-06). ★GODITOR_ADMIN_TOKEN 은 0919 3라운드부터 아무도 안 읽는다(서명 operator.allow). 판정·읽기는 main/env-file.js 가 한다(거기 이유를 적어 뒀다).
    ★사용자 자기 API 키는 이 경로와 무관하다 — settings.json → getApiKey() → payload.apiKey. */
 require('./main/env-file').loadDevEnvFiles({ appDir: __dirname });
 /* .env 가 dev 서버주소(GODITOR_LICENSE_API)를 담고 있을 수 있다 → «읽은 뒤» 다시 계산.
@@ -133,6 +135,8 @@ function _notifyGoditorUse(sessionToken) {
 /* ★자격증명 판정의 SSOT. 이 파일에는 «판정 규칙»을 두지 않는다 — 규칙이 둘이 되면 갈라진다.
    여기가 하는 일은 「디스크·네트워크·화면을 그 답에 «배선»하는 것」뿐이다. */
 const entitlement = require('./services/entitlement');
+/* 배포판 운영자(admin) 판정 — 서명 operator.allow. ⛔entitlement 키(k1)와 «다른» 키(op1)다. */
+const _operatorAllow = require('./services/operator-allow');
 const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
@@ -607,8 +611,8 @@ function clearAuth() {
    ★이 아래 세 함수 말고 다른 곳에서 판정하지 마라 — 규칙이 둘이 되면 갈라진다. */
 
 /** 이 앱이 믿을 공개키. ★dev(!isPackaged)에서만 env 주입을 허용한다
- *  (`isAdminAuthorized` 와 «같은 규약» — 패키징에선 무시. 안 그러면 사용자가 자기 키를 넣고
- *   자기가 서명해서 서명 검증 전체가 장식이 된다). */
+ *  (패키징에선 무시 — 안 그러면 사용자가 자기 키를 넣고 자기가 서명해서 서명 검증 전체가 장식이 된다.
+ *   ★운영자 판정(isAdminAuthorized·operator.allow)은 env 키 주입이 «아예 없다» — dev 는 인자만으로 통과하니 필요 없다). */
 function entKeys() {
   let packaged = true;
   try { packaged = app.isPackaged; } catch (_) { packaged = false; }
@@ -649,30 +653,60 @@ function persistApplied(prev, applied) {
 }
 
 /* ── admin 모드 인증 (GAP-008 심층: 라이선스/결제 우회 차단) ──
-   admin 모드 = 라이선스 검증 우회 + 라이선스 키 발급 권한. 이를 'admin' CLI 인자만으로
-   부여하면 배포 앱을 가진 누구나(인자명은 binary strings로 노출) 라이선스/결제를 우회하고
-   유료 키를 자가발급할 수 있다 → 매출 직결 보안구멍.
-   → 패키징(배포) 빌드에선 'admin' 인자 + 운영자 토큰 인증을 모두 요구한다.
+   admin 모드 = 라이선스 검증 우회 + PM·터미널 IPC(GAP-010). 'admin' 인자만으로 부여하면
+   배포 앱을 가진 누구나(인자명은 binary strings로 노출) 라이선스를 우회한다 → 매출·RCE 직결.
      · dev(미패키징, `electron .`): 인자만으로 허용 — 개발/검증 편의(lens 9335·지디 9334 포함).
-     · 패키징: env GODITOR_ADMIN_TOKEN 의 sha256(hex) == userData/admin.allow 파일 내용일 때만 admin.
-       admin.allow는 운영자가 관리자 머신에 로컬 배치(앱 번들·레포 미포함) → 일반 고객 빌드엔
-       부재하므로 'admin' 인자가 무력화된다(safe-by-default). */
+     · 패키징: 'admin' 인자 + userData/operator.allow 가 «운영자 개인키 서명»으로 검증되고,
+       기한 안이고, 이 기기(machine 해시)에 발급된 것일 때만. 판정 = services/operator-allow.js.
+   ⛔0919 3라운드(adminsig): 옛 방식(env GODITOR_ADMIN_TOKEN 의 sha256 == userData/admin.allow)은
+     «읽지도 않는다». 토큰도 파일도 사용자가 자기 PC 에서 정할 수 있어, 아무 문자열의 sha256 을
+     써 두면 누구나 운영자였다(대칭 비교는 «누가 발급했나»를 증명 못 한다).
+   ★운영자 공개키(OPERATOR_PUBLIC_KEYS)가 비어 있으면 배포판 운영자는 «항상 아님»(safe-by-default).
+     발급 = tools/operator-allow/issue.mjs (개인키는 레포·앱 밖 ~/.config/secrets). */
 function isAdminAuthorized() {
   if (!process.argv.includes('admin')) return false;
   let packaged = true;
-  try { packaged = app.isPackaged; } catch (_) { packaged = false; }
+  try { packaged = app.isPackaged; } catch (_) { packaged = true; }
   if (!packaged) return true; // dev/검증 빌드
   try {
-    const token = process.env.GODITOR_ADMIN_TOKEN;
-    if (!token) return false;
-    const allowPath = path.join(app.getPath('userData'), 'admin.allow');
-    if (!fs.existsSync(allowPath)) return false;
-    const expected = String(fs.readFileSync(allowPath, 'utf8')).trim().toLowerCase();
-    if (!/^[0-9a-f]{64}$/.test(expected)) return false; // sha256 hex만 허용
-    const crypto = require('crypto');
-    const actual = crypto.createHash('sha256').update(token).digest('hex');
-    return crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
+    let fileText = '';
+    try { fileText = fs.readFileSync(path.join(app.getPath('userData'), 'operator.allow'), 'utf8'); }
+    catch (_) { fileText = ''; }
+    const r = _operatorAllow.checkOperatorAllow({
+      fileText,
+      keys: _operatorAllow.OPERATOR_PUBLIC_KEYS,
+      machineId: fileText ? _operatorMachineId() : null, // 파일 없으면 기기 UUID 도 안 읽는다
+      now: Date.now(),
+    });
+    if (!r.ok) _noteOperatorDenied(r.why);
+    return r.ok === true;
   } catch (_) { return false; }
+}
+
+/** 이 기기의 machine 해시(operator.allow 의 payload.machine 과 대조). 프로세스당 한 번만 읽는다
+ *  (execFileSync ≈ 30ms — 터미널·PM IPC·will-navigate 마다 부르면 안 된다). 못 읽으면 null = 운영자 아님.
+ *  ★tools/operator-allow/issue.mjs 의 machine-id 와 «같은» 원천·같은 해시(machineIdFrom)여야 한다. */
+let _operatorMachineIdMemo;
+function _operatorMachineId() {
+  if (_operatorMachineIdMemo !== undefined) return _operatorMachineIdMemo;
+  let raw = null;
+  try {
+    raw = _operatorAllow.rawMachineUuid({
+      platform: process.platform,
+      execFileSync: require('child_process').execFileSync,
+      readFileSync: fs.readFileSync,
+    });
+  } catch (_) { raw = null; }
+  _operatorMachineIdMemo = _operatorAllow.machineIdFrom(raw);
+  return _operatorMachineIdMemo;
+}
+
+/** 거부 사유는 «한 번만» 남긴다(운영자가 자기 파일이 왜 안 먹는지 알 수 있게). ⛔파일 내용·기기값은 안 남긴다. */
+let _operatorDeniedLogged = false;
+function _noteOperatorDenied(why) {
+  if (_operatorDeniedLogged) return;
+  _operatorDeniedLogged = true;
+  try { console.warn('[admin] 배포판 운영자 허가 거부 — operator.allow:', why); } catch (_) {}
 }
 
 // GAP-008: 에디터(라이선스 게이트 너머) 진입 허가 플래그. 인증된 경로(부팅 라이선스 통과·

@@ -57,6 +57,24 @@ try {
       '     릴리스일 + GRACE_DAYS 로 갱신하세요.');
   }
 
+  /* ⑶ 운영자 허가 공개키(0919 adminsig) — «경고만». 막지 않는 이유: OPERATOR_PUBLIC_KEYS 가 비어 있으면
+   *   배포판 운영자 모드는 «항상 꺼짐»으로 안전하게 동작한다(운영자 없음). 다만 키를 넣어 놓고 대조를
+   *   안 했으면 운영자가 잠긴 채 배포되므로 알려는 준다. 절차 = tools/operator-allow/README.md */
+  try {
+    const OA = require('../services/operator-allow.js');
+    const oprov = String(OA.OPERATOR_KEY_PROVENANCE || '');
+    const nkeys = Object.keys(OA.OPERATOR_PUBLIC_KEYS || {}).length;
+    if (!/^verified-\d{4}-\d{2}-\d{2}$/.test(oprov)) {
+      process.stderr.write(
+        `\n⚠️  운영자 허가 공개키 미대조 — OPERATOR_KEY_PROVENANCE = "${oprov}", 키 ${nkeys}개\n` +
+        (nkeys ? '     키가 있는데 대조 표식이 없습니다. 개인키에서 유도한 공개키와 바이트 대조 후 verified-YYYY-MM-DD 로.\n'
+               : '     이 배포판에선 운영자(admin) 모드가 꺼진 채로 나갑니다(안전). 필요하면 tools/operator-allow/README.md.\n') +
+        '     (경고만 — 배포는 계속됩니다)\n\n');
+    }
+  } catch (e) {
+    process.stderr.write(`\n⚠️  운영자 허가 게이트 확인 실패(경고만): ${e && e.message}\n\n`);
+  }
+
   if (fails.length) {
     process.stderr.write('\n⛔  배포 차단 — 자격증명 서명 게이트\n\n');
     fails.forEach((f, i) => process.stderr.write(`  ${i + 1}) ${f}\n\n`));
