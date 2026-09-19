@@ -166,8 +166,40 @@ test('OS-11 Esc «밖으로» — 입력칸·계정메뉴·열린 메뉴/모달�
   assert.ok(i > -1, '폴더 밖으로 Esc 처리가 없다');
   const blk = CODE.slice(i, CODE.indexOf('selectFolder(null);', i));
   assert.match(blk, /_viewMode\(\) !== 'inside'/);
-  assert.match(blk, /input, textarea/);
+  assert.match(blk, /input(:not\(\[type="[a-z]+"\]\))*, textarea/);   // 글자 입력칸(radio 등 제외 — OS-13)
   assert.match(blk, /#acct/);
   assert.match(blk, /card-folder-menu/);
   assert.match(blk, /settings-modal-overlay/);
+});
+
+/* ── 픽스 라운드(09-19 이벨류) ── */
+test('OS-12 ★이름변경 확정 갈래도 restore() 를 먼저 — 경로 이름 자리(#gal-crumb-name)가 input 에 먹히지 않는다', () => {
+  const fn = sliceBlock(CODE, 'function startRenameFolder(');
+  const cb = fn.slice(fn.indexOf('async (nm, restore) =>'));
+  const iRestore = cb.indexOf('restore();');
+  assert.ok(iRestore > -1, 'restore() 호출이 없다');
+  assert.ok(iRestore < cb.indexOf('folders.rename'), '★rename 확정 전에 원래 요소로 안 되돌린다(경로 span 소실)');
+  assert.ok(iRestore < cb.indexOf('renderGrid()'), '★restore 없이 renderGrid 로 간다');
+  // 자가치유 — renderFolderChrome 이 이름 자리가 없으면 되살린다
+  const chrome = sliceBlock(CODE, 'function renderFolderChrome(');
+  assert.match(chrome, /if \(crumb && !crumbName\)/, '경로 이름 자리 자가치유가 없다');
+});
+
+test('OS-13 Esc «밖으로» 가드는 글자 입력칸만 막는다 — radio/checkbox 는 통과', () => {
+  const i = CODE.indexOf("if (e.key !== 'Escape' || e.defaultPrevented) return;");
+  const blk = CODE.slice(i, CODE.indexOf('selectFolder(null);', i));
+  assert.match(blk, /input:not\(\[type="radio"\]\):not\(\[type="checkbox"\]\)/, '★radio 포커스에서 Esc 가 막힌다');
+});
+
+test('OS-14 타일 ⋯ 는 display:none 으로 숨기지 않는다(Tab 포커스 가능) — 투명으로 숨기고 focus 때 드러낸다', () => {
+  const m = CODE.match(/\.ft-more \{[^}]*\}/);
+  assert.ok(m, '.ft-more 규칙이 없다');
+  assert.ok(!/display:\s*none/.test(m[0]), '★.ft-more 가 display:none — 키보드로 폴더 메뉴에 못 간다');
+  assert.match(m[0], /opacity:\s*0/);
+  assert.match(CODE, /\.ft-cell:focus-within \.ft-more[^{]*\{ opacity: 1; \}/);
+});
+
+test('OS-15 헤더 검색칸 자리 고정 — 양옆이 같은 몫(flex 1 1 0)', () => {
+  assert.match(CODE, /#header > h1 \{ flex: 1 1 0; min-width: 0; \}/);
+  assert.match(CODE, /#header > \.header-actions \{ flex: 1 1 0; justify-content: flex-end; \}/);
 });

@@ -91,11 +91,13 @@ body {
 .ft-editing { cursor: default; }
 .ft-more {
   position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
-  width: 22px; height: 22px; display: none; align-items: center; justify-content: center;
+  width: 22px; height: 22px; display: flex; opacity: 0; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: 3px; color: var(--ui-text-dim);
   cursor: pointer; font-size: 14px; line-height: 1;
 }
-.ft-cell:hover .ft-more, .ft-more:focus-visible, .ft-more[aria-expanded="true"] { display: flex; }
+/* ★평소엔 display:none 이 아니라 «투명»으로 숨긴다 — display:none 은 Tab 포커스를 못 받아 키보드로 메뉴(이름변경·삭제)에
+ *   갈 길이 없었다(09-19 이벨류). 투명이어도 Tab 으로 오면 :focus-visible 로 드러난다. */
+.ft-cell:hover .ft-more, .ft-cell:focus-within .ft-more, .ft-more:focus-visible, .ft-more[aria-expanded="true"] { opacity: 1; }
 .ft-more:hover { background: var(--ui-bg-hover, #3a3a3a); color: #fff; }
 /* 인라인 이름 입력(새 폴더·이름 바꾸기) — 레일 시절 규칙에서 #folder-rail 한정자만 벗겼다 */
 .fr-name-input {
@@ -125,7 +127,7 @@ body {
   display: inline-block; max-width: 28ch; margin-right: 14px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #eee;
 }
-#gal-crumb .fr-name-input { width: 22ch; flex: none; font-size: 14px; font-weight: 600; margin-right: 14px; }
+#gal-crumb .fr-name-input { width: 22ch; flex: 0 1 22ch; min-width: 6ch; font-size: 14px; font-weight: 600; margin-right: 14px; }
 
 /* ── 갤러리 칼럼 — 기존 #main 의 padding·스크롤을 «그대로» 물려받는다(그리드 위치 1px도 안 움직임) ── */
 #gallery-col { flex: 1; min-width: 0; overflow-y: auto; padding: 40px 48px; }
@@ -138,6 +140,16 @@ body {
   margin-bottom: 28px;
 }
 #header h1 { font-size: 18px; font-weight: 700; color: #f0f0f0; flex-shrink: 0; }
+/* ★검색칸 자리 고정(B안 09-19) — 폴더 안에서 경로(Projects › 이름)만큼 h1 이 길어져도 검색칸이 출렁이지 않게,
+ *   양옆(h1 · .header-actions)이 «같은 몫(flex 1 1 0)»을 나눠 갖는다. 검색칸은 늘 가운데. 내용이 몫보다 크면
+ *   (min-width:auto 라) 그때만 밀린다 — 경로 이름은 28ch 말줄임이라 보통 폭에선 일어나지 않는다. */
+#header > h1 { flex: 1 1 0; min-width: 0; }
+/* h1 이 제 몫보다 길어지면 «폴더명»만 더 줄여 말줄임 — Projects·휴지통 탭은 안 줄인다 */
+#gallery-title > .gal-tab { flex-shrink: 0; }
+#gal-crumb { flex: 0 1 auto; }
+#gal-crumb-name { min-width: 0; flex: 0 1 auto; }
+#header > .header-actions { flex: 1 1 0; justify-content: flex-end; }
+#header > #proj-search { flex: 0 1 320px; margin-left: 16px; margin-right: 16px; }
 
 /* ── 프로젝트 검색(T-B, 2026-09-16) ──────────────────────────────────────
  * 껍데기는 #acct-trigger/#view-toggle 과 «같은 값»(높이32·radius7·같은 배경·보더 토큰) — 새 룩 신설 금지.
@@ -999,7 +1011,14 @@ function renderFolderChrome() {
   // 경로 — ★이름은 textContent 로만(XSS 경로 0)
   const inside = mode === 'inside' && !searching;
   const crumb = document.getElementById('gal-crumb');
-  const crumbName = document.getElementById('gal-crumb-name');
+  let crumbName = document.getElementById('gal-crumb-name');
+  // 자가치유 — 이름변경 입력칸이 이름 자리를 차지한 채 남았으면(어떤 경로로든) 입력칸을 걷고 이름 자리를 되살린다.
+  if (crumb && !crumbName) {
+    crumb.querySelectorAll('.fr-name-input').forEach(el => el.remove());
+    crumbName = document.createElement('span');
+    crumbName.id = 'gal-crumb-name';
+    crumb.appendChild(crumbName);
+  }
   const fname = inside ? (_folderNameById(_selectedFolderId) || '') : '';
   if (crumb) crumb.style.display = inside ? '' : 'none';
   if (crumbName) { crumbName.textContent = fname; crumbName.title = fname ? `${fname} — 더블클릭하여 이름 변경` : ''; }
@@ -1126,17 +1145,21 @@ function startRenameFolder(id) {
   if (!target) return null;
   if (!inside) target.parentElement?.querySelector('.ft-more')?.style.setProperty('display', 'none');
   return _swapToNameInput(target, { initial: f.name, placeholder: '폴더 이름', holder: inside ? 'inline' : 'tile' }, async (nm, restore) => {
-    if (!nm || nm === f.name) { restore(); renderFolderChrome(); return; }
+    // ★확정·실패·취소 «모든» 갈래에서 먼저 원래 요소로 되돌린다. 경로(inline)에선 input 이 #gal-crumb-name
+    //   «자체»를 갈아 끼웠으므로, 안 되돌리면 그 span 이 DOM 에서 영영 사라지고 경로가 옛 이름에 굳는다(09-19 이벨류 실측).
+    restore();
+    if (!nm || nm === f.name) { renderFolderChrome(); return; }
     const r = await window.electronAPI.folders.rename({ id, name: nm });
     if (!r || r.ok !== true) alert('이름을 바꾸지 못했습니다: ' + ((r && r.error) || '알 수 없는 오류'));
     await renderGrid();
   });
 }
 
-/** 삭제 — ⋯/우클릭 메뉴에서. ★확인 문구는 레일 시절과 «한 글자도» 다르지 않다(PF-7). */
+/** 삭제 — ⋯/우클릭 메뉴에서. ★확인 문구의 «뜻»(프로젝트는 안 지워지고 폴더 밖으로)은 레일 시절 그대로(PF-7).
+ *  용어만 «미분류» → «폴더 밖»으로 통일(CONTEXT 결정 ④ — 섹션 라벨 「폴더 밖 프로젝트」와 같은 말). */
 async function deleteFolderUI(id) {
   const name = _folderNameById(id) || '이 폴더';
-  if (!confirm(`"${name}" 폴더를 지울까요?\n\n안에 있는 프로젝트는 지워지지 않고 «미분류»로 갑니다.`)) return;
+  if (!confirm(`"${name}" 폴더를 지울까요?\n\n안에 있는 프로젝트는 지워지지 않고 «폴더 밖»으로 갑니다.`)) return;
   const r = await window.electronAPI.folders.delete({ id });
   if (!r || r.ok !== true) { alert('폴더를 지우지 못했습니다: ' + ((r && r.error) || '알 수 없는 오류')); return; }
   if (_selectedFolderId === id) _setSelectedFolder(null);   // 보던 폴더를 지웠으면 밖(루트)으로
@@ -1170,7 +1193,9 @@ function openFolderTileMenu(anchor, folderId, pt) {
   };
   const onDocClick = (ev) => { if (!menu.contains(ev.target)) close(); };
   const onKey = (ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); ev.preventDefault(); close(); } };
-  setTimeout(() => { document.addEventListener('click', onDocClick, true); document.addEventListener('keydown', onKey, true); }, 0);
+  // Esc 는 «바로» 받는다(키보드로 열자마자 Esc 가 새지 않게 — 09-19 실측). 바깥 클릭만 여는 클릭을 피하려고 한 틱 미룬다.
+  document.addEventListener('keydown', onKey, true);
+  setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
   menu.addEventListener('click', async (ev) => {
     const it = ev.target.closest('[data-ft-act]');
     if (!it) return;
@@ -1231,7 +1256,7 @@ function openFolderTileMenu(anchor, folderId, pt) {
     startRenameFolder(_selectedFolderId);
   });
 
-  // [R5] 폴더 안에선 타일이 숨어 있다 — 경로 「Projects」에 놓으면 «미분류로 빼기»(레일 「미분류」 행 드롭의 대체)
+  // [R5] 폴더 안에선 타일이 숨어 있다 — 경로 「Projects」에 놓으면 «폴더에서 빼기»(레일 「미분류」 행 드롭의 대체)
   const up = document.getElementById('gal-tab-projects');
   const canDropUp = () => _viewMode() === 'inside';
   up.addEventListener('dragover', (e) => {
@@ -1255,7 +1280,8 @@ function openFolderTileMenu(anchor, folderId, pt) {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
     if (_viewMode() !== 'inside') return;
     const t = e.target;
-    if (t && (t.closest?.('input, textarea, select, [contenteditable="true"], #acct'))) return;
+    // «글자 입력칸»만 막는다 — 보기전환 radio·체크박스 같은 input 은 Esc 를 쓰지 않으므로 통과(09-19 이벨류 실측)
+    if (t && (t.closest?.('input:not([type="radio"]):not([type="checkbox"]):not([type="button"]):not([type="range"]), textarea, select, [contenteditable="true"], #acct'))) return;
     if (document.getElementById('acct')?.classList.contains('open')) return;
     if (document.querySelector('.card-folder-menu')) return;
     // 모달(공지·신고·버전기록·글꼴대체)이 떠 있으면 Esc 는 «그 모달»의 것이다 — notice.js otherModalOpen() 과 같은 판정
@@ -1432,7 +1458,7 @@ function _renderGridFromCache() {
   paintFontBadges();
 }
 
-/* [T-A] 카드의 📁 버튼 — 「미분류로 빼기 / 폴더들 / 새 폴더 만들어 넣기」 작은 메뉴.
+/* [T-A] 카드의 📁 버튼 — 「폴더에서 빼기 / 폴더들 / 새 폴더 만들어 넣기」 작은 메뉴.
  * ★prompt() 는 Electron 이 차단한다(duplicateProjectUI 주석 참고) — 새 폴더는 인라인 input. */
 async function openFolderMenuUI(e, projectId) {
   e.stopPropagation();
@@ -1447,7 +1473,7 @@ async function openFolderMenuUI(e, projectId) {
     <button type="button" class="tab-add-item${curFolderId === key ? ' is-current' : ''}" data-goto="${key === null ? '' : _escHtml(key)}">
       <span class="tab-add-item-name">${_escHtml(name)}</span>
     </button>`;
-  menu.innerHTML = itemHtml(null, '미분류로 빼기')
+  menu.innerHTML = itemHtml(null, '폴더에서 빼기')
     + (_foldersCache.length ? '<div class="fr-divider"></div>' : '')
     + _foldersCache.map(f => itemHtml(f.id, f.name)).join('')
     + '<div class="fr-divider"></div>'

@@ -319,7 +319,7 @@ test('ⓚ ⋯ 메뉴 이름 바꾸기 · 삭제(confirm 수락) → 보던 폴�
   await expect(page.locator('#gal-crumb-name')).toHaveText('파테나');
   // 폴더 안에선 타일이 없으니 루트로 나가 ⋯ 로 지우는 대신 — 삭제는 루트 ⋯ 메뉴 경로다. 보던 폴더 기억을 남긴 채 루트로
   await page.evaluate(() => deleteFolderUI('fold_a'));
-  expect(confirmMsg).toContain('안에 있는 프로젝트는 지워지지 않고 «미분류»로 갑니다.');
+  expect(confirmMsg).toContain('안에 있는 프로젝트는 지워지지 않고 «폴더 밖»으로 갑니다.');
   await expect(page.locator('#gal-crumb')).toBeHidden();
   await expect(page.locator('#folder-zone')).toBeVisible();
   expect(await cardIds(page)).toEqual(['proj_1', 'proj_2', 'proj_3', 'proj_4', 'proj_5']);
@@ -346,4 +346,91 @@ test('ⓛ 폴더 안에서 새 프로젝트 → 그 폴더로 배정(열기 전)
   await page.keyboard.press('Escape');
   await expect(page.locator('#folder-zone')).toBeVisible();
   await expect(page.locator('#gal-crumb')).toBeHidden();
+});
+
+/* ── 픽스 라운드(09-19 이벨류) 회귀 ── */
+
+test('ⓜ ★경로 폴더명 더블클릭 이름변경을 «확정»(Enter·blur·실패)해도 경로 이름 자리가 살아 있다 · 다른 폴더 이름이 제대로 뜬다', async ({ page }) => {
+  const errs = await boot(page, seed(), { onDialog: (d) => d.accept() });
+  // Enter 확정
+  await page.click('.ft-tile[data-folder-key="fold_c"]');
+  await page.dblclick('#gal-crumb-name');
+  await page.locator('#gal-crumb .fr-name-input').fill('보관2');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#gal-crumb-name')).toHaveText('보관2');
+  await expect(page.locator('#gal-crumb .fr-name-input')).toHaveCount(0);
+  await expect(page.locator('#gallery-title .fr-name-input')).toHaveCount(0);
+  // 다른 폴더로 — 경로가 옛 이름에 굳지 않는다
+  await page.click('#gal-tab-projects');
+  await page.click('.ft-tile[data-folder-key="fold_a"]');
+  await expect(page.locator('#gal-crumb-name')).toHaveText('파테나');
+  expect(await cardIds(page)).toEqual(['proj_4', 'proj_5']);
+  // blur 확정 + 재차 더블클릭 동작
+  await page.dblclick('#gal-crumb-name');
+  await page.locator('#gal-crumb .fr-name-input').fill('파테나2');
+  await page.mouse.click(5, 500);
+  await expect(page.locator('#gal-crumb-name')).toHaveText('파테나2');
+  await expect(page.locator('#gal-crumb .fr-name-input')).toHaveCount(0);
+  // 실패 갈래 — rename 이 ok:false 여도 이름 자리는 원래대로
+  await page.evaluate(() => { window.electronAPI.folders.rename = async () => ({ ok: false, error: 'x' }); });
+  await page.dblclick('#gal-crumb-name');
+  await page.locator('#gal-crumb .fr-name-input').fill('실패할 이름');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#gal-crumb-name')).toHaveText('파테나2');
+  await expect(page.locator('#gal-crumb .fr-name-input')).toHaveCount(0);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('ⓝ 폴더 안에서 보기전환 radio 를 누른 뒤 Esc → 폴더 밖(radio 는 입력칸이 아니다) · 검색칸 Esc 는 여전히 검색만', async ({ page }) => {
+  await boot(page, seed());
+  await page.click('.ft-tile[data-folder-key="fold_a"]');
+  await page.click('label.vt-item:has([data-view="list"])');
+  expect(await page.evaluate(() => document.activeElement && document.activeElement.type)).toBe('radio');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#gal-crumb')).toBeHidden();
+  await expect(page.locator('#folder-zone')).toBeVisible();
+  // 검색칸 포커스 Esc 는 폴더를 안 나간다(검색만 지운다)
+  await page.click('.ft-tile[data-folder-key="fold_a"]');
+  await page.click('#proj-search-input');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#gal-crumb')).toBeVisible();
+});
+
+test('ⓞ 폴더 안에 들어가도(긴 이름 포함) 헤더 검색칸 자리가 안 출렁인다', async ({ page }) => {
+  const d = seed();
+  d.folders[1].name = '아주 길고 긴 폴더 이름입니다 정말 길어요 끝까지';
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await boot(page, d);
+  const x = () => page.$eval('#proj-search', el => Math.round(el.getBoundingClientRect().left));
+  const root = await x();
+  await page.click('.ft-tile[data-folder-key="fold_a"]');
+  expect(await x()).toBe(root);
+  await page.click('#gal-tab-projects');
+  await page.click('.ft-tile[data-folder-key="fold_b"]');
+  expect(await x()).toBe(root);
+  await page.dblclick('#gal-crumb-name');   // 이름 입력 중에도
+  expect(await x()).toBe(root);
+});
+
+test('ⓟ 키보드 — Tab 으로 타일 ⋯ 에 닿고 Enter 로 폴더 메뉴가 열린다 · 카드 📁 메뉴 첫 항목은 「폴더에서 빼기」', async ({ page }) => {
+  await boot(page, seed());
+  await page.focus('.ft-tile[data-folder-key="fold_a"]');
+  await page.keyboard.press('Tab');
+  const focused = await page.evaluate(() => document.activeElement && document.activeElement.dataset.folderMenu);
+  expect(focused).toBe('fold_a');
+  expect(await page.$eval('.ft-cell:has([data-folder-key="fold_a"]) .ft-more', el => getComputedStyle(el).opacity)).toBe('1');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.card-folder-menu [data-ft-act="rename"]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.card-folder-menu')).toHaveCount(0);
+  // 평소(포커스·hover 없음)엔 안 보인다
+  await page.mouse.move(5, 790);
+  await page.evaluate(() => document.activeElement && document.activeElement.blur());
+  expect(await page.$eval('.ft-cell:has([data-folder-key="fold_b"]) .ft-more', el => getComputedStyle(el).opacity)).toBe('0');
+  // 카드 📁 메뉴 문구
+  await page.hover('#project-grid .project-card[data-id="proj_1"]');
+  await page.click('#project-grid .project-card[data-id="proj_1"] .card-folder-move');
+  const items = await page.$$eval('.card-folder-menu .tab-add-item-name', els => els.map(e => e.textContent.trim()));
+  expect(items[0]).toBe('폴더에서 빼기');
+  expect(items).not.toContain('미분류로 빼기');
 });

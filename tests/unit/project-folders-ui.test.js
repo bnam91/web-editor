@@ -71,8 +71,9 @@ test('PF-6 ★「+ 새 폴더」 타일은 드롭 대상이 아니다(뜻이 없
   }
 });
 
-test('PF-7 삭제 확인 문구가 사실대로 — 프로젝트는 지워지지 않고 미분류로 간다', () => {
-  assert.match(CODE, /안에 있는 프로젝트는 지워지지 않고 «미분류»로 갑니다/, '삭제 확인 문구가 없거나 달라졌다');
+test('PF-7 삭제 확인 문구가 사실대로 — 프로젝트는 지워지지 않고 «폴더 밖»으로 간다(용어 통일, CONTEXT ④)', () => {
+  assert.match(CODE, /안에 있는 프로젝트는 지워지지 않고 «폴더 밖»으로 갑니다/, '삭제 확인 문구가 없거나 달라졌다');
+  assert.ok(!/«미분류»로 갑니다/.test(CODE), '★옛 용어 «미분류»가 확인 문구에 남았다');
 });
 
 test('PF-8 폴더 생성/이름변경은 prompt() 를 안 쓴다 — 인라인 input(.fr-name-input) 로 받는다', () => {
@@ -84,9 +85,10 @@ test('PF-8 폴더 생성/이름변경은 prompt() 를 안 쓴다 — 인라인 i
   assert.match(sliceBlock(CODE, 'function startNewFolderTile() {'), /_swapToNameInput\(/, '새 폴더가 인라인 입력을 안 거친다');
 });
 
-test('PF-9 카드 메뉴(📁)에도 «미분류로 빼기 / 폴더들 / 새 폴더 만들어 넣기» 세 경로가 있다 — 새 폴더는 메뉴 안 인라인', () => {
+test('PF-9 카드 메뉴(📁)에도 «폴더에서 빼기 / 폴더들 / 새 폴더 만들어 넣기» 세 경로가 있다 — 새 폴더는 메뉴 안 인라인', () => {
   const fn = sliceBlock(CODE, 'async function openFolderMenuUI(');
-  assert.match(fn, /미분류로 빼기/);
+  assert.match(fn, /itemHtml\(null, '폴더에서 빼기'\)/, '📁 메뉴 첫 항목이 «폴더에서 빼기»가 아니다(CONTEXT ④)');
+  assert.ok(!/미분류로 빼기/.test(fn), '★화면 문구에 옛 용어 «미분류로 빼기»가 남았다');
   assert.match(fn, /cfm-new-folder/);
   assert.match(fn, /_foldersCache\.map/);
   assert.ok(!/prompt\(/.test(fn), '★카드 메뉴가 아직 prompt() 를 쓴다');
