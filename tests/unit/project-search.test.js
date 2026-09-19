@@ -60,9 +60,13 @@ test('PS-8 ★파란 액센트 없이 — 포커스 표시가 border 토큰(divi
   assert.ok(!/#2d6fe8/.test(block), '★검색창 포커스에 기존 파란 액센트(#2d6fe8)를 썼다 — 디자인 게이트 위반');
 });
 
-test('PS-9 휴지통 탭에서 검색창·폴더 레일을 숨긴다', () => {
+test('PS-9 휴지통 탭에서 검색창·폴더 구역·라벨·경로를 숨긴다', () => {
   const fn = sliceBlock(CODE, 'function _setGalleryView(v) {');
-  assert.match(fn, /'folder-rail', 'proj-search'/, '휴지통 전환 시 folder-rail/proj-search 를 안 숨긴다');
+  assert.match(fn, /\['folder-zone', 'loose-label', 'gal-crumb', 'proj-search'\]/, '휴지통 전환 시 폴더 구역/라벨/경로/검색을 안 숨긴다');
+  assert.match(fn, /el\.style\.display = onTrash \? 'none' : ''/, 'display 로 접지 않는다');
+  assert.match(fn, /renderFolderChrome\(\)/, '돌아올 때 폴더 크롬을 되살리지 않는다');
+  // 모드 판정도 휴지통을 안다(renderFolderChrome 가 그 모드에서 전부 숨김)
+  assert.match(sliceBlock(CODE, 'function _viewMode() {'), /_galleryView === 'trash'\) return 'trash'/);
 });
 
 test('PS-10 ⌘F/Ctrl+F 로 검색창에 포커스, Esc 로 지운다', () => {
@@ -119,30 +123,34 @@ test('PS-11 검색 결과 위 «매칭된 폴더» 컨테이너 id 는 #search-f
   assert.match(CODE, /getElementById\('search-folder-hits'\)/, 'JS 가 그 id 를 참조하지 않는다');
 });
 
-test('PS-12 ★[R4] selectFolder(folderId) 진입점이 있고, 레일 클릭·칩 클릭이 «둘 다» 그걸 거친다', () => {
+test('PS-12 ★[R4] selectFolder(folderId) 진입점이 있고, 타일 클릭·칩 클릭이 «둘 다» 그걸 거친다', () => {
   assert.match(CODE, /function selectFolder\(folderId\)/, 'selectFolder 진입점 함수가 없다');
   const selectFolderFn = sliceBlock(CODE, 'function selectFolder(folderId) {');
-  assert.match(selectFolderFn, /renderFolderRail\(\)/, 'selectFolder 가 레일 하이라이트를 갱신 안 한다');
+  assert.match(selectFolderFn, /renderFolderChrome\(\)/, 'selectFolder 가 폴더 크롬(경로·타일 줄)을 갱신 안 한다');
   assert.match(selectFolderFn, /_renderGridFromCache\(\)/, 'selectFolder 가 그리드를 다시 안 그린다');
 
-  // 레일 클릭 — data-folder-key 브랜치가 selectFolder 를 부르는지
-  const railClick = sliceBlock(CODE, "rail.addEventListener('click', async (e) => {");
-  assert.match(railClick, /selectFolder\(btn\.dataset\.folderKey \|\| null\)/, '레일 클릭이 selectFolder 를 안 거친다');
+  // 타일 클릭 — data-folder-key 브랜치가 selectFolder 를 부르는지
+  const tileClick = sliceBlock(CODE, "tiles.addEventListener('click', (e) => {");
+  assert.match(tileClick, /selectFolder\(tile\.dataset\.folderKey\)/, '타일 클릭이 selectFolder 를 안 거친다');
 
   // 칩 클릭
   const chipClick = sliceBlock(CODE, "document.getElementById('search-folder-hits').addEventListener('click', (e) => {");
   assert.match(chipClick, /selectFolder\(chip\.dataset\.gotoFolder\)/, '칩 클릭이 selectFolder 를 안 거친다');
 });
 
-test('PS-13 검색어가 있으면 레일 선택 표시를 «시각적으로» 해제한다(값은 유지)', () => {
-  const rail = sliceBlock(CODE, 'function renderFolderRail() {');
-  assert.match(rail, /_isSearching\(\)/, 'renderFolderRail 이 검색 중 여부를 안 본다');
-  assert.match(rail, /!searching && _selectedFolderId/, '검색 중엔 is-selected 를 안 끄는 조건이다');
+test('PS-13 검색어가 있으면 폴더 구역·경로를 숨긴다(선택 폴더 값은 유지)', () => {
+  const chrome = sliceBlock(CODE, 'function renderFolderChrome() {');
+  assert.match(chrome, /_isSearching\(\)/, 'renderFolderChrome 이 검색 중 여부를 안 본다');
+  assert.match(chrome, /const inside = mode === 'inside' && !searching/, '검색 중에도 경로를 보이는 조건이다');
+  assert.match(chrome, /zone\.style\.display = showRoot \? '' : 'none'/, '폴더 구역을 루트에서만 보이게 하지 않는다');
+  const mode = sliceBlock(CODE, 'function _viewMode() {');
+  assert.ok(mode.indexOf("'search'") < mode.indexOf("'inside'"), '★검색이 폴더 안보다 우선하지 않는다');
+  assert.ok(!/_setSelectedFolder/.test(chrome), '★크롬 렌더가 선택 폴더 값을 건드린다 — 검색을 지우면 보던 폴더로 돌아가야 한다');
 });
 
-test('PS-14 검색 apply() 가 렌더 후 레일도 다시 그린다(선택 표시 해제/복원 반영)', () => {
+test('PS-14 검색 apply() 가 렌더 후 폴더 크롬도 다시 그린다(구역·경로 숨김/복원 반영)', () => {
   const applyFn = sliceBlock(CODE, 'const apply = () => {');
-  assert.match(applyFn, /renderFolderRail\(\)/, 'apply() 가 레일을 다시 안 그려 선택 표시가 안 바뀐다');
+  assert.match(applyFn, /renderFolderChrome\(\)/, 'apply() 가 폴더 크롬을 다시 안 그려 구역·경로가 안 바뀐다');
 });
 
 test('PS-15 ★Esc 는 검색칸에 포커스가 있을 때만 가로챈다 — 계정메뉴 Esc 로 안 번진다(stopPropagation)', () => {
