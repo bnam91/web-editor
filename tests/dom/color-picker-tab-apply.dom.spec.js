@@ -424,12 +424,13 @@ async function renderSeededField(page, { gradientValue, hex = '#ffffff' }) {
   await page.evaluate(({ gradientValue, hex }) => {
     window.__bg = gradientValue;
     window.__gradCommits = 0;
+    window.__gradCalls = 0;
     const host = document.getElementById('plain-field');
     host.innerHTML = window.__cfHTML({ idPrefix: 'sf', hex, gradientCss: /gradient/.test(gradientValue) ? gradientValue : '' });
     window.__wireCF('sf', {
       gradientValue,
       onApply: (c) => { window.__bg = c; },
-      onGradient: (css, commit) => { window.__bg = css; if (commit) { window.__gradCommits++; window.pushHistory(); } },
+      onGradient: (css, commit) => { window.__gradCalls++; window.__bg = css; if (commit) { window.__gradCommits++; window.pushHistory(); } },
       onCommit: () => window.pushHistory(),
     });
   }, { gradientValue, hex });
@@ -528,5 +529,56 @@ test('T13 툴팁: 탭을 누른 뒤 계속 호버 중이면 설명이 숨는다(
   const back = await tipOf('image');
   expect(back.display).not.toBe('none');
   expect(back.content).toMatch(/채우기/);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 픽스 라운드(이벨류 high): 피커를 «열기만» 해도 블럭 그라데이션이 바뀌던 회귀 ──
+   실앱 9503: updateFrameBlock(bg:'linear-gradient(to right, #ff0000, #0000ff)') → 스와치만 클릭 →
+   dataset.bg = 'linear-gradient(180deg, #000000 0%, #ff0000 100%, #0000ff 100%)'(기록 0).
+   에셋 'radial-gradient(ellipse at top left, …)' → 'radial-gradient(circle, …)'. */
+for (const [name, G] of [
+  ['to right', 'linear-gradient(to right, #ff0000, #0000ff)'],
+  ['ellipse at', 'radial-gradient(ellipse at top left, #ff0000 0%, #0000ff 100%)'],
+]) {
+  test(`T14 ★피커 문법이 아닌 그라데이션(${name}): 열기만 해선 값 바이트 불변·onGradient 0회, 시드 없음 = Solid 탭`, async ({ page }) => {
+    const errs = await boot(page);
+    await renderSeededField(page, { gradientValue: G });
+    const h0 = await hist(page);
+    await openSwatchOf(page, 'sf-color');
+    await page.waitForTimeout(50);
+    expect(await page.evaluate(() => window.__bg), '열기만 했는데 블럭 값이 바뀌었다(원래 버그)').toBe(G);
+    expect(await page.evaluate(() => window.__gradCalls)).toBe(0);
+    expect(await activeTab(page)).toBe('solid');
+    expect(await hist(page) - h0).toBe(0);
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
+
+test('T15 ★피커 문법 그라데이션도 열 때 onGradient 0회(시드는 UI만 — 되쓰기 없음)', async ({ page }) => {
+  const errs = await boot(page);
+  await renderSeededField(page, { gradientValue: 'linear-gradient(45deg, #ff0000 0%, #0000ff 100%)' });
+  await openSwatchOf(page, 'sf-color');
+  await page.waitForTimeout(50);
+  expect(await activeTab(page)).toBe('gradient');
+  expect(await page.evaluate(() => window.__gradCalls), '열기만 했는데 onGradient 가 불렸다(블럭 값 재직렬화)').toBe(0);
+  // 양성대조: 스탑을 실제로 바꾸면 onGradient 는 온다(계측기 살아 있음)
+  await page.evaluate(() => {
+    const p = document.querySelector('.goya-cp-popover');
+    const hx = p.querySelector('[data-el="gradStopHex"]');
+    hx.value = '00FF00'; hx.dispatchEvent(new Event('input', { bubbles: true })); hx.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(80);
+  expect(await page.evaluate(() => window.__gradCalls)).toBeGreaterThan(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T16 (이벨류 low) 첫 스탑이 완전 투명이면 Solid 복귀 = 보이는 다음 스탑 색(투명색 아님)', async ({ page }) => {
+  const errs = await boot(page);
+  const G = 'linear-gradient(90deg, rgba(255,255,255,0.000) 0%, #336699 100%)';
+  await renderSeededField(page, { gradientValue: G });
+  await openSwatchOf(page, 'sf-color');
+  expect(await activeTab(page)).toBe('gradient');
+  await tab(page, 'solid').click();
+  expect(await page.evaluate(() => window.__bg)).toBe('#336699');
   expect(errs, errs.join(' | ')).toEqual([]);
 });

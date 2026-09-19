@@ -6,7 +6,7 @@
    - 기존 <input type="color"> 스와치 클릭 가로채기
 ═══════════════════════════════════ */
 
-import { parseGradient } from './gradient-model.js';
+import { parseGradientStrict } from './gradient-model.js';
 
 /* ─── 유틸: color math ─── */
 function hexToRgb(hex) {
@@ -785,8 +785,12 @@ function _wireEvents(pop) {
   // openPicker가 _pop에 직접 dispatch하는 시드 이벤트를 수신 (_pop은 body 직속이라 bubbling 미사용)
   pop.addEventListener('goya-cp:seed-gradient', (e) => {
     if (!e.detail) return;
-    const ok = _seedGradientUI(e.detail);
+    // T-059 2라운드(이벨류 high): 열기만 해선 방출하지 않는다(emit:false). 전엔 _emitGradientNow(false) →
+    //   onGradient 가 블럭 값을 «피커가 다시 만든 CSS»로 덮었다 — 피커 문법이 아닌 값('to right'·'ellipse at …')은
+    //   열기만 해도 모양이 바뀌었다(기록 0, autosave 만). 캔버스 바 선택 칩 동기는 값 변경 없는 select 이벤트로만.
+    const ok = _seedGradientUI(e.detail, { emit: false });
     if (ok) {
+      _targetInput?.dispatchEvent(new CustomEvent('goya-cp:gradient-select', { bubbles: true, detail: { selectedIdx: _sortedSelIdx() } }));
       // gradient 탭으로 «보여주기만» — 커밋 없음(열기만 해선 기록이 안 쌓인다)
       if (_state) _state.mode = 'gradient';
       _showTab('gradient');
@@ -1054,11 +1058,17 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
      호출측이 이미 cpGradient 를 채웠으면(도형 방식) 존중한다. ⛔여기선 onApply/onGradient 를 부르지 않는다(열기만 해선 문서 불변). */
   let _seedAlpha = null;
   if (onGradient && gradientValue) {
-    const g = parseGradient(String(gradientValue));
+    // ★엄격 파싱: 피커 문법이 아닌 그라데이션('to right'·'ellipse at …'·이름색 등)은 시드하지 않는다 —
+    //   잘못 읽힌 모델로 열면 스탑 하나만 건드려도 사용자 값이 엉뚱하게 다시 쓰인다(이벨류 high). 시드 없음 = Solid 탭.
+    const g = parseGradientStrict(String(gradientValue));
     if (g && Array.isArray(g.stops) && g.stops.length >= 2) {
-      const first = g.stops.slice().sort((a, b) => a.offset - b.offset)[0];
+      // Solid 복귀 색 = «보이는» 첫 스탑(투명도>0). 첫 스탑이 완전 투명(예: 흰 0%→흰 100%)이면 그걸 고르면
+      //   Solid 복귀가 투명색이 된다(이벨류 low) → 보이는 첫 스탑, 전부 투명이면 첫 스탑 색을 불투명으로.
+      const sorted = g.stops.slice().sort((a, b) => a.offset - b.offset);
+      const _op = s => Math.max(0, Math.min(1, s.opacity == null ? 1 : s.opacity));
+      const first = sorted.find(s => _op(s) > 0) || sorted[0];
       const fh = _hex6(first.color);
-      const fa = Math.round(Math.max(0, Math.min(1, first.opacity == null ? 1 : first.opacity)) * 100);
+      const fa = _op(first) > 0 ? Math.round(_op(first) * 100) : 100;
       if (!picker.dataset.cpGradient) {
         try { picker.dataset.cpGradient = JSON.stringify({ type: g.type, angle: g.angle, stops: g.stops }); } catch (_) {}
       }

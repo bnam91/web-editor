@@ -230,7 +230,16 @@ test('S6 범위 밖 스탑(-40%·130%, 캔버스 자유 끝점)을 피커가 잘
   await openPicker(page);
   const th = await page.evaluate(() => [...document.querySelectorAll('.goya-cp-popover .goya-cp-grad-thumb')].map(t => ({ left: t.style.left, title: t.title })));
   expect(th).toEqual([{ left: '0%', title: '-40%' }, { left: '100%', title: '130%' }]);
-  const css = await page.evaluate(() => document.getElementById('shp').dataset.shapeColor); // 시드 emit(기존 동작) 결과
+  // T-059 2라운드(이벨류 high): 여는 것만으론 방출하지 않는다(시드 emit:false) → 블럭 값 불변.
+  //   전엔 «시드 emit»이 곧 재내보내기였지만, 그 방출이 피커 문법 아닌 값을 망가뜨렸다. 재내보내기는 실제 편집으로 잰다.
+  const before = await page.evaluate(() => document.getElementById('shp').dataset.shapeColor);
+  expect(before).not.toMatch(/-40%|130%/);   // 이 하네스의 shp 는 시드와 무관한 원래 값 — 열기만 해선 안 바뀐다
+  await page.evaluate(() => {
+    const t = document.querySelector('.goya-cp-popover [data-el="gradType"]');
+    t.dispatchEvent(new Event('change', { bubbles: true }));   // 값은 그대로(linear) — 편집 이벤트로 재내보내기만 유발
+  });
+  await page.waitForTimeout(60);
+  const css = await page.evaluate(() => document.getElementById('shp').dataset.shapeColor);
   expect(css).toBe('linear-gradient(90deg, #ff0000 -40%, #0000ff 130%)');
   expect(errs).toEqual([]);
 });

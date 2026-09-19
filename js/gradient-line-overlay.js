@@ -25,6 +25,7 @@ import * as _GM from './props/gradient-model.js';
 // 모델 헬퍼 해석기 — window.GradientModel 우선, 없으면 정적 import 사용.
 function _gm() { return window.GradientModel || _GM || {}; }
 const parseGradient = (css) => _gm().parseGradient?.(css);
+const parseGradientStrict = (css) => (_gm().parseGradientStrict || _GM.parseGradientStrict)?.(css);
 const toCss         = (model) => _gm().toCss?.(model);
 
 // 화면상 크기(px) — 전부 --inv-zoom 을 곱해 줌 불변
@@ -594,7 +595,8 @@ function bindGradientLinePicker(blockEl, inputEl) {
   blockEl._gradPickerInput = inputEl;
   // 재오픈 시드 — 저장된 그라데이션으로(없으면 건드리지 않음)
   const t = window.getGradientTarget?.(blockEl);
-  const g = t ? parseGradient(t.get?.()) : null;
+  // T-059 2라운드: 피커 문법이 아닌 값은 시드하지 않는다(color-picker wireColorField 와 같은 기준 — 잘못 읽힌 시드는 편집 한 번에 값을 망침)
+  const g = t ? parseGradientStrict(t.get?.()) : null;
   if (g) { try { inputEl.dataset.cpGradient = _modelJson(g); } catch (_) {} }
 
   if (inputEl._gradLinePickerWired) return;

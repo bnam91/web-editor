@@ -87,6 +87,42 @@ function parseGradient(css) {
   return { type, angle, stops };
 }
 
+// T-059 2라운드 (이벨류 high): «피커가 그대로 다시 쓸 수 있는» 그라데이션만 모델로 돌려준다.
+//   parseGradient 는 관대해서 'to right'·'ellipse at top left'·3자리 hex·이름색·turn 단위를
+//   조용히 잘못 읽는다(방향 키워드가 색 스탑이 되고, 도형·위치는 circle 로 바뀜). 그런 모델로
+//   피커를 시드하면 스탑 하나만 건드려도 사용자 그라데이션이 엉뚱한 값으로 다시 쓰인다.
+//   → 피커 문법(각도 deg 0~360 | 없음, radial 은 'circle' 만, 스탑 색 = #rrggbb | rgb()/rgba(),
+//     위치 % — 위치 없는 스탑은 2스탑일 때만)이 아니면 null. null = 시드 안 함(Solid 탭으로 열림).
+const _STRICT_STOP = /^(#[0-9a-f]{6}|rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(?:,\s*[\d.]+\s*)?\))(\s+-?[\d.]+%)?$/i;
+function parseGradientStrict(css) {
+  const g = parseGradient(css);
+  if (!g) return null;
+  const inner = /^(?:linear|radial)-gradient\((.*)\)$/is.exec(String(css).trim())[1];
+  const tokens = _splitTopLevel(inner);
+  let idx = 0;
+  const first = tokens[0];
+  if (g.type === 'linear') {
+    if (/^-?\d+(\.\d+)?deg$/i.test(first)) {
+      const a = parseFloat(first);
+      if (!(a >= 0 && a <= 360)) return null;
+      idx = 1;
+    }
+  } else {
+    if (!/^circle$/i.test(first)) return null;   // 도형/위치 지정·생략(ellipse 기본) = 피커가 못 지킴
+    idx = 1;
+  }
+  const stopTokens = tokens.slice(idx);
+  if (stopTokens.length < 2 || stopTokens.length !== g.stops.length) return null;
+  let bare = 0;
+  for (const tk of stopTokens) {
+    const m = _STRICT_STOP.exec(tk);
+    if (!m) return null;
+    if (!m[2]) bare++;
+  }
+  if (bare && !(bare === stopTokens.length && stopTokens.length === 2)) return null;
+  return g;
+}
+
 /* ------------------------------------------------------------------ *
  * 2) serialize  (byte-identical to color-picker.js)
  * ------------------------------------------------------------------ */
@@ -444,6 +480,7 @@ function getGradientTarget(blockEl) {
 
 const GradientModel = {
   parseGradient,
+  parseGradientStrict,
   toCss,
   handlesToAngle,
   angleToHandles,
@@ -470,6 +507,7 @@ if (typeof window !== 'undefined') {
 
 export {
   parseGradient,
+  parseGradientStrict,
   toCss,
   handlesToAngle,
   angleToHandles,
