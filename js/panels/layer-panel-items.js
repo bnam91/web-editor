@@ -257,7 +257,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isMockup) window.showMockupProperties?.(block);
     else if (isDivider) window.showDividerProperties?.(block);
     else if (isBridge) window.showBridgeProperties?.(block);
-    else if (isGrid) window.showGridProperties?.(block);
+    else if (isGrid) window.showGridProperties?.(block, null);   // ★0918: 블럭으로 선택 = 줄 선택 해제
     else if (isInfoCard) window.showInfoCardProperties?.(block);
     else if (isInnerCard) window.showInnerCardProperties?.(block);
     else if (isModal) window.showModalProperties?.(block);

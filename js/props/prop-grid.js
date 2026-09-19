@@ -19,9 +19,34 @@ import { parseAlphaFromColor, swatchHex } from './color-picker.js';
 const _grdActiveLine = new WeakMap();
 export function grdSetActiveLine(block, addr) { _grdActiveLine.set(block, addr || null); }
 export function grdGetActiveLine(block) { return _grdActiveLine.get(block) || null; }
+/* ★0918 grid — «블럭 전체 선택»과 «줄 선택»을 가른다.
+ *   이 WeakMap 을 null 로 되돌리는 곳이 없어서, 줄을 한 번 누른 블럭은 블럭을 떠났다 «블럭으로»
+ *   다시 골라도(레이어 패널·테두리·Esc 후 재클릭) 옛 {r,c,li} 가 살아났다 → Backspace 가
+ *   editor.js 줄 삭제 분기로 새서, 한 줄짜리 칸이면 토스트만 뜨고 블럭이 영영 안 지워졌다.
+ *   원칙: 블럭을 «떠나면»(deselectAll) 줄 선택도 해제. WeakMap 은 순회가 안 되니 DOM 을 돈다. */
+export function grdClearAllActiveLines(root) {
+  const scope = root || (typeof document !== 'undefined' ? document : null);
+  if (!scope || !scope.querySelectorAll) return;
+  scope.querySelectorAll('.grid-block').forEach(b => grdSetActiveLine(b, null));
+}
+
+/* 캔버스 클릭 한 번이 «어느 줄 주소»를 뜻하는지 — 순수 판정(유닛 테스트 대상).
+ *   at        : _gridAddrAt 결과(줄/빈 칸이면 주소, 아니면 undefined)
+ *   prevAddr  : 클릭 «직전»(deselectAll 전) 그 블럭의 활성줄
+ *   insideCell: 클릭 지점이 그 블럭의 .grd-cell 안인가
+ *   → 줄/빈 칸을 눌렀으면 at. 줄 있는 칸의 여백이면 prevAddr(D5: 선택이 안 튄다).
+ *     칸 밖(테두리·패딩·gap)이면 null = 블럭 전체 선택. ★undefined 는 절대 돌려주지 않는다
+ *     (undefined 는 showGridProperties 에서 «기억하던 줄 되살리기»라 이 버그의 입구였다). */
+export function grdResolveClickAddr({ at, prevAddr, insideCell } = {}) {
+  if (at !== undefined) return at;
+  if (insideCell) return prevAddr || null;
+  return null;
+}
 if (typeof window !== 'undefined') {
   window.grdSetActiveLine = grdSetActiveLine;
   window.grdGetActiveLine = grdGetActiveLine;
+  window.grdClearAllActiveLines = grdClearAllActiveLines;
+  window.grdResolveClickAddr = grdResolveClickAddr;
 }
 
 /* 캔버스에서 선택된 줄에 마커. ⛔`.selected` 재활용 금지 — editor.js 의

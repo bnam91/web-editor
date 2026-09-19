@@ -2315,6 +2315,13 @@ document.addEventListener('keydown', e => {
       editingGroup.classList.remove('group-editing');
       return;
     }
+    /* ★0918 grid «상위 선택»(피그마식): 그리드의 줄/칸이 선택돼 있으면 첫 Esc 는 줄 선택만 풀고
+       블럭 선택은 유지한다(이 상태의 Backspace = 블럭 삭제). 한 번 더 Esc 면 전체 해제. */
+    const _gridSelEsc = document.querySelector('.grid-block.selected');
+    if (_gridSelEsc && window.grdGetActiveLine?.(_gridSelEsc)) {
+      window.showGridProperties?.(_gridSelEsc, null);
+      return;
+    }
     deselectAll();
   }
 
@@ -2643,7 +2650,7 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
       }
       if (lines.length <= 1) {
         // 칸에 남은 마지막 줄 — 줄바 [줄 삭제] 버튼과 같은 보호(disabled). 블록 전체 삭제로도 새지 않는다.
-        window.showToast?.('⚠️ 칸에 남은 마지막 줄은 지울 수 없습니다 — 행/열을 삭제하려면 우측 패널을 쓰세요');
+        window.showToast?.('⚠️ 칸에 남은 마지막 줄은 지울 수 없습니다 — 블럭을 지우려면 Esc 후 삭제, 행/열은 우측 패널');
         return consumed;
       }
       const newLines = lines.filter((_, i) => i !== li);
@@ -3066,6 +3073,9 @@ function deselectAll() {
   canvas.querySelectorAll('.grd-line-selected').forEach(el => el.classList.remove('grd-line-selected'));
   // 그리드 «빈 셀 선택» 마커도 같은 자리에서 해제 (T-A, _grdSyncLineMark 의 셀 모드 짝)
   canvas.querySelectorAll('.grd-cell-selected').forEach(el => el.classList.remove('grd-cell-selected'));
+  // ★0918 grid: 마커만 지우고 «모델»(활성줄 WeakMap)을 두면, 블럭으로 다시 골랐을 때 옛 줄이 살아나
+  //   Backspace 가 줄 삭제 분기로 새서 블럭이 안 지워졌다. 블럭을 떠나면 줄 선택도 해제한다.
+  window.grdClearAllActiveLines?.(canvas);
   // 스텝 «지금 보는 스텝» 마커도 같은 자리에서 (prop-step.js 의 _stbSyncMark 와 짝 · 옛 이름 포함)
   canvas.querySelectorAll('.stb-line-selected, .stb-step-selected').forEach(el => el.classList.remove('stb-line-selected', 'stb-step-selected'));
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
