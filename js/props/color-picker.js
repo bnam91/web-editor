@@ -545,9 +545,12 @@ function _wireEvents(pop) {
   function _positionGradStops() {
     const g = _grad();
     const thumbs = gradBar.querySelectorAll('.goya-cp-grad-thumb');
-    thumbs.forEach((t, i) => { if (g.stops[i]) t.style.left = (g.stops[i].offset * 100) + '%'; });
+    thumbs.forEach((t, i) => { if (g.stops[i]) t.style.left = _thumbLeft(g.stops[i].offset); });
     gradFill.style.background = _buildGradientCSS();
   }
+  // 0918 canvasgrad: 캔버스 바 끝점을 박스 밖으로 끌면 스탑이 0% 미만·100% 초과가 된다 —
+  // 값은 그대로 두고(저장 CSS 보존) 썸네일 «표시»만 바 안으로.
+  function _thumbLeft(off) { return (Math.max(0, Math.min(1, off || 0)) * 100) + '%'; }
   function _bindStopThumbDrag(thumbEl, idx) {
     thumbEl.addEventListener('mousedown', (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -581,7 +584,7 @@ function _wireEvents(pop) {
     g.stops.forEach((s, i) => {
       const t = document.createElement('div');
       t.className = 'goya-cp-grad-thumb' + (i === g.selectedIdx ? ' is-active' : '');
-      t.style.left = (s.offset * 100) + '%';
+      t.style.left = _thumbLeft(s.offset);
       t.style.background = s.color;
       t.title = Math.round(s.offset * 100) + '%';
       gradBar.appendChild(t);
@@ -722,7 +725,8 @@ function _wireEvents(pop) {
     const gr = _grad();
     gr.stops = g.stops.map(s => ({
       color: _hex6(s.color),
-      offset: Math.max(0, Math.min(1, s.offset ?? 0)),
+      // 0918 canvasgrad: 범위 밖 offset 보존(캔버스 바 자유 끝점) — 표시만 _thumbLeft 가 클램프
+      offset: Number.isFinite(Number(s.offset)) ? Number(s.offset) : 0,
       opacity: (s.opacity == null) ? 1 : Math.max(0, Math.min(1, s.opacity)),
     }));
     const si = Number(opts.selectedIdx);
@@ -817,6 +821,8 @@ function openPicker(swatch) {
       }
     } catch (_) { /* 손상된 컨텍스트 무시 → solid 탭 유지 */ }
   }
+  // 0918 canvasgrad: 열린 피커가 캔버스 그라데이션 바를 가리면 바 쪽이 피커를 비킨다(gradient-line-overlay).
+  document.dispatchEvent(new CustomEvent('goya-cp:opened', { detail: { input: nativeInp } }));
 
   // outside click close — composedPath로 swatch 포함 검사 + 충분한 지연으로 자기 mousedown 회피
   // ※ 이전 openPicker 호출이 남긴 outside-handler를 먼저 제거한다.

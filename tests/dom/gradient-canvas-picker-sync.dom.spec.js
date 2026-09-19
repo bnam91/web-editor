@@ -191,3 +191,66 @@ test('S4 angle 0 시드 → 각도 필드 0 (90 둔갑 회귀)', async ({ page }
   expect((await pickerState(page)).angle).toBe('0');
   expect(errs).toEqual([]);
 });
+
+test('S5 캔버스 칩 드래그 값은 1% 단위 — 드래그 중·후 모두 피커 썸네일 표시(style.left)와 저장 CSS 가 같다(전: 25.3304% vs 25%)', async ({ page }) => {
+  const errs = await boot(page);
+  await openPicker(page);
+  const pos = await page.evaluate(() => {
+    const refs = document.getElementById('shp')._gradLine;
+    const r = refs.chips[1].getBoundingClientRect();
+    const or = refs.overlay.getBoundingClientRect();
+    return { from: { x: r.left + r.width / 2, y: r.top + r.height / 2 }, to: { x: or.left + 0.2533 * or.width, y: or.top + or.height / 2 } };
+  });
+  const read = () => page.evaluate(() => ({
+    css: document.getElementById('shp').dataset.shapeColor,
+    left: document.querySelectorAll('.goya-cp-popover .goya-cp-grad-thumb')[1].style.left,
+  }));
+  await page.mouse.move(pos.from.x, pos.from.y);
+  await page.mouse.down();
+  await page.mouse.move(pos.to.x + 0.37, pos.to.y, { steps: 6 });   // 소수 px 커서
+  const mid = await read();
+  await page.mouse.up();
+  const end = await read();
+  for (const o of [mid, end]) {
+    const pct = /#00ff00 (-?\d+)%/.exec(o.css)[1];
+    expect(o.left, JSON.stringify(o)).toBe(pct + '%');
+  }
+  expect(errs).toEqual([]);
+});
+
+test('S6 범위 밖 스탑(-40%·130%, 캔버스 자유 끝점)을 피커가 잘라먹지 않는다 — 표시만 바 안, 다시 내보낼 때 값 보존', async ({ page }) => {
+  const errs = await boot(page, { bind: false });
+  await page.evaluate(() => {
+    document.getElementById('shape-color-color').dataset.cpGradient = JSON.stringify({
+      type: 'linear', angle: 90, stops: [{ color: '#ff0000', offset: -0.4, opacity: 1 }, { color: '#0000ff', offset: 1.3, opacity: 1 }],
+    });
+  });
+  await openPicker(page);
+  const th = await page.evaluate(() => [...document.querySelectorAll('.goya-cp-popover .goya-cp-grad-thumb')].map(t => ({ left: t.style.left, title: t.title })));
+  expect(th).toEqual([{ left: '0%', title: '-40%' }, { left: '100%', title: '130%' }]);
+  const css = await page.evaluate(() => document.getElementById('shp').dataset.shapeColor); // 시드 emit(기존 동작) 결과
+  expect(css).toBe('linear-gradient(90deg, #ff0000 -40%, #0000ff 130%)');
+  expect(errs).toEqual([]);
+});
+
+test('S7 열린 피커가 캔버스 바(끝 원·칩)를 가리면 피커가 비킨다 — goya-cp:opened', async ({ page }) => {
+  const errs = await boot(page);
+  await openPicker(page);
+  // 피커를 일부러 바 위로 옮긴다(실앱 비교 블록 126° 재현: 끝 원·94% 칩이 피커 밑)
+  const covered = await page.evaluate(() => {
+    const pop = document.querySelector('.goya-cp-popover');
+    const e = document.querySelector('#shp [data-grad-handle="end"]').getBoundingClientRect();
+    pop.style.left = (e.left - 40) + 'px'; pop.style.top = (e.top - 40) + 'px';
+    const hit = document.elementFromPoint(e.left + e.width / 2, e.top + e.height / 2);
+    return hit?.dataset?.gradHandle === 'end';
+  });
+  expect(covered, '음성대조: 옮긴 뒤엔 끝 원이 가려져야').toBe(false);
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('goya-cp:opened', { detail: { input: document.getElementById('shape-color-color') } })));
+  const hits = await page.evaluate(() => {
+    const b = document.getElementById('shp');
+    const els = [...b.querySelectorAll('.grad-line-end, .grad-stop-chip')];
+    return els.map(el => { const r = el.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return h === el || el.contains(h); });
+  });
+  expect(hits.every(Boolean), JSON.stringify(hits)).toBe(true);
+  expect(errs).toEqual([]);
+});

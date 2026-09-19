@@ -23,6 +23,7 @@ fs.rmSync(TMP, { recursive: true, force: true });
 const {
   gradientLine, angleFromDrag, offsetOnLine, chipPlacement,
   sortStopsKeepSelection, sortedIndexOf, parseGradient, toCss, angleToHandles,
+  projectT, viewMap, defaultView, applyView, svgStopRemap,
 } = GM;
 
 const near = (a, b, eps = 1e-6, msg) => assert.ok(Math.abs(a - b) <= eps, `${msg || ''} ${a} vs ${b}`);
@@ -142,4 +143,56 @@ test('(g) toCss 왕복 — 한 스탑 offset 만 바꾸면 다른 스탑 토큰�
   assert.equal(a[0], b[0]);
   assert.equal(a[2], b[2]);
   assert.equal(b[1], 'rgba(26,166,255,0.500) 62%');
+});
+
+// ── 0918 픽스 라운드: 자유 끝점(현빈 «추가 2») ─────────────────────────────────────
+test('(h) projectT — 클램프 없음: 선 밖 점은 0 미만·1 초과', () => {
+  const line = { p0: { x: 0, y: 0.5 }, p1: { x: 1, y: 0.5 } };
+  near(projectT(line, { x: -0.4, y: 0.9 }), -0.4);
+  near(projectT(line, { x: 1.3, y: 0 }), 1.3);
+  // css 공간 metric: 200×100, 대각선 선에서 px 투영
+  const d = { p0: { x: 0, y: 0 }, p1: { x: 1, y: 1 } };
+  near(projectT(d, { x: 1, y: 0 }, { space: 'css', w: 200, h: 100 }), 200 * 200 / (200 * 200 + 100 * 100));
+});
+
+test('(i) defaultView — 스탑이 0~1 이면 canon 그대로(기존 동작), 범위 밖이면 스탑까지 늘린 선', () => {
+  const m = { type: 'linear', angle: 90, stops: [{ offset: 0 }, { offset: 1 }] };
+  const c = gradientLine(m, { space: 'bbox' });
+  assert.deepEqual(defaultView(m, { space: 'bbox' }), { p0: c.p0, p1: c.p1 });
+  const v = defaultView({ ...m, stops: [{ offset: -0.4 }, { offset: 1.3 }] }, { space: 'bbox' });
+  near(v.p0.x, -0.4); near(v.p1.x, 1.3); near(v.p0.y, 0.5); near(v.p1.y, 0.5);
+});
+
+test('(j) applyView — bbox: 오른쪽 끝을 밖(1.5, 0.5)으로 → 90°, rel[0,0.94] → [0, 141]%', () => {
+  const r = applyView({ p0: { x: 0, y: 0.5 }, p1: { x: 1.5, y: 0.5 } }, [0, 0.94], { space: 'bbox' });
+  assert.equal(r.angle, 90);
+  assert.deepEqual(r.offsets, [0, 1.41]);
+});
+
+test('(k) applyView ↔ viewMap 왕복 — 끈 선 위 rel 은 canon 에서 같은 «점»(css 800×200, 비스듬한 선)', () => {
+  const o = { space: 'css', w: 800, h: 200 };
+  const view = { p0: { x: 0.1, y: 0.2 }, p1: { x: 1.4, y: 1.3 } };
+  const rel = [0, 0.35, 1];
+  const r = applyView(view, rel, o);
+  const m = { type: 'linear', angle: r.angle, stops: r.offsets.map(offset => ({ offset })) };
+  const { a, b } = viewMap(m, view, o);
+  rel.forEach((t, i) => near((r.offsets[i] - a) / b, t, 0.02, `rel ${i}`)); // 1% 반올림 + 정수 각도 오차
+  // 독립 해석해: css 선 = 중심 ± u·L/2 (px)
+  const rad = r.angle * Math.PI / 180, ux = Math.sin(rad), uy = -Math.cos(rad);
+  const L = Math.abs(800 * ux) + Math.abs(200 * uy);
+  const tAt = (p) => 0.5 + ((p.x * 800 - 400) * ux + (p.y * 200 - 100) * uy) / L;
+  near(r.offsets[0], Math.round(tAt(view.p0) * 100) / 100, 1e-9);
+  near(r.offsets[2], Math.round(tAt(view.p1) * 100) / 100, 1e-9);
+});
+
+test('(l) svgStopRemap — 범위 안이면 그대로, 밖이면 선을 늘리고 offset 을 0~1 로(같은 점에 같은 색)', () => {
+  const line = { x1: 0, y1: 0.5, x2: 1, y2: 0.5 };
+  const same = svgStopRemap(line, [0, 0.5, 1]);
+  assert.equal(same.remap, null);
+  assert.deepEqual([same.x1, same.x2], [0, 1]);
+  const r = svgStopRemap(line, [-0.4, 0.3, 1.3]);
+  near(r.x1, -0.4); near(r.x2, 1.3);
+  r.offsets.forEach(o => assert.ok(o >= 0 && o <= 1));
+  // 원래 offset 0.3 의 점 = 새 선 위 offsets[1] 의 점
+  near(r.x1 + (r.x2 - r.x1) * r.offsets[1], 0.3);
 });

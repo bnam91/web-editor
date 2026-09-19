@@ -6,8 +6,10 @@
 //   · 흰 선 1개 + 양 끝 흰 원 손잡이 2개(data-grad-handle=start/end)
 //   · 선 위 각 스탑 = 선 옆에 뜬 «네모 색칩»(선 각도만큼 회전, 꼬리가 선을 가리킴).
 //     선택 칩 = 파란 테두리. 칩 드래그 중엔 칩 위에 파란 % 라벨.
-//   · 칩 드래그 = 선을 따라 그 스탑 offset 변경. 끝 원 드래그 = 방향(각도) 변경 —
-//     원은 «실제 렌더되는 끝점»으로 스냅된다(길이는 CSS 규칙이 정한다: 저장 스키마 불변 A안).
+//   · 칩 드래그 = 선을 따라 그 스탑 offset 변경. 끝 원 드래그 = 방향·길이·위치 자유(박스 밖 허용, 클램프 없음).
+//     ★현빈 «추가 2»: 저장 스키마(각도+스탑 %)는 그대로 두고, 끈 선(view) 기준으로 각도와 스탑 %를
+//     다시 계산한다(0% 미만·100% 초과 허용) → 도형 안에는 그 구간만 보인다. 원은 끈 자리에 머문다.
+//   · 칩 선택 상태에서 Backspace/Delete = 스탑 삭제(3개 이상일 때). 블록 삭제로 새지 않는다.
 //   · 패널(컬러피커) 스탑과 양방향 동기: bindGradientLinePicker(block, inputEl).
 //
 // 좌표 공간은 어댑터(gradient-model.js registerGradientTarget)의 space 가 정한다:
@@ -136,6 +138,21 @@ function _stopDisplayColor(s) {
   return `rgba(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)},${op})`;
 }
 
+// 화면 바(view) — 이 세션에서 끈 끝점을 기억한다(block._gradView, 저장 안 됨). 저장값이 바뀌었으면
+// (외부 편집·undo) 기억을 버리고 저장값에서 유도(defaultView).
+function _viewOf(refs) {
+  const o = _geomOpts(refs);
+  if (refs.model.type === 'radial') { const l = _gm().gradientLine(refs.model, o); return { p0: l.p0, p1: l.p1 }; }
+  return refs.view || _gm().defaultView(refs.model, o);
+}
+function _rememberView(refs, css) {
+  if (refs.view) refs.block._gradView = { css, view: { p0: { ...refs.view.p0 }, p1: { ...refs.view.p1 } } };
+}
+function _recalledView(block, css) {
+  const v = block._gradView;
+  return v && v.css === css ? { p0: { ...v.view.p0 }, p1: { ...v.view.p1 } } : null;
+}
+
 // 정렬 사본으로 CSS — 드래그 중엔 refs.model.stops 순서를 고정하므로 쓰기만 정렬해서 한다.
 function _cssFor(model) {
   const stops = model.stops.map(s => ({ ...s })).sort((a, b) => (a.offset || 0) - (b.offset || 0));
@@ -168,9 +185,11 @@ function _render(block) {
   const W = o.w, H = o.h;
   const gm = _gm();
   const ln = gm.gradientLine(refs.model, o);
-  refs.line = ln;
-  const p0 = { x: ln.p0.x * W, y: ln.p0.y * H };
-  const p1 = { x: ln.p1.x * W, y: ln.p1.y * H };
+  const view = _viewOf(refs);
+  refs.line = view;
+  refs.map = ln.radial ? { a: 0, b: 1 } : gm.viewMap(refs.model, view, o);
+  const p0 = { x: view.p0.x * W, y: view.p0.y * H };
+  const p1 = { x: view.p1.x * W, y: view.p1.y * H };
 
   // 선
   const dx = p1.x - p0.x, dy = p1.y - p0.y;
@@ -196,7 +215,8 @@ function _render(block) {
   const d = CHIP_GAP_PX * _invZoom();
   refs.model.stops.forEach((s, i) => {
     const chip = refs.chips[i];
-    const pl = gm.chipPlacement(p0, p1, s.offset, d);
+    const tv = ((s.offset || 0) - refs.map.a) / refs.map.b; // canon offset → view 위 상대 위치
+    const pl = gm.chipPlacement(p0, p1, tv, d);
     chip.style.left = pl.x + 'px';
     chip.style.top = pl.y + 'px';
     chip.style.transform = `rotate(${pl.rotDeg}deg)`;
@@ -306,6 +326,7 @@ function _bindChipDrag(block, chip) {
     const i = Number(chip.dataset.gradStop);
     const stop = refs.model.stops[i];
     if (!stop) return;
+    _setChipActive(refs, true);
     if (refs.selectedIdx !== i) {
       refs.selectedIdx = i;
       _render(block);
@@ -316,7 +337,9 @@ function _bindChipDrag(block, chip) {
     refs.dragging = true;
     _startDrag(e, (ev) => {
       const P = _clientToLocal(block, ev);
-      stop.offset = _gm().offsetOnLine(refs.line, P, _geomOpts(refs));
+      // view 위 위치(0~1, 끝점 사이) → 저장(canon) offset. 1% 단위(저장 CSS 와 표시값 일치).
+      const tv = Math.max(0, Math.min(1, _gm().projectT(refs.line, P, _geomOpts(refs))));
+      stop.offset = Math.round((refs.map.a + refs.map.b * tv) * 100) / 100;
       refs.dragIdx = refs.model.stops.indexOf(stop);
       const css = _cssFor(refs.model);
       target.set(css, false);
@@ -329,6 +352,8 @@ function _bindChipDrag(block, chip) {
       if (moved) {
         refs.selectedIdx = _gm().sortStopsKeepSelection(refs.model.stops, refs.model.stops.indexOf(stop));
         const css = _cssFor(refs.model);
+        refs.view = _viewOf(refs);
+        _rememberView(refs, css);
         target.set(css, true);
         _render(block);
         _emit(block, 'gradient-line:change', _changeDetail(refs, css, true));
@@ -347,12 +372,25 @@ function _bindEndDrag(block, handle, which) {
     if (!refs || refs.model.type === 'radial') return;
     const target = refs.target;
     refs.dragging = true;
+    _setChipActive(refs, false);
+    // 드래그 시작 시점의 view 와 각 스탑의 view 상대 위치(rel)를 고정 — 끝점만 옮기고 다시 계산한다.
+    const view0 = _viewOf(refs);
+    const map0 = refs.map || { a: 0, b: 1 };
+    const rel = refs.model.stops.map(s => ((s.offset || 0) - map0.a) / map0.b);
     _startDrag(e, (ev) => {
-      const P = _clientToLocal(block, ev);
-      let a = _gm().angleFromDrag({ x: 0.5, y: 0.5 }, P, _geomOpts(refs));
-      if (which === 'start') a += 180;
-      refs.model.angle = Math.round(((a % 360) + 360) % 360) % 360;
+      const P = _clientToLocal(block, ev); // 클램프 없음 — 박스 밖 허용
+      const o = _geomOpts(refs);
+      const view = which === 'end'
+        ? { p0: { ...view0.p0 }, p1: { x: P.x, y: P.y } }
+        : { p0: { x: P.x, y: P.y }, p1: { ...view0.p1 } };
+      // 두 끝점이 거의 겹치면(방향 불정) 무시
+      if (Math.hypot((view.p1.x - view.p0.x) * o.w, (view.p1.y - view.p0.y) * o.h) < 4) return;
+      const res = _gm().applyView(view, rel, o);
+      refs.model.angle = res.angle;
+      refs.model.stops.forEach((s, i) => { s.offset = res.offsets[i]; });
+      refs.view = view;
       const css = _cssFor(refs.model);
+      _rememberView(refs, css);
       target.set(css, false);
       _render(block);
       _emit(block, 'gradient-line:change', _changeDetail(refs, css, false));
@@ -360,6 +398,7 @@ function _bindEndDrag(block, handle, which) {
       refs.dragging = false;
       if (!moved) return;
       const css = _cssFor(refs.model);
+      _rememberView(refs, css);
       target.set(css, true);
       _render(block);
       _emit(block, 'gradient-line:change', _changeDetail(refs, css, true));
@@ -380,7 +419,10 @@ function showGradientLine(blockEl, opts = {}) {
   let refs = blockEl._gradLine;
   if (refs && refs.overlay && refs.overlay.isConnected && blockEl.contains(refs.overlay)) {
     // 재호출 — 드래그 중엔 자기 모델을 유지(외부 재파싱이 드래그 중인 스탑 순서를 흔들지 않게)
-    if (!refs.dragging) refs.model = g;
+    if (!refs.dragging) {
+      refs.model = g;
+      refs.view = _recalledView(blockEl, css); // 우리가 쓴 값 그대로면 끈 끝점 유지, 아니면 유도
+    }
     refs.target = t;
     refs.box = _computeBox(blockEl, t);
     _applyBox(refs.overlay, refs.box);
@@ -416,13 +458,14 @@ function showGradientLine(blockEl, opts = {}) {
 
   refs = blockEl._gradLine = {
     block: blockEl, overlay, lineEl, start, end, pct, chips: [],
-    model: g, target: t, box, line: null,
+    model: g, target: t, box, line: null, map: null, view: _recalledView(blockEl, css), chipActive: false,
     selectedIdx: Number.isFinite(opts.selectedIdx) ? opts.selectedIdx : 0,
     dragIdx: null, dragging: false,
   };
   _bindEndDrag(blockEl, start, 'start');
   _bindEndDrag(blockEl, end, 'end');
   _render(blockEl);
+  _avoidPicker(blockEl);
 }
 
 // ── public: setGradientLineSelected ─────────────────────────────────────────
@@ -498,9 +541,98 @@ document.addEventListener('gradient-line:select', (e) => {
   window.syncPickerGradient?.(inp, { type: m.type, angle: m.angle, stops: sorted }, { selectedIdx: e.detail.selectedIdx });
 });
 
+// ── 칩 «포커스» + Backspace/Delete = 스탑 삭제 ─────────────────────────────────────
+// 칩을 누르면 그 바가 키 입력 대상이 된다. 다른 곳을 누르면 해제. 이 동안 Backspace/Delete 는
+// 블록 삭제(에디터 keydown)로 새지 않고, 스탑이 3개 이상이면 선택 스탑을 지운다(2개면 무시 — 피그마와 같음).
+function _setChipActive(refs, on) {
+  refs.chipActive = !!on;
+  refs.overlay.classList.toggle('is-chip-active', !!on);
+}
+document.addEventListener('mousedown', (ev) => {
+  if (ev.target?.closest?.('.grad-line-overlay')) return;
+  document.querySelectorAll('.grad-line-overlay.is-chip-active').forEach(o => {
+    const r = o.parentElement?._gradLine;
+    if (r) _setChipActive(r, false); else o.classList.remove('is-chip-active');
+  });
+}, true);
+function _isEditableTarget(t) {
+  if (!t || t === document.body) return false;
+  if (t.isContentEditable) return true;
+  const tag = t.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+window.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Backspace' && ev.key !== 'Delete') return;
+  if (_isEditableTarget(ev.target) || _isEditableTarget(document.activeElement)) return;
+  const ov = document.querySelector('.grad-line-overlay.is-chip-active');
+  const block = ov?.parentElement;
+  const refs = block?._gradLine;
+  if (!refs || !refs.chipActive) return;
+  ev.preventDefault();
+  ev.stopImmediatePropagation();
+  ev.stopPropagation();
+  if (refs.dragging || refs.model.stops.length <= 2) return;
+  const i = Math.max(0, Math.min(refs.model.stops.length - 1, refs.selectedIdx | 0));
+  refs.model.stops.splice(i, 1);
+  refs.selectedIdx = Math.min(i, refs.model.stops.length - 1);
+  const css = _cssFor(refs.model);
+  refs.view = _viewOf(refs);
+  _rememberView(refs, css);
+  refs.target.set(css, true);
+  _render(block);
+  _emit(block, 'gradient-line:change', _changeDetail(refs, css, true));
+}, true);
+
+// ── 열린 컬러피커가 바(끝 원·칩)를 가리면 피커를 옆으로 비킨다 ─────────────────────────
+function _avoidPicker(blockEl) {
+  const refs = blockEl?._gradLine;
+  const pop = document.querySelector('.goya-cp-popover');
+  if (!refs || refs.dragging || !pop || pop.hidden) return false;
+  const els = [refs.start, refs.end, ...refs.chips];
+  let U = null;
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+    if (!r.width && !r.height) continue;
+    U = U ? { l: Math.min(U.l, r.left), t: Math.min(U.t, r.top), r: Math.max(U.r, r.right), b: Math.max(U.b, r.bottom) }
+          : { l: r.left, t: r.top, r: r.right, b: r.bottom };
+  }
+  if (!U) return false;
+  const pad = 12;
+  U = { l: U.l - pad, t: U.t - pad, r: U.r + pad, b: U.b + pad };
+  const P = pop.getBoundingClientRect();
+  const hit = !(P.right <= U.l || P.left >= U.r || P.bottom <= U.t || P.top >= U.b);
+  if (!hit) return false;
+  const vw = window.innerWidth, vh = window.innerHeight, g = 8;
+  const cands = [
+    { x: U.r, y: P.top }, { x: U.l - P.width, y: P.top },
+    { x: P.left, y: U.b }, { x: P.left, y: U.t - P.height },
+  ];
+  for (const c of cands) {
+    const y = Math.max(g, Math.min(vh - P.height - g, c.y));
+    if (c.x >= g && c.x + P.width <= vw - g && y >= g && y + P.height <= vh - g) {
+      const nr = { left: c.x, right: c.x + P.width, top: y, bottom: y + P.height };
+      if (nr.right <= U.l || nr.left >= U.r || nr.bottom <= U.t || nr.top >= U.b) {
+        pop.style.left = c.x + 'px';
+        pop.style.top = y + 'px';
+        return true;
+      }
+    }
+  }
+  return false;
+}
+// 피커가 열릴 때(openPicker 가 goya-cp:opened 발행) — 그 피커의 대상 블록 바를 가리지 않게
+document.addEventListener('goya-cp:opened', (e) => {
+  const inp = e.detail?.input;
+  document.querySelectorAll('.grad-line-overlay').forEach(o => {
+    const b = o.parentElement;
+    if (b?._gradLine && (!inp || b._gradPickerInput === inp)) _avoidPicker(b);
+  });
+});
+
 window.showGradientLine = showGradientLine;
 window.hideGradientLine = hideGradientLine;
 window.setGradientLineSelected = setGradientLineSelected;
 window.bindGradientLinePicker = bindGradientLinePicker;
+window._gradLineAvoidPicker = _avoidPicker;
 
 export { showGradientLine, hideGradientLine, setGradientLineSelected, bindGradientLinePicker };

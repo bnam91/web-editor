@@ -209,33 +209,130 @@ test('B4 칩 «클릭만» — pushHistory 0회, 값 불변, 선택만 이동(is
   expect(errs).toEqual([]);
 });
 
-test('B5 끝 원 드래그 — 적용 각도 = 커서 방향(banner02 800×200 는 px 공간), history 1회', async ({ page }) => {
+// 끝 원 드래그 공용: 핸들 중심 → (dx,dy) 만큼. 결과 끝 원·시작 원 중심(클라이언트) 반환.
+async function dragEnd(page, id, which, dx, dy) {
+  const r = await page.evaluate(({ id, which }) => {
+    const b = document.getElementById(id);
+    const q = (w) => { const e = b.querySelector(`[data-grad-handle="${w}"]`).getBoundingClientRect(); return { x: e.left + e.width / 2, y: e.top + e.height / 2 }; };
+    return { h: q(which), start: q('start'), end: q('end') };
+  }, { id, which });
+  await page.mouse.move(r.h.x, r.h.y);
+  await page.mouse.down();
+  await page.mouse.move(r.h.x + dx, r.h.y + dy, { steps: 8 });
+  await page.mouse.up();
+  const after = await page.evaluate((id) => {
+    const b = document.getElementById(id);
+    const q = (w) => { const e = b.querySelector(`[data-grad-handle="${w}"]`).getBoundingClientRect(); return { x: e.left + e.width / 2, y: e.top + e.height / 2 }; };
+    const br = b.getBoundingClientRect();
+    return { start: q('start'), end: q('end'), box: { l: br.left, t: br.top, w: br.width, h: br.height }, hist: window.__hist,
+      css: b.dataset.shapeColor || b.dataset.bg };
+  }, id);
+  return { before: r, after, cursor: { x: r.h.x + dx, y: r.h.y + dy } };
+}
+// 독립 기준(해석해): 끝점 두 개(px, 박스 기준) + 스탑의 끈 선 위 상대 위치 → 저장 각도·스탑 %.
+//   css : 각도 = px 방향, 색 선 = 중심 ± u·L/2, L=|w sin|+|h cos| (px 투영)
+//   bbox: 각도 = 정규화 방향, 선 = 0.5 ∓ 0.5u (정규화 투영)
+function refFromEndpoints(space, w, h, P0, P1, rel) {
+  const sx = space === 'css' ? 1 : 1 / w, sy = space === 'css' ? 1 : 1 / h;
+  const q0 = { x: P0.x * sx, y: P0.y * sy }, q1 = { x: P1.x * sx, y: P1.y * sy };
+  const ang = Math.round(((Math.atan2(q1.x - q0.x, -(q1.y - q0.y)) * 180 / Math.PI) + 360) % 360) % 360;
+  const r = ang * Math.PI / 180, ux = Math.sin(r), uy = -Math.cos(r);
+  const W = space === 'css' ? w : 1, H = space === 'css' ? h : 1;
+  const L = space === 'css' ? Math.abs(W * ux) + Math.abs(H * uy) : 1;
+  const c = { x: W / 2, y: H / 2 };
+  const t = (q) => 0.5 + ((q.x - c.x) * ux + (q.y - c.y) * uy) / L;
+  const t0 = t(q0), t1 = t(q1);
+  return { angle: ang, offsets: rel.map(v => Math.round((t0 + (t1 - t0) * v) * 100)) };
+}
+
+test('B5 ★끝 원 드래그 — 원은 커서 자리에 머물고(스냅·클램프 없음), 각도·스탑 %를 그 선 기준으로 다시 계산(banner02 800×200 px 공간), history 1회', async ({ page }) => {
   const errs = await boot(page);
-  const r = await page.evaluate(() => {
-    const b = document.getElementById('bn2');
+  await page.evaluate(() => window.showGradientLine(document.getElementById('bn2')));
+  const d = await dragEnd(page, 'bn2', 'end', -260, 140);
+  const { after, before, cursor } = d;
+  expect(Math.hypot(after.end.x - cursor.x, after.end.y - cursor.y), '끝 원 = 커서 자리').toBeLessThan(1.5);
+  expect(Math.hypot(after.start.x - before.start.x, after.start.y - before.start.y), '시작 원 불변').toBeLessThan(1);
+  const P0 = { x: after.start.x - after.box.l, y: after.start.y - after.box.t };
+  const P1 = { x: after.end.x - after.box.l, y: after.end.y - after.box.t };
+  const ref = refFromEndpoints('css', 800, 200, P0, P1, [0, 1]);
+  expect(after.css).toBe(`linear-gradient(${ref.angle}deg, #ff5e3a ${ref.offsets[0]}%, #1aa6ff ${ref.offsets[1]}%)`);
+  expect(after.hist).toBe(1);
+  expect(errs).toEqual([]);
+});
+
+test('B10 ★도형 끝 원을 경계 밖으로 — 원이 밖에 머물고, 94% 스탑이 100% 초과로 재계산된다(이벨류에이터 재현: 전엔 원이 안으로 스냅·스탑 불변)', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => {
+    const b = document.getElementById('shp');
+    b.dataset.shapeColor = 'linear-gradient(90deg, #ff5e3a 0%, #1aa6ff 94%)';
+    window.showGradientLine(b);
+  });
+  const d = await dragEnd(page, 'shp', 'end', 133, 133);
+  const { after, cursor } = d;
+  const bx = after.box;
+  expect(after.end.x > bx.l + bx.w || after.end.y > bx.t + bx.h, '끝 원이 도형 밖').toBe(true);
+  expect(Math.hypot(after.end.x - cursor.x, after.end.y - cursor.y), '끝 원 = 커서 자리(클램프 금지)').toBeLessThan(1.5);
+  const P0 = { x: after.start.x - bx.l, y: after.start.y - bx.t };
+  const P1 = { x: after.end.x - bx.l, y: after.end.y - bx.t };
+  // 끌기 전 view = canon(0~100%) → 스탑 rel = [0, 0.94]
+  const ref = refFromEndpoints('bbox', bx.w, bx.h, P0, P1, [0, 0.94]);
+  expect(after.css).toBe(`linear-gradient(${ref.angle}deg, #ff5e3a ${ref.offsets[0]}%, #1aa6ff ${ref.offsets[1]}%)`);
+  expect(ref.offsets[1], '끝 스탑이 100% 를 넘는다(도형 안엔 그 구간만)').toBeGreaterThan(100);
+  expect(after.hist).toBe(1);
+
+  // 재선택(hide→show): 우리가 쓴 값 그대로면 끈 끝점 유지
+  const re = await page.evaluate(() => {
+    const b = document.getElementById('shp');
+    window.hideGradientLine(b); window.showGradientLine(b);
+    const e = b.querySelector('[data-grad-handle="end"]').getBoundingClientRect();
+    return { x: e.left + e.width / 2, y: e.top + e.height / 2 };
+  });
+  expect(Math.hypot(re.x - after.end.x, re.y - after.end.y), '재선택 후 끝 원 유지').toBeLessThan(1);
+  // 외부에서 값이 바뀌면(패널 편집·undo) 기억을 버리고 저장값에서 유도 → 원이 canon 끝(박스 오른쪽 가운데)
+  const ext = await page.evaluate(() => {
+    const b = document.getElementById('shp');
+    b.dataset.shapeColor = 'linear-gradient(90deg, #ff5e3a 0%, #1aa6ff 100%)';
     window.showGradientLine(b);
     const e = b.querySelector('[data-grad-handle="end"]').getBoundingClientRect();
     const br = b.getBoundingClientRect();
-    return { ex: e.left + e.width / 2, ey: e.top + e.height / 2, cx: br.left + br.width / 2, cy: br.top + br.height / 2 };
+    return { dx: e.left + e.width / 2 - br.right, dy: e.top + e.height / 2 - (br.top + br.height / 2) };
   });
-  // 커서를 중심에서 오른쪽 300, 아래 50 으로 → px 각도 = atan2(300, -50)
-  const tx = r.cx + 300, ty = r.cy + 50;
-  await page.mouse.move(r.ex, r.ey);
-  await page.mouse.down();
-  await page.mouse.move(tx, ty, { steps: 6 });
-  await page.mouse.up();
-  const want = Math.round((Math.atan2(300, -50) * 180 / Math.PI + 360) % 360);
-  const out = await page.evaluate(() => {
-    const b = document.getElementById('bn2');
-    const e = b.querySelector('[data-grad-handle="end"]').getBoundingClientRect();
-    const br = b.getBoundingClientRect();
-    return { bg: b.dataset.bg, hist: window.__hist, ex: e.left + e.width / 2 - (br.left + br.width / 2), ey: e.top + e.height / 2 - (br.top + br.height / 2) };
+  expect(Math.abs(ext.dx)).toBeLessThan(1);
+  expect(Math.abs(ext.dy)).toBeLessThan(1);
+  expect(errs).toEqual([]);
+});
+
+test('B11 시작 원도 자유 — 밖으로 끌면 0% 스탑이 음수 %로, 끝 원 불변', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => window.showGradientLine(document.getElementById('shp')));
+  const { after, before, cursor } = await dragEnd(page, 'shp', 'start', -80, 0);
+  expect(Math.hypot(after.start.x - cursor.x, after.start.y - cursor.y)).toBeLessThan(1.5);
+  expect(Math.hypot(after.end.x - before.end.x, after.end.y - before.end.y)).toBeLessThan(1);
+  expect(after.css).toBe('linear-gradient(90deg, #ff0000 -40%, #00ff00 30%, #0000ff 100%)');
+  expect(errs).toEqual([]);
+});
+
+test('B12 ★칩 선택 중 Backspace/Delete — 블록 삭제로 새지 않고 선택 스탑 삭제(3개↑), 2개면 무시, 칩 밖을 누르면 원래대로', async ({ page }) => {
+  const errs = await boot(page);
+  const c = await page.evaluate(() => {
+    window.__editorDel = 0;
+    document.addEventListener('keydown', (e) => { if (e.key === 'Backspace' || e.key === 'Delete') window.__editorDel++; }, true); // 에디터 블록 삭제 자리
+    const b = document.getElementById('shp');
+    window.showGradientLine(b);
+    const r = b._gradLine.chips[1].getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   });
-  expect(out.bg).toBe(`linear-gradient(${want}deg, #ff5e3a 0%, #1aa6ff 100%)`);
-  expect(out.hist).toBe(1);
-  // 원은 실제 렌더 끝점으로 스냅 — 커서 방향과 같은 방향
-  const dirGot = Math.atan2(out.ex, -out.ey) * 180 / Math.PI;
-  expect(Math.abs(((dirGot + 360) % 360) - want)).toBeLessThan(1);
+  await page.mouse.click(c.x, c.y);
+  await page.keyboard.press('Backspace');
+  let out = await page.evaluate(() => ({ css: document.getElementById('shp').dataset.shapeColor, del: window.__editorDel, hist: window.__hist,
+    chips: document.querySelectorAll('#shp .grad-stop-chip').length, alive: !!document.getElementById('shp') }));
+  expect(out).toEqual({ css: 'linear-gradient(90deg, #ff0000 0%, #0000ff 100%)', del: 0, hist: 1, chips: 2, alive: true });
+  await page.keyboard.press('Delete');                 // 2개 — 삭제 안 함, 블록 삭제로도 안 샘
+  out = await page.evaluate(() => ({ css: document.getElementById('shp').dataset.shapeColor, del: window.__editorDel, hist: window.__hist }));
+  expect(out).toEqual({ css: 'linear-gradient(90deg, #ff0000 0%, #0000ff 100%)', del: 0, hist: 1 });
+  await page.mouse.click(5, 5);                        // 칩 밖 → 칩 포커스 해제
+  await page.keyboard.press('Backspace');
+  expect(await page.evaluate(() => window.__editorDel), '칩 포커스 해제 뒤엔 에디터 삭제 경로로 간다').toBe(1);
   expect(errs).toEqual([]);
 });
 

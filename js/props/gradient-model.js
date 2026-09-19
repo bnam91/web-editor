@@ -219,6 +219,67 @@ function chipPlacement(p0px, p1px, offset, dPx) {
   };
 }
 
+// ── 자유 끝점(0918 canvasgrad 픽스 — 현빈 «추가 2») ──────────────────────────
+// 화면에 그리는 바(= view: 사용자가 끈 두 끝점, 정규화 좌표, 박스 밖 허용)와
+// 실제 렌더 규칙이 정하는 선(= canon: gradientLine)은 다를 수 있다. 저장 스키마(각도+스탑 %)는
+// 그대로 두고, 스탑 위치를 canon 기준으로 «다시 계산»해 표현한다(0% 미만·100% 초과 허용).
+//   canon offset t' = a + b·t   (t = view 위 상대 위치 0~1)
+// 두 선이 평행(각도가 view 방향에서 나옴)이라 투영 한 번으로 정확하다.
+
+// 클램프 없는 스칼라 투영(공간 metric 반영).
+function projectT(line, P, { space = 'bbox', w = 1, h = 1 } = {}) {
+  const sx = space === 'css' ? (w || 1) : 1;
+  const sy = space === 'css' ? (h || 1) : 1;
+  const vx = (line.p1.x - line.p0.x) * sx, vy = (line.p1.y - line.p0.y) * sy;
+  const len2 = vx * vx + vy * vy;
+  if (len2 <= 1e-12) return 0;
+  return ((P.x - line.p0.x) * sx * vx + (P.y - line.p0.y) * sy * vy) / len2;
+}
+
+// view → canon 선형 사상 계수 {a, b}.
+function viewMap(model, view, opts = {}) {
+  const canon = gradientLine(model, opts);
+  const a = projectT(canon, view.p0, opts);
+  const b = projectT(canon, view.p1, opts) - a;
+  return { a, b: Math.abs(b) < 1e-9 ? 1 : b, canon };
+}
+
+// 저장값만 있을 때(재선택·외부 변경) 화면 바: canon 선을 스탑 범위까지 늘린 것.
+// 스탑이 전부 0~1 이면 canon 그대로(기존 동작과 동일).
+function defaultView(model, opts = {}) {
+  const canon = gradientLine(model, opts);
+  if (!model || model.type === 'radial' || !Array.isArray(model.stops) || !model.stops.length) return { p0: canon.p0, p1: canon.p1 };
+  const offs = model.stops.map(s => Number(s.offset) || 0);
+  const lo = Math.min(0, ...offs), hi = Math.max(1, ...offs);
+  const at = (t) => ({ x: canon.p0.x + (canon.p1.x - canon.p0.x) * t, y: canon.p0.y + (canon.p1.y - canon.p0.y) * t });
+  return { p0: at(lo), p1: at(hi) };
+}
+
+const round2 = (v) => Math.round(v * 100) / 100; // 저장 CSS 가 정수 % 라 모델도 1% 단위로
+
+// 끝점을 옮긴 view + 각 스탑의 view 상대 위치(rel) → 새 {angle, offsets}. 각도는 정수로(저장 규칙).
+function applyView(view, rel, opts = {}) {
+  const angle = Math.round(angleFromDrag(view.p0, view.p1, opts)) % 360;
+  const model = { type: 'linear', angle };
+  const { a, b } = viewMap(model, view, opts);
+  return { angle, offsets: rel.map(t => round2(a + b * t)) };
+}
+
+// SVG 용 — <stop offset> 은 0~1 로 잘린다. 스탑이 범위 밖이면 선(x1..x2, bbox 정규화)을 스탑 범위까지
+// 늘리고 offset 을 그 안으로 재매핑한다(CSS 와 같은 그림). 범위 안이면 입력 그대로(remap=null).
+function svgStopRemap(line, offsets) {
+  const offs = offsets.map(o => Number(o) || 0);
+  const lo = Math.min(0, ...offs), hi = Math.max(1, ...offs);
+  if (lo >= 0 && hi <= 1) return { ...line, offsets: offs, remap: null };
+  const dx = line.x2 - line.x1, dy = line.y2 - line.y1, span = hi - lo;
+  return {
+    x1: line.x1 + dx * lo, y1: line.y1 + dy * lo,
+    x2: line.x1 + dx * hi, y2: line.y1 + dy * hi,
+    offsets: offs.map(o => (o - lo) / span),
+    remap: { lo, span },
+  };
+}
+
 // 칩 드래그 후 정렬 — 배열을 offset 오름차순으로 «제자리» 정렬하고, 선택돼 있던 스탑 «객체»의
 // 새 인덱스를 돌려준다(드래그 중엔 순서를 고정하므로 mouseup 에서 한 번만 부른다).
 function sortStopsKeepSelection(stops, selectedIdx) {
@@ -382,6 +443,11 @@ const GradientModel = {
   chipPlacement,
   sortStopsKeepSelection,
   sortedIndexOf,
+  projectT,
+  svgStopRemap,
+  viewMap,
+  defaultView,
+  applyView,
   getGradientTarget,
   registerGradientTarget,
 };
@@ -403,6 +469,11 @@ export {
   chipPlacement,
   sortStopsKeepSelection,
   sortedIndexOf,
+  projectT,
+  svgStopRemap,
+  viewMap,
+  defaultView,
+  applyView,
   getGradientTarget,
   registerGradientTarget,
   GradientModel,

@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { svgStopRemap } from './gradient-model.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
 // 모달이 열려 있을 때 스와치 미리보기만 동기화한다. bg 쓰기/재렌더는 이미
@@ -555,10 +556,15 @@ function _applyShapeGradient(block, svg, detail) {
     gradNode.setAttribute('r', '50%');
   } else {
     const a = ((detail.angle ?? 90) - 90) * Math.PI / 180;
-    const x1 = 0.5 - Math.cos(a) * 0.5;
-    const y1 = 0.5 - Math.sin(a) * 0.5;
-    const x2 = 0.5 + Math.cos(a) * 0.5;
-    const y2 = 0.5 + Math.sin(a) * 0.5;
+    let x1 = 0.5 - Math.cos(a) * 0.5;
+    let y1 = 0.5 - Math.sin(a) * 0.5;
+    let x2 = 0.5 + Math.cos(a) * 0.5;
+    let y2 = 0.5 + Math.sin(a) * 0.5;
+    // 0918 canvasgrad(T-060): 캔버스 바 끝점을 도형 밖으로 끌면 스탑이 0% 미만·100% 초과가 된다.
+    // SVG <stop offset> 은 0~1 로 잘리므로 선을 스탑 범위까지 늘리고 offset 을 재매핑(저장값은 그대로).
+    const _r = svgStopRemap({ x1, y1, x2, y2 }, stops.map(s => s.offset ?? 0));
+    x1 = _r.x1; y1 = _r.y1; x2 = _r.x2; y2 = _r.y2;
+    gradNode._offRemap = _r.remap;
     gradNode.setAttribute('x1', x1.toFixed(4));
     gradNode.setAttribute('y1', y1.toFixed(4));
     gradNode.setAttribute('x2', x2.toFixed(4));
@@ -569,7 +575,10 @@ function _applyShapeGradient(block, svg, detail) {
   const stopNodes = gradNode.children;
   for (let i = 0; i < stops.length; i++) {
     const s = stops[i];
-    const off = Math.round((s.offset ?? 0) * 100) + '%';
+    const _rm = gradNode._offRemap;
+    const off = _rm
+      ? (Math.round((((s.offset ?? 0) - _rm.lo) / _rm.span) * 10000) / 100) + '%'
+      : Math.round((s.offset ?? 0) * 100) + '%';
     const col = s.color;
     const op = (s.opacity == null) ? '1' : String(Math.max(0, Math.min(1, +s.opacity)));
     const n = stopNodes[i];
