@@ -25,3 +25,29 @@ export function neutralizeRedactForH2C(root) {
     el.style.backgroundColor = REDACT_OPAQUE_FILL;
   }
 }
+
+/* 0918r2 textgrad — 글자 그라데이션(background-clip:text)의 html2canvas 대체.
+ * 동봉 html2canvas 1.4.1 은 background-clip 을 border/padding/content 만 읽는다 → text 는 모른다.
+ * 그대로 두면 «글자 박스 전체에 그라데이션 사각형 + 투명 글자»가 찍힌다(글자가 사라지고 네모가 생긴다).
+ * ⇒ 정직한 대체: 그라데이션을 걷고 첫 스탑 단색(인라인 color 에 이미 있다)으로 글자를 칠한다.
+ * ⚠️ native(CDP) 경로에선 부르지 말 것 — 브라우저가 그라데이션 글자를 제대로 그린다. */
+export function neutralizeTextGradForH2C(root) {
+  if (!root) return 0;
+  const sel = '[style*="background-clip: text"], [style*="background-clip:text"]';
+  const targets = [
+    ...(root.matches?.(sel) ? [root] : []),
+    ...root.querySelectorAll(sel),
+  ];
+  let n = 0;
+  for (const el of targets) {
+    const st = el.style;
+    const clip = (st.getPropertyValue('background-clip') || '') + ' ' + (st.getPropertyValue('-webkit-background-clip') || '');
+    if (!/\btext\b/.test(clip)) continue;
+    st.removeProperty('background-image');
+    st.removeProperty('background-clip');
+    st.removeProperty('-webkit-background-clip');
+    st.removeProperty('-webkit-text-fill-color');
+    n++;
+  }
+  return n;
+}

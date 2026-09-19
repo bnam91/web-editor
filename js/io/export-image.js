@@ -1,7 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
-import { neutralizeRedactForH2C } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C } from './capture-safety.js';
 
 const CANVAS_W = 860;
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
@@ -447,6 +447,7 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
     // ⚠️ 이 분기에서만 neutralize한다 — 위 native 분기는 clone을 그대로 CDP로 스크린샷하므로
     //   backdrop-filter가 정상 렌더링된다(건드리면 정상 블러가 망가진다).
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
+    neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
     const _to2 = await _waitImagesReady(clone);
     const _h2c = await html2canvas(clone, {
       scale: 1,

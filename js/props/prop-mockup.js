@@ -1,7 +1,7 @@
 // prop-mockup.js — 디바이스 목업 블록 프로퍼티 패널
 
 import { propPanel } from '../globals.js';
-import { neutralizeRedactForH2C } from '../io/capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C } from '../io/capture-safety.js';
 
 export function showMockupProperties(block) {
   const deviceKey = block.dataset.device || 'iphone';
@@ -213,6 +213,7 @@ async function _captureAndApply(block, sec) {
     clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;box-shadow:none;';
     document.body.appendChild(clone);
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
+    neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
     if (window.finalizeMosaicForClone) { try { await window.finalizeMosaicForClone(sec, clone); } catch (_) {} }
 
     const bgColor = sec.style.backgroundColor || sec.style.background || '#ffffff';

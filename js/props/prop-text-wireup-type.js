@@ -47,12 +47,18 @@ export function wireTypeSection({ tb, propPanel, ctx }) {
       // label로 전환 시 기본 스타일 적용, 다른 타입으로 전환 시 초기화
       if (cls === 'tb-label') {
         if (!contentEl.style.backgroundColor) contentEl.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--preset-label-bg').trim() || '#111111';
+        // textgrad-ok: 라벨 전환 — 아래에서 clearTextGradient(라벨은 그라데이션 불가)
         if (!contentEl.style.color) contentEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--preset-label-color').trim() || '#ffffff';
         if (!contentEl.style.borderRadius) contentEl.style.borderRadius = '4px';
       } else {
         contentEl.style.backgroundColor = '';
         contentEl.style.borderRadius = '';
       }
+
+      // 0918r2 textgrad: 라벨·불릿은 글자 그라데이션을 못 받는다(박스 배경이 같이 잘림 / ::marker 투명).
+      //   그쪽으로 바꾸면 그라데이션을 풀고(첫 스탑 단색이 color 에 남아 있다), 글자색 피커 게이트도 다시 잰다.
+      if (!window.textGradientAllowed?.(contentEl)) window.clearTextGradient?.(contentEl);
+      document.getElementById('txt-color')?.__textGradRegate?.();
     });
   });
 }

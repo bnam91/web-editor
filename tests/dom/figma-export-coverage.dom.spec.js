@@ -411,3 +411,43 @@ test('FX-4 ★플로팅 블록(섹션 직속 absolute)이 좌표와 «함께» �
     }
   }
 });
+
+/* ── FX-5 (0918r2 textgrad · T-059 확장): 글자 그라데이션이 Figma 업로드 JSON 에 «실린다» ──
+ * 진짜 addTextBlock 으로 만든 본문 블럭에 진짜 applyTextGradient 를 걸고, 진짜 buildFigmaExportJSON 을 부른다.
+ * style.fill = {kind:'gradient', type, angle, stops} · style.color = 첫 스탑 단색(하위 호환 폴백).
+ * ★음성대조: 같은 실행의 «그라데이션 안 건» 블럭엔 fill 이 없어야 한다(무조건 싣는 변이를 잡는다). */
+test('FX-5 ★글자 그라데이션 블럭은 style.fill(gradient) 과 함께 나간다 — 단색 블럭엔 fill 없음', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    for (const k of ['pushHistory', 'markDirty', 'scheduleAutoSave', 'updateLayerPanel', 'buildLayerPanel', 'showToast', 'deselectAll'])
+      if (typeof window[k] !== 'function') window[k] = () => {};
+    await import('/js/props/text-block-color.js');
+    const canvas = document.getElementById('canvas');
+    const sec = document.createElement('div'); sec.className = 'section-block'; sec.id = 'sec_tg';
+    const inner = document.createElement('div'); inner.className = 'section-inner'; inner.style.width = '860px';
+    sec.appendChild(inner); canvas.appendChild(sec);
+    window.getSelectedSection = () => sec; window._activeFrame = null;
+    await window.addTextBlock('body');
+    await window.addTextBlock('body');
+    const tbs = [...sec.querySelectorAll('.text-block')];
+    if (tbs.length < 2) return { made: tbs.length };
+    const ok = window.applyTextGradient(tbs[0], { css: 'linear-gradient(45deg, #cc2244 0%, rgba(34,68,204,0.500) 100%)' });
+    const ps = { bg: '#eeeeee', padX: 0 };
+    window.__state.pages = [{ canvas: canvas.innerHTML, pageSettings: ps }];
+    window.__state.pageSettings = ps;
+    const json = window.buildFigmaExportJSON(null);
+    const all = [];
+    const walk = (bs) => (bs || []).forEach(b => { if (b && b.type === 'text') all.push(b); if (b && b.columns) b.columns.forEach(c => walk(c.blocks)); if (b && b.children) walk(b.children); if (b && b.blocks) walk(b.blocks); });
+    (json.sections || []).filter(s => s.id === 'sec_tg').forEach(s => walk(s.blocks));
+    const byId = (id) => all.find(b => b.id === id);
+    return { made: tbs.length, ok, g: byId(tbs[0].id), plain: byId(tbs[1].id) };
+  });
+  expect(r.made, '★양성대조: 텍스트 블럭을 못 만들었다').toBe(2);
+  expect(r.ok).toBe(true);
+  expect(r.g, '그라데이션 블럭이 JSON 에 없다').toBeTruthy();
+  expect(r.g.style.fill).toEqual({ kind: 'gradient', type: 'linear', angle: 45, stops: [
+    { color: '#cc2244', offset: 0, opacity: 1 }, { color: '#2244cc', offset: 1, opacity: 0.5 }] });
+  expect(r.g.style.color).toBe('rgb(204, 34, 68)');
+  expect(r.plain, '단색 블럭이 JSON 에 없다').toBeTruthy();
+  expect(r.plain.style.fill, '그라데이션 안 건 블럭에 fill 이 실렸다').toBeUndefined();
+});

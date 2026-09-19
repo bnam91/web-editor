@@ -1,6 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { inlineGoyaAssetsInJSON, makeElectronAssetReader } from './goya-asset-inline.js';
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';
+import { getTextGradient } from '../props/text-block-color.js';
 
 const CANVAS_W = 860;
 
@@ -301,6 +302,13 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           left:   parseFloat(el.style.paddingLeft)   || padX,
         },
       };
+
+      // 0918r2 textgrad: 글자 그라데이션 — style.fill 에 모델을 싣는다(sangpe_to_figma 가 set_gradient 로 칠함).
+      //   style.color 는 첫 스탑 단색 그대로 둔다(하위 호환 · 그라데이션 실패 시 폴백).
+      if (variant !== 'label') {
+        const _tg = getTextGradient(inner);
+        if (_tg) block.style.fill = { kind: 'gradient', type: _tg.type, angle: _tg.angle, stops: _tg.stops };
+      }
 
       // label: 배경 박스 정보 추가
       if (variant === 'label') {

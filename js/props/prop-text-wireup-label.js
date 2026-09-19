@@ -104,6 +104,7 @@ export function wireLabelSection({ ctx }) {
   // 모든 프리셋은 디폴트 .tb-label(padding:11px 36px, font:26px/700, radius:8px) 기준 + 서로 토글 시 안전 복원
   // 공통 reset 헬퍼 — 인라인 background/color/border/size 제거 → CSS 디폴트 복귀
   const _resetLabelInline = () => {
+    window.clearTextGradient?.(ctx.contentEl);   // 0918r2 textgrad: 라벨은 단색만
     ctx.contentEl.style.backgroundColor = '';
     ctx.contentEl.style.color = '';
     ctx.contentEl.style.border = '';
@@ -173,6 +174,7 @@ export function wireLabelSection({ ctx }) {
     window.pushHistory?.();
     _resetLabelInline();
     ctx.contentEl.style.backgroundColor = 'transparent';
+    // textgrad-ok: 바로 위 _resetLabelInline 이 clearTextGradient 를 불렀다
     ctx.contentEl.style.color = '#111111';
     ctx.contentEl.style.borderRadius = '0';
     ctx.contentEl.style.padding = '0';
