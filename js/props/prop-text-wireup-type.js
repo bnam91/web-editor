@@ -2,6 +2,7 @@
  * 타입 전환 (H1/H2/H3/body/caption/label/bullet)
  * — bullet ↔ 일반 변형 전환 시 contentEl을 새 노드로 교체하므로 state.contentEl을 mutate
  */
+import { setTextTypeClass, afterTextTypeChange } from './text-type-class.js';
 
 export function wireTypeSection({ tb, propPanel, ctx }) {
   const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-h3':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label','tb-bullet':'bullet' };
@@ -31,12 +32,13 @@ export function wireTypeSection({ tb, propPanel, ctx }) {
           newEl.textContent = items.join('\n') || (newEl.dataset.placeholder || '');
           newEl.style.whiteSpace = 'pre-wrap';
         }
-        newEl.className = cls;
+        // 0920r4 texttype: 복사해 둔 효과 클래스(.tgs·.text-effect·.tfx-*)를 덮지 않는다 — 타입 클래스만 교체
+        setTextTypeClass(newEl, cls);
         contentEl.replaceWith(newEl);
         contentEl = newEl;
         ctx.contentEl = newEl; // R1: 외부 wireup이 참조하는 ctx 갱신
       } else {
-        contentEl.className = cls;
+        setTextTypeClass(contentEl, cls);   // 0920r4 texttype: className 통째 대입 금지(효과 클래스 유실)
       }
       tb.dataset.type = typeMap2[cls];
       propPanel.querySelectorAll('.prop-type-btn').forEach(b => b.classList.toggle('active', b===btn));
@@ -70,6 +72,9 @@ export function wireTypeSection({ tb, propPanel, ctx }) {
         const _sw = _cp.closest('.prop-color-swatch');
         if (_sw) _sw.style.background = _hex;
       }
+      // 0920r4 texttype: 타입이 바뀌면 그림자(패널·네온)의 computed 값이 달라질 수 있다 → 그라데이션 글자면 글자 «뒤»로 다시 맞춘다
+      //   (불릿 경로는 replaceWith 로 붙은 «뒤»라 여기서 부른다 — 떨어진 노드는 무시됨)
+      afterTextTypeChange(contentEl);
       _cp?.__textGradRegate?.();
     });
   });
