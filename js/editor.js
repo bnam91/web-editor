@@ -1586,6 +1586,26 @@ function _pasteIntoSourceBanner(el, sourceBannerId) {
   return banner;
 }
 
+/* ★0919 QA — 붙여넣기·⌘D 뒤 선택은 «사본만»(피그마 기준). 사본은 선택된 원본을 직렬화한 것이라
+   .selected 를 달고 들어오고, 원본의 .selected 는 그대로 남아 ⌫ 한 번에 원본까지 지워졌다.
+   섹션(.section-block)의 selected 는 «어느 섹션에서 작업 중인가» 표시라 건드리지 않는다.
+   사본 안에 선택 표시가 하나도 없으면 사본 루트(블럭이면)를 선택한다. */
+function _keepOnlyPastedSelected(roots) {
+  const list = (roots || []).filter(r => r && r.isConnected);
+  if (!list.length) return;
+  const inPasted = (el) => list.some(r => r === el || r.contains(el));
+  canvasEl.querySelectorAll('.selected').forEach(el => {
+    if (el.classList.contains('section-block')) return;
+    if (!inPasted(el)) el.classList.remove('selected');
+  });
+  list.forEach(r => {
+    if (r.classList.contains('selected') || r.querySelector('.selected')) return;
+    if ([...r.classList].some(c => c.endsWith('-block'))) r.classList.add('selected');
+  });
+  list[0].closest('.section-block')?.classList.add('selected');
+  window._activeFrame = null;
+}
+
 function pasteClipboard() {
   if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
   /* ★0918r2 T-058 — 붙여넣으면 선택이 «블럭 단위»로 바뀐다(사본이 selected 로 들어와 원본과 함께 잡힌다).
@@ -1621,6 +1641,7 @@ function pasteClipboard() {
       }
     }
     let lastEl = null;
+    const _pastedRoots = [];
     clipboard.items.forEach(item => {
       const temp = document.createElement('div');
       temp.innerHTML = item.html;
@@ -1631,8 +1652,10 @@ function pasteClipboard() {
       if (banner) {
         _bindPastedEl(el);
         lastEl = el;
+        _pastedRoots.push(el);
         return;
       }
+      _pastedRoots.push(el);
       if (lastEl) {
         lastEl.after(el);
       } else {
@@ -1646,6 +1669,7 @@ function pasteClipboard() {
       _normalizePastedAbsolute(el);
       lastEl = el;
     });
+    _keepOnlyPastedSelected(_pastedRoots);
     window.buildLayerPanel();
     pushHistory('붙여넣기');
     return;
@@ -1781,6 +1805,7 @@ function pasteClipboard() {
       if (pasteHasSS) window._activeFrame = savedActiveSS;
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
+      _keepOnlyPastedSelected([el]);
     }
   }
   window.buildLayerPanel();

@@ -376,6 +376,39 @@ export async function finalizeMosaicForClone(liveScope, clone) {
   }
 }
 
+/** 로드·복원 직후 일괄 캡처 — ★0919 QA: 프로젝트를 다시 열면 모자이크가 20초 넘게 안전실패 회색으로만 보였다
+ *  (입력이 없으면 재캡처가 안 일어남). 로드 «즉시» 한 번 부르던 캡처는 이미지·레이아웃이 아직 안 선 상태라
+ *  _isSuspiciouslyBlank 에 걸려 실패로 끝나고, 다시 부를 계기가 없었다. 반면 PNG 내보내기는 finalizeMosaicForClone
+ *  이 다시 찍어 정상 — 화면과 PNG 가 달랐다.
+ *  → 섹션의 이미지가 다 뜬 뒤 시도하고, 실패하면 물러나며 몇 번 더(250ms·0.8s·2s·5s). 이미 캡처됐거나
+ *    더 이상 모자이크가 아니면(블러 전환·삭제·undo 로 노드 교체) 멈춘다. 실패는 계속 안전 쪽(회색). */
+const _LOAD_RETRY_MS = [250, 800, 2000, 5000];
+async function _waitImages(scope) {
+  if (!scope || !scope.querySelectorAll) return;
+  const imgs = [...scope.querySelectorAll('img')].filter(i => !i.complete);
+  if (!imgs.length) return;
+  await Promise.race([
+    Promise.all(imgs.map(i => new Promise(r => { i.addEventListener('load', r, { once: true }); i.addEventListener('error', r, { once: true }); }))),
+    new Promise(r => setTimeout(r, 3000)),
+  ]);
+}
+export function captureMosaicsAfterLoad(root) {
+  const scope = root || document;
+  const blocks = [...scope.querySelectorAll('.shape-block.shape-redact[data-shape-redact-mode="mosaic"]')];
+  blocks.forEach(async (b) => {
+    if (isMosaicCaptured(b)) return;
+    try { await _waitImages(b.closest('.section-block')); } catch (_) {}
+    for (let i = 0; i <= _LOAD_RETRY_MS.length; i++) {
+      if (!_isLiveMosaic(b) || isMosaicCaptured(b)) return;
+      let ok = false;
+      try { ok = await captureMosaicSnapshot(b); } catch (_) { ok = false; }
+      if (ok || isMosaicCaptured(b)) return;
+      if (i < _LOAD_RETRY_MS.length) await new Promise(r => setTimeout(r, _LOAD_RETRY_MS[i]));
+    }
+  });
+}
+
+window.captureMosaicsAfterLoad = captureMosaicsAfterLoad;
 window.captureMosaicSnapshot   = captureMosaicSnapshot;
 window.wireMosaicAutoRefresh   = wireMosaicAutoRefresh;
 window.finalizeMosaicForClone  = finalizeMosaicForClone;

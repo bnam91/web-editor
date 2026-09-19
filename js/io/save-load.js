@@ -1069,11 +1069,16 @@ function rebindAll(opts = {}) {
   // 보려면 어차피 첫 캡처가 필요하므로 그 노출/대기 창을 최소화하도록 여기서 즉시(사용자
   // 행동 없이) 일괄 캡처한다. captureMosaicSnapshot은 실패해도 조용히 무시 — 안전배경이
   // 계속 바닥을 지킨다.
-  canvasEl.querySelectorAll('.shape-block.shape-redact[data-shape-redact-mode="mosaic"]').forEach(b => {
-    if (!window.isMosaicCaptured?.(b)) {
-      try { window.captureMosaicSnapshot?.(b); } catch (_) {}
-    }
-  });
+  // ★0919 QA: 즉시 한 번으로 끝내지 않는다 — 이미지가 뜬 뒤 시도 + 실패 시 몇 번 물러나며 재시도(redact-mosaic.js).
+  if (typeof window.captureMosaicsAfterLoad === 'function') {
+    try { window.captureMosaicsAfterLoad(canvasEl); } catch (_) {}
+  } else {
+    canvasEl.querySelectorAll('.shape-block.shape-redact[data-shape-redact-mode="mosaic"]').forEach(b => {
+      if (!window.isMosaicCaptured?.(b)) {
+        try { window.captureMosaicSnapshot?.(b); } catch (_) {}
+      }
+    });
+  }
 
   // ── annotation-block 복원 (펜툴 Phase 2: 폴리라인 + 스타일 props) ──
   canvasEl.querySelectorAll('.annotation-block').forEach(block => {
@@ -1270,6 +1275,12 @@ function rebindAll(opts = {}) {
     if (ss.dataset.radius) ss.style.borderRadius = ss.dataset.radius + 'px';
     // explicit height 복원 — justify-content 정렬 작동을 위해 필요
     // dataset.height 없으면 minHeight 폴백 (레거시 요소 대응)
+    // ★0919 QA: ⌘G(wrapSelectedBlocksInFrame)가 style 높이만 쓰고 makeFrameBlock 기본값 dataset.height='520' 을
+    //   남기던 저장본 치유 — 기본값 '520' 인데 저장된 style 높이가 다르면 style 이 진짜(다른 크기 변경 경로는 둘 다 쓴다).
+    if (ss.dataset.height === '520') {
+      const _styleH = parseInt(ss.style.height);
+      if (_styleH > 0 && _styleH !== 520 && /px$/.test(ss.style.height)) ss.dataset.height = String(_styleH);
+    }
     const _ssH = parseInt(ss.dataset.height) || parseInt(ss.style.minHeight) || 0;
     if (_ssH) ss.style.height = _ssH + 'px';
     // 자식 정렬 복원 (frame-block 직속)

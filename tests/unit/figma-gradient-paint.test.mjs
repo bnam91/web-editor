@@ -58,7 +58,7 @@ test('방사형(circle = farthest-corner): 중심 t=0, 네 모서리 t=1 — 정
   }
 });
 
-test('스탑: 위치 0..1 클램프·오름차순, opacity → a, rgba 알파 곱', () => {
+test('스탑: 위치 0..1 클램프·오름차순, opacity → a, rgba 알파는 «한 번만»(0919 QA: parseGradient 가 색 알파와 opacity 를 둘 다 싣는다)', () => {
   const st = figmaStops([
     { color: '#0000ff', offset: 1.4, opacity: 0.5 },
     { color: '#ff0000', offset: -0.2, opacity: 1 },
@@ -66,7 +66,7 @@ test('스탑: 위치 0..1 클램프·오름차순, opacity → a, rgba 알파 �
   ]);
   assert.deepEqual(st.map(s => s.position), [0, 0.5, 1]);
   assert.deepEqual(st[0].color, { r: 1, g: 0, b: 0, a: 1 });
-  assert.equal(st[1].color.a, 0.25);
+  assert.equal(st[1].color.a, 0.5, 'rgba(…,0.5) + opacity 0.5 = 50% (곱하면 25% — 캔버스와 다름)');
   assert.equal(st[2].color.a, 0.5);
 });
 
@@ -77,4 +77,32 @@ test('cssGradientToFigmaPaint: 타입 매핑, 스탑 2개 미만은 null', () =>
   assert.equal(rad.type, 'GRADIENT_RADIAL');
   assert.equal(cssGradientToFigmaPaint({ type: 'linear', stops: [{ color: '#000', offset: 0 }] }, 1, 1), null);
   assert.equal(cssGradientToFigmaPaint(null, 1, 1), null);
+});
+
+/* ── 0919 QA 회귀 ── */
+import { stopAlpha, stopRange } from '../../figma-renderer/gradient-paint.mjs';
+test('0919 stopAlpha: opacity<1 이 정본, opacity 1/없음이면 색 알파', () => {
+  assert.equal(stopAlpha({ color: 'rgba(32,64,255,0.5)', opacity: 0.5 }), 0.5);
+  assert.equal(stopAlpha({ color: 'rgba(32,64,255,0.5)', opacity: 1 }), 0.5);
+  assert.equal(stopAlpha({ color: 'rgba(32,64,255,0.5)' }), 0.5);
+  assert.equal(stopAlpha({ color: '#2040ff', opacity: 0.3 }), 0.3);
+  assert.equal(stopAlpha({ color: '#2040ff' }), 1);
+});
+test('0919 선형: 끝점 밖 스탑(-20%·161%)은 잘리지 않고 재매핑 — 도형 안 각 점의 색 진행도가 CSS 와 같다', () => {
+  const model = { type: 'linear', angle: 90, stops: [
+    { color: '#ff0000', offset: -0.2, opacity: 1 }, { color: '#0000ff', offset: 1.61, opacity: 1 } ] };
+  const p = cssGradientToFigmaPaint(model, 200, 100);
+  const pos = p.stops.map(s => s.position);
+  assert.deepEqual(pos, [0, 1]);
+  assert.deepEqual(stopRange(model.stops), { lo: -0.2, hi: 1.61 });
+  // 노드 x=0.5(가운데) → CSS t=0.5 → 재매핑 공간 (0.5+0.2)/1.81
+  const T = p.gradientTransform;
+  const tMid = T[0][0] * 0.5 + T[0][1] * 0.5 + T[0][2];
+  assert.ok(Math.abs(tMid - (0.7 / 1.81)) < 1e-9, String(tMid));
+  const tLeft = T[0][0] * 0 + T[0][1] * 0.5 + T[0][2];
+  assert.ok(Math.abs(tLeft - (0.2 / 1.81)) < 1e-9, String(tLeft));
+});
+test('0919 선형: 0..1 안의 스탑이면 변환은 예전 그대로(회귀 없음)', () => {
+  const model = { type: 'linear', angle: 37, stops: [{ color: '#000', offset: 0 }, { color: '#fff', offset: 1 }] };
+  assert.deepEqual(cssGradientToFigmaPaint(model, 120, 80).gradientTransform, linearTransform(37, 120, 80));
 });

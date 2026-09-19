@@ -102,20 +102,45 @@ test('⑥ 맞는 코드(주입한 테스트 코드) → 해제, reason=unlocked,
   assert.strictEqual(g2.verifyCode('  ' + TEST_CODE + '\n').ok, true);
 });
 
-test('⑥b 기본 해시는 64자리 hex 이고, 흔한 값(빈칸·0000·123456·admin)의 해시가 아니다', () => {
-  assert.match(G.CODE_SHA256, /^[0-9a-f]{64}$/);
+test('⑥b 기본 코드 레코드 = 소금 있는 scrypt(느린 KDF) — 흔한 값(빈칸·0000·123456·admin)이 아니다', () => {
+  const k = G.CODE_KDF;
+  assert.strictEqual(k.alg, 'scrypt');
+  assert.ok(k.N >= 65536, 'N 이 작으면 오프라인 대입이 다시 싸진다');
+  assert.match(k.salt, /^[0-9a-f]{32,}$/);
+  assert.match(k.hash, /^[0-9a-f]{64}$/);
   for (const w of ['', '0000', '000000', '123456', 'admin', 'password']) {
-    assert.notStrictEqual(G.CODE_SHA256, sha(w), w);
+    assert.strictEqual(G._kdfMatches(w, k), false, w);
   }
-  // 기본 해시로 만든 게이트는 테스트 코드를 거부한다
+  // 기본 레코드로 만든 게이트는 테스트 코드를 거부한다
   const g = G.createDevToolsGate({ app: { isPackaged: true }, env: {} });
   assert.strictEqual(g.verifyCode(TEST_CODE).ok, false);
 });
 
-test('⑥c 실제 관리자코드 해시 대조 — env GODITOR_TEST_ADMIN_CODE 가 있을 때만 잰다', () => {
+test('⑥b2 0919 QA: 번들 소스에 «빠른 해시(sha256 64hex)»로 된 코드 레코드가 남아 있지 않다', () => {
+  const src = require('fs').readFileSync(path.join(__dirname, '..', '..', 'main', 'devtools-gate.js'), 'utf8');
+  assert.ok(!/CODE_SHA256\s*=\s*'[0-9a-f]{64}'/.test(src), '소금 없는 sha256 코드 해시가 돌아왔다(0.3초 전수 대입)');
+  // 음성대조: 같은 모양의 옛 선언을 넣으면 위 정규식이 잡는다
+  assert.ok(/CODE_SHA256\s*=\s*'[0-9a-f]{64}'/.test("const CODE_SHA256 = '" + 'a'.repeat(64) + "';"));
+});
+
+test('⑥b3 scrypt 비교: 레코드를 스스로 만든 코드는 통과, 한 글자만 달라도 실패, 망가진 레코드는 실패닫힘', () => {
+  const crypto = require('crypto');
+  const salt = '00112233445566778899aabbccddeeff';
+  const N = 1024, r = 8, p = 1;   // 테스트 속도용 작은 N(모양 검사는 ⑥b)
+  const hash = crypto.scryptSync('424242', Buffer.from(salt, 'hex'), 32, { N, r, p }).toString('hex');
+  const k = { alg: 'scrypt', N, r, p, keylen: 32, salt, hash };
+  assert.strictEqual(G._kdfMatches('424242', k), true);
+  assert.strictEqual(G._kdfMatches('424243', k), false);
+  assert.strictEqual(G._kdfMatches('424242', { ...k, hash: 'zz' }), false);
+  assert.strictEqual(G._kdfMatches('424242', { ...k, alg: 'sha256' }), false);
+  const g = G.createDevToolsGate({ app: { isPackaged: true }, env: {}, codeKdf: k });
+  assert.strictEqual(g.verifyCode(' 424242 ').ok, true, '앞뒤 공백은 자른다');
+});
+
+test('⑥c 실제 관리자코드 대조 — env GODITOR_TEST_ADMIN_CODE 가 있을 때만 잰다', () => {
   const code = process.env.GODITOR_TEST_ADMIN_CODE;
   if (!code) return; // ★못 잰 것 — 평문을 소스에 둘 수 없어 env 로만 받는다
-  assert.strictEqual(sha(code.trim()), G.CODE_SHA256);
+  assert.strictEqual(G._kdfMatches(code.trim(), G.CODE_KDF), true);
   const g = G.createDevToolsGate({ app: { isPackaged: true }, env: {} });
   assert.strictEqual(g.verifyCode(code).ok, true);
 });
@@ -272,9 +297,11 @@ test('⑬b lock 은 «코드 해제»만 되돌린다 — 관리자 계정은 �
   assert.strictEqual(wcs[0].opened, false, 'lock 뒤 열린 개발자 도구가 닫혀야 한다');
 });
 
-test('⑭ admin-arg(운영자 빌드) 호환: 진짜 배포판에서 isAdminAuthorized()=true 면 허용', () => {
+test('⑭ 0919 QA: 운영자 admin(인자+토큰+admin.allow = 사용자 손에 있음)은 개발자 도구 예외가 «아니다» — 잠긴다', () => {
   const { gate } = mk({ isAdminAuthorized: () => true });
-  assert.strictEqual(gate.reason(), 'admin-arg');
+  assert.strictEqual(gate.reason(), 'locked', 'admin.allow 자가 발급으로 개발자 도구가 열리면 안 된다');
+  assert.strictEqual(gate.isAllowed(), false);
+  assert.strictEqual(gate.state().reason, 'locked');
 });
 
 test('⑮ 메뉴 항목: allowed=false 면 숨김·비활성, true 면 보임 · role 을 안 쓴다', () => {

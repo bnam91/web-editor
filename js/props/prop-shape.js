@@ -609,6 +609,20 @@ function _clearShapeGradient(block) {
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const FILLABLE_SEL = 'rect,ellipse,circle,polygon,path';
 
+/** 그라데이션 스탑 → SVG <stop> 의 {col(알파 없는 색), op(0..1 문자열)} — 알파 이중 적용 방지(0919 QA). */
+export function shapeStopPaint(s) {
+  const raw = String((s && s.color) || '#000000').trim();
+  let col = raw, colA = 1;
+  const m = raw.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
+  if (m) {
+    col = `rgb(${Math.round(+m[1])},${Math.round(+m[2])},${Math.round(+m[3])})`;
+    colA = m[4] == null ? 1 : Math.max(0, Math.min(1, +m[4]));
+  }
+  const o = (s && s.opacity != null && Number.isFinite(+s.opacity)) ? Math.max(0, Math.min(1, +s.opacity)) : null;
+  const a = (o == null || o >= 1) ? (o == null ? colA : (colA < 1 ? colA : 1)) : o;
+  return { col, op: String(Math.round(a * 1000) / 1000) };
+}
+
 function _applyShapeGradient(block, svg, detail) {
   const id = _gradIdFor(block);
   const targetType = detail.type === 'radial' ? 'radialGradient' : 'linearGradient';
@@ -664,8 +678,10 @@ function _applyShapeGradient(block, svg, detail) {
     const off = _rm
       ? (Math.round((((s.offset ?? 0) - _rm.lo) / _rm.span) * 10000) / 100) + '%'
       : Math.round((s.offset ?? 0) * 100) + '%';
-    const col = s.color;
-    const op = (s.opacity == null) ? '1' : String(Math.max(0, Math.min(1, +s.opacity)));
+    // ★0919 QA: 알파를 «한 번만» — 색이 rgba(…,a) 로 오고 opacity 에도 같은 a 가 실려 오면(CSS 모델 재파싱 경로)
+    //   stop-color 알파 × stop-opacity 로 두 번 곱해져 50% 가 25% 로 그려졌다. stop-color 는 알파 없는 rgb,
+    //   알파는 stop-opacity 한 곳(피커 CSS 모델과 같은 규약: opacity 가 정본, opacity 가 1/없음이면 색 알파).
+    const { col, op } = shapeStopPaint(s);
     const n = stopNodes[i];
     if (n.getAttribute('offset') !== off) n.setAttribute('offset', off);
     if (n.getAttribute('stop-color') !== col) n.setAttribute('stop-color', col);

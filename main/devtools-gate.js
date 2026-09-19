@@ -15,9 +15,11 @@
      auth.json 의 raw email 은 사람이 손으로 고칠 수 있다. entitlement.classify 가 서명을
      통과시켰을 때만 payload 가 생긴다(services/entitlement.js out()) — 그것만 믿는다.
 
-   ★관리자코드 평문은 어디에도 두지 않는다(소스·주석·테스트) — sha256 비교만.
-     ⚠️한계: 6자리 숫자의 sha256 은 번들에서 해시를 꺼내면 오프라인 대입으로 즉시 풀린다.
-       해시는 «평문 노출 방지»일 뿐 보안 강도가 아니다. 실패 제한은 UI 대입만 막는다.
+   ★관리자코드 평문은 어디에도 두지 않는다(소스·주석·테스트) — 느린 KDF(scrypt) 비교만.
+     0919 QA: 예전엔 소금 없는 sha256 이라 번들(app.asar, 암호화 안 됨)에서 해시를 꺼내 000000~999999 를
+     대입하면 0.3초 만에 풀렸다(«관리자코드 = 공개값»). 이제 scrypt(N=2^16, r=8 → 1회 ~80ms·64MB, 소금 16바이트):
+     백만 개 전수 = CPU 약 22시간, 메모리 하드라 GPU 병렬 이득도 작다.
+     ⚠️남은 한계: 6자리 숫자 공간 자체가 작다 — 근본 대책은 서버 검증이나 긴 코드(현빈 결정 사항).
 
    ⛔isAdminAuthorized() 에 이 판정을 섞지 마라 — 그건 라이선스 우회·PM 터미널 권한이다.
      관리자 이메일/코드로 그것까지 풀리면 권한 확대다. 여기는 «개발자 도구 전용»이다.
@@ -27,14 +29,29 @@
 const crypto = require('crypto');
 
 const ADMIN_EMAIL = 'coq3820@gmail.com';
-/** 관리자코드의 sha256(hex). ⛔평문을 이 옆에 적지 마라. */
-const CODE_SHA256 = '4bca3b1414a10fc3f2c3c68088c83c1fcb9cde6bc066f7ae2d4d19559242f07a';
+/** 관리자코드의 scrypt 레코드. ⛔평문을 이 옆에 적지 마라. ⛔소금 없는 빠른 해시로 되돌리지 마라(0919 QA). */
+const CODE_KDF = Object.freeze({
+  alg: 'scrypt', N: 65536, r: 8, p: 1, keylen: 32,
+  salt: 'e9c8571588deb5b8d742a15af14c5592',
+  hash: 'a684247a0f2d9b565b213662b3995834c55bb2d394887b62931b05fc11ab074d',
+});
 const MAX_FAILS = 5;
 const LOCK_MS = 60 * 1000;
 
 function normEmail(v) { return String(v == null ? '' : v).trim().toLowerCase(); }
 
 function sha256Hex(s) { return crypto.createHash('sha256').update(String(s)).digest('hex'); }
+
+/** scrypt 레코드와 입력 비교 — 상수 시간. 레코드 모양이 틀리면 false(실패닫힘). */
+function kdfMatches(input, kdf) {
+  try {
+    if (!kdf || kdf.alg !== 'scrypt' || !/^[0-9a-f]{32,}$/.test(kdf.salt) || !/^[0-9a-f]{64}$/.test(kdf.hash)) return false;
+    const got = crypto.scryptSync(String(input), Buffer.from(kdf.salt, 'hex'), kdf.keylen || 32,
+      { N: kdf.N, r: kdf.r, p: kdf.p, maxmem: 256 * 1024 * 1024 });
+    const want = Buffer.from(kdf.hash, 'hex');
+    return got.length === want.length && crypto.timingSafeEqual(got, want);
+  } catch (_) { return false; }
+}
 
 /** hex 두 개를 «상수 시간»으로 비교. 모양이 다르면 false. */
 function hexEqual(a, b) {
@@ -110,7 +127,8 @@ function createDevToolsGate(deps = {}) {
     onChange: () => {},
     now: () => Date.now(),
     env: process.env,
-    codeSha256: CODE_SHA256,
+    codeKdf: CODE_KDF,
+    codeSha256: null,     // ⚠️테스트 전용 주입(양성대조용 빠른 비교) — 기본은 codeKdf
     enforceIntervalMs: 60 * 1000,
     ...deps,
   };
@@ -137,9 +155,10 @@ function createDevToolsGate(deps = {}) {
   function reason() {
     if (!packaged()) return 'dev';
     if (unlocked) return 'unlocked';
-    /* 운영자 admin 빌드(인자 + admin.allow 토큰) 호환. dev 에선 'admin' 인자만으로 참이라
-       «강제 잠금 훅»을 무력화하므로 진짜 배포판에서만 본다. */
-    if (realPackaged()) { try { if (d.isAdminAuthorized()) return 'admin-arg'; } catch (_) {} }
+    /* ⛔0919 QA(high): 예전엔 여기서 isAdminAuthorized()(=운영자 admin 빌드: 'admin' 인자 + GODITOR_ADMIN_TOKEN +
+       userData/admin.allow)를 «세 번째 예외»로 허용했다. 그런데 셋 다 사용자 손에 있다 — 아무 토큰의 sha256 을
+       admin.allow 에 써 두면 일반 고객도 자가 발급으로 개발자 도구·CDP 를 연다. 현빈 결정은 «관리자 계정 로그인
+       또는 관리자코드» 두 가지뿐이라 이 예외를 뺀다(d.isAdminAuthorized 는 받아도 판정에 쓰지 않는다). */
     if (adminEmailSignedIn()) return 'admin-email';
     return 'locked';
   }
@@ -152,8 +171,11 @@ function createDevToolsGate(deps = {}) {
       return { ok: false, reason: 'rate_limited', retryAfterMs: lockedUntil - t };
     }
     if (lockedUntil && t >= lockedUntil) { lockedUntil = 0; fails = 0; }
-    const got = sha256Hex(String(input == null ? '' : input).trim());
-    if (hexEqual(got, String(d.codeSha256).toLowerCase())) {
+    const code = String(input == null ? '' : input).trim();
+    const match = d.codeSha256
+      ? hexEqual(sha256Hex(code), String(d.codeSha256).toLowerCase())
+      : kdfMatches(code, d.codeKdf);
+    if (match) {
       fails = 0;
       unlocked = true;
       try { d.onChange(); } catch (_) {}
@@ -236,4 +258,4 @@ function createDevToolsGate(deps = {}) {
   return { reason, isAllowed, verifyCode, enforce, lock, guardWebContents, install, toggleFor, state, registerIpc };
 }
 
-module.exports = { createDevToolsGate, devToolsMenuItem, debugLaunchViolations, ADMIN_EMAIL, CODE_SHA256, MAX_FAILS, LOCK_MS, _normEmail: normEmail };
+module.exports = { createDevToolsGate, devToolsMenuItem, debugLaunchViolations, ADMIN_EMAIL, CODE_KDF, MAX_FAILS, LOCK_MS, _normEmail: normEmail, _kdfMatches: kdfMatches };

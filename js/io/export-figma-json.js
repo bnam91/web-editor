@@ -2,8 +2,55 @@ import { canvasEl, state } from '../globals.js';
 import { inlineGoyaAssetsInJSON, makeElectronAssetReader } from './goya-asset-inline.js';
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';
 import { getTextGradient, hasPaintingTextEffect } from '../props/text-block-color.js';
+import { parseGradient } from '../props/gradient-model.js';
 
 const CANVAS_W = 860;
+
+/* ── SHAPE → Figma JSON (0919 QA) ────────────────────────────────────────────
+ * ⑴ 크기: 도형 크기는 «래퍼 프레임»(dataset.width/height, 캔버스 실측)에 있고 .shape-block 자체엔 style.width 가 없다
+ *    → 예전엔 늘 75×75 로 나갔다(200×200 가림막이 Figma 에선 14% 만 덮어 밑 콘텐츠 노출). 실측 폭 > 래퍼 dataset > style.
+ * ⑵ 그라데이션: shapeColor 에 CSS 그라데이션 문자열이 그대로 실려 렌더러가 SVG color/fill 에 넣고 → 검은 사각형.
+ *    color = 마지막 단색(폴백), gradientDef = 캔버스가 그리는 «바로 그» SVG <linearGradient|radialGradient>(끝점이 도형
+ *    밖인 스탑 재매핑 포함) — 렌더러가 도형 SVG 에 그대로 넣는다(캔버스와 같은 수식).
+ * ⑶ 가림막: redact 표시 + 불투명 덮개 색. ⛔반투명·원본 노출 금지(프라이버시). */
+const _REDACT_COVER = '#4a4a4a';   // 모자이크 안전실패 색과 같은 회색(캔버스 폴백과 같다)
+function _shapeFigmaBlock(el) {
+  const live = (el.id && document.getElementById(el.id)) || el;
+  const frame = live.parentElement && live.parentElement.classList?.contains('frame-block') ? live.parentElement : null;
+  const pick = (...vals) => { for (const v of vals) { const n = parseFloat(v); if (Number.isFinite(n) && n > 0) return n; } return 75; };
+  const width  = Math.round(pick(live.offsetWidth,  frame && frame.dataset.width,  frame && frame.style.width,  el.style.width));
+  const height = Math.round(pick(live.offsetHeight, frame && frame.dataset.height, frame && frame.style.height, el.style.height));
+  const raw = el.dataset.shapeColor || '#cccccc';
+  const isGrad = /gradient\s*\(/i.test(raw);
+  const svg = el.querySelector('svg.shape-svg') || el.querySelector('svg');
+  const lastSolid = (svg && svg.style && svg.style.color && !/currentcolor/i.test(svg.style.color)) ? svg.style.color : '';
+  let color = isGrad ? (lastSolid || '#cccccc') : raw;
+  let gradientDef = '';
+  if (isGrad && svg) {
+    const def = svg.querySelector('linearGradient, radialGradient');
+    if (def) {
+      const c = def.cloneNode(true);
+      c.setAttribute('id', 'g');
+      gradientDef = new XMLSerializer().serializeToString(c).replace(/ xmlns="[^"]*"/g, '');
+    }
+  }
+  const redact = el.dataset.shapeRedact === 'true';
+  const out = {
+    type: 'shape', id: el.id || '',
+    shapeType: el.dataset.shapeType || 'rect',
+    color,
+    // ★0 보존(0918 기본 테두리 0) — `|| 1` 이면 0이 1이 돼 피그마에 1px 테두리가 생긴다. 누락/NaN 만 1.
+    strokeWidth: (() => { const n = parseInt(el.dataset.shapeStrokeWidth); return Number.isFinite(n) ? n : 1; })(),
+    rotation: parseInt(el.dataset.shapeRotation) || 0,
+    width, height,
+  };
+  if (gradientDef && !redact) out.gradientDef = gradientDef;
+  if (redact) {
+    out.redact = { mode: el.dataset.shapeRedactMode || 'blur' };
+    out.color = _REDACT_COVER;   // 불투명 덮개 — 흐림/모자이크 비트맵은 Figma 로 못 옮긴다(가리기가 우선)
+  }
+  return out;
+}
 
 async function exportFigmaJSON() {
   // 현재 페이지를 pages 배열에 반영
@@ -624,16 +671,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     }
     // ── SHAPE (shape-block) : 도형(선/사각/원) ──
     if (el.classList.contains('shape-block')) {
-      return {
-        type: 'shape', id: el.id || '',
-        shapeType: el.dataset.shapeType || 'rect',
-        color: el.dataset.shapeColor || '#cccccc',
-        // ★0 보존(0918 기본 테두리 0) — `|| 1` 이면 0이 1이 돼 피그마에 1px 테두리가 생긴다. 누락/NaN 만 1.
-        strokeWidth: (() => { const n = parseInt(el.dataset.shapeStrokeWidth); return Number.isFinite(n) ? n : 1; })(),
-        rotation: parseInt(el.dataset.shapeRotation) || 0,
-        width: parseFloat(el.style.width) || 75,
-        height: parseFloat(el.style.height) || 75,
-      };
+      return _shapeFigmaBlock(el);
     }
     // ── STEP (step-block) : 번호badge + 제목/설명 카드 ──
     if (el.classList.contains('step-block')) {
@@ -929,7 +967,14 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     }
     // free-layout 프레임: 절대배치 구조 보존(높이·배경·자식 위치) → 렌더 충실도↑.
     function _frameBlock(fb) {
-      const w = parseInt(fb.dataset.width) || null;
+      // ★0919 QA: 폭 = 캔버스에서 «보이는» 폭. dataset.width(860)인데 max-width:100% 로 716 에 눌린 프레임이
+      //   Figma 에선 860 으로 나갔다. 지금 페이지의 살아 있는 요소가 있으면 그 layout 폭(줌 transform 무관)이 더 좁을 때 그걸 쓴다.
+      const _liveFb = fb.id ? document.getElementById(fb.id) : null;
+      const _liveW = _liveFb && _liveFb.offsetWidth ? _liveFb.offsetWidth : 0;
+      // dataset.width 가 '100%'(⌘G 섹션레벨 그룹)면 parseInt 가 100(px)으로 읽혀 Figma 에서 100px 폭이 됐다 → 실폭(없으면 null=가용폭)
+      const _dsPct = /%\s*$/.test(String(fb.dataset.width || ''));
+      const _dsW = _dsPct ? null : (parseInt(fb.dataset.width) || null);
+      const w = _dsPct ? (_liveW || null) : ((_dsW && _liveW && _liveW < _dsW) ? _liveW : _dsW);
       const h = parseInt(fb.dataset.height) || parseFloat(fb.style.height) || 0;
       const free = fb.dataset.freeLayout === 'true';
       const children = [];
@@ -944,8 +989,16 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           children.push({ x, y, w: cw, block: innerB });
         }
       });
-      return { type: 'frame', id: fb.id || '', width: w, height: h,
-               bg: fb.dataset.bg || '', radius: parseInt(fb.dataset.radius) || 0, free, children };
+      const _bg = fb.dataset.bg || '';
+      const out = { type: 'frame', id: fb.id || '', width: w, height: h,
+               bg: _bg, radius: parseInt(fb.dataset.radius) || 0, free, children };
+      // ★0919 QA: 배경 그라데이션 → 모델(렌더러가 set_gradient 로 칠함). 예전엔 렌더러가 CSS 문자열에서 «처음 나오는 rgba()»
+      //   를 단색으로 칠해 가운데 스탑 색 한 가지가 됐다.
+      if (/gradient\s*\(/i.test(_bg)) {
+        const g = parseGradient(_bg);
+        if (g && Array.isArray(g.stops) && g.stops.length >= 2) out.bgGradient = { type: g.type, angle: g.angle, stops: g.stops };
+      }
+      return out;
     }
     /* ★.section-merged-part(합쳐 넣은 아래 섹션의 몸)는 «투명하게» 통과한다.
        이 화이트리스트에 안 걸리면 자식을 내려가 보지도 않고 버려서, 합친 섹션을

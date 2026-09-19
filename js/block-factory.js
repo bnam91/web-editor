@@ -1871,6 +1871,9 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       `width:${frameW}px;height:${frameH}px;` +
       `background:transparent;padding:0;`;
     ss.dataset.bg = 'transparent';
+    // ★makeFrameBlock 기본값(860×520)이 dataset 에 남으면 undo/redo·재로드 때 dataset 기준으로 복원돼 부푼다
+    ss.dataset.width = String(frameW);
+    ss.dataset.height = String(frameH);
     ss.dataset.offsetX = String(minX);
     ss.dataset.offsetY = String(minY);
     if (asGroup) { ss.dataset.group = 'true'; ss.dataset.name = _nextGroupName(); }
@@ -1929,6 +1932,8 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   ss.style.cssText = `background:transparent;padding:0;width:100%;height:${frameH}px;min-height:${frameH}px;`;
   ss.dataset.bg = 'transparent';
   ss.dataset.width = '100%';
+  // ★style 높이와 dataset 높이를 같게 — makeFrameBlock 기본값 '520' 이 남으면 redo·저장→재로드에서 520px 로 부푼다
+  ss.dataset.height = String(frameH);
   ss.dataset.padY = '0';
   if (asGroup) { ss.dataset.group = 'true'; ss.dataset.name = _nextGroupName(); }
 
@@ -2067,6 +2072,37 @@ function _shapeInnerSVG(type, strokeWidth) {
 window._shapeInnerSVG = _shapeInnerSVG;
 
 // 블록의 inner SVG geometry를 현재 strokeWidth에 맞춰 다시 그림 (rectangle/ellipse만 동적)
+/* ★도형 그라데이션 «짝» 다시 잇기(0919 QA, 치명① 저장→로드 변형).
+   그라데이션 def id 와 fill URL 은 block.id 에서 만든다(grad-<id>). 그런데 붙여넣기는 사본 안의 [id] 를
+   전부 새로 짓고(def → grad-shp_<새>), ⌘D·재로드는 block.id 만 바뀌는 경우가 있어 fill 이 원본 def 를 빌리거나
+   (원본이 지워지면) 빈 도형이 됐다. 이 함수가 «도형 안의 그라데이션 def 1개 = grad-<지금 block.id>» 로 맞추고
+   fill URL 을 전부 그 id 로 다시 건다. 멱등. 반환 = 바꾼 게 있으면 true. */
+function relinkShapeGradient(block) {
+  if (!block || !block.classList?.contains('shape-block')) return false;
+  const svg = block.querySelector('svg');
+  if (!svg) return false;
+  const defsGrads = [...svg.querySelectorAll('linearGradient, radialGradient')];
+  const fills = [...svg.querySelectorAll('[fill^="url(#"]')];
+  if (!defsGrads.length && !fills.length) return false;
+  const want = `grad-${block.id || 'shp_anon'}`;
+  let changed = false;
+  if (defsGrads.length) {
+    // 정본 def = 이미 want 인 것 > 지금 fill 이 가리키는 것 > 첫 번째
+    const ref = (fills[0]?.getAttribute('fill') || '').match(/^url\(#([^)]+)\)/)?.[1];
+    const keep = defsGrads.find(g => g.id === want) || defsGrads.find(g => g.id === ref) || defsGrads[0];
+    if (keep.id !== want) { keep.id = want; changed = true; }
+    defsGrads.forEach(g => { if (g !== keep && g.id === want) { g.remove(); changed = true; } });
+    fills.forEach(el => {
+      if (el.getAttribute('fill') !== `url(#${want})`) { el.setAttribute('fill', `url(#${want})`); changed = true; }
+    });
+  } else if (!block.dataset.shapeGradient) {
+    // def 가 없는데 fill 만 URL — 그라데이션 메타도 없으면 끊긴 참조 → 단색으로 되돌린다(빈 도형 방지)
+    fills.forEach(el => { el.setAttribute('fill', 'currentColor'); changed = true; });
+  }
+  return changed;
+}
+window.relinkShapeGradient = relinkShapeGradient;
+
 function refreshShapeInnerSVG(block) {
   if (!block) return;
   const type = block.dataset.shapeType || 'rectangle';
@@ -2088,6 +2124,7 @@ function refreshShapeInnerSVG(block) {
       el.setAttribute('fill', `url(#${id})`);
     });
   }
+  relinkShapeGradient(block);   // def id 도 grad-<지금 id> 로(붙여넣기로 id 가 바뀐 사본·저장본 치유)
 }
 window.refreshShapeInnerSVG = refreshShapeInnerSVG;
 
@@ -2185,8 +2222,10 @@ function addShapeBlock(type = 'rectangle') {
 
   window.bindFrameDropZone?.(ss);
   window.buildLayerPanel();
-  window._activeFrame = ss;
-  window.showFrameProperties?.(ss);
+  // ★0919 QA: 새 도형을 «선택»한다 — 예전엔 _activeFrame=래퍼 + 래퍼 프레임 속성만 열고 .selected 는 직전 블럭에
+  //   남겨 둬서, 삽입 직후 ⌫ 가 새 도형 대신 직전 블럭(텍스트 등)을 지웠다.
+  if (typeof window.selectShapeBlock === 'function') window.selectShapeBlock(block);
+  else { window._activeFrame = ss; window.showFrameProperties?.(ss); }
 }
 
 // ── setSectionBg: 섹션 단위 배경색 설정 ──

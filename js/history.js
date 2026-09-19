@@ -257,6 +257,9 @@ function undo() {
     ensureHistoryCheckpoint('현재 상태');
   }
   if (historyPos <= 0) return;
+  // ★0919 QA: 열린 색 피커는 «떨어져 나갈» 블럭 DOM 을 붙잡고 있다 — 복원 전에 닫는다.
+  //   (안 닫으면 undo 뒤 탭 클릭이 떨어진 노드에 적용되고 기록만 하나 쌓여 redo 스택이 잘렸다)
+  try { window.closeGoyaColorPicker?.(); } catch (_) {}
   // 떠나는 snap의 onUndo (예: 스크래치 복원) — 캔버스 복원 *후* 실행해서 DOM 안정 상태에서 처리
   const leavingSnap = historyStack[historyPos];
   historyPos--;
@@ -275,6 +278,7 @@ function undo() {
 
 function redo() {
   if (historyPos >= historyStack.length - 1) return;
+  try { window.closeGoyaColorPicker?.(); } catch (_) {}   // undo 와 같은 이유(0919 QA)
   const currentSnap = historyStack[historyPos];
   historyPos++;
   const newSnap = historyStack[historyPos];

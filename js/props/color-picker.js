@@ -291,7 +291,15 @@ function _emitToTarget(hex, opts) {
   }
 }
 
+/* 투명(알파 0)에서 «색을 고르면» 불투명으로 — 안 그러면 고른 색이 계속 안 보인다(wireColorField _bumpAlphaIfHidden 과 같은 뜻).
+   투명 단색 복귀(0919 QA) 뒤·투명으로 열린 피커에서만. 알파를 직접 만지면 해제. */
+function _unhideTransparentOnColorPick() {
+  if (_state && _state.transparentHidden && _state.a === 0) _state.a = 1;
+  if (_state) _state.transparentHidden = false;
+}
+
 function _applySolidAndEmit(opts) {
+  if (_state && !(opts && opts.fromTab)) _state.solidEdited = true;
   _syncSolidUI();
   const hex = hexFromHsv(_state.h, _state.s, _state.v);
   // C12: solid 피커의 alpha를 함께 내려보낸다 (target은 native라 hex만 받지만 dataset로 alpha 전달)
@@ -386,6 +394,7 @@ function _wireEvents(pop) {
 
   /* Spectrum (Solid) */
   _drag(_els.spectrum, (x, y, commit) => {
+    _unhideTransparentOnColorPick();
     _state.s = x;
     _state.v = 1 - y;
     _applySolidAndEmit(commit ? { commit: true } : undefined);
@@ -393,12 +402,14 @@ function _wireEvents(pop) {
 
   /* Hue (Solid) */
   _drag(_els.hue, (x, _y, commit) => {
+    _unhideTransparentOnColorPick();
     _state.h = x * 360;
     _applySolidAndEmit(commit ? { commit: true } : undefined);
   });
 
   /* Alpha (Solid) */
   _drag(_els.alpha, (x, _y, commit) => {
+    if (_state) _state.transparentHidden = false;   // 알파를 직접 만지면 그 값이 정본
     _state.a = x;
     _applySolidAndEmit(commit ? { commit: true } : undefined);
   });
@@ -414,6 +425,7 @@ function _wireEvents(pop) {
     if (!norm) return;
     const { r, g, b } = hexToRgb(norm);
     const { h, s, v: val } = rgbToHsv(r, g, b);
+    _unhideTransparentOnColorPick();
     _state.h = h; _state.s = s; _state.v = val;
     _applySolidAndEmit();
   });
@@ -431,6 +443,7 @@ function _wireEvents(pop) {
     const m = alphaInp.value.match(/(\d+)/);
     if (!m) return;
     const p = Math.max(0, Math.min(100, parseInt(m[1])));
+    _state.transparentHidden = false;
     _state.a = p / 100;
     _syncSolidUI();
   });
@@ -451,6 +464,7 @@ function _wireEvents(pop) {
       const res = await ed.open();
       const { r, g, b } = hexToRgb(res.sRGBHex);
       const { h, s, v } = rgbToHsv(r, g, b);
+      _unhideTransparentOnColorPick();
       _state.h = h; _state.s = s; _state.v = v;
       _applySolidAndEmit();
     } catch (_) { /* user cancelled */ }
@@ -560,7 +574,7 @@ function _wireEvents(pop) {
   }
   function _emitGradientNow(commit) {
     const css = _buildGradientCSS();
-    gradFill.style.background = css;
+    gradFill.style.background = _barFillCSS();
     if (!_targetInput) return;
     const detail = {
       css,
@@ -583,11 +597,36 @@ function _wireEvents(pop) {
     const g = _grad();
     const thumbs = gradBar.querySelectorAll('.goya-cp-grad-thumb');
     thumbs.forEach((t, i) => { if (g.stops[i]) t.style.left = _thumbLeft(g.stops[i].offset); });
-    gradFill.style.background = _buildGradientCSS();
+    gradFill.style.background = _barFillCSS();
   }
-  // 0918 canvasgrad: 캔버스 바 끝점을 박스 밖으로 끌면 스탑이 0% 미만·100% 초과가 된다 —
-  // 값은 그대로 두고(저장 CSS 보존) 썸네일 «표시»만 바 안으로.
-  function _thumbLeft(off) { return (Math.max(0, Math.min(1, off || 0)) * 100) + '%'; }
+  /* ★0919 QA(T-060↔피커): 캔버스 끝 원을 도형 밖으로 끌면 스탑이 0% 미만·100% 초과가 된다.
+     예전엔 피커 바가 그 스탑을 끝(0/100%)에 «눌러» 보여 주고, 썸을 6px 만 건드려도 offset 이 0..1 로 잘려
+     (5.57 → 0.97) 캔버스에서 밖까지 끌어 둔 끝점이 도형 안으로 되돌아왔다.
+     → 바 = 스탑 범위 [lo,hi](lo=min(0,…), hi=max(1,…)) 전체. 표시·드래그·더블클릭 추가가 모두 같은 사상(寫像)을 쓴다.
+       범위가 0..1 이면 예전과 똑같다. 드래그 중엔 범위를 «잡을 때» 값으로 고정(끌면서 눈금이 흔들리지 않게). */
+  let _barFrozen = null;
+  function _barRange() {
+    if (_barFrozen) return _barFrozen;
+    const offs = _grad().stops.map(s => Number(s.offset) || 0);
+    return { lo: Math.min(0, ...offs), hi: Math.max(1, ...offs) };
+  }
+  function _barToOffset(x) { const { lo, hi } = _barRange(); return lo + Math.max(0, Math.min(1, x)) * (hi - lo); }
+  function _thumbLeft(off) {
+    const { lo, hi } = _barRange();
+    const t = ((Number(off) || 0) - lo) / ((hi - lo) || 1);
+    return (Math.max(0, Math.min(1, t)) * 100) + '%';
+  }
+  function _barFillCSS() {
+    const { lo, hi } = _barRange();
+    if (lo === 0 && hi === 1) return _buildGradientCSS();
+    const span = (hi - lo) || 1;
+    const parts = _sortedStops(_grad()).map(s => {
+      const aPct = _aClamp((s.opacity ?? 1) * 100);
+      const col = aPct < 100 ? _hexToRgba(s.color, aPct) : s.color;
+      return `${col} ${(Math.round(((s.offset || 0) - lo) / span * 10000) / 100)}%`;
+    });
+    return `linear-gradient(90deg, ${parts.join(', ')})`;
+  }
   function _bindStopThumbDrag(thumbEl, idx) {
     thumbEl.addEventListener('mousedown', (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -601,14 +640,16 @@ function _wireEvents(pop) {
       // 0918r2 textgrad(이벨류 지적 ④): 움직이지 않은 «클릭만»은 기록을 남기지 않는다 —
       //   안 그러면 다음 ⌘Z 가 눈에 보이는 변화 없이 한 칸을 먹는다(도형·글자 공통).
       const startOffset = g.stops[idx] ? g.stops[idx].offset : null;
+      _barFrozen = null; _barFrozen = _barRange();
       const onMove = (ev) => {
         const r = gradBar.getBoundingClientRect();
-        const p = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
-        g.stops[idx].offset = p;
+        const p = _barToOffset((ev.clientX - r.left) / r.width);
+        g.stops[idx].offset = Math.round(p * 10000) / 10000;
         _positionGradStops();
         _scheduleEmitGradient(false);
       };
       const onUp = () => {
+        _barFrozen = null;
         thumbEl.classList.remove('is-dragging');
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
@@ -631,7 +672,7 @@ function _wireEvents(pop) {
       gradBar.appendChild(t);
       _bindStopThumbDrag(t, i);
     });
-    gradFill.style.background = _buildGradientCSS();
+    gradFill.style.background = _barFillCSS();
   }
   function _syncSelectedStopUI() {
     const g = _grad();
@@ -660,7 +701,7 @@ function _wireEvents(pop) {
   gradBar?.addEventListener('dblclick', (e) => {
     if (e.target.closest('.goya-cp-grad-thumb')) return;
     const r = gradBar.getBoundingClientRect();
-    const p = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    const p = Math.round(_barToOffset((e.clientX - r.left) / r.width) * 10000) / 10000;   // 0919: 바 = 스탑 범위
     const g = _grad();
     const sorted = _sortedStops(g);
     let color = sorted[0]?.color || '#ffffff', opacity = sorted[0]?.opacity ?? 1;
@@ -777,7 +818,7 @@ function _wireEvents(pop) {
     _renderGradStops();
     _syncSelectedStopUI();
     _syncGradAngleVis();
-    if (opts.emit === false) gradFill.style.background = _buildGradientCSS();
+    if (opts.emit === false) gradFill.style.background = _barFillCSS();
     else _emitGradientNow(false);
     return true;
   }
@@ -832,7 +873,13 @@ function _wireEvents(pop) {
     _state.mode = name;
     if (name === 'solid') {
       // 마지막 단색 = _state.h/s/v/a (그라데이션 탭은 이 값을 안 건드린다) → input+change 1회
-      _applySolidAndEmit({ commit: true });
+      // ★0919 QA: 열 때 단색이 «투명»(transparent·alpha 0)이었고 이 세션에 단색을 안 만졌으면 투명으로 돌아간다.
+      //   (예전엔 _state.a 기본 1 이라 투명 배경 그룹이 불투명 흰색으로 덮였다 — 데이터 변경)
+      if (_state.solidRestoreAlpha != null && !_state.solidEdited) {
+        _state.a = _state.solidRestoreAlpha;
+        if (_state.a === 0) _state.transparentHidden = true;   // 다음 «색 고르기»는 보이게(아래 헬퍼)
+      }
+      _applySolidAndEmit({ commit: true, fromTab: true });
       return;
     }
     if (name === 'image') {
@@ -888,6 +935,11 @@ function openPicker(swatch) {
   const cpAlpha = nativeInp.dataset.cpAlpha != null && nativeInp.dataset.cpAlpha !== ''
     ? Math.max(0, Math.min(1, (parseInt(nativeInp.dataset.cpAlpha) || 0) / 100)) : 1;
   _state = { h, s, v, a: cpAlpha, grad: null, mode: 'solid' };
+  if (cpAlpha === 0) _state.transparentHidden = true;
+  // 단색 복귀 알파(0919 QA) — wireColorField 가 «지금 단색이 투명»이면 cpSolidAlpha='0' 을 심는다.
+  if (nativeInp.dataset.cpSolidAlpha != null && nativeInp.dataset.cpSolidAlpha !== '') {
+    _state.solidRestoreAlpha = Math.max(0, Math.min(1, (parseInt(nativeInp.dataset.cpSolidAlpha) || 0) / 100));
+  }
 
   // 탭 능력 게이트 + solid 탭으로 초기화(UI만)
   const modes = _applyModeGate(nativeInp);
@@ -943,6 +995,14 @@ function openPicker(swatch) {
   };
   setTimeout(() => document.addEventListener('mousedown', _outsideHandler, true), 50);
 }
+
+/* ─── Esc = 피커 닫기(0919 QA) ─── 열려 있을 때만 가로채고, 닫힌 뒤의 Esc 는 에디터(상위 선택 등)로 간다. */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !_pop || _pop.hidden) return;
+  e.preventDefault();
+  e.stopPropagation();
+  _closePicker();
+}, true);
 
 /* ─── 스와치 클릭 델리게이션 ─── */
 document.addEventListener('mousedown', (e) => {
@@ -1085,6 +1145,12 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
       _seedAlpha = fa;
       swatch.style.background = String(gradientValue);
     }
+  }
+
+  // ★0919 QA: 단색이 투명(alpha 0, 예: ⌘G 그룹 배경 transparent)이면 그라데이션 탭 → Solid 복귀 때 투명으로 돌아가게 표시.
+  //   cpAlpha 로 심지 않는 이유: cpAlpha 는 «사용자가 명시한 알파»로 읽혀 단색을 새로 골라도 투명에 갇힌다(_bumpAlphaIfHidden 무력화).
+  if (_seedAlpha == null && initialAlpha === 0 && (picker.dataset.cpAlpha == null || picker.dataset.cpAlpha === '')) {
+    picker.dataset.cpSolidAlpha = '0';
   }
 
   // 탭 능력 선언 — 호출측이 이미 정했으면 존중, 아니면 onGradient 유무로 자동(color-picker 게이트가 읽음)

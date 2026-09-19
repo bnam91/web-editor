@@ -29,14 +29,28 @@ function _colorOf(c) {
 const _clamp01 = (v) => Math.max(0, Math.min(1, Number.isFinite(+v) ? +v : 0));
 
 /** 스탑 → Figma 스탑 (위치 0..1 클램프·오름차순, 알파 = 색 알파 × opacity) */
-export function figmaStops(stops) {
+export function figmaStops(stops, range) {
+  const lo = range ? range.lo : 0, span = range ? (range.hi - range.lo) || 1 : 1;
   return (stops || [])
     .map(s => {
       const c = _colorOf(s.color);
-      const op = s.opacity == null ? 1 : _clamp01(s.opacity);
-      return { position: _clamp01(s.offset), color: { r: c.r, g: c.g, b: c.b, a: _clamp01(c.a * op) } };
+      return { position: _clamp01(((Number(s.offset) || 0) - lo) / span), color: { r: c.r, g: c.g, b: c.b, a: stopAlpha(s) } };
     })
     .sort((a, b) => a.position - b.position);
+}
+
+/** 스탑 알파 «한 번만»(0919 QA) — parseGradient 는 rgba(…,a) 색과 opacity=a 를 «둘 다» 싣는다.
+ *  곱하면 a² 가 된다(50% → 25%). opacity 가 1 미만이면 그게 정본, 1/없음이면 색 알파. (prop-shape shapeStopPaint 와 같은 규칙) */
+export function stopAlpha(s) {
+  const c = _colorOf(s && s.color);
+  const o = (s && s.opacity != null && Number.isFinite(+s.opacity)) ? _clamp01(s.opacity) : null;
+  return _clamp01(o == null || o >= 1 ? c.a : o);
+}
+
+/** 스탑 위치 범위 — 끝점을 도형 밖으로 끈 스탑(offset <0, >1)을 잘라 버리지 않고 선을 늘려 담는다(캔버스 svgStopRemap 과 같은 뜻). */
+export function stopRange(stops) {
+  const offs = (stops || []).map(s => Number(s.offset) || 0);
+  return { lo: Math.min(0, ...offs), hi: Math.max(1, ...offs) };
 }
 
 /** 선형 CSS 각도 → gradientTransform (노드 정규화 → 그라데이션 공간) */
@@ -68,9 +82,15 @@ export function radialTransform(w, h) {
 export function cssGradientToFigmaPaint(model, w, h) {
   if (!model || !Array.isArray(model.stops) || model.stops.length < 2) return null;
   const radial = model.type === 'radial';
-  return {
-    type: radial ? 'GRADIENT_RADIAL' : 'GRADIENT_LINEAR',
-    stops: figmaStops(model.stops),
-    gradientTransform: radial ? radialTransform(w, h) : linearTransform(model.angle == null ? 180 : model.angle, w, h),
-  };
+  if (radial) {
+    return { type: 'GRADIENT_RADIAL', stops: figmaStops(model.stops), gradientTransform: radialTransform(w, h) };
+  }
+  // 선형: 스탑이 0..1 밖이면 위치를 [lo,hi]→[0,1] 로 재매핑하고 변환의 진행축(첫 행)도 같은 식으로 — 보이는 색은 그대로.
+  const range = stopRange(model.stops);
+  const T = linearTransform(model.angle == null ? 180 : model.angle, w, h);
+  const span = (range.hi - range.lo) || 1;
+  if (range.lo !== 0 || range.hi !== 1) {
+    T[0] = [T[0][0] / span, T[0][1] / span, (T[0][2] - range.lo) / span];
+  }
+  return { type: 'GRADIENT_LINEAR', stops: figmaStops(model.stops, range), gradientTransform: T };
 }

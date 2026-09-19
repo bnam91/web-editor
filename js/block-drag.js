@@ -52,6 +52,14 @@ function _getParentFrame(block) {
 function _isSoleSelectedBlock(block) {
   return typeof window.grdIsSoleSelected === 'function' ? !!window.grdIsSoleSelected(block) : false;
 }
+/* ★0919 QA — «캔버스 클릭으로» 선택된 그리드만 드릴다운 대상이다. 삽입 직후(addGridBlock 이 selectBlock 으로
+   골라 둠)의 «첫» 클릭은 사용자에겐 첫 클릭이라 블럭 선택이어야 한다 — 안 그러면 넣자마자 누르고 ⌫ 하면
+   «마지막 줄은 지울 수 없습니다» 토스트만 떴다(현빈 원 증상의 가장 흔한 흐름). 요소 참조라 undo 로 DOM 이
+   바뀌면 자동으로 무효. */
+let _grdCanvasSelected = null;
+function _gridWasCanvasSelected(block) {
+  return _grdCanvasSelected === block && _isSoleSelectedBlock(block);
+}
 function _isInsideUnselectedFrame(block) {
   const ss = _getParentFrame(block);
   if (!ss) return false;
@@ -613,6 +621,8 @@ function bindBlock(block) {
   });
 
   if (isShape) {
+    // 붙여넣기·⌘D·재로드로 id 가 바뀐 사본의 그라데이션 짝을 다시 잇는다(0919 QA)
+    try { window.relinkShapeGradient?.(block); } catch (_) {}
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
@@ -621,18 +631,7 @@ function bindBlock(block) {
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       // shape-block은 프레임 선택 단계를 건너뛰고 직접 선택 (핸들 즉시 표시)
-      window.deselectAll?.();
-      if (ss) {
-        const parentSec = ss.closest('.section-block');
-        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
-        ss.classList.add('selected');
-        window._activeFrame = ss;
-      }
-      block.classList.add('selected');
-      window.syncSection?.(sec);
-      window.highlightBlock?.(block, layerItem);
-      window.setBlockAnchor?.(block);
-      window.showShapeProperties?.(block);
+      selectShapeBlock(block);
     });
 
     // 4코너 리사이즈 핸들 생성 (중복 방지)
@@ -1878,7 +1877,8 @@ function bindBlock(block) {
       /* ★0918r2 grid(T-058, 피그마식) — 첫 클릭 = 블럭 선택, «이미 이 블럭만 선택된» 상태의 클릭 = 줄 선택.
          이 판정도 deselectAll «전»이어야 한다(뒤에서 재면 selected 가 방금 지워져 늘 false →
          줄 선택이 영영 불가능). ⛔순서 뒤집기 금지 — 유닛 소스 가드가 지킨다. */
-      const _grdWasSelected = showFn === 'showGridProperties' ? _isSoleSelectedBlock(block) : false;
+      const _grdWasSelected = showFn === 'showGridProperties' ? _gridWasCanvasSelected(block) : false;
+      if (showFn === 'showGridProperties') _grdCanvasSelected = block;
       window.deselectAll();
       _restoreParentFrameSelected(block);
       block.classList.add('selected');
@@ -2498,6 +2498,32 @@ function bindFrameDropZone(ss) {
 // Backward compat
 window.bindBlock          = bindBlock;
 window.bindFrameDropZone  = bindFrameDropZone;
+
+/* ★도형 «선택» SSOT(0919 QA) — 캔버스 클릭·삽입 직후·레이어 패널 줄 클릭이 모두 여기로 온다.
+   도형은 «그냥 도형»(A안): 래퍼(frame-block) 속성 패널(Layout·Border·Child Align…)이 아니라
+   shape-block 자체를 선택하고 도형 속성을 연다. 예전엔 삽입 직후·레이어 패널 경로가 래퍼 프레임
+   속성만 열고 .selected 는 직전 블럭에 남겨 둬서 ⌫ 가 엉뚱한 블럭을 지웠다. */
+export function selectShapeBlock(block) {
+  if (!block || !block.classList?.contains('shape-block')) return false;
+  const sec = block.closest('.section-block');
+  const ss = block.closest('.frame-block');
+  const layerItem = ss?._layerItem || block._layerItem;
+  window.deselectAll?.();
+  if (ss) {
+    const parentSec = ss.closest('.section-block');
+    if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+    ss.classList.add('selected');
+    window._activeFrame = ss;
+  }
+  block.classList.add('selected');
+  window.syncSection?.(sec);
+  window.highlightBlock?.(block, layerItem);
+  window.setBlockAnchor?.(block);
+  window.showShapeProperties?.(block);
+  return true;
+}
+if (typeof window !== 'undefined') window.selectShapeBlock = selectShapeBlock;
+
 
 export {
   bindBlock,

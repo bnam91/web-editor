@@ -19,7 +19,7 @@ const MAIN = readSrc(ROOT, 'main.js');
 const WIRE = readSrc(ROOT, 'main', 'gdt', 'wire.js');
 const MODAL = readSrc(ROOT, 'js', 'settings', 'settings-modal.js');
 const PRELOAD = readSrc(ROOT, 'preload.js');
-const { CODE_SHA256 } = require(path.join(ROOT, 'main', 'devtools-gate.js'));
+const { CODE_KDF, _kdfMatches } = require(path.join(ROOT, 'main', 'devtools-gate.js'));
 
 function walk(dir, out = []) {
   let ents = [];
@@ -82,20 +82,29 @@ test('M6 ⛔권한 확대 금지: isAdminAuthorized 는 개발자 도구 판정�
   assert.ok(!/devtools|ADMIN_EMAIL|coq3820/i.test(body));
 });
 
-test('M7 ★관리자코드 평문이 레포 어디에도 없다(해시로 스캔 — 6~8자리 숫자 전수)', () => {
+test('M7 ★관리자코드 평문이 레포 어디에도 없다(scrypt 레코드로 스캔 — 따로 선 6자리 숫자 전수)', async () => {
   const dirs = ['js', 'main', 'pages', 'services', 'tests', 'css'].map((d) => path.join(ROOT, d));
   const files = [...dirs.flatMap((d) => walk(d)), path.join(ROOT, 'main.js'), path.join(ROOT, 'preload.js'), path.join(ROOT, 'index.html')];
-  const hits = [];
+  // 0919: 코드는 6자리 — 숫자 토큰 중 «따로 선» 6자리만 느린 KDF 로 잰다(비동기 병렬, 빠른 해시는 번들에서 뺐다)
+  const byNum = new Map();
   for (const f of files) {
     let src = '';
     try { src = fs.readFileSync(f, 'utf8'); } catch (_) { continue; }
-    const seen = new Set(src.match(/\d{4,8}/g) || []);
-    for (const n of seen) {
-      if (crypto.createHash('sha256').update(n).digest('hex') === CODE_SHA256) hits.push(toPosix(path.relative(ROOT, f)));
+    for (const n of new Set(src.match(/(?<!\d)\d{6}(?!\d)/g) || [])) {
+      if (!byNum.has(n)) byNum.set(n, []);
+      byNum.get(n).push(toPosix(path.relative(ROOT, f)));
     }
   }
+  const k = CODE_KDF;
+  const scrypt = (n) => new Promise((res) => crypto.scrypt(n, Buffer.from(k.salt, 'hex'), k.keylen || 32,
+    { N: k.N, r: k.r, p: k.p, maxmem: 256 * 1024 * 1024 }, (e, buf) => res(e ? '' : buf.toString('hex'))));
+  const hits = [];
+  await Promise.all([...byNum.keys()].map(async (n) => { if ((await scrypt(n)) === k.hash) hits.push(...byNum.get(n)); }));
   assert.ok(files.length > 100, '스캔 대상이 비었으면 검사가 헛돈다');
+  assert.ok(byNum.size > 10, '6자리 숫자 토큰이 너무 적다 — 스캔이 헛돈다');
   assert.deepStrictEqual(hits, []);
+  // 양성대조: 레코드 검사기 자체가 살아 있다(엉뚱한 값은 false)
+  assert.strictEqual(_kdfMatches('000000', k), false);
 });
 
 test('M8 톱니바퀴 「디버깅」 탭: 있고 · MVP 비활성 목록에 없고 · 진입 시 렌더 · 입력 키 격리', () => {
@@ -138,7 +147,7 @@ function runLaunchBlock({ packaged, argv = ['/A/GODITOR'], switches = [], env = 
   return calls;
 }
 
-test('M9 ★배포판을 --remote-debugging-port/--inspect 로 띄우면 «뜨기 전에» 끈다 · dev·평범한 실행·운영자 admin 은 그대로', () => {
+test('M9 ★배포판을 --remote-debugging-port/--inspect 로 띄우면 «뜨기 전에» 끈다(운영자 admin 도) · dev·평범한 실행은 그대로', () => {
   // 배포판 + CDP → 종료
   let c = runLaunchBlock({ packaged: true, argv: ['/A/GODITOR', '--remote-debugging-port=9222', '--remote-allow-origins=*'] });
   assert.strictEqual(c.procExit, 1, 'CDP 인자면 종료');
@@ -152,9 +161,9 @@ test('M9 ★배포판을 --remote-debugging-port/--inspect 로 띄우면 «뜨�
   // dev → CDP 여도 안 끈다(검증 흐름 보존)
   c = runLaunchBlock({ packaged: false, argv: ['e', '.', '--remote-debugging-port=9334', 'admin'] });
   assert.strictEqual(c.procExit + c.appExit, 0, 'dev 는 CDP 로 검증한다 — 건드리지 않는다');
-  // 운영자 admin(인자+토큰+admin.allow) → 허용
+  // 0919 QA: 운영자 admin(인자+토큰+admin.allow — 셋 다 사용자 손)이어도 배포판 CDP 는 종료
   c = runLaunchBlock({ packaged: true, argv: ['/A/GODITOR', '--remote-debugging-port=9222', 'admin'], admin: true });
-  assert.strictEqual(c.procExit + c.appExit, 0, '운영자 admin 은 허용');
+  assert.strictEqual(c.procExit, 1, 'admin.allow 자가 발급으로 CDP 를 열면 안 된다');
 });
 
 test('M10 차단 블록 자리: path·fs 선언 뒤, userData 이사·크래시 기록기·단일인스턴스 잠금보다 앞', () => {
@@ -178,6 +187,11 @@ test('M11 빌드 퓨즈: RunAsNode·NODE_OPTIONS·--inspect(+SIGUSR1) 를 끈다
   assert.strictEqual(f.enableNodeCliInspectArguments, false);
   // 퓨즈를 바꾸면 arm64 ad-hoc 서명이 깨질 수 있어 electron-builder 가 다시 서명하게 한다(T-056 2라운드)
   assert.strictEqual(f.resetAdHocDarwinSignature, true);
+  // 0919 QA: app.asar 를 풀어 devtools-gate.js 를 고쳐 다시 묶거나(무결성), asar 를 지우고 resources/app 폴더를 두면(asar 전용)
+  //   «메인 프로세스에서 잠근다»는 전제가 깨진다 — 두 퓨즈로 막는다.
+  assert.strictEqual(f.enableEmbeddedAsarIntegrityValidation, true, 'asar 무결성 검증 퓨즈');
+  assert.strictEqual(f.onlyLoadAppFromAsar, true, 'asar 에서만 앱 로드 퓨즈');
+  assert.notStrictEqual(pkg.build.asar, false, 'asar 를 끄면 onlyLoadAppFromAsar 로 앱이 안 뜬다');
   // runAsNode=false 면 main 의 child_process.fork 가 깨진다 — 앱 코드에 fork 가 없어야 한다
   const files = ['main.js', ...walk(path.join(ROOT, 'main')).map(p => path.relative(ROOT, p)), ...walk(path.join(ROOT, 'services')).map(p => path.relative(ROOT, p))]
     .filter(p => /\.m?js$/.test(p));

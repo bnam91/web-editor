@@ -652,6 +652,16 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   wrapper.setAttribute('draggable', 'true');
   wrapper.addEventListener('click', e => {
     if (e.target.classList.contains('editing')) return;
+    // ★0919 QA(A안): 도형 줄 = 도형 선택 → 도형 속성. 래퍼 프레임 속성(Border·Layout…)을 열면
+    //   Border 슬라이더가 도형 선과 별개로 래퍼에 테두리를 만들었다(«프레임처럼» 편집되는 마지막 경로).
+    if (_isShapeFrameEl(ssEl) && typeof window.selectShapeBlock === 'function') {
+      const sb = ssEl.querySelector(':scope > .shape-block');
+      if (sb && window.selectShapeBlock(sb)) {
+        document.querySelectorAll('.layer-item.active').forEach(g => g.classList.remove('active'));
+        wrapper.classList.add('active');
+        return;
+      }
+    }
     window.deselectAll?.();
     const parentSec = ssEl.closest('.section-block');
     if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }

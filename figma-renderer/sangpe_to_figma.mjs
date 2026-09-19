@@ -222,9 +222,17 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const bgc = (block.bg || '').trim();
     // 프레임 배경: #hex 뿐 아니라 rgb()/rgba()도 파싱(예: 카드 rgba(255,255,255,.55) — 이전엔 미파싱→투명 드롭으로 카드 사라짐).
     let _fc = null;
-    if (bgc.startsWith('#')) _fc = hex(bgc);
+    // ★0919 QA: 그라데이션 배경 — «처음 나오는 rgba()» 를 단색으로 칠하면 안 된다(가운데 스탑 색 한 가지가 됐다).
+    const _isGradBg = /gradient\s*\(/i.test(bgc);
+    const _gPaint = _isGradBg ? cssGradientToFigmaPaint(block.bgGradient, fw, fh) : null;
+    if (_isGradBg) _fc = null;
+    else if (bgc.startsWith('#')) _fc = hex(bgc);
     else { const _m = bgc.match(/rgba?\(([^)]+)\)/); if (_m) { const _p = _m[1].split(',').map(s => parseFloat(s)); _fc = { r: (_p[0] || 0) / 255, g: (_p[1] || 0) / 255, b: (_p[2] || 0) / 255, a: _p[3] !== undefined ? _p[3] : 1 }; } }
     run('set_fill_color', { nodeId: frame.id, color: _fc || { r: 1, g: 1, b: 1, a: 0 } });
+    if (_gPaint) {
+      const _gr = run('set_gradient', { nodeId: frame.id, ..._gPaint });
+      if (!_gr) console.log(`      ⚠️ frame gradient 실패 → 투명 폴백 ${block.id}`);
+    }
     if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
     if (block.free) {
       for (const ch of (block.children || [])) {
@@ -987,7 +995,8 @@ function renderBlock(block, parentId, x, y, availableWidth) {
   if (block.type === 'shape') {
     const w = Math.max(1, block.width || 75), h = Math.max(1, block.height || 75);
     const type = block.shapeType || 'rectangle';
-    const color = block.color || '#cccccc';
+    // 옛 JSON 은 그라데이션 CSS 문자열이 color 에 실려 온다 — paint 로 무효(검정)라 회색 폴백.
+    const color = (block.color && !/gradient\s*\(/i.test(block.color)) ? block.color : '#cccccc';
     const sw = Number(block.strokeWidth) || 0;        // viewBox user-space 단위 (goditor와 동일)
     const rot = Number(block.rotation) || 0;          // deg, transform-origin center
     const half = sw / 2;
@@ -1004,10 +1013,15 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const def = DEFS[type] || DEFS.rectangle;
     const [vbW, vbH] = def.vb.split(/\s+/).slice(2).map(Number);
     const cxv = vbW / 2, cyv = vbH / 2;
-    const styleAttr = `color:${color};stroke-width:${sw};fill:${def.fill ? color : 'none'};stroke:${color};`;
+    // ★0919 QA: 그라데이션 = export 가 실어 준 캔버스 SVG def(id="g")를 그대로 — CSS 문자열을 fill 에 넣으면 무효 paint → 검정.
+    //   color 는 단색 폴백(선·외곽선). def 가 없거나 면 없는 도형이면 기존 단색.
+    const gradDef = (def.fill && typeof block.gradientDef === 'string' && /^<(linear|radial)Gradient[\s>]/.test(block.gradientDef)) ? block.gradientDef : '';
+    const faceFill = def.fill ? (gradDef ? 'url(#g)' : color) : 'none';
+    const styleAttr = `color:${color};stroke-width:${sw};fill:${faceFill};stroke:${color};`;
     const gOpen = rot ? `<g transform="rotate(${rot} ${cxv} ${cyv})">` : '';
     const gClose = rot ? `</g>` : '';
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${def.vb}" preserveAspectRatio="none" style="${styleAttr}">${gOpen}${def.inner}${gClose}</svg>`;
+    const defsTag = gradDef ? `<defs>${gradDef}</defs>` : '';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${def.vb}" preserveAspectRatio="none" style="${styleAttr}">${defsTag}${gOpen}${def.inner}${gClose}</svg>`;
     const wrap = run('create_frame', { x, y, width: w, height: h, name: `shape_${block.id || ''}`, parentId });
     if (wrap) {
       run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
