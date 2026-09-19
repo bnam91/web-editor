@@ -211,6 +211,14 @@ test('U-AB-13b 음성대조: dev 폴더 로드 + Electron 바이너리 + applyRu
   assert.equal(r.base, EVIL);
 });
 
+test('U-AB-16 ★★이름 바꾼 asar · 대문자 경로 + applyRuntime(false) → 패키징(LIVE) — 4라운드 픽스 재현', () => {
+  for (const dir of ['/tmp/x/goditor.asar/services', '/tmp/x/APP.ASAR/services', 'C:\\G\\resources\\Goditor.Asar\\services']) {
+    const r = probe({ execPath: STOCK_MAC, electron: true, dir, applyFalse: true });
+    assert.equal(r.packaged, true, `★${dir} 를 dev 로 판정했다`);
+    assert.equal(r.base, LIVE, `★${dir} 에서 env 서버로 갔다`);
+  }
+});
+
 test('U-AB-15 ★packagedVerdict 표', () => {
   const V = A.packagedVerdict;
   const rows = [
@@ -222,6 +230,12 @@ test('U-AB-15 ★packagedVerdict 표', () => {
     ['asar 루트 바로(끝)', { dirname: '/tmp/x/app.asar', execPath: STOCK_MAC, isElectron: true }, true],
     ['앱 바이너리 이름', { dirname: '/Users/d/web-editor/services', execPath: '/Applications/GODITOR.app/Contents/MacOS/GODITOR', isElectron: true }, true],
     ['윈 앱 바이너리', { dirname: 'C:\\dev\\services', execPath: 'C:\\P\\GODITOR\\GODITOR.exe', isElectron: true }, true],
+    // ★4라운드 픽스: 파일 이름만 바꾸거나(스톡 Electron 은 확장자 .asar 면 로드) 대문자 경로로 불러도 배포판
+    ['★이름 바꾼 asar(goditor.asar)', { dirname: '/tmp/x/goditor.asar/services', execPath: STOCK_MAC, isElectron: true }, true],
+    ['★대문자 경로(APP.ASAR, 윈)', { dirname: 'C:\\x\\APP.ASAR\\services', execPath: 'Electron.exe', isElectron: true }, true],
+    ['★섞인 대소문자(App.Asar.Unpacked)', { dirname: '/tmp/x/App.Asar.Unpacked/services', execPath: STOCK_MAC, isElectron: true }, true],
+    ['★이름 바꾼 asar 루트 바로(끝)', { dirname: 'D:\\z\\evil.ASAR', execPath: 'C:\\e\\electron.exe', isElectron: true }, true],
+    ['비슷한 이름(x.asarbak)은 아님', { dirname: '/tmp/x.asarbak/services', execPath: STOCK_MAC, isElectron: true }, false],
     ['비슷한 이름(app.asarx)은 아님', { dirname: '/tmp/app.asarx/services', execPath: STOCK_MAC, isElectron: true }, false],
     ['node 단위검사(⒞)', { dirname: '/Users/d/web-editor/services', execPath: '/usr/local/bin/node', isElectron: false }, false],
     ['빈 입력', {}, false],

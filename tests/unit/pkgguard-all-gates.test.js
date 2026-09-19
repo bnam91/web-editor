@@ -67,6 +67,24 @@ test('G6 음성대조: dev 폴더 로드면 env 키 주입이 지금처럼 먹�
   assert.notDeepStrictEqual(k, entitlement.PUBLIC_KEYS, 'dev 주입이 막혔다 — 이 검사가 장식이 아니라는 대조');
 });
 
+/* ── ★4라운드 픽스: asar «파일 이름»·대소문자로 판정이 풀리지 않는다 ──────────────────────
+ * 이벨류 실측: `goditor.asar` 로 이름만 바꾸거나 `APP.ASAR`(대소문자 무시 FS) 로 부르면 ⒜ 가 false →
+ * G1·G7·G8·G9 가 dev 로 열렸다. 여기서는 «진짜» packagedVerdict 답을 그대로 게이트(G6) 입력으로 흘려 잰다. */
+const { packagedVerdict } = require(path.join(ROOT, 'services', 'authService.js'));
+const STOCK = '/r/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron';
+const RENAMED = ['/t/goditor.asar/services', '/t/APP.ASAR/services', '/t/x.Asar', 'C:\\G\\resources\\Evil.ASAR.unpacked\\services'];
+
+test('P3 ★이름 바꾼/대문자 asar → 배포판 → G6 env 공개키 무시 · 음성대조 dev 폴더는 그대로', () => {
+  for (const d of RENAMED) {
+    const asar = packagedVerdict({ dirname: d, execPath: STOCK, isElectron: true });
+    assert.strictEqual(asar, true, `★${d} 를 dev 로 판정했다`);
+    assert.deepStrictEqual(runEntKeys({ packaged: false, asar }), entitlement.PUBLIC_KEYS, `★${d}: env 공개키를 먹었다`);
+  }
+  const dev = packagedVerdict({ dirname: '/Users/d/web-editor/services', execPath: STOCK, isElectron: true });
+  assert.strictEqual(dev, false);
+  assert.notDeepStrictEqual(runEntKeys({ packaged: false, asar: dev }), entitlement.PUBLIC_KEYS, '음성대조: dev env 키 주입이 죽었다');
+});
+
 /* ── G10 핫리로드(watchFiles) — 보안은 아니지만 asar 안에서 fs.watch 가 throw 해 whenReady 체인이 끊긴다 ── */
 
 function runWatch({ packaged, asar }) {

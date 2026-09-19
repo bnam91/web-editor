@@ -57,11 +57,15 @@ function resolveApiBase(opts) {
  */
 /* ★0920 4라운드(pkgguard, T-063): 판정 «표»를 순수 함수로 뺐다 — 입력을 넣어 표 형태로 잰다.
  *   ⒜ 정규식은 `app.asar.unpacked` 도 잡는다(asarUnpack 된 모듈도 배포본의 일부다).
+ *   ★⒜ 는 «파일 이름 무관·대소문자 무시»로 `.asar` 확장자만 본다(4라운드 픽스). 스톡 Electron 은 확장자만
+ *     .asar 이면 이름과 상관없이 asar 로 로드하고(goditor.asar), macOS·Windows 파일시스템은 대소문자를 안 가려
+ *     같은 파일을 APP.ASAR 로도 부를 수 있다 — `app.asar` 리터럴만 보면 «파일 이름만 바꾸는» 우회가 열린다.
+ *     dev 폴더 이름이 우연히 `*.asar` 로 끝나면 배포판으로 보는데, 이건 «막는 쪽» 오판이라 받아들인다.
  *   ⚠️알려진 한계: asar 를 «풀어» 폴더로 스톡 Electron 에 띄우면 ⒜⒝ 둘 다 false = dev 로 판정된다
  *     (tools/operator-allow/README.md «한계» 절). 코드를 한 줄도 안 고쳐도 되는 우회라 기록해 둔다. */
 function packagedVerdict(o) {
   const { dirname, execPath, isElectron } = o || {};
-  if (/[\\/]app\.asar(\.unpacked)?([\\/]|$)/.test(String(dirname || ''))) return true;   // ⒜
+  if (/\.asar(\.unpacked)?([\\/]|$)/i.test(String(dirname || ''))) return true;          // ⒜
   if (isElectron) {                                                                        // ⒝
     const exe = String(execPath || '').split(/[\\/]/).pop().toLowerCase();
     return exe !== 'electron' && exe !== 'electron.exe';

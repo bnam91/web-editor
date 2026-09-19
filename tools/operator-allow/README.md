@@ -104,9 +104,11 @@ payload(모두 필수, 하나라도 어긋나면 거부):
   오프라인 판정이라 「이 파일 취소」를 앱에 알릴 길이 없다. 그리고 세션 중에 부여된 접근(`_editorAccessGranted`,
   메모된 기기 ID)은 파일을 지워도 앱을 끌 때까지 유지된다. 유출되면 할 수 있는 조치는 «공개키(kid) 교체 후 재배포»
   뿐이다(OPERATOR_PUBLIC_KEYS 에서 그 kid 를 빼고 새 kid 로 재발급 → 그 버전 이후로만 옛 파일이 무효). 그래서 `--days` 를 짧게.
-- **배포판 판정(0920 pkgguard).** 「배포판인가」는 `app.isPackaged`(실행파일 이름) «또는» «app.asar 안에서 로드됨»으로
+- **배포판 판정(0920 pkgguard).** 「배포판인가」는 `app.isPackaged`(실행파일 이름) «또는» «`.asar` 안에서 로드됨»으로
   본다(main.js `_isPackagedBuild` · services/authService.js `packagedVerdict`). 스톡 Electron 으로 `app.asar admin` 을
   띄우거나 윈도우에서 GODITOR.exe 를 electron.exe 로 복사해도 배포판으로 판정돼 이 서명 파일이 필요하다.
+  asar 판정은 «파일 이름·대소문자 무관»이다 — 스톡 Electron 은 확장자만 .asar 면 로드하므로 `goditor.asar` 로 이름만
+  바꾸거나 `APP.ASAR`(대소문자 무시 파일시스템)로 불러도 배포판이다(4라운드 픽스).
   ★배포 순서: 운영자 PC 에 서명 operator.allow 를 «먼저» 깔고 앱을 배포한다. 「스톡 Electron + asar + admin」으로
   운영자 모드를 쓰던 경로가 있었다면 이번부터 막힌다(의도 — 릴리스 노트에 적는다).
 - **남는 우회 ① asar 를 풀어 폴더로 실행.** `asar extract` 후 스톡 electron 으로 그 «폴더»를 띄우면 코드를 한 줄도
