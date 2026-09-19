@@ -31,7 +31,7 @@ function selectBlock(id) {
     else if (cl.contains('graph-block')) window.showGraphProperties?.(block);
     else if (cl.contains('divider-block')) window.showDividerProperties?.(block);
     else if (cl.contains('bridge-block')) window.showBridgeProperties?.(block);
-    else if (cl.contains('grid-block')) window.showGridProperties?.(block);
+    else if (cl.contains('grid-block')) window.showGridProperties?.(block, null);   // ★0918: 블럭으로 선택 = 줄 선택 해제
     else if (cl.contains('infocard-block')) window.showInfoCardProperties?.(block);
     else if (cl.contains('innercard-block')) window.showInnerCardProperties?.(block);
     else if (cl.contains('qa-block')) window.showQAProperties?.(block);

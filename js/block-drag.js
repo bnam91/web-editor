@@ -1865,6 +1865,9 @@ function bindBlock(block) {
         window.showFrameProperties?.(ss);
         return;
       }
+      /* ★0918 grid: deselectAll 이 활성줄을 지운다(블럭 떠남 = 줄 선택 해제) — D5(줄 있는 칸의
+         여백 클릭 시 선택 유지)를 위해 «지우기 전» 값을 잡아 둔다. ⛔순서 뒤집으면 조용히 깨진다. */
+      const _grdPrevAddr = showFn === 'showGridProperties' ? (window.grdGetActiveLine?.(block) || null) : null;
       window.deselectAll();
       _restoreParentFrameSelected(block);
       block.classList.add('selected');
@@ -1882,7 +1885,13 @@ function bindBlock(block) {
         /* ★_gridAddrAt — 줄(글자/이미지/갭)과 «진짜 빈 셀」을 모두 잡는다(위 정의).
            undefined 면 «기존 선택 유지」다(줄이 있는 셀의 여백 클릭 — D5 와 같은 보호). */
         const _at = _gridAddrAt(e.target, block);
-        if (_at !== undefined) _grdAddr = _at;
+        /* ★0918 grid: undefined 를 넘기지 않는다(= 옛 줄 되살리기). 칸 밖(테두리·패딩·gap)은
+           null = 블럭 전체 선택, 줄 있는 칸의 여백은 직전 줄 유지(D5). 판정은 prop-grid.js 한 곳. */
+        const _cellEl = e.target && e.target.closest ? e.target.closest('.grd-cell') : null;
+        const _insideCell = !!(_cellEl && _cellEl.closest('.grid-block') === block);
+        _grdAddr = window.grdResolveClickAddr
+          ? window.grdResolveClickAddr({ at: _at, prevAddr: _grdPrevAddr, insideCell: _insideCell })
+          : (_at !== undefined ? _at : (_insideCell ? _grdPrevAddr : null));
       }
       window[showFn]?.(block, _grdAddr);
       /* ★핸들도 «여기서» 띄운다 — 이 루프엔 호출이 아예 없어서 모달을 클릭하면
