@@ -6,7 +6,7 @@
        ⑴ <앱>/.env                      ⑵ ~/.config/secrets/.env   ← ★사용자 홈
      ⑵ 때문에 «사용자가 자기 홈에 한 줄 쓰면» 앱의 env 게이트가 전부 열렸다.
      `GODITOR_LICENSE_API`(서버 바꿔치기)·`GODITOR_ENTITLEMENT_PUBKEY`(자기 서명 키)·
-     `GODITOR_ADMIN_TOKEN` 이 그 게이트에 걸려 있다. 그것들을 「패키징에선 무시」로 막아
+     (당시)`GODITOR_ADMIN_TOKEN` 이 그 게이트에 걸려 있다(0919 3라운드부터 운영자 판정은 서명 operator.allow — 이 env 는 안 읽는다). 그것들을 「패키징에선 무시」로 막아
      둔 이유가, 「env 우회는 asar 를 뜯는 것보다 쉽다」였다 — ⑵는 그보다도 더 쉬웠다.
      ⇒ 배포본에선 «한 줄도 안 읽는다». 개발 빌드는 그대로 읽는다.
 
