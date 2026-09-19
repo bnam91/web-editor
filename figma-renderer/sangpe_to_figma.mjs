@@ -100,8 +100,9 @@ function parseTextShadowToEffects(ts) {
     const nums = (p.replace(colMatch[0], '').match(/-?\d*\.?\d+px/g) || []).map(n => parseFloat(n));
     const c = hex(colMatch[0]);
     if (!c) continue;
+    // showShadowBehindNode:false — 그림자는 칠해진 글자(그라데이션 알파) «뒤»에만(0919r3 textshadow, 캔버스 drop-shadow 와 같은 뜻)
     effects.push({ type: 'DROP_SHADOW', color: c, offset: { x: nums[0] || 0, y: nums[1] || 0 },
-      radius: nums[2] || 0, spread: 0, visible: true, blendMode: 'NORMAL' });
+      radius: nums[2] || 0, spread: 0, visible: true, blendMode: 'NORMAL', showShadowBehindNode: false });
   }
   return effects.slice(0, 8);
 }

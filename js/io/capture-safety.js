@@ -65,5 +65,13 @@ export function neutralizeTextGradForH2C(root) {
     if (fb) st.setProperty('color', fb);
     n++;
   }
+  // 0919r3 textshadow: html2canvas 는 filter 를 못 그린다 — 단색 대체 위 그림자는 순서 문제가 없으니
+  //   .tgs(drop-shadow 파생)를 걷어 원래 text-shadow 를 되살린다.
+  const tgs = [...(root.matches?.('.tgs') ? [root] : []), ...root.querySelectorAll('.tgs')];
+  for (const el of tgs) {
+    el.classList.remove('tgs');
+    el.style.removeProperty('--tgs-src');
+    el.style.removeProperty('--tgs-filter');
+  }
   return n;
 }

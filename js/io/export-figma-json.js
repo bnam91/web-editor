@@ -1,7 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { inlineGoyaAssetsInJSON, makeElectronAssetReader } from './goya-asset-inline.js';
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';
-import { getTextGradient, hasPaintingTextEffect } from '../props/text-block-color.js';
+import { getTextGradient, hasPaintingTextEffect, textShadowSource } from '../props/text-block-color.js';
 import { parseGradient } from '../props/gradient-model.js';
 
 const CANVAS_W = 860;
@@ -284,7 +284,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     let textShadow = '';
     try {
       const _li = (el.id && document.getElementById(el.id)?.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label')) || inner;
-      const ts = window.getComputedStyle(_li).textShadow;
+      // 0919r3 textshadow: 그라데이션 글자는 .tgs 가 computed text-shadow 를 none 으로 가리고 drop-shadow 로 그린다
+      //   → 원본 목록(--tgs-src)을 보낸다(안 그러면 Figma 에서 그림자가 사라진다).
+      const ts = textShadowSource(_li);
       if (ts && ts !== 'none') textShadow = ts;
     } catch {}
 

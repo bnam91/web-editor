@@ -100,6 +100,8 @@ export function wireShadowSection({ ctx, initial }) {
       const a = Math.max(0, Math.min(1, s.alpha / 100));
       cSwatch.style.background = a >= 1 ? '#'+h : `rgba(${r},${g},${b},${a})`;
     }
+    // 0919r3 textshadow: 글자 그라데이션이면 그림자를 글자 «뒤»(drop-shadow)로 — 파생값 갱신
+    window.syncTextGradShadow?.(el);
   };
 
   // 초기 상태

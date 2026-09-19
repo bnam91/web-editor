@@ -422,3 +422,214 @@ test('G14 타입 전환(본문→H2) 뒤 그라데이션 탭 기본값 = «지�
   expect(g.tg.stops[0].color, '그라데이션이 옛 타입(본문) 색으로 시작한다').toBe(now);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ═══════════════════════════════════════════════════════════
+ * 0919r3 textshadow — 글자 그라데이션 + 그림자/네온: 그림자는 글자 «뒤»(피그마 DROP_SHADOW 처럼)
+ *   고치기 전: text-shadow 가 배경(=그라데이션) «위»에 칠해져, 채움이 transparent 인 글자 안쪽까지
+ *   그림자색이 보였다 → 0% 쪽 페이드가 그림자색으로 메워짐. ⇒ ★computed 가 아니라 «화면을 찍어» 잰다.
+ * ═══════════════════════════════════════════════════════════ */
+
+const RED_FADE = 'linear-gradient(90deg, #ff0000 0%, rgba(255,0,0,0) 100%)';
+
+/** 픽셀 측정용 블럭 — 글자 폭 = 박스 폭(inline-block·nowrap)이라 그라데이션 0%~100% 가 글자 끝과 끝에 맞는다. */
+async function addProbe(page) {
+  await page.evaluate(() => {
+    const host = document.getElementById('host');
+    host.style.background = '#ffffff';
+    host.insertAdjacentHTML('beforeend',
+      '<div class="text-block" id="tb5" data-type="body" style="padding:24px;background:#fff">'
+      + '<div class="tb-body" contenteditable="false" style="display:inline-block;white-space:nowrap;font:900 72px/1.1 sans-serif;color:#ff0000;letter-spacing:0">■■■■■■</div></div>');
+    window.__snaps.push(host.innerHTML);
+  });
+}
+
+/** contentEl 박스를 찍어 RGB 배열로. */
+async function grab(page, sel = '#tb5 .tb-body') {
+  const r = await page.evaluate((s) => { const b = document.querySelector(s).getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; }, sel);
+  const clip = { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.w), height: Math.round(r.h) };
+  const b64 = (await page.screenshot({ clip })).toString('base64');
+  const px = await page.evaluate(async (b64) => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    return { w: c.width, h: c.height, d: Array.from(x.getImageData(0, 0, c.width, c.height).data) };
+  }, b64);
+  return px;
+}
+/** x 비율 구간 [a,b) 의 픽셀들 */
+function cols(img, a, b) {
+  const out = [];
+  const x0 = Math.floor(img.w * a), x1 = Math.ceil(img.w * b);
+  for (let y = 0; y < img.h; y++) for (let x = x0; x < Math.min(x1, img.w); x++) {
+    const i = (y * img.w + x) * 4; out.push({ i, r: img.d[i], g: img.d[i + 1], b: img.d[i + 2] });
+  }
+  return out;
+}
+/** 진짜 패널 토글(숨은 체크박스를 감싼 라벨 트랙)을 마우스로 누른다. */
+async function shadowToggle(page, on) {
+  const cur = await page.locator('#txt-shadow-on').isChecked();
+  if (cur !== on) await page.locator('#txt-shadow-section .prop-toggle-track').click();
+  await expect(page.locator('#txt-shadow-on')).toBeChecked({ checked: on });
+}
+const minG = (px) => px.reduce((m, p) => Math.min(m, p.g), 255);
+const tgsLook = (page, sel = '#tb5 .tb-body') => page.evaluate((s) => {
+  const el = document.querySelector(s); const c = getComputedStyle(el);
+  return { ts: c.textShadow, filter: c.filter, tgs: el.classList.contains('tgs'),
+    src: el.style.getPropertyValue('--tgs-src'), f: el.style.getPropertyValue('--tgs-filter'), inlineTs: el.style.textShadow };
+}, sel);
+
+test('G15 ★그라데이션 + 일반 그림자: 0% 쪽 글자 안쪽은 배경색, 불투명 쪽 글자 안쪽은 그림자 없는 그림과 같다 (화면 픽셀)', async ({ page }) => {
+  const errs = await boot(page);
+  await addProbe(page);
+  const solid = await grab(page);
+  // ★양성대조: 오른쪽 끝 구간에 글자 잉크가 «있다»(없으면 이 검사는 아무것도 못 잰다)
+  expect(minG(cols(solid, 0.88, 1)), '★양성대조: 오른쪽 끝에 글자가 없다(측정 불가)').toBeLessThan(60);
+  await page.evaluate((css) => window.applyTextGradient(document.getElementById('tb5'), { css }, { commit: true }), RED_FADE);
+  const ref = await grab(page);
+  // 진짜 패널로 그림자 켜기(기본 2,2,4,#000 50%)
+  await select(page, 'tb5');
+  await shadowToggle(page, true);
+  const L = await tgsLook(page);
+  expect(L.inlineTs, '원본 인라인 text-shadow 는 그대로 보존').toBe('rgba(0, 0, 0, 0.5) 2px 2px 4px');
+  expect(L.ts, '그라데이션 글자인데 text-shadow 가 살아 있다(글자 «위»에 칠해짐)').toBe('none');
+  expect(L.filter).toBe('drop-shadow(rgba(0, 0, 0, 0.5) 2px 2px 2px)');
+  expect(L.tgs).toBe(true);
+  const img = await grab(page);
+  const right = minG(cols(img, 0.88, 1));
+  expect(right, `0% 쪽 글자 안쪽이 그림자색으로 메워졌다 (min G=${right})`).toBeGreaterThanOrEqual(200);
+  // 불투명 쪽: 그림자 없는 그림(ref)에서 진한 빨강인 글자 안쪽 픽셀이 그대로인가
+  const inner = cols(ref, 0, 0.12).filter(p => p.r > 220 && p.g < 40 && p.b < 40);
+  expect(inner.length, '★양성대조: 불투명 쪽 글자 안쪽 픽셀이 없다').toBeGreaterThan(200);
+  const same = inner.filter(p => Math.abs(img.d[p.i] - p.r) <= 25 && Math.abs(img.d[p.i + 1] - p.g) <= 25 && Math.abs(img.d[p.i + 2] - p.b) <= 25).length;
+  expect(same / inner.length, `불투명 쪽 글자색이 그림자에 덮였다 (${same}/${inner.length})`).toBeGreaterThanOrEqual(0.97);
+  // 그림자가 «있기는» 하다 — 글자 밖(오른쪽 아래) 어딘가 회색이 생겼다
+  const diffOutside = cols(img, 0, 0.5).filter(p => ref.d[p.i + 1] > 240 && p.g < 235).length;
+  expect(diffOutside, '그림자가 아예 사라졌다').toBeGreaterThan(50);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G16 그림자 끄기/켜기/값 변경마다 파생값(--tgs-*) 갱신 · 되돌리기 · 그라데이션 해제 = 원래 text-shadow 복귀', async ({ page }) => {
+  const errs = await boot(page);
+  await addProbe(page);
+  await page.evaluate((css) => window.applyTextGradient(document.getElementById('tb5'), { css }, { commit: true }), RED_FADE);
+  await select(page, 'tb5');
+  await shadowToggle(page, true);
+  expect((await tgsLook(page)).f).toBe('drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.5))');
+  await page.evaluate(() => window.pushHistory());                 // 스냅샷 A = 켜짐·x2
+  await page.locator('#txt-shadow-x-number').fill('7');
+  await page.locator('#txt-shadow-x-number').dispatchEvent('input');
+  const b = await tgsLook(page);
+  expect(b.f, 'X 를 바꿨는데 drop-shadow 가 안 따라왔다').toBe('drop-shadow(7px 2px 2px rgba(0, 0, 0, 0.5))');
+  expect(b.filter).toContain('7px 2px 2px');
+  await page.evaluate(() => window.pushHistory());                 // 스냅샷 B = x7
+  await page.evaluate(() => window.__undo());                      // → A
+  const u = await tgsLook(page);
+  expect(u.f).toBe('drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.5))');
+  expect(u.filter).toBe('drop-shadow(rgba(0, 0, 0, 0.5) 2px 2px 2px)');
+  expect(u.ts).toBe('none');
+  // 끄기
+  await select(page, 'tb5');
+  await shadowToggle(page, false);
+  const off = await tgsLook(page);
+  expect(off.tgs, '그림자를 껐는데 .tgs 가 남았다').toBe(false);
+  expect(off.f).toBe('');
+  expect(off.filter).toBe('none');
+  // 다시 켜고 → 그라데이션 해제(단색) → 원래 text-shadow 로
+  await shadowToggle(page, true);
+  expect((await tgsLook(page)).tgs).toBe(true);
+  await page.evaluate(() => window.applyTextBlockColor(document.getElementById('tb5'), '#0044ff'));
+  const solid = await tgsLook(page);
+  expect(solid.tgs, '단색으로 바꿨는데 .tgs 가 남았다').toBe(false);
+  expect(solid.src + solid.f).toBe('');
+  expect(solid.ts, '단색 글자는 원래 text-shadow 로').toBe('rgba(0, 0, 0, 0.5) 2px 2px 4px');
+  expect(solid.filter).toBe('none');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G17 저장→재로드(innerHTML → sanitizeCanvasHtml) 뒤에도 computed·픽셀이 같다 · 파생값 없는 옛 저장본도 열면 글자 뒤 그림자', async ({ page }) => {
+  const errs = await boot(page);
+  await addProbe(page);
+  await page.evaluate((css) => window.applyTextGradient(document.getElementById('tb5'), { css }, { commit: true }), RED_FADE);
+  await select(page, 'tb5');
+  await shadowToggle(page, true);
+  const a = await tgsLook(page);
+  const imgA = await grab(page);
+  const reload = (strip) => page.evaluate(async (strip) => {
+    await import('/js/io/save-load.js').catch(() => {});
+    if (typeof window.sanitizeCanvasHtml !== 'function') return false;
+    const host = document.getElementById('host');
+    let html = host.innerHTML;
+    if (strip) {   // 이 변경 «전»에 저장된 모양: 그라데이션 + 인라인 text-shadow, .tgs·--tgs-* 없음
+      const t = document.createElement('div'); t.innerHTML = html;
+      t.querySelectorAll('.tgs').forEach(e => { e.classList.remove('tgs'); e.style.removeProperty('--tgs-src'); e.style.removeProperty('--tgs-filter'); });
+      html = t.innerHTML;
+    }
+    host.innerHTML = '';
+    host.innerHTML = window.sanitizeCanvasHtml(html);
+    await new Promise(r => setTimeout(r, 30));   // 관찰자(마이크로태스크) 뒤
+    return true;
+  }, strip);
+  expect(await reload(false), 'sanitizeCanvasHtml 을 못 불렀다(측정 불가)').toBe(true);
+  expect(await tgsLook(page)).toEqual(a);
+  const imgB = await grab(page);
+  let diff = 0; for (let i = 0; i < imgA.d.length; i++) diff = Math.max(diff, Math.abs(imgA.d[i] - imgB.d[i]));
+  expect(diff, '재로드 뒤 화면이 달라졌다').toBeLessThanOrEqual(2);
+  expect(await reload(true)).toBe(true);
+  const legacy = await tgsLook(page);
+  expect(legacy.tgs, '옛 저장본을 열었는데 그림자가 여전히 글자 «위»').toBe(true);
+  expect(legacy.ts).toBe('none');
+  expect(errs.filter(e => !/save-load/.test(e)), errs.join(' | ')).toEqual([]);
+});
+
+test('G18 ★네온 + 그라데이션: 글로우가 글자 뒤(0% 쪽 글자 안쪽 = 배경 근처) · 네온 해제 = .tgs 해제', async ({ page }) => {
+  const errs = await boot(page);
+  await addProbe(page);
+  await page.evaluate((css) => window.applyTextGradient(document.getElementById('tb5'), { css }, { commit: true }), RED_FADE);
+  await page.evaluate(() => window.applyTextEffect(document.getElementById('tb5'), { preset: 'neon', color: '#0033ff', glowColor: '#0033ff', intensity: 100 }));
+  const L = await tgsLook(page);
+  expect(L.tgs).toBe(true);
+  expect(L.ts).toBe('none');
+  // 여러 겹 = SVG 필터(겹 누적 없음) — 6겹이 전부 SourceAlpha 에서 따로 만들어지는가
+  expect(L.f).toMatch(/^url\(#tgs-f-[0-9a-z]+\)$/);
+  const fx = await page.evaluate((f) => { const id = f.slice(5, -1); const n = document.getElementById(id);
+    return n ? { alpha: n.querySelectorAll('[in="SourceAlpha"]').length, merge: [...n.querySelectorAll('feMergeNode')].map(m => m.getAttribute('in')).pop(), inCanvas: !!n.closest('#canvas') } : null; }, L.f);
+  expect(fx, 'SVG 필터 정의가 문서에 없다').toBeTruthy();
+  expect(fx.alpha, '네온 6겹이 전부 옮겨지지 않았다').toBe(6);
+  expect(fx.merge).toBe('SourceGraphic');
+  expect(fx.inCanvas, '필터 정의가 캔버스(저장 대상) 안에 들어갔다').toBe(false);
+  const img = await grab(page);
+  // 0% 쪽 글자 안쪽: 파란 글로우(#0033ff → R 이 떨어진다)가 글자 안에 칠해지면 R 이 낮아진다
+  const right = cols(img, 0.9, 1).reduce((m, p) => Math.min(m, p.r), 255);
+  expect(right, `0% 쪽 글자 안쪽에 네온 글로우가 칠해졌다 (min R=${right})`).toBeGreaterThanOrEqual(200);
+  // 해제(진짜 패널 «효과 제거») — 패널이 fixed 라 버튼이 기본 뷰포트 아래로 나간다 → 뷰포트를 키운다
+  await page.setViewportSize({ width: 1280, height: 2400 });
+  await select(page, 'tb5');
+  await page.locator('#tfx-remove').click();
+  const off = await tgsLook(page);
+  expect(off.tgs, '네온을 뺐는데 .tgs 가 남았다').toBe(false);
+  expect(off.filter).toBe('none');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G20 html2canvas 대체(neutralizeTextGradForH2C) 뒤 .tgs·--tgs-* 없음, 원래 text-shadow 가 살아 있다', async ({ page }) => {
+  const errs = await boot(page);
+  await addProbe(page);
+  await page.evaluate((css) => window.applyTextGradient(document.getElementById('tb5'), { css }, { commit: true }), RED_FADE);
+  await select(page, 'tb5');
+  await shadowToggle(page, true);
+  expect((await tgsLook(page)).tgs).toBe(true);
+  const r = await page.evaluate(() => {
+    const clone = document.getElementById('tb5').cloneNode(true);
+    clone.id = 'tb5c';
+    window.__h2c(clone);
+    document.getElementById('host').appendChild(clone);
+    const el = clone.querySelector('.tb-body'); const c = getComputedStyle(el);
+    return { tgs: el.classList.contains('tgs'), style: el.getAttribute('style'), ts: c.textShadow, filter: c.filter, color: c.color };
+  });
+  expect(r.tgs).toBe(false);
+  expect(r.style).not.toMatch(/--tgs-/);
+  expect(r.ts).toBe('rgba(0, 0, 0, 0.5) 2px 2px 4px');
+  expect(r.filter).toBe('none');
+  expect(r.color).toBe('rgb(255, 0, 0)');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
