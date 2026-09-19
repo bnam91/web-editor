@@ -46,10 +46,23 @@ function ensureMosaicCanvas(block) {
 // 때마다 html2canvas로 다시 찍으면 느리다. 밑 콘텐츠는 안 바뀌었으므로 다운스케일만 다시 한다.
 const _fullResCache = new WeakMap();
 
-function redrawFromFullRes(block, fullRes) {
+// ★칸 수는 «캔버스(줌 적용 전) 크기» ÷ 칸 크기로 정한다(2026-09-19, 0918 리뷰 medium).
+//   예전엔 getBoundingClientRect(화면 px, 줌 적용)로 나눠서 같은 100×100 가림막이 줌 40%=1×1칸(단색),
+//   100%=4×4, 150%=6×6 이 됐고, finalizeMosaicForClone 이 이 캔버스를 export 크기로 늘려 그대로
+//   내보냈다 — 줌을 키워 두고 내보내면 칸이 mosaicBlockPxFromSlider 의 16px 하한보다 잘아진다
+//   (가리는 기능이라 프라이버시 쪽 결함). offsetWidth/Height 는 줌·회전 transform 과 무관한 레이아웃
+//   크기라 어느 줌에서든 칸 수가 같다. 원본 캡처(fullRes)는 화면 좌표로 찍혀도 상관없다 — 다운스케일만 한다.
+function _layoutSize(block) {
+  if (block.offsetWidth > 0 && block.offsetHeight > 0) return { w: block.offsetWidth, h: block.offsetHeight };
   const rect = block.getBoundingClientRect();
-  const w = Math.max(1, Math.round(rect.width));
-  const h = Math.max(1, Math.round(rect.height));
+  const z = (Number(window.currentZoom) > 0 ? Number(window.currentZoom) : 100) / 100;
+  return { w: rect.width / z, h: rect.height / z };
+}
+
+function redrawFromFullRes(block, fullRes) {
+  const sz = _layoutSize(block);
+  const w = Math.max(1, Math.round(sz.w));
+  const h = Math.max(1, Math.round(sz.h));
   const canvas = ensureMosaicCanvas(block);
   const blockPx = mosaicBlockPxFromSlider(block.dataset.shapeRedactBlur || '8');
   const dw = Math.max(1, Math.round(w / blockPx));

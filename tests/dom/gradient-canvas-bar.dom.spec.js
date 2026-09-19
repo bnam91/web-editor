@@ -19,7 +19,7 @@ const OVERLAY_JS = fs.readFileSync(path.join(REPO, 'js/gradient-line-overlay.js'
 const SHAPE_CSS = 'linear-gradient(90deg, #ff0000 0%, #00ff00 50%, #0000ff 100%)';
 const BN2_CSS = 'linear-gradient(45deg, #ff5e3a 0%, #1aa6ff 100%)';
 
-async function boot(page, { shapeRot = 0, zoom = 100 } = {}) {
+async function boot(page, { shapeRot = 0, zoom = 100, sibling = false } = {}) {
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/__harness.html') {
@@ -28,7 +28,7 @@ async function boot(page, { shapeRot = 0, zoom = 100 } = {}) {
         body: `<!doctype html><html><head><meta charset="utf-8">
           <style>${BLOCKS_CSS}</style>
           <style>body{margin:0}.section-block{position:relative;}
-            #scaler{transform-origin:0 0;transform:scale(${zoom / 100});}</style>
+            #canvas-scaler{position:relative;transform-origin:0 0;transform:scale(${zoom / 100});}</style>
           <script>
             window.currentZoom = ${zoom};
             document.documentElement.style.setProperty('--inv-zoom', String(100 / ${zoom}));
@@ -37,7 +37,7 @@ async function boot(page, { shapeRot = 0, zoom = 100 } = {}) {
             window.renderBanner02 = (b) => { b.style.background = b.dataset.bg; };
           </script>
           <script type="module" src="/js/gradient-line-overlay.js"></script>
-          </head><body><div id="scaler">
+          </head><body><div id="canvas-scaler">
           <div class="section-block" style="width:1100px;height:900px;">
             <div class="frame-block" style="position:absolute;left:200px;top:120px;width:200px;height:200px;">
               <div class="shape-block selected" id="shp" data-shape-type="rectangle"
@@ -46,6 +46,9 @@ async function boot(page, { shapeRot = 0, zoom = 100 } = {}) {
                 <svg class="shape-svg" viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%;display:block"><rect width="100" height="100"/></svg>
               </div>
             </div>
+            ${sibling ? `<div class="frame-block" id="sibfr" data-text-frame="true" style="position:absolute;left:420px;top:100px;width:400px;height:300px;overflow:visible;">
+              <div class="text-block" id="sibtb" style="position:relative;z-index:2;width:100%;height:100%;background:#fff;"><div class="tb-body" style="width:100%;height:100%">형제 텍스트</div></div>
+            </div>` : ''}
             <div class="frame-block" style="position:absolute;left:150px;top:500px;width:800px;height:200px;">
               <div class="banner02-block selected" id="bn2" style="position:relative;overflow:hidden;width:800px;height:200px;background:${BN2_CSS}"
                    data-bg="${BN2_CSS}"></div>
@@ -97,7 +100,7 @@ test('B1 구조 — shape(3스탑)/banner02: 선 1, 끝 원 2, 칩 = 스탑 수,
   for (const [id, n] of [['shp', 3], ['bn2', 2]]) {
     await page.evaluate((id) => window.showGradientLine(document.getElementById(id)), id);
     const cnt = await page.evaluate((id) => {
-      const o = document.getElementById(id).querySelector(':scope > .grad-line-overlay');
+      const o = document.getElementById(id)._gradLine.overlay;
       return { line: o.querySelectorAll('.grad-line').length, end: o.querySelectorAll('.grad-line-end').length, chip: o.querySelectorAll('.grad-stop-chip').length };
     }, id);
     expect(cnt, id).toEqual({ line: 1, end: 2, chip: n });
@@ -111,21 +114,19 @@ test('B1 구조 — shape(3스탑)/banner02: 선 1, 끝 원 2, 칩 = 스탑 수,
   expect(errs).toEqual([]);
 });
 
-test('B2 ★banner02 45° — 끝 원은 CSS 실제 선 끝(박스 밖)이고 frame overflow 해제로 elementFromPoint 로 잡힌다', async ({ page }) => {
+test('B2 ★banner02 45° — 끝 원은 CSS 실제 선 끝(박스 밖)이고 포털 층이라 잘리지 않아 elementFromPoint 로 잡힌다', async ({ page }) => {
   const errs = await boot(page);
   const out = await page.evaluate(() => {
     const b = document.getElementById('bn2');
     window.showGradientLine(b);
-    const end = b.querySelector('[data-grad-handle="end"]');
+    const end = b._gradLine.overlay.querySelector('[data-grad-handle="end"]');
     const r = end.getBoundingClientRect();
     const br = b.getBoundingClientRect();
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     const hit = document.elementFromPoint(cx, cy);
-    return { outside: cy < br.top || cy > br.bottom, hit: hit === end, frameOv: getComputedStyle(b.parentElement).overflow, bnOv: getComputedStyle(b).overflow };
+    return { outside: cy < br.top || cy > br.bottom, hit: hit === end };
   });
   expect(out.outside, '800×200 45° CSS 선 끝은 박스 위로 나가야 한다(L=|w sin|+|h cos|)').toBe(true);
-  expect(out.frameOv).toBe('visible');
-  expect(out.bnOv).toBe('visible');
   expect(out.hit, '박스 밖 끝 원이 잘려서 안 잡힌다').toBe(true);
   expect(errs).toEqual([]);
 });
@@ -151,7 +152,7 @@ async function dragChip(page, id, idx, toFrac, { probeMid = false } = {}) {
   let mid = null;
   if (probeMid) {
     mid = await page.evaluate((id) => {
-      const p = document.getElementById(id).querySelector('.grad-line-pct');
+      const p = document.getElementById(id)._gradLine.overlay.querySelector('.grad-line-pct');
       return { vis: getComputedStyle(p).display !== 'none', text: p.textContent };
     }, id);
   }
@@ -167,7 +168,7 @@ test('B3 칩 드래그 — 그 스탑 %만 바뀌고, 드래그 중 % 라벨 표
   expect(mid.text).toBe('70%');
   const out = await page.evaluate(() => ({
     css: document.getElementById('shp').dataset.shapeColor,
-    pctVis: getComputedStyle(document.querySelector('#shp .grad-line-pct')).display,
+    pctVis: getComputedStyle(document.getElementById('shp')._gradLine.overlay.querySelector('.grad-line-pct')).display,
     hist: window.__hist,
   }));
   expect(out.css).toBe('linear-gradient(90deg, #ff0000 0%, #00ff00 70%, #0000ff 100%)');
@@ -197,7 +198,7 @@ test('B4 칩 «클릭만» — pushHistory 0회, 값 불변, 선택만 이동(is
     const b = document.getElementById('shp');
     return {
       css: b.dataset.shapeColor, hist: window.__hist,
-      sel: [...b.querySelectorAll('.grad-stop-chip')].map(c => c.classList.contains('is-selected')),
+      sel: [...b._gradLine.overlay.querySelectorAll('.grad-stop-chip')].map(c => c.classList.contains('is-selected')),
       tail: getComputedStyle(b._gradLine.chips[2], '::after').borderTopColor,
       tailOther: getComputedStyle(b._gradLine.chips[0], '::after').borderTopColor,
     };
@@ -213,7 +214,7 @@ test('B4 칩 «클릭만» — pushHistory 0회, 값 불변, 선택만 이동(is
 async function dragEnd(page, id, which, dx, dy) {
   const r = await page.evaluate(({ id, which }) => {
     const b = document.getElementById(id);
-    const q = (w) => { const e = b.querySelector(`[data-grad-handle="${w}"]`).getBoundingClientRect(); return { x: e.left + e.width / 2, y: e.top + e.height / 2 }; };
+    const q = (w) => { const e = b._gradLine.overlay.querySelector(`[data-grad-handle="${w}"]`).getBoundingClientRect(); return { x: e.left + e.width / 2, y: e.top + e.height / 2 }; };
     return { h: q(which), start: q('start'), end: q('end') };
   }, { id, which });
   await page.mouse.move(r.h.x, r.h.y);
@@ -222,7 +223,7 @@ async function dragEnd(page, id, which, dx, dy) {
   await page.mouse.up();
   const after = await page.evaluate((id) => {
     const b = document.getElementById(id);
-    const q = (w) => { const e = b.querySelector(`[data-grad-handle="${w}"]`).getBoundingClientRect(); return { x: e.left + e.width / 2, y: e.top + e.height / 2 }; };
+    const q = (w) => { const e = b._gradLine.overlay.querySelector(`[data-grad-handle="${w}"]`).getBoundingClientRect(); return { x: e.left + e.width / 2, y: e.top + e.height / 2 }; };
     const br = b.getBoundingClientRect();
     return { start: q('start'), end: q('end'), box: { l: br.left, t: br.top, w: br.width, h: br.height }, hist: window.__hist,
       css: b.dataset.shapeColor || b.dataset.bg };
@@ -284,7 +285,7 @@ test('B10 ★도형 끝 원을 경계 밖으로 — 원이 밖에 머물고, 94%
   const re = await page.evaluate(() => {
     const b = document.getElementById('shp');
     window.hideGradientLine(b); window.showGradientLine(b);
-    const e = b.querySelector('[data-grad-handle="end"]').getBoundingClientRect();
+    const e = b._gradLine.overlay.querySelector('[data-grad-handle="end"]').getBoundingClientRect();
     return { x: e.left + e.width / 2, y: e.top + e.height / 2 };
   });
   expect(Math.hypot(re.x - after.end.x, re.y - after.end.y), '재선택 후 끝 원 유지').toBeLessThan(1);
@@ -293,7 +294,7 @@ test('B10 ★도형 끝 원을 경계 밖으로 — 원이 밖에 머물고, 94%
     const b = document.getElementById('shp');
     b.dataset.shapeColor = 'linear-gradient(90deg, #ff5e3a 0%, #1aa6ff 100%)';
     window.showGradientLine(b);
-    const e = b.querySelector('[data-grad-handle="end"]').getBoundingClientRect();
+    const e = b._gradLine.overlay.querySelector('[data-grad-handle="end"]').getBoundingClientRect();
     const br = b.getBoundingClientRect();
     return { dx: e.left + e.width / 2 - br.right, dy: e.top + e.height / 2 - (br.top + br.height / 2) };
   });
@@ -325,7 +326,7 @@ test('B12 ★칩 선택 중 Backspace/Delete — 블록 삭제로 새지 않고 
   await page.mouse.click(c.x, c.y);
   await page.keyboard.press('Backspace');
   let out = await page.evaluate(() => ({ css: document.getElementById('shp').dataset.shapeColor, del: window.__editorDel, hist: window.__hist,
-    chips: document.querySelectorAll('#shp .grad-stop-chip').length, alive: !!document.getElementById('shp') }));
+    chips: (document.getElementById('shp')?._gradLine?.overlay.querySelectorAll('.grad-stop-chip').length ?? 0), alive: !!document.getElementById('shp') }));
   expect(out).toEqual({ css: 'linear-gradient(90deg, #ff0000 0%, #0000ff 100%)', del: 0, hist: 1, chips: 2, alive: true });
   await page.keyboard.press('Delete');                 // 2개 — 삭제 안 함, 블록 삭제로도 안 샘
   out = await page.evaluate(() => ({ css: document.getElementById('shp').dataset.shapeColor, del: window.__editorDel, hist: window.__hist }));
@@ -369,11 +370,11 @@ test('B7 setGradientLineSelected / 재호출 시 칩 노드 identity 유지', as
   const out = await page.evaluate(() => {
     const b = document.getElementById('shp');
     window.showGradientLine(b);
-    const before = [...b.querySelectorAll('.grad-stop-chip')];
+    const before = [...b._gradLine.overlay.querySelectorAll('.grad-stop-chip')];
     window.setGradientLineSelected(b, 2);
     const sel = before.map(c => c.classList.contains('is-selected'));
     window.showGradientLine(b);
-    const after = [...b.querySelectorAll('.grad-stop-chip')];
+    const after = [...b._gradLine.overlay.querySelectorAll('.grad-stop-chip')];
     return { sel, same: before.length === after.length && before.every((c, i) => c === after[i]), selAfter: after.map(c => c.classList.contains('is-selected')) };
   });
   expect(out.sel).toEqual([false, false, true]);
@@ -414,5 +415,71 @@ test('B9 ★칩 드래그·클릭 뒤 click 이 블록 선택 핸들러로 새�
   // 음성대조 성격: 오버레이 밖 클릭은 그대로 전달된다(삼킴이 과하지 않다)
   await page.mouse.click(5, 5);
   expect(await page.evaluate(() => window.__clicks)).toBe(1);
+  expect(errs).toEqual([]);
+});
+
+test('B13 ★줌 40%(기본값) — 도형 오버레이 박스 = 도형 화면 크기(전엔 2.5배), 90° 끝 원 = 도형 좌·우 가운데', async ({ page }) => {
+  const errs = await boot(page, { zoom: 40 });
+  const out = await page.evaluate(() => {
+    const b = document.getElementById('shp');
+    window.showGradientLine(b);
+    const or = b._gradLine.overlay.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
+    const c = (w) => { const e = b._gradLine.overlay.querySelector(`[data-grad-handle="${w}"]`).getBoundingClientRect(); return { x: e.left + e.width / 2, y: e.top + e.height / 2 }; };
+    return { or: { l: or.left, t: or.top, w: or.width, h: or.height }, br: { l: br.left, t: br.top, w: br.width, h: br.height, r: br.right, cy: br.top + br.height / 2 }, s: c('start'), e: c('end') };
+  });
+  expect(Math.abs(out.or.w - out.br.w), `오버레이 폭 ${out.or.w} vs 도형 ${out.br.w}`).toBeLessThan(1);
+  expect(Math.abs(out.or.h - out.br.h)).toBeLessThan(1);
+  expect(Math.abs(out.or.l - out.br.l)).toBeLessThan(1);
+  expect(Math.abs(out.or.t - out.br.t)).toBeLessThan(1);
+  expect(Math.abs(out.s.x - out.br.l)).toBeLessThan(1);
+  expect(Math.abs(out.e.x - out.br.r)).toBeLessThan(1);
+  expect(Math.abs(out.e.y - out.br.cy)).toBeLessThan(1);
+  expect(errs).toEqual([]);
+});
+
+test('B14 ★뒤에 오는 형제(텍스트 z-index:2) 위로 끈 끝 원을 «다시» 잡을 수 있다 — 형제 밑에 깔리지 않음(줌 40·100)', async ({ page }) => {
+  for (const zoom of [100, 40]) {
+    const errs = await boot(page, { zoom, sibling: true });
+    await page.evaluate(() => window.showGradientLine(document.getElementById('shp')));
+    // 1차: 끝 원(도형 오른쪽 가운데)을 형제 텍스트 위로
+    const d1 = await dragEnd(page, 'shp', 'end', 120 * zoom / 100, 40 * zoom / 100);
+    const probe = await page.evaluate(({ x, y }) => {
+      const hit = document.elementFromPoint(x, y);
+      const sib = document.getElementById('sibtb').getBoundingClientRect();
+      return { onHandle: !!hit?.closest?.('[data-grad-handle="end"]'), hitCls: hit?.className || hit?.tagName,
+        overSibling: x > sib.left && x < sib.right && y > sib.top && y < sib.bottom };
+    }, d1.after.end);
+    expect(probe.overSibling, `zoom ${zoom}: 끝 원이 형제 텍스트 위에 있어야 재현이 된다`).toBe(true);
+    expect(probe.onHandle, `zoom ${zoom}: 형제 위 끝 원을 elementFromPoint 로 못 잡음(hit=${probe.hitCls})`).toBe(true);
+    // 2차: 그 자리에서 다시 끌기 — 값이 또 바뀐다
+    const d2 = await dragEnd(page, 'shp', 'end', 0, 60 * zoom / 100);
+    expect(d2.after.css, `zoom ${zoom}: 두 번째 드래그가 먹지 않았다`).not.toBe(d1.after.css);
+    expect(Math.hypot(d2.after.end.x - d2.cursor.x, d2.after.end.y - d2.cursor.y)).toBeLessThan(1.5);
+    // 블록 자체의 겹침 순서는 건드리지 않는다(편집 중 페인트 순서 거짓말 금지)
+    const z = await page.evaluate(() => getComputedStyle(document.getElementById('shp').parentElement).zIndex);
+    expect(z).toBe('auto');
+    expect(errs).toEqual([]);
+  }
+});
+
+test('B15 포털 — 블록이 움직이면 바가 따라가고, 블록이 DOM 에서 빠지면 바도 사라진다', async ({ page }) => {
+  const errs = await boot(page);
+  const before = await page.evaluate(() => {
+    const b = document.getElementById('shp');
+    window.showGradientLine(b);
+    return b._gradLine.overlay.getBoundingClientRect().left;
+  });
+  await page.evaluate(() => { document.getElementById('shp').parentElement.style.left = '260px'; });
+  await page.waitForTimeout(80);
+  const moved = await page.evaluate(() => {
+    const b = document.getElementById('shp');
+    return { ov: b._gradLine.overlay.getBoundingClientRect().left, bl: b.getBoundingClientRect().left };
+  });
+  expect(Math.abs(moved.ov - moved.bl)).toBeLessThan(1);
+  expect(moved.ov - before).toBeGreaterThan(50);
+  await page.evaluate(() => document.getElementById('shp').parentElement.remove());
+  await page.waitForTimeout(80);
+  expect(await page.evaluate(() => document.querySelectorAll('.grad-line-portal, .grad-line-overlay').length)).toBe(0);
   expect(errs).toEqual([]);
 });

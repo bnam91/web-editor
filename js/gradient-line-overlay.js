@@ -39,6 +39,7 @@ const MOVE_EPS_PX = 2;   // 이만큼 안 움직이면 «클릭»(history 안 �
   st.id = 'grad-line-overlay-style';
   st.textContent = `
 .grad-line-overlay{position:absolute;inset:0;pointer-events:none;z-index:120;overflow:visible;}
+.grad-line-portal{position:absolute;left:0;top:0;pointer-events:none;z-index:120;overflow:visible;transform-origin:50% 50%;}
 .grad-line{position:absolute;left:0;top:0;height:calc(1.5px * var(--inv-zoom,1));
   margin-top:calc(-0.75px * var(--inv-zoom,1));background:#fff;transform-origin:0 50%;
   pointer-events:none;box-shadow:0 0 calc(2px * var(--inv-zoom,1)) rgba(0,0,0,0.45);}
@@ -406,6 +407,74 @@ function _bindEndDrag(block, handle, which) {
   });
 }
 
+// ── 포털(0918 리뷰 high — 겹침 순서) ─────────────────────────────────────────────
+// 예전엔 오버레이를 블록 «안»에 붙였다. 그런데 .shape-block.selected 는 z-index:2 로 스태킹
+// 컨텍스트를 만들고, 뒤에 오는 형제(텍스트 블록 = 무조건 z-index:2, 오버레이 텍스트 = 80)가
+// DOM 순서로 이긴다 → 도형 밖으로 끈 선·끝 원·칩이 그 형제 «밑»에 깔려 다시 잡을 수 없었다
+// (실측: elementFromPoint = tb-body). 블록 안에선 z-index 를 아무리 올려도 그 컨텍스트를 못 벗는다.
+// ⇒ 캔버스 줌 래퍼(#canvas-scaler) 맨 끝의 «포털» 층에 붙이고, 블록의 레이아웃 박스(중심·크기·
+//   자기 회전)를 그대로 흉내 낸다. 줌·스크롤은 래퍼가 같이 움직여 주고, 블록 이동·리사이즈는
+//   rAF 동기화가 따라간다. 블록 자체의 z-index 는 건드리지 않는다(편집 중 겹침 순서가 거짓말하면 안 됨).
+// ⚠️한계: 블록 «조상»의 회전·배율(줌 제외)은 흉내 내지 않는다(selection-overlay P0 와 같은 한계).
+// #canvas-scaler 가 없는 문서(단위 하네스 등)는 예전처럼 블록 안에 붙인다.
+const HOST_SELECTOR = '#canvas-scaler';
+function _hostFor(blockEl) {
+  return blockEl.closest?.(HOST_SELECTOR) || null;
+}
+function _blockOfOverlay(o) {
+  return o?._gradBlock || o?.parentElement || null;
+}
+function _syncPortal(refs) {
+  const portal = refs.portal;
+  if (!portal) return;
+  const block = refs.block;
+  const host = portal.parentElement;
+  if (!host) return;
+  const hr = host.getBoundingClientRect();
+  const s = (host.offsetWidth > 0 && hr.width > 0) ? hr.width / host.offsetWidth
+    : ((Number(window.currentZoom) > 0 ? Number(window.currentZoom) : 100) / 100);
+  const br = block.getBoundingClientRect();
+  const bw = block.offsetWidth || br.width / s;
+  const bh = block.offsetHeight || br.height / s;
+  // 자기 transform 의 «선형 부분»만(평행이동은 중심 맞춤으로 이미 반영된다)
+  let lin = '';
+  const tf = getComputedStyle(block).transform;
+  if (tf && tf !== 'none') {
+    try {
+      const m = new DOMMatrixReadOnly(tf);
+      if (!(m.a === 1 && m.b === 0 && m.c === 0 && m.d === 1)) lin = `matrix(${m.a},${m.b},${m.c},${m.d},0,0)`;
+    } catch (_) {}
+  }
+  const cx = (br.left + br.width / 2 - hr.left) / s;
+  const cy = (br.top + br.height / 2 - hr.top) / s;
+  const key = [cx, cy, bw, bh, lin].map(v => typeof v === 'number' ? v.toFixed(2) : v).join('|');
+  if (refs.portalKey === key) return false;
+  refs.portalKey = key;
+  portal.style.left = (cx - bw / 2) + 'px';
+  portal.style.top = (cy - bh / 2) + 'px';
+  portal.style.width = bw + 'px';
+  portal.style.height = bh + 'px';
+  portal.style.transform = lin;
+  return true;
+}
+function _startPortalLoop(refs) {
+  if (!refs.portal || refs.portalRaf) return;
+  const tick = () => {
+    refs.portalRaf = 0;
+    if (refs.block._gradLine !== refs || !refs.portal.isConnected) return;
+    if (!refs.block.isConnected) { hideGradientLine(refs.block); return; }
+    if (_syncPortal(refs) && !refs.dragging) {
+      // 블록 크기가 바뀌었으면 타깃 박스도 다시 잰다(드래그 중엔 자기 모델 유지)
+      const t = refs.target;
+      refs.box = _computeBox(refs.block, t);
+      _applyBox(refs.overlay, refs.box);
+      _render(refs.block);
+    }
+    refs.portalRaf = requestAnimationFrame(tick);
+  };
+  refs.portalRaf = requestAnimationFrame(tick);
+}
+
 // ── public: showGradientLine ──────────────────────────────────────────────────
 function showGradientLine(blockEl, opts = {}) {
   if (!blockEl) return;
@@ -417,13 +486,15 @@ function showGradientLine(blockEl, opts = {}) {
   if (!g) g = _seedModel(css); // 솔리드: 시각 시드만, 쓰기 X
 
   let refs = blockEl._gradLine;
-  if (refs && refs.overlay && refs.overlay.isConnected && blockEl.contains(refs.overlay)) {
+  if (refs && refs.overlay && refs.overlay.isConnected
+      && (refs.portal ? refs.portal.contains(refs.overlay) : blockEl.contains(refs.overlay))) {
     // 재호출 — 드래그 중엔 자기 모델을 유지(외부 재파싱이 드래그 중인 스탑 순서를 흔들지 않게)
     if (!refs.dragging) {
       refs.model = g;
       refs.view = _recalledView(blockEl, css); // 우리가 쓴 값 그대로면 끈 끝점 유지, 아니면 유도
     }
     refs.target = t;
+    if (refs.portal) { refs.portalKey = null; _syncPortal(refs); }
     refs.box = _computeBox(blockEl, t);
     _applyBox(refs.overlay, refs.box);
     if (Number.isFinite(opts.selectedIdx)) refs.selectedIdx = opts.selectedIdx;
@@ -435,6 +506,7 @@ function showGradientLine(blockEl, opts = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'grad-line-overlay';
   overlay.dataset.gradLine = '1';
+  overlay._gradBlock = blockEl;
 
   const lineEl = document.createElement('div');
   lineEl.className = 'grad-line';
@@ -451,20 +523,33 @@ function showGradientLine(blockEl, opts = {}) {
   overlay.appendChild(start);
   overlay.appendChild(end);
   overlay.appendChild(pct);
-  blockEl.appendChild(overlay); // blockEl은 이미 position:relative
-
-  const box = _computeBox(blockEl, t);
-  _applyBox(overlay, box);
+  // 남은 옛 오버레이(다른 경로로 떨어진 것) 정리 후 마운트
+  hideGradientLine(blockEl);
+  const host = _hostFor(blockEl);
+  let portal = null;
+  if (host) {
+    portal = document.createElement('div');
+    portal.className = 'grad-line-portal';
+    portal._gradBlock = blockEl;
+    portal.appendChild(overlay);
+    host.appendChild(portal);
+  } else {
+    blockEl.appendChild(overlay); // blockEl은 이미 position:relative
+  }
 
   refs = blockEl._gradLine = {
-    block: blockEl, overlay, lineEl, start, end, pct, chips: [],
-    model: g, target: t, box, line: null, map: null, view: _recalledView(blockEl, css), chipActive: false,
+    block: blockEl, overlay, portal, portalKey: null, portalRaf: 0, lineEl, start, end, pct, chips: [],
+    model: g, target: t, box: null, line: null, map: null, view: _recalledView(blockEl, css), chipActive: false,
     selectedIdx: Number.isFinite(opts.selectedIdx) ? opts.selectedIdx : 0,
     dragIdx: null, dragging: false,
   };
+  if (portal) _syncPortal(refs);
+  refs.box = _computeBox(blockEl, t);
+  _applyBox(overlay, refs.box);
   _bindEndDrag(blockEl, start, 'start');
   _bindEndDrag(blockEl, end, 'end');
   _render(blockEl);
+  _startPortalLoop(refs);
   _avoidPicker(blockEl);
 }
 
@@ -482,15 +567,20 @@ function setGradientLineSelected(blockEl, idx) {
 // ── public: hideGradientLine ──────────────────────────────────────────────────
 function hideGradientLine(blockEl) {
   const clear = (b) => {
+    const refs = b._gradLine;
+    if (refs?.portalRaf) cancelAnimationFrame(refs.portalRaf);
+    refs?.portal?.remove();
     b.querySelectorAll(':scope > .grad-line-overlay').forEach(o => o.remove());
+    document.querySelectorAll('.grad-line-portal').forEach(p => { if (p._gradBlock === b) p.remove(); });
     delete b._gradLine;
   };
   if (blockEl) { clear(blockEl); return; }
   document.querySelectorAll('.grad-line-overlay').forEach(o => {
-    const host = o.parentElement;
+    const b = _blockOfOverlay(o);
+    if (b && b._gradLine) clear(b);
     o.remove();
-    if (host) delete host._gradLine;
   });
+  document.querySelectorAll('.grad-line-portal').forEach(p => p.remove());
 }
 
 // ── public: bindGradientLinePicker — 캔버스 바 ↔ 컬러피커 양방향 배선 한 곳 ─────────
@@ -551,7 +641,7 @@ function _setChipActive(refs, on) {
 document.addEventListener('mousedown', (ev) => {
   if (ev.target?.closest?.('.grad-line-overlay')) return;
   document.querySelectorAll('.grad-line-overlay.is-chip-active').forEach(o => {
-    const r = o.parentElement?._gradLine;
+    const r = _blockOfOverlay(o)?._gradLine;
     if (r) _setChipActive(r, false); else o.classList.remove('is-chip-active');
   });
 }, true);
@@ -565,7 +655,7 @@ window.addEventListener('keydown', (ev) => {
   if (ev.key !== 'Backspace' && ev.key !== 'Delete') return;
   if (_isEditableTarget(ev.target) || _isEditableTarget(document.activeElement)) return;
   const ov = document.querySelector('.grad-line-overlay.is-chip-active');
-  const block = ov?.parentElement;
+  const block = _blockOfOverlay(ov);
   const refs = block?._gradLine;
   if (!refs || !refs.chipActive) return;
   ev.preventDefault();
@@ -624,7 +714,7 @@ function _avoidPicker(blockEl) {
 document.addEventListener('goya-cp:opened', (e) => {
   const inp = e.detail?.input;
   document.querySelectorAll('.grad-line-overlay').forEach(o => {
-    const b = o.parentElement;
+    const b = _blockOfOverlay(o);
     if (b?._gradLine && (!inp || b._gradPickerInput === inp)) _avoidPicker(b);
   });
 });

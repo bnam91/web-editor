@@ -110,3 +110,18 @@ test('Z5 html2canvas 에 넘기는 크롭 = 화면(줌 적용) 좌표 그대로,
   expect(out.seen.scale).toBe(1);
   expect(errs).toEqual([]);
 });
+
+test('Z6 ★칸 수는 줌과 무관 — 400×200 가림막·강도 2(칸 19px)면 줌 40/100/150/200% 모두 21×11칸(0918 리뷰: 전엔 40%=8×4, 200%=42×21 → export 칸 < 16px)', async ({ page }) => {
+  const seen = {};
+  for (const scale of [0.4, 1, 1.5, 2]) {
+    const errs = await boot(page, scale);
+    const out = await captureAndProbe(page);
+    expect(out.ok, `줌 ${scale * 100}% 캡처 실패`).toBe(true);
+    const bpx = await page.evaluate(() => window.mosaicBlockPxFromSlider('2'));
+    seen[scale] = out.canvas;
+    expect(out.canvas, `줌 ${scale * 100}%`).toEqual([Math.round(400 / bpx), Math.round(200 / bpx)]);
+    // 캔버스 기준 칸 크기가 하한(16px) 이상
+    expect(400 / out.canvas[0]).toBeGreaterThanOrEqual(16);
+    expect(errs).toEqual([]);
+  }
+});

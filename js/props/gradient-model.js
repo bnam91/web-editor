@@ -392,8 +392,13 @@ registerGradientTarget({
         // silently falls through to the inflated rotated rect every time. block is always a
         // plain HTMLElement (the .shape-block div) and its offsetWidth/Height are unaffected by
         // the CSS rotate() transform regardless of which element (svg or block) painted `r`.
-        const w = block.offsetWidth || r.width;
-        const h = block.offsetHeight || r.height;
+        // ★단위 맞춤(0918 리뷰 high): offsetWidth/Height 는 «줌 적용 전» 캔버스 px 인데 left/top 은
+        //   화면 px 이고, _computeBox 는 rect() 전체를 «화면 px»로 보고 ÷zoom 한다. 그래서 줌 40%
+        //   에서 오버레이가 도형의 2.5배로 그려졌다(100% 에서만 우연히 맞음). → 화면 px 로 되돌려 준다.
+        //   배율은 getGradientTarget 쪽 전역 줌(window.currentZoom)과 같은 값.
+        const z = (Number(window.currentZoom) > 0 ? Number(window.currentZoom) : 100) / 100;
+        const w = block.offsetWidth ? block.offsetWidth * z : r.width;
+        const h = block.offsetHeight ? block.offsetHeight * z : r.height;
         return { left: r.left, top: r.top, width: w, height: h, right: r.left + w, bottom: r.top + h };
       },
       get: () => block.dataset.shapeColor || '',
