@@ -271,3 +271,72 @@ test('⑮ 메뉴 항목: allowed=false 면 숨김·비활성, true 면 보임 ·
   on.click();
   assert.strictEqual(n, 1);
 });
+
+/* ── 이벨류에이터 픽스 라운드(2026-09-19): «띄울 때 여는» 디버깅 길 ── */
+test('⑯ debugLaunchViolations: CDP·inspect 인자는 걸리고, 평범한 실행 인자는 안 걸린다', () => {
+  const d = G.debugLaunchViolations;
+  assert.deepStrictEqual(d({ argv: ['/A/GODITOR'] }), []);
+  assert.deepStrictEqual(d({ argv: ['/A/GODITOR', '--enable-logging', 'admin', '--user-data-dir=/tmp/x', '--remote-allow-origins=*', '/p/a.gdt'] }), []);
+  assert.deepStrictEqual(d({ argv: ['x', '--remote-debugging-port=9222'] }), ['remote-debugging-port']);
+  assert.deepStrictEqual(d({ argv: ['x', '--remote-debugging-pipe'] }), ['remote-debugging-pipe']);
+  // argv 에 안 보여도 Chromium 스위치로 들어왔으면 걸린다
+  assert.deepStrictEqual(d({ argv: ['x'], hasSwitch: (s) => s === 'remote-debugging-port' }), ['remote-debugging-port']);
+  assert.deepStrictEqual(d({ argv: ['x', '--inspect'] }), ['inspect']);
+  assert.deepStrictEqual(d({ argv: ['x', '--inspect-brk=9229'] }), ['inspect-brk']);
+  assert.deepStrictEqual(d({ execArgv: ['--inspect-wait'] }), ['inspect-wait']);
+  // 포트·표시 설정만 하는 인자는 디버거를 켜지 않는다(node --test 자식이 달고 온다 — 오탐 방지)
+  assert.deepStrictEqual(d({ execArgv: ['--inspect-port=0', '--inspect-publish-uid=http'] }), []);
+  // 인자와 무관하게 디버거가 «이미 켜져» 있으면 걸린다
+  assert.deepStrictEqual(d({ inspectorUrl: () => 'ws://127.0.0.1:9229/abc' }), ['inspector-active']);
+  assert.deepStrictEqual(d({ inspectorUrl: () => undefined }), []);
+  assert.deepStrictEqual(d({ argv: ['x', '--debug-brk'] }), ['debug-brk']);
+  assert.deepStrictEqual(d({ env: { NODE_OPTIONS: '--max-old-space-size=4096 --inspect=0' } }), ['NODE_OPTIONS']);
+  assert.deepStrictEqual(d({ env: { NODE_OPTIONS: '--max-old-space-size=4096' } }), []);
+  // 비슷한 이름에 속지 않는다
+  assert.deepStrictEqual(d({ argv: ['x', '--inspector-foo', '--debugger', '--remote-debugging-portal'] }), []);
+  // hasSwitch 가 던져도 앱이 죽지 않는다(판정만 안 한다)
+  assert.deepStrictEqual(d({ argv: ['x'], hasSwitch: () => { throw new Error('boom'); } }), []);
+});
+
+test('⑰ 주기 재판정: 시간이 지나 관리자 판정이 풀리면(서명·플랜 만료) 열려 있던 개발자 도구가 닫힌다', async () => {
+  const app = new EventEmitter();
+  app.isPackaged = true;
+  let admin = true;
+  const wc = fakeWc();
+  const g = G.createDevToolsGate({
+    app, env: {},
+    readAuth: () => ({ email: 'x' }),
+    authVerdict: () => (admin ? { pass: true, payload: { email: G.ADMIN_EMAIL } } : { pass: false }),
+    getAllWebContents: () => [wc],
+    enforceIntervalMs: 15,
+  });
+  g.install(app);
+  app.emit('web-contents-created', {}, wc);
+  wc.openDevTools();
+  assert.strictEqual(wc.opened, true, '관리자 판정 동안은 열려 있다');
+  await new Promise(r => setTimeout(r, 60));
+  assert.strictEqual(wc.opened, true, '판정이 그대로면 주기 재판정이 닫지 않는다');
+  admin = false;                         // auth 쓰기 없이 판정만 바뀐다(만료)
+  await new Promise(r => setTimeout(r, 80));
+  assert.strictEqual(wc.opened, false, '주기 재판정이 닫았다');
+});
+
+test('⑰b enforceIntervalMs=0 이면 주기 재판정을 안 건다', async () => {
+  const app = new EventEmitter();
+  app.isPackaged = true;
+  let admin = true;
+  const wc = fakeWc();
+  const g = G.createDevToolsGate({
+    app, env: {},
+    readAuth: () => ({ email: 'x' }),
+    authVerdict: () => (admin ? { pass: true, payload: { email: G.ADMIN_EMAIL } } : { pass: false }),
+    getAllWebContents: () => [wc],
+    enforceIntervalMs: 0,
+  });
+  g.install(app);
+  app.emit('web-contents-created', {}, wc);
+  wc.openDevTools();
+  admin = false;
+  await new Promise(r => setTimeout(r, 50));
+  assert.strictEqual(wc.opened, true);
+});

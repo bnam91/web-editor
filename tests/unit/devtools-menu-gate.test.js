@@ -115,3 +115,72 @@ test('M8 톱니바퀴 「디버깅」 탭: 있고 · MVP 비활성 목록에 없
   assert.match(body, /잠시 후 다시 시도하세요/);
   assert.match(PRELOAD, /devtools:\s*\{[\s\S]*?devtools:state[\s\S]*?devtools:unlock[\s\S]*?devtools:open/);
 });
+
+/* ── 이벨류에이터 픽스 라운드(2026-09-19): «띄울 때 여는» 디버깅 길(CDP·inspect) ──
+   ★main.js 의 차단 블록 «원문»을 잘라 가짜 app·process 로 «실행»한다 — 모양이 아니라 행동을 잰다. */
+function runLaunchBlock({ packaged, argv = ['/A/GODITOR'], switches = [], env = {}, admin = false }) {
+  const start = MAIN.indexOf('(function _blockDebugLaunchInPackaged()');
+  assert.ok(start > 0, '차단 블록이 main.js 에 있다');
+  const end = MAIN.indexOf('})();', start);
+  const src = MAIN.slice(start, end + 5);
+  const calls = { appExit: 0, procExit: 0 };
+  class Exit extends Error {}
+  const app = {
+    isPackaged: packaged,
+    commandLine: { hasSwitch: (s) => switches.includes(s) },
+    exit: () => { calls.appExit++; },
+  };
+  const proc = { argv, execArgv: [], env, exit: () => { calls.procExit++; throw new Exit(); } };
+  const req = (p) => (p === './main/devtools-gate' ? require(path.join(ROOT, 'main', 'devtools-gate.js')) : require(p));
+  const quiet = { error() {}, warn() {}, log() {} };
+  const fn = new Function('app', 'process', 'require', 'isAdminAuthorized', 'console', src);
+  try { fn(app, proc, req, () => admin, quiet); } catch (e) { if (!(e instanceof Exit)) throw e; }
+  return calls;
+}
+
+test('M9 ★배포판을 --remote-debugging-port/--inspect 로 띄우면 «뜨기 전에» 끈다 · dev·평범한 실행·운영자 admin 은 그대로', () => {
+  // 배포판 + CDP → 종료
+  let c = runLaunchBlock({ packaged: true, argv: ['/A/GODITOR', '--remote-debugging-port=9222', '--remote-allow-origins=*'] });
+  assert.strictEqual(c.procExit, 1, 'CDP 인자면 종료');
+  c = runLaunchBlock({ packaged: true, switches: ['remote-debugging-pipe'] });
+  assert.strictEqual(c.procExit, 1, 'Chromium 스위치로 들어온 pipe 도 종료');
+  c = runLaunchBlock({ packaged: true, argv: ['/A/GODITOR', '--inspect=9229'] });
+  assert.strictEqual(c.procExit, 1, '메인 Node 디버거도 종료');
+  // 배포판 + 평범한 실행 → 안 끈다
+  c = runLaunchBlock({ packaged: true, argv: ['/A/GODITOR', '/Users/x/a.gdt'] });
+  assert.strictEqual(c.procExit + c.appExit, 0, '평범한 실행은 그대로');
+  // dev → CDP 여도 안 끈다(검증 흐름 보존)
+  c = runLaunchBlock({ packaged: false, argv: ['e', '.', '--remote-debugging-port=9334', 'admin'] });
+  assert.strictEqual(c.procExit + c.appExit, 0, 'dev 는 CDP 로 검증한다 — 건드리지 않는다');
+  // 운영자 admin(인자+토큰+admin.allow) → 허용
+  c = runLaunchBlock({ packaged: true, argv: ['/A/GODITOR', '--remote-debugging-port=9222', 'admin'], admin: true });
+  assert.strictEqual(c.procExit + c.appExit, 0, '운영자 admin 은 허용');
+});
+
+test('M10 차단 블록 자리: path·fs 선언 뒤, userData 이사·크래시 기록기·단일인스턴스 잠금보다 앞', () => {
+  const at = MAIN.indexOf('(function _blockDebugLaunchInPackaged()');
+  assert.ok(at > MAIN.indexOf("const path = require('path')"), 'path 뒤');
+  assert.ok(at > MAIN.indexOf("const fs = require('fs')"), 'fs 뒤');
+  assert.ok(at < MAIN.indexOf('(function _migrateUserDataDir()'), '이사 앞');
+  assert.ok(at < MAIN.indexOf("require('./main/crash')"), '크래시 기록기 앞');
+  assert.ok(at < MAIN.indexOf('app.whenReady('), 'whenReady 앞');
+  // ⛔조이는 테스트 훅(GODITOR_FORCE_PACKAGED_GATE)으로 «푸는» 길이 생기면 안 된다
+  const end = MAIN.indexOf('})();', at);
+  assert.ok(!/GODITOR_FORCE_PACKAGED_GATE|GODITOR_ALLOW/.test(MAIN.slice(at, end)), 'env 로 푸는 비상구 없음');
+});
+
+test('M11 빌드 퓨즈: RunAsNode·NODE_OPTIONS·--inspect(+SIGUSR1) 를 끈다', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const f = pkg.build && pkg.build.electronFuses;
+  assert.ok(f, 'build.electronFuses 가 있다');
+  assert.strictEqual(f.runAsNode, false);
+  assert.strictEqual(f.enableNodeOptionsEnvironmentVariable, false);
+  assert.strictEqual(f.enableNodeCliInspectArguments, false);
+  // runAsNode=false 면 main 의 child_process.fork 가 깨진다 — 앱 코드에 fork 가 없어야 한다
+  const files = ['main.js', ...walk(path.join(ROOT, 'main')).map(p => path.relative(ROOT, p)), ...walk(path.join(ROOT, 'services')).map(p => path.relative(ROOT, p))]
+    .filter(p => /\.m?js$/.test(p));
+  const code = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');   // 주석 제외(설명 문장은 사용처가 아니다)
+  const forks = files.filter(p => /\bfork\s*\(|ELECTRON_RUN_AS_NODE/.test(code(p)));
+  assert.deepStrictEqual(forks, [], 'main/services 에 fork·ELECTRON_RUN_AS_NODE 사용처 없음');
+});

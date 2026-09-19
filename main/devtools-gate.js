@@ -43,6 +43,37 @@ function hexEqual(a, b) {
 }
 
 /**
+ * ★«앱을 띄울 때» 여는 디버깅 길 — devtools-opened 가드가 «못 보는» 길이다 (이벨류에이터 지적 2026-09-19).
+ *   --remote-debugging-port / --remote-debugging-pipe : Chromium CDP. 렌더러 전체(window.electronAPI 포함)를
+ *     조작할 수 있고 chrome://inspect 로 개발자 도구 화면도 뜬다. 창의 devtools-opened 이벤트는 안 난다.
+ *   --inspect* / --debug* (argv·execArgv) · NODE_OPTIONS 의 --inspect : 메인 프로세스 Node 디버거.
+ *   (ELECTRON_RUN_AS_NODE·NODE_OPTIONS·--inspect·SIGUSR1 은 package.json build.electronFuses 로도 끈다 —
+ *    이 함수는 퓨즈가 안 먹은 빌드를 위한 «두 번째 자물쇠»다.)
+ * 순수 함수 — 무엇이 걸렸는지 목록만 돌려준다. 끌지 말지는 부르는 쪽(main.js 최상위)이 정한다.
+ * @param {{argv?:string[], execArgv?:string[], hasSwitch?:(s:string)=>boolean, env?:object, inspectorUrl?:()=>string|undefined}} o
+ *   inspectorUrl — require('inspector').url. 값이 있으면 메인 Node 디버거가 «이미 켜져» 있다(인자 형태와 무관)
+ * @returns {string[]} 걸린 항목 이름(없으면 빈 배열)
+ */
+function debugLaunchViolations(o = {}) {
+  const hits = new Set();
+  const argv = [].concat(o.argv || [], o.execArgv || []).filter(a => typeof a === 'string');
+  const has = (s) => { try { return !!(o.hasSwitch && o.hasSwitch(s)); } catch (_) { return false; } };
+  for (const sw of ['remote-debugging-port', 'remote-debugging-pipe']) {
+    if (has(sw) || argv.some(a => a === '--' + sw || a.startsWith('--' + sw + '='))) hits.add(sw);
+  }
+  for (const a of argv) {
+    /* ★디버거를 «켜는» 인자만 본다. --inspect-port·--inspect-publish-uid 는 켜지 않는다(포트·표시 설정일 뿐,
+       SIGUSR1 활성화는 퓨즈가 끈다) — node --test 자식 프로세스가 이 둘을 달고 와서 오탐이 났다(실측). */
+    const m = /^--(inspect(?:-brk|-wait)?|debug(?:-brk)?)(?:=|$)/.exec(a);
+    if (m) hits.add(m[1]);
+  }
+  try { if (typeof o.inspectorUrl === 'function' && o.inspectorUrl()) hits.add('inspector-active'); } catch (_) {}
+  const nodeOpts = String((o.env && o.env.NODE_OPTIONS) || '');
+  if (/(^|\s)--(inspect|debug)/.test(nodeOpts)) hits.add('NODE_OPTIONS');
+  return [...hits];
+}
+
+/**
  * 메뉴 「보기 › 개발자 도구」 항목. ★표준 role 「toggleDevTools」 를 쓰지 않는다 — role 은 게이트를 모른다.
  * 숨김(visible:false)은 «보이기»일 뿐이고 실제 잠금은 devtools-opened 가드다.
  */
@@ -67,6 +98,7 @@ function devToolsMenuItem({ isMac, allowed, toggle }) {
  *   now()                — 시계(테스트 주입)
  *   env                  — process.env 대용(테스트 주입)
  *   codeSha256           — 테스트에서 «다른 코드»로 양성대조할 때만
+ *   enforceIntervalMs    — 주기 재판정 간격(0 이면 끔). 기본 60초
  */
 function createDevToolsGate(deps = {}) {
   const d = {
@@ -79,6 +111,7 @@ function createDevToolsGate(deps = {}) {
     now: () => Date.now(),
     env: process.env,
     codeSha256: CODE_SHA256,
+    enforceIntervalMs: 60 * 1000,
     ...deps,
   };
 
@@ -165,6 +198,13 @@ function createDevToolsGate(deps = {}) {
   /** ★createWindow() 보다 «먼저» 부른다. */
   function install(app) {
     app.on('web-contents-created', (_e, wc) => guardWebContents(wc));
+    /* ★시간이 지나 판정이 바뀌는 경우(관리자 서명 만료·플랜 만료)엔 auth 쓰기가 없어서 enforce 가 안 돈다.
+       그래서 주기적으로 한 번씩 다시 잰다. 허용 상태(dev·해제)면 enforce 는 곧바로 0 을 돌려준다. */
+    const ms = Number(d.enforceIntervalMs);
+    if (ms > 0) {
+      const t = setInterval(() => { try { enforce(); } catch (_) {} }, ms);
+      if (t && typeof t.unref === 'function') t.unref();
+    }
   }
 
   function toggleFor(wc) {
@@ -196,4 +236,4 @@ function createDevToolsGate(deps = {}) {
   return { reason, isAllowed, verifyCode, enforce, lock, guardWebContents, install, toggleFor, state, registerIpc };
 }
 
-module.exports = { createDevToolsGate, devToolsMenuItem, ADMIN_EMAIL, CODE_SHA256, MAX_FAILS, LOCK_MS, _normEmail: normEmail };
+module.exports = { createDevToolsGate, devToolsMenuItem, debugLaunchViolations, ADMIN_EMAIL, CODE_SHA256, MAX_FAILS, LOCK_MS, _normEmail: normEmail };

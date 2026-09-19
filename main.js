@@ -22,6 +22,34 @@ app.name = 'GODITOR';
 const fs = require('fs');
 const os = require('os');
 
+/* ── 배포판: «띄울 때 여는» 디버깅 길 차단 (T-056, 이벨류에이터 지적 2026-09-19) ──
+   devtools-gate 의 devtools-opened 가드는 «창에서 여는» 길만 본다. 앱을
+   `--remote-debugging-port`/`--remote-debugging-pipe`(CDP) 나 `--inspect*`(메인 Node 디버거)로
+   띄우면 그 가드를 안 거치고 렌더러 전체를 조작할 수 있다 → 배포판이면 «뜨기 전에» 끈다.
+   ★예외는 기존 운영자 admin(인자 + GODITOR_ADMIN_TOKEN + userData/admin.allow)뿐 — 고객 PC 엔 admin.allow 가 없다.
+   ⛔관리자 이메일·관리자코드는 여기 예외가 아니다(띄우는 시점엔 아직 판정할 수 없고, 코드 해제는 «창 안»의 일이다).
+   ★자리: path·fs 선언 «뒤»(isAdminAuthorized 가 쓴다), 그 밖의 모든 초기화 «앞».
+   ★퓨즈(package.json build.electronFuses: runAsNode·nodeOptions·nodeCliInspect=false)가 첫 자물쇠, 이게 둘째다.
+   dev(!isPackaged)는 CDP 로 검증하므로 건드리지 않는다. */
+(function _blockDebugLaunchInPackaged() {
+  let packaged = true;
+  try { packaged = app.isPackaged; } catch (_) { packaged = true; }
+  if (!packaged) return;
+  const { debugLaunchViolations } = require('./main/devtools-gate');
+  const hits = debugLaunchViolations({
+    argv: process.argv,
+    execArgv: process.execArgv,
+    hasSwitch: (sw) => app.commandLine.hasSwitch(sw),
+    env: process.env,
+    inspectorUrl: () => { try { return require('inspector').url(); } catch (_) { return undefined; } },
+  });
+  if (!hits.length) return;
+  if (isAdminAuthorized()) { console.warn('[devtools-gate] 운영자 admin — 디버깅 실행 허용:', hits.join(',')); return; }
+  console.error('[devtools-gate] 배포판에서 디버깅 실행 인자 감지 — 종료:', hits.join(','));
+  try { app.exit(1); } catch (_) {}
+  process.exit(1);
+})();
+
 // userData 폴더 마이그레이션: 구 이름('Goya Design Editor') → 'GODITOR'.
 // app.name이 userData 경로를 결정하므로, 앱이 새 경로에 처음 쓰기 전(top-level)에 rename.
 // 같은 볼륨 rename이라 원자적·즉시(6GB+ copy 아님). old만 있고 new 없을 때 1회만.
