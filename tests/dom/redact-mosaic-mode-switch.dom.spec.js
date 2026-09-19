@@ -244,3 +244,56 @@ test('M7 런타임 상태가 dataset(저장 HTML)에 새지 않는다 — 진행
   expect(out.attrsAfter).toEqual(out.attrsBefore);
   expect(errs).toEqual([]);
 });
+
+/* ── 픽스 라운드(T-061): 방식 버튼 클릭 1회 = html2canvas 2회였다(applyRedact 캡처 + mouseup
+ *    디바운스가 그 캡처를 dirty 로 만들어 뒤따르는 캡처 1회). 클릭은 mousedown→mouseup→click 순서라
+ *    click 에서 시작한 캡처는 «이미 mouseup 이후의 화면»을 찍는다 → 디바운스는 그 캡처에 합류만. */
+test('M8 ★mouseup 뒤에 시작된 캡처가 있으면 디바운스가 뒤따르는 캡처를 걸지 않는다(클릭 1회 = 1회)', async ({ page }) => {
+  const errs = await boot(page);
+  const out = await page.evaluate(async () => {
+    const b = document.getElementById('shp_1');
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); // 버튼의 mouseup
+    await new Promise((r) => setTimeout(r, 5));
+    const p = window.captureMosaicSnapshot(b);                           // click 핸들러의 캡처
+    await new Promise((r) => setTimeout(r, 200));                         // 디바운스(120ms) 발화
+    const callsAfterDebounce = window.__h2c.calls;
+    await window.__flush(); await window.__flush();
+    // 캡처가 끝난 «뒤» 디바운스가 와도(느린 머신) 다시 찍지 않는다.
+    return { callsAfterDebounce, calls: window.__h2c.calls, ok: await p, cap: window.isMosaicCaptured(b) };
+  });
+  expect(out).toEqual({ callsAfterDebounce: 1, calls: 1, ok: true, cap: true });
+  expect(errs).toEqual([]);
+});
+
+test('M8-b 양성대조 — 캡처가 mouseup «전»에 시작됐으면(그 사이 밑 내용이 바뀌었을 수 있음) 디바운스가 다시 찍는다', async ({ page }) => {
+  const errs = await boot(page);
+  const out = await page.evaluate(async () => {
+    const b = document.getElementById('shp_1');
+    const p = window.captureMosaicSnapshot(b);
+    await new Promise((r) => setTimeout(r, 5));
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 200));
+    await window.__flush(); await window.__flush();
+    await p;
+    return { calls: window.__h2c.calls, px: window.__px(b) };
+  });
+  expect(out.calls, '★mouseup 이전 캡처만 있는데 디바운스가 새로 찍지 않았다(밑 내용 변화 누락)').toBe(2);
+  expect(out.px).toEqual([0, 128, 0]);
+  expect(errs).toEqual([]);
+});
+
+test('M8-c 캡처가 끝난 뒤 새 mouseup(다른 편집) → 디바운스가 새로 찍는다', async ({ page }) => {
+  const errs = await boot(page);
+  const out = await page.evaluate(async () => {
+    const b = document.getElementById('shp_1');
+    const p = window.captureMosaicSnapshot(b);
+    await window.__flush(); await p;
+    await new Promise((r) => setTimeout(r, 5));
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 200));
+    await window.__flush();
+    return { calls: window.__h2c.calls, px: window.__px(b) };
+  });
+  expect(out).toEqual({ calls: 2, px: [0, 128, 0] });
+  expect(errs).toEqual([]);
+});

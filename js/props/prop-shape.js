@@ -227,14 +227,23 @@ export function showShapeProperties(block) {
   }
   // 캡처가 도는 동안 새로고침 버튼에 「캡처 중…」 — 상태는 redact-mosaic.js 의 WeakMap(런타임
   // 전용)에서 읽는다. ⛔dataset 에 pending 플래그를 두지 않는다(저장 HTML 누수).
+  // ★캡처가 실패하면(결과 false 인데 블록은 여전히 모자이크·미캡처) 조용히 원래 라벨로 돌아가지
+  //   않고 「캡처 실패 — 다시 시도」로 알린다(0918 픽스 라운드: 회색만 남고 이유를 알 수 없던 문제).
+  //   실패는 안전 쪽(회색 #4a4a4a)이라 원본은 안 보인다 — 그 사실도 title 로 알려준다.
   function _trackMosaicCapture(p) {
-    const setLabel = () => {
+    const setLabel = (result) => {
       const btn = document.getElementById('shape-redact-mosaic-refresh');
       if (!btn) return;
-      btn.textContent = window.isMosaicPending?.(block) ? '캡처 중…' : '지금 스냅샷 새로고침';
+      const pending = !!window.isMosaicPending?.(block);
+      const failed = !pending && result === false
+        && block.dataset.shapeRedactMode === 'mosaic'
+        && !window.isMosaicCaptured?.(block);
+      btn.textContent = pending ? '캡처 중…' : (failed ? '캡처 실패 — 다시 시도' : '지금 스냅샷 새로고침');
+      if (failed) btn.title = '밑 화면을 찍지 못해 회색으로 가려 둔 상태입니다(원본은 안 보임). 눌러서 다시 찍으세요.';
+      else btn.removeAttribute('title');
     };
-    setLabel();
-    if (p && typeof p.then === 'function') p.then(setLabel, setLabel);
+    setLabel(undefined);
+    if (p && typeof p.then === 'function') p.then(setLabel, () => setLabel(false));
   }
   // 저장된 프로젝트 로드 등으로 dataset과 클래스가 어긋났을 때 방어적으로 동기화
   if (canRedact) {
