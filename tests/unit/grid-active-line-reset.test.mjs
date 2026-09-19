@@ -86,3 +86,70 @@ test('소스 가드: T-009 버그B 줄 삭제 분기 조건은 그대로다(DOM 
   assert.match(del, /if \(gridSel && gridAddr && gridAddr\.li !== null && gridAddr\.li !== undefined\)/);
   assert.doesNotMatch(del, /grd-line-selected/, '줄 삭제를 DOM 마커로 게이트하면 재렌더 틈에 블럭 통삭제로 샌다');
 });
+
+/* ── 0918r2 T-058: 피그마식 «첫 클릭 = 블럭 선택, 이미 선택된 그리드의 클릭 = 줄 선택» ──
+ * 1라운드(d7a8b9b)는 «떠났다 돌아오는» 경로만 고쳤다. 선택 안 된 그리드를 처음 눌러도 누른 곳이
+ * 줄이면 곧바로 활성줄이 돼서(그리드 면적 대부분이 줄), ⌫ 가 줄 삭제 분기로 새 한 줄 칸이면 토스트만,
+ * 두 줄 이상이면 줄 하나가 조용히 지워졌다(현빈 원 증상 잔존). */
+const AT_LINE = { r: 0, c: 0, li: 1 };
+const AT_EMPTY = { r: 0, c: 1, li: null };
+
+test('0918r2 (a) 선택 안 된 그리드의 줄을 눌렀다 → null(블럭 선택)', () => {
+  assert.equal(resolve({ at: AT_LINE, prevAddr: null, insideCell: true, wasSelected: false }), null);
+  assert.equal(resolve({ at: AT_LINE, prevAddr: PREV, insideCell: true, wasSelected: false }), null);
+});
+test('0918r2 (b) 선택 안 된 그리드의 빈 칸을 눌렀다 → null(블럭 선택)', () => {
+  assert.equal(resolve({ at: AT_EMPTY, prevAddr: null, insideCell: true, wasSelected: false }), null);
+});
+test('0918r2 (c) 이미 선택된 그리드의 줄/빈 칸 → at(줄/칸 선택 — T-009 흐름)', () => {
+  assert.deepEqual(resolve({ at: AT_LINE, prevAddr: null, insideCell: true, wasSelected: true }), AT_LINE);
+  assert.deepEqual(resolve({ at: AT_EMPTY, prevAddr: null, insideCell: true, wasSelected: true }), AT_EMPTY);
+});
+test('0918r2 (d) 이미 선택된 그리드, 줄 있는 칸의 여백 → 직전 줄 유지(D5)', () => {
+  assert.deepEqual(resolve({ at: undefined, prevAddr: PREV, insideCell: true, wasSelected: true }), PREV);
+});
+test('0918r2 (e) 이미 선택된 그리드, 칸 밖 → null', () => {
+  assert.equal(resolve({ at: undefined, prevAddr: PREV, insideCell: false, wasSelected: true }), null);
+});
+test('0918r2 (f) wasSelected 생략 = 옛 동작(하위호환)', () => {
+  assert.deepEqual(resolve({ at: AT_LINE, prevAddr: null, insideCell: true }), AT_LINE);
+  assert.deepEqual(resolve({ at: undefined, prevAddr: PREV, insideCell: true }), PREV);
+  for (const wasSelected of [undefined, false, true])
+    assert.notEqual(resolve({ at: AT_LINE, prevAddr: PREV, insideCell: true, wasSelected }), undefined);
+});
+test('0918r2 (g) 소스 가드: «이미 선택됐나» 캡처는 deselectAll «전», 판정에 wasSelected 로 넘긴다', () => {
+  const src = read('js/block-drag.js');
+  const iCap = src.indexOf('const _grdWasSelected');
+  assert.ok(iCap > 0, '_grdWasSelected 캡처가 없다');
+  const iDes = src.indexOf('window.deselectAll();', iCap);
+  const iPrevDes = src.lastIndexOf('window.deselectAll();', iCap);
+  const iPrev = src.indexOf('const _grdPrevAddr');
+  assert.ok(iPrevDes < iPrev, '캡처와 _grdPrevAddr 사이에 deselectAll 이 끼면 안 된다');
+  const iRes = src.indexOf('wasSelected: _grdWasSelected', iCap);
+  assert.ok(iDes > iCap && iRes > iDes, '순서: 캡처 → deselectAll → 판정(뒤집으면 항상 false → 줄 선택 불가)');
+  /* 조상 제외 헬퍼 — 프레임 안 그리드가 «늘 이미 선택됨»으로 보이면 원 버그가 부활한다 */
+  const helper = extractFn(src, '_isSoleSelectedBlock');
+  assert.match(helper, /el\.contains\(block\)/, '조상(부모 프레임·섹션) selected 를 빼지 않는다');
+  assert.match(helper, /classList\.contains\('selected'\)/);
+});
+test('0918r2 (h) _isSoleSelectedBlock: 조상/자손 selected 는 무시, 형제 selected 는 다중선택', () => {
+  const src = read('js/block-drag.js');
+  const mk = (sel, kids = []) => {
+    const n = { sel, kids, parent: null,
+      classList: { contains: (c) => c === 'selected' && n.sel },
+      contains(o) { for (let x = o; x; x = x.parent) if (x === n) return true; return false; } };
+    kids.forEach(k => { k.parent = n; });
+    return n;
+  };
+  const all = (n) => [n, ...n.kids.flatMap(all)];
+  const run = (root, block) => {
+    const doc = { getElementById: () => ({ querySelectorAll: () => all(root).filter(x => x.sel) }) };
+    return new Function('document', `${extractFn(src, '_isSoleSelectedBlock')}; return _isSoleSelectedBlock;`)(doc)(block);
+  };
+  let g = mk(true); let fr = mk(true, [g]); let sec = mk(true, [fr]);
+  assert.equal(run(mk(false, [sec]), g), true, '프레임·섹션 selected 는 조상 → 단독 선택');
+  g = mk(false); sec = mk(true, [mk(true, [g])]);
+  assert.equal(run(mk(false, [sec]), g), false, '그리드 자신이 selected 가 아니면 false');
+  g = mk(true); const other = mk(true); sec = mk(true, [g, other]);
+  assert.equal(run(mk(false, [sec]), g), false, '형제 블럭도 selected(다중선택) → false');
+});

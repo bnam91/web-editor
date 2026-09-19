@@ -34,10 +34,14 @@ export function grdClearAllActiveLines(root) {
  *   at        : _gridAddrAt 결과(줄/빈 칸이면 주소, 아니면 undefined)
  *   prevAddr  : 클릭 «직전»(deselectAll 전) 그 블럭의 활성줄
  *   insideCell: 클릭 지점이 그 블럭의 .grd-cell 안인가
- *   → 줄/빈 칸을 눌렀으면 at. 줄 있는 칸의 여백이면 prevAddr(D5: 선택이 안 튄다).
+ *   wasSelected: 클릭 «직전»에 이 블럭 «하나만» 선택돼 있었나(0918r2 T-058, 피그마식 드릴다운).
+ *               false → 무조건 null(첫 클릭 = 블럭 선택 — ⌫ 가 블럭을 지운다).
+ *               undefined → true 로 본다(옛 호출부 하위호환).
+ *   → (wasSelected 일 때) 줄/빈 칸을 눌렀으면 at. 줄 있는 칸의 여백이면 prevAddr(D5: 선택이 안 튄다).
  *     칸 밖(테두리·패딩·gap)이면 null = 블럭 전체 선택. ★undefined 는 절대 돌려주지 않는다
  *     (undefined 는 showGridProperties 에서 «기억하던 줄 되살리기»라 이 버그의 입구였다). */
-export function grdResolveClickAddr({ at, prevAddr, insideCell } = {}) {
+export function grdResolveClickAddr({ at, prevAddr, insideCell, wasSelected } = {}) {
+  if (wasSelected === false) return null;
   if (at !== undefined) return at;
   if (insideCell) return prevAddr || null;
   return null;

@@ -45,6 +45,19 @@ import {
 function _getParentFrame(block) {
   return block.closest('.frame-block');
 }
+/* ★0918r2 grid(T-058) — «이 블럭 하나만» 선택돼 있었는가(피그마식 드릴다운 판정).
+   조상(부모 프레임·섹션)의 .selected 는 뺀다 — _restoreParentFrameSelected 가 그 둘에도 selected 를
+   붙이므로, 빼지 않으면 프레임 안 그리드는 «늘 이미 선택됨»으로 보여 첫 클릭이 다시 줄이 된다.
+   자기 자손(.selected 가 붙은 내부 요소)도 뺀다. 그 밖에 하나라도 selected 면 다중선택 → false. */
+function _isSoleSelectedBlock(block) {
+  if (!block || !block.classList.contains('selected')) return false;
+  const scope = document.getElementById('canvas') || document;
+  for (const el of scope.querySelectorAll('.selected')) {
+    if (el === block || el.contains(block) || block.contains(el)) continue;
+    return false;
+  }
+  return true;
+}
 function _isInsideUnselectedFrame(block) {
   const ss = _getParentFrame(block);
   if (!ss) return false;
@@ -1868,6 +1881,10 @@ function bindBlock(block) {
       /* ★0918 grid: deselectAll 이 활성줄을 지운다(블럭 떠남 = 줄 선택 해제) — D5(줄 있는 칸의
          여백 클릭 시 선택 유지)를 위해 «지우기 전» 값을 잡아 둔다. ⛔순서 뒤집으면 조용히 깨진다. */
       const _grdPrevAddr = showFn === 'showGridProperties' ? (window.grdGetActiveLine?.(block) || null) : null;
+      /* ★0918r2 grid(T-058, 피그마식) — 첫 클릭 = 블럭 선택, «이미 이 블럭만 선택된» 상태의 클릭 = 줄 선택.
+         이 판정도 deselectAll «전»이어야 한다(뒤에서 재면 selected 가 방금 지워져 늘 false →
+         줄 선택이 영영 불가능). ⛔순서 뒤집기 금지 — 유닛 소스 가드가 지킨다. */
+      const _grdWasSelected = showFn === 'showGridProperties' ? _isSoleSelectedBlock(block) : false;
       window.deselectAll();
       _restoreParentFrameSelected(block);
       block.classList.add('selected');
@@ -1890,8 +1907,8 @@ function bindBlock(block) {
         const _cellEl = e.target && e.target.closest ? e.target.closest('.grd-cell') : null;
         const _insideCell = !!(_cellEl && _cellEl.closest('.grid-block') === block);
         _grdAddr = window.grdResolveClickAddr
-          ? window.grdResolveClickAddr({ at: _at, prevAddr: _grdPrevAddr, insideCell: _insideCell })
-          : (_at !== undefined ? _at : (_insideCell ? _grdPrevAddr : null));
+          ? window.grdResolveClickAddr({ at: _at, prevAddr: _grdPrevAddr, insideCell: _insideCell, wasSelected: _grdWasSelected })
+          : (!_grdWasSelected ? null : (_at !== undefined ? _at : (_insideCell ? _grdPrevAddr : null)));
       }
       window[showFn]?.(block, _grdAddr);
       /* ★핸들도 «여기서» 띄운다 — 이 루프엔 호출이 아예 없어서 모달을 클릭하면
