@@ -13,6 +13,7 @@ function _escGraphHtml(v) {
    DRAG UTILITIES — pure helpers, no drag state
 ═══════════════════════════════════ */
 import { state } from './globals.js';
+import { isShapeFrame, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 
 /* ── actorId — «누가 만든 블록인가» ────────────────────────────────────────
  * 원격 동시협업에서는 두 사람의 앱이 «같은 문서»에 블록을 만든다. 기존 ID 는
@@ -222,15 +223,18 @@ function findFlowAnchorSelected(root, scoped) {
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
   // 활성 서브섹션이 있으면 그 안에 삽입 (selected 여부 관계없이)
-  const activeSS = window._activeFrame;
+  // ★도형 래퍼는 그냥 도형 — 활성이어도 그 «안»은 삽입 대상이 아니다(0918 A안, shape-frame.js SSOT).
+  //   도형 래퍼면 한 단계 위 실제 프레임으로, 없으면 null → 아래 섹션 레벨 분기.
+  const activeSS = resolveInsertFrame(window._activeFrame);
   // text-frame은 단순 wrapper — 삽입 대상이 아님 (_restoreParentFrameSelected 안전망)
   // banner-preset 외곽은 컴포넌트 단위 — 안에 직접 자식 추가 받지 않음 (drill-in으로 inner 활성화 시에만)
   if (activeSS && !activeSS.dataset?.textFrame && !activeSS.dataset?.bannerPreset && activeSS.closest('.section-block') === section) {
     // shape-block이 선택된 경우: shape frame은 최소 단위 — 내부 삽입 금지, frame 뒤에 삽입
-    const selShape = activeSS.querySelector('.shape-block.selected');
+    const selShape = activeSS.querySelector('.shape-block.selected')
+      || [...activeSS.querySelectorAll('.frame-block.selected')].find(isShapeFrame);
     if (selShape) {
-      const ref = activeSS.closest('.row') || activeSS;
-      ref.after(el);
+      // 선택 도형의 «래퍼(또는 row)» 바로 뒤 — 활성 프레임 밖으로 튀지 않는다
+      anchorUnitOf(selShape).after(el);
       return;
     }
 
@@ -270,9 +274,7 @@ function insertAfterSelected(section, el) {
   // shape-block은 최소 단위 — 내부 삽입 금지, 감싼 frame 뒤에 삽입
   const selShape = document.querySelector('.shape-block.selected');
   if (selShape && selShape.closest('.section-block') === section) {
-    const frame = selShape.closest('.frame-block');
-    const ref = (frame && (frame.closest('.row') || frame)) || selShape;
-    ref.after(el);
+    anchorUnitOf(selShape).after(el);
     return;
   }
 

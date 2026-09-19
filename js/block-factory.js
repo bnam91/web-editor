@@ -22,6 +22,7 @@ import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame } from './frame-geometry.js';
 import { getGridModel } from './blocks/grid-block.js';
 import { grdAddLine } from './props/prop-grid.js';
+import { isShapeFrame, shapeFrameOf, resolveInsertFrame } from './shape-frame.js';
 
 /* ═══════════════════════════════════
    BLOCK FACTORY — make* / add* / addSection
@@ -437,7 +438,8 @@ function addTextBlock(type, opts = {}) {
 
   // 활성 프레임(frame-block) 분기 — freeLayout / fullWidth 모두 처리
   // banner-preset 외곽은 컴포넌트 단위 — 직접 자식 받지 않음. drill-in한 inner만 활성 대상.
-  const activeSS = window._activeFrame;
+  // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
+  const activeSS = resolveInsertFrame(window._activeFrame);
   if (activeSS && !activeSS.dataset.bannerPreset) {
     window.pushHistory();
     const { block } = makeTextBlock(type);
@@ -550,7 +552,8 @@ function addBlankTextBlock(type = 'body', opts = {}) {
   }
 
   // 활성 프레임(frame-block) 분기
-  const activeSS = window._activeFrame;
+  // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
+  const activeSS = resolveInsertFrame(window._activeFrame);
   if (activeSS && !activeSS.dataset.bannerPreset) {
     window.pushHistory();
     const { block } = makeTextBlock(type, { blank: true });
@@ -904,7 +907,7 @@ function addGapBlock(height) {
     return;
   }
   // fullWidth 플로우 프레임에만 추가 — 자유배치(freeLayout) 프레임은 스킵 후 섹션 레벨로
-  if (window._activeFrame?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
+  if (resolveInsertFrame(window._activeFrame)?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
     const gb = makeGapBlock();
     if (height) gb.style.height = height + 'px';
     gb.dataset.h = height || 40;
@@ -1519,8 +1522,9 @@ function addJokerBlock(opts = {}) {
   // 이스터에그 토글 off 시 조커 블록 생성 차단 (콘솔/Figma 호출 무관)
   if (window.isEasterEggEnabled && !window.isEasterEggEnabled('jokerBlock')) return;
   // 서브섹션 활성화 상태: absolute 위치로 직접 삽입 (Figma 좌표 재현)
-  if (window._activeFrame) {
-    const ss = window._activeFrame;
+  const _jokerSS = resolveInsertFrame(window._activeFrame);
+  if (_jokerSS) {
+    const ss = _jokerSS;
     const { block } = makeJokerBlock(opts);
     block.style.position = 'absolute';
     block.style.left = `${opts.x || 0}px`;
@@ -1689,7 +1693,8 @@ function _calcFreeLayoutStackY(inner) {
 
 /* sub-section이 활성화된 경우 블록 삽입 — freeLayout(B모드) / fullWidth(플로우) 분기 */
 function _insertToFlowFrame(makeBlockFn, opts = {}) {
-  const ss = window._activeFrame;
+  // ★도형 래퍼가 활성이어도 그 «안»에 넣지 않는다 — 한 단계 위 실제 프레임(없으면 섹션 레벨 폴백)
+  const ss = resolveInsertFrame(window._activeFrame);
   if (!ss) return false;
 
   /* banner-preset 외곽은 컴포넌트 단위로 취급 — 직접 자식 추가 받지 않음.
@@ -1760,17 +1765,12 @@ function addFrameBlock(opts = {}) {
   const ss = makeFrameBlock(opts);
 
   // 활성 프레임 안에 삽입 (중첩 프레임) — fullWidth 모드 및 shape frame 제외
-  const activeFrame = !opts.fullWidth && window._activeFrame;
-  const isShapeFrame = activeFrame && !!activeFrame.querySelector(':scope > .shape-block');
-  if (activeFrame && !isShapeFrame && activeFrame.closest('.section-block') === sec) {
+  // ★도형 래퍼 판정·넣을 자리는 shape-frame.js SSOT — insertAfterSelected 도 같은 해석을 쓴다
+  const activeFrame = !opts.fullWidth && resolveInsertFrame(window._activeFrame);
+  if (activeFrame && activeFrame.closest('.section-block') === sec) {
     activeFrame.appendChild(ss);
   } else {
-    // shape frame이 활성화된 상태면 _activeFrame을 임시 해제
-    // insertAfterSelected가 내부적으로 _activeFrame을 참조해 shape wrapper 안에 삽입하는 것을 방지
-    const _prev = window._activeFrame;
-    if (isShapeFrame) window._activeFrame = null;
     insertAfterSelected(sec, ss);
-    if (isShapeFrame) window._activeFrame = _prev;
   }
 
   if (!opts.fullWidth) window.bindFrameDropZone?.(ss);
@@ -1807,6 +1807,10 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   )];
   // text-frame 래퍼는 그룹 대상이 아님 (안의 text-block이 실제 선택 단위)
   selected = selected.filter(el => el.dataset?.textFrame !== 'true');
+  // ★도형은 «래퍼째» 한 단위다(0918 A안, T-057) — shape-block 을 그 도형 래퍼로 바꿔 묶는다.
+  //   안 바꾸면 ① freeLayout 분기에서 closest 가 도형 래퍼 자신을 잡아 새 그룹/프레임이 래퍼 «안»에 생기고
+  //   ② flow 분기에서 row 단위가 shape-block 이 돼 새 프레임이 래퍼 안에 들어가고 도형이 삭제됐다.
+  selected = [...new Set(selected.map(el => shapeFrameOf(el) || el))];
   // 다른 선택 항목을 포함하는 컨테이너(드릴인된 부모 프레임/그룹)는 제외 — 리프 선택만 그룹화
   selected = selected.filter(el => !selected.some(o => o !== el && el.contains(o)));
   if (selected.length < 1) {
@@ -1826,16 +1830,19 @@ function wrapSelectedBlocksInFrame(opts = {}) {
 
   // ── freeLayout 내부 묶기: X/Y 좌표 유지 ──────────────────────────────────
   // 선택된 블록들이 동일한 freeLayout 프레임 안에 있으면 절대좌표 기반으로 처리
-  const parentFreeFrame = selected[0].closest('.frame-block[data-free-layout]');
+  // ★«부모» 자유배치 프레임 — parentElement 에서 찾는다(선택 항목 자신이 자유배치 프레임/도형 래퍼면
+  //   b.closest 가 자기 자신을 잡아 새 프레임을 자기 안에 만든다).
+  const _parentFree = b => b.parentElement?.closest('.frame-block[data-free-layout]') || null;
+  const parentFreeFrame = _parentFree(selected[0]);
   const allInSameFreeFrame = parentFreeFrame &&
-    selected.every(b => b.closest('.frame-block[data-free-layout]') === parentFreeFrame);
+    selected.every(b => _parentFree(b) === parentFreeFrame);
 
   if (allInSameFreeFrame) {
     // 각 블록의 absolute wrapper(text-frame 또는 블록 자체) 수집
     const wrappers = [];
     selected.forEach(b => {
       const w = b.closest('.frame-block[data-text-frame]') ||
-                b.closest('.frame-block[data-shape-frame]') ||
+                shapeFrameOf(b) ||
                 (b.style.position === 'absolute' ? b : null);
       if (w && !wrappers.includes(w)) wrappers.push(w);
     });
@@ -1897,13 +1904,29 @@ function wrapSelectedBlocksInFrame(opts = {}) {
 
   // ── 섹션 레벨(flow) 블록 묶기: 기존 stack 방식 ───────────────────────────
   const sectionInner = sec.querySelector('.section-inner');
-  const childrenInOrder = [...sectionInner.children];
   const rows = [];
   selected.forEach(b => {
     const row = b.classList.contains('gap-block') ? b : (b.closest('.frame-block[data-text-frame]') || b.closest('.row') || b);
     if (row && !rows.includes(row)) rows.push(row);
   });
-  rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
+  // 문서 순서 정렬 — section-inner 직속이 아닌 단위(merged-part 등)도 -1 로 맨 앞에 끼지 않게
+  rows.sort((a, b) => (a === b ? 0 : (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)));
+  // 도형 래퍼의 보이는 가로 위치(섹션 기준) — 래퍼째 옮길 때 left 로 보존
+  const _innerRect = sectionInner?.getBoundingClientRect?.();
+  const _scale = (_innerRect && sectionInner.offsetWidth) ? (_innerRect.width / sectionInner.offsetWidth) || 1 : 1;
+  const _shapeLeft = new Map();
+  rows.forEach(row => {
+    const sfs = isShapeFrame(row) ? [row] : [...row.querySelectorAll('.frame-block')].filter(isShapeFrame);
+    sfs.forEach(w => {
+      const r = w.getBoundingClientRect();
+      _shapeLeft.set(w, _innerRect ? Math.round((r.left - _innerRect.left) / _scale) : 0);
+    });
+  });
+  // row 안에서 옮길 블록 — 도형 래퍼 «안»의 shape-block 은 래퍼째 옮기므로 따로 뽑지 않는다
+  const _insideShapeFrame = (x, row) => {
+    for (let p = x.parentElement; p && p !== row; p = p.parentElement) if (isShapeFrame(p)) return true;
+    return false;
+  };
 
   // 선택 블록들의 총 높이 계산 (프레임 높이 결정)
   const GAP = 0;
@@ -1927,11 +1950,25 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   rows.forEach(row => {
     const rowH = row.offsetHeight || 60;
     const isGapRow = row.classList.contains('gap-block');
-    const blocks = isGapRow ? [row] : [...row.querySelectorAll(BLOCK_SEL)];
+    const isShapeRow = isShapeFrame(row);
+    const blocks = (isGapRow || isShapeRow) ? [row]
+      : [...row.querySelectorAll(BLOCK_SEL)].filter(x => !_insideShapeFrame(x, row));
     blocks.forEach(block => {
       block.style.position = 'absolute';
-      block.style.left = '0px';
       block.style.top = stackY + 'px';
+      if (isShapeFrame(block)) {
+        // 도형 래퍼 — 크기 유지, 보이는 가로 위치 유지(width:100% 로 늘리지 않는다)
+        const l = _shapeLeft.get(block) || 0;
+        block.style.left = l + 'px';
+        block.style.margin = '0';
+        block.dataset.offsetX = String(l);
+        block.dataset.offsetY = String(stackY);
+        block.style.transform = '';
+        block.classList.remove('selected');
+        ss.appendChild(block);
+        return;
+      }
+      block.style.left = '0px';
       block.style.width = '100%';
       block.style.transform = '';
       block.classList.remove('selected');
@@ -1939,7 +1976,7 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       ss.appendChild(block);
     });
     stackY += rowH + GAP;
-    if (!isGapRow) row.remove();
+    if (!isGapRow && !isShapeRow) row.remove();
   });
 
   window.bindFrameDropZone?.(ss);
@@ -2055,11 +2092,14 @@ function makeShapeBlock(type = 'rectangle') {
   block.dataset.type = 'shape';
   block.dataset.shapeType = type;
   block.dataset.shapeColor = '#cccccc';
-  block.dataset.shapeStrokeWidth = '3';
+  // ★기본 테두리 0(현빈 0918) — 채움 도형만. line/arrow 는 선 자체가 stroke 라 0이면 «안 보이는 선» → 3 유지.
+  //   기존 도형은 dataset 을 그대로 읽으므로 불변(신규만).
+  const sw = def.fill ? 0 : 3;
+  block.dataset.shapeStrokeWidth = String(sw);
   block.id = genId('shp');
-  const innerSVG = def.dynamic ? _shapeInnerSVG(type, 3) : def.inner;
+  const innerSVG = def.dynamic ? _shapeInnerSVG(type, sw) : def.inner;
   block.innerHTML = `<svg class="shape-svg" viewBox="${def.vb}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"
-    style="color:#cccccc;stroke-width:3;fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">
+    style="color:#cccccc;stroke-width:${sw};fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">
     ${innerSVG}
   </svg>`;
   return { block };
@@ -2100,10 +2140,10 @@ function addShapeBlock(type = 'rectangle') {
   bindBlock(block);
 
   // 삽입 대상 결정: 활성 프레임 → 선택된 프레임 → 섹션 레벨
-  const activeFrame = window._activeFrame;
-  const isActiveShapeFrame = activeFrame && !!activeFrame.querySelector(':scope > .shape-block');
+  // ★도형 래퍼 안에 도형을 넣지 않는다 — 활성이 도형 래퍼면 한 단계 위 실제 프레임(SSOT)
+  const activeFrame = resolveInsertFrame(window._activeFrame);
 
-  if (activeFrame && !isActiveShapeFrame && activeFrame.closest('.section-block') === sec) {
+  if (activeFrame && activeFrame.closest('.section-block') === sec) {
     // 활성 프레임 안에 삽입
     if (activeFrame.dataset.freeLayout === 'true') {
       const stackY = _calcFreeLayoutStackY(activeFrame);
@@ -2114,8 +2154,8 @@ function addShapeBlock(type = 'rectangle') {
     activeFrame.appendChild(ss);
   } else {
     const selSS = document.querySelector('.frame-block.selected');
-    const isSelShapeFrame = selSS && !!selSS.querySelector(':scope > .shape-block');
-    if (selSS && !isSelShapeFrame && selSS.closest('.section-block') === sec) {
+    const isSelShapeFrame = isShapeFrame(selSS);
+    if (selSS && !isSelShapeFrame && !selSS.dataset.textFrame && selSS.closest('.section-block') === sec) {
       // 선택된 프레임 안에 삽입
       if (selSS.dataset.freeLayout === 'true') {
         const stackY = _calcFreeLayoutStackY(selSS);
@@ -2126,6 +2166,8 @@ function addShapeBlock(type = 'rectangle') {
       selSS.appendChild(ss);
     } else {
       // 섹션 레벨에 삽입 (shape frame은 다른 ss 중첩 금지)
+      // insertAfterSelected 가 _activeFrame 을 resolveInsertFrame 으로 해석하므로 도형 래퍼 안엔 안 들어간다.
+      // 단 «일반 프레임»이 활성이면서 섹션 레벨로 온 경우(다른 섹션 등)는 기존처럼 활성 해제 후 삽입.
       const prevActiveSS = window._activeFrame;
       window._activeFrame = null;
       insertAfterSelected(sec, ss);
@@ -4232,7 +4274,14 @@ function updateShapeBlock(blockId, partial = {}) {
     const SHAPE_DEFS_REF = (typeof window !== 'undefined' && window.SHAPE_DEFS) ? window.SHAPE_DEFS : null;
     if (SHAPE_DEFS_REF && SHAPE_DEFS_REF[partial.shapeType]) {
       const def = SHAPE_DEFS_REF[partial.shapeType];
-      const sw  = Number(block.dataset.shapeStrokeWidth ?? 3) || 0;
+      let sw  = Number(block.dataset.shapeStrokeWidth ?? 3) || 0;
+      // ★채움 도형 기본 테두리가 0이 됐다(0918) — line/arrow(선 자체가 stroke)로 바꿀 때 0이면
+      //   «안 보이는 선»이 된다 → 3으로 올린다(명시 strokeWidth 가 같이 오면 아래에서 덮어씀).
+      if (!def.fill && sw <= 0) {
+        sw = 3;
+        block.dataset.shapeStrokeWidth = '3';
+        svg.style.strokeWidth = '3';
+      }
       if (block.dataset.shapeGradient && typeof window._clearShapeGradient === 'function') {
         try { window._clearShapeGradient(block); } catch (_) {}
       }

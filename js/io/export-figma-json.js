@@ -613,7 +613,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         type: 'shape', id: el.id || '',
         shapeType: el.dataset.shapeType || 'rect',
         color: el.dataset.shapeColor || '#cccccc',
-        strokeWidth: parseInt(el.dataset.shapeStrokeWidth) || 1,
+        // ★0 보존(0918 기본 테두리 0) — `|| 1` 이면 0이 1이 돼 피그마에 1px 테두리가 생긴다. 누락/NaN 만 1.
+        strokeWidth: (() => { const n = parseInt(el.dataset.shapeStrokeWidth); return Number.isFinite(n) ? n : 1; })(),
         rotation: parseInt(el.dataset.shapeRotation) || 0,
         width: parseFloat(el.style.width) || 75,
         height: parseFloat(el.style.height) || 75,
