@@ -127,7 +127,9 @@ test('M8 톱니바퀴 「디버깅」 탭: 있고 · MVP 비활성 목록에 없
 
 /* ── 이벨류에이터 픽스 라운드(2026-09-19): «띄울 때 여는» 디버깅 길(CDP·inspect) ──
    ★main.js 의 차단 블록 «원문»을 잘라 가짜 app·process 로 «실행»한다 — 모양이 아니라 행동을 잰다. */
-function runLaunchBlock({ packaged, argv = ['/A/GODITOR'], switches = [], env = {}, admin = false }) {
+/* ★0920 pkgguard: asar = 스톡 Electron 으로 app.asar 를 띄움(app.isPackaged=false, asar 안에서 로드됨).
+   판정 헬퍼는 main.js `_isPackagedBuild` «원문»을 같이 떼어 주입한다(_pkgbuild.js). */
+function runLaunchBlock({ packaged, asar = false, argv = ['/A/GODITOR'], switches = [], env = {}, admin = false }) {
   const start = MAIN.indexOf('(function _blockDebugLaunchInPackaged()');
   assert.ok(start > 0, '차단 블록이 main.js 에 있다');
   const end = MAIN.indexOf('})();', start);
@@ -142,8 +144,9 @@ function runLaunchBlock({ packaged, argv = ['/A/GODITOR'], switches = [], env = 
   const proc = { argv, execArgv: [], env, exit: () => { calls.procExit++; throw new Exit(); } };
   const req = (p) => (p === './main/devtools-gate' ? require(path.join(ROOT, 'main', 'devtools-gate.js')) : require(p));
   const quiet = { error() {}, warn() {}, log() {} };
-  const fn = new Function('app', 'process', 'require', 'isAdminAuthorized', 'console', src);
-  try { fn(app, proc, req, () => admin, quiet); } catch (e) { if (!(e instanceof Exit)) throw e; }
+  const fn = new Function('app', 'process', 'require', 'isAdminAuthorized', 'console', '_isPackagedBuild', src);
+  const { makePkgBuild } = require('./_pkgbuild.js');
+  try { fn(app, proc, req, () => admin, quiet, makePkgBuild({ appIsPackaged: packaged, asar })); } catch (e) { if (!(e instanceof Exit)) throw e; }
   return calls;
 }
 
@@ -164,6 +167,24 @@ test('M9 ★배포판을 --remote-debugging-port/--inspect 로 띄우면 «뜨�
   // 0919 QA: 운영자 admin(인자+토큰+admin.allow — 셋 다 사용자 손)이어도 배포판 CDP 는 종료
   c = runLaunchBlock({ packaged: true, argv: ['/A/GODITOR', '--remote-debugging-port=9222', 'admin'], admin: true });
   assert.strictEqual(c.procExit, 1, 'admin.allow 자가 발급으로 CDP 를 열면 안 된다');
+});
+
+test('M9b ★0920 pkgguard: 스톡 Electron + app.asar(app.isPackaged=false) 로 CDP·--inspect 를 켜면 종료 · NODE_OPTIONS --require 도', () => {
+  let c = runLaunchBlock({ packaged: false, asar: true, argv: ['/r/electron', '/tmp/x/app.asar', '--remote-debugging-port=9502'] });
+  assert.strictEqual(c.procExit, 1, '★스톡 Electron + asar + CDP 가 열렸다');
+  c = runLaunchBlock({ packaged: false, asar: true, argv: ['/r/electron', '/tmp/x/app.asar', '--inspect=9229'] });
+  assert.strictEqual(c.procExit, 1);
+  c = runLaunchBlock({ packaged: false, asar: true, argv: ['/r/electron', '/tmp/x/app.asar'], env: { NODE_OPTIONS: '--require /tmp/evil.js' } });
+  assert.strictEqual(c.procExit, 1, '퓨즈 없는 런타임의 NODE_OPTIONS 코드 주입');
+  // 퓨즈 있는 정식 배포본은 NODE_OPTIONS 를 무시한다 → 전역 --require 가 있어도 앱은 뜬다(오탐 방지)
+  c = runLaunchBlock({ packaged: true, argv: ['/A/GODITOR'], env: { NODE_OPTIONS: '--require /corp/tool.js' } });
+  assert.strictEqual(c.procExit + c.appExit, 0, '정식 배포본이 안 먹는 NODE_OPTIONS 때문에 안 떴다');
+  // 스톡 Electron + asar + 평범한 실행 → 안 끈다
+  c = runLaunchBlock({ packaged: false, asar: true, argv: ['/r/electron', '/tmp/x/app.asar'] });
+  assert.strictEqual(c.procExit + c.appExit, 0);
+  // 음성대조: dev 폴더 로드는 CDP·NODE_OPTIONS 그대로
+  c = runLaunchBlock({ packaged: false, asar: false, argv: ['e', '.', '--remote-debugging-port=9334'], env: { NODE_OPTIONS: '--require x' } });
+  assert.strictEqual(c.procExit + c.appExit, 0, 'dev 가 막혔다');
 });
 
 test('M10 차단 블록 자리: path·fs 선언 뒤, userData 이사·크래시 기록기·단일인스턴스 잠금보다 앞', () => {

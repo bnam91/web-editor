@@ -89,8 +89,9 @@ payload(모두 필수, 하나라도 어긋나면 거부):
 3. 대상 기기의 userData 에 `operator.allow` 로 둔다.
    - mac: `~/Library/Application Support/GODITOR/operator.allow`
    - win: `%APPDATA%\GODITOR\operator.allow`
-4. `GODITOR admin` 으로 실행. 안 먹으면 화면에 「운영자(admin) 모드를 켜지 못했습니다」 안내가 한 번 뜨고(사유 포함),
-   로그에 `[admin] 배포판 운영자 허가 거부 — operator.allow: <why>` 가 남는다. 옛 파일·토큰이 있으면 「무효」라고 함께 적힌다.
+4. `GODITOR admin` 으로 실행. 안 먹으면 화면에 「운영자 권한이 없는 실행입니다」 안내가 한 번 뜨고(화면엔 사유 «코드»만 —
+   `(코드: expired)` 처럼. 파일명·경로·변수명은 화면에 안 적는다: 누구나 보는 화면이 우회 지도가 되지 않게),
+   로그에 `[admin] 배포판 운영자 허가 거부 — operator.allow: <why>` 가 상세와 함께 남는다. 옛 파일·토큰이 있으면 로그에 「무효」라고 함께 적힌다.
    파일은 BOM 이 붙어 있어도 된다(PowerShell 5 `Out-File -Encoding UTF8` 대응).
    why: `no_file · bad_json · incomplete · unknown_kid · bad_sig · bad_payload · expired · not_yet · ttl_too_long · machine_mismatch · no_machine`
 
@@ -99,3 +100,18 @@ payload(모두 필수, 하나라도 어긋나면 거부):
 - asar 를 풀어 코드를 고쳐 다시 묶는 공격은 못 막는다(entitlement 와 같은 한계).
 - 오프라인에서 시계를 되돌려 exp 를 넘기는 것도 못 막는다. 31일 상한이 피해 폭을 묶는다.
 - 기기 묶기는 유출된 파일을 다른 PC 에서 그대로 쓰는 것을 막는 데까지다. VM 복제·UUID 스푸핑에는 약하다.
+- **폐기(revoke) 수단이 없다.** 한 번 발급한 operator.allow 는 exp 까지(최대 31일) 유효하다 — 서버에 묻지 않는
+  오프라인 판정이라 「이 파일 취소」를 앱에 알릴 길이 없다. 그리고 세션 중에 부여된 접근(`_editorAccessGranted`,
+  메모된 기기 ID)은 파일을 지워도 앱을 끌 때까지 유지된다. 유출되면 할 수 있는 조치는 «공개키(kid) 교체 후 재배포»
+  뿐이다(OPERATOR_PUBLIC_KEYS 에서 그 kid 를 빼고 새 kid 로 재발급 → 그 버전 이후로만 옛 파일이 무효). 그래서 `--days` 를 짧게.
+- **배포판 판정(0920 pkgguard).** 「배포판인가」는 `app.isPackaged`(실행파일 이름) «또는» «app.asar 안에서 로드됨»으로
+  본다(main.js `_isPackagedBuild` · services/authService.js `packagedVerdict`). 스톡 Electron 으로 `app.asar admin` 을
+  띄우거나 윈도우에서 GODITOR.exe 를 electron.exe 로 복사해도 배포판으로 판정돼 이 서명 파일이 필요하다.
+  ★배포 순서: 운영자 PC 에 서명 operator.allow 를 «먼저» 깔고 앱을 배포한다. 「스톡 Electron + asar + admin」으로
+  운영자 모드를 쓰던 경로가 있었다면 이번부터 막힌다(의도 — 릴리스 노트에 적는다).
+- **남는 우회 ① asar 를 풀어 폴더로 실행.** `asar extract` 후 스톡 electron 으로 그 «폴더»를 띄우면 코드를 한 줄도
+  안 고쳐도 dev 로 판정된다(asar 경로도, 앱 바이너리 이름도 없다). 보강안(미적용 — 결정 대기): electron-builder
+  `build.extraMetadata` 로 package.json 에 배포 표지를 넣고 판정에 포함 → 우회에 «파일 수정»이 필요해진다.
+- **남는 우회 ② 퓨즈 없는 스톡 Electron.** `NODE_OPTIONS=--require x.js`·`--inspect-brk` 는 main.js 보다 «먼저» 돈다 —
+  앱 코드로는 원리상 못 막는다. 부팅 차단(`debugLaunchViolations`)은 순진한 시도에 대한 문턱일 뿐이다.
+  **이 로컬 게이트들은 문턱을 올릴 뿐이고, 라이선스의 최종 판정은 서버다.**

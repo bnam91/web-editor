@@ -67,7 +67,8 @@ function hexEqual(a, b) {
  *   (ELECTRON_RUN_AS_NODE·NODE_OPTIONS·--inspect·SIGUSR1 은 package.json build.electronFuses 로도 끈다 —
  *    이 함수는 퓨즈가 안 먹은 빌드를 위한 «두 번째 자물쇠»다.)
  * 순수 함수 — 무엇이 걸렸는지 목록만 돌려준다. 끌지 말지는 부르는 쪽(main.js 최상위)이 정한다.
- * @param {{argv?:string[], execArgv?:string[], hasSwitch?:(s:string)=>boolean, env?:object, inspectorUrl?:()=>string|undefined}} o
+ * @param {{argv?:string[], execArgv?:string[], hasSwitch?:(s:string)=>boolean, env?:object, inspectorUrl?:()=>string|undefined, nodeOptionsHonored?:boolean}} o
+ *   nodeOptionsHonored — 퓨즈 없는 런타임(스톡 Electron)인가. true 면 NODE_OPTIONS 의 --require/-r/--import/--loader 도 잡는다
  *   inspectorUrl — require('inspector').url. 값이 있으면 메인 Node 디버거가 «이미 켜져» 있다(인자 형태와 무관)
  * @returns {string[]} 걸린 항목 이름(없으면 빈 배열)
  */
@@ -87,6 +88,12 @@ function debugLaunchViolations(o = {}) {
   try { if (typeof o.inspectorUrl === 'function' && o.inspectorUrl()) hits.add('inspector-active'); } catch (_) {}
   const nodeOpts = String((o.env && o.env.NODE_OPTIONS) || '');
   if (/(^|\s)--(inspect|debug)/.test(nodeOpts)) hits.add('NODE_OPTIONS');
+  /* ★0920 pkgguard: 스톡 Electron(퓨즈 없음)으로 app.asar 를 띄우면 NODE_OPTIONS 의 코드 주입(--require 등)이
+     main.js «보다 먼저» 돈다 — 앱 코드로는 원리상 못 막는다. 여기서 끄는 건 «순진한 시도»에 대한 문턱일 뿐이다
+     (tools/operator-allow/README.md «한계»). 퓨즈 켠 정식 배포본은 NODE_OPTIONS 자체를 무시한다 —
+     ⇒ o.nodeOptionsHonored(= 퓨즈가 없는 런타임)일 때만 본다. 정식 배포본 사용자가 전역 NODE_OPTIONS 에
+       --require 를 둔 환경(사내 도구 등)에서 «안 먹는 값 때문에» 앱이 안 뜨는 오탐을 막는다. */
+  if (o.nodeOptionsHonored && /(^|\s)(--require|-r|--import|--loader|--experimental-loader)(=|\s|$)/.test(nodeOpts)) hits.add('NODE_OPTIONS-preload');
   return [...hits];
 }
 
@@ -107,6 +114,8 @@ function devToolsMenuItem({ isMac, allowed, toggle }) {
 /**
  * @param {object} deps
  *   app                  — { isPackaged }
+ *   isPackaged()         — ★0920 pkgguard: main.js `_isPackagedBuild`(Electron 답 OR «asar 에서 로드됨»).
+ *                          app.isPackaged 와 OR — 조이는 쪽으로만. 없으면 app.isPackaged 만 본다.
  *   readAuth()           — auth.json 레코드 또는 null
  *   authVerdict(record)  — entitlement.classify 결과 ({pass, payload?})
  *   isAdminAuthorized()  — 기존 운영자 admin 빌드(인자+토큰) 판정
@@ -139,7 +148,12 @@ function createDevToolsGate(deps = {}) {
 
   /* ★GODITOR_FORCE_PACKAGED_GATE=1 — dev 에서 «배포판처럼 잠그는» 테스트 훅.
      조이는 쪽으로만 작동한다(dev 를 잠글 뿐, 배포판을 풀지 못한다). */
-  function realPackaged() { try { return !!(d.app && d.app.isPackaged); } catch (_) { return true; } }
+  function realPackaged() {
+    try {
+      if (d.app && d.app.isPackaged) return true;
+      return typeof d.isPackaged === 'function' ? d.isPackaged() !== false : false;
+    } catch (_) { return true; }
+  }
   function packaged() { return realPackaged() || (d.env && d.env.GODITOR_FORCE_PACKAGED_GATE === '1'); }
 
   function adminEmailSignedIn() {

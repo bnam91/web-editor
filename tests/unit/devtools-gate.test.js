@@ -53,6 +53,20 @@ test('①b dev 라도 GODITOR_FORCE_PACKAGED_GATE=1 이면 잠긴다(조이는 �
   assert.strictEqual(g.reason(), 'locked');
 });
 
+test('①c ★0920 pkgguard: app.isPackaged=false 라도 isPackaged()(asar 에서 로드됨)=true 면 잠긴다 · 관리자 로그인은 여전히 허용', () => {
+  const g = G.createDevToolsGate({ app: { isPackaged: false }, isPackaged: () => true, env: {} });
+  assert.strictEqual(g.reason(), 'locked', '★스톡 Electron + asar 에서 개발자 도구가 열렸다');
+  assert.strictEqual(g.state().packaged, true);
+  const admin = G.createDevToolsGate({ app: { isPackaged: false }, isPackaged: () => true, env: {}, ...signedIn('coq3820@gmail.com') });
+  assert.strictEqual(admin.reason() === 'locked', false, '관리자 계정 예외는 그대로');
+  // 음성대조: 둘 다 false = dev
+  assert.strictEqual(G.createDevToolsGate({ app: { isPackaged: false }, isPackaged: () => false, env: {} }).reason(), 'dev');
+  // 조이는 쪽으로만: isPackaged()=false 가 app.isPackaged=true 를 «풀지» 못한다
+  assert.strictEqual(G.createDevToolsGate({ app: { isPackaged: true }, isPackaged: () => false, env: {} }).reason(), 'locked');
+  // 헬퍼가 throw → 막는 쪽
+  assert.strictEqual(G.createDevToolsGate({ app: { isPackaged: false }, isPackaged: () => { throw new Error('x'); }, env: {} }).reason(), 'locked');
+});
+
 test('② 배포판 + 비로그인 → 잠김', () => {
   const { gate } = mk();
   assert.strictEqual(gate.isAllowed(), false);

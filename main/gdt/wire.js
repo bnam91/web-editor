@@ -93,7 +93,12 @@ function _focusFirstWindow() {
 
 /* 여러 인스턴스를 «일부러» 띄우는 경우인가. ⛔패키징 빌드에는 예외가 없다. */
 function _allowMultiInstance() {
-  if (app.isPackaged) return false;
+  /* ★0920 pkgguard: app.isPackaged(실행파일 이름) 대신 authService 의 한 벌짜리 답 — 스톡 Electron 으로
+     app.asar 를 띄워도 배포판이다. ★이 함수는 authService.applyRuntime «전»에 불릴 수 있지만, 그때의
+     기본값이 이미 런타임 판정(⒜ asar 안 ⒝ 앱 바이너리 이름 = Electron 의 isPackaged 규칙 포함)이다. */
+  let packaged = true;
+  try { packaged = require('../../services/authService').isPackaged() !== false; } catch (_) { packaged = true; }
+  if (packaged) return false;
   if (String(process.env.GODITOR_ALLOW_MULTI || '') === '1') return true;
   return (process.argv || []).some(a => typeof a === 'string' && a.startsWith('--remote-debugging-port'));
 }
