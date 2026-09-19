@@ -79,18 +79,33 @@ const MOVE_EPS_PX = 2;   // 이만큼 안 움직이면 «클릭»(history 안 �
 
 // 타겟 rect(그라데이션이 실제 칠해지는 영역: banner02=블록 전체, comparison=강조 칼럼)을
 // 블록 로컬 px 박스로 환산. 캔버스 줌만 보정(블록 로컬 좌표계 = 줌 적용 전 px).
+// ★0918r2(T-060) 줌 전환: window.currentZoom 은 applyZoom 이 «즉시» 새 값으로 바꾸지만 화면의
+//   #canvas-scaler 는 transition .15s 동안 보간 중이다 → 그 사이에 재면 화면 px ÷ «새» 줌 = 틀린 박스.
+//   그래서 «지금 실제로 적용된» 배율(_hostScale)로 나눈다. 도형(bbox)은 크기를 레이아웃 박스
+//   (offsetWidth/Height = 캔버스 단위)에서 바로 쓴다 — 어댑터 rect() 는 크기를 currentZoom 으로 곱해
+//   주므로 전환 중엔 실측 배율과 어긋난다(어댑터 계약 «화면 px» 는 그대로 둔다).
+function _hostScale(blockEl, host) {
+  const h = host || _hostFor(blockEl);
+  if (h && h.offsetWidth > 0) {
+    const w = h.getBoundingClientRect().width;
+    if (w > 0) return w / h.offsetWidth;
+  }
+  const z = Number(window.currentZoom);
+  return (Number.isFinite(z) && z > 0 ? z : 100) / 100;
+}
 function _computeBox(blockEl, t) {
-  const zoom = (window.currentZoom || 100) / 100;
+  const zoom = _hostScale(blockEl);
   const cr = t?.rect?.();
   const br = blockEl.getBoundingClientRect();
   if (!cr || !cr.width || !br.width) {
     return { x: 0, y: 0, w: blockEl.offsetWidth || 1, h: blockEl.offsetHeight || 1 };
   }
+  const layoutSize = t?.space === 'bbox' && blockEl.offsetWidth > 0 && blockEl.offsetHeight > 0;
   return {
     x: (cr.left - br.left) / zoom,
     y: (cr.top  - br.top)  / zoom,
-    w: cr.width  / zoom,
-    h: cr.height / zoom,
+    w: layoutSize ? blockEl.offsetWidth  : cr.width  / zoom,
+    h: layoutSize ? blockEl.offsetHeight : cr.height / zoom,
   };
 }
 function _applyBox(overlay, box) {
@@ -349,6 +364,7 @@ function _bindChipDrag(block, chip) {
     }, (moved) => {
       chip.classList.remove('is-dragging');
       refs.dragging = false;
+      refs.portalKey = null; // 드래그 중 막아 둔 동기화를 한 번 돌린다(줌이 바뀌었을 수 있음)
       refs.dragIdx = null;
       if (moved) {
         refs.selectedIdx = _gm().sortStopsKeepSelection(refs.model.stops, refs.model.stops.indexOf(stop));
@@ -397,6 +413,7 @@ function _bindEndDrag(block, handle, which) {
       _emit(block, 'gradient-line:change', _changeDetail(refs, css, false));
     }, (moved) => {
       refs.dragging = false;
+      refs.portalKey = null; // 드래그 중 막아 둔 동기화를 한 번 돌린다(줌이 바뀌었을 수 있음)
       if (!moved) return;
       const css = _cssFor(refs.model);
       _rememberView(refs, css);
@@ -431,8 +448,7 @@ function _syncPortal(refs) {
   const host = portal.parentElement;
   if (!host) return;
   const hr = host.getBoundingClientRect();
-  const s = (host.offsetWidth > 0 && hr.width > 0) ? hr.width / host.offsetWidth
-    : ((Number(window.currentZoom) > 0 ? Number(window.currentZoom) : 100) / 100);
+  const s = _hostScale(block, host);
   const br = block.getBoundingClientRect();
   const bw = block.offsetWidth || br.width / s;
   const bh = block.offsetHeight || br.height / s;
@@ -447,7 +463,10 @@ function _syncPortal(refs) {
   }
   const cx = (br.left + br.width / 2 - hr.left) / s;
   const cy = (br.top + br.height / 2 - hr.top) / s;
-  const key = [cx, cy, bw, bh, lin].map(v => typeof v === 'number' ? v.toFixed(2) : v).join('|');
+  // ★0918r2(T-060): 배율(s)도 키에 넣는다 — 줌만 바뀌면 cx·cy·bw·bh 가 캔버스 단위라 그대로여서
+  //   재렌더가 안 돌고, JS 가 줌을 곱해 둔 칩-선 간격(CHIP_GAP_PX × invZoom)이 옛 줌에 멈췄다
+  //   (9504 실측: ⌘0 40→100 뒤 칩 거리 40px = 16×2.5). 전환 .15s 동안은 매 프레임, 끝 프레임에서 정확값.
+  const key = [cx, cy, bw, bh, lin, s.toFixed(4)].map(v => typeof v === 'number' ? v.toFixed(2) : v).join('|');
   if (refs.portalKey === key) return false;
   refs.portalKey = key;
   portal.style.left = (cx - bw / 2) + 'px';
