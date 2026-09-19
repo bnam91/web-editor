@@ -13,13 +13,24 @@ const path = require('path');
 const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 const BLOCKS_CSS = fs.readFileSync(path.join(REPO, 'css/editor-blocks.css'), 'utf8');
+// 실앱 .section-inner 클립 규칙 원문(editor-layout.css) — 하네스가 자기 복사본으로 거짓 그린을 내지 않게
+const LAYOUT_CSS = fs.readFileSync(path.join(REPO, 'css/editor-layout.css'), 'utf8');
+const SECTION_INNER_RULE = (LAYOUT_CSS.match(/^\.section-inner\s*\{[^}]*\}/m) || [''])[0];
+if (!/overflow-x:\s*clip/.test(SECTION_INNER_RULE)) throw new Error('editor-layout.css .section-inner 규칙을 못 찾음');
 const MODEL_JS = fs.readFileSync(path.join(REPO, 'js/props/gradient-model.js'), 'utf8');
 const OVERLAY_JS = fs.readFileSync(path.join(REPO, 'js/gradient-line-overlay.js'), 'utf8');
 
 const SHAPE_CSS = 'linear-gradient(90deg, #ff0000 0%, #00ff00 50%, #0000ff 100%)';
 const BN2_CSS = 'linear-gradient(45deg, #ff5e3a 0%, #1aa6ff 100%)';
 
-async function boot(page, { shapeRot = 0, zoom = 100, sibling = false } = {}) {
+// section: 실앱처럼 #canvas-wrap(overflow:auto) > #canvas-scaler > .section-block > .section-inner(overflow-x:clip)
+// portal:false = 포털 host(#canvas-scaler) 없음 → 오버레이가 블록 «안»에 붙는 옛 방식(음성대조용)
+async function boot(page, { shapeRot = 0, zoom = 100, sibling = false, section = false, portal = true } = {}) {
+  const scalerId = portal ? 'canvas-scaler' : 'canvas-scaler-noportal';
+  const secOpen = section ? '<div id="canvas-wrap"><div id="' + scalerId + '" class="scaler">' : '<div id="' + scalerId + '" class="scaler">';
+  const secClose = section ? '</div></div>' : '</div>';
+  const innerOpen = section ? '<div class="section-inner" id="secinner" style="position:relative;width:1100px;height:900px;padding:0 72px;box-sizing:border-box;">' : '';
+  const innerClose = section ? '</div>' : '';
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/__harness.html') {
@@ -28,7 +39,9 @@ async function boot(page, { shapeRot = 0, zoom = 100, sibling = false } = {}) {
         body: `<!doctype html><html><head><meta charset="utf-8">
           <style>${BLOCKS_CSS}</style>
           <style>body{margin:0}.section-block{position:relative;}
-            #canvas-scaler{position:relative;transform-origin:0 0;transform:scale(${zoom / 100});}</style>
+            .scaler{position:relative;transform-origin:0 0;transform:scale(${zoom / 100});}
+            #canvas-wrap{position:relative;overflow:auto;padding:40px;width:1300px;height:900px;box-sizing:border-box;}
+            ${SECTION_INNER_RULE}</style>
           <script>
             window.currentZoom = ${zoom};
             document.documentElement.style.setProperty('--inv-zoom', String(100 / ${zoom}));
@@ -37,8 +50,8 @@ async function boot(page, { shapeRot = 0, zoom = 100, sibling = false } = {}) {
             window.renderBanner02 = (b) => { b.style.background = b.dataset.bg; };
           </script>
           <script type="module" src="/js/gradient-line-overlay.js"></script>
-          </head><body><div id="canvas-scaler">
-          <div class="section-block" style="width:1100px;height:900px;">
+          </head><body>${secOpen}
+          <div class="section-block" style="width:1100px;height:900px;">${innerOpen}
             <div class="frame-block" style="position:absolute;left:200px;top:120px;width:200px;height:200px;">
               <div class="shape-block selected" id="shp" data-shape-type="rectangle"
                    ${shapeRot ? `data-shape-rotation="${shapeRot}" style="transform:rotate(${shapeRot}deg)"` : ''}
@@ -53,7 +66,7 @@ async function boot(page, { shapeRot = 0, zoom = 100, sibling = false } = {}) {
               <div class="banner02-block selected" id="bn2" style="position:relative;overflow:hidden;width:800px;height:200px;background:${BN2_CSS}"
                    data-bg="${BN2_CSS}"></div>
             </div>
-          </div></div>
+          ${innerClose}</div>${secClose}
           </body></html>`,
       });
     }
@@ -481,5 +494,120 @@ test('B15 포털 — 블록이 움직이면 바가 따라가고, 블록이 DOM �
   await page.evaluate(() => document.getElementById('shp').parentElement.remove());
   await page.waitForTimeout(80);
   expect(await page.evaluate(() => document.querySelectorAll('.grad-line-portal, .grad-line-overlay').length)).toBe(0);
+  expect(errs).toEqual([]);
+});
+
+// ── 0918r2 (T-060) ─────────────────────────────────────────────────────────────
+// 끝 원을 섹션(.section-inner overflow-x:clip) 오른쪽 경계 +80 화면px 까지 끌고, 그 자리를 probe.
+async function dragEndPastSection(page, id) {
+  const pos = await page.evaluate((id) => {
+    const b = document.getElementById(id);
+    const e = b._gradLine.end.getBoundingClientRect();
+    const sec = document.getElementById('secinner').getBoundingClientRect();
+    return { x: e.left + e.width / 2, y: e.top + e.height / 2, secRight: sec.right };
+  }, id);
+  const tx = pos.secRight + 80;
+  await page.mouse.move(pos.x, pos.y);
+  await page.mouse.down();
+  await page.mouse.move(tx, pos.y, { steps: 10 });
+  await page.mouse.up();
+  return page.evaluate(({ id, tx, y, secRight }) => {
+    const b = document.getElementById(id);
+    const g = b._gradLine;
+    const hit = document.elementFromPoint(tx, y);
+    return {
+      hitEnd: !!hit?.closest?.('.grad-line-end[data-grad-handle="end"]'), hitCls: hit?.className || hit?.tagName,
+      lineRight: g.lineEl.getBoundingClientRect().right, secRight, tx, y,
+      css: b.dataset.shapeColor || b.dataset.bg,
+    };
+  }, { id, tx, y: pos.y, secRight: pos.secRight });
+}
+
+test('B16 ★섹션(.section-inner overflow-x:clip) 밖으로 끈 끝 원 — 잘리지 않고 다시 잡혀 값이 또 바뀐다(줌 40·100, 도형·배너02), 포털 끄면 빨강', async ({ page }) => {
+  for (const zoom of [40, 100]) {
+    for (const id of ['shp', 'bn2']) {
+      const errs = await boot(page, { zoom, section: true });
+      await page.evaluate((id) => window.showGradientLine(document.getElementById(id)), id);
+      const d1 = await dragEndPastSection(page, id);
+      const tag = `zoom ${zoom} ${id}`;
+      expect(d1.lineRight, `${tag}: 선 오른쪽 끝이 섹션 밖`).toBeGreaterThan(d1.secRight + 60);
+      expect(d1.hitEnd, `${tag}: 섹션 밖 끝 원을 elementFromPoint 로 못 잡음(hit=${d1.hitCls})`).toBe(true);
+      const m = /(-?\d+)%\)$/.exec(d1.css);
+      expect(Number(m && m[1]), `${tag}: 끝 스탑이 100% 초과로 재계산(클램프 금지) — ${d1.css}`).toBeGreaterThan(100);
+      // 그 자리에서 다시 끌기
+      await page.mouse.move(d1.tx, d1.y);
+      await page.mouse.down();
+      await page.mouse.move(d1.tx, d1.y + 50 * zoom / 100, { steps: 6 });
+      await page.mouse.up();
+      const css2 = await page.evaluate((id) => { const b = document.getElementById(id); return b.dataset.shapeColor || b.dataset.bg; }, id);
+      expect(css2, `${tag}: 두 번째 드래그가 먹지 않았다`).not.toBe(d1.css);
+      expect(errs).toEqual([]);
+    }
+  }
+  // 음성대조 — 포털 없이 블록 안에 붙이면(옛 방식) 같은 조작에서 섹션 클립에 잘린다
+  const errs = await boot(page, { zoom: 100, section: true, portal: false });
+  await page.evaluate(() => window.showGradientLine(document.getElementById('bn2')));
+  const neg = await dragEndPastSection(page, 'bn2');
+  expect(neg.hitEnd, '음성대조: 포털 끄면 섹션 밖 끝 원이 잘려야 한다(하네스가 클립을 재현하는지)').toBe(false);
+  expect(errs).toEqual([]);
+});
+
+// 하네스 줌 바꾸기(applyZoom 흉내: currentZoom·--inv-zoom 즉시, scaler transform)
+async function setHarnessZoom(page, zoom) {
+  await page.evaluate((zoom) => {
+    window.currentZoom = zoom;
+    document.documentElement.style.setProperty('--inv-zoom', String(100 / zoom));
+    document.querySelector('.scaler').style.transform = `scale(${zoom / 100})`;
+  }, zoom);
+}
+const raf2 = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+function barGeom(page, id) {
+  return page.evaluate((id) => {
+    const b = document.getElementById(id);
+    const g = b._gradLine;
+    const c = (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+    const P0 = c(g.start), P1 = c(g.end);
+    const dx = P1.x - P0.x, dy = P1.y - P0.y, L = Math.hypot(dx, dy);
+    const dists = g.chips.map(ch => { const C = c(ch); return Math.abs((C.x - P0.x) * dy - (C.y - P0.y) * dx) / L; });
+    const or = g.overlay.getBoundingClientRect(), br = b.getBoundingClientRect();
+    return { or: { l: or.left, t: or.top, w: or.width, h: or.height }, br: { l: br.left, t: br.top, w: br.width, h: br.height, r: br.right, cy: br.top + br.height / 2 },
+      P0, P1, dists };
+  }, id);
+}
+
+test('B17 ★재선택 없이 줌만 바꿔도(40→100) 바가 다시 계산된다 — 박스 일치·끝 원 위치·칩-선 간격 16 화면px', async ({ page }) => {
+  const errs = await boot(page, { zoom: 40 });
+  await page.evaluate(() => window.showGradientLine(document.getElementById('shp')));
+  const g40 = await barGeom(page, 'shp');
+  for (const d of g40.dists) expect(Math.abs(d - 16), `줌 40 칩 간격 ${d}`).toBeLessThanOrEqual(1);
+  await setHarnessZoom(page, 100);
+  await raf2(page);
+  const g = await barGeom(page, 'shp');
+  for (const k of ['l', 't', 'w', 'h']) expect(Math.abs(g.or[k] - g.br[k]), `overlay ${k}`).toBeLessThan(1);
+  expect(Math.abs(g.P0.x - g.br.l)).toBeLessThan(1);
+  expect(Math.abs(g.P1.x - g.br.r)).toBeLessThan(1);
+  expect(Math.abs(g.P1.y - g.br.cy)).toBeLessThan(1);
+  for (const d of g.dists) expect(Math.abs(d - 16), `줌 100 칩 간격 ${d}(옛 코드 = 40 = 16×2.5)`).toBeLessThanOrEqual(1);
+  expect(errs).toEqual([]);
+});
+
+test('B18 ★줌 전환(transition .15s) 도중에 show 가 불려도 — 전환이 끝나면 박스가 블록과 일치하고, 끝 원 드래그가 커서 자리에 머문다', async ({ page }) => {
+  const errs = await boot(page, { zoom: 40 });
+  for (const id of ['bn2', 'shp']) {
+    await setHarnessZoom(page, 40);
+    await page.evaluate(() => { document.querySelector('.scaler').style.transition = 'none'; });
+    await raf2(page);
+    await page.evaluate(() => { document.querySelector('.scaler').style.transition = 'transform .15s linear'; });
+    await page.evaluate((id) => window.showGradientLine(document.getElementById(id)), id);
+    await setHarnessZoom(page, 100);
+    await page.waitForTimeout(50);
+    await page.evaluate((id) => window.showGradientLine(document.getElementById(id)), id);
+    await page.waitForTimeout(300);
+    const g = await barGeom(page, id);
+    for (const k of ['l', 't', 'w', 'h']) expect(Math.abs(g.or[k] - g.br[k]), `${id} 전환 뒤 overlay ${k}: ${g.or[k]} vs ${g.br[k]}`).toBeLessThan(1);
+    const d = await dragEnd(page, id, 'end', -60, 50);
+    expect(Math.hypot(d.after.end.x - d.cursor.x, d.after.end.y - d.cursor.y), `${id} 끝 원 = 커서 자리`).toBeLessThan(1.5);
+    await page.evaluate((id) => window.hideGradientLine(document.getElementById(id)), id);
+  }
   expect(errs).toEqual([]);
 });
