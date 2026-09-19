@@ -414,3 +414,171 @@ test('T11 도형: 이미지 탭에서 사진을 올리면 = 도형 면이 그 �
   expect(after).toEqual({ img: false, fill: null, rectFill: 'rgb(51, 102, 255)' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ── T-059 2라운드: 재오픈 시드 (wireColorField gradientValue) ──
+   실앱 9503 실측(수정 전, int/0918-requests @6c1442c): 프레임·에셋·비교(featured 아닌 칼럼)에 그라데이션을 칠하고
+   다른 블럭 갔다가 다시 선택 → 피커가 Solid 탭으로 열리고, 그라데이션 탭을 누르면 «지금 색 100%→0%» 기본값이
+   사용자 그라데이션을 덮었다(기록 1). 배너02 는 탭은 맞았지만 Solid 복귀 색이 폴백 #f3f4f6 였다.
+   여기선 «패널 재렌더» = 필드 HTML 을 새로 그리고 wireColorField 를 다시 부르는 것 — 앱의 재선택과 같은 경로. */
+async function renderSeededField(page, { gradientValue, hex = '#ffffff' }) {
+  await page.evaluate(({ gradientValue, hex }) => {
+    window.__bg = gradientValue;
+    window.__gradCommits = 0;
+    window.__gradCalls = 0;
+    const host = document.getElementById('plain-field');
+    host.innerHTML = window.__cfHTML({ idPrefix: 'sf', hex, gradientCss: /gradient/.test(gradientValue) ? gradientValue : '' });
+    window.__wireCF('sf', {
+      gradientValue,
+      onApply: (c) => { window.__bg = c; },
+      onGradient: (css, commit) => { window.__gradCalls++; window.__bg = css; if (commit) { window.__gradCommits++; window.pushHistory(); } },
+      onCommit: () => window.pushHistory(),
+    });
+  }, { gradientValue, hex });
+}
+const popGrad = (page) => page.evaluate(() => {
+  const p = document.querySelector('.goya-cp-popover');
+  return {
+    type: p.querySelector('[data-el="gradType"]').value,
+    angle: p.querySelector('[data-el="gradAngleNum"]').value,
+    thumbs: p.querySelectorAll('.goya-cp-grad-thumb').length,
+    selHex: p.querySelector('[data-el="gradStopHex"]').value,
+  };
+});
+
+test('T12 ★재선택 후 재오픈: 그라데이션 탭으로 열리고, 탭 재클릭 = 덮어쓰기 0·기록 0, Solid = 첫 스탑 색(기록 1)', async ({ page }) => {
+  const errs = await boot(page);
+  const G = 'linear-gradient(45deg, #ff0000 0%, #0000ff 100%)';
+  await renderSeededField(page, { gradientValue: G });
+  const h0 = await hist(page);
+  await openSwatchOf(page, 'sf-color');
+  expect(await activeTab(page), '재선택 후 피커가 Solid 탭으로 열렸다(원래 버그)').toBe('gradient');
+  expect(await popGrad(page)).toEqual({ type: 'linear', angle: '45', thumbs: 2, selHex: 'FF0000' });
+  expect(await page.evaluate(() => window.__bg), '열기만 했는데 블럭 값이 바뀌었다').toBe(G);
+  expect(await hist(page) - h0).toBe(0);
+
+  await tab(page, 'gradient').click();
+  expect(await page.evaluate(() => window.__bg), '그라데이션 탭이 사용자 그라데이션을 기본값으로 덮었다(원래 버그)').toBe(G);
+  expect(await page.evaluate(() => window.__gradCommits)).toBe(0);
+  expect(await hist(page) - h0).toBe(0);
+
+  await tab(page, 'solid').click();
+  const bg = await page.evaluate(() => window.__bg);
+  expect(bg, `Solid 복귀가 첫 스탑 색이 아니다: ${bg}(#ffffff/#000000 = 호출측 폴백이 칠해진 것)`).toBe('#ff0000');
+  expect(await hist(page) - h0).toBe(1);
+  // 단색으로 갔으면 시드는 버려진다 → 다시 열면 Solid
+  expect(await page.evaluate(() => document.getElementById('sf-color').dataset.cpGradient || null)).toBeNull();
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T12r radial·반투명 첫 스탑·3스탑: 열기만 해선 값 바이트 불변, Solid = 첫 스탑 색+그 투명도', async ({ page }) => {
+  const errs = await boot(page);
+  const G = 'radial-gradient(circle, rgba(255,0,0,0.500) 0%, #00aa00 50%, #0000ff 100%)';
+  await renderSeededField(page, { gradientValue: G });
+  const h0 = await hist(page);
+  await openSwatchOf(page, 'sf-color');
+  expect(await activeTab(page)).toBe('gradient');
+  const pg = await popGrad(page);
+  expect(pg.type).toBe('radial');
+  expect(pg.thumbs).toBe(3);
+  expect(await page.evaluate(() => window.__bg)).toBe(G);
+  await tab(page, 'gradient').click();
+  expect(await page.evaluate(() => window.__bg)).toBe(G);
+  await tab(page, 'solid').click();
+  expect(await page.evaluate(() => window.__bg)).toBe('rgba(255,0,0,0.5)');
+  expect(await hist(page) - h0).toBe(1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T12b 양성대조: 단색 값(또는 값 없음)이면 Solid 탭으로 열리고, 그라데이션 탭 = 기본값 «지금 색 100%→0%»(기록 1)', async ({ page }) => {
+  const errs = await boot(page);
+  await renderSeededField(page, { gradientValue: '#123456', hex: '#123456' });
+  const h0 = await hist(page);
+  await openSwatchOf(page, 'sf-color');
+  expect(await activeTab(page)).toBe('solid');
+  await tab(page, 'gradient').click();
+  expect(await page.evaluate(() => window.__bg)).toBe('linear-gradient(90deg, #123456 0%, rgba(18,52,86,0.000) 100%)');
+  expect(await hist(page) - h0).toBe(1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T12h 그라데이션 시드 필드에서 hex 칸에 단색을 치면 시드가 버려진다(다음 재오픈이 Solid)', async ({ page }) => {
+  await boot(page);
+  await renderSeededField(page, { gradientValue: 'linear-gradient(45deg, #ff0000 0%, #0000ff 100%)' });
+  expect(await page.evaluate(() => !!document.getElementById('sf-color').dataset.cpGradient)).toBe(true);
+  await page.fill('#sf-hex', '00FF00');
+  expect(await page.evaluate(() => window.__bg)).toBe('#00ff00');
+  expect(await page.evaluate(() => document.getElementById('sf-color').dataset.cpGradient || null)).toBeNull();
+});
+
+test('T13 툴팁: 탭을 누른 뒤 계속 호버 중이면 설명이 숨는다(드롭존 가림 방지) — 떠났다 돌아오면 다시 뜬다', async ({ page }) => {
+  const errs = await boot(page);
+  await openShape(page, 'shpA');
+  await openSwatchOf(page, 'shape-color-color');
+  const tipOf = (n) => page.evaluate((name) => {
+    const cs = getComputedStyle(document.querySelector(`.goya-cp-tab[data-tab="${name}"]`), '::after');
+    return { display: cs.display, content: cs.content };
+  }, n);
+  await tab(page, 'image').hover();
+  expect((await tipOf('image')).content).toMatch(/채우기/);
+  await tab(page, 'image').click();
+  const hidden = await tipOf('image');
+  expect(hidden.display === 'none' || hidden.content === 'none', `누른 뒤에도 설명이 떠 있다: ${JSON.stringify(hidden)}`).toBe(true);
+  // 드롭존과 겹치는지(사람 눈 기준): 숨었으니 겹칠 게 없다 — 떠나고 다시 오면 복귀
+  await tab(page, 'solid').hover();
+  await tab(page, 'image').hover();
+  const back = await tipOf('image');
+  expect(back.display).not.toBe('none');
+  expect(back.content).toMatch(/채우기/);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 픽스 라운드(이벨류 high): 피커를 «열기만» 해도 블럭 그라데이션이 바뀌던 회귀 ──
+   실앱 9503: updateFrameBlock(bg:'linear-gradient(to right, #ff0000, #0000ff)') → 스와치만 클릭 →
+   dataset.bg = 'linear-gradient(180deg, #000000 0%, #ff0000 100%, #0000ff 100%)'(기록 0).
+   에셋 'radial-gradient(ellipse at top left, …)' → 'radial-gradient(circle, …)'. */
+for (const [name, G] of [
+  ['to right', 'linear-gradient(to right, #ff0000, #0000ff)'],
+  ['ellipse at', 'radial-gradient(ellipse at top left, #ff0000 0%, #0000ff 100%)'],
+]) {
+  test(`T14 ★피커 문법이 아닌 그라데이션(${name}): 열기만 해선 값 바이트 불변·onGradient 0회, 시드 없음 = Solid 탭`, async ({ page }) => {
+    const errs = await boot(page);
+    await renderSeededField(page, { gradientValue: G });
+    const h0 = await hist(page);
+    await openSwatchOf(page, 'sf-color');
+    await page.waitForTimeout(50);
+    expect(await page.evaluate(() => window.__bg), '열기만 했는데 블럭 값이 바뀌었다(원래 버그)').toBe(G);
+    expect(await page.evaluate(() => window.__gradCalls)).toBe(0);
+    expect(await activeTab(page)).toBe('solid');
+    expect(await hist(page) - h0).toBe(0);
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
+
+test('T15 ★피커 문법 그라데이션도 열 때 onGradient 0회(시드는 UI만 — 되쓰기 없음)', async ({ page }) => {
+  const errs = await boot(page);
+  await renderSeededField(page, { gradientValue: 'linear-gradient(45deg, #ff0000 0%, #0000ff 100%)' });
+  await openSwatchOf(page, 'sf-color');
+  await page.waitForTimeout(50);
+  expect(await activeTab(page)).toBe('gradient');
+  expect(await page.evaluate(() => window.__gradCalls), '열기만 했는데 onGradient 가 불렸다(블럭 값 재직렬화)').toBe(0);
+  // 양성대조: 스탑을 실제로 바꾸면 onGradient 는 온다(계측기 살아 있음)
+  await page.evaluate(() => {
+    const p = document.querySelector('.goya-cp-popover');
+    const hx = p.querySelector('[data-el="gradStopHex"]');
+    hx.value = '00FF00'; hx.dispatchEvent(new Event('input', { bubbles: true })); hx.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(80);
+  expect(await page.evaluate(() => window.__gradCalls)).toBeGreaterThan(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T16 (이벨류 low) 첫 스탑이 완전 투명이면 Solid 복귀 = 보이는 다음 스탑 색(투명색 아님)', async ({ page }) => {
+  const errs = await boot(page);
+  const G = 'linear-gradient(90deg, rgba(255,255,255,0.000) 0%, #336699 100%)';
+  await renderSeededField(page, { gradientValue: G });
+  await openSwatchOf(page, 'sf-color');
+  expect(await activeTab(page)).toBe('gradient');
+  await tab(page, 'solid').click();
+  expect(await page.evaluate(() => window.__bg)).toBe('#336699');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

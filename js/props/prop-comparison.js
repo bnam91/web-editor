@@ -180,6 +180,7 @@ export function showComparisonProperties(block) {
     ta?.addEventListener('input', () => { const c = getCols(); if (c[idx]) { c[idx].title = ta.value; saveCols(c); rerender(); } });
     ta?.addEventListener('change', commit);
     wireColorField('cmp-c' + idx + 'Bg', {
+      gradientValue: col.bg,   // T-059 2라운드: featured 아닌 칼럼도 재오픈 시드(전엔 featured 한 칸만 부수효과로 받았다)
       onApply: v => { const c = getCols(); if (c[idx]) { c[idx].bg = v; saveCols(c); rerender(); } },
       onGradient: (css, isCommit) => {
         const c = getCols(); if (c[idx]) { c[idx].bg = css; saveCols(c); rerender(); if (isCommit) commit(); }

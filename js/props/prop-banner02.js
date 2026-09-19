@@ -378,6 +378,7 @@ export function showBanner02Properties(block, activeIdxArg) {
 
   // Background color/gradient
   wireColorField('bn2-bg', {
+    gradientValue: block.dataset.bg,   // T-059 2라운드: 재오픈 시드를 부수효과(bindGradientLinePicker)에 기대지 않는다 + Solid 복귀 = 첫 스탑
     onApply: (c) => { block.dataset.bg = c; rerender(); window.scheduleAutoSave?.(); },
     onGradient: (css, c) => {
       block.dataset.bg = css; rerender(); window.scheduleAutoSave?.(); if (c) commit();

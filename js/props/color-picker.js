@@ -6,6 +6,8 @@
    - 기존 <input type="color"> 스와치 클릭 가로채기
 ═══════════════════════════════════ */
 
+import { parseGradientStrict } from './gradient-model.js';
+
 /* ─── 유틸: color math ─── */
 function hexToRgb(hex) {
   if (!hex || hex[0] !== '#') return { r: 0, g: 0, b: 0 };
@@ -783,8 +785,12 @@ function _wireEvents(pop) {
   // openPicker가 _pop에 직접 dispatch하는 시드 이벤트를 수신 (_pop은 body 직속이라 bubbling 미사용)
   pop.addEventListener('goya-cp:seed-gradient', (e) => {
     if (!e.detail) return;
-    const ok = _seedGradientUI(e.detail);
+    // T-059 2라운드(이벨류 high): 열기만 해선 방출하지 않는다(emit:false). 전엔 _emitGradientNow(false) →
+    //   onGradient 가 블럭 값을 «피커가 다시 만든 CSS»로 덮었다 — 피커 문법이 아닌 값('to right'·'ellipse at …')은
+    //   열기만 해도 모양이 바뀌었다(기록 0, autosave 만). 캔버스 바 선택 칩 동기는 값 변경 없는 select 이벤트로만.
+    const ok = _seedGradientUI(e.detail, { emit: false });
     if (ok) {
+      _targetInput?.dispatchEvent(new CustomEvent('goya-cp:gradient-select', { bubbles: true, detail: { selectedIdx: _sortedSelIdx() } }));
       // gradient 탭으로 «보여주기만» — 커밋 없음(열기만 해선 기록이 안 쌓인다)
       if (_state) _state.mode = 'gradient';
       _showTab('gradient');
@@ -832,9 +838,13 @@ function _wireEvents(pop) {
   }
   pop.querySelectorAll('.goya-cp-tab').forEach(tab => {
     tab.addEventListener('click', () => {
+      // T-059 2라운드: 누른 뒤에도 호버 설명이 떠 있으면 바로 아래 패널(이미지 드롭존 등)을 가린다 →
+      //   누르면 숨기고, 마우스가 탭을 떠났다 돌아오면 다시 보인다. (disabled 탭은 click 이 안 와서 설명이 그대로 — 의도)
+      tab.classList.add('tip-hide');
       if (tab.disabled) return;
       _activateTab(tab.dataset.tab);
     });
+    tab.addEventListener('mouseleave', () => tab.classList.remove('tip-hide'));
   });
 }
 
@@ -876,6 +886,7 @@ function openPicker(swatch) {
   // 탭 능력 게이트 + solid 탭으로 초기화(UI만)
   const modes = _applyModeGate(nativeInp);
   _showTab('solid');
+  _pop.querySelectorAll('.goya-cp-tab.tip-hide').forEach(t => t.classList.remove('tip-hide'));  // 새로 열면 설명 다시 허용
   // 이미지 드롭존은 스와치마다 새로 — 이전 스와치에 올린 사진이 남아 보이지 않게
   const imgZone = _els && _els.imgZone;
   if (imgZone && imgZone.classList.contains('has-image')) {
@@ -1030,12 +1041,45 @@ export function colorFieldHTML({ idPrefix, hex, alpha = 100, placeholder = '', g
   `;
 }
 
-export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit, onGradient } = {}) {
+export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit, onGradient, gradientValue } = {}) {
   const picker = document.getElementById(`${idPrefix}-color`);
   const hex    = document.getElementById(`${idPrefix}-hex`);
   const alpha  = document.getElementById(`${idPrefix}-alpha`);
   const swatch = picker?.closest('.prop-color-swatch');
   if (!picker || !hex || !alpha || !swatch) return null;
+
+  /* T-059 2라운드 — 재오픈 시드를 «필드마다 제각각»이 아니라 여기 한 곳에서 채운다.
+     패널을 다시 그리면(= 블럭 재선택) native input 이 새로 생겨 dataset.cpGradient 가 비어 있다 →
+     피커가 Solid 탭으로 열리고, 그라데이션 탭을 누르면 «지금 색 100%→0%» 기본값이 사용자 그라데이션을 덮었다
+     (프레임·에셋·비교 칼럼 실측). gradientValue = 블럭의 «지금» 배경 CSS. 그라데이션이면:
+       · cpGradient 시드 → 그라데이션 탭으로 열리고, 같은 탭 재클릭 = 기록 0
+       · picker/hex/alpha = 첫 스탑 색 → Solid 복귀 색 = 첫 스탑(피그마·도형 폴백과 같음). 이게 없으면
+         호출측 폴백(#ffffff·#f3f4f6·#000000)이 칠해졌다.
+     호출측이 이미 cpGradient 를 채웠으면(도형 방식) 존중한다. ⛔여기선 onApply/onGradient 를 부르지 않는다(열기만 해선 문서 불변). */
+  let _seedAlpha = null;
+  if (onGradient && gradientValue) {
+    // ★엄격 파싱: 피커 문법이 아닌 그라데이션('to right'·'ellipse at …'·이름색 등)은 시드하지 않는다 —
+    //   잘못 읽힌 모델로 열면 스탑 하나만 건드려도 사용자 값이 엉뚱하게 다시 쓰인다(이벨류 high). 시드 없음 = Solid 탭.
+    const g = parseGradientStrict(String(gradientValue));
+    if (g && Array.isArray(g.stops) && g.stops.length >= 2) {
+      // Solid 복귀 색 = «보이는» 첫 스탑(투명도>0). 첫 스탑이 완전 투명(예: 흰 0%→흰 100%)이면 그걸 고르면
+      //   Solid 복귀가 투명색이 된다(이벨류 low) → 보이는 첫 스탑, 전부 투명이면 첫 스탑 색을 불투명으로.
+      const sorted = g.stops.slice().sort((a, b) => a.offset - b.offset);
+      const _op = s => Math.max(0, Math.min(1, s.opacity == null ? 1 : s.opacity));
+      const first = sorted.find(s => _op(s) > 0) || sorted[0];
+      const fh = _hex6(first.color);
+      const fa = _op(first) > 0 ? Math.round(_op(first) * 100) : 100;
+      if (!picker.dataset.cpGradient) {
+        try { picker.dataset.cpGradient = JSON.stringify({ type: g.type, angle: g.angle, stops: g.stops }); } catch (_) {}
+      }
+      picker.value = fh;
+      hex.value = fh.replace('#', '').toUpperCase();
+      picker.dataset.cpAlpha = String(fa);
+      alpha.value = String(fa);
+      _seedAlpha = fa;
+      swatch.style.background = String(gradientValue);
+    }
+  }
 
   // 탭 능력 선언 — 호출측이 이미 정했으면 존중, 아니면 onGradient 유무로 자동(color-picker 게이트가 읽음)
   if (!picker.dataset.cpModes) picker.dataset.cpModes = onGradient ? 'solid,gradient' : 'solid';
@@ -1059,7 +1103,7 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
     });
   }
 
-  let _a = initialAlpha;
+  let _a = _seedAlpha != null ? _seedAlpha : initialAlpha;
   // alpha=0(투명)인 상태에서 색만 바꾸면 결과가 여전히 투명이라 적용 안 보임.
   // 사용자가 alpha 슬라이더를 명시적으로 건드리지 않은 경우에만 자동 복귀.
   let _userTouchedAlpha = false;
@@ -1080,6 +1124,8 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
   };
   const apply = () => {
     const c = build();
+    // 단색이 칠해지는 순간 그라데이션 시드는 낡은 것 — hex/alpha 칸 입력도 여기로 온다(picker input 만 지우던 빈틈)
+    delete picker.dataset.cpGradient;
     swatch.style.background = c;
     onApply?.(c);
   };
