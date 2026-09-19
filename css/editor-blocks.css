@@ -3042,6 +3042,22 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
     calc(-1px * var(--tfx-intensity)) 0 calc(1px * var(--tfx-intensity)) rgba(255,0,128,0.6);
 }
 
+/* 0919r3 textshadow: 글자 그라데이션 + 그림자/네온 — 그림자를 글자 «뒤»로.
+   text-shadow 는 배경(=그라데이션) 위에 칠해져 페이드를 덮는다 → 같은 목록을 filter 로 옮긴다
+   (한 겹 = drop-shadow, 여러 겹 = 겹이 누적되지 않는 SVG 필터 url(#tgs-f-…)).
+   클래스·변수는 js/props/text-block-color.js syncTextGradShadow 만 붙이고 뗀다(원본 그림자 값은 그대로 보존). */
+.tgs {
+  text-shadow: none !important;
+  filter: var(--tgs-filter) !important;
+}
+/* 편집 중 «펼친 선택»이 있는 동안: filter 가 선택 하이라이트 사각형까지 흐려 번지므로 잠시 원래 text-shadow 로
+   (html.tgs-selecting 은 text-block-color.js 의 selectionchange 가 단다 — 캔버스 저장본에 안 실림). */
+html.tgs-selecting .tgs:focus,
+html.tgs-selecting .tgs:focus-within {
+  filter: none !important;
+  text-shadow: var(--tgs-src) !important;
+}
+
 /* 2. Metallic — silver/gold linear-gradient + 입체감 */
 .text-effect.tfx-metallic {
   background: linear-gradient(180deg,

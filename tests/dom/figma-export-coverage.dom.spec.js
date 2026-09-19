@@ -488,3 +488,43 @@ test('FX-6 ★메탈릭 효과 블럭엔 style.fill 없음 · 그라데이션 �
   expect(r.g.style.color, '폴백 색이 인라인 마지막 단색(#cc2244)이다').toBe('rgb(17, 170, 51)');
   expect(r.fx.style.fill, '캔버스는 메탈릭인데 Figma 엔 사용자 그라데이션이 실린다').toBeUndefined();
 });
+
+/* ── FX-7 (0919r3 textshadow): 그라데이션 글자의 그림자는 캔버스에선 .tgs(drop-shadow)로 그리고 computed text-shadow 는 none 이다.
+ * Figma 업로드 JSON 의 style.textShadow 는 그래도 «원본 목록»이어야 한다(안 그러면 Figma 에서 그림자가 사라진다).
+ * ★음성대조: 같은 그림자를 건 «단색» 블럭은 원래대로 computed text-shadow 가 실린다. */
+test('FX-7 ★그라데이션 + 그림자 블럭의 style.textShadow = 원본 목록(비지 않음) · 단색 블럭과 같은 값', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    for (const k of ['pushHistory', 'markDirty', 'scheduleAutoSave', 'updateLayerPanel', 'buildLayerPanel', 'showToast', 'deselectAll'])
+      if (typeof window[k] !== 'function') window[k] = () => {};
+    await import('/js/props/text-block-color.js');
+    const canvas = document.getElementById('canvas');
+    const sec = document.createElement('div'); sec.className = 'section-block'; sec.id = 'sec_tg7';
+    const inner = document.createElement('div'); inner.className = 'section-inner'; inner.style.width = '860px';
+    sec.appendChild(inner); canvas.appendChild(sec);
+    window.getSelectedSection = () => sec; window._activeFrame = null;
+    await window.addTextBlock('body');
+    await window.addTextBlock('body');
+    const tbs = [...sec.querySelectorAll('.text-block')];
+    if (tbs.length < 2) return { made: tbs.length };
+    tbs.forEach(tb => { tb.querySelector('.tb-body').style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)'; });
+    window.applyTextGradient(tbs[0], { css: 'linear-gradient(90deg, #cc2244 0%, rgba(204,34,68,0) 100%)' });
+    const el0 = tbs[0].querySelector('.tb-body');
+    const computed = getComputedStyle(el0).textShadow;
+    const ps = { bg: '#eeeeee', padX: 0 };
+    window.__state.pages = [{ canvas: canvas.innerHTML, pageSettings: ps }];
+    window.__state.pageSettings = ps;
+    const json = window.buildFigmaExportJSON(null);
+    const all = [];
+    const walk = (bs) => (bs || []).forEach(b => { if (b && b.type === 'text') all.push(b); if (b && b.columns) b.columns.forEach(c => walk(c.blocks)); if (b && b.children) walk(b.children); if (b && b.blocks) walk(b.blocks); });
+    (json.sections || []).filter(s => s.id === 'sec_tg7').forEach(s => walk(s.blocks));
+    const byId = (id) => all.find(b => b.id === id);
+    return { made: tbs.length, tgs: el0.classList.contains('tgs'), computed, g: byId(tbs[0].id), plain: byId(tbs[1].id) };
+  });
+  expect(r.made, '★양성대조: 텍스트 블럭을 못 만들었다').toBe(2);
+  expect(r.tgs, '★전제: 그라데이션 + 그림자인데 .tgs 가 안 붙었다').toBe(true);
+  expect(r.computed, '★전제: 캔버스 computed text-shadow 가 none 이 아니다').toBe('none');
+  expect(r.plain.style.textShadow, '★음성대조: 단색 블럭 그림자가 안 실렸다').toBe('rgba(0, 0, 0, 0.5) 2px 2px 4px');
+  expect(r.g.style.textShadow, '그라데이션 글자의 그림자가 Figma JSON 에서 사라졌다').toBe(r.plain.style.textShadow);
+  expect(r.g.style.fill && r.g.style.fill.kind).toBe('gradient');
+});

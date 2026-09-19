@@ -78,6 +78,8 @@ function clearTextEffect(textEl) {
   textEl.style.removeProperty('--tfx-intensity');
   textEl.style.removeProperty('--tfx-grain');
   textEl.style.removeProperty('filter');
+  // 0919r3 textshadow: 네온이 빠졌으면 그라데이션 글자의 drop-shadow 파생값도 맞춘다(.tgs 는 인라인 filter 가 아니라 안 지워진다)
+  window.syncTextGradShadow?.(textEl);
 }
 
 function applyTextEffect(tb, opts) {
@@ -125,6 +127,8 @@ function applyTextEffect(tb, opts) {
 
   // dataset에 영구 저장 (autoSave가 outerHTML 직렬화하므로 data-* 보존)
   tb.dataset.textEffect = JSON.stringify(cfg);
+  // 0919r3 textshadow: 네온 글로우 + 글자 그라데이션 → 글로우를 글자 «뒤»(drop-shadow 체인)로
+  window.syncTextGradShadow?.(textEl);
 }
 
 // 저장/로드 사이클에서 dataset.textEffect 만 남고 클래스가 빠진 경우 복구

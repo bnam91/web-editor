@@ -14,6 +14,7 @@
  *     (tests/unit/text-gradient-solid-writers.test.mjs 가 contentEl.style.color 대입 전수를 감시).
  */
 import { parseGradient } from './gradient-model.js';
+import { textShadowToDropShadowFilter, parseShadowList, shadowFilterId, svgShadowFilterMarkup } from './text-shadow-filter.js';
 
 // rgb/rgba/#rrggbb → #rrggbb (프로퍼티 UI 동기화용). 파싱 실패 시 null.
 function _toHex6(c) {
@@ -93,7 +94,8 @@ export const TEXT_GRADIENT_BLOCKED_NOTE = '라벨·불릿·곡선·말풍선 글
 // 글자 효과(이스터에그 **text_) 중 «자기 배경으로 글자를 칠하는» 프리셋 — CSS 가 background … !important 라
 // 사용자 그라데이션을 캔버스에서 이긴다. 둘은 함께 쓸 수 없다(캔버스·Figma 불일치 방지, 이벨류 지적).
 //   규칙: 이런 효과가 걸려 있으면 그라데이션 탭은 막힌다(이유 툴팁), 효과를 새로 걸면 그라데이션은 풀린다.
-//   neon 은 text-shadow 만 쓰므로 제외(그라데이션과 공존 — notDone 에 흐림 안내).
+//   neon 은 text-shadow 만 쓰므로 제외(그라데이션과 공존). 0919r3: 그 글로우는 syncTextGradShadow 가
+//   SVG 필터(여러 겹을 따로 만들어 합침)로 옮겨 글자 «뒤»에 깐다(text-shadow-filter.js 주석).
 export const TEXT_EFFECT_PAINT_CLASSES = ['tfx-metallic', 'tfx-grunge', 'tfx-vintage', 'tfx-cinematic'];
 export const TEXT_GRADIENT_EFFECT_NOTE = '글자 효과(메탈릭·그런지·빈티지·시네마틱)가 글자 칠을 쓰고 있어 그라데이션을 함께 못 써요';
 
@@ -189,6 +191,7 @@ export function clearTextGradient(contentEl) {
   st.removeProperty('-webkit-text-fill-color');
   st.removeProperty('caret-color');
   _stripSpanFill(contentEl);
+  syncTextGradShadow(contentEl);   // 0919r3: 그라데이션이 풀리면 원래 text-shadow 로 복귀
   return true;
 }
 
@@ -230,12 +233,203 @@ export function applyTextGradient(blockEl, g, { commit = false } = {}) {
   //   재선택/재로드 뒤 솔리드 복귀가 그 값으로 돌아가고, 라벨 전환도 «원래 인라인 색이 없었음»을 그대로 본다.
   //   그라데이션을 못 그리는 경로의 대체색은 textGradientFallbackColor(첫 스탑)가 따로 계산한다.
   st.setProperty('caret-color', fb);
+  syncTextGradShadow(contentEl);   // 0919r3: 그림자·네온이 있으면 글자 «뒤»로(기록 «전»에 — 스냅샷에 같이 실린다)
   if (commit) window.pushHistory?.('글자 그라데이션');
   window.scheduleAutoSave?.();
   return true;
 }
 
+/* ─────────────────────────────────────────────────────────────
+ * 그라데이션 글자의 그림자를 글자 «뒤»로 (0919r3 textshadow)
+ *
+ * 원인: 그라데이션은 «배경» 단계, text-shadow 는 «글자» 단계에 칠해진다 → 그림자가 그라데이션 위에 덮이고
+ *   채움이 transparent 라 글자 안쪽까지 그림자색이 보인다(0% 쪽 페이드가 그림자색으로 메워짐).
+ * 방법: 저장 원본(일반 그림자 인라인 text-shadow + data-shadow-*, 네온 클래스·변수, 그라데이션 인라인)은
+ *   «그대로» 두고, 파생값만 붙인다 —
+ *     class  tgs            → css/editor-blocks.css: text-shadow:none + filter:var(--tgs-filter) (둘 다 !important)
+ *     --tgs-src             = 원래 computed text-shadow 목록(Figma DROP_SHADOW 가 이걸 읽는다)
+ *     --tgs-filter          = 한 겹: drop-shadow() · 여러 겹: url(#tgs-f-…) SVG 필터(text-shadow-filter.js)
+ *   ⛔인라인 filter 로 두면 안 된다 — clearTextEffect 가 인라인 filter 를 지운다.
+ *   클래스·변수라 저장(sanitize)·undo(HTML 스냅샷)·native PNG 클론에 그대로 따라간다.
+ *   멱등: 몇 번 불러도 같은 결과. 모든 쓰기 경로 끝 + 노드 삽입(로드·undo·붙여넣기) 때 부른다.
+ * ───────────────────────────────────────────────────────────── */
+// 여러 겹 그림자용 SVG 필터 보관소 — 캔버스 «밖»(body 직속)이라 저장·undo 스냅샷에 안 실린다.
+//   url(#id) 를 쓰는 글자가 로드·복원되면 sync 가 여기 다시 만든다(같은 목록 = 같은 id, 한 번만).
+//   native PNG 는 같은 문서의 클론을 찍으므로 그대로 참조된다.
+function _ensureSvgShadowFilter(id, items) {
+  try {
+    if (document.getElementById(id)) return true;
+    let svg = document.getElementById('tgs-svg-defs');
+    if (!svg) {
+      svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('id', 'tgs-svg-defs');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('width', '0');
+      svg.setAttribute('height', '0');
+      svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none';
+      document.body.appendChild(svg);
+    }
+    const tpl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    tpl.innerHTML = svgShadowFilterMarkup(id, items);
+    const f = tpl.firstElementChild;
+    if (!f) return false;
+    svg.appendChild(f);
+    // 새 정의가 생길 때마다 안 쓰이는 정의를 치운다(슬라이더 드래그 = input 마다 새 목록 → 새 정의).
+    //   ⚠️지금 만든 id 는 아직 어떤 글자도 참조하지 않는다(호출자가 이 뒤에 --tgs-filter 를 쓴다) → keep.
+    if (svg.childElementCount > _TGS_DEFS_HARD_CAP) gcTextGradShadowFilters(id);
+    _scheduleSvgGc();
+    return true;
+  } catch (_) { return false; }
+}
+
+// 안 쓰이는 SVG 필터 정의 치우기 (0919r3 이벨류: 네온 색 슬라이더 300번 = 정의 301개 누적)
+//   쓰임 = 문서 안 어떤 요소의 인라인 --tgs-filter 가 url(#id) 로 가리킴(캔버스·native PNG 클론 모두 포함).
+//   undo 스냅샷이 가리키던 정의를 지워도 안전하다 — 복원(노드 삽입) 때 관찰자의 sync 가 같은 id 로 다시 만든다.
+const _TGS_DEFS_HARD_CAP = 64;
+let _gcTimer = 0;
+function _scheduleSvgGc() {
+  try {
+    if (_gcTimer) clearTimeout(_gcTimer);
+    _gcTimer = setTimeout(() => { _gcTimer = 0; gcTextGradShadowFilters(); }, 300);
+  } catch (_) {}
+}
+const _URL_ID = /url\(\s*["']?#(tgs-f-[0-9a-z]+)["']?\s*\)/g;
+function _usedFilterIds(root) {
+  const used = new Set();
+  const scope = root || document;
+  const list = [];
+  if (scope.nodeType === 1 && scope.matches && scope.matches('[style*="--tgs-filter"]')) list.push(scope);
+  scope.querySelectorAll && list.push(...scope.querySelectorAll('[style*="--tgs-filter"]'));
+  for (const el of list) {
+    const v = el.style ? el.style.getPropertyValue('--tgs-filter') : '';
+    if (!v) continue;
+    for (const m of v.matchAll(_URL_ID)) used.add(m[1]);
+  }
+  return used;
+}
+/** 안 쓰이는 필터 정의를 지운다. keepId 는 남긴다. 지운 개수를 돌려준다. */
+export function gcTextGradShadowFilters(keepId) {
+  try {
+    const svg = document.getElementById('tgs-svg-defs');
+    if (!svg) return 0;
+    const used = _usedFilterIds(document);
+    if (keepId) used.add(keepId);
+    let n = 0;
+    for (const f of [...svg.children]) {
+      if (!used.has(f.id)) { f.remove(); n++; }
+    }
+    return n;
+  } catch (_) { return 0; }
+}
+
+/** root 안 글자들이 쓰는 SVG 필터 정의만 담은 <svg> 마크업 — 내보낸 HTML 처럼 문서 «밖»으로 나가는 사본용. 없으면 ''. */
+export function textGradShadowDefsMarkup(root) {
+  try {
+    const used = _usedFilterIds(root);
+    if (!used.size) return '';
+    let inner = '';
+    for (const id of used) {
+      const f = document.getElementById(id);
+      if (f && f.closest('#tgs-svg-defs')) inner += f.outerHTML;
+    }
+    if (!inner) return '';
+    return '<svg id="tgs-svg-defs" aria-hidden="true" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none">'
+      + inner + '</svg>';
+  } catch (_) { return ''; }
+}
+
+export function syncTextGradShadow(contentEl) {
+  if (!contentEl || !contentEl.style || !contentEl.classList) return false;
+  const had = contentEl.classList.contains('tgs');
+  // 떨어진 노드는 computed 를 못 읽는다 — 손대지 않는다(붙는 순간 아래 관찰자가 다시 맞춘다)
+  if (!contentEl.isConnected) return had;
+  let src = '';
+  if (hasTextGradient(contentEl)) {
+    if (had) contentEl.classList.remove('tgs');
+    try {
+      const ts = getComputedStyle(contentEl).textShadow;
+      if (ts && ts !== 'none') src = ts;
+    } catch (_) {}
+  }
+  // 한 겹 = drop-shadow(정확) · 두 겹 이상(네온) = SVG 필터(겹이 누적되지 않게 — text-shadow-filter.js 주석)
+  const items = src ? parseShadowList(src) : null;
+  let filt = '';
+  if (items && items.length === 1) filt = textShadowToDropShadowFilter(src);
+  else if (items && items.length > 1) {
+    const id = shadowFilterId(src);
+    if (_ensureSvgShadowFilter(id, items)) filt = `url(#${id})`;
+  }
+  const st = contentEl.style;
+  if (filt) {
+    if (st.getPropertyValue('--tgs-src') !== src) st.setProperty('--tgs-src', src);
+    if (st.getPropertyValue('--tgs-filter') !== filt) st.setProperty('--tgs-filter', filt);
+    contentEl.classList.add('tgs');
+    return true;
+  }
+  if (had) contentEl.classList.remove('tgs');
+  if (st.getPropertyValue('--tgs-src')) st.removeProperty('--tgs-src');
+  if (st.getPropertyValue('--tgs-filter')) st.removeProperty('--tgs-filter');
+  return false;
+}
+
+/** 이 글자의 «원래» text-shadow 목록(.tgs 가 computed 를 none 으로 가려도 원본을 돌려준다). 없으면 ''. */
+export function textShadowSource(el) {
+  if (!el) return '';
+  try {
+    if (el.classList && el.classList.contains('tgs')) {
+      const v = (el.style.getPropertyValue('--tgs-src') || '').trim();
+      if (v) return v;
+    }
+    const ts = getComputedStyle(el).textShadow;
+    return ts && ts !== 'none' ? ts : '';
+  } catch (_) { return ''; }
+}
+
+const _TGS_SEL = '.tgs, [style*="background-clip"]';
+function _syncTree(node) {
+  if (!node || node.nodeType !== 1) return;
+  if (node.matches && node.matches(_TGS_SEL)) syncTextGradShadow(node);
+  node.querySelectorAll && node.querySelectorAll(_TGS_SEL).forEach(syncTextGradShadow);
+}
+
 if (typeof window !== 'undefined') {
+  window.syncTextGradShadow = syncTextGradShadow;
+  window.textShadowSource = textShadowSource;
+  window.gcTextGradShadowFilters = gcTextGradShadowFilters;
+  window.textGradShadowDefsMarkup = textGradShadowDefsMarkup;
+  // 편집 중 선택 하이라이트 번짐 (0919r3 이벨류): filter 는 «요소가 칠한 전부» — ::selection 사각형까지 —
+  //   를 흐려 선택 박스 둘레에 글로우가 번진다. 편집 중인(포커스) 그라데이션 글자에 «펼친 선택»이 있는 동안만
+  //   html.tgs-selecting 을 달아 CSS 가 filter 를 끄고 원래 text-shadow(--tgs-src)로 잠시 돌린다.
+  //   html 클래스라 캔버스 저장본에는 안 실린다.
+  try {
+    document.addEventListener('selectionchange', () => {
+      let on = false;
+      try {
+        const sel = document.getSelection();
+        if (sel && sel.rangeCount && !sel.isCollapsed) {
+          const n = sel.anchorNode;
+          const el = n && (n.nodeType === 1 ? n : n.parentElement);
+          const t = el && el.closest && el.closest('.tgs');
+          on = !!(t && t.isContentEditable);
+        }
+      } catch (_) {}
+      document.documentElement.classList.toggle('tgs-selecting', on);
+    });
+  } catch (_) {}
+  // 로드 정규화: 캔버스 로드·undo 복원(innerHTML)·붙여넣기로 들어온 노드를 한 번 맞춘다.
+  //   이 변경 전에 저장된 «그라데이션 + 그림자» 프로젝트도 열면 글자 뒤 그림자로 보인다.
+  //   (sync 는 속성만 바꾸므로 childList 관찰과 되먹임 고리가 없다)
+  try {
+    const _start = () => {
+      _syncTree(document.body);
+      new MutationObserver((muts) => {
+        for (const m of muts) for (const n of m.addedNodes) _syncTree(n);
+      }).observe(document.body, { childList: true, subtree: true });
+    };
+    if (typeof document !== 'undefined') {
+      if (document.body) _start(); else document.addEventListener('DOMContentLoaded', _start, { once: true });
+    }
+  } catch (_) {}
   window.applyTextGradient = applyTextGradient;
   window.clearTextGradient = clearTextGradient;
   window.getTextGradient = getTextGradient;
