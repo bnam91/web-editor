@@ -188,37 +188,28 @@ function checkOperatorAllow(o) {
 
 /**
  * 거부 «안내» 문구 — 판정과 무관(판정은 checkOperatorAllow 뿐). 배포판을 'admin' 인자로 띄웠는데 거부됐을 때,
- * 조용히 고객 화면으로 보내지 말고 «왜·무엇을 하면 되는지»를 알리려고 쓴다(0919 T-063).
+ * 조용히 고객 화면으로 보내지 말고 «운영자 권한이 없는 실행»임을 알리려고 쓴다(0919 T-063).
+ * ★0920 4라운드(pkgguard): 화면(title/detail)에서 내부 경로(README)·파일명(operator.allow·admin.allow)·
+ *   변수명(GODITOR_ADMIN_TOKEN)·공개키 유무를 «뺐다» — 화면은 누구나 보는 곳이라 우회 지도가 된다.
+ *   상세는 로그(log)에만 남긴다. 화면엔 사유 «코드»만(운영자가 로그 없이도 문의를 받을 수 있게).
  * @param {{why:string, legacy:boolean, keysConfigured:boolean}} o
- *   legacy = 옛 방식 흔적(userData/admin.allow 또는 env GODITOR_ADMIN_TOKEN)이 있다. ⛔안내에만 쓴다.
+ *   legacy = 옛 방식 흔적(userData/admin.allow 또는 env GODITOR_ADMIN_TOKEN)이 있다. ⛔로그에만 쓴다.
  * @returns {{log:string, title:string, detail:string}}
  */
 function operatorDeniedNotice(o) {
   const { why, legacy, keysConfigured } = o || {};
-  const w = typeof why === 'string' && why ? why : 'unknown';
-  const lines = [];
-  if (legacy) {
-    lines.push('옛 운영자 허가(admin.allow · GODITOR_ADMIN_TOKEN)는 이 버전부터 무효입니다.');
-  }
-  if (!keysConfigured) {
-    lines.push('이 빌드에는 운영자 공개키가 없어 운영자(admin) 모드를 쓸 수 없습니다.');
-  } else if (w === 'no_file') {
-    lines.push('서명된 운영자 허가 파일(operator.allow)이 필요합니다.');
-  } else if (w === 'expired') {
-    lines.push('운영자 허가 파일(operator.allow)의 기한이 지났습니다. 새로 발급받으세요.');
-  } else if (w === 'machine_mismatch' || w === 'no_machine') {
-    lines.push('운영자 허가 파일(operator.allow)이 이 기기에 발급된 것이 아닙니다(또는 기기 식별을 못 읽음).');
-  } else {
-    lines.push('운영자 허가 파일(operator.allow)을 확인하지 못했습니다.');
-  }
-  lines.push('발급·설치 절차: tools/operator-allow/README.md (userData 폴더에 operator.allow 로 둡니다).');
-  lines.push('일반(라이선스) 실행으로 계속합니다. 사유: ' + w);
-  const detail = lines.join('\n');
+  const w = typeof why === 'string' && /^[a-z_]{1,32}$/.test(why) ? why : 'unknown';
+  const detail = [
+    '운영자 권한이 없는 실행입니다. 일반(라이선스) 실행으로 계속합니다.',
+    '필요하면 운영자에게 문의하세요.',
+    '(코드: ' + w + ')',
+  ].join('\n');
   return {
     log: '[admin] 배포판 운영자 허가 거부 — operator.allow: ' + w
       + (legacy ? ' · 옛 admin.allow/GODITOR_ADMIN_TOKEN 무효(서명 operator.allow 필요)' : '')
-      + (keysConfigured ? '' : ' · 운영자 공개키 없음(이 빌드는 운영자 모드 불가)'),
-    title: '운영자(admin) 모드를 켜지 못했습니다',
+      + (keysConfigured ? '' : ' · 운영자 공개키 없음(이 빌드는 운영자 모드 불가)')
+      + ' · 발급·설치 절차: tools/operator-allow/README.md',
+    title: '운영자 권한이 없는 실행입니다',
     detail,
   };
 }

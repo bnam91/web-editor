@@ -22,6 +22,25 @@ app.name = 'GODITOR';
 const fs = require('fs');
 const os = require('os');
 
+/* ── ★「배포판인가」의 main.js 쪽 «한 벌» 답 (0920 4라운드 pkgguard, T-063) ──────────────
+   ⛔보안 게이트는 `app.isPackaged` 를 «직접» 읽지 않는다 — 그건 실행파일 «이름»만 보는 규칙이라,
+     스톡 Electron 으로 app.asar 를 띄우거나(`electron /x/app.asar admin`) 윈도우에서 GODITOR.exe 를
+     electron.exe 로 복사하면 false 가 된다 → CDP 차단·개발자 도구·운영자(admin)·공개키 주입이 전부 dev 로 열렸다.
+   ★답 = Electron 의 답 OR authService 의 런타임 판정(⒜ asar 안에서 로드됨 ⒝ 앱 바이너리 이름).
+     authService 는 electron 을 안 쓰는 순수 모듈이라 여기(가장 이른 IIFE)에서 불러도 된다.
+   ★함수 «선언»이라 호이스팅된다 — 아래 _blockDebugLaunchInPackaged IIFE 에서도 쓸 수 있다.
+   ★예외 = «막는 쪽»(true). ⛔env 는 근거로 쓰지 않는다(authService U-AB-7 규약).
+   ★허용목록(tests/unit/pkgguard-all-gates.test.js): 이 함수 본문, applyRuntime 에 넘기는 두 줄,
+     updater 두 곳(_updaterCacheDir·_autoUpdateEnabled — electron-updater 가 내부에서 app.isPackaged 로
+     다시 판정하므로 넓혀 봐야 무동작이고, 스톡 Electron 의 resourcesPath 엔 app-update.yml 도 없다).
+     그 밖의 자리에서 `app.isPackaged` 를 새로 읽으면 그 검사가 빨개진다. */
+function _isPackagedBuild() {
+  try {
+    if (app.isPackaged === true) return true;
+    return require('./services/authService').isPackaged() !== false;
+  } catch (_) { return true; }
+}
+
 /* ── 배포판: «띄울 때 여는» 디버깅 길 차단 (T-056, 이벨류에이터 지적 2026-09-19) ──
    devtools-gate 의 devtools-opened 가드는 «창에서 여는» 길만 본다. 앱을
    `--remote-debugging-port`/`--remote-debugging-pipe`(CDP) 나 `--inspect*`(메인 Node 디버거)로
@@ -33,9 +52,7 @@ const os = require('os');
    ★퓨즈(package.json build.electronFuses: runAsNode·nodeOptions·nodeCliInspect=false)가 첫 자물쇠, 이게 둘째다.
    dev(!isPackaged)는 CDP 로 검증하므로 건드리지 않는다. */
 (function _blockDebugLaunchInPackaged() {
-  let packaged = true;
-  try { packaged = app.isPackaged; } catch (_) { packaged = true; }
-  if (!packaged) return;
+  if (!_isPackagedBuild()) return;   // ★0920 pkgguard: 스톡 Electron + app.asar 도 배포판이다
   const { debugLaunchViolations } = require('./main/devtools-gate');
   const hits = debugLaunchViolations({
     argv: process.argv,
@@ -43,6 +60,9 @@ const os = require('os');
     hasSwitch: (sw) => app.commandLine.hasSwitch(sw),
     env: process.env,
     inspectorUrl: () => { try { return require('inspector').url(); } catch (_) { return undefined; } },
+    /* ★0920 pkgguard: Electron 이 「포장 안 됨」이라 답하는데 여기 왔다 = 스톡 Electron 으로 asar 를 띄웠다 = 퓨즈 없음.
+       이때만 NODE_OPTIONS 의 코드 주입(--require 등)을 본다(허용목록: 판정이 아니라 «퓨즈 유무» 입력이다). */
+    nodeOptionsHonored: (() => { try { return app.isPackaged !== true; } catch (_) { return true; } })(),
   });
   if (!hits.length) return;
   /* ⛔0919 QA(high): isAdminAuthorized() 예외를 뺐다 — 옛 판정('admin' 인자·GODITOR_ADMIN_TOKEN·admin.allow)은
@@ -103,7 +123,9 @@ const _authService = require('./services/authService');
      main/notice «보다 먼저» 와야 한다 — 그들도 API_BASE 를 각자 구조분해로 붙잡는다.
    ★안 불러도 안전하다: authService 기본값이 이미 「막는 쪽」(패키징 가정)이다.
      이 줄이 하는 일은 「dev 다」를 «Electron 의 답으로» 확정해 주는 것뿐이다.
-   ★★그리고 «.env 로드보다 먼저» 와야 한다 — .env 게이트가 이 답을 본다. */
+   ★★그리고 «.env 로드보다 먼저» 와야 한다 — .env 게이트가 이 답을 본다.
+   ★0920 pkgguard: applyRuntime 은 «조이는 쪽으로만» 움직인다 — 여기서 false 를 줘도 authService 의
+     런타임 판정(asar 안에서 로드됨 등)이 패키징이면 패키징으로 남는다. */
 if (typeof _authService.applyRuntime === 'function') {
   let _pkg = true;
   try { _pkg = app.isPackaged; } catch (_) { _pkg = false; }
@@ -295,7 +317,7 @@ let mainWindow;
 function watchFiles() {
   // 패키징(asar) 환경에선 fs.watch가 throw → whenReady 체인이 끊겨
   // setupAutoUpdater/MCP까지 죽는 사고(v0.5.0~0.6.0). 핫리로드는 dev 전용.
-  if (app.isPackaged) return;
+  if (_isPackagedBuild()) return;
   const watchTargets = [
     path.join(__dirname, 'index.html'),
     path.join(__dirname, 'js'),
@@ -411,7 +433,7 @@ function createWindow() {
      * ⚠️그리고 이 줄은 «우연에 기대지 않겠다»는 뜻이다: 오늘 기준 배포본은 CDP 를 스스로 안 켜니
      *   argv 에도 없어서 어차피 null 이다. 하지만 「오늘 argv 에 없다」는 «안전장치»가 아니다.
      *   포장 여부를 직접 물어야 다음에 누가 CDP 를 켜도 이 창구는 닫혀 있다. */
-    if (app.isPackaged) return null;
+    if (_isPackagedBuild()) return null;
     if (getGitBranch() === 'main') return null;   // ★main = 배포 상태. 거기선 안 보인다
     const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
     return a ? a.split('=')[1] : null;
@@ -614,9 +636,9 @@ function clearAuth() {
  *  (패키징에선 무시 — 안 그러면 사용자가 자기 키를 넣고 자기가 서명해서 서명 검증 전체가 장식이 된다.
  *   ★운영자 판정(isAdminAuthorized·operator.allow)은 env 키 주입이 «아예 없다» — dev 는 인자만으로 통과하니 필요 없다). */
 function entKeys() {
-  let packaged = true;
-  try { packaged = app.isPackaged; } catch (_) { packaged = false; }
-  return entitlement.resolveKeys({ isPackaged: packaged, env: process.env });
+  /* ★0920 pkgguard: 예전엔 app.isPackaged 를 직접 읽고 «예외면 false(dev)» 였다 — 스톡 Electron + asar 로
+     띄우면 GODITOR_ENTITLEMENT_PUBKEY 로 자기 키를 넣고 자기가 서명한 라이선스가 통과했다. */
+  return entitlement.resolveKeys({ isPackaged: _isPackagedBuild(), env: process.env });
 }
 
 /** resolveAuth 에 «주입»하는 verify. ⛔토큰은 이 함수 밖으로 안 나간다. */
@@ -665,9 +687,8 @@ function persistApplied(prev, applied) {
      발급 = tools/operator-allow/issue.mjs (개인키는 레포·앱 밖 ~/.config/secrets). */
 function isAdminAuthorized() {
   if (!process.argv.includes('admin')) return false;
-  let packaged = true;
-  try { packaged = app.isPackaged; } catch (_) { packaged = true; }
-  if (!packaged) return true; // dev/검증 빌드
+  /* ★0920 pkgguard: 판정은 _isPackagedBuild() 하나 — 스톡 Electron 으로 app.asar 를 'admin' 인자와 띄워도 배포판이다. */
+  if (!_isPackagedBuild()) return true; // dev/검증 빌드
   try {
     let fileText = '';
     try { fileText = fs.readFileSync(path.join(app.getPath('userData'), 'operator.allow'), 'utf8'); }
@@ -3449,6 +3470,7 @@ require('./main/admin').init(ipcMain, { readAuth });
    ⛔isAdminAuthorized 와 섞지 않는다 — 관리자 이메일/코드가 라이선스·터미널 권한까지 풀면 안 된다. */
 const _devtoolsGate = require('./main/devtools-gate').createDevToolsGate({
   app,
+  isPackaged: _isPackagedBuild,   // ★0920 pkgguard — app.isPackaged(이름 규칙)만으로 풀리지 않게
   readAuth,
   authVerdict: (rec) => authVerdict(rec),
   isAdminAuthorized,
@@ -4104,6 +4126,9 @@ function cleanSpentUpdaterPending() {
 
    ★게이트를 «부르는 자리»가 아니라 «함수 안»에 둔다: 부르는 자리에 조건을 두면 그 조건이
      검사 밖에 남는다(검사는 이 함수를 직접 부른다 — tests/unit/update-gate*.test.mjs). */
+/* ★0920 pkgguard: 이 판정은 «보안 게이트가 아니라» 의도적으로 _isPackagedBuild() 로 넓히지 않았다(허용목록 G12).
+   electron-updater 가 내부에서 app.isPackaged 로 다시 판정해 켜 봐야 무동작이고, 스톡 Electron 의
+   resourcesPath 엔 app-update.yml 이 없다. */
 function _autoUpdateEnabled() {
   try { return app.isPackaged === true; } catch (_) { return false; }
 }

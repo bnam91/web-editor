@@ -208,14 +208,31 @@ test('ⓝ UTF-8 BOM 이 붙은 파일도 같은 판정(PowerShell 5 Out-File) ·
   assert.equal(check('\uFEFF' + JSON.stringify(d)).why, 'bad_sig', 'BOM 붙여도 변조는 여전히 거부');
 });
 
-test('ⓞ 거부 안내 문구(operatorDeniedNotice): 옛 흔적·키 없음·사유별 · 판정 함수와 분리', () => {
+test('ⓞ 거부 안내 문구(operatorDeniedNotice): 화면엔 내부 이름 없이 «권한 없음 + 코드»만 · 로그엔 상세 (0920 pkgguard)', () => {
+  const INTERNAL = /README|operator\.allow|admin\.allow|GODITOR_ADMIN_TOKEN|tools\/|공개키|userData/;
+  const cases = [
+    { why: 'no_file', legacy: true, keysConfigured: true },
+    { why: 'unknown_kid', legacy: false, keysConfigured: false },
+    { why: 'machine_mismatch', keysConfigured: true },
+    { why: 'expired', keysConfigured: true },
+    {},
+  ];
+  for (const c of cases) {
+    const n = OA.operatorDeniedNotice(c);
+    assert.ok(!INTERNAL.test(n.title) && !INTERNAL.test(n.detail), `화면에 내부 이름이 샌다: ${JSON.stringify(c)} → ${n.title} / ${n.detail}`);
+    assert.match(n.detail, /운영자 권한이 없는 실행입니다/);
+    assert.match(n.detail, /운영자에게 문의하세요/);
+    assert.match(n.detail, new RegExp('코드: ' + (c.why || 'unknown')));
+  }
+  // 로그엔 상세를 전부 남긴다(why·legacy·keysConfigured·발급 절차 위치)
   const a = OA.operatorDeniedNotice({ why: 'no_file', legacy: true, keysConfigured: true });
-  assert.match(a.detail, /이 버전부터 무효/);
-  assert.match(a.detail, /서명된 운영자 허가 파일\(operator\.allow\)이 필요합니다/);
   assert.match(a.log, /operator\.allow: no_file/);
+  assert.match(a.log, /옛 admin\.allow\/GODITOR_ADMIN_TOKEN 무효/);
+  assert.match(a.log, /tools\/operator-allow\/README\.md/);
   const b = OA.operatorDeniedNotice({ why: 'unknown_kid', legacy: false, keysConfigured: false });
-  assert.match(b.detail, /운영자 공개키가 없어/);
-  assert.ok(!/무효/.test(b.detail));
-  assert.match(OA.operatorDeniedNotice({ why: 'machine_mismatch', keysConfigured: true }).detail, /이 기기에 발급된 것이 아닙니다/);
+  assert.match(b.log, /운영자 공개키 없음/);
+  assert.ok(!/무효/.test(b.log));
   assert.match(OA.operatorDeniedNotice({}).log, /operator\.allow: unknown/);
+  // 사유 코드는 형식이 정해진 것만 화면에 — 임의 문자열(경로 등)이 흘러 들어가지 않게
+  assert.match(OA.operatorDeniedNotice({ why: '/Users/x/operator.allow' }).detail, /코드: unknown/);
 });

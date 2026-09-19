@@ -55,13 +55,30 @@ function resolveApiBase(opts) {
  *      (그 이름은 코드서명·공증된 .app 번들 안에 있어서 바꾸면 서명이 깨진다).
  *   ⒞ Electron 이 아니다 = node 로 돌린 단위검사다. 지킬 배포본 자체가 없다.
  */
-function isPackagedRuntime() {
-  if (/[\\/]app\.asar([\\/]|$)/.test(__dirname)) return true;          // ⒜
-  if (process.versions && process.versions.electron) {                  // ⒝
-    const exe = String(process.execPath || '').split(/[\\/]/).pop().toLowerCase();
+/* ★0920 4라운드(pkgguard, T-063): 판정 «표»를 순수 함수로 뺐다 — 입력을 넣어 표 형태로 잰다.
+ *   ⒜ 정규식은 `app.asar.unpacked` 도 잡는다(asarUnpack 된 모듈도 배포본의 일부다).
+ *   ★⒜ 는 «파일 이름 무관·대소문자 무시»로 `.asar` 확장자만 본다(4라운드 픽스). 스톡 Electron 은 확장자만
+ *     .asar 이면 이름과 상관없이 asar 로 로드하고(goditor.asar), macOS·Windows 파일시스템은 대소문자를 안 가려
+ *     같은 파일을 APP.ASAR 로도 부를 수 있다 — `app.asar` 리터럴만 보면 «파일 이름만 바꾸는» 우회가 열린다.
+ *     dev 폴더 이름이 우연히 `*.asar` 로 끝나면 배포판으로 보는데, 이건 «막는 쪽» 오판이라 받아들인다.
+ *   ⚠️알려진 한계: asar 를 «풀어» 폴더로 스톡 Electron 에 띄우면 ⒜⒝ 둘 다 false = dev 로 판정된다
+ *     (tools/operator-allow/README.md «한계» 절). 코드를 한 줄도 안 고쳐도 되는 우회라 기록해 둔다. */
+function packagedVerdict(o) {
+  const { dirname, execPath, isElectron } = o || {};
+  if (/\.asar(\.unpacked)?([\\/]|$)/i.test(String(dirname || ''))) return true;          // ⒜
+  if (isElectron) {                                                                        // ⒝
+    const exe = String(execPath || '').split(/[\\/]/).pop().toLowerCase();
     return exe !== 'electron' && exe !== 'electron.exe';
   }
-  return false;                                                        // ⒞
+  return false;                                                                            // ⒞
+}
+
+function isPackagedRuntime() {
+  return packagedVerdict({
+    dirname: __dirname,
+    execPath: process.execPath,
+    isElectron: !!(process.versions && process.versions.electron),
+  });
 }
 
 /* ── ★「패키징인가」의 «한 벌» 답 ─────────────────────────────────────────────
@@ -71,7 +88,9 @@ function isPackagedRuntime() {
  * ★새로 판정하지 말고 `isPackaged()` 를 «불러라». 판정이 두 벌이 되면 나중에 한쪽만
  *   고쳐지고, 그때부터 두 자리의 답이 조용히 갈린다.
  * 값은 ⒜ 부팅 직후 `isPackagedRuntime()` 의 기본값(=막는 쪽)이고,
- *      ⒝ main.js 가 `applyRuntime()` 으로 Electron 의 `app.isPackaged` 를 알려주면 그 답이 된다. */
+ *      ⒝ main.js 가 `applyRuntime()` 으로 Electron 의 `app.isPackaged` 를 알려주면 «그 답과 ⒜ 의 OR» 가 된다
+ *         (0920 pkgguard: 알려준 값이 ⒜ 를 «풀지» 못한다 — 조이는 쪽으로만).
+ * ★main.js 의 게이트들(devtools·운영자·공개키 주입·CDP 차단 등)도 이제 이 답을 본다(main.js `_isPackagedBuild`). */
 let _packaged = true;
 /** @returns {boolean} 이 실행이 「배포본」인가 (dev = false) */
 function isPackaged() { return _packaged; }
@@ -118,7 +137,11 @@ function _recompute(base) {
  * @param {{isPackaged:boolean}} rt
  */
 function applyRuntime(rt) {
-  _packaged = !(rt && rt.isPackaged === false);
+  /* ★0920 4라운드(pkgguard): «조이는 쪽으로만» 움직인다. 예전엔 `app.isPackaged`(실행파일 이름 규칙)를
+     그대로 대입해서, 스톡 Electron 으로 app.asar 를 띄우거나(윈도우: GODITOR.exe → electron.exe 복사)
+     하면 ⒜(asar 안) 의 올바른 「패키징」 답이 dev 로 «덮였다» → 서버주소·.env·collab·운영자·키 주입이 전부 열렸다.
+     ⇒ 런타임 근거(⒜⒝)가 패키징이라고 하면 누가 뭐라 해도 패키징이다. */
+  _packaged = isPackagedRuntime() || !(rt && rt.isPackaged === false);
   _recompute(resolveApiBase({ isPackaged: _packaged, env: process.env }));
 }
 
@@ -325,6 +348,7 @@ module.exports = {
   isPackaged,
   LIVE_API_BASE,
   _isPackagedRuntime: isPackagedRuntime,
+  packagedVerdict,
   API_BASE,
   SIGNUP_URL,
   PRICING_URL,

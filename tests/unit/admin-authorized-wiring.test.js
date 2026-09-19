@@ -14,6 +14,7 @@ const fs = require('fs');
 const { readSrc, toPosix } = require('./_srcread.js');
 const { sliceBlock } = require('./_slice-block.js');
 const { stripComments } = require('./_strip-comments.js');
+const { makePkgBuild } = require('./_pkgbuild.js');
 
 const ROOT = path.join(__dirname, '..', '..');
 const MAIN = readSrc(ROOT, 'main.js');
@@ -34,7 +35,9 @@ function signedAllow({ machine = HERE, now = Date.now(), days = 7 } = {}) {
 }
 
 /** isAdminAuthorized 원문을 돌린다. files = { 파일명: 내용 } (userData 아래). keys 미지정 = 실상수. */
-function runAdmin({ packaged, argv = ['/A/GODITOR'], env = {}, files = {}, keys, machineId = HERE }) {
+/* ★0920 pkgguard: asar = «스톡 Electron 으로 app.asar 를 띄움»(app.isPackaged=false 인데 asar 안에서 로드됨).
+   판정 헬퍼는 main.js `_isPackagedBuild` «원문»(_pkgbuild.js)을 주입한다. */
+function runAdmin({ packaged, asar = false, argv = ['/A/GODITOR'], env = {}, files = {}, keys, machineId = HERE }) {
   const src = sliceBlock(MAIN, 'function isAdminAuthorized(');
   const app = { isPackaged: packaged, getPath: (n) => { assert.strictEqual(n, 'userData'); return UD; } };
   const proc = { argv, env, platform: 'darwin' };
@@ -46,12 +49,13 @@ function runAdmin({ packaged, argv = ['/A/GODITOR'], env = {}, files = {}, keys,
   const mod = keys ? { ...OA, OPERATOR_PUBLIC_KEYS: keys } : OA;
   const denied = [];
   let machineCalls = 0;
-  const fn = new Function('app', 'process', 'fs', 'path', '_operatorAllow', '_operatorMachineId', '_noteOperatorDenied', 'require',
+  const fn = new Function('app', 'process', 'fs', 'path', '_operatorAllow', '_operatorMachineId', '_noteOperatorDenied', 'require', '_isPackagedBuild',
     `${src}\nreturn isAdminAuthorized();`);
   /* ★진짜 require 를 준다 — 옛 판정(require('crypto') + sha256)을 되돌려 넣는 변이가 «예외로 false» 가 돼
      거짓 초록이 되지 않게(음성대조가 실제로 빨개지게). */
   const req = (m) => require(m);
-  const out = fn(app, proc, fakeFs, path, mod, () => { machineCalls++; return machineId; }, (w) => denied.push(w), req);
+  const out = fn(app, proc, fakeFs, path, mod, () => { machineCalls++; return machineId; }, (w) => denied.push(w), req,
+    makePkgBuild({ appIsPackaged: packaged, asar }));
   return { out, reads, denied, machineCalls };
 }
 
@@ -205,8 +209,10 @@ test('W9 ★거부는 조용하지 않다: 로그 + 화면 안내 1회 · 옛 ad
   assert.strictEqual(legacyFile.dialogs.length, 1, '화면 안내도 한 번');
   assert.match(legacyFile.warns[0], /무효/);
   assert.match(legacyFile.warns[0], /서명 operator\.allow 필요/);
-  assert.match(legacyFile.dialogs[0].detail, /이 버전부터 무효/);
-  assert.match(legacyFile.dialogs[0].detail, /operator\.allow\)이 필요합니다/);
+  /* ★0920 pkgguard: 화면(detail)엔 파일명·경로·변수명을 안 적는다 — 상세는 로그에만. */
+  assert.match(legacyFile.dialogs[0].detail, /운영자 권한이 없는 실행입니다/);
+  assert.match(legacyFile.dialogs[0].detail, /코드: no_file/);
+  assert.ok(!/admin\.allow|operator\.allow|GODITOR_ADMIN_TOKEN|README|tools\//.test(legacyFile.dialogs[0].detail), '화면에 내부 이름이 샌다');
   assert.ok(!legacyFile.warns[0].includes(OLD_ALLOW), '파일 내용은 안 남긴다');
 
   const legacyEnv = await runNotice({ env: { GODITOR_ADMIN_TOKEN: OLD_TOKEN }, keys: TEST_KEYS });
@@ -214,12 +220,12 @@ test('W9 ★거부는 조용하지 않다: 로그 + 화면 안내 1회 · 옛 ad
   assert.ok(!legacyEnv.warns[0].includes(OLD_TOKEN) && !legacyEnv.dialogs[0].detail.includes(OLD_TOKEN), '토큰 값은 안 남긴다');
 
   const noKeys = await runNotice({ keys: {} });
-  assert.match(noKeys.dialogs[0].detail, /운영자 공개키가 없어/);
+  assert.ok(!/공개키/.test(noKeys.dialogs[0].detail), '화면엔 공개키 유무를 안 적는다');
   assert.match(noKeys.warns[0], /운영자 공개키 없음/);
 
   const plain = await runNotice({ why: 'expired', keys: TEST_KEYS });
   assert.ok(!/무효/.test(plain.warns[0]), '옛 흔적 없으면 «무효» 문구 없음');
-  assert.match(plain.dialogs[0].detail, /기한이 지났습니다/);
+  assert.match(plain.dialogs[0].detail, /코드: expired/);
 });
 
 test('W10 안내는 판정에 안 섞인다: isAdminAuthorized 는 r.ok 만 돌려주고, 옛 흔적은 안내 블록 밖에서 안 읽는다', () => {
@@ -229,4 +235,34 @@ test('W10 안내는 판정에 안 섞인다: isAdminAuthorized 는 r.ok 만 돌�
   const r = runAdmin({ packaged: true, argv: ['/A/GODITOR', 'admin'], env: { GODITOR_ADMIN_TOKEN: OLD_TOKEN },
     files: { 'admin.allow': OLD_ALLOW + '\n', 'operator.allow': signedAllow() }, keys: TEST_KEYS });
   assert.strictEqual(r.out, true, '유효 서명 allow 면 옛 흔적 유무와 무관하게 true');
+});
+
+/* ═══ 0920 4라운드 pkgguard (T-063) — «스톡 Electron + app.asar» 도 배포판이다 ═══════════════════ */
+
+test('W11 ★핵심 재현: app.isPackaged=false 인데 asar 안에서 로드됨 + admin 인자 → 서명 allow 없으면 false', () => {
+  const r = runAdmin({ packaged: false, asar: true, argv: ['/r/electron', '/tmp/x/app.asar', 'admin'], keys: TEST_KEYS });
+  assert.strictEqual(r.out, false, '★스톡 Electron 으로 app.asar 를 admin 인자와 띄워 운영자가 됐다');
+  assert.deepStrictEqual(r.denied, ['no_file'], '배포판 경로(서명 allow 판정)를 탔다');
+  // 옛 자가 발급도 여전히 안 된다
+  const old = runAdmin({ packaged: false, asar: true, argv: ['/r/electron', '/tmp/x/app.asar', 'admin'],
+    env: { GODITOR_ADMIN_TOKEN: OLD_TOKEN }, files: { 'admin.allow': OLD_ALLOW }, keys: TEST_KEYS });
+  assert.strictEqual(old.out, false);
+});
+
+test('W12 양성대조: asar + admin + 유효 서명 operator.allow → true (운영자 경로는 산다)', () => {
+  const r = runAdmin({ packaged: false, asar: true, argv: ['/r/electron', '/tmp/x/app.asar', 'admin'],
+    files: { 'operator.allow': signedAllow() }, keys: TEST_KEYS });
+  assert.strictEqual(r.out, true);
+});
+
+test('W13 음성대조: dev(폴더 로드, asar 아님) + admin → true 그대로', () => {
+  const r = runAdmin({ packaged: false, asar: false, argv: ['e', '.', 'admin'] });
+  assert.strictEqual(r.out, true, 'dev 흐름이 막혔다');
+  assert.strictEqual(r.reads.length, 0);
+});
+
+test('W14 정적: isAdminAuthorized 본문은 app.isPackaged 를 직접 읽지 않고 _isPackagedBuild() 를 부른다', () => {
+  const body = stripComments(sliceBlock(MAIN, 'function isAdminAuthorized('));
+  assert.ok(!/app\.isPackaged/.test(body), '★실행파일 이름만 보는 판정으로 돌아갔다');
+  assert.match(body, /_isPackagedBuild\(\)/);
 });
