@@ -572,7 +572,13 @@ function _wireEvents(pop) {
       _emitGradientNow(commitNow);
     });
   }
+  /* 0920 polish1(T-059): 스탑 hex/각도 칸의 'change' 는 blur(=탭 버튼 mousedown)에서 «늦게» 온다.
+     실측 순서 — tab:mousedown → hex:change(rAF 예약) → 솔리드 적용 → tab:click → rAF 그라데이션 커밋.
+     그래서 hex 를 치고 곧바로 Solid 를 누르면 탭만 바뀌고 캔버스·state 는 그라데이션으로 남았다.
+     ⇒ 그라데이션 방출은 «지금 모드가 그라데이션일 때»만. 모드는 _activateTab/seed 가 정한다
+     (스톱 값 자체는 'input' 에서 이미 _grad() 에 들어가 있어, 다시 그라데이션 탭으로 오면 친 색 그대로다). */
   function _emitGradientNow(commit) {
+    if (_state && _state.mode !== 'gradient') return;
     const css = _buildGradientCSS();
     gradFill.style.background = _barFillCSS();
     if (!_targetInput) return;
@@ -851,6 +857,8 @@ function _wireEvents(pop) {
     if (!_state || !CP_MODES.includes(name)) return;
     if (!_targetModes(_targetInput).has(name)) return;   // 게이트(disabled 버튼이면 click 자체가 안 오지만 이중 안전)
     const prev = _state.mode || 'solid';
+    // 0920 polish1: 그라데이션을 떠나면 대기 중인 그라데이션 방출은 버린다(위 _emitGradientNow 주석).
+    if (name !== 'gradient') _gradPendingCommit = false;
     _showTab(name);
     if (name === 'gradient') {
       if (_state.grad == null) {

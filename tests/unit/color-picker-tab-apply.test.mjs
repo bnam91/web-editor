@@ -101,3 +101,15 @@ test('⑻ 이미지(바둑판) 모드 진입 시 shapeColor 에 그라데이션 
   assert.ok(i > 0);
   assert.match(s.slice(i, i + 1200), /_lastSolidOf\(block\)/, '이미지 모드 진입이 shapeColor 를 마지막 단색으로 안 되돌린다');
 });
+
+/* ⑹ 0920 polish1(T-059): 스탑 hex·각도 칸의 'change' 는 탭 버튼 mousedown 의 blur 로 «늦게» 온다.
+ *   솔리드 적용 뒤에 깨어난 rAF 그라데이션 커밋이 캔버스·state 를 되덮던 결함 —
+ *   방출은 «지금 모드가 그라데이션일 때»만. 동작은 tests/dom/color-picker-tab-apply.dom.spec.js T18/T18c 가 잰다. */
+test('⑹ color-picker: 그라데이션 방출이 모드 게이트를 지난다(늦은 change 가 Solid 를 덮지 않게)', () => {
+  const s = src('js/props/color-picker.js');
+  const emit = sliceBlock(s, 'function _emitGradientNow(commit)');
+  assert.match(emit, /_state\.mode\s*!==\s*'gradient'[\s\S]{0,20}return/,
+    "_emitGradientNow 에 모드 게이트가 없다 — hex 를 치고 바로 Solid 탭을 누르면 그라데이션이 되살아난다");
+  // 게이트는 CSS 계산보다 «먼저» — 늦은 커밋이 이벤트를 쏘기 전에 끊긴다
+  assert.ok(emit.indexOf("_state.mode") < emit.indexOf('_buildGradientCSS'), '모드 게이트가 방출 뒤에 있다');
+});
