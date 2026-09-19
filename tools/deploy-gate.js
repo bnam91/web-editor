@@ -68,7 +68,10 @@ try {
       process.stderr.write(
         `\n⚠️  운영자 허가 공개키 미대조 — OPERATOR_KEY_PROVENANCE = "${oprov}", 키 ${nkeys}개\n` +
         (nkeys ? '     키가 있는데 대조 표식이 없습니다. 개인키에서 유도한 공개키와 바이트 대조 후 verified-YYYY-MM-DD 로.\n'
-               : '     이 배포판에선 운영자(admin) 모드가 꺼진 채로 나갑니다(안전). 필요하면 tools/operator-allow/README.md.\n') +
+               : '     이 배포판에선 운영자(admin) 모드가 꺼진 채로 나갑니다 — 고객엔 안전, 단 현빈·운영자도 배포판에선 운영자 모드 없음.\n' +
+               '     운영자가 배포판을 쓰면 먼저 실키 연결: tools/operator-allow/README.md.\n') +
+        '     ★배포 순서: 운영자 PC 에 서명 operator.allow 를 «먼저» 깔고 그다음 배포 — 거꾸로면 업데이트 순간\n' +
+        '       운영자의 PM·터미널·기획·라이선스 건너뛰기·MCP 로그인 인정이 꺼집니다(옛 admin.allow·토큰은 무효).\n' +
         '     (경고만 — 배포는 계속됩니다)\n\n');
     }
   } catch (e) {

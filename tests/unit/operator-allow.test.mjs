@@ -173,11 +173,49 @@ test('ⓛ rawMachineUuid: 주입된 I/O 로 플랫폼별 원천을 읽고, 실�
     assert.equal(cmd, '/usr/sbin/ioreg'); assert.deepEqual(args, ['-rd1', '-c', 'IOPlatformExpertDevice']);
     return '  "IOPlatformUUID" = "AAAAAAAA-1111-2222-3333-BBBBBBBBBBBB"\n'; } });
   assert.equal(OA.machineIdFrom(mac), MACHINE);
-  const win = OA.rawMachineUuid({ platform: 'win32', execFileSync: () =>
-    '\r\nHKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Cryptography\r\n    MachineGuid    REG_SZ    1234abcd-0000-1111-2222-333344445555\r\n' });
+  const winCmds = [];
+  const win = OA.rawMachineUuid({ platform: 'win32', existsSync: (p) => p === 'C:\\Windows\\System32\\reg.exe', env: {},
+    execFileSync: (cmd) => { winCmds.push(cmd);
+      return '\r\nHKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Cryptography\r\n    MachineGuid    REG_SZ    1234abcd-0000-1111-2222-333344445555\r\n'; } });
   assert.equal(win, '1234abcd-0000-1111-2222-333344445555');
+  assert.deepEqual(winCmds, ['C:\\Windows\\System32\\reg.exe'], '★reg 는 절대경로로 부른다(PATH 불신)');
+  // 절대경로 reg.exe 를 못 찾으면 PATH 로 떨어지지 않고 null
+  assert.equal(OA.rawMachineUuid({ platform: 'win32', existsSync: () => false, env: {}, execFileSync: () => { throw new Error('must not exec'); } }), null);
   assert.equal(OA.rawMachineUuid({ platform: 'linux', readFileSync: () => 'abcdef0123\n' }), 'abcdef0123');
   assert.equal(OA.rawMachineUuid({ platform: 'darwin', execFileSync: () => { throw new Error('no'); } }), null);
   assert.equal(OA.rawMachineUuid({ platform: 'darwin', execFileSync: () => 'nothing' }), null);
   assert.equal(OA.rawMachineUuid({ platform: 'linux', readFileSync: () => '  ' }), null);
+});
+
+test('ⓜ reg.exe 경로: 기본 C:\\Windows · SystemRoot 는 «드라이브:\\Windows» 모양만 · 그 밖(PATH·임의 폴더)은 안 받는다', () => {
+  const all = () => true;
+  assert.equal(OA.winRegExePath({ existsSync: all, env: {} }), 'C:\\Windows\\System32\\reg.exe');
+  const onlyD = (p) => p.startsWith('D:');
+  assert.equal(OA.winRegExePath({ existsSync: onlyD, env: { SystemRoot: 'D:\\Windows' } }), 'D:\\Windows\\System32\\reg.exe');
+  const any = (p) => !p.startsWith('C:\\Windows');
+  assert.equal(OA.winRegExePath({ existsSync: any, env: { SystemRoot: 'C:\\Users\\me\\evil' } }), null);
+  assert.equal(OA.winRegExePath({ existsSync: any, env: { SystemRoot: 'D:\\Windows\\..\\evil' } }), null);
+  assert.equal(OA.winRegExePath({ existsSync: () => false, env: {} }), null);
+  assert.equal(OA.winRegExePath({}), null, 'existsSync 없으면 null(막는 쪽)');
+});
+
+test('ⓝ UTF-8 BOM 이 붙은 파일도 같은 판정(PowerShell 5 Out-File) · BOM 만 있으면 no_file · 서명 강도는 그대로', () => {
+  const good = sign(payloadOf());
+  assert.deepEqual(check('\uFEFF' + good), { ok: true, why: null });
+  assert.equal(check('\uFEFF').why, 'no_file');
+  assert.equal(check('\uFEFF\uFEFF' + good).why, 'bad_json', 'BOM 은 하나만 벗긴다');
+  const d = JSON.parse(good); d.payload = d.payload.slice(0, -1) + (d.payload.endsWith('A') ? 'B' : 'A');
+  assert.equal(check('\uFEFF' + JSON.stringify(d)).why, 'bad_sig', 'BOM 붙여도 변조는 여전히 거부');
+});
+
+test('ⓞ 거부 안내 문구(operatorDeniedNotice): 옛 흔적·키 없음·사유별 · 판정 함수와 분리', () => {
+  const a = OA.operatorDeniedNotice({ why: 'no_file', legacy: true, keysConfigured: true });
+  assert.match(a.detail, /이 버전부터 무효/);
+  assert.match(a.detail, /서명된 운영자 허가 파일\(operator\.allow\)이 필요합니다/);
+  assert.match(a.log, /operator\.allow: no_file/);
+  const b = OA.operatorDeniedNotice({ why: 'unknown_kid', legacy: false, keysConfigured: false });
+  assert.match(b.detail, /운영자 공개키가 없어/);
+  assert.ok(!/무효/.test(b.detail));
+  assert.match(OA.operatorDeniedNotice({ why: 'machine_mismatch', keysConfigured: true }).detail, /이 기기에 발급된 것이 아닙니다/);
+  assert.match(OA.operatorDeniedNotice({}).log, /operator\.allow: unknown/);
 });

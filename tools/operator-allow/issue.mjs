@@ -95,7 +95,7 @@ function readPrivateKey(keyPath) {
 }
 
 function thisMachine() {
-  const raw = OA.rawMachineUuid({ platform: process.platform, execFileSync, readFileSync: fs.readFileSync });
+  const raw = OA.rawMachineUuid({ platform: process.platform, execFileSync, readFileSync: fs.readFileSync, existsSync: fs.existsSync, env: process.env });
   const id = OA.machineIdFrom(raw);
   if (!id) die('이 기기의 UUID 를 읽지 못했습니다', 3);
   return id;

@@ -63,8 +63,25 @@ function machineIdFrom(rawUuid) {
   return crypto.createHash('sha256').update(MACHINE_SALT + s.toUpperCase(), 'utf8').digest('hex');
 }
 
-/** 기기 UUID 원문 읽기 — I/O 는 «주입»받는다(execFileSync·readFileSync). 못 읽으면 null(= 운영자 아님).
- *  mac: IOPlatformUUID · win: HKLM\SOFTWARE\Microsoft\Cryptography MachineGuid · 그 밖: /etc/machine-id */
+/** 윈도우 reg.exe «절대경로». ⛔PATH 로 찾지 않는다 — PATH 앞에 가짜 reg.exe 를 두면 기기 해시를 마음대로
+ *  바꿔 치울 수 있다(유출된 allow 파일 재사용). 기본은 C:\Windows\System32\reg.exe. 윈도우가 다른 드라이브에
+ *  깔린 경우만 SystemRoot 를 쓰되, 모양이 «드라이브:\Windows» 일 때만 받는다(아무 폴더나 가리키지 못하게).
+ *  그래도 env 는 사용자 손이다 — 목적은 «PATH 한 줄로 끝나던 것»을 막는 데까지(VM·UUID 스푸핑은 원래 한계).
+ *  못 찾으면 null(= 운영자 아님). */
+function winRegExePath(io) {
+  const { existsSync, env } = io || {};
+  const cands = ['C:\\Windows\\System32\\reg.exe'];
+  const root = env && typeof env.SystemRoot === 'string' ? env.SystemRoot.trim() : '';
+  if (/^[A-Za-z]:\\Windows$/i.test(root)) cands.push(root + '\\System32\\reg.exe');
+  for (const c of cands) {
+    try { if (typeof existsSync === 'function' && existsSync(c)) return c; } catch (_) {}
+  }
+  return null;
+}
+
+/** 기기 UUID 원문 읽기 — I/O 는 «주입»받는다(execFileSync·readFileSync·existsSync·env). 못 읽으면 null(= 운영자 아님).
+ *  mac: /usr/sbin/ioreg 의 IOPlatformUUID · win: 절대경로 reg.exe 로 HKLM\SOFTWARE\Microsoft\Cryptography MachineGuid
+ *  · 그 밖: /etc/machine-id. ★실행 파일은 전부 절대경로(PATH 불신). */
 function rawMachineUuid(io) {
   const { platform, execFileSync, readFileSync } = io || {};
   const opt = { encoding: 'utf8', timeout: 3000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] };
@@ -74,7 +91,9 @@ function rawMachineUuid(io) {
       return m ? m[1] : null;
     }
     if (platform === 'win32') {
-      const m = /MachineGuid\s+REG_SZ\s+(\S+)/i.exec(String(execFileSync('reg', ['query', 'HKLM\\SOFTWARE\\Microsoft\\Cryptography', '/v', 'MachineGuid'], opt)));
+      const reg = winRegExePath(io);
+      if (!reg) return null;
+      const m = /MachineGuid\s+REG_SZ\s+(\S+)/i.exec(String(execFileSync(reg, ['query', 'HKLM\\SOFTWARE\\Microsoft\\Cryptography', '/v', 'MachineGuid'], opt)));
       return m ? m[1] : null;
     }
     const t = String(readFileSync('/etc/machine-id', 'utf8')).trim();
@@ -110,7 +129,11 @@ function _contractViolation(p, outerKid) {
  *   why ∈ no_file|bad_json|incomplete|unknown_kid|bad_sig|bad_payload. 실패면 `'payload' in r === false`.
  */
 function verifyOperatorAllow(fileText, keys) {
-  if (typeof fileText !== 'string' || !fileText.trim()) return { ok: false, why: 'no_file' };
+  if (typeof fileText !== 'string') return { ok: false, why: 'no_file' };
+  /* UTF-8 BOM 은 벗긴다 — 윈도우 PowerShell 5 의 Set-Content/Out-File -Encoding UTF8 이 붙인다.
+     BOM 은 JSON 바깥 한 글자라 서명 대상(payload 문자열)에 안 들어간다 → 벗겨도 검증 강도는 그대로. */
+  fileText = fileText.replace(/^\uFEFF/, '');
+  if (!fileText.trim()) return { ok: false, why: 'no_file' };
   let doc;
   try { doc = JSON.parse(fileText); } catch (_) { return { ok: false, why: 'bad_json' }; }
   if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return { ok: false, why: 'incomplete' };
@@ -163,6 +186,43 @@ function checkOperatorAllow(o) {
   return { ok: true, why: null };
 }
 
+/**
+ * 거부 «안내» 문구 — 판정과 무관(판정은 checkOperatorAllow 뿐). 배포판을 'admin' 인자로 띄웠는데 거부됐을 때,
+ * 조용히 고객 화면으로 보내지 말고 «왜·무엇을 하면 되는지»를 알리려고 쓴다(0919 T-063).
+ * @param {{why:string, legacy:boolean, keysConfigured:boolean}} o
+ *   legacy = 옛 방식 흔적(userData/admin.allow 또는 env GODITOR_ADMIN_TOKEN)이 있다. ⛔안내에만 쓴다.
+ * @returns {{log:string, title:string, detail:string}}
+ */
+function operatorDeniedNotice(o) {
+  const { why, legacy, keysConfigured } = o || {};
+  const w = typeof why === 'string' && why ? why : 'unknown';
+  const lines = [];
+  if (legacy) {
+    lines.push('옛 운영자 허가(admin.allow · GODITOR_ADMIN_TOKEN)는 이 버전부터 무효입니다.');
+  }
+  if (!keysConfigured) {
+    lines.push('이 빌드에는 운영자 공개키가 없어 운영자(admin) 모드를 쓸 수 없습니다.');
+  } else if (w === 'no_file') {
+    lines.push('서명된 운영자 허가 파일(operator.allow)이 필요합니다.');
+  } else if (w === 'expired') {
+    lines.push('운영자 허가 파일(operator.allow)의 기한이 지났습니다. 새로 발급받으세요.');
+  } else if (w === 'machine_mismatch' || w === 'no_machine') {
+    lines.push('운영자 허가 파일(operator.allow)이 이 기기에 발급된 것이 아닙니다(또는 기기 식별을 못 읽음).');
+  } else {
+    lines.push('운영자 허가 파일(operator.allow)을 확인하지 못했습니다.');
+  }
+  lines.push('발급·설치 절차: tools/operator-allow/README.md (userData 폴더에 operator.allow 로 둡니다).');
+  lines.push('일반(라이선스) 실행으로 계속합니다. 사유: ' + w);
+  const detail = lines.join('\n');
+  return {
+    log: '[admin] 배포판 운영자 허가 거부 — operator.allow: ' + w
+      + (legacy ? ' · 옛 admin.allow/GODITOR_ADMIN_TOKEN 무효(서명 operator.allow 필요)' : '')
+      + (keysConfigured ? '' : ' · 운영자 공개키 없음(이 빌드는 운영자 모드 불가)'),
+    title: '운영자(admin) 모드를 켜지 못했습니다',
+    detail,
+  };
+}
+
 module.exports = {
   TYP,
   VER,
@@ -173,6 +233,8 @@ module.exports = {
   CONSTANTS,
   machineIdFrom,
   rawMachineUuid,
+  winRegExePath,
+  operatorDeniedNotice,
   verifyOperatorAllow,
   checkOperatorAllow,
 };

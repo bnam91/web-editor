@@ -683,30 +683,62 @@ function isAdminAuthorized() {
   } catch (_) { return false; }
 }
 
-/** 이 기기의 machine 해시(operator.allow 의 payload.machine 과 대조). 프로세스당 한 번만 읽는다
+/** 이 기기의 machine 해시(operator.allow 의 payload.machine 과 대조). «성공값»은 프로세스당 한 번만 읽는다
  *  (execFileSync ≈ 30ms — 터미널·PM IPC·will-navigate 마다 부르면 안 된다). 못 읽으면 null = 운영자 아님.
+ *  ★실패(null)는 memo 에 굳히지 않는다 — 첫 호출이 일시적으로 실패(timeout 등)해도 재시작 없이 회복되게,
+ *    대신 재시도 간격(_OPERATOR_MID_RETRY_MS)을 둬 동기 exec 가 IPC 마다 메인을 막지 않게 한다.
+ *  ★이 경로는 배포판 + 'admin' 인자 + operator.allow 가 «있을 때만» 온다(고객 실행은 exec 0회).
  *  ★tools/operator-allow/issue.mjs 의 machine-id 와 «같은» 원천·같은 해시(machineIdFrom)여야 한다. */
-let _operatorMachineIdMemo;
+const _OPERATOR_MID_RETRY_MS = 30 * 1000;
+let _operatorMachineIdMemo = null;
+let _operatorMachineIdFailedAt = 0;
 function _operatorMachineId() {
-  if (_operatorMachineIdMemo !== undefined) return _operatorMachineIdMemo;
+  if (_operatorMachineIdMemo) return _operatorMachineIdMemo;
+  const t = Date.now();
+  if (_operatorMachineIdFailedAt && t - _operatorMachineIdFailedAt < _OPERATOR_MID_RETRY_MS) return null;
   let raw = null;
   try {
     raw = _operatorAllow.rawMachineUuid({
       platform: process.platform,
       execFileSync: require('child_process').execFileSync,
       readFileSync: fs.readFileSync,
+      existsSync: fs.existsSync,
+      env: process.env,
     });
   } catch (_) { raw = null; }
-  _operatorMachineIdMemo = _operatorAllow.machineIdFrom(raw);
-  return _operatorMachineIdMemo;
+  const id = _operatorAllow.machineIdFrom(raw);
+  if (id) { _operatorMachineIdMemo = id; _operatorMachineIdFailedAt = 0; }
+  else _operatorMachineIdFailedAt = t;
+  return id;
 }
 
-/** 거부 사유는 «한 번만» 남긴다(운영자가 자기 파일이 왜 안 먹는지 알 수 있게). ⛔파일 내용·기기값은 안 남긴다. */
+/** 거부 사유는 «한 번만» 알린다 — 로그 + 화면 안내(0919 T-063: 조용히 막지 말 것).
+ *  여기 오는 건 배포판을 'admin' 인자로 띄운 경우뿐(고객 기본 실행은 isAdminAuthorized 첫 줄에서 끝난다).
+ *  ⛔옛 흔적(admin.allow·GODITOR_ADMIN_TOKEN)은 «안내 문구»에만 쓴다. 판정에는 절대 안 쓴다(isAdminAuthorized 참조).
+ *  ⛔파일 내용·기기값·토큰 값은 안 남긴다(있다/없다만). */
 let _operatorDeniedLogged = false;
 function _noteOperatorDenied(why) {
   if (_operatorDeniedLogged) return;
   _operatorDeniedLogged = true;
-  try { console.warn('[admin] 배포판 운영자 허가 거부 — operator.allow:', why); } catch (_) {}
+  let legacy = false;
+  try {
+    legacy = !!process.env.GODITOR_ADMIN_TOKEN
+      || fs.existsSync(path.join(app.getPath('userData'), 'admin.allow'));
+  } catch (_) {}
+  let keysConfigured = false;
+  try { keysConfigured = Object.keys(_operatorAllow.OPERATOR_PUBLIC_KEYS || {}).length > 0; } catch (_) {}
+  let n;
+  try { n = _operatorAllow.operatorDeniedNotice({ why, legacy, keysConfigured }); } catch (_) { return; }
+  try { console.warn(n.log); } catch (_) {}
+  /* 화면 안내 — GUI 로 띄운 배포판에선 console 이 안 보인다. 비모달·비차단(부팅 흐름은 그대로 고객 경로). */
+  const show = () => {
+    try {
+      const opts = { type: 'warning', title: 'GODITOR', message: n.title, detail: n.detail, buttons: ['확인'], noLink: true };
+      const win = (typeof mainWindow !== 'undefined' && mainWindow && !mainWindow.isDestroyed()) ? mainWindow : null;
+      (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts)).catch(() => {});
+    } catch (_) {}
+  };
+  try { if (app.isReady()) setImmediate(show); else app.once('ready', show); } catch (_) {}
 }
 
 // GAP-008: 에디터(라이선스 게이트 너머) 진입 허가 플래그. 인증된 경로(부팅 라이선스 통과·

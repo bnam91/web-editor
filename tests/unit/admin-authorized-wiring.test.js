@@ -132,8 +132,13 @@ test('W7 ★판정은 하나: 호출처 스냅샷 + 두 번째 admin 판정 없�
   files.push(...walk(path.join(ROOT, 'main')), ...walk(path.join(ROOT, 'services')));
   const argvHits = [];
   const oldHits = [];
+  /* 옛 흔적 이름은 «안내 문구»(_noteOperatorDenied·operatorDeniedNotice)에만 허용 — 판정 경로엔 0.
+     그 두 블록을 잘라낸 나머지에서 잰다(W9 가 그 두 블록이 판정에 안 섞이는 걸 따로 잰다). */
+  const NOTICE_BLOCKS = ['function _noteOperatorDenied(', 'function operatorDeniedNotice('];
   for (const f of files) {
-    const c = stripComments(fs.readFileSync(f, 'utf8'));
+    let raw = fs.readFileSync(f, 'utf8');
+    for (const h of NOTICE_BLOCKS) { if (raw.includes(h)) raw = raw.replace(sliceBlock(raw, h), ''); }
+    const c = stripComments(raw);
     const n = (c.match(/argv\.includes\(\s*['"]admin['"]\s*\)/g) || []).length;
     if (n) argvHits.push([toPosix(path.relative(ROOT, f)), n]);
     if (/GODITOR_ADMIN_TOKEN|['"]admin\.allow['"]/.test(c)) oldHits.push(toPosix(path.relative(ROOT, f)));
@@ -142,9 +147,86 @@ test('W7 ★판정은 하나: 호출처 스냅샷 + 두 번째 admin 판정 없�
   assert.deepStrictEqual(oldHits, [], '옛 토큰·admin.allow 를 읽는 코드가 남아 있다');
 });
 
-test('W8 기기 해시 리더는 memo(프로세스당 1회)이고 모듈의 같은 원천을 쓴다', () => {
-  const body = stripComments(sliceBlock(MAIN, 'function _operatorMachineId('));
-  assert.match(body, /if \(_operatorMachineIdMemo !== undefined\) return _operatorMachineIdMemo;/);
-  assert.match(body, /_operatorAllow\.rawMachineUuid\(/);
-  assert.match(body, /_operatorAllow\.machineIdFrom\(raw\)/);
+/** _operatorMachineId 원문을 돌린다 — 성공 memo · 실패는 굳히지 않고 재시도 간격 뒤 회복. */
+function makeMachineReader({ uuids }) {
+  const src = sliceBlock(MAIN, 'function _operatorMachineId(');
+  const retryDecl = (MAIN.match(/const _OPERATOR_MID_RETRY_MS = [^;]+;/) || [])[0];
+  assert.ok(retryDecl, '재시도 간격 상수가 있다');
+  let clock = 1_000_000;
+  const seen = [];
+  const io = { execCalls: 0 };
+  const fakeOA = { ...OA, rawMachineUuid: (o) => { io.execCalls++; seen.push(o); const v = uuids.shift(); if (v instanceof Error) throw v; return v; } };
+  const fn = new Function('_operatorAllow', 'process', 'fs', 'require', 'Date',
+    `${retryDecl}\nlet _operatorMachineIdMemo = null;\nlet _operatorMachineIdFailedAt = 0;\n${src}\nreturn _operatorMachineId;`);
+  const FakeDate = { now: () => clock };
+  const reader = fn(fakeOA, { platform: 'win32', env: { SystemRoot: 'C:\\Windows' } }, { readFileSync() {}, existsSync() { return true; } }, () => ({ execFileSync() {} }), FakeDate);
+  return { reader, io, seen, tick: (ms) => { clock += ms; } };
+}
+
+test('W8 기기 해시 리더: 성공은 memo(1회) · ★실패는 굳히지 않는다(재시도 간격 뒤 회복) · 절대경로용 io 를 넘긴다', () => {
+  const ok = makeMachineReader({ uuids: ['AAAAAAAA-1111-2222-3333-BBBBBBBBBBBB'] });
+  assert.strictEqual(ok.reader(), HERE);
+  assert.strictEqual(ok.reader(), HERE);
+  assert.strictEqual(ok.io.execCalls, 1, '성공값은 프로세스당 한 번');
+  assert.strictEqual(typeof ok.seen[0].existsSync, 'function', 'reg.exe 절대경로 확인용 existsSync 주입');
+  assert.ok(ok.seen[0].env, 'SystemRoot 확인용 env 주입');
+
+  const flaky = makeMachineReader({ uuids: [new Error('timeout'), 'AAAAAAAA-1111-2222-3333-BBBBBBBBBBBB'] });
+  assert.strictEqual(flaky.reader(), null, '첫 호출 실패 → 운영자 아님');
+  assert.strictEqual(flaky.reader(), null, '재시도 간격 안 → exec 안 함(메인 안 막음)');
+  assert.strictEqual(flaky.io.execCalls, 1);
+  flaky.tick(31 * 1000);
+  assert.strictEqual(flaky.reader(), HERE, '★간격 뒤 회복 — 재시작 없이');
+  assert.strictEqual(flaky.io.execCalls, 2);
+  assert.strictEqual(flaky.reader(), HERE);
+  assert.strictEqual(flaky.io.execCalls, 2);
+});
+
+/** _noteOperatorDenied 원문을 돌린다 — 로그·화면 안내 1회, 옛 흔적은 «문구»에만. */
+async function runNotice({ why = 'no_file', env = {}, files = {}, keys = {}, calls = 1 }) {
+  const src = sliceBlock(MAIN, 'function _noteOperatorDenied(');
+  const warns = [];
+  const dialogs = [];
+  const app = { getPath: () => UD, isReady: () => true, once: () => { throw new Error('ready 뒤라 once 를 안 부른다'); } };
+  const fakeFs = { existsSync: (p) => path.relative(UD, p) in files };
+  const dialog = { showMessageBox: (...a) => { dialogs.push(a.length === 2 ? a[1] : a[0]); return Promise.resolve({ response: 0 }); } };
+  const cons = { warn: (...a) => warns.push(a.join(' ')) };
+  const fn = new Function('app', 'process', 'fs', 'path', '_operatorAllow', 'dialog', 'console', 'mainWindow',
+    `let _operatorDeniedLogged = false;\n${src}\nreturn _noteOperatorDenied;`);
+  const note = fn(app, { env }, fakeFs, path, { ...OA, OPERATOR_PUBLIC_KEYS: keys }, dialog, cons, undefined);
+  for (let i = 0; i < calls; i++) note(why);
+  await new Promise((r) => setImmediate(r));
+  return { warns, dialogs };
+}
+
+test('W9 ★거부는 조용하지 않다: 로그 + 화면 안내 1회 · 옛 admin.allow/토큰이면 «무효·서명 allow 필요» · 키 없으면 그 사실', async () => {
+  const legacyFile = await runNotice({ files: { 'admin.allow': OLD_ALLOW }, keys: TEST_KEYS, calls: 3 });
+  assert.strictEqual(legacyFile.warns.length, 1, '로그는 한 번');
+  assert.strictEqual(legacyFile.dialogs.length, 1, '화면 안내도 한 번');
+  assert.match(legacyFile.warns[0], /무효/);
+  assert.match(legacyFile.warns[0], /서명 operator\.allow 필요/);
+  assert.match(legacyFile.dialogs[0].detail, /이 버전부터 무효/);
+  assert.match(legacyFile.dialogs[0].detail, /operator\.allow\)이 필요합니다/);
+  assert.ok(!legacyFile.warns[0].includes(OLD_ALLOW), '파일 내용은 안 남긴다');
+
+  const legacyEnv = await runNotice({ env: { GODITOR_ADMIN_TOKEN: OLD_TOKEN }, keys: TEST_KEYS });
+  assert.match(legacyEnv.warns[0], /무효/);
+  assert.ok(!legacyEnv.warns[0].includes(OLD_TOKEN) && !legacyEnv.dialogs[0].detail.includes(OLD_TOKEN), '토큰 값은 안 남긴다');
+
+  const noKeys = await runNotice({ keys: {} });
+  assert.match(noKeys.dialogs[0].detail, /운영자 공개키가 없어/);
+  assert.match(noKeys.warns[0], /운영자 공개키 없음/);
+
+  const plain = await runNotice({ why: 'expired', keys: TEST_KEYS });
+  assert.ok(!/무효/.test(plain.warns[0]), '옛 흔적 없으면 «무효» 문구 없음');
+  assert.match(plain.dialogs[0].detail, /기한이 지났습니다/);
+});
+
+test('W10 안내는 판정에 안 섞인다: isAdminAuthorized 는 r.ok 만 돌려주고, 옛 흔적은 안내 블록 밖에서 안 읽는다', () => {
+  const body = stripComments(sliceBlock(MAIN, 'function isAdminAuthorized('));
+  assert.match(body, /if \(!r\.ok\) _noteOperatorDenied\(r\.why\);\s*return r\.ok === true;/);
+  // 옛 파일이 있어도 결과는 같다(W1 과 같은 입력에 안내 블록이 붙어도 false)
+  const r = runAdmin({ packaged: true, argv: ['/A/GODITOR', 'admin'], env: { GODITOR_ADMIN_TOKEN: OLD_TOKEN },
+    files: { 'admin.allow': OLD_ALLOW + '\n', 'operator.allow': signedAllow() }, keys: TEST_KEYS });
+  assert.strictEqual(r.out, true, '유효 서명 allow 면 옛 흔적 유무와 무관하게 true');
 });

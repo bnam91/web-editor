@@ -8,6 +8,34 @@
 - 옛 방식(`GODITOR_ADMIN_TOKEN` 의 sha256 == `admin.allow`)은 0919 3라운드부터 **읽지 않는다**.
 - 이 허가는 개발자 도구와 CDP 를 **열지 않는다**. 그건 관리자 계정 또는 관리자코드(devtools-gate)의 일이다.
 
+## ★배포 순서 — 운영자 PC 에 서명 allow 를 «먼저», 앱 배포는 «그다음»
+
+이 변경이 들어간 버전을 배포하면, 배포판에서 옛 방식(`admin.allow` + `GODITOR_ADMIN_TOKEN`)은 그 순간부터 무효다.
+순서를 거꾸로 하면 현빈·운영자의 PM·터미널·기획 페이지·라이선스 건너뛰기·MCP 로그인 인정(authed)이
+**새 버전으로 업데이트되는 순간 꺼진다.**
+
+1. 실키 연결(아래 「처음 한 번」) — `OPERATOR_PUBLIC_KEYS` 에 `op1` 이 들어간 코드로 빌드해야 한다.
+   키가 비어 있는 채로 배포하면 서명 allow 를 깔아도 **어떤 운영자도 켜지지 않는다**(`unknown_kid`).
+2. 운영자 기기마다 `machine-id` → `issue` → 그 기기 userData 에 `operator.allow` 를 **먼저** 둔다.
+   옛 버전 앱은 이 파일을 읽지 않으니 미리 깔아도 아무 영향이 없다.
+3. 그다음 앱을 배포(태그 푸시 → CI)한다.
+4. 업데이트된 운영자 기기에서 `GODITOR admin` 으로 한 번 띄워 운영자 경로(프로젝트 진입·터미널)가 되는지 본다.
+   안 되면 화면에 「운영자(admin) 모드를 켜지 못했습니다」 안내가 뜬다(사유 포함, 로그에도 같은 줄).
+5. 옛 `admin.allow` 파일과 `GODITOR_ADMIN_TOKEN` 은 지워도 된다(남아 있어도 판정에는 안 쓰고, 안내 문구에만 「무효」로 뜬다).
+
+`tools/deploy-gate.js`(로컬 `release:mac/win`)는 운영자 키가 대조 안 됐으면 이 순서를 다시 경고한다.
+⚠️CI 릴리스 워크플로(`.github/workflows/release-*.yml`)는 deploy-gate 를 돌리지 않는다 — 태그 푸시 전에 사람이 이 절을 확인한다.
+
+### 릴리스 노트(내부·GitHub)에 넣을 문구
+
+앱 안 「릴리스 노트」 모달(`js/release-note.js`)은 고객용이라 넣지 않는다. GitHub 릴리스 노트/내부 공지에만:
+
+```
+운영자(admin) 모드: 이 버전부터 배포판 운영자 허가는 «서명된 operator.allow» 만 인정합니다.
+옛 admin.allow·GODITOR_ADMIN_TOKEN 은 무효입니다. 업데이트 «전에» 운영자 PC 마다 새 허가를 먼저 설치하세요
+(tools/operator-allow/README.md). 고객(일반 실행)에는 영향이 없습니다.
+```
+
 ## 파일 형식
 
 `operator.allow` (JSON 한 줄)
@@ -61,7 +89,9 @@ payload(모두 필수, 하나라도 어긋나면 거부):
 3. 대상 기기의 userData 에 `operator.allow` 로 둔다.
    - mac: `~/Library/Application Support/GODITOR/operator.allow`
    - win: `%APPDATA%\GODITOR\operator.allow`
-4. `GODITOR admin` 으로 실행. 안 먹으면 로그의 `[admin] 배포판 운영자 허가 거부 — operator.allow: <why>` 를 본다.
+4. `GODITOR admin` 으로 실행. 안 먹으면 화면에 「운영자(admin) 모드를 켜지 못했습니다」 안내가 한 번 뜨고(사유 포함),
+   로그에 `[admin] 배포판 운영자 허가 거부 — operator.allow: <why>` 가 남는다. 옛 파일·토큰이 있으면 「무효」라고 함께 적힌다.
+   파일은 BOM 이 붙어 있어도 된다(PowerShell 5 `Out-File -Encoding UTF8` 대응).
    why: `no_file · bad_json · incomplete · unknown_kid · bad_sig · bad_payload · expired · not_yet · ttl_too_long · machine_mismatch · no_machine`
 
 ## 한계 (정직하게)
