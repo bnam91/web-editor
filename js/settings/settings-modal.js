@@ -77,6 +77,7 @@
             ${window.MARKET_ENABLED ? '<button class="settings-tab" data-tab="market">마켓</button>' : ''}
             ${window.COLLAB_ENABLED ? '<button class="settings-tab" data-tab="collab">협업</button>' : ''}
             <button class="settings-tab" data-tab="dev">개발자</button>
+            <button class="settings-tab" data-tab="debug">디버깅</button>
           </div>
           <div class="settings-content">
             <div class="settings-pane settings-pane-api" data-pane="api"></div>
@@ -87,6 +88,7 @@
             ${window.MARKET_ENABLED ? '<div class="settings-pane settings-pane-market" data-pane="market" style="display:none"></div>' : ''}
             ${window.COLLAB_ENABLED ? '<div class="settings-pane settings-pane-collab" data-pane="collab" style="display:none"></div>' : ''}
             <div class="settings-pane settings-pane-dev" data-pane="dev" style="display:none"></div>
+            <div class="settings-pane settings-pane-debug" data-pane="debug" style="display:none"></div>
           </div>
         </div>
         <div class="settings-modal-footer">
@@ -139,6 +141,8 @@
         if (tab === 'collab') renderCollabPane();
         // 버전 기록도 같은 이유 — 저장할 때마다 늘어나므로 «진입 시» 다시 읽는다
         if (tab === 'version') renderVersionPane();
+        // 디버깅 탭도 «진입 시» main 에 다시 묻는다 — 로그인·로그아웃 뒤 상태가 어긋나지 않게
+        if (tab === 'debug') renderDebugPane();
       });
     });
 
@@ -336,6 +340,101 @@
   function _escapeHtml(v) {
     return String(v == null ? '' : v)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* ── 디버깅 탭 (현빈 2026-09-19) ─────────────────────────────────────────
+   *   배포판에서 개발자 도구는 잠겨 있다(main/devtools-gate.js). 화상공유로 고객 PC 를 볼 때
+   *   여기서 «관리자코드»를 넣으면 이 앱 세션 동안 열린다. 관리자 계정 로그인이면 코드 없이 열린다.
+   *   ★판정·검증은 전부 main 이 한다 — 이 화면은 묻고 보여줄 뿐이다(여기 조건을 바꿔도 안 열린다).
+   *   ★새 룩 금지: settings-api-* / settings-btn / settings-section-title 을 그대로 쓴다. */
+  const DEBUG_STATE_TEXT = {
+    dev:           '개발 빌드 — 개발자 도구를 자유롭게 열 수 있습니다',
+    'admin-email': '관리자 계정으로 허용됨',
+    'admin-arg':   '운영자 빌드로 허용됨',
+    unlocked:      '이 세션에서 해제됨 — 앱을 종료하면 다시 잠깁니다',
+    locked:        '잠김',
+  };
+
+  async function renderDebugPane() {
+    const pane = document.querySelector('.settings-pane-debug');
+    if (!pane) return;
+    const api = window.electronAPI && window.electronAPI.devtools;
+    if (!api) {
+      pane.innerHTML = `
+        <div class="settings-section-title">디버깅</div>
+        <div class="settings-help">개발자 도구는 데스크탑 앱에서만 사용할 수 있습니다.</div>`;
+      return;
+    }
+    let st = null;
+    try { st = await api.state(); } catch (_) { st = null; }
+    if (!st) st = { allowed: false, reason: 'locked' };
+
+    pane.innerHTML = `
+      <div class="settings-section-title">디버깅</div>
+      <div class="settings-help">원격 지원 때 개발자 도구를 열기 위한 곳입니다. 관리자코드를 넣으면 이 앱을 끌 때까지 열 수 있습니다.</div>
+      <div class="settings-api-list">
+        <div class="settings-api-row">
+          <label class="settings-api-label">상태</label>
+          <div class="settings-api-status ${st.allowed ? 'ok' : ''}" data-debug-state>${_escapeHtml(DEBUG_STATE_TEXT[st.reason] || DEBUG_STATE_TEXT.locked)}</div>
+        </div>
+        ${st.allowed ? '' : `
+        <div class="settings-api-row">
+          <label class="settings-api-label" for="settings-debug-code">관리자코드</label>
+          <div class="settings-api-input-wrap">
+            <input type="password" id="settings-debug-code" class="settings-api-input" data-debug-code
+                   inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="관리자코드" />
+            <button class="settings-api-test" data-debug-unlock>해제</button>
+          </div>
+          <div class="settings-api-status" data-debug-msg></div>
+        </div>`}
+        ${st.allowed ? `
+        <div class="settings-api-row">
+          <div class="settings-api-input-wrap">
+            <button class="settings-btn settings-btn-primary" data-debug-open>개발자 도구 열기</button>
+          </div>
+          <div class="settings-api-status" data-debug-msg></div>
+        </div>` : ''}
+      </div>`;
+
+    const input = pane.querySelector('[data-debug-code]');
+    const msg = pane.querySelector('[data-debug-msg]');
+    const unlockBtn = pane.querySelector('[data-debug-unlock]');
+    const openBtn = pane.querySelector('[data-debug-open]');
+
+    const submit = async () => {
+      if (!input || !unlockBtn) return;
+      const code = input.value;
+      if (!code.trim()) { msg.textContent = '관리자코드를 입력하세요'; msg.className = 'settings-api-status err'; return; }
+      unlockBtn.disabled = true;
+      let r = null;
+      try { r = await api.unlock(code); } catch (_) { r = null; }
+      unlockBtn.disabled = false;
+      input.value = '';
+      if (r && r.ok) { renderDebugPane(); return; }
+      msg.textContent = (r && r.reason === 'rate_limited') ? '잠시 후 다시 시도하세요' : '코드가 맞지 않습니다';
+      msg.className = 'settings-api-status err';
+      input.focus();
+    };
+
+    if (input) {
+      /* ★입력칸 키는 «여기서 끝낸다» — 에디터 전역 단축키(Backspace 블럭 삭제 등)로 새지 않게.
+       *   Esc 는 모달 닫기(capture 단계 onCaptureKeydown)가 먼저 받으므로 영향 없다. */
+      input.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      });
+      setTimeout(() => { try { input.focus(); } catch (_) {} }, 0);
+    }
+    if (unlockBtn) unlockBtn.addEventListener('click', submit);
+    if (openBtn) openBtn.addEventListener('click', async () => {
+      let r = null;
+      try { r = await api.open(); } catch (_) { r = null; }
+      if (!r || !r.ok) {
+        msg.textContent = '개발자 도구를 열 수 없습니다 — 다시 잠겼을 수 있습니다';
+        msg.className = 'settings-api-status err';
+        renderDebugPane();
+      }
+    });
   }
 
   function renderPerfPane() {
