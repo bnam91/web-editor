@@ -735,3 +735,171 @@ test('G23 HTML 내보내기용 필터 정의: 클론이 쓰는 url(#…) 정의�
   expect(r.parsed).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ═══════════════════════════════════════════════════════════
+ * 0920r4 texttype (T-059) — 타입 전환(패널 H1~List · 단축키 1~4)이 글자 효과 클래스를 지우면 안 된다.
+ *   고치기 전: `contentEl.className = cls` 가 .tgs · .text-effect .tfx-neon · .tfx-metallic 을 통째로 날려
+ *   그라데이션 글자의 그림자가 다시 글자 «위»로 칠해졌다(0% 쪽 페이드 메워짐).
+ *   ★진짜 패널 타입 버튼을 마우스로 누른다. 단축키 경로는 editor.js 를 얹지 않고 같은 공용 함수를 직접 부른다
+ *     (단축키 자리가 그 함수를 쓰는지는 tests/unit/text-type-class.test.mjs U3 가 소스로 보장).
+ * ═══════════════════════════════════════════════════════════ */
+
+const typeBtn = (page, cls) => page.locator(`.prop-type-btn[data-cls="${cls}"]`);
+const clsOf = (page, sel) => page.evaluate((s) => document.querySelector(s).getAttribute('class'), sel);
+
+test('G24 ★그라데이션 + 그림자 → 패널 H2: .tgs 유지 · text-shadow none · drop-shadow · 0% 쪽 글자 안쪽 = 배경 (+옛 동작 양성대조)', async ({ page }) => {
+  const errs = await boot(page);
+  await addProbe(page);
+  await page.evaluate((css) => window.applyTextGradient(document.getElementById('tb5'), { css }, { commit: true }), RED_FADE);
+  await select(page, 'tb5');
+  await shadowToggle(page, true);
+  expect((await tgsLook(page)).tgs).toBe(true);
+  // ★양성대조: 옛 동작(className 통째 대입)이면 그림자가 글자 위로 돌아온다 — 이 검사가 결함을 «잡을 수 있다»는 증명
+  const old = await page.evaluate(() => {
+    const el = document.querySelector('#tb5 .tb-body');
+    const keep = el.getAttribute('class');
+    el.className = 'tb-h2';
+    const ts = getComputedStyle(el).textShadow;
+    el.setAttribute('class', keep);
+    return ts;
+  });
+  expect(old, '★양성대조: 옛 동작에서도 text-shadow 가 none — 이 검사는 아무것도 못 잰다').not.toBe('none');
+  await typeBtn(page, 'tb-h2').click();
+  const sel = '#tb5 .tb-h2';
+  const c = await clsOf(page, sel);
+  expect(c.split(' ')[0], '타입 클래스가 맨 앞이 아니다([class^="tb-"] 셀렉터가 놓침)').toBe('tb-h2');
+  expect(c).not.toMatch(/\btb-body\b/);
+  const L = await tgsLook(page, sel);
+  expect(L.tgs, '타입 전환이 .tgs 를 지웠다').toBe(true);
+  expect(L.ts, '타입 전환 뒤 그림자가 다시 글자 «위»(text-shadow)').toBe('none');
+  expect(L.filter).toBe('drop-shadow(rgba(0, 0, 0, 0.5) 2px 2px 2px)');
+  const img = await grab(page, sel);
+  const right = minG(cols(img, 0.88, 1));
+  expect(right, `0% 쪽 글자 안쪽이 그림자색으로 메워졌다 (min G=${right})`).toBeGreaterThanOrEqual(200);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G25 비그라데이션 네온 → 패널 H2/Cap: text-effect·tfx-neon 유지 · computed text-shadow 그대로(none 아님)', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => window.applyTextEffect(document.getElementById('tb1'), { preset: 'neon', color: '#00ffcc', glowColor: '#00ffcc', intensity: 80 }));
+  const before = await page.evaluate(() => getComputedStyle(document.querySelector('#tb1 .tb-body')).textShadow);
+  expect(before, '★양성대조: 네온 글로우가 애초에 없다').not.toBe('none');
+  await select(page, 'tb1');
+  for (const t of ['tb-h2', 'tb-caption']) {
+    await typeBtn(page, t).click();
+    const r = await page.evaluate((t) => { const el = document.querySelector(`#tb1 .${t}`);
+      return { cls: el.getAttribute('class'), ts: getComputedStyle(el).textShadow, tgs: el.classList.contains('tgs') }; }, t);
+    expect(r.cls, `${t}: 네온 클래스 유실`).toMatch(/\btext-effect\b/);
+    expect(r.cls).toMatch(/\btfx-neon\b/);
+    expect(r.cls.split(' ')[0]).toBe(t);
+    expect(r.tgs, '그라데이션 없는 글자에 .tgs 가 붙었다').toBe(false);
+    expect(r.ts, `${t}: 네온 글로우가 사라졌다`).toBe(before);
+  }
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G26 그라데이션 + 네온 → 패널 H3: --tgs-filter = url(#tgs-f-…) 이고 그 <filter> 가 문서에 있다', async ({ page }) => {
+  const errs = await boot(page);
+  await addProbe(page);
+  await page.evaluate((css) => window.applyTextGradient(document.getElementById('tb5'), { css }, { commit: true }), RED_FADE);
+  await page.evaluate(() => window.applyTextEffect(document.getElementById('tb5'), { preset: 'neon', color: '#0033ff', glowColor: '#0033ff', intensity: 100 }));
+  await select(page, 'tb5');
+  await typeBtn(page, 'tb-h3').click();
+  const L = await tgsLook(page, '#tb5 .tb-h3');
+  expect(L.tgs).toBe(true);
+  expect(L.ts).toBe('none');
+  expect(L.f).toMatch(/^url\(#tgs-f-[0-9a-z]+\)$/);
+  expect(await page.evaluate((f) => !!document.getElementById(f.slice(5, -1)), L.f), 'SVG 필터 정의가 없다').toBe(true);
+  expect(await clsOf(page, '#tb5 .tb-h3')).toMatch(/\btfx-neon\b/);
+  const img = await grab(page, '#tb5 .tb-h3');
+  const right = cols(img, 0.9, 1).reduce((m, p) => Math.min(m, p.r), 255);
+  expect(right, `0% 쪽 글자 안쪽에 네온 글로우가 칠해졌다 (min R=${right})`).toBeGreaterThanOrEqual(200);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G27 본문 → List → 본문 왕복: tfx-neon 유지 · List 로 가면 그라데이션이 풀리고(기존 규칙) .tgs·--tgs-* 도 정리', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => {
+    const tb = document.getElementById('tb1');
+    window.applyTextGradient(tb, { css: 'linear-gradient(90deg, #ff0000 0%, rgba(255,0,0,0) 100%)' }, { commit: true });
+    window.applyTextEffect(tb, { preset: 'neon', color: '#0033ff', glowColor: '#0033ff', intensity: 60 });
+  });
+  expect(await page.evaluate(() => document.querySelector('#tb1 .tb-body').classList.contains('tgs'))).toBe(true);
+  await select(page, 'tb1');
+  await typeBtn(page, 'tb-bullet').click();
+  const li = await page.evaluate(() => { const el = document.querySelector('#tb1 .tb-bullet');
+    return { tag: el.tagName, cls: el.getAttribute('class'), tg: window.getTextGradient(el), tgs: el.classList.contains('tgs'),
+      f: el.style.getPropertyValue('--tgs-filter'), ts: getComputedStyle(el).textShadow, glow: el.style.getPropertyValue('--tfx-glow-color') }; });
+  expect(li.tag).toBe('UL');
+  expect(li.cls.split(' ')[0]).toBe('tb-bullet');
+  expect(li.cls, 'List 로 바꾸며 네온 클래스 유실').toMatch(/\btext-effect\b.*\btfx-neon\b|\btfx-neon\b.*\btext-effect\b/);
+  expect(li.glow, '네온 인라인 변수 유실').not.toBe('');
+  expect(li.tg, 'List 는 그라데이션 불가 — 풀려야 한다').toBeNull();
+  expect(li.tgs, '그라데이션이 풀렸는데 .tgs 가 남았다').toBe(false);
+  expect(li.f).toBe('');
+  expect(li.ts, '네온 글로우가 text-shadow 로 돌아와야 한다').not.toBe('none');
+  await typeBtn(page, 'tb-body').click();
+  const back = await page.evaluate(() => { const el = document.querySelector('#tb1 .tb-body');
+    return { tag: el.tagName, cls: el.getAttribute('class'), ts: getComputedStyle(el).textShadow }; });
+  expect(back.tag).toBe('DIV');
+  expect(back.cls.split(' ')[0]).toBe('tb-body');
+  expect(back.cls).toMatch(/\btfx-neon\b/);
+  expect(back.ts).not.toBe('none');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G28 메탈릭 → 패널 H2: tfx-metallic 유지 → 그라데이션 탭은 계속 막힘(textGradientAllowed=false)', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => window.applyTextEffect(document.getElementById('tb1'), { preset: 'metallic' }));
+  await select(page, 'tb1');
+  await typeBtn(page, 'tb-h2').click();
+  const r = await page.evaluate(() => { const el = document.querySelector('#tb1 .tb-h2');
+    return { cls: el.getAttribute('class'), allowed: window.textGradientAllowed(el), modes: document.getElementById('txt-color').dataset.cpModes }; });
+  expect(r.cls).toMatch(/\btfx-metallic\b/);
+  expect(r.allowed, '메탈릭이 빠져 그라데이션 탭이 열렸다(재로드 때 칠한 그라데이션이 조용히 지워지는 경로)').toBe(false);
+  expect(r.modes).toBe('solid');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G29 단축키 경로(공용 함수 setTextTypeClass + afterTextTypeChange): 그라데이션+그림자 글자 → H1 → .tgs·drop-shadow 유지', async ({ page }) => {
+  const errs = await boot(page);
+  await addProbe(page);
+  await page.evaluate((css) => window.applyTextGradient(document.getElementById('tb5'), { css }, { commit: true }), RED_FADE);
+  await select(page, 'tb5');
+  await shadowToggle(page, true);
+  await page.evaluate(async () => {
+    const m = await import('/js/props/text-type-class.js');
+    const el = document.querySelector('#tb5 .tb-body');
+    m.setTextTypeClass(el, 'tb-h1');
+    el.style.fontSize = '';
+    m.afterTextTypeChange(el);
+  });
+  const sel = '#tb5 .tb-h1';
+  expect((await clsOf(page, sel)).split(' ')[0]).toBe('tb-h1');
+  const L = await tgsLook(page, sel);
+  expect(L.tgs).toBe(true);
+  expect(L.ts).toBe('none');
+  expect(L.filter).toBe('drop-shadow(rgba(0, 0, 0, 0.5) 2px 2px 2px)');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G30 타입 전환 → 스냅샷 → 되돌리기: 이전 타입으로 돌아오고 .tgs·drop-shadow 유지(양쪽 스냅샷 모두)', async ({ page }) => {
+  const errs = await boot(page);
+  await addProbe(page);
+  await page.evaluate((css) => window.applyTextGradient(document.getElementById('tb5'), { css }, { commit: true }), RED_FADE);
+  await select(page, 'tb5');
+  await shadowToggle(page, true);
+  await page.evaluate(() => window.pushHistory());   // A = 본문
+  await typeBtn(page, 'tb-h2').click();               // (핸들러가 바뀌기 «전» 을 한 번 더 기록 — 앱과 같음)
+  await page.evaluate(() => window.pushHistory());   // B = H2
+  const b = await tgsLook(page, '#tb5 .tb-h2');
+  expect(b.tgs).toBe(true);
+  await page.evaluate(() => window.__undo());
+  await page.waitForTimeout(30);
+  const u = await tgsLook(page, '#tb5 .tb-body');
+  expect(u.tgs).toBe(true);
+  expect(u.ts).toBe('none');
+  expect(u.filter).toBe('drop-shadow(rgba(0, 0, 0, 0.5) 2px 2px 2px)');
+  expect(await page.evaluate(() => !!document.querySelector('#tb5 .tb-h2'))).toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

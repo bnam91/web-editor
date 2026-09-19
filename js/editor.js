@@ -1,6 +1,7 @@
 import { canvasEl, propPanel, state, BLOCK_DELEGATE_SEL } from './globals.js';
 import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './history.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
+import { setTextTypeClass, afterTextTypeChange } from './props/text-type-class.js';
 
 /* ═══════════════════════════════════
    SSOT: 캔버스에서 "선택된 블록" 셀렉터 목록
@@ -2482,6 +2483,8 @@ document.addEventListener('keydown', e => {
       if (document.querySelector('.text-block.editing')) return; // 편집 중 차단
       const tb = document.querySelector('.text-block.selected');
       if (!tb) return;
+      // 0920r4 texttype: 라이너는 타입이 없다(패널도 Type 토글 숨김, prop-text.js M2) — 미러 .tb-liner 를 건드리지 않는다
+      if (tb.classList.contains('liner-block')) return;
       e.preventDefault();
       const typeMap = { 'Digit1': ['tb-h1','heading'], 'Digit2': ['tb-h2','heading'], 'Digit3': ['tb-h3','heading'], 'Digit4': ['tb-body','body'] };
       const phMap = { 'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요', 'tb-body':'본문 내용을 입력하세요.' };
@@ -2489,7 +2492,7 @@ document.addEventListener('keydown', e => {
       const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet');
       if (!contentEl) return;
       window.pushHistory?.();
-      contentEl.className = cls;
+      setTextTypeClass(contentEl, cls);   // 0920r4 texttype: className 통째 대입 금지(.tgs·.tfx-* 유실 → 그림자가 글자 위로)
       tb.dataset.type = dtype;
       // 유형 변경 = 스타일 프리셋 적용. inline fontSize 제거 → CSS 유형 표준크기 적용
       // (tb-h1 104 / tb-h2 72 / tb-h3 52 / tb-body 36). 이후 +/-로 미세조정 가능.
@@ -2515,6 +2518,7 @@ document.addEventListener('keydown', e => {
         const nameSpan = tb._layerItem?.querySelector('.layer-item-name');
         if (nameSpan) nameSpan.textContent = (dtype === 'heading') ? 'Heading' : 'Body';
       }
+      afterTextTypeChange(contentEl);   // 0920r4 texttype: 새 타입 기준으로 그라데이션 글자 그림자 파생값 재계산
       window.showTextProperties?.(tb);
       return;
     }
