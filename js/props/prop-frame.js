@@ -5,6 +5,7 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { bindSlider, alignBtn } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset } from '../frame-geometry.js';
+import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#ffffff';
@@ -200,7 +201,7 @@ function _convertFreeLayoutToStack(ss) {
 window.__convertFreeLayoutToStack = _convertFreeLayoutToStack;
 
 function _renderAutoPanel(ss) {
-  const isShapeFrame = !!ss.querySelector('.shape-block');
+  const isShapeFrame = _isShapeFrameEl(ss);   // ★직속 판정 SSOT(자손 검색 ✗, 0918)
   const isFreeLayout = ss.dataset.freeLayout === 'true';
   const rawBg  = ss.style.backgroundColor || ss.dataset.bg || '#f5f5f5';
   const hexBg  = rgbToHex(rawBg);
