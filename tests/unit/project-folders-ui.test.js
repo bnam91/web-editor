@@ -107,3 +107,24 @@ test('PF-11 리스트뷰 예약폭 — 폴더 이동 버튼이 항상 뜨므로 
   assert.ok(m);
   assert.equal(Number(m[1]), 110);
 });
+
+test('PF-12 [polish3] 폴더 밖 프로젝트의 «폴더에서 빼기»는 비활성 — aria-disabled + 클릭 무시 + 흐림 CSS', () => {
+  const fn = sliceBlock(CODE, 'async function openFolderMenuUI(');
+  // ① «지금 폴더» 판정이 화면 규칙과 같다 — 없는 폴더를 가리키는 folderId·undefined 는 「폴더 밖」
+  assert.match(fn, /const curFolderId = \(proj && proj\.folderId && _foldersCache\.some\(f => f\.id === proj\.folderId\)\) \? proj\.folderId : null;/,
+    '★curFolderId 가 화면의 폴더 밖 규칙(_foldersCache 대조)을 안 쓴다');
+  // ② 그 규칙 그대로 null 항목만 비활성
+  assert.match(fn, /const isCur = curFolderId === key;/, 'is-current 판정이 사라졌다');
+  assert.match(fn, /const off = isCur && key === null;/, '★«폴더에서 빼기» 비활성 판정이 없다');
+  assert.match(fn, /aria-disabled="true"/, '★비활성 항목에 aria-disabled 가 없다');
+  assert.ok(!/itemHtml[\s\S]{0,400}?\sdisabled(?!-)/.test(fn) || !/<button[^`]*\sdisabled\b/.test(fn),
+    '★disabled 속성을 썼다 — 크로미움이 hover 를 안 줘 툴팁이 안 뜬다');
+  // ③ 클릭 핸들러가 비활성 항목을 거른다(가드가 _assignToFolder 보다 앞)
+  const guard = fn.indexOf(`item.getAttribute('aria-disabled') === 'true'`);
+  const act = fn.indexOf('_assignToFolder([projectId], key)');
+  assert.ok(guard > 0, '★비활성 항목 클릭 가드가 없다');
+  assert.ok(guard < act, '★가드가 폴더 배정보다 뒤에 있다');
+  // ④ 흐림 스타일(공용 토큰)
+  assert.match(CODE, /\.card-folder-menu \.tab-add-item\[aria-disabled="true"\][\s\S]{0,160}opacity: var\(--ui-disabled-opacity\)/,
+    '★비활성 항목 스타일이 없다(공용 --ui-disabled-opacity)');
+});

@@ -543,6 +543,12 @@ body {
 }
 .card-folder-menu .tab-add-item { width: 100%; background: transparent; border: none; font-family: inherit; text-align: left; }
 .card-folder-menu .tab-add-item.is-current { color: var(--ui-text); background: var(--ui-border-mid); }
+/* [polish3] 눌러도 달라질 게 없는 항목(폴더 밖 프로젝트의 「폴더에서 빼기」) — 기획 카드 📁 와 같은 규율:
+   ⛔disabled 속성 대신 aria-disabled(툴팁이 뜨게). 「여기 있음」 배경은 그대로 두고 «흐림»만 더한다. */
+.card-folder-menu .tab-add-item[aria-disabled="true"],
+.card-folder-menu .tab-add-item[aria-disabled="true"]:hover {
+  opacity: var(--ui-disabled-opacity); cursor: not-allowed; color: var(--ui-text-dim);
+}
 
 /* ── Empty state ── */
 #empty-state {
@@ -1515,14 +1521,23 @@ async function openFolderMenuUI(e, projectId) {
   document.querySelectorAll('.card-folder-menu').forEach(m => m.remove());
   const btn = e.currentTarget;
   const proj = _allProjectsCache.find(p => p.id === projectId);
-  const curFolderId = proj ? proj.folderId : null;
+  // ★«지금 어느 폴더에 있나»는 화면이 쓰는 규칙과 «같게» 본다 — folderId 가 없거나 «없는 폴더»를 가리키면
+  //   화면상 「폴더 밖」이다(_filterForView 의 폴더 밖 판정·카드 폴더 배지와 동일). undefined 도 null 로 모은다.
+  const curFolderId = (proj && proj.folderId && _foldersCache.some(f => f.id === proj.folderId)) ? proj.folderId : null;
 
   const menu = document.createElement('div');
   menu.className = 'card-folder-menu';
-  const itemHtml = (key, name) => `
-    <button type="button" class="tab-add-item${curFolderId === key ? ' is-current' : ''}" data-goto="${key === null ? '' : _escHtml(key)}">
+  /* [polish3/T-062] 이미 폴더 밖인 프로젝트의 「폴더에서 빼기」는 «할 일이 없는» 항목 → 비활성.
+   *   판정은 위의 «현재 폴더» 규칙 그대로(curFolderId === key). ⛔disabled 속성 금지 —
+   *   크로미움은 disabled 버튼에 hover 를 안 줘 title 툴팁이 안 뜬다(기획 카드 📁 와 같은 규율). */
+  const itemHtml = (key, name) => {
+    const isCur = curFolderId === key;
+    const off = isCur && key === null;
+    return `
+    <button type="button" class="tab-add-item${isCur ? ' is-current' : ''}${off ? ' is-disabled' : ''}"${off ? ' aria-disabled="true" title="이미 폴더 밖에 있습니다"' : ''} data-goto="${key === null ? '' : _escHtml(key)}">
       <span class="tab-add-item-name">${_escHtml(name)}</span>
     </button>`;
+  };
   menu.innerHTML = itemHtml(null, '폴더에서 빼기')
     + (_foldersCache.length ? '<div class="fr-divider"></div>' : '')
     + _foldersCache.map(f => itemHtml(f.id, f.name)).join('')
@@ -1538,6 +1553,8 @@ async function openFolderMenuUI(e, projectId) {
   menu.addEventListener('click', async (ev) => {
     const item = ev.target.closest('[data-goto]');
     if (item) {
+      // 비활성 항목(이미 폴더 밖) — 아무 일도 하지 않고 메뉴도 닫지 않는다
+      if (item.getAttribute('aria-disabled') === 'true') { ev.stopPropagation(); return; }
       const key = item.dataset.goto || null;
       close();
       await _assignToFolder([projectId], key);
