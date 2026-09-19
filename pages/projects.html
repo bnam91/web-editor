@@ -57,41 +57,85 @@ body {
   flex: 1; display: flex; padding: 0; overflow: hidden;
 }
 
-/* ── 폴더 레일(T-A, 2026-09-16) ──────────────────────────────────────────
- * ★행은 새 클래스를 만들지 않는다 — editor-base.css 의 공용 .tab-add-item /
- *   .tab-add-item-name / .tab-add-item-date 를 그대로 재사용한다(디자인 게이트).
- * ★선택 표시 — 파란 액센트 금지(현빈 2026-08-27). 선택=배경 var(--ui-border-mid),
- *   비선택=투명+var(--ui-text-dim). #view-toggle 의 .vt-item 규칙과 «같은 언어». */
-#folder-rail {
-  width: 184px; flex-shrink: 0; overflow-y: auto;
-  padding: 20px 10px; border-right: 1px solid var(--ui-border, #2a2a2a);
+/* ── 폴더 «한 화면»(시안 B, 2026-09-19) — 왼쪽 레일(#folder-rail)을 걷고 갤러리 위에 «폴더 타일 줄» ──
+ * 정본: ~/.claude/skills/지디/dashboard/mockups/folder-layout-abc.html 의 B(.ftiles/.ftile/.crumb).
+ * ★선택·강조 표시 — 파란 액센트 금지(현빈 2026-08-27). 보더 토큰·배경 var(--ui-border-mid)·밝기로만.
+ * ★타일 안에 ⋯ 버튼을 «넣지» 않는다 — <button> 안에 <button> 은 HTML 파서가 바깥을 미리 닫는다
+ *   (09-16 실기). ⇒ .ft-cell 감싸개 + 형제(.ft-tile, .ft-more), ⋯ 은 절대배치. */
+#folder-zone { margin-bottom: 30px; }
+#folder-zone.is-empty { margin-bottom: 16px; }
+.fz-label {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
+  font-size: 12px; font-weight: 700; letter-spacing: .3px; color: var(--ui-text-sub);
 }
-#folder-rail::-webkit-scrollbar { width: 6px; }
-#folder-rail::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-#folder-rail .tab-add-item {
-  width: 100%; background: transparent; border: none; font-family: inherit;
-  text-align: left; color: var(--ui-text-dim); border-radius: var(--ui-radius-sm);
-  position: relative;
+.fz-label .fz-count { color: var(--ui-text-dim); font-weight: 600; }
+#folder-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.ft-cell { position: relative; min-width: 0; }
+.ft-tile {
+  width: 100%; min-width: 0; display: flex; align-items: center; gap: 10px;
+  padding: 11px 12px; font: inherit; text-align: left; cursor: pointer; color: var(--ui-text);
+  background: var(--ui-bg-card); border: 1px solid var(--ui-border-mid); border-radius: var(--ui-radius-md);
+  transition: border-color .15s;
 }
-#folder-rail .tab-add-item.is-selected { background: var(--ui-border-mid); color: var(--ui-text); }
-#folder-rail .tab-add-item.is-drop-target { outline: 1px dashed var(--ui-text-dim); outline-offset: -2px; }
-#folder-rail .fr-divider { height: 1px; background: var(--ui-border); margin: 8px 4px; }
-/* ★.fr-row 는 «형제»(button, button) 감싸개다 — <button> 안에 <button> 을 못 넣는다
-   (HTML 파서가 바깥을 미리 닫아 구조가 깨진다, 09-16 실기 확인). 삭제 버튼은 행 위에 절대배치. */
-.fr-row { position: relative; }
-.fr-row .tab-add-item { padding-right: 26px; }   /* 삭제 아이콘 자리(hover 시에만 보임) 예약 */
-#folder-rail .fr-del {
-  position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
-  width: 18px; height: 18px; display: none; align-items: center; justify-content: center;
-  background: transparent; border: none; border-radius: 3px; color: var(--ui-text-dim); cursor: pointer;
+.ft-tile:hover { border-color: var(--ui-divider); }
+.ft-cell .ft-tile { padding-right: 36px; }   /* ⋯ 자리(hover 때만 보임) 예약 */
+.ft-ico { display: flex; flex-shrink: 0; color: var(--ui-text-dim); }
+.ft-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ft-name { font-size: 12px; font-weight: 600; color: var(--ui-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ft-sub { font-size: 11px; color: var(--ui-text-dim); white-space: nowrap; }
+.ft-add { background: transparent; border-style: dashed; color: var(--ui-text-dim); }
+.ft-add .ft-name { font-weight: 500; color: inherit; }
+.ft-add:hover { color: var(--ui-text-sub); }
+.ft-tile.is-drop-target { outline: 1px dashed var(--ui-text-dim); outline-offset: -2px; }
+.ft-tile.is-fresh { background: var(--ui-border-mid); border-color: var(--ui-divider); }
+.ft-editing { cursor: default; }
+.ft-more {
+  position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
+  width: 22px; height: 22px; display: flex; opacity: 0; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 3px; color: var(--ui-text-dim);
+  cursor: pointer; font-size: 14px; line-height: 1;
 }
-.fr-row:hover .fr-del { display: flex; }
-#folder-rail .fr-del:hover { background: var(--ui-bg-hover, #3a3a3a); color: #fff; }
-#folder-rail .fr-name-input {
-  flex: 1; min-width: 0; font: inherit; color: #e0e0e0; background: #333; border: 1px solid #555;
+/* ★평소엔 display:none 이 아니라 «투명»으로 숨긴다 — display:none 은 Tab 포커스를 못 받아 키보드로 메뉴(이름변경·삭제)에
+ *   갈 길이 없었다(09-19 이벨류). 투명이어도 Tab 으로 오면 :focus-visible 로 드러난다. */
+.ft-cell:hover .ft-more, .ft-cell:focus-within .ft-more, .ft-more:focus-visible, .ft-more[aria-expanded="true"] { opacity: 1; }
+.ft-more:hover { background: var(--ui-bg-hover, #3a3a3a); color: #fff; }
+/* 이름 입력 중(.ft-editing)엔 ⋯ 를 감춘다 — ★JS 인라인 display:none 으로 하지 않는다. 그렇게 하면 «되돌리는» 코드가
+ *   확정 갈래에만 있어 Esc 취소 뒤 ⋯ 가 영영 안 보였다(09-19 2라운드 ①). :has 는 입력칸이 «있는 동안만» 참이라
+ *   확정·취소·실패·blur 어느 갈래로 끝나도 저절로 풀린다(되돌릴 상태가 없다). */
+.ft-cell:has(.ft-editing) .ft-more { display: none; }
+/* 인라인 이름 입력(새 폴더·이름 바꾸기) — 레일 시절 규칙에서 #folder-rail 한정자만 벗겼다 */
+.fr-name-input {
+  flex: 1; min-width: 0; font: inherit; font-size: 12px; color: #e0e0e0; background: #333; border: 1px solid #555;
   border-radius: 4px; padding: 1px 5px; outline: none;
 }
-#fr-add-folder { margin-top: 4px; }
+/* 메뉴 구분선 — 카드 📁 메뉴·타일 ⋯ 메뉴가 같이 쓴다 */
+.fr-divider { height: 1px; background: var(--ui-border); margin: 8px 4px; }
+/* ★목록 보기 — 타일 줄은 «유지»하고 압축형으로만(분기 = #gallery-col.is-list-mode 클래스 하나) */
+.is-list-mode #folder-tiles { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.is-list-mode .ft-tile { padding: 6px 10px; }
+.is-list-mode .ft-cell .ft-tile { padding-right: 36px; }
+.is-list-mode .ft-text { flex-direction: row; align-items: baseline; gap: 8px; flex: 1; overflow: hidden; }
+/* ★이름 우선(09-19 2라운드 ②) — 가로 줄에선 .ft-sub(nowrap, min-width:auto)는 안 줄고 .ft-name(overflow:hidden → 최소폭 0)만
+ *   줄어 이름이 먼저 잘렸다. 이름은 줄지 않게(칸보다 길 때만 말줄임), 「N개 · 언제」가 먼저 줄고 먼저 사라진다. 목록 보기 한정. */
+.is-list-mode .ft-name { flex: 0 0 auto; max-width: 100%; }
+.is-list-mode .ft-sub { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.is-list-mode .ft-ico svg { width: 14px; height: 14px; }
+.is-list-mode #folder-zone { margin-bottom: 22px; }
+.is-list-mode #folder-zone.is-empty { margin-bottom: 16px; }
+
+/* ── 경로(폴더 안) — 「Projects › 폴더명」. Projects 는 흐리게(누르면 밖으로), 폴더명은 밝게 ── */
+#gallery-title.is-inside #gal-tab-projects { color: var(--ui-text-dim); margin-right: 8px; }
+#gallery-title.is-inside #gal-tab-projects:hover { color: #bbb; }
+#gal-tab-projects.is-drop-target { outline: 1px dashed var(--ui-text-dim); outline-offset: 3px; border-radius: 3px; }
+.gal-crumb-sep { color: var(--ui-text-dim); font-weight: 400; margin-right: 8px; }
+/* ★h1 을 flex(세로 가운데)로 — 말줄임용 inline-block 은 baseline 이 아래 가장자리로 내려가 이름만 떠 보인다(9370 실측) */
+#gallery-title { display: flex; align-items: center; }
+#gal-crumb { display: inline-flex; align-items: center; min-width: 0; }
+#gal-crumb-name {
+  display: inline-block; max-width: 28ch; margin-right: 14px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #eee;
+}
+#gal-crumb .fr-name-input { width: 22ch; flex: 0 1 22ch; min-width: 6ch; font-size: 14px; font-weight: 600; margin-right: 14px; }
 
 /* ── 갤러리 칼럼 — 기존 #main 의 padding·스크롤을 «그대로» 물려받는다(그리드 위치 1px도 안 움직임) ── */
 #gallery-col { flex: 1; min-width: 0; overflow-y: auto; padding: 40px 48px; }
@@ -104,6 +148,16 @@ body {
   margin-bottom: 28px;
 }
 #header h1 { font-size: 18px; font-weight: 700; color: #f0f0f0; flex-shrink: 0; }
+/* ★검색칸 자리 고정(B안 09-19) — 폴더 안에서 경로(Projects › 이름)만큼 h1 이 길어져도 검색칸이 출렁이지 않게,
+ *   양옆(h1 · .header-actions)이 «같은 몫(flex 1 1 0)»을 나눠 갖는다. 검색칸은 늘 가운데. 내용이 몫보다 크면
+ *   (min-width:auto 라) 그때만 밀린다 — 경로 이름은 28ch 말줄임이라 보통 폭에선 일어나지 않는다. */
+#header > h1 { flex: 1 1 0; min-width: 0; }
+/* h1 이 제 몫보다 길어지면 «폴더명»만 더 줄여 말줄임 — Projects·휴지통 탭은 안 줄인다 */
+#gallery-title > .gal-tab { flex-shrink: 0; }
+#gal-crumb { flex: 0 1 auto; }
+#gal-crumb-name { min-width: 0; flex: 0 1 auto; }
+#header > .header-actions { flex: 1 1 0; justify-content: flex-end; }
+#header > #proj-search { flex: 0 1 320px; margin-left: 16px; margin-right: 16px; }
 
 /* ── 프로젝트 검색(T-B, 2026-09-16) ──────────────────────────────────────
  * 껍데기는 #acct-trigger/#view-toggle 과 «같은 값»(높이32·radius7·같은 배경·보더 토큰) — 새 룩 신설 금지.
@@ -463,6 +517,8 @@ body {
   line-height: 1;
 }
 .card-action:hover { background: #2d6fe8; border-color: #2d6fe8; color: #fff; }
+/* [R1] 비활성 카드 버튼(기획 카드의 📁) — ⛔disabled 속성 대신 aria-disabled: disabled 버튼은 크로미움에서 hover 가 안 와 title 툴팁이 안 뜬다 */
+.card-action.is-disabled, .card-action.is-disabled:hover { opacity: .4; cursor: not-allowed; background: rgba(24,24,24,0.9); border-color: #3a3a3a; color: #666; }
 .card-delete:hover { background: #c0392b; border-color: #c0392b; }
 
 /* ── 즐겨찾기 ──
@@ -494,6 +550,10 @@ body {
 }
 #empty-state svg { opacity: 0.2; margin-bottom: 16px; }
 #empty-state p { font-size: 13px; line-height: 1.7; }
+/* ★루트인데 «폴더 밖 프로젝트»만 0개 — 큰 빈 화면(100px)을 쓰지 않는다. 라벨 아래 한 줄 안내뿐. */
+#empty-state.is-compact { padding: 0 0 24px; text-align: left; color: var(--ui-text-dim); }
+#empty-state.is-compact svg { display: none; }
+#empty-state.is-compact p { font-size: 12px; }
 
 /* ── 갤러리 탭(프로젝트/휴지통) — 제목 자리를 나눠 쓴다 ── */
 .gal-tab {
@@ -586,25 +646,15 @@ body {
 </div>
 
 <div id="main">
-  <!-- ── 폴더 레일(T-A) — «가상» 폴더 위의 뷰. 휴지통 탭에선 숨긴다(_setGalleryView). ── -->
-  <aside id="folder-rail" aria-label="폴더">
-    <div id="fr-fixed"></div>
-    <div class="fr-divider"></div>
-    <div id="fr-folder-list"></div>
-    <div class="fr-divider"></div>
-    <button type="button" class="tab-add-item" id="fr-add-folder" title="새 폴더 만들기">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-      </svg>
-      <span class="tab-add-item-name">새 폴더</span>
-    </button>
-  </aside>
   <div id="gallery-col">
   <div id="header">
-    <!-- ★«프로젝트 / 휴지통» 전환 (2026-09-08). 제목 자리를 그대로 쓴다 —
+    <!-- ★[B안 2026-09-19] 폴더 «안»에선 제목 자리가 경로 「Projects › 폴더명」이 된다(#gal-crumb).
+         「Projects」를 누르면 밖으로 — 휴지통에서 누르면 기억한 폴더로 돌아온다(R4, 클릭 분기 참고).
+         폴더 이름은 textContent 로만 넣는다(XSS 경로 0).
+         ★«프로젝트 / 휴지통» 전환 (2026-09-08). 제목 자리를 그대로 쓴다 —
          새 줄을 만들면 카드가 한 칸 아래로 밀린다. 선택은 «굵기+밝기»로 표시한다(파란 액센트 금지, 기존 규율). -->
     <h1 id="gallery-title">
-      <button type="button" class="gal-tab is-on" id="gal-tab-projects" aria-pressed="true">Projects</button>
+      <button type="button" class="gal-tab is-on" id="gal-tab-projects" aria-pressed="true">Projects</button><span id="gal-crumb" style="display:none"><span class="gal-crumb-sep" aria-hidden="true">›</span><span id="gal-crumb-name" title="더블클릭하여 이름 변경"></span></span>
       <button type="button" class="gal-tab gal-tab-icon" id="gal-tab-trash" aria-pressed="false"
               title="휴지통" aria-label="휴지통">
         <span aria-hidden="true">🗑️</span></button>
@@ -742,6 +792,12 @@ body {
     <small id="recovery-say" role="status" aria-live="polite" style="display:none"></small>
     <div id="recovery-detail"></div>
   </div>
+  <!-- ── 폴더 구역(B안) — 루트에서만 보인다. 폴더 안·검색 중·휴지통에선 renderFolderChrome() 이 숨긴다. -->
+  <section id="folder-zone" aria-label="폴더">
+    <div class="fz-label" id="fz-label">폴더 <span class="fz-count"></span></div>
+    <div id="folder-tiles"></div>
+  </section>
+  <div class="fz-label" id="loose-label" style="display:none"><span class="fz-label-text">폴더 밖 프로젝트</span> <span class="fz-count"></span></div>
   <div id="search-folder-hits"></div>
   <div id="project-grid"></div>
   <div id="trash-list" style="display:none"></div>
@@ -835,13 +891,20 @@ function _escHtml(t) {
  *   필터를 바깥 딴 함수에 두면 그런 조작 때마다 필터가 조용히 풀린다.
  * ══════════════════════════════════════════════════════════════════════════ */
 const FOLDER_VIEW_KEY = 'goditor_projects_folder';   // ⛔'claudePM:folderMap' 재사용 금지(다른 용도로 이미 쓰임)
-let _foldersCache = [];             // folders:list 캐시 — 검색(폴더명 매칭)과 레일이 같이 쓴다
+let _foldersCache = [];             // folders:list 캐시 — 검색(폴더명 매칭)과 폴더 타일이 같이 쓴다
 let _allProjectsCache = [];         // 마지막 loadProjects() 결과 — 검색은 이걸 재사용하고 IPC 를 다시 안 부른다
-let _selectedFolderId = null;       // null=전체 · '__unassigned__'=미분류 · 그 외=폴더 id
+let _selectedFolderId = null;       // [B안] null=루트(폴더 타일 + 폴더 밖 프로젝트) · 그 외=그 폴더 «안»
+let _freshFolderId = null;          // 방금 만든 폴더 — 타일을 잠깐 강조한다(루트에 머무니까 어디 생겼는지 보여야 한다)
 let _searchQuery = '';              // 트리밍 «안 된» 원본(포커스 유지를 위해 입력값 그대로 들고 있는다)
 
 function _getSelectedFolder() {
-  try { return localStorage.getItem(FOLDER_VIEW_KEY) || null; } catch (_) { return null; }
+  try {
+    const v = localStorage.getItem(FOLDER_VIEW_KEY) || null;
+    // ★[R8] 옛 레일 시절 값 이주 — '__unassigned__'(미분류 보기)는 이제 «루트»가 곧 그 보기다.
+    //   이주하지 않으면 어떤 폴더와도 안 맞아 «텅 빈 폴더 안»처럼 보인다.
+    if (v === '__unassigned__') { localStorage.removeItem(FOLDER_VIEW_KEY); return null; }
+    return v;
+  } catch (_) { return null; }
 }
 function _setSelectedFolder(v) {
   _selectedFolderId = v;
@@ -854,8 +917,8 @@ async function _loadFoldersCache() {
     const r = await window.electronAPI.folders.list();
     _foldersCache = (r && r.ok && Array.isArray(r.folders)) ? [...r.folders].sort((a, b) => (a.order||0) - (b.order||0)) : [];
   } catch (_) { _foldersCache = []; }
-  // ★자가치유 — 선택돼 있던 폴더가 사라졌으면(다른 곳에서 삭제 등) «전체»로 내려앉는다.
-  if (_selectedFolderId && _selectedFolderId !== '__unassigned__' && !_foldersCache.some(f => f.id === _selectedFolderId)) {
+  // ★자가치유 — 보고 있던 폴더가 사라졌으면(다른 곳에서 삭제 등) «루트»로 내려앉는다.
+  if (_selectedFolderId && !_foldersCache.some(f => f.id === _selectedFolderId)) {
     _setSelectedFolder(null);
   }
 }
@@ -886,12 +949,12 @@ function _matchingFolders(nq) {
   return _foldersCache.filter(f => _norm(f.name).includes(nq));
 }
 
-/* ★검색 중엔 폴더 필터가 무시되므로(전체범위 검색), 레일의 선택 표시도 «시각적으로»
- *   해제한다 — 안 그러면 폴더를 보는 척 하면서 실제로는 전체를 찾아 사용자가 헷갈린다.
+/* ★검색 중엔 폴더 필터가 무시되므로(전체범위 검색), 폴더 타일 줄·경로도 «숨긴다» —
+ *   안 그러면 폴더 안을 보는 척 하면서 실제로는 전체를 찾아 사용자가 헷갈린다.
  *   _selectedFolderId 값 자체는 그대로 둔다(검색을 지우면 보던 폴더로 «돌아가야» 하니까). */
 function _isSearching() { return !!_norm(_searchQuery); }
 
-/* [R4] 폴더 선택 «진입점» — 레일 클릭·검색 칩 클릭이 «둘 다» 이걸 거친다.
+/* [R4] 폴더 선택 «진입점» — 타일 클릭·검색 칩 클릭·경로 「Projects」(null=밖으로)가 «전부» 이걸 거친다.
  *   검색어를 지우는 것까지 여기서 책임진다 — 칩을 눌러 폴더로 갈 땐 검색 결과를 보던 게 아니라
  *   그 폴더 «안»을 보고 싶다는 뜻이라 검색은 끝난 것으로 다룬다. */
 function selectFolder(folderId) {
@@ -901,144 +964,374 @@ function selectFolder(folderId) {
   if (input) input.value = '';
   const clearBtn = document.getElementById('proj-search-clear');
   if (clearBtn) clearBtn.style.display = 'none';
-  renderFolderRail();
+  renderFolderChrome();
   _renderGridFromCache();
+  const col = document.getElementById('gallery-col');
+  if (col) col.scrollTop = 0;   // 들어가고 나올 때 위에서부터 — 긴 루트를 스크롤한 채 들어가면 경로가 안 보인다
 }
 
-function renderFolderRail() {
-  const rail = document.getElementById('folder-rail');
-  if (!rail) return;
-  const searching = _isSearching();
-  const total = _allProjectsCache.length;
-  const unassigned = _allProjectsCache.filter(p => !p.folderId).length;
-  const counts = new Map();
-  for (const p of _allProjectsCache) { if (p.folderId) counts.set(p.folderId, (counts.get(p.folderId) || 0) + 1); }
-
-  const fixed = document.getElementById('fr-fixed');
-  const isSel = (key) => !searching && _selectedFolderId === key;
-  const row = (key, name, count, extraAttrs = '') => `
-    <button type="button" class="tab-add-item${isSel(key) ? ' is-selected' : ''}" data-folder-key="${key === null ? '' : _escHtml(key)}" ${extraAttrs}>
-      <span class="tab-add-item-name">${_escHtml(name)}</span>
-      <span class="tab-add-item-date">${count}</span>
-    </button>`;
-  fixed.innerHTML = row(null, '전체', total) + row('__unassigned__', '미분류', unassigned);
-
-  const listEl = document.getElementById('fr-folder-list');
-  // ★<button> 안에 <button> 을 못 넣는다(HTML 파서가 바깥 버튼을 «미리» 닫아 구조가 깨진다 —
-  //   09-16 실기에서 .fr-del 이 조용히 형제로 떨어져 hover 규칙이 안 먹는 걸로 잡혔다).
-  //   ⇒ 행을 .fr-row 로 감싸고, 삭제 버튼은 그 안에서 «형제»로 절대배치한다.
-  listEl.innerHTML = _foldersCache.map(f => `
-    <div class="fr-row">
-      <button type="button" class="tab-add-item${isSel(f.id) ? ' is-selected' : ''}" data-folder-key="${_escHtml(f.id)}" data-folder-name="${_escHtml(f.name)}">
-        <span class="tab-add-item-name">${_escHtml(f.name)}</span>
-        <span class="tab-add-item-date">${counts.get(f.id) || 0}</span>
-      </button>
-      <button type="button" class="fr-del" data-del-folder="${_escHtml(f.id)}" title="폴더 삭제" aria-label="폴더 삭제">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>`).join('');
+/* ── 파생 모드(B안) — 상태는 _galleryView·_searchQuery·_selectedFolderId 셋뿐이고 모드는 «계산»한다.
+ *   trash  : 휴지통 탭 — 폴더 구역·경로·라벨·검색 전부 숨김
+ *   search : 검색어 있음 — 폴더 구역·경로 숨김, 전체 범위 결과 + .folder-badge + #search-folder-hits 칩
+ *   inside : 폴더 안 — 폴더 구역 숨김, 경로 「Projects › 이름」, 그 폴더 프로젝트만
+ *   root   : 폴더 구역 + 「폴더 밖 프로젝트 N」 + 미분류만
+ * ⚠️_galleryView 는 이 파일 «아래»에서 let 으로 선언된다 — 이 함수는 이벤트/렌더 때만 불리므로 TDZ 에 안 걸린다. */
+function _viewMode() {
+  if (_galleryView === 'trash') return 'trash';
+  if (_isSearching()) return 'search';
+  return _selectedFolderId ? 'inside' : 'root';
 }
 
-/* ── 폴더 레일 결선(한 번만) ── */
-(function wireFolderRail() {
-  const rail = document.getElementById('folder-rail');
-  if (!rail) return;
+/** 모드별 목록 — 순수 함수(테스트가 떼어내 실행한다).
+ *  ★루트의 «폴더 밖»은 folderId 가 없거나 «없는 폴더»를 가리키는 것까지다 —
+ *    폴더 버그가 프로젝트를 «안 보이게» 만들면 안 된다(main/folders.js 자가치유와 같은 규율). */
+function _filterForView(list, nq, folderId, knownFolderIds) {
+  if (nq) return list.filter(p => _matchesQuery(p, nq));
+  if (folderId) return list.filter(p => p.folderId === folderId);
+  return list.filter(p => !p.folderId || !knownFolderIds.has(p.folderId));
+}
+
+/** 「오늘 / 어제 / N일 전 / N주 전 / N개월 전 / N년 전」 — 타일의 「N개 · 언제」용(기존 formatDate 는 절대시각). */
+function _relTime(iso, now) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d)) return '';
+  const base = now ? new Date(now) : new Date();
+  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((day(base) - day(d)) / 86400000);
+  if (days <= 0) return '오늘';
+  if (days === 1) return '어제';
+  if (days < 7) return `${days}일 전`;
+  if (days < 30) return `${Math.floor(days / 7)}주 전`;
+  if (days < 365) return `${Math.floor(days / 30)}개월 전`;
+  return `${Math.floor(days / 365)}년 전`;
+}
+
+const _FT_ICON_FOLDER = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" opacity=".85" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.3l2 2h8.7A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>';
+const _FT_ICON_PLUS = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+
+/** 폴더 «크롬» 한 벌 — 타일·라벨 개수·경로 표시/숨김·구역 표시/숨김을 «이 함수 하나»가 맡는다.
+ *  호출: renderGrid()·selectFolder()·검색 apply()·빈 상태 「검색 지우기」·_setGalleryView(). */
+function renderFolderChrome() {
+  const zone = document.getElementById('folder-zone');
+  const tiles = document.getElementById('folder-tiles');
+  if (!zone || !tiles) return;
+  const mode = _viewMode();
+  const searching = _isSearching();   // (search 모드면 구역·경로 둘 다 숨김)
+
+  // 경로 — ★이름은 textContent 로만(XSS 경로 0)
+  const inside = mode === 'inside' && !searching;
+  const crumb = document.getElementById('gal-crumb');
+  let crumbName = document.getElementById('gal-crumb-name');
+  // 자가치유 — 이름변경 입력칸이 이름 자리를 차지한 채 남았으면(어떤 경로로든) 입력칸을 걷고 이름 자리를 되살린다.
+  if (crumb && !crumbName) {
+    crumb.querySelectorAll('.fr-name-input').forEach(el => el.remove());
+    crumbName = document.createElement('span');
+    crumbName.id = 'gal-crumb-name';
+    crumb.appendChild(crumbName);
+  }
+  const fname = inside ? (_folderNameById(_selectedFolderId) || '') : '';
+  if (crumb) crumb.style.display = inside ? '' : 'none';
+  if (crumbName) { crumbName.textContent = fname; crumbName.title = fname ? `${fname} — 더블클릭하여 이름 변경` : ''; }
+  document.getElementById('gallery-title')?.classList.toggle('is-inside', inside);
+
+  // 구역·라벨 — 루트에서만
+  const showRoot = mode === 'root';
+  zone.style.display = showRoot ? '' : 'none';
+  zone.classList.toggle('is-empty', !_foldersCache.length);
+  const known = new Set(_foldersCache.map(f => f.id));
+  const looseN = _allProjectsCache.filter(p => !p.folderId || !known.has(p.folderId)).length;
+  const loose = document.getElementById('loose-label');
+  if (loose) {
+    // 프로젝트가 «하나도» 없으면 라벨 대신 큰 빈 화면이 말한다(라벨+빈화면 이중 안내 금지)
+    loose.style.display = (showRoot && _allProjectsCache.length) ? '' : 'none';
+    loose.querySelector('.fz-label-text').textContent = _foldersCache.length ? '폴더 밖 프로젝트' : '프로젝트';
+    loose.querySelector('.fz-count').textContent = String(looseN);
+  }
+  const zc = document.querySelector('#fz-label .fz-count');
+  if (zc) zc.textContent = _foldersCache.length ? String(_foldersCache.length) : '';
+
+  // 타일 — 폴더 0개면 「+ 새 폴더」 하나만
+  const counts = new Map(), latest = new Map();
+  for (const p of _allProjectsCache) {
+    if (!p.folderId || !known.has(p.folderId)) continue;
+    counts.set(p.folderId, (counts.get(p.folderId) || 0) + 1);
+    if (p.updatedAt && (!latest.has(p.folderId) || String(p.updatedAt) > String(latest.get(p.folderId)))) latest.set(p.folderId, p.updatedAt);
+  }
+  const addTile = `<button type="button" class="ft-tile ft-add" id="ft-add-folder" title="새 폴더 만들기"><span class="ft-ico">${_FT_ICON_PLUS}</span><span class="ft-name">새 폴더</span></button>`;
+  tiles.innerHTML = _foldersCache.map(f => {
+    const n = counts.get(f.id) || 0;
+    const rel = _relTime(latest.get(f.id) || f.updatedAt);
+    return `
+    <div class="ft-cell">
+      <button type="button" class="ft-tile${f.id === _freshFolderId ? ' is-fresh' : ''}" data-folder-key="${_escHtml(f.id)}" data-folder-name="${_escHtml(f.name)}" title="${_escHtml(f.name)}">
+        <span class="ft-ico">${_FT_ICON_FOLDER}</span>
+        <span class="ft-text"><span class="ft-name">${_escHtml(f.name)}</span><span class="ft-sub">${n}개${rel ? ' · ' + _escHtml(rel) : ''}</span></span>
+      </button>
+      <button type="button" class="ft-more" data-folder-menu="${_escHtml(f.id)}" aria-label="폴더 메뉴" aria-haspopup="menu" title="이름 바꾸기 · 삭제">⋯</button>
+    </div>`;
+  }).join('') + addTile;
+  if (_freshFolderId) {
+    const fresh = _freshFolderId;
+    setTimeout(() => {
+      if (_freshFolderId === fresh) _freshFolderId = null;
+      tiles.querySelectorAll('.ft-tile.is-fresh').forEach(t => t.classList.remove('is-fresh'));
+    }, 1400);
+  }
+}
+
+/** 폴더 배정 — 결과를 «버리지 않는다»(U7 규율). moved 0 이면 조용히 성공처럼 보이지 않게 알린다.
+ *  [R1] main/folders.js 의 isProjId 가 proj_* 만 받는다 — 기획(plan_*) 프로젝트는 폴더에 못 들어간다.
+ *    ⇒ UI 에서 막는다(카드 📁 비활성 + 드래그 표지 text/x-goditor-planning 을 타일·경로가 거절). moved 0 알림은 마지막 방어선. */
+async function _assignToFolder(projectIds, folderId) {
+  let r;
+  try { r = await window.electronAPI.folders.assign({ projectIds, folderId }); }
+  catch (e) { r = { ok: false, error: e && e.message }; }
+  if (!r || r.ok !== true) { alert('폴더로 옮기지 못했습니다: ' + ((r && r.error) || '알 수 없는 오류')); return r; }
+  if (r.moved === 0) alert('이 프로젝트는 폴더에 넣을 수 없습니다.\n(기획 프로젝트는 아직 폴더를 지원하지 않습니다.)');
+  return r;
+}
+
+/** 인라인 이름 입력 — 새 폴더·이름 바꾸기·카드 메뉴 「새 폴더 만들어 넣기」가 «같은 한 벌»을 쓴다.
+ *  ⛔prompt() 금지 — Electron 이 native prompt 를 차단한다(duplicateProjectUI 주석).
+ *  el 을 입력칸으로 «바꿔 끼운다»(버튼 안에 input 을 넣으면 클릭이 타일 진입으로 새어 나간다).
+ *  Enter/blur = 확정, Esc = 취소(원래 요소로 되돌림). ★한글 조합 중 Enter 는 확정으로 안 친다. */
+function _swapToNameInput(el, opts, onCommit) {
+  const { initial = '', placeholder = '폴더 이름', holder: kind = 'tile' } = opts || {};
+  const input = document.createElement('input');
+  input.className = 'fr-name-input';
+  input.value = initial;
+  input.placeholder = placeholder;
+  input.setAttribute('aria-label', placeholder);
+  let holder = input;
+  if (kind === 'tile') {
+    holder = document.createElement('div');
+    holder.className = 'ft-tile ft-editing';
+    holder.innerHTML = `<span class="ft-ico">${_FT_ICON_FOLDER}</span>`;
+    holder.appendChild(input);
+  } else if (kind === 'menu') {
+    holder = document.createElement('div');
+    holder.style.padding = '4px 10px';
+    holder.appendChild(input);
+  }
+  el.replaceWith(holder);
+  input.focus(); input.select();
+  let done = false;
+  const finish = async (commit) => {
+    if (done) return; done = true;
+    const nm = input.value.trim();
+    if (!commit) { if (holder.isConnected) holder.replaceWith(el); return; }
+    await onCommit(nm, () => { if (holder.isConnected) holder.replaceWith(el); });
+  };
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('click', (ev) => ev.stopPropagation());
+  input.addEventListener('keydown', (ev) => {
+    ev.stopPropagation();   // 검색·계정메뉴·«폴더 밖으로(Esc)» 전역 키로 새지 않게
+    if (ev.isComposing || ev.keyCode === 229) return;
+    if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+  });
+  return input;
+}
+
+/** 「+ 새 폴더」 타일 → 그 자리에서 이름 입력. 성공하면 «루트에 머물고» 새 타일을 잠깐 강조한다. */
+function startNewFolderTile() {
+  const add = document.getElementById('ft-add-folder');
+  if (!add) return null;
+  return _swapToNameInput(add, { placeholder: '폴더 이름', holder: 'tile' }, async (nm, restore) => {
+    if (!nm) { restore(); return; }
+    const r = await window.electronAPI.folders.create({ name: nm });
+    if (r && r.ok) { _freshFolderId = r.folder.id; await renderGrid(); }
+    else { alert('폴더를 만들지 못했습니다: ' + ((r && r.error) || '알 수 없는 오류')); restore(); }
+  });
+}
+
+/** 이름 바꾸기 — 루트면 타일에서, 폴더 안이면 경로의 이름 자리에서. */
+function startRenameFolder(id) {
+  const f = _foldersCache.find(x => x.id === id);
+  if (!f) return null;
+  const inside = _viewMode() === 'inside' && _selectedFolderId === id;
+  const target = inside
+    ? document.getElementById('gal-crumb-name')
+    : [...document.querySelectorAll('#folder-tiles .ft-tile[data-folder-key]')].find(t => t.dataset.folderKey === id);
+  if (!target) return null;
+  return _swapToNameInput(target, { initial: f.name, placeholder: '폴더 이름', holder: inside ? 'inline' : 'tile' }, async (nm, restore) => {
+    // ★확정·실패·취소 «모든» 갈래에서 먼저 원래 요소로 되돌린다. 경로(inline)에선 input 이 #gal-crumb-name
+    //   «자체»를 갈아 끼웠으므로, 안 되돌리면 그 span 이 DOM 에서 영영 사라지고 경로가 옛 이름에 굳는다(09-19 이벨류 실측).
+    restore();
+    if (!nm || nm === f.name) { renderFolderChrome(); return; }
+    const r = await window.electronAPI.folders.rename({ id, name: nm });
+    if (!r || r.ok !== true) alert('이름을 바꾸지 못했습니다: ' + ((r && r.error) || '알 수 없는 오류'));
+    await renderGrid();
+  });
+}
+
+/** 삭제 — ⋯/우클릭 메뉴에서. ★확인 문구의 «뜻»(프로젝트는 안 지워지고 폴더 밖으로)은 레일 시절 그대로(PF-7).
+ *  용어만 «미분류» → «폴더 밖»으로 통일(CONTEXT 결정 ④ — 섹션 라벨 「폴더 밖 프로젝트」와 같은 말). */
+async function deleteFolderUI(id) {
+  const name = _folderNameById(id) || '이 폴더';
+  if (!confirm(`"${name}" 폴더를 지울까요?\n\n안에 있는 프로젝트는 지워지지 않고 «폴더 밖»으로 갑니다.`)) return;
+  const r = await window.electronAPI.folders.delete({ id });
+  if (!r || r.ok !== true) { alert('폴더를 지우지 못했습니다: ' + ((r && r.error) || '알 수 없는 오류')); return; }
+  if (_selectedFolderId === id) _setSelectedFolder(null);   // 보던 폴더를 지웠으면 밖(루트)으로
+  await renderGrid();
+}
+
+/** 떠 있는 메뉴(타일 ⋯ · 카드 📁) 닫기 규약 «한 벌» — 두 메뉴가 같이 쓴다(09-19 2라운드 ③: 카드 📁 만 Esc 가 안 먹었다).
+ *  · Esc 는 캡처 단계에서 «바로» 받는다(키보드로 열자마자 Esc 가 새지 않게) + stopPropagation·preventDefault
+ *    → 전역 «폴더 밖으로(Esc)»까지 안 간다(우선순위: 메뉴 → 입력칸 → 폴더 밖).
+ *  · ★메뉴 «안» 이름 입력칸(.fr-name-input, 카드 메뉴 「+ 새 폴더 만들어 넣기」)의 Esc 는 그 입력칸의 것이다 —
+ *    캡처가 먼저 받아 메뉴째 닫으면 안 된다. 첫 Esc = 입력 취소, 두 번째 Esc = 메뉴 닫기. 한글 조합 중 Esc 도 넘긴다.
+ *  · 바깥 클릭은 한 틱 미뤄 받는다(여는 클릭에 바로 닫히지 않게). 닫을 때 리스너 둘 다 뗀다.
+ *  · 새 메뉴를 열면 앞 메뉴의 리스너까지 정리한다(DOM 만 지우면 옛 Esc 리스너가 남아 다음 Esc 를 삼킨다). */
+let _openMenuClose = null;
+function _wireMenuDismiss(menu, anchor) {
+  if (_openMenuClose) _openMenuClose();
+  let closed = false;
+  const close = (opts) => {
+    if (closed) return;
+    closed = true;
+    menu.remove();
+    if (anchor) anchor.removeAttribute('aria-expanded');
+    document.removeEventListener('click', onDocClick, true);
+    document.removeEventListener('keydown', onKey, true);
+    if (_openMenuClose === close) _openMenuClose = null;
+    if (opts && opts.refocus && anchor && anchor.isConnected) anchor.focus();   // Esc 로 닫으면 누른 버튼으로 포커스 복귀
+  };
+  const onDocClick = (ev) => { if (!menu.contains(ev.target)) close(); };
+  const onKey = (ev) => {
+    if (ev.key !== 'Escape') return;
+    if (ev.isComposing || ev.keyCode === 229) return;
+    if (menu.contains(ev.target) && ev.target.closest?.('.fr-name-input')) return;
+    ev.stopPropagation(); ev.preventDefault();
+    close({ refocus: true });
+  };
+  if (anchor) anchor.setAttribute('aria-expanded', 'true');
+  document.addEventListener('keydown', onKey, true);
+  setTimeout(() => { if (!closed) document.addEventListener('click', onDocClick, true); }, 0);
+  _openMenuClose = close;
+  return close;
+}
+
+/** 타일 ⋯ 메뉴(우클릭도 같은 메뉴) — 껍데기는 카드 📁 메뉴(.card-folder-menu)·항목은 .tab-add-item 재사용. */
+function openFolderTileMenu(anchor, folderId, pt) {
+  if (_openMenuClose) _openMenuClose();
+  document.querySelectorAll('.card-folder-menu').forEach(m => m.remove());
+  if (!_foldersCache.some(f => f.id === folderId)) return null;
+  const menu = document.createElement('div');
+  menu.className = 'card-folder-menu ft-menu';
+  menu.setAttribute('role', 'menu');
+  menu.style.minWidth = '150px';
+  menu.innerHTML = `
+    <button type="button" class="tab-add-item" role="menuitem" data-ft-act="rename"><span class="tab-add-item-name">이름 바꾸기</span></button>
+    <button type="button" class="tab-add-item" role="menuitem" data-ft-act="delete"><span class="tab-add-item-name">삭제</span></button>`;
+  document.body.appendChild(menu);
+  let top, left;
+  if (pt) { top = pt.y; left = pt.x; }
+  else { const r = anchor.getBoundingClientRect(); top = r.bottom + 4; left = r.right - menu.offsetWidth; }
+  menu.style.top = Math.max(8, Math.min(top, window.innerHeight - menu.offsetHeight - 8)) + 'px';
+  menu.style.left = Math.max(8, Math.min(left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+  const close = _wireMenuDismiss(menu, anchor);
+  menu.addEventListener('click', async (ev) => {
+    const it = ev.target.closest('[data-ft-act]');
+    if (!it) return;
+    ev.stopPropagation();
+    close();
+    if (it.dataset.ftAct === 'rename') startRenameFolder(folderId);
+    else await deleteFolderUI(folderId);
+  });
+  return menu;
+}
+
+/** [R1] 끌고 있는 게 기획 카드인가 — dragstart 가 붙인 종류 표지로 본다(dragover 는 값 대신 types 만 읽힌다). */
+function _isPlanningDrag(e) {
+  const types = e.dataTransfer && e.dataTransfer.types;
+  return !!types && Array.from(types).includes('text/x-goditor-planning');
+}
+
+/* ── 폴더 구역 결선(한 번만) — 타일은 매번 다시 그려지므로 «위임»으로 받는다 ── */
+(function wireFolderZone() {
+  const tiles = document.getElementById('folder-tiles');
+  if (!tiles) return;
   _selectedFolderId = _getSelectedFolder();
 
-  rail.addEventListener('click', async (e) => {
-    const del = e.target.closest('[data-del-folder]');
-    if (del) {
-      e.stopPropagation();
-      const id = del.dataset.delFolder;
-      // ★.fr-del 은 .tab-add-item 의 «형제»다(버튼 안에 버튼을 못 넣어 .fr-row 로 감쌌다) —
-      //   .fr-row 를 거쳐 안의 .tab-add-item 에서 이름을 읽는다.
-      const nameBtn = del.closest('.fr-row')?.querySelector('.tab-add-item');
-      const name = nameBtn?.dataset.folderName || '이 폴더';
-      if (!confirm(`"${name}" 폴더를 지울까요?\n\n안에 있는 프로젝트는 지워지지 않고 «미분류»로 갑니다.`)) return;
-      const r = await window.electronAPI.folders.delete({ id });
-      if (!r || r.ok !== true) { alert('폴더를 지우지 못했습니다: ' + ((r && r.error) || '알 수 없는 오류')); return; }
-      if (_selectedFolderId === id) _setSelectedFolder(null);
-      await renderGrid();
-      return;
-    }
-    const btn = e.target.closest('[data-folder-key]');
-    if (btn) {
-      selectFolder(btn.dataset.folderKey || null);
-    }
+  tiles.addEventListener('click', (e) => {
+    const more = e.target.closest('[data-folder-menu]');
+    if (more) { e.stopPropagation(); openFolderTileMenu(more, more.dataset.folderMenu); return; }
+    if (e.target.closest('#ft-add-folder')) { startNewFolderTile(); return; }
+    if (e.target.closest('.ft-editing')) return;
+    const tile = e.target.closest('.ft-tile[data-folder-key]');
+    if (tile) selectFolder(tile.dataset.folderKey);
   });
-
-  // 이름변경 — 더블클릭 (card-name-input 과 같은 패턴 재사용)
-  rail.addEventListener('dblclick', async (e) => {
-    const nameEl = e.target.closest('.tab-add-item-name');
-    const btn = nameEl && nameEl.closest('[data-folder-key]');
-    const id = btn && btn.dataset.folderKey;
-    if (!id || id === '__unassigned__') return;   // 「전체」·「미분류」는 이름을 못 바꾼다
-    e.stopPropagation();
-    const current = nameEl.textContent;
-    const input = document.createElement('input');
-    input.className = 'fr-name-input';
-    input.value = current;
-    nameEl.replaceWith(input);
-    input.focus(); input.select();
-    const commit = async () => {
-      const nm = input.value.trim();
-      if (nm && nm !== current) await window.electronAPI.folders.rename({ id, name: nm });
-      await renderGrid();
-    };
-    input.addEventListener('blur', commit);
-    input.addEventListener('keydown', ev => {
-      if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
-      if (ev.key === 'Escape') { input.value = current; input.blur(); }
-    });
-  });
-
-  // 새 폴더 — Electron 이 native prompt() 를 차단하므로 인라인 input(레일 안)으로 받는다
-  document.getElementById('fr-add-folder').addEventListener('click', () => {
-    const holder = document.createElement('div');
-    holder.style.padding = '2px 4px';
-    const input = document.createElement('input');
-    input.className = 'fr-name-input';
-    input.placeholder = '폴더 이름';
-    holder.appendChild(input);
-    document.getElementById('fr-add-folder').insertAdjacentElement('beforebegin', holder);
-    input.focus();
-    let done = false;
-    const commit = async () => {
-      if (done) return; done = true;
-      const nm = input.value.trim();
-      holder.remove();
-      if (!nm) return;
-      const r = await window.electronAPI.folders.create({ name: nm });
-      if (r && r.ok) { _setSelectedFolder(r.folder.id); await renderGrid(); }
-      else alert('폴더를 만들지 못했습니다: ' + ((r && r.error) || '알 수 없는 오류'));
-    };
-    input.addEventListener('blur', commit);
-    input.addEventListener('keydown', ev => {
-      if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
-      if (ev.key === 'Escape') { done = true; holder.remove(); }
-    });
-  });
-
-  // 드롭 — 카드를 레일 행으로 끌어다 놓으면 그 폴더(또는 미분류)로 배정
-  rail.addEventListener('dragover', (e) => {
-    const row = e.target.closest('.tab-add-item[data-folder-key]');
-    if (!row || row.dataset.folderKey === '') return;   // 「전체」엔 못 놓는다(뜻이 없다)
+  tiles.addEventListener('contextmenu', (e) => {
+    const tile = e.target.closest('.ft-tile[data-folder-key]');
+    if (!tile) return;
     e.preventDefault();
-    row.classList.add('is-drop-target');
+    openFolderTileMenu(null, tile.dataset.folderKey, { x: e.clientX, y: e.clientY });
   });
-  rail.addEventListener('dragleave', (e) => {
-    e.target.closest('.tab-add-item')?.classList.remove('is-drop-target');
-  });
-  rail.addEventListener('drop', async (e) => {
-    const row = e.target.closest('.tab-add-item[data-folder-key]');
-    if (!row || row.dataset.folderKey === '') return;
+
+  // 드롭 — 카드를 폴더 타일로 끌어다 놓으면 그 폴더로(레일 is-drop-target 동작 이식)
+  tiles.addEventListener('dragover', (e) => {
+    const tile = e.target.closest('.ft-tile[data-folder-key]');
+    if (!tile || tile.classList.contains('ft-add')) return;   // 「+ 새 폴더」엔 못 놓는다(뜻이 없다)
+    if (_isPlanningDrag(e)) return;                            // [R1] 기획 카드는 폴더에 못 들어간다 — 드롭 표시도 안 한다
     e.preventDefault();
-    row.classList.remove('is-drop-target');
+    tile.classList.add('is-drop-target');
+  });
+  tiles.addEventListener('dragleave', (e) => {
+    const tile = e.target.closest('.ft-tile');
+    if (tile && !tile.contains(e.relatedTarget)) tile.classList.remove('is-drop-target');
+  });
+  tiles.addEventListener('drop', async (e) => {
+    const tile = e.target.closest('.ft-tile[data-folder-key]');
+    if (!tile || tile.classList.contains('ft-add')) return;
+    if (_isPlanningDrag(e)) return;   // [R1]
+    e.preventDefault();
+    tile.classList.remove('is-drop-target');
     const projectId = e.dataTransfer.getData('text/x-goditor-project-id');
     if (!projectId) return;
-    const key = row.dataset.folderKey;
-    await window.electronAPI.folders.assign({ projectIds: [projectId], folderId: key === '__unassigned__' ? null : key });
+    await _assignToFolder([projectId], tile.dataset.folderKey);
     await renderGrid();
+  });
+
+  // 경로의 폴더명 더블클릭 = 이름 바꾸기(폴더 안에서)
+  document.getElementById('gal-crumb')?.addEventListener('dblclick', (e) => {
+    if (!e.target.closest('#gal-crumb-name') || !_selectedFolderId) return;
+    startRenameFolder(_selectedFolderId);
+  });
+
+  // [R5] 폴더 안에선 타일이 숨어 있다 — 경로 「Projects」에 놓으면 «폴더에서 빼기»(레일 「미분류」 행 드롭의 대체)
+  const up = document.getElementById('gal-tab-projects');
+  const canDropUp = () => _viewMode() === 'inside';
+  up.addEventListener('dragover', (e) => {
+    if (!canDropUp()) return;
+    if (_isPlanningDrag(e)) return;   // [R1] 기획 카드는 원래 폴더 밖이다 — 뺄 것도 없다
+    e.preventDefault();
+    up.classList.add('is-drop-target');
+  });
+  up.addEventListener('dragleave', () => up.classList.remove('is-drop-target'));
+  up.addEventListener('drop', async (e) => {
+    if (!canDropUp()) return;
+    if (_isPlanningDrag(e)) return;
+    e.preventDefault();
+    up.classList.remove('is-drop-target');
+    const projectId = e.dataTransfer.getData('text/x-goditor-project-id');
+    if (!projectId) return;
+    await _assignToFolder([projectId], null);
+    await renderGrid();
+  });
+
+  // Esc — 폴더 안에서 입력칸 밖에 포커스가 있을 때 «밖으로». 계정메뉴·메뉴·입력칸이 먼저다.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    if (_viewMode() !== 'inside') return;
+    const t = e.target;
+    // «글자 입력칸»만 막는다 — 보기전환 radio·체크박스 같은 input 은 Esc 를 쓰지 않으므로 통과(09-19 이벨류 실측)
+    if (t && (t.closest?.('input:not([type="radio"]):not([type="checkbox"]):not([type="button"]):not([type="range"]), textarea, select, [contenteditable="true"], #acct'))) return;
+    if (document.getElementById('acct')?.classList.contains('open')) return;
+    if (document.querySelector('.card-folder-menu')) return;
+    // 모달(공지·신고·버전기록·글꼴대체)이 떠 있으면 Esc 는 «그 모달»의 것이다 — notice.js otherModalOpen() 과 같은 판정
+    if ([...document.querySelectorAll('.settings-modal-overlay')].some(el => getComputedStyle(el).display !== 'none')) return;
+    selectFolder(null);
   });
 })();
 
@@ -1055,7 +1348,7 @@ function renderFolderRail() {
     _searchQuery = input.value;
     clearBtn.style.display = _searchQuery ? '' : 'none';
     _renderGridFromCache();
-    renderFolderRail();   // ★검색 시작/종료에 따라 레일의 선택 표시를 지우거나 되살린다
+    renderFolderChrome();   // ★검색 시작/종료에 따라 폴더 구역·경로를 숨기거나 되살린다
   };
   input.addEventListener('compositionstart', () => { composing = true; });
   input.addEventListener('compositionend', () => { composing = false; apply(); });
@@ -1078,10 +1371,11 @@ function renderFolderRail() {
   });
 })();
 
-function _setEmptyState(html) {
+function _setEmptyState(html, compact) {
   const empty = document.getElementById('empty-state');
   const txt = document.getElementById('empty-state-text');
   if (txt) txt.innerHTML = html;
+  empty.classList.toggle('is-compact', !!compact);   // 루트의 «폴더 밖 0개» — 라벨 아래 한 줄로
   empty.style.display = 'block';
 }
 
@@ -1090,11 +1384,10 @@ function _renderGridFromCache() {
   const grid = document.getElementById('project-grid');
   const chipsBox = document.getElementById('search-folder-hits');
   const nq = _norm(_searchQuery);
-  let list = _allProjectsCache;
+  // ★검색 중엔 폴더 선택과 «무관하게» 항상 전체 범위 · 폴더 안=그 폴더만 · 루트=폴더 밖만(B안)
+  let list = _filterForView(_allProjectsCache, nq, _selectedFolderId, new Set(_foldersCache.map(f => f.id)));
 
   if (nq) {
-    // ★검색 중엔 폴더 선택과 «무관하게» 항상 전체 범위를 검색한다.
-    list = list.filter(p => _matchesQuery(p, nq));
     const chips = _matchingFolders(nq);
     if (chips.length) {
       chipsBox.style.display = 'flex';
@@ -1108,16 +1401,14 @@ function _renderGridFromCache() {
     }
   } else {
     chipsBox.style.display = 'none'; chipsBox.innerHTML = '';
-    if (_selectedFolderId === '__unassigned__') list = list.filter(p => !p.folderId);
-    else if (_selectedFolderId) list = list.filter(p => p.folderId === _selectedFolderId);
   }
 
   grid.innerHTML = '';
 
   if (!list.length) {
     if (nq) _setEmptyState(`"${_escHtml(_searchQuery.trim())}"에 맞는 프로젝트가 없어요.<br><a href="#" id="empty-clear-search" style="color:var(--ui-text-sub)">검색 지우기</a>`);
-    else if (_selectedFolderId && _selectedFolderId !== '__unassigned__') _setEmptyState('이 폴더에 프로젝트가 없습니다 — 카드를 끌어다 넣어보세요.');
-    else if (_selectedFolderId === '__unassigned__') _setEmptyState('미분류 프로젝트가 없습니다.');
+    else if (_selectedFolderId) _setEmptyState('이 폴더에 프로젝트가 없습니다 — 밖에서 카드를 폴더 타일로 끌어다 놓거나 📁 메뉴로 넣어보세요.');
+    else if (_allProjectsCache.length) _setEmptyState('폴더 밖 프로젝트가 없어요 — 모두 폴더 안에 있습니다.', true);
     else _setEmptyState('아직 프로젝트가 없어요.<br>새 프로젝트를 만들어보세요.');
     const clr = document.getElementById('empty-clear-search');
     if (clr) clr.addEventListener('click', (e) => {
@@ -1126,7 +1417,7 @@ function _renderGridFromCache() {
       input.value = ''; input.dispatchEvent(new Event('input'));
       _searchQuery = ''; document.getElementById('proj-search-clear').style.display = 'none';
       _renderGridFromCache();
-      renderFolderRail();
+      renderFolderChrome();
     });
     return;
   }
@@ -1150,7 +1441,7 @@ function _renderGridFromCache() {
       : (isPlanning
         ? `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c48a" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="12" y2="16"/></svg>`
         : `<svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#555" stroke-width="1.2"><rect x="5" y="5" width="30" height="30" rx="2"/><line x1="11" y1="15" x2="29" y2="15"/><line x1="11" y1="21" x2="29" y2="21"/><line x1="11" y1="27" x2="22" y2="27"/></svg>`);
-    // 검색 중일 때만 소속 폴더 배지를 붙인다(T-B) — 평소엔 레일 선택이 이미 말해준다.
+    // 검색 중일 때만 소속 폴더 배지를 붙인다(T-B) — 평소엔 경로(폴더 안)·루트(폴더 밖)가 이미 말해준다.
     //   ★.planning-badge/.collab-badge 와 «같은 자리»(badgeHtml)에 «같은 꼴»로 합류시킨다 —
     //     이름 아래 별도 줄(옛 .card-folder-tag)로 두면 배지 두 종류가 카드마다 다른 언어를 쓰게 된다.
     const folderBadgeHtml = (nq && proj.folderId && _folderNameById(proj.folderId))
@@ -1175,10 +1466,13 @@ function _renderGridFromCache() {
     const shareBtnHtml = (!window.COLLAB_ENABLED || isCollab || !window.electronAPI?.collab)
       ? ''
       : `<button class="card-action card-share" onclick="shareProjectUI(event, '${safeId}')" title="원격으로 올리기 — 다른 사람을 초대해 같이 편집합니다">👥</button>`;
-    // [T-A] 폴더로 이동 — 항상 뜬다(기획 프로젝트도 폴더에 들어갈 수 있다).
-    const folderBtnHtml = window.electronAPI?.folders
-      ? `<button class="card-action card-folder-move" onclick="openFolderMenuUI(event, '${safeId}')" title="폴더로 이동">📁</button>`
-      : '';
+    // [T-A] 폴더로 이동 — 항상 뜬다.
+    //   [R1] 기획(plan_*) 프로젝트는 main/folders.js isProjId 가 거른다(moved 0) ⇒ UI 에서 막는다: 버튼은 «보이되» 비활성 + 이유 툴팁.
+    //     ⛔disabled 속성 금지 — 크로미움은 disabled 버튼에 hover 를 안 줘 title 툴팁이 안 뜬다. onclick 도 안 단다.
+    const folderBtnHtml = !window.electronAPI?.folders ? ''
+      : isPlanning
+        ? `<button type="button" class="card-action card-folder-move is-disabled" aria-disabled="true" title="기획 프로젝트는 아직 폴더에 넣을 수 없습니다">📁</button>`
+        : `<button class="card-action card-folder-move" onclick="openFolderMenuUI(event, '${safeId}')" title="폴더로 이동">📁</button>`;
     card.innerHTML = `
       <div class="card-thumb">${thumbContent}</div>
       <div class="card-body">
@@ -1204,6 +1498,8 @@ function _renderGridFromCache() {
     });
     card.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/x-goditor-project-id', proj.id);
+      // [R1] 기획 카드 표지 — dragover 에선 데이터 «값»을 못 읽고 «종류(types)»만 보이므로 종류로 알린다(타일·경로가 거절)
+      if (isPlanning) e.dataTransfer.setData('text/x-goditor-planning', '1');
       e.dataTransfer.effectAllowed = 'move';
     });
     grid.appendChild(card);
@@ -1211,10 +1507,11 @@ function _renderGridFromCache() {
   paintFontBadges();
 }
 
-/* [T-A] 카드의 📁 버튼 — 「미분류로 빼기 / 폴더들 / 새 폴더 만들어 넣기」 작은 메뉴.
+/* [T-A] 카드의 📁 버튼 — 「폴더에서 빼기 / 폴더들 / 새 폴더 만들어 넣기」 작은 메뉴.
  * ★prompt() 는 Electron 이 차단한다(duplicateProjectUI 주석 참고) — 새 폴더는 인라인 input. */
 async function openFolderMenuUI(e, projectId) {
   e.stopPropagation();
+  if (_openMenuClose) _openMenuClose();
   document.querySelectorAll('.card-folder-menu').forEach(m => m.remove());
   const btn = e.currentTarget;
   const proj = _allProjectsCache.find(p => p.id === projectId);
@@ -1226,7 +1523,7 @@ async function openFolderMenuUI(e, projectId) {
     <button type="button" class="tab-add-item${curFolderId === key ? ' is-current' : ''}" data-goto="${key === null ? '' : _escHtml(key)}">
       <span class="tab-add-item-name">${_escHtml(name)}</span>
     </button>`;
-  menu.innerHTML = itemHtml(null, '미분류로 빼기')
+  menu.innerHTML = itemHtml(null, '폴더에서 빼기')
     + (_foldersCache.length ? '<div class="fr-divider"></div>' : '')
     + _foldersCache.map(f => itemHtml(f.id, f.name)).join('')
     + '<div class="fr-divider"></div>'
@@ -1236,26 +1533,31 @@ async function openFolderMenuUI(e, projectId) {
   menu.style.top = (r.bottom + 4 + window.scrollY) + 'px';
   menu.style.left = Math.max(8, r.right - menu.offsetWidth) + 'px';
 
-  const close = () => { menu.remove(); document.removeEventListener('click', onDocClick, true); };
-  const onDocClick = (ev) => { if (!menu.contains(ev.target)) close(); };
-  setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
+  const close = _wireMenuDismiss(menu, btn);   // Esc·바깥 클릭·aria-expanded — 타일 ⋯ 메뉴와 같은 규약
 
   menu.addEventListener('click', async (ev) => {
     const item = ev.target.closest('[data-goto]');
     if (item) {
       const key = item.dataset.goto || null;
-      await window.electronAPI.folders.assign({ projectIds: [projectId], folderId: key });
       close();
+      await _assignToFolder([projectId], key);
       await renderGrid();
       return;
     }
-    if (ev.target.closest('#cfm-new-folder')) {
-      close();
-      const nm = (() => { try { return window.prompt ? window.prompt('새 폴더 이름') : null; } catch (_) { return null; } })();
-      // ★대부분 여기서 prompt 가 차단돼 null 이 온다 — 그러면 레일의 [+ 새 폴더]로 안내한다.
-      if (!nm) { document.getElementById('fr-add-folder')?.scrollIntoView({ block: 'center' }); document.getElementById('fr-add-folder')?.click(); return; }
-      const r2 = await window.electronAPI.folders.create({ name: nm.trim() });
-      if (r2 && r2.ok) { await window.electronAPI.folders.assign({ projectIds: [projectId], folderId: r2.folder.id }); await renderGrid(); }
+    const newItem = ev.target.closest('#cfm-new-folder');
+    if (newItem) {
+      // ★[B안] 메뉴 «안»에서 바로 이름을 받아 만들고 넣는다. (레일 시절엔 prompt 가 막히면 레일의
+      //   [+ 새 폴더]를 대신 눌렀는데, 그건 폴더만 만들고 «이 카드»는 안 넣었다. 게다가 폴더 안·검색 중엔
+      //   타일 줄이 숨어 있어 누를 곳도 없다.) ⛔prompt() 금지 — Electron 이 차단한다.
+      ev.stopPropagation();
+      _swapToNameInput(newItem, { placeholder: '새 폴더 이름', holder: 'menu' }, async (nm) => {
+        close();
+        if (!nm) return;
+        const r2 = await window.electronAPI.folders.create({ name: nm });
+        if (!r2 || !r2.ok) { alert('폴더를 만들지 못했습니다: ' + ((r2 && r2.error) || '알 수 없는 오류')); return; }
+        await _assignToFolder([projectId], r2.folder.id);
+        await renderGrid();
+      });
     }
   });
 }
@@ -1271,7 +1573,7 @@ async function renderGrid() {
   const list = await loadProjects();
   await _loadFoldersCache();
   _allProjectsCache = list;
-  renderFolderRail();
+  renderFolderChrome();
   _renderGridFromCache();
 }
 
@@ -1304,6 +1606,16 @@ function paintFontBadges() {
 }
 window.addEventListener('load', paintFontBadges);
 
+/** 폴더 «안»에서 새로 생긴 프로젝트(새로 만들기·가져오기·복제)를 «지금 보고 있는» 폴더 소속으로 — 한 벌.
+ *  ★루트·검색 중·휴지통에선 아무것도 안 한다(_viewMode() === 'inside' 일 때만). 실패해도 흐름은 막지 않는다(경고만).
+ *  (meta 는 projects:save-meta·folders:assign 이 read-merge-write 라 뒤이은 저장이 folderId 를 지우지 않는다.)
+ *  ★기획(plan_*)은 main 이 거른다(moved 0) — 여기선 알림을 띄우지 않는다(사용자가 «넣으려 한» 게 아니다). */
+async function _adoptIntoCurrentFolder(id) {
+  if (!id || _viewMode() !== 'inside' || !window.electronAPI?.folders) return;
+  try { await window.electronAPI.folders.assign({ projectIds: [id], folderId: _selectedFolderId }); }
+  catch (e) { console.warn('[projects] 새 프로젝트 폴더 배정 실패:', e?.message || e); }
+}
+
 async function createProject() {
   const id = 'proj_' + Date.now();
   const now = new Date().toISOString();
@@ -1324,6 +1636,8 @@ async function createProject() {
     }
   };
   await saveNewProject(proj);
+  // [B안] 폴더 «안»에서 만들면 그 폴더 소속으로 — 실패해도 프로젝트 진입은 막지 않는다.
+  await _adoptIntoCurrentFolder(id);
   // 자동 PM 폴더 보장 (Goditor 프로젝트만) — 실패해도 프로젝트 진입 막지 않음
   try {
     if (IS_ELECTRON && window.electronAPI?.ensureClaudePMFolder) {
@@ -1388,12 +1702,13 @@ function _setGalleryView(v) {
     const el = document.getElementById(id);
     if (el) el.style.visibility = onTrash ? 'hidden' : '';
   }
-  // [T-A/T-B] 폴더 레일·검색 — 휴지통은 renderTrash() 라는 별도 렌더러라 필터가 안 먹는다(범위 밖으로 명시).
-  //   visibility 가 아니라 display — 레일 184px·검색 자리를 «접어야» 휴지통 화면이 안 밀린다.
-  for (const id of ['folder-rail', 'proj-search']) {
+  // [T-A/T-B → B안] 폴더 구역·라벨·경로·검색 — 휴지통은 renderTrash() 라는 별도 렌더러라 필터가 안 먹는다(범위 밖으로 명시).
+  //   visibility 가 아니라 display — 자리를 «접어야» 휴지통 화면이 안 밀린다.
+  for (const id of ['folder-zone', 'loose-label', 'gal-crumb', 'proj-search']) {
     const el = document.getElementById(id);
     if (el) el.style.display = onTrash ? 'none' : '';
   }
+  renderFolderChrome();   // ★돌아올 땐 모드(루트/폴더 안)에 맞게 «즉시» 되살린다 — renderGrid 의 IPC 를 기다리면 빈 경로가 번쩍인다
   if (onTrash) renderTrash(); else renderGrid();
 }
 
@@ -1468,7 +1783,12 @@ document.getElementById('trash-list').addEventListener('click', async (e) => {
   }
 });
 
-document.getElementById('gal-tab-projects').addEventListener('click', () => _setGalleryView('projects'));
+/* [R4] 「Projects」 한 버튼이 두 일을 한다 — 폴더 안(또는 검색 중 폴더 기억)에선 «밖으로», 휴지통에선 «돌아오기».
+ *   ★휴지통에서 돌아올 땐 기억한 폴더로 복귀한다(선택 기억 유지) — 분기를 뒤집으면 기억이 풀린다. */
+document.getElementById('gal-tab-projects').addEventListener('click', () => {
+  if (_galleryView === 'projects' && _selectedFolderId) selectFolder(null);
+  else _setGalleryView('projects');
+});
 document.getElementById('gal-tab-trash').addEventListener('click', () => _setGalleryView('trash'));
 
 /* [U7] 삭제 진행 중인 프로젝트 — 휴지통 이동은 느릴 수 있고 그 사이 ✕ 가 살아 있다. */
@@ -1591,6 +1911,9 @@ async function duplicateProjectUI(e, id) {
   const newName = (input ?? '').trim() || defaultName;
   const res = await window.electronAPI.duplicateProject({ sourceProjectId: id, newName });
   if (!res?.ok) { alert('복제 실패: ' + (res?.error || '알 수 없는 오류')); return; }
+  // ④ 폴더 안에서 복제하면 사본도 그 폴더에(09-19 2라운드 R2). main 이 원본 meta 를 복사해 이미 같은 값이지만(9370 실측)
+  //   그 «우연»에 기대지 않는 방어선 — 같은 값을 다시 쓸 뿐이라 해가 없다. 루트·검색 중엔 원본 소속 그대로.
+  await _adoptIntoCurrentFolder(res.newProjectId);
   await renderGrid();
   requestAnimationFrame(() => {
     const card = document.querySelector(`.project-card[data-id="${res.newProjectId}"]`);
@@ -1786,7 +2109,13 @@ function renderHomeTabs() {
 /* ── .gdt 불러오기 (「파일 → 프로젝트 불러오기…」) ──
    실제 흐름은 js/io/gdt-import.js가 갖고 있다(편집기 페이지와 공용). 여기선
    «불러온 뒤 목록을 다시 그리는 것»만 등록한다 — 안 하면 새 프로젝트가 새로고침 전까지 안 보인다. */
-window.__gdtOnImported = async () => { await renderGrid(); };
+// ④ 폴더 «안»에서 불러오면 그 폴더 소속으로(09-19 2라운드 R2 — main/gdt/import.js 가 folderId 없이 meta 를 만들어
+//   결과가 폴더 밖에 생기고 지금 화면엔 안 보였다). 폴더는 «불러오기가 끝난 시점»에 보고 있는 곳. 결과 없이 부르는
+//   옛 호출(font-substitute.js 의 새로고침)도 그대로 돈다.
+window.__gdtOnImported = async (result) => {
+  if (result && result.ok && result.projectId) await _adoptIntoCurrentFolder(result.projectId);
+  await renderGrid();
+};
 
 /* ── 「없는 글꼴」 다시 열기 ──
    불러올 때 뜬 대화상자를 닫았어도, 카드 배지로 언제든 다시 연다.
@@ -2195,6 +2524,7 @@ function getViewMode() {
 function applyViewMode(mode, persist) {
   const m = (mode === 'list') ? 'list' : 'grid';
   document.getElementById('project-grid')?.classList.toggle('is-list', m === 'list');
+  document.getElementById('gallery-col')?.classList.toggle('is-list-mode', m === 'list');   // 폴더 타일 압축형(B안)
   // ★선택 표시는 radio 의 checked 하나로 끝난다 — 클래스 토글을 따로 두지 않는다
   //   (두 개면 반드시 어긋난다). CSS 가 :has(.vt-radio:checked) 로 칩을 그린다.
   document.querySelectorAll('#view-toggle .vt-radio').forEach(r => { r.checked = (r.dataset.view === m); });
