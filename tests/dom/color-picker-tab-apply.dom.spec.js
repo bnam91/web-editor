@@ -53,7 +53,8 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <script type="module">
   import { wireColorField, colorFieldHTML } from '/js/props/color-picker.js';
   import { showShapeProperties } from '/js/props/prop-shape.js';
-  import { wireCanvasBgControl } from '/js/props/prop-page.js';
+  import { wireCanvasBgControl, seedPageBgGradientPicker } from '/js/props/prop-page.js';
+  import * as __pageMod from '/js/props/prop-page.js';
   import { showTextProperties } from '/js/props/prop-text.js';
   window.__hist = 0;
   window.pushHistory = () => { window.__hist++; };
@@ -64,6 +65,8 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
   window.__wireCF = wireColorField;
   window.__cfHTML = colorFieldHTML;
   window.__wirePage = wireCanvasBgControl;
+  window.__seedPage = seedPageBgGradientPicker;
+  window.__showPageSrc = String(__pageMod.showPageProperties);
   window.__ready = true;
 </script></body></html>`;
 
@@ -591,5 +594,57 @@ test('T16 (이벨류 low) 첫 스탑이 완전 투명이면 Solid 복귀 = 보�
   expect(await activeTab(page)).toBe('gradient');
   await tab(page, 'solid').click();
   expect(await page.evaluate(() => window.__bg)).toBe('#336699');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* T-059 4라운드 QA — 페이지 바탕 칸(index.html 고정값 #ACACAC)이 실제 바탕(state.bg #777777)과 따로 놀아
+ * 그라데이션 탭 = #acacac 100%→0%, Solid = bg '#acacac' 로 «안 고른 색»이 저장되던 결함.
+ * 음성대조: 픽스 전 코드(seed 가 칸을 안 맞춤)에선 T17a 의 stops[0].color 가 '#acacac', T17b 의 bg 가 '#acacac' 로 실패한다. */
+test('T17a ★페이지 바탕: 칸 초기값이 state 와 달라도 그라데이션 탭 = «실제 바탕색» 100%→0%, Solid = 실제 바탕색(데이터 불변)', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => {
+    window.state.pageSettings.bg = '#777777';
+    delete window.state.pageSettings.bgGradient;
+    // index.html 과 같은 어긋난 칸 초기값
+    document.getElementById('page-bg-color').value = '#acacac';
+    document.getElementById('page-bg-hex').value = 'ACACAC';
+    window.__wirePage();
+  });
+  const f = await page.evaluate(() => ({ v: document.getElementById('page-bg-color').value, hex: document.getElementById('page-bg-hex').value }));
+  expect(f.v, '배선 시 칸이 state.bg 로 맞춰지지 않았다').toBe('#777777');
+  expect(f.hex).toBe('777777');
+  await openSwatchOf(page, 'page-bg-color');
+  await tab(page, 'gradient').click();
+  const g = await page.evaluate(() => JSON.parse(window.state.pageSettings.bgGradient));
+  expect(g.stops[0].color, '그라데이션 기본값이 칸 고정값(#acacac)에서 시작했다').toBe('#777777');
+  await tab(page, 'solid').click();
+  expect(await page.evaluate(() => window.state.pageSettings.bg), 'Solid 복귀가 사용자가 고르지 않은 색으로 바탕을 바꿨다').toBe('#777777');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T17b ★페이지 바탕 재선택 후 Solid = 보이는 첫 스탑(규칙 ③ — 도형과 같음), showPageProperties 가 재시드한다', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => {
+    window.state.pageSettings.bg = '#777777';
+    delete window.state.pageSettings.bgGradient;
+    document.getElementById('page-bg-color').value = '#acacac';
+    window.__wirePage();
+  });
+  // 저장된 그라데이션(첫 스탑 완전투명 → 보이는 첫 스탑 #ff0000) 을 둔 뒤 «재선택»
+  await page.evaluate(() => {
+    window.state.pageSettings.bgGradient = JSON.stringify({ type: 'linear', angle: 90, stops: [
+      { color: '#00ff00', offset: 0, opacity: 0 }, { color: '#ff0000', offset: 0.3, opacity: 1 }, { color: '#0000ff', offset: 1, opacity: 1 }] });
+    window.__seedPage();
+  });
+  const before = await page.evaluate(() => window.state.pageSettings.bgGradient);
+  await openSwatchOf(page, 'page-bg-color');
+  expect(await activeTab(page)).toBe('gradient');
+  expect(await page.evaluate(() => window.state.pageSettings.bgGradient), '열기만 했는데 값이 바뀌었다').toBe(before);
+  await tab(page, 'solid').click();
+  const st = await page.evaluate(() => ({ bg: window.state.pageSettings.bg, g: window.state.pageSettings.bgGradient || null }));
+  expect(st.bg, '재선택 후 Solid 복귀가 보이는 첫 스탑이 아니다').toBe('#ff0000');
+  expect(st.g).toBeNull();
+  // 재선택 경로 = showPageProperties 가 이 시드를 부른다(빈 곳 클릭 → editor.js deselect → showPageProperties)
+  expect(await page.evaluate(() => /seedPageBgGradientPicker\(\)/.test(window.__showPageSrc))).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
