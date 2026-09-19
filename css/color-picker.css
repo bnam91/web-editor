@@ -97,6 +97,9 @@
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
 }
+/* T-059 2라운드: 탭을 «누른 뒤» 계속 호버 중이면 설명을 숨긴다 — 떠 있으면 바로 아래 이미지 드롭존·스펙트럼을 가린다.
+   mouseleave 에서 클래스를 떼므로 다시 올리면 설명이 다시 뜬다(color-picker.js 탭 루프). */
+.goya-cp-tab.tip-hide[data-tip]:hover::after { display: none; }
 
 .goya-cp-headbtn {
   width: 22px; height: 22px;
