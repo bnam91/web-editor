@@ -1903,7 +1903,6 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   }
 
   // ── 섹션 레벨(flow) 블록 묶기: 기존 stack 방식 ───────────────────────────
-  const sectionInner = sec.querySelector('.section-inner');
   const rows = [];
   selected.forEach(b => {
     const row = b.classList.contains('gap-block') ? b : (b.closest('.frame-block[data-text-frame]') || b.closest('.row') || b);
@@ -1911,17 +1910,6 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   });
   // 문서 순서 정렬 — section-inner 직속이 아닌 단위(merged-part 등)도 -1 로 맨 앞에 끼지 않게
   rows.sort((a, b) => (a === b ? 0 : (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)));
-  // 도형 래퍼의 보이는 가로 위치(섹션 기준) — 래퍼째 옮길 때 left 로 보존
-  const _innerRect = sectionInner?.getBoundingClientRect?.();
-  const _scale = (_innerRect && sectionInner.offsetWidth) ? (_innerRect.width / sectionInner.offsetWidth) || 1 : 1;
-  const _shapeLeft = new Map();
-  rows.forEach(row => {
-    const sfs = isShapeFrame(row) ? [row] : [...row.querySelectorAll('.frame-block')].filter(isShapeFrame);
-    sfs.forEach(w => {
-      const r = w.getBoundingClientRect();
-      _shapeLeft.set(w, _innerRect ? Math.round((r.left - _innerRect.left) / _scale) : 0);
-    });
-  });
   // row 안에서 옮길 블록 — 도형 래퍼 «안»의 shape-block 은 래퍼째 옮기므로 따로 뽑지 않는다
   const _insideShapeFrame = (x, row) => {
     for (let p = x.parentElement; p && p !== row; p = p.parentElement) if (isShapeFrame(p)) return true;
@@ -1944,6 +1932,22 @@ function wrapSelectedBlocksInFrame(opts = {}) {
 
   // 첫 번째 row 자리에 프레임 삽입
   rows[0].before(ss);
+
+  // 도형 래퍼의 보이는 가로 위치 — 래퍼째 옮길 때 left 로 보존.
+  // ★기준 = 새 프레임 ss 의 «패딩 상자»(absolute 자식의 원점). ss 를 넣은 «뒤», 블록을 옮기기 «전»에 잰다.
+  //   section-inner 테두리 상자 기준으로 재면 섹션 좌우여백(인라인 padding, 예: 72px)·합쳐진 파트 패딩만큼
+  //   한 번 더 밀린다(T-057 2라운드). ss 삽입으로 스크롤바가 생겨 가로 위치가 바뀌는 경우도 이 순서로 흡수.
+  const _ssRect = ss.getBoundingClientRect();
+  const _scale = ss.offsetWidth ? (_ssRect.width / ss.offsetWidth) || 1 : 1;
+  const _originX = _ssRect.left + ss.clientLeft * _scale;
+  const _shapeLeft = new Map();
+  rows.forEach(row => {
+    const sfs = isShapeFrame(row) ? [row] : [...row.querySelectorAll('.frame-block')].filter(isShapeFrame);
+    sfs.forEach(w => {
+      const r = w.getBoundingClientRect();
+      _shapeLeft.set(w, Math.round((r.left - _originX) / _scale));
+    });
+  });
 
   // 각 블록을 absolute 배치로 ss에 직접 이동
   let stackY = 0;

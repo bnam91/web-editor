@@ -887,7 +887,7 @@ function _getBlockLayerItem(block) {
 
 /* freeLayout 내 블록인지 확인 */
 function _isInFreeLayout(block) {
-  const wrapper = block.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+  const wrapper = block.closest('.frame-block[data-text-frame]') ||
     (block.style.position === 'absolute' ? block : null);
   return !!(wrapper && wrapper.closest('.frame-block[data-free-layout]'));
 }
@@ -899,7 +899,7 @@ function _restoreFreeLayoutFrameSelected(block) {
   let el = block;
   let deepestFrame = null;
   while (el) {
-    const textOrShape = el.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]');
+    const textOrShape = el.closest('.frame-block[data-text-frame]');
     const searchFrom = textOrShape || el;
     const frame = searchFrom.closest('.frame-block[data-free-layout]');
     if (!frame) break;
@@ -1394,9 +1394,9 @@ function copySelected() {
     const banner = rowEl.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: rowEl.outerHTML, sourceBannerId: banner?.id || null };
   } else if (selNormal) {
-    // free-layout 프레임 내 블록: absolute 래퍼(text-frame/shape-frame) 또는 자신(absolute)을 복사해
+    // free-layout 프레임 내 블록: absolute 래퍼(text-frame) 또는 자신(absolute)을 복사해
     // 좌표·절대배치를 보존(안 그러면 붙여넣기 시 일반 플로우로 들어가 스택됨).
-    const _flWrapper = selNormal.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]')
+    const _flWrapper = selNormal.closest('.frame-block[data-text-frame]')
       || (selNormal.style.position === 'absolute' ? selNormal : null);
     const _flFrame = _flWrapper?.closest('.frame-block[data-free-layout]');
     if (_flWrapper && _flFrame) {

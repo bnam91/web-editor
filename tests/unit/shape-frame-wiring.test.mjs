@@ -8,12 +8,15 @@
  * ③ 로드 정규화: migrateColsFromDOM 이 ejectShapeFrameIntruders 를 부른다.
  * ④ 도형 프레임 자손 검색 판정(querySelector('.shape-block'))이 0개 남는다.
  * ⑤ export-figma-json 이 strokeWidth 0 을 보존한다.
+ * ⑥ ⌘G/⌘⌥G flow 분기 도형 가로 위치 원점 = 새 프레임 ss 의 패딩 상자(ss 삽입 «뒤»에 잰다) — 섹션여백 72px 밀림 방지.
+ * ⑦ 죽은 셀렉터 data-shape-frame 이 js/ 전체에 0건(shape-frame.js 의 ⛔경고 주석 한 줄만 예외).
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 import { readSrc } from './_srcread.js';
 import { sliceBlock } from './_slice-block.js';
 
@@ -138,4 +141,32 @@ test('⑥ ⌘G/⌘⌥G(wrapSelectedBlocksInFrame) — 도형은 래퍼째 한 �
   assert.ok(/selected\.map\(el => shapeFrameOf\(el\) \|\| el\)/.test(body), 'shape-block → 래퍼 정규화 없음');
   assert.ok(!/selected\[0\]\.closest\('\.frame-block\[data-free-layout\]'\)/.test(body), '자기 자신을 잡는 closest');
   assert.ok(/b\.parentElement\?\.closest\('\.frame-block\[data-free-layout\]'\)/.test(body));
+  // T-057 2라운드: 섹션 좌우여백(section-inner 인라인 padding)만큼 도형이 밀리던 원점
+  assert.ok(!/_innerRect\.left/.test(body), 'section-inner 테두리 상자(패딩 포함) 기준 원점이 남았다');
+  assert.ok(/ss\.getBoundingClientRect\(\)/.test(body), '원점을 새 프레임 ss 기준으로 잡지 않는다');
+  assert.ok(/ss\.clientLeft/.test(body), 'ss 테두리(clientLeft) 보정 없음');
+  const iIns = body.indexOf('rows[0].before(ss)');
+  const iMeasure = body.indexOf('ss.getBoundingClientRect()');
+  const iMove = body.indexOf('ss.appendChild(block)');
+  assert.ok(iIns > 0 && iMeasure > iIns, '도형 위치 측정이 ss 삽입보다 앞에 있다');
+  assert.ok(iMove > iMeasure, '도형 위치 측정이 블록 이동보다 뒤에 있다');
+});
+
+test('⑦ 죽은 셀렉터 data-shape-frame — js/ 전체 0건(⛔경고 주석만 예외)', () => {
+  const hits = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(p); continue; }
+      if (!e.name.endsWith('.js')) continue;
+      fs.readFileSync(p, 'utf8').split('\n').forEach((line, i) => {
+        if (!line.includes('data-shape-frame')) return;
+        const rel = path.relative(ROOT, p);
+        if (rel === path.join('js', 'shape-frame.js') && /⛔data-shape-frame 속성을 새로 찍지 마라/.test(line)) return;
+        hits.push(`${rel}:${i + 1}`);
+      });
+    }
+  };
+  walk(path.join(ROOT, 'js'));
+  assert.deepEqual(hits, [], '죽은 셀렉터가 다시 생겼다: ' + hits.join(', '));
 });

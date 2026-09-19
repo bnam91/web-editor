@@ -192,3 +192,63 @@ test('N1 음성대조 — 도형 없는 텍스트 2개 ⌘⌥G 는 기존대로(
   expect(out.order).toEqual([out.pa]);
   expect(errs).toEqual([]);
 });
+
+/* ── 2라운드 T-057: 섹션 좌우여백(section-inner 인라인 padding)이 있을 때 ⌘G/⌘⌥G 가 도형을 여백만큼 밀던 결함 ──
+ * 원인: flow 분기 _shapeLeft 를 section-inner «테두리 상자» 기준으로 쟀다(패딩 포함) → 새 프레임(내용 상자 안)
+ *       에 다시 left 로 넣으면 패딩만큼 한 번 더 밀림(72px). 합쳐진 파트(merged-part) 패딩도 같은 식으로 샌다.
+ * 기준: 묶기 전후 도형(shape-block)의 화면 left 차이 ≤ 1px. */
+const PADDED_SECTION = ({ shapeSel = true, textSel = false, secStyle = '', merged = false } = {}) => {
+  const inner = `
+  <div class="gap-block" id="gb_top" style="height:20px"></div>
+  <div class="frame-block" id="tf_1" data-text-frame="true"><div class="text-block${textSel ? ' selected' : ''}" id="tb_1">Heading</div></div>
+  <div class="frame-block${shapeSel ? ' selected' : ''}" id="ss_shape" data-free-layout="true" data-layer-name="rectangle" style="${WRAP_STYLE}">${SHAPE('shp_1', shapeSel)}</div>
+  <div class="gap-block" id="gb_bot" style="height:20px"></div>`;
+  const body = merged
+    ? `<div class="merged-part" id="mp_1" style="display:flex;flex-direction:column;padding-left:40px;padding-right:40px;">${inner}</div>`
+    : inner;
+  return `
+<div class="section-block selected" id="sec" style="${secStyle}"><div class="section-inner" id="inner" style="padding-left:72px;padding-right:72px;">${body}</div></div>`;
+};
+
+async function measureWrap(page, asGroup) {
+  return page.evaluate((g) => {
+    const shp = document.getElementById('shp_1');
+    const before = shp.getBoundingClientRect();
+    window.__wrap({ asGroup: g });
+    const after = shp.getBoundingClientRect();
+    const w = document.getElementById('ss_shape');
+    return { dx: after.left - before.left, bl: before.left, al: after.left,
+             wrapParent: w.parentElement.id, shapeCount: document.querySelectorAll('.shape-block').length };
+  }, asGroup);
+}
+
+for (const asGroup of [true, false]) {
+  const k = asGroup ? '⌘G' : '⌘⌥G';
+  test(`H2 ★섹션 좌우여백 72 + 가운데 도형 1개 → ${k}: 도형 가로 위치 그대로(|Δ|≤1)`, async ({ page }) => {
+    const errs = await boot(page, PADDED_SECTION());
+    const out = await measureWrap(page, asGroup);
+    expect(out.wrapParent).toMatch(/^ss_new/);
+    expect(Math.abs(out.dx), `묶은 뒤 도형이 ${out.dx}px 밀렸다(before ${out.bl} → after ${out.al})`).toBeLessThanOrEqual(1);
+    expect(errs).toEqual([]);
+  });
+  test(`H2b 섹션 좌우여백 72 + 도형·텍스트 같이 → ${k}: 도형 가로 위치 그대로`, async ({ page }) => {
+    const errs = await boot(page, PADDED_SECTION({ textSel: true }));
+    const out = await measureWrap(page, asGroup);
+    expect(out.shapeCount).toBe(1);
+    expect(Math.abs(out.dx), `Δ=${out.dx}`).toBeLessThanOrEqual(1);
+    expect(errs).toEqual([]);
+  });
+  test(`H3 합쳐진 파트(padding 40) 안 도형 → ${k}: 도형 가로 위치 그대로`, async ({ page }) => {
+    const errs = await boot(page, PADDED_SECTION({ merged: true }));
+    const out = await measureWrap(page, asGroup);
+    expect(out.wrapParent).toMatch(/^ss_new/);
+    expect(Math.abs(out.dx), `Δ=${out.dx}`).toBeLessThanOrEqual(1);
+    expect(errs).toEqual([]);
+  });
+  test(`H4 줌(섹션 scale 0.5) + 여백 72 → ${k}: 도형 가로 위치 그대로`, async ({ page }) => {
+    const errs = await boot(page, PADDED_SECTION({ secStyle: 'transform:scale(0.5);transform-origin:0 0;' }));
+    const out = await measureWrap(page, asGroup);
+    expect(Math.abs(out.dx), `Δ=${out.dx}`).toBeLessThanOrEqual(1);
+    expect(errs).toEqual([]);
+  });
+}
