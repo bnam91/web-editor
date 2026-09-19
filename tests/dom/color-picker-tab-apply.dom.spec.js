@@ -352,6 +352,13 @@ test('T10 ★텍스트(②안): 글자색 피커는 그라데이션·이미지 �
   expect(await tab(page, 'gradient').isDisabled(), '글자색에서 그라데이션 탭이 열려 있다(②안 위반)').toBe(true);
   expect(await tab(page, 'image').isDisabled()).toBe(true);
   expect(await tab(page, 'gradient').getAttribute('data-tip')).toContain('단색만');
+  // ★막힌 탭 자신에 opacity 를 주면 쌓임 맥락이 생겨 호버 설명(::after)이 흐려지고 SV 박스 밑에 깔린다(실앱 9503 실측)
+  const op = await page.evaluate(() => {
+    const t = document.querySelector('.goya-cp-tab[data-tab="gradient"]');
+    return { tab: getComputedStyle(t).opacity, child: getComputedStyle(t.firstElementChild).opacity };
+  });
+  expect(op.tab, '막힌 탭 자신이 흐려져 툴팁까지 흐려지고 밑에 깔린다').toBe('1');
+  expect(Number(op.child)).toBeLessThan(1);
   await tab(page, 'gradient').click({ force: true });
   const cs = await page.evaluate(() => {
     const el = document.querySelector('#tb1 .tb-body');

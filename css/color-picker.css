@@ -64,9 +64,11 @@
 }
 /* 대상이 그 채우기를 못 받으면 탭을 막는다(color-picker.js _applyModeGate) — 눌러도 아무 일 없음 대신 «못 씀»을 보여준다 */
 .goya-cp-tab:disabled {
-  opacity: 0.35;
   cursor: not-allowed;
 }
+/* ★흐림은 탭 «자식»에만 — 탭 자신에 opacity 를 주면 쌓임 맥락이 생겨 호버 설명(::after)이 같이 흐려지고
+   아래 SV 박스 밑으로 깔린다(실앱 9503 실측, 0918 이벨류 픽스 라운드). */
+.goya-cp-tab:disabled > * { opacity: 0.35; }
 .goya-cp-tab:disabled:hover { color: var(--ui-text-muted, #888); }
 
 /* ── 탭 호버 설명 (0918 picker) ──
