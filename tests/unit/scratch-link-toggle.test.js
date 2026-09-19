@@ -103,7 +103,8 @@ test('B① 환경설정에 「연결선 표시」 체크박스가 있고, 그게
     '★저장해도 «지금 화면»에 반영되지 않는다 — setShowEdges 호출이 없다');
   // ⛔새 탭 금지 — 탭 목록이 늘지 않았다
   const tabs = [...SRC.modal.matchAll(/class="settings-tab[^"]*" data-tab="([a-z]+)"/g)].map(m => m[1]);
-  assert.deepEqual(tabs.sort(), ['api', 'collab', 'dev', 'easter', 'market', 'perf', 'shortcuts', 'version'],
+  // (★'debug' 는 2026-09-19 현빈 요청 「톱니바퀴 패널에 디버깅 탭 추가」로 «의도해서» 늘었다 — #16 과 무관)
+  assert.deepEqual(tabs.sort(), ['api', 'collab', 'debug', 'dev', 'easter', 'market', 'perf', 'shortcuts', 'version'],
     '★탭이 늘거나 줄었다 — 새 탭을 만들지 않기로 했다');
 });
 

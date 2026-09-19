@@ -7,6 +7,7 @@ import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../dat
 import { applyFrameTransform } from '../frame-geometry.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
 import { neutralizeRedactForH2C } from './capture-safety.js';
+import { ejectShapeFrameIntruders } from '../shape-frame.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
 /* ══════════════════════════════════════
@@ -815,6 +816,12 @@ function migrateColsFromDOM(canvasEl) {
     tb.before(tf);
     tf.appendChild(tb);
   });
+
+  // ★도형 래퍼 안에 들어간 블록을 «래퍼 바로 뒤(같은 부모)»로 꺼낸다(현빈 확정 0918 A안).
+  //   반드시 맨 끝 — .frame-inner 해체·text-frame 래핑이 끝나 «이동 단위»가 완성된 뒤여야 한다.
+  //   멱등(오염 없으면 DOM 무변이) — rebindAll 이 로드·undo/redo 양쪽에서 불러도 dirty 를 만들지 않는다.
+  //   강제 저장은 안 한다(다음 자연 저장에 반영, 그 전엔 매 로드 같은 결과).
+  ejectShapeFrameIntruders(canvasEl);
 }
 
 function rebindAll(opts = {}) {

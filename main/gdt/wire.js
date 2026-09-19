@@ -231,11 +231,25 @@ function registerGdtIpc({ projectsDir, resolveProjectJsonPath }) {
 /* ── 애플리케이션 메뉴 ──
  * 표준 role을 전부 유지한 위에 「파일」만 추가한다. role 기반이라 ⌘C/⌘V/⌘Z가 살아 있다.
  */
-function buildAppMenu() {
+function buildAppMenu(opts = {}) {
   const isMac = process.platform === 'darwin';
-  const sendToFocused = (channel) => {
+  const focusedWin = () => {
     const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-    if (win && !win.isDestroyed()) win.webContents.send(channel);
+    return (win && !win.isDestroyed()) ? win : null;
+  };
+  const sendToFocused = (channel) => {
+    const win = focusedWin();
+    if (win) win.webContents.send(channel);
+  };
+  /* ★개발자 도구 — 표준 role 「toggleDevTools」 는 «게이트를 모른다»(배포판에서 누구나 ⌥⌘I 로 열렸다).
+     판정은 main/devtools-gate.js 한 곳. 게터를 안 넘기면(옛 호출) «잠김»으로 본다(safe-by-default).
+     ⚠️메뉴는 보이기일 뿐 — 실제 잠금은 devtools-gate 의 devtools-opened 가드다. */
+  const { devToolsMenuItem } = require('../devtools-gate');
+  const devToolsAllowed = typeof opts.isDevToolsAllowed === 'function' ? !!opts.isDevToolsAllowed() : false;
+  const toggleDevTools = () => {
+    const win = focusedWin();
+    if (!win) return;
+    if (typeof opts.toggleDevTools === 'function') opts.toggleDevTools(win.webContents);
   };
 
   const template = [
@@ -281,7 +295,7 @@ function buildAppMenu() {
       submenu: [
         { role: 'reload', label: '새로고침' },
         { role: 'forceReload', label: '강제 새로고침' },
-        { role: 'toggleDevTools', label: '개발자 도구' },
+        devToolsMenuItem({ isMac, allowed: devToolsAllowed, toggle: toggleDevTools }),
         { type: 'separator' },
         { role: 'resetZoom', label: '실제 크기' },
         { role: 'zoomIn', label: '확대' },

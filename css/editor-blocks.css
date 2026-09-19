@@ -1536,6 +1536,21 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   z-index: 1;
 }
 
+/* ── 이미지(에셋) 채우기 «넣기 전» = 바둑판 (0918 picker, js/props/prop-shape.js) ──
+   색상 피커의 이미지 탭을 누르면 data-shape-fill="image" 가 붙고, 이미지를 아직 안 넣었으면
+   (data-shape-image 없음) 도형 면을 바둑판 패턴(#goya-shape-checker, body 에 1번 주입)으로 칠한다.
+   ★«CSS 자리»에 두는 이유 = .asset-block·.cvb-img-empty 와 같다: 편집 전용 표시라 저장값·내보내기에
+     실리면 안 된다(export-html 은 앱 CSS 를 안 싣고, export-image 는 clone 에서 data-shape-fill 을 뗀다).
+   ★CSS 가 presentation 속성(fill="currentColor"/상속)을 이긴다. :not(.shape-redact) — 가림막이 켜지면
+     가림막 규칙(fill:none)이 이겨야 한다(체커 !important 가 특이도로 가림막을 이기지 않게 아예 빠진다).
+   ★#canvas 로 한정 — 미리보기(#preview-overlay, page.canvas 를 innerHTML 로 복사)는 «내보냈을 때 모습»이라
+     바둑판 대신 마지막 단색(currentColor)이 보여야 한다(PNG 내보내기와 같은 결과). */
+#canvas .shape-block[data-shape-fill="image"]:not([data-shape-image]):not(.shape-redact) svg.shape-svg :is(rect, ellipse, circle, polygon, path):not([fill="none"]) {
+  fill: url(#goya-shape-checker) !important;
+}
+/* 실제 이미지(div.shape-img-fill, 인라인 스타일)는 SVG(z-index:1) 밑에 깔린다. 가림막이면 숨긴다 — 가림막은 칠을 무시한다. */
+.shape-block.shape-redact > .shape-img-fill { display: none !important; }
+
 /* ── Redact(가림막) 모드 — rectangle/ellipse 전용 ──
    dataset.shapeColor/shapeGradient는 그대로 둔 채, 이 클래스가 fill을
    CSS 우선순위로 덮어써서(presentation attribute보다 스타일시트가 항상 이긴다)
@@ -1622,6 +1637,18 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .frame-block:has([data-rotate-deg]:not([data-rotate-deg="0"])),
 .frame-block:has(.shape-block[data-shape-rotation]) {
   overflow: visible;
+}
+
+/* 0918 canvasgrad — 캔버스 그라데이션 바(.grad-line-overlay)가 떠 있는 동안 overflow 해제.
+   CSS 그라데이션 선(banner02/comparison)은 길이 |w·sinA|+|h·cosA| 라 박스 밖으로 나가고,
+   스탑 칩은 선 옆에 뜬다 — 잘리면 손잡이를 못 잡는다. shape 선택 시 해제와 같은 정책
+   (대가: 선택 중엔 border-radius 클리핑이 풀린다). banner02 는 renderBanner02 가 인라인
+   overflow:hidden 을 넣으므로 !important 로만 이긴다 — 오버레이가 있을 때(=선택 중)만. */
+.frame-block:has(.grad-line-overlay) {
+  overflow: visible;
+}
+.banner02-block:has(> .grad-line-overlay) {
+  overflow: visible !important;
 }
 
 /* speech-bubble 포함 시 overflow 해제 — 말꼬리 SVG 클리핑 방지 */

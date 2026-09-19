@@ -6,6 +6,7 @@
 ═══════════════════════════════════ */
 
 import { state, BLOCK_DELEGATE_SEL } from './globals.js';
+import { isShapeFrame as _isShapeFrameEl, toFlowUnit } from './shape-frame.js';
 import {
   clearDropIndicators,
   makeLabelItem,
@@ -584,12 +585,8 @@ function bindBlock(block) {
           // 맨몸 절대배치 블록(에셋·아이콘·표 등): 정상 플로우 블록과 동일하게
           // .row[data-layout=stack]로 감싼다(makeAssetBlock 등 삽입 함수와 동일 구조,
           // block-factory.js:111 관례) — 그래야 ⌘[/⌘] 이동 단위(closest('.row'))도 맞는다.
-          const row = document.createElement('div');
-          row.className = 'row';
-          row.id = (typeof window.genId === 'function' ? window.genId('row') : 'row_' + Math.random().toString(36).slice(2, 9));
-          row.dataset.layout = 'stack';
-          dragEl.replaceWith(row);
-          row.appendChild(dragEl);
+          // ★DOM 변환은 shape-frame.js toFlowUnit(SSOT) — 로드 정규화(도형 래퍼 침입 블록 꺼내기)와 같은 규칙.
+          const row = toFlowUnit(dragEl);
           bindPlacementDrag(row, dragEl);
         }
 
@@ -1868,6 +1865,9 @@ function bindBlock(block) {
         window.showFrameProperties?.(ss);
         return;
       }
+      /* ★0918 grid: deselectAll 이 활성줄을 지운다(블럭 떠남 = 줄 선택 해제) — D5(줄 있는 칸의
+         여백 클릭 시 선택 유지)를 위해 «지우기 전» 값을 잡아 둔다. ⛔순서 뒤집으면 조용히 깨진다. */
+      const _grdPrevAddr = showFn === 'showGridProperties' ? (window.grdGetActiveLine?.(block) || null) : null;
       window.deselectAll();
       _restoreParentFrameSelected(block);
       block.classList.add('selected');
@@ -1885,7 +1885,13 @@ function bindBlock(block) {
         /* ★_gridAddrAt — 줄(글자/이미지/갭)과 «진짜 빈 셀」을 모두 잡는다(위 정의).
            undefined 면 «기존 선택 유지」다(줄이 있는 셀의 여백 클릭 — D5 와 같은 보호). */
         const _at = _gridAddrAt(e.target, block);
-        if (_at !== undefined) _grdAddr = _at;
+        /* ★0918 grid: undefined 를 넘기지 않는다(= 옛 줄 되살리기). 칸 밖(테두리·패딩·gap)은
+           null = 블럭 전체 선택, 줄 있는 칸의 여백은 직전 줄 유지(D5). 판정은 prop-grid.js 한 곳. */
+        const _cellEl = e.target && e.target.closest ? e.target.closest('.grd-cell') : null;
+        const _insideCell = !!(_cellEl && _cellEl.closest('.grid-block') === block);
+        _grdAddr = window.grdResolveClickAddr
+          ? window.grdResolveClickAddr({ at: _at, prevAddr: _grdPrevAddr, insideCell: _insideCell })
+          : (_at !== undefined ? _at : (_insideCell ? _grdPrevAddr : null));
       }
       window[showFn]?.(block, _grdAddr);
       /* ★핸들도 «여기서» 띄운다 — 이 루프엔 호출이 아예 없어서 모달을 클릭하면
@@ -2089,7 +2095,9 @@ function bindFrameDropZone(ss) {
   if (ss.dataset.textFrame === 'true') return;
 
   // shape frame은 drop 수신 불가 — shape-block 전용 컨테이너
-  const isShapeFrame = !!ss.querySelector('.shape-block');
+  // ★판정은 «이벤트 시점»·«직속» (shape-frame.js SSOT). 예전엔 바인딩 시점 1회 + 자손 검색이라
+  //   «도형을 품은 일반 프레임»까지 도형 프레임으로 오판(드롭 차단·핸들 숨김)했다(0918).
+  const isShapeFrame = () => _isShapeFrameEl(ss);
 
   const inner = ss;  // frame-inner 제거 — frame-block 자체가 content container
   let _rafId = null;
@@ -2120,7 +2128,7 @@ function bindFrameDropZone(ss) {
     window.highlightBlock?.(ss, ss._layerItem);
     window.setBlockAnchor?.(ss);
     window.showFrameProperties?.(ss);
-    if (!isShapeFrame) showFrameHandles(ss);
+    if (!isShapeFrame()) showFrameHandles(ss);
   });
 
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
@@ -2265,7 +2273,7 @@ function bindFrameDropZone(ss) {
   // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
   inner.addEventListener('dragover', e => {
     if (!dragState.dragSrc) return;
-    if (isShapeFrame) return; // shape frame은 외부 블록 수신 차단
+    if (isShapeFrame()) return; // shape frame은 외부 블록 수신 차단
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
@@ -2298,7 +2306,7 @@ function bindFrameDropZone(ss) {
     if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
     ss.classList.remove('ss-drag-over');
     if (!dragState.dragSrc) return;
-    if (isShapeFrame) return; // shape frame drop 차단
+    if (isShapeFrame()) return; // shape frame drop 차단
     window.pushHistory();
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로

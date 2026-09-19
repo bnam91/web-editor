@@ -10,6 +10,7 @@
    - window.ungroupBlock, window.pushHistory, window.state
    - window.show*Properties, window.layerDragSrc, window.layerMultiDragTargets
 ══════════════════════════════════════ */
+import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 
 /* ═══════════════════════════════════
    LAYER PANEL
@@ -257,7 +258,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isMockup) window.showMockupProperties?.(block);
     else if (isDivider) window.showDividerProperties?.(block);
     else if (isBridge) window.showBridgeProperties?.(block);
-    else if (isGrid) window.showGridProperties?.(block);
+    else if (isGrid) window.showGridProperties?.(block, null);   // ★0918: 블럭으로 선택 = 줄 선택 해제
     else if (isInfoCard) window.showInfoCardProperties?.(block);
     else if (isInnerCard) window.showInnerCardProperties?.(block);
     else if (isModal) window.showModalProperties?.(block);
@@ -660,7 +661,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
     wrapper.classList.add('active');
     window.highlightBlock?.(ssEl, wrapper);
     window.showFrameProperties?.(ssEl);
-    const isShapeFrame = !!ssEl.querySelector(':scope > .shape-block');
+    const isShapeFrame = _isShapeFrameEl(ssEl);
     if (!isShapeFrame) window.showFrameHandles?.(ssEl);
   });
   wrapper.addEventListener('dragstart', e => {
@@ -703,9 +704,9 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   }
 
   // shape-only frame이 아니고 자식이 있으면 chevron + group 구조로 반환
-  const isShapeOnly = !!ssEl.querySelector('.shape-block') &&
-                      ssInner?.children.length === 1 &&
-                      ssInner?.firstElementChild?.classList.contains('shape-block');
+  // ★도형 래퍼는 «그냥 도형» — 자식 수와 무관하게 쉐브론 없는 단일 행(0918 A안, SSOT 직속 판정).
+  //   (로드 정규화가 래퍼 안 침입 블록을 꺼내므로 여기서 숨겨지는 실제 자식은 없다)
+  const isShapeOnly = _isShapeFrameEl(ssEl);
 
   if (!isShapeOnly && ssChildren.children.length > 0) {
     const group = document.createElement('div');
@@ -741,7 +742,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
       header.classList.add('active');
       window.highlightBlock?.(ssEl, header);
       window.showFrameProperties?.(ssEl);
-      const _isShapeFrame = !!ssEl.querySelector(':scope > .shape-block');
+      const _isShapeFrame = _isShapeFrameEl(ssEl);
       if (!_isShapeFrame) window.showFrameHandles?.(ssEl);
     });
     header.addEventListener('dragstart', e => {

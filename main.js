@@ -22,6 +22,34 @@ app.name = 'GODITOR';
 const fs = require('fs');
 const os = require('os');
 
+/* ── 배포판: «띄울 때 여는» 디버깅 길 차단 (T-056, 이벨류에이터 지적 2026-09-19) ──
+   devtools-gate 의 devtools-opened 가드는 «창에서 여는» 길만 본다. 앱을
+   `--remote-debugging-port`/`--remote-debugging-pipe`(CDP) 나 `--inspect*`(메인 Node 디버거)로
+   띄우면 그 가드를 안 거치고 렌더러 전체를 조작할 수 있다 → 배포판이면 «뜨기 전에» 끈다.
+   ★예외는 기존 운영자 admin(인자 + GODITOR_ADMIN_TOKEN + userData/admin.allow)뿐 — 고객 PC 엔 admin.allow 가 없다.
+   ⛔관리자 이메일·관리자코드는 여기 예외가 아니다(띄우는 시점엔 아직 판정할 수 없고, 코드 해제는 «창 안»의 일이다).
+   ★자리: path·fs 선언 «뒤»(isAdminAuthorized 가 쓴다), 그 밖의 모든 초기화 «앞».
+   ★퓨즈(package.json build.electronFuses: runAsNode·nodeOptions·nodeCliInspect=false)가 첫 자물쇠, 이게 둘째다.
+   dev(!isPackaged)는 CDP 로 검증하므로 건드리지 않는다. */
+(function _blockDebugLaunchInPackaged() {
+  let packaged = true;
+  try { packaged = app.isPackaged; } catch (_) { packaged = true; }
+  if (!packaged) return;
+  const { debugLaunchViolations } = require('./main/devtools-gate');
+  const hits = debugLaunchViolations({
+    argv: process.argv,
+    execArgv: process.execArgv,
+    hasSwitch: (sw) => app.commandLine.hasSwitch(sw),
+    env: process.env,
+    inspectorUrl: () => { try { return require('inspector').url(); } catch (_) { return undefined; } },
+  });
+  if (!hits.length) return;
+  if (isAdminAuthorized()) { console.warn('[devtools-gate] 운영자 admin — 디버깅 실행 허용:', hits.join(',')); return; }
+  console.error('[devtools-gate] 배포판에서 디버깅 실행 인자 감지 — 종료:', hits.join(','));
+  try { app.exit(1); } catch (_) {}
+  process.exit(1);
+})();
+
 // userData 폴더 마이그레이션: 구 이름('Goya Design Editor') → 'GODITOR'.
 // app.name이 userData 경로를 결정하므로, 앱이 새 경로에 처음 쓰기 전(top-level)에 rename.
 // 같은 볼륨 rename이라 원자적·즉시(6GB+ copy 아님). old만 있고 new 없을 때 1회만.
@@ -454,18 +482,14 @@ function createWindow() {
     }
   });
 
-  // F12 → DevTools (dev 모드에서만)
-  if (process.argv.includes('--enable-logging')) {
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      if (input.key === 'F12') {
-        if (mainWindow.webContents.isDevToolsOpened()) {
-          mainWindow.webContents.closeDevTools();
-        } else {
-          mainWindow.webContents.openDevTools();
-        }
-      }
-    });
-  }
+  /* F12 → DevTools. ★판정은 «누른 순간» devtools-gate 에 묻는다(현빈 2026-09-19).
+     ⛔예전 조건 `--enable-logging` 은 «잠금»이 아니라 F12 를 «열어 주는» 조건이었다 —
+       배포판에선 ⌥⌘I(메뉴 role)로 누구나 열렸다. 이제 dev 는 자유, 배포판은 관리자 로그인·
+       관리자코드 해제일 때만. 다른 길로 열려도 devtools-gate 의 devtools-opened 가드가 닫는다. */
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key !== 'F12' || input.type !== 'keyDown') return;
+    _devtoolsGate.toggleFor(mainWindow.webContents);
+  });
 }
 
 /* ── 계정 로그인 상태 저장 (userData/auth.json) ──
@@ -615,8 +639,10 @@ function _noteServer(diagOrNull) {
 function persistApplied(prev, applied) {
   _noteServer(applied && applied.diag);
   if (!applied) return prev;
-  if (applied.clear) { if (prev) clearAuth(); return null; }
-  if (applied.changed && applied.record) { writeAuth(applied.record); return applied.record; }
+  /* ★기록이 바뀌면 개발자 도구 판정(관리자 이메일 = 서명본 payload.email)도 바뀔 수 있다 —
+     부팅 재검증·새로고침이 모두 여기를 지난다. 메뉴만 다시 짓는다(판정은 누를 때 다시 한다). */
+  if (applied.clear) { if (prev) clearAuth(); _devtoolsAuthChanged(); return null; }
+  if (applied.changed && applied.record) { writeAuth(applied.record); _devtoolsAuthChanged(); return applied.record; }
   return applied.record || prev;
 }
 
@@ -795,6 +821,7 @@ ipcMain.handle('auth:login', async (_event, email, password) => {
     if (!applied.clear && applied.record) rec = applied.record;
     writeAuth(rec);
     _notifyGoditorUse(rec.sessionToken);
+    _devtoolsAuthChanged();   // 관리자 계정이면 개발자 도구 메뉴가 생긴다
     // 세션토큰은 반환하지 않는다(렌더러 노출 최소화).
     return {
       ok: true, email: rec.email, plan: rec.plan,
@@ -1057,12 +1084,19 @@ ipcMain.handle('auth:google-login', async () => {
     };
   })();
 
-  try { return await _googleLoginInFlight; }
+  try {
+    const res = await _googleLoginInFlight;
+    /* ★저장이 일어났을 수 있다(성공·만료) — 개발자 도구 메뉴를 새 판정으로. 저장 구간 «밖»에 둔다
+       (tests/unit/google-defer-writeauth 가 그 구간을 떠서 돌린다). */
+    _devtoolsAuthChanged();
+    return res;
+  }
   finally { _googleLoginInFlight = null; }
 });
 
 ipcMain.handle('auth:logout', () => {
   clearAuth();
+  _devtoolsAuthChanged();   // ★로그아웃 = 관리자 이메일 경로 소멸. 코드 해제 세션이 아니면 열린 개발자 도구도 닫는다
   return { ok: true };
 });
 
@@ -3341,6 +3375,39 @@ require('./main/collab').init(ipcMain, {
      «환경설정에 공지 탭을 그릴까»를 정하는 힌트일 뿐이다. */
 require('./main/admin').init(ipcMain, { readAuth });
 
+/* ── 개발자 도구 잠금 (main/devtools-gate.js) ──
+   ★가드(web-contents-created)는 «createWindow 전»에 걸려야 한다 — 여기(모듈 최상위)는
+     app.whenReady 보다 먼저 돈다. ⛔whenReady 안으로 옮기지 마라(mainWindow 가 빠진다).
+   ⛔isAdminAuthorized 와 섞지 않는다 — 관리자 이메일/코드가 라이선스·터미널 권한까지 풀면 안 된다. */
+const _devtoolsGate = require('./main/devtools-gate').createDevToolsGate({
+  app,
+  readAuth,
+  authVerdict: (rec) => authVerdict(rec),
+  isAdminAuthorized,
+  getAllWebContents: () => { try { return require('electron').webContents.getAllWebContents(); } catch (_) { return []; } },
+  onChange: () => _rebuildAppMenu(),
+});
+_devtoolsGate.install(app);
+_devtoolsGate.registerIpc(ipcMain);
+
+/** 앱 메뉴를 «지금 판정»으로 다시 짓는다. 로그인·로그아웃·코드 해제 뒤에 부른다. */
+function _rebuildAppMenu() {
+  try {
+    if (typeof app.isReady !== 'function' || !app.isReady()) return;   // 메뉴는 ready 뒤에만
+    const { buildAppMenu } = require('./main/gdt/wire');
+    buildAppMenu({
+      isDevToolsAllowed: () => _devtoolsGate.isAllowed(),
+      toggleDevTools: (wc) => _devtoolsGate.toggleFor(wc),
+    });
+  } catch (e) { console.error('[gdt] 메뉴 재빌드 실패:', e); }
+}
+/** 계정이 바뀐 뒤 — 메뉴를 새로 짓고, 잠김이 됐으면 열린 개발자 도구를 닫는다. */
+function _devtoolsAuthChanged() {
+  /* ⛔이 부수효과가 로그인·저장 경로를 «넘어뜨리면» 안 된다 — 전부 삼킨다. */
+  try { _rebuildAppMenu(); } catch (_) {}
+  try { _devtoolsGate.enforce(); } catch (_) {}
+}
+
 /* ── IPC: 운영자 공지 ──
    구현은 main/notice/* 에 있다. 여기엔 «주입»만 둔다(collab 과 같은 규약).
    ⚠️ sessionToken 은 이 클로저 밖으로 안 나간다 — 공지 조회의 x-session-token 헤더는 main 에서만 붙는다. */
@@ -4079,9 +4146,9 @@ app.whenReady().then(async () => {
   // ★메뉴는 이 앱에 원래 없어서 Electron 기본 메뉴가 ⌘C/⌘V를 대신하고 있었다.
   //   표준 role 템플릿 위에 「파일」을 얹는 방식이라 기본 편집 단축키가 유지된다.
   try {
-    const { registerGdtIpc, buildAppMenu } = require('./main/gdt/wire');
+    const { registerGdtIpc } = require('./main/gdt/wire');
     registerGdtIpc({ projectsDir: _projectsRoot, resolveProjectJsonPath: _resolveProjectJsonPath }); // ★값이 아니라 «게터» — 계정이 바뀌면 따라가야 한다
-    buildAppMenu();
+    _rebuildAppMenu();   // ★개발자 도구 항목은 devtools-gate 판정으로 보이고/숨는다
   } catch (e) {
     console.error('[gdt] 초기화 실패 — 메뉴 없이 계속:', e);
   }
