@@ -56,9 +56,21 @@ export function wireTypeSection({ tb, propPanel, ctx }) {
       }
 
       // 0918r2 textgrad: 라벨·불릿은 글자 그라데이션을 못 받는다(박스 배경이 같이 잘림 / ::marker 투명).
-      //   그쪽으로 바꾸면 그라데이션을 풀고(첫 스탑 단색이 color 에 남아 있다), 글자색 피커 게이트도 다시 잰다.
+      //   그쪽으로 바꾸면 그라데이션을 풀고(인라인 color = «마지막 단색»이 그대로 드러난다), 글자색 피커 게이트도 다시 잰다.
       if (!window.textGradientAllowed?.(contentEl)) window.clearTextGradient?.(contentEl);
-      document.getElementById('txt-color')?.__textGradRegate?.();
+      // 타입 전환은 클래스 기본 글자색을 바꾼다(본문 #555 → H2 #1a1a1a) — 패널을 다시 안 그리므로
+      //   글자색 입력값(= 솔리드 상태·그라데이션 탭 «지금 색» 기본값)을 실제 색으로 맞춘다. 안 맞추면 옛 타입 색이 시드된다.
+      const _cp = document.getElementById('txt-color');
+      const _m = (getComputedStyle(contentEl).color || '').match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+      if (_cp && _m) {
+        const _hex = '#' + [_m[1], _m[2], _m[3]].map(n => (+n).toString(16).padStart(2, '0')).join('');
+        _cp.value = _hex;
+        const _hx = document.getElementById('txt-color-hex');
+        if (_hx) _hx.value = _hex.slice(1).toUpperCase();
+        const _sw = _cp.closest('.prop-color-swatch');
+        if (_sw) _sw.style.background = _hex;
+      }
+      _cp?.__textGradRegate?.();
     });
   });
 }

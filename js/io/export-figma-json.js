@@ -1,7 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { inlineGoyaAssetsInJSON, makeElectronAssetReader } from './goya-asset-inline.js';
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';
-import { getTextGradient } from '../props/text-block-color.js';
+import { getTextGradient, hasPaintingTextEffect } from '../props/text-block-color.js';
 
 const CANVAS_W = 860;
 
@@ -305,9 +305,16 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
 
       // 0918r2 textgrad: 글자 그라데이션 — style.fill 에 모델을 싣는다(sangpe_to_figma 가 set_gradient 로 칠함).
       //   style.color 는 첫 스탑 단색 그대로 둔다(하위 호환 · 그라데이션 실패 시 폴백).
-      if (variant !== 'label') {
+      //   ★인라인 color 는 «마지막 단색» 저장소라 폴백 style.color 는 첫 스탑으로 덮는다(캔버스에 보이는 색에 가깝게).
+      //   ★칠하는 글자 효과(메탈릭 등)가 걸려 있으면 캔버스에선 효과가 이긴다 → 그라데이션을 싣지 않는다(캔버스=Figma).
+      if (variant !== 'label' && !hasPaintingTextEffect(inner)) {
         const _tg = getTextGradient(inner);
-        if (_tg) block.style.fill = { kind: 'gradient', type: _tg.type, angle: _tg.angle, stops: _tg.stops };
+        if (_tg) {
+          block.style.fill = { kind: 'gradient', type: _tg.type, angle: _tg.angle, stops: _tg.stops };
+          const _fh = [..._tg.stops].sort((a, b) => a.offset - b.offset)[0]?.color || '';
+          const _m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(_fh);
+          if (_m) block.style.color = `rgb(${parseInt(_m[1], 16)}, ${parseInt(_m[2], 16)}, ${parseInt(_m[3], 16)})`;
+        }
       }
 
       // label: 배경 박스 정보 추가

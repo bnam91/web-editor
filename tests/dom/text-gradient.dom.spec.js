@@ -30,6 +30,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 </div></div></div>
 <div id="panel-right"><div class="panel-body"></div></div>
 <script src="/js/block-edit.js"></script>
+<script src="/js/text-effect-transform.js"></script>
 <script type="module">
   import '/js/props/color-picker.js';
   import { showTextProperties } from '/js/props/prop-text.js';
@@ -100,7 +101,8 @@ test('G1 탭 한 번 = 즉시 «지금 색 100%→0%» + 기록 1회 → 되돌�
   expect(g.tg.type).toBe('linear');
   expect(g.tg.angle).toBe(90);
   expect(g.tg.stops).toEqual([{ color: '#cc2244', offset: 0, opacity: 1 }, { color: '#cc2244', offset: 1, opacity: 0 }]);
-  expect(g.color, '대체색(캐럿·H2C) = 첫 스탑').toBe('rgb(204, 34, 68)');
+  expect(g.caret, '캐럿 = 첫 스탑').toBe('rgb(204, 34, 68)');
+  expect(g.color, '인라인 color = 마지막 단색(그대로)').toBe('rgb(204, 34, 68)');
   expect(await snaps(page) - s0, '탭 한 번 = 기록 한 번').toBe(1);
   await closePicker(page);
   await page.evaluate(() => window.__undo());
@@ -272,10 +274,11 @@ test('G8 편집 모드 가시성: 캐럿 색 = 첫 스탑, 선택 영역(::selec
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('G9 html2canvas 대체: neutralizeTextGradForH2C 뒤 clip 없음 · 글자색 = 첫 스탑 · 다른 요소 불변', async ({ page }) => {
+test('G9 html2canvas 대체: neutralizeTextGradForH2C 뒤 clip 없음 · 글자색 = 첫 스탑(인라인 «마지막 단색» 아님) · 다른 요소 불변', async ({ page }) => {
   const errs = await boot(page);
+  // 인라인 color(#cc2244 = 마지막 단색)와 다른 첫 스탑(#11aa33) — 대체색이 어디서 오는지 가른다.
   await page.evaluate(() => window.applyTextGradient(document.getElementById('tb1'),
-    { css: 'linear-gradient(90deg, #cc2244 0%, #2244cc 100%)' }, { commit: true }));
+    { css: 'linear-gradient(90deg, #2244cc 100%, #11aa33 0%)' }, { commit: true }));
   const r = await page.evaluate(() => {
     const clone = document.getElementById('host').cloneNode(true);
     document.body.appendChild(clone);
@@ -291,7 +294,131 @@ test('G9 html2canvas 대체: neutralizeTextGradForH2C 뒤 clip 없음 · 글자�
   expect(r.n, await page.evaluate(() => window.__styleAttr)).toBe(1);
   expect(r.clip).not.toBe('text');
   expect(r.img).toBe('none');
-  expect(r.fill).toBe('rgb(204, 34, 68)');
+  expect(r.fill).toBe('rgb(17, 170, 51)');
   expect(r.live, '클론만 바뀌어야 하는데 라이브 캔버스가 바뀌었다').toBe('text');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+
+/* ── 픽스 라운드(이벨류 지적) ── */
+
+test('G10 ★재선택·재로드 뒤 솔리드 복귀 = 같은 세션과 같은 «마지막 단색» (첫 스탑 아님)', async ({ page }) => {
+  const errs = await boot(page);
+  await select(page, 'tb1');                        // #cc2244 본문
+  await openTxtPicker(page);
+  await tab(page, 'gradient').click();
+  // 첫 스탑(선택 스탑 0) hex 를 FF8800 으로 — 진짜 입력칸
+  await page.locator('.goya-cp-grad-thumb').first().click();
+  await page.fill('.goya-cp-popover [data-el="gradStopHex"]', 'FF8800');
+  await page.locator('.goya-cp-popover [data-el="gradStopHex"]').press('Enter');
+  await page.waitForTimeout(60);
+  const g = await look(page, 'tb1');
+  expect(g.tg.stops[0].color).toBe('#ff8800');
+  await closePicker(page);
+  // ① 재선택
+  await select(page, 'tb2');
+  await select(page, 'tb1');
+  await openTxtPicker(page);
+  expect(await activeTab(page)).toBe('gradient');
+  await tab(page, 'solid').click();
+  let s = await look(page, 'tb1');
+  expect(s.clip).not.toBe('text');
+  expect(s.fill, '재선택 뒤 솔리드 복귀가 첫 스탑(#ff8800)으로 간다').toBe('rgb(204, 34, 68)');
+  await closePicker(page);
+  // ② 재로드(sanitize 왕복) 뒤
+  await page.evaluate(() => window.__undo());       // 그라데이션 상태로
+  expect((await look(page, 'tb1')).clip).toBe('text');
+  const ok = await page.evaluate(async () => {
+    await import('/js/io/save-load.js').catch(() => {});
+    if (typeof window.sanitizeCanvasHtml !== 'function') return false;
+    const host = document.getElementById('host');
+    const html = host.innerHTML; host.innerHTML = ''; host.innerHTML = window.sanitizeCanvasHtml(html);
+    return true;
+  });
+  expect(ok).toBe(true);
+  await select(page, 'tb1');
+  await openTxtPicker(page);
+  expect(await activeTab(page)).toBe('gradient');
+  await tab(page, 'solid').click();
+  s = await look(page, 'tb1');
+  expect(s.fill, '재로드 뒤 솔리드 복귀가 첫 스탑으로 간다').toBe('rgb(204, 34, 68)');
+  expect(errs.filter(e => !/save-load/.test(e)), errs.join(' | ')).toEqual([]);
+});
+
+test('G11 ★인라인 색 없던 제목에 그라데이션 → 태그(라벨) 전환 = 기본 흰 글자(어두운 박스 위 어두운 글자 금지)', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => {
+    const h = document.querySelector('#tb2 .tb-h1'); h.style.removeProperty('color');
+    window.applyTextGradient(document.getElementById('tb2'), { css: 'linear-gradient(90deg, #1a1a1a 0%, rgba(26,26,26,0.000) 100%)' }, { commit: true });
+  });
+  expect(await page.evaluate(() => document.querySelector('#tb2 .tb-h1').style.color), '그라데이션이 인라인 color 를 덮었다').toBe('');
+  await select(page, 'tb2');
+  await page.click('.prop-type-btn[data-cls="tb-label"]');
+  const r = await page.evaluate(() => {
+    const el = document.querySelector('#tb2 .tb-label');
+    const c = getComputedStyle(el);
+    return { color: c.color, fill: c.webkitTextFillColor, bg: c.backgroundColor, clip: c.backgroundClip,
+      want: (getComputedStyle(document.documentElement).getPropertyValue('--preset-label-color').trim() || '#ffffff') };
+  });
+  expect(r.clip).not.toBe('text');
+  expect(r.fill, `라벨 글자 ${r.fill} on ${r.bg}`).not.toBe('rgb(26, 26, 26)');
+  expect(r.color).toBe(await page.evaluate((w) => { const d = document.createElement('div'); d.style.color = w; document.body.appendChild(d); const c = getComputedStyle(d).color; d.remove(); return c; }, r.want));
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G12 ★칠하는 글자 효과(메탈릭 등)와 그라데이션은 함께 못 쓴다: 효과를 걸면 그라데이션이 풀리고, 효과 중엔 그라데이션 탭이 막힌다(이유)', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => window.applyTextGradient(document.getElementById('tb2'),
+    { css: 'linear-gradient(90deg, #ff0000 0%, #0000ff 100%)' }, { commit: true }));
+  await select(page, 'tb2');
+  await page.evaluate(() => window.applyTextEffect(document.getElementById('tb2'), { preset: 'metallic' }));
+  const r = await page.evaluate(() => {
+    const el = document.querySelector('#tb2 .tb-h1');
+    return { tg: window.getTextGradient(el), inl: el.getAttribute('style'), img: getComputedStyle(el).backgroundImage,
+      modes: document.getElementById('txt-color').dataset.cpModes, note: document.getElementById('txt-color').dataset.cpModesNote };
+  });
+  expect(r.tg, '효과를 걸었는데 사용자 그라데이션이 저장소에 남아 Figma 로 나간다').toBeNull();
+  expect(r.inl).not.toMatch(/background-clip|text-fill/);
+  expect(r.img).not.toContain('rgb(255, 0, 0)');
+  expect(r.modes).toBe('solid');
+  expect(r.note).toContain('글자 효과');
+  // neon 은 칠하지 않는다 → 그라데이션 가능 그대로
+  await page.evaluate(() => window.applyTextEffect(document.getElementById('tb1'), { preset: 'neon' }));
+  expect(await page.evaluate(() => window.textGradientAllowed(document.querySelector('#tb1 .tb-body')))).toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G13 ★스탑 썸네일 «클릭만»(안 움직임) = 기록 0 — 다음 ⌘Z 가 헛돌지 않는다', async ({ page }) => {
+  const errs = await boot(page);
+  await select(page, 'tb1');
+  await openTxtPicker(page);
+  await tab(page, 'gradient').click();
+  const s0 = await snaps(page);
+  await page.locator('.goya-cp-grad-thumb').nth(1).click();
+  await page.locator('.goya-cp-grad-thumb').nth(0).click();
+  await page.waitForTimeout(80);
+  expect(await snaps(page) - s0, '움직이지 않은 클릭이 기록을 쌓았다').toBe(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G14 타입 전환(본문→H2) 뒤 그라데이션 탭 기본값 = «지금 보이는 색»(옛 타입 색이 시드되지 않음)', async ({ page }) => {
+  const errs = await boot(page);
+  // 앱 테마 변수 없이도 타입별 기본색이 갈리게(앱: 본문 #555 · H2 #1a1a1a)
+  await page.addStyleTag({ content: '#tb1 .tb-body{color:#555555} #tb1 .tb-h2{color:#1a1a1a}' });
+  await page.evaluate(() => document.querySelector('#tb1 .tb-body').style.removeProperty('color'));
+  await select(page, 'tb1');
+  const before = await page.evaluate(() => document.getElementById('txt-color').value);
+  await page.click('.prop-type-btn[data-cls="tb-h2"]');
+  const now = await page.evaluate(() => {
+    const el = document.querySelector('#tb1 [class^="tb-"]');
+    const m = getComputedStyle(el).color.match(/\d+/g).slice(0, 3);
+    return '#' + m.map(n => (+n).toString(16).padStart(2, '0')).join('');
+  });
+  expect(now, '★양성대조: 본문과 H2 기본색이 같아 측정 불가').not.toBe(before);
+  expect(await page.evaluate(() => document.getElementById('txt-color').value)).toBe(now);
+  await openTxtPicker(page);
+  await tab(page, 'gradient').click();
+  const g = await look(page, 'tb1');
+  expect(g.tg.stops[0].color, '그라데이션이 옛 타입(본문) 색으로 시작한다').toBe(now);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

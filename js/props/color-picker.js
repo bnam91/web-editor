@@ -596,6 +596,9 @@ function _wireEvents(pop) {
       // 0918 canvasgrad: 썸네일 선택 → 캔버스 바 칩 선택 이동(bindGradientLinePicker 가 수신)
       _targetInput?.dispatchEvent(new CustomEvent('goya-cp:gradient-select', { bubbles: true, detail: { selectedIdx: _sortedSelIdx() } }));
       thumbEl.classList.add('is-dragging');
+      // 0918r2 textgrad(이벨류 지적 ④): 움직이지 않은 «클릭만»은 기록을 남기지 않는다 —
+      //   안 그러면 다음 ⌘Z 가 눈에 보이는 변화 없이 한 칸을 먹는다(도형·글자 공통).
+      const startOffset = g.stops[idx] ? g.stops[idx].offset : null;
       const onMove = (ev) => {
         const r = gradBar.getBoundingClientRect();
         const p = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
@@ -607,6 +610,7 @@ function _wireEvents(pop) {
         thumbEl.classList.remove('is-dragging');
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
+        if (g.stops[idx] && g.stops[idx].offset === startOffset) return;
         _scheduleEmitGradient(true);
       };
       window.addEventListener('mousemove', onMove);
@@ -711,6 +715,7 @@ function _wireEvents(pop) {
   }
   gradAngleDial?.addEventListener('mousedown', (e) => {
     e.preventDefault();
+    const startDeg = _currentAngle();   // 움직임 없는 클릭 = 기록 없음(스탑 썸네일과 같은 규칙)
     const onMove = (ev) => {
       const r = gradAngleDial.getBoundingClientRect();
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -724,6 +729,7 @@ function _wireEvents(pop) {
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      if (_currentAngle() === startDeg) return;
       _scheduleEmitGradient(true);
     };
     window.addEventListener('mousemove', onMove);

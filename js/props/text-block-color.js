@@ -90,12 +90,29 @@ window.applyTextBlockColor = function (blockEl, color) {
 export const TEXT_GRADIENT_CLASSES = ['tb-h1', 'tb-h2', 'tb-h3', 'tb-body', 'tb-caption'];
 export const TEXT_GRADIENT_BLOCKED_NOTE = '라벨·불릿·곡선·말풍선 글자는 단색만 돼요 (그라데이션 미지원)';
 
-export function textGradientAllowed(contentEl) {
-  if (!contentEl || !contentEl.classList) return false;
-  if (!TEXT_GRADIENT_CLASSES.some(c => contentEl.classList.contains(c))) return false;
+// 글자 효과(이스터에그 **text_) 중 «자기 배경으로 글자를 칠하는» 프리셋 — CSS 가 background … !important 라
+// 사용자 그라데이션을 캔버스에서 이긴다. 둘은 함께 쓸 수 없다(캔버스·Figma 불일치 방지, 이벨류 지적).
+//   규칙: 이런 효과가 걸려 있으면 그라데이션 탭은 막힌다(이유 툴팁), 효과를 새로 걸면 그라데이션은 풀린다.
+//   neon 은 text-shadow 만 쓰므로 제외(그라데이션과 공존 — notDone 에 흐림 안내).
+export const TEXT_EFFECT_PAINT_CLASSES = ['tfx-metallic', 'tfx-grunge', 'tfx-vintage', 'tfx-cinematic'];
+export const TEXT_GRADIENT_EFFECT_NOTE = '글자 효과(메탈릭·그런지·빈티지·시네마틱)가 글자 칠을 쓰고 있어 그라데이션을 함께 못 써요';
+
+export function hasPaintingTextEffect(contentEl) {
+  return !!(contentEl && contentEl.classList && TEXT_EFFECT_PAINT_CLASSES.some(c => contentEl.classList.contains(c)));
+}
+
+/** 그라데이션을 못 받는 이유(받을 수 있으면 ''). */
+export function textGradientBlockedReason(contentEl) {
+  if (!contentEl || !contentEl.classList) return TEXT_GRADIENT_BLOCKED_NOTE;
+  if (!TEXT_GRADIENT_CLASSES.some(c => contentEl.classList.contains(c))) return TEXT_GRADIENT_BLOCKED_NOTE;
   const tb = contentEl.closest ? contentEl.closest('.text-block') : null;
-  if (tb && (tb.classList.contains('speech-bubble-block') || tb.classList.contains('liner-block'))) return false;
-  return true;
+  if (tb && (tb.classList.contains('speech-bubble-block') || tb.classList.contains('liner-block'))) return TEXT_GRADIENT_BLOCKED_NOTE;
+  if (hasPaintingTextEffect(contentEl)) return TEXT_GRADIENT_EFFECT_NOTE;
+  return '';
+}
+
+export function textGradientAllowed(contentEl) {
+  return textGradientBlockedReason(contentEl) === '';
 }
 
 function _clipIsText(st) {
@@ -116,6 +133,21 @@ export function hasTextGradient(contentEl) {
 function _hexOf(c) {
   return _toHex6(c) || (typeof c === 'string' && /^#[0-9a-f]{3}$/i.test(c.trim())
     ? '#' + c.trim().slice(1).split('').map(x => x + x).join('').toLowerCase() : null);
+}
+
+/**
+ * 그라데이션을 못 그리는 경로(html2canvas·design-json·Figma style.color)의 대체 단색 = 첫 스탑 불투명 hex.
+ * ★인라인 color 는 «마지막 단색»을 지키는 자리라(솔리드 복귀·라벨 전환이 그 값을 쓴다) 여기서 따로 계산한다.
+ */
+export function textGradientFallbackColor(el) {
+  const st = el && el.style;
+  if (!st) return null;
+  const clip = (st.getPropertyValue('background-clip') || '') + ' ' + (st.getPropertyValue('-webkit-background-clip') || '');
+  if (!/\btext\b/.test(clip)) return null;
+  const m = parseGradient(st.backgroundImage || '');
+  if (!m || !Array.isArray(m.stops) || !m.stops.length) return null;
+  const first = [...m.stops].sort((a, b) => a.offset - b.offset)[0];
+  return _hexOf(first.color);
 }
 
 /** contentEl → {type, angle, stops:[{color:#hex, offset, opacity}], css} | null */
@@ -194,7 +226,9 @@ export function applyTextGradient(blockEl, g, { commit = false } = {}) {
   st.setProperty('-webkit-background-clip', 'text');
   st.setProperty('background-clip', 'text');
   st.setProperty('-webkit-text-fill-color', 'transparent');
-  st.setProperty('color', fb);
+  // ★color 는 건드리지 않는다 — 인라인 color = «마지막 단색» 저장소다(이벨류 지적 ①③):
+  //   재선택/재로드 뒤 솔리드 복귀가 그 값으로 돌아가고, 라벨 전환도 «원래 인라인 색이 없었음»을 그대로 본다.
+  //   그라데이션을 못 그리는 경로의 대체색은 textGradientFallbackColor(첫 스탑)가 따로 계산한다.
   st.setProperty('caret-color', fb);
   if (commit) window.pushHistory?.('글자 그라데이션');
   window.scheduleAutoSave?.();
@@ -206,4 +240,5 @@ if (typeof window !== 'undefined') {
   window.clearTextGradient = clearTextGradient;
   window.getTextGradient = getTextGradient;
   window.textGradientAllowed = textGradientAllowed;
+  window.textGradientFallbackColor = textGradientFallbackColor;
 }

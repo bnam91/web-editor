@@ -42,7 +42,8 @@ function exportDesignJSON() {
     const style = {
       fontSize:   fsz,
       fontWeight: parseInt(cs.fontWeight),
-      color:      rgbToHex(cs.color) || cs.color,
+      // 0918r2 textgrad: 글자 그라데이션은 design-json 에 못 싣는다 → 첫 스탑 단색 대체(인라인 color 는 «마지막 단색»이라 안 씀)
+      color:      window.textGradientFallbackColor?.(innerEl) || rgbToHex(cs.color) || cs.color,
       fontFamily,
       textAlign:  cs.textAlign,
     };

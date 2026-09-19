@@ -14,7 +14,7 @@
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 import {
   applyTextGradient, clearTextGradient, getTextGradient, hasTextGradient,
-  textGradientAllowed, TEXT_GRADIENT_BLOCKED_NOTE,
+  textGradientBlockedReason,
 } from './text-block-color.js';
 
 /* ─────────────────────────────────────────────────────────────
@@ -328,9 +328,10 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
     }
   }
   function _gateTextModes() {
-    const ok = textGradientAllowed(ctx.contentEl);
+    const why = textGradientBlockedReason(ctx.contentEl);   // 라벨·불릿 등 / 칠하는 글자 효과(메탈릭 등)
+    const ok = !why;
     colorPicker.dataset.cpModes = ok ? 'solid,gradient' : 'solid';
-    colorPicker.dataset.cpModesNote = ok ? '글자색은 이미지 채우기를 지원하지 않아요' : TEXT_GRADIENT_BLOCKED_NOTE;
+    colorPicker.dataset.cpModesNote = ok ? '글자색은 이미지 채우기를 지원하지 않아요' : why;
     // 재오픈 시드 = 블럭의 «실제» 그라데이션(기본값으로 덮어쓰지 않게) — 저장소(인라인 스타일)에서 매번 되읽는다.
     const g = ok ? getTextGradient(ctx.contentEl) : null;
     if (g) colorPicker.dataset.cpGradient = JSON.stringify({ type: g.type, angle: g.angle, stops: g.stops });
