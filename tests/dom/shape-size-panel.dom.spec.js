@@ -97,6 +97,21 @@ async function boot(page, bodyHtml) {
     if (url.pathname === '/js/globals.js') return js(GLOBALS_STUB);
     if (url.pathname === '/js/props/color-picker.js') return js(COLOR_PICKER_STUB);
     if (url.pathname === '/js/props/gradient-model.js') return js(GRADIENT_MODEL_STUB);
+    /* ★2026-09-20 통합(int/0920b) — 나머지는 «레포 실물»을 그대로 얹는다.
+       옛 판은 여기서 곧장 404 였다. 그러면 prop-shape.js 가 «새 모듈»을 하나 들이는 순간
+       모듈 그래프가 통째로 안 뜨고 window.__ready 가 영영 안 켜져, 11건이 전부
+       「Test timeout ... waitForFunction」으로 죽는다 — 화면 값이 틀려서가 아니라 부팅 실패라서다.
+       실제로 이 라운드에 그 일이 났다: T-052(오버레이 전 블럭 확장)가 prop-shape.js 에
+       `./_helpers.js` 와 `../overlay-float.js` 를 들였는데 둘 다 404 였다.
+       ⇒ 위 스텁 셋(globals·color-picker·gradient-model)은 «일부러» 가짜로 남기고
+         — 그 셋은 패널 바깥 상태를 끌고 들어와 이 스펙의 관심사(W/H 읽기)를 흐린다 —
+         그 밖의 실제 파일은 진짜로 읽어 준다. 없는 경로만 404 다. */
+    const file = path.join(REPO, url.pathname);
+    if (file.startsWith(REPO) && fs.existsSync(file) && fs.statSync(file).isFile()) {
+      const ext = path.extname(file);
+      const type = ext === '.css' ? 'text/css' : ext === '.js' || ext === '.mjs' ? 'application/javascript' : 'text/plain';
+      return route.fulfill({ contentType: type, body: fs.readFileSync(file) });
+    }
     return route.fulfill({ status: 404, body: '' });
   });
   const errs = [];
