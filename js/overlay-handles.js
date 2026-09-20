@@ -2624,12 +2624,19 @@ function _startTextOverlayResizeRaf() {
  *    본문 `.tb-bubble`(28px)이 아니라 이름표 `.tb-sender-name`(16px)이다. 그걸 집으면
  *    「상자와 이름표만 커지고 말풍선 글자는 그대로」가 된다(2026-09-20 이벨류에이터 실측).
  *    본문은 인라인 font-size 가 없어 `[style*="font-size"]` 그물에도 안 걸린다 ⇒ 복수로 전수.
+ *  ★`.itb-text` 를 «같이» 세는 이유 — 아이콘+텍스트 블럭의 본문 칸은 접두사가 `itb-` 라
+ *    `[class^="tb-"]` 그물에 «안» 걸린다(그 선택자는 «tb-» 로 시작하는 class 만 본다).
+ *    빠지면 그 블럭만 「상자는 커지는데 글자는 그대로」가 되어 현빈 결정 A안
+ *    (「글자도 같이 커지는 게 맞아」)을 어긴다 — 2026-09-20 통합 라운드에서 실측·추가.
+ *  ⚠️아이콘 칸(.itb-icon)은 여기 «안» 들어간다 — 그건 font-size 가 아니라 width/height 이고,
+ *    css/editor-extra.css 가 40×40 으로 정한다(인라인 크기를 쓰는 경로가 레포에 없다).
+ *    「아이콘도 같이 커져야 하나」는 현빈 판단 사안 — 결정이 나기 전엔 표현을 발명하지 않는다.
  *  ⚠️SVG(말풍선 꼬리 `.tb-bubble-tail`)는 뺀다 — font-size 를 써도 뜻이 없다.
  *  ⚠️매 프레임 «누적 곱»을 하면 표류한다 ⇒ 마우스다운 때의 값에 매번 k 를 곱한다.
  *    (부모·자식이 둘 다 들어와도 각자 «절대 px» 로 쓰므로 배율이 겹쳐 곱해지지 않는다.) */
 function _tfoFontSnapshot(posEl) {
   const els = new Set();
-  posEl.querySelectorAll('[class^="tb-"]').forEach(el => {
+  posEl.querySelectorAll('[class^="tb-"], .itb-text').forEach(el => {
     if (el.namespaceURI === 'http://www.w3.org/2000/svg') return;
     els.add(el);
   });
@@ -2783,11 +2790,17 @@ function showHandlesFor(block) {
   } else if (block.classList.contains('modal-block')) {
     showModalRadiusHandles(block);
     showModalResizeHandles(block);
-  } else if (block.classList.contains('text-block') || block.classList.contains('speech-bubble-block')) {
+  } else if (block.classList.contains('text-block')
+          || block.classList.contains('speech-bubble-block')
+          || block.classList.contains('icon-text-block')) {
     /* ★오버레이(플로팅)로 «켠» 텍스트에만 모서리 손잡이를 준다 — 흐름(오토레이아웃) 텍스트는
        폭·높이를 부모가 정하므로 손잡이의 뜻이 없다(비오버레이 회귀 0: 아래 hide 로 떨어진다).
-       판정은 클래스가 아니라 posEl 의 dataset.overlayBlock — 말풍선·아이콘텍스트도 같은
-       토글을 타므로 자동으로 함께 걸린다(prop-text.js:136 과 «같은 술어»). */
+       판정은 클래스가 아니라 posEl 의 dataset.overlayBlock 이다(prop-text.js 와 «같은 술어»).
+       ⚠️★2026-09-20 통합 라운드 — 이 줄의 옛 주석은 「말풍선·아이콘텍스트도 «자동으로»
+         함께 걸린다」고 적혀 있었지만 사실이 아니었다. .icon-text-block 은 .text-block 이
+         «아니라» 어느 갈래에도 안 걸려 손잡이가 0개였다(QA 실측). 패널은 같은
+         showTextProperties 를 쓰는데(block-drag.js isIconText) 손잡이만 빠져 있었다.
+         ⇒ 「같은 패널을 쓰면 같은 손잡이」로 클래스를 명시한다. 술어는 그대로 dataset 이다. */
     const posEl = _posElOf(block);
     if (posEl.dataset.overlayBlock === 'true') showTextOverlayResizeHandles(posEl);
     else hideTextOverlayResizeHandles();

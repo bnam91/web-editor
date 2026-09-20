@@ -1777,6 +1777,11 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showTextProperties(block);
+      /* ★모서리 리사이즈 핸들 — 이 경로에도 호출이 «아예 없었다»(흐름 텍스트는 947행,
+         zoom 은 1598행, modal 은 1959행에 같은 입구가 있다). 그래서 아이콘+텍스트는
+         오버레이를 켜도 테두리만 보이고 모서리 점이 0개였다(2026-09-20 QA 실측).
+         showHandlesFor 가 오버레이 여부를 스스로 가른다 ⇒ 흐름 아이콘텍스트는 no-op. */
+      window.showHandlesFor?.(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
