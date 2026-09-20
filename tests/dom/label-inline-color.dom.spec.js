@@ -147,3 +147,90 @@ test('L4 Tag → Tag 재진입: 두 번째 라벨도 같은 규칙(표식 갱신
   expect(back.computed).toBe('rgb(85, 85, 85)');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ── 0920r6 labeltext (T-059): 라벨 «형태 프리셋 → 텍스트»가 넣는 색(#111111)도 같은 규약 ──
+ * 증상: 라벨 → 형태 «텍스트» → 다른 타입 으로 가면 검은 글자가 인라인으로 남는다(어두운 섹션에서 안 보인다).
+ * 고침: 프리셋이 넣는 색도 markLabelAutoColor, 프리셋 초기화는 forgetLabelAutoColor.
+ */
+
+// 형태 프리셋 버튼은 패널 «아래쪽»이라 기본 뷰포트(720px)에선 화면 밖 — 진짜 클릭이 되게 창을 키운다.
+const bootTall = async (page) => { await page.setViewportSize({ width: 1280, height: 1800 }); return boot(page); };
+
+test('L5 라벨 → 형태 «텍스트» → Body: 프리셋이 넣은 검은색이 남지 않는다(+음성대조: 표식이 없으면 잔류)', async ({ page }) => {
+  const errs = await bootTall(page);
+  await select(page, 'tb1');
+  await typeBtn(page, 'tb-label').click();
+  await page.click('#label-shape-text');
+  const pre = await look(page, 'tb1');
+  expect(pre.inline, '★양성대조: 텍스트 프리셋이 인라인 색을 애초에 안 넣었다 — 이 검사는 아무것도 못 잰다').toBe('rgb(17, 17, 17)');
+  expect(pre.mark, '프리셋이 넣은 색에 표식이 없다').toBe('rgb(17, 17, 17)');
+
+  // ★음성대조: 고치기 전(프리셋이 표식을 안 달던 상태)을 그대로 흉내 내면, 라벨을 벗어나도 검은색이 남는다
+  const oldWay = await page.evaluate(() => {
+    const el = document.querySelector('#tb1 [class^="tb-"]');
+    const keepStyle = el.getAttribute('style'), keepMark = el.dataset.labelAutoColor;
+    delete el.dataset.labelAutoColor;          // ← 고치기 전: 프리셋이 표식을 안 달았다
+    window.dropLabelAutoColor(el);             // 라벨을 벗어날 때 도는 바로 그 함수
+    const inline = el.style.color;
+    el.setAttribute('style', keepStyle); el.dataset.labelAutoColor = keepMark;
+    return inline;
+  });
+  expect(oldWay, '★음성대조: 표식이 없어도 색이 걷힌다 — 검사가 증상을 못 잡는다').toBe('rgb(17, 17, 17)');
+
+  await typeBtn(page, 'tb-body').click();
+  const back = await look(page, 'tb1');
+  expect(back.inline, '프리셋이 넣은 검은색이 남았다(어두운 섹션에서 글자가 안 보인다)').toBe('');
+  expect(back.mark, '표식이 안 지워졌다').toBe('');
+  expect(back.computed, '본문 기본색으로 돌아와야 한다').toBe('rgb(85, 85, 85)');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('L6 프리셋 초기화는 옛 표식을 버리고, 사용자가 고른 색은 그대로 둔다(+음성대조: 옛 동작이면 표식 잔류)', async ({ page }) => {
+  const errs = await bootTall(page);
+  await select(page, 'tb1');
+  await typeBtn(page, 'tb-label').click();
+  expect((await look(page, 'tb1')).mark, '라벨 전환 표식이 없다 — 검사 전제가 깨짐').toBe('rgb(255, 255, 255)');
+  await page.click('#label-shape-text');
+  await page.click('#label-shape-pill');               // 공통 초기화 → 인라인 색 없음 + 표식 폐기
+  const pill = await look(page, 'tb1');
+  expect(pill.inline, 'pill 프리셋이 인라인 색을 남겼다 — 검사 전제가 깨짐').toBe('');
+  // ★음성대조: 고치기 전엔 초기화가 색만 비우고 표식(rgb(255,255,255))을 남겼다 → 색과 안 맞는 표식이 떠돈다
+  expect(pill.mark, '프리셋 초기화가 옛 표식을 안 버렸다').toBe('');
+
+  // 사용자가 텍스트 프리셋 뒤 직접 고른 색은 타입을 바꿔도 보존(표식 폐기 = text-block-color 경로)
+  await page.click('#label-shape-text');
+  await page.fill('#txt-color-hex', '3366ff');
+  expect((await look(page, 'tb1')).mark, '사용자가 색을 고른 뒤에도 프리셋 표식이 남았다').toBe('');
+  await typeBtn(page, 'tb-h2').click();
+  expect((await look(page, 'tb1')).inline, '사용자가 고른 색이 걷혔다').toBe('rgb(51, 102, 255)');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('L7 MCP update_block 이 정한 색은 «라벨 기본색과 같아도» 타입 전환에서 살아남는다(표식 폐기 3자리 중 block-edit)', async ({ page }) => {
+  const errs = await boot(page);
+  await select(page, 'tb1');
+  await typeBtn(page, 'tb-label').click();
+  expect((await look(page, 'tb1')).mark).toBe('rgb(255, 255, 255)');
+  // PM/MCP 가 «흰색»을 명시로 지정 — 값이 라벨 기본색과 같아 표식을 안 버리면 타입 전환에서 조용히 걷힌다
+  await page.evaluate(() => window.editTextBlock('tb1', { color: '#ffffff' }));
+  const set = await look(page, 'tb1');
+  expect(set.inline, 'editTextBlock 이 색을 안 먹였다 — 검사 전제가 깨짐').toBe('rgb(255, 255, 255)');
+  expect(set.mark, 'editTextBlock 뒤에도 라벨 표식이 남았다').toBe('');
+
+  // ★음성대조: 표식을 안 버리던 옛 동작이면 같은 전환에서 색이 사라진다
+  const oldWay = await page.evaluate(() => {
+    const el = document.querySelector('#tb1 [class^="tb-"]');
+    const keepStyle = el.getAttribute('style');
+    el.dataset.labelAutoColor = 'rgb(255, 255, 255)';   // ← 고치기 전: 폐기를 안 했다
+    window.dropLabelAutoColor(el);
+    const inline = el.style.color;
+    el.setAttribute('style', keepStyle); delete el.dataset.labelAutoColor;
+    return inline;
+  });
+  expect(oldWay, '★음성대조: 표식이 남아 있어도 색이 살아남는다 — 검사가 증상을 못 잡는다').toBe('');
+
+  await typeBtn(page, 'tb-body').click();
+  const back = await look(page, 'tb1');
+  expect(back.inline, 'MCP 가 지정한 색이 조용히 걷혔다').toBe('rgb(255, 255, 255)');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
