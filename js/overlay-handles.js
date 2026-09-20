@@ -2469,31 +2469,56 @@ function _updateTextOverlayHandlePositions() {
   });
 }
 
+/** 지금 이 오버레이 텍스트를 «글자 편집 중»인가.
+ *  ⛔`.selected` 에 기대지 않는다 — 편집 진입 경로에 따라 선택 표식이 잠깐 빠질 수 있다.
+ *  ★«매번 다시 재는 술어»다(asset-rotate.js:303 「편집중 핫존 숨김」과 같은 꼴) — 그래서
+ *    편집이 끝나면 저절로 false 가 되고 손잡이가 «스스로» 돌아온다. */
+function _tfoEditing(posEl) {
+  return !!(posEl.querySelector(':scope > .editing')
+         || posEl.classList.contains('editing')
+         || posEl.querySelector('[contenteditable="true"]'));
+}
+
 function _startTextOverlayResizeRaf() {
   function loop() {
     const posEl = _tfoResizeEl;
     if (!posEl) return;
+    /* ★편집 중엔 «숨기기만» 한다 — 글자 선택과 손잡이가 겹치니 안 보여야 하지만,
+       여기서 hide…() 로 «파괴»하면 rAF 가 멈추고 _tfoResizeEl 이 null 이 되어
+       편집을 끝내도 손잡이가 영영 안 돌아온다(블럭은 여전히 .selected 인데 모서리 점만
+       없는 상태 — 2026-09-20 이벨류에이터 실측). 파괴는 «진짜로 사라진» 경우만. */
+    const editing = _tfoEditing(posEl);
     const sel = _tfoSelectedChild(posEl);
-    /* ★편집 중(.editing → contenteditable=true)엔 숨긴다 — 글자 선택과 손잡이가 겹친다
-       (asset-rotate.js:303 「편집중 핫존 숨김」과 같은 레포 규약).
-       ★오버레이를 «끄면» dataset.overlayBlock 이 사라진다 ⇒ 여기서 자동으로 걷힌다. */
-    if (!posEl.isConnected || !sel || sel.classList.contains('editing')
-        || posEl.dataset.overlayBlock !== 'true') {
+    /* ★오버레이를 «끄면» dataset.overlayBlock 이 사라진다 ⇒ 여기서 자동으로 걷힌다. */
+    if (!posEl.isConnected || posEl.dataset.overlayBlock !== 'true' || (!sel && !editing)) {
       hideTextOverlayResizeHandles();
       return;
     }
-    _updateTextOverlayHandlePositions();
+    const overlay = _getOverlay();
+    if (overlay) {
+      overlay.querySelectorAll('[data-tf-resize-dir]')
+        .forEach(h => { h.style.display = editing ? 'none' : ''; });
+    }
+    if (!editing) _updateTextOverlayHandlePositions();
     _tfoResizeRafId = requestAnimationFrame(loop);
   }
   _tfoResizeRafId = requestAnimationFrame(loop);
 }
 
-/** 폰트 스냅샷 — contentEl «하나»가 아니라 인라인 font-size 를 가진 자손까지 담는다.
- *  ⚠️매 프레임 «누적 곱»을 하면 표류한다 ⇒ 마우스다운 때의 값에 매번 k 를 곱한다. */
+/** 폰트 스냅샷 — «글자를 담은 칸 전부» + 인라인 font-size 를 가진 자손까지 담는다.
+ *  ⛔`querySelector('[class^="tb-"]')`(단수) ⛔ — 말풍선 프레임에서는 «첫 번째» tb- 요소가
+ *    본문 `.tb-bubble`(28px)이 아니라 이름표 `.tb-sender-name`(16px)이다. 그걸 집으면
+ *    「상자와 이름표만 커지고 말풍선 글자는 그대로」가 된다(2026-09-20 이벨류에이터 실측).
+ *    본문은 인라인 font-size 가 없어 `[style*="font-size"]` 그물에도 안 걸린다 ⇒ 복수로 전수.
+ *  ⚠️SVG(말풍선 꼬리 `.tb-bubble-tail`)는 뺀다 — font-size 를 써도 뜻이 없다.
+ *  ⚠️매 프레임 «누적 곱»을 하면 표류한다 ⇒ 마우스다운 때의 값에 매번 k 를 곱한다.
+ *    (부모·자식이 둘 다 들어와도 각자 «절대 px» 로 쓰므로 배율이 겹쳐 곱해지지 않는다.) */
 function _tfoFontSnapshot(posEl) {
   const els = new Set();
-  const content = posEl.querySelector('[class^="tb-"]');
-  if (content) els.add(content);
+  posEl.querySelectorAll('[class^="tb-"]').forEach(el => {
+    if (el.namespaceURI === 'http://www.w3.org/2000/svg') return;
+    els.add(el);
+  });
   posEl.querySelectorAll('[style*="font-size"]').forEach(el => els.add(el));
   return [...els]
     .map(el => ({ el, fs: parseFloat(getComputedStyle(el).fontSize) || 0 }))
@@ -2508,9 +2533,6 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
   const startH = Math.max(1, Math.round(posEl.offsetHeight));
   const startX = e.clientX, startY = e.clientY;
   const sec = posEl.closest('.section-block');
-  /* 상한은 «섹션 폭» — _enterOverlay 가 심는 maxWidth:100% 와 같은 상한이다.
-     어긋나면 「손잡이는 가는데 상자는 안 커진다」가 된다. */
-  const maxW = Math.max(TFO_MIN_W, sec ? sec.clientWidth : 860);
   const snap = _tfoFontSnapshot(posEl);
   /* ★맞은편 코너 고정 — 확대블럭 _onZoomResizeMouseDown ④ 의 식을 그대로 옮겨 적는다.
      ⛔공통 헬퍼로 «추출» 금지 — tests/unit/zoom-block.test.js 가 그 함수 «안에서»
@@ -2523,6 +2545,20 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
   /* 위치 SSOT = dataset.offsetX/offsetY (prop-text-wireup-overlay _applyOverlayPos). */
   const startPosX = Number(posEl.dataset.offsetX ?? parseFloat(posEl.style.left)) || 0;
   const startPosY = Number(posEl.dataset.offsetY ?? parseFloat(posEl.style.top))  || 0;
+  /* ★상한은 «섹션 폭»이 아니라 «섹션 안에 남는 폭»이다.
+     폭만 [60, 섹션폭] 으로 잘라서는 부족하다 — 맞은편 코너가 고정이므로 left=72 인 블럭을
+     se 로 끌면 폭이 860(=섹션폭)에서 멈춰도 오른쪽 끝이 932 가 되어 72px 이 섹션 밖으로
+     비어져 나온다(2026-09-20 이벨류에이터 실측: 화면 tf.right 918 vs sec.right 889).
+     ⇒ 끄는 방향에 따라 «고정되는 쪽»을 기준으로 남은 폭을 상한으로 쓴다.
+       e 쪽(se/ne): 왼쪽이 고정 ⇒ 상한 = 섹션폭 − left
+       w 쪽(sw/nw): 오른쪽이 고정 ⇒ 상한 = left + 현재폭 (왼쪽 끝이 0 을 안 넘게)
+     ⚠️회전한 블럭에서는 근사다 — 회전 AABB 가 아니라 «회전 전 상자»로 잰다(이동 드래그의
+       탄성 클램프도 같은 근사를 쓴다). 안전 쪽 근사라 밖으로 새지는 않는다.
+     ❓현빈 확인 대기 — 「리사이즈로 섹션 폭 밖까지 나가도 되는가」(이동은 탄성 클램프로
+       이미 나갈 수 있다). 「나가도 된다」로 답이 오면 이 세 줄만 지우면 된다. */
+  const secW = sec ? sec.clientWidth : 860;
+  const room = sx > 0 ? (secW - startPosX) : (startPosX + startW);
+  const maxW = Math.max(TFO_MIN_W, Math.min(secW, room));
   let moved = false;
 
   function onMove(ev) {

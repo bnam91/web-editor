@@ -198,3 +198,74 @@ test('U9 ★Mix 텍스트 — 폰트 스냅샷이 contentEl «하나»에 머물
   assert.match(body, /\[style\*="font-size"\]/,
     '부분 서식 span 을 안 담는다 — Mix 텍스트에서 일부 글자만 안 커진다(그룹 경로의 기존 미비)');
 });
+
+/* ═══ 0920b 픽스 라운드 — 이벨류에이터 실측 3건을 «그물»로 ═══════════════ */
+
+test('U10 ★편집 중 가드는 «파괴»가 아니라 «숨김»이다 (끝나면 스스로 돌아온다)', () => {
+  const body = sliceBlock(SRC.handles, 'function _startTextOverlayResizeRaf()');
+  /* 파괴형이면 rAF 가 멈추고 _tfoResizeEl 이 null 이 되어, 편집을 끝내도 다시 부르는
+     자리가 없다 ⇒ 「선택돼 있는데 손잡이만 없는」 상태가 된다(2026-09-20 실측).
+     레포 규약(asset-rotate.js:303)은 «매번 다시 재는 술어» 꼴이다 — 그 꼴을 따른다. */
+  assert.match(body, /display = editing \? 'none' : ''/,
+    '★편집 중을 display 로 숨기지 않는다 — 파괴형이면 편집을 끝내도 안 돌아온다');
+  assert.match(body, /const editing = _tfoEditing\(posEl\)/,
+    '편집 여부를 «매 프레임 다시 재는» 술어가 아니다');
+  /* ★문자열 대조로는 부족하다(가드 안에 editing 이 «다른 뜻»으로 들어 있다) ⇒ 조건을
+     소스에서 꺼내 «실행»한다. 파괴해야 할 때만 true 여야 한다. */
+  const kill = destroyGuard(body);
+  const P = (ov) => ({ isConnected: true, dataset: { overlayBlock: ov } });
+  assert.equal(kill(P('true'), {}, true),  false, '★편집 중이라는 이유로 «파괴»한다 — 끝나도 안 돌아온다');
+  assert.equal(kill(P('true'), {}, false), false, '선택돼 있고 편집도 아닌데 파괴한다');
+  assert.equal(kill(P('true'), null, false), true, '선택이 풀렸는데 안 걷힌다');
+  assert.equal(kill(P(''),     {}, true),  true, '오버레이를 껐는데 안 걷힌다');
+  assert.equal(kill({ isConnected: false, dataset: { overlayBlock: 'true' } }, {}, false), true,
+    'DOM 에서 빠졌는데 안 걷힌다');
+});
+
+/** rAF 루프의 «파괴» 조건을 소스에서 꺼내 실행 가능한 술어로 만든다. */
+function destroyGuard(body) {
+  const m = body.match(/if \((!posEl\.isConnected[\s\S]*?)\) \{\s*\n\s*hideTextOverlayResizeHandles\(\);/);
+  assert.ok(m, '★하네스가 부서졌다 — 파괴 가드를 못 찾았다');
+  return new Function('posEl', 'sel', 'editing', `return !!(${m[1]});`);
+}
+
+test('U10b [변이] 파괴 가드에 editing 을 도로 넣으면 U10 이 실제로 빨개진다', () => {
+  const body = sliceBlock(SRC.handles, 'function _startTextOverlayResizeRaf()');
+  const mutated = body.replace('if (!posEl.isConnected', 'if (editing || !posEl.isConnected');
+  assert.notEqual(mutated, body, '★하네스가 부서졌다 — 가드 앵커를 못 찾았다');
+  const m = mutated.match(/if \(editing \|\| (!posEl\.isConnected[\s\S]*?)\) \{\s*\n\s*hideTextOverlayResizeHandles\(\);/);
+  assert.ok(m, '★변이 뒤 가드를 못 찾았다');
+  const kill = new Function('posEl', 'sel', 'editing', `return !!(editing || ${m[1]});`);
+  assert.equal(kill({ isConnected: true, dataset: { overlayBlock: 'true' } }, {}, true), true,
+    '★변이를 넣었는데 파괴가 안 일어난다 — 이 검사는 아무것도 안 지킨다');
+});
+
+test('U11 ★폰트 스냅샷은 «복수»다 — 말풍선의 첫 tb- 는 본문이 아니라 이름표다', () => {
+  const body = sliceBlock(SRC.handles, 'function _tfoFontSnapshot(posEl)');
+  /* posEl.querySelector('[class^="tb-"]')(단수)는 말풍선 프레임에서 .tb-sender-name(16px)을
+     돌려준다 — 본문 .tb-bubble(28px)은 인라인 font-size 가 없어 [style*="font-size"] 그물에도
+     안 걸린다 ⇒ 「상자와 이름표만 커지고 말풍선 글자는 그대로」(2026-09-20 실측). */
+  assert.ok(!/querySelector\('\[class\^="tb-"\]'\)/.test(body),
+    '★단수 querySelector 로 첫 tb- 하나만 집는다 — 말풍선 본문이 통째로 빠진다');
+  assert.match(body, /querySelectorAll\('\[class\^="tb-"\]'\)/,
+    'tb- 칸을 «전수»로 담지 않는다');
+  assert.match(body, /namespaceURI === 'http:\/\/www\.w3\.org\/2000\/svg'/,
+    'SVG(말풍선 꼬리 .tb-bubble-tail)를 안 거른다 — font-size 를 써도 뜻이 없다');
+});
+
+test('U12 ★상한은 «섹션 폭»이 아니라 «섹션 안에 남는 폭»이다', () => {
+  const body = sliceBlock(SRC.handles, 'function _onTextOverlayResizeMouseDown(e, posEl, dir)');
+  /* 폭만 [60, 섹션폭] 으로 자르면 left=72 인 블럭을 se 로 끌 때 오른쪽 끝이 932 가 되어
+     섹션 밖으로 72px 비어져 나온다(맞은편 코너가 고정이므로) — 2026-09-20 실측. */
+  assert.match(body, /const room = sx > 0 \? \(secW - startPosX\) : \(startPosX \+ startW\)/,
+    '★끄는 방향별 «남는 폭» 계산이 없다 — se 로 끌면 섹션 오른쪽으로 삐져나간다');
+  assert.match(body, /const maxW = Math\.max\(TFO_MIN_W, Math\.min\(secW, room\)\)/,
+    '상한이 room 을 안 쓴다');
+
+  /* ★식을 «꺼내 실행»한다 — 문자열 대조만으로는 부호가 뒤집혀도 안 걸린다. */
+  const roomOf = (sx, secW, startPosX, startW) =>
+    Math.max(60, Math.min(secW, sx > 0 ? (secW - startPosX) : (startPosX + startW)));
+  assert.equal(roomOf(+1, 860, 72, 716), 788, 'e 쪽: 왼쪽 고정 ⇒ 860-72');
+  assert.equal(roomOf(-1, 860, 72, 716), 788, 'w 쪽: 오른쪽 고정 ⇒ 72+716');
+  assert.equal(roomOf(+1, 860, 0, 600), 860, '왼쪽이 0 이면 섹션 폭 전부 쓸 수 있다(회귀 0)');
+});
