@@ -3,6 +3,7 @@
  * — bullet ↔ 일반 변형 전환 시 contentEl을 새 노드로 교체하므로 state.contentEl을 mutate
  */
 import { setTextTypeClass, afterTextTypeChange } from './text-type-class.js';
+import { markLabelAutoColor, dropLabelAutoColor } from './label-auto-color.js';
 
 export function wireTypeSection({ tb, propPanel, ctx }) {
   const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-h3':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label','tb-bullet':'bullet' };
@@ -50,11 +51,17 @@ export function wireTypeSection({ tb, propPanel, ctx }) {
       if (cls === 'tb-label') {
         if (!contentEl.style.backgroundColor) contentEl.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--preset-label-bg').trim() || '#111111';
         // textgrad-ok: 라벨 전환 — 아래에서 clearTextGradient(라벨은 그라데이션 불가)
-        if (!contentEl.style.color) contentEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--preset-label-color').trim() || '#ffffff';
+        if (!contentEl.style.color) {
+          contentEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--preset-label-color').trim() || '#ffffff';
+          markLabelAutoColor(contentEl);   // 0920r5 polish2: «라벨이 넣은 색» 표식 — 라벨을 벗어나면 이 색만 걷어낸다
+        }
         if (!contentEl.style.borderRadius) contentEl.style.borderRadius = '4px';
       } else {
         contentEl.style.backgroundColor = '';
         contentEl.style.borderRadius = '';
+        // 0920r5 polish2(T-059): 라벨이 넣은 흰 글자색이 남아 흰 섹션에서 글자가 안 보였다.
+        //   표식이 달린 색(= 라벨이 넣은 그 색)일 때만 걷어낸다 — 사용자가 고른 색은 그대로 둔다.
+        dropLabelAutoColor(contentEl);
       }
 
       // 0918r2 textgrad: 라벨·불릿은 글자 그라데이션을 못 받는다(박스 배경이 같이 잘림 / ::marker 투명).
