@@ -1,4 +1,17 @@
 @charset "UTF-8";
+/* ═══ ★z-index 사다리 (0920b-zorder) ══════════════════════════════════════════════
+   이 앱의 층 서열은 «위로 갈수록 위»다:
+     ① 캔버스 «내용»    — #canvas 안 블록들 (z 0~90. 섹션 선택선 .section-block.selected::after=90)
+     ② 캔버스 «UI»      — #ss-handles-overlay(9990) / 스마트가이드 / 리사이즈 핸들.
+                          ★아래 isolation 으로 «#canvas-area 안»에 갇힌다.
+     ③ 플로팅 패널      — #color-adjust-panel 420 · #fp-plugin-panel 499 · #tpl-browser 500 ·
+                          #editor-toast 600 · 드롭다운 999 · .comp-shelf-panel 1200 ·
+                          프리뷰 2000~2100 · .anim-modal-overlay / .ai-fill-panel 9000
+     ④ 앱 크롬          — #panel-left/right · #floating-panel 9999
+     ⑤ 모달·팝오버      — #topbar · .settings-modal-overlay 10000~10001
+   ②의 숫자(9990)는 원래 «캔버스 내용보다 위»라는 뜻이었는데, #canvas-area 가 스태킹 컨텍스트를
+   안 만들어서 «앱 전체»와 경쟁했다 → ③이 전부 그 아래로 깔렸다(현빈 신고: 배너 선택 아웃라인이
+   PLUGINS 패널 위로 지나감). 아래 한 줄로 ②를 제 범위에 가둔다. ★패널 z-index 는 하나도 안 고쳤다. */
 /* ── Canvas Area ── */
 #canvas-area {
   flex: 1;
@@ -6,6 +19,13 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  /* ★캔버스 UI(#ss-handles-overlay 9990 등)를 이 영역 «안»에 가두는 스태킹 컨텍스트.
+     ⛔contain:paint / transform / filter / will-change / perspective 로 바꾸지 말 것 —
+       그것들은 «고정 위치(fixed) 자손의 컨테이닝 블록»까지 바꾼다. 실측(fixed-rect-probe.mjs,
+       1200x800): isolation → #ss-handles-overlay rect [0,0,1200,800] «불변» /
+       contain:paint → [0,40,1200,760] «잘림»(상단바 높이만큼 밀림).
+     선례: js/io/export-image.js 가 같은 기법(clone.style.isolation='isolate')을 쓴다. */
+  isolation: isolate;
 }
 
 /* ── Center Notch Bar (플로팅 아일랜드) ── */
