@@ -189,6 +189,12 @@ function renderBanner02(block) {
         sel.removeAllRanges(); sel.addRange(r);
       }
     });
+    /* ★캔버스에서 «타자 치는 중»은 렌더를 안 지나는 유일한 변경 경로다
+     *   (contenteditable 이 글자를 직접 늘리고, 커밋은 blur 에서 한다).
+     *   ⇒ 넘치기 시작하는 그 순간을 여기서만 알 수 있어 힌트만 따로 다시 잰다
+     *     (히스토리·저장은 blur 의 몫 — 여기서 건드리지 않는다).
+     */
+    el.addEventListener('input', () => { window.refreshBanner02Hint?.(block); });
     el.addEventListener('blur', () => {
       if (el.dataset.removing === '1') return;   // ⑶ 삭제 중 — 옛 인덱스로 덮어쓰지 않는다
       el.setAttribute('contenteditable', 'false');
@@ -271,6 +277,13 @@ function renderBanner02(block) {
   if (block._bn2RO) block._bn2RO.disconnect();
   block._bn2RO = new ResizeObserver(applyScale);
   block._bn2RO.observe(block);
+
+  /* ★넘침 힌트 재계산은 «여기» 한 곳이다 — 배너 내용·크기가 바뀌는 모든 길(우측 패널의 rerender,
+     캔버스 더블클릭 편집 blur, 캔버스 백스페이스 줄삭제, updateBanner02Block API)이 이 함수를 지난다.
+     ⛔호출처를 늘려 붙이지 않는다: 예전엔 패널의 W 칸과 패널 최초 구성 «둘»에만 붙어 있어서
+       ⑴글자크기를 키워 «넘치기 시작한 순간» 힌트가 안 뜨고 ⑵이미 뜬 힌트의 숫자가 썩었다.
+     ⚠️힌트는 살아 있는 .bn2-text 를 재므로 «그린 뒤»에 불러야 한다. */
+  window.refreshBanner02Hint?.(block);
 }
 
 // ── 생성 ────────────────────────────────────────────────────────────────────
