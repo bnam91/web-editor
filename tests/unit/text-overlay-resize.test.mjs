@@ -253,19 +253,96 @@ test('U11 ★폰트 스냅샷은 «복수»다 — 말풍선의 첫 tb- 는 본�
     'SVG(말풍선 꼬리 .tb-bubble-tail)를 안 거른다 — font-size 를 써도 뜻이 없다');
 });
 
-test('U12 ★상한은 «섹션 폭»이 아니라 «섹션 안에 남는 폭»이다', () => {
-  const body = sliceBlock(SRC.handles, 'function _onTextOverlayResizeMouseDown(e, posEl, dir)');
-  /* 폭만 [60, 섹션폭] 으로 자르면 left=72 인 블럭을 se 로 끌 때 오른쪽 끝이 932 가 되어
-     섹션 밖으로 72px 비어져 나온다(맞은편 코너가 고정이므로) — 2026-09-20 실측. */
-  assert.match(body, /const room = sx > 0 \? \(secW - startPosX\) : \(startPosX \+ startW\)/,
-    '★끄는 방향별 «남는 폭» 계산이 없다 — se 로 끌면 섹션 오른쪽으로 삐져나간다');
-  assert.match(body, /const maxW = Math\.max\(TFO_MIN_W, Math\.min\(secW, room\)\)/,
-    '상한이 room 을 안 쓴다');
+/* ═══ 현빈 결정 2026-09-20 — 「크기조절도 섹션 폭 밖까지 나갈 수 있어야 한다」 ═════════
+   이동(prop-text-wireup-overlay.js 의 탄성 클램프 + 마그네틱 캐치)과 «같은 결»로.        */
 
-  /* ★식을 «꺼내 실행»한다 — 문자열 대조만으로는 부호가 뒤집혀도 안 걸린다. */
-  const roomOf = (sx, secW, startPosX, startW) =>
-    Math.max(60, Math.min(secW, sx > 0 ? (secW - startPosX) : (startPosX + startW)));
-  assert.equal(roomOf(+1, 860, 72, 716), 788, 'e 쪽: 왼쪽 고정 ⇒ 860-72');
-  assert.equal(roomOf(-1, 860, 72, 716), 788, 'w 쪽: 오른쪽 고정 ⇒ 72+716');
-  assert.equal(roomOf(+1, 860, 0, 600), 860, '왼쪽이 0 이면 섹션 폭 전부 쓸 수 있다(회귀 0)');
+test('U12 ★상한을 «막지» 않는다 — 옛 하드 클램프(Math.min(secW, …))가 남아 있으면 빨강', () => {
+  const body = sliceBlock(SRC.handles, 'function _onTextOverlayResizeMouseDown(e, posEl, dir)');
+  /* ★주석을 걷고 «코드만» 본다 — 안 걷으면 「옛 상한은 Math.min(secW, room) 이었다」는
+     설명 주석에 걸려 고쳐도 계속 빨갛다(실측: 이 검사가 처음에 그렇게 거짓 빨강이었다). */
+  const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  assert.ok(!/Math\.min\(secW/.test(code),
+    '★폭 상한이 아직 섹션 폭에 물려 있다 — 현빈 2026-09-20 결정(섹션 밖까지 나간다)과 어긋난다');
+  assert.match(code, /const boundW = Math\.max\(TFO_MIN_W, room, startW\)/,
+    '경계폭(boundW) 선언이 없다 — 탄성을 태울 기준이 없다');
+  /* ★이미 섹션 밖에 나가 있는 블럭(이동으로)에서 boundW 가 startW 보다 작으면, 마우스를
+     움직이기도 전에 폭이 «툭» 줄어 맞은편 코너 고정이 첫 프레임에 깨진다. */
+  const boundOf = (secW, left, startW, sx) =>
+    Math.max(60, sx > 0 ? (secW - left) : (left + startW), startW);
+  assert.equal(boundOf(860, 0,   600, +1), 860, 'left 0 이면 경계 = 섹션 폭');
+  assert.equal(boundOf(860, 72,  716, +1), 788, 'e 쪽: 왼쪽 고정 ⇒ 860-72');
+  assert.equal(boundOf(860, 72,  716, -1), 788, 'w 쪽: 오른쪽 고정 ⇒ 72+716');
+  assert.equal(boundOf(860, 400, 900, +1), 900,
+    '★이미 밖에 나가 있는데 경계가 현재 폭보다 작다 — 마우스다운 순간 폭이 줄어든다');
+});
+
+test('U13 ★크기조절의 곡선은 이동의 _elasticAxis «그 함수»다 (사본 금지)', () => {
+  /* 곡선을 여기서 다시 적으면 이동과 크기조절의 손맛이 «조용히» 갈라진다 —
+     이 레포가 rotatedAABB 에서 한 번 밟은 병(prop-text-wireup-overlay.js:253 주석). */
+  assert.match(SRC.handles, /import \{[^}]*_elasticAxis[^}]*\}\s*\n?\s*from '\.\/props\/prop-text-wireup-overlay\.js'/,
+    '★_elasticAxis 를 이동 쪽에서 «가져다 쓰지» 않는다 — 곡선 사본이 생겼거나 직접 짰다');
+  assert.match(SRC.handles, /OVERLAY_RESIST_ZONE_SCREEN_PX/,
+    '저항폭 상수도 같은 곳에서 가져와야 한다');
+  assert.match(SRC.wire, /export function _elasticAxis/, '이동 쪽이 그 함수를 export 하지 않는다');
+  assert.match(SRC.wire, /export const OVERLAY_RESIST_ZONE_SCREEN_PX = 40/, '저항폭 상수 export 가 없다');
+
+  const body = sliceBlock(SRC.handles, 'function _onTextOverlayResizeMouseDown(e, posEl, dir)');
+  /* ★zone 을 로컬 상수로 고정하면 줌 40% 에서 화면 16px 로 쪼그라들어 «사실상 없는» 저항이
+     된다 — 이동 쪽이 2026-09-16l 에 실제로 밟은 병. 배율로 나눠야 한다. */
+  assert.match(body, /OVERLAY_RESIST_ZONE_SCREEN_PX \/ \(scale \|\| 1\)/,
+    '★저항폭을 화면px → 로컬로 환산하지 않는다 — 줌마다 손맛이 달라진다');
+});
+
+test('U14 ★식을 «꺼내 실행» — 캐치/저항/자유 세 구간 + 하한은 하드', () => {
+  const body = sliceBlock(SRC.handles, 'function _onTextOverlayResizeMouseDown(e, posEl, dir)');
+  const m = body.match(/const over = ([^;]+);\s*\n[\s\S]*?const elasticW = ([^;]+);\s*\n\s*const newW = ([^;]+);/);
+  assert.ok(m, '★하네스가 부서졌다 — 탄성 식 세 줄을 못 찾았다');
+  const widthOf = new Function('rawW', 'boundW', 'zone', '_elasticAxis', 'TFO_MIN_W',
+    `const over = ${m[1]};
+const elasticW = ${m[2]};
+return ${m[3]};`);
+  /* 이동 쪽 곡선을 «독립으로» 다시 센다(원본을 import 하면 원본이 틀려도 늘 초록이다). */
+  const axis = (raw, boundMax, zone) => {
+    const magnet = zone * 0.25;
+    if (raw < 0) { const o = -raw; return o <= magnet ? 0 : (o <= zone ? -((o - magnet) * 0.35) : -((zone - magnet) * 0.35 + (o - zone))); }
+    if (raw > boundMax) { const o = raw - boundMax; return o <= magnet ? boundMax : (o <= zone ? boundMax + (o - magnet) * 0.35 : boundMax + (zone - magnet) * 0.35 + (o - zone)); }
+    return raw;
+  };
+  const W = (rawW, boundW, zone) => widthOf(rawW, boundW, zone, axis, 60);
+
+  assert.equal(W(800, 860, 40), 800, '경계 안인데 건드린다');
+  assert.equal(W(860, 860, 40), 860, '경계 위에서 값이 튄다');
+  assert.equal(W(866, 860, 40), 860, '★캐치 구간(6 ≤ 10) — 턱에 안 걸린다(경계에 붙어야 한다)');
+  assert.equal(W(885, 860, 40), Math.round(860 + 15 * 0.35), '★탄성 구간 — 0.35배 저항이 아니다');
+  assert.equal(W(940, 860, 40), Math.round(860 + 30 * 0.35 + 40), '★자유 구간 — 턱을 넘은 뒤 1:1 이 아니다');
+  /* ★줌 40% (zone = 40/0.4 = 100 로컬px) — 같은 «화면» 오버슛엔 같은 «화면» 결과. */
+  assert.equal(W(860 + 25 / 0.4, 860, 40 / 0.4) - 860, Math.round(15 / 0.4 * 0.35),
+    '★줌 40% 에서 저항폭이 화면px 로 일정하지 않다');
+  /* ★하한은 «하드» — 현빈: 「최소 폭·높이 하한은 그대로 둔다」. 탄성을 태우면 안 된다. */
+  assert.equal(W(-500, 860, 40), 60, '★하한이 무너졌다 — 안쪽으로 끌면 글자가 무한히 작아진다');
+  assert.equal(W(10, 860, 40), 60, '하한 아래를 60 으로 안 막는다');
+});
+
+test('U14b [변이] 탄성을 옛 하드 클램프로 되돌리면 U14 가 실제로 빨개진다', () => {
+  const widthOf = (rawW, boundW) => Math.min(boundW, Math.max(60, Math.round(rawW)));
+  assert.equal(widthOf(885, 860), 860, '전제: 하드 클램프는 경계에서 멈춘다');
+  assert.notEqual(widthOf(885, 860), Math.round(860 + 15 * 0.35),
+    '★하드 클램프와 탄성이 같은 답을 낸다 — U14 는 아무것도 안 지킨다');
+});
+
+test('U15 ★maxWidth:100% 를 «푼다» — 안 풀면 화면 폭이 섹션에서 잘린다', () => {
+  const body = sliceBlock(SRC.handles, 'function _onTextOverlayResizeMouseDown(e, posEl, dir)');
+  /* _enterOverlay(prop-text-wireup-overlay.js:136)가 maxWidth:100% 를 심는다 — 그대로 두면
+     style.width 만 커지고 렌더 폭은 섹션에 잘려 「손잡이는 가는데 상자는 안 커진다」가 된다. */
+  assert.match(body, /posEl\.style\.maxWidth = 'none'/,
+    '★maxWidth 캡을 안 푼다 — 폭 숫자만 커지고 화면은 섹션에서 잘린다');
+  assert.match(body, /posEl\.dataset\.overlayFreeWidth = 'true'/,
+    '되돌릴 도장을 안 찍는다 — 오버레이를 꺼도 maxWidth:none 이 남는다');
+  const exitBody = sliceBlock(SRC.wire, 'function _exitOverlay(posEl)');
+  assert.match(exitBody, /overlayFreeWidth === 'true'/,
+    '★_exitOverlay 가 그 도장을 안 본다 — 흐름 복귀 뒤에도 maxWidth:none 이 남는다');
+  /* ⛔overlayIntroducedWidth 갈래에 얹으면 «절대 안 도는» 코드가 된다 — 리사이즈는 그
+     도장을 떼고 가기 때문(폭을 남겨야 하니까, D7). 두 갈래가 따로 있어야 한다. */
+  assert.ok(/overlayIntroducedWidth === 'true'[\s\S]*?\}\s*\n[\s\S]*?overlayFreeWidth === 'true'/.test(exitBody),
+    '★두 도장이 한 갈래에 묶였다 — 리사이즈 경로에선 절대 안 돈다');
 });

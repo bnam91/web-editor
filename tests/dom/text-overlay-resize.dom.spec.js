@@ -42,7 +42,9 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <div id="ss-handles-overlay"></div>
 <!-- ★오버레이 토글 «버튼»을 진짜로 둔다 — wireOverlaySection 이 이 id 를 찾는다.
      스텁으로 _enterOverlay 를 흉내내면 「토글이 실제로 손잡이를 띄운다」는 이 검사의 전제가 사라진다. -->
-<div id="panel-right"><div class="panel-body"><button id="txt-overlay-toggle">오버레이</button></div></div>
+<!-- ★z-index 를 준다 — 줌 150% 에서는 #canvas-scaler(860×600 → 1290×900)가 패널을 덮어
+     playwright 클릭이 「canvas-scaler intercepts pointer events」로 막힌다(실측). -->
+<div id="panel-right" style="position:relative;z-index:10000"><div class="panel-body"><button id="txt-overlay-toggle">오버레이</button></div></div>
 <script src="/js/feature-flags.js"></script>
 <script type="module">
   import '/js/block-factory.js';                       // window.makeTextBlock / window._makeTextFrame
@@ -276,18 +278,33 @@ test('D7 ★오버레이를 끄면 손잡이가 사라지고, 사용자가 정�
     .toBe(Math.round(resized.width) + 'px');
 });
 
-test('D8 ★계속 끌어도 폭은 섹션 폭을 «안 넘는다»', async ({ page }) => {
+test('D8 ★섹션 폭 «밖»까지 키울 수 있다 — 현빈 2026-09-20 결정 (이동과 같은 결)', async ({ page }) => {
   await boot(page);
   await mount(page);
   await select(page);
   await toggleOverlay(page);
+  const before = await page.evaluate(() => window.__tf.style.width);
+  await page.evaluate(() => { window.__pushes = []; });
   await dragHandle(page, 'se', 1400, 900);
-  const { width, secW } = await page.evaluate(() => ({
-    width: parseFloat(getComputedStyle(window.__tf).width),
+  const { width, computed, secW, maxW } = await page.evaluate(() => ({
+    width: parseFloat(window.__tf.style.width),
+    computed: parseFloat(getComputedStyle(window.__tf).width),     // ★maxWidth:100% 가 안 잘랐나
     secW: document.getElementById('sec').clientWidth,
+    maxW: getComputedStyle(window.__tf).maxWidth,
   }));
-  expect(width, `폭 ${width} 가 섹션 ${secW} 를 넘었다 — maxWidth:100% 와 어긋나 「손잡이는 가는데 상자는 안 큰다」가 된다`)
-    .toBeLessThanOrEqual(secW + 0.5);
+  /* ★고치기 전엔 여기서 폭이 정확히 섹션 폭(860)에 멈췄다 — maxW = Math.min(secW, room).
+     현빈 2026-09-20: 「크기조절도 섹션 폭 밖까지 나갈 수 있어야 한다」 */
+  expect(width, `★폭 ${width} 가 섹션 ${secW} 를 못 넘었다 — 상한이 아직 섹션 폭이다`)
+    .toBeGreaterThan(secW + 100);
+  /* ★두 번째 문 — style.width 만 커지고 maxWidth:100% 가 그대로면 «화면은 안 커진다»
+     (_enterOverlay 가 심는 maxWidth:100%, prop-text-wireup-overlay.js:136). */
+  expect(maxW, `★maxWidth 가 ${maxW} 라 화면 폭이 섹션에 잘린다 — style.width 만 커졌다`).toBe('none');
+  expect(computed, `★화면 폭 ${computed} 가 섹션 ${secW} 에 잘렸다 — maxWidth 를 안 풀었다`)
+    .toBeGreaterThan(secW + 100);
+  /* ★⌘Z 가 «크기»를 되돌리고 블럭은 살아 있어야 한다 = 히스토리는 첫 DOM 변경 «앞»에 한 번. */
+  const pushes = await page.evaluate(() => window.__pushes);
+  expect(pushes.length, `섹션 밖까지 끄는 동안 히스토리가 ${pushes.length}번 쌓였다 — 1이어야 한다`).toBe(1);
+  expect(pushes[0].width, '★히스토리가 «바뀐 뒤» 폭을 찍었다 — ⌘Z 가 크기가 아니라 삽입을 되돌린다').toBe(before);
 });
 
 test('D9 ★줌 40%(현빈 실사용) 에서도 끄는 만큼만 커진다 — 스케일 보정', async ({ page }) => {
@@ -399,21 +416,123 @@ test('D11 ★말풍선 — «본문» 글자가 폭과 같은 비율로 커진�
     `이름표가 본문과 다른 배율로 갔다 — 한 블록에 두 배율이 된다`).toBeLessThan(0.01);
 });
 
-test('D12 ★se 로 끌어도 블럭이 섹션 «오른쪽 밖»으로 안 나간다', async ({ page }) => {
+/* ═══════════════════════════════════════════════════════════════════════════
+   현빈 결정 2026-09-20 — 「오버레이 텍스트의 «크기조절»도 섹션 폭 밖까지 나갈 수 있어야 한다」
+   이동(탄성 클램프 + 마그네틱 캐치, prop-text-wireup-overlay.js:86~:106)과 «같은 결».
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ★기대값을 «독립으로» 다시 센다 — 원본 _elasticAxis 를 import 하면 원본이 틀려도 늘 초록이다
+   (tests/dom/overlay-drag-elastic-resist.dom.spec.js:32 가 쓰는 것과 같은 수법·같은 상수). */
+const RESIST_ZONE_SCREEN_PX = 40;
+const MAGNET_ZONE_SCREEN_PX = 10;
+const RESIST_FACTOR = 0.35;
+/** 경계를 over(로컬px) 만큼 넘었을 때 «실제로» 넘어가는 양. zone 도 로컬px. */
+function expectedOver(over, zone) {
+  const magnet = zone * (MAGNET_ZONE_SCREEN_PX / RESIST_ZONE_SCREEN_PX);
+  if (over <= 0) return over;
+  if (over <= magnet) return 0;                                   // 마그네틱 캐치 — 턱에 걸림
+  if (over <= zone) return (over - magnet) * RESIST_FACTOR;       // 탄성 저항
+  return (zone - magnet) * RESIST_FACTOR + (over - zone);         // 턱을 넘으면 1:1 자유
+}
+
+/** 블럭을 섹션 왼쪽 끝에 붙여 «남는 폭 = 섹션 폭»으로 만든다(경계를 한 곳으로 고정). */
+async function pinLeft(page) {
+  await page.evaluate(() => { window.__tf.dataset.offsetX = '0'; window.__tf.style.left = '0px'; });
+  await raf(page); await raf(page);
+}
+
+/** 「오른쪽 끝이 섹션 경계를 over(화면px) 넘도록」 se 를 끌 때 필요한 마우스 dx(화면px).
+ *  ★배율 k 는 «마우스 델타를 상자 대각선에 투영»해 구하므로(overlay-handles.js) 폭 증가분이
+ *    dx 와 1:1 이 아니다 — W²/(W²+H²) 만큼만 폭에 실린다. 그 몫을 되돌려 dx 를 구한다. */
+async function dxForOvershoot(page, overScreen) {
+  return page.evaluate((overScreen) => {
+    const tf = window.__tf, sec = document.getElementById('sec');
+    const scale = parseFloat(document.getElementById('canvas-scaler').style.transform.match(/scale\(([^)]+)\)/)[1]);
+    const W = Math.max(1, Math.round(tf.offsetWidth)), H = Math.max(1, Math.round(tf.offsetHeight));
+    const left = Number(tf.dataset.offsetX) || 0;
+    const bound = Math.max(60, sec.clientWidth - left, W);   // 상한(로컬) = 섹션 안에 남는 폭
+    const rawW = bound + overScreen / scale;                 // 저항이 «없었다면» 나왔을 폭
+    return { dx: (rawW - W) * (W * W + H * H) / (W * W) * scale, bound, W, H, scale };
+  }, overScreen);
+}
+
+/** 섹션 오른쪽 경계를 실제로 넘어간 양(화면px). */
+const overshootScreen = (page) => page.evaluate(() =>
+  window.__tf.getBoundingClientRect().right - document.getElementById('sec').getBoundingClientRect().right);
+
+test('D12 ★경계에서 이동 쪽과 «같은» 곡선 — 마그네틱 캐치 → 0.35 저항 → 자유', async ({ page }) => {
+  /* 세 구간을 한 검사에서 잰다. 고치기 전(하드 클램프)엔 셋 다 «정확히 섹션 폭»이라 빨강. */
+  const probes = [
+    { over: 5,  what: '캐치 구간(<10화면px) — 턱에 걸려 경계에 딱 붙어야 한다' },
+    { over: 25, what: '탄성 구간(10~40) — 넘은 만큼의 0.35배만 나가야 한다' },
+    { over: 80, what: '자유 구간(>40) — 턱을 넘으면 1:1 로 나간다' },
+  ];
+  for (const p of probes) {
+    await boot(page);
+    await mount(page);
+    await select(page);
+    await toggleOverlay(page);
+    await pinLeft(page);
+    const geo = await dxForOvershoot(page, p.over);
+    await dragHandle(page, 'se', geo.dx, 0);
+    const w = await page.evaluate(() => parseFloat(window.__tf.style.width));
+    const zone = RESIST_ZONE_SCREEN_PX / geo.scale;
+    const want = geo.bound + expectedOver(p.over / geo.scale, zone);
+    expect(Math.abs(w - want),
+      `★${p.what} — 상한 ${geo.bound} 를 ${p.over}화면px 넘겼는데 폭이 ${w} 다(기대 ${want.toFixed(2)})`)
+      .toBeLessThan(1.5);
+  }
+});
+
+test('D13 ★줌 40/100/150 — 저항의 «손맛»이 화면px 기준으로 같다', async ({ page }) => {
+  /* zone 을 로컬 상수로 고정하면 줌 40% 에서 저항이 화면 16px 로 쪼그라든다(이동 쪽이 2026-09-16l
+     에 실제로 밟은 병) — 여기도 같은 병을 막는다. 같은 «화면» 오버슛엔 같은 «화면» 결과. */
+  const got = [];
+  for (const zoom of [40, 100, 150]) {
+    await boot(page);
+    await mount(page, { zoom });
+    await select(page);
+    await toggleOverlay(page);
+    await pinLeft(page);
+    const geo = await dxForOvershoot(page, 25);        // 화면 25px 오버슛 = 탄성 구간 한복판
+    await dragHandle(page, 'se', geo.dx, 0);
+    got.push({ zoom, over: await overshootScreen(page), scale: geo.scale });
+  }
+  /* 기대: 화면 25px 넘겼으니 (25-10)*0.35 = 5.25 화면px 만 실제로 나간다 — 줌과 무관. */
+  for (const g of got) {
+    expect(Math.abs(g.over - 5.25),
+      `줌 ${g.zoom}% 에서 실제 오버슛이 ${g.over.toFixed(2)}화면px 다 — 줌마다 손맛이 다르다(기대 5.25)`)
+      .toBeLessThan(1.2);
+  }
+  const spread = Math.max(...got.map(g => g.over)) - Math.min(...got.map(g => g.over));
+  expect(spread, `줌에 따라 오버슛이 ${spread.toFixed(2)}화면px 나 벌어졌다 — 화면px 환산이 안 됐다`)
+    .toBeLessThan(1.2);
+});
+
+test('D14 ★하한은 «그대로 하드» — 아무리 안쪽으로 끌어도 60 아래로 안 내려간다', async ({ page }) => {
   await boot(page);
   await mount(page);
   await select(page);
   await toggleOverlay(page);
-  /* 본문이 섹션보다 좁아 오버레이 진입 시 left 가 0 이 아니다(실제 앱과 같은 모양). */
-  const left0 = await page.evaluate(() => Number(window.__tf.dataset.offsetX));
-  expect(left0, '전제: 왼쪽 여백이 있다 — 0 이면 이 검사가 성립 안 한다').toBeGreaterThan(20);
-  await dragHandle(page, 'se', 1400, 900);
-  const r = await page.evaluate(() => {
-    const secR = document.getElementById('sec').getBoundingClientRect();
-    const tfR  = window.__tf.getBoundingClientRect();
-    return { over: tfR.right - secR.right, left: Number(window.__tf.dataset.offsetX) };
-  });
-  expect(r.left, 'se 를 끌었는데 왼쪽이 움직였다 — 맞은편 코너 고정이 깨졌다').toBe(left0);
-  /* ★고치기 전엔 폭만 [60, 섹션폭] 으로 잘라 left 만큼 그대로 삐져나왔다(실측 +72px). */
-  expect(r.over, `★블럭이 섹션 오른쪽으로 ${r.over.toFixed(1)}px 삐져나왔다`).toBeLessThanOrEqual(0.5);
+  await pinLeft(page);
+  await dragHandle(page, 'se', -2000, -1200);
+  const w = await page.evaluate(() => parseFloat(window.__tf.style.width));
+  /* ★상한만 탄성으로 풀었다 — 하한에까지 탄성을 태우면 글자가 무한히 작아진다(현빈: 하한은 유지). */
+  expect(w, `하한이 무너져 폭이 ${w} 가 됐다 — 60 이어야 한다`).toBe(60);
+});
+
+test('D15 ★sw 로 끌면 «왼쪽»으로도 섹션 밖까지 나간다 (반대편도 같은 규약)', async ({ page }) => {
+  await boot(page);
+  await mount(page);
+  await select(page);
+  await toggleOverlay(page);
+  await pinLeft(page);
+  const right0 = await page.evaluate(() => Number(window.__tf.dataset.offsetX) + window.__tf.offsetWidth);
+  await dragHandle(page, 'sw', -900, 600);
+  const r = await page.evaluate(() => ({
+    left: Number(window.__tf.dataset.offsetX),
+    w: parseFloat(window.__tf.style.width),
+  }));
+  expect(r.left, `★sw 로 끌었는데 왼쪽이 ${r.left} 에 멈췄다 — 섹션 왼쪽 밖으로 못 나간다`).toBeLessThan(-100);
+  expect(Math.abs(r.left + r.w - right0), 'sw 를 끌었는데 오른쪽(맞은편)이 움직였다').toBeLessThan(2);
 });

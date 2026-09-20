@@ -21,7 +21,8 @@ import { getGridModel, gridCols, gridRows, gridPreviewLine } from './blocks/grid
 import { MODAL_LIMITS, clampModal, setModalSizeMode } from './blocks/modal-block.js';
 /* ★오버레이(플로팅) 텍스트의 «위치 규약»은 거기 한 벌뿐이다 — 5번째 사본을 만들지 않는다.
    (그 파일은 frame-geometry.js 만 import 하므로 순환은 «닫히지 않는다».) */
-import { _applyOverlayPos, _posElOf } from './props/prop-text-wireup-overlay.js';
+import { _applyOverlayPos, _posElOf, _elasticAxis, OVERLAY_RESIST_ZONE_SCREEN_PX }
+  from './props/prop-text-wireup-overlay.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -2545,20 +2546,29 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
   /* 위치 SSOT = dataset.offsetX/offsetY (prop-text-wireup-overlay _applyOverlayPos). */
   const startPosX = Number(posEl.dataset.offsetX ?? parseFloat(posEl.style.left)) || 0;
   const startPosY = Number(posEl.dataset.offsetY ?? parseFloat(posEl.style.top))  || 0;
-  /* ★상한은 «섹션 폭»이 아니라 «섹션 안에 남는 폭»이다.
-     폭만 [60, 섹션폭] 으로 잘라서는 부족하다 — 맞은편 코너가 고정이므로 left=72 인 블럭을
-     se 로 끌면 폭이 860(=섹션폭)에서 멈춰도 오른쪽 끝이 932 가 되어 72px 이 섹션 밖으로
-     비어져 나온다(2026-09-20 이벨류에이터 실측: 화면 tf.right 918 vs sec.right 889).
-     ⇒ 끄는 방향에 따라 «고정되는 쪽»을 기준으로 남은 폭을 상한으로 쓴다.
-       e 쪽(se/ne): 왼쪽이 고정 ⇒ 상한 = 섹션폭 − left
-       w 쪽(sw/nw): 오른쪽이 고정 ⇒ 상한 = left + 현재폭 (왼쪽 끝이 0 을 안 넘게)
+  /* ★경계(bound) = «섹션 안에 남는 폭». 넘어서면 «막지 않고» 이동 쪽과 같은 탄성을 태운다.
+     ───────────────────────────────────────────────────────────────────────────
+     현빈 2026-09-20 결정 — 「오버레이 텍스트의 크기조절도 섹션 폭 밖까지 나갈 수 있어야 한다」
+     (이동은 2026-09-16k~m 에 이미 탄성 클램프 + 마그네틱 캐치로 나갈 수 있다).
+     ⇒ 옛 하드 상한 `Math.min(secW, room)` 을 지우고, 경계를 «넘은 만큼»에만
+       prop-text-wireup-overlay.js 의 _elasticAxis «그 함수»를 태운다(사본 금지 — 사본을
+       두면 이동과 크기조절의 손맛이 갈라진다). 곡선은 한 벌이다:
+         0~10화면px  : 마그네틱 캐치(경계에 딱 붙어 안 움직임 — 「턱」)
+         10~40화면px : 0.35배 저항(무겁게)
+         40화면px 초과: 1:1 자유(턱을 뚫고 나간다)
+     ★경계가 «어느 폭»인가 — 맞은편 코너가 고정이므로 끄는 방향으로 갈린다.
+       e 쪽(se/ne): 왼쪽이 고정 ⇒ 경계폭 = 섹션폭 − left
+       w 쪽(sw/nw): 오른쪽이 고정 ⇒ 경계폭 = left + 현재폭 (왼쪽 끝이 0 에 닿는 폭)
+     ★`Math.max(…, startW)` 가 붙는 이유 — 이동으로 «이미» 섹션 밖에 나가 있는 블럭이면
+       room < startW 라, 경계를 그대로 쓰면 마우스를 움직이기도 전에 폭이 경계로 «툭»
+       줄어든다(맞은편 코너 고정이 첫 프레임에 깨져 보인다). 이미 넘어선 블럭에겐 턱이
+       «뒤에» 있는 것이므로 지금 폭을 경계로 삼는다.
      ⚠️회전한 블럭에서는 근사다 — 회전 AABB 가 아니라 «회전 전 상자»로 잰다(이동 드래그의
-       탄성 클램프도 같은 근사를 쓴다). 안전 쪽 근사라 밖으로 새지는 않는다.
-     ❓현빈 확인 대기 — 「리사이즈로 섹션 폭 밖까지 나가도 되는가」(이동은 탄성 클램프로
-       이미 나갈 수 있다). 「나가도 된다」로 답이 오면 이 세 줄만 지우면 된다. */
+       탄성 클램프도 같은 근사를 쓴다).
+     ★하한(TFO_MIN_W)은 «그대로 하드»다 — 현빈: 「최소 폭·높이 하한은 그대로 둔다」. */
   const secW = sec ? sec.clientWidth : 860;
   const room = sx > 0 ? (secW - startPosX) : (startPosX + startW);
-  const maxW = Math.max(TFO_MIN_W, Math.min(secW, room));
+  const boundW = Math.max(TFO_MIN_W, room, startW);
   let moved = false;
 
   function onMove(ev) {
@@ -2577,13 +2587,28 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
          (텍스트는 폭≫높이가 기본이라 «항상» 이 모양이다). 투영은 그 폭발이 없고,
          가로로만 끌 때는 1+dw/W 와 사실상 같은 값을 준다(W≫H 에서 오차 <0.1%). */
     const kRaw = 1 + (dw * startW + dh * startH) / (startW * startW + startH * startH);
-    const newW = Math.min(maxW, Math.max(TFO_MIN_W, Math.round(startW * kRaw)));
+    /* ★저항의 «손맛»은 화면px 기준이어야 한다 — zone 을 로컬 상수로 고정하면 줌 40% 에서
+       화면 16px 로 쪼그라들어 사실상 없는 것과 같아진다(이동 쪽이 2026-09-16l 에 실제로
+       밟은 병). 그 파일과 «같은 환산»을 쓴다: zone = 화면px / 그 순간 배율. */
+    const zone = OVERLAY_RESIST_ZONE_SCREEN_PX / (scale || 1);
+    const rawW = startW * kRaw;
+    /* 경계를 넘은 만큼(over)에만 곡선을 태운다 — _elasticAxis 의 «위쪽 가지»를 그대로
+       쓴다(boundMax=0 으로 부르면 입력이 곧 over 다). ⛔곡선을 손으로 다시 적지 않는다. */
+    const over = rawW - boundW;
+    const elasticW = over > 0 ? boundW + _elasticAxis(over, 0, zone) : rawW;
+    const newW = Math.max(TFO_MIN_W, Math.round(elasticW));
     const k = newW / startW;   // ★«클램프된» 폭으로 다시 구한다 — 상자와 글자가 갈라지지 않게
     posEl.style.width = newW + 'px';
     posEl.dataset.width = String(newW);
     /* ★폭의 «주인»이 사용자가 된다 — 이 도장을 안 떼면 오버레이를 해제하는 순간
        _exitOverlay 가 style.width·dataset.width 를 지워 방금 정한 폭이 증발한다. */
     delete posEl.dataset.overlayIntroducedWidth;
+    /* ★같은 이유로 _enterOverlay 가 심은 maxWidth:100%(=섹션 폭 캡)도 푼다 — 안 풀면
+       style.width 만 커지고 «화면은 섹션에서 잘린다»(「손잡이는 가는데 상자는 안 커진다」).
+       되돌리는 자리 = _exitOverlay 의 overlayFreeWidth 갈래. 도장을 따로 두는 이유는
+       바로 위에서 overlayIntroducedWidth 를 «떼고» 가기 때문이다(폭은 남겨야 하니까). */
+    posEl.style.maxWidth = 'none';
+    posEl.dataset.overlayFreeWidth = 'true';
     snap.forEach(s => { s.el.style.fontSize = (s.fs * k).toFixed(1) + 'px'; });
     /* 높이는 «글자가 정한다» — 쓰지 않고 «잰다». 맞은편 코너 고정도 그 실측 높이로. */
     const newH = Math.max(1, posEl.offsetHeight);
