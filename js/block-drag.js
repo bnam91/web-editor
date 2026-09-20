@@ -323,6 +323,69 @@ function bindPlacementDrag(unitEl, block) {
   });
 }
 
+/* 도형 블록(.shape-block) 4코너 리사이즈 핸들 — 현빈 2026-09-20 ⌘Z 제보의 «그» 경로.
+   ★히스토리는 «바꾸기 전»에 1회(js/CLAUDE.md 「히스토리 규약」). onUp 에서 찍으면
+     「막 삽입된 상태」 스냅샷이 스택에 없어 첫 ⌘Z 가 리사이즈와 «삽입»을 한꺼번에 먹는다. */
+function _onShapeHandleMouseDown(e, block, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const ss  = block.closest('.frame-block');
+  const ssRect = ss?.getBoundingClientRect();
+  const scaler0 = document.getElementById('canvas-scaler');
+  const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+  const startW = ssRect ? Math.round(ssRect.width / scale0) : (parseInt(ss?.style.width || ss?.dataset.width) || 100);
+  const startH = ssRect ? Math.round(ssRect.height / scale0) : (parseInt(ss?.style.height || ss?.dataset.height) || 100);
+  const _hist = window.beginDragHistory?.('도형 크기');
+
+  function onMove(ev) {
+    const scaler = document.getElementById('canvas-scaler');
+    const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    // ★첫 실제 이동 «직전»에 히스토리 1회 — 이 줄 아래의 쓰기들이 그 항목의 «다음»이 된다.
+    if (_hist && !_hist.arm(dx, dy)) return;
+
+    // frame(ss)만 리사이즈 — block/svg는 CSS 100%로 자동 추종
+    let newW = startW, newH = startH;
+    if (dir.includes('e')) newW = Math.max(20, startW + dx);
+    if (dir.includes('w')) newW = Math.max(20, startW - dx);
+    if (dir.includes('s')) newH = Math.max(20, startH + dy);
+    if (dir.includes('n')) newH = Math.max(20, startH - dy);
+    newW = Math.round(newW); newH = Math.round(newH);
+
+    // Shift: 비율 고정 (더 많이 변한 축이 기준)
+    if (ev.shiftKey && startW > 0 && startH > 0) {
+      const ratio = startW / startH;
+      const dW = Math.abs(newW - startW);
+      const dH = Math.abs(newH - startH);
+      if (dW >= dH) newH = Math.max(20, Math.round(newW / ratio));
+      else          newW = Math.max(20, Math.round(newH * ratio));
+    }
+
+    if (ss) {
+      ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
+      ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
+    }
+    // 우측 패널 슬라이더 동기화
+    const wNum = document.getElementById('shape-w-num');
+    const wSl  = document.getElementById('shape-w-slider');
+    const hNum = document.getElementById('shape-h-num');
+    const hSl  = document.getElementById('shape-h-slider');
+    if (wNum) { wNum.value = newW; if (wSl) wSl.value = newW; }
+    if (hNum) { hNum.value = newH; if (hSl) hSl.value = newH; }
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 function bindBlock(block) {
   if (block._blockBound) return;
   block._blockBound = true;
@@ -645,65 +708,11 @@ function bindBlock(block) {
     }
 
     // 핸들 mousedown → 리사이즈
+    /* ★익명 화살표로 두지 «않는다» — tests/unit/_slice-block.js 가 최상위 이름으로만 구간을
+       떠낼 수 있어서, 인라인이면 행동 테스트가 아예 «안 붙는다». 형제들(_onHandleMouseDown 등)과
+       같은 꼴로 올린다. 캡처하는 것은 block 하나뿐이라 기계적 이동이다. */
     block.querySelectorAll('.shape-handle').forEach(handle => {
-      handle.addEventListener('mousedown', e => {
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        e.preventDefault();
-        const dir    = handle.dataset.dir;
-        const startX = e.clientX;
-        const startY = e.clientY;
-        const ss  = block.closest('.frame-block');
-        const ssRect = ss?.getBoundingClientRect();
-        const scaler0 = document.getElementById('canvas-scaler');
-        const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-        const startW = ssRect ? Math.round(ssRect.width / scale0) : (parseInt(ss?.style.width || ss?.dataset.width) || 100);
-        const startH = ssRect ? Math.round(ssRect.height / scale0) : (parseInt(ss?.style.height || ss?.dataset.height) || 100);
-
-        function onMove(ev) {
-          const scaler = document.getElementById('canvas-scaler');
-          const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-          const dx = (ev.clientX - startX) / scale;
-          const dy = (ev.clientY - startY) / scale;
-
-          // frame(ss)만 리사이즈 — block/svg는 CSS 100%로 자동 추종
-          let newW = startW, newH = startH;
-          if (dir.includes('e')) newW = Math.max(20, startW + dx);
-          if (dir.includes('w')) newW = Math.max(20, startW - dx);
-          if (dir.includes('s')) newH = Math.max(20, startH + dy);
-          if (dir.includes('n')) newH = Math.max(20, startH - dy);
-          newW = Math.round(newW); newH = Math.round(newH);
-
-          // Shift: 비율 고정 (더 많이 변한 축이 기준)
-          if (ev.shiftKey && startW > 0 && startH > 0) {
-            const ratio = startW / startH;
-            const dW = Math.abs(newW - startW);
-            const dH = Math.abs(newH - startH);
-            if (dW >= dH) newH = Math.max(20, Math.round(newW / ratio));
-            else          newW = Math.max(20, Math.round(newH * ratio));
-          }
-
-          if (ss) {
-            ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
-            ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
-          }
-          // 우측 패널 슬라이더 동기화
-          const wNum = document.getElementById('shape-w-num');
-          const wSl  = document.getElementById('shape-w-slider');
-          const hNum = document.getElementById('shape-h-num');
-          const hSl  = document.getElementById('shape-h-slider');
-          if (wNum) { wNum.value = newW; if (wSl) wSl.value = newW; }
-          if (hNum) { hNum.value = newH; if (hSl) hSl.value = newH; }
-          window.scheduleAutoSave?.();
-        }
-        function onUp() {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-          window.pushHistory?.();
-        }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      });
+      handle.addEventListener('mousedown', e => _onShapeHandleMouseDown(e, block, handle.dataset.dir));
     });
 
     // HTML5 drag fall-through → 일반 블록과 동일한 DnD 파이프라인 사용

@@ -5,6 +5,69 @@
 
 ---
 
+## ★히스토리 규약 (`js/history.js` · pushHistory) — **바꾸기 «전»에 1회**
+
+`pushHistory()` 는 **부르는 «그 시점»의 캔버스를 통째로 찍는다.** 그래서 「언제 부르느냐」가
+곧 규약이고, 이 레포는 그 규약이 **두 벌**로 갈라져 있었다(2026-09-20 정본 확정).
+
+- **push-before(정본, 다수파)** — 바꾸기 «전»에 찍는다. `block-factory.js` 40+ 자리가 이 꼴.
+- ~~push-after~~ — `onUp` 에서 바꾼 «뒤»에 찍던 드래그류. **더 쓰지 않는다.**
+
+각각 «혼자» 쓰면 둘 다 일관된다. ★**섞이면 그 이음매에서 항목 한 칸이 통째로 빈다.**
+
+```
+원 삽입(push-before)   push(B = 원이 «없는» 캔버스) → 삽입    stack=[S0,B]    pos=1
+첫 리사이즈(push-after) 드래그(기록 0) → onUp 에서 push(A)     stack=[S0,B,A]  pos=2  live===A
+⌘Z  ├ ensureHistoryCheckpoint → live===stack[2] 라 «아무것도 안 쌓인다»
+    └ pos-- → 1 → restoreSnapshot(B) = 원이 «없는» 캔버스  ⇒ 블럭 «삽입»이 사라진다
+```
+
+「원이 100px 로 막 삽입된 상태」라는 스냅샷이 스택에 **단 한 번도 없다** — ⌘Z 한 번이
+리사이즈와 삽입을 **한꺼번에** 먹는다. 둘째 리사이즈부터는 `[…,A1,A2]` 라 정상이라,
+증상이 **「최초 한 번만」** 나타난다(현빈 2026-09-20 제보가 정확히 이 모양이었다).
+⚠️도형 전용이 아니다 — push-before 동작 «무엇 뒤에든» push-after 드래그가 오면 그 앞
+동작이 같이 날아간다(타이핑 → 프레임 리사이즈 → ⌘Z = 타이핑까지 소실).
+
+### 드래그에서 지켜야 할 꼴
+
+`js/drag-history.js` 의 `window.beginDragHistory(label, {minPx})` 를 쓴다. 호출부는 두 줄.
+
+```js
+const _hist = window.beginDragHistory?.('도형 크기');   // mousedown 안에서 «제스처마다» 1개
+function onMove(ev) {
+  ... dx, dy 를 «캔버스 좌표»로 구한 다음 ...
+  if (_hist && !_hist.arm(dx, dy)) return;              // 첫 arm 에서만 pushHistory 1회
+  ... 기존 쓰기 ...
+}
+function onUp() { /* pushHistory 없음 */ }
+```
+
+- **dx/dy 는 «캔버스 좌표»**(화면 델타 ÷ scale). 화면 px 로 재면 40% 줌에서 임계가 2.5배가
+  되어 첫 미세 이동이 기록 없이 샌다(현빈 실사용 줌이 40%다).
+- `arm()` 이 true 를 돌려준 **그 틱에서 기존 쓰기를 반드시 마저 한다** — early-return 이
+  첫 변형까지 삼키면 한 프레임이 사라진다.
+- 한 제스처에 헬퍼는 **하나**. mousedown 쪽 push 와 같이 쓰면 항목이 2개 쌓인다.
+- 기계 게이트: `tests/unit/drag-history-push-before.test.mjs` 가 로스터를 잠근다.
+  행동 회귀: `tests/dom/resize-undo-history.dom.spec.js`(음성대조 포함).
+
+### 허용목록 — `onUp` 에서 찍는 게 **맞는** 세 자리
+
+| 자리 | 이유 |
+|---|---|
+| `js/scratch-pad.js` (`sideEffects`) | 캔버스는 안 바뀌고 `sideEffects.onUndo/onRedo` 로 역동작을 «명시»한다. 정당한 push-after. |
+| `js/block-drag.js` 드래그아웃 | `onUp` 안이지만 **그 뒤의 추출 변형보다 앞**이라 실질 push-before. |
+| `js/overlay-handles.js` 그리드 거터 | 이미 `mousedown` 에서 1회 찍는다. |
+
+### 남은 P2 (별도 카드)
+
+1. `pushHistory` 의 **무변화 중복 차단** — `onUp` 은 «안 움직인 맨클릭»에도 발화하므로
+   ⌘Z 뒤 핸들을 툭 누르기만 해도 redo 꼬리가 잘린다(`historyStack.slice(0, historyPos+1)`).
+   ⛔`sideEffects` 로 «일부러» 같은 캔버스를 찍는 자리를 깨뜨리므로 그냥 막으면 안 된다.
+2. 그리드 거터의 맨클릭 중복 항목.
+3. `js/block-drag.js` 드래그아웃이 «이동 자체»는 기록하지 않는 건.
+
+---
+
 ## drag-drop.js — absolute 요소 draggable 규칙
 
 - **absolute 요소(text-frame, shape-block 등)는 HTML5 drag 완전 비활성화**: `draggable` 속성 미설정 + `removeAttribute`
