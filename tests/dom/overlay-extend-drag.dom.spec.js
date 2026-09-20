@@ -46,11 +46,31 @@ function aabbW(w, h, deg) {
   const t = deg * Math.PI / 180;
   return Math.abs(Math.cos(t)) * w + Math.abs(Math.sin(t)) * h;
 }
-/* 드래그 후 예상 left — 회전 보정(clampW)을 «쓴/안 쓴» 두 갈래를 같은 식으로 만든다. */
-function expectedLeft(rawX, clampW) {
-  const visLeft = rawX + BOX_W / 2 - clampW / 2;
-  const clamped = elastic(visLeft, Math.max(0, SEC_W - clampW));
-  return clamped + clampW / 2 - BOX_W / 2;
+/* ★_elasticAxis 의 역함수 — «출력 → raw». 2026-09-20 int/0920b QA 반영으로 드래그가
+   «시작점을 raw 로 되돌린 뒤» 델타를 더하게 바뀌었다(안 그러면 탄성이 두 번 걸려,
+   섹션 밖 블록을 건드리기만 해도 경계 쪽으로 툭 되감겼다). 여기서도 같은 식을 재도출한다. */
+function elasticInverse(out, boundMax, zone = RESIST_ZONE) {
+  const magnet = zone * (MAGNET / RESIST_ZONE);
+  const knee = (zone - magnet) * FACTOR;
+  if (out < 0) {
+    const d = -out;
+    return -(d <= knee ? d / FACTOR + magnet : (d - knee) + zone);
+  }
+  if (out > boundMax) {
+    const d = out - boundMax;
+    return boundMax + (d <= knee ? d / FACTOR + magnet : (d - knee) + zone);
+  }
+  return out;
+}
+/* 드래그 후 예상 left — 회전 보정(clampW)을 «쓴/안 쓴» 두 갈래를 같은 식으로 만든다.
+   ★시작 자리(left:0)는 회전 AABB 때문에 «이미 화면상 경계 밖»일 수 있다 — 드래그는 그
+     자리를 raw 로 되돌린 뒤 델타를 더하므로, 기대식도 같은 순서를 탄다. */
+function expectedLeft(rawDx, clampW) {
+  const off = BOX_W / 2 - clampW / 2;
+  const bound = Math.max(0, SEC_W - clampW);
+  const startVisRaw = elasticInverse(0 + off, bound);
+  const clamped = elastic(startVisRaw + rawDx, bound);
+  return clamped - off;
 }
 
 function harness({ rotDeg = 0 } = {}) {

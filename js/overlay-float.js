@@ -150,6 +150,32 @@ export function _elasticAxis(raw, boundMax, zone) {
   }
   return raw;
 }
+/* ★_elasticAxis 의 «되돌림»(역함수) — 저장된 좌표를 다시 raw 로 되돌린다.
+   ───────────────────────────────────────────────────────────────────────────
+   왜 필요한가(2026-09-20 QA 실측, int/0920b): dataset.offsetX 에 «굳어 있는» 값은 이미
+   _elasticAxis 의 «출력»이다. 그런데 다음 드래그가 그 값을 startLeft 로 잡아 «입력(raw)»
+   자리에 도로 넣어 탄성이 «두 번» 걸렸다 — 섹션 밖에 있는 블록을 오른쪽으로 끌었는데
+   왼쪽으로 되감기는 증상(실측 줌 40%: offsetX 914 에서 오른쪽 25로컬px 끌면 865 로 감).
+   ⇒ 드래그를 시작할 때 «출력 → raw» 로 한 번 되돌려 놓고 그 위에 델타를 더한다.
+     델타 0 이면 같은 자리가 그대로 나온다(항등) — 그게 이 함수가 지키는 성질이다.
+   ⚠️마그네틱 캐치 구간(|over| ≤ magnet)은 여러 raw 가 «한 점»으로 모이는 자리라 역함수가
+     하나로 안 정해진다 — 경계(over=0)로 편다. 사용자가 보는 자리는 그대로다. */
+export function _elasticAxisInverse(out, boundMax, zone) {
+  const magnet = zone * OVERLAY_MAGNET_FRACTION;
+  const knee = (zone - magnet) * OVERLAY_RESIST_FACTOR;   // 저항구간이 만드는 «출력» 폭
+  if (out < 0) {
+    const d = -out;
+    const over = d <= knee ? (d / OVERLAY_RESIST_FACTOR) + magnet : (d - knee) + zone;
+    return -over;
+  }
+  if (out > boundMax) {
+    const d = out - boundMax;
+    const over = d <= knee ? (d / OVERLAY_RESIST_FACTOR) + magnet : (d - knee) + zone;
+    return boundMax + over;
+  }
+  return out;
+}
+
 /* window._clampToSection(x,y,sec,blockW,blockH)과 같은 시그니처 — 안만 다르다(하드→탄성).
    zone은 «화면 픽셀 기준 저항폭»을 그 순간 zoom으로 로컬 단위로 환산한 값(호출부에서 계산). */
 function _elasticClampToSection(x, y, sec, blockW, blockH, zone) {
@@ -373,6 +399,19 @@ export function exitFloat(posEl) {
   if (posEl.dataset.overlayFreeWidth === 'true') {
     posEl.style.maxWidth = '';
     delete posEl.dataset.overlayFreeWidth;
+    /* ★리사이즈가 «도장을 떼고» 가는 바람에 _unfreezeWidth 가 첫 줄에서 되돌아가, 우리가 심은
+       메모 두 개가 그대로 남아 있었다(2026-09-20 QA 실측: 해제 후에도
+       dataset.overlayFrozenWidth="716px" 잔류 → 재진입 때 _freezeWidth 가 dataset.width 로
+       조기반환해 갱신도 안 된다). 여기서 같이 치운다. */
+    delete posEl.dataset.overlayFrozenWidth;
+    delete posEl.dataset.overlayPrevWidth;
+    delete posEl.dataset.overlayIntroducedWidth;
+    /* ⚠️«패널 값 811 vs 흐름 렌더 716» 은 여기서 «안» 고친다 — 흐름으로 돌아오면 CSS
+       `.frame-block{max-width:100%}` 가 폭을 컨테이너로 깎는다. 실측으로 깎아 맞춰 봤더니
+       그건 「사용자가 정한 폭은 남는다」(현빈 2026-09-20 결정 · 회귀 D7
+       tests/dom/text-overlay-resize.dom.spec.js:271)를 정면으로 되돌리는 변경이었다
+       (702 → 600 으로 조용히 줄어 D7 이 빨강). 두 결정이 부딪히는 자리라 «현빈 판단»으로
+       남긴다 — 0920b QA 보고서에 수치와 함께 올린다. */
   }
   return true;
 }
@@ -423,6 +462,10 @@ export function bindFloatMoveDrag(posEl) {
     let startLeft = parseFloat(posEl.style.left) || 0;
     let startTop = parseFloat(posEl.style.top) || 0;
     let moved = false;
+    /* ★히스토리는 «양쪽 끝»을 찍는다(js/drag-history.js). 옛 판은 시작만 찍어서
+       ⑴뒤에 우측패널(push-after)이 오면 ⌘Z 한 번이 둘을 같이 먹고 ⑵undo→redo 로
+       이동이 영영 사라졌다. 형제 제스처(T-068 리사이즈)는 이미 이 규약이다. */
+    const _hist = window.beginDragHistory?.('오버레이 이동');
 
     /* ★2026-09-16i P0(현빈 실측 — "움직임 범위에도 한정되어 있다") — _clampToSection에
        posEl.offsetWidth/offsetHeight(회전 «전» 크기)를 그대로 넘겨서, 예를 들어 가로로
@@ -441,12 +484,26 @@ export function bindFloatMoveDrag(posEl) {
     const rotDeg = _floatRotationDeg(posEl);
     const { w: clampW, h: clampH } = rotatedAABB(posEl.offsetWidth, posEl.offsetHeight, rotDeg);
 
+    /* ★시작점을 «탄성 이전(raw)»으로 되돌린다 — 저장된 left/top 은 이미 _elasticAxis 의
+       «출력»이라 그대로 raw 자리에 넣으면 탄성이 두 번 걸린다(_elasticAxisInverse 머리말).
+       아래 클램프와 «같은 공간»(회전 보정된 화면 박스)에서 되돌려야 한다. */
+    {
+      const zone0 = OVERLAY_RESIST_ZONE_SCREEN_PX / zoom;
+      const maxX0 = Math.max(0, (sec.clientWidth || 0) - clampW);
+      const maxY0 = Math.max(0, (sec.clientHeight || 0) - clampH);
+      const dxBox = posEl.offsetWidth / 2 - clampW / 2, dyBox = posEl.offsetHeight / 2 - clampH / 2;
+      startLeft = _elasticAxisInverse(startLeft + dxBox, maxX0, zone0) - dxBox;
+      startTop  = _elasticAxisInverse(startTop  + dyBox, maxY0, zone0) - dyBox;
+    }
+
     const onMove = ev => {
       if (!moved) {
         if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
         moved = true;
-        window.pushHistory?.('오버레이 이동');
       }
+      /* ★«시작 표본» — 첫 실제 이동 직전 1회. 인자는 «캔버스 좌표» 델타다(규약 ⑴).
+         ⛔반환값으로 아래 쓰기를 막지 마라(규약 ⑵). */
+      _hist?.arm((ev.clientX - e.clientX) / zoom, (ev.clientY - e.clientY) / zoom);
       // ★2026-09-16k — ⌘ 드래그 = «저항 없는» 완전 자유 이동(하드 클램프였던 옛 뜻과 달리,
       //   기본 드래그도 이제 섹션 밖으로 나간다 — 다만 탄성 저항이 걸린다. ⌘는 그 저항마저
       //   끄는 파워유저용). 재부모(다른 섹션 위로 호버)는 여전히 ⌘가 아닐 때만 — ⌘는 "이
@@ -496,7 +553,12 @@ export function bindFloatMoveDrag(posEl) {
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      if (moved) window.triggerAutoSave?.();
+      if (moved) {
+        /* ★«끝 표본» — 시작 표본(_hist.arm)과 짝이다. 둘 다 있어야 앞뒤 어느 이웃
+           (push-before 삽입 · push-after 패널)을 만나도 표본이 빈 칸 없이 이어진다. */
+        window.pushHistory?.('오버레이 이동');
+        window.triggerAutoSave?.();
+      }
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -515,8 +577,16 @@ export function wireFloatToggle({ block, buttonId, rerender }) {
     const posEl = posElOf(block);
     if (!posEl) return;
     const wasOverlay = isFloat(posEl);
-    window.pushHistory?.(wasOverlay ? '오버레이 해제' : '오버레이로 전환');
+    const label = wasOverlay ? '오버레이 해제' : '오버레이로 전환';
+    /* ★토글도 «양쪽 끝»을 찍는다(드래그와 같은 규약 — js/drag-history.js 머리말).
+       옛 판은 «전»만 찍어서, 토글 뒤에 우측패널(push-after) 동작이 오면 그 사이에 표본이
+       없어 ⌘Z 한 번이 둘을 같이 먹었다(실측: 에셋 오버레이 ON → radius 0→24 → ⌘Z =
+       radius 도 0 «그리고» 오버레이도 해제). 시작 표본의 이름은 그 부품에 맡긴다
+       (직전 항목 이름을 물려받아야 undo 툴팁이 맞는다). */
+    if (typeof window.pushHistoryStartSample === 'function') window.pushHistoryStartSample(label);
+    else window.pushHistory?.(label);
     if (wasOverlay) exitFloat(posEl); else enterFloat(posEl);
+    window.pushHistory?.(label);   // ★끝 표본
     window.scheduleAutoSave?.();
     window.buildLayerPanel?.();
     rerender?.();   // 패널 재렌더 — 버튼 active 상태 갱신

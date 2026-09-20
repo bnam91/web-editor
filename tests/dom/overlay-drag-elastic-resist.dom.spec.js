@@ -234,13 +234,32 @@ test('E2 저항구간을 다 채우고 나가면(over>40) 그 지점부터 1:1�
   expect(left, `섹션 경계(0)를 못 넘었다 — 하드클램프로 되돌아간 회귀`).toBeLessThan(-1);
 });
 
+/* ★2026-09-20(int/0920b QA 반영) — 이 검사의 «기준선»이 바뀌었다.
+   옛 판은 저장된 left(-74)를 «raw» 자리에 도로 넣어 탄성을 «두 번» 걸었다. 그 결과
+   블록을 건드리기만 해도(델타 0) -74 → -44.5 로 경계 쪽으로 툭 되감겼다 —
+   현빈 실사용 증상 「오른쪽으로 끌었는데 왼쪽으로 간다」의 뿌리다.
+   지금은 드래그 시작에 «출력 → raw»(_elasticAxisInverse)로 한 번 되돌린 뒤 델타를 더한다.
+   ⇒ -74 는 raw -103.5 에서 온 자리다(=elastic(-103.5) = -74). 이 검사의 «뜻»
+     (재진입해도 같은 곡선으로 저항이 걸린다)은 그대로 두고 기대값만 그 규약으로 다시 잡는다. */
+const RAW_OF_M74 = -((74 - (RESIST_ZONE_SCREEN_PX - MAGNET_ZONE_SCREEN_PX) * RESIST_FACTOR) + RESIST_ZONE_SCREEN_PX);  // = -103.5
+test('E3-0 ★제자리 — 섹션 밖(-74)에서 끌었다 놓아도 «델타 0 이면» 자리가 안 변한다', async ({ page }) => {
+  await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
+  await page.evaluate(() => { document.getElementById('tf1').style.left = '-74px'; });
+  await dragBy(page, 'tf1', 0, 0);
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  expectNear(left, -74, `건드리기만 했는데 자리가 움직였다(탄성 이중적용)`);
+});
+
 test('E3 재진입 — 이미 저항구간 밖(-74)에서 오른쪽으로 끌면 다시 같은 곡선으로 저항이 걸린다(대칭)', async ({ page }) => {
   await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
   await page.evaluate(() => { document.getElementById('tf1').style.left = '-74px'; });
-  await dragBy(page, 'tf1', 50, 0); // raw = -74 + 50 = -24 (magnet 지나 저항구간 안)
+  await dragBy(page, 'tf1', 80, 0); // raw = -103.5 + 80 = -23.5 (magnet 지나 저항구간 «안»)
   const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
-  const expected = expectedElastic(-24, 500); // -((24-10)*0.35) = -4.9
+  const raw = RAW_OF_M74 + 80;
+  const expected = expectedElastic(raw, 500); // -((23.5-10)*0.35) = -4.725
   expectNear(left, expected, `재진입 시 기대 저항값(${expected})과 다르다: left=${left}`);
+  // ★저항이 «실제로» 걸렸나 — 저항이 없었다면 raw(-23.5) 그대로였을 것이다.
+  expect(Math.abs(left - raw), '저항이 안 걸렸다 — raw 그대로 움직였다(곡선이 사라진 회귀)').toBeGreaterThan(5);
 });
 
 test('E4 ⌘(Cmd) 드래그 — 저항을 완전히 끄고 1:1 자유이동(파워유저 단축키)', async ({ page }) => {

@@ -64,6 +64,23 @@
    *  기록이 «안» 열린다 — 그래도 호출부는 쓰기를 마저 해야 한다(규약 ⑵). */
   var DEFAULT_MIN_PX = 0;
 
+  /* ★«시작 표본»을 한 번 찍는다 — 드래그뿐 아니라 «한 번에 끝나는 동작»(오버레이 토글 등)도
+     같은 규약으로 양쪽 끝을 찍을 수 있게 따로 뺀다(2026-09-20 int/0920b QA 반영).
+     ⛔사본을 만들지 마라 — arm() 과 토글 호출부가 «이 함수 하나»를 쓴다.
+     ★라벨은 «직전 항목의 이름»을 물려받는다. 이 표본이 가리키는 되돌리기는 «이 동작»이
+       아니라 «이 동작 직전에 끝난 동작»이기 때문이다(undo 버튼 툴팁 =
+       historyStack[pos].action 인데 실제로 복원되는 건 [pos-1] 이다 — js/history.js
+       _updateUndoRedoBtns). 삽입 → 드래그 순서에서 「실행 취소: 도형 추가」로 정확히 뜬다.
+       꼭대기를 못 읽으면(초기 로드·테스트 하네스) 넘겨받은 이름으로 떨어진다. */
+  function pushStartSample(label) {
+    if (typeof window === 'undefined' || typeof window.pushHistory !== 'function') return;
+    var prev = null;
+    try { prev = window.getHistoryTip && window.getHistoryTip().action; } catch (_) { prev = null; }
+    if (prev) window.pushHistory(prev);
+    else if (label) window.pushHistory(label);
+    else window.pushHistory();
+  }
+
   /**
    * 드래그 제스처 하나에 붙는 «시작 상태» 적재기를 만든다.
    * @param {string} [label] 이 드래그의 이름(onUp 의 pushHistory 라벨과 같은 값을 준다)
@@ -86,18 +103,7 @@
       if (x === 0 && y === 0) return false;
       if (minPx > 0 && Math.sqrt(x * x + y * y) < minPx) return false;
       armed = true;
-      if (typeof window !== 'undefined' && typeof window.pushHistory === 'function') {
-        /* ★라벨은 «직전 항목의 이름»을 물려받는다. 이 표본이 가리키는 되돌리기는 «이 드래그»가
-           아니라 «이 드래그 직전에 끝난 동작»이기 때문이다(undo 버튼 툴팁 =
-           historyStack[pos].action 인데 실제로 복원되는 건 [pos-1] 이다 — js/history.js
-           _updateUndoRedoBtns). 삽입 → 드래그 순서에서 「실행 취소: 도형 추가」로 정확히 뜬다.
-           꼭대기를 못 읽으면(초기 로드·테스트 하네스) 이 드래그 이름으로 떨어진다. */
-        var prev = null;
-        try { prev = window.getHistoryTip && window.getHistoryTip().action; } catch (_) { prev = null; }
-        if (prev) window.pushHistory(prev);
-        else if (label) window.pushHistory(label);
-        else window.pushHistory();
-      }
+      pushStartSample(label);
       return true;
     }
 
@@ -107,5 +113,8 @@
     };
   }
 
-  if (typeof window !== 'undefined') window.beginDragHistory = beginDragHistory;
+  if (typeof window !== 'undefined') {
+    window.beginDragHistory = beginDragHistory;
+    window.pushHistoryStartSample = pushStartSample;
+  }
 })();
