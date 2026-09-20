@@ -6,7 +6,7 @@ import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 import { applyFrameTransform } from '../frame-geometry.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, stripEditorOnlyForCapture } from './capture-safety.js';
 import { ejectShapeFrameIntruders } from '../shape-frame.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
@@ -80,9 +80,13 @@ async function captureThumbnail() {
     if (!firstSec || typeof html2canvas === 'undefined') return null;
 
     const clone = firstSec.cloneNode(true);
-    clone.querySelector?.('.section-label')?.remove();
-    clone.querySelector?.('.section-toolbar')?.remove();
-    clone.classList.remove('selected');
+    /* ★내보내기 클론과 «같은 명부»로 걷는다 — js/io/capture-safety.js stripEditorOnlyForCapture.
+       예전엔 여기서 ⑴.section-label ⑵.section-toolbar ⑶루트의 .selected «셋»만 걷었다.
+       그래서 저장할 때 편집 중이던 것이 프로젝트 목록 썸네일에 그대로 박혔다 — 펜 어노테이션,
+       admin QA 블록, 편집 전용 임시 DOM(.sec-bg-proxy/.img-edit-hint/.img-boundary),
+       「내용을 입력하세요」 안내문구, 자식 블록의 .selected/.img-editing/.row-active 테두리.
+       (2026-09-21 최종통합 QA medium, 실측 EXPORT-D: 주석 200px·편집전용프록시 100px 이 찍힘) */
+    stripEditorOnlyForCapture(clone);
     clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;';
     document.body.appendChild(clone);
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)

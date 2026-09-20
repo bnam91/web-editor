@@ -907,3 +907,63 @@ test('G30 타입 전환 → 스냅샷 → 되돌리기: 이전 타입으로 돌�
   expect(await page.evaluate(() => !!document.querySelector('#tb5 .tb-h2'))).toBe(false);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ── 최종통합 라운드(2026-09-21, QA medium) — 글자 그라데이션이 «클래스에서만» 오는 자리 ──
+   neutralizeTextGradForH2C 는 `[style*="background-clip: text"]` 즉 «인라인»만 골랐다.
+   그런데 css/editor-blocks.css:2920~2937 `.badge-hologram-square .badge-logo` 는 배지 블록의
+   «기본 상태»가 곧 글자 그라데이션이다(사용자가 색을 한 번 만져야 인라인이 생긴다).
+   이 함수를 타는 경로(썸네일 save-load.captureThumbnail · 목업 캡처 prop-mockup)는
+   Electron 에서도 «항상» html2canvas 라 실제로 영향받는다. */
+const badgeProbe = (page, which) => page.evaluate((w) => {
+  const clone = document.getElementById('host').cloneNode(true);
+  // 배지 블록의 «기본 상태» 그대로 — 인라인 스타일은 한 글자도 안 준다.
+  const wrap = document.createElement('div');
+  wrap.className = 'badge-block badge-hologram-square';
+  wrap.innerHTML = '<div class="badge-logo" id="bdg1">GOYA</div>';
+  clone.appendChild(wrap);
+  document.body.appendChild(clone);
+  const before = (() => { const c = getComputedStyle(clone.querySelector('#bdg1'));
+    return { clip: c.backgroundClip, fill: c.webkitTextFillColor }; })();
+  const n = w === 'head' ? window.__h2c(clone) : window.__h2cInlineOnly(clone);
+  const c = getComputedStyle(clone.querySelector('#bdg1'));
+  const out = { n, before, clip: c.backgroundClip, fill: c.webkitTextFillColor, img: c.backgroundImage };
+  clone.remove();
+  return out;
+}, which);
+
+test('G31 ★클래스에서만 오는 글자 그라데이션(.badge-logo)도 중화된다', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await badgeProbe(page, 'head');
+  console.log('  G31-head:', r);
+  expect(r.before, '하네스 전제 — 중화 «전»엔 클래스가 실제로 text clip + 투명 채움이다')
+    .toEqual({ clip: 'text', fill: 'rgba(0, 0, 0, 0)' });
+  expect(r.clip, '★background-clip:text 가 남으면 html2canvas 가 «글자 대신 네모»를 그린다').not.toBe('text');
+  expect(r.img).toBe('none');
+  expect(r.fill, '★투명 채움이 남으면 글자가 아예 안 보인다').not.toBe('rgba(0, 0, 0, 0)');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G31-pre ★음성대조 — «인라인만» 고르던 옛 꼴은 이 배지를 한 건도 안 잡는다', async ({ page }) => {
+  const errs = await boot(page);
+  /* 옛 꼴을 «현재 소스»에서 만든다 — 두 번째(계산값) 훑기만 걷어낸다.
+     손으로 베껴 두지 않는 이유 = resize-undo-history.dom.spec.js 머리말과 같다. */
+  const src = fs.readFileSync(path.join(REPO, 'js/io/capture-safety.js'), 'utf8');
+  const i = src.indexOf('  const all = [...(root.nodeType === 1 ? [root] : []), ...root.querySelectorAll(\'*\')];');
+  expect(i, '⛔계산값 훑기 블록이 안 보인다 — 픽스가 사라졌거나 이 변환이 늙었다').toBeGreaterThan(0);
+  const j = src.indexOf('  // 0919r3 textshadow:', i);
+  expect(j).toBeGreaterThan(i);
+  const inlineOnly = src.slice(0, i) + src.slice(j);
+  await page.addScriptTag({
+    type: 'module',
+    content: inlineOnly.replace("import { parseGradient } from '../props/gradient-model.js';",
+                                "import { parseGradient } from '/js/props/gradient-model.js';")
+           + '\nwindow.__h2cInlineOnly = neutralizeTextGradForH2C;\nwindow.__inlineReady = true;\n',
+  });
+  await page.waitForFunction(() => window.__inlineReady === true);
+  const r = await badgeProbe(page, 'pre');
+  console.log('  G31-pre:', r);
+  expect(r.n, '★옛 꼴에서도 잡으면 이 검사는 아무것도 안 보고 있다').toBe(0);
+  expect(r.clip).toBe('text');
+  expect(r.fill).toBe('rgba(0, 0, 0, 0)');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

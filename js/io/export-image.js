@@ -1,7 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, stripEditorOnlyForCapture } from './capture-safety.js';
 
 const CANVAS_W = 860;
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
@@ -234,73 +234,13 @@ async function _waitImagesReady(root, timeoutMs = 8000) {
    ══════════════════════════════════════════════════════════════════════════ */
 export async function prepareCloneForCapture(sec, w, useNative) {
   const clone = sec.cloneNode(true);
-  const cloneLabel   = clone.querySelector('.section-label');
-  const cloneToolbar = clone.querySelector('.section-toolbar');
-  if (cloneLabel)   cloneLabel.remove();
-  if (cloneToolbar) cloneToolbar.remove();
-  clone.querySelectorAll('.variation-badge').forEach(el => el.remove());
-  // C18: 펜툴 어노테이션(리뷰용 주석)과 진행중 미리보기는 리뷰 표시일 뿐 — export 산출 이미지에 박히면 안 됨.
-  // (대조: todo-pin은 #todo-pin-overlay로 섹션 밖이라 애초에 export 클론에 안 들어감)
-  clone.querySelectorAll('.annotation-block, .annot-preview').forEach(el => el.remove());
-  // admin QA 체크리스트 블록 — 콘텐츠가 아니라 작업 메타데이터다. 자리도 차지하면 안 되므로
-  // 숨기지 않고 완전히 remove() 한다(annotation-block과 같은 원칙). 감싸는 .row 까지 지워야
-  // 그 블록이 차지하던 세로 공간도 같이 사라진다.
-  clone.querySelectorAll('.qa-block').forEach(el => {
-    const row = el.closest('.row');
-    if (row) row.remove(); else el.remove();
-  });
-  // 미입력 placeholder 안내문구는 export 결과에 박히면 안 됨.
-  // data-is-placeholder="true"는 실제 글자가 들어가면 즉시 삭제되므로,
-  // 클론에 true로 남은 요소는 미입력 placeholder가 확정 → 안내문구 가시성만
-  // 숨겨 자식 DOM(<li>/<span> 등)과 점유 높이는 그대로 두고 글자만 렌더에서 사라지게 함.
-  // (textContent='' 는 tb-bullet의 <li> 등 자식 DOM을 통째로 제거해 height가
-  //  collapse되므로 금지. visibility:hidden은 자식·list marker까지 함께 숨기되 박스 높이 유지.)
-  clone.querySelectorAll('[data-is-placeholder="true"]').forEach(el => {
-    el.style.visibility = 'hidden';
-  });
-  // 편집 전용 임시 DOM — 내보내기 클론에 새어 나가면 PNG 에 박힌다.
-  clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary').forEach(el => el.remove());
-  // 도형 «이미지 넣기 전» 바둑판(0918 picker) — 편집 전용 표시다. CSS 규칙이 data-shape-fill="image"
-  //   (이미지 없음)에 걸리므로 클론에서 그 속성을 떼면 마지막 단색(svg color)으로 나간다. 이미지가
-  //   실제로 들어간 도형(data-shape-image)은 인라인 div 라 그대로 둔다.
-  clone.querySelectorAll('.shape-block[data-shape-fill="image"]:not([data-shape-image])').forEach(el => {
-    el.removeAttribute('data-shape-fill');
-  });
-  clone.classList.remove('selected', 'sec-bg-editing');
-  // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 내보내기 오염 방지)
-  // ★row-active/col-active(2026-09-15 a1-a3 지적): editor-blocks.css가 이 둘에 z-index:1을
-  //   줘서(활성 줄/칸 강조용) .row/.col이 스태킹 컨텍스트가 된다 — 벗기기 목록에 없으면
-  //   export 클론에 그대로 남아, 그 안의 redact 도형이 z-index:3을 받아도(:has() 규칙)
-  //   «줄 전체»가 z-index:1에 갇혀 겹치는 다른 줄의 글자(z-index:2)보다 아래일 수 있다
-  //   (회전·오버플로로 겹칠 때만 — section-serialize.js RUNTIME_MARKER_CLS는 이미 row-active를
-  //   걷지만 이 파일의 별도 목록엔 빠져 있었다).
-  clone.querySelectorAll(
-    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected, .bn2-line-selected, .bn2-line-empty, .grd-line-selected, .stb-line-selected, .stb-step-selected, .row-active, .col-active'
-  ).forEach(el => {
-    el.classList.remove('selected', 'img-editing', 'editing', 'dragging',
-      'group-selected', 'group-editing', 'ss-drag-over', 'drag-over', 'item-selected', 'bn2-line-selected', 'bn2-line-empty',
-      'grd-line-selected', 'stb-line-selected', 'stb-step-selected', 'row-active', 'col-active');
-  });
-  /* ★프라이버시(2026-09-15, a1-a3 지적+elementFromPoint 실측 확인 — T-027 z-index 수정
-   * (editor-blocks.css .shape-block.shape-redact z-index:3)의 잔여 구멍): transform이
-   * 걸린 조상은 «새 스태킹 컨텍스트»를 만든다 — 그 안의 redact 도형은 z-index:3이어도
-   * «조상 밖»의 형제(.text-block 등, z-index:2)와 직접 비교되지 못한다. 조상 자신이
-   * z-index:auto면 밖의 형제가 조상 전체(=속의 redact 도형까지) 위에 그려질 수 있다.
-   * frame-block은 applyFrameTransform(frame-geometry.js)이 거의 항상 인라인 transform을
-   * 써서 이 조건에 걸린다 — 재현: 프레임 안에 redact 도형, 프레임 밖에 민감 텍스트,
-   * elementFromPoint로 텍스트가 위에 잡힘을 확인.
-   * ⇒ 특정 클래스(.frame-block 등)를 나열하지 않고 «인라인 transform이 있는 조상 전부»를
-   * redact 도형마다 훑어 같이 z-index를 끌어올린다 — 새 컨테이너 타입이 생겨도(현재 프레임
-   * 외엔 확인 안 됨) inline transform 패턴만 같으면 자동으로 커버된다. 클론에만 적용 —
-   * 라이브 DOM·selected 상태의 실제 스태킹 동작은 안 건드린다. */
-  clone.querySelectorAll('.shape-block.shape-redact').forEach(shp => {
-    for (let anc = shp.parentElement; anc && anc !== clone; anc = anc.parentElement) {
-      if (anc.style && anc.style.transform && anc.style.transform !== 'none') {
-        const curZ = parseInt(anc.style.zIndex, 10);
-        if (!Number.isFinite(curZ) || curZ < 3) anc.style.zIndex = '3';
-      }
-    }
-  });
+  /* ★편집 전용 DOM·상태 걷기는 «한 벌»이다 — js/io/capture-safety.js stripEditorOnlyForCapture.
+     썸네일 경로(js/io/save-load.js captureThumbnail)와 같은 명부를 쓴다. 두 벌로 두었더니
+     썸네일 쪽이 셋(.section-label/.section-toolbar/루트 .selected)에서 멈춘 채 늙어 있었다
+     (2026-09-21 최종통합 QA medium). ⛔경로마다 다른 것(아래 클론 위치·isolation·inset 변환·
+     컴포넌트 재렌더)은 여기 남는다. */
+  stripEditorOnlyForCapture(clone);
+
   // CDP captureBeyondViewport로 off-screen 좌표도 캡쳐 가능 — clone을 화면 밖에 두어
   // export 중 사용자 화면에 큰 박스가 튀어나오는 "ghosting" 현상 제거
   clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + w + 'px;margin:0;outline:none;';
