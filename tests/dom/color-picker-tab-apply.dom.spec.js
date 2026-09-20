@@ -648,3 +648,85 @@ test('T17b ★페이지 바탕 재선택 후 Solid = 보이는 첫 스탑(규칙
   expect(await page.evaluate(() => /seedPageBgGradientPicker\(\)/.test(window.__showPageSrc))).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* 0920 5라운드 polish1 — «스탑 hex 를 치고 곧바로 Solid 탭» (T-059)
+ * 실측 이벤트 순서(픽스 전, 이 하네스에서 찍은 로그):
+ *   hex:input… → tab:mousedown → hex:change(rAF 예약) → hex:blur → 솔리드 적용(input) → tab:click → grad:commit
+ * 즉 hex 의 'change' 가 탭 버튼 mousedown 의 blur 로 «늦게» 발화해, 솔리드 적용 뒤에 그라데이션 커밋이
+ * 깨어나 도형을 다시 그라데이션으로 덮었다(탭만 Solid, 캔버스·state 는 그라데이션 + 기록 1개 더).
+ * 음성대조: 픽스 전 코드에선 T18 의 grad 가 null 이 아니고(그라데이션 잔존) 기록도 3이 된다. */
+const gradStopHexInp = (page) => page.locator('.goya-cp-popover [data-el="gradStopHex"]');
+async function typeStopHex(page, hex) {
+  const inp = gradStopHexInp(page);
+  await inp.click();
+  await inp.press('ControlOrMeta+a');
+  await inp.type(hex, { delay: 10 });      // 사람처럼 타이핑 — 'change' 는 blur 에서
+}
+
+test('T18 ★스탑 hex 입력 직후 Solid 탭 = 단색으로 남는다(그라데이션 잔존 없음), 기록 2', async ({ page }) => {
+  const errs = await boot(page);
+  await openShape(page, 'shpA');
+  await openSwatchOf(page, 'shape-color-color');
+  const h0 = await hist(page);
+  await tab(page, 'gradient').click();
+  await typeStopHex(page, '00FF00');
+  await tab(page, 'solid').click();
+  // 늦게 오는 rAF 커밋이 있으면 여기서 도형을 덮는다 — 두 프레임 기다려 잡는다
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const s = await shapeState(page, 'shpA');
+  expect(await activeTab(page)).toBe('solid');
+  expect(s.grad, 'Solid 탭인데 그라데이션이 남았다(hex change 가 탭 적용을 덮음 — 원래 버그)').toBeNull();
+  expect(s.fillAttr).toBe('currentColor');
+  expect(s.computedFill, '캔버스가 단색으로 안 돌아왔다').toBe('rgb(51, 102, 255)');
+  expect(await page.evaluate(() => document.getElementById('shpA').dataset.shapeColor)).toBe('#3366ff');
+  expect(await hist(page) - h0, '탭 2번 = 기록 2번(늦은 그라데이션 커밋이 하나 더 쌓였다)').toBe(2);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T18b 친 색은 버려지지 않는다 — 같은 세션에서 그라데이션 탭으로 돌아오면 그 색 그대로', async ({ page }) => {
+  const errs = await boot(page);
+  await openShape(page, 'shpA');
+  await openSwatchOf(page, 'shape-color-color');
+  await tab(page, 'gradient').click();
+  await typeStopHex(page, '00FF00');
+  await tab(page, 'solid').click();
+  await tab(page, 'gradient').click();
+  const s = await shapeState(page, 'shpA');
+  expect(s.grad, '그라데이션 탭으로 돌아왔는데 그라데이션이 없다').not.toBeNull();
+  expect(s.grad.stops[0].color, '치고 나갔던 스탑 색이 사라졌다').toBe('#00ff00');
+  expect(s.grad.stops[1].color).toBe('#3366ff');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T18c 각도 칸도 같은 함정 — 각도를 치고 곧바로 Solid 탭이면 단색', async ({ page }) => {
+  const errs = await boot(page);
+  await openShape(page, 'shpA');
+  await openSwatchOf(page, 'shape-color-color');
+  await tab(page, 'gradient').click();
+  const ang = page.locator('.goya-cp-popover [data-el="gradAngleNum"]');
+  await ang.click();
+  await ang.press('ControlOrMeta+a');
+  await ang.type('135', { delay: 10 });
+  await tab(page, 'solid').click();
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const s = await shapeState(page, 'shpA');
+  expect(s.grad, 'Solid 탭인데 각도 change 가 그라데이션을 되살렸다').toBeNull();
+  expect(s.computedFill).toBe('rgb(51, 102, 255)');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T18d 그라데이션 탭에 계속 머물면 hex 입력은 그대로 커밋된다(과잉차단 아님)', async ({ page }) => {
+  const errs = await boot(page);
+  await openShape(page, 'shpA');
+  await openSwatchOf(page, 'shape-color-color');
+  const h0 = await hist(page);
+  await tab(page, 'gradient').click();
+  await typeStopHex(page, '00FF00');
+  // 탭이 아니라 팝오버 안 다른 칸으로 포커스를 옮겨 change 를 낸다
+  await page.locator('.goya-cp-popover [data-el="gradAngleNum"]').click();
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const s = await shapeState(page, 'shpA');
+  expect(s.grad.stops[0].color, '그라데이션 탭에 있는데 hex 커밋이 막혔다').toBe('#00ff00');
+  expect(await hist(page) - h0, '탭 1 + hex 커밋 1').toBe(2);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
