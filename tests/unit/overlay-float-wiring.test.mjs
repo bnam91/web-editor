@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 const _req = createRequire(import.meta.url);
 const { stripComments } = _req('./_strip-comments.js');
 const { readSrc } = _req('./_srcread.js');
+const { sliceBlock } = _req('./_slice-block.js');
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const S = (rel) => stripComments(readSrc(ROOT, rel));
@@ -134,6 +135,21 @@ test('T5 ★일반 드래그 가드가 타입 비의존이고, 도형·에셋에
   assert.match(SRC.drag, /if \(isShape \|\| isAsset\) \{/,
     'block-drag.js 가 도형·에셋에 전용 이동 드래그를 안 건다');
   assert.match(SRC.drag, /_bindFloatMoveDrag\(_posForFloat\)/, '전용 드래그 바인딩 호출이 없다');
+});
+
+test('T5-c ★«프레임» 드래그에도 같은 가드가 있다 — 재로드한 떠 있는 도형에 핸들러가 둘 붙는다', () => {
+  /* 도형 오버레이의 posEl 은 .frame-block «그 자체»고, 저장본에는 position:absolute 가 담긴다
+     ⇒ 재로드하면 bindFrameDropZone 의 절대배치 갈래가 열려 같은 요소에 드래그가 둘 붙는다.
+     그쪽은 부모로 «하드» 클램프하므로 현빈 2026-09-20 결정(섹션 밖까지)이 도형에서만 깨진다.
+     행동 검사 = tests/dom/overlay-float-frame-drag-conflict.dom.spec.js (음성대조 포함). */
+  /* 재는 자리는 bindFrameDropZone «안»의 «절대배치 갈래» 하나다 — 같은 함수의 click 핸들러에도
+     stopPropagation 이 있어서 함수 전체를 재면 순서 단언이 엉뚱한 자리를 본다. */
+  const abs = sliceBlock(SRC.drag, "if (ss.style.position === 'absolute') {");
+  assert.match(abs, /if \(ss\.dataset\.overlayBlock === 'true'\) return;/,
+    '프레임 드래그에 오버레이 가드가 없다 — 재로드 뒤 떠 있는 도형이 섹션 경계로 끌려온다');
+  /* ⛔stopPropagation «전»이어야 한다 — 같은 요소에 걸린 전용 리스너는 그걸로 못 막는다. */
+  assert.ok(abs.indexOf("if (ss.dataset.overlayBlock === 'true') return;") < abs.indexOf('e.stopPropagation();'),
+    '가드가 stopPropagation 뒤에 있다 — 그 자리면 전용 드래그와 «둘 다» 돈다');
 });
 
 test('T5-b ★띄우는 동안 음수 마진을 걷어내고 이탈 때 되돌린다(풀블리드 좌표 점프)', () => {

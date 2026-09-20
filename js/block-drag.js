@@ -2201,6 +2201,21 @@ function bindFrameDropZone(ss) {
 
     ss.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
+      /* ★떠 있는(오버레이) 프레임은 이 «절대배치 프레임 전용» 드래그를 비켜간다 — 위 bindBlock
+         의 가드(:444)와 «대칭»이고 같은 이유다. 2026-09-20 통합(int/0920b) 에서 붙였다.
+         왜 필요한가: 도형 오버레이의 posEl 은 바로 이 .frame-block 이고(overlay-float.js
+         posElOf), 저장본에는 position:absolute 가 그대로 담긴다 ⇒ 재로드하면 이 갈래가 참이
+         되어 «같은 요소»에 드래그 핸들러가 둘 붙는다. 이쪽은 부모(=섹션)로 «하드» 클램프한
+         뒤 style.left/top + dataset.offsetX/offsetY 를 쓰는데, 그건 bindFloatMoveDrag 가 쓰는
+         바로 그 키다 — 결과는 ⑴현빈 2026-09-20 결정 「오버레이는 섹션 폭 밖까지 나가도 된다」
+         가 재로드 뒤 도형에서 깨지고 ⑵이미 밖에 있던 도형이 첫 드래그에 경계로 끌려오고
+         ⑶드래그 중 두 값이 번갈아 쓰여 떨린다.
+         ★텍스트는 위 :2151 에서 data-text-frame 을 조기 return 으로 빼 두어 이 충돌이 없었다.
+         ⛔stopPropagation «전»에 return 해야 같은 요소에 걸린 전용 리스너가 제 일을 한다
+           (같은 요소의 리스너는 stopPropagation 으로 못 막는다 — 그래서 «둘 다» 돌았다).
+         ⚠️판정은 «바인딩 시점»이 아니라 매 mousedown 의 live 값으로 한다 — 토글로 켜고 끄는
+           값이라 바인딩 시점에 재면 토글 뒤부터 다시 틀린다. */
+      if (ss.dataset.overlayBlock === 'true') return;
       if (e.target.closest('.resize-handle, [contenteditable]')) return;
       // shift/cmd 모디파이어는 drag 시작 안 함 — click 핸들러가 다중선택 처리
       if (e.shiftKey || e.metaKey || e.ctrlKey) return;
