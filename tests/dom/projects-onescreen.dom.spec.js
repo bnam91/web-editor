@@ -626,3 +626,65 @@ test('ⓤ R1 기획(plan_*) 카드 — 📁 는 보이되 비활성(aria-disable
   expect(ok.accepted).toBe(true);
   expect(errs, errs.join('\n')).toEqual([]);
 });
+
+/* ── 5라운드 마무리 polish3(T-062) — 폴더 밖 프로젝트의 「폴더에서 빼기」는 비활성 ── */
+test('ⓥ polish3 카드 📁 — 폴더 밖 프로젝트(없는 폴더 가리키는 것 포함)의 「폴더에서 빼기」는 비활성(눌러도 아무 일 없음) · 폴더 안 프로젝트에선 그대로 동작', async ({ page }) => {
+  const d = seed();
+  d.projects.push({ id: 'proj_8', name: '없어진 폴더 소속', updatedAt: iso(4), folderId: 'fold_gone' });   // 화면상 「폴더 밖」
+  const errs = await boot(page, d);
+  const openCardMenu = async (id) => {
+    await page.hover(`#project-grid .project-card[data-id="${id}"]`);
+    await page.click(`#project-grid .project-card[data-id="${id}"] .card-folder-move`);
+    await expect(page.locator('.card-folder-menu')).toHaveCount(1);
+  };
+  const firstItem = '.card-folder-menu .tab-add-item:first-child';
+  const state = () => page.$eval(firstItem, el => ({
+    text: el.textContent.trim(),
+    dis: el.getAttribute('aria-disabled'),
+    cls: el.classList.contains('is-disabled'),
+    cur: el.classList.contains('is-current'),
+    title: el.title,
+    disabledAttr: el.hasAttribute('disabled'),
+    cursor: getComputedStyle(el).cursor,
+    opacity: Number(getComputedStyle(el).opacity),
+  }));
+
+  // ① 폴더 밖 카드 — 첫 항목이 흐리고 aria-disabled
+  await openCardMenu('proj_1');
+  const s1 = await state();
+  expect(s1.text).toBe('폴더에서 빼기');
+  expect({ dis: s1.dis, cls: s1.cls, cur: s1.cur, title: s1.title, disabledAttr: s1.disabledAttr, cursor: s1.cursor })
+    .toEqual({ dis: 'true', cls: true, cur: true, title: '이미 폴더 밖에 있습니다', disabledAttr: false, cursor: 'not-allowed' });
+  expect(s1.opacity).toBeLessThan(1);
+  // 폴더 항목들은 멀쩡하다
+  expect(await page.$$eval('.card-folder-menu .tab-add-item[data-goto]:not(:first-child)', els => els.map(e => e.getAttribute('aria-disabled'))))
+    .toEqual([null, null, null]);
+  // 사용자처럼 그 좌표를 진짜로 누른다 — 배정 없음, 메뉴도 안 닫힌다
+  const bb = await page.locator(firstItem).boundingBox();
+  await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2);
+  await page.waitForTimeout(150);
+  await expect(page.locator('.card-folder-menu')).toHaveCount(1);
+  expect(await page.evaluate(() => window.__calls.filter(c => c.name === 'assign').length)).toBe(0);
+  await page.keyboard.press('Escape');
+
+  // ② 없는 폴더를 가리키는 카드도 화면상 「폴더 밖」 — 같은 규칙으로 비활성
+  await openCardMenu('proj_8');
+  expect((await state()).dis).toBe('true');
+  await page.keyboard.press('Escape');
+
+  // ③ 폴더 «안» 프로젝트 — 활성이고 누르면 진짜 빠진다
+  await page.click('.ft-tile[data-folder-key="fold_a"]');
+  await openCardMenu('proj_4');
+  const s3 = await state();
+  expect({ dis: s3.dis, cls: s3.cls, cur: s3.cur, cursor: s3.cursor }).toEqual({ dis: null, cls: false, cur: false, cursor: 'pointer' });
+  await page.click(firstItem);
+  await expect(page.locator('.card-folder-menu')).toHaveCount(0);
+  await expect.poll(() => cardIds(page)).toEqual(['proj_5']);
+  expect(await page.evaluate(() => window.__calls.filter(c => c.name === 'assign').map(c => c.arg)))
+    .toEqual([{ projectIds: ['proj_4'], folderId: null }]);
+  // 빠져나온 카드는 이제 폴더 밖 — 다시 열면 비활성
+  await page.click('#gal-tab-projects');
+  await openCardMenu('proj_4');
+  expect((await state()).dis).toBe('true');
+  expect(errs, errs.join('\n')).toEqual([]);
+});
