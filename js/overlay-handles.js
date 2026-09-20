@@ -2636,10 +2636,15 @@ function _startTextOverlayResizeRaf() {
  *    (부모·자식이 둘 다 들어와도 각자 «절대 px» 로 쓰므로 배율이 겹쳐 곱해지지 않는다.) */
 function _tfoFontSnapshot(posEl) {
   const els = new Set();
-  posEl.querySelectorAll('[class^="tb-"], .itb-text').forEach(el => {
+  posEl.querySelectorAll('[class^="tb-"]').forEach(el => {
     if (el.namespaceURI === 'http://www.w3.org/2000/svg') return;
     els.add(el);
   });
+  /* ★아이콘+텍스트의 본문 칸은 «한 줄 더» 잡는다 — 위 그물에 «합치지» 않는다.
+     `[class^="tb-"], .itb-text` 로 합치면 tests/unit/text-overlay-resize U11 이 지키는
+     「tb- 칸을 전수로 담는다」 계약의 «모양»이 달라져 그 검사가 못 읽는다(실측 red).
+     한 줄을 더 두면 두 계약이 각각 읽힌다. */
+  posEl.querySelectorAll('.itb-text').forEach(el => els.add(el));
   posEl.querySelectorAll('[style*="font-size"]').forEach(el => els.add(el));
   return [...els]
     .map(el => ({ el, fs: parseFloat(getComputedStyle(el).fontSize) || 0 }))

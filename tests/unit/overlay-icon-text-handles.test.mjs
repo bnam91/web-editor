@@ -12,6 +12,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+/* ★주석 걷어내기는 «공용 부품» 하나만 쓴다 — tests/unit/_strip-comments.js.
+   ⛔여기서 자기 stripComments 를 만들지 마라: 이 레포의 사본 11벌 중 9벌이
+     `replace(/\/\*[\s\S]*?\*\//g,'')` 라 `accept="image/*"` 뒤를 통째로 삼켰고,
+     검사는 「0건 = 통과」로 초록이 됐다(tests/unit/strip-comments-shared.test.js S-6 가 막는다). */
+import { stripComments } from './_strip-comments.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
@@ -30,7 +35,6 @@ function bodyOf(src, label) {
   }
   assert.fail(`★"${label}" 의 몸통 끝을 못 찾았다`);
 }
-const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
 test('문① showHandlesFor 가 .icon-text-block 을 «오버레이 텍스트»와 같은 갈래로 본다', () => {
   const body = stripComments(bodyOf(HANDLES, 'function showHandlesFor'));

@@ -17,6 +17,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+/* ★주석 걷어내기는 «공용 부품» 하나만 쓴다 — tests/unit/_strip-comments.js.
+   ⛔여기서 자기 stripComments 를 만들지 마라: 이 레포의 사본 11벌 중 9벌이
+     `replace(/\/\*[\s\S]*?\*\//g,'')` 라 `accept="image/*"` 뒤를 통째로 삼켰고,
+     검사는 「0건 = 통과」로 초록이 됐다(tests/unit/strip-comments-shared.test.js S-6 가 막는다). */
+import { stripComments } from './_strip-comments.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
@@ -74,7 +79,7 @@ test('S-4 ★우측패널이 calc() 를 «잰다» (문자열로 못 읽는다�
     '★calc() 를 offsetWidth 로 안 잰다');
   /* ⚠️주석을 걷고 «코드»만 본다 — 이 자리의 주석에는 「getBoundingClientRect 를 쓰지 마라」가
      경고로 적혀 있다. 주석째로 검사하면 그 경고문 자체가 검사를 빨갛게 만든다. */
-  const code = helper.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const code = stripComments(helper);
   assert.ok(!/getBoundingClientRect/.test(code),
     '★getBoundingClientRect 로 쟀다 — 캔버스 줌(transform)이 곱해져 40% 에서 값이 틀린다');
   assert.match(code, /offsetWidth/, '★주석에만 offsetWidth 가 있고 코드엔 없다');

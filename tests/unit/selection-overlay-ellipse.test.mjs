@@ -52,7 +52,8 @@ const CORNER_DIRS = JSON.parse(CD[1].replace(/'/g, '"'));
 
 const DEPS = ['function _radiiOf(', 'function _clampRadii(', 'function _insetRadii(',
               'function _geomOf(', 'function _edgesOf(', 'function _pathData(',
-              'function _selOutsetOf(', 'export function subtractInterval('];
+              'function _selOutsetOf(', 'function _blockedEdges(', 'function _outsetEdgesOf(',
+              'export function subtractInterval('];
 const CONSTS = [
   line(/const _rowEdge = [^\n;]+;/), line(/const _snapLo = [^\n;]+;/), line(/const _snapHi = [^\n;]+;/),
   line(/const _snapLoOut = [^\n;]+;/), line(/const _snapHiOut = [^\n;]+;/),
@@ -69,8 +70,9 @@ function makeCtx(dpr) {
     'const _cornerScreen = (el, dir) => el.__c[dir];',
     ...CONSTS, ...DEPS.map(slice),
   ].join('\n');
-  const ctx = vm.createContext({ getComputedStyle: el => el.__cs, Math, JSON, Number, String, Object });
-  vm.runInContext(src + '\nglobalThis.__g = { _geomOf, _edgesOf, _pathData, _selOutsetOf, SEL_FOLLOW_RADIUS };', ctx);
+  const ctx = vm.createContext({ getComputedStyle: el => el.__cs, Math, JSON, Number, String, Object,
+    document: { getElementById: () => null } });
+  vm.runInContext(src + '\nglobalThis.__g = { _geomOf, _edgesOf, _pathData, _selOutsetOf, _blockedEdges, _outsetEdgesOf, SEL_FOLLOW_RADIUS };', ctx);
   return ctx.__g;
 }
 
@@ -287,4 +289,96 @@ test('U-CIRCLE-10 CSS 폴백 — 원만 outline-offset:0, 나머지 도형은 �
     '도형 일반의 폴백 오프셋이 바뀌었다 — 사정거리 밖(원만 고친다)');
   assert.match(CSS, /\.shape-block\.selected\[data-shape-type="ellipse"\]\s*\{\s*outline-offset:\s*0;\s*\}/,
     '원 전용 폴백(outline-offset:0)이 없다 — 오버레이가 꺼진 판에서 두 경로가 갈라진다');
+});
+
+/* ═════ 6. 이웃 불가침 — «변마다 따로» (2026-09-20 최종 통합 라운드) ═══════════
+   T-072 는 원을 살리려고 띠를 상자 밖으로 옮겼고, 그 대가로 «맞닿은 이웃 상자»를 칠했다
+   (QA medium, §4-3). 맞닿은 변에서는 셋(선 굵기·원 불가침·이웃 불가침)이 동시에 설 수 없으므로
+   지시대로 «이웃 불가침»을 택하되, 안 부딪히는 변까지 같이 포기하지는 않는다.
+   숫자는 tests/dom/shape-ellipse-neighbor.dom.spec.js 가 실제 브라우저에서 잰다 — 여기는 변이 책임. */
+
+/** ⚠️VM 안에서 만든 객체는 «그쪽 realm 의 Object.prototype»을 쓴다 — deepEqual 이 프로토타입까지
+ *   비교해 「보기엔 같은데 빨강」이 된다(실제로 한 번 물렸다). 네 변만 이쪽 realm 으로 옮겨 잰다. */
+const norm = o => (o && typeof o === 'object') ? { l: !!o.l, t: !!o.t, r: !!o.r, b: !!o.b } : o;
+
+/** 상자 하나를 흉내 낸다. children/parentElement 로 «형제»를 엮어 준다.
+ *  ★좌표는 `__c`(네 꼭지점)로 준다 — _blockedEdges 가 «핸들과 같은 함수»(_cornerScreen)로만
+ *    좌표를 읽기 때문이다(M39 규약, tests/unit/selection-overlay-scope 가 지킨다). */
+function boxEl(l, t, r, b) {
+  return { __c: { nw: { x: l, y: t }, ne: { x: r, y: t }, sw: { x: l, y: b }, se: { x: r, y: b } },
+           parentElement: null, children: [], closest: () => null };
+}
+function withSiblings(host, sibs) {
+  const parent = { __c: { nw: { x: 0, y: 0 }, ne: { x: 1e4, y: 0 }, sw: { x: 0, y: 1e4 }, se: { x: 1e4, y: 1e4 } },
+                   parentElement: null, children: [host, ...sibs] };
+  host.parentElement = parent;
+  sibs.forEach(x => { x.parentElement = parent; });
+  return host;
+}
+
+test('U-CIRCLE-11 _blockedEdges — 맞닿은 변만 «막힘»으로 잡고 떨어진 이웃은 안 잡는다', () => {
+  const G = makeCtx(2);                       // dpr 2 ⇒ reach = h(0.5) + 0.5 = 1.0
+  const host = () => boxEl(100, 100, 200, 200);
+
+  const flushBelow = withSiblings(host(), [boxEl(100, 200, 200, 280)]);
+  assert.deepEqual(norm(G._blockedEdges(flushBelow, 0.5)), { l: false, t: false, r: false, b: true },
+    '★바로 아래 맞닿은 이웃을 «아래 변 막힘»으로 못 잡았다 — 이웃 상자를 칠하게 된다');
+
+  const flushRight = withSiblings(host(), [boxEl(200, 100, 260, 200)]);
+  assert.deepEqual(norm(G._blockedEdges(flushRight, 0.5)), { l: false, t: false, r: true, b: false });
+
+  const far = withSiblings(host(), [boxEl(100, 208, 200, 280)]);
+  assert.deepEqual(norm(G._blockedEdges(far, 0.5)), { l: false, t: false, r: false, b: false },
+    '★8px 떨어진 이웃까지 막힘으로 봤다 — 멀쩡한 변에서 원이 다시 물린다');
+
+  // 가로로 «안 겹치는» 아래쪽 상자는 아래 변을 막지 않는다(대각선 이웃)
+  const diag = withSiblings(host(), [boxEl(400, 200, 500, 280)]);
+  assert.deepEqual(norm(G._blockedEdges(diag, 0.5)), { l: false, t: false, r: false, b: false },
+    '★겹치지도 않는 대각선 상자가 변을 막았다');
+});
+
+test('U-CIRCLE-12 _outsetEdgesOf — 원이 아니면 거짓, 원이면 «막히지 않은 변만» 참', () => {
+  const G = makeCtx(2);
+  const ELL = '.shape-block[data-shape-type="ellipse"]';
+  const mk = (sel, sibs) => {
+    const el = boxEl(100, 100, 200, 200);
+    el.dataset = {};
+    el.matches = s => s.split(',').some(one => one.trim() === sel);
+    el.querySelector = () => null;
+    return withSiblings(el, sibs);
+  };
+  assert.equal(G._outsetEdgesOf(mk('.text-block', []), ''), false,
+    '★원이 아닌 블럭이 옛 경로(거짓)에서 벗어났다 — 회귀 0 이 깨진다');
+  assert.deepEqual(norm(G._outsetEdgesOf(mk(ELL, []), '')), { l: true, t: true, r: true, b: true },
+    '★이웃이 없는 원인데 어떤 변이 안쪽으로 남았다');
+  assert.deepEqual(norm(G._outsetEdgesOf(mk(ELL, [boxEl(100, 200, 200, 280)]), '')), { l: true, t: true, r: true, b: false },
+    '★맞닿은 아래 변만 안쪽으로 돌아가야 한다(나머지 셋은 ㉮ 유지)');
+});
+
+test('U-CIRCLE-13 _geomOf — «변마다 따로»가 실제로 그 변만 뒤집는다 (참/거짓 판은 불변)', () => {
+  const G = makeCtx(2);
+  const el = () => fixture(100.3, 200.3, 220.3, 260.3);
+  const allTrue  = G._geomOf(el(), '', 1, { l: true, t: true, r: true, b: true });
+  const boolTrue = G._geomOf(el(), '', 1, true);
+  for (const k of ['L', 'T', 'R', 'B', 'xlo', 'xhi', 'ylo', 'yhi']) {
+    assert.equal(allTrue[k], boolTrue[k], `★{네 변 모두 참} 이 boolean true 와 달라졌다(${k})`);
+  }
+  const allFalse  = G._geomOf(el(), '', 1, { l: false, t: false, r: false, b: false });
+  const boolFalse = G._geomOf(el(), '', 1, false);
+  for (const k of ['L', 'T', 'R', 'B', 'xlo', 'xhi', 'ylo', 'yhi']) {
+    assert.equal(allFalse[k], boolFalse[k], `★{네 변 모두 거짓} 이 옛 경로와 달라졌다(${k})`);
+  }
+  // 아래 변만 막힌 판 — B 는 안쪽(상자 안), T 는 바깥 그대로
+  const mixed = G._geomOf(el(), '', 1, { l: true, t: true, r: true, b: false });
+  assert.equal(mixed.T, allTrue.T, '★막히지 않은 윗변까지 같이 안쪽으로 갔다');
+  assert.equal(mixed.B, allFalse.B, '★막힌 아랫변이 안쪽으로 안 돌아갔다');
+  assert.ok(mixed.B + mixed.h <= 260.3 + 1e-9,
+    `★막힌 변의 띠가 여전히 상자 밖으로 나간다(띠 끝 ${mixed.B + mixed.h} > 상자 ${260.3})`);
+  assert.equal(mixed.outset, true, '★한 변이라도 밖이면 dedupe 에서 빠져야 한다(옛 판정과 같은 이유)');
+});
+
+test('U-CIRCLE-14 배선 — _collect 가 «변별» 판정을 실제로 쓴다 (계산만 만들고 안 쓰면 소용없다)', () => {
+  const body = SRC.slice(SRC.indexOf('function _collect'), SRC.indexOf('function _collect') + 1200);
+  assert.match(body, /outset:\s*_outsetEdgesOf\(/,
+    '★_collect 가 _selOutsetOf 를 직접 쓰고 있다 — 이웃 판정이 화면에 안 닿는다');
 });

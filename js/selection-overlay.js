@@ -130,6 +130,65 @@ function _selOutsetOf(host) {
   return !!(host.matches?.(SEL) || host.querySelector?.(`:scope > ${SEL}`));
 }
 
+/* ★«맞닿은 이웃이 있는 변»을 찾는다 — §4-3(이웃 불가침)을 원에서도 지키려고. (2026-09-20 통합 라운드)
+ *
+ * ★왜 필요한가 — 맞닿은 변에서는 셋이 동시에 설 수 없다
+ *   원은 제 상자 네 변에 «접»한다 ⇒ 선이 상자 «안»이면 반드시 원을 문다(그래서 _snapLoOut 이 생겼다).
+ *   그 상자 변이 이웃 상자 변과 «같은 자리»면, 선이 상자 «밖»이면 반드시 이웃을 문다.
+ *   실측(줌 40%·dpr 2·굵기 1·맞닿은 아래 블럭): 이웃 상자 «안»을 1.0 CSS px 깊이로 칠했다
+ *   (tests/dom/shape-ellipse-neighbor — 고치기 전 N1 red). 이 라운드 지시 =
+ *   「현빈 결정 ㉮ 범위 «안»에서 이웃 불가침을 지킬 것」 ⇒ 맞닿은 «그 변만» 안쪽으로 되돌린다.
+ *   ⚠️대가 = 그 변에서는 원이 다시 물린다. 다른 세 변은 종전대로 ㉮ 를 지킨다(N2 가 그걸 잰다).
+ *
+ * ★이웃을 «클래스 목록»으로 찾지 않는다 — 조상 사슬의 «형제»들이 곧 이웃이다.
+ *   목록(.text-block, .asset-block …)을 여기 또 적으면 새 블럭 타입이 생길 때마다 조용히 새는
+ *   자리가 하나 더 늘어난다(globals.js BLOCK_DELEGATE_SEL 머리말이 말하는 그 병).
+ *   host 에서 .section-inner 까지 올라가며 각 층의 형제 상자와 «띠 사각형»의 겹침만 본다:
+ *     같은 줄의 옆 블럭 · 위/아래 줄(.row) · 합쳐넣기 조각 — 전부 이 사슬에 잡힌다.
+ *   자기 자손은 애초에 형제가 아니라 안 잡히고, 자기 조상은 `s === a` 로 건너뛴다.
+ *
+ * @param {Element} host  선택 호스트
+ * @param {number}  h     반굵기 — 밖으로 나가는 몫은 h + 1/dpr 이 상한이다(_snapLoOut 머리말)
+ * @returns {{l:boolean,t:boolean,r:boolean,b:boolean}} 그 변에 «맞닿은 이웃이 있다» */
+function _blockedEdges(host, h) {
+  const reach = h + 1 / _dpr();
+  const EPS = 0.01;                       // 겹침 판정의 부동소수 잡음 여유
+  /* ⛔getBoundingClientRect 를 쓰지 않는다 — 이 파일의 좌표는 «핸들과 같은 함수»(_cornerScreen)
+     에서만 나온다(tests/unit/selection-overlay-scope 가 지키는 M39 규약: 핸들은 여기, 선은 저기로
+     갈라지던 병). 이웃 상자도 «같은 자»로 잰다. 네 꼭지의 min/max 라 회전한 이웃도 AABB 로 잡힌다. */
+  const boxOf = (el) => {
+    const c = CORNER_DIRS.map(d => _cornerScreen(el, d, 0));
+    const xs = c.map(p => p.x), ys = c.map(p => p.y);
+    return { l: Math.min(...xs), t: Math.min(...ys), r: Math.max(...xs), b: Math.max(...ys) };
+  };
+  const r = boxOf(host);
+  const out = { l: false, t: false, r: false, b: false };
+  if (!(r.r - r.l > 0 && r.b - r.t > 0)) return out;
+  const stop = host.closest('.section-inner') || document.getElementById('canvas');
+  for (let a = host; a && a !== stop && a.parentElement; a = a.parentElement) {
+    for (const sib of a.parentElement.children) {
+      if (sib === a) continue;
+      const q = boxOf(sib);
+      if (!(q.r - q.l > 0 && q.b - q.t > 0)) continue;
+      const xOverlap = q.l < r.r - EPS && q.r > r.l + EPS;
+      const yOverlap = q.t < r.b - EPS && q.b > r.t + EPS;
+      // 띠 사각형(상자 밖 reach 만큼)과 이웃 상자가 겹치는가
+      if (yOverlap && q.r > r.l - reach && q.l < r.l - EPS) out.l = true;
+      if (yOverlap && q.l < r.r + reach && q.r > r.r + EPS) out.r = true;
+      if (xOverlap && q.b > r.t - reach && q.t < r.t - EPS) out.t = true;
+      if (xOverlap && q.t < r.b + reach && q.b > r.b + EPS) out.b = true;
+    }
+  }
+  return out;
+}
+
+/** 이 호스트의 «변별» outset — 타입 판정(_selOutsetOf) ∧ 그 변에 이웃이 없음. */
+function _outsetEdgesOf(host, variant) {
+  if (!_selOutsetOf(host)) return false;             // 원이 아니면 옛 경로 그대로(거짓)
+  const b = _blockedEdges(host, _strokeOf(variant) / 2);
+  return { l: !b.l, t: !b.t, r: !b.r, b: !b.b };
+}
+
 function _collect() {
   const canvas = document.getElementById('canvas');
   if (!canvas) return [];
@@ -142,8 +201,10 @@ function _collect() {
     if (!host || seen.has(host)) continue;
     if (!canvas.contains(host)) continue;   // closest 가 캔버스 밖으로 나갔으면 버린다
     seen.add(host);
-    // ★outset 판정은 여기서 «한 번»만 한다 — _build 는 매 rAF 라 matches/querySelector 를 거기서 부르면 안 된다.
-    out.push({ el: host, variant: _variantOf(host), outset: _selOutsetOf(host) });
+    /* ★outset 판정은 여기서 «한 번»만 한다 — _build 는 매 rAF 라 matches/querySelector 나
+       이웃 상자 훑기를 거기서 부르면 안 된다. (_collect 는 _dirty 일 때만 돈다.) */
+    const variant = _variantOf(host);
+    out.push({ el: host, variant, outset: _outsetEdgesOf(host, variant) });
   }
   return out;
 }
@@ -253,6 +314,14 @@ const _ZERO_R = { nw: [0, 0], ne: [0, 0], se: [0, 0], sw: [0, 0] };
 
 /** 상자 하나의 기하. 좌표는 «핸들과 같은 함수»(_cornerScreen)에서만 나온다. */
 function _geomOf(el, variant, scale, outset = false) {
+  /* ★outset 은 «참/거짓» 또는 «변마다 따로»({l,t,r,b}) 둘 다 받는다 (2026-09-20 통합 라운드).
+       참/거짓 판은 한 글자도 안 바뀐다 — 옛 호출부·단위검사가 그대로 돈다.
+       변마다 따로가 필요해진 이유 = 「원 불가침」과 「이웃 불가침」이 «맞닿은 변»에서만 부딪히기
+       때문이다(_blockedEdges 머리말). 안 부딪히는 변까지 같이 포기할 이유가 없다. */
+  const osOf = (side) => (outset && typeof outset === 'object') ? !!outset[side] : !!outset;
+  /* ⚠️이름에 밑줄을 «안» 붙인다 — 이 레포에서 `_이름` 은 «모듈 최상위 사유물»이라는 표식이고,
+     단위검사 하네스(U-M63-0·U-CIRCLE-0)가 그 표식을 보고 「잘라 넣어야 할 선언」을 센다.
+     함수 «안»의 지역 이름에 붙이면 하네스가 없는 최상위 선언을 찾다가 거짓 빨강이 난다. */
   const sw = _strokeOf(variant), h = sw / 2;
   // inset 0 = «상자 자신»의 네 꼭지점. 맞닿음 판정도 이 생값으로 한다.
   const [nw, ne, sw_, se] = CORNER_DIRS.map(d => _cornerScreen(el, d, 0));
@@ -274,9 +343,11 @@ function _geomOf(el, variant, scale, outset = false) {
     let r = rawR ? _clampRadii(rawR, lu, lv) : _ZERO_R;
     /* ★outset(원) — 회전판에도 «같은 방향»으로 적용한다. 안 하면 회전한 원만 종전대로 물린다
        (스냅이 없는 판이라 어긋남은 정확히 반굵기 h = 0.5px, 그래도 R=20 에서 현 8.9px 이 덮인다). */
-    const q = outset ? -h : h;
+    /* ⚠️회전판은 «전부 아니면 전무»다 — 기울어진 축에서 변마다 다른 방향으로 밀면 네 귀가 안 맞물려
+       구멍이 생긴다(축정렬판은 스냅으로 맞물린다). 한 변이라도 막히면 통째로 안쪽으로 둔다. */
+    const q = (osOf('l') && osOf('t') && osOf('r') && osOf('b')) ? -h : h;
     if (rawR) r = _insetRadii(r, q, q, q, q);   // ⛔반경이 없으면 태우지 않는다(음수 인셋이 0 을 0.5 로 «키운다»)
-    return { rot: true, sw, h, r, u, v, W: lu - sw, H: lv - sw, outset: !!outset,
+    return { rot: true, sw, h, r, u, v, W: lu - sw, H: lv - sw, outset: q < 0,
              deg: Math.atan2(u.y, u.x) * 180 / Math.PI,
              o: { nw: P(nw, q, q), ne: P(ne, -q, q), se: P(se, -q, -q), sw: P(sw_, q, -q) },
              pts: [P(nw, q, q), P(ne, -q, q), P(se, -q, -q), P(sw_, q, -q)] };
@@ -284,9 +355,10 @@ function _geomOf(el, variant, scale, outset = false) {
 
   const raw = { l: nw.x, t: nw.y, r: se.x, b: se.y };
   const k = _dpr();
-  const lo = outset ? _snapLoOut : _snapLo, hi = outset ? _snapHiOut : _snapHi;
-  let L = lo(raw.l, k, h), T = lo(raw.t, k, h),
-      R = hi(raw.r, k, h), B = hi(raw.b, k, h);
+  let L = (osOf('l') ? _snapLoOut : _snapLo)(raw.l, k, h),
+      T = (osOf('t') ? _snapLoOut : _snapLo)(raw.t, k, h),
+      R = (osOf('r') ? _snapHiOut : _snapHi)(raw.r, k, h),
+      B = (osOf('b') ? _snapHiOut : _snapHi)(raw.b, k, h);
   // ⚠️굵기의 2배보다 «납작한» 상자에서는 위 스냅이 뒤집힌다 → 그때만 상자 «중심»에 한 줄.
   //   (바깥 스냅에서는 상자가 커지는 쪽이라 뒤집히지 않는다 — 그래도 판은 그대로 둔다.)
   if (R < L) L = R = (raw.l + raw.r) / 2;
@@ -298,9 +370,12 @@ function _geomOf(el, variant, scale, outset = false) {
   /* 연장 끝점 = «중심이 이 상자 안인 디바이스 행»의 경계(_rowLo/_rowHi). 생 변이 아니다 — 조건④ 참조.
      ★바깥 스냅에서는 이미 상자 밖이라 그 규칙이 뜻을 잃는다 ⇒ 네 모퉁이를 «맞물리게» 바깥 꼭지까지 늘린다
        (그러지 않으면 xlo 가 선의 모퉁이보다 안쪽이라 네 귀에 1~1.5px 구멍이 난다). */
-  return { rot: false, raw, L, T, R, B, sw, h, r, round: !!rawR, outset: !!outset,
-           xlo: outset ? L - h : _rowEdge(raw.l, k), xhi: outset ? R + h : _rowEdge(raw.r, k),
-           ylo: outset ? T - h : _rowEdge(raw.t, k), yhi: outset ? B + h : _rowEdge(raw.b, k) };
+  return { rot: false, raw, L, T, R, B, sw, h, r, round: !!rawR,
+           /* ★dedupe 제외 판정용 — «한 변이라도» 밖으로 나갔으면 옛 판과 같은 이유로 뺀다
+              (바깥 선은 이웃의 안쪽 선과 떨어져 있는데 dedupe 는 «상자 변»으로 맞닿음을 본다). */
+           outset: osOf('l') || osOf('t') || osOf('r') || osOf('b'),
+           xlo: osOf('l') ? L - h : _rowEdge(raw.l, k), xhi: osOf('r') ? R + h : _rowEdge(raw.r, k),
+           ylo: osOf('t') ? T - h : _rowEdge(raw.t, k), yhi: osOf('b') ? B + h : _rowEdge(raw.b, k) };
 }
 
 /** ★위험1 감지 — 회전한 «조상» 안의 자식은 _cornerScreen 이 AABB 를 준다.
