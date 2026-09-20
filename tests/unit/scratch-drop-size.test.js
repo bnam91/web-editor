@@ -172,3 +172,43 @@ test('S-6 ★순수함수가 export 돼 있다 — 단위 검사가 «진짜로 
   assert.ok(ex.some(e => /planScratchWidth/.test(e)),
     'planScratchWidth 가 export 목록에서 빠졌다');
 });
+
+/* ══ S-7 ★사정거리 — «기존 블록 위에 떨어뜨리기»(replace)는 이 계약 밖이다 ═══════════
+   2026-09-21 최종통합 QA 가 medium 으로 올린 것: 「replace 경로가 applyScratchWidth 도
+   applyAspectSync 도 안 지난다 ⇒ ⑴폭 계약이 이 경로에만 안 걸리고 ⑵새 이미지가 옛 상자
+   비율에 갇혀 object-fit:cover 로 잘린다」.
+   ⇒ **기각**한다. 근거 둘:
+     ㉠ replace 의 대상은 «사용자가 이미 크기를 정해 둔» 블록이다. 스크래치 썸네일 폭으로
+        그 상자를 말없이 바꾸는 것은 현빈 신고 ⑨(「스크래치패드에서 «섹션으로 넣을» 때」=
+        insert/newsection)의 범위가 아니라 반대로 사용자의 설정을 덮는 쪽이다.
+     ㉡ 「옛 상자 비율에 갇혀 잘린다」는 스크래치 고유 동작이 «아니다» — 파인더에서 파일을
+        끌어다 같은 블록에 떨어뜨리는 보통 경로(js/image-handling.js loadImageToAsset →
+        setAssetImageFromSrc)도 상자를 그대로 두고 object-fit:cover 로 자른다. 즉 레포 전체의
+        «이미지 교체» 의미론이고, 바꾸려면 교체 경로 전부가 같이 바뀌어야 하는 제품 결정이다.
+   ★이 검사는 그 경계를 못으로 박는다. 현빈이 「교체할 때도 새 그림 비율을 따라가라」고
+     결정하면 이 검사를 «결정 근거와 함께» 바꿔라(지우지 말고). */
+test('S-7 ★replace 분기는 폭·비율 계약 밖이다 (교체는 사용자가 정한 상자를 지킨다)', () => {
+  const body = fnBodyByName(SRC.drop, 'commitScratchDropAt', 'commitScratchDropAt');
+  const iRep = body.indexOf(`decision.kind === 'replace'`);
+  const iCvb = body.indexOf(`decision.kind === 'cvbcard'`);
+  assert.ok(iRep > -1 && iCvb > iRep, '분기 순서가 바뀌었다 — 이 검사부터 고쳐라');
+  const replaceBranch = body.slice(iRep, iCvb);
+
+  assert.ok(!/applyScratchWidth\s*\(/.test(replaceBranch),
+    '★replace 분기가 스크래치 표시폭을 상자에 박는다 — 사용자가 정해 둔 블록 크기를 말없이 바꾼다. ' +
+    '현빈이 그렇게 결정했다면 이 검사를 결정 근거와 함께 고쳐라');
+  assert.ok(!/applyAspectSync\s*\(/.test(replaceBranch),
+    '★replace 분기가 상자 높이를 새 그림 비율로 덮는다 — 교체 의미론이 파인더 드롭 경로와 갈라진다');
+  assert.match(replaceBranch, /setAssetImageFromSrc/,
+    'replace 가 공용 교체 창구(setAssetImageFromSrc)를 안 쓴다 — 그러면 이 경계 설명이 늙었다');
+
+  // ㉡의 근거를 «소스로» 못 박는다 — 파인더 드롭도 상자를 안 건드린다.
+  const imgH = stripComments(readSrc(ROOT, 'js', 'image-handling.js'));
+  const iLoad = imgH.indexOf('function loadImageToAsset(');
+  assert.ok(iLoad > -1, 'loadImageToAsset 을 못 찾았다 — 대조군이 사라졌으면 이 판정을 다시 해라');
+  const loadBody = imgH.slice(iLoad, iLoad + 2000);
+  assert.match(loadBody, /setAssetImageFromSrc\(/, '파인더 드롭도 같은 교체 창구를 쓴다');
+  assert.ok(!/aspectRatio|offsetWidth/.test(loadBody),
+    '★파인더 드롭이 상자를 새 그림 비율로 맞추기 시작했다 — 그러면 스크래치 replace 만 다른 것이 ' +
+    '되어 위 기각 근거 ㉡ 이 무너진다. 두 경로를 같이 보고 다시 판정하라');
+});
