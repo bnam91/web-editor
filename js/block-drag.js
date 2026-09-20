@@ -1937,16 +1937,14 @@ function bindBlock(block) {
         input.accept = 'image/*';
         input.onchange = () => {
           const file = input.files[0];
-          if (!file) return;
+          /* ★사람이 고른 파일 — 바이트로 거르고 trusted 로 커밋한다(2026-09-20, 0920b-grid-image).
+             네 입구(우클릭·패널·이 더블클릭·아이콘)가 «같은 게이트 + 같은 토스트»를 쓴다.
+             ⛔이 파일은 prop-grid.js 를 import 하지 않는다 — window 다리는 기존 관례 그대로. */
+          if (!window.grdImageFileOk?.(file)) return;
           const reader = new FileReader();
           reader.onload = ev => {
-            const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lineIndex: li, imgSrc: ev.target.result } });
-            if (res && res.ok === false) {
-              const msg = res.code === 'TOO_LARGE'
-                ? '⚠️ 이미지가 너무 큽니다 — 더 작은 파일로 다시 시도해 주세요'
-                : '❌ 이미지 추가 실패: ' + res.message;
-              window.showToast?.(msg);
-            }
+            window.grdToastImgFail?.(window.updateGridBlock?.(block.id,
+              { patchCell: { r, c, lineIndex: li, imgSrc: ev.target.result } }, { trusted: true }));
           };
           reader.readAsDataURL(file);
         };

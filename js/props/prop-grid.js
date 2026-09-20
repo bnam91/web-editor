@@ -5,7 +5,7 @@ import { parseRatio, buildGridPicker, alignBtn, bindSlider } from './_helpers.js
 import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★상한은 한 곳에서만 온다
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
-         gridGaps, GRID_GAP_MAX } from '../blocks/grid-block.js';
+         gridGaps, GRID_GAP_MAX, GRID_IMG_MAX_BYTES } from '../blocks/grid-block.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
@@ -170,7 +170,7 @@ const _grdHas = (line, k) => line[k] !== undefined && line[k] !== null && line[k
  * @param {number|null} afterLi  null → 셀 끝에 append(빈 셀 채우기 포함) · 정수 → 그 줄 다음에 삽입
  * @param {object} lineSpec      새로 넣을 줄 데이터(예: {type:'body',text:''})
  * @returns {{ok:true, li:number}|{ok:false, code:'LIMIT'}} */
-export function grdAddLine(block, pos, afterLi, lineSpec = { type: 'body', text: '' }) {
+export function grdAddLine(block, pos, afterLi, lineSpec = { type: 'body', text: '' }, opts = {}) {
   const { r, c } = pos;
   let curLines;
   try { curLines = getGridModel(block).cells?.[r]?.[c]?.lines || []; } catch (_) { curLines = []; }
@@ -183,11 +183,59 @@ export function grdAddLine(block, pos, afterLi, lineSpec = { type: 'body', text:
   const insertAt = (afterLi === null || afterLi === undefined) ? curLines.length : afterLi + 1;
   const newLines = curLines.slice();
   newLines.splice(insertAt, 0, lineSpec);
+  /* ★위의 「순서 규약」이 상한 «한 종류»만 지키고 있었다 — updateGridBlock 은 TOO_LARGE·
+   *   INVALID 로도 거절한다. 그때 활성줄만 앞으로 가 «없는 li»를 가리켰다(2026-09-20 실측).
+   *   ⇒ 되돌릴 수 있게 직전 값을 들고 간다. */
+  const prevActive = grdGetActiveLine(block);
   grdSetActiveLine(block, { r, c, li: insertAt });
   // updateGridBlock 이 pushHistory + 재렌더 + 패널 재표시를 스스로 한다(줄 삭제·비율 입력과 같은 원칙).
-  window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } });
+  const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } }, opts);
+  /* ★반환을 «받는다». 예전엔 안 받고 무조건 {ok:true} 를 돌려줬다 — 호출부(우클릭 이미지 추가 등)는
+   *   실패를 알 길이 없어 토스트도 못 띄웠다. 현빈이 본 「그리드 우클릭 이미지 삽입이 안 된다」가
+   *   바로 이 거짓 성공이다(2026-09-20, 0920b-grid-image). */
+  if (res && res.ok === false) {
+    grdSetActiveLine(block, prevActive);
+    return { ok: false, code: res.code, message: res.message };
+  }
   return { ok: true, li: insertAt };
 }
+
+/* ══ 그리드 이미지 커밋 실패 토스트 — «한 벌»로 모은다 ═══════════════════════
+ * ★같은 문구가 세 벌이었다(block-factory.js 우클릭 교체 · 이 파일 패널 [이미지 선택…] ·
+ *   block-drag.js 빈 슬롯 더블클릭). 네 번째를 쓰지 말고 이걸 불러라.
+ * ⛔성공(ok:true)엔 아무것도 안 띄운다 — 화면이 바뀌는 게 곧 피드백이다. */
+export function grdToastImgFail(res) {
+  if (!res || res.ok !== false) return false;
+  const msg = res.code === 'TOO_LARGE'
+    ? '⚠️ 이미지가 너무 큽니다 — 더 작은 파일로 다시 시도해 주세요'
+    : res.code === 'LIMIT'
+      ? `⚠️ 줄 추가 실패: 셀당 최대 ${MAX_CELL_LINES}줄`
+      : res.code === 'EMPTY_CELL_LINES'
+        ? '⚠️ 마지막 줄은 지울 수 없습니다 — 칸을 통째로 지우려면 행/열을 삭제하세요'
+        : '❌ 이미지 작업 실패: ' + (res.message || res.code || '알 수 없는 오류');
+  window.showToast?.(msg);
+  return true;
+}
+if (typeof window !== 'undefined') window.grdToastImgFail = grdToastImgFail;
+
+/* ══ UI 파일 입구 게이트 — «파일 크기»로 먼저 거른다 ═════════════════════════
+ * ★문자열 길이(GRID_IMG_MAX_CHARS)가 아니라 바이트로 잰다. 그쪽 캡은 MCP/IPC 통로 전용이고,
+ *   사람이 고른 파일은 opts.trusted 로 그 캡을 건너뛰기 때문에 «여기»가 유일한 방벽이다.
+ *   선례: prop-zoom.js _applyZoomImage(5MB) · image-handling.js ASSET_IMAGE_MAX_BYTES(20MB).
+ * @returns {boolean} 통과하면 true, 막으면 (토스트 띄우고) false */
+export function grdImageFileOk(file) {
+  if (!file) return false;
+  if (file.type && !String(file.type).startsWith('image/')) {
+    window.showToast?.('⚠️ 이미지 파일만 넣을 수 있습니다');
+    return false;
+  }
+  if (file.size > GRID_IMG_MAX_BYTES) {
+    window.showToast?.(`⚠️ ${Math.round(GRID_IMG_MAX_BYTES / 1024 / 1024)}MB 이하 이미지만 지원`);
+    return false;
+  }
+  return true;
+}
+if (typeof window !== 'undefined') window.grdImageFileOk = grdImageFileOk;
 if (typeof window !== 'undefined') window.grdAddLine = grdAddLine;
 
 /* SVG 마크업 → data URI. 아이콘 새 줄은 기존 image 라인 타입을 그대로 쓴다(현빈 확정:
@@ -222,7 +270,7 @@ export function grdAddIconToSelectedCell() {
   if (!hit) return false;
   window.openIconifyModal?.((picked) => {
     const imgSrc = _grdSvgToDataUri(picked.svg);
-    grdAddLine(block, { r: hit.r, c: hit.c }, hit.li, { type: 'image', imgSrc, height: picked.size || 64 });
+    grdToastImgFail(grdAddLine(block, { r: hit.r, c: hit.c }, hit.li, { type: 'image', imgSrc, height: picked.size || 64 }));
   });
   return true;
 }
@@ -283,22 +331,22 @@ function _grdWireLineBar(block, addr) {
 
   if (li === null) {
     document.getElementById('grd-cell-add-text-btn')?.addEventListener('click', () => {
-      grdAddLine(block, { r, c }, null, { type: 'body', text: '' });
+      grdToastImgFail(grdAddLine(block, { r, c }, null, { type: 'body', text: '' }));
     });
     document.getElementById('grd-cell-add-gap-btn')?.addEventListener('click', () => {
-      grdAddLine(block, { r, c }, null, { type: 'gap', height: 16 });
+      grdToastImgFail(grdAddLine(block, { r, c }, null, { type: 'gap', height: 16 }));
     });
     document.getElementById('grd-cell-add-icon-btn')?.addEventListener('click', () => {
       window.openIconifyModal?.((picked) => {
         const imgSrc = _grdSvgToDataUri(picked.svg);
-        grdAddLine(block, { r, c }, null, { type: 'image', imgSrc, height: picked.size || 64 });
+        grdToastImgFail(grdAddLine(block, { r, c }, null, { type: 'image', imgSrc, height: picked.size || 64 }));
       });
     });
     return;
   }
 
   document.getElementById('grd-line-add-btn')?.addEventListener('click', () => {
-    grdAddLine(block, { r, c }, li, { type: 'body', text: '' });
+    grdToastImgFail(grdAddLine(block, { r, c }, li, { type: 'body', text: '' }));
   });
   document.getElementById('grd-line-del-btn')?.addEventListener('click', (e) => {
     if (e.currentTarget.disabled) return;
@@ -308,7 +356,7 @@ function _grdWireLineBar(block, addr) {
     const newLines = curLines.filter((_, i) => i !== li);
     const newLi = Math.min(li, newLines.length - 1);
     grdSetActiveLine(block, newLines.length ? { r, c, li: newLi } : null);
-    window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } });
+    grdToastImgFail(window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } }));
   });
   if (gridLineHasText(line)) {
     document.getElementById('grd-line-reset')?.addEventListener('click', () => {
@@ -370,16 +418,13 @@ function _grdWireImageSection(block, addr) {
     input.accept = 'image/*';
     input.onchange = () => {
       const file = input.files[0];
-      if (!file) return;
+      /* ★사람이 고른 파일이다 — «바이트»로 거르고(grdImageFileOk), 커밋은 trusted 로 보낸다.
+         MCP/IPC 용 문자열 캡(GRID_IMG_MAX_CHARS)은 여기 적용하지 않는다(2026-09-20). */
+      if (!grdImageFileOk(file)) return;
       const reader = new FileReader();
       reader.onload = ev => {
-        const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lineIndex: li, imgSrc: ev.target.result } });
-        if (res && res.ok === false) {
-          const msg = res.code === 'TOO_LARGE'
-            ? '⚠️ 이미지가 너무 큽니다 — 더 작은 파일로 다시 시도해 주세요'
-            : '❌ 이미지 추가 실패: ' + res.message;
-          window.showToast?.(msg);
-        }
+        grdToastImgFail(window.updateGridBlock?.(block.id,
+          { patchCell: { r, c, lineIndex: li, imgSrc: ev.target.result } }, { trusted: true }));
       };
       reader.readAsDataURL(file);
     };
@@ -409,8 +454,7 @@ function _grdWireImageSection(block, addr) {
     const newLines = curLines.filter((_, i) => i !== li);
     const newLi = Math.min(li, newLines.length - 1);
     grdSetActiveLine(block, newLines.length ? { r, c, li: newLi } : null);
-    const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } });
-    if (res && res.ok === false) window.showToast?.('❌ 이미지 제거 실패: ' + res.message);
+    grdToastImgFail(window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } }));
   });
 }
 

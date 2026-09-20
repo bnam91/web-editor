@@ -21,7 +21,7 @@ import {
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame } from './frame-geometry.js';
 import { getGridModel } from './blocks/grid-block.js';
-import { grdAddLine } from './props/prop-grid.js';
+import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame } from './shape-frame.js';
 
 /* ═══════════════════════════════════
@@ -4719,18 +4719,34 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
        (grid-block.js _gridEditable/block-drag.js 와 같은 규약). */
   function _gridCellAddrAt(e, block) {
     if (!block.classList.contains('grid-block')) return null;
-    const atPoint = document.elementFromPoint(e.clientX, e.clientY);
-    const node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
-    if (!node || !node.closest) return null;
-    const lineEl = node.closest('[data-line]');
-    const cellEl = node.closest('.grd-cell');
+    /* ★elementFromPoint(단수) → elementsFromPoint(복수) — 선택된 그리드 위엔 «블록 바깥» 요소가
+       pointer-events:auto 로 덮여 있다(거터 .grd-gutter z-index:97 · 이미지 코너핸들
+       .grd-img-overlay-handle — 둘 다 #ss-handles-overlay 소속). 단수는 그걸 집어 오고
+       block.contains 가 false 라 e.target 으로 폴백했는데, 거터 위 우클릭은 e.target 도
+       블록이 아니다 ⇒ 칸을 못 찾고 「이미지 추가」 항목이 조용히 사라졌다(2026-09-20). */
+    let node = null;
+    if (typeof document.elementsFromPoint === 'function') {
+      const stack = document.elementsFromPoint(e.clientX, e.clientY) || [];
+      for (const el of stack) { if (block.contains(el)) { node = el; break; } }
+    }
+    if (!node) {
+      const atPoint = document.elementFromPoint(e.clientX, e.clientY);
+      node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+    }
+    const lineEl = node && node.closest ? node.closest('[data-line]') : null;
+    const cellEl = node && node.closest ? node.closest('.grd-cell') : null;
     let r, c;
     if (lineEl && block.contains(lineEl)) {
       r = Number(lineEl.dataset.r); c = Number(lineEl.dataset.c);
     } else if (cellEl && block.contains(cellEl)) {
       r = Number(cellEl.dataset.r); c = Number(cellEl.dataset.c);
     } else {
-      return null;
+      /* ★기하 폴백 — 칸 «밖»(블록 padding·gap)이거나, 선택 안 된 프레임 안의 그리드처럼
+         pointer-events:none 이라 elementsFromPoint 가 자식을 «반환조차 안 하는» 경우.
+         ⛔선택 상태는 안 건드린다(T-058 첫클릭=블럭 규약). 근거는 grid-block.js pickCellByRects. */
+      const geo = window.gridPickCellByPoint?.(block, e.clientX, e.clientY);
+      if (!geo) return null;
+      r = geo.r; c = geo.c;
     }
     if (!Number.isInteger(r) || !Number.isInteger(c)) return null;
     let li = null;
@@ -4897,23 +4913,24 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     input.accept = 'image/*';
     input.onchange = () => {
       const file = input.files[0];
-      if (!file) return;
+      /* ★사람이 고른 파일 = «신뢰 입구». 바이트로 거르고(grdImageFileOk = GRID_IMG_MAX_BYTES),
+         커밋은 opts.trusted 로 보내 MCP/IPC 용 문자열 캡(200000자 ≈ 146KB)을 건너뛴다.
+         ⛔그 캡을 그대로 두면 스크린샷·사진은 거의 전부 거절된다 — 현빈이 본
+           「그리드 우클릭 이미지 삽입이 안 된다」의 실제 원인이다(2026-09-20 실측). */
+      if (!grdImageFileOk(file)) return;
       const reader = new FileReader();
       reader.onload = ev => {
         const imgSrc = ev.target.result;
         // ★기존 이미지 줄 교체는 patchCell{lineIndex} — 새 줄 추가는 grdAddLine 공용 함수로
         //   통합됐다(2026-09-16, 패널 [+ 줄 추가]·빈 셀 버튼·단축키와 같은 함수).
         if (addr.li != null) {
-          const res = window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc } });
-          if (res && res.ok === false) {
-            const msg = res.code === 'TOO_LARGE'
-              ? '⚠️ 이미지가 너무 큽니다 — 더 작은 파일로 다시 시도해 주세요'
-              : '❌ 이미지 추가 실패: ' + res.message;
-            window.showToast?.(msg);
-          }
+          grdToastImgFail(window.updateGridBlock?.(block.id,
+            { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc } }, { trusted: true }));
           return;
         }
-        grdAddLine(block, { r: addr.r, c: addr.c }, null, { type: 'image', imgSrc, height: 0 });
+        /* ★반환을 «받는다» — 예전엔 안 받아서 실패가 토스트 0건·콘솔 0건으로 사라졌다. */
+        grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, null,
+          { type: 'image', imgSrc, height: 0 }, { trusted: true }));
       };
       reader.readAsDataURL(file);
     };
@@ -4930,13 +4947,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     const lines = getGridModel(block).cells?.[addr.r]?.[addr.c]?.lines;
     if (!Array.isArray(lines)) return;
     const nextLines = lines.filter((_, i) => i !== addr.li);
-    const res = window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lines: nextLines } });
-    if (res && res.ok === false) {
-      const msg = res.code === 'EMPTY_CELL_LINES'
-        ? '⚠️ 마지막 줄은 지울 수 없습니다 — 칸을 통째로 지우려면 행/열을 삭제하세요'
-        : '❌ 이미지 삭제 실패: ' + res.message;
-      window.showToast?.(msg);
-    }
+    grdToastImgFail(window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lines: nextLines } }));
   });
 
   nameConfirm?.addEventListener('click', e => {
