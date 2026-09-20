@@ -26,7 +26,9 @@ function _zoom() {
   return (window.currentZoom || 40) / 100;
 }
 
-function _posElOf(tb) {
+/* ★export — js/overlay-handles.js 의 오버레이 텍스트 리사이즈 핸들이 «같은 판정»을 쓴다.
+   베끼면 「패널은 tf 를, 핸들은 tb 를」 처럼 갈라진다. */
+export function _posElOf(tb) {
   return tb.closest('.frame-block[data-text-frame="true"]') || tb;
 }
 
@@ -45,7 +47,7 @@ function _isOverlay(posEl) {
 
 /* ★위치를 쓰는 «단 하나의» 자리 — zoom-block.js _applyZoomPos(⑲)와 같은 규약.
    dataset.offsetX/offsetY 가 SSOT 고, style 은 그걸 되읽어 쓴다. */
-function _applyOverlayPos(posEl, x, y) {
+export function _applyOverlayPos(posEl, x, y) {
   posEl.dataset.offsetX = String(Math.round(x));
   posEl.dataset.offsetY = String(Math.round(y));
   posEl.style.left = posEl.dataset.offsetX + 'px';
@@ -81,11 +83,14 @@ function _applyOverlayPos(posEl, x, y) {
    "턱에 걸린" 게 뚜렷이 느껴지고, 그 구간을 넘으면 기존 탄성 구간(0.35배 저항)이 이어서
    걸리다 완전히 자유로워진다. 캐치 폭은 저항 폭의 1/4 비율(MAGNET_FRACTION)로 둬 zoom
    변환을 따로 안 해도 된다 — 두 폭 다 같은 1/zoom을 곱하므로 비율은 zoom과 무관하다. */
-const OVERLAY_RESIST_ZONE_SCREEN_PX = 40;
+/* ★export — 0920b 현빈 결정 「오버레이 텍스트의 «크기조절»도 섹션 폭 밖까지 나가야 한다」
+   이후 js/overlay-handles.js 의 모서리 리사이즈가 «같은 곡선»을 쓴다. 사본을 만들면 한쪽만
+   고쳐져 이동과 크기조절의 손맛이 갈라진다 — 상수·함수 둘 다 여기가 단일 진실원이다. */
+export const OVERLAY_RESIST_ZONE_SCREEN_PX = 40;
 const OVERLAY_MAGNET_ZONE_SCREEN_PX = 10;
 const OVERLAY_MAGNET_FRACTION = OVERLAY_MAGNET_ZONE_SCREEN_PX / OVERLAY_RESIST_ZONE_SCREEN_PX;
 const OVERLAY_RESIST_FACTOR = 0.35;
-function _elasticAxis(raw, boundMax, zone) {
+export function _elasticAxis(raw, boundMax, zone) {
   const magnet = zone * OVERLAY_MAGNET_FRACTION;
   if (raw < 0) {
     const over = -raw;
@@ -193,6 +198,14 @@ function _exitOverlay(posEl) {
     posEl.style.maxWidth = '';
     delete posEl.dataset.width;
     delete posEl.dataset.overlayIntroducedWidth;
+  }
+  /* ★모서리 리사이즈가 «섹션 폭 밖까지» 키우려고 풀어 둔 maxWidth 를 되돌린다
+     (overlay-handles.js _onTextOverlayResizeMouseDown — 현빈 2026-09-20 결정).
+     ⛔위 if 에 얹으면 안 된다 — 리사이즈는 overlayIntroducedWidth 도장을 «떼고» 가므로
+       그 갈래로는 절대 안 들어온다(폭을 남겨야 하니까, D7). 도장을 따로 둔다. */
+  if (posEl.dataset.overlayFreeWidth === 'true') {
+    posEl.style.maxWidth = '';
+    delete posEl.dataset.overlayFreeWidth;
   }
 }
 
@@ -331,5 +344,9 @@ export function wireOverlaySection({ tb }) {
     window.buildLayerPanel?.();
     // 패널 재렌더 — 버튼 active 상태 + X/Y 값 갱신
     window.showTextProperties?.(tb);
+    /* ★켜자마자 모서리 손잡이가 «뜬다» / 끄면 «사라진다» — showHandlesFor 가 posEl 의
+       dataset.overlayBlock 으로 스스로 갈라서, 해제 쪽에서는 hide 로 떨어진다
+       (js/overlay-handles.js showHandlesFor 의 텍스트 갈래 참고). */
+    window.showHandlesFor?.(tb);
   });
 }
