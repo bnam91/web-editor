@@ -152,3 +152,40 @@ test('T6 ★CSS z-index 규칙이 타입 비의존이다(도형 래퍼·에셋�
   assert.doesNotMatch(css, /^\[data-overlay-block="true"\] \{/m,
     '특이도 낮은 옛 규칙이 되살아났다 — 선택하는 순간 다시 밑으로 깔린다');
 });
+
+/* ══ T7~T9 — 2026-09-20 픽스라운드(이벨류에이터) ═══════════════════════════
+   뿌리 = «진입 당시 스냅샷을 정답으로 굳힌다». 떠 있는 동안 세상이 바뀌면 그 스냅샷이
+   사용자의 편집(high)과 페이지 패딩 변경(medium)을 조용히 덮어썼다.                */
+
+test('T7 ★이탈 복원이 «우리가 넣은 값»과 대조한다 — 사용자의 편집을 덮지 않는다', () => {
+  assert.match(SRC.float, /overlayFrozenWidth/,
+    '우리가 넣은 폭을 기록하지 않는다 — 사용자가 바꾼 폭인지 가를 근거가 없다');
+  assert.match(SRC.float, /const userChanged = !!frozen && nowW !== frozen;/,
+    '대조 없이 되돌린다 — 떠 있는 사이 한 리사이즈가 해제하는 순간 사라진다');
+  assert.match(SRC.float, /if \(userChanged\) \{/, '대조 결과를 안 쓴다');
+  // 마진도 같은 규약이어야 한다(짝이 갈리면 폭만 남고 마진이 되돌아가 좌로 밀린다)
+  assert.match(SRC.float, /const untouched = \(posEl\.style\.marginLeft \|\| ''\)\.trim\(\) === '0px'/,
+    '마진 복원에 같은 대조가 없다');
+});
+
+test('T8 ★풀블리드 복원이 SSOT(applyAssetFullBleed)를 다시 부른다 — 옛 문자열을 안 쓴다', () => {
+  assert.match(SRC.float, /window\.applyAssetFullBleed\(posEl\)/,
+    '풀블리드 복원이 SSOT 를 안 부른다 — 떠 있는 사이 패딩이 바뀌면 옛 폭이 되살아나 섹션 밖으로 잘린다');
+  /* SSOT 는 width + 음수마진을 «세트로» 쓴다(prop-page.js 주석) ⇒ 세트로 정했으면 마진 복원은
+     건너뛰어야 한다. 안 그러면 폭은 새 값, 마진은 옛 값으로 갈린다. */
+  assert.match(SRC.float, /if \(!_unfreezeWidth\(posEl\)\) _unfreezeMargins\(posEl\);/,
+    'SSOT 가 마진까지 정한 경우에도 마진을 또 되돌린다 — 폭과 마진이 갈린다');
+});
+
+test('T9 ★도형·에셋 패널에도 오버레이 X/Y 두 칸이 있고, 동작은 overlay-float.js 한 곳이다', () => {
+  assert.match(SRC.float, /export function floatPositionRowHTML/, '좌표칸 마크업 SSOT 가 없다');
+  assert.match(SRC.float, /export function wireFloatPosition/, '좌표칸 배선 SSOT 가 없다');
+  for (const k of ['shape', 'asset']) {
+    assert.match(SRC[k], /floatPositionRowHTML\(\{ prefix: '(shape|asset)', posEl: floatPosEl \}\)/,
+      `${k} 패널이 오버레이 좌표칸을 안 낸다 — 도형·에셋은 드래그로만 자리를 잡을 수 있다`);
+    assert.match(SRC[k], /wireFloatPosition\(\{ block/, `${k} 패널이 좌표칸을 안 배선한다`);
+  }
+  // ⛔빈 칸을 0 으로 커밋하지 않는다(T-077 grad-alpha 와 같은 병)
+  assert.match(SRC.float, /if \(Number\.isNaN\(v\)\) return;/,
+    '빈 칸/중간 입력을 그대로 커밋한다 — 백스페이스 도중 블록이 (0,0) 으로 튄다');
+});

@@ -77,6 +77,22 @@ function _applyOverlayPos(posEl, x, y) {
   posEl.dataset.offsetY = String(Math.round(y));
   posEl.style.left = posEl.dataset.offsetX + 'px';
   posEl.style.top  = posEl.dataset.offsetY + 'px';
+  _syncPanelXY(posEl);
+}
+
+/* 드래그로 움직인 좌표를 열려 있는 패널의 X/Y 칸에 되비친다 — block-drag.js:561 과 «같은 꼴»
+   (거기도 열려 있는 패널의 첫 칸을 그냥 잡는다. 다른 블록 패널이 열려 있을 때 어긋날 수 있는
+   약점까지 같다 — 고치려면 두 자리를 함께 고쳐야 하므로 여기서 혼자 갈라놓지 않는다).
+   ⛔지금 타이핑 중인 칸은 건드리지 않는다(커서·중간 입력이 튄다). */
+function _syncPanelXY(posEl) {
+  if (typeof document === 'undefined') return;
+  const pick = suf => document.getElementById('txt-' + suf)
+                   || document.getElementById('shape-' + suf)
+                   || document.getElementById('asset-' + suf)
+                   || document.getElementById('lg-' + suf);
+  const xN = pick('x-number'), yN = pick('y-number');
+  if (xN && xN !== document.activeElement) xN.value = posEl.dataset.offsetX;
+  if (yN && yN !== document.activeElement) yN.value = posEl.dataset.offsetY;
 }
 
 /* ★2026-09-16k 현빈 지시 — "커맨드 눌러야만 나가는 게 필요하냐, 마그네틱/방울처럼 턱이
@@ -164,6 +180,7 @@ function _freezeWidth(posEl) {
       posEl.style.maxWidth = '100%';
       posEl.dataset.width = String(w);
       posEl.dataset.overlayIntroducedWidth = 'true';
+      posEl.dataset.overlayFrozenWidth = posEl.style.width;   // ★우리가 «넣은» 값 — 되돌릴 때 대조한다
     }
     return;
   }
@@ -174,6 +191,7 @@ function _freezeWidth(posEl) {
     posEl.dataset.overlayPrevWidth = inlineW;
     posEl.style.width = w + 'px';
     posEl.dataset.overlayIntroducedWidth = 'true';
+    posEl.dataset.overlayFrozenWidth = posEl.style.width;
   }
 }
 /* ★풀블리드 에셋·넓은 도형은 «음수 마진»으로 섹션 패딩을 침범한다(prop-asset.js
@@ -193,26 +211,82 @@ function _freezeMargins(posEl) {
   posEl.style.marginLeft = '0px';
   posEl.style.marginRight = '0px';
 }
-function _unfreezeMargins(posEl) {
-  if (posEl.dataset.overlayIntroducedMargin !== 'true') return;
-  posEl.style.marginLeft  = posEl.dataset.overlayPrevMarginL || '';
-  posEl.style.marginRight = posEl.dataset.overlayPrevMarginR || '';
+function _dropMarginMemo(posEl) {
   delete posEl.dataset.overlayPrevMarginL;
   delete posEl.dataset.overlayPrevMarginR;
   delete posEl.dataset.overlayIntroducedMargin;
 }
+function _unfreezeMargins(posEl) {
+  if (posEl.dataset.overlayIntroducedMargin !== 'true') return;
+  /* ★2026-09-20 픽스라운드 — «진입 당시 값으로 무조건 되돌리기»를 그만둔다(아래 _unfreezeWidth
+     의 주석이 뿌리를 설명한다). 우리가 넣은 0px 가 아직 그대로일 때만 되돌린다 — 띄워 둔 사이에
+     누가(패널·핸들·풀블리드 재계산) 마진을 바꿨으면 그 값이 «이긴다». */
+  const untouched = (posEl.style.marginLeft || '').trim() === '0px'
+                 && (posEl.style.marginRight || '').trim() === '0px';
+  if (untouched) {
+    posEl.style.marginLeft  = posEl.dataset.overlayPrevMarginL || '';
+    posEl.style.marginRight = posEl.dataset.overlayPrevMarginR || '';
+  }
+  _dropMarginMemo(posEl);
+}
 
+/* ★2026-09-20 픽스라운드(0920b-overlay-extend 이벨류에이터 high+medium) — 「진입 당시 값을
+   그대로 되살린다」가 두 가지 손실을 낳았다. 둘 다 뿌리가 같다: «떠 있는 동안 세상이 변했는데
+   옛 스냅샷을 정답으로 굳힌다».
+     ⑴ high — 떠 있는 사이 사용자가 바꾼 폭이 «해제하는 순간» 경고 없이 사라진다.
+        기본 에셋(Standard)은 inline width 가 `calc(100% + 144px)` 라 px 조기반환에 안 걸려
+        항상 overlayIntroducedWidth 가 서므로 «기본 에셋 전부»가 대상이었다.
+        (실측 9503/줌40%: 860 → 패널 400 으로 줄임 → 해제 → `calc(100% + 144px)`·화면 344px 로 복귀)
+     ⑵ medium — 떠 있는 사이 페이지 좌우 패딩이 바뀌면 옛 패딩 기준의 풀블리드 폭·음수마진이
+        되살아나 섹션 밖으로 삐져나오고 `.section-inner{overflow-x:hidden}` 에 잘린다.
+        (실측: padX 72→32 후 해제 → `calc(100% + 144px)`/-72px, 섹션 545..889 vs 에셋 529..905)
+   ⇒ 규칙 둘. ㉮ 우리가 넣은 값(overlayFrozenWidth)이 아직 그대로일 때만 되돌린다 — 바뀌었으면
+      사용자의 값이 이긴다. ㉯ 되돌릴 때도 «기억한 문자열»이 아니라 SSOT 를 다시 부른다:
+      풀블리드 폭의 정본은 prop-page.js `applyAssetFullBleed`(width + 음수마진을 «세트로» 계산,
+      그 파일 주석의 「세트 규약」) 이지 우리가 베껴 둔 옛 문자열이 아니다.
+   반환 true = «마진까지 이 함수가 이미 정했다»(호출부는 _unfreezeMargins 를 건너뛴다). */
 function _unfreezeWidth(posEl) {
-  if (posEl.dataset.overlayIntroducedWidth !== 'true') return;
+  if (posEl.dataset.overlayIntroducedWidth !== 'true') return false;
+  const frozen = (posEl.dataset.overlayFrozenWidth || '').trim();
+  const nowW   = (posEl.style.width || '').trim();
+  const userChanged = !!frozen && nowW !== frozen;
+  const prevW  = posEl.dataset.overlayPrevWidth || '';
+  delete posEl.dataset.overlayFrozenWidth;
+  delete posEl.dataset.overlayPrevWidth;
+  delete posEl.dataset.overlayIntroducedWidth;
+
+  if (userChanged) {
+    /* 사용자가 띄워 둔 사이에 잡은 폭이 이긴다. 텍스트프레임은 dataset.width 가 Position 절의
+       «수동 너비»이므로 style 과 갈리지 않게 같이 맞춰 준다(갈리면 패널이 옛 값을 보여준다). */
+    if (posEl.dataset.textFrame === 'true') {
+      const px = parseFloat(nowW);
+      if (px > 0) posEl.dataset.width = String(Math.round(px));
+      else delete posEl.dataset.width;
+      posEl.style.maxWidth = '100%';
+    }
+    return false;
+  }
+
   if (posEl.dataset.textFrame === 'true') {
     posEl.style.width = '';
     posEl.style.maxWidth = '';
     delete posEl.dataset.width;
-  } else {
-    posEl.style.width = posEl.dataset.overlayPrevWidth || '';
+    return false;
   }
-  delete posEl.dataset.overlayPrevWidth;
-  delete posEl.dataset.overlayIntroducedWidth;
+
+  /* 풀블리드(calc) 는 SSOT 로 «다시 계산»한다 — 그 사이 padX 가 바뀌었을 수 있다.
+     ⚠️호출 시점이 중요하다: exitFloat 이 흐름으로 되돌려 놓은 «뒤»라야 assetFullBleedWidth 가
+       올바른 row/section-inner 를 읽는다(그 함수는 부모를 보고 padX 출처를 고른다). */
+  if (/^calc\(/i.test(prevW)
+      && posEl.classList.contains('asset-block')
+      && typeof window !== 'undefined' && typeof window.applyAssetFullBleed === 'function') {
+    const w = window.applyAssetFullBleed(posEl);   // width + marginLeft/Right 를 «세트로»
+    if (!w) { posEl.style.marginLeft = ''; posEl.style.marginRight = ''; }  // 그 사이 패딩제외가 꺼졌다
+    _dropMarginMemo(posEl);
+    return true;
+  }
+  posEl.style.width = prevW;
+  return false;
 }
 
 // 오토레이아웃 → 오버레이(플로팅) 전환
@@ -286,8 +360,7 @@ export function exitFloat(posEl) {
   delete posEl.dataset.overlayReturnParent;
   delete posEl.dataset.overlayReturnAfter;
   _selHostsOf(posEl).forEach(h => { delete h.dataset.selVariant; });
-  _unfreezeWidth(posEl);
-  _unfreezeMargins(posEl);
+  if (!_unfreezeWidth(posEl)) _unfreezeMargins(posEl);
   return true;
 }
 
@@ -437,8 +510,67 @@ export function wireFloatToggle({ block, buttonId, rerender }) {
   });
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   오버레이 Position X/Y 입력칸 — «떠 있을 때만» 패널에 나오는 좌표 두 칸.
+   ───────────────────────────────────────────────────────────────────────────
+   ★2026-09-20 픽스라운드(이벨류에이터 low①) — 텍스트에는 txt-x-number/txt-y-number 가 있는데
+     도형·에셋은 드래그로만 자리를 잡을 수 있어 «같은 기능»이라 하기 어려웠다. 현빈 원문은
+     「쉐이프 블럭과 에셋블럭도 오버레이 버튼과 «기능»이 있어야할 것」이므로 비대칭을 없앤다.
+   ★HTML 은 패널마다 있지만 «동작»은 여기 하나다 — 텍스트(prop-text-wireup-position.js)와
+     같은 규약: dataset.offsetX/offsetY 가 SSOT, style.left/top 은 그걸 되읽어 쓴다.
+   ⛔빈 칸을 0 으로 «커밋»하지 않는다 — 백스페이스로 지우는 도중 블록이 (0,0) 으로 튄다
+     (T-077 grad-alpha 가 같은 병으로 올라온 카드다). NaN 이면 조용히 무시하고, 확정(change)
+     때 비어 있으면 현재 좌표를 도로 써서 칸을 되살린다. */
+export function wireFloatPosition({ block, xId, yId }) {
+  const xN = document.getElementById(xId);
+  const yN = document.getElementById(yId);
+  if (!xN && !yN) return;
+  const posEl = posElOf(block);
+  if (!posEl || !isFloat(posEl)) return;
+  const cur = axis => parseInt(posEl.dataset[axis === 'x' ? 'offsetX' : 'offsetY']) || 0;
+  const bind = (inp, axis) => {
+    if (!inp) return;
+    inp.addEventListener('input', () => {
+      const v = parseInt(inp.value, 10);
+      if (Number.isNaN(v)) return;           // 입력 도중(빈 칸·'-')은 «아직 값이 아니다»
+      _applyOverlayPos(posEl, axis === 'x' ? v : cur('x'), axis === 'y' ? v : cur('y'));
+      window.scheduleAutoSave?.();
+    });
+    inp.addEventListener('change', () => {
+      if (Number.isNaN(parseInt(inp.value, 10))) { inp.value = cur(axis); return; }
+      window.pushHistory?.();
+    });
+  };
+  bind(xN, 'x');
+  bind(yN, 'y');
+}
+
+/* 패널 X/Y 두 칸의 마크업 — 세 패널이 «같은 것»을 쓴다(텍스트 Position 절과 같은 모양).
+   떠 있지 않을 때는 아예 내지 않는다(오토레이아웃에서는 좌표가 뜻이 없다). */
+export function floatPositionRowHTML({ prefix, posEl }) {
+  if (!posEl || posEl.dataset.overlayBlock !== 'true') return '';
+  const x = parseInt(posEl.dataset.offsetX) || 0;
+  const y = parseInt(posEl.dataset.offsetY) || 0;
+  return `
+      <span class="prop-field-label">Position</span>
+      <div class="prop-lhls-row">
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">X</span>
+            <input type="number" id="${prefix}-x-number" value="${x}" aria-label="X position">
+          </div>
+        </div>
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">Y</span>
+            <input type="number" id="${prefix}-y-number" value="${y}" aria-label="Y position">
+          </div>
+        </div>
+      </div>`;
+}
+
 /* classic script / 타 모듈용 전역 — 이름은 «옛 이름 그대로» 유지한다(block-drag.js 가 부른다). */
 if (typeof window !== 'undefined') {
   window._bindOverlayMoveDrag = bindFloatMoveDrag;
-  window.OverlayFloat = { posElOf, isFloat, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle };
+  window.OverlayFloat = { posElOf, isFloat, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, floatPositionRowHTML };
 }

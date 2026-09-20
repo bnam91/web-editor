@@ -2,7 +2,7 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { svgStopRemap } from './gradient-model.js';
 import { overlayToggleBtnHTML } from './_helpers.js';
-import { posElOf, wireFloatToggle } from '../overlay-float.js';
+import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
 // 모달이 열려 있을 때 스와치 미리보기만 동기화한다. bg 쓰기/재렌더는 이미
@@ -76,7 +76,8 @@ export function showShapeProperties(block) {
      아니라 자유배치 래퍼 프레임이다(shape-frame.js shapeFrameOf = 판정 SSOT). 동작은
      js/overlay-float.js 가 텍스트와 «같은 코드»로 돈다 — 여기선 상태만 읽어 버튼을 그린다.
      (2026-09-20 현빈 원문 3번 「도형 블럭과 에셋 블럭에도 오버레이 버튼·기능」 / T-052) */
-  const isFloatOverlay = posElOf(block)?.dataset.overlayBlock === 'true';
+  const floatPosEl     = posElOf(block);
+  const isFloatOverlay = floatPosEl?.dataset.overlayBlock === 'true';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -158,6 +159,7 @@ export function showShapeProperties(block) {
         <input type="range" class="prop-slider" id="shape-h-slider" min="10" max="860" step="1" value="${h}">
         <input type="number" class="prop-number" id="shape-h-num" min="10" max="860" value="${h}">
       </div>
+      ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
     </div>
 
     <div class="prop-section">
@@ -549,6 +551,8 @@ export function showShapeProperties(block) {
     buttonId: 'shape-overlay-toggle',
     rerender: () => showShapeProperties(block),
   });
+  /* 떠 있을 때만 나오는 X/Y 두 칸 — 텍스트 Position 절과 «같은 규약»(overlay-float.js). */
+  wireFloatPosition({ block, xId: 'shape-x-number', yId: 'shape-y-number' });
 }
 
 window.showShapeProperties = showShapeProperties;

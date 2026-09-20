@@ -25,6 +25,18 @@ const SHAPE_FRAME_JS = fs.readFileSync(path.join(REPO, 'js/shape-frame.js'), 'ut
 const LAYOUT_CSS = fs.readFileSync(path.join(REPO, 'css/editor-layout.css'), 'utf8');
 /* z-index 판정(A5)은 «실제 규칙끼리의 특이도 싸움»을 재는 것이라 editor-blocks.css 가 필요하다. */
 const BLOCKS_CSS = fs.readFileSync(path.join(REPO, 'css/editor-blocks.css'), 'utf8');
+/* ★2026-09-20 픽스라운드 — A6~A8 은 «풀블리드 폭의 정본»을 실제로 다시 부르는지 보는 검사다.
+   그래서 stub 이 아니라 진짜 js/props/prop-page.js 를 먹인다(그 안의 assetFullBleedWidth /
+   applyAssetFullBleed 가 SSOT). 그 파일이 import 하는 globals.js · canvas-contrast.js 만
+   최소 stub 으로 대신한다 — 이 검사가 보는 것은 폭 계산이지 패널 렌더가 아니다. */
+const PROP_PAGE_JS = fs.readFileSync(path.join(REPO, 'js/props/prop-page.js'), 'utf8');
+const GLOBALS_STUB = `
+  export const propPanel = document.createElement('div');
+  export const canvasEl  = document.createElement('div');
+  export const state = { pageSettings: { padX: 72, padXExcludesAsset: true } };
+  window.__state = state;
+`;
+const CANVAS_CONTRAST_STUB = `export function applyCanvasBackground() {}`;
 
 /* 섹션 800 · 본문(.section-inner) 716 — 실제 앱의 「캔버스 860, 좌우 패딩」 구도와 같은 꼴.
    % 폭이 기준을 바꾸면 눈에 띄게 커진다(93.02% → 666 vs 744). */
@@ -60,9 +72,16 @@ function harness({ oldZIndex = false } = {}) {
           <div class="asset-block" id="ab1" style="width:${PCT};align-self:center;height:200px;background:#ddd;"></div>
         </div>
         <!-- ★풀블리드(applyAssetFullBleed) — 음수 마진으로 섹션 패딩을 침범하는 실제 규약 -->
-        <div class="row" id="row1">
+        <!-- ★row 직속 padX 42 — assetFullBleedWidth 의 «row 가 지배» 갈래(prop-row.applyPadX).
+             에셋의 inline calc/마진은 그 SSOT 가 써 놓은 값이라 둘이 «맞아떨어져야» 한다. -->
+        <div class="row" id="row1" data-pad-x="42">
           <div class="asset-block" id="ab2"
                style="width:calc(100% + 84px);margin-left:-42px;margin-right:-42px;height:120px;background:#ccc;"></div>
+        </div>
+        <!-- ★2026-09-20 라이브 재현과 «같은 수치» — padX 72 기준 풀블리드(A7 용) -->
+        <div class="row" id="row2">
+          <div class="asset-block" id="ab3"
+               style="width:calc(100% + 144px);margin-left:-72px;margin-right:-72px;height:100px;background:#bbb;"></div>
         </div>
       </div>
     </div>
@@ -76,6 +95,7 @@ function harness({ oldZIndex = false } = {}) {
       window.genId = (p) => p + '_' + Math.random().toString(36).slice(2, 8);
     </script>
     <script type="module" src="/overlay-float.js"></script>
+    <script type="module" src="/props/prop-page.js"></script>
     </body></html>`;
 }
 
@@ -88,10 +108,13 @@ async function boot(page, opts = {}) {
     if (url.pathname === '/overlay-float.js') return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_FLOAT_JS });
     if (url.pathname === '/frame-geometry.js') return route.fulfill({ contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
     if (url.pathname === '/shape-frame.js') return route.fulfill({ contentType: 'application/javascript', body: SHAPE_FRAME_JS });
+    if (url.pathname === '/props/prop-page.js') return route.fulfill({ contentType: 'application/javascript', body: PROP_PAGE_JS });
+    if (url.pathname === '/globals.js') return route.fulfill({ contentType: 'application/javascript', body: GLOBALS_STUB });
+    if (url.pathname === '/canvas-contrast.js') return route.fulfill({ contentType: 'application/javascript', body: CANVAS_CONTRAST_STUB });
     return route.fulfill({ status: 404, body: '' });
   });
   await page.goto(`${ORIGIN}/__harness.html`);
-  await page.waitForFunction(() => !!window.OverlayFloat);
+  await page.waitForFunction(() => !!window.OverlayFloat && !!window.applyAssetFullBleed);
   return errs;
 }
 
@@ -261,4 +284,140 @@ test('A5-b [음성대조] 옛 선택자(속성 하나)였다면 선택 시 실�
   expect(r.unselected, '전제: 선택 전에는 옛 선택자도 80 이었다').toBe('80');
   expect(r.selected,
     '양성대조가 재현 안 됐다 — 옛 선택자로도 80 이면 A5 는 특이도를 안 보고 있다').toBe('2');
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A6~A9 — 2026-09-20 픽스라운드(이벨류에이터 high · medium)
+   ───────────────────────────────────────────────────────────────────────────
+   뿌리는 하나다: 이탈할 때 «진입 당시 스냅샷»을 무조건 되살렸다. 그래서
+     ⑴ 떠 있는 동안 사용자가 잡은 폭이 해제하는 순간 말없이 사라지고(high)
+     ⑵ 떠 있는 동안 페이지 패딩이 바뀌면 옛 패딩 기준의 풀블리드가 되살아난다(medium).
+   ⇒ ㉮ 우리가 넣은 값이 그대로일 때만 되돌린다 ㉯ 되돌릴 땐 SSOT 를 다시 부른다.
+═══════════════════════════════════════════════════════════════════════════ */
+
+test('A6 ★떠 있는 사이 바꾼 폭이 해제해도 살아 있다 (high — 조용한 소실)', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await page.evaluate(() => {
+    const ab = document.getElementById('ab1');
+    window.OverlayFloat.enterFloat(ab);
+    const frozen = ab.style.width;                 // 우리가 넣은 px
+    ab.style.width = '400px';                      // ← 패널 asset-w-number 가 하는 짓과 같다
+    const floatingPx = Math.round(ab.getBoundingClientRect().width);
+    window.OverlayFloat.exitFloat(ab);
+    return { frozen, styleW: ab.style.width, floatingPx, afterPx: Math.round(ab.getBoundingClientRect().width) };
+  });
+  expect(errs, `페이지 에러: ${errs.join(' | ')}`).toEqual([]);
+  expect(r.frozen).toMatch(/^\d+px$/);
+  expect(r.styleW, `해제하면서 폭이 ${r.styleW} 로 되돌아갔다 — 사용자가 한 리사이즈가 사라진다`).toBe('400px');
+  expect(r.afterPx).toBe(400);
+  expect(r.floatingPx).toBe(400);
+});
+
+test('A6-b [음성대조] 「우리가 넣은 값」 기록(overlayFrozenWidth)을 지우면 실제로 400px 가 사라진다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(() => {
+    const ab = document.getElementById('ab1');
+    window.OverlayFloat.enterFloat(ab);
+    ab.style.width = '400px';
+    delete ab.dataset.overlayFrozenWidth;          // ★고치기 «전» = 대조할 값이 없던 상태
+    window.OverlayFloat.exitFloat(ab);
+    return { styleW: ab.style.width };
+  });
+  expect(r.styleW,
+    '양성대조가 재현 안 됐다 — 기록을 지워도 400px 가 남는다면 A6 은 아무것도 안 보는 검사다').toBe('93.02%');
+});
+
+test('A7 ★떠 있는 사이 페이지 패딩이 바뀌면 «지금 패딩»으로 복귀한다 (medium)', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await page.evaluate(() => {
+    const ab = document.getElementById('ab3');
+    window.OverlayFloat.enterFloat(ab);
+    window.__state.pageSettings.padX = 32;         // ← Page 패널 page-padx-number 72 → 32
+    window.OverlayFloat.exitFloat(ab);
+    const sec = document.getElementById('sec1').getBoundingClientRect();
+    const a = ab.getBoundingClientRect();
+    return {
+      styleW: ab.style.width, ml: ab.style.marginLeft, mr: ab.style.marginRight,
+      ssot: window.assetFullBleedWidth(ab),
+      overflowL: Math.round(sec.left - a.left), overflowR: Math.round(a.right - sec.right),
+      parentId: ab.parentElement.id,
+      memoW: ab.dataset.overlayPrevWidth ?? null, memoM: ab.dataset.overlayPrevMarginL ?? null,
+    };
+  });
+  expect(errs, `페이지 에러: ${errs.join(' | ')}`).toEqual([]);
+  expect(r.parentId, '복귀 자리부터 틀렸다').toBe('row2');
+  expect(r.styleW, `옛 패딩 기준 폭이 되살아났다(SSOT 는 ${r.ssot})`).toBe('calc(100% + 64px)');
+  expect(r.ml).toBe('-32px');
+  expect(r.mr).toBe('-32px');
+  expect(r.styleW).toBe(r.ssot);
+  expect(r.memoW, '메모를 안 지웠다').toBe(null);
+  expect(r.memoM).toBe(null);
+  expect(r.overflowL, '섹션 왼쪽 밖으로 삐져나왔다').toBeLessThanOrEqual(0);
+  expect(r.overflowR, '섹션 오른쪽 밖으로 삐져나왔다').toBeLessThanOrEqual(0);
+});
+
+test('A7-b [음성대조] SSOT(applyAssetFullBleed)를 치우면 실제로 옛 패딩 폭이 되살아난다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(() => {
+    const ab = document.getElementById('ab3');
+    window.OverlayFloat.enterFloat(ab);
+    window.__state.pageSettings.padX = 32;
+    delete window.applyAssetFullBleed;             // ★고치기 «전» = 기억한 문자열만 되살리던 길
+    window.OverlayFloat.exitFloat(ab);
+    return { styleW: ab.style.width, ml: ab.style.marginLeft };
+  });
+  expect(r.styleW,
+    '양성대조가 재현 안 됐다 — SSOT 없이도 새 폭이 나오면 A7 은 SSOT 를 안 보고 있다').toBe('calc(100% + 144px)');
+  expect(r.ml).toBe('-72px');
+});
+
+test('A8 떠 있는 사이 「패딩 제외」를 끄면 해제해도 풀블리드가 안 되살아난다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(() => {
+    const ab = document.getElementById('ab3');
+    window.OverlayFloat.enterFloat(ab);
+    ab.dataset.usePadx = 'false';                  // ← asset-padx-toggle OFF
+    window.OverlayFloat.exitFloat(ab);
+    return { styleW: ab.style.width, ml: ab.style.marginLeft, mr: ab.style.marginRight };
+  });
+  expect(r.styleW, '패딩제외를 껐는데 calc 풀블리드가 되살아났다').toBe('');
+  expect(r.ml, '음수 마진이 남아 좌로 밀린다').toBe('');
+  expect(r.mr).toBe('');
+});
+
+test('A9 ★떠 있을 때만 패널에 X/Y 두 칸이 나오고, 그 칸이 좌표 SSOT 를 움직인다 (low①)', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await page.evaluate(() => {
+    const ab = document.getElementById('ab1');
+    const beforeHtml = window.OverlayFloat.floatPositionRowHTML({ prefix: 'asset', posEl: ab });
+    window.OverlayFloat.enterFloat(ab);
+    const html = window.OverlayFloat.floatPositionRowHTML({ prefix: 'asset', posEl: ab });
+    const host = document.createElement('div');
+    host.innerHTML = html;
+    document.body.appendChild(host);
+    window.OverlayFloat.wireFloatPosition({ block: ab, xId: 'asset-x-number', yId: 'asset-y-number' });
+    const xN = document.getElementById('asset-x-number');
+    const yN = document.getElementById('asset-y-number');
+    const seeded = { x: xN.value, y: yN.value };
+    xN.value = '123'; xN.dispatchEvent(new Event('input', { bubbles: true }));
+    yN.value = '45';  yN.dispatchEvent(new Event('input', { bubbles: true }));
+    const moved = { ox: ab.dataset.offsetX, oy: ab.dataset.offsetY, left: ab.style.left, top: ab.style.top };
+    // ⛔빈 칸을 0 으로 «커밋»하지 않는다 — 백스페이스 도중 블록이 (0,0) 으로 튀면 안 된다
+    xN.value = ''; xN.dispatchEvent(new Event('input', { bubbles: true }));
+    const afterErase = { ox: ab.dataset.offsetX, left: ab.style.left };
+    xN.dispatchEvent(new Event('change', { bubbles: true }));   // 확정 — 칸을 현재 값으로 되살린다
+    return { beforeHtml, html, seeded, moved, afterErase, restored: xN.value };
+  });
+  expect(errs, `페이지 에러: ${errs.join(' | ')}`).toEqual([]);
+  expect(r.beforeHtml, '오토레이아웃 상태에서도 좌표칸을 냈다 — 그때는 뜻이 없는 값이다').toBe('');
+  expect(r.html).toContain('id="asset-x-number"');
+  expect(r.html).toContain('id="asset-y-number"');
+  expect(r.seeded.x, '현재 좌표로 씨를 안 뿌렸다').not.toBe('');
+  expect(r.moved.ox).toBe('123');
+  expect(r.moved.oy).toBe('45');
+  expect(r.moved.left).toBe('123px');
+  expect(r.moved.top).toBe('45px');
+  expect(r.afterErase.ox, '빈 칸을 0 으로 커밋했다 — 입력 도중 블록이 튄다').toBe('123');
+  expect(r.afterErase.left).toBe('123px');
+  expect(r.restored, '확정할 때 빈 칸을 현재 값으로 안 되살렸다').toBe('123');
 });

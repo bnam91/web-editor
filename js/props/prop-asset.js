@@ -1,7 +1,7 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { alignBtn, overlayToggleBtnHTML } from './_helpers.js';
-import { posElOf, wireFloatToggle } from '../overlay-float.js';
+import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
 
 export function applyAssetPadX(ab, padX) {
@@ -39,7 +39,8 @@ export function showAssetProperties(ab) {
      `asset-float-toggle` 이다 — 같은 id 를 쓰면 getElementById 가 먼저 것을 잡아 두 기능이
      서로를 눌러 버린다(.guard/FEATURE_REGISTRY.md 가 옛 id 를 계약으로 못 박고 있다).
      (2026-09-20 현빈 원문 3번 「도형 블럭과 에셋 블럭에도 오버레이 버튼·기능」 / T-052) */
-  const isFloatOverlay = posElOf(ab)?.dataset.overlayBlock === 'true';
+  const floatPosEl     = posElOf(ab);
+  const isFloatOverlay = floatPosEl?.dataset.overlayBlock === 'true';
   const overlayOn     = ab.dataset.overlay === 'true';
   // 기존 overlay 요소 가져오기 (없으면 생성)
   let overlayEl = ab.querySelector('.asset-overlay');
@@ -157,6 +158,7 @@ export function showAssetProperties(ab) {
           <span class="prop-toggle-track"></span>
         </label>
       </div>
+      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl })}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Border</div>
@@ -182,6 +184,11 @@ export function showAssetProperties(ab) {
     </div>` : ''}
     <div class="prop-section">
       <div class="prop-section-title">Text Overlay</div>
+      <!-- ★2026-09-20 픽스라운드(low④) — 같은 패널에 「오버레이」가 두 뜻으로 보인다:
+           여기(이미지 위 어두운 막)와 위 Size 절의 오버레이(플로팅). 개명은
+           .guard/FEATURE_REGISTRY.md 계약(id·dataset)을 건드리므로 승인 대상이라,
+           지금은 «설명 한 줄»만 붙여 화면에서 가를 수 있게 한다. -->
+      <div class="prop-hint" style="margin:-2px 0 6px;">이미지 «위에» 어두운 막을 씌웁니다 — 위 Size 절의 «오버레이(플로팅)» 버튼과는 다른 기능입니다.</div>
       <div class="prop-row">
         <span class="prop-label">활성화</span>
         <label class="prop-toggle">
@@ -558,6 +565,8 @@ export function showAssetProperties(ab) {
     buttonId: 'asset-float-toggle',
     rerender: () => showAssetProperties(ab),
   });
+  /* 떠 있을 때만 나오는 X/Y 두 칸 — 텍스트 Position 절과 «같은 규약»(overlay-float.js). */
+  wireFloatPosition({ block: ab, xId: 'asset-x-number', yId: 'asset-y-number' });
 }
 
 // Backward compat: classic scripts call these via window.*
