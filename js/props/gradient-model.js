@@ -458,6 +458,52 @@ registerGradientTarget({
   },
 });
 
+// text-block: 글자 그라데이션. 저장소는 «contentEl 인라인 스타일 하나»다(text-block-color.js 헤더) —
+// background-image:<grad> + (-webkit-)background-clip:text + -webkit-text-fill-color:transparent.
+// data 속성 사본이 없으므로 get/set 도 그 인라인을 그대로 본다.
+//
+// ★space:'css' — 저장 문자열이 linear-gradient(Ndeg, …) CSS 각도다(banner02/comparison 과 같은 부류).
+//   'bbox'(도형 전용)로 두면 gradientLine 이 정규화 좌표계로 각도를 다시 풀어 선 길이·방향이 어긋난다.
+// ★rect() 는 «블럭»이 아니라 contentEl — 그라데이션이 칠해지는 배경 영역이 contentEl 이고,
+//   텍스트 패딩은 tb(블럭) 쪽에 붙으므로(prop-text-wireup-padding.js) 둘의 박스가 다르다.
+//   _computeBox 가 (contentEl rect − block rect) 로 블럭 기준 오프셋을 빼 주므로 안쪽이어도 정합이다.
+// ⛔shape 처럼 offsetWidth×zoom 보정을 넣으면 안 된다 — 그 보정은 space:'bbox' + 회전 AABB 팽창 때문이고,
+//   'css' 는 _computeBox 가 cr.width/zoom 을 쓴다(넣으면 줌에서 두 번 곱해진다).
+// ⚠️한계①: 저장소가 인라인 스타일이라 «되읽으면» 브라우저가 #hex 를 rgb() 로 정규화한다(도형은 dataset
+//   문자열이라 원문 그대로였다). 값·파싱엔 영향이 없지만(parseGradient 가 둘 다 받고 getTextGradient 가
+//   hex 로 되돌린다), gradient-line-overlay.js 의 «끈 끝점 기억»(_rememberView/_recalledView)은 쓴 문자열과
+//   읽은 문자열을 글자로 견주므로 텍스트에선 항상 어긋나 기억이 안 남는다 ⇒ 블럭을 다시 고르면 바가
+//   각도에서 유도한 «기본 길이»로 그려진다(값은 그대로, 선 길이만 표준형). CSS linear-gradient 는 끝점
+//   길이를 저장하지 못하므로 «보이는 값»은 어차피 같다. 고치려면 overlay 의 기억 키를 바꿔야 해서 범위 밖.
+// ⚠️한계②: 회전 host 가 조상 .frame-block[data-text-frame] 인 자유배치 텍스트는 rotation()=0 이다
+//   (asset-rotate.js _textFrameHost). 포털(_syncPortal)도 블럭 «자신»의 transform 만 흉내 내므로
+//   둘이 같은 기준이라 포털 안에서는 어긋나지 않는다. 프레임 회전 대응은 이번 범위 밖.
+registerGradientTarget({
+  match: (el) => el.classList.contains('text-block'),
+  make: (block) => {
+    // 타입 전환(본문→라벨 등)이 contentEl 노드를 «교체»하므로 매번 다시 고른다(캐시 금지).
+    const contentEl = () => window.resolveTextContentEl?.(block) || null;
+    return {
+      space: 'css',
+      rotation: () => parseFloat(block.dataset.rotation) || 0,
+      rect: () => (contentEl() || block).getBoundingClientRect(),
+      // 그라데이션이 «걸려 있을 때만» 문자열을 준다 → getGradientTarget 의 parseGradient 검사와 합쳐져
+      // 단색 글자엔 바가 안 뜬다.
+      // ★게이트는 패널과 «같은» 함수(textGradientAllowed) — 라벨·불릿·말풍선·메탈릭 효과 글자는
+      //   applyTextGradient 가 칠을 막으므로, 바만 뜨면 «끌 수는 있는데 글자는 안 바뀌는 거짓 컨트롤»이 된다.
+      get: () => {
+        const el = contentEl();
+        if (!el || window.textGradientAllowed?.(el) === false) return '';
+        return window.getTextGradient?.(el)?.css || '';
+      },
+      // ★팝업 편집과 «완전히 같은» 쓰기 경로 — span 색 해제·형광펜 해제·caret-color·그림자 동기·
+      //   autosave·commit 때만 pushHistory 가 전부 따라온다. 경량 경로를 따로 두면 캔버스 드래그로
+      //   칠한 글자만 다른 상태가 된다(쓰기 경로 이원화 금지).
+      set: (css, commit) => { window.applyTextGradient?.(contentEl(), { css }, { commit }); },
+    };
+  },
+});
+
 // getGradientTarget(blockEl) -> { rect(), get(), set(css, commit) } | null
 // null for excluded blocks (.gradient-block has its own system) or non-gradient backgrounds.
 function getGradientTarget(blockEl) {
