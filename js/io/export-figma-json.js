@@ -1045,7 +1045,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
        ⚠️FIGMA_ENABLED=false 이던 시절(globals.js:50 · index.html 킬스위치)에 이 부류가
          통째로 빠져 있었다. 다음 런칭에 「한 글자」로 켜질 때 바로 맞아야 한다. */
     [...secEl.children]
-      .filter(c => c !== inner && _isContentBlock(c))
+      // ⛔오버레이(플로팅)는 아래 «전용 분기»가 좌표규약(offsetX/offsetY)까지 맞춰 집는다 —
+      //   여기서도 집으면 에셋 오버레이가 두 번 실린다(.asset-block 은 콘텐츠 블록이다).
+      .filter(c => c !== inner && c.dataset?.overlayBlock !== 'true' && _isContentBlock(c))
       .forEach(fc => {
         const parsed = _block(fc, psEx);
         if (!parsed) return;
@@ -1073,9 +1075,21 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
        가 이 키에 쓴다, prop-text-wireup-overlay.js:73-74). style.left/top 은 항상 최신이므로
        폴백으로 쓴다. */
     [...secEl.children]
-      .filter(c => c !== inner && c.classList.contains('frame-block') && c.dataset.textFrame === 'true')
+      /* ★2026-09-20(0920b-overlay-extend) — 판정을 «타입 비의존»으로 넓혔다. 도형 오버레이의
+         posEl 은 자유배치 «래퍼 프레임»이라 _TRAVERSE_SKIP['frame-block'] 에 걸려 위 순회에서도
+         빠진다 ⇒ 안 넓히면 도형을 오버레이로 띄우는 순간 Figma 내보내기에서 «조용히» 사라진다
+         (화면엔 멀쩡해 가장 늦게 발견되는 부류). 에셋 오버레이는 위 순회에 걸리긴 하지만
+         좌표를 dataset.x/y 에서 찾아 offsetX/offsetY 를 못 읽는다 — 여기로 모은다.
+         ⚠️data-text-frame 조건은 «or» 로 남긴다: 옛 프로젝트에 overlayBlock 없이 섹션 직속으로
+           남은 텍스트프레임이 있어도 예전처럼 실린다(회귀 0). */
+      .filter(c => c !== inner && (
+        c.dataset?.overlayBlock === 'true'
+        || (c.classList.contains('frame-block') && c.dataset.textFrame === 'true')))
       .forEach(tf => {
-        const tb = tf.querySelector('.text-block');
+        // 래퍼면 안쪽 콘텐츠 블록, 아니면(에셋 등) 자기 자신. 이름 목록이 아니라 구조로 집는다.
+        const tb = tf.classList.contains('frame-block')
+          ? (tf.querySelector('.text-block') || tf.querySelector('.shape-block'))
+          : tf;
         if (!tb) return;
         const parsed = _block(tb, psEx);
         if (!parsed) return;

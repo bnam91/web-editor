@@ -33,6 +33,24 @@ export function rotatedAABB(w, h, deg) {
   return { w: W * c + H * s, h: W * s + H * c };
 }
 
+/* 블록이 «어떤 규약으로» 회전값을 갖든(프레임 rotateDeg / 에셋·텍스트 rotation /
+   도형 shapeRotation) 화면상 회전각(deg)을 돌려준다. 없으면 0.
+   ★2026-09-20(0920b-overlay-extend) — 원래 overlay-handles.js 안에만 있던 함수를 여기로
+     옮겼다. 오버레이(플로팅) 공용 모듈(js/overlay-float.js)이 «같은 판정»을 써야 하는데,
+     overlay-handles.js 는 grid-block/modal-block 까지 끌고 오는 무거운 모듈이라
+     import 하면 DOM 하네스가 그 그래프를 통째로 서빙해야 한다. 이 파일은 «다른 모듈을
+     import 하지 않는 순수 계산 + 얇은 DOM 어댑터»라 두 쪽 다 가볍게 쓸 수 있다.
+     ⛔베끼지 마라 — 규약이 셋이라 한 곳만 고치면 도형(shapeRotation)만 조용히 빠진다. */
+export function blockRotationDeg(el) {
+  if (!el || el.nodeType !== 1 || !el.dataset) return 0;
+  const d = el.dataset;
+  let v = d.rotateDeg;
+  if (v == null || v === '') v = d.rotation;
+  if (v == null || v === '') v = d.shapeRotation;
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /* 회전으로 «위·아래로» 삐져나오는 양을 한쪽당 몇 px 로 메워야 하는가.
    프레임은 회전축이 중심이므로 위/아래가 같다 → ceil((h' - h) / 2).
    회전 0(또는 180의 배수)·비정상 입력이면 0. */

@@ -1,6 +1,8 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { svgStopRemap } from './gradient-model.js';
+import { overlayToggleBtnHTML } from './_helpers.js';
+import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
 // 모달이 열려 있을 때 스와치 미리보기만 동기화한다. bg 쓰기/재렌더는 이미
@@ -70,6 +72,12 @@ export function showShapeProperties(block) {
   const redactBlur  = parseInt(block.dataset.shapeRedactBlur || '8');
   // 모드: 'blur'(기본, backdrop-filter 실시간) | 'mosaic'(스냅샷 픽셀화, js/effects/redact-mosaic.js)
   const redactMode  = block.dataset.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur';
+  /* 오버레이(플로팅) — Figma 의 Ignore Auto Layout. 도형은 «위치를 쥔 요소»가 .shape-block 이
+     아니라 자유배치 래퍼 프레임이다(shape-frame.js shapeFrameOf = 판정 SSOT). 동작은
+     js/overlay-float.js 가 텍스트와 «같은 코드»로 돈다 — 여기선 상태만 읽어 버튼을 그린다.
+     (2026-09-20 현빈 원문 3번 「도형 블럭과 에셋 블럭에도 오버레이 버튼·기능」 / T-052) */
+  const floatPosEl     = posElOf(block);
+  const isFloatOverlay = floatPosEl?.dataset.overlayBlock === 'true';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -137,7 +145,10 @@ export function showShapeProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">Size</div>
+      <div class="prop-section-title prop-ph-header">
+        <span>Size</span>
+        ${overlayToggleBtnHTML({ id: 'shape-overlay-toggle', active: isFloatOverlay })}
+      </div>
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="range" class="prop-slider" id="shape-w-slider" min="10" max="860" step="1" value="${w}">
@@ -148,6 +159,7 @@ export function showShapeProperties(block) {
         <input type="range" class="prop-slider" id="shape-h-slider" min="10" max="860" step="1" value="${h}">
         <input type="number" class="prop-number" id="shape-h-num" min="10" max="860" value="${h}">
       </div>
+      ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
     </div>
 
     <div class="prop-section">
@@ -531,6 +543,16 @@ export function showShapeProperties(block) {
     });
     rotNum.addEventListener('change', () => window.pushHistory?.());
   }
+
+  /* 오버레이(플로팅) 토글 — 텍스트 패널과 «같은 함수»를 부른다(js/overlay-float.js).
+     ⛔여기서 enter/exit 을 다시 짜지 마라: 그 코드는 11개의 후속 P0 수정을 받은 자리다. */
+  wireFloatToggle({
+    block,
+    buttonId: 'shape-overlay-toggle',
+    rerender: () => showShapeProperties(block),
+  });
+  /* 떠 있을 때만 나오는 X/Y 두 칸 — 텍스트 Position 절과 «같은 규약»(overlay-float.js). */
+  wireFloatPosition({ block, xId: 'shape-x-number', yId: 'shape-y-number' });
 }
 
 window.showShapeProperties = showShapeProperties;

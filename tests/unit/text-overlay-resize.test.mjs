@@ -22,6 +22,10 @@ const SRC = {
   editor:  readSrc(ROOT, 'js/editor.js'),
   drag:    readSrc(ROOT, 'js/block-drag.js'),
   wire:    readSrc(ROOT, 'js/props/prop-text-wireup-overlay.js'),
+  /* 2026-09-20 통합(int/0920b): T-052 가 이동 쪽 알맹이(탄성 곡선·위치 규약)를
+     prop-text-wireup-overlay.js → js/overlay-float.js 로 옮겼다. «곡선의 단일 진실원»이라는
+     이 스펙의 뜻은 그대로고, 그 원본이 사는 파일 이름만 바뀐다. */
+  float:   readSrc(ROOT, 'js/overlay-float.js'),
 };
 
 /* ═══ U1 showHandlesFor 에 «텍스트 오버레이 갈래»가 있다 ══════════════════ */
@@ -279,12 +283,15 @@ test('U12 ★상한을 «막지» 않는다 — 옛 하드 클램프(Math.min(se
 test('U13 ★크기조절의 곡선은 이동의 _elasticAxis «그 함수»다 (사본 금지)', () => {
   /* 곡선을 여기서 다시 적으면 이동과 크기조절의 손맛이 «조용히» 갈라진다 —
      이 레포가 rotatedAABB 에서 한 번 밟은 병(prop-text-wireup-overlay.js:253 주석). */
-  assert.match(SRC.handles, /import \{[^}]*_elasticAxis[^}]*\}\s*\n?\s*from '\.\/props\/prop-text-wireup-overlay\.js'/,
+  assert.match(SRC.handles, /import \{[^}]*_elasticAxis[^}]*\}\s*\n?\s*from '\.\/overlay-float\.js'/,
     '★_elasticAxis 를 이동 쪽에서 «가져다 쓰지» 않는다 — 곡선 사본이 생겼거나 직접 짰다');
   assert.match(SRC.handles, /OVERLAY_RESIST_ZONE_SCREEN_PX/,
     '저항폭 상수도 같은 곳에서 가져와야 한다');
-  assert.match(SRC.wire, /export function _elasticAxis/, '이동 쪽이 그 함수를 export 하지 않는다');
-  assert.match(SRC.wire, /export const OVERLAY_RESIST_ZONE_SCREEN_PX = 40/, '저항폭 상수 export 가 없다');
+  assert.match(SRC.float, /export function _elasticAxis/, '이동 쪽이 그 함수를 export 하지 않는다');
+  assert.match(SRC.float, /export const OVERLAY_RESIST_ZONE_SCREEN_PX = 40/, '저항폭 상수 export 가 없다');
+  /* ⛔사본 금지의 «반대편» 검사 — 얇아진 배선 파일에 곡선이 되살아나면 안 된다. */
+  assert.doesNotMatch(SRC.wire, /function _elasticAxis/,
+    '배선 파일에 곡선 사본이 되살아났다 — 알맹이는 js/overlay-float.js 한 곳이다');
 
   const body = sliceBlock(SRC.handles, 'function _onTextOverlayResizeMouseDown(e, posEl, dir)');
   /* ★zone 을 로컬 상수로 고정하면 줌 40% 에서 화면 16px 로 쪼그라들어 «사실상 없는» 저항이
@@ -338,11 +345,16 @@ test('U15 ★maxWidth:100% 를 «푼다» — 안 풀면 화면 폭이 섹션에
     '★maxWidth 캡을 안 푼다 — 폭 숫자만 커지고 화면은 섹션에서 잘린다');
   assert.match(body, /posEl\.dataset\.overlayFreeWidth = 'true'/,
     '되돌릴 도장을 안 찍는다 — 오버레이를 꺼도 maxWidth:none 이 남는다');
-  const exitBody = sliceBlock(SRC.wire, 'function _exitOverlay(posEl)');
+  /* 2026-09-20 통합(int/0920b): 이탈 구현이 prop-text-wireup-overlay.js _exitOverlay →
+     js/overlay-float.js exitFloat 으로 옮겨졌다(T-052). 뜻은 그대로, 자리만 바뀐다. */
+  const exitBody = sliceBlock(SRC.float, 'export function exitFloat(posEl)');
   assert.match(exitBody, /overlayFreeWidth === 'true'/,
-    '★_exitOverlay 가 그 도장을 안 본다 — 흐름 복귀 뒤에도 maxWidth:none 이 남는다');
-  /* ⛔overlayIntroducedWidth 갈래에 얹으면 «절대 안 도는» 코드가 된다 — 리사이즈는 그
-     도장을 떼고 가기 때문(폭을 남겨야 하니까, D7). 두 갈래가 따로 있어야 한다. */
-  assert.ok(/overlayIntroducedWidth === 'true'[\s\S]*?\}\s*\n[\s\S]*?overlayFreeWidth === 'true'/.test(exitBody),
+    '★이탈(exitFloat)이 그 도장을 안 본다 — 흐름 복귀 뒤에도 maxWidth:none 이 남는다');
+  /* ⛔overlayIntroducedWidth 갈래(= _unfreezeWidth)에 얹으면 «절대 안 도는» 코드가 된다 —
+     리사이즈는 그 도장을 떼고 가기 때문(폭을 남겨야 하니까, D7). 두 갈래가 따로 있어야 한다. */
+  const unfreezeBody = sliceBlock(SRC.float, 'function _unfreezeWidth(posEl)');
+  assert.doesNotMatch(unfreezeBody, /overlayFreeWidth/,
     '★두 도장이 한 갈래에 묶였다 — 리사이즈 경로에선 절대 안 돈다');
+  assert.ok(/_unfreezeWidth\(posEl\)[\s\S]*?overlayFreeWidth === 'true'/.test(exitBody),
+    '★freeWidth 되돌리기가 introducedWidth 되돌리기(_unfreezeWidth) «뒤»에 있지 않다');
 });

@@ -1413,12 +1413,15 @@ function copySelected() {
       || selNormal.classList.contains('chat-block')
       || selNormal.classList.contains('laurel-block')
       || selNormal.classList.contains('joker-block');
-    /* ★텍스트블록 오버레이(플로팅) — .frame-block[data-text-frame] 래퍼를 section-block에
-     * 직접 붙이는 방식이라 위 _flWrapper/_flFrame 판정(data-free-layout 필요)에 안 걸린다.
-     * 여기서 안 잡으면 아래 일반 경로로 떨어져 절대배치·아웃라인이 통째로 소실된다
-     * (2026-09-15 적대적 QA qa-adversarial-overlay 발견). */
-    const _overlayWrapper = selNormal.closest('.frame-block[data-text-frame]');
-    const isOverlayFloating = _overlayWrapper?.dataset.overlayBlock === 'true';
+    /* ★오버레이(플로팅) — 위치를 쥔 요소를 section-block에 직접 붙이는 방식이라 위
+     * _flWrapper/_flFrame 판정(data-free-layout 필요)에 안 걸린다. 여기서 안 잡으면 아래
+     * 일반 경로로 떨어져 절대배치·아웃라인이 통째로 소실된다(2026-09-15 적대적 QA
+     * qa-adversarial-overlay 발견).
+     * ★2026-09-20 — 「.frame-block[data-text-frame] 이면서 overlayBlock」이라는 «타입 한정»
+     *   판정을 data-overlay-block 단독으로 넓혔다. 도형 래퍼·에셋도 같은 속성으로 뜬다 —
+     *   안 넓히면 그 둘만 옛 버그(절대배치 소실)를 그대로 다시 겪는다(0920b-overlay-extend). */
+    const _overlayWrapper = selNormal.closest('[data-overlay-block="true"]');
+    const isOverlayFloating = !!_overlayWrapper;
     /* ★단일 선택도 «부분 선택»일 수 있다 — 한 행에 블록이 여럿인데 하나만 고른 경우다.
      * 이전엔 개수와 무관하게 행 전체를 담아, 고르지 않은 형제까지 복사됐다(실기 재현 2→4).
      * 「행이 통째로 선택됐을 때만 행을 담는다」는 판정은 멀티 분기와 «같은 헬퍼»를 쓴다 —
@@ -1774,10 +1777,11 @@ function pasteClipboard() {
       el.dataset.y = String(vp ? Math.round(vp.y) : curY + 20);
       window.renderStickerBlock?.(el);
       window.bindStickerSelect?.(el);
-    } else if (el.classList.contains('frame-block') && el.dataset.textFrame === 'true' && el.dataset.overlayBlock === 'true') {
-      /* ★텍스트블록 오버레이(플로팅) — 스티커와 같은 취급: section 밑에 absolute로 직접 붙인다.
+    } else if (el.dataset.overlayBlock === 'true') {
+      /* ★오버레이(플로팅) — 스티커와 같은 취급: section 밑에 absolute로 직접 붙인다.
        * 아래 일반 경로(_normalizePastedAbsolute)를 태우면 absolute가 통째로 벗겨진다
-       * (2026-09-15 적대적 QA 발견 → 이 분기 신설). */
+       * (2026-09-15 적대적 QA 발견 → 이 분기 신설).
+       * ★2026-09-20 — textFrame 하드코딩을 뺐다(도형 래퍼·에셋도 같은 속성으로 뜬다). */
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
       if (!sec) { window.showNoSelectionHint?.(); return; }
       const curX = parseInt(el.style.left) || 0;
@@ -1794,7 +1798,9 @@ function pasteClipboard() {
       delete el.dataset.overlayReturnParent;
       delete el.dataset.overlayReturnAfter;
       deselectAll();
-      (el.querySelector('.text-block') || el).classList.add('selected');
+      // 선택 대상 = 안쪽 콘텐츠 블록(텍스트/도형) 또는 자기 자신(에셋). 이름 목록이 아니라
+      // 「래퍼면 안쪽 블록」이라는 구조로 집는다.
+      (el.querySelector('.text-block, .shape-block') || el).classList.add('selected');
       sec.classList.add('selected');
     } else {
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');

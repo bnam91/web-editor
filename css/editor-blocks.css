@@ -22,8 +22,30 @@
    실측: elementFromPoint가 오버레이 자기 중심 좌표에서도 밑에 깔린 .tb-body를 돌려줌.
    섹션 콘텐츠 위 계층(--z 관례 80, .sec-bg-proxy와 같은 자리 — 선택 아웃라인 90·
    리사이즈핸들 9990대보다는 아래)으로 고정해 항상 클릭 가능하게 한다. */
-.frame-block[data-text-frame="true"][data-overlay-block="true"] {
-  z-index: 80;
+/* ★2026-09-20(0920b-overlay-extend) — 선택자를 «타입 비의존»으로 넓혔다. 도형 래퍼
+   (.frame-block[data-free-layout])·에셋(.asset-block)도 같은 규약으로 뜨는데 위 선택자는
+   텍스트프레임만 잡아 그 둘은 z-index:auto 로 남는다 = 위에서 적은 「클릭이 안 된다」가
+   그대로 재발한다. 이 속성을 달 수 있는 건 오버레이뿐이라 속성만으로 집는다. */
+/* ⚠️★선택자가 «선택 규칙보다 구체적»이어야 한다(2026-09-20 라이브 실측, 포트 9503):
+   에셋 오버레이는 posEl 이 .asset-block «자신»이라, 이 블록을 고르는 순간 아래
+   `.asset-block.selected { z-index: 2 }`(특이도 0,2,0)가 속성 하나짜리(0,1,0)를 이겨
+   computed z-index 가 80 → 2 로 떨어졌다 = 본문 밑으로 다시 깔린다. 텍스트는 posEl 이
+   «래퍼»라 이 충돌을 안 겪어서 여태 안 보였다.
+   ⇒ 「오버레이는 섹션 직속 자식」이라는 «구조»를 선택자에 넣어 특이도를 올린다(.selected
+     변형까지 같이 적어 0,3,0 — 선택 여부와 무관하게 항상 같은 층). */
+.section-block > [data-overlay-block="true"] {
+  /* ★!important 인 이유(2026-09-20 라이브 실측, 포트 9503 · 줌 40%) — «선택 상태» 규칙들이
+     이 규칙보다 구체적이다:
+       .asset-block.selected                                         (0,2,0) → z-index:2
+       .frame-block[data-text-frame="true"]:has(.text-block.selected) (0,4,0) → z-index:2
+     그 규칙들의 뜻은 「고른 블록을 이웃보다 위로」인데, 오버레이는 «이미 그 위 층(80)»이라
+     그 값을 받으면 오히려 «내려간다» — 고르는 순간 본문 밑으로 깔리는 모순이 된다
+     (실측: 에셋 80→2 · 텍스트프레임 80→2. 텍스트 쪽은 이 유닛 이전부터 있던 잠복 결함이다).
+     특이도를 더 올려 이기는 길은 선택자를 계속 불리는 군비경쟁이라 여기서 끊는다 —
+     선례: 같은 파일 `.shape-block.shape-redact { z-index: 3 !important }` (「층이 선택 여부에
+     흔들리면 안 된다」는 같은 이유). 「섹션 직속」이라는 구조는 선택자에 그대로 남겨 둔다
+     (오버레이의 불변식이 그것이다 — sec.appendChild, js/overlay-float.js enterFloat). */
+  z-index: 80 !important;
 }
 /* ★프라이버시(2026-09-15, a1-a3 지적 — e0ba9c7 의 export-only 수정을 «라이브 화면»까지
  * 넓힌다): .shape-block.shape-redact 는 선택 여부와 무관하게 z-index:3 을 받지만(위쪽

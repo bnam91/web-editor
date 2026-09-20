@@ -3,7 +3,7 @@
    Resize / radius handles for frames, mockups, icons, assets, canvas, vectors
    Extracted from drag-drop.js (lines ~13–988)
 ═══════════════════════════════════ */
-import { applyFrameTransform, applyFrameRotationMargin } from './frame-geometry.js';
+import { applyFrameTransform, applyFrameRotationMargin, blockRotationDeg } from './frame-geometry.js';
 
 import { resizeColBoundary, resizeRowHeight, resizeGridImage } from './grid-cell-resize.js';
 // ★grid-block.js → drag-drop.js → overlay-handles.js(이 파일) 로 이미 순환 임포트가 있다
@@ -19,10 +19,12 @@ import { getGridModel, gridCols, gridRows, gridPreviewLine } from './blocks/grid
    (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
     모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
 import { MODAL_LIMITS, clampModal, setModalSizeMode } from './blocks/modal-block.js';
-/* ★오버레이(플로팅) 텍스트의 «위치 규약»은 거기 한 벌뿐이다 — 5번째 사본을 만들지 않는다.
-   (그 파일은 frame-geometry.js 만 import 하므로 순환은 «닫히지 않는다».) */
-import { _applyOverlayPos, _posElOf, _elasticAxis, OVERLAY_RESIST_ZONE_SCREEN_PX }
-  from './props/prop-text-wireup-overlay.js';
+/* ★오버레이(플로팅)의 «위치 규약·탄성 곡선»은 거기 한 벌뿐이다 — 5번째 사본을 만들지 않는다.
+   2026-09-20 통합(int/0920b): T-052 가 알맹이를 prop-text-wireup-overlay.js → overlay-float.js
+   로 옮겼으므로 import 자리도 그 SSOT 를 직접 가리킨다(얇은 배선 파일을 거치지 않는다).
+   posElOf 는 옛 이름 _posElOf 로 받는다 — 아래 호출부 이름을 흔들지 않기 위해서다. */
+import { _applyOverlayPos, posElOf as _posElOf, _elasticAxis, OVERLAY_RESIST_ZONE_SCREEN_PX }
+  from './overlay-float.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -75,15 +77,9 @@ export function _canvasScaleNow() {
 }
 // 블록이 어떤 규약으로 회전값을 갖든(프레임 rotateDeg / asset rotation / shape shapeRotation)
 // 화면상 회전각(deg)을 반환. 없으면 0.
-function _blockRotationDeg(el) {
-  if (!(el instanceof HTMLElement)) return 0;
-  const d = el.dataset;
-  let v = d.rotateDeg;
-  if (v == null || v === '') v = d.rotation;
-  if (v == null || v === '') v = d.shapeRotation;
-  const n = parseFloat(v);
-  return Number.isFinite(n) ? n : 0;
-}
+// ★2026-09-20 — 본체는 js/frame-geometry.js blockRotationDeg 로 옮겼다(오버레이 공용 모듈이
+//   같은 판정을 써야 하는데 이 파일은 무거워 import 할 수 없다). 여기선 이름만 유지한다.
+const _blockRotationDeg = blockRotationDeg;
 // 코너 dir('nw'|'ne'|'sw'|'se')의 스크린 좌표.
 // inset>0 이면 코너에서 안쪽으로(코너반경 핸들), inset<0 이면 바깥쪽으로(회전 핫존).
 /** ★export — 선택 오버레이가 테두리 꼭지점을 «이 함수로» 얻는다(핸들과 같은 좌표).

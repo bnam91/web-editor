@@ -24,6 +24,10 @@ const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 const OVERLAY_JS = fs.readFileSync(path.join(REPO, 'js/props/prop-text-wireup-overlay.js'), 'utf8');
 const FRAME_GEOMETRY_JS = fs.readFileSync(path.join(REPO, 'js/frame-geometry.js'), 'utf8');
+/* ★2026-09-20 — 오버레이 알맹이가 js/overlay-float.js 로 이관됐다(0920b-overlay-extend).
+   prop-text-wireup-overlay.js 는 이제 그 모듈을 import 하는 얇은 배선이라 같이 서빙한다. */
+const OVERLAY_FLOAT_JS = fs.readFileSync(path.join(REPO, 'js/overlay-float.js'), 'utf8');
+const SHAPE_FRAME_JS = fs.readFileSync(path.join(REPO, 'js/shape-frame.js'), 'utf8');
 
 const RESIST_ZONE_SCREEN_PX = 40;
 const MAGNET_ZONE_SCREEN_PX = 10;
@@ -162,6 +166,12 @@ async function boot(page, { rotationDeg = 0, zoom = 100, boxW = 300, boxH = 40, 
     }
     if (url.pathname === '/frame-geometry.js') {
       return route.fulfill({ contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
+    }
+    if (url.pathname === '/overlay-float.js') {
+      return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_FLOAT_JS });
+    }
+    if (url.pathname === '/shape-frame.js') {
+      return route.fulfill({ contentType: 'application/javascript', body: SHAPE_FRAME_JS });
     }
     return route.fulfill({ status: 404, body: '' });
   });
