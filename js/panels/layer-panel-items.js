@@ -287,7 +287,21 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isChat) window.showChatProperties?.(block);
     else if (isLaurel) window.showLaurelProperties?.(block);
     else if (isZoom) window.showZoomProperties?.(block);
-    else window.showAssetProperties(block);
+    /* ★vector·step — 2026-09-20 최종 통합 라운드에서 «같은 꼴»로 더 샌 자리.
+       위 gradient/sticker 와 뿌리가 같다: 최종 else 가 «목록에 없는 전부»를 에셋 패널로 보냈다.
+       증거가 이 파일 안에 있었다 — isVector·isStep 은 «선언만» 돼 있고(위 :163·:164)
+       행 이름표(type)를 고를 때만 쓰였을 뿐 패널 분기엔 한 번도 안 나왔다.
+       ⇒ 레이어에서 Vector/Step 행을 누르면 우측에 에셋 패널이 뜨고, 거기 「너비/높이」가
+         실제로 그 블럭에 먹는다(gradient 에서 실측된 손상과 같은 길). */
+    else if (isVector) window.showVectorProperties?.(block);
+    else if (isStep) window.showStepProperties?.(block);
+    /* ★최종 갈래를 «에셋일 때만» 으로 좁힌다 (js/history.js _PANEL_BY_CLASS 머리말과 같은 원칙:
+         「표에 없는 타입은 패널을 건드리지 않는다 — 엉뚱한 패널을 여는 것보다 안 여는 쪽이 덜 틀린다」).
+       옛 무조건 else 가 이 결함의 «구조»였다: 갈래를 하나 빠뜨리면 조용히 에셋 패널이 떴고,
+       그 패널의 폭/높이가 남의 블럭에 먹어 저장값과 화면이 갈라졌다.
+       ⛔새 블럭 타입이 생겨도 여기 갈래를 안 넣으면 «아무 패널도 안 뜬다» — 그게 신호다.
+         갈래가 빠졌는지는 tests/unit/layer-panel-panel-table.test.mjs 가 기계로 센다. */
+    else if (block.classList.contains('asset-block')) window.showAssetProperties(block);
     // fix(frame-p0#5): 캔버스 클릭 경로 6곳(asset/icon-circle/canvas/vector/iconify/mockup)이
     // 각자 부르던 코너·리사이즈 핸들 호출이 레이어패널 클릭엔 아예 없어 모서리 핸들 없는
     // "다른 아웃라인"만 뜨는 원인이었다 — 타입→핸들 맵(showHandlesFor)으로 동일하게 맞춘다.

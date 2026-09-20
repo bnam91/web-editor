@@ -31,6 +31,8 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"></head><body>
         <div class="gradient-block" id="grad_test" style="position:absolute;left:10px;top:10px;width:200px;height:80px;"></div>
         <div class="sticker-block" id="stk_test" style="position:absolute;left:10px;top:120px;width:60px;height:60px;"></div>
         <div class="asset-block" id="ab_test" style="position:relative;width:200px;height:80px;"></div>
+        <div class="vector-block" id="vec_test" style="position:relative;width:120px;height:120px;"></div>
+        <div class="step-block" id="stp_test" style="position:relative;width:400px;height:120px;"></div>
       </div>
     </div>
   </div>
@@ -43,6 +45,8 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"></head><body>
     window._selectSticker = rec('sticker');
     window.showTextProperties = rec('text');
     window.showShapeProperties = rec('shape');
+    window.showVectorProperties = rec('vector');
+    window.showStepProperties = rec('step');
     window.deselectAll = () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected'));
     window.syncSection = () => {};
     window.highlightBlock = () => window.__calls.push({ fn: 'highlight' });
@@ -107,6 +111,34 @@ test('L2 ★Sticker 행도 같은 결 — 스티커 진입점이 불린다', asy
   const fns = r.calls.map(c => c.fn);
   expect(fns, `calls=${JSON.stringify(r.calls)}`).not.toContain('asset');
   expect(fns).toContain('sticker');
+});
+
+/* ── L4·L5 ★2026-09-20 최종 통합 라운드에서 «같은 꼴»을 하나 더 찾았다 ─────────────
+   L1·L2 가 닫은 것은 gradient·sticker 두 갈래였다. 그런데 최종 else 의
+   `window.showAssetProperties(block)` 는 «목록에 없는 전부»를 에셋 패널로 보낸다.
+   실제로 두 타입이 더 새고 있었다 — vector·step.
+   ★증거가 같은 파일 안에 있었다: isVector·isStep 은 «선언은 돼 있는데»(:163·:164)
+     행 이름표(type) 를 고를 때만 쓰이고 패널 분기에는 «한 번도» 안 나온다.
+     즉 레이어에서 Vector/Step 행을 누르면 우측에 «에셋 패널»이 뜨고, 거기 「너비/높이」가
+     실제로 먹어 그 블럭의 style 을 건드린다(gradient 에서 실측된 그 손상과 같은 길).
+   ★고침은 한 줄씩이 아니라 «기계»로도 지킨다 — tests/unit/layer-panel-panel-table.test.mjs 가
+     js/history.js 의 표(_PANEL_BY_CLASS, 클릭 경로를 베낀 정본)와 이 분기 사슬을 대조한다. */
+test('L4 ★Vector 행을 누르면 «벡터» 패널이 뜬다 (에셋 패널이 아니라)', async ({ page }) => {
+  await boot(page);
+  const r = await clickLayerRowFor(page, 'vec_test');
+  expect(r.layerType, '전제: 이 행은 vector 로 렌더된다').toBe('vector');
+  const fns = r.calls.map(c => c.fn);
+  expect(fns, `에셋 패널이 떴다 — 그 패널의 너비/높이가 벡터 블럭에 먹는다. calls=${JSON.stringify(r.calls)}`).not.toContain('asset');
+  expect(fns).toContain('vector');
+});
+
+test('L5 ★Step 행도 같은 결 — 스텝 패널이 뜬다', async ({ page }) => {
+  await boot(page);
+  const r = await clickLayerRowFor(page, 'stp_test');
+  expect(r.layerType, '전제: 이 행은 step 으로 렌더된다').toBe('step');
+  const fns = r.calls.map(c => c.fn);
+  expect(fns, `calls=${JSON.stringify(r.calls)}`).not.toContain('asset');
+  expect(fns).toContain('step');
 });
 
 test('L3 회귀 — 진짜 에셋 행은 그대로 에셋 패널을 연다', async ({ page }) => {
