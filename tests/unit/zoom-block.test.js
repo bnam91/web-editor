@@ -1052,7 +1052,9 @@ test('ⓑ-16 ★선택 오버레이 — 변경 표면이 «_variantOf 세 줄»�
   const hostOf = sliceBlock(s, 'function _hostOf(el)');
   assert.equal(/sel-box|SEL_BOX|selVariant|zoom/.test(hostOf), false,
     '_hostOf 에 확대블럭 전용 가지가 남아 있다 — 플로팅이면 필요 없다');
-  const geom = sliceBlock(s, 'function _geomOf(el, variant, scale)');
+  /* ★머리는 «앞부분만» 적는다(sliceBlock 계약) — T-072 가 인자 하나(outset)를 더해 «)» 로 닫힌 머리가
+     더는 원문과 같지 않다. 이 검사가 재는 것은 «머리 모양»이 아니라 아래 네 낱말의 부재다. */
+  const geom = sliceBlock(s, 'function _geomOf(el, variant, scale');
   for (const w of ['zoom', 'sel-box', 'selVariant', 'selBox']) {
     assert.equal(geom.includes(w), false, `_geomOf 에 ${w} 가 들어갔다 — 공용 함수를 건드렸다`);
   }

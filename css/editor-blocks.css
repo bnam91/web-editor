@@ -1562,6 +1562,15 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   outline-offset: calc(-1 * var(--sel-outline-w));
   z-index: 2;
 }
+/* ★T-072(현빈 2026-09-20 ㉮) — «원»만 선을 상자 바로 «밖»에 둔다(offset 0).
+   원은 shape-svg(100% · preserveAspectRatio:none) 안에서 rx=ry=50 으로 viewBox 네 변에 «접»한다
+   (block-factory.js:2065) ⇒ 선을 상자 «안»에 두면 그 접선을 반드시 덮어 원이 잘려 보인다.
+   ⚠️화면의 파란 선은 보통 이 outline 이 «아니라» 선택 오버레이(js/selection-overlay.js)가 그린다
+     (body.sel-ov 가 위 176행대 절로 이 색을 투명으로 중화한다). 이 줄은 오버레이가 «꺼졌을 때»의
+     폴백을 같은 자리에 맞춰 둔 것이다 — 두 경로가 갈라지면 그게 다음 사고가 된다.
+   ⛔선의 «모양»은 그대로 네모다(둥근 모서리 추종이 아니다 — 2026-09-15 T-028 결정 불변).
+   ⛔사각형·별·다각형·선·화살표는 «그대로»다(실측상 안 어긋난다 — selection-overlay.js _selOutsetOf 표). */
+.shape-block.selected[data-shape-type="ellipse"] { outline-offset: 0; }
 .shape-block .shape-svg {
   display: block;
   width: 100%;
