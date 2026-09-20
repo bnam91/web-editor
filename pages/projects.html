@@ -1532,14 +1532,17 @@ async function openFolderMenuUI(e, projectId) {
 
   const menu = document.createElement('div');
   menu.className = 'card-folder-menu';
-  /* [polish3/T-062] 이미 폴더 밖인 프로젝트의 「폴더에서 빼기」는 «할 일이 없는» 항목 → 비활성.
-   *   판정은 위의 «현재 폴더» 규칙 그대로(curFolderId === key). ⛔disabled 속성 금지 —
-   *   크로미움은 disabled 버튼에 hover 를 안 줘 title 툴팁이 안 뜬다(기획 카드 📁 와 같은 규율). */
+  /* [polish3·6라운드 foldermenu/T-062] «지금 그 자리»인 항목은 할 일이 없다 → 비활성.
+   *   폴더 밖 프로젝트의 「폴더에서 빼기」(key=null)든, 지금 들어있는 그 폴더(key=폴더id)든 규칙은 하나 —
+   *   curFolderId === key 면 비활성. 누르면 «자기 폴더로 다시 배정»(meta 를 같은 값으로 덮어쓰는 빈 쓰기)이
+   *   한 번 돌고 목록이 통째로 다시 그려졌다(2026-09-20 DOM 실측: assign {folderId:'fold_a'} 1회).
+   *   ⛔disabled 속성 금지 — 크로미움은 disabled 버튼에 hover 를 안 줘 title 툴팁이 안 뜬다(기획 카드 📁 와 같은 규율). */
   const itemHtml = (key, name) => {
     const isCur = curFolderId === key;
-    const off = isCur && key === null;
+    const off = isCur;
+    const offTitle = key === null ? '이미 폴더 밖에 있습니다' : '이미 이 폴더에 있습니다';
     return `
-    <button type="button" class="tab-add-item${isCur ? ' is-current' : ''}${off ? ' is-disabled' : ''}"${off ? ' aria-disabled="true" title="이미 폴더 밖에 있습니다"' : ''} data-goto="${key === null ? '' : _escHtml(key)}">
+    <button type="button" class="tab-add-item${isCur ? ' is-current' : ''}${off ? ' is-disabled' : ''}"${off ? ` aria-disabled="true" title="${_escHtml(offTitle)}"` : ''} data-goto="${key === null ? '' : _escHtml(key)}">
       <span class="tab-add-item-name">${_escHtml(name)}</span>
     </button>`;
   };
