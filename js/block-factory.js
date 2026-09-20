@@ -4281,6 +4281,22 @@ function updateShapeBlock(blockId, partial = {}) {
     return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
   }
 
+  /* ★모자이크 임시 차단(2026-09-20 «0920b-mosaic-off» T-070, js/feature-flags.js REDACT_MOSAIC_ENABLED).
+     스위치가 꺼져 있는데 'mosaic' 요청이 오면 «조용히 blur 로 바꿔 ok:true 를 돌려주지 않는다» —
+     호출자(MCP update_shape_block 등)는 모자이크가 걸린 줄 알고 넘어간다(「오류 삼키는 코드 = 위 판정 거짓말」).
+     ⛔shapeRedact 를 끄는(false) 요청은 막지 않는다 — 끄는 건 언제나 안전한 방향이다.
+     ★자리는 «맨 앞»이다(2026-09-20 픽스 라운드, 이벨류에이터 지적 low) — 속성 적용 «중간»에 두면
+       {shapeColor, shapeRotation, shapeRedactMode:'mosaic'} 같은 배치 요청에서 앞쪽 색·회전만 DOM 에
+       남은 채 ok:false 가 돌아간다. 호출자는 「아무것도 안 됐다」로 읽는데 실제로는 절반이 적용된 상태다.
+       같은 함수의 INVALID 들은 «입력이 틀렸다»라 호출자가 고치면 되지만, DISABLED 는 정상 입력인데
+       기능이 꺼진 것이라 «일상적으로 밟는» 경로다 ⇒ 한 글자도 안 바뀐 상태에서 거절한다.
+     되살리는 조건은 feature-flags.js 주석과 카드 T-071 «0920b-mosaic-cause» 참고. */
+  if (window.REDACT_MOSAIC_ENABLED === false
+      && partial.shapeRedactMode === 'mosaic'
+      && !(partial.shapeRedact !== undefined && partial.shapeRedact !== null && !partial.shapeRedact)) {
+    return { ok: false, code: 'DISABLED', message: '모자이크 모드는 일시 차단 상태입니다(블러만 사용) — 카드 T-071 «0920b-mosaic-cause»' };
+  }
+
   const svg = block.querySelector('svg.shape-svg');
   if (!svg) return { ok: false, code: 'INVALID', message: 'shape svg missing (corrupted block)' };
 

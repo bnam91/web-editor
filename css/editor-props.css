@@ -320,6 +320,11 @@
 }
 .prop-align-btn:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); background: var(--ui-bg-elevated); }
 .prop-align-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
+/* ★:disabled 표시가 «없었다» — .prop-btn:disabled(535)·.prop-type-btn:disabled(553) 관례 그대로 붙인다.
+   없으면 「비활성인데 눌릴 것처럼」 보인다(hover 가 그대로 살아 테두리·글자색이 밝아진다).
+   첫 사용처 = 가림막 「방식」의 모자이크 버튼 임시 차단(2026-09-20 «0920b-mosaic-off» T-070). */
+.prop-align-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.prop-align-btn:disabled:hover { border-color: var(--ui-border-mid); color: var(--ui-text-dim); background: var(--ui-bg-input); }
 
 
 /* 그라데이션 프리셋 버튼 (배경만 인라인, 나머지 공통) */
