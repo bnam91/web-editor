@@ -3,6 +3,10 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { alignBtn, overlayToggleBtnHTML } from './_helpers.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
+/* ★폭 하한은 «리터럴로 쓰지 않는다» — asset-width-limits.js 한 자리에서 온다.
+   패널(슬라이더·숫자칸·커밋 clamp)과 모서리 핸들이 «같은 수»를 봐야 갈라지지 않는다.
+   (선례: prop-modal.js 가 MODAL_LIMITS 를, prop-gap.js 가 GAP_MIN/MAX 를 그렇게 쓴다.) */
+import { ASSET_W_MIN } from '../blocks/asset-width-limits.js';
 
 export function applyAssetPadX(ab, padX) {
   const canvasW = 860;
@@ -22,24 +26,34 @@ export function showAssetProperties(ab) {
   const hasImage   = ab.classList.contains('has-image');
   const currentR   = parseInt(ab.style.borderRadius) || 0;
   const currentAlign = ab.dataset.align || 'center';
-  // 너비: inline px → 그대로 / inline % → px 환산 / 없으면 860 (full)
-  const rawW = ab.style.width;
-  const currentW = rawW
-    ? (rawW.endsWith('%') ? Math.round(parseFloat(rawW) * 860 / 100) : parseInt(rawW) || 860)
-    : 860;
+  /* 너비: inline px → 그대로 / inline % → px 환산 / 없거나 calc() → 860 (full)
+     ★함수로 뽑은 이유 = 「빈 칸을 커밋했을 때 되돌릴 값」도 «같은 셈»이어야 한다.
+       두 곳에 따로 적으면 패널이 여는 순간의 값과 되돌리는 값이 갈라진다. */
+  const readW = () => {
+    const raw = ab.style.width;
+    if (!raw) return 860;
+    if (raw.endsWith('%')) return Math.round(parseFloat(raw) * 860 / 100);
+    return parseInt(raw) || 860;
+  };
+  const currentW = readW();
   if (!ab.dataset.align) { ab.dataset.align = 'center'; ab.style.alignSelf = 'center'; }
   /* ★눈금의 «하한»은 실제 값보다 커서는 안 된다 (2026-09-20, 0920b-scratch-modal)
        슬라이더는 min 보다 작은 value 를 «조용히 끌어올려» 보여준다 ⇒ 실제 165px 짜리 블록에
        높이 슬라이더는 200 을, 숫자칸은 165 를 띄워 «같은 줄에서 서로 다른 말»을 한다.
        그 상태에서 슬라이더를 건드리거나 숫자칸을 커밋하면 하한으로 튀어 방금 맞춘 비율이 깨진다.
      ⚠️이건 이번 수정이 «새로 만든» 자리가 아니다 — Logo 프리셋(200×64)이 이미 그 길이었다
-       (:245 에서 높이 슬라이더에 64 를 넣는데 min 은 200). 스크래치 표시폭 그대로 넣기가
+       (높이 슬라이더에 64 를 넣는데 min 은 200). 스크래치 표시폭 그대로 넣기가
        그 자리를 «자주 밟게» 만들 뿐이다.
-     ⇒ 기본 하한(폭 100 · 높이 200)은 그대로 두고, «이미 그보다 작은 블록»에서만 눈금을 넓힌다.
-       ⛔하한 자체를 낮추지 않는다 — 보통 블록의 편집 감각은 한 픽셀도 안 바뀐다.
-     ★현빈 결정 대기(스크래치 하한 60 vs 폭 하한 100)는 이것과 «다른 건»이다:
-       여기는 「패널이 거짓말하지 않는다」, 저기는 「얼마나 작게 넣을 수 있나」다. */
-  const W_MIN = Math.min(100, currentW > 0 ? currentW : 100);
+     ⇒ «높이 축»은 기본 하한 200 을 그대로 두고, 이미 그보다 낮은 블록에서만 눈금을 넓힌다.
+       ⛔높이 하한 자체를 낮추지 않는다 — 보통 블록의 편집 감각은 한 픽셀도 안 바뀐다.
+     ★«폭 축»은 2026-09-20 통합에서 갈라졌다 — 현빈 결정 ㉠(T-075/T-078)으로
+       폭 하한이 «상수 60»(ASSET_W_MIN)이 됐다. 그래서 여기서 폭에 적응형 하한을 따로
+       세우지 않는다(옛 `W_MIN = Math.min(100, currentW)` 는 삭제).
+       ⑴ 하한이 60 이라 스크래치 최소(60px)와 같은 수다 ⇒ 패널이 거짓말할 자리가 없어졌다.
+       ⑵ 적응형을 남기면 «하한이 두 자리»가 되어 asset-width-limits.js 의 단일 진실원이 깨진다
+          (tests/unit/asset-width-min.test.js S-1·S-2 가 그걸 검사로 막는다).
+       ⑶ 결정 문구의 「적응형은 min(60, 현재값) 으로 «낮추기만»」 = 60 보다 올리는 길을 막으라는 뜻.
+          지금 폭이 60 밑으로 내려갈 수 있는 길은 패널·핸들 양쪽에 «없다»(둘 다 ASSET_W_MIN 클램프). */
   const H_MIN = Math.min(200, currentH > 0 ? currentH : 200);
   const currentSize   = ab.dataset.size    || '100';
   // (가) 설계: effective usePadx — dataset 명시값 우선, 미설정이면 글로벌 디폴트
@@ -151,8 +165,8 @@ export function showAssetProperties(ab) {
       </div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="asset-w-slider" min="${W_MIN}" max="860" step="10" value="${currentW}">
-        <input type="number" class="prop-number" id="asset-w-number" min="${W_MIN}" max="860" value="${currentW}">
+        <input type="range" class="prop-slider" id="asset-w-slider" min="${ASSET_W_MIN}" max="860" step="10" value="${currentW}">
+        <input type="number" class="prop-number" id="asset-w-number" min="${ASSET_W_MIN}" max="860" value="${currentW}">
       </div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
@@ -249,8 +263,22 @@ export function showAssetProperties(ab) {
   wSlider.addEventListener('input', () => { applyW(parseInt(wSlider.value)); });
   wSlider.addEventListener('change', () => { window.pushHistory?.(); });
   wNumber.addEventListener('change', () => {
-    const v = Math.min(860, Math.max(W_MIN, parseInt(wNumber.value) || 860));   // ★하한은 눈금과 «같은 한 벌»
-    applyW(v); window.pushHistory?.();
+    /* ⚠️★옛 꼴 `Math.max(100, parseInt(v) || 860)` 은 «0 과 빈 칸을 같은 것으로» 봤다.
+         둘 다 falsy 라 폴백 860 으로 떨어져 «꽉참(풀블리드)»이 된다 —
+           · 0 을 넣은 사람은 「가장 작게」를 원했는데 화면은 제일 커졌다
+           · 지우다 만 빈 칸도 마찬가지로 꽉 차 버렸다 (지우는 동안 값이 날아간다)
+         ⇒ 하한 숫자만 60 으로 바꿔서는 이 문이 «안» 닫힌다. 셋을 갈라야 한다.
+       ⑴ 빈 칸·NaN = «값 없음» → 커밋하지 않는다(지금 폭을 칸에 되돌려 놓기만).
+       ⑵ 0 을 포함한 숫자 → 하한 ASSET_W_MIN·상한 860 으로 «막는다».
+       ⚠️높이 칸(hNumber)의 `|| 780` 도 같은 꼴이지만 «높이 축»은 이 카드의 범위가 아니다. */
+    const raw = parseInt(wNumber.value, 10);
+    if (!Number.isFinite(raw)) {
+      const now = readW();
+      wNumber.value = now; wSlider.value = now;
+      return;                                   // ⛔pushHistory 도 안 한다 — «아무 일도 없었다»
+    }
+    applyW(Math.min(860, Math.max(ASSET_W_MIN, raw)));
+    window.pushHistory?.();
   });
 
   const hSlider = document.getElementById('asset-h-slider');

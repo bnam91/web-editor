@@ -25,6 +25,10 @@ import { MODAL_LIMITS, clampModal, setModalSizeMode } from './blocks/modal-block
    posElOf 는 옛 이름 _posElOf 로 받는다 — 아래 호출부 이름을 흔들지 않기 위해서다. */
 import { _applyOverlayPos, posElOf as _posElOf, _elasticAxis, OVERLAY_RESIST_ZONE_SCREEN_PX }
   from './overlay-float.js';
+/* ★에셋 폭 하한도 «패널과 같은 수»를 본다 — 여기 100 을 다시 적으면 패널만 60 으로 내려가고
+   핸들은 100 에서 막아, 60px 블럭을 1px 만 끌어도 다시 100 으로 올라앉는다(T-075 ㉠).
+   asset-width-limits.js 는 import 가 없는 «잎» 모듈이라 순환 걱정도 없다. */
+import { ASSET_W_MIN } from './blocks/asset-width-limits.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -835,15 +839,15 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
       const dw = dir.includes('e') ? dx : dir.includes('w') ? -dx : 0;
       const dh = dir.includes('s') ? dy : dir.includes('n') ? -dy : 0;
       if (Math.abs(dw) >= Math.abs(dh)) {
-        newW = Math.min(860, Math.max(100, startW + dw));
+        newW = Math.min(860, Math.max(ASSET_W_MIN, startW + dw));
         newH = Math.max(40, Math.round(newW / aspectRatio));
       } else {
         newH = Math.max(40, startH + dh);
-        newW = Math.min(860, Math.max(100, Math.round(newH * aspectRatio)));
+        newW = Math.min(860, Math.max(ASSET_W_MIN, Math.round(newH * aspectRatio)));
       }
     } else {
-      if (dir.includes('e')) newW = Math.min(860, Math.max(100, startW + dx));
-      if (dir.includes('w')) newW = Math.min(860, Math.max(100, startW - dx));
+      if (dir.includes('e')) newW = Math.min(860, Math.max(ASSET_W_MIN, startW + dx));
+      if (dir.includes('w')) newW = Math.min(860, Math.max(ASSET_W_MIN, startW - dx));
       if (dir.includes('s')) newH = Math.max(40, startH + dy);
       if (dir.includes('n')) newH = Math.max(40, startH - dy);
     }

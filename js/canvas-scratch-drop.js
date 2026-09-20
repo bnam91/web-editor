@@ -335,10 +335,17 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
        ★px 폭 관용구는 prop-asset.js:203-214 applyW 와 «같은 벌»이다(width + alignSelf).
        ★usePadx 표식 = «음수마진을 먹었는가» 그대로 찍는다. 먹었으면 그 블록은 실제로
          좌우여백을 제외하고 있으므로 'true' 여야 우측패널 토글이 화면과 같은 말을 한다.
-       ⚠️★하한을 «안» 건다(현빈 결정 대기). 스크래치 아이템은 60px 까지 줄어드는데
-         (scratch-pad.js 의 fMin) 우측패널 폭 슬라이더는 min=100·높이는 min=200 이다.
-         신고 문장이 「스크래치패드와 같은 크기」이므로 지금은 «보이는 대로» 넣고,
-         패널이 거짓말하지 않도록 prop-asset.js 쪽에서 «실제 값이 더 작으면 눈금을 넓히게» 했다. */
+       ⚠️★하한을 여기서 «안» 건다 — 그래도 되는 이유가 2026-09-20 에 생겼다.
+         스크래치 아이템은 60px 까지 줄어든다(scratch-pad.js 의 fMin). 예전엔 우측패널
+         폭 슬라이더가 min=100 이라 «패널은 100 을 보여주는데 실제는 60» 이었고, 그래서
+         「패널을 한 번 만지면 조용히 100 으로 커진다」가 됐다.
+         ★현빈 결정 ㉠(T-075/T-078): 하한을 «패널에서도» 60 으로 낮춘다 ⇒ 이제 양쪽이 같은 수다
+         (js/blocks/asset-width-limits.js 의 ASSET_W_MIN = 60, 패널·모서리핸들 공용).
+         ⛔여기서 다시 클램프하지 마라 — 「보이던 폭 그대로」가 이 함수의 계약이고,
+           하한은 «한 자리»(ASSET_W_MIN)에서만 정해진다.
+         ⚠️«높이» 축은 아직 갈라져 있다 — 패널 높이 슬라이더 min 은 200 이라, 200 보다 낮은
+           그림이 들어오면 prop-asset.js 의 적응형 H_MIN 이 «그 블록에서만» 눈금을 넓혀 준다
+           (하한 자체는 안 낮춘다 — 현빈 결정의 범위가 «폭»이었기 때문). */
   const applyScratchWidth = (block) => {
     const want = Number(opts.width);
     if (!Number.isFinite(want) || want <= 0) return false;
