@@ -121,6 +121,10 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
+  /* ★이 9990 은 «#canvas-area 안»의 값이다 (css/editor-canvas.css #canvas-area{isolation:isolate}).
+     즉 뜻은 «캔버스 내용보다 위»일 뿐, 플로팅 패널/모달과 겨루는 숫자가 아니다.
+     ⛔이 숫자를 올려도 패널 위로 못 올라간다 — 격리 밖 서열은 #canvas-area 가 결정한다.
+     격리를 지우면 이 층이 다시 앱 전체와 경쟁해 패널을 덮는다(0920b-zorder 회귀). */
   z-index: 9990;
 }
 
