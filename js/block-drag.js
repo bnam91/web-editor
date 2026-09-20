@@ -6,6 +6,7 @@
 ═══════════════════════════════════ */
 
 import { state, BLOCK_DELEGATE_SEL } from './globals.js';
+import { isShapeFrame as _isShapeFrameEl, toFlowUnit } from './shape-frame.js';
 import {
   clearDropIndicators,
   makeLabelItem,
@@ -43,6 +44,21 @@ import {
 
 function _getParentFrame(block) {
   return block.closest('.frame-block');
+}
+/* ★0918r2 grid(T-058) — «이 블럭 하나만» 선택돼 있었는가(피그마식 드릴다운 판정).
+   판정 본체는 prop-grid.js grdIsSoleSelected «한 곳» — editor.js 줄 삭제 게이트도 같은 걸 부른다.
+   (조상 프레임·섹션/자손 selected 는 무시, 그 밖에 하나라도 selected 면 다중선택 → false)
+   부재 시 false = «블럭 선택» 쪽으로 안전하게 떨어진다(⌫ 가 줄로 새지 않는다). */
+function _isSoleSelectedBlock(block) {
+  return typeof window.grdIsSoleSelected === 'function' ? !!window.grdIsSoleSelected(block) : false;
+}
+/* ★0919 QA — «캔버스 클릭으로» 선택된 그리드만 드릴다운 대상이다. 삽입 직후(addGridBlock 이 selectBlock 으로
+   골라 둠)의 «첫» 클릭은 사용자에겐 첫 클릭이라 블럭 선택이어야 한다 — 안 그러면 넣자마자 누르고 ⌫ 하면
+   «마지막 줄은 지울 수 없습니다» 토스트만 떴다(현빈 원 증상의 가장 흔한 흐름). 요소 참조라 undo 로 DOM 이
+   바뀌면 자동으로 무효. */
+let _grdCanvasSelected = null;
+function _gridWasCanvasSelected(block) {
+  return _grdCanvasSelected === block && _isSoleSelectedBlock(block);
 }
 function _isInsideUnselectedFrame(block) {
   const ss = _getParentFrame(block);
@@ -584,12 +600,8 @@ function bindBlock(block) {
           // 맨몸 절대배치 블록(에셋·아이콘·표 등): 정상 플로우 블록과 동일하게
           // .row[data-layout=stack]로 감싼다(makeAssetBlock 등 삽입 함수와 동일 구조,
           // block-factory.js:111 관례) — 그래야 ⌘[/⌘] 이동 단위(closest('.row'))도 맞는다.
-          const row = document.createElement('div');
-          row.className = 'row';
-          row.id = (typeof window.genId === 'function' ? window.genId('row') : 'row_' + Math.random().toString(36).slice(2, 9));
-          row.dataset.layout = 'stack';
-          dragEl.replaceWith(row);
-          row.appendChild(dragEl);
+          // ★DOM 변환은 shape-frame.js toFlowUnit(SSOT) — 로드 정규화(도형 래퍼 침입 블록 꺼내기)와 같은 규칙.
+          const row = toFlowUnit(dragEl);
           bindPlacementDrag(row, dragEl);
         }
 
@@ -609,6 +621,8 @@ function bindBlock(block) {
   });
 
   if (isShape) {
+    // 붙여넣기·⌘D·재로드로 id 가 바뀐 사본의 그라데이션 짝을 다시 잇는다(0919 QA)
+    try { window.relinkShapeGradient?.(block); } catch (_) {}
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
@@ -617,18 +631,7 @@ function bindBlock(block) {
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       // shape-block은 프레임 선택 단계를 건너뛰고 직접 선택 (핸들 즉시 표시)
-      window.deselectAll?.();
-      if (ss) {
-        const parentSec = ss.closest('.section-block');
-        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
-        ss.classList.add('selected');
-        window._activeFrame = ss;
-      }
-      block.classList.add('selected');
-      window.syncSection?.(sec);
-      window.highlightBlock?.(block, layerItem);
-      window.setBlockAnchor?.(block);
-      window.showShapeProperties?.(block);
+      selectShapeBlock(block);
     });
 
     // 4코너 리사이즈 핸들 생성 (중복 방지)
@@ -1868,6 +1871,14 @@ function bindBlock(block) {
         window.showFrameProperties?.(ss);
         return;
       }
+      /* ★0918 grid: deselectAll 이 활성줄을 지운다(블럭 떠남 = 줄 선택 해제) — D5(줄 있는 칸의
+         여백 클릭 시 선택 유지)를 위해 «지우기 전» 값을 잡아 둔다. ⛔순서 뒤집으면 조용히 깨진다. */
+      const _grdPrevAddr = showFn === 'showGridProperties' ? (window.grdGetActiveLine?.(block) || null) : null;
+      /* ★0918r2 grid(T-058, 피그마식) — 첫 클릭 = 블럭 선택, «이미 이 블럭만 선택된» 상태의 클릭 = 줄 선택.
+         이 판정도 deselectAll «전»이어야 한다(뒤에서 재면 selected 가 방금 지워져 늘 false →
+         줄 선택이 영영 불가능). ⛔순서 뒤집기 금지 — 유닛 소스 가드가 지킨다. */
+      const _grdWasSelected = showFn === 'showGridProperties' ? _gridWasCanvasSelected(block) : false;
+      if (showFn === 'showGridProperties') _grdCanvasSelected = block;
       window.deselectAll();
       _restoreParentFrameSelected(block);
       block.classList.add('selected');
@@ -1885,7 +1896,13 @@ function bindBlock(block) {
         /* ★_gridAddrAt — 줄(글자/이미지/갭)과 «진짜 빈 셀」을 모두 잡는다(위 정의).
            undefined 면 «기존 선택 유지」다(줄이 있는 셀의 여백 클릭 — D5 와 같은 보호). */
         const _at = _gridAddrAt(e.target, block);
-        if (_at !== undefined) _grdAddr = _at;
+        /* ★0918 grid: undefined 를 넘기지 않는다(= 옛 줄 되살리기). 칸 밖(테두리·패딩·gap)은
+           null = 블럭 전체 선택, 줄 있는 칸의 여백은 직전 줄 유지(D5). 판정은 prop-grid.js 한 곳. */
+        const _cellEl = e.target && e.target.closest ? e.target.closest('.grd-cell') : null;
+        const _insideCell = !!(_cellEl && _cellEl.closest('.grid-block') === block);
+        _grdAddr = window.grdResolveClickAddr
+          ? window.grdResolveClickAddr({ at: _at, prevAddr: _grdPrevAddr, insideCell: _insideCell, wasSelected: _grdWasSelected })
+          : (!_grdWasSelected ? null : (_at !== undefined ? _at : (_insideCell ? _grdPrevAddr : null)));
       }
       window[showFn]?.(block, _grdAddr);
       /* ★핸들도 «여기서» 띄운다 — 이 루프엔 호출이 아예 없어서 모달을 클릭하면
@@ -2089,7 +2106,9 @@ function bindFrameDropZone(ss) {
   if (ss.dataset.textFrame === 'true') return;
 
   // shape frame은 drop 수신 불가 — shape-block 전용 컨테이너
-  const isShapeFrame = !!ss.querySelector('.shape-block');
+  // ★판정은 «이벤트 시점»·«직속» (shape-frame.js SSOT). 예전엔 바인딩 시점 1회 + 자손 검색이라
+  //   «도형을 품은 일반 프레임»까지 도형 프레임으로 오판(드롭 차단·핸들 숨김)했다(0918).
+  const isShapeFrame = () => _isShapeFrameEl(ss);
 
   const inner = ss;  // frame-inner 제거 — frame-block 자체가 content container
   let _rafId = null;
@@ -2120,7 +2139,7 @@ function bindFrameDropZone(ss) {
     window.highlightBlock?.(ss, ss._layerItem);
     window.setBlockAnchor?.(ss);
     window.showFrameProperties?.(ss);
-    if (!isShapeFrame) showFrameHandles(ss);
+    if (!isShapeFrame()) showFrameHandles(ss);
   });
 
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
@@ -2265,7 +2284,7 @@ function bindFrameDropZone(ss) {
   // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
   inner.addEventListener('dragover', e => {
     if (!dragState.dragSrc) return;
-    if (isShapeFrame) return; // shape frame은 외부 블록 수신 차단
+    if (isShapeFrame()) return; // shape frame은 외부 블록 수신 차단
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
@@ -2298,7 +2317,7 @@ function bindFrameDropZone(ss) {
     if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
     ss.classList.remove('ss-drag-over');
     if (!dragState.dragSrc) return;
-    if (isShapeFrame) return; // shape frame drop 차단
+    if (isShapeFrame()) return; // shape frame drop 차단
     window.pushHistory();
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
@@ -2479,6 +2498,32 @@ function bindFrameDropZone(ss) {
 // Backward compat
 window.bindBlock          = bindBlock;
 window.bindFrameDropZone  = bindFrameDropZone;
+
+/* ★도형 «선택» SSOT(0919 QA) — 캔버스 클릭·삽입 직후·레이어 패널 줄 클릭이 모두 여기로 온다.
+   도형은 «그냥 도형»(A안): 래퍼(frame-block) 속성 패널(Layout·Border·Child Align…)이 아니라
+   shape-block 자체를 선택하고 도형 속성을 연다. 예전엔 삽입 직후·레이어 패널 경로가 래퍼 프레임
+   속성만 열고 .selected 는 직전 블럭에 남겨 둬서 ⌫ 가 엉뚱한 블럭을 지웠다. */
+export function selectShapeBlock(block) {
+  if (!block || !block.classList?.contains('shape-block')) return false;
+  const sec = block.closest('.section-block');
+  const ss = block.closest('.frame-block');
+  const layerItem = ss?._layerItem || block._layerItem;
+  window.deselectAll?.();
+  if (ss) {
+    const parentSec = ss.closest('.section-block');
+    if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+    ss.classList.add('selected');
+    window._activeFrame = ss;
+  }
+  block.classList.add('selected');
+  window.syncSection?.(sec);
+  window.highlightBlock?.(block, layerItem);
+  window.setBlockAnchor?.(block);
+  window.showShapeProperties?.(block);
+  return true;
+}
+if (typeof window !== 'undefined') window.selectShapeBlock = selectShapeBlock;
+
 
 export {
   bindBlock,

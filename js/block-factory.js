@@ -22,6 +22,7 @@ import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame } from './frame-geometry.js';
 import { getGridModel } from './blocks/grid-block.js';
 import { grdAddLine } from './props/prop-grid.js';
+import { isShapeFrame, shapeFrameOf, resolveInsertFrame } from './shape-frame.js';
 
 /* ═══════════════════════════════════
    BLOCK FACTORY — make* / add* / addSection
@@ -378,6 +379,7 @@ function applyTextOpts(block, frame, opts, type) {
     if (type === 'label') block.style.textAlign = opts.align;
     else if (contentEl) contentEl.style.textAlign = opts.align;
   }
+  // textgrad-ok: 방금 만든 새 블럭 — 그라데이션이 있을 수 없다
   if (opts.color && contentEl) contentEl.style.color = opts.color;
   if (opts.fontSize && contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
   _applyTextExtras(contentEl, opts);
@@ -413,6 +415,7 @@ function addTextBlock(type, opts = {}) {
     }
     if (opts.color) {
       const contentEl = block.querySelector('[class^="tb-"]');
+      // textgrad-ok: 방금 만든 새 블럭 — 그라데이션이 있을 수 없다
       if (contentEl) contentEl.style.color = opts.color;
     }
     if (opts.fontSize) {
@@ -437,7 +440,8 @@ function addTextBlock(type, opts = {}) {
 
   // 활성 프레임(frame-block) 분기 — freeLayout / fullWidth 모두 처리
   // banner-preset 외곽은 컴포넌트 단위 — 직접 자식 받지 않음. drill-in한 inner만 활성 대상.
-  const activeSS = window._activeFrame;
+  // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
+  const activeSS = resolveInsertFrame(window._activeFrame);
   if (activeSS && !activeSS.dataset.bannerPreset) {
     window.pushHistory();
     const { block } = makeTextBlock(type);
@@ -550,7 +554,8 @@ function addBlankTextBlock(type = 'body', opts = {}) {
   }
 
   // 활성 프레임(frame-block) 분기
-  const activeSS = window._activeFrame;
+  // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
+  const activeSS = resolveInsertFrame(window._activeFrame);
   if (activeSS && !activeSS.dataset.bannerPreset) {
     window.pushHistory();
     const { block } = makeTextBlock(type, { blank: true });
@@ -904,7 +909,7 @@ function addGapBlock(height) {
     return;
   }
   // fullWidth 플로우 프레임에만 추가 — 자유배치(freeLayout) 프레임은 스킵 후 섹션 레벨로
-  if (window._activeFrame?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
+  if (resolveInsertFrame(window._activeFrame)?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
     const gb = makeGapBlock();
     if (height) gb.style.height = height + 'px';
     gb.dataset.h = height || 40;
@@ -1519,8 +1524,9 @@ function addJokerBlock(opts = {}) {
   // 이스터에그 토글 off 시 조커 블록 생성 차단 (콘솔/Figma 호출 무관)
   if (window.isEasterEggEnabled && !window.isEasterEggEnabled('jokerBlock')) return;
   // 서브섹션 활성화 상태: absolute 위치로 직접 삽입 (Figma 좌표 재현)
-  if (window._activeFrame) {
-    const ss = window._activeFrame;
+  const _jokerSS = resolveInsertFrame(window._activeFrame);
+  if (_jokerSS) {
+    const ss = _jokerSS;
     const { block } = makeJokerBlock(opts);
     block.style.position = 'absolute';
     block.style.left = `${opts.x || 0}px`;
@@ -1689,7 +1695,8 @@ function _calcFreeLayoutStackY(inner) {
 
 /* sub-section이 활성화된 경우 블록 삽입 — freeLayout(B모드) / fullWidth(플로우) 분기 */
 function _insertToFlowFrame(makeBlockFn, opts = {}) {
-  const ss = window._activeFrame;
+  // ★도형 래퍼가 활성이어도 그 «안»에 넣지 않는다 — 한 단계 위 실제 프레임(없으면 섹션 레벨 폴백)
+  const ss = resolveInsertFrame(window._activeFrame);
   if (!ss) return false;
 
   /* banner-preset 외곽은 컴포넌트 단위로 취급 — 직접 자식 추가 받지 않음.
@@ -1760,17 +1767,12 @@ function addFrameBlock(opts = {}) {
   const ss = makeFrameBlock(opts);
 
   // 활성 프레임 안에 삽입 (중첩 프레임) — fullWidth 모드 및 shape frame 제외
-  const activeFrame = !opts.fullWidth && window._activeFrame;
-  const isShapeFrame = activeFrame && !!activeFrame.querySelector(':scope > .shape-block');
-  if (activeFrame && !isShapeFrame && activeFrame.closest('.section-block') === sec) {
+  // ★도형 래퍼 판정·넣을 자리는 shape-frame.js SSOT — insertAfterSelected 도 같은 해석을 쓴다
+  const activeFrame = !opts.fullWidth && resolveInsertFrame(window._activeFrame);
+  if (activeFrame && activeFrame.closest('.section-block') === sec) {
     activeFrame.appendChild(ss);
   } else {
-    // shape frame이 활성화된 상태면 _activeFrame을 임시 해제
-    // insertAfterSelected가 내부적으로 _activeFrame을 참조해 shape wrapper 안에 삽입하는 것을 방지
-    const _prev = window._activeFrame;
-    if (isShapeFrame) window._activeFrame = null;
     insertAfterSelected(sec, ss);
-    if (isShapeFrame) window._activeFrame = _prev;
   }
 
   if (!opts.fullWidth) window.bindFrameDropZone?.(ss);
@@ -1807,6 +1809,10 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   )];
   // text-frame 래퍼는 그룹 대상이 아님 (안의 text-block이 실제 선택 단위)
   selected = selected.filter(el => el.dataset?.textFrame !== 'true');
+  // ★도형은 «래퍼째» 한 단위다(0918 A안, T-057) — shape-block 을 그 도형 래퍼로 바꿔 묶는다.
+  //   안 바꾸면 ① freeLayout 분기에서 closest 가 도형 래퍼 자신을 잡아 새 그룹/프레임이 래퍼 «안»에 생기고
+  //   ② flow 분기에서 row 단위가 shape-block 이 돼 새 프레임이 래퍼 안에 들어가고 도형이 삭제됐다.
+  selected = [...new Set(selected.map(el => shapeFrameOf(el) || el))];
   // 다른 선택 항목을 포함하는 컨테이너(드릴인된 부모 프레임/그룹)는 제외 — 리프 선택만 그룹화
   selected = selected.filter(el => !selected.some(o => o !== el && el.contains(o)));
   if (selected.length < 1) {
@@ -1826,16 +1832,19 @@ function wrapSelectedBlocksInFrame(opts = {}) {
 
   // ── freeLayout 내부 묶기: X/Y 좌표 유지 ──────────────────────────────────
   // 선택된 블록들이 동일한 freeLayout 프레임 안에 있으면 절대좌표 기반으로 처리
-  const parentFreeFrame = selected[0].closest('.frame-block[data-free-layout]');
+  // ★«부모» 자유배치 프레임 — parentElement 에서 찾는다(선택 항목 자신이 자유배치 프레임/도형 래퍼면
+  //   b.closest 가 자기 자신을 잡아 새 프레임을 자기 안에 만든다).
+  const _parentFree = b => b.parentElement?.closest('.frame-block[data-free-layout]') || null;
+  const parentFreeFrame = _parentFree(selected[0]);
   const allInSameFreeFrame = parentFreeFrame &&
-    selected.every(b => b.closest('.frame-block[data-free-layout]') === parentFreeFrame);
+    selected.every(b => _parentFree(b) === parentFreeFrame);
 
   if (allInSameFreeFrame) {
     // 각 블록의 absolute wrapper(text-frame 또는 블록 자체) 수집
     const wrappers = [];
     selected.forEach(b => {
       const w = b.closest('.frame-block[data-text-frame]') ||
-                b.closest('.frame-block[data-shape-frame]') ||
+                shapeFrameOf(b) ||
                 (b.style.position === 'absolute' ? b : null);
       if (w && !wrappers.includes(w)) wrappers.push(w);
     });
@@ -1862,6 +1871,9 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       `width:${frameW}px;height:${frameH}px;` +
       `background:transparent;padding:0;`;
     ss.dataset.bg = 'transparent';
+    // ★makeFrameBlock 기본값(860×520)이 dataset 에 남으면 undo/redo·재로드 때 dataset 기준으로 복원돼 부푼다
+    ss.dataset.width = String(frameW);
+    ss.dataset.height = String(frameH);
     ss.dataset.offsetX = String(minX);
     ss.dataset.offsetY = String(minY);
     if (asGroup) { ss.dataset.group = 'true'; ss.dataset.name = _nextGroupName(); }
@@ -1896,14 +1908,18 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   }
 
   // ── 섹션 레벨(flow) 블록 묶기: 기존 stack 방식 ───────────────────────────
-  const sectionInner = sec.querySelector('.section-inner');
-  const childrenInOrder = [...sectionInner.children];
   const rows = [];
   selected.forEach(b => {
     const row = b.classList.contains('gap-block') ? b : (b.closest('.frame-block[data-text-frame]') || b.closest('.row') || b);
     if (row && !rows.includes(row)) rows.push(row);
   });
-  rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
+  // 문서 순서 정렬 — section-inner 직속이 아닌 단위(merged-part 등)도 -1 로 맨 앞에 끼지 않게
+  rows.sort((a, b) => (a === b ? 0 : (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)));
+  // row 안에서 옮길 블록 — 도형 래퍼 «안»의 shape-block 은 래퍼째 옮기므로 따로 뽑지 않는다
+  const _insideShapeFrame = (x, row) => {
+    for (let p = x.parentElement; p && p !== row; p = p.parentElement) if (isShapeFrame(p)) return true;
+    return false;
+  };
 
   // 선택 블록들의 총 높이 계산 (프레임 높이 결정)
   const GAP = 0;
@@ -1916,22 +1932,54 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   ss.style.cssText = `background:transparent;padding:0;width:100%;height:${frameH}px;min-height:${frameH}px;`;
   ss.dataset.bg = 'transparent';
   ss.dataset.width = '100%';
+  // ★style 높이와 dataset 높이를 같게 — makeFrameBlock 기본값 '520' 이 남으면 redo·저장→재로드에서 520px 로 부푼다
+  ss.dataset.height = String(frameH);
   ss.dataset.padY = '0';
   if (asGroup) { ss.dataset.group = 'true'; ss.dataset.name = _nextGroupName(); }
 
   // 첫 번째 row 자리에 프레임 삽입
   rows[0].before(ss);
 
+  // 도형 래퍼의 보이는 가로 위치 — 래퍼째 옮길 때 left 로 보존.
+  // ★기준 = 새 프레임 ss 의 «패딩 상자»(absolute 자식의 원점). ss 를 넣은 «뒤», 블록을 옮기기 «전»에 잰다.
+  //   section-inner 테두리 상자 기준으로 재면 섹션 좌우여백(인라인 padding, 예: 72px)·합쳐진 파트 패딩만큼
+  //   한 번 더 밀린다(T-057 2라운드). ss 삽입으로 스크롤바가 생겨 가로 위치가 바뀌는 경우도 이 순서로 흡수.
+  const _ssRect = ss.getBoundingClientRect();
+  const _scale = ss.offsetWidth ? (_ssRect.width / ss.offsetWidth) || 1 : 1;
+  const _originX = _ssRect.left + ss.clientLeft * _scale;
+  const _shapeLeft = new Map();
+  rows.forEach(row => {
+    const sfs = isShapeFrame(row) ? [row] : [...row.querySelectorAll('.frame-block')].filter(isShapeFrame);
+    sfs.forEach(w => {
+      const r = w.getBoundingClientRect();
+      _shapeLeft.set(w, Math.round((r.left - _originX) / _scale));
+    });
+  });
+
   // 각 블록을 absolute 배치로 ss에 직접 이동
   let stackY = 0;
   rows.forEach(row => {
     const rowH = row.offsetHeight || 60;
     const isGapRow = row.classList.contains('gap-block');
-    const blocks = isGapRow ? [row] : [...row.querySelectorAll(BLOCK_SEL)];
+    const isShapeRow = isShapeFrame(row);
+    const blocks = (isGapRow || isShapeRow) ? [row]
+      : [...row.querySelectorAll(BLOCK_SEL)].filter(x => !_insideShapeFrame(x, row));
     blocks.forEach(block => {
       block.style.position = 'absolute';
-      block.style.left = '0px';
       block.style.top = stackY + 'px';
+      if (isShapeFrame(block)) {
+        // 도형 래퍼 — 크기 유지, 보이는 가로 위치 유지(width:100% 로 늘리지 않는다)
+        const l = _shapeLeft.get(block) || 0;
+        block.style.left = l + 'px';
+        block.style.margin = '0';
+        block.dataset.offsetX = String(l);
+        block.dataset.offsetY = String(stackY);
+        block.style.transform = '';
+        block.classList.remove('selected');
+        ss.appendChild(block);
+        return;
+      }
+      block.style.left = '0px';
       block.style.width = '100%';
       block.style.transform = '';
       block.classList.remove('selected');
@@ -1939,7 +1987,7 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       ss.appendChild(block);
     });
     stackY += rowH + GAP;
-    if (!isGapRow) row.remove();
+    if (!isGapRow && !isShapeRow) row.remove();
   });
 
   window.bindFrameDropZone?.(ss);
@@ -2024,6 +2072,37 @@ function _shapeInnerSVG(type, strokeWidth) {
 window._shapeInnerSVG = _shapeInnerSVG;
 
 // 블록의 inner SVG geometry를 현재 strokeWidth에 맞춰 다시 그림 (rectangle/ellipse만 동적)
+/* ★도형 그라데이션 «짝» 다시 잇기(0919 QA, 치명① 저장→로드 변형).
+   그라데이션 def id 와 fill URL 은 block.id 에서 만든다(grad-<id>). 그런데 붙여넣기는 사본 안의 [id] 를
+   전부 새로 짓고(def → grad-shp_<새>), ⌘D·재로드는 block.id 만 바뀌는 경우가 있어 fill 이 원본 def 를 빌리거나
+   (원본이 지워지면) 빈 도형이 됐다. 이 함수가 «도형 안의 그라데이션 def 1개 = grad-<지금 block.id>» 로 맞추고
+   fill URL 을 전부 그 id 로 다시 건다. 멱등. 반환 = 바꾼 게 있으면 true. */
+function relinkShapeGradient(block) {
+  if (!block || !block.classList?.contains('shape-block')) return false;
+  const svg = block.querySelector('svg');
+  if (!svg) return false;
+  const defsGrads = [...svg.querySelectorAll('linearGradient, radialGradient')];
+  const fills = [...svg.querySelectorAll('[fill^="url(#"]')];
+  if (!defsGrads.length && !fills.length) return false;
+  const want = `grad-${block.id || 'shp_anon'}`;
+  let changed = false;
+  if (defsGrads.length) {
+    // 정본 def = 이미 want 인 것 > 지금 fill 이 가리키는 것 > 첫 번째
+    const ref = (fills[0]?.getAttribute('fill') || '').match(/^url\(#([^)]+)\)/)?.[1];
+    const keep = defsGrads.find(g => g.id === want) || defsGrads.find(g => g.id === ref) || defsGrads[0];
+    if (keep.id !== want) { keep.id = want; changed = true; }
+    defsGrads.forEach(g => { if (g !== keep && g.id === want) { g.remove(); changed = true; } });
+    fills.forEach(el => {
+      if (el.getAttribute('fill') !== `url(#${want})`) { el.setAttribute('fill', `url(#${want})`); changed = true; }
+    });
+  } else if (!block.dataset.shapeGradient) {
+    // def 가 없는데 fill 만 URL — 그라데이션 메타도 없으면 끊긴 참조 → 단색으로 되돌린다(빈 도형 방지)
+    fills.forEach(el => { el.setAttribute('fill', 'currentColor'); changed = true; });
+  }
+  return changed;
+}
+window.relinkShapeGradient = relinkShapeGradient;
+
 function refreshShapeInnerSVG(block) {
   if (!block) return;
   const type = block.dataset.shapeType || 'rectangle';
@@ -2045,6 +2124,7 @@ function refreshShapeInnerSVG(block) {
       el.setAttribute('fill', `url(#${id})`);
     });
   }
+  relinkShapeGradient(block);   // def id 도 grad-<지금 id> 로(붙여넣기로 id 가 바뀐 사본·저장본 치유)
 }
 window.refreshShapeInnerSVG = refreshShapeInnerSVG;
 
@@ -2055,11 +2135,14 @@ function makeShapeBlock(type = 'rectangle') {
   block.dataset.type = 'shape';
   block.dataset.shapeType = type;
   block.dataset.shapeColor = '#cccccc';
-  block.dataset.shapeStrokeWidth = '3';
+  // ★기본 테두리 0(현빈 0918) — 채움 도형만. line/arrow 는 선 자체가 stroke 라 0이면 «안 보이는 선» → 3 유지.
+  //   기존 도형은 dataset 을 그대로 읽으므로 불변(신규만).
+  const sw = def.fill ? 0 : 3;
+  block.dataset.shapeStrokeWidth = String(sw);
   block.id = genId('shp');
-  const innerSVG = def.dynamic ? _shapeInnerSVG(type, 3) : def.inner;
+  const innerSVG = def.dynamic ? _shapeInnerSVG(type, sw) : def.inner;
   block.innerHTML = `<svg class="shape-svg" viewBox="${def.vb}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"
-    style="color:#cccccc;stroke-width:3;fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">
+    style="color:#cccccc;stroke-width:${sw};fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">
     ${innerSVG}
   </svg>`;
   return { block };
@@ -2100,10 +2183,10 @@ function addShapeBlock(type = 'rectangle') {
   bindBlock(block);
 
   // 삽입 대상 결정: 활성 프레임 → 선택된 프레임 → 섹션 레벨
-  const activeFrame = window._activeFrame;
-  const isActiveShapeFrame = activeFrame && !!activeFrame.querySelector(':scope > .shape-block');
+  // ★도형 래퍼 안에 도형을 넣지 않는다 — 활성이 도형 래퍼면 한 단계 위 실제 프레임(SSOT)
+  const activeFrame = resolveInsertFrame(window._activeFrame);
 
-  if (activeFrame && !isActiveShapeFrame && activeFrame.closest('.section-block') === sec) {
+  if (activeFrame && activeFrame.closest('.section-block') === sec) {
     // 활성 프레임 안에 삽입
     if (activeFrame.dataset.freeLayout === 'true') {
       const stackY = _calcFreeLayoutStackY(activeFrame);
@@ -2114,8 +2197,8 @@ function addShapeBlock(type = 'rectangle') {
     activeFrame.appendChild(ss);
   } else {
     const selSS = document.querySelector('.frame-block.selected');
-    const isSelShapeFrame = selSS && !!selSS.querySelector(':scope > .shape-block');
-    if (selSS && !isSelShapeFrame && selSS.closest('.section-block') === sec) {
+    const isSelShapeFrame = isShapeFrame(selSS);
+    if (selSS && !isSelShapeFrame && !selSS.dataset.textFrame && selSS.closest('.section-block') === sec) {
       // 선택된 프레임 안에 삽입
       if (selSS.dataset.freeLayout === 'true') {
         const stackY = _calcFreeLayoutStackY(selSS);
@@ -2126,6 +2209,8 @@ function addShapeBlock(type = 'rectangle') {
       selSS.appendChild(ss);
     } else {
       // 섹션 레벨에 삽입 (shape frame은 다른 ss 중첩 금지)
+      // insertAfterSelected 가 _activeFrame 을 resolveInsertFrame 으로 해석하므로 도형 래퍼 안엔 안 들어간다.
+      // 단 «일반 프레임»이 활성이면서 섹션 레벨로 온 경우(다른 섹션 등)는 기존처럼 활성 해제 후 삽입.
       const prevActiveSS = window._activeFrame;
       window._activeFrame = null;
       insertAfterSelected(sec, ss);
@@ -2137,8 +2222,10 @@ function addShapeBlock(type = 'rectangle') {
 
   window.bindFrameDropZone?.(ss);
   window.buildLayerPanel();
-  window._activeFrame = ss;
-  window.showFrameProperties?.(ss);
+  // ★0919 QA: 새 도형을 «선택»한다 — 예전엔 _activeFrame=래퍼 + 래퍼 프레임 속성만 열고 .selected 는 직전 블럭에
+  //   남겨 둬서, 삽입 직후 ⌫ 가 새 도형 대신 직전 블럭(텍스트 등)을 지웠다.
+  if (typeof window.selectShapeBlock === 'function') window.selectShapeBlock(block);
+  else { window._activeFrame = ss; window.showFrameProperties?.(ss); }
 }
 
 // ── setSectionBg: 섹션 단위 배경색 설정 ──
@@ -4172,6 +4259,14 @@ function updateLabelGroupBlock(blockId, partial = {}) {
   return { ok: true, blockId, before, applied, warnings };
 }
 
+// 모자이크 가림막 상태 무효화 — redact-mosaic.js invalidateMosaic 단일 창구(캐시·캡처표시·캔버스·
+// 진행 중 캡처 세대). 모듈이 아직 안 올라왔으면 캔버스만 떼는 옛 동작으로 폴백.
+function _invalidateRedactMosaic(block) {
+  if (typeof window.invalidateMosaic === 'function') { try { window.invalidateMosaic(block); return; } catch (_) {} }
+  delete block.dataset.mosaicCaptured;
+  block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
+}
+
 // ── updateShapeBlock: shape 블록 부분 수정 ────────────────────────────────
 function updateShapeBlock(blockId, partial = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
@@ -4232,7 +4327,14 @@ function updateShapeBlock(blockId, partial = {}) {
     const SHAPE_DEFS_REF = (typeof window !== 'undefined' && window.SHAPE_DEFS) ? window.SHAPE_DEFS : null;
     if (SHAPE_DEFS_REF && SHAPE_DEFS_REF[partial.shapeType]) {
       const def = SHAPE_DEFS_REF[partial.shapeType];
-      const sw  = Number(block.dataset.shapeStrokeWidth ?? 3) || 0;
+      let sw  = Number(block.dataset.shapeStrokeWidth ?? 3) || 0;
+      // ★채움 도형 기본 테두리가 0이 됐다(0918) — line/arrow(선 자체가 stroke)로 바꿀 때 0이면
+      //   «안 보이는 선»이 된다 → 3으로 올린다(명시 strokeWidth 가 같이 오면 아래에서 덮어씀).
+      if (!def.fill && sw <= 0) {
+        sw = 3;
+        block.dataset.shapeStrokeWidth = '3';
+        svg.style.strokeWidth = '3';
+      }
       if (block.dataset.shapeGradient && typeof window._clearShapeGradient === 'function') {
         try { window._clearShapeGradient(block); } catch (_) {}
       }
@@ -4263,15 +4365,23 @@ function updateShapeBlock(blockId, partial = {}) {
     }
     block.dataset.shapeType = partial.shapeType;
     applied.shapeType = partial.shapeType;
+    // 이미지(에셋) 채우기 모드(0918 picker) — 면 없는 타입(선·화살표)이면 해제, 면 있으면 모양 clip 을 새 타입으로
+    if (block.dataset.shapeFill) {
+      if (!['rectangle', 'ellipse', 'polygon', 'star'].includes(partial.shapeType)) {
+        try { window._clearShapeImage?.(block); } catch (_) {}
+      } else {
+        if (block.dataset.shapeImage) svg.style.fill = 'transparent';
+        try { window._syncShapeImageClip?.(block); } catch (_) {}
+      }
+    }
     // 가림막(redact)은 rectangle/ellipse 전용 — 다른 타입으로 바뀌면 걸어둔 상태로
     // 남아 "안 보이는 블러 도형"이 될 수 있으므로 함께 해제
     if (block.dataset.shapeRedact === 'true' && partial.shapeType !== 'rectangle' && partial.shapeType !== 'ellipse') {
       delete block.dataset.shapeRedact;
       delete block.dataset.shapeRedactMode;
-      delete block.dataset.mosaicCaptured;
       block.classList.remove('shape-redact');
       block.style.removeProperty('--redact-blur');
-      block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
+      _invalidateRedactMosaic(block);
       applied.shapeRedact = false;
     }
   }
@@ -4283,6 +4393,12 @@ function updateShapeBlock(blockId, partial = {}) {
     const c = String(partial.shapeColor).trim();
     if (block.dataset.shapeGradient && typeof window._clearShapeGradient === 'function') {
       try { window._clearShapeGradient(block); } catch (_) {}
+    }
+    // 이미지(에셋)/바둑판 모드 해제 — 안 하면 «색을 바꿨는데 바둑판이 그대로»(0918 picker)
+    if (block.dataset.shapeFill) {
+      try { window._clearShapeImage?.(block); } catch (_) {}
+      delete block.dataset.shapeFill;
+      delete block.dataset.shapeImage;
     }
     block.dataset.shapeColor = c;
     svg.style.color = c;
@@ -4345,12 +4461,14 @@ function updateShapeBlock(blockId, partial = {}) {
       // ★최소 2px — 0이면 사실상 안 가려지는데 토글만 켜진 채 남는다(적대적 QA 발견).
       const clamped = Math.max(2, Math.min(20, Math.round(bp)));
       block.dataset.shapeRedactBlur = String(clamped);
+      const wasMosaic = block.dataset.shapeRedactMode === 'mosaic';
       const mode = partial.shapeRedactMode !== undefined
         ? (partial.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur')
         : (block.dataset.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur');
       block.dataset.shapeRedactMode = mode;
       if (mode === 'blur') {
         block.style.setProperty('--redact-blur', `${clamped}px`);
+        if (wasMosaic) _invalidateRedactMosaic(block);
       } else {
         block.style.removeProperty('--redact-blur');
         try { window.captureMosaicSnapshot?.(block); } catch (_) {}
@@ -4360,17 +4478,18 @@ function updateShapeBlock(blockId, partial = {}) {
     } else {
       delete block.dataset.shapeRedact;
       delete block.dataset.shapeRedactMode;
-      delete block.dataset.mosaicCaptured;
       block.style.removeProperty('--redact-blur');
-      block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
+      _invalidateRedactMosaic(block);
     }
     applied.shapeRedact = on;
   } else if (partial.shapeRedactMode !== undefined && partial.shapeRedactMode !== null && block.dataset.shapeRedact === 'true') {
     const mode = partial.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur';
+    const wasMosaic = block.dataset.shapeRedactMode === 'mosaic';
     block.dataset.shapeRedactMode = mode;
     if (mode === 'blur') {
       const bp = Number(block.dataset.shapeRedactBlur) || 8;
       block.style.setProperty('--redact-blur', `${bp}px`);
+      if (wasMosaic) _invalidateRedactMosaic(block);
     } else {
       block.style.removeProperty('--redact-blur');
       try { window.captureMosaicSnapshot?.(block); } catch (_) {}

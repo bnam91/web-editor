@@ -22,6 +22,58 @@ app.name = 'GODITOR';
 const fs = require('fs');
 const os = require('os');
 
+/* ── ★「배포판인가」의 main.js 쪽 «한 벌» 답 (0920 4라운드 pkgguard, T-063) ──────────────
+   ⛔보안 게이트는 `app.isPackaged` 를 «직접» 읽지 않는다 — 그건 실행파일 «이름»만 보는 규칙이라,
+     스톡 Electron 으로 app.asar 를 띄우거나(`electron /x/app.asar admin`) 윈도우에서 GODITOR.exe 를
+     electron.exe 로 복사하면 false 가 된다 → CDP 차단·개발자 도구·운영자(admin)·공개키 주입이 전부 dev 로 열렸다.
+   ★답 = Electron 의 답 OR authService 의 런타임 판정(⒜ asar 안에서 로드됨 ⒝ 앱 바이너리 이름).
+     authService 는 electron 을 안 쓰는 순수 모듈이라 여기(가장 이른 IIFE)에서 불러도 된다.
+   ★함수 «선언»이라 호이스팅된다 — 아래 _blockDebugLaunchInPackaged IIFE 에서도 쓸 수 있다.
+   ★예외 = «막는 쪽»(true). ⛔env 는 근거로 쓰지 않는다(authService U-AB-7 규약).
+   ★허용목록(tests/unit/pkgguard-all-gates.test.js): 이 함수 본문, applyRuntime 에 넘기는 두 줄,
+     updater 두 곳(_updaterCacheDir·_autoUpdateEnabled — electron-updater 가 내부에서 app.isPackaged 로
+     다시 판정하므로 넓혀 봐야 무동작이고, 스톡 Electron 의 resourcesPath 엔 app-update.yml 도 없다).
+     그 밖의 자리에서 `app.isPackaged` 를 새로 읽으면 그 검사가 빨개진다. */
+function _isPackagedBuild() {
+  try {
+    if (app.isPackaged === true) return true;
+    return require('./services/authService').isPackaged() !== false;
+  } catch (_) { return true; }
+}
+
+/* ── 배포판: «띄울 때 여는» 디버깅 길 차단 (T-056, 이벨류에이터 지적 2026-09-19) ──
+   devtools-gate 의 devtools-opened 가드는 «창에서 여는» 길만 본다. 앱을
+   `--remote-debugging-port`/`--remote-debugging-pipe`(CDP) 나 `--inspect*`(메인 Node 디버거)로
+   띄우면 그 가드를 안 거치고 렌더러 전체를 조작할 수 있다 → 배포판이면 «뜨기 전에» 끈다.
+   ★예외 없음(0919 QA) — 운영자 admin(isAdminAuthorized)도 예외가 아니다. 옛 판정(인자 + GODITOR_ADMIN_TOKEN + admin.allow)은
+   셋 다 사용자 손이라 뺐고, 3라운드에 서명 operator.allow 로 바뀐 뒤에도 CDP·개발자 도구 예외는 되살리지 않는다.
+   ⛔관리자 이메일·관리자코드는 여기 예외가 아니다(띄우는 시점엔 아직 판정할 수 없고, 코드 해제는 «창 안»의 일이다).
+   ★자리: path·fs 선언 «뒤», 그 밖의 모든 초기화 «앞».
+   ★퓨즈(package.json build.electronFuses: runAsNode·nodeOptions·nodeCliInspect=false)가 첫 자물쇠, 이게 둘째다.
+   dev(!isPackaged)는 CDP 로 검증하므로 건드리지 않는다. */
+(function _blockDebugLaunchInPackaged() {
+  if (!_isPackagedBuild()) return;   // ★0920 pkgguard: 스톡 Electron + app.asar 도 배포판이다
+  const { debugLaunchViolations } = require('./main/devtools-gate');
+  const hits = debugLaunchViolations({
+    argv: process.argv,
+    execArgv: process.execArgv,
+    hasSwitch: (sw) => app.commandLine.hasSwitch(sw),
+    env: process.env,
+    inspectorUrl: () => { try { return require('inspector').url(); } catch (_) { return undefined; } },
+    /* ★0920 pkgguard: Electron 이 「포장 안 됨」이라 답하는데 여기 왔다 = 스톡 Electron 으로 asar 를 띄웠다 = 퓨즈 없음.
+       이때만 NODE_OPTIONS 의 코드 주입(--require 등)을 본다(허용목록: 판정이 아니라 «퓨즈 유무» 입력이다). */
+    nodeOptionsHonored: (() => { try { return app.isPackaged !== true; } catch (_) { return true; } })(),
+  });
+  if (!hits.length) return;
+  /* ⛔0919 QA(high): isAdminAuthorized() 예외를 뺐다 — 옛 판정('admin' 인자·GODITOR_ADMIN_TOKEN·admin.allow)은
+     셋 다 사용자 손에 있어 누구나 자가 발급으로 CDP 포트를 연 채 배포판을 띄울 수 있었다(렌더러 전체 조작).
+     3라운드(adminsig)에 운영자 판정이 서명 operator.allow 로 바뀌었어도 여기 예외로 되살리지 않는다.
+     배포판 CDP 검증(tools/qa/entitlement/app-runner.mjs)은 이제 못 돈다 — 현빈 결정 사항. */
+  console.error('[devtools-gate] 배포판에서 디버깅 실행 인자 감지 — 종료:', hits.join(','));
+  try { app.exit(1); } catch (_) {}
+  process.exit(1);
+})();
+
 // userData 폴더 마이그레이션: 구 이름('Goya Design Editor') → 'GODITOR'.
 // app.name이 userData 경로를 결정하므로, 앱이 새 경로에 처음 쓰기 전(top-level)에 rename.
 // 같은 볼륨 rename이라 원자적·즉시(6GB+ copy 아님). old만 있고 new 없을 때 1회만.
@@ -71,7 +123,9 @@ const _authService = require('./services/authService');
      main/notice «보다 먼저» 와야 한다 — 그들도 API_BASE 를 각자 구조분해로 붙잡는다.
    ★안 불러도 안전하다: authService 기본값이 이미 「막는 쪽」(패키징 가정)이다.
      이 줄이 하는 일은 「dev 다」를 «Electron 의 답으로» 확정해 주는 것뿐이다.
-   ★★그리고 «.env 로드보다 먼저» 와야 한다 — .env 게이트가 이 답을 본다. */
+   ★★그리고 «.env 로드보다 먼저» 와야 한다 — .env 게이트가 이 답을 본다.
+   ★0920 pkgguard: applyRuntime 은 «조이는 쪽으로만» 움직인다 — 여기서 false 를 줘도 authService 의
+     런타임 판정(asar 안에서 로드됨 등)이 패키징이면 패키징으로 남는다. */
 if (typeof _authService.applyRuntime === 'function') {
   let _pkg = true;
   try { _pkg = app.isPackaged; } catch (_) { _pkg = false; }
@@ -82,8 +136,8 @@ if (typeof _authService.applyRuntime === 'function') {
    ⑴ <앱>/.env  ⑵ ~/.config/secrets/.env — GEMINI_API_KEY 등. 외부 자격증명 저장소를
    ~/.config/secrets 로 일원화한 건 iCloud dataless(EDEADLK) 회피 때문이다.
    ★★배포본에선 «한 줄도 안 읽는다» — ⑵는 사용자 홈이라, 거기 한 줄 쓰는 것만으로
-     `GODITOR_LICENSE_API`·`GODITOR_ENTITLEMENT_PUBKEY`·`GODITOR_ADMIN_TOKEN` 게이트가
-     전부 열렸다(2026-09-06). 판정·읽기는 main/env-file.js 가 한다(거기 이유를 적어 뒀다).
+     `GODITOR_LICENSE_API`·`GODITOR_ENTITLEMENT_PUBKEY`·(당시)`GODITOR_ADMIN_TOKEN` 게이트가
+     전부 열렸다(2026-09-06). ★GODITOR_ADMIN_TOKEN 은 0919 3라운드부터 아무도 안 읽는다(서명 operator.allow). 판정·읽기는 main/env-file.js 가 한다(거기 이유를 적어 뒀다).
    ★사용자 자기 API 키는 이 경로와 무관하다 — settings.json → getApiKey() → payload.apiKey. */
 require('./main/env-file').loadDevEnvFiles({ appDir: __dirname });
 /* .env 가 dev 서버주소(GODITOR_LICENSE_API)를 담고 있을 수 있다 → «읽은 뒤» 다시 계산.
@@ -103,6 +157,8 @@ function _notifyGoditorUse(sessionToken) {
 /* ★자격증명 판정의 SSOT. 이 파일에는 «판정 규칙»을 두지 않는다 — 규칙이 둘이 되면 갈라진다.
    여기가 하는 일은 「디스크·네트워크·화면을 그 답에 «배선»하는 것」뿐이다. */
 const entitlement = require('./services/entitlement');
+/* 배포판 운영자(admin) 판정 — 서명 operator.allow. ⛔entitlement 키(k1)와 «다른» 키(op1)다. */
+const _operatorAllow = require('./services/operator-allow');
 const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
@@ -261,7 +317,7 @@ let mainWindow;
 function watchFiles() {
   // 패키징(asar) 환경에선 fs.watch가 throw → whenReady 체인이 끊겨
   // setupAutoUpdater/MCP까지 죽는 사고(v0.5.0~0.6.0). 핫리로드는 dev 전용.
-  if (app.isPackaged) return;
+  if (_isPackagedBuild()) return;
   const watchTargets = [
     path.join(__dirname, 'index.html'),
     path.join(__dirname, 'js'),
@@ -377,7 +433,7 @@ function createWindow() {
      * ⚠️그리고 이 줄은 «우연에 기대지 않겠다»는 뜻이다: 오늘 기준 배포본은 CDP 를 스스로 안 켜니
      *   argv 에도 없어서 어차피 null 이다. 하지만 「오늘 argv 에 없다」는 «안전장치»가 아니다.
      *   포장 여부를 직접 물어야 다음에 누가 CDP 를 켜도 이 창구는 닫혀 있다. */
-    if (app.isPackaged) return null;
+    if (_isPackagedBuild()) return null;
     if (getGitBranch() === 'main') return null;   // ★main = 배포 상태. 거기선 안 보인다
     const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
     return a ? a.split('=')[1] : null;
@@ -454,18 +510,14 @@ function createWindow() {
     }
   });
 
-  // F12 → DevTools (dev 모드에서만)
-  if (process.argv.includes('--enable-logging')) {
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      if (input.key === 'F12') {
-        if (mainWindow.webContents.isDevToolsOpened()) {
-          mainWindow.webContents.closeDevTools();
-        } else {
-          mainWindow.webContents.openDevTools();
-        }
-      }
-    });
-  }
+  /* F12 → DevTools. ★판정은 «누른 순간» devtools-gate 에 묻는다(현빈 2026-09-19).
+     ⛔예전 조건 `--enable-logging` 은 «잠금»이 아니라 F12 를 «열어 주는» 조건이었다 —
+       배포판에선 ⌥⌘I(메뉴 role)로 누구나 열렸다. 이제 dev 는 자유, 배포판은 관리자 로그인·
+       관리자코드 해제일 때만. 다른 길로 열려도 devtools-gate 의 devtools-opened 가드가 닫는다. */
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key !== 'F12' || input.type !== 'keyDown') return;
+    _devtoolsGate.toggleFor(mainWindow.webContents);
+  });
 }
 
 /* ── 계정 로그인 상태 저장 (userData/auth.json) ──
@@ -581,12 +633,12 @@ function clearAuth() {
    ★이 아래 세 함수 말고 다른 곳에서 판정하지 마라 — 규칙이 둘이 되면 갈라진다. */
 
 /** 이 앱이 믿을 공개키. ★dev(!isPackaged)에서만 env 주입을 허용한다
- *  (`isAdminAuthorized` 와 «같은 규약» — 패키징에선 무시. 안 그러면 사용자가 자기 키를 넣고
- *   자기가 서명해서 서명 검증 전체가 장식이 된다). */
+ *  (패키징에선 무시 — 안 그러면 사용자가 자기 키를 넣고 자기가 서명해서 서명 검증 전체가 장식이 된다.
+ *   ★운영자 판정(isAdminAuthorized·operator.allow)은 env 키 주입이 «아예 없다» — dev 는 인자만으로 통과하니 필요 없다). */
 function entKeys() {
-  let packaged = true;
-  try { packaged = app.isPackaged; } catch (_) { packaged = false; }
-  return entitlement.resolveKeys({ isPackaged: packaged, env: process.env });
+  /* ★0920 pkgguard: 예전엔 app.isPackaged 를 직접 읽고 «예외면 false(dev)» 였다 — 스톡 Electron + asar 로
+     띄우면 GODITOR_ENTITLEMENT_PUBKEY 로 자기 키를 넣고 자기가 서명한 라이선스가 통과했다. */
+  return entitlement.resolveKeys({ isPackaged: _isPackagedBuild(), env: process.env });
 }
 
 /** resolveAuth 에 «주입»하는 verify. ⛔토큰은 이 함수 밖으로 안 나간다. */
@@ -615,36 +667,99 @@ function _noteServer(diagOrNull) {
 function persistApplied(prev, applied) {
   _noteServer(applied && applied.diag);
   if (!applied) return prev;
-  if (applied.clear) { if (prev) clearAuth(); return null; }
-  if (applied.changed && applied.record) { writeAuth(applied.record); return applied.record; }
+  /* ★기록이 바뀌면 개발자 도구 판정(관리자 이메일 = 서명본 payload.email)도 바뀔 수 있다 —
+     부팅 재검증·새로고침이 모두 여기를 지난다. 메뉴만 다시 짓는다(판정은 누를 때 다시 한다). */
+  if (applied.clear) { if (prev) clearAuth(); _devtoolsAuthChanged(); return null; }
+  if (applied.changed && applied.record) { writeAuth(applied.record); _devtoolsAuthChanged(); return applied.record; }
   return applied.record || prev;
 }
 
 /* ── admin 모드 인증 (GAP-008 심층: 라이선스/결제 우회 차단) ──
-   admin 모드 = 라이선스 검증 우회 + 라이선스 키 발급 권한. 이를 'admin' CLI 인자만으로
-   부여하면 배포 앱을 가진 누구나(인자명은 binary strings로 노출) 라이선스/결제를 우회하고
-   유료 키를 자가발급할 수 있다 → 매출 직결 보안구멍.
-   → 패키징(배포) 빌드에선 'admin' 인자 + 운영자 토큰 인증을 모두 요구한다.
+   admin 모드 = 라이선스 검증 우회 + PM·터미널 IPC(GAP-010). 'admin' 인자만으로 부여하면
+   배포 앱을 가진 누구나(인자명은 binary strings로 노출) 라이선스를 우회한다 → 매출·RCE 직결.
      · dev(미패키징, `electron .`): 인자만으로 허용 — 개발/검증 편의(lens 9335·지디 9334 포함).
-     · 패키징: env GODITOR_ADMIN_TOKEN 의 sha256(hex) == userData/admin.allow 파일 내용일 때만 admin.
-       admin.allow는 운영자가 관리자 머신에 로컬 배치(앱 번들·레포 미포함) → 일반 고객 빌드엔
-       부재하므로 'admin' 인자가 무력화된다(safe-by-default). */
+     · 패키징: 'admin' 인자 + userData/operator.allow 가 «운영자 개인키 서명»으로 검증되고,
+       기한 안이고, 이 기기(machine 해시)에 발급된 것일 때만. 판정 = services/operator-allow.js.
+   ⛔0919 3라운드(adminsig): 옛 방식(env GODITOR_ADMIN_TOKEN 의 sha256 == userData/admin.allow)은
+     «읽지도 않는다». 토큰도 파일도 사용자가 자기 PC 에서 정할 수 있어, 아무 문자열의 sha256 을
+     써 두면 누구나 운영자였다(대칭 비교는 «누가 발급했나»를 증명 못 한다).
+   ★운영자 공개키(OPERATOR_PUBLIC_KEYS)가 비어 있으면 배포판 운영자는 «항상 아님»(safe-by-default).
+     발급 = tools/operator-allow/issue.mjs (개인키는 레포·앱 밖 ~/.config/secrets). */
 function isAdminAuthorized() {
   if (!process.argv.includes('admin')) return false;
-  let packaged = true;
-  try { packaged = app.isPackaged; } catch (_) { packaged = false; }
-  if (!packaged) return true; // dev/검증 빌드
+  /* ★0920 pkgguard: 판정은 _isPackagedBuild() 하나 — 스톡 Electron 으로 app.asar 를 'admin' 인자와 띄워도 배포판이다. */
+  if (!_isPackagedBuild()) return true; // dev/검증 빌드
   try {
-    const token = process.env.GODITOR_ADMIN_TOKEN;
-    if (!token) return false;
-    const allowPath = path.join(app.getPath('userData'), 'admin.allow');
-    if (!fs.existsSync(allowPath)) return false;
-    const expected = String(fs.readFileSync(allowPath, 'utf8')).trim().toLowerCase();
-    if (!/^[0-9a-f]{64}$/.test(expected)) return false; // sha256 hex만 허용
-    const crypto = require('crypto');
-    const actual = crypto.createHash('sha256').update(token).digest('hex');
-    return crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
+    let fileText = '';
+    try { fileText = fs.readFileSync(path.join(app.getPath('userData'), 'operator.allow'), 'utf8'); }
+    catch (_) { fileText = ''; }
+    const r = _operatorAllow.checkOperatorAllow({
+      fileText,
+      keys: _operatorAllow.OPERATOR_PUBLIC_KEYS,
+      machineId: fileText ? _operatorMachineId() : null, // 파일 없으면 기기 UUID 도 안 읽는다
+      now: Date.now(),
+    });
+    if (!r.ok) _noteOperatorDenied(r.why);
+    return r.ok === true;
   } catch (_) { return false; }
+}
+
+/** 이 기기의 machine 해시(operator.allow 의 payload.machine 과 대조). «성공값»은 프로세스당 한 번만 읽는다
+ *  (execFileSync ≈ 30ms — 터미널·PM IPC·will-navigate 마다 부르면 안 된다). 못 읽으면 null = 운영자 아님.
+ *  ★실패(null)는 memo 에 굳히지 않는다 — 첫 호출이 일시적으로 실패(timeout 등)해도 재시작 없이 회복되게,
+ *    대신 재시도 간격(_OPERATOR_MID_RETRY_MS)을 둬 동기 exec 가 IPC 마다 메인을 막지 않게 한다.
+ *  ★이 경로는 배포판 + 'admin' 인자 + operator.allow 가 «있을 때만» 온다(고객 실행은 exec 0회).
+ *  ★tools/operator-allow/issue.mjs 의 machine-id 와 «같은» 원천·같은 해시(machineIdFrom)여야 한다. */
+const _OPERATOR_MID_RETRY_MS = 30 * 1000;
+let _operatorMachineIdMemo = null;
+let _operatorMachineIdFailedAt = 0;
+function _operatorMachineId() {
+  if (_operatorMachineIdMemo) return _operatorMachineIdMemo;
+  const t = Date.now();
+  if (_operatorMachineIdFailedAt && t - _operatorMachineIdFailedAt < _OPERATOR_MID_RETRY_MS) return null;
+  let raw = null;
+  try {
+    raw = _operatorAllow.rawMachineUuid({
+      platform: process.platform,
+      execFileSync: require('child_process').execFileSync,
+      readFileSync: fs.readFileSync,
+      existsSync: fs.existsSync,
+      env: process.env,
+    });
+  } catch (_) { raw = null; }
+  const id = _operatorAllow.machineIdFrom(raw);
+  if (id) { _operatorMachineIdMemo = id; _operatorMachineIdFailedAt = 0; }
+  else _operatorMachineIdFailedAt = t;
+  return id;
+}
+
+/** 거부 사유는 «한 번만» 알린다 — 로그 + 화면 안내(0919 T-063: 조용히 막지 말 것).
+ *  여기 오는 건 배포판을 'admin' 인자로 띄운 경우뿐(고객 기본 실행은 isAdminAuthorized 첫 줄에서 끝난다).
+ *  ⛔옛 흔적(admin.allow·GODITOR_ADMIN_TOKEN)은 «안내 문구»에만 쓴다. 판정에는 절대 안 쓴다(isAdminAuthorized 참조).
+ *  ⛔파일 내용·기기값·토큰 값은 안 남긴다(있다/없다만). */
+let _operatorDeniedLogged = false;
+function _noteOperatorDenied(why) {
+  if (_operatorDeniedLogged) return;
+  _operatorDeniedLogged = true;
+  let legacy = false;
+  try {
+    legacy = !!process.env.GODITOR_ADMIN_TOKEN
+      || fs.existsSync(path.join(app.getPath('userData'), 'admin.allow'));
+  } catch (_) {}
+  let keysConfigured = false;
+  try { keysConfigured = Object.keys(_operatorAllow.OPERATOR_PUBLIC_KEYS || {}).length > 0; } catch (_) {}
+  let n;
+  try { n = _operatorAllow.operatorDeniedNotice({ why, legacy, keysConfigured }); } catch (_) { return; }
+  try { console.warn(n.log); } catch (_) {}
+  /* 화면 안내 — GUI 로 띄운 배포판에선 console 이 안 보인다. 비모달·비차단(부팅 흐름은 그대로 고객 경로). */
+  const show = () => {
+    try {
+      const opts = { type: 'warning', title: 'GODITOR', message: n.title, detail: n.detail, buttons: ['확인'], noLink: true };
+      const win = (typeof mainWindow !== 'undefined' && mainWindow && !mainWindow.isDestroyed()) ? mainWindow : null;
+      (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts)).catch(() => {});
+    } catch (_) {}
+  };
+  try { if (app.isReady()) setImmediate(show); else app.once('ready', show); } catch (_) {}
 }
 
 // GAP-008: 에디터(라이선스 게이트 너머) 진입 허가 플래그. 인증된 경로(부팅 라이선스 통과·
@@ -795,6 +910,7 @@ ipcMain.handle('auth:login', async (_event, email, password) => {
     if (!applied.clear && applied.record) rec = applied.record;
     writeAuth(rec);
     _notifyGoditorUse(rec.sessionToken);
+    _devtoolsAuthChanged();   // 관리자 계정이면 개발자 도구 메뉴가 생긴다
     // 세션토큰은 반환하지 않는다(렌더러 노출 최소화).
     return {
       ok: true, email: rec.email, plan: rec.plan,
@@ -1057,12 +1173,19 @@ ipcMain.handle('auth:google-login', async () => {
     };
   })();
 
-  try { return await _googleLoginInFlight; }
+  try {
+    const res = await _googleLoginInFlight;
+    /* ★저장이 일어났을 수 있다(성공·만료) — 개발자 도구 메뉴를 새 판정으로. 저장 구간 «밖»에 둔다
+       (tests/unit/google-defer-writeauth 가 그 구간을 떠서 돌린다). */
+    _devtoolsAuthChanged();
+    return res;
+  }
   finally { _googleLoginInFlight = null; }
 });
 
 ipcMain.handle('auth:logout', () => {
   clearAuth();
+  _devtoolsAuthChanged();   // ★로그아웃 = 관리자 이메일 경로 소멸. 코드 해제 세션이 아니면 열린 개발자 도구도 닫는다
   return { ok: true };
 });
 
@@ -3341,6 +3464,40 @@ require('./main/collab').init(ipcMain, {
      «환경설정에 공지 탭을 그릴까»를 정하는 힌트일 뿐이다. */
 require('./main/admin').init(ipcMain, { readAuth });
 
+/* ── 개발자 도구 잠금 (main/devtools-gate.js) ──
+   ★가드(web-contents-created)는 «createWindow 전»에 걸려야 한다 — 여기(모듈 최상위)는
+     app.whenReady 보다 먼저 돈다. ⛔whenReady 안으로 옮기지 마라(mainWindow 가 빠진다).
+   ⛔isAdminAuthorized 와 섞지 않는다 — 관리자 이메일/코드가 라이선스·터미널 권한까지 풀면 안 된다. */
+const _devtoolsGate = require('./main/devtools-gate').createDevToolsGate({
+  app,
+  isPackaged: _isPackagedBuild,   // ★0920 pkgguard — app.isPackaged(이름 규칙)만으로 풀리지 않게
+  readAuth,
+  authVerdict: (rec) => authVerdict(rec),
+  isAdminAuthorized,
+  getAllWebContents: () => { try { return require('electron').webContents.getAllWebContents(); } catch (_) { return []; } },
+  onChange: () => _rebuildAppMenu(),
+});
+_devtoolsGate.install(app);
+_devtoolsGate.registerIpc(ipcMain);
+
+/** 앱 메뉴를 «지금 판정»으로 다시 짓는다. 로그인·로그아웃·코드 해제 뒤에 부른다. */
+function _rebuildAppMenu() {
+  try {
+    if (typeof app.isReady !== 'function' || !app.isReady()) return;   // 메뉴는 ready 뒤에만
+    const { buildAppMenu } = require('./main/gdt/wire');
+    buildAppMenu({
+      isDevToolsAllowed: () => _devtoolsGate.isAllowed(),
+      toggleDevTools: (wc) => _devtoolsGate.toggleFor(wc),
+    });
+  } catch (e) { console.error('[gdt] 메뉴 재빌드 실패:', e); }
+}
+/** 계정이 바뀐 뒤 — 메뉴를 새로 짓고, 잠김이 됐으면 열린 개발자 도구를 닫는다. */
+function _devtoolsAuthChanged() {
+  /* ⛔이 부수효과가 로그인·저장 경로를 «넘어뜨리면» 안 된다 — 전부 삼킨다. */
+  try { _rebuildAppMenu(); } catch (_) {}
+  try { _devtoolsGate.enforce(); } catch (_) {}
+}
+
 /* ── IPC: 운영자 공지 ──
    구현은 main/notice/* 에 있다. 여기엔 «주입»만 둔다(collab 과 같은 규약).
    ⚠️ sessionToken 은 이 클로저 밖으로 안 나간다 — 공지 조회의 x-session-token 헤더는 main 에서만 붙는다. */
@@ -3969,6 +4126,9 @@ function cleanSpentUpdaterPending() {
 
    ★게이트를 «부르는 자리»가 아니라 «함수 안»에 둔다: 부르는 자리에 조건을 두면 그 조건이
      검사 밖에 남는다(검사는 이 함수를 직접 부른다 — tests/unit/update-gate*.test.mjs). */
+/* ★0920 pkgguard: 이 판정은 «보안 게이트가 아니라» 의도적으로 _isPackagedBuild() 로 넓히지 않았다(허용목록 G12).
+   electron-updater 가 내부에서 app.isPackaged 로 다시 판정해 켜 봐야 무동작이고, 스톡 Electron 의
+   resourcesPath 엔 app-update.yml 이 없다. */
 function _autoUpdateEnabled() {
   try { return app.isPackaged === true; } catch (_) { return false; }
 }
@@ -4079,9 +4239,9 @@ app.whenReady().then(async () => {
   // ★메뉴는 이 앱에 원래 없어서 Electron 기본 메뉴가 ⌘C/⌘V를 대신하고 있었다.
   //   표준 role 템플릿 위에 「파일」을 얹는 방식이라 기본 편집 단축키가 유지된다.
   try {
-    const { registerGdtIpc, buildAppMenu } = require('./main/gdt/wire');
+    const { registerGdtIpc } = require('./main/gdt/wire');
     registerGdtIpc({ projectsDir: _projectsRoot, resolveProjectJsonPath: _resolveProjectJsonPath }); // ★값이 아니라 «게터» — 계정이 바뀌면 따라가야 한다
-    buildAppMenu();
+    _rebuildAppMenu();   // ★개발자 도구 항목은 devtools-gate 판정으로 보이고/숨는다
   } catch (e) {
     console.error('[gdt] 초기화 실패 — 메뉴 없이 계속:', e);
   }

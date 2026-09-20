@@ -281,34 +281,91 @@ test('M12 ★주입이 «끊기면» 조용히 공용 폴더로 가지 않는다
   } finally { restore(); }
 });
 
+/* ★M13 전용 적재기 — 모듈을 «임시 레포 레이아웃»에 복사해서 적재한다. (2026-09-20 6라운드 flaky)
+   ⛔왜 «레포 안»에 심으면 안 되나:
+     «두 번째 뿌리»는 모듈 기준 `path.join(__dirname,'..','..','projects')` 라 원래 «레포 트리 안»이다.
+     거기에 양성대조를 심었다 지우는 «그 사이»에, 같은 npm test 실행의 다른 테스트가 휘말린다 —
+     main.js 는 적재되는 순간 `migrateFiles(path.join(__dirname,'projects'), …)`(main.js:1302) 로
+     그 폴더를 통째로 훑는다. readdirSync 가 이름을 집은 뒤 statSync 전에 지워지면 ENOENT 로 터지고,
+     main.js 적재 «자체»가 죽어서 main.js 를 적재하는 18 개 파일(crash-wiring 등)이 무작위로 빨강이 된다.
+   ⇒ 소스는 그대로 두고 __dirname 만 임시 폴더로 옮긴다. 두 번째 뿌리도 <tmp>/projects 가 되고,
+     ★양성대조의 «세기»는 한 톨도 안 준다 — 같은 파일·같은 표현식·같은 폴백 조건이고,
+     아래에서 「플래그를 켜면 실제로 읽힌다」로 «조준이 안 빗나갔다»까지 같이 잰다. */
+function loadMcpServerInTmpRepo(env = {}) {
+  const repo = fs.mkdtempSync(path.join(os2.tmpdir(), 'gdt-repo-'));
+  const dst = path.join(repo, 'main', 'claude-pm');
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  fs.cpSync(path.join(__dirname, '..', '..', 'main', 'claude-pm'), dst, { recursive: true });
+  const p = path.join(dst, 'mcp-server.js');
+  delete require.cache[p];
+  const saved = {};
+  for (const k of Object.keys(env)) { saved[k] = process.env[k]; if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k]; }
+  const undo = () => {
+    for (const k of Object.keys(saved)) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
+    delete require.cache[p];
+    fs.rmSync(repo, { recursive: true, force: true });
+  };
+  try { return { mod: require(p), sharedRoot: path.join(repo, 'projects'), restore: undo }; }
+  catch (e) { undo(); throw e; }
+}
+
 test('M13 ★두 번째 뿌리에 «남의 프로젝트»를 심어도 안 읽힌다 (양성대조)', () => {
-  const shared = path.join(__dirname, '..', '..', 'projects');     // 코드가 뒤지던 두 번째 뿌리
+  const { mod, sharedRoot, restore } = loadMcpServerInTmpRepo({ GODITOR_MCP_ALLOW_SHARED_ROOT: undefined });
   const victim = 'proj_9999001';
   const mine = fs.mkdtempSync(path.join(os2.tmpdir(), 'gdt-mine-'));
-  const planted = path.join(shared, victim);
-  const preexisting = fs.existsSync(shared);
-  fs.mkdirSync(planted, { recursive: true });
-  fs.writeFileSync(path.join(planted, 'proj.json'), JSON.stringify({ id: victim, name: '★남의것-비밀' }));
+  const planted = path.join(sharedRoot, victim);                    // 코드가 뒤지던 두 번째 뿌리
   try {
-    const { mod, restore } = loadMcpServer({ GODITOR_MCP_ALLOW_SHARED_ROOT: undefined });
+    /* ★심는 자리가 «레포 트리 밖»이어야 한다 — 안이면 위 주석의 교차오염 경합이 되살아난다. */
+    const repoRoot = path.resolve(__dirname, '..', '..');
+    assert.ok(planted !== repoRoot && !planted.startsWith(repoRoot + path.sep),
+      `★양성대조를 «레포 트리 안»에 심으면 main.js 를 적재하는 18 개 테스트가 무작위로 깨진다: ${planted}`);
+    fs.mkdirSync(planted, { recursive: true });
+    fs.writeFileSync(path.join(planted, 'proj.json'), JSON.stringify({ id: victim, name: '★남의것-비밀' }));
+
+    mod.setProjectsRoot(() => mine);                              // 내 계정 뿌리(비어 있음)
+    const read = mod.__test_readProjectFile;
+    assert.strictEqual(typeof read, 'function', '★검사할 함수를 못 꺼냈다');
+    // ★심어둔 것이 «진짜 거기 있다»는 것부터 보인다 — 「0건」이 «안 심어져서»면 검사가 무의미하다
+    assert.ok(fs.existsSync(path.join(planted, 'proj.json')), '★양성대조 자체가 안 깔렸다');
+    /* ★★조준 확인 — 심은 자리가 «코드가 말하는 두 번째 뿌리»가 맞나.
+       ⛔이게 없으면 임시 레포로 옮긴 뒤 「못 찾았다」가 «엉뚱한 데 심어서»일 수 있다
+         (계측기가 대상을 놓친 채 초록). 폴백 플래그를 켜면 «읽혀야» 한다. */
+    process.env.GODITOR_MCP_ALLOW_SHARED_ROOT = '1';
     try {
-      mod.setProjectsRoot(() => mine);                              // 내 계정 뿌리(비어 있음)
-      const read = mod.__test_readProjectFile;
-      assert.strictEqual(typeof read, 'function', '★검사할 함수를 못 꺼냈다');
-      // ★심어둔 것이 «진짜 거기 있다»는 것부터 보인다 — 「0건」이 «안 심어져서»면 검사가 무의미하다
-      assert.ok(fs.existsSync(path.join(planted, 'proj.json')), '★양성대조 자체가 안 깔렸다');
-      assert.throws(() => read(victim), /project not found/,
-        '★두 번째 뿌리(앱/레포의 공용 projects)를 뒤지면 «계정을 넘어» 읽힌다');
-      // 내 계정 것은 «읽혀야» 한다 — 반대방향 오탐 방지
-      fs.mkdirSync(path.join(mine, 'proj_9999002'), { recursive: true });
-      fs.writeFileSync(path.join(mine, 'proj_9999002', 'proj.json'), JSON.stringify({ id: 'proj_9999002', name: '내것' }));
-      assert.strictEqual(read('proj_9999002').name, '내것');
-    } finally { restore(); }
+      assert.strictEqual(read(victim).name, '★남의것-비밀',
+        '★두 번째 뿌리를 «조준»하지 못했다 — 아래 「not found」는 막은 증거가 아니다');
+    } finally { delete process.env.GODITOR_MCP_ALLOW_SHARED_ROOT; }
+
+    assert.throws(() => read(victim), /project not found/,
+      '★두 번째 뿌리(앱/레포의 공용 projects)를 뒤지면 «계정을 넘어» 읽힌다');
+    // 내 계정 것은 «읽혀야» 한다 — 반대방향 오탐 방지
+    fs.mkdirSync(path.join(mine, 'proj_9999002'), { recursive: true });
+    fs.writeFileSync(path.join(mine, 'proj_9999002', 'proj.json'), JSON.stringify({ id: 'proj_9999002', name: '내것' }));
+    assert.strictEqual(read('proj_9999002').name, '내것');
   } finally {
-    fs.rmSync(planted, { recursive: true, force: true });
-    if (!preexisting) { try { fs.rmdirSync(shared); } catch (_) {} }
+    restore();
     fs.rmSync(mine, { recursive: true, force: true });
   }
+});
+
+/* ★M13-G — 재발 방지(2026-09-20). 단위검사가 «레포 트리 안 projects»를 뿌리로 삼으면
+   main.js 적재(migrateFiles)와 부딪혀 «같은 HEAD 인데 가끔 빨강»이 된다. 자리 자체를 막는다. */
+test('M13-G ★단위검사 중 «레포 안 projects» 를 뿌리로 잡는 자리가 없다 (교차오염 재발 방지)', () => {
+  const RE = /__dirname.*\.\..*\.\..*['"]projects['"]/;
+  /* ★자(尺)부터 잰다 — 옛 모양을 «실제로» 잡는지. (⛔표본을 한 줄에 그대로 적으면
+     이 줄 자신이 걸린다 — 그래서 조각으로 만든다.) */
+  const DOTS = '.' + '.';
+  const SAMPLE = `const shared = path.join(__dirname, '${DOTS}', '${DOTS}', ${JSON.stringify('projects')});`;
+  assert.ok(RE.test(SAMPLE), '★자가 옛 모양을 못 잡는다 — 검사가 대상을 놓쳤다(통과가 아니다)');
+
+  const offenders = [];
+  for (const f of fs.readdirSync(__dirname)) {
+    if (!/\.(js|mjs|cjs)$/.test(f)) continue;
+    const lines = stripComments(fs.readFileSync(path.join(__dirname, f), 'utf8')).split('\n');
+    lines.forEach((l, i) => { if (RE.test(l)) offenders.push(`${f}:${i + 1}: ${l.trim()}`); });
+  }
+  assert.deepStrictEqual(offenders, [],
+    `★레포 안 projects 를 쓰면 main.js 적재와 경합해 무작위 빨강이 된다:\n  ${offenders.join('\n  ')}`);
 });
 
 test('M14 ★뿌리 주입이 «서버가 듣기 전»에 걸린다 (그 사이 요청이 주입 없이 처리되지 않게)', () => {

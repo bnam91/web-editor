@@ -5,6 +5,7 @@
  * - pill 높이 (상하 패딩으로 조절)
  * - 5개 shape preset (pill / box / outline / circle / text)
  */
+import { markLabelAutoColor, forgetLabelAutoColor } from './label-auto-color.js';
 
 export function wireLabelSection({ ctx }) {
   /* 태그 배경색 */
@@ -104,8 +105,10 @@ export function wireLabelSection({ ctx }) {
   // 모든 프리셋은 디폴트 .tb-label(padding:11px 36px, font:26px/700, radius:8px) 기준 + 서로 토글 시 안전 복원
   // 공통 reset 헬퍼 — 인라인 background/color/border/size 제거 → CSS 디폴트 복귀
   const _resetLabelInline = () => {
+    window.clearTextGradient?.(ctx.contentEl);   // 0918r2 textgrad: 라벨은 단색만
     ctx.contentEl.style.backgroundColor = '';
     ctx.contentEl.style.color = '';
+    forgetLabelAutoColor(ctx.contentEl);   // 0920r6 labeltext: 색을 걷어냈으니 표식도 폐기(다음 프리셋이 제 색만 표식하게)
     ctx.contentEl.style.border = '';
     ctx.contentEl.style.width  = '';
     ctx.contentEl.style.height = '';
@@ -173,7 +176,9 @@ export function wireLabelSection({ ctx }) {
     window.pushHistory?.();
     _resetLabelInline();
     ctx.contentEl.style.backgroundColor = 'transparent';
+    // textgrad-ok: 바로 위 _resetLabelInline 이 clearTextGradient 를 불렀다
     ctx.contentEl.style.color = '#111111';
+    markLabelAutoColor(ctx.contentEl);   // 0920r6 labeltext: 프리셋이 넣은 색도 «라벨이 넣은 색» — 라벨을 벗어나면 이 색만 걷어낸다
     ctx.contentEl.style.borderRadius = '0';
     ctx.contentEl.style.padding = '0';
     const rSlider2 = document.getElementById('label-radius-slider');

@@ -6,7 +6,8 @@ import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 import { applyFrameTransform } from '../frame-geometry.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
-import { neutralizeRedactForH2C } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C } from './capture-safety.js';
+import { ejectShapeFrameIntruders } from '../shape-frame.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
 /* ══════════════════════════════════════
@@ -85,6 +86,7 @@ async function captureThumbnail() {
     clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;';
     document.body.appendChild(clone);
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
+    neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
     // 모자이크 redact(js/effects/redact-mosaic.js)는 cloneNode에 캔버스 비트맵이 안 딸려오므로
     // clone에 라이브 캔버스를 구워 넣는다 — 실패 시 함수 내부에서 불투명 회색 안전실패.
     if (window.finalizeMosaicForClone) { try { await window.finalizeMosaicForClone(firstSec, clone); } catch (_) {} }
@@ -815,6 +817,12 @@ function migrateColsFromDOM(canvasEl) {
     tb.before(tf);
     tf.appendChild(tb);
   });
+
+  // ★도형 래퍼 안에 들어간 블록을 «래퍼 바로 뒤(같은 부모)»로 꺼낸다(현빈 확정 0918 A안).
+  //   반드시 맨 끝 — .frame-inner 해체·text-frame 래핑이 끝나 «이동 단위»가 완성된 뒤여야 한다.
+  //   멱등(오염 없으면 DOM 무변이) — rebindAll 이 로드·undo/redo 양쪽에서 불러도 dirty 를 만들지 않는다.
+  //   강제 저장은 안 한다(다음 자연 저장에 반영, 그 전엔 매 로드 같은 결과).
+  ejectShapeFrameIntruders(canvasEl);
 }
 
 function rebindAll(opts = {}) {
@@ -1061,11 +1069,16 @@ function rebindAll(opts = {}) {
   // 보려면 어차피 첫 캡처가 필요하므로 그 노출/대기 창을 최소화하도록 여기서 즉시(사용자
   // 행동 없이) 일괄 캡처한다. captureMosaicSnapshot은 실패해도 조용히 무시 — 안전배경이
   // 계속 바닥을 지킨다.
-  canvasEl.querySelectorAll('.shape-block.shape-redact[data-shape-redact-mode="mosaic"]').forEach(b => {
-    if (!window.isMosaicCaptured?.(b)) {
-      try { window.captureMosaicSnapshot?.(b); } catch (_) {}
-    }
-  });
+  // ★0919 QA: 즉시 한 번으로 끝내지 않는다 — 이미지가 뜬 뒤 시도 + 실패 시 몇 번 물러나며 재시도(redact-mosaic.js).
+  if (typeof window.captureMosaicsAfterLoad === 'function') {
+    try { window.captureMosaicsAfterLoad(canvasEl); } catch (_) {}
+  } else {
+    canvasEl.querySelectorAll('.shape-block.shape-redact[data-shape-redact-mode="mosaic"]').forEach(b => {
+      if (!window.isMosaicCaptured?.(b)) {
+        try { window.captureMosaicSnapshot?.(b); } catch (_) {}
+      }
+    });
+  }
 
   // ── annotation-block 복원 (펜툴 Phase 2: 폴리라인 + 스타일 props) ──
   canvasEl.querySelectorAll('.annotation-block').forEach(block => {
@@ -1262,6 +1275,12 @@ function rebindAll(opts = {}) {
     if (ss.dataset.radius) ss.style.borderRadius = ss.dataset.radius + 'px';
     // explicit height 복원 — justify-content 정렬 작동을 위해 필요
     // dataset.height 없으면 minHeight 폴백 (레거시 요소 대응)
+    // ★0919 QA: ⌘G(wrapSelectedBlocksInFrame)가 style 높이만 쓰고 makeFrameBlock 기본값 dataset.height='520' 을
+    //   남기던 저장본 치유 — 기본값 '520' 인데 저장된 style 높이가 다르면 style 이 진짜(다른 크기 변경 경로는 둘 다 쓴다).
+    if (ss.dataset.height === '520') {
+      const _styleH = parseInt(ss.style.height);
+      if (_styleH > 0 && _styleH !== 520 && /px$/.test(ss.style.height)) ss.dataset.height = String(_styleH);
+    }
     const _ssH = parseInt(ss.dataset.height) || parseInt(ss.style.minHeight) || 0;
     if (_ssH) ss.style.height = _ssH + 'px';
     // 자식 정렬 복원 (frame-block 직속)

@@ -8,8 +8,9 @@ import { alignBtn } from './_helpers.js';
 
 /**
  * freeLayout 내 선택된 블록들의 text-frame(래퍼) 수집
- * frame-block[data-text-frame] 또는 frame-block[data-shape-frame]을 우선,
- * 없으면 절대 배치된 블록 자체를 위치/크기 기준으로 사용
+ * frame-block[data-text-frame]을 우선, 없으면 절대 배치된 블록 자체를 위치/크기 기준으로 사용.
+ * (T-057: 옛 «도형프레임 속성» 셀렉터는 그 속성을 찍는 코드가 이력 전체에 0건인 죽은 조건이라 뺐다 —
+ *  동작 무변화. 도형 래퍼를 제대로 다루려면 shapeFrameOf + parentElement?.closest 로, 별도 카드에서.)
  */
 function _getSelectedFrameWrappers() {
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
@@ -24,7 +25,7 @@ function _getSelectedFrameWrappers() {
   const blocks = [...document.querySelectorAll(BLOCK_SEL)];
   const wrappers = new Set();
   blocks.forEach(b => {
-    const wrapper = b.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+    const wrapper = b.closest('.frame-block[data-text-frame]') ||
       (b.style.position === 'absolute' ? b : null);
     if (wrapper) wrappers.add(wrapper);
   });
@@ -338,7 +339,7 @@ function _flowSel() {
 
 // editor.js _isInFreeLayout 역미러: freeLayout 래퍼 밖(=플로우)만 true
 function _isFlowBlock(b) {
-  const wrapper = b.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+  const wrapper = b.closest('.frame-block[data-text-frame]') ||
     (b.style.position === 'absolute' ? b : null);
   return !(wrapper && wrapper.closest('.frame-block[data-free-layout]'));
 }

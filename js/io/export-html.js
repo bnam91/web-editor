@@ -1,6 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { isGoyaAssetUrl as _isGoyaAsset, parseGoyaAssetUrl as _parseGoyaAssetUrl } from './goya-asset-inline.js';
 import { HIDDEN_VARIATION_SECTION_SEL } from '../variation-visibility.js';
+import { textGradShadowDefsMarkup } from '../props/text-block-color.js';
 
 const CANVAS_W = 860;
 
@@ -204,7 +205,12 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 .tb-table{width:100%;border-collapse:collapse;font-size:28px;}
 .tb-table th,.tb-table td{padding:10px 16px;border:1px solid #e0e0e0;text-align:center;}
 .tb-table thead th{background:#f5f5f5;font-weight:600;}
+/* 글자 그라데이션 + 그림자/네온 = 그림자를 글자 «뒤»로 (0919r3 textshadow — 앱 css/editor-blocks.css .tgs 와 같은 규칙).
+   이 줄이 없으면 인라인 text-shadow 가 그라데이션 위에 칠해져 페이드가 사라진다. 여러 겹은 아래 <svg> 필터 정의를 참조. */
+.tgs{text-shadow:none!important;filter:var(--tgs-filter)!important;}
 `;
+  // .tgs 글자가 url(#tgs-f-…) 로 가리키는 SVG 필터 정의 — 앱에선 캔버스 밖(body 직속)에 있어 클론에 안 딸려 온다.
+  const tgsDefs = textGradShadowDefsMarkup(clone);
 
   const html = `<!DOCTYPE html>
 <html lang="ko">
@@ -216,6 +222,7 @@ ${fontLink}
 <style>${css}</style>
 </head>
 <body>
+${tgsDefs}
 <div id="canvas">
 ${clone.innerHTML}
 </div>

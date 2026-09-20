@@ -93,7 +93,12 @@ function _focusFirstWindow() {
 
 /* 여러 인스턴스를 «일부러» 띄우는 경우인가. ⛔패키징 빌드에는 예외가 없다. */
 function _allowMultiInstance() {
-  if (app.isPackaged) return false;
+  /* ★0920 pkgguard: app.isPackaged(실행파일 이름) 대신 authService 의 한 벌짜리 답 — 스톡 Electron 으로
+     app.asar 를 띄워도 배포판이다. ★이 함수는 authService.applyRuntime «전»에 불릴 수 있지만, 그때의
+     기본값이 이미 런타임 판정(⒜ asar 안 ⒝ 앱 바이너리 이름 = Electron 의 isPackaged 규칙 포함)이다. */
+  let packaged = true;
+  try { packaged = require('../../services/authService').isPackaged() !== false; } catch (_) { packaged = true; }
+  if (packaged) return false;
   if (String(process.env.GODITOR_ALLOW_MULTI || '') === '1') return true;
   return (process.argv || []).some(a => typeof a === 'string' && a.startsWith('--remote-debugging-port'));
 }
@@ -231,11 +236,25 @@ function registerGdtIpc({ projectsDir, resolveProjectJsonPath }) {
 /* ── 애플리케이션 메뉴 ──
  * 표준 role을 전부 유지한 위에 「파일」만 추가한다. role 기반이라 ⌘C/⌘V/⌘Z가 살아 있다.
  */
-function buildAppMenu() {
+function buildAppMenu(opts = {}) {
   const isMac = process.platform === 'darwin';
-  const sendToFocused = (channel) => {
+  const focusedWin = () => {
     const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-    if (win && !win.isDestroyed()) win.webContents.send(channel);
+    return (win && !win.isDestroyed()) ? win : null;
+  };
+  const sendToFocused = (channel) => {
+    const win = focusedWin();
+    if (win) win.webContents.send(channel);
+  };
+  /* ★개발자 도구 — 표준 role 「toggleDevTools」 는 «게이트를 모른다»(배포판에서 누구나 ⌥⌘I 로 열렸다).
+     판정은 main/devtools-gate.js 한 곳. 게터를 안 넘기면(옛 호출) «잠김»으로 본다(safe-by-default).
+     ⚠️메뉴는 보이기일 뿐 — 실제 잠금은 devtools-gate 의 devtools-opened 가드다. */
+  const { devToolsMenuItem } = require('../devtools-gate');
+  const devToolsAllowed = typeof opts.isDevToolsAllowed === 'function' ? !!opts.isDevToolsAllowed() : false;
+  const toggleDevTools = () => {
+    const win = focusedWin();
+    if (!win) return;
+    if (typeof opts.toggleDevTools === 'function') opts.toggleDevTools(win.webContents);
   };
 
   const template = [
@@ -281,7 +300,7 @@ function buildAppMenu() {
       submenu: [
         { role: 'reload', label: '새로고침' },
         { role: 'forceReload', label: '강제 새로고침' },
-        { role: 'toggleDevTools', label: '개발자 도구' },
+        devToolsMenuItem({ isMac, allowed: devToolsAllowed, toggle: toggleDevTools }),
         { type: 'separator' },
         { role: 'resetZoom', label: '실제 크기' },
         { role: 'zoomIn', label: '확대' },

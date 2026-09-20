@@ -50,7 +50,9 @@ export function showAssetProperties(ab) {
   const grainIntensity = grainEl ? Math.round(parseInt(grainEl.dataset.grainIntensity ?? '0', 10)) : 0;
 
   const currentBgColor = ab.dataset.bgColor || '#a0a0a0';
-  const currentBgAlpha = parseAlphaFromColor(currentBgColor);
+  // T-059 2라운드: 그라데이션이면 _hex6 가 #000000 으로 떨어져 Solid 복귀 = 검정이었다 → wireColorField(gradientValue)가 첫 스탑으로 채운다
+  const assetBgGrad = /gradient\s*\(/i.test(currentBgColor) ? currentBgColor : '';
+  const currentBgAlpha = assetBgGrad ? 100 : parseAlphaFromColor(currentBgColor);
   const currentFit = ab.dataset.fit || 'cover';
   // B23: 에셋 외곽선(stroke)
   const currentStrokeWidth = parseInt(ab.dataset.strokeWidth || '0');
@@ -79,7 +81,7 @@ export function showAssetProperties(ab) {
       <div class="prop-hint" style="text-align:center;margin-top:4px;">또는 파일을 블록에 드래그</div>
       <div class="prop-color-row" style="margin-top:10px;">
         <span class="prop-label">배경색</span>
-        ${colorFieldHTML({ idPrefix: 'asset-bg', hex: currentBgColor, alpha: currentBgAlpha })}
+        ${colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad })}
         <button class="prop-align-btn prop-align-btn--aux" id="asset-bg-clear">초기화</button>
       </div>
     </div>`;
@@ -452,6 +454,7 @@ export function showAssetProperties(ab) {
     document.getElementById('asset-upload-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
     const bgField = wireColorField('asset-bg', {
       initialAlpha: currentBgAlpha,
+      gradientValue: assetBgGrad,   // T-059 2라운드: 재오픈 시드
       onApply: (c) => {
         // 이전 그라데이션 제거 후 솔리드 적용 (prop-frame.js ss-bg와 동일 패턴)
         ab.style.background = '';

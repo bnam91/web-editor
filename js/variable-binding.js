@@ -122,7 +122,10 @@ function applyAllBindings() {
     // text-block: contenteditable 자식의 color
     const contentEl = el.querySelector('[contenteditable]');
     if (contentEl) {
+      // 0918r2 textgrad: 색 변수 바인딩 = 단색 — 글자 그라데이션 해제
+      window.clearTextGradient?.(contentEl);
       contentEl.style.color = val;
+      window.forgetLabelAutoColor?.(contentEl);   // 0920r6 labeltext: 변수가 정한 색 — 라벨 표식 폐기(타입 전환 때 안 걷어내게)
     }
     // asset-block, card-block 등: background 적용
     else if (el.classList.contains('asset-block')) {

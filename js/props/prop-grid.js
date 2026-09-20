@@ -19,9 +19,66 @@ import { parseAlphaFromColor, swatchHex } from './color-picker.js';
 const _grdActiveLine = new WeakMap();
 export function grdSetActiveLine(block, addr) { _grdActiveLine.set(block, addr || null); }
 export function grdGetActiveLine(block) { return _grdActiveLine.get(block) || null; }
+/* ★0918 grid — «블럭 전체 선택»과 «줄 선택»을 가른다.
+ *   이 WeakMap 을 null 로 되돌리는 곳이 없어서, 줄을 한 번 누른 블럭은 블럭을 떠났다 «블럭으로»
+ *   다시 골라도(레이어 패널·테두리·Esc 후 재클릭) 옛 {r,c,li} 가 살아났다 → Backspace 가
+ *   editor.js 줄 삭제 분기로 새서, 한 줄짜리 칸이면 토스트만 뜨고 블럭이 영영 안 지워졌다.
+ *   원칙: 블럭을 «떠나면»(deselectAll) 줄 선택도 해제. WeakMap 은 순회가 안 되니 DOM 을 돈다. */
+export function grdClearAllActiveLines(root) {
+  const scope = root || (typeof document !== 'undefined' ? document : null);
+  if (!scope || !scope.querySelectorAll) return;
+  scope.querySelectorAll('.grid-block').forEach(b => grdSetActiveLine(b, null));
+}
+
+/* ★0918r2 T-058 — «이 그리드 하나만» 선택돼 있나(피그마식 드릴다운 + 줄 삭제 게이트의 단일 판정).
+ *   조상(부모 프레임·섹션)의 .selected 는 뺀다 — _restoreParentFrameSelected 가 그 둘에도 selected 를
+ *   붙이므로, 빼지 않으면 프레임 안 그리드는 «늘 이미 선택됨»으로 보여 첫 클릭이 다시 줄이 된다.
+ *   자기 자손(.selected 가 붙은 내부 요소)도 뺀다. 그 밖에 하나라도 selected 면 다중선택 → false.
+ *   ★쓰는 곳 두 군데 — block-drag 클릭(«이미 선택됐나») · editor.js deleteSelectedFromCanvas(줄 삭제는
+ *     «단독 선택»일 때만: ⌘클릭 다중선택·붙여넣기 뒤 [원본+사본] 선택에서 ⌫/⌘X 가 원본의 줄 하나를
+ *     조용히 지우던 누수). ⛔사본을 따로 두지 마라 — 두 판정이 갈리면 «보이는 선택»과 «지우는 것»이 갈린다. */
+export function grdIsSoleSelected(block) {
+  if (!block || !block.classList.contains('selected')) return false;
+  const scope = document.getElementById('canvas') || document;
+  for (const el of scope.querySelectorAll('.selected')) {
+    if (el === block || el.contains(block) || block.contains(el)) continue;
+    return false;
+  }
+  return true;
+}
+/* ★0918r2 T-058 — 줄 선택을 «통째로» 끝낸다(모델 + 화면 마커). 다중선택으로 넘어가는 순간(⌘클릭 토글)·
+ *   붙여넣기 뒤처럼 «선택이 블럭 단위로 바뀌는데 deselectAll 을 안 지나는» 문에서 부른다. */
+export function grdDropLineSelection(root) {
+  const scope = root || (typeof document !== 'undefined' ? document : null);
+  if (!scope || !scope.querySelectorAll) return;
+  grdClearAllActiveLines(scope);
+  scope.querySelectorAll('.grd-line-selected').forEach(el => el.classList.remove('grd-line-selected'));
+  scope.querySelectorAll('.grd-cell-selected').forEach(el => el.classList.remove('grd-cell-selected'));
+}
+
+/* 캔버스 클릭 한 번이 «어느 줄 주소»를 뜻하는지 — 순수 판정(유닛 테스트 대상).
+ *   at        : _gridAddrAt 결과(줄/빈 칸이면 주소, 아니면 undefined)
+ *   prevAddr  : 클릭 «직전»(deselectAll 전) 그 블럭의 활성줄
+ *   insideCell: 클릭 지점이 그 블럭의 .grd-cell 안인가
+ *   wasSelected: 클릭 «직전»에 이 블럭 «하나만» 선택돼 있었나(0918r2 T-058, 피그마식 드릴다운).
+ *               false → 무조건 null(첫 클릭 = 블럭 선택 — ⌫ 가 블럭을 지운다).
+ *               undefined → true 로 본다(옛 호출부 하위호환).
+ *   → (wasSelected 일 때) 줄/빈 칸을 눌렀으면 at. 줄 있는 칸의 여백이면 prevAddr(D5: 선택이 안 튄다).
+ *     칸 밖(테두리·패딩·gap)이면 null = 블럭 전체 선택. ★undefined 는 절대 돌려주지 않는다
+ *     (undefined 는 showGridProperties 에서 «기억하던 줄 되살리기»라 이 버그의 입구였다). */
+export function grdResolveClickAddr({ at, prevAddr, insideCell, wasSelected } = {}) {
+  if (wasSelected === false) return null;
+  if (at !== undefined) return at;
+  if (insideCell) return prevAddr || null;
+  return null;
+}
 if (typeof window !== 'undefined') {
   window.grdSetActiveLine = grdSetActiveLine;
   window.grdGetActiveLine = grdGetActiveLine;
+  window.grdClearAllActiveLines = grdClearAllActiveLines;
+  window.grdResolveClickAddr = grdResolveClickAddr;
+  window.grdIsSoleSelected = grdIsSoleSelected;
+  window.grdDropLineSelection = grdDropLineSelection;
 }
 
 /* 캔버스에서 선택된 줄에 마커. ⛔`.selected` 재활용 금지 — editor.js 의

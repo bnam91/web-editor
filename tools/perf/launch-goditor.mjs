@@ -34,7 +34,7 @@ catch (e) { console.error('electron 을 못 찾았다 — 체크아웃에서 npm
 /* 'admin' 인자 = package.json 의 dev 스크립트가 쓰는 «개발 빌드» 경로.
    격리 user-data-dir 은 auth.json 이 없어 라이선스 게이트(pages/license.html)에 걸린다 —
    계측은 에디터 화면에서만 성립하므로 dev 스크립트와 «같은» 인자를 쓴다.
-   ⚠️패키지 빌드(app.isPackaged)에서는 이 인자만으로 통과하지 않는다(admin.allow + 토큰 필요). */
+   ⚠️패키지 빌드(app.isPackaged)에서는 이 인자만으로 통과하지 않는다(서명된 userData/operator.allow 필요 — tools/operator-allow/README.md). */
 const args = ['.', 'admin', '--enable-logging', `--remote-debugging-port=${PORT}`, '--remote-allow-origins=*', `--user-data-dir=${UD}`];
 if (FLAGS) args.push('--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows');
 if (A.extra) args.push(...String(A.extra).split(' ').filter(Boolean));

@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { forgetLabelAutoColor } from './label-auto-color.js';
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
 
 /* ═══════════════════════════════════
@@ -505,7 +506,10 @@ async function showSectionProperties(sec) {
     const applyColor = (val) => {
       blocks.forEach(tb => {
         const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
+        // 0918r2 textgrad: 섹션 일괄 글자색 = 단색 — 글자 그라데이션 해제
+        window.clearTextGradient?.(contentEl);
         contentEl.style.color = val;
+        forgetLabelAutoColor(contentEl);   // 0920r6 labeltext: 사용자가 고른 색 — 라벨 표식 폐기(타입 전환 때 안 걷어내게)
       });
     };
     const p = document.getElementById(`sec-txt-${t}`);

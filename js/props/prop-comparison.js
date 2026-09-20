@@ -180,6 +180,7 @@ export function showComparisonProperties(block) {
     ta?.addEventListener('input', () => { const c = getCols(); if (c[idx]) { c[idx].title = ta.value; saveCols(c); rerender(); } });
     ta?.addEventListener('change', commit);
     wireColorField('cmp-c' + idx + 'Bg', {
+      gradientValue: col.bg,   // T-059 2라운드: featured 아닌 칼럼도 재오픈 시드(전엔 featured 한 칸만 부수효과로 받았다)
       onApply: v => { const c = getCols(); if (c[idx]) { c[idx].bg = v; saveCols(c); rerender(); } },
       onGradient: (css, isCommit) => {
         const c = getCols(); if (c[idx]) { c[idx].bg = css; saveCols(c); rerender(); if (isCommit) commit(); }
@@ -278,6 +279,12 @@ export function showComparisonProperties(block) {
 
   // 선택 시 활성 칼럼 배경이 그라데이션이면 캔버스 위 그라데이션 라인 표시 (아니면 overlay가 no-op)
   window.showGradientLine?.(block);
+  // 0918 canvasgrad: 캔버스 바 ↔ 피커 스탑 양방향 배선 + 재오픈 시드(활성 칼럼 = 오버레이가 그리는 칼럼)
+  {
+    const _n = (window.getComparisonCols?.(block.dataset) || []).length || 1;
+    const _fi = window.getComparisonFeaturedIdx?.(block.dataset, _n) ?? (_n - 1);
+    window.bindGradientLinePicker?.(block, document.getElementById('cmp-c' + _fi + 'Bg-color'));
+  }
 }
 
 // 캔버스에서 그라데이션 라인을 드래그하면(source==='canvas') 활성 칼럼 스와치만 동기화.

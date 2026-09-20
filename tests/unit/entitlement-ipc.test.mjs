@@ -58,6 +58,9 @@ const stub = {
   urlIsLive: async () => true,
   API_BASE: 'http://127.0.0.1:1', SIGNUP_URL: 's', PRICING_URL: 'p',
   FIND_EMAIL_URL: 'fe', FIND_PASSWORD_URL: 'fp',
+  /* ★0920 pkgguard: main.js `_isPackagedBuild()` 가 이 답을 본다(없으면 예외 → «막는 쪽»=배포판 →
+     env 공개키 주입이 무시돼 서명 검증이 전부 빨개진다). 이 파일은 dev 하네스다. */
+  isPackaged: () => false, applyRuntime: () => {},
 };
 require.cache[AUTH_PATH] = { id: AUTH_PATH, filename: AUTH_PATH, loaded: true, exports: stub };
 

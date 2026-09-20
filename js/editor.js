@@ -1,5 +1,7 @@
 import { canvasEl, propPanel, state, BLOCK_DELEGATE_SEL } from './globals.js';
 import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './history.js';
+import { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
+import { setTextTypeClass, afterTextTypeChange } from './props/text-type-class.js';
 
 /* ═══════════════════════════════════
    SSOT: 캔버스에서 "선택된 블록" 셀렉터 목록
@@ -886,7 +888,7 @@ function _getBlockLayerItem(block) {
 
 /* freeLayout 내 블록인지 확인 */
 function _isInFreeLayout(block) {
-  const wrapper = block.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+  const wrapper = block.closest('.frame-block[data-text-frame]') ||
     (block.style.position === 'absolute' ? block : null);
   return !!(wrapper && wrapper.closest('.frame-block[data-free-layout]'));
 }
@@ -898,7 +900,7 @@ function _restoreFreeLayoutFrameSelected(block) {
   let el = block;
   let deepestFrame = null;
   while (el) {
-    const textOrShape = el.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]');
+    const textOrShape = el.closest('.frame-block[data-text-frame]');
     const searchFrom = textOrShape || el;
     const frame = searchFrom.closest('.frame-block[data-free-layout]');
     if (!frame) break;
@@ -964,6 +966,9 @@ function _updateMultiSelPanel(block) {
 
 /* Cmd+클릭: 단일 블록 토글 */
 function toggleBlockSelect(block, sec) {
+  /* ★0918r2 T-058 — ⌘클릭은 «블럭 단위» 선택이다. 그리드 줄 선택(활성줄)을 남겨 두면 다중선택
+     상태에서 ⌫/⌘X 가 그 줄 하나로 샜다. Shift 범위선택(deselectAll 경유)과 똑같이 끝낸다. */
+  window.grdDropLineSelection?.(canvasEl);
   const layerItem = _getBlockLayerItem(block);
   if (block.classList.contains('selected')) {
     block.classList.remove('selected');
@@ -1238,9 +1243,14 @@ function duplicateSelected() {
 
   // freeLayout 내 절대 배치 블록: text-frame 또는 shape-frame 래퍼 복제
   if (selBlock) {
-    const absWrapper = selBlock.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+    // ★도형은 «래퍼째» 복제 단위다(0918 A안). shape-block 자체는 래퍼 안에서 absolute 라
+    //   예전엔 absWrapper=shape-block, parentFrame=도형 래퍼 → 같은 래퍼 안에 도형 2개(«렉탱글 안 렉탱글»).
+    //   ⚠️parentFrame 은 반드시 parentElement 부터 찾는다 — 래퍼 자신도 data-free-layout 이라 자기에 매칭된다.
+    const _shpWrap = shapeFrameOf(selBlock);
+    const absWrapper = _shpWrap ||
+                       selBlock.closest('.frame-block[data-text-frame]') ||
                        (selBlock.style.position === 'absolute' ? selBlock : null);
-    const parentFrame = absWrapper?.closest('.frame-block[data-free-layout]');
+    const parentFrame = resolveInsertFrame(absWrapper?.parentElement?.closest('.frame-block[data-free-layout]') || null);
     if (absWrapper && parentFrame) {
       window.pushHistory('복제');
       const clone = absWrapper.cloneNode(true);
@@ -1388,9 +1398,9 @@ function copySelected() {
     const banner = rowEl.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: rowEl.outerHTML, sourceBannerId: banner?.id || null };
   } else if (selNormal) {
-    // free-layout 프레임 내 블록: absolute 래퍼(text-frame/shape-frame) 또는 자신(absolute)을 복사해
+    // free-layout 프레임 내 블록: absolute 래퍼(text-frame) 또는 자신(absolute)을 복사해
     // 좌표·절대배치를 보존(안 그러면 붙여넣기 시 일반 플로우로 들어가 스택됨).
-    const _flWrapper = selNormal.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]')
+    const _flWrapper = selNormal.closest('.frame-block[data-text-frame]')
       || (selNormal.style.position === 'absolute' ? selNormal : null);
     const _flFrame = _flWrapper?.closest('.frame-block[data-free-layout]');
     if (_flWrapper && _flFrame) {
@@ -1577,8 +1587,31 @@ function _pasteIntoSourceBanner(el, sourceBannerId) {
   return banner;
 }
 
+/* ★0919 QA — 붙여넣기·⌘D 뒤 선택은 «사본만»(피그마 기준). 사본은 선택된 원본을 직렬화한 것이라
+   .selected 를 달고 들어오고, 원본의 .selected 는 그대로 남아 ⌫ 한 번에 원본까지 지워졌다.
+   섹션(.section-block)의 selected 는 «어느 섹션에서 작업 중인가» 표시라 건드리지 않는다.
+   사본 안에 선택 표시가 하나도 없으면 사본 루트(블럭이면)를 선택한다. */
+function _keepOnlyPastedSelected(roots) {
+  const list = (roots || []).filter(r => r && r.isConnected);
+  if (!list.length) return;
+  const inPasted = (el) => list.some(r => r === el || r.contains(el));
+  canvasEl.querySelectorAll('.selected').forEach(el => {
+    if (el.classList.contains('section-block')) return;
+    if (!inPasted(el)) el.classList.remove('selected');
+  });
+  list.forEach(r => {
+    if (r.classList.contains('selected') || r.querySelector('.selected')) return;
+    if ([...r.classList].some(c => c.endsWith('-block'))) r.classList.add('selected');
+  });
+  list[0].closest('.section-block')?.classList.add('selected');
+  window._activeFrame = null;
+}
+
 function pasteClipboard() {
   if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
+  /* ★0918r2 T-058 — 붙여넣으면 선택이 «블럭 단위»로 바뀐다(사본이 selected 로 들어와 원본과 함께 잡힌다).
+     그리드 줄 선택(활성줄+마커)을 남기면 [원본(줄)+사본] 상태의 ⌫ 가 원본의 줄로 샜다. */
+  window.grdDropLineSelection?.(canvasEl);
   // 현재 DOM 상태가 마지막 히스토리와 다르면 체크포인트 저장
   // (block-factory.js가 push-before라서 최신 N개 블록 상태가 히스토리에 없는 경우 대비)
   window.ensureHistoryCheckpoint?.('붙여넣기 전');
@@ -1603,10 +1636,13 @@ function pasteClipboard() {
           ? last
           : (last.closest('.frame-block[data-text-frame]')
              || ((_lastRow && _isRowFullySelected(_lastRow, ALL_TYPES_SEL)) ? _lastRow : last));
+        // ★마지막 선택이 도형이면 앵커는 그 «래퍼(또는 row)» — shape-block.after() 는 래퍼 «안»이다(0918 A안)
+        anchor = anchorUnitOf(anchor);
         if (!anchor.parentElement) anchor = null;   // 떨어져 나간 노드면 폴백
       }
     }
     let lastEl = null;
+    const _pastedRoots = [];
     clipboard.items.forEach(item => {
       const temp = document.createElement('div');
       temp.innerHTML = item.html;
@@ -1617,8 +1653,10 @@ function pasteClipboard() {
       if (banner) {
         _bindPastedEl(el);
         lastEl = el;
+        _pastedRoots.push(el);
         return;
       }
+      _pastedRoots.push(el);
       if (lastEl) {
         lastEl.after(el);
       } else {
@@ -1632,6 +1670,7 @@ function pasteClipboard() {
       _normalizePastedAbsolute(el);
       lastEl = el;
     });
+    _keepOnlyPastedSelected(_pastedRoots);
     window.buildLayerPanel();
     pushHistory('붙여넣기');
     return;
@@ -1674,9 +1713,11 @@ function pasteClipboard() {
   } else if (clipboard.freeLayout) {
     // free-layout 프레임 내 블록 붙여넣기 — 원본(또는 선택된) free-layout 프레임에 +20px 오프셋 절대배치.
     // duplicateSelected의 freeLayout 분기 미러.
-    const frame = (clipboard.sourceFrameId && document.getElementById(clipboard.sourceFrameId))
-      || document.querySelector('.frame-block[data-free-layout].selected')
-      || (window._activeFrame?.dataset?.freeLayout ? window._activeFrame : null);
+    // ★세 후보 모두 resolveInsertFrame 을 통과 — 도형 래퍼(역시 data-free-layout)는 대상이 아니다(0918 A안)
+    const _flFrame = (f) => { const r = resolveInsertFrame(f || null); return r?.dataset?.freeLayout ? r : null; };
+    const frame = _flFrame(clipboard.sourceFrameId && document.getElementById(clipboard.sourceFrameId))
+      || _flFrame([...document.querySelectorAll('.frame-block[data-free-layout].selected')].find(f => !isShapeFrame(f)))
+      || _flFrame(window._activeFrame);
     if (!frame) {
       // 대상 프레임 못 찾음 → 일반 경로 폴백(섹션 끝에 삽입)
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
@@ -1765,6 +1806,7 @@ function pasteClipboard() {
       if (pasteHasSS) window._activeFrame = savedActiveSS;
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
+      _keepOnlyPastedSelected([el]);
     }
   }
   window.buildLayerPanel();
@@ -2184,8 +2226,10 @@ document.addEventListener('keydown', e => {
             // ★changed로 조건화 — 동일색 재추출(전건 스킵)에 빈 undo 스텝이 쌓이던 것 방지(고디터QA LOW).
             let changed = 0;
             shapeTargets.forEach(sb => {
-              if (sb.dataset.shapeColor === hex && !sb.dataset.shapeGradient) return;
+              if (sb.dataset.shapeColor === hex && !sb.dataset.shapeGradient && !sb.dataset.shapeFill) return;
               sb.dataset.shapeColor = hex;
+              // 이미지(에셋)/바둑판 모드 해제(0918 picker) — 스포이드로 색을 찍으면 단색이다
+              if (sb.dataset.shapeFill) window._clearShapeImage?.(sb);
               const svg = sb.querySelector('svg');
               if (svg) {
                 if (sb.dataset.shapeGradient) window._clearShapeGradient?.(sb);
@@ -2315,6 +2359,13 @@ document.addEventListener('keydown', e => {
       editingGroup.classList.remove('group-editing');
       return;
     }
+    /* ★0918 grid «상위 선택»(피그마식): 그리드의 줄/칸이 선택돼 있으면 첫 Esc 는 줄 선택만 풀고
+       블럭 선택은 유지한다(이 상태의 Backspace = 블럭 삭제). 한 번 더 Esc 면 전체 해제. */
+    const _gridSelEsc = document.querySelector('.grid-block.selected');
+    if (_gridSelEsc && window.grdGetActiveLine?.(_gridSelEsc)) {
+      window.showGridProperties?.(_gridSelEsc, null);
+      return;
+    }
     deselectAll();
   }
 
@@ -2432,6 +2483,8 @@ document.addEventListener('keydown', e => {
       if (document.querySelector('.text-block.editing')) return; // 편집 중 차단
       const tb = document.querySelector('.text-block.selected');
       if (!tb) return;
+      // 0920r4 texttype: 라이너는 타입이 없다(패널도 Type 토글 숨김, prop-text.js M2) — 미러 .tb-liner 를 건드리지 않는다
+      if (tb.classList.contains('liner-block')) return;
       e.preventDefault();
       const typeMap = { 'Digit1': ['tb-h1','heading'], 'Digit2': ['tb-h2','heading'], 'Digit3': ['tb-h3','heading'], 'Digit4': ['tb-body','body'] };
       const phMap = { 'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요', 'tb-body':'본문 내용을 입력하세요.' };
@@ -2439,7 +2492,7 @@ document.addEventListener('keydown', e => {
       const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet');
       if (!contentEl) return;
       window.pushHistory?.();
-      contentEl.className = cls;
+      setTextTypeClass(contentEl, cls);   // 0920r4 texttype: className 통째 대입 금지(.tgs·.tfx-* 유실 → 그림자가 글자 위로)
       tb.dataset.type = dtype;
       // 유형 변경 = 스타일 프리셋 적용. inline fontSize 제거 → CSS 유형 표준크기 적용
       // (tb-h1 104 / tb-h2 72 / tb-h3 52 / tb-body 36). 이후 +/-로 미세조정 가능.
@@ -2465,6 +2518,7 @@ document.addEventListener('keydown', e => {
         const nameSpan = tb._layerItem?.querySelector('.layer-item-name');
         if (nameSpan) nameSpan.textContent = (dtype === 'heading') ? 'Heading' : 'Body';
       }
+      afterTextTypeChange(contentEl);   // 0920r4 texttype: 새 타입 기준으로 그라데이션 글자 그림자 파생값 재계산
       window.showTextProperties?.(tb);
       return;
     }
@@ -2632,7 +2686,15 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
        prop-grid.js 의 grd-line-del-btn(줄바)·grd-img-remove-btn(이미지 제거)과 같은 경로
        (patchCell{lines}) — 세 벌로 갈라지지 않게 여기서도 그 함수들을 그대로 부른다. */
     const gridSel = document.querySelector('.grid-block.selected');
-    const gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
+    let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
+    /* ★0918r2 T-058 — 줄 삭제는 «그 그리드 하나만» 선택됐을 때만. ⌘클릭 다중선택·붙여넣기 뒤
+       [원본(활성줄)+사본] 처럼 블럭이 여럿 골라진 상태는 사용자가 «블럭들»을 보고 있다 —
+       여기서 첫 그리드의 활성줄만 보고 줄 하나를 지우면 블럭은 다 남고 줄만 조용히 사라졌다
+       (DOM 순서에 따라 결과까지 갈렸다). 그땐 줄 선택을 끝내고 아래 블럭 삭제로 흘려보낸다. */
+    if (gridAddr && typeof window.grdIsSoleSelected === 'function' && !window.grdIsSoleSelected(gridSel)) {
+      window.grdDropLineSelection?.(document.getElementById('canvas'));
+      gridAddr = null;
+    }
     if (gridSel && gridAddr && gridAddr.li !== null && gridAddr.li !== undefined) {
       consumed = true;
       let lines;
@@ -2643,7 +2705,7 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
       }
       if (lines.length <= 1) {
         // 칸에 남은 마지막 줄 — 줄바 [줄 삭제] 버튼과 같은 보호(disabled). 블록 전체 삭제로도 새지 않는다.
-        window.showToast?.('⚠️ 칸에 남은 마지막 줄은 지울 수 없습니다 — 행/열을 삭제하려면 우측 패널을 쓰세요');
+        window.showToast?.('⚠️ 칸에 남은 마지막 줄은 지울 수 없습니다 — 블럭을 지우려면 Esc 후 삭제, 행/열은 우측 패널');
         return consumed;
       }
       const newLines = lines.filter((_, i) => i !== li);
@@ -3066,6 +3128,9 @@ function deselectAll() {
   canvas.querySelectorAll('.grd-line-selected').forEach(el => el.classList.remove('grd-line-selected'));
   // 그리드 «빈 셀 선택» 마커도 같은 자리에서 해제 (T-A, _grdSyncLineMark 의 셀 모드 짝)
   canvas.querySelectorAll('.grd-cell-selected').forEach(el => el.classList.remove('grd-cell-selected'));
+  // ★0918 grid: 마커만 지우고 «모델»(활성줄 WeakMap)을 두면, 블럭으로 다시 골랐을 때 옛 줄이 살아나
+  //   Backspace 가 줄 삭제 분기로 새서 블럭이 안 지워졌다. 블럭을 떠나면 줄 선택도 해제한다.
+  window.grdClearAllActiveLines?.(canvas);
   // 스텝 «지금 보는 스텝» 마커도 같은 자리에서 (prop-step.js 의 _stbSyncMark 와 짝 · 옛 이름 포함)
   canvas.querySelectorAll('.stb-line-selected, .stb-step-selected').forEach(el => el.classList.remove('stb-line-selected', 'stb-step-selected'));
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
@@ -3464,6 +3529,9 @@ window.moveSection = moveSection;
    beforeId/afterId도 같은 규칙으로 승격해 기준을 잡는다. */
 function _resolveBlockMoveUnit(el) {
   if (!el) return null;
+  // ★도형(shp_)은 «래퍼째»가 단위 — shape-block 만 옮기면 래퍼에서 뜯겨 나가고,
+  //   shp_ 를 기준(after)으로 주면 래퍼 «안»에 들어간다(0918 A안).
+  if (shapeFrameOf(el)) return anchorUnitOf(el);
   const row = el.closest?.('.row');
   if (row) return row;
   if (el.classList?.contains('text-block')) {
@@ -3502,7 +3570,7 @@ function insertGapAfterBlock(blockId, height) {
   if (!block) return null;
   const gb = window.makeGapBlock?.() || (() => { const d = document.createElement('div'); d.className = 'gap-block'; d.dataset.type = 'gap'; d.id = 'gb_' + Math.random().toString(36).slice(2,8); return d; })();
   if (height) gb.style.height = height + 'px';
-  block.after(gb);
+  anchorUnitOf(block).after(gb);   // shp_ 기준이면 래퍼 뒤(래퍼 안 ✗)
   if (typeof window.bindBlock === 'function') { try { window.bindBlock(gb); } catch (_) {} }
   pushHistory('갭 삽입 전');
   window.buildLayerPanel?.();

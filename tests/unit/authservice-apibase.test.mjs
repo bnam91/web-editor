@@ -81,10 +81,14 @@ test('U-AB-7 ★ⓓ 판정 근거는 execPath 와 __dirname 뿐이다 (env 낱�
        그 뒤를 삼킨다. 이름을 안 붙여 써서 strip-comments 가드(S-6)에도 안 걸리고 있었다.
        ⇒ 공용 거르개로 바꿨다. */
   const code = stripComments(src);
+  /* ★0920 pkgguard: 판정 «표»는 순수 함수 packagedVerdict 로 뺐고, isPackagedRuntime 은 실제 값을 넣는 포장이다. */
   const fn = sliceBlock(code, 'function isPackagedRuntime');
+  const verdict = sliceBlock(code, 'function packagedVerdict');
   assert.ok(fn.includes('process.execPath'), 'execPath 근거가 사라졌다');
-  assert.ok(/asar/.test(fn), 'asar 근거가 사라졌다');
-  assert.ok(!/process\.env/.test(fn), '★판정 함수가 env 를 읽는다 — 사용자가 답을 만들 수 있다');
+  assert.ok(fn.includes('__dirname'), '__dirname 근거가 사라졌다');
+  assert.ok(/asar/.test(verdict), 'asar 근거가 사라졌다');
+  assert.ok(!/process\.env/.test(fn) && !/process\.env/.test(verdict), '★판정 함수가 env 를 읽는다 — 사용자가 답을 만들 수 있다');
+  assert.ok(!/\bprocess\./.test(verdict), '★packagedVerdict 는 순수해야 한다(입력만 본다)');
 });
 
 /* ── 배선: applyRuntime 이 파생 URL «전부»를 따라오게 하는가 ───────────────── */
@@ -120,7 +124,7 @@ test('U-AB-8 ★ⓑ 패키징이면 실제 로그인 요청도 라이브로 간�
  *   ⒜⒝ 가 «한 번도 실행되지 않는다». 그래서 자식 프로세스에서 execPath 와
  *   경로를 진짜 배포본처럼 위장해 «그 줄을 지나게» 만든다.
  *   ⛔안 하면 「검사가 있다」이지 「검사가 그 줄을 지난다」가 아니다. */
-function probe({ execPath, electron, dir }) {
+function probe({ execPath, electron, dir, applyFalse = false }) {
   const { execFileSync } = require('child_process');
   const svc = require.resolve('../../services/authService.js');
   const src = `
@@ -136,13 +140,15 @@ function probe({ execPath, electron, dir }) {
     m.filename = ${JSON.stringify(dir)} + '/authService.js';
     m.paths = Module._nodeModulePaths(require('path').dirname(target));
     m._compile(src, m.filename);
-    process.stdout.write(m.exports.API_BASE);
-    ` : `process.stdout.write(require(target).API_BASE);`}
+    ${applyFalse ? "m.exports.applyRuntime({ isPackaged: false });" : ''}
+    process.stdout.write(JSON.stringify({ base: m.exports.API_BASE, packaged: m.exports.isPackaged() }));
+    ` : `process.stdout.write(JSON.stringify({ base: require(target).API_BASE, packaged: require(target).isPackaged() }));`}
   `;
-  return execFileSync(process.execPath, ['-e', src], {
+  const out = JSON.parse(execFileSync(process.execPath, ['-e', src], {
     encoding: 'utf8', timeout: 15000,
     env: { ...process.env, GODITOR_LICENSE_API: EVIL },
-  });
+  }));
+  return applyFalse || dir ? out : out.base;   // 옛 검사(U-AB-9·10)는 주소 문자열만 본다
 }
 
 test('U-AB-9 ★ⓑ ⒝ Electron+앱 바이너리 이름 = 패키징 → env 무시', () => {
@@ -160,7 +166,7 @@ test('U-AB-10 ⓐ ⒝ Electron + 실행파일이 electron = dev → env 를 쓴�
 test('U-AB-11 ★ⓑ ⒜ asar 안이면 실행파일 이름과 무관하게 패키징', () => {
   assert.equal(
     probe({ execPath: '/r/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron',
-            electron: true, dir: '/A/GODITOR.app/Contents/Resources/app.asar/services' }),
+            electron: true, dir: '/A/GODITOR.app/Contents/Resources/app.asar/services' }).base,
     LIVE, '★asar 안에서 도는데 dev 로 판정했다');
 });
 
@@ -179,4 +185,64 @@ test('U-AB-12 ★applyRuntime 도 «=== false 만» dev 로 본다 (falsy 는 �
     A.applyRuntime({ isPackaged: false });
     assert.equal(A.API_BASE, saved);
   }
+});
+
+/* ═══ 0920 4라운드 pkgguard (T-063) — applyRuntime 이 asar 판정을 «덮지» 못한다 ═══════════════════
+ * ★수정 전: main.js 가 applyRuntime({isPackaged: app.isPackaged}) 를 부르는데, 스톡 Electron 으로 app.asar 를
+ *   띄우면 app.isPackaged=false → ⒜ 의 올바른 「패키징」 답이 dev 로 바뀌어 env 서버·.env·collab 이 열렸다. */
+
+const STOCK_MAC = '/r/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron';
+
+test('U-AB-13 ★★핵심 재현: asar 안 + applyRuntime({isPackaged:false}) 뒤에도 LIVE · isPackaged()=true', () => {
+  const r = probe({ execPath: STOCK_MAC, electron: true, dir: '/tmp/x/app.asar/services', applyFalse: true });
+  assert.equal(r.base, LIVE, '★applyRuntime(false) 가 asar 판정을 덮어 env 서버로 갔다');
+  assert.equal(r.packaged, true, '★applyRuntime(false) 가 asar 판정을 dev 로 덮었다');
+});
+
+test('U-AB-14 ★윈도우 모양: C:\\GODITOR\\resources\\app.asar\\services + electron.exe → 패키징(applyRuntime false 로도)', () => {
+  const r = probe({ execPath: 'C:\\tools\\electron.exe', electron: true, dir: 'C:\\GODITOR\\resources\\app.asar\\services', applyFalse: true });
+  assert.equal(r.packaged, true, '★exe 이름을 electron.exe 로 바꾼 윈도우 실행을 dev 로 판정했다');
+  assert.equal(r.base, LIVE);
+});
+
+test('U-AB-13b 음성대조: dev 폴더 로드 + Electron 바이너리 + applyRuntime(false) → dev 그대로(env 사용)', () => {
+  const r = probe({ execPath: STOCK_MAC, electron: true, dir: '/Users/dev/web-editor/services', applyFalse: true });
+  assert.equal(r.packaged, false, 'dev 가 막혔다');
+  assert.equal(r.base, EVIL);
+});
+
+test('U-AB-16 ★★이름 바꾼 asar · 대문자 경로 + applyRuntime(false) → 패키징(LIVE) — 4라운드 픽스 재현', () => {
+  for (const dir of ['/tmp/x/goditor.asar/services', '/tmp/x/APP.ASAR/services', 'C:\\G\\resources\\Goditor.Asar\\services']) {
+    const r = probe({ execPath: STOCK_MAC, electron: true, dir, applyFalse: true });
+    assert.equal(r.packaged, true, `★${dir} 를 dev 로 판정했다`);
+    assert.equal(r.base, LIVE, `★${dir} 에서 env 서버로 갔다`);
+  }
+});
+
+test('U-AB-15 ★packagedVerdict 표', () => {
+  const V = A.packagedVerdict;
+  const rows = [
+    // [설명, 입력, 기대]
+    ['dev 폴더 + electron', { dirname: '/Users/d/web-editor/services', execPath: STOCK_MAC, isElectron: true }, false],
+    ['스톡 Electron + asar', { dirname: '/tmp/x/app.asar/services', execPath: STOCK_MAC, isElectron: true }, true],
+    ['exe 이름 변경 + asar(윈)', { dirname: 'C:\\G\\resources\\app.asar\\services', execPath: 'C:\\G\\electron.exe', isElectron: true }, true],
+    ['app.asar.unpacked', { dirname: '/A/GODITOR.app/Contents/Resources/app.asar.unpacked/services', execPath: STOCK_MAC, isElectron: true }, true],
+    ['asar 루트 바로(끝)', { dirname: '/tmp/x/app.asar', execPath: STOCK_MAC, isElectron: true }, true],
+    ['앱 바이너리 이름', { dirname: '/Users/d/web-editor/services', execPath: '/Applications/GODITOR.app/Contents/MacOS/GODITOR', isElectron: true }, true],
+    ['윈 앱 바이너리', { dirname: 'C:\\dev\\services', execPath: 'C:\\P\\GODITOR\\GODITOR.exe', isElectron: true }, true],
+    // ★4라운드 픽스: 파일 이름만 바꾸거나(스톡 Electron 은 확장자 .asar 면 로드) 대문자 경로로 불러도 배포판
+    ['★이름 바꾼 asar(goditor.asar)', { dirname: '/tmp/x/goditor.asar/services', execPath: STOCK_MAC, isElectron: true }, true],
+    ['★대문자 경로(APP.ASAR, 윈)', { dirname: 'C:\\x\\APP.ASAR\\services', execPath: 'Electron.exe', isElectron: true }, true],
+    ['★섞인 대소문자(App.Asar.Unpacked)', { dirname: '/tmp/x/App.Asar.Unpacked/services', execPath: STOCK_MAC, isElectron: true }, true],
+    ['★이름 바꾼 asar 루트 바로(끝)', { dirname: 'D:\\z\\evil.ASAR', execPath: 'C:\\e\\electron.exe', isElectron: true }, true],
+    ['비슷한 이름(x.asarbak)은 아님', { dirname: '/tmp/x.asarbak/services', execPath: STOCK_MAC, isElectron: true }, false],
+    ['비슷한 이름(app.asarx)은 아님', { dirname: '/tmp/app.asarx/services', execPath: STOCK_MAC, isElectron: true }, false],
+    ['node 단위검사(⒞)', { dirname: '/Users/d/web-editor/services', execPath: '/usr/local/bin/node', isElectron: false }, false],
+    ['빈 입력', {}, false],
+    // ⚠️알려진 한계 고정 — asar 를 «풀어» 폴더로 스톡 Electron 에 띄우면 dev 로 판정된다(README «한계»).
+    //   이 줄이 빨개지면(=막게 됐으면) 한계 문서도 같이 고쳐라.
+    ['⚠️한계: asar 를 풀어 폴더로 실행', { dirname: '/tmp/extracted/app/services', execPath: STOCK_MAC, isElectron: true }, false],
+  ];
+  for (const [name, input, want] of rows) assert.equal(V(input), want, name);
+  assert.equal(V(null), false);
 });

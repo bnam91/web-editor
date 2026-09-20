@@ -39,9 +39,12 @@ function extractHandlerBody(src) {
 }
 
 /** 떼어낸 몸통을 «가짜 환경»으로 실행한다. 대역이 아니라 진짜 코드를 돌린다. */
-function runHandler(body, { isPackaged, branch, argv }) {
-  const fn = new Function('app', 'getGitBranch', 'process', body);
-  return fn({ isPackaged }, () => branch, { argv });
+/* ★0920 pkgguard: 가드는 main.js `_isPackagedBuild()` 를 본다 — 그 «원문»을 주입한다(_pkgbuild.js).
+   asar = 스톡 Electron 으로 app.asar 를 띄움(app.isPackaged=false 인데 asar 안에서 로드됨). */
+const { makePkgBuild } = require('./_pkgbuild.js');
+function runHandler(body, { isPackaged, asar = false, branch, argv }) {
+  const fn = new Function('app', 'getGitBranch', 'process', '_isPackagedBuild', body);
+  return fn({ isPackaged }, () => branch, { argv }, makePkgBuild({ appIsPackaged: isPackaged, asar }));
 }
 
 const BODY = extractHandlerBody(SRC);
@@ -51,6 +54,11 @@ const ARGV_NONE = ['electron', '.'];
 test('배포본(isPackaged)이면 «값 자체»를 안 준다', () => {
   const r = runHandler(BODY, { isPackaged: true, branch: 'dev', argv: ARGV_WITH });
   assert.strictEqual(r, null, '★배포본인데 CDP 포트가 새어 나갔다');
+});
+
+test('★0920 pkgguard: 스톡 Electron + app.asar(app.isPackaged=false) 도 배포본 — 값 안 준다', () => {
+  const r = runHandler(BODY, { isPackaged: false, asar: true, branch: 'dev', argv: ARGV_WITH });
+  assert.strictEqual(r, null, '★asar 에서 로드됐는데 CDP 포트가 새어 나갔다');
 });
 
 test('main 브랜치면 «값 자체»를 안 준다 (main = 배포 상태)', () => {
@@ -74,7 +82,7 @@ test('CDP 를 안 켰으면 (argv 에 인자 없음) null', () => {
  *   가드를 지운 몸통을 만들어 돌렸을 때 «빨개져야» 한다. 안 빨개지면 위 검사들은 장식이다.
  *   (오늘 M17 이 「양쪽 다 초록」이라 장식이었던 것을 그대로 방지한다) */
 test('★양성대조 — 가드를 빼면 위 검사가 실제로 깨진다', () => {
-  const noPkg = BODY.replace(/if \(app\.isPackaged\) return null;/, '');
+  const noPkg = BODY.replace(/if \(_isPackagedBuild\(\)\) return null;/, '');
   assert.notStrictEqual(noPkg, BODY, '★치환이 안 됐다 — 가드 문장이 바뀌었으면 이 대조부터 고쳐라');
   assert.strictEqual(
     runHandler(noPkg, { isPackaged: true, branch: 'dev', argv: ARGV_WITH }), '9373',

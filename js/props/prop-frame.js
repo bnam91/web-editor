@@ -5,6 +5,7 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { bindSlider, alignBtn } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset } from '../frame-geometry.js';
+import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#ffffff';
@@ -200,11 +201,14 @@ function _convertFreeLayoutToStack(ss) {
 window.__convertFreeLayoutToStack = _convertFreeLayoutToStack;
 
 function _renderAutoPanel(ss) {
-  const isShapeFrame = !!ss.querySelector('.shape-block');
+  const isShapeFrame = _isShapeFrameEl(ss);   // ★직속 판정 SSOT(자손 검색 ✗, 0918)
   const isFreeLayout = ss.dataset.freeLayout === 'true';
   const rawBg  = ss.style.backgroundColor || ss.dataset.bg || '#f5f5f5';
-  const hexBg  = rgbToHex(rawBg);
-  const bgAlpha = parseAlphaFromColor(rawBg);
+  // T-059 2라운드: 그라데이션 배경이면 rawBg 는 'initial'/그라데이션 문자열 → rgbToHex 가 #ffffff·쓰레기 hex 를 냈다.
+  //   그 값은 스와치(단색 표시)·Solid 복귀 색이 됐다 → 그라데이션 CSS 를 따로 잡아 wireColorField(gradientValue)로 넘긴다.
+  const bgGradCss = [ss.dataset.bg, ss.style.backgroundImage].find(v => /gradient\s*\(/i.test(v || '')) || '';
+  const hexBg  = bgGradCss ? '#ffffff' : rgbToHex(rawBg);   // 그라데이션이면 wireColorField 가 첫 스탑 색으로 덮는다
+  const bgAlpha = bgGradCss ? 100 : parseAlphaFromColor(rawBg);
   const padY   = parseInt(ss.dataset.padY)   || 0;
   const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
@@ -270,7 +274,7 @@ function _renderAutoPanel(ss) {
       <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
         <span class="prop-label">${bgAlpha === 0 ? '배경색 (투명)' : '배경색'}</span>
-        ${colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha })}
+        ${colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha, gradientCss: bgGradCss })}
       </div>
       <div class="prop-row">
         <span class="prop-label">배경 투명도</span>
@@ -658,6 +662,7 @@ function _renderAutoPanel(ss) {
   // 배경색 (solid + gradient)
   wireColorField('ss-bg', {
     initialAlpha: bgAlpha,
+    gradientValue: bgGradCss,   // T-059 2라운드: 재선택 후에도 그라데이션 탭·스탑으로 열린다
     onApply: (c) => {
       // 이전 그라데이션 제거 후 솔리드 적용
       ss.style.backgroundImage = '';

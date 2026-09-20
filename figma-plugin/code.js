@@ -2950,16 +2950,23 @@ async function setEffects(params) {
       // Create a clean effect object based on type
       switch (effect.type) {
         case "DROP_SHADOW":
-        case "INNER_SHADOW":
-          return {
+        case "INNER_SHADOW": {
+          const fx = {
             type: effect.type,
             color: effect.color || { r: 0, g: 0, b: 0, a: 0.5 },
             offset: effect.offset || { x: 0, y: 0 },
-            radius: effect.radius || 5,
+            // 0919r3 textshadow: blur 0 인 그림자(radius:0)가 5 로 바뀌던 것 — 숫자면 그대로 쓴다
+            radius: typeof effect.radius === "number" ? effect.radius : 5,
             spread: effect.spread || 0,
             visible: effect.visible !== undefined ? effect.visible : true,
             blendMode: effect.blendMode || "NORMAL"
           };
+          // 0919r3 textshadow: 그림자를 «칠해진 모양 뒤»에만(투명 영역 뒤로 안 비침) — 주어졌을 때만 전달
+          if (effect.type === "DROP_SHADOW" && typeof effect.showShadowBehindNode === "boolean") {
+            fx.showShadowBehindNode = effect.showShadowBehindNode;
+          }
+          return fx;
+        }
         case "LAYER_BLUR":
         case "BACKGROUND_BLUR":
           return {

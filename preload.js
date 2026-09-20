@@ -119,6 +119,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reportImage:   (payload) => ipcRenderer.invoke('admin:report-image',  payload),
   },
 
+  // 개발자 도구 잠금 (main/devtools-gate.js) — 톱니바퀴 「디버깅」 탭이 쓴다.
+  // ★판정·해제·열기 모두 main 이 한다. 여기 state 는 «화면 표시»용 힌트다.
+  devtools: {
+    state:  ()     => ipcRenderer.invoke('devtools:state'),
+    unlock: (code) => ipcRenderer.invoke('devtools:unlock', String(code == null ? '' : code)),
+    open:   ()     => ipcRenderer.invoke('devtools:open'),
+    lock:   ()     => ipcRenderer.invoke('devtools:lock'),
+  },
+
   // 운영자 공지 (main/notice/*). ★읽음 기록은 «파일»이라 main 에만 있다 —
   // localStorage 로 두면 앱을 두 개 띄웠을 때 창마다 따로라 같은 공지가 두 번 뜬다.
   notice: {

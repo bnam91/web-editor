@@ -23,6 +23,14 @@
   },
   "build": {
     "appId": "com.goyamkt.sangpe-editor",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "resetAdHocDarwinSignature": true
+    },
     "productName": "GODITOR",
     "publish": {
       "provider": "github",

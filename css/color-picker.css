@@ -62,6 +62,44 @@
   background: var(--ui-border, #3a3a3a);
   color: #fff;
 }
+/* 대상이 그 채우기를 못 받으면 탭을 막는다(color-picker.js _applyModeGate) — 눌러도 아무 일 없음 대신 «못 씀»을 보여준다 */
+.goya-cp-tab:disabled {
+  cursor: not-allowed;
+}
+/* ★흐림은 탭 «자식»에만 — 탭 자신에 opacity 를 주면 쌓임 맥락이 생겨 호버 설명(::after)이 같이 흐려지고
+   아래 SV 박스 밑으로 깔린다(실앱 9503 실측, 0918 이벨류 픽스 라운드). */
+.goya-cp-tab:disabled > * { opacity: 0.35; }
+.goya-cp-tab:disabled:hover { color: var(--ui-text-muted, #888); }
+
+/* ── 탭 호버 설명 (0918 picker) ──
+   native title 은 1~2초 늦게 뜬다 → 선례 .cpmt-btn[data-tip]:hover::after(claude-pm.css) 패턴으로 즉시.
+   ★팝오버가 overflow:hidden 이라 탭 기준으로 가운데 정렬하면 좌우가 잘린다 — 기준(containing block)을
+     «탭 줄(.goya-cp-tabs)»로 두고 왼쪽 끝에 붙인다: 탭 줄 왼쪽(16px) + 최대 200px < 팝오버 폭 240px.
+     그래서 탭 자신에는 position 을 주지 않는다(주면 기준이 탭으로 바뀌어 다시 잘린다). */
+.goya-cp-tabs { position: relative; }
+.goya-cp-tab[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: max-content;
+  max-width: 200px;
+  white-space: normal;
+  text-align: left;
+  background: rgba(20,20,24,0.96);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  padding: 5px 8px;
+  border-radius: var(--ui-radius-sm, 4px);
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+/* T-059 2라운드: 탭을 «누른 뒤» 계속 호버 중이면 설명을 숨긴다 — 떠 있으면 바로 아래 이미지 드롭존·스펙트럼을 가린다.
+   mouseleave 에서 클래스를 떼므로 다시 올리면 설명이 다시 뜬다(color-picker.js 탭 루프). */
+.goya-cp-tab.tip-hide[data-tip]:hover::after { display: none; }
 
 .goya-cp-headbtn {
   width: 22px; height: 22px;

@@ -181,6 +181,8 @@ function _radioPairOn(onEl, offEl, evt, fn) {
 
 export function showPageProperties() {
   if (window.setRpIdBadge) window.setRpIdBadge(null);
+  // T-059 4라운드: 페이지 «재선택»(빈 곳 클릭) = 도형 패널 재구성과 같은 시점 — DS 바탕색 칸을 state 로 다시 맞춘다
+  seedPageBgGradientPicker();
   const { bg, gap, padX, padY, padXExcludesAsset } = state.pageSettings;
   const bgAlpha = state.pageSettings.bgAlpha ?? 100;
   const bgHexUp = (bg || '#000000').replace('#','').toUpperCase();
@@ -667,20 +669,56 @@ export function showPageProperties() {
    불러선 부족했다: 실측(2026-09-16)으로 부팅 직후 첫 호출 시점엔 state.pageSettings 가 아직
    프로젝트 파일에서 채워지기 전이라(레이스) 시드가 비어버렸다. applyPageSettings()는 그 뒤
    실제 프로젝트가 열릴 때(switchPage 등)도 항상 다시 불리므로 거기 얹으면 레이스가 없다. */
+/* ★T-059 4라운드 QA(페이지 바탕 Solid 복귀 색) — 칸(picker/hex/alpha)을 «state 에서» 다시 채운다.
+   index.html 의 칸 초기값(#ACACAC)은 실제 바탕(state.pageSettings.bg = PAGE_BG_DEFAULT #777777)과 따로 놀았고,
+   0918 «탭 = 즉시 적용» 이후엔 그 어긋남이 데이터 변경이 됐다: 그라데이션 탭 = #acacac 100%→0%, Solid = bg '#acacac'.
+   피커는 열 때 native input 의 value 를 «지금 색»으로 읽으므로(color-picker.js openPicker) 이 칸이 곧 진실이어야 한다.
+     · 단색 페이지 → 칸 = state.bg / bgAlpha
+     · 그라데이션 페이지 → 칸 = «보이는» 첫 스탑(재선택 후 Solid 복귀 = 첫 스탑 — 도형 wireColorField 와 같은 규칙 ③)
+   ⛔여기선 state 를 쓰지 않는다(열기·재선택만으로 문서 불변). */
 export function seedPageBgGradientPicker() {
+  // ⚠️헬퍼는 «안쪽»에 둔다 — 유닛 테스트(page-bg-gradient-reload)가 이 함수 본문만 잘라 vm 에서 돈다.
+  function _pageBgFirstVisibleStop(model) {
+    if (!model || !Array.isArray(model.stops) || !model.stops.length) return null;
+    const _op = s => Math.max(0, Math.min(1, s.opacity == null ? 1 : Number(s.opacity)));
+    const sorted = model.stops.slice().sort((a, b) => (Number(a.offset) || 0) - (Number(b.offset) || 0));
+    const first = sorted.find(s => _op(s) > 0) || sorted[0];
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(first.color || '').trim());
+    return m ? '#' + m[1].toLowerCase() : null;
+  }
+  function _syncPageBgFields(bgPicker, colorHex) {
+    const bgHex = document.getElementById('page-bg-hex');
+    const bgAlphaInp = document.getElementById('page-bg-alpha-input');
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(colorHex || '').trim());
+    if (!m) return;
+    const h = '#' + m[1].toLowerCase();
+    bgPicker.value = h;
+    if (bgHex && document.activeElement !== bgHex) bgHex.value = m[1].toUpperCase();
+    if (bgAlphaInp && document.activeElement !== bgAlphaInp) bgAlphaInp.value = String(state.pageSettings.bgAlpha ?? 100);
+  }
   const bgPicker = document.getElementById('page-bg-color');
   if (!bgPicker) return;   // 아직 DOM 미구성(초초기 부팅) — 다음 applyPageSettings에서 다시 시도된다
   const bgSwatch = bgPicker.closest('.prop-color-swatch');
   if (!bgSwatch) return;
-  if (!state.pageSettings.bgGradient) {
+  const _solid = () => {
     delete bgPicker.dataset.cpGradient;   // 솔리드로 복귀한 프로젝트에 옛 그라데이션 씨앗이 안 남게
-    return;
-  }
+    _syncPageBgFields(bgPicker, state.pageSettings.bg);
+    const h = (state.pageSettings.bg || '').replace('#', '');
+    if (/^[0-9a-f]{6}$/i.test(h)) {
+      const a = Math.max(0, Math.min(1, (state.pageSettings.bgAlpha ?? 100) / 100));
+      bgSwatch.style.background = `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`;
+    }
+  };
+  if (!state.pageSettings.bgGradient) { _solid(); return; }
   try {
     const model = JSON.parse(state.pageSettings.bgGradient);
     const css = window.GradientModel?.toCss?.(model);
-    if (css) { bgPicker.dataset.cpGradient = state.pageSettings.bgGradient; bgSwatch.style.background = css; }
-  } catch (_) { /* 깨진 JSON — 솔리드 스와치(native input value)로 둔다 */ }
+    if (css) {
+      bgPicker.dataset.cpGradient = state.pageSettings.bgGradient;
+      bgSwatch.style.background = css;
+      _syncPageBgFields(bgPicker, _pageBgFirstVisibleStop(model) || state.pageSettings.bg);
+    } else _solid();
+  } catch (_) { _solid(); /* 깨진 JSON — 캔버스도 솔리드로 칠한다(save-load _bgCss 폴백과 같게) */ }
 }
 window.seedPageBgGradientPicker = seedPageBgGradientPicker;
 
@@ -692,6 +730,8 @@ export function wireCanvasBgControl() {
   const bgHex      = document.getElementById('page-bg-hex');
   const bgAlphaInp = document.getElementById('page-bg-alpha-input');
   const bgSwatch   = bgPicker.closest('.prop-color-swatch');
+  // 탭 능력 선언(0918 picker) — 페이지 바탕은 단색·그라데이션만 받는다(이미지 탭은 막힘)
+  bgPicker.dataset.cpModes = 'solid,gradient';
 
   seedPageBgGradientPicker();
 
@@ -714,6 +754,8 @@ export function wireCanvasBgControl() {
     bgHex.value = bgPicker.value.replace('#','').toUpperCase();
     // 솔리드 색 선택 시 그라데이션 해제(잔상 방지) — 솔리드로 복귀
     delete state.pageSettings.bgGradient;
+    // 재오픈 시드도 같이 — 안 지우면 솔리드로 돌아간 뒤 다시 열 때 그라데이션 탭이 뜬다(0918 picker)
+    delete bgPicker.dataset.cpGradient;
     _applyBg();
   });
   bgPicker.addEventListener('change', () => {
@@ -775,7 +817,7 @@ export function wireCanvasBgControl() {
       //   2스톱으로 리셋(값은 state.pageSettings.bgGradient에 이미 맞게 저장돼 있었음).
       bgPicker.dataset.cpGradient = state.pageSettings.bgGradient;
       _applyBgGradient(e.detail.css);
-      if (e.detail.commit) window.pushHistory?.();
+      // ★기록은 gradient-commit 한 곳에서만 — 여기서도 하면 커밋 1번에 기록 2개(0918 picker)
       window.scheduleAutoSave?.();
     });
     bgPicker.addEventListener('goya-cp:gradient-commit', () => {

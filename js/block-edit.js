@@ -31,7 +31,7 @@ function selectBlock(id) {
     else if (cl.contains('graph-block')) window.showGraphProperties?.(block);
     else if (cl.contains('divider-block')) window.showDividerProperties?.(block);
     else if (cl.contains('bridge-block')) window.showBridgeProperties?.(block);
-    else if (cl.contains('grid-block')) window.showGridProperties?.(block);
+    else if (cl.contains('grid-block')) window.showGridProperties?.(block, null);   // ★0918: 블럭으로 선택 = 줄 선택 해제
     else if (cl.contains('infocard-block')) window.showInfoCardProperties?.(block);
     else if (cl.contains('innercard-block')) window.showInnerCardProperties?.(block);
     else if (cl.contains('qa-block')) window.showQAProperties?.(block);
@@ -83,7 +83,10 @@ function editTextBlock(blockId, opts = {}) {
     applied.content = text;
   }
   if (opts.color !== undefined && opts.color !== null) {
+    // 0918r2 textgrad: 단색 지정 = 글자 그라데이션 해제(안 풀면 그라데이션이 단색을 가린다)
+    window.clearTextGradient?.(contentEl);
     contentEl.style.color = opts.color;
+    window.forgetLabelAutoColor?.(contentEl);   // 0920r6 labeltext: MCP/PM 이 정한 색 — 라벨 표식 폐기(타입 전환 때 안 걷어내게)
     applied.color = opts.color;
   }
   if (opts.fontSize !== undefined && opts.fontSize !== null) {
