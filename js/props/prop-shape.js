@@ -339,7 +339,15 @@ export function showShapeProperties(block) {
       btn.addEventListener('click', () => {
         if (btn.disabled) return; // 비활성 버튼(모자이크 임시 차단) — 브라우저가 이미 막지만 명시한다
         const m = btn.dataset.mode;
-        if (m === redactMode) return;
+        /* ★«패널이 그린 값»과 «저장된 값»이 다를 수 있다 (2026-09-21 최종통합 QA, high).
+           차단 중(mosaicOK=false) 레거시 mosaic 블록은 패널에선 redactMode='blur' 로 읽힌다(:98).
+           그 읽은 값만 보고 early-return 하면 사용자가 「블러」를 «명시적으로» 골라도 호출이
+           아예 안 나가고 — :250 의 보존 가드는 explicitMode 가 «올 때만» 비켜서므로 —
+           dataset 은 영영 mosaic 으로 남는다. ⇒ ⑴패널이 거짓말을 하고(그림=블러, 데이터=모자이크)
+           ⑵T-071 로 스위치를 되살리면 사용자의 선택을 무시하고 조용히 모자이크로 돌아간다.
+           ⇒ «화면에 그려진 모드»와 «저장된 모드»가 «둘 다» 같을 때만 할 일이 없다. */
+        const storedMode = block.dataset.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur';
+        if (m === redactMode && m === storedMode) return;
         applyRedact(true, redactBlurSliderValue(), m, { explicitMode: true }); // 모드를 «실제로 고른» 호출
         window.pushHistory?.();
         showShapeProperties(block); // 강도 힌트/새로고침 버튼 등 모드별 UI 다시 그림

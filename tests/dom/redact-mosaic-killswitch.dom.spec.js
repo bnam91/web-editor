@@ -517,3 +517,80 @@ test('D9-prefix ★음성대조 — 1라운드(a0d80bb)에선 색·회전이 절
   expect(out.color, '★1라운드에서도 안 남으면 이 검사는 아무것도 안 보고 있다').toBe('#ff0000');
   expect(out.rotation).toBe('30');
 });
+
+/* ══ D10 ★레거시 mosaic 블록에서 「블러」를 «명시적으로» 고르면 저장값이 실제로 blur 가 된다 ══
+   (2026-09-21 최종통합 QA, high — 이번 T-070 라운드가 새로 만든 결함)
+   뿌리: 패널은 차단 중 저장된 mosaic 을 'blur' 로 «읽는다»(prop-shape.js:98). 방식 버튼 핸들러가
+   그 «읽은 값»과만 비교해 early-return 하면 ⑴패널은 「블러 active」라고 그려 놓고 dataset 은 mosaic
+   ⑵사용자가 블러를 골라도 한 글자도 안 바뀌고 ⑶T-071 로 스위치를 되살리는 순간 그 블록만 조용히
+   모자이크로 돌아간다(현빈이 신고한 회색/단색 결함 재발). ⇒ «그린 값»과 «저장값»이 둘 다 같을 때만
+   할 일이 없다. ⛔D4/D8 의 «데이터 보존»과 충돌하지 않는다 — 보존 대상은 «모드를 안 고른» 조작이다. */
+const HEADFIX_REF = 'd8ebc7e';   // 이 픽스 «직전» 커밋 = 음성대조 기준
+
+const clickBlur = (page) => page.evaluate(() => {
+  const seg = document.getElementById('shape-redact-mode-seg');
+  const blu = seg.querySelector('[data-mode="blur"]');
+  const before = window.__block.dataset.shapeRedactMode;
+  blu.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+  blu.click();
+  const b = window.__block;
+  const seg2 = document.getElementById('shape-redact-mode-seg');
+  const blu2 = seg2 && seg2.querySelector('[data-mode="blur"]');
+  return {
+    before,
+    after: b.dataset.shapeRedactMode,
+    redactOn: b.dataset.shapeRedact,
+    blurDs: b.dataset.shapeRedactBlur,
+    panelBlurActive: !!blu2 && blu2.classList.contains('active'),
+  };
+});
+
+test('D10 ★저장된 mosaic 에서 「블러」를 누르면 dataset 이 blur 로 «바뀐다» (패널≠데이터 해소)', async ({ page }) => {
+  const errs = await bootPanel(page);
+  const out = await clickBlur(page);
+  console.log('  D10-head:', out);
+  expect(out.before, '하네스 전제 — 레거시 블록은 mosaic 으로 저장돼 있어야 한다').toBe('mosaic');
+  expect(out.after, '★사용자가 블러를 «명시적으로» 골랐는데 저장값이 안 바뀌었다').toBe('blur');
+  expect(out.redactOn, '가림막 자체는 켜진 채로').toBe('true');
+  expect(out.blurDs, '강도는 저장값(12)을 이어받는다').toBe('12');
+  expect(out.panelBlurActive).toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('D10-prefix ★음성대조 — 픽스 직전(d8ebc7e)에선 블러를 눌러도 mosaic 그대로였다', async ({ page }) => {
+  await page.route(`${ORIGIN}/**`, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/__panel.html') return route.fulfill({ contentType: 'text/html', body: PANEL_HARNESS });
+    const rel = url.pathname.slice(1);
+    if (SWAP.includes(rel)) {
+      return route.fulfill({
+        contentType: MIME[path.extname(rel)] || 'text/plain',
+        body: execFileSync('git', ['show', `${HEADFIX_REF}:${rel}`], { cwd: REPO, encoding: 'utf8' }),
+      });
+    }
+    const file = path.join(REPO, rel);
+    if (!file.startsWith(REPO) || !fs.existsSync(file)) return route.fulfill({ status: 404, body: '' });
+    return route.fulfill({ contentType: MIME[path.extname(file)] || 'text/plain', body: fs.readFileSync(file) });
+  });
+  await page.goto(`${ORIGIN}/__panel.html`);
+  await page.waitForFunction(() => window.__ready === true);
+  await page.evaluate(() => {
+    const b = document.createElement('div');
+    b.className = 'shape-block shape-redact';
+    b.id = 'shp_legacy';
+    b.dataset.shapeType = 'rectangle';
+    b.dataset.shapeColor = '#cccccc';
+    b.dataset.shapeRedact = 'true';
+    b.dataset.shapeRedactMode = 'mosaic';
+    b.dataset.shapeRedactBlur = '12';
+    b.style.width = '200px'; b.style.height = '120px';
+    b.innerHTML = '<svg class="shape-svg" width="200" height="120"><rect width="200" height="120" fill="#ccc"/></svg>';
+    document.getElementById('host').appendChild(b);
+    window.__block = b;
+    window.__open(b);
+  });
+  const out = await clickBlur(page);
+  console.log('  D10-prefix:', out);
+  expect(out.after, '★직전 커밋에서도 blur 로 바뀌면 이 검사는 아무것도 안 보고 있다').toBe('mosaic');
+  expect(out.panelBlurActive, '그런데 패널은 「블러 active」라고 그렸다 = 패널≠데이터').toBe(true);
+});
