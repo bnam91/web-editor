@@ -12,6 +12,7 @@
  */
 
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
+import { forgetLabelAutoColor } from './label-auto-color.js';
 import {
   applyTextGradient, clearTextGradient, getTextGradient, hasTextGradient,
   textGradientBlockedReason,
@@ -59,6 +60,7 @@ function _applyColorWholeEditable(color, host) {
     }
   });
   host.style.color = color;
+  forgetLabelAutoColor(host);   // 0920r5 polish2: 사용자가 고른 색 — 라벨 표식 폐기(타입 전환 때 안 걷어내게)
 }
 
 // 선택 있음: savedRange 영역을 color span 으로 감싼다.

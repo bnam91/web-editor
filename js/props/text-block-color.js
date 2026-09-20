@@ -14,6 +14,7 @@
  *     (tests/unit/text-gradient-solid-writers.test.mjs 가 contentEl.style.color 대입 전수를 감시).
  */
 import { parseGradient } from './gradient-model.js';
+import { forgetLabelAutoColor } from './label-auto-color.js';
 import { textShadowToDropShadowFilter, parseShadowList, shadowFilterId, svgShadowFilterMarkup } from './text-shadow-filter.js';
 
 // rgb/rgba/#rrggbb → #rrggbb (프로퍼티 UI 동기화용). 파싱 실패 시 null.
@@ -65,6 +66,7 @@ window.applyTextBlockColor = function (blockEl, color) {
     }
   });
   contentEl.style.color = color;
+  forgetLabelAutoColor(contentEl);   // 0920r5 polish2: 사용자가 고른 색 — 라벨 표식 폐기(타입 전환 때 안 걷어내게)
 
   window.pushHistory?.('글자색 추출');
   window.scheduleAutoSave?.();
