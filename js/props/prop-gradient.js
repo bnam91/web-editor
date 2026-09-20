@@ -131,17 +131,62 @@ export function showGradientProperties(block) {
   const listEl = document.getElementById('grad-stops-list');
   const addBtn = document.getElementById('grad-add-stop');
 
+  /* ★0920b grad-alpha: NaN 방어. Math.max/min 은 NaN 을 «그대로» 통과시키고, JSON.stringify 가
+     그걸 null 로 적으면 gradient-block.js `_resolveStops` 의 `|| 0` 이 «완전 투명»으로 둔갑한다.
+     입력단(여기)에서 끊는다. ⚠️_resolveStops 자체의 `||0` 은 이 유닛 범위 밖 — MCP/임포트로
+     들어온 쓰레기는 여전히 0 으로 떨어진다(별도 카드). */
+  const _clamp01 = (v, fallback) => { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : fallback; };
+
+  /* ★0920b grad-alpha(픽스 라운드) — «화면의 행 번호 → 지금 모델의 몇 번째 stop 인지» 보정표.
+     setStops 는 offset 순으로 «정렬»한다 ⇒ 위치 칸을 고치면 줄 순서가 바뀐다. 그런데 각 행의
+     핸들러는 만들어질 때의 인덱스 i 를 클로저로 쥐고 STOP()[i] 를 쓴다. 커밋 가드가 «합성 input»
+     으로 먼저 setStops(정렬)를 돌리고 그 «뒤»에 원래 change 가 같은 i 로 한 번 더 쓰기 때문에,
+     보정이 없으면 건드리지도 않은 이웃 stop 의 위치가 덮어써진다(조용한 데이터 손상 — dev 에서도
+     재현되는 선행 결함이지만, 가드 편입으로 «여러 자리 입력»이 되면서 실제로 닿기가 쉬워졌다).
+     재생성하면 행과 모델이 다시 1:1 이 되므로 그때 비운다(null = 항등). */
+  let _rowMap = null;          // 재생성 전까지 누적되는 보정표
+  let _lastRowMap = null;      // 마지막 «재생성이 소비한» 보정표 (Enter 뒤 포커스 되돌리기용)
+  let _holdRebuild = false;    // 마우스를 누르고 있는 동안 재생성 유예
+  let _deferredStops = null;   // 유예된 재생성 인자
+  const _composeRowMap = (order) => {
+    if (!order) return;
+    _rowMap = _rowMap
+      ? new Map([..._rowMap].map(([r, m]) => [r, order.has(m) ? order.get(m) : m]))
+      : new Map(order);
+  };
+  const _modelIdx = (i) => (_rowMap && _rowMap.has(i)) ? _rowMap.get(i) : i;
+  /* 행 노드가 «이미 떨어진» 뒤에 도착하는 늦은 핸들러(가드가 합성 input 으로 먼저 커밋·재생성을
+     끝낸 다음 원래 change 가 detached 노드에서 도는 경우)는 _rowMap 이 벌써 비워져 있다
+     ⇒ 그 재생성이 «소비한» 표(_lastRowMap)로 같은 stop 을 따라간다. */
+  const _modelIdxFor = (i, row) => {
+    if (_rowMap && _rowMap.has(i)) return _rowMap.get(i);
+    if (row && !row.isConnected && _lastRowMap && _lastRowMap.has(i)) return _lastRowMap.get(i);
+    return i;
+  };
+
   const setStops = (stops, commit) => {
-    const norm = stops
-      .map(s => ({ color: _hex6(s.color)||'#000000', alpha: Math.max(0,Math.min(1, s.alpha)), offset: Math.max(0,Math.min(1, s.offset)) }))
+    /* 정렬로 «줄 순서»가 바뀔 수 있다 → 「입력 전 인덱스 → 정렬 후 인덱스」 지도를 만들어
+       buildList 의 포커스 복원이 «같은 stop» 을 따라가게 한다(아래 B 처방). */
+    const mapped = stops
+      .map((s, i) => ({ color: _hex6(s.color)||'#000000', alpha: _clamp01(s.alpha, 1), offset: _clamp01(s.offset, 0), _i: i }))
       .sort((a,b)=>a.offset-b.offset);
+    const order = new Map(mapped.map((s, ni) => [s._i, ni]));
+    const norm = mapped.map(({ _i, ...rest }) => rest);
     block.dataset.gradStops = JSON.stringify(norm);
     // 레거시 4필드 미러(MCP/로더 호환)
     block.dataset.gradStart = norm[0].color;            block.dataset.gradStartAlpha = String(norm[0].alpha);
     block.dataset.gradEnd   = norm[norm.length-1].color; block.dataset.gradEndAlpha   = String(norm[norm.length-1].alpha);
     rerender();
     if (commit) { window.pushHistory?.(); window.scheduleAutoSave?.(); }
-    paintBar(norm); buildList(norm);
+    _composeRowMap(order);
+    paintBar(norm);
+    /* ⛔마우스를 «누르고 있는 동안»에는 리스트를 다시 그리지 않는다 — mousedown 의 기본동작
+       (포커스 이동 = 직전 칸 blur)이 커밋을 부르고, 그 커밋이 innerHTML 을 갈아치우면 «눌린»
+       ×(stop 삭제) 버튼이 mouseup 전에 사라져 click 이 아예 안 난다(값을 고친 «직후» × 가
+       먹지 않는 증상). 이 파일의 바 드래그도 같은 규율이다(paintBar 주석: 「라이브 드래그 중엔
+       DOM을 재생성하지 않는다」). 손을 «놓은 뒤» 한 번만 그린다. */
+    if (_holdRebuild) { _deferredStops = norm; return; }
+    buildList(norm);
   };
 
   const paintBar = (stops) => {
@@ -181,8 +226,56 @@ export function showGradientProperties(block) {
     });
   };
 
+  /* «옆 칸 클릭»으로 커밋이 떨어지는 경우엔 buildList 시점의 activeElement 가 이미 BODY 다
+     (mousedown 기본동작의 blur → change → 커밋 → 재생성 순서라, 사용자가 «가려던» 칸은 아직
+     포커스를 못 받았고 그 사이 DOM 에서 지워진다). 그래서 mousedown «때» 가려던 칸을 적어두고,
+     재생성 후 그 칸으로 포커스를 넘긴다. 같은 task 안에서만 유효하게 setTimeout(0) 로 비운다. */
+  let _pendingFocus = null;
+  listEl?.addEventListener('mousedown', (e) => {
+    /* ⑴ 누르고 있는 동안 재생성 유예(위 setStops 주석) — 놓은 «다음 task» 에 한 번 그린다.
+       click 은 mouseup «뒤»에 오므로 setTimeout 0 을 거쳐야 눌린 버튼이 살아서 click 을 받는다. */
+    _holdRebuild = true;
+    window.addEventListener('mouseup', () => {
+      setTimeout(() => {
+        _holdRebuild = false;
+        if (_deferredStops) { const s = _deferredStops; _deferredStops = null; buildList(s); }
+      }, 0);
+    }, { once: true, capture: true });
+    /* ⑵ «가려던 칸» 기억 */
+    const t = e.target;
+    if (!(t instanceof HTMLElement) || t.tagName !== 'INPUT') return;
+    const row = t.closest('.grad-stop-row');
+    const oldIdx = row ? parseInt(row.dataset.idx, 10) : NaN;
+    if (!Number.isInteger(oldIdx)) return;
+    _pendingFocus = { idx: oldIdx, cls: [...(t.classList || [])].find(c => c.startsWith('grad-stop-')) || null };
+    setTimeout(() => { _pendingFocus = null; }, 0);
+  }, true);
+
   const buildList = (stops) => {
     if (!listEl) return;
+    /* ★0920b grad-alpha B: 아래 innerHTML 재생성은 «타이핑 중이던 input» 을 DOM 에서 떼어내
+       포커스를 BODY 로 보낸다. 그 상태의 Backspace 는 js/editor.js 의 INPUT 가드(2645줄)를
+       못 넘겨 캔버스 삭제 경로로 새고 — .gradient-block.selected 가 CANVAS_SEL_BLOCKS 에
+       있으므로 — «블럭이 지워진다». 리스트를 안 그리는 게 아니라(offset 커밋은 정렬로 줄
+       순서가 바뀐다) 그리되 포커스·캐럿을 되돌린다. */
+    const _ae = document.activeElement;
+    let _keep = null;
+    if (_ae && _ae.tagName === 'INPUT' && listEl.contains(_ae)) {
+      const _row = _ae.closest('.grad-stop-row');
+      const _old = _row ? parseInt(_row.dataset.idx, 10) : NaN;
+      if (Number.isInteger(_old)) {
+        _keep = {
+          idx: _modelIdx(_old),
+          cls: [...(_ae.classList || [])].find(c => c.startsWith('grad-stop-')) || null,
+          start: null, end: null,
+        };
+        // selectionStart 는 type=number/color 에서 던진다 — 캐럿 없이 포커스만 되돌린다.
+        try { _keep.start = _ae.selectionStart; _keep.end = _ae.selectionEnd; } catch (_) {}
+      }
+    }
+    if (!_keep && _pendingFocus && _pendingFocus.cls) {
+      _keep = { idx: _modelIdx(_pendingFocus.idx), cls: _pendingFocus.cls, start: null, end: null };
+    }
     listEl.innerHTML = stops.map((s, i) => `
       <div class="prop-color-row grad-stop-row" data-idx="${i}" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
         <div class="prop-color-swatch" style="background:${s.color};position:relative;width:24px;height:24px;border-radius:4px;overflow:hidden;">
@@ -200,17 +293,65 @@ export function showGradientProperties(block) {
       const alphaIn = row.querySelector('.grad-stop-alpha');
       const offIn   = row.querySelector('.grad-stop-offset');
       const delBtn  = row.querySelector('.grad-stop-del');
-      const mutate = (fn, commit) => { const arr = STOP(); if (!arr[i]) return; fn(arr[i]); setStops(arr, commit); };
+      /* ★i 를 그대로 쓰지 않는다 — 위 _rowMap 주석(정렬로 줄 순서가 바뀐 뒤의 두 번째 쓰기). */
+      const mutate = (fn, commit) => { const arr = STOP(); const k = _modelIdxFor(i, row); if (!arr[k]) return; fn(arr[k]); setStops(arr, commit); };
       colorIn.addEventListener('input',  () => mutate(s => s.color = colorIn.value, false));
       colorIn.addEventListener('change', () => mutate(s => s.color = colorIn.value, true));
       hexIn.addEventListener('input',  () => { const h=_hex6(hexIn.value); if (h) mutate(s=>s.color=h, false); });
       hexIn.addEventListener('change', () => { const h=_hex6(hexIn.value); if (h) mutate(s=>s.color=h, true); });
-      alphaIn.addEventListener('input',  () => { const m=alphaIn.value.match(/\d+/); if(m) mutate(s=>s.alpha=Math.max(0,Math.min(100,+m[0]))/100, false); });
-      alphaIn.addEventListener('change', () => { const m=alphaIn.value.match(/\d+/); if(m) mutate(s=>s.alpha=Math.max(0,Math.min(100,+m[0]))/100, true); });
-      offIn.addEventListener('input',  () => mutate(s => s.offset = Math.max(0,Math.min(100, +offIn.value||0))/100, false));
-      offIn.addEventListener('change', () => mutate(s => s.offset = Math.max(0,Math.min(100, +offIn.value||0))/100, true));
-      delBtn.addEventListener('click', () => { const arr=STOP(); if (arr.length<=2) return; arr.splice(i,1); setStops(arr, true); });
+      /* ★0920b grad-alpha A — 커밋 시점은 prop-number-commit-guard 가 blur/Enter 로 일원화한다
+         (PN_SEL 에 .grad-stop-alpha/.grad-stop-offset 편입). 여기서는 «파서»를 고친다:
+           옛 알파 파서 `/\d+/` 는 "100" 캐럿 중간 Backspace 의 결과 "00" 을 «유효값 0» 으로 봤고,
+           옛 offset 파서 `+offIn.value||0` 은 «빈 문자열을 0 으로» 커밋했다(현빈 원문 그대로).
+         이제 «칸 전체»가 숫자일 때만 통과하고(빈값·"abc"·부분입력 미커밋), change 에서
+         파싱에 실패하면 칸을 모델값으로 되돌려 «표시와 모델이 어긋난 채 남는» 구멍을 막는다. */
+      const _pct = (raw) => {
+        const t = String(raw ?? '').trim();
+        if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(t)) return null;
+        const n = Number(t);
+        return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
+      };
+      const _resync = (el, key) => { const a = STOP()[_modelIdxFor(i, row)]; if (a && el) el.value = String(Math.round(a[key] * 100)); };
+      alphaIn.addEventListener('input',  () => { const v=_pct(alphaIn.value); if (v!==null) mutate(s=>s.alpha=v/100, false); });
+      alphaIn.addEventListener('change', () => { const v=_pct(alphaIn.value); if (v===null) { _resync(alphaIn,'alpha'); return; } mutate(s=>s.alpha=v/100, true); });
+      offIn.addEventListener('input',  () => { const v=_pct(offIn.value); if (v!==null) mutate(s=>s.offset=v/100, false); });
+      offIn.addEventListener('change', () => { const v=_pct(offIn.value); if (v===null) { _resync(offIn,'offset'); return; } mutate(s=>s.offset=v/100, true); });
+      delBtn.addEventListener('click', () => { const arr=STOP(); if (arr.length<=2) return; arr.splice(_modelIdxFor(i, row),1); setStops(arr, true); });
+      /* ★0920b grad-alpha(픽스 라운드) — Enter 뒤 포커스 되돌리기.
+         가드는 Enter 를 el.blur() 로 받아 커밋한다(prop-number-commit-guard.js 의 keydown 분기).
+         그 결과 activeElement 가 BODY 가 되는데 블럭은 .selected 인 채라, 이어서 Backspace 를
+         치면 js/editor.js 의 「target 이 INPUT 이면 무시」 가드를 못 넘겨 «선택된 블럭이 지워진다».
+         이 유닛이 닫으려던 바로 그 사고가 다른 키 순서로 재현됐다(이벨류에이터 실측).
+         ※이 핸들러는 가드가 blur→change→커밋→재생성을 «끝낸 뒤» 돈다 — 이벤트 경로는 dispatch
+           시작 때 고정되므로 노드가 DOM 에서 떨어져도 target 단계 리스너는 실행된다.
+         ⚠️같은 길이 .prop-number 전반(예: #grad-width-num)에도 dev 부터 있지만 그건 앱 전체
+           관행이라 이 유닛에서 건드리지 않는다(별도 카드). 여기선 stop 두 칸만 되돌린다. */
+      const _refocusAfterEnter = (el, cls) => (e) => {
+        if (e.key !== 'Enter' || e.isComposing) return;
+        const ae = document.activeElement;
+        if (ae && listEl.contains(ae)) return;            // 포커스가 살아 있으면 그대로 둔다
+        /* 캐럿은 «끝»으로 — 새로 그려진 칸의 기본 캐럿은 0 이라 이어지는 Backspace 가 헛돈다
+           (커밋 뒤 이어서 고치는 흐름이 끊긴다). */
+        const _put = (t) => { if (!t) return; try { t.focus(); } catch (_) { return; }
+          try { const n = String(t.value ?? '').length; t.setSelectionRange(n, n); } catch (_) {} };
+        if (el.isConnected) { _put(el); return; }
+        const k = (_lastRowMap && _lastRowMap.has(i)) ? _lastRowMap.get(i) : i;
+        _put(listEl.querySelector(`.grad-stop-row[data-idx="${k}"] .${cls}`));
+      };
+      alphaIn.addEventListener('keydown', _refocusAfterEnter(alphaIn, 'grad-stop-alpha'));
+      offIn.addEventListener('keydown', _refocusAfterEnter(offIn, 'grad-stop-offset'));
     });
+    // 재생성으로 행과 모델이 다시 1:1 이 됐다 → 보정표를 비우고, 방금 소비한 표만 남긴다
+    _lastRowMap = _rowMap; _rowMap = null;
+    // 재생성 «후» 포커스·캐럿 복원 (위 _keep 과 짝 — 0920b grad-alpha B)
+    if (_keep && _keep.cls) {
+      const _row = listEl.querySelector(`.grad-stop-row[data-idx="${_keep.idx}"]`);
+      const _el = _row && _row.querySelector('.' + _keep.cls);
+      if (_el) {
+        try { _el.focus({ preventScroll: true }); } catch (_) { try { _el.focus(); } catch (__) {} }
+        if (_keep.start != null) { try { _el.setSelectionRange(_keep.start, _keep.end); } catch (_) {} }
+      }
+    }
   };
 
   // 바 빈 영역 클릭 → 보간색으로 stop 추가

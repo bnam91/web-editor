@@ -53,6 +53,101 @@ function _sameEdit(a, b) {
   return a.replace(_NON_EDIT_ATTR_RE, '') === b.replace(_NON_EDIT_ATTR_RE, '');
 }
 
+/* ── ★0920b «grad-alpha» C: undo 복원 시 «선택 상태» 복원 ─────────────────────────────
+ * 현빈 원문: 「블럭을 삭제하고 ⌘Z 로 되살리면 보라색 아웃라인이 안 보여, 살아난 건지 확인하려면
+ * 클릭해봐야 안다」. 원인은 셋이 겹친다 —
+ *   ① 스냅샷이 UI 상태 클래스를 «일부러» 세척한다(js/io/section-serialize.js RUNTIME_MARKER_CLS
+ *      의 'selected' + .gradient-corner-handle 제거) → 복원 HTML 에 선택 흔적이 없다.
+ *   ② restoreSnapshot/restoreSnapshotScoped 가 deselectAll() 을 «두 번» 부른다.
+ *   ③ 히스토리 항목에 선택 정보를 담는 필드가 «아예» 없었다.
+ * ⇒ 항목을 만들 때(pushHistory·ensureHistoryCheckpoint «양쪽») 선택 «id» 를 같이 적고,
+ *   복원의 «마지막 deselectAll 뒤»에 타입별 진입점으로 다시 고른다.
+ *   ★순서가 중요하다 — 앞에 두면 deselectAll 이 도로 지우고 showPageProperties() 가 패널을 덮는다.
+ * ⛔1차 범위(좁게): «단일 블럭»만. 다중선택·섹션/프레임·contenteditable(.editing) 은 복원하지
+ *   않는다(전역 동작 변경이라 넓히면 다른 undo 유닛과 충돌한다). 없는 id 는 조용히 무시. */
+function _captureSelection() {
+  try {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.getElementById('canvas');
+    const sel = (typeof window !== 'undefined' && window.CANVAS_SEL_BLOCKS_AND_SHAPE) || '';
+    if (!canvas || !sel) return null;
+    if (canvas.querySelector('.editing')) return null;       // 편집 중 캐럿 상태는 복원 대상 아님
+    const els = canvas.querySelectorAll(sel);
+    if (els.length !== 1) return null;                        // 1차 범위 = 단일 블럭
+    const id = els[0].id;
+    if (!id) return null;
+    if (canvas.querySelector('.multi-selected')) return null; // 다중선택은 2차
+    return { blockIds: [id] };
+  } catch (_) { return null; }
+}
+
+/* ★0920b grad-alpha C(픽스 라운드) — «클릭 경로와 같은 한 벌»로 다시 고른다.
+ * ⚠️1차 구현은 일반 타입을 window.selectBlock(js/block-edit.js) 으로 흘렸는데 거기서 «조용히» 둘이 샜다:
+ *   ① getBlockById 가 `!!el.dataset?.type` 를 요구한다 — asset-block·icon-text-block·
+ *      label-group-block 등은 data-type 속성이 «없다»(실측: asset 의 속성 = class,id,data-align,
+ *      data-overlay,style) ⇒ selectBlock 이 false 로 빠져 아무 일도 안 일어났다.
+ *      = 현빈 원문의 「살아났는지 클릭해봐야 안다」가 이미지 블럭에서 그대로 남는다.
+ *   ② selectBlock 의 패널 분기(9종)가 실제 클릭 경로(js/block-drag.js)보다 좁아
+ *      mockup·step·chat·zoom·laurel·vector·canvas·joker·icon-circle·gap 은 showTextProperties 로
+ *      떨어져 «Page» 패널이 뜨거나 console.warn 을 남겼고, modal 은 «Text Block» 을 열었다.
+ * ⇒ 여기서는 클릭 경로의 분기를 그대로 베낀 표를 쓰고, 핸들은 클릭 경로와 «같은 입구»
+ *   window.showHandlesFor(js/overlay-handles.js) 로 붙인다. 표에 없는 타입은 패널을
+ *   «건드리지 않는다» — 엉뚱한 패널을 여는 것보다 안 여는 쪽이 덜 틀린다. */
+const _PANEL_BY_CLASS = [
+  // 순서 = 먼저 맞는 것이 이긴다. .speech-bubble-block/.liner-block 은 .text-block 을 겸하므로
+  // text-block 은 «맨 뒤».  (근거: js/block-drag.js 의 각 타입 click 핸들러)
+  ['shape-block',       (el) => window.showShapeProperties?.(el)],          // block-drag.js:2522
+  ['asset-block',       (el) => window.showAssetProperties?.(el)],          // :1014
+  ['gap-block',         (el) => window.showGapProperties?.(el)],            // :1111
+  ['icon-circle-block', (el) => window.showIconCircleProperties?.(el)],     // :1139
+  ['table-block',       (el) => window.showTableProperties?.(el)],          // :1236
+  ['label-group-block', (el) => window.showLabelGroupProperties?.(el, null)], // :1381 (항목 미지정 = 블럭 전체)
+  ['graph-block',       (el) => window.showGraphProperties?.(el)],          // :1434
+  ['divider-block',     (el) => window.showDividerProperties?.(el)],        // :1812
+  ['bridge-block',      (el) => window.showBridgeProperties?.(el)],         // :1841
+  ['grid-block',        (el) => window.showGridProperties?.(el, null)],     // :1846 (줄 선택 없음)
+  ['qa-block',          (el) => window.showQAProperties?.(el)],             // :1846
+  ['infocard-block',    (el) => window.showInfoCardProperties?.(el)],       // :1846
+  ['innercard-block',   (el) => window.showInnerCardProperties?.(el)],      // :1846
+  ['modal-block',       (el) => window.showModalProperties?.(el)],          // :1846
+  ['joker-block',       (el) => window.showJokerProperties?.(el)],          // :720
+  ['canvas-block',      (el) => ((el.dataset.cardMode === 'simple' && window.showSimpleCardProperties)
+                                  ? window.showSimpleCardProperties(el)
+                                  : window.showCanvasProperties?.(el))],    // :1582~:1585
+  ['banner02-block',    (el) => window.showBanner02Properties?.(el)],       // :1618 (항목 미지정)
+  ['comparison-block',  (el) => window.showComparisonProperties?.(el)],     // :1645
+  ['vector-block',      (el) => window.showVectorProperties?.(el)],         // :1672
+  ['icon-block',        (el) => window.showIconifyProperties?.(el)],        // :1700
+  ['mockup-block',      (el) => window.showMockupProperties?.(el)],         // :2019
+  ['step-block',        (el) => window.showStepProperties?.(el)],           // :1465 (항목 미지정)
+  ['chat-block',        (el) => window.showChatProperties?.(el)],           // :1493
+  ['laurel-block',      (el) => window.showLaurelProperties?.(el)],         // :1521
+  ['zoom-block',        (el) => window.showZoomProperties?.(el)],           // :1549
+  ['icon-text-block',   (el) => window.showTextProperties?.(el)],           // :1732
+  ['text-block',        (el) => window.showTextProperties?.(el)],           // :900 (버블·라이너 포함)
+];
+
+function _restoreSelection(snapSel) {
+  try {
+    const ids = snapSel && Array.isArray(snapSel.blockIds) ? snapSel.blockIds : null;
+    if (!ids || ids.length !== 1) return;
+    const canvas = document.getElementById('canvas');
+    const el = document.getElementById(ids[0]);
+    if (!el || !canvas || !canvas.contains(el)) return;       // 복원된 캔버스에 실제로 있을 때만
+    /* «선택+핸들+패널»을 자기가 한 벌로 처리하는 타입은 그 진입점에 통째로 맡긴다.
+       (그라데이션 4모서리 핸들·스티커 핸들은 showHandlesFor 가 모르는 자기 것이다) */
+    if (el.classList.contains('gradient-block') && window._selectGradient) { window._selectGradient(el); return; }
+    if (el.classList.contains('sticker-block')  && window._selectSticker)  { window._selectSticker(el);  return; }
+    el.classList.add('selected');
+    window.syncSection?.(el.closest('.section-block'));
+    window.highlightBlock?.(el, el._layerItem);
+    window.setBlockAnchor?.(el);
+    const hit = _PANEL_BY_CLASS.find(([cls]) => el.classList.contains(cls));
+    if (hit) hit[1](el);
+    window.showHandlesFor?.(el);   // 모서리 핸들 — 레이어패널/클릭 경로와 «같은» 입구
+  } catch (e) { console.warn('[history] 선택 복원 실패:', e); }
+}
+
 function pushHistory(action = '작업', sideEffects = null) {
   if (_historyPaused) return;
   // sideEffects: { onUndo?: fn, onRedo?: fn } — DOM 외 상태(예: 스크래치패드 IDB) 복원용
@@ -83,7 +178,7 @@ function pushHistory(action = '작업', sideEffects = null) {
   //   getLastVideoPendingSidecar 주석 참고). 전역 캐시가 아니라 이 스냅샷 전용이라,
   //   나중에 이 스냅샷이 아닌 다른 스냅샷을 복원할 땐 여기 안 실린다.
   const _videoPendingSidecar = window.getLastVideoPendingSidecar?.();
-  historyStack.push({ canvas: _canvas, videoPendingSidecar: _videoPendingSidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), seq: ++_seq });
+  historyStack.push({ canvas: _canvas, videoPendingSidecar: _videoPendingSidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
   if (historyStack.length > MAX_HISTORY) {
     historyStack.shift(); // 가장 오래된 항목 제거
     historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -142,6 +237,7 @@ function restoreSnapshot(snap) {
     window.applyPageSettings();
     if (window.buildLayerPanel) window.buildLayerPanel();
     window.deselectAll();
+    _restoreSelection(snap.selection);   // ★마지막 deselectAll «뒤» — 순서가 처방의 절반이다
   } finally {
     // ★가드 해제를 UI 갱신보다 «먼저» — 아래 _updateUndoRedoBtns/gdtFontPaintBadge가
     // 던져도 두 플래그는 이미 안전하게 풀린 상태가 되도록.
@@ -272,6 +368,7 @@ function restoreSnapshotScoped(fromSnap, toSnap, laterSnap) {
     window.applyPageSettings();
     if (window.buildLayerPanel) window.buildLayerPanel();
     window.deselectAll();
+    _restoreSelection(toSnap.selection);  // ★W5/W6 교훈 — 두 복원 경로는 «대칭»이어야 한다
   } finally {
     _historyPaused = false;
     // ★스코프 수술의 mutation 은 suppress 구간에 흡수된다 → 저장을 «명시 예약»해야 결과가
@@ -336,7 +433,7 @@ function clearHistory() {
   // 프로젝트 격리: 이전 프로젝트에서 누적된 원격 키 잔량을 버린다(빈 셋으로 초기화).
   _remoteSinceCheckpoint = new Set();
   const _initCanvas = window.getSerializedCanvas();
-  const init = { canvas: _initCanvas, videoPendingSidecar: window.getLastVideoPendingSidecar?.(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set(), seq: ++_seq };
+  const init = { canvas: _initCanvas, videoPendingSidecar: window.getLastVideoPendingSidecar?.(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set(), selection: _captureSelection(), seq: ++_seq };
   historyStack = [init];
   historyPos   = 0;
   state._canvasDirty = false;
@@ -394,7 +491,7 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
     historyStack = historyStack.slice(0, historyPos + 1);
     // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
     //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
-    historyStack.push({ canvas: current, videoPendingSidecar: _sidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), seq: ++_seq });
+    historyStack.push({ canvas: current, videoPendingSidecar: _sidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
     if (historyStack.length > MAX_HISTORY) {
       historyStack.shift(); // 가장 오래된 항목 제거
       historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -402,6 +499,16 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
       historyPos++;
     }
     _updateUndoRedoBtns();
+  } else if (historyStack[historyPos]) {
+    /* ★0920b grad-alpha C — «캔버스는 그대로인데 선택만 바뀐» 경우.
+       삭제 경로는 ensureHistoryCheckpoint('삭제 전') → remove → deselectAll → pushHistory 라,
+       체크포인트를 찍는 «그 순간»에만 블럭이 아직 선택돼 있다. 그런데 선택은 직렬화에서
+       세척되므로(section-serialize.js RUNTIME_MARKER_CLS) canvas 문자열이 «안 변해» 여기로
+       떨어져 새 항목이 안 생긴다 — 그러면 선택을 적을 자리가 없다.
+       맨 위 항목은 «지금 이 캔버스 상태»를 가리키는 항목이고 undo 가 되돌아올 자리이므로,
+       그 항목의 선택만 최신으로 갱신한다. (null 이면 덮지 않는다 — 지우는 쪽으로는 안 움직인다) */
+    const _sel = _captureSelection();
+    if (_sel) historyStack[historyPos].selection = _sel;
   }
 }
 

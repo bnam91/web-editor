@@ -19,7 +19,13 @@
  * 선례: js/editor.js 의 .prop-number document 위임(focusin 자동 select) 패턴.
  */
 
-const PN_SEL = '.prop-number';
+/* ★0920b «grad-alpha»: 그라데이션 stop 의 투명도/위치 칸도 여기에 편입한다.
+ *   둘은 .prop-number 를 «안» 달고 있어 가드 밖이었다 → prop-gradient.js 가 매 keystroke
+ *   마다 커밋해, "100" 캐럿 중간 Backspace 1회("00")가 «즉시 0» 으로 확정되고(현빈 원문 11번)
+ *   그 커밋이 리스트를 통째로 다시 그려 포커스가 BODY 로 날아갔다(다음 Backspace = 블럭 삭제).
+ *   .grad-stop-alpha 는 type=text, .grad-stop-offset 은 type=number 지만 가드는 둘 다
+ *   타이핑 유예 + blur/Enter 커밋으로 똑같이 다룬다(화살표/휠 스텝은 number 칸에서만 발생). */
+const PN_SEL = '.prop-number, .grad-stop-alpha, .grad-stop-offset';
 const isPn = (el) => el instanceof HTMLInputElement && el.matches?.(PN_SEL);
 
 /** 타이핑 세션 시작 — 최초 편집 시점의 값을 Escape 복원용으로 보관 */

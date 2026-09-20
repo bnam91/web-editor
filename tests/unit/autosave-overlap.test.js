@@ -220,7 +220,7 @@ function unnettedReleases(files, flags) {
    ★아래 둘은 검사를 넓히다 «새로 찾은» 것이다 — 이번에 고친 것과 갈라 적는다. */
 const UNNETTED_BACKLOG = {
   'js/collab/sync.js':          [418],
-  'js/history.js':              [151, 279],
+  'js/history.js':              [247, 376],  // 같은 두 자리(restoreSnapshot·restoreSnapshotScoped 의 rAF 해제). 줄만 계속 밀린다 — 115·243 → 161·290 → (resize-undo)151·279 / (grad-alpha)211·340 → 통합 int/0920b 에서 둘 다 들어가 247·376.
   'js/io/lazy-sections.js':     [59],    // ★신규 — `_lazyRenderPass` (플래그 축을 넓혀서 보였다)
   'js/version-history-ui.js':   [407],   // ★신규 — `else setTimeout` 이 안전망이 아님을 알고 보였다
 };
