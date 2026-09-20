@@ -154,3 +154,26 @@ test('U9 ★goditor-api DISABLED 게이트는 «한 글자도 바꾸기 전»(up
   assert.ok(gateAt < firstWrite,
     `DISABLED 게이트(${gateAt})가 첫 DOM 쓰기(${firstWrite})보다 뒤에 있다 — 절반만 적용된 채 거절된다`);
 });
+
+test('U10 ★차단 중 «강도만» 바꾸는 API 경로가 인라인 --redact-blur 를 같이 올린다 (int/0920b)', () => {
+  /* medium(0920b 이벨류에이터): updateShapeBlock({shapeRedactBlur:N}) 를 레거시 mosaic 블록에
+     쏘면 ok:true · dataset 은 N 인데, 남아 있는 «옛 인라인» --redact-blur 가 새 CSS 규칙
+     (U7 의 data-shape-redact-blur → --redact-blur)을 이겨 화면·내보내기는 옛 강도 그대로였다.
+     인라인은 패널을 한 번 열기만 해도 박히고(prop-shape.js:302) 저장 HTML 에 구워진다 ⇒
+     한 번 만진 블록은 저장 파일에서도 영구히 그 상태다. 실패 방향이 «위험 쪽»(강도를 올렸는데
+     약한 채로 남음)이라 이 레포의 「오류 삼키는 코드 = 위 판정 거짓말」 규약에 걸린다. */
+  const branch = FACTORY.slice(
+    FACTORY.indexOf("} else if (partial.shapeRedactBlur !== undefined"),
+    FACTORY.indexOf('applied.shapeRedactBlur = bp;'),
+  );
+  assert.ok(branch.length > 50, '하네스가 늙었다 — shapeRedactBlur 단독 갈래를 못 찾았다');
+  const mosaicPart = branch.slice(branch.indexOf("if (block.dataset.shapeRedactMode === 'mosaic')"));
+  assert.match(mosaicPart, /window\.REDACT_MOSAIC_ENABLED === false[\s\S]{0,160}setProperty\('--redact-blur', `\$\{bp\}px`\)/,
+    '차단 중인데도 mosaic 갈래가 인라인 --redact-blur 를 안 올린다 — dataset 만 바뀌고 화면은 옛 값이다');
+  /* ⛔`=== false` — 플래그를 안 얹는 하네스(undefined)는 «켜짐»이고, 그때는 캡처만 해야 한다(U5). */
+  assert.doesNotMatch(mosaicPart, /!window\.REDACT_MOSAIC_ENABLED/,
+    '게이트를 truthy 부정으로 썼다 — undefined(플래그 미주입)에서도 블러 인라인이 박힌다');
+  /* 되살릴 때(T-071) 이 갈래가 스스로 옛 동작으로 돌아가는지 — 캡처 호출은 그대로 남아 있어야 한다. */
+  assert.match(mosaicPart, /captureMosaicSnapshot\?\.\(block, \{ reuseFullRes: true \}\)/,
+    '강도만 바꾼 경우의 캡처 재사용 호출이 사라졌다 — 스위치를 되살리면 강도 변경이 안 찍힌다');
+});

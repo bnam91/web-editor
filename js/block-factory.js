@@ -4518,6 +4518,16 @@ function updateShapeBlock(blockId, partial = {}) {
     block.dataset.shapeRedactBlur = String(bp);
     if (block.dataset.shapeRedact === 'true') {
       if (block.dataset.shapeRedactMode === 'mosaic') {
+        /* ★모자이크 차단 중(T-070)에는 «보이는 것»이 블러다 — 인라인 --redact-blur 도 같이
+           올려야 한다. 안 그러면 옛 인라인(패널을 한 번 열기만 해도 박히고 저장 HTML 에
+           구워진다, prop-shape.js:302)이 새 CSS 규칙(editor-blocks.css 의
+           data-shape-redact-blur → --redact-blur)을 «이겨», API 는 ok:true·dataset 은 새 값인데
+           화면·내보내기는 옛 강도 그대로인 «조용한 거짓 성공»이 된다(0920b 이벨류에이터 medium).
+           ⛔`=== false` 비교 — 플래그를 안 얹는 하네스(undefined)는 «켜짐»이다(U5 와 같은 규약).
+           ⚠️스위치를 되살리면(T-071) 이 갈래는 저절로 옛 동작(캡처만)으로 돌아간다. */
+        if (window.REDACT_MOSAIC_ENABLED === false) {
+          block.style.setProperty('--redact-blur', `${bp}px`);
+        }
         try { window.captureMosaicSnapshot?.(block, { reuseFullRes: true }); } catch (_) {}
       } else {
         block.style.setProperty('--redact-blur', `${bp}px`);
