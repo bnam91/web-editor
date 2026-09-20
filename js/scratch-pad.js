@@ -1036,6 +1036,15 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg) {
           committed = commitScratchDropAt(lastClientX, lastClientY, item.src, {
             naturalWidth: natW,
             naturalHeight: natH,
+            /* ★「스크래치패드에서 보이던 폭」 (현빈 신고 2026-09-20, 0920b-scratch-modal)
+               전에는 이 값을 «안 넘겼다» ⇒ 받는 쪽은 폭을 정할 근거가 없어 CSS 의
+               `.asset-block{width:100%}` 에 맡겼고, 220px 로 보이던 그림이 796px 로 들어갔다
+               (실측 3.62배). 비율은 맞는데 절대 크기만 커지는 게 그 증상이었다.
+               ⚠️`item.w` 는 이미 «캔버스 px»다 — .scratch-item 은 #canvas-scaler 의 자식이라
+                 #canvas 와 같은 좌표계에 살고, 리사이즈 핸들도 dx/_getScale() 로 배율을 나눠
+                 저장한다 ⇒ 줌 보정은 필요 없다(있으면 오히려 두 번 나눈다).
+               ⚠️옵트인이다 — 이 값을 «안» 넘기는 호출자(자산패널 드롭)는 종전대로 풀폭이다. */
+            width: item.w,
             requireArm: true, // 하이라이트(armed) 없이 스친 릴리즈는 위치 이동으로만 처리
           });
         } catch (err) {

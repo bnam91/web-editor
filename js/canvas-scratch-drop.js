@@ -270,6 +270,9 @@ function previewScratchDropAt(clientX, clientY, opts = {}) {
 
 // mouseup 시 호출 — 실제 변환 수행. 변환 성공이면 true 반환.
 // opts.naturalWidth, opts.naturalHeight — 새 asset-block의 aspect-ratio 적용용 (insert/append 케이스).
+// opts.width — «출발지에서 보이던 표시폭»(캔버스 px). ★옵트인: 아는 호출자만 넘긴다.
+//   넘기면 insert/newsection 으로 만들어지는 asset-block 이 그 폭으로 들어간다(풀폭 이상이면 무시).
+//   ⛔replace 경로는 «그 블록의 크기»를 지킨다(이미지 교체이지 삽입이 아니다) — 여기서도 안 쓴다.
 // opts.requireArm — 아밍(같은 타깃 위 ARM_DELAY_MS 이상 체류) 상태에서만 커밋. 미아밍 릴리즈는 false.
 // history pushHistory는 호출자가 책임 (sideEffects hook과 함께 push 가능하도록).
 function commitScratchDropAt(clientX, clientY, src, opts = {}) {
@@ -286,6 +289,40 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
   }
   _clearGuides();
   if (decision.kind === 'none' || !src) return false;
+
+  /* ★「스크래치패드에서 보이던 폭 그대로」 — opts.width 옵트인 (현빈 신고 2026-09-20)
+       ⚠️★순서가 계약이다: reapplyPadX «뒤», applyAspectSync «앞».
+         applyAspectSync 는 높이를 block.offsetWidth 에서 «읽어» 계산한다 ⇒ 폭이 먼저 확정돼야
+         비율이 스크래치에서 보이던 그대로 나온다. 뒤에 부르면 폭만 바뀌고 높이는 풀폭 기준으로
+         남아 «더 이상한» 모양이 된다.
+       ⚠️풀폭 이상이면 «아무 것도 안 한다» — 종전(full-bleed) 동작을 그대로 둔다.
+         스크래치 일괄배치(_scratchPlaceImages)가 쓰는 860px 짜리가 이 길로 온다.
+       ⛔860 같은 리터럴을 새로 적지 않는다 — 부모 clientWidth 로 «잰다»(섹션 padX·합쳐넣기로
+         콘텐츠폭이 달라지는데 리터럴은 그걸 못 따라간다).
+       ★px 폭을 박는 관용구는 prop-asset.js:203-214 applyW 와 «같은 벌»이다
+         (width + alignSelf 세트). 음수마진은 풀블리드 전용이라 같이 푼다 — 안 풀면
+         220px 블록이 좌우로 padX 만큼 밀려 가운데가 어긋난다.
+       ★dataset.usePadx='false' 를 같이 찍는 이유 = 우측패널의 「좌우여백 제외」 토글이
+         «화면과 다른 말»을 하지 않게. 폭을 px 로 잠근 순간 그 블록은 더 이상 padX 추종이 아니다.
+       ⚠️★하한을 «안» 건다(현빈 결정 대기). 스크래치 아이템은 60px 까지 줄어드는데
+         (scratch-pad.js 의 fMin) 우측패널 폭 슬라이더는 min=100 이다(prop-asset.js:216).
+         60px 로 들어가면 «패널은 100 을 보여주는데 실제는 60» 이 된다.
+         신고 문장이 「스크래치패드와 같은 크기」이므로 지금은 «보이는 대로» 넣는다.
+         패널 min 과의 불일치는 별도 카드다 — 여기서 100 으로 클램프하면 신고가 다시 산다. */
+  const applyScratchWidth = (block) => {
+    const want = Number(opts.width);
+    if (!Number.isFinite(want) || want <= 0) return false;
+    const host = block.parentElement;
+    const full = host ? host.clientWidth : 0;
+    if (!(full > 0) || want >= full) return false;
+    block.style.width = Math.round(want) + 'px';
+    block.style.marginLeft = '';
+    block.style.marginRight = '';
+    block.style.alignSelf = block.dataset.align === 'left' ? 'flex-start'
+      : block.dataset.align === 'right' ? 'flex-end' : 'center';
+    block.dataset.usePadx = 'false';
+    return true;
+  };
 
   // block이 row에 삽입된 *후* sync로 호출 (offsetWidth 측정 위해 부모 layout 필요)
   const applyAspectSync = (block) => {
@@ -344,6 +381,7 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
     }
     // 풀-블리드 width 먼저 적용 → 그 다음 aspect 비율로 height 계산해야 정확
     reapplyPadX(decision.inner);
+    applyScratchWidth(block);   // ★스크래치 표시폭(옵트인) — 반드시 applyAspectSync 앞
     applyAspectSync(block);
     window.bindBlock?.(block);
     window.setAssetImageFromSrc?.(block, src);
@@ -378,6 +416,11 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
         // 좌우여백은 «그 블록이 실제로 들어간 곳» 기준이어야 한다(합쳐 넣은 몸이면 그 상자)
         const inner = ab.closest('.section-merged-part') || sec.querySelector('.section-inner') || sec;
         reapplyPadX(inner);
+        /* ★insert 분기와 «같은 자리»에 같은 것을 건다. 이 분기를 빼먹으면 「섹션 안에
+           떨어뜨리면 맞는데 캔버스 빈 곳에 떨어뜨리면 여전히 커지는」 반쪽 수정이 된다.
+           ⚠️addAssetBlock() 이 applyExcludePadX(block-factory.js:847-860)로
+             calc(100% + 2·padX) + 음수마진을 «이미» 박아 둔다 ⇒ 그 뒤에 와야 덮인다. */
+        applyScratchWidth(ab);   // ★반드시 applyAspectSync 앞
         applyAspectSync(ab);
         window.setAssetImageFromSrc?.(ab, src);
       }

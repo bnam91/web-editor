@@ -143,8 +143,19 @@ const _MDL_JUSTIFY_H = { left: 'flex-start', center: 'center', right: 'flex-end'
 function _alignStyles(variant, align, vAlign, hMode) {
   const jv = _MDL_JUSTIFY_V[vAlign] || _MDL_JUSTIFY_V.top;
   if (variant === 'icon') {
-    // 가로 배치 — 세로는 align-items, 수평은 justify-content
-    return `display:flex;flex-direction:row;align-items:${jv};justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:11px;`;
+    /* ★2026-09-20 (0920b-scratch-modal) — 「아이콘+텍스트 프리셋이 서로 중앙이 안 맞는다」
+       전에는 여기서 flex-direction:row 로 «루트»를 가로로 눕혔다. 그러면 한 속성(vAlign)이
+       두 가지 뜻을 떠맡는다:
+         · 세로쌓기 변형에서는 justify-content = 「내용 덩어리를 상자 안에서 위/중앙/아래」
+         · icon 에서는 주축이 가로라 justify-content 가 «수평»을 먹고, vAlign 이 남은
+           align-items(교차축)로 밀려났다. 교차축은 「상자 안 위치」가 아니라 «아이콘과 글자가
+           서로 어떻게 맞느냐»다 ⇒ 기본값 top(flex-start)에서 24px 아이콘과 61.2px 줄높이가
+           위쪽 기준으로 붙어 중심이 18.59px 어긋났다(실측).
+       ⇒ 루트는 다른 변형과 «같은 세로쌓기»로 되돌리고, 가로 배치는 renderModalBlock 이
+         .mdl-iconrow 래퍼에서 맡는다. 이제 vAlign 은 「상자 안 세로 위치」 한 가지 뜻만 갖는다.
+       ⛔여기에 align-items:center 만 쓰는 «1토큰 수정»으로 때우지 마라 — 한 줄은 맞지만
+         다섯 줄 텍스트에서 아이콘이 문단 «한가운데»로 내려간다(실측 170.97px). */
+    return `display:flex;flex-direction:column;align-items:stretch;justify-content:${jv};`;
   }
   if (variant === 'icon-stack') {
     /* ⛔icon-stack 의 하드코딩 center(align-items·text-align)는 «그대로 둔다».
@@ -300,22 +311,42 @@ function _num(block, key, def) {
    ⛔두 분기에 각각 적으면 한쪽만 고쳐진다(이 파일이 이미 그 병으로 주석을 달아 뒀다).
    ⚠️cursor:pointer 는 ⑵의 «버튼처럼» 때문이다 — 레이아웃은 한 픽셀도 안 움직인다.
    ⚠️iconRotation 기본값 0 ⇒ 선언을 «아예 안 낸다» ⇒ 이미 만든 모달의 cssText 는 그대로다. */
-function _modalIconAttrs(block, size, extraCss = '') {
+/* ★아이콘을 «첫 줄»에 맞추는 오프셋 (2026-09-20) — icon 변형 전용.
+   .mdl-iconrow 는 align-items:flex-start 다(여러 줄이어도 아이콘이 문단 한가운데로 안 내려가게).
+   그러면 24px 아이콘의 중심은 12px, 첫 줄의 중심은 (fontSize × lineHeight)/2 = 30.6px 로
+   어긋난다 ⇒ 그 차이만큼 아이콘을 내려 «첫 줄과» 맞춘다.
+   ⚠️줄높이의 출처는 _typoStyles 와 «같은 한 벌»이어야 한다 — 여기서 1.7 을 다시 적으면
+     패널이 줄간격을 바꿀 때 한쪽만 따라간다. */
+function _mdlIconFirstLineOffset(block, size) {
+  const fs = _num(block, 'fontSize', MODAL_DEFAULTS.fontSize);
+  const lhRaw = parseFloat(block.dataset.lineHeight);
+  const lh = Number.isFinite(lhRaw) ? lhRaw : MODAL_DEFAULTS.lineHeight;
+  return Math.max(0, (fs * lh - size) / 2);
+}
+
+/* @param {string} [variant] — 'icon' 일 때만 첫 줄 오프셋을 얹는다.
+     ⛔icon-stack 은 «안» 얹는다: 세로쌓기라 이미 가운데 정렬이고, 얹으면 기존 icon-stack
+       블록 전부의 생김새가 달라진다(:150-152 의 ⛔와 같은 규약).
+     ★오프셋을 «여기»(공통 머리)에 넣는 이유 = _modalIconHtml 에 return 이 둘(래스터 img ·
+       벡터 svg)이라, 분기에 각각 적으면 한쪽만 고쳐진다. 이 파일이 이미 그 병으로 주석을 달았다. */
+function _modalIconAttrs(block, size, extraCss = '', variant = '') {
   const rot = _num(block, 'iconRotation', MODAL_DEFAULTS.iconRotation);
+  const flo = variant === 'icon' ? _mdlIconFirstLineOffset(block, size) : 0;
   return `class="mdl-icon" data-mdl-icon="1" title="클릭하면 아이콘을 바꿔요"`
        + ` style="width:${size}px;height:${size}px;cursor:pointer;${extraCss}`
+       + (flo > 0 ? `margin-top:${flo}px;` : '')
        + (rot ? `transform:rotate(${rot}deg);` : '')
        + `"`;
 }
 
-function _modalIconHtml(block) {
+function _modalIconHtml(block, variant = '') {
   const size = _num(block, 'iconSize', MODAL_DEFAULTS.iconSize);
   const color = block.dataset.iconColor || MODAL_DEFAULTS.iconColor;
   // 래스터(PNG/JPG): goya-asset:// URL 을 <img> 로. ⛔data-URL 인라인 금지(iconify 규약).
   if (block.dataset.raster === '1') {
     const src = block.dataset.iconSrc || '';
     if (src) {
-      return `<div ${_modalIconAttrs(block, size)}>`
+      return `<div ${_modalIconAttrs(block, size, '', variant)}>`
            + `<img src="${_esc(src)}" width="${size}" height="${size}" `
            + `style="width:${size}px;height:${size}px;object-fit:contain;display:block;pointer-events:none;" `
            + `draggable="false" alt=""></div>`;
@@ -325,7 +356,7 @@ function _modalIconHtml(block) {
   const inner = svg
     ? svg
     : `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
-  return `<div ${_modalIconAttrs(block, size, `color:${_esc(color)};`)}>${inner}</div>`;
+  return `<div ${_modalIconAttrs(block, size, `color:${_esc(color)};`, variant)}>${inner}</div>`;
 }
 
 /* ★⑵ 「캔버스에서 아이콘을 누르면 바로 교체」 (현빈 발주 2026-09-09)
@@ -430,7 +461,18 @@ function renderModalBlock(block) {
     /* ★display/flex-direction/align-items/gap/text-align 은 _alignStyles 가 cssText «안»에서 준다(핸들 단위).
          형광펜은 슬롯 인라인이 아니라 _highlightCss 로 준다(타이포 단위).
        ⇒ 두 단위가 «같은 줄»에서 만난다. 한쪽만 살리면 정렬이 죽거나 형광펜이 죽는다 — 둘 다 살렸다. */
-    html = _modalIconHtml(block) + _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, _highlightCss(block.dataset));
+    const _inner = _modalIconHtml(block, v)
+                 + _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, _highlightCss(block.dataset));
+    /* ★icon 변형만 «가로 한 줄»을 래퍼로 만든다 (2026-09-20)
+         루트는 _alignStyles 가 세로쌓기로 돌려놨다 ⇒ vAlign 은 「상자 안 세로 위치」,
+         여기 래퍼는 「아이콘과 글자가 서로 어떻게 맞느냐」 — 두 축이 갈라졌다.
+       ⚠️justify-content 를 빼먹지 마라 — 빼면 Text>정렬 버튼(좌/중/우)이 아이콘 행에 안 먹는다.
+         (루트의 text-align 은 글자만 움직이고, 아이콘 포함 «행»은 여기서만 움직인다.)
+       ⛔icon-stack 은 감싸지 않는다 — 세로쌓기라 이미 align-items:center 다. 감싸면
+         기존 icon-stack 전부의 생김새가 달라진다(별도 승인 사안, :150-152). */
+    html = (v === 'icon')
+      ? `<div class="mdl-iconrow" style="display:flex;flex-direction:row;align-items:flex-start;justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:11px;">${_inner}</div>`
+      : _inner;
   } else {
     // plain · dashed
     html = _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, _highlightCss(block.dataset));
