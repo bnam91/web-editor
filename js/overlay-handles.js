@@ -1544,6 +1544,7 @@ function showGridGutters(block) {
     g.style.cssText = 'position:absolute;width:8px;cursor:col-resize;z-index:97;pointer-events:auto;';
     overlay.appendChild(g);
     g.addEventListener('mousedown', e => _onGridColMouseDown(e, block, i));
+    _wireGutterContextMenu(g, block);
   }
   for (let i = 0; i < rows.length - 1; i++) {
     const g = document.createElement('div');
@@ -1553,9 +1554,21 @@ function showGridGutters(block) {
     g.style.cssText = 'position:absolute;height:8px;cursor:row-resize;z-index:97;pointer-events:auto;';
     overlay.appendChild(g);
     g.addEventListener('mousedown', e => _onGridRowMouseDown(e, block, i));
+    _wireGutterContextMenu(g, block);
   }
   _updateGridGutterPositions();
   _startGridGutterRaf();
+}
+
+/* ★거터 위 우클릭도 «블록의» 컨텍스트 메뉴로 보낸다 (2026-09-20, 0920b-grid-image).
+ *   거터는 #ss-handles-overlay 의 자식 = «블록 바깥» 요소다. 그래서 여기서 우클릭하면
+ *   block-drag.js 가 블록에 건 contextmenu 리스너가 «아예 안 불리고» 메뉴 자체가 안 떴다
+ *   (8px 띠지만 40% 줌에선 칸 경계 대부분이 이 띠 아래로 들어온다).
+ *   ⛔거터를 pointer-events:none 으로 바꾸는 식으로 풀지 마라 — 열/행 리사이즈가 죽는다. */
+function _wireGutterContextMenu(g, block) {
+  g.addEventListener('contextmenu', e => {
+    if (window._openBlockContextMenu) window._openBlockContextMenu(e, block);
+  });
 }
 
 function hideGridGutters() {

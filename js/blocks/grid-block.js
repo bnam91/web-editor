@@ -75,6 +75,29 @@ const MAX_CELL_LINES = 20;
 
 /* ★행/열 간격 상한 — 「클램프가 여러 곳에 흩어져 하나만 고쳐지는」 사고 반복 방지, 한 곳에 모은다.
  *   updateGridBlock 검증(gap/rowGap/colGap)·prop-grid.js 슬라이더 max 가 전부 이 값을 본다. */
+/* ══ 이미지 상한 «둘» — 입구가 다르면 상한도 다르다(2026-09-20, 0920b-grid-image) ══════════
+ * ★왜 둘인가. 현빈 원문: 「그리드블럭 > 우클릭 후 이미지 삽입안되는 이슈」.
+ *   실측 결과 메뉴는 떴고 커밋도 갔는데, 아래 GRID_IMG_MAX_CHARS 에 걸려 «조용히» 버려졌다
+ *   (grdAddLine 이 반환을 안 받아 토스트조차 안 떴다). 200000자 ≈ 원본 146KB 라
+ *   스크린샷·사진은 거의 전부 넘는다 ⇒ 「거의 항상 실패」.
+ *
+ *  ┌ GRID_IMG_MAX_CHARS — «MCP/IPC» 통로의 상한. main.js:7024 가 partial 을 JSON 문자열로
+ *  │   executeJavaScript 에 실어 보내므로 문자열 길이 자체가 비용이다. 여기는 안 푼다.
+ *  │   ★block-factory.js:2691 이 같은 병을 먼저 앓고 같은 말을 적어 뒀다 — 「imgSrc는 IPC
+ *  │   문자열이라 200000자 캡이 걸린다(≈150KB — 실사진은 대부분 넘는다)」. 그때의 답도
+ *  │   「UI 전용 우회로를 낸다」(scratchId)였다. 그리드는 UI 입구가 MCP용 API 를 그대로
+ *  │   타는 바람에 우회로 없이 같은 캡을 뒤집어썼다.
+ *  └ GRID_IMG_MAX_BYTES — «UI»(파일 선택 대화상자) 입구의 상한. 사람이 고른 «파일 크기»로
+ *      잰다(문자열 길이가 아니다 — 선례: prop-zoom.js _applyZoomImage 5MB,
+ *      image-handling.js ASSET_IMAGE_MAX_BYTES 20MB). 5MB 는 prop-zoom 선례를 따랐다.
+ *      ⛔무제한 금지 — gridPreviewLine(이 파일 아래)이 색 슬라이더 드래그 «매 프레임»
+ *        JSON.stringify(cols) 를 한다. 큰 base64 가 같은 배열에 있으면 rAF 마다 그만큼 문자열
+ *        연산이다(끊김). 상한을 더 올리려면 그 자리부터 재라.
+ * ⛔GRID_IMG_MAX_CHARS 는 «3번째 인자» opts.trusted 로만 건너뛴다 — partial 안에 넣지 마라.
+ *   MCP 는 partial 을 JSON 으로 보내므로 partial.trusted 를 인정하면 그게 곧 뒷문이다. */
+export const GRID_IMG_MAX_CHARS = 200000;
+export const GRID_IMG_MAX_BYTES = 5 * 1024 * 1024;
+
 export const GRID_GAP_MAX = 200;
 
 /* ★2026-09-16(T-D) — 우측패널 「행 간격/열 간격」 분리 슬라이더 재도입(09-05 제거된 「간격」 슬라이더와는
@@ -621,7 +644,10 @@ function addGridBlock(opts = {}) {
 // 지원: cols(전체 교체) · patchCol{index,…} · rows(전체 교체) · cells(행0 포함 전체 교체) ·
 //       patchCell{r,c,…} · gap · valign.
 // ★구조 필드(cols/patchCol/cells/patchCell)는 한 번에 하나만 — 부분 적용 혼란 방지(기존 cols/patchCol 규칙 확장).
-function updateGridBlock(blockId, partial = {}) {
+/* @param {object} [opts]  ★«3번째 인자». opts.trusted === true 일 때만 GRID_IMG_MAX_CHARS 를
+ *   건너뛴다 — 사람이 파일 대화상자로 고른 UI 입구 전용이다(그쪽은 파일 «바이트»로 이미 걸렀다).
+ *   MCP(main.js:7024)는 2인자로만 부르므로 이 통로는 IPC 에 노출되지 않는다(실측 확인). */
+function updateGridBlock(blockId, partial = {}, opts = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
   const block = document.getElementById(String(blockId));
   if (!block || !block.classList.contains('grid-block')) {
@@ -730,11 +756,15 @@ function updateGridBlock(blockId, partial = {}) {
     const _reject = _gridRejectUnknownCellFields(rest, lineIndex !== undefined);
     if (_reject) return _reject;
     /* ★imgSrc 상한 — block-factory.js 의 다른 이미지 삽입 API들(add_asset_block 등)과
-       동일하게 200000자로 막는다. 없으면 dataset.cells JSON 이 그대로 커져 proj.json 이
-       무한정 부풀 수 있다(2026-09-15 a1-a3 QA 지적). */
-    const _oversize = [rest.imgSrc, ...(Array.isArray(rest.lines) ? rest.lines.map(l => l && l.imgSrc) : [])]
-      .some(s => typeof s === 'string' && s.length > 200000);
-    if (_oversize) return { ok: false, code: 'TOO_LARGE', message: 'imgSrc too long (>200000)' };
+       동일하게 GRID_IMG_MAX_CHARS 로 막는다. 없으면 dataset.cells JSON 이 그대로 커져 proj.json 이
+       무한정 부풀 수 있다(2026-09-15 a1-a3 QA 지적).
+       ★2026-09-20 — «UI 입구»만 opts.trusted 로 면제한다. 이 캡의 명분은 IPC 문자열 비용인데,
+         사람이 파일 대화상자로 고른 이미지까지 같이 막혀서 「우클릭 이미지 삽입이 안 된다」가 됐다.
+         ⛔면제는 3번째 인자로만 — partial.trusted 는 «읽지 않는다»(MCP 가 JSON 으로 보낼 수 있다). */
+    const _trusted = !!(opts && opts.trusted === true);
+    const _oversize = !_trusted && [rest.imgSrc, ...(Array.isArray(rest.lines) ? rest.lines.map(l => l && l.imgSrc) : [])]
+      .some(s => typeof s === 'string' && s.length > GRID_IMG_MAX_CHARS);
+    if (_oversize) return { ok: false, code: 'TOO_LARGE', message: `imgSrc too long (>${GRID_IMG_MAX_CHARS})` };
     const _linesReject = _gridRejectLinesLength(rest.lines);
     if (_linesReject) return _linesReject;
     const extra = r > 0 ? _gridExtraRows(block, cols, rowCountForValidation) : null;
@@ -861,6 +891,54 @@ export function gridPreviewLine(block, r, c, li, fields) {
   renderGridBlock(block);
   return true;
 }
+
+/* ══ 칸 기하 히트테스트 — «칸 밖»에 떨어진 좌표를 칸으로 되돌린다 ═══════════════════
+ * ★왜 DOM 히트테스트만으로는 부족한가 (2026-09-20, 0920b-grid-image)
+ *   우클릭 메뉴의 「이미지 추가」는 «어느 칸인가»를 못 정하면 항목 자체가 조용히 사라진다.
+ *   그런데 좌표가 칸을 안 가리키는 길이 셋이나 된다 —
+ *     ① 선택된 그리드 위엔 거터(.grd-gutter, overlay-handles.js — #ss-handles-overlay 소속이라
+ *        «블록 바깥» 요소다)와 이미지 코너핸들이 pointer-events:auto 로 덮여 있다.
+ *     ② 블록 자체의 padding·gap(칸 사이 빈 틈). 40% 줌에선 이 띠가 좁아 오조준이 잦다.
+ *     ③ 선택 안 된 프레임 «안»의 그리드 — css/editor-blocks.css 의
+ *        `.frame-block:not(.selected)…* { pointer-events:none }` 때문에 elementsFromPoint 가
+ *        그 자식들을 «반환조차 안 한다». 그래서 DOM 히트테스트로는 원리상 못 잡는다.
+ *   ⇒ 사각형으로 직접 잰다. getBoundingClientRect 는 줌/transform 이 이미 반영된 값이라
+ *     40% 줌에서도 따로 보정할 게 없다.
+ * ⛔선택 상태는 «안 건드린다» — 「우클릭이 먼저 선택한다」로 풀면 첫클릭=블럭/둘째클릭=줄
+ *   규약(T-058, 38b298e)과 충돌한다.
+ *
+ * @param {{r:number,c:number,rect:{left:number,top:number,right:number,bottom:number}}[]} cells
+ * @returns {{r:number,c:number}|null}  후보가 없으면 null(조용한 오판보다 「못 찾았다」가 낫다) */
+export function pickCellByRects(cells, x, y) {
+  if (!Array.isArray(cells) || cells.length === 0) return null;
+  let best = null, bestD = Infinity;
+  for (const cell of cells) {
+    const q = cell && cell.rect;
+    if (!q) continue;
+    if (x >= q.left && x <= q.right && y >= q.top && y <= q.bottom) return { r: cell.r, c: cell.c };
+    // 사각형까지의 «거리» — 안이면 0, 밖이면 축별 초과분의 유클리드 거리.
+    const dx = x < q.left ? q.left - x : (x > q.right ? x - q.right : 0);
+    const dy = y < q.top ? q.top - y : (y > q.bottom ? y - q.bottom : 0);
+    const d = dx * dx + dy * dy;
+    if (d < bestD) { bestD = d; best = { r: cell.r, c: cell.c }; }
+  }
+  return best;
+}
+
+/** 위 함수의 DOM 껍데기 — 이 블록의 .grd-cell 사각형을 읽어 (x,y)가 어느 칸인지 돌려준다. */
+export function gridPickCellByPoint(block, x, y) {
+  if (!block || !block.querySelectorAll) return null;
+  const cells = [];
+  block.querySelectorAll('.grd-cell').forEach(el => {
+    const r = Number(el.dataset.r), c = Number(el.dataset.c);
+    if (!Number.isInteger(r) || !Number.isInteger(c)) return;
+    const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+    if (!rect || (rect.width === 0 && rect.height === 0)) return;   // 0×0 유령은 후보가 아니다
+    cells.push({ r, c, rect });
+  });
+  return pickCellByRects(cells, x, y);
+}
+if (typeof window !== 'undefined') window.gridPickCellByPoint = gridPickCellByPoint;
 
 window.makeGridBlock = makeGridBlock;
 window.addGridBlock = addGridBlock;

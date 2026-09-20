@@ -260,3 +260,92 @@ test('0줄 가드 — 음성대조(변이): 가드를 지운 사본은 통과한
     restoreGridWindow(snap);   // ★뒤 테스트(있다면)가 원본 grid-block.js 를 계속 쓰게 원복
   }
 });
+
+/* ═══ 0920b-grid-image — «넣었는데 조용히 버려진다» ═════════════════════════
+ * ★현빈 2026-09-20: 「그리드블럭 > 우클릭 후 이미지 삽입안되는 이슈」.
+ *   실측한 원인은 「메뉴가 안 뜬다」가 아니라 «커밋이 TOO_LARGE 로 거절되는데 grdAddLine 이
+ *   그 반환을 안 받고 무조건 {ok:true} 를 돌려준다»였다 — 토스트 0건·콘솔 0건·화면 무변화.
+ *   게다가 실패할 커밋 «앞»에서 grdSetActiveLine 을 이미 옮겨 놔, 활성줄이 «없는 li»를 가리켰다.
+ * 아래 네 개가 그 자리를 «각각» 잰다(하나가 초록이어도 나머지가 빨강이 되게 쪼갰다). */
+
+/** 길이 n 의 가짜 dataURL — 앞머리는 진짜 모양을 지키고 몸통만 늘린다. */
+function fakeDataUrl(n) {
+  const head = 'data:image/png;base64,';
+  return head + 'A'.repeat(Math.max(0, n - head.length));
+}
+
+test('grdAddLine — 양성대조: 작은 이미지(1KB)는 들어가고 줄 수가 +1 된다', () => {
+  const block = fixture();
+  const res = PG.grdAddLine(block, { r: 0, c: 1 }, null, { type: 'image', imgSrc: fakeDataUrl(1024), height: 0 });
+  assert.equal(res.ok, true, res.code);
+  const lines = GB.getGridModel(block).cells[0][1].lines;
+  assert.equal(lines.length, 2, '★양성대조가 깨지면 아래 음성대조는 «다른 이유»로 빨강이다');
+  assert.equal(lines[1].type, 'image');
+});
+
+test('grdAddLine — 음성대조: updateGridBlock 이 TOO_LARGE 를 내면 «그대로» 돌려준다(거짓 성공 금지)', () => {
+  const block = fixture();
+  const res = PG.grdAddLine(block, { r: 0, c: 1 }, null,
+    { type: 'image', imgSrc: fakeDataUrl(GB.GRID_IMG_MAX_CHARS + 1), height: 0 });
+  assert.equal(res.ok, false, '★ok:true 면 호출부는 토스트를 못 띄운다 — 화면 무변화 + 침묵');
+  assert.equal(res.code, 'TOO_LARGE');
+  assert.equal(GB.getGridModel(block).cells[0][1].lines.length, 1, '★거절 뒤 줄 수 불변');
+});
+
+test('grdAddLine — 커밋이 실패하면 «활성줄»도 원복된다(없는 li 를 가리키지 않는다)', () => {
+  const block = fixture();
+  PG.grdSetActiveLine(block, { r: 0, c: 1, li: 0 });
+  const res = PG.grdAddLine(block, { r: 0, c: 1 }, 0,
+    { type: 'image', imgSrc: fakeDataUrl(GB.GRID_IMG_MAX_CHARS + 1), height: 0 });
+  assert.equal(res.ok, false);
+  assert.deepEqual(PG.grdGetActiveLine(block), { r: 0, c: 1, li: 0 },
+    '★실패했는데 활성줄만 앞으로 갔다 — 패널이 «존재하지 않는 줄»을 그린다');
+});
+
+test('grdAddLine — UI 입구(opts.trusted)는 상한을 넘겨 커밋한다 / MCP 2인자 통로는 여전히 막힌다', () => {
+  const block = fixture();
+  const big = fakeDataUrl(GB.GRID_IMG_MAX_CHARS + 1);
+
+  const res = PG.grdAddLine(block, { r: 0, c: 1 }, null, { type: 'image', imgSrc: big, height: 0 }, { trusted: true });
+  assert.equal(res.ok, true, res.code);
+  const lines = GB.getGridModel(block).cells[0][1].lines;
+  assert.equal(lines.length, 2, '★UI 입구는 실사진(>200000자)을 넣을 수 있어야 한다 — 이게 현빈이 못 하던 바로 그것');
+  assert.equal(lines[1].imgSrc.length, big.length);
+
+  /* ★뒷문 봉쇄 — main.js:7024 가 부르는 «2인자» 호출은 그대로 거절돼야 한다. */
+  const mcp = GB.updateGridBlock(block.id, { patchCell: { r: 0, c: 0, lines: [{ type: 'image', imgSrc: big }] } });
+  assert.equal(mcp.ok, false, '★2인자(MCP) 통로가 새면 IPC 문자열 상한이 무의미해진다');
+  assert.equal(mcp.code, 'TOO_LARGE');
+
+  /* ★trusted 를 «partial 안»에 넣어도 안 먹혀야 한다(MCP 는 partial 을 JSON 으로 보낸다). */
+  const smuggle = GB.updateGridBlock(block.id,
+    { trusted: true, patchCell: { r: 0, c: 0, lines: [{ type: 'image', imgSrc: big }] } });
+  assert.equal(smuggle.ok, false, '★partial.trusted 로 캡을 넘으면 제3의 뒷문이다');
+});
+
+/* ═══ 칸 기하 히트테스트 — 우클릭이 «칸 밖»에 떨어졌을 때 ═══════════════════
+ * 거터(.grd-gutter, z-index:97 pointer-events:auto, #ss-handles-overlay = 블록 «바깥»)와
+ * 블록 padding·gap 에서 우클릭하면 elementFromPoint 가 칸을 못 주고 메뉴 항목이 조용히 사라졌다. */
+
+test('pickCellByRects — 칸 «안»은 그 칸을 준다(양성대조)', () => {
+  const cells = [
+    { r: 0, c: 0, rect: { left: 0,   top: 0, right: 100, bottom: 50 } },
+    { r: 0, c: 1, rect: { left: 120, top: 0, right: 220, bottom: 50 } },
+  ];
+  assert.deepEqual(GB.pickCellByRects(cells, 50, 25), { r: 0, c: 0 });
+  assert.deepEqual(GB.pickCellByRects(cells, 200, 25), { r: 0, c: 1 });
+});
+
+test('pickCellByRects — 칸 «사이 간격»(거터 자리)은 가까운 칸으로 떨어진다', () => {
+  const cells = [
+    { r: 0, c: 0, rect: { left: 0,   top: 0, right: 100, bottom: 50 } },
+    { r: 0, c: 1, rect: { left: 120, top: 0, right: 220, bottom: 50 } },
+  ];
+  assert.deepEqual(GB.pickCellByRects(cells, 105, 25), { r: 0, c: 0 }, '★거터 왼쪽 — 왼 칸');
+  assert.deepEqual(GB.pickCellByRects(cells, 116, 25), { r: 0, c: 1 }, '★거터 오른쪽 — 오른 칸');
+});
+
+test('pickCellByRects — 후보가 없으면 null(조용한 오판보다 «못 찾았다»가 낫다)', () => {
+  assert.equal(GB.pickCellByRects([], 10, 10), null);
+  assert.equal(GB.pickCellByRects(null, 10, 10), null);
+});

@@ -77,3 +77,75 @@ test('★피커 격자 폭은 CSS 가 아니라 상수에서 온다(축 하드�
   assert.match(src, /for\s*\(\s*let\s+r\s*=\s*1;\s*r\s*<=\s*MAXR/,
     '행 루프 상한이 MAXR 이 아니다 — 열 상한(MAX)으로 돌면 「살아있다는데 셀이 없는」 조합이 생긴다');
 });
+
+/* ═══ 0920b-grid-image — «호출부가 반환을 받는가» ════════════════════════════
+ * ★이 파일의 존재 이유가 그대로 한 번 더 일어났다. grdAddLine 은 updateGridBlock 의 반환을
+ *   «안 받고» 무조건 {ok:true} 를 돌려줬고, 우클릭 이미지 추가 호출부는 grdAddLine 의 반환을
+ *   «또» 안 봤다. 두 겹이 겹쳐 TOO_LARGE 거절이 토스트 0건·콘솔 0건으로 사라졌다
+ *   (= 현빈 2026-09-20 「그리드블럭 우클릭 후 이미지 삽입안되는 이슈」).
+ * ⇒ 「검사 있다 ≠ 자동으로 돈다」와 같은 갈래 — 반환을 «버리는» 자리를 소스로 못박는다. */
+
+/** 그 호출 앞에 무엇이 오는가 — 같은 구문 안에서 앞 텍스트를 뽑는다(빈 문자열 = 맨 statement). */
+function _prefixOfCall(src, idx) {
+  let i = idx - 1;
+  while (i >= 0 && !'\n;{}'.includes(src[i])) i--;
+  return src.slice(i + 1, idx).trim();
+}
+
+test('★그리드 커밋 호출부는 «반환을 버리지 않는다»(거짓 성공 재발 방지)', () => {
+  const targets = ['js/block-factory.js', 'js/props/prop-grid.js', 'js/block-drag.js'];
+  const CALL = /(?:window\.)?(updateGridBlock|grdAddLine)\s*\??\.?\(/g;
+  let seen = 0;
+  for (const rel of targets) {
+    const src = stripComments(read(rel));
+    for (const m of src.matchAll(CALL)) {
+      const prefix = _prefixOfCall(src, m.index);
+      if (/(?:export\s+)?function\s*$/.test(prefix)) continue;   // 정의부(prop-grid.js grdAddLine)
+      seen++;
+      assert.notEqual(prefix, '',
+        `${rel}: \`${m[0]}\` 가 «맨 statement»다 — 반환을 받지 않으면 실패가 화면에 안 뜬다. ` +
+        `grdToastImgFail(...) 로 감싸거나 const res = … 로 받아라.`);
+    }
+  }
+  assert.ok(seen >= 8, `그리드 커밋 호출을 ${seen}개밖에 못 찾았다 — 패턴이 낡았나? 갱신하라`);
+});
+
+test('★imgSrc 문자열 캡 200000 은 grid-block.js 안에서 «상수 한 곳»에만 있다', () => {
+  const src = stripComments(read('js/blocks/grid-block.js'));
+  const hits = [...src.matchAll(/(?<![\/.\w])200000(?![\/\w])/g)];
+  assert.equal(hits.length, 1, `grid-block.js 의 리터럴 200000 이 ${hits.length}곳이다 — GRID_IMG_MAX_CHARS 하나만 남겨라`);
+  assert.match(src, /export const GRID_IMG_MAX_CHARS = 200000;/);
+  // UI 쪽 바이트 상한도 상수여야 한다 — prop-grid.js 가 리터럴로 따로 들면 둘이 갈라진다.
+  const pg = stripComments(read('js/props/prop-grid.js'));
+  assert.match(pg, /GRID_IMG_MAX_BYTES/, 'prop-grid.js 가 UI 상한 상수를 import 하지 않는다');
+  assert.equal(/5\s*\*\s*1024\s*\*\s*1024/.test(pg), false, 'prop-grid.js 에 5MB 리터럴이 복제됐다 — 상수를 써라');
+});
+
+test('★opts.trusted 는 «3번째 인자»로만 — partial 안으로 새지 않는다(MCP 뒷문 봉쇄)', () => {
+  const gb = stripComments(read('js/blocks/grid-block.js'));
+  assert.match(gb, /opts\s*&&\s*opts\.trusted === true/, 'trusted 판정이 opts 에서 오지 않는다');
+  assert.equal(/partial\.trusted/.test(gb), false,
+    'grid-block.js 가 partial.trusted 를 읽는다 — MCP 가 JSON 으로 보낼 수 있는 자리다(뒷문)');
+
+  /* main.js 의 MCP 통로는 «2인자»여야 한다 — 3번째를 붙이는 순간 IPC 에 trusted 가 열린다. */
+  const mainSrc = stripComments(read('main.js'));
+  const calls = [...mainSrc.matchAll(/window\.updateGridBlock\(([^)]*)\)/g)].map(m => m[1]);
+  assert.ok(calls.length > 0, 'main.js 의 updateGridBlock 호출을 못 찾았다 — 패턴을 갱신하라');
+  for (const args of calls) {
+    assert.equal(args.split(',').length, 2,
+      `main.js: window.updateGridBlock(${args}) — MCP 통로는 2인자여야 한다(trusted 노출 금지)`);
+  }
+});
+
+test('★UI 파일 입구 4곳은 «바이트 게이트 + trusted»를 «같이» 쓴다', () => {
+  // 게이트 없이 trusted 만 쓰면 상한이 통째로 사라지고, 게이트만 쓰면 여전히 200000자에 걸린다.
+  const files = ['js/block-factory.js', 'js/props/prop-grid.js', 'js/block-drag.js'];
+  let gates = 0, trusted = 0;
+  for (const rel of files) {
+    const src = stripComments(read(rel));
+    gates   += [...src.matchAll(/grdImageFileOk\s*\??\.?\(/g)].length;
+    trusted += [...src.matchAll(/\{\s*trusted:\s*true\s*\}/g)].length;
+  }
+  assert.equal(gates, 4, `파일 크기 게이트가 ${gates}곳이다 — 우클릭·패널·빈슬롯 더블클릭 4 입구 전부 걸어라`);
+  assert.equal(trusted, 4, `trusted 커밋이 ${trusted}곳이다 — 게이트와 «같은 수»여야 한다`);
+});
