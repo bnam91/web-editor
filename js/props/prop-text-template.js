@@ -1,5 +1,6 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
+import { overlayToggleBtnHTML } from './_helpers.js';
 
 export function buildTextPropsHtml(state) {
   const {
@@ -72,15 +73,7 @@ export function buildTextPropsHtml(state) {
            id·클릭 배선(prop-text-wireup-overlay.js wireOverlaySection)은 그대로 — 자리만 옮긴다. -->
       <div class="prop-section-title prop-ph-header" style="margin-bottom:0">
         <span>Position</span>
-        ${isOverlayTb ? '' : `
-        <button type="button" class="prop-chain-btn prop-chain-btn--overlay${isOverlayBlock ? ' active' : ''}" id="txt-overlay-toggle"
-          aria-pressed="${isOverlayBlock ? 'true' : 'false'}"
-          title="오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.">
-          <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2">
-            <rect x="1" y="4" width="6" height="6" rx="1"/>
-            <rect x="5" y="1" width="6" height="6" rx="1" fill="var(--ui-bg-card)"/>
-          </svg>
-        </button>`}
+        ${isOverlayTb ? '' : overlayToggleBtnHTML({ id: 'txt-overlay-toggle', active: isOverlayBlock })}
       </div>
       <span class="prop-field-label">Alignment</span>
       <div class="prop-align-group" style="margin-bottom:6px">

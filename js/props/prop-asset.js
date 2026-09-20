@@ -1,6 +1,7 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { alignBtn } from './_helpers.js';
+import { alignBtn, overlayToggleBtnHTML } from './_helpers.js';
+import { posElOf, wireFloatToggle } from '../overlay-float.js';
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
 
 export function applyAssetPadX(ab, padX) {
@@ -32,6 +33,13 @@ export function showAssetProperties(ab) {
   const usePadX       = typeof window.getEffectiveUsePadx === 'function'
     ? window.getEffectiveUsePadx(ab)
     : (ab.dataset.usePadx === 'true');
+  /* ⛔이름 충돌 주의 — 바로 아래 `overlayOn`/`asset-overlay-toggle` 은 «이미지 위에 어두운 막 +
+     텍스트를 얹는» Text Overlay 다(.asset-overlay). 이번 건(오버레이=플로팅, Figma 의 Ignore
+     Auto Layout)과 «완전히 다른 기능»인데 이름만 같다. 그래서 새 토글의 id 는
+     `asset-float-toggle` 이다 — 같은 id 를 쓰면 getElementById 가 먼저 것을 잡아 두 기능이
+     서로를 눌러 버린다(.guard/FEATURE_REGISTRY.md 가 옛 id 를 계약으로 못 박고 있다).
+     (2026-09-20 현빈 원문 3번 「도형 블럭과 에셋 블럭에도 오버레이 버튼·기능」 / T-052) */
+  const isFloatOverlay = posElOf(ab)?.dataset.overlayBlock === 'true';
   const overlayOn     = ab.dataset.overlay === 'true';
   // 기존 overlay 요소 가져오기 (없으면 생성)
   let overlayEl = ab.querySelector('.asset-overlay');
@@ -115,7 +123,10 @@ export function showAssetProperties(ab) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">Size</div>
+      <div class="prop-section-title prop-ph-header">
+        <span>Size</span>
+        ${overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다. ※아래 「Text Overlay」(이미지 위 어두운 막)와는 다른 기능입니다.' })}
+      </div>
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="asset-align-group">
@@ -541,6 +552,12 @@ export function showAssetProperties(ab) {
     });
   }
 
+  /* 오버레이(플로팅) 토글 — 텍스트·도형 패널과 «같은 함수»(js/overlay-float.js). */
+  wireFloatToggle({
+    block: ab,
+    buttonId: 'asset-float-toggle',
+    rerender: () => showAssetProperties(ab),
+  });
 }
 
 // Backward compat: classic scripts call these via window.*

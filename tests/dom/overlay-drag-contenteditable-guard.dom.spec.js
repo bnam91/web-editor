@@ -26,12 +26,15 @@ const path = require('path');
 const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 
-const OVERLAY_SRC = fs.readFileSync(path.join(REPO, 'js/props/prop-text-wireup-overlay.js'), 'utf8');
+/* ★2026-09-20 — 가드 줄의 «원문»이 js/overlay-float.js 로 옮겨졌다(0920b-overlay-extend:
+   도형·에셋에도 같은 오버레이를 붙이면서 텍스트 전용 파일에서 공용 모듈로 이관). 동작은
+   그대로다 — 읽는 자리만 따라간다. */
+const OVERLAY_SRC = fs.readFileSync(path.join(REPO, 'js/overlay-float.js'), 'utf8');
 
 /* ★가드 줄 자체를 원문에서 그대로 떠낸다(대역 아님) — 구현이 바뀌면 이 정규식이 못 찾아 던진다. */
 const GUARD_RE = /if \(e\.target\.closest\('([^']+)'\)\) return;/;
 const m = OVERLAY_SRC.match(GUARD_RE);
-if (!m) throw new Error('★가드 표현식을 원문에서 못 찾음 — prop-text-wireup-overlay.js의 _bindOverlayMoveDrag 구현이 바뀌었으면 이 테스트도 같이 고쳐라');
+if (!m) throw new Error('★가드 표현식을 원문에서 못 찾음 — js/overlay-float.js 의 bindFloatMoveDrag 구현이 바뀌었으면 이 테스트도 같이 고쳐라');
 const GUARD_SELECTOR = m[1];   // 예: ".resize-handle, [contenteditable=\"true\"]"
 
 async function boot(page) {

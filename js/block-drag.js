@@ -7,6 +7,7 @@
 
 import { state, BLOCK_DELEGATE_SEL } from './globals.js';
 import { isShapeFrame as _isShapeFrameEl, toFlowUnit } from './shape-frame.js';
+import { posElOf as _floatPosElOf, bindFloatMoveDrag as _bindFloatMoveDrag } from './overlay-float.js';
 import {
   clearDropIndicators,
   makeLabelItem,
@@ -367,6 +368,14 @@ function bindBlock(block) {
   block.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (block.classList.contains('editing')) return;
+    /* ★오버레이(플로팅) 블록은 이 일반 드래그를 «타입과 무관하게» 비켜간다 — 섹션 경계
+       탄성클램프·크로스섹션 재부모가 필요해 전용 드래그(js/overlay-float.js
+       bindFloatMoveDrag)가 맡는다. 일반 드래그는 「자기 free-layout 프레임 안에서만
+       움직인다」를 전제해서(parentFrame 이 없으면 clamp 도 재부모도 «안 한다») 델타가
+       그대로 style.left/top 에 꽂혀 다음 섹션 배경 밑에 깔린다 — 텍스트가 2026-09-15 에
+       겪은 P0 그대로다. 도형·에셋으로 넓히면서 그 가드도 «대칭»으로 올린다(2026-09-20).
+       ⛔stopPropagation «전»에 return 해야 posEl 에 걸린 전용 리스너까지 버블된다. */
+    if (_floatPosElOf(block)?.dataset.overlayBlock === 'true') return;
     if (_getParentFrame(block) && !block.classList.contains('selected')) {
       // text-block 특례: text-frame 부모가 있고 실제 freeLayout frame이 selected면 드래그 허용
       if (isText) {
@@ -862,6 +871,15 @@ function bindBlock(block) {
         if (block.dataset.blank === 'true') delete block.dataset.blank;
       }
     });
+  }
+
+  /* ★도형·에셋 오버레이 전용 크로스섹션 드래그 — 텍스트와 «같은 자리·같은 이유»로 건다
+     (아래 isText 분기 주석 참고). posEl 은 타입마다 다르다(도형=자유배치 래퍼, 에셋=자신) —
+     그 해석은 js/overlay-float.js posElOf 한 곳뿐이다. 함수가 매 mousedown 마다
+     dataset.overlayBlock 을 live 로 재확인하므로 오버레이가 아닐 때 걸어둬도 안전하다. */
+  if (isShape || isAsset) {
+    const _posForFloat = _floatPosElOf(block);
+    if (_posForFloat) _bindFloatMoveDrag(_posForFloat);
   }
 
   if (isText) {

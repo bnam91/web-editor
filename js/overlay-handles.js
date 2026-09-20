@@ -3,7 +3,7 @@
    Resize / radius handles for frames, mockups, icons, assets, canvas, vectors
    Extracted from drag-drop.js (lines ~13–988)
 ═══════════════════════════════════ */
-import { applyFrameTransform, applyFrameRotationMargin } from './frame-geometry.js';
+import { applyFrameTransform, applyFrameRotationMargin, blockRotationDeg } from './frame-geometry.js';
 
 import { resizeColBoundary, resizeRowHeight, resizeGridImage } from './grid-cell-resize.js';
 // ★grid-block.js → drag-drop.js → overlay-handles.js(이 파일) 로 이미 순환 임포트가 있다
@@ -71,15 +71,9 @@ export function _canvasScaleNow() {
 }
 // 블록이 어떤 규약으로 회전값을 갖든(프레임 rotateDeg / asset rotation / shape shapeRotation)
 // 화면상 회전각(deg)을 반환. 없으면 0.
-function _blockRotationDeg(el) {
-  if (!(el instanceof HTMLElement)) return 0;
-  const d = el.dataset;
-  let v = d.rotateDeg;
-  if (v == null || v === '') v = d.rotation;
-  if (v == null || v === '') v = d.shapeRotation;
-  const n = parseFloat(v);
-  return Number.isFinite(n) ? n : 0;
-}
+// ★2026-09-20 — 본체는 js/frame-geometry.js blockRotationDeg 로 옮겼다(오버레이 공용 모듈이
+//   같은 판정을 써야 하는데 이 파일은 무거워 import 할 수 없다). 여기선 이름만 유지한다.
+const _blockRotationDeg = blockRotationDeg;
 // 코너 dir('nw'|'ne'|'sw'|'se')의 스크린 좌표.
 // inset>0 이면 코너에서 안쪽으로(코너반경 핸들), inset<0 이면 바깥쪽으로(회전 핫존).
 /** ★export — 선택 오버레이가 테두리 꼭지점을 «이 함수로» 얻는다(핸들과 같은 좌표).

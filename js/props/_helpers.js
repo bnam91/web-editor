@@ -281,3 +281,30 @@ export function alignBtn(family, key, o = {}) {
   if (title) out += ` title="${title}"`;
   return out + ` aria-label="${label}">${icon}</button>`;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   오버레이(플로팅) 토글 버튼 — 텍스트·도형·에셋 «세 패널이 같은 버튼»을 쓴다.
+   ───────────────────────────────────────────────────────────────────────────
+   ★2026-09-20 (0920b-overlay-extend / T-052) — 현빈 원문 3번 「도형 블럭과 에셋 블럭에도
+     오버레이 버튼·기능」. 버튼은 원래 prop-text-template.js 안에 인라인으로 박혀 있었고,
+     그걸 두 패널에 «베끼면» 아이콘·툴팁·aria 가 조용히 갈라진다(이 레포 고질 — alignBtn /
+     grid-callsite 가 같은 이유로 SSOT 함수가 됐고 *-ssot.test.mjs 가 그걸 지킨다).
+   ⛔id 는 패널마다 다르다. 특히 에셋은 `asset-overlay-toggle` 을 쓰면 «안 된다» —
+     그 id 는 이미 「Text Overlay(이미지 위 어두운 막+텍스트)」 체크박스가 갖고 있다
+     (prop-asset.js · .guard/FEATURE_REGISTRY.md 계약). 새 id 는 `asset-float-toggle`.
+   ★동작(진입·이탈·드래그)의 SSOT 는 js/overlay-float.js 다 — 이 함수는 «겉모습»만 낸다.
+   ⚠️산출 문자열은 골든 픽스처(tests/fixtures/text-props-golden*.html)가 바이트로 고정한다 —
+     들여쓰기·줄바꿈까지 그대로 유지할 것(호출부는 8칸 들여쓰기 자리에 놓는다).
+═══════════════════════════════════════════════════════════════════════════ */
+export function overlayToggleBtnHTML({ id, active = false, title } = {}) {
+  const t = title || '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.';
+  return `
+        <button type="button" class="prop-chain-btn prop-chain-btn--overlay${active ? ' active' : ''}" id="${id}"
+          aria-pressed="${active ? 'true' : 'false'}"
+          title="${t}">
+          <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2">
+            <rect x="1" y="4" width="6" height="6" rx="1"/>
+            <rect x="5" y="1" width="6" height="6" rx="1" fill="var(--ui-bg-card)"/>
+          </svg>
+        </button>`;
+}

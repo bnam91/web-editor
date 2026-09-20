@@ -91,6 +91,10 @@ const RAW = {
   gradientSel: readSrc(ROOT, 'js', 'gradient-select.js'),
   layout:  readSrc(ROOT, 'css', 'editor-layout.css'),
   extra:   readSrc(ROOT, 'css', 'editor-extra.css'),
+  /* ★2026-09-20 — _blockRotationDeg 의 «본체»가 js/frame-geometry.js 로 옮겨졌다
+     (0920b-overlay-extend: 오버레이 공용 모듈도 같은 판정을 써야 하는데 overlay-handles.js 는
+      무거워 import 할 수 없다). ⓑ-ROT-5 가 그 사슬을 새 자리에서 잰다. */
+  frameGeom: readSrc(ROOT, 'js', 'frame-geometry.js'),
 };
 const SRC = Object.fromEntries(Object.entries(RAW).map(([k, v]) => [k, stripComments(v)]));
 // 「확대블럭엔 전용 선택 모듈이 없다」는 «전제»도 재서 쓴다(있으면 위 판정 기준이 달라진다)
@@ -1597,8 +1601,12 @@ test('ⓑ-ROT-5 회전 뒤 리사이즈가 «안 깨진다» — dataset.rotatio
      ⇒ 이 사슬 중 하나만 끊겨도 회전된 블록에서 핸들이 엉뚱한 데 앉는다. 사슬을 통째로 잰다. */
   assert.ok(/block\.dataset\.rotation = String\(box\.rot\)/.test(SRC.block),
     'renderZoomBlock 이 rot → dataset.rotation 미러를 안 한다');
-  const deg = sliceBlock(SRC.handles, 'function _blockRotationDeg(el)');
-  assert.ok(/d\.rotation/.test(deg), '_blockRotationDeg 가 dataset.rotation 을 안 읽는다');
+  /* ★본체는 js/frame-geometry.js 의 blockRotationDeg 다(2026-09-20 이관). overlay-handles.js
+     는 그 이름을 import 해서 쓴다 — 사슬이 «둘 다» 살아 있어야 회전 보정이 돈다. */
+  const deg = sliceBlock(SRC.frameGeom, 'export function blockRotationDeg(el)');
+  assert.ok(/d\.rotation/.test(deg), 'blockRotationDeg 가 dataset.rotation 을 안 읽는다');
+  assert.ok(/import \{[^}]*blockRotationDeg[^}]*\} from '\.\/frame-geometry\.js'/.test(SRC.handles),
+    'overlay-handles.js 가 회전각 SSOT 를 import 하지 않는다 — 사슬이 끊겼다');
   const rs = sliceBlock(SRC.handles, 'function _onZoomResizeMouseDown(e, zb, dir)');
   assert.ok(/_unrotateDelta\(box,/.test(rs), '회전된 블록에서 끄는 방향 보정이 없다');
   const up = sliceBlock(SRC.handles, 'function _updateZoomHandlePositions()');
