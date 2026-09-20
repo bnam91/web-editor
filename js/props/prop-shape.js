@@ -87,7 +87,11 @@ export function showShapeProperties(block) {
     <div class="prop-section">
       <div class="prop-section-title">가림막 (Redact)</div>
       <div class="prop-row">
-        <span class="prop-label">블러로 가리기</span>
+        <!-- ★prop-label--auto: 「블러로 가리기」는 전역 .prop-label(56px)에 안 들어가 말줄임으로 잘렸다
+             (2026-09-20 실측 sw60/cw56, 실물 앱은 더 잘림). 이 줄은 «라벨 하나 + 남는 폭을 쓰는 컨트롤»
+             이라 앱 관례인 내용폭 라벨을 쓴다(css/editor-props.css:32, prop-page.js 「그리드 가이드」 선례).
+             ⛔전역 .prop-label 의 56px 은 내리지도 올리지도 마라 — 패널 세로 정렬의 출처다. -->
+        <span class="prop-label prop-label--auto">블러로 가리기</span>
         <label class="prop-toggle">
           <input type="checkbox" id="shape-redact-toggle" ${isRedact ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
