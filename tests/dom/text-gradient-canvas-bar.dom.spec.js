@@ -47,8 +47,10 @@ async function boot(page, { zoom = 100, gradient = GRAD } = {}) {
           </head><body>
           <div id="canvas-wrap"><div id="canvas-scaler">
           <div class="section-block" style="width:1100px;height:900px;">
+            <!-- tb 는 box-sizing:border-box — 실앱에서 텍스트 블럭은 프레임 폭에 갇힌 flex 아이템이라
+                 패딩을 줘도 «블럭 바깥 폭»이 안 커진다(9502 실측: pl 64 → 블럭 716 그대로, contentEl 716→588). -->
             <div class="frame-block" data-text-frame="true" style="position:absolute;left:180px;top:120px;width:520px;">
-              <div class="text-block selected" id="tb" style="position:relative;width:520px;">
+              <div class="text-block selected" id="tb" style="position:relative;width:520px;box-sizing:border-box;">
                 <div class="tb-h1" contenteditable="true" style="${GRAD_STYLE(gradient)}font-size:48px;line-height:1.2;">그라데이션 제목</div>
               </div>
             </div>
@@ -64,6 +66,15 @@ async function boot(page, { zoom = 100, gradient = GRAD } = {}) {
             </div>
           </div>
           </div></div>
+          <!-- ★0920b 픽스라운드: 배선 ②(패널이 showGradientLine 을 부른다)를 «행동»으로 재려면
+               wireTextEditSection 이 실제로 도는 최소 패널이 필요하다. 캔버스 마우스 시험을 방해하지
+               않게 화면 밖에 둔다. id 는 prop-text-wireup-text-edit.js 가 가드 없이 찾는 것들. -->
+          <div id="prop-panel" style="position:absolute;left:-9999px;top:0;width:260px;">
+            <div class="prop-color-swatch"><input id="txt-color" type="text" value="#ff0000"></div>
+            <input id="txt-color-hex" value="FF0000">
+            <input id="txt-color-alpha" value="100">
+            <input id="txt-size-number" type="number" value="48">
+          </div>
           </body></html>`,
       });
     }
@@ -271,5 +282,186 @@ test('B6 게이트 — 단색 글자와 라벨(그라데이션 미지원 타입)
   expect(out.solid, '단색 글자').toBe(0);
   expect(out.label, '라벨').toBe(0);
   expect(out.allowed, '게이트 자체(양성대조): 라벨은 그라데이션 미지원').toBe(false);
+  expect(errs).toEqual([]);
+});
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * 0920b 픽스라운드 — 이벨류에이터 지적 5건의 회귀 스펙.
+ * B7   : 검사의 절반이 소스 grep 이고 «배선 ②»가 행동으로 한 번도 안 재어졌다(지적 ⑤)
+ * B8   : 칠 영역(contentEl)만 줄어도 바가 «옛 폭»에 남는다 — 라이브 재측정이 블럭 기하만 본다(지적 ①, medium)
+ * B9   : 인라인 스타일 정규화 때문에 «끈 끝점 기억»이 텍스트에선 절대 안 맞는다(지적 ②)
+ * B10  : 바의 조작부가 글자 위를 덮어 캐럿·드래그선택을 가져간다(지적 ③)
+ * (지적 ④ 죽은 가드 = 코드 삭제. 남은 코드가 없으니 감시할 행동도 없다 — 주석으로만 기록)
+ * ══════════════════════════════════════════════════════════════════════════════ */
+
+// 두 프레임 기다린다 — 포털 rAF 루프가 한 번 돌고 그 결과가 레이아웃에 반영될 때까지.
+const rafs = (page) => page.evaluate(() => new Promise(r =>
+  requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
+
+test('B7 ★배선 ② 행동측정 — 패널(wireTextEditSection)만 돌려도 바가 뜬다 (스펙은 showGradientLine 을 직접 안 부른다)', async ({ page }) => {
+  const errs = await boot(page);
+  const out = await page.evaluate(async () => {
+    const tb = document.getElementById('tb');
+    const before = document.querySelectorAll('.grad-line-overlay').length;
+    // 누가 무엇으로 불렸는지 기록 — «소스에 문자열이 있다»가 아니라 «실제로 불렸다»를 잰다.
+    const seen = { show: [], bind: [] };
+    const realShow = window.showGradientLine, realBind = window.bindGradientLinePicker;
+    window.showGradientLine = (el, o) => { seen.show.push(el?.id || '?'); return realShow(el, o); };
+    window.bindGradientLinePicker = (el, inp) => {
+      seen.bind.push((el?.id || '?') + ':' + (inp?.id || '?'));
+      return realBind ? realBind(el, inp) : undefined;
+    };
+    // 실파일을 그대로 불러 prop-text.js:180 과 «같은 인자»로 돌린다.
+    const m = await import('/js/props/prop-text-wireup-text-edit.js');
+    m.wireTextEditSection({ tb, ctx: { contentEl: tb.querySelector('.tb-h1') }, currentColorAlpha: 100 });
+    window.showGradientLine = realShow; window.bindGradientLinePicker = realBind;
+    return { before, after: document.querySelectorAll('.grad-line-overlay').length, seen };
+  });
+  expect(out.before, '이 스펙은 showGradientLine 을 직접 부르지 않았다(=바는 패널이 켠 것)').toBe(0);
+  expect(out.seen.show, '패널 배선이 showGradientLine(tb) 를 부른다').toContain('tb');
+  expect(out.seen.bind, '패널↔캔버스 양방향 배선 bindGradientLinePicker(tb, #txt-color)').toContain('tb:txt-color');
+  expect(out.after, '배선 ②가 되돌려지면 여기서 0 이 된다').toBe(1);
+  expect(errs).toEqual([]);
+});
+
+test('B7b ★음성대조 — 배선을 끊으면(showGradientLine 부재) 패널을 돌려도 바가 0개다', async ({ page }) => {
+  const errs = await boot(page);
+  const n = await page.evaluate(async () => {
+    const tb = document.getElementById('tb');
+    const real = window.showGradientLine;
+    window.showGradientLine = undefined;              // dev 현행(호출부 0건)과 같은 상태
+    const m = await import('/js/props/prop-text-wireup-text-edit.js');
+    m.wireTextEditSection({ tb, ctx: { contentEl: tb.querySelector('.tb-h1') }, currentColorAlpha: 100 });
+    const cnt = document.querySelectorAll('.grad-line-overlay').length;
+    window.showGradientLine = real;
+    return cnt;
+  });
+  expect(n, '배선이 없으면 0 — B7 의 1 은 배선이 만든 것이다').toBe(0);
+  expect(errs).toEqual([]);
+});
+
+test('B8 ★칠 영역(contentEl)만 줄어도 바가 따라온다 — 블럭 기하는 그대로인데도', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => window.showGradientLine(document.getElementById('tb')));
+  await rafs(page);
+  const snap = () => page.evaluate(() => {
+    const tb = document.getElementById('tb');
+    const refs = tb._gradLine;
+    const ce = tb.querySelector('.tb-h1');
+    const ends = [...refs.overlay.querySelectorAll('.grad-line-end')]
+      .map(e => { const r = e.getBoundingClientRect(); return Math.round(r.left + r.width / 2); });
+    return {
+      blockW: Math.round(tb.getBoundingClientRect().width),
+      portalKey: refs.portalKey,
+      ovW: Math.round(refs.overlay.getBoundingClientRect().width),
+      ovL: Math.round(refs.overlay.getBoundingClientRect().left),
+      ceW: Math.round(ce.getBoundingClientRect().width),
+      ceL: Math.round(ce.getBoundingClientRect().left),
+      ends,
+    };
+  });
+  const before = await snap();
+  // 실앱의 «L/R 패딩» 슬라이더와 같은 쓰기(prop-text-wireup-padding.js 는 tb 에 padding 을 준다)
+  await page.evaluate(() => { document.getElementById('tb').style.padding = '0 64px'; });
+  await rafs(page);
+  const after = await snap();
+
+  // ★이 두 줄이 «옛 코드라면 재측정이 안 돌았다»는 증거다 — 포털 키(=블럭 기하)가 한 글자도 안 변했다.
+  expect(after.blockW, '블럭 폭은 그대로(border-box)').toBe(before.blockW);
+  expect(after.portalKey, '포털 키가 같다 = 옛 코드의 재측정 트리거는 안 걸린다').toBe(before.portalKey);
+
+  expect(after.ceW, '칠 영역은 좌우 64px 씩 줄었다').toBeLessThan(before.ceW - 100);
+  expect(Math.abs(after.ovW - after.ceW), '바의 폭 = 칠 영역 폭').toBeLessThanOrEqual(1);
+  expect(Math.abs(after.ovL - after.ceL), '바의 좌표 = 칠 영역 좌표').toBeLessThanOrEqual(1);
+  // 끝 원(0%/100%)이 칠 영역 «안»에 선다 — 이벨류 실측의 gapLeft -64 / gapRight +64 가 사라졌는지
+  expect(after.ends[0], '왼쪽 끝 원이 칠 영역 밖으로 안 나간다').toBeGreaterThanOrEqual(after.ceL - 1);
+  expect(after.ends[1], '오른쪽 끝 원이 칠 영역 밖으로 안 나간다').toBeLessThanOrEqual(after.ceL + after.ceW + 1);
+  expect(errs).toEqual([]);
+});
+
+test('B9 끈 끝점 기억 — 인라인 스타일 정규화(#hex→rgb())를 넘어 유지되고, 값이 «진짜로» 바뀌면 버려진다', async ({ page }) => {
+  const errs = await boot(page);
+  // ★어긋남이 드러나려면 «반투명 스탑»이 있어야 한다 — 불투명 hex 만 있으면 모델을 한 번 거친 뒤부터는
+  //   쓰는 글자와 읽는 글자가 우연히 같아진다(rgb(255, 0, 0) ↔ rgb(255, 0, 0)). 실앱에서 어긋난 자리도
+  //   알파 스탑이었다(쓴 값 `rgba(26,26,26,0.000)` ↔ 읽은 값 `rgba(26, 26, 26, 0)`) — gradient-model
+  //   _stopColor 는 공백 없이·소수 3자리로 쓰고, 브라우저는 공백 넣고 `0` 으로 줄여 돌려준다.
+  const seeded = await page.evaluate(() => {
+    const tb = document.getElementById('tb');
+    window.applyTextGradient(tb.querySelector('.tb-h1'),
+      { css: 'linear-gradient(90deg, #1a1a1a 0%, rgba(26,26,26,0.000) 100%)' }, { commit: false });
+    window.showGradientLine(tb);
+    return tb.querySelector('.tb-h1').style.backgroundImage;
+  });
+  expect(seeded, '브라우저가 되읽으며 표기를 바꾼다(이 어긋남이 문제의 씨앗)').toMatch(/rgba\(26, 26, 26, 0\)/);
+  const p = await page.evaluate(() => {
+    const r = document.getElementById('tb')._gradLine.overlay
+      .querySelector('[data-grad-handle="end"]').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await page.mouse.move(p.x, p.y);
+  await page.mouse.down();
+  await page.mouse.move(p.x - 70, p.y + 110, { steps: 6 });
+  await page.mouse.up();
+
+  const endsOf = () => page.evaluate(() => [...document.getElementById('tb')._gradLine.overlay
+    .querySelectorAll('.grad-line-end')].map(e => {
+      const r = e.getBoundingClientRect();
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+    }));
+  const dragged = await endsOf();
+
+  // 블럭 재선택과 같은 길: 바를 내렸다가 «저장값을 다시 읽어» 다시 켠다.
+  const recalled = await page.evaluate(() => {
+    const tb = document.getElementById('tb');
+    window.hideGradientLine(tb);
+    window.showGradientLine(tb);
+    return !!tb._gradLine.view;
+  });
+  expect(recalled, '되읽은 문자열이 정규화돼도 기억이 살아 있어야 한다').toBe(true);
+  const after = await endsOf();
+  for (let i = 0; i < 2; i++) {
+    expect(Math.abs(after[i].x - dragged[i].x), `끝 원 ${i} x`).toBeLessThanOrEqual(1);
+    expect(Math.abs(after[i].y - dragged[i].y), `끝 원 ${i} y`).toBeLessThanOrEqual(1);
+  }
+
+  // ★음성대조 — 값이 «진짜로» 달라지면(외부 편집·undo) 기억을 버려야 한다(안 버리면 옛 끈이 남는다).
+  const dropped = await page.evaluate(() => {
+    const tb = document.getElementById('tb');
+    window.applyTextGradient(tb.querySelector('.tb-h1'),
+      { css: 'linear-gradient(17deg, #112233 0%, #445566 100%)' }, { commit: false });
+    window.hideGradientLine(tb);
+    window.showGradientLine(tb);
+    return tb._gradLine.view;
+  });
+  expect(dropped, '다른 그라데이션이면 기억을 버리고 저장값에서 유도한다').toBeNull();
+  expect(errs).toEqual([]);
+});
+
+test('B10 글자 편집 중엔 바가 캐럿 자리를 안 뺏는다 (.editing → 조작부 pointer-events:none)', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => window.showGradientLine(document.getElementById('tb')));
+  await rafs(page);
+  const hit = () => page.evaluate(() => {
+    const refs = document.getElementById('tb')._gradLine;
+    const r = refs.chips[1].getBoundingClientRect();
+    const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { cls: el?.className || '', muted: refs.overlay.classList.contains('is-muted') };
+  });
+  const normal = await hit();
+  expect(normal.cls, '평소엔 칩을 잡을 수 있어야 한다(양성대조)').toMatch(/grad-stop-chip/);
+  expect(normal.muted).toBe(false);
+
+  await page.evaluate(() => document.getElementById('tb').classList.add('editing'));
+  await rafs(page);
+  const editing = await hit();
+  expect(editing.muted, '편집 중엔 바가 비켜선다').toBe(true);
+  expect(editing.cls, '같은 점이 이제 글자(칩이 아니다)로 잡힌다').not.toMatch(/grad-stop-chip|grad-line-end/);
+
+  await page.evaluate(() => document.getElementById('tb').classList.remove('editing'));
+  await rafs(page);
+  const back = await hit();
+  expect(back.muted, '편집을 나오면 바로 돌아온다').toBe(false);
+  expect(back.cls).toMatch(/grad-stop-chip/);
   expect(errs).toEqual([]);
 });

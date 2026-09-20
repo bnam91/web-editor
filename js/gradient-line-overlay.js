@@ -74,6 +74,13 @@ const MOVE_EPS_PX = 2;   // 이만큼 안 움직이면 «클릭»(history 안 �
   background:var(--sel-color,#2d6fe8);color:#fff;font:600 calc(11px * var(--inv-zoom,1))/1.2 -apple-system,system-ui,sans-serif;
   transform-origin:50% 50%;}
 .grad-line-pct.is-visible{display:block;}
+/* ★0920b textgrad-bar: 블럭이 «글자 편집 중»이면 바는 비켜선다(조작부만 통과시킨다).
+   끝 원·칩은 pointer-events:auto 라 글자 위에 겹치면 그 자리의 캐럿·드래그선택을 가져간다
+   (실측: tb-h1 영역의 1.23%, 가로 그라데이션에서 끝 원은 «항상» 첫 글자/끝 글자 위). 편집 중엔
+   글자가 이긴다 — 보이기는 하되(옅게) 못 잡는다. 편집을 빠져나오면 바로 돌아온다. */
+.grad-line-overlay.is-muted{opacity:.35;}
+.grad-line-overlay.is-muted .grad-line-end,
+.grad-line-overlay.is-muted .grad-stop-chip{pointer-events:none;cursor:default;}
 `;
   document.head.appendChild(st);
 })();
@@ -162,12 +169,36 @@ function _viewOf(refs) {
   if (refs.model.type === 'radial') { const l = _gm().gradientLine(refs.model, o); return { p0: l.p0, p1: l.p1 }; }
   return refs.view || _gm().defaultView(refs.model, o);
 }
+// ★0920b textgrad-bar: «기억»의 동치 판정은 글자 비교가 아니라 «표준형 키»로 한다.
+//   저장소가 dataset 문자열인 블럭(도형)은 쓴 글자가 그대로 돌아오지만, 인라인 스타일인 블럭(글자
+//   그라데이션)은 브라우저가 되읽을 때 정규화한다 — `#1a1a1a`→`rgb(26, 26, 26)`,
+//   `rgba(26,26,26,0.000)`→`rgba(26, 26, 26, 0)`. 글자로 견주면 텍스트에선 기억이 «절대» 안 맞아
+//   블럭을 다시 고를 때마다 끈 끝점이 표준 길이로 튀었다(0920b 이벨류 실측: 끝 원 800,190 → 846,153).
+//   ⇒ 모델로 풀어 색을 브라우저 표준형으로 바꿔 견준다. 값이 진짜로 달라지면(외부 편집·undo) 여전히 불일치.
+const _colorProbe = typeof document !== 'undefined' ? document.createElement('span') : null;
+function _canonColor(c) {
+  const raw = String(c == null ? '' : c);
+  if (!_colorProbe) return raw;
+  try {
+    _colorProbe.style.color = '';
+    _colorProbe.style.color = raw;
+    return _colorProbe.style.color || raw;   // 파싱 실패(var() 등)면 원문 그대로 — 최소한 옛 거동
+  } catch (_) { return raw; }
+}
+function _viewKey(css) {
+  const g = parseGradient(css);
+  if (!g) return 'raw:' + String(css == null ? '' : css).replace(/\s+/g, '');
+  const stops = g.stops.map(s => `${_canonColor(s.color)}@${Math.round((s.offset || 0) * 1000)}`).join(',');
+  return `${g.type}|${Math.round(g.angle == null ? 180 : g.angle)}|${stops}`;
+}
 function _rememberView(refs, css) {
-  if (refs.view) refs.block._gradView = { css, view: { p0: { ...refs.view.p0 }, p1: { ...refs.view.p1 } } };
+  if (refs.view) refs.block._gradView = { css, key: _viewKey(css), view: { p0: { ...refs.view.p0 }, p1: { ...refs.view.p1 } } };
 }
 function _recalledView(block, css) {
   const v = block._gradView;
-  return v && v.css === css ? { p0: { ...v.view.p0 }, p1: { ...v.view.p1 } } : null;
+  if (!v) return null;
+  const k = v.key != null ? v.key : _viewKey(v.css);   // 옛 스냅샷(키 없음) 호환
+  return k === _viewKey(css) ? { p0: { ...v.view.p0 }, p1: { ...v.view.p1 } } : null;
 }
 
 // 정렬 사본으로 CSS — 드래그 중엔 refs.model.stops 순서를 고정하므로 쓰기만 정렬해서 한다.
@@ -477,18 +508,36 @@ function _syncPortal(refs) {
   portal.style.transform = lin;
   return true;
 }
+function _boxSame(a, b) {
+  return !!a && !!b
+    && Math.abs(a.x - b.x) < 0.01 && Math.abs(a.y - b.y) < 0.01
+    && Math.abs(a.w - b.w) < 0.01 && Math.abs(a.h - b.h) < 0.01;
+}
 function _startPortalLoop(refs) {
   if (!refs.portal || refs.portalRaf) return;
   const tick = () => {
     refs.portalRaf = 0;
     if (refs.block._gradLine !== refs || !refs.portal.isConnected) return;
     if (!refs.block.isConnected) { hideGradientLine(refs.block); return; }
-    if (_syncPortal(refs) && !refs.dragging) {
-      // 블록 크기가 바뀌었으면 타깃 박스도 다시 잰다(드래그 중엔 자기 모델 유지)
-      const t = refs.target;
-      refs.box = _computeBox(refs.block, t);
-      _applyBox(refs.overlay, refs.box);
-      _render(refs.block);
+    const moved = _syncPortal(refs);
+    // ★0920b textgrad-bar: 포털 키(=블럭 기하)만 보면 «칠해지는 영역»이 블럭과 다른 타깃을 놓친다.
+    //   글자 그라데이션은 contentEl 배경에 칠해지는데 좌우 패딩은 contentEl 폭만 줄이고 블럭 폭은
+    //   그대로라, 블럭을 고른 채 패딩을 바꾸면 키가 안 변해 바가 «옛 폭»에 남았다(실측: L 패딩 64 →
+    //   양쪽 64px 씩 삐져나옴, 끝 원이 칠 영역 밖에 서고 칩 offset 이 잘못된 폭 기준으로 계산됨).
+    //   ⇒ 타깃 박스를 매 프레임 직접 재고 «달라졌을 때» 다시 그린다(드래그 중엔 자기 모델 유지).
+    if (!refs.dragging) {
+      const box = _computeBox(refs.block, refs.target);
+      if (moved || !_boxSame(refs.box, box)) {
+        refs.box = box;
+        _applyBox(refs.overlay, refs.box);
+        _render(refs.block);
+      }
+    }
+    // ★0920b textgrad-bar: 글자 편집 중이면 조작부를 비활성(위 .is-muted CSS). 클래스 토글만 한다.
+    const editing = refs.block.classList.contains('editing');
+    if (editing !== refs.muted) {
+      refs.muted = editing;
+      refs.overlay.classList.toggle('is-muted', editing);
     }
     refs.portalRaf = requestAnimationFrame(tick);
   };
@@ -558,7 +607,7 @@ function showGradientLine(blockEl, opts = {}) {
   }
 
   refs = blockEl._gradLine = {
-    block: blockEl, overlay, portal, portalKey: null, portalRaf: 0, lineEl, start, end, pct, chips: [],
+    block: blockEl, overlay, portal, portalKey: null, portalRaf: 0, muted: false, lineEl, start, end, pct, chips: [],
     model: g, target: t, box: null, line: null, map: null, view: _recalledView(blockEl, css), chipActive: false,
     selectedIdx: Number.isFinite(opts.selectedIdx) ? opts.selectedIdx : 0,
     dragIdx: null, dragging: false,

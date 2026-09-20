@@ -11,6 +11,8 @@
  *   ⇒ 둘 중 하나만 고치면 여전히 안 뜬다. 그래서 둘 다 감시한다.
  *
  * ⛔음성대조: dev 현행에서 A1~A5 가 전부 빨강이어야 한다(고치기 «전»에 확인하고 기록했다).
+ * ★이 파일은 «배선이 소스에 있는가»만 본다 — «실제로 도는가»는 tests/dom/text-gradient-canvas-bar.dom.spec.js
+ *   B7/B7b 가 진짜 모듈을 import 해 잰다(0920b 픽스라운드, 이벨류 지적 ⑤).
  */
 import test from 'node:test';
 import assert from 'node:assert';
@@ -72,8 +74,16 @@ test('A5 clearTextGradient 가 해제될 때 바를 숨긴다 (단색 복귀·�
     '안 넣으면 «단색으로 바꿨는데 바가 남아 있다»는 새 버그가 난다(prop-shape.js:326,448 이 같은 이유로 hideGradientLine 을 부른다)');
 });
 
-test('A6 ★변이대조 — 어댑터의 applyTextGradient 를 지우면 A3 가 빨개져야 한다(검사가 그 줄을 실제로 본다는 증거)', () => {
+/* ★0920b 픽스라운드(이벨류 지적 ⑤) — 옛 A6 은 «지역 문자열을 replace 한 뒤 replace 가 먹었는지»를
+ *   단언하는 항진명제라, A3 가 그 줄을 본다는 증거가 못 됐다(원본 소스도 A3 도 안 건드렸다). 지웠다.
+ *   대신 ⑴검출기가 «남의 어댑터 코드를 삼키지 않는지»(아래 A6)를 재고,
+ *   ⑵배선 ②(패널이 실제로 바를 켠다)는 소스 grep 이 아니라 «행동»으로 잰다 —
+ *      tests/dom/text-gradient-canvas-bar.dom.spec.js 의 B7(패널만 돌려도 바가 뜬다) /
+ *      B7b(배선을 끊으면 0개). 그 스펙은 prop-text-wireup-text-edit.js 를 실제로 import 해 돌린다. */
+test('A6 ★검출기 자기시험 — textAdapterCall 이 «text-block 어댑터 한 덩이»만 떠낸다(남의 코드를 삼키면 A2·A3 가 거짓 초록)', () => {
   const call = textAdapterCall();
-  const mutated = call.replace(/applyTextGradient/g, '__noop__');
-  assert.doesNotMatch(mutated, /applyTextGradient/, '변이가 안 먹었다 = A3 는 이 배선을 안 본다(거짓양성 위험)');
+  assert.doesNotMatch(call, /shape-block|banner02-block|comparison-block/,
+    '다른 어댑터까지 삼켰다 = A2·A3 의 초록은 도형 어댑터의 코드를 본 것일 수 있다');
+  assert.ok(call.length < MODEL.length / 2, `떠낸 덩이가 파일의 ${Math.round(call.length / MODEL.length * 100)}% — 슬라이서가 끝을 못 찾았다`);
+  assert.match(call, /registerGradientTarget/, '덩이의 머리가 등록 호출이어야 한다');
 });
