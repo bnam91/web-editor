@@ -2759,8 +2759,19 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
       /* ★«끝 상태» — 시작 표본(_hist.arm)과 짝이다. 둘 다 있어야 앞뒤 어느 이웃(push-before
          삽입 · push-after 패널)을 만나도 표본이 빈 칸 없이 이어진다(js/drag-history.js). */
       window.pushHistory?.('오버레이 텍스트 크기');
+      /* ★패널이 «손잡이로 바뀐 폭»을 알게 한다.
+         ⛔옛 조건 `tb !== posEl` ⛔ — 그건 「래퍼(text-frame)가 있는 타입」만 통과시킨다.
+           .icon-text-block 은 래퍼가 없어 posElOf() 가 블럭 «자신»을 돌려주므로 tb === posEl 이
+           되어 패널이 영영 안 새로 그려졌다. 실측(2026-09-20 통합 라운드): se 를 150px 끌어
+           블럭이 600→733 이 돼도 너비칸은 600 그대로였고, 그 뒤 슬라이더를 «한 칸» 미는
+           순간 패널이 쥔 600 이 적용돼 폭이 601 로 도로 줄었다(래퍼 있는 텍스트는 733/733).
+         ⇒ 조건을 «텍스트 패널을 쓰는 블럭인가»로 바꾼다 — showHandlesFor 의 텍스트 갈래와
+           «같은 집합»이다. 프레임이 들어오는 길은 이 matches 가 애초에 막는다(옛 조건이
+           막으려던 것도 그거다 — 뜻은 그대로 두고 대상만 정확히 적는다). */
       const tb = _tfoSelectedChild(posEl);
-      if (tb && tb !== posEl) window.showTextProperties?.(tb);
+      if (tb?.matches?.('.text-block, .speech-bubble-block, .icon-text-block')) {
+        window.showTextProperties?.(tb);
+      }
       window.triggerAutoSave?.();
     }
   }

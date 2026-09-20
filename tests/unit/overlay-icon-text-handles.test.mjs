@@ -75,3 +75,23 @@ test('가드 — 아이콘 칸(.itb-icon)에는 «아직» 손대지 않았다 (
   assert.ok(!/itb-icon/.test(snap),
     '★아이콘 칸을 폰트 스냅샷에 넣었다 — 그건 font-size 가 아니라 width/height 다');
 });
+
+test('문④ 드래그가 끝나면 «패널»도 새 폭을 안다 — 조건이 `tb !== posEl` 이 아니다', () => {
+  /* ★문 넷째 — 손잡이가 붙어도 여기가 막히면 「키웠는데 패널은 옛 값을 말하고, 슬라이더를
+     한 칸 건드리면 그 옛 값이 적용돼 폭이 도로 줄어드는」 반쪽이 된다.
+     실측(2026-09-20 통합 라운드, tests/dom/overlay-icon-text-panel-sync):
+       아이콘+텍스트 733px / 패널 600 → 슬라이더 한 칸 → 601 로 되돌아감.
+       래퍼(text-frame) 있는 텍스트는 733 / 733.
+     기전: .icon-text-block 은 래퍼가 없어 posElOf() 가 블럭 자신을 준다 ⇒ tb === posEl 이라
+           옛 조건이 통째로 걸렀다. ⇒ 조건은 «텍스트 패널을 쓰는 블럭인가»여야 한다. */
+  const body = stripComments(bodyOf(HANDLES, 'function _onTextOverlayResizeMouseDown'));
+  const iUp = body.indexOf('function onUp()');
+  assert.ok(iUp > 0, '★onUp 을 못 찾았다 — 이름이 바뀌었으면 이 검사부터 고쳐라');
+  const up = body.slice(iUp);
+  assert.match(up, /showTextProperties\s*\?\.\s*\(/,
+    '★드래그 끝에 패널을 안 새로 그린다 — 패널이 옛 폭을 계속 말한다');
+  assert.doesNotMatch(up, /tb\s*!==\s*posEl/,
+    '★조건이 `tb !== posEl` 이다 — 래퍼가 «없는» 타입(.icon-text-block)이 통째로 빠진다');
+  assert.match(up, /icon-text-block/,
+    '★아이콘+텍스트가 패널 새로고침 대상에 없다');
+});
