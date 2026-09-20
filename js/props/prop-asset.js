@@ -33,6 +33,13 @@ export function showAssetProperties(ab) {
     const raw = ab.style.width;
     if (!raw) return 860;
     if (raw.endsWith('%')) return Math.round(parseFloat(raw) * 860 / 100);
+    /* calc(100% + Npx) — 풀블리드·스크래치 «넘침» 밴드의 관용구(prop-page.js applyAssetFullBleed,
+       canvas-scratch-drop.js applyScratchWidth). 문자열로는 못 읽으니 «잰다».
+       ⛔getBoundingClientRect 를 쓰지 마라 — 캔버스 줌(transform)이 곱해져 40% 에서 344 를 준다.
+         offsetWidth 는 layout 값이라 줌과 무관하다(prop-label-group.js 선례와 같은 이유).
+       ⚠️이 갈래가 없으면 parseInt('calc(…)') = NaN → 폴백 860 이라, 830 으로 들어온 블록을
+         패널이 «860» 이라고 말한다(= 슬라이더를 건드리는 순간 풀블리드로 튄다). */
+    if (raw.startsWith('calc(')) return Math.round(ab.offsetWidth) || 860;
     return parseInt(raw) || 860;
   };
   const currentW = readW();

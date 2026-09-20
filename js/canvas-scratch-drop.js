@@ -361,7 +361,19 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
     const plan = planScratchWidth(want, full, padX);   // ★세 밴드 판정은 순수함수 한 곳에서만
     if (!plan) return false;
     const { width: w, over } = plan;
-    block.style.width = w + 'px';
+    /* ★폭의 «표현»이 내보내기를 가른다 (2026-09-20 통합 라운드, QA high — 780px 잘림)
+         내보내기는 섹션을 복제하고 «클론의 폭만» 바꾼다
+         (js/io/export-image.js prepareCloneForCapture: `clone.style.…width:' + w + 'px'`).
+         그래서 폭이 상대값(calc(100%+…)/%)이면 따라 줄고, 절대 px 면 «안» 줄어든다.
+       ⑴ 넘침 없는 밴드(over === 0) = 「보이던 폭 그대로」가 계약이다 ⇒ 절대 px 가 맞다.
+          780 내보내기에서도 220px 그림은 220px 이다(패널로 폭을 정한 블록과 같은 규약).
+       ⑵⑶ 넘치는 밴드(over > 0) = 뜻이 「좌우 패딩을 over 만큼씩 먹어 «상자 끝까지» 간다」이다.
+          그 뜻을 절대 px 로 굳히면 780 내보내기에서 바깥 크기가 그대로라 좌우 40px 씩 잘렸다
+          (실측: 860 밴드 40/40 · 830 밴드 25/25 — tests/dom/scratch-drop-export-width).
+          ⇒ 레포 관용구와 «같은 벌»로 적는다 — prop-page.js applyPadXToSection·applyAssetFullBleed,
+            block-factory.applyExcludePadX 가 전부 `calc(100% + 2·먹은량)` + 음수마진 세트다.
+          860 화면에서 그려지는 폭은 한 픽셀도 안 바뀐다(100% = 콘텐츠폭 = w − 2·over). */
+    block.style.width = over > 0 ? `calc(100% + ${over * 2}px)` : w + 'px';
     block.style.marginLeft  = over > 0 ? (-over) + 'px' : '';
     block.style.marginRight = over > 0 ? (-over) + 'px' : '';
     block.style.alignSelf = over > 0 ? 'center'
