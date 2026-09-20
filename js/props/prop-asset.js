@@ -27,6 +27,19 @@ export function showAssetProperties(ab) {
     ? (rawW.endsWith('%') ? Math.round(parseFloat(rawW) * 860 / 100) : parseInt(rawW) || 860)
     : 860;
   if (!ab.dataset.align) { ab.dataset.align = 'center'; ab.style.alignSelf = 'center'; }
+  /* ★눈금의 «하한»은 실제 값보다 커서는 안 된다 (2026-09-20, 0920b-scratch-modal)
+       슬라이더는 min 보다 작은 value 를 «조용히 끌어올려» 보여준다 ⇒ 실제 165px 짜리 블록에
+       높이 슬라이더는 200 을, 숫자칸은 165 를 띄워 «같은 줄에서 서로 다른 말»을 한다.
+       그 상태에서 슬라이더를 건드리거나 숫자칸을 커밋하면 하한으로 튀어 방금 맞춘 비율이 깨진다.
+     ⚠️이건 이번 수정이 «새로 만든» 자리가 아니다 — Logo 프리셋(200×64)이 이미 그 길이었다
+       (:245 에서 높이 슬라이더에 64 를 넣는데 min 은 200). 스크래치 표시폭 그대로 넣기가
+       그 자리를 «자주 밟게» 만들 뿐이다.
+     ⇒ 기본 하한(폭 100 · 높이 200)은 그대로 두고, «이미 그보다 작은 블록»에서만 눈금을 넓힌다.
+       ⛔하한 자체를 낮추지 않는다 — 보통 블록의 편집 감각은 한 픽셀도 안 바뀐다.
+     ★현빈 결정 대기(스크래치 하한 60 vs 폭 하한 100)는 이것과 «다른 건»이다:
+       여기는 「패널이 거짓말하지 않는다」, 저기는 「얼마나 작게 넣을 수 있나」다. */
+  const W_MIN = Math.min(100, currentW > 0 ? currentW : 100);
+  const H_MIN = Math.min(200, currentH > 0 ? currentH : 200);
   const currentSize   = ab.dataset.size    || '100';
   // (가) 설계: effective usePadx — dataset 명시값 우선, 미설정이면 글로벌 디폴트
   const usePadX       = typeof window.getEffectiveUsePadx === 'function'
@@ -126,13 +139,13 @@ export function showAssetProperties(ab) {
       </div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="asset-w-slider" min="100" max="860" step="10" value="${currentW}">
-        <input type="number" class="prop-number" id="asset-w-number" min="100" max="860" value="${currentW}">
+        <input type="range" class="prop-slider" id="asset-w-slider" min="${W_MIN}" max="860" step="10" value="${currentW}">
+        <input type="number" class="prop-number" id="asset-w-number" min="${W_MIN}" max="860" value="${currentW}">
       </div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="asset-h-slider" min="200" max="1600" step="10" value="${currentH}">
-        <input type="number" class="prop-number" id="asset-h-number" min="200" max="1600" value="${currentH}">
+        <input type="range" class="prop-slider" id="asset-h-slider" min="${H_MIN}" max="1600" step="10" value="${currentH}">
+        <input type="number" class="prop-number" id="asset-h-number" min="${H_MIN}" max="1600" value="${currentH}">
       </div>
       <div class="prop-row">
         <span class="prop-label">모서리</span>
@@ -215,7 +228,7 @@ export function showAssetProperties(ab) {
   wSlider.addEventListener('input', () => { applyW(parseInt(wSlider.value)); });
   wSlider.addEventListener('change', () => { window.pushHistory?.(); });
   wNumber.addEventListener('change', () => {
-    const v = Math.min(860, Math.max(100, parseInt(wNumber.value) || 860));
+    const v = Math.min(860, Math.max(W_MIN, parseInt(wNumber.value) || 860));   // ★하한은 눈금과 «같은 한 벌»
     applyW(v); window.pushHistory?.();
   });
 
@@ -291,7 +304,7 @@ export function showAssetProperties(ab) {
   hSlider.addEventListener('input', () => { applyH(parseInt(hSlider.value)); });
   hSlider.addEventListener('change', () => { window.pushHistory?.(); }); // wSlider 패턴 통일: change에서만 pushHistory
   hNumber.addEventListener('change', () => {
-    const v = Math.min(1600, Math.max(200, parseInt(hNumber.value) || 780));
+    const v = Math.min(1600, Math.max(H_MIN, parseInt(hNumber.value) || 780));  // ★하한은 눈금과 «같은 한 벌»
     applyH(v); window.pushHistory();
   });
 

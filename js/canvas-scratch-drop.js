@@ -27,6 +27,27 @@ let _activeSectionLocked = false; // 그 섹션이 «배경 위치 편집 중»�
 let _activeIndicator = null;     // .sp2c-insert-indicator DOM 노드
 let _activeNewSection = null;    // newsection 배지 호스트(#canvas-scaler)
 
+/* ★「스크래치 표시폭 → 실제로 박을 폭」 — DOM 이 «안» 필요한 순수 계산 (2026-09-20).
+   ⛔이 계산을 applyScratchWidth 안에 묻어 두지 마라. 묻으면 단위로는 소스 문자열밖에 못 재고
+     (리팩터하면 빨강 / 문자열만 남기고 동작을 깨면 초록), 진짜 숫자는 DOM 스펙에만 남는데
+     tests/dom 은 `npm test` 스위트에 «안» 들어간다.
+   ⇒ 세 밴드를 여기서 정하고, DOM 쪽은 «재서 넣고 받아 바르는» 일만 한다.
+     ⑴ want ≤ full            → 그 폭 그대로, 음수마진 0
+     ⑵ full < want ≤ full+2p  → 그 폭 그대로, 넘치는 만큼을 좌우로 «대칭»으로 먹는다(over)
+     ⑶ want > full+2p         → 섹션 전체폭까지만(더 키우면 섹션 밖으로 잘린다)
+   @param {number} want 스크래치패드에서 보이던 폭(캔버스 px)
+   @param {number} full 블록이 «음수마진 없이» 쓸 수 있는 폭(부모 콘텐츠폭)
+   @param {number} padX 그 블록이 든 상자의 좌우 패딩(한쪽) — 먹을 수 있는 여유
+   @returns {{width:number, over:number}|null} null = 폭을 정할 근거가 없다(옵트인 미사용 포함) */
+function planScratchWidth(want, full, padX) {
+  const w0 = Number(want);
+  if (!Number.isFinite(w0) || w0 <= 0) return null;
+  if (!Number.isFinite(full) || full <= 0) return null;
+  const p = Number.isFinite(padX) && padX > 0 ? padX : 0;
+  const width = Math.round(Math.min(w0, full + p * 2));
+  return { width, over: Math.max(0, (width - full) / 2) };
+}
+
 // ── 체류(dwell) 아밍 상태 (opts.requireArm 전용) ─────────────
 const ARM_DELAY_MS = 250;        // 같은 타깃 위 최소 체류 시간
 let _armEl = null;               // 현재 아밍 대상 엘리먼트 (replace→ab, insert/sectionbg→sec, newsection→scaler)
@@ -295,32 +316,51 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
          applyAspectSync 는 높이를 block.offsetWidth 에서 «읽어» 계산한다 ⇒ 폭이 먼저 확정돼야
          비율이 스크래치에서 보이던 그대로 나온다. 뒤에 부르면 폭만 바뀌고 높이는 풀폭 기준으로
          남아 «더 이상한» 모양이 된다.
-       ⚠️풀폭 이상이면 «아무 것도 안 한다» — 종전(full-bleed) 동작을 그대로 둔다.
-         스크래치 일괄배치(_scratchPlaceImages)가 쓰는 860px 짜리가 이 길로 온다.
-       ⛔860 같은 리터럴을 새로 적지 않는다 — 부모 clientWidth 로 «잰다»(섹션 padX·합쳐넣기로
-         콘텐츠폭이 달라지는데 리터럴은 그걸 못 따라간다).
-       ★px 폭을 박는 관용구는 prop-asset.js:203-214 applyW 와 «같은 벌»이다
-         (width + alignSelf 세트). 음수마진은 풀블리드 전용이라 같이 푼다 — 안 풀면
-         220px 블록이 좌우로 padX 만큼 밀려 가운데가 어긋난다.
-       ★dataset.usePadx='false' 를 같이 찍는 이유 = 우측패널의 「좌우여백 제외」 토글이
-         «화면과 다른 말»을 하지 않게. 폭을 px 로 잠근 순간 그 블록은 더 이상 padX 추종이 아니다.
+       ⛔860 같은 리터럴을 새로 적지 않는다 — 부모에서 «잰다»(섹션 padX·합쳐넣기로 콘텐츠폭이
+         달라지는데 리터럴은 그걸 못 따라간다).
+
+       ★★2026-09-20 픽스라운드 — 초판은 «콘텐츠폭 이상이면 아무 것도 안 했다».
+         그래서 신고 증상이 «위쪽 밴드»에 그대로 살아 있었다: 새 프로젝트 기본 padX=72 면
+         row 콘텐츠폭은 716 인데, 스크래치 일괄배치(scratch-pad.js SCRATCH_PLACE.WIDTH=860)로
+         들어온 그림은 표시폭이 860 이다 ⇒ 드롭하면 716 (17% 축소, 실앱 9389 실측).
+         「풀블리드를 그대로 둔다」던 초판 주석도 사실이 아니었다 — applyPadXToSection 은
+         `:scope > .asset-block` 만 풀블리드로 만들고 row 안의 블록은 안 건드리므로,
+         실제 결과는 860(풀블리드)이 아니라 716(콘텐츠폭)이었다.
+       ⇒ 「콘텐츠폭 + 좌우 padX」(= 섹션 전체폭)까지를 «쓸 수 있는 범위»로 열고, 그 안에서는
+         표시폭을 정확히 맞춘다. 넘치는 만큼은 좌우 음수마진으로 «대칭으로» 먹는다 —
+         이 레포의 풀블리드 관용구(width + marginLeft + marginRight 를 «항상 세트로»,
+         prop-page.js:applyAssetFullBleed 머리말)와 같은 꼴이고, padX 만큼 먹으면 곧 풀블리드다.
+       ⚠️섹션 전체폭보다 큰 표시폭은 «거기까지만» 들어간다(더 키우면 섹션 밖으로 잘린다).
+         그 한계는 보고서 notDone 에 적었다.
+       ★px 폭 관용구는 prop-asset.js:203-214 applyW 와 «같은 벌»이다(width + alignSelf).
+       ★usePadx 표식 = «음수마진을 먹었는가» 그대로 찍는다. 먹었으면 그 블록은 실제로
+         좌우여백을 제외하고 있으므로 'true' 여야 우측패널 토글이 화면과 같은 말을 한다.
        ⚠️★하한을 «안» 건다(현빈 결정 대기). 스크래치 아이템은 60px 까지 줄어드는데
-         (scratch-pad.js 의 fMin) 우측패널 폭 슬라이더는 min=100 이다(prop-asset.js:216).
-         60px 로 들어가면 «패널은 100 을 보여주는데 실제는 60» 이 된다.
-         신고 문장이 「스크래치패드와 같은 크기」이므로 지금은 «보이는 대로» 넣는다.
-         패널 min 과의 불일치는 별도 카드다 — 여기서 100 으로 클램프하면 신고가 다시 산다. */
+         (scratch-pad.js 의 fMin) 우측패널 폭 슬라이더는 min=100·높이는 min=200 이다.
+         신고 문장이 「스크래치패드와 같은 크기」이므로 지금은 «보이는 대로» 넣고,
+         패널이 거짓말하지 않도록 prop-asset.js 쪽에서 «실제 값이 더 작으면 눈금을 넓히게» 했다. */
   const applyScratchWidth = (block) => {
     const want = Number(opts.width);
     if (!Number.isFinite(want) || want <= 0) return false;
     const host = block.parentElement;
-    const full = host ? host.clientWidth : 0;
-    if (!(full > 0) || want >= full) return false;
-    block.style.width = Math.round(want) + 'px';
-    block.style.marginLeft = '';
-    block.style.marginRight = '';
-    block.style.alignSelf = block.dataset.align === 'left' ? 'flex-start'
+    if (!host) return false;
+    const hcs = window.getComputedStyle(host);
+    const full = host.clientWidth
+               - (parseFloat(hcs.paddingLeft) || 0)
+               - (parseFloat(hcs.paddingRight) || 0);
+    // 밖으로 비어져 나갈 수 있는 여유 = «그 블록이 실제로 든 상자»의 좌우 패딩(=padX)
+    const padBox = block.closest('.section-merged-part') || block.closest('.section-inner');
+    const padX = padBox ? (parseFloat(window.getComputedStyle(padBox).paddingLeft) || 0) : 0;
+    const plan = planScratchWidth(want, full, padX);   // ★세 밴드 판정은 순수함수 한 곳에서만
+    if (!plan) return false;
+    const { width: w, over } = plan;
+    block.style.width = w + 'px';
+    block.style.marginLeft  = over > 0 ? (-over) + 'px' : '';
+    block.style.marginRight = over > 0 ? (-over) + 'px' : '';
+    block.style.alignSelf = over > 0 ? 'center'
+      : block.dataset.align === 'left' ? 'flex-start'
       : block.dataset.align === 'right' ? 'flex-end' : 'center';
-    block.dataset.usePadx = 'false';
+    block.dataset.usePadx = over > 0 ? 'true' : 'false';
     return true;
   };
 
@@ -434,7 +474,7 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
 
 function clearScratchDropGuides() { _resetArm(); _clearGuides(); }
 
-export { previewScratchDropAt, commitScratchDropAt, clearScratchDropGuides };
+export { previewScratchDropAt, commitScratchDropAt, clearScratchDropGuides, planScratchWidth };
 
 // 비-모듈 패널(예: assets-panel.js)에서도 사용 가능하도록 window에 노출
 window.previewScratchDropAt   = previewScratchDropAt;

@@ -17,9 +17,11 @@
  *   ⑵ 받는 쪽 두 분기(insert·newsection) 중 «한쪽만» 고치는 것 (S-2) ← 프로토타입이 놓쳤던 자리
  *   ⑶ 순서 계약(폭 확정 → 높이 계산)이 뒤집히는 것 (S-3)
  *   ⑷ 옵트인이 아니게 되어 자산패널 드롭까지 폭이 박히는 것 (S-4, ★음성대조)
+ *   ⑸ 폭 «계산»이 다시 DOM 안에 묻혀 단위로 숫자를 못 재게 되는 것 (S-5·S-6)
  *
- * ⚠️여기는 «소스 대조»까지다. 진짜 폭·높이 px 는 tests/dom/scratch-drop-size.dom.spec.js 가
- *   크로미움에서 잰다. 그 파일은 `npm test` 스위트에 «안» 들어가므로 변이를 빨갛게 만드는
+ * ⚠️여기는 «배선 대조»까지다(DOM 없이는 호출 자리가 안 보인다).
+ *   밴드 판정의 «숫자»는 tests/unit/scratch-width-plan.test.mjs 가 순수함수를 진짜로 불러 재고,
+ *   실제 폭·높이 px 는 tests/dom/scratch-drop-size.dom.spec.js 가 크로미움에서 잰다. 그 파일은 `npm test` 스위트에 «안» 들어가므로 변이를 빨갛게 만드는
  *   책임은 이 파일이 진다(같은 규약: modal-variant.dom.spec.js 머리말).
  */
 'use strict';
@@ -140,15 +142,33 @@ test('S-4 ★음성대조: 자산패널→캔버스 드롭은 width 를 «안» 
   }
 });
 
-test('S-5 폭을 px 로 잠그면 usePadx 표식도 같이 찍는다 — 패널이 거짓말 안 하게', () => {
+test('S-5 폭 «계산»은 순수함수에 맡기고, 바르는 쪽은 재서 넣기만 한다', () => {
+  /* ★2026-09-20 픽스라운드 (이벨류에이터 지적 ⑤) — 초판은 여기서 /parentElement/ 같은
+       «아무 문자열»을 재 리팩터에 약했다. 밴드 판정(세 갈래·반올림·클램프)은
+       tests/unit/scratch-width-plan.test.mjs 가 «진짜로 불러» 숫자로 잰다.
+     여기 남는 책임은 «배선»뿐이다 — DOM 없이는 못 보는 세 가지:
+       ⑴ 계산을 다시 안 묻었는가 ⑵ 부모를 «재는가»(리터럴 금지) ⑶ 표식을 같이 찍는가 */
   const body = fnBodyByName(SRC.drop, 'commitScratchDropAt', 'commitScratchDropAt');
   const i = body.indexOf('const applyScratchWidth');
   const helper = body.slice(i, body.indexOf('const applyAspectSync'));
-  assert.match(helper, /parentElement/,
-    '부모 clientWidth 로 «재지» 않는다 — 860 같은 리터럴을 새로 적으면 섹션 padX 를 못 따라간다');
+  assert.match(helper, /planScratchWidth\s*\(/,
+    '★밴드 판정을 DOM 안에 다시 묻었다 — 단위로 숫자를 못 재게 된다(순수함수 planScratchWidth 를 써라)');
+  assert.match(helper, /clientWidth/,
+    '부모를 «재지» 않는다 — 860 같은 리터럴은 섹션 padX·합쳐넣기를 못 따라간다');
   assert.doesNotMatch(helper, /\b860\b/, '★폭 리터럴 860 을 새로 적었다 — 부모에서 재라');
-  assert.match(helper, /dataset\.usePadx\s*=\s*'false'/,
+  assert.match(helper, /dataset\.usePadx\s*=/,
     'usePadx 표식을 안 찍는다 — 우측패널의 「좌우여백 제외」가 화면과 다른 말을 한다');
+  assert.match(helper, /'true'/, '음수마진을 먹은 경우의 표식(true)이 없다 — 먹었으면 먹었다고 해야 한다');
+  assert.match(helper, /'false'/, '음수마진을 안 먹은 경우의 표식(false)이 없다');
+  assert.match(helper, /marginLeft/, '★음수마진을 좌우 «세트»로 안 준다 — width 단독이면 우측이 잘린다');
+  assert.match(helper, /marginRight/, '★음수마진을 좌우 «세트»로 안 준다');
   assert.match(helper, /alignSelf/,
     'alignSelf 를 안 준다 — px 폭 블록이 왼쪽에 붙는다(prop-asset.applyW 와 같은 관용구여야 한다)');
+});
+
+test('S-6 ★순수함수가 export 돼 있다 — 단위 검사가 «진짜로 부를» 수 있게', () => {
+  // 이게 빠지면 scratch-width-plan.test.mjs 가 통째로 무의미해진다(그쪽 P-0 과 짝)
+  const ex = SRC.drop.match(/export\s*\{[^}]*\}/g) || [];
+  assert.ok(ex.some(e => /planScratchWidth/.test(e)),
+    'planScratchWidth 가 export 목록에서 빠졌다');
 });

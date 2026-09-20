@@ -70,7 +70,7 @@ function loadModalModule(opts) {
   vm.runInContext(
     body + '\n;globalThis.__M = { MODAL_VARIANT_IDENTITY, MODAL_IDENTITY_KEYS, MODAL_DEFAULTS,'
          + ' MODAL_VARIANTS, _effDefault, applyModalVariant, makeModalBlock, renderModalBlock,'
-         + ' applyPickedIconToModal, iconBlockNewColor };',
+         + ' applyPickedIconToModal, iconBlockNewColor, syncModalIconFirstLineOffset };',
     ctx, { filename: MODAL_REL });
   return ctx.__M;
 }

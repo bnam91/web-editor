@@ -10,8 +10,11 @@
  * ★무엇을 재나
  *   S1 표시폭을 넘기면 그 폭·그 비율로 들어간다
  *   S2 ★음성대조 — 안 넘기면(자산패널 경로) 종전대로 풀폭이다 (회귀 가드)
- *   S3 표시폭이 콘텐츠폭 이상이면 풀블리드를 그대로 둔다
+ *   S3 ★표시폭이 콘텐츠폭 이상이어도 맞춘다 — 좌우 padX 를 음수마진으로 먹는다
+ *      (픽스라운드: 초판은 이 밴드를 포기해 796 으로 들어갔다. 앱 기본 일괄배치 폭 860 이 여기다)
  *   S4 ★newsection 분기(캔버스 빈 곳 드롭)도 같다 — insert 만 고치면 red
+ *   S5 중간 밴드(콘텐츠폭 < 표시폭 < 섹션폭)도 «정확히» 맞는다
+ *   S6 섹션 전체폭보다 크면 거기까지만 (밖으로 안 삐져나간다)
  *
  * ⛔앱을 «안» 띄운다 — page.route 로 레포를 가짜 origin 에 얹어 «진짜 모듈»을 import 한다
  *   (modal-variant.dom.spec.js 와 같은 부팅). 고디터 인스턴스·MCP 대역 무접촉.
@@ -108,7 +111,10 @@ const dropIntoSection = (page, opts) => page.evaluate(({ opts, PX }) => {
     h: r ? +r.height.toFixed(1) : null,
     inline: ab ? ab.getAttribute('style') : null,
     usePadx: ab ? ab.dataset.usePadx : null,
+    ml: ab ? (parseFloat(ab.style.marginLeft) || 0) : null,
     contentW: +inner.getBoundingClientRect().width.toFixed(1),
+    // row 의 콘텐츠폭 = 블록이 «음수마진 없이» 쓸 수 있는 폭
+    rowW: ab && ab.parentElement ? +ab.parentElement.getBoundingClientRect().width.toFixed(1) : null,
   };
 }, { opts, PX });
 
@@ -133,10 +139,34 @@ test.describe('스크래치 → 섹션 드롭 크기', () => {
     expect(m.inline, 'width 가 박혔다 — 옵트인 계약이 깨졌다').not.toContain('width:');
   });
 
-  test('S3 표시폭이 콘텐츠폭 이상이면 풀블리드를 그대로 둔다', async ({ page }) => {
+  /* ══ S3 ★픽스라운드 — «콘텐츠폭 이상» 밴드도 표시폭을 맞춘다 ══
+       초판은 여기서 «아무 것도 안 했다». 주석은 「풀블리드를 그대로 둔다」였지만 사실이
+       아니었다 — applyPadXToSection 은 `:scope > .asset-block` 만 풀블리드로 만들고
+       row 안의 블록은 안 건드리므로, 실제 결과는 풀블리드(860)가 아니라 콘텐츠폭(796)이었다.
+       그리고 «앱 자신의 기본 일괄배치 폭»(scratch-pad.js SCRATCH_PLACE.WIDTH=860)이 바로
+       이 밴드에 들어온다 ⇒ 신고 증상이 가장 흔한 경로에 그대로 살아 있었다.
+       ⇒ 좌우 padX 를 음수마진으로 «대칭으로» 먹어 섹션 전체폭까지 맞춘다. */
+  test('S3 ★표시폭 860(=섹션 전체폭) — 796 이 아니라 860 으로 들어간다 (음성대조 796)', async ({ page }) => {
     const m = await dropIntoSection(page, { width: 860 });
-    expect(m.w).toBeCloseTo(m.contentW - 64, 0);
-    expect(m.inline, '풀폭 이상인데 px 폭을 박았다').not.toContain('width:');
+    expect(m.rowW, '하네스 전제 — row 콘텐츠폭').toBeCloseTo(m.contentW - 64, 0);
+    expect(m.w, `들어간 폭 ${m.w} (inline: ${m.inline})`).toBeCloseTo(860, 0);
+    // 높이도 그 폭 기준이어야 한다: 860 × 330/440 = 645
+    expect(m.h, `들어간 높이 ${m.h}`).toBeCloseTo(645, 0);
+    expect(m.ml, '음수마진(풀블리드 세트)이 안 붙었다 — width 단독이면 우측이 잘린다').toBeCloseTo(-32, 0);
+    expect(m.usePadx, '좌우여백을 실제로 먹었는데 패널엔 «제외 아님»으로 뜬다').toBe('true');
+  });
+
+  test('S5 ★중간 밴드(콘텐츠폭 < 표시폭 < 섹션폭) — 표시폭을 «정확히» 맞춘다', async ({ page }) => {
+    const m = await dropIntoSection(page, { width: 830 });
+    expect(m.w, `들어간 폭 ${m.w} (inline: ${m.inline})`).toBeCloseTo(830, 0);
+    // 넘치는 34 를 좌우로 «대칭»으로 먹는다 ⇒ 한쪽 −17
+    expect(m.ml).toBeCloseTo(-17, 0);
+  });
+
+  test('S6 ★섹션 전체폭보다 크면 거기까지만 — 밖으로 안 삐져나간다', async ({ page }) => {
+    const m = await dropIntoSection(page, { width: 2000 });
+    expect(m.w, `들어간 폭 ${m.w} — 섹션 전체폭(860)을 넘었다`).toBeCloseTo(860, 0);
+    expect(m.ml).toBeCloseTo(-32, 0);
   });
 
   test('S4 ★newsection 분기(캔버스 빈 곳 드롭)도 220 — insert 만 고치면 red', async ({ page }) => {

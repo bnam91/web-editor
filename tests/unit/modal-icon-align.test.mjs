@@ -17,6 +17,8 @@
  *   ⑴ 루트는 다른 변형과 같은 세로쌓기 → vAlign 이 「상자 안 세로 위치」 한 뜻만 갖는다
  *   ⑵ 가로 배치는 `.mdl-iconrow` 래퍼가 맡는다(align-items:flex-start)
  *   ⑶ 아이콘은 «첫 줄»과 맞게 margin-top 오프셋 — ★공통 머리(_modalIconAttrs)에서 나온다
+ *   ⑷ ★아이콘이 줄상자보다 «크면» 반대로 «글자»를 내린다 (2026-09-20 픽스라운드, A-10)
+ *      — 초판은 아이콘 쪽만 내려서 96/128px 아이콘에서 17.40/33.40px 어긋남이 되살아났다
  *
  * ⚠️여기는 «렌더 산출물»(cssText·innerHTML)까지다. 진짜 중심 좌표는 jsdom 이 없어 단위로는
  *   못 잰다 — tests/dom/modal-icon-align.dom.spec.js 가 getComputedStyle·rect 로 잰다.
@@ -98,6 +100,12 @@ const mt = html => {
   const m = slotStyle(html).match(/margin-top:([\d.]+)px/);
   return m ? parseFloat(m[1]) : 0;
 };
+/* ★«글자 쪽» 오프셋 — 아이콘이 줄상자보다 클 때 내려가는 건 글자다(픽스라운드) */
+const textStyle = html => (html.match(/class="tb-mdl-text"[^>]*style="([^"]*)"/) || [])[1] || '';
+const tmt = html => {
+  const m = textStyle(html).match(/margin-top:([\d.]+)px/);
+  return m ? parseFloat(m[1]) : 0;
+};
 
 test('A-5 오프셋 = (fontSize × lineHeight − iconSize) / 2 — 줄간격을 «따라간다»', () => {
   // 기본값: (36 × 1.7 − 24) / 2 = 18.6
@@ -105,9 +113,43 @@ test('A-5 오프셋 = (fontSize × lineHeight − iconSize) / 2 — 줄간격을
     '기본값 아이콘 오프셋이 18.6px 이 아니다 — 첫 줄 중심과 안 맞는다');
   // 줄간격을 바꾸면 따라와야 한다(= 1.7 을 두 번째로 적어 두면 여기서 빨강)
   assert.equal(mt(renderOf({ variant: 'icon', lineHeight: '1.2' }).html).toFixed(2), '9.60');
-  // 글자가 아이콘보다 작으면 내리지 않는다(음수 금지)
+  // 글자가 아이콘보다 작으면 «아이콘은» 안 내린다(음수 금지 — 아래 A-10 이 반대 갈래를 잰다)
   assert.equal(mt(renderOf({ variant: 'icon', fontSize: '12', lineHeight: '1' }).html), 0,
     '글자가 아이콘보다 작은데 아이콘을 내렸다');
+});
+
+/* ══ A-10 ★반대 갈래 — 아이콘이 «줄상자보다 클 때» (2026-09-20 픽스라운드) ══
+     초판은 아이콘 쪽만 내렸다(max(0, …)) ⇒ 아이콘 > 줄상자면 오프셋이 0 으로 깎이고
+     원 신고 증상이 그대로 돌아왔다. 기본 36×1.7 = 61.2px 이므로 62px 부터 어긋나는데,
+     모달 «자기 패널»의 아이콘 슬라이더 최대가 96, 아이콘블럭 패널은 512 까지 간다
+     (prop-modal.js / prop-iconify.js:46) ⇒ 슬라이더 한 번 끝까지 밀면 다시 어긋났다.
+     실앱 9389 실측 음성대조: 96px → +17.40 / 128px → +33.40 (원 신고 18.59 와 같은 크기). */
+test('A-10 ★아이콘이 줄상자보다 크면 «글자»를 내린다 — 음성대조 96px:17.40 / 128px:33.40', () => {
+  const big = renderOf({ variant: 'icon', iconSize: '96' }).html;
+  assert.equal(mt(big), 0, '아이콘이 더 큰데 아이콘을 또 내렸다');
+  assert.equal(tmt(big).toFixed(2), '17.40',
+    '★글자를 안 내렸다 — 아이콘 96px 에서 중심이 17.40px 어긋난 채로 남는다');
+  assert.equal(tmt(renderOf({ variant: 'icon', iconSize: '128' }).html).toFixed(2), '33.40');
+  // 줄간격을 키우면 다시 «아이콘» 쪽이 내려간다 — 두 갈래가 같은 표(_mdlLineBox)에서 나온다
+  const wide = renderOf({ variant: 'icon', iconSize: '96', lineHeight: '4' }).html; // 36×4 = 144
+  assert.equal(tmt(wide), 0, '줄상자가 더 큰데 글자를 내렸다');
+  assert.equal(mt(wide).toFixed(2), '24.00', '(144 − 96)/2 = 24');
+});
+
+test('A-11 두 오프셋은 «동시에» 켜지지 않는다 — 한쪽만 내려야 중심이 맞는다', () => {
+  for (const ds of [{}, { iconSize: '96' }, { iconSize: '12' }, { fontSize: '12', lineHeight: '1' },
+                    { raster: '1', iconSrc: 'goya-asset://x.png', iconSize: '96' }]) {
+    const html = renderOf(Object.assign({ variant: 'icon' }, ds)).html;
+    assert.ok(mt(html) === 0 || tmt(html) === 0,
+      `아이콘·글자를 둘 다 내렸다(${JSON.stringify(ds)}: icon ${mt(html)} / text ${tmt(html)})`);
+  }
+});
+
+test('A-12 ★음성대조: icon-stack 은 글자도 «안» 내린다', () => {
+  assert.equal(tmt(renderOf({ variant: 'icon-stack', iconSize: '96' }).html), 0,
+    'icon-stack 글자에 margin-top 이 붙었다 — 이미 만들어 둔 블록 전부가 내려간다');
+  // plain 변형도 무영향 (래퍼가 없으니 오프셋이 낄 자리도 없다)
+  assert.equal(tmt(renderOf({ variant: 'plain', iconSize: '96' }).html), 0);
 });
 
 test('A-6 ★오프셋은 «공통 머리»에서 나온다 — 래스터 분기도 같이 받는다', () => {
@@ -147,4 +189,65 @@ test('A-9 icon 의 정렬 선언도 cssText 맨 뒤에 있다', () => {
   assert.ok(css.indexOf('box-shadow:') < css.lastIndexOf('justify-content:'),
     'box-shadow 가 정렬 선언 «뒤»로 갔다 — _alignStyles 맨뒤 계약이 깨졌다');
   assert.ok(css.endsWith(';'), 'cssText 가 세미콜론으로 안 끝난다');
+});
+
+/* ══ A-13 ★«재렌더 없이» 크기가 바뀌는 두 번째 문 (2026-09-20 픽스라운드) ══
+     아이콘 크기를 바꾸는 문이 둘이다:
+       ⑴ 모달 자기 패널(#mdl-isize-…, 12~96) → dataset → renderModalBlock ✅ (위 A-5·A-10)
+       ⑵ ★아이콘블럭 패널(#icn-size-…, 16~512) → 슬롯 «인라인 스타일»을 직접 고친다.
+          그 패널이 슬롯 노드를 붙들고 있어 재렌더를 못 한다 ⇒ 글자 쪽 오프셋이 옛 크기로 남았다.
+     실앱 9389 실측 음성대조(이 함수가 없을 때): 96→128 에서 16px, 96→512 에서 208px 어긋남. */
+test('A-13 ★세션 중 크기 변경 — 재렌더 없이 두 마진을 현재 크기로 다시 바른다', () => {
+  const mk = (iconW, ds = {}) => {
+    const icon = { style: { width: iconW } };
+    const text = { style: {} };
+    const row = { querySelector: (sel) => (sel.includes('mdl-icon') ? icon : text) };
+    const block = {
+      dataset: Object.assign({ variant: 'icon' }, ds),
+      querySelector: (sel) => (sel.includes('mdl-iconrow') ? row : null),
+    };
+    return { block, icon, text };
+  };
+
+  // 아이콘이 줄상자(36×1.7=61.2)보다 큼 → «글자»가 내려간다
+  const big = mk('128px');
+  assert.equal(M.syncModalIconFirstLineOffset(big.block), true);
+  assert.equal(big.text.style.marginTop, '33.4px', '글자 오프셋이 새 크기를 안 따라갔다');
+  assert.equal(big.icon.style.marginTop, '', '아이콘에 옛 오프셋이 남았다');
+
+  // 다시 작게 → 방향이 «뒤집힌다». 한쪽을 비우지 않으면 둘 다 내려가 더 어긋난다
+  const small = mk('40px');
+  small.text.style.marginTop = '33.4px';          // 직전 세션이 남긴 값
+  M.syncModalIconFirstLineOffset(small.block);
+  assert.equal(small.icon.style.marginTop, '10.6px');
+  assert.equal(small.text.style.marginTop, '', '★옛 글자 오프셋을 안 지웠다 — 둘 다 내려간다');
+
+  // ★크기는 «슬롯의 인라인 width»가 진실이다(세션 중 dataset 은 뒤늦게 따라온다)
+  const stale = mk('300px', { iconSize: '96' });
+  M.syncModalIconFirstLineOffset(stale.block);
+  assert.equal(stale.text.style.marginTop, '119.4px', 'dataset(옛 96)을 보고 계산했다');
+
+  // icon 이 아닌 변형·래퍼 없음은 손대지 않는다
+  const stack = mk('128px');
+  stack.block.dataset.variant = 'icon-stack';
+  assert.equal(M.syncModalIconFirstLineOffset(stack.block), false);
+  assert.equal(stack.text.style.marginTop, undefined);
+});
+
+test('A-14 ★무한 고리 방지 — 값이 같으면 «안 쓴다»(감시자 안에서 불린다)', () => {
+  /* 이 함수는 MutationObserver 콜백에서 불린다. 같은 값이라도 쓰면 속성 변경 기록이 또 나서
+     감시자가 자기 자신을 영원히 깨운다. 쓰기 횟수를 세어 «두 번째 호출은 0회»를 확인한다. */
+  let writes = 0;
+  const mkCounted = () => {
+    let v = '';
+    return { style: { width: '128px', get marginTop() { return v; }, set marginTop(x) { writes++; v = x; } } };
+  };
+  const icon = mkCounted(), text = mkCounted();
+  const row = { querySelector: (sel) => (sel.includes('mdl-icon') ? icon : text) };
+  const block = { dataset: { variant: 'icon' }, querySelector: () => row };
+  M.syncModalIconFirstLineOffset(block);
+  const first = writes;
+  assert.ok(first > 0, '첫 호출이 아무 것도 안 썼다');
+  M.syncModalIconFirstLineOffset(block);
+  assert.equal(writes, first, '★같은 값을 또 썼다 — 감시자가 자기 자신을 깨우는 무한 고리가 된다');
 });
