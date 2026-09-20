@@ -73,10 +73,18 @@ test('⑷ 도형 이미지 모드 해제 — MCP setShapeProps·캔버스 그라
   assert.match(ed.slice(i, i + 800), /_clearShapeImage/, '스포이드가 이미지 모드를 안 푼다');
 });
 
-test('⑸ PNG 내보내기 clone 에서 바둑판 표식(data-shape-fill, 이미지 없음)을 뗀다', () => {
-  const s = src('js/io/export-image.js');
+test('⑸ 캡처 clone 에서 바둑판 표식(data-shape-fill, 이미지 없음)을 뗀다', () => {
+  /* ★2026-09-21: 이 규칙이 사는 자리가 «옮겨졌다» — 걷는 명부가 export-image.js 와
+     save-load.js(썸네일) 두 벌이라 썸네일 쪽이 셋에서 멈춘 채 늙어 있었다(최종통합 QA medium).
+     한 벌(js/io/capture-safety.js stripEditorOnlyForCapture)로 모으고 두 경로가 그것을 부른다.
+     ⇒ 검사 «내용»은 그대로다(약화 아님). 보는 파일만 SSOT 로 따라간다 —
+       게다가 이제 «썸네일도 같이» 보장된다. 두 경로가 그 한 벌을 부르는지는
+       tests/dom/thumbnail-strip-parity.dom.spec.js T4 가 소스로 지킨다. */
+  const s = src('js/io/capture-safety.js');
   assert.match(s, /\.shape-block\[data-shape-fill="image"\]:not\(\[data-shape-image\]\)/);
   assert.match(s, /removeAttribute\('data-shape-fill'\)/);
+  // ★내보내기 경로가 그 한 벌을 실제로 부르는가 — 안 부르면 위 두 줄은 아무것도 안 지킨다.
+  assert.match(src('js/io/export-image.js'), /stripEditorOnlyForCapture\(clone\)/);
 });
 
 test('⑹ 바둑판 CSS 는 가림막을 이기지 않는다(:not(.shape-redact))', () => {
