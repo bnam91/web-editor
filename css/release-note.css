@@ -82,15 +82,16 @@
   font-size: 10.5px; color: var(--ui-text-muted, #9e9e9e); cursor: pointer;
 }
 /* 체크박스 — ★앱의 실제 체크박스와 «같게» 둔다.
-   실측(우측 패널 .prop-row 체크박스): accent-color:auto · color-scheme:normal · 13px.
+   실측(우측 패널 .prop-row 체크박스, 2026-09-19): accent-color:auto · color-scheme:normal · 13px.
+   (색 체계는 2026-09-20 전역 dark 로 바뀌었다 — 아래 ★ 참고. accent-color:auto 는 그대로.)
    즉 이 앱은 체크박스에 «브라우저 기본»을 쓴다. 파랗게 보이던 건 스타일이 아니라
    「체크된 상태 + OS 기본 강조색」이었다 — grep 으로 찾은 accent-color 관용구는
    실제로 화면에 보이는 자리엔 안 걸려 있었다(코드만 보고 실물을 안 본 실수).
    ⇒ accent-color 는 «지정하지 않는다». 크기도 13px 로 맞춘다.
-   ★단 color-scheme: dark 한 줄만 남긴다 — 앱엔 «체크 안 된» 체크박스가 다크 바탕에
-     놓인 선례가 없어서, 그대로 두면 빈 상자가 흰색으로 혼자 튄다(현빈 지적).
-     전역이 아니라 이 모달에만 건다. */
+   ★color-scheme: dark 는 «여기서 뺐다»(2026-09-20). 그때는 「전역이 아니라 이 모달에만 건다」로
+     정했지만, 그 뒤 같은 증상이 우측 패널 라디오에서도 났다(현빈 신고) — 예상대로 «한 곳이 빠졌다».
+     ⇒ 선언을 css/design-tokens.css :root 로 올려 앱 전역이 받는다. 이 규칙은 크기만 맡는다.
+     (여기 남겨 두면 같은 선언이 두 곳이 되고, 위 주석이 사실과 어긋난 채로 썩는다.) */
 .relnote-off input[type="checkbox"] {
-  color-scheme: dark;
   width: 13px; height: 13px; cursor: pointer;
 }

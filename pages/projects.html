@@ -280,6 +280,12 @@ body {
   transition: background 0.15s;
 }
 #btn-new-planning:hover { background: #22976f; }
+/* [0920b] 비활성 — 「여기 있음」 색(초록)은 그대로 두고 «흐림»만 더한다(폴더 메뉴 비활성과 같은 규율).
+   hover 도 같이 잠가야 «눌리는 것처럼» 안 보인다. */
+#btn-new-planning[aria-disabled="true"],
+#btn-new-planning[aria-disabled="true"]:hover {
+  opacity: var(--ui-disabled-opacity); cursor: not-allowed; background: #1a7a5e;
+}
 
 /* ── Planning card styles ── */
 .project-card.planning-card {
@@ -705,7 +711,12 @@ body {
       </fieldset>
       <!-- ★라벨은 «한 곳»에만 있다(<span id="btn-*-label">) — 문구가 정해지면 그 한 줄만 갈아끼운다.
            아이콘+라벨 구조라 라벨이 짧아져도(예: Design) 버튼이 그대로 줄어든다. -->
-      <button id="btn-new-planning" onclick="createPlanningProject()" style="display:none" title="기획 프로젝트 만들기">
+      <!-- ★[0920b] 기획모드는 «아직 비활성»이다(현빈 2026-09-20: 「기획모드버튼(newplan)은 아직 비활성화해둬야하는게 맞아」).
+           숨기지 «않는» 이유 — 관리자에게 「왜 못 쓰나」를 알려야 한다. 되살리는 조건은 PLAN_MODE_ENABLED 주석에.
+           ⛔disabled 속성 금지 — 크로미움은 disabled 버튼에 hover 를 안 줘 title 툴팁이 안 뜬다
+             (기획 카드 📁·폴더 메뉴 비활성과 «같은» 규율: aria-disabled + 흐림 + 이유 툴팁). -->
+      <button id="btn-new-planning" class="is-disabled" aria-disabled="true" style="display:none"
+              title="준비 중 — 만든 기획 프로젝트가 아직 프로젝트 목록에 뜨지 않습니다">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="3" width="18" height="18" rx="2"/>
           <line x1="9" y1="8" x2="15" y2="8"/>
@@ -1685,7 +1696,25 @@ async function createProject() {
   openProject(id);
 }
 
+/* ★[0920b] 기획모드 스위치 — 되살릴 땐 «이 한 줄»만 true 로. ⛔기능 코드는 지우지 않는다.
+ *
+ * 왜 껐나 (현빈 2026-09-20): 지금 만들면 «만들었는데 사라지는» 경험이 된다.
+ *   실측(9397 격리 실기 2026-09-20): New Plan 을 누르면 plan_1789885549682 가 디스크에 생기는데
+ *   projects:list 는 [] 를 돌려줬고 카드도 0개였다(빈 상태 화면이 그대로 떴다).
+ *   원인 = main.js `_listProjectsImpl` 의 걸름망 «둘 다» /^proj_\d+$/ 라 plan_* 이 안 걸린다
+ *   (신 레이아웃 디렉터리 루프 · flat 레거시 폴백 — 두 곳 모두).
+ *
+ * 되살리는 조건 = **T-064**(목록 필터가 plan_* 도 받게 되는 것). 그게 끝나면 여기를 true 로 하고
+ *   tests/unit/darkforms-newplan.test.mjs · tests/dom/darkforms-newplan.dom.spec.js 의 뜻을 뒤집어라.
+ * ★화면만 막지 않는다 — 함수 자신도 막는다. pages/planning.html 이 같은 이유로
+ *   「화면을 숨기는 쪽이 아니라 «페이지 자신»이 막는다. 입구가 하나여야 한다」로 갔다. */
+const PLAN_MODE_ENABLED = false;
+
 async function createPlanningProject() {
+  if (!PLAN_MODE_ENABLED) {
+    console.warn('[projects] 기획모드는 아직 비활성입니다 (T-064 해결 전까지). 프로젝트를 만들지 않습니다.');
+    return;
+  }
   const id = 'plan_' + Date.now();
   const now = new Date().toISOString();
   const proj = { id, name: '기획 Untitled', type: 'planning', createdAt: now, updatedAt: now };
