@@ -70,16 +70,31 @@ test('U2b [변이] 그 한 줄을 빼면 빨개진다', () => {
 });
 
 /* ═══ U3 pushHistory 가 «첫 DOM 변경 앞»에 온다 ═══════════════════════════ */
-test('U3 ★pushHistory 가 첫 DOM 쓰기보다 «먼저» 온다 (resize-undo 와 같은 병 예방)', () => {
+test('U3 ★히스토리가 «양쪽 끝»이다 — 시작은 첫 DOM 쓰기 앞, 끝은 onUp (int/0920b)', () => {
+  /* 2026-09-20 통합 — 형제 유닛 T-073 이 「드래그는 양쪽 끝을 찍는다」를 이 레포의 규약으로
+     만들었다(js/drag-history.js). 이 드래그만 옛 push-before 꼴(시작 표본만)로 남으면,
+     뒤에 push-after 동작(우측 패널 대다수)이 오는 순간 둘 사이 표본이 없어 ⌘Z 한 번이 그
+     동작과 «크기까지» 같이 먹는다(그 파일 머리말 ⑴). 검사의 «뜻»(=⌘Z 가 삽입을 안 먹는다)은
+     그대로고, 지키는 모양만 규약에 맞춘다. 로스터: tests/unit/drag-history-push-before.test.mjs */
   const body = sliceBlock(SRC.handles, 'function _onTextOverlayResizeMouseDown(e, posEl, dir)');
-  const iPush  = body.indexOf('window.pushHistory?.(');
+  const iBegin = body.indexOf("window.beginDragHistory?.('오버레이 텍스트 크기')");
+  const iArm   = body.indexOf('_hist?.arm(');
   const iWrite = body.indexOf('posEl.style.width');
-  assert.ok(iPush  > 0, 'pushHistory 호출 자체가 없다 — ⌘Z 가 크기를 못 되돌린다');
+  const iUp    = body.indexOf('function onUp()');
+  const iPush  = body.indexOf("window.pushHistory?.('오버레이 텍스트 크기')");
+  assert.ok(iBegin > 0, '시작 표본 부품(beginDragHistory)을 안 쓴다 — 규약 밖 드래그다');
+  assert.ok(iArm   > 0, 'arm() 호출이 없다 — 시작 표본이 영영 안 열린다');
   assert.ok(iWrite > 0, '폭을 쓰는 자리를 못 찾았다 — 하네스가 부서졌다');
-  assert.ok(iPush < iWrite,
-    `pushHistory 가 첫 DOM 변경 «뒤»에 있다(push@${iPush} > write@${iWrite}) — ⌘Z 가 블록 삽입을 되돌린다`);
-  assert.ok(/if \(!moved\) \{ moved = true; window\.pushHistory/.test(body),
-    '드래그 «한 번»에 한 번만 쌓는 빗장(moved)이 없다 — 히스토리가 프레임 수만큼 쌓인다');
+  assert.ok(iPush  > 0, 'onUp 의 끝 표본(pushHistory)이 없다 — 양쪽 끝이 아니다');
+  assert.ok(iBegin < iArm && iArm < iWrite,
+    `시작 표본이 첫 DOM 변경 «뒤»다(begin@${iBegin} arm@${iArm} write@${iWrite}) — ⌘Z 가 블록 삽입을 되돌린다`);
+  assert.ok(iUp > 0 && iPush > iUp, '끝 표본이 onUp «밖»에 있다 — 드래그 도중 항목이 쌓인다');
+  /* ⛔arm 의 반환값으로 쓰기를 막으면 줌 150% 의 1화면px 드래그가 통째로 죽는다(규약 ⑵). */
+  assert.doesNotMatch(body, /if \s*\(\s*!?_hist\?\.arm\([^)]*\)\s*\)\s*return/,
+    'arm() 반환값으로 early-return 한다 — 임계 미만 틱에서 리사이즈 자체가 사라진다');
+  /* 드래그 «한 번»에 한 번만 — moved 빗장은 그대로다(arm 자신도 한 번만 연다). */
+  assert.match(body, /if \(!moved && Math\.hypot\(dw, dh\) < 1\) return;\s*\n\s*moved = true;/,
+    '드래그 한 번에 한 번만 여는 빗장(moved)이 없다');
 });
 
 /* ═══ U4 앵커 동등성 — 확대블럭 구현과 «같은 답»을 낸다 ═══════════════════

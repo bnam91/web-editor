@@ -2676,15 +2676,24 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
   const room = sx > 0 ? (secW - startPosX) : (startPosX + startW);
   const boundW = Math.max(TFO_MIN_W, room, startW);
   let moved = false;
+  /* ★드래그는 «양쪽 끝»을 찍는다 — 시작 표본은 여기(첫 실제 이동), 끝 표본은 onUp 의
+     pushHistory. 형제 유닛 T-073 이 만든 규약이고 부품은 js/drag-history.js 한 곳이다.
+     (2026-09-20 통합 int/0920b: T-068 은 «시작 표본만» 찍는 옛 push-before 꼴이었다. 그
+      꼴이면 이 드래그 «뒤»에 push-after 동작(우측 패널 대다수)이 오는 순간 둘 사이의 표본이
+      없어 ⌘Z 한 번이 그 동작과 «크기까지» 같이 먹는다 — drag-history.js 머리말 ⑴ 그대로다.) */
+  const _hist = window.beginDragHistory?.('오버레이 텍스트 크기');
 
   function onMove(ev) {
     const scale = _canvasScaleNow();
     const d = _unrotateDelta(posEl, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dw = sx * d.dx, dh = sy * d.dy;
     if (!moved && Math.hypot(dw, dh) < 1) return;
-    /* ★pushHistory 는 «첫 DOM 변경 앞»에 — 뒤에 두면 ⌘Z 가 크기가 아니라 «블록 삽입»을
-       되돌린다(형제 유닛 0920b-resize-undo 가 잡은 바로 그 병). */
-    if (!moved) { moved = true; window.pushHistory?.('오버레이 텍스트 크기'); }
+    moved = true;
+    /* ★«시작 상태»를 첫 DOM 변경 «앞»에 한 번 — 뒤에 두면 ⌘Z 가 크기가 아니라 «블록 삽입»을
+       되돌린다(형제 유닛 0920b-resize-undo 가 잡은 바로 그 병).
+       ⛔arm() 의 반환값으로 쓰기를 막지 마라(drag-history.js 규약 ⑵) — 줌 150% 의 1화면px
+         드래그가 통째로 죽는다. 인자는 «캔버스 좌표» 델타다(규약 ⑴ — 위 d 는 이미 ÷scale). */
+    _hist?.arm(d.dx, d.dy);
     /* 폭과 글자가 «같은 비율»로 간다 ⇒ 배율 k 하나를 두 축 델타에서 뽑아야 한다.
        ★k = 1 + (dw·W + dh·H)/(W² + H²)  — 마우스 델타를 «상자 대각선»에 투영한 값
          (비율 고정 리사이즈의 표준 최소제곱해).
@@ -2728,6 +2737,9 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     if (moved) {
+      /* ★«끝 상태» — 시작 표본(_hist.arm)과 짝이다. 둘 다 있어야 앞뒤 어느 이웃(push-before
+         삽입 · push-after 패널)을 만나도 표본이 빈 칸 없이 이어진다(js/drag-history.js). */
+      window.pushHistory?.('오버레이 텍스트 크기');
       const tb = _tfoSelectedChild(posEl);
       if (tb && tb !== posEl) window.showTextProperties?.(tb);
       window.triggerAutoSave?.();

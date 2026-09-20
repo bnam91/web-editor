@@ -46,6 +46,10 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
      playwright 클릭이 「canvas-scaler intercepts pointer events」로 막힌다(실측). -->
 <div id="panel-right" style="position:relative;z-index:10000"><div class="panel-body"><button id="txt-overlay-toggle">오버레이</button></div></div>
 <script src="/js/feature-flags.js"></script>
+<!-- ★drag-history.js 를 «진짜로» 싣는다(앱 index.html:996) — 2026-09-20 통합(int/0920b)에서
+     이 드래그가 T-073 의 «양쪽 끝» 규약으로 바뀌었다. 안 실으면 beginDragHistory 가 undefined 라
+     시작 표본이 조용히 사라지고, 검사는 «끝 표본 하나»를 보며 초록이 된다(거짓 초록). -->
+<script src="/js/drag-history.js"></script>
 <script type="module">
   import '/js/block-factory.js';                       // window.makeTextBlock / window._makeTextFrame
   import { showHandlesFor } from '/js/overlay-handles.js';
@@ -219,11 +223,16 @@ test('D5 ★히스토리는 «첫 변경 앞»에 한 번만 — ⌘Z 가 크기
   await page.evaluate(() => { window.__pushes = []; });   // 토글이 쌓은 것은 세지 않는다
   await dragHandle(page, 'se', 90, 50);
   const pushes = await page.evaluate(() => window.__pushes);
-  expect(pushes.length, `드래그 한 번에 히스토리가 ${pushes.length}번 쌓였다 — 1이어야 한다`).toBe(1);
-  /* ★쌓인 «순간»의 폭이 드래그 «전» 폭이다 = pushHistory 가 첫 DOM 변경보다 먼저 왔다.
-     뒤에 오면 스냅샷이 이미 바뀐 상태라 ⌘Z 가 크기가 아니라 그 앞 사건(삽입)을 되돌린다. */
-  expect(pushes[0].width, '★히스토리가 «바뀐 뒤» 상태를 찍었다 — resize-undo 와 같은 병이다').toBe(before);
-  expect(pushes[0].label).toMatch(/크기/);
+  const after = await page.evaluate(() => window.__tf.style.width);
+  /* ★2026-09-20 통합(int/0920b) — 드래그는 «양쪽 끝»을 찍는다(T-073, js/drag-history.js).
+     ⑴ 첫 표본의 폭 = 드래그 «전» 폭 ⇒ ⌘Z 가 크기를 되돌린다(삽입이 아니라, 이 검사의 원래 뜻).
+     ⑵ 끝 표본이 있어야 «뒤»에 오는 push-after 동작과 사이에 빈 칸이 안 생긴다(머리말 ⑴).
+     ⛔3개 이상이면 프레임마다 쌓인 것이다(빗장 moved 가 깨졌다). */
+  expect(pushes.length, `드래그 한 번에 히스토리가 ${pushes.length}번 쌓였다 — 시작·끝 2번이어야 한다`).toBe(2);
+  expect(pushes[0].width, '★첫 표본이 «바뀐 뒤» 상태다 — resize-undo 와 같은 병이다').toBe(before);
+  expect(pushes[1].width, '★끝 표본이 드래그 «뒤» 폭이 아니다 — 양쪽 끝이 아니다').toBe(after);
+  expect(after, '전제: 드래그로 폭이 실제로 바뀌었다').not.toBe(before);
+  expect(pushes[1].label).toMatch(/크기/);
 });
 
 test('D6 ★회전 45° — 손잡이가 «회전된 진짜 코너»에 붙는다', async ({ page }) => {
@@ -303,8 +312,8 @@ test('D8 ★섹션 폭 «밖»까지 키울 수 있다 — 현빈 2026-09-20 결
     .toBeGreaterThan(secW + 100);
   /* ★⌘Z 가 «크기»를 되돌리고 블럭은 살아 있어야 한다 = 히스토리는 첫 DOM 변경 «앞»에 한 번. */
   const pushes = await page.evaluate(() => window.__pushes);
-  expect(pushes.length, `섹션 밖까지 끄는 동안 히스토리가 ${pushes.length}번 쌓였다 — 1이어야 한다`).toBe(1);
-  expect(pushes[0].width, '★히스토리가 «바뀐 뒤» 폭을 찍었다 — ⌘Z 가 크기가 아니라 삽입을 되돌린다').toBe(before);
+  expect(pushes.length, `섹션 밖까지 끄는 동안 히스토리가 ${pushes.length}번 쌓였다 — 시작·끝 2번이어야 한다`).toBe(2);
+  expect(pushes[0].width, '★첫 표본이 «바뀐 뒤» 폭이다 — ⌘Z 가 크기가 아니라 삽입을 되돌린다').toBe(before);
 });
 
 test('D9 ★줌 40%(현빈 실사용) 에서도 끄는 만큼만 커진다 — 스케일 보정', async ({ page }) => {
