@@ -97,6 +97,39 @@ async function mount(page, { gap }) {
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
+/** 같은 «줄»(.row)에서 원 오른쪽에 맞닿은 이웃 — 아래 이웃(mount)과 «다른 변»을 시험한다.
+ *  ★왜 따로 재나: _blockedEdges 가 막는 변을 네 방향 모두 찾는다고 적어 두었지만, 위의 N1~N6 은
+ *  «아래 변» 하나만 증명한다. 옆 블럭은 현빈 화면에서 더 흔한 배치다(한 줄에 둘). */
+async function mountSide(page, { gap }) {
+  await page.evaluate((gap) => {
+    const host = document.getElementById('host');
+    host.innerHTML = '';
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.setAttribute('style', `display:flex;align-items:flex-start;gap:${gap}px;position:relative;`);
+    const ss = document.createElement('div');
+    ss.className = 'frame-block';
+    ss.dataset.freeLayout = 'true';
+    ss.setAttribute('style', 'width:100px;height:100px;min-height:100px;position:relative;flex:0 0 auto;');
+    const sb = document.createElement('div');
+    sb.className = 'shape-block';
+    sb.dataset.type = 'shape';
+    sb.dataset.shapeType = 'ellipse';
+    sb.innerHTML = '<svg class="shape-svg" viewBox="0 0 100 100" preserveAspectRatio="none"><ellipse cx="50" cy="50" rx="50" ry="50"></ellipse></svg>';
+    ss.appendChild(sb);
+    row.appendChild(ss);
+    const nb = document.createElement('div');
+    nb.className = 'text-block';
+    nb.id = 'nb';
+    nb.setAttribute('style', 'width:120px;height:100px;background:#eee;flex:0 0 auto;');
+    row.appendChild(nb);
+    host.appendChild(row);
+    ss.classList.add('selected'); sb.classList.add('selected');
+    window.__ss = ss; window.__sb = sb; window.__nb = nb;
+  }, gap);
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
+
 /** 그려진 모든 path 의 «칠해지는 띠»를 네 변으로 환산하고, 상자들과 같이 돌려준다. */
 const measure = (page) => page.evaluate(() => {
   const sw = parseFloat(getComputedStyle(document.querySelector('.ss-sel-path')).strokeWidth) || 1;
@@ -273,5 +306,64 @@ test.describe('줌 전수 — 픽셀로 센 순파랑 (dpr 2)', () => {
     await mount(page, { gap: 8 });
     const got = await blueOverNeighbor(page);
     expect(got.pure + got.bluish, '떨어진 이웃 위에 파랑이 있다').toBe(0);
+  });
+});
+
+/* ═══ 옆(같은 줄) 이웃 — «아래 변»이 아닌 변도 같은가 ═══════════════════════════════
+   위의 N1~N7 은 전부 «아래 이웃» 한 배치다. _blockedEdges 는 네 변을 다 본다고 적혀 있지만
+   검사가 한 변만 증명하면, 옆 변 판정이 사라져도 아무도 안 잡는다. 실제 화면에서 더 흔한
+   배치(한 줄에 블럭 둘)를 같은 «픽셀» 잣대로 잰다. */
+test.describe('옆 이웃 (같은 줄) — 픽셀 (dpr 2)', () => {
+  test.use({ deviceScaleFactor: 2 });
+
+  async function blueOverNeighborSide(page) {
+    const box = await page.evaluate(() => {
+      const q = window.__nb.getBoundingClientRect();
+      return { x: q.left, y: q.top, width: q.width, height: q.height };
+    });
+    const shot = await page.screenshot({ clip: box });
+    return page.evaluate(async (b64) => {
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/png;base64,' + b64; });
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      let pure = 0, bluish = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const R = d[i], G = d[i + 1], B = d[i + 2];
+        if (R === 45 && G === 111 && B === 232) pure++;
+        else if (B > R + 30 && B > G + 30 && B > 120) bluish++;
+      }
+      return { pure, bluish, w: c.width, h: c.height };
+    }, shot.toString('base64'));
+  }
+
+  for (const z of ZOOMS) {
+    test(`N8-${z.label} ★오른쪽에 맞닿은 이웃 상자 위 순파랑 device px = 0`, async ({ page }) => {
+      const errs = await boot(page, z.scale);
+      await mountSide(page, { gap: 0 });
+      const m = await measure(page);
+      expect(+(m.nb.l - m.frame.r).toFixed(3), '하네스 전제 — 옆으로 맞닿아야 한다').toBe(0);
+      const got = await blueOverNeighborSide(page);
+      expect(got.pure, `줌 ${z.label}: 옆 이웃 상자 위에 순파랑 ${got.pure} device px (${got.w}x${got.h})`).toBe(0);
+      expect(got.bluish, `줌 ${z.label}: 옆 이웃 상자 위에 파랑계 ${got.bluish} device px`).toBe(0);
+      // ㉮ — 이웃이 없는 «위·아래·왼쪽»에서는 여전히 원을 안 문다
+      for (const side of ['top', 'bottom', 'left']) {
+        expect(intoShape(m, side), `줌 ${z.label}: ${side} 변이 원을 물었다 (옆 이웃 때문에 네 변을 다 포기했다)`).toBe(0);
+      }
+      expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
+    });
+  }
+
+  test('N9 ★음성대조 — 옆 이웃이 떨어져 있으면(gap 8) 고치기 전에도 0 (줌 100%)', async ({ page }) => {
+    await boot(page, 1.0);
+    await mountSide(page, { gap: 8 });
+    const m = await measure(page);
+    expect(+(m.nb.l - m.frame.r).toFixed(1), '하네스 전제 — 떨어져 있어야 한다').toBeGreaterThan(0);
+    const got = await blueOverNeighborSide(page);
+    expect(got.pure + got.bluish, '떨어진 옆 이웃 위에 파랑이 있다').toBe(0);
+    expect(intoShape(m, 'right'), '이웃이 떨어져 있는데 오른쪽 변이 원을 물었다').toBe(0);
   });
 });
