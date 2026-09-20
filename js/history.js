@@ -36,6 +36,51 @@ function _drainRemoteKeys() {
   return s;
 }
 
+/* ── ★0920b «grad-alpha» C: undo 복원 시 «선택 상태» 복원 ─────────────────────────────
+ * 현빈 원문: 「블럭을 삭제하고 ⌘Z 로 되살리면 보라색 아웃라인이 안 보여, 살아난 건지 확인하려면
+ * 클릭해봐야 안다」. 원인은 셋이 겹친다 —
+ *   ① 스냅샷이 UI 상태 클래스를 «일부러» 세척한다(js/io/section-serialize.js RUNTIME_MARKER_CLS
+ *      의 'selected' + .gradient-corner-handle 제거) → 복원 HTML 에 선택 흔적이 없다.
+ *   ② restoreSnapshot/restoreSnapshotScoped 가 deselectAll() 을 «두 번» 부른다.
+ *   ③ 히스토리 항목에 선택 정보를 담는 필드가 «아예» 없었다.
+ * ⇒ 항목을 만들 때(pushHistory·ensureHistoryCheckpoint «양쪽») 선택 «id» 를 같이 적고,
+ *   복원의 «마지막 deselectAll 뒤»에 타입별 진입점으로 다시 고른다.
+ *   ★순서가 중요하다 — 앞에 두면 deselectAll 이 도로 지우고 showPageProperties() 가 패널을 덮는다.
+ * ⛔1차 범위(좁게): «단일 블럭»만. 다중선택·섹션/프레임·contenteditable(.editing) 은 복원하지
+ *   않는다(전역 동작 변경이라 넓히면 다른 undo 유닛과 충돌한다). 없는 id 는 조용히 무시. */
+function _captureSelection() {
+  try {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.getElementById('canvas');
+    const sel = (typeof window !== 'undefined' && window.CANVAS_SEL_BLOCKS_AND_SHAPE) || '';
+    if (!canvas || !sel) return null;
+    if (canvas.querySelector('.editing')) return null;       // 편집 중 캐럿 상태는 복원 대상 아님
+    const els = canvas.querySelectorAll(sel);
+    if (els.length !== 1) return null;                        // 1차 범위 = 단일 블럭
+    const id = els[0].id;
+    if (!id) return null;
+    if (canvas.querySelector('.multi-selected')) return null; // 다중선택은 2차
+    return { blockIds: [id] };
+  } catch (_) { return null; }
+}
+
+function _restoreSelection(snapSel) {
+  try {
+    const ids = snapSel && Array.isArray(snapSel.blockIds) ? snapSel.blockIds : null;
+    if (!ids || ids.length !== 1) return;
+    const canvas = document.getElementById('canvas');
+    const el = document.getElementById(ids[0]);
+    if (!el || !canvas || !canvas.contains(el)) return;       // 복원된 캔버스에 실제로 있을 때만
+    /* 타입별 진입점 — 클래스만 붙여서는 부족하다. 그라데이션은 _selectGradient 가
+       .selected + 4모서리 핸들 + showGradientProperties 를 «한 벌»로 처리하고,
+       스티커는 _selectSticker 가 같은 역할을 한다. 그 둘을 «먼저» 둬야 한다 —
+       selectBlock(js/block-edit.js)에는 그라데이션 분기가 없어 showTextProperties 로 떨어진다. */
+    if (el.classList.contains('gradient-block') && window._selectGradient) window._selectGradient(el);
+    else if (el.classList.contains('sticker-block') && window._selectSticker) window._selectSticker(el);
+    else window.selectBlock?.(ids[0]);
+  } catch (e) { console.warn('[history] 선택 복원 실패:', e); }
+}
+
 function pushHistory(action = '작업', sideEffects = null) {
   if (_historyPaused) return;
   historyStack = historyStack.slice(0, historyPos + 1);
@@ -47,7 +92,7 @@ function pushHistory(action = '작업', sideEffects = null) {
   //   getLastVideoPendingSidecar 주석 참고). 전역 캐시가 아니라 이 스냅샷 전용이라,
   //   나중에 이 스냅샷이 아닌 다른 스냅샷을 복원할 땐 여기 안 실린다.
   const _videoPendingSidecar = window.getLastVideoPendingSidecar?.();
-  historyStack.push({ canvas: _canvas, videoPendingSidecar: _videoPendingSidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), seq: ++_seq });
+  historyStack.push({ canvas: _canvas, videoPendingSidecar: _videoPendingSidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
   if (historyStack.length > MAX_HISTORY) {
     historyStack.shift(); // 가장 오래된 항목 제거
     historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -106,6 +151,7 @@ function restoreSnapshot(snap) {
     window.applyPageSettings();
     if (window.buildLayerPanel) window.buildLayerPanel();
     window.deselectAll();
+    _restoreSelection(snap.selection);   // ★마지막 deselectAll «뒤» — 순서가 처방의 절반이다
   } finally {
     // ★가드 해제를 UI 갱신보다 «먼저» — 아래 _updateUndoRedoBtns/gdtFontPaintBadge가
     // 던져도 두 플래그는 이미 안전하게 풀린 상태가 되도록.
@@ -236,6 +282,7 @@ function restoreSnapshotScoped(fromSnap, toSnap, laterSnap) {
     window.applyPageSettings();
     if (window.buildLayerPanel) window.buildLayerPanel();
     window.deselectAll();
+    _restoreSelection(toSnap.selection);  // ★W5/W6 교훈 — 두 복원 경로는 «대칭»이어야 한다
   } finally {
     _historyPaused = false;
     // ★스코프 수술의 mutation 은 suppress 구간에 흡수된다 → 저장을 «명시 예약»해야 결과가
@@ -300,7 +347,7 @@ function clearHistory() {
   // 프로젝트 격리: 이전 프로젝트에서 누적된 원격 키 잔량을 버린다(빈 셋으로 초기화).
   _remoteSinceCheckpoint = new Set();
   const _initCanvas = window.getSerializedCanvas();
-  const init = { canvas: _initCanvas, videoPendingSidecar: window.getLastVideoPendingSidecar?.(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set(), seq: ++_seq };
+  const init = { canvas: _initCanvas, videoPendingSidecar: window.getLastVideoPendingSidecar?.(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set(), selection: _captureSelection(), seq: ++_seq };
   historyStack = [init];
   historyPos   = 0;
   state._canvasDirty = false;
@@ -358,7 +405,7 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
     historyStack = historyStack.slice(0, historyPos + 1);
     // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
     //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
-    historyStack.push({ canvas: current, videoPendingSidecar: _sidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), seq: ++_seq });
+    historyStack.push({ canvas: current, videoPendingSidecar: _sidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
     if (historyStack.length > MAX_HISTORY) {
       historyStack.shift(); // 가장 오래된 항목 제거
       historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -366,6 +413,16 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
       historyPos++;
     }
     _updateUndoRedoBtns();
+  } else if (historyStack[historyPos]) {
+    /* ★0920b grad-alpha C — «캔버스는 그대로인데 선택만 바뀐» 경우.
+       삭제 경로는 ensureHistoryCheckpoint('삭제 전') → remove → deselectAll → pushHistory 라,
+       체크포인트를 찍는 «그 순간»에만 블럭이 아직 선택돼 있다. 그런데 선택은 직렬화에서
+       세척되므로(section-serialize.js RUNTIME_MARKER_CLS) canvas 문자열이 «안 변해» 여기로
+       떨어져 새 항목이 안 생긴다 — 그러면 선택을 적을 자리가 없다.
+       맨 위 항목은 «지금 이 캔버스 상태»를 가리키는 항목이고 undo 가 되돌아올 자리이므로,
+       그 항목의 선택만 최신으로 갱신한다. (null 이면 덮지 않는다 — 지우는 쪽으로는 안 움직인다) */
+    const _sel = _captureSelection();
+    if (_sel) historyStack[historyPos].selection = _sel;
   }
 }
 
