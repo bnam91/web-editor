@@ -26,7 +26,9 @@ function _zoom() {
   return (window.currentZoom || 40) / 100;
 }
 
-function _posElOf(tb) {
+/* ★export — js/overlay-handles.js 의 오버레이 텍스트 리사이즈 핸들이 «같은 판정»을 쓴다.
+   베끼면 「패널은 tf 를, 핸들은 tb 를」 처럼 갈라진다. */
+export function _posElOf(tb) {
   return tb.closest('.frame-block[data-text-frame="true"]') || tb;
 }
 
@@ -45,7 +47,7 @@ function _isOverlay(posEl) {
 
 /* ★위치를 쓰는 «단 하나의» 자리 — zoom-block.js _applyZoomPos(⑲)와 같은 규약.
    dataset.offsetX/offsetY 가 SSOT 고, style 은 그걸 되읽어 쓴다. */
-function _applyOverlayPos(posEl, x, y) {
+export function _applyOverlayPos(posEl, x, y) {
   posEl.dataset.offsetX = String(Math.round(x));
   posEl.dataset.offsetY = String(Math.round(y));
   posEl.style.left = posEl.dataset.offsetX + 'px';
@@ -331,5 +333,9 @@ export function wireOverlaySection({ tb }) {
     window.buildLayerPanel?.();
     // 패널 재렌더 — 버튼 active 상태 + X/Y 값 갱신
     window.showTextProperties?.(tb);
+    /* ★켜자마자 모서리 손잡이가 «뜬다» / 끄면 «사라진다» — showHandlesFor 가 posEl 의
+       dataset.overlayBlock 으로 스스로 갈라서, 해제 쪽에서는 hide 로 떨어진다
+       (js/overlay-handles.js showHandlesFor 의 텍스트 갈래 참고). */
+    window.showHandlesFor?.(tb);
   });
 }

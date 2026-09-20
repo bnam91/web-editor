@@ -19,6 +19,9 @@ import { getGridModel, gridCols, gridRows, gridPreviewLine } from './blocks/grid
    (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
     모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
 import { MODAL_LIMITS, clampModal, setModalSizeMode } from './blocks/modal-block.js';
+/* ★오버레이(플로팅) 텍스트의 «위치 규약»은 거기 한 벌뿐이다 — 5번째 사본을 만들지 않는다.
+   (그 파일은 frame-geometry.js 만 import 하므로 순환은 «닫히지 않는다».) */
+import { _applyOverlayPos, _posElOf } from './props/prop-text-wireup-overlay.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -2387,6 +2390,188 @@ function _onZoomRotateMouseDown(e, zb) {
   document.addEventListener('mouseup', onUp);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   오버레이(플로팅) 텍스트 — 모서리 리사이즈 핸들 (.tfo-overlay-handle)
+   현빈 2026-09-20 「오버레이 버튼 활성화 시키면 오버레이된 텍스트 블럭에 모서리 핸들이 필요하다」
+   ───────────────────────────────────────────────────────────────────────────
+   ★증상의 자리는 CSS 가 아니라 «호출이 없다» 였다 — showHandlesFor 에 텍스트 갈래가 없었고
+     (아래 마지막 갈래로 신설), block-drag.js 의 isText 클릭 핸들러도 showHandlesFor 를
+     아예 안 불렀다(zoom 은 1551행, modal 은 1912행에 있다). 선택 «테두리»만 보인 이유는
+     selection-overlay.js 가 .text-block → tf 로 올려 그리기 때문이다 = 테두리는 tf 에,
+     손잡이는 «아무 데도» 없었다.
+   ★형틀은 «같은 파일의» _onZoomResizeMouseDown 이다 — 절대배치 플로팅 · 보라 아웃라인 ·
+     네 모서리 · 회전 인식 · 맞은편 코너 고정 · pushHistory 를 첫 변경 «전»에.
+   ⛔showFrameHandles(프레임 핸들) 재사용은 세 자리가 막힌다:
+     ① rAF 가드가 `_overlayFrame.classList.contains('selected')` 인데 오버레이 텍스트는
+        tf 가 아니라 «안의 .text-block» 이 .selected 다 ⇒ 첫 프레임에 스스로 사라진다.
+     ② _onHandleMouseDown 은 left/top 을 안 건드린다 ⇒ 절대배치에서 nw/ne/sw 를 끌면
+        끄는 코너가 손끝을 안 따라온다(확대블럭이 ④ 주석으로 이미 고친 병).
+     ③ .ss-radius-handle 이 같이 붙는데 tf 는 배경 투명 ⇒ 눌러도 아무 일 없는 손잡이가 생긴다.
+   ★리사이즈의 «뜻» = 폭 + 폰트 비례확대. 높이는 «쓰지 않고 잰다».
+     ⓐ css/editor-blocks.css `.frame-block{overflow:hidden}` + text-frame 은 min-height:unset —
+       tf 에 height 를 쓰면 줄이는 순간 글자가 «조용히» 잘린다(늘리면 빈 상자만 커진다).
+     ⓑ 이 파일의 그룹 리사이즈(_onHandleMouseDown 의 groupSnap)가 이미 text-frame 자식을
+       «width 만 스케일 + contentEl.style.fontSize *= fsScale» 로 다룬다 — 「텍스트 프레임을
+       리사이즈하면 무슨 일이 나는가」의 답이 이미 한 벌 있다. 두 벌로 갈지 않는다.
+     ★단, 그룹 경로는 contentEl «하나»만 키워서 Mix 텍스트(부분 span[style*="font-size"])는
+       부분만 안 커지는 미비가 있다 — 여기선 그 미비를 답습하지 않는다(스냅샷에 span 포함).
+   ⛔클래스 이름은 `.tfo-overlay-handle` — `.asset-overlay-handle` 을 «빌리면»
+     hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다(아이콘원형·확대블럭이 두 번 밟은 함정).
+     ★이름이 `-overlay-handle` 로 «끝나야» tests/unit/overlay-handle-cursor.test.mjs 의 전수
+       그물에 자동 등록된다(커서 누락을 기계가 잡는다) — 작명에 이유가 있다.
+   ★z-index 를 새로 만들지 않는다 — 손잡이는 #ss-handles-overlay(z 9990) «안»에 들어간다.
+     그 층이 모달 아래로 내려가면(0920b zorder) 이 손잡이도 자동으로 따라간다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const TFO_MIN_W = 60;
+let _tfoResizeEl = null;      // 핸들이 붙은 posEl(text-frame, 없으면 tb 자신)
+let _tfoResizeRafId = null;
+
+/** 오버레이 텍스트의 «선택된 아이»(= .text-block / .speech-bubble-block).
+ *  ⛔tf 자신엔 .selected 가 «안» 붙는다 — rAF 가드를 tf 로 재면 첫 프레임에 사라진다. */
+function _tfoSelectedChild(posEl) {
+  return posEl.querySelector(':scope > .selected')
+      || (posEl.classList.contains('selected') ? posEl : null);
+}
+
+function showTextOverlayResizeHandles(posEl) {
+  const overlay = _getOverlay();
+  /* 빗장은 «지워진 상태»를 알아채야 한다 — 확대블럭 주석(1980행 부근)과 같은 이유. */
+  if (_tfoResizeEl === posEl && overlay && overlay.querySelector('[data-tf-resize-dir]')) return;
+  hideTextOverlayResizeHandles();
+  _tfoResizeEl = posEl;
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `tfo-overlay-handle ${dir}`;
+    h.dataset.tfResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onTextOverlayResizeMouseDown(e, posEl, dir));
+  });
+  _updateTextOverlayHandlePositions();
+  _startTextOverlayResizeRaf();
+}
+
+function hideTextOverlayResizeHandles() {
+  if (_tfoResizeRafId) { cancelAnimationFrame(_tfoResizeRafId); _tfoResizeRafId = null; }
+  _tfoResizeEl = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('[data-tf-resize-dir]').forEach(h => h.remove());
+}
+
+function _updateTextOverlayHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_tfoResizeEl) return;
+  const HALF = 3.5;
+  overlay.querySelectorAll('[data-tf-resize-dir]').forEach(h => {
+    const c = _cornerScreen(_tfoResizeEl, h.dataset.tfResizeDir);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+  });
+}
+
+function _startTextOverlayResizeRaf() {
+  function loop() {
+    const posEl = _tfoResizeEl;
+    if (!posEl) return;
+    const sel = _tfoSelectedChild(posEl);
+    /* ★편집 중(.editing → contenteditable=true)엔 숨긴다 — 글자 선택과 손잡이가 겹친다
+       (asset-rotate.js:303 「편집중 핫존 숨김」과 같은 레포 규약).
+       ★오버레이를 «끄면» dataset.overlayBlock 이 사라진다 ⇒ 여기서 자동으로 걷힌다. */
+    if (!posEl.isConnected || !sel || sel.classList.contains('editing')
+        || posEl.dataset.overlayBlock !== 'true') {
+      hideTextOverlayResizeHandles();
+      return;
+    }
+    _updateTextOverlayHandlePositions();
+    _tfoResizeRafId = requestAnimationFrame(loop);
+  }
+  _tfoResizeRafId = requestAnimationFrame(loop);
+}
+
+/** 폰트 스냅샷 — contentEl «하나»가 아니라 인라인 font-size 를 가진 자손까지 담는다.
+ *  ⚠️매 프레임 «누적 곱»을 하면 표류한다 ⇒ 마우스다운 때의 값에 매번 k 를 곱한다. */
+function _tfoFontSnapshot(posEl) {
+  const els = new Set();
+  const content = posEl.querySelector('[class^="tb-"]');
+  if (content) els.add(content);
+  posEl.querySelectorAll('[style*="font-size"]').forEach(el => els.add(el));
+  return [...els]
+    .map(el => ({ el, fs: parseFloat(getComputedStyle(el).fontSize) || 0 }))
+    .filter(s => s.fs > 0);
+}
+
+function _onTextOverlayResizeMouseDown(e, posEl, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startW = Math.max(1, Math.round(posEl.offsetWidth));
+  const startH = Math.max(1, Math.round(posEl.offsetHeight));
+  const startX = e.clientX, startY = e.clientY;
+  const sec = posEl.closest('.section-block');
+  /* 상한은 «섹션 폭» — _enterOverlay 가 심는 maxWidth:100% 와 같은 상한이다.
+     어긋나면 「손잡이는 가는데 상자는 안 커진다」가 된다. */
+  const maxW = Math.max(TFO_MIN_W, sec ? sec.clientWidth : 860);
+  const snap = _tfoFontSnapshot(posEl);
+  /* ★맞은편 코너 고정 — 확대블럭 _onZoomResizeMouseDown ④ 의 식을 그대로 옮겨 적는다.
+     ⛔공통 헬퍼로 «추출» 금지 — tests/unit/zoom-block.test.js 가 그 함수 «안에서»
+       `const dHW …` / `dataset.x = ` 를 정규식으로 꺼내 실행한다. 빼내면 그 검사가 약해진다.
+     대신 tests/unit/text-overlay-resize.test.mjs 가 두 구현이 «같은 답»을 내는지 못박는다. */
+  const sx = dir.includes('e') ? 1 : -1;
+  const sy = dir.includes('s') ? 1 : -1;
+  const th = _blockRotationDeg(posEl) * Math.PI / 180;
+  const cosT = Math.cos(th), sinT = Math.sin(th);
+  /* 위치 SSOT = dataset.offsetX/offsetY (prop-text-wireup-overlay _applyOverlayPos). */
+  const startPosX = Number(posEl.dataset.offsetX ?? parseFloat(posEl.style.left)) || 0;
+  const startPosY = Number(posEl.dataset.offsetY ?? parseFloat(posEl.style.top))  || 0;
+  let moved = false;
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const d = _unrotateDelta(posEl, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
+    const dw = sx * d.dx, dh = sy * d.dy;
+    if (!moved && Math.hypot(dw, dh) < 1) return;
+    /* ★pushHistory 는 «첫 DOM 변경 앞»에 — 뒤에 두면 ⌘Z 가 크기가 아니라 «블록 삽입»을
+       되돌린다(형제 유닛 0920b-resize-undo 가 잡은 바로 그 병). */
+    if (!moved) { moved = true; window.pushHistory?.('오버레이 텍스트 크기'); }
+    /* 폭과 글자가 «같은 비율»로 간다 ⇒ 배율 k 하나를 두 축 델타에서 뽑아야 한다.
+       ★k = 1 + (dw·W + dh·H)/(W² + H²)  — 마우스 델타를 «상자 대각선»에 투영한 값
+         (비율 고정 리사이즈의 표준 최소제곱해).
+       ⛔`max(1+dw/W, 1+dh/H)` 로 두 축 중 «큰 쪽»을 쓰면 얇고 넓은 상자에서 터진다 —
+         실측: 600×30 텍스트에서 세로로 60px 만 내려도 k=3 이 되어 글자가 세 배로 뛴다
+         (텍스트는 폭≫높이가 기본이라 «항상» 이 모양이다). 투영은 그 폭발이 없고,
+         가로로만 끌 때는 1+dw/W 와 사실상 같은 값을 준다(W≫H 에서 오차 <0.1%). */
+    const kRaw = 1 + (dw * startW + dh * startH) / (startW * startW + startH * startH);
+    const newW = Math.min(maxW, Math.max(TFO_MIN_W, Math.round(startW * kRaw)));
+    const k = newW / startW;   // ★«클램프된» 폭으로 다시 구한다 — 상자와 글자가 갈라지지 않게
+    posEl.style.width = newW + 'px';
+    posEl.dataset.width = String(newW);
+    /* ★폭의 «주인»이 사용자가 된다 — 이 도장을 안 떼면 오버레이를 해제하는 순간
+       _exitOverlay 가 style.width·dataset.width 를 지워 방금 정한 폭이 증발한다. */
+    delete posEl.dataset.overlayIntroducedWidth;
+    snap.forEach(s => { s.el.style.fontSize = (s.fs * k).toFixed(1) + 'px'; });
+    /* 높이는 «글자가 정한다» — 쓰지 않고 «잰다». 맞은편 코너 고정도 그 실측 높이로. */
+    const newH = Math.max(1, posEl.offsetHeight);
+    const dHW = (newW - startW) / 2, dHH = (newH - startH) / 2;
+    const nx = startPosX + (cosT * sx * dHW - sinT * sy * dHH) - dHW;
+    const ny = startPosY + (sinT * sx * dHW + cosT * sy * dHH) - dHH;
+    _applyOverlayPos(posEl, nx, ny);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (moved) {
+      const tb = _tfoSelectedChild(posEl);
+      if (tb && tb !== posEl) window.showTextProperties?.(tb);
+      window.triggerAutoSave?.();
+    }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+window.showTextOverlayResizeHandles = showTextOverlayResizeHandles;
+window.hideTextOverlayResizeHandles = hideTextOverlayResizeHandles;
+
 function showHandlesFor(block) {
   if (!block || !block.classList) return;
   if (block.classList.contains('zoom-block')) {
@@ -2412,6 +2597,14 @@ function showHandlesFor(block) {
   } else if (block.classList.contains('modal-block')) {
     showModalRadiusHandles(block);
     showModalResizeHandles(block);
+  } else if (block.classList.contains('text-block') || block.classList.contains('speech-bubble-block')) {
+    /* ★오버레이(플로팅)로 «켠» 텍스트에만 모서리 손잡이를 준다 — 흐름(오토레이아웃) 텍스트는
+       폭·높이를 부모가 정하므로 손잡이의 뜻이 없다(비오버레이 회귀 0: 아래 hide 로 떨어진다).
+       판정은 클래스가 아니라 posEl 의 dataset.overlayBlock — 말풍선·아이콘텍스트도 같은
+       토글을 타므로 자동으로 함께 걸린다(prop-text.js:136 과 «같은 술어»). */
+    const posEl = _posElOf(block);
+    if (posEl.dataset.overlayBlock === 'true') showTextOverlayResizeHandles(posEl);
+    else hideTextOverlayResizeHandles();
   }
 }
 window.showHandlesFor = showHandlesFor;
@@ -2443,6 +2636,8 @@ export {
   hideGridGutters,
   showGridImageResizeHandle,
   hideGridImageResizeHandle,
+  showTextOverlayResizeHandles,
+  hideTextOverlayResizeHandles,
 
   showHandlesFor,
 };

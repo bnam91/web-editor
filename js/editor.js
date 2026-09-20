@@ -3165,6 +3165,10 @@ function deselectAll() {
   window.hideVectorResizeHandles?.();
   window.hideGridGutters?.(); // 그리드(듀오) 블록 열 경계 드래그 거터 (P2)
   window.hideGridImageResizeHandle?.(); // 그리드 이미지/아이콘 줄 코너 리사이즈 핸들 (T-C)
+  /* ★오버레이(플로팅) 텍스트의 모서리 핸들 (0920b). 빠지면 모듈 변수 _tfoResizeEl 이
+     «해제된 블록»을 계속 가리킨 채 남아, 같은 블록을 다시 클릭하면 동일블록 가드에 걸려
+     no-op 이 된다(아이콘원형이 실제로 밟은 사고 — 바로 위 주석 참고). */
+  window.hideTextOverlayResizeHandles?.();
   window._deselectAllGradients?.(); // gradient 블록 선택 해제 + 4모서리 핸들 제거 (deselectAll 셀렉터에 없어 누락됐던 정리)
   window.hideGradientLine?.(); // banner02/comparison 배경 그라데이션 온캔버스 라인 숨김
   canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
