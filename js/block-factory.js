@@ -4448,6 +4448,17 @@ function updateShapeBlock(blockId, partial = {}) {
     applied.shapeRotation = deg;
   }
 
+  /* ★모자이크 임시 차단(2026-09-20 «0920b-mosaic-off» T-070, js/feature-flags.js REDACT_MOSAIC_ENABLED).
+     스위치가 꺼져 있는데 'mosaic' 요청이 오면 «조용히 blur 로 바꿔 ok:true 를 돌려주지 않는다» —
+     호출자(MCP update_shape_block 등)는 모자이크가 걸린 줄 알고 넘어간다(「오류 삼키는 코드 = 위 판정 거짓말」).
+     ⛔shapeRedact 를 끄는(false) 요청은 막지 않는다 — 끄는 건 언제나 안전한 방향이다.
+     되살리는 조건은 feature-flags.js 주석과 카드 T-071 «0920b-mosaic-cause» 참고. */
+  if (window.REDACT_MOSAIC_ENABLED === false
+      && partial.shapeRedactMode === 'mosaic'
+      && !(partial.shapeRedact !== undefined && partial.shapeRedact !== null && !partial.shapeRedact)) {
+    return { ok: false, code: 'DISABLED', message: '모자이크 모드는 일시 차단 상태입니다(블러만 사용) — 카드 T-071 «0920b-mosaic-cause»' };
+  }
+
   if (partial.shapeRedact !== undefined && partial.shapeRedact !== null) {
     const curType = block.dataset.shapeType || 'rectangle';
     const on = !!partial.shapeRedact;

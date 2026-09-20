@@ -15,6 +15,18 @@
 
 const MOSAIC_FAIL_SAFE_FILL = '#4a4a4a';
 
+/** ★모자이크 임시 킬스위치(js/feature-flags.js REDACT_MOSAIC_ENABLED, 2026-09-20 «0920b-mosaic-off» T-070).
+ *  html2canvas 가 goya-asset:// 이미지를 못 싣는 문제(별도 카드 T-071 «0920b-mosaic-cause»)가 고쳐질
+ *  때까지 «캡처로 들어가는 문»을 여기 하나에서 닫는다 — 호출처(패널·goditor-api·로드후·mouseup
+ *  디바운스)를 각각 막으면 새 호출처가 생길 때 샌다.
+ *  ⛔비교는 반드시 `=== false` 다 — 플래그를 «안 얹는» 하네스(tests/dom 의 기존 모자이크 스펙 5개)는
+ *    undefined 라 «켜짐»으로 동작해야 그 스펙들이 그대로 초록이다(스펙 수정 0건).
+ *  ⛔finalizeMosaicForClone·invalidateMosaic 에는 걸지 않는다 — export 안전실패(원본 대신 회색)
+ *    경로라, 막으면 오히려 원본이 샐 수 있다. */
+function mosaicDisabled() {
+  return typeof window !== 'undefined' && window.REDACT_MOSAIC_ENABLED === false;
+}
+
 // ⚠️ "이 캔버스에 실제 비트맵이 그려져 있다"는 block.dataset(직렬화되어 저장됨)가 아니라
 // 이 WeakSet(런타임 전용, 이 DOM 노드 인스턴스에만 유효)으로 추적한다.
 // dataset.mosaicCaptured 같은 플래그를 저장 HTML에 남기면, 프로젝트를 저장했다가 다시 열었을
@@ -140,6 +152,7 @@ export function invalidateMosaic(block) {
  *  ★같은 블록에 진행 중 캡처가 있으면 합쳐진다(위 주석) — 반환 Promise 는 이 요청 «이후»
  *   시작된 캡처가 끝난 뒤 resolve 된다(opts.join 이면 예외: 진행 중 캡처 결과를 그대로 받음). */
 export function captureMosaicSnapshot(block, opts) {
+  if (mosaicDisabled()) return Promise.resolve(false); // ★킬스위치 — html2canvas 호출 0회
   if (!block) return Promise.resolve(false);
   if (opts?.reuseFullRes && _fullResCache.has(block)) {
     if (!_isLiveMosaic(block)) return Promise.resolve(false);
@@ -325,6 +338,7 @@ let _wired = false;
  *  다른 블록을 옮기는 경우도 포함) 화면에 있는 모자이크 redact들을 재캡처한다.
  *  매 프레임이 아니라 "상호작용 종료 시" 1회이므로 비용이 크지 않다. */
 export function wireMosaicAutoRefresh() {
+  if (mosaicDisabled()) return; // ★킬스위치 — 문서 mouseup 리스너 자체를 안 건다
   if (_wired) return;
   _wired = true;
   document.addEventListener('mouseup', scheduleRefreshAllVisible);
@@ -393,6 +407,7 @@ async function _waitImages(scope) {
   ]);
 }
 export function captureMosaicsAfterLoad(root) {
+  if (mosaicDisabled()) return; // ★킬스위치 — 로드 후 재시도 루프(최대 5회)도 안 돈다
   const scope = root || document;
   const blocks = [...scope.querySelectorAll('.shape-block.shape-redact[data-shape-redact-mode="mosaic"]')];
   blocks.forEach(async (b) => {
@@ -418,3 +433,11 @@ window.invalidateMosaic        = invalidateMosaic;
 window.isMosaicPending         = isMosaicPending;
 
 wireMosaicAutoRefresh();
+
+/* ★킬스위치가 켜져 있으면 body 에 표시를 붙인다 — CSS(css/editor-blocks.css)가 이 클래스 아래에서만
+   «모자이크로 저장된 블록»을 회색(#4a4a4a) 대신 블러로 보여준다.
+   ⒜ 클래스를 «모듈이 스스로» 붙이는 방식은 body.sel-ov(selection-overlay.js)의 선례 그대로다 —
+      JS 가 죽으면 클래스가 안 붙고 옛 동작(불투명 회색)이 남아 «제품이 성립»한다(안전 쪽 실패).
+   ⒝ 이 모듈은 index.html 에서만 로드되므로 프로젝트 목록 화면(pages/projects.html)엔 안 닿는다 —
+      거기엔 캔버스가 없어 닿을 필요도 없다. */
+if (mosaicDisabled()) document.body?.classList.add('redact-mosaic-off');
