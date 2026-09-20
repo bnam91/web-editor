@@ -32,6 +32,16 @@ function _toHex6(c) {
 
 const _CONTENT_SEL = '[contenteditable],.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner';
 
+/**
+ * 그라데이션·단색이 «실제로 칠해지는» 요소를 고른다 — 텍스트 그라데이션의 유일한 저장소.
+ * ★export 이유(0920b textgrad-bar): 캔버스 그라데이션 바 어댑터(gradient-model.js)도 같은 판정을
+ *   써야 한다. 어댑터가 자기 셀렉터를 따로 들면 «패널은 contentEl 에 칠하는데 바는 블럭을 재는»
+ *   어긋남이 생긴다(명부가 둘이면 언젠가 갈라진다).
+ */
+export function resolveTextContentEl(blockEl) {
+  return _resolveContentEl(blockEl);
+}
+
 function _resolveContentEl(blockEl) {
   if (!blockEl) return null;
   return blockEl.querySelector('[contenteditable]')
@@ -194,6 +204,11 @@ export function clearTextGradient(contentEl) {
   st.removeProperty('caret-color');
   _stripSpanFill(contentEl);
   syncTextGradShadow(contentEl);   // 0919r3: 그라데이션이 풀리면 원래 text-shadow 로 복귀
+  // 0920b textgrad-bar: 그라데이션이 «실제로» 풀렸을 때만 캔버스 바를 내린다.
+  //   여기 한 곳이 세 경로를 덮는다 — 단색 전체 적용(_applyColorWholeEditable)·스포이드/프로그램 색
+  //   (applyTextBlockColor)·타입 전환(prop-text-wireup-type.js). 안 내리면 «단색으로 바꿨는데 바가
+  //   남아 있다»가 된다(prop-shape.js 가 같은 이유로 hideGradientLine 을 부른다).
+  window.hideGradientLine?.(contentEl.closest?.('.text-block') || contentEl);
   return true;
 }
 
@@ -437,4 +452,5 @@ if (typeof window !== 'undefined') {
   window.getTextGradient = getTextGradient;
   window.textGradientAllowed = textGradientAllowed;
   window.textGradientFallbackColor = textGradientFallbackColor;
+  window.resolveTextContentEl = resolveTextContentEl;   // 0920b textgrad-bar: 캔버스 바 어댑터 공용
 }

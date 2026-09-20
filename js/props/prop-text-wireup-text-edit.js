@@ -18,6 +18,28 @@ import {
   textGradientBlockedReason,
 } from './text-block-color.js';
 
+/* ── 0920b textgrad-bar: 캔버스 그라데이션 바 → 패널 ────────────────────────────
+ * 캔버스에서 바(끈 끝·칩)를 끌면 gradient-model.js 의 text-block 어댑터 set() 이 «이미»
+ * applyTextGradient 로 글자를 다시 칠한다. 그래서 여기서는 «다시 칠하지 않는다» — 열려 있는
+ * 패널의 스와치 미리보기만 맞춘다(prop-shape.js 와 같은 규약, 루프 방지).
+ * ⚠️반드시 두 가지로 좁힌다 — detail.source==='canvas' 이고 대상이 .text-block 인 것만.
+ *   도형·에셋 «안»의 오버레이 텍스트(.overlay-tb)는 .text-block 이면서 조상이 도형일 수 있어
+ *   좁히지 않으면 도형 리스너와 서로의 이벤트를 먹는다.
+ */
+let _applyingExternalTextGrad = false;
+document.addEventListener('gradient-line:change', (e) => {
+  if (e.detail?.source !== 'canvas') return;
+  const block = e.target?.closest?.('.text-block');
+  if (!block || !e.detail?.css) return;
+  _applyingExternalTextGrad = true;
+  try {
+    const sw = document.getElementById('txt-color')?.closest('.prop-color-swatch');
+    if (sw) sw.style.background = e.detail.css;
+  } finally {
+    _applyingExternalTextGrad = false;
+  }
+});
+
 /* ─────────────────────────────────────────────────────────────
  * 전역 색상 적용 헬퍼 (text-block content + 테이블 셀 공용)
  * ─────────────────────────────────────────────────────────────
@@ -139,7 +161,7 @@ if (typeof window !== 'undefined' && !window.__cellSelCacheInstalled) {
   });
 }
 
-export function wireTextEditSection({ ctx, currentColorAlpha }) {
+export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   let _savedColorSel = null;
   let _colorSpan = null; // 색상 적용 시 생성한 span (input 반복 호출에 재사용)
 
@@ -366,9 +388,17 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
       colorPicker.dataset.cpGradient = JSON.stringify({ type: d.type, angle: d.angle, stops: d.stops });
     } catch (_) {}
     _syncGradUi();
+    // 팝업에서 각도·스탑을 바꾸면 캔버스 바도 따라 재배치(도형·배너와 같은 패턴).
+    // 캔버스가 origin 인 변경이면 이미 바가 자기 모델로 그려져 있으므로 건너뛴다(루프 방지).
+    if (!_applyingExternalTextGrad) window.showGradientLine?.(tb);
   };
   colorPicker.addEventListener('goya-cp:gradient', (e) => _onGrad(e, false));
   colorPicker.addEventListener('goya-cp:gradient-commit', (e) => _onGrad(e, true));
+  /* ── 0920b textgrad-bar: 캔버스 그라데이션 바 ──
+   * 블럭을 고르는 순간 켠다 — 그라데이션이 «안» 걸린 글자면 getGradientTarget 이 null 이라 no-op.
+   * bindGradientLinePicker 는 재오픈 시드(dataset.cpGradient)와 «선택 스탑» 양방향 동기를 붙인다. */
+  window.showGradientLine?.(tb);
+  window.bindGradientLinePicker?.(tb, colorPicker);
   colorHex.addEventListener('input', () => {
     const v = colorHex.value.trim().replace(/^#/, '');
     if (/^[0-9a-f]{6}$/i.test(v)) {
