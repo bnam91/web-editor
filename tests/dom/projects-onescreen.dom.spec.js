@@ -688,3 +688,38 @@ test('ⓥ polish3 카드 📁 — 폴더 밖 프로젝트(없는 폴더 가리�
   expect((await state()).dis).toBe('true');
   expect(errs, errs.join('\n')).toEqual([]);
 });
+
+/* ── 5라운드 마무리(polish5, T-062) ── */
+test('ⓥ polish5 목록 보기 타일이 가용 폭을 쓴다 — 긴 이름이 고정폭(~185px) 칸에 갇혀 잘리지 않는다', async ({ page }) => {
+  const d = seed();
+  d.folders[1].name = '2026년 9월 상세페이지 기획 보관함 — 아주 긴 폴더 이름';
+  await page.setViewportSize({ width: 1400, height: 900 });
+  const errs = await boot(page, d);
+  await page.click('#view-toggle label[title="목록으로 보기"]');
+  await expect(page.locator('#gallery-col')).toHaveClass(/is-list-mode/);
+  const m = await page.$eval('.ft-cell:has([data-folder-key="fold_b"])', (c) => {
+    const n = c.querySelector('.ft-name');
+    const tiles = document.getElementById('folder-tiles');
+    return {
+      cut: n.scrollWidth > n.clientWidth + 1,
+      tileW: Math.round(c.getBoundingClientRect().width),
+      rowW: tiles.clientWidth,
+      addW: Math.round(document.getElementById('ft-add-folder').getBoundingClientRect().width),
+      shortW: Math.round(document.querySelector('.ft-cell:has([data-folder-key="fold_c"])').getBoundingClientRect().width),
+    };
+  });
+  expect(m.cut, JSON.stringify(m)).toBe(false);                 // ★긴 이름이 안 잘린다
+  expect(m.tileW, JSON.stringify(m)).toBeGreaterThan(200);      // 고정폭 칸(~185px)을 벗어나 제 폭을 쓴다
+  expect(m.tileW, JSON.stringify(m)).toBeLessThanOrEqual(m.rowW + 1);   // 줄 폭은 안 넘는다
+  expect(m.addW, JSON.stringify(m)).toBeLessThan(200);          // 「+ 새 폴더」는 제 내용만큼만(줄 통째로 차지 금지)
+  expect(m.shortW, JSON.stringify(m)).toBeLessThan(m.tileW);    // 짧은 이름 타일은 그만큼만
+  // 창이 좁아지면 이름만 말줄임되고 타일은 줄 폭 안에 머문다
+  await page.setViewportSize({ width: 520, height: 900 });
+  await page.waitForTimeout(120);
+  const narrow = await page.$eval('.ft-cell:has([data-folder-key="fold_b"])', (c) => {
+    const tiles = document.getElementById('folder-tiles');
+    return { tileW: Math.round(c.getBoundingClientRect().width), rowW: tiles.clientWidth };
+  });
+  expect(narrow.tileW, JSON.stringify(narrow)).toBeLessThanOrEqual(narrow.rowW + 1);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
