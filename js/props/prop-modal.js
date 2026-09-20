@@ -628,6 +628,12 @@ export function showModalIconProperties(block) {
   obs = new MutationObserver(() => {
     if (!document.contains(slot)) { finish(false); return; }
     _syncIconSlotToModal(block, slot);
+    /* ★아이콘 크기가 여기서 바뀌면 «글자 쪽 오프셋»도 같이 따라가야 한다 (2026-09-20).
+         이 패널은 16~512 까지 간다 — 모달 자기 패널(12~96)보다 훨씬 크게 갈 수 있어서,
+         안 따라가면 아이콘과 첫 줄 중앙이 다시 어긋난다(실측 128→16px · 512→208px).
+       ⛔여기서 renderModalBlock 을 부르지 마라 — 슬롯이 DOM 에서 사라져 세션이 끊긴다
+         (바로 위 감시자 ⓑ). 위 color 되살리기와 «같은 이유·같은 자리»다. */
+    window.syncModalIconFirstLineOffset?.(block);
     window.scheduleAutoSave?.();
   });
   obs.observe(slot, { attributes: true, childList: true, subtree: true });

@@ -143,8 +143,19 @@ const _MDL_JUSTIFY_H = { left: 'flex-start', center: 'center', right: 'flex-end'
 function _alignStyles(variant, align, vAlign, hMode) {
   const jv = _MDL_JUSTIFY_V[vAlign] || _MDL_JUSTIFY_V.top;
   if (variant === 'icon') {
-    // 가로 배치 — 세로는 align-items, 수평은 justify-content
-    return `display:flex;flex-direction:row;align-items:${jv};justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:11px;`;
+    /* ★2026-09-20 (0920b-scratch-modal) — 「아이콘+텍스트 프리셋이 서로 중앙이 안 맞는다」
+       전에는 여기서 flex-direction:row 로 «루트»를 가로로 눕혔다. 그러면 한 속성(vAlign)이
+       두 가지 뜻을 떠맡는다:
+         · 세로쌓기 변형에서는 justify-content = 「내용 덩어리를 상자 안에서 위/중앙/아래」
+         · icon 에서는 주축이 가로라 justify-content 가 «수평»을 먹고, vAlign 이 남은
+           align-items(교차축)로 밀려났다. 교차축은 「상자 안 위치」가 아니라 «아이콘과 글자가
+           서로 어떻게 맞느냐»다 ⇒ 기본값 top(flex-start)에서 24px 아이콘과 61.2px 줄높이가
+           위쪽 기준으로 붙어 중심이 18.59px 어긋났다(실측).
+       ⇒ 루트는 다른 변형과 «같은 세로쌓기»로 되돌리고, 가로 배치는 renderModalBlock 이
+         .mdl-iconrow 래퍼에서 맡는다. 이제 vAlign 은 「상자 안 세로 위치」 한 가지 뜻만 갖는다.
+       ⛔여기에 align-items:center 만 쓰는 «1토큰 수정»으로 때우지 마라 — 한 줄은 맞지만
+         다섯 줄 텍스트에서 아이콘이 문단 «한가운데»로 내려간다(실측 170.97px). */
+    return `display:flex;flex-direction:column;align-items:stretch;justify-content:${jv};`;
   }
   if (variant === 'icon-stack') {
     /* ⛔icon-stack 의 하드코딩 center(align-items·text-align)는 «그대로 둔다».
@@ -300,22 +311,61 @@ function _num(block, key, def) {
    ⛔두 분기에 각각 적으면 한쪽만 고쳐진다(이 파일이 이미 그 병으로 주석을 달아 뒀다).
    ⚠️cursor:pointer 는 ⑵의 «버튼처럼» 때문이다 — 레이아웃은 한 픽셀도 안 움직인다.
    ⚠️iconRotation 기본값 0 ⇒ 선언을 «아예 안 낸다» ⇒ 이미 만든 모달의 cssText 는 그대로다. */
-function _modalIconAttrs(block, size, extraCss = '') {
+/* ★아이콘과 «첫 줄»의 중심을 맞추는 오프셋 (2026-09-20) — icon 변형 전용.
+   .mdl-iconrow 는 align-items:flex-start 다(여러 줄이어도 아이콘이 문단 한가운데로 안 내려가게).
+   그러면 둘 다 «행 꼭대기»에 붙는다 ⇒ 중심은 각각 iconSize/2 와 줄상자/2 다.
+   ⇒ «작은 쪽»을 그 차이의 절반만큼 내린다. 두 값 중 «하나만» 0 이 아니다(둘 다 클 수 없다).
+
+   ★★2026-09-20 픽스라운드 — 초판은 아이콘 쪽만 내렸다(max(0, …)).
+     그래서 아이콘이 줄상자보다 «크면» 오프셋이 0 으로 깎이고 원 신고 증상이 그대로 돌아왔다:
+     기본 36×1.7 = 61.2px 줄상자에 아이콘 96px(모달 패널 슬라이더 최대) → 17.40px 어긋남,
+     아이콘블럭 패널(16~512)로 128px → 33.40px 어긋남 (둘 다 실앱 9389 실측).
+     ⇒ 반대 방향도 «같은 한 벌»로 낸다 — 아이콘이 크면 «글자»를 내린다.
+   ⚠️줄높이의 출처는 _typoStyles 와 «같은 한 벌»이어야 한다 — 여기서 1.7 을 다시 적으면
+     패널이 줄간격을 바꿀 때 한쪽만 따라간다.
+   ⛔음수 마진으로 «올리지» 마라 — 512px 아이콘이 모달 패딩 위로 삐져나온다. 내리는 쪽만 쓴다. */
+function _mdlLineBox(block) {
+  const fs = _num(block, 'fontSize', MODAL_DEFAULTS.fontSize);
+  const lhRaw = parseFloat(block.dataset.lineHeight);
+  const lh = Number.isFinite(lhRaw) ? lhRaw : MODAL_DEFAULTS.lineHeight;
+  return fs * lh;
+}
+/* ⚠️소수 둘째 자리에서 끊는다 — 36×1.7 같은 곱은 2진 부동소수라 17.400000000000002 가 나온다.
+     그대로 인라인에 박으면 cssText 가 지저분해지고, 저장본 비교(바이트 대조)도 흔들린다.
+     0.01px 는 화면에서 의미가 없다. */
+const _mdlRound = (v) => Math.round(v * 100) / 100;
+/** 아이콘이 «줄상자보다 작을 때» 아이콘을 내리는 양 */
+function _mdlIconFirstLineOffset(block, size) {
+  return _mdlRound(Math.max(0, (_mdlLineBox(block) - size) / 2));
+}
+/** ★반대 갈래 — 아이콘이 «줄상자보다 클 때» 글자를 내리는 양 */
+function _mdlTextFirstLineOffset(block, size) {
+  return _mdlRound(Math.max(0, (size - _mdlLineBox(block)) / 2));
+}
+
+/* @param {string} [variant] — 'icon' 일 때만 첫 줄 오프셋을 얹는다.
+     ⛔icon-stack 은 «안» 얹는다: 세로쌓기라 이미 가운데 정렬이고, 얹으면 기존 icon-stack
+       블록 전부의 생김새가 달라진다(:150-152 의 ⛔와 같은 규약).
+     ★오프셋을 «여기»(공통 머리)에 넣는 이유 = _modalIconHtml 에 return 이 둘(래스터 img ·
+       벡터 svg)이라, 분기에 각각 적으면 한쪽만 고쳐진다. 이 파일이 이미 그 병으로 주석을 달았다. */
+function _modalIconAttrs(block, size, extraCss = '', variant = '') {
   const rot = _num(block, 'iconRotation', MODAL_DEFAULTS.iconRotation);
+  const flo = variant === 'icon' ? _mdlIconFirstLineOffset(block, size) : 0;
   return `class="mdl-icon" data-mdl-icon="1" title="클릭하면 아이콘을 바꿔요"`
        + ` style="width:${size}px;height:${size}px;cursor:pointer;${extraCss}`
+       + (flo > 0 ? `margin-top:${flo}px;` : '')
        + (rot ? `transform:rotate(${rot}deg);` : '')
        + `"`;
 }
 
-function _modalIconHtml(block) {
+function _modalIconHtml(block, variant = '') {
   const size = _num(block, 'iconSize', MODAL_DEFAULTS.iconSize);
   const color = block.dataset.iconColor || MODAL_DEFAULTS.iconColor;
   // 래스터(PNG/JPG): goya-asset:// URL 을 <img> 로. ⛔data-URL 인라인 금지(iconify 규약).
   if (block.dataset.raster === '1') {
     const src = block.dataset.iconSrc || '';
     if (src) {
-      return `<div ${_modalIconAttrs(block, size)}>`
+      return `<div ${_modalIconAttrs(block, size, '', variant)}>`
            + `<img src="${_esc(src)}" width="${size}" height="${size}" `
            + `style="width:${size}px;height:${size}px;object-fit:contain;display:block;pointer-events:none;" `
            + `draggable="false" alt=""></div>`;
@@ -325,7 +375,7 @@ function _modalIconHtml(block) {
   const inner = svg
     ? svg
     : `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
-  return `<div ${_modalIconAttrs(block, size, `color:${_esc(color)};`)}>${inner}</div>`;
+  return `<div ${_modalIconAttrs(block, size, `color:${_esc(color)};`, variant)}>${inner}</div>`;
 }
 
 /* ★⑵ 「캔버스에서 아이콘을 누르면 바로 교체」 (현빈 발주 2026-09-09)
@@ -430,7 +480,25 @@ function renderModalBlock(block) {
     /* ★display/flex-direction/align-items/gap/text-align 은 _alignStyles 가 cssText «안»에서 준다(핸들 단위).
          형광펜은 슬롯 인라인이 아니라 _highlightCss 로 준다(타이포 단위).
        ⇒ 두 단위가 «같은 줄»에서 만난다. 한쪽만 살리면 정렬이 죽거나 형광펜이 죽는다 — 둘 다 살렸다. */
-    html = _modalIconHtml(block) + _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, _highlightCss(block.dataset));
+    /* ★아이콘이 줄상자보다 «크면» 글자 쪽을 내린다(반대 갈래는 _modalIconAttrs 가 아이콘을 내린다).
+         둘 중 하나만 0 이 아니다 — 같은 표(_mdlLineBox)에서 나오므로 두 벌이 될 수 없다.
+       ⚠️icon-stack 은 0 이다(래퍼가 없고 이미 가운데 정렬). */
+    const _tlo = v === 'icon'
+      ? _mdlTextFirstLineOffset(block, _num(block, 'iconSize', MODAL_DEFAULTS.iconSize))
+      : 0;
+    const _inner = _modalIconHtml(block, v)
+                 + _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text,
+                     _highlightCss(block.dataset) + (_tlo > 0 ? `margin-top:${_tlo}px;` : ''));
+    /* ★icon 변형만 «가로 한 줄»을 래퍼로 만든다 (2026-09-20)
+         루트는 _alignStyles 가 세로쌓기로 돌려놨다 ⇒ vAlign 은 「상자 안 세로 위치」,
+         여기 래퍼는 「아이콘과 글자가 서로 어떻게 맞느냐」 — 두 축이 갈라졌다.
+       ⚠️justify-content 를 빼먹지 마라 — 빼면 Text>정렬 버튼(좌/중/우)이 아이콘 행에 안 먹는다.
+         (루트의 text-align 은 글자만 움직이고, 아이콘 포함 «행»은 여기서만 움직인다.)
+       ⛔icon-stack 은 감싸지 않는다 — 세로쌓기라 이미 align-items:center 다. 감싸면
+         기존 icon-stack 전부의 생김새가 달라진다(별도 승인 사안, :150-152). */
+    html = (v === 'icon')
+      ? `<div class="mdl-iconrow" style="display:flex;flex-direction:row;align-items:flex-start;justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:11px;">${_inner}</div>`
+      : _inner;
   } else {
     // plain · dashed
     html = _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, _highlightCss(block.dataset));
@@ -579,8 +647,39 @@ window.applyPickedIconToModal = applyPickedIconToModal;
 window.openModalIconPicker    = openModalIconPicker;
 window.iconBlockNewColor      = iconBlockNewColor;
 
+/* ★세션 중 «그 자리에서» 첫 줄 오프셋 다시 맞추기 (2026-09-20 픽스라운드)
+     아이콘 크기를 바꾸는 문이 «둘»이다:
+       ⑴ 모달 자기 패널(#mdl-isize-…, 12~96) → dataset 을 고치고 renderModalBlock 이 다시 그린다 ✅
+       ⑵ ★아이콘블럭 패널(#icn-size-…, 16~512) → 슬롯의 «인라인 스타일»을 직접 고친다.
+          이때는 재렌더를 «못 한다» — 그 패널이 슬롯 노드 자체를 붙들고 있어서,
+          다시 그리면 슬롯이 DOM 에서 사라지고 세션이 끊긴다(prop-modal.js 의 감시자 ⓑ).
+     ⇒ 그 길에서는 글자 쪽 오프셋이 «옛 크기»로 남아 다시 어긋났다(실앱 9389 실측:
+       96 에서 128 로 올리면 16px, 512 로 올리면 208px). renderModalBlock 을 안 부르고
+       두 마진만 현재 크기로 다시 계산해 바른다.
+   ⚠️같은 값이면 «안 쓴다» — 이 함수는 MutationObserver 안에서 불린다. 같은 값이라도
+     쓰면 속성 변경 기록이 또 나서 감시자가 자기 자신을 깨우는 무한 고리가 된다.
+   ★크기는 «슬롯의 인라인 width»를 먼저 본다 — 세션 중에는 그게 진실이다(dataset 은 그 뒤를 따른다). */
+function syncModalIconFirstLineOffset(block) {
+  if (!block || block.dataset?.variant !== 'icon') return false;
+  const row  = block.querySelector?.('.mdl-iconrow');
+  const icon = row?.querySelector('.mdl-icon');
+  const text = row?.querySelector('.tb-mdl-text');
+  if (!icon || !text) return false;
+  const live = parseFloat(icon.style.width);
+  const size = Number.isFinite(live) && live > 0 ? live : _num(block, 'iconSize', MODAL_DEFAULTS.iconSize);
+  const put = (el, px) => {
+    const want = px > 0 ? `${px}px` : '';
+    if (el.style.marginTop !== want) el.style.marginTop = want;   // ⚠️같으면 안 쓴다(무한 고리 방지)
+  };
+  put(icon, _mdlIconFirstLineOffset(block, size));
+  put(text, _mdlTextFirstLineOffset(block, size));
+  return true;
+}
+window.syncModalIconFirstLineOffset = syncModalIconFirstLineOffset;
+
 export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, applyModalVariant, _effDefault,
          applyPickedIconToModal, openModalIconPicker, iconBlockNewColor,
          MODAL_DEFAULTS, MODAL_VARIANTS, MODAL_VARIANT_IDENTITY, MODAL_PH, MODAL_LIMITS, clampModal,
          setModalSizeMode, _alignStyles, MODAL_VALIGNS,
-         MODAL_DROP_SHADOWS, MODAL_SHADOW_CSS, _dropShadow, _shadowStyles };
+         MODAL_DROP_SHADOWS, MODAL_SHADOW_CSS, _dropShadow, _shadowStyles,
+         syncModalIconFirstLineOffset };
