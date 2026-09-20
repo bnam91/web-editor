@@ -340,6 +340,7 @@ function _onShapeHandleMouseDown(e, block, dir) {
   const startW = ssRect ? Math.round(ssRect.width / scale0) : (parseInt(ss?.style.width || ss?.dataset.width) || 100);
   const startH = ssRect ? Math.round(ssRect.height / scale0) : (parseInt(ss?.style.height || ss?.dataset.height) || 100);
   const _hist = window.beginDragHistory?.('도형 크기');
+  let _moved = false;   // ★아래 onUp 의 «합성 click 삼키기» 판정용 — 진짜로 끌었을 때만 삼킨다
 
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
@@ -349,6 +350,7 @@ function _onShapeHandleMouseDown(e, block, dir) {
     /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
        — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
     _hist?.arm(dx, dy);
+    if (dx || dy) _moved = true;
 
     // frame(ss)만 리사이즈 — block/svg는 CSS 100%로 자동 추종
     let newW = startW, newH = startH;
@@ -369,7 +371,13 @@ function _onShapeHandleMouseDown(e, block, dir) {
 
     if (ss) {
       ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
-      ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
+      /* ★minHeight 도 «세트로» — addShapeBlock(js/block-factory.js:2172)이 심어 둔
+         min-height:100px 가 남아 있으면 H 를 100 아래로 내려도 화면은 100 에 바닥치고
+         style/dataset/패널 H 만 작아진다(«패널 값 ≠ 실제 크기», 최대 40px 거짓).
+         같은 일을 하는 다른 두 자리는 이미 세트로 처리한다 —
+         js/props/prop-shape.js applySize · js/overlay-handles.js _onFrameHandleMouseDown.
+         (2026-09-21 최종통합 QA medium: 「핸들로 높이를 줄일 수 없다」) */
+      ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
     }
     // 우측 패널 슬라이더 동기화
     const wNum = document.getElementById('shape-w-num');
@@ -386,6 +394,22 @@ function _onShapeHandleMouseDown(e, block, dir) {
     /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
        드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
     window.pushHistory?.();
+    /* ★끌고 난 «뒤»의 합성 click 을 삼킨다 (2026-09-21 최종통합 QA medium)
+       .shape-handle 은 블럭의 «자식»이라(아래 _addShapeHandles) press 와 release 의
+       공통 조상이 «섹션»이 된다 ⇒ 브라우저가 섹션에서 click 을 합성하고,
+       js/editor.js 의 sec.addEventListener('click') → selectSectionWithModifier(sec) 가
+       deselectAll 한다. 그래서 «손잡이로 크기를 바꾼 바로 그 순간» 선택이 풀리고 우측
+       패널이 「Section 01」로 돌아가, 방금 바꾼 W/H 를 확인할 수도 이어서 조정할 수도 없었다
+       (mousedown 의 stopPropagation 은 소용없다 — click 은 공통 조상에서 «새로» 난다).
+       ⛔에셋/프레임 손잡이엔 이 증상이 없다 — 그쪽 손잡이는 overlay 레이어에 있어
+         공통 조상이 섹션이 아니다. 여기만 구조가 다르다.
+       꼴은 레포 선례 그대로 — js/blocks/mockup-block.js onUp 의 killClick(capture + 120ms).
+       ⚠️«끈 적이 없으면»(제자리 클릭) 삼키지 않는다 — 손잡이를 그냥 누르는 건 선택 동작이다. */
+    if (_moved) {
+      const killClick = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+      document.addEventListener('click', killClick, true);
+      setTimeout(() => document.removeEventListener('click', killClick, true), 120);
+    }
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
