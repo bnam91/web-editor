@@ -2,6 +2,10 @@ import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { alignBtn } from './_helpers.js';
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
+/* ★폭 하한은 «리터럴로 쓰지 않는다» — asset-width-limits.js 한 자리에서 온다.
+   패널(슬라이더·숫자칸·커밋 clamp)과 모서리 핸들이 «같은 수»를 봐야 갈라지지 않는다.
+   (선례: prop-modal.js 가 MODAL_LIMITS 를, prop-gap.js 가 GAP_MIN/MAX 를 그렇게 쓴다.) */
+import { ASSET_W_MIN } from '../blocks/asset-width-limits.js';
 
 export function applyAssetPadX(ab, padX) {
   const canvasW = 860;
@@ -21,11 +25,16 @@ export function showAssetProperties(ab) {
   const hasImage   = ab.classList.contains('has-image');
   const currentR   = parseInt(ab.style.borderRadius) || 0;
   const currentAlign = ab.dataset.align || 'center';
-  // 너비: inline px → 그대로 / inline % → px 환산 / 없으면 860 (full)
-  const rawW = ab.style.width;
-  const currentW = rawW
-    ? (rawW.endsWith('%') ? Math.round(parseFloat(rawW) * 860 / 100) : parseInt(rawW) || 860)
-    : 860;
+  /* 너비: inline px → 그대로 / inline % → px 환산 / 없거나 calc() → 860 (full)
+     ★함수로 뽑은 이유 = 「빈 칸을 커밋했을 때 되돌릴 값」도 «같은 셈»이어야 한다.
+       두 곳에 따로 적으면 패널이 여는 순간의 값과 되돌리는 값이 갈라진다. */
+  const readW = () => {
+    const raw = ab.style.width;
+    if (!raw) return 860;
+    if (raw.endsWith('%')) return Math.round(parseFloat(raw) * 860 / 100);
+    return parseInt(raw) || 860;
+  };
+  const currentW = readW();
   if (!ab.dataset.align) { ab.dataset.align = 'center'; ab.style.alignSelf = 'center'; }
   const currentSize   = ab.dataset.size    || '100';
   // (가) 설계: effective usePadx — dataset 명시값 우선, 미설정이면 글로벌 디폴트
@@ -126,8 +135,8 @@ export function showAssetProperties(ab) {
       </div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="asset-w-slider" min="100" max="860" step="10" value="${currentW}">
-        <input type="number" class="prop-number" id="asset-w-number" min="100" max="860" value="${currentW}">
+        <input type="range" class="prop-slider" id="asset-w-slider" min="${ASSET_W_MIN}" max="860" step="10" value="${currentW}">
+        <input type="number" class="prop-number" id="asset-w-number" min="${ASSET_W_MIN}" max="860" value="${currentW}">
       </div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
@@ -215,8 +224,22 @@ export function showAssetProperties(ab) {
   wSlider.addEventListener('input', () => { applyW(parseInt(wSlider.value)); });
   wSlider.addEventListener('change', () => { window.pushHistory?.(); });
   wNumber.addEventListener('change', () => {
-    const v = Math.min(860, Math.max(100, parseInt(wNumber.value) || 860));
-    applyW(v); window.pushHistory?.();
+    /* ⚠️★옛 꼴 `Math.max(100, parseInt(v) || 860)` 은 «0 과 빈 칸을 같은 것으로» 봤다.
+         둘 다 falsy 라 폴백 860 으로 떨어져 «꽉참(풀블리드)»이 된다 —
+           · 0 을 넣은 사람은 「가장 작게」를 원했는데 화면은 제일 커졌다
+           · 지우다 만 빈 칸도 마찬가지로 꽉 차 버렸다 (지우는 동안 값이 날아간다)
+         ⇒ 하한 숫자만 60 으로 바꿔서는 이 문이 «안» 닫힌다. 셋을 갈라야 한다.
+       ⑴ 빈 칸·NaN = «값 없음» → 커밋하지 않는다(지금 폭을 칸에 되돌려 놓기만).
+       ⑵ 0 을 포함한 숫자 → 하한 ASSET_W_MIN·상한 860 으로 «막는다».
+       ⚠️높이 칸(hNumber)의 `|| 780` 도 같은 꼴이지만 «높이 축»은 이 카드의 범위가 아니다. */
+    const raw = parseInt(wNumber.value, 10);
+    if (!Number.isFinite(raw)) {
+      const now = readW();
+      wNumber.value = now; wSlider.value = now;
+      return;                                   // ⛔pushHistory 도 안 한다 — «아무 일도 없었다»
+    }
+    applyW(Math.min(860, Math.max(ASSET_W_MIN, raw)));
+    window.pushHistory?.();
   });
 
   const hSlider = document.getElementById('asset-h-slider');
