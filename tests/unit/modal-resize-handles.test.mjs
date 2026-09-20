@@ -58,6 +58,11 @@ const CLAMP_SRC  = CODE.modal.match(/const clampModal = [^\n]+;/)[0];
 const SETMODE_SRC = sliceDecl(CODE.modal, 'function setModalSizeMode(', 'modal-block');
 const RESIZE_SRC = sliceDecl(CODE.handles, 'function _onModalResizeHandleMouseDown(', 'overlay-handles');
 const RADIUS_SRC = sliceDecl(CODE.handles, 'function _onModalRadiusHandleMouseDown(', 'overlay-handles');
+/* ★0920b: 히스토리 적재가 onUp → 「첫 이동 직전」으로 옮겨졌다(js/CLAUDE.md 「히스토리 규약」).
+   그래서 핸들러는 더 이상 pushHistory 를 «직접» 안 부른다 — window.beginDragHistory 를 거친다.
+   ⇒ 스텁이 아니라 «진짜 부품»을 같은 컨텍스트에 얹는다. 그래야 U4 의 calls.history 가
+     여전히 「이 드래그가 되돌려지는가」를 재고, 부품이 죽으면 여기서도 빨강이 된다. */
+const DRAGHIST_SRC = rd('js/drag-history.js');
 
 /* ═══════════════════════════════════════════════════════════════════
    U0 — ★「입력이 살아 있다」. U1~U9 «앞»에 온다.
@@ -158,6 +163,7 @@ function drive(kind, dir, block, moves, opts = {}) {
   });
   vm.runInContext([
     `const _canvasScaleNow = () => ${scale};`,
+    DRAGHIST_SRC,          // → window.beginDragHistory (진짜 부품)
     LIMITS_SRC + ';', CLAMP_SRC, SETMODE_SRC, RESIZE_SRC, RADIUS_SRC,
     'globalThis.__h = { resize: _onModalResizeHandleMouseDown, radius: _onModalRadiusHandleMouseDown };',
   ].join('\n'), ctx);

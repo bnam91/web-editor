@@ -479,8 +479,12 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
 
     imgDiv.style.cursor = 'grabbing';
 
+    const _hist = window.beginDragHistory?.('카드 이미지 위치');
     const onMove = (me) => {
       const scale = block._cvbScale || 1;
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm((me.clientX - startMouseX) / scale, (me.clientY - startMouseY) / scale);
       curX = Math.max(0, Math.min(100, startImgX - (me.clientX - startMouseX) / scale * 0.1));
       curY = Math.max(0, Math.min(100, startImgY - (me.clientY - startMouseY) / scale * 0.1));
       imgDiv.style.backgroundPosition = `${curX}% ${curY}%`;
