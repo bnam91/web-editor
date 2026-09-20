@@ -1570,6 +1570,35 @@ function _viewportCenterInContainerLocal(containerEl) {
   };
 }
 
+/* ★붙여넣은 «오버레이(플로팅)» 사본을 섹션 «안 보이는 자리»에 놓는다 (2026-09-20 QA 반영).
+   ───────────────────────────────────────────────────────────────────────────
+   옛 판은 _viewportCenterInContainerLocal(sec) 값을 그대로 썼다. 그건 «뷰포트 중앙»을
+   섹션-로컬 좌표로 바꾼 값이라, 섹션이 짧고 화면 위쪽에 있으면 섹션 높이를 한참 넘는 y 가
+   나온다 — 사본이 섹션 «밖 빈 공간»에 떨어져 화면에서 못 찾는다(실측: 섹션 clientHeight 383
+   인데 offsetY 1140). 게다가 두 번 연속 ⌘V 가 «같은 좌표»라 사본 둘이 픽셀 단위로 겹쳐
+   「한 장만 붙은 줄」 안다.
+   ⇒ ⑴섹션 상자 안으로 클램프하고 ⑵이미 같은 자리에 오버레이가 있으면 계단식으로 비킨다.
+   ⛔드래그의 «탄성 클램프»(overlay-float.js)와 섞지 마라 — 저건 손맛이고 이건 «사본을
+     사용자가 찾을 수 있는 자리에 둔다»는 다른 규칙이다. 붙인 뒤에 얼마든지 밖으로 끌 수 있다. */
+function _placePastedOverlay(sec, el, nx, ny) {
+  const w = el.offsetWidth || 0, h = el.offsetHeight || 0;
+  const maxX = Math.max(0, (sec.clientWidth  || 0) - w);
+  const maxY = Math.max(0, (sec.clientHeight || 0) - h);
+  let x = Math.min(Math.max(0, Math.round(nx) || 0), maxX);
+  let y = Math.min(Math.max(0, Math.round(ny) || 0), maxY);
+  const STEP = 20;
+  const taken = (cx, cy) => [...sec.children].some(c =>
+    c !== el && c.nodeType === 1 && c.dataset && c.dataset.overlayBlock === 'true'
+    && Math.abs((parseInt(c.dataset.offsetX) || 0) - cx) < 2
+    && Math.abs((parseInt(c.dataset.offsetY) || 0) - cy) < 2);
+  for (let i = 0; i < 20 && taken(x, y); i++) {
+    if (x >= maxX && y >= maxY) break;   // 더 비킬 곳이 없다 — 겹쳐도 어쩔 수 없다
+    x = Math.min(x + STEP, maxX);
+    y = Math.min(y + STEP, maxY);
+  }
+  return { x, y };
+}
+
 // banner-preset 안에서 복사한 자식이라면 같은 banner 안에 복제 —
 // banner가 지금 화면에 보이면 뷰포트 중앙(banner-local)에, 안 보이면 기존처럼 원본 위치 +20px.
 // banner가 더 이상 없으면 null 반환 → 호출부에서 일반 paste 경로로 fallback.
@@ -1787,10 +1816,12 @@ function pasteClipboard() {
       const curX = parseInt(el.style.left) || 0;
       const curY = parseInt(el.style.top) || 0;
       const vp = _viewportCenterInContainerLocal(sec);
-      const nx = vp ? Math.round(vp.x) : curX + 20;
-      const ny = vp ? Math.round(vp.y) : curY + 20;
+      const rawX = vp ? Math.round(vp.x) : curX + 20;
+      const rawY = vp ? Math.round(vp.y) : curY + 20;
       sec.appendChild(el);
       _bindPastedEl(el);
+      // ★자리 계산은 «붙인 뒤» — 사본의 실제 크기와 섹션 상자를 재야 한다(_placePastedOverlay).
+      const { x: nx, y: ny } = _placePastedOverlay(sec, el, rawX, rawY);
       el.style.left = nx + 'px'; el.style.top = ny + 'px';
       el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
       // 복귀정보는 원본 것을 그대로 물려받으면 안 된다(원본 부모에 잘못 꽂힌다) —

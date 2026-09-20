@@ -227,6 +227,32 @@ function exportDesignJSON() {
       [...inner.children].forEach(walk);
     }
 
+    /* ★오버레이(플로팅) 블록 — «섹션 직속»이라 위 순회(section-inner 자식만 돈다)의 «형제»다.
+       ⇒ 방문 대상 자체가 아니라 통째로 드롭됐다(2026-09-20 QA 실측: 오버레이 도형 1 + 오버레이
+         텍스트 1 이 뜬 섹션의 blocks = [gap, row(columns:[]), row(columns:[]), gap]).
+       js/io/export-figma-json.js 가 «같은 뿌리»를 먼저 앓고 고친 자리다(그 파일 「섹션 직속」
+       주석) — 판정도 거기와 같은 꼴로, 이름 나열이 아니라 «구조»로 집는다.
+       ⚠️data-text-frame 조건을 or 로 남기는 것도 그쪽과 같은 이유(옛 저장본 호환).
+       ⚠️좌표 키는 dataset.offsetX/offsetY 다(dataset.x/y 는 스티커 쪽 키 — 다른 것). */
+    [...secEl.children]
+      .filter(c => c !== inner && c.nodeType === 1 && c.classList && (
+        c.dataset?.overlayBlock === 'true'
+        || (c.classList.contains('frame-block') && c.dataset.textFrame === 'true')))
+      .forEach(fc => {
+        // 래퍼면 안쪽 콘텐츠 블록, 아니면(에셋 등) 자기 자신 — 구조로 집는다.
+        const target = fc.classList.contains('frame-block')
+          ? (fc.querySelector('.text-block') || fc.querySelector('.shape-block'))
+          : fc;
+        if (!target) return;
+        const b = serializeBlock(target);
+        if (!b) return;   // 이 스키마가 모르는 타입(도형 등)은 예전처럼 안 싣는다
+        const dx = fc.dataset.offsetX, dy = fc.dataset.offsetY;
+        b.floating = true;
+        b.x = (dx !== undefined && dx !== '') ? (parseFloat(dx) || 0) : (parseFloat(fc.style.left) || 0);
+        b.y = (dy !== undefined && dy !== '') ? (parseFloat(dy) || 0) : (parseFloat(fc.style.top)  || 0);
+        blocks.push(b);
+      });
+
     const result = {
       id:         uid('sec'),
       name:       secEl._name || secEl.dataset.name || `Section ${idx + 1}`,

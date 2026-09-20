@@ -739,7 +739,16 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg) {
 
   el.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
-    if (e.target === closeBtn || e.target === resizeH || e.target === idChip || e.target === sliceBtn) return;
+    /* ★closeBtn 은 «빠졌다» (2026-09-20 QA 반영, T-075 후속).
+       T-075 로 스크래치 하한이 60px 까지 열렸는데, 60px 아이템은 현빈 기본 줌 40% 에서
+       화면상 24×24px 이고 .scratch-close(20×20 을 1/zoom 로 되키운다 = 로컬 50px)가 그 위를
+       거의 다 덮는다. 그 상태에서 이 가드가 mousedown 을 통째로 버려 «아이템 중앙을 잡으면
+       드래그가 아예 안 됐다»(실측: 5×5 격자 25점 중 16점이 closeBtn, 중앙에서 섹션 드롭 2회
+       연속 실패 — 가장자리 2px 띠에서만 됐다). ⇒ ✕ 위에서 눌러도 드래그는 «걸린다».
+       ⛔지우기가 죽지 않게 «짝»으로 고칠 것이 하나 있다(아래 onMove 참고): 드래그가 실제로
+         «움직였을 때만» pointer-events 를 끈다. mousedown 즉시 끄면 제자리 클릭의 mouseup 이
+         아이템 «밑»에 떨어져 closeBtn 의 click 이 아예 안 난다 = ✕ 가 안 먹는다. */
+    if (e.target === resizeH || e.target === idChip || e.target === sliceBtn) return;
     if (_sliceMode === item) { e.preventDefault(); e.stopPropagation(); return; }
 
     e.preventDefault(); e.stopPropagation();
@@ -768,8 +777,10 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg) {
     // 단일 드래그인 경우만 캔버스 변환 모드 활성 (다중은 위치 이동만)
     const isSingleDrag = dragTargets.length === 1;
 
-    // 드래그 중에는 scratch-item이 마우스 아래를 가리지 않도록 pointer-events 차단
-    if (isSingleDrag) dragTargets.forEach(t => { t.el.style.pointerEvents = 'none'; });
+    /* 드래그 중에는 scratch-item이 마우스 아래를 가리지 않도록 pointer-events 차단.
+       ★«실제로 움직인 뒤»에 끈다(onMove 첫 틱) — 여기서 끄면 제자리 클릭의 mouseup 이
+         아이템 밑 요소에 떨어져 ✕(closeBtn)·이미지의 click 이 안 난다. 2026-09-20 QA 반영. */
+    let _peOff = false;
 
     // 시작 시점의 커서 좌표 + 각 타겟의 원점 좌표 기록
     // → Shift 축 고정(Figma/Sketch 표준): 시작점 기준 X/Y 누적 변위가 큰 축으로만 이동
@@ -874,6 +885,8 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg) {
       // 미세 지터(클릭 중 1~2px 떨림)가 '드래그'로 승격되는 것 차단 — 화면좌표 기준 임계값
       if (!hasMoved && Math.hypot(mv.clientX - startClientX, mv.clientY - startClientY) < 3) return;
       hasMoved = true;
+      // ★여기서 끈다 — 아래 히트테스트(드롭 대상 찾기)보다 «먼저»여야 한다.
+      if (isSingleDrag && !_peOff) { _peOff = true; dragTargets.forEach(t => { t.el.style.pointerEvents = 'none'; }); }
       lastClientX = mv.clientX;
       lastClientY = mv.clientY;
       const scale = _getScale();
@@ -1054,7 +1067,7 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg) {
       }
 
       // pointer-events 복원 (commit 후)
-      if (isSingleDrag) dragTargets.forEach(t => { t.el.style.pointerEvents = ''; });
+      if (isSingleDrag && _peOff) dragTargets.forEach(t => { t.el.style.pointerEvents = ''; });
 
       if (committed) {
         try { await window._scratchRemoveById?.(item.id); } catch (_) {}
