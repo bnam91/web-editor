@@ -372,7 +372,16 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
           (실측: 860 밴드 40/40 · 830 밴드 25/25 — tests/dom/scratch-drop-export-width).
           ⇒ 레포 관용구와 «같은 벌»로 적는다 — prop-page.js applyPadXToSection·applyAssetFullBleed,
             block-factory.applyExcludePadX 가 전부 `calc(100% + 2·먹은량)` + 음수마진 세트다.
-          860 화면에서 그려지는 폭은 한 픽셀도 안 바뀐다(100% = 콘텐츠폭 = w − 2·over). */
+          860 화면에서 그려지는 폭은 한 픽셀도 안 바뀐다(100% = 콘텐츠폭 = w − 2·over).
+       ⚠️★이 고침이 «안» 닫은 문이 하나 더 있다 — 신고문의 「40px」은 문이 둘이다 (실앱 재검증).
+          ㉡ 높이는 바로 아래 applyAspectSync 가 «절대 px»로 잠근다. 폭만 780 으로 줄면 상자
+             비율이 그림 비율보다 좁아져 object-fit:cover 가 (표시폭−내보내기폭)/2 = «또 40px»을 깎는다.
+             그래서 내보낸 PNG 픽셀은 이 고침 전·후가 같다(그림 양끝 마커가 둘 다 사라진다).
+          ㉡ 은 스크래치가 만든 게 아니다 — 패널로 만든 보통 풀블리드 에셋(prop-page.applyAssetFullBleed
+             + 높이 px)도 780 에서 똑같이 40 씩 깎인다. 「내보내기는 클론 폭만 바꾼다」의 결과다.
+          ⛔여기서 높이를 상대값(aspect-ratio)으로 바꾸지 마라 — 모든 내보내기의 세로 크기가 바뀐다.
+             「780 에서 그림을 줄일 것인가 자를 것인가」는 현빈 결정 사안이다.
+             기록: tests/dom/scratch-drop-export-width.dom.spec.js X7. */
     block.style.width = over > 0 ? `calc(100% + ${over * 2}px)` : w + 'px';
     block.style.marginLeft  = over > 0 ? (-over) + 'px' : '';
     block.style.marginRight = over > 0 ? (-over) + 'px' : '';
