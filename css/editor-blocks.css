@@ -3337,6 +3337,13 @@ html.tgs-selecting .tgs:focus-within {
   clip-path: none;
 }
 
+/* ★오버레이(js/overlay-float.js, dataset.overlayBlock="true")는 이 명부에 «일부러» 없다.
+   현빈 결정(2026-09-20): 「오버레이는 크기조절로 섹션 폭 밖까지 나가도 된다」(5c6888d) +
+   「섹션 밖으로 나간 부분은 PNG 내보내기에 «안 담는다» — 화면에서만 나가고 PNG 에서는
+   섹션 상자 기준으로 잘리는 지금 동작이 정상」.
+   ⇒ 여기에 오버레이 셀렉터를 넣으면 «캔버스가» 잘려 앞 결정을 되돌리는 것이다. ⛔넣지 마라.
+   이 경계는 tests/unit/export-floating-crop-roster.test.mjs P6 이 지킨다(SEC_CLIP_OVERLAY_EXCLUDED). */
+
 /* ──────────────────────────────────────────────
    Sticker 선택 표시 — 일반 블록과 동일 규칙, 색만 보라색
    (icon-circle/table/graph/card/divider와 일관성)

@@ -2,6 +2,7 @@ import { canvasEl, state } from '../globals.js';
 import { isGoyaAssetUrl as _isGoyaAsset, parseGoyaAssetUrl as _parseGoyaAssetUrl } from './goya-asset-inline.js';
 import { HIDDEN_VARIATION_SECTION_SEL } from '../variation-visibility.js';
 import { textGradShadowDefsMarkup } from '../props/text-block-color.js';
+import { neutralizeRedactForH2C } from './capture-safety.js';
 
 const CANVAS_W = 860;
 
@@ -131,6 +132,22 @@ async function exportHTMLFile() {
   clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
   clone.querySelectorAll('.cell-selected').forEach(el => el.classList.remove('cell-selected')); // #5-b 테이블 셀 선택 마킹 (UI 상태 — export 유출 방지). rowspan/colspan은 HTML 속성이라 그대로 보존.
   clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+
+  /* ★가림막(Redact)을 «설계로» 불투명하게 만든다 (2026-09-21 최종통합 QA medium)
+     이 파일의 <style> 은 앱 CSS 를 «안» 싣는다 — .shape-block/.shape-redact/.shape-svg 규칙이
+     한 줄도 없다(의도된 부분집합이다). 그래서 내보낸 HTML 에서 가림막은
+       ⑴ backdrop-filter 가 사라져 흐림이 없고
+       ⑵ 그런데 `.shape-redact .shape-svg{fill:none !important}` 도 같이 빠져서 SVG 가 원래 색
+          (예: #cccccc)으로 칠해져 «우연히» 원문을 가린다.
+     ⇒ 프라이버시가 «설계»가 아니라 «두 누락의 상쇄»로 지켜지고 있었다 — 도형 색을 흰색/투명으로
+       쓰는 순간 깨지는 자리다. html2canvas 경로와 «같은 안전실패»를 여기서도 건다.
+     ⛔이 호출은 「가림막이 흐리게 나온다」를 만들지 않는다 — 단독 HTML 에서 실시간 블러를
+       재현하려면 앱 CSS 전체를 실어야 하고 그건 별개 결정이다(아래 ⚠️).
+     ⚠️남은 것(이 라운드에서 «안» 고침, 별도 카드감): 이 <style> 에 shape/frame/sticker/zoom/
+       mockup/badge/grid/icon-text/banner/--sec-clip/object-fit 규칙이 없어 도형 상자 크기·위치가
+       캔버스와 다르다(실측 520×70@40,8 → 520×525@32,0). 그건 «CSS 부분집합의 범위»를 어디까지
+       넓힐 것인가 하는 결정이라 여기서 늘리지 않는다. */
+  neutralizeRedactForH2C(clone);
 
   // goya-asset:// 참조를 base64로 재인라인 → 내보낸 HTML이 일반 브라우저에서도 portable
   await inlineGoyaAssets(clone);
