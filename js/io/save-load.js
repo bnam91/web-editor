@@ -1002,6 +1002,25 @@ function rebindAll(opts = {}) {
     }
   });
 
+  /* ★아이콘+텍스트 — 바로 아래 `.text-block` 갈래가 이 블럭을 «못 잡는다».
+     .icon-text-block 은 .text-block 이 아니고, 본문 칸도 `.itb-text`(접두사 itb-)라
+     그 inner 목록에 없다. 스냅샷은 contenteditable 을 «전부» 떼므로
+     (js/io/section-serialize.js «편집 상태 속성 제거») 이 블럭만 되붙임을 못 받고,
+     그 칸을 읽는 쪽이 조용히 포기한다 — js/props/prop-text.js showTextProperties 는
+     `[contenteditable]` 이 없으면 console.warn 뒤 return 한다.
+     실측(2026-09-20 실앱 9505·줌 40%): 아이콘+텍스트를 넣고 ⌘Z 한 번 →
+       .itb-text 의 contenteditable = null, 다시 클릭해도 우측 패널이 «안 열린다»
+       (오버레이를 켠 뒤였다면 토글을 못 찾아 끄지도 못한다).
+     ⚠️placeholder·bullet·blank 보정은 tb-* 전용 규약이라 여기로 «안» 베낀다
+       (.itb-text 는 평문 한 칸이다). 여기서 되살리는 건 편집가능 표식 하나뿐이다.
+     ⚠️이 되붙임을 지우면 tests/unit/icon-text-contenteditable-restore.test.mjs 가 잡는다. */
+  canvasEl.querySelectorAll('.icon-text-block').forEach(itb => {
+    const inner = itb.querySelector(':scope > .itb-text');
+    if (inner && !inner.hasAttribute('contenteditable')) {
+      inner.setAttribute('contenteditable', 'false');
+    }
+  });
+
   canvasEl.querySelectorAll('.text-block').forEach(tb => {
     const inner = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bubble,.tb-bullet,.tb-liner');
     if (!inner) return;

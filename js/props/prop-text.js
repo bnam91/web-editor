@@ -19,7 +19,18 @@ export function showTextProperties(tb) {
   // contenteditable 속성이 없는 경우(저장 후 복원 시 속성 누락) fallback으로 내부 첫 자식 div를 사용
   let contentEl = tb.querySelector('[contenteditable]');
   if (!contentEl) {
-    contentEl = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner');
+    /* ★`.itb-text` 를 «같이» 세는 이유 — 아이콘+텍스트 블럭의 본문 칸은 접두사가 itb- 라
+       이 tb-* 목록에 «없었다». 그런데 복원 스냅샷은 contenteditable 을 «전부» 떼고
+       (js/io/section-serialize.js), 되붙이는 자리는 `.text-block` 만 돈다
+       (js/io/save-load.js rebindAll) ⇒ .icon-text-block 만 두 그물을 다 빠져나가
+       여기서 contentEl=null 로 떨어지고, 아래 console.warn 뒤 조용히 return 한다.
+       증상은 «⌘Z 한 번이면 그 블럭의 우측 패널이 영영 안 열린다»였다 — 오버레이를 켠
+       상태였다면 토글조차 못 찾아 끌 수도 없다(2026-09-20 실앱 9505·줌 40% 실측:
+       ⌘Z 직후 contenteditable=null · 다시 클릭해도 패널 토글 0개).
+       ⚠️이 fallback 은 «두 번째 방어선»이다. 첫 번째(복원 시 속성 되붙이기)는
+         js/io/save-load.js 쪽에서 같은 날 같이 고쳤다 — 한쪽만 고치면 이 칸을 읽는
+         다른 자리(editor.js·text-effect-transform.js 등)는 그대로 못 본다. */
+    contentEl = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner,.itb-text');
     if (contentEl) contentEl.setAttribute('contenteditable', 'false');
   }
   if (!contentEl) {
