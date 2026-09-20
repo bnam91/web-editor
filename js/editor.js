@@ -2779,8 +2779,13 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
     // 단, 자식 블록이 선택된 경우 자식 블록 삭제로 처리 (프레임은 유지)
     const selSS = document.querySelector('.frame-block.selected');
     if (selSS) {
+      /* ★`.shape-block.selected` 가 빠져 있었다(2026-09-20 QA 실측) — 도형은 자기 래퍼
+         프레임과 «같이» 선택되므로, 도형이 끼면 이 갈래가 먼저 걸려 «그 프레임 줄만» 지우고
+         return 했다. 그래서 「텍스트+도형」 다중선택 ⌫ 가 도형만 지우고 텍스트를 남겼다
+         (히스토리 라벨도 「서브섹션 삭제」). 아래 «도형+일반블록 혼합 일괄 삭제»로 흘려보낸다.
+         ⚠️프레임 «자체»만 고른 경우(자식 미선택)는 그대로 프레임 줄째 삭제다 — 회귀 M3. */
       const ssHasSelectedChild = selSS.querySelector(
-        '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+        '.text-block.selected, .asset-block.selected, .gap-block.selected, .shape-block.selected, ' +
         '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
         '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .qa-block.selected'
       );

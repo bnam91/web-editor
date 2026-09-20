@@ -849,8 +849,11 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
     }
     newW = Math.round(newW); newH = Math.round(newH);
     // 최대폭 복귀 시 ''로 지우면 패딩제외(full-bleed)의 calc()가 사라진다 → 공유 헬퍼로 복원 (08-27)
-    if (newW >= 860) window.applyAssetFullBleed?.(ab);   // 폭+음수마진 «세트»로 (width 단독이면 우측이 잘린다)
-    else ab.style.width = newW + 'px';
+    /* 폭+음수마진 «세트»로 — 양방향 다(prop-page.js applyAssetWidth). width 단독이면
+       최대폭 쪽은 우측이 잘리고, 줄이는 쪽은 풀블리드 음수마진이 남는다(2026-09-20 QA). */
+    if (window.applyAssetWidth) window.applyAssetWidth(ab, newW);
+    else if (newW >= 860) window.applyAssetFullBleed?.(ab);
+    else { ab.style.width = newW + 'px'; ab.style.marginLeft = ''; ab.style.marginRight = ''; }
     ab.style.height = newH + 'px';
     // 우측 패널 슬라이더 동기화
     const wNum = document.getElementById('asset-w-number');

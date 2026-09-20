@@ -236,7 +236,10 @@ export function showAssetProperties(ab) {
       // 패딩제외면 calc()+음수마진 세트 복원, 아니면 제거 (overlay-handles 리사이즈와 동일 규약)
       if (window.applyAssetFullBleed) window.applyAssetFullBleed(ab); else ab.style.width = '';
     } else {
-      ab.style.width = v + 'px';
+      /* ★폭과 마진은 «세트»다 — 단독으로 쓰면 풀블리드의 음수마진(-padX)이 남아 블록이
+         한쪽으로 padX 만큼 밀린다(prop-page.js applyAssetWidth 머리말, 2026-09-20 QA). */
+      if (window.applyAssetWidth) window.applyAssetWidth(ab, v);
+      else { ab.style.width = v + 'px'; ab.style.marginLeft = ''; ab.style.marginRight = ''; }
       ab.style.alignSelf = ab.dataset.align === 'left' ? 'flex-start'
         : ab.dataset.align === 'right' ? 'flex-end' : 'center';
     }

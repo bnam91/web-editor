@@ -99,6 +99,30 @@ function applyAssetFullBleed(ab) {
 }
 window.applyAssetFullBleed = applyAssetFullBleed;
 
+/* ── 헬퍼: 에셋 폭을 «세트 규약대로» 정한다 (2026-09-20, int/0920b QA 반영) ──────────────
+   ⚠️위 applyAssetFullBleed 는 「폭을 «최대»로 되돌릴 때」의 세트만 지켰다. 반대쪽 —
+     «최대 미만으로 줄일 때» — 은 호출부 두 곳이 각자 `style.width = px` «단독»으로 썼고
+     (prop-asset.js 슬라이더/숫자칸 · overlay-handles.js 에셋 리사이즈) 풀블리드가 심어 둔
+     음수마진(-padX)을 «안 걷어냈다». 그래서 풀블리드 에셋을 400px 로 줄이면
+     width=400px + margin -72px 라는 «반쪽 세트»가 DOM·저장본에 굳는다 —
+     실측(줌 40%): align=left 면 좌로 72 로컬px, align=right 면 우로 +72 어긋나고
+     center 만 상쇄돼 0. PNG·Figma·HTML 산출물에 그대로 실린다.
+   ⇒ 「폭과 마진은 언제나 세트」를 «양방향»으로 한 곳에서 지킨다. 호출부는 이 함수만 부른다.
+   ⛔`ab.style.width = v + 'px'` 를 새로 쓰지 마라 — 그게 이 함수가 없앤 결함이다. */
+function applyAssetWidth(ab, px) {
+  if (!ab) return '';
+  const max = 860;
+  if (!(px < max)) return applyAssetFullBleed(ab);   // 최대폭 = 풀블리드 세트(폭+음수마진) 복원
+  ab.style.width = px + 'px';
+  /* 풀블리드가 넣어 둔 음수마진을 «같이» 거둔다. 빈 문자열로 지워 CSS 기본값으로 돌린다
+     (0px 를 «명시»하면 오버레이 이탈의 _unfreezeMargins 가 「우리가 넣은 0px 이 그대로다」로
+      오인해 옛 풀블리드 마진을 되살린다 — js/overlay-float.js 그 함수의 판정과 한 벌이다). */
+  ab.style.marginLeft = '';
+  ab.style.marginRight = '';
+  return ab.style.width;
+}
+window.applyAssetWidth = applyAssetWidth;
+
 /* ── 헬퍼: section-inner 하나에 padX 적용 ── */
 function applyPadXToSection(inner, padX) {
   inner.style.paddingLeft  = padX ? padX + 'px' : '';

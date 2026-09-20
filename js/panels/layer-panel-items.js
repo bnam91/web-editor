@@ -244,6 +244,25 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
         _wrap.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
       }
     }
+    /* ★그라데이션·스티커는 «선택+핸들+패널»을 자기 진입점이 한 벌로 처리한다 — 아래 타입
+       분기에 갈래가 없어 최종 else 의 showAssetProperties 로 떨어지고 있었다(2026-09-20 QA
+       실측: 레이어에서 Gradient 행을 누르면 우측에 «에셋 패널»이 뜨고, 거기 「너비」가 실제로
+       먹어 style.width 와 dataset.gradWidth 가 어긋났다. 그라데이션 전용 UI 에는 이 경로로
+       아예 못 간다). 판정·진입점은 js/history.js _restoreSelection 과 «같은 한 벌»을 쓴다.
+       ⛔여기서 패널 함수를 새로 고르지 마라 — 그 두 타입의 정본은 gradient-select.js·
+         sticker-select.js 다(핸들 부착까지 그 안에서 한다). */
+    if (isGradient && window._selectGradient) {
+      window._selectGradient(block);
+      window.highlightBlock?.(block, item);
+      window.setBlockAnchor?.(block);
+      return;
+    }
+    if (block.classList.contains('sticker-block') && window._selectSticker) {
+      window._selectSticker(block);
+      window.highlightBlock?.(block, item);
+      window.setBlockAnchor?.(block);
+      return;
+    }
     if (isShape) window.showShapeProperties?.(block);
     else if (isText || isIconText) window.showTextProperties(block);
     else if (isGap) window.showGapProperties(block);
