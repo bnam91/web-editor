@@ -86,6 +86,7 @@ function editTextBlock(blockId, opts = {}) {
     // 0918r2 textgrad: 단색 지정 = 글자 그라데이션 해제(안 풀면 그라데이션이 단색을 가린다)
     window.clearTextGradient?.(contentEl);
     contentEl.style.color = opts.color;
+    window.forgetLabelAutoColor?.(contentEl);   // 0920r6 labeltext: MCP/PM 이 정한 색 — 라벨 표식 폐기(타입 전환 때 안 걷어내게)
     applied.color = opts.color;
   }
   if (opts.fontSize !== undefined && opts.fontSize !== null) {

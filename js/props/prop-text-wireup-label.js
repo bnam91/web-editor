@@ -5,6 +5,7 @@
  * - pill 높이 (상하 패딩으로 조절)
  * - 5개 shape preset (pill / box / outline / circle / text)
  */
+import { markLabelAutoColor, forgetLabelAutoColor } from './label-auto-color.js';
 
 export function wireLabelSection({ ctx }) {
   /* 태그 배경색 */
@@ -107,6 +108,7 @@ export function wireLabelSection({ ctx }) {
     window.clearTextGradient?.(ctx.contentEl);   // 0918r2 textgrad: 라벨은 단색만
     ctx.contentEl.style.backgroundColor = '';
     ctx.contentEl.style.color = '';
+    forgetLabelAutoColor(ctx.contentEl);   // 0920r6 labeltext: 색을 걷어냈으니 표식도 폐기(다음 프리셋이 제 색만 표식하게)
     ctx.contentEl.style.border = '';
     ctx.contentEl.style.width  = '';
     ctx.contentEl.style.height = '';
@@ -176,6 +178,7 @@ export function wireLabelSection({ ctx }) {
     ctx.contentEl.style.backgroundColor = 'transparent';
     // textgrad-ok: 바로 위 _resetLabelInline 이 clearTextGradient 를 불렀다
     ctx.contentEl.style.color = '#111111';
+    markLabelAutoColor(ctx.contentEl);   // 0920r6 labeltext: 프리셋이 넣은 색도 «라벨이 넣은 색» — 라벨을 벗어나면 이 색만 걷어낸다
     ctx.contentEl.style.borderRadius = '0';
     ctx.contentEl.style.padding = '0';
     const rSlider2 = document.getElementById('label-radius-slider');

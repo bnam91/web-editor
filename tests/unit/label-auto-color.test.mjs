@@ -70,3 +70,30 @@ test('U6 ★소스 가드: 라벨 전환은 표식을 달고, 라벨을 벗어�
   const after = src.slice(src.indexOf("contentEl.style.backgroundColor = '';"));
   assert.ok(after.includes('dropLabelAutoColor(contentEl)'), '걷어내기가 else 분기 밖에 있다');
 });
+
+/* ── 0920r6 labeltext (T-059): 라벨 «텍스트» 프리셋 색도 같은 표식 규약으로 + 표식 폐기 누락 3자리 ── */
+
+test('U7 ★소스 가드: 라벨 «텍스트» 프리셋은 제 색에 표식을 달고, 프리셋 초기화는 표식을 폐기한다', () => {
+  const src = fs.readFileSync(path.join(REPO, 'js/props/prop-text-wireup-label.js'), 'utf8');
+  // 텍스트 프리셋이 넣는 #111111 «바로 뒤»에 표식이 붙어야 한다(붙는 값이 곧 표식이라 사이에 다른 색 쓰기가 끼면 안 됨)
+  assert.match(src, /style\.color = '#111111';\s*\n\s*markLabelAutoColor\(ctx\.contentEl\)/,
+    '텍스트 프리셋이 넣은 색에 표식을 안 단다 — 라벨을 벗어나도 검은 글자가 남는다');
+  // 공통 초기화(_resetLabelInline)는 색을 비우므로 표식도 함께 폐기해야 다음 프리셋의 색만 표식으로 남는다
+  assert.match(src, /style\.color = '';\s*\n\s*forgetLabelAutoColor\(ctx\.contentEl\)/,
+    '프리셋 초기화가 색만 비우고 옛 표식을 남긴다');
+});
+
+test('U8 ★소스 가드: 글자색을 직접 정하는 3자리가 라벨 표식을 폐기한다(0920r5 QA 지적)', () => {
+  // 세 곳 모두 «단색을 쓰는 경로» — 여기서 표식을 안 버리면 그 색이 «라벨이 넣은 색»으로 오인돼 타입 전환 때 걷힌다.
+  const sites = [
+    ['js/props/prop-section.js',   /contentEl\.style\.color = val;\s*\n\s*forgetLabelAutoColor\(contentEl\)/,        '섹션 일괄 글자색'],
+    ['js/variable-binding.js',     /contentEl\.style\.color = val;\s*\n\s*window\.forgetLabelAutoColor\?\.\(contentEl\)/, '색 변수 바인딩'],
+    ['js/block-edit.js',           /contentEl\.style\.color = opts\.color;\s*\n\s*window\.forgetLabelAutoColor\?\.\(contentEl\)/, 'MCP update_block'],
+  ];
+  for (const [file, re, what] of sites) {
+    assert.match(fs.readFileSync(path.join(REPO, file), 'utf8'), re, `${what}(${file})가 라벨 표식을 안 버린다`);
+  }
+  // 클래식 스크립트 두 곳은 import 를 못 쓴다 → 모듈이 window 로 내보내는지 함께 확인(안 내보내면 위 호출이 영원히 no-op)
+  const mod = fs.readFileSync(path.join(REPO, 'js/props/label-auto-color.js'), 'utf8');
+  assert.match(mod, /window\.forgetLabelAutoColor\s*=\s*forgetLabelAutoColor/, 'window 노출이 없어 클래식 스크립트에서 no-op 이 된다');
+});

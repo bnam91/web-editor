@@ -39,3 +39,12 @@ export function dropLabelAutoColor(el) {
 }
 
 export const LABEL_AUTO_COLOR_DATA_ATTR = 'data-label-auto-color';
+
+/* 0920r6 labeltext: 클래식 스크립트(js/block-edit.js·js/variable-binding.js 는 ES 모듈이 아니다)도
+ *   표식을 폐기할 수 있게 window 로 내보낸다 — text-block-color.js 의 clearTextGradient 와 같은 규약.
+ *   (node 단위 테스트에는 window 가 없다 → 가드) */
+if (typeof window !== 'undefined') {
+  window.markLabelAutoColor = markLabelAutoColor;
+  window.forgetLabelAutoColor = forgetLabelAutoColor;
+  window.dropLabelAutoColor = dropLabelAutoColor;
+}
