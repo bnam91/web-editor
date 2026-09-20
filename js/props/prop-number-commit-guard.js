@@ -91,7 +91,16 @@ document.addEventListener('change', (e) => {
 document.addEventListener('mousedown', (e) => {
   const el = e.target;
   if (!isPn(el) || !el._pnTyping) return;
-  // webkit 인라인 스피너는 우측 끝 — 본문(caret 재배치) 클릭은 타이핑 유지
+  /* ★«스피너가 실제로 있는 칸»에만 태운다 (2026-09-20 통합 라운드에서 닫음).
+       이 휴리스틱은 「webkit 인라인 스피너는 우측 18px」이라는 전제 위에 서 있다.
+       그런데 0920b 에서 .grad-stop-alpha(type="text", width 34px)가 PN_SEL 에 편입되면서
+       그 칸엔 «스피너가 아예 없는데» 우측 18px(칸의 절반 이상)이 스피너로 오판됐다 ⇒
+         캐럿을 옮기려고 오른쪽을 누르면 즉시 커밋 → 리스트 재렌더 → 포커스 BODY →
+         다음 Backspace 가 «블럭»을 지운다(이 라운드 QA medium, 현빈 원문 11번의 후반부와 같은 결).
+       ⛔18 을 더 작은 수로 바꾸는 식으로 고치지 않는다 — 그러면 좁은 number 칸에서 진짜
+         스피너를 놓친다. 전제가 「스피너가 있다」이므로 «그 전제»를 검사한다.
+       (레포 실측: .prop-number 는 214곳 전부 type="number" 라 그쪽 동작은 한 픽셀도 안 바뀐다.) */
+  if (el.type !== 'number') return;
   if ((el.clientWidth - e.offsetX) <= 18) commitTyping(el);
 }, true);
 

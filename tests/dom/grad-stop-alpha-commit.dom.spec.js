@@ -84,6 +84,23 @@ const read = (page) => page.evaluate(() => {
   };
 });
 
+/** ★리스트가 «멈출 때까지» 기다린다 (2026-09-20 통합 라운드에서 넣음).
+ *  커밋(Enter/blur)은 stop 리스트를 innerHTML 로 다시 그린다. 그 재생성이 «한 번 더»,
+ *  그것도 비동기로 도는 창이 있는데, 그 창 안에 다음 키를 넣으면 키가 «갈아끼워지기 직전의
+ *  노드»에 떨어져 조용히 사라진다.
+ *  ⚠️이건 앱의 병이 아니다 — 진단 프로브로 확인했다: Enter 뒤 120ms 만 기다리면 캐럿·값·
+ *    포커스가 «항상» 제자리다(6/6). 기다리지 않으면 같은 입력이 부하에 따라 갈렸다
+ *    (이 파일 단위 실행 8회 중 2회 빨강 / 단독 실행 6/6 초록 — 검사가 부하를 재고 있었다).
+ *  ⇒ 「무엇을 재는 검사인가」를 지키려면 재기 «전»에 화면이 멈춰야 한다
+ *    (text-overlay-resize.dom.spec.js 의 settle() 과 같은 규율). */
+const settleList = (page) => page.waitForFunction(() => {
+  const el = document.querySelectorAll('.grad-stop-alpha')[0];
+  if (window.__stPrev === el) { window.__stN = (window.__stN || 0) + 1; }
+  else { window.__stPrev = el; window.__stN = 0; }
+  return window.__stN >= 3;
+}, null, { timeout: 5000, polling: 'raf' })
+  .then(() => page.evaluate(() => { window.__stPrev = null; window.__stN = 0; }));
+
 const focusField = (page, sel, idx, caret) => page.evaluate(({ sel, idx, caret }) => {
   const el = document.querySelectorAll(sel)[idx];
   el.focus();
@@ -193,6 +210,7 @@ test.describe('grad-stop 입력 커밋 시점 (0920b grad-alpha)', () => {
     await selectAllIn(page, '.grad-stop-alpha', 0);
     await page.keyboard.type('70');
     await page.keyboard.press('Enter');
+    await settleList(page);          // ★커밋 재생성이 «멈춘 뒤»에 잰다 — 아래 Backspace 도 같은 이유
     after = await read(page);
     expect(after.resolved[0].alpha).toBeCloseTo(0.7, 6);
     expect(after.activeCls).toContain('grad-stop-alpha'); // ★1차 구현: BODY(빨강)
@@ -229,6 +247,53 @@ test.describe('grad-stop 입력 커밋 시점 (0920b grad-alpha)', () => {
     expect(after.resolved.length).toBe(2);              // ★1차 구현: 3(빨강 — × 가 안 먹음)
     expect(after.resolved.map(s => s.color)).toEqual(['#ff0000', '#0000ff']);
     expect(after.resolved[0].alpha).toBeCloseTo(0.4, 6);  // 고친 값은 그대로 커밋
+  });
+
+  /* ── J) ★2026-09-20 통합 라운드에서 닫은 자리 (m10 notDone medium) ─────────────
+     증상: 투명도 칸(.grad-stop-alpha)의 «오른쪽 절반»을 눌러 캐럿을 옮기면 즉시 커밋된다.
+       그 커밋이 리스트를 다시 그려 포커스가 BODY 로 날아가고, 다음 Backspace 가 «블럭»을 지운다.
+     뿌리: prop-number-commit-guard 의 「스피너 마우스클릭」 휴리스틱
+       `(el.clientWidth - e.offsetX) <= 18` 은 webkit 인라인 스피너가 우측 끝에 있다는 전제인데,
+       이 칸은 `type="text"`(width 34px)라 «스피너가 아예 없다». 34px 중 18px = 절반이 넘는다.
+     고침: 그 휴리스틱을 «스피너가 실제로 있는» type="number" 칸에만 태운다. */
+  test('J) ★투명도 칸 오른쪽을 눌러 캐럿만 옮겨도 커밋되지 않는다 (스피너 없는 text 칸)', async ({ page }) => {
+    await boot(page);
+    await focusField(page, '.grad-stop-alpha', 0, 3);
+    await page.keyboard.press('Backspace');                 // "100" → "10" (미커밋 타이핑)
+    const hit = await page.evaluate(() => {
+      const el = document.querySelectorAll('.grad-stop-alpha')[0];
+      const r = el.getBoundingClientRect();
+      return { x: r.right - 4, y: r.top + r.height / 2, w: Math.round(el.clientWidth), type: el.type };
+    });
+    expect(hit.type, '전제 — 이 칸은 스피너가 없는 text 다').toBe('text');
+    expect(hit.w, `전제 — 칸이 좁다(${hit.w}px). 18px 휴리스틱이 절반을 먹는다`).toBeLessThan(40);
+    const before = await read(page);
+    await page.mouse.click(hit.x, hit.y);                   // 오른쪽 끝 = 캐럿 이동일 뿐
+    const after = await read(page);
+    expect(after.hist, `클릭만 했는데 히스토리가 ${before.hist} → ${after.hist} 로 늘었다`).toBe(before.hist);
+    expect(after.stops, '클릭만 했는데 모델이 커밋됐다').toBe(before.stops);
+    expect(after.activeCls, `포커스가 ${after.activeCls} 로 날아갔다 — 다음 Backspace 가 블럭을 지운다`)
+      .toContain('grad-stop-alpha');
+  });
+
+  test('J2 가드 — 위치 칸(type=number)의 «진짜 스피너» 선커밋은 그대로다', async ({ page }) => {
+    await boot(page);
+    const t = await page.evaluate(() => document.querySelectorAll('.grad-stop-offset')[0].type);
+    expect(t, '전제 — 위치 칸은 number(스피너 있음)').toBe('number');
+    /* ⚠️type=number 는 setSelectionRange 를 «지원하지 않는다»(InvalidStateError) — 캐럿 인자 없이 잡는다. */
+    await selectAllIn(page, '.grad-stop-offset', 1);
+    await page.keyboard.type('5');
+    const hist0 = (await read(page)).hist;
+    await page.evaluate(() => {
+      const el = document.querySelectorAll('.grad-stop-offset')[1];
+      /* 스피너 자리(우측 끝)를 누른 것처럼 — 가드는 offsetX 로 잰다. */
+      const ev = new MouseEvent('mousedown', { bubbles: true });
+      Object.defineProperty(ev, 'offsetX', { value: el.clientWidth - 3 });
+      el.dispatchEvent(ev);
+    });
+    // 스피너 쪽 mousedown 은 «미커밋 값에서 스텝하지 않도록» 선커밋한다(종전 규약 유지)
+    const after = await read(page);
+    expect(after.hist >= hist0, '스피너 선커밋 규약이 사라졌다').toBe(true);
   });
 
   test('F) 범위/무효 입력 — "abc" 미커밋 · "-5"→0 · "999"→100', async ({ page }) => {

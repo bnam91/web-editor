@@ -84,6 +84,26 @@ test('G1 커밋 가드(PN_SEL)가 grad stop 의 투명도·위치 칸을 «둘 �
   assert.match(m[1], /\.grad-stop-offset\b/, '.grad-stop-offset 이 가드 밖이면 「빈값 → 0」이 재발한다');
 });
 
+test('G1b ★스피너 휴리스틱은 «스피너가 있는 칸»에만 탄다 (2026-09-20 통합 라운드)', () => {
+  /* ★증상: 투명도 칸(.grad-stop-alpha, type="text", width 34px)의 오른쪽을 눌러 캐럿만
+       옮겨도 즉시 커밋 → 리스트 재생성 → 포커스 BODY → 다음 Backspace 가 «블럭»을 지운다.
+     ★뿌리: 「webkit 인라인 스피너는 우측 18px」이라는 전제로 만든 선커밋 휴리스틱이,
+       스피너가 «아예 없는» text 칸에서도 돌았다. 34px 칸에서 18px 은 절반이 넘는다.
+     ⛔18 을 더 작은 수로 바꾸는 식으로 고치지 마라 — 좁은 number 칸에서 진짜 스피너를 놓친다.
+       전제가 「스피너가 있다」이므로 그 «전제»를 검사해야 한다. */
+  const i = GUARD_CODE.indexOf("addEventListener('mousedown'");
+  assert.ok(i > 0, '스피너 선커밋 mousedown 핸들러를 못 찾았다 — 이름이 바뀌었으면 이 검사부터 고쳐라');
+  const body = GUARD_CODE.slice(i, GUARD_CODE.indexOf('}, true);', i));
+  assert.match(body, /el\.type\s*!==\s*'number'/,
+    '★스피너 휴리스틱이 type 을 안 본다 — 스피너 없는 text 칸(.grad-stop-alpha)에서 캐럿 클릭이 커밋된다');
+  const gate = body.indexOf("el.type !== 'number'");
+  const heur = body.indexOf('clientWidth');
+  assert.ok(gate > 0 && heur > gate,
+    '★type 게이트가 18px 휴리스틱 «뒤»에 있다 — 먼저 걸러야 뜻이 산다');
+  // 그리고 «그 휴리스틱 자체»는 살아 있어야 한다(number 칸의 선커밋 규약)
+  assert.match(body, /clientWidth\s*-\s*e\.offsetX/, '★스피너 선커밋 규약이 통째로 사라졌다');
+});
+
 test('G2 «빈값 → 0» 패턴이 prop-gradient 의 커밋 경로에 남아 있지 않다', () => {
   // 옛 코드: offIn.addEventListener('change', () => mutate(s => s.offset = …(+offIn.value||0)/100, true))
   assert.ok(!/\+\s*offIn\.value\s*\|\|\s*0/.test(GRADIENT_CODE),
