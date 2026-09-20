@@ -38,7 +38,14 @@ const SK = read('js/sticker-select.js');
 
 const SHAPE_SRC = sliceBlock(BD, 'function _onShapeHandleMouseDown(');
 const FRAME_SRC = sliceBlock(OH, 'function _onHandleMouseDown(');
-const ROT_SRC   = sliceBlock(OH, 'function _blockRotationDeg(');
+/* ★2026-09-20 통합(int/0920b) — T-052(overlay-extend)가 overlay-handles.js 안의 사본
+   _blockRotationDeg 를 지우고 frame-geometry.js 의 blockRotationDeg «한 벌»로 모았다
+   (overlay-handles.js:82 는 이제 `const _blockRotationDeg = blockRotationDeg;` 별칭뿐이다.
+    그 «한 벌» 규약을 tests/unit/overlay-float-wiring.test.mjs T1-b 가 지킨다).
+   ⇒ 하네스도 SSOT 에서 떠 오고, 이름만 호출부가 쓰는 별칭 이름으로 맞춘다. */
+const FG = read('js/frame-geometry.js');
+const ROT_SRC   = sliceBlock(FG, 'export function blockRotationDeg(')
+  .replace('export function blockRotationDeg(', 'function _blockRotationDeg(');
 const UNROT_SRC = sliceBlock(OH, 'function _unrotateDelta(').replace(/^export /, '');
 /* 스티커 — 이벨류에이터가 「현빈이 제보한 «그» 증상이 그대로 살아 있다」고 짚은 자리.
    코너 핸들은 _addCornerHandles 가 붙이므로 그 사슬을 통째로 떠서 «진짜» 경로로 돌린다. */
