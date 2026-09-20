@@ -30,11 +30,14 @@ const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html' };
 
-/* 현빈 실사용 줌 40% (traps.md — 낮은 줌에서 먼저 재라). */
-const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
+/* 기본은 현빈 실사용 줌 40% (traps.md — 낮은 줌에서 먼저 재라).
+ * ★줌을 인자로 뺀 이유 (2026-09-20 통합 라운드 후속) — 이 카드의 지시가 «40/100/150 에서 0» 이었다.
+ *   _blockedEdges 의 도달거리는 `반굵기 + 1/dpr` 이고 좌표는 _cornerScreen(줌이 곱해진 화면값)이라
+ *   줌마다 «상자 크기 대비 띠 두께»가 달라진다 ⇒ 한 줌에서 0 인 것이 다른 줌의 증거가 못 된다. */
+const HARNESS = (scale = 0.4) => `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="/css/editor-base.css">
-<link rel="stylesheet" href="/css/editor-blocks.css"></head><body style="margin:0">
-<div id="canvas-scaler" style="transform: scale(0.4); transform-origin: 0 0;">
+<link rel="stylesheet" href="/css/editor-blocks.css"></head><body style="margin:0;background:#fff">
+<div id="canvas-scaler" style="transform: scale(${scale}); transform-origin: 0 0;">
   <div id="canvas" style="width:860px">
     <div class="section-block"><div class="section-inner" id="host" style="width:860px;position:relative"></div></div>
   </div>
@@ -46,12 +49,12 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
   window.__ready = true;
 </script></body></html>`;
 
-async function boot(page) {
+async function boot(page, scale = 0.4) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname === '/__harness.html') return route.fulfill({ contentType: 'text/html', body: HARNESS });
+    if (url.pathname === '/__harness.html') return route.fulfill({ contentType: 'text/html', body: HARNESS(scale) });
     const file = path.join(REPO, url.pathname);
     if (!file.startsWith(REPO) || !fs.existsSync(file)) return route.fulfill({ status: 404, body: '' });
     return route.fulfill({ contentType: MIME[path.extname(file)] || 'text/plain', body: fs.readFileSync(file) });
@@ -191,5 +194,84 @@ test.describe('원 선택선과 이웃 블럭', () => {
     expect(intoShape(m, 'bottom'), '맞닿은 변인데 원을 한 점도 안 물었다 — 규약이 바뀌었으면 이 검사부터 고쳐라')
       .toBeGreaterThan(0);
     expect(intoShape(m, 'bottom'), '무는 깊이가 굵기(반굵기+격자)를 넘었다').toBeLessThanOrEqual(m.h + 1 / m.dpr + 0.001);
+  });
+});
+
+/* ═══ 줌 전수 — 「40/100/150 에서 이웃 위 순파랑 0」 (2026-09-20 통합 라운드 지시) ════════
+   ★왜 한 줌으로 안 되나
+     _blockedEdges 가 겹침을 보는 «도달거리»는 반굵기 + 1/dpr 로 «화면 px» 단위인데,
+     상자 좌표는 줌이 곱해진 화면값(_cornerScreen)이다 ⇒ 줌이 커질수록 상자는 커지고 띠는
+     그대로다. 한 줌에서 0 인 것이 다른 줌의 증거가 못 된다 — 그래서 셋을 따로 잰다.
+   ★N6 은 «기하»가 아니라 «픽셀»로 잰다 — N1 이 재는 것은 우리가 계산한 띠 사각형이고,
+     N6 이 재는 것은 크로미움이 실제로 칠한 색이다. 계산이 맞아도 렌더가 새면 N6 이 잡는다. */
+const ZOOMS = [
+  { label: '40%',  scale: 0.4 },
+  { label: '100%', scale: 1.0 },
+  { label: '150%', scale: 1.5 },
+];
+
+test.describe('줌 전수 — 이웃 불가침', () => {
+  for (const z of ZOOMS) {
+    test(`N5-${z.label} ★맞닿은 이웃 상자를 한 점도 안 칠한다 + 이웃 없는 세 변은 원을 안 문다`, async ({ page }) => {
+      const errs = await boot(page, z.scale);
+      await mount(page, { gap: 0 });
+      const m = await measure(page);
+      expect(+(m.nb.t - m.frame.b).toFixed(3), '하네스 전제 — 두 상자가 맞닿아야 한다').toBe(0);
+      expect(intoNeighbor(m), `줌 ${z.label}: 이웃 상자 안을 ${intoNeighbor(m)}px 칠했다`).toBe(0);
+      for (const side of ['top', 'left', 'right']) {
+        expect(intoShape(m, side), `줌 ${z.label}: ${side} 변이 원을 물었다 (㉮ 가 이 줌에서 깨졌다)`).toBe(0);
+      }
+      expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
+    });
+  }
+});
+
+/* dpr 2 = 현빈 맥(레티나). 「device px 0」을 말하려면 device 격자에서 재야 한다. */
+test.describe('줌 전수 — 픽셀로 센 순파랑 (dpr 2)', () => {
+  test.use({ deviceScaleFactor: 2 });
+
+  /** 이웃 상자 만큼 잘라 찍고, 그 안의 «선택 파랑» 픽셀 수를 센다.
+   *  순파랑 = #2d6fe8(--p-blue-600 = --sel-color) 정확 일치.
+   *  파랑계 = 안티앨리어싱으로 흐려진 파랑까지(파랑이 뚜렷이 우세) — 「살짝 걸친 것」도 놓치지 않으려고. */
+  async function blueOverNeighbor(page) {
+    const box = await page.evaluate(() => {
+      const q = window.__nb.getBoundingClientRect();
+      return { x: q.left, y: q.top, width: q.width, height: q.height };
+    });
+    const shot = await page.screenshot({ clip: box });
+    return page.evaluate(async (b64) => {
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/png;base64,' + b64; });
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      let pure = 0, bluish = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const R = d[i], G = d[i + 1], B = d[i + 2];
+        if (R === 45 && G === 111 && B === 232) pure++;
+        else if (B > R + 30 && B > G + 30 && B > 120) bluish++;
+      }
+      return { pure, bluish, w: c.width, h: c.height };
+    }, shot.toString('base64'));
+  }
+
+  for (const z of ZOOMS) {
+    test(`N6-${z.label} ★이웃 상자 위 순파랑 device px = 0`, async ({ page }) => {
+      await boot(page, z.scale);
+      await mount(page, { gap: 0 });
+      const got = await blueOverNeighbor(page);
+      expect(got.w, '잘라 찍은 폭이 device px 여야 한다(dpr 2)').toBeGreaterThan(100 * z.scale * 1.5);
+      expect(got.pure, `줌 ${z.label}: 이웃 상자 위에 순파랑 ${got.pure} device px (${got.w}x${got.h})`).toBe(0);
+      expect(got.bluish, `줌 ${z.label}: 이웃 상자 위에 파랑계 ${got.bluish} device px`).toBe(0);
+    });
+  }
+
+  test('N7 ★음성대조 — 떨어진 이웃(gap 8)은 고치기 «전에도» 0 이었다 (줌 40%)', async ({ page }) => {
+    await boot(page, 0.4);
+    await mount(page, { gap: 8 });
+    const got = await blueOverNeighbor(page);
+    expect(got.pure + got.bluish, '떨어진 이웃 위에 파랑이 있다').toBe(0);
   });
 });
