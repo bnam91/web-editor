@@ -12,6 +12,10 @@
  *   D1 캡처 입구가 막혀 html2canvas 호출이 0회   D2 mouseup·로드후 재캡처도 0회
  *   D3 회색 대신 «블러»로 보인다(computed)        D4 저장 데이터(dataset)는 불변
  *   D5 패널: 모자이크 버튼 disabled, 블러 active  D6 h2c 클론은 여전히 불투명(프라이버시 불변)
+ *   ★픽스 라운드(2026-09-20, 이벨류에이터 지적):
+ *   D7 «패널을 한 번도 안 연» 레거시 블록도 저장 강도(2~20)대로 흐려진다 — JS 인라인 var 없이 CSS 만으로
+ *   D8 강도 슬라이더를 만져도 dataset.shapeRedactMode 가 mosaic 으로 남는다(blur 로 «굳지» 않는다)
+ *   D9 goditor-api 가 mosaic 섞인 배치 요청을 «한 글자도 바꾸기 전»에 DISABLED 로 거절한다
  *
  * ★음성대조 — 같은 잣대로 BASE(dev @20e50e3, 고치기 «전»)도 잰다. BASE 실측 출력:
  *     D1-base  { calls: 1, ok: true }                     ← 캡처가 그대로 돈다
@@ -30,6 +34,9 @@ const path = require('path');
 const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 const BASE_REF = '20e50e3';   // 0920b 하네스 기준 브랜치 = 고치기 «전»
+/* ★픽스 라운드 음성대조 기준 = 이 유닛의 «1라운드» 커밋(이벨류에이터가 잰 HEAD).
+   D7/D8/D9 는 20e50e3 이 아니라 여기에 대고 빨강이어야 «픽스가 무엇을 고쳤는지»가 보인다. */
+const PREFIX_REF = 'a0d80bb';
 const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html' };
 
 /* BASE 측정에서 갈아끼우는 파일 — 이 유닛이 만진 «전부». 나머지는 전부 레포의 진짜 파일이다. */
@@ -206,6 +213,8 @@ const look = (page) => page.evaluate(() => {
     backdrop: cs.backdropFilter || cs.webkitBackdropFilter,
     bg: cs.backgroundColor,
     canvasDisplay: cd,
+    blurVar: cs.getPropertyValue('--redact-blur').trim(),
+    inlineBlurVar: b.style.getPropertyValue('--redact-blur'),   // ★패널을 안 열었으면 «빈 문자열»이다
   };
 });
 
@@ -218,6 +227,68 @@ test('D3 ★body.redact-mosaic-off + backdrop-filter 에 blur( 포함 + 캔버�
   expect(m.bg, '회색 불투명이 아니라 근투명이어야 backdrop-filter 가 보인다').not.toBe('rgb(74, 74, 74)');
   expect(m.canvasDisplay).toBe('none');
   expect(errs).toEqual([]);
+});
+
+/* ══ D7 ★«패널을 한 번도 안 연» 블록도 저장 강도대로 흐려진다 (이벨류에이터 지적 high) ══
+   1라운드는 var(--redact-blur, 8px) 하나였고 인라인 var 는 속성패널이 열릴 때만 채워졌다 ⇒
+   프로젝트를 «열기만» 한 사용자의 강도 19 가림막이 8px 로 약하게 그려졌다.
+   이 하네스는 prop-shape 를 아예 안 싣는다 — 즉 «JS 가 한 줄도 안 채운» 상태다. */
+test('D7 ★인라인 var 0 인데도 저장 강도(12px)로 흐려진다 — CSS 가 data-shape-redact-blur 를 읽는다', async ({ page }) => {
+  const errs = await bootCapture(page);
+  const m = await look(page);
+  console.log('  D7-head:', m);
+  expect(m.inlineBlurVar, '★패널을 안 열었으니 인라인 --redact-blur 는 비어 있어야 한다(전제 확인)').toBe('');
+  expect(m.blurVar).toBe('12px');
+  expect(m.backdrop, `저장 강도 12px 가 아니라 ${m.backdrop} 로 그려진다`).toBe('blur(12px)');
+  expect(errs).toEqual([]);
+});
+
+test('D7-b ★강도 2~20 전 구간이 저장값 그대로 (폴백 8px 로 뭉개지지 않는다)', async ({ page }) => {
+  const errs = await bootCapture(page);
+  const out = await page.evaluate(() => {
+    const host = document.getElementById('sec1');
+    const res = [];
+    for (let n = 2; n <= 20; n++) {
+      const b = document.createElement('div');
+      b.className = 'shape-block shape-redact';
+      b.dataset.shapeType = 'rectangle';
+      b.dataset.shapeRedact = 'true';
+      b.dataset.shapeRedactMode = 'mosaic';
+      b.dataset.shapeRedactBlur = String(n);
+      host.appendChild(b);
+      res.push([n, getComputedStyle(b).backdropFilter]);
+      b.remove();
+    }
+    return res;
+  });
+  const bad = out.filter(([n, f]) => f !== `blur(${n}px)`);
+  console.log('  D7-b:', out.map(([n, f]) => `${n}→${f}`).join(' '));
+  expect(bad, `저장 강도와 다르게 그려진 값: ${JSON.stringify(bad)}`).toEqual([]);
+  expect(errs).toEqual([]);
+});
+
+test('D7-prefix ★음성대조 — 1라운드(a0d80bb)에선 저장 19 가 폴백 8px 로 그려졌다', async ({ page }) => {
+  await page.route(`${ORIGIN}/**`, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/__capture.html') {
+      return route.fulfill({ contentType: 'text/html', body: CAPTURE_HARNESS.replace('data-shape-redact-blur="12"', 'data-shape-redact-blur="19"') });
+    }
+    const rel = url.pathname.slice(1);
+    if (SWAP.includes(rel)) {
+      return route.fulfill({
+        contentType: MIME[path.extname(rel)] || 'text/plain',
+        body: execFileSync('git', ['show', `${PREFIX_REF}:${rel}`], { cwd: REPO, encoding: 'utf8' }),
+      });
+    }
+    const file = path.join(REPO, rel);
+    if (!file.startsWith(REPO) || !fs.existsSync(file)) return route.fulfill({ status: 404, body: '' });
+    return route.fulfill({ contentType: MIME[path.extname(file)] || 'text/plain', body: fs.readFileSync(file) });
+  });
+  await page.goto(`${ORIGIN}/__capture.html`);
+  await page.waitForFunction(() => document.body.classList.contains('redact-mosaic-off'));
+  const got = await page.evaluate(() => getComputedStyle(document.getElementById('shp_1')).backdropFilter);
+  console.log('  D7-prefix:', got);
+  expect(got, '★1라운드에서도 19px 이 나오면 이 검사는 아무것도 안 보고 있다').toBe('blur(8px)');
 });
 
 test('D3-base ★음성대조 — dev @20e50e3 에선 불투명 회색 + backdrop none', async ({ page }) => {
@@ -324,4 +395,125 @@ test('D6 ★capture-safety 의 neutralizeRedactForH2C 가 클론을 불투명 #4
   expect(out.bg, '★클론이 근투명이면 export 경로로 원본이 샌다').toBe('rgb(74, 74, 74)');
   expect(out.backdrop).toBe('none');
   expect(errs).toEqual([]);
+});
+
+/* ══ D8 ★강도 슬라이더가 레거시 mosaic 을 blur 로 «굳히지» 않는다 (이벨류에이터 지적 medium) ══
+   1라운드: 패널이 mosaic 을 blur 로 «읽기만» 하는데 슬라이더 핸들러가 그 읽은 값을 그대로
+   applyRedact 에 넘겨 dataset 을 blur 로 덮어썼다 ⇒ 스위치를 되살려도 그 블록은 이미 blur 라,
+   이 유닛이 내세운 「데이터 보존 = 되돌리기 한 줄」이 평범한 조작 한 번에 깨졌다. */
+const slide = (page, v) => page.evaluate((val) => {
+  const sl = document.getElementById('shape-redact-blur-slider');
+  sl.value = String(val);
+  sl.dispatchEvent(new Event('input', { bubbles: true }));
+  const b = window.__block;
+  document.body.classList.add('redact-mosaic-off'); // 이 하네스엔 redact-mosaic.js 가 없다(D3 가 본체를 잰다)
+  return {
+    mode: b.dataset.shapeRedactMode,
+    blurDs: b.dataset.shapeRedactBlur,
+    inline: b.style.getPropertyValue('--redact-blur'),
+    backdrop: getComputedStyle(b).backdropFilter,
+  };
+}, v);
+
+test('D8 ★슬라이더를 6 으로 내려도 dataset 은 mosaic — 강도만 따라간다', async ({ page }) => {
+  const errs = await bootPanel(page);
+  const out = await slide(page, 6);
+  console.log('  D8-head:', out);
+  expect(out.mode, '★강도만 만졌는데 사용자의 «모자이크» 선택이 blur 로 굳었다').toBe('mosaic');
+  expect(out.blurDs).toBe('6');
+  expect(out.inline).toBe('6px');
+  expect(out.backdrop).toBe('blur(6px)');
+  expect(errs).toEqual([]);
+});
+
+test('D8-prefix ★음성대조 — 1라운드(a0d80bb)에선 슬라이더 한 번에 blur 로 굳었다', async ({ page }) => {
+  await page.route(`${ORIGIN}/**`, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/__panel.html') return route.fulfill({ contentType: 'text/html', body: PANEL_HARNESS });
+    const rel = url.pathname.slice(1);
+    if (SWAP.includes(rel)) {
+      return route.fulfill({
+        contentType: MIME[path.extname(rel)] || 'text/plain',
+        body: execFileSync('git', ['show', `${PREFIX_REF}:${rel}`], { cwd: REPO, encoding: 'utf8' }),
+      });
+    }
+    const file = path.join(REPO, rel);
+    if (!file.startsWith(REPO) || !fs.existsSync(file)) return route.fulfill({ status: 404, body: '' });
+    return route.fulfill({ contentType: MIME[path.extname(file)] || 'text/plain', body: fs.readFileSync(file) });
+  });
+  await page.goto(`${ORIGIN}/__panel.html`);
+  await page.waitForFunction(() => window.__ready === true);
+  await page.evaluate(() => {
+    const b = document.createElement('div');
+    b.className = 'shape-block shape-redact';
+    b.id = 'shp_legacy';
+    b.dataset.shapeType = 'rectangle';
+    b.dataset.shapeRedact = 'true';
+    b.dataset.shapeRedactMode = 'mosaic';
+    b.dataset.shapeRedactBlur = '19';
+    b.style.width = '200px'; b.style.height = '120px';
+    b.innerHTML = '<svg class="shape-svg" width="200" height="120"><rect width="200" height="120"/></svg>';
+    document.getElementById('host').appendChild(b);
+    window.__block = b;
+    window.__open(b);
+  });
+  const out = await slide(page, 6);
+  console.log('  D8-prefix:', out);
+  expect(out.mode, '★1라운드에서도 mosaic 이 남으면 이 검사는 아무것도 안 보고 있다').toBe('blur');
+});
+
+/* ══ D9 ★goditor-api — mosaic 섞인 배치 요청은 «한 글자도 바꾸기 전»에 거절 (지적 low) ══
+   updateShapeBlock 을 _slice-block 으로 잘라 그대로 돌린다(앱·MCP 무접촉). */
+const { sliceBlock } = require('../unit/_slice-block.js');
+const bfSrc = (ref) => (ref ? execFileSync('git', ['show', `${ref}:js/block-factory.js`], { cwd: REPO, encoding: 'utf8' })
+                             : fs.readFileSync(path.join(REPO, 'js/block-factory.js'), 'utf8'));
+const updShapeSrc = (ref) => {
+  const src = bfSrc(ref);
+  return `${sliceBlock(src, 'function _invalidateRedactMosaic(block) {')}\n${sliceBlock(src, 'function updateShapeBlock(blockId, partial = {}) {')}\nwindow.updateShapeBlock = updateShapeBlock;`;
+};
+
+async function bootApi(page, ref) {
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e)));
+  await page.setContent(`<!doctype html><meta charset="utf-8"><body>
+    <div class="frame-block" id="fr1" style="width:300px;height:200px;position:relative;">
+      <div class="shape-block" id="shp_api" data-shape-type="rectangle" data-shape-color="#cccccc"
+           data-shape-redact="true" data-shape-redact-mode="blur" data-shape-redact-blur="8"
+           style="width:100px;height:60px;">
+        <svg class="shape-svg" width="100" height="60"><rect width="100" height="60"/></svg>
+      </div>
+    </div></body>`);
+  await page.addScriptTag({ content: 'window.REDACT_MOSAIC_ENABLED = false;' });
+  await page.addScriptTag({ content: updShapeSrc(ref) });
+  return errs;
+}
+
+const apiProbe = (page) => page.evaluate(() => {
+  const r = window.updateShapeBlock('shp_api', { shapeColor: '#ff0000', shapeRotation: 30, shapeRedactMode: 'mosaic' });
+  const b = document.getElementById('shp_api');
+  return {
+    ok: r.ok, code: r.code,
+    color: b.dataset.shapeColor,
+    rotation: b.dataset.shapeRotation || '',
+    transform: b.style.transform || '',
+    mode: b.dataset.shapeRedactMode,
+  };
+});
+
+test('D9 ★배치 요청이 거절되면 «색·회전도 안 남는다»', async ({ page }) => {
+  const errs = await bootApi(page, null);
+  const out = await apiProbe(page);
+  console.log('  D9-head:', out);
+  expect(out).toEqual({ ok: false, code: 'DISABLED', color: '#cccccc', rotation: '', transform: '', mode: 'blur' });
+  expect(errs).toEqual([]);
+});
+
+test('D9-prefix ★음성대조 — 1라운드(a0d80bb)에선 색·회전이 절반 적용된 채 거절됐다', async ({ page }) => {
+  await bootApi(page, PREFIX_REF);
+  const out = await apiProbe(page);
+  console.log('  D9-prefix:', out);
+  expect(out.ok).toBe(false);
+  expect(out.code).toBe('DISABLED');
+  expect(out.color, '★1라운드에서도 안 남으면 이 검사는 아무것도 안 보고 있다').toBe('#ff0000');
+  expect(out.rotation).toBe('30');
 });

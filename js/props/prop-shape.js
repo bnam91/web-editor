@@ -208,10 +208,20 @@ export function showShapeProperties(block) {
   // 시각효과는 CSS 클래스(.shape-redact)가 fill을 덮어쓰는 방식이라 꺼도 원래 색/그라데이션이
   // 그대로 복원된다(editor-blocks.css 참고).
   // mode: 'blur'(backdrop-filter 실시간) | 'mosaic'(js/effects/redact-mosaic.js 스냅샷 픽셀화)
-  function applyRedact(on, blurPx, mode) {
+  function applyRedact(on, blurPx, mode, opts) {
     // ★모자이크 임시 차단 안전망 — 키보드·외부 호출·재진입으로 이 함수에 'mosaic' 이 들어와도
     //   블러로 내린다(위 버튼의 disabled 만으로는 «우회 경로»가 막히지 않는다).
     if (mode === 'mosaic' && !mosaicOK) mode = 'blur';
+    // ★★차단 중 «모드를 고르지 않는» 조작(강도 슬라이더·숫자칸)은 저장된 mosaic 을 건드리지 않는다.
+    //   (2026-09-20 픽스 라운드, 이벨류에이터 지적 medium) 패널이 mosaic 을 blur 로 «읽기만» 하므로
+    //   슬라이더 핸들러가 그 읽은 값을 도로 넘겨 dataset 을 blur 로 «굳혀» 버렸다 — 스위치를 되살려도
+    //   그 블록은 이미 blur 라, 이 유닛의 「데이터 보존 = 되돌리기 한 줄」이 평범한 조작 한 번에 깨졌다.
+    //   ⇒ 모드를 «실제로 고른» 호출(방식 버튼)만 opts.explicitMode 를 달고 오고, 나머지는 보존한다.
+    //   ⛔가림막을 껐다 켜는 건 보존 대상이 아니다 — 끌 때 dataset.shapeRedactMode 자체가 지워진다.
+    if (!mosaicOK && on && mode === 'blur' && !opts?.explicitMode
+        && block.dataset.shapeRedact === 'true' && block.dataset.shapeRedactMode === 'mosaic') {
+      mode = 'mosaic';
+    }
     // 모드가 «바뀌는» 순간인지(강도 슬라이더처럼 같은 모드 안의 변경과 구분) — 바뀌면 옛 캡처를
     // 다시 쓰면 안 된다(2026-09-19: 모자이크→블러→이동→모자이크 에서 옛 위치 모자이크가 뜨던 버그).
     const wasMosaic = block.dataset.shapeRedact === 'true' && block.dataset.shapeRedactMode === 'mosaic';
@@ -224,7 +234,13 @@ export function showShapeProperties(block) {
       block.dataset.shapeRedactBlur = String(bp);
       const m = mode === 'mosaic' ? 'mosaic' : 'blur';
       block.dataset.shapeRedactMode = m;
-      if (m === 'blur') {
+      if (m === 'mosaic' && !mosaicOK) {
+        // ★차단 중 보존된 레거시 모자이크 — dataset 은 그대로 두고 «보이는 것»만 블러로 따라간다.
+        //   CSS(body.redact-mosaic-off + data-shape-redact-blur)가 이미 저장값을 읽지만,
+        //   인라인도 같이 채워 «열어 본 블록/안 열어 본 블록»의 계산값이 한 글자도 안 갈리게 한다.
+        //   ⛔캡처는 부르지 않는다(입구에서 어차피 false 지만, 헛도는 호출을 남기지 않는다).
+        block.style.setProperty('--redact-blur', `${bp}px`);
+      } else if (m === 'blur') {
         block.style.setProperty('--redact-blur', `${bp}px`);
         if (wasMosaic) _invalidateMosaic();
       } else {
@@ -295,7 +311,7 @@ export function showShapeProperties(block) {
         if (btn.disabled) return; // 비활성 버튼(모자이크 임시 차단) — 브라우저가 이미 막지만 명시한다
         const m = btn.dataset.mode;
         if (m === redactMode) return;
-        applyRedact(true, redactBlurSliderValue(), m);
+        applyRedact(true, redactBlurSliderValue(), m, { explicitMode: true }); // 모드를 «실제로 고른» 호출
         window.pushHistory?.();
         showShapeProperties(block); // 강도 힌트/새로고침 버튼 등 모드별 UI 다시 그림
       });

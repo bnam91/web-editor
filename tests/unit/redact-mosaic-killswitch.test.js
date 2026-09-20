@@ -9,6 +9,9 @@
  *   ⒟ 회색 대신 블러로 보이는 CSS 오버라이드와, 비활성 버튼 표시 CSS 가 실재한다.
  *   ⒠ 게이트 비교가 `=== false` 다 — undefined(플래그 미주입 하네스)는 «켜짐»이어야 기존 DOM 스펙 5개가
  *      수정 0건으로 초록이다.
+ *   ⒡ (픽스 라운드) 레거시 모자이크의 «저장 강도»가 CSS 만으로 살아난다(JS 미실행에서도).
+ *   ⒢ (픽스 라운드) 강도 슬라이더가 dataset 을 blur 로 굳히지 않는다 — 모드는 «고른 호출»만 바꾼다.
+ *   ⒣ (픽스 라운드) goditor-api 의 DISABLED 게이트가 «한 글자도 바꾸기 전»(함수 맨 앞)에 있다.
  *
  * 음성대조(dev @20e50e3): U1~U5 전부 빨강이다 — 그 커밋엔 REDACT_MOSAIC_ENABLED 자체가 없다.
  *   실측 출력: `REDACT_MOSAIC_ENABLED` grep 0건 / `body.redact-mosaic-off` 0건 / `.prop-align-btn:disabled` 0건.
@@ -99,4 +102,55 @@ test('U5 ★게이트 비교는 === false — undefined 는 «켜짐»(기존 DO
 test('U6 ★goditor-api 는 조용히 blur 로 바꾸지 않고 DISABLED 로 거절한다(오류 삼키기 금지)', () => {
   assert.match(FACTORY, /window\.REDACT_MOSAIC_ENABLED === false[\s\S]{0,400}code: 'DISABLED'/,
     "applyShapeProps 가 mosaic 요청을 DISABLED 로 거절하지 않는다 — 호출자는 «걸렸다»고 믿는다");
+});
+
+/* ══ 픽스 라운드(2026-09-20) — 이벨류에이터 지적 3건을 소스에 고정 ══════════════════ */
+
+test('U7 ★레거시 모자이크의 «저장 강도»를 CSS 가 직접 읽는다(JS 미실행에서도) + backdrop 미지원 폴백', () => {
+  // high: 인라인 --redact-blur 는 «패널을 열었을 때만» 채워진다 ⇒ 열지 않은 블록이 폴백 8px 로 약해졌다.
+  //       data-shape-redact-blur(=저장값)로 --redact-blur 를 CSS 가 채워야 JS 없이도 저장 강도가 나온다.
+  const sel = 'body\\.redact-mosaic-off \\.shape-block\\.shape-redact\\[data-shape-redact-mode="mosaic"\\]';
+  const missing = [];
+  for (let n = 2; n <= 20; n++) {
+    const re = new RegExp(`^${sel}\\[data-shape-redact-blur="${n}"\\]\\s*\\{\\s*--redact-blur:\\s*${n}px;\\s*\\}`, 'm');
+    if (!re.test(BLOCKS_CSS)) missing.push(n);
+  }
+  assert.deepEqual(missing, [],
+    `data-shape-redact-blur → --redact-blur 규칙이 빠진 강도: ${missing.join(',')} (clamp 범위 2~20 전부 있어야 한다)`);
+  // clamp 범위가 «두 파일에서» 2~20 인지도 같이 묶는다 — 범위가 바뀌면 위 목록도 바꿔야 한다.
+  assert.match(SHAPE, /Math\.max\(2,\s*Math\.min\(20,/, 'prop-shape 의 강도 clamp 가 2~20 이 아니다 — CSS 목록도 같이 고쳐라');
+  assert.match(FACTORY, /_setInt\('shapeRedactBlur',\s*partial\.shapeRedactBlur,\s*2,\s*20\)/, 'block-factory 의 강도 clamp 가 2~20 이 아니다 — CSS 목록도 같이 고쳐라');
+  // low: backdrop-filter 를 못 쓰면 근투명 배경만 남아 «안 가려짐»이 된다 ⇒ 그 축은 회색으로 되돌린다.
+  assert.match(BLOCKS_CSS, /@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\)/,
+    'backdrop-filter 미지원 폴백(@supports not)이 없다 — 그 렌더러에서 실패 방향이 «위험 쪽»으로 뒤집힌다');
+  const sup = BLOCKS_CSS.slice(BLOCKS_CSS.indexOf('@supports not ((backdrop-filter'));
+  assert.match(sup.slice(0, 400), /background:\s*#4a4a4a/, '@supports not 안에서 불투명 회색으로 되돌리지 않는다');
+});
+
+test('U8 ★강도 슬라이더가 레거시 mosaic 을 blur 로 «굳히지» 않는다 — 모드는 «고른 호출»만 바꾼다', () => {
+  // medium: 패널이 mosaic 을 blur 로 «읽기만» 하는데 슬라이더가 그 읽은 값을 도로 넘겨 dataset 을 굳혔다.
+  assert.match(SHAPE, /function applyRedact\(on, blurPx, mode, opts\)/,
+    'applyRedact 가 «모드를 실제로 골랐는지»를 구분할 인자(opts)를 안 받는다');
+  assert.match(SHAPE, /!mosaicOK && on && mode === 'blur' && !opts\?\.explicitMode[\s\S]{0,240}shapeRedactMode === 'mosaic'[\s\S]{0,80}mode = 'mosaic'/,
+    '차단 중 비-명시 호출에서 저장된 mosaic 을 보존하는 가드가 없다');
+  // 방식 버튼(=모드를 실제로 고른 곳)만 explicitMode 를 단다.
+  assert.match(SHAPE, /applyRedact\(true, redactBlurSliderValue\(\), m, \{ explicitMode: true \}\)/,
+    '방식 버튼 호출에 explicitMode 표시가 없다 — 그러면 모드 전환 자체가 막힌다');
+  const explicitCount = (SHAPE.match(/explicitMode: true/g) || []).length;
+  assert.equal(explicitCount, 1, `explicitMode 를 단 호출이 1개가 아니다(${explicitCount}) — 슬라이더까지 달면 다시 굳는다`);
+});
+
+test('U9 ★goditor-api DISABLED 게이트는 «한 글자도 바꾸기 전»(updateShapeBlock 맨 앞)에 있다', () => {
+  // low: 게이트가 중간에 있으면 {shapeColor, shapeRotation, shapeRedactMode:'mosaic'} 에서
+  //      색·회전만 DOM 에 남은 채 ok:false 가 돌아간다(호출자는 「아무것도 안 됐다」로 읽는다).
+  const fn = FACTORY.slice(FACTORY.indexOf('function updateShapeBlock(blockId, partial = {})'));
+  const gateAt = fn.indexOf("code: 'DISABLED'");
+  assert.ok(gateAt > 0, 'updateShapeBlock 안에 DISABLED 게이트가 없다');
+  const firstWrite = Math.min(...[
+    fn.indexOf('block.dataset.shapeType ='),
+    fn.indexOf('block.dataset.shapeColor ='),
+    fn.indexOf('svg.style.color ='),
+  ].filter((i) => i > 0));
+  assert.ok(gateAt < firstWrite,
+    `DISABLED 게이트(${gateAt})가 첫 DOM 쓰기(${firstWrite})보다 뒤에 있다 — 절반만 적용된 채 거절된다`);
 });

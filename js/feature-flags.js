@@ -97,7 +97,14 @@
  *      각각 막지 않는다 — 문이 하나여야 새 호출처가 생겨도 안 샌다.
  *   ⒞ 문서 mouseup 자동 재캡처 리스너 미등록 · captureMosaicsAfterLoad 즉시 return
  *   ⒟ 이미 «모자이크»로 저장된 블록은 회색(#4a4a4a) 대신 «블러»로 보인다
- *      (css/editor-blocks.css 의 body.redact-mosaic-off 오버라이드)
+ *      (css/editor-blocks.css 의 body.redact-mosaic-off 오버라이드).
+ *      ★강도는 «사용자가 저장한 값»(data-shape-redact-blur, 2~20)을 CSS 가 직접 읽는다 —
+ *        인라인 --redact-blur 는 속성패널을 «열었을 때만» 채워지므로, 열지 않은 블록이
+ *        폴백 8px 로 약하게 그려지던 것을 픽스 라운드에서 고쳤다.
+ *      ★backdrop-filter 를 못 쓰는 렌더러에서는 @supports not 으로 «불투명 회색»을 그대로 남긴다.
+ *   ⒡ 차단 중 «강도 슬라이더»를 만져도 dataset.shapeRedactMode="mosaic" 는 그대로다 —
+ *      모드를 «실제로 고른» 호출(방식 버튼)만 모드를 바꾼다(prop-shape.js opts.explicitMode).
+ *      ⛔가림막 토글을 껐다 켜면 dataset.shapeRedactMode 는 지워진다(끌 때 지워지는 게 원래 동작).
  *   ⒠ goditor-api updateShapeBlock(MCP update_shape_block)의 shapeRedactMode:'mosaic' 요청
  *      = { ok:false, code:'DISABLED' } — 조용히 blur 로 바꿔치지 않는다(「오류 삼키는 코드 = 위 판정 거짓말」).
  *
@@ -125,7 +132,10 @@
  *
  * ⚠️데이터는 아무것도 안 지웠다 — block.dataset.shapeRedactMode="mosaic" 는 그대로 남는다.
  *   되돌리기 = 이 줄 하나를 true 로. 지웠으면 되살릴 때 사용자의 선택이 사라졌을 것이다.
- * ⚠️실패 방향도 안전 쪽 — JS 가 죽어 body.redact-mosaic-off 가 안 붙으면 옛 동작(불투명 회색)
- *   으로 남는다. 원본 노출은 어느 쪽으로도 0.
+ * ⚠️실패 방향 — 두 축 다 안전 쪽이다.
+ *   ⑴ JS 가 죽어 body.redact-mosaic-off 가 안 붙으면 옛 동작(불투명 회색)으로 남는다.
+ *   ⑵ backdrop-filter 를 못 쓰는 렌더러면 @supports not 으로 역시 불투명 회색이 남는다
+ *      (근투명 배경 + 블러만 믿었다면 사실상 «안 가려짐»이 됐을 축 — 픽스 라운드에서 닫았다).
+ *   원본 노출은 어느 쪽으로도 0.
  */
 (function (w) { w.REDACT_MOSAIC_ENABLED = false; })(window);
