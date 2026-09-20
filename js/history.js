@@ -64,6 +64,52 @@ function _captureSelection() {
   } catch (_) { return null; }
 }
 
+/* ★0920b grad-alpha C(픽스 라운드) — «클릭 경로와 같은 한 벌»로 다시 고른다.
+ * ⚠️1차 구현은 일반 타입을 window.selectBlock(js/block-edit.js) 으로 흘렸는데 거기서 «조용히» 둘이 샜다:
+ *   ① getBlockById 가 `!!el.dataset?.type` 를 요구한다 — asset-block·icon-text-block·
+ *      label-group-block 등은 data-type 속성이 «없다»(실측: asset 의 속성 = class,id,data-align,
+ *      data-overlay,style) ⇒ selectBlock 이 false 로 빠져 아무 일도 안 일어났다.
+ *      = 현빈 원문의 「살아났는지 클릭해봐야 안다」가 이미지 블럭에서 그대로 남는다.
+ *   ② selectBlock 의 패널 분기(9종)가 실제 클릭 경로(js/block-drag.js)보다 좁아
+ *      mockup·step·chat·zoom·laurel·vector·canvas·joker·icon-circle·gap 은 showTextProperties 로
+ *      떨어져 «Page» 패널이 뜨거나 console.warn 을 남겼고, modal 은 «Text Block» 을 열었다.
+ * ⇒ 여기서는 클릭 경로의 분기를 그대로 베낀 표를 쓰고, 핸들은 클릭 경로와 «같은 입구»
+ *   window.showHandlesFor(js/overlay-handles.js) 로 붙인다. 표에 없는 타입은 패널을
+ *   «건드리지 않는다» — 엉뚱한 패널을 여는 것보다 안 여는 쪽이 덜 틀린다. */
+const _PANEL_BY_CLASS = [
+  // 순서 = 먼저 맞는 것이 이긴다. .speech-bubble-block/.liner-block 은 .text-block 을 겸하므로
+  // text-block 은 «맨 뒤».  (근거: js/block-drag.js 의 각 타입 click 핸들러)
+  ['shape-block',       (el) => window.showShapeProperties?.(el)],          // block-drag.js:2522
+  ['asset-block',       (el) => window.showAssetProperties?.(el)],          // :1014
+  ['gap-block',         (el) => window.showGapProperties?.(el)],            // :1111
+  ['icon-circle-block', (el) => window.showIconCircleProperties?.(el)],     // :1139
+  ['table-block',       (el) => window.showTableProperties?.(el)],          // :1236
+  ['label-group-block', (el) => window.showLabelGroupProperties?.(el, null)], // :1381 (항목 미지정 = 블럭 전체)
+  ['graph-block',       (el) => window.showGraphProperties?.(el)],          // :1434
+  ['divider-block',     (el) => window.showDividerProperties?.(el)],        // :1812
+  ['bridge-block',      (el) => window.showBridgeProperties?.(el)],         // :1841
+  ['grid-block',        (el) => window.showGridProperties?.(el, null)],     // :1846 (줄 선택 없음)
+  ['qa-block',          (el) => window.showQAProperties?.(el)],             // :1846
+  ['infocard-block',    (el) => window.showInfoCardProperties?.(el)],       // :1846
+  ['innercard-block',   (el) => window.showInnerCardProperties?.(el)],      // :1846
+  ['modal-block',       (el) => window.showModalProperties?.(el)],          // :1846
+  ['joker-block',       (el) => window.showJokerProperties?.(el)],          // :720
+  ['canvas-block',      (el) => ((el.dataset.cardMode === 'simple' && window.showSimpleCardProperties)
+                                  ? window.showSimpleCardProperties(el)
+                                  : window.showCanvasProperties?.(el))],    // :1582~:1585
+  ['banner02-block',    (el) => window.showBanner02Properties?.(el)],       // :1618 (항목 미지정)
+  ['comparison-block',  (el) => window.showComparisonProperties?.(el)],     // :1645
+  ['vector-block',      (el) => window.showVectorProperties?.(el)],         // :1672
+  ['icon-block',        (el) => window.showIconifyProperties?.(el)],        // :1700
+  ['mockup-block',      (el) => window.showMockupProperties?.(el)],         // :2019
+  ['step-block',        (el) => window.showStepProperties?.(el)],           // :1465 (항목 미지정)
+  ['chat-block',        (el) => window.showChatProperties?.(el)],           // :1493
+  ['laurel-block',      (el) => window.showLaurelProperties?.(el)],         // :1521
+  ['zoom-block',        (el) => window.showZoomProperties?.(el)],           // :1549
+  ['icon-text-block',   (el) => window.showTextProperties?.(el)],           // :1732
+  ['text-block',        (el) => window.showTextProperties?.(el)],           // :900 (버블·라이너 포함)
+];
+
 function _restoreSelection(snapSel) {
   try {
     const ids = snapSel && Array.isArray(snapSel.blockIds) ? snapSel.blockIds : null;
@@ -71,13 +117,17 @@ function _restoreSelection(snapSel) {
     const canvas = document.getElementById('canvas');
     const el = document.getElementById(ids[0]);
     if (!el || !canvas || !canvas.contains(el)) return;       // 복원된 캔버스에 실제로 있을 때만
-    /* 타입별 진입점 — 클래스만 붙여서는 부족하다. 그라데이션은 _selectGradient 가
-       .selected + 4모서리 핸들 + showGradientProperties 를 «한 벌»로 처리하고,
-       스티커는 _selectSticker 가 같은 역할을 한다. 그 둘을 «먼저» 둬야 한다 —
-       selectBlock(js/block-edit.js)에는 그라데이션 분기가 없어 showTextProperties 로 떨어진다. */
-    if (el.classList.contains('gradient-block') && window._selectGradient) window._selectGradient(el);
-    else if (el.classList.contains('sticker-block') && window._selectSticker) window._selectSticker(el);
-    else window.selectBlock?.(ids[0]);
+    /* «선택+핸들+패널»을 자기가 한 벌로 처리하는 타입은 그 진입점에 통째로 맡긴다.
+       (그라데이션 4모서리 핸들·스티커 핸들은 showHandlesFor 가 모르는 자기 것이다) */
+    if (el.classList.contains('gradient-block') && window._selectGradient) { window._selectGradient(el); return; }
+    if (el.classList.contains('sticker-block')  && window._selectSticker)  { window._selectSticker(el);  return; }
+    el.classList.add('selected');
+    window.syncSection?.(el.closest('.section-block'));
+    window.highlightBlock?.(el, el._layerItem);
+    window.setBlockAnchor?.(el);
+    const hit = _PANEL_BY_CLASS.find(([cls]) => el.classList.contains(cls));
+    if (hit) hit[1](el);
+    window.showHandlesFor?.(el);   // 모서리 핸들 — 레이어패널/클릭 경로와 «같은» 입구
   } catch (e) { console.warn('[history] 선택 복원 실패:', e); }
 }
 

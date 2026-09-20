@@ -220,7 +220,7 @@ function unnettedReleases(files, flags) {
    ★아래 둘은 검사를 넓히다 «새로 찾은» 것이다 — 이번에 고친 것과 갈라 적는다. */
 const UNNETTED_BACKLOG = {
   'js/collab/sync.js':          [418],
-  'js/history.js':              [161, 290],  // 같은 두 자리(restoreSnapshot·restoreSnapshotScoped 의 rAF 해제). 0920b grad-alpha 로 선택복원 헬퍼가 위에 들어가 줄만 밀렸다(115·243 → 161·290)
+  'js/history.js':              [211, 340],  // 같은 두 자리(restoreSnapshot·restoreSnapshotScoped 의 rAF 해제). 0920b grad-alpha 로 선택복원 헬퍼·패널표가 위에 들어가 줄만 밀렸다(115·243 → 161·290 → 211·340)
   'js/io/lazy-sections.js':     [59],    // ★신규 — `_lazyRenderPass` (플래그 축을 넓혀서 보였다)
   'js/version-history-ui.js':   [407],   // ★신규 — `else setTimeout` 이 안전망이 아님을 알고 보였다
 };

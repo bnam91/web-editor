@@ -45,6 +45,16 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8"><style>body{margi
   window.showTextProperties     = (b) => { window.__panel = 'text:' + b.id; };
   window.showShapeProperties    = (b) => { window.__panel = 'shape:' + b.id; };
   window.showPageProperties     = ()  => { window.__panel = 'page'; };
+  /* ★픽스 라운드 — 실제 «클릭 경로»(js/block-drag.js)가 부르는 패널들. 1차 구현은 일반 타입을
+     window.selectBlock 으로 흘려서 ⑴data-type 없는 타입(asset 등)은 아예 안 골라졌고
+     ⑵패널 분기가 좁아 mockup 등은 showTextProperties 로 떨어졌다. */
+  window.showAssetProperties    = (b) => { window.__panel = 'asset:' + b.id; };
+  window.showMockupProperties   = (b) => { window.__panel = 'mockup:' + b.id; };
+  window.__handles = null;
+  window.showHandlesFor         = (b) => { window.__handles = b.id; };
+  window.syncSection = () => {};
+  window.highlightBlock = () => {};
+  window.setBlockAnchor = () => {};
   window.applyPageSettings = () => {};
   window.buildLayerPanel = () => {};
   window.gdtFontPaintBadge = () => {};
@@ -73,6 +83,10 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8"><style>body{margi
     <div class="gradient-block" id="grad_8ukztd" data-type="gradient" data-grad-width="860" data-grad-height="300" style="position:absolute;left:0;top:0;width:200px;height:100px"></div>
     <div class="text-block" id="tb_1" data-type="text" style="position:absolute;left:0;top:200px"><div class="tb-body">텍스트</div></div>
     <div class="shape-block" id="sh_1" data-type="shape" data-shape-type="ellipse" style="position:absolute;left:0;top:300px;width:80px;height:80px"></div>
+    <!-- ★data-type 을 «일부러» 안 단다 — 실앱의 asset-block 속성은 class,id,data-align,data-overlay,style 뿐이다(실측).
+         1차 구현은 getBlockById(js/block-edit.js:10)가 !!el.dataset.type 를 요구해 여기서 조용히 멈췄다. -->
+    <div class="asset-block" id="ab_1" data-align="center" data-overlay="off" style="position:absolute;left:0;top:400px;width:120px;height:80px"></div>
+    <div class="mockup-block" id="mkp_1" style="position:absolute;left:200px;top:400px;width:120px;height:80px"></div>
   </div>
 </div>
 <script src="/js/block-edit.js"></script>
@@ -112,7 +126,10 @@ const snap = (page) => page.evaluate(() => ({
   gradHandles: document.querySelectorAll('.gradient-corner-handle').length,
   textSel: document.querySelectorAll('.text-block.selected').length,
   shapeSel: document.querySelectorAll('.shape-block.selected').length,
+  assetSel: document.querySelectorAll('.asset-block.selected').length,
+  mockupSel: document.querySelectorAll('.mockup-block.selected').length,
   panel: window.__panel,
+  handles: window.__handles,
   anySel: document.querySelectorAll('#canvas .selected').length,
 }));
 
@@ -152,6 +169,37 @@ test.describe('undo 복원 시 선택 상태 복원 (0920b grad-alpha C)', () =>
     const after = await snap(page);
     expect(after.shapeSel).toBe(1);       // ★dev: 0(빨강)
     expect(after.panel).toBe('shape:sh_1');
+  });
+
+  test('이미지(에셋) 블럭 — data-type 이 «없어도» 복원된다 + 에셋 패널·핸들', async ({ page }) => {
+    const errs = await boot(page);
+    await page.evaluate(() => {
+      const el = document.getElementById('ab_1');
+      el.classList.add('selected');            // 실앱 클릭 경로가 하는 일(선택+패널)
+      window.showAssetProperties(el);
+    });
+    await deleteSelected(page, 'ab_1');
+    await page.evaluate(() => window.undo());
+    const after = await snap(page);
+    expect(await page.evaluate(() => !!document.getElementById('ab_1'))).toBe(true);
+    expect(after.assetSel).toBe(1);            // ★1차 구현: 0(빨강 — selectBlock 이 false 로 빠짐)
+    expect(after.panel).toBe('asset:ab_1');    // ★1차 구현: 'page'(빨강)
+    expect(after.handles).toBe('ab_1');        // 모서리 핸들도 클릭 경로와 같은 입구로
+    expect(errs).toEqual([]);
+  });
+
+  test('목업 블럭 — 복원된 «뒤» 우측 패널이 블럭과 어긋나지 않는다', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => {
+      const el = document.getElementById('mkp_1');
+      el.classList.add('selected');
+      window.showMockupProperties(el);
+    });
+    await deleteSelected(page, 'mkp_1');
+    await page.evaluate(() => window.undo());
+    const after = await snap(page);
+    expect(after.mockupSel).toBe(1);
+    expect(after.panel).toBe('mockup:mkp_1'); // ★1차 구현: 'page'(빨강 — showTextProperties 로 떨어짐)
   });
 
   test('선택이 없던 시점으로의 undo 는 아무것도 고르지 않는다 (회귀 방지)', async ({ page }) => {

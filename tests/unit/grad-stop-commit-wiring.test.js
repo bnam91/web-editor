@@ -139,13 +139,87 @@ test('G8 «캔버스 무변화 + 선택만 바뀜» 갈래가 ensureHistoryCheck
     'else 갈래에서 맨 위 항목의 selection 을 갱신하지 않는다');
 });
 
-test('G9 재선택 디스패치가 그라데이션·스티커를 «먼저» 본다 (selectBlock 은 분기가 없다)', () => {
+test('G9 재선택 디스패치가 그라데이션·스티커를 «먼저» 보고, selectBlock 에 기대지 않는다', () => {
   const gi = RESTORE_SEL_BODY.indexOf('_selectGradient');
   const si = RESTORE_SEL_BODY.indexOf('_selectSticker');
-  const bi = RESTORE_SEL_BODY.indexOf('selectBlock');
-  assert.ok(gi > -1 && si > -1 && bi > -1, '세 진입점이 모두 있어야 한다');
-  assert.ok(gi < bi && si < bi, 'selectBlock 이 앞에 오면 그라데이션이 showTextProperties 로 떨어진다');
+  assert.ok(gi > -1 && si > -1, '«선택+핸들+패널»을 한 벌로 처리하는 두 진입점이 모두 있어야 한다');
+  const pi = RESTORE_SEL_BODY.indexOf('_PANEL_BY_CLASS');
+  assert.ok(pi > -1, '패널 표(_PANEL_BY_CLASS)를 안 쓴다');
+  assert.ok(gi < pi && si < pi, '표가 앞에 오면 그라데이션이 일반 경로로 떨어진다');
+  /* ★window.selectBlock 으로 흘리면 안 된다 — js/block-edit.js 의 getBlockById 가
+     `!!el.dataset.type` 를 요구하는데 asset-block·icon-text-block·label-group-block 은
+     data-type 속성이 «없어»(실측) 아무 일도 안 일어난다. 현빈 원문의 「클릭해봐야 안다」가
+     이미지 블럭에서 그대로 남는다. */
+  assert.ok(!/selectBlock\s*\?*\.?\(/.test(RESTORE_SEL_BODY),
+    '_restoreSelection 이 selectBlock 을 쓰면 data-type 없는 타입에서 조용히 실패한다');
+  assert.match(codeOnly(extractFn(require('fs').readFileSync(path.join(ROOT, 'js', 'block-edit.js'), 'utf8'), 'getBlockById')),
+    /dataset\??\.type/, '전제가 바뀌었다: getBlockById 가 더는 data-type 을 요구하지 않는다면 위 회피는 재검토 대상');
   assert.match(RESTORE_SEL_BODY, /contains\(el\)/, '복원된 캔버스에 그 id 가 실제로 있을 때만 골라야 한다');
+});
+
+test('G9b 패널 표가 «실제 클릭 경로»(block-drag.js)와 같은 함수를 가리킨다', () => {
+  /* 1차 구현의 두 번째 구멍: 복원 뒤 보라 테두리는 보이는데 우측 패널이 Page/Text 로 어긋났다.
+     클릭 경로가 타입마다 다른 show*Properties 를 부르기 때문이다. 표가 그 이름을 그대로
+     가리키는지(=오타·유실이 없는지) 양쪽에서 잰다. */
+  const DRAG_CODE = codeOnly(readSrc('js', 'block-drag.js'));
+  const TABLE = codeOnly(HISTORY_SRC.slice(
+    HISTORY_SRC.indexOf('const _PANEL_BY_CLASS'), HISTORY_SRC.indexOf('function _restoreSelection')));
+  assert.ok(TABLE.length > 400, '_PANEL_BY_CLASS 추출이 깨졌다');
+  const PAIRS = [
+    ['asset-block', 'showAssetProperties'], ['gap-block', 'showGapProperties'],
+    ['icon-circle-block', 'showIconCircleProperties'], ['table-block', 'showTableProperties'],
+    ['label-group-block', 'showLabelGroupProperties'], ['graph-block', 'showGraphProperties'],
+    ['divider-block', 'showDividerProperties'], ['bridge-block', 'showBridgeProperties'],
+    ['grid-block', 'showGridProperties'], ['qa-block', 'showQAProperties'],
+    ['infocard-block', 'showInfoCardProperties'], ['innercard-block', 'showInnerCardProperties'],
+    ['modal-block', 'showModalProperties'], ['joker-block', 'showJokerProperties'],
+    ['canvas-block', 'showCanvasProperties'], ['banner02-block', 'showBanner02Properties'],
+    ['comparison-block', 'showComparisonProperties'], ['vector-block', 'showVectorProperties'],
+    ['icon-block', 'showIconifyProperties'], ['mockup-block', 'showMockupProperties'],
+    ['step-block', 'showStepProperties'], ['chat-block', 'showChatProperties'],
+    ['laurel-block', 'showLaurelProperties'], ['zoom-block', 'showZoomProperties'],
+    ['shape-block', 'showShapeProperties'], ['text-block', 'showTextProperties'],
+    ['icon-text-block', 'showTextProperties'],
+  ];
+  /** 표의 «한 줄»(여러 줄짜리 항목 포함)만 떼어낸다 — 옆 항목으로 새서 거짓 그린이 나지 않게. */
+  const entryOf = (cls) => {
+    const i = TABLE.indexOf("['" + cls + "'");
+    assert.ok(i > -1, `_PANEL_BY_CLASS 에 ${cls} 항목이 없다`);
+    const j = TABLE.indexOf("\n  ['", i + 1);
+    return TABLE.slice(i, j === -1 ? TABLE.length : j);
+  };
+  for (const [cls, fn] of PAIRS) {
+    assert.ok(entryOf(cls).includes(fn), `_PANEL_BY_CLASS 에 ${cls} → ${fn} 배선이 없다 — 복원 뒤 패널이 어긋난다`);
+    assert.ok(DRAG_CODE.includes(fn), `${fn} 이 block-drag.js 의 클릭 경로에 없다 — 표가 실재하지 않는 이름을 가리킨다`);
+  }
+  // .text-block 을 겸하는 타입(버블·라이너)이 있으므로 text-block 은 «맨 뒤»여야 한다
+  const idxText = TABLE.indexOf("['text-block'");
+  for (const [cls] of PAIRS) if (cls !== 'text-block') {
+    assert.ok(TABLE.indexOf("['" + cls + "'") < idxText, `${cls} 가 text-block 보다 뒤에 있다 — 먼저 맞는 것이 이기므로 가려진다`);
+  }
+});
+
+test('G9c 복원이 모서리 핸들도 «클릭 경로와 같은 입구»로 붙인다', () => {
+  assert.match(RESTORE_SEL_BODY, /showHandlesFor/,
+    '핸들을 안 붙이면 복원된 블럭이 «클릭했을 때와 다른» 상태가 된다(모서리 점 0개)');
+});
+
+test('G9d 행 핸들러가 클로저 인덱스를 «그대로» 쓰지 않는다 (정렬 뒤 엉뚱한 stop 덮어쓰기)', () => {
+  /* 가드가 합성 input 으로 먼저 커밋(=정렬)하고 그 뒤 원래 change 가 같은 i 로 한 번 더 쓴다.
+     보정표를 안 거치면 건드리지도 않은 이웃 stop 의 위치가 덮어써진다(조용한 데이터 손상). */
+  assert.ok(!/STOP\(\)\[i\]/.test(GRADIENT_CODE),
+    'STOP()[i] 직접 접근이 남아 있다 — 정렬로 줄 순서가 바뀌면 다른 stop 에 쓴다');
+  assert.ok(!/arr\.splice\(i\s*,/.test(GRADIENT_CODE),
+    'delBtn 이 보정 없이 splice(i) 한다 — 정렬 뒤엔 다른 stop 이 지워진다');
+  assert.match(GRADIENT_CODE, /_modelIdxFor\(i,\s*row\)/, '보정표(_modelIdxFor) 경유가 없다');
+});
+
+test('G9e 누르고 있는 동안 재생성을 유예한다 + Enter 뒤 포커스를 되돌린다', () => {
+  assert.match(GRADIENT_CODE, /_holdRebuild/, '×(stop 삭제) 버튼이 mouseup 전에 재생성으로 사라진다');
+  assert.match(GRADIENT_CODE, /_deferredStops/, '유예한 재생성을 나중에 그리지 않는다');
+  assert.match(GRADIENT_CODE, /alphaIn\.addEventListener\('keydown'/,
+    'Enter 뒤 포커스 되돌리기 배선이 없다 — 가드의 blur 로 BODY 가 되면 다음 Backspace 가 블럭을 지운다');
+  assert.match(GRADIENT_CODE, /offIn\.addEventListener\('keydown'/, '위치 칸도 같은 길이다');
 });
 
 test('G10 ★DOM 스펙의 «세척 스텁» 전제가 원문에 그대로 있다 (스텁이 조용히 낡지 않게)', () => {

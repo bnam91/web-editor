@@ -164,6 +164,73 @@ test.describe('grad-stop 입력 커밋 시점 (0920b grad-alpha)', () => {
     expect(after.offVals[1]).toBe('100');
   });
 
+  /* ── 픽스 라운드(이벨류에이터 지적) 3건 ────────────────────────────────────────────
+     G) Enter 를 친 «뒤» Backspace 가 블럭을 지우던 길 — 가드의 Enter=blur 로 포커스가 BODY 가 되고,
+        그 상태의 Backspace 는 js/editor.js:2645 의 「target 이 INPUT 이면 무시」 가드를 못 넘겨
+        .gradient-block.selected 를 캔버스 삭제 경로로 보낸다(실앱 9382 실측: blockGone true).
+        이 하네스엔 editor.js 가 없으므로 «그 길의 입구»인 activeElement 를 잰다.
+     H) 위치(offset) 칸으로 정렬 순서가 바뀔 때 «엉뚱한 stop» 이 덮어써지던 조용한 손상.
+     I) 값을 고친 «직후» ×(stop 삭제) 버튼 클릭이 먹지 않던 것(커밋이 리스트를 다시 그려 버튼이
+        mouseup 전에 사라짐). */
+  const setThreeStops = (page) => page.evaluate(() => {
+    const b = document.getElementById('grad_8ukztd');
+    b.dataset.gradStops = JSON.stringify([
+      { color: '#ff0000', alpha: 1, offset: 0 },
+      { color: '#00ff00', alpha: 1, offset: 0.5 },
+      { color: '#0000ff', alpha: 1, offset: 1 },
+    ]);
+    window.__boot();
+    window.__hist = 0;
+  });
+
+  test('G) Enter 뒤에도 포커스가 칸에 남는다 — 다음 Backspace 가 캔버스 삭제로 새지 않게', async ({ page }) => {
+    await boot(page);
+    await page.locator('.grad-stop-row[data-idx="0"] .grad-stop-alpha').click();
+    await page.keyboard.press('Enter');                   // 값 변경 없이 Enter (가드: blur)
+    let after = await read(page);
+    expect(after.activeCls).toContain('grad-stop-alpha'); // ★1차 구현: BODY(빨강)
+    // 값을 고친 뒤 Enter(=커밋+리스트 재생성) 도 같아야 한다
+    await selectAllIn(page, '.grad-stop-alpha', 0);
+    await page.keyboard.type('70');
+    await page.keyboard.press('Enter');
+    after = await read(page);
+    expect(after.resolved[0].alpha).toBeCloseTo(0.7, 6);
+    expect(after.activeCls).toContain('grad-stop-alpha'); // ★1차 구현: BODY(빨강)
+    // 이어서 Backspace — 칸 값만 바뀌고 커밋은 안 된다(여전히 타이핑 유예 상태)
+    await page.keyboard.press('Backspace');
+    const bs = await read(page);
+    expect(bs.alphaVals[0]).toBe('7');
+    expect(bs.resolved[0].alpha).toBeCloseTo(0.7, 6);
+  });
+
+  test('H) 위치 칸으로 순서가 바뀌어도 «이웃 stop» 이 덮어써지지 않는다', async ({ page }) => {
+    await boot(page);
+    await setThreeStops(page);
+    // row0 = red(0%) 의 위치를 60 으로 → 정렬되면 green(50%) 보다 뒤로 간다
+    await selectAllIn(page, '.grad-stop-offset', 0);
+    await page.keyboard.type('60');
+    await page.keyboard.press('Enter');
+    const after = await read(page);
+    const byColor = Object.fromEntries(after.resolved.map(s => [s.color, s.offset]));
+    expect(byColor['#00ff00']).toBeCloseTo(0.5, 6);   // ★1차 구현·dev: 0.6 으로 덮어써짐(빨강)
+    expect(byColor['#ff0000']).toBeCloseTo(0.6, 6);
+    expect(byColor['#0000ff']).toBeCloseTo(1, 6);
+    expect(after.hist).toBe(1);
+  });
+
+  test('I) 값을 고친 «직후» ×(stop 삭제) 클릭이 먹는다', async ({ page }) => {
+    await boot(page);
+    await setThreeStops(page);
+    await selectAllIn(page, '.grad-stop-alpha', 0);
+    await page.keyboard.type('40');
+    await page.locator('.grad-stop-row[data-idx="1"] .grad-stop-del').click();
+    await page.waitForTimeout(30);                      // 유예된 재생성 1 task
+    const after = await read(page);
+    expect(after.resolved.length).toBe(2);              // ★1차 구현: 3(빨강 — × 가 안 먹음)
+    expect(after.resolved.map(s => s.color)).toEqual(['#ff0000', '#0000ff']);
+    expect(after.resolved[0].alpha).toBeCloseTo(0.4, 6);  // 고친 값은 그대로 커밋
+  });
+
   test('F) 범위/무효 입력 — "abc" 미커밋 · "-5"→0 · "999"→100', async ({ page }) => {
     await boot(page);
     const type = async (s) => {
