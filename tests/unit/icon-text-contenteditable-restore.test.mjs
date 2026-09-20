@@ -11,6 +11,11 @@
  *   아이콘+텍스트 삽입 → ⌘Z 한 번 → .itb-text 의 contenteditable 이 null 이 되고
  *   그 뒤 블럭을 클릭해도 우측 패널이 «영영» 안 열렸다(#txt-overlay-toggle 0개).
  *   같은 ⌘Z 를 맞은 .tb-h2 · .tb-bubble 은 "false" 를 유지했다 — 문① 이 그 둘만 돌기 때문.
+ *
+ * ⚠️★재현할 땐 ⌘Z 앞에 «편집 한 번»을 끼워라 — 안 끼우면 거짓 음성이 난다
+ *   삽입 «직후» ⌘Z 는 «삽입 자체»를 무른다 ⇒ 블럭이 사라져서 이 병이 «안» 보인다(정상 동작).
+ *   리사이즈 같은 편집 «뒤» ⌘Z 라야 블럭이 살아남은 채 복원 경로를 통과해 병이 드러난다.
+ *   ⇒ "재현 안 됨" 보고를 받으면 «순서»부터 물어라. 자세한 건 위 dom 스펙 머리말.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
