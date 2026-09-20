@@ -197,8 +197,9 @@ function _onFrameRotateMouseDown(e, ss) {
     const _sc = _canvasScaleNow();
     const dx = (ev.clientX - startX) / _sc;
     const dy = (ev.clientY - startY) / _sc;
-    // ★히스토리는 «바꾸기 전»에 1회 — 첫 실제 이동 직전(js/CLAUDE.md 「히스토리 규약」).
-    if (_hist && !_hist.arm(dx, dy)) return;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
     let deg = init + (a - startA);
     deg = window._snapRotate(deg, ev.shiftKey); // Shift = 45° 스냅(공유)
@@ -214,6 +215,9 @@ function _onFrameRotateMouseDown(e, ss) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.('프레임 회전');
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -324,8 +328,9 @@ function _onHandleMouseDown(e, ss, dir) {
     const _rd = _unrotateDelta(ss, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dx = _rd.dx;
     const dy = _rd.dy;
-    // ★히스토리는 «바꾸기 전»에 1회 — 첫 실제 이동 직전(js/CLAUDE.md 「히스토리 규약」).
-    if (_hist && !_hist.arm(dx, dy)) return;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     let newW = startW, newH = startH;
     if (dir.includes('e')) newW = Math.min(maxW, Math.max(60, startW + dx));
     if (dir.includes('w')) newW = Math.min(maxW, Math.max(60, startW - dx));
@@ -368,6 +373,9 @@ function _onHandleMouseDown(e, ss, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -392,8 +400,9 @@ function _onRadiusHandleMouseDown(e, ss, dir) {
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
-    // ★히스토리는 «바꾸기 전»에 1회 — 첫 실제 이동 직전(js/CLAUDE.md 「히스토리 규약」).
-    if (_hist && !_hist.arm(dx, dy)) return;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     // 드래그 거리 → 반경 변화 (대각선 방향 평균)
     const delta = dir === 'nw' ? (dx + dy) / 2
                 : dir === 'ne' ? (-dx + dy) / 2
@@ -412,6 +421,9 @@ function _onRadiusHandleMouseDown(e, ss, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -490,8 +502,9 @@ function _onMockupHandleMouseDown(e, block, dir) {
     // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로) 후 width축(dx) 사용
     const _ud = _unrotateDelta(block, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dx = _ud.dx, dy = _ud.dy;
-    // ★히스토리는 «바꾸기 전»에 1회 — 첫 실제 이동 직전(js/CLAUDE.md 「히스토리 규약」).
-    if (_hist && !_hist.arm(dx, dy)) return;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     let newW = dir.includes('e') ? startW + dx : startW - dx;
     newW = Math.round(Math.min(860, Math.max(100, newW)));
     block.dataset.width = String(newW);
@@ -507,6 +520,9 @@ function _onMockupHandleMouseDown(e, block, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -587,8 +603,9 @@ function _onIconHandleMouseDown(e, block, dir) {
     // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로) 후 판정
     const _ud = _unrotateDelta(block, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dx = _ud.dx, dy = _ud.dy;
-    // ★히스토리는 «바꾸기 전»에 1회 — 첫 실제 이동 직전(js/CLAUDE.md 「히스토리 규약」).
-    if (_hist && !_hist.arm(dx, dy)) return;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     const delta = (Math.abs(dx) > Math.abs(dy) ? dx : dy);
     let newSize = Math.round(Math.min(512, Math.max(16,
       dir === 'nw' || dir === 'sw' ? startSize - delta : startSize + delta
@@ -610,6 +627,9 @@ function _onIconHandleMouseDown(e, block, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -693,8 +713,9 @@ function _onAssetRadiusHandleMouseDown(e, ab, dir) {
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
-    // ★히스토리는 «바꾸기 전»에 1회 — 첫 실제 이동 직전(js/CLAUDE.md 「히스토리 규약」).
-    if (_hist && !_hist.arm(dx, dy)) return;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     const delta = dir === 'nw' ? (dx + dy) / 2
                 : dir === 'ne' ? (-dx + dy) / 2
                 : dir === 'sw' ? (dx - dy) / 2
@@ -711,6 +732,9 @@ function _onAssetRadiusHandleMouseDown(e, ab, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -801,8 +825,9 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
     const _rd = _unrotateDelta(ab, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dx = _rd.dx;
     const dy = _rd.dy;
-    // ★히스토리는 «바꾸기 전»에 1회 — 첫 실제 이동 직전(js/CLAUDE.md 「히스토리 규약」).
-    if (_hist && !_hist.arm(dx, dy)) return;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     let newW = startW, newH = startH;
 
     if (ev.shiftKey) {
@@ -839,6 +864,9 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -936,9 +964,9 @@ function _onModalRadiusHandleMouseDown(e, block, dir) {
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
     if (!moved) {
-      // ★히스토리는 «바꾸기 전»에 1회 — arm 이 임계(1 캔버스px)와 push 를 같이 쥔다.
-      if (_hist && !_hist.arm(dx, dy)) return;
-      if (!_hist && Math.hypot(dx, dy) < 1) return;
+      if (Math.hypot(dx, dy) < 1) return;   // ★기존 임계 — 여기 걸리면 이 틱은 «쓰기»도 안 한다(원래 그랬다)
+      // ★«시작 상태»를 1회 찍는다(끝 상태는 onUp). 임계를 넘은 첫 틱이라 쓰기 직전이 맞다.
+      _hist?.arm(dx, dy);
       moved = true;
     }
     // 모서리에서 «안쪽»으로 끌면 커진다 — 네 모서리의 부호는 에셋 라디우스와 같은 규약
@@ -960,6 +988,9 @@ function _onModalRadiusHandleMouseDown(e, block, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
     if (!moved) return;
     window.renderModalBlock?.(block);   // ★dataset 을 «그림»으로 굳힌다
   }
@@ -1040,10 +1071,9 @@ function _onModalResizeHandleMouseDown(e, block, dir) {
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
     if (!moved) {
-      /* ★히스토리는 «바꾸기 전»에 1회 — 바로 아래 setModalSizeMode 가 이 제스처의 «첫 변형»이다.
-         arm 이 임계(1 캔버스px)와 push 를 같이 쥔다(js/CLAUDE.md 「히스토리 규약」). */
-      if (_hist && !_hist.arm(dx, dy)) return;
-      if (!_hist && Math.hypot(dx, dy) < 1) return;
+      if (Math.hypot(dx, dy) < 1) return;   // ★기존 임계 — 여기 걸리면 이 틱은 «쓰기»도 안 한다(원래 그랬다)
+      /* ★«시작 상태»를 1회 찍는다(끝 상태는 onUp). 바로 아래 setModalSizeMode 가 이 제스처의 «첫 변형»이다. */
+      _hist?.arm(dx, dy);
       moved = true;
       /* ★크기를 «고정»으로 돌리는 것도, 재렌더도 여기 «한 번»뿐이다.
          full → fixed 는 margin-left/right:auto 를 같이 주므로(가운데 정렬) 상자의 기하가
@@ -1081,6 +1111,9 @@ function _onModalResizeHandleMouseDown(e, block, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
     if (!moved) return;
     window.renderModalBlock?.(block);       // ★dataset 을 «그림»으로 굳힌다
     window.showModalProperties?.(block);    // 풀폭/고정 버튼·비활성 상태가 실제와 맞게
@@ -1134,8 +1167,8 @@ function showIconCircleResizeHandle(block) {
       const _ud = _unrotateDelta(block, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
       // 바깥으로 끌면 커진다 — 모서리마다 «바깥»의 부호가 달라 위 표로 뒤집는다.
       const dx = _ud.dx * sx, dy = _ud.dy * sy;
-      // ★히스토리는 «바꾸기 전»에 1회 — 첫 실제 이동 직전(js/CLAUDE.md 「히스토리 규약」).
-      if (_hist && !_hist.arm(dx, dy)) return;
+      /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라. */
+      _hist?.arm(dx, dy);
       const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
       const newSize = Math.min(860, Math.max(40, Math.round(startSize + delta)));
       const circle = block.querySelector('.icb-circle');
@@ -1151,6 +1184,9 @@ function showIconCircleResizeHandle(block) {
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+         드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+      window.pushHistory?.();
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -1281,8 +1317,9 @@ function _onCanvasRadiusHandleMouseDown(e, cb, dir = 'nw') {
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
-    // ★히스토리는 «바꾸기 전»에 1회 — 첫 실제 이동 직전(js/CLAUDE.md 「히스토리 규약」).
-    if (_hist && !_hist.arm(dx, dy)) return;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     /* ★[M39] 현빈 2026-09-05: 「드래그하면 에셋블럭의 모서리 코너핸들과 라디우스 적용되는게
        반대인데 카드블럭을 고쳐줘」 — 정본은 «에셋»이라고 현빈이 지정했다.
        ⑴ 부호가 뒤집혀 있었다: 에셋은 `startRadius + delta`, 카드만 `- delta` 였다.
@@ -1306,6 +1343,9 @@ function _onCanvasRadiusHandleMouseDown(e, cb, dir = 'nw') {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -1398,8 +1438,9 @@ function _onCanvasResizeHandleMouseDown(e, cb, dir) {
     // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로)
     const _ud = _unrotateDelta(cb, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dx = _ud.dx, dy = _ud.dy;
-    // ★히스토리는 «바꾸기 전»에 1회 — 첫 실제 이동 직전(js/CLAUDE.md 「히스토리 규약」).
-    if (_hist && !_hist.arm(dx, dy)) return;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     let newW = startW, newH = startH;
     if (dir.includes('e')) newW = Math.min(maxW, Math.max(100, startW + dx));
     if (dir.includes('w')) newW = Math.min(maxW, Math.max(100, startW - dx));
@@ -1418,6 +1459,9 @@ function _onCanvasResizeHandleMouseDown(e, cb, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -1497,8 +1541,9 @@ function _onVectorResizeHandleMouseDown(e, vb, dir) {
     // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로)
     const _ud = _unrotateDelta(vb, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dx = _ud.dx, dy = _ud.dy;
-    // ★히스토리는 «바꾸기 전»에 1회 — 첫 실제 이동 직전(js/CLAUDE.md 「히스토리 규약」).
-    if (_hist && !_hist.arm(dx, dy)) return;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     let newW = startW, newH = startH;
     if (dir.includes('e')) newW = Math.max(20, startW + dx);
     if (dir.includes('w')) newW = Math.max(20, startW - dx);
@@ -1513,6 +1558,9 @@ function _onVectorResizeHandleMouseDown(e, vb, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -1769,6 +1817,10 @@ function _onGridColMouseDown(e, block, i) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     restoreDrag();
+    /* ★끝 상태도 찍는다 — 시작(mousedown)만 찍으면 «다음»이 push-after 동작일 때 그 사이의
+       표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 안 움직였으면 캔버스가
+       그대로라 history.js 의 무변화 차단이 버린다 = 맨클릭 중복 항목도 같이 사라진다. */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -1809,6 +1861,10 @@ function _onGridRowMouseDown(e, block, i) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     restoreDrag();
+    /* ★끝 상태도 찍는다 — 시작(mousedown)만 찍으면 «다음»이 push-after 동작일 때 그 사이의
+       표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 안 움직였으면 캔버스가
+       그대로라 history.js 의 무변화 차단이 버린다 = 맨클릭 중복 항목도 같이 사라진다. */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -1969,6 +2025,9 @@ function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
     if (moved && lastResult) {
       gridPreviewLine(block, r, c, li, { widthPct: lastResult.widthPct, height: lastResult.height });
       window._grdSyncLineMark?.(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
+      /* ★끝 상태도 찍는다 — 시작만 찍으면 «다음»이 push-after 동작일 때 그 둘 사이의
+         표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 무변화면 history.js 가 버린다. */
+      window.pushHistory?.('그리드 이미지 크기');
       window.scheduleAutoSave?.();
       showGridImageResizeHandle(block);         // 재렌더로 교체된 새 <img> 에 핸들을 다시 붙인다
     }
@@ -2123,7 +2182,9 @@ function _onZoomResizeMouseDown(e, zb, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
-    if (moved) { window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
+    /* ★끝 상태도 찍는다(시작은 onMove 의 첫 틱). 한쪽만 찍으면 이웃 규약에 따라
+       ⌘Z 가 두 동작을 같이 먹거나(before→after) 한 번 먹통이 된다(after→before). */
+    if (moved) { window.pushHistory?.('확대블럭 크기'); window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -2277,7 +2338,9 @@ function _onZoomRadiusMouseDown(e, zb, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
-    if (moved) { window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
+    /* ★끝 상태도 찍는다(시작은 onMove 의 첫 틱). 한쪽만 찍으면 이웃 규약에 따라
+       ⌘Z 가 두 동작을 같이 먹거나(before→after) 한 번 먹통이 된다(after→before). */
+    if (moved) { window.pushHistory?.('확대블럭 모서리'); window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -2413,7 +2476,9 @@ function _onZoomRotateMouseDown(e, zb) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
-    if (moved) { window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
+    /* ★끝 상태도 찍는다(시작은 onMove 의 첫 틱). 한쪽만 찍으면 이웃 규약에 따라
+       ⌘Z 가 두 동작을 같이 먹거나(before→after) 한 번 먹통이 된다(after→before). */
+    if (moved) { window.pushHistory?.('확대블럭 회전'); window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);

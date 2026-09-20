@@ -816,12 +816,15 @@ function enterPosDragMode(ab) {
   ab.appendChild(hint);
 
   let isDragging = false;
+  let _hist = null;
   let startX, startY, startPosX, startPosY;
 
   function onMouseDown(e) {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     isDragging = true;
+    /* ★제스처마다 «새로» 연다 — 하나를 재사용하면 두 번째 드래그가 시작 상태를 안 찍는다. */
+    _hist = window.beginDragHistory?.('이미지 위치 조절');
     startX = e.clientX; startY = e.clientY;
     startPosX = posX;   startPosY = posY;
   }
@@ -832,6 +835,9 @@ function enterPosDragMode(ab) {
     const fh = ab.offsetHeight;
     const dx = (e.clientX - startX) / zs;
     const dy = (e.clientY - startY) / zs;
+    /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+       다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+    _hist?.arm(dx, dy);
     posX = Math.max(0, Math.min(100, startPosX - (dx / fw * 100)));
     posY = Math.max(0, Math.min(100, startPosY - (dy / fh * 100)));
     applyPos();
@@ -907,12 +913,15 @@ function enterBgPosDragMode(el) {
   el.appendChild(hint);
 
   let isDragging = false;
+  let _hist = null;
   let startX, startY, startPosX, startPosY;
 
   function onMouseDown(e) {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     isDragging = true;
+    /* ★제스처마다 «새로» 연다 — 하나를 재사용하면 두 번째 드래그가 시작 상태를 안 찍는다. */
+    _hist = window.beginDragHistory?.('배경 위치 조절');
     startX = e.clientX; startY = e.clientY;
     startPosX = posX;   startPosY = posY;
   }
@@ -923,6 +932,9 @@ function enterBgPosDragMode(el) {
     const fh = el.offsetHeight;
     const dx = (e.clientX - startX) / zs;
     const dy = (e.clientY - startY) / zs;
+    /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+       다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+    _hist?.arm(dx, dy);
     posX = Math.max(0, Math.min(100, startPosX - (dx / fw * 100)));
     posY = Math.max(0, Math.min(100, startPosY - (dy / fh * 100)));
     applyPos();

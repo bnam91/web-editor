@@ -36,12 +36,48 @@ function _drainRemoteKeys() {
   return s;
 }
 
+/* ★[0920b-resize-undo] 「편집으로서 같은가」 — 무변화 중복 차단의 비교자.
+   ⛔저장되는 문자열을 바꾸지 «않는다». 비교할 때만 «편집이 아닌 것»을 한 겹 더 벗긴다.
+   왜 필요한가(실측 2026-09-20, 포트 9387 · 실프로젝트 3섹션/216요소):
+     도형 리사이즈(끝 표본) 직후 회전(시작 표본)을 찍으면 두 스냅샷이 «단 한 글자» 달랐다 —
+     `draggable="true"` ↔ `draggable="false"`. 이건 drag-utils.js suppressAncestorDrag 가
+     «드래그하는 동안만» 뒤집는 상호작용 플래그지 사용자의 편집이 아니다. 그 한 글자 때문에
+     차단이 빗나가 「⌘Z 를 눌렀는데 화면이 그대로인 한 칸」이 남았다(이벨류에이터 ②).
+   ⚠️늘릴 때 규칙 — «serializeCleanRoot 가 이미 지우는 것»은 여기 넣을 필요가 없다.
+     여기 넣는 건 «저장본에는 남지만 편집은 아닌» 것뿐이고, 넣는 만큼 「그 값만 다른 편집」의
+     undo 한 칸이 사라진다. 넣기 전에 실제 스냅샷 diff 로 근거를 잡아라(위처럼). */
+const _NON_EDIT_ATTR_RE = / draggable="(?:true|false)"/g;
+function _sameEdit(a, b) {
+  if (a === b) return true;
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  return a.replace(_NON_EDIT_ATTR_RE, '') === b.replace(_NON_EDIT_ATTR_RE, '');
+}
+
 function pushHistory(action = '작업', sideEffects = null) {
   if (_historyPaused) return;
-  historyStack = historyStack.slice(0, historyPos + 1);
   // sideEffects: { onUndo?: fn, onRedo?: fn } — DOM 외 상태(예: 스크래치패드 IDB) 복원용
   // remoteKeys: 직전 체크포인트 이후 적용된 원격 섹션 키 셋(스코프 undo 가 제외에 사용)
   const _canvas = window.getSerializedCanvas();
+  /* ★[0920b-resize-undo] 무변화 중복 차단 — «꼭대기와 글자 하나 안 다른» 항목은 안 쌓는다.
+     왜 필요한가: 이 레포의 pushHistory 호출 규약은 «두 벌»이다(js/CLAUDE.md 「히스토리 규약」).
+       · push-before — 바꾸기 «전»에 찍는다(block-factory 삽입류)
+       · push-after  — 바꾼 «뒤»에 찍는다(우측 패널 대다수·드래그 onUp)
+     둘 다 «지금 살아있는 캔버스»를 찍는 같은 함수다. 차이는 «언제» 부르느냐뿐이라,
+     push-after 동작 «뒤»에 push-before 동작이 오면 두 호출이 «같은 상태»를 두 번 찍는다.
+     그러면 ⌘Z 한 번이 화면을 하나도 안 바꾸는 «먹통 한 칸»이 된다(실측: 회전 뒤 리사이즈
+     → ⌘Z 3연타 중 2번째가 무변화). 여기서 그 한 칸을 안 만든다.
+     ⚠️sideEffects 가 있으면 «캔버스는 그대로여도» 되돌릴 것이 있다(js/scratch-pad.js:719
+       스크래치 리사이즈 — onUndo/onRedo 로 역동작을 명시한다) → 그 자리는 그대로 쌓는다.
+     ⚠️설정(pageSettings)만 바뀌는 편집도 있다 → 캔버스만 보면 안 된다. 같이 본다.
+     ⚠️건너뛸 땐 slice(redo 꼬리 자르기)도 «안» 한다 — 아무것도 안 바꾼 호출이 redo 를
+       죽이면 안 된다(맨클릭이 ⌘⇧Z 를 죽이던 부수결함이 여기서 같이 사라진다). */
+  const _top = historyStack[historyPos];
+  if (!sideEffects && _top && _top.pageId === state.currentPageId
+      && _sameEdit(_top.canvas, _canvas)
+      && JSON.stringify(_top.settings) === JSON.stringify(state.pageSettings)) {
+    return;
+  }
+  historyStack = historyStack.slice(0, historyPos + 1);
   // ★T-031 2차: getSerializedCanvas() 가 «방금» 발견한 video-pending 원본을 이 스냅샷
   //   «자신»에 붙인다(같은 동기 구간에서 읽어야 한다 — js/io/section-serialize.js
   //   getLastVideoPendingSidecar 주석 참고). 전역 캐시가 아니라 이 스냅샷 전용이라,

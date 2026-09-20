@@ -165,10 +165,14 @@ function _bindMockupOffsetDrag(block) {
     const startX = e.clientX;
     const startOff = parseInt(block.dataset.offsetX) || 0;
     let moved = false;
+    const _hist = window.beginDragHistory?.('목업 오프셋');
     const onMove = ev => {
       const dx = (ev.clientX - startX) / scale;
       if (!moved && Math.abs(dx) < 3) return;
       moved = true;
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm(dx, 0);
       const off = Math.round(startOff + dx);
       block.dataset.offsetX = String(off);
       block.style.transform = off ? `translateX(${off}px)` : '';

@@ -72,7 +72,13 @@ function _bindAbRotateDrag(zone, block) {
     const cy = br.top  + br.height / 2;
     const init   = parseFloat(block.dataset.rotation) || 0;
     const startA = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    const _zoomR = (window.currentZoom || 40) / 100;
+    const _startRX = e.clientX, _startRY = e.clientY;
+    const _hist = window.beginDragHistory?.('이미지 블록 회전');
     const onMove = (ev) => {
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm((ev.clientX - _startRX) / _zoomR, (ev.clientY - _startRY) / _zoomR);
       const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
       let deg = init + (a - startA);
       deg = window._snapRotate(deg, ev.shiftKey); // Shift = 45° 스냅(공유)
@@ -141,7 +147,13 @@ function _bindShapeRotateDrag(zone, block) {
     const cy = br.top  + br.height / 2;
     const init   = parseFloat(block.dataset.shapeRotation) || 0;
     const startA = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    const _zoomR = (window.currentZoom || 40) / 100;
+    const _startRX = e.clientX, _startRY = e.clientY;
+    const _hist = window.beginDragHistory?.('쉐이프 회전');
     const onMove = (ev) => {
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm((ev.clientX - _startRX) / _zoomR, (ev.clientY - _startRY) / _zoomR);
       const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
       let deg = init + (a - startA);
       deg = window._snapRotate(deg, ev.shiftKey); // Shift = 45° 스냅(공유)
@@ -268,7 +280,13 @@ function _bindGenericRotateDrag(zone, block, cfg, hostFor) {
     const init   = cfg.readDeg ? (parseFloat(cfg.readDeg(block, host)) || 0)
                                : (parseFloat(host.dataset.rotation) || 0);
     const startA = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    const _zoomR = (window.currentZoom || 40) / 100;
+    const _startRX = e.clientX, _startRY = e.clientY;
+    const _hist = window.beginDragHistory?.((cfg.historyLabel || '회전'));
     const onMove = (ev) => {
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm((ev.clientX - _startRX) / _zoomR, (ev.clientY - _startRY) / _zoomR);
       const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
       let deg = init + (a - startA);
       deg = window._snapRotate(deg, ev.shiftKey); // Shift = 45° 스냅(공유)

@@ -57,10 +57,14 @@ function _bindGradientCornerDrag(handle, block, corner) {
     const secW = sec ? sec.offsetWidth  : 0;
     const secH = sec ? sec.offsetHeight : 0;
 
+    const _hist = window.beginDragHistory?.('그라데이션 리사이즈');
     const onMove = (ev) => {
       _hideGradSnap();
       const dx = (ev.clientX - startCX) / zoom;
       const dy = (ev.clientY - startCY) / zoom;
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm(dx, dy);
       const altCenter = ev.altKey;
       let dW = 0, dH = 0;
       if      (corner === 'tl') { dW = -dx; dH = -dy; }
@@ -228,9 +232,13 @@ function bindGradientSelect(block) {
     const blockH = block.offsetHeight || 0;
     let secRect = sec.getBoundingClientRect();
     let secW = sec.offsetWidth, secH = sec.offsetHeight;
+    const _hist = window.beginDragHistory?.('그라데이션 이동');
 
     const onMove = (ev) => {
       _hideGradSnap();
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm((ev.clientX - startX) / zoom, (ev.clientY - startY) / zoom);
       // 섹션 이동 (커서가 다른 섹션 위로 가면 부모 교체)
       const hoverSec = window._findSectionAt ? window._findSectionAt(ev.clientX, ev.clientY) : null;
       if (hoverSec && hoverSec !== sec) {

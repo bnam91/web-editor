@@ -201,7 +201,12 @@ export function wireVideoTrim(ab) {
     el.addEventListener('pointerdown', ev => {
       ev.stopPropagation();
       el.setPointerCapture(ev.pointerId);
+      const _startPX = ev.clientX;
+      const _hist = window.beginDragHistory?.('영상 트림 구간 조절');
       const onMove = mv => {
+        /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+           다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+        _hist?.arm(mv.clientX - _startPX, 0);
         const r = wrap.getBoundingClientRect();
         let t = ((mv.clientX - r.left) / r.width) * dur;
         t = Math.max(0, Math.min(dur, t));
@@ -248,6 +253,9 @@ export function wireVideoTrim(ab) {
     const v = parseFloat(e.target.value) || 1;
     video.playbackRate = v;
     ab.dataset.playbackRate = String(v);
+    /* ★이 자리는 push-after 그대로 둔다(드래그가 아니다). 한 자리만 push-before 로 돌리면
+       규약이 통일되는 게 아니라 «이음매가 옮겨갈» 뿐이다 — 1차 수정이 그래서 회귀를 냈다.
+       삽입(push-before) ↔ 패널(push-after) 이음매는 P2 카드로 남겼다(js/CLAUDE.md). */
     window.pushHistory?.('영상 재생속도 변경');
   });
 

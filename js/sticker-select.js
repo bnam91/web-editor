@@ -120,9 +120,13 @@ function _bindHlbHandleDrag(handle, block, endpoint) {
     const initY = parseFloat(block.dataset['y' + (endpoint === 'start' ? '1' : '2')]) || 0;
     const otherX = parseFloat(block.dataset['x' + (endpoint === 'start' ? '2' : '1')]) || 0;
     const otherY = parseFloat(block.dataset['y' + (endpoint === 'start' ? '2' : '1')]) || 0;
+    const _hist = window.beginDragHistory?.('형광펜 선 끝점 이동');
     const onMove = (ev) => {
       let nx = initX + (ev.clientX - startCX) / zoom;
       let ny = initY + (ev.clientY - startCY) / zoom;
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm((ev.clientX - startCX) / zoom, (ev.clientY - startCY) / zoom);
       // Shift+드래그 — 다른 endpoint 기준 수평/수직 snap
       if (ev.shiftKey) {
         const dx = nx - otherX;
@@ -203,7 +207,13 @@ function _bindRotateDrag(zone, block) {
     const cy = br.top  + br.height / 2;
     const init   = parseFloat(block.dataset.rotation) || 0;
     const startA = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    const _zoomR = (window.currentZoom || 40) / 100;
+    const _startRX = e.clientX, _startRY = e.clientY;
+    const _hist = window.beginDragHistory?.('스티커 회전');
     const onMove = (ev) => {
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm((ev.clientX - _startRX) / _zoomR, (ev.clientY - _startRY) / _zoomR);
       const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
       let deg = window._snapRotate(init + (a - startA), ev.shiftKey); // Shift = 45° 스냅(공유·기존 스티커엔 스냅 없었음)
       deg = ((deg % 360) + 360) % 360;
@@ -256,10 +266,14 @@ function _bindCornerHandleDrag(handle, block, corner) {
     const initFs = parseInt(block.dataset.fontSize) || 14;
     const startCX = e.clientX, startCY = e.clientY;
     const MIN = 10;
+    const _hist = window.beginDragHistory?.('스티커 크기 조절');
 
     const onMove = (ev) => {
       const dx = (ev.clientX - startCX) / zoom;
       const dy = (ev.clientY - startCY) / zoom;
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm(dx, dy);
       const altCenter = ev.altKey; // 중심 anchor 모드
       // corner별 W/H 변화량 (기본 anchor는 반대편 모서리)
       let dW = 0, dH = 0;
@@ -377,9 +391,13 @@ function bindStickerSelect(block) {
       const maxY = Math.max(oy1, oy2);
       const secW = sec.offsetWidth  || 860;
       const secH = sec.offsetHeight || 0;
+      const _histB = window.beginDragHistory?.('선 형광펜 이동');
       const onMoveB = (ev) => {
         let dx = (ev.clientX - startX) / zoom;
         let dy = (ev.clientY - startY) / zoom;
+        /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+           다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+        _histB?.arm(dx, dy);
         // 두 점 모두 [0, secW] × [0, secH] 안에 머물도록 dx/dy clamp
         dx = Math.max(-minX, Math.min(secW - maxX, dx));
         dy = Math.max(-minY, Math.min(secH - maxY, dy));
@@ -406,8 +424,12 @@ function bindStickerSelect(block) {
     const blockRect = block.getBoundingClientRect();
     const grabOffX = (startX - blockRect.left) / zoom;
     const grabOffY = (startY - blockRect.top)  / zoom;
+    const _hist = window.beginDragHistory?.('스티커 이동');
 
     const onMove = (ev) => {
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm((ev.clientX - startX) / zoom, (ev.clientY - startY) / zoom);
       const blockW = block.offsetWidth  || 0;
       const blockH = block.offsetHeight || 0;
       // ⌘ 드래그 = 자유 이동: 섹션 경계 clamp·부모 섹션 변경 없이 밖으로 나갈 수 있다.

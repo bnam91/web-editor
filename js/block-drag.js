@@ -345,8 +345,9 @@ function _onShapeHandleMouseDown(e, block, dir) {
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
-    // ★첫 실제 이동 «직전»에 히스토리 1회 — 이 줄 아래의 쓰기들이 그 항목의 «다음»이 된다.
-    if (_hist && !_hist.arm(dx, dy)) return;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
 
     // frame(ss)만 리사이즈 — block/svg는 CSS 100%로 자동 추종
     let newW = startW, newH = startH;
@@ -381,6 +382,9 @@ function _onShapeHandleMouseDown(e, block, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -534,12 +538,16 @@ function bindBlock(block) {
     let draggedOutside = false;    // 프레임 밖 드래그 상태 플래그
     let _dropInsertBefore = null;  // 삽입 기준 element (null=끝에 추가)
     let _shiftAxis = null;         // Shift 수직/수평 잠금 축
+    const _hist = window.beginDragHistory?.('블록 이동');
     function onMove(ev) {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
       if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
       moved = true;
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm(dx / scale, dy / scale);
 
       // Shift 수직/수평 이동 제한
       if (!ev.shiftKey) { _shiftAxis = null; }
@@ -625,7 +633,10 @@ function bindBlock(block) {
 
       // 드래그아웃: freeLayout 프레임 밖에서 마우스업 → 섹션 레벨로 추출
       if (moved && draggedOutside && _dragOutParentFrame && _dragOutParentSection) {
-        window.pushHistory?.();
+        /* ⛔여기서 또 찍지 «않는다» — onMove 첫 틱이 이미 이 제스처의 «시작»을 찍었다.
+           (예전엔 이 줄이 추출 «전»을 찍는 유일한 표본이라 필요했다. 지금 다시 찍으면
+            한 제스처가 항목 둘이 되어 ⌘Z 를 두 번 눌러야 원위치가 된다.)
+           끝 표본은 아래 재바인딩이 끝난 뒤 한 번 찍는다. */
         const inner = _dragOutParentSection.querySelector('.section-inner');
         clearDropIndicators();
 
@@ -669,6 +680,7 @@ function bindBlock(block) {
         }
 
         window.buildLayerPanel?.();
+        window.pushHistory?.();   // ★끝 상태(추출 완료) — 시작 상태는 onMove 첫 틱이 찍었다
         return;
       }
 
@@ -741,6 +753,7 @@ function bindBlock(block) {
       const startTop  = parseInt(block.style.top  || '0');
       let moved = false;
       let _shiftAxis2 = null;
+      const _hist = window.beginDragHistory?.('블록 이동');
 
       function onMove(ev) {
         const dx = ev.clientX - startX;
@@ -750,6 +763,9 @@ function bindBlock(block) {
         // 캔버스 스케일 보정
         const scaler = document.getElementById('canvas-scaler');
         const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+        /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+           다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+        _hist?.arm(dx / scale, dy / scale);
         // Shift 수직/수평 이동 제한
         if (!ev.shiftKey) { _shiftAxis2 = null; }
         if (ev.shiftKey && !_shiftAxis2 && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
@@ -2231,12 +2247,16 @@ function bindFrameDropZone(ss) {
       const origTop  = (_ssRect.top  - _parentRect.top)  / scale;
       let moved = false;
       let _shiftAxisF = null;
+      const _hist = window.beginDragHistory?.('블록 이동');
 
       const onMove = ev => {
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
         if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
         moved = true;
+        /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+           다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+        _hist?.arm(dx / scale, dy / scale);
         // Shift 수직/수평 이동 제한
         if (!ev.shiftKey) { _shiftAxisF = null; }
         if (ev.shiftKey && !_shiftAxisF && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
