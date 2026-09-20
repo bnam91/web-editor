@@ -39,6 +39,17 @@ const SHAPE_NAMES = {
   line: 'Line', arrow: 'Arrow', polygon: 'Polygon',
 };
 
+/** 도형 크기 한 축을 «쓰는 곳과 같은 객체»(래퍼 frame)에서 읽는다 — style → dataset → 실제 레이아웃.
+ *  offsetWidth/Height 는 CSS transform(캔버스 줌)에 안 흔들리는 layout 값이라 줌 40/150% 에서도 같다. */
+function _shapeFrameSize(el, axis) {
+  if (!el) return 100;
+  const styleV = parseInt(axis === 'w' ? el.style.width : el.style.height);
+  if (styleV) return styleV;
+  const dataV = parseInt(axis === 'w' ? el.dataset.width : el.dataset.height);
+  if (dataV) return dataV;
+  return Math.round(axis === 'w' ? el.offsetWidth : el.offsetHeight) || 100;
+}
+
 export function showShapeProperties(block) {
   if (!block) return;
 
@@ -59,8 +70,15 @@ export function showShapeProperties(block) {
   const strokeWidth = parseInt(block.dataset.shapeStrokeWidth || '3');
   const strokeColor = block.dataset.shapeStrokeColor || color;
   const strokeColorAlpha = parseAlphaFromColor(strokeColor);
-  const w           = parseInt(block.style.width)  || 100;
-  const h           = parseInt(block.style.height) || 100;
+  // ★크기는 «래퍼 frame»에 있다 — shape-block 자신은 인라인 width/height 를 안 쓰고
+  //   CSS 100% 로 frame 을 따른다(js/block-factory.js addShapeBlock, css/editor-blocks.css .shape-block).
+  //   여기서 block.style 을 읽던 탓에 언제나 NaN→100 이라 패널이 실제 크기와 무관한 거짓값(100/100)을
+  //   보였고, 쓰는 쪽 applySize 는 frame 에 써서 «읽는 곳과 쓰는 곳이 다른 객체»였다.
+  //   폴백 꼴은 레포 선례를 따른다(prop-mockup.js Width: style→dataset,
+  //   prop-label-group.js: style→offsetWidth, overlay-handles.js _onMockupHandleMouseDown).
+  const ss          = block.closest('.frame-block');
+  const w           = _shapeFrameSize(ss || block, 'w');
+  const h           = _shapeFrameSize(ss || block, 'h');
   const iconSvg     = SHAPE_ICONS[shapeType] || SHAPE_ICONS.rectangle;
   const shapeName   = SHAPE_NAMES[shapeType] || shapeType;
   const id          = block.id || '';
@@ -186,8 +204,7 @@ export function showShapeProperties(block) {
   if (window.setRpIdBadge) window.setRpIdBadge(id || null);
 
   const svg = block.querySelector('svg');
-  // 부모 sub-section (shape frame)
-  const ss = block.closest('.frame-block');
+  // 부모 sub-section (shape frame) — 위 Size 표시와 «같은 객체»를 쓴다(ss 는 크기 읽기와 공용).
 
   // shape는 section padding을 무시하고 section 전체 폭(최대 860)까지 확장 가능 ───
   // wrap frame의 max-width 제한을 풀고, width가 inner를 넘으면 좌우 균등 음수 margin으로 padding 침범
@@ -403,11 +420,18 @@ export function showShapeProperties(block) {
     window.scheduleAutoSave?.();
   }
 
+  // 한 축만 넘기고 다른 축은 null 로 둔다 = «안 건드린다». 예전엔 두 축을 늘 같이 써서
+  // W 칸만 입력해도 (거짓값이던) H 슬라이더 값 100 이 그대로 프레임에 박혀 H 가 파괴됐다.
   function applySize(newW, newH) {
     // frame(ss)만 리사이즈 — block/svg는 CSS 100%로 자동 추종
     if (ss) {
-      ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
-      ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
+      if (newW != null) { ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW); }
+      // minHeight 도 같이 — addShapeBlock 이 심어 둔 min-height:100px 가 남아 있으면 H 를 100 아래로
+      // 내려도 화면은 100 인 채 style/dataset 만 작아져 «패널 값 ≠ 실제 크기»가 다시 생긴다.
+      // 꼴은 핸들 리사이즈 선례 그대로(js/overlay-handles.js _onFrameHandleMouseDown onMove).
+      if (newH != null) {
+        ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
+      }
     }
     // 폭이 inner를 넘으면 padding 침범 자동 적용
     _extendShapeFrameToSection();
@@ -527,22 +551,22 @@ export function showShapeProperties(block) {
   // ── 크기 W ──
   const wSlider = document.getElementById('shape-w-slider');
   const wNum    = document.getElementById('shape-w-num');
-  wSlider.addEventListener('input',  () => { wNum.value = wSlider.value; applySize(parseInt(wSlider.value), parseInt(hSlider.value)); });
+  wSlider.addEventListener('input',  () => { wNum.value = wSlider.value; applySize(parseInt(wSlider.value), null); });
   wSlider.addEventListener('change', () => window.pushHistory?.());
   wNum.addEventListener('input', () => {
     const v = Math.min(860, Math.max(10, parseInt(wNum.value) || 10));
-    wSlider.value = v; applySize(v, parseInt(hSlider.value));
+    wSlider.value = v; wNum.value = v; applySize(v, null);
   });
   wNum.addEventListener('change', () => window.pushHistory?.());
 
   // ── 크기 H ──
   const hSlider = document.getElementById('shape-h-slider');
   const hNum    = document.getElementById('shape-h-num');
-  hSlider.addEventListener('input',  () => { hNum.value = hSlider.value; applySize(parseInt(wSlider.value), parseInt(hSlider.value)); });
+  hSlider.addEventListener('input',  () => { hNum.value = hSlider.value; applySize(null, parseInt(hSlider.value)); });
   hSlider.addEventListener('change', () => window.pushHistory?.());
   hNum.addEventListener('input', () => {
     const v = Math.min(860, Math.max(10, parseInt(hNum.value) || 10));
-    hSlider.value = v; applySize(parseInt(wSlider.value), v);
+    hSlider.value = v; hNum.value = v; applySize(null, v);
   });
   hNum.addEventListener('change', () => window.pushHistory?.());
 
