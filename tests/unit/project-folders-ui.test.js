@@ -108,14 +108,16 @@ test('PF-11 리스트뷰 예약폭 — 폴더 이동 버튼이 항상 뜨므로 
   assert.equal(Number(m[1]), 110);
 });
 
-test('PF-12 [polish3] 폴더 밖 프로젝트의 «폴더에서 빼기»는 비활성 — aria-disabled + 클릭 무시 + 흐림 CSS', () => {
+test('PF-12 [polish3+foldermenu] «지금 그 자리»인 항목은 비활성 — aria-disabled + 클릭 무시 + 흐림 CSS', () => {
   const fn = sliceBlock(CODE, 'async function openFolderMenuUI(');
   // ① «지금 폴더» 판정이 화면 규칙과 같다 — 없는 폴더를 가리키는 folderId·undefined 는 「폴더 밖」
   assert.match(fn, /const curFolderId = \(proj && proj\.folderId && _foldersCache\.some\(f => f\.id === proj\.folderId\)\) \? proj\.folderId : null;/,
     '★curFolderId 가 화면의 폴더 밖 규칙(_foldersCache 대조)을 안 쓴다');
-  // ② 그 규칙 그대로 null 항목만 비활성
+  // ② 그 규칙 그대로 «지금 그 자리»(폴더 밖이면 「폴더에서 빼기」, 폴더 안이면 그 폴더) 항목이 비활성
   assert.match(fn, /const isCur = curFolderId === key;/, 'is-current 판정이 사라졌다');
-  assert.match(fn, /const off = isCur && key === null;/, '★«폴더에서 빼기» 비활성 판정이 없다');
+  assert.match(fn, /const off = isCur;/, '★«지금 그 자리» 비활성 판정이 없다(=is-current 와 같은 규칙)');
+  assert.ok(!/const off = isCur && key === null;/.test(fn),
+    '★[6라운드] 비활성이 「폴더에서 빼기」에만 걸려 있다 — 지금 들어있는 폴더 항목도 비활성이어야 한다');
   assert.match(fn, /aria-disabled="true"/, '★비활성 항목에 aria-disabled 가 없다');
   assert.ok(!/itemHtml[\s\S]{0,400}?\sdisabled(?!-)/.test(fn) || !/<button[^`]*\sdisabled\b/.test(fn),
     '★disabled 속성을 썼다 — 크로미움이 hover 를 안 줘 툴팁이 안 뜬다');
@@ -127,4 +129,15 @@ test('PF-12 [polish3] 폴더 밖 프로젝트의 «폴더에서 빼기»는 비�
   // ④ 흐림 스타일(공용 토큰)
   assert.match(CODE, /\.card-folder-menu \.tab-add-item\[aria-disabled="true"\][\s\S]{0,160}opacity: var\(--ui-disabled-opacity\)/,
     '★비활성 항목 스타일이 없다(공용 --ui-disabled-opacity)');
+});
+
+test('PF-13 [6라운드 foldermenu] 지금 들어있는 폴더 항목도 비활성 — 이유 툴팁이 자리마다 다르다', () => {
+  const fn = sliceBlock(CODE, 'async function openFolderMenuUI(');
+  // 비활성 이유가 «폴더 밖»/«이 폴더»로 갈린다(같은 문구를 돌려쓰면 폴더 항목에서 거짓말이 된다)
+  assert.match(fn, /const offTitle = key === null \? '이미 폴더 밖에 있습니다' : '이미 이 폴더에 있습니다';/,
+    '★비활성 이유 툴팁이 항목 종류별로 갈리지 않는다');
+  assert.match(fn, /title="\$\{_escHtml\(offTitle\)\}"/, '★툴팁 문구를 이스케이프 없이 넣는다');
+  // 「+ 새 폴더 만들어 넣기」는 «지금 그 자리»가 아니다 — 절대 비활성이 되면 안 된다
+  const newItem = fn.slice(fn.indexOf('cfm-new-folder'));
+  assert.ok(!/aria-disabled/.test(newItem.slice(0, 200)), '★「+ 새 폴더 만들어 넣기」까지 비활성이 됐다');
 });

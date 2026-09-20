@@ -723,3 +723,46 @@ test('ⓥ polish5 목록 보기 타일이 가용 폭을 쓴다 — 긴 이름이
   expect(narrow.tileW, JSON.stringify(narrow)).toBeLessThanOrEqual(narrow.rowW + 1);
   expect(errs, errs.join('\n')).toEqual([]);
 });
+
+/* ── 6라운드 foldermenu(T-062) — 카드 📁 의 «지금 들어있는 그 폴더» 항목도 비활성 ── */
+test('ⓦ foldermenu 카드 📁 — 지금 있는 폴더 항목은 비활성(눌러도 빈 배정 안 돈다·메뉴 유지) · 다른 폴더와 「폴더에서 빼기」는 그대로', async ({ page }) => {
+  const errs = await boot(page, seed());
+  await page.click('.ft-tile[data-folder-key="fold_a"]');          // 폴더 «안»(proj_4·proj_5)
+  await page.hover('#project-grid .project-card[data-id="proj_4"]');
+  await page.click('#project-grid .project-card[data-id="proj_4"] .card-folder-move');
+  await expect(page.locator('.card-folder-menu')).toHaveCount(1);
+
+  const items = await page.$$eval('.card-folder-menu .tab-add-item[data-goto]', els => els.map(el => ({
+    text: el.textContent.trim(),
+    dis: el.getAttribute('aria-disabled'),
+    cur: el.classList.contains('is-current'),
+    title: el.title,
+    disabledAttr: el.hasAttribute('disabled'),
+    cursor: getComputedStyle(el).cursor,
+    opacity: Number(getComputedStyle(el).opacity),
+  })));
+  expect(items.map(i => i.text)).toEqual(['폴더에서 빼기', '파테나', '고디터 QA', '보관']);
+  // ① 지금 있는 폴더(파테나) — 흐림 + aria-disabled + 이유 툴팁. ⛔disabled 속성은 금지(툴팁이 안 뜬다)
+  expect({ dis: items[1].dis, cur: items[1].cur, title: items[1].title, disabledAttr: items[1].disabledAttr, cursor: items[1].cursor })
+    .toEqual({ dis: 'true', cur: true, title: '이미 이 폴더에 있습니다', disabledAttr: false, cursor: 'not-allowed' });
+  expect(items[1].opacity).toBeLessThan(1);
+  // ② 「폴더에서 빼기」와 다른 폴더들은 멀쩡하다
+  expect(items.filter((_, i) => i !== 1).map(i => ({ dis: i.dis, cur: i.cur, cursor: i.cursor })))
+    .toEqual([{ dis: null, cur: false, cursor: 'pointer' }, { dis: null, cur: false, cursor: 'pointer' }, { dis: null, cur: false, cursor: 'pointer' }]);
+
+  // ③ 사용자처럼 그 좌표를 진짜로 누른다 — 빈 배정 0회, 메뉴도 안 닫힌다
+  const cur = page.locator('.card-folder-menu .tab-add-item[data-goto]').nth(1);
+  const bb = await cur.boundingBox();
+  await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2);
+  await page.waitForTimeout(150);
+  await expect(page.locator('.card-folder-menu')).toHaveCount(1);
+  expect(await page.evaluate(() => window.__calls.filter(c => c.name === 'assign').length)).toBe(0);
+
+  // ④ 다른 폴더는 여전히 눌린다 — 메뉴 닫히고 진짜 옮겨진다
+  await page.locator('.card-folder-menu .tab-add-item[data-goto]').nth(3).click();
+  await expect(page.locator('.card-folder-menu')).toHaveCount(0);
+  await expect.poll(() => cardIds(page)).toEqual(['proj_5']);
+  expect(await page.evaluate(() => window.__calls.filter(c => c.name === 'assign').map(c => c.arg)))
+    .toEqual([{ projectIds: ['proj_4'], folderId: 'fold_c' }]);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
