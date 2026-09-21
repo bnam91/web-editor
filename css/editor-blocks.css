@@ -1989,6 +1989,18 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 .banner02-block { display:block; position:relative; margin:0 auto; cursor:pointer; box-sizing:border-box; user-select:none; }
 /* ⑧ 배너 안에서 «지금 우측 패널이 보고 있는 줄» 표시 — 선택 토큰 재사용(신규 색·룩 없음) */
 /* ⑸ 빈 줄 — 캔버스에서 «클릭할 자리»가 있음을 보여주는 편집 전용 표시(저장·내보내기에선 제거) */
+/* ★빈 이미지 칸 체커 — «편집 전용» 표시. 정본은 .asset-block(editor-layout.css) ·
+   .cvb-img-empty(위 [M38-b]) 와 같은 «두는 자리»(CSS) 다. banner02 만 이 값을 renderBanner02 가
+   «인라인»으로 박고 있었다(2026-09-21 사용자관점훑기 exportvisual) — 인라인은 저장본·.gdt·
+   단독 HTML 내보내기에 그대로 실리고, export-html.js 의 클래스 제거 목록(.cvb-img-empty 옆)에
+   «걸릴 대상 자체가 없었다».
+   ★무늬 값(#e3e3e3/#efefef · 16px)은 «그대로» 옮긴다 — 자리만 바꾸는 수정이라 화면 그림이
+     달라지면 안 된다. (다른 블록의 72px 정본과 다른 건 배너 이미지칸이 250px 로 작아서다.)
+   ⚠️PNG 내보내기는 이 이동만으론 안 고쳐진다 — 캡처 클론은 body 에 붙어 앱 CSS 를 그대로
+     받는다. 그 몫은 js/io/capture-safety.js neutralizeEmptyImageCheckerForCapture 가 진다. */
+.banner02-block .bn2-img-empty {
+  background: repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 0 / 16px 16px;
+}
 .banner02-block .bn2-line-empty {
   /* 빈 줄에 «클릭할 자리»를 만든다 — 편집 전용이라 저장·내보내기에선 클래스째 제거된다.
      ⚠️인라인이 아니라 CSS 로만 주는 이유: 인라인이면 저장본에 실리고 높이 계산의 입력이 되어

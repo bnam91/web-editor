@@ -129,8 +129,8 @@ async function exportHTMLFile() {
      앱 CSS 가 결과물에 안 실리므로 클래스만 남아도 그려지지는 않지만, «의도»를 여기 남긴다:
      이 표시는 편집 화면 전용이고 배송본에 나가면 안 된다. 다음 사람이 인라인으로 되돌리면
      이 줄이 무력해지므로 tests/unit/card-empty-export.test.mjs 가 그 회귀를 잡는다. */
-  clone.querySelectorAll('.cvb-img-empty, .cvb-img-empty-plain')
-       .forEach(el => el.classList.remove('cvb-img-empty', 'cvb-img-empty-plain'));
+  clone.querySelectorAll('.cvb-img-empty, .cvb-img-empty-plain, .bn2-img-empty')
+       .forEach(el => el.classList.remove('cvb-img-empty', 'cvb-img-empty-plain', 'bn2-img-empty'));
   clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
   // #16: 참고이미지 연결(data-ref-links)은 ScratchPadDB 참조 «기획 메타» — export엔 그 DB가 없어 死참조.
   //   배송본에서 제거(저장 경로 serializeCleanRoot에선 유지 → 로드 복원 가능).

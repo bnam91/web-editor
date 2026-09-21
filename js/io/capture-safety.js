@@ -182,6 +182,108 @@ export async function neutralizeObjectFitForH2C(root) {
   return n;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   빈 이미지 칸 «체커보드» 걷기 — 캡처 클론 공용 (export PNG · truth · 썸네일)
+
+   ★무엇이 틀렸나 (실측 2026-09-21, 사용자관점훑기 exportvisual)
+     내보낸 860×1399 PNG 에 «이미지 안 넣은 칸»의 체크무늬가 그대로 찍혔다:
+       asset-block 영역 770px 띠 → #F0F0F0 322,080px + #D8D8D8 322,060px
+       배너 이미지칸 250×230   → #E3E3E3  19,963px + #EFEFEF  19,962px
+     체커는 «투명을 표시하는 편집용 무늬»지 콘텐츠가 아니다.
+
+   ★왜 안 걸러졌나 — 「체커를 CSS 클래스에 두면 자동으로 결과물에 안 나간다」는 공식
+     (css/editor-blocks.css [M38-b] 주석)은 «단독 HTML 내보내기»에만 맞는 말이다.
+     그 경로는 js/io/export-html.js 가 자기 <style> 만 싣고 앱 CSS 를 안 실어서 «안 그려진다».
+     PNG 경로는 정반대다 — js/io/export-image.js prepareCloneForCapture 가 클론을
+     document.body.appendChild 로 «라이브 문서에 붙여» 캡처하므로 앱 CSS 가 전부 먹는다.
+     ⇒ 클래스로 옮겨도 PNG 엔 그대로 나온다. 전제가 경로마다 다른데 공식만 물려받았던 자리다.
+
+   ★어떻게 잡나 — 블록 타입 셀렉터를 «나열하지 않는다»(손으로 적은 목록은 반드시 늙는다).
+     렌더 결과의 computed background-image «서명»(/repeating-conic-gradient/)으로 판정한다.
+     같은 판정법이 js/io/export-figma-json.js:457 에 이미 있다 — 새 발명이 아니라 재사용이다.
+     이 레포에서 conic gradient 를 «사용자 데이터»로 만드는 길은 없다(그라데이션 모델은
+     linear/radial 뿐 — js/props/gradient-model.js 전수 'conic' 0건). 그래서 이 서명은
+     곧 「편집용 체커」와 동치다.
+
+   ⛔background-image 를 통째로 none 으로 박지 «않는다» — 다중 레이어가 있다.
+     js/blocks/mockup-block.js applyMockupScreenImage 와 js/io/save-load.js:1394 는
+     `url(...) top center / cover no-repeat, <체커>` 로 «실제 화면 이미지 밑에» 체커를 깐다
+     (투명 PNG 대비 안전망). 통째로 지우면 목업의 진짜 그림이 사라진다.
+     ⇒ 체커 레이어«만» 골라 빼고 나머지는 순서 그대로 재조립한다.
+     ★background-size/position/repeat 는 따로 손대지 않는다 — CSS 는 레이어 수를
+       background-image 로 정하고 남는 값은 «버린다». 첫 레이어의 cover/top center 는 그대로 산다.
+
+   ★남는 레이어가 없으면 'none' — 배경«색»은 안 건드린다(섹션 배경이 비쳐야 맞다).
+   ★.shape-block[data-shape-fill="image"] 의 바둑판은 stripEditorOnlyForCapture 가
+     «속성 제거»로 이미 처리한다 — 거기 두고 여기선 건드리지 않는다(두 벌이 되지 않게
+     방식이 다르다: 저긴 편집용 «속성», 여긴 렌더된 «무늬»).
+
+   ⚠️호출 규약 — 클론이 문서에 «붙은 뒤», 그리고 컴포넌트 재렌더(renderComponentsInClone)
+     «뒤»에 불러야 한다.
+       ⑴ 붙기 전이면 getComputedStyle 이 비어 클래스 기반 체커를 못 잡고 조용히 no-op 된다.
+       ⑵ banner02·canvas-block 은 재렌더가 DOM 을 새로 만든다 — 앞에서 지우면 되살아난다.
+   부르는 곳(2): js/io/export-image.js renderComponentsInClone(=export 와 truth 가 «같이» 쓰는
+     ②단계. 한 자리라 두 그림이 갈릴 수 없다) · js/io/save-load.js captureThumbnail(재렌더가
+     없는 경로라 거기서 직접 부른다).
+   반환 = 실제로 손댄 요소 수(검사·디버깅용).
+   ══════════════════════════════════════════════════════════════════════════ */
+const _CHECKER_RE = /repeating-conic-gradient/i;
+
+/** `a, b, c` 를 «괄호 깊이»를 세며 자른다 — gradient 안의 콤마에 속지 않는다. */
+export function splitBgLayers(css) {
+  const out = [];
+  let depth = 0, cur = '';
+  for (const ch of String(css || '')) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; continue; }
+    cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+export function neutralizeEmptyImageCheckerForCapture(clone) {
+  if (!clone) return 0;
+  const all = [...(clone.nodeType === 1 ? [clone] : []), ...clone.querySelectorAll('*')];
+  let n = 0;
+  for (const el of all) {
+    let cs;
+    try { cs = window.getComputedStyle(el); } catch (_) { continue; }
+    if (!cs) continue;
+    const bg = cs.getPropertyValue('background-image') || '';
+    if (!_CHECKER_RE.test(bg)) continue;
+    const kept = splitBgLayers(bg).filter(layer => !_CHECKER_RE.test(layer));
+    // 클래스가 건 배경은 인라인으로 «지울» 수 없다 — 명시적으로 덮어쓴다.
+    el.style.setProperty('background-image', kept.length ? kept.join(', ') : 'none');
+    n++;
+  }
+  return n;
+}
+
+/* ── 미입력 안내문구 숨기기 — «두 번» 불러야 하는 한 가지 ──────────────────────
+ * 미입력 placeholder 안내문구는 산출 결과에 박히면 안 된다.
+ * data-is-placeholder="true"는 실제 글자가 들어가면 즉시 삭제되므로, 클론에 true로 남은
+ * 요소는 미입력 placeholder가 확정 → 안내문구 «가시성만» 숨겨 자식 DOM(<li>/<span> 등)과
+ * 점유 높이는 그대로 둔다. (textContent='' 는 tb-bullet의 <li> 등 자식 DOM을 통째로 제거해
+ *  height가 collapse되므로 금지. visibility:hidden은 자식·list marker까지 숨기되 박스 높이 유지.)
+ *
+ * ★2026-09-21 사용자관점훑기 exportvisual — 이걸 «함수로 뺀 이유»:
+ *   ①stripEditorOnlyForCapture 는 컴포넌트 재렌더(export-image.js renderComponentsInClone)
+ *   «앞»에 돈다. banner02·canvas-block·comparison-block 은 그 재렌더가 DOM 을 통째로 다시
+ *   만들어 여기서 건 visibility 를 «지운다» ⇒ 배너·카드의 안내문구가 그대로 PNG 에 찍힌다.
+ *   실측(2026-09-21, 실앱 9525): 배너에 data-is-placeholder 를 붙인 «뒤»에도 export PNG 에
+ *   「라벨입니다./제목을 입력합니다./캡션이 입력됩니다.」가 그대로 나왔다 — 표시는 맞았고
+ *   타이밍이 틀렸다. ⇒ 재렌더 «뒤»에 한 번 더 부른다. 멱등이라 두 번 돌아도 결과가 같다.
+ *   ⛔이 함수를 stripEditorOnlyForCapture 안에서 «인라인»으로 되돌리지 마라 — 되돌리는 순간
+ *     재렌더 뒤 호출부가 사라져 배너·카드 안내문구가 조용히 다시 샌다. */
+export function hidePlaceholderTextForCapture(clone) {
+  if (!clone) return 0;
+  const els = clone.querySelectorAll?.('[data-is-placeholder="true"]') || [];
+  els.forEach(el => { el.style.visibility = 'hidden'; });
+  return els.length;
+}
+
 /* ── 편집 전용 DOM·상태 걷기 (캡처 클론 공용) ────────────────────────────────────
  * ★2026-09-21 최종통합 QA medium: 「저장할 때 편집 중이던 상태가 프로젝트 목록 썸네일에
  *   그대로 박힌다」 — js/io/save-load.js captureThumbnail 은 클론에서 ⑴.section-label
@@ -210,14 +312,7 @@ export function stripEditorOnlyForCapture(clone) {
     const row = el.closest('.row');
     if (row) row.remove(); else el.remove();
   });
-  // 미입력 placeholder 안내문구는 산출 결과에 박히면 안 됨.
-  // data-is-placeholder="true"는 실제 글자가 들어가면 즉시 삭제되므로, 클론에 true로 남은
-  // 요소는 미입력 placeholder가 확정 → 안내문구 «가시성만» 숨겨 자식 DOM(<li>/<span> 등)과
-  // 점유 높이는 그대로 둔다. (textContent='' 는 tb-bullet의 <li> 등 자식 DOM을 통째로 제거해
-  //  height가 collapse되므로 금지. visibility:hidden은 자식·list marker까지 숨기되 박스 높이 유지.)
-  clone.querySelectorAll('[data-is-placeholder="true"]').forEach(el => {
-    el.style.visibility = 'hidden';
-  });
+  hidePlaceholderTextForCapture(clone);
   // 편집 전용 임시 DOM — 캡처 클론에 새어 나가면 그림에 박힌다.
   clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary').forEach(el => el.remove());
   // 도형 «이미지 넣기 전» 바둑판(0918 picker) — 편집 전용 표시다. CSS 규칙이 data-shape-fill="image"

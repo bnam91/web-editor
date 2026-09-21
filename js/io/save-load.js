@@ -6,7 +6,7 @@ import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 import { applyFrameTransform } from '../frame-geometry.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture } from './capture-safety.js';
 import { ejectShapeFrameIntruders } from '../shape-frame.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
@@ -92,6 +92,10 @@ async function captureThumbnail() {
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
     neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
     await neutralizeObjectFitForH2C(clone); // html2canvas는 object-fit 미지원 → 상자에 «늘려» 그린다. 상자 크기대로 미리 잘라 끼운다(썸네일이 화면과 다른 그림이 되던 자리)
+    /* 빈 이미지 칸의 체크무늬는 «편집용 무늬»다 — 프로젝트 목록 썸네일에 박히면 내보내기와 똑같이 새는 것.
+       ★여기엔 컴포넌트 재렌더(renderComponentsInClone)가 «없다» — banner02/canvas-block 을 다시
+         안 그리므로 이 자리(append 뒤)에서 한 번 부르면 충분하다. */
+    neutralizeEmptyImageCheckerForCapture(clone);
     // 모자이크 redact(js/effects/redact-mosaic.js)는 cloneNode에 캔버스 비트맵이 안 딸려오므로
     // clone에 라이브 캔버스를 구워 넣는다 — 실패 시 함수 내부에서 불투명 회색 안전실패.
     if (window.finalizeMosaicForClone) { try { await window.finalizeMosaicForClone(firstSec, clone); } catch (_) {} }

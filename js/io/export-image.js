@@ -1,7 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture } from './capture-safety.js';
 
 const CANVAS_W = 860;
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
@@ -389,6 +389,16 @@ export function renderComponentsInClone(clone) {
   }
   clone.querySelectorAll('.bn2-line-selected, .bn2-line-empty, .grd-line-selected, .stb-line-selected, .stb-step-selected').forEach(_el =>
     _el.classList.remove('bn2-line-selected', 'bn2-line-empty', 'grd-line-selected', 'stb-line-selected', 'stb-step-selected'));
+  /* ★빈 이미지 칸 «체커보드» 걷기도 «여기»다 — 위 마커 걷기와 같은 이유(재렌더가 되붙인다)에
+     더해 «붙은 뒤라야 computed 를 읽는다»는 조건까지 여기서만 둘 다 참이다.
+     ①prepareCloneForCapture 에 넣으면 append «전»이라 클래스 기반 체커를 못 보고 조용히 no-op 된다.
+     ★export 와 truth 가 «이 한 함수»를 같이 부르므로 두 그림이 갈릴 수 없다 — 사본을 두면
+       그 어긋남이 게이트에서 «검출»로 둔갑한다(이 파일 머리말의 원칙 그대로). */
+  neutralizeEmptyImageCheckerForCapture(clone);
+  /* ★미입력 안내문구 숨기기도 «여기서 한 번 더» — ①에서 건 visibility 를 위 재렌더가 지웠다.
+     (실측 2026-09-21: 배너에 data-is-placeholder 를 붙인 뒤에도 PNG 에 안내문구가 그대로
+      나왔다. 표시는 맞았고 타이밍이 틀렸던 자리다.) 멱등이라 두 번 돌아도 결과가 같다. */
+  hidePlaceholderTextForCapture(clone);
   clone.getBoundingClientRect();
 }
 

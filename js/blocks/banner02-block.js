@@ -31,11 +31,18 @@ function _variant(key) { return BANNER02_VARIANTS[key] || BANNER02_VARIANTS.fram
 // 기존 d.label/title/sub + d.labelSize/titleSize/subSize + d.labelColor/titleColor/subColor + d.gap1/gap2는
 // 1) 첫 render 시 lines 배열로 자동 migrate
 // 2) lines 배열의 첫 매칭 kind 항목에 동기화되어 유지 (이전 API/저장 포맷 호환)
+/* ★2026-09-21 사용자관점훑기 T-09x(exportvisual) — 기본 문구는 «안내문구»다, 본문이 아니다.
+ *   고치기 «전»: 이 세 줄은 진짜 텍스트값으로만 들어가고 아무 표시가 없었다. 그래서
+ *   js/io/capture-safety.js stripEditorOnlyForCapture 가 보는 `[data-is-placeholder="true"]`
+ *   그물에 «배너만» 안 걸려, 모달 안내문구는 빠지는데 배너 안내문구는 내보낸 PNG 에 박혔다
+ *   (실측 2026-09-21: 860×1399 export PNG 배너 글자영역 320×120 에 검정 2,203px).
+ *   ⇒ 값이 아니라 «표시»를 붙인다 — export 쪽 코드는 한 줄도 안 건드려도 같이 걷힌다.
+ *   ★규약은 block-factory.js / modal-block.js 와 «같은» data-is-placeholder + data-placeholder 다. */
 function _defaultLines(v) {
   return [
-    { kind: 'label', text: '라벨입니다.',         size: v.labelSize, color: '#000000', gapTop: 0,      fontFamily: '', fontWeight: 400, letterSpacing: 0 },
-    { kind: 'title', text: '제목을 입력합니다.',    size: v.titleSize, color: '#000000', gapTop: v.gap1, fontFamily: '', fontWeight: 400, letterSpacing: 0 },
-    { kind: 'sub',   text: '캡션이 입력됩니다.',    size: v.subSize,   color: '#000000', gapTop: v.gap2, fontFamily: '', fontWeight: 400, letterSpacing: 0 },
+    { kind: 'label', text: '라벨입니다.',         size: v.labelSize, color: '#000000', gapTop: 0,      fontFamily: '', fontWeight: 400, letterSpacing: 0, placeholder: true },
+    { kind: 'title', text: '제목을 입력합니다.',    size: v.titleSize, color: '#000000', gapTop: v.gap1, fontFamily: '', fontWeight: 400, letterSpacing: 0, placeholder: true },
+    { kind: 'sub',   text: '캡션이 입력됩니다.',    size: v.subSize,   color: '#000000', gapTop: v.gap2, fontFamily: '', fontWeight: 400, letterSpacing: 0, placeholder: true },
   ];
 }
 function _readLines(block) {
@@ -73,6 +80,12 @@ function _normLine(l, fallbackSize) {
     fontFamily:    _safeFontFamily(l?.fontFamily),
     fontWeight:    Number.isFinite(+l?.fontWeight) ? Math.max(100, Math.min(900, Math.round(+l.fontWeight))) : 400,
     letterSpacing: Number.isFinite(+l?.letterSpacing) ? Math.max(-20, Math.min(50, +l.letterSpacing)) : 0,
+    /* ★«안내문구» 표시 — true 일 때만 키를 둔다(저장본이 불필요하게 커지지 않게).
+       ⛔여기서 «만들지» 않는다. 텍스트를 새로 쓰는 모든 경로(editLine · _legacyLine · blur 커밋)는
+         placeholder 를 안 넘기고 _normLine 을 다시 부르므로 «글자를 쓰면 표시가 저절로 떨어진다».
+       ★옛 저장본(이 키가 없다)은 placeholder 없음 = 본문으로 읽힌다 — 열기만 해도 글자가
+         사라지는 회귀가 없다(제일 비싼 회귀다). */
+    ...(l?.placeholder === true ? { placeholder: true } : {}),
   };
 }
 function _writeLines(block, lines) {
@@ -138,6 +151,15 @@ function renderBanner02(block) {
     //   (QA BUG-1: bn2_84a7j_bgcvdp1 260→294). 클릭영역은 «화면에서만» 필요하지 높이 계산의 입력이 아니다.
     //   → CSS(.bn2-line-empty)로만 주고, neededHeight 는 그 몫을 도로 빼서 «실제 글자 높이»로 잰다.
     if (!String(line.text || '').trim()) el.classList.add('bn2-line-empty');
+    /* ★안내문구 표시 — block-factory.js/modal-block.js 와 «같은» 속성 한 쌍.
+       읽는 쪽이 이미 셋이나 있다: capture-safety.js stripEditorOnlyForCapture(캡처 클론에서 숨김) ·
+       canvas-state.js _isPlaceholderText(MCP 가 「아직 안 썼다」를 알아야 채운다) ·
+       editor-blocks.css `#canvas [data-is-placeholder="true"]`(편집 화면에서만 흐리게 — #canvas
+       스코프라 body 에 붙는 export 클론엔 «안» 샌다). */
+    if (line.placeholder === true) {
+      el.dataset.isPlaceholder = 'true';
+      el.dataset.placeholder   = line.text;
+    }
     if (line.gapTop)                                  styleParts.push(`margin-top:${line.gapTop}px`);
     if (line.fontFamily)                              styleParts.push(`font-family:${line.fontFamily}`);
     if (line.fontWeight && line.fontWeight !== 400)   styleParts.push(`font-weight:${line.fontWeight}`);
@@ -206,6 +228,11 @@ function renderBanner02(block) {
         //   저장도 같이 아꼈다(불필요한 autosave 억제).
         if (cur[i].text === el.textContent) return;
         cur[i].text = el.textContent;
+        /* ★글자가 «바뀌면» 안내문구 표시를 뗀다 — 이제부터 본문이다.
+           ⛔문자열 비교로 「기본문구와 같으니 아직 안내문구」를 판정하지 «않는다».
+             위 early-return 이 이미 그 경우다(글자가 그대로면 커밋 자체를 안 한다) —
+             block-drag.js:885~888 의 기존 규약(「안내문구가 본문으로 굳는 지뢰 방지」)과 같은 결론이다. */
+        delete cur[i].placeholder;
         _writeLines(block, cur);
         window.pushHistory?.(); window.scheduleAutoSave?.();
         if (block.classList.contains('selected')) window.showBanner02Properties?.(block);
@@ -227,7 +254,13 @@ function renderBanner02(block) {
     img.style.backgroundPosition = 'center';
     img.style.backgroundRepeat = 'no-repeat';
   } else {
-    img.style.background = 'repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 / 16px 16px';
+    /* ★체커는 «CSS 클래스»에 둔다(.banner02-block .bn2-img-empty) — 인라인이면 저장본·.gdt·
+       단독 HTML 내보내기에 그대로 실린다. 정본은 .asset-block(editor-layout.css) /
+       .cvb-img-empty(editor-blocks.css) 이고, 여기만 그 컨벤션을 «안» 따르고 있었다.
+       ⚠️이것만으로 PNG 내보내기는 «안» 고쳐진다 — 캡처 클론은 라이브 문서에 붙어 앱 CSS 를
+         그대로 받으므로 클래스 체커도 그려진다. 그 몫은 capture-safety.js 의
+         neutralizeEmptyImageCheckerForCapture 가 진다(둘이 «같이» 가야 한다). */
+    img.classList.add('bn2-img-empty');
   }
   inner.appendChild(img);
 
@@ -322,6 +355,23 @@ function makeBanner02Block(data = {}) {
   block.dataset.imgW       = data.imgW ?? v.imgW;
   block.dataset.imgH       = data.imgH ?? v.imgH;
   block.dataset.imgFit     = data.imgFit || 'cover';
+
+  /* ★안내문구 표시는 «여기»서 선다 — 기본 문구를 실제로 박는 자리가 여기다.
+     ⚠️_defaultLines() 가 아니다: 새 배너는 위처럼 legacy dataset(label/title/sub)으로 만들어지고
+       _readLines 는 그 경우 legacy-migrate 경로를 타서 _defaultLines 를 «안» 지나간다.
+       (고치는 중에 실제로 헛짚었다 — DOM 검사 T1 이 그 헛짚음을 잡았다.)
+     ★판정 기준은 «문자열 비교»가 아니라 «호출자가 값을 줬나»다 — 템플릿·붙여넣기·MCP 가
+       진짜 글자를 넣어 만든 배너는 data.label 등이 있으므로 본문으로 남는다.
+     ⛔우연히 기본문구와 «같은 글자»를 넘긴 호출자는 본문으로 취급된다 — 의도한 쪽이다
+       (block-drag.js:885~888 의 「안내문구가 본문으로 굳는 지뢰 방지」와 같은 방향). */
+  _writeLines(block, [
+    { kind: 'label', text: block.dataset.label, size: block.dataset.labelSize, color: block.dataset.labelColor, gapTop: 0,
+      ...(data.label === undefined ? { placeholder: true } : {}) },
+    { kind: 'title', text: block.dataset.title, size: block.dataset.titleSize, color: block.dataset.titleColor, gapTop: block.dataset.gap1,
+      ...(data.title === undefined ? { placeholder: true } : {}) },
+    { kind: 'sub',   text: block.dataset.sub,   size: block.dataset.subSize,   color: block.dataset.subColor,   gapTop: block.dataset.gap2,
+      ...(data.sub   === undefined ? { placeholder: true } : {}) },
+  ]);
 
   renderBanner02(block);
   row.appendChild(block);
