@@ -316,6 +316,80 @@ test('D8 ★섹션 폭 «밖»까지 키울 수 있다 — 현빈 2026-09-20 결
   expect(pushes[0].width, '★첫 표본이 «바뀐 뒤» 폭이다 — ⌘Z 가 크기가 아니라 삽입을 되돌린다').toBe(before);
 });
 
+test('D16 ★끄고 «다시 켜도» 섹션 폭 밖이 유지된다 (T-068 후속 — 재진입)', async ({ page }) => {
+  /* ★왜 이 검사가 뒤늦게 생겼나 — D8 이 「섹션 폭 밖까지 키울 수 있다」를 잠그는데
+     «켜기 한 번»으로 끝난다. 이 파일 15검사 중 토글을 두 번 밟는 건 D7 하나뿐이고
+     «껐다 다시 켜는» 검사는 하나도 없었다. 그래서 초록인 채로 이 결함이 살아 있었다
+     (2026-09-21 실앱 실측: 1449 로 키운 뒤 껐다 켜면 화면만 860 으로 깎이고
+      style.width·dataset.width 는 1449 를 들고 있다 = 패널과 화면이 갈라진다).
+     ⇒ ★검사 «개수»가 아니라 «검사가 밟는 경로의 길이»를 세어야 공백이 보인다. */
+  await boot(page);
+  await mount(page);
+  await select(page);
+  await toggleOverlay(page);
+  await dragHandle(page, 'se', 1400, 900);
+
+  const wide = await page.evaluate(() => ({
+    styleW: parseFloat(window.__tf.style.width),
+    computed: parseFloat(getComputedStyle(window.__tf).width),
+    secW: document.getElementById('sec').clientWidth,
+  }));
+  /* ★먼저 «무엇이 바뀌었나»를 세운다 — 안 커졌으면 아래 판정이 저절로 참이 된다(무효 측정). */
+  expect(wide.computed, '★전제가 안 섰다 — 키우기 자체가 섹션 폭을 못 넘었다(D8 을 먼저 봐라)')
+    .toBeGreaterThan(wide.secW + 100);
+
+  await toggleOverlay(page);   // 끄기 — 흐름으로 돌아가면 CSS 가 캡을 다시 건다(D7·현빈 결정)
+  await toggleOverlay(page);   // ★다시 켜기
+
+  const back = await page.evaluate(() => ({
+    styleW: parseFloat(window.__tf.style.width),
+    dsW: window.__tf.dataset.width,
+    computed: parseFloat(getComputedStyle(window.__tf).width),
+    maxW: getComputedStyle(window.__tf).maxWidth,
+    secW: document.getElementById('sec').clientWidth,
+  }));
+  expect(back.maxW, `★재진입에서 maxWidth 가 ${back.maxW} 로 도로 걸렸다 — 화면이 섹션 폭에 잘린다`)
+    .toBe('none');
+  expect(back.computed, `★화면 폭 ${back.computed} 가 섹션 ${back.secW} 로 깎였다`)
+    .toBeGreaterThan(back.secW + 100);
+  /* ★«패널 값 = 화면» 이어야 한다. 이 둘이 갈리는 것이 이 결함의 본체다
+     (overlay-float.js _unfreezeWidth 주석: 「갈리면 패널이 옛 값을 보여준다」). */
+  expect(Math.round(back.computed), `★패널(dataset.width=${back.dsW})과 화면(${back.computed})이 갈렸다`)
+    .toBe(Math.round(back.styleW));
+  expect(Math.round(back.styleW), '★재진입에서 사용자가 정한 폭 자체가 바뀌었다')
+    .toBe(Math.round(wide.styleW));
+});
+
+test('D17 ★음성대조 — 도장을 지우면 재진입에서 «다시» 깎인다 (D16 이 그 차이를 본다)', async ({ page }) => {
+  /* D16 의 초록이 «고쳐서»인지 «원래 안 깎여서»인지 가른다.
+     고침의 전부는 「overlayFreeWidth 도장을 해제 때 안 지우고, 진입 때 그걸 보고 캡을 다시 푼다」이다.
+     ⇒ 도장을 손으로 지우면 옛 동작이 되살아나야 한다. 안 되살아나면 D16 은 «검사처럼 생긴 문장»이다. */
+  await boot(page);
+  await mount(page);
+  await select(page);
+  await toggleOverlay(page);
+  await dragHandle(page, 'se', 1400, 900);
+  await toggleOverlay(page);   // 끄기
+
+  const stamped = await page.evaluate(() => window.__tf.dataset.overlayFreeWidth || '');
+  expect(stamped, '★해제 뒤 도장이 안 남아 있다 — 고침의 절반(도장 유지)이 사라졌다').toBe('true');
+
+  await page.evaluate(() => { delete window.__tf.dataset.overlayFreeWidth; });  // ★옛 상태 재현
+  await toggleOverlay(page);   // 다시 켜기
+
+  const cut = await page.evaluate(() => ({
+    computed: parseFloat(getComputedStyle(window.__tf).width),
+    maxW: getComputedStyle(window.__tf).maxWidth,
+    styleW: parseFloat(window.__tf.style.width),
+    secW: document.getElementById('sec').clientWidth,
+  }));
+  expect(cut.computed, '★도장을 지웠는데도 안 깎인다 — D16 의 초록은 «고쳐서»가 아니라 «원래 그래서»다')
+    .toBeLessThanOrEqual(cut.secW + 1);
+  /* ★그리고 그때 «갈라짐»이 실제로 생긴다 — 이게 결함의 모습이다 */
+  expect(cut.styleW, '★옛 상태에서 style.width 는 큰 값을 그대로 들고 있어야 한다(갈라짐)')
+    .toBeGreaterThan(cut.secW + 100);
+});
+
 test('D9 ★줌 40%(현빈 실사용) 에서도 끄는 만큼만 커진다 — 스케일 보정', async ({ page }) => {
   await boot(page);
   await mount(page, { zoom: 40 });
