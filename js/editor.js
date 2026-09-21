@@ -3239,17 +3239,22 @@ function _setAttrIfChanged(el, name, value) {
   if (el.getAttribute(name) !== value) el.setAttribute(name, value);
 }
 
-function deselectAll() {
-  clearMultiSel();
-  _lastClickedBlock = null;
-  // 텍스트 편집 중인 블록이 있으면 편집 종료 전 현재 상태 히스토리에 저장
-  // (입력한 텍스트가 undo 복원 대상이 되도록)
-  if (!window._historyPaused) {
-    const editingBlock = canvasEl?.querySelector('.text-block.editing, .icon-text-block.editing, .label-group-block.editing, .modal-block.editing');
-    if (editingBlock) pushHistory('텍스트 편집');
-  }
-  // perf(qa-perf): canvas/layerPanel 범위 한정으로 document 전체 탐색 제거
-  const canvas = canvasEl;
+/* ═══ 선택 표시 «비우기» — 정본 한 자리 (2026-09-21 T-084) ═══════════════
+ * 캔버스의 「무엇이 선택됐나」 표시는 «한 벌이 아니다» — 블록의 `.selected` 말고도
+ * 배너 줄(.bn2-line-selected) · 그리드 줄/칸 · 스텝 · 라벨 항목(.item-selected) ·
+ * 표 셀(.cell-selected) · .row-active · 좌측 레이어 패널의 .active 가 «같이» 움직여야 한다.
+ * 예전엔 deselectAll 만 이 전부를 알고 있었고, 삽입·MCP·점검점프가 쓰는
+ * js/block-edit.js 의 selectBlock 은 `.selected` «한 클래스»만 벗겼다.
+ * ⇒ 배너 «줄»을 고른 채 도구막대로 블럭을 넣으면 새 블럭에도 파란 선이 붙고
+ *   옛 배너 줄의 파란 선이 «그대로 남아» 파란 상자가 둘이 됐다(T-084, 9542 실측).
+ * ⛔마커 목록을 다른 파일에 «또» 적지 마라 — 목록이 둘이 되는 순간 한쪽이 낡는다.
+ *   새 마커가 생기면 이 함수 한 곳에만 보탠다.
+ * ★맨 끝의 `.selected` 일괄 제거가 «성질로 판정하는 자리»다: 위의 타입 열거는
+ *   «추가 정리»(contenteditable 되돌리기·핸들 제거 등)가 필요한 타입일 뿐이고,
+ *   「선택됨」 자체는 클래스 하나다. 새 블록 타입이 생겨도 여기서 조용히 빠지지 않는다. */
+function clearSelectionMarks(root) {
+  const canvas = root || canvasEl;
+  if (!canvas) return;
   const layerPanel = document.getElementById('layer-panel-body');
 
   // canvas 내 블록 선택 해제 (단일 querySelectorAll 순회)
@@ -3309,6 +3314,23 @@ function deselectAll() {
     layerPanel.querySelectorAll('.layer-item').forEach(i => { i.classList.remove('active'); i.style.background = ''; });
     layerPanel.querySelectorAll('.layer-row-header').forEach(h => h.classList.remove('active'));
   }
+  /* ★성질 판정 — 위 열거에 «없는» 타입(.gradient-block · .frame-block · .section-block 등)까지
+     한 번에 쓸어낸다. 열거는 추가 정리용이지 「선택됨」의 정본 목록이 아니다. */
+  canvas.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+}
+window.clearSelectionMarks = clearSelectionMarks;
+
+function deselectAll() {
+  clearMultiSel();
+  _lastClickedBlock = null;
+  // 텍스트 편집 중인 블록이 있으면 편집 종료 전 현재 상태 히스토리에 저장
+  // (입력한 텍스트가 undo 복원 대상이 되도록)
+  if (!window._historyPaused) {
+    const editingBlock = canvasEl?.querySelector('.text-block.editing, .icon-text-block.editing, .label-group-block.editing, .modal-block.editing');
+    if (editingBlock) pushHistory('텍스트 편집');
+  }
+  // ★선택 표시 비우기는 «정본 한 자리»(clearSelectionMarks) — selectBlock 도 같은 함수를 쓴다.
+  clearSelectionMarks(canvasEl);
 
   if (window.setRpIdBadge) window.setRpIdBadge(null);
   window._activeFrame = null;
@@ -3339,7 +3361,7 @@ function deselectAll() {
   window.hideTextOverlayResizeHandles?.();
   window._deselectAllGradients?.(); // gradient 블록 선택 해제 + 4모서리 핸들 제거 (deselectAll 셀렉터에 없어 누락됐던 정리)
   window.hideGradientLine?.(); // banner02/comparison 배경 그라데이션 온캔버스 라인 숨김
-  canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
+  // (.frame-block 의 .selected 는 clearSelectionMarks 의 일괄 제거가 이미 벗긴다)
   window.showPageProperties();
 }
 

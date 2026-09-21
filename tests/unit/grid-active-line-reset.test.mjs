@@ -72,8 +72,15 @@ test('소스 가드: 캔버스 클릭은 deselectAll «전에» 직전 줄을 �
 
 test('소스 가드: 블럭으로 고르는 경로(deselectAll·레이어 패널·MCP selectBlock)가 활성줄을 해제한다', () => {
   const ed = read('js/editor.js');
+  /* ★2026-09-21(T-084): 활성줄 해제는 deselectAll 이 «부르는» 정본 한 자리
+     clearSelectionMarks 로 옮겼다 — MCP selectBlock 도 같은 함수를 써서 이제 여기서
+     «같이» 풀린다(예전엔 selectBlock 이 `.selected` 한 클래스만 벗겼다). */
   const des = extractFn(ed, 'deselectAll');
-  assert.match(des, /grdClearAllActiveLines\?\.\(canvas\)/, 'deselectAll 이 활성줄 모델을 안 지운다');
+  assert.match(des, /clearSelectionMarks\(/, 'deselectAll 이 정본(clearSelectionMarks)을 안 부른다');
+  assert.match(extractFn(ed, 'clearSelectionMarks'), /grdClearAllActiveLines\?\.\(canvas\)/,
+    '정본 해제 자리가 활성줄 모델을 안 지운다');
+  assert.match(read('js/block-edit.js'), /window\.clearSelectionMarks\(\)/,
+    'MCP selectBlock 이 정본 해제를 안 쓴다 — 마커 목록의 사본이 또 생겼다');
   assert.match(read('js/panels/layer-panel-items.js'), /isGrid\)\s*window\.showGridProperties\?\.\(block,\s*null\)/,
     '레이어 패널이 null 을 명시하지 않는다(1-인자면 옛 줄이 되살아난다)');
   /* ★2026-09-21(T-079): MCP selectBlock(js/block-edit.js)의 «자기 타입표»를 없애고
