@@ -96,6 +96,13 @@ export function showShapeProperties(block) {
   //   ⛔`=== false` 비교 — 플래그를 안 얹는 하네스(undefined)는 «켜짐»이다.
   const mosaicOK    = window.REDACT_MOSAIC_ENABLED !== false;
   const redactMode  = (mosaicOK && block.dataset.shapeRedactMode === 'mosaic') ? 'mosaic' : 'blur';
+  // ★차단 중 «저장값은 아직 모자이크»인 레거시 블록(현빈이 신고한 그 블록들, 2026-09-21).
+  //   위 :98 이 패널을 blur 로 «읽는» 덕에 화면과 패널은 같은 말을 하지만, 그것만 두면 패널이
+  //   「이건 블러다」라고 «거짓 상태»를 말한다 — 저장값은 mosaic 이라 T-071 로 스위치를 되살리면
+  //   그 블록만 조용히 모자이크로 돌아간다. 게다가 「블러」 버튼은 이미 active 라 사용자가 누를
+  //   이유가 없어 «전환 길»이 사실상 닫혀 있다(코드상 D10 으로 열려 있어도 눈에 안 보인다).
+  //   ⇒ ⑴그 사실을 글로 고지하고 ⑵「블러로 바꾸기」를 «보이는 버튼»으로 준다. seg 상태는 불변.
+  const legacyMosaic = isRedact && !mosaicOK && block.dataset.shapeRedactMode === 'mosaic';
   /* 오버레이(플로팅) — Figma 의 Ignore Auto Layout. 도형은 «위치를 쥔 요소»가 .shape-block 이
      아니라 자유배치 래퍼 프레임이다(shape-frame.js shapeFrameOf = 판정 SSOT). 동작은
      js/overlay-float.js 가 텍스트와 «같은 코드»로 돈다 — 여기선 상태만 읽어 버튼을 그린다.
@@ -143,6 +150,10 @@ export function showShapeProperties(block) {
             <button type="button" class="prop-align-btn${redactMode === 'mosaic' ? ' active' : ''}" data-mode="mosaic" aria-pressed="${redactMode === 'mosaic'}"${mosaicOK ? '' : ' disabled aria-disabled="true"'} title="${mosaicOK ? '모자이크 — 밑 화면을 찍어 픽셀화(이동·편집이 끝날 때 다시 찍음)' : '모자이크는 일시적으로 꺼져 있습니다(블러만 사용) — 캡처가 사진을 못 실어 회색/단색으로 나오는 문제 수정 중'}">모자이크</button>
           </div>
         </div>
+        ${legacyMosaic ? `
+        <div class="prop-hint" id="shape-redact-legacy-note" style="margin-top:6px;">이 도형은 <b>모자이크</b>로 저장돼 있습니다. 모자이크가 일시 중지돼 지금은 <b>블러로 보여 주는 중</b>이고, 모자이크가 되살아나면 다시 모자이크로 돌아갑니다.</div>
+        <button type="button" class="prop-btn" id="shape-redact-to-blur" style="margin-top:6px;width:100%;">블러로 바꾸기 (저장값도 블러로)</button>
+        ` : ''}
         <div class="prop-row" style="margin-top:8px;">
           <span class="prop-label">강도</span>
           <input type="range" class="prop-slider" id="shape-redact-blur-slider" min="2" max="20" step="1" value="${redactBlur}">
@@ -374,6 +385,16 @@ export function showShapeProperties(block) {
       applyRedact(true, v, redactMode);
     });
     redactBlurNum.addEventListener('change', () => window.pushHistory?.());
+  }
+  // ★레거시 모자이크 → 블러 «전환» 버튼. 방식 seg 의 「블러」와 같은 길(explicitMode)을 쓴다 —
+  //   차이는 «보이느냐» 뿐이다(seg 의 블러는 이미 active 라 눌러야 할 이유가 안 보인다).
+  const redactToBlurBtn = document.getElementById('shape-redact-to-blur');
+  if (redactToBlurBtn) {
+    redactToBlurBtn.addEventListener('click', () => {
+      applyRedact(true, redactBlurSliderValue(), 'blur', { explicitMode: true });
+      window.pushHistory?.();
+      showShapeProperties(block); // 고지·버튼이 사라져 패널과 데이터가 같아진다
+    });
   }
   const redactMosaicRefreshBtn = document.getElementById('shape-redact-mosaic-refresh');
   if (redactMosaicRefreshBtn) {

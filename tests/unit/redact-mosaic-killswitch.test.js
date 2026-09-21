@@ -136,8 +136,25 @@ test('U8 ★강도 슬라이더가 레거시 mosaic 을 blur 로 «굳히지» �
   // 방식 버튼(=모드를 실제로 고른 곳)만 explicitMode 를 단다.
   assert.match(SHAPE, /applyRedact\(true, redactBlurSliderValue\(\), m, \{ explicitMode: true \}\)/,
     '방식 버튼 호출에 explicitMode 표시가 없다 — 그러면 모드 전환 자체가 막힌다');
-  const explicitCount = (SHAPE.match(/explicitMode: true/g) || []).length;
-  assert.equal(explicitCount, 1, `explicitMode 를 단 호출이 1개가 아니다(${explicitCount}) — 슬라이더까지 달면 다시 굳는다`);
+  /* ★«explicitMode 가 1개»는 갯수를 센 «대리지표»였다 — 이 검사가 실제로 지켜야 할 것은
+     「강도 조작(슬라이더·숫자칸)에는 explicitMode 가 안 붙는다」이지 「전체 1개」가 아니다.
+     2026-09-21 레거시 mosaic 전용 「블러로 바꾸기」 버튼이 생기면서 «모드를 실제로 고른»
+     정당한 두 번째 호출이 들어왔다 ⇒ 갯수 대신 ⑴explicit 가 붙은 자리를 «이름으로» 못 박고
+     ⑵강도 조작 두 자리엔 opts 자체가 없는지를 직접 잰다(약화가 아니라 더 좁은 잣대). */
+  const explicitCalls = SHAPE.match(/applyRedact\(true, redactBlurSliderValue\(\), [^,]+, \{ explicitMode: true \}\)/g) || [];
+  assert.ok(explicitCalls.includes("applyRedact(true, redactBlurSliderValue(), m, { explicitMode: true })"),
+    '방식 seg 버튼의 explicit 호출이 없다');
+  assert.ok(explicitCalls.includes("applyRedact(true, redactBlurSliderValue(), 'blur', { explicitMode: true })"),
+    '레거시 mosaic → 「블러로 바꾸기」 버튼의 explicit 호출이 없다 — 전환 길이 닫힌다');
+  assert.equal(explicitCalls.length, 2, `explicit 호출이 «모드를 고르는» 두 자리가 아니다(${explicitCalls.length})`);
+  const allExplicit = (SHAPE.match(/explicitMode: true/g) || []).length;
+  assert.equal(allExplicit, explicitCalls.length,
+    `모드를 고르지 않는 자리에 explicitMode 가 붙었다(전체 ${allExplicit} vs 모드선택 ${explicitCalls.length})`);
+  // ★강도 조작 두 자리 — opts 없이 부른다(붙는 순간 레거시 mosaic 이 blur 로 굳는다).
+  assert.match(SHAPE, /applyRedact\(true, redactBlurSlider\.value, redactMode\);/,
+    '강도 슬라이더가 applyRedact 를 opts 없이 부르지 않는다');
+  assert.match(SHAPE, /applyRedact\(true, v, redactMode\);/,
+    '강도 숫자칸이 applyRedact 를 opts 없이 부르지 않는다');
 });
 
 test('U9 ★goditor-api DISABLED 게이트는 «한 글자도 바꾸기 전»(updateShapeBlock 맨 앞)에 있다', () => {

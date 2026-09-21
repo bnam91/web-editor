@@ -594,3 +594,133 @@ test('D10-prefix ★음성대조 — 픽스 직전(d8ebc7e)에선 블러를 눌�
   expect(out.after, '★직전 커밋에서도 blur 로 바뀌면 이 검사는 아무것도 안 보고 있다').toBe('mosaic');
   expect(out.panelBlurActive, '그런데 패널은 「블러 active」라고 그렸다 = 패널≠데이터').toBe(true);
 });
+
+/* ══ D11 ★패널이 «저장값은 아직 모자이크»라는 사실을 숨기지 않는다 + «눈에 보이는» 전환 길 ══
+   (2026-09-21 마무리 라운드 medium — 현빈이 신고한 «옛 모자이크 블록»)
+   D10 으로 «블러를 누르면 저장값이 바뀐다»는 닫혔지만, 패널은 그 블록을 열자마자 「블러 active」로
+   그린다(:98). 사용자 눈엔 이미 블러가 골라져 있으니 ⑴누를 이유가 없고(전환 길이 사실상 닫혀 있고)
+   ⑵패널이 「이건 블러다」라고 «거짓 상태»를 말한다 — 저장값은 여전히 mosaic 이라 T-071 로 스위치를
+   되살리면 그 블록만 조용히 모자이크로 돌아간다.
+   ⇒ 차단 중 저장값이 mosaic 이면 ⑴그 사실을 글로 고지하고 ⑵「블러로 바꾸기」 버튼을 «보이게» 둔다.
+   ⛔D5 의 seg 상태(모자이크 disabled·블러 active)는 그대로다 — 화면(블러)과 같은 말을 유지한다. */
+const D11_PREFIX_REF = '09b7fad';   // 이 픽스 «직전» = 마무리 라운드 기준 head
+
+async function bootPanelAt(page, { ref = null, storedMode = 'mosaic' } = {}) {
+  await page.route(`${ORIGIN}/**`, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/__panel.html') return route.fulfill({ contentType: 'text/html', body: PANEL_HARNESS });
+    const rel = url.pathname.slice(1);
+    if (ref && SWAP.includes(rel)) {
+      return route.fulfill({
+        contentType: MIME[path.extname(rel)] || 'text/plain',
+        body: execFileSync('git', ['show', `${ref}:${rel}`], { cwd: REPO, encoding: 'utf8' }),
+      });
+    }
+    const file = path.join(REPO, rel);
+    if (!file.startsWith(REPO) || !fs.existsSync(file)) return route.fulfill({ status: 404, body: '' });
+    return route.fulfill({ contentType: MIME[path.extname(file)] || 'text/plain', body: fs.readFileSync(file) });
+  });
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e)));
+  await page.goto(`${ORIGIN}/__panel.html`);
+  await page.waitForFunction(() => window.__ready === true);
+  await page.evaluate((m) => {
+    const b = document.createElement('div');
+    b.className = 'shape-block shape-redact';
+    b.id = 'shp_legacy';
+    b.dataset.shapeType = 'rectangle';
+    b.dataset.shapeColor = '#cccccc';
+    b.dataset.shapeRedact = 'true';
+    b.dataset.shapeRedactMode = m;
+    b.dataset.shapeRedactBlur = '12';
+    b.style.width = '200px'; b.style.height = '120px';
+    b.innerHTML = '<svg class="shape-svg" width="200" height="120"><rect width="200" height="120" fill="#ccc"/></svg>';
+    document.getElementById('host').appendChild(b);
+    window.__block = b;
+    window.__open(b);
+  }, storedMode);
+  return errs;
+}
+
+/* ⛔«있다/없다»를 class 이름이 아니라 «보이는 상자»로 잰다 — display:none 으로 숨겨 둔 고지는
+   사용자에게 없는 것과 같다(0 × 0 유령 함정). */
+const legacyNotice = (page) => page.evaluate(() => {
+  const vis = (el) => {
+    if (!el) return false;
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    return cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0' && r.width > 0 && r.height > 0;
+  };
+  const note = document.getElementById('shape-redact-legacy-note');
+  const btn  = document.getElementById('shape-redact-to-blur');
+  return {
+    noteVisible: vis(note),
+    noteSaysMosaic: !!note && /모자이크/.test(note.textContent),
+    btnVisible: vis(btn),
+    btnDisabled: !!btn && btn.disabled,
+    dataMode: window.__block.dataset.shapeRedactMode,
+  };
+});
+
+test('D11 ★저장값이 mosaic 이면 패널이 그 사실을 고지하고 «보이는» 전환 버튼을 준다', async ({ page }) => {
+  const errs = await bootPanelAt(page);
+  const st = await legacyNotice(page);
+  console.log('  D11-head:', st);
+  expect(st.dataMode, '하네스 전제 — 레거시 블록은 mosaic 으로 저장돼 있어야 한다').toBe('mosaic');
+  expect(st.noteVisible, '★패널이 「저장값은 아직 모자이크」라는 사실을 안 알린다(거짓 상태)').toBe(true);
+  expect(st.noteSaysMosaic).toBe(true);
+  expect(st.btnVisible, '★「블러로 바꾸기」 버튼이 안 보인다 — 전환 길이 사실상 닫혀 있다').toBe(true);
+  expect(st.btnDisabled).toBe(false);
+  // seg 는 그대로 — 화면(블러)과 같은 말을 유지한다(D5 불변).
+  const seg = await panelState(page);
+  expect(seg.mosaicDisabled).toBe(true);
+  expect(seg.mosaicActive).toBe(false);
+  expect(seg.blurActive).toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('D11-prefix ★음성대조 — 09b7fad 에선 고지도 전환 버튼도 없다', async ({ page }) => {
+  const errs = await bootPanelAt(page, { ref: D11_PREFIX_REF });
+  const st = await legacyNotice(page);
+  console.log('  D11-prefix:', st);
+  expect(st.dataMode).toBe('mosaic');
+  expect(st.noteVisible, '★직전 커밋에도 고지가 있으면 이 검사는 아무것도 안 보고 있다').toBe(false);
+  expect(st.btnVisible, '★직전 커밋에도 버튼이 있으면 이 검사는 아무것도 안 보고 있다').toBe(false);
+  expect(errs).toEqual([]);
+});
+
+test('D11-b ★전환 버튼을 누르면 dataset=blur + 고지·버튼이 사라진다 (패널 = 데이터)', async ({ page }) => {
+  const errs = await bootPanelAt(page);
+  const out = await page.evaluate(() => {
+    const before = window.__block.dataset.shapeRedactMode;
+    document.getElementById('shape-redact-to-blur').click();
+    const b = window.__block;
+    return {
+      before,
+      after: b.dataset.shapeRedactMode,
+      redactOn: b.dataset.shapeRedact,
+      blurDs: b.dataset.shapeRedactBlur,
+      inlineVar: b.style.getPropertyValue('--redact-blur'),
+    };
+  });
+  console.log('  D11-b:', out);
+  expect(out.before).toBe('mosaic');
+  expect(out.after, '★전환 버튼이 저장값을 안 바꿨다').toBe('blur');
+  expect(out.redactOn, '가림막 자체는 켜진 채로').toBe('true');
+  expect(out.blurDs, '강도는 저장값(12)을 이어받는다').toBe('12');
+  expect(out.inlineVar).toBe('12px');
+  const st = await legacyNotice(page);
+  expect(st.noteVisible, '★바꾼 뒤에도 고지가 남으면 이번엔 그게 거짓 상태다').toBe(false);
+  expect(st.btnVisible).toBe(false);
+  expect(errs).toEqual([]);
+});
+
+test('D11-c ★양성대조 — 처음부터 blur 로 저장된 블록엔 고지·버튼이 없다', async ({ page }) => {
+  const errs = await bootPanelAt(page, { storedMode: 'blur' });
+  const st = await legacyNotice(page);
+  console.log('  D11-c:', st);
+  expect(st.dataMode).toBe('blur');
+  expect(st.noteVisible).toBe(false);
+  expect(st.btnVisible).toBe(false);
+  expect(errs).toEqual([]);
+});
