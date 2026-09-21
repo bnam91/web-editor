@@ -376,10 +376,25 @@
       <p>색 입력 UI 2세대 공존:</p>
       <ul>
         <li><b>신형 정석 헬퍼</b> <code>colorFieldHTML()</code> (color-picker.js) — <span class="num">46곳</span> 사용. <b># 없이 대문자 6자리</b>(FFFFFF) + 알파(%) 입력. 입력 시 <code>#</code> 자동 제거·대문자화. = Figma 방식·정본.</li>
-        <li><b>구형 인라인</b> — 최소 <span class="num">6곳</span>(prop-text-template 2·prop-section 1·prop-simple-card 3). <b># 포함 7자리</b>(#111111), <code>maxlength="7"</code>, 알파 없음, 각 파일에 손으로 작성.</li>
-        <li>증상: <code>prop-section.js</code>에서 배경색=신형(<code>FFFFFF</code>) / Heading색=구형(<code>#111111</code>) → 한 패널 내 표기 분열.</li>
+        <li><b>구형 인라인</b> — prop-text-template 2·prop-section 5·prop-simple-card 5·prop-gradient 1. 알파 칸은 여전히 없지만(마크업은 그대로),
+          <b>2026-09-20 유닛 colorhex</b>에서 <b>표기·배선</b>을 정본에 맞췄다: 값은 <b># 없는 대문자 6자</b>, <code>maxlength="7"</code>(# 붙여 붙여넣기 허용),
+          배선은 <code>wireHexText()</code>(color-picker.js) 한 자리.</li>
+        <li>옛 증상: <code>prop-section.js</code>에서 배경색=<code>FFFFFF</code> / Heading색=<code>#111111</code> → 한 패널 내 표기 분열. <b>해소됨</b>(둘 다 <code>FFFFFF</code> 꼴).</li>
+        <li>★<b>무효값</b>도 같이 고쳤다 — 예전엔 말없이 무시되고 칸엔 쓴 값이 남았다. 이제 빨간 표시(<code>.prop-color-hex--invalid</code>) + blur 시 마지막 유효값 복원.</li>
+        <li>★<b>2026-09-21 2라운드</b> — 1라운드가 「남은 것 3곳」이라고 적은 <b>숫자가 틀렸다</b>(실측 grep 과 안 맞았다).
+          손사본은 실제로 <b>13곳</b>이었고 전부 <code>wireHexText()</code>로 옮겼다:
+          <code>page-bg-hex</code>(이 칸만 <code>maxlength="6"</code>이라 <code>#00FF00</code>의 7번째 글자를 잘라 무효로 만들었다) ·
+          <code>mdl-typo-color-hex</code> / <code>grd-typo-color-hex</code>(blur 리스너 <b>0건</b> — 무효값이 칸에 영원히 남던 자리) ·
+          <code>txt-color-hex</code> · <code>txt-shadow-color-hex</code> · <code>cvb-bg-hex</code>(maxlength 20→11) ·
+          <code>tfx-color-hex</code> / <code>tfx-glow-color-hex</code> · Design System 토큰 <code>ds-*-color-hex</code> 5곳.</li>
+        <li>★<b>Enter 로도 확정된다</b> — 커밋이 <code>change</code>에만 걸려 있어 <code>&lt;form&gt;</code> 밖인 이 앱에선
+          「값을 쓰고 Enter 쳤는데 안 바뀐다」가 났다(자유형식 배경칸). 숫자칸(<code>prop-number-commit-guard</code>)과 규약을 맞췄다.</li>
       </ul>
-      <p><b>제안:</b> 구형 6곳을 <code>colorFieldHTML()</code> + <code>wireColorField()</code>로 교체해 # 없는 6자리 + 알파로 일원화.</p>
+      <p><b>남은 것:</b> 마크업 자체를 <code>colorFieldHTML()</code>(스와치+hex+알파%)로 갈아끼우는 일은 아직. 알파가 필요 없는 자리가 많아 별건으로 둔다.</p>
+      <p>⛔<b>이 문단의 숫자를 손으로 믿지 마라</b> — 1라운드가 「썩은 마커 방지」로 적은 숫자가 바로 다음 라운드에 틀린 것으로 드러났다.
+         정본은 기계가 센다: <code>tests/unit/color-hex-wiring-ssot.test.mjs</code>
+         (A축 = 색칸에 손으로 단 리스너가 <code>color-picker.js</code> 밖에 있나, B축 = 색칸 <code>maxlength</code>가 7·11 밖인가).
+         문서와 코드가 어긋나면 <b>그 검사가 빨강이다</b>.</p>
       </details>
     </div>
   </section>
@@ -1008,13 +1023,13 @@ document.getElementById('radius-list').innerHTML=RADIUS.map(([n,v,u])=>
 
 // fix queue — 현빈 발견 패치 후보 (누적)
 const FIXQ=[
-  ['색 hex 입력 표기 분열','js/props/* (색 입력 전반)',
-   '같은 색 칸인데 <code>ffffff</code>(# 없이 6자리)·<code>#111111</code>(# 7자리)·<code>#a2abb8</code>(11자리)·(20자리)로 제각각. maxlength <b>6(7곳)·7(6곳)·11(2곳)·20(1곳)</b> 4종 난립.',
-   '<code>colorFieldHTML()</code>+<code>wireColorField()</code> 정석 헬퍼로 통일(# 없는 6자리+알파). 이슈 #6 연계.'],
+  ['색 hex 입력 표기 분열 — <b>대부분 해소(2026-09-20 유닛 colorhex)</b>','js/props/* (색 입력 전반)',
+   '표기는 <b># 없는 대문자 6자</b>로, maxlength 는 <b>7</b>(<code>transparent</code> 받는 2곳만 11)로 맞췄고 배선은 <code>wireHexText()</code> 한 자리로 모았다. 무효값은 이제 빨갛게 표시되고 blur 시 되돌아간다. <b>남은 것</b>: <code>prop-canvas.js cvb-bg-hex</code>(20·자유형식) · <code>text-effect-transform.js tfx-*-hex</code> 2곳.',
+   '남은 3곳도 <code>wireHexText()</code>로 넘기고, 알파가 필요한 자리는 <code>colorFieldHTML()</code> 마크업으로 교체. 이슈 #6 연계.'],
   ['그라데이션 프리셋 버튼 인라인 스타일','prop-simple-card.js:171–174 (.cvb-grad-preset)',
    '<code>prop-align-btn</code> 재사용하면서 <b>인라인 style 범벅</b>(flex·background·height·text-shadow) + 기호 <b>↓ ↑ ⇊ 半</b> 하드코딩. CSS와 분리 안 됨.',
    '전용 클래스(.cvb-grad-preset)로 스타일 추출, 인라인 제거. 기호는 통일된 아이콘/라벨로.'],
-  ['보조 버튼(투명·초기화 등) 너비 제각각','prop-simple-card.js:204·217 · asset 배경색 행(asset-bg-clear) 등',
+  ['보조 버튼(투명·초기화 등) 너비 제각각 — <b>asset 배경색 행은 2026-09-20 에 자기 줄로 분리됨(T-100)</b>','prop-simple-card.js:204·217 · asset 배경색 행(asset-bg-clear) 등',
    '행의 주 <code>prop-align-btn</code>은 <code>flex:1</code>로 늘어나는데, "투명"은 <code>width:36px</code>, "초기화"는 <code>font-size:10px;padding:0 8px</code>로 <b>각자 인라인 크기 지정</b> → 너비가 들쭉날쭉.',
    '보조/아이콘 버튼 공통 규격(고정 너비 토큰 또는 동일 패턴 클래스)으로 정렬.'],
   ['긴 라벨 말줄임 시 hover로도 안 보임','editor-props.css:20 .prop-label + prop-graph.js:83 등',

@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
+import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
 
 /* ═══════════════════════════════════
@@ -192,7 +193,7 @@ async function showSectionProperties(sec) {
         <div class="prop-color-swatch" style="background:${c}">
           <input type="color" id="sec-txt-${t}" value="${c}">
         </div>
-        <input type="text" class="prop-color-hex" id="sec-txt-${t}-hex" value="${c}" maxlength="7">
+        <input type="text" class="prop-color-hex" id="sec-txt-${t}-hex" value="${c.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
       </div>`;
   }).join('');
 
@@ -230,7 +231,7 @@ async function showSectionProperties(sec) {
           <div class="prop-color-swatch" style="background:${hexBg}">
             <input type="color" id="sec-bg-color" value="${hexBg}">
           </div>
-          <input type="text" class="prop-color-hex" id="sec-bg-hex" value="${hexBg.replace('#','').toUpperCase()}" maxlength="6" aria-label="Color">
+          <input type="text" class="prop-color-hex" id="sec-bg-hex" value="${hexBg.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
           <label class="prop-color-alpha" title="Opacity">
             <input type="text" class="prop-color-alpha-input" id="sec-bg-alpha" value="${secBgAlpha}" aria-label="Opacity">
             <span class="prop-color-alpha-suffix">%</span>
@@ -415,19 +416,14 @@ async function showSectionProperties(sec) {
     _applySecBg();
   });
   picker.addEventListener('change', () => pushHistory());
-  hex.addEventListener('input', () => {
-    const v = hex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      picker.value = '#' + v.toLowerCase();
-      _applySecBg();
-    }
-  });
-  hex.addEventListener('blur', () => {
-    hex.value = (picker.value || '#000000').replace('#','').toUpperCase();
-  });
-  hex.addEventListener('change', () => {
-    const v = hex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) pushHistory();
+  /* 배경색 hex — 배선은 color-picker.js 의 wireHexText 한 자리에서 온다(손복사 금지).
+     이 세 줄이 예전엔 wireColorField 와 「거의 같지만 조금 다른」 사본이었다. */
+  wireHexText(hex, {
+    parse: parseHex6,
+    format: formatHex6,
+    getCurrent: () => picker.value || '#000000',
+    onApply: (v) => { picker.value = v; _applySecBg(); },
+    onCommit: () => pushHistory(),
   });
   alphaInp.addEventListener('input', () => {
     const m = alphaInp.value.match(/(\d+)/);
@@ -515,13 +511,19 @@ async function showSectionProperties(sec) {
     const p = document.getElementById(`sec-txt-${t}`);
     const h = document.getElementById(`sec-txt-${t}-hex`);
     const sw = p.closest('.prop-color-swatch');
-    p.addEventListener('input', () => { applyColor(p.value); h.value = p.value; sw.style.background = p.value; });
-    h.addEventListener('input', () => {
-      if (/^#[0-9a-f]{6}$/i.test(h.value)) { applyColor(h.value); p.value = h.value; sw.style.background = h.value; }
+    p.addEventListener('input', () => { applyColor(p.value); h.value = formatHex6(p.value); sw.style.background = p.value; });
+    /* ★여긴 blur 핸들러가 «아예 없던» 자리다 — 무효값을 넣으면 영원히 칸에 남아
+       「초록 화면 · 안 바뀐 값」이 됐다(2026-09-20 신고의 그 Heading 칸).
+       값 포맷도 `#00FF00`(7자) → `00FF00`(다수결)으로 맞춘다. 배선은 공용 한 자리. */
+    wireHexText(h, {
+      parse: parseHex6,
+      format: formatHex6,
+      getCurrent: () => p.value || '#000000',
+      onApply: (v) => { applyColor(v); p.value = v; sw.style.background = v; },
+      onCommit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); },
     });
     // 커밋(change) 시 undo·autosave 반영 (input엔 미적용 — 드래그당 1히스토리)
     p.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
-    h.addEventListener('change', () => { if (/^#[0-9a-f]{6}$/i.test(h.value)) { window.pushHistory?.(); window.scheduleAutoSave?.(); } });
   });
 
   // 일괄 정렬

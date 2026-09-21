@@ -3,7 +3,8 @@
      prop-block-label 풀 구조, setRpIdBadge, pushHistory()+scheduleAutoSave().
    글자 편집은 캔버스에서 더블클릭(block-drag) — 여기선 구조/스타일만 만진다. */
 import { propPanel } from '../globals.js';
-import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor,
+         wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { alignBtn } from './_helpers.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
@@ -348,6 +349,7 @@ export function showModalProperties(block) {
   // 스와치 «배경»만은 raw 로 — var() 바인딩이면 변수의 실제 색이 보여야 한다.
   if (cSwatch && textColor) cSwatch.style.background = textColor;
   let _mdlAlpha = parseAlphaFromColor(textColor);
+  let _mdlLastHex = parseHex6(cHex?.value || '') || '';   // '' = 아무도 안 정했다(placeholder 갈래)
   const buildColor = () => {
     const h = (cPick.value || '#000000').replace('#', '');
     const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
@@ -363,17 +365,29 @@ export function showModalProperties(block) {
     // alpha 0 이면 색을 바꿔도 안 보인다 — 사용자가 alpha 를 안 건드렸으면 되살린다.
     if (_mdlAlpha === 0) { _mdlAlpha = 100; if (cAlpha) cAlpha.value = '100'; }
     if (cHex) cHex.value = cPick.value.replace('#', '').toUpperCase();
+    _mdlLastHex = cPick.value;              // 피커로 바꾼 색도 「마지막 유효값」이다(blur 복원 기준)
     applyColor();
   });
   cPick?.addEventListener('change', commit);
-  cHex?.addEventListener('input', () => {
-    const val = cHex.value.trim().replace(/^#/, '');
-    if (!/^[0-9a-f]{6}$/i.test(val)) return;
-    cPick.value = '#' + val.toLowerCase();
-    if (_mdlAlpha === 0) { _mdlAlpha = 100; if (cAlpha) cAlpha.value = '100'; }
-    applyColor();
+  /* 글자색 hex — 배선은 color-picker.js 의 wireHexText 한 자리(2026-09-21 픽스 라운드).
+     ★여긴 blur 핸들러가 «아예 없던» 마지막 두 자리 중 하나였다(다른 하나 = prop-grid.js).
+       마크업(maxlength 7)은 앞 라운드가 고쳤는데 배선만 옛 손사본으로 남아, 신고 증상
+       「무효값이 말없이 무시되고 칸에 영원히 남는다」가 이 칸에 100% 그대로 있었다.
+     ★빈 값은 «무효»가 아니라 「아무도 안 정했다」다 — _typo-section 의 placeholder 갈래를
+       지켜야 한다(안 그러면 blur 때 역할 기본색이 칸에 «박혀» 굳는다). */
+  wireHexText(cHex, {
+    parse: (raw) => (String(raw ?? '').trim() === '' ? '' : parseHex6(raw)),
+    format: (v) => (v ? formatHex6(v) : ''),
+    getCurrent: () => _mdlLastHex,
+    onApply: (v) => {
+      if (!v) return;                       // 빈 칸 = 미지정 — 아무 것도 안 한다(옛 동작과 같다)
+      _mdlLastHex = v;
+      cPick.value = v;
+      if (_mdlAlpha === 0) { _mdlAlpha = 100; if (cAlpha) cAlpha.value = '100'; }
+      applyColor();
+    },
+    onCommit: (v) => { if (v) commit(); },
   });
-  cHex?.addEventListener('change', commit);
   cAlpha?.addEventListener('change', () => {
     _mdlAlpha = Math.min(100, Math.max(0, parseInt(cAlpha.value) || 0));
     cAlpha.value = String(_mdlAlpha);
@@ -393,7 +407,7 @@ export function showModalProperties(block) {
         window.pushHistory?.();
         setDs('textColor', cssRef);
         const fb = (String(cssRef).match(/#[0-9a-fA-F]{6}/) || [])[0];
-        if (fb && cPick) { cPick.value = fb; if (cHex) cHex.value = fb.replace('#', '').toUpperCase(); }
+        if (fb && cPick) { cPick.value = fb; _mdlLastHex = fb; if (cHex) cHex.value = fb.replace('#', '').toUpperCase(); }
         // var 바인딩이면 불투명도는 100 — 칩 색이 안 보이는 일 방지(텍스트 패널과 같은 관례)
         _mdlAlpha = 100; if (cAlpha) cAlpha.value = '100';
         if (cSwatch) cSwatch.style.background = cssRef;

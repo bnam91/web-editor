@@ -3,6 +3,7 @@
 ═══════════════════════════════════ */
 import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기(applyCanvasBackground)만 쓰므로 «바인딩 자체»를 없앤다(직접 대입 재유입 방지) */
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
+import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»에서만 온다(유닛 colorhex) */
 
 /* ── 헬퍼: ab의 effective usePadx 결정 ──
    'true' / 'false' 명시 → 그 값 (개별 오버라이드)
@@ -786,23 +787,20 @@ export function wireCanvasBgControl() {
     window.pushHistory?.();
     window.scheduleAutoSave?.();
   });
-  bgHex.addEventListener('input', () => {
-    const v = bgHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      state.pageSettings.bg = '#' + v.toLowerCase();
-      bgPicker.value = state.pageSettings.bg;
+  /* 바탕색 hex — 배선은 color-picker.js 의 wireHexText 한 자리(2026-09-21 픽스 라운드).
+     ★여기만 손사본으로 남아 있었다: maxlength=6 이라 `#00FF00` 을 붙여 넣으면 «7번째 글자가 잘려»
+       `#00FF0` 이 되고, 그 무효값은 말없이 무시됐다(다른 40여 칸은 maxlength=7 로 # 을 받는다).
+       = 신고 원문(「자리마다 # 규칙이 다르다 + 틀리면 말없이 무시」)이 이 칸에 그대로 남아 있던 것. */
+  wireHexText(bgHex, {
+    parse: parseHex6,
+    format: formatHex6,
+    getCurrent: () => state.pageSettings.bg || '#000000',
+    onApply: (v) => {
+      state.pageSettings.bg = v;
+      bgPicker.value = v;
       _applyBg();
-    }
-  });
-  bgHex.addEventListener('change', () => {
-    const v = bgHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      window.pushHistory?.();
-      window.scheduleAutoSave?.();
-    }
-  });
-  bgHex.addEventListener('blur', () => {
-    bgHex.value = (state.pageSettings.bg || '#000000').replace('#','').toUpperCase();
+    },
+    onCommit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); },
   });
   bgAlphaInp.addEventListener('input', () => {
     const m = bgAlphaInp.value.match(/(\d+)/);

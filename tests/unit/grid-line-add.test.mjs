@@ -119,8 +119,14 @@ before(async () => {
   fs.writeFileSync(path.join(TMP, 'props', '_font-picker.js'), 'export const wireFontPicker = () => {};\n');
   fs.writeFileSync(path.join(TMP, 'props', 'color-var-chips.js'),
     'export const wireColorVarChips = () => {};\nexport const parseColorVarName = () => "";\n');
+  /* ★2026-09-21 유닛 colorhex — prop-grid.js 의 색칸 배선이 color-picker.js 의 공용
+     wireHexText 로 옮겨졌다. 여기 스텁은 «규칙을 베끼지 않는다» — 아무 것도 안 하는 더블이다
+     (그리드 줄 추가는 색칸을 안 지난다). 규칙 자체는 tests/dom/color-hex-*.dom.spec.js 가 잰다. */
   fs.writeFileSync(path.join(TMP, 'props', 'color-picker.js'),
-    'export const parseAlphaFromColor = () => 100;\nexport const swatchHex = (h) => h;\n');
+    'export const parseAlphaFromColor = () => 100;\nexport const swatchHex = (h) => h;\n'
+    + 'export const wireHexText = () => null;\n'
+    + 'export const parseHex6 = () => null;\n'
+    + 'export const formatHex6 = (v) => String(v ?? "");\n');
 
   globalThis.document = makeFakeDom();
   globalThis.window = {};

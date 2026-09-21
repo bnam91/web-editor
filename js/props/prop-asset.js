@@ -125,6 +125,11 @@ export function showAssetProperties(ab) {
       <div class="prop-color-row" style="margin-top:10px;">
         <span class="prop-label">배경색</span>
         ${colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad })}
+      </div>
+      <!-- ★「초기화」는 색 줄의 «3번째 형제»였다 — 그 버튼은 안 줄고(.prop-align-btn--aux: flex 0 0 auto)
+           줄어드는 건 색 필드뿐이라, 고정 240px 패널에서 hex 칸이 16px 로 짜부라져 값이 안 보였다(T-100).
+           같은 파일의 형제 행(외곽선, 버튼 없음)은 69px 로 멀쩡했다 — 실측 대조. ⇒ 버튼을 자기 줄로 내린다. -->
+      <div class="prop-color-row--aux">
         <button class="prop-align-btn prop-align-btn--aux" id="asset-bg-clear">초기화</button>
       </div>
     </div>`;

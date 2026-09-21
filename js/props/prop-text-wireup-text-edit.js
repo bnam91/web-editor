@@ -12,6 +12,7 @@
  */
 
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
+import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import {
   applyTextGradient, clearTextGradient, getTextGradient, hasTextGradient,
@@ -286,6 +287,9 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   const colorAlpha  = document.getElementById('txt-color-alpha');
   const colorSwatch = colorPicker.closest('.prop-color-swatch');
   let _txtAlpha = currentColorAlpha;
+  /* 「마지막 유효값」 — hex 칸의 blur 복원 기준. ''=아무도 안 정했다(Mix·미지정 갈래).
+     ⚠️선언은 «여기»다 — _syncGradUi 가 배선보다 «먼저» 불릴 수 있어 TDZ 를 피한다. */
+  let _txtLastHex = parseHex6(colorHex.value || '') || '';
 
   const saveColorSel = () => {
     if (hasSel()) { _savedColorSel = _lastSelRange.cloneRange(); _colorSpan = null; }
@@ -330,6 +334,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     const c = _buildColor();
     applyColorToSel(c);
     colorHex.value = colorPicker.value.replace('#','').toUpperCase();
+    _txtLastHex = colorPicker.value;      // 피커로 고른 색도 「마지막 유효값」(blur 복원 기준)
     colorSwatch.style.background = c;
   });
   colorPicker.addEventListener('change', () => { _savedColorSel = null; _colorSpan = null; window.pushHistory?.(); });
@@ -343,7 +348,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     const g = getTextGradient(el);
     if (g) {
       colorSwatch.style.background = g.css;
-      if (g.stops[0]) colorHex.value = g.stops[0].color.replace('#', '').toUpperCase();
+      if (g.stops[0]) { colorHex.value = g.stops[0].color.replace('#', '').toUpperCase(); _txtLastHex = g.stops[0].color; }
     }
     // 형광펜은 그라데이션과 함께 못 쓴다(블럭 형광펜은 글자 모양으로 잘려 «글자 속 색»이 된다)
     const hl = document.getElementById('txt-highlight-btn');
@@ -400,17 +405,22 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
    * bindGradientLinePicker 는 재오픈 시드(dataset.cpGradient)와 «선택 스탑» 양방향 동기를 붙인다. */
   window.showGradientLine?.(tb);
   window.bindGradientLinePicker?.(tb, colorPicker);
-  colorHex.addEventListener('input', () => {
-    const v = colorHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      colorPicker.value = '#' + v.toLowerCase();
+  /* 글자색 hex — 배선은 color-picker.js 의 wireHexText 한 자리(2026-09-21 픽스 라운드).
+     손사본이던 때는 무효값이 «말없이» 무시됐고(빨간 표시 없음) 커밋(change→pushHistory)도 없었다.
+     ★빈 값 = 「안 정했다」(Mix 포함 placeholder 갈래) — 값으로 굳히지 않는다. */
+  wireHexText(colorHex, {
+    parse: (raw) => (String(raw ?? '').trim() === '' ? '' : parseHex6(raw)),
+    format: (v) => (v ? formatHex6(v) : ''),
+    getCurrent: () => _txtLastHex,
+    onApply: (v) => {
+      if (!v) return;                       // 빈 칸 = 미지정 — 옛 동작(no-op)과 같다
+      _txtLastHex = v;
+      colorPicker.value = v;
       const c = _buildColor();
       applyColorToSel(c);
       colorSwatch.style.background = c;
-    }
-  });
-  colorHex.addEventListener('blur', () => {
-    colorHex.value = (colorPicker.value || '#000000').replace('#','').toUpperCase();
+    },
+    onCommit: (v) => { if (v) { _savedColorSel = null; _colorSpan = null; window.pushHistory?.(); } },
   });
   colorAlpha.addEventListener('input', () => {
     const m = colorAlpha.value.match(/(\d+)/);
@@ -595,6 +605,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
         if (fbHex && /^#[0-9a-fA-F]{6}$/.test(fbHex)) {
           colorPicker.value = fbHex;
           colorHex.value = fbHex.replace('#', '').toUpperCase();
+          _txtLastHex = fbHex;
         }
         // var 바인딩 시 불투명도는 100으로 — 칩 색이 안 보이는 일 방지
         _txtAlpha = 100;
