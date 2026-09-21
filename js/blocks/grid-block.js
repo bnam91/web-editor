@@ -258,6 +258,139 @@ function _gridRejectLinesLength(lines, allowEmpty) {
   return null;
 }
 
+/* === ★「적용 목록」이 «안 그려진 것»까지 담아 돌려주던 것 (T-122, 2026-09-22) ==========
+   ★무엇이 문제였나 — 위 명부(GRID_LINE_FIELDS)는 «이름»만 본다. `patchCell{lineIndex, imgSrc}`
+     를 «글자 줄»에 주면 이름은 명부에 있으니 통과하고, 렌더러는 `line.type === 'image'` 일 때만
+     그 값을 읽으므로 화면엔 그림이 0개다. 그런데 `applied.patchCell.imgSrc` 엔 보낸 값이
+     그대로 담겨 돌아왔다 — 2026-09-09 에 막은 «거짓 성공»의 2세대다(그때는 «이름»이 틀렸고,
+     이번엔 이름은 맞는데 «줄 종류»가 어긋난다).
+     `cells` 통째 경로는 더 셌다 — `applied.cells = partial.cells` 라 입력을 «그대로 메아리»쳤다.
+     행이 배열이 아니어도, 셀 키가 통째로 버려져도, 보낸 것이 그대로 「적용됐다」로 돌아왔다.
+
+   ★어떻게 재나 — «이름»이 아니라 «민감도»다. 렌더러(`_gridLineHtml`)를 실제로 돌려서, 그 키를
+     지우거나 다른 값으로 바꿔도 출력이 한 글자도 안 바뀌면 «이 줄에선 안 읽는다»로 판정한다.
+     ⛔「줄 종류별 필드표」를 손으로 적지 마라 — 그 표는 렌더러와 «따로 늙는다». 명부를 손으로
+       못 늘리게 한 것(:154~165)과 같은 이유고, `gridLineHasText()` 가 이미 같은 수법을 쓴다
+       (목록을 베끼지 않고 렌더러를 돌려서 묻는다).
+   ★«값»이 아니라 «민감도»인 까닭 — `widthPct:100`·`italic:false` 처럼 «기본값과 같은 값»은
+     «없앴을 때»와 출력이 같다. 그걸 「안 됐다」고 하면 반대쪽 거짓말이 된다. 그래서 탐침값
+     여럿과 대조해 «이 줄에서 그 키를 아예 안 읽는가»라는 구조적 질문으로 바꾼다.
+   ⛔`type` 은 안 잰다 — 그건 «값»이 아니라 «가지를 고르는 손잡이»고, 모르는 값은 죄다 글자
+     가지로 떨어진다. 그래서 `type:'text'` 를 글자 줄에 주면 «둔감»해 보인다(거짓 고발). */
+const _GRID_FIELD_PROBES = ['gdt', 'gdt-probe', 41.5, 3, true, false, null];
+
+function _gridLineFieldIsRead(line, key) {
+  try {
+    const base = _gridLineHtml(line, 'left', 0, null, false);
+    const gone = { ...line };
+    delete gone[key];
+    if (_gridLineHtml(gone, 'left', 0, null, false) !== base) return true;
+    return _GRID_FIELD_PROBES.some(p => _gridLineHtml({ ...line, [key]: p }, 'left', 0, null, false) !== base);
+  } catch (_) {
+    return true;   // 못 쟀으면 «읽는다»로 둔다 — 멀쩡한 필드를 「안 됐다」고 하는 쪽이 더 나쁘다
+  }
+}
+
+/** 이 줄에서 렌더러가 «안 읽는» 키들(= 보내도 화면엔 안 나오는 것). */
+function _gridUnreadLineFields(line, keys) {
+  if (!line || typeof line !== 'object') return [];
+  return keys.filter(k => k !== 'type' && !_gridLineFieldIsRead(line, k));
+}
+const _gridLineTypeOf = (line) => (line && line.type) ? String(line.type) : 'text';
+
+/** 한 셀의 `lines` 를 훑어 «안 그려질 것»을 모은다. `where` 는 보고용 경로 앞머리. */
+function _gridInspectLines(lines, where, drops) {
+  if (!Array.isArray(lines)) return;
+  lines.forEach((ln, i) => {
+    if (!ln || typeof ln !== 'object' || Array.isArray(ln)) {
+      drops.push({ path: `${where}.lines[${i}]`, why: `line is ${Array.isArray(ln) ? 'an array' : ln === null ? 'null' : typeof ln}, not an object — it renders nothing` });
+      return;
+    }
+    const t = _gridLineTypeOf(ln);
+    for (const k of _gridUnreadLineFields(ln, Object.keys(ln))) {
+      drops.push({ path: `${where}.lines[${i}].${k}`, why: `not read by the renderer on a type:'${t}' line` });
+    }
+  });
+}
+
+/** `cells`(행 0 포함 전체 R×C)에서 «화면에 안 닿는 것»을 모은다 — 버려지는 행·셀·키 + 종류 안 맞는 줄 필드.
+ *  ⛔여기서 «막지» 않는다. `cells` 는 통째 교체라 부분 적용이 정상이다 — 「된 것/안 된 것」을 나눠 돌려주는 게 답이다. */
+function _gridInspectCells(fullCells, colCount, rowCount) {
+  const drops = [];
+  for (let r = 0; r < Math.min(fullCells.length, rowCount); r++) {
+    const row = fullCells[r];
+    if (!Array.isArray(row)) {
+      drops.push({ path: `cells[${r}]`, why: `row is ${row === null ? 'null' : typeof row}, not an array — the whole row was dropped` });
+      continue;
+    }
+    if (row.length > colCount) {
+      drops.push({ path: `cells[${r}][${colCount}..${row.length - 1}]`, why: `grid has ${colCount} column(s) — pass cols in a separate call to add columns` });
+    }
+    for (let c = 0; c < Math.min(row.length, colCount); c++) {
+      const cell = row[c];
+      const where = `cells[${r}][${c}]`;
+      if (!cell || typeof cell !== 'object' || Array.isArray(cell)) {
+        drops.push({ path: where, why: `cell is ${Array.isArray(cell) ? 'an array' : cell === null ? 'null' : typeof cell}, not an object — dropped` });
+        continue;
+      }
+      for (const k of Object.keys(cell)) {
+        if (GRID_CELL_FIELDS.has(k)) continue;
+        const near = _gridNearestField(k, GRID_CELL_FIELDS);
+        drops.push({
+          path: `${where}.${k}`,
+          why: k === 'width'
+            ? `'width' is a COLUMN field, not a cell field — use update_block{patchCol:{index,width}}`
+            : GRID_LINE_FIELDS.has(k)
+              ? `'${k}' is a LINE field, not a cell field — put it inside lines:[{${k}:...}]`
+              : near ? `not read by the renderer — did you mean '${near}'?` : 'not read by the renderer',
+        });
+      }
+      if (cell.lines !== undefined && !Array.isArray(cell.lines)) {
+        drops.push({ path: `${where}.lines`, why: `lines is ${cell.lines === null ? 'null' : typeof cell.lines}, not an array — dropped (the cell kept its previous lines)` });
+      } else {
+        _gridInspectLines(cell.lines, where, drops);
+      }
+    }
+  }
+  return drops;
+}
+
+/** «렌더러가 읽는 것»만 남긴 cells. `applied.cells` 가 «화면과 같은 말»을 하게 하는 마지막 체다.
+ *  ★왜 필요한가 — 커밋 뒤 모델(getGridModel)을 그대로 돌려주면 «저장은 됐지만 안 그려지는» 값
+ *    (글자 줄에 얹힌 imgSrc 따위)이 `applied.cells` 안에 그대로 남는다. 그러면 같은 답 안에서
+ *    `ignoredProps` 는 「안 됐다」고 하는데 `applied` 는 그 값을 들고 있는 «자기모순»이 된다.
+ *  ⛔dataset(저장) 은 «안» 건드린다 — 거기서 지우면 read→고쳐→통째로 다시 쓰기(정상 MCP 왕복)가
+ *    남의 칸 값을 조용히 지운다. 지우는 게 아니라 «보고에서 빼는» 것이 이 카드의 처방이다. */
+function _gridRenderedCells(cells) {
+  return cells.map(row => row.map(cell => {
+    const out = {};
+    for (const k of Object.keys(cell)) {
+      if (!GRID_CELL_FIELDS.has(k) || cell[k] === undefined) continue;
+      if (k !== 'lines' || !Array.isArray(cell.lines)) { out[k] = cell[k]; continue; }
+      out.lines = cell.lines.map(ln => {
+        if (!ln || typeof ln !== 'object' || Array.isArray(ln)) return ln;
+        const unread = new Set(_gridUnreadLineFields(ln, Object.keys(ln)));
+        const keep = {};
+        for (const lk of Object.keys(ln)) if (!unread.has(lk)) keep[lk] = ln[lk];
+        return keep;
+      });
+    }
+    if (!Array.isArray(out.lines)) out.lines = [];
+    return out;
+  }));
+}
+
+/** 부분 적용 보고 — 기존 규약을 따른다(`main/claude-pm/mcp-block-tools.js:255` 의 `ignoredProps`/`hint`).
+ *  ★`ok:false` 로 뒤집지 «않는다» — 나머지는 진짜로 그려졌다. 「된 것 / 안 된 것 + 까닭」을 나눠 준다. */
+function _gridAttachNotApplied(res, drops) {
+  if (!drops || !drops.length) return res;
+  res.ignoredProps = drops.map(d => d.path);
+  res.hint = `${drops.length} value(s) were NOT applied and are absent from 'applied' - `
+    + drops.map(d => `${d.path}: ${d.why}`).join('; ')
+    + ". Nothing on screen changed for these; everything in 'applied' did render.";
+  return res;
+}
+
 const _esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 function _gridCols(block) {
@@ -659,6 +792,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   if (Object.keys(partial).length === 0) {
     return { ok: false, code: 'INVALID', message: 'partial is empty' };
   }
+  let appliedCellsPending = false;   // ★T-122 — applied.cells 는 «커밋 뒤» 모델로 채운다(아래)
   const structKeys = ['cols', 'patchCol', 'cells', 'patchCell'].filter(k => partial[k] !== undefined);
   if (structKeys.length > 1) {
     return { ok: false, code: 'INVALID', message: `${structKeys.join(', ')} 동시 지정 불가 — 구조 변경은 한 번에 하나만` };
@@ -666,6 +800,8 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
 
   const next = {};
   const applied = {};
+  /* ★T-122 — 「보냈지만 화면엔 안 닿은 것」. `applied` 에서 빼고 여기에 까닭과 함께 모은다. */
+  const drops = [];
 
   // rows 를 먼저 처리한다 — cells/patchCell 검증이 「바뀐 뒤」 행 수를 기준으로 범위를 잰다.
   if (partial.rows !== undefined) {
@@ -739,7 +875,13 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     const { cols: mergedCols, extra } = _splitFullCells(partial.cells, baseCols);
     next.cols = JSON.stringify(mergedCols);
     next.cells = JSON.stringify(extra);
-    applied.cells = partial.cells;
+    /* ★T-122 — `applied.cells = partial.cells` 는 «입력을 그대로 메아리»치는 것이라 거짓말이었다.
+       행이 배열이 아니어도, 셀 키가 `_mergeCellIntoCol`(:307)·`_gridExtraRows`(:284) 에서
+       통째로 버려져도, 보낸 것이 그대로 「적용됐다」로 돌아왔다.
+       ⇒ ⑴버려진 것을 `drops` 로 모으고, ⑵`applied.cells` 는 «커밋 뒤 모델»(=화면이 읽는 것)로
+         아래에서 다시 채운다. 여기서 채우면 또 «보낸 값»을 보는 셈이라 같은 거짓말이 된다. */
+    drops.push(..._gridInspectCells(partial.cells, baseCols.length, rowCountForValidation));
+    appliedCellsPending = true;
   }
   if (partial.patchCell !== undefined) {
     const p = partial.patchCell;
@@ -769,6 +911,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     if (_linesReject) return _linesReject;
     const extra = r > 0 ? _gridExtraRows(block, cols, rowCountForValidation) : null;
     let cellPatch = rest;   // 기본: 셀 전체(부분) patch — 기존 동작 그대로
+    let unreadLine = [];    // ★T-122 — 이름은 맞는데 «줄 종류»가 안 맞아 안 그려질 키들
 
     if (lineIndex !== undefined) {
       /* ★한 줄 단위 patch — P1.5 캔버스 인라인 편집 전제 설계(현빈 2026-09-04 지시).
@@ -781,11 +924,41 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
         return { ok: false, code: 'INVALID', message: `patchCell.lineIndex out of range (0~${curLines.length - 1})` };
       }
       cellPatch = { lines: _gridMergeLine(curLines, li, rest) };
+
+      /* ★T-122 — 이름 검사(_gridRejectUnknownCellFields)를 통과해도 «그 줄 종류»가 안 읽으면
+         화면은 그대로다(글자 줄에 imgSrc 가 그 자리다). 렌더러를 돌려서 «민감도»로 잰다. */
+      const mergedLine = cellPatch.lines[li];
+      const keys = Object.keys(rest);
+      unreadLine = _gridUnreadLineFields(mergedLine, keys);
+      if (keys.length && unreadLine.length === keys.length) {
+        /* ★통째로 «안» 닿았다 — 부분 적용이 아니라 «적용 0개»다. 그래서 `ok:false` 로 돌려준다:
+           이름이 틀렸을 때(_gridRejectUnknownCellFields)와 «같은 결과, 같은 모양»이어야 한다.
+           ⛔남은 것이 하나라도 있으면 여기 안 온다 — 그쪽은 ok:true + drops 로 갈린다(아래). */
+        const t = _gridLineTypeOf(mergedLine);
+        return {
+          ok: false, code: 'INVALID',
+          message: `patchCell: none of ${keys.join(', ')} is read by the renderer on a type:'${t}' line `
+            + '(rendering it with and without them gives identical HTML). '
+            + 'This would have returned ok:true and changed nothing on screen. '
+            + `Change the line kind in the SAME call if that was the intent, e.g. patchCell:{r:${r},c:${c},lineIndex:${li},type:'image',imgSrc:...}.`,
+        };
+      }
+      if (unreadLine.length) {
+        const lt = _gridLineTypeOf(mergedLine);
+        for (const k of unreadLine) drops.push({ path: `patchCell.${k}`, why: `not read by the renderer on a type:'${lt}' line` });
+      }
+    } else {
+      /* 셀 통째 patch — `lines` 안쪽 줄은 이름 검사가 «일부러» 안 보는 자리다
+         (tests/unit/grid-patchcell-reject.test.js P5b). 막지는 않되 «안 그려질 것»은 일러 준다. */
+      _gridInspectLines(rest.lines, 'patchCell', drops);
     }
 
     // 행 0 은 늘 cols[c] 자체다(단일 진실원) — patchCol 과 «같은 길」로 보낸다.
     Object.assign(next, _gridCellPatchDataset(cols, extra, r, c, cellPatch));
-    applied.patchCell = lineIndex !== undefined ? { r, c, lineIndex: Number(lineIndex), ...rest } : { r, c, ...rest };
+    /* ★T-122 — «안 그려진 것»은 applied 에서 뺀다. 담아 주면 부르는 쪽이 됐다고 믿고 넘어간다. */
+    const shown = { ...rest };
+    for (const k of unreadLine) delete shown[k];
+    applied.patchCell = lineIndex !== undefined ? { r, c, lineIndex: Number(lineIndex), ...shown } : { r, c, ...shown };
   }
   if (partial.gap !== undefined) {
     // ★CSS 단축속성 의미로 확장 — gap · rowGap · colGap 셋 다 쓴다. rowGap/colGap 이 이미 있는
@@ -844,7 +1017,10 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   }
   try { window.buildLayerPanel?.(); } catch (_) {}
   window.scheduleAutoSave?.();
-  return { ok: true, blockId, before, applied };
+  /* ★T-122 — `applied.cells` 는 «보낸 값»이 아니라 «커밋 뒤 모델»이다. getGridModel 이 돌려주는
+     것이 곧 렌더러가 읽는 것이라, 이 값은 «화면과 같은 말»이 된다(메아리는 그렇지 않았다). */
+  if (appliedCellsPending) applied.cells = _gridRenderedCells(getGridModel(block).cells);
+  return _gridAttachNotApplied({ ok: true, blockId, before, applied }, drops);
 }
 
 /** 이 줄이 «글자를 담는가» — 패널이 「Typography 절을 띄울 줄인가」를 이걸로 묻는다.
