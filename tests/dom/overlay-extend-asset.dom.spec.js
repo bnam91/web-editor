@@ -37,6 +37,16 @@ const GLOBALS_STUB = `
   window.__state = state;
 `;
 const CANVAS_CONTRAST_STUB = `export function applyCanvasBackground() {}`;
+/* ★2026-09-21 유닛 colorhex — prop-page.js 가 색칸 배선을 color-picker.js 에서 «가져다 쓴다».
+   ⚠️이 갈래를 안 깔면 import 404 로 모듈이 통째로 안 돌고, 증상은 「__ready 가 영영 안 선다」
+     = 원인 없는 30초 타임아웃으로만 보인다(0920 라운드가 같은 함정에 한 번 빠졌다).
+   이 스펙은 «오버레이 기하»만 잰다 — 색칸 규칙은 여기서 안 재므로 아무 것도 안 하는 더블이다.
+   (규칙은 tests/dom/color-hex-round2.dom.spec.js 와 tests/unit/color-hex-wiring-ssot.test.mjs 가 잰다.) */
+const COLOR_PICKER_STUB = `
+  export const wireHexText = () => null;
+  export const parseHex6 = () => null;
+  export const formatHex6 = (v) => String(v ?? '');
+`;
 
 /* 섹션 800 · 본문(.section-inner) 716 — 실제 앱의 「캔버스 860, 좌우 패딩」 구도와 같은 꼴.
    % 폭이 기준을 바꾸면 눈에 띄게 커진다(93.02% → 666 vs 744). */
@@ -111,6 +121,7 @@ async function boot(page, opts = {}) {
     if (url.pathname === '/props/prop-page.js') return route.fulfill({ contentType: 'application/javascript', body: PROP_PAGE_JS });
     if (url.pathname === '/globals.js') return route.fulfill({ contentType: 'application/javascript', body: GLOBALS_STUB });
     if (url.pathname === '/canvas-contrast.js') return route.fulfill({ contentType: 'application/javascript', body: CANVAS_CONTRAST_STUB });
+    if (url.pathname === '/props/color-picker.js') return route.fulfill({ contentType: 'application/javascript', body: COLOR_PICKER_STUB });
     return route.fulfill({ status: 404, body: '' });
   });
   await page.goto(`${ORIGIN}/__harness.html`);

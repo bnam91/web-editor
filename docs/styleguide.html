@@ -381,9 +381,20 @@
           배선은 <code>wireHexText()</code>(color-picker.js) 한 자리.</li>
         <li>옛 증상: <code>prop-section.js</code>에서 배경색=<code>FFFFFF</code> / Heading색=<code>#111111</code> → 한 패널 내 표기 분열. <b>해소됨</b>(둘 다 <code>FFFFFF</code> 꼴).</li>
         <li>★<b>무효값</b>도 같이 고쳤다 — 예전엔 말없이 무시되고 칸엔 쓴 값이 남았다. 이제 빨간 표시(<code>.prop-color-hex--invalid</code>) + blur 시 마지막 유효값 복원.</li>
+        <li>★<b>2026-09-21 2라운드</b> — 1라운드가 「남은 것 3곳」이라고 적은 <b>숫자가 틀렸다</b>(실측 grep 과 안 맞았다).
+          손사본은 실제로 <b>13곳</b>이었고 전부 <code>wireHexText()</code>로 옮겼다:
+          <code>page-bg-hex</code>(이 칸만 <code>maxlength="6"</code>이라 <code>#00FF00</code>의 7번째 글자를 잘라 무효로 만들었다) ·
+          <code>mdl-typo-color-hex</code> / <code>grd-typo-color-hex</code>(blur 리스너 <b>0건</b> — 무효값이 칸에 영원히 남던 자리) ·
+          <code>txt-color-hex</code> · <code>txt-shadow-color-hex</code> · <code>cvb-bg-hex</code>(maxlength 20→11) ·
+          <code>tfx-color-hex</code> / <code>tfx-glow-color-hex</code> · Design System 토큰 <code>ds-*-color-hex</code> 5곳.</li>
+        <li>★<b>Enter 로도 확정된다</b> — 커밋이 <code>change</code>에만 걸려 있어 <code>&lt;form&gt;</code> 밖인 이 앱에선
+          「값을 쓰고 Enter 쳤는데 안 바뀐다」가 났다(자유형식 배경칸). 숫자칸(<code>prop-number-commit-guard</code>)과 규약을 맞췄다.</li>
       </ul>
-      <p><b>남은 것:</b> 마크업 자체를 <code>colorFieldHTML()</code>(스와치+hex+알파%)로 갈아끼우는 일은 아직. 알파가 필요 없는 자리가 많아 별건으로 둔다.
-         <code>prop-canvas.js</code>의 <code>cvb-bg-hex</code>(maxlength 20·자유형식)와 <code>js/text-effect-transform.js</code>의 <code>tfx-*-hex</code> 2곳은 아직 자기 배선을 쓴다.</p>
+      <p><b>남은 것:</b> 마크업 자체를 <code>colorFieldHTML()</code>(스와치+hex+알파%)로 갈아끼우는 일은 아직. 알파가 필요 없는 자리가 많아 별건으로 둔다.</p>
+      <p>⛔<b>이 문단의 숫자를 손으로 믿지 마라</b> — 1라운드가 「썩은 마커 방지」로 적은 숫자가 바로 다음 라운드에 틀린 것으로 드러났다.
+         정본은 기계가 센다: <code>tests/unit/color-hex-wiring-ssot.test.mjs</code>
+         (A축 = 색칸에 손으로 단 리스너가 <code>color-picker.js</code> 밖에 있나, B축 = 색칸 <code>maxlength</code>가 7·11 밖인가).
+         문서와 코드가 어긋나면 <b>그 검사가 빨강이다</b>.</p>
       </details>
     </div>
   </section>

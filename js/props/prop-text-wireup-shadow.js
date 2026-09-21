@@ -3,6 +3,8 @@
  * Persist via inline text-shadow + data-shadow-* dataset on contentEl
  */
 
+import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
+
 export const SHADOW_DEFAULTS = {
   enabled: false,
   x: 2,
@@ -163,20 +165,14 @@ export function wireShadowSection({ ctx, initial }) {
     _apply();
   });
   cPick?.addEventListener('change', () => window.pushHistory?.());
-  cHex?.addEventListener('input', () => {
-    const v = cHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      s.color = '#' + v.toLowerCase();
-      if (cPick) cPick.value = s.color;
-      _apply();
-    }
-  });
-  cHex?.addEventListener('blur', () => {
-    if (cHex) cHex.value = _hex6(s.color).replace('#','').toUpperCase();
-  });
-  cHex?.addEventListener('change', () => {
-    const v = cHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) window.pushHistory?.();
+  /* 그림자색 hex — 배선은 color-picker.js 의 wireHexText 한 자리(2026-09-21 픽스 라운드).
+     손사본이던 때는 blur 복원은 있었지만 무효값이 «말없이» 무시됐다(빨간 표시 없음). */
+  wireHexText(cHex, {
+    parse: parseHex6,
+    format: formatHex6,
+    getCurrent: () => _hex6(s.color),
+    onApply: (v) => { s.color = v; if (cPick) cPick.value = v; _apply(); },
+    onCommit: () => window.pushHistory?.(),
   });
   cAlpha?.addEventListener('input', () => {
     const m = cAlpha.value.match(/(\d+)/);

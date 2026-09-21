@@ -1111,11 +1111,21 @@ export function parseAlphaFromColor(cssColor) {
      getCurrent() -> 「마지막 유효값」 — blur/무효 복원의 기준
      onApply(v)   -> 타이핑 중 실시간 반영 (히스토리 ✗)
      onCommit(v)  -> 확정 (히스토리 ○)
-   동작(이 셋이 «한 벌»이다):
+   동작(이 넷이 «한 벌»이다):
      input  : 유효 → 무효표시 걷고 onApply / 무효 → «적용하지 않고» 무효표시를 붙인다
      change : 유효 → onCommit / 무효 → 마지막 유효값으로 되돌린다
+     Enter  : change 와 «같은 것»을 한다 — 유효 → 표기 정리 + onCommit / 무효 → 되돌린다
      blur   : 언제나 마지막 유효값 표기로 정리 + 무효표시 제거
    ⛔무효값을 «조용히 무시»하지 마라 — 그 침묵이 바로 신고된 증상이다.
+
+   ★Enter 를 왜 따로 다루나 (2026-09-21 픽스 라운드, 이벨류에이터 low ③)
+     이 앱의 색 칸은 `<form>` 밖이라 Chromium 이 Enter 에서 change 를 «안 쏜다»(실측: keydown 만 오고
+     change 0건). 대부분 칸은 input 이 실시간 적용해서 눈에 안 띄지만, onApply 가 스와치만 바꾸는
+     자유형식 칸(cvb-text-bg-raw 등)은 「쓰고 Enter 쳤는데 아무 일도 없다」가 된다.
+     같은 레포의 «숫자» 칸(prop-number-commit-guard)은 Enter 를 확정으로 받는다 — 규약을 맞춘다.
+     ⚠️Enter 로 커밋한 뒤 Tab 으로 빠져나가면 change 가 «또» 온다 → 되돌리기 두 칸이 된다.
+       그래서 마지막 커밋값을 기억해 같은 값이면 한 번 더 부르지 않는다(포커스 때 기억을 비운다 —
+       그 사이 피커로 색이 바뀌었으면 같은 글자라도 «새 커밋»이 맞다).
 ═══════════════════════════════════════════════════════════════════════════ */
 export const HEX_INVALID_CLASS = 'prop-color-hex--invalid';
 
@@ -1133,6 +1143,14 @@ export function wireHexText(hexEl, { parse, format, getCurrent, onApply, onCommi
     const cur = getCurrent();
     if (cur != null) hexEl.value = fmt(cur);
   };
+  let _lastCommitKey = null;              // ★Enter → blur 이중 커밋 방지(위 주석)
+  const commit = (v) => {
+    const k = String(v);
+    if (k === _lastCommitKey) return;
+    _lastCommitKey = k;
+    onCommit?.(v);
+  };
+  hexEl.addEventListener('focus', () => { _lastCommitKey = null; });
   hexEl.addEventListener('input', () => {
     const v = parse(hexEl.value);
     if (v == null) { mark(true); return; }
@@ -1143,7 +1161,16 @@ export function wireHexText(hexEl, { parse, format, getCurrent, onApply, onCommi
     const v = parse(hexEl.value);
     if (v == null) { restore(); return; }
     mark(false);
-    onCommit?.(v);
+    commit(v);
+  });
+  hexEl.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    const v = parse(hexEl.value);
+    if (v == null) { restore(); return; }   // 무효 + Enter = change 와 같게 되돌린다
+    mark(false);
+    hexEl.value = fmt(v);                   // 표기 정리(`#00ff00` → `00FF00`)
+    onApply?.(v);                           // 자유형식 칸은 input 이 «적용»을 안 했을 수 있다
+    commit(v);
   });
   hexEl.addEventListener('blur', () => { if (restoreOnBlur) restore(); else mark(false); });
   return { restore, markInvalid: () => mark(true), markValid: () => mark(false) };
@@ -1164,7 +1191,15 @@ export function parseHex6OrTransparent(raw) {
   if (/^transparent$/i.test(s)) return 'transparent';
   return parseHex6(s);
 }
-export const formatHex6OrTransparent = (v) => (v === 'transparent' ? 'transparent' : formatHex6(v));
+/* ★대문자로 «망가뜨리지» 않는다 (2026-09-21 픽스 라운드, 이벨류에이터 low ④)
+   이 칸의 getCurrent 는 dataset 원문을 준다 — 거기엔 hex 도 transparent 도 아닌 CSS 가
+   들어 있을 수 있다(예: `rgb(0,0,0)`). 옛 구현은 그걸 `RGB(0,0,0)` 으로 바꿔 놓고
+   parse 를 실패시켜 「멀쩡한 값에 빨간 무효 표시」를 붙였다. 모르는 값은 «그대로» 돌려준다. */
+export const formatHex6OrTransparent = (v) => {
+  const s = String(v ?? '').trim();
+  if (/^transparent$/i.test(s)) return 'transparent';
+  return /^#?[0-9a-fA-F]{6}$/.test(s) ? formatHex6(s) : s;
+};
 
 /* 자유형식 CSS 배경값이 «브라우저가 실제로 읽는 값»인지 본다.
    ⛔정규식으로 흉내 내지 마라 — gradient/색이름/var() 까지 다 맞혀야 한다. 파서는 브라우저가 갖고 있다. */
@@ -1336,6 +1371,10 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
 window.colorFieldHTML = colorFieldHTML;
 window.wireColorField = wireColorField;
 window.wireHexText = wireHexText;
+/* ★문법도 같이 내보낸다 — 모듈이 아닌 파일(design-system.js · text-effect-transform.js)도
+   «같은» 검증·표기를 써야 「자리마다 규칙이 다르다」가 다시 안 생긴다(유닛 colorhex). */
+window.parseHex6 = parseHex6;
+window.formatHex6 = formatHex6;
 window.parseAlphaFromColor = parseAlphaFromColor;
 
 export { openPicker, _closePicker as closePicker };

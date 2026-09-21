@@ -10,7 +10,7 @@ import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
-import { parseAlphaFromColor, swatchHex } from './color-picker.js';
+import { parseAlphaFromColor, swatchHex, wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 
 /* ══ 줄(line) 선택 — 「지금 우측 패널이 보고 있는 줄」 ═══════════════════════
  * ★블록별로 «주소»(r,c,li)를 기억한다. prop-banner02.js 의 _bn2ActiveLine 선례(어휘까지 빌린다).
@@ -680,6 +680,7 @@ function _grdWireTypo(block, addr) {
   // 스와치 «배경»만은 raw 로 — var() 바인딩이면 변수의 실제 색이 보여야 한다.
   if (cSwatch && raw0) cSwatch.style.background = raw0;
   let _alpha = raw0 ? parseAlphaFromColor(raw0) : 100;
+  let _grdLastHex = parseHex6(cHex?.value || '') || '';   // '' = 아무도 안 정했다(placeholder 갈래)
   const buildColor = () => {
     const h = (cPick?.value || '#000000').replace('#', '');
     const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
@@ -696,17 +697,27 @@ function _grdWireTypo(block, addr) {
     // alpha 0 이면 색을 바꿔도 안 보인다 — 사용자가 alpha 를 안 건드렸으면 되살린다.
     if (_alpha === 0) { _alpha = 100; if (cAlpha) cAlpha.value = '100'; }
     if (cHex) cHex.value = cPick.value.replace('#', '').toUpperCase();
+    _grdLastHex = cPick.value;              // 피커로 바꾼 색도 「마지막 유효값」이다(blur 복원 기준)
     applyColor();
   });
   cPick?.addEventListener('change', end);
-  cHex?.addEventListener('input', () => {
-    const v = cHex.value.trim().replace(/^#/, '');
-    if (!/^[0-9a-f]{6}$/i.test(v)) return;
-    if (cPick) cPick.value = '#' + v.toLowerCase();
-    if (_alpha === 0) { _alpha = 100; if (cAlpha) cAlpha.value = '100'; }
-    applyColor();
+  /* 글자색 hex — 배선은 color-picker.js 의 wireHexText 한 자리(2026-09-21 픽스 라운드).
+     ★prop-modal.js 와 «같은 손사본»이었다 — blur 리스너가 0건이라 무효값이 칸에 영원히 남았다.
+       두 자리가 같은 절(_typo-section buildFillSectionHtml)을 쓰면서 배선만 따로 짜다 벌어진 일.
+     ★빈 값 = 「안 정했다」(placeholder 갈래) — grid-typo.dom.spec 이 지키는 축이다. */
+  wireHexText(cHex, {
+    parse: (raw) => (String(raw ?? '').trim() === '' ? '' : parseHex6(raw)),
+    format: (v) => (v ? formatHex6(v) : ''),
+    getCurrent: () => _grdLastHex,
+    onApply: (v) => {
+      if (!v) return;                       // 빈 칸 = 미지정 — 옛 동작(no-op)과 같다
+      _grdLastHex = v;
+      if (cPick) cPick.value = v;
+      if (_alpha === 0) { _alpha = 100; if (cAlpha) cAlpha.value = '100'; }
+      applyColor();
+    },
+    onCommit: (v) => { if (v) end(); },
   });
-  cHex?.addEventListener('change', end);
   cAlpha?.addEventListener('change', () => {
     _alpha = Math.min(100, Math.max(0, parseInt(cAlpha.value, 10) || 0));
     cAlpha.value = String(_alpha);
@@ -725,7 +736,7 @@ function _grdWireTypo(block, addr) {
       onPick: (cssRef) => {
         commit({ color: cssRef });
         const fb = (String(cssRef).match(/#[0-9a-fA-F]{6}/) || [])[0];
-        if (fb && cPick) { cPick.value = fb; if (cHex) cHex.value = fb.replace('#', '').toUpperCase(); }
+        if (fb && cPick) { cPick.value = fb; _grdLastHex = fb; if (cHex) cHex.value = fb.replace('#', '').toUpperCase(); }
         _alpha = 100; if (cAlpha) cAlpha.value = '100';
         if (cSwatch) cSwatch.style.background = cssRef;
       },
