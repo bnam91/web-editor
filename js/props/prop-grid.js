@@ -46,6 +46,19 @@ export function grdIsSoleSelected(block) {
   }
   return true;
 }
+/* ★0922 T-058 — «드릴다운 걸쇠»: 이 블럭의 지금 선택을 «캔버스 클릭»이 세웠나.
+ *   피그마식 드릴다운(첫 클릭=블럭·다음 클릭=줄)의 «첫 클릭»을 가리는 유일한 근거다.
+ *   ⛔걸쇠를 block-drag.js 모듈 안에만 두면 «캔버스 클릭이 아닌» 선택 경로(Esc 로 상위 이동·
+ *     레이어 패널·정본 패널표·MCP selectBlock)가 걸쇠를 풀 길이 없어, 그 뒤 «사용자에겐 첫»
+ *     캔버스 클릭이 곧바로 줄로 내려갔다 → 블럭을 지우려는 ⌫ 가 «마지막 줄» 보호에 걸렸다.
+ *     그래서 걸쇠도 줄 선택(_grdActiveLine)과 «같은 집»에 둔다 — 푸는 자리가 한 곳이 되게.
+ *   ★푸는 자리 = showGridProperties(block, null) «명시적 null»(아래). 거는 자리 = 캔버스 클릭
+ *     (block-drag.js) «showGridProperties 를 부른 뒤». 순서가 그래서 클릭 쪽은 안 깨진다. */
+let _grdDrillLatch = null;
+export function grdMarkCanvasDrill(block) { _grdDrillLatch = block || null; }
+export function grdWasCanvasDrilled(block) { return !!block && _grdDrillLatch === block; }
+export function grdResetCanvasDrill() { _grdDrillLatch = null; }
+
 /* ★0918r2 T-058 — 줄 선택을 «통째로» 끝낸다(모델 + 화면 마커). 다중선택으로 넘어가는 순간(⌘클릭 토글)·
  *   붙여넣기 뒤처럼 «선택이 블럭 단위로 바뀌는데 deselectAll 을 안 지나는» 문에서 부른다. */
 export function grdDropLineSelection(root) {
@@ -78,6 +91,9 @@ if (typeof window !== 'undefined') {
   window.grdClearAllActiveLines = grdClearAllActiveLines;
   window.grdResolveClickAddr = grdResolveClickAddr;
   window.grdIsSoleSelected = grdIsSoleSelected;
+  window.grdMarkCanvasDrill = grdMarkCanvasDrill;
+  window.grdWasCanvasDrilled = grdWasCanvasDrilled;
+  window.grdResetCanvasDrill = grdResetCanvasDrill;
   window.grdDropLineSelection = grdDropLineSelection;
 }
 
@@ -770,6 +786,13 @@ export function showGridProperties(block, addrArg) {
    *   Typography/Fill 절(_hit)만 «좁은» _grdResolveAddr(글자 줄 전용)을 그대로 쓴다 —
    *   D1-b 가 그 판정식을 직접 단언하므로 한 글자도 안 바꾼다. */
   const _addrIn = addrArg === undefined ? grdGetActiveLine(block) : addrArg;
+  /* ★0922 T-058 — «명시적 null» = 블럭 단위로 선택을 다시 세웠다는 신호다(Esc 상위 이동 ·
+     레이어 패널 · 정본 패널표 panel-dispatch · MCP selectBlock — 네 곳 다 null 을 명시한다).
+     그때 드릴다운 걸쇠를 푼다: 안 풀면 그 «다음» 캔버스 클릭(사용자에겐 첫 클릭)이 곧바로 줄로
+     내려가 ⌫ 가 «칸에 남은 마지막 줄» 보호에 걸린다 — 블럭이 영영 안 지워지던 그 증상.
+     ⛔1-인자(undefined) 재표시(updateGridBlock 되부름)에서는 절대 풀지 마라 — 그건 «선택을
+       그대로 둔다»는 뜻이라 D5(줄 있는 칸 여백 클릭)와 줄 편집 중 재렌더가 조용히 깨진다. */
+  if (addrArg === null) grdResetCanvasDrill();
   const _anyHit = _grdResolveAnyAddr(block, _addrIn);
   const _curAddr = _anyHit ? { r: _anyHit.r, c: _anyHit.c, li: _anyHit.li } : null;
   const _hit = _grdResolveAddr(block, _curAddr);
