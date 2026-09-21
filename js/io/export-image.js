@@ -1,7 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished } from './capture-safety.js';
 
 const CANVAS_W = 860;
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
@@ -565,6 +565,10 @@ async function _exportSectionInner(sec, format, width, opts) {
   const clone = await prepareCloneForCapture(sec, w, useNative);
   // ②컴포넌트 자기 렌더를 «먼저 전부» 돌린다(truth 와 같은 순서). 그 뒤가 ③export 전용 변환.
   renderComponentsInClone(clone);
+  /* ★진단 한 줄 — 「내보냈더니 흰 페이지」를 그 자리에서 가른다(T-039). 말만 하고 지나간다.
+     ⑵재렌더·안내문구 숨김이 «끝난 뒤»라야 실제로 그려질 글자를 잰다 — ①에 두면 아직 이르다.
+     ⛔truth 클론(js/io/export-gate.js)에는 안 건다 — 같은 섹션에 두 줄이 찍힌다. */
+  warnIfCaptureTextVanished(clone, { sectionId: sec.id });
 
   // cvb(canvas-block): renderCanvas로 scale 재계산 후 transform 평탄화
   // html2canvas가 transform:scale() 내부 background-image를 잘못 렌더링하므로

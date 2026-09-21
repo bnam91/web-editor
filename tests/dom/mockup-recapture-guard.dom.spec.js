@@ -75,9 +75,20 @@ test('G4 ★음성대조 — 판정식이 «진짜» 빈 그림을 잡고 «멀�
   const m = CODE.match(/const _degenerate = ([^;]+);/);
   expect(m, '★판정식(_degenerate)을 못 찾았다 — 이 검사가 «안 돈» 것이지 통과가 아니다').toBeTruthy();
 
+  /* ★판정식이 이제 js/io/image-data-url.js 의 함수를 부른다(T-148) — 그 파일을 «소스 그대로»
+     같은 페이지에 실어 준다. 베껴 적지 않으므로 그 파일이 바뀌면 이 검사도 같이 바뀐다. */
+  const SHARED = fs.readFileSync(path.join(REPO, 'js', 'io', 'image-data-url.js'), 'utf8');
   await page.goto('about:blank');
-  const r = await page.evaluate(async (expr) => {
-    const judge = new Function('canvas', 'dataUrl', `return (${expr});`);
+  const r = await page.evaluate(async ({ expr, shared }) => {
+    (0, eval)(shared);
+    if (typeof window.isUsableImageDataUrl !== 'function') throw new Error('★공용 판정기가 안 실렸다 — 이 검사가 «안 돈» 것이다');
+    /* ⛔`_judge` 를 인자로 «넣어 준다» — 안 넣으면 `typeof _judge !== 'function'` 이
+       «던지지 않고» 참이 되어 **모든 그림을 빈 그림이라고 한다**.
+       ★이 검사가 실제로 그걸 잡았다(2026-09-22, T-148 합치던 중): 멀쩡한 40×30 을
+         «빈 그림»이라 해서 빨강. `typeof` 는 없는 이름에도 안 던지므로 조용히 뒤집힌다. */
+    const judge = new Function('canvas', 'dataUrl', '_judge', `return (${expr});`)
+      .bind(null);
+    const call = (cv, url) => judge(cv, url, window.isUsableImageDataUrl);
     // ⑴ 진짜 0×0 — 이 병의 그 모양
     const bad = document.createElement('canvas'); bad.width = 0; bad.height = 0;
     const badUrl = bad.toDataURL('image/png');
@@ -85,8 +96,8 @@ test('G4 ★음성대조 — 판정식이 «진짜» 빈 그림을 잡고 «멀�
     const good = document.createElement('canvas'); good.width = 40; good.height = 30;
     const g = good.getContext('2d'); g.fillStyle = '#c33'; g.fillRect(0, 0, 40, 30);
     const goodUrl = good.toDataURL('image/png');
-    return { bad: judge(bad, badUrl), good: judge(good, goodUrl), goodLen: goodUrl.length };
-  }, m[1]);
+    return { bad: call(bad, badUrl), good: call(good, goodUrl), goodLen: goodUrl.length };
+  }, { expr: m[1], shared: SHARED });
 
   expect(r.bad, '★0×0 을 «멀쩡하다»고 한다 — 이 그물이 아무것도 안 막는다').toBe(true);
   expect(r.good,

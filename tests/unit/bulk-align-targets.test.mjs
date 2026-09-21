@@ -148,3 +148,39 @@ test('T8 같은 블록을 두 번 넣지 않는다 (글자 전수훑기와 겹�
   const got = withFakeDom(() => collectBulkAlignTargets(sec));
   assert.equal(got.length, new Set(got).size, '중복이 있다 — 정렬이 두 번 걸린다');
 });
+
+/* ── 2026-09-22 2라운드 — 「내려갔는데 못 찾았다」를 «없음»으로 읽던 자리 ──────────────
+   그룹(⌘G)은 width:100% 래퍼 + 자유배치 자식이다. 옛 규칙은 「꽉 참 → 내려감 → 자식은 전부
+   좌표축 → 대상 0개」로 그룹을 통째로 버렸다. 실측(포트 9634 실앱): 섹션 좌/우/가운데 어느
+   것을 눌러도 그룹 속 도형이 L=308·R=308 «불변», 글자만 움직였다.
+   ★음성대조: `if (visit(c, depth+1)) { found = true; continue; }` 뒤의 hasFreeChild 두 줄을
+     지우고(=옛 동작) 돌리면 T9 만 빨강이 난다 — T1~T8 은 초록 그대로다. */
+function buildGroupSection() {
+  const group = new FakeEl('frame-block', { w: 716, inner: 716 });   // 그룹 래퍼 — 폭에 여유 0
+  group.add(
+    new FakeEl('frame-block', { w: 100, inner: 100, pos: 'absolute' }),
+    new FakeEl('frame-block', { w: 80,  inner: 80,  pos: 'absolute' }),
+  );
+  const inner = new FakeEl('section-inner', { w: 860, inner: 860, pad: 72 });
+  inner.add(group);
+  const sec = new FakeEl('section-block', { w: 860, inner: 860 });
+  sec.add(inner);
+  return { sec, group };
+}
+
+test('T9 ★그룹 — 내려가도 옮길 것을 못 찾으면 «래퍼 자신»이 대상이다 (옮길 것은 그 좌표다)', () => {
+  const { sec, group } = buildGroupSection();
+  const got = withFakeDom(() => collectBulkAlignTargets(sec));
+  assert.ok(got.includes(group), '그룹 래퍼가 통째로 대상에서 사라졌다 — 그룹 속 블록이 제자리가 된다');
+});
+
+test('T10 대조 — 안이 «자유배치가 아닌» 꽉 찬 래퍼는 여전히 대상이 아니다 (쓸모없는 align-self 금지)', () => {
+  const empty = new FakeEl('frame-block', { w: 716, inner: 716 });
+  empty.add(new FakeEl('gap-block', { w: 716 }));
+  const inner = new FakeEl('section-inner', { w: 860, inner: 860, pad: 72 });
+  inner.add(empty);
+  const sec = new FakeEl('section-block', { w: 860, inner: 860 });
+  sec.add(inner);
+  const got = withFakeDom(() => collectBulkAlignTargets(sec));
+  assert.ok(!got.includes(empty), '옮길 여지도 좌표도 없는 래퍼가 대상에 들었다');
+});

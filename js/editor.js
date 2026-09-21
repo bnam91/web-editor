@@ -3,7 +3,7 @@ import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './histor
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 import { fitScale } from './fit-scale.js';
 import { setTextTypeClass, afterTextTypeChange } from './props/text-type-class.js';
-import { warnPendingVideoLoss, warnPendingVideoLossIf } from './io/pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원 */
+import { warnPendingVideoLossIf } from './io/pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원(「한 번만」 래치 포함) */
 
 /* ═══════════════════════════════════
    SSOT: 캔버스에서 "선택된 블록" 셀렉터 목록
@@ -1066,14 +1066,19 @@ if (typeof window !== 'undefined') window.FLOW_BLOCK_SEL_SELECTED = FLOW_BLOCK_S
 /* ★「이 .selected 가 «여러 개 골랐을 때»의 한 «단위»인가」를 답하는 «한 자리».
    ⛔여기서 손목록을 늘리지 마라 — 프레임은 성질로 가른다:
      · 텍스트프레임은 «그릇»이다. 단위는 그 안의 text-block 이다(_selectSibling 규약과 같다).
-     · 안에 골라진 것이 있는 프레임은 «조상»으로 켜진 것이지 사람이 «고른 것»이 아니다.
+     · 안에 «또 다른 단위»가 골라진 프레임은 «조상»으로 켜진 것이지 사람이 «고른 것»이 아니다.
    ★사본 금지 — js/props/prop-multisel.js 가 «이 함수»를 읽는다(옛 `_isFlowBlock` 미러는 없앴다).
-     로드 순서상 저쪽이 먼저 올라오므로 저쪽은 «호출 시점»에 window 에서 꺼낸다. */
+     로드 순서상 저쪽이 먼저 올라오므로 저쪽은 «호출 시점»에 window 에서 꺼낸다.
+   ★2026-09-22 T-091 ⑥ — 조상 판정을 «.selected 아무거나»가 아니라 «세는 목록»으로 묻는다.
+     도형은 selectShapeBlock 이 «래퍼 + shape-block» 을 «한 몸으로» 켠다(js/block-drag.js:2652~2658).
+     그런데 shape-block 은 세는 목록(FLOW_BLOCK_SEL_SELECTED)에 «없는» 알맹이다. 그걸 보고
+     래퍼를 「조상」으로 쳐서 버리면 «도형이 단위 0개»가 된다 — 글자와 같이 골라도 도형만 빠진다.
+     ⇒ 「안에 골라진 «단위»가 있나」로 묻는다. 목록은 여기 한 자리(SSOT)를 그대로 쓴다. */
 function _isFlowMultiSelUnit(el) {
   if (!el || _isInFreeLayout(el)) return false;
   if (el.classList.contains('frame-block')) {
     if (el.dataset.textFrame === 'true') return false;
-    if (el.querySelector('.selected')) return false;
+    if (el.querySelector(FLOW_BLOCK_SEL_SELECTED)) return false;
   }
   return true;
 }
@@ -1083,12 +1088,20 @@ function _countFlowMultiSel() {
   return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(_isFlowMultiSelUnit).length;
 }
 
+/* ★2026-09-22 T-091 ⑥ — «어느 패널을 띄울지»를 «방금 누른 한 블록»으로 정하면 안 된다.
+   도형은 자기 전용 래퍼가 data-free-layout 이라 _isInFreeLayout(도형)=true 가 «항상» 참이다.
+   그래서 「글자 + 도형」을 같이 골라도 자유배치 패널이 떴고, 그 패널의 정렬은 style.left/top 을
+   쓴다 ⇒ 흐름에 있는 글자는 꿈쩍 않고(정적 배치라 left 가 안 먹는다), 도형은 «자기 래퍼 밖»으로
+   날아갔다(실측 2026-09-22 포트 9634: shape L=308 → 924, 섹션 오른끝을 308px 넘어감).
+   ⇒ 판정은 «선택 전체»로 한다. 흐름 단위가 둘 이상이면 그건 흐름 멀티선택이다.
+     (순수 자유배치 선택은 _isFlowMultiSelUnit 이 전부 걸러내 n=0 이라 종전대로 자유배치 패널) */
 function _updateMultiSelPanel(block) {
-  if (_isInFreeLayout(block)) {
+  const _flowN = _countFlowMultiSel();
+  if (_flowN <= 1 && _isInFreeLayout(block)) {
     _updateFreeLayoutMultiSelPanel();
     return;
   }
-  const n = _countFlowMultiSel();
+  const n = _flowN;
   if (n > 1 && propPanel) {
     // B15: 카운트-온리 → 정렬/분배 패널 (prop-multisel.js)
     if (window.showFlowMultiSelPanel) window.showFlowMultiSelPanel();
@@ -1111,14 +1124,9 @@ function toggleBlockSelect(block, sec) {
   }
   if (sec) window.syncSection?.(sec);
   _lastClickedBlock = block;
-  // freeLayout 내 블록이면 부모 프레임 selected 복원 + 멀티셀렉 패널 업데이트
-  if (_isInFreeLayout(block)) {
-    _restoreFreeLayoutFrameSelected(block);
-    setTimeout(_updateFreeLayoutMultiSelPanel, 0);
-  } else {
-    // 일반(플로우) 블록 — 멀티선택 시 카운트 패널 트리거 (A11)
-    setTimeout(() => _updateMultiSelPanel(block), 0);
-  }
+  // freeLayout 내 블록이면 부모 프레임 selected 복원 — 패널 «선택»은 _updateMultiSelPanel 한 자리에서
+  if (_isInFreeLayout(block)) _restoreFreeLayoutFrameSelected(block);
+  setTimeout(() => _updateMultiSelPanel(block), 0);
 }
 
 /* Shift+클릭: 마지막 클릭 블록 ~ 현재 블록 범위 선택
@@ -1169,13 +1177,9 @@ function rangeSelectBlocks(block, sec) {
       _lastClickedBlock = anchor;
       for (let i = lo; i <= hi; i++) _selectSibling(siblings[i]);
       if (sec) window.syncSection?.(sec);
-      if (_isInFreeLayout(block)) {
-        _restoreFreeLayoutFrameSelected(block);
-        setTimeout(_updateFreeLayoutMultiSelPanel, 0);
-      } else {
-        // 일반(플로우) 블록 범위선택 후 카운트 패널 갱신 (A11)
-        setTimeout(() => _updateMultiSelPanel(block), 0);
-      }
+      // 범위선택 후 패널 갱신 (A11) — 어느 패널인지는 _updateMultiSelPanel 이 «선택 전체»를 보고 정한다
+      if (_isInFreeLayout(block)) _restoreFreeLayoutFrameSelected(block);
+      setTimeout(() => _updateMultiSelPanel(block), 0);
       return;
     }
   }
@@ -3381,7 +3385,9 @@ function clearSelectionMarks(root) {
     // ★T-012: video-pending(트림 확정 전) 상태로 이 블록의 패널을 벗어나면 저장 시
     // 원본 영상이 사라진다(section-serialize.js 참고) — 막지는 않되 알려는 준다.
     if (a.classList.contains('selected') && a.dataset.assetType === 'video-pending') {
-      warnPendingVideoLoss();   // ★T-032: 문구는 js/io/pending-video-warn.js 한 곳에서만
+      // ★T-032(2026-09-22): warnPendingVideoLoss() 를 직접 부르면 «선택했다 풀 때마다» 뜬다
+      // (실측 5회 해제 = 5회 알림). 「한 번만」 래치를 탄 warnPendingVideoLossIf 로 부른다.
+      warnPendingVideoLossIf(canvas);   // ★문구·판정·래치는 js/io/pending-video-warn.js 한 곳에서만
     }
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);

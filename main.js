@@ -506,8 +506,11 @@ function createWindow() {
     if (!wc || wc.isDestroyed()) return;
     _t32CloseAsked = true;
     event.preventDefault();
+    /* ★T-032(2026-09-22): 예전엔 `hasPendingVideo() && warnPendingVideoLoss()` 를 이어 붙였는데,
+       그러면 판정이 여기 «사본»으로 생기고 「한 번만」 래치를 건너뛴다(창을 닫으려다 물러도 또 뜬다).
+       ⇒ 판정·알림·래치가 한 덩어리인 warnPendingVideoLossIf 하나만 부른다. */
     const asked = wc.executeJavaScript(
-      '(window.hasPendingVideo?.() && window.warnPendingVideoLoss?.()) === true'
+      'window.warnPendingVideoLossIf?.() === true'
     ).catch(() => false);
     const bail = new Promise((r) => setTimeout(() => r(false), 600));
     Promise.race([asked, bail])
@@ -4304,11 +4307,18 @@ app.whenReady().then(async () => {
       const result = await migrator.migrateAll(PROJECTS_DIR, {
         log: (lvl, msg) => console.log(`[migrator:${lvl}] ${msg}`),
       });
+      /* ★T-065 — itemsSkipped = 「옮기는 도중 그새 사라져 건너뛴 파일」.
+         ⛔0 건이어도 «찍는다» — 안 찍으면 「없음」과 「안 재봄」이 같은 화면이 된다. */
+      const _itemsSkipped = result?.itemsSkipped || [];
       console.log(
         `[migrator] migrated=${(result?.migrated || []).length},`,
         `skipped=${(result?.skipped || []).length},`,
-        `failed=${(result?.failed || []).length}`
+        `failed=${(result?.failed || []).length},`,
+        `itemsSkipped=${_itemsSkipped.length}`
       );
+      for (const rec of _itemsSkipped) {
+        console.warn(`[migrator] 건너뜀(${rec.kind}) ${rec.id}: ${rec.path} — ${rec.code || '(코드없음)'} ${rec.message}`);
+      }
     } else {
       console.log('[migrator] module not present — dual-read fallback active');
     }

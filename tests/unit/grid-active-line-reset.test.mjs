@@ -206,3 +206,68 @@ test('0918r2 (k) grdDropLineSelection: 모델 + 줄/칸 마커를 모두 지운�
   assert.equal(fn.get(g), null);
   assert.deepEqual(removed, [['L', 'grd-line-selected'], ['C', 'grd-cell-selected']]);
 });
+
+/* ── 0922 T-058 재발: «드릴다운 걸쇠»를 푸는 자리가 없었다 ─────────────────────────────
+ * 0918r2 는 걸쇠(_grdCanvasSelected)를 block-drag.js 모듈 전역에 뒀다. 그러면 «캔버스 클릭이 아닌»
+ * 선택 경로(Esc 상위 이동 · 레이어 패널 · 정본 패널표 · MCP selectBlock)가 그 걸쇠에 손을 못 댄다 →
+ * 그 뒤 «사용자에겐 첫» 캔버스 클릭이 곧장 줄로 내려가 ⌫ 가 「마지막 줄」 보호에 걸렸다
+ * (실측 2026-09-22, 포트 9637: 레이어 패널 선택 → 클릭 1회 → 활성줄 {0,0,0} → ⌫ = 그리드 1→1 + 토스트).
+ * ⇒ 걸쇠를 줄 선택과 «같은 집»(prop-grid.js)으로 옮기고, 푸는 자리를 showGridProperties 명시적 null 한 곳으로. */
+
+test('0922 (l) 소스 가드: block-drag 는 걸쇠 «사본»을 들지 않고 prop-grid 걸쇠에 단독선택을 곱한다', () => {
+  const src = read('js/block-drag.js');
+  assert.doesNotMatch(src, /let\s+_grdCanvasSelected/,
+    '★걸쇠 사본이 block-drag 모듈 전역에 돌아왔다 — 푸는 자리와 거는 자리가 갈려 같은 결함이 재발한다');
+  const was = extractFn(src, '_gridWasCanvasSelected');
+  assert.match(was, /window\.grdWasCanvasDrilled/, '걸쇠를 정본(prop-grid)에서 안 읽는다');
+  assert.match(was, /_isSoleSelectedBlock\(block\)/, '단독 선택 판정을 안 곱한다(다중선택에서 줄로 샌다)');
+  assert.match(was, /^[\s\S]*!!window\.grdWasCanvasDrilled\?\./, '헬퍼 부재 시 false = «블럭 선택» 쪽으로 떨어져야 한다');
+});
+
+test('0922 (m) 소스 가드: 걸쇠는 showGridProperties «뒤»에 건다(앞이면 칸 밖 클릭이 드릴다운을 죽인다)', () => {
+  const src = read('js/block-drag.js');
+  const iShow = src.indexOf('window[showFn]?.(block, _grdAddr);');
+  const iMark = src.indexOf('window.grdMarkCanvasDrill?.(block)');
+  assert.ok(iShow > 0, '패널 호출부를 못 찾았다');
+  assert.ok(iMark > iShow, '★순서: showGridProperties → grdMarkCanvasDrill 이어야 한다 — 앞으로 옮기면 '
+    + 'null 호출이 건 걸쇠를 곧바로 풀어, 칸 밖(gap/테두리)을 누른 뒤 줄을 눌러도 안 내려간다');
+  const iDes = src.indexOf('window.deselectAll();', src.indexOf('const _grdWasSelected'));
+  assert.ok(iDes < iMark, '걸쇠를 deselectAll 앞에서 걸면 판정 순서가 다시 엉킨다');
+});
+
+test('0922 (n) 걸쇠 규약: 명시적 null 만 푼다 — 1-인자(undefined)·줄 주소는 «안» 푼다', () => {
+  const pg = read('js/props/prop-grid.js');
+  const show = extractFn(pg, 'showGridProperties');
+  const iAddrIn = show.indexOf('const _addrIn');
+  const iReset = show.indexOf('grdResetCanvasDrill()');
+  assert.ok(iReset > 0, 'showGridProperties 가 걸쇠를 푸는 자리가 없다 — 재발 경로가 다시 열린다');
+  assert.ok(iReset > iAddrIn, '해제는 _addrIn 계산 뒤여야 한다');
+  assert.match(show.slice(iAddrIn, iReset + 40), /if \(addrArg === null\) grdResetCanvasDrill\(\);/,
+    '★해제 조건이 «addrArg === null»(명시적 null)이 아니다 — undefined 재표시에서도 풀리면 D5·재렌더가 조용히 깨진다');
+  // 동작으로도 잰다(소스 문장만 믿지 않는다) — 걸쇠 3함수를 실물 소스로 떠내 돌린다.
+  const latch = new Function(`
+    ${extractFn(pg, 'grdMarkCanvasDrill').replace(/^export /, '')}
+    ${extractFn(pg, 'grdWasCanvasDrilled').replace(/^export /, '')}
+    ${extractFn(pg, 'grdResetCanvasDrill').replace(/^export /, '')}
+    return { mark: grdMarkCanvasDrill, was: grdWasCanvasDrilled, reset: grdResetCanvasDrill };`)();
+  const a = { id: 'a' }, b = { id: 'b' };
+  latch.mark(a);
+  assert.equal(latch.was(a), true);
+  assert.equal(latch.was(b), false, '다른 블럭까지 걸린 것으로 보면 B 의 첫 클릭이 줄로 샌다');
+  latch.mark(b);
+  assert.equal(latch.was(a), false, '걸쇠는 «하나»다 — 앞 블럭 것이 남으면 안 된다');
+  latch.reset();
+  assert.equal(latch.was(b), false);
+  assert.equal(latch.was(null), false, 'null/undefined 를 «걸린 것»으로 보면 안 된다');
+});
+
+test('0922 (o) 소스 가드: 블럭 단위 선택 네 경로가 모두 «명시적 null» 로 부른다(걸쇠 해제 입구)', () => {
+  assert.match(read('js/panels/layer-panel-items.js'), /isGrid\)\s*window\.showGridProperties\?\.\(block,\s*null\)/,
+    '레이어 패널');
+  assert.match(read('js/panel-dispatch.js'), /'grid-block',\s*\(el\)\s*=>\s*window\.showGridProperties\?\.\(el,\s*null\)/,
+    '정본 패널표(= MCP selectBlock)');
+  assert.match(read('js/editor.js'), /window\.showGridProperties\?\.\(_gridSelEsc,\s*null\)/,
+    'Esc 상위 이동');
+  assert.match(read('js/props/prop-grid.js'), /window\.grdMarkCanvasDrill = grdMarkCanvasDrill;/,
+    '걸쇠 다리(window)가 안 놓였다 — block-drag 가 옵셔널 체이닝으로 조용히 no-op 된다');
+});

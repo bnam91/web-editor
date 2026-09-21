@@ -16,7 +16,7 @@ import {
   selectAllEditableContents,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
-import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren } from './frame-geometry.js';
+import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame } from './frame-geometry.js';
 import {
   dragState,
   _suppressDragSave,
@@ -57,10 +57,14 @@ function _isSoleSelectedBlock(block) {
 /* ★0919 QA — «캔버스 클릭으로» 선택된 그리드만 드릴다운 대상이다. 삽입 직후(addGridBlock 이 selectBlock 으로
    골라 둠)의 «첫» 클릭은 사용자에겐 첫 클릭이라 블럭 선택이어야 한다 — 안 그러면 넣자마자 누르고 ⌫ 하면
    «마지막 줄은 지울 수 없습니다» 토스트만 떴다(현빈 원 증상의 가장 흔한 흐름). 요소 참조라 undo 로 DOM 이
-   바뀌면 자동으로 무효. */
-let _grdCanvasSelected = null;
+   바뀌면 자동으로 무효.
+   ★0922 T-058 — 걸쇠 자체는 prop-grid.js «한 곳»에 산다(grdMarkCanvasDrill/grdWasCanvasDrilled).
+     여기 모듈 전역으로 들고 있던 동안에는 «캔버스 클릭이 아닌» 선택(Esc 상위 이동·레이어 패널)이
+     걸쇠를 풀 길이 없어, 그 뒤 첫 캔버스 클릭이 곧장 줄로 내려가 ⌫ 가 줄 보호에 걸렸다(실측 재현).
+     ⛔사본을 여기 다시 두지 마라 — 푸는 자리와 거는 자리가 갈리면 같은 결함이 그대로 돌아온다.
+     «단독 선택인가»는 여전히 여기서 곱한다(_isSoleSelectedBlock) — 헬퍼가 없으면 false = 블럭 선택. */
 function _gridWasCanvasSelected(block) {
-  return _grdCanvasSelected === block && _isSoleSelectedBlock(block);
+  return !!window.grdWasCanvasDrilled?.(block) && _isSoleSelectedBlock(block);
 }
 function _isInsideUnselectedFrame(block) {
   const ss = _getParentFrame(block);
@@ -644,6 +648,37 @@ function bindBlock(block) {
         const snapped = snapPosition(rawLeft, rawTop, dragEl, parentFrame, scale);
         newLeft = snapped.left;
         newTop  = snapped.top;
+      }
+
+      /* ★T-088(2026-09-22) — 「프레임 안에서만 움직인다」를 «실제로» 지킨다.
+         이 드래그의 전제는 바로 위 「오버레이(플로팅) 블록은 이 일반 드래그를 비켜간다」
+         주석이 이미 적어 뒀다 — 「일반 드래그는 자기 free-layout 프레임 «안»에서만
+         움직인다(parentFrame 이 없으면 clamp 도 재부모도 안 한다)」.
+         그런데 «있을 때»의 clamp 가 코드에 없었다. .frame-block 은 overflow:hidden
+         (css/editor-blocks.css:11) 이고, 프레임은 자식을 옮겨도 커지지 않는다
+         (_resizeFrameToFitChildren = 의도된 no-op) ⇒ 자식을 밑변 너머로 끌면 그 블록은
+         «화면에서 사라진다». 끌어내기(drag-out)는 중심이 프레임 밖 DRAGOUT_MARGIN(60px)을
+         넘어야 발동하므로, 그 사이에 «사라지기만 하고 빠져나오지도 않는» 띠가 생긴다.
+         실측(2026-09-22 · 포트 9635 · 줌 100% · 진짜 입력 주입):
+           그룹(314px) 안 제목(166px)을 한 칸 끌어내림 → style.top 148→288 ·
+           rect 472~638 (그룹 밑변 498 을 140px, 섹션 밑변 598 까지 넘음) ·
+           가운데 elementFromPoint = gap-block(= 안 잡힌다) · innerText 는 그대로 남음
+           = DOM 소실(⑴)도 좌표만의 탈출(⑶)도 아니고 «프레임이 잘라 먹은 것»(⑵).
+         ⚠️clamp 는 반드시 «끌어내기 판정 뒤»다 — 먼저 죄면 중심이 프레임을 못 넘어
+           drag-out 이 영영 안 난다(= 그룹에서 빼낼 길이 사라진다).
+         ★기준 부모는 «부모부터» 찾는다 — dragEl 자신이 free-layout 프레임일 수 있어서다
+           (도형 래퍼는 makeFrameBlock 기본값이라 data-free-layout 을 갖는다).
+           위 parentFrame 은 closest 라 그 경우 «자기 자신»이 잡혀 maxL/maxT=0 → 도형이
+           (0,0) 에 못 박힌다. 형제 경로(bindFrameDropZone 의 「absolute 셀 프레임 mousemove
+           드래그」, `const parentFreeFrame = ss.parentElement?.closest(…)`)도 parentElement
+           부터 찾고 거기서 clamp 한다 — 같은 식으로 맞춘다. */
+      const _clampParent = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;
+      if (_clampParent) {
+        const _c = clampChildIntoFrame(
+          newLeft, newTop, dragEl.offsetWidth, dragEl.offsetHeight,
+          _clampParent.offsetWidth, _clampParent.offsetHeight);
+        newLeft = _c.left;
+        newTop  = _c.top;
       }
 
       dragEl.style.left = `${newLeft}px`;
@@ -1982,7 +2017,6 @@ function bindBlock(block) {
          이 판정도 deselectAll «전»이어야 한다(뒤에서 재면 selected 가 방금 지워져 늘 false →
          줄 선택이 영영 불가능). ⛔순서 뒤집기 금지 — 유닛 소스 가드가 지킨다. */
       const _grdWasSelected = showFn === 'showGridProperties' ? _gridWasCanvasSelected(block) : false;
-      if (showFn === 'showGridProperties') _grdCanvasSelected = block;
       window.deselectAll();
       _restoreParentFrameSelected(block);
       block.classList.add('selected');
@@ -2009,6 +2043,10 @@ function bindBlock(block) {
           : (!_grdWasSelected ? null : (_at !== undefined ? _at : (_insideCell ? _grdPrevAddr : null)));
       }
       window[showFn]?.(block, _grdAddr);
+      /* ★0922 T-058 — 걸쇠는 showGridProperties «뒤»에 건다. 그 호출이 _grdAddr===null 일 때
+         걸쇠를 푸는데(블럭 단위 선택 신호), 여기서 다시 걸어야 «칸 밖(gap/테두리)을 눌러
+         블럭에 머문 뒤 줄을 누르면 내려간다»는 드릴다운이 살아 있다. ⛔앞으로 옮기지 마라. */
+      if (showFn === 'showGridProperties') window.grdMarkCanvasDrill?.(block);
       /* ★핸들도 «여기서» 띄운다 — 이 루프엔 호출이 아예 없어서 모달을 클릭하면
          선택 테두리(오버레이)는 그려지는데 «모서리 점»만 안 나왔다(실측 handleCount 0).
          showHandlesFor 는 블록 종류를 스스로 가른다 ⇒ 분기가 없는 grid/infocard/innercard 는

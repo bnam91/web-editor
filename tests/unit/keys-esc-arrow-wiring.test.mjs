@@ -38,16 +38,36 @@ test('★Esc 분기가 closeFpMenus() 를 «먼저» 부르고 소진한다 (메
     '★닫았으면 return 으로 소진해야 한다(안 그러면 같은 Esc 가 선택까지 푼다)');
 });
 
-test('★화살표키 분기가 있다 — preventDefault 로 캔버스 스크롤을 막고, 밀면 되돌리기에 쌓는다', () => {
-  const k = SRC.indexOf('const _ARROW = {');
+/** 화살표키 분기의 «몸통»을 중괄호 깊이로 떠낸다.
+ *  ⚠️예전엔 여기가 `SRC.slice(k, k + 2600)` 라는 «글자수 창»이었다. 그 창이 옆 분기(⌥+a/s/d)
+ *    까지 덮어서, 화살표 분기의 e.preventDefault() 를 통째로 지워도 «옆집 것»에 걸려 초록이
+ *    났다(2026-09-22 음성대조 실측). 창을 분기 몸통에 딱 맞춘다. */
+function arrowBlock(src) {
+  const k = src.indexOf('const _ARROW = {');
   assert.ok(k >= 0, '★화살표키 분기가 없다 = 브라우저 기본 스크롤이 캔버스를 민다(T-102 ②)');
-  const blk = SRC.slice(k, k + 2600);
+  let d = 0, i = k;
+  for (; i < src.length; i++) {
+    if (src[i] === '{') d++;
+    else if (src[i] === '}') { d--; if (d < 0) break; }
+  }
+  assert.ok(i < src.length, '화살표키 분기의 끝을 못 찾았다');
+  return src.slice(k, i);
+}
+
+test('★화살표키 분기가 있다 — preventDefault 로 캔버스 스크롤을 막고, 밀면 되돌리기에 쌓는다', () => {
+  const blk = arrowBlock(SRC);
   for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'])
     assert.ok(blk.includes(key), `${key} 가 빠졌다 — 네 방향이 다 있어야 한다`);
   assert.ok(blk.includes('e.preventDefault()'), '★preventDefault 가 없으면 캔버스가 그대로 밀린다');
   assert.ok(/pushHistory\(/.test(blk), '★민 것이 되돌리기에 안 쌓인다');
   assert.ok(blk.includes('_freeNudgeTargets()'), '★성질로 대상을 고르는 길(_freeNudgeTargets)을 안 쓴다');
   assert.ok(/_deepestCanvasSelection\(\)/.test(blk), '고른 게 없는데도 키를 먹으면 스크롤이 죽는다');
+  /* ★연타 병합 — 이 앱 규약은 «연타 한 번 = 되돌리기 한 칸»이다(js/editor.js
+     coalesceSizeHistory 「C3: 연속 크기/간격 조정 히스토리 병합」). 조건 없이 매번
+     pushHistory 를 부르면 ⌘Z 가 누른 횟수만큼 필요해진다. 행동 쪽은
+     tests/dom/keys-esc-arrow.dom.spec.js T-102-③ 이 «실제로 몇 칸 쌓이나»로 잰다. */
+  assert.ok(/if\s*\(_now\s*-\s*\(window\._nudgeBurstAt[^)]*\)[^)]*\)\s*pushHistory\(/.test(blk),
+    '★pushHistory 가 조건 없이 매번 불린다 = 키 한 번에 되돌리기 한 칸씩 쌓인다');
 });
 
 test('★뜬 메뉴 닫는 «명부»는 한 벌이다 — 바깥클릭 핸들러가 자기 목록을 따로 들고 있지 않다', () => {

@@ -18,27 +18,39 @@
      이름을 묻지 않으므로 새 블록 타입이 생겨도 저절로 따라온다.
    ★글자는 예외다 — text-block 은 폭 100% 라 위 규칙으로는 영영 «꽉 참»이지만,
      가로 자리를 text-align 이 지배한다. 만나면 바로 대상으로 넣고 안 내려간다.
-   ★자유배치(position:absolute)는 좌표가 지배한다 — 이 단추가 건드릴 축이 아니다.
+   ★자유배치(position:absolute)는 좌표가 지배한다 — 이 단추가 «자식을 직접» 건드릴 축이 아니다.
      단, 그 «안»의 글자는 예전에도 움직였으므로 회귀를 막으려고 따로 훑어 합친다.
+   ★[2026-09-22] 「내려갔는데 아무것도 못 찾았다」를 «없음»으로 읽지 않는다.
+     그룹(⌘G)은 width:100% 래퍼 + 자유배치 자식이라 위 규칙으로는 «꽉 참 → 내려감 → 전부 좌표축 →
+     대상 0개»가 되어 통째로 사라졌다. 실측(포트 9634): 섹션 좌/우 정렬을 눌러도 그룹 속 도형이
+     L=308·R=308 «불변», 글자만 움직임 = T-095 신고문 그대로. ⇒ 못 찾았고 그 안이 자유배치면
+     «래퍼 자신»이 대상이다. 옮길 것은 그 좌표이고, 미는 일은 alignFlowBlock 한 자리가 한다.
 ═══════════════════════════════════ */
 export function collectBulkAlignTargets(sec) {
   const inner = sec.querySelector('.section-inner') || sec;
   const out = new Set();
+  const hasFreeChild = (el) =>
+    [...el.children].some(g => g.nodeType === 1 && getComputedStyle(g).position === 'absolute');
+  /** @returns {boolean} 이 그릇 «안»에서 옮길 것을 하나라도 찾았나 */
   const visit = (parent, depth) => {
-    if (depth > 8) return;                       // 병적 깊이 방어(정상 트리는 2~4)
+    if (depth > 8) return false;                 // 병적 깊이 방어(정상 트리는 2~4)
     const pcs = getComputedStyle(parent);
-    if (!/flex/.test(pcs.display)) return;                 // align-self 가 안 듣는 그릇
-    if (!pcs.flexDirection.startsWith('column')) return;   // row 방향은 justify-content 축(다른 기전)
+    if (!/flex/.test(pcs.display)) return false;                 // align-self 가 안 듣는 그릇
+    if (!pcs.flexDirection.startsWith('column')) return false;   // row 방향은 justify-content 축(다른 기전)
     const avail = parent.clientWidth
       - (parseFloat(pcs.paddingLeft) || 0) - (parseFloat(pcs.paddingRight) || 0);
+    let found = false;
     for (const c of parent.children) {
       if (c.nodeType !== 1) continue;
       if (c.classList.contains('gap-block')) continue;     // 스페이서 — 옮길 «자리»가 없다
-      if (c.classList.contains('text-block')) { out.add(c); continue; }
+      if (c.classList.contains('text-block')) { out.add(c); found = true; continue; }
       if (getComputedStyle(c).position === 'absolute') continue;   // 자유배치 = 좌표축
-      if (c.offsetWidth < avail - 0.5) { out.add(c); continue; }    // 여유가 있다 = 이놈이 움직인다
-      visit(c, depth + 1);                                          // 꽉 찬 래퍼 — 진짜는 더 안쪽
+      if (c.offsetWidth < avail - 0.5) { out.add(c); found = true; continue; }  // 여유가 있다 = 이놈이 움직인다
+      if (visit(c, depth + 1)) { found = true; continue; }          // 꽉 찬 래퍼 — 진짜는 더 안쪽
+      // 내려가도 못 찾았다 — 그 안이 자유배치(그룹)면 래퍼 자신이 대상, 아니면 정말 옮길 자리가 없다
+      if (hasFreeChild(c)) { out.add(c); found = true; }
     }
+    return found;
   };
   visit(inner, 0);
   // 회귀 방어 — 예전 동작(전수 .text-block 에 text-align)을 그대로 포함시킨다

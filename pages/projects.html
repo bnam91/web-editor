@@ -533,6 +533,10 @@ body {
   object-fit: cover; object-position: top;
   display: block;
 }
+/* 그림이 없거나 «못 읽힐» 때 나오는 기본 아이콘 — 항상 칸 안에 있고 hidden 으로만 감춘다 (T-87).
+ * ⛔[hidden] 규칙을 지우지 마라: .card-thumb 가 flex 라 display 를 명시 안 하면 hidden 이 안 먹는다. */
+.card-thumb-fallback { display: flex; align-items: center; justify-content: center; }
+.card-thumb-fallback[hidden] { display: none; }
 .card-body { padding: 12px; }
 .card-name {
   font-size: 12px; font-weight: 600; color: #e0e0e0;
@@ -741,10 +745,15 @@ body {
            아이콘+라벨 구조라 라벨이 짧아져도(예: Design) 버튼이 그대로 줄어든다. -->
       <!-- ★[0920b] 기획모드는 «아직 비활성»이다(현빈 2026-09-20: 「기획모드버튼(newplan)은 아직 비활성화해둬야하는게 맞아」).
            숨기지 «않는» 이유 — 관리자에게 「왜 못 쓰나」를 알려야 한다. 되살리는 조건은 PLAN_MODE_ENABLED 주석에.
+           ★★[T-064] title 은 «이유»를 말한다 — 옛 문구는 「만든 기획 프로젝트가 아직 프로젝트 목록에 뜨지 않습니다」였는데
+             그건 2026-09-21 T-064 로 «사실이 아니게» 됐다(실측: 목록에 뜨고 📋 기획 배지·열기·이름변경·삭제 전부 된다).
+             꺼 둔 이유가 「기술이 안 된다」에서 「현빈이 그러라고 했다」로 바뀌었으면 툴팁도 같이 바뀌어야 한다 —
+             안 바꾸면 관리자가 고쳐진 결함을 아직 있는 줄 알고 같은 조사를 다시 한다.
+             이 문장과 목록 동작이 어긋나면 tests/unit/plan-list-claim-consistency.test.js 가 빨개진다.
            ⛔disabled 속성 금지 — 크로미움은 disabled 버튼에 hover 를 안 줘 title 툴팁이 안 뜬다
              (기획 카드 📁·폴더 메뉴 비활성과 «같은» 규율: aria-disabled + 흐림 + 이유 툴팁). -->
       <button id="btn-new-planning" class="is-disabled" aria-disabled="true" style="display:none"
-              title="준비 중 — 만든 기획 프로젝트가 아직 프로젝트 목록에 뜨지 않습니다">
+              title="준비 중 — 관리자 지시로 꺼 둔 기능입니다(2026-09-21). 목록에 뜨는 문제는 이미 고쳐졌습니다">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="3" width="18" height="18" rx="2"/>
           <line x1="9" y1="8" x2="15" y2="8"/>
@@ -866,6 +875,7 @@ body {
 <!-- ★킬스위치 단일 원본(js/feature-flags.js) — 이 인라인 스크립트가 window.COLLAB_ENABLED 를
      읽으므로 «반드시 먼저» 실행돼야 한다. 에디터(index.html)도 같은 파일을 읽는다. -->
 <script src="../js/feature-flags.js"></script>
+<script src="../js/io/image-data-url.js"></script><!-- 썸네일 «빈 그림» 판정 — 아래 인라인 스크립트가 바로 쓴다 (T-87) -->
 <script src="../js/notice.js"></script>
 <script src="../js/entitlement-banner.js"></script>
 <!-- ★[H3] 지난 실행 복구. recovery-banner.js = 판정·문구(DOM 의존 0),
@@ -1486,11 +1496,18 @@ function _renderGridFromCache() {
     card.dataset.id = proj.id;
     card.draggable = true;
     // DBG-10: thumbnail 필드가 있으면 실제 이미지 표시, 없으면 기본 SVG
-    const thumbContent = proj.thumbnail
-      ? `<img src="${_escHtml(proj.thumbnail)}" loading="lazy" onerror="this.style.display='none'">`  /* 크기·자르기 위치는 .card-thumb img (CSS) 가 정한다 — object-position:top */
-      : (isPlanning
-        ? `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c48a" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="12" y2="16"/></svg>`
-        : `<svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#555" stroke-width="1.2"><rect x="5" y="5" width="30" height="30" rx="2"/><line x1="11" y1="15" x2="29" y2="15"/><line x1="11" y1="21" x2="29" y2="21"/><line x1="11" y1="27" x2="22" y2="27"/></svg>`);
+    /* ★기본 아이콘은 «언제나» 칸 안에 둔다(hidden) — 그림이 없을 때도, 그림이 못 읽힐 때도 이게 나온다.
+       예전엔 onerror 가 <img> 를 숨기기만 해서, 못 읽히는 썸네일은 «아이콘조차 없는 빈 칸»이 됐다.
+       그리고 「썸네일이 있다」를 truthy 로 재면 "data:,"(6자) 같은 빈 그림이 그 길로 들어온다 —
+       판정은 js/io/image-data-url.js 의 isUsableThumbnail «한 곳»에서 한다(만드는 쪽과 같은 함수).
+       기계 검사: tests/dom/card-thumb-empty.dom.spec.js (T-87, 2026-09-22) */
+    const fallbackIcon = isPlanning
+      ? `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c48a" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="12" y2="16"/></svg>`
+      : `<svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#555" stroke-width="1.2"><rect x="5" y="5" width="30" height="30" rx="2"/><line x1="11" y1="15" x2="29" y2="15"/><line x1="11" y1="21" x2="29" y2="21"/><line x1="11" y1="27" x2="22" y2="27"/></svg>`;
+    const hasThumb = window.isUsableThumbnail(proj.thumbnail);
+    const thumbContent =
+      (hasThumb ? `<img src="${_escHtml(proj.thumbnail)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.hidden=false">` : '')  /* 크기·자르기 위치는 .card-thumb img (CSS) 가 정한다 — object-position:top */
+      + `<span class="card-thumb-fallback"${hasThumb ? ' hidden' : ''}>${fallbackIcon}</span>`;
     // 검색 중일 때만 소속 폴더 배지를 붙인다(T-B) — 평소엔 경로(폴더 안)·루트(폴더 밖)가 이미 말해준다.
     //   ★.planning-badge/.collab-badge 와 «같은 자리»(badgeHtml)에 «같은 꼴»로 합류시킨다 —
     //     이름 아래 별도 줄(옛 .card-folder-tag)로 두면 배지 두 종류가 카드마다 다른 언어를 쓰게 된다.
@@ -1744,7 +1761,7 @@ const PLAN_MODE_ENABLED = false;
 
 async function createPlanningProject() {
   if (!PLAN_MODE_ENABLED) {
-    console.warn('[projects] 기획모드는 아직 비활성입니다 (T-064 해결 전까지). 프로젝트를 만들지 않습니다.');
+    console.warn('[projects] 기획모드는 꺼져 있습니다 (PLAN_MODE_ENABLED=false — 현빈 지시 2026-09-21). 프로젝트를 만들지 않습니다.');
     return;
   }
   const id = 'plan_' + Date.now();

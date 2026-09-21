@@ -315,3 +315,136 @@ for (const order of ['A줄+B', 'B줄+A']) {
     expect(errs).toEqual([]);
   });
 }
+
+/* ══ 0922 T-058 재발 — «캔버스 클릭이 아닌» 선택 뒤의 첫 클릭 ════════════════════════════
+ * ★이 파일의 T-058-1~9 는 선택을 «언제나 캔버스 클릭으로만» 세웠다. 그래서 드릴다운 걸쇠가
+ *   «캔버스 클릭이 아닌» 경로(레이어 패널 · Esc 로 상위 이동 · 정본 패널표/MCP selectBlock)로
+ *   세워진 선택에서 어떤 값인지를 «한 번도 안 쟀다» — 그게 재발의 사각지대였다(실측 9637, 2026-09-22):
+ *     레이어 패널로 블럭 선택 → 캔버스 클릭 1회 → 활성줄 {0,0,0} 부활 → ⌫ = 그리드 1개 → 1개,
+ *     토스트 「⚠️ 칸에 남은 마지막 줄은 지울 수 없습니다 …」.
+ *   ⇒ 재는 양을 바꾼다: «클릭 두 번»이 아니라 «선택을 세운 주체»를 갈라 재고, 걸쇠 자체를 본다.
+ * ★걸쇠를 푸는 자리는 showGridProperties(block, null) «명시적 null» 한 곳(prop-grid.js).
+ *   ⛔1-인자(undefined) 재표시는 «선택을 그대로 둔다»는 뜻이라 풀면 안 된다(D5·재렌더). */
+
+/** 레이어 패널·정본 패널표·MCP selectBlock 이 모두 쓰는 «블럭 단위 선택» 한 줄을 그대로 부른다.
+ *  (js/panels/layer-panel-items.js `isGrid) window.showGridProperties?.(block, null)`,
+ *   js/panel-dispatch.js `['grid-block', (el) => window.showGridProperties?.(el, null)]`) */
+const selectAsBlock = (page, nth = 0) => page.evaluate((i) => {
+  window.deselectAll();
+  window.__blocks[i].classList.add('selected');
+  window.showGridProperties(window.__blocks[i], null);
+}, nth);
+
+test('T-058-10 ★레이어 패널로 블럭 선택 → 캔버스 «첫» 클릭이 줄로 안 내려간다 → ⌫ = 토스트 없이 블럭 삭제', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page, ONE_LINE);
+  // 먼저 «캔버스 클릭으로» 줄까지 내려가 걸쇠를 걸어 둔다(재현의 전제).
+  await lineLoc(page, 0, 0).click(); await gap(page);
+  await lineLoc(page, 0, 0).click(); await gap(page);
+  expect(await page.evaluate(() => window.__getActive(window.__block)), '전제: 줄 선택까지 내려가야 한다').toEqual({ r: 0, c: 0, li: 0 });
+
+  await selectAsBlock(page);          // ② 레이어 패널로 «블럭 전체» 다시 고르기
+  expect(await state(page)).toMatchObject({ selected: true, active: null });
+
+  await lineLoc(page, 0, 0).click();  // ③ 사용자에겐 «첫» 클릭 — 블럭을 고르려고 누른다
+  await gap(page);
+  expect(await page.evaluate(() => window.__getActive(window.__block)),
+    '★클릭이 옛 줄을 되살렸다 — 걸쇠가 레이어 패널 선택에서 안 풀렸다(0922 재발)').toBeNull();
+
+  const r = await runDelete(page);
+  expect(r.calls.showToast, '★「마지막 줄」 토스트가 떴다 — 블럭 삭제가 줄 삭제로 샜다').toEqual([]);
+  expect(await state(page)).toMatchObject({ alive: false });
+  expect(errs).toEqual([]);
+});
+
+test('T-058-11 ★Esc 로 블럭까지 올라온 뒤 «다시 클릭»해도 줄로 안 내려간다 → ⌫ = 블럭 삭제', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page, ONE_LINE);
+  await lineLoc(page, 0, 0).click(); await gap(page);
+  await lineLoc(page, 0, 0).click(); await gap(page);
+  expect(await page.evaluate(() => window.__getActive(window.__block))).toEqual({ r: 0, c: 0, li: 0 });
+
+  /* editor.js Esc 분기 그대로 — 첫 Esc 는 줄 선택만 풀고 블럭 선택은 유지한다.
+     (js/editor.js: `if (_gridSelEsc && window.grdGetActiveLine?.(_gridSelEsc)) window.showGridProperties?.(_gridSelEsc, null)`) */
+  await page.evaluate(() => window.showGridProperties(document.querySelector('.grid-block.selected'), null));
+  expect(await state(page)).toMatchObject({ selected: true, active: null });
+
+  await lineLoc(page, 0, 0).click();
+  await gap(page);
+  expect(await page.evaluate(() => window.__getActive(window.__block)),
+    '★Esc 로 올라왔는데 다시 누른 클릭이 줄을 되살렸다 — 안내문이 시키는 길이 막힌다').toBeNull();
+
+  const r = await runDelete(page);
+  expect(r.calls.showToast).toEqual([]);
+  expect(await state(page)).toMatchObject({ alive: false });
+  expect(errs).toEqual([]);
+});
+
+test('T-058-12 ★음성대조 — 걸쇠를 «캔버스 클릭처럼» 다시 걸면 같은 클릭이 줄로 내려가고 ⌫ 가 막힌다(검사가 진짜로 본다)', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page, ONE_LINE);
+  await lineLoc(page, 0, 0).click(); await gap(page);
+  await lineLoc(page, 0, 0).click(); await gap(page);
+
+  await selectAsBlock(page);
+  // ★고치기 «전» 상태를 손으로 되돌린다 — 걸쇠가 안 풀린 채 남아 있던 그 상태.
+  await page.evaluate(() => window.grdMarkCanvasDrill(window.__block));
+
+  await lineLoc(page, 0, 0).click();
+  await gap(page);
+  expect(await page.evaluate(() => window.__getActive(window.__block)),
+    '이 음성대조가 버그를 재현하지 못한다 — 위 두 검사가 아무것도 안 본다').toEqual({ r: 0, c: 0, li: 0 });
+  const r = await runDelete(page);
+  expect(r.calls.showToast.length).toBe(1);
+  expect(await state(page)).toMatchObject({ alive: true });
+  expect(errs).toEqual([]);
+});
+
+test('T-058-13 ★걸쇠 규약 — 명시적 null 만 푼다. 1-인자 재표시(undefined)·줄 주소 전달은 «안» 푼다', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page, TWO_LINES);
+  const probe = await page.evaluate(() => {
+    const b = window.__block;
+    const out = {};
+    window.grdMarkCanvasDrill(b);
+    out.marked = window.grdWasCanvasDrilled(b);
+
+    // ⑴ 줄 주소를 주는 호출(드릴다운 그 자체) → 걸쇠 유지
+    window.showGridProperties(b, { r: 0, c: 0, li: 1 });
+    out.afterAddr = window.grdWasCanvasDrilled(b);
+
+    // ⑵ 1-인자 재표시(updateGridBlock 되부름) → 걸쇠 유지 (D5·재렌더가 조용히 깨지면 안 된다)
+    window.showGridProperties(b);
+    out.afterBare = window.grdWasCanvasDrilled(b);
+
+    // ⑶ 명시적 null(블럭 단위 선택) → 걸쇠 해제
+    window.showGridProperties(b, null);
+    out.afterNull = window.grdWasCanvasDrilled(b);
+
+    // ⑷ 다른 블럭에 걸린 걸쇠는 이 블럭 것이 아니다
+    window.grdMarkCanvasDrill({});
+    out.otherBlock = window.grdWasCanvasDrilled(b);
+    return out;
+  });
+  expect(probe).toEqual({ marked: true, afterAddr: true, afterBare: true, afterNull: false, otherBlock: false });
+  expect(errs).toEqual([]);
+});
+
+test('T-058-14 ★칸 밖(gap/패딩) 클릭으로 블럭에 머물러도 드릴다운은 살아 있다 — 걸쇠를 «클릭 뒤»에 다시 걸기 때문', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page, ONE_LINE);
+  const gapPt = await page.evaluate(() => {
+    const b = window.__block, r = b.getBoundingClientRect();
+    const c0 = b.querySelectorAll('.grd-cell')[0].getBoundingClientRect();
+    const c1 = b.querySelectorAll('.grd-cell')[1].getBoundingClientRect();
+    return { x: Math.round((c0.right + c1.left) / 2), y: Math.round(r.top + r.height / 2) };
+  });
+  await page.mouse.click(gapPt.x, gapPt.y); await gap(page);   // ① 첫 클릭 = 블럭
+  expect(await state(page)).toMatchObject({ selected: true, active: null });
+  await page.mouse.click(gapPt.x, gapPt.y); await gap(page);   // ② 칸 밖 = 블럭에 머문다
+  expect(await state(page)).toMatchObject({ selected: true, active: null });
+  await lineLoc(page, 0, 0).click(); await gap(page);          // ③ 줄 = 내려가야 한다
+  expect(await page.evaluate(() => window.__getActive(window.__block)),
+    '★칸 밖 클릭이 걸쇠를 풀어 버려 드릴다운이 막혔다 — grdMarkCanvasDrill 이 showGridProperties 앞으로 가면 이렇게 된다').toEqual({ r: 0, c: 0, li: 0 });
+  expect(errs).toEqual([]);
+});

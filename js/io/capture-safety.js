@@ -287,11 +287,79 @@ export function neutralizeEmptyImageCheckerForCapture(clone) {
  *   타이밍이 틀렸다. ⇒ 재렌더 «뒤»에 한 번 더 부른다. 멱등이라 두 번 돌아도 결과가 같다.
  *   ⛔이 함수를 stripEditorOnlyForCapture 안에서 «인라인»으로 되돌리지 마라 — 되돌리는 순간
  *     재렌더 뒤 호출부가 사라져 배너·카드 안내문구가 조용히 다시 샌다. */
+/* ★표식을 «믿지» 말고 글자를 재라 (2026-09-22 · T-039 「섹션 내보내기가 흰 페이지」 재현).
+ *   이 함수의 전제는 위 주석의 한 줄 — 「data-is-placeholder="true" 는 실제 글자가 들어가면
+ *   즉시 삭제되므로」였다. 그 전제가 «틀렸다». 글자를 쓰는 자리가 편집 경로 말고도 있고,
+ *   그중 js/ai-section-fill.js applyAIReplacements 는 textContent 만 바꾸고 표식을 안 뗐다.
+ *   ⇒ 화면엔 AI 가 채운 본문이 보이는데(흐릿할 뿐) 내보내기 클론에선 그 본문이 통째로
+ *     visibility:hidden 이 된다. 글자만 있는 섹션이면 산출물이 «완전한 흰 페이지»가 된다.
+ *   실측(2026-09-22, 실앱 9641 · 860×824 PNG · returnDataUrl):
+ *     표식 남김 → 흰 픽셀 아닌 칸 0/708,640 · 표식만 제거 → 104,542 · 다시 붙이면 도로 0
+ *     (바이트까지 동일 — 변수 하나가 흰 페이지를 켜고 끈다)
+ *   ⇒ 쓰는 쪽(ai-section-fill.js)을 고치면서 «이 자리»도 같이 고친다. 쓰는 자리는 앞으로도
+ *     늘어나는데, 읽는 자리가 표식 하나만 믿으면 다음 writer 가 생기는 날 조용히 또 샌다.
+ *   ★술어는 «이미 이 레포에 있는 것»을 그대로 쓴다 — js/io/save-load.js 의 역방향 자가보정
+ *     (C2/D2, `txt2 !== '' && txt2 !== (ph2||'').trim()` → 표식 제거). 같은 판단을 두 벌로
+ *     쓰지 않게 뜻을 맞춘다: 「안내문구와 «다른» 글자가 들어 있으면 그건 본문이다」.
+ *   ⛔data-placeholder 가 «없는» 요소는 그대로 숨긴다 — .cvb-card-ph(js/blocks/canvas-block.js)
+ *     처럼 요소 자체가 안내문인 자리가 있다. 비교할 원문이 없으면 «숨기는 쪽»이 기존 동작이다. */
 export function hidePlaceholderTextForCapture(clone) {
   if (!clone) return 0;
   const els = clone.querySelectorAll?.('[data-is-placeholder="true"]') || [];
-  els.forEach(el => { el.style.visibility = 'hidden'; });
-  return els.length;
+  let n = 0;
+  els.forEach(el => {
+    if (!isStillPlaceholderText(el)) return;   // 본문이 들어와 있다 — 숨기면 그게 결함이다
+    el.style.visibility = 'hidden';
+    n++;
+  });
+  return n;
+}
+
+/* ══ 진단 한 줄 — 「내보냈더니 흰 페이지」를 «내보내는 그 순간» 가른다 (2026-09-22 · T-039) ══
+ * ★왜 필요한가 — T-039 는 신고에서 원인까지 «일주일»이 걸렸다. 산출물이 백지로 나와도 앱이
+ *   아무 말도 안 했기 때문이다(다운로드는 성공했고, 픽셀 게이트는 export 와 truth 를 «서로»
+ *   비교하는데 둘 다 백지면 «같아서» 통과한다 — 「검출 0」을 「문제 없음」으로 읽는 그 병).
+ * ★무엇으로 가르나 — 클론 «하나»만 본다. 라이브와 비교하지 않는다(섹션 라벨·툴바 같은 편집
+ *   chrome 이 이미 걷혀 있어 분모가 깨끗하고, 비교 대상이 없어 경합도 없다):
+ *     textContent = DOM 이 «가진» 글자 · innerText = 실제로 «그려지는» 글자
+ *   (붙은 클론에서 innerText 는 display:none 도 visibility:hidden 도 «둘 다» 뺀다 — 실측 확인.)
+ *   가진 글자는 있는데 그려지는 글자가 «0» 이면 그 섹션은 글자가 통째로 사라진 것이다.
+ * ★원인을 안 고른다 — 안내문구든, 접힌 부모든, 아직 모르는 길이든 «증상»만 말하고 숨은
+ *   요소의 표본을 같이 싣는다. 다음 신고 때 이 한 줄이 곧 재현 조건이다.
+ * ⛔console.error 가 «아니다» — js/report-buffer.js 가 error 만 후킹해 링버퍼(20칸)에 담는다.
+ *   전체 내보내기 22섹션이면 진단이 진짜 실패 기록을 밀어낸다(그 파일 머리말의 그 사고).
+ * ⛔판정을 바꾸지 않는다 — 말만 하고 지나간다. 이 함수가 던져도 내보내기는 그대로 돈다. */
+export function warnIfCaptureTextVanished(clone, ctx) {
+  try {
+    if (!clone) return null;
+    const held = (clone.textContent || '').replace(/\s+/g, '');
+    if (!held) return null;                       // 원래 글자가 없는 섹션 — 백지가 정상이다
+    const shown = (clone.innerText || '').replace(/\s+/g, '');
+    if (shown) return null;                       // 한 글자라도 그려지면 «통째 사라짐»이 아니다
+    const hidden = [...clone.querySelectorAll('*')]
+      .filter(el => el.style && el.style.visibility === 'hidden' && (el.textContent || '').trim())
+      .slice(0, 5)
+      .map(el => ({
+        cls: (el.className && String(el.className).split(' ')[0]) || el.tagName,
+        ph:  el.dataset?.placeholder ?? null,     // null 이면 안내문구가 «아닌» 것이 숨은 것이다
+        txt: (el.textContent || '').trim().slice(0, 24),
+      }));
+    const info = { section: ctx?.sectionId || clone.id || '?', heldChars: held.length,
+                   shownChars: 0, hiddenSample: hidden };
+    console.warn('[export-blank] 캡처 클론에 글자가 하나도 «안 그려진다» — 산출물이 백지가 된다:', info);
+    return info;
+  } catch (_) { return null; }   // 진단이 내보내기를 깨뜨리면 안 된다
+}
+
+/** 이 요소가 «아직 안내문구»인가 — 표식 + 글자를 «둘 다» 본다.
+ *  true  = 안내문구 그대로(또는 비었음, 또는 비교할 원문이 없음) ⇒ 산출물에서 숨긴다
+ *  false = 안내문구와 다른 글자가 들어 있다 ⇒ 본문이다. 숨기면 내용이 사라진다. */
+export function isStillPlaceholderText(el) {
+  if (!el || el.dataset?.isPlaceholder !== 'true') return false;
+  const ph = el.dataset.placeholder;
+  if (ph == null || ph === '') return true;          // 비교할 원문이 없다 — 기존대로 숨긴다
+  const txt = (el.textContent || '').trim();
+  return txt === '' || txt === ph.trim();
 }
 
 /* ── 편집 전용 DOM·상태 걷기 (캡처 클론 공용) ────────────────────────────────────

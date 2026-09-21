@@ -126,8 +126,21 @@ function setRpIdBadge(id) {
 }
 
 async function showSectionProperties(sec) {
+  /* ★«기다리는 사이 선택이 옮겨갔나»를 먼저 기억한다 (2026-09-22 T-084).
+     이 함수는 async 다 — 아래 await 한 줄이 패널 쓰기를 «다음 마이크로태스크»로 미룬다.
+     그래서 js/editor.js selectSection 이 이걸 부르고 «동기로» 돌아간 뒤 호출자가
+     곧바로 블럭을 고르면, 늦게 도착한 섹션 패널이 «더 최신인 블럭 패널»을 덮었다.
+       실측(9639, 2026-09-22): addDeviceMockupBlock('iphone') / addPresetRow('img2') 에서
+       동기 시점 패널 = 새 블럭(mkp_…) → +50ms = 섹션(sec_…). 새 블럭엔 파란 테두리가
+       붙어 있는데 우측 패널만 섹션이라 「지금 뭘 고치는 중인지」가 또 어긋났다(카드 ⑤).
+     ⛔«선택 안 된 섹션은 안 그린다»로 만들지 마라 — 선택과 무관하게 패널을 새로 그리는
+       호출자가 있다(js/image-handling.js · 이 파일의 재렌더 3자리). 그래서 「부를 때는
+       선택돼 있었는데 기다리는 사이 아니게 된 경우」만 접는다. */
+  const _wasSelected = !!sec?.classList?.contains('selected');
   // race condition 방지: Electron readPresets() IPC가 완료될 때까지 대기 후 PRESETS 사용
   await _presetsReady;
+  if (!sec || !sec.isConnected) return;
+  if (_wasSelected && !sec.classList.contains('selected')) return;   // 더 최신 선택이 패널 주인이다
   // dataset.bg(헬퍼가 기록한 색)를 우선, 없으면 인라인 스타일에서 추출
   const rawBg = sec.dataset.bg || sec.style.backgroundColor || sec.style.background || '';
   const hexBg = rawBg

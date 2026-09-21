@@ -83,6 +83,23 @@ function onUp() { ...; window.pushHistory?.('도형 크기'); }   // ←기존 �
 | `js/overlay-handles.js` 그리드 거터 | 시작은 이미 `mousedown` 1회. 끝 표본만 `onUp` 에 더했다. |
 | `js/insert-history.js` (삽입 입구 래퍼) | 삽입 입구는 `pushHistory` 를 «앞»에 부른다(그대로 둔다). 래퍼가 «돌아온 직후» 한 번 더 부른다 — ⑴ 이음매용 «끝 표본»이다. 입구 안의 호출을 떼면 안 된다(그건 «옮기기»다). |
 
+## 삽입 입구 «선택 따라가기» (T-084 · 2026-09-22)
+
+블럭을 넣으면 **파란 선택 표시와 우측 패널이 «새 블럭»으로 옮겨가야 한다.**
+정본은 세 자리이고, 목록을 새로 만들지 않는다.
+
+| 자리 | 하는 일 |
+|---|---|
+| `js/block-edit.js` `selectBlock` | 「무엇이 선택됐나」의 **정본 한 자리**. `clearSelectionMarks`(옛 표시 전부) + `openPanelForBlock`(우측 패널) + `highlightBlock`(좌측 레이어)를 한 벌로 한다. |
+| `js/panel-dispatch.js` `_PANEL_BY_CLASS` | 「이 블럭의 패널은 무엇인가」의 정본 표. `hasPanelForBlock` 이 **같은 표**를 읽어 「블럭인가」까지 답한다(`getBlockById` 가 이걸 쓴다 — `dataset.type` 이 없는 `.asset-block`·`.icon-text-block`·`.label-group-block` 때문). |
+| `js/insert-select.js` (삽입 입구 래퍼) | 로스터(=`js/insert-history.js` 의 `__insertSeamRoster`)로 입구 41자리를 감싸, **입구가 스스로 새 것을 고르지 «않았을 때만»** 새로 생긴 «잎» 블럭을 `selectBlock` 으로 고른다. ⛔입구마다 한 줄씩 적지 마라 — 2026-09-22 실측에서 41자리 중 12자리가 빠져 있었다. |
+
+⛔`.selected` 를 여기서 직접 붙이지 마라(표시가 두 벌이 된다) · 미루지 마라(다음 클릭이 선택을 뺏는다).
+⚠️`showSectionProperties` 는 **async** 다 — `await` 뒤에 「부를 때는 선택돼 있었는데 지금은 아니면 접는다」
+가드가 있다. 없으면 늦게 온 섹션 패널이 새 블럭 패널을 덮는다(`addDeviceMockupBlock`·`addPresetRow` 실측).
+게이트: `tests/unit/insert-select-roster.test.mjs` · `tests/dom/insert-select-follows.dom.spec.js` ·
+`tests/dom/select-block-submarks.dom.spec.js`.
+
 ### 남은 P2 (별도 카드)
 
 1. ~~★「삽입(push-before) → 우측 패널(push-after)」 이음매~~ → **해소(T-131 · 2026-09-21)**.

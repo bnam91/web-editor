@@ -292,6 +292,24 @@
   white-space: nowrap;
   gap: 0;
 }
+
+/* ★「지금 값」 표시의 «배경»이 바로 위 규칙에 덮여 죽어 있었다 (T-101 ③, 2026-09-22)
+     실측(실앱 9644, 이미지블록 → 속성패널): prop-asset.js 가 active 를 «제대로» 붙이는데도
+       computed 가 active·idle 둘 다 background rgb(42,42,42) 로 «같았다».
+       아래 .prop-preset-btn.active(643) 의 background:#1a2a3a 는 한 번도 안 그려졌다.
+     ⇒ 명시도다 — 바로 위 `.prop-type-group:has(.prop-preset-btn) .prop-preset-btn.prop-type-btn`
+       가 (0,5,0) 으로 background 를 못 박는데, active 규칙은 `.prop-preset-btn.active`(0,2,0) ·
+       `.prop-type-btn.active`(0,2,0) 라 둘 다 진다. 살아남은 건 border-color 뿐인데
+       그건 위 규칙이 border-width/radius 만 건드려 «우연히» 남은 것이다.
+       ⇒ 6개가 3칸 두 줄로 놓이는 이 그룹에서 1px 테두리 색 하나만 남는다.
+     ⛔위 규칙에서 background 를 «빼지» 않는다 — 그 선언은 idle 모양을 잡는 몫이고,
+       빼면 .prop-preset-btn(635, bg-app) 과 .prop-type-btn(295, bg-input) 중 어느 쪽이
+       이기는지에 idle 색이 딸려간다(이 그룹 밖 버튼까지 같이 움직인다).
+     ⇒ «같은 자리에 같은 무게로» active 갈래를 하나 더 둔다(0,6,0). 색은 새로 짓지 않고
+       643 이 원래 선언해 둔 값을 그대로 쓴다 — 되살리는 것이지 바꾸는 것이 아니다. */
+.prop-type-group:has(.prop-preset-btn) .prop-preset-btn.prop-type-btn.active {
+  background: #1a2a3a;
+}
 .prop-type-btn {
   flex: 1; min-width: max-content; height: 24px;
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-mid);

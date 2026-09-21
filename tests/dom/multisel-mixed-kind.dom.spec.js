@@ -75,6 +75,11 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"></head><body>
           <div class="divider-block" id="dvd1"></div>
           <div class="divider-block" id="dvd2"></div>
         </div>
+        <!-- 도형 한 벌 — 실앱과 같은 골격: 전용 래퍼(data-free-layout) + 그 «안»의 shape-block.
+             selectShapeBlock 은 이 둘을 «한 몸으로» 켠다(js/block-drag.js:2652~2658). -->
+        <div class="frame-block" data-free-layout="true" id="sf1">
+          <div class="shape-block" id="shp1" style="position:absolute;left:0;top:0"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -124,10 +129,13 @@ test('P2 대조 — 보조키 «없이» 빈 영역을 누르면 종전대로 �
   expect(r.frameSelected, '평범한 클릭인데 프레임이 안 골라졌다').toBe(true);
 });
 
-/** 정본 목록 + 정본 거르개로 «단위 수»를 센다(_countFlowMultiSel 과 같은 식). */
+/** 정본 목록 + 정본 거르개로 «단위 수»를 센다(_countFlowMultiSel 과 같은 식).
+ *  ⚠️거르개는 «목록 상수»도 읽는다(2026-09-22 T-091 ⑥ — 조상 판정이 「.selected 아무거나」에서
+ *    「세는 목록에 드는 .selected」로 바뀌었다). 그래서 상수도 같이 떠서 스코프에 넣는다. */
 async function countUnits(page) {
   return page.evaluate(([sel, freeFn, unitFn]) => {
-    const f = new Function(`${freeFn}; ${unitFn}; return _isFlowMultiSelUnit;`)();
+    const f = new Function(
+      `const FLOW_BLOCK_SEL_SELECTED = ${JSON.stringify(sel)}; ${freeFn}; ${unitFn}; return _isFlowMultiSelUnit;`)();
     return [...document.querySelectorAll(sel)].filter(f).length;
   }, [FLOW_SEL, IS_FREE_FN, IS_UNIT_FN]);
 }
@@ -155,6 +163,81 @@ test('U3 회귀 — 프레임 «안»의 블록을 고르면 그 프레임은 «
     document.getElementById('dvd1').classList.add('selected');
   });
   expect(await countUnits(page), '조상 프레임까지 세면 블록 하나에도 멀티 패널이 뜬다').toBe(1);
+});
+
+/* ⒟ 2026-09-22 — T-091 «나온 뒤» ⑥ 「정렬이 실제로 되는지」를 쫓아가다 나온 나머지 반쪽.
+   실측(포트 9634, 고치기 «전»): 글자를 고르고 도형을 ⇧클릭하면 둘 다 .selected 가 되긴 하는데
+     · 세는 목록에서 도형 래퍼가 «조상»으로 버려져 흐름 단위가 2(글자둘)뿐이었고
+     · 패널은 «방금 누른 블록»만 보고 자유배치 멀티셀렉(X/Y/W/H)으로 갔다.
+   그 패널의 정렬은 style.left/top 을 쓴다 ⇒ 글자는 꿈쩍 않고(정적 배치) 도형은 자기 래퍼 밖으로
+   날아갔다 — shape 의 섹션 기준 왼쪽 여백이 308 → 924 (섹션 오른끝을 308px 넘어감). */
+
+test('U5 ★「글자 1 + 도형 1」 = 2 단위 — 도형은 래퍼와 알맹이가 «한 몸»으로 켜진다', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => {
+    document.getElementById('tb1').classList.add('selected');
+    document.getElementById('sf1').classList.add('selected');   // selectShapeBlock 이 켜는 둘…
+    document.getElementById('shp1').classList.add('selected');  // …을 그대로 재현
+  });
+  expect(await countUnits(page), '도형 래퍼가 «조상»으로 버려졌다 — 글자와 같이 골라도 도형만 빠진다').toBe(2);
+  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
+});
+
+test('U5-neg 음성대조 — 옛 규칙(«.selected 아무거나»)으로 재면 같은 자리가 1 이 된다', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => {
+    document.getElementById('tb1').classList.add('selected');
+    document.getElementById('sf1').classList.add('selected');
+    document.getElementById('shp1').classList.add('selected');
+  });
+  const old = await page.evaluate(([sel, freeFn]) => {
+    /* 옛 거르개 한 벌 — 프레임 조상 판정만 «.selected 아무거나»로 되돌린 판 */
+    const f = new Function(`${freeFn}; return function (el) {
+      if (!el || _isInFreeLayout(el)) return false;
+      if (el.classList.contains('frame-block')) {
+        if (el.dataset.textFrame === 'true') return false;
+        if (el.querySelector('.selected')) return false;
+      }
+      return true;
+    };`)();
+    return [...document.querySelectorAll(sel)].filter(f).length;
+  }, [FLOW_SEL, IS_FREE_FN]);
+  expect(old, '옛 규칙인데도 2 가 나온다 — 이 검사는 고침을 안 재고 있다').toBe(1);
+});
+
+/* ⒠ 패널 «고르기» — 어느 멀티셀렉 패널을 띄우느냐. 원문을 떠서 돌린다. */
+const PANEL_FN = extractFn(EDITOR_SRC, '_updateMultiSelPanel');
+
+async function pickPanel(page, { flowUnits, inFree }) {
+  return page.evaluate(([src, n, free]) => {
+    const calls = [];
+    const scope = {
+      _countFlowMultiSel: () => n,
+      _isInFreeLayout: () => !!free,
+      _updateFreeLayoutMultiSelPanel: () => calls.push('free'),
+      propPanel: { innerHTML: '' },
+    };
+    window.showFlowMultiSelPanel = () => calls.push('flow');
+    const names = Object.keys(scope);
+    new Function(...names, src + '; return _updateMultiSelPanel;')(...names.map(k => scope[k]))({});
+    return calls;
+  }, [PANEL_FN, flowUnits, inFree]);
+}
+
+test('R1 ★흐름 단위가 둘 이상이면 «방금 누른 게 도형이어도» 흐름 패널이다', async ({ page }) => {
+  await boot(page);
+  expect(await pickPanel(page, { flowUnits: 3, inFree: true }),
+    '도형을 눌렀다는 이유로 자유배치 패널로 갔다 — 거기 정렬은 left/top 이라 글자가 안 움직인다').toEqual(['flow']);
+});
+
+test('R2 회귀 — 순수 자유배치 선택(흐름 단위 0)은 종전대로 자유배치 패널', async ({ page }) => {
+  await boot(page);
+  expect(await pickPanel(page, { flowUnits: 0, inFree: true })).toEqual(['free']);
+});
+
+test('R3 회귀 — 흐름 단위가 1 이하면 패널을 억지로 바꾸지 않는다(단일 선택)', async ({ page }) => {
+  await boot(page);
+  expect(await pickPanel(page, { flowUnits: 1, inFree: false })).toEqual([]);
 });
 
 test('U4 회귀 — 텍스트프레임은 «그릇»이다(단위는 안의 text-block)', async ({ page }) => {

@@ -252,9 +252,13 @@ function install({ tools, toolSchemas, registerTool, hide }) {
       const { unknown } = normalizeArgs(schema, args);
       if (!unknown.length || !res || typeof res !== 'object') return res;
       const props = _schemaProps(schema);
-      res.ignoredProps = unknown;
-      res.hint = `unknown prop(s) ${unknown.join(', ')} were NOT applied. valid: `
+      /* ★T-122 — «덮어쓰지» 말고 «보탠다». 아래 층(js/blocks/grid-block.js)도 같은 규약으로
+         「안 된 것」을 이미 실어 보낸다(줄 종류와 안 맞는 값 · 모양 안 맞는 표). 여기서 대입하면
+         그 보고가 통째로 사라져, 이름은 멀쩡한데 «안 그려진» 값이 다시 조용해진다. */
+      res.ignoredProps = [...(Array.isArray(res.ignoredProps) ? res.ignoredProps : []), ...unknown];
+      const mine = `unknown prop(s) ${unknown.join(', ')} were NOT applied. valid: `
         + (props ? Object.keys(props).join('|') : '(see get_block_schema)');
+      res.hint = res.hint ? `${res.hint} ${mine}` : mine;
     } catch (_) {}
     return res;
   }
