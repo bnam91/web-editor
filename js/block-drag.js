@@ -16,7 +16,7 @@ import {
   selectAllEditableContents,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
-import { frameAlignOffset, frameVisibleSize } from './frame-geometry.js';
+import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren } from './frame-geometry.js';
 import {
   dragState,
   _suppressDragSave,
@@ -2570,6 +2570,16 @@ function bindFrameDropZone(ss) {
         }
         _stackY += (b.offsetHeight || 60) + 16;
       });
+
+      /* ★T-088(2026-09-21) — 쌓고 나면 «프레임이 그만큼 커져야» 한다.
+         .frame-block 은 overflow:hidden 이라, 위 루프가 마지막 블록을 프레임 밑변 너머에
+         놓으면 그 블록은 «화면에서 사라진다»(값은 남는다 — 실측: 저장·재로드해도 그대로
+         붙어 있었다). 현빈 보고 원문 「제목을 한 칸 아래로 끌어내렸더니 사라지고 선택
+         테두리만 섹션 밖에 둥둥」이 바로 이 자리다.
+         ⚠️프레임 «안에서» 자식을 옮기는 경우(_resizeFrameToFitChildren)는 종전대로 no-op —
+           그건 사용자가 핸들로 정한 크기를 지켜야 하는 다른 축이다. 여기는 «밖에서 들고
+           들어온» 경로이고, 넓히기만 한다(줄이지 않는다). */
+      growFrameToFitChildren(inner);
     }
 
     // dragging 클래스 고착 방지
