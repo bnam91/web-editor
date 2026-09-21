@@ -2102,6 +2102,40 @@ function mergeSelectedGaps() {
   if (firstKept) firstKept.classList.add('selected');
 }
 
+/* ★T-102 — «고른 것» 찾기는 성질로. 조상(섹션·프레임)도 .selected 표식을 달기 때문에
+   «가장 깊은 .selected» 이 실제로 고른 것이다. */
+function _deepestCanvasSelection() {
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return null;
+  let best = null, depth = -1;
+  canvas.querySelectorAll('.selected').forEach(el => {
+    let d = 0; for (let p = el; p; p = p.parentElement) d++;
+    if (d > depth) { depth = d; best = el; }
+  });
+  return best;
+}
+/** el 자신부터 올라가며 «free-layout 프레임의 직속 자식 + absolute» 를 찾는다 = left/top 을 가진 사람. */
+function _freePositionedAncestor(el) {
+  const canvas = document.getElementById('canvas');
+  for (let n = el; n && n !== canvas; n = n.parentElement) {
+    if (n.parentElement?.matches?.('.frame-block[data-free-layout]')
+        && getComputedStyle(n).position === 'absolute') return n;
+  }
+  return null;
+}
+/** 단일·다중선택 모두 커버. 중첩 프레임에서 «조상과 자식이 둘 다» 잡힐 때는 조상을 버린다(이중 이동 방지). */
+function _freeNudgeTargets() {
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return [];
+  const set = new Set();
+  canvas.querySelectorAll('.selected, .multi-selected').forEach(el => {
+    const m = _freePositionedAncestor(el);
+    if (m) set.add(m);
+  });
+  const all = [...set];
+  return all.filter(a => !all.some(b => b !== a && a.contains(b)));
+}
+
 document.addEventListener('keydown', e => {
   // contenteditable 편집 중: 에디터 전역 단축키 차단
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
@@ -2494,6 +2528,10 @@ document.addEventListener('keydown', e => {
 
   if (e.key === 'Escape') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    /* ★T-102 — Esc 순서: «떠 있는 메뉴»가 제일 위다. 메뉴가 열려 있으면
+       메뉴만 닫고 소진된다 — 선택 풀기·상위로 올라가기(T-058)는 그다음 Esc 몫이다.
+       (메뉴가 안 열려 있으면 closeFpMenus() 가 0 을 돌려 기존 흐름이 그대로 간다.) */
+    if (closeFpMenus() > 0) return;
     // vectorPen 그리기/편집 모드는 자체 capture 핸들러가 ESC를 먼저 소비함.
     // 안전망: 모드가 살아있으면 종료만 하고 선택 해제는 건너뜀.
     if (document.body.classList.contains('vpen-mode')) { window.exitVectorPenMode?.(); return; }
@@ -2549,6 +2587,50 @@ document.addEventListener('keydown', e => {
     window.scheduleAutoSave?.();
     window.buildLayerPanel?.();
     return;
+  }
+
+  /* ★T-102 — 화살표키는 «고른 블럭» 것이다. 예전엔 이 자리가 비어 있어서
+     브라우저 기본동작이 #canvas-wrap 을 밀었다 — 방금 고른 것이 화면 밖으로 나갔다.
+     ⛔블럭 «종류 명부»를 새로 적지 않는다 — 성질로 고른다:
+       free-layout 프레임의 «직속 자식»이면서 absolute 로 떠 있는 것만 left/top 을 갖는다
+       (block-drag.js 의 드래그가 쓰는 바로 그 성질 — dataset.offsetX/Y 와 짝).
+     되돌리기: 한 «연타»가 ⌘Z 한 번이다(드래그 한 제스처와 같은 결).
+     흐름(stack) 블럭은 밀 곳이 없으니 «아무 일도 안 한다» — 단, 스크롤도 안 한다. */
+  {
+    const _ARROW = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    const _dir = (!e.metaKey && !e.ctrlKey && !e.altKey && !e.isComposing) ? _ARROW[e.key] : null;
+    if (_dir) {
+      const _t = e.target;
+      if (_t && (_t.tagName === 'INPUT' || _t.tagName === 'TEXTAREA' || _t.tagName === 'SELECT' || _t.isContentEditable)) return;
+      if (document.querySelector('.text-block.editing, .label-group-block.editing, .modal-block.editing')) return;
+      const _sel = _deepestCanvasSelection();
+      // 섹션«만» 고른 상태는 예전처럼 캔버스 스크롤로 둔다(좁은 대상이 먼저다).
+      if (_sel && !_sel.classList.contains('section-block')) {
+        e.preventDefault();
+        const _movers = _freeNudgeTargets();
+        if (_movers.length) {
+          const _step = e.shiftKey ? 10 : 1;
+          const _now = Date.now();
+          if (_now - (window._nudgeBurstAt || 0) >= 700) pushHistory('블럭 이동');
+          window._nudgeBurstAt = _now;
+          _movers.forEach(m => {
+            const nx = Math.round(parseFloat(m.style.left) || 0) + _dir[0] * _step;
+            const ny = Math.round(parseFloat(m.style.top)  || 0) + _dir[1] * _step;
+            m.style.left = nx + 'px';
+            m.style.top  = ny + 'px';
+            m.dataset.offsetX = String(nx);
+            m.dataset.offsetY = String(ny);
+          });
+          const _m0 = _movers[0];
+          const _xNum = document.getElementById('txt-x-number') || document.getElementById('lg-x-number');
+          const _yNum = document.getElementById('txt-y-number') || document.getElementById('lg-y-number');
+          if (_xNum) _xNum.value = Math.round(parseFloat(_m0.style.left) || 0);
+          if (_yNum) _yNum.value = Math.round(parseFloat(_m0.style.top)  || 0);
+          window.scheduleAutoSave?.();
+        }
+        return;
+      }
+    }
   }
 
   // 블록 추가 단축키: addGap/addText/addAsset (사용자 설정 가능, 기본 G/T/A — IME 안전: e.code 사용)
@@ -3772,23 +3854,44 @@ function toggleFpDropdown(id) {
   document.querySelectorAll('.fp-dropdown').forEach(d => d.classList.remove('open'));
   if (!wasOpen) target.classList.add('open');
 }
-document.addEventListener('click', e => {
-  if (!e.target.closest('.fp-dropdown')) {
-    document.querySelectorAll('.fp-dropdown').forEach(d => d.classList.remove('open'));
+
+/* ★T-102 — 떠 있는 메뉴의 «명부는 한 벌»이다.
+   예전엔 «바깥을 눌렀을 때 닫는 목록»만 있고 Esc 는 그 목록을 안 봤다
+   — 그래서 삽입 메뉴를 열고 Esc 를 눌러도 메뉴가 안 닫혔다.
+   여기 한 자리만 고치면 둘 다 따라온다(명부를 두 벌 두지 않는다).
+   self = «그 메뉴 자기 영역» — 거기를 눌렀으면 안 닫는다(바깥클릭 규칙 보존). */
+const FP_FLOATING_MENUS = [
+  { open: '.fp-dropdown.open', self: '.fp-dropdown',
+    close: el => el.classList.remove('open') },
+  { open: '#fp-plugin-panel', self: '#fp-plugin-panel, #fp-plugin-btn',
+    isOpen: _fpVisible,
+    close: el => { el.style.display = 'none'; document.getElementById('fp-plugin-btn')?.classList.remove('active'); } },
+  { open: '#branch-dropdown-wrap.open', self: '#branch-dropdown-wrap',
+    close: el => el.classList.remove('open') },
+  { open: '.col-add-menu', self: '.col-add-btn, .col-add-menu',
+    isOpen: _fpVisible,
+    close: el => { el.style.display = 'none'; } },
+];
+/** @param {EventTarget|null} [evTarget] 클릭 대상(주면 그 메뉴 자기 영역은 열어둔다). 반환 = 닫은 개수 */
+/* «열려 있나»는 인라인 style 하나로 재지 않는다 — 인라인이 없고 CSS 로만 숨은 요소를
+   «열림»으로 읽으면 Esc 가 늘 메뉴 닫기로 소진돼 선택 풀기가 죽는다.
+   싼 인라인 검사로 걸러내고, 애매할 때만 계산된 값을 본다. */
+function _fpVisible(el) {
+  return el.style.display !== 'none' && getComputedStyle(el).display !== 'none';
+}
+function closeFpMenus(evTarget) {
+  let closed = 0;
+  for (const m of FP_FLOATING_MENUS) {
+    if (evTarget && evTarget.closest?.(m.self)) continue;
+    document.querySelectorAll(m.open).forEach(el => {
+      if (m.isOpen && !m.isOpen(el)) return;
+      m.close(el); closed++;
+    });
   }
-  // plugin panel 외부 클릭 시 닫기
-  const fpPlugin = document.getElementById('fp-plugin-panel');
-  if (fpPlugin && fpPlugin.style.display !== 'none' &&
-      !e.target.closest('#fp-plugin-panel') && !e.target.closest('#fp-plugin-btn')) {
-    fpPlugin.style.display = 'none';
-    document.getElementById('fp-plugin-btn')?.classList.remove('active');
-  }
-  const bdw = document.getElementById('branch-dropdown-wrap');
-  if (bdw && !bdw.contains(e.target)) bdw.classList.remove('open');
-  if (!e.target.closest('.col-add-btn') && !e.target.closest('.col-add-menu')) {
-    document.querySelectorAll('.col-add-menu').forEach(m => m.style.display = 'none');
-  }
-});
+  return closed;
+}
+window.closeFpMenus = closeFpMenus;
+document.addEventListener('click', e => { closeFpMenus(e.target); });
 
 
 /* ═══════════════════════════════════
