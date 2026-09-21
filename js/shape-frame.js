@@ -53,6 +53,51 @@ export function anchorUnitOf(el) {
   return (p && p.classList?.contains('row')) ? p : w;
 }
 
+/* ── 껍데기 / 알맹이 판정 — ★명부가 아니라 «성질»로 집는다 ───────────────────
+ *
+ * ★왜 명부를 버렸나 (2026-09-21, 「복제본+원본을 ⌘G 로 묶으면 복제본이 말없이 사라진다」)
+ *   block-factory.js 의 ⌘G(wrapSelectedBlocksInFrame) 는 「껍데기 안의 알맹이를 손으로 적은
+ *   명부(BLOCK_SEL, 27종)로 퍼내고 껍데기를 «무조건» 지운다」였다. 명부에 없는 타입
+ *   (modal·gradient·speech-bubble·sticker)은 퍼내지 못한 채 껍데기와 «같이» 삭제됐다.
+ *   토스트도 없다 = 조용한 데이터 손실. drag-utils.js 의 isFlowAnchorBlock 이 이미 같은 병을
+ *   같은 방식으로(=클래스가 `-block` 으로 끝나는가) 고친 선례다 — 그 규약을 그대로 쓴다.
+ *
+ * ★자손 전수 검색(querySelectorAll)이 아니라 «최상위 한 겹»인 이유
+ *   BLOCK_SEL 에는 .frame-block 도 있어서 row 안의 텍스트프레임과 그 «안»의 text-block 을
+ *   둘 다 잡았다 → 프레임을 옮긴 «직후» 자식 text-block 을 프레임 «밖»으로 다시 끌어내
+ *   빈 프레임이 남았다. 블록 «안»은 알맹이가 아니다 — 파고들지 않는다.
+ *
+ * ⛔globals.js 의 BLOCK_DELEGATE_SEL / drag-utils 의 _ANCHOR_EXCLUDE_CLASSES 와 합치지 마라.
+ *   저쪽은 「자식에게 넘길 것인가」·「새 블록의 앞자리인가」이고 이건 「껍데기를 지워도 되는가」다. */
+
+/** 이 요소가 «블록»인가 — 클래스 하나가 `-block` 으로 끝난다(drag-utils.isFlowAnchorBlock 과 같은 규약). */
+export function isBlockEl(el) {
+  if (!el || el.nodeType !== 1 || !el.classList) return false;
+  for (const c of el.classList) if (c.endsWith('-block')) return true;
+  return false;
+}
+
+/** 껍데기 안의 «최상위» 알맹이 블록들. 블록을 만나면 거기서 멈춘다(블록 안은 파고들지 않는다).
+ *  .col 같은 «블록이 아닌» 중간 껍데기는 한 겹 더 들어간다. */
+export function topLevelBlocksOf(shell) {
+  const out = [];
+  if (!shell || shell.nodeType !== 1 || !shell.children) return out;
+  const walk = (node, depth) => {
+    if (depth > 32) return;
+    for (const c of node.children) {
+      if (isBlockEl(c)) out.push(c);
+      else walk(c, depth + 1);
+    }
+  };
+  walk(shell, 0);
+  return out;
+}
+
+/** 알맹이가 하나도 없는 껍데기인가 — 「껍데기만 지운다」 불변식의 게이트. */
+export function isEmptyShell(el) {
+  return topLevelBlocksOf(el).length === 0;
+}
+
 function _genRowId() {
   try { if (typeof window !== 'undefined' && typeof window.genId === 'function') return window.genId('row'); } catch (_) {}
   return 'row_' + Math.random().toString(36).slice(2, 9);
@@ -160,5 +205,5 @@ export function ejectShapeFrameIntruders(root) {
 }
 
 if (typeof window !== 'undefined') {
-  window.ShapeFrame = { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf, toFlowUnit, ejectShapeFrameIntruders };
+  window.ShapeFrame = { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf, toFlowUnit, ejectShapeFrameIntruders, isBlockEl, topLevelBlocksOf, isEmptyShell };
 }

@@ -22,7 +22,7 @@ import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame } from './frame-geometry.js';
 import { getGridModel } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
-import { isShapeFrame, shapeFrameOf, resolveInsertFrame } from './shape-frame.js';
+import { isShapeFrame, shapeFrameOf, resolveInsertFrame, topLevelBlocksOf, isEmptyShell } from './shape-frame.js';
 
 /* ═══════════════════════════════════
    BLOCK FACTORY — make* / add* / addSection
@@ -1908,10 +1908,23 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   }
 
   // ── 섹션 레벨(flow) 블록 묶기: 기존 stack 방식 ───────────────────────────
+  // ★단위 해석 — 「껍데기」와 「알맹이」를 «여기서» 가른다.
+  //   예전엔 `… || b` 폴백으로 «블록 자신»이 단위가 될 수 있었는데, 아래에서 그 단위를 껍데기로 보고
+  //   자손 명부로 퍼낸 뒤(빈 배열) `row.remove()` 로 «선택된 블록 자신»을 지웠다 — 조용한 데이터 손실.
+  //   (재현: 섹션 텍스트 ⌘D 는 copySelected 가 텍스트프레임 래퍼를 잃어 «맨몸 text-block» 을 만든다
+  //    → 그 복제본은 tf 도 row 도 없어 단위가 자기 자신이 됐다.)
+  //   이제 껍데기(shell)가 «실제로 있을 때만» 껍데기로 다룬다. shell 이 없으면 단위 = 알맹이 자신.
   const rows = [];
+  const shells = new Set();
   selected.forEach(b => {
-    const row = b.classList.contains('gap-block') ? b : (b.closest('.frame-block[data-text-frame]') || b.closest('.row') || b);
-    if (row && !rows.includes(row)) rows.push(row);
+    // gap-block 은 «빈 칸 자체»가 내용이라 껍데기가 없다. 도형 래퍼는 closest 가 아무것도 못 잡아
+    // 자연히 shell=null 이 된다(래퍼째 한 단위 = 0918 A안 T-057) — 특례를 따로 적지 않아도 같은 답.
+    const shell = b.classList.contains('gap-block')
+      ? null
+      : (b.closest('.frame-block[data-text-frame]') || b.closest('.row'));
+    const unit = shell || b;
+    if (shell) shells.add(shell);
+    if (unit && !rows.includes(unit)) rows.push(unit);
   });
   // 문서 순서 정렬 — section-inner 직속이 아닌 단위(merged-part 등)도 -1 로 맨 앞에 끼지 않게
   rows.sort((a, b) => (a === b ? 0 : (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)));
@@ -1958,12 +1971,17 @@ function wrapSelectedBlocksInFrame(opts = {}) {
 
   // 각 블록을 absolute 배치로 ss에 직접 이동
   let stackY = 0;
+  let leftBehind = false;
   rows.forEach(row => {
     const rowH = row.offsetHeight || 60;
-    const isGapRow = row.classList.contains('gap-block');
-    const isShapeRow = isShapeFrame(row);
-    const blocks = (isGapRow || isShapeRow) ? [row]
-      : [...row.querySelectorAll(BLOCK_SEL)].filter(x => !_insideShapeFrame(x, row));
+    const isShell = shells.has(row);
+    // ★알맹이 퍼내기 — 명부(BLOCK_SEL)가 아니라 «성질»로 집는다(shape-frame.js topLevelBlocksOf).
+    //   ⑴ 명부에 없던 타입(modal·gradient·speech-bubble·sticker)이 껍데기와 같이 삭제되던 게 닫힌다.
+    //   ⑵ 자손 전수(querySelectorAll)가 아니라 최상위 한 겹이라, row 안의 텍스트프레임과 그 안의
+    //      text-block 을 둘 다 잡아 «빈 프레임»을 남기던 중복 수확도 같이 닫힌다.
+    const blocks = isShell
+      ? topLevelBlocksOf(row).filter(x => !_insideShapeFrame(x, row))
+      : [row];
     blocks.forEach(block => {
       block.style.position = 'absolute';
       block.style.top = stackY + 'px';
@@ -1987,8 +2005,16 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       ss.appendChild(block);
     });
     stackY += rowH + GAP;
-    if (!isGapRow && !isShapeRow) row.remove();
+    // ★「껍데기만 지운다」 — 알맹이가 남아 있으면 절대 지우지 않는다(조용한 소실 금지의 최종 안전망).
+    //   여기까지 왔는데 남은 게 있다 = 우리가 모르는 무언가가 있다는 뜻이니, 제자리에 두고 «알린다».
+    if (isShell) {
+      if (isEmptyShell(row)) row.remove();
+      else leftBehind = true;
+    }
   });
+  if (leftBehind && window.showToast) {
+    window.showToast('그룹에 못 넣은 블록이 있어 원래 자리에 남겼어요.');
+  }
 
   window.bindFrameDropZone?.(ss);
 

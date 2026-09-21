@@ -24,7 +24,7 @@ const WRAP_SRC = sliceBlock(BF, 'function wrapSelectedBlocksInFrame(');
 const NEXT_GROUP_SRC = sliceBlock(BF, 'function _nextGroupName(');
 
 const HARNESS_JS = `
-import { isShapeFrame, shapeFrameOf } from '/js/shape-frame.js';
+import { isShapeFrame, shapeFrameOf, topLevelBlocksOf, isEmptyShell } from '/js/shape-frame.js';
 let __n = 0;
 function makeFrameBlock() {
   const ss = document.createElement('div');

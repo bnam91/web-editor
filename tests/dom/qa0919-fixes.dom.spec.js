@@ -26,7 +26,7 @@ const KEEP_SRC = sliceBlock(read('js/editor.js'), 'function _keepOnlyPastedSelec
 const STOP_SRC = sliceBlock(read('js/props/prop-shape.js'), 'export function shapeStopPaint(').replace(/^export /, '');
 
 const HARNESS_JS = `
-import { isShapeFrame, shapeFrameOf } from '/js/shape-frame.js';
+import { isShapeFrame, shapeFrameOf, topLevelBlocksOf, isEmptyShell } from '/js/shape-frame.js';
 let __n = 0;
 /* makeFrameBlock 의 «기본값»을 그대로 흉내 낸다 — 이게 결함의 원천(dataset 860×520) */
 function makeFrameBlock() {
