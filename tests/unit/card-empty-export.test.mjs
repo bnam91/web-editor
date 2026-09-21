@@ -53,7 +53,12 @@ const INLINE_CHECKER_ALLOW = {
   'js/props/prop-mockup.js':   { n: 1, why: '위와 같은 안전망 — 패널에서 이미지 넣는 경로' },
   // ── 패널(우측 속성창) UI 의 스와치·바. «캔버스 DOM 이 아니다» ⇒ 저장본·배송본에 애초에 안 실린다.
   'js/props/prop-shape.js':       { n: 2, why: '패널 이미지 스와치(투명 표시) — 캔버스 DOM 아님' },
-  'js/props/prop-simple-card.js': { n: 3, why: '패널 색 스와치(투명 표시) — 캔버스 DOM 아님' },
+  /* ★3 → 4 (2026-09-21 합치기): fix/ul-colorhex(499cbc3)가 «에셋 배경색 칸»을 같은 규약으로
+     맞추면서 같은 종류의 스와치 하나가 늘었다. 확인한 것 — .prop-color-swatch 는 js/props/
+     밖에서 안 쓰이고, 캔버스가 아니라 우측 패널 마크업(index.html:511)에 붙는다 ⇒ 저장본·
+     단독 HTML 내보내기에 실리지 않는다. 그래서 «예외»가 맞고 건수만 올린다.
+     ⛔이 숫자를 «그냥» 올리지 마라 — 올리기 전에 그 자리가 캔버스 DOM 인지 매번 확인할 것. */
+  'js/props/prop-simple-card.js': { n: 4, why: '패널 색 스와치(투명 표시) — 캔버스 DOM 아님' },
   'js/props/prop-gradient.js':    { n: 1, why: '패널 그라데이션 바 뒤 투명 표시 — 캔버스 DOM 아님' },
 };
 
