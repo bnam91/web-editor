@@ -53,6 +53,9 @@ function codeOnly(src) {
 const GUARD_SRC     = readSrc('js', 'props', 'prop-number-commit-guard.js');
 const GRADIENT_SRC  = readSrc('js', 'props', 'prop-gradient.js');
 const HISTORY_SRC   = readSrc('js', 'history.js');
+/* ★2026-09-21(T-079) 패널 표는 js/panel-dispatch.js 로 이사했다 — history 와 block-edit(selectBlock)
+   가 «같은» 표를 쓰게 하려고. history 쪽 배선(그라데이션·스티커 먼저 → 표 → 핸들)은 그대로다. */
+const DISPATCH_SRC  = readSrc('js', 'panel-dispatch.js');
 const SERIALIZE_SRC = readSrc('js', 'io', 'section-serialize.js');
 
 const GUARD_CODE    = codeOnly(GUARD_SRC);
@@ -163,8 +166,8 @@ test('G9 재선택 디스패치가 그라데이션·스티커를 «먼저» 보�
   const gi = RESTORE_SEL_BODY.indexOf('_selectGradient');
   const si = RESTORE_SEL_BODY.indexOf('_selectSticker');
   assert.ok(gi > -1 && si > -1, '«선택+핸들+패널»을 한 벌로 처리하는 두 진입점이 모두 있어야 한다');
-  const pi = RESTORE_SEL_BODY.indexOf('_PANEL_BY_CLASS');
-  assert.ok(pi > -1, '패널 표(_PANEL_BY_CLASS)를 안 쓴다');
+  const pi = RESTORE_SEL_BODY.indexOf('openPanelForBlock');
+  assert.ok(pi > -1, '공용 패널 표 진입점(openPanelForBlock)을 안 쓴다');
   assert.ok(gi < pi && si < pi, '표가 앞에 오면 그라데이션이 일반 경로로 떨어진다');
   /* ★window.selectBlock 으로 흘리면 안 된다 — js/block-edit.js 의 getBlockById 가
      `!!el.dataset.type` 를 요구하는데 asset-block·icon-text-block·label-group-block 은
@@ -182,8 +185,8 @@ test('G9b 패널 표가 «실제 클릭 경로»(block-drag.js)와 같은 함수
      클릭 경로가 타입마다 다른 show*Properties 를 부르기 때문이다. 표가 그 이름을 그대로
      가리키는지(=오타·유실이 없는지) 양쪽에서 잰다. */
   const DRAG_CODE = codeOnly(readSrc('js', 'block-drag.js'));
-  const TABLE = codeOnly(HISTORY_SRC.slice(
-    HISTORY_SRC.indexOf('const _PANEL_BY_CLASS'), HISTORY_SRC.indexOf('function _restoreSelection')));
+  const TABLE = codeOnly(DISPATCH_SRC.slice(
+    DISPATCH_SRC.indexOf('const _PANEL_BY_CLASS'), DISPATCH_SRC.indexOf('function openPanelForBlock')));
   assert.ok(TABLE.length > 400, '_PANEL_BY_CLASS 추출이 깨졌다');
   const PAIRS = [
     ['asset-block', 'showAssetProperties'], ['gap-block', 'showGapProperties'],

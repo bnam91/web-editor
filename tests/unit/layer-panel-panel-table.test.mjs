@@ -10,7 +10,7 @@
  *   (gradient 에서 실측: style.width 는 바뀌고 dataset.gradWidth 는 그대로 = 저장값과 화면이 갈라진다).
  *
  * ★그래서 사람이 두 목록을 맞추는 규약을 «기계»로 바꾼다.
- *   정본 = js/history.js 의 _PANEL_BY_CLASS. 그 표는 «실제 클릭 경로»(js/block-drag.js)를 베낀
+ *   정본 = js/panel-dispatch.js 의 _PANEL_BY_CLASS. 그 표는 «실제 클릭 경로»(js/block-drag.js)를 베낀
  *   것이고 줄번호 주석까지 달려 있다(tests/unit/grad-stop-commit-wiring G9b 가 그 대조를 지킨다).
  *   여기서는 「그 표의 모든 타입이 레이어 분기에도 있는가」를 센다.
  *
@@ -26,14 +26,17 @@ import { stripComments } from './_strip-comments.js';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (...p) => stripComments(fs.readFileSync(path.join(ROOT, ...p), 'utf8'));
 
-const HISTORY = read('js', 'history.js');
-const LAYER   = read('js', 'panels', 'layer-panel-items.js');
+/* ★2026-09-21(T-079) 정본 표가 js/history.js 에서 js/panel-dispatch.js 로 «이사»했다.
+   (같은 표의 사본이 js/block-edit.js 에도 있었고 그게 배너 글자크기 손실의 자리였다 —
+    아래 U-SELECTBLOCK 참고.) 이 검사가 파싱하는 자리도 같이 옮긴다. */
+const DISPATCH = read('js', 'panel-dispatch.js');
+const LAYER    = read('js', 'panels', 'layer-panel-items.js');
 
 /** 정본 표에서 «타입 클래스»를 뽑는다. */
 function panelTableClasses() {
-  const i = HISTORY.indexOf('const _PANEL_BY_CLASS');
-  assert.ok(i > 0, '★js/history.js 의 _PANEL_BY_CLASS 를 못 찾았다 — 이름이 바뀌었으면 이 검사부터 고쳐라');
-  const body = HISTORY.slice(i, HISTORY.indexOf('];', i));
+  const i = DISPATCH.indexOf('const _PANEL_BY_CLASS');
+  assert.ok(i > 0, '★js/panel-dispatch.js 의 _PANEL_BY_CLASS 를 못 찾았다 — 이름이 바뀌었으면 이 검사부터 고쳐라');
+  const body = DISPATCH.slice(i, DISPATCH.indexOf('];', i));
   const out = [...body.matchAll(/\['([a-z0-9-]+-block)'/g)].map(m => m[1]);
   assert.ok(out.length >= 20, `★표에서 뽑힌 타입이 ${out.length}개뿐이다 — 추출이 낡았다`);
   return out;
@@ -91,4 +94,55 @@ test('U-LAYERPANEL-3 가드 — 두 «전용 진입점» 타입은 패널 함수
     assert.ok(head.includes(fn) || body.includes(fn),
       `★${cls} 가 ${fn} 대신 패널 함수로 간다 — 전용 UI·핸들이 안 붙는다`);
   }
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * U-SELECTBLOCK — 「js/block-edit.js 의 selectBlock 이 «자기만의 타입표»를 또 들고 있지 않은가」
+ *
+ * ★왜 생겼나 (2026-09-21 «사용자 관점 훑기» T-079)
+ *   현빈 페르소나: 「배너 글자크기를 40 으로 바꾸고 저장했는데 다시 열면 원래 크기로 돌아가 있어요」
+ *   뿌리는 배너가 아니었다. selectBlock 의 타입 분기가 «9종»뿐이고 마지막이
+ *   `else window.showTextProperties(block)` 였다 ⇒ 배너를 넣은 «그 순간» 우측 패널이
+ *   «Text Block» 으로 뜨고, 거기서 만진 글자크기는 .bn2-label 의 «인라인 스타일»에 찍힌다.
+ *   그런데 banner02 는 dataset.lines 를 정본으로 renderBanner02 가 innerHTML 을 새로 그린다
+ *   ⇒ 저장/로드(js/io/save-load.js 의 renderBanner02 호출)에서 인라인이 «통째로 폐기»된다.
+ *   = 화면은 바뀌고 autosave 도 돌아서 «됐다»고 보이는데, 다시 열면 없다(조용한 데이터 손실).
+ *
+ * ★그래서 재는 것은 «배너»가 아니라 «표의 사본이 또 있는가»다.
+ *   이 앱의 타입표 사본은 넷이었다 — block-drag(클릭, 사실상 정본) · layer-panel-items ·
+ *   history(_PANEL_BY_CLASS, 정본 선언) · block-edit(낡은 9종).
+ *   위 U-LAYERPANEL 이 «정본↔레이어»를 재고, 여기서 «정본↔selectBlock»을 잰다.
+ *   selectBlock 은 삽입만의 입구가 아니다 — js/inspector.js 의 «점검 점프»와 MCP/PM
+ *   진입점이 모두 여기로 흐른다. 블럭 쪽에서 제 패널을 직접 부르는 땜질로는 못 닫힌다.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const BLOCK_EDIT = read('js', 'block-edit.js');
+
+/** selectBlock 함수 본문만 떠 온다(다음 함수 선언 직전까지). */
+function selectBlockBody() {
+  const i = BLOCK_EDIT.indexOf('function selectBlock(');
+  assert.ok(i > 0, '★js/block-edit.js 의 selectBlock 을 못 찾았다 — 이름이 바뀌었으면 이 검사부터 고쳐라');
+  const j = BLOCK_EDIT.indexOf('function editTextBlock(', i);
+  assert.ok(j > i, '★selectBlock 의 끝(editTextBlock 선언)을 못 찾았다');
+  return BLOCK_EDIT.slice(i, j);
+}
+
+test('U-SELECTBLOCK-1 ★selectBlock 이 «자기 타입표»를 들고 있지 않다 (사본이 낡으면 조용히 남의 패널이 뜬다)', () => {
+  const body = selectBlockBody();
+  const hits = [...body.matchAll(/window\.(show[A-Z]\w*Properties)/g)].map(m => m[1]);
+  assert.deepEqual([...new Set(hits)], [],
+    '★selectBlock 안에 패널 함수를 직접 부르는 갈래가 남아 있다:\n  ' + [...new Set(hits)].join(', ') +
+    '\n  ⇒ 정본 표(js/panel-dispatch.js openPanelForBlock)를 쓰고 여기 목록은 «0개»여야 한다.');
+});
+
+test('U-SELECTBLOCK-2 ★selectBlock 은 공용 진입점(openPanelForBlock)으로 간다', () => {
+  assert.match(selectBlockBody(), /window\.openPanelForBlock\?\.\(/,
+    '★selectBlock 이 공용 패널 진입점을 안 쓴다 — 표의 다섯 번째 사본이 생겼다는 뜻이다');
+});
+
+test('U-SELECTBLOCK-3 ★공용 진입점의 표가 «정본»이고, 거기에 banner02 가 있다 (T-079 가 닫힌 자리)', () => {
+  const classes = panelTableClasses();
+  assert.ok(classes.includes('banner02-block'),
+    '★정본 표에서 banner02-block 이 사라졌다 — 배너 글자크기 손실(T-079)이 되살아난다');
+  assert.ok(classes.length >= 26, `★정본 표가 ${classes.length}종으로 줄었다 — 이사 중에 흘렸다`);
 });
