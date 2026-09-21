@@ -228,6 +228,21 @@
        (고스트 .sec-bg-ghost 는 #canvas 밖 오버레이라 애초에 클론에 없다) */
     // 편집 상태 속성 제거 — contenteditable 상태가 저장되지 않도록
     root.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+    /* ★T-131: 편집 «진입»이 인라인으로 켜는 보조 스타일도 같은 이유로 걷는다.
+       js/sticker-select.js _enterStickerEdit 가 .sticker-text 에 user-select·cursor 를 쓰는데
+       finish() 는 contenteditable 만 지운다 ⇒ 그 둘이 영영 남는다. 두 가지가 걸린다:
+         ⑴ 저장본·템플릿·export 에 편집 흔적이 굳는다(원래 있던 조용한 누수).
+         ⑵ addStickerBlock 은 삽입 뒤 rAF 로 편집에 들어간다. 삽입 «끝 표본»
+            (js/insert-history.js 규약 ④) 은 동기로 찍히므로, 그 rAF 가 직렬화 문자열을
+            바꾸면 ⌘Z 가 «현재 상태» 한 칸을 더 만들어 먹통 한 칸이 된다.
+       ⇒ 직렬화에서 세척하면 rAF 가 «직렬화 문자열 불변»이 되어 ④ 가 성립한다.
+       ⚠️무손실이다 — renderStickerBlock 이 span 에 쓰는 style 에는 이 둘이 없다
+         (user-select:none·cursor:move 는 «블럭» 쪽 style 이고 여기서 안 건드린다).
+       ⛔라이브 DOM 이 아니라 «클론»에만 쓴다 — 이 함수의 계약이 그렇다. */
+    root.querySelectorAll('.sticker-text').forEach(el => {
+      el.style.removeProperty('user-select');
+      el.style.removeProperty('cursor');
+    });
     root.querySelectorAll('.drop-indicator').forEach(el => el.remove());
     /* ★패딩 힌트(편집 보조)의 인라인 변수 — 「만지는 동안」만 사는 것이라 저장에 실리면 안 된다.
        ⚠️prop-section.js 가 400ms 뒤 «거두지만», 슬라이더를 «놓지 않고 계속 끄는 동안»엔

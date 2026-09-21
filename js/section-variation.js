@@ -98,7 +98,16 @@ function createVariation(sec) {
    ⇒ 제대로 고치려면 ensureHistoryCheckpoint 가 «대기 중인 sideEffects»를 실을 수 있어야 한다
      (지금은 sideEffects 를 아예 안 넣는다 — js/history.js). 그건 undo/redo 전체를 건드리므로
      별건 게이트다. 티켓 = tests/unit/scratch-paste-dup.test.js 의 BL-SPL-04.
-   ⛔여기서 pushHistory 를 꼬리로 다시 옮기지 마라 — 위 실측이 그 답이다. */
+   ⛔여기서 pushHistory 를 꼬리로 다시 옮기지 마라 — 위 실측이 그 답이다.
+   ★[T-131 · 2026-09-21] 위 실측의 «전제»가 바뀌었다 — 재측정 대상이다(이번 패치는 안 쟀다).
+     2026-09-09 사고의 기전은 「꼬리 push 뒤 tip==그 항목이라 ensureHistoryCheckpoint 가
+     아무것도 안 쌓고 undo 가 «앞 항목»으로 건너뛴다」였는데, 그 «앞 항목»이 «섹션이 생기기도 전»이었던
+     이유는 addSection(push-before)이 «결과 상태»를 한 번도 안 찍었기 때문이다.
+     js/insert-history.js 가 이제 addSection 뒤에 «끝 표본»을 남기므로 그 앞 항목이 «섹션 1개»다.
+     ⛔그래도 이번 패치에서 여긴 «안 건드린다» — 여기엔 별건(스크래치 사본 sideEffects,
+       BL-SPL-04)이 얹혀 있고 위 금지가 살아 있다. 재측정 없이 옮기면 같은 사고를 다시 낸다.
+     ⇒ 이번 패치가 저 사고를 «되살리지 않는다»는 것은 행동 회귀로 잰다
+       (tests/dom/insert-seam-undo.dom.spec.js M1·M2·M8 — 삽입 뒤 ⌘Z 횟수가 안 는다). */
   /* [#16-DUP] _installFollow 의 MutationObserver 는 #canvas-scaler 를 childList «만»(subtree 아님)
      보므로 #canvas 안에 섹션이 들어와도 안 터진다 ⇒ 사본을 넣은 뒤 한 번 직접 다시 그린다. */
   window.__spLinkRerender?.();
@@ -172,7 +181,16 @@ function addVariation(sec) {
    ⇒ 제대로 고치려면 ensureHistoryCheckpoint 가 «대기 중인 sideEffects»를 실을 수 있어야 한다
      (지금은 sideEffects 를 아예 안 넣는다 — js/history.js). 그건 undo/redo 전체를 건드리므로
      별건 게이트다. 티켓 = tests/unit/scratch-paste-dup.test.js 의 BL-SPL-04.
-   ⛔여기서 pushHistory 를 꼬리로 다시 옮기지 마라 — 위 실측이 그 답이다. */
+   ⛔여기서 pushHistory 를 꼬리로 다시 옮기지 마라 — 위 실측이 그 답이다.
+   ★[T-131 · 2026-09-21] 위 실측의 «전제»가 바뀌었다 — 재측정 대상이다(이번 패치는 안 쟀다).
+     2026-09-09 사고의 기전은 「꼬리 push 뒤 tip==그 항목이라 ensureHistoryCheckpoint 가
+     아무것도 안 쌓고 undo 가 «앞 항목»으로 건너뛴다」였는데, 그 «앞 항목»이 «섹션이 생기기도 전»이었던
+     이유는 addSection(push-before)이 «결과 상태»를 한 번도 안 찍었기 때문이다.
+     js/insert-history.js 가 이제 addSection 뒤에 «끝 표본»을 남기므로 그 앞 항목이 «섹션 1개»다.
+     ⛔그래도 이번 패치에서 여긴 «안 건드린다» — 여기엔 별건(스크래치 사본 sideEffects,
+       BL-SPL-04)이 얹혀 있고 위 금지가 살아 있다. 재측정 없이 옮기면 같은 사고를 다시 낸다.
+     ⇒ 이번 패치가 저 사고를 «되살리지 않는다»는 것은 행동 회귀로 잰다
+       (tests/dom/insert-seam-undo.dom.spec.js M1·M2·M8 — 삽입 뒤 ⌘Z 횟수가 안 는다). */
   /* [#16-DUP] _installFollow 의 MutationObserver 는 #canvas-scaler 를 childList «만»(subtree 아님)
      보므로 #canvas 안에 섹션이 들어와도 안 터진다 ⇒ 사본을 넣은 뒤 한 번 직접 다시 그린다. */
   window.__spLinkRerender?.();

@@ -46,7 +46,21 @@ function _drainRemoteKeys() {
    ⚠️늘릴 때 규칙 — «serializeCleanRoot 가 이미 지우는 것»은 여기 넣을 필요가 없다.
      여기 넣는 건 «저장본에는 남지만 편집은 아닌» 것뿐이고, 넣는 만큼 「그 값만 다른 편집」의
      undo 한 칸이 사라진다. 넣기 전에 실제 스냅샷 diff 로 근거를 잡아라(위처럼). */
-const _NON_EDIT_ATTR_RE = / draggable="(?:true|false)"/g;
+/* ★[T-131 ⒜⑵ · 2026-09-21] `--sec-clip` 을 같이 벗긴다.
+     근거(실측, 포트 9579·9581 · 스냅샷 diff):
+       ⑴ 이 값은 «파생»이다 — 입력이 offsetLeft/Top/Width/Height 와 sec.clientWidth/Height 뿐이고
+          (js/blocks/sticker-block.js:400~420 · mockup-block.js:118~130), 그 넷이 전부 인라인
+          style 로 직렬화된다. 복원·로드 때 bindBlock 이 다시 계산한다(js/block-drag.js:463).
+       ⑵ 「그 값만 다른 편집」을 찾아봤다 — 스티커를 섹션 «밖»으로 밀어내기(left/top 이 같이 변함)와
+          섹션 높이 줄이기(섹션 style 이 같이 변함) 두 경로 모두 «홀로» 안 바뀌었다.
+          ⇒ 위 ⚠️가 요구한 «실제 스냅샷 diff 근거»가 이것이다.
+       ⑶ 안 벗기면: 목업을 섹션 경계 넘게 삽입 → rAF 가 --sec-clip 을 늦게 박음 → 꼭대기와
+          라이브가 어긋남 → ⌘Z 가 «두 번»(대조: 섹션 안쪽 삽입은 한 번). 실측값이다.
+     ⛔못 잰 축: 목업·확대는 스티커와 입력이 달라 ⑵를 따로 안 쟀다. 이미지·폰트가 늦게 로드돼
+       내재 크기가 바뀌는 경우도 안 쟀다.
+     ⛔직렬화에서 지우지 «않는다» — 저장본에 남는 것은 설계다(js/blocks/sticker-block.js:398
+       「저장 HTML·미리보기·Export 클론에 그대로 복제 → 세 화면이 한 소스로 잘림」). 비교만 벗긴다. */
+const _NON_EDIT_ATTR_RE = / draggable="(?:true|false)"|\s*--sec-clip:\s*[^;"]*;?/g;
 function _sameEdit(a, b) {
   if (a === b) return true;
   if (typeof a !== 'string' || typeof b !== 'string') return false;
@@ -463,7 +477,14 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
   //   → 다른 블록 비우기 → ⌘Z → ⌘⇧Z).
   const _sidecar = window.getLastVideoPendingSidecar?.();
   if (!current) return;
-  if (historyStack[historyPos]?.canvas !== current) {
+  /* ★[T-131 ⒜ · 2026-09-21] 비교자를 pushHistory 와 «같게» 맞춘다.
+     전에는 여기만 «생문자열 !==»(엄격)이고 pushHistory 는 _sameEdit(느슨)이라 방향이 반대였다.
+     그래서 «편집이 아닌 것»(draggable·--sec-clip)만 다른 상태에서, pushHistory 는 안 쌓는데
+     여기는 쌓아 ⌘Z 가 한 칸 늘었다. 두 차단이 같은 잣대를 써야 그 칸이 안 생긴다.
+     ⚠️느슨해지는 만큼 «그 둘만 다른» 라이브 상태는 선적재가 «안» 된다 — 둘 다 복원·로드 때
+       다시 계산되는 값이라 잃는 것이 없다고 «보지만», paste/copy 선적재(위 설명)와 undo 첫
+       스텝 양쪽에서 재 보고 적을 것. */
+  if (!_sameEdit(historyStack[historyPos]?.canvas, current)) {
     historyStack = historyStack.slice(0, historyPos + 1);
     // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
     //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
@@ -502,6 +523,37 @@ function getHistoryTip() {
   if (!e) return { ...base, empty: true };
   return { ...base, empty: false, seq: (e.seq == null ? null : e.seq), action: e.action || null };
 }
+/* ★[T-131 ⒜ 회귀 · 2026-09-21] «끝 표본»을 정착 뒤 값으로 «다시 찍는다»(새 칸을 만들지 않는다).
+ *
+ * 왜 필요한가 — 삽입 입구는 «동기로» 돌아오지만, 그 뒤 한 프레임 안에 레이아웃에서 나오는 값이
+ *   더 써진다. 실측(2026-09-21, 실앱 전수 스윕)으로 다섯 자리가 나왔다:
+ *     · ResizeObserver 가 scale·height 를 쓴다 — banner02(:375) · canvas(:620·:848) · comparison
+ *     · MutationObserver 가 ✨버튼을 옮기고 onclick 을 지운다 — ai-section-fill.js:952~961
+ *     · CSSOM 한 번 쓰면 style 문자열이 «공백 넣어» 재직렬화된다 — sticker-text
+ *   ⇒ 꼭대기(삽입 직후)와 라이브(정착 뒤)가 어긋나고, undo 첫 스텝의 ensureHistoryCheckpoint 가
+ *     「현재 상태」 한 칸을 더 만든다 ⇒ 삽입만 하고 ⌘Z 가 «두 번»(첫 번째는 화면 무변화 = 먹통 한 칸).
+ *
+ * ⛔왜 «자리마다» 안 고치나 — 그 값들은 레이아웃이 끝나야 나온다. 삽입 시점엔 «알 수 없다».
+ *   자리마다 고치면 16개 미측정 입구와 앞으로 생길 입구가 같은 병을 다시 갖고 들어온다.
+ * ⛔왜 «끝 표본을 비동기로» 안 찍나 — js/ai-section-fill.js:425~426 이 pushHistory 를 노옵으로
+ *   갈아끼우고 :439 에서 되돌린다. 한 프레임 뒤에 찍으면 그 «의도된 묶음 롤백»을 깨뜨린다.
+ *   ⇒ 찍기는 «동기로» 두고, 값만 한 프레임 뒤에 갱신한다.
+ *
+ * ★안전장치 — 아래 네 조건 중 하나라도 틀리면 «아무것도 안 한다»(조용히 false).
+ *   ⑴ 그 사이 다른 항목이 쌓였다(seq 불일치) ⑵ 되돌리기가 진행돼 꼭대기가 아니다
+ *   ⑶ 복원 중(_historyPaused) ⑷ 직렬화가 같다(할 일 없음)
+ *   ⛔sidecar 는 «안» 건드린다 — video-pending 은 T-130 의 자리라 여기서 같이 만지지 않는다. */
+function restampHistoryTop(seq) {
+  if (_historyPaused) return false;
+  if (historyPos !== historyStack.length - 1) return false;   // 되돌린 뒤엔 안 건드린다
+  const top = historyStack[historyPos];
+  if (!top || seq == null || top.seq !== seq) return false;   // 그 사이 다른 일이 끼었다
+  const cur = window.getSerializedCanvas?.();
+  if (!cur || cur === top.canvas) return false;
+  top.canvas = cur;
+  return true;
+}
+
 /** 그 seq 가 «아직 스택에 있는가» — 없으면 MAX_HISTORY 로 밀려난 것. */
 function historyHasSeq(seq) { return historyStack.some(x => x && x.seq === seq); }
 
@@ -511,6 +563,7 @@ window.undo         = undo;
 window.redo         = redo;
 window.clearHistory = clearHistory;
 window.getHistoryTip = getHistoryTip;
+window.restampHistoryTop = restampHistoryTop;
 window.historyHasSeq = historyHasSeq;
 window.restoreSnapshot = restoreSnapshot;
 // D1: 페이지별 히스토리 헬퍼 노출 (save-load.js는 window.* 로만 호출)
