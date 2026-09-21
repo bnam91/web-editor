@@ -1251,19 +1251,52 @@ ipcMain.handle('license:navigate-projects', () => {
 const USER_DATA_DIR = app.getPath('userData');
 
 // 구 경로 → 신 경로 파일 마이그레이션 (없는 파일만 복사)
-function migrateFiles(oldDir, newDir) {
-  if (!fs.existsSync(oldDir)) return;
-  if (!fs.existsSync(newDir)) fs.mkdirSync(newDir, { recursive: true });
-  fs.readdirSync(oldDir).forEach(file => {
+/* ★T-065 — 「옮기는 도중 항목이 사라지면 부팅이 죽는다」를 막는 자리.
+     옛 판은 목록을 한 번 읽어 두고(readdirSync) 그 이름으로 다시 물었다(statSync/copyFileSync).
+     그 틈에 항목이 없어지면(다른 프로그램·클라우드 동기화) ENOENT 가 그대로 위로 올라간다.
+     ⛔부르는 자리 셋이 전부 «앱이 켜질 때 통째로 도는» 최상위다(projects·presets·templates)
+       ⇒ 예외 하나 = ★앱이 아예 안 켜짐. 파일 한 개 때문에 앱을 못 켜는 건 교환이 안 맞는다.
+
+   ★왜 «오류 종류 명부»(ENOENT 만 봐주기)를 안 만들었나
+     이 레포는 「손으로 적은 목록이 하나만 안 고쳐져 생긴 사고」가 반복됐다. 종류를 세는 대신
+     «성질»로 판정한다 — 마이그레이션은 best-effort 다. 못 옮긴 항목은 옛 자리에 그대로 남고
+     앱은 그것 없이도 켜진다. ⇒ 항목 단위 실패는 전부 «치명적이지 않다».
+   ⛔단 «조용히» 넘기지 않는다 — 삼킨 오류는 「위 판정 거짓말」이 된다.
+     ⑴ 건너뛴 것을 로그에 한 줄씩 남기고 ⑵ 보고(report.skipped)로 돌려준다.
+       그래야 나중에 「파일이 없어졌다」를 이 자리와 이을 수 있다.
+   ★고쳐도 지키는 것 둘
+     ⑴ 「이미 있으면 안 덮는다」 — 새 파일을 옛 파일로 덮어쓰지 않는다.
+     ⑵ 재귀(폴더)도 «같은 함수»가 돈다 — 한 곳만 고치면 안쪽에 구멍이 남으므로
+       try 를 함수 «안»에 둔다. 안쪽 건너뜀은 같은 report 에 모인다.
+   검사: tests/unit/migrate-files-vanish.test.js (진짜 fs 위에서 «진짜로» 지워 잰다) */
+function migrateFiles(oldDir, newDir, _report) {
+  const report = _report || { skipped: [] };
+  const note = (target, e) => {
+    const code = (e && e.code) || null;
+    report.skipped.push({ path: target, code, message: (e && e.message) || String(e) });
+    try { console.warn('[migrate] 건너뜀:', target, '—', code || '(코드없음)', (e && e.message) || String(e)); } catch (_) {}
+  };
+
+  let entries;
+  try {
+    if (!fs.existsSync(oldDir)) return report;
+    if (!fs.existsSync(newDir)) fs.mkdirSync(newDir, { recursive: true });
+    entries = fs.readdirSync(oldDir);   // ★여기까지가 «폴더 통째로»가 사라질 수 있는 구간
+  } catch (e) { note(oldDir, e); return report; }
+
+  for (const file of entries) {
     const src = path.join(oldDir, file);
     const dst = path.join(newDir, file);
-    if (fs.existsSync(dst)) return; // 이미 있으면 스킵
-    if (fs.statSync(src).isDirectory()) {
-      migrateFiles(src, dst);
-    } else {
-      fs.copyFileSync(src, dst);
-    }
-  });
+    try {
+      if (fs.existsSync(dst)) continue; // 이미 있으면 스킵 ⛔새 것을 옛 것으로 덮지 않는다
+      if (fs.statSync(src).isDirectory()) {
+        migrateFiles(src, dst, report);
+      } else {
+        fs.copyFileSync(src, dst);
+      }
+    } catch (e) { note(src, e); }      // ★항목 하나가 사라져도 «그 항목만» 버린다
+  }
+  return report;
 }
 
 /* ── IPC: Projects (파일 기반 저장소) ──────────────────────────────────────
