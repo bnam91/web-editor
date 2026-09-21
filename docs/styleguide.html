@@ -687,12 +687,12 @@
     <table class="gtbl">
       <thead><tr><th>핸들</th><th>형태</th><th>크기·보더</th><th>용도</th></tr></thead>
       <tbody>
-        <tr><td>리사이즈 (.ss-resize-handle · .asset-handle 등)</td><td>흰 <b>정사각</b> (radius 1px)</td><td>7×7px · 보더 <b>1px</b> --sel-color</td><td>4코너 크기조절</td></tr>
+        <tr><td>리사이즈 (.ss-resize-handle · .asset-overlay-handle 등)</td><td>흰 <b>정사각</b> (radius 1px)</td><td>7×7px · 보더 <b>1.5px</b> --sel-color</td><td>4코너 크기조절</td></tr>
         <tr><td>코너 반경 (.ss-radius-handle · .asset-radius-handle)</td><td>흰 <b>원형</b> (radius 50%)</td><td>7~8px · 보더 <b>1.5px</b> --sel-color</td><td>모서리 둥글기</td></tr>
         <tr><td>선택 아웃라인</td><td>1px 라인</td><td><code>--sel-outline-w</code> = calc(1px×--inv-zoom)</td><td>줌에서도 화면 1px 고정</td></tr>
       </tbody>
     </table>
-    <p class="note">공통: hover 시 <code>transform:scale(1.4)</code> + 채움색 --sel-color. <span style="color:var(--doc-ok)">✅ 핸들 보더 두께 토큰화됨</span> (DS-19, 2026-06-14): 사각=<code>--ui-handle-border-w</code>(1px, var 3회)·원형=<code>--ui-handle-border-w-round</code>(1.5px, var 6회). 광학 의도(원형 핸들 살짝 두껍게) 보존하며 출처 일원화 — 혼용이 아니라 의미별 2토큰. 신규 오버레이 핸들 추가 시 <code>--inv-zoom</code> 역보정 필수.</p>
+    <p class="note">공통: hover 시 <code>transform:scale(1.4)</code> + 채움색 --sel-color. <span style="color:var(--doc-ok)">✅ 핸들 보더 두께 <b>단일 토큰</b></span> (2026-09-21, 현빈 「에셋블럭에 들어가는 모서리 핸들정도가 좋은 거 같아」): <code>--ui-handle-border-w</code> = <b>1.5px</b> 하나. DS-19(2026-06-14)의 의미별 2토큰(사각 1px / 원형 1.5px)은 «지키는 규칙이 없어» 이름과 어긋나게 배정됐다 — 기준인 <code>.asset-overlay-handle</code>은 사각(radius 1px)인데 <code>-round</code>를 썼다. 그래서 한 화면에 1px·1.5px 핸들이 섞였다(실측: 프레임·목업·iconify·배너·이미지편집 = 1.0, 에셋 계열 8종 = 1.5, 스티커 = 줌마다 0.4~1.5). <code>--ui-handle-border-w-round</code>는 하위호환 <b>별칭</b>(<code>var(--ui-handle-border-w)</code>)으로만 남았다 — 신규 규칙은 쓰지 말 것. 캔버스 «안»에 그리는 핸들은 크기뿐 아니라 <b>보더도</b> <code>--inv-zoom</code>을 곱해야 한다(축을 한쪽만 곱하면 줌마다 갈라진다). 검사: <code>tests/unit/handle-token-parity.test.mjs</code> · <code>tests/dom/handle-size-parity.dom.spec.js</code>.</p>
   </section>
 
   <!-- ════════ Z-INDEX ════════ -->
@@ -1063,9 +1063,6 @@ const FIXQ=[
   ['모달 radius 10/12px 분열','editor-layout.css:84·181(12px) ↔ settings-modal.css:19·color-picker.css:12(10px)',
    '같은 모달 계층인데 section-*-popover=12px, settings/color-picker=10px. <code>--ui-radius-lg</code>(10px) 정의됐으나 미적용(dead).',
    '모달 표준 radius 1값 확정 → <code>--ui-radius-lg</code> 실제 적용(dead 해소), 하드코딩 12px 토큰화.'],
-  ['핸들 보더 1px/1.5px 혼용','css/editor-blocks.css:62(1px) vs 78·97·137·154·171·188(1.5px)',
-   '같은 7px 핸들군인데 리사이즈=1px, 반경/오버레이 핸들=1.5px로 보더 굵기 갈림 → 줌 시 굵기 미묘하게 달라 보임.',
-   '핸들 보더 두께 단일값 확정 또는 <code>--handle-border-w</code> 토큰화.'],
   ['banner02 선택 outline-offset만 양수','css/editor-blocks.css:1010 (.banner02-block.selected)',
    '다른 컴포넌트 블록은 outline-offset 음수(안쪽 1px)인데 banner02만 <b>양수</b>(바깥) → 선택 시 테두리가 1px 바깥으로 떠 인접 블록과 겹침.',
    'offset을 <code>calc(-1*var(--sel-outline-w))</code>로 통일.'],
