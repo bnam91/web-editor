@@ -6,7 +6,9 @@
  *   실앱 실측(9516, 40% 줌)에서 «도형 추가»는 실제로는 경고를 띄웠다(⚠️ 섹션 또는 블록을
  *   먼저 선택하세요). 대신 «전수»로 재 보니 한 벌이 아니었다:
  *     ⑴ addStickerBlock 3입구 — 다른 문장·흔들림 없음(showToast('섹션을 선택하세요'))
- *     ⑵ addGradientBlock — 경고가 «아예» 없고 조용히 «마지막 섹션»에 넣는다(실측 delta=1)
+ *     ⑵ addGradientBlock — 경고가 «아예» 없고 조용히 «마지막 섹션»에 넣었다(실측 delta=1)
+ *   ★2026-09-21 현빈 결정: ⑵도 «한 벌»로 맞춘다 — 마지막-섹션 폴백을 걷어내고 다른 40곳처럼
+ *     경고만 띄우고 아무것도 안 만든다. 그래서 이 파일엔 더 이상 «예외 입구»가 없다(T3 참고).
  *   이 파일은 그 «한 벌»을 못박는다. 입구 목록을 사람이 관리하지 않는다 —
  *   index.html 의 #floating-panel 에서 onclick 을 긁어 «지금 있는 입구 전부»를 센다.
  *   입구를 새로 달면 자동으로 이 검사 대상이 된다.
@@ -76,8 +78,10 @@ function bodyOf(name) {
   return null;
 }
 
-/* ★예외는 «이름»이 아니라 «이유»와 함께 적는다. 예외라도 «조용하면» 안 된다(T3). */
-const DOCUMENTED_FALLBACK = new Set(['addGradientBlock']);
+/* ★예외 입구는 «없다». 2026-09-21 현빈 결정으로 addGradientBlock 의 마지막-섹션 폴백을
+   걷어내면서 비었다. 새 예외를 넣으려면 «이름»만 적지 말고 이유를 같이 적어라 —
+   그리고 예외라도 «조용하면» 안 된다. */
+const DOCUMENTED_FALLBACK = new Set([]);
 
 test('T0 — 툴바 블럭 추가 입구를 index.html 에서 긁었다(전수 근거)', () => {
   assert.ok(ENTRY_NAMES.length >= 15, `입구가 너무 적게 잡혔다: ${ENTRY_NAMES.length}개 — 긁는 정규식을 의심하라`);
@@ -103,7 +107,25 @@ test('T2 — 옛 문구 showToast(\'섹션을 선택하세요\') 는 입구에 �
   assert.deepEqual(offenders, [], `문구가 갈라진 입구: ${offenders.join(', ')}`);
 });
 
-test('T3 — 폴백을 쓰는 입구는 «조용하지 않다»(어디에 넣었는지 알린다)', () => {
+test('T3 — 어떤 입구도 «마지막 섹션» 폴백을 쓰지 않는다(전수)', () => {
+  /* ★음성대조: js/blocks/gradient-block.js 의 폴백을 되살리면 여기서 빨강이 난다.
+     T1 로는 안 잡힌다 — 옛 판도 «섹션이 0개일 때»는 showNoSelectionHint 를 불렀기 때문에
+     T1 은 초록이었다. 「경고를 하느냐」와 「몰래 만들어 버리느냐」는 다른 축이다. */
+  const LAST_SECTION_FALLBACK = [
+    /querySelectorAll\(\s*['"]\.section-block['"]\s*\)\s*\]\s*\.pop\(\)/,  // [...qsa('.section-block')].pop()
+    /마지막 섹션에 추가/,                                                        // 그 폴백을 알리는 문장
+  ];
+  const offenders = [];
+  for (const n of ENTRY_NAMES) {
+    const { file, body } = bodyOf(n);
+    for (const re of LAST_SECTION_FALLBACK) {
+      if (re.test(body)) { offenders.push(`${n} (${file}) ← ${re}`); break; }
+    }
+  }
+  assert.deepEqual(offenders, [],
+    `섹션을 안 골랐는데 «마지막 섹션»에 몰래 넣는 입구: ${offenders.join(', ')}`);
+
+  /* 예외 목록에 이름이 남아 있으면 그 입구는 «조용하지 않은지»까지 본다(예외가 생겼을 때 대비). */
   for (const n of DOCUMENTED_FALLBACK) {
     const { file, body } = bodyOf(n);
     assert.match(body, /showToast/, `${n}(${file}) 이 폴백으로 넣으면서 아무 말도 안 한다`);

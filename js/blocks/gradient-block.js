@@ -144,19 +144,16 @@ function makeGradientBlock(opts = {}) {
 }
 
 function addGradientBlock(opts = {}) {
-  // B12: 섹션 미선택이어도 먹통처럼 보이지 않게 — 마지막 섹션으로 폴백. 섹션 0개일 때만 중단.
-  /* ★2026-09-21 정정 — 위 주석의 「텍스트 추가 동작과 일관」은 «사실이 아니다». 실측(9516,
-     무선택 전수 41입구): addTextBlock 을 비롯한 나머지 40곳은 폴백 없이 경고만 띄우고
-     아무것도 안 넣는다(delta=0). 이 입구만 조용히 «마지막 섹션»에 넣었다(delta=1) —
-     화면 아래쪽 섹션에 생기니 사용자 눈엔 「아무 일도 안 일어났다」로 보인다.
-     ⛔폴백 자체는 «되돌리지 않는다»(B12 의 결정이고, 되돌리면 동작이 바뀐다 — 한 벌로
-       맞출지는 현빈 판단 몫이라 그대로 보고한다). 대신 «조용하지 않게» 한다:
-       폴백으로 들어갔을 때만 어디에 넣었는지 말한다.
-     회귀: tests/unit/block-add-noselection-hint.test.mjs T3. */
-  const selectedSec = window.getSelectedSection?.();
-  const sec = selectedSec || [...document.querySelectorAll('.section-block')].pop();
+  /* 섹션 미선택 = «다른 추가 입구 40곳과 똑같이» 막는다 — 경고만, 아무것도 안 만든다.
+     ★이력: B12 는 「먹통처럼 보이지 않게」 마지막 섹션 폴백을 뒀었다. 2026-09-21 무선택
+       전수 실측(41입구)에서 «이 입구만» delta=1 이었고, 화면 아래쪽 섹션에 생기니 오히려
+       「아무 일도 안 일어났다」로 읽혔다. 현빈 결정(2026-09-21): 한 벌로 맞춘다.
+       sticker 가 먼저 같은 이유로 폴백을 걷어낸 선례다(sticker-block.js U6(b)).
+     ⛔마지막-섹션 폴백을 되살리지 마라. 회귀: tests/unit/block-add-noselection-hint.test.mjs T3.
+     ※getSelectedSection 은 «블럭만 고른» 경우도 그 블럭의 섹션을 돌려준다(editor.js:3464)
+       — 그래서 토스트 문구(「섹션 또는 블록을 먼저 선택하세요」)와 동작이 어긋나지 않는다. */
+  const sec = window.getSelectedSection?.();
   if (!sec) { window.showNoSelectionHint?.(); return; }
-  if (!selectedSec) window.showToast?.('선택된 섹션이 없어 마지막 섹션에 추가했습니다');
   window.pushHistory?.('그라데이션 추가');
   const block = makeGradientBlock(opts);
   sec.appendChild(block); // 섹션 직접 자식 (absolute → 섹션 기준)
