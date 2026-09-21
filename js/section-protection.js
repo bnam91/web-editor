@@ -81,8 +81,18 @@
       delete sec.dataset.protected;
       delete sec.dataset.protectedReason;
     }
-    // toolbar 버튼 상태 동기화
-    _refreshProtectionButton(sec);
+    /* toolbar 버튼 상태 동기화 — ★«없으면 만들고» 나서 맞춘다(2026-09-22 실측).
+       ⛔_refreshProtectionButton 은 `if (!btn) return;` 으로 시작한다. 그래서 단추가 아직
+         없는 섹션에서는 이 줄이 «아무 일도 안 했다». 단추를 심는 _hydrateAllSectionsForProtection
+         은 init 과 +1500ms «두 번»뿐이고 그 뒤 재부착 경로가 없다 ⇒ 그 창이 지난 뒤
+         «작업 중에 만든 섹션»은 보호를 켜도 화면에 표시가 하나도 안 떴다(실측: 툴바
+         [ab, memo, ai-fill] 그대로, 단추 0개. 저장→재열기해야 붙었다).
+       ★보호 자체는 dataset 에 살아 멀쩡했다(삭제 가드 js/editor.js:2995·3078·3131 이
+         window.isSectionProtected 로 그 dataset 을 읽는다 — 실측으로 «안 지워짐» 확인).
+         사라지는 건 «표시»와 «끄는 입구»다: 보호를 끄는 UI 는 이 단추의 onclick 하나뿐이고,
+         차단 토스트(editor.js:3085)는 「🔒 버튼으로 보호 해제 후 삭제하세요」라고 «없는 버튼»을
+         가리킨다. */
+    _ensureProtectionButton(sec);
     if (typeof window.scheduleAutoSave === 'function') {
       window.scheduleAutoSave();
     } else if (typeof window.triggerAutoSave === 'function') {
