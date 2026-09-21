@@ -2,6 +2,8 @@ import { propPanel } from '../globals.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
+import { alignFlowBlock } from './prop-multisel.js';
+import { collectBulkAlignTargets } from './bulk-align-targets.js';
 
 /* ═══════════════════════════════════
    SECTION PROPERTIES PANEL
@@ -527,22 +529,16 @@ async function showSectionProperties(sec) {
   });
 
   // 일괄 정렬
-  const allTextBlocks = [...sec.querySelectorAll('.text-block')];
   ['left','center','right'].forEach(align => {
     const btn = document.getElementById(`sec-align-${align}`);
     if (!btn) return;
     btn.addEventListener('click', () => {
-      allTextBlocks.forEach(tb => {
-        const isLabel = tb.querySelector('.tb-label');
-        if (isLabel) { tb.style.textAlign = align; }
-        else {
-          const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
-          if (contentEl) contentEl.style.textAlign = align;
-        }
-      });
+      /* ★대상은 «누를 때» 다시 센다. 예전엔 패널을 그릴 때 한 번 모아 뒀는데,
+         패널을 연 뒤 블록을 더 넣으면 그 블록은 영영 안 움직였다(낡은 목록). */
+      collectBulkAlignTargets(sec).forEach(el => alignFlowBlock(el, align));
       propPanel.querySelectorAll('#sec-align-left,#sec-align-center,#sec-align-right')
         .forEach(b => b.classList.toggle('active', b === btn));
-      window.pushHistory?.();
+      window.pushHistory?.('섹션 일괄 정렬');   // 한 번만 — ⌘Z 한 방에 되돌아간다
       window.scheduleAutoSave?.();
     });
   });

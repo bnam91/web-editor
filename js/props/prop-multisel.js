@@ -357,8 +357,11 @@ export function hasFlowMultiSel() {
   return _getSelectedFlowBlocks().length >= 2;
 }
 
-// 블록 타입별 수평 정렬 (기존 단일패널 핸들러 미러)
-function _alignFlowBlock(b, dir) {
+/* 블록 타입별 수평 정렬 (기존 단일패널 핸들러 미러)
+   ★[T-095] 섹션 «Bulk Align» 도 이 함수를 쓴다(js/props/prop-section.js).
+     그 자리엔 원래 `.text-block` 만 도는 사본이 있어서 글자만 움직이고 이미지·도형은
+     제자리였다. 타입별 분기는 «여기 한 벌»만 둔다 — 사본이 둘이면 다음 블록에서 또 갈린다. */
+export function alignFlowBlock(b, dir) {
   const selfMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
   const jcMap   = { left: 'flex-start', center: 'center', right: 'flex-end' };
   if (b.classList.contains('text-block')) {
@@ -381,7 +384,7 @@ function _alignFlowBlock(b, dir) {
 }
 
 function _applyFlowAlign(blocks, dir) {
-  blocks.forEach(b => _alignFlowBlock(b, dir));
+  blocks.forEach(b => alignFlowBlock(b, dir));
   window.pushHistory?.('블록 정렬');
   showFlowMultiSelPanel();
 }
