@@ -210,7 +210,16 @@ async function _captureAndApply(block, sec) {
     clone.classList.remove('selected');
     // 선택 아웃라인 제거
     clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
-    clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;box-shadow:none;';
+    /* ★display:block 을 «같이» 건다 — 이 줄이 이 고침의 절반이다(2026-09-22).
+       한 번 캡처한 섹션은 아래에서 sec.style.display='none' 으로 숨는다. 그 섹션을 «다시»
+       캡처하면 cloneNode 가 그 display:none 까지 베껴 와, html2canvas 가 크기 0 짜리를 그리고
+       canvas 가 0×0 이 된다. ⛔그때 toDataURL 은 «던지지 않고» 문자열 "data:," 를 «돌려준다»
+       — 아래 try/catch 는 예외만 보므로 그대로 통과해 멀쩡한 PNG 를 6자로 덮고
+       「캡처 완료!」라고 말했다(2026-09-21 실측: 928,378자 → 6자).
+       ⛔원본 sec 의 display 를 건드리지 않는다 — 클론만 편다. 원본을 폈다 접으면 화면이
+         깜빡이고, 도중에 실패하면 숨김 상태가 어긋난 채 남는다.
+       ★cssText 뒤에 붙이므로 앞서 베껴 온 display:none 을 이긴다(뒤가 이긴다). */
+    clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;box-shadow:none;display:block;';
     document.body.appendChild(clone);
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
     neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
@@ -225,6 +234,18 @@ async function _captureAndApply(block, sec) {
       logging: false,
     });
     const dataUrl = canvas.toDataURL('image/png');
+
+    /* ★짝 검사 — «입구»만 막지 말고 «결과»를 재라(2026-09-22).
+       위 display:block 은 «지금 아는 한 가지 원인»만 덮는다. 캔버스가 0 이 되는 길은 그것
+       하나라는 보장이 없다(섹션이 0 높이·부모가 접힘·html2canvas 자체 실패 등).
+       ⛔그리고 이 자리의 병은 «캔버스가 0 이 되는 것»이 아니라 «0 인 줄 모르고 덮는 것»이다.
+       toDataURL 은 0×0 에서 예외를 «안» 던지고 "data:," 를 돌려주므로 try/catch 로는 못 잡는다.
+       ⇒ 덮기 «전»에 결과를 재고, 빈 그림이면 가진 것을 지키고 «사실대로» 말한다. */
+    const _degenerate = !canvas.width || !canvas.height || !dataUrl || dataUrl.length < 128;
+    if (_degenerate) {
+      window.showToast?.('캡처 실패: 섹션이 화면에 그려지지 않았습니다 — 이전 이미지를 그대로 둡니다.');
+      return;   // ⛔dataset.imgSrc 를 «건드리지 않는다» — 가진 그림이 이긴다
+    }
 
     window.pushHistory?.();
     block.dataset.imgSrc = dataUrl;
