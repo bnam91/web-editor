@@ -246,7 +246,13 @@ async function _captureAndApply(block, sec) {
        ⛔그리고 이 자리의 병은 «캔버스가 0 이 되는 것»이 아니라 «0 인 줄 모르고 덮는 것»이다.
        toDataURL 은 0×0 에서 예외를 «안» 던지고 "data:," 를 돌려주므로 try/catch 로는 못 잡는다.
        ⇒ 덮기 «전»에 결과를 재고, 빈 그림이면 가진 것을 지키고 «사실대로» 말한다. */
-    const _degenerate = !canvas.width || !canvas.height || !dataUrl || dataUrl.length < 128;
+    /* ★판정은 js/io/image-data-url.js «한 곳»에서 한다 (T-148).
+       여기 128 을 다시 적지 마라 — 2026-09-22 에 이 사본과 썸네일 사본이 «둘»로 갈렸고,
+       그날 안에 모았다. tests/unit/one-empty-image-judge.test.mjs 가 셋째를 막는다.
+       ⛔판정기가 없으면 «빈 그림으로 친다» — 배선이 깨졌을 때 «가진 그림을 지키는» 쪽이 안전하다.
+         (조용히 덮는 것보다 「캡처 실패」라고 말하고 멈추는 것이 낫다.) */
+    const _judge = window.isUsableImageDataUrl;
+    const _degenerate = !canvas.width || !canvas.height || typeof _judge !== 'function' || !_judge(dataUrl);
     if (_degenerate) {
       window.showToast?.('캡처 실패: 섹션이 화면에 그려지지 않았습니다 — 이전 이미지를 그대로 둡니다.');
       return;   // ⛔dataset.imgSrc 를 «건드리지 않는다» — 가진 그림이 이긴다

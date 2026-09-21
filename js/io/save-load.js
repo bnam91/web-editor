@@ -108,9 +108,9 @@ async function captureThumbnail() {
     /* 200px 너비로 축소 — ★«빈 그림»이면 null 이다. 그럴듯한 6자를 돌려주지 않는다 (T-87).
        toDataURL 은 높이 0 캔버스에서 «예외를 안 던지고» "data:,"(6자)를 돌려주고, 그 truthy 한
        6자가 _meta.json 에 «썸네일이 있다»로 박혀 카드를 빈 칸으로 만들었다(try/catch 로는 안 보인다).
-       줄이기와 판정은 js/io/thumb-usable.js «한 곳»에서 한다 — 카드를 그리는 쪽과 같은 함수다.
+       줄이기와 판정은 js/io/image-data-url.js «한 곳»에서 한다 — 카드를 그리는 쪽과 같은 함수다.
        (index.html 이 그 classic script 를 이 모듈보다 «먼저» 싣는다 —
-        tests/unit/thumb-usable.test.mjs 가 그 배선까지 잠근다.) */
+        tests/unit/image-data-url.test.mjs 가 그 배선까지 잠근다.) */
     return window.makeThumbDataUrl(canvas);
   } catch { return null; }
 }

@@ -9,7 +9,7 @@
  *   ⛔try/catch 로는 안 보인다. 「파일이 있다」로 재도 안 보인다. «길이/높이»를 재야 보인다.
  *
  * ★여기서 재는 것 — «이름»이 아니라 «값»이다.
- *   ㈎ 만드는 쪽(js/io/thumb-usable.js makeThumbDataUrl): 진짜 캔버스를 먹여 돌려준 값의 «길이»를 센다.
+ *   ㈎ 만드는 쪽(js/io/image-data-url.js makeThumbDataUrl): 진짜 캔버스를 먹여 돌려준 값의 «길이»를 센다.
  *      음성대조로 «가드를 뺀 옛 계산»이 실제로 "data:,"(6자)를 만든다는 것도 같이 증명한다.
  *   ㈏ 그리는 쪽(진짜 pages/projects.html): 빈 그림을 물려도 칸에 «보이는 것»이 남는지 잰다(rect).
  *
@@ -71,7 +71,7 @@ async function thumbState(page) {
 
 test('㈎ 빈 캔버스에서 «그럴듯한 6자»가 아니라 null 이 나온다 (+ 옛 계산의 음성대조)', async ({ page }) => {
   await serve(page);
-  await page.goto(`${ORIGIN}/pages/projects.html`);   // thumb-usable.js 를 «진짜 페이지»가 싣는지까지 같이 잰다
+  await page.goto(`${ORIGIN}/pages/projects.html`);   // image-data-url.js 를 «진짜 페이지»가 싣는지까지 같이 잰다
   await page.waitForFunction(() => typeof window.makeThumbDataUrl === 'function');
 
   const r = await page.evaluate(() => {

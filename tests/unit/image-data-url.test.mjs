@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const require_ = createRequire(import.meta.url);
-const { isUsableThumbnail, MIN_DATA_URL_LEN } = require_(path.join(ROOT, 'js/io/thumb-usable.js'));
+const { isUsableThumbnail, MIN_DATA_URL_LEN } = require_(path.join(ROOT, 'js/io/image-data-url.js'));
 
 const JPEG = 'data:image/jpeg;base64,' + 'A'.repeat(4000);
 
@@ -61,22 +61,22 @@ test('U-THUMB-5 값이 아닌 것들', () => {
 });
 
 /* ── 배선 — 판정이 «한 곳»에 있고, 쓰는 쪽 둘 다 그걸 싣는지 ──────────────────
- * ⛔이 묶음이 없으면 thumb-usable.js 가 조용히 안 실려도 아무도 모른다.
+ * ⛔이 묶음이 없으면 image-data-url.js 가 조용히 안 실려도 아무도 모른다.
  *   그러면 save-load.js 는 window.makeThumbDataUrl 이 없어 예외 → 썸네일이 «전부» 사라지고,
  *   projects.html 은 window.isUsableThumbnail 이 없어 예외 → 카드가 아예 안 그려진다. */
-test('U-THUMB-6 index.html 이 thumb-usable.js 를 save-load.js(모듈)보다 «먼저» 싣는다', () => {
+test('U-THUMB-6 index.html 이 image-data-url.js 를 save-load.js(모듈)보다 «먼저» 싣는다', () => {
   const html = read('index.html');
-  const iThumb = html.indexOf('js/io/thumb-usable.js');
+  const iThumb = html.indexOf('js/io/image-data-url.js');
   const iSave  = html.indexOf('js/io/save-load.js');
-  assert.notEqual(iThumb, -1, 'index.html 에 thumb-usable.js 가 없다');
+  assert.notEqual(iThumb, -1, 'index.html 에 image-data-url.js 가 없다');
   assert.notEqual(iSave, -1);
-  assert.equal(iThumb < iSave, true, `순서가 뒤집혔다 — thumb-usable@${iThumb} · save-load@${iSave}`);
+  assert.equal(iThumb < iSave, true, `순서가 뒤집혔다 — image-data-url@${iThumb} · save-load@${iSave}`);
   assert.match(html.slice(iThumb - 60, iThumb), /<script src="$/, 'classic script 여야 한다(모듈은 defer 돼 늦는다)');
 });
 
-test('U-THUMB-7 pages/projects.html 이 thumb-usable.js 를 싣고, 카드가 그 판정을 쓴다', () => {
+test('U-THUMB-7 pages/projects.html 이 image-data-url.js 를 싣고, 카드가 그 판정을 쓴다', () => {
   const html = read('pages/projects.html');
-  assert.match(html, /<script src="\.\.\/js\/io\/thumb-usable\.js"><\/script>/, 'projects.html 에 thumb-usable.js 가 없다');
+  assert.match(html, /<script src="\.\.\/js\/io\/image-data-url\.js"><\/script>/, 'projects.html 에 image-data-url.js 가 없다');
   assert.match(html, /window\.isUsableThumbnail\(proj\.thumbnail\)/, '카드가 판정 함수를 안 쓴다');
   assert.equal(/thumbContent\s*=\s*proj\.thumbnail\s*\n?\s*\?/.test(html), false,
     '★옛 truthy 판정(`proj.thumbnail ?`)이 돌아왔다 — 그 길로 "data:," 가 다시 들어온다');
