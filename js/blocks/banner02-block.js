@@ -2,7 +2,7 @@
 // 1급 독립 배너 블록 (canvas-block 패턴 미러링). 기존 banner-presets 디자인을 자체 데이터모델로 포팅.
 //   - dataset 기반 모델, renderBanner02(block)가 dataset에서 DOM 재구성 (scale-to-fit)
 //   - makeBanner02Block / addBanner02Block — canvas-block과 동일 구조
-import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
+import { genId, showNoSelectionHint, insertAfterSelected, selectAllEditableContents } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 
 // 기존 BANNER_PRESETS 디자인을 variant로 포팅 (런타임 의존 없이 값 복사 — 두 시스템 분리)
@@ -37,6 +37,19 @@ function _defaultLines(v) {
     { kind: 'title', text: '제목을 입력합니다.',    size: v.titleSize, color: '#000000', gapTop: v.gap1, fontFamily: '', fontWeight: 400, letterSpacing: 0 },
     { kind: 'sub',   text: '캡션이 입력됩니다.',    size: v.subSize,   color: '#000000', gapTop: v.gap2, fontFamily: '', fontWeight: 400, letterSpacing: 0 },
   ];
+}
+// ── 안내문구(기본문구) 식별 ────────────────────────────────────────────────
+// 배너 텍스트는 dataset.lines(JSON) 모델에 들어있어 text-block 처럼 DOM 에 data-is-placeholder 를
+// 못 단다 — comparison-block.js 가 «같은 처지»에서 이미 쓰는 「기본문구와 값이 같은가」 방식을 그대로 쓴다
+// (간단·저위험, 이 repo 실전 검증). 새 방식 발명 아님.
+// ⚠️알려진 한계(모달·비교 블럭도 이미 수용 중인 트레이드오프): 사용자가 안내문구와 «글자 그대로 같은 말»을
+//   진짜 본문으로 입력하면 다음 편집진입 때도 전체선택된다. 새 위험이 아니라 기존 패턴과 동일하다.
+// ⚠️기본문구는 variant 와 무관하게 같은 문자열이다(_defaultLines 의 text 는 v 를 안 쓴다) →
+//   리터럴을 여기 다시 베끼지 않고 _defaultLines 를 그대로 참조한다(정본 1곳 유지).
+function _isBanner02PlaceholderText(kind, text) {
+  const s = (text == null ? '' : String(text)).trim();
+  if (s === '') return false;                 // 빈 줄은 전체선택할 내용이 없다 — 캐럿만(기존 동작)
+  return _defaultLines(_variant()).some(l => l.kind === kind && String(l.text).trim() === s);
 }
 function _readLines(block) {
   const d = block.dataset;
@@ -149,6 +162,12 @@ function renderBanner02(block) {
     el.addEventListener('dblclick', e => {
       e.stopPropagation();
       el.setAttribute('contenteditable', 'true'); el.focus();
+      /* ★안내문구면 «전체선택» — 타이핑이 곧 «교체»가 되게 한다.
+         이게 없어서 캐럿만 찍혔고, 사용자가 바로 치면 기본문구에 이어붙었다
+         (사용자 관점 훑기 0920 U-26: 「강아지 간식제목을 입력합니다.」).
+         ⛔focus() «직후 동기»로 부른다 — 비동기면 기본 캐럿이 선택을 덮는다.
+         안내문구가 «아니면» 기존 동작(focus 만) 그대로 — 사용자가 쓴 본문을 통째로 날릴 위험을 안 만든다. */
+      if (_isBanner02PlaceholderText(line.kind, el.textContent)) selectAllEditableContents(el);
     });
     // ★⑶ 빈 줄에서 백스페이스 한 번 더 → 그 줄 삭제 + 이전 줄 끝으로 캐럿.
     //   지금까지 줄 삭제는 우측 × 버튼이 유일했다(캔버스 경로 0건).

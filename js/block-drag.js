@@ -13,6 +13,7 @@ import {
   makeLabelItem,
   applyDividerStyle,
   showToast,
+  selectAllEditableContents,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 import { frameAlignOffset, frameVisibleSize } from './frame-geometry.js';
@@ -242,6 +243,14 @@ function _gridBeginEdit(hit, e) {
     });
   }
   host.focus();
+  /* ★안내문구(기본문구) 그대로인 칸이면 «전체선택» — 캐럿만 꽂으면 바로 친 글자가 기본문구에
+     이어붙는다(사용자 관점 훑기 0920 U-26: 「내용을 입력하세요.강아지 간식」).
+     ⚠️GRID_CELL_DEFAULT_TEXT 를 './blocks/grid-block.js' 에서 정적 import 하면 «순환»이다
+       (grid-block.js → drag-drop.js → `export * from './block-drag.js'`). 이 파일이 _gridEndEdit 에서
+       window.updateGridBlock 을 쓰는 것과 같은 window 브리지 관례를 따른다. 로드 순서 방어로 폴백을 둔다.
+     ⚠️개행·공백 차이 오탐 방지로 양쪽 trim. 안내문구가 아니면 «아래 기존 caretRangeFromPoint 분기 그대로». */
+  const _gridPh = String(window.GRID_CELL_DEFAULT_TEXT || '내용을 입력하세요.').trim();
+  if (_gridReadText(host).trim() === _gridPh) { selectAllEditableContents(host); return; }
   // 클릭한 위치에 캐럿 — 텍스트 블록 더블클릭과 같은 방식(caretRangeFromPoint).
   const range = e && document.caretRangeFromPoint
     ? document.caretRangeFromPoint(e.clientX, e.clientY)

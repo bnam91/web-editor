@@ -687,6 +687,29 @@ function suppressAncestorDrag(block) {
   return restore;
 }
 
+// focus 된 contenteditable 요소의 내용 «전체»를 선택한다.
+// ★원래 block-drag.js(텍스트·Enter진입·표 셀·모달)와 comparison-block.js 가 각자 5~8줄짜리
+//   removeAllRanges→createRange→selectNodeContents→addRange 를 «손으로 복붙»해 쓰던 스니펫이다
+//   (comparison-block.js 주석: "block-drag.js:617-624 미러"). 새 블록타입이 생길 때마다 또 베껴야 해서
+//   배너(banner02)·그리드가 «빠진» 채로 나갔다 — 안내문구 위에 캐럿만 찍혀 타이핑이 이어붙었다
+//   (사용자 관점 훑기 0920 U-26: 「강아지 간식제목을 입력합니다.」). 실행 메커니즘만 한 벌로 모은다.
+// ⚠️«이 텍스트가 안내문구인가»의 «판정»은 여기 없다 — 블록마다 데이터모델이 달라서
+//   (text-block = data-is-placeholder 마커 / banner02·grid·comparison = 기본문구 값-비교)
+//   하나로 못 모은다. 판정은 각 호출자에 남기고 여기는 «전체선택 실행»만 한다.
+// ⚠️focus() 직후 «동기»로 불러야 한다 — 비동기면 브라우저 기본 캐럿이 선택을 덮는다.
+function selectAllEditableContents(el) {
+  if (!el) return false;
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    if (!sel) return false;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  } catch (_) { return false; }
+}
+
 export {
   genId,
   getActorId,
@@ -712,6 +735,7 @@ export {
   colorLuminance,
   blockContextLuminance,
   suppressAncestorDrag,
+  selectAllEditableContents,
 };
 
 window.genId                      = genId;
@@ -736,3 +760,4 @@ window.renderGraph                = renderGraph;
 window.applyDividerStyle          = applyDividerStyle;
 window.ASSET_PRESETS              = ASSET_PRESETS;
 window.suppressAncestorDrag       = suppressAncestorDrag;
+window.selectAllEditableContents  = selectAllEditableContents;
