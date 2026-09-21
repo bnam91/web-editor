@@ -953,8 +953,18 @@ function rebindAll(opts = {}) {
     // ⎇ 버튼 없으면 추가, 있으면 onclick 재바인딩 (직렬화 시 프로퍼티가 유실되므로 항상 재설정)
     const toolbar = sec.querySelector('.section-toolbar');
     if (toolbar) {
-      // C21: 구버전 ↑↓✕ + 데드 ⎇(st-branch-btn) 일괄 제거 — 살릴 버튼만 보존(AB/memo/AI-fill)
-      toolbar.querySelectorAll('.st-btn:not(.st-ab-btn):not(.st-memo-btn):not(.st-ai-fill-btn)').forEach(el => el.remove());
+      /* C21: 구버전 ↑↓✕ + 데드 ⎇(st-branch-btn) 일괄 제거 — 살릴 버튼만 보존
+         (AB/memo/AI-fill ＋ ★🔒 보호).
+         ★🔒 를 명부에 더한 까닭(2026-09-22 실측) — 이 줄이 st-protected-btn 까지 지웠다.
+           rebindAll 은 restoreSnapshot(js/history.js:225)도 부르므로 «⌘Z 한 번»에 🔒 가
+           사라졌고, 다시 심는 곳이 _hydrateAllSectionsForProtection(init ＋ +1500ms) 뿐이라
+           «페이지를 다시 열기 전까지» 안 돌아왔다.
+         ⛔보호 자체는 안 풀린다(dataset.protected 에 산다) — 사라지는 건 «표시»와
+           «보호를 끄는 유일한 입구»다. 그래서 «안전한 방향»으로 틀리지만, 앱이
+           「🔒 버튼으로 보호 해제 후 삭제하세요」(js/editor.js:3085)라고 «없는 버튼»을 가리킨다.
+         ★«지웠다가 다시 심기»가 아니라 «안 지우기»를 골랐다 — 다시 심으면 툴바 DOM 이
+           복원 때마다 또 바뀌어 T-136(섹션 툴바가 «내용»으로 읽히는 건)을 키운다. */
+      toolbar.querySelectorAll('.st-btn:not(.st-ab-btn):not(.st-memo-btn):not(.st-ai-fill-btn):not(.st-protected-btn)').forEach(el => el.remove());
       // variation 툴바 버튼 복원
       if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
       // 섹션 메모 버튼 복원 — sanitizeCanvasHtml이 on* 속성을 제거하므로 로드 후 onclick 재바인딩 필요
