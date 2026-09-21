@@ -15,7 +15,8 @@
  *   L2 배송본 — 표 이미지 row 의 빈 칸 체커도 «안» 그려진다(js/blocks 디렉터리 «밖» 자리).
  *   L3 ★양성대조 — 목업의 «진짜 화면 이미지»는 배송본에 그대로 산다(레이어 보존).
  *   L4 ★배너에 글자를 쓰고 «재렌더 없이» 내보내면 그 글자가 배송본에 보인다.
- *      N4 음성대조 — DOM 표시만 낡게 되돌리면 그 글자가 실제로 사라진다(EVAL high 재현).
+ *      N4 음성대조 — DOM 표시만 낡게 되돌리면 «편집 화면»에서 그 글자가 흐려진다(opacity 0.45).
+ *          ★2026-09-22 축 이동: 배송본에서 «사라지던» 것은 T-039 가 캡처 술어를 고쳐 더는 안 난다.
  *   L5 썸네일 축(stripEditorOnlyForCapture 까지만) — 같은 상황에서 쓴 글자가 안 숨겨진다.
  *   L6 ★updateBanner02Block 로 «색만» 바꿔도 안내문구 표시가 산다(EVAL medium 재현·회귀문).
  *      N6 음성대조 — 표시가 떨어진 모델이면 안내문구가 실제로 보인다.
@@ -225,14 +226,31 @@ const typedBanner = (page, mode) => page.evaluate(async (mode) => {
   return { model, domPh, editorOpacity, delivered, thumb };
 }, mode);
 
-test('N4 ★음성대조 — DOM 표시만 낡으면 «쓴 글자»가 배송본에서 실제로 사라진다', async ({ page }) => {
+/* ★2026-09-22 (T-039) — 이 음성대조의 «축»이 바뀌었다. 축소가 아니라 이동이다.
+ *   원래 N4 는 「DOM 표시만 낡으면 쓴 글자가 «배송본에서» 사라진다」를 쟀다. 그 문장은
+ *   이제 «거짓»이다 — js/io/capture-safety.js hidePlaceholderTextForCapture 가 표식 하나만
+ *   믿지 않고 «글자»를 같이 보도록 고쳐졌기 때문이다(T-039: AI 섹션 채우기가 표식을 안 떼서
+ *   내보내기가 통째로 흰 페이지가 되던 결함. 재현·근거는 tests/dom/export-placeholder-flag-blank).
+ *   ⛔그래서 이 검사를 지우면 안 된다 — 지우면 L4·L5 가 「계측기가 뭘 보고 있나」를 잃는다.
+ *   ⇒ 낡은 표식이 «여전히 망가뜨리는» 축으로 옮긴다: «편집 화면의 흐림»이다.
+ *     낡은 표식은 css/editor-blocks.css `#canvas [data-is-placeholder="true"]` 에 걸려
+ *     방금 쓴 글자를 opacity 0.45 로 흐리게 만든다. 그게 L5 의 `editorOpacity === '1'` 이
+ *     «공짜로 참»이 아님을 증명한다.
+ *   ★그리고 배송본 축은 «두 겹»이 됐다는 것을 여기 박아 둔다 — 모델 동기화(banner02)가
+ *     낡아도 캡처 술어가 한 번 더 받는다. 두 겹이라고 앞의 것을 빼지 마라(둘은 다른 층이다). */
+test('N4 ★음성대조 — DOM 표시만 낡으면 «편집 화면»에서 쓴 글자가 흐려진다', async ({ page }) => {
   const errs = await boot(page);
-  const r = await typedBanner(page, 'stale');
-  console.log('  N4 delivered:', r.delivered);
-  const typed = r.delivered.find(x => x.text === 'QQLABELQQ');
+  const stale = await typedBanner(page, 'stale');
+  const fresh = await typedBanner(page, 'new');
+  console.log('  N4 opacity:', { stale: stale.editorOpacity, fresh: fresh.editorOpacity });
+  expect(stale.editorOpacity, '★여기서 1 이 나오면 L5 는 아무것도 증명하지 못한다').toBe('0.45');
+  expect(fresh.editorOpacity, '대조군 — 지금 코드는 흐리지 않다').toBe('1');
+
+  // ★배송본 축은 이제 «낡은 표식»에 안 무너진다 — T-039 의 캡처 술어가 글자를 같이 본다.
+  const typed = stale.delivered.find(x => x.text === 'QQLABELQQ');
   expect(typed, '쓴 줄을 못 찾았다 — 계측기가 틀렸다').toBeTruthy();
-  expect(typed.vis, '★여기서 visible 이 나오면 L4 는 아무것도 증명하지 못한다').toBe('hidden');
-  expect(r.thumb.find(x => x.text === 'QQLABELQQ').vis).toBe('hidden');
+  expect(typed.vis, '★표식이 낡아도 «본문»이면 배송본에서 사라지면 안 된다(T-039)').toBe('visible');
+  expect(stale.thumb.find(x => x.text === 'QQLABELQQ').vis).toBe('visible');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

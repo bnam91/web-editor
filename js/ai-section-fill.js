@@ -141,6 +141,27 @@ function collectSectionTextBlocks(sec) {
   return items;
 }
 
+/* ★글자를 쓰면 «안내문구 표식»을 뗀다 (2026-09-22 · T-039).
+ *   이 파일은 DOM 에 textContent 를 직접 쓰는 자리가 여섯이다(text-block 2 · 표 th/td 2 ·
+ *   라벨 · 아이콘텍스트). 그런데 `data-is-placeholder="true"` 를 떼는 코드가 «한 줄도» 없었다.
+ *   편집 경로(block-drag.js·editor.js·block-factory.js)는 전부 떼는데 이 경로만 안 뗀다.
+ *   ⇒ 화면엔 AI 가 채운 본문이 보이지만(안내문구 CSS 로 흐릿할 뿐) 캡처 클론은
+ *     js/io/capture-safety.js hidePlaceholderTextForCapture 가 그 본문을 visibility:hidden 으로
+ *     가린다 ⇒ PNG·단독 HTML·썸네일이 «내용 없는 흰 페이지»가 된다(실측 재현: 글자만 있는
+ *     섹션 860×824 에서 흰색 아닌 픽셀 0).
+ *   ⛔빈 글자를 써 넣을 땐 «떼지 않는다» — 그건 도로 안내문구 상태다
+ *     (block-drag.js:903 「안내문구가 본문으로 굳는 지뢰 방지」와 같은 결론).
+ *   ★읽는 쪽(capture-safety.js)도 같은 패치에서 글자를 보게 고쳤다 — 여기만 고치면
+ *     다음 writer 가 생기는 날 같은 흰 페이지가 조용히 돌아온다. */
+function _writeFilledText(el, text) {
+  if (!el) return;
+  el.textContent = text;
+  const t = String(text ?? '').trim();
+  if (t === '') return;
+  const ph = (el.dataset?.placeholder || '').trim();
+  if (t !== ph) delete el.dataset.isPlaceholder;
+}
+
 /** Gemini 결과를 섹션에 적용 — ID prefix로 라우팅
  *  additions: [{ style, text }, ...]   — autoExpand 시 부족한 만큼 새 text-block 생성
  */
@@ -261,7 +282,7 @@ function applyAIReplacements(sec, replacements, additions) {
     const tb = sec.querySelector(`#${CSS.escape(rep.id)}`);
     if (tb && tb.classList.contains('text-block') && !filledTbIds.has(tb.id)) {
       const inner = tb.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label') || tb;
-      inner.textContent = rep.text;
+      _writeFilledText(inner, rep.text);
       filledTbIds.add(tb.id);
       applied += 1;
     } else {
@@ -275,7 +296,7 @@ function applyAIReplacements(sec, replacements, additions) {
     if (cursor >= tbList.length) return;
     const tb = tbList[cursor++];
     const inner = tb.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label') || tb;
-    inner.textContent = rep.text;
+    _writeFilledText(inner, rep.text);
     filledTbIds.add(tb.id);
     applied += 1;
   });
@@ -326,14 +347,14 @@ function applyAIReplacements(sec, replacements, additions) {
     slotMap.forEach((text, slot) => {
       if (slot.startsWith('h')) {
         const i = parseInt(slot.slice(1));
-        if (ths[i]) ths[i].textContent = text;
+        if (ths[i]) _writeFilledText(ths[i], text);
       } else {
         const mm = slot.match(/^r(\d+)c(\d+)$/);
         if (mm) {
           const tr = trs[parseInt(mm[1])];
           if (tr) {
             const td = tr.children[parseInt(mm[2])];
-            if (td) td.textContent = text;
+            if (td) _writeFilledText(td, text);
           }
         }
       }
@@ -346,7 +367,7 @@ function applyAIReplacements(sec, replacements, additions) {
     if (!lg) return;
     const spans = lg.querySelectorAll(':scope > .label-item > .label-item-text');
     idxMap.forEach((text, idx) => {
-      if (spans[idx]) spans[idx].textContent = text;
+      if (spans[idx]) _writeFilledText(spans[idx], text);
     });
   });
 
@@ -355,7 +376,7 @@ function applyAIReplacements(sec, replacements, additions) {
     const itb = sec.querySelector(`#${CSS.escape(itbId)}`);
     if (!itb) return;
     const inner = itb.querySelector(':scope > .itb-text');
-    if (inner) inner.textContent = text;
+    if (inner) _writeFilledText(inner, text);
   });
 
   // graph-block 적용 — dataset.items의 label + value 갱신 후 renderGraph
