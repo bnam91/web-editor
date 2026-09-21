@@ -47,6 +47,15 @@ const INSERT_HISTORY_N1 = (() => {
   return out;
 })();
 
+/* ── 음성대조본 ③ — 끝 표본 «갱신»(restamp)만 뺀 모양 ──────────────────────
+   M9 가 「지연 쓰기가 있어도 한 번」을 잠그는데, 그게 «실제로 빨강이 될 수 있는지»를 여기서 증명한다.
+   ⛔화석을 베끼지 않는다 — 지금 소스에서 그 한 줄만 걷어낸다(늙으면 변환이 «던진다»). */
+const INSERT_HISTORY_N3 = (() => {
+  const line = '              _scheduleRestamp();';
+  if (!INSERT_HISTORY_JS.includes(line)) throw new Error('N3 변환이 늙었다 — 끝 표본 갱신 줄을 못 찾았다');
+  return INSERT_HISTORY_JS.replace(line, '              /* N3: 끝 표본 갱신 없음 */');
+})();
+
 /* ── 음성대조본 ② — window.pushHistory 를 «설치 시점에 캡처»한 모양 ────────
    js/ai-section-fill.js 의 «의도된 노옵»을 깨뜨리는 바로 그 실수다(규약 ①). */
 const INSERT_HISTORY_N2 = (() => {
@@ -125,6 +134,7 @@ const BODY = `<div id="canvas"><div class="section-block" id="sec"><div class="s
 async function boot(page, variant = 'fix') {
   const IH = variant === 'N1' ? INSERT_HISTORY_N1
            : variant === 'N2' ? INSERT_HISTORY_N2
+           : variant === 'N3' ? INSERT_HISTORY_N3
            : INSERT_HISTORY_JS;
   await page.route(`${ORIGIN}/**`, async (route) => {
     const u = new URL(route.request().url());
@@ -416,16 +426,23 @@ test('M8 ★삽입 → 삭제 → ⌘Z 한 번이면 블럭이 돌아온다', as
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   M9 — ★규약 ④ 의 «양성대조»: 정착 안 한 입구는 실제로 ⌘Z 가 두 번이 된다
-        (= 단위 게이트 B3 가 왜 빨강이어야 하는지)
+   M9 — ★지연 쓰기가 있어도 ⌘Z 는 «한 번»이다 (restampHistoryTop 의 근거)
+   ──────────────────────────────────────────────────────────────────────────
+   ⚠️이 검사는 «뒤집혔다». 처음엔 「지연 쓰기가 있으면 두 번이 된다」를 양성대조로 잠갔는데,
+     그건 «고치기 전»의 참이었다 — 실앱 전수 스윕(2026-09-21)에서 그 두 번이 다섯 입구에서
+     실제로 났고(addSection·addBanner02Block·addCanvasBlock·addComparisonBlock·텍스트 스티커),
+     js/history.js restampHistoryTop + js/insert-history.js _scheduleRestamp 로 닫았다.
+   ⇒ 이제 계약은 「지연 쓰기가 있어도 한 번」이다. 「두 번」을 잠그고 있으면 고침이 «검사를 깬다».
+   ★«두 번»이 될 수 있다는 증명은 N3(음성대조)에 있다 — 여기서 잃지 않는다.
 ═══════════════════════════════════════════════════════════════════════════ */
-test('M9 ★돌아온 뒤 DOM 을 더 바꾸는 입구는 ⌘Z 가 «두 번»이 된다 (정착 규약의 근거)', async ({ page }) => {
+test('M9 ★돌아온 뒤 DOM 을 더 바꾸는 입구도 ⌘Z 는 «한 번»이다 (끝 표본 갱신)', async ({ page }) => {
   const errs = await boot(page);
   const r = await run(page, 'M9');
   expect(errs).toEqual([]);
   expect(r.settled.undosToVanish, '정착한 입구는 한 번').toBe(1);
   expect(r.defer.undosToVanish,
-    '★지연 쓰기가 있으면 ensureHistoryCheckpoint 가 «현재 상태» 한 칸을 더 만든다 ⇒ 먹통 한 칸').toBe(2);
+    '★지연 쓰기가 있어도 한 번이어야 한다 — 끝 표본을 «한 프레임 뒤 값»으로 다시 찍기 때문이다. ' +
+    '두 번이 나오면 restampHistoryTop 이 안 도는 것이다(seq 불일치·타이밍·노출 누락을 봐라)').toBe(1);
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -445,4 +462,13 @@ test('N2 ★[음성대조] window.pushHistory 를 «캡처»하면 M5 가 0칸�
   expect(errs).toEqual([]);
   expect(r.kids).toBe(3);
   expect(r.delta, '★캡처하면 ai-section-fill 의 «한 번의 ⌘Z 로 전체 롤백»이 깨진다').toBe(3);
+});
+
+test('N3 ★[음성대조] 끝 표본 «갱신»을 빼면 지연 쓰기 입구가 ⌘Z 두 번이 된다', async ({ page }) => {
+  const errs = await boot(page, 'N3');
+  const r = await run(page, 'M9');
+  expect(errs).toEqual([]);
+  expect(r.settled.undosToVanish, '정착한 입구는 갱신이 없어도 한 번').toBe(1);
+  expect(r.defer.undosToVanish,
+    '★갱신을 빼면 «먹통 한 칸»이 실제로 돌아온다 — M9 의 초록이 «검사처럼 생긴 문장»이 아님을 여기서 증명한다').toBe(2);
 });

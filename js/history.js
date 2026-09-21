@@ -523,6 +523,37 @@ function getHistoryTip() {
   if (!e) return { ...base, empty: true };
   return { ...base, empty: false, seq: (e.seq == null ? null : e.seq), action: e.action || null };
 }
+/* ★[T-131 ⒜ 회귀 · 2026-09-21] «끝 표본»을 정착 뒤 값으로 «다시 찍는다»(새 칸을 만들지 않는다).
+ *
+ * 왜 필요한가 — 삽입 입구는 «동기로» 돌아오지만, 그 뒤 한 프레임 안에 레이아웃에서 나오는 값이
+ *   더 써진다. 실측(2026-09-21, 실앱 전수 스윕)으로 다섯 자리가 나왔다:
+ *     · ResizeObserver 가 scale·height 를 쓴다 — banner02(:375) · canvas(:620·:848) · comparison
+ *     · MutationObserver 가 ✨버튼을 옮기고 onclick 을 지운다 — ai-section-fill.js:952~961
+ *     · CSSOM 한 번 쓰면 style 문자열이 «공백 넣어» 재직렬화된다 — sticker-text
+ *   ⇒ 꼭대기(삽입 직후)와 라이브(정착 뒤)가 어긋나고, undo 첫 스텝의 ensureHistoryCheckpoint 가
+ *     「현재 상태」 한 칸을 더 만든다 ⇒ 삽입만 하고 ⌘Z 가 «두 번»(첫 번째는 화면 무변화 = 먹통 한 칸).
+ *
+ * ⛔왜 «자리마다» 안 고치나 — 그 값들은 레이아웃이 끝나야 나온다. 삽입 시점엔 «알 수 없다».
+ *   자리마다 고치면 16개 미측정 입구와 앞으로 생길 입구가 같은 병을 다시 갖고 들어온다.
+ * ⛔왜 «끝 표본을 비동기로» 안 찍나 — js/ai-section-fill.js:425~426 이 pushHistory 를 노옵으로
+ *   갈아끼우고 :439 에서 되돌린다. 한 프레임 뒤에 찍으면 그 «의도된 묶음 롤백»을 깨뜨린다.
+ *   ⇒ 찍기는 «동기로» 두고, 값만 한 프레임 뒤에 갱신한다.
+ *
+ * ★안전장치 — 아래 네 조건 중 하나라도 틀리면 «아무것도 안 한다»(조용히 false).
+ *   ⑴ 그 사이 다른 항목이 쌓였다(seq 불일치) ⑵ 되돌리기가 진행돼 꼭대기가 아니다
+ *   ⑶ 복원 중(_historyPaused) ⑷ 직렬화가 같다(할 일 없음)
+ *   ⛔sidecar 는 «안» 건드린다 — video-pending 은 T-130 의 자리라 여기서 같이 만지지 않는다. */
+function restampHistoryTop(seq) {
+  if (_historyPaused) return false;
+  if (historyPos !== historyStack.length - 1) return false;   // 되돌린 뒤엔 안 건드린다
+  const top = historyStack[historyPos];
+  if (!top || seq == null || top.seq !== seq) return false;   // 그 사이 다른 일이 끼었다
+  const cur = window.getSerializedCanvas?.();
+  if (!cur || cur === top.canvas) return false;
+  top.canvas = cur;
+  return true;
+}
+
 /** 그 seq 가 «아직 스택에 있는가» — 없으면 MAX_HISTORY 로 밀려난 것. */
 function historyHasSeq(seq) { return historyStack.some(x => x && x.seq === seq); }
 
@@ -532,6 +563,7 @@ window.undo         = undo;
 window.redo         = redo;
 window.clearHistory = clearHistory;
 window.getHistoryTip = getHistoryTip;
+window.restampHistoryTop = restampHistoryTop;
 window.historyHasSeq = historyHasSeq;
 window.restoreSnapshot = restoreSnapshot;
 // D1: 페이지별 히스토리 헬퍼 노출 (save-load.js는 window.* 로만 호출)

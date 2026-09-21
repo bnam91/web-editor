@@ -91,6 +91,34 @@
   var _depth = 0;          // ★재진입 깊이 — 바깥 하나만 찍는다(규약 ③)
   var _roster = [];
 
+  /* ★★규약 ⑤ — 끝 표본을 «한 프레임 뒤 값»으로 다시 찍는다(새 칸은 안 만든다).
+     왜: 입구는 동기로 돌아오지만 그 뒤에 «레이아웃에서 나오는 값»이 더 써진다 —
+       ResizeObserver(scale·height) · MutationObserver(✨버튼 이동) · CSSOM 재직렬화(공백).
+       그러면 꼭대기와 라이브가 어긋나 undo 첫 스텝이 「현재 상태」 한 칸을 더 만든다
+       ⇒ 삽입만 하고 ⌘Z 가 «두 번»(첫 번째는 화면 무변화 = 먹통 한 칸). 2026-09-21 실앱 실측.
+     ⛔«찍기»를 통째로 비동기로 옮기지 마라 — ai-section-fill 의 의도된 노옵이 그 사이 풀린다.
+       찍기는 동기, «값만» 뒤에 갱신한다.
+     ⛔restampHistoryTop 이 안전조건을 스스로 본다(seq 불일치·되돌린 뒤·복원 중·무변화 → 무동작).
+       여기서는 «그때의 seq»만 넘긴다 — 그 사이 다른 항목이 쌓이면 갱신이 저절로 취소된다. */
+  function _scheduleRestamp() {
+    var tip = (typeof window.getHistoryTip === 'function') ? window.getHistoryTip() : null;
+    var seq = tip && !tip.empty ? tip.seq : null;
+    if (seq == null || typeof window.restampHistoryTop !== 'function') return;
+    var run = function () {
+      try { window.restampHistoryTop(seq); }
+      catch (e) { console.warn('[insert-history] 끝 표본 갱신 실패:', e); }
+    };
+    /* ★rAF 두 번으로는 «모자란다» — ResizeObserver 콜백은 「렌더링 갱신」 단계에서
+       rAF 콜백 «뒤»에 배달된다. 그래서 rAF2 에서 읽으면 옵저버가 쓰기 «전» 값을 본다.
+       실측(2026-09-21, addBanner02Block): sync 4842 · rAF1 4842 · **rAF2 4889** ·
+       그 뒤로는 1.7초까지 안 변함 ⇒ rAF 두 번 «뒤의» 매크로태스크에서 읽으면 잡힌다. */
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { setTimeout(run, 0); });
+      });
+    } else { run(); }
+  }
+
   function wrap(name, fn) {
     if (fn.__insertSeamWrapped) return fn;
     function seamWrapped() {
@@ -105,6 +133,7 @@
           try {
             if (typeof window.pushHistory === 'function') {
               window.pushHistory(LABELS[name] || DEFAULT_LABEL);
+              _scheduleRestamp();
             }
           } catch (e) { console.warn('[insert-history] 끝 표본 실패:', name, e); }
         }
