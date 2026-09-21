@@ -310,7 +310,9 @@ export function showIconifyProperties(block) {
   };
   sSlider.addEventListener('mousedown', () => window.pushHistory?.());
   sSlider.addEventListener('input',  () => applySize(parseInt(sSlider.value)));
-  sNumber.addEventListener('change', () => { window.pushHistory?.(); applySize(parseInt(sNumber.value)); });
+  /* ★[2026-09-21] 순서를 뒤집었다 — prop-mockup.js 의 폭 숫자칸과 «같은 결함»이었다(실측 A).
+     이웃(:311 mousedown · :312 input · :314 change)은 맞다 — 숫자칸 하나만 뒤집혀 있었다. */
+  sNumber.addEventListener('change', () => { applySize(parseInt(sNumber.value)); window.pushHistory?.(); });
   sSlider.addEventListener('change', () => window.pushHistory?.());
 
   // 색상 (SVG currentColor 활용) — 래스터(PNG/JPG)는 색 UI 자체가 렌더되지 않으므로 wire 생략
