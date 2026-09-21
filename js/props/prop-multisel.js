@@ -357,6 +357,39 @@ export function hasFlowMultiSel() {
   return _getSelectedFlowBlocks().length >= 2;
 }
 
+/* ★[T-095 2라운드 / T-091 ⑥] 「꽉 찬 자유배치 래퍼」를 옮기는 «한 자리».
+   그룹(⌘G)은 섹션 레벨에서 «width:100%» 로 만들어진다(js/block-factory.js wrapSelectedBlocksInFrame
+   — flow 갈래는 `width:100%` 를 못 박는다). 폭에 여유가 0 이면 align-self 는 «아무 일도 안 한다» —
+   실측(2026-09-22 포트 9634): 섹션 오른쪽/왼쪽 정렬을 눌러도 그룹 속 도형이 L=308·R=308 «불변»,
+   글자만 움직였다. = T-095 신고문(「글자만 움직이고 이미지·도형은 제자리」)이 «그룹 안에서» 그대로 산다.
+   ★진짜 움직일 것은 그 «안»의 자유배치 자식들이고, 그 좌표의 원점이 바로 이 래퍼의 패딩 상자다.
+   ⇒ 「여유가 있나」를 한 칸 안쪽 «좌표축»에서 한 번 더 묻는다(bulk-align-targets.js 와 같은 규칙).
+     묶음은 «통째로» 민다 — 서로의 상대 위치는 그룹의 뜻이라 건드리지 않는다.
+   ⛔이름(data-group)을 묻지 않는다 — 이 레포는 손목록이 하나 빠져서 난 사고가 반복됐다.
+   ↩︎여유가 없으면(자식이 래퍼를 꽉 채움 — 도형 전용 래퍼가 그렇다) false 를 돌려주고 종전 경로로 보낸다. */
+function _alignFreeLayoutContents(b, dir) {
+  const kids = [...b.children].filter(c => c.nodeType === 1 && getComputedStyle(c).position === 'absolute');
+  if (!kids.length) return false;
+  const cs = getComputedStyle(b);
+  const avail = b.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  const lefts = kids.map(k => parseFloat(k.style.left) || 0);
+  const minX = Math.min(...lefts);
+  const maxX = Math.max(...kids.map((k, i) => lefts[i] + k.offsetWidth));
+  const span = maxX - minX;
+  if (!(span < avail - 0.5)) return false;           // 여유 0 — 여기서도 옮길 자리가 없다
+  const target = dir === 'left' ? 0
+    : dir === 'right' ? avail - span
+    : Math.round((avail - span) / 2);
+  const delta = Math.round(target - minX);
+  if (delta) kids.forEach((k, i) => {
+    const nl = Math.round(lefts[i]) + delta;
+    k.style.left = nl + 'px';
+    // ★저장·재로드는 dataset.offsetX 를 본다(wrapSelectedBlocksInFrame 이 같이 적는다) — 같이 옮긴다
+    if (k.dataset) k.dataset.offsetX = String(nl);
+  });
+  return true;
+}
+
 /* 블록 타입별 수평 정렬 (기존 단일패널 핸들러 미러)
    ★[T-095] 섹션 «Bulk Align» 도 이 함수를 쓴다(js/props/prop-section.js).
      그 자리엔 원래 `.text-block` 만 도는 사본이 있어서 글자만 움직이고 이미지·도형은
@@ -379,6 +412,7 @@ export function alignFlowBlock(b, dir) {
     b.dataset.align = dir;                           // prop-asset.js:322
     b.style.alignSelf = selfMap[dir];
   } else {
+    if (_alignFreeLayoutContents(b, dir)) return;    // 꽉 찬 자유배치 래퍼(그룹) — 안쪽 묶음을 민다
     b.style.alignSelf = selfMap[dir];                // 범용 fallback (무해)
   }
 }
