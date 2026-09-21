@@ -122,7 +122,8 @@ test('L2 ★Sticker 행도 같은 결 — 스티커 진입점이 불린다', asy
      즉 레이어에서 Vector/Step 행을 누르면 우측에 «에셋 패널»이 뜨고, 거기 「너비/높이」가
      실제로 먹어 그 블럭의 style 을 건드린다(gradient 에서 실측된 그 손상과 같은 길).
    ★고침은 한 줄씩이 아니라 «기계»로도 지킨다 — tests/unit/layer-panel-panel-table.test.mjs 가
-     js/history.js 의 표(_PANEL_BY_CLASS, 클릭 경로를 베낀 정본)와 이 분기 사슬을 대조한다. */
+     정본 표(js/panel-dispatch.js 의 _PANEL_BY_CLASS, 클릭 경로를 베낀 것)와 이 분기 사슬을 대조한다.
+     ★2026-09-21 T-079 에서 그 표가 js/history.js → js/panel-dispatch.js 로 이사했다. */
 test('L4 ★Vector 행을 누르면 «벡터» 패널이 뜬다 (에셋 패널이 아니라)', async ({ page }) => {
   await boot(page);
   const r = await clickLayerRowFor(page, 'vec_test');

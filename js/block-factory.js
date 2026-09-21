@@ -4036,7 +4036,13 @@ function updateSpeechBubbleBlock(blockId, partial = {}) {
   }
 
   if (block.classList.contains('selected')) {
-    try { window.showSpeechBubbleProperties?.(block); } catch (_) {}
+    /* ★2026-09-21 픽스 라운드 — 여기는 `window.showSpeechBubbleProperties?.(block)` 이었다.
+       그 함수는 이 레포 «어디에도 정의가 없다»(전수 grep = 이 한 줄뿐) ⇒ 옵셔널 체이닝이라
+       예외도 경고도 없이 영영 no-op 이었다. 즉 MCP 로 말풍선 글을 바꿔도 «열려 있던 우측
+       패널은 옛 값 그대로» 남았다. 정본 표 한 자리로 보낸다 — 말풍선은 .text-block 을 겸하므로
+       클릭 경로(js/block-drag.js 의 text-block 핸들러)와 «같은» 텍스트 패널이 뜬다.
+       죽은 패널 호출이 다시 생기면 U-DISPATCH-4 가 잡는다. */
+    try { window.openPanelForBlock?.(block); } catch (_) {}
   }
   try { window.buildLayerPanel?.(); } catch (_) {}
 

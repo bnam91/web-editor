@@ -47,6 +47,11 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <div id="panel-right"><div class="panel-body"></div></div>
 <script src="/js/feature-flags.js"></script>
 <script src="/js/drag-history.js"></script>
+<!-- ★2026-09-21(T-079): selectBlock 의 패널 디스패치가 js/panel-dispatch.js 로 빠졌다.
+     block-edit.js 를 얹는 하네스는 이 줄을 «앞»에 같이 얹어야 한다(실제 index.html 과 같은 순서).
+     빼면 openPanelForBlock 이 undefined 인데 호출이 옵셔널 체이닝이라 «예외도 없이» 패널만
+     안 열린다 = 「패널을 못 열고도 초록」. 짝을 tests/unit/layer-panel-panel-table U-DISPATCH-6 이 센다. -->
+<script src="/js/panel-dispatch.js"></script>
 <script src="/js/block-edit.js"></script>
 <script src="/js/text-effect-transform.js"></script>
 <script type="module">

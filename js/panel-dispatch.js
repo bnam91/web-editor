@@ -70,6 +70,19 @@ const _PANEL_BY_CLASS = [
   ['laurel-block',      (el) => window.showLaurelProperties?.(el)],         // :1521
   ['zoom-block',        (el) => window.showZoomProperties?.(el)],           // :1549
   ['icon-text-block',   (el) => window.showTextProperties?.(el)],           // :1732
+  /* ★annotation — 2026-09-21 픽스 라운드에서 찾은 «T-079 의 쌍둥이».
+       .annotation-block 은 dataset.type='annotation' 을 달아(js/blocks/annotation-block.js)
+       getBlockById 를 «통과»하는데 표에는 없었다 ⇒ selectBlock/점검점프/MCP 경로에서
+       고치기 전엔 텍스트 패널이 떴다. 그게 배너와 «똑같이» 위험한 이유:
+         · .annot-label 은 contenteditable="false" 를 달고 있어(:202) prop-text.js 의
+           `tb.querySelector('[contenteditable]')` 에 «걸린다» ⇒ 텍스트 패널이 정상 동작한다.
+         · 그런데 annotation 의 정본은 dataset 이고, 로드 때 js/io/save-load.js 가
+           makeAnnotationBlock 결과로 innerHTML 을 통째로 새로 그린다 ⇒ 인라인은 폐기.
+       = 배너와 한 글자도 안 틀리는 «조용한 데이터 손실» 구조였다.
+     캔버스 경로(js/annotation-select.js `_selectAnnotation`)가 여는 패널과 같은 것으로 맞춘다.
+     ⚠️`_selectAnnotation` 자체를 부르지 않는 이유 — 그 함수는 `if (block.classList.contains('selected')) return`
+       으로 시작하는데 selectBlock 은 «.selected 를 붙인 뒤» 여기를 부른다(= 영영 early-return). */
+  ['annotation-block',  (el) => window.showAnnotationProperties?.(el)],      // js/annotation-select.js:74
   ['text-block',        (el) => window.showTextProperties?.(el)],           // :900 (버블·라이너 포함)
 ];
 

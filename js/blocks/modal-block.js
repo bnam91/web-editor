@@ -588,8 +588,15 @@ function makeModalBlock(opts = {}) {
    선택 클래스·레이어 하이라이트는 그대로 selectBlock 이 맡는다. 분업은 두고 «빠진 두 줄»만
    여기서 채운다(js/blocks/zoom-block.js 의 addZoomBlock 이 같은 자리를 같은 방식으로 고쳤다).
 
-   ⛔js/block-edit.js 는 건드리지 않는다 — 거기 한 줄은 asset·canvas·vector·icon-circle·
-     zoom·mockup 까지 «일곱 종»의 동작을 동시에 바꾼다. 그건 별건으로 올린다. */
+   ★2026-09-21 (T-079) — 여기 있던 ⛔경고(「js/block-edit.js 는 건드리지 않는다 — 거기 한 줄이
+     asset·canvas·vector·icon-circle·zoom·mockup 일곱 종을 동시에 바꾼다. 별건으로 올린다」)가
+     말한 그 «별건»이 실제로 올라왔다. selectBlock 의 9종짜리 사본과 `else showTextProperties`
+     폴백을 지우고 정본 표 한 자리(js/panel-dispatch.js openPanelForBlock)로 보냈다
+     ⇒ modal 도 이제 selectBlock «만»으로 제 패널이 뜬다. 아래 «빠진 두 줄» 중 패널 쪽은
+     그래서 «두 번 호출»이 되는데, showModalProperties 는 block.dataset 만 읽어 패널을 새로
+     그린다(js/props/prop-modal.js:45~) ⇒ 두 번째 호출이 같은 것을 다시 그릴 뿐이다.
+     핸들(showHandlesFor)은 여전히 여기서만 붙으므로 두 줄을 한 벌로 남긴다.
+     ⛔경고는 해소됐으니 되살리지 마라. (tests/dom/modal-resize D12 가 이 자리를 잰다.) */
 function _selectNewModal(block) {
   if (!block) return;
   try { window.selectBlock?.(block.id); } catch (_) {}
