@@ -233,8 +233,13 @@ test('★history.js — 비교자가 «편집이 아닌» 속성을 벗긴다(�
   const H = code('js/history.js');
   assert.match(H, /_NON_EDIT_ATTR_RE[\s\S]{0,80}draggable/,
     'draggable 정규화가 사라졌다 — 리사이즈→회전 사이에 먹통 ⌘Z 한 칸이 되살아난다(2026-09-20 실측)');
+  /* ★2026-09-21: 벗기기가 _sameEdit 안에서 _stripNonEdit 로 빠졌다(섹션 툴바까지 같이 벗기려고).
+     그래서 «어디서 벗기나»가 아니라 «비교자가 벗기기를 «실제로» 지나가나»를 잰다. */
   const fn = sliceBlock(H.slice(H.indexOf('function _sameEdit(')), 'function _sameEdit(');
-  assert.match(fn, /replace\(_NON_EDIT_ATTR_RE/, '비교자가 정규화를 실제로 쓰지 않는다');
+  const strip = sliceBlock(H.slice(H.indexOf('function _stripNonEdit(')), 'function _stripNonEdit(');
+  assert.match(fn, /_stripNonEdit\(a\)\s*===\s*_stripNonEdit\(b\)/,
+    '비교자가 벗기기를 실제로 지나가지 않는다');
+  assert.match(strip, /replace\(_NON_EDIT_ATTR_RE/, '벗기기가 정규화를 실제로 쓰지 않는다');
   assert.doesNotMatch(H, /_canvas\s*=\s*_canvas\.replace|_canvas\.replace\(_NON_EDIT_ATTR_RE/,
     '★«저장되는» 스냅샷 문자열까지 벗기고 있다 — 되돌리면 draggable 이 사라진다');
 });
