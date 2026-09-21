@@ -46,7 +46,21 @@ function _drainRemoteKeys() {
    ⚠️늘릴 때 규칙 — «serializeCleanRoot 가 이미 지우는 것»은 여기 넣을 필요가 없다.
      여기 넣는 건 «저장본에는 남지만 편집은 아닌» 것뿐이고, 넣는 만큼 「그 값만 다른 편집」의
      undo 한 칸이 사라진다. 넣기 전에 실제 스냅샷 diff 로 근거를 잡아라(위처럼). */
-const _NON_EDIT_ATTR_RE = / draggable="(?:true|false)"/g;
+/* ★[T-131 ⒜⑵ · 2026-09-21] `--sec-clip` 을 같이 벗긴다.
+     근거(실측, 포트 9579·9581 · 스냅샷 diff):
+       ⑴ 이 값은 «파생»이다 — 입력이 offsetLeft/Top/Width/Height 와 sec.clientWidth/Height 뿐이고
+          (js/blocks/sticker-block.js:400~420 · mockup-block.js:118~130), 그 넷이 전부 인라인
+          style 로 직렬화된다. 복원·로드 때 bindBlock 이 다시 계산한다(js/block-drag.js:463).
+       ⑵ 「그 값만 다른 편집」을 찾아봤다 — 스티커를 섹션 «밖»으로 밀어내기(left/top 이 같이 변함)와
+          섹션 높이 줄이기(섹션 style 이 같이 변함) 두 경로 모두 «홀로» 안 바뀌었다.
+          ⇒ 위 ⚠️가 요구한 «실제 스냅샷 diff 근거»가 이것이다.
+       ⑶ 안 벗기면: 목업을 섹션 경계 넘게 삽입 → rAF 가 --sec-clip 을 늦게 박음 → 꼭대기와
+          라이브가 어긋남 → ⌘Z 가 «두 번»(대조: 섹션 안쪽 삽입은 한 번). 실측값이다.
+     ⛔못 잰 축: 목업·확대는 스티커와 입력이 달라 ⑵를 따로 안 쟀다. 이미지·폰트가 늦게 로드돼
+       내재 크기가 바뀌는 경우도 안 쟀다.
+     ⛔직렬화에서 지우지 «않는다» — 저장본에 남는 것은 설계다(js/blocks/sticker-block.js:398
+       「저장 HTML·미리보기·Export 클론에 그대로 복제 → 세 화면이 한 소스로 잘림」). 비교만 벗긴다. */
+const _NON_EDIT_ATTR_RE = / draggable="(?:true|false)"|\s*--sec-clip:\s*[^;"]*;?/g;
 function _sameEdit(a, b) {
   if (a === b) return true;
   if (typeof a !== 'string' || typeof b !== 'string') return false;
@@ -463,7 +477,14 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
   //   → 다른 블록 비우기 → ⌘Z → ⌘⇧Z).
   const _sidecar = window.getLastVideoPendingSidecar?.();
   if (!current) return;
-  if (historyStack[historyPos]?.canvas !== current) {
+  /* ★[T-131 ⒜ · 2026-09-21] 비교자를 pushHistory 와 «같게» 맞춘다.
+     전에는 여기만 «생문자열 !==»(엄격)이고 pushHistory 는 _sameEdit(느슨)이라 방향이 반대였다.
+     그래서 «편집이 아닌 것»(draggable·--sec-clip)만 다른 상태에서, pushHistory 는 안 쌓는데
+     여기는 쌓아 ⌘Z 가 한 칸 늘었다. 두 차단이 같은 잣대를 써야 그 칸이 안 생긴다.
+     ⚠️느슨해지는 만큼 «그 둘만 다른» 라이브 상태는 선적재가 «안» 된다 — 둘 다 복원·로드 때
+       다시 계산되는 값이라 잃는 것이 없다고 «보지만», paste/copy 선적재(위 설명)와 undo 첫
+       스텝 양쪽에서 재 보고 적을 것. */
+  if (!_sameEdit(historyStack[historyPos]?.canvas, current)) {
     historyStack = historyStack.slice(0, historyPos + 1);
     // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
     //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
