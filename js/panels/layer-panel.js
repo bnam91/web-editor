@@ -684,6 +684,55 @@ function _buildLayerPanelTail(panel, collapsedSections) {
   }
 })();
 
+/* ★긴 레이어 이름이 «…»로 잘렸을 때 전체를 보여준다 (T-101 ②, 2026-09-21 smallux)
+     재현(실앱 9550, 레이어 이름을 「상단 히어로 대표 이미지 — 가을 신상 컬렉션 메인컷」으로
+       바꾼 뒤 실측): .layer-item-name 의 clientWidth 120 < scrollWidth 222 = 잘림,
+       그런데 그 span 에도 조상 행(.layer-item/.layer-children/.layer-section)에도 title 이
+       전부 null → 마우스를 올려도 볼 길이 없다. 잘림은 css/editor-panels.css:1250 의
+       text-overflow:ellipsis 다(그건 그대로 둔다 — 폭이 좁은 패널이라 자르는 게 맞다).
+   ⛔이름표를 «이름을 찍는 자리»마다 붙이지 않는다 — layer-panel-items.js 안에만
+     .layer-item-name 을 만드는 곳이 여섯 군데고(makeLayerBlockItem·Group·Asset·RowGroup·
+     Frame…), 이름은 addLayerRename 이 textContent 만 갈아끼워 바꾸기도 한다. 그런 손목록은
+     반드시 늙는다(이 레포가 반복해서 다친 자리).
+   ⇒ 성질로 판정한다 — 마우스가 올라온 «그 노드»에서 그 순간 실제로 잘렸는지를 재고
+     (scrollWidth > clientWidth) 그때만 이름표를 건다. 새 렌더러가 생겨도, 이름을 바꿔도,
+     패널 폭을 넓혀 잘림이 풀려도 따라온다.
+   ★delegated + mouseover 인 이유 — 패널은 buildLayerPanel 이 innerHTML 로 통째로 갈아치우므로
+     행마다 건 리스너는 매번 날아간다. 패널 자신에 한 번만 건다(bindRowGroupCollapseSync 와 같은 꼴).
+   ⛔이름을 «고치는 중»(contenteditable)엔 안 건다 — 편집 중 이름표가 뜨면 커서를 가린다. */
+export function installLayerNameTooltips(panelEl) {
+  const panel = panelEl || document.getElementById('layer-panel-body');
+  if (!panel || panel._lpNameTipBound) return panel || null;
+  panel._lpNameTipBound = true;
+  panel.addEventListener('mouseover', e => {
+    const el = e.target && e.target.closest && e.target.closest('.layer-item-name, .layer-section-name');
+    if (!el || !panel.contains(el)) return;
+    syncLayerNameTooltip(el);
+  });
+  return panel;
+}
+
+/** 한 이름 노드의 이름표를 «지금 잘렸는가»로 다시 판정한다. (검사에서도 직접 부른다) */
+export function syncLayerNameTooltip(el) {
+  if (!el) return null;
+  if (el.isContentEditable || el.classList.contains('editing')) { el.removeAttribute('title'); return null; }
+  const full = (el.textContent || '').trim();
+  /* +1 = 소수점 폭 반올림 여유. 안 주면 안 잘린 이름에도 이름표가 붙는 일이 생긴다. */
+  const clipped = el.scrollWidth > el.clientWidth + 1;
+  if (clipped && full) { el.setAttribute('title', full); return full; }
+  el.removeAttribute('title');
+  return null;
+}
+
+(function bindLayerNameTooltips() {
+  const init = () => installLayerNameTooltips();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
+  else init();
+})();
+
+window.installLayerNameTooltips = installLayerNameTooltips;
+window.syncLayerNameTooltip     = syncLayerNameTooltip;
+
 let _syncScrollRaf = 0;
 export function syncLayerActive(sec) {
   document.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));

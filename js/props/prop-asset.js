@@ -455,6 +455,57 @@ export function showAssetProperties(ab) {
     });
   });
 
+  /* ★「지금 어느 프리셋이 적용돼 있는지」 표시 (T-101 ③, 2026-09-21 사용자관점훑기 smallux)
+       재현(실앱 9550, New Design → 이미지블록 Square 추가 → Tall 클릭):
+         ab.style.height 는 1032px 로 바뀌는데 .prop-preset-btn 여섯 개 전부 active 없음
+         (실측 ["Standard:-","Square:-","Tall:-","Wide:-","Logo:-","A4:-"]).
+       선례를 그대로 쓴다 — 같은 폴더 prop-page.js 의 _syncColPresets(칼럼 6/12):
+         «현재 값이 정확히 그 프리셋일 때만» 켜고, 마지막으로 누른 단추를 기억하지 않는다.
+         기억해 두면 슬라이더로 높이를 한 칸만 움직여도 그 표시가 곧바로 거짓말이 된다.
+     ★왜 픽셀이 아니라 «비(比)»로 재나
+       같은 프리셋이라도 「패딩 제외」가 꺼져 있으면 실제 픽셀이 컨텐츠폭(860-2·padX)으로
+       줄어든 채 들어간다(바로 위 else 가지의 scaledH). 픽셀 동등비교만 하면 그 모드에서는
+       어떤 단추도 영영 안 켜진다. 비는 두 모드에서 같다(반올림 여유 1%).
+     ★Logo·A4 는 dataset.preset 이 따로 남으므로 그것까지 같아야 켠다 —
+       비만 우연히 같은 보통 블록이 Logo 로 보이지 않게.
+     ⛔크기가 바뀌는 «경로»를 손으로 나열하지 않는다(프리셋·슬라이더·숫자칸·모서리 핸들·
+       undo/redo·패딩 토글…). 그런 목록은 늙는다. 대신 블록의 style/data-preset 변화를
+       MutationObserver 로 본다 — 같은 파일 prop-page.js 의 내보내기 버튼이 쓰는 그 방식이다. */
+  const presetBtns = [...propPanel.querySelectorAll('.prop-preset-btn')];
+  const syncPresetActive = () => {
+    /* ⛔여기서는 readW() 를 쓰지 «않는다» — 그건 슬라이더가 보여줄 «논리 폭»(패딩포함 모드에선
+         style.width 가 비어 있어 860 을 돌려준다)이고, 그 모드의 실제 높이는 컨텐츠폭으로
+         줄어든 scaledH 다 ⇒ 둘을 섞어 비를 내면 어떤 프리셋과도 안 맞는다(실측: 860 vs 650).
+       ★대신 «그려진 상자»를 잰다. offsetWidth 는 layout 값이라 캔버스 줌(transform)과 무관하다
+         (같은 파일 readW() 의 calc() 갈래가 이미 그 이유로 offsetWidth 를 쓴다). */
+    const w = ab.offsetWidth || 0;
+    const h = parseInt(ab.style.height) || ab.offsetHeight || 0;
+    const cur = ab.dataset.preset || '';
+    presetBtns.forEach(b => {
+      const bw = parseInt(b.dataset.w), bh = parseInt(b.dataset.h);
+      const ok = (b.dataset.preset || '') === cur
+        && w > 0 && h > 0 && bw > 0 && bh > 0
+        && Math.abs(h / w - bh / bw) <= (bh / bw) * 0.01;
+      b.classList.toggle('active', ok);
+      b.title = ok ? '지금 적용돼 있는 프리셋입니다' : '';
+    });
+  };
+  if (window.__gdtAssetPresetObs) { try { window.__gdtAssetPresetObs.disconnect(); } catch (_) {} }
+  const _presetObs = new MutationObserver(() => {
+    /* 패널은 innerHTML 로 통째로 다시 그려진다 — 단추가 패널에서 떨어지면 스스로 끊는다. */
+    if (!presetBtns[0] || !presetBtns[0].isConnected) {
+      _presetObs.disconnect();
+      if (window.__gdtAssetPresetObs === _presetObs) window.__gdtAssetPresetObs = null;
+      return;
+    }
+    syncPresetActive();
+  });
+  try {
+    _presetObs.observe(ab, { attributes: true, attributeFilter: ['style', 'data-preset'] });
+    window.__gdtAssetPresetObs = _presetObs;
+  } catch (_) {}
+  syncPresetActive();
+
 
   const applyAlign = a => {
     ab.dataset.align = a;
