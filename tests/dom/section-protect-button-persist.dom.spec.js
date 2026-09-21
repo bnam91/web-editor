@@ -184,3 +184,159 @@ test('P5 ★보호 «자체»는 단추와 무관하다 — 가드가 읽는 것
     '★단추가 없다고 보호가 «풀렸다»고 한다 — 삭제 가드(js/editor.js)가 이 값을 읽는다. ' +
     '풀리면 이건 «표시 결함»이 아니라 «데이터 결함»이다').toBe(true);
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   P6~P9 — 「단추는 «있는데» 죽어 있다」와 「만든 섹션엔 아예 없다」 (T-094 나머지 둘)
+   ──────────────────────────────────────────────────────────────────────────
+   무엇이 있었나 (2026-09-22 실앱 실측, 포트 9626, b8da61c 판):
+     ⒜ 이 판에서 «만든» 섹션 4개 전부 st-protected-btn **0개**.
+        ⌘Z(rebindAll)가 지나가도 안 생겼다. 손으로 hydrate 를 부르니 그제야 생겼다
+        ⇒ 「없는 것」이 아니라 «부르는 데가 없는 것»이었다.
+        심는 곳은 _hydrateAllSectionsForProtection(init ＋ +1500ms) 둘뿐이고,
+        섹션을 «만드는» js/block-factory.js 는 그걸 안 불렀다.
+     ⒞ ★더 나쁜 쪽 — 저장하고 «다시 열면» 단추는 4개 다 보이는데 onclick 이 **null** 이다.
+        저장 소독기 sanitizeCanvasHtml(js/io/save-load.js:27)이 on* 을 걷어내고,
+        _ensureProtectionButton 은 그 setAttribute 를 `if (!btn) {…}` «안»에서만 했다
+        ⇒ 단추가 이미 있으면 다시 안 걸었다.
+        실측: 진짜 클릭 주입(hit-test 통과, 843,408) → 팝오버 «안 열림».
+        ★양성대조 — 같은 자리에 onclick 만 손으로 되돌리고 같은 좌표를 누르니 열렸다
+          ⇒ 「클릭이 안 닿은 것」이 아니라 «핸들러가 없는 것»이 맞다.
+     ⇒ 보호를 켜고 끄는 UI 입구가 «다시 연 판에서 통째로» 죽어 있었다. 그리고 차단 토스트
+       (js/editor.js)는 그 죽은 단추를 가리킨다.
+
+   고친 자리 둘:
+     ㉢ js/section-protection.js  onclick 을 `if (!btn)` «밖»으로 — 있든 없든 매번 건다
+     ㉣ js/block-factory.js       섹션을 만들 때 _ensureProtectionButton 을 부른다
+     ★역전 자가검사(2026-09-22, 반쪽을 «따로» 되돌려 재 봄):
+         ㉢만 되돌림 → **P7 · P8** 빨강 / 나머지 일곱 초록
+         ㉣만 되돌림 → **P9** 빨강      / 나머지 여덟 초록
+       ⇒ 겹치지 않는다. P7·P8 이 빨갛다고 block-factory 를 보지 말고,
+         P9 가 빨갛다고 section-protection 을 보지 마라.
+     ⛔이 되돌림을 스크립트로 할 때 «들여쓰기 4칸 줄»을 앵커로 쓰지 마라 —
+       6칸 줄이 그걸 품어서(substring) 첫 시도가 조용히 «안 바뀐 채» 9초록을 냈다.
+       앵커에 앞 줄바꿈을 붙여 «줄 전체»로 세라.
+
+   ★고친 뒤 실측(같은 포트): 갓 만든 섹션 onclick 있음 · rebindAll 뒤에도 있음 ·
+     저장→재열기 2섹션 전부 onclick 있음 · 진짜 클릭 → 팝오버 열림 · 빈 ⌘Z 칸 0.
+═══════════════════════════════════════════════════════════════════════════ */
+
+/** 소스에서 `function <이름>(` 부터 중괄호 짝까지 «그대로» 잘라 온다(베끼면 늙는다). */
+function cutFn(src, name) {
+  const i = src.indexOf(`function ${name}(`);
+  if (i < 0) return null;
+  const s = src.indexOf('{', i);
+  let d = 0;
+  for (let k = s; k < src.length; k++) {
+    if (src[k] === '{') d++;
+    else if (src[k] === '}' && --d === 0) return src.slice(i, k + 1);
+  }
+  return null;
+}
+
+test('P6 ★전제 — 저장 소독기가 🔓 의 onclick 을 «실제로» 걷어낸다', async ({ page }) => {
+  /* 이 전제가 바뀌면 ㉢ 의 «까닭»이 달라진다. 말로 두지 않고 그 함수를 꺼내 돌린다. */
+  const SRC = fs.readFileSync(path.join(REPO, 'js', 'io', 'save-load.js'), 'utf8');
+  const fn = cutFn(SRC, 'sanitizeCanvasHtml');
+  expect(fn, '★sanitizeCanvasHtml 을 못 꺼냈다 — 이 검사가 «안 돈» 것이지 통과가 아니다').toBeTruthy();
+
+  await page.goto('about:blank');
+  const r = await page.evaluate((fnSrc) => {
+    const sanitize = new Function(`${fnSrc}; return sanitizeCanvasHtml;`)();
+    const html = '<div class="section-toolbar">'
+      + '<button class="st-btn st-protected-btn" onclick="window.toggleSectionProtectionPopover(this)">🔓</button>'
+      + '</div>';
+    const out = sanitize(html);
+    const t = document.createElement('template'); t.innerHTML = out;
+    const b = t.content.querySelector('.st-protected-btn');
+    return { 단추남았나: !!b, onclick: b ? b.getAttribute('onclick') : '(단추없음)' };
+  }, fn);
+
+  expect(r.단추남았나, '★소독기가 단추까지 지운다 — 그러면 이 건의 모양이 «죽은 단추»가 아니다').toBe(true);
+  expect(r.onclick,
+    '★소독기가 이제 on* 을 «안» 걷는다 — ㉢(매번 다시 걸기)의 까닭이 사라졌다. ' +
+    '고침을 지우지 말고 이 주석과 카드를 «먼저» 고쳐라').toBe(null);
+});
+
+test('P7 ★_ensureProtectionButton 은 «이미 있는» 단추에도 onclick 을 다시 건다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(() => {
+    const sec = document.getElementById('sec1');
+    window._ensureProtectionButton(sec);                       // ⑴ 새로 만든다
+    const b = sec.querySelector('.st-protected-btn');
+    const 처음 = b.getAttribute('onclick');
+    b.removeAttribute('onclick');                              // ⑵ 저장 소독기가 한 짓을 흉내
+    const 걷힌뒤 = b.getAttribute('onclick');
+    window._ensureProtectionButton(sec);                       // ⑶ 다시 연 뒤 hydrate 가 부른다
+    const b2 = sec.querySelector('.st-protected-btn');
+    return {
+      처음, 걷힌뒤, 되살아남: b2.getAttribute('onclick'),
+      같은노드인가: b2 === b,
+      단추수: sec.querySelectorAll('.st-protected-btn').length,
+      핸들러있나: typeof window.toggleSectionProtectionPopover,
+    };
+  });
+  expect(r.처음, '★처음부터 onclick 이 안 걸린다 — 검사가 «안 돈» 것이다').toBe('window.toggleSectionProtectionPopover(this)');
+  expect(r.걷힌뒤, '★전제가 안 섰다 — onclick 을 못 걷어냈다').toBe(null);
+  expect(r.되살아남,
+    '★다시 연 판에서 🔓 가 «있는데 죽어 있다» — onclick 설정이 `if (!btn)` 안에 있으면 ' +
+    '단추가 이미 있을 때 다시 안 걸린다. 보호를 켜고 끄는 UI 입구가 그 onclick 하나뿐이다')
+    .toBe('window.toggleSectionProtectionPopover(this)');
+  expect(r.같은노드인가, '★단추를 새로 만들어 버렸다 — 켜짐 상태·자리가 흔들린다').toBe(true);
+  expect(r.단추수, '★단추가 늘었다 — 부를 때마다 쌓이면 툴바가 «내용»으로 읽혀 T-136 을 키운다').toBe(1);
+  expect(r.핸들러있나, '★onclick 이 가리키는 함수가 없다 — 되살려도 눌리지 않는다').toBe('function');
+});
+
+test('P8 ★음성대조 둘 — 계측기가 «죽은 단추»를 실제로 본다', async ({ page }) => {
+  await boot(page);
+  /* ⑴ 행동 대조: 다시 안 부르면 null 로 «남는다»(P7 의 초록이 「못 걷어내서」가 아님) */
+  const 남나 = await page.evaluate(() => {
+    const sec = document.getElementById('sec1');
+    window._ensureProtectionButton(sec);
+    const b = sec.querySelector('.st-protected-btn');
+    b.removeAttribute('onclick');
+    return b.getAttribute('onclick');
+  });
+  expect(남나, '★안 불렀는데도 onclick 이 돌아온다 — 다른 데서 걸고 있다. P7 은 이 고침을 «안» 잠근다').toBe(null);
+
+  /* ⑵ 모양 대조: 옛 꼴(= setAttribute 가 `if (!btn) {…}` «안»)로 되돌아가면 빨강이어야 한다 */
+  const SRC = fs.readFileSync(path.join(REPO, 'js', 'section-protection.js'), 'utf8');
+  const fn = cutFn(SRC, '_ensureProtectionButton');
+  expect(fn, '★_ensureProtectionButton 을 못 꺼냈다 — 검사가 안 돈 것이다').toBeTruthy();
+  const i = fn.indexOf('if (!btn) {');
+  expect(i, '★`if (!btn) {` 분기를 못 찾았다 — 모양이 바뀌었다. 이 대조를 다시 써라').toBeGreaterThan(0);
+  let d = 0, end = -1;
+  for (let k = fn.indexOf('{', i); k < fn.length; k++) {
+    if (fn[k] === '{') d++;
+    else if (fn[k] === '}' && --d === 0) { end = k; break; }
+  }
+  const 분기안 = fn.slice(i, end + 1);
+  expect(fn, '★onclick 을 거는 줄이 통째로 사라졌다').toContain("setAttribute('onclick'");
+  expect(분기안,
+    '★onclick 설정이 «단추를 새로 만들 때만» 도는 자리로 돌아갔다 — 저장 소독기가 걷어낸 뒤 ' +
+    '다시 안 걸리므로 다시 연 판에서 단추가 죽는다(P6 이 그 전제를 잰다)')
+    .not.toContain("setAttribute('onclick'");
+});
+
+test('P9 ★섹션을 «만드는» 자리가 🔓 를 심는다 (hydrate 두 번에만 기대지 않는다)', async ({ page }) => {
+  /* ⛔block-factory.js 는 통째로 하네스에 못 얹는다(의존이 크다) — 자리를 «소스»로 잰다.
+     행동 쪽은 실앱에서 쟀다: 고치기 전 갓 만든 섹션 단추 0개 → 고친 뒤 있음(2026-09-22). */
+  const SRC = fs.readFileSync(path.join(REPO, 'js', 'block-factory.js'), 'utf8');
+  /* 양성대조 — 이 앵커가 실재하는지 «먼저» 본다. 없으면 아래 초록은 「못 봐서」다. */
+  expect(SRC, '★기준 앵커(bindVariationToolbarBtn 호출)가 없다 — 이 검사가 «안 돈» 것이다')
+    .toContain('window.bindVariationToolbarBtn(sec)');
+  expect(SRC,
+    '★섹션을 만드는 자리가 _ensureProtectionButton 을 «안» 부른다 — 심는 곳이 ' +
+    '_hydrateAllSectionsForProtection(init ＋ +1500ms) 둘뿐이라 그 뒤에 만든 섹션엔 ' +
+    '🔓 가 «아예» 없다(⌘Z 가 지나가도 안 생긴다). 그런데 삭제 차단 토스트는 그 단추를 가리킨다')
+    .toContain('window._ensureProtectionButton(sec)');
+
+  /* ⛔«자리»도 같이 못 박는다 — 📝 다음이어야 한다(P2 와 같은 규약). 실제 배치는 하네스로. */
+  await boot(page);
+  const order = await page.evaluate(() => {
+    window._ensureProtectionButton(document.getElementById('sec1'));
+    return [...document.querySelectorAll('#sec1 > .section-toolbar > .st-btn')].map(b => b.className.replace('st-btn ', ''));
+  });
+  const iMemo = order.findIndex(c => c.includes('st-memo-btn'));
+  const iProt = order.findIndex(c => c.includes('st-protected-btn'));
+  expect(iProt, `★만들 때 심은 🔓 자리가 ${iProt} 다(툴바: ${order.join(', ')}) — 📝 다음이어야 한다`).toBe(iMemo + 1);
+});

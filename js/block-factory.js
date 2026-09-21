@@ -1486,6 +1486,16 @@ function addSection(opts = {}) {
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .qa-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
+  /* ★🔓 보호 단추를 «만들 때» 심는다 (T-094 ⒜⒝ · 2026-09-22 실앱 실측).
+     왜 — 심는 곳이 _hydrateAllSectionsForProtection(로드 때 ＋ +1500ms) «둘뿐»이라,
+     그 뒤에 만든 섹션은 단추가 «아예 없었다». ⌘Z(rebindAll)가 지나가도 안 생겼다.
+     실측(포트 9626): 이 판에서 만든 섹션 4개 전부 st-protected-btn 0개 ·
+       손으로 hydrate 를 부르니 그제야 생김 ⇒ 「없다」가 아니라 «부르는 데가 없다».
+     ⛔그런데 앱은 「🔒 버튼으로 보호 해제 후 삭제하세요」(js/editor.js)라고
+       «없는 단추»를 가리킨다 — 안내문이 가리키는 자리를 실제로 있게 만든다.
+     ★자리는 _ensureProtectionButton 이 스스로 정한다(📝 다음). ab 는 「🔒 없으면 📝」
+       다음에 붙으므로 이 줄이 «앞이든 뒤든» 정착 차례는 [📝,🔓,A/B,✨] 로 같다(T-140). */
+  if (window._ensureProtectionButton) window._ensureProtectionButton(sec);
 
   // GAP-003: 전체 레이어패널 재구성(O(n)) 대신 신규 섹션 행만 증분 추가(O(1)). 미지원 시 폴백.
   if (window.appendLayerSection) window.appendLayerSection(sec);

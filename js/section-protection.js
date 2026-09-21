@@ -205,8 +205,18 @@
       btn.type = 'button';
       btn.textContent = '🔓';
       btn.title = '섹션 보호 (잠금)';
-      btn.setAttribute('onclick', 'window.toggleSectionProtectionPopover(this)');
     }
+    /* ★★onclick 은 «있든 없든 매번» 다시 건다 (T-094 ⒞ · 2026-09-22 실앱 실측).
+       왜 — 저장할 때 sanitizeCanvasHtml 이 on* 속성을 걷어낸다. 그래서 파일을 다시 열면
+       단추는 «그대로 보이는데» onclick 이 null 이라 눌러도 아무 일도 안 난다.
+       예전엔 이 줄이 위 `if (!btn)` 안에 있어서, 단추가 «이미 있으면» 다시 안 걸었다
+       ⇒ 다시 연 판에서 보호를 켜고 끄는 «유일한 입구»가 죽어 있었다.
+       실측(포트 9626): 다시 연 뒤 4섹션 전부 onclick=null · 진짜 클릭 주입 → 팝오버 안 열림.
+         양성대조 — 그 자리에 onclick 만 손으로 되돌리고 같은 자리를 누르니 팝오버가 열렸다
+         ⇒ 「클릭이 안 닿은 것」이 아니라 «핸들러가 없는 것»이 맞다.
+       ⛔같은 병이 📝 쪽에도 있어 js/io/save-load.js 가 rebindAll 에서 _ensureMemoButton 을
+         다시 부른다 — 여긴 그 호출조차 없었다. 그래서 «자기 안에서» 매번 걸게 한다. */
+    btn.setAttribute('onclick', 'window.toggleSectionProtectionPopover(this)');
     // 위치: 📝 메모 버튼 다음 (두 번째 자리). memo가 없으면 첫 자리.
     const memoBtn = tb.querySelector(':scope > .st-memo-btn');
     if (memoBtn) {
