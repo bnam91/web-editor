@@ -3,14 +3,25 @@
  * add_text_block(block-factory.js) 패턴을 미러링: pushHistory(undo) + scheduleAutoSave + applyTextOpts 정렬 규칙.
  */
 
-// id로 블록 element 반환 (블록 컨테이너 아니면 null)
-// '-block'으로 끝나는 클래스 + dataset.type 동시 충족만 블록으로 인정.
-// (row/section/col 등 비블록 컨테이너는 dataset.type 없어 차단)
+/* id로 블록 element 반환 (블록 컨테이너 아니면 null)
+   「블럭인가」 = '-block' 으로 끝나는 클래스 + «선택 단위임을 말해 주는 성질» 하나.
+     ⑴ dataset.type 이 있거나,
+     ⑵ 우측 패널 정본 표(js/panel-dispatch.js)가 이 클래스를 안다.
+   ★⑵ 가 2026-09-22(T-084 후속)에 붙었다. 예전엔 ⑴ 만 봤는데, dataset.type 을 «안 다는»
+     블럭이 셋 있었다 — .asset-block · .icon-text-block · .label-group-block(실측 9639,
+     캔버스 전수: -block 클래스 31종 중 type 없는 것은 이 셋 + 컨테이너 둘뿐).
+     셋 다 클릭하면 선택되고 제 패널이 뜨는 진짜 블럭인데(실측: 이미지 블럭 클릭 →
+     .selected + 「Asset Block」), selectBlock 은 false 만 돌려줬다 ⇒ 도구막대로 넣어도
+     파란 표시가 «영영 안 붙고», js/inspector.js 점검 점프·MCP 진입점도 조용히 안 먹었다.
+   ⛔«막을 목록»(row/col/section/frame/group)을 여기 적지 마라 — 그것들은 패널 표에 없어서
+     저절로 빠진다. 열거로 막기 시작하면 그 열거가 낡는다(T-079 가 정확히 그 병이었다).
+   ⚠️panel-dispatch 없이 block-edit.js 만 얹는 하네스가 있어 ⑵ 는 «있으면 쓴다» 꼴이다. */
 function getBlockById(id) {
   if (!id) return null;
   const el = document.getElementById(String(id));
   if (!el || !el.classList) return null;
-  const isBlockEl = [...el.classList].some((c) => c.endsWith('-block')) && !!el.dataset?.type;
+  const looksBlock = [...el.classList].some((c) => c.endsWith('-block'));
+  const isBlockEl = looksBlock && (!!el.dataset?.type || window.hasPanelForBlock?.(el) === true);
   return isBlockEl ? el : null;
 }
 

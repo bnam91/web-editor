@@ -103,3 +103,22 @@ function openPanelForBlock(el) {
 }
 
 window.openPanelForBlock = openPanelForBlock;
+
+/** 「이 요소는 우측 패널을 가진 «블럭»인가」 — 위 표를 그대로 읽는 «부작용 없는» 판정.
+ *  ★목록을 새로 만들지 않는다. openPanelForBlock 과 «같은 표·같은 특례»를 본다.
+ *  ★왜 필요한가 (2026-09-22 T-084 후속) — js/block-edit.js getBlockById 는 「블럭인가」를
+ *    «dataset.type 이 있는가»로 쟀다. 그런데 실측(9639)에서 dataset.type 이 «없는» 블럭이
+ *    셋 있었다 — .asset-block · .icon-text-block · .label-group-block.
+ *    셋 다 캔버스에서 «클릭하면 선택되고 제 패널이 뜨는» 진짜 블럭인데(실측: 이미지 블럭을
+ *    클릭 → .selected + 「Asset Block」 패널), window.selectBlock(id) 은 false 를 돌려주고
+ *    아무것도 안 했다 ⇒ 도구막대로 넣어도 표시가 안 붙고, js/inspector.js 의 점검 점프와
+ *    MCP 진입점도 그 셋에는 조용히 안 먹었다.
+ *  ⛔여기서 «비블럭 컨테이너»를 열거해 막지 않는다 — .section-block·.frame-block·.group-block 은
+ *    표에 없어서 저절로 빠진다. 막을 목록을 적기 시작하면 그 목록이 낡는다(T-079 가 그 병이었다). */
+function hasPanelForBlock(el) {
+  if (!el || !el.classList) return false;
+  if (el.classList.contains('gradient-block') || el.classList.contains('sticker-block')) return true;
+  return _PANEL_BY_CLASS.some(([cls]) => el.classList.contains(cls));
+}
+
+window.hasPanelForBlock = hasPanelForBlock;

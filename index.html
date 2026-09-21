@@ -1000,6 +1000,10 @@
      같이 먹던 이음매를 메운다. 플레인 스크립트지만 설치는 DOMContentLoaded 에서 한다
      (module 대입이 그때면 전부 끝나 있다 — js/insert-history.js 머리말). -->
 <script src="js/insert-history.js"></script>
+<!-- 삽입 «선택 따라가기»(T-084). 블럭을 넣으면 파란 선택 표시와 우측 패널이 새 블럭으로 옮겨간다.
+     ⛔로스터의 정본은 js/insert-history.js 다 — 이 태그는 «반드시 그 다음»에 와야 한다
+     (먼저 오면 window.__insertSeamRoster 가 아직 없어 0자리로 설치된다 · js/insert-select.js 규약 ①). -->
+<script src="js/insert-select.js"></script>
 <!-- 협업 undo 섹션 diff 유틸. market-merge(해시)·section-serialize(세척) «뒤». -->
 <script src="js/history-diff.js"></script>
 <!-- 협업 동기화 루프. market-merge «뒤»여야 한다 — 섹션 해시를 그걸 빌려 쓴다. -->
