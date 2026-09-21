@@ -2,6 +2,7 @@
    TEMPLATE SYSTEM
 ═══════════════════════════════════ */
 import { canvasEl } from '../globals.js';
+import { fitScale } from '../fit-scale.js';
 
 const TEMPLATE_KEY = 'sangpe-templates'; // localStorage fallback key
 /* ★1회성 이관 마커 — 「이미 옮겼나」를 «캐시 건수»가 아니라 이걸로 판정한다.
@@ -616,9 +617,7 @@ async function showTemplatePreview(id) {
     const sectionH = section.scrollHeight;
     const viewportW = previewCanvas.clientWidth;
     const viewportH = previewCanvas.clientHeight;
-    const scaleX = viewportW / CANVAS_WIDTH;
-    const scaleY = viewportH / sectionH;
-    const scale = Math.min(scaleX, scaleY);
+    const scale = fitScale(CANVAS_WIDTH, sectionH, viewportW, viewportH);   // [U-26] 공식은 js/fit-scale.js 한 곳
     section.style.transform = `scale(${scale})`;
     section.style.transformOrigin = 'top left';
   }

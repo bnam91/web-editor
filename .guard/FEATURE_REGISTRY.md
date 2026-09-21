@@ -62,8 +62,14 @@
 
 [ ] Fit to View
     동작: zoomFit() 호출
-    기대: currentZoom = floor((canvasWrap.clientWidth - 80) / 860 * 100)
+    기대: currentZoom = floor(min(가로여유/860, 세로여유/캔버스자연높이) * 100)
+          가로여유 = canvasWrap.clientWidth - 80, 세로여유 = canvasWrap.clientHeight - 80
+          (#canvas-wrap padding 40px 사방 · 자연높이 = document.getElementById('canvas').scrollHeight)
+          섹션 0개(자연높이 0)면 옛 폭기준으로 폴백
     주의: 창 크기 바뀌면 결과가 달라짐
+    ★2026-09-21(U-26/fitzoom) 변경 — 옛 기대값은 «폭 하나»(floor((clientWidth-80)/860*100))였다.
+      그건 버그를 그대로 베낀 계약이었다: 세로로 긴 페이지에서 Fit 이 «확대»됐다(.userlens A32).
+      검사: tests/dom/fit-zoom-page.dom.spec.js · tests/unit/fit-scale.test.mjs
 ```
 
 ### 팬 모드 (Space + 드래그)

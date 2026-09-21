@@ -1,6 +1,7 @@
 import { canvasEl, propPanel, state, BLOCK_DELEGATE_SEL } from './globals.js';
 import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './history.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
+import { fitScale } from './fit-scale.js';
 import { setTextTypeClass, afterTextTypeChange } from './props/text-type-class.js';
 
 /* ═══════════════════════════════════
@@ -814,9 +815,67 @@ function zoomByRatio(ratio) {
   zoomStep(currentZoom * (ratio - 1));
 }
 
+/* ★[U-26/fitzoom · 2026-09-21] 「Fit」은 «폭 맞춤»이 아니라 «화면 맞춤»이다.
+   옛 식은 `(wrap.clientWidth - 80) / CANVAS_W` — 분자·분모가 «둘 다 가로»라 세로를 아예 안 봤다.
+   이 앱의 정상 모양은 섹션 여러 개짜리 «세로로 긴» 랜딩페이지라 콘텐츠 총높이가 항상 폭보다 크다
+   ⇒ 폭만 맞춘 배율은 «정의상» 전체가 들어오는 배율보다 크다 ⇒ Fit 을 눌렀는데 확대된다.
+     [실측 2026-09-20 훑기 / .userlens A32] 「Fit 눌렀더니 123% 로 확대되고 스크롤만 길어진다」.
+     [실측 2026-09-21 tests/dom/fit-zoom-page] wrap 800×600·콘텐츠 2080px → 옛 식 83% =
+       화면에 1726px 을 그리려 한다(가용 520px). 첫·마지막 섹션이 화면 밖으로 나가는 것도 같은 뿌리다.
+   ⇒ 두 축의 min 으로 바꾼다. ★새 공식이 아니다 — 같은 레포의 template-browser.js·template-system.js
+     가 미리보기에서 이미 쓰던 공식이고, 캔버스 줌만 그 패턴에서 빠져 있었다(js/fit-scale.js 로 합쳤다).
+   ⛔`-80` 은 #canvas-wrap{padding:40px} «사방 동일»에서 나온 값이라 세로에도 같은 수를 쓴다
+     (새 매직넘버가 아니다 — css/editor-canvas.css:71~78).
+   ⛔높이는 #canvas 의 scrollHeight «자연(미축소)» 값을 쓴다: transform:scale 은 레이아웃 박스를
+     안 바꾸므로 현재 배율에 안 흔들린다(_syncScalerHeight 의 reflow-reset 트릭이 필요 없다).
+     scaler 가 아니라 #canvas 를 재는 이유는 스크래치(절대배치 자식)를 빼기 위해서다 — Fit 은
+     «섹션 콘텐츠»에 맞춘다(_syncScalerHeight:604 가 세워 둔 「스크래치는 별도」 규약 그대로).
+   ⚠️섹션이 0개면 naturalH 가 0 이다 — 그때는 옛 폭기준으로 «폴백»한다. 0섹션의 처우는 이 수정의
+     범위가 아니다(건드리면 조용히 다른 것이 바뀐다). */
 function zoomFit() {
   const wrap = document.getElementById('canvas-wrap');
-  applyZoom(Math.floor(((wrap.clientWidth - 80) / CANVAS_W) * 100), { keepViewportCenter: true });  // [M62]
+  const canvasElForFit = document.getElementById('canvas');
+  const availW = wrap.clientWidth - 80;
+  const availH = wrap.clientHeight - 80;
+  const naturalH = canvasElForFit ? canvasElForFit.scrollHeight : 0;
+  const scale = naturalH > 0
+    ? fitScale(CANVAS_W, naturalH, availW, availH)
+    : availW / CANVAS_W;
+  applyZoom(Math.floor(scale * 100), { keepViewportCenter: true });  // [M62]
+
+  /* ★배율만 맞추고 «어디를 보고 있는지»를 안 고치면 아직 Fit 이 아니다.
+     applyZoom 의 keepViewportCenter(:198~)는 「배율 전 화면 «중앙»에 있던 캔버스 지점을 배율 후에도
+     중앙에 둔다」는 앵커 보존이다 — ⌘0·휠줌엔 맞는 뜻이지만, Fit 에서는 「전체가 들어오게」와 다르다.
+     [실측 2026-09-21 앱 9526, 섹션 5개 natH 1814, wrap 954×856, 40% → Fit]
+       배율은 42% 로 맞게 나왔는데(1814×0.42 = 762 ≤ 가용 776) 첫 섹션 top 이 −290
+       (wrap top 44) 으로 «화면 위로 잘려» 있었고 아래엔 428px 빈 회색이 남았다.
+       앵커 u 가 0.9 언저리였기 때문이다 — 콘텐츠가 뷰포트보다 «작아지면» 어떤 u 를 중앙에
+       두든 위아래 한쪽이 반드시 밀려난다. 훑기의 「첫·마지막 섹션이 화면 밖」이 바로 이 자리다.
+     ⇒ 전부 들어가는 배율이 됐으면 «가운데 놓는다». 안 들어가면(0섹션 폴백 등) 손대지 않는다.
+     ⛔applyZoom 쪽을 고치지 않는다 — 거기는 ⌘0·탭복원·zoomStep 이 같이 지나는 자리다.
+       「전체를 보이게」는 Fit «만»의 뜻이라 Fit 에서 한다.
+     ★transition 주의: keepViewportCenter 경로는 scaler 의 transform 전이를 끄고 rAF 에서 되돌린다
+       (:203·:311). 그래서 여기서 재는 rect 는 «보간 중» 값이 아니다 — 지금 재는 게 맞다. */
+  const cr = canvasElForFit ? canvasElForFit.getBoundingClientRect() : null;
+  if (cr && cr.height > 0) {
+    const wr = wrap.getBoundingClientRect();
+    if (cr.height <= wrap.clientHeight) {
+      wrap.scrollTop += cr.top - (wr.top + (wrap.clientHeight - cr.height) / 2);
+    }
+    /* ★가로도 같이 가운데로 — 「어떤 때는 캔버스가 텅 빈다」의 «진짜» 자리다.
+       [실측 2026-09-21 앱 9526] 가로 팬 여지가 상시 있다(scrollWidth 2860 vs clientWidth 954 —
+       S2 팬 여지). 그래서 사용자가 옆으로 밀어 두면 캔버스가 «가로로» 화면 밖으로 완전히 나간다
+       (세로 교집합 856 인데 가로 교집합 ★0 = 회색만 보인다). 그 상태에서 Fit 을 눌러도
+       옛 코드는 scrollLeft 를 «한 번도» 안 건드렸다 ⇒ 배율만 바뀌고 화면은 여전히 텅 비었다
+       (실측: Fit 후 가로 교집합 0 그대로). applyZoom 의 keepViewportCenter 도 «세로 전용»이라
+       구해 주지 못한다(:216 앵커는 세로 정규화 좌표 하나뿐).
+       ⇒ 후보 H1(섹션 0개라 앵커가 안 선다)·H2(scrollTop clamp)가 아니라 «가로축 미복원»이었다.
+       ⛔노치(:3452)가 가로를 되돌리는 «유일한» 길이었는데, 캔버스가 안 보이면 노치를 찾을 생각을
+         못 한다 — 사용자가 스스로 못 빠져나오는 상태였다(M62 주석이 세로에 대해 적어 둔 그 사정). */
+    if (cr.width > 0 && cr.width <= wrap.clientWidth) {
+      wrap.scrollLeft += cr.left - (wr.left + (wrap.clientWidth - cr.width) / 2);
+    }
+  }
 }
 
 
