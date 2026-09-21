@@ -281,7 +281,62 @@ export async function prepareCloneForCapture(sec, w, useNative) {
 
   // 레이아웃 강제 확정 (offsetWidth/Height 정확도)
   clone.getBoundingClientRect();
+  // ★내보내기 폭이 화면 폭과 다르면 그림은 «자르지 말고 줄인다» — 바로 아래 함수 머리말 참조
+  syncImageBoxesToCaptureWidth(sec, clone);
+  clone.getBoundingClientRect();
   return clone;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ①-b 내보내기 폭 ≠ 화면 폭일 때 «그림 상자»의 세로 — export 와 truth 가 «같이» 쓴다.
+
+   ★현빈 결정 2026-09-21: 「780되게끔 줄이는 걸로」 = 큰 그림을 «잘라내지 말고» 폭에 맞춰
+     축소해 전부 보이게. 세로도 비율대로 따라간다.
+
+   ★고치기 전 기전 (실측 근거: tests/dom/export-width-scale-down.dom.spec.js 음성대조)
+     내보내기는 섹션을 복제하고 «클론의 폭만» 바꾼다(위 prepareCloneForCapture). 그래서
+     폭이 상대값인 블록은 780 으로 따라 줄지만 «높이»는 절대 px 로 잠겨 있다
+     (스크래치 = canvas-scratch-drop.js applyAspectSync · 패널 = props/prop-asset.js).
+     상자가 «폭만» 좁아지면 비율이 그림보다 좁아져 `.asset-img{object-fit:cover}` 가
+     좌우를 깎는다 — 860→780 이면 (860−780)/2 = 40px 씩. 신고문의 그 40px 이다.
+   ⇒ 클론에서 그림 상자의 «비율»을 화면과 같게 다시 잠근다. 비율이 같으면 cover 가 깎는
+     비율도 같으니 결과는 「화면과 같은 그림, 크기만 작게」가 된다.
+     · 폭이 상대값인 블록(풀블리드 등) = 폭이 줄어든 만큼 세로도 줄어든다.
+     · 폭이 절대 px 인 블록(220px 그림 등) = 폭이 안 변하니 세로도 «안» 변한다(음성대조 E4).
+     · 등폭(860) 내보내기 = 계산값이 원래 값과 같아 한 톨도 안 바뀐다(E1).
+
+   ★왜 여기(공용 ①)인가 — 이건 «export 전용 변환»이 아니다. 게이트의 truth 도
+     prepareCloneForCapture 로 같은 클론을 만든다(js/io/export-gate.js). 한쪽에만 넣으면
+     export 와 truth 의 세로가 갈려 «멀쩡한 산출물»이 차이로 잡힌다.
+   ⛔라이브 DOM 은 건드리지 않는다 — 화면에서 보이던 크기는 그대로다.
+   ★줌(캔버스 scale(0.4))에 안 속는다 — 라이브 쪽에서 쓰는 건 rect 의 «비율»뿐이라 배율이
+     약분된다. (offsetWidth 는 정수로 반올림돼 큰 상자에서 오차가 생기므로 쓰지 않는다.)
+   반환 = 손댄 블록 수(검사·디버깅용).
+   ══════════════════════════════════════════════════════════════════════════ */
+export function syncImageBoxesToCaptureWidth(liveSec, clone) {
+  if (!liveSec || !clone) return 0;
+  const lives  = Array.from(liveSec.querySelectorAll('.asset-block'));
+  const clones = Array.from(clone.querySelectorAll('.asset-block'));
+  // 짝짓기: id 우선, 없으면 «수가 같을 때만» 자리번호로(스트립이 블록을 지운 경우 손대지 않는다)
+  const sameCount = lives.length === clones.length;
+  let n = 0;
+  clones.forEach((cb, i) => {
+    const h = (cb.style.height || '').trim();
+    if (!/^[0-9.]+px$/.test(h)) return;          // 절대 px 로 «잠긴» 상자만 — auto 는 이미 따라 흐른다
+    let live = null;
+    if (cb.id) { try { live = liveSec.querySelector('#' + CSS.escape(cb.id)); } catch (_) { live = null; } }
+    if (!live && sameCount) live = lives[i];
+    if (!live) return;
+    const lr = live.getBoundingClientRect();
+    if (!(lr.width > 0) || !(lr.height > 0)) return;
+    const cw = cb.getBoundingClientRect().width;
+    if (!(cw > 0)) return;
+    const want = cw * (lr.height / lr.width);
+    if (!(want > 0) || Math.abs(want - parseFloat(h)) < 0.5) return;  // 등폭 내보내기는 무변화
+    cb.style.height = want + 'px';
+    n++;
+  });
+  return n;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

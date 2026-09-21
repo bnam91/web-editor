@@ -20,7 +20,7 @@
  *   X3 ★780 에서 «중간» 밴드(콘텐츠폭 < 표시폭 < 섹션폭)도 잘린다 → 고치면 0
  *   X4 음성대조 — 작은 그림(220px, 넘침 없음)은 원래도 안 잘린다 (절대 px 가 «다 나쁜 게» 아니다)
  *   X5 가드 — 고친 뒤에도 «860 편집 화면»에서 보이던 폭은 그대로다 (스크래치 계약 불변)
- *   X7 ★기록 — 이 고침이 «안» 닫은 문: 높이는 그대로라 object-fit:cover 가 같은 40px 을 깎는다
+ *   X7 ★높이도 내보내기 폭을 따라 줄어든다(2026-09-21 현빈 결정 — 옛 «기록»을 갈아끼웠다)
  *
  * ★★이 스펙이 재는 축을 «사용자 증상»으로 읽지 말 것 (2026-09-20 실앱 재검증)
  *   위 X1~X5 가 재는 것은 «블록이 섹션 상자 밖으로 나갔나»(레이아웃 축) 하나다. 그 축은 0 이 맞다.
@@ -35,8 +35,9 @@
  *   ㉡ 은 스크래치 드롭이 만든 게 «아니다» — 패널로 만든 보통 풀블리드 에셋
  *     (prop-page.applyAssetFullBleed + 높이 px)도 780 에서 똑같이 40 씩 깎인다(실측 확인).
  *     = 「내보내기는 클론 «폭만» 바꾼다」라는 레포 기준선의 결과다.
- *   ⇒ ㉡ 을 닫으려면 「780 내보내기에서 그림을 «줄일» 것인가 «자를» 것인가」를 정해야 하고,
- *     그건 모든 내보내기의 세로 크기를 바꾼다 ⇒ **현빈 결정 사안**. 여기서 조용히 바꾸지 말 것.
+ *   ⇒ ㉡ 은 **2026-09-21 현빈 결정으로 닫혔다** — 「780되게끔 줄이는 걸로」(자르지 말고 축소).
+ *     고친 자리 = js/io/export-image.js syncImageBoxesToCaptureWidth (클론에서 그림 상자의
+ *     «비율»을 화면과 같게 다시 잠근다). 아래 X7 이 그 뜻을 지킨다.
  *
  * ⛔앱을 «안» 띄운다 — page.route 로 레포를 가짜 origin 에 얹어 진짜 모듈을 import 한다.
  * ⚠️내보내기 «폭 바꾸기» 한 줄은 여기서 흉내 낸다(export-image.js 는 html2canvas·CDP 를 끌고 와
@@ -69,8 +70,14 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <script type="module">
   import { commitScratchDropAt } from '/js/canvas-scratch-drop.js';
   import { showAssetProperties } from '/js/props/prop-asset.js';
+  /* ★2026-09-21 — 내보내기 «흉내»를 걷어내고 진짜 함수를 부른다.
+     현빈 결정(「780되게끔 줄이는 걸로」)으로 내보내기가 «폭만» 바꾸는 게 아니라
+     그림 상자의 세로도 같이 줄이게 됐다(export-image.js syncImageBoxesToCaptureWidth).
+     흉내 한 줄로는 그 절반만 재게 돼 X7 이 «낡은 기록»이 된다. */
+  import { prepareCloneForCapture } from '/js/io/export-image.js';
   window.__commit = commitScratchDropAt;
   window.__open = showAssetProperties;
+  window.__prep = prepareCloneForCapture;
   window.getBlockBreadcrumb = () => ''; window.setRpIdBadge = () => {};
   window.getEffectiveUsePadx = (ab) => ab.dataset.usePadx === 'true';
   window.pushHistory = () => {}; window.scheduleAutoSave = () => {};
@@ -104,7 +111,7 @@ async function boot(page) {
 
 /** 스크래치 아이템을 표시폭 `want` 로 섹션에 떨어뜨린 뒤,
  *  내보내기와 «같은 방식»으로 섹션을 복제해 폭 exportW 로 두고 삐져나간 양을 잰다. */
-const dropAndExport = (page, want, exportW) => page.evaluate(({ want, exportW, PX }) => {
+const dropAndExport = (page, want, exportW) => page.evaluate(async ({ want, exportW, PX }) => {
   document.getElementById('sp').style.width = want + 'px';
   const inner = document.getElementById('inner');
   inner.innerHTML = '';
@@ -119,13 +126,9 @@ const dropAndExport = (page, want, exportW) => page.evaluate(({ want, exportW, P
   const live = document.getElementById('ab_t');
   const liveW = live ? +live.getBoundingClientRect().width.toFixed(1) : null;
 
-  /* ★내보내기가 하는 그 한 줄 — js/io/export-image.js prepareCloneForCapture 와 같은 꼴.
-     (라벨·툴바 제거 같은 나머지는 이 측정과 무관해 생략한다.) */
+  /* ★내보내기 «그 자체» — 흉내가 아니라 js/io/export-image.js prepareCloneForCapture 를 부른다. */
   const sec = document.getElementById('sec');
-  const clone = sec.cloneNode(true);
-  clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + exportW + 'px;margin:0;';
-  document.body.appendChild(clone);
-  clone.getBoundingClientRect();
+  const clone = await window.__prep(sec, exportW, false);
 
   const cab = clone.querySelector('#ab_t');
   const cr = cab.getBoundingClientRect();
@@ -202,26 +205,25 @@ test.describe('스크래치 드롭 이미지가 내보내기 폭을 따라가는
     }
   });
 
-  /* X7 ★기록(record) — 이 카드가 «안» 닫은 문. 뒤집히면 여기부터 뒤집어라.
-     주장: 「블록 폭은 내보내기를 따라가는데 «높이»는 안 따라간다」. 그 결과 object-fit:cover 가
-     ㉠ 과 «똑같은» 40px 을 깎아, 사용자가 보는 잘림은 고치기 전과 같다.
-     ⛔이 검사가 빨개졌다면 「고쳤는데 검사가 낡았다」가 아니라 «내보내기 세로 규약이 바뀌었다»는
-       뜻이다 — 위 머리말의 현빈 결정 사안이 풀렸는지부터 확인하고 그 결정을 여기에 옮겨 적어라. */
-  test('X7 ★기록 — 폭은 줄지만 높이는 안 줄어서 cover 가 같은 40px 을 깎는다 (남은 문·현빈 결정 대기)', async ({ page }) => {
+  /* X7 ★기록(record) → ★2026-09-21 «결정이 났다»로 갱신.
+     옛 기록(2026-09-20): 「폭은 내보내기를 따라가는데 높이는 절대 px 로 잠겨 있어 cover 가
+     ㉠ 과 똑같은 40px 을 깎는다 — 줄일지 자를지는 현빈 결정 사안」.
+     현빈 결정: **「780되게끔 줄이는 걸로」** = 자르지 말고 폭에 맞춰 축소, 세로도 비율대로.
+     ⇒ 이제 높이도 따라 줄어야 한다(js/io/export-image.js syncImageBoxesToCaptureWidth).
+       픽셀 축(비율·cover 가 깎는 양)의 전수 증명은 tests/dom/export-width-scale-down.dom.spec.js. */
+  test('X7 ★높이도 내보내기 폭을 따라 줄어든다 — cover 가 더 깎지 않는다 (현빈 결정 2026-09-21)', async ({ page }) => {
     const at860 = await dropAndExport(page, 860, 860);
     const at780 = await dropAndExport(page, 860, 780);
-    // ㉠ 은 닫혔다 — 상자 밖으로는 한 픽셀도 안 나간다
+    // ㉠ — 상자 밖으로는 한 픽셀도 안 나간다
     expect(at780.cutLeft).toBe(0);
     expect(at780.cutRight).toBe(0);
-    // ㉡ 은 열려 있다 — 높이가 «내보내기 폭을 안 따라간다»
-    expect(at780.blockH, `780 높이 ${at780.blockH} / 860 높이 ${at860.blockH} — 높이가 따라 줄면 이 기록은 낡았다`)
-      .toBeCloseTo(at860.blockH, 0);
-    /* 그래서 cover 가 깎는 양 = (그려지는 폭 − 상자 폭)/2.
-       하네스 그림은 440×330 이라 그려지는 폭 = 높이 × 440/330. */
+    // ㉡ — 높이가 «폭이 줄어든 만큼» 같이 줄었다
+    expect(at780.blockH, `780 높이 ${at780.blockH} / 860 높이 ${at860.blockH} — 세로가 안 따라갔다`)
+      .toBeCloseTo(at860.blockH * (780 / 860), 0);
+    // 그래서 cover 가 깎는 양 = 0 (그려지는 폭 = 상자 폭)
     const drawnW = at780.blockH * (440 / 330);
     const cropEachSide = (drawnW - at780.blockW) / 2;
-    expect(cropEachSide, `cover 가 좌우 ${cropEachSide.toFixed(1)}px 씩 깎는다 (블록은 안 잘렸는데도)`)
-      .toBeCloseTo(40, 0);
+    expect(cropEachSide, `cover 가 좌우 ${cropEachSide.toFixed(1)}px 씩 깎는다`).toBeCloseTo(0, 0);
   });
 
   test('X5 가드 — 편집 화면(860)에서 보이던 폭은 그대로다 (스크래치 계약 불변)', async ({ page }) => {

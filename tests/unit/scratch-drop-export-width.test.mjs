@@ -11,6 +11,8 @@
  *   S-2 스크래치 드롭의 «넘침» 밴드는 상대폭(calc)으로 적는다 — 절대 px 면 780 에서 잘린다.
  *   S-3 «넘침 없는» 밴드는 절대 px 그대로다 — 「보이던 폭 그대로」가 그쪽의 계약이다.
  *   S-4 우측패널이 calc() 를 «잰다» — 없으면 830 블록을 860 이라 말한다(다른 거짓말로 갈아타기).
+ *   S-5 ★내보내기 폭이 다르면 그림 상자의 «세로»도 따라 줄인다 (현빈 결정 2026-09-21
+ *       「780되게끔 줄이는 걸로」 — 자르지 말고 축소). 숫자는 tests/dom/export-width-scale-down.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -83,4 +85,22 @@ test('S-4 ★우측패널이 calc() 를 «잰다» (문자열로 못 읽는다�
   assert.ok(!/getBoundingClientRect/.test(code),
     '★getBoundingClientRect 로 쟀다 — 캔버스 줌(transform)이 곱해져 40% 에서 값이 틀린다');
   assert.match(code, /offsetWidth/, '★주석에만 offsetWidth 가 있고 코드엔 없다');
+});
+
+test('S-5 ★내보내기 폭이 다르면 그림 상자의 «세로»도 따라 줄인다 (현빈 결정 2026-09-21)', () => {
+  /* 현빈 결정: 「780되게끔 줄이는 걸로」 = 폭만 줄이고 높이를 절대 px 로 두면 object-fit:cover 가
+     좌우를 깎는다(860→780 이면 40px 씩). 그래서 캡처 클론에서 그림 상자의 «비율»을 화면과
+     같게 다시 잠근다. 이 자리가 사라지면 그 40px 이 조용히 돌아온다. */
+  const prep = stripComments(bodyOf(EXPORT_IMG, 'export async function prepareCloneForCapture'));
+  assert.match(prep, /syncImageBoxesToCaptureWidth\s*\(\s*sec\s*,\s*clone\s*\)/,
+    '★캡처 클론이 그림 상자의 세로를 폭에 맞춰 다시 잠그지 않는다 — 780 내보내기에서 다시 잘린다');
+
+  const fn = stripComments(bodyOf(EXPORT_IMG, 'export function syncImageBoxesToCaptureWidth'));
+  assert.match(fn, /\.asset-block/, '★그림 블록을 안 고른다');
+  assert.match(fn, /style\.height\s*=/, '★세로를 다시 잠그는 대입이 없다');
+  /* ⚠️라이브 쪽은 «비율»만 쓴다 — 캔버스 줌(scale(0.4))이 곱해진 rect 라도 비율은 약분된다.
+     offsetWidth 는 정수로 반올림돼 860 짜리 상자에서 오차가 생긴다(패널 readW 와는 반대 이유). */
+  assert.match(fn, /getBoundingClientRect/, '★rect 로 안 잰다');
+  assert.ok(!/offsetWidth|offsetHeight/.test(fn),
+    '★offsetWidth/Height(정수 반올림)로 쟀다 — 비율이 틀어져 cover 가 다시 깎는다');
 });
