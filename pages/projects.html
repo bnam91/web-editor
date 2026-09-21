@@ -161,7 +161,17 @@ body {
 #gallery-title > .gal-tab { flex-shrink: 0; }
 #gal-crumb { flex: 0 1 auto; }
 #gal-crumb-name { min-width: 0; flex: 0 1 auto; }
-#header > .header-actions { flex: 1 1 0; justify-content: flex-end; }
+/* ★min-width:max-content 가 «왜» 붙어 있나 (2026-09-21, 현빈 제보: New Design 글자가 두 줄로 깨짐)
+ *   바로 위 #proj-search 주석은 「h1/.header-actions 는 flex-shrink:0」이라고 «말하지만» 사실이 아니었다 —
+ *   .header-actions 의 flex-shrink:0(아래 .header-actions 규칙)을 이 줄의 `flex: 1 1 0` 이 덮어
+ *   계산값이 shrink:1 이 됐다(실측: getComputedStyle(.header-actions).flexShrink === "1").
+ *   ⇒ 창이 좁아지면 «줄어들면 안 되는 쪽»이 줄고, 버튼 높이는 32px 고정이라 글자가 상자 밖으로 삐져나왔다.
+ *   실측 경계: 창 1300px 이상 한 줄 / 1280px 이하 두 줄(★깨짐).
+ *   ⛔`flex: 1 1 0` 을 지우지 마라 — 그건 검색칸을 가운데 고정하는 B안(09-19)이다.
+ *     대신 «내용보다 작아지지 않게» 바닥을 깐다. 폭이 모자라면 설계 의도대로 #proj-search 만 줄어든다
+ *     (그 칸만 flex-shrink:1 · min-width:140px).
+ *   회귀: tests/unit/projects-header-no-shrink.test.mjs */
+#header > .header-actions { flex: 1 1 0; justify-content: flex-end; min-width: max-content; }
 #header > #proj-search { flex: 0 1 320px; margin-left: 16px; margin-right: 16px; }
 
 /* ── 프로젝트 검색(T-B, 2026-09-16) ──────────────────────────────────────
@@ -271,6 +281,9 @@ body {
   transition: background 0.15s;
 }
 #btn-new:hover { background: #3a7df0; }
+/* 버튼 «글자»는 어떤 경우에도 두 줄이 되지 않는다 — 위 min-width 가 뚫려도 여기서 한 번 더 막는다.
+   (버튼 height 가 32px 고정이라 두 줄이 되면 글자가 상자 밖으로 나간다 = 현빈이 본 그 모양) */
+#btn-new, #btn-new-planning, #btn-new-label, #btn-new-planning-label { white-space: nowrap; }
 
 #btn-new-planning {
   display: flex; align-items: center; gap: 6px;
