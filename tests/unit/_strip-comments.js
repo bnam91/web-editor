@@ -70,4 +70,17 @@ function stripComments(src) {
   return String(src).split('\n').map(strip).join('\n');
 }
 
-module.exports = { makeStripper, stripComments };
+/** YAML(.yml) 의 `#` 주석을 걷는다 — 워크플로를 훑는 검사용. (2026-09-22 신설)
+ *
+ * ★왜 여기 두나 — 위의 stripComments 는 «JS» 용이라 `#` 을 못 본다. 그래서
+ *   워크플로를 재는 검사가 «자기 것»을 또 만들 참이었고, 그게 정확히 S-6 이 막는 일이다.
+ *   ⇒ 베낄 것을 하나로 둔다는 규율은 그대로 두고, «언어가 다른 칸»을 여기에 연다.
+ * ⛔YAML 에는 블록 주석이 없다 — 상태를 들 필요가 없어 줄 단위로 끝난다.
+ * ⚠️한계(단언하지 않고 적는다) — 따옴표 «안»의 `#` 은 주석이 아닌데 여기선 지운다.
+ *   지금 쓰는 자리(워크플로의 run/name 줄)엔 그런 `#` 이 없다. 생기면 여기를 고쳐라.
+ */
+function stripYamlComments(src) {
+  return String(src).split('\n').map(l => l.replace(/(^|\s)#.*$/, '$1')).join('\n');
+}
+
+module.exports = { makeStripper, stripComments, stripYamlComments };
