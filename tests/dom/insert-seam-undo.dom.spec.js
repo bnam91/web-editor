@@ -117,6 +117,16 @@ window.addLeafBlock  = function (id) { return _mk(id); };
 window.addNestBlock  = function () { window.pushHistory(); window.addLeafBlock('nl1'); window.addLeafBlock('nl2'); };
 /* 섹션 미선택 — 힌트만 띄우고 캔버스를 «안» 바꾼다 */
 window.addSilentBlock = function () { window.__hint = (window.__hint || 0) + 1; };
+/* ★T-123 — 「배경색을 한 번도 안 넣은」 이미지(에셋) 블럭. 배경 속성이 «아예 없다»
+   (있던 값이 바뀌는 게 아니라 «없던 것이 처음 생긴다» — 그게 이 카드의 조건이다). */
+window.addBgBlock = function (id) {
+  window.pushHistory();
+  const d = document.createElement('div');
+  d.className = 'asset-block';
+  d.id = id || ('bg' + (++_n));
+  inner().appendChild(d);
+  return d;
+};
 /* DOM 을 만진 «뒤» 던지는 입구 */
 window.addBoomBlock  = function () { window.pushHistory(); _mk('boom'); throw new Error('입구가 던졌다'); };
 /* 규약 ④ 를 깨는 입구 — 돌아온 «뒤» 비동기로 DOM 을 더 바꾼다(정착 안 됨) */
@@ -298,6 +308,40 @@ const SCENARIO = async (which) => {
     return { defer, settled: { undosToVanish: s2.length } };
   }
 
+  if (which === 'M10') {
+    /* ★T-123 — 「배경색이 없던 이미지 블럭에 그라데이션을 «처음» 넣고 ⌘Z」.
+       ⛔M1 과 «같은 검사가 아니다». M1 의 커밋은 「한 번 바꾸고 한 번 찍는다」인데,
+         색 피커의 그라데이션 커밋은 탭 한 번에 «두 번 칠하고 한 번 찍는다»:
+           goya-cp:gradient        (commit=false) → 칠하기만 (js/props/color-picker.js _emitGradientNow)
+           goya-cp:gradient-commit (commit=true)  → 칠하고 «나서» pushHistory (js/props/prop-asset.js onGradient)
+         ⇒ ⑴ 미리보기가 칸을 만들면 «먹통 한 칸»이 생기고, ⑵ 커밋이 칠하기보다 «먼저» 찍히면
+           그 편집이 자기 칸을 잃는다. 두 축을 여기서 같이 잰다. */
+    reset();
+    window.addBgBlock('g1');
+    const afterInsert = { len: len(), action: topAction() };
+    const bgOf = (id) => document.getElementById(id)?.style.background || '';
+    const CSS = 'linear-gradient(90deg, rgb(160, 160, 160) 0%, rgba(160, 160, 160, 0) 100%)';
+    const paint = (commit) => {                      // 피커의 두 이벤트가 하는 일 그대로
+      const el = document.getElementById('g1');
+      el.style.background = CSS;
+      el.dataset.bgColor = CSS;
+      if (commit) window.pushHistory('배경');        // ★칠한 «뒤»에 찍는다(push-after)
+    };
+    paint(false);
+    const afterPreview = { len: len(), bg: bgOf('g1') };
+    paint(true);
+    const afterCommit = { len: len() };
+    window.undo();
+    const undo1 = { alive: alive('g1'), bg: bgOf('g1') };
+    window.undo();
+    const undo2 = { alive: alive('g1') };
+    window.redo();
+    const redo1 = { alive: alive('g1'), bg: bgOf('g1') };
+    window.redo();
+    const redo2 = { alive: alive('g1'), bg: bgOf('g1') };
+    return { afterInsert, afterPreview, afterCommit, undo1, undo2, redo1, redo2 };
+  }
+
   throw new Error('모르는 시나리오: ' + which);
 };
 
@@ -313,8 +357,8 @@ test('M0 ★DOMContentLoaded 설치가 합성 입구를 «전부» 감쌌다(런
   const r = await run(page, 'roster');
   expect(errs).toEqual([]);
   expect(r.roster.sort()).toEqual(
-    ['addBoomBlock', 'addDeferBlock', 'addFakeBlock', 'addLeafBlock', 'addNestBlock',
-     'addSelfSelBlock', 'addSilentBlock']);
+    ['addBgBlock', 'addBoomBlock', 'addDeferBlock', 'addFakeBlock', 'addLeafBlock',
+     'addNestBlock', 'addSelfSelBlock', 'addSilentBlock']);
   expect(r.allWrapped, '로스터 전부가 __insertSeamWrapped 여야 한다').toBe(true);
   expect(r.depth, '한가할 땐 깊이 0').toBe(0);
 });
@@ -446,6 +490,32 @@ test('M9 ★돌아온 뒤 DOM 을 더 바꾸는 입구도 ⌘Z 는 «한 번»�
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   M10 — T-123: 배경색이 «없던» 블럭에 그라데이션을 처음 넣고 ⌘Z
+   ──────────────────────────────────────────────────────────────────────────
+   현빈/QA 2026-09-22 「배경색이 없던 이미지 블럭에 그라데이션을 처음 넣으면 ⌘Z 가
+     블럭을 통째로 지운다(⌘⇧Z 로는 돌아온다)」.
+   ★실앱 실측(포트 9633, base 12865a1)에서는 «재현되지 않았다» — 삽입 끝 표본(T-131)이
+     이미 그 자리를 메우고 있다. 그 초록이 «우연»이 아니라 «계약»이 되도록 여기서 잠근다.
+     같은 판에서 끝 표본만 빼면(N4) 바로 그 증상이 돌아온다 = 이 검사가 그걸 «본다»는 증명.
+═══════════════════════════════════════════════════════════════════════════ */
+test('M10 ★삽입 → 그라데이션 «첫» 커밋 → ⌘Z = 블럭은 살아 있고 배경만 돌아간다 (T-123)', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await run(page, 'M10');
+  expect(errs).toEqual([]);
+  expect(r.afterInsert.len, '빈 캔버스 + 끝 표본 = 2칸').toBe(2);
+  expect(r.afterInsert.action).toBe('블럭 추가');
+  expect(r.afterPreview.bg, '미리보기는 «칠해지긴» 한다(안 칠해진 걸 0칸으로 읽지 않는다)').toContain('linear-gradient');
+  expect(r.afterPreview.len, '★미리보기(commit=false)는 칸을 «안» 만든다 — 만들면 먹통 한 칸').toBe(2);
+  expect(r.afterCommit.len, '커밋 한 번 = 칸 하나').toBe(3);
+  expect(r.undo1.alive, '★T-123 그대로 — ⌘Z 한 번에 «블럭»이 사라지면 안 된다').toBe(true);
+  expect(r.undo1.bg, '배경만 「없던 상태」로 돌아간다').toBe('');
+  expect(r.undo2.alive, '한 번 더 눌러야 삽입이 취소된다').toBe(false);
+  expect(r.redo1.alive, '⌘⇧Z 로 블럭이 돌아온다').toBe(true);
+  expect(r.redo1.bg, '그 칸은 아직 배경 없음').toBe('');
+  expect(r.redo2.bg, '한 번 더면 그라데이션까지').toContain('linear-gradient');
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
    ★음성대조 — 「이 검사가 실제로 빨강이 될 수 있는가」
 ═══════════════════════════════════════════════════════════════════════════ */
 test('N1 ★[음성대조] 끝 표본을 뺀 «고치기 전» 모양이면 M1 의 첫 ⌘Z 에 블럭이 사라진다', async ({ page }) => {
@@ -471,4 +541,14 @@ test('N3 ★[음성대조] 끝 표본 «갱신»을 빼면 지연 쓰기 입구�
   expect(r.settled.undosToVanish, '정착한 입구는 갱신이 없어도 한 번').toBe(1);
   expect(r.defer.undosToVanish,
     '★갱신을 빼면 «먹통 한 칸»이 실제로 돌아온다 — M9 의 초록이 «검사처럼 생긴 문장»이 아님을 여기서 증명한다').toBe(2);
+});
+
+test('N4 ★[음성대조] 끝 표본을 뺀 모양이면 T-123 증상이 그대로 돌아온다 (M10 의 첫 ⌘Z)', async ({ page }) => {
+  const errs = await boot(page, 'N1');
+  const r = await run(page, 'M10');
+  expect(errs).toEqual([]);
+  expect(r.afterInsert.len, 'dev 모양: 삽입해도 칸이 안 는다').toBe(1);
+  expect(r.undo1.alive,
+    '★카드가 적은 그 증상 — 색만 돌아가는 게 아니라 블럭이 통째로 사라진다. ' +
+    'M10 의 초록이 «검사처럼 생긴 문장»이 아님을 여기서 증명한다').toBe(false);
 });
