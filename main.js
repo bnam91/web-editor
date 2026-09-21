@@ -506,8 +506,11 @@ function createWindow() {
     if (!wc || wc.isDestroyed()) return;
     _t32CloseAsked = true;
     event.preventDefault();
+    /* ★T-032(2026-09-22): 예전엔 `hasPendingVideo() && warnPendingVideoLoss()` 를 이어 붙였는데,
+       그러면 판정이 여기 «사본»으로 생기고 「한 번만」 래치를 건너뛴다(창을 닫으려다 물러도 또 뜬다).
+       ⇒ 판정·알림·래치가 한 덩어리인 warnPendingVideoLossIf 하나만 부른다. */
     const asked = wc.executeJavaScript(
-      '(window.hasPendingVideo?.() && window.warnPendingVideoLoss?.()) === true'
+      'window.warnPendingVideoLossIf?.() === true'
     ).catch(() => false);
     const bail = new Promise((r) => setTimeout(() => r(false), 600));
     Promise.race([asked, bail])

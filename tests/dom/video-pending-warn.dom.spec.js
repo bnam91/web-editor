@@ -5,6 +5,11 @@
  *   T-012 세척). 알림이 «홈으로 나가기»·«블럭 선택 해제» 두 곳에만 있어서, 창을 닫거나 ⌘S 를
  *   누르면 아무 말도 없었다(실앱 9551 재현: ⌘S 토스트가 '💾 저장됨' 하나뿐).
  *
+ * ★2026-09-22 (T-032 마무리) — 카드의 «핵심»인 「한 번만」을 여기서 «센다».
+ *   고치기 전 실측(dev 12865a1, 포트 9643): 선택했다 풀기 5회 → 알림 5회 · ⌘S 3회 → 알림 3회.
+ *   P6 이 그 횟수를 못박고, P7(영상 없음)·P8(같은 블럭에 다른 영상)이 «반대 방향»을 막는다 —
+ *   래치가 너무 세면 영영 침묵하고(P8), 너무 약하면 다시 잔소리가 된다(P6).
+ *
  * ★여기서 재는 것 = «판정과 문구» 그 자체 (js/io/pending-video-warn.js)
  *   배선(어느 자리가 이걸 부르나)은 tests/unit/video-pending-warn.test.mjs 가 소스로 못박는다.
  *   ⚠️창 닫기는 메인 프로세스 경로라 여기서 못 잰다 — 못 잰 축(단위검사 S-3 가 소스로만 막는다).
@@ -23,18 +28,21 @@ const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'tex
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8"></head><body>
 <div id="canvas"></div>
 <script type="module">
-  import { hasPendingVideo, warnPendingVideoLoss, warnPendingVideoLossIf, PENDING_VIDEO_MSG, PENDING_VIDEO_SELECTOR }
+  import { hasPendingVideo, warnPendingVideoLoss, warnPendingVideoLossIf, resetPendingVideoWarnLatch,
+           PENDING_VIDEO_MSG, PENDING_VIDEO_SELECTOR }
     from '/js/io/pending-video-warn.js';
   window.__toasts = [];
   window.showToast = (m) => { window.__toasts.push(String(m)); };
-  window.__api = { hasPendingVideo, warnPendingVideoLoss, warnPendingVideoLossIf, PENDING_VIDEO_MSG, PENDING_VIDEO_SELECTOR };
-  /* 실제 에셋 블록과 «같은 성질»로 만든다 — js/image-handling.js setAssetVideoFromSrc 가 붙이는 것. */
-  window.__mk = (kind) => {
+  window.__api = { hasPendingVideo, warnPendingVideoLoss, warnPendingVideoLossIf, resetPendingVideoWarnLatch,
+                   PENDING_VIDEO_MSG, PENDING_VIDEO_SELECTOR };
+  /* 실제 에셋 블록과 «같은 성질»로 만든다 — js/image-handling.js setAssetVideoFromSrc 가 붙이는 것.
+     src 는 원본 dataURL 자리(dataset.imgSrc) — 「한 번만」 래치가 여기서 신원을 뽑는다. */
+  window.__mk = (kind, src) => {
     const c = document.getElementById('canvas');
     c.innerHTML = '';
     const ab = document.createElement('div');
     ab.className = 'asset-block has-image';
-    if (kind === 'video') ab.dataset.assetType = 'video-pending';
+    if (kind === 'video') { ab.dataset.assetType = 'video-pending'; ab.dataset.imgSrc = src || 'data:video/mp4;base64,AAAA'; }
     c.appendChild(ab);
     return ab;
   };
@@ -119,5 +127,64 @@ test.describe('미확정 영상 알림 — 뜰 때 뜨고, 안 뜰 때 안 뜬�
     });
     expect(r.asked, 'window.hasPendingVideo / warnPendingVideoLoss 통로가 닫혔다 — 창 닫기 알림이 죽는다').toBe(true);
     expect(r.toasts.length).toBe(1);
+  });
+
+  /* ══ 「한 번만」 — 카드의 핵심 ═══════════════════════════════════════════════
+     ⚠️둘 다 있어야 뜻이 있다: «되풀이해도 한 번»(P6)과 «없으면 아예 안 뜸»(P7).
+       P6 만 있으면 「아무 때도 안 뜨게」 만들어도 초록이고, P7 만 있으면 잔소리가 돌아온다. */
+
+  test('P6 ★되풀이해도 «한 번만» — 같은 미확정 영상으로 5번 불러도 알림은 1회', async ({ page }) => {
+    const r = await page.evaluate(() => {
+      window.__api.resetPendingVideoWarnLatch();
+      window.__mk('video', 'data:video/mp4;base64,ONEONEONE');
+      const canvas = document.getElementById('canvas');
+      const returned = [];
+      for (let i = 0; i < 5; i++) returned.push(window.__api.warnPendingVideoLossIf(canvas));
+      return { toasts: window.__toasts.slice(), returned, msg: window.__api.PENDING_VIDEO_MSG };
+    });
+    expect(r.toasts.length, `5번 불렀는데 알림이 ${r.toasts.length}회 떴다 — 「한 번만」이 아니다`).toBe(1);
+    expect(r.toasts[0]).toBe(r.msg);
+    /* 돌려주는 값도 한 번만 true 여야 한다 — goHome 이 이걸로 「900ms 늦출지」를 정한다 */
+    expect(r.returned, '「알렸나」가 매번 true 다 — 부르는 쪽이 매번 이동을 늦춘다').toEqual([true, false, false, false, false]);
+  });
+
+  test('P7 ★음성대조 — 미확정 영상이 «없으면» 몇 번을 불러도 0회', async ({ page }) => {
+    const r = await page.evaluate(() => {
+      window.__api.resetPendingVideoWarnLatch();
+      window.__mk('image');                       // 영상이 아니다(적용 끝났거나 그냥 이미지)
+      const canvas = document.getElementById('canvas');
+      const returned = [];
+      for (let i = 0; i < 5; i++) returned.push(window.__api.warnPendingVideoLossIf(canvas));
+      return { toasts: window.__toasts.slice(), returned, has: window.__api.hasPendingVideo(canvas) };
+    });
+    expect(r.has, '이미지 블록을 미확정 영상으로 본다 — 판정이 성질을 안 본다').toBe(false);
+    expect(r.toasts, '영상이 없는데 알렸다 — 카드가 「새 결함」이라 부른 바로 그것이다').toEqual([]);
+    expect(r.returned).toEqual([false, false, false, false, false]);
+  });
+
+  test('P8 ★역방향 — 같은 블럭에 «다른» 영상을 다시 넣으면 래치가 풀려 한 번 더 알린다', async ({ page }) => {
+    const r = await page.evaluate(() => {
+      window.__api.resetPendingVideoWarnLatch();
+      const canvas = document.getElementById('canvas');
+      const ab = window.__mk('video', 'data:video/mp4;base64,FIRSTVIDEO');
+      ab.id = 'ab_same';
+      window.__api.warnPendingVideoLossIf(canvas);
+      const afterFirst = window.__toasts.length;
+
+      /* ① 적용/삭제로 미확정이 사라진 «사이» — 여기서 알리면 안 된다 */
+      delete ab.dataset.assetType;
+      window.__api.warnPendingVideoLossIf(canvas);
+      const afterApplied = window.__toasts.length;
+
+      /* ② «같은 블럭 id» 에 다른 영상을 넣는다 — id 로 래치를 걸었다면 여기서 침묵한다(거짓 음성) */
+      ab.dataset.assetType = 'video-pending';
+      ab.dataset.imgSrc = 'data:video/mp4;base64,SECONDVIDEO-DIFFERENT';
+      window.__api.warnPendingVideoLossIf(canvas);
+      window.__api.warnPendingVideoLossIf(canvas);
+      return { afterFirst, afterApplied, afterSecond: window.__toasts.length, sameId: ab.id };
+    });
+    expect(r.afterFirst, '첫 영상에 안 알렸다').toBe(1);
+    expect(r.afterApplied, '미확정이 아닌데 알렸다').toBe(1);
+    expect(r.afterSecond, '같은 블럭의 «다른» 영상에 영영 침묵한다 — 래치를 블럭 id 로 걸었다').toBe(2);
   });
 });
