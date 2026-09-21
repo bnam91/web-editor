@@ -518,6 +518,21 @@ body {
   border-bottom: 1px solid #2e2e2e;
   overflow: hidden; /* DBG-10: 썸네일 이미지 잘림 처리 */
 }
+/* ★카드 그림은 «첫 화면»(맨 윗머리)을 보여준다 — object-position: top.
+ * 썸네일은 첫 섹션 «통째»를 200px 너비로 줄인 그림이라 «세로로 아주 길다»
+ * (js/io/save-load.js captureThumbnail — 실측 200×330, 긴 상세페이지면 200×1000 도 나온다).
+ * object-position 의 기본값은 center 라, cover 가 그 긴 그림의 «가운데 띠»만 130px 칸에 남긴다.
+ * 상세페이지의 가운데는 대개 본문 여백이다 ⇒ 카드가 «하얀 빈 칸»이 된다.
+ *   실측(2026-09-21, 이 워크트리 9549): 200×330 썸네일 · 칸 210.3×130 · cover 배율 1.0516 →
+ *   원본 y 103~227 만 보였다. 제목·배지·이미지가 전부 잘려 카드가 흰 칸이었다.
+ * 페이지를 알아보게 하는 것은 «맨 위»(제목·배너·히어로)다. 그래서 위를 맞춘다.
+ * ⛔ 인라인 style 로 되돌리지 마라 — 리스트 보기(46×30)도 «같은 img»를 쓴다. 한 자리에서 정한다.
+ * 기계 검사: tests/dom/card-thumb-top.dom.spec.js (보이는 띠가 원본 y=0 을 포함하는지 «계산»으로 잰다). */
+.card-thumb img {
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: top;
+  display: block;
+}
 .card-body { padding: 12px; }
 .card-name {
   font-size: 12px; font-weight: 600; color: #e0e0e0;
@@ -1472,7 +1487,7 @@ function _renderGridFromCache() {
     card.draggable = true;
     // DBG-10: thumbnail 필드가 있으면 실제 이미지 표시, 없으면 기본 SVG
     const thumbContent = proj.thumbnail
-      ? `<img src="${_escHtml(proj.thumbnail)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.style.display='none'">`
+      ? `<img src="${_escHtml(proj.thumbnail)}" loading="lazy" onerror="this.style.display='none'">`  /* 크기·자르기 위치는 .card-thumb img (CSS) 가 정한다 — object-position:top */
       : (isPlanning
         ? `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c48a" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="12" y2="16"/></svg>`
         : `<svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#555" stroke-width="1.2"><rect x="5" y="5" width="30" height="30" rx="2"/><line x1="11" y1="15" x2="29" y2="15"/><line x1="11" y1="21" x2="29" y2="21"/><line x1="11" y1="27" x2="22" y2="27"/></svg>`);
