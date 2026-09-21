@@ -1,19 +1,27 @@
-/* smallux-t101.dom.spec.js — T-101 「작은 불편 셋」 (2026-09-21 사용자관점훑기 유닛 smallux)
+/* smallux-t101.dom.spec.js — T-101 「작은 불편 셋」 중 ②③ (2026-09-21 사용자관점훑기 유닛 smallux)
  *
- *   ① 새 디자인을 누르면 회색 화면만 나오고 무엇을 먼저 할지 안내가 없다
  *   ② 레이어 긴 이름이 …로 잘리는데 전체를 볼 길이 없다
  *   ③ 이미지 프리셋 단추에 «지금 어느 것이 적용됐는지» 표시가 없다
  *
- * ★셋 다 «실앱에서» 먼저 재현했다(포트 9550, 실측):
- *   ① New Design 직후 #canvas.children.length=0 · innerText='' (화면에 글자 0자)
+ * ★①(빈 캔버스 안내)은 «여기 없다» — 2026-09-22 현빈 직접 지시로 기능째 철회됐다.
+ *   ⛔결함이라 뺀 게 아니다. 구현은 정상 동작했다(「최초에 '아직비어있어요...' 이런건
+ *     없어도 될거 같은데」). 기능이 사라졌으니 그 4건(①-T1~T4)도 같이 뺐다.
+ *   ★★이 파일을 «통째로» 지울 뻔했다 — ① 4건 + ②③ 9건 = 13건이 한 파일에 있었는데,
+ *     「지운 스펙의 test( 수」와 「DOM 총계가 준 수」가 13로 «딱 맞아» 안심해 버렸다.
+ *     수가 맞은 까닭은 «13이 전부 ① 것이라서»가 아니라 «파일을 통째로 지워서»였다.
+ *     ⇒ 참값이 맞아떨어지는 것은 «안을 안 봐도 된다»는 뜻이 아니다. 갈래가 섞인
+ *       파일에서는 «총계»가 아니라 «갈래별 제목»을 세라. (작업목록매니저가 잡았다)
+ *   ⇒ 철회 고침 = `fix/0922-drop-empty-hint`. 되살릴 근거는 그 커밋 메시지에 있다.
+ *
+ * ★둘 다 «실앱에서» 먼저 재현했다(포트 9550, 실측):
  *   ② 이름을 길게 바꾼 뒤 .layer-item-name clientWidth 120 < scrollWidth 222 = 잘림,
  *      그런데 그 span 과 조상 행 전부 title=null
  *   ③ Square 로 만든 블록에서 Tall 을 눌러 height 가 1032px 이 됐는데도
  *      ["Standard:-","Square:-","Tall:-","Wide:-","Logo:-","A4:-"] — 아무것도 안 켜짐
  *
- * ★왜 DOM 검사인가 — 셋 다 «레이아웃이 실제로 그려진 뒤»에만 답이 나온다.
- *   ②는 scrollWidth>clientWidth(진짜 잘렸나), ①은 [hidden] 이 display:flex 를 이기나,
- *   ③은 calc() 폭을 offsetWidth 로 재는 갈래 — 소스 문자열 검사로는 못 잰다.
+ * ★왜 DOM 검사인가 — 둘 다 «레이아웃이 실제로 그려진 뒤»에만 답이 나온다.
+ *   ②는 scrollWidth>clientWidth(진짜 잘렸나), ③은 calc() 폭을 offsetWidth 로 재는
+ *   갈래 — 소스 문자열 검사로는 못 잰다.
  *
  * ⛔앱을 «안» 띄운다 — 레포 파일만 크로미움에 얹는다(qa0920b-asset-width-set 하네스 꼴).
  * 실행: npm run test:dom -- smallux-t101
@@ -44,96 +52,6 @@ async function boot(page, harness) {
   await page.waitForFunction(() => window.__ready === true);
   return errs;
 }
-
-/* ═══════════════ ① 빈 캔버스 안내 ═══════════════ */
-
-const HARNESS_HINT = `<!doctype html><html><head><meta charset="utf-8">
-<link rel="stylesheet" href="/css/editor-base.css">
-<link rel="stylesheet" href="/css/editor-canvas.css">
-<style>html,body{margin:0;height:600px} #canvas-area{height:600px}</style>
-</head><body>
-<div id="canvas-area"><div id="canvas-wrap"><div id="canvas-scaler"><div id="canvas"></div></div></div></div>
-<script type="module">
-  import { installCanvasEmptyHint, syncCanvasEmptyHint } from '/js/canvas-empty-hint.js';
-  window.__install = installCanvasEmptyHint;
-  window.__sync = syncCanvasEmptyHint;
-  window.__ready = true;
-</script></body></html>`;
-
-const hintState = (page) => page.evaluate(() => {
-  const h = document.getElementById('canvas-empty-hint');
-  if (!h) return { exists: false };
-  const cs = getComputedStyle(h);
-  const r = h.getBoundingClientRect();
-  return {
-    exists: true,
-    hidden: h.hidden,
-    display: cs.display,
-    pointerEvents: cs.pointerEvents,
-    visibleArea: Math.round(r.width) * Math.round(r.height),
-    text: (h.innerText || '').replace(/\s+/g, ' ').trim(),
-    insideCanvas: !!h.closest('#canvas'),
-  };
-});
-
-const addSection = (page) => page.evaluate(() => {
-  const s = document.createElement('div');
-  s.className = 'section-block';
-  document.getElementById('canvas').appendChild(s);
-  return document.querySelectorAll('#canvas .section-block').length;
-});
-
-test('①-T1 섹션 0개면 안내가 «보인다»(글자까지 실제로 그려진다)', async ({ page }) => {
-  const errs = await boot(page, HARNESS_HINT);
-  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
-  const s = await hintState(page);
-  expect(s.exists).toBe(true);
-  expect(s.hidden).toBe(false);
-  expect(s.display).not.toBe('none');
-  expect(s.visibleArea).toBeGreaterThan(1000);   // 0×0 유령이 아니다
-  expect(s.text.length).toBeGreaterThan(10);
-  expect(s.text).toContain('섹션');
-});
-
-test('①-T2 섹션이 생기면 «손으로 부르지 않아도» 사라지고, 다시 0이 되면 돌아온다', async ({ page }) => {
-  await boot(page, HARNESS_HINT);
-  expect((await hintState(page)).hidden).toBe(false);
-
-  const n = await addSection(page);
-  expect(n).toBe(1);
-  /* ★__sync 를 부르지 않는다 — MutationObserver 가 스스로 따라오는지를 재는 자리다. */
-  await expect.poll(async () => (await hintState(page)).hidden, { timeout: 3000 }).toBe(true);
-  expect((await hintState(page)).display).toBe('none');   // [hidden] 이 display:flex 를 이긴다
-
-  await page.evaluate(() => document.querySelector('#canvas .section-block').remove());
-  await expect.poll(async () => (await hintState(page)).hidden, { timeout: 3000 }).toBe(false);
-});
-
-test('①-T3 안내는 «클릭을 가로채지 않고» 내보내기 나무(#canvas) 밖에 있다', async ({ page }) => {
-  await boot(page, HARNESS_HINT);
-  const s = await hintState(page);
-  expect(s.pointerEvents).toBe('none');
-  expect(s.insideCanvas).toBe(false);
-  /* 힌트 한가운데를 찍으면 힌트가 아니라 그 아래가 잡혀야 한다. */
-  const hitId = await page.evaluate(() => {
-    const r = document.getElementById('canvas-empty-hint').getBoundingClientRect();
-    const el = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-    return el ? el.id : null;
-  });
-  expect(hitId).not.toBe('canvas-empty-hint');
-});
-
-test('①-T4 유령 섹션(data-ghost)은 «있는 것»으로 세지 않는다', async ({ page }) => {
-  await boot(page, HARNESS_HINT);
-  await page.evaluate(() => {
-    const s = document.createElement('div');
-    s.className = 'section-block';
-    s.setAttribute('data-ghost', '1');
-    document.getElementById('canvas').appendChild(s);
-  });
-  await page.waitForTimeout(150);
-  expect((await hintState(page)).hidden).toBe(false);
-});
 
 /* ═══════════════ ② 잘린 레이어 이름 ═══════════════ */
 
