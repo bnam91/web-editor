@@ -183,3 +183,40 @@ test('H5 ★탈출층은 --inv-zoom 을 «되돌린다» — 안 되돌리면 �
   }
   assert.ok(css.includes('#ss-handles-overlay'), '탈출층 규칙 자체가 사라졌다');
 });
+
+test('H6 — 손잡이를 «캔버스 안»에 붙이는 생성처가 있으면 그 클래스엔 캔버스 안 축 규칙이 있어야 한다', () => {
+  /* ★왜 있나 (2026-09-21, 통일 라운드 적대적 검증 HIGH①)
+   *   H4 는 「width 와 border 가 같은 축인가」만 본다 — 그 축이 «맞는 층인가»는 안 본다.
+   *   그래서 .img-corner-handle 이 둘 다 7px 고정(축 일치)이라 초록이었는데,
+   *   실제로는 생성처가 «둘»이고 그중 하나(enterCircleImageEditMode)가 블럭 «안»에 붙여
+   *   줌 40 에서 2.8px/0.6, 줌 150 에서 10.5px/2.25 로 갈렸다. 통일이 그 경로를 더 굵게 만들었다.
+   *   ⇒ 「CSS 안에서만 보던 것」을 「JS 가 어디에 붙이나」와 묶는다.
+   *
+   * ⚠️이 검사는 소스 문자열을 본다. 생성처가 옮겨지면 빨강이 날 수 있다 — 그때는 지우지 말고
+   *   「그 손잡이가 실제로 어느 층에 사는가」를 다시 재고 패턴을 고쳐라. */
+  const js = read('js/image-handling.js');
+
+  /* 「오버레이가 아닌 부모에 append 한다」를 찾는다 — overlay.appendChild 는 제외. */
+  const inCanvasAppend = /(\w+)\.appendChild\(\s*h\s*\)/g;
+  const parents = new Set();
+  for (const m of js.matchAll(inCanvasAppend)) parents.add(m[1]);
+  assert.ok(parents.size >= 1, 'js/image-handling.js 에서 손잡이 append 를 못 찾았다 — 이름이 바뀌었으면 이 검사부터 고쳐라');
+  const hasNonOverlayParent = [...parents].some(p => !/overlay/i.test(p));
+  assert.ok(hasNonOverlayParent,
+    `손잡이를 캔버스 «안»에 붙이는 자리가 사라졌다(부모: ${[...parents].join(', ')}) — ` +
+    '그렇다면 아래 CSS 보정도 필요 없다. 이 검사를 지우기 전에 실앱에서 한 번 재라.');
+
+  /* 그 손잡이 클래스들이 «캔버스 안 축» 규칙을 가지고 있는가 */
+  const css = stripCssComments(read('css/editor-blocks.css'));
+  for (const cls of ['img-corner-handle', 'img-edge-handle']) {
+    const scoped = new RegExp(`\\.icon-circle-block[^{]*\\.${cls}[^{]*\\{([^}]*)\\}`, 'g');
+    const bodies = [...css.matchAll(scoped)].map(x => x[1]).join(' ');
+    assert.ok(bodies, `.${cls} 에 캔버스 안(.icon-circle-block) 전용 규칙이 없다 — 줌 40 에서 기준의 40% 크기가 된다`);
+    assert.match(bodies, /width:\s*calc\([^)]*--inv-zoom/,
+      `.${cls} 의 캔버스 안 규칙이 크기를 --inv-zoom 축에 안 태웠다`);
+    /* ⚠️[^)]* 로 쓰면 `calc(var(--ui-handle-border-w, 1.5px) * var(--inv-zoom,1))` 의
+       «첫 닫는 괄호»에서 잘려 --inv-zoom 을 못 본다 — 실제로 한 번 거짓 빨강이 났다. */
+    assert.match(bodies, /border-width:\s*calc\([\s\S]*?--inv-zoom/,
+      `.${cls} 의 캔버스 안 규칙이 테두리를 --inv-zoom 축에 안 태웠다 — 크기만 맞고 두께가 갈린다`);
+  }
+});

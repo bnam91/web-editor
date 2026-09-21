@@ -514,6 +514,25 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   pointer-events: auto;
 }
 .img-corner-handle:hover { background: var(--sel-color); }
+
+/* ★★2026-09-21 — 이미지 편집 손잡이는 «사는 층이 둘»이다. 통일 라운드의 적대적 검증(HIGH①)이 잡았다.
+ *   ⑴ js/image-handling.js:216  enterImageEditMode        → `#ss-handles-overlay` (고정층, 배율 안 먹음)
+ *   ⑵ js/image-handling.js:1447 enterCircleImageEditMode  → `icb.appendChild(h)` = 아이콘원형 블럭 «안»
+ *                                                            (= #canvas-scaler 안, 배율을 먹는다)
+ *   위 기본 규칙은 `7px` 고정이라 ⑵ 경로에선 화면에서 줌배율만큼 커지고 작아진다 —
+ *   실측(dpr2): 줌40 에서 2.8px/테두리 0.6 · 줌150 에서 10.5px/2.25 (기준은 7/1.5).
+ *   ⛔이 규칙에 --inv-zoom 을 «직접» 넣으면 안 된다 — --inv-zoom 은 documentElement 에 걸려 고정층까지
+ *     상속되므로(js/editor.js:256) ⑴ 경로가 거꾸로 부푼다. 그래서 «캔버스 안일 때만» 덧씌운다.
+ *   회귀: tests/unit/handle-token-parity.test.mjs H6 · tests/dom/handle-size-parity.dom.spec.js B7 */
+.icon-circle-block .img-corner-handle,
+.icon-circle-block .img-edge-handle {
+  width:  calc(7px * var(--inv-zoom, 1));
+  height: calc(7px * var(--inv-zoom, 1));
+  border-width: calc(var(--ui-handle-border-w, 1.5px) * var(--inv-zoom, 1));
+}
+/* ★.img-edge-handle 의 «흰 1px» 은 현빈 확인 전까지 값을 안 바꾼다(2026-09-21 경계) —
+   여기서는 «축»만 맞춘다. 굵기 기준값은 그대로 1px 이다. */
+.icon-circle-block .img-edge-handle { border-width: calc(1px * var(--inv-zoom, 1)); }
 .img-edge-handle {
   position: absolute;
   width: 7px;
