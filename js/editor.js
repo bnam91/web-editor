@@ -3,6 +3,7 @@ import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './histor
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 import { fitScale } from './fit-scale.js';
 import { setTextTypeClass, afterTextTypeChange } from './props/text-type-class.js';
+import { warnPendingVideoLoss, warnPendingVideoLossIf } from './io/pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원 */
 
 /* ═══════════════════════════════════
    SSOT: 캔버스에서 "선택된 블록" 셀렉터 목록
@@ -2192,7 +2193,11 @@ document.addEventListener('keydown', e => {
     if (e.key === 's' && !e.shiftKey)   {
       e.preventDefault();
       window.triggerAutoSave?.();
-      window.showToast?.('💾 저장됨');
+      /* ★T-032: ⌘S 는 «저장»이다 — 미확정 영상이 있으면 그 저장에서 원본이 빠진다.
+         토스트는 #editor-toast 한 칸을 «덮어쓰는» 구조라(js/drag-utils.js showToast)
+         '저장됨' 뒤에 경고를 얹으면 경고가 1프레임 만에 지워진다 ⇒ 둘 중 «더 중요한 쪽»만
+         띄운다. 경고는 「저장됐다」를 이미 전제한 문장이라 정보가 줄지 않는다. */
+      if (!warnPendingVideoLossIf(canvasEl)) window.showToast?.('💾 저장됨');
       return;
     }
     if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
@@ -3264,7 +3269,7 @@ function deselectAll() {
     // ★T-012: video-pending(트림 확정 전) 상태로 이 블록의 패널을 벗어나면 저장 시
     // 원본 영상이 사라진다(section-serialize.js 참고) — 막지는 않되 알려는 준다.
     if (a.classList.contains('selected') && a.dataset.assetType === 'video-pending') {
-      window.showToast?.('⚠️ 영상이 아직 GIF로 적용되지 않았습니다 — 저장하면 사라집니다');
+      warnPendingVideoLoss();   // ★T-032: 문구는 js/io/pending-video-warn.js 한 곳에서만
     }
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);

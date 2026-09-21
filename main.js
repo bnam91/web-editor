@@ -352,6 +352,7 @@ function getGitBranch() {
   } catch { return null; }
 }
 
+let _t32Quitting = false;   /* ★T-032: 종료(before-quit) 중이면 «창 닫기» 알림을 걸지 않는다 — 아래 close 핸들러가 읽는다 */
 function createWindow() {
   const isMac = process.platform === 'darwin';
   const gitBranch = getGitBranch();
@@ -488,6 +489,31 @@ function createWindow() {
   // HTML <title>이 덮어씌우지 않도록 로드 완료 후 타이틀 강제 설정
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.setTitle(windowTitle);
+  });
+
+  /* ★T-032 — 「아직 «GIF로 적용» 안 한 영상은 저장에서 빠진다」를 «창 닫을 때»도 알린다.
+     홈으로 나가기(save-load.js goHome)·블럭 선택 해제(editor.js)엔 이미 있었는데 여기만 없었다.
+     ⛔beforeunload 로는 못 한다 — 동기라 토스트를 띄워도 창과 함께 그 프레임에 사라진다.
+     ⇒ 닫기를 «한 번만» 가로채 렌더러의 «기존» 알림을 부르고(새 UI 창작 금지), 보일 시간을
+       준 뒤 진짜로 닫는다. 지연 900ms 는 goHome 과 같은 값이다.
+     ⚠️무한루프 금지선: 두 번째 close 는 무조건 통과한다(_t32CloseAsked).
+     ⚠️행 금지선: 렌더러가 안 답해도 600ms 뒤엔 그냥 닫는다 — 안 닫히는 앱이 더 나쁘다.
+     회귀: tests/unit/video-pending-warn.test.mjs (S-3) */
+  let _t32CloseAsked = false;
+  mainWindow.on('close', (event) => {
+    if (_t32CloseAsked || _t32Quitting) return;
+    const wc = mainWindow.webContents;
+    if (!wc || wc.isDestroyed()) return;
+    _t32CloseAsked = true;
+    event.preventDefault();
+    const asked = wc.executeJavaScript(
+      '(window.hasPendingVideo?.() && window.warnPendingVideoLoss?.()) === true'
+    ).catch(() => false);
+    const bail = new Promise((r) => setTimeout(() => r(false), 600));
+    Promise.race([asked, bail])
+      .then((warned) => new Promise((r) => setTimeout(r, warned ? 900 : 0)))
+      .catch(() => {})
+      .then(() => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close(); });
   });
 
   mainWindow.on('enter-full-screen', () => {
@@ -3900,6 +3926,12 @@ ipcMain.handle('templates:open-window', async (event, geom) => {
 /* 부모가 닫히면 같이 닫는다 — 고아 창이 떠 있으면 앱이 안 꺼진 것처럼 보인다.
    (parent 지정만으로는 맥에서 부모 종료 시 자동으로 안 닫히는 경우가 있어 명시한다.) */
 app.on('before-quit', () => { if (_tplWin && !_tplWin.isDestroyed()) _tplWin.destroy(); });
+
+/* ★T-032 «창 닫기» 알림용 표식 — «닫기»와 «종료»를 가른다.
+   ⌘Q·app.quit() 은 before-quit 이 «먼저» 오고, 그 경로는 main/quit/save-guard.js 가
+   app.exit() 으로 끝낸다 ⇒ 거기서 창 close 를 가로채 봐야 지연이 먹지 않는다(오히려 종료를
+   망친다). 빨간 버튼·⌘W 만 close 가 «먼저» 온다 — 알림은 그 자리에서만 건다. */
+app.on('before-quit', () => { _t32Quitting = true; });   /* 선언은 createWindow 위 */
 
 /* ★팝아웃 창 → 편집기 창으로 가는 «통로는 하나»다(window.__tplEditorCommand).
    삽입도 복구도 결국 「편집기가 해야 하는 일」이라, 통로를 늘리지 않고 action 으로 가른다.

@@ -8,6 +8,7 @@ import { applyFrameTransform } from '../frame-geometry.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
 import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture } from './capture-safety.js';
 import { ejectShapeFrameIntruders } from '../shape-frame.js';
+import { warnPendingVideoLossIf } from './pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원 */
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
 /* ══════════════════════════════════════
@@ -321,13 +322,11 @@ async function goHome() {
   // ★T-012: video-pending(트림 확정 전) 상태로 저장·홈이동하면 원본 영상이 저장에서 빠진다
   // (section-serialize.js — 원본을 영구저장하는 쪽보다 안전하다는 게 결정 사항). 막지는
   // 않되, 사라진다는 사실은 알려준다 — 토스트가 실제로 보이도록 이동을 살짝 늦춘다.
-  const hasPendingVideo = !!canvasEl?.querySelector('.asset-block[data-asset-type="video-pending"]');
-  if (hasPendingVideo) {
-    window.showToast?.('⚠️ 영상이 아직 GIF로 적용되지 않았습니다 — 저장하면 사라집니다');
-  }
+  // ★T-032: 판정·문구는 js/io/pending-video-warn.js 한 곳에서만 온다(사본 금지).
+  const warnedPendingVideo = warnPendingVideoLossIf(canvasEl);
   await saveProjectToFile(serializeProject()); // 홈으로 나갈 때 썸네일 캡처
   window.saveTabState();
-  if (hasPendingVideo) await new Promise(r => setTimeout(r, 900));
+  if (warnedPendingVideo) await new Promise(r => setTimeout(r, 900));
   window.location.href = 'pages/projects.html';
 }
 
