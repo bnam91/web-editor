@@ -57,6 +57,8 @@ function fnSrc(name) {
 
 const REAL_FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath',
   '_resolveMetaJsonPath', '_ensureNewLayoutPaths', '_refreshListMeta', '_listItemFor',
+  // [T-064] _listProjectsImpl 이 id 모양 판정을 이 함수에 맡긴다 — 빠지면 ReferenceError 로 «검사가» 죽는다
+  '_isListableProjectId',
   '_listProjectsImpl', '_duplicateProjectImpl', '_renameProjectImpl'];
 
 /** 떼어낸 «진짜» 구현. PROJECTS_DIR 만 임시 폴더로 바꿔 꽂는다. */

@@ -157,6 +157,35 @@ test('T12 ⛔경로 탈출을 막는다', () => {
   }
 });
 
+/* ══════════════════════════════════════════════════════════════════════════
+ * T24 — ★[T-064] 기획(plan_*) 프로젝트도 버리고 되살릴 수 있다.
+ *   목록(_isListableProjectId)이 기획 카드를 «싣기 시작»한 뒤, 여기가 proj_ 만 받으면
+ *   「보이는데 못 지우는 카드」가 된다 — 실측(2026-09-21, 격리 9547 실앱):
+ *   projects:delete → {ok:false, reason:'trash_failed', code:'invalid_id'} 로 거절당하고
+ *   목록엔 그대로 남았다. 사용자에겐 «지워지지 않는 카드»다.
+ * ══════════════════════════════════════════════════════════════════════════ */
+test('T24 ★기획(plan_*)도 휴지통에 가고 되살아난다 — 「보이는데 못 지우는 카드」 봉쇄', () => {
+  const dir = makeProjectsDir(['plan_1789980680078']);
+  const r = T.moveToTrash({ projectsDir: dir, projectId: 'plan_1789980680078' });
+  assert.ok(r.ok, `★기획을 못 버린다: ${JSON.stringify(r)}`);
+  assert.ok(!fs.existsSync(path.join(dir, 'plan_1789980680078')), '원래 자리에 남았다');
+  const l = T.listTrash({ projectsDir: dir });
+  assert.equal(l.items.length, 1, '★휴지통 목록이 기획을 안 보여준다 — 되살릴 길이 없다');
+  assert.equal(l.items[0].projectId, 'plan_1789980680078');
+  const re = T.restoreFromTrash({ projectsDir: dir, projectId: 'plan_1789980680078' });
+  assert.ok(re.ok, `★기획을 못 되살린다: ${JSON.stringify(re)}`);
+  assert.ok(fs.existsSync(path.join(dir, 'plan_1789980680078', 'proj.json')), '되살아나지 않았다');
+});
+
+test('T25 ⛔넓힌 것은 «접두뿐» — plan_ 을 붙여도 경로 탈출은 여전히 막힌다', () => {
+  const dir = makeProjectsDir();
+  for (const bad of ['plan_../x', '../plan_1', 'plan_', 'planx_1000']) {
+    const r = T.moveToTrash({ projectsDir: dir, projectId: bad });
+    assert.equal(r.ok, false, `${bad} 를 통과시켰다`);
+    assert.equal(r.code, 'invalid_id', `${bad} 가 invalid_id 가 아니다`);
+  }
+});
+
 test('T13 ★반쯤 옮기다 실패하면 «원래대로» 되돌린다 — 증발 방지', () => {
   const dir = makeProjectsDir(['proj_1000'], { legacy: true });
   const realRename = fs.renameSync;

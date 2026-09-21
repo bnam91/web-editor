@@ -31,7 +31,9 @@ function fnSrc(name) {
 }
 
 const REAL_FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath',
-  '_resolveMetaJsonPath', '_ensureNewLayoutPaths', '_refreshListMeta', '_listItemFor', '_listProjectsImpl'];
+  '_resolveMetaJsonPath', '_ensureNewLayoutPaths', '_refreshListMeta', '_listItemFor',
+  // [T-064] _listProjectsImpl 이 id 모양 판정을 이 함수에 맡긴다 — 빠지면 ReferenceError 로 «검사가» 죽는다
+  '_isListableProjectId', '_listProjectsImpl'];
 
 function loadRealImpls(projectsDir) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);

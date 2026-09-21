@@ -1711,14 +1711,18 @@ async function createProject() {
 
 /* ★[0920b] 기획모드 스위치 — 되살릴 땐 «이 한 줄»만 true 로. ⛔기능 코드는 지우지 않는다.
  *
- * 왜 껐나 (현빈 2026-09-20): 지금 만들면 «만들었는데 사라지는» 경험이 된다.
+ * 왜 껐나 (현빈 2026-09-20): 그때는 만들면 «만들었는데 사라지는» 경험이었다.
  *   실측(9397 격리 실기 2026-09-20): New Plan 을 누르면 plan_1789885549682 가 디스크에 생기는데
  *   projects:list 는 [] 를 돌려줬고 카드도 0개였다(빈 상태 화면이 그대로 떴다).
  *   원인 = main.js `_listProjectsImpl` 의 걸름망 «둘 다» /^proj_\d+$/ 라 plan_* 이 안 걸린다
  *   (신 레이아웃 디렉터리 루프 · flat 레거시 폴백 — 두 곳 모두).
  *
- * 되살리는 조건 = **T-064**(목록 필터가 plan_* 도 받게 되는 것). 그게 끝나면 여기를 true 로 하고
- *   tests/unit/darkforms-newplan.test.mjs · tests/dom/darkforms-newplan.dom.spec.js 의 뜻을 뒤집어라.
+ * ★★2026-09-21 — 그 «원인»은 T-064 로 고쳐졌다(main.js `_isListableProjectId` 가 plan_<숫자> 도
+ *   받는다. 실측 9547: 기획 카드가 목록에 뜨고 📋 기획 배지·기획 화면 열기·이름 바꾸기·삭제/휴지통이
+ *   된다). ⇒ **이 스위치를 막고 있는 것은 이제 T-064 가 «아니라» 현빈 지시다** — 「New Plan 단추는
+ *   일부러 숨겨 둔다, 되살리지 마라」(2026-09-21). 조건이 풀렸다고 여기를 true 로 바꾸지 마라.
+ *   켜려면 «현빈의 말»이 있어야 하고, 그때 tests/unit/darkforms-newplan.test.mjs ·
+ *   tests/dom/darkforms-newplan.dom.spec.js 의 뜻을 같이 뒤집는다.
  * ★화면만 막지 않는다 — 함수 자신도 막는다. pages/planning.html 이 같은 이유로
  *   「화면을 숨기는 쪽이 아니라 «페이지 자신»이 막는다. 입구가 하나여야 한다」로 갔다. */
 const PLAN_MODE_ENABLED = false;
