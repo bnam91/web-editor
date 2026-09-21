@@ -1081,13 +1081,24 @@ function addTableBlock(opts = {}) {
       applyTableColHighlight(block);
     }
   };
+  /* ★T-131: 테마 판정을 «다음 틱»이 아니라 _insertToFlowFrame 이 돌아온 «직후» 동기로 한다.
+     지연의 원래 이유(「삽입 후 섹션 컨텍스트 확정」)는 여기서 이미 풀려 있다 — 돌아온 시점엔
+     블럭이 프레임에 붙어 있어 _applyTableThemeDefaults 의 closest('.section-block') 이 성립한다.
+     ⛔setTimeout 으로 되돌리지 마라: _applyTableThemeDefaults 는 dataset+인라인 CSS 변수를
+       «쓴다» ⇒ 직렬화 문자열이 바뀐다. 삽입 «끝 표본»(js/insert-history.js 규약 ④) 뒤에
+       그게 일어나면 ensureHistoryCheckpoint 가 top≠live 를 보고 한 칸을 더 만들어,
+       「어두운 섹션 + 프레임 안 표 삽입 → ⌘Z」 가 한 번에서 두 번으로 늘어난다(먹통 한 칸).
+     게이트: tests/unit/insert-seam-roster.test.mjs (B3 — 로스터 입구의 지연 DOM 쓰기 금지). */
+  let _tblBlock = null;
   if (_insertToFlowFrame(() => {
     const { row, block } = makeTableBlock();
     applyData(block);
-    // flow-frame 경로는 삽입 후 섹션 컨텍스트 확정 — 다음 틱에 테마 판정
-    setTimeout(() => { try { _applyTableThemeDefaults(block, opts); } catch (_) {} }, 0);
+    _tblBlock = block;
     return { row, block };
-  })) return;
+  })) {
+    if (_tblBlock) { try { _applyTableThemeDefaults(_tblBlock, opts); } catch (_) {} }
+    return;
+  }
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();

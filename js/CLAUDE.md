@@ -81,14 +81,18 @@ function onUp() { ...; window.pushHistory?.('도형 크기'); }   // ←기존 �
 | `js/scratch-pad.js` (`sideEffects`) | 캔버스는 안 바뀌고 `sideEffects.onUndo/onRedo` 로 역동작을 «명시»한다. 무변화 차단의 예외이기도 하다. |
 | `js/block-drag.js` 드래그아웃 | 시작 표본은 `onMove` 가 찍었다. 끝 표본은 **추출까지 끝난 뒤** «한 번». (예전엔 추출 «전»에 찍었는데, 지금 그러면 한 제스처가 항목 둘이 된다.) |
 | `js/overlay-handles.js` 그리드 거터 | 시작은 이미 `mousedown` 1회. 끝 표본만 `onUp` 에 더했다. |
+| `js/insert-history.js` (삽입 입구 래퍼) | 삽입 입구는 `pushHistory` 를 «앞»에 부른다(그대로 둔다). 래퍼가 «돌아온 직후» 한 번 더 부른다 — ⑴ 이음매용 «끝 표본»이다. 입구 안의 호출을 떼면 안 된다(그건 «옮기기»다). |
 
 ### 남은 P2 (별도 카드)
 
-1. ★**「삽입(push-before) → 우측 패널(push-after)」 이음매는 아직 그대로다** — 드래그가
-   없는 이음매라 이 부품이 못 낀다(dev 에도 있던 결함). 도형 삽입 → 패널에서 색 변경 →
-   ⌘Z 하면 색만이 아니라 «삽입»까지 취소된다(2026-09-20 DOM 하네스 실측 — 그래서
-   tests/dom/resize-undo-history.dom.spec.js 의 M1 시나리오는 삽입 «뒤»에 드래그를 한 번
-   넣어 이 이음매를 피한다). 고치려면 258/109 를 실제로 통일해야 한다.
+1. ~~★「삽입(push-before) → 우측 패널(push-after)」 이음매~~ → **해소(T-131 · 2026-09-21)**.
+   258/109 를 통일하지 «않고» 고쳤다 — `js/insert-history.js` 가 삽입 입구(41자리)를 감싸
+   «돌아온 직후» `window.pushHistory` 를 한 번 더 부른다(=«끝 표본»). 드래그가 안 끼는
+   이음매도 이걸로 메워진다. ⛔입구 «안»의 push-before 는 하나도 안 뗐다(그건 «옮기기»라
+   2026-09-20 회귀를 다시 낸다). 규약·게이트는 `js/insert-history.js` 머리말.
+   ★같이 간 것 둘: `addTableBlock` 의 `setTimeout` 테마적용을 동기로 폈고(안 그러면 삽입만
+   하고 ⌘Z 가 두 번이 된다), `_enterStickerEdit` 가 `.sticker-text` 에 남기던
+   `user-select`·`cursor` 를 직렬화에서 세척한다(같은 이유 + 저장본 누수).
 2. 그리드 거터의 맨클릭 중복 항목(무변화 차단이 대부분 흡수하지만 확인 안 했다).
 3. `js/block-drag.js` 드래그아웃이 «이동 자체»를 별도 항목으로 기록하지 않는 건.
 
