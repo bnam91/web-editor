@@ -61,10 +61,34 @@ function _drainRemoteKeys() {
      ⛔직렬화에서 지우지 «않는다» — 저장본에 남는 것은 설계다(js/blocks/sticker-block.js:398
        「저장 HTML·미리보기·Export 클론에 그대로 복제 → 세 화면이 한 소스로 잘림」). 비교만 벗긴다. */
 const _NON_EDIT_ATTR_RE = / draggable="(?:true|false)"|\s*--sec-clip:\s*[^;"]*;?/g;
+/* ★[2026-09-21] «섹션 툴바»는 콘텐츠가 아니라 «UI 크롬»이다 — 비교에서 통째로 벗긴다.
+ *
+ * 실측 근거(위 ⚠️가 요구하는 «실제 스냅샷 diff»):
+ *   ⑴ 페이지 A 에서 삽입 → 페이지 B 로 갔다가 A 로 «복귀» 하면 꼭대기와 라이브가 어긋난다.
+ *      길이는 둘 다 1895 로 «같은데» 내용이 달랐고, 첫 차이는 255번째 글자, .section-toolbar 안이었다:
+ *        꼭대기 : <button class="st-btn st-ab-btn" title="A/B 베리에이션 생성">
+ *        라이브 : <button class="st-btn st-memo-btn" onclick="window.toggleSectionMemoPopover(this)" …>
+ *      복귀 때 rebindAll·옵저버가 «툴바 버튼 순서와 onclick 을 다시 쓴다».
+ *   ⑵ 같은 병이 undo/redo 뒤에도 난다(전환 없이 재현) — redo 직후 top 3819 / live 3790, 차이는 역시 툴바뿐.
+ *   ⇒ 그 차이를 «편집»으로 읽어 ensureHistoryCheckpoint 가 칸을 하나 더 만들고,
+ *      사용자는 «⌘Z 를 눌렀는데 화면이 그대로인 한 칸»을 본다(먹통 한 칸).
+ *
+ * ★왜 «벗겨도» 되나 — 이 레포는 이미 툴바를 «내용 아님»으로 다룬다. 세 자리가 같은 일을 한다:
+ *     js/market-merge.js:29 · js/version-diff.js:50 · js/io/export-html.js(제거 한 벌)
+ *   비교에서만 벗기는 히스토리가 오히려 «혼자» 툴바를 내용으로 보고 있었다.
+ * ⛔저장되는 문자열은 «안» 바꾼다 — 벗기는 건 오직 «비교할 때»다(위 규약 그대로).
+ * ⚠️늘릴 때 규칙은 위와 같다 — 넣는 만큼 「그 부분만 다른 편집」의 undo 한 칸이 사라진다.
+ *   툴바 안에는 사용자가 «편집하는» 것이 없다(전부 버튼이다). 그래서 잃을 편집이 없다.
+ * ⛔툴바 안에 <div> 가 생기면 이 정규식이 «첫 </div>» 에서 끊긴다 — 그때는 여기부터 고쳐라.
+ *   tests/unit/history-chrome-noise.test.mjs 가 그 모양을 잠근다. */
+const _CHROME_RE = /<div class="section-toolbar">[\s\S]*?<\/div>/g;
+function _stripNonEdit(s) {
+  return s.replace(_NON_EDIT_ATTR_RE, '').replace(_CHROME_RE, '');
+}
 function _sameEdit(a, b) {
   if (a === b) return true;
   if (typeof a !== 'string' || typeof b !== 'string') return false;
-  return a.replace(_NON_EDIT_ATTR_RE, '') === b.replace(_NON_EDIT_ATTR_RE, '');
+  return _stripNonEdit(a) === _stripNonEdit(b);
 }
 
 /* ── ★0920b «grad-alpha» C: undo 복원 시 «선택 상태» 복원 ─────────────────────────────
