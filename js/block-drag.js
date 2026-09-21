@@ -926,22 +926,32 @@ function bindBlock(block) {
     });
   }
 
-  /* ★도형·에셋 오버레이 전용 크로스섹션 드래그 — 텍스트와 «같은 자리·같은 이유»로 건다
-     (아래 isText 분기 주석 참고). posEl 은 타입마다 다르다(도형=자유배치 래퍼, 에셋=자신) —
-     그 해석은 js/overlay-float.js posElOf 한 곳뿐이다. 함수가 매 mousedown 마다
-     dataset.overlayBlock 을 live 로 재확인하므로 오버레이가 아닐 때 걸어둬도 안전하다. */
-  if (isShape || isAsset) {
+  /* ★오버레이(플로팅) 전용 크로스섹션 이동 드래그 — «타입으로 가르지 않는다».
+     여기서(=bindBlock, 블록당 1회) 거는 이유: 패널 토글은 enterFloat 이 자기 마지막 줄에서
+     직접 걸어주지만(js/overlay-float.js), «프로젝트를 다시 연» 경로에는 enterFloat 이 안 돈다.
+     그 경로에 배선이 닿는 자리는 bindBlock 하나뿐이다.
+     ★2026-09-21(마지막 라운드 최종반영 QA medium) — 옛 판은 `if (isShape || isAsset)` 과
+       `if (isText)`(그것도 .frame-block[data-text-frame] 래퍼를 찾아서) 두 갈래뿐이었다.
+       .icon-text-block 은 .text-block 이 «아니고» 그 래퍼도 없어(posElOf 가 블럭 자신을
+       돌려준다) 어느 갈래에도 안 걸렸다 — 실앱 실측(9515, 줌 40%): 토글 직후엔 움직이는데
+       저장→다시 열면 _overlayMoveBound=false 라 «0px 도 안 움직이고» 선택까지 통째로 풀렸다
+       (끈 뒤의 합성 click 을 삼키는 가드도 이 onUp 안에 살기 때문이다).
+       같은 함수 안의 «일반 드래그 비켜가기» 가드(:469)는 이미 타입과 무관하게
+       `_floatPosElOf(block)?.dataset.overlayBlock === 'true'` 로 판정한다 — 비켜가기는 전 타입인데
+       받아줄 전용 드래그만 세 타입이라 아이콘텍스트가 두 드래그 «사이»로 샜다.
+     ⇒ 가드와 «같은 술어»로 대칭을 맞춘다: posElOf 가 자리를 주면 건다. 타입 해석은
+       js/overlay-float.js posElOf 한 곳뿐이고(도형=자유배치 래퍼 · 텍스트=text-frame 래퍼 ·
+       에셋/아이콘텍스트=자신), bindFloatMoveDrag 는 ⑴같은 posEl 에 두 번 안 걸리고
+       (_overlayMoveBound) ⑵매 mousedown 마다 dataset.overlayBlock 을 live 로 재확인해
+       오버레이가 아니면 조용히 빠진다 ⇒ 오버레이가 못 되는 타입에 걸어둬도 무해하다.
+     회귀: tests/dom/overlay-load-path-move-drag.dom.spec.js(타입 전수 L1·L2) ·
+           tests/unit/overlay-icon-text-handles.test.mjs 문④. */
+  {
     const _posForFloat = _floatPosElOf(block);
     if (_posForFloat) _bindFloatMoveDrag(_posForFloat);
   }
 
   if (isText) {
-    // ★오버레이 전용 크로스섹션 드래그를 여기서(=bindBlock, text-block당 1회) 걸어둔다 —
-    // 토글 시점뿐 아니라 프로젝트 로드로 이미 오버레이 상태인 블록도 이 경로 하나로 잡힌다.
-    // 함수 자체가 매 mousedown마다 dataset.overlayBlock 을 live로 재확인하므로 미리 걸어도
-    // 오버레이가 아닐 때는 그냥 조용히 빠진다(prop-text-wireup-overlay.js 참고).
-    const _tfForOverlay = block.closest('.frame-block[data-text-frame="true"]');
-    if (_tfForOverlay) window._bindOverlayMoveDrag?.(_tfForOverlay);
     block.addEventListener('click', e => {
       e.stopPropagation();
       // 편집 모드 중 클릭은 무시 (커서 이동/텍스트 선택 기본 동작 유지)

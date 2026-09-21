@@ -148,3 +148,36 @@ test('문⑤ 흐름으로 돌아온 .icon-text-block 은 «제 행»을 못 넘�
   assert.match(down, /style\.maxWidth\s*=\s*'none'/,
     '★리사이즈가 maxWidth 상한을 안 푼다 — 오버레이 중에도 섹션 폭에서 막힌다');
 });
+
+test('문⑥ bindBlock 의 «오버레이 이동 드래그» 배선이 타입(클래스)으로 갈리지 않는다', () => {
+  /* ★2026-09-21 마지막 라운드 최종반영 QA medium — 「오버레이 아이콘+텍스트가 마우스로
+     전혀 안 옮겨지고 끌면 선택이 풀린다」.
+     실앱 실측(9515, 줌 40%)으로 가른 «진짜 조건»: 패널 토글로 방금 켠 직후엔 움직인다
+     (enterFloat 이 자기 마지막 줄에서 직접 건다). 저장→다시 열면 _overlayMoveBound=false 라
+     0px 도 안 움직이고 선택도 전부 풀린다(끈 뒤의 합성 click 을 삼키는 가드가 그 드래그의
+     onUp 안에 살기 때문). ⇒ «로드 경로»의 유일한 배선자리인 bindBlock 이 문제였다.
+     옛 판은 `if (isShape || isAsset)` 과 `if (isText)` 둘로 갈라 걸었고, .icon-text-block 은
+     .text-block 이 아니고 text-frame 래퍼도 없어 어느 갈래에도 안 걸렸다.
+     ⇒ 배선 판정은 같은 함수의 «일반 드래그 비켜가기» 가드와 «같은 술어»(posElOf)여야 한다 —
+       비켜가기만 전 타입이고 받아줄 드래그가 세 타입이면 그 «사이»로 새는 타입이 또 생긴다.
+     숫자는 tests/dom/overlay-load-path-move-drag.dom.spec.js 가 타입 전수로 잰다. */
+  const body = stripComments(bodyOf(DRAG, 'function bindBlock'));
+  const call = body.indexOf('_bindFloatMoveDrag(');
+  assert.notStrictEqual(call, -1,
+    '★bindBlock 이 오버레이 이동 드래그를 아예 안 건다 — 다시 연 프로젝트의 오버레이가 안 움직인다');
+  assert.match(body.slice(Math.max(0, call - 200), call), /_floatPosElOf\(\s*block\s*\)/,
+    '★자리를 posElOf 로 안 구한다 — 타입 해석이 두 벌이 된다(SSOT 는 js/overlay-float.js)');
+
+  /* 그 호출을 감싼 «가장 가까운 블록»의 머리를 본다. 클래스 판정 if 가 머리에 있으면
+     그 타입 목록에 없는 블럭이 조용히 새는 옛 꼴로 돌아간 것이다. */
+  let depth = 0, open = -1;
+  for (let k = call; k >= 0; k--) {
+    if (body[k] === '}') depth++;
+    else if (body[k] === '{') { if (depth === 0) { open = k; break; } depth--; }
+  }
+  assert.notStrictEqual(open, -1, '★호출을 감싼 블록의 여는 괄호를 못 찾았다 — 이 검사부터 고쳐라');
+  const head = body.slice(Math.max(0, open - 120), open);
+  assert.doesNotMatch(head, /\bif\s*\([^)]*\bis[A-Z]/,
+    `★이동 드래그 배선이 «클래스 갈래» 안에 있다(머리: ${head.trim().slice(-80)}) — `
+    + '.icon-text-block 처럼 그 목록에 없는 타입이 또 샌다');
+});

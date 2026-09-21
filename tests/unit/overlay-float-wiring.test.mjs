@@ -129,12 +129,22 @@ test('T4 ★Figma 내보내기의 오버레이 분기가 도형 래퍼(frame-blo
     '일반 플로팅 순회가 오버레이를 제외하지 않는다 — 에셋 오버레이가 중복으로 실린다');
 });
 
-test('T5 ★일반 드래그 가드가 타입 비의존이고, 도형·에셋에도 전용 드래그가 걸린다', () => {
+test('T5 ★일반 드래그 가드도, 전용 드래그 배선도 «둘 다» 타입 비의존이다', () => {
   assert.match(SRC.drag, /_floatPosElOf\(block\)\?\.dataset\.overlayBlock === 'true'\) return;/,
     'block-drag.js 의 일반 드래그에 타입 비의존 오버레이 가드가 없다 — 섹션 침범 P0 가 도형·에셋에서 재발한다');
-  assert.match(SRC.drag, /if \(isShape \|\| isAsset\) \{/,
-    'block-drag.js 가 도형·에셋에 전용 이동 드래그를 안 건다');
+  /* ★2026-09-21 갱신(마지막 라운드 최종반영 QA medium) — 옛 단언은 `if (isShape || isAsset) {`
+     라는 «클래스 갈래»를 문자 그대로 박아 뒀다. 그 꼴이 바로 결함이었다: .icon-text-block 은
+     .text-block 이 아니고 text-frame 래퍼도 없어 두 갈래(도형·에셋 / 텍스트) 어디에도 안 걸려,
+     저장→다시 연 오버레이가 0px 도 안 움직이고 선택까지 풀렸다(실앱 9515 실측).
+     가드는 타입 비의존인데 «받아줄 드래그»만 세 타입이면 그 사이로 새는 타입이 또 생긴다
+     ⇒ 이 파일의 머리말이 말한 대로 «지우지 말고 패턴을 고친다» — 뜻(⑵ 오버레이 판정이
+       텍스트 전용으로 남지 않았다)은 그대로 두고, 더 센 뜻(«어느 타입 전용»도 아니다)으로 올린다.
+     클래스 갈래로 되돌아가는 것 자체는 tests/unit/overlay-icon-text-handles.test.mjs 문⑥ 이 막는다. */
   assert.match(SRC.drag, /_bindFloatMoveDrag\(_posForFloat\)/, '전용 드래그 바인딩 호출이 없다');
+  assert.match(SRC.drag, /const _posForFloat = _floatPosElOf\(block\);/,
+    '전용 드래그의 자리를 posElOf 로 안 구한다 — 타입 해석이 두 벌이 된다(SSOT 는 js/overlay-float.js)');
+  assert.doesNotMatch(SRC.drag, /if \(isShape \|\| isAsset\) \{[\s\S]{0,200}?_bindFloatMoveDrag/,
+    '전용 이동 드래그가 다시 «클래스 갈래» 안으로 들어갔다 — 그 목록에 없는 타입(.icon-text-block 등)이 또 샌다');
 });
 
 test('T5-c ★«프레임» 드래그에도 같은 가드가 있다 — 재로드한 떠 있는 도형에 핸들러가 둘 붙는다', () => {
