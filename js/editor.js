@@ -27,6 +27,44 @@ if (typeof window !== 'undefined') {
 }
 
 /* ═══════════════════════════════════
+   SSOT: 「섹션 안에서 고를 수 있는 블록」 타입 셀렉터 (★.selected 접미사 없음)
+   ⇒ ⇧클릭 범위선택(SIBLING_MULTI_SEL)과 ⌘A 전체선택(editor.js 의 `e.key === 'a'` 분기)이
+     이 «한 자리»를 같이 본다. 새 블록 타입이 생기면 여기 한 줄만 고친다.
+
+   ★왜 한 자리로 모았나 — 2026-09-20 «사용자 관점 훑기» T-085 실측
+     ⌘A 쪽에만 목록이 손으로 한 벌 더 적혀 있었고, 그게 뒤처져 있었다:
+     shape / speech-bubble / mockup / step / joker / icon / chat / gradient / sticker /
+     laurel / zoom 이 빠진 채였다. 그래서 「⌘A 로 전체선택하고 Delete 했는데 도형이 안 지워진다」.
+     실측(고치기 전, 포트 9527): 텍스트2+도형1 이 든 섹션에서 ⌘A 선택집합 =
+     [gap, text, text, gap] — shape 0개. Delete 뒤에도 .shape-block 이 1개 남았다.
+
+   ⚠️`.frame-block` 은 «일부러» 뺐다 — 프레임은 «그릇»이지 고를 잎이 아니다.
+     ⇧클릭 경로는 _toSibling 으로 텍스트프레임을 형제 단위로 쓰므로 SIBLING_MULTI_SEL 에만 더한다.
+     ⌘A 가 프레임까지 고르면 deleteSelectedFromCanvas 의 `selSS`(프레임 단독 삭제) 갈래가
+     먼저 걸려 «그 프레임 줄 하나»만 지우고 return 한다 — 지금은 프레임이 안 골라지므로 안 걸린다.
+
+   ⚠️삭제 목록(CANVAS_SEL_BLOCKS)은 모양이 다르다(shape 는 ss/row 단위 별도 경로라 거기서 빠져 있다).
+     그래서 한쪽에서 다른 쪽을 파생시키지 않는다. 대신
+     tests/unit/select-all-list-drift.test.mjs 가 「지울 수 있는 타입은 ⌘A 로 반드시 골라진다」를
+     기계로 지킨다 — 손으로 적은 목록이 또 어긋나면 테스트가 빨개진다.
+
+   ★`.icon-block` — 2026-06-09 「누락 블록 추가」가 «만들어지지도 않는» 클래스명(iconify- 접두)으로
+     적혀 죽은 셀렉터였다(2026-06-11 리뷰 BR-06). 아이콘 블록의 진짜 클래스는
+     `.icon-block` 이다 — js/blocks/iconify-block.js:16 이 className='icon-block' 으로 만든다.
+═══════════════════════════════════ */
+const SECTION_BLOCK_TYPE_SEL = [
+  '.text-block', '.asset-block', '.gap-block',
+  '.icon-circle-block', '.icon-text-block', '.icon-block',
+  '.table-block', '.label-group-block', '.graph-block', '.divider-block',
+  '.bridge-block', '.grid-block', '.infocard-block', '.innercard-block', '.modal-block',
+  '.shape-block', '.speech-bubble-block', '.banner02-block', '.comparison-block',
+  '.mockup-block', '.vector-block', '.step-block', '.joker-block', '.canvas-block',
+  '.chat-block', '.gradient-block', '.sticker-block', '.laurel-block', '.zoom-block',
+  '.qa-block',
+].join(', ');
+if (typeof window !== 'undefined') window.SECTION_BLOCK_TYPE_SEL = SECTION_BLOCK_TYPE_SEL;
+
+/* ═══════════════════════════════════
    포커스 시 전체 선택 (Figma 스타일)
    - 숫자/hex/opacity 프로퍼티 인풋 클릭 시 텍스트 전체 선택 → 바로 덮어쓰기
 ═══════════════════════════════════ */
@@ -994,15 +1032,9 @@ function toggleBlockSelect(block, sec) {
  * — 텍스트프레임(투명 wrapper)은 자기 안의 text-block을 selected
  * — 프레임/일반 블록은 자기 자신을 selected
  */
-const SIBLING_MULTI_SEL =
-  '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
-  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, ' +
-  '.icon-text-block, .shape-block, .frame-block, ' +
-  // 누락 블록 추가 (#14): divider + 카드/말풍선/배너02/비교/목업/벡터/스텝/조커/캔버스 다중선택 지원
-  '.speech-bubble-block, .banner02-block, .comparison-block, ' +
-  '.mockup-block, .vector-block, .step-block, .joker-block, .canvas-block, ' +
-  // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel — 다중선택 지원
-  '.iconify-block, .chat-block, .gradient-block, .sticker-block, .laurel-block, .zoom-block, .qa-block';
+// ★목록은 SECTION_BLOCK_TYPE_SEL(파일 상단 SSOT) 한 자리에 있다 — 여기선 «그릇»인 프레임만 더한다.
+//   (_toSibling 이 text-block 을 제 텍스트프레임으로 올려 형제 단위를 맞추므로 ⇧클릭엔 프레임이 필요하다)
+const SIBLING_MULTI_SEL = SECTION_BLOCK_TYPE_SEL + ', .frame-block';
 
 function _toSibling(el) {
   if (!el) return null;
@@ -2228,10 +2260,9 @@ document.addEventListener('keydown', e => {
       // 현재 선택된 섹션 내 모든 블록 선택
       const activeSec = document.querySelector('.section-block.selected') || document.querySelector('.section-block');
       if (activeSec) {
-        const allBlocks = activeSec.querySelectorAll(
-          '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, ' +
-          '.label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .qa-block'
-        );
+        // ★손으로 한 벌 더 적지 않는다 — 파일 상단 SSOT(SECTION_BLOCK_TYPE_SEL)를 그대로 쓴다.
+        //   (T-085: 여기 목록만 뒤처져 ⌘A 가 도형을 안 골랐고, 그래서 Delete 가 도형을 남겼다)
+        const allBlocks = activeSec.querySelectorAll(SECTION_BLOCK_TYPE_SEL);
         allBlocks.forEach(b => b.classList.add('selected'));
       }
       return;
