@@ -152,6 +152,22 @@ export function clampLeftIntoFrame(left, frameW, elW) {
   return Math.min(Number(left) || 0, maxL);
 }
 
+/* ══ ④-2 «끌고 다니는» 자식이 프레임 밖으로 못 나가게 죈다 (T-088, 2026-09-22) ══
+   ④(아래 growFrameToFitChildren)가 «밖에서 들고 들어오는» 축이라면, 이쪽은 «이미 안에 있는
+   자식을 끌어 옮기는» 축이다. 그 축에선 프레임을 키우지 않는다 — 크기는 사용자가 핸들로
+   정한다(js/block-drag.js `_resizeFrameToFitChildren` 는 의도된 no-op). 대신 자식이
+   overflow:hidden 너머로 못 가게 죈다. 안 그러면 자식이 «화면에서 사라진다».
+   ⚠️위아래 «둘 다» 죈다 — 0 아래로도 못 간다(위로 밀어 넣어도 똑같이 잘린다).
+   ⚠️자식이 프레임보다 «크면» max 가 음수가 된다 — 그땐 0(왼쪽·위 맞춤)이다.
+     그래야 적어도 머리는 보인다. 음수를 그대로 쓰면 반대쪽으로 잘린다. */
+export function clampChildIntoFrame(left, top, elW, elH, frameW, frameH) {
+  const one = (v, extent, size) => {
+    const max = Math.max(0, (Number(extent) || 0) - (Number(size) || 0));
+    return Math.max(0, Math.min(max, Number(v) || 0));
+  };
+  return { left: one(left, frameW, elW), top: one(top, frameH, elH) };
+}
+
 /* ══ ④ 프레임이 «자식을 잘라 먹지» 않는 최소 높이 (T-088, 2026-09-21) ══
    .frame-block 은 `overflow:hidden`(css/editor-blocks.css:11) 이다. 자유배치 프레임은
    높이가 «고정값»이라, 밖에서 블록을 끌어 넣으면 드롭 경로가 그 블록을 맨 아래로 쌓아
