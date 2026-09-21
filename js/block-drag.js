@@ -247,10 +247,15 @@ function _gridBeginEdit(hit, e) {
      이어붙는다(사용자 관점 훑기 0920 U-26: 「내용을 입력하세요.강아지 간식」).
      ⚠️GRID_CELL_DEFAULT_TEXT 를 './blocks/grid-block.js' 에서 정적 import 하면 «순환»이다
        (grid-block.js → drag-drop.js → `export * from './block-drag.js'`). 이 파일이 _gridEndEdit 에서
-       window.updateGridBlock 을 쓰는 것과 같은 window 브리지 관례를 따른다. 로드 순서 방어로 폴백을 둔다.
+       window.updateGridBlock 을 쓰는 것과 같은 window 브리지 관례를 따른다.
+     ⛔폴백 리터럴을 두지 «않는다» — 초판엔 `|| '내용을 입력하세요.'` 가 있었는데, 그건 정본이 바뀌면
+       혼자 낡아 «조용히» 전체선택을 멈추는 그림자 복제였다(검사로도 안 잡히는 축).
+       그리드 셀이 화면에 있다는 것은 grid-block.js 가 이미 돌았다는 뜻이라 브리지는 그때 서 있다
+       (그 전제는 tests/dom/placeholder-selectall-banner-grid.dom.spec.js 가 직접 잰다).
+       혹시 없으면 «아무 판정도 안 하고» 아래 기존 caret 분기로 떨어진다 — 옛 동작이라 새 손상은 없다.
      ⚠️개행·공백 차이 오탐 방지로 양쪽 trim. 안내문구가 아니면 «아래 기존 caretRangeFromPoint 분기 그대로». */
-  const _gridPh = String(window.GRID_CELL_DEFAULT_TEXT || '내용을 입력하세요.').trim();
-  if (_gridReadText(host).trim() === _gridPh) { selectAllEditableContents(host); return; }
+  const _gridPh = window.GRID_CELL_DEFAULT_TEXT;
+  if (_gridPh != null && _gridReadText(host).trim() === String(_gridPh).trim()) { selectAllEditableContents(host); return; }
   // 클릭한 위치에 캐럿 — 텍스트 블록 더블클릭과 같은 방식(caretRangeFromPoint).
   const range = e && document.caretRangeFromPoint
     ? document.caretRangeFromPoint(e.clientX, e.clientY)

@@ -38,6 +38,13 @@ function _defaultLines(v) {
     { kind: 'sub',   text: '캡션이 입력됩니다.',    size: v.subSize,   color: '#000000', gapTop: v.gap2, fontFamily: '', fontWeight: 400, letterSpacing: 0 },
   ];
 }
+// ★「+ 텍스트 줄 추가」로 «새로 만드는» 줄의 기본문구 — 정본은 여기 한 곳.
+//   prop-banner02.js 의 추가 버튼이 window._bn2Lines.newLineText 로 «읽어» 쓴다.
+//   ⚠️초판에선 이 리터럴이 prop-banner02.js 안에 «따로» 박혀 있었다. 그래서 아래 판정이 그 줄을
+//     못 알아봤고, 사용자가 추가한 줄만 「강아지 간식새 줄」로 이어붙었다(같은 뿌리의 «빠진 자리»).
+//     「정본이 한 곳」이라는 말이 실제로 참이 되도록 리터럴을 이쪽으로 옮겼다.
+const BANNER02_NEW_LINE_TEXT = '새 줄';
+
 // ── 안내문구(기본문구) 식별 ────────────────────────────────────────────────
 // 배너 텍스트는 dataset.lines(JSON) 모델에 들어있어 text-block 처럼 DOM 에 data-is-placeholder 를
 // 못 단다 — comparison-block.js 가 «같은 처지»에서 이미 쓰는 「기본문구와 값이 같은가」 방식을 그대로 쓴다
@@ -45,11 +52,16 @@ function _defaultLines(v) {
 // ⚠️알려진 한계(모달·비교 블럭도 이미 수용 중인 트레이드오프): 사용자가 안내문구와 «글자 그대로 같은 말»을
 //   진짜 본문으로 입력하면 다음 편집진입 때도 전체선택된다. 새 위험이 아니라 기존 패턴과 동일하다.
 // ⚠️기본문구는 variant 와 무관하게 같은 문자열이다(_defaultLines 의 text 는 v 를 안 쓴다) →
-//   리터럴을 여기 다시 베끼지 않고 _defaultLines 를 그대로 참조한다(정본 1곳 유지).
-function _isBanner02PlaceholderText(kind, text) {
+//   리터럴을 여기 다시 베끼지 않고 _defaultLines 를 그대로 참조한다.
+// ⚠️kind 는 조건에 «안» 넣는다 — 선례(comparison-block.js isCmpPlaceholderText)도 값만 본다.
+//   네 문구가 서로 달라 kind 를 봐도 걸러지는 게 없고, 줄의 kind 가 바뀌면 오히려 판정만 새기 때문이다.
+function _banner02PlaceholderTexts() {
+  return _defaultLines(_variant()).map(l => String(l.text).trim()).concat([BANNER02_NEW_LINE_TEXT]);
+}
+function _isBanner02PlaceholderText(text) {
   const s = (text == null ? '' : String(text)).trim();
   if (s === '') return false;                 // 빈 줄은 전체선택할 내용이 없다 — 캐럿만(기존 동작)
-  return _defaultLines(_variant()).some(l => l.kind === kind && String(l.text).trim() === s);
+  return _banner02PlaceholderTexts().includes(s);
 }
 function _readLines(block) {
   const d = block.dataset;
@@ -167,7 +179,7 @@ function renderBanner02(block) {
          (사용자 관점 훑기 0920 U-26: 「강아지 간식제목을 입력합니다.」).
          ⛔focus() «직후 동기»로 부른다 — 비동기면 기본 캐럿이 선택을 덮는다.
          안내문구가 «아니면» 기존 동작(focus 만) 그대로 — 사용자가 쓴 본문을 통째로 날릴 위험을 안 만든다. */
-      if (_isBanner02PlaceholderText(line.kind, el.textContent)) selectAllEditableContents(el);
+      if (_isBanner02PlaceholderText(el.textContent)) selectAllEditableContents(el);
     });
     // ★⑶ 빈 줄에서 백스페이스 한 번 더 → 그 줄 삭제 + 이전 줄 끝으로 캐럿.
     //   지금까지 줄 삭제는 우측 × 버튼이 유일했다(캔버스 경로 0건).
@@ -626,6 +638,9 @@ window.addBanner02Block    = addBanner02Block;
 window.updateBanner02Block = updateBanner02Block;
 window.renderBanner02      = renderBanner02;
 window.BANNER02_VARIANTS   = BANNER02_VARIANTS;
-window._bn2Lines = { read: _readLines, write: _writeLines, normalize: _normLine, defaults: _defaultLines };
+// ★newLineText/isPlaceholderText 를 같이 내보낸다 — prop-banner02.js 의 「+ 텍스트 줄 추가」가
+//   기본문구 리터럴을 «제 파일에» 또 만들지 않도록(정본 1곳).
+window._bn2Lines = { read: _readLines, write: _writeLines, normalize: _normLine, defaults: _defaultLines,
+                     newLineText: BANNER02_NEW_LINE_TEXT, isPlaceholderText: _isBanner02PlaceholderText };
 
 export { makeBanner02Block, addBanner02Block, updateBanner02Block, renderBanner02, BANNER02_VARIANTS };
