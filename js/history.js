@@ -91,6 +91,64 @@ function _sameEdit(a, b) {
   return _stripNonEdit(a) === _stripNonEdit(b);
 }
 
+/* ★[T-130 · 2026-09-22] «미확정 영상»의 상태는 스냅샷 «문자열 밖»에 산다 —
+   무변화 중복 차단이 그 몫도 같이 재야 한다.
+
+   ══ 왜 필요한가(실측 2026-09-22, 포트 9636 · 기준 dev 12865a1) ══════════════
+   T-012/T-031 이 «GIF로 적용» 전 영상(video-pending)을 저장 대상에서 뺐다 —
+   js/io/section-serialize.js serializeCleanRoot 가 그 블럭을 «빈 업로드대기»로 세척하고,
+   원본·트림·속도는 문자열이 아니라 «그 sweep 전용 사이드카»에 담는다(같은 파일
+   getLastVideoPendingSidecar). ⇒ 미확정 영상에 한 편집은 **스냅샷 문자열을 한 글자도 안 바꾼다**.
+   그래서 위 _sameEdit 이 「무변화」로 읽고 pushHistory 의 무변화 차단이 그대로 돌아나갔다
+   (아래 `if (!sideEffects && _top && …)` — ⛔줄번호로 가리키지 않는다. 주석 한 줄만 늘어도 썩는다).
+   실측(진짜 앱·진짜 드래그) — 영상 업로드 + 트림 드래그 2회 동안 꼭대기가
+   {pos:2, len:3, seq:5} 에서 **한 칸도 안 늘었고**, ⌘Z 한 번에 에셋 블럭이 통째로 사라졌다
+   (⌘⇧Z 로 블럭은 와도 영상은 «안» 왔다 — 되살릴 표본이 아예 없어서).
+   ⇒ 한 줄에서 둘이 같이 난다: «편집이 안 쌓인다» + «원본이 그 항목에 안 실린다».
+
+   ══ 무엇을 하나 ══════════════════════════════════════════════════════════════
+   항목의 «정체»를 (canvas 문자열, 사이드카) «쌍»으로 본다. 문자열이 같아도 사이드카가
+   다르면 «다른 편집»이다. 이 레포엔 이미 같은 모양의 선례가 있다 — pushHistory 의
+   `!sideEffects` 예외(그 차단 첫 조건 · 「캔버스는 그대로여도 되돌릴 것이 있다」)가 그것이다.
+   ⛔_stripNonEdit(문자열 비교자)은 «한 글자도» 안 건드린다 — 거기에 공백 정리를 얹으면
+     T-035 의 「✕ 로 비운 직후 ⌘Z 되살리기」가 조용히 죽는다(기전은 T-035 ⚠️ E).
+
+   ══ 왜 «값 전체»가 아니라 digest 인가 ═══════════════════════════════════════
+   imgSrc 는 영상 원본 data URL 이다(블럭당 최대 ~66MB). pushHistory 는 편집마다 도는
+   자리라 그 길이의 문자열 비교를 매번 끼울 수 없다. ⇒ 길이 + 양끝 64자 + 트림/속도/fit 로
+   고정 길이 열쇠를 만든다. 블럭당 O(1) 이고, 사람이 바꾸는 값(트림·속도·fit·블럭 유무)은
+   «전부» 정확히 들어간다.
+   ⛔못 가리는 한 가지(알고 남긴다): «길이가 같고 앞뒤 64자가 모두 같은 서로 다른 영상»으로
+     교체하는 경우. base64 로 그 셋이 동시에 맞는 두 파일은 현실에서 안 만나고, 그 경우에도
+     잃는 것은 «교체» 한 칸뿐이다(그 뒤 트림/속도 편집은 여전히 쌓인다).
+   ★없음·{}·undefined 는 «같다»로 읽는다 — 영상이 없는 대다수 편집에서 회귀 0 이 되는 근거.
+   tests/dom/video-pending-edit-undo.dom.spec.js · tests/unit/video-pending-dedupe.test.mjs 가 잠근다. */
+const _VP_FIELDS = ['fit', 'trimIn', 'trimOut', 'playbackRate'];
+/* 칸막이 — 값 안에 절대 안 나오는 제어문자다(id 는 [A-Za-z0-9_], 원본은 data URL,
+   나머지는 숫자·'cover' 류). ⛔소스에 «날 제어문자»를 박지 마라(diff·grep 이 깨진다) —
+   그래서 코드포인트로 만든다. */
+const _VP_SEP = String.fromCharCode(1);
+const _VP_END = String.fromCharCode(2);
+function _videoPendingKey(sc) {
+  if (!sc || typeof sc !== 'object') return '';
+  let ids;
+  try { ids = Object.keys(sc); } catch (_) { return ''; }
+  if (!ids.length) return '';
+  ids.sort();
+  let out = '';
+  for (let i = 0; i < ids.length; i++) {
+    const v = sc[ids[i]] || {};
+    const src = typeof v.imgSrc === 'string' ? v.imgSrc : '';
+    out += ids[i] + _VP_SEP + src.length + _VP_SEP + src.slice(0, 64) + _VP_SEP + src.slice(-64);
+    for (let k = 0; k < _VP_FIELDS.length; k++) {
+      const f = v[_VP_FIELDS[k]];
+      out += _VP_SEP + (f == null ? '' : f);
+    }
+    out += _VP_END;
+  }
+  return out;
+}
+
 /* ── ★0920b «grad-alpha» C: undo 복원 시 «선택 상태» 복원 ─────────────────────────────
  * 현빈 원문: 「블럭을 삭제하고 ⌘Z 로 되살리면 보라색 아웃라인이 안 보여, 살아난 건지 확인하려면
  * 클릭해봐야 안다」. 원인은 셋이 겹친다 —
@@ -181,17 +239,22 @@ function pushHistory(action = '작업', sideEffects = null) {
      ⚠️건너뛸 땐 slice(redo 꼬리 자르기)도 «안» 한다 — 아무것도 안 바꾼 호출이 redo 를
        죽이면 안 된다(맨클릭이 ⌘⇧Z 를 죽이던 부수결함이 여기서 같이 사라진다). */
   const _top = historyStack[historyPos];
-  if (!sideEffects && _top && _top.pageId === state.currentPageId
-      && _sameEdit(_top.canvas, _canvas)
-      && JSON.stringify(_top.settings) === JSON.stringify(state.pageSettings)) {
-    return;
-  }
-  historyStack = historyStack.slice(0, historyPos + 1);
   // ★T-031 2차: getSerializedCanvas() 가 «방금» 발견한 video-pending 원본을 이 스냅샷
   //   «자신»에 붙인다(같은 동기 구간에서 읽어야 한다 — js/io/section-serialize.js
   //   getLastVideoPendingSidecar 주석 참고). 전역 캐시가 아니라 이 스냅샷 전용이라,
   //   나중에 이 스냅샷이 아닌 다른 스냅샷을 복원할 땐 여기 안 실린다.
+  // ★T-130(2026-09-22): 이 읽기가 «차단 위»로 올라왔다 — 아래 차단이 사이드카도 같이 재기
+  //   때문이다. ⛔다시 차단 «아래»로 내리지 마라: 그러면 「원본이 안 실린다」가 되살아난다.
+  //   (순수 읽기다 — _lastSweepSidecar 를 그대로 돌려줄 뿐 sweep 을 새로 돌리지 않는다.)
   const _videoPendingSidecar = window.getLastVideoPendingSidecar?.();
+  if (!sideEffects && _top && _top.pageId === state.currentPageId
+      && _sameEdit(_top.canvas, _canvas)
+      // ★T-130: 미확정 영상은 스냅샷 «문자열 밖»에 산다 — 문자열이 같아도 이게 다르면 다른 편집이다.
+      && _videoPendingKey(_top.videoPendingSidecar) === _videoPendingKey(_videoPendingSidecar)
+      && JSON.stringify(_top.settings) === JSON.stringify(state.pageSettings)) {
+    return;
+  }
+  historyStack = historyStack.slice(0, historyPos + 1);
   historyStack.push({ canvas: _canvas, videoPendingSidecar: _videoPendingSidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
   if (historyStack.length > MAX_HISTORY) {
     historyStack.shift(); // 가장 오래된 항목 제거
@@ -508,7 +571,15 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
      ⚠️느슨해지는 만큼 «그 둘만 다른» 라이브 상태는 선적재가 «안» 된다 — 둘 다 복원·로드 때
        다시 계산되는 값이라 잃는 것이 없다고 «보지만», paste/copy 선적재(위 설명)와 undo 첫
        스텝 양쪽에서 재 보고 적을 것. */
-  if (!_sameEdit(historyStack[historyPos]?.canvas, current)) {
+  /* ★[T-130 · 2026-09-22] 차단은 «두 벌»이다 — pushHistory 와 여기. 한쪽만 고치면
+     그쪽 경로에서만 고쳐진다. 그래서 «같은 잣대»를 여기에도 건다(_videoPendingKey 주석).
+     이 자리가 실제로 하는 일: 썸네일 고정처럼 «미확정 영상 상태»가 꼭대기인 채로 ⌘Z 를
+     누르면, undo 첫머리의 이 함수가 라이브(=이미 이미지로 바뀐 상태)를 선적재해야
+     redo 가 산다(DEF-01). 문자열만 보면 그 선적재가 빗나가는 자리는 없지만, 반대로
+     «문자열은 같고 영상만 다른» 라이브를 선적재해야 하는 자리가 있다 — 영상을 넣고
+     바로 ⌘Z 하는 경우다(그 칸이 없으면 ⌘⇧Z 로도 영상이 안 돌아온다. 실측 2026-09-22). */
+  if (!_sameEdit(historyStack[historyPos]?.canvas, current)
+      || _videoPendingKey(historyStack[historyPos]?.videoPendingSidecar) !== _videoPendingKey(_sidecar)) {
     historyStack = historyStack.slice(0, historyPos + 1);
     // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
     //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
@@ -566,7 +637,13 @@ function getHistoryTip() {
  * ★안전장치 — 아래 네 조건 중 하나라도 틀리면 «아무것도 안 한다»(조용히 false).
  *   ⑴ 그 사이 다른 항목이 쌓였다(seq 불일치) ⑵ 되돌리기가 진행돼 꼭대기가 아니다
  *   ⑶ 복원 중(_historyPaused) ⑷ 직렬화가 같다(할 일 없음)
- *   ⛔sidecar 는 «안» 건드린다 — video-pending 은 T-130 의 자리라 여기서 같이 만지지 않는다. */
+ *   ⛔sidecar 는 «안» 건드린다 — 여전히 그렇다. 까닭이 T-130(2026-09-22) 뒤에 «분명해졌다»:
+ *     ⑴ 미확정 영상 블럭은 세척돼 문자열이 «안 변한다» ⇒ 그 블럭 때문에 여기 ⑷(무변화)를
+ *        통과할 일이 없다. 갱신이 실제로 도는 건 «다른 것»이 한 프레임 뒤에 바뀐 때뿐이고,
+ *        그 한 프레임 사이에 사이드카가 바뀌는 경로는 없다(바꾸려면 사용자 조작이 필요하다).
+ *     ⑵ ★단 이 함수의 getSerializedCanvas() 는 sweep 을 새로 돌려 «_lastSweepSidecar 를
+ *        덮는다». 그래서 getLastVideoPendingSidecar() 는 «직전 직렬화 직후»에만 읽어야 한다 —
+ *        pushHistory·ensureHistoryCheckpoint·clearHistory 셋 다 그 규약을 지킨다. */
 function restampHistoryTop(seq) {
   if (_historyPaused) return false;
   if (historyPos !== historyStack.length - 1) return false;   // 되돌린 뒤엔 안 건드린다
