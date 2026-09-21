@@ -157,8 +157,13 @@ function _appendAudit(rec) {
   try {
     const dir = _stateDir();
     fs.mkdirSync(dir, { recursive: true });
+    /* ★`caller` 를 «여기 한 곳»에서 더한다(2026-09-22) — 예전엔 원장에 부른 쪽 칸이 «없어서»,
+       확정 없이 들어온 쓰기가 정상 쓰기와 «글자 하나 다르지 않게» 남았다.
+       ⇒ 일이 나도 원장만 봐서는 «일어난 줄 몰랐다». 「0건이다」라고 말할 수 없는 축이었다.
+       ⛔원장을 쓰는 자리가 «둘»이다 — 여기와 도구 호출부의 `_audit`. 둘 다 넣어야 한다.
+         (여기만 고쳤다가 도구 원장에 caller 가 안 남는 것을 실측으로 잡았다. 2026-09-22) */
     fs.appendFileSync(path.join(dir, 'tool-audit.jsonl'),
-      JSON.stringify({ at: new Date().toISOString(), ...rec }) + '\n');
+      JSON.stringify({ at: new Date().toISOString(), caller: _callerId(), ...rec }) + '\n');
   } catch (_) { /* 원장 실패가 동작을 막지 않는다 */ }
 }
 function getTokenFilePath() { return _tokenFilePath; }
@@ -8468,7 +8473,12 @@ async function _handleRpc(msg) {
           fs.mkdirSync(dir, { recursive: true });
           const a = args || {};
           fs.appendFileSync(path.join(dir, 'tool-audit.jsonl'), JSON.stringify({
-            at: new Date().toISOString(), tool: name, outcome,
+            at: new Date().toISOString(), caller: _callerId(), tool: name, outcome,
+            /* ★`caller` (2026-09-22) — 예전엔 이 칸이 «없어서», 확정 없이 들어온 쓰기가
+               정상 쓰기와 «글자 하나 다르지 않게» 남았다. 원장이 「유일한 사후 근거」인데
+               정작 「누가」가 빠져 있었다 ⇒ 일이 나도 «일어난 줄 몰랐다».
+               ⛔이 자리와 _appendAudit 둘 다에 있어야 한다 — 원장을 쓰는 자리가 «둘»이다.
+                 (한 곳만 고쳤다가 이 자리가 빠져 caller 가 안 남는 것을 실측으로 잡았다.) */
             argKeys: Object.keys(a).sort(),                       // ⛔이름만. 값은 «안» 적는다
             argBytes: (() => { try { return JSON.stringify(a).length; } catch (_) { return null; } })(),
             target: a.projectId || a.sectionId || a.blockId || a.id || null,  // 대상 id 는 «추적»에 필요하다
@@ -8774,6 +8784,9 @@ function _createServer() {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Mcp-Session-Id');
+    /* ⛔Allow 만 있고 Expose 가 없으면 «보내는 것»은 되고 «받아 읽는 것»이 안 된다 —
+       서버가 세션 id 를 발급해도 브라우저 클라이언트는 못 읽어 되돌려 보낼 수 없다(2026-09-22). */
+    res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -8858,9 +8871,27 @@ function _createServer() {
           const msg = body ? JSON.parse(body) : {};
           /* ★호출자 식별 — 예전엔 Mcp-Session-Id 가 CORS 허용 목록에만 있고 «읽는 코드가 0건»이었다.
              그래서 확정(sticky)이 호출자를 못 가르고 프로세스 전체가 한 칸을 썼다. */
-          const _cid = String(req.headers['mcp-session-id'] || '').slice(0, 128) || 'anon';
+          let _cid = String(req.headers['mcp-session-id'] || '').slice(0, 128) || 'anon';
+          /* ★★세션 id 를 «서버가 발급»한다 (2026-09-22 실측으로 열린 구멍).
+             무엇이 있었나 — 위 _confirmedByCaller 의 근거 ⑶ 은 「브리지가 반드시 보내게(이미 그렇다)」였다.
+             그 전제가 깨졌다: 브리지를 «안 거치고» 이 서버에 바로 붙는 길이 실제로 쓰인다.
+             그런데 서버는 initialize 응답에 Mcp-Session-Id 를 «한 번도 안 실었다».
+             규약상 클라이언트는 «서버가 준» 세션 id 만 되돌려 보내므로
+             ⇒ ★규약을 지키는 클라이언트일수록 헤더를 «안 보내고» 전부 'anon' 한 칸에 뭉쳤다.
+               그 한 칸은 공유라, 남이 세운 확정으로 쓰기가 그냥 통과했다.
+             ⇒ 발급만 하면 규약 준수 클라이언트는 다음 요청부터 «제 칸»을 받는다.
+             ⛔헤더 없는 호출자를 «거절하지 않는다» — 근거 ⑴(직접 HTTP 로 부르는 도구·검사가
+               통째로 죽는다)은 지금도 참이다. 그들은 예전처럼 'anon' 을 공유한다.
+               이 고침은 «막는 것»이 아니라 «갈라 주는 것»이다. */
+          let _issued = null;
+          if (msg && msg.method === 'initialize') {
+            _issued = _cid !== 'anon' ? _cid : ('s-' + crypto.randomBytes(16).toString('hex'));
+            _cid = _issued;
+          }
           const result = await _callerCtx.run(_cid, () => _handleRpc(msg));
-          res.writeHead(200, { 'Content-Type': 'application/json' });
+          const _hdrs = { 'Content-Type': 'application/json' };
+          if (_issued) _hdrs['Mcp-Session-Id'] = _issued;
+          res.writeHead(200, _hdrs);
           // notification은 null → 빈 객체로 반환
           res.end(JSON.stringify(result === null ? {} : result));
         } catch (e) {
