@@ -524,7 +524,12 @@ function addStickerBlock(opts = {}) {
   const selectedAnyBlock = document.querySelector('.sticker-block.selected, .block.selected, [class*="-block"].selected');
   const sec = window.getSelectedSection?.()
     || selectedAnyBlock?.closest('.section-block');
-  if (!sec) { window.showToast?.('섹션을 선택하세요'); return; }
+  /* ★경고는 «한 벌»이다 — 다른 블럭 추가 입구 19곳과 같은 문장·같은 흔들림을 쓴다
+     (drag-utils.js showNoSelectionHint). 옛 판은 여기만 showToast('섹션을 선택하세요')
+     라 문장이 다르고 툴바가 안 흔들렸다 — 「눌렀는데 아무 일도 안 났다」로 읽힌다.
+     ⛔«추가하지 않는다»는 U6(b) 결정은 그대로다(맨아래-섹션 폴백을 되살리지 마라).
+     회귀: tests/unit/block-add-noselection-hint.test.mjs T1·T2. (2026-09-21) */
+  if (!sec) { window.showNoSelectionHint?.(); return; }
   // B13 가드: 값이 undefined인 키는 '지정 안 함'과 동일 취급 — spread 머지에서
   //   undefined 키가 remembered 스타일(예: iconColor)을 덮어써 ''로 강등시키는 것 방지.
   //   (호출자 객체 비변조 — 새 객체로 재구성)

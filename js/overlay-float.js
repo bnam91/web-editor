@@ -558,6 +558,23 @@ export function bindFloatMoveDrag(posEl) {
            (push-before 삽입 · push-after 패널)을 만나도 표본이 빈 칸 없이 이어진다. */
         window.pushHistory?.('오버레이 이동');
         window.triggerAutoSave?.();
+        /* ★끌고 난 «뒤»의 합성 click 을 삼킨다 (2026-09-21 수리공 유닛 ②)
+           브라우저는 누름·놓음의 «공통 조상»에서 click 을 새로 만든다. 오버레이는
+           현빈 결정(2026-09-20)으로 섹션 밖까지 나갈 수 있고, 탄성 저항 때문에 상자가
+           커서보다 뒤처진 채 멈춘다 ⇒ 놓는 자리가 «블럭 밖 = 캔버스 배경»이 되기 쉽다.
+           그러면 js/editor.js 의 canvas-wrap click 핸들러
+             (['canvas-wrap','canvas-scaler','canvas'].includes(e.target.id) → deselectAll)
+           가 곧바로 선택을 통째로 푼다.
+           ⚠️실앱 실측(9516, 40% 줌): 블럭 위에서 놓으면 20/20·10/10 유지, 섹션 밖
+             배경에서 놓으면 12/12 풀림 — 신고된 «9회 중 2회»는 간헐이 아니라 «놓는
+             자리»가 갈랐던 것이다.
+           꼴은 레포 선례 그대로 — js/block-drag.js:409(도형 손잡이) ·
+             js/blocks/mockup-block.js:190. capture 단계 + 120ms.
+           ⚠️«끈 적이 없으면»(moved=false, 제자리 클릭) 삼키지 않는다 — 그건 선택 동작이다.
+           회귀: tests/dom/overlay-drag-mouseup-selection.dom.spec.js S1~S4. */
+        const killClick = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+        document.addEventListener('click', killClick, true);
+        setTimeout(() => document.removeEventListener('click', killClick, true), 120);
       }
     };
     document.addEventListener('mousemove', onMove);

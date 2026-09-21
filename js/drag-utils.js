@@ -291,10 +291,18 @@ function insertAfterSelected(section, el) {
   }
 }
 
+/* 섹션·블록을 안 고른 채 «블럭 추가»를 눌렀을 때의 «한 벌» 경고.
+   ★흔들림(fp-shake)은 «곁들이»고 토스트가 «본문»이다 — 순서를 뒤집지 마라.
+     옛 판은 #floating-panel 을 가드 없이 역참조해서, 그 요소가 없는 화면(미리보기로
+     감춘 게 아니라 아예 없는 경우·초기화 도중)에서는 여기서 TypeError 가 나
+     showToast 까지 «못 가고» 경고가 통째로 사라졌다 = 「경고 없이 아무 일도 안 한다」.
+     흔들 게 없으면 흔들지 않고 «말은 한다». (2026-09-21 수리공 유닛 ①) */
 function showNoSelectionHint() {
   const fp = document.getElementById('floating-panel');
-  fp.classList.add('fp-shake');
-  setTimeout(() => fp.classList.remove('fp-shake'), 400);
+  if (fp) {
+    fp.classList.add('fp-shake');
+    setTimeout(() => fp.classList.remove('fp-shake'), 400);
+  }
   showToast('⚠️ 섹션 또는 블록을 먼저 선택하세요');
 }
 
