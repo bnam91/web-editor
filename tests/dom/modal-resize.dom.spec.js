@@ -41,7 +41,11 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <div id="panel-right"><div class="panel-body"></div></div>
 <script src="/js/feature-flags.js"></script>
 <!-- ★block-edit.js 의 «진짜» selectBlock 을 얹는다(플레인 스크립트).
-     스텁을 쓰면 「selectBlock 만으로는 핸들이 안 붙는다」는 이 검사의 «전제»가 사라진다. -->
+     스텁을 쓰면 「selectBlock 만으로는 핸들이 안 붙는다」는 이 검사의 «전제»가 사라진다.
+     ⚠️2026-09-21(T-079): selectBlock 의 패널 디스패치가 js/panel-dispatch.js 로 빠졌다.
+       이 줄을 빼면 selectBlock 이 패널을 «못 열고도» D12 는 _selectNewModal 덕에 초록이 된다
+       (=거짓 그린). 실제 index.html 과 같은 순서로 «앞»에 얹는다. -->
+<script src="/js/panel-dispatch.js"></script>
 <script src="/js/block-edit.js"></script>
 <script type="module">
   import { makeModalBlock, renderModalBlock, addModalBlock } from '/js/blocks/modal-block.js';

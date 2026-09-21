@@ -30,6 +30,9 @@ const SRC = {
   '/js/history.js': fs.readFileSync(path.join(REPO, 'js/history.js'), 'utf8'),
   '/js/gradient-select.js': fs.readFileSync(path.join(REPO, 'js/gradient-select.js'), 'utf8'),
   '/js/block-edit.js': fs.readFileSync(path.join(REPO, 'js/block-edit.js'), 'utf8'),
+  /* ★2026-09-21(T-079): 우측 패널 디스패치 표가 여기로 이사했다. 이 줄을 빼면 404 라
+     복원 뒤 패널이 «안 열리고» __panel 이 'page' 로 남는다(= 아래 네 검사의 빨강). */
+  '/js/panel-dispatch.js': fs.readFileSync(path.join(REPO, 'js/panel-dispatch.js'), 'utf8'),
 };
 
 const HTML = `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}
@@ -89,6 +92,10 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8"><style>body{margi
     <div class="mockup-block" id="mkp_1" style="position:absolute;left:200px;top:400px;width:120px;height:80px"></div>
   </div>
 </div>
+<!-- ★2026-09-21(T-079): 우측 패널 디스패치 표가 js/panel-dispatch.js 로 이사했다.
+     history.js 의 _restoreSelection 과 block-edit.js 의 selectBlock 이 «같은» 이 표를 쓴다.
+     이 줄을 빼면 복원 뒤 패널이 «안 열리고» 아래 검사들이 빨개진다(실제 index.html 과 같은 순서). -->
+<script src="/js/panel-dispatch.js"></script>
 <script src="/js/block-edit.js"></script>
 <script type="module" src="/js/gradient-select.js"></script>
 <script type="module">

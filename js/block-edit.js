@@ -23,20 +23,13 @@ function selectBlock(id) {
     if (el !== block) el.classList.remove('selected');
   });
   block.classList.add('selected');
-  // 블록 타입별 우측 패널 디스패치 (layer-panel-items.js 분기 미러)
-  try {
-    const cl = block.classList;
-    if (cl.contains('shape-block')) window.showShapeProperties?.(block);
-    else if (cl.contains('table-block')) window.showTableProperties?.(block);
-    else if (cl.contains('graph-block')) window.showGraphProperties?.(block);
-    else if (cl.contains('divider-block')) window.showDividerProperties?.(block);
-    else if (cl.contains('bridge-block')) window.showBridgeProperties?.(block);
-    else if (cl.contains('grid-block')) window.showGridProperties?.(block, null);   // ★0918: 블럭으로 선택 = 줄 선택 해제
-    else if (cl.contains('infocard-block')) window.showInfoCardProperties?.(block);
-    else if (cl.contains('innercard-block')) window.showInnerCardProperties?.(block);
-    else if (cl.contains('qa-block')) window.showQAProperties?.(block);
-    else window.showTextProperties?.(block);
-  } catch (_) {}
+  /* 우측 패널 = «정본 표 한 자리»(js/panel-dispatch.js).
+     ★2026-09-21 T-079: 여기에 9종짜리 «사본»이 있었고 폴백이 `else showTextProperties` 였다.
+       배너를 넣은 그 순간 텍스트 패널이 떠서 글자크기가 .bn2-label 의 인라인에 찍혔고,
+       banner02 의 정본은 dataset.lines 이라 저장/로드의 renderBanner02 가 그걸 폐기했다
+       = 「저장했는데 다시 열면 원래 크기」. 표에 없는 타입은 이제 «안 연다»(엉뚱한 패널보다 덜 틀리다).
+     ⚠️여기서 핸들은 붙이지 않는다 — 예전 동작 그대로(붙이는 자리는 클릭·레이어·복원 경로다). */
+  window.openPanelForBlock?.(block);
   return true;
 }
 

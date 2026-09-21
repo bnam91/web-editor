@@ -92,41 +92,18 @@ function _captureSelection() {
  *      떨어져 «Page» 패널이 뜨거나 console.warn 을 남겼고, modal 은 «Text Block» 을 열었다.
  * ⇒ 여기서는 클릭 경로의 분기를 그대로 베낀 표를 쓰고, 핸들은 클릭 경로와 «같은 입구»
  *   window.showHandlesFor(js/overlay-handles.js) 로 붙인다. 표에 없는 타입은 패널을
- *   «건드리지 않는다» — 엉뚱한 패널을 여는 것보다 안 여는 쪽이 덜 틀린다. */
-const _PANEL_BY_CLASS = [
-  // 순서 = 먼저 맞는 것이 이긴다. .speech-bubble-block/.liner-block 은 .text-block 을 겸하므로
-  // text-block 은 «맨 뒤».  (근거: js/block-drag.js 의 각 타입 click 핸들러)
-  ['shape-block',       (el) => window.showShapeProperties?.(el)],          // block-drag.js:2522
-  ['asset-block',       (el) => window.showAssetProperties?.(el)],          // :1014
-  ['gap-block',         (el) => window.showGapProperties?.(el)],            // :1111
-  ['icon-circle-block', (el) => window.showIconCircleProperties?.(el)],     // :1139
-  ['table-block',       (el) => window.showTableProperties?.(el)],          // :1236
-  ['label-group-block', (el) => window.showLabelGroupProperties?.(el, null)], // :1381 (항목 미지정 = 블럭 전체)
-  ['graph-block',       (el) => window.showGraphProperties?.(el)],          // :1434
-  ['divider-block',     (el) => window.showDividerProperties?.(el)],        // :1812
-  ['bridge-block',      (el) => window.showBridgeProperties?.(el)],         // :1841
-  ['grid-block',        (el) => window.showGridProperties?.(el, null)],     // :1846 (줄 선택 없음)
-  ['qa-block',          (el) => window.showQAProperties?.(el)],             // :1846
-  ['infocard-block',    (el) => window.showInfoCardProperties?.(el)],       // :1846
-  ['innercard-block',   (el) => window.showInnerCardProperties?.(el)],      // :1846
-  ['modal-block',       (el) => window.showModalProperties?.(el)],          // :1846
-  ['joker-block',       (el) => window.showJokerProperties?.(el)],          // :720
-  ['canvas-block',      (el) => ((el.dataset.cardMode === 'simple' && window.showSimpleCardProperties)
-                                  ? window.showSimpleCardProperties(el)
-                                  : window.showCanvasProperties?.(el))],    // :1582~:1585
-  ['banner02-block',    (el) => window.showBanner02Properties?.(el)],       // :1618 (항목 미지정)
-  ['comparison-block',  (el) => window.showComparisonProperties?.(el)],     // :1645
-  ['vector-block',      (el) => window.showVectorProperties?.(el)],         // :1672
-  ['icon-block',        (el) => window.showIconifyProperties?.(el)],        // :1700
-  ['mockup-block',      (el) => window.showMockupProperties?.(el)],         // :2019
-  ['step-block',        (el) => window.showStepProperties?.(el)],           // :1465 (항목 미지정)
-  ['chat-block',        (el) => window.showChatProperties?.(el)],           // :1493
-  ['laurel-block',      (el) => window.showLaurelProperties?.(el)],         // :1521
-  ['zoom-block',        (el) => window.showZoomProperties?.(el)],           // :1549
-  ['icon-text-block',   (el) => window.showTextProperties?.(el)],           // :1732
-  ['text-block',        (el) => window.showTextProperties?.(el)],           // :900 (버블·라이너 포함)
-];
-
+ *   «건드리지 않는다» — 엉뚱한 패널을 여는 것보다 안 여는 쪽이 덜 틀린다.
+ *
+ * ★2026-09-21 (T-079) — 그 표(_PANEL_BY_CLASS)는 여기 있으면 안 되는 물건이었다.
+ *   js/block-edit.js 의 selectBlock 이 «자기 사본»(9종·폴백 showTextProperties)을 따로 들고
+ *   있었고, 배너를 넣은 그 순간 텍스트 패널이 떠서 글자크기가 인라인으로 찍혔다가
+ *   저장/로드의 renderBanner02 에 폐기됐다(조용한 데이터 손실).
+ *   ⇒ 표를 js/panel-dispatch.js 로 «이사»하고(플레인 스크립트 — DOM 검사 하네스와
+ *     selectBlock 이 모듈 그래프 없이 얹을 수 있어야 한다) 양쪽이 «같은» window.openPanelForBlock
+ *     을 쓴다. 여기 동작은 그대로다: 그라데이션·스티커 먼저 → 표 → showHandlesFor.
+ *   ⚠️핸들은 여전히 «이 자리»에서 붙인다 — selectBlock 은 예전에도 핸들을 안 붙였고,
+ *     공용 진입점으로 끌어오면 zoom·asset·canvas 등에서 2회 호출이 되는데 그 멱등성을 아직 안 쟀다.
+ */
 function _restoreSelection(snapSel) {
   try {
     const ids = snapSel && Array.isArray(snapSel.blockIds) ? snapSel.blockIds : null;
@@ -142,8 +119,7 @@ function _restoreSelection(snapSel) {
     window.syncSection?.(el.closest('.section-block'));
     window.highlightBlock?.(el, el._layerItem);
     window.setBlockAnchor?.(el);
-    const hit = _PANEL_BY_CLASS.find(([cls]) => el.classList.contains(cls));
-    if (hit) hit[1](el);
+    window.openPanelForBlock?.(el);   // 정본 표 = js/panel-dispatch.js (selectBlock 과 «같은» 표)
     window.showHandlesFor?.(el);   // 모서리 핸들 — 레이어패널/클릭 경로와 «같은» 입구
   } catch (e) { console.warn('[history] 선택 복원 실패:', e); }
 }

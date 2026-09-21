@@ -295,7 +295,8 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
          실제로 그 블럭에 먹는다(gradient 에서 실측된 손상과 같은 길). */
     else if (isVector) window.showVectorProperties?.(block);
     else if (isStep) window.showStepProperties?.(block);
-    /* ★최종 갈래를 «에셋일 때만» 으로 좁힌다 (js/history.js _PANEL_BY_CLASS 머리말과 같은 원칙:
+    /* ★최종 갈래를 «에셋일 때만» 으로 좁힌다 (정본 표 js/panel-dispatch.js 머리말과 같은 원칙:
+       ★2026-09-21 T-079: 그 표는 js/history.js 에 있었다 — 거기서 «이사»했다. 옛 자리 아니다.
          「표에 없는 타입은 패널을 건드리지 않는다 — 엉뚱한 패널을 여는 것보다 안 여는 쪽이 덜 틀린다」).
        옛 무조건 else 가 이 결함의 «구조»였다: 갈래를 하나 빠뜨리면 조용히 에셋 패널이 떴고,
        그 패널의 폭/높이가 남의 블럭에 먹어 저장값과 화면이 갈라졌다.

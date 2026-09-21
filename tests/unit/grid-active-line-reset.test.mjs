@@ -76,8 +76,14 @@ test('소스 가드: 블럭으로 고르는 경로(deselectAll·레이어 패널
   assert.match(des, /grdClearAllActiveLines\?\.\(canvas\)/, 'deselectAll 이 활성줄 모델을 안 지운다');
   assert.match(read('js/panels/layer-panel-items.js'), /isGrid\)\s*window\.showGridProperties\?\.\(block,\s*null\)/,
     '레이어 패널이 null 을 명시하지 않는다(1-인자면 옛 줄이 되살아난다)');
-  assert.match(read('js/block-edit.js'), /grid-block'\)\)\s*window\.showGridProperties\?\.\(block,\s*null\)/,
-    'MCP selectBlock 이 null 을 명시하지 않는다');
+  /* ★2026-09-21(T-079): MCP selectBlock(js/block-edit.js)의 «자기 타입표»를 없애고
+     정본 표 한 자리(js/panel-dispatch.js)로 합쳤다 — 배너를 넣은 그 순간 텍스트 패널이 떠서
+     글자크기가 저장 안 되던 결함의 뿌리가 그 사본이었다. 그러니 «null 명시»를 재는 자리도
+     그 표로 옮긴다. selectBlock 이 그 표를 «실제로» 쓰는지는 U-SELECTBLOCK-2 가 잰다. */
+  assert.match(read('js/panel-dispatch.js'), /'grid-block',\s*\(el\)\s*=>\s*window\.showGridProperties\?\.\(el,\s*null\)/,
+    '정본 패널 표가 그리드에 null 을 명시하지 않는다(1-인자면 옛 줄이 되살아난다)');
+  assert.match(read('js/block-edit.js'), /window\.openPanelForBlock\?\.\(block\)/,
+    'MCP selectBlock 이 정본 표를 안 쓴다 — 표의 사본이 또 생겼다');
 });
 
 test('소스 가드: T-009 버그B 줄 삭제 분기 조건은 그대로다(DOM 마커 게이트 금지)', () => {
