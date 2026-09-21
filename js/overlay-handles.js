@@ -67,6 +67,29 @@ export function circumferenceOffset(R) {
 }
 
 /* ═══════════════════════════════════
+   손잡이 색 갈래 — «테두리와 한 색»으로 (현빈 2026-09-21)
+   ───────────────────────────────────────────────────────────────────────────
+   현빈 원문: 「오버레이 하면 아웃라인이 보라인데 모서리 핸들은 파랑이다. 스티커는 보라 핸들까지
+   되어 있으니 색을 맞춰줘」. 같은 병을 이 파일은 이미 한 번 고쳤다 — 확대블럭(2026-09-08,
+   css/editor-blocks.css 「앵커만 파랑이면 한 블록에 핸들 색이 둘이 된다」).
+   ★판정은 «이름 목록»이 아니라 선택 오버레이가 색을 고를 때 쓰는 바로 그 표식을 본다:
+     js/overlay-float.js 가 enterFloat 에서 찍고(dataset.selVariant='sticker'),
+     js/selection-overlay.js _variantOf 가 읽어 선을 보라로 그린다. 손잡이도 «같은 표식»을 탄다
+     ⇒ 오버레이가 아닌 블럭은 표식이 없어 종전 파랑 그대로다(비오버레이 회귀 0).
+   ⛔손잡이는 #ss-handles-overlay(고정층) 안이라 블럭의 «자손»이 아니다 — CSS 자손 선택자로는
+     못 닿는다. 그래서 표식을 손잡이에 «옮겨 찍고» 색 규칙은 CSS 한 곳(editor-blocks.css)에만 둔다.
+   ★«매번 다시 재는 술어»다(_tfoEditing 과 같은 꼴) — 위치 갱신 루프에서 부르므로 오버레이를
+     켜고 끄면 손잡이 색이 스스로 따라온다. 값이 같으면 안 쓴다(쓸데없는 스타일 무효화 방지).
+═══════════════════════════════════ */
+export function syncHandleSelVariant(handle, block) {
+  const host = block?.closest?.('[data-sel-variant]') || block;
+  const v = (host && host.dataset && host.dataset.selVariant) || '';
+  if ((handle.dataset.selVariant || '') === v) return;
+  if (v) handle.dataset.selVariant = v;
+  else delete handle.dataset.selVariant;
+}
+
+/* ═══════════════════════════════════
    회전 인식 좌표 헬퍼 (U14 — 회전 후 리사이즈 핸들 좌표 보정)
    블록이 transform:rotate 된 상태에서 getBoundingClientRect()는 «회전된 요소의
    축정렬 바운딩박스(AABB)»를 돌려주므로, 코너 핸들을 rect 모서리에 두면
@@ -685,6 +708,7 @@ function _updateAssetRadiusHandlePositions() {
     const c = _cornerScreen(_assetRadiusBlock, h.dataset.assetRadiusDir, INSET);
     h.style.top  = (c.y - HALF) + 'px';
     h.style.left = (c.x - HALF) + 'px';
+    syncHandleSelVariant(h, _assetRadiusBlock);   // 오버레이면 보라 — 테두리와 한 색
   });
 }
 
@@ -789,6 +813,7 @@ function _updateAssetResizeHandlePositions() {
     const left = c.x - HALF;
     h.style.top  = top  + 'px';
     h.style.left = left + 'px';
+    syncHandleSelVariant(h, _assetResizeBlock);   // 오버레이면 보라 — 테두리와 한 색
   });
 }
 

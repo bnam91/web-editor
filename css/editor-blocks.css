@@ -365,6 +365,33 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .tfo-overlay-handle[data-tf-resize-dir] {
   border-color: var(--ui-sel-overlay, #9966ff);
 }
+/* ★★오버레이(플로팅) 손잡이 «전부» 보라 — 한 규칙 (현빈 2026-09-21
+     「오버레이 하면 아웃라인이 보라인데 모서리 핸들은 파랑이다. 스티커는 보라 핸들까지 되어 있으니 색을 맞춰줘」)
+   ───────────────────────────────────────────────────────────────────────────
+   ⛔위 두 규칙처럼 «계열 한정자»(data-zoom-resize-dir / data-tf-resize-dir)로 하나씩 적으면
+     블럭이 늘 때마다 빠진다 — 확대블럭·오버레이텍스트를 각각 따로 적은 게 이미 그 증거다.
+     그래서 여기서는 «오버레이 여부» 자체를 한정자로 쓴다: js/overlay-float.js 가 블럭에 찍는
+     data-sel-variant 를 js/overlay-handles.js syncHandleSelVariant 가 손잡이에 옮겨 찍는다.
+     선(선택 오버레이)이 보라를 고르는 표식과 «같은 표식»이라 둘이 갈라질 수 없다.
+   ★손잡이는 이 고정층 «안»이라 블럭의 자손이 아니다 — #ss-handles-overlay 로 한정해도
+     블럭 쪽 규칙과 안 부딪힌다. 특이성 (1,1,0) 이라 계열 규칙(0,1,0)을 이긴다.
+   ⛔평상시(비오버레이) 파랑은 그대로다 — 표식이 없으면 이 규칙이 아예 안 걸린다. */
+#ss-handles-overlay [data-sel-variant="sticker"] {
+  border-color: var(--ui-sel-overlay, #9966ff);
+}
+/* 반경 손잡이는 hover 에 «채움»이 파랑으로 들어온다(.asset-radius-handle:hover) — 그 한 순간만
+   파랑으로 돌아가면 같은 병이다. 채움도 같은 토큰으로 맞춘다.
+   ⛔`[data-sel-variant]:hover` 로 넓게 걸지 않는다 — 리사이즈 손잡이는 hover 채움이 «없어서»
+     흰 채움이 정상인데, 넓게 걸면 없던 hover 색이 새로 생긴다. hover 채움을 가진 계열
+     (반경 = data-asset-radius-dir)에만 얹는다. */
+#ss-handles-overlay [data-sel-variant="sticker"][data-asset-radius-dir]:hover {
+  background: var(--ui-sel-overlay, #9966ff);
+}
+/* ★도형의 모서리 핸들(.shape-handle)은 블럭의 «자식»이라(js/block-drag.js _addShapeHandles)
+   위 규칙이 안 닿는다 — 같은 표식을 자손 선택자로 읽는다. 색 값은 여전히 한 토큰이다. */
+.shape-block[data-sel-variant="sticker"] .shape-handle {
+  border-color: var(--ui-sel-overlay, #9966ff);
+}
 /* ★모서리 라운드 핸들도 «같이» 보라 — 안 맞추면 한 블록에 파랑·보라가 섞인다.
    그게 현빈이 2026-09-08 에 지적한 바로 그 자리다(「왜 핸들 모서리는 파란색이야」).
    ★한정자는 리사이즈와 같은 관용구 = overlay-handles.js 가 붙이는 data-zoom-radius-dir. */
@@ -1577,15 +1604,39 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   outline-offset: calc(-1 * var(--sel-outline-w));
   z-index: 2;
 }
-/* ★T-072(현빈 2026-09-20 ㉮) — «원»만 선을 상자 바로 «밖»에 둔다(offset 0).
-   원은 shape-svg(100% · preserveAspectRatio:none) 안에서 rx=ry=50 으로 viewBox 네 변에 «접»한다
-   (block-factory.js:2065) ⇒ 선을 상자 «안»에 두면 그 접선을 반드시 덮어 원이 잘려 보인다.
-   ⚠️화면의 파란 선은 보통 이 outline 이 «아니라» 선택 오버레이(js/selection-overlay.js)가 그린다
-     (body.sel-ov 가 위 176행대 절로 이 색을 투명으로 중화한다). 이 줄은 오버레이가 «꺼졌을 때»의
-     폴백을 같은 자리에 맞춰 둔 것이다 — 두 경로가 갈라지면 그게 다음 사고가 된다.
-   ⛔선의 «모양»은 그대로 네모다(둥근 모서리 추종이 아니다 — 2026-09-15 T-028 결정 불변).
-   ⛔사각형·별·다각형·선·화살표는 «그대로»다(실측상 안 어긋난다 — selection-overlay.js _selOutsetOf 표). */
-.shape-block.selected[data-shape-type="ellipse"] { outline-offset: 0; }
+/* ★원 도형의 선택 표시 = «아이콘 서클과 같은 길» (현빈 2026-09-21:
+     「icb_k7kbb_msmevtj 는 문제없지 않니? 같은 원모양인데 아웃라인 이것처럼 하면 될 것 같은데」)
+   ───────────────────────────────────────────────────────────────────────────
+   ★앞의 답(T-072, 2026-09-20)은 «선을 상자 바로 밖으로 밀기»였다. 그 답은 대가를 두 개 남겼다:
+     ⑴ 맞닿은 이웃이 있는 변은 다시 안으로 되돌려야 해서(selection-overlay.js _blockedEdges)
+        현빈 화면처럼 «세로로 쌓인» 배치에서는 위·아래가 여전히 물렸다
+        (실측 9506·줌 40%·120px 원: 윗선 y158 / 상자 윗변 157.119 ⇒ 0.88px 파고듦, 아랫선도 같다).
+     ⑵ 이웃이 없는 변에서는 선이 상자 밖으로 나가 남의 상자 1px 을 덮을 위험이 남았다.
+   ★아이콘 서클(.icon-circle-block.selected::before)은 그 둘을 «동시에» 피한다 —
+     선은 다른 블럭과 똑같이 상자 «안»에 두고(네모 유지), 원의 둘레는 ::before 링이 «따로» 그린다.
+     그래서 접점이 선에 덮여도 그 자리에 «원을 따르는 선»이 있어 잘린 게 아니라 «둘린» 것으로 읽힌다.
+   ⇒ 원 도형도 같은 길로 간다: 아래 ::before 링 하나만 더하고, 상자 선은 «원래대로» 안쪽이다.
+   ★사정거리 = «원처럼 생긴 것»뿐이다. 사각형·다각형·별·선·화살표·텍스트는 손대지 않는다
+     (2026-09-15 T-028 «선택선 네모 통일» 결정 불변 — 여기서 바뀌는 건 «선의 모양»이 아니라
+      원 둘레에 «링이 하나 더 생기는» 것이다. 네모 선은 그대로 네 변 다 있다).
+   ⛔SEL_FOLLOW_RADIUS(둥근 모서리 추종) 전역 스위치는 여전히 끈 채다 — 그 계산은 CSS 모서리만
+     읽어 SVG ellipse 를 모른다(앞 라운드 실측). */
+.shape-block.selected[data-shape-type="ellipse"]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: var(--sel-outline-w) solid var(--sel-color);
+  box-sizing: border-box;
+  pointer-events: none;   /* 클릭 판정은 도형이 그대로 받는다 */
+  z-index: 3;             /* .shape-svg(z-index:1) «위» — 이게 「자손이 선을 덮는」 자리를 푼다 */
+}
+/* ★오버레이(플로팅)면 링도 «보라» — 테두리와 핸들이 보라인데 링만 파랑이면 한 블록에 두 색이다
+   (현빈 2026-09-21 「오버레이 하면 아웃라인이 보라인데 모서리 핸들은 파랑이다」와 같은 병).
+   한정자는 js/overlay-float.js 가 찍는 data-sel-variant — 선택 오버레이가 색을 고르는 바로 그 표식이다. */
+.shape-block.selected[data-shape-type="ellipse"][data-sel-variant="sticker"]::before {
+  border-color: var(--ui-sel-overlay, #9966ff);
+}
 .shape-block .shape-svg {
   display: block;
   width: 100%;

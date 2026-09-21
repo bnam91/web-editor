@@ -99,94 +99,26 @@ function _variantOf(host) {
   return '';
 }
 
-/* ★선을 상자 «바로 바깥»에 놓을 대상 — 현빈 결정 2026-09-20(T-072 ㉮).
- *   기본 규약은 「선을 제 상자 «안»으로 민다」(_snapLo/_snapHi, M63 재발방지)인데, 그러면 선의 띠가
- *   상자 안쪽 1~1.4 화면px 를 덮는다. «자기 상자를 가득 채워 그리는» 블럭은 그 띠에 제 실루엣이 덮인다.
- *   ⇒ 사각형은 같은 색 채움 위라 안 보이지만, 원은 네 접선이 평평해져 «잘려» 보인다.
- *     실측(격리 9375·dpr2·신규 100px 원): 덮인 가로런 40% 28 / 100% 46 / 150% 58 device px.
- *   ⛔이건 «둥근 선»(SEL_FOLLOW_RADIUS)이 아니다 — 선은 모든 블럭에서 여전히 «네모»다(2026-09-15 결정 불변).
- *     움직이는 것은 «선의 모양»이 아니라 «선의 자리»뿐이다: 상자 안 → 상자 바로 밖(≤ 굵기+1/dpr).
- *   ★대상은 «실측표»가 정한다(CONTEXT §41 — 타입 × 줌 40/100/150). 이름이 마음에 들어서가 아니다:
- *     타입      상자 변에 닿는가                      덮인 실루엣 px(40/100/150, device)
- *     ellipse   ✅ rx=ry=50 이 viewBox 네 변에 «접»    168 / 270 / 332  (최장런 28/46/58)
- *     rectangle ✅ 변이 상자와 «같은 직선»             620/1580/2380 — 전부 «제 채움 위»라 눈에 안 보인다
- *     polygon   ❌ 8·6px 안쪽(points 100,8 194,172)    0 / 0 / 0
- *     star      ❌ 8·12px 안쪽                         0 / 0 / 0
- *     line·arrow❌ 10·20px 안쪽                        0 / 0 / 0
- *     text      ❌                                     0 (150% 표본은 배경표본 오염 — 미판정)
- *     ⇒ «곡선으로 상자에 접하는» ellipse 하나만 눈에 보이게 어긋난다. 가림막 원(.shape-redact)도
- *       같은 data-shape-type="ellipse" 라 같은 길로 같이 고쳐진다.
- *   ★래퍼 프레임도 같이 — selectShapeBlock 은 프레임과 도형에 «둘 다» .selected 를 주고 두 상자가
- *     정확히 같다(실측 shape [697,117.1188,737,157.1187] == frame 동일). 하나만 옮기면 남은 네모가
- *     그대로 원을 문다(그래서 「도형만 고쳤는데 하나도 안 줄었다」가 된다).
- *   ⚠️대가 = 그 블럭의 선이 상자 «밖»으로 굵기+1/dpr(≤1.5px) 나간다 — 맞닿은 이웃이 있으면 그 1px 을
- *     덮는다(실측: 옵트인을 «전 도형»에 걸어 본 중간판에서, 아래 블럭과 맞닿은 변의 상자 밖 칠이
- *     0 → 400 device px 로 늘었다. 지금 판에서는 그 대가를 원에서만 치른다). ㉮를 만족시키려면 피할 수 없다:
- *     원은 제 상자 변에 «접»하므로 선이 상자 안에 있는 한 반드시 원을 문다. 그래서 그 대가를 «원에만»
- *     치른다(사각형·별·다각형은 종전 그대로 상자 안쪽 선을 유지한다). */
+/* ★선을 상자 «바로 바깥»에 놓을 대상 — 선언형 탈출구 하나뿐이다.
+ *   기본 규약은 「선을 제 상자 «안»으로 민다」(_snapLo/_snapHi, M63 재발방지)이고, 지금은
+ *   «어떤 블럭 타입도» 그 규약에서 벗어나지 않는다.
+ *
+ * ★여기 있던 «원(ellipse) 옵트인»을 걷어냈다 (2026-09-21, 현빈 지시 8번).
+ *   전 판(T-072 ㉮, 2026-09-20)은 원이 제 상자 네 변에 «접»한다는 이유로 원의 선만 상자 밖에 뒀다.
+ *   그 답은 대가를 둘 남겼다 — ⑴상자 밖 선이 맞닿은 이웃의 1px 을 덮어서(§4-3) «맞닿은 변만 안으로
+ *   되돌리는» 보정(_blockedEdges)이 필요했고, ⑵그 보정 때문에 세로로 쌓인 실제 화면에서는 위·아래가
+ *   여전히 물렸다(실측 9506·줌40%·120px 원: 윗선 y158 vs 상자 윗변 157.119 ⇒ 0.88px).
+ *   ⇒ 현빈: 「icb(아이콘 서클)는 문제없지 않니? 같은 원모양인데 아웃라인 이것처럼 하면 될 것 같은데」.
+ *     아이콘 서클은 선을 «안»에 그대로 두고 원 둘레를 ::before 링으로 «따로» 두른다
+ *     (css/editor-blocks.css `.icon-circle-block.selected::before`). 접점이 선에 덮여도 그 자리에
+ *     원을 따르는 선이 있어 «잘린» 게 아니라 «둘린» 것으로 읽힌다 — 현빈이 문제없다고 한 그 모양이다.
+ *   ⇒ 원 도형도 같은 길로 보냈다: css/editor-blocks.css
+ *     `.shape-block.selected[data-shape-type="ellipse"]::before`. 이 파일은 «선의 자리»를 다시
+ *     모든 블럭에서 똑같이(상자 안) 되돌리고, 그래서 이웃 불가침도 공짜로 돌아온다.
+ *   ⛔되살리고 싶으면 dataset.selOutset='on' 으로 «그 블럭만» 켜라. 타입 목록을 여기 다시
+ *     적지 마라 — 그게 앞 판이 밟은 자리다(맞닿음 보정이 딸려 오고, 그 보정이 증상을 되살린다). */
 function _selOutsetOf(host) {
-  if (host.dataset?.selOutset) return host.dataset.selOutset === 'on';   // 선언형 탈출구(_variantOf 와 같은 꼴)
-  const SEL = '.shape-block[data-shape-type="ellipse"]';
-  return !!(host.matches?.(SEL) || host.querySelector?.(`:scope > ${SEL}`));
-}
-
-/* ★«맞닿은 이웃이 있는 변»을 찾는다 — §4-3(이웃 불가침)을 원에서도 지키려고. (2026-09-20 통합 라운드)
- *
- * ★왜 필요한가 — 맞닿은 변에서는 셋이 동시에 설 수 없다
- *   원은 제 상자 네 변에 «접»한다 ⇒ 선이 상자 «안»이면 반드시 원을 문다(그래서 _snapLoOut 이 생겼다).
- *   그 상자 변이 이웃 상자 변과 «같은 자리»면, 선이 상자 «밖»이면 반드시 이웃을 문다.
- *   실측(줌 40%·dpr 2·굵기 1·맞닿은 아래 블럭): 이웃 상자 «안»을 1.0 CSS px 깊이로 칠했다
- *   (tests/dom/shape-ellipse-neighbor — 고치기 전 N1 red). 이 라운드 지시 =
- *   「현빈 결정 ㉮ 범위 «안»에서 이웃 불가침을 지킬 것」 ⇒ 맞닿은 «그 변만» 안쪽으로 되돌린다.
- *   ⚠️대가 = 그 변에서는 원이 다시 물린다. 다른 세 변은 종전대로 ㉮ 를 지킨다(N2 가 그걸 잰다).
- *
- * ★이웃을 «클래스 목록»으로 찾지 않는다 — 조상 사슬의 «형제»들이 곧 이웃이다.
- *   목록(.text-block, .asset-block …)을 여기 또 적으면 새 블럭 타입이 생길 때마다 조용히 새는
- *   자리가 하나 더 늘어난다(globals.js BLOCK_DELEGATE_SEL 머리말이 말하는 그 병).
- *   host 에서 .section-inner 까지 올라가며 각 층의 형제 상자와 «띠 사각형»의 겹침만 본다:
- *     같은 줄의 옆 블럭 · 위/아래 줄(.row) · 합쳐넣기 조각 — 전부 이 사슬에 잡힌다.
- *   자기 자손은 애초에 형제가 아니라 안 잡히고, 자기 조상은 `s === a` 로 건너뛴다.
- *
- * @param {Element} host  선택 호스트
- * @param {number}  h     반굵기 — 밖으로 나가는 몫은 h + 1/dpr 이 상한이다(_snapLoOut 머리말)
- * @returns {{l:boolean,t:boolean,r:boolean,b:boolean}} 그 변에 «맞닿은 이웃이 있다» */
-function _blockedEdges(host, h) {
-  const reach = h + 1 / _dpr();
-  const EPS = 0.01;                       // 겹침 판정의 부동소수 잡음 여유
-  /* ⛔getBoundingClientRect 를 쓰지 않는다 — 이 파일의 좌표는 «핸들과 같은 함수»(_cornerScreen)
-     에서만 나온다(tests/unit/selection-overlay-scope 가 지키는 M39 규약: 핸들은 여기, 선은 저기로
-     갈라지던 병). 이웃 상자도 «같은 자»로 잰다. 네 꼭지의 min/max 라 회전한 이웃도 AABB 로 잡힌다. */
-  const boxOf = (el) => {
-    const c = CORNER_DIRS.map(d => _cornerScreen(el, d, 0));
-    const xs = c.map(p => p.x), ys = c.map(p => p.y);
-    return { l: Math.min(...xs), t: Math.min(...ys), r: Math.max(...xs), b: Math.max(...ys) };
-  };
-  const r = boxOf(host);
-  const out = { l: false, t: false, r: false, b: false };
-  if (!(r.r - r.l > 0 && r.b - r.t > 0)) return out;
-  const stop = host.closest('.section-inner') || document.getElementById('canvas');
-  for (let a = host; a && a !== stop && a.parentElement; a = a.parentElement) {
-    for (const sib of a.parentElement.children) {
-      if (sib === a) continue;
-      const q = boxOf(sib);
-      if (!(q.r - q.l > 0 && q.b - q.t > 0)) continue;
-      const xOverlap = q.l < r.r - EPS && q.r > r.l + EPS;
-      const yOverlap = q.t < r.b - EPS && q.b > r.t + EPS;
-      // 띠 사각형(상자 밖 reach 만큼)과 이웃 상자가 겹치는가
-      if (yOverlap && q.r > r.l - reach && q.l < r.l - EPS) out.l = true;
-      if (yOverlap && q.l < r.r + reach && q.r > r.r + EPS) out.r = true;
-      if (xOverlap && q.b > r.t - reach && q.t < r.t - EPS) out.t = true;
-      if (xOverlap && q.t < r.b + reach && q.b > r.b + EPS) out.b = true;
-    }
-  }
-  return out;
-}
-
-/** 이 호스트의 «변별» outset — 타입 판정(_selOutsetOf) ∧ 그 변에 이웃이 없음. */
-function _outsetEdgesOf(host, variant) {
-  if (!_selOutsetOf(host)) return false;             // 원이 아니면 옛 경로 그대로(거짓)
-  const b = _blockedEdges(host, _strokeOf(variant) / 2);
-  return { l: !b.l, t: !b.t, r: !b.r, b: !b.b };
+  return host.dataset?.selOutset === 'on';   // 선언형 탈출구(_variantOf 와 같은 꼴)
 }
 
 function _collect() {
@@ -201,10 +133,10 @@ function _collect() {
     if (!host || seen.has(host)) continue;
     if (!canvas.contains(host)) continue;   // closest 가 캔버스 밖으로 나갔으면 버린다
     seen.add(host);
-    /* ★outset 판정은 여기서 «한 번»만 한다 — _build 는 매 rAF 라 matches/querySelector 나
-       이웃 상자 훑기를 거기서 부르면 안 된다. (_collect 는 _dirty 일 때만 돈다.) */
+      /* ★outset 판정은 여기서 «한 번»만 한다 — _build 는 매 rAF 라 dataset 읽기를 거기서
+       부르지 않는다. (_collect 는 _dirty 일 때만 돈다.) */
     const variant = _variantOf(host);
-    out.push({ el: host, variant, outset: _outsetEdgesOf(host, variant) });
+    out.push({ el: host, variant, outset: _selOutsetOf(host) });
   }
   return out;
 }
@@ -314,10 +246,11 @@ const _ZERO_R = { nw: [0, 0], ne: [0, 0], se: [0, 0], sw: [0, 0] };
 
 /** 상자 하나의 기하. 좌표는 «핸들과 같은 함수»(_cornerScreen)에서만 나온다. */
 function _geomOf(el, variant, scale, outset = false) {
-  /* ★outset 은 «참/거짓» 또는 «변마다 따로»({l,t,r,b}) 둘 다 받는다 (2026-09-20 통합 라운드).
+  /* ★outset 은 «참/거짓» 또는 «변마다 따로»({l,t,r,b}) 둘 다 받는다.
        참/거짓 판은 한 글자도 안 바뀐다 — 옛 호출부·단위검사가 그대로 돈다.
-       변마다 따로가 필요해진 이유 = 「원 불가침」과 「이웃 불가침」이 «맞닿은 변»에서만 부딪히기
-       때문이다(_blockedEdges 머리말). 안 부딪히는 변까지 같이 포기할 이유가 없다. */
+       ⚠️2026-09-21 현재 «변마다 따로»를 만들어 넣는 호출부는 없다(원 옵트인을 걷으면서 같이
+         걷혔다 — _selOutsetOf 머리말). 산술은 남긴다: dataset.selOutset 으로 켜는 블럭이
+         생기면 「맞닿은 변만 안쪽」이 다시 필요해지고, 그때 여기가 아니라 «호출부»만 만들면 된다. */
   const osOf = (side) => (outset && typeof outset === 'object') ? !!outset[side] : !!outset;
   /* ⚠️이름에 밑줄을 «안» 붙인다 — 이 레포에서 `_이름` 은 «모듈 최상위 사유물»이라는 표식이고,
      단위검사 하네스(U-M63-0·U-CIRCLE-0)가 그 표식을 보고 「잘라 넣어야 할 선언」을 센다.
