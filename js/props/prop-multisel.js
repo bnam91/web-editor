@@ -472,7 +472,7 @@ export function showFlowMultiSelPanel() {
     <div class="prop-section" style="${textCount > 0 ? '' : 'display:none;'}">
       <div class="prop-section-title">폰트 크기 (텍스트 ${textCount}개)</div>
       <div class="prop-row" style="gap:3px;">
-        <input type="number" class="prop-number msp-fontsize-input" id="msp-font-size" min="1" max="800" placeholder="px" style="flex:1;">
+        <input type="number" class="prop-number msp-fontsize-input" id="msp-font-size" min="1" max="800" placeholder="px" data-empty="invalid" style="flex:1;">
         <button class="prop-btn-sm msp-fontsize-btn" id="msp-font-size-apply" title="선택한 텍스트 블록에 일괄 적용">적용</button>
       </div>
     </div>

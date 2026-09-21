@@ -59,6 +59,11 @@ export function buildTypographySectionHtml({
   const _mix = mix || _NO_MIX;
   const _sizeVal = _mix.fontSize.mixed ? '' : size;
   const _sizePh  = _mix.fontSize.mixed ? 'Mix' : (sizePh ?? '');
+  /* ★「빈 값의 뜻」 선언 (prop-number-commit-guard.js 세 번째 축) —
+     기본은 «비지 않은 placeholder = 비우면 역할 기본으로 돌아간다»이다. 그런데 Mix 의 'Mix' 는
+     역할 기본값이 아니라 «값이 여럿이라 못 보여준다»는 표시다. 비우고 Enter 했다고 고른 블럭을
+     전부 하한(8px)으로 깎으면 안 된다 ⇒ 그 상태에서만 명시로 덮어 「빈 값 = 무효」로 되돌린다. */
+  const _sizeEmptyAttr = _mix.fontSize.mixed ? ' data-empty="invalid"' : '';
   /* ★placeholder 속성은 «값이 있을 때만» 찍는다 — 안 그러면 기본 호출의 산출이 한 글자 늘어
      T1 골든이 빨개진다. 이 절의 규약: 기본 인자에서는 «바이트 동일». */
   const _ph = (v) => (v === undefined || v === null || v === '') ? '' : ` placeholder="${v}"`;
@@ -93,7 +98,7 @@ export function buildTypographySectionHtml({
           <option value="800" ${!_weightMixed && weight==='800'?'selected':''}>ExtraBold 800</option>
           <option value="900" ${!_weightMixed && weight==='900'?'selected':''}>Black 900</option>
         </select>
-        <input type="number" class="prop-number prop-number-select" id="${p}-size-number" min="${sizeMin}" max="${sizeMax}" value="${_sizeVal}" placeholder="${_sizePh}" style="flex:1;min-width:0;display:${showSize?'block':'none'}">
+        <input type="number" class="prop-number prop-number-select" id="${p}-size-number" min="${sizeMin}" max="${sizeMax}" value="${_sizeVal}" placeholder="${_sizePh}"${_sizeEmptyAttr} style="flex:1;min-width:0;display:${showSize?'block':'none'}">
       </div>
 
       <div class="prop-style-group" id="${p}-style-group" style="margin-top:6px;display:${showStyleGroup?'flex':'none'}">
