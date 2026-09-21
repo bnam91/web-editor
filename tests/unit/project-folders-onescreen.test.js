@@ -203,9 +203,19 @@ test('OS-14 타일 ⋯ 는 display:none 으로 숨기지 않는다(Tab 포커스
   assert.match(CODE, /\.ft-cell:focus-within \.ft-more[^{]*\{ opacity: 1; \}/);
 });
 
-test('OS-15 헤더 검색칸 자리 고정 — 양옆이 같은 몫(flex 1 1 0)', () => {
+test('OS-15 헤더 검색칸 자리 고정 — 양옆이 같은 몫(flex 1 1 0) ＋ 동작 칸은 내용보다 안 줄어든다', () => {
   assert.match(CODE, /#header > h1 \{ flex: 1 1 0; min-width: 0; \}/);
-  assert.match(CODE, /#header > \.header-actions \{ flex: 1 1 0; justify-content: flex-end; \}/);
+  /* ★2026-09-21 보강 — 옛 단언은 이 줄을 «글자 그대로» 박아 뒀다. 그 문자열이 결함의 «꼴»을 지키고 있었다:
+       `flex: 1 1 0` 이 .header-actions 의 flex-shrink:0 을 덮어 계산값이 shrink:1 이 됐고(실앱 실측),
+       창이 1280px 이하가 되면 New Design 글자가 두 줄로 깨졌다(현빈 제보). 고치려면 옛 단언을 «깨야만» 했다.
+     ⇒ 문자열 고정 대신 «뜻»을 셋으로 나눠 잠근다. 약화가 아니라 강화다 — 바닥(min-width)이 사라지면 빨강.
+     회귀: tests/unit/projects-header-no-shrink.test.mjs */
+  const m = /#header\s*>\s*\.header-actions\s*\{([^}]*)\}/.exec(CODE);
+  assert.ok(m, '#header > .header-actions 규칙이 없다');
+  assert.match(m[1], /flex:\s*1\s+1\s+0/, '양옆이 «같은 몫»이라야 검색칸이 가운데 고정된다(B안 09-19)');
+  assert.match(m[1], /justify-content:\s*flex-end/);
+  assert.match(m[1], /min-width:\s*max-content/,
+    '★동작 칸에 바닥이 없다 — flex:1 1 0 이 shrink:0 을 덮으므로, 바닥이 없으면 좁은 창에서 버튼 글자가 쪼개진다');
 });
 
 /* ── 2라운드(T-062 후속, 09-19 오후) ── 실제 화면은 tests/dom/projects-onescreen.dom.spec.js ⓠ~ⓤ */
