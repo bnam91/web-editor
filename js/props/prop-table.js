@@ -128,7 +128,11 @@ function _makeImgCellPlaceholder(tr) {
   const ph = document.createElement('div');
   ph.className = 'tbl-img-cell';
   const sizeRule = h > 0 ? `height:${h}px` : 'aspect-ratio:1/1';
-  ph.style.cssText = `${sizeRule};width:100%;background-image:repeating-conic-gradient(#e0e0e0 0% 25%, transparent 0% 50%);background-size:16px 16px;cursor:pointer;position:relative;`;
+  /* ★체커는 «CSS 클래스»에 둔다(.table-block .tbl-img-cell — css/editor-blocks.css).
+     인라인이면 직렬화돼 저장본(.gdt)·단독 HTML 배송본에 그대로 실린다 — 편집용 무늬는 배송물이
+     아니다. 정본은 .asset-block / .cvb-img-empty / .bn2-img-empty 이고 여기만 안 따르고 있었다
+     (EVAL low, 2026-09-21). 크기 규칙은 row 마다 달라 인라인으로 남는다. */
+  ph.style.cssText = `${sizeRule};width:100%;cursor:pointer;position:relative;`;
   return ph;
 }
 

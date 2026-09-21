@@ -75,6 +75,65 @@ function rootCustomProps(rule) {
 
 const ROOT_SEL = /^(?::root|html)(?:\s*,\s*(?::root|html))*$/i;
 
+/* ── 빈 이미지 칸 «체커보드»는 배송본에 실리지 않는다 ───────────────────────────
+ * ★2026-09-21 EVAL medium — 이 파일이 앱 CSS 를 싣기 «시작»하면서, 이전엔 우연히 안 나가던
+ *   편집용 체커가 배송본으로 새기 시작했다. 실측: 내보낸 HTML 의 <style> 에
+ *   `.asset-block{…repeating-conic-gradient(rgb(216,216,216)…)}` 가 실려 실제로 그려졌다.
+ *   banner02 는 export-html.js 가 «클래스를 벗겨» 살았지만, .asset-block 은 블럭 «자신의»
+ *   클래스라 벗길 대상이 없다 ⇒ 클래스 제거 목록으로는 못 닫는 결함군이다.
+ * ★선택자를 나열하지 «않는다» — js/io/capture-safety.js 와 «같은 서명»으로 판정한다
+ *   (이 레포에서 conic gradient 를 사용자 데이터로 만드는 길은 없다: gradient-model.js 는
+ *    linear/radial 뿐). 세 산출물(PNG·썸네일·단독 HTML)이 한 판정식을 쓴다.
+ * ⛔규칙을 통째로 버리지 않는다 — 같은 규칙의 크기·테두리·배경«색»은 화면 그림에 필요하다.
+ *   ⇒ 선언 목록(longhand)을 다시 써서 background-image «만» 바꾼다. 덮어쓰기가 아니라 «뺀다» —
+ *     이 파일이 실어 보내는 배송본 소스에 편집용 무늬 문자열이 아예 안 남는다
+ *     (export-html.js 의 원칙: 「숨기는 CSS 한 줄로 때우지 마라, 있을 이유 없는 것은 뺀다」).
+ * ⛔통째로 none 을 박지 않는다 — 다중 레이어(목업: `url(...), <체커>`)에서 진짜 그림이 사라진다.
+ * ⚠️체커가 background-image 가 «아닌» 자리(mask 등)에 있으면 건드리지 않는다 — 규칙을 다시 쓰다가
+ *   엉뚱한 선언을 잃는 쪽이 더 비싸다(지금 레포엔 0건).
+ */
+const CHECKER_RE = /repeating-conic-gradient/i;
+
+/** `a, b, c` 를 «괄호 깊이»를 세며 자른다 — gradient 안의 콤마에 속지 않는다. */
+function splitBgLayers(css) {
+  const out = [];
+  let depth = 0, cur = '';
+  for (const ch of String(css || '')) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; continue; }
+    cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+export function ruleCssTextWithoutChecker(rule) {
+  const txt = rule.cssText || '';
+  if (!CHECKER_RE.test(txt)) return txt;
+  let st = null;
+  try { st = rule.style; } catch (_) { return txt; }
+  if (!st) return txt;
+  const bg = st.getPropertyValue('background-image') || '';
+  if (!CHECKER_RE.test(bg)) return txt;                 // 체커가 배경이 아닌 자리에 있다 — 그대로 둔다
+  const kept = splitBgLayers(bg).filter(l => !CHECKER_RE.test(l));
+  /* ★CSSOM 은 shorthand 를 longhand 로 펴서 열거한다(실측 2026-09-21, Chromium 146:
+     `.asset-block` → 29개 longhand). 그래서 `background:` 로 쓴 규칙도 background-image
+     «하나만» 갈아끼울 수 있다 — 배경색·크기·위치는 그대로 산다. */
+  const decls = [];
+  for (let i = 0; i < st.length; i++) {
+    const name = st.item(i);
+    const value = name === 'background-image'
+      ? (kept.length ? kept.join(', ') : 'none')
+      : st.getPropertyValue(name);
+    if (CHECKER_RE.test(value)) continue;               // 또 다른 선언에 숨어 있으면 그 선언만 뺀다
+    const pri = st.getPropertyPriority(name);
+    decls.push(`${name}:${value}${pri ? ' !' + pri : ''}`);
+  }
+  if (!decls.length) return '';                          // 남는 선언이 없으면 규칙째 안 싣는다
+  return `${rule.selectorText}{${decls.join(';')}}`;
+}
+
 export function collectCanvasCss(scopeEl, doc) {
   const d = doc || (typeof document !== 'undefined' ? document : null);
   if (!scopeEl || !d || !d.styleSheets) return '';
@@ -94,7 +153,9 @@ export function collectCanvasCss(scopeEl, doc) {
         if (ROOT_SEL.test(sel.trim())) { rootVars.push(...rootCustomProps(r)); continue; }
         if (EDITOR_ONLY_SEL.test(sel)) continue;
         if (!selectorMatchesInScope(scopeEl, sel)) continue;
-        sink.push(r.cssText);
+        const text = ruleCssTextWithoutChecker(r);     // 편집용 체커는 배송본에 안 싣는다(위 주석)
+        if (!text) continue;                            // 체커 하나뿐이던 규칙 — 껍데기도 안 싣는다
+        sink.push(text);
         taken++;
         continue;
       }

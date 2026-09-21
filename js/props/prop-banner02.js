@@ -534,10 +534,20 @@ export function showBanner02Properties(block, activeIdxArg) {
   // 줄 추가 버튼
   propPanel.querySelector('#bn2-line-add')?.addEventListener('click', () => {
     const v = window.BANNER02_VARIANTS?.[block.dataset.variant] || window.BANNER02_VARIANTS?.frame_8 || {};
-    // ★기본문구는 «여기서 짓지 않는다» — banner02-block.js 의 정본(BANNER02_NEW_LINE_TEXT)을 읽어 쓴다.
-    //   여기에 리터럴을 두면 banner02-block.js 의 「이게 안내문구인가」 판정이 그 줄을 못 알아봐서,
-    //   추가한 줄만 더블클릭해도 전체선택이 안 되고 「강아지 간식새 줄」로 이어붙는다(실측 버그).
-    mutLines(arr => arr.push(window._bn2Lines.normalize({ kind: 'sub', text: window._bn2Lines.newLineText, size: v.subSize || 16, color: '#000000', gapTop: v.gap2 || 10 })));
+    /* ★두 라운드가 «같은 줄»을 서로 다른 이유로 고쳤다 — 둘 다 필요해서 합쳤다(2026-09-21 합치기).
+       ⑴ ul-placeholder: 기본문구를 «여기서 짓지 않는다» — banner02-block.js 의 정본
+          (BANNER02_NEW_LINE_TEXT → window._bn2Lines.newLineText)을 읽어 쓴다. 리터럴을 두면
+          banner02-block.js 의 「이게 안내문구인가」 판정이 그 줄을 못 알아봐서, 추가한 줄만
+          더블클릭해도 전체선택이 안 되고 「강아지 간식새 줄」로 이어붙는다(실측 버그).
+       ⑵ ul-exportvisual: 그 줄에 placeholder:true 표시를 «단다» — 표시가 없으면 줄만 추가하고
+          안 쓴 배너의 내보낸 PNG 에 안내문구가 그대로 찍힌다(EVAL low).
+       ⇒ 한쪽만 취하면 다른 쪽 결함이 되살아난다. 정본 글자 + 표시를 «같이» 준다.
+       ★_normLine 은 placeholder 를 «만들지 않고 받기만» 한다(banner02-block.js) — 그래서 여기서
+         줘야 한다. 글자를 실제로 쓰면 그때 표시가 떨어진다(input/blur 규약). */
+    mutLines(arr => arr.push(window._bn2Lines.normalize({
+      kind: 'sub', text: window._bn2Lines.newLineText, size: v.subSize || 16,
+      color: '#000000', gapTop: v.gap2 || 10, placeholder: true,
+    })));
     commit();
     // 새로 추가한 줄을 바로 펼쳐준다(전체 보기 중이면 전체 유지).
     showBanner02Properties(block, activeIdx === null ? null : (window._bn2Lines.read(block).length - 1));

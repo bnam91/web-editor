@@ -31,11 +31,18 @@ function _variant(key) { return BANNER02_VARIANTS[key] || BANNER02_VARIANTS.fram
 // 기존 d.label/title/sub + d.labelSize/titleSize/subSize + d.labelColor/titleColor/subColor + d.gap1/gap2는
 // 1) 첫 render 시 lines 배열로 자동 migrate
 // 2) lines 배열의 첫 매칭 kind 항목에 동기화되어 유지 (이전 API/저장 포맷 호환)
+/* ★2026-09-21 사용자관점훑기 T-09x(exportvisual) — 기본 문구는 «안내문구»다, 본문이 아니다.
+ *   고치기 «전»: 이 세 줄은 진짜 텍스트값으로만 들어가고 아무 표시가 없었다. 그래서
+ *   js/io/capture-safety.js stripEditorOnlyForCapture 가 보는 `[data-is-placeholder="true"]`
+ *   그물에 «배너만» 안 걸려, 모달 안내문구는 빠지는데 배너 안내문구는 내보낸 PNG 에 박혔다
+ *   (실측 2026-09-21: 860×1399 export PNG 배너 글자영역 320×120 에 검정 2,203px).
+ *   ⇒ 값이 아니라 «표시»를 붙인다 — export 쪽 코드는 한 줄도 안 건드려도 같이 걷힌다.
+ *   ★규약은 block-factory.js / modal-block.js 와 «같은» data-is-placeholder + data-placeholder 다. */
 function _defaultLines(v) {
   return [
-    { kind: 'label', text: '라벨입니다.',         size: v.labelSize, color: '#000000', gapTop: 0,      fontFamily: '', fontWeight: 400, letterSpacing: 0 },
-    { kind: 'title', text: '제목을 입력합니다.',    size: v.titleSize, color: '#000000', gapTop: v.gap1, fontFamily: '', fontWeight: 400, letterSpacing: 0 },
-    { kind: 'sub',   text: '캡션이 입력됩니다.',    size: v.subSize,   color: '#000000', gapTop: v.gap2, fontFamily: '', fontWeight: 400, letterSpacing: 0 },
+    { kind: 'label', text: '라벨입니다.',         size: v.labelSize, color: '#000000', gapTop: 0,      fontFamily: '', fontWeight: 400, letterSpacing: 0, placeholder: true },
+    { kind: 'title', text: '제목을 입력합니다.',    size: v.titleSize, color: '#000000', gapTop: v.gap1, fontFamily: '', fontWeight: 400, letterSpacing: 0, placeholder: true },
+    { kind: 'sub',   text: '캡션이 입력됩니다.',    size: v.subSize,   color: '#000000', gapTop: v.gap2, fontFamily: '', fontWeight: 400, letterSpacing: 0, placeholder: true },
   ];
 }
 // ★「+ 텍스트 줄 추가」로 «새로 만드는» 줄의 기본문구 — 정본은 여기 한 곳.
@@ -98,6 +105,16 @@ function _normLine(l, fallbackSize) {
     fontFamily:    _safeFontFamily(l?.fontFamily),
     fontWeight:    Number.isFinite(+l?.fontWeight) ? Math.max(100, Math.min(900, Math.round(+l.fontWeight))) : 400,
     letterSpacing: Number.isFinite(+l?.letterSpacing) ? Math.max(-20, Math.min(50, +l.letterSpacing)) : 0,
+    /* ★«안내문구» 표시 — true 일 때만 키를 둔다(저장본이 불필요하게 커지지 않게).
+       ⛔여기서 «만들지» 않는다 — 호출자가 placeholder:true 를 «줄 때만» 표시가 선다.
+       ⚠️「_normLine 을 다시 부르면 표시가 저절로 떨어진다」는 옛 주석은 전제가 한 칸 넓었다
+         (EVAL medium, 2026-09-21): _legacyLine 은 «글자를 안 써도»(색·크기·gap 만 바꿔도)
+         줄을 통째로 다시 만들어 표시를 떨어뜨렸고, 아직 아무도 안 쓴 「라벨입니다.」가 본문으로
+         승격돼 PNG 에 박혔다. ⇒ 표시를 떼는 자리는 «글자를 실제로 쓴 경로»에만 둔다
+         (blur 커밋 · _legacyLine 의 text 지정 분기 · 패널 editLine).
+       ★옛 저장본(이 키가 없다)은 placeholder 없음 = 본문으로 읽힌다 — 열기만 해도 글자가
+         사라지는 회귀가 없다(제일 비싼 회귀다). */
+    ...(l?.placeholder === true ? { placeholder: true } : {}),
   };
 }
 function _writeLines(block, lines) {
@@ -163,6 +180,15 @@ function renderBanner02(block) {
     //   (QA BUG-1: bn2_84a7j_bgcvdp1 260→294). 클릭영역은 «화면에서만» 필요하지 높이 계산의 입력이 아니다.
     //   → CSS(.bn2-line-empty)로만 주고, neededHeight 는 그 몫을 도로 빼서 «실제 글자 높이»로 잰다.
     if (!String(line.text || '').trim()) el.classList.add('bn2-line-empty');
+    /* ★안내문구 표시 — block-factory.js/modal-block.js 와 «같은» 속성 한 쌍.
+       읽는 쪽이 이미 셋이나 있다: capture-safety.js stripEditorOnlyForCapture(캡처 클론에서 숨김) ·
+       canvas-state.js _isPlaceholderText(MCP 가 「아직 안 썼다」를 알아야 채운다) ·
+       editor-blocks.css `#canvas [data-is-placeholder="true"]`(편집 화면에서만 흐리게 — #canvas
+       스코프라 body 에 붙는 export 클론엔 «안» 샌다). */
+    if (line.placeholder === true) {
+      el.dataset.isPlaceholder = 'true';
+      el.dataset.placeholder   = line.text;
+    }
     if (line.gapTop)                                  styleParts.push(`margin-top:${line.gapTop}px`);
     if (line.fontFamily)                              styleParts.push(`font-family:${line.fontFamily}`);
     if (line.fontWeight && line.fontWeight !== 400)   styleParts.push(`font-weight:${line.fontWeight}`);
@@ -225,7 +251,20 @@ function renderBanner02(block) {
      *   ⇒ 넘치기 시작하는 그 순간을 여기서만 알 수 있어 힌트만 따로 다시 잰다
      *     (히스토리·저장은 blur 의 몫 — 여기서 건드리지 않는다).
      */
-    el.addEventListener('input', () => { window.refreshBanner02Hint?.(block); });
+    el.addEventListener('input', () => {
+      /* ★DOM 표시도 «즉시» 뗀다 — 모델(blur 커밋)만 떼면 둘이 어긋난다(EVAL high, 2026-09-21).
+         어긋나면 ⑴방금 쓴 글자가 캔버스에서 계속 흐리고(#canvas [data-is-placeholder] opacity .45)
+         ⑵js/io/capture-safety.js hidePlaceholderTextForCapture 가 그 줄에 visibility:hidden 을 걸어
+           «단독 HTML 내보내기(export-html.js)·프로젝트 목록 썸네일(save-load.js captureThumbnail)»에서
+           사용자가 방금 쓴 글자가 통째로 안 보인다.
+         ★PNG 만 멀쩡한 것이 함정이다 — export-image.js renderComponentsInClone 이 클론에서 배너를
+           «모델로 다시 그려» 속성이 재계산된다. 그래서 PNG 실측만으로는 이 구멍이 안 보인다.
+         ⇒ 다른 블럭이 전부 지키는 규약(js/blocks/block-drag.js:846~850)과 «같은» 모양으로 뗀다. */
+      if (el.dataset.isPlaceholder === 'true' && String(el.textContent || '').trim() !== '') {
+        delete el.dataset.isPlaceholder;
+      }
+      window.refreshBanner02Hint?.(block);
+    });
     el.addEventListener('blur', () => {
       if (el.dataset.removing === '1') return;   // ⑶ 삭제 중 — 옛 인덱스로 덮어쓰지 않는다
       el.setAttribute('contenteditable', 'false');
@@ -235,8 +274,29 @@ function renderBanner02(block) {
         // ★변경이 «있을 때만» 커밋한다 — 예전엔 편집 없이 들어갔다 나오기만 해도 pushHistory 가
         //   돌아 no-op 스텝이 쌓였고, 그게 ⑶ 줄삭제와 겹쳐 사용자 체감이 「⌘Z 두 번」이 됐다(QA BUG-6).
         //   저장도 같이 아꼈다(불필요한 autosave 억제).
-        if (cur[i].text === el.textContent) return;
+        if (cur[i].text === el.textContent) {
+          /* 글자가 그대로면 커밋하지 않는다 — 다만 «모델과 DOM 을 맞춰» 두고 나간다.
+             input 이 표시를 뗐다가 도로 같은 글자가 된 경우(더블클릭 전체선택 후 같은 문구 재입력)
+             DOM 만 표시가 빠져 «화면은 본문인데 모델은 안내문구»인 어긋남이 남는다.
+             block-drag.js:886~889 가 같은 자리에서 「안내문구가 본문으로 굳는 지뢰 방지」로
+             표시 «유지»를 택했다 — 같은 결론이다. */
+          if (cur[i].placeholder === true) {
+            el.dataset.isPlaceholder = 'true';
+            el.dataset.placeholder   = cur[i].text;
+          }
+          return;
+        }
         cur[i].text = el.textContent;
+        /* ★글자가 «바뀌면» 안내문구 표시를 뗀다 — 이제부터 본문이다.
+           ⛔문자열 비교로 「기본문구와 같으니 아직 안내문구」를 판정하지 «않는다».
+             위 early-return 이 이미 그 경우다(글자가 그대로면 커밋 자체를 안 한다) —
+             block-drag.js:885~888 의 기존 규약(「안내문구가 본문으로 굳는 지뢰 방지」)과 같은 결론이다. */
+        delete cur[i].placeholder;
+        /* ★모델과 «같이» 뗀다 — 이 핸들러는 renderBanner02 를 다시 부르지 않으므로 여기서 안 떼면
+           DOM 속성만 낡은 채로 남는다. 그 상태의 클론을 그대로 쓰는 경로(단독 HTML·썸네일)에서
+           방금 쓴 글자가 숨겨진다(EVAL high, 2026-09-21). 위 input 규약의 «한 짝»이다. */
+        delete el.dataset.isPlaceholder;
+        delete el.dataset.placeholder;
         _writeLines(block, cur);
         window.pushHistory?.(); window.scheduleAutoSave?.();
         if (block.classList.contains('selected')) window.showBanner02Properties?.(block);
@@ -258,7 +318,13 @@ function renderBanner02(block) {
     img.style.backgroundPosition = 'center';
     img.style.backgroundRepeat = 'no-repeat';
   } else {
-    img.style.background = 'repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 / 16px 16px';
+    /* ★체커는 «CSS 클래스»에 둔다(.banner02-block .bn2-img-empty) — 인라인이면 저장본·.gdt·
+       단독 HTML 내보내기에 그대로 실린다. 정본은 .asset-block(editor-layout.css) /
+       .cvb-img-empty(editor-blocks.css) 이고, 여기만 그 컨벤션을 «안» 따르고 있었다.
+       ⚠️이것만으로 PNG 내보내기는 «안» 고쳐진다 — 캡처 클론은 라이브 문서에 붙어 앱 CSS 를
+         그대로 받으므로 클래스 체커도 그려진다. 그 몫은 capture-safety.js 의
+         neutralizeEmptyImageCheckerForCapture 가 진다(둘이 «같이» 가야 한다). */
+    img.classList.add('bn2-img-empty');
   }
   inner.appendChild(img);
 
@@ -353,6 +419,23 @@ function makeBanner02Block(data = {}) {
   block.dataset.imgW       = data.imgW ?? v.imgW;
   block.dataset.imgH       = data.imgH ?? v.imgH;
   block.dataset.imgFit     = data.imgFit || 'cover';
+
+  /* ★안내문구 표시는 «여기»서 선다 — 기본 문구를 실제로 박는 자리가 여기다.
+     ⚠️_defaultLines() 가 아니다: 새 배너는 위처럼 legacy dataset(label/title/sub)으로 만들어지고
+       _readLines 는 그 경우 legacy-migrate 경로를 타서 _defaultLines 를 «안» 지나간다.
+       (고치는 중에 실제로 헛짚었다 — DOM 검사 T1 이 그 헛짚음을 잡았다.)
+     ★판정 기준은 «문자열 비교»가 아니라 «호출자가 값을 줬나»다 — 템플릿·붙여넣기·MCP 가
+       진짜 글자를 넣어 만든 배너는 data.label 등이 있으므로 본문으로 남는다.
+     ⛔우연히 기본문구와 «같은 글자»를 넘긴 호출자는 본문으로 취급된다 — 의도한 쪽이다
+       (block-drag.js:885~888 의 「안내문구가 본문으로 굳는 지뢰 방지」와 같은 방향). */
+  _writeLines(block, [
+    { kind: 'label', text: block.dataset.label, size: block.dataset.labelSize, color: block.dataset.labelColor, gapTop: 0,
+      ...(data.label === undefined ? { placeholder: true } : {}) },
+    { kind: 'title', text: block.dataset.title, size: block.dataset.titleSize, color: block.dataset.titleColor, gapTop: block.dataset.gap1,
+      ...(data.title === undefined ? { placeholder: true } : {}) },
+    { kind: 'sub',   text: block.dataset.sub,   size: block.dataset.subSize,   color: block.dataset.subColor,   gapTop: block.dataset.gap2,
+      ...(data.sub   === undefined ? { placeholder: true } : {}) },
+  ]);
 
   renderBanner02(block);
   row.appendChild(block);
@@ -517,9 +600,10 @@ function updateBanner02Block(blockId, partial = {}) {
       idx = lines.length - 1;
     } else {
       const cur = lines[idx];
+      const textGiven = partial[textKey] !== undefined && partial[textKey] !== null;
       lines[idx] = _normLine({
         kind: cur.kind,
-        text:   partial[textKey]  !== undefined && partial[textKey]  !== null ? String(partial[textKey])  : cur.text,
+        text:   textGiven ? String(partial[textKey]) : cur.text,
         size:   partial[sizeKey]  !== undefined ? Number(partial[sizeKey])  : cur.size,
         color:  partial[colorKey] !== undefined && partial[colorKey] !== null ? String(partial[colorKey]) : cur.color,
         gapTop: partial[gapKey]   !== undefined ? Number(partial[gapKey])   : cur.gapTop,
@@ -527,6 +611,14 @@ function updateBanner02Block(blockId, partial = {}) {
         fontFamily:    cur.fontFamily,
         fontWeight:    cur.fontWeight,
         letterSpacing: cur.letterSpacing,
+        /* ★«안내문구» 표시도 보존한다 — 폰트 필드와 같은 이유(legacy partial 에 안 실린다).
+           ⛔글자를 «안» 건드리는 호출(색·크기·gap 만)이 표시를 떨어뜨리면, 아직 아무도 안 쓴
+             「라벨입니다.」가 본문으로 승격돼 내보낸 PNG 에 그대로 찍힌다 — 고치기 전 증상 그대로다
+             (EVAL medium, 2026-09-21: updateBanner02Block(id,{labelColor:'#ff0000'}) 한 줄로 재현).
+           ★패널 경로(js/props/prop-banner02.js mutLines)는 read→mutate→write 라 원래 보존한다 —
+             «같은 행위가 경로에 따라 정반대로 동작»하던 자리를 맞춘다.
+           ★글자를 실제로 주면(textGiven) 그때는 본문이다 ⇒ 표시를 넘기지 않는다. */
+        ...(!textGiven && cur.placeholder === true ? { placeholder: true } : {}),
       });
     }
     if (partial[textKey]  !== undefined && partial[textKey]  !== null) applied[textKey]  = lines[idx].text;

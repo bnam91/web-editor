@@ -651,14 +651,51 @@ export function showPageProperties() {
     expWSel  .addEventListener('change', _saveExportPref);
   }
 
-  // 전체 내보내기
+  /* ── 전체 내보내기 ───────────────────────────────────────────────────────
+     ★2026-09-21 사용자관점훑기 exportvisual — 「섹션이 0개인데 버튼이 파랗게 활성이고
+       『전체 0개 섹션을 내보냅니다』를 묻는다」(실측: New Design 직후 disabled=false,
+       background rgb(45,111,232), title='' · confirm 문구 그대로 발화).
+       버튼 마크업에 disabled 도 상태 바인딩도 «처음부터» 없었다 — 아래 secCount 는 confirm
+       문구에만 쓰였고 렌더 시점엔 계산조차 안 됐다.
+     ★선례를 그대로 쓴다 — 같은 파일 위쪽 _splSync(「연결된 참고 이미지」 버튼): 개수를 다시
+       세서 disabled+title 을 걸고, 패널이 열려 있는 동안도 이벤트로 따라가며,
+       window.__gdt*Hook 으로 이전 리스너를 떼어 누수를 막는다.
+     ⛔섹션이 늘고 주는 «경로»를 손으로 나열하지 않는다(추가·삭제·붙여넣기·undo/redo·템플릿
+       삽입·복제…). 그런 목록은 반드시 늙는다. 대신 캔버스의 DOM 변화를 MutationObserver 로
+       본다 — js/io/save-load.js 의 autosave 가 이미 쓰는 그 방식이다. */
   const pageExportBtn = document.getElementById('page-export-all-btn');
   if (pageExportBtn) {
+    const _secCount = () => canvasEl.querySelectorAll('.section-block:not([data-ghost])').length;
+    /* ★내보내는 «동안»은 동기화를 멈춘다 — export 경로가 캔버스를 만진다
+       (materializeAllSections 가 lazy 언로드 섹션을 라이브 DOM 에 되살린다) ⇒ 옵저버가 깨어나
+       「섹션이 있으니 활성」으로 되돌려 버튼이 «내보내는 중»에 다시 눌린다. */
+    let _exporting = false;
+    const _exportSync = () => {
+      if (_exporting) return;
+      const n = _secCount();
+      pageExportBtn.disabled = n === 0;
+      pageExportBtn.title = n === 0 ? '내보낼 섹션이 없습니다' : `전체 ${n}개 섹션을 내보냅니다`;
+    };
+    /* ★패널은 innerHTML 로 통째로 다시 그려진다 — 옵저버가 쌓이면 그것도 결함이다.
+       ⑴이전 패널이 걸어둔 것을 먼저 끊고 ⑵버튼 노드가 패널에서 떨어지면 스스로 끊는다
+         (_splOnChange 의 isConnected 가드와 같은 꼴). */
+    if (window.__gdtPageExportObs) { try { window.__gdtPageExportObs.disconnect(); } catch (_) {} }
+    const _obs = new MutationObserver(() => {
+      if (!pageExportBtn.isConnected) { _obs.disconnect(); if (window.__gdtPageExportObs === _obs) window.__gdtPageExportObs = null; return; }
+      _exportSync();
+    });
+    try { _obs.observe(canvasEl, { childList: true, subtree: true }); window.__gdtPageExportObs = _obs; } catch (_) {}
+    _exportSync();
+
     pageExportBtn.addEventListener('click', async () => {
       const fmt = document.getElementById('page-export-format').value;
       const w   = parseInt(document.getElementById('page-export-width').value) || 860;
-      const secCount = canvasEl.querySelectorAll('.section-block').length;
+      const secCount = _secCount();
+      /* ★이중 안전장치 — 버튼이 어떤 이유로든 낡은 채 활성으로 남아도 «0개를 내보냅니다»를
+         묻지는 않는다. 조용히 끝내지 않고 이유를 말한다. */
+      if (secCount === 0) { _exportSync(); window.showToast?.('내보낼 섹션이 없습니다'); return; }
       if (!confirm(`전체 ${secCount}개 섹션을 내보냅니다. 계속할까요?`)) return;
+      _exporting = true;
       pageExportBtn.disabled = true;
       pageExportBtn.textContent = '내보내는 중...';
       try {
@@ -672,8 +709,9 @@ export function showPageProperties() {
         console.error('[export] 전체 내보내기 실패:', err);
         window.showToast?.('⚠️ 내보내기 실패: ' + (err?.message || err));
       } finally {
-        pageExportBtn.disabled = false;
         pageExportBtn.textContent = '전체 섹션 내보내기';
+        _exporting = false;
+        _exportSync();   // ★«무조건 false» 로 되돌리지 않는다 — 내보내는 사이 섹션이 다 지워졌을 수 있다
       }
     });
   }
