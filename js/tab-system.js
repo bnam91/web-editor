@@ -28,23 +28,54 @@ function saveTabState() {
   localStorage.setItem(TAB_STATE_KEY, JSON.stringify({ tabs: slim, activeId: _getActId() }));
 }
 
+/* ── 고정 마크업 조각 ── 바깥 값이 «한 글자도» 안 들어간다(그래서 innerHTML 로 써도 된다). */
+const TAB_DOC_SVG = `
+  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.6" style="flex-shrink:0">
+    <rect x="1" y="1" width="10" height="10" rx="1.5"/>
+    <line x1="3.5" y1="4" x2="8.5" y2="4"/><line x1="3.5" y1="6.5" x2="8.5" y2="6.5"/><line x1="3.5" y1="9" x2="6.5" y2="9"/>
+  </svg>`;
+/* + 드롭다운 줄의 아이콘 — 탭 줄 것과 «모양은 같고 흐림·flex 속성이 없다»(옛 마크업 그대로). */
+const TAB_MENU_DOC_SVG = `
+  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
+    <rect x="1" y="1" width="10" height="10" rx="1.5"/>
+    <line x1="3.5" y1="4" x2="8.5" y2="4"/><line x1="3.5" y1="6.5" x2="8.5" y2="6.5"/><line x1="3.5" y1="9" x2="6.5" y2="9"/>
+  </svg>`;
+const TAB_CLOSE_SVG = `
+  <svg width="7" height="7" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.5">
+    <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
+  </svg>`;
+
+/* ★[T-049 후속] 프로젝트 «이름»·«아이디»는 사용자가 적는 값이다 —
+   템플릿 문자열로 HTML 에 이어붙이면 이름 안의 태그가 «마크업»으로 읽혀 그대로 돈다
+   (CSP 가 script-src 'unsafe-inline' 이라 곧장 실행된다. 2026-09-21 실앱 재현:
+    이런 이름의 프로젝트를 열면 document.title 이 페이로드대로 바뀌었다).
+   ⛔이름을 «검사»해서 막지 않는다 — 그러면 손으로 적은 명부가 또 생긴다.
+   ★대신 내는 자리에서 «항상 문자»로 넣는다: 이름은 textContent, 아이디는 dataset/클로저.
+     성질로 막는 길이라 어떤 글자가 와도 마크업이 될 수 없다. */
+function _buildTabEl(tab, actId) {
+  const el = document.createElement('div');
+  el.className = 'proj-tab' + (tab.id === actId ? ' active' : '');
+  el.dataset.id = tab.id ?? '';              // 속성 — 파서를 안 거친다
+  el.innerHTML = TAB_DOC_SVG;                // 고정 조각뿐
+  const nameEl = document.createElement('span');
+  nameEl.className = 'proj-tab-name';
+  nameEl.textContent = tab.name ?? '';       // ★항상 문자
+  el.appendChild(nameEl);
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'proj-tab-close';
+  closeBtn.title = '닫기';
+  closeBtn.innerHTML = TAB_CLOSE_SVG;
+  // 예전엔 onclick="…closeTab('${tab.id}')" 였다 — 아이디가 JS 문자열 리터럴 밖으로 나갈 수 있었다.
+  closeBtn.addEventListener('click', (ev) => { ev.stopPropagation(); closeTab(tab.id); });
+  el.appendChild(closeBtn);
+  return el;
+}
+
 function renderTabBar() {
   const bar = document.getElementById('tab-bar');
   if (!bar) return;
-  bar.innerHTML = _getTabs().map(tab => `
-    <div class="proj-tab ${tab.id === _getActId() ? 'active' : ''}"
-         data-id="${tab.id}">
-      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.6" style="flex-shrink:0">
-        <rect x="1" y="1" width="10" height="10" rx="1.5"/>
-        <line x1="3.5" y1="4" x2="8.5" y2="4"/><line x1="3.5" y1="6.5" x2="8.5" y2="6.5"/><line x1="3.5" y1="9" x2="6.5" y2="9"/>
-      </svg>
-      <span class="proj-tab-name">${tab.name}</span>
-      <button class="proj-tab-close" onclick="event.stopPropagation();closeTab('${tab.id}')" title="닫기">
-        <svg width="7" height="7" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.5">
-          <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
-        </svg>
-      </button>
-    </div>`).join('');
+  const actId = _getActId();
+  bar.replaceChildren(..._getTabs().map(tab => _buildTabEl(tab, actId)));
 
   // 탭 클릭 + 드래그 바인딩
   bar.querySelectorAll('.proj-tab').forEach(el => {
@@ -469,17 +500,26 @@ async function toggleTabAddMenu(e) {
     return;
   }
 
-  menu.innerHTML = list.map(p => {
+  // ★[T-049 후속] 여기도 «이름·아이디»를 내는 자리다 — 탭 줄과 같은 길로 막는다(textContent/클로저).
+  menu.replaceChildren(...list.map(p => {
     const date = new Date(p.updatedAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-    return `<div class="tab-add-item" onclick="openTabForProject('${p.id}');document.getElementById('tab-add-wrap').classList.remove('open')">
-      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
-        <rect x="1" y="1" width="10" height="10" rx="1.5"/>
-        <line x1="3.5" y1="4" x2="8.5" y2="4"/><line x1="3.5" y1="6.5" x2="8.5" y2="6.5"/><line x1="3.5" y1="9" x2="6.5" y2="9"/>
-      </svg>
-      <span class="tab-add-item-name">${p.name}</span>
-      <span class="tab-add-item-date">${date}</span>
-    </div>`;
-  }).join('') + NEW_PROJECT_BTN_HTML;
+    const row = document.createElement('div');
+    row.className = 'tab-add-item';
+    row.innerHTML = TAB_MENU_DOC_SVG;
+    const nameEl = document.createElement('span');
+    nameEl.className = 'tab-add-item-name';
+    nameEl.textContent = p.name ?? '';       // ★항상 문자
+    const dateEl = document.createElement('span');
+    dateEl.className = 'tab-add-item-date';
+    dateEl.textContent = date;
+    row.append(nameEl, dateEl);
+    row.addEventListener('click', () => {
+      openTabForProject(p.id);
+      document.getElementById('tab-add-wrap')?.classList.remove('open');
+    });
+    return row;
+  }));
+  menu.insertAdjacentHTML('beforeend', NEW_PROJECT_BTN_HTML);   // 고정 조각
 }
 
 /* ── window 노출 ── */

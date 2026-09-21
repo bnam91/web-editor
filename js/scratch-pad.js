@@ -2005,7 +2005,9 @@ function _scratchShowSendMenu(item, x, y) {
     folders.forEach(f => {
       const btn = document.createElement('div');
       btn.style.cssText = `padding:6px 10px; padding-left:${10 + f.depth * 12}px; cursor:pointer;`;
-      btn.innerHTML = `<span style="opacity:0.6;">📁</span> ${f.name || '(이름 없음)'}`;
+      // ★[T-049 후속] 폴더 «이름»도 사용자가 적는 값 — 항상 문자로 넣는다(마크업이 될 수 없게).
+      btn.innerHTML = `<span style="opacity:0.6;">📁</span> `;
+      btn.appendChild(document.createTextNode(f.name || '(이름 없음)'));
       btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(45,111,232,0.18)');
       btn.addEventListener('mouseleave', () => btn.style.background = '');
       btn.addEventListener('click', async () => {

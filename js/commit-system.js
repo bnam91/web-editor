@@ -144,7 +144,7 @@ async function openCommitModal() {
     <div id="commit-modal">
       <div class="cm-header">
         <span class="cm-title">Commit</span>
-        <span class="cm-project">${projectName}</span>
+        <span class="cm-project"></span>
         <button class="cm-close" onclick="document.getElementById('commit-modal-overlay').remove()">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
             <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
@@ -166,6 +166,10 @@ async function openCommitModal() {
         <div class="cm-history" data-commits='${JSON.stringify(commits.map(c => ({ id: c.id, message: c.message, branch: c.branch, timestamp: c.timestamp })))}'>${historyHTML}</div>
       </div>
     </div>`;
+
+  // ★[T-049 후속] 프로젝트 «이름»은 사용자가 적는 값이다 — 템플릿으로 이어붙이면 마크업이 된다.
+  //   내는 자리에서 «항상 문자»로 넣는다(이름을 검사하지 않는다).
+  overlay.querySelector('.cm-project').textContent = projectName;
 
   document.body.appendChild(overlay);
   document.getElementById('cm-msg-input').focus();
