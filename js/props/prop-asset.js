@@ -515,7 +515,11 @@ export function showAssetProperties(ab) {
     propPanel.querySelectorAll('#asset-align-group .prop-align-btn').forEach(b => b.classList.toggle('active', b.dataset.align === a));
   };
   propPanel.querySelectorAll('#asset-align-group .prop-align-btn').forEach(btn => {
-    btn.addEventListener('click', () => { window.pushHistory?.(); applyAlign(btn.dataset.align); });
+    /* ★[2026-09-21] 순서를 뒤집었다. «단추라 push-before 가 의도일 수 있다»고 봤으나
+       실측에서 근거를 못 찾았다 — 직전 편집이 push-after 인 순간 이 클릭이 앞 편집과 뭉쳐
+       ⌘Z 한 번에 둘 다 사라졌다(실측 A). 단추가 «한 클릭 = 한 걸음»인 성질(실측 C)은
+       순서를 뒤집어도 안 깨진다 — 클릭 하나가 값을 확정하는 건 그대로다. */
+    btn.addEventListener('click', () => { applyAlign(btn.dataset.align); window.pushHistory?.(); });
   });
 
   const rSlider = document.getElementById('asset-r-slider');

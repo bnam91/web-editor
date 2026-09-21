@@ -117,7 +117,12 @@ export function showMockupProperties(block) {
   wSlider.addEventListener('mousedown', () => window.pushHistory?.());
   wSlider.addEventListener('input',  () => applyWidth(parseInt(wSlider.value)));
   wSlider.addEventListener('change', () => window.pushHistory?.());
-  wNumber.addEventListener('change', () => { window.pushHistory?.(); applyWidth(parseInt(wNumber.value)); });
+  /* ★[2026-09-21] 순서를 뒤집었다 — 전엔 «찍고 나서» 바꿨다(push-before).
+     그러면 앞 편집이 push-after 였을 때 이 pushHistory 가 꼭대기와 같은 상태를 찍어 «버려지고»,
+     폭 변경이 자기 칸을 못 가져 ⌘Z 한 번에 «앞 편집과 같이» 사라졌다(실측 A).
+     ⛔이웃들은 원래 맞았다 — 슬라이더(:117~:119)는 양쪽 끝, 회전(:130~:133)은 push-after.
+        숫자칸 «하나»만 뒤집혀 있었다. */
+  wNumber.addEventListener('change', () => { applyWidth(parseInt(wNumber.value)); window.pushHistory?.(); });
 
   // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 핫존(asset-rotate.js)과 동기
   const mRotS = propPanel.querySelector('#mkp-rot-slider');
