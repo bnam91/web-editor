@@ -78,9 +78,27 @@ async function boot(page) {
 
 const raf = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 
+/** 줌(transform)의 «transition .15s» 가 멈출 때까지 기다린다.
+ *  ⛔raf 두 번으로 갈음하면 안 된다 — 도는 중인 rect 로 손잡이 좌표가 잡혀 마우스다운이
+ *    빗나가고(실측: 줌 40% 에서 인라인 크기가 한 건도 안 붙었다) 검사가 «고침 탓»으로
+ *    빨개진다. 형제 spec(text-overlay-resize.dom.spec.js settle)과 같은 술어다. */
+async function settle(page) {
+  await page.waitForFunction(() => {
+    const r = document.getElementById('canvas-scaler').getBoundingClientRect();
+    const now = `${r.width.toFixed(3)}/${r.left.toFixed(3)}`;
+    if (window.__settlePrev !== now) { window.__settlePrev = now; window.__settleN = 0; return false; }
+    window.__settleN = (window.__settleN || 0) + 1;
+    return window.__settleN >= 3;
+  }, null, { timeout: 5000, polling: 'raf' });
+  await page.evaluate(() => { window.__settlePrev = null; window.__settleN = 0; });
+}
+
 /** 아이콘+텍스트 한 덩이를 «진짜 팩토리»로 올린다. overlay=true 면 오버레이(플로팅) 상태로 둔다. */
-async function mount(page, { overlay }) {
-  await page.evaluate((overlay) => {
+async function mount(page, { overlay, zoom = 100 }) {
+  await page.evaluate(({ overlay, zoom }) => {
+    /* 캔버스 줌 — _canvasScaleNow 가 #canvas-scaler 의 transform 을 읽는다(현빈 실사용 40%). */
+    document.getElementById('canvas-scaler').style.transform = `scale(${zoom / 100})`;
+    window.currentZoom = zoom;
     const { row, block } = window.makeIconTextBlock();
     document.getElementById('host').appendChild(row);
     window.__itb = block;
@@ -100,7 +118,8 @@ async function mount(page, { overlay }) {
     window.__arms = 0;
     window.beginDragHistory = () => ({ arm: () => { window.__arms++; } });
     window.__show(block);
-  }, overlay);
+  }, { overlay, zoom });
+  await settle(page);
   await raf(page);
 }
 
@@ -214,5 +233,19 @@ test.describe('아이콘+텍스트 블럭의 오버레이 모서리 핸들', () 
     expect(after.w, `폭 ${after.w}`).toBeGreaterThanOrEqual(20);
     expect(after.iconW, `아이콘 ${after.iconW}`).toBeGreaterThan(0);
     expect(after.fs, `글자 ${after.fs}`).toBeGreaterThan(0);
+  });
+
+  test('I8 ★줌 40%(현빈 실사용) 에서도 아이콘 배율이 글자와 같다 — 스케일 보정', async ({ page }) => {
+    await boot(page);
+    await mount(page, { overlay: true, zoom: 40 });
+    const before = await measure(page);
+    await dragHandle(page, 'se', 60, 0);   // 화면 60px = 문서 150px
+    const after = await measure(page);
+    /* ⚠️여기가 이 고침의 «함정»이다 — 아이콘 시작 크기를 getBoundingClientRect 로 재면
+       줌이 곱해진 «화면 px»(40×0.4=16)을 시작값으로 잡아 첫 프레임에 칸이 쪼그라든다.
+       그래서 스냅샷은 레이아웃 px 인 offsetWidth 로 잰다. 이 검사가 그 선택을 지킨다. */
+    expect(after.iconW, `줌 40% — 아이콘 ${before.iconW} → ${after.iconW}`).toBeGreaterThan(before.iconW);
+    const ki = after.iconW / before.iconW, kf = after.fs / before.fs;
+    expect(Math.abs(ki - kf) / kf, `아이콘 ${ki.toFixed(3)} vs 글자 ${kf.toFixed(3)}`).toBeLessThan(0.02);
   });
 });
