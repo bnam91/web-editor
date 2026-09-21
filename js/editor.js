@@ -3,7 +3,7 @@ import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './histor
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 import { fitScale } from './fit-scale.js';
 import { setTextTypeClass, afterTextTypeChange } from './props/text-type-class.js';
-import { warnPendingVideoLoss, warnPendingVideoLossIf } from './io/pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원 */
+import { warnPendingVideoLossIf } from './io/pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원(「한 번만」 래치 포함) */
 
 /* ═══════════════════════════════════
    SSOT: 캔버스에서 "선택된 블록" 셀렉터 목록
@@ -3385,7 +3385,9 @@ function clearSelectionMarks(root) {
     // ★T-012: video-pending(트림 확정 전) 상태로 이 블록의 패널을 벗어나면 저장 시
     // 원본 영상이 사라진다(section-serialize.js 참고) — 막지는 않되 알려는 준다.
     if (a.classList.contains('selected') && a.dataset.assetType === 'video-pending') {
-      warnPendingVideoLoss();   // ★T-032: 문구는 js/io/pending-video-warn.js 한 곳에서만
+      // ★T-032(2026-09-22): warnPendingVideoLoss() 를 직접 부르면 «선택했다 풀 때마다» 뜬다
+      // (실측 5회 해제 = 5회 알림). 「한 번만」 래치를 탄 warnPendingVideoLossIf 로 부른다.
+      warnPendingVideoLossIf(canvas);   // ★문구·판정·래치는 js/io/pending-video-warn.js 한 곳에서만
     }
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
