@@ -606,7 +606,29 @@ document.addEventListener('keydown', (e) => {
   if (!sel) return;
   // contenteditable 텍스트 편집 중이면 default 동작 (글자 삭제) 유지
   if (sel.querySelector('[contenteditable="true"]')) return;
+  /* ★«스티커 혼자» 골라졌을 때만 여기서 지운다 — 섞여 있으면 editor.js 의 공통 삭제
+     (deleteSelectedFromCanvas)가 스티커까지 «한 번에» 지운다(CANVAS_SEL_BLOCKS 에 스티커 포함).
+     왜: 두 핸들러가 같은 Delete 한 번에 «따로» 지우면 히스토리가 두 칸이 되어, ⌘Z 한 번에
+     「스티커만 안 돌아온 것처럼」 보인다 — 2026-09-21 실측(⌘A→Delete→⌘Z: 텍스트5·도형3·
+     그라데이션2 는 돌아오는데 스티커만 0, ⌘Z 를 한 번 더 눌러야 1). 소실은 아니지만
+     사용자 눈에는 같은 증상이라 한 칸으로 모은다. */
+  const _selNow = window.CANVAS_SEL_BLOCKS_AND_SHAPE
+    ? document.querySelectorAll(window.CANVAS_SEL_BLOCKS_AND_SHAPE + ', .frame-block.selected')
+    : null;
+  if (_selNow && _selNow.length > 1) return;   // 공통 경로에 맡긴다(preventDefault 도 그쪽이 한다)
   e.preventDefault();
+  /* ★삭제 «전» 체크포인트 — 없으면 스티커가 ⌘Z 로 안 돌아온다(되돌릴 수 없는 소실).
+     왜 필요한가 (2026-09-21 실측, 포트 9527):
+       · 스티커 «추가»는 push-before 다 — makeStickerBlock 이 appendChild «앞»에서
+         pushHistory('스티커 추가') 를 부른다(js/blocks/sticker-block.js:561/563).
+         ⇒ 꼭대기 스냅샷 = 「스티커 없는」 캔버스.
+       · 스티커 «삭제»는 여기서 push-after 였다 — remove() «뒤»에 pushHistory.
+         ⇒ 찍히는 캔버스도 「스티커 없는」 캔버스라 pushHistory 의 무변화 중복차단
+           (js/history.js `_sameEdit`)에 걸려 «아무것도 안 쌓인다».
+       ⇒ 스택 어디에도 「스티커가 있던 캔버스」가 없다 ⇒ ⌘Z 로 못 돌아온다.
+     실측: 스티커 1개 선택 → Delete → 1→0, ⌘Z → 0 (히스토리 tip 이 pos/len/seq 까지 그대로였다).
+     고침 = 삭제 경로 공통 규약(js/editor.js deleteSelectedFromCanvas)과 같이 «삭제 전»을 먼저 찍는다. */
+  window.ensureHistoryCheckpoint?.('삭제 전');
   sel.remove();
   window.pushHistory?.('스티커 삭제');
   window.scheduleAutoSave?.();
