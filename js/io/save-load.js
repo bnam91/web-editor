@@ -1306,6 +1306,17 @@ function rebindAll(opts = {}) {
     }
     const _ssH = parseInt(ss.dataset.height) || parseInt(ss.style.minHeight) || 0;
     if (_ssH) ss.style.height = _ssH + 'px';
+    /* ★도형 프레임은 minHeight 도 «세트로» 복원한다 (2026-09-21 최종통합 QA medium ③ 후속)
+       .frame-block 엔 CSS 바닥이 있다 — css/editor-blocks.css `.frame-block { min-height: 60px }`.
+       위 줄은 height 만 되돌려서, 60 아래로 줄여 둔 도형을 다시 열면 style.height 는 30 인데
+       화면은 60 이 된다(패널 H 칸 = 30, 실제 = 60). 새로 고친 회전 경로가 다시 그런 저장본을
+       만들지는 않지만, ⛔이미 저장된 프로젝트는 그 상태 그대로 남아 있다 — 여는 순간 치유한다.
+       사정거리 = «도형을 품은 프레임»만. 보통 프레임(하위 섹션)의 60px 바닥은 그대로 둔다
+       (거긴 addShapeBlock 의 min-height 계약이 없고, 바닥이 의도다).
+       같은 «세트 규약»의 다른 자리 — js/block-drag.js _onShapeHandleMouseDown ·
+       js/overlay-handles.js _onFrameHandleMouseDown · js/props/prop-shape.js applySize·_relockFrameMinHeight.
+       회귀: tests/dom/shape-rotate-minheight.dom.spec.js L* */
+    if (_ssH && ss.querySelector(':scope > .shape-block')) ss.style.minHeight = _ssH + 'px';
     // 자식 정렬 복원 (frame-block 직속)
     if (ss.dataset.alignItems)     ss.style.alignItems     = ss.dataset.alignItems;
     if (ss.dataset.justifyContent) ss.style.justifyContent = ss.dataset.justifyContent;

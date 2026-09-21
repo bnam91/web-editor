@@ -610,6 +610,7 @@ export function showShapeProperties(block) {
     // 이전 버전이 남긴 보정값 정리
     if (frame.style.minHeight) frame.style.removeProperty('min-height');
     if (frame.style.minWidth)  frame.style.removeProperty('min-width');
+    _relockFrameMinHeight(frame);
   }
   // 회전 적용은 공유 함수(applyShapeRotation)로 위임 — 프로퍼티 슬라이더와
   // 코너 회전 핸들(asset-rotate.js)이 동일한 경로를 쓰도록 통일한다.
@@ -642,6 +643,23 @@ export function showShapeProperties(block) {
 
 window.showShapeProperties = showShapeProperties;
 
+/* ★청소한 뒤 «자기 높이»로 다시 잠근다 (2026-09-21 최종통합 QA medium ③ 후속)
+ *   위 두 자리는 구버전이 남긴 «부푼» min-width/height 보정값을 걷어내는 자리다(회전해도 크기 불변).
+ *   그런데 «청소»와 «바닥 해제»가 한 동작이었다 — 걷어내면 CSS 바닥이 되살아난다:
+ *       css/editor-blocks.css `.frame-block { min-height: 60px }`
+ *   ⇒ 손잡이·패널로 60 아래로 내려 둔 도형을 돌리면 style.height 는 40 인데 화면은 60 이 된다.
+ *   실측(실앱 9504 · 격리 프로필 · 줌 40%): 40 으로 줄인 사각형을 10° 돌리니 offsetHeight 60
+ *   (패널 H 칸은 40 — 20px 거짓). 회전된 채로는 패널에 30 을 넣어도 화면이 60 에 바닥쳤다(30px 거짓).
+ *   그래서 걷어낸 «다음» 자기 높이로 다시 잠근다 — 부푼 값은 안 살아나고(청소 의도 유지),
+ *   바닥도 안 되살아난다(패널 값 = 실제 크기). 높이를 «안 적은» 프레임(자동 높이)은 건드리지 않는다.
+ *   같은 «세트 규약»의 다른 자리 — js/block-drag.js _onShapeHandleMouseDown ·
+ *   js/overlay-handles.js _onFrameHandleMouseDown · 이 파일의 applySize.
+ *   회귀: tests/dom/shape-rotate-minheight.dom.spec.js */
+function _relockFrameMinHeight(frame) {
+  if (!frame || !frame.style.height) return;
+  frame.style.minHeight = frame.style.height;
+}
+
 /* ── 공유 회전 적용/동기화 ──
  * 프로퍼티 패널 슬라이더와 코너 회전 핸들(asset-rotate.js의 shape-rotate-zone)이
  * 같은 상태(dataset.shapeRotation + transform:rotate)를 쓰도록 단일 진입점으로 통일.
@@ -670,6 +688,7 @@ export function applyShapeRotation(block, deg) {
   if (frame) {
     if (frame.style.minHeight) frame.style.removeProperty('min-height');
     if (frame.style.minWidth)  frame.style.removeProperty('min-width');
+    _relockFrameMinHeight(frame);
   }
   window.scheduleAutoSave?.();
 }
