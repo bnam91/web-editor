@@ -120,10 +120,10 @@ export function neutralizeTextGradForH2C(root) {
  * 부르는 곳: js/io/export-image.js prepareCloneForCapture · js/io/save-load.js captureThumbnail */
 export function stripEditorOnlyForCapture(clone) {
   if (!clone) return;
-  const cloneLabel   = clone.querySelector?.('.section-label');
-  const cloneToolbar = clone.querySelector?.('.section-toolbar');
-  if (cloneLabel)   cloneLabel.remove();
-  if (cloneToolbar) cloneToolbar.remove();
+  /* ★querySelector«All» 이다 — 이 명부를 단독 HTML 내보내기(js/io/export-html.js)가 같이 쓰면서
+     클론이 «섹션 하나»가 아니라 «캔버스 전체»인 경우가 생겼다. 첫 하나만 지우면 나머지 섹션의
+     라벨·툴바가 그대로 배송본에 실린다. 섹션 클론에서는 결과가 전과 같다(하나뿐이므로). */
+  clone.querySelectorAll?.('.section-label, .section-toolbar').forEach(el => el.remove());
   clone.querySelectorAll('.variation-badge').forEach(el => el.remove());
   // C18: 펜툴 어노테이션(리뷰용 주석)과 진행중 미리보기는 리뷰 표시일 뿐 — 산출 이미지에 박히면 안 됨.
   // (대조: todo-pin은 #todo-pin-overlay로 섹션 밖이라 애초에 클론에 안 들어감)
@@ -152,6 +152,8 @@ export function stripEditorOnlyForCapture(clone) {
     el.removeAttribute('data-shape-fill');
   });
   clone.classList?.remove('selected', 'sec-bg-editing');
+  // 캔버스 전체 클론에서는 «루트»가 아니라 자식 섹션이 sec-bg-editing 을 달고 있다.
+  clone.querySelectorAll?.('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
   // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 오염 방지)
   // ★row-active/col-active(2026-09-15 a1-a3 지적): editor-blocks.css가 이 둘에 z-index:1을
   //   줘서(활성 줄/칸 강조용) .row/.col이 스태킹 컨텍스트가 된다 — 벗기기 목록에 없으면

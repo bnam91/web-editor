@@ -2,7 +2,8 @@ import { canvasEl, state } from '../globals.js';
 import { isGoyaAssetUrl as _isGoyaAsset, parseGoyaAssetUrl as _parseGoyaAssetUrl } from './goya-asset-inline.js';
 import { HIDDEN_VARIATION_SECTION_SEL } from '../variation-visibility.js';
 import { textGradShadowDefsMarkup } from '../props/text-block-color.js';
-import { neutralizeRedactForH2C } from './capture-safety.js';
+import { neutralizeRedactForH2C, stripEditorOnlyForCapture } from './capture-safety.js';
+import { collectCanvasCss } from './export-css-collect.js';
 
 const CANVAS_W = 860;
 
@@ -98,13 +99,18 @@ async function exportHTMLFile() {
    ★인라인 «앞»이다 — 뒤로 내리면 버릴 섹션의 이미지까지 base64 로 부풀려 넣고 지우게 된다.
    ⚠️저장 경로(js/io/section-serialize.js)는 «건드리지 않는다» — 저장본에서 빼면 시안이 지워진다. */
   clone.querySelectorAll(HIDDEN_VARIATION_SECTION_SEL).forEach(el => el.remove());
-  clone.querySelectorAll('.section-label, .section-toolbar, .col-placeholder, .col-add-btn, .col-add-menu, .row-col-add-btn, .row-drop-indicator, .layer-section-drop-indicator').forEach(el => el.remove());
-  // admin QA 체크리스트 블록 — 콘텐츠가 아니라 작업 메타데이터다(export-image.js·export-figma-json.js 와 같은 원칙).
-  // 감싸는 .row 까지 지워야 그 블록이 차지하던 세로 공간도 같이 사라진다.
-  clone.querySelectorAll('.qa-block').forEach(el => {
-    const row = el.closest('.row');
-    if (row) row.remove(); else el.remove();
-  });
+  /* ★편집 전용 DOM·상태 걷기 = «한 벌»이다 — js/io/capture-safety.js stripEditorOnlyForCapture.
+     썸네일(save-load.js captureThumbnail)·PNG(export-image.js prepareCloneForCapture)와 같은 명부를
+     쓴다. 여기가 세 번째 사본이면 또 갈린다(2026-09-21 QA: 썸네일 쪽이 셋에서 멈춘 채 늙어 있었다).
+     ⇒ .section-label/.section-toolbar/.variation-badge/펜 주석/.qa-block(+감싼 .row)/
+       .sec-bg-proxy·.img-edit-hint·.img-boundary/미입력 placeholder 가림/상태 클래스 일괄 제거는
+       전부 그 한 벌이 한다. 아래에 남는 것은 «단독 HTML 에만» 필요한 것들이다. */
+  stripEditorOnlyForCapture(clone);
+  clone.querySelectorAll('.col-placeholder, .col-add-btn, .col-add-menu, .row-col-add-btn, .row-drop-indicator, .layer-section-drop-indicator').forEach(el => el.remove());
+  /* ★앱 CSS 를 실으면서 드러난 «이미 새고 있던» 편집 DOM (2026-09-21 실측: 지금 내보낸 export.html
+     안에 .shape-handle 8개 · .section-hitzone 1개가 그대로 들어 있었다). 앱 CSS 가 없을 땐 그냥
+     안 그려져서 «우연히» 안 보였을 뿐이다 — 이 파일의 원칙대로(위 ⛔주석) 숨기지 말고 «뺀다». */
+  clone.querySelectorAll('.section-hitzone, .shape-handle, .asset-overlay-handle, .icb-overlay-handle, .zm-overlay-handle, .mdl-overlay-handle, .grd-img-overlay-handle, .tfo-overlay-handle, .grid-cell-resize-handle').forEach(el => el.remove());
   // BL-CD-10: label-group은 render-재생성형이 아니라 직렬 DOM 보존형 — 에디터 전용 ✕삭제/＋추가
   // 버튼 노드가 저장 HTML에 남아 export에서 그대로 노출됐음. 노드 자체를 제거한다.
   clone.querySelectorAll('.label-item-delete-btn, .label-group-add-btn').forEach(el => el.remove());
@@ -141,12 +147,9 @@ async function exportHTMLFile() {
           (예: #cccccc)으로 칠해져 «우연히» 원문을 가린다.
      ⇒ 프라이버시가 «설계»가 아니라 «두 누락의 상쇄»로 지켜지고 있었다 — 도형 색을 흰색/투명으로
        쓰는 순간 깨지는 자리다. html2canvas 경로와 «같은 안전실패»를 여기서도 건다.
-     ⛔이 호출은 「가림막이 흐리게 나온다」를 만들지 않는다 — 단독 HTML 에서 실시간 블러를
-       재현하려면 앱 CSS 전체를 실어야 하고 그건 별개 결정이다(아래 ⚠️).
-     ⚠️남은 것(이 라운드에서 «안» 고침, 별도 카드감): 이 <style> 에 shape/frame/sticker/zoom/
-       mockup/badge/grid/icon-text/banner/--sec-clip/object-fit 규칙이 없어 도형 상자 크기·위치가
-       캔버스와 다르다(실측 520×70@40,8 → 520×525@32,0). 그건 «CSS 부분집합의 범위»를 어디까지
-       넓힐 것인가 하는 결정이라 여기서 늘리지 않는다. */
+     ⛔이 호출은 「가림막이 흐리게 나온다」를 만들지 않는다 — 배송본에서도 «가려진다»가 규약이고,
+       실시간 블러 재현은 별개다. 아래에서 앱 CSS 를 싣지만 backdrop-filter 는 밑에 깔린 그림을
+       실제로 흐리게 «만들어» 원문 추정의 여지를 남긴다 ⇒ 불투명 채우기가 여전히 정답이다. */
   neutralizeRedactForH2C(clone);
 
   // goya-asset:// 참조를 base64로 재인라인 → 내보낸 HTML이 일반 브라우저에서도 portable
@@ -196,10 +199,15 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 .speech-bubble-block .tb-bubble::before{content:'';position:absolute;bottom:0;width:20px;height:16px;}
 .speech-bubble-block[data-tail="left"] .tb-bubble::before{left:-8px;background:var(--bubble-bg,#e5e5ea);clip-path:polygon(100% 0,100% 100%,0 100%);}
 .speech-bubble-block[data-tail="right"] .tb-bubble::before{right:-8px;background:var(--bubble-bg,#e5e5ea);clip-path:polygon(0 0,0 100%,100% 100%);}
-/* asset */
-.asset-block{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;position:relative;}
+/* asset — ★클리핑 임자는 .asset-block 이 아니라 .asset-img-clip 이다(앱 css/editor-blocks.css:439~453).
+   예전엔 여기서 .asset-block 에 overflow:hidden 을 걸어 «화면과 다른» 상자를 만들었다(실측:
+   라이브 visible ↔ 내보내기 hidden) — 오버레이 글자가 상자 밖으로 나가는 블록이 배송본에서만
+   잘린다. 앱과 같은 임자·같은 값으로 맞춘다. */
+.asset-block{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:visible;position:relative;}
 .asset-block .asset-icon,.asset-block .asset-label{display:none;}
-.asset-block.has-image{overflow:hidden;}
+.asset-block.has-image{overflow:visible;}
+.asset-img-clip{position:absolute;inset:0;overflow:hidden;border-radius:inherit;}
+.asset-img{width:100%;height:100%;object-fit:cover;display:block;}
 .asset-block.has-image img{display:block;max-width:100%;height:auto;}
 /* group */
 .group-block{width:100%;}
@@ -226,6 +234,29 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
    이 줄이 없으면 인라인 text-shadow 가 그라데이션 위에 칠해져 페이드가 사라진다. 여러 겹은 아래 <svg> 필터 정의를 참조. */
 .tgs{text-shadow:none!important;filter:var(--tgs-filter)!important;}
 `;
+
+  /* ★앱 CSS 수확 (2026-09-21 최종통합 QA medium — 「내보낸 HTML 이 화면과 다르다」)
+     위 `css` 는 «손으로 쓴 두 번째 CSS»다. 블록이 늘 때마다 같이 안 늙어서, 실앱 34노드 대조에서
+     섹션 배경 소실 · 도형 100×100→0×24 · 프레임 flex→block · 캔버스 높이 −807.2px 이 났다.
+     ⇒ 베끼지 말고 «지금 캔버스에 실제로 걸리는 규칙»을 CSSOM 에서 뽑아 싣는다
+       (js/io/export-css-collect.js — 편집 전용 선택자는 안 담는다).
+     ★순서가 뜻이다: 손글씨 `css` 가 «먼저», 수확한 앱 CSS 가 «뒤».
+       같은 특이도면 뒤가 이긴다 ⇒ 「화면과 같은 그림」이 손글씨 추정값을 덮는다.
+       CSSOM 이 막히면 appCss 가 빈 문자열이 되어 지금과 똑같이 동작한다(퇴행 없음).
+     ⚠️매칭 판정은 클론이 아니라 «라이브 canvasEl» 에 한다 — 떼어낸 트리에선 조상이 없어
+       `#canvas .x` 류가 거짓 음성이 된다. 라이브 쪽이 클론의 상위집합이라 안전하다. */
+  const appCss = collectCanvasCss(canvasEl);
+
+  /* 앱 CSS 뒤에 오는 «배송본 전용» 덮어쓰기 — 화면엔 있어야 하지만 배송본엔 없어야 하는 것.
+     ⛔여기에 «화면 재현»용 규칙을 넣지 마라. 그건 위 수확이 할 일이다. */
+  const exportOnlyCss = `
+/* 이미지가 안 들어간 에셋의 편집용 안내(아이콘·라벨)는 배송본에 나가면 안 된다. */
+.asset-block .asset-icon,.asset-block .asset-label{display:none!important;}
+.label-item-delete-btn,.label-group-add-btn{display:none!important;}
+/* 편집 커서·선택 허용은 배송본에서 뜻이 없다. */
+#canvas *{cursor:default!important;}
+`;
+
   // .tgs 글자가 url(#tgs-f-…) 로 가리키는 SVG 필터 정의 — 앱에선 캔버스 밖(body 직속)에 있어 클론에 안 딸려 온다.
   const tgsDefs = textGradShadowDefsMarkup(clone);
 
@@ -237,6 +268,8 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 <title>Export</title>
 ${fontLink}
 <style>${css}</style>
+<style>${appCss}</style>
+<style>${exportOnlyCss}</style>
 </head>
 <body>
 ${tgsDefs}
