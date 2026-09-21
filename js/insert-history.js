@@ -37,15 +37,33 @@
       라이브를 따라가는 편이 «라이브를 못 찍은 칸»보다 안전하다.
    ③ 중첩은 «깊이 0 일 때만» 찍는다 — 외부 조립자(goditor.buildSection·스크래치 드롭)가
       입구를 N번 불러도 바깥 하나만 남는다.
-   ④ ★삽입 입구는 «돌아온 뒤에 캔버스를 더 바꾸면 안 된다»(setTimeout·rAF 로 미루기 금지).
-      ensureHistoryCheckpoint 는 «생문자열 !==» 로 재므로(_sameEdit 아님), 끝 표본 뒤에
-      DOM 이 더 바뀌면 top≠live 가 되어 ⌘Z 가 «현재 상태» 한 칸을 더 만든다
-      ⇒ 삽입만 하고 ⌘Z 가 «두 번»이 된다(=먹통 한 칸). 실측으로 두 자리가 있었다:
+   ④ ⚠️★2026-09-21 개정 — 이 조항은 «이유»가 뒤집힌 채 남아 있었다. 고쳐 적는다.
+      ⛔옛 문장: 「삽입 입구는 돌아온 뒤에 캔버스를 더 바꾸면 안 된다(setTimeout·rAF 금지).
+        ensureHistoryCheckpoint 는 «생문자열 !==» 로 재므로(_sameEdit 아님) …」
+      ★지금은 둘 다 틀리다:
+        · ensureHistoryCheckpoint 는 이제 **_sameEdit 을 쓴다**(js/history.js, 2026-09-21).
+        · «돌아온 뒤에 더 바꾸기»는 **금지할 수 없다** — ResizeObserver·MutationObserver 가 쓰는
+          값은 «레이아웃이 끝나야» 나온다. 삽입 시점엔 알 수가 없다.
+      ⇒ 그래서 규약 ⑤(끝 표본 갱신)가 생겼다. 아래를 같이 읽어라.
+      ⛔이 조항을 「느슨해졌으니 비동기로 미뤄도 된다」로 읽지 마라 — 미루는 건 여전히 나쁘고,
+        «동기로 펼 수 있으면 편다»가 먼저다. 실측으로 두 자리가 있었다:
         · addTableBlock — flow-frame 경로가 테마적용을 setTimeout 0 으로 미뤘다 ⇒ 동기로 폈다.
         · addStickerBlock — rAF 로 _enterStickerEdit(편집 진입). 그쪽은 «직렬화에서
           세척»되게 했다(contenteditable 은 원래 세척, user-select·cursor 를
           js/io/section-serialize.js 가 같이 걷는다). 두 길 중 «세척»을 고른 이유는
           focus/캐럿이 부착 뒤 틱을 필요로 해서다.
+   ⑤ ★끝 표본을 «한 프레임 뒤 값»으로 다시 찍는다 — window.restampHistoryTop(seq).
+      왜: 입구는 동기로 돌아오지만 그 뒤 한 프레임 안에 «레이아웃에서 나오는 값»이 더 써진다.
+        · ResizeObserver 가 scale·height 를 쓴다 — banner02 · canvas(카드) · comparison
+        · MutationObserver 가 ✨버튼을 옮기고 onclick 을 지운다 — js/ai-section-fill.js
+        · CSSOM 을 한 번 건드리면 style 문자열이 «공백 넣어» 재직렬화된다 — 텍스트 스티커
+      그러면 꼭대기와 라이브가 어긋나 ⌘Z 가 «두 번»이 된다(첫 번째는 화면 무변화 = 먹통 한 칸).
+      ⛔«찍기»를 통째로 비동기로 옮기지 마라 — 규약 ①의 노옵 구간이 그 사이 풀린다.
+        찍기는 «동기», 값만 뒤에 갱신한다.
+      ⛔rAF 두 번으로는 모자라다 — ResizeObserver 콜백은 「렌더링 갱신」 단계에서 rAF 콜백
+        «뒤»에 배달된다(실측: sync 4842 · rAF1 4842 · rAF2 4889). rAF×2 «뒤의 매크로태스크»에서 읽는다.
+      ⛔restampHistoryTop 은 안전조건 넷 중 하나라도 틀리면 아무것도 안 한다 —
+        seq 불일치 / 되돌린 뒤 / 복원 중 / 무변화. 여기서는 «그때의 seq»만 넘긴다.
    ⛔이건 «옮기기»가 아니라 «더하기»다. 입구 «안»의 push-before 호출은 하나도 안 건드린다.
      옮기면 이음매가 이사할 뿐이다(js/CLAUDE.md 2026-09-20 회귀 기록).
 
