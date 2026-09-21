@@ -334,6 +334,18 @@ export function enterFloat(posEl) {
   posEl.dataset.overlayReturnAfter  = prevSib ? _ensureId(prevSib) : '';
 
   _freezeWidth(posEl);
+  /* ★재진입에도 «섹션 폭 밖» 을 유지한다 (T-068 후속, 2026-09-22 실측).
+     ⛔이 세 줄이 없으면: 손잡이로 1449 까지 키운 뒤 오버레이를 «껐다 켜면» 화면이 섹션 폭
+       860 으로 깎이는데 style.width·dataset.width 는 1449 를 그대로 들고 있다
+       (패널은 1449, 화면은 860 — overlay-float.js 가 아래 _unfreezeWidth 주석에서
+        「갈리면 패널이 옛 값을 보여준다」며 경계하던 바로 그 상태다).
+     ★뿌리는 «도장의 수명»이었다 — overlayFreeWidth 는 _exitOverlay 가 지우는
+       «한 번 쓰고 버리는 도장»인데, 그것이 나타내는 것은 「이 블럭의 폭은 사용자가 섹션 폭
+       밖으로 정했다」는 «지속되는 상태»다. 그래서 도장을 남기고(아래 _exitOverlay) 여기서
+       다시 푼다. 깎던 주체는 CSS `.frame-block{max-width:100%}`(editor-blocks.css:8) 이고,
+       _freezeWidth 는 dataset.width 가 있으면 조기반환하므로 거기서도 안 풀린다.
+     ⛔_freezeWidth «안»에 넣지 마라 — 그 함수는 dataset.width 가 있으면 첫 줄에서 되돌아간다. */
+  if (posEl.dataset.overlayFreeWidth === 'true') posEl.style.maxWidth = 'none';
 
   // 현재 화면 위치 → 섹션 기준 좌표로 고정 (줌 보정, freeLayout 드래그와 같은 계산식)
   const zoom = _zoom();
@@ -398,7 +410,11 @@ export function exitFloat(posEl) {
      2026-09-20 통합(int/0920b): T-068 이 _exitOverlay 에 붙인 갈래를 이 자리로 옮겼다. */
   if (posEl.dataset.overlayFreeWidth === 'true') {
     posEl.style.maxWidth = '';
-    delete posEl.dataset.overlayFreeWidth;
+    /* ⛔★도장을 «지우지 않는다»(2026-09-22, T-068 후속). 지우면 다시 켤 때 아무도
+       maxWidth 를 안 풀어 화면만 섹션 폭으로 깎인다 — 위 _enterOverlay 의 짝이다.
+       흐름으로 돌아온 «동안»은 캡이 도로 걸리는 게 맞다(현빈 2026-09-20 결정 · D7):
+       그건 위에서 style.maxWidth 를 '' 로 비워 CSS 가 맡는다. 도장은 «상태의 기억»이지
+       «지금 캡이 풀려 있다»는 뜻이 아니다. */
     /* ★리사이즈가 «도장을 떼고» 가는 바람에 _unfreezeWidth 가 첫 줄에서 되돌아가, 우리가 심은
        메모 두 개가 그대로 남아 있었다(2026-09-20 QA 실측: 해제 후에도
        dataset.overlayFrozenWidth="716px" 잔류 → 재진입 때 _freezeWidth 가 dataset.width 로
