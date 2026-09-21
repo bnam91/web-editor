@@ -452,3 +452,45 @@ body.gdt-pad-on .section-inner::before {
        tests/dom/pad-hint.dom.spec.js D11 이 «픽셀로» 그걸 잡는다. */
   z-index: 1;
 }
+
+/* ── 빈 캔버스 안내 (T-101 ①, 2026-09-21 smallux) ─────────────────────────────
+   「새 디자인을 눌렀는데 회색 화면뿐이고 무엇을 먼저 할지 아무 말이 없다」.
+   ★새 룩을 만들지 않았다 — 바로 위 #canvas-notch-bar 의 «떠 있는 섬» 꼴을 그대로 빌린다
+     (rgba(22,22,22,.85) + 1px rgba(255,255,255,.08) + blur + --ui-shadow-sm).
+   ⛔글자색에 --ui-text-dim(#969696)만 쓰면 안 된다 — #canvas-wrap 배경이 «정확히 같은»
+     #969696 이라 어두운 판 없이 얹으면 안 보인다. 그래서 판을 깔고 그 위에 올린다.
+   ⛔pointer-events 를 켜지 마라 — 캔버스 빈 곳 클릭(선택 해제·팬)을 가로챈다.
+   ★z-index 5 = 노치바(30)·핸들오버레이(9990) 아래. #canvas-area 의 isolation 안이라
+     이 숫자는 그 영역 «안»에서만 뜻이 있다. */
+#canvas-empty-hint {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  pointer-events: none;
+  max-width: 340px;
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  background: rgba(22, 22, 22, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--ui-radius-md);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--ui-shadow-sm);
+}
+/* [hidden] 은 display:none 이 기본이지만 위 display:flex 가 이긴다 — 명시적으로 되돌린다. */
+#canvas-empty-hint[hidden] { display: none; }
+.canvas-empty-hint-title {
+  font-size: var(--ui-fs-12);
+  font-weight: var(--ui-fw-semibold);
+  color: var(--ui-text-sub);
+}
+.canvas-empty-hint-body {
+  font-size: var(--ui-fs-base);
+  line-height: 1.7;
+  color: var(--ui-text-dim);
+}
+.canvas-empty-hint-body b { color: var(--ui-text-sub); font-weight: var(--ui-fw-semibold); }
