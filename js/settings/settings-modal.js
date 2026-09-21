@@ -816,11 +816,19 @@
       ref_not_saved: '연결 정보를 저장하지 못했습니다(디스크 권한·용량 확인).',
     }[r] || r || '알 수 없는 오류');
 
+    /* ★label·help 를 «항상 글자»로 넣는다 (2026-09-21, T-049 전수에서 나온 자리).
+       ⛔날것으로 꽂으면 안 된다 — 이 틀에 들어오는 이름은 «내가 지은 것»이 아니다:
+         :862 `invites.map(i => row(i.name …))` · :867 `projects.map(p => row(p.name …))` 이
+         `await api.invites({})`(원격 응답)에서 온다 ⇒ «남이 지어 보낸 이름»이 화면 HTML 로 들어간다.
+       ★이 파일엔 _escapeHtml(:340) 이 이미 있고 :325 등에서는 제대로 쓰고 있었다 —
+         도구가 없어서가 아니라 «이 틀만» 안 쓰고 있었다.
+       ⚠️help 는 «속성 안»(value="…")이라 따옴표까지 막아야 한다 — _escapeHtml 이 " 를 덮는다.
+       회귀: tests/dom/settings-row-injection.dom.spec.js */
     const row = (label, help, buttons) => `
       <div class="settings-api-row">
-        <div class="settings-api-label">${label}</div>
+        <div class="settings-api-label">${_escapeHtml(label)}</div>
         <div class="settings-api-input-wrap">
-          <input class="settings-api-input" readonly value="${help || ''}" spellcheck="false" />
+          <input class="settings-api-input" readonly value="${_escapeHtml(help || '')}" spellcheck="false" />
           ${buttons}
         </div>
       </div>`;
