@@ -534,7 +534,10 @@ export function showBanner02Properties(block, activeIdxArg) {
   // 줄 추가 버튼
   propPanel.querySelector('#bn2-line-add')?.addEventListener('click', () => {
     const v = window.BANNER02_VARIANTS?.[block.dataset.variant] || window.BANNER02_VARIANTS?.frame_8 || {};
-    mutLines(arr => arr.push(window._bn2Lines.normalize({ kind: 'sub', text: '새 줄', size: v.subSize || 16, color: '#000000', gapTop: v.gap2 || 10 })));
+    // ★기본문구는 «여기서 짓지 않는다» — banner02-block.js 의 정본(BANNER02_NEW_LINE_TEXT)을 읽어 쓴다.
+    //   여기에 리터럴을 두면 banner02-block.js 의 「이게 안내문구인가」 판정이 그 줄을 못 알아봐서,
+    //   추가한 줄만 더블클릭해도 전체선택이 안 되고 「강아지 간식새 줄」로 이어붙는다(실측 버그).
+    mutLines(arr => arr.push(window._bn2Lines.normalize({ kind: 'sub', text: window._bn2Lines.newLineText, size: v.subSize || 16, color: '#000000', gapTop: v.gap2 || 10 })));
     commit();
     // 새로 추가한 줄을 바로 펼쳐준다(전체 보기 중이면 전체 유지).
     showBanner02Properties(block, activeIdx === null ? null : (window._bn2Lines.read(block).length - 1));

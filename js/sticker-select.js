@@ -491,9 +491,20 @@ function bindStickerSelect(block) {
   });
 }
 
+// 스티커의 «안내문구»(= 아직 아무도 안 쓴 기본 텍스트). 생성 시 dataset.text 기본값과 같은 식이다
+// (sticker-block.js: shape 'text' → 'Text', 그 밖 → STICKER_DEFAULTS.text = 'NEW').
+// ★이 파일 안에서 같은 식을 두 번(편집진입·커밋 fallback) 쓰므로 한 자리로 모은다.
+function _stickerPlaceholderText(block) {
+  return block && block.dataset && block.dataset.shape === 'text' ? 'Text' : 'NEW';
+}
+
 // A26: dblclick 인라인 편집 로직을 재사용 가능한 함수로 추출 — 생성 직후 프로그램적 편집 진입에도 사용.
 // ev(마우스 이벤트)가 오면 더블클릭 지점에 collapsed 캐럿을 배치("커서가 안 생김" 해소),
 // 없거나 좌표 판정 실패 시 기존 전체선택 폴백(A26 신규 스티커 'Text' 치환 타이핑 플로우 보존).
+// ★사용자 관점 훑기(0920) U-26 — «안내문구 그대로»인 스티커는 좌표가 있어도 캐럿만 꽂혀서,
+//   'Text' 가운데를 더블클릭하고 바로 치면 「Te강아지xt」가 됐다(실측). 배너·그리드와 같은 뿌리다.
+//   A26 의 불만은 «사용자가 쓴 글»을 고칠 때 커서가 안 보인다는 것이었고, A26 자신도 신규 스티커
+//   'Text' 치환 플로우는 전체선택으로 남겨뒀다 — 그 전체선택을 «안내문구일 때만» 되살린다(A26 무회귀).
 function _enterStickerEdit(block, ev) {
   if (!block) return;
   const textEl = block.querySelector('.sticker-text');
@@ -505,7 +516,10 @@ function _enterStickerEdit(block, ev) {
   const sel = window.getSelection();
   sel.removeAllRanges();
   let caretPlaced = false;
-  if (ev && Number.isFinite(ev.clientX) && document.caretRangeFromPoint) {
+  // 안내문구면 캐럿 배치를 «건너뛴다» → 아래 기존 폴백(selectNodeContents)이 그대로 전체선택한다.
+  //   ⛔새 선택 코드를 따로 쓰지 않는다 — A26 이 이미 가진 폴백을 그대로 쓰는 게 최소 diff 다.
+  const _stkIsPh = (textEl.textContent || '').trim() === _stickerPlaceholderText(block);
+  if (!_stkIsPh && ev && Number.isFinite(ev.clientX) && document.caretRangeFromPoint) {
     try {
       const r = document.caretRangeFromPoint(ev.clientX, ev.clientY);
       if (r && textEl.contains(r.startContainer)) {
@@ -529,7 +543,7 @@ function _enterStickerEdit(block, ev) {
     const t = (textEl.innerText || textEl.textContent || '')
       .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
       .trim();
-    const fallback = block.dataset.shape === 'text' ? 'Text' : 'NEW';
+    const fallback = _stickerPlaceholderText(block);
     block.dataset.text = t || fallback;
     // U6b: 부분 서식 보존 — innerHTML을 sanitize해 실제 인라인 서식이 있으면 dataset.textHtml에 저장,
     //   서식이 없으면(=평문 동치) textHtml 제거해 옛 평문 렌더 경로 유지(무회귀).

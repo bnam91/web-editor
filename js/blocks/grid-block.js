@@ -940,6 +940,11 @@ export function gridPickCellByPoint(block, x, y) {
 }
 if (typeof window !== 'undefined') window.gridPickCellByPoint = gridPickCellByPoint;
 
+// ★GRID_CELL_DEFAULT_TEXT 를 window 로도 노출 — block-drag.js(_gridBeginEdit)가 「이 셀이 안내문구인가」를
+//   값-비교로 판정해야 하는데, 거기서 이 파일을 정적 import 하면 순환이다
+//   (grid-block.js → drag-drop.js → `export * from './block-drag.js'`). 이 파일이 _gridEndEdit 에서
+//   window.updateGridBlock 을 쓰는 것과 «같은» 브리지 관례를 따른다(아래 makeGridBlock 등과 동일 자리).
+window.GRID_CELL_DEFAULT_TEXT = GRID_CELL_DEFAULT_TEXT;
 window.makeGridBlock = makeGridBlock;
 window.addGridBlock = addGridBlock;
 window.updateGridBlock = updateGridBlock;
