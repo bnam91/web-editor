@@ -76,12 +76,28 @@ test('G0 ★뗀 몸통들이 비어 있지 않다 (아래 초록이 빈 함수�
   }
 });
 
-test('G1 커밋 가드(PN_SEL)가 grad stop 의 투명도·위치 칸을 «둘 다» 덮는다', () => {
-  const m = /const PN_SEL\s*=\s*'([^']+)'/.exec(GUARD_CODE);
-  assert.ok(m, 'prop-number-commit-guard.js 의 PN_SEL 을 못 찾았다');
-  assert.match(m[1], /\.prop-number\b/, '기존 .prop-number 를 잃지 말 것(242개 필드 회귀)');
-  assert.match(m[1], /\.grad-stop-alpha\b/, '.grad-stop-alpha 가 가드 밖이면 타이핑 중 즉시 커밋이 재발한다');
-  assert.match(m[1], /\.grad-stop-offset\b/, '.grad-stop-offset 이 가드 밖이면 「빈값 → 0」이 재발한다');
+test('G1 커밋 가드가 grad stop 의 투명도·위치 칸을 «둘 다» 덮는다 (0921 numfield: 목록 → 타입 주도)', () => {
+  /* ★이 검사는 원래 `const PN_SEL = '.prop-number, .grad-stop-alpha, .grad-stop-offset'` 라는
+       «문자열»을 못 박고 있었다. 0921 numfield 라운드가 회원 판정을 «타입 주도»로 바꾸면서
+       그 문자열이 사라졌다 — 지우지 않고 «같은 뜻»을 타입으로 다시 못 박는다.
+       (그냥 지우면 grad-stop 회귀 그물이 통째로 사라진다.)
+     뜻: ⑴ 두 칸이 여전히 가드 안이다 ⑵ 기존 .prop-number 214칸도 여전히 안이다. */
+  const m = /const isPn\s*=\s*\(el\)\s*=>([\s\S]*?);\n/.exec(GUARD_CODE);
+  assert.ok(m, 'prop-number-commit-guard.js 의 isPn(회원 판정)을 못 찾았다');
+  const JUDGE = m[1];
+  assert.match(JUDGE, /el\.type\s*===\s*'number'/,
+    "★타입 주도가 사라졌다 — 목록으로 되돌아가면 «목록 밖 새 칸»이 또 조용히 샌다(0921 실측 19칸). "
+    + '.prop-number 214칸과 .grad-stop-offset 은 전부 type="number" 라 이 한 줄이 덮는다');
+  assert.match(JUDGE, /HTMLInputElement/,
+    '<select class="prop-number"> 2곳(editor.js·prop-iconify.js)을 걸러내던 가드가 사라졌다');
+  const t = /const PN_TEXT_SEL\s*=\s*'([^']+)'/.exec(GUARD_CODE);
+  assert.ok(t, 'type=number 가 아닌 예외 목록(PN_TEXT_SEL)을 못 찾았다');
+  assert.match(t[1], /\.grad-stop-alpha\b/,
+    '.grad-stop-alpha(type="text")가 가드 밖이면 타이핑 중 즉시 커밋이 재발한다');
+  assert.match(JUDGE, /PN_TEXT_SEL/, '예외 목록을 판정에서 안 쓴다 — 상수만 남고 죽었다');
+  // ⑵ .grad-stop-offset 은 «목록에 없어도» 타입으로 걸린다 — 그 전제(마크업이 type=number)를 같이 못 박는다
+  assert.match(GRADIENT_CODE, /<input type="number" class="grad-stop-offset"/,
+    '.grad-stop-offset 이 더는 type="number" 가 아니다 — 타입 주도 판정이 이 칸을 놓친다(「빈값 → 0」 재발)');
 });
 
 test('G1b ★스피너 휴리스틱은 «스피너가 있는 칸»에만 탄다 (2026-09-20 통합 라운드)', () => {
