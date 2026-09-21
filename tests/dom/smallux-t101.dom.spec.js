@@ -62,6 +62,8 @@ const HARNESS_LAYER = `<!doctype html><html><head><meta charset="utf-8">
   .layer-item{display:flex;align-items:center;gap:4px;width:180px}</style>
 </head><body>
 <div id="layer-panel-body">
+  <div class="layer-section"><div class="layer-section-header" id="sec-hd"><span class="layer-section-name" id="sn-long">아주 아주 아주 길고 긴 섹션 이름입니다 가을 신상 컬렉션 메인 히어로 섹션</span></div></div>
+  <div class="layer-section"><div class="layer-section-header" id="sec-hd2"><span class="layer-section-name" id="sn-short">Section 01</span></div></div>
   <div class="layer-item" id="row-long"><span class="layer-item-name" id="nm-long">상단 히어로 대표 이미지 — 가을 신상 컬렉션 메인컷</span><span class="layer-item-type">Asset</span></div>
   <div class="layer-item" id="row-short"><span class="layer-item-name" id="nm-short">Gap</span><span class="layer-item-type">Gap</span></div>
 </div>
@@ -129,6 +131,53 @@ test('②-T5 이름을 «고치는 중»(contenteditable)엔 이름표를 안 �
     window.syncLayerNameTooltip(el);
   });
   expect((await clipInfo(page, 'nm-long')).title).toBe(null);
+});
+
+/* ★아래 둘은 «절 머리(.layer-section-name)» 자리다 — 2026-09-22 실앱(9644)에서
+     그 자리만 따로 잰 결과다. 위 ②-T1~T5 가 다 통과하는 동안에도 여기는 죽어 있었다:
+       white-space 가 normal 이라 이름이 «잘리는» 대신 «흘러서», 같은 이름에
+       clientHeight 가 13 → 26 → 39 로 늘고 헤더(28px)를 11px 넘겼다.
+       그리고 scrollWidth == clientWidth(185==185) 라 syncLayerNameTooltip 의
+       잘림 판정이 영영 거짓 ⇒ '.layer-section-name' 은 셀렉터에만 있고 한 번도 안 탔다.
+   ⛔「말줄임표가 붙었다」만 재면 아무것도 안 잠근다 — T7 이 «hover 해서 전체가 뜨는가»를
+     잰다. 잘려도 볼 길이 없으면 ② 는 안 고쳐진 것이다. */
+
+const clipInfo2 = (page, id) => page.evaluate((i) => {
+  const el = document.getElementById(i);
+  const cs = getComputedStyle(el);
+  return {
+    clippedX: el.scrollWidth > el.clientWidth + 1,
+    clientH: el.clientHeight,
+    title: el.getAttribute('title'),
+    ws: cs.whiteSpace,
+    headerH: el.closest('.layer-section-header').offsetHeight,
+    spillPx: Math.round(el.getBoundingClientRect().bottom - el.closest('.layer-section-header').getBoundingClientRect().bottom),
+  };
+}, id);
+
+test('②-T6 긴 «절 머리» 이름은 흘러 넘치지 않고 «잘린다»(행 높이가 안 늘어난다)', async ({ page }) => {
+  await boot(page, HARNESS_LAYER);
+  const long = await clipInfo2(page, 'sn-long');
+  const short = await clipInfo2(page, 'sn-short');
+  /* 한 줄 높이는 «짧은 이름»이 정한다 — 폰트가 바뀌어도 따라오게 상수를 안 박는다. */
+  expect(long.clientH, `긴 이름이 ${long.clientH}px 로 흘렀다(한 줄=${short.clientH}px)`).toBe(short.clientH);
+  expect(long.spillPx, '이름이 절 머리 아래로 삐져나왔다').toBeLessThanOrEqual(0);
+  expect(long.headerH).toBe(short.headerH);
+  expect(long.clippedX, '가로로 잘려 있어야 이름표를 걸 수 있다').toBe(true);
+  expect(short.clippedX).toBe(false);
+});
+
+test('②-T7 잘린 «절 머리» 이름에 마우스를 올리면 «전체»가 이름표로 뜬다', async ({ page }) => {
+  await boot(page, HARNESS_LAYER);
+  expect((await clipInfo2(page, 'sn-long')).title).toBe(null);   // 올리기 전엔 없다
+  await page.hover('#sn-long');
+  const full = await page.evaluate(() => document.getElementById('sn-long').textContent.trim());
+  await expect.poll(async () => (await clipInfo2(page, 'sn-long')).title, { timeout: 3000 }).toBe(full);
+  /* 안 잘린 절 머리엔 안 붙는다 — 쓸데없이 뜨지 않게. */
+  await page.mouse.move(600, 500);
+  await page.hover('#sn-short');
+  await page.waitForTimeout(150);
+  expect((await clipInfo2(page, 'sn-short')).title).toBe(null);
 });
 
 /* ═══════════════ ③ 이미지 프리셋 현재값 표시 ═══════════════ */
@@ -217,3 +266,4 @@ test('③-T4 「패딩 제외」가 꺼져 폭이 줄어든 블록에서도 같�
   expect(s.btns).toContain('Standard:ACTIVE');
   expect(s.activeCount).toBe(1);
 });
+
