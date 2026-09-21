@@ -31,7 +31,7 @@ function showFilenameModal(defaultName, onConfirm) {
   overlay.innerHTML = `
     <div style="background:#1e1e1e;border:1px solid #3a3a3a;border-radius:10px;padding:20px 24px;min-width:320px;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
       <div style="font-size:13px;color:#ccc;margin-bottom:10px;">파일명을 입력하세요</div>
-      <input id="filename-modal-input" type="text" value="${defaultName}"
+      <input id="filename-modal-input" type="text"
         style="width:100%;box-sizing:border-box;background:#2a2a2a;border:1px solid #555;border-radius:6px;color:#eee;font-size:13px;padding:7px 10px;outline:none;">
       <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
         <button id="filename-modal-cancel" style="padding:6px 14px;border-radius:6px;border:1px solid #444;background:#333;color:#aaa;cursor:pointer;font-size:12px;">취소</button>
@@ -41,6 +41,15 @@ function showFilenameModal(defaultName, onConfirm) {
 
   document.body.appendChild(overlay);
   const input = document.getElementById('filename-modal-input');
+  /* ★[T-049 후속] 기본 파일명을 «틀 안에 끼우지 않고» 값으로 넣는다.
+     전엔 value="${defaultName}" 로 innerHTML 안에 끼웠는데, 그 값의 출처가
+     window.currentFileName || window.getProjectName?.() (아래 defaultName 계산)이라
+     «사용자가 정한 글자»가 HTML 속성 자리로 흘러들었다.
+     ⛔이스케이프 헬퍼를 새로 만들지 않는다 — 이 파일은 이미 같은 병을 «빈 칸 + 값 대입»으로
+       고쳤다(:147 <span class="cm-project"></span> + :172 .textContent = projectName).
+       같은 자리에서 두 가지 방식을 쓰면 다음 사람이 어느 쪽이 정본인지 모른다.
+     ★.value 는 프로퍼티라 HTML 로 해석되지 않는다 — 글자는 늘 글자로 남는다. */
+  input.value = defaultName == null ? '' : String(defaultName);
   input.select();
 
   const close = () => overlay.remove();
