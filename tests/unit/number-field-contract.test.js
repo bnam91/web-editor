@@ -8,6 +8,11 @@
  *   ⇒ 규약을 커밋 깔때기(js/props/prop-number-commit-guard.js) 한 자리로 올리고,
  *      값의 SSOT 를 «칸의 min/max 속성»으로 정했다.
  *
+ * ★2026-09-21 픽스 라운드 — 축이 «셋»이다. SSOT 를 min/max 둘만 잡고 「빈 값 = 무효」를
+ *   전 칸 공통으로 못 박았더니, «빈 값이 곧 값»인 칸(grid·row·comparison·table·banner02)의
+ *   auto/역할기본 복귀가 통째로 죽었다 — 그런데 unit·DOM 이 «전부 초록»이었다(표본이
+ *   결론 범위와 달랐다). ⇒ ⑶«빈 값의 뜻»도 칸이 선언하고, N8·N9 가 그 축을 지킨다.
+ *
  * 이 파일이 재는 것 = «그 한 자리가 그대로 있나» + «알려진 함정을 다시 밟지 않나».
  * 실제 거동(모델·칸 표시·pushHistory)은 tests/dom/number-field-contract.dom.spec.js 가
  * 진짜 키보드로 5개 패널 × C1~C7 로 잰다.
@@ -41,14 +46,22 @@ const CHANGE_BODY = codeOnly(sliceCall(GUARD_SRC, "document.addEventListener('ch
 /** Enter 분기 — 커밋을 일으키는 자리(blur)와 포커스 되돌리기가 여기 있다. */
 const ENTER_BODY = codeOnly(sliceBlock(GUARD_SRC, "if (e.key === 'Enter')",
   'Enter 커밋 분기'));
+/** ★세 번째 축 — 「빈 값의 뜻」 판정 + 그것을 정규화 판정과 묶는 한 줄. */
+const MEANING_BODY = codeOnly(sliceBlock(GUARD_SRC, 'function emptyIsMeaningful(',
+  '빈 값의 뜻 판정'));
+const SHOULD_RESTORE = (/const shouldRestoreEmpty\s*=[\s\S]*?;\n/.exec(GUARD_CODE) || ['']).join('');
+const HAZARD_BODY = codeOnly(sliceBlock(GUARD_SRC, 'function canvasDeleteHazard(',
+  '포커스 되돌림 위험 판정'));
 
 test('N0 [양성대조] 뗀 몸통들이 비어 있지 않다 (아래 초록이 빈 함수의 초록이 아니다)', () => {
   for (const [name, body] of Object.entries({
     normalizeBeforeCommit: NORMALIZE_BODY, commitTyping: COMMIT_BODY,
     restorePrev: RESTORE_BODY, 'change 캡처': CHANGE_BODY, 'Enter 분기': ENTER_BODY,
+    emptyIsMeaningful: MEANING_BODY, canvasDeleteHazard: HAZARD_BODY,
   })) {
     assert.ok(body.length > 80, `${name} 몸통이 너무 짧다(${body.length}자) — 추출이 깨졌다`);
   }
+  assert.ok(SHOULD_RESTORE.length > 40, 'shouldRestoreEmpty 한 줄을 못 떼었다 — 아래 N8 이 헛돈다');
 });
 
 test('N1 회원 판정이 «타입»을 본다 — 손으로 적은 목록으로 세지 않는다', () => {
@@ -86,9 +99,13 @@ test('N3 규약 셋이 정규화 한 자리에 있다 — 빈값·클램프 되�
     "★`|| 0` 폴백이 들어왔다 — 그 한 글자가 빈 칸을 0 으로 «커밋»시킨다(원래 버그 그 자체)");
 });
 
-test('N4 빈 값 갈래가 커밋을 «통째로» 없앤다 (apply·pushHistory·autosave 전부)', () => {
-  assert.match(CHANGE_BODY, /normalizeBeforeCommit\(el\)\s*===\s*'empty'/,
+test('N4 빈 값 갈래가 커밋을 없앤다 — 단 «뜻을 선언하지 않은 칸에서만» (apply·pushHistory·autosave 전부)', () => {
+  assert.match(CHANGE_BODY, /shouldRestoreEmpty\(el\)/,
     'change 수렴 지점에서 빈 값을 안 가른다');
+  /* ★조건부여야 한다 — 「빈 값이면 무조건 커밋 없음」으로 되돌아가면 auto 복귀가 또 죽는다.
+     shouldRestoreEmpty 가 «뜻 판정»을 포함하는지는 N8 이 본다. */
+  assert.ok(!/normalizeBeforeCommit\(el\)\s*===\s*'empty'\s*\)\s*\{/.test(CHANGE_BODY),
+    '★빈 값을 «뜻 판정 없이» 통째로 막는 갈래가 돌아왔다 — grid/row/comparison 의 auto 복귀가 죽는다');
   assert.match(CHANGE_BODY, /stopImmediatePropagation\(\)/,
     '빈 값인데 change 가 그대로 퍼진다 — 패널의 change 핸들러가 pushHistory 를 쌓는다');
   assert.match(CHANGE_BODY, /restorePrev\(el\)/, '이전 표시값 복원이 없다 — 칸이 빈 채 남는다');
@@ -97,7 +114,7 @@ test('N4 빈 값 갈래가 커밋을 «통째로» 없앤다 (apply·pushHistory
   const stops = (CHANGE_BODY.match(/stopImmediatePropagation\(\)/g) || []).length;
   assert.equal(stops, 1, `★change 캡처에 stopImmediatePropagation 이 ${stops}번 있다 — 빈 값 갈래 하나여야 한다`);
   // 스피너·휠 선커밋 경로도 같은 규약을 탄다(그쪽은 change 가 안 온다)
-  assert.match(COMMIT_BODY, /normalizeBeforeCommit\(el\)\s*===\s*'empty'/,
+  assert.match(COMMIT_BODY, /shouldRestoreEmpty\(el\)/,
     '선커밋(스피너·휠) 경로가 규약을 안 탄다 — 빈 칸에서 스텝하면 옛 버그가 그 길로 돌아온다');
   assert.match(RESTORE_BODY, /el\._pnPrev/, '복원이 타이핑 시작값(_pnPrev)을 안 쓴다');
 });
@@ -164,6 +181,15 @@ test('N7 ★Enter 가 뺏은 포커스를 «되돌린다» — BODY 면 다음 B
   assert.match(body, /el\.isConnected/,
     '★재생성으로 칸이 DOM 에서 떨어진 경우를 안 가린다 — 그 경우는 제 패널 복원 핸들러 몫이다');
   assert.match(body, /el\.focus\(\)/, '되돌려주는 호출이 없다');
+  /* ★0921 픽스 — «위험이 실제로 있을 때만». 기준선(29ae1cb)은 Enter 뒤 active 가 BODY 였고,
+     앞 라운드는 233칸 «전부»에서 그걸 바꿨다(이벨류에이터 low: 범위 확대).
+     ⇒ 캔버스에 지울 것이 골라져 있을 때만 붙잡는다. 거동은 DOM M5 가 «양쪽» 다 잰다. */
+  assert.match(body, /canvasDeleteHazard\(\)/,
+    '★포커스를 «조건 없이» 붙잡는다 — 선택이 없으면 지울 것도 없는데 손버릇만 바뀐다');
+  assert.match(HAZARD_BODY, /querySelector/, '위험 판정이 실제로 캔버스를 안 본다');
+  assert.match(HAZARD_BODY, /selected/, '위험 판정이 «선택»을 안 본다');
+  assert.match(HAZARD_BODY, /catch[\s\S]{0,40}return true/,
+    '★못 재는 경우에 false 로 떨어진다 — 그 방향은 데이터 손실 쪽이다(못 재면 붙잡아라)');
   // setSelectionRange 는 type=number 에서 throw 한다 — 따로 감싸지 않으면 포커스까지 같이 날아간다
   const si = body.indexOf('setSelectionRange');
   assert.ok(si > 0, '캐럿을 끝으로 보내는 처리가 없다');
@@ -175,4 +201,116 @@ test('N6 규약을 «패널 파일에 다시 적지 마라»는 못이 가드 �
   // 안심 주는 문장보다 «경고 부재»가 나쁘다 — 다음 사람이 여기로 오게 하는 문장을 원문에 둔다.
   assert.match(GUARD_SRC, /min\/max/, '값의 SSOT 가 칸의 min\\/max 속성이라는 선언이 머리말에 없다');
   assert.match(GUARD_SRC, /⛔/, '「패널 파일에 규약을 다시 적지 마라」는 금지 표식이 없다');
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ★세 번째 축 — «빈 값의 뜻» (2026-09-21 픽스 라운드)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test('N8 ★빈 값 갈래가 «칸이 선언한 뜻»을 본다 — 전 칸 공통 규약이 아니다', () => {
+  /* 왜: prop-grid.js:643 은 `raw === ''` 를 「역할 기본으로 되돌린다」로 «쓴다».
+     그런 칸에서 커밋을 없애면 기능이 죽고, 게다가 가드가 옛 숫자를 되써서 «조용한 무시»가 된다
+     — 이 유닛이 없애려던 증상과 같은 병을 반대 방향으로 앓는 것이다. */
+  assert.match(MEANING_BODY, /placeholder/,
+    '★선언 수단(placeholder)을 안 본다 — 이 레포는 이미 「value=명시 / placeholder=역할 기본」으로 쓴다(prop-grid.js:542)');
+  assert.match(MEANING_BODY, /dataset\?\.empty|dataset\.empty/,
+    '★명시 덮어쓰기(data-empty)가 없다 — 장식 placeholder 를 단 칸을 되돌릴 길이 사라진다');
+  assert.match(MEANING_BODY, /\.trim\(\)\s*!==\s*''/,
+    "★placeholder 가 «비어 있어도» 뜻으로 읽는다 — _typo-section.js:96 은 placeholder=\"\" 를 찍는다(빈 것은 선언이 아니다)");
+  assert.match(SHOULD_RESTORE, /emptyIsMeaningful\(el\)/,
+    'shouldRestoreEmpty 가 뜻 판정을 안 묶었다');
+  assert.match(SHOULD_RESTORE, /normalizeBeforeCommit\(el\)\s*===\s*'empty'/,
+    'shouldRestoreEmpty 가 정규화 판정을 안 묶었다');
+});
+
+test('N9 ★센서스 — «빈 값을 값으로 다루는» 패널은 모두 그 뜻을 칸에 선언해 뒀다', () => {
+  /* 이 검사의 뜻: 축 ⑶ 이 «기계로» 지켜진다.
+     ⒜ 선언된 칸의 목록을 못 박는다 — 새로 placeholder 를 달면 여기서 멈춘다.
+        장식이었으면 data-empty="invalid" 를 같이 달아라(안 그러면 빈 값이 커밋으로 샌다).
+     ⒝ 「빈 값 = 값」 관용구를 쓰는 «파일»은 반드시 선언된 칸을 갖는다 — 선언 없이 그 관용구만
+        새로 쓰면(= 가드가 막아서 죽은 기능) 여기가 빨개진다. */
+  const files = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p); else if (e.name.endsWith('.js')) files.push(p);
+    }
+  })(path.join(ROOT, 'js'));
+
+  const declared = new Set();        // «빈 값에 뜻이 있다»고 선언한 칸이 있는 파일
+  const declaredFields = [];
+  for (const f of files) {
+    if (f.endsWith('prop-number-commit-guard.js')) continue;   // 주석 속 예시 마크업
+    const src = fs.readFileSync(f, 'utf8');
+    const rel = path.relative(ROOT, f).split(path.sep).join('/');
+    for (const m of src.matchAll(/<input\b[\s\S]*?>/g)) {
+      const tag = m[0];
+      if (!/type\s*=\s*["']number["']/.test(tag)) continue;
+      const ph = /placeholder\s*=\s*"([^"]*)"/.exec(tag);
+      const de = /data-empty\s*=\s*"(auto|meaningful)"/.test(tag);
+      // ★명시 덮어쓰기가 «먼저»다 — placeholder 가 장식일 때 그걸로 끄는 것이 설계된 길이다.
+      if (/data-empty\s*=\s*"(invalid|restore)"/.test(tag)) continue;
+      // ⚠️placeholder="${…}" 는 «런타임에 비어 있을 수 있다» — 정적으로는 「선언할 수 있는 자리」까지만 안다.
+      if (!de && (!ph || ph[1].trim() === '')) continue;
+      const line = src.slice(0, m.index).split('\n').length;
+      const id = (/id\s*=\s*"([^"]*)"/.exec(tag) || [])[1]
+        || (/class\s*=\s*"([^"]*)"/.exec(tag) || [])[1] || '?';
+      declared.add(rel);
+      declaredFields.push(`${rel}  ${id}`);
+    }
+  }
+
+  // ⒜ 양성대조 + 목록 못 박기 (2026-09-21 실측: 233칸 중 13칸이 선언돼 있다)
+  assert.ok(declaredFields.length >= 10,
+    `선언된 칸을 ${declaredFields.length}개밖에 못 셌다 — 센서스 정규식이 깨졌다`);
+  assert.deepEqual(new Set(declared), new Set([
+    /* ${p}-size-number — 호출부가 역할 기본값(sizePh)을 주면 선언이 «선다»(지금은 prop-grid 뿐).
+       ⚠️Mix 상태의 placeholder="Mix" 는 역할 기본값이 «아니라서» data-empty="invalid" 로 끈다
+       (그 갈래는 런타임 조건이라 이 정적 센서스에 안 잡힌다 — 소스 :66 참조). */
+    'js/props/_typo-section.js',
+    /* ⛔prop-multisel.js msp-font-size 는 placeholder="px" 가 «장식»이라 data-empty="invalid" 로
+       껐다. 여기 «없는» 것이 정답이다 — 다시 들어오면 그 칸의 빈 값이 커밋으로 샌다. */
+    'js/props/prop-banner02.js',     // bn2-h/tx/tw/ty — bindAutoNum: 비우면 플래그를 걷고 프리셋/자동
+    'js/props/prop-comparison.js',   // .cmp-row-h    — :251 raw==='' → arr[ri]=null
+    'js/props/prop-grid.js',         // grd-img-height/radius, .grd-row-h-item — :437 :1011
+    'js/props/prop-row.js',          // row-height/child-h — :145 :205 isNaN → 0 → minHeight '' = auto
+    'js/props/prop-table.js',        // .tbl-row-h-item — :847 !isFinite → style.height='' = auto
+  ]), `★선언 목록이 바뀌었다. 새 placeholder 를 단 칸이 생겼다면:
+  - 정말 「비우면 기본으로 돌아간다」면 여기 한 줄 더하라.
+  - 그냥 «장식»이면 그 칸에 data-empty="invalid" 를 달아라 — 안 그러면 빈 값이 커밋으로 샌다.
+  지금 선언된 칸: ${declaredFields.join(' / ')}`);
+
+  // ⒝ 「빈 값 = 값」 관용구를 쓰는 파일은 전부 선언을 갖고 있다
+  const IDIOM = /(?:\braw\b|\.value(?:\.trim\(\))?)\s*===\s*''/;
+  const idiomFiles = [];
+  for (const f of files) {
+    if (f.endsWith('prop-number-commit-guard.js')) continue;
+    const rel = path.relative(ROOT, f).split(path.sep).join('/');
+    const src = fs.readFileSync(f, 'utf8');
+    /* ⚠️«숫자칸을 실제로 그리는 파일»만 센다 — 같은 관용구가 API 페이로드 정규화에도 쓰인다
+       (js/block-factory.js:3073 mergedHeaderCols: null/'' = explicit clear). 그건 칸이 아니라
+       가드와 무관하다. 칸이 없으면 이 축으로 잴 것도 없다. */
+    if (!/<input\b[\s\S]{0,700}?type\s*=\s*["']number["']/.test(src)) continue;
+    if (IDIOM.test(codeOnly(src))) idiomFiles.push(rel);
+  }
+  assert.ok(idiomFiles.length >= 3,
+    `관용구 센서스가 0건을 세고 초록났다 (찾은 것: ${idiomFiles.join(', ') || '없음'})`);
+  const undeclared = idiomFiles.filter(r => !declared.has(r));
+  assert.deepEqual(undeclared, [],
+    `★「빈 값 = 값」을 핸들러에 적어 놓고 칸엔 안 선언한 파일이 있다 — 가드가 그 커밋을 막아 기능이 죽는다.
+  고치는 법: 그 칸에 placeholder(회색 기본값) 또는 data-empty="auto" 를 달아라.`);
+});
+
+test('N10 ★장식 placeholder 를 끄는 탈출구가 «실제로 쓰여» 있다 (Mix · px)', () => {
+  /* 축 ⑶ 의 기본 추론은 「비지 않은 placeholder = 비우면 역할 기본」이다. 그 추론이 틀리는
+     자리가 둘 있고, 둘 다 data-empty="invalid" 로 껐다. 이 못이 빠지면:
+       ⒜ 여러 블럭을 고른 Mix 상태에서 크기 칸을 비우고 Enter → 고른 글자가 전부 8px 로 깎인다
+       ⒝ msp-font-size 는 지금은 무해하지만(제 핸들러가 빈 값을 거른다) change 핸들러가
+          하나 붙는 순간 같은 병을 앓는다 */
+  const typo = readSrc('js', 'props', '_typo-section.js');
+  assert.match(typo, /_mix\.fontSize\.mixed\s*\?\s*' data-empty="invalid"'/,
+    '★Mix 상태에서 「빈 값 = 무효」로 되돌리는 선언이 사라졌다 — Mix 의 placeholder 는 역할 기본값이 아니다');
+  const msel = readSrc('js', 'props', 'prop-multisel.js');
+  assert.match(msel, /id="msp-font-size"[^>]*data-empty="invalid"/,
+    '★msp-font-size 의 placeholder="px" 는 장식이다 — 선언을 끄는 표식이 빠졌다');
 });

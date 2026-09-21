@@ -17,6 +17,8 @@
  *   - 프로그램 dispatch(goditor-api 등 untrusted) → 즉시 통과 (호환 유지)
  *   ★2026-09-21 «numfield» 로 더해진 줄 (자세한 근거는 바로 아래 머리말):
  *   - 빈 칸·무효값 + blur/Enter → «커밋 없음» + 이전 표시값 복원 (pushHistory/autosave 도 없음)
+ *     ★단, 칸이 «빈 값의 뜻»을 선언했으면(비지 않은 placeholder, 또는 data-empty) 그대로 커밋한다
+ *       — 그 칸에서 빈 값은 「지우는 중」이 아니라 «명시적 값»(auto·역할 기본)이다
  *   - min/max 밖 + blur/Enter → 클램프한 값을 «칸에 되쓴 뒤» 커밋 (표시 = 실제)
  *   - 「0」 은 유한수라 빈 칸과 갈린다 — min≤0 이면 0 이 그대로 적용된다
  *   - Enter 커밋 뒤 포커스를 칸에 되돌린다 (BODY 로 두면 다음 Backspace 가 «블럭»을 지운다)
@@ -58,6 +60,54 @@ const PN_TEXT_SEL = '.grad-stop-alpha';
 const isPn = (el) => el instanceof HTMLInputElement
   && (el.type === 'number' || el.matches?.(PN_TEXT_SEL));
 
+/* ★★세 번째 축 — «빈 값의 뜻»은 칸마다 다르다 (2026-09-21 픽스 라운드)
+ *
+ * 앞 라운드는 SSOT 를 min/max «둘»만 잡고 「빈 값 = 무효」를 «전 칸 공통»으로 못 박았다.
+ * 그런데 이 레포엔 «빈 값이 곧 값»인 칸이 따로 있다 — 코드에 그렇게 적혀 있다:
+ *   prop-grid.js:643  `if (raw === '') { commit({ [field]: undefined }); }`  「역할 기본으로 되돌린다」
+ *   prop-grid.js:1011 `raw === '' ? 'auto' : …`      prop-grid.js:437 `raw === '' ? undefined : …`
+ *   prop-row.js:145   `isNaN(v) → minRowHeight(0)` → `style.minHeight=''` + `dataset.rowHeight=''` = auto
+ *   prop-comparison.js:251 `if (raw === '') { arr[ri] = null; }`   prop-table.js:847 `→ style.height=''`
+ *   prop-banner02.js:390 `bindAutoNum` — 플래그를 걷고 프리셋/자동으로 복귀
+ * 이 칸들에서 커밋을 없애면 «auto 로 되돌리기» 기능이 통째로 죽고, 게다가 가드가 칸에 옛 숫자를
+ * 되써 놓으므로 사용자는 실패한 줄도 모른다 = 이 유닛이 없애려던 «조용한 무시» 그 자체.
+ *
+ * ⇒ 그래서 축이 셋이다: ⑴하한 ⑵상한 ⑶«빈 값의 뜻». 셋 다 «칸»이 선언한다.
+ *
+ * 선언 수단 — 이 레포가 «이미 쓰는 말»을 그대로 쓴다(prop-grid.js:542~543 원문:
+ *   「★value(명시) vs placeholder(역할 기본값)를 «구분»한다. 이 레포가 이미 쓰는 말이다」):
+ *     ▸ 비지 않은 placeholder 가 있다  = 「비우면 저 회색 글자가 뜻하는 값으로 돌아간다」 ⇒ 커밋한다
+ *     ▸ placeholder 가 없다·비었다     = 「빈 칸은 지우는 중」                              ⇒ 커밋 안 한다
+ *     ▸ data-empty="auto|meaningful" / "invalid|restore" = 위 추론을 «명시로» 덮는다
+ * ⛔새 숫자칸에 «뜻 없는» 장식 placeholder 를 달지 마라 — 그 순간 빈 값이 커밋으로 새 나간다.
+ *   장식이 꼭 필요하면 data-empty="invalid" 를 같이 달아라.
+ * (2026-09-21 실측: js/ 의 input[type=number] 233칸 중 placeholder 를 단 칸은 13개. 그중 12개가
+ *  위 「빈 값=auto/역할 기본」 칸이고, 나머지 하나 prop-multisel.js:475 msp-font-size 는
+ *  placeholder="px" 장식이지만 제 핸들러가 `if (fsInput.value)` 로 빈 값을 이미 걸러 무해하다.) */
+const _EMPTY_MEANINGFUL = { auto: 1, meaningful: 1 };
+const _EMPTY_INVALID    = { invalid: 1, restore: 1 };
+function emptyIsMeaningful(el) {
+  const d = String(el.dataset?.empty ?? '').trim();
+  if (_EMPTY_MEANINGFUL[d]) return true;
+  if (_EMPTY_INVALID[d]) return false;
+  return String(el.placeholder ?? '').trim() !== '';
+}
+
+/** 「이 빈 값은 커밋하지 않고 되돌릴 것인가」 — 정규화 판정과 뜻 판정을 한 줄로 묶는다. */
+const shouldRestoreEmpty = (el) =>
+  normalizeBeforeCommit(el) === 'empty' && !emptyIsMeaningful(el);
+
+/** 커밋 뒤 포커스를 되돌릴 «위험»이 실제로 있나 — 캔버스에 지워질 것이 골라져 있을 때만.
+ *  ⚠️아무것도 안 골라져 있으면 기준선 그대로 BODY 로 둔다(Enter 뒤 화살표로 캔버스를
+ *    다루던 손버릇을 233칸 전부에서 바꾸지 않는다 — 0921 이벨류에이터 지적). */
+function canvasDeleteHazard() {
+  try {
+    const sel = typeof window !== 'undefined' && window.CANVAS_SEL_BLOCKS_AND_SHAPE;
+    if (sel && document.querySelector(sel)) return true;
+    return !!document.querySelector('#canvas .selected, #canvas .img-editing');
+  } catch (_) { return true; }   // 못 재면 «데이터 보존» 쪽으로 기운다
+}
+
 /** 타이핑 세션 시작 — 최초 편집 시점의 값을 Escape 복원용으로 보관 */
 function beginTyping(el) {
   if (!el._pnTyping) { el._pnPrev = el.value; el._pnTyping = true; }
@@ -94,7 +144,9 @@ function restorePrev(el) {
 /** 유예 중인 타이핑 값을 즉시 커밋 — 합성 input(untrusted)으로 기존 clamp/apply 핸들러 실행 */
 function commitTyping(el) {
   el._pnTyping = false;
-  if (normalizeBeforeCommit(el) === 'empty') { restorePrev(el); return; }
+  if (shouldRestoreEmpty(el)) { restorePrev(el); return; }
+  /* ★«빈 값이 곧 값»인 칸은 여기로 내려온다 — 합성 input 이 그대로 나가야
+     input 으로 듣는 핸들러(prop-comparison.js:259 .cmp-row-h)가 auto 복귀를 실행한다. */
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
@@ -120,10 +172,14 @@ document.addEventListener('keydown', (e) => {
      *   (실앱 9522 줌40% 실측: chb-fontsize 에 40 치고 Enter → activeElement BODY →
      *    Backspace 한 번에 chat-block 이 지워졌다). 나빠지는 축을 두고 갈 수 없어
      *   «내가 뺏은 포커스만» 여기서 돌려준다 — 커밋이 끝난 «뒤», 아무도 안 가져갔을 때만.
+     * ★0921 픽스: 거기에 «위험이 실제로 있을 때만»을 더했다(canvasDeleteHazard).
+     *   캔버스에 아무것도 안 골라져 있으면 Backspace 가 지울 것도 없다 ⇒ 기준선 그대로 BODY 로
+     *   둔다. 그래야 「Enter 로 확정하고 화살표로 캔버스를 다루던」 손버릇이 233칸 전부에서
+     *   바뀌지 않는다(0921 이벨류에이터 low 지적: 기준선 29ae1cb 는 Enter 뒤 active=BODY).
      * ⛔el.focus() 를 조건 없이 부르지 마라: 커밋이 칸을 다시 그렸으면(그라데이션 목록 등)
      *   el 은 이미 DOM 밖이고, 그 경우는 제 패널의 복원 핸들러가 새 노드를 잡는다. */
     el.blur();
-    if (el.isConnected && document.activeElement === document.body) {
+    if (el.isConnected && document.activeElement === document.body && canvasDeleteHazard()) {
       try {
         el.focus();
         // 캐럿은 «끝»으로 — 새로 잡은 칸의 기본 캐럿은 0 이라 이어지는 Backspace 가 헛돈다.
@@ -163,11 +219,14 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', (e) => {
   const el = e.target;
   if (!isPn(el) || !el._pnTyping) return;
-  if (normalizeBeforeCommit(el) === 'empty') {
+  if (shouldRestoreEmpty(el)) {
     /* ★빈 칸 = «값 없음». 커밋 자체를 없앤다 — parseInt('') 가 핸들러에 도달하지 않으므로
        「지우고 Enter = 최소값 확정」도, sticker 의 dataset="NaN" 오염도 같이 죽는다.
        ⚠️stopImmediatePropagation 은 «이 갈래에서만» 부른다. 정상 입력에까지 걸면
-         pushHistory/scheduleAutoSave 없이 값이 사라지는 «조용한 소실»(T-079)이 새로 난다. */
+         pushHistory/scheduleAutoSave 없이 값이 사라지는 «조용한 소실»(T-079)이 새로 난다.
+       ⚠️★그리고 «빈 값의 뜻»을 선언한 칸은 여기 안 온다(shouldRestoreEmpty). 여기서 전 칸을
+         무조건 막으면 grid/row/comparison/table/banner02 의 「비우면 auto」가 통째로 죽고,
+         칸엔 옛 숫자가 되써져 «조용한 무시»가 된다 — 같은 병을 반대 방향으로 앓는 것이다. */
     restorePrev(el);
     e.stopImmediatePropagation();
     return;
