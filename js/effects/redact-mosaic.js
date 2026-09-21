@@ -13,6 +13,8 @@
 // 옮겨 구워야 한다. 라이브 캔버스에 스냅샷이 아직 없으면(한 번도 캡처 안 됨) 안전실패로
 // 불투명 회색 채움 — 원본이 새는 것보다 못생긴 게 낫다.
 
+import { prepareGoyaAssetsForClone } from '../io/goya-asset-inline.js';
+
 const MOSAIC_FAIL_SAFE_FILL = '#4a4a4a';
 
 /** ★모자이크 임시 킬스위치(js/feature-flags.js REDACT_MOSAIC_ENABLED, 2026-09-20 «0920b-mosaic-off» T-070).
@@ -226,6 +228,23 @@ async function _captureOnce(block) {
   const capW = w;
   const capH = h;
 
+  /* ★★«모자이크가 안 된다»의 본체 (2026-09-22 실측, 카드 T-071 «0920b-mosaic-cause») ──────────
+   *  html2canvas 는 이미지를 «자기가 다시 로드»하는데, goya-asset:// (v0.8.0 이미지 외부화 이후
+   *  캔버스 이미지의 «정상» 형태)를 어느 축으로도 못 읽는다:
+   *    useCORS:true  → crossOrigin="anonymous" 를 달고 로드 → CORS 헤더가 없어 onerror
+   *                    (실측: 같은 URL 이 crossOrigin 없이는 naturalWidth 64 로 멀쩡히 뜬다)
+   *    useCORS:false → vendor 의 로드 조건(same-origin/data:/blob:/proxy/useCORS)이 전부 거짓 →
+   *                    그 이미지를 «읽지도 않는다»
+   *  ⇒ 사진이 빠진 자리에 섹션 배경(흰색)이 그대로 찍힌다. 흰색은 «불투명»이라
+   *    _isSuspiciouslyBlank(불투명 5% 미만)에 안 걸리고, 그래서 이 캡처는 «성공»으로 보고됐다.
+   *    실측(실앱 9646 · 줌 40%): 밑 체커보드 red 2048·blue 2048 인데 모자이크 캔버스 16픽셀이
+   *    «전부 255,255,255», captureMosaicSnapshot=true, isMosaicCaptured=true.
+   *    ⇒ 사용자 화면엔 «단색 네모». 회색 안전실패(#4a4a4a)도, 패널의 「캡처 실패」 표시도 안 떴다
+   *      — 그래서 8번을 고쳤는데도 «여전히 안 된다» 였다(feature-flags.js 의 차단 사유 주석 참고).
+   *  ⇒ 답 = html2canvas 에게 «그가 읽을 수 있는 것»만 준다. 라이브 DOM 은 한 글자도 안 고치고
+   *    (goya-asset 은 화면엔 잘 그려진다), html2canvas 가 만든 «클론에서만» data: 로 갈아끼운다.
+   *  ⛔실패를 삼키지 마라 — 하나라도 못 풀면 캡처를 «실패»로 끝낸다. 그래야 회색 안전실패가
+   *    남고 패널이 「캡처 실패 — 다시 시도」를 띄운다(조용한 흰 네모로 돌아가는 길을 닫는다). */
   // ★프라이버시(2026-09-15): 예전엔 block.style.visibility='hidden'으로 라이브 DOM을
   // 실제로 숨긴 뒤 await 하고 되돌렸다 — html2canvas가 밑 콘텐츠를 찍는 수백ms 동안
   // 화면의 가림막(회색/모자이크)이 통째로 사라져 재캡처 때마다(슬라이더 드래그, 다른
@@ -233,6 +252,12 @@ async function _captureOnce(block) {
   // html2canvas의 ignoreElements로 "이 블록만 캡처 대상에서 제외"하면, 라이브 화면은
   // 한순간도 안 바뀐 채(가림막 계속 보임) 오프스크린 캡처 결과에서만 그 블록이 빠져
   // 밑 콘텐츠가 드러난다 — 같은 효과를 화면에 아무 변화 없이 얻는다.
+  /* ⛔에셋 해결(async)은 html2canvas «앞»이 아니라 onclone «안»에서 한다 — html2canvas 는
+   *  호출 순간 문서를 «동기로» 복제하고, onclone 의 반환 Promise 는 기다려 준다
+   *  (vendor: Promise.resolve().then(onclone).then(…)). 앞으로 빼면 «요청 → 복제» 사이에
+   *  await 가 끼어 그 사이의 DOM 변화가 캡처에서 빠지고, _lastStart/since 로 세운 중복
+   *  캡처 합치기의 전제(「부르는 순간 찍힌다」)도 같이 흔들린다. */
+  let unresolvedAssets = [];
   let captured;
   try {
     _lastStart.set(block, performance.now());
@@ -242,8 +267,22 @@ async function _captureOnce(block) {
       scale: 1,
       backgroundColor: null, logging: false, useCORS: true,
       ignoreElements: (el) => el === block,
+      // ★클론에서만 goya-asset → data:. 라이브 DOM 은 한 글자도 안 바뀐다.
+      onclone: async (doc) => {
+        const a = await prepareGoyaAssetsForClone(scope);
+        unresolvedAssets = a.unresolved;
+        a.apply(doc);
+      },
     });
   } catch (_) {
+    return false;
+  }
+  /* ⛔하나라도 못 읽었으면 «실패»다 — 그 자리는 사진이 빠진 채(섹션 배경색) 찍혔고, 그건
+   *  불투명해서 _isSuspiciouslyBlank 를 그냥 통과한다. 통과시키면 «단색 네모를 성공으로
+   *  보고»하는 이 카드의 원래 결함이 그대로 돌아온다. 실패는 안전 쪽(회색 #4a4a4a)이고,
+   *  패널이 「캡처 실패 — 다시 시도」를 띄운다(prop-shape.js _trackMosaicCapture). */
+  if (unresolvedAssets.length) {
+    console.warn('[redact-mosaic] goya-asset 을 못 읽어 캡처를 실패로 끝낸다(회색 유지):', unresolvedAssets);
     return false;
   }
   if (!captured || !captured.width || !captured.height) return false;
