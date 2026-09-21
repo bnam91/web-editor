@@ -6,6 +6,7 @@
  *   문① showHandlesFor 의 갈래       (레이어패널·히스토리 복원 경로의 입구)
  *   문② block-drag 의 isIconText 클릭 (사람이 실제로 밟는 입구)
  *   문③ 폰트 스냅샷의 그물           (핸들은 붙는데 글자만 안 커지는 반쪽)
+ *   문⑤ 흐름으로 «돌아온 뒤»의 폭     (키운 인라인 폭이 제 행을 넘어 글자가 잘리던 자리)
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,6 +23,7 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const HANDLES = read('js', 'overlay-handles.js');
 const DRAG    = read('js', 'block-drag.js');
+const CSS_EXTRA = read('css', 'editor-extra.css');
 
 /** 선언 몸통을 중괄호 짝으로 잘라 온다. */
 function bodyOf(src, label) {
@@ -120,4 +122,29 @@ test('문④ 드래그가 끝나면 «패널»도 새 폭을 안다 — 조건�
     '★조건이 `tb !== posEl` 이다 — 래퍼가 «없는» 타입(.icon-text-block)이 통째로 빠진다');
   assert.match(up, /icon-text-block/,
     '★아이콘+텍스트가 패널 새로고침 대상에 없다');
+});
+
+test('문⑤ 흐름으로 돌아온 .icon-text-block 은 «제 행»을 못 넘는다 (max-width:100%)', () => {
+  /* ★2026-09-21 최종통합 QA medium — 오버레이 모서리 핸들이 박은 인라인 width(792px)가
+     오버레이를 끈 뒤에도 남는데, 돌아가는 .row 는 716px 이다. 일반 텍스트는 래퍼
+     `.frame-block{max-width:100%}` 가 깎아 주지만 아이콘+텍스트는 래퍼가 «없어» 행을 76px,
+     섹션 본문을 4px 넘어 글자가 경계에서 잘렸다(실측 renderW 808 / row 716 / 넘침 92·20).
+     ⇒ 같은 결로 .icon-text-block 에도 max-width:100% 를 준다. style.width 는 그대로 남으므로
+       「사용자가 정한 폭은 남는다」(현빈 2026-09-20)는 안 깨진다 — «그리는 폭»만 행에 맞춘다.
+     숫자는 tests/dom/overlay-icon-text-exit-width.dom.spec.js 가 잰다. */
+  /* ⚠️주석을 «먼저» 걷고 규칙을 자른다 — 이 규칙의 주석 안에 `.frame-block{max-width:100%}`
+     라는 예시가 들어 있어, 먼저 자르면 그 `}` 에서 끊겨 본문이 통째로 사라진다. */
+  const css = stripComments(CSS_EXTRA);
+  const i = css.indexOf('.icon-text-block {');
+  assert.notStrictEqual(i, -1, '★.icon-text-block 규칙을 못 찾았다 — 이름이 바뀌었으면 이 검사부터 고쳐라');
+  const rule = css.slice(i, css.indexOf('}', i));
+  assert.match(rule, /max-width:\s*100%/,
+    '★.icon-text-block 에 max-width:100% 가 없다 — 오버레이로 키운 폭이 흐름에서 행을 넘어 글자가 잘린다');
+
+  /* ⛔오버레이 «중»에는 이 상한이 걸리면 안 된다 — 핸들이 인라인 maxWidth:'none' 으로 푼다
+     (현빈 2026-09-20 결정: 크기조절도 섹션 폭 밖까지 나갈 수 있다). 그 자리가 사라지면
+     「손잡이는 가는데 상자는 안 커진다」로 되돌아간다. */
+  const down = stripComments(bodyOf(HANDLES, 'function _onTextOverlayResizeMouseDown'));
+  assert.match(down, /style\.maxWidth\s*=\s*'none'/,
+    '★리사이즈가 maxWidth 상한을 안 푼다 — 오버레이 중에도 섹션 폭에서 막힌다');
 });

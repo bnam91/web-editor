@@ -1691,7 +1691,19 @@ body.preview-mode #preview-navigator { display: flex; }
   padding: 12px 0;
   cursor: pointer;
   outline: 2px solid transparent;
-  
+  /* ★흐름(오토레이아웃)에서는 «제 행»을 못 넘는다 — 2026-09-21 최종통합 QA medium.
+     오버레이 모서리 핸들(js/overlay-handles.js _onTextOverlayResizeMouseDown)은 블럭에
+     인라인 width 를 박는다(현빈 2026-09-20 결정: 오버레이 중에는 섹션 폭 밖까지 나가도 된다).
+     그 상태로 오버레이를 «끄면» 그 인라인 폭이 그대로 남는데, 일반 텍스트는 래퍼
+     `.frame-block{max-width:100%}`(editor-blocks.css:8)가 깎아 주는 반면 아이콘+텍스트는
+     래퍼가 «없어» 행을 76px, 섹션 본문을 4px 넘어 글자가 경계에서 잘렸다(실측 792 vs 행 716).
+     ⇒ 같은 결로 여기서 깎는다. style.width 는 그대로 남으므로 「사용자가 정한 폭은 남는다」
+       (현빈 2026-09-20 · tests/dom/text-overlay-resize D7)는 깨지지 않는다 — «그리는 폭»만
+       행에 맞춘다. 이건 일반 텍스트가 이미 하고 있던 동작이다.
+     ⛔오버레이 «중»에는 안 걸린다 — 그때는 핸들이 style.maxWidth='none' 을 심는다(인라인 승).
+     회귀: tests/dom/overlay-icon-text-exit-width.dom.spec.js */
+  max-width: 100%;
+
   position: relative;
 }
 .icon-text-block:hover::after {

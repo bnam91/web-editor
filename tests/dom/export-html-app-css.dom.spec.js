@@ -39,6 +39,10 @@ function exportCss() {
 }
 const EXPORT_CSS = exportCss();
 
+/* 자연 크기 860×540 그림(위/아래 20px 마커 띠) — «상자 비율 ≠ 그림 비율» 을 만들려면
+   자연 크기가 «있어야» 한다. 1×1 투명 GIF 로는 height:auto 가 0 이 돼 아무것도 안 갈린다. */
+const IMG_860x540 = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSc4NjAnIGhlaWdodD0nNTQwJz48cmVjdCB3aWR0aD0nODYwJyBoZWlnaHQ9JzU0MCcgZmlsbD0nIzhhOGE4YScvPjxyZWN0IHg9JzAnIHk9JzAnIHdpZHRoPSc4NjAnIGhlaWdodD0nMjAnIGZpbGw9JyMwMGZmMDAnLz48cmVjdCB4PScwJyB5PSc1MjAnIHdpZHRoPSc4NjAnIGhlaWdodD0nMjAnIGZpbGw9JyNmZjg4MDAnLz48L3N2Zz4=';
+
 /* 픽스처 = 라이브 캔버스에서 그대로 뜬 마크업(9505 실측). 손으로 지어내지 않는다. */
 const FIXTURE = `
 <div class="section-block" data-section="1" id="sec1" data-name="Section 01"><div class="section-inner">
@@ -53,6 +57,15 @@ const FIXTURE = `
       <div class="shape-handle nw" data-dir="nw"></div><div class="shape-handle se" data-dir="se"></div>
     </div>
   </div>
+  <!-- ★상자 비율(400×150 = 2.667) ≠ 그림 비율(860×540 = 1.593) 인 에셋.
+       우측패널 H 칸이 하는 것과 같은 줄(js/props/prop-asset.js — ab.style.height = v+'px')의 결과다.
+       2026-09-21 최종통합 QA medium: 손글씨 .asset-block.has-image img{height:auto} (특이도 0,2,1)가
+       수확한 앱 CSS .asset-img{height:100%} (0,1,0)을 이겨 배송본에서만 img 가 251.2px 로 늘어났다
+       (= 가운데 cover 크롭이 아니라 «위쪽만» 보이고 .asset-img-clip 의 overflow 가 아래를 자른다). -->
+  <div class="row"><div class="asset-block has-image" id="ab1" data-align="center"
+       style="width:400px;height:150px;align-self:center;position:relative;">
+    <div class="asset-img-clip"><img class="asset-img" id="aim1" src="${IMG_860x540}" draggable="false" style="object-fit:cover"></div>
+  </div></div>
   <div class="row"><div class="icon-text-block selected" id="itb1">
     <div class="itb-icon" draggable="false"><svg viewBox="0 0 24 24" width="18" height="18"><rect x="3" y="3" width="18" height="18"></rect></svg></div>
     <div class="itb-text" draggable="false">본문 내용을 입력하세요.</div>
@@ -87,6 +100,8 @@ async function boot(page) {
   page.on('pageerror', (e) => errs.push(String(e)));
   await page.goto(`${ORIGIN}/__harness.html`);
   await page.waitForFunction(() => window.__ready === true);
+  // 그림이 «로드된 뒤»에 재야 한다 — 안 그러면 height:auto 가 0 이라 차이가 안 보인다.
+  await page.evaluate(() => Promise.all([...document.images].map(i => i.complete ? null : i.decode().catch(() => {}))));
   return errs;
 }
 
@@ -95,7 +110,7 @@ const MEASURE = `(root) => {
   const c = root.getElementById('canvas');
   const cr = c.getBoundingClientRect();
   const out = {};
-  for (const id of ['sec1','fr1','shp1','itb1']) {
+  for (const id of ['sec1','fr1','shp1','itb1','ab1','aim1']) {
     const e = root.getElementById(id); if (!e) { out[id] = null; continue; }
     const r = e.getBoundingClientRect(); const cs = root.defaultView.getComputedStyle(e);
     out[id] = { x: Math.round((r.left-cr.left)*10)/10, y: Math.round((r.top-cr.top)*10)/10,
@@ -123,6 +138,7 @@ async function renderExport(page, withApp) {
     ifr.style.cssText = 'position:fixed;left:0;top:0;width:1000px;height:900px;border:0;visibility:hidden;';
     document.body.appendChild(ifr);
     await new Promise((res) => { ifr.onload = res; ifr.srcdoc = html; });
+    await Promise.all([...ifr.contentDocument.images].map(i => i.complete ? null : i.decode().catch(() => {})));
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const measure = eval('(' + measureSrc + ')');
     const got = measure(ifr.contentDocument);
@@ -166,7 +182,7 @@ test('A1 ★고침 — 수확한 앱 CSS 를 실으면 내보낸 문서가 화�
   const screen = await live(page);
   const { got, appCssLen } = await renderExport(page, true);
   console.log('  A1 appCss bytes:', appCssLen);
-  const d = diffKeys(screen, got, ['sec1', 'fr1', 'shp1', 'itb1']);
+  const d = diffKeys(screen, got, ['sec1', 'fr1', 'shp1', 'itb1', 'ab1', 'aim1']);
   console.log('  A1 diff:', d.length ? d.join(' | ') : '(없음)');
   expect(appCssLen, '★앱 CSS 를 하나도 못 수확했다 — CSSOM 접근이 막혔거나 수확기가 죽었다').toBeGreaterThan(500);
   expect(d, '내보낸 문서가 화면과 다르다: ' + d.join(' | ')).toEqual([]);
@@ -213,4 +229,46 @@ test('A4 ★SSOT 소스 대조 — export-html 이 수확기와 공용 걷기 �
   const iApp  = EXPORT_HTML_SRC.indexOf('<style>${appCss}</style>');
   expect(iBase).toBeGreaterThan(0);
   expect(iApp, '★수확한 앱 CSS 가 손글씨 CSS 보다 «앞»에 있다 — 그러면 손글씨 추정값이 화면을 이긴다').toBeGreaterThan(iBase);
+});
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   A5 — 손글씨 CSS 가 앱 CSS 를 «이기는» 짝  [2026-09-21 최종통합 QA medium]
+
+   A4 가 못박은 「손글씨 먼저, 앱 CSS 뒤 ⇒ 같은 특이도면 뒤가 이긴다」는 «같은 특이도일 때»의
+   이야기다. 실제로는 한 짝이 특이도부터 어긋나 있었다:
+     손글씨 `.asset-block.has-image img { height:auto }`  = (0,2,1)
+     앱 CSS `.asset-img          { height:100% }`         = (0,1,0)
+   ⇒ 뒤에 실어도 «손글씨가 이긴다». 결과: 상자 비율 ≠ 그림 비율인 에셋이 배송본에서만
+     «가운데 cover 크롭»이 아니라 «위쪽만» 보인다(.asset-img-clip 의 overflow 가 아래를 자른다).
+   실앱 실측(진짜 exportHTMLFile 산출물 ↔ 라이브 11노드 기하 대조):
+     400×150 에셋 → 배송본 img 높이 251.2px(Δ +101.2) · 600×376.7 세로그림 → 955.5px(Δ +578.8).
+   ★A1 이 초록이었던 이유 = 그 픽스처의 «상자 비율 = 그림 비율» 이라 height:auto 가 우연히 같은
+     값을 냈기 때문이다. 그래서 여기 «비율이 어긋나는» 픽스처(ab1/aim1)를 세웠다.
+   ══════════════════════════════════════════════════════════════════════════ */
+test('A5 ★특이도 — 손글씨 height:auto 가 앱 CSS 의 .asset-img{height:100%} 를 이기면 안 된다', async ({ page }) => {
+  const errs = await boot(page);
+  const screen = await live(page);
+  const { got } = await renderExport(page, true);
+  console.log('  A5 screen aim1:', JSON.stringify(screen.aim1), ' export aim1:', JSON.stringify(got.aim1));
+  // 전제 — 픽스처가 실제로 «비율이 어긋난» 상자여야 이 검사가 무언가를 본다(양성대조).
+  expect(screen.ab1.w, '전제: 상자 폭').toBeCloseTo(400, 0);
+  expect(screen.ab1.h, '전제: 상자 높이').toBeCloseTo(150, 0);
+  expect(Math.abs(400 / 150 - 860 / 540), '전제: 상자 비율이 그림 비율과 같으면 이 검사는 빈 검사다')
+    .toBeGreaterThan(0.5);
+  // 화면에서는 cover 가 상자를 꽉 채운다
+  expect(screen.aim1.h, '화면에서 이미 상자 높이와 다르다 — 하네스가 앱 CSS 를 못 읽었다').toBeCloseTo(150, 0);
+  // ★배송본도 같아야 한다 (고치기 전: 251.2px)
+  expect(got.aim1.h, `배송본 img 높이 ${got.aim1.h} ≠ 화면 ${screen.aim1.h} — 손글씨 height:auto 가 이겼다`)
+    .toBeCloseTo(screen.aim1.h, 0);
+  expect(got.aim1.w, '배송본 img 폭이 화면과 다르다').toBeCloseTo(screen.aim1.w, 0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('A5-src ★소스 — 손글씨 규칙이 .asset-img 를 덮지 않는다(특이도 역전 차단)', () => {
+  const m = /\.asset-block\.has-image img[^{]*\{[^}]*\}/.exec(EXPORT_CSS);
+  expect(m, '★`.asset-block.has-image img` 규칙 자체가 사라졌다 — 앱 CSS 수확이 막혔을 때의 폴백이 없어진다').not.toBeNull();
+  expect(m[0], '★`.asset-img` 를 제외하지 않는다 — 특이도 0,2,1 이 앱 CSS 0,1,0 을 이겨 배송본만 다른 그림이 된다')
+    .toContain(':not(.asset-img)');
+  // 폴백은 남아 있어야 한다 — CSSOM 이 막혀 appCss 가 비어도 .asset-img 는 스스로 cover 여야 한다.
+  expect(EXPORT_CSS, '★손글씨 .asset-img 폴백이 사라졌다').toMatch(/\.asset-img\{[^}]*object-fit:cover/);
 });

@@ -19,6 +19,10 @@
  *   E3 ★임의폭 1000·640 — 같은 답(780 만 특별대우 아님)
  *   E4 음성대조 — 폭이 «안» 변하는 고정폭 그림(220px)은 높이도 «안» 변한다
  *   E5 ★두 경로가 «같은 답» — 스크래치와 패널 풀블리드의 축소배율이 일치
+ *   E6 ★그리드 블럭의 이미지 줄(.grd-img)도 같은 답 — «상대폭 + 절대높이 + cover» 라는 기전이
+ *      에셋과 «똑같은데» 첫 판(d0b7ed4)의 선택자가 .asset-block 하나뿐이라 이 축이 비어 있었다
+ *      (2026-09-21 최종통합 QA high — 실앱 실측: 그리드 716x300/원본 860x540 의 세로 가시비율이
+ *       화면 0.6673 → 780 0.7512 / 640 0.9633 / 1000 0.5582 로 갈렸다. 같은 실행의 에셋 3종은 일치).
  *
  * ⛔앱을 «안» 띄운다 — page.route 로 레포를 가짜 origin 에 얹고 js/io/export-image.js 의
  *   prepareCloneForCapture 를 «진짜로» 부른다(흉내가 아니다 — tests/dom/redact-frame-stacking-context
@@ -71,7 +75,17 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
           <div class="asset-img-clip"><img class="asset-img" src="${PX}" style="object-fit:cover"></div>
         </div>
       </div>
-      <!-- ③ 음성대조: 폭이 절대 px 라 내보내기 폭을 «안» 따라간다 -->
+      <!-- ③ 그리드 블럭의 이미지 줄(js/blocks/grid-block.js _gridLineHtml): 상대폭(%) + 절대높이(px) + cover.
+           ⛔에셋과 달리 «상자»가 아니라 img 자신이 그 꼴이다 — 같은 기전, 다른 자리. -->
+      <div class="row" data-layout="stack">
+        <div class="grid-block" id="gb_grid" data-type="grid" style="display:flex;gap:24px;">
+          <div class="grd-col" style="flex:1;min-width:0;display:flex;flex-direction:column;">
+            <img class="grd-img" id="grd_img" src="${PX}" draggable="false" data-r="0" data-c="0" data-line="0"
+                 style="display:block;width:100%;height:300px;object-fit:cover;">
+          </div>
+        </div>
+      </div>
+      <!-- ④ 음성대조: 폭이 절대 px 라 내보내기 폭을 «안» 따라간다 -->
       <div class="row" data-layout="stack">
         <div class="asset-block has-image" id="ab_fixed" data-align="center" data-use-padx="false"
              style="width:220px;align-self:center;height:165px;">
@@ -106,7 +120,7 @@ async function boot(page) {
  *  화면 쪽은 줌 40% 가 곱해져 있으므로 «비율»만 쓴다(rect.width/rect.height 는 배율이 약분된다). */
 const capture = (page, w) => page.evaluate(async (w) => {
   const sec = document.getElementById('sec');
-  const ids = ['ab_scratch', 'ab_panel', 'ab_fixed'];
+  const ids = ['ab_scratch', 'ab_panel', 'ab_fixed', 'grd_img'];
   const live = {};
   for (const id of ids) {
     const r = document.getElementById(id).getBoundingClientRect();
@@ -215,4 +229,41 @@ test.describe('780px 내보내기 — 자르지 말고 줄인다 (현빈 결정 
       expect(kS, `${w}px — 배율이 폭 비율(${(w / 860).toFixed(4)})과 다르다`).toBeCloseTo(w / 860, 3);
     }
   });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   E6 — 그리드 블럭의 «이미지 줄»(.grd-img)  [2026-09-21 최종통합 QA high]
+   에셋 블럭과 기전이 «똑같다»: 폭은 상대값(width:N%)이라 내보내기 폭을 따라 줄고,
+   높이는 절대 px 로 잠겨 있고(js/blocks/grid-block.js _gridLineHtml `height:${h}px`),
+   그림은 object-fit:cover 다. 그런데 첫 판의 선택자가 `.asset-block` 하나뿐이라
+   이 줄만 «화면과 다른 그림»이 됐다.
+   ⛔에셋과 다른 점 하나 — 여기선 «상자»가 아니라 img 자신이 그 꼴이고 id 가 없다
+     (짝짓기는 자리번호로 간다). 그래서 별개의 검사가 필요하다.
+   ══════════════════════════════════════════════════════════════════════════ */
+test('E6 ★그리드 이미지 줄도 «자르지 말고 줄인다» — 에셋과 같은 답', async ({ page }) => {
+  const errs = await boot(page);
+  // ⑴ 등폭(860)은 한 톨도 안 바뀐다
+  const r860 = await capture(page, 860);
+  expect(r860.blocks.grd_img.h, '860 인데 그리드 이미지 높이가 바뀌었다').toBeCloseTo(300, 1);
+
+  for (const w of [780, 1000, 640]) {
+    const r = await capture(page, w);
+    const g = r.blocks.grd_img;
+    /* ⑵ 폭은 내보내기 폭을 따라간다(전제) — 안 따라가면 이 검사가 아무것도 안 본다.
+       ★«상대폭»이 아니라 «실폭»으로 잰다 — 섹션 좌우 패딩(32px)은 절대값이라 폭이 줄어도
+         안 줄어든다. 그래서 비(比)는 0.9256 → 0.9179 로 달라지는 게 정상이다. */
+    expect(g.w, `${w}px — 그리드 이미지 폭이 내보내기 폭을 안 따라간다`).toBeCloseTo(w - 64, 0);
+    // ⑶ 상자 비율이 화면과 같다 = 세로가 비율대로 따라갔다 (고치기 전: 300px 고정)
+    expect(g.aspect, `${w}px — 그리드 상자비율 ${g.aspect} ≠ 화면 ${g.liveAspect} (inline: ${g.inlineH})`)
+      .toBeCloseTo(g.liveAspect, 2);
+    // ⑷ 픽셀 축 — cover 가 «새로» 깎는 양 0 (원본 860×540 기준: 실앱 실측과 같은 그림)
+    const vis = visibleFrac(g.w, g.h, 860, 540);
+    const liveVis = visibleFrac(r860.blocks.grd_img.w, r860.blocks.grd_img.h, 860, 540);
+    expect(vis.y, `${w}px — 세로 가시비율 ${vis.y} ≠ 화면 ${liveVis.y} (그림이 화면과 다르게 잘린다)`)
+      .toBeCloseTo(liveVis.y, 2);
+    expect(vis.x, `${w}px — 가로 가시비율 ${vis.x} ≠ 화면 ${liveVis.x}`).toBeCloseTo(liveVis.x, 2);
+    // ⑸ 수치로도 못박는다 — 화면 796×300 ⇒ 세로 = 300 × (내보내기폭−64)/796
+    expect(g.h, `${w}px — 그리드 높이가 비율대로 안 줄었다`).toBeCloseTo(300 * (w - 64) / 796, 0);
+  }
+  expect(errs, errs.join(' | ')).toEqual([]);
 });

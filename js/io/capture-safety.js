@@ -107,6 +107,81 @@ export function neutralizeTextGradForH2C(root) {
   return n;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   object-fit 대체 — html2canvas 경로 전용  [2026-09-21 최종통합 QA medium]
+
+   ★무엇이 틀렸나 (실측): 동봉한 html2canvas 1.4.1 에는 `object-fit` 이 «한 글자도» 없다
+     (vendor/html2canvas/html2canvas.min.js — 문자열 0건). 그래서 이미지를 늘 상자에
+     «늘려» 그린다(fill). 화면·네이티브 PNG 는 cover 로 가운데를 잘라 보여주는데
+     썸네일·목업 캡처만 전체 그림을 찌그러뜨려 넣는다 ⇒ 프로젝트 목록에서 보는 그림이
+     실제 상세페이지와 «다른 그림»이 된다.
+     (실측: 그리드 716×300 상자에 860×540 그림 → 화면·네이티브는 위·아래 마커 띠 0행,
+      썸네일만 초록 16행·주황 17행이 «나타났다». 상자 비율 = 그림 비율인 풀블리드는
+      화면도 썸네일도 29행 — 같은 실행 안의 양성대조.)
+
+   ★고치는 방법 — «규칙»이 아니라 «픽셀»로 준다.
+     상자 크기대로 캔버스를 만들고 cover/contain 산식으로 직접 그려서 그 결과를 img.src 로
+     갈아 끼운다. 그러면 html2canvas 가 그 그림을 상자에 늘려 그려도(=fill) 이미 잘린
+     그림이라 «화면과 같은 그림»이 나온다.
+   ⛔노드를 div 로 바꿔 background-size:cover 로 주는 길은 «안» 쓴다 — `.itb-icon img` 처럼
+     «요소 선택자»로 크기를 주는 규칙이 있어 img 를 div 로 바꾸면 그 상자가 통째로 무너진다.
+   ⚠️네이티브(CDP) 경로에선 부르지 말 것 — 브라우저가 object-fit 을 제대로 그린다.
+     이 함수를 태우면 «두 번 자르기»가 되어 도리어 화면과 갈린다.
+   ★비율이 이미 같으면(자를 것이 없으면) 손대지 않는다 — 재인코딩으로 화질이 상하지 않게.
+   ★실패는 «조용한 통과»가 아니라 «전과 같음»이다 — tainted canvas(CORS)·디코드 실패는
+     원본 img 를 그대로 두므로 고치기 전과 똑같이 동작한다(퇴행 없음).
+   ★object-position 은 «center 고정»으로 계산한다 — 이 레포는 그 속성을 한 군데도 안 쓴다
+     (js·css 전수 0건). 쓰기 시작하면 여기도 같이 읽어야 한다.
+   ⛔<video> 는 건드리지 않는다 — html2canvas 는 애초에 비디오 프레임을 못 그린다(별개 축).
+   부르는 곳(html2canvas 3경로): js/io/save-load.js captureThumbnail ·
+     js/props/prop-mockup.js _captureAndApply · js/io/export-image.js 의 html2canvas 폴백.
+   반환 = 실제로 갈아 끼운 그림 수(검사·디버깅용).
+   ══════════════════════════════════════════════════════════════════════════ */
+export async function neutralizeObjectFitForH2C(root) {
+  if (!root) return 0;
+  const imgs = [
+    ...(root.matches?.('img') ? [root] : []),
+    ...root.querySelectorAll('img'),
+  ];
+  let n = 0;
+  for (const el of imgs) {
+    try {
+      const cs = (typeof getComputedStyle === 'function') ? getComputedStyle(el) : null;
+      const fit = (cs?.objectFit || '').trim();
+      if (fit !== 'cover' && fit !== 'contain') continue;
+      /* 상자는 «레이아웃 px»로 잰다 — 이 클론은 body 직속(position:fixed)이라 캔버스 줌
+         (transform:scale) 밖이지만, offsetWidth 는 배율에 아예 안 속는다. */
+      const bw = el.offsetWidth, bh = el.offsetHeight;
+      if (!(bw > 0) || !(bh > 0)) continue;
+      if (!el.complete || !el.naturalWidth) { try { await el.decode(); } catch (_) { /* 못 읽으면 그대로 둔다 */ } }
+      const nw = el.naturalWidth, nh = el.naturalHeight;
+      if (!(nw > 0) || !(nh > 0)) continue;
+      /* 비율이 같으면 cover 도 contain 도 «아무것도 안 자른다» — 건드릴 이유가 없다.
+         ★«상대»오차로 잰다 — 절대값으로 재면 비율 자체가 큰 상자(가로로 긴 띠)에서는
+           같은 어긋남도 크게 나오고, 400×251.16 처럼 offsetHeight 반올림(251)만으로도
+           문턱을 넘어 «자를 것도 없는데» 재인코딩한다(실측: DOM T3 에서 걸렸다). */
+      const boxR = bw / bh, imgR = nw / nh;
+      if (Math.abs(boxR - imgR) / imgR < 0.005) continue;
+      const s = fit === 'cover' ? Math.max(bw / nw, bh / nh) : Math.min(bw / nw, bh / nh);
+      const dw = nw * s, dh = nh * s;
+      const cvs = document.createElement('canvas');
+      cvs.width  = Math.max(1, Math.round(bw));
+      cvs.height = Math.max(1, Math.round(bh));
+      const ctx = cvs.getContext('2d');
+      if (!ctx) continue;
+      ctx.imageSmoothingQuality = 'high';
+      // 가운데 정렬(object-position:50% 50%) — contain 이면 남는 자리는 «투명»으로 둔다.
+      ctx.drawImage(el, (cvs.width - dw) / 2, (cvs.height - dh) / 2, dw, dh);
+      const url = cvs.toDataURL('image/png');   // tainted 면 여기서 던진다 ⇒ catch 로 «전과 같음»
+      el.src = url;
+      el.style.objectFit = 'fill';              // 이미 잘린 그림이다 — 두 번 자르지 않게
+      try { await el.decode(); } catch (_) {}   // html2canvas 가 바로 읽을 수 있게
+      n++;
+    } catch (_) { /* 이 한 장만 «전과 같이» 둔다 */ }
+  }
+  return n;
+}
+
 /* ── 편집 전용 DOM·상태 걷기 (캡처 클론 공용) ────────────────────────────────────
  * ★2026-09-21 최종통합 QA medium: 「저장할 때 편집 중이던 상태가 프로젝트 목록 썸네일에
  *   그대로 박힌다」 — js/io/save-load.js captureThumbnail 은 클론에서 ⑴.section-label

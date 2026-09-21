@@ -208,7 +208,18 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 .asset-block.has-image{overflow:visible;}
 .asset-img-clip{position:absolute;inset:0;overflow:hidden;border-radius:inherit;}
 .asset-img{width:100%;height:100%;object-fit:cover;display:block;}
-.asset-block.has-image img{display:block;max-width:100%;height:auto;}
+/* ★:not(.asset-img) 가 «뜻»이다 (2026-09-21 최종통합 QA medium).
+   ⛔이 주석 안에 백틱을 쓰지 마라 — 여기는 «템플릿 리터럴 안»이라 백틱 하나가 CSS 를 통째로
+     끊는다(2026-09-21 실측: import 단계에서 SyntaxError, 검사 하네스가 통째로 안 떴다).
+   이 줄은 앱 CSS 를 안 싣던 시절의 폴백이다. 그런데 특이도가 (0,2,1) 이라
+   수확한 앱 CSS .asset-img{height:100%} (0,1,0) 보다 «세다» ⇒ 뒤에 실어도 손글씨가 이겨
+   상자 비율 ≠ 그림 비율인 에셋이 배송본에서만 «위쪽만» 보였다(실측 400×150 상자 → img 251.2px,
+   600×376.7 세로그림 → 955.5px). 「손글씨 먼저, 앱 CSS 뒤 ⇒ 뒤가 이긴다」는 «같은 특이도»일
+   때의 이야기이지 여기엔 성립하지 않는다.
+   ⇒ 클리핑 임자(.asset-img)는 바로 윗줄의 폴백에 맡기고, 이 줄은 그 밖의 img 만 본다.
+     CSSOM 이 막혀 appCss 가 비어도 윗줄이 cover 를 책임지므로 폴백은 그대로다.
+   회귀: tests/dom/export-html-app-css.dom.spec.js A5·A5-src · tests/unit/export-html-asset-img.test.mjs */
+.asset-block.has-image img:not(.asset-img){display:block;max-width:100%;height:auto;}
 /* group */
 .group-block{width:100%;}
 .group-inner{display:flex;flex-direction:column;}

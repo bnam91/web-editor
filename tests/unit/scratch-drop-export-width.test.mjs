@@ -95,8 +95,16 @@ test('S-5 ★내보내기 폭이 다르면 그림 상자의 «세로»도 따라
   assert.match(prep, /syncImageBoxesToCaptureWidth\s*\(\s*sec\s*,\s*clone\s*\)/,
     '★캡처 클론이 그림 상자의 세로를 폭에 맞춰 다시 잠그지 않는다 — 780 내보내기에서 다시 잘린다');
 
-  const fn = stripComments(bodyOf(EXPORT_IMG, 'export function syncImageBoxesToCaptureWidth'));
-  assert.match(fn, /\.asset-block/, '★그림 블록을 안 고른다');
+  /* ★대상 명부 — «상대폭 + 절대높이 + cover» 를 쓰는 «두 자리»가 다 들어 있어야 한다.
+     2026-09-21 최종통합 QA high: 첫 판은 `.asset-block` 하나만 봐서 그리드 블럭의 이미지 줄
+     (js/blocks/grid-block.js `width:N%` + `height:Npx` + cover)이 그대로 «다른 그림»이 됐다.
+     숫자는 tests/dom/export-width-scale-down E6 가 잰다. */
+  const sels = stripComments(EXPORT_IMG).match(/_CAPTURE_IMG_BOX_SELECTORS\s*=\s*\[([^\]]*)\]/);
+  assert.ok(sels, '★대상 명부(_CAPTURE_IMG_BOX_SELECTORS)가 사라졌다');
+  assert.match(sels[1], /'\.asset-block'/, '★에셋 블록을 안 고른다');
+  assert.match(sels[1], /'\.grd-img'/, '★그리드 이미지 줄을 안 고른다 — 780 에서 그리드만 다른 그림이 된다');
+
+  const fn = stripComments(bodyOf(EXPORT_IMG, 'function _syncOneGroup'));
   assert.match(fn, /style\.height\s*=/, '★세로를 다시 잠그는 대입이 없다');
   /* ⚠️라이브 쪽은 «비율»만 쓴다 — 캔버스 줌(scale(0.4))이 곱해진 rect 라도 비율은 약분된다.
      offsetWidth 는 정수로 반올림돼 860 짜리 상자에서 오차가 생긴다(패널 readW 와는 반대 이유). */

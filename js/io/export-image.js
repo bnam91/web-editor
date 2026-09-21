@@ -1,7 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, stripEditorOnlyForCapture } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture } from './capture-safety.js';
 
 const CANVAS_W = 860;
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
@@ -313,10 +313,29 @@ export async function prepareCloneForCapture(sec, w, useNative) {
      약분된다. (offsetWidth 는 정수로 반올림돼 큰 상자에서 오차가 생기므로 쓰지 않는다.)
    반환 = 손댄 블록 수(검사·디버깅용).
    ══════════════════════════════════════════════════════════════════════════ */
+/* ★대상 명부 — «상대폭 + 절대높이 + object-fit:cover» 라는 «한 기전»을 쓰는 자리 전부.
+     ⑴ `.asset-block`  — 상자에 높이가 잠긴다(스크래치 드롭·패널 풀블리드). id 가 있다.
+     ⑵ `.grd-img`      — 그리드 블럭의 이미지 줄(js/blocks/grid-block.js _gridLineHtml)은
+        «상자»가 아니라 img 자신이 `width:N%` + `height:Npx` + cover 다. id 가 «없다».
+        (빈 슬롯 `.grd-img-empty` 도 같은 클래스·같은 꼴이라 함께 걸린다.)
+   ★여기에 줄을 더할 때의 기준 한 줄 = 「폭은 내보내기 폭을 따라 줄어드는데 높이는 px 로 잠겼나」.
+     아니면(= 폭도 절대 px) 이 함수는 어차피 아무 일도 안 한다(등폭과 같은 계산 → 무변화).
+   ⛔«아무 요소나 높이가 px 면 줄인다» 로 넓히지 마라 — 도형 래퍼·프레임처럼 높이가 «뜻»인
+     상자까지 줄어들어 레이아웃이 무너진다(그 축은 현빈 결정 밖이다). */
+const _CAPTURE_IMG_BOX_SELECTORS = ['.asset-block', '.grd-img'];
+
 export function syncImageBoxesToCaptureWidth(liveSec, clone) {
   if (!liveSec || !clone) return 0;
-  const lives  = Array.from(liveSec.querySelectorAll('.asset-block'));
-  const clones = Array.from(clone.querySelectorAll('.asset-block'));
+  let n = 0;
+  for (const sel of _CAPTURE_IMG_BOX_SELECTORS) n += _syncOneGroup(liveSec, clone, sel);
+  return n;
+}
+
+/* 한 명부(selector)만 맞춘다 — 명부끼리 «수»가 갈려도 서로를 죽이지 않게 갈라 둔다
+   (한 벌로 묶어 세면 그리드 한 줄이 스트립에 빠질 때 에셋까지 통째로 손을 놓는다). */
+function _syncOneGroup(liveSec, clone, selector) {
+  const lives  = Array.from(liveSec.querySelectorAll(selector));
+  const clones = Array.from(clone.querySelectorAll(selector));
   // 짝짓기: id 우선, 없으면 «수가 같을 때만» 자리번호로(스트립이 블록을 지운 경우 손대지 않는다)
   const sameCount = lives.length === clones.length;
   let n = 0;
@@ -443,6 +462,7 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
     //   backdrop-filter가 정상 렌더링된다(건드리면 정상 블러가 망가진다).
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
     neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
+    await neutralizeObjectFitForH2C(clone); // html2canvas는 object-fit 미지원 → 상자에 «늘려» 그린다. 상자 크기대로 미리 잘라 끼운다(썸네일이 화면과 다른 그림이 되던 자리)
     const _to2 = await _waitImagesReady(clone);
     const _h2c = await html2canvas(clone, {
       scale: 1,
