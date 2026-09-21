@@ -2843,6 +2843,144 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
 window.showTextOverlayResizeHandles = showTextOverlayResizeHandles;
 window.hideTextOverlayResizeHandles = hideTextOverlayResizeHandles;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   손잡이 «탈출층» — 블럭의 자식으로 남은 손잡이를 고정층으로 옮긴다 (2026-09-21)
+   ───────────────────────────────────────────────────────────────────────────
+   ★증상(현빈): 도형의 «아래쪽» 모서리 손잡이가 «보이는데 안 눌린다».
+     실측(9515·줌 40/100 양쪽, 전수표): se 손잡이 7×7 중 위 2행만 잡히고(10/25) 아래는
+     다음 블럭(.tb-h2)이 가져간다. 한가운데를 끌면 100×100 그대로, «2px 위»를 끌면 138×138.
+   ★뿌리는 «손잡이의 z-index 가 낮아서»가 «아니다». 손잡이는 z-index:10 인데도 진다 —
+     부모가 쌓임맥락을 만들어 그 10 이 부모 «안»에 갇히기 때문이다:
+       .shape-block.selected { z-index:2 }  ·  .gradient-block(인라인 z-index:2)
+     그래서 «부모의 2» 대 «이웃 블럭의 2»가 되고, 같은 값이면 DOM 뒤가 이긴다.
+     손잡이는 상자 밖으로 3.5px 삐져나오는데 그 반쪽이 이웃 상자 «안»이라 거기서 진다.
+   ★답 = 다른 모든 블럭 타입이 «이미» 쓰는 자리로 옮긴다(#ss-handles-overlay).
+     에셋·아이콘서클·캔버스·벡터·목업·모달·확대·프레임·아이콘·오버레이텍스트는 전부 거기 있고,
+     전수표에서 «덮어도» 0건이었다. 도형·그라데이션만 블럭의 자식으로 남아 있었다.
+   ⛔새 z 층을 만들지 «않는다» — #ss-handles-overlay 는 #canvas-area 의 isolation «안»이라
+     모달·플로팅 패널 «아래»다(2026-09-20 규약). 캔버스 안에서만 해결한다.
+   ★선택 변경 «이벤트가 없다»(.selected 를 바꾸는 자리 116곳) ⇒ js/selection-overlay.js 와
+     «같은 길»: MutationObserver 로 «집합이 바뀌었다»만 받고 자리는 rAF 가 좇는다.
+     좌표는 _cornerScreen 을 쓴다 — 회전(도형 shapeRotation)까지 같은 함수가 안다.
+   ★되돌리기 정책이 계열마다 다르다(수명이 다르기 때문):
+     · 도형   = 손잡이가 bindBlock 에서 «한 번» 만들어지고 CSS 가 display 를 가른다
+               ⇒ 선택이 풀리면 «집으로 돌려보낸다»(다음 선택 때 다시 탈출).
+     · 그라데 = _selectGradient 가 «선택할 때마다» 새로 만들고 지운다(js/gradient-select.js)
+               ⇒ 선택이 풀리면 «지운다». 돌려보내면 비선택 블럭에 손잡이가 남아 보인다.
+═══════════════════════════════════════════════════════════════════════════ */
+const HANDLE_ESCAPE_SPECS = [
+  { block: '.shape-block',    handle: '.shape-handle',
+    dirOf: h => h.dataset.dir || '', recreate: false },
+  { block: '.gradient-block', handle: '.gradient-corner-handle',
+    dirOf: h => ({ tl: 'nw', tr: 'ne', bl: 'sw', br: 'se' })[h.dataset.corner] || '', recreate: true },
+];
+const _escaped = new Map();   // handleEl → { owner, dir, recreate }
+let _escRaf = null;
+let _escMo = null;
+const _ESC_HALF = 3.5;        // 손잡이 7px 의 절반 — 고정층은 줌 밖이라 화면 px 그대로다
+
+/** 지금 «선택된» 블럭의 자식 손잡이를 고정층으로 옮기고, 풀린 것은 되돌린다(멱등). */
+function _escapeScan() {
+  const canvas = document.getElementById('canvas');
+  const overlay = _getOverlay();
+  if (!canvas || !overlay) return;
+  for (const spec of HANDLE_ESCAPE_SPECS) {
+    canvas.querySelectorAll(spec.block + '.selected').forEach(block => {
+      block.querySelectorAll(':scope > ' + spec.handle).forEach(h => {
+        if (_escaped.has(h)) return;
+        _escaped.set(h, { owner: block, dir: spec.dirOf(h), recreate: spec.recreate });
+        block.__handlesEscaped = true;   // ⚠️DOM 속성이 아니다 — 저장/복제에 안 실린다
+        overlay.appendChild(h);
+      });
+    });
+  }
+  for (const [h, st] of [..._escaped]) {
+    const alive = st.owner.isConnected && st.owner.classList.contains('selected');
+    if (alive) continue;
+    _escReturn(h, st);
+  }
+  /* recreate 계열 = 선택할 때마다 새로 만들어지는 손잡이(그라데이션). 선택이 아닌 블럭에
+     남아 있으면 «비선택인데 손잡이가 보인다» ⇒ 원래 주인(_removeGradientCornerHandles)과
+     같은 뜻으로 치운다. 탈출 중인 것은 건드리지 않는다. */
+  for (const spec of HANDLE_ESCAPE_SPECS) {
+    if (!spec.recreate) continue;
+    canvas.querySelectorAll(spec.block + ':not(.selected)').forEach(block => {
+      block.querySelectorAll(':scope > ' + spec.handle).forEach(h => { if (!_escaped.has(h)) h.remove(); });
+    });
+  }
+  /* ★자리는 «여기서 한 번» 동기로 잡는다 — 형제들(_updateVectorResizeHandlePositions 등)과 같은 꼴.
+     rAF 첫 프레임을 기다리면 손잡이가 한 틱 동안 (0,0) 에 찍히고, 무엇보다 rAF 가 멈춘 창
+     (백그라운드 렌더러 스로틀링)에서는 «영영» 안 움직인다 — 검증 인스턴스에서 실제로 물렸다. */
+  _escPositions();
+}
+
+function _escReturn(h, st) {
+  _escaped.delete(h);
+  h.style.removeProperty('left');
+  h.style.removeProperty('top');
+  /* ★«지우지» 않고 주인에게 돌려준다 — 주인이 DOM 에서 잠깐 떨어지는 순간(재렌더·재부모)에
+     지워 버리면 주인이 돌아와도 손잡이가 «영영» 없다. 실제로 한 번 물렸다(도형은 살아 있는데
+     손잡이 0개 — bindBlock 은 이미 돈 뒤라 다시 안 만든다). 주인이 정말 죽었으면 손잡이도
+     주인과 «함께» 버려진다 — 따로 지울 이유가 없다.
+     ⚠️recreate 계열(그라데이션)은 선택이 풀린 뒤 집에 남아 있으면 «보인다» ⇒ 아래
+        _escapeScan 끝의 정리가 치운다(js/gradient-select.js _removeGradientCornerHandles 와 같은 뜻). */
+  st.owner.appendChild(h);
+  // 같은 주인의 손잡이가 하나도 안 남았을 때만 표식을 지운다
+  let still = false;
+  for (const s of _escaped.values()) if (s.owner === st.owner) { still = true; break; }
+  if (!still) delete st.owner.__handlesEscaped;
+}
+
+function _escPositions() {
+  for (const [h, st] of _escaped) {
+    const c = _cornerScreen(st.owner, st.dir);
+    h.style.left = (c.x - _ESC_HALF) + 'px';
+    h.style.top  = (c.y - _ESC_HALF) + 'px';
+    syncHandleSelVariant(h, st.owner);   // 오버레이면 보라 — 테두리와 «한 색»(2026-09-21)
+  }
+}
+
+function _escFrame() {
+  _escRaf = null;
+  if (!_escaped.size) return;            // 집합이 비면 멈춘다(MO 가 다시 깨운다)
+  for (const [h, st] of [..._escaped]) {
+    if (!st.owner.isConnected || !st.owner.classList.contains('selected')) _escReturn(h, st);
+  }
+  _escPositions();
+  if (_escaped.size) _escRaf = requestAnimationFrame(_escFrame);
+}
+
+function _escKick() {
+  if (_escRaf == null && _escaped.size) _escRaf = requestAnimationFrame(_escFrame);
+}
+
+export function initHandleEscape() {
+  if (_escMo) return true;
+  const canvas = document.getElementById('canvas');
+  if (!canvas || !_getOverlay()) return false;
+  _escMo = new MutationObserver(() => { _escapeScan(); _escKick(); });
+  _escMo.observe(canvas, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
+  _escapeScan(); _escKick();
+  return true;
+}
+
+export function stopHandleEscape() {
+  if (_escMo) { _escMo.disconnect(); _escMo = null; }
+  if (_escRaf != null) { cancelAnimationFrame(_escRaf); _escRaf = null; }
+  for (const [h, st] of [..._escaped]) _escReturn(h, st);
+}
+
+if (typeof document !== 'undefined') {
+  if (!initHandleEscape()) document.addEventListener('DOMContentLoaded', initHandleEscape, { once: true });
+  // 계측·QA 진입점(창 밖에서 CDP 로 «재는» 자리). 제품 코드는 이걸 안 쓴다.
+  window.__handleEscape = {
+    init: initHandleEscape, stop: stopHandleEscape,
+    get size() { return _escaped.size; },
+    owners: () => [..._escaped.values()].map(s => s.owner.id || s.owner.className),
+  };
+}
+
+
 function showHandlesFor(block) {
   if (!block || !block.classList) return;
   if (block.classList.contains('zoom-block')) {

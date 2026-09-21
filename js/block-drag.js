@@ -742,8 +742,12 @@ function bindBlock(block) {
       selectShapeBlock(block);
     });
 
-    // 4코너 리사이즈 핸들 생성 (중복 방지)
-    if (!block.querySelector('.shape-handle')) {
+    /* 4코너 리사이즈 핸들 생성 (중복 방지)
+       ★2026-09-21 — 「자식이 없다」만으로는 모자란다. 선택 중이면 손잡이가 고정층으로 «탈출»해
+         있어(js/overlay-handles.js 손잡이 탈출층) 이 자리에서는 안 보인다 ⇒ 이 블럭을 다시
+         bind 하면 두 번째 벌이 생기고, 선택이 풀릴 때 탈출분이 집으로 돌아와 8개가 된다.
+         표식은 DOM 속성이 아니라 JS 속성이다 — 저장·복제·직렬화에 안 실린다(복제본은 정상 생성). */
+    if (!block.querySelector('.shape-handle') && !block.__handlesEscaped) {
       ['nw', 'ne', 'sw', 'se'].forEach(dir => {
         const h = document.createElement('div');
         h.className = `shape-handle ${dir}`;
