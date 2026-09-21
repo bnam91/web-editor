@@ -267,3 +267,49 @@ test('③-T4 「패딩 제외」가 꺼져 폭이 줄어든 블록에서도 같�
   expect(s.activeCount).toBe(1);
 });
 
+
+/* ═══════════════ ③-b 「지금 값」이 «눈에» 남는가(명시도) ═══════════════ */
+
+/* ★위 ③-T1~T4 는 «active 클래스가 옳은 단추에 붙는가»만 잰다 — 그건 prop-asset.js 의 몫이고
+     실제로 옳게 붙고 있었다. 그런데 2026-09-22 실앱(9644)에서 computed 를 재 보니
+     active 단추와 idle 단추의 background 가 «둘 다 rgb(42,42,42)» 로 같았다 —
+     css/editor-props.css 의 `.prop-preset-btn.active { background:#1a2a3a }` 가
+     `.prop-type-group:has(.prop-preset-btn) .prop-preset-btn.prop-type-btn`(0,5,0) 에
+     덮여 한 번도 안 그려진 것이다(active 규칙은 0,2,0). 살아남은 표시는 1px 테두리 색뿐이었다.
+   ⇒ 「클래스가 붙었다」와 「표시가 남았다」는 «다른 축»이다. 클래스만 재는 검사는
+     CSS 가 죽어도 초록이다 — 그 자리를 여기서 잠근다. 그래서 이 하네스는 진짜 CSS 를 «불러온다».
+   ⛔여기서 prop-asset.js 를 안 부른다 — 재는 것이 «CSS 명시도»라 JS 가 끼면 무엇이
+     이겼는지 흐려진다. 마크업은 prop-asset.js 가 찍는 것과 같은 꼴로 손으로 쓴다
+     (.prop-type-group > button.prop-preset-btn.prop-type-btn — 2026-09-22 실앱 조상 체인 실측). */
+const HARNESS_PRESET_CSS = `<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="/css/editor-base.css">
+<link rel="stylesheet" href="/css/editor-props.css">
+</head><body>
+<div class="prop-section"><div class="prop-type-group">
+  <button class="prop-preset-btn prop-type-btn active" id="pb-on" data-w="860" data-h="780">Standard</button>
+  <button class="prop-preset-btn prop-type-btn" id="pb-off" data-w="860" data-h="860">Square</button>
+</div></div>
+<script>window.__ready = true;</script></body></html>`;
+
+const btnPaint = (page, id) => page.evaluate((i) => {
+  const s = getComputedStyle(document.getElementById(i));
+  return { bg: s.backgroundColor, border: s.borderTopColor };
+}, id);
+
+test('③-T5 켜진 단추는 «배경»으로도 구분된다 — active 가 명시도에 먹혀 죽지 않는다', async ({ page }) => {
+  await boot(page, HARNESS_PRESET_CSS);
+  const on = await btnPaint(page, 'pb-on');
+  const off = await btnPaint(page, 'pb-off');
+  /* 색값을 박지 않는다 — 테마가 바뀌어도 「구분되는가」는 그대로여야 한다. */
+  expect(on.bg, `켜진 단추와 꺼진 단추의 배경이 같다(${on.bg}) — active 가 덮였다`).not.toBe(off.bg);
+  /* 투명으로 «구분»되는 것은 구분이 아니다 — 둘 다 실제로 칠해져 있어야 한다. */
+  expect(on.bg).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+  expect(off.bg).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+});
+
+test('③-T6 테두리 표시도 같이 남아 있다(배경만 고치다 테두리를 잃지 않게)', async ({ page }) => {
+  await boot(page, HARNESS_PRESET_CSS);
+  const on = await btnPaint(page, 'pb-on');
+  const off = await btnPaint(page, 'pb-off');
+  expect(on.border, `켜진/꺼진 테두리 색이 같다(${on.border})`).not.toBe(off.border);
+});
