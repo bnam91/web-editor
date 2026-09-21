@@ -2061,6 +2061,22 @@ ipcMain.handle('ai:deleteImage', (_e, { projectId, blobPath } = {}) => {
   }
 });
 
+/* ★[T-064] «목록이 실을 수 있는 프로젝트 id 모양» — 이 한 곳이 정본이다.
+ *   - proj_<숫자> : 편집 프로젝트(갤러리 「새 프로젝트」·_createProjectImpl·_duplicateProjectImpl)
+ *   - plan_<숫자> : 기획 프로젝트(pages/projects.html createPlanningProject — `'plan_' + Date.now()`)
+ *   왜 함수 하나인가: 예전엔 같은 규칙이 _listProjectsImpl 안에 «세 곳»(디렉터리명·flat 파일명·
+ *   파일 안 data.id) 손으로 적혀 있었다. 접두를 넓힐 때 한 곳만 고치면 「일부만 목록에 뜨는」
+ *   재현 어려운 상태가 된다 — 명부를 늘리지 말고 «판정하는 자리»를 하나로 둔다.
+ * ★★모양 강제는 «느슨하게 하지 않는다»(T-049 방어). 이 id 는 렌더러가
+ *   onclick="fn(event, '<id>')" 처럼 홑따옴표 JS 문자열 리터럴 안에 그대로 박는다 —
+ *   따옴표·백슬래시가 섞인 id 가 통과하면 HTML 이스케이프로도 못 막는 인라인 핸들러 탈출이 된다.
+ *   ⇒ «접두만» 넓히고 뒤는 여전히 숫자만 받는다. 절대 [A-Za-z0-9_-] 로 풀지 마라.
+ * ⛔폴더(main/folders.js isProjId)는 «일부러» proj_ 만 받는다 — 기획은 폴더에 못 들어간다(T-062).
+ *   여기를 넓혔다고 그쪽을 따라 넓히지 마라. */
+function _isListableProjectId(id) {
+  return typeof id === 'string' && /^(?:proj|plan)_\d+$/.test(id);
+}
+
 /* ── 목록 코어 ──────────────────────────────────────────────────────────────
    ipcMain.handle('projects:list')(렌더러)와 MCP list_projects(main)가 «공용»한다.
    (projects:save 가 _saveProjectImpl 을 공용하는 것과 같은 패턴.)
@@ -2081,7 +2097,7 @@ function _listProjectsImpl(opts) {
   // 1) 신 레이아웃 우선: proj_<id>/proj.json — [b8] 메타 우선(무거운 proj.json 풀파싱 회피)
   for (const ent of entries) {
     if (!ent.isDirectory()) continue;
-    if (!/^proj_\d+$/.test(ent.name)) continue;
+    if (!_isListableProjectId(ent.name)) continue;   // [T-064] proj_<숫자> · plan_<숫자>
     const projPath = path.join(PROJECTS_DIR, ent.name, 'proj.json');
     if (!fs.existsSync(projPath)) continue;
     const id = ent.name; // 신 레이아웃 불변식: 디렉터리명 = proj_<id>
@@ -2097,16 +2113,17 @@ function _listProjectsImpl(opts) {
   // 2) flat fallback: proj_<id>.json (마이그레이션 안 된 케이스). 같은 ID는 1)에서 이미 등록됐으면 skip.
   for (const ent of entries) {
     if (!ent.isFile()) continue;
-    if (!/^proj_\d+\.json$/.test(ent.name)) continue;
+    if (!ent.name.endsWith('.json') || !_isListableProjectId(ent.name.slice(0, -'.json'.length))) continue;
     try {
       const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, ent.name), 'utf8'));
       // ★[XSS 근원차단] data.id 는 파일 내용(사용자가 손 댈 수 있는 JSON)이라 파일명과 다를 수 있다.
       //   이 id 는 렌더러가 onclick="fn(event, '${proj.id}')" 처럼 «홑따옴표 JS 문자열 리터럴 안»에
       //   그대로 박는다 — 형식이 어긋난 id(따옴표·백슬래시 등)가 들어오면 HTML 이스케이프로도
       //   못 막는 인라인 핸들러 탈출이 가능하다(HTML 파서가 속성값을 먼저 디코드한 뒤 JS로 넘긴다).
-      //   신 레이아웃은 디렉터리명 정규식(/^proj_\d+$/)이 이미 이 모양을 강제하므로, 여기(레거시
-      //   flat 폴백)도 같은 모양만 받는다 — 형식이 다르면 조용히 목록에서 뺀다(자가치유 원칙과 동일).
-      if (!data.id || data.id === 'undefined' || seen.has(data.id) || !/^proj_\d+$/.test(data.id)) continue;
+      //   신 레이아웃은 디렉터리명 검사(_isListableProjectId)가 이미 이 모양을 강제하므로, 여기(레거시
+      //   flat 폴백)도 «같은 함수»로 같은 모양만 받는다 — 형식이 다르면 조용히 목록에서 뺀다(자가치유 원칙과 동일).
+      //   ★[T-064] 접두가 plan_ 까지 넓어졌어도 «숫자만» 규칙은 그대로다 — 여기를 풀면 T-049 가 되살아난다.
+      if (!data.id || data.id === 'undefined' || seen.has(data.id) || !_isListableProjectId(data.id)) continue;
       let thumbnail = data.thumbnail || null;
       const metaPath = _resolveMetaJsonPath(data.id);
       if (metaPath && fs.existsSync(metaPath)) {
