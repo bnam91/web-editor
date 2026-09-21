@@ -23,7 +23,6 @@ const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript' };
 
-const MOSAIC_SRC = fs.readFileSync(path.join(REPO, 'js/effects/redact-mosaic.js'), 'utf8');
 
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8"></head><body>
 <div class="section-block" id="sec1" style="position:relative;width:300px;height:150px;">
@@ -43,7 +42,10 @@ async function boot(page, { transparent }) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
   await page.goto(`${ORIGIN}/__harness.html`);
-  await page.addScriptTag({ content: MOSAIC_SRC, type: 'module' });
+  /* ★모듈을 «파일 URL»로 얹는다 — addScriptTag({content}) 로 얹으면 redact-mosaic.js 의
+     상대 import(../io/goya-asset-inline.js)가 «문서 URL» 기준으로 풀려 404 가 난다
+     (2026-09-22, T-071 에서 import 가 생기며 드러났다). 아래 route 가 레포의 진짜 파일을 준다. */
+  await page.addScriptTag({ url: '/js/effects/redact-mosaic.js', type: 'module' });
   // html2canvas를 흉내낸다 — transparent=true면 "완전 투명" 캔버스(실측된 실패 모드),
   // false면 실제로 내용이 찍힌 정상 캔버스를 돌려준다.
   await page.evaluate((transparent) => {
