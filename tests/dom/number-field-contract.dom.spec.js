@@ -57,6 +57,17 @@ export function colorFieldHTML({ idPrefix, hex }) {
 }
 export function wireColorField() {}
 export function parseAlphaFromColor() { return 100; }
+/* ★2026-09-21 — 아래 셋이 «없어서» 이 스펙 40건이 통째로 30초 타임아웃이었다.
+     js/props/prop-page.js:6 이 실물 color-picker 에서 wireHexText/parseHex6/formatHex6 을 가져오는데
+     (색 코드 칸을 «한 배선»으로 모은 2026-09-21 변경, 커밋 499cbc3), 이 스텁이 안 따라갔다.
+     ⇒ 모듈 그래프가 통째로 안 떠 window.__ready 가 영영 안 켜진다 — 이 파일 머리주석이
+       「404 로 막으면 … __ready 가 영영 안 켜진다」로 이미 경고해 둔 바로 그 자리다.
+     ⛔스텁을 «실물에서 자동 생성»하지 마라 — 그러면 증인이 둘에서 하나로 준다.
+       대신 tests/unit/dom-stub-exports.test.mjs 의 U-STUB-1 이 기계로 대조한다.
+     ⛔이 주석 안에 백틱을 쓰지 마라 — 여기는 템플릿 리터럴 «안»이라 파일이 깨진다(실제로 한 번 깨뜨렸다). */
+export function wireHexText() {}
+export function parseHex6(raw) { const m = String(raw ?? '').trim().replace(/^#/, ''); return /^[0-9a-fA-F]{6}$/.test(m) ? '#' + m.toLowerCase() : null; }
+export const formatHex6 = (v) => String(v ?? '').replace('#', '').toUpperCase();
 export function seedPickerFromGradient() {}
 `;
 const GRADIENT_MODEL_STUB = `
