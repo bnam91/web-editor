@@ -2628,9 +2628,9 @@ function _startTextOverlayResizeRaf() {
  *    `[class^="tb-"]` 그물에 «안» 걸린다(그 선택자는 «tb-» 로 시작하는 class 만 본다).
  *    빠지면 그 블럭만 「상자는 커지는데 글자는 그대로」가 되어 현빈 결정 A안
  *    (「글자도 같이 커지는 게 맞아」)을 어긴다 — 2026-09-20 통합 라운드에서 실측·추가.
- *  ⚠️아이콘 칸(.itb-icon)은 여기 «안» 들어간다 — 그건 font-size 가 아니라 width/height 이고,
- *    css/editor-extra.css 가 40×40 으로 정한다(인라인 크기를 쓰는 경로가 레포에 없다).
- *    「아이콘도 같이 커져야 하나」는 현빈 판단 사안 — 결정이 나기 전엔 표현을 발명하지 않는다.
+ *  ⚠️아이콘 칸(.itb-icon)은 여기 «안» 들어간다 — 그건 font-size 가 아니라 width/height 라
+ *    별도 스냅샷(_tfoIconSnapshot)이 «같은 k» 로 따로 태운다. 한 그물에 섞으면 아이콘에
+ *    font-size 를 쓰게 되어 아무 일도 안 일어난다(2026-09-21 현빈 결정 「같이커져야지」).
  *  ⚠️SVG(말풍선 꼬리 `.tb-bubble-tail`)는 뺀다 — font-size 를 써도 뜻이 없다.
  *  ⚠️매 프레임 «누적 곱»을 하면 표류한다 ⇒ 마우스다운 때의 값에 매번 k 를 곱한다.
  *    (부모·자식이 둘 다 들어와도 각자 «절대 px» 로 쓰므로 배율이 겹쳐 곱해지지 않는다.) */
@@ -2651,6 +2651,33 @@ function _tfoFontSnapshot(posEl) {
     .filter(s => s.fs > 0);
 }
 
+/** 아이콘 칸 스냅샷 — 「아이콘+텍스트를 키우면 아이콘도 같이 커진다」(현빈 2026-09-21).
+ *  ★왜 폰트 스냅샷과 «따로»인가 — .itb-icon 의 크기는 font-size 가 아니라 width/height 다
+ *    (css/editor-extra.css:1706~ 에서 40×40 + aspect-ratio:1/1 + flex-shrink:0 으로 못박혀
+ *     있다). 같은 그물에 담아 fontSize 를 쓰면 «조용히» 아무 일도 안 일어난다.
+ *  ★두 벌을 잰다 — ⑴칸 자체(.itb-icon) ⑵칸 «안»의 placeholder SVG.
+ *    안쪽 그림까지 안 태우면 80px 상자에 18px 좁쌀이 남는다(그림 넣은 칸은 `.itb-icon img`
+ *    가 이미 width/height:100% 라 저절로 따라온다 — 그래서 img 는 여기서 안 센다).
+ *  ⚠️매 프레임 «누적 곱»은 표류한다 ⇒ 폰트 쪽과 똑같이 «마우스다운 때의 절대 px» 에
+ *    매번 k 를 곱한다.
+ *  ⚠️getBoundingClientRect 는 캔버스 줌(transform: scale)이 곱해진 «화면 px» 라 여기 쓰면
+ *    줌 40% 에서 아이콘이 첫 프레임에 16px 로 쪼그라든다 ⇒ 레이아웃 px 인 offsetWidth 로 잰다.
+ *    SVG 요소는 offsetWidth 가 없으므로(HTMLElement 전용) 그쪽만 getBBox 대신 «속성/계산값»을
+ *    쓴다 — placeholder 는 width/height 속성(18)을 갖고 있고, 없으면 계산값으로 떨어진다. */
+function _tfoIconSnapshot(posEl) {
+  const out = [];
+  posEl.querySelectorAll('.itb-icon').forEach(el => {
+    const w = el.offsetWidth, h = el.offsetHeight;
+    if (w > 0 && h > 0) out.push({ el, w, h });
+    el.querySelectorAll('svg').forEach(sv => {
+      const sw = parseFloat(sv.getAttribute('width')) || parseFloat(getComputedStyle(sv).width) || 0;
+      const sh = parseFloat(sv.getAttribute('height')) || parseFloat(getComputedStyle(sv).height) || 0;
+      if (sw > 0 && sh > 0) out.push({ el: sv, w: sw, h: sh });
+    });
+  });
+  return out;
+}
+
 function _onTextOverlayResizeMouseDown(e, posEl, dir) {
   if (e.button !== 0) return;
   e.stopPropagation();
@@ -2660,6 +2687,7 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
   const startX = e.clientX, startY = e.clientY;
   const sec = posEl.closest('.section-block');
   const snap = _tfoFontSnapshot(posEl);
+  const iconSnap = _tfoIconSnapshot(posEl);
   /* ★맞은편 코너 고정 — 확대블럭 _onZoomResizeMouseDown ④ 의 식을 그대로 옮겨 적는다.
      ⛔공통 헬퍼로 «추출» 금지 — tests/unit/zoom-block.test.js 가 그 함수 «안에서»
        `const dHW …` / `dataset.x = ` 를 정규식으로 꺼내 실행한다. 빼내면 그 검사가 약해진다.
@@ -2744,6 +2772,15 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
     posEl.style.maxWidth = 'none';
     posEl.dataset.overlayFreeWidth = 'true';
     snap.forEach(s => { s.el.style.fontSize = (s.fs * k).toFixed(1) + 'px'; });
+    /* ★아이콘 칸도 «같은 k» — 현빈 2026-09-21 결정. 글자와 한 줄 차이로 붙여 두는 이유는
+       배율이 갈라지지 않게 하기 위해서다(회귀: 글자·아이콘 배율 오차 <1%).
+       ⚠️하한 — k 가 아주 작아도 0px 이나 음수가 되면 칸이 사라진다(줄이기 드래그).
+       ⚠️flex-shrink:0 이라 좁은 상자에서도 안 찌그러진다. width/height 를 «둘 다» 써야
+         aspect-ratio 만 믿다 생기는 반올림 어긋남이 없다. */
+    iconSnap.forEach(s => {
+      s.el.style.width  = Math.max(1, s.w * k).toFixed(1) + 'px';
+      s.el.style.height = Math.max(1, s.h * k).toFixed(1) + 'px';
+    });
     /* 높이는 «글자가 정한다» — 쓰지 않고 «잰다». 맞은편 코너 고정도 그 실측 높이로. */
     const newH = Math.max(1, posEl.offsetHeight);
     const dHW = (newW - startW) / 2, dHH = (newH - startH) / 2;

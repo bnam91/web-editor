@@ -68,12 +68,38 @@ test('문③ 폰트 스냅샷이 .itb-text 를 «센다» (핸들만 붙고 글�
   assert.match(body, /\[class\^="tb-"\]/, '★기존 텍스트 그물이 사라졌다 — 아이콘텍스트만 남으면 본문이 안 커진다');
 });
 
-test('가드 — 아이콘 칸(.itb-icon)에는 «아직» 손대지 않았다 (현빈 판단 대기)', () => {
-  /* ⚠️바람직하다는 뜻이 아니라 «지금 이렇다»는 기록이다. 결정이 「아이콘도 같이 커진다」로
-     나면 이 검사부터 뒤집어라 — 그때는 여기가 red 인 게 맞다. */
+test('문⑤ 아이콘 칸(.itb-icon)도 «같은 배율»로 커진다 (현빈 2026-09-21 결정)', () => {
+  /* ★결정: 「아이콘+텍스트를 키우면 아이콘도 같이 커진다」(현빈 2026-09-21 「같이커져야지」).
+     2026-09-20 까지 이 자리엔 «아직 손대지 않았다»는 가드가 있었다 — 결정이 나왔으므로
+     그 가드를 «뒤집는다»(그때의 주석이 「결정이 나면 이 검사부터 뒤집어라」였다).
+     ⚠️아이콘 칸은 font-size 가 아니라 width/height 라 폰트 스냅샷에 «섞지» 않는다 —
+       별도 스냅샷(_tfoIconSnapshot)이 지고, 폰트 그물은 그대로 font-size 만 본다. */
   const snap = stripComments(bodyOf(HANDLES, 'function _tfoFontSnapshot'));
   assert.ok(!/itb-icon/.test(snap),
-    '★아이콘 칸을 폰트 스냅샷에 넣었다 — 그건 font-size 가 아니라 width/height 다');
+    '★아이콘 칸을 «폰트» 스냅샷에 넣었다 — 그건 font-size 가 아니라 width/height 다(별도 스냅샷으로)');
+
+  const icon = stripComments(bodyOf(HANDLES, 'function _tfoIconSnapshot'));
+  assert.match(icon, /\.itb-icon/, '★아이콘 스냅샷이 .itb-icon 을 안 잡는다');
+  assert.match(icon, /offsetWidth|getBoundingClientRect/,
+    '★아이콘 칸의 «시작 크기»를 안 잰다 — 매 프레임 누적 곱은 표류한다');
+
+  const down = stripComments(bodyOf(HANDLES, 'function _onTextOverlayResizeMouseDown'));
+  assert.match(down, /_tfoIconSnapshot\s*\(/,
+    '★마우스다운이 아이콘 스냅샷을 안 뜬다 — 글자만 커지고 아이콘은 40×40 으로 남는다');
+  const iMove = down.indexOf('function onMove(');
+  assert.ok(iMove > 0, '★onMove 를 못 찾았다 — 이름이 바뀌었으면 이 검사부터 고쳐라');
+  const move = down.slice(iMove);
+  const iIcon = move.indexOf('iconSnap.forEach');
+  assert.ok(iIcon > 0, '★onMove 가 아이콘 스냅샷을 안 돈다 — 글자만 커진다');
+  const iconApply = move.slice(iIcon, iIcon + 400);
+  assert.match(iconApply, /style\.width\s*=[^;]*\bk\b/,
+    '★onMove 가 아이콘 칸 width 에 «글자와 같은 k» 를 안 곱한다');
+  assert.match(iconApply, /style\.height\s*=[^;]*\bk\b/,
+    '★onMove 가 아이콘 칸 height 에 «글자와 같은 k» 를 안 곱한다');
+  /* 글자 적용보다 «뒤»에 와야 새 높이(newH) 실측이 아이콘 확대를 포함한다 — 앞에 두면
+     맞은편 코너 고정이 한 프레임 어긋난다. */
+  assert.ok(move.indexOf('fontSize') < iIcon,
+    '★아이콘 적용이 글자보다 «앞»이다 — 높이 실측(newH)이 한 프레임 낡는다');
 });
 
 test('문④ 드래그가 끝나면 «패널»도 새 폭을 안다 — 조건이 `tb !== posEl` 이 아니다', () => {
