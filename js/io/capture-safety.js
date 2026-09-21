@@ -192,11 +192,18 @@ export async function neutralizeObjectFitForH2C(root) {
      체커는 «투명을 표시하는 편집용 무늬»지 콘텐츠가 아니다.
 
    ★왜 안 걸러졌나 — 「체커를 CSS 클래스에 두면 자동으로 결과물에 안 나간다」는 공식
-     (css/editor-blocks.css [M38-b] 주석)은 «단독 HTML 내보내기»에만 맞는 말이다.
-     그 경로는 js/io/export-html.js 가 자기 <style> 만 싣고 앱 CSS 를 안 실어서 «안 그려진다».
-     PNG 경로는 정반대다 — js/io/export-image.js prepareCloneForCapture 가 클론을
-     document.body.appendChild 로 «라이브 문서에 붙여» 캡처하므로 앱 CSS 가 전부 먹는다.
-     ⇒ 클래스로 옮겨도 PNG 엔 그대로 나온다. 전제가 경로마다 다른데 공식만 물려받았던 자리다.
+     (css/editor-blocks.css [M38-b] 주석)은 «어느 경로에서도 더는 맞지 않는다».
+     ⑴PNG — js/io/export-image.js prepareCloneForCapture 가 클론을 document.body.appendChild 로
+       «라이브 문서에 붙여» 캡처한다 ⇒ 앱 CSS 가 전부 먹어 클래스 체커도 그려진다.
+     ⑵단독 HTML — 애초의 전제(「앱 CSS 를 안 싣는다」)가 2026-09-21 0180c54 에서 «깨졌다».
+       js/io/export-html.js:259 가 collectCanvasCss(canvasEl) 로 앱 CSS 를 실어 보내면서,
+       .asset-block{…repeating-conic-gradient…} 가 배송본 <style> 에 그대로 실린다.
+       (실측 EVAL medium, 2026-09-21: 내보낸 HTML 의 .asset-block 이 실제로 체커로 그려졌다.
+        banner02 는 .bn2-img-empty «클래스를 벗겨» 살았지만, .asset-block 은 블럭 «자신의»
+        클래스라 벗길 대상이 없어 그대로 샜다 — 클래스 제거 목록은 이 결함군을 못 닫는다.)
+     ⇒ 세 산출물(PNG·썸네일·단독 HTML)이 «같은 서명»으로 걷는다. 단독 HTML 은 두 갈래로 닫는다:
+       인라인 체커는 이 함수(떼어낸 클론에서도 돈다), 클래스 체커는 CSS 수확 쪽
+       (js/io/export-css-collect.js — 같은 /repeating-conic-gradient/ 서명).
 
    ★어떻게 잡나 — 블록 타입 셀렉터를 «나열하지 않는다»(손으로 적은 목록은 반드시 늙는다).
      렌더 결과의 computed background-image «서명»(/repeating-conic-gradient/)으로 판정한다.
@@ -222,9 +229,11 @@ export async function neutralizeObjectFitForH2C(root) {
      «뒤»에 불러야 한다.
        ⑴ 붙기 전이면 getComputedStyle 이 비어 클래스 기반 체커를 못 잡고 조용히 no-op 된다.
        ⑵ banner02·canvas-block 은 재렌더가 DOM 을 새로 만든다 — 앞에서 지우면 되살아난다.
-   부르는 곳(2): js/io/export-image.js renderComponentsInClone(=export 와 truth 가 «같이» 쓰는
+   부르는 곳(3): js/io/export-image.js renderComponentsInClone(=export 와 truth 가 «같이» 쓰는
      ②단계. 한 자리라 두 그림이 갈릴 수 없다) · js/io/save-load.js captureThumbnail(재렌더가
-     없는 경로라 거기서 직접 부른다).
+     없는 경로라 거기서 직접 부른다) · js/io/export-html.js(단독 HTML — 클론이 문서에 «안» 붙는다).
+   ★떼어낸 클론에서도 돈다 — computed 가 비면 «인라인»으로 떨어져 본다. 떼어낸 트리에서
+     클래스 체커를 못 잡는 것은 한계가 아니라 분업이다(그 몫은 export-css-collect.js 가 진다).
    반환 = 실제로 손댄 요소 수(검사·디버깅용).
    ══════════════════════════════════════════════════════════════════════════ */
 const _CHECKER_RE = /repeating-conic-gradient/i;
@@ -248,10 +257,11 @@ export function neutralizeEmptyImageCheckerForCapture(clone) {
   const all = [...(clone.nodeType === 1 ? [clone] : []), ...clone.querySelectorAll('*')];
   let n = 0;
   for (const el of all) {
-    let cs;
-    try { cs = window.getComputedStyle(el); } catch (_) { continue; }
-    if (!cs) continue;
-    const bg = cs.getPropertyValue('background-image') || '';
+    /* 붙은 클론이면 computed 가 «클래스» 체커까지 잡는다. 떼어낸 클론(단독 HTML)은 computed 가
+       비므로 «인라인»으로 떨어져 본다 — 판정식은 한 벌(_CHECKER_RE)로 같다. */
+    let bg = '';
+    try { bg = window.getComputedStyle(el)?.getPropertyValue('background-image') || ''; } catch (_) { bg = ''; }
+    if (!bg || bg === 'none') bg = el.style?.backgroundImage || '';
     if (!_CHECKER_RE.test(bg)) continue;
     const kept = splitBgLayers(bg).filter(layer => !_CHECKER_RE.test(layer));
     // 클래스가 건 배경은 인라인으로 «지울» 수 없다 — 명시적으로 덮어쓴다.

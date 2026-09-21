@@ -2001,6 +2001,17 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 .banner02-block .bn2-img-empty {
   background: repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 0 / 16px 16px;
 }
+/* ★표 «이미지 row» 빈 칸 체커 — 위 .bn2-img-empty 와 같은 결함군이었다(EVAL low, 2026-09-21).
+   js/props/prop-table.js _makeImgCellPlaceholder 가 style.cssText 로 «인라인» 체커를 박고 있었다.
+   인라인이면 저장본(.gdt)과 단독 HTML 배송본에 그대로 실린다 — 편집용 무늬가 배송물이 된다.
+   ⚠️이 자리는 js/blocks 디렉터리 «밖»이라 tests/unit/card-empty-export.test.mjs 의 옛 그물
+     (js/blocks/*.js 전수)에도 안 걸렸다. 그래서 스캔 범위를 js/ 전수로 넓히면서 같이 옮긴다.
+   ★이미지를 넣으면 prop-table.js 가 인라인 background-image:url(...) 로 덮는다 — 인라인이
+     클래스를 이기므로 순서 다툼이 없다(.asset-block/.has-image 와 같은 모양). */
+.table-block .tbl-img-cell {
+  background-image: repeating-conic-gradient(#e0e0e0 0% 25%, transparent 0% 50%);
+  background-size: 16px 16px;
+}
 .banner02-block .bn2-line-empty {
   /* 빈 줄에 «클릭할 자리»를 만든다 — 편집 전용이라 저장·내보내기에선 클래스째 제거된다.
      ⚠️인라인이 아니라 CSS 로만 주는 이유: 인라인이면 저장본에 실리고 높이 계산의 입력이 되어

@@ -2,7 +2,7 @@ import { canvasEl, state } from '../globals.js';
 import { isGoyaAssetUrl as _isGoyaAsset, parseGoyaAssetUrl as _parseGoyaAssetUrl } from './goya-asset-inline.js';
 import { HIDDEN_VARIATION_SECTION_SEL } from '../variation-visibility.js';
 import { textGradShadowDefsMarkup } from '../props/text-block-color.js';
-import { neutralizeRedactForH2C, stripEditorOnlyForCapture } from './capture-safety.js';
+import { neutralizeRedactForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture } from './capture-safety.js';
 import { collectCanvasCss } from './export-css-collect.js';
 
 const CANVAS_W = 860;
@@ -126,11 +126,20 @@ async function exportHTMLFile() {
   clone.querySelectorAll('.grd-line-selected').forEach(el => el.classList.remove('grd-line-selected')); // 그리드 줄 선택 마커(편집용)
   clone.querySelectorAll('.bn2-line-empty').forEach(el => el.classList.remove('bn2-line-empty'));       // ⑸ 빈 줄 플레이스홀더
   /* [M38-b] 빈 카드 이미지 «편집 전용» 체커/'+' — .bn2-line-empty 와 같은 성격이다.
-     앱 CSS 가 결과물에 안 실리므로 클래스만 남아도 그려지지는 않지만, «의도»를 여기 남긴다:
-     이 표시는 편집 화면 전용이고 배송본에 나가면 안 된다. 다음 사람이 인라인으로 되돌리면
-     이 줄이 무력해지므로 tests/unit/card-empty-export.test.mjs 가 그 회귀를 잡는다. */
+     ⚠️이 줄에 달려 있던 「앱 CSS 가 결과물에 안 실리므로 클래스만 남아도 안 그려진다」는 전제는
+       2026-09-21 0180c54(아래 collectCanvasCss) 부터 «틀렸다». 지금은 앱 CSS 가 실린다.
+       ⇒ 이 제거는 «클래스를 가진 쪽»만 닫는다. 블럭 자신의 클래스가 체커를 그리는 자리
+         (.asset-block 등)는 못 닫으므로, 배송본 체커의 정본 방어는 두 자리다:
+           · 클래스 체커 = js/io/export-css-collect.js(CSS 수확에서 서명으로 걷는다)
+           · 인라인 체커 = 바로 아래 neutralizeEmptyImageCheckerForCapture(떼어낸 클론에서도 돈다)
+         이 줄은 «의도 표시»로 남긴다(tests/unit/card-empty-export.test.mjs 가 회귀를 잡는다). */
   clone.querySelectorAll('.cvb-img-empty, .cvb-img-empty-plain, .bn2-img-empty')
        .forEach(el => el.classList.remove('cvb-img-empty', 'cvb-img-empty-plain', 'bn2-img-empty'));
+  /* «인라인»으로 박힌 빈 칸 체커 — 클래스가 아니라 벗길 대상이 없다(목업의 안전망 레이어,
+     옛 저장본이 품고 온 인라인 체커 등). PNG·썸네일과 «같은 서명»으로 레이어 단위로 걷는다.
+     ⚠️이 클론은 문서에 «안» 붙는다 — computed 가 비어 클래스 체커는 여기서 안 잡힌다.
+       그 몫은 collectCanvasCss 가 진다(위 [M38-b] 주석). 두 자리가 «한 판정식»을 공유한다. */
+  neutralizeEmptyImageCheckerForCapture(clone);
   clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
   // #16: 참고이미지 연결(data-ref-links)은 ScratchPadDB 참조 «기획 메타» — export엔 그 DB가 없어 死참조.
   //   배송본에서 제거(저장 경로 serializeCleanRoot에선 유지 → 로드 복원 가능).

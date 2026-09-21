@@ -534,7 +534,11 @@ export function showBanner02Properties(block, activeIdxArg) {
   // 줄 추가 버튼
   propPanel.querySelector('#bn2-line-add')?.addEventListener('click', () => {
     const v = window.BANNER02_VARIANTS?.[block.dataset.variant] || window.BANNER02_VARIANTS?.frame_8 || {};
-    mutLines(arr => arr.push(window._bn2Lines.normalize({ kind: 'sub', text: '새 줄', size: v.subSize || 16, color: '#000000', gapTop: v.gap2 || 10 })));
+    /* ★'새 줄' 은 «안내문구»다 — 사람이 넣은 글자가 아니라 에디터가 붙인 기본 라벨이다.
+       표시를 안 달면 줄만 추가하고 안 쓴 배너의 내보낸 PNG 에 「새 줄」이 그대로 찍힌다
+       (EVAL low, 2026-09-21 — _defaultLines 세 줄과 «같은» 결함군). 캔버스에서 글자를 치면
+       banner02-block.js 의 input/blur 규약이 모델·DOM 양쪽에서 표시를 뗀다. */
+    mutLines(arr => arr.push(window._bn2Lines.normalize({ kind: 'sub', text: '새 줄', size: v.subSize || 16, color: '#000000', gapTop: v.gap2 || 10, placeholder: true })));
     commit();
     // 새로 추가한 줄을 바로 펼쳐준다(전체 보기 중이면 전체 유지).
     showBanner02Properties(block, activeIdx === null ? null : (window._bn2Lines.read(block).length - 1));
