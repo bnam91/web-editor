@@ -2601,6 +2601,15 @@ function bindFrameDropZone(ss) {
       document.addEventListener('pointerup', () => ss.setAttribute('draggable', 'true'), { once: true });
       return;
     }
+    /* ★보조키(⇧/⌘/^)는 «다중선택» 제스처다 — pointerdown 이 손대면 안 된다 (2026-09-21 T-091).
+       아래 갈래가 보조키를 «안 보고» deselectAll() 을 불렀다. deselectAll 은 앵커를 지운다
+       (js/editor.js `_lastClickedBlock = null`) ⇒ 곧이어 뜨는 click 의 rangeSelectBlocks(:2232)
+       가 앵커를 잃고 «단일 선택» 폴백으로 떨어진다.
+       = 글자를 고른 뒤 프레임(그룹)을 ⇧클릭하면 «먼저 고른 것이 풀리고» 패널이 Page 가 됐다.
+       ⚠️같은 요소의 mousedown 갈래(:2278)는 이미 같은 가드를 갖고 있다 — 대칭을 맞춘다.
+       ⚠️자리는 «자식 블록» 갈래 «뒤»다 — 자식 위 ⇧드래그에서 프레임 draggable 을 끄는 일은
+         종전대로 해야 한다(그건 선택과 무관한 드래그 억제다). */
+    if (e.shiftKey || e.metaKey || e.ctrlKey) return;
     // 빈 영역 pointerdown → dragstart 전에 selected 상태 즉시 적용
     if (!ss.classList.contains('selected')) {
       window.deselectAll?.();

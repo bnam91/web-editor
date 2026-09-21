@@ -337,17 +337,20 @@ function _flowSel() {
   return (typeof window !== 'undefined' && window.FLOW_BLOCK_SEL_SELECTED) || null;
 }
 
-// editor.js _isInFreeLayout 역미러: freeLayout 래퍼 밖(=플로우)만 true
-function _isFlowBlock(b) {
-  const wrapper = b.closest('.frame-block[data-text-frame]') ||
-    (b.style.position === 'absolute' ? b : null);
-  return !(wrapper && wrapper.closest('.frame-block[data-free-layout]'));
+/* ★거르개도 정본은 «한 자리» — js/editor.js 의 _isFlowMultiSelUnit (window.isFlowMultiSelUnit).
+   ⛔예전엔 여기 `_isFlowBlock` 이 그것의 «역미러»였다. 목록 사본이 갈려서 난 사고(ⓑ-20)와
+     똑같은 모양이라, 2026-09-21 T-091 에서 프레임 판정이 붙을 때 미러를 없앴다.
+     (프레임은 «조상»으로도 .selected 가 켜지므로 거르개 없이 목록만 늘리면 오검이 된다) */
+function _unitPred() {
+  return (typeof window !== 'undefined' && window.isFlowMultiSelUnit) || null;
 }
 
 function _getSelectedFlowBlocks() {
   const sel = _flowSel();
   if (!sel) return [];   // editor.js 가 아직 안 올라왔다 — 던지지 않는다
-  return [...document.querySelectorAll(sel)].filter(_isFlowBlock); // DOM 순서 보존
+  const pred = _unitPred();
+  if (!pred) return [];  // 거르개도 같은 파일에서 온다 — 없으면 패널만 안 뜬다(던지지 않는다)
+  return [...document.querySelectorAll(sel)].filter(pred); // DOM 순서 보존
 }
 
 export function hasFlowMultiSel() {

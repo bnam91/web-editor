@@ -1044,7 +1044,15 @@ function _updateFreeLayoutMultiSelPanel() {
  *     (sticker=0 을 보고 gradient 도 0 이라 단정) 결론을 세웠다. gradient 는 1 이었다.
  *     ⇒ 형제 패턴으로 훑되 «전수로 세고» 판정은 한 건씩. (검사 ⓑ-20b 가 이걸 못박는다)
  * 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT */
-const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .zoom-block.selected, .chat-block.selected, .speech-bubble-block.selected, .qa-block.selected';
+/* ★2026-09-21 T-091 — «.frame-block.selected» 가 들어온 이유.
+   ⇧클릭의 «단위»는 SIBLING_MULTI_SEL(:1106) 이 정하는데 거긴 '.frame-block' 이 «있다».
+   그래서 「글자 1 + 프레임(그룹) 1」은 실제로 둘 다 골라지는데, 세는 목록엔 프레임이 없어
+   n=1 이 되어 멀티선택 패널이 안 뜨고 직전 deselectAll 이 띄운 «Page» 가 그대로 남았다.
+   = 「둘 다 잡혀도 우측 패널이 Page 라 정렬을 못 쓴다」의 실체. 두 목록이 갈린 것이었다.
+   ⚠️프레임은 «조상»으로도 .selected 가 켜진다(restoreFrameSelectionFor ·
+     _restoreFreeLayoutFrameSelected · selectShapeBlock). 그래서 목록이 아니라 «성질»로 거른다
+     — 아래 _isFlowMultiSelUnit. */
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .zoom-block.selected, .chat-block.selected, .speech-bubble-block.selected, .qa-block.selected, .frame-block.selected';
 
 /* ★사본 금지 — js/props/prop-multisel.js 가 «이 상수»를 읽는다(옛날엔 리터럴을 한 벌 더 갖고
  *   있었고, 둘 다 주석에 「SSOT」라 적혀 있었다. 확대블럭이 한쪽에만 들어가 «2개 선택하면
@@ -1054,8 +1062,24 @@ const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .g
  *     그래서 저쪽은 모듈 최상단이 아니라 «호출 시점»에 읽는다(패널은 사용자 조작 뒤에 뜬다). */
 if (typeof window !== 'undefined') window.FLOW_BLOCK_SEL_SELECTED = FLOW_BLOCK_SEL_SELECTED;
 
+/* ★「이 .selected 가 «여러 개 골랐을 때»의 한 «단위»인가」를 답하는 «한 자리».
+   ⛔여기서 손목록을 늘리지 마라 — 프레임은 성질로 가른다:
+     · 텍스트프레임은 «그릇»이다. 단위는 그 안의 text-block 이다(_selectSibling 규약과 같다).
+     · 안에 골라진 것이 있는 프레임은 «조상»으로 켜진 것이지 사람이 «고른 것»이 아니다.
+   ★사본 금지 — js/props/prop-multisel.js 가 «이 함수»를 읽는다(옛 `_isFlowBlock` 미러는 없앴다).
+     로드 순서상 저쪽이 먼저 올라오므로 저쪽은 «호출 시점»에 window 에서 꺼낸다. */
+function _isFlowMultiSelUnit(el) {
+  if (!el || _isInFreeLayout(el)) return false;
+  if (el.classList.contains('frame-block')) {
+    if (el.dataset.textFrame === 'true') return false;
+    if (el.querySelector('.selected')) return false;
+  }
+  return true;
+}
+if (typeof window !== 'undefined') window.isFlowMultiSelUnit = _isFlowMultiSelUnit;
+
 function _countFlowMultiSel() {
-  return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(b => !_isInFreeLayout(b)).length;
+  return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(_isFlowMultiSelUnit).length;
 }
 
 function _updateMultiSelPanel(block) {
@@ -1994,8 +2018,9 @@ function alignSelectedToParent(dir) {
   const map = { left: 'flex-start', center: 'center', right: 'flex-end' };
   const val = map[dir];
   if (!val) return;
-  // 선택 집합 규약: FLOW_BLOCK_SEL_SELECTED(SSOT) + shape/frame. 각 블록은 부모 섹션이 있어야 대상.
-  const ALIGN_SEL = FLOW_BLOCK_SEL_SELECTED + ', .shape-block.selected, .frame-block.selected';
+  // 선택 집합 규약: FLOW_BLOCK_SEL_SELECTED(SSOT — 프레임 포함) + shape. 각 블록은 부모 섹션이 있어야 대상.
+  // ★.frame-block.selected 는 2026-09-21(T-091)부터 SSOT 안에 있다 — 여기서 또 적으면 사본이다.
+  const ALIGN_SEL = FLOW_BLOCK_SEL_SELECTED + ', .shape-block.selected';
   const blocks = [...document.querySelectorAll(ALIGN_SEL)].filter(b => b.closest('.section-block'));
   if (!blocks.length) return; // 섹션만 선택/무선택 등 대상 없으면 no-op
   blocks.forEach(b => { b.style.alignSelf = val; }); // 선택 상태(.selected)는 그대로 유지
