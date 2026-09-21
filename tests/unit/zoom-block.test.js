@@ -857,7 +857,13 @@ test('ⓐ-27 ★㉒이미지 URL 을 «걸러서» 넣는다 (속성을 깨고 �
    되고(ad39400 이 실물로 겪었다), 반대로 「이 구간엔 X 가 없다」가 남의 X 로 거짓 빨강이 된다. */
 
 test('ⓑ-1 [체크리스트①] js/editor.js deselectAll() 이 .zoom-block 의 .selected 를 푼다', () => {
-  const body = sliceBlock(SRC.editor, 'function deselectAll()');
+  /* ★2026-09-21(T-084): 마커 해제 본문은 deselectAll 이 «부르는» 정본 한 자리
+     clearSelectionMarks 로 옮겼다(selectBlock 도 같은 함수를 쓴다) — 재는 대상은
+     「deselectAll 이 도달하는 코드」이므로 둘을 붙여서 본다. */
+  const des = sliceBlock(SRC.editor, 'function deselectAll()');
+  assert.ok(/clearSelectionMarks\(/.test(des),
+    'deselectAll 이 정본(clearSelectionMarks)을 안 부른다 — 이 검사의 전제가 사라졌다');
+  const body = des + '\n' + sliceBlock(SRC.editor, 'function clearSelectionMarks(');
   assert.ok(body.includes('.zoom-block'), 'deselectAll 안에 .zoom-block 이 없다 = 아웃라인이 안 풀린다');
 });
 

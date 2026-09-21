@@ -18,10 +18,22 @@ function getBlockById(id) {
 function selectBlock(id) {
   const block = getBlockById(id);
   if (!block) return false;
-  // 기존 선택 해제
-  document.querySelectorAll('.selected').forEach((el) => {
-    if (el !== block) el.classList.remove('selected');
-  });
+  /* 기존 선택 해제 = «정본 한 자리»(js/editor.js clearSelectionMarks).
+     ★2026-09-21 T-084: 예전엔 여기서 `.selected` «한 클래스»만 벗겼다. 그런데 캔버스의
+       선택 표시는 두 벌 이상이다 — 배너 줄(.bn2-line-selected) · 그리드 줄/칸 · 스텝 ·
+       라벨 항목(.item-selected) · 표 셀(.cell-selected) · .row-active · 레이어 패널 .active.
+       ⇒ 배너 «줄»을 고른 채 도구막대로 블럭을 넣으면 새 블럭에도 파란 선이 붙고
+         옛 배너 줄의 파란 선이 «그대로 남아» 파란 상자가 둘이 됐다(9542 실측).
+     ⛔여기에 마커 목록을 «또» 적지 마라 — 목록이 둘이 되는 순간 한쪽이 낡는다.
+     ⚠️editor.js 없이 block-edit.js 만 얹는 하네스(tests/dom 일부)가 있어 폴백을 둔다. */
+  window.clearMultiSel?.();
+  if (typeof window.clearSelectionMarks === 'function') {
+    window.clearSelectionMarks();
+  } else {
+    document.querySelectorAll('.selected').forEach((el) => {
+      if (el !== block) el.classList.remove('selected');
+    });
+  }
   block.classList.add('selected');
   /* 우측 패널 = «정본 표 한 자리»(js/panel-dispatch.js).
      ★2026-09-21 T-079: 여기에 9종짜리 «사본»이 있었고 폴백이 `else showTextProperties` 였다.
@@ -30,6 +42,11 @@ function selectBlock(id) {
        = 「저장했는데 다시 열면 원래 크기」. 표에 없는 타입은 이제 «안 연다»(엉뚱한 패널보다 덜 틀리다).
      ⚠️여기서 핸들은 붙이지 않는다 — 예전 동작 그대로(붙이는 자리는 클릭·레이어·복원 경로다). */
   window.openPanelForBlock?.(block);
+  /* 좌측 레이어 패널의 «지금 이것» 표시도 같은 자리에서 — 클릭 경로(js/block-drag.js)와 «같은» 호출.
+     ★블록 이름 목록이 필요 없다: 연결은 buildLayerPanel 이 심어 둔 block._layerItem «성질»이다.
+       빠져 있으면 도구막대로 넣은 블럭이 레이어 목록에서 강조되지 않아
+       「지금 무엇을 고치는 중인지」가 왼쪽에서도 안 보였다(T-084 실측). */
+  window.highlightBlock?.(block, block._layerItem);
   return true;
 }
 
