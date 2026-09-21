@@ -152,7 +152,7 @@ export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHex
           <div class="prop-color-swatch${_swatchExtraClass}" style="background:${_colorSwatchBg}" title="${_mix.color.mixed?'Mix — 일부 선택 후 색상 변경':''}">
             <input type="color" id="${p}-color" value="${colorHex}">
           </div>
-          <input type="text" class="prop-color-hex" id="${p}-color-hex" value="${_colorHexVal}" placeholder="${_colorHexPh}" maxlength="6" aria-label="Color">
+          <input type="text" class="prop-color-hex" id="${p}-color-hex" value="${_colorHexVal}" placeholder="${_colorHexPh}" maxlength="7" aria-label="Color">
           <label class="prop-color-alpha" title="Opacity">
             <input type="text" class="prop-color-alpha-input" id="${p}-color-alpha" value="${alpha}" aria-label="Opacity">
             <span class="prop-color-alpha-suffix">%</span>

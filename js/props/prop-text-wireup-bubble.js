@@ -1,6 +1,7 @@
 /* prop-text-wireup-bubble.js
  * speech-bubble 블록 전용 이벤트 wireup (스타일 / 말꼬리 / 배경 / 발신자)
  */
+import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 
 export function wireBubbleSection({ tb, ctx, currentBubbleStyle }) {
   // 말꼬리 방향 — contentEl은 ctx 통해 동적 조회 (R1: type 토글 후 교체 대비)
@@ -58,18 +59,18 @@ export function wireBubbleSection({ tb, ctx, currentBubbleStyle }) {
   const bubbleBgHexInput = document.getElementById('bubble-bg-hex');
   bubbleBgPicker?.addEventListener('input', e => {
     const hex = e.target.value;
-    bubbleBgHexInput.value = hex;
+    bubbleBgHexInput.value = formatHex6(hex);
     _applyBubbleBg(hex);
   });
   bubbleBgPicker?.addEventListener('change', () => window.pushHistory?.());
-  bubbleBgHexInput?.addEventListener('input', e => {
-    const hex = e.target.value;
-    if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
-      bubbleBgPicker.value = hex;
-      _applyBubbleBg(hex);
-    }
+  /* 색 코드 칸 — 공용 배선(wireHexText). 무효값은 표시되고 blur 하면 되돌아간다. */
+  wireHexText(bubbleBgHexInput, {
+    parse: parseHex6,
+    format: formatHex6,
+    getCurrent: () => bubbleBgPicker?.value || '#ffffff',
+    onApply: (v) => { if (bubbleBgPicker) bubbleBgPicker.value = v; _applyBubbleBg(v); },
+    onCommit: () => window.pushHistory?.(),
   });
-  bubbleBgHexInput?.addEventListener('change', () => window.pushHistory?.());
 
   // 발신자 이름 토글
   document.getElementById('bubble-show-sender')?.addEventListener('change', e => {

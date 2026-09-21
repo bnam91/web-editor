@@ -6,6 +6,7 @@
  * - 5개 shape preset (pill / box / outline / circle / text)
  */
 import { markLabelAutoColor, forgetLabelAutoColor } from './label-auto-color.js';
+import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 
 export function wireLabelSection({ ctx }) {
   /* 태그 배경색 */
@@ -21,22 +22,34 @@ export function wireLabelSection({ ctx }) {
       ctx.contentEl.style.borderRadius = isNone ? '0' : (ctx.contentEl.style.borderRadius || '');
       labelBgSwatch.style.background = isNone ? 'transparent' : val;
       labelBgSwatch.classList.toggle('swatch-none', isNone);
-      if (!isNone) { labelBgHex.value = val; labelBgPicker.value = val; }
+      if (!isNone) { labelBgHex.value = formatHex6(val); labelBgPicker.value = val; }
     };
     labelBgPicker.addEventListener('input', () => {
       if (labelBgNone.checked) return;
       setLabelBg(labelBgPicker.value);
-      labelBgHex.value = labelBgPicker.value;
+      labelBgHex.value = formatHex6(labelBgPicker.value);
     });
-    labelBgHex.addEventListener('input', () => {
-      if (/^#[0-9a-f]{6}$/i.test(labelBgHex.value)) { setLabelBg(labelBgHex.value); labelBgNone.checked = false; }
+    /* 색 코드 칸 — 배선은 color-picker.js 의 wireHexText 한 자리(2026-09-20 유닛 colorhex).
+       이 칸의 «문법»은 「빈 값 = 없음(transparent)」 + 6자리 hex 다 — 체크박스와 같은 상태를 글자로도 쓸 수 있다.
+       예전엔 무효값이 말없이 무시되고 blur 복원도 없었다. */
+    wireHexText(labelBgHex, {
+      parse: (raw) => (String(raw ?? '').trim() === '' ? '' : parseHex6(raw)),
+      format: (v) => (v ? formatHex6(v) : ''),
+      getCurrent: () => (labelBgNone.checked ? '' : (labelBgPicker.value || '#111111')),
+      onApply: (v) => {
+        if (v === '') { setLabelBg('transparent'); labelBgNone.checked = true; return; }
+        const keep = labelBgHex.value;
+        setLabelBg(v); labelBgNone.checked = false;
+        labelBgHex.value = keep;          // 타이핑 중인 글자를 덮어쓰지 않는다
+      },
+      onCommit: () => window.pushHistory?.(),
     });
     labelBgNone.addEventListener('change', () => {
       if (labelBgNone.checked) { setLabelBg('transparent'); labelBgHex.value = ''; }
       else {
         ctx.contentEl.style.padding = '';
         const v = labelBgPicker.value || '#111111';
-        setLabelBg(v); labelBgHex.value = v;
+        setLabelBg(v); labelBgHex.value = formatHex6(v);
       }
     });
   }

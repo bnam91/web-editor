@@ -12,6 +12,7 @@
 
 import { propPanel } from '../globals.js';
 import { bindSlider } from './_helpers.js';
+import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 
 const DIRS = [
   { v: 'to bottom',       label: '↓ 위→아래' },
@@ -281,7 +282,7 @@ export function showGradientProperties(block) {
         <div class="prop-color-swatch" style="background:${s.color};position:relative;width:24px;height:24px;border-radius:4px;overflow:hidden;">
           <input type="color" class="grad-stop-color" value="${s.color}" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
         </div>
-        <input type="text" class="prop-color-hex grad-stop-hex" maxlength="6" value="${s.color.replace('#','').toUpperCase()}" style="flex:1;" aria-label="stop ${i+1} 색">
+        <input type="text" class="prop-color-hex grad-stop-hex" maxlength="7" value="${s.color.replace('#','').toUpperCase()}" style="flex:1;" aria-label="stop ${i+1} 색">
         <input type="text" class="grad-stop-alpha" value="${Math.round(s.alpha*100)}" style="width:34px;text-align:right;" aria-label="stop ${i+1} opacity">%
         <input type="number" class="grad-stop-offset" min="0" max="100" value="${Math.round(s.offset*100)}" style="width:48px;" aria-label="stop ${i+1} 위치">%
         <button type="button" class="grad-stop-del" title="삭제" ${stops.length<=2?'disabled':''} style="border:none;background:none;color:${stops.length<=2?'#555':'#c66'};cursor:${stops.length<=2?'default':'pointer'};font-size:14px;">×</button>
@@ -297,8 +298,15 @@ export function showGradientProperties(block) {
       const mutate = (fn, commit) => { const arr = STOP(); const k = _modelIdxFor(i, row); if (!arr[k]) return; fn(arr[k]); setStops(arr, commit); };
       colorIn.addEventListener('input',  () => mutate(s => s.color = colorIn.value, false));
       colorIn.addEventListener('change', () => mutate(s => s.color = colorIn.value, true));
-      hexIn.addEventListener('input',  () => { const h=_hex6(hexIn.value); if (h) mutate(s=>s.color=h, false); });
-      hexIn.addEventListener('change', () => { const h=_hex6(hexIn.value); if (h) mutate(s=>s.color=h, true); });
+      /* 색 코드 칸 — 공용 배선(wireHexText). 옛 사본은 무효값을 말없이 삼키고 blur 복원이 없어
+         「칸엔 쓴 값 · 모델은 그대로」가 남았다 — 바로 위 숫자칸들이 0920b 에서 고친 것과 같은 병. */
+      wireHexText(hexIn, {
+        parse: parseHex6,
+        format: formatHex6,
+        getCurrent: () => colorIn.value || '#000000',
+        onApply: (h) => { colorIn.value = h; mutate(s => s.color = h, false); },
+        onCommit: (h) => mutate(s => s.color = h, true),
+      });
       /* ★0920b grad-alpha A — 커밋 시점은 prop-number-commit-guard 가 blur/Enter 로 일원화한다
          (PN_SEL 에 .grad-stop-alpha/.grad-stop-offset 편입). 여기서는 «파서»를 고친다:
            옛 알파 파서 `/\d+/` 는 "100" 캐럿 중간 Backspace 의 결과 "00" 을 «유효값 0» 으로 봤고,

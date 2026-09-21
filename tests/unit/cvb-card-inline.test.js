@@ -90,7 +90,16 @@ before(async () => {
   );
   const propUrl = stubCopy(
     'js/props/prop-simple-card.js',
-    [["import { propPanel } from '../globals.js';", 'const propPanel = null;']],
+    [
+      ["import { propPanel } from '../globals.js';", 'const propPanel = null;'],
+      /* 2026-09-20 유닛 colorhex — 색 코드 칸의 배선이 color-picker.js 한 자리로 모였다.
+         이 테스트는 «카드 접기/인라인 편집»만 본다(패널을 그리지 않는다) → 색 배선은 no-op 더블로 끊는다.
+         ⛔여기에 진짜 파싱 규칙을 «베껴» 넣지 마라 — 그러면 검사가 자기 사본을 재게 된다.
+            색 규칙 자체는 tests/dom/color-hex-field.dom.spec.js 가 실물로 잰다. */
+      ["import { wireHexText, parseHex6, formatHex6, parseHex6OrTransparent, formatHex6OrTransparent, isCssBackgroundValue } from './color-picker.js';",
+       'const wireHexText = () => null; const parseHex6 = () => null; const formatHex6 = (v) => String(v ?? ""); '
+       + 'const parseHex6OrTransparent = () => null; const formatHex6OrTransparent = (v) => String(v ?? ""); const isCssBackgroundValue = () => false;'],
+    ],
     'cvb-prop-simple-card'
   );
   // 모듈 top-level 에서 window/document 를 만지는 줄이 있으므로 최소 전역만 깔아 둔다.

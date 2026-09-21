@@ -1,6 +1,9 @@
 // prop-simple-card.js
 // prop-canvas.js에서 분리: 심플 카드 블록 프로퍼티 패널 (showSimpleCardProperties + _escHtml)
 import { propPanel } from '../globals.js';
+/* 색 코드 칸의 배선은 «한 자리»에서 온다 — 이 파일 안에만 손복사본이 여섯 벌 있었다
+   (input/blur 가 아예 없어 무효값이 영원히 남던 사본 포함). 2026-09-20 유닛 colorhex. */
+import { wireHexText, parseHex6, formatHex6, parseHex6OrTransparent, formatHex6OrTransparent, isCssBackgroundValue } from './color-picker.js';
 
 // ② 카드 텍스트 입력칸 펼침 상태 — 블록별 «펼친 카드 인덱스» 집합.
 //   ★캔버스에서 더블클릭으로 바로 고칠 수 있게 됐으니(canvas-block.js _bindCvbDblEdit) 우측
@@ -9,6 +12,10 @@ import { propPanel } from '../globals.js';
 //     그 순간 이 입력칸이 «유일한» 복구 수단이다(그래서 아래 _isEmpty 카드는 자동으로 펼친다).
 //   ★디스크에 안 남긴다(순수 UI 상태). 패널이 통째로 재생성돼도(updateCanvasBlock →
 //     showSimpleCardProperties) 블록별로 «기억»된다 — prop-banner02.js:9 _bn2ExpandedLines 와 같은 방식.
+/* 색칸 표기의 «한 규약» — 6자리 hex 면 「# 없는 대문자 6자」(전 패널 다수결), 그 밖(rgba·gradient·
+   transparent 등 이 패널이 실제로 담는 값)은 원문 그대로. ⛔무턱대고 '#' 만 떼면 gradient 가 깨진다. */
+const _hexBox = (v) => (/^#[0-9a-fA-F]{6}$/.test(String(v || '')) ? formatHex6(v) : String(v ?? ''));
+
 const _cvbExpandedCards = new WeakMap();
 function _cvbExpanded(block) {
   if (!_cvbExpandedCards.has(block)) _cvbExpandedCards.set(block, new Set());
@@ -347,14 +354,14 @@ function showSimpleCardProperties(block, expandCardArg) {
         <div class="prop-color-swatch" id="cvb-text-bg-swatch" style="background:${(block.dataset.textBg || 'transparent').replace(/"/g, '&quot;')}" title="클릭해서 단색 선택">
           <input type="color" id="cvb-text-bg-pick" value="${/^#[0-9a-fA-F]{6}$/.test(block.dataset.textBg || '') ? block.dataset.textBg : '#222222'}">
         </div>
-        <input type="text" class="prop-color-hex" id="cvb-text-bg-raw" value="${(block.dataset.textBg || '').replace(/"/g, '&quot;')}" placeholder="hex / rgba / linear-gradient(...)" title="${(block.dataset.textBg || '').replace(/"/g, '&quot;')}">
+        <input type="text" class="prop-color-hex" id="cvb-text-bg-raw" value="${_hexBox(block.dataset.textBg || '').replace(/"/g, '&quot;')}" placeholder="hex / rgba / linear-gradient(...)" title="${(block.dataset.textBg || '').replace(/"/g, '&quot;')}">
       </div>
       <div class="prop-color-row" title="상단 라벨(위쪽 라벨)만 별도 배경색. 비우면 '라벨 배경'을 그대로 사용.">
         <span class="prop-label">상단 라벨 배경</span>
         <div class="prop-color-swatch" id="cvb-text-bg-top-swatch" style="background:${(block.dataset.textBgTop || 'transparent').replace(/"/g, '&quot;')}">
           <input type="color" id="cvb-text-bg-top-pick" value="${/^#[0-9a-fA-F]{6}$/.test(block.dataset.textBgTop || '') ? block.dataset.textBgTop : '#ffffff'}">
         </div>
-        <input type="text" class="prop-color-hex" id="cvb-text-bg-top-raw" value="${(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}" placeholder="비우면 상속" title="${(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}">
+        <input type="text" class="prop-color-hex" id="cvb-text-bg-top-raw" value="${_hexBox(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}" placeholder="비우면 상속" title="${(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}">
         <button class="prop-align-btn prop-align-btn--aux" id="cvb-text-bg-top-clear" title="해제(상속)">✕</button>
       </div>
       <div class="prop-row" style="padding-left:60px;gap:4px;">
@@ -394,14 +401,14 @@ function showSimpleCardProperties(block, expandCardArg) {
         <div class="prop-color-swatch" style="background:${iconColor}">
           <input type="color" id="cvb-icon-color-pick" value="${iconColor}">
         </div>
-        <input type="text" class="prop-color-hex" id="cvb-icon-color-hex" value="${iconColor}" maxlength="7">
+        <input type="text" class="prop-color-hex" id="cvb-icon-color-hex" value="${_hexBox(iconColor)}" maxlength="7" aria-label="Color">
       </div>
       <div class="prop-color-row">
         <span class="prop-label">아이콘 배경</span>
         <div class="prop-color-swatch" style="background:${isIconBgTransparent ? 'transparent' : iconBg}; ${isIconBgTransparent ? 'background-image:repeating-conic-gradient(#888 0% 25%,#555 0% 50%);background-size:8px 8px;' : ''}">
           <input type="color" id="cvb-iconbg-pick" value="${iconBg}" ${isIconBgTransparent ? 'disabled' : ''}>
         </div>
-        <input type="text" class="prop-color-hex" id="cvb-iconbg-hex" value="${isIconBgTransparent ? 'transparent' : iconBg}" maxlength="11" ${isIconBgTransparent ? 'disabled' : ''}>
+        <input type="text" class="prop-color-hex" id="cvb-iconbg-hex" value="${isIconBgTransparent ? 'transparent' : _hexBox(iconBg)}" maxlength="11" aria-label="Color" ${isIconBgTransparent ? 'disabled' : ''}>
         <button class="prop-align-btn prop-align-btn--aux${isIconBgTransparent ? ' active' : ''}" id="cvb-iconbg-transparent-btn">투명</button>
       </div>
     </div>` : ''}
@@ -414,7 +421,7 @@ function showSimpleCardProperties(block, expandCardArg) {
         <div class="prop-color-swatch" style="background:${isTextBgTransparent ? 'transparent' : textBg}; ${isTextBgTransparent ? 'background-image:repeating-conic-gradient(#888 0% 25%,#555 0% 50%);background-size:8px 8px;' : ''}">
           <input type="color" id="cvb-textbg-pick" value="${textBg}" ${isTextBgTransparent ? 'disabled' : ''}>
         </div>
-        <input type="text" class="prop-color-hex" id="cvb-textbg-hex" value="${isTextBgTransparent ? 'transparent' : textBg}" maxlength="11" ${isTextBgTransparent ? 'disabled' : ''}>
+        <input type="text" class="prop-color-hex" id="cvb-textbg-hex" value="${isTextBgTransparent ? 'transparent' : _hexBox(textBg)}" maxlength="11" aria-label="Color" ${isTextBgTransparent ? 'disabled' : ''}>
         <button class="prop-align-btn prop-align-btn--aux${isTextBgTransparent ? ' active' : ''}" id="cvb-textbg-transparent-btn">투명</button>
       </div>
       <div class="prop-color-row">
@@ -422,14 +429,14 @@ function showSimpleCardProperties(block, expandCardArg) {
         <div class="prop-color-swatch" style="background:${titleColor}">
           <input type="color" id="cvb-title-color-pick" value="${titleColor.startsWith('rgba') ? '#ffffff' : titleColor}">
         </div>
-        <input type="text" class="prop-color-hex" id="cvb-title-color-hex" value="${titleColor}" maxlength="7">
+        <input type="text" class="prop-color-hex" id="cvb-title-color-hex" value="${_hexBox(titleColor)}" maxlength="7" aria-label="Color">
       </div>
       <div class="prop-color-row">
         <span class="prop-label">설명 색</span>
         <div class="prop-color-swatch" style="background:${descColor}">
           <input type="color" id="cvb-desc-color-pick" value="${descColor}">
         </div>
-        <input type="text" class="prop-color-hex" id="cvb-desc-color-hex" value="${descColor}" maxlength="7">
+        <input type="text" class="prop-color-hex" id="cvb-desc-color-hex" value="${_hexBox(descColor)}" maxlength="7" aria-label="Color">
       </div>
       <div class="prop-row">
         <span class="prop-label">제목 크기</span>
@@ -662,7 +669,7 @@ function showSimpleCardProperties(block, expandCardArg) {
     const c1raw = document.getElementById('cvb-text-bg-raw');
     const c1sw  = document.getElementById('cvb-text-bg-swatch');
     const c1pk  = document.getElementById('cvb-text-bg-pick');
-    if (c1raw) { c1raw.value = isT ? '' : v; c1raw.title = v; }
+    if (c1raw) { c1raw.value = isT ? '' : _hexBox(v); c1raw.title = v; }
     if (c1sw)  c1sw.style.background = isT ? 'transparent' : (v || 'transparent');
     if (c1pk && isHex6) c1pk.value = v;
     // cluster2 (Text Area 일괄)
@@ -678,21 +685,34 @@ function showSimpleCardProperties(block, expandCardArg) {
       if (c2sw) { c2sw.style.background = ''; c2sw.style.backgroundImage = 'repeating-conic-gradient(#888 0% 25%,#555 0% 50%)'; c2sw.style.backgroundSize = '8px 8px'; }
     } else {
       if (c2sw) { c2sw.style.backgroundImage = ''; c2sw.style.background = v || '#f5f5f5'; }
-      if (isHex6) { if (c2pk) c2pk.value = v; if (c2hx) c2hx.value = v; }
+      if (isHex6) { if (c2pk) c2pk.value = v; if (c2hx) c2hx.value = _hexBox(v); }
       else if (c2hx && v.length <= 11) c2hx.value = v; // 그라데이션 등 긴 값은 스와치만 반영(hex 필드 미변경)
     }
   }
+  /* ★자유형식 칸의 «문법» — 빈 값(=해제)이거나, sanitize 를 통과하고 «브라우저가 실제로 읽는»
+     배경값이어야 한다. 예전엔 XSS 문자만 걸렀을 뿐 「유효한 색인가」는 아무도 안 봐서
+     쓰레기 문자열이 그대로 background 에 박혔다(= 다른 칸들과 같은 병, 다른 문법). */
+  const parseRawBg = (raw) => {
+    const t = String(raw ?? '').trim();
+    if (!t) return '';
+    // ★옆 칸(cvb-textbg-hex)과 «같은 값»을 담는 칸이다 — 거기서 쓰는 「# 없는 6자」도 여기서 통해야
+    //   한 패널 안에서 두 규칙을 외우지 않는다. 그 밖은 자유 CSS 그대로.
+    const asHex = parseHex6(t);
+    if (asHex) return asHex;
+    const v = sanitizeCss(t);
+    if (!v) return null;
+    return isCssBackgroundValue(v) ? v : null;
+  };
   if (textBgRaw) {
-    // 실시간 preview (input 이벤트) — swatch만 갱신 (render는 change에서)
-    textBgRaw.addEventListener('input', () => syncSwatch(sanitizeCss(textBgRaw.value.trim())));
-    textBgRaw.addEventListener('change', () => {
-      const raw = textBgRaw.value.trim();
-      const v = sanitizeCss(raw);
-      if (raw && !v) {
-        textBgRaw.value = '';
-        syncSwatch('');
-        return;
-      }
+    // 실시간 preview + 무효 표시 + blur 복원 — 배선은 공용 wireHexText 한 자리.
+    wireHexText(textBgRaw, {
+      parse: parseRawBg,
+      format: (v) => _hexBox(v),
+      getCurrent: () => (block.dataset.textBg === 'transparent' ? '' : (block.dataset.textBg || '')),
+      onApply: (v) => syncSwatch(v),
+      onCommit: (v) => commitRawBg(v || ''),
+    });
+    function commitRawBg(v) {
       if (v) block.dataset.textBg = v;
       else delete block.dataset.textBg;
       syncSwatch(v);
@@ -717,14 +737,14 @@ function showSimpleCardProperties(block, expandCardArg) {
       window.renderCanvas(block);
       window.pushHistory?.('라벨 배경');
       window.scheduleAutoSave?.();
-    });
+    }
   }
   // swatch 컬러 picker — 단색만 선택. 그라데이션 입력 상태에서 picker로 단색 선택 시 raw input도 hex로 동기화
   if (textBgPick2) {
     textBgPick2.addEventListener('input', () => {
       const v = textBgPick2.value;
       block.dataset.textBg = v;
-      if (textBgRaw) { textBgRaw.value = v; textBgRaw.title = v; }
+      if (textBgRaw) { textBgRaw.value = _hexBox(v); textBgRaw.title = v; }
       syncSwatch(v);
       syncTextBgUI();
       // 단색 hex 선택 → 그라데이션 아님, 슬라이더 행 숨김
@@ -742,16 +762,17 @@ function showSimpleCardProperties(block, expandCardArg) {
   const setTopBg = (v, push) => {
     if (v) block.dataset.textBgTop = v; else delete block.dataset.textBgTop;
     if (topSwatch) topSwatch.style.background = v || 'transparent';
-    if (topRaw) { topRaw.value = v || ''; topRaw.title = v || ''; }
+    if (topRaw) { topRaw.value = _hexBox(v || ''); topRaw.title = v || ''; }
     window.renderCanvas(block);
     if (push) { window.pushHistory?.('상단 라벨 배경'); window.scheduleAutoSave?.(); }
   };
   if (topRaw) {
-    topRaw.addEventListener('input', () => { if (topSwatch) topSwatch.style.background = sanitizeCss(topRaw.value.trim()) || 'transparent'; });
-    topRaw.addEventListener('change', () => {
-      const v = sanitizeCss(topRaw.value.trim());
-      if (topRaw.value.trim() && !v) { topRaw.value = ''; }
-      setTopBg(v, true);
+    wireHexText(topRaw, {
+      parse: parseRawBg,
+      format: (v) => _hexBox(v),
+      getCurrent: () => block.dataset.textBgTop || '',
+      onApply: (v) => { if (topSwatch) topSwatch.style.background = v || 'transparent'; },
+      onCommit: (v) => setTopBg(v, true),
     });
   }
   if (topPick) {
@@ -895,15 +916,24 @@ function showSimpleCardProperties(block, expandCardArg) {
     const icPick = document.getElementById('cvb-icon-color-pick');
     const icHex  = document.getElementById('cvb-icon-color-hex');
     const icSwatch = icPick.closest('.prop-color-swatch');
-    const applyIconColor = v => {
+    const applyIconColor = (v, { echoHex = true } = {}) => {
       block.dataset.iconColor = v;
       window.renderCanvas(block);
-      icPick.value = v; icHex.value = v;
+      icPick.value = v;
+      if (echoHex) icHex.value = _hexBox(v);
       if (icSwatch) icSwatch.style.background = v;
     };
     icPick.addEventListener('input',  () => applyIconColor(icPick.value));
     icPick.addEventListener('change', () => window.pushHistory?.());
-    icHex.addEventListener('change',  () => { const v = icHex.value.trim(); if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyIconColor(v); window.pushHistory?.(); } });
+    /* ★이 칸엔 input 도 blur 도 «없었다» — 타이핑 중 미리보기가 없고, 무효값은 영원히 칸에 남았다.
+       배선을 공용 wireHexText 로 옮기면 (실시간 적용 · 무효 표시 · blur 복원)이 한꺼번에 붙는다. */
+    wireHexText(icHex, {
+      parse: parseHex6,
+      format: formatHex6,
+      getCurrent: () => block.dataset.iconColor || icPick.value || '#333333',
+      onApply: (v) => applyIconColor(v, { echoHex: false }),
+      onCommit: () => window.pushHistory?.(),
+    });
 
     const ibPick = document.getElementById('cvb-iconbg-pick');
     const ibHex  = document.getElementById('cvb-iconbg-hex');
@@ -913,7 +943,7 @@ function showSimpleCardProperties(block, expandCardArg) {
       block.dataset.iconBgLast = v;
       block.dataset.iconBg = v;
       window.renderCanvas(block);
-      ibPick.value = v; ibHex.value = v;
+      ibPick.value = v; ibHex.value = _hexBox(v);
       if (ibSwatch) { ibSwatch.style.backgroundImage = ''; ibSwatch.style.background = v; }
     };
     ibTransBtn.addEventListener('click', () => {
@@ -925,11 +955,31 @@ function showSimpleCardProperties(block, expandCardArg) {
       ibTransBtn.classList.toggle('active', on);
       ibPick.disabled = on; ibHex.disabled = on;
       if (on) { ibHex.value = 'transparent'; ibSwatch.style.background = ''; ibSwatch.style.backgroundImage = 'repeating-conic-gradient(#888 0% 25%,#555 0% 50%)'; ibSwatch.style.backgroundSize = '8px 8px'; }
-      else { const v = block.dataset.iconBgLast || '#eeeeee'; ibHex.value = v; ibPick.value = v; ibSwatch.style.backgroundImage = ''; ibSwatch.style.background = v; }
+      else { const v = block.dataset.iconBgLast || '#eeeeee'; ibHex.value = _hexBox(v); ibPick.value = v; ibSwatch.style.backgroundImage = ''; ibSwatch.style.background = v; }
     });
     ibPick.addEventListener('input',  () => applyIconBg(ibPick.value));
     ibPick.addEventListener('change', () => window.pushHistory?.());
-    ibHex.addEventListener('change',  () => { const v = ibHex.value.trim(); if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyIconBg(v); window.pushHistory?.(); } });
+    /* 이 칸의 «문법»에는 `transparent` 도 들어 있다(버튼과 같은 상태를 글자로도 쓸 수 있다).
+       그래서 parse 를 갈아끼운다 — 공유하는 건 배선이지 문법이 아니다. */
+    wireHexText(ibHex, {
+      parse: parseHex6OrTransparent,
+      format: formatHex6OrTransparent,
+      getCurrent: () => block.dataset.iconBg || ibPick.value || '#eeeeee',
+      onApply: (v) => {
+        if (v === 'transparent') {
+          block.dataset.iconBg = 'transparent';
+          window.renderCanvas(block);
+          ibTransBtn.classList.add('active');
+          if (ibSwatch) { ibSwatch.style.background = ''; ibSwatch.style.backgroundImage = 'repeating-conic-gradient(#888 0% 25%,#555 0% 50%)'; ibSwatch.style.backgroundSize = '8px 8px'; }
+          return;
+        }
+        ibTransBtn.classList.remove('active');
+        const keep = ibHex.value;
+        applyIconBg(v);
+        ibHex.value = keep;               // 타이핑 중인 글자를 덮어쓰지 않는다(커서가 튄다)
+      },
+      onCommit: () => window.pushHistory?.(),
+    });
   }
 
   // ── 텍스트 영역 숨김 토글 (구 버튼 — label-mode-group의 'hide'로 이관됨. legacy 호환 유지) ──
@@ -964,7 +1014,7 @@ function showSimpleCardProperties(block, expandCardArg) {
       textBgPickSwatch.style.backgroundSize = '8px 8px';
     } else {
       const v = block.dataset.textBgLast || '#f5f5f5';
-      textBgHex.value = v;
+      textBgHex.value = _hexBox(v);
       textBgPick.value = v;
       textBgPickSwatch.style.backgroundImage = '';
       textBgPickSwatch.style.background = v;
@@ -976,7 +1026,7 @@ function showSimpleCardProperties(block, expandCardArg) {
     block.dataset.textBg = v;
     window.renderCanvas(block);
     textBgPick.value = v;
-    textBgHex.value  = v;
+    textBgHex.value  = _hexBox(v);
     if (textBgPickSwatch) textBgPickSwatch.style.background = v;
     syncTextBgUI();
     // 단색 배경 선택 → 그라데이션 슬라이더 행 숨김 (그라데이션 상태 해제)
@@ -1017,9 +1067,17 @@ function showSimpleCardProperties(block, expandCardArg) {
 
   textBgPick.addEventListener('input',  () => applyTextBg(textBgPick.value));
   textBgPick.addEventListener('change', () => window.pushHistory?.());
-  textBgHex.addEventListener('change',  () => {
-    const v = textBgHex.value.trim();
-    if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyTextBg(v); window.pushHistory?.(); }
+  wireHexText(textBgHex, {
+    parse: parseHex6OrTransparent,
+    format: formatHex6OrTransparent,
+    getCurrent: () => block.dataset.textBg || textBgPick.value || '#f5f5f5',
+    onApply: (v) => {
+      if (v === 'transparent') { block.dataset.textBg = 'transparent'; window.renderCanvas(block); setTextBgTransparentUI(true); return; }
+      const keep = textBgHex.value;
+      applyTextBg(v);
+      textBgHex.value = keep;
+    },
+    onCommit: () => window.pushHistory?.(),
   });
 
   // ── 제목/설명 텍스트 색상 ─────────────────────────────────────────────────────
@@ -1034,14 +1092,17 @@ function showSimpleCardProperties(block, expandCardArg) {
       if (datasetKey === 'descColor')  delete block.dataset.descColorLast;
       window.renderCanvas(block);
       pick.value = v;
-      hex.value  = v;
+      hex.value  = _hexBox(v);
       if (swatch) swatch.style.background = v;
     };
     pick.addEventListener('input',  () => apply(pick.value));
     pick.addEventListener('change', () => window.pushHistory?.());
-    hex.addEventListener('change',  () => {
-      const v = hex.value.trim();
-      if (/^#[0-9a-fA-F]{6}$/.test(v)) { apply(v); window.pushHistory?.(); }
+    wireHexText(hex, {
+      parse: parseHex6,
+      format: formatHex6,
+      getCurrent: () => block.dataset[datasetKey] || pick.value || '#ffffff',
+      onApply: (v) => { const keep = hex.value; apply(v); hex.value = keep; },
+      onCommit: () => window.pushHistory?.(),
     });
   };
   bindTextColor('cvb-title-color-pick', 'cvb-title-color-hex', 'titleColor');

@@ -27,6 +27,10 @@ const SRC = {
   '/js/props/_helpers.js': fs.readFileSync(path.join(REPO, 'js/props/_helpers.js'), 'utf8'),
   '/js/props/prop-gradient.js': fs.readFileSync(path.join(REPO, 'js/props/prop-gradient.js'), 'utf8'),
   '/js/props/prop-number-commit-guard.js': fs.readFileSync(path.join(REPO, 'js/props/prop-number-commit-guard.js'), 'utf8'),
+  /* 2026-09-20 유닛 colorhex — 스톱 hex 칸의 배선이 color-picker.js 의 공용 wireHexText 로 옮겨갔다.
+     화이트리스트가 이 둘을 빠뜨리면 import 가 404 로 죽고 __ready 가 «영영 안 선다»(테스트는 타임아웃). */
+  '/js/props/color-picker.js': fs.readFileSync(path.join(REPO, 'js/props/color-picker.js'), 'utf8'),
+  '/js/props/gradient-model.js': fs.readFileSync(path.join(REPO, 'js/props/gradient-model.js'), 'utf8'),
 };
 
 const HTML = `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}</style>

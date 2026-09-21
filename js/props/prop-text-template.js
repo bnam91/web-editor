@@ -161,7 +161,7 @@ export function buildTextPropsHtml(state) {
             <div class="prop-color-swatch" style="background:${_shSwatchBg}">
               <input type="color" id="txt-shadow-color" value="${_shHexLow}">
             </div>
-            <input type="text" class="prop-color-hex" id="txt-shadow-color-hex" value="${_shHex}" maxlength="6" aria-label="Shadow color">
+            <input type="text" class="prop-color-hex" id="txt-shadow-color-hex" value="${_shHex}" maxlength="7" aria-label="Shadow color">
             <label class="prop-color-alpha" title="Opacity">
               <input type="text" class="prop-color-alpha-input" id="txt-shadow-color-alpha" value="${_sh.alpha}" aria-label="Shadow opacity">
               <span class="prop-color-alpha-suffix">%</span>
@@ -229,7 +229,7 @@ export function buildTextPropsHtml(state) {
           <div class="prop-color-swatch${currentBgColor==='transparent'?' swatch-none':''}" style="background:${currentBgColor==='transparent'?'transparent':currentBgColor}">
             <input type="color" id="label-bg-color" value="${currentBgColor==='transparent'?'#111111':currentBgColor}">
           </div>
-          <input type="text" class="prop-color-hex" id="label-bg-hex" value="${currentBgColor==='transparent'?'':currentBgColor}" maxlength="7" placeholder="없음">
+          <input type="text" class="prop-color-hex" id="label-bg-hex" value="${currentBgColor==='transparent'?'':currentBgColor.replace('#','').toUpperCase()}" maxlength="7" placeholder="없음" aria-label="Color">
           <label class="prop-none-check"><input type="checkbox" id="label-bg-none" ${currentBgColor==='transparent'?'checked':''}>없음</label>
         </div>
         <div class="prop-row">
@@ -269,7 +269,7 @@ export function buildTextPropsHtml(state) {
           <div class="prop-color-swatch" style="background:${bubbleBgHex}">
             <input type="color" id="bubble-bg-color" value="${bubbleBgHex}">
           </div>
-          <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="${bubbleBgHex}" maxlength="7">
+          <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="${bubbleBgHex.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
         </div>
         <div class="prop-row">
           <span class="prop-label">발신자 이름</span>

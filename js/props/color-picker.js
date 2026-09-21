@@ -152,7 +152,7 @@ function _ensurePopover() {
             </button>
           </div>
           <div class="goya-cp-hex-field">
-            <input type="text" class="goya-cp-hex" data-el="hex" maxlength="6" value="000000" aria-label="Color">
+            <input type="text" class="goya-cp-hex" data-el="hex" maxlength="7" value="000000" aria-label="Color">
           </div>
           <label class="goya-cp-opacity-field" title="Opacity">
             <input type="text" class="goya-cp-alpha-input" data-el="alphaVal" value="100" aria-label="Opacity">
@@ -185,7 +185,7 @@ function _ensurePopover() {
 
       <div class="goya-cp-grad-stop-editor" data-el="gradStopEditor">
         <input type="color" data-el="gradStopColor" value="#ff5e3a" aria-label="스톱 색">
-        <input type="text" class="goya-cp-hex" data-el="gradStopHex" maxlength="6" value="FF5E3A" aria-label="스톱 hex">
+        <input type="text" class="goya-cp-hex" data-el="gradStopHex" maxlength="7" value="FF5E3A" aria-label="스톱 hex">
         <div class="goya-cp-grad-opacity-field" title="스톱 투명도">
           <input type="range" data-el="gradStopOpacity" min="0" max="100" value="100" aria-label="스톱 투명도">
           <span data-el="gradStopOpacityLabel">100%</span>
@@ -414,27 +414,22 @@ function _wireEvents(pop) {
     _applySolidAndEmit(commit ? { commit: true } : undefined);
   });
 
-  /* Hex input (# 있어도 없어도 허용) */
+  /* Hex input (# 있어도 없어도 허용) — 배선은 wireHexText 한 자리에서 온다.
+     ⛔여기에 input/blur/change 를 손으로 다시 적지 마라: 그게 이 파일이 앓던 병(사본 드리프트)이다.
+     perf: 타이핑 도중에는 onApply(=input) 만, 확정 시 onCommit 1회. */
   const hexInp = _els.hex;
-  const _normalizeHex = v => {
-    v = v.trim().replace(/^#/, '');
-    return /^[0-9a-fA-F]{6}$/.test(v) ? ('#' + v) : null;
-  };
-  hexInp.addEventListener('input', () => {
-    const norm = _normalizeHex(hexInp.value);
-    if (!norm) return;
-    const { r, g, b } = hexToRgb(norm);
-    const { h, s, v: val } = rgbToHsv(r, g, b);
-    _unhideTransparentOnColorPick();
-    _state.h = h; _state.s = s; _state.v = val;
-    _applySolidAndEmit();
-  });
-  // perf: blur/change 시 commit 이벤트 발행 — 타이핑 도중에는 input 만, 확정 시 1회 commit
-  hexInp.addEventListener('change', () => {
-    if (_state) _applySolidAndEmit({ commit: true });
-  });
-  hexInp.addEventListener('blur', () => {
-    hexInp.value = hexFromHsv(_state.h, _state.s, _state.v).slice(1).toUpperCase();
+  wireHexText(hexInp, {
+    parse: parseHex6,
+    format: formatHex6,
+    getCurrent: () => (_state ? hexFromHsv(_state.h, _state.s, _state.v) : null),
+    onApply: (norm) => {
+      const { r, g, b } = hexToRgb(norm);
+      const { h, s, v: val } = rgbToHsv(r, g, b);
+      _unhideTransparentOnColorPick();
+      _state.h = h; _state.s = s; _state.v = val;
+      _applySolidAndEmit();
+    },
+    onCommit: () => { if (_state) _applySolidAndEmit({ commit: true }); },
   });
 
   /* Alpha input (숫자만, %는 suffix label) */
@@ -733,14 +728,14 @@ function _wireEvents(pop) {
     _mutateSelectedStop(s => { s.color = gradStopColor.value; }, false);
   });
   gradStopColor?.addEventListener('change', () => _scheduleEmitGradient(true));
-  gradStopHex?.addEventListener('input', () => {
-    const v = gradStopHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      gradStopColor.value = '#' + v.toLowerCase();
-      _mutateSelectedStop(s => { s.color = gradStopColor.value; }, false);
-    }
+  /* 스톱 hex — 여기도 같은 사본이었다(무효값 침묵 + blur 복원 없음). 배선은 공용 한 자리. */
+  wireHexText(gradStopHex, {
+    parse: parseHex6,
+    format: formatHex6,
+    getCurrent: () => gradStopColor?.value || '#000000',
+    onApply: (v) => { gradStopColor.value = v; _mutateSelectedStop(s => { s.color = v; }, false); },
+    onCommit: () => _scheduleEmitGradient(true),
   });
-  gradStopHex?.addEventListener('change', () => _scheduleEmitGradient(true));
   gradStopOpacity?.addEventListener('input', () => {
     const pct = _aClamp(gradStopOpacity.value);
     if (gradStopOpacityLabel) gradStopOpacityLabel.textContent = pct + '%';
@@ -1096,6 +1091,93 @@ export function parseAlphaFromColor(cssColor) {
   return Math.round(parseFloat(parts[3]) * 100);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   색 코드 칸 «한 자리» 배선 — wireHexText
+   ★왜 생겼나 (2026-09-20 «사용자 관점 훑기», 유닛 colorhex / 카드 T-100)
+     같은 「색 코드」 칸의 (검증 → 실시간 적용 → 커밋 → blur 복원) 배선이 최소 열 벌로
+     손복사돼 있었고, 사본마다 규칙이 조금씩 달라져 있었다 —
+       · 섹션 배경은 `00FF00`(# 없이 6자) / Heading 은 `#00FF00`(# 포함 7자)
+       · 무효값을 넣으면 «말없이» 무시된다. 칸에는 쓴 값이 그대로 남아,
+         화면은 멀쩡한데 값은 안 바뀐 «거짓 상태»가 된다.
+       · 최악은 sec-txt-*-hex · cvb-*-hex — blur 핸들러가 아예 없어 무효값이 영원히 남았다.
+     ⇒ 「어디어디가 그렇다」는 손목록을 늘리는 대신 «배선»을 여기 한 자리로 모은다.
+   ★문법은 자리마다 «진짜로» 다르다(6자리 hex · `transparent` 키워드 · 자유 CSS).
+     그래서 정규식 하나로 우겨넣지 않는다 — 공유하는 것은 «배선»이지 «문법»이 아니다.
+     문법은 parse/format 으로 주입한다.
+
+   계약:
+     parse(raw)   -> 정규화값 | null(무효)
+     format(v)    -> 칸에 표시할 문자열 (없으면 String(v))
+     getCurrent() -> 「마지막 유효값」 — blur/무효 복원의 기준
+     onApply(v)   -> 타이핑 중 실시간 반영 (히스토리 ✗)
+     onCommit(v)  -> 확정 (히스토리 ○)
+   동작(이 셋이 «한 벌»이다):
+     input  : 유효 → 무효표시 걷고 onApply / 무효 → «적용하지 않고» 무효표시를 붙인다
+     change : 유효 → onCommit / 무효 → 마지막 유효값으로 되돌린다
+     blur   : 언제나 마지막 유효값 표기로 정리 + 무효표시 제거
+   ⛔무효값을 «조용히 무시»하지 마라 — 그 침묵이 바로 신고된 증상이다.
+═══════════════════════════════════════════════════════════════════════════ */
+export const HEX_INVALID_CLASS = 'prop-color-hex--invalid';
+
+export function wireHexText(hexEl, { parse, format, getCurrent, onApply, onCommit, restoreOnBlur = true } = {}) {
+  if (!hexEl || typeof parse !== 'function') return null;
+  const fmt = format || ((v) => String(v ?? ''));
+  const mark = (bad) => {
+    hexEl.classList.toggle(HEX_INVALID_CLASS, !!bad);
+    if (bad) hexEl.setAttribute('aria-invalid', 'true');
+    else hexEl.removeAttribute('aria-invalid');
+  };
+  const restore = () => {
+    mark(false);
+    if (typeof getCurrent !== 'function') return;
+    const cur = getCurrent();
+    if (cur != null) hexEl.value = fmt(cur);
+  };
+  hexEl.addEventListener('input', () => {
+    const v = parse(hexEl.value);
+    if (v == null) { mark(true); return; }
+    mark(false);
+    onApply?.(v);
+  });
+  hexEl.addEventListener('change', () => {
+    const v = parse(hexEl.value);
+    if (v == null) { restore(); return; }
+    mark(false);
+    onCommit?.(v);
+  });
+  hexEl.addEventListener('blur', () => { if (restoreOnBlur) restore(); else mark(false); });
+  return { restore, markInvalid: () => mark(true), markValid: () => mark(false) };
+}
+
+/* 6자리 hex 문법 — `#` 은 있어도 없어도 된다(자리마다 규칙을 외우지 않아도 되게).
+   반환은 언제나 `#rrggbb` (native <input type="color"> 가 먹는 꼴). */
+export function parseHex6(raw) {
+  const v = String(raw ?? '').trim().replace(/^#/, '');
+  return /^[0-9a-fA-F]{6}$/.test(v) ? ('#' + v.toLowerCase()) : null;
+}
+/* 칸 표기 = «# 없는 대문자 6자» — 40여 곳이 이미 쓰는 다수결 포맷. */
+export const formatHex6 = (v) => String(v ?? '').replace('#', '').toUpperCase();
+
+/* 6자리 hex + `transparent` 키워드까지 받는 자리(심플카드 아이콘/텍스트 배경)용 문법. */
+export function parseHex6OrTransparent(raw) {
+  const s = String(raw ?? '').trim();
+  if (/^transparent$/i.test(s)) return 'transparent';
+  return parseHex6(s);
+}
+export const formatHex6OrTransparent = (v) => (v === 'transparent' ? 'transparent' : formatHex6(v));
+
+/* 자유형식 CSS 배경값이 «브라우저가 실제로 읽는 값»인지 본다.
+   ⛔정규식으로 흉내 내지 마라 — gradient/색이름/var() 까지 다 맞혀야 한다. 파서는 브라우저가 갖고 있다. */
+let _cssProbe = null;
+export function isCssBackgroundValue(v) {
+  const s = String(v ?? '').trim();
+  if (!s) return false;
+  if (!_cssProbe) _cssProbe = document.createElement('div');
+  _cssProbe.style.background = '';
+  try { _cssProbe.style.background = s; } catch (_) { return false; }
+  return _cssProbe.style.background !== '';
+}
+
 export function colorFieldHTML({ idPrefix, hex, alpha = 100, placeholder = '', gradientCss = '' }) {
   // gradientCss가 있으면 swatch 배경을 그라데이션으로, picker/hex는 첫 stop 색
   const h = _hex6(hex);
@@ -1106,7 +1188,7 @@ export function colorFieldHTML({ idPrefix, hex, alpha = 100, placeholder = '', g
       <div class="prop-color-swatch" style="background:${swatchBg}">
         <input type="color" id="${idPrefix}-color" value="${h}">
       </div>
-      <input type="text" class="prop-color-hex" id="${idPrefix}-hex" value="${hexUp}" maxlength="6" aria-label="Color"${placeholder ? ` placeholder="${placeholder}"` : ''}>
+      <input type="text" class="prop-color-hex" id="${idPrefix}-hex" value="${hexUp}" maxlength="7" aria-label="Color"${placeholder ? ` placeholder="${placeholder}"` : ''}>
       <label class="prop-color-alpha" title="Opacity">
         <input type="text" class="prop-color-alpha-input" id="${idPrefix}-alpha" value="${alpha}" aria-label="Opacity">
         <span class="prop-color-alpha-suffix">%</span>
@@ -1227,20 +1309,16 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
     apply();
   });
   picker.addEventListener('change', () => onCommit?.());
-  hex.addEventListener('input', () => {
-    const v = hex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      picker.value = '#' + v.toLowerCase();
-      _bumpAlphaIfHidden();
-      apply();
-    }
-  });
-  hex.addEventListener('blur', () => {
-    hex.value = (picker.value || '#000000').replace('#','').toUpperCase();
-  });
-  hex.addEventListener('change', () => {
-    const v = hex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) onCommit?.();
+  /* hex 칸 — 배선은 wireHexText 한 자리. 이 함수를 40여 개 패널이 공유하므로
+     여기 한 줄이 「무효값을 알린다 / blur 로 되돌린다」를 그 전부에 한꺼번에 깐다.
+     ⛔grad 시드 상태기계(위 cpGradient/cpAlpha)는 건드리지 않는다 — 여기서 빼낸 것은
+       input/blur/change 리스너 «본체»뿐이다. */
+  wireHexText(hex, {
+    parse: parseHex6,
+    format: formatHex6,
+    getCurrent: () => picker.value || '#000000',
+    onApply: (v) => { picker.value = v; _bumpAlphaIfHidden(); apply(); },
+    onCommit: () => onCommit?.(),
   });
   alpha.addEventListener('input', () => {
     _userTouchedAlpha = true;
@@ -1257,6 +1335,7 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
 
 window.colorFieldHTML = colorFieldHTML;
 window.wireColorField = wireColorField;
+window.wireHexText = wireHexText;
 window.parseAlphaFromColor = parseAlphaFromColor;
 
 export { openPicker, _closePicker as closePicker };

@@ -399,6 +399,15 @@
 }
 .prop-color-hex:hover { border-color: var(--ui-border-mid); }
 .prop-color-hex:focus { border-color: var(--ui-accent-primary); }
+/* ★무효한 색 코드 — 「말없이 무시」 대신 «보이게» 한다 (2026-09-20 유닛 colorhex).
+   토글은 js/props/color-picker.js 의 wireHexText 한 곳에서만 한다. aria-invalid 도 같이 붙어
+   읽어주는 도구에도 전달된다. 값은 blur 하면 마지막 유효값으로 되돌아간다. */
+.prop-color-hex--invalid,
+.prop-color-field .prop-color-hex--invalid {
+  color: var(--ui-danger, #e5484d);
+  box-shadow: inset 0 0 0 1px var(--ui-danger, #e5484d);
+  border-radius: 3px;
+}
 .prop-color-swatch.swatch-none {
   background: transparent !important;
   background-image: linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%),
@@ -410,7 +419,12 @@
 /* Figma-style grouped color field: swatch + hex + opacity% */
 .prop-color-field {
   flex: 1;
-  min-width: 0;
+  /* ★바닥값 — 3번째 형제(보조 버튼)가 같은 줄에 붙으면 이 필드«만» 줄어들어
+     hex 칸이 0 으로 수렴한다(T-100: 에셋 배경색 칸 실측 16px).
+     스와치 26 + hex 6자 ~48 + alpha 54 ≈ 128 이 「값이 읽히는」 하한이다.
+     ⛔이건 보험이지 해법이 아니다 — 해법은 보조 버튼을 그 줄에서 빼는 것(.prop-color-row--aux).
+       줄이 모자라면 .prop-color-row 의 overflow:hidden 이 «버튼»을 자른다(값이 아니라). */
+  min-width: 128px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 54px;
   align-items: center;
@@ -422,6 +436,12 @@
   overflow: hidden;
 }
 .prop-color-field:focus-within { box-shadow: inset 0 0 0 1px var(--ui-accent-primary); }
+/* 색 줄에 딸린 보조 버튼(초기화·투명·✕)의 «자기 줄» — 라벨 자리만큼 들여쓰고 오른쪽에 붙인다.
+   같은 줄에 두면 색 필드가 눌려 값이 안 보인다(T-100). */
+.prop-color-row--aux {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 6px; margin: -2px 0 6px; min-height: 20px;
+}
 .prop-color-field .prop-color-swatch {
   width: 16px; height: 16px;
   margin: 0 6px 0 4px;
