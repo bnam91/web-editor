@@ -191,7 +191,17 @@
     // 안 하면 버튼은 보이나 클릭 무반응 = "섹션 메모 패널 안 열림" 회귀.
     btn.setAttribute('onclick', 'window.toggleSectionMemoPopover(this)');
     // toolbar 맨 왼쪽으로 이동 — 항상 첫 자식
-    if (tb.firstChild !== btn) tb.insertBefore(btn, tb.firstChild);
+    /* ★«노드»가 아니라 «요소» 기준으로 자리를 본다 (T-140 둘째 축, 2026-09-22 실측)
+       ⛔tb.firstChild 는 «단추»가 아니라 툴바 마크업의 «공백 텍스트노드»다. 그래서 이 줄이
+         부를 때마다 참이 되어, 단추가 공백을 넘어 앞으로 튀고 공백 뭉치가 뒤로 밀린다.
+         단추 «차례»는 그대로인데 childNodes 가 바뀌고, 직렬화는 그 텍스트노드를 그대로
+         싣는다 ⇒ 비교자가 «길이 같고 내용 다른» 차이를 보고 빈 ⌘Z 칸을 하나 더 쌓는다.
+       ★실측(2026-09-22, 뿌리 고침만 넣은 판 9624): 단추 차례는 ⌘Z 앞뒤 5/5 동일인데
+         «빈 ⌘Z 칸»은 5/5 재현. 태그 단위 diff 가 «공백 줄 4개(−2/+2)»뿐이었다.
+         rebind 한 번만 불러도 재현된다:
+           before [TEXT,TEXT,memo,TEXT,ab,ai] → after [memo,TEXT,TEXT,TEXT,ab,ai]
+       ⇒ firstElementChild 로 보면 «이미 첫 요소»일 때 안 건드린다. */
+    if (tb.firstElementChild !== btn) tb.insertBefore(btn, tb.firstElementChild);
   }
   function _hydrateAllSectionsForMemoBtn() {
     document.querySelectorAll('.section-block').forEach(_ensureMemoButton);

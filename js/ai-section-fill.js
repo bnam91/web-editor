@@ -935,7 +935,10 @@ function _ensureAIFillButton(sec) {
   }
   btn.removeAttribute('onclick'); // 남은 인라인 핸들러 제거(소독 대상·중복 방지)
   // 기존 위치에 있든 새로 만들든 항상 마지막으로 이동 → 시각상 우측 끝
-  tb.appendChild(btn);
+  /* ★«이미 마지막 요소»면 안 건드린다 — 이유는 js/section-memo.js 의 같은 자리 주석(T-140 둘째 축).
+     ⛔그냥 appendChild 하면 뒤따르던 공백 텍스트노드가 앞으로 밀려 직렬화가 바뀐다.
+     ⚠️이 자리도 «모양이 같아서» 같이 고친 것이다 — ✨ 가 실제로 그 잡음을 냈다는 실측은 없다. */
+  if (tb.lastElementChild !== btn) tb.appendChild(btn);
 }
 function _hydrateAllSectionsForAIBtn() {
   document.querySelectorAll('.section-block').forEach(_ensureAIFillButton);

@@ -210,11 +210,15 @@
     // 위치: 📝 메모 버튼 다음 (두 번째 자리). memo가 없으면 첫 자리.
     const memoBtn = tb.querySelector(':scope > .st-memo-btn');
     if (memoBtn) {
-      if (memoBtn.nextSibling !== btn) {
-        tb.insertBefore(btn, memoBtn.nextSibling);
+      /* ★«요소» 기준 — 이유는 js/section-memo.js 의 같은 자리 주석 참조(T-140 둘째 축).
+         ⛔nextSibling 은 공백 텍스트노드일 수 있어, 그대로 두면 부를 때마다 공백이 밀린다.
+         ⚠️이 자리는 «모양이 같아서» 같이 고친 것이다 — 🔒 가 실제로 그 잡음을 냈다는
+           실측은 «없다»(그 판에서 보호를 안 켰다). 원인이 측정된 자리는 memo 쪽뿐이다. */
+      if (memoBtn.nextElementSibling !== btn) {
+        tb.insertBefore(btn, memoBtn.nextElementSibling);
       }
     } else {
-      if (tb.firstChild !== btn) tb.insertBefore(btn, tb.firstChild);
+      if (tb.firstElementChild !== btn) tb.insertBefore(btn, tb.firstElementChild);
     }
     _refreshProtectionButton(sec);
   }
