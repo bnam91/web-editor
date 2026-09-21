@@ -62,6 +62,8 @@ const HARNESS_LAYER = `<!doctype html><html><head><meta charset="utf-8">
   .layer-item{display:flex;align-items:center;gap:4px;width:180px}</style>
 </head><body>
 <div id="layer-panel-body">
+  <div class="layer-section"><div class="layer-section-header" id="sec-hd"><span class="layer-section-name" id="sn-long">아주 아주 아주 길고 긴 섹션 이름입니다 가을 신상 컬렉션 메인 히어로 섹션</span></div></div>
+  <div class="layer-section"><div class="layer-section-header" id="sec-hd2"><span class="layer-section-name" id="sn-short">Section 01</span></div></div>
   <div class="layer-item" id="row-long"><span class="layer-item-name" id="nm-long">상단 히어로 대표 이미지 — 가을 신상 컬렉션 메인컷</span><span class="layer-item-type">Asset</span></div>
   <div class="layer-item" id="row-short"><span class="layer-item-name" id="nm-short">Gap</span><span class="layer-item-type">Gap</span></div>
 </div>
@@ -129,6 +131,53 @@ test('②-T5 이름을 «고치는 중»(contenteditable)엔 이름표를 안 �
     window.syncLayerNameTooltip(el);
   });
   expect((await clipInfo(page, 'nm-long')).title).toBe(null);
+});
+
+/* ★아래 둘은 «절 머리(.layer-section-name)» 자리다 — 2026-09-22 실앱(9644)에서
+     그 자리만 따로 잰 결과다. 위 ②-T1~T5 가 다 통과하는 동안에도 여기는 죽어 있었다:
+       white-space 가 normal 이라 이름이 «잘리는» 대신 «흘러서», 같은 이름에
+       clientHeight 가 13 → 26 → 39 로 늘고 헤더(28px)를 11px 넘겼다.
+       그리고 scrollWidth == clientWidth(185==185) 라 syncLayerNameTooltip 의
+       잘림 판정이 영영 거짓 ⇒ '.layer-section-name' 은 셀렉터에만 있고 한 번도 안 탔다.
+   ⛔「말줄임표가 붙었다」만 재면 아무것도 안 잠근다 — T7 이 «hover 해서 전체가 뜨는가»를
+     잰다. 잘려도 볼 길이 없으면 ② 는 안 고쳐진 것이다. */
+
+const clipInfo2 = (page, id) => page.evaluate((i) => {
+  const el = document.getElementById(i);
+  const cs = getComputedStyle(el);
+  return {
+    clippedX: el.scrollWidth > el.clientWidth + 1,
+    clientH: el.clientHeight,
+    title: el.getAttribute('title'),
+    ws: cs.whiteSpace,
+    headerH: el.closest('.layer-section-header').offsetHeight,
+    spillPx: Math.round(el.getBoundingClientRect().bottom - el.closest('.layer-section-header').getBoundingClientRect().bottom),
+  };
+}, id);
+
+test('②-T6 긴 «절 머리» 이름은 흘러 넘치지 않고 «잘린다»(행 높이가 안 늘어난다)', async ({ page }) => {
+  await boot(page, HARNESS_LAYER);
+  const long = await clipInfo2(page, 'sn-long');
+  const short = await clipInfo2(page, 'sn-short');
+  /* 한 줄 높이는 «짧은 이름»이 정한다 — 폰트가 바뀌어도 따라오게 상수를 안 박는다. */
+  expect(long.clientH, `긴 이름이 ${long.clientH}px 로 흘렀다(한 줄=${short.clientH}px)`).toBe(short.clientH);
+  expect(long.spillPx, '이름이 절 머리 아래로 삐져나왔다').toBeLessThanOrEqual(0);
+  expect(long.headerH).toBe(short.headerH);
+  expect(long.clippedX, '가로로 잘려 있어야 이름표를 걸 수 있다').toBe(true);
+  expect(short.clippedX).toBe(false);
+});
+
+test('②-T7 잘린 «절 머리» 이름에 마우스를 올리면 «전체»가 이름표로 뜬다', async ({ page }) => {
+  await boot(page, HARNESS_LAYER);
+  expect((await clipInfo2(page, 'sn-long')).title).toBe(null);   // 올리기 전엔 없다
+  await page.hover('#sn-long');
+  const full = await page.evaluate(() => document.getElementById('sn-long').textContent.trim());
+  await expect.poll(async () => (await clipInfo2(page, 'sn-long')).title, { timeout: 3000 }).toBe(full);
+  /* 안 잘린 절 머리엔 안 붙는다 — 쓸데없이 뜨지 않게. */
+  await page.mouse.move(600, 500);
+  await page.hover('#sn-short');
+  await page.waitForTimeout(150);
+  expect((await clipInfo2(page, 'sn-short')).title).toBe(null);
 });
 
 /* ═══════════════ ③ 이미지 프리셋 현재값 표시 ═══════════════ */
@@ -216,4 +265,51 @@ test('③-T4 「패딩 제외」가 꺼져 폭이 줄어든 블록에서도 같�
   expect(s.offsetW).toBe(716);
   expect(s.btns).toContain('Standard:ACTIVE');
   expect(s.activeCount).toBe(1);
+});
+
+
+/* ═══════════════ ③-b 「지금 값」이 «눈에» 남는가(명시도) ═══════════════ */
+
+/* ★위 ③-T1~T4 는 «active 클래스가 옳은 단추에 붙는가»만 잰다 — 그건 prop-asset.js 의 몫이고
+     실제로 옳게 붙고 있었다. 그런데 2026-09-22 실앱(9644)에서 computed 를 재 보니
+     active 단추와 idle 단추의 background 가 «둘 다 rgb(42,42,42)» 로 같았다 —
+     css/editor-props.css 의 `.prop-preset-btn.active { background:#1a2a3a }` 가
+     `.prop-type-group:has(.prop-preset-btn) .prop-preset-btn.prop-type-btn`(0,5,0) 에
+     덮여 한 번도 안 그려진 것이다(active 규칙은 0,2,0). 살아남은 표시는 1px 테두리 색뿐이었다.
+   ⇒ 「클래스가 붙었다」와 「표시가 남았다」는 «다른 축»이다. 클래스만 재는 검사는
+     CSS 가 죽어도 초록이다 — 그 자리를 여기서 잠근다. 그래서 이 하네스는 진짜 CSS 를 «불러온다».
+   ⛔여기서 prop-asset.js 를 안 부른다 — 재는 것이 «CSS 명시도»라 JS 가 끼면 무엇이
+     이겼는지 흐려진다. 마크업은 prop-asset.js 가 찍는 것과 같은 꼴로 손으로 쓴다
+     (.prop-type-group > button.prop-preset-btn.prop-type-btn — 2026-09-22 실앱 조상 체인 실측). */
+const HARNESS_PRESET_CSS = `<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="/css/editor-base.css">
+<link rel="stylesheet" href="/css/editor-props.css">
+</head><body>
+<div class="prop-section"><div class="prop-type-group">
+  <button class="prop-preset-btn prop-type-btn active" id="pb-on" data-w="860" data-h="780">Standard</button>
+  <button class="prop-preset-btn prop-type-btn" id="pb-off" data-w="860" data-h="860">Square</button>
+</div></div>
+<script>window.__ready = true;</script></body></html>`;
+
+const btnPaint = (page, id) => page.evaluate((i) => {
+  const s = getComputedStyle(document.getElementById(i));
+  return { bg: s.backgroundColor, border: s.borderTopColor };
+}, id);
+
+test('③-T5 켜진 단추는 «배경»으로도 구분된다 — active 가 명시도에 먹혀 죽지 않는다', async ({ page }) => {
+  await boot(page, HARNESS_PRESET_CSS);
+  const on = await btnPaint(page, 'pb-on');
+  const off = await btnPaint(page, 'pb-off');
+  /* 색값을 박지 않는다 — 테마가 바뀌어도 「구분되는가」는 그대로여야 한다. */
+  expect(on.bg, `켜진 단추와 꺼진 단추의 배경이 같다(${on.bg}) — active 가 덮였다`).not.toBe(off.bg);
+  /* 투명으로 «구분»되는 것은 구분이 아니다 — 둘 다 실제로 칠해져 있어야 한다. */
+  expect(on.bg).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+  expect(off.bg).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+});
+
+test('③-T6 테두리 표시도 같이 남아 있다(배경만 고치다 테두리를 잃지 않게)', async ({ page }) => {
+  await boot(page, HARNESS_PRESET_CSS);
+  const on = await btnPaint(page, 'pb-on');
+  const off = await btnPaint(page, 'pb-off');
+  expect(on.border, `켜진/꺼진 테두리 색이 같다(${on.border})`).not.toBe(off.border);
 });

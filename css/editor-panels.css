@@ -1169,7 +1169,20 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .layer-section.collapsed .layer-chevron { transform: rotate(-90deg); }
 
 .layer-section-icon { width: 14px; height: 14px; opacity: 0.6; color: var(--ui-text-sub); flex-shrink: 0; }
-.layer-section-name { font-size: var(--ui-fs-base); font-weight: var(--ui-fw-semibold); color: #ccc; flex: 1; letter-spacing: 0.02em; cursor: default; border-radius: 3px; padding: 0 2px; }
+/* ★긴 섹션 이름은 «잘려서» 이름표로 볼 수 있어야 한다 (T-101 ②, 2026-09-22)
+     실측(실앱 9644, 섹션 이름을 길게 바꾼 뒤): .layer-item-name 은 nowrap+ellipsis 라
+       clientWidth 125 < scrollWidth 223 으로 «잘림»이 잡히는데, .layer-section-name 은
+       그 셋이 없어 white-space:normal 로 «흘렀다» — clientHeight 가 13→26→39 로 늘고
+       헤더(.layer-section-header height:28px)를 11px 넘겨 이웃 행 위에 겹쳐 그려졌다.
+     ⇒ 그 자리는 scrollWidth == clientWidth(185==185) 라 «가로로 잘린 적이 없고»,
+       syncLayerNameTooltip 의 (scrollWidth > clientWidth) 가 영영 거짓이었다 —
+       installLayerNameTooltips 가 '.layer-section-name' 을 셀렉터에 «넣어 뒀는데도»
+       그 가지는 한 번도 안 탔다(죽은 가지).
+     ⇒ .layer-item-name(아래 1250) 과 «같은 결»로 자른다. 자르면 잘림이 값으로 잡히고
+       이름표가 그 자리를 따라온다 — 툴팁 코드는 한 줄도 안 고친다.
+     ★min-width:0 — flex item 의 min-width:auto 는 nowrap 콘텐츠 폭이라, 안 주면
+       이번엔 헤더가 «가로로» 밀린다(세로 넘침을 가로 넘침으로 옮기는 꼴). */
+.layer-section-name { font-size: var(--ui-fs-base); font-weight: var(--ui-fw-semibold); color: #ccc; flex: 1; min-width: 0; letter-spacing: 0.02em; cursor: default; border-radius: 3px; padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .layer-section-header.active .layer-section-name { color: var(--ui-accent-text); }
 .layer-section-name.editing { background: #2a3a55; color: #aecbff; outline: none; cursor: text; }
 
