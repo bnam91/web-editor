@@ -10,6 +10,10 @@
  * 삭제 함수(deleteSelectedFromCanvas) 둘 다 js/editor.js 에서 잘라 쓴다.
  * 음성대조(고치기 «전» 목록)를 같은 그릇에 넣어 빨강을 실제로 본다.
  *
+ * ★2026-09-21 픽스 라운드에서 «프레임이 미리 골라진 채 ⌘A→Delete» 축이 더해졌다(아래 픽스① 3건).
+ *   ⌘A 는 기존 선택을 «풀지 않고 더하기»만 하므로, 프레임이 이미 골라져 있으면 삭제함수의
+ *   프레임 단독삭제 갈래가 먼저 걸려 «프레임 한 줄»만 지우고 return 했다.
+ *
  * ⛔앱을 «안» 띄운다. 실행: npm run test:dom -- select-all-delete-shape
  */
 const { test, expect } = require('@playwright/test');
@@ -62,6 +66,8 @@ function declRhs(src, name) {
 const DEL_SRC     = extractFn(EDITOR_SRC, 'deleteSelectedFromCanvas');
 const SEL_NOW_RHS = declRhs(EDITOR_SRC, 'SECTION_BLOCK_TYPE_SEL');
 const DEL_LIST    = declRhs(EDITOR_SRC, 'CANVAS_SEL_BLOCKS');
+/* deleteSelectedFromCanvas 가 쓰는 SSOT 파생(.selected 판) — «진짜 소스의 식»을 그대로 떠온다. */
+const SEL_SELECTED_RHS = declRhs(EDITOR_SRC, 'SECTION_BLOCK_TYPE_SEL_SELECTED');
 
 /* ★고치기 «전» 목록 — int/0920b 29ae1cb 의 ⌘A 분기에 손으로 적혀 있던 그대로. 음성대조용 상수. */
 const SEL_OLD =
@@ -79,6 +85,8 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"></head><body>
       <div class="frame-block" id="ss2"><div class="shape-block" id="shp1"></div></div>
       <div class="row" id="row1"><div class="chat-block" id="chb1"></div></div>
       <div class="gap-block" id="gb2"></div>
+      <!-- Free 프레임(빈 그릇) — 삽입 직후엔 이게 .selected 로 남는다(실앱 실측) -->
+      <div class="frame-block" data-free-layout="true" id="ssFree"></div>
     </div>
   </div>
 </div>
@@ -94,9 +102,12 @@ async function boot(page) {
 }
 
 /** ⌘A 분기가 하는 일(활성 섹션 안 selRhs 매칭 전부에 .selected) → 진짜 삭제함수 실행. */
-async function selectAllThenDelete(page, selRhs, delSrc, delList) {
-  return page.evaluate(([selRhs, delSrc, delList]) => {
+async function selectAllThenDelete(page, selRhs, delSrc, delList, selSelRhs, preSelectIds) {
+  return page.evaluate(([selRhs, delSrc, delList, selSelRhs, preSelectIds]) => {
     const SEL = new Function('return (' + selRhs + ')')();
+    /* ★⌘A 는 기존 선택을 «풀지 않고 더한다» — 그래서 미리 골라 둔 것이 그대로 남는다.
+       preSelectIds 로 그 상황(예: Free 프레임 삽입 직후 프레임이 selected)을 재현한다. */
+    (preSelectIds || []).forEach(id => document.getElementById(id)?.classList.add('selected'));
     const activeSec = document.querySelector('.section-block.selected') || document.querySelector('.section-block');
     const picked = [...activeSec.querySelectorAll(SEL)];
     picked.forEach(b => b.classList.add('selected'));
@@ -110,7 +121,9 @@ async function selectAllThenDelete(page, selRhs, delSrc, delList) {
     window.ensureHistoryCheckpoint = () => {};
     window.isSectionProtected = () => false;
     window.addGhostSection = () => {};
+    const SECTION_BLOCK_TYPE_SEL_SELECTED = new Function('SECTION_BLOCK_TYPE_SEL', 'return (' + selSelRhs + ')')(SEL);
     const scope = {
+      SECTION_BLOCK_TYPE_SEL_SELECTED,
       clearAssetImage: () => {},
       deselectAll: () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected')),
       multiSel: { cols: new Set(), blocks: new Set(), sections: new Set() },
@@ -131,13 +144,14 @@ async function selectAllThenDelete(page, selRhs, delSrc, delList) {
       texts: document.querySelectorAll('.text-block').length,
       chats: document.querySelectorAll('.chat-block').length,
       gaps: document.querySelectorAll('.gap-block').length,
+      frames: document.querySelectorAll('.frame-block').length,
     };
-  }, [selRhs, delSrc, delList]);
+  }, [selRhs, delSrc, delList, selSelRhs, preSelectIds]);
 }
 
 test('음성대조 ★고치기 «전» 목록이면 ⌘A 가 도형을 안 고르고 Delete 뒤에도 도형이 남는다', async ({ page }) => {
   const errs = await boot(page);
-  const r = await selectAllThenDelete(page, SEL_OLD, DEL_SRC, DEL_LIST);
+  const r = await selectAllThenDelete(page, SEL_OLD, DEL_SRC, DEL_LIST, SEL_SELECTED_RHS, []);
   expect(r.picked, '옛 목록인데 도형이 골라졌다 — 이 대조가 버그를 재현 못 한다').not.toContain('shp1');
   expect(r.shapes, '★이 대조가 빨강(도형 잔존)을 못 만든다 ⇒ 아래 본검사가 아무것도 증명 못 한다').toBe(1);
   expect(r.chats, '옛 목록은 챗블럭도 안 골랐다 — 같이 남아야 한다').toBe(1);
@@ -147,7 +161,7 @@ test('음성대조 ★고치기 «전» 목록이면 ⌘A 가 도형을 안 고�
 
 test('본검사 ★지금 목록(SECTION_BLOCK_TYPE_SEL)이면 ⌘A→Delete 가 도형까지 «다» 지운다', async ({ page }) => {
   const errs = await boot(page);
-  const r = await selectAllThenDelete(page, SEL_NOW_RHS, DEL_SRC, DEL_LIST);
+  const r = await selectAllThenDelete(page, SEL_NOW_RHS, DEL_SRC, DEL_LIST, SEL_SELECTED_RHS, []);
   expect(r.picked, '⌘A 가 도형을 안 골랐다 — T-085 재발').toContain('shp1');
   expect(r.consumed).toBe(true);
   expect(r.toasts, '토스트가 떴다(보호섹션 등 엉뚱한 갈래로 샜다)').toEqual([]);
@@ -156,5 +170,94 @@ test('본검사 ★지금 목록(SECTION_BLOCK_TYPE_SEL)이면 ⌘A→Delete 가
   expect(r.chats, '챗블럭이 안 지워졌다').toBe(0);
   expect(r.gaps, 'Gap 이 안 지워졌다').toBe(0);
   expect(r.left, '도형 래퍼 프레임(ss2)이 도형과 같이 안 없어졌다').not.toContain('ss2');
+  /* ★남는 것 = ss1(텍스트프레임 «빈 그릇») 하나. 텍스트프레임은 .row 밖 직속이라
+     block.closest('.row') 가 null → 텍스트 «블록»만 remove 되고 그릇이 남는다.
+     ⚠️이건 이 커밋 전에도 같았다(고치기 전 목록으로 돌린 음성대조에서도 동일) — 이 유닛 밖. */
+  /* 남는 것 = ss1(텍스트프레임 빈 그릇) + ssFree(⌘A 가 «안» 고르는 그릇). 둘 다 이 커밋 전과 같다. */
+  expect(r.frames, '남은 프레임 수가 달라졌다(ss1+ssFree = 2 가 기준)').toBe(2);
+  expect(r.left, '⌘A 가 «안» 고른 Free 프레임까지 지워졌다 — 그건 과삭제다').toContain('ssFree');
+  expect(errs).toEqual([]);
+});
+
+/* ── 2026-09-21 픽스 라운드 ① — 「프레임이 미리 골라진 채 ⌘A→Delete」 ──────────────────
+ *  ★실앱 실측(포트 9527, 40%, fix/ul-selectdelete@4cf864c — 고치기 «전»)
+ *      ⌘A 직후 sel=8 [section, gap, text, text, gap, gap, frame(Free), gap]
+ *      Delete 직후 frame 3→2 · text 2→2(남음) · gap 4→4(남음)
+ *    ⇒ 고른 여덟 중 «Free 프레임 하나»만 사라졌다. ⌘A 는 기존 선택을 풀지 않고 더하기만 하므로
+ *      (editor.js e.key==='a'), 프레임이 이미 골라져 있으면 deleteSelectedFromCanvas 의
+ *      프레임 단독삭제 갈래(selSS)가 «먼저 걸려 return» 했다.                                */
+test('픽스① ★프레임이 미리 골라져 있어도 ⌘A→Delete 가 «다» 지운다 (프레임 한 줄만 지우고 끝나지 않는다)', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await selectAllThenDelete(page, SEL_NOW_RHS, DEL_SRC, DEL_LIST, SEL_SELECTED_RHS, ['ssFree']);
+  expect(r.consumed).toBe(true);
+  expect(r.shapes, '도형이 남았다 — 프레임 갈래가 가로챘다').toBe(0);
+  expect(r.texts,  '텍스트가 남았다 — 프레임 갈래가 가로챘다').toBe(0);
+  expect(r.chats,  '챗블럭이 남았다 — 프레임 갈래가 가로챘다').toBe(0);
+  expect(r.gaps,   'Gap 이 남았다 — 프레임 갈래가 가로챘다').toBe(0);
+  expect(r.left,   '미리 골라져 있던 Free 프레임이 안 지워졌다').not.toContain('ssFree');
+  /* 본검사와 «같은 수»여야 한다 — 미리 골라져 있던 ssFree 가 더 남으면 2가 된다(그게 원증상). */
+  expect(r.frames, '★미리 골라져 있던 Free 프레임이 안 지워졌다(본검사는 2, 여기선 ssFree 가 빠져 1)').toBe(1);
+  expect(r.toasts).toEqual([]);
+  expect(errs).toEqual([]);
+});
+
+/* M3 회귀 — 「프레임을 «혼자» 골랐을 때」는 예전 그대로 그 프레임 줄만 지운다. */
+test('픽스① 회귀 ★프레임만 «혼자» 골랐으면 그 프레임 줄만 지운다(M3 보존)', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await page.evaluate(([delSrc, delList, selSelRhs, selRhs]) => {
+    const SEL = new Function('return (' + selRhs + ')')();
+    document.getElementById('ssFree').classList.add('selected');   // 프레임 «혼자»
+    const toasts = [];
+    window.showToast = (m) => toasts.push(m);
+    window.CANVAS_SEL_BLOCKS = new Function('return (' + delList + ')')();
+    window.canvasEl = document.getElementById('canvas');
+    window.pushHistory = () => {};
+    window.buildLayerPanel = () => {};
+    window.ensureHistoryCheckpoint = () => {};
+    window.isSectionProtected = () => false;
+    window.addGhostSection = () => {};
+    const actions = [];
+    const SECTION_BLOCK_TYPE_SEL_SELECTED = new Function('SECTION_BLOCK_TYPE_SEL', 'return (' + selSelRhs + ')')(SEL);
+    const scope = {
+      SECTION_BLOCK_TYPE_SEL_SELECTED,
+      clearAssetImage: () => {},
+      deselectAll: () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected')),
+      multiSel: { cols: new Set(), blocks: new Set(), sections: new Set() },
+      clearMultiSel: () => {},
+      canvasEl: document.getElementById('canvas'),
+      pushHistory: (a) => actions.push(a),
+      ensureHistoryCheckpoint: () => {},
+    };
+    const names = Object.keys(scope);
+    const fn = new Function(...names, `${delSrc}; return deleteSelectedFromCanvas;`)(...names.map(n => scope[n]));
+    const consumed = fn();
+    return {
+      consumed, actions, toasts,
+      left: [...document.querySelectorAll('#host [id]')].map(e => e.id),
+      texts: document.querySelectorAll('.text-block').length,
+      shapes: document.querySelectorAll('.shape-block').length,
+      gaps: document.querySelectorAll('.gap-block').length,
+    };
+  }, [DEL_SRC, DEL_LIST, SEL_SELECTED_RHS, SEL_NOW_RHS]);
+  expect(r.consumed).toBe(true);
+  expect(r.left, '프레임 «혼자» 골랐는데 그 프레임이 안 지워졌다').not.toContain('ssFree');
+  expect(r.texts,  '프레임 혼자 골랐는데 텍스트까지 지워졌다 — M3 회귀').toBe(1);
+  expect(r.shapes, '프레임 혼자 골랐는데 도형까지 지워졌다 — M3 회귀').toBe(1);
+  expect(r.gaps,   '프레임 혼자 골랐는데 Gap 까지 지워졌다 — M3 회귀').toBe(2);
+  expect(r.actions, '프레임 단독삭제 갈래(서브섹션 삭제)를 안 탔다').toContain('서브섹션 삭제');
+  expect(errs).toEqual([]);
+});
+
+/* ★음성대조(픽스①) — 가드 한 줄을 «빼면» 원증상이 그대로 돌아온다.
+ *   이게 빨강을 못 만들면 위 픽스① 검사는 아무것도 증명하지 못한다(계측기가 자기를 증명한다). */
+test('음성대조(픽스①) ★«바깥 선택» 가드를 빼면 프레임 한 줄만 지우고 끝난다 — 원증상 재현', async ({ page }) => {
+  const errs = await boot(page);
+  const DEL_SRC_NOGUARD = DEL_SRC.replace('if (!ssHasSelectedChild && !_selOutsideSS)', 'if (!ssHasSelectedChild)');
+  expect(DEL_SRC_NOGUARD, '변이 주입 실패 — 가드 줄을 못 찾았다').not.toBe(DEL_SRC);
+  const r = await selectAllThenDelete(page, SEL_NOW_RHS, DEL_SRC_NOGUARD, DEL_LIST, SEL_SELECTED_RHS, ['ssFree']);
+  expect(r.left, '★가드를 뺐는데도 Free 프레임이 지워지지 않았다 — 이 대조가 원증상을 못 만든다').not.toContain('ssFree');
+  expect(r.texts,  '★가드를 뺐으면 텍스트가 «남아야» 한다(프레임 갈래가 가로채고 return)').toBe(1);
+  expect(r.shapes, '★가드를 뺐으면 도형이 «남아야» 한다').toBe(1);
+  expect(r.gaps,   '★가드를 뺐으면 Gap 이 «남아야» 한다').toBe(2);
   expect(errs).toEqual([]);
 });

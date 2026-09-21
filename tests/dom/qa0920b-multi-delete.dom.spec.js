@@ -39,6 +39,30 @@ function extractFn(src, name) {
 }
 const DEL_SRC = extractFn(EDITOR_SRC, 'deleteSelectedFromCanvas');
 
+/** 선언의 끝(;) 을 «따옴표·줄주석을 건너뛰며» 찾는다. */
+function endOfDecl(src, from) {
+  let q = null;
+  for (let i = from; i < src.length; i++) {
+    const c = src[i];
+    if (q) { if (c === '\\') { i++; continue; } if (c === q) q = null; continue; }
+    if (c === "'" || c === '"' || c === '`') { q = c; continue; }
+    if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
+    if (c === ';') return i;
+  }
+  throw new Error('선언의 끝(;)을 못 찾았다');
+}
+/** `const NAME = <식>;` 의 «식»만 떠낸다. */
+function declRhs(src, name) {
+  const i = src.indexOf(`const ${name} =`);
+  if (i < 0) throw new Error(`선언을 못 찾았다: ${name}`);
+  return src.slice(i + `const ${name} =`.length, endOfDecl(src, i)).trim();
+}
+/* ★deleteSelectedFromCanvas 가 쓰는 두 SSOT — «진짜 소스의 식»을 그대로 떠온다.
+   (2026-09-21: 프레임 갈래가 손목록 대신 SECTION_BLOCK_TYPE_SEL_SELECTED 를 보게 바뀌었다.
+    여기에 안 넘기면 함수가 ReferenceError 로 터진다 — 손으로 베껴 적지 말 것.) */
+const SEL_TYPE_RHS     = declRhs(EDITOR_SRC, 'SECTION_BLOCK_TYPE_SEL');
+const SEL_SELECTED_RHS = declRhs(EDITOR_SRC, 'SECTION_BLOCK_TYPE_SEL_SELECTED');
+
 /* 현빈 재현 구조 — 한 섹션에 ⑴텍스트(자기 프레임 안) ⑵도형(자기 래퍼 프레임 안). 둘 다 selected. */
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8"></head><body>
   <div id="canvas">
@@ -69,9 +93,13 @@ async function boot(page) {
 }
 
 async function runDelete(page) {
-  return page.evaluate((delSrc) => {
+  return page.evaluate(([delSrc, selTypeRhs, selSelRhs]) => {
     const labels = [];
+    const SECTION_BLOCK_TYPE_SEL = new Function('return (' + selTypeRhs + ')')();
+    const SECTION_BLOCK_TYPE_SEL_SELECTED =
+      new Function('SECTION_BLOCK_TYPE_SEL', 'return (' + selSelRhs + ')')(SECTION_BLOCK_TYPE_SEL);
     const scope = {
+      SECTION_BLOCK_TYPE_SEL_SELECTED,
       clearAssetImage: () => {},
       deselectAll: () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected')),
       multiSel: { cols: new Set(), blocks: new Set(), sections: new Set() },
@@ -96,7 +124,7 @@ async function runDelete(page) {
       textAlive: !!document.getElementById('tb1'),
       shapeAlive: !!document.getElementById('shp1'),
     };
-  }, DEL_SRC);
+  }, [DEL_SRC, SEL_TYPE_RHS, SEL_SELECTED_RHS]);
 }
 
 test('M1 ★텍스트+도형 다중선택 삭제 = «둘 다» 지워진다 (하나만 남지 않는다)', async ({ page }) => {

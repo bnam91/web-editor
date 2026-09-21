@@ -64,6 +64,16 @@ const SECTION_BLOCK_TYPE_SEL = [
 ].join(', ');
 if (typeof window !== 'undefined') window.SECTION_BLOCK_TYPE_SEL = SECTION_BLOCK_TYPE_SEL;
 
+/* 같은 목록의 «.selected» 판(파생 — 손으로 한 벌 더 적지 않는다).
+   ⇒ deleteSelectedFromCanvas 가 「이 프레임 «안»에 골라진 자식이 있나」·「프레임 «밖»에
+     골라진 것이 또 있나」를 잴 때 쓴다.
+   ★왜 파생인가 (2026-09-21 이벨류에이터 지적 low④): 그 두 자리도 손으로 적힌 목록이었고,
+     joker/chat/gradient/sticker/laurel/zoom 이 빠져 있었다 — 프레임 안 자식이 «그 여섯뿐»이면
+     「자식 없음」으로 잘못 판정돼 프레임이 줄째 먼저 지워졌다. */
+const SECTION_BLOCK_TYPE_SEL_SELECTED =
+  SECTION_BLOCK_TYPE_SEL.split(', ').map(c => c + '.selected').join(', ');
+if (typeof window !== 'undefined') window.SECTION_BLOCK_TYPE_SEL_SELECTED = SECTION_BLOCK_TYPE_SEL_SELECTED;
+
 /* ═══════════════════════════════════
    포커스 시 전체 선택 (Figma 스타일)
    - 숫자/hex/opacity 프로퍼티 인풋 클릭 시 텍스트 전체 선택 → 바로 덮어쓰기
@@ -1359,13 +1369,21 @@ function duplicateSelected() {
 }
 
 /* 다중선택 «판정» 셀렉터 — copySelected 와 pasteClipboard 가 «같은 집합»을 봐야 한다.
- * 붙여넣기 기준점을 copy 와 다른 목록으로 고르면 순서가 어긋난다. */
+ * 붙여넣기 기준점을 copy 와 다른 목록으로 고르면 순서가 어긋난다.
+ *
+ * ★2026-09-21 (이벨류에이터 지적 low③) — 여기도 «손으로 적은 목록»이고 SSOT 대비
+ *   .mockup-block · .vector-block · .gradient-block 세 종이 빠져 있었다. ⌘A 가 그 셋을
+ *   고르게 된 뒤로 「전체선택→⌘C→⌘V」에서 «조용히 빠지는» 타입이 되었다
+ *   (실측: 텍스트2+도형1+그라데이션1 ⌘A→⌘C→⌘V ⇒ text 2→4 shape 1→2 gradient 1→1, 경고 없음).
+ *   ⇒ 세 종을 더한다. 어긋남은 tests/unit/select-all-list-drift.test.mjs T9 가 이제 기계로 잰다.
+ *   ⚠️.frame-block 은 여기 없다 — 복사 단위가 «프레임 안의 블록»이라 그대로 둔다. */
 const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
   '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
   '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .qa-block.selected, ' +
   '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
-  '.laurel-block.selected, .zoom-block.selected, .joker-block.selected, .speech-bubble-block.selected';
+  '.laurel-block.selected, .zoom-block.selected, .joker-block.selected, .speech-bubble-block.selected, ' +
+  '.mockup-block.selected, .vector-block.selected, .gradient-block.selected';
 
 /* 같은 타입 목록이되 «.selected 여부 무관» — 한 행 안의 블록이 «전부» 선택됐는지 판정할 때 쓴다. */
 const ALL_TYPES_SEL = MULTI_SEL.replace(/\.selected\b/g, '');
@@ -2846,12 +2864,21 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
          return 했다. 그래서 「텍스트+도형」 다중선택 ⌫ 가 도형만 지우고 텍스트를 남겼다
          (히스토리 라벨도 「서브섹션 삭제」). 아래 «도형+일반블록 혼합 일괄 삭제»로 흘려보낸다.
          ⚠️프레임 «자체»만 고른 경우(자식 미선택)는 그대로 프레임 줄째 삭제다 — 회귀 M3. */
-      const ssHasSelectedChild = selSS.querySelector(
-        '.text-block.selected, .asset-block.selected, .gap-block.selected, .shape-block.selected, ' +
-        '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-        '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .qa-block.selected'
-      );
-      if (!ssHasSelectedChild) {
+      // ★손으로 적지 않는다 — SSOT 파생(SECTION_BLOCK_TYPE_SEL_SELECTED). 예전 손목록엔
+      //   joker/chat/gradient/sticker/laurel/zoom 이 빠져 있었다(2026-09-21 이벨류에이터 low④).
+      const ssHasSelectedChild = selSS.querySelector(SECTION_BLOCK_TYPE_SEL_SELECTED);
+      /* ★«프레임 밖»에 골라진 것이 또 있으면 이 갈래를 타면 안 된다 — 이 갈래는 지우고 «return» 한다.
+         ⌘A 는 기존 선택을 풀지 않고 «더하기»만 하므로(이 파일 `e.key === 'a'` 분기), 프레임을
+         다른 경로로 골라 둔 상태(예: Free 프레임 삽입 직후 — 삽입이 그 프레임을 selected 로 둔다)에서
+         ⌘A→Delete 를 누르면 «고른 여덟 중 프레임 한 줄»만 사라지고 나머지가 전부 남았다.
+         [실측 2026-09-21, 포트 9527/40%, fix/ul-selectdelete@4cf864c]
+           ⌘A 직후 sel=8 [section, gap, text, text, gap, gap, frame(Free), gap]
+           Delete 직후 frame 3→2 · text 2→2(남음) · gap 4→4(남음)
+         ⇒ 프레임이 «혼자» 골라졌을 때만(=M3 회귀 보존) 이 갈래를 타고, 섞였으면 아래
+           일괄 삭제로 흘려보낸다(거기서 이 프레임도 «같이» 지워진다). */
+      const _selOutsideSS = [...canvasEl.querySelectorAll(SECTION_BLOCK_TYPE_SEL_SELECTED + ', .frame-block.selected')]
+        .some(el => el !== selSS && !selSS.contains(el));
+      if (!ssHasSelectedChild && !_selOutsideSS) {
         consumed = true;
         const ssRow = selSS.closest('.row') || selSS;
         ssRow.remove();
@@ -2861,20 +2888,27 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
         pushHistory('서브섹션 삭제');
         return consumed;
       }
-      // 자식 블록이 선택된 경우 → 아래 allSelBlocks 삭제 로직으로 fall-through
+      // 자식 블록이 선택된 경우(또는 프레임 밖에 다른 선택이 있는 경우) → 아래 allSelBlocks 삭제 로직으로 fall-through
     }
 
     // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
     const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
     const allSelBlocks = [...document.querySelectorAll(CANVAS_SEL_BLOCKS)];
-    if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
+    /* ★«다른 선택과 섞여» 골라진 프레임 — 위 selSS 갈래는 프레임이 «혼자»일 때만 타므로
+       여기까지 온 프레임은 여기서 같이 지운다. 안 그러면 ⌘A→Delete 가 프레임만 남긴다.
+       ⚠️«자식이 골라진» 프레임은 뺀다 — 그건 「프레임은 두고 안의 블록만 지운다」는 기존 규약이고
+         도형 래퍼 프레임도 그 꼴이다(래퍼는 allSelShapes 경로가 이미 줄째 지운다). */
+    const allSelFrames = [...document.querySelectorAll('.frame-block.selected')]
+      .filter(f => !f.querySelector(SECTION_BLOCK_TYPE_SEL_SELECTED));
+    if (allSelShapes.length > 0 || allSelBlocks.length > 0 || allSelFrames.length > 0) {
       consumed = true;
       // A13: 보호섹션(메모 '삭제하지말것' 등) 내부 블록/도형 삭제 우회 차단.
       //       선택 중 하나라도 보호섹션에 속하면 전체 차단(부분삭제 모호성 회피).
       const _isProt = window.isSectionProtected || (() => false);
       const _protShape = allSelShapes.some(s => { const sec = s.closest('.section-block'); return sec && _isProt(sec); });
       const _protBlock = allSelBlocks.some(b => { const sec = b.closest('.section-block'); return sec && _isProt(sec); });
-      if (_protShape || _protBlock) {
+      const _protFrame = allSelFrames.some(f => { const sec = f.closest('.section-block'); return sec && _isProt(sec); });
+      if (_protShape || _protBlock || _protFrame) {
         if (typeof window.showToast === 'function') window.showToast('🔒 보호된 섹션의 블록은 삭제할 수 없습니다 — 🔒 버튼으로 보호 해제 후 삭제하세요');
         deselectAll();
         return consumed;
@@ -2887,6 +2921,8 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
         const ssRow = ss?.closest('.row') || ss;
         if (ssRow) ssRowsToRemove.add(ssRow); else shape.remove();
       });
+      // 섞여서 골라진 프레임도 «줄째» — 도형 래퍼와 같은 단위다(ssRowsToRemove 가 중복을 흡수한다)
+      allSelFrames.forEach(f => { const r = f.closest('.row') || f; ssRowsToRemove.add(r); });
       ssRowsToRemove.forEach(r => r.remove());
       // 일반 블록 삭제
       const rowsToRemove = new Set();
