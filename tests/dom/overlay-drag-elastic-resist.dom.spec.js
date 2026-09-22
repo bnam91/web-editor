@@ -192,6 +192,26 @@ async function centerOf(page, id) {
   }, id);
 }
 
+/* ★여러 지점을 «거쳐» 끄는 판 — ⑴델타 0(나갔다 제자리로)을 재려면 중간 이동이 필요하고
+   (dragBy(0,0)은 3px 임계에 걸려 onMove 가 아예 안 돈다) ⑵드래그 «도중»에 ⌘를 눌렀다 뗐다
+   하는 경로를 재려면 스텝 사이에 키를 넣어야 한다.
+   steps = [[dx,dy], ...] 는 «누른 자리 기준» 누적 오프셋(화면px). metaDownAt/metaUpAt 은
+   그 스텝 «직전»에 ⌘를 누르거나 뗀다. */
+async function dragPath(page, fromId, steps, { meta = false, metaDownAt = null, metaUpAt = null } = {}) {
+  const c = await centerOf(page, fromId);
+  let metaHeld = false;
+  if (meta) { await page.keyboard.down('Meta'); metaHeld = true; }
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.down();
+  for (let i = 0; i < steps.length; i++) {
+    if (metaDownAt === i) { await page.keyboard.down('Meta'); metaHeld = true; }
+    if (metaUpAt === i) { await page.keyboard.up('Meta'); metaHeld = false; }
+    await page.mouse.move(c.x + steps[i][0], c.y + steps[i][1]);
+  }
+  await page.mouse.up();
+  if (metaHeld) await page.keyboard.up('Meta');
+}
+
 async function dragBy(page, fromId, dxPage, dyPage, { meta = false } = {}) {
   const c = await centerOf(page, fromId);
   if (meta) await page.keyboard.down('Meta');
@@ -332,3 +352,107 @@ test('E7 [양성대조] 저항폭을 zoom으로 안 나눈 옛 산식이면 E6�
   // 옛 산식: zone=40(로컬 고정), over=75>40 → 자유구간: 500+40*0.35+(75-40)=549.
   expect(left, `양성대조가 재현 안 됨 — 옛(줌 무관) 산식도 E6와 같은 값이 나오면 E6가 이 회귀를 못 잡는다는 뜻`).toBeCloseTo(549, 0);
 });
+
+/* ══ C. ⌘(Cmd) 경로의 «항등성» — T-037 ⑨ (2026-09-22) ═══════════════════════════════════
+ * 증상(실측 줌 40%, 오버레이 글자를 섹션 «밖»에 둔 채 ⌘를 누르고 끌기 시작):
+ *   커서 +4 화면px → ⌘ 없음 +4px(맞음) / ⌘ 있음 +34px(튐). 세로로만 끌어도 가로가 +74 튀었다.
+ * 뿌리: mousedown 이 _elasticAxisInverse 를 «조건 없이» 태우는데 정방향
+ *   (_elasticClampToSection)은 ⌘가 아닐 때만 탄다 ⇒ ⌘면 역함수 «출력»이 그대로 좌표가 된다.
+ * 그래서 이 묶음이 재는 건 «⌘ 경로의 항등성» 하나다 — 델타 0 이면 제자리, 델타 N 이면 정확히 N.
+ * ⛔E4(⌘ 1:1)는 이걸 못 잡는다 — 거기는 섹션 «안»(left:0, 경계 위)에서 시작해
+ *   inverse 가 항등이라 결함이 안 드러난다. 시작 자리가 섹션 «밖»이어야 난다.
+ * ⚠️기대값은 «저장된 자리(-74) + 화면델타/zoom» 이다 — raw(-103.5)가 아니다.
+ */
+const OUT_LEFT = -74;   // 섹션 밖 — elastic 출력값(= raw -103.5 의 상)
+
+test('C1 ★⌘ 제자리 — 섹션 밖(-74)에서 ⌘로 끌었다 제자리로 돌아오면 자리가 그대로다(항등)', async ({ page }) => {
+  await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
+  await page.evaluate((L) => { document.getElementById('tf1').style.left = L + 'px'; }, OUT_LEFT);
+  await dragPath(page, 'tf1', [[40, 0], [20, 0], [0, 0]], { meta: true });
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  expectNear(left, OUT_LEFT, `⌘ 드래그가 제자리로 돌아왔는데 자리가 바뀌었다(역함수만 걸린 순간이동)`);
+});
+
+test('C2 ★⌘ 1:1(가로) — 섹션 밖(-74)에서 ⌘로 화면 +40 끌면 정확히 +40 만 움직인다', async ({ page }) => {
+  await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
+  await page.evaluate((L) => { document.getElementById('tf1').style.left = L + 'px'; }, OUT_LEFT);
+  await dragPath(page, 'tf1', [[20, 0], [40, 0]], { meta: true });
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  expectNear(left, OUT_LEFT + 40, `⌘ 가로 드래그가 1:1이 아니다(커서 +40, 블록 ${left - OUT_LEFT})`);
+});
+
+test('C3 ★⌘ 세로만 끌었는데 가로가 튀지 않는다 — 두 축 모두 1:1', async ({ page }) => {
+  await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
+  // top 640 = 경계(boundMax=560) 밖 80 → raw 669.5. 가로도 섹션 밖(-74)에 둔다.
+  await page.evaluate((L) => {
+    const el = document.getElementById('tf1');
+    el.style.left = L + 'px'; el.style.top = '640px';
+  }, OUT_LEFT);
+  await dragPath(page, 'tf1', [[0, 20], [0, 40]], { meta: true });
+  const pos = await page.evaluate(() => {
+    const el = document.getElementById('tf1');
+    return { left: parseFloat(el.style.left), top: parseFloat(el.style.top) };
+  });
+  expectNear(pos.left, OUT_LEFT, `세로로만 끌었는데 가로가 움직였다(가로축 역함수 단독적용)`);
+  expectNear(pos.top, 640 + 40, `⌘ 세로 드래그가 1:1이 아니다(커서 +40, 블록 ${pos.top - 640})`);
+});
+
+test('C4 ★⌘ 대각선 — 두 축이 같이 1:1', async ({ page }) => {
+  await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
+  await page.evaluate((L) => {
+    const el = document.getElementById('tf1');
+    el.style.left = L + 'px'; el.style.top = '640px';
+  }, OUT_LEFT);
+  await dragPath(page, 'tf1', [[20, 20], [40, 40]], { meta: true });
+  const pos = await page.evaluate(() => {
+    const el = document.getElementById('tf1');
+    return { left: parseFloat(el.style.left), top: parseFloat(el.style.top) };
+  });
+  expectNear(pos.left, OUT_LEFT + 40, `⌘ 대각선의 가로가 1:1이 아니다`);
+  expectNear(pos.top, 640 + 40, `⌘ 대각선의 세로가 1:1이 아니다`);
+});
+
+test('C5 ⌘ 줌 40% — 화면 델타를 zoom으로 나눈 만큼만 정확히 움직인다(섹션 밖 시작)', async ({ page }) => {
+  await boot(page, { zoom: 40, boxW: 300, boxH: 40, secW: 800, secH: 600 });
+  await page.evaluate(() => { document.getElementById('tf1').style.left = '600px'; });  // boundMax 500 밖
+  await dragPath(page, 'tf1', [[8, 0], [16, 0]], { meta: true });
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  expectNear(left, 600 + 16 / 0.4, `줌 40% ⌘ 드래그가 1:1이 아니다: left=${left}`);
+});
+
+test('C6 ★섹션 «안»에서 시작하면 ⌘ 유무가 같은 결과다(정방향도 항등이라 짝이 맞는다)', async ({ page }) => {
+  for (const meta of [false, true]) {
+    await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
+    await page.evaluate(() => { document.getElementById('tf1').style.left = '100px'; });
+    await dragPath(page, 'tf1', [[20, 0], [40, 0]], { meta });
+    const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+    expectNear(left, 140, `섹션 안 시작 + ⌘=${meta} 에서 1:1이 아니다: left=${left}`);
+  }
+});
+
+test('C7 드래그 «도중»에 ⌘를 누르면 그 순간 안 튀고 거기서부터 1:1이다', async ({ page }) => {
+  await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
+  await page.evaluate((L) => { document.getElementById('tf1').style.left = L + 'px'; }, OUT_LEFT);
+  // ⌘ 없이 +20 까지: raw(-103.5)+20 = -83.5 → elastic 출력 -54. 거기서 ⌘를 누르고 +60 까지.
+  await dragPath(page, 'tf1', [[10, 0], [20, 0], [40, 0], [60, 0]], { metaDownAt: 2 });
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  expectNear(left, -54 + 40, `⌘를 도중에 누른 순간 자리가 튀었다: left=${left}`);
+});
+
+test('C8 드래그 «도중»에 ⌘를 떼면 그 순간 안 튀고 «저항이 다시» 걸린다(탄성 보존)', async ({ page }) => {
+  await boot(page, { zoom: 100, boxW: 300, boxH: 40, secW: 800, secH: 600 });
+  await page.evaluate(() => { document.getElementById('tf1').style.left = '500px'; });  // 경계(boundMax=500) 위
+  /* ⌘로 화면 +5 → 저항 없이 505(⌘ 아니었다면 magnet 캐치로 500에 붙어 있었을 자리).
+     거기서 ⌘를 떼고 +15 까지 마저 끈다. 떼는 순간 505 를 raw(524.29)로 되돌려 이어가므로
+     자리는 안 튀고, 그 뒤 10px 는 저항 커브를 탄다 → 505 → 508.5 (1:1이면 515였을 것). */
+  await dragPath(page, 'tf1', [[5, 0], [10, 0], [15, 0]], { meta: true, metaUpAt: 1 });
+  const left = await page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+  const rawAt505 = (505 - 500) / RESIST_FACTOR + MAGNET_ZONE_SCREEN_PX + 500;   // = 524.286
+  const expected = expectedElastic(rawAt505 + 10, 500);                          // = 508.5
+  expectNear(left, expected, `⌘를 도중에 뗀 뒤 기대값(${expected})과 다르다`);
+  expect(Math.abs(left - 515), `⌘를 뗐는데 저항이 안 돌아왔다 — 1:1(515) 그대로다: left=${left}`).toBeGreaterThan(3);
+});
+
+/* ⛔C8 을 «섹션 왼쪽 밖»(left:-200)으로 짰다가 한 번 헛돌았다 — 폭 300 블록의 중심이
+   화면 x=-50 이라 page.mouse 가 닿질 못해 mousedown 자체가 안 걸렸고, 고치기 전·후가
+   똑같이 «안 움직임»(-200)으로 나왔다. 재는 자리는 뷰포트 «안»에 둬야 한다. */
