@@ -292,7 +292,76 @@ export function grdAddIconToSelectedCell() {
 }
 if (typeof window !== 'undefined') window.grdAddIconToSelectedCell = grdAddIconToSelectedCell;
 
-/* ══ 줄바(line bar) — 요약 + [+ 줄 추가]/[줄 삭제]/[↺ 기본값으로], 빈 셀은 T/G/K 3버튼 ══
+/* ══ 줄 «종류» 명부 — ①줄 추가와 ②종류 바꾸기가 «같은 상수·같은 부품»을 쓴다 ═══════
+ * ★역할 이름은 grid-block.js 의 GRID_ROLES «한 곳»에서 뜬다 — 여기 손으로 베끼면 역할이
+ *   하나 늘 때 한쪽만 늙는다(이 레포의 고질: 열거 자리가 흩어지면 절반만 고쳐진다).
+ * ★선례 = prop-banner02.js 의 `data-line-kind` select — «단추를 늘리는 대신 고르게 한다».
+ *   ⛔역할마다 단추를 내지 않는다: 240px 패널에 여섯이 안 들어가고, 역할이 늘면 또 는다.
+ * ⛔두 벌 만들지 마라 — 아래 두 select(추가·바꾸기)가 이 상수와 이 빌더를 같이 쓴다. */
+const _GRD_KIND_KO = {
+  label: '작은제목', h1: '제목 1', h2: '제목 2', h3: '제목 3', body: '본문', caption: '캡션',
+  image: '아이콘', gap: '여백',
+};
+const _grdKindKo = (k) => _GRD_KIND_KO[k] || k;
+/** 글자 줄 «역할» — ②종류 바꾸기가 쓰는 명부. */
+const _GRD_ROLE_KINDS = Object.keys(GRID_ROLES);
+/** 새 줄로 만들 수 있는 것 전부 — 역할 ＋ 글자가 아닌 줄 둘. */
+const _GRD_ADD_KINDS = [..._GRD_ROLE_KINDS, 'image', 'gap'];
+const _grdKindOptsHtml = (kinds, cur, prefix = '') => kinds
+  .map(k => `<option value="${k}"${k === cur ? ' selected' : ''}>${prefix}${_grdKindKo(k)}</option>`).join('');
+
+/** ①줄 추가 — `[+ 줄 추가 ▾]` 한 자리. 고른 «그 순간» 그 종류로 줄이 생긴다.
+ *  ⛔단추 줄에 select 를 «끼우지» 않는다 — 단추 셋(206px)＋select 면 240px 패널을 넘는다.
+ *    그래서 [+ 줄 추가] 단추를 이 select 로 «갈음»했다(자리 수는 그대로). */
+const _grdAddKindSelectHtml = () => `
+        <select class="prop-select" id="grd-line-add-kind" style="flex:1 1 96px;min-width:0;width:auto;"
+                title="고른 종류로 새 줄을 만든다 (단축키 T=텍스트 · G=여백 · K=아이콘)">
+          <option value="">+ 줄 추가…</option>
+          ${_grdKindOptsHtml(_GRD_ADD_KINDS, null, '+ ')}
+        </select>`;
+
+/** ②종류 바꾸기 — 이미 있는 줄의 역할을 바꾼다(지우고 다시 만들 필요 없이).
+ *  ⛔이미지·여백 줄엔 «역할»이 없다 — [↺ 기본값으로]와 같은 조건으로 잠근다. */
+const _grdKindSelectHtml = (line, isTextLine) => `
+        <select class="prop-select" id="grd-line-kind" style="flex:0 1 82px;min-width:0;width:auto;"
+                ${isTextLine ? '' : 'disabled'}
+                title="${isTextLine ? '이 줄의 종류(역할)를 바꾼다' : '이미지·여백 줄엔 역할이 없습니다'}">
+          ${isTextLine ? _grdKindOptsHtml(_GRD_ROLE_KINDS, line.type || 'body')
+                       : `<option>${_grdKindKo(line.type || 'body')}</option>`}
+        </select>`;
+
+/** 두 select 의 배선 — 추가는 «고르면 바로», 바꾸기는 «지금 줄»에만.
+ *  @param {number|null} afterLi  null → 칸 끝에 붙인다(빈 칸) · 정수 → 그 줄 다음 */
+function _grdWireKindSelects(block, r, c, afterLi) {
+  const addSel = document.getElementById('grd-line-add-kind');
+  addSel?.addEventListener('change', () => {
+    const kind = addSel.value;
+    addSel.value = '';                       // 「+ 줄 추가…」로 되돌린다(다음에 또 고를 수 있게)
+    if (!kind) return;
+    if (kind === 'image') {
+      // 아이콘은 피커가 비동기다 — 「+ 아이콘 (K)」 단추와 «같은 길»로 보낸다(두 벌 금지).
+      window.openIconifyModal?.((picked) => {
+        grdToastImgFail(grdAddLine(block, { r, c }, afterLi,
+          { type: 'image', imgSrc: _grdSvgToDataUri(picked.svg), height: picked.size || 64 }));
+      });
+      return;
+    }
+    grdToastImgFail(grdAddLine(block, { r, c }, afterLi,
+      kind === 'gap' ? { type: 'gap', height: 16 } : { type: kind, text: '' }));
+  });
+
+  if (afterLi === null) return;              // 빈 칸엔 «바꿀 줄»이 아직 없다
+  const kindSel = document.getElementById('grd-line-kind');
+  kindSel?.addEventListener('change', () => {
+    if (kindSel.disabled) return;
+    let cur = '';
+    try { cur = (getGridModel(block).cells?.[r]?.[c]?.lines || [])[afterLi]?.type || 'body'; } catch (_) {}
+    if (kindSel.value === cur) return;       // 같은 값 = 화면이 안 변한다(updateGridBlock 이 거절한다)
+    window.updateGridBlock?.(block.id, { patchCell: { r, c, lineIndex: afterLi, type: kindSel.value } });
+  });
+}
+
+/* ══ 줄바(line bar) — 요약 + [종류▾] / [+ 줄 추가▾]·[줄 삭제]·[↺ 기본값으로] ══
  * ★Typography 절에서 분리됐다(2026-09-16) — 이전엔 «글자 줄»에서만 떴다(_grdResolveAddr 이
  *   텍스트 줄만 인정해서, prop-grid.js 옛 _grdTypoSectionsHtml 안에 같이 있었다). 이미지·갭
  *   줄, «빈 셀»도 줄을 추가/삭제할 수 있어야 하므로 _grdResolveAnyAddr 로 판정한 anyHit 을 받는다.
@@ -306,15 +375,18 @@ function _grdLineBarHtml(anyHit, block) {
   }
   const { r, c, li, line } = anyHit;
   if (li === null) {
-    // 빈 셀 — 아직 줄이 하나도 없다. 텍스트/갭/아이콘 중 하나로 첫 줄을 만든다.
+    /* 빈 셀 — 아직 줄이 하나도 없다. 첫 줄을 [+ 줄 추가 ▾] 로 고른다.
+       ★「+ 텍스트 (T)」·「+ 갭 (G)」 단추는 그 select 가 갈음한다(같은 것이 두 벌이 된다).
+       ⛔「+ 아이콘 (K)」는 남긴다 — 아이콘은 «피커 모달»을 여는 유일한 손잡이라 단축키 K 의
+         짝으로 눈에 보여야 하고, tests/dom/grid-cell-panel-handles.dom.spec.js E0-c 가
+         이 자리를 «하네스 자가점검»의 기준점으로 쓴다(그 id 가 없으면 그 검사가 눈이 먼다). */
     return `
     <div class="prop-section" style="padding-bottom:4px;">
       <div class="prop-row" style="align-items:center;gap:6px;">
         <span class="prop-hint" style="flex:1;min-width:0;">${r + 1}행 ${c + 1}열 · 빈 칸</span>
       </div>
       <div class="prop-row" style="gap:6px;flex-wrap:wrap;">
-        <button id="grd-cell-add-text-btn" class="prop-btn-sm" title="텍스트 줄 추가 (단축키 T)">+ 텍스트 (T)</button>
-        <button id="grd-cell-add-gap-btn" class="prop-btn-sm" title="갭 줄 추가 (단축키 G)">+ 갭 (G)</button>
+${_grdAddKindSelectHtml()}
         <button id="grd-cell-add-icon-btn" class="prop-btn-sm" title="아이콘 줄 추가 (단축키 K)">+ 아이콘 (K)</button>
       </div>
     </div>`;
@@ -326,11 +398,17 @@ function _grdLineBarHtml(anyHit, block) {
   let cellLineCount = 1;
   try { cellLineCount = (getGridModel(block).cells?.[r]?.[c]?.lines || []).length || 1; } catch (_) {}
   const canDeleteLine = cellLineCount > 1;
+  /* ★[종류 ▾] 는 «요약 줄»에 붙인다 — 단추 줄(206px)에 끼우면 240px 패널을 넘는다.
+     요약은 그만큼 좁아지므로 말줄임으로 흘린다(flex:1 1 0 + min-width:0 이 있어야 실제로 준다). */
   return `
     <div class="prop-section" style="padding-bottom:4px;">
+      <div class="prop-row" style="align-items:center;gap:6px;">
+        <span class="prop-hint" id="grd-line-summary" title="${summary}"
+              style="flex:1 1 0;min-width:0;padding:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${summary}</span>
+${_grdKindSelectHtml(line, isTextLine)}
+      </div>
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">
-        <span class="prop-hint" id="grd-line-summary" style="flex:1 1 100%;min-width:0;">${summary}</span>
-        <button id="grd-line-add-btn" class="prop-btn-sm" title="이 줄 다음에 새 줄을 추가합니다">+ 줄 추가</button>
+${_grdAddKindSelectHtml()}
         <button id="grd-line-del-btn" class="prop-btn-sm" ${canDeleteLine ? '' : 'disabled'}
                 title="${canDeleteLine ? '이 줄을 삭제합니다' : '칸에 남은 마지막 줄은 지울 수 없습니다'}">줄 삭제</button>
         <button id="grd-line-reset" class="prop-btn-sm" ${isTextLine ? '' : 'disabled'}
@@ -346,12 +424,7 @@ function _grdWireLineBar(block, addr) {
   const { r, c, li, line } = hit;
 
   if (li === null) {
-    document.getElementById('grd-cell-add-text-btn')?.addEventListener('click', () => {
-      grdToastImgFail(grdAddLine(block, { r, c }, null, { type: 'body', text: '' }));
-    });
-    document.getElementById('grd-cell-add-gap-btn')?.addEventListener('click', () => {
-      grdToastImgFail(grdAddLine(block, { r, c }, null, { type: 'gap', height: 16 }));
-    });
+    _grdWireKindSelects(block, r, c, null);
     document.getElementById('grd-cell-add-icon-btn')?.addEventListener('click', () => {
       window.openIconifyModal?.((picked) => {
         const imgSrc = _grdSvgToDataUri(picked.svg);
@@ -361,9 +434,7 @@ function _grdWireLineBar(block, addr) {
     return;
   }
 
-  document.getElementById('grd-line-add-btn')?.addEventListener('click', () => {
-    grdToastImgFail(grdAddLine(block, { r, c }, li, { type: 'body', text: '' }));
-  });
+  _grdWireKindSelects(block, r, c, li);
   document.getElementById('grd-line-del-btn')?.addEventListener('click', (e) => {
     if (e.currentTarget.disabled) return;
     let curLines;
