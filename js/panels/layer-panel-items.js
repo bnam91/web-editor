@@ -562,7 +562,19 @@ function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
       // text-frame 드래그 시: block을 row wrapper에 넣어 overlay에 삽입
       const container = dragEl.classList.contains('row') ? dragEl : (() => {
         const r = document.createElement('div');
-        r.className = 'row'; r.dataset.layout = 'stack';
+        /* ★[2026-09-22] row 에 «만들 때» id 를 준다 — 형제 자리들과 같은 꼴이다. ⛔지우지 마라.
+           안 주면 js/io/save-load.js rebindAll 의 「row ID 복원」이 `'row_' + Math.random()` 을 박는데,
+           그 줄은 restoreSnapshot(⌘Z)·switchPage 가 «둘 다» 지난다 ⇒ 복원할 때마다 «다른 id» 다.
+           그러면 「복원 직후 라이브 ≠ 방금 복원한 스냅샷」이 항상 참이 되어 ⌘Z 가 제자리를 맴돈다
+           (2026-09-22 의 «되돌리기 전면 무동작»이 그 모양이었다 — step·laurel·overlayRow 넷이 그랬다).
+           ⛔런타임에 «들어가는 문»에서 메우는 우회로로 고치지 마라 — 앞으로 id 없이 만드는 새 자리가
+             생겨도 조용히 메워져 아무도 모른다(새 사각지대). 자리마다 «만들 때» 주고 명부로 잠근다.
+           명부 게이트: tests/unit/row-id-at-creation.test.mjs
+           ⚠️이 파일은 머리말대로 외부 의존성을 window.* 로만 잡는다 — genId 도 그렇게 잡고,
+             없을 때의 폴백은 js/shape-frame.js _genRowId 와 같은 꼴이다. */
+        r.className = 'row';
+        r.id = window.genId ? window.genId('row') : 'row_' + Math.random().toString(36).slice(2, 9);
+        r.dataset.layout = 'stack';
         r.appendChild(block);
         return r;
       })();
