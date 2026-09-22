@@ -531,7 +531,9 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  *     ⇒ halfHandle() = 3.5 × invZoom + applyZoom 갈고리(window._syncCircleImgHandles).
  *   회귀: tests/unit/handle-token-parity.test.mjs H6 (소스 «글자» 축)
  *       · tests/dom/handle-size-parity.dom.spec.js B1~B6 (고정층 손잡이의 크기·두께)
- *       · tests/dom/handle-center-icon-circle.dom.spec.js B7·B8 (⑵ 경로를 «실제로 렌더해» 중심을 잰다)
+ *       · tests/dom/handle-center-icon-circle.dom.spec.js B7·B8·B9
+ *         (⑵ 경로를 «진짜 더블클릭»으로 열어 중심을 잰다 — bindBlock 의 click·dblclick 리스너를
+ *          그대로 지나고, 첫 클릭이 붙이는 형제 `.icb-overlay-handle` 4개까지 센다)
  *   ⛔앞의 두 검사는 ⑵ 자리를 «안» 잰다 — H6 은 렌더가 없고, handle-size-parity 하네스에는
  *     icon-circle-block 이 0건이라 아래 오버라이드가 한 번도 매칭되지 않는다. 그래서 B7 이 따로 있다. */
 .icon-circle-block .img-corner-handle,

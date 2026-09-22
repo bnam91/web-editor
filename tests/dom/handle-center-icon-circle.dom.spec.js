@@ -15,7 +15,18 @@
  * ★기준선 = 에셋 블럭 편집 손잡이(고정층 #ss-handles-overlay, enterImageEditMode).
  *   현빈이 고른 그 손잡이다. 같은 검사 안에서 같은 식으로 재서 «기준도 (0,0)»임을 같이 박는다.
  *
- * ⛔앱을 «안» 띄운다. 실제 렌더러 모듈(js/image-handling.js)을 그대로 import 해 쓴다.
+ * ★진입 경로를 «둘» 다 밟는다 — 하네스가 손잡이를 직접 만들어 놓고 재면, 실제 진입 경로에서만
+ *   나는 결함을 영영 못 잡는다(B7 자리가 비어 있던 것도 기존 하네스가 icon-circle-block 을
+ *   한 번도 «안 만들어서»였다).
+ *   ㉡ 진짜 더블클릭 — page.dblclick() = 브라우저가 만드는 «신뢰된» 입력. js/block-drag.js `bindBlock`
+ *      이 실제로 건 click·dblclick 리스너를 그대로 지난다. 첫 클릭의 부수효과로
+ *      `showIconCircleResizeHandle`(js/overlay-handles.js:1166)가 오버레이에
+ *      `.icb-overlay-handle` 을 «네 개»(CORNER_DIRS, 네 모서리) 붙인다 —
+ *      B7 이 그 «형제»가 실제로 붙었는지까지 센다.
+ *   ㉠ window.enterCircleImageEditMode 직접 호출 — 앞선 실측이 쓴 걸음.
+ *   B9 가 둘의 «크기·중심»이 같은지 못박는다(등가 확인).
+ *
+ * ⛔앱을 «안» 띄운다. 실제 렌더러 모듈(js/image-handling.js · js/block-drag.js)을 그대로 import 한다.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js handle-center-icon-circle
  */
 const { test, expect } = require('@playwright/test');
@@ -69,6 +80,21 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <script src="/js/feature-flags.js"></script>
 <script type="module">
   import '/js/image-handling.js';
+  /* ★bindBlock 이 진짜 click·dblclick 리스너를 건다 — ㉡ 경로의 본체다. */
+  import '/js/block-drag.js';
+  /* ⚠️여기부터 네 줄은 «대역»이다 — 에디터 화면(index.html) 전체를 띄워야 오는 전역이라
+     이 하네스에는 없다(js/editor.js deselectAll/setBlockAnchor · props/prop-section.js syncSection ·
+     panels/layer-panel.js highlightBlock · props/prop-icon-circle.js showIconCircleProperties).
+     ⛔대역은 «부르면 조용히 넘어가는» 것뿐이다 — 손잡이를 만들거나 기하를 만지지 않는다.
+     이 검사가 재는 양(손잡이 rect·중심)에 닿는 코드는 전부 진짜다:
+       · click  → showIconCircleResizeHandle (js/overlay-handles.js, 모듈 안에서 직접 호출 = 진짜)
+       · dblclick → window.enterCircleImageEditMode (js/image-handling.js = 진짜) */
+  const __stubbed = [];
+  for (const k of ['deselectAll','syncSection','highlightBlock','showIconCircleProperties','setBlockAnchor']) {
+    if (typeof window[k] !== 'function') { window[k] = () => {}; __stubbed.push(k); }
+  }
+  window.__stubbed = __stubbed;
+  window.bindBlock(document.getElementById('icb'));
   /* 배율은 실앱 applyZoom(js/editor.js)과 «같은 세 가지»를 한다:
      scaler transform · :root --inv-zoom · window.currentZoom.
      ★네 번째 — applyZoom 은 _syncCircleImgHandles 갈고리도 부른다. 여기서도 같이 부른다.
@@ -109,18 +135,57 @@ async function boot(page) {
   return errs;
 }
 
-/** 두 편집 모드를 «실제로» 연다 — 하네스가 손잡이를 손으로 만들지 않는다. */
-async function enterBoth(page) {
+/** 기준선(에셋 편집 모드)은 늘 같은 입구로 연다 — 이 검사의 «자»다. */
+async function enterBaseline(page) {
+  return page.evaluate(() => {
+    const ab = document.getElementById('ab');
+    window.enterImageEditMode(ab, { noRotate: true, noColorAdjust: true });
+    return document.getElementById('ss-handles-overlay')
+      .querySelectorAll('.img-corner-handle, .img-edge-handle').length;
+  });
+}
+
+async function seedIcb(page) {
+  await page.evaluate(() => {
+    const icb = document.getElementById('icb');
+    icb.dataset.imgW = 160; icb.dataset.imgX = 0; icb.dataset.imgY = 40;
+  });
+}
+
+/**
+ * ㉡ 진짜 더블클릭으로 편집 모드에 들어간다.
+ * page.dblclick() 은 브라우저가 «신뢰된» 입력을 만들어 내려보낸다 — dispatchEvent 로 지어낸
+ * 합성 이벤트가 아니다. js/block-drag.js bindBlock 이 건 click·dblclick 리스너를 그대로 지난다.
+ */
+async function enterByDblclick(page) {
+  await seedIcb(page);
+  await page.locator('#icb').dblclick({ position: { x: 20, y: 20 } });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   return page.evaluate(() => {
     const icb = document.getElementById('icb');
-    const ab  = document.getElementById('ab');
-    icb.dataset.imgW = 160; icb.dataset.imgX = 0; icb.dataset.imgY = 40;
-    window.enterCircleImageEditMode(icb);
-    window.enterImageEditMode(ab, { noRotate: true, noColorAdjust: true });
     return {
+      editing: icb._imgEditing === true,
       icbHandles: icb.querySelectorAll('.img-corner-handle, .img-edge-handle').length,
-      overlayHandles: document.getElementById('ss-handles-overlay')
-        .querySelectorAll('.img-corner-handle, .img-edge-handle').length,
+      /* ★첫 클릭의 부수효과 — showIconCircleResizeHandle 이 오버레이에 붙이는 «형제» 손잡이.
+         0 이면 우리가 click 가지를 안 지났다는 뜻이고, 그러면 ㉡ 이라 부를 수 없다. */
+      icbOverlayHandles: document.getElementById('ss-handles-overlay')
+        .querySelectorAll('.icb-overlay-handle').length,
+      stubbed: window.__stubbed,
+    };
+  });
+}
+
+/** ㉠ 직접 호출 — 앞선 실측이 쓴 걸음. B9 가 ㉡ 과 같은 값인지 본다. */
+async function enterByDirectCall(page) {
+  await seedIcb(page);
+  return page.evaluate(() => {
+    const icb = document.getElementById('icb');
+    window.enterCircleImageEditMode(icb);
+    return {
+      editing: icb._imgEditing === true,
+      icbHandles: icb.querySelectorAll('.img-corner-handle, .img-edge-handle').length,
+      icbOverlayHandles: document.getElementById('ss-handles-overlay')
+        .querySelectorAll('.icb-overlay-handle').length,
     };
   });
 }
@@ -188,11 +253,20 @@ const OFF_TOL = 0.3;
 const SIZE_TOL = 1 / 2;   // dpr 2 — 캔버스 «안» 손잡이는 디바이스 픽셀 1개까지 스냅된다
 
 test.describe('T-110 — 아이콘원형 편집 손잡이의 «중심»(dpr 2)', () => {
-  test('B7 ★아이콘원형 편집 손잡이는 줌 40/100/150 에서 중심이 (0,0) 이고 크기는 7px 이다', async ({ page }) => {
+  test('B7 ★«진짜 더블클릭»으로 연 아이콘원형 편집 손잡이는 줌 40/100/150 에서 중심 (0,0) · 크기 7px', async ({ page }) => {
     const errs = await boot(page);
-    const n = await enterBoth(page);
+    const base = await enterBaseline(page);
+    expect(base, '기준(에셋) 손잡이가 고정층에 8개가 아니다').toBe(8);
+    const n = await enterByDblclick(page);
+    expect(n.editing, '더블클릭으로 편집 모드에 «안» 들어갔다 — ㉡ 경로가 끊겼다').toBe(true);
     expect(n.icbHandles, '아이콘원형 편집 손잡이가 8개가 아니다 — 하네스가 늙었나?').toBe(8);
-    expect(n.overlayHandles, '기준(에셋) 손잡이가 고정층에 8개가 아니다').toBe(8);
+    /* ★㉡ 을 «실제로» 지났다는 증거 — 첫 클릭이 붙이는 형제 손잡이.
+       ⛔이게 0 이면 dblclick 만 먹고 click 가지를 건너뛴 것이고, 그건 ㉠ 과 다를 바 없다.
+       ★실측 = 4 개다(1 개가 아니다) — showIconCircleResizeHandle 이 CORNER_DIRS 를 돌아
+       네 «모서리»에 다 단다(js/overlay-handles.js:1178, 「에셋 블록과 개수를 맞춘다」).
+       단정은 ≥1 로 둔다 — 여기서 묻는 건 «click 가지를 지났나»지 개수 자체가 아니다. */
+    expect(n.icbOverlayHandles,
+      '첫 클릭 부수효과(.icb-overlay-handle)가 안 붙었다 — click 가지를 안 지났다').toBeGreaterThanOrEqual(1);
 
     const bad = [];
     for (const z of ZOOMS) {
@@ -219,7 +293,9 @@ test.describe('T-110 — 아이콘원형 편집 손잡이의 «중심»(dpr 2)',
 
   test('B8 ★«배율이 바뀌는 자리»에 묶여 있다 — 갈고리를 빼면 중심이 도로 어긋난다', async ({ page }) => {
     await boot(page);
-    await enterBoth(page);
+    await enterBaseline(page);
+    const n = await enterByDblclick(page);
+    expect(n.editing, '더블클릭 진입 실패').toBe(true);
     await measure(page, 100);
 
     /* ⑴ 음성대조 — 갈고리를 «안» 부르고 배율만 바꾸면 «바꾸기 전» 절반이 남아 어긋나야 한다.
@@ -246,5 +322,40 @@ test.describe('T-110 — 아이콘원형 편집 손잡이의 «중심»(dpr 2)',
     const imgSrc = fs.readFileSync(path.join(REPO, 'js', 'image-handling.js'), 'utf8');
     expect(imgSrc, 'enterCircleImageEditMode 가 갈고리를 안 건다')
       .toContain('window._syncCircleImgHandles = syncHandles');
+  });
+
+  test('B9 ★㉠ 직접호출 과 ㉡ 진짜 더블클릭이 «같은 값»을 준다 (등가)', async ({ page }) => {
+    const errs = await boot(page);
+    await enterBaseline(page);
+
+    // ㉠ 직접 호출
+    const a = await enterByDirectCall(page);
+    expect(a.editing, '㉠ 진입 실패').toBe(true);
+    expect(a.icbOverlayHandles, '㉠ 은 click 가지를 안 지나므로 형제 손잡이가 없어야 한다').toBe(0);
+    const direct = {};
+    for (const z of ZOOMS) direct[z] = (await measure(page, z)).icb;
+
+    // 편집 모드를 닫고, 같은 장면을 ㉡ 로 다시 연다
+    await page.evaluate(() => { window.exitCircleImageEditMode(document.getElementById('icb')); });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const b = await enterByDblclick(page);
+    expect(b.editing, '㉡ 진입 실패').toBe(true);
+    expect(b.icbOverlayHandles, '㉡ 인데 첫 클릭 부수효과가 없다').toBeGreaterThanOrEqual(1);
+    const dbl = {};
+    for (const z of ZOOMS) dbl[z] = (await measure(page, z)).icb;
+
+    /* ★두 표가 «같은가» — 다르면 그게 새 발견이다(형제 손잡이가 기하에 닿는다는 뜻). */
+    const bad = [];
+    for (const z of ZOOMS) {
+      for (let i = 0; i < 8; i++) {
+        const A = direct[z][i], B = dbl[z][i];
+        expect(A.id).toBe(B.id);
+        if (Math.abs(A.w - B.w) > 0.01)   bad.push(`줌${z} ${A.id}: 크기 ㉠${A.w} ≠ ㉡${B.w}`);
+        if (Math.abs(A.dx - B.dx) > 0.01) bad.push(`줌${z} ${A.id}: dx ㉠${A.dx} ≠ ㉡${B.dx}`);
+        if (Math.abs(A.dy - B.dy) > 0.01) bad.push(`줌${z} ${A.id}: dy ㉠${A.dy} ≠ ㉡${B.dy}`);
+      }
+    }
+    expect(bad, '두 진입 경로가 «다른 값»을 준다:\n  ' + bad.join('\n  ')).toEqual([]);
+    expect(errs, JSON.stringify(errs)).toEqual([]);
   });
 });
