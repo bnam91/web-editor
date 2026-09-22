@@ -303,10 +303,12 @@ const _GRD_KIND_KO = {
   image: '아이콘', gap: '여백',
 };
 const _grdKindKo = (k) => _GRD_KIND_KO[k] || k;
-/** 글자 줄 «역할» — ②종류 바꾸기가 쓰는 명부. */
+/** 글자 줄 «역할» — GRID_ROLES 에서 뜬다(손으로 안 적는다). */
 const _GRD_ROLE_KINDS = Object.keys(GRID_ROLES);
-/** 새 줄로 만들 수 있는 것 전부 — 역할 ＋ 글자가 아닌 줄 둘. */
-const _GRD_ADD_KINDS = [..._GRD_ROLE_KINDS, 'image', 'gap'];
+/** ★줄 종류 명부 «하나» — ①추가와 ②바꾸기가 «이것 하나»를 읽는다(설계 M7).
+ *  ⛔둘로 가르지 마라 — 「추가로는 되는데 바꾸기로는 안 되는 종류」가 생기고, 종류가 하나 늘 때
+ *    한쪽만 늙는다(이 레포의 고질: 비율 상한이 한 곳만 4로 올라가 4열 입력이 조용히 무시됐다). */
+const _GRD_KINDS = [..._GRD_ROLE_KINDS, 'image', 'gap'];
 const _grdKindOptsHtml = (kinds, cur, prefix = '') => kinds
   .map(k => `<option value="${k}"${k === cur ? ' selected' : ''}>${prefix}${_grdKindKo(k)}</option>`).join('');
 
@@ -317,18 +319,24 @@ const _grdAddKindSelectHtml = () => `
         <select class="prop-select" id="grd-line-add-kind" style="flex:1 1 96px;min-width:0;width:auto;"
                 title="고른 종류로 새 줄을 만든다 (단축키 T=텍스트 · G=여백 · K=아이콘)">
           <option value="">+ 줄 추가…</option>
-          ${_grdKindOptsHtml(_GRD_ADD_KINDS, null, '+ ')}
+          ${_grdKindOptsHtml(_GRD_KINDS, null, '+ ')}
         </select>`;
 
-/** ②종류 바꾸기 — 이미 있는 줄의 역할을 바꾼다(지우고 다시 만들 필요 없이).
- *  ⛔이미지·여백 줄엔 «역할»이 없다 — [↺ 기본값으로]와 같은 조건으로 잠근다. */
-const _grdKindSelectHtml = (line, isTextLine) => `
+/** ②종류 바꾸기 — 이미 있는 줄의 종류를 바꾼다(지우고 다시 만들 필요 없이).
+ *  ★명부는 ①추가와 «같은 _GRD_KINDS» 다 — 아이콘·여백으로도 바꿀 수 있어야 「추가로는 되는데
+ *    바꾸기로는 안 되는 종류」가 안 생긴다(M7). */
+const _grdKindSelectHtml = (line) => `
         <select class="prop-select" id="grd-line-kind" style="flex:0 1 82px;min-width:0;width:auto;"
-                ${isTextLine ? '' : 'disabled'}
-                title="${isTextLine ? '이 줄의 종류(역할)를 바꾼다' : '이미지·여백 줄엔 역할이 없습니다'}">
-          ${isTextLine ? _grdKindOptsHtml(_GRD_ROLE_KINDS, line.type || 'body')
-                       : `<option>${_grdKindKo(line.type || 'body')}</option>`}
+                title="이 줄의 종류를 바꾼다">
+          ${_grdKindOptsHtml(_GRD_KINDS, line.type || 'body')}
         </select>`;
+
+/** 종류를 바꿀 때 «앞 종류의 짐»을 턴다(설계 M3).
+ *  ★image → body 로 바꿨는데 imgSrc 가 남으면 dataURL 수백 KB 가 저장본에 눌러앉는다.
+ *    height/widthPct 도 같다 — 글자 줄은 안 읽는데 다음에 다시 image 로 바꾸면 되살아난다.
+ *  ⛔undefined 로 «키를 없앤다» — _gridMergeLine 이 Object.assign 이라 JSON 에서 사라진다.
+ *  ⛔여기 적는 이름은 GRID_LINE_FIELDS 안에 있어야 한다(아니면 updateGridBlock 이 통째로 거절한다). */
+const _GRD_KIND_SHED = { imgSrc: undefined, height: undefined, widthPct: undefined, text: undefined };
 
 /** 두 select 의 배선 — 추가는 «고르면 바로», 바꾸기는 «지금 줄»에만.
  *  @param {number|null} afterLi  null → 칸 끝에 붙인다(빈 칸) · 정수 → 그 줄 다음 */
@@ -353,11 +361,19 @@ function _grdWireKindSelects(block, r, c, afterLi) {
   if (afterLi === null) return;              // 빈 칸엔 «바꿀 줄»이 아직 없다
   const kindSel = document.getElementById('grd-line-kind');
   kindSel?.addEventListener('change', () => {
-    if (kindSel.disabled) return;
     let cur = '';
     try { cur = (getGridModel(block).cells?.[r]?.[c]?.lines || [])[afterLi]?.type || 'body'; } catch (_) {}
     if (kindSel.value === cur) return;       // 같은 값 = 화면이 안 변한다(updateGridBlock 이 거절한다)
-    _grdToastCellFail(window.updateGridBlock?.(block.id, { patchCell: { r, c, lineIndex: afterLi, type: kindSel.value } }));
+    const change = (extra) => _grdToastCellFail(window.updateGridBlock?.(block.id,
+      { patchCell: { r, c, lineIndex: afterLi, type: kindSel.value, ..._GRD_KIND_SHED, ...extra } }));
+    if (kindSel.value === 'image') {
+      // 아이콘은 피커가 «먼저» 온다 — 취소하면 아무것도 안 바꾼다(빈 이미지 자리를 안 남긴다).
+      window.openIconifyModal?.((picked) => {
+        change({ imgSrc: _grdSvgToDataUri(picked.svg), height: picked.size || 64 });
+      });
+      return;
+    }
+    change(kindSel.value === 'gap' ? { height: 16 } : { text: '' });
   });
 }
 
@@ -405,7 +421,7 @@ ${_grdAddKindSelectHtml()}
       <div class="prop-row" style="align-items:center;gap:6px;">
         <span class="prop-hint" id="grd-line-summary" title="${summary}"
               style="flex:1 1 0;min-width:0;padding:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${summary}</span>
-${_grdKindSelectHtml(line, isTextLine)}
+${_grdKindSelectHtml(line)}
       </div>
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">
 ${_grdAddKindSelectHtml()}
