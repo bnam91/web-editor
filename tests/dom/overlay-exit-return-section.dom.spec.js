@@ -168,8 +168,10 @@ test('X3 [양성대조] "원래 부모로 무조건 복귀"였다면 X2가 실�
  * a1-a3가 이 파일의 하네스를 그대로 써서 조사용 검사를 돌리고 지웠다("저장소에 안
  * 남겼다") — 재현 불가능한 결론이라는 내용 게이트 지적을 받아, 그 세 조합을 여기 정식
  * 스펙으로 옮긴다(Q1·Q2는 a1-a3 조사 결과 그대로 "정상"을 고정, Q3도 동일).
- * ★Q2는 "그 섹션 맨 앞에 들어간다"는 현빈 검수(🔎㉗)에서 바뀔 수 있는 항목이다 — 바뀌면
- *   이 테스트가 빨개져서 알려준다(의도적으로 "지금 값을 고정"하는 스펙).
+ * ★Q2는 "그 섹션 맨 앞에 들어간다"는 현빈 검수(🔎㉗)에서 바뀔 수 있는 항목이었다 — 그리고
+ *   실제로 바뀌었다. 2026-09-22 현빈 결정: 「놓은 높이에 맞는 자리」에 들어간다.
+ *   그래서 Q2 를 «새 결정»으로 다시 썼다(자리표 전체는 overlay-exit-drop-height.dom.spec.js).
+ *   예고대로 옛 Q2 가 빨개져서 이 변경을 알려 줬다 — 고정 스펙이 제 일을 했다.
  */
 test('Q1 다른 섹션(secB)으로 옮겼다가 원래 섹션(secA)으로 되돌아온 뒤 이탈 — 정확히 원래 자리(tbwrap)로 복귀한다', async ({ page }) => {
   await boot(page);
@@ -183,27 +185,51 @@ test('Q1 다른 섹션(secB)으로 옮겼다가 원래 섹션(secA)으로 되돌
   expect(parentId, `원래 섹션으로 되돌아왔는데도 원래 자리(tbwrap)로 복귀 안 함: ${parentId}`).toBe('tbwrap');
 });
 
-test('Q2 [현재값 고정 — 🔎㉗ 현빈 검수 대기] 기존 블럭이 있는 섹션으로 옮겨 이탈하면 그 섹션 «맨 앞»(자리 0)에 들어간다', async ({ page }) => {
-  await boot(page);
+/* 기존 블럭 셋(각 80px)을 innerB 에 깔아 둔다 — innerB 는 y=300 에서 시작한다.
+     existing0 300~380 (중심 340) · existing1 380~460 (중심 420) · existing2 460~540 (중심 500)
+   tf1 은 높이 40 ⇒ secB 안 top=T 로 두면 중심 = 300 + T + 20. */
+async function seedInnerB(page) {
   await page.evaluate(() => {
-    // innerB에 기존 블럭 셋을 미리 넣어 둔다(a1-a3 조사와 동일 조건).
     const inner = document.getElementById('innerB');
     for (let i = 0; i < 3; i++) {
       const d = document.createElement('div');
       d.id = `existing${i}`;
+      d.style.height = '80px';
       inner.appendChild(d);
     }
   });
+}
+async function exitAfterDropAt(page, T) {
   await page.evaluate(() => document.getElementById('txt-overlay-toggle').click()); // 진입 (secA)
-  await page.evaluate(() => document.getElementById('secB').appendChild(document.getElementById('tf1')));
-  await page.evaluate(() => document.getElementById('txt-overlay-toggle').click()); // 이탈 → innerB로 폴백
-  const { parentId, indexInParent } = await page.evaluate(() => {
+  return await page.evaluate((t) => {
     const f = document.getElementById('tf1');
-    return { parentId: f.parentElement.id, indexInParent: [...f.parentElement.children].indexOf(f) };
-  });
-  expect(parentId).toBe('innerB');
-  // ★현재 동작(target.prepend) 고정 — "놓아 둔 높이 근처"로 바뀌면 여기가 빨개진다(의도적).
-  expect(indexInParent, `innerB 안에서 맨 앞(0)이 아니다 — target.prepend 동작이 바뀌었다: index=${indexInParent}`).toBe(0);
+    document.getElementById('secB').appendChild(f);
+    f.dataset.offsetY = String(t); f.style.top = t + 'px';
+    const r = f.getBoundingClientRect();
+    const centerY = r.top + r.height / 2;
+    document.getElementById('txt-overlay-toggle').click();                          // 이탈 → innerB 로 폴백
+    return { parentId: f.parentElement.id, indexInParent: [...f.parentElement.children].indexOf(f), centerY };
+  }, T);
+}
+
+test('Q2 [2026-09-22 현빈 결정] 기존 블럭이 있는 섹션으로 옮겨 이탈하면 «놓은 높이에 맞는 자리»에 들어간다', async ({ page }) => {
+  await boot(page);
+  await seedInnerB(page);
+  const r = await exitAfterDropAt(page, 160);   // 중심 480 — existing1(420) 아래, existing2(500) 위
+  expect(r.centerY).toBe(480);
+  expect(r.parentId).toBe('innerB');
+  /* ★옛 동작(target.prepend)이었다면 0 이다. 놓은 높이가 existing1 과 existing2 사이이므로
+     existing2 앞(=2)이 맞는 자리다. */
+  expect(r.indexInParent, `놓은 높이(중심 480)와 안 맞는 자리에 들어갔다: index=${r.indexInParent}`).toBe(2);
+});
+
+test('Q2b [경계 유지] 첫 블럭보다 위에 놓으면 여전히 그 섹션 «맨 앞»(자리 0)이다', async ({ page }) => {
+  await boot(page);
+  await seedInnerB(page);
+  const r = await exitAfterDropAt(page, 0);     // 중심 320 — 첫 블럭(중심 340)보다 위
+  expect(r.centerY).toBe(320);
+  expect(r.parentId).toBe('innerB');
+  expect(r.indexInParent, `위쪽에 놓았는데 맨 앞이 아니다: index=${r.indexInParent}`).toBe(0);
 });
 
 test('Q3 원래 부모가 자유배치 프레임(data-free-layout)이어도 다른 섹션으로 옮겨 이탈하면 innerB로 들어가고 position·width가 정리된다', async ({ page }) => {
