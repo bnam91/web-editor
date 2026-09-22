@@ -461,11 +461,28 @@ function restoreSnapshotScoped(fromSnap, toSnap, laterSnap) {
 }
 
 function undo() {
-  // 스택 끝에서 undo 시작 시 라이브 상태(tip)가 스택에 없으면 먼저 적재 —
-  // 없으면 첫 undo가 마지막 액션 이후 상태를 폐기해 redo로도 복원 불가 (DEF-01)
-  if (historyPos === historyStack.length - 1) {
-    ensureHistoryCheckpoint('현재 상태');
-  }
+  /* 라이브 상태(tip)가 스택에 없으면 먼저 적재 — 없으면 첫 undo 가 마지막 액션 이후
+     상태를 폐기해 redo 로도 복원 불가 (DEF-01).
+
+     ★[R2 · 2026-09-22] 여기 있던 `if (historyPos === historyStack.length - 1)` 를 걷었다.
+     그 조건은 «꼭대기일 때만» 구제했다 — 즉 ⌘Z 를 한 번이라도 눌러 redo 꼬리가 생기면
+     구제가 꺼졌다. 그런데 꺼져야 할 이유가 없고, 꺼진 자리에서 ⌘Z 한 번이 «두 걸음»을 먹었다:
+       ⌘Z 직후엔 historyStack[pos] === 라이브다. 다음 편집이 push-before 규약이면
+       pushHistory 가 «바꾸기 전»(=꼭대기와 같은) 캔버스를 찍으니 :250 무변화 차단에 먹혀
+       칸이 안 생기고, 차단은 slice 도 안 하므로 redo 꼬리가 그대로 산다. 그 상태에서 다음
+       ⌘Z 가 오면 pos !== len-1 이라 이 구제가 안 돌고, 방금 한 편집의 결과가 스택에 한 번도
+       안 찍힌 채로 한 칸 앞으로 간다 ⇒ 화면은 두 걸음 뒤로 간다 (T-009 ⑨ · T-005 ④㉡).
+     ⇒ 조건 없이 «항상» 돌린다. 「모든 동작이 끝 표본을 남긴다」를 undo 첫머리에서 보장한다.
+
+     ⛔이 한 줄은 «복원이 멱등»이라야 안전하다 — 자세히:
+       ensureHistoryCheckpoint 는 칸을 «만들 때» :583 에서 redo 꼬리를 slice 한다.
+       ⌘Z 직후 라이브가 방금 복원한 스냅샷과 «같으면» 그 함수는 :594 else 로 떨어져
+       칸을 안 만들고 slice 도 안 한다 ⇒ ⌘⇧Z 가 산다.
+       그런데 복원이 비멱등이면(rebindAll 이 복원 직후 DOM 을 또 고치면) 그 «같다»가
+       도형 페이지에서 «항상 거짓»이 돼 ⌘Z 를 누를 때마다 ⌘⇧Z 가 죽는다.
+       그래서 이 변경 «앞»에 F2(복원 멱등, block-factory/annotation-block)가 먼저 들어갔다.
+       ⛔F2 를 되돌리면 여기가 T-035 ① · T-059 ⑤ · T-073 ⌘⇧Z 축을 한꺼번에 깬다. */
+  ensureHistoryCheckpoint('현재 상태');
   if (historyPos <= 0) return;
   // ★0919 QA: 열린 색 피커는 «떨어져 나갈» 블럭 DOM 을 붙잡고 있다 — 복원 전에 닫는다.
   //   (안 닫으면 undo 뒤 탭 클릭이 떨어진 노드에 적용되고 기록만 하나 쌓여 redo 스택이 잘렸다)
