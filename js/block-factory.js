@@ -1944,6 +1944,17 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     window.showFrameHandles?.(ss);
     window.buildLayerPanel();
     window.scheduleAutoSave?.();
+    /* ★묶기가 «됐다»고 말해 준다 (T-080, 2026-09-22 실측 포트 9533)
+       실패 경로엔 말이 있었는데(위 「…먼저 선택하세요.」·「같은 섹션 안의 블록만…」) 성공 경로엔
+       한마디도 없었다 — 그룹 0→1 · 글자블럭 3→3 으로 «성공했는데» 떠 있는 안내 0개.
+       블록이 프레임 안으로 빨려 들어가 캔버스 모양이 확 바뀌는 순간이라, 그게 «내가 한 일»인지
+       «사고»인지 가를 단서가 없다.
+       ⛔여기서 «최상위 도우미 함수»를 부르지 마라 — DOM 하네스(tests/dom/*.dom.spec.js)는 이
+         함수 «하나»만 잘라 넣어서 돌린다. 실제로 그렇게 짰다가 27건이 `ReferenceError:
+         _noticeGrouped is not defined` 로 빨개졌다(2026-09-22). window.* 는 하네스에도 있다. */
+    if (window.showToast && wrappers.length > 0) {
+      window.showToast(`${wrappers.length}개를 ${asGroup ? '그룹으로' : '프레임으로'} 묶었어요`);
+    }
     return;
   }
 
@@ -2054,6 +2065,11 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   });
   if (leftBehind && window.showToast) {
     window.showToast('그룹에 못 넣은 블록이 있어 원래 자리에 남겼어요.');
+  } else if (window.showToast && rows.length > 0) {
+    /* 성공했다고 말해 준다 — 근거는 위 자유배치 갈래의 머리말.
+       ⚠️못 넣고 남긴 블록이 있는 갈래는 그쪽 말이 더 중요하다 ⇒ «덮지 않는다».
+         #editor-toast 는 재사용 노드라 나중 말이 앞말을 지운다(js/drag-utils.js showToast). */
+    window.showToast(`${rows.length}개를 ${asGroup ? '그룹으로' : '프레임으로'} 묶었어요`);
   }
 
   window.bindFrameDropZone?.(ss);
