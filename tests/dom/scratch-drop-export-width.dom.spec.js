@@ -60,7 +60,15 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="/css/editor-blocks.css"><link rel="stylesheet" href="/css/editor-layout.css">
 <style>#canvas-scaler{position:relative;width:860px;min-height:900px;}#canvas{width:860px;}
 .section-block{position:relative;background:#fff;}
-.section-inner{padding-left:32px;padding-right:32px;min-height:400px;display:block;}</style></head><body>
+.section-inner{padding-left:32px;padding-right:32px;min-height:400px;display:block;}
+/* ★2026-09-22(T-011): 우측 패널을 «흐름에서 뺀다» — 실앱(position:fixed 우측 240px)과 같은 모양.
+   옛 하네스는 #panel-right 를 body 맨 위 «흐름»에 뒀다. 그래서 패널이 길어지는 만큼 캔버스가
+   아래로 밀리고, 드롭 지점이 뷰포트(720) 밖으로 나가면 elementFromPoint 가 null 을 주어
+   commitScratchDropAt 이 decision 'none' 으로 false 를 돌려준다 = «드롭이 안 된» 것처럼 보인다.
+   실측: 패널 높이 621px(여유 99px) → 배경 절 한 개 늘자 753px → 드롭점 y=811 > 720 → 거짓 빨강.
+   ⛔이 검사가 재는 것은 «내보내기 폭»이지 패널 높이가 아니다. 그 둘을 붙여 두면 패널에 줄 하나
+     더하는 사람마다 여기서 영문 모를 빨강을 만난다. ⇒ 좌표를 패널 높이와 떼어 놓는다. */
+#panel-right{position:fixed;right:0;top:0;width:240px;height:100%;overflow:auto;}</style></head><body>
 <div id="panel-right"><div class="panel-body"></div></div>
 <div id="canvas-wrap"><div id="canvas-scaler">
   <div id="canvas"><div class="section-block" id="sec"><div class="section-inner" id="inner" data-padding-x="32"></div></div></div>

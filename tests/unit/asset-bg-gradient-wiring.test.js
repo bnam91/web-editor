@@ -50,7 +50,15 @@ test('A4 배경색 초기화(clear) 버튼도 style.background를 지운다', ()
 
 test('A5 ★변이대조 — onGradient를 빼면 A1이 빨개져야 한다(이 검사가 실제로 그 배선을 본다는 증거)', () => {
   const call = bgCall(SRC);
-  const mutated = call.replace(/onGradient\s*:\s*\(css, commit\)\s*=>\s*\{[\s\S]*?\n\s{6}\},\n/, '');
+  /* ★2026-09-22(T-011 2라운드) 끝 앵커에서 «들여쓰기 6칸»을 뺐다.
+     옛 정규식은 `\n\s{6}\},\n` 이었다 — 배선이 else 안(콜백 닫는 줄 6칸)에 있다는 «모양 가정»이다.
+     배경색을 hasImage 분기 밖으로 꺼내자 그 줄이 4칸이 되어, 구현이 옳은데도 A5가
+     「변이가 안 먹었다」로 빨개졌다. 들여쓰기는 이 검사가 지키려는 사실이 아니다.
+     ⇒ `\s*` 로 바꿔 콜백의 «자기 닫는 줄»에서 멈추게 한다(본문에 `},` 로 끝나는 줄이 없다).
+     ⛔약해지지 않는다 — 아래 notStrictEqual 이 「변이가 실제로 무언가를 잘라냈다」를 못박는다.
+       옛 A5 는 onGradient 가 «통째로 사라진» 소스에서도 조용히 초록이었다(자를 게 없어도 통과). */
+  const mutated = call.replace(/onGradient\s*:\s*\(css, commit\)\s*=>\s*\{[\s\S]*?\n\s*\},\n/, '');
+  assert.notStrictEqual(mutated, call, '변이가 한 글자도 안 잘랐다 = 이 대조는 아무것도 증명하지 않는다');
   assert.doesNotMatch(mutated, /onGradient\s*:/, '변이가 안 먹었다 = A1은 이 배선을 안 본다(거짓양성 위험)');
 });
 
