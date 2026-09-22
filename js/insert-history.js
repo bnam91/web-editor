@@ -150,8 +150,25 @@
              «의도된 노옵»을 깨뜨려 AI 섹션채우기가 ⌘Z 한 번에 안 굴러간다. */
           try {
             if (typeof window.pushHistory === 'function') {
+              /* ★[2026-09-22] 끝 표본 «갱신»은 «이 호출이 칸을 실제로 만들었을 때만» 건다.
+                 왜: restampHistoryTop 은 «꼭대기 항목의 canvas 를 라이브로 되쓴다». 칸이 안
+                 생겼으면 그 꼭대기는 «남의 항목»이고, 되쓰면 그 항목이 가리키던 상태가 사라진다.
+                 실측으로 터지는 자리 = js/ai-section-fill.js:446~447 의 «의도된 노옵» 구간이다.
+                   거기는 call-site 가 pushHistory('AI 섹션 채우기') 를 1회 찍어 두고
+                   window.pushHistory 를 노옵으로 갈아끼운 뒤 addTextBlock 을 N번 부른다
+                   (⌘Z 한 번에 채우기 전체가 풀리게 하려는 자리 — 규약 ①).
+                   그런데 노옵이라 칸이 «안» 생기는데도 갱신은 그대로 예약돼, 두 프레임 뒤
+                   「AI 섹션 채우기」 항목의 canvas 가 «채운 뒤» 라이브로 덮였다.
+                   ⇒ ⌘Z 가 그 항목을 건너뛴 것과 같아져 «채우기 전»이 아니라 «그 앞»으로 갔다.
+                   실측(앱 무접촉, 진짜 세 파일): 기존 블럭 1 + 채움 3 → ⌘Z ⇒ 0개(1개여야 한다).
+                 ⇒ seq 가 안 움직였으면(=칸이 안 생겼으면) 갱신을 예약하지 않는다.
+                 ⛔`typeof window.pushHistory === 'function'` 만으로는 못 가른다 — 노옵도 함수다. */
+              var _tipBefore = (typeof window.getHistoryTip === 'function') ? window.getHistoryTip() : null;
+              var _seqBefore = (_tipBefore && !_tipBefore.empty) ? _tipBefore.seq : null;
               window.pushHistory(LABELS[name] || DEFAULT_LABEL);
-              _scheduleRestamp();
+              var _tipAfter = (typeof window.getHistoryTip === 'function') ? window.getHistoryTip() : null;
+              var _seqAfter = (_tipAfter && !_tipAfter.empty) ? _tipAfter.seq : null;
+              if (_seqAfter != null && _seqAfter !== _seqBefore) _scheduleRestamp();
             }
           } catch (e) { console.warn('[insert-history] 끝 표본 실패:', name, e); }
         }

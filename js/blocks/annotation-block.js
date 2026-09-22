@@ -148,6 +148,19 @@ function makeAnnotationBlock(opts = {}) {
   block.dataset.type = 'annotation';
   block.id = genId('ant');
 
+  /* ★[F2 · 2026-09-22] 「복원한 결과 = 복원의 입력」 — 여기서 «미리» 써 둬야 하는 여섯 줄.
+     rebindAll(js/io/save-load.js, annotation 재구성)이 복원·페이지전환 «뒤»에 이 여섯을 그대로
+     다시 쓴다. 그런데 삽입 시점의 블럭엔 없어서, ⌘Z 한 번만 지나면 «복원 직후 라이브 ≠ 방금
+     복원한 스냅샷»(차이 = 이 style 속성 98바이트)이 되고 다음 표본이 칸을 하나 더 만든다.
+     그 칸의 ⌘Z 는 화면을 못 바꾼다 — 값이 css/editor-blocks.css:2877 .annotation-block 과
+     «같은 값»이라 눈에 보이는 차이가 애초에 없기 때문이다(도형의 T-131 ⑧ 과 같은 병, 다른 자리).
+     ⛔순서를 바꾸지 마라 — rebindAll 이 쓰는 순서와 같아야 직렬화 문자열이 같다.
+     ⛔CSS 에 있다고 지우지도 마라 — 내보낸 HTML 은 앱 CSS 를 안 싣는다(js/io/export-html.js:152). */
+  block.style.position = 'absolute';
+  block.style.left = '0'; block.style.top = '0';
+  block.style.width = '100%'; block.style.height = '100%';
+  block.style.pointerEvents = 'none';
+
   // dataset 저장
   block.dataset.points           = JSON.stringify(points);
   block.dataset.anchorX          = String(first[0]); // backward compat

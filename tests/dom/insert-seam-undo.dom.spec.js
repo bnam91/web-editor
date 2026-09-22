@@ -51,9 +51,16 @@ const INSERT_HISTORY_N1 = (() => {
    M9 가 「지연 쓰기가 있어도 한 번」을 잠그는데, 그게 «실제로 빨강이 될 수 있는지»를 여기서 증명한다.
    ⛔화석을 베끼지 않는다 — 지금 소스에서 그 한 줄만 걷어낸다(늙으면 변환이 «던진다»). */
 const INSERT_HISTORY_N3 = (() => {
-  const line = '              _scheduleRestamp();';
+  /* ★2026-09-22 손잡이 갱신 — 갱신 예약에 «칸이 실제로 생겼을 때만» 조건이 붙었다
+     (js/insert-history.js, ai-section-fill 의 노옵 구간이 남의 항목을 덮던 것). 옛 손잡이
+     (맨 `_scheduleRestamp();`)는 이제 소스에 없다. 화석을 베끼지 않는 규율은 그대로다 —
+     «지금 소스»에서 예약 줄만 걷고, 걷혔는지 아래에서 다시 확인한다. */
+  const line = '              if (_seqAfter != null && _seqAfter !== _seqBefore) _scheduleRestamp();';
   if (!INSERT_HISTORY_JS.includes(line)) throw new Error('N3 변환이 늙었다 — 끝 표본 갱신 줄을 못 찾았다');
-  return INSERT_HISTORY_JS.replace(line, '              /* N3: 끝 표본 갱신 없음 */');
+  const out = INSERT_HISTORY_JS.replace(line, '              /* N3: 끝 표본 갱신 없음 */');
+  const code = out.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  if (code.includes('_scheduleRestamp();')) throw new Error('N3 변환본에 갱신 예약이 남았다');   // ⛔정의(`…() {`)는 남아 있어야 정상 — «부르는 자리»만 본다
+  return out;
 })();
 
 /* ── 음성대조본 ② — window.pushHistory 를 «설치 시점에 캡처»한 모양 ────────
@@ -66,9 +73,18 @@ const INSERT_HISTORY_N2 = (() => {
   const b = '  function install() {';
   if (!s.includes(b)) throw new Error('N2 변환이 늙었다 — install 을 못 찾았다');
   s = s.replace(b, b + '\n    _P = window.pushHistory;');
-  const c = "            if (typeof window.pushHistory === 'function') {\n              window.pushHistory(LABELS[name] || DEFAULT_LABEL);";
-  if (!s.includes(c)) throw new Error('N2 변환이 늙었다 — 호출 자리를 못 찾았다');
-  s = s.replace(c, "            if (typeof _P === 'function') {\n              _P(LABELS[name] || DEFAULT_LABEL);");
+  /* ★2026-09-22 손잡이 갱신 — 두 줄 사이에 «갱신 예약 조건»(seq 대조)이 끼어들어
+     붙어 있던 두 줄이 더는 이웃이 아니다. 뜻은 그대로다: 부를 때 읽는 자리를 전부
+     «설치 시점에 캡처한 _P» 로 바꾼다. 두 자리를 따로, 각각 확인하며 바꾼다. */
+  const c1 = "            if (typeof window.pushHistory === 'function') {";
+  const c2 = "              window.pushHistory(LABELS[name] || DEFAULT_LABEL);";
+  if (!s.includes(c1)) throw new Error('N2 변환이 늙었다 — 가드 자리를 못 찾았다');
+  if (!s.includes(c2)) throw new Error('N2 변환이 늙었다 — 호출 자리를 못 찾았다');
+  s = s.replace(c1, "            if (typeof _P === 'function') {");
+  s = s.replace(c2, "              _P(LABELS[name] || DEFAULT_LABEL);");
+  /* «부를 때 읽는» 자리가 하나도 안 남았는지 — 주석 뺀 코드로 본다(부재를 통과로 안 읽는다) */
+  const code = s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  if (/window\.pushHistory\s*\(/.test(code)) throw new Error('N2 변환본에 window.pushHistory 호출이 남았다');
   return s;
 })();
 

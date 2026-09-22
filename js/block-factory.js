@@ -2150,6 +2150,24 @@ function relinkShapeGradient(block) {
 }
 window.relinkShapeGradient = relinkShapeGradient;
 
+/* ★[F2 · 2026-09-22] 도형 inner SVG 의 «DOM 직렬화꼴» — 아래 가드의 자.
+   왜 필요한가: `<ellipse …/>` 를 innerHTML 로 «넣으면» 읽을 땐 `<ellipse …></ellipse>` 로 나온다
+   (실측, 크로미움). 그래서 _shapeInnerSVG() 의 생문자열로 「지금 값과 같은가」를 재면
+   ★영영 같지 않다 ⇒ 가드가 한 번도 안 걸린다. 같은 표현끼리 재려고 한 번 «넣었다 읽어»
+   canon 을 만든다(type|strokeWidth 당 한 번, 캐시). */
+const _shapeInnerCanonCache = new Map();
+function _shapeInnerSVGCanon(type, strokeWidth) {
+  const key = `${type}|${strokeWidth}`;
+  let v = _shapeInnerCanonCache.get(key);
+  if (v === undefined) {
+    const probe = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    probe.innerHTML = _shapeInnerSVG(type, strokeWidth);
+    v = probe.innerHTML;
+    _shapeInnerCanonCache.set(key, v);
+  }
+  return v;
+}
+
 function refreshShapeInnerSVG(block) {
   if (!block) return;
   const type = block.dataset.shapeType || 'rectangle';
@@ -2163,7 +2181,16 @@ function refreshShapeInnerSVG(block) {
   const defsHTML = defs ? defs.outerHTML : '';
   // shape에 gradient가 적용 중이면 inner에 fill="url(#..)" 다시 부여
   const gradMeta = block.dataset.shapeGradient;
-  svg.innerHTML = defsHTML + _shapeInnerSVG(type, sw);
+  /* ★[F2 · 2026-09-22] «복원한 결과 = 복원의 입력» 을 지키는 자리.
+     rebindAll(js/io/save-load.js) 은 restoreSnapshot(⌘Z) 과 switchPage 가 «둘 다» 지나는 길인데,
+     여기서 무조건 다시 쓰면 태그 사이 공백 텍스트노드가 사라져 «복원 직후 라이브 ≠ 방금 복원한
+     스냅샷» 이 된다(실측 diff = 공백 8바이트, 7949B→7941B). 그러면 다음 표본이 «다르다»고
+     판정돼 칸이 하나 더 쌓이고, 그 칸의 ⌘Z 는 아무 일도 안 한다 = 먹통 칸(T-131 ⑧ · T-136).
+     ⇒ 쓸 값이 지금 값과 같으면 «안» 쓴다. 이 함수를 멱등으로 만든다.
+     ⚠️그라데이션이 걸린 도형은 아래에서 fill 을 url(#…) 로 다시 칠하므로 가드에 안 걸려
+       계속 다시 쓰지만, 다시 쓴 «결과»가 매번 같으므로(공백이 원래 없다) 멱등은 유지된다. */
+  const _next = defsHTML + _shapeInnerSVGCanon(type, sw);
+  if (svg.innerHTML !== _next) svg.innerHTML = _next;
   if (gradMeta) {
     const id = `grad-${block.id || 'shp_anon'}`;
     svg.querySelectorAll('rect,ellipse,circle,polygon,path').forEach(el => {
@@ -2188,10 +2215,12 @@ function makeShapeBlock(type = 'rectangle') {
   block.dataset.shapeStrokeWidth = String(sw);
   block.id = genId('shp');
   const innerSVG = def.dynamic ? _shapeInnerSVG(type, sw) : def.inner;
+  /* ★[F2 · 2026-09-22] ⛔`${innerSVG}` 앞뒤에 줄바꿈·들여쓰기를 넣지 마라 — 그 공백이 DOM 에
+     «텍스트노드»로 살아서 삽입 시점 스냅샷에 들어가는데, refreshShapeInnerSVG 가 나중에
+     그걸 지운다 ⇒ 복원 직후 라이브 ≠ 스냅샷 ⇒ 먹통 칸(T-131 ⑧ · T-136).
+     (여는 태그 «안»의 줄바꿈은 속성 사이라 텍스트노드를 안 만든다 — 그건 그대로 둬도 된다.) */
   block.innerHTML = `<svg class="shape-svg" viewBox="${def.vb}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"
-    style="color:#cccccc;stroke-width:${sw};fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">
-    ${innerSVG}
-  </svg>`;
+    style="color:#cccccc;stroke-width:${sw};fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">${innerSVG}</svg>`;
   return { block };
 }
 
