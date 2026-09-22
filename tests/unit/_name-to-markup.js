@@ -46,6 +46,48 @@ const OBJ = new RegExp([
 const SCALAR = /\b(?:getProjectName|currentFileName|activeProjectId|_getActId)\b/;
 /** 사람이 «적는» 칸. 이 셋만 본다 — updatedAt 같은 기계값은 위협이 아니다. */
 const FIELD = '(?:name|title|label|id)';
+
+/* ══ ★축(AXIS) ══════════════════════════════════════════════════════════
+ * ★왜 생겼나 (T-049 2차) — 위의 ORIGINS 는 «프로젝트·폴더·탭» 한 축만 연다.
+ *   로스터는 «행위»로 만들었는데 «들어올 자격»이 손목록이라, 레이어·섹션·변수·브랜치
+ *   이름은 검사 대상에 한 번도 들어온 적이 없었다. 그래서 초록인 채로 열려 있었다.
+ *   ⇒ 문을 «갈아끼울 수 있게» 한다. 기본값은 예전 그대로라 기존 검사는 안 흔들린다.
+ * ⛔여기에 «자리(파일:줄)»를 적지 마라. 적는 것은 «문»뿐이다. */
+const AXIS_PROJECT = { key: 'project', ORIGINS, OBJ, SCALAR, FIELD, hops: 2 };
+
+/** ⑤레이어 · ④섹션 · ⑥변수 · ⑦브랜치 · ⑨아이콘 · ⑪폰트 · ⑫채팅프로필 이름의 문. */
+const ORIGINS_NAMES = [
+  'dataset.layerName',        // ⑤ 레이어 이름 (블록·그룹·프레임)
+  'sec._name',                // ④ 섹션 이름
+  'VariableStore.listVars',   // ⑥ 변수 이름
+  'loadBranchStore',          // ⑦ 브랜치 스토어
+  'store.branches',           // ⑦ 브랜치 이름 꾸러미
+  'svgPresets',               // ⑨ 아이콘 분류
+  'dataset.iconName',         // ⑨ 아이콘 이름
+  'dataset.messages',         // ⑫ 채팅 메시지(프로필 이름이 든 꾸러미)
+  'dataset.layers',           // 캔버스 블록의 층 이름표
+  '_fontDisplayName',         // ⑪ 폰트 표시 이름
+];
+const OBJ_NAMES = new RegExp([
+  '\\bJSON\\.parse\\s*\\(\\s*[\\w$.?]*\\bdataset\\s*\\.\\s*\\w+',  // dataset 에 든 꾸러미(층·메시지…)
+  '\\bVariableStore\\s*\\.\\s*listVars\\s*\\(',
+  '\\bloadBranchStore\\s*\\(',
+  '\\bstore\\s*\\.\\s*branches\\b',
+  '\\bsvgPresets\\s*\\??\\.',
+  '\\b_presetCategories\\b',
+].join('|'));
+const SCALAR_NAMES = new RegExp([
+  '\\bdataset\\s*\\.\\s*\\w*[Nn]ame\\b',   // dataset.layerName · dataset.name · dataset.iconName …
+  '\\b_name\\b',                              // sec._name
+  '\\b_fontDisplayName\\s*\\(',
+].join('|'));
+/** 이 축에서 «사람이 적는» 칸 — 위 넷에 층/메시지 꾸러미가 쓰는 칸을 더한다. */
+const FIELD_NAMES = '(?:name|title|label|id|layerName|profileName|iconName|family|content)';
+const AXIS_NAMES = {
+  key: 'names', ORIGINS: ORIGINS_NAMES, OBJ: OBJ_NAMES,
+  SCALAR: SCALAR_NAMES, FIELD: FIELD_NAMES, hops: 3,
+};
+const AXES = { PROJECT: AXIS_PROJECT, NAMES: AXIS_NAMES };
 /** 태그를 «여는» 꼴이 있으면 그 템플릿은 마크업을 짓는다. */
 const MARKUP = /<\s*[a-zA-Z][a-zA-Z0-9-]*[\s>/]/;
 /** 이스케이프를 «거치는» 보간은 안 센다(이름은 안 보고 «거치는가»만 본다). */
@@ -73,7 +115,9 @@ function templates(code) {
           else if (d === '}') { depth--; if (!depth) break; }
         }
         const inner = code.slice(j + 2, k);
-        for (const t of templates(inner)) for (const e of t.exprs) exprs.push({ text: e.text, at: j + 2 + e.at });
+        /* ★outer 표시를 «같이» 올린다 — 떨어뜨리면 한 단계 위에서 그 껍데기가 다시 «안쪽»으로 세어져
+           `${scope.map(() => \`…\`)}` 같은 껍데기가 빨강으로 두 번 잡힌다(실측 2026-09-22). */
+        for (const t of templates(inner)) for (const e of t.exprs) exprs.push({ text: e.text, at: j + 2 + e.at, outer: e.outer });
         exprs.push({ text: inner, at: j, outer: true });
         j = k;
       }
@@ -81,6 +125,38 @@ function templates(code) {
     if (!closed) continue;
     out.push({ raw: code.slice(start, j + 1), start, exprs });
     i = j;
+  }
+  return out;
+}
+
+/** ★「이름이 실렸나」와 「이름이 «그려지나»」는 다르다.
+ *  `cond ? 'checked' : ''` 는 조건 쪽에 이름이 있어도 «화면에 나가는 값»은 개발자 리터럴뿐이다.
+ *  그 자리를 빨강으로 세면, 고칠 것이 없는데 빨간 줄이 남아 게이트가 「원래 빨간 것」이 된다.
+ *  ⛔조건 쪽을 안 본다는 뜻이 아니다 — 조건은 판정에 안 쓰이고 «내보내는 값»만 본다.
+ *  (실측 2026-09-22: prop-chat 의 showName, variable-binding 의 currentColorBound 비교 셋이 이 꼴이었다.) */
+function rendersOnlyLiterals(expr) {
+  const t = String(expr).trim();
+  const q = t.indexOf('?');
+  if (q < 0) return false;
+  let depth = 0, colon = -1;
+  for (let i = q + 1; i < t.length; i++) {
+    const c = t[i];
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') depth--;
+    else if (c === '"' || c === "'" || c === '`') { const qc = c; i++; while (i < t.length && t[i] !== qc) { if (t[i] === '\\') i++; i++; } }
+    else if (c === ':' && depth === 0) { colon = i; break; }
+  }
+  if (colon < 0) return false;
+  const lit = /^\s*(?:'[^']*'|"[^"]*"|`[^`$]*`)\s*$/;
+  return lit.test(t.slice(q + 1, colon)) && lit.test(t.slice(colon + 1));
+}
+
+/** 식 안의 중첩 템플릿 리터럴만 «길이를 지켜» 지운다(안쪽은 따로 세므로). */
+function maskNested(text) {
+  let out = text;
+  for (const t of templates(text)) {
+    const n = t.raw.length;
+    out = out.slice(0, t.start) + ' '.repeat(n) + out.slice(t.start + n);
   }
   return out;
 }
@@ -113,7 +189,7 @@ function assignments(code) {
 }
 
 /** 원본을 «되돌려 주는» 함수도 문이다 — loadProjects() 처럼 한 겹 감싼 자리. */
-function gateFunctions(code) {
+function gateFunctions(code, OBJ = AXIS_PROJECT.OBJ) {
   const names = [];
   const re = /(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(?[^)\n]*\)?\s*=>/g;
   for (const m of code.matchAll(re)) {
@@ -132,9 +208,25 @@ function gateFunctions(code) {
  *   names   — «이름 글자 그 자체»의 별명
  *   hits    — 마크업 틀 안에서 그 값을 이스케이프 없이 이어붙인 보간
  */
-function scan(code) {
-  const decls = assignments(code);
-  const fns = gateFunctions(code);
+/* ★템플릿 리터럴 «안»은 JS 가 아니라 HTML 이다.
+     `<input title="값 편집" …>` 의 `title=` 를 «대입문»으로 읽으면 그 속성 이름이
+     통째로 «이름 별명»이 되어 엉뚱한 보간까지 빨개진다(실측: variable-binding.js 에서
+     title·type·value 가 별명이 되어 v.type·v.value 까지 걸렸다).
+   ⇒ 대입문을 찾을 때만 리터럴 «속»을 공백으로 가린다. 길이는 그대로 둬서 위치가 안 밀린다. */
+function maskTemplates(code) {
+  let out = code;
+  for (const t of templates(code)) {
+    const inner = t.raw.length - 2;
+    if (inner <= 0) continue;
+    out = out.slice(0, t.start + 1) + ' '.repeat(inner) + out.slice(t.start + 1 + inner);
+  }
+  return out;
+}
+
+function scan(code, axis = AXIS_PROJECT) {
+  const { OBJ, SCALAR, FIELD, hops = 2 } = axis;
+  const decls = assignments(maskTemplates(code));
+  const fns = gateFunctions(code, OBJ);
   const OBJX = fns.length ? new RegExp(OBJ.source + '|\\b(?:' + fns.join('|') + ')\\s*\\(') : OBJ;
 
   const objects = new Set();
@@ -146,7 +238,7 @@ function scan(code) {
     const origin = g.includes(null);
     return (s) => (origin && OBJX.test(s)) || (!!re && re.test(s));
   };
-  for (let hop = 0; hop < 2; hop++) {     // ⛔두 세대까지만
+  for (let hop = 0; hop < hops; hop++) {  // ⛔세대 수는 축이 정한다(기본 둘)
     const inGen = genTest(gen);
     const next = [];
     for (const d of decls) if (inGen(valueOf(d.value)) && !objects.has(d.name)) { objects.add(d.name); next.push(d.name); }
@@ -169,29 +261,47 @@ function scan(code) {
 
   /* 이름 별명은 «한 벌»로 묶어 한 번만 컴파일한다 — 보간마다 새로 짓던 것이 제일 비쌌다. */
   const nameRe = names.size ? new RegExp(`\\b(?:${[...names].join('|')})\\b`) : null;
-  const carries = (txt) => {
-    if (ESCAPED.test(txt)) return false;
+  /* «이름이 실렸나»와 «이스케이프를 지나나»를 나눠 본다 —
+     hits 의 뜻은 예전과 똑같고(안 지나는 것만), 지나는 것은 escaped 로 따로 센다.
+     ★escaped 가 있어야 「계측기가 그냥 다 빨간 게 아니다」를 같은 축에서 보일 수 있다. */
+  const bears = (txt) => {
     if (SCALAR.test(txt)) return true;
     if (objects.size && fieldRead.test(txt)) return true;
     return !!nameRe && nameRe.test(txt);
   };
 
   const hits = [];
+  const escaped = [];
+  /* ★bears 를 내보낸다 — 「이 식이 이름을 싣고 있나」를 쓰는 쪽에서 «자리를 골라» 다시 물을 수 있게.
+     (G7 이 «인라인 핸들러 «안»의 보간»만 따로 재는 데 쓴다. 판정 규칙을 베껴 쓰면 두 벌이 된다.) */
   for (const t of templates(code)) {
     if (!MARKUP.test(t.raw)) continue;
     for (const e of t.exprs) {
-      if (e.outer && /`/.test(e.text)) continue;   // 바깥 껍데기는 안쪽에서 이미 센다
-      if (carries(e.text)) hits.push({ at: e.at, text: e.text.trim().replace(/\s+/g, ' ').slice(0, 90) });
+      /* ★바깥 껍데기 — 안쪽 템플릿은 «따로» 세므로 여기서 다시 세면 이중계수다.
+         ⛔그렇다고 통째로 건너뛰면 «껍데기 층에 실린 값»이 통째로 안 보인다.
+           실측 2026-09-22: `${fn({ icon: \`<svg…>\`, name: 이름 })}` 꼴에서 이름이 껍데기 층에 있는데
+           안쪽 백틱 하나 때문에 33곳 중 31곳이 그물 밖으로 빠졌다(2곳만 걸렸다 — 아이콘 없는 둘).
+         ⇒ 안쪽 리터럴만 «길이를 지켜» 지우고, 남은 껍데기 층을 본다. */
+      const hadNested = e.outer && /`/.test(e.text);
+      const shell = hadNested ? maskNested(e.text) : e.text;
+      /* ★지운 자리가 «되풀이의 몸통»이면 껍데기는 그저 흐름이다 — 그 몸통은 따로 센다.
+         (`${arr.map(x => \`…\`)}` 의 껍데기엔 값이 안 실린다. 반대로
+          `${fn({ icon: \`…\`, name: 이름 })}` 은 껍데기 층에 값이 실린다 — 그건 봐야 한다.) */
+      if (hadNested && /\.\s*(?:map|forEach|flatMap|filter|reduce)\s*\(/.test(shell)) continue;
+      if (!bears(shell)) continue;
+      if (rendersOnlyLiterals(shell)) continue;    // ★값이 리터럴뿐이면 «이름이 안 나간다»
+      const row = { at: e.at, text: e.text.trim().replace(/\s+/g, ' ').slice(0, 90) };
+      (ESCAPED.test(e.text) ? escaped : hits).push(row);
     }
   }
-  return { objects, names, hits };
+  return { objects, names, hits, escaped, bears };
 }
 
 /** 이 파일이 «이름을 내주는 문»에 닿는가 = 로스터에 드는가. */
-function touchesOrigin(code) {
-  return OBJ.test(code) || SCALAR.test(code);
+function touchesOrigin(code, axis = AXIS_PROJECT) {
+  return axis.OBJ.test(code) || axis.SCALAR.test(code);
 }
 
 const lineOf = (code, idx) => code.slice(0, idx).split('\n').length;
 
-module.exports = { ORIGINS, scan, touchesOrigin, templates, lineOf, MARKUP };
+module.exports = { ORIGINS, AXES, AXIS_PROJECT, AXIS_NAMES, scan, touchesOrigin, templates, lineOf, MARKUP, ESCAPED };
