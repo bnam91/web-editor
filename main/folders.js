@@ -2,7 +2,7 @@
  *
  * ★★핵심 원칙: 폴더는 «가상»이다. 디스크에 디렉터리를 만들지 않는다.
  *   proj_<id> 를 실제로 옮기면 main.js 의 경로 리졸버(_resolveProjectJsonPath 등)·
- *   goya-asset:// traversal 가드·main/trash.js·main/gdt/*·externalizer 가 전부 깨진다.
+ *   goya-asset:// traversal 가드·main/trash.js·main/gdt 아래·externalizer 가 전부 깨진다.
  *   ⇒ 폴더는 순수 메타데이터 위의 «뷰»다.
  *
  * 배치

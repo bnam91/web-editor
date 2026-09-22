@@ -3227,7 +3227,7 @@ function rgbToHex(rgb) {
 
 /* ── Design Presets ── */
 // Electron에서는 preload를 통해 JSON 파일 로드, 브라우저 fallback은 하드코딩
-// FIX-PR-01: PRESET_FALLBACK을 presets/*.json 내용과 동기화 (폰트·dots 불일치 수정)
+// FIX-PR-01: PRESET_FALLBACK을 presets 폴더의 .json 내용과 동기화 (폰트·dots 불일치 수정)
 // Electron은 readPresets() 성공 시 덮어쓰므로 fallback은 브라우저/race condition 시만 사용됨
 const PRESET_FALLBACK = [
   {
