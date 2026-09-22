@@ -2718,9 +2718,17 @@ function updateAssetBlock(blockId, partial = {}) {
   }
 
   // ── 7) bgColor (placeholder 배경; "" = reset) ──
+  /* ★T-011 곁가지(2026-09-22): 배경은 «그라데이션»일 수도 있다 — 그건 backgroundColor 가 아니라
+     background-image 에 실린다(패널의 onGradient 가 ab.style.background 에 쓴다).
+     backgroundColor 만 만지면 reset 도 솔리드 덮어쓰기도 화면을 한 픽셀도 못 바꾸면서
+     ok:true 를 돌려준다 = 도구가 거짓말을 한다. ⇒ 두 가지에서 먼저 단축을 비워 그라데이션을 걷어낸다.
+     패널 쪽 onApply 가 이미 같은 순서다(prop-asset.js · prop-frame.js ss-bg 와 같은 패턴).
+     ⚠️style.background(단축)를 «읽어» 판정하지 마라 — backgroundColor 만 지운 상태에서는 단축이
+       직렬화되지 못해 ''로 읽히는데 background-image 는 살아 있다(실측). 쓰기로만 쓴다. */
   if (partial.bgColor !== undefined && partial.bgColor !== null) {
     if (partial.bgColor === '') {
       delete block.dataset.bgColor;
+      block.style.background = '';
       block.style.backgroundColor = '';
       applied.bgColor = '';
     } else {
@@ -2729,6 +2737,7 @@ function updateAssetBlock(blockId, partial = {}) {
       }
       const c = String(partial.bgColor).trim();
       block.dataset.bgColor = c;
+      block.style.background = '';
       block.style.backgroundColor = c;
       applied.bgColor = c;
     }
