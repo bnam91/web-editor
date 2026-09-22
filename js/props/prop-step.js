@@ -402,12 +402,25 @@ export function showStepProperties(block, activeIdxArg) {
     if (!list) return;
     list.innerHTML = stepsHtml();
 
+    /* ★[R1 · 2026-09-22 · T-005 ④ · T-030 ⑤] 이 두 칸은 `input` 하나뿐이라 히스토리에
+       칸을 «한 번도» 안 만들었다. 그래서 제목·설명을 고친 뒤 ⌘Z 를 누르면 그 편집이 아니라
+       «그 앞 동작»이 풀렸다(스텝 추가 10→9 와 설명 되돌림이 «동시에»).
+       고침 = 같은 파일 #stb-start-number(위 :372~:380)와 «같은 꼴»로 맞춘다 —
+         `input` = 적용(타자마다) · `change` = 히스토리 한 칸(포커스 떠날 때 한 번).
+       ⛔`input` 쪽에 pushHistory 를 달지 마라 — 글자 하나마다 칸이 생긴다.
+       ⛔updateStepBlock 을 타게 바꾸지도 마라 — 그러면 js/model-update-history.js 가
+         끝 표본을 찍어 주므로 여기서 또 찍는 꼴이 된다(중복은 무변화 차단이 삼키지만
+         라벨이 엉킨다). rerender() 는 renderStepBlock 이라 그 통로를 안 탄다. */
     propPanel.querySelectorAll('.stb-title-input').forEach(el => {
       el.addEventListener('input', () => {
         const i = parseInt(el.dataset.idx);
         steps[i].title = el.value;
         block.dataset.steps = JSON.stringify(steps);
         rerender();
+      });
+      el.addEventListener('change', () => {
+        window.pushHistory?.('스텝 제목');
+        window.scheduleAutoSave?.();
       });
     });
 
@@ -417,6 +430,10 @@ export function showStepProperties(block, activeIdxArg) {
         steps[i].desc = el.value;
         block.dataset.steps = JSON.stringify(steps);
         rerender();
+      });
+      el.addEventListener('change', () => {
+        window.pushHistory?.('스텝 설명');
+        window.scheduleAutoSave?.();
       });
     });
 
@@ -430,6 +447,9 @@ export function showStepProperties(block, activeIdxArg) {
         rerender();
         // 삭제된 스텝이 보고 있던 스텝이면 한 칸 앞으로(bn2 삭제 핸들러와 동일 규약) — 칩도 같이 갱신되니 전체 재렌더.
         showStepProperties(block, activeIdx === null ? null : Math.max(0, i - 1));
+        /* ★[R1 · 2026-09-22] «끝 표본» — 위 :444 push-before 와 짝. 「스텝 추가」와 같은 병이라
+           같이 닫는다(지운 «뒤» 상태가 스택에 없으면 다음 편집과 함께 풀린다). */
+        window.pushHistory?.('스텝 삭제');
       });
     });
   }
@@ -459,6 +479,11 @@ export function showStepProperties(block, activeIdxArg) {
     rerender();
     // 새로 추가한 스텝을 바로 펼쳐준다(전체 보기 중이면 전체 유지) — bn2-line-add와 동일 규약.
     showStepProperties(block, activeIdx === null ? null : steps.length - 1);
+    /* ★[R1 · 2026-09-22 · T-030 ⑤] «끝 표본» — 위 :468 push-before 하나로는 그 카드가 안 닫힌다.
+       push-before 는 «9개» 상태를 찍는다. 그러면 「10개인데 설명은 기본값」 표본이 한 번도 없어서,
+       설명을 고치고 ⌘Z 하면 «10→9 와 설명 되돌림»이 한꺼번에 일어난다(현빈 제보 그대로).
+       ⇒ 늘리고 «난 뒤»에 한 번 더 찍는다(⛔옮기기가 아니라 더하기). */
+    window.pushHistory?.('스텝 추가');
   });
 }
 
