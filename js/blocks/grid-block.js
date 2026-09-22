@@ -468,7 +468,30 @@ function _gridMergeLine(curLines, li, fields) {
   const i = Number(li);
   if (!Number.isFinite(i) || i < 0 || i >= lines.length) return null;
   const next = lines.slice();
-  next[i] = Object.assign({}, next[i], fields);
+  const prev = next[i];
+  const merged = Object.assign({}, prev, fields);
+  /* ★종류가 «바뀌면» 앞 종류가 쓰던 짐을 턴다 (2026-09-23).
+   *   무엇이 있었나 — `patchCell{lineIndex, type:'body', text:'…'}` 로 image 줄을 글자 줄로
+   *   바꾸면 `imgSrc`·`height` 가 «그대로 남았다». imgSrc 는 dataURL 이라 수백 KB 가 저장본에
+   *   눌러앉고, 다음에 다시 image 로 바꾸면 «지운 줄 알았던 그림»이 되살아난다.
+   *   ⛔새 규칙을 발명하지 않는다 — 「그 종류가 그 키를 읽나」는 이 파일이 이미 답한다
+   *     (_gridUnreadLineFields = 렌더러를 실제로 돌려 재는 민감도). 이름표를 손으로 적으면
+   *     종류가 하나 늘 때 그 표만 늙는다.
+   *   턴다: ⑴ «새» 종류가 안 읽고 ⑵ «옛» 종류는 읽던 것. ⑵를 안 걸면 「기본값과 같아서
+   *     안 읽힌다」로 판정된 멀쩡한 값(예: 역할 기본과 같은 letterSpacing)까지 조용히 지운다.
+   *   ⛔이번 호출이 «명시»한 키는 안 턴다 — 부르는 쪽이 일부러 준 값이다.
+   *   ★gridPreviewLine(패널 미리보기)도 이 함수를 지나므로 두 길이 «같이» 고쳐진다
+   *     (tests/unit/grid-line-typo.test.js U2-a·U4 가 그 동일성을 지킨다). */
+  if (fields && fields.type !== undefined && _gridLineTypeOf(prev) !== _gridLineTypeOf(merged)) {
+    const keys = Object.keys(merged);
+    const unreadNow = new Set(_gridUnreadLineFields(merged, keys));
+    const unreadBefore = new Set(_gridUnreadLineFields(prev, keys));
+    for (const k of keys) {
+      if (fields[k] !== undefined) continue;
+      if (unreadNow.has(k) && !unreadBefore.has(k)) delete merged[k];
+    }
+  }
+  next[i] = merged;
   return next;
 }
 
