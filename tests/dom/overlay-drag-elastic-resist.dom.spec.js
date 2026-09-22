@@ -456,3 +456,79 @@ test('C8 드래그 «도중»에 ⌘를 떼면 그 순간 안 튀고 «저항이
 /* ⛔C8 을 «섹션 왼쪽 밖»(left:-200)으로 짰다가 한 번 헛돌았다 — 폭 300 블록의 중심이
    화면 x=-50 이라 page.mouse 가 닿질 못해 mousedown 자체가 안 걸렸고, 고치기 전·후가
    똑같이 «안 움직임»(-200)으로 나왔다. 재는 자리는 뷰포트 «안»에 둬야 한다. */
+
+/* ══ ⑯⑰⑱ — 카드가 «사양»으로 정한 감촉을 숫자로 잠근다 (2026-09-22 인계값) ═════════════
+ * ⑮ 오버레이 글자를 섹션 가장자리로 끌어 본다: 가장자리에서 잠깐 뻑뻑해졌다가 계속 끌면 나가는지
+ * ⑯ 밖에 있는 글자를 다시 섹션 안으로 끌어 본다: 들어올 때도 «같은» 저항이 있는지
+ * ⑰ ⌘를 누른 채 끌면 저항 없이 매끈하게 움직이는지
+ * ⑱ 가장자리 «한참 안쪽»에서는 저항이 전혀 없는지
+ * ★현빈이 2026-09-16 밤에 정한 «의도된 감촉»이다 — 버그가 아니라 지켜야 할 사양.
+ * ⛔⑨(⌘ 경로)를 고치느라 _elasticAxisInverse 에 조건을 잘못 걸면 ⑯이 «조용히» 깨진다
+ *   (밖→안 곡선이 그 역함수 위에 서 있다). 화면으로는 티가 안 나고 숫자로만 보이므로
+ *   인계받은 통과표를 그대로 기대값에 박는다.
+ * 실앱과 같은 치수로 띄운다 — 섹션 860 · 블록 716 ⇒ maxX = 144. */
+const APP = { zoom: 100, boxW: 716, boxH: 83, secW: 860, secH: 600 };
+const APP_MAX_X = APP.secW - APP.boxW;   // 144
+
+async function placeAndDrag(page, left, dx, opts) {
+  await page.evaluate((L) => { document.getElementById('tf1').style.left = L + 'px'; }, left);
+  await dragPath(page, 'tf1', [[dx / 2, 0], [dx, 0]], opts);
+  return page.evaluate(() => parseFloat(document.getElementById('tf1').style.left));
+}
+
+test('C9 ★⑯ 밖 → 안: 들어올 때도 같은 곡선으로 저항이 걸린다(인계 통과표 그대로)', async ({ page }) => {
+  await boot(page, APP);
+  /* 시작 195 — 저장된 자리(=elastic 출력). raw 로는 224.5 다.
+     커서를 왼쪽으로 N 만큼 옮기면 저항 커브를 거꾸로 타고 들어와 경계(144)에 흡수된다. */
+  const 표 = [[-10, 185], [-20, 175], [-40, 155], [-60, 148], [-80, 144]];
+  const 실측 = [];
+  for (const [dx, want] of 표) {
+    const left = await placeAndDrag(page, 195, dx);
+    실측.push(`${dx}→${left}`);
+    expectNear(left, want, `⑯ 커서 ${dx} 의 통과값(${want})과 다르다 [실측 ${실측.join(' · ')}]`);
+    // 같은 자리에서 expectedElastic 로도 다시 도출해 둘이 맞는지 본다(기대값을 손으로만 적지 않는다)
+    const raw = ((195 - APP_MAX_X) - (RESIST_ZONE_SCREEN_PX - MAGNET_ZONE_SCREEN_PX) * RESIST_FACTOR) + RESIST_ZONE_SCREEN_PX + APP_MAX_X;
+    expectNear(want, expectedElastic(raw + dx, APP_MAX_X), `⑯ 인계값 ${want} 가 탄성 산식과 안 맞는다`);
+  }
+  console.log('⑯ 실측:', 실측.join(' · '));
+});
+
+test('C10 ★⑰ ⌘를 누르면 저항 0 — 경계(144)에서 커서 이동량과 정확히 1:1', async ({ page }) => {
+  await boot(page, APP);
+  const 표 = [[10, 154], [20, 164], [40, 184], [80, 224]];
+  const 실측 = [];
+  for (const [dx, want] of 표) {
+    const left = await placeAndDrag(page, APP_MAX_X, dx, { meta: true });
+    실측.push(`${dx}→${left}`);
+    expectNear(left, want, `⑰ ⌘ 커서 +${dx} 의 통과값(${want})과 다르다 [실측 ${실측.join(' · ')}]`);
+    expect(want - APP_MAX_X, `⑰ 인계값이 1:1이 아니다`).toBe(dx);
+  }
+  console.log('⑰ 실측:', 실측.join(' · '));
+});
+
+test('C11 ⑱ 가장자리 «한참 안쪽»에서는 ⌘ 유무와 무관하게 저항이 전혀 없다', async ({ page }) => {
+  await boot(page, APP);
+  for (const meta of [false, true]) {
+    const 실측 = [];
+    for (const dx of [10, 20, 40]) {   // 0+40 = 40 < maxX(144) — 경계 근처에도 안 간다
+      const left = await placeAndDrag(page, 0, dx, { meta });
+      실측.push(`${dx}→${left}`);
+      expectNear(left, dx, `⑱ ⌘=${meta} 에서 안쪽인데 저항이 걸렸다 [실측 ${실측.join(' · ')}]`);
+    }
+    console.log(`⑱ ⌘=${meta} 실측:`, 실측.join(' · '));
+  }
+});
+
+test('C12 ⑮ 가장자리에서 «잠깐 뻑뻑»하다가 계속 끌면 나간다 — ㉑캐치 → 저항 → ㉒돌파', async ({ page }) => {
+  await boot(page, APP);
+  const 캐치 = await placeAndDrag(page, APP_MAX_X, 7);    // ㉑ over<=magnet(10) — 딱 붙어 고정
+  expect(캐치, `㉑ 가장자리 캐치가 사라졌다: left=${캐치}`).toBe(APP_MAX_X);
+  const 뻑뻑 = await placeAndDrag(page, APP_MAX_X, 20);   // ⑮앞 — 눌린다
+  expectNear(뻑뻑, 148, `⑮ 저항구간 값이 다르다`);
+  expect(뻑뻑 - APP_MAX_X, `⑮ 저항 없이 그대로 20 움직였다`).toBeLessThan(10);
+  const 돌파80 = await placeAndDrag(page, APP_MAX_X, 80);   // ⑮뒤/㉒ — 나간다
+  const 돌파120 = await placeAndDrag(page, APP_MAX_X, 120);
+  expect(돌파80, `⑮ 계속 끌어도 못 나갔다(하드클램프 회귀)`).toBeGreaterThan(APP_MAX_X + 40);
+  expectNear(돌파120 - 돌파80, 40, `㉒ 돌파 뒤가 1:1이 아니다(+40 커서에 ${돌파120 - 돌파80})`);
+  console.log(`⑮/㉑/㉒ 실측: 캐치7→${캐치} · 저항20→${뻑뻑} · 돌파80→${돌파80} · 돌파120→${돌파120}`);
+});
