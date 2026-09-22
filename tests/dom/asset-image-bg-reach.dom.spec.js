@@ -55,6 +55,13 @@ const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'tex
    ⛔파일 선택창은 열지 않는다. 실제 경로(setAssetImageFromSrc)는 dataURL 을 그대로 받는다. */
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
+/* 영상 «미리보기»(video-pending) 상태를 만들기 위한 최소 자료 — tests/fixtures/tiny-video.webm.
+   ⛔검사가 ffmpeg 로 만들어 쓰지 않는다: 도구 의존성이 들어가면 그 도구가 없는 기계에서 검사가 죽는다.
+     610바이트 VP8/WebM 을 «파일로 두고 읽는다». ★WebM 인 이유 — Playwright 번들 크로미움에는
+     H.264 가 없어 mp4 는 loadedmetadata 가 안 뜬다(실앱 Electron 은 뜬다). 검사는 어디서나 같아야 한다. */
+const WEBM = 'data:video/webm;base64,'
+  + fs.readFileSync(path.join(REPO, 'tests', 'fixtures', 'tiny-video.webm')).toString('base64');
+
 /* 사용자가 고른 «자기 색» — 기본값(#a0a0a0)과 구별돼야 「이게 내 값이다」를 증명할 수 있다. */
 const USER_HEX = 'FF3B30';
 const USER_RGB = 'rgb(255, 59, 48)';
@@ -265,6 +272,17 @@ async function addImage(page) {
   await page.evaluate((src) => window.setAssetImageFromSrc(window.__ab, src), PNG);
   // setAssetImageFromSrc 가 스스로 showAssetProperties 를 다시 부른다(image-handling.js:741) — 실제 경로 그대로.
   await page.waitForTimeout(200);
+}
+
+/** 영상을 «실제 경로»로 넣는다 — js/image-handling.js:646 setAssetVideoFromSrc.
+ *  ⛔ab.classList.add('has-image') 나 dataset.assetType 을 하네스가 직접 쓰지 않는다.
+ *    그 표시를 손으로 박으면 «실제 경로에서만 나는 결함»을 영영 못 잡는다. */
+async function addVideo(page) {
+  await page.evaluate((src) => window.setAssetVideoFromSrc(window.__ab, src), WEBM);
+  // loadedmetadata 가 떠야 트림 절이 «불러오는 중»에서 실제 컨트롤로 바뀐다(image-handling.js:676).
+  await page.waitForFunction(() => window.__ab && window.__ab.dataset.trimOut !== undefined, null, { timeout: 8000 })
+    .catch(() => {});   // 못 떠도 배경 축 판정은 계속한다 — 아래에서 따로 센다
+  await page.waitForTimeout(250);
 }
 
 test.describe('T-011 이미지 넣은 에셋 블럭 ↔ 배경 그라데이션에 «닿는 길»', () => {
@@ -534,5 +552,90 @@ test.describe('T-011 저장 → 불러오기 왕복', () => {
     expect(after.computedImage, '왕복 뒤 초기화 후에도 그라데이션이 칠해져 있다').not.toMatch(/gradient/i);
 
     expect(pageErrs).toEqual([]);
+  });
+
+  test('P8 ★영상도 같은 갈래다 — video-pending 에서도 배경에 닿고, 되돌려도 영상이 안 날아간다', async ({ page }) => {
+    /* ★왜 따로 있나 (2026-09-22)
+       setAssetVideoFromSrc(image-handling.js:646)도 has-image 를 붙이고, prop-asset.js 의 패널은
+       hasImage «하나»로만 갈린다 ⇒ 영상은 이미지와 «같은 갈래»를 타고 같은 증상이 났다.
+       그런데 P1~P7 은 전부 이미지 경로만 밟는다 — 다음 사람이 그 갈래를 건드리면
+       영상 쪽은 «조용히» 도로 막힌다. 그 자리를 여기서 지킨다. */
+    await page.evaluate(() => { window.__open(window.__mk()); });
+    await addVideo(page);
+
+    // ① 전제 — 실제 경로가 표시를 붙였다(하네스가 박은 게 아니다).
+    const st0 = await page.evaluate(() => ({
+      hasImage: window.__ab.classList.contains('has-image'),
+      assetType: window.__ab.dataset.assetType,
+      videoEl: !!window.__ab.querySelector('video.asset-video'),
+      trimOut: window.__ab.dataset.trimOut,
+    }));
+    expect(st0.hasImage, '전제: setAssetVideoFromSrc 가 has-image 를 붙였다').toBe(true);
+    expect(st0.assetType, '전제: 영상 미리보기 상태다').toBe('video-pending');
+    expect(st0.videoEl, '전제: video 엘리먼트가 실제로 꽂혔다').toBe(true);
+
+    // ② 패널이 통째로 안 그려진 것은 아님을 먼저 못박는다.
+    const alive = await panelAlive(page);
+    expect(alive.widthSlider, '패널 본문 기준선').not.toBeNull();
+    expect(alive.widthSlider.w).toBeGreaterThan(20);
+
+    // ③ 본검사 — 영상 상태에서도 «배경» 절에 닿는가.
+    const reach = await bgReach(page);
+    expect(reach.section, `영상 에셋 패널에 «배경» 절이 없다 — 패널 전문: ${reach.panelText}`).toBe(true);
+    expect(reach.swatch, '배경 절은 있는데 색 필드가 없다').not.toBeNull();
+    expect(reach.swatch.w, `배경 스와치가 ${reach.swatch && reach.swatch.w}px — 0×0 유령`).toBeGreaterThan(8);
+
+    // ④ «존재»가 아니라 «행위» — 진짜 피커로 그라데이션까지.
+    expect(await openBgPicker(page), '영상 상태에서 배경 스와치를 눌러도 피커가 안 열린다').toBe(true);
+    await applyGradientViaPicker(page);
+    await closePicker(page);
+    const after = await bgState(page);
+    expect(after.dataBg, `영상 상태에서 그라데이션 탭을 눌렀는데 data-bgColor 가 «${after.dataBg}»`).toMatch(/gradient\s*\(/i);
+    expect(after.computedImage, '데이터는 바뀌었는데 화면에 안 칠해졌다').toMatch(/gradient/i);
+
+    // ⑤ 영상은 그대로다 — 배경을 만졌다고 영상이 날아가면 안 된다.
+    const st1 = await page.evaluate(() => ({
+      assetType: window.__ab.dataset.assetType,
+      videoEl: !!window.__ab.querySelector('video.asset-video'),
+      trimSections: [...document.querySelectorAll('#panel-right .prop-section')]
+        .filter(s => /Video/i.test(s.querySelector('.prop-section-title')?.textContent || '')).length,
+    }));
+    expect(st1.assetType, '배경을 건드리자 영상 상태가 풀렸다').toBe('video-pending');
+    expect(st1.videoEl, '배경을 건드리자 video 엘리먼트가 사라졌다').toBe(true);
+    /* 트림 절이 살아 있는가 — 배경 절을 끼워 넣느라 영상 절을 밀어내지 않았다는 증거.
+       (Fit/교체/제거 절 + 트림 절 = 2. 트림은 loadedmetadata 전엔 «불러오는 중» 상태로 뜬다.) */
+    expect(st1.trimSections, 'Video 절(교체/제거 + 트림)이 줄었다 — 배경 절이 영상 절을 밀어냈다').toBe(2);
+
+    // ⑥ 되돌릴 길 — 「초기화」를 눌러도 영상은 살아남아야 한다.
+    const clickedText = await page.evaluate(() => {
+      const body = document.querySelector('#panel-right .panel-body');
+      const sec = [...body.querySelectorAll('.prop-section')].find(s => /배경/.test(s.innerText));
+      const btn = [...sec.querySelectorAll('button')].find(b => {
+        const t = (b.textContent || '').trim();
+        if (/^(asset-(remove|replace|upload|pos)-btn)$/.test(b.id)) return false;
+        if (/이미지|영상|image|video/i.test(t)) return false;
+        return /초기화|기본값|지우기|없음|reset|clear|none/i.test(t);
+      });
+      if (!btn) return null;
+      btn.click();
+      return (btn.textContent || '').trim();
+    });
+    // ⛔「무엇을 눌렀는가」를 남긴다 — 「영상 제거」를 눌러 놓고 빨강을 내는 사고를 막는다(P2 선례).
+    expect(clickedText, '배경 절에서 초기화 버튼을 못 찾았다').not.toBeNull();
+    expect(clickedText, `누른 버튼이 배경 초기화가 아니다 — «${clickedText}»`).not.toMatch(/이미지|영상/);
+    await page.waitForTimeout(150);
+
+    const end = await page.evaluate(() => ({
+      dataBg: window.__ab.dataset.bgColor || '',
+      computedImage: getComputedStyle(window.__ab).backgroundImage,
+      assetType: window.__ab.dataset.assetType,
+      videoEl: !!window.__ab.querySelector('video.asset-video'),
+    }));
+    expect(end.dataBg, `초기화 뒤에도 그라데이션이 남았다 — «${end.dataBg}»`).not.toMatch(/gradient\s*\(/i);
+    expect(end.computedImage, '초기화 뒤에도 화면에 그라데이션이 그대로다').not.toMatch(/gradient/i);
+    expect(end.assetType, '배경 초기화가 영상 상태까지 풀었다').toBe('video-pending');
+    expect(end.videoEl, '★배경 초기화가 영상을 날렸다').toBe(true);
+
+    expect(pageErrs, '페이지 에러가 났다면 빨강의 이유가 다른 데 있다').toEqual([]);
   });
 });
