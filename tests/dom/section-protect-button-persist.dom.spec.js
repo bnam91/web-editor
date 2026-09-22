@@ -340,3 +340,59 @@ test('P9 ★섹션을 «만드는» 자리가 🔓 를 심는다 (hydrate 두 �
   const iProt = order.findIndex(c => c.includes('st-protected-btn'));
   expect(iProt, `★만들 때 심은 🔓 자리가 ${iProt} 다(툴바: ${order.join(', ')}) — 📝 다음이어야 한다`).toBe(iMemo + 1);
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   P10~P11 — 「페이지를 한 번만 옮겨도 🔒 가 죽는다」 (T-139 ③)
+   ──────────────────────────────────────────────────────────────────────────
+   ★2026-09-22 검수 실측(포트 9652·9661):
+     새로고침 직후 onclick=YY → 페이지 한 번 왕복 → **nn** (protected 만 핸들러 소실).
+     1·3·6초 기다려도 안 돌아온다.
+     실클릭 짝대조 — 왕복한 섹션 🔒 팝오버 «0개» / 같은 툴바 📝 는 «열림» / 갓 만든 섹션 🔒 도 «열림».
+   ⛔피해가 «표시»가 아니다 — 🔒·is-on·data-protected 가 그대로 보이는데 눌러도 안 열려서
+     **보호를 끌 방법이 없다**. 그리고 앱은 「🔒 버튼으로 보호 해제 후 삭제하세요」라고
+     바로 그 죽은 단추를 가리킨다.
+
+   ★왜 났나 — sanitizeCanvasHtml 이 페이지 로드마다 on* 을 걷는다(앱 로그 「[sanitize] … 4건 제거」).
+     📝 는 rebindAll 이 _ensureMemoButton 으로 다시 심지만, 🔒 는 C21 의 :not(.st-protected-btn)
+     으로 «지워지지만 않게» 됐을 뿐 다시 심는 곳이 hydrate(init ＋ +1500ms) 둘뿐이라 안 돈다.
+   ⛔★그리고 이건 «내 앞선 고침이 반만 선» 자리다 — 5c15aa4 는 «만들 때»와 «hydrate»만 덮었고
+     rebindAll 을 지나는 길(페이지 전환·복원)이 빠져 있었다.
+     ⇒ ★규약: 「onclick 을 걷는 문」이 몇이고 「다시 거는 문」이 몇인지 «짝으로» 세라.
+
+   ★고친 뒤 실측: 같은 왕복에서 **YY**. 고침만 들어낸 음성대조에서 **nn**.
+   ⛔이 두 검사는 «소스 모양»만 잰다(save-load.js 는 의존이 커서 하네스에 못 싣는다).
+     행동은 실앱에서 쟀다 — 여기 초록을 «행동까지 봤다»로 읽지 마라.
+═══════════════════════════════════════════════════════════════════════════ */
+const rebindSrc = () => fs.readFileSync(path.join(REPO, 'js', 'io', 'save-load.js'), 'utf8');
+/** rebindAll 안에서 «툴바를 다시 묶는» 구간만 떠낸다 — 파일 전체를 보면 import 줄에 속는다. */
+function toolbarRebindWindow(src) {
+  const i = src.indexOf('_ensureMemoButton(sec)');
+  if (i < 0) return null;
+  return src.slice(Math.max(0, i - 1500), i + 1500);
+}
+
+test('P10 ★rebindAll 이 🔒 의 onclick 도 «다시 건다» (📝 와 짝이다)', () => {
+  const src = rebindSrc();
+  const win = toolbarRebindWindow(src);
+  /* 양성대조 — 기준 앵커가 실재하는지 «먼저». 없으면 아래 초록은 「못 봐서」다. */
+  expect(win, '★rebindAll 의 툴바 재바인딩 구간을 못 찾았다 — 이 검사가 «안 돈» 것이다').toBeTruthy();
+  expect(win, '★📝 재바인딩이 사라졌다 — 얼개가 바뀌었으니 이 검사를 먼저 고쳐라')
+    .toContain('_ensureMemoButton(sec)');
+  expect(win,
+    '★🔒 를 다시 거는 자리가 «없다» — sanitizeCanvasHtml 이 on* 을 걷으므로 페이지를 한 번만 ' +
+    '옮겨도 🔒 가 «보이는데 죽은 단추»가 된다. 그러면 보호를 «끌 방법이 없다»')
+    .toContain('_ensureProtectionButton(sec)');
+});
+
+test('P11 ★음성대조 — 그 호출만 들어내면 P10 이 실제로 빨개진다', () => {
+  const src = rebindSrc();
+  /* ★import 나 다른 자리의 같은 이름에 속지 않게 «호출 꼴»만 지운다. */
+  const mutated = src.replace(/window\._ensureProtectionButton\(sec\)/g, '__gone__(sec)');
+  expect(mutated, '★변환이 늙었다 — 호출 꼴을 못 찾았다(P10 을 먼저 봐라)').not.toBe(src);
+  const win = toolbarRebindWindow(mutated);
+  expect(win, '★변형본에서 구간을 못 찾았다').toBeTruthy();
+  expect(win.includes('_ensureProtectionButton(sec)'),
+    '★호출을 지웠는데도 P10 이 찾아낸다 — P10 의 초록은 «있어서»가 아니라 «못 봐서»다').toBe(false);
+  /* ⛔그리고 «📝 쪽은 그대로»여야 한다 — 변환이 옆집까지 지우면 대조가 무의미하다 */
+  expect(win, '★변환이 📝 까지 지웠다 — 대조가 너무 넓다').toContain('_ensureMemoButton(sec)');
+});
