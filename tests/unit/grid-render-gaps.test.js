@@ -18,13 +18,22 @@
  *   ALIGN_KEYS   ← js/props/_helpers.js 의 `ALIGN_ICONS['object-h']` (패널이 실제로 주는 값)
  *   POSITIVE_CONTROLS ← tests/unit/grid-*.test.* 의 「양성대조」 시험 이름 전부
  *
- * ── 축 다섯 ──────────────────────────────────────────────────────────────
+ * ── 축 여섯 ──────────────────────────────────────────────────────────────
  *   S  계측기 자가점검 — 내 자가 «같은 줄·앞 줄·다음 줄»에 안 속는가
- *   R  ① 이미지 줄만 «줄 단위 정렬»을 무시한다            (지금 빨강)
- *   B  ② 칸 `border` — ㈎그려지나 ㈏모르는 칸 필드를 거절하나 (반은 빨강)
- *   V  ③ 잘못된 «값»도 조용히 삼킨다                        (지금 빨강)
- *   N  ④ 중첩 그리드(type:'duo') — 진짜 그려지나            (지금 초록)
- *   G  ⑤ ★남의 양성대조를 보호한다 — 고친 뒤에도 그것들이 여전히 «무는가»
+ *   B  ① «새 동작»: 이미지 줄의 줄 단위 정렬        ★지금 빨강 (합성 교차 12칸 + 혼합 + 중첩)
+ *   D  무변화 골든 — line.align «없는» 줄은 한 바이트도 안 바뀐다  ★지금 초록
+ *   I  ④ 계측기 사각지대 — 고치고 나면 생길 «거짓 거절»을 미리 문다  ★I1 지금 빨강
+ *   N  중첩 그리드(type:'duo') — 오늘 되는 것의 초록 잠금(요구 아님)
+ *   G  ★남의 양성대조를 보호한다 + 245/245 등호 래칫
+ *   X  ⛔범위 밖(테두리·잘못된 값 거절) — «요구 않음»(todo). 잰 값은 지우지 않고 남긴다.
+ *
+ * ★★이 그물이 세운 두 규율(2026-09-23 팀장 실측에서 온 것)
+ *   ⑴ B축은 «저장본»으로 못 잰다. 현빈 계정 24 프로젝트에 그리드 9개·image 줄 «통틀어 1개»,
+ *      그중 align 붙은 것 0 · widthPct<100 인 것 0 ⇒ 실저장본으로는 이 자리를 «한 번도»
+ *      밟을 수 없다. ⛔「저장본이 다 초록」을 통과로 읽으면 «한 축의 0건 = 결함 0» 착각이다.
+ *      ⇒ 그래서 B·D 는 전부 «내가 만든 합성 교차 픽스처»다.
+ *   ⑵ 「무변화 0건」을 주장하는 줄 «앞»에 「내 자가 그 자리를 찾기는 하나」를 세운다(D0-a·D0-b).
+ *      팀장의 1차 「0」이 «없어서 0» 이 아니라 «안 재서 0» 이었던 자리다.
  */
 'use strict';
 const { test, before } = require('node:test');
@@ -266,12 +275,52 @@ test('S4 ★자가점검 — 명부가 «저장소에서» 떠졌고, 두 출처
 });
 
 /* ═══════════════════════════════════════════════════════════════════════
-   R — ① 이미지 줄만 «줄 단위 정렬»을 무시한다
+   B — ① «새 동작»: 이미지 줄의 줄 단위 정렬
    글자 줄: `const align = line.align || colAlign || 'left'`  ⇒ 줄마다 된다
    이미지 줄: `colAlign` 만 본다                               ⇒ 한 칸에서 못 섞는다
+
+   ⛔★이 축은 «저장본»으로 못 잰다 — 팀장 실측(2026-09-23, 현빈 계정 24 프로젝트 읽기만):
+        그리드 블럭 9개 · image 줄 «통틀어 1개» · 그중 align 붙은 것 0 · widthPct<100 인 것 0
+      ⇒ 「글자 왼쪽 ＋ 이미지 가운데」를 실저장본으로는 «한 번도» 밟을 수 없다.
+      ⇒ ⛔「저장본이 다 초록이다」를 이 축의 통과로 읽지 마라 — 그건 «한 축의 0건을 결함 0으로»
+        착각하는 그 자리다. 그래서 아래는 전부 «내가 만든 합성 픽스처»다:
+          칸 정렬 3종(ALIGN_KEYS) × widthPct {50,100} × {그림 있음, 빈 슬롯} = 12 칸
+   ★기대값을 «손으로» 적지 않는다 — 「줄 정렬 L 을 준 결과」는 「칸 정렬이 L 이었을 때의 결과」와
+     «바이트 동일»이어야 한다. 그 오른쪽은 D축 골든이 잠가 둔, 이미 믿을 수 있는 산출이다.
+     ⇒ CSS 문자열이 이 파일에 한 글자도 안 박힌다(늙지 않는다).
    ═══════════════════════════════════════════════════════════════════════ */
 
-test('R1 ★「글자 왼쪽 ＋ 이미지 가운데」가 한 칸에서 되는가', () => {
+const IMG_LINE = (wp, kind) => (kind === 'img'
+  ? { type: 'image', imgSrc: IMG_URL, widthPct: wp }
+  : { type: 'image', widthPct: wp, height: 120 });
+
+/** 칸 정렬 `ca` 인 칸에 줄 하나를 얹고, 그 줄의 여는 태그를 돌려준다(«그려진 것»). */
+function renderOneLine(mod, ca, line) {
+  const b = fixture(mod);
+  const r = mod.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, align: ca, lines: [line] } });
+  assert.equal(r.ok, true, `★판을 못 깔았다(칸 정렬 ${ca}): ${r.message}`);
+  const tag = lineTagAt(b, 0, 0, 0);
+  assert.ok(tag, `★줄이 아예 안 그려졌다(칸 정렬 ${ca})`);
+  return tag;
+}
+
+const B_CASES = [];
+for (const ca of ALIGN_KEYS) for (const wp of [50, 100]) for (const kind of ['img', 'empty']) B_CASES.push({ ca, wp, kind });
+
+for (const { ca, wp, kind } of B_CASES) {
+  test(`B[칸:${ca}|wp:${wp}|${kind}] ★줄 정렬이 칸 정렬을 «갈음»하는가`, () => {
+    for (const L of ALIGN_KEYS) {
+      const want = renderOneLine(G, L, IMG_LINE(wp, kind));                    // 칸 정렬이 L 이었다면
+      const got = renderOneLine(G, ca, { ...IMG_LINE(wp, kind), align: L });   // 칸은 ca, 줄만 L
+      assert.equal(got, want,
+        `★칸 정렬 '${ca}' 안에서 이미지 줄에 align:'${L}' 을 줬는데 «칸 정렬이 ${L} 이었을 때»와 다르다.\n`
+        + `  나온 것 : ${got}\n  나와야 할 것: ${want}\n`
+        + '  ⇒ 이미지 분기가 line.align 을 안 읽고 colAlign 만 본다(글자 줄은 같은 칸에서 된다 — B-혼합 참조)');
+    }
+  });
+}
+
+test('B-혼합 ★「글자 왼쪽 ＋ 이미지 가운데」가 한 칸에서 되는가(이 카드의 머리)', () => {
   const b = fixture();
   const r = G.updateGridBlock(b.id, {
     patchCell: {
@@ -282,69 +331,35 @@ test('R1 ★「글자 왼쪽 ＋ 이미지 가운데」가 한 칸에서 되는�
     },
   });
   assert.equal(r.ok, true, `★판을 못 깔았다: ${r.message}`);
-
-  // ⑴ 글자 줄은 «줄 단위»가 된다 — 이 초록이 아래 빨강의 대조다(같은 칸, 같은 호출).
+  // ⑴ 같은 칸·같은 호출에서 글자 줄은 «줄 단위»가 된다 — 이 초록이 아래 빨강의 대조다.
   assert.equal(cssOf(lineTagAt(b, 0, 0, 0), 'text-align'), 'left', '★글자 줄의 줄 단위 정렬부터 안 된다 — 진단이 다르다');
-
-  // ⑵ 이미지 줄 — ★지금 빨강
+  /* ⛔견줄 것은 «같은 주소»에서 떠야 한다 — 기준을 줄 0 에서 뜨면 data-line 이 달라서
+     «정렬과 무관한 이유»로 빨개진다(첫 판에서 이 파일이 실제로 그렇게 틀렸다). */
+  const ref = fixture();
+  G.updateGridBlock(ref.id, {
+    patchCell: {
+      r: 0, c: 0, align: 'center', lines: [
+        { type: 'body', text: 'LEFTTEXT', align: 'left' },
+        { type: 'image', imgSrc: IMG_URL, widthPct: 50 },   // ★칸 정렬이 가운데였다면
+      ],
+    },
+  });
   const img = lineTagAt(b, 0, 0, 1);
-  assert.ok(img, '★이미지 줄이 아예 안 그려졌다');
-  assert.ok(isCentered(img),
-    '★이미지 줄에 align:\'center\' 를 줬는데 가운데로 안 간다 — 이미지 분기는 «칸의 정렬»(colAlign)만 본다.\n'
-    + `  실제 산출: ${img}\n  ⇒ 「글자 왼쪽 ＋ 이미지 가운데」가 한 칸에서 «불가능»하다`);
+  assert.equal(img, lineTagAt(ref, 0, 0, 1),
+    `★이미지 줄에 align:'center' 를 줬는데 가운데로 안 간다.\n  실제 산출: ${img}\n`
+    + '  ⇒ 「글자 왼쪽 ＋ 이미지 가운데」가 한 칸에서 «불가능»하다');
 });
 
-test('R2 ★반대쪽 — 줄에 정렬이 «없으면» 칸의 정렬이 그대로 닿아야 한다(고친 뒤에도)', () => {
-  const b = fixture();
-  G.updateGridBlock(b.id, {
-    patchCell: { r: 0, c: 0, align: 'center', lines: [{ type: 'image', imgSrc: IMG_URL, widthPct: 50 }] },
-  });
-  assert.ok(isCentered(lineTagAt(b, 0, 0, 0)),
-    '★줄에 정렬이 없는데 칸의 정렬이 이미지에 안 닿는다 — 폴백이 끊겼다(기존 저장본이 흔들린다)');
-});
-
-test('R3 ★반대쪽 — 줄 정렬이 칸 정렬을 «되돌릴» 수 있어야 한다', () => {
-  const b = fixture();
-  G.updateGridBlock(b.id, {
-    patchCell: { r: 0, c: 0, align: 'center', lines: [{ type: 'image', imgSrc: IMG_URL, widthPct: 50, align: 'left' }] },
-  });
-  const img = lineTagAt(b, 0, 0, 0);
-  assert.ok(!isCentered(img) && !isRightPushed(img),
-    '★가운데 칸 안에서 이미지 한 줄만 «왼쪽»으로 못 되돌린다 — 줄 정렬이 무시되고 칸 정렬만 먹는다.\n'
-    + `  실제 산출: ${img}`);
-});
-
-test('R4 ★대조(계측기) — 글자 줄은 «줄 단위»로 칸 정렬을 되돌린다', () => {
+test('B-대조(계측기) ★글자 줄은 «줄 단위»로 칸 정렬을 되돌린다', () => {
   const b = fixture();
   G.updateGridBlock(b.id, {
     patchCell: { r: 0, c: 0, align: 'center', lines: [{ type: 'body', text: 'RIGHTY', align: 'right' }] },
   });
   assert.equal(cssOf(lineTagAt(b, 0, 0, 0), 'text-align'), 'right',
-    '★글자 줄마저 줄 단위 정렬이 안 된다 — 그러면 R1~R3 의 빨강은 «이미지만의 문제»가 아니다');
+    '★글자 줄마저 줄 단위 정렬이 안 된다 — 그러면 B 의 빨강은 «이미지만의 문제»가 아니다');
 });
 
-test('R5 ★빈 이미지 슬롯(imgSrc 없음)도 같은 자리다', () => {
-  const b = fixture();
-  G.updateGridBlock(b.id, {
-    patchCell: { r: 0, c: 0, align: 'left', lines: [{ type: 'image', widthPct: 50, height: 120, align: 'center' }] },
-  });
-  const slot = lineTagAt(b, 0, 0, 0);
-  assert.match(slot, /grd-img-empty/, '★빈 이미지 슬롯이 안 그려졌다 — 이 줄은 다른 것을 재고 있다');
-  assert.ok(isCentered(slot),
-    `★빈 슬롯도 줄 정렬을 무시한다(발주 대기 카드가 «왼쪽에 붙어» 보인다).\n  실제 산출: ${slot}`);
-});
-
-test('R6 ★과잉수정 방지 — 폭 100% 이미지엔 여백을 «붙이지 마라»(바이트 동일 유지)', () => {
-  const b = fixture();
-  G.updateGridBlock(b.id, {
-    patchCell: { r: 0, c: 0, align: 'left', lines: [{ type: 'image', imgSrc: IMG_URL, align: 'center' }] },
-  });
-  const img = lineTagAt(b, 0, 0, 0);
-  assert.doesNotMatch(img, /margin-left|margin-right/,
-    '★폭 100% 인 이미지에 가운데 여백이 붙었다 — 가운데로 갈 자리가 없는데 산출만 바뀐다(기존 저장본 회귀)');
-});
-
-test('R7 ★중첩 안의 이미지도 같은 자리다', () => {
+test('B-중첩 ★중첩(type:\'duo\') 안의 이미지도 같은 자리다', () => {
   const b = fixture();
   G.updateGridBlock(b.id, {
     patchCell: {
@@ -356,9 +371,141 @@ test('R7 ★중첩 안의 이미지도 같은 자리다', () => {
   });
   const imgs = imgTagsIn(cellHtmlAt(b, 0, 0));
   assert.equal(imgs.length, 1, '★중첩 안 이미지가 안 그려졌다 — 이 줄은 다른 것을 재고 있다');
-  assert.ok(isCentered(imgs[0]),
-    `★중첩 칸 안에서도 이미지 줄 정렬이 무시된다.\n  실제 산출: ${imgs[0]}`);
+  assert.ok(isCentered(imgs[0]), `★중첩 칸 안에서도 이미지 줄 정렬이 무시된다.\n  실제 산출: ${imgs[0]}`);
 });
+
+/* ═══════════════════════════════════════════════════════════════════════
+   D — «무변화» 골든. line.align 이 «없는» 이미지 줄의 산출은 한 바이트도 안 바뀐다.
+   기준선 86dce84 에서 뜬 12 칸(칸 정렬 3 × wp{50,100} × {그림, 빈 슬롯}).
+
+   ⛔★「무변화 0건」을 주장하는 줄 «앞»에 「내 자가 그 자리를 찾기는 하나」를 세운다.
+     팀장 실측에서 1차 「0」이 «없어서 0» 이 아니라 «안 재서 0» 이었다(저장본의 그리드가
+     `proj.json → pages[] → HTML 문자열 «안»의 이스케이프된 data-cols` 라 파일 전체 정규식엔
+     한 개도 안 걸렸다). 자가 선다는 것부터 증명한 뒤에야 0 을 보고해야 한다.
+       D0-a  내 자가 12 칸을 «실제로» 이미지 줄로 집는가 (셈이 0 이면 D1 은 헛것이다)
+       D0-b  내 비교기가 «변화를 잡기는» 하는가 (한 칸을 일부러 흔들면 빨개지는가)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** ★기준선 86dce84 실측. ⛔여기 수를 «손으로» 고치지 마라 — 고칠 일이 생겼다면
+ *  그건 「line.align 없는 이미지 줄의 산출이 바뀌었다」는 뜻이고, 그게 이 골든이 막는 것이다. */
+const D_GOLDEN = {
+  'left|50|img':
+    '<img data-r="0" data-c="0" data-line="0" class="grd-img" src="https://example.com/gaps-probe.png" draggable="false" style="display:block;width:50%;height:auto;">',
+  'left|50|empty':
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img grd-img-empty" style="width:50%;height:120px;background:#e8e8e8;border-radius:8px;">',
+  'left|100|img':
+    '<img data-r="0" data-c="0" data-line="0" class="grd-img" src="https://example.com/gaps-probe.png" draggable="false" style="display:block;width:100%;height:auto;">',
+  'left|100|empty':
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img grd-img-empty" style="width:100%;height:120px;background:#e8e8e8;border-radius:8px;">',
+  'center|50|img':
+    '<img data-r="0" data-c="0" data-line="0" class="grd-img" src="https://example.com/gaps-probe.png" draggable="false" style="display:block;width:50%;height:auto;margin-left:auto;margin-right:auto;">',
+  'center|50|empty':
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img grd-img-empty" style="width:50%;height:120px;background:#e8e8e8;border-radius:8px;margin-left:auto;margin-right:auto;">',
+  'center|100|img':
+    '<img data-r="0" data-c="0" data-line="0" class="grd-img" src="https://example.com/gaps-probe.png" draggable="false" style="display:block;width:100%;height:auto;">',
+  'center|100|empty':
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img grd-img-empty" style="width:100%;height:120px;background:#e8e8e8;border-radius:8px;">',
+  'right|50|img':
+    '<img data-r="0" data-c="0" data-line="0" class="grd-img" src="https://example.com/gaps-probe.png" draggable="false" style="display:block;width:50%;height:auto;margin-left:auto;">',
+  'right|50|empty':
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img grd-img-empty" style="width:50%;height:120px;background:#e8e8e8;border-radius:8px;margin-left:auto;">',
+  'right|100|img':
+    '<img data-r="0" data-c="0" data-line="0" class="grd-img" src="https://example.com/gaps-probe.png" draggable="false" style="display:block;width:100%;height:auto;">',
+  'right|100|empty':
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img grd-img-empty" style="width:100%;height:120px;background:#e8e8e8;border-radius:8px;">',
+};
+
+const dKey = ({ ca, wp, kind }) => `${ca}|${wp}|${kind}`;
+
+test('D0-a ★양성대조(먼저) — 내 자가 12 칸을 «실제로» 이미지 줄로 집는가', () => {
+  assert.equal(B_CASES.length, Object.keys(D_GOLDEN).length,
+    '★골든 표와 교차 칸 수가 어긋났다 — 정렬 명부가 늘었으면 골든도 같이 떠야 한다');
+  let found = 0;
+  for (const cs of B_CASES) {
+    const tag = renderOneLine(G, cs.ca, IMG_LINE(cs.wp, cs.kind));
+    assert.match(tag, /class="grd-img/, `★${dKey(cs)} 가 «이미지 줄»로 안 나왔다 — 이 자는 다른 것을 재고 있다`);
+    assert.ok(Object.prototype.hasOwnProperty.call(D_GOLDEN, dKey(cs)), `★골든에 ${dKey(cs)} 칸이 없다`);
+    found++;
+  }
+  assert.ok(found > 0, '★한 칸도 못 집었다 — 아래 D1 의 「무변화 0건」은 «안 재서 0» 이다');
+});
+
+test('D0-b ★양성대조(먼저) — 내 비교기가 «변화»를 잡기는 하는가', () => {
+  const cs = B_CASES.find(c => c.wp === 50 && c.kind === 'img' && c.ca === 'center');
+  assert.ok(cs, '★탐침으로 쓸 칸을 못 찾았다');
+  const shaken = renderOneLine(G, cs.ca, { ...IMG_LINE(cs.wp, cs.kind), widthPct: 60 });
+  assert.notEqual(shaken, D_GOLDEN[dKey(cs)],
+    '★일부러 흔든 칸이 골든과 «같다»고 나온다 — 이 비교기는 아무 변화도 못 잡는다(D1 은 언제나 초록)');
+});
+
+for (const cs of B_CASES) {
+  test(`D[${dKey(cs)}] ★무변화 — line.align 없는 이미지 줄은 한 바이트도 안 바뀐다`, () => {
+    assert.equal(renderOneLine(G, cs.ca, IMG_LINE(cs.wp, cs.kind)), D_GOLDEN[dKey(cs)],
+      '★기존 저장본이 «로드만으로» 흔들린다 — 줄 정렬을 얹으면서 «안 준 줄»의 산출까지 바꿨다');
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   I — ④ 계측기 사각지대. `_gridLineFieldIsRead` 는 정렬을 잴 때 «한 문맥»(colAlign:'left')만
+   넣고 시험한다. ⇒ ① 을 고치고 나면 「칸이 가운데인데 이미지 줄만 왼쪽」이 «화면은 바뀌는데»
+   거짓 거절(ok:false)된다. 그 자리를 «여기서» 문다.
+   ⛔전역 탐침(_GRID_FIELD_PROBES)은 건드리지 마라 — 모든 필드 판정에 걸린다.
+     오늘 이 레포에서 넓은 처방이 남의 양성대조 넷을 먹은 자리다(I3 가 그것을 잠근다).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+test("I1 ★「칸은 가운데, 이미지 줄만 왼쪽」이 ok:true 여야 한다(거짓 거절 금지)", () => {
+  const b = fixture();
+  G.updateGridBlock(b.id, {
+    patchCell: { r: 0, c: 0, align: 'center', lines: [{ type: 'image', imgSrc: IMG_URL, widthPct: 50 }] },
+  });
+  const r = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, lineIndex: 0, align: 'left' } });
+  assert.equal(r.ok, true,
+    `★화면이 «실제로 바뀌는» 요청을 거절했다: ${r.message}\n`
+    + '  ⇒ 판정기가 colAlign:\'left\' 한 문맥만 넣고 재서, 칸이 가운데일 때의 차이를 못 본다.\n'
+    + '  ⛔고칠 곳은 «정렬을 재는 문맥»이지 전역 탐침(_GRID_FIELD_PROBES)이 아니다(I3 참조)');
+  assert.ok(!isCentered(lineTagAt(b, 0, 0, 0)),
+    '★ok 를 줬는데 화면은 여전히 가운데다 — 통과가 곧 반영은 아니다');
+});
+
+test('I2 ★짝 — «진짜» 안 읽는 필드는 이미지 줄에서 여전히 거절돼야 한다', () => {
+  const b = fixture();
+  G.updateGridBlock(b.id, {
+    patchCell: { r: 0, c: 0, lines: [{ type: 'image', imgSrc: IMG_URL, widthPct: 50 }] },
+  });
+  const r = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, lineIndex: 0, fontSize: 40 } });
+  assert.equal(r.ok, false,
+    '★이미지 줄에 fontSize 를 줬는데 통과했다 — I1 을 열어 주면서 관문을 «통째로» 연 것이다');
+  assert.match(r.message, /type:'image'/, '★«왜» 안 되는지(줄 종류)를 안 말한다');
+});
+
+/** ⛔전역 탐침은 «명부»로 잠근다 — 여기 손대면 모든 필드 판정이 같이 흔들린다. */
+function fieldProbes(src) {
+  const m = src.match(/const _GRID_FIELD_PROBES = \[([^\]]*)\]/);
+  assert.ok(m, '★_GRID_FIELD_PROBES 를 못 찾았다 — 이 잠금은 아무것도 안 지킨다');
+  return m[1].split(',').map(s => s.trim()).filter(Boolean);
+}
+
+test('I3 ★전역 탐침(_GRID_FIELD_PROBES)이 그대로인가 — 넓은 처방 금지', () => {
+  /* ⚠️첫 탐침은 «보이는 대로»가 아니다 — 기준선 86dce84 의 소스에 U+0001 두 개가 박혀 있다
+     (js/blocks/grid-block.js:280, 이 파일 전체에서 «유일한» 제어문자 둘). 탐침값은 「아무 값이나」면
+     되는 자리라 동작엔 해가 없지만, 눈에 안 보이는 글자가 제품 소스에 있다는 사실은 적어 둔다.
+     ⛔그래서 여기서 '\u0001' 을 «지우지» 마라 — 지우면 이 잠금이 아니라 제품 소스를 고치는 일이다. */
+  assert.deepEqual(fieldProbes(RAW), ["'\u0001gdt\u0001'", "'gdt-probe'", '41.5', '3', 'true', 'false', 'null'],
+    '★전역 탐침이 바뀌었다. 이것은 «모든» 필드 판정에 걸린다 — I1 하나를 열려고 여기를 건드리면\n'
+    + '  남의 양성대조가 조용히 죽는다(오늘 이 레포에서 실제로 넷이 죽었다).\n'
+    + '  ⇒ 고칠 곳은 «정렬을 재는 문맥»이다. 여기가 아니다.');
+});
+
+/* ══ ⛔범위 밖(2026-09-23 팀장 확정) — «요구하지 않는다», 다만 «잰 값»은 남긴다 ══════
+   · 테두리  — 스펙만 확정(borderWidth 숫자 px ＋ borderColor). 판정은 그 카드가 한다.
+   · 잘못된 «값» 거절 — 따로 설 카드.
+   · 중첩 그리드 — 다른 워커가 «앱에서» 재는 중.
+   ⇒ 아래 X* 줄 중 «지금 빨강»인 것은 todo 로 단다: 실패로 세지 않되 화면에서 안 사라진다
+     (결함만 올리고 장부가 안 닫히는 것을 막는 이 레포 규약 — 조용히 빼지 않는다).
+   ⇒ «지금 초록»인 X* 줄은 그대로 둔다 — 새 동작을 요구하는 게 아니라 오늘 되는 것을 잠그는 자물쇠다.
+   ⇒ N* (중첩)도 같은 까닭으로 초록 잠금만 남긴다. */
+const OUT_OF_SCOPE = { todo: '범위 밖 — 따로 설 카드가 판정한다(측정값은 남겨 둔다)' };
+const SCOPED_OUT_PATHS = new Set(['patchCol', 'cols']);   // ㈏ 축에서 «지금 빨강»인 경로
 
 /* ═══════════════════════════════════════════════════════════════════════
    B — ② 칸 `border`
@@ -368,7 +515,7 @@ test('R7 ★중첩 안의 이미지도 같은 자리다', () => {
    ═══════════════════════════════════════════════════════════════════════ */
 
 for (const p of WRITE_PATHS) {
-  test(`B1-${p.key} ★㈎ 칸에 테두리를 주면 «그려지는가»`, () => {
+  test(`X테두리-${p.key} ★㈎ 칸에 테두리를 주면 «그려지는가»`, OUT_OF_SCOPE, () => {
     const b = fixture();
     const res = p.send(G, b, { border: '2px solid #ff0000' });
     const tag = cellTagAt(b, 0, 0);
@@ -379,7 +526,8 @@ for (const p of WRITE_PATHS) {
 }
 
 for (const p of WRITE_PATHS) {
-  test(`B2-${p.key} ★㈏ 모르는 «칸» 필드를 거절하거나, 최소한 «안 됐다»고 하는가`, () => {
+  test(`X테두리명부-${p.key} ★㈏ 모르는 «칸» 필드를 거절하거나, 최소한 «안 됐다»고 하는가`,
+    SCOPED_OUT_PATHS.has(p.key) ? OUT_OF_SCOPE : {}, () => {
     const b = fixture();
     const res = p.send(G, b, { gdtProbeCellField: 'gdt-probe-value' });
     assert.ok(rejectedOrReported(res, 'gdtProbeCellField'),
@@ -391,7 +539,7 @@ for (const p of WRITE_PATHS) {
   });
 }
 
-test('B3 ★대조 — 명부에 «있는» 칸 필드는 넷 다 통과하고 실제로 그려진다', () => {
+test('X테두리-대조 ★ — 명부에 «있는» 칸 필드는 넷 다 통과하고 실제로 그려진다', () => {
   for (const p of WRITE_PATHS) {
     const b = fixture();
     const res = p.send(G, b, { bg: '#123456', padding: 12, radius: 8 });
@@ -403,7 +551,7 @@ test('B3 ★대조 — 명부에 «있는» 칸 필드는 넷 다 통과하고 �
   }
 });
 
-test('B4 ★대조 — «줄» 축은 이미 제대로 거절한다(칸 축에 세울 꼴이 이것이다)', () => {
+test('X줄축-대조 ★ — «줄» 축은 이미 제대로 거절한다(칸 축에 세울 꼴이 이것이다)', () => {
   const b = fixture();
   const a = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, lineIndex: 0, padding: 8 } });
   assert.equal(a.ok, false, '★칸 필드를 «줄»에 줬는데 통과했다 — 이 대조 자체가 성립 안 한다');
@@ -422,7 +570,7 @@ test('B4 ★대조 — «줄» 축은 이미 제대로 거절한다(칸 축에 �
    ═══════════════════════════════════════════════════════════════════════ */
 
 for (const p of WRITE_PATHS) {
-  test(`V1-${p.key} ★칸 세로정렬에 명부 밖 값('center')을 주면 «조용히» 위로 떨어진다`, () => {
+  test(`X값-${p.key} ★칸 세로정렬에 명부 밖 값('center')을 주면 «조용히» 위로 떨어진다`, OUT_OF_SCOPE, () => {
     assert.ok(!VALIGN_KEYS.includes('center'),
       `★'center' 가 세로정렬 명부에 들어왔다 — 이 검사의 전제가 바뀌었다(지금 명부: ${VALIGN_KEYS.join('|')})`);
     const b = fixture();
@@ -438,7 +586,7 @@ for (const p of WRITE_PATHS) {
   });
 }
 
-test('V2 ★음성대조 — 명부 «안»의 세로정렬 값은 넷 다 통과하고 실제로 그려진다', () => {
+test('X값-음성대조 ★ — 명부 «안»의 세로정렬 값은 넷 다 통과하고 실제로 그려진다', () => {
   for (const key of VALIGN_KEYS) {
     for (const p of WRITE_PATHS) {
       const b = fixture();
@@ -450,7 +598,7 @@ test('V2 ★음성대조 — 명부 «안»의 세로정렬 값은 넷 다 통�
   }
 });
 
-test('V3 ★대조 — «블록» 축의 같은 이름은 값을 제대로 거절한다', () => {
+test('X값-블록축대조 ★ — «블록» 축의 같은 이름은 값을 제대로 거절한다', () => {
   const b = fixture();
   const bad = G.updateGridBlock(b.id, { valign: 'center' });
   assert.equal(bad.ok, false, '★블록 축마저 값을 안 본다 — 그러면 V1 의 빨강은 «칸만의 문제»가 아니다');
@@ -462,7 +610,7 @@ test('V3 ★대조 — «블록» 축의 같은 이름은 값을 제대로 거�
 });
 
 for (const p of WRITE_PATHS) {
-  test(`V4-${p.key} ★칸 가로정렬에 명부 밖 값('centre')을 주면 그대로 CSS 로 새 나간다`, () => {
+  test(`X정렬값-${p.key} ★칸 가로정렬에 명부 밖 값('centre')을 주면 그대로 CSS 로 새 나간다`, OUT_OF_SCOPE, () => {
     assert.ok(!ALIGN_KEYS.includes('centre'),
       `★'centre' 가 가로정렬 명부에 들어왔다 — 전제가 바뀌었다(지금 명부: ${ALIGN_KEYS.join('|')})`);
     const b = fixture();
@@ -478,7 +626,7 @@ for (const p of WRITE_PATHS) {
   });
 }
 
-test('V5 ★음성대조 — 명부 «안»의 가로정렬 값은 넷 다 통과하고 실제로 그려진다', () => {
+test('X정렬값-음성대조 ★ — 명부 «안»의 가로정렬 값은 넷 다 통과하고 실제로 그려진다', () => {
   for (const key of ALIGN_KEYS) {
     for (const p of WRITE_PATHS) {
       const b = fixture();
@@ -609,6 +757,9 @@ test('N7 ★주소는 «최상위 줄»에만 찍힌다 — 중첩 속은 안 �
 
 const GRID_TESTS = fs.readdirSync(UNIT_DIR)
   .filter(f => /^grid-.*\.test\.(js|mjs)$/.test(f) && f !== SELF).sort();
+
+/** 기준선 86dce84 에서 이 파일을 «뺀» grid 검사 전부의 셈. 실측 245/245 초록. */
+const GRID_BASELINE_TESTS = 245;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
@@ -751,4 +902,17 @@ test('G5 ★기존 grid 검사들이 «여전히 전부 통과하는가»(양성
   assert.equal(r.code, 0,
     '★grid-block.js 를 고친 뒤 기존 grid 검사 중 빨개진 것이 있다 — «남의 그물»을 같이 끊었다:\n'
     + r.out.split('\n').filter(l => /^not ok|✖|Error|AssertionError|✘/.test(l)).slice(0, 40).join('\n'));
+
+  /* ★래칫 — 기준선 86dce84 실측이자 플래너가 넘긴 수: 245/245.
+     ⛔하한(≥)이 아니라 «등호»다(align-btn-ssot.test.mjs 선례). 하한은 까먹어도 초록이라,
+       「남의 양성대조를 지우고 초록」이 그대로 지나간다.
+     ★이 수와 안 맞으면 «고쳐진 것»이 아니라 «재는 양이 바뀐 것»이다 — 그때 고칠 것은
+       이 수가 아니라, 왜 줄었는지(지웠나)·왜 늘었는지(더했나)를 먼저 적는 일이다. */
+  const total = Number((r.out.match(/^ℹ tests (\d+)$/m) || [])[1]);
+  const pass = Number((r.out.match(/^ℹ pass (\d+)$/m) || [])[1]);
+  assert.ok(Number.isFinite(total) && Number.isFinite(pass), '★하위 프로세스의 셈을 못 읽었다 — 래칫이 헛돈다');
+  assert.deepEqual([total, pass], [GRID_BASELINE_TESTS, GRID_BASELINE_TESTS],
+    `★기존 grid 검사 수가 기준선(86dce84)의 ${GRID_BASELINE_TESTS}/${GRID_BASELINE_TESTS} 과 다르다 — 지금 ${pass}/${total}.\n`
+    + '  줄었다면: 남의 그물을 지웠거나 한 파일이 통째로 안 돌고 있다(그건 초록이 아니라 «안 봤다»다).\n'
+    + '  늘었다면: 잘한 것이다 — 이 수를 같이 올려라(그 손이 한 번은 세게 만든다).');
 });
