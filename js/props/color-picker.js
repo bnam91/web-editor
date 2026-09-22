@@ -1171,6 +1171,17 @@ export function wireHexText(hexEl, { parse, format, getCurrent, onApply, onCommi
     hexEl.value = fmt(v);                   // 표기 정리(`#00ff00` → `00FF00`)
     onApply?.(v);                           // 자유형식 칸은 input 이 «적용»을 안 했을 수 있다
     commit(v);
+    /* ★빈 칸 + Enter — «보이는 값»을 실제와 맞춘다 (T-097, 2026-09-22 실측 포트 9533)
+       빈 값은 무효가 아니라 「안 정했다」라서 parse 가 '' 를 돌려주고 여기를 그대로 지나간다.
+       그런데 onApply/onCommit 은 대개 `if (!v) return` 로 흘려보내므로 «칸만 빈 채» 남았다 —
+       칸="" 인데 글자는 rgb(255,0,0) 인 «보이는 값 ≠ 실제». (같은 칸을 blur 하면 아래 blur
+       리스너의 restore() 가 이미 이것을 고쳐 준다 — Enter 만 그 한 줄이 없었다.)
+       ⇒ blur 가 하는 것을 Enter 에도 태운다. 이 파일의 규약 「Enter 는 change 와 «같은 것»을
+         한다」 그대로다.
+       ★빈 값이 «곧 값»인 칸(prop-text-wireup-label: 빈 값 = transparent)도 안전하다 —
+         거긴 onApply 가 이미 적용했고 getCurrent() 가 '' 를 돌려주므로 칸은 빈 채 남는다.
+         한 줄이 「빈 값 = 무시」와 「빈 값 = 뜻」 두 경우를 다 맞춘다. */
+    if (v === '') restore();
   });
   hexEl.addEventListener('blur', () => { if (restoreOnBlur) restore(); else mark(false); });
   return { restore, markInvalid: () => mark(true), markValid: () => mark(false) };

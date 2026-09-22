@@ -285,7 +285,13 @@ test('G6 회귀 — 텍스트프레임 2개 ⌘⌥G 는 기존대로(둘 다 새
   expect(out.pos).toBe('absolute');
   expect(out.topB).toBe('40px');
   expect(out.order).toEqual([out.pa]);
-  expect(out.toasts, '정상 경로에선 토스트가 뜨지 않는다').toEqual([]);
+  /* ★2026-09-22 (T-080): 이 줄은 「정상 경로엔 토스트가 «하나도» 없다」였다. 그때는 이 함수의
+     토스트가 «경고»뿐이었기 때문이다(「그룹에 못 넣은 블록이 있어…」). 이제 성공 경로도 «말을
+     한다» — 그게 T-080 이 요구한 것이다(성공했는데 안내 0개 = 빨강).
+     ⇒ 재는 양을 「토스트 0개」에서 「«경고» 0개 + 성공 안내 1개」로 바꾼다. 원래 지키려던 축
+       (정상 경로에서 「못 넣었다」 경고가 새지 않는다)은 그대로 남는다. */
+  expect(out.toasts.filter((m) => m.includes('못 넣은')), '정상 경로엔 «못 넣었다» 경고가 없다').toEqual([]);
+  expect(out.toasts, '정상 경로도 «묶었다»고 말한다 (T-080)').toEqual(['2개를 프레임으로 묶었어요']);
   expect(errs).toEqual([]);
 });
 

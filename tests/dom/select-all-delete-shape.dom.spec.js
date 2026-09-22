@@ -123,6 +123,10 @@ async function selectAllThenDelete(page, selRhs, delSrc, delList, selSelRhs, pre
     window.addGhostSection = () => {};
     const SECTION_BLOCK_TYPE_SEL_SELECTED = new Function('SECTION_BLOCK_TYPE_SEL', 'return (' + selSelRhs + ')')(SEL);
     const scope = {
+      /* ★하네스는 잘라 넣은 코드가 부르는 «최상위 선언 전부»를 실어야 한다(레포 규약).
+         2026-09-22 T-099 로 deleteSelectedFromCanvas 가 SSOT «원본»(.selected 없는 판)도
+         쓰기 시작했다 — 안 실으면 ReferenceError 로 «검사처럼 생긴 빨강»이 난다. */
+      SECTION_BLOCK_TYPE_SEL: SEL,
       SECTION_BLOCK_TYPE_SEL_SELECTED,
       clearAssetImage: () => {},
       deselectAll: () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected')),
@@ -173,8 +177,12 @@ test('본검사 ★지금 목록(SECTION_BLOCK_TYPE_SEL)이면 ⌘A→Delete 가
   /* ★남는 것 = ss1(텍스트프레임 «빈 그릇») 하나. 텍스트프레임은 .row 밖 직속이라
      block.closest('.row') 가 null → 텍스트 «블록»만 remove 되고 그릇이 남는다.
      ⚠️이건 이 커밋 전에도 같았다(고치기 전 목록으로 돌린 음성대조에서도 동일) — 이 유닛 밖. */
-  /* 남는 것 = ss1(텍스트프레임 빈 그릇) + ssFree(⌘A 가 «안» 고르는 그릇). 둘 다 이 커밋 전과 같다. */
-  expect(r.frames, '남은 프레임 수가 달라졌다(ss1+ssFree = 2 가 기준)').toBe(2);
+  /* ★2026-09-22 (T-099): 2 → 1. 바로 위 문단이 「ss1 이 빈 그릇으로 남는다 … 이 유닛 밖」이라고
+     적어 둔 그 자리를 T-099 가 닫았다 — «이 삭제가 비운» 프레임은 이제 같이 걷힌다.
+     ⇒ 남는 것은 ssFree «하나»뿐이다. 그리고 그게 이 줄의 핵심이다:
+       ssFree 는 «처음부터 비어 있던» 그릇이라 후보에 없다 ⇒ 과삭제가 아니라는 증명이 아래 줄이다.
+       (「빈 프레임을 전부 지운다」로 짰다면 ssFree 도 사라져 아래 줄이 빨개진다.) */
+  expect(r.frames, '남은 프레임 수가 달라졌다(ssFree 하나가 기준 — ss1 은 T-099 로 같이 걷힌다)').toBe(1);
   expect(r.left, '⌘A 가 «안» 고른 Free 프레임까지 지워졌다 — 그건 과삭제다').toContain('ssFree');
   expect(errs).toEqual([]);
 });
@@ -195,8 +203,9 @@ test('픽스① ★프레임이 미리 골라져 있어도 ⌘A→Delete 가 «�
   expect(r.chats,  '챗블럭이 남았다 — 프레임 갈래가 가로챘다').toBe(0);
   expect(r.gaps,   'Gap 이 남았다 — 프레임 갈래가 가로챘다').toBe(0);
   expect(r.left,   '미리 골라져 있던 Free 프레임이 안 지워졌다').not.toContain('ssFree');
-  /* 본검사와 «같은 수»여야 한다 — 미리 골라져 있던 ssFree 가 더 남으면 2가 된다(그게 원증상). */
-  expect(r.frames, '★미리 골라져 있던 Free 프레임이 안 지워졌다(본검사는 2, 여기선 ssFree 가 빠져 1)').toBe(1);
+  /* 본검사(1)에서 ssFree 가 더 빠진 수. ★2026-09-22 (T-099) 로 ss1 도 걷히면서 1 → 0 이 됐다.
+     미리 골라져 있던 ssFree 가 «안» 지워지면 1 이 되어 원증상이 다시 잡힌다. */
+  expect(r.frames, '★미리 골라져 있던 Free 프레임이 안 지워졌다(본검사는 1, 여기선 ssFree 가 빠져 0)').toBe(0);
   expect(r.toasts).toEqual([]);
   expect(errs).toEqual([]);
 });
@@ -219,6 +228,10 @@ test('픽스① 회귀 ★프레임만 «혼자» 골랐으면 그 프레임 줄
     const actions = [];
     const SECTION_BLOCK_TYPE_SEL_SELECTED = new Function('SECTION_BLOCK_TYPE_SEL', 'return (' + selSelRhs + ')')(SEL);
     const scope = {
+      /* ★하네스는 잘라 넣은 코드가 부르는 «최상위 선언 전부»를 실어야 한다(레포 규약).
+         2026-09-22 T-099 로 deleteSelectedFromCanvas 가 SSOT «원본»(.selected 없는 판)도
+         쓰기 시작했다 — 안 실으면 ReferenceError 로 «검사처럼 생긴 빨강»이 난다. */
+      SECTION_BLOCK_TYPE_SEL: SEL,
       SECTION_BLOCK_TYPE_SEL_SELECTED,
       clearAssetImage: () => {},
       deselectAll: () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected')),

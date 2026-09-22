@@ -131,8 +131,26 @@ function normalizeBeforeCommit(el) {
   let c = n;
   if (Number.isFinite(lo) && c < lo) c = lo;
   if (Number.isFinite(hi) && c > hi) c = hi;
-  if (c !== n) { el.value = String(c); return 'clamped'; }   // ★핸들러에 넘기기 «전»에 칸을 고친다
+  if (c !== n) {
+    el.value = String(c);        // ★핸들러에 넘기기 «전»에 칸을 고친다
+    noticeClamped(el, n, c);     // ★그리고 «깎았다»고 말한다 — 칸만 되쓰면 못 본 사람은 모른다
+    return 'clamped';
+  }
   return 'ok';
+}
+
+/* ★깎았으면 «말도» 한다 (T-093, 2026-09-22 실측 포트 9533)
+   앞 라운드가 「칸에 되쓰기」까지는 했다 — 9999 를 넣으면 칸이 1000 으로 바뀐다. 그런데 그게
+   «알려 주는 수단의 전부»였다: 칸을 안 보고 있으면 내 값이 깎인 줄 모른다(실측: 9999 → 실제
+   1000px 인데 떠 있는 안내 0개). 클램프가 일어나는 자리는 이 한 곳(normalizeBeforeCommit)이라
+   여기서 한 번만 말한다 — 패널 242곳에 다시 적지 않는다.
+   ⛔문구에 상·하한을 손으로 박지 마라 — SSOT 는 «칸의 min/max 속성»이다(이 파일 머리말). */
+function noticeClamped(el, typed, clamped) {
+  const lo = parseFloat(el.min), hi = parseFloat(el.max);
+  const range = (Number.isFinite(lo) && Number.isFinite(hi)) ? `${lo}~${hi}`
+              : Number.isFinite(hi) ? `${hi} 이하`
+              : `${lo} 이상`;
+  try { window.showToast?.(`⚠️ ${range} 까지 쓸 수 있어요 — ${typed} 를 ${clamped} 로 맞췄어요`); } catch (_) {}
 }
 
 /** 값 없음 — 이전 «표시값»을 되돌린다(0 과 갈린다: '0' 은 유한수라 여기 안 온다). */
