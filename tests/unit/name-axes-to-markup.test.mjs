@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
 const _req = createRequire(import.meta.url);
-const { stripComments } = _req('./_strip-comments.js');
+const { stripComments, makeStripper } = _req('./_strip-comments.js');
 const { normalizeEol, toPosix } = _req('./_srcread.js');
 const { AXES, scan, touchesOrigin, lineOf } = _req('./_name-to-markup.js');
 const SINK = _req('../_name-sink-scan.js');   // 규칙 S/P — «그리는 자리»로 훑는 두 번째 계측기
@@ -51,23 +51,18 @@ function walk(dir, out = []) {
   return out;
 }
 
-/* ★제거기의 맹점을 «내 눈 앞에서만» 막는다.
-   tests/unit/_strip-comments.js 는 «줄 주석 안의 블록 주석 여는 표기»를 진짜 블록 주석으로 읽어
-   그 뒤 코드를 통째로 지운다(실측: js/branch-system.js:9 하나가 그 파일 74줄을 가렸고,
-   그 안에 인라인 핸들러 2개가 들어 있었다 — 아래 XS4 가 그 자리를 빨갛게 만든다).
-   ⛔공용 제거기를 여기서 «고치지» 않는다 — 다른 게이트 수십 개가 그걸 쓴다. 정본 수리는 따로다.
-   ⇒ 넣기 «전»에 줄 주석 안의 그 표기만 무해한 두 글자로 바꿔 둔다.
-     ★두 글자를 두 글자로 바꾼다 — 길이가 같아야 줄번호·오프셋이 안 밀린다.
-   ⛔원문(raw)을 그냥 쓰면 안 된다: 주석 속 백틱이 템플릿 토크나이저를 끌고 가서
-     줄번호가 통째로 어긋난다(실측: G7 이 117→169 로 틀리게 가리켰다). */
-function safeStrip(raw) {
-  const masked = raw.split('\n').map((ln) => {
-    const i = ln.indexOf('//');
-    if (i < 0) return ln;
-    return ln.slice(0, i) + ln.slice(i).replace(/\/\*/g, '/#').replace(/\*\//g, '#/');
-  }).join('\n');
-  return stripComments(masked);
-}
+/* ★2026-09-22 — 여기 있던 «내 눈 앞에서만» 막는 우회로(safeStrip)를 걷었다.
+   그동안 이 파일은 넣기 «전»에 줄 주석 안의 «블록 주석 여닫는 두 글자»를 무해한 두 글자로 바꿔 뒀다.
+   공용 제거기가 «줄 주석 안»의 여는 표기를 진짜 블록 주석으로 읽었기 때문이다
+   (실측: js/branch-system.js:9 하나가 그 파일 74줄을 가렸다 — 인라인 핸들러 2개 포함).
+   ⇒ 그 병은 _strip-comments.js 에서 «정본»으로 고쳤다(한 번만 훑는다). 우회로는 이제 빚이다.
+
+   ★★그리고 그 우회로는 «자기가 새 사각지대»였다 — 걷어내며 실측으로 확인한 것:
+     마스킹 자리를 raw 의 indexOf('//') 로 골랐더니, 블록 주석을 «닫는» 줄에 URL 이 있으면
+     (js/report-buffer.js:35 — 「⛔ URL(https://host/a/b)은 …」 뒤에서 블록이 닫힌다) 그 닫는 표기까지 같이 가려서
+     블록이 «안 닫힌» 것이 됐다. ⇒ 그 뒤 30줄(function scrubPaths 포함)이 이 파일의
+     모든 게이트에 «안 보였다». 우회로가 막으려던 것보다 더 많이 가리고 있었다.
+   ⇒ 이제 공용 제거기를 그대로 쓴다. 우회로를 다시 들이지 마라 — 정본을 고쳐라. */
 
 let _sources = null;
 function sources() {
@@ -78,7 +73,7 @@ function sources() {
   if (fs.existsSync(idx)) files.push(idx);
   _sources = files.map(f => {
     const raw = normalizeEol(fs.readFileSync(f, 'utf8'));
-    return { rel: toPosix(path.relative(ROOT, f)), raw, code: safeStrip(raw) };
+    return { rel: toPosix(path.relative(ROOT, f)), raw, code: stripComments(raw) };
   });
   return _sources;
 }
@@ -411,39 +406,77 @@ test('X9 ★esc 사본이 늘지도, 죽은 채 남지도 않는다', () => {
    ⇒ 초록이 「없어서」가 아니라 «안 봐서»가 된다. 제일 나쁜 초록이다.
    실측(기준선 1972a80): js/branch-system.js:9 의 줄 주석 하나가 그 파일 74줄을 가렸고,
    그 안에 인라인 핸들러 2개(브랜치 이름이 실린 것 1개 포함)가 들어 있었다.
-   ⛔이 검사를 지우지 마라 — 고치는 길은 둘이다. ⑴그 주석의 표기를 바꾸거나
-     ⑵_strip-comments.js 가 줄 주석 안의 /* 를 안 열게 고치거나(그쪽이 정본 수리다).
+   js/editor.js:3230 (`presets/*.json`) 도 같은 꼴로 선언 2줄을 가리고 있었다.
+
+   ★2026-09-22 — «재는 양»을 바꿨다. ⛔초판은 «표기»를 셌다(raw 줄에 // 뒤 /* 가 있나).
+     그건 병이 아니라 병의 «모양»이다. 두 가지로 틀린다:
+       ⑴ 정본 수리(_strip-comments.js 를 고치는 것)로는 «절대 초록이 안 된다» —
+          소스의 주석 표기를 고치는 길밖에 안 남아 증상을 가리는 쪽으로 몬다.
+       ⑵ 멀쩡한 자리를 빨갛게 만든다. 실측: main/folders.js:5 는 «블록 주석 «안»»의
+          `goya-asset://` + `main/gdt/*` 였다 — 표기는 같은데 삼킨 것은 0줄이다.
+     ⇒ 이제 «제거기가 그 줄에서 블록을 여는가»를 «행위로» 묻는다. 그게 병 자체다.
+   ⛔이 검사를 지우지 마라. 고치는 길은 «정본 수리 하나»다 — _strip-comments.js 를 고쳐라.
+     ⛔소스 주석의 표기를 바꿔서 끄지 마라(증상을 가리는 것이고, 다음 줄에서 재발한다).
    ═══════════════════════════════════════════════════════════════════════ */
 test('XS4 ★주석 제거기가 «코드»를 먹는 자리가 없다', () => {
-  const bad = [];
+  /* 제거기가 «지금 블록 주석 안이라고 믿는가»를 재는 탐침 — 코드면 그대로 돌아온다. */
+  const PROBE = 'const __xs4_probe = 1;';
+  const shapes = [];   // 레포에 «실재»하는 그 꼴(= 이 검사가 헛돌지 않는다는 증거)
+  const opens = [];    // ★판정 — 그 줄 하나로 블록이 «열린» 자리
   for (const f of sources()) {
-    const lines = f.raw.split('\n');
-    lines.forEach((ln, i) => {
+    f.raw.split('\n').forEach((ln, i) => {
       const cut = ln.indexOf('//');
-      if (cut < 0) return;
-      if (!ln.slice(cut).includes('/*')) return;
-      bad.push(`${f.rel}:${i + 1}  줄 주석 안에 블록 주석 여는 표기가 있다`);
+      if (cut < 0 || !ln.slice(cut).includes('/*')) return;
+      shapes.push(`${f.rel}:${i + 1}`);
+      const strip = makeStripper();          // ★앞 줄 상태 없이 «그 줄만» — 원인을 그 줄로 못박는다
+      strip(ln);
+      if (strip(PROBE).trim() !== PROBE) opens.push(`${f.rel}:${i + 1}  ${ln.trim().slice(0, 90)}`);
     });
   }
-  /* 실제로 코드가 지워졌는지까지 «같이» 보인다 — 표기만으로 겁주지 않으려고.
-     ⛔«걸린 파일»에서만 센다. 전 파일에서 세면 «블록 주석 안의 예시 코드»까지
+
+  /* 진단(판정 아님) — 선언이 통째로 안 보이는 파일.
+     ⛔«걸린 파일»에서만 센다. 전 파일에서 세면 «블록 주석 «안»에 적힌 사용법 예시»까지
        「가려졌다」로 읽혀 겁만 준다(실측: js/drag-history.js 의 머리 주석 속 예시 3줄).
-       가려진 결과는 위 bad 의 «증거»지 그 자체로 판정이 아니다. */
-  const suspects = new Set(bad.map(b => b.split(':')[0]));
+       이건 위 opens 의 «증거»지 그 자체로 판정이 아니다. */
+  const suspects = new Set(opens.map(b => b.split(':')[0]));
   const eaten = [];
   for (const f of sources().filter(x => suspects.has(x.rel))) {
-    const R = f.raw.split('\n'), C = stripComments(f.raw).split('\n');   // ★공용 제거기 그대로
+    const R = f.raw.split('\n'), C = f.code.split('\n');   // ★공용 제거기 그대로
     let n = 0;
     for (let i = 0; i < R.length; i++) {
       if (!R[i].trim() || (C[i] || '').trim()) continue;
       if (/^\s*(?:(?:export\s+)?(?:async\s+)?function\s|const\s|let\s|var\s|class\s)/.test(R[i])) n++;
     }
-    if (n) eaten.push(`${f.rel} — 선언 ${n}줄이 안 보인다`);
+    if (n) eaten.push(`${f.rel} — 선언 ${n}줄`);
   }
-  assert.deepEqual(bad, [],
-    '★줄 주석 안의 «블록 주석 여는 표기» 때문에 제거기가 그 뒤 코드를 삼킨다 — ' +
-    '그 구간은 «어떤 소스 게이트에도 안 보인다»(초록이 «안 봐서»가 된다).\n' +
-    `  가려진 결과: ${eaten.length ? eaten.join(' · ') : '(선언 기준 0줄)'}\n  ` + bad.join('\n  '));
+
+  /* ★판정 — 레포 실물 먼저. 빨강이면 «어느 줄»인지가 메시지에 그대로 나와야 한다. */
+  assert.deepEqual(opens, [],
+    '★제거기가 «줄 주석 안»의 여는 표기에서 블록을 열었다 — 다음 닫는 표기까지의 «진짜 코드»가 ' +
+    '어떤 소스 게이트에도 안 보인다(초록이 «안 봐서»가 된다).\n' +
+    '  ⛔소스의 주석 표기를 바꿔서 끄지 마라 — tests/unit/_strip-comments.js 를 고쳐라.\n' +
+    `  레포에 실재하는 그 «표기»: ${shapes.length}줄 (표기가 있다고 다 병은 아니다 — 블록 주석 «안»이면 삼킨 것은 0줄이다)\n` +
+    `  선언이 안 보이는 파일(참고): ${eaten.length ? eaten.join(' · ') : '(0건)'}\n  ` +
+    opens.join('\n  '));
+
+  /* ★전제 = «합성 표본» 하나뿐이다 — 레포 실물이 0건이어도 이 검사는 헛돌지 않는다.
+     ⛔2026-09-22 정정 — 초안은 여기서 `shapes.length > 0` 을 «단언»했다. 그건 틀렸다:
+       레포의 주석 표기가 다 풀어 써지면 «결함이 없는데» 빨개진다. 실측으로 났다 —
+       T-049 가 소스 주석 4곳을 풀어 써서 지금 dev 의 실물 건수는 «0줄»이다.
+       낡은 검사가 «맞는 것»을 반려하는 그 꼴이라, 실물 건수는 «메시지»로만 남긴다.
+     ★비어 있지 않음은 아래 합성 표본이 진다(레포와 무관하게 «늘» 밟힌다). */
+  const SYN = `const c = 'x'; // 파랑 (feature${'/*'})`;
+  const synStrip = makeStripper();
+  synStrip(SYN);
+  assert.equal(synStrip(PROBE).trim(), PROBE,
+    '★합성 표본에서 «줄 주석 안»의 여는 표기가 블록을 열었다 — _strip-comments.js 가 한 줄을 ' +
+    '«두 번» 훑고 있다(블록을 먼저, 줄 주석을 나중에). 한 번만 훑게 고쳐라');
+
+  /* ★음성대조 — 제거기가 그냥 «아무것도 안 여는» 게 아니다. 진짜 여는 줄은 열어야 한다. */
+  const neg = makeStripper();
+  neg('const a = 1; /* 안 닫힌 블록 시작');
+  assert.notEqual(neg(PROBE).trim(), PROBE,
+    '★진짜 블록 주석도 안 연다 — 제거기가 죽었다(이 검사가 «늘 초록»이 된다)');
 });
 
 /* ═══════════════════════════════════════════════════════════════════════
