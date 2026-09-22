@@ -367,6 +367,55 @@ export function enterFloat(posEl) {
   return true;
 }
 
+/* «자리를 고르는 기준»이 되는 형제인가 — flowDropIndex 의 유일한 제외 규칙.
+   ⛔여백(.gap-block)은 «기준에서 뺀다»(현빈 2026-09-22). 여백도 후보로 세면 「여백과 여백
+     사이」에 끼는 자리가 생겨 위아래 간격이 두 배로 보인다 — 실제 내용 블럭 사이에만 끼운다.
+   ⛔오버레이(절대배치) 블럭도 뺀다 — 흐름에 없는 것을 흐름의 자 눈금으로 쓸 수 없다.
+   ⛔.drop-indicator/.ss-resize-handle 은 드래그가 잠깐 심는 껍데기다(shape-frame.js
+     _TRANSIENT_SEL 와 같은 이유로 제외 — 그 상수를 import 하지는 않는다. 이 함수는
+     «DOM 과 숫자만» 받는 순수 함수로 두어 단위 검사에서 가짜 노드로 부를 수 있어야 한다). */
+function _isFlowAnchor(el) {
+  if (!el || el.nodeType !== 1 || !el.classList) return false;
+  if (el.dataset?.overlayBlock === 'true') return false;
+  for (const c of ['gap-block', 'drop-indicator', 'ss-resize-handle']) {
+    if (el.classList.contains(c)) return false;
+  }
+  return true;
+}
+
+/* ★«놓은 높이에 맞는 자리» — 컨테이너와 블록의 «세로 중심»을 받아 삽입 인덱스를 돌려준다.
+   (현빈 2026-09-22 결정: 다른 섹션에 놓고 풀면 맨 위가 아니라 «놓은 높이»에 들어간다.)
+
+   고르는 산식은 섹션 드래그(js/section-drag.js getDragAfterElement)와 «같은 벌»이다 —
+   「내 중심보다 중심이 아래인 첫 내용 블럭」 앞. 다만 «두 끝»은 컨테이너의 진짜 끝으로 민다:
+     · 첫 내용 블럭보다 위 → 0             (=지금까지의 target.prepend 와 «완전히 같은» 자리.
+                                             앞에 여백이 깔려 있어도 그 여백보다 위로 간다)
+     · 중간                → 그 내용 블럭의 인덱스 (앞선 여백 «뒤», 그 블럭 «앞»)
+     · 마지막 내용 블럭보다 아래 → children.length (=맨 아래)
+   ⇒ 여백과 여백 사이로는 절대 안 들어간다(그 자리는 간격이 두 배로 보인다).
+
+   ★순수 함수다 — 읽기만 하고 DOM 을 바꾸지 않는다. 돌려주는 인덱스는 «부를 때의
+     container.children 기준»이므로, 부르는 쪽은 그 배열을 한 번 떠서(snapshot) 써라.
+   ⚠️centerY 는 getBoundingClientRect 와 같은 «화면 좌표»여야 한다. 형제도 같은 자로 재므로
+     줌 배율은 양쪽에 똑같이 곱해져 서로 지워진다 — 줌 보정을 따로 하지 마라. */
+export function flowDropIndex(container, centerY, skipEl = null) {
+  const kids = container ? Array.from(container.children || []) : [];
+  if (!Number.isFinite(centerY)) return 0; // 못 재면 «옛 동작»(맨 위)으로 — 모르는 값으로 자리를 지어내지 않는다
+  let seenAnchor = false;                  // 기준이 될 내용 블럭을 하나라도 지나왔나
+  for (let i = 0; i < kids.length; i++) {
+    const el = kids[i];
+    if (el === skipEl || !_isFlowAnchor(el)) continue;
+    const r = el.getBoundingClientRect?.();
+    if (!r) continue;
+    if (r.width === 0 && r.height === 0) continue; // 0×0 유령(접힌/숨은 것)은 자 눈금이 못 된다
+    if (centerY < r.top + r.height / 2) return seenAnchor ? i : 0;
+    seenAnchor = true;
+  }
+  /* 여기까지 왔다 = 모든 내용 블럭이 나보다 위다(=맨 아래). 내용 블럭이 «하나도» 없을 때도
+     같은 값이 나오는데, 그때는 견줄 자 눈금 자체가 없으니 의견을 내지 않고 뒤에 붙이는 것이다. */
+  return kids.length;
+}
+
 // 오버레이(플로팅) → 오토레이아웃 복귀
 export function exitFloat(posEl) {
   if (!posEl) return false;
@@ -382,15 +431,36 @@ export function exitFloat(posEl) {
      섹션으로 드래그해 옮긴 뒤 해제하면, 원래 부모가 여전히 DOM에 살아있으니(isConnected)
      무조건 그리로 되돌아가 — 지금 눈에 보이는(옮겨간) 섹션이 아니라 «처음» 섹션 본문으로
      순간이동했다. ⇒ 원래 부모가 지금도 «같은 섹션» 소속일 때만 정확한 원위치로 복귀하고,
-     오버레이 중 다른 섹션으로 옮겨졌으면 그 되돌리기를 포기하고 지금 있는 섹션 본문
-     맨 앞으로 넣는다(=fallback, 사라진 부모 케이스와 같은 경로). */
+     오버레이 중 다른 섹션으로 옮겨졌으면 그 되돌리기를 포기하고 지금 있는 섹션 본문에
+     넣는다(=fallback, 사라진 부모 케이스와 같은 경로). */
   const returnParentSameSection = parent && parent.isConnected && parent.closest('.section-block') === currentSec;
   const target = returnParentSameSection ? parent : fallback;
 
+  /* ⛔«자리를 옮기기 전»에 잰다 — 흐름으로 되돌린 뒤엔 절대배치가 풀려 rect 가 이미 새 자리다. */
+  const _r = posEl.getBoundingClientRect?.();
+  const _centerY = _r ? _r.top + _r.height / 2 : NaN;
+
   if (target) {
     const afterEl = afterId ? document.getElementById(afterId) : null;
-    if (afterEl && afterEl.parentElement === target) afterEl.after(posEl);
-    else target.prepend(posEl);
+    /* «원위치 기억»이 성한가 — 같은 섹션이고, 기억한 앞 형제가 지금도 그 부모 밑에 있는가.
+       (기억이 "맨 앞"(afterId === '')이었다면 형제가 없는 게 정상이다.) */
+    const exactRestore = returnParentSameSection && (afterEl ? afterEl.parentElement === target : !afterId);
+    if (exactRestore) {
+      // ✔이 갈래는 손대지 않는다 — 같은 섹션 안에서 켰다 끄면 «원래 정확한 자리»로 복귀(㉘).
+      if (afterEl) afterEl.after(posEl);
+      else target.prepend(posEl);
+    } else {
+      /* ★2026-09-22 현빈 결정 — 여기가 바뀐 자리다. 그 전(2026-09-16 응급처치)에는
+         target.prepend(posEl) 로 «무조건 맨 위»였다. 그건 "처음 섹션으로 순간이동"보다
+         나은 임시 규칙이었을 뿐 설계가 아니었다 ⇒ «놓은 높이에 맞는 자리»로 끼운다.
+         ⚠️위로 한참 벗어나게 놓으면 flowDropIndex 가 0 을 돌려주므로 옛 동작(맨 위)이
+           그대로 살아남는다. 달라지는 것은 «중간·아래에 놓았을 때»뿐이다.
+         가로 자리는 오토레이아웃이 정한다 — 여기서 되살리는 것은 «세로 의도»뿐이다. */
+      const kids = Array.from(target.children);           // flowDropIndex 가 본 것과 같은 배열
+      const ref  = kids[flowDropIndex(target, _centerY, posEl)] || null;
+      if (ref) target.insertBefore(posEl, ref);
+      else target.appendChild(posEl);
+    }
   }
 
   posEl.style.position = '';
