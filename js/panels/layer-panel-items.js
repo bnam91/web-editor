@@ -198,7 +198,13 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   item.className = 'layer-item';
   item.dataset.layerType = type;
   const displayName = block.dataset.layerName || labels[type] || type;
-  item.innerHTML = `${layerIcons[type] || layerIcons.body}<span class="layer-item-name">${displayName}</span><span class="layer-item-type">${typeLbls[type] || 'Text'}</span>`;
+  item.innerHTML = `${layerIcons[type] || layerIcons.body}<span class="layer-item-name"></span><span class="layer-item-type">${typeLbls[type] || 'Text'}</span>`;
+  /* ★이름은 «틀»이 아니라 «글자»로 넣는다 (T-049) — 행 껍데기는 innerHTML 로 둔다
+     (SVG 네임스페이스 때문에 필요하다 — 아래 «innerHTML로 파싱해야 SVG 네임스페이스가» 주석).
+     이름 칸만 비워 두고 textContent 로 채운다. addLayerRename 이 그 span 을
+     querySelector 로 잡으므로 자리는 안 바뀐다.
+     ⛔이름을 «검사»하지 마라 — 따옴표·꺾쇠가 든 멀쩡한 이름이 죽는다. */
+  item.querySelector('.layer-item-name').textContent = displayName;
   item.prepend(makeIndents(depth));
   // a11y(N8): 키보드 포커스/활성화 — tabindex 없는 div라 :focus-visible 규칙이 dead였음
   item.tabIndex = 0;
@@ -363,7 +369,7 @@ function makeLayerGroupItem(groupEl, sec, appendRowFn) {
       <rect x="1" y="1" width="10" height="10" rx="1.5"/>
       <line x1="3" y1="4" x2="9" y2="4"/><line x1="3" y1="6.5" x2="7" y2="6.5"/><line x1="3" y1="9" x2="8" y2="9"/>
     </svg>
-    <span class="layer-item-name">${name}</span>
+    <span class="layer-item-name"></span>
     <span class="layer-item-type">Group</span>
     <button class="layer-ungroup-btn" title="그룹 해제">
       <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -381,6 +387,7 @@ function makeLayerGroupItem(groupEl, sec, appendRowFn) {
   header.addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.click(); }
   });
+  header.querySelector('.layer-item-name').textContent = name;   // ★이름은 글자로 (T-049)
   addLayerRename(header.querySelector('.layer-item-name'), groupEl, 'Group', 'name');
 
   header.addEventListener('click', e => {
@@ -435,9 +442,10 @@ function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
   header.innerHTML = `
     <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
     ${layerIcons.asset}
-    <span class="layer-item-name">${block.dataset.layerName || 'Asset'}</span>
+    <span class="layer-item-name"></span>
     <span class="layer-item-type">Image + Overlay</span>`;
   header.prepend(makeIndents(depth));
+  header.querySelector('.layer-item-name').textContent = block.dataset.layerName || 'Asset';   // ★이름은 글자로 (T-049)
   addLayerRename(header.querySelector('.layer-item-name'), block, 'Asset');
 
   header.addEventListener('click', e => {
@@ -672,7 +680,8 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   const defaultName = isGroup ? (ssEl.dataset.name || 'Group') : (isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
   const name = ssEl.dataset.layerName || defaultName;
 
-  wrapper.innerHTML = `${iconHtml}<span class="layer-item-name">${name}</span><span class="layer-item-type">${typeLabel}</span>`;
+  wrapper.innerHTML = `${iconHtml}<span class="layer-item-name"></span><span class="layer-item-type">${typeLabel}</span>`;
+  wrapper.querySelector('.layer-item-name').textContent = name;   // ★이름은 글자로 (T-049)
   wrapper.prepend(makeIndents(depth));
   addLayerRename(wrapper.querySelector('.layer-item-name'), ssEl, defaultName, 'layerName');
 
@@ -771,8 +780,9 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
     header.innerHTML = `
       <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
       ${iconHtml}
-      <span class="layer-item-name">${name}</span>
+      <span class="layer-item-name"></span>
       <span class="layer-item-type">${typeLabel}</span>`;
+    header.querySelector('.layer-item-name').textContent = name;   // ★이름은 글자로 (T-049)
     header.prepend(makeIndents(depth));
     addLayerRename(header.querySelector('.layer-item-name'), ssEl, defaultName, 'layerName');
     header.querySelector('.layer-chevron').addEventListener('click', e => {
