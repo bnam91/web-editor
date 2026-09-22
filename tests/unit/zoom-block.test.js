@@ -888,6 +888,21 @@ test('ⓑ-2 [체크리스트②] layer-panel-items.js — 감지·type·labels·
     '프레임 자식 블록 목록 배열에 zoom-block 이 없다 = 프레임 안에 넣으면 레이어에서 사라진다');
 });
 
+/** `blockHeaderHTML({ … })` 호출의 «인자 본문»만 잘라 낸다 — 중괄호 짝을 센다.
+ *  못 찾으면 null 을 준다(호출자가 «못 잘랐다»를 먼저 빨갛게 낸다). */
+function headerCallArgs(src) {
+  const at = src.indexOf('blockHeaderHTML({');
+  if (at < 0) return null;
+  const open = src.indexOf('{', at);
+  let depth = 0;
+  for (let j = open; j < src.length; j++) {
+    const c = src[j];
+    if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) return src.slice(open + 1, j);
+  }
+  return null;
+}
+
 test('ⓑ-3 [체크리스트③] js/props/prop-zoom.js 헤더가 «풀 구조»다', () => {
   /* ★2026-09-22 (T-049) — 헤더 마크업이 이 파일에서 _helpers.js 의 blockHeaderHTML 로 «옮겨갔다».
      옛 판은 prop-zoom.js «소스에» 클래스 이름이 박혀 있는지를 봤는데, 그 문장은 SSOT 로 걷은
@@ -898,8 +913,14 @@ test('ⓑ-3 [체크리스트③] js/props/prop-zoom.js 헤더가 «풀 구조»�
   assert.match(s, /import\s*\{[^}]*\bblockHeaderHTML\b[^}]*\}\s*from\s*['"]\.\/_helpers\.js['"]/,
     'prop-zoom.js 가 헤더 SSOT(_helpers.js blockHeaderHTML)를 import 하지 않는다');
   assert.match(s, /\$\{blockHeaderHTML\(\{/, 'prop-zoom.js 가 헤더 SSOT 를 부르지 않는다');
+  /* ★인자는 «호출 본문 안»에서만 찾는다 (2026-09-22, 검사자 지적).
+     전엔 파일 전체에 `s.includes('name:')` 이었다 — 그건 «검사처럼 생긴 문장»이다.
+     파일 아무 데나 그 글자가 있으면 통과하므로, 호출에서 이름 칸을 «빼도» 초록이 된다.
+     지금 우연히 맞는 이유는 그 넷이 이 파일에선 헤더 호출에만 있기 때문이지 검사의 힘이 아니다. */
+  const args = headerCallArgs(s);
+  assert.ok(args, 'blockHeaderHTML({ … }) 호출 본문을 못 잘라 냈다 — 아래 단언이 «허공»을 잰다');
   for (const key of ['icon:', 'name:', 'crumb:', 'id:']) {
-    assert.ok(s.includes(key), `헤더 호출에 ${key} 인자가 없다 — 그 칸이 안 그려진다`);
+    assert.ok(args.includes(key), `헤더 «호출»에 ${key} 인자가 없다 — 그 칸이 안 그려진다`);
   }
   const h = SRC.helpers;
   for (const cls of ['prop-block-label', 'prop-block-icon', 'prop-block-info', 'prop-block-id']) {
