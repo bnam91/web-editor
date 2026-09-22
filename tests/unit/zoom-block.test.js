@@ -898,8 +898,22 @@ test('ⓑ-3 [체크리스트③] js/props/prop-zoom.js 헤더가 «풀 구조»�
   assert.match(s, /import\s*\{[^}]*\bblockHeaderHTML\b[^}]*\}\s*from\s*['"]\.\/_helpers\.js['"]/,
     'prop-zoom.js 가 헤더 SSOT(_helpers.js blockHeaderHTML)를 import 하지 않는다');
   assert.match(s, /\$\{blockHeaderHTML\(\{/, 'prop-zoom.js 가 헤더 SSOT 를 부르지 않는다');
+  /* ★2026-09-22 정정 — 옛 판은 `s.includes('name:')` 로 «파일 아무 데나» 그 글자가 있으면
+     통과했다. 문구는 「헤더 호출에 인자가 없다」인데 «호출»을 안 봤다 — 검사처럼 생긴 문장이다.
+     ⇒ 호출 «본문»을 먼저 잘라 그 안에서만 본다. 이러면 호출에서 칸을 빼는 순간 빨개진다. */
+  const callBody = (() => {
+    const at = s.indexOf('blockHeaderHTML({');
+    if (at < 0) return '';
+    let depth = 0;
+    for (let i = s.indexOf('{', at); i < s.length; i++) {
+      if (s[i] === '{') depth++;
+      else if (s[i] === '}' && --depth === 0) return s.slice(at, i + 1);
+    }
+    return '';
+  })();
+  assert.ok(callBody, '헤더 호출 본문을 못 잘랐다 — 이 검사가 늙었다');
   for (const key of ['icon:', 'name:', 'crumb:', 'id:']) {
-    assert.ok(s.includes(key), `헤더 호출에 ${key} 인자가 없다 — 그 칸이 안 그려진다`);
+    assert.ok(callBody.includes(key), `헤더 «호출»에 ${key} 인자가 없다 — 그 칸이 안 그려진다`);
   }
   const h = SRC.helpers;
   for (const cls of ['prop-block-label', 'prop-block-icon', 'prop-block-info', 'prop-block-id']) {
