@@ -7,6 +7,7 @@ import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../dat
 import { applyFrameTransform } from '../frame-geometry.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
 import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture } from './capture-safety.js';
+import { prepareGoyaAssetsForClone } from './goya-asset-inline.js';   /* 썸네일 클론에서 goya-asset 을 data: 로 (T-149) */
 import { ejectShapeFrameIntruders } from '../shape-frame.js';
 import { warnPendingVideoLossIf } from './pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원 */
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
@@ -100,6 +101,26 @@ async function captureThumbnail() {
     // 모자이크 redact(js/effects/redact-mosaic.js)는 cloneNode에 캔버스 비트맵이 안 딸려오므로
     // clone에 라이브 캔버스를 구워 넣는다 — 실패 시 함수 내부에서 불투명 회색 안전실패.
     if (window.finalizeMosaicForClone) { try { await window.finalizeMosaicForClone(firstSec, clone); } catch (_) {} }
+
+    /* ★goya-asset 을 «클론에서만» data: 로 푼다 (T-149, 2026-09-22).
+       까닭 — html2canvas 1.4.1 은 이미지를 «자기가 다시» 로드한다(vendor CacheStorage.loadImage).
+         useCORS:true  → crossOrigin="anonymous" 를 달아 로드 → goya-asset:// 는 CORS 헤더가 없어 onerror
+         useCORS:false → 로드 조건이 전부 거짓 → 읽지도 않는다
+       ⇒ 그 에셋으로 만든 섹션은 카드 그림에서 «통째로» 빠진다.
+       ⛔★그런데 빠져도 섹션 배경색이 «불투명»하게 찍혀서, 아래 «빈 그림» 판정(길이)에
+         «안 걸린다» ⇒ 실패가 «성공»으로 보고된다. T-087 이 고친 병과 «다른 병»이고
+         그 검사로는 이 축이 안 잡힌다 — 판정이 「비었는가」가 아니라 «밑그림 색이 있는가»여야 한다.
+       ★뿌리는 T-071 이 모자이크에서 찾은 것과 같다. 부품도 그때 만든 것을 그대로 쓴다.
+       ⛔라이브 DOM 은 안 건드린다(clone 에만 적용) — 저장본이 base64 로 부풀면 안 된다.
+       ⛔실패해도 캡처를 멈추지 않는다 — 여기서 던지면 «그림이 아예 없는» 쪽이 되고,
+         그건 지금보다 나쁘다. 못 푼 자리만 빠지고 나머지는 그대로 찍힌다. */
+    try {
+      const _goya = await prepareGoyaAssetsForClone(clone);
+      if (_goya.unresolved.length) {
+        console.warn('[thumb] goya-asset 을 못 읽어 카드 그림에서 빠진다:', _goya.unresolved);
+      }
+      _goya.apply(clone);
+    } catch (e) { console.warn('[thumb] goya-asset 클론 준비 실패:', e); }
 
     const bgColor = firstSec.style.background || firstSec.style.backgroundColor || '#ffffff';
     const canvas = await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false });
