@@ -549,7 +549,11 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     //   margin-inline 없이는 항상 왼쪽에 붙는다. colAlign 은 이 줄이 속한 «셀의 유효 align»
     //   (renderGridBlock 의 pick('align') — 글자 줄과 같은 값)이라 그대로 재사용한다.
     /* ★줄 단위 정렬 (2026-09-23) — «글자 줄과 같은 우선순위»를 그대로 베낀다:
-     *   줄(line.align) > 칸(colAlign) > 'left'  (아래 글자 가지의 `const align = line.align …` 이 본이다).
+     *   줄(line.align) > 칸(colAlign) > 'left'  — 아래 «글자 가지»가 본이고, 그 한 줄을 베껴 왔다.
+     *   ⛔이 주석에 그 본의 «글자 그대로»를 적지 않는다 — grid-patchcell-reject.test.js P8 이
+     *     그 문자열을 «변이 닻»으로 쓰는데(첫 자리 하나만 갈아친다), 주석이 앞서면 그 양성대조가
+     *     «주석 속»에 변이를 꽂게 된다. 그러면 초록이긴 한데 「렌더러가 새 필드를 읽기 시작했다」를
+     *     재는 게 아니라 「주석에 글자가 있다」를 재는 것이 된다(느슨해진 걸 아무도 모른다).
      *   무엇이 있었나 — 이 가지만 colAlign 만 봤다. 그래서 「글자는 왼쪽, 이미지는 가운데」를
      *   «한 칸 안에서» 못 만들었고, 줄에 align 을 줘도 ok:true 가 돌아오는데 화면은 그대로였다.
      *   ⛔`wp < 100` 가드는 그대로 둔다 — 폭이 꽉 찬 이미지는 움직일 데가 없고, 여백을 붙이면
