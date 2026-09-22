@@ -474,6 +474,166 @@ function _grdWireImageSection(block, addr) {
   });
 }
 
+/* ══ 칸 꾸미기 절 — 칸 배경색·안쪽 여백·모서리·«칸 단위» 정렬 ═══════════════
+ * ★렌더러는 이 다섯을 «이미» 읽는다(grid-block.js renderGridBlock 의 pick(...)) 하고,
+ *   모델도 patchCell 로 «이미» 받는다. 없던 것은 «패널에 누를 데»뿐이라 여기서는 그
+ *   손잡이만 낸다 — 데이터·렌더러는 한 글자도 안 건드린다.
+ *
+ * ★★행 0 은 «열 그 자체»다(row 0 = cols[].lines). 그래서 0행 칸에 준 값이 실제로 쓰이는
+ *   자리는 cols[c] 이고, 렌더러 폴백 `pick = (k) => (cell[k] !== undefined ? cell[k] : col[k])`
+ *   때문에 «자기 값이 없는 아래 행 칸»들이 그 값을 물려받는다 — 그 칸들의 저장값은 비어 있는데
+ *   화면만 따라 칠해진다.
+ *   ⇒ 이 레포가 이미 한 선택을 그대로 쓴다: «동작을 바꾸는 대신 사실을 적는다».
+ *     바로 아래 그리드 피커의 「줄이면 잘린 칸 내용은 사라진다」가 «같은 꼴»이고, 그 주석이
+ *     이유까지 적어 뒀다(적대검수 Q3). 상속을 끊는 것은 데이터 모델·저장·되돌리기에 파장이
+ *     커서 «별건»이다 — 여기서 몰래 하지 않는다.
+ *   ⇒ 0행 칸을 고르면 절 제목과 힌트가 «이 열 전체에 적용된다»고 말한다. 보인 대로 된다.
+ *
+ * ★접힘이 기본이다(패널이 이미 길다). 접힘 상태는 «블록별 WeakMap» — _grdActiveLine 과 같은 집.
+ *   ⛔DOM 노드 참조·전역 Set 으로 들지 마라 — renderGridBlock 이 innerHTML 을 통째로 갈아끼워
+ *     매 조작마다 죽는다(이 파일 머리글이 같은 말을 적어 뒀다).
+ */
+const _grdCellOpen = new WeakMap();
+
+/** 칸 값을 «지우는» 빈 값. 행 0 은 cols[c] 자체라 undefined 가 _mergeCellIntoCol 에서
+ *  «무시»된다(지워지지 않는다) ⇒ 행 0 은 ''/0 으로 명시적으로 덮고, 그 아래 행은
+ *  undefined 로 키 자체를 없애 «열 기본값»으로 되돌린다. */
+const _grdBlank = (r, zero) => (r === 0 ? (zero ? 0 : '') : undefined);
+
+const _GRD_CELL_ALIGNS  = [['', '기본'], ['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']];
+const _GRD_CELL_VALIGNS = [['', '기본'], ['top', '위'], ['middle', '가운데'], ['bottom', '아래']];
+const _grdOptsHtml = (list, cur) => list
+  .map(([v, ko]) => `<option value="${v}"${String(cur ?? '') === v ? ' selected' : ''}>${ko}</option>`).join('');
+
+/** 칸 patch «한 길» — 커밋·히스토리·재렌더·패널 재표시를 updateGridBlock 이 스스로 한다
+ *  (줄 삭제·비율 입력과 같은 원칙). ⛔dataset 에 직접 쓰지 마라 — 행 0/그 아래의 저장 자리가
+ *  다르고(_gridCellPatchDataset), 두 벌이 되면 조용히 갈라진다. */
+function _grdPatchCell(block, r, c, fields) {
+  return window.updateGridBlock?.(block.id, { patchCell: { r, c, ...fields } });
+}
+
+function _grdCellSectionHtml(anyHit, block) {
+  if (!anyHit) return '';
+  const { r, c } = anyHit;
+  let cell = {};
+  try { cell = (getGridModel(block).cells?.[r] || [])[c] || {}; } catch (_) {}
+  const open = _grdCellOpen.get(block) === true;
+  const bgRaw = (typeof cell.bg === 'string' && GRID_COLOR_RE.test(cell.bg.trim())) ? cell.bg.trim() : '';
+  const bgHex = bgRaw ? swatchHex(bgRaw, '#ffffff') : '#ffffff';
+  const pad = Number(cell.padding) || '';
+  const rad = Number(cell.radius) || '';
+  /* ★0행 = «열 그 자체» — 제목이 먼저 말한다(펼치기 전에도 보인다). */
+  const wide = r === 0;
+  const title = wide ? `칸 꾸미기 · ${c + 1}열 전체` : `칸 꾸미기 · ${r + 1}행 ${c + 1}열`;
+  return `
+    <div class="prop-section">
+      <div class="prop-section-title" id="grd-cell-toggle" role="button" tabindex="0"
+           style="display:flex;align-items:center;gap:6px;cursor:pointer;"
+           title="${open ? '접기' : '펼치기'}">
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
+             style="flex:0 0 auto;transform:rotate(${open ? 90 : 0}deg);transition:transform .12s;">
+          <polyline points="2,2 6,4 2,6"/>
+        </svg>
+        <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</span>
+      </div>
+      <div id="grd-cell-body" style="display:${open ? 'block' : 'none'};">
+        <div class="prop-hint" style="text-align:left;padding:2px 0 6px;">${wide
+          ? '★1행 칸은 «열 그 자체»다 — 여기 준 값은 이 열의 «아래 행 칸»에도 그대로 나타난다(그 칸들의 저장값은 빈 채로).'
+          : '이 칸에만 적용된다.'}</div>
+        <div class="prop-row">
+          <span class="prop-label">배경색</span>
+          <div class="prop-color-swatch${bgRaw ? '' : ' swatch-none'}"${bgRaw ? ` style="background:${bgRaw}"` : ''}>
+            <input type="color" id="grd-cell-bg" value="${bgHex}">
+          </div>
+          <input type="text" class="prop-color-hex" id="grd-cell-bg-hex" value="${bgRaw ? bgHex.replace('#', '').toUpperCase() : ''}"
+                 placeholder="없음" maxlength="7" aria-label="칸 배경색">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">안쪽 여백</span>
+          <input type="number" class="prop-number" id="grd-cell-padding" min="0" max="200" placeholder="0" value="${pad}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">모서리</span>
+          <input type="number" class="prop-number" id="grd-cell-radius" min="0" max="200" placeholder="0" value="${rad}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">가로 정렬</span>
+          <select class="prop-select" id="grd-cell-align" title="이 칸의 가로 정렬(기본 = 열을 따른다)">${_grdOptsHtml(_GRD_CELL_ALIGNS, cell.align)}</select>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">세로 정렬</span>
+          <select class="prop-select" id="grd-cell-valign" title="이 칸의 세로 정렬(기본 = 블록을 따른다)">${_grdOptsHtml(_GRD_CELL_VALIGNS, cell.valign)}</select>
+        </div>
+      </div>
+    </div>`;
+}
+
+function _grdWireCellSection(block, addr) {
+  const hit = _grdResolveAnyAddr(block, addr);
+  if (!hit) return;
+  const { r, c } = hit;
+
+  /* 접기/펼치기 — 패널을 다시 그리지 않는다(재렌더는 곧 포커스 상실이다). */
+  const head = document.getElementById('grd-cell-toggle');
+  const body = document.getElementById('grd-cell-body');
+  const arrow = head?.querySelector('svg');
+  head?.addEventListener('click', () => {
+    const next = !(_grdCellOpen.get(block) === true);
+    _grdCellOpen.set(block, next);
+    if (body) body.style.display = next ? 'block' : 'none';
+    if (arrow) arrow.style.transform = `rotate(${next ? 90 : 0}deg)`;
+    head.title = next ? '접기' : '펼치기';
+  });
+
+  /* ── 배경색 — 커밋은 «change»(피커 닫힘·blur·Enter)에서만.
+       ⛔input 마다 커밋하면 updateGridBlock 이 매 프레임 패널을 통째로 다시 그려
+         포커스가 끊기고 히스토리가 폭주한다(이 파일 비율·색 피커 주석의 같은 함정). */
+  const bgPick = document.getElementById('grd-cell-bg');
+  const bgHexEl = document.getElementById('grd-cell-bg-hex');
+  const bgSwatch = bgPick?.closest('.prop-color-swatch');
+  const paint = (hex) => {
+    if (!bgSwatch) return;
+    bgSwatch.classList.toggle('swatch-none', !hex);
+    bgSwatch.style.background = hex || '';
+  };
+  bgPick?.addEventListener('input', () => paint(bgPick.value));
+  bgPick?.addEventListener('change', () => {
+    if (bgHexEl) bgHexEl.value = bgPick.value.replace('#', '').toUpperCase();
+    _grdPatchCell(block, r, c, { bg: bgPick.value });
+  });
+  /* 배선은 color-picker.js 의 wireHexText 한 자리 — 빈 칸 = «없음»(배경 지움). */
+  wireHexText(bgHexEl, {
+    parse: (raw) => (String(raw ?? '').trim() === '' ? '' : parseHex6(raw)),
+    format: (v) => (v ? formatHex6(v) : ''),
+    getCurrent: () => {
+      let cur = {};
+      try { cur = (getGridModel(block).cells?.[r] || [])[c] || {}; } catch (_) {}
+      return (typeof cur.bg === 'string' && GRID_COLOR_RE.test(cur.bg.trim())) ? swatchHex(cur.bg.trim(), '') : '';
+    },
+    onApply: (v) => { paint(v || ''); if (v && bgPick) bgPick.value = v; },
+    onCommit: (v) => { _grdPatchCell(block, r, c, { bg: v || _grdBlank(r, false) }); },
+  });
+
+  /* ── 안쪽 여백 / 모서리 — change(blur·Enter)에서만. 비우면 «없음»으로 되돌린다. */
+  const numWire = (id, field) => {
+    document.getElementById(id)?.addEventListener('change', (e) => {
+      const raw = String(e.target.value).trim();
+      const v = raw === '' ? _grdBlank(r, true) : Math.max(0, Math.min(200, parseInt(raw, 10) || 0));
+      _grdPatchCell(block, r, c, { [field]: v });
+    });
+  };
+  numWire('grd-cell-padding', 'padding');
+  numWire('grd-cell-radius', 'radius');
+
+  /* ── 칸 단위 정렬 — «이 칸만». 블록/열 통째 단추(아래 Layout 절)와 축이 다르다. */
+  for (const [id, field] of [['grd-cell-align', 'align'], ['grd-cell-valign', 'valign']]) {
+    const sel = document.getElementById(id);
+    sel?.addEventListener('change', () => {
+      _grdPatchCell(block, r, c, { [field]: sel.value || _grdBlank(r, false) });
+    });
+  }
+}
+
 /* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
  * 렌더러(grid-block.js)는 이미 임의 비율을 지원한다 — 각 컬럼에 flex:(w/총합*100).
  * ★2026-09-04 P0: 슬라이더(2열 20~80 클램프 / 3열 칸별 슬라이더) → 테이블식 `1:1:1` 텍스트
@@ -855,6 +1015,7 @@ ${blockHeaderHTML({
       <div class="prop-hint" style="margin-top:2px;">세로 정렬은 컬럼 높이가 서로 다를 때만 움직인다</div>
     </div>
     ${_grdLineBarHtml(_anyHit, block)}
+    ${_grdCellSectionHtml(_anyHit, block)}
     ${_grdImageSectionHtml(_anyHit, block)}
     ${_grdTypoSectionsHtml(_hit, block)}
     <div class="prop-section">
@@ -1053,6 +1214,7 @@ ${blockHeaderHTML({
   //   같이 띄운다(클릭 선택·레이어패널 선택·updateGridBlock 후 재선택 모두 이 함수를 거친다,
   //   PLAN-gridblock.md §5). 해제는 editor.js deselectAll()의 hideGridGutters 로 일괄.
   _grdWireLineBar(block, _curAddr);
+  _grdWireCellSection(block, _curAddr);
   _grdWireImageSection(block, _curAddr);
   if (_hit) _grdWireTypo(block, _curAddr);
 
