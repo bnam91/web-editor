@@ -1,3 +1,8 @@
+/* ★[한 벌 규율 · 2026-09-22] 이 파일은 «playwright 가 앱을 띄워 도는» *.spec.js 용 한 벌이다.
+ *   이미 떠 있는 앱에 «CDP 로 붙어» 재는 standalone 검사는 tests/e2e/lib/*.mjs 를 쓴다.
+ *   그쪽은 ESM(ws) 이라 이 CJS 파일에서 require 할 수 없다 — 그래서 «두 갈래»지 두 벌이 아니다.
+ *   ⛔어느 쪽이든 베껴서 제 폴더에 두지 마라.
+ */
 const { chromium, _electron } = require('@playwright/test');
 
 /**

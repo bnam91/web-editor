@@ -1,3 +1,13 @@
+/* ★[한 벌 규율 · 2026-09-22] 이미 떠 있는 앱에 «CDP 로 붙어» 재는 검사의 공용 손은 여기 «한 벌»뿐이다.
+ *   tests/e2e/lib/{cdp,ui,board,notice}.mjs — ⛔베껴서 제 폴더에 두지 마라.
+ *   새 검사는 tests/e2e/<이름>.mjs 에 두고 `import { connect } from './lib/cdp.mjs'` 로 쓴다
+ *   (그러면 import 줄이 한 글자도 안 바뀐다).
+ *   ★갈래는 «둘»이고 합칠 수 없다 — 모듈 체계가 다르다:
+ *     · playwright 가 앱을 «띄워» 도는 *.spec.js  → tests/e2e/helpers.js (CJS · @playwright/test)
+ *     · 이미 떠 있는 앱에 «붙는» .mjs        → 이 폴더 (ESM · ws)
+ *   ⛔둘을 합치려면 «옮기기»가 아니라 «다시 쓰기»가 되고 재는 양이 바뀐다.
+ *     같은 일을 하는 부품이 열한 벌이 됐다가 아홉 벌이 같은 모양으로 부서진 것이 오늘 난 사고다.
+ */
 /* cdp.mjs — 검사용 CDP 세션 한 벌.
  *
  * ★한 세션 안에서 끝낸다. 붙을 때마다 새 세션이면 «깨운 상태»(focus emulation / lifecycle)가
