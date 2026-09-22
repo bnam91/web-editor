@@ -27,8 +27,17 @@
 
    ══ 로스터 ═══════════════════════════════════════════════════════════════
    `^update[A-Z][A-Za-z0-9]*Block$` 인 window.* 함수 — 새 블럭 타입이 생겨도 안 썩는다.
-   2026-09-22 기준 27개 이름 / 26개 함수(updateDuoBlock 은 updateGridBlock 의 별명이라
-   함수는 같고 이름이 둘이다 — 둘 다 감싸도 «부르는 것은 한 번»이라 표본도 한 번이다).
+   2026-09-22 기준 27개 이름 / 26개 함수 — 그리드는 개명(duo→grid) 전 이름이 «deprecated 전역
+   별칭»으로 살아 있어(js/blocks/grid-block.js:1151~1154, 러너·스킬 md·다른 맥 CDP 스크립트 호환)
+   같은 함수에 이름이 둘이다.
+   ★그 옛 이름도 «감싸진다». 두 가지가 «둘 다» 참이라서 그렇고, 하나만 깨져도 옛 이름 경로에서
+     끝 표본이 조용히 사라진다(그 경로에서만 T-012·T-130 이 되살아난다):
+       ⑴ install 이 DOMContentLoaded 라 모든 window 대입 «뒤»에 돈다 ⇒ 두 이름이 다 보인다.
+       ⑵ 아래 wrap 의 「이미 감쌌나」 표시는 «래퍼»에 붙는다(원본이 아니다) ⇒ 같은 함수라도
+          이름마다 제 래퍼가 생긴다. ⛔원본에 표시하도록 «최적화»하지 마라 — 둘째 이름이
+          안 감싸진다. 실측·음성대조 = tests/dom/model-update-alias.dom.spec.js.
+   ⛔라벨(아래 LABELS)에는 옛 이름을 «안» 적는다 — 새 파일에 옛 이름을 박으면 개명이 반쪽으로
+     남는다(tests/unit/grid-rename-residue.test.mjs 가 막는다). 옛 이름은 기본 라벨로 떨어진다(cosmetic).
    이 26개는 우측 패널이 아니라 주로 MCP/IPC 도구가 타는 통로다(앱 안의 호출부는
    js/props/prop-table.js 한 자리뿐 — 2026-09-22 전수). ⇒ 직렬화 추가 비용이
    드래그·슬라이더 같은 «초당 여러 번» 경로에 걸리지 않는다.
@@ -74,7 +83,7 @@
   /** 되돌리기 버튼 툴팁용 라벨(cosmetic). 없으면 기본값. */
   var LABELS = {
     updateAssetBlock: '이미지 수정', updateShapeBlock: '도형 수정', updateGridBlock: '그리드 수정',
-    updateDuoBlock: '그리드 수정', updateTableBlock: '표 수정', updateStepBlock: '스텝 수정',
+    updateTableBlock: '표 수정', updateStepBlock: '스텝 수정',
     updateChatBlock: '대화 수정', updateStickerBlock: '스티커 수정', updateGradientBlock: '그라데이션 수정',
     updateIconifyBlock: '아이콘 수정', updateMockupBlock: '목업 수정', updateCanvasBlock: '카드 수정',
     updateBanner02Block: '배너 수정', updateComparisonBlock: '비교 수정'
