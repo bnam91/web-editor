@@ -40,7 +40,12 @@ import path from 'node:path';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.argv[2] || '9531';
-const FILES = ['check-t085.mjs', 'check-t093.mjs', 'check-t097.mjs', 'check-t099.mjs'];
+const FILES = ['check-t080.mjs', 'check-t085.mjs', 'check-t093.mjs', 'check-t097.mjs', 'check-t099.mjs'];
+/* ★check-t080 은 2026-09-22 «현빈 결정(「080은 바로 하고」)» 뒤에 들였다. 그 전엔 일부러 «안» 들였다 —
+   「성공했을 때 알릴 것인가」가 아직 안 정해져서, 들이면 «늘 빨간 판»이 서고 다음 사람이 그 빨강을
+   «배경»으로 읽기 때문이다. ⛔결정이 안 난 축은 여기 넣지 마라.
+   ⚠️아직 안 들인 것: check-t064.mjs — 「기획 모드를 켤 것인가」가 미정이고 2026-09-22 현빈 판단으로
+     «다음 릴리스(0.9.5)»로 넘어갔다. 원본은 scratchpad/eval-small5/ 에 있다. 정해지면 같이 들여라. */
 
 /* ⛔목록에 «없는 파일»을 부르면 그 카드가 조용히 사라진다 — 「못 잼」이 「통과」로 새는 길이다.
    그래서 돌기 «전»에 전부 있는지 보고, 하나라도 없으면 «판을 세우지 않고» 터진다. */
