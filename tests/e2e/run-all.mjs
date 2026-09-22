@@ -18,7 +18,11 @@
  *                --disable-background-timer-throttling --disable-backgrounding-occluded-windows admin
  *   ★띄운 «직후» 로그에서 「[projects] 뿌리=…」가 격리폴더인지 확인해라.
  *     ~/Library/Application Support/GODITOR 면 현빈 실계정이다 — 즉시 끄고 다시 띄운다.
- *   ★끝나면 «프로필 경로 문자열»로 끈다:  pkill -9 -f 'ud-<네포트>'  → 그 폴더째 삭제.
+ *   ★끝나면 끈다:  pkill -9 -f -- '--user-data-dir=<네 프로필 절대경로>'  → 그 폴더째 삭제.
+ *     ★★⛔«프로필 이름만»으로 잡지 마라(`pkill -9 -f 'ud-9533'`) — 그 문자열이 «너를 띄운 셸의
+ *       명령줄»에도 들어 있으면 «검사 자신»이 같이 죽는다. 2026-09-22 실측: 되돌리기 e2e 가
+ *       세 판을 그렇게 날렸고, 그 exit 144(SIGTERM)를 「빨강마다 멈춘다」로 잘못 읽고 있었다.
+ *       `--user-data-dir=` 는 «앱만» 갖는 인자라 남의 앱도, 너 자신도 안 걸린다.
  *     ⛔포트 «접두사»로 잡지 마라 — `pkill -f 'remote-debugging-port=953'` 이 9533·9534 와
  *       «함께 9535» 를 죽여 다른 워커의 계측을 끊었다(2026-09-22 실측). 프로필 경로는
  *       «네 실행에만» 있으므로 그 사고가 «구조적으로» 안 난다.
