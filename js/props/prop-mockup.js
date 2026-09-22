@@ -176,6 +176,17 @@ export function showMockupProperties(block) {
         _applyScreenImage(block, e.target.result);
         block.dataset.imgSrc = e.target.result;
         block.dataset.sourceSec = '';
+        /* ★[R1-업로드 · 2026-09-22] «끝 표본» — 바로 위 pushHistory 는 push-before 다(찍고 «나서» 바꾼다).
+           ⚠️정정(2026-09-22): 이 자리를 한때 「찍고 → 비동기로 반영」(js/image-handling.js 꼴)으로
+             분류했는데 «틀렸다» — 그 pushHistory 는 FileReader.onload «안»에 있어서 적용과 같은
+             동기 구간이다. 곧 평범한 push-before 고, 고쳐야 하는 까닭도 평범한 그것이다:
+           앞 동작이 push-after 였으면 이 push-before 가 꼭대기와 «같은 상태»를 찍어
+           js/history.js 의 무변화 차단에 먹힌다 ⇒ 「업로드의 결과」가 스택에 한 번도 안 남는다.
+           그러면 업로드 뒤에 편집이 하나만 더 와도 ⌘Z 한 번이 둘을 같이 먹는다.
+           ⇒ 반영이 «끝난» 여기서 한 번 더 찍는다. ⛔옮기기가 아니라 더하기다.
+           ★같은 «규칙»의 선례: js/image-handling.js · js/props/asset-video-trim.js (③).
+             (규칙은 같다 — 「모든 동작이 끝 표본을 남긴다」. 기전이 같다는 뜻은 아니다.) */
+        window.pushHistory?.('목업 화면 이미지');
         window.showMockupProperties?.(block);
       };
       reader.readAsDataURL(file);
