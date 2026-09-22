@@ -503,14 +503,29 @@ export function bindFloatMoveDrag(posEl) {
     /* ★시작점을 «탄성 이전(raw)»으로 되돌린다 — 저장된 left/top 은 이미 _elasticAxis 의
        «출력»이라 그대로 raw 자리에 넣으면 탄성이 두 번 걸린다(_elasticAxisInverse 머리말).
        아래 클램프와 «같은 공간»(회전 보정된 화면 박스)에서 되돌려야 한다. */
-    {
+    const _toRawStart = (l, t) => {
       const zone0 = OVERLAY_RESIST_ZONE_SCREEN_PX / zoom;
       const maxX0 = Math.max(0, (sec.clientWidth || 0) - clampW);
       const maxY0 = Math.max(0, (sec.clientHeight || 0) - clampH);
       const dxBox = posEl.offsetWidth / 2 - clampW / 2, dyBox = posEl.offsetHeight / 2 - clampH / 2;
-      startLeft = _elasticAxisInverse(startLeft + dxBox, maxX0, zone0) - dxBox;
-      startTop  = _elasticAxisInverse(startTop  + dyBox, maxY0, zone0) - dyBox;
-    }
+      return [
+        _elasticAxisInverse(l + dxBox, maxX0, zone0) - dxBox,
+        _elasticAxisInverse(t + dyBox, maxY0, zone0) - dyBox,
+      ];
+    };
+    /* ★역함수는 «정방향(_elasticClampToSection)을 거는 조건»에서만 짝으로 건다 — T-037 ⑨
+       (2026-09-22 실측: ⌘를 누른 채 섹션 «밖»에서 끌기 시작하면 블록이 순간이동).
+       ⛔옛 판은 역함수를 조건 없이 태웠다. ⌘(trulyFree)면 아래 정방향을 건너뛰므로 역함수
+         «출력»이 그대로 좌표가 된다 — 델타 0 인데 자리가 inverse(P) 로 툭 튀었다
+         (실측 줌 40%, 커서 +4 화면px 에 블록 +34px. 검산: inverse(300, 144, 100)=373.75).
+       ⇒ 두 공간을 이름으로 구분한다 — freeSpace=true 면 startLeft/Top 은 «출력(보이는 자리)»
+         공간, false 면 «raw» 공간. 정방향을 걸 쪽만 raw 로 되돌린다. */
+    let freeSpace = e.metaKey;
+    if (!freeSpace) [startLeft, startTop] = _toRawStart(startLeft, startTop);
+    /* ★직전 이벤트의 커서 자리 — 드래그 «도중» ⌘를 누르거나 떼면 기준점을 다시 잡아야 하는데,
+       그때 기준 커서를 «이번» 이벤트로 잡으면 직전 이벤트→이번 이벤트 사이의 이동량이
+       통째로 삼켜진다(실측 20px 증발). 직전 자리를 기억해 그 델타를 살린다. */
+    let lastClientX = e.clientX, lastClientY = e.clientY;
 
     const onMove = ev => {
       if (!moved) {
@@ -525,6 +540,17 @@ export function bindFloatMoveDrag(posEl) {
       //   끄는 파워유저용). 재부모(다른 섹션 위로 호버)는 여전히 ⌘가 아닐 때만 — ⌘는 "이
       //   섹션 좌표계에 그대로 둔 채 자유롭게"라는 기존 어휘를 그대로 지킨다.
       const trulyFree = ev.metaKey;
+      /* ★드래그 «도중» ⌘를 눌렀다/뗐다 — 기준점을 새 공간으로 다시 잡는다(안 그러면 위와
+         똑같이 정방향/역함수의 짝이 깨져 그 순간 블록이 튄다). 눈에 보이던 자리
+         (style.left/top = 직전에 «적용된» 출력)를 이어받으므로 화면상 점프가 없다.
+         ⚠️_applyOverlayPos 가 정수로 반올림하므로 이 이어붙임엔 최대 0.5px 오차가 있다. */
+      if (trulyFree !== freeSpace) {
+        const curL = parseFloat(posEl.style.left) || 0;
+        const curT = parseFloat(posEl.style.top) || 0;
+        [startLeft, startTop] = trulyFree ? [curL, curT] : _toRawStart(curL, curT);
+        startClientX = lastClientX; startClientY = lastClientY;
+        freeSpace = trulyFree;
+      }
       const hover = (!trulyFree && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;
       if (hover && hover !== sec) {
         // 재부모 — 지금까지의 로컬 좌표를 확정해 새 섹션 기준으로 다시 앵커를 잡는다.
@@ -564,6 +590,7 @@ export function bindFloatMoveDrag(posEl) {
         cy = clVisTop + clampH / 2 - posEl.offsetHeight / 2;
       }
       _applyOverlayPos(posEl, cx, cy);
+      lastClientX = ev.clientX; lastClientY = ev.clientY;
       window.scheduleAutoSave?.();
     };
     const onUp = () => {
