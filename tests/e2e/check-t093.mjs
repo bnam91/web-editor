@@ -22,6 +22,10 @@
  *     ~/Library/Application Support/GODITOR 면 현빈 실계정이다 — 즉시 끄고 다시 띄운다.
  *   ★제품 파일을 바꾼 «뒤»(양성대조 등)엔 node tests/e2e/reload-page.mjs <port> 로
  *     캐시 무시 새로고침을 해라 — 안 하면 옛 모듈이 그대로 돌아 «거짓 통과»가 난다.
+ *   ★끝나면 «프로필 경로 문자열»로 끈다:  pkill -9 -f 'ud-<네포트>'  → 그 폴더째 삭제.
+ *     ⛔포트 «접두사»로 잡지 마라 — `pkill -f 'remote-debugging-port=953'` 이
+ *       9533·9534 와 «함께 9535» 를 죽여 다른 워커의 계측을 끊었다(2026-09-22 실측).
+ *       프로필 경로는 «네 실행에만» 있으므로 그 사고가 «구조적으로» 안 난다.
  */
 import { connect } from './lib/cdp.mjs';
 import { freshProject } from './lib/board.mjs';
