@@ -3094,6 +3094,20 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
         return consumed;
       }
       window.ensureHistoryCheckpoint?.('삭제 전');
+      /* ★이 삭제가 «비운» 프레임을 뒤에서 같이 걷는다 (T-099, 2026-09-22 실측 포트 9533)
+         ⌘A 는 프레임을 «일부러» 안 고른다(파일 상단 SECTION_BLOCK_TYPE_SEL 머리말) — 그래서
+         안의 블록만 지워지고 «그릇»이 남았다. 실측(dev b2a1f37, 섹션+글자3+Frame(안에 글자1)):
+         ⌘A 선택 6개(gap 2 + text 4, 프레임 0) → Delete 뒤 빈 글자래퍼 4개(높이 0)와
+         «눈에 보이는» 빈 Frame 1개(286×208)가 남았다.
+         ⚠️「빈 프레임을 전부 지운다」가 아니다 — «이 삭제가 비운» 프레임만 후보에 넣는다.
+           사용자가 일부러 비워 둔 프레임(내용을 넣기 전의 새 Frame 등)은 후보에 없어 그대로 산다.
+         ★지금 잡아 둬야 한다 — 지운 «뒤»엔 부모를 거슬러 올라갈 수 없다. */
+      const _emptiedFrameCands = new Set();
+      [...allSelShapes, ...allSelBlocks, ...allSelFrames].forEach(el => {
+        for (let p = el.parentElement; p; p = p.parentElement) {
+          if (p.classList?.contains('frame-block')) _emptiedFrameCands.add(p);
+        }
+      });
       // shape: 부모 ss/row 단위로 삭제
       const ssRowsToRemove = new Set();
       allSelShapes.forEach(shape => {
@@ -3123,6 +3137,17 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
         }
       });
       rowsToRemove.forEach(r => r.remove());
+      /* 비워진 그릇 걷기 — 위에서 잡아 둔 후보 중 «이제 알맹이가 하나도 없는» 것만.
+         ★중첩도 한 번에 닫힌다: 바깥 자유배치 프레임도 후보에 있고, 그 안에 남은 것이
+           빈 텍스트래퍼뿐이면 SECTION_BLOCK_TYPE_SEL 이 아무것도 못 찾아 줄째 사라진다.
+         ⚠️`.row` 는 «그 줄에 남은 알맹이가 없을 때만» 단위로 쓴다 — 한 줄에 다른 블록이
+           같이 있으면 그 줄을 지우는 것이 곧 «조용한 소실»이다. */
+      _emptiedFrameCands.forEach(f => {
+        if (!f.isConnected) return;
+        if (f.querySelector(SECTION_BLOCK_TYPE_SEL)) return;
+        const row = f.closest('.row');
+        ((row && !row.querySelector(SECTION_BLOCK_TYPE_SEL)) ? row : f).remove();
+      });
       window._activeFrame = null;
       deselectAll();
       window.buildLayerPanel();

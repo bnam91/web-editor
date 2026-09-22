@@ -472,9 +472,13 @@ test('D14 ⛔전수 래칫 — editor.js 의 `.remove()` 문 수 + 섹션 제거
      영영 못 본다 ⇒ `.remove()` «전부»를 세고 수를 못박는다(래칫).
      ⚠️한계(명시): 수가 같다고 경로가 그대로인 건 아니다(한 문을 빼고 다른 문을 더하면 유지된다).
        그 짝은 아래 «얼굴» 단언이 잡는다. */
+  /* 21 → 22 (2026-09-22, T-099): deleteSelectedFromCanvas 에 «이 삭제가 비운 프레임»을 걷는
+     문이 하나 늘었다 — `((row && …) ? row : f).remove()`. 섹션을 지우는 문이 «아니다»(대상은
+     .frame-block 또는 그 줄) ⇒ 링크 처분을 지날 일이 없고, 아래 SECT 의 얼굴·순서와
+     D9·D10·D11 의 기대 수(3)는 그대로다. */
   const ALL = [...SRC.editor.matchAll(/\.remove\(\)/g)];
-  assert.strictEqual(ALL.length, 21,
-    `★editor.js 의 .remove() 가 ${ALL.length}개다(박아 둔 값 21) — 삭제 문이 늘거나 줄었다. `
+  assert.strictEqual(ALL.length, 22,
+    `★editor.js 의 .remove() 가 ${ALL.length}개다(박아 둔 값 22) — 삭제 문이 늘거나 줄었다. `
     + '새 문이 «섹션»을 지운다면 링크 처분을 먼저 지나게 하고, D9·D10·D11 의 기대 수(3)도 같이 갱신해라.');
   const SECT = [...SRC.editor.matchAll(/(selSection\.remove\(\)|sec\.remove\(\)|toDelete\.forEach\(s => s\.remove\(\)\))/g)]
     .map((m) => m[1]);
