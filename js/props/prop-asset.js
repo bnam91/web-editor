@@ -102,6 +102,25 @@ export function showAssetProperties(ab) {
   const currentStrokeColor = ab.dataset.strokeColor || '#000000';
   const currentStrokeAlpha = parseAlphaFromColor(currentStrokeColor);
   const isVideo = ab.dataset.assetType === 'video-pending';
+  /* T-011: 배경색은 «이미지의 하위 속성»이 아니라 블록 속성이다 — 이미지를 넣으면 배경 절이
+     통째로 사라져, 이미 걸어 둔 그라데이션을 고칠 길도 지울 길도 없었다(값은 dataset.bgColor 에
+     살아서 계속 칠해지는데 «닿는 문»만 없는 막다른 골목). ⇒ hasImage 분기 «밖»에 둔다.
+     선례: prop-icon-circle.js 의 Color/배경 절도 hasImage 삼항 밖에 있다. */
+  const bgSection = `
+    <div class="prop-section">
+      <div class="prop-section-title">Background</div>
+      <div class="prop-color-row">
+        <span class="prop-label">배경색</span>
+        ${colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad })}
+      </div>
+      <!-- ★「초기화」는 색 줄의 «3번째 형제»였다 — 그 버튼은 안 줄고(.prop-align-btn--aux: flex 0 0 auto)
+           줄어드는 건 색 필드뿐이라, 고정 240px 패널에서 hex 칸이 16px 로 짜부라져 값이 안 보였다(T-100).
+           같은 파일의 형제 행(외곽선, 버튼 없음)은 69px 로 멀쩡했다 — 실측 대조. ⇒ 버튼을 자기 줄로 내린다. -->
+      <div class="prop-color-row--aux">
+        <button class="prop-align-btn prop-align-btn--aux" id="asset-bg-clear">초기화</button>
+      </div>
+      ${hasImage && currentFit === 'cover' ? '<div class="prop-hint" style="margin-top:6px;">꽉 채우기에서는 배경이 이미지 뒤에 가려집니다 — 원본 비율에서 보입니다.</div>' : ''}
+    </div>`;
   const imageSection = hasImage ? `
     <div class="prop-section">
       <div class="prop-section-title">${isVideo ? 'Video' : 'Image'}</div>
@@ -122,16 +141,6 @@ export function showAssetProperties(ab) {
       <div class="prop-hint" style="text-align:center;padding:8px 0 4px;">더블클릭하여 이미지 추가</div>
       <button class="prop-action-btn secondary" id="asset-upload-btn" style="margin-top:4px;">이미지 선택...</button>
       <div class="prop-hint" style="text-align:center;margin-top:4px;">또는 파일을 블록에 드래그</div>
-      <div class="prop-color-row" style="margin-top:10px;">
-        <span class="prop-label">배경색</span>
-        ${colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad })}
-      </div>
-      <!-- ★「초기화」는 색 줄의 «3번째 형제»였다 — 그 버튼은 안 줄고(.prop-align-btn--aux: flex 0 0 auto)
-           줄어드는 건 색 필드뿐이라, 고정 240px 패널에서 hex 칸이 16px 로 짜부라져 값이 안 보였다(T-100).
-           같은 파일의 형제 행(외곽선, 버튼 없음)은 69px 로 멀쩡했다 — 실측 대조. ⇒ 버튼을 자기 줄로 내린다. -->
-      <div class="prop-color-row--aux">
-        <button class="prop-align-btn prop-align-btn--aux" id="asset-bg-clear">초기화</button>
-      </div>
     </div>`;
 
   propPanel.innerHTML = `
@@ -211,6 +220,7 @@ export function showAssetProperties(ab) {
         <input type="number" class="prop-number" id="asset-stroke-num" min="0" max="20" value="${currentStrokeWidth}">
       </div>
     </div>
+    ${bgSection}
     ${imageSection}
     ${hasImage ? `
     <div class="prop-section">
@@ -581,31 +591,35 @@ export function showAssetProperties(ab) {
     if (isVideo) wireVideoTrim(ab);
   } else {
     document.getElementById('asset-upload-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
-    const bgField = wireColorField('asset-bg', {
-      initialAlpha: currentBgAlpha,
-      gradientValue: assetBgGrad,   // T-059 2라운드: 재오픈 시드
-      onApply: (c) => {
-        // 이전 그라데이션 제거 후 솔리드 적용 (prop-frame.js ss-bg와 동일 패턴)
-        ab.style.background = '';
-        ab.dataset.bgColor = c;
-        ab.style.backgroundColor = c;
-      },
-      onGradient: (css, commit) => {
-        ab.style.backgroundColor = '';
-        ab.style.background = css;
-        ab.dataset.bgColor = css;
-        if (commit) window.pushHistory?.();
-      },
-      onCommit: () => window.pushHistory?.(),
-    });
-    document.getElementById('asset-bg-clear').addEventListener('click', () => {
-      delete ab.dataset.bgColor;
-      ab.style.backgroundColor = '';
-      ab.style.background = '';
-      bgField?.setHex('#a0a0a0');
-      window.pushHistory?.();
-    });
   }
+
+  /* T-011: 배경색 배선은 이미지 유무와 무관하게 «조건 없이» 돈다. else 안에 있던 탓에
+     이미지가 들어가면 onGradient 가 사라졌고, color-picker.js 가 onGradient 유무로
+     cpModes(solid / solid,gradient)를 정하므로 그라데이션 탭 자체가 안 열렸다. */
+  const bgField = wireColorField('asset-bg', {
+    initialAlpha: currentBgAlpha,
+    gradientValue: assetBgGrad,   // T-059 2라운드: 재오픈 시드
+    onApply: (c) => {
+      // 이전 그라데이션 제거 후 솔리드 적용 (prop-frame.js ss-bg와 동일 패턴)
+      ab.style.background = '';
+      ab.dataset.bgColor = c;
+      ab.style.backgroundColor = c;
+    },
+    onGradient: (css, commit) => {
+      ab.style.backgroundColor = '';
+      ab.style.background = css;
+      ab.dataset.bgColor = css;
+      if (commit) window.pushHistory?.();
+    },
+    onCommit: () => window.pushHistory?.(),
+  });
+  document.getElementById('asset-bg-clear').addEventListener('click', () => {
+    delete ab.dataset.bgColor;
+    ab.style.backgroundColor = '';
+    ab.style.background = '';
+    bgField?.setHex('#a0a0a0');
+    window.pushHistory?.();
+  });
 
   // ── 오버레이 이벤트 바인딩 ──
   const applyOverlayBg = opacity => {
