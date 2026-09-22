@@ -305,6 +305,11 @@ function applyZoom(z, opts) {
   zoomDisplay.textContent = Math.round(currentZoom) + '%';   // [M67] 표시는 정수 — 내부 배율만 소수를 갖는다
   document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
   document.documentElement.style.setProperty('--scratch-inv-zoom', Math.min(SCRATCH_INV_ZOOM_CAP, 100 / currentZoom).toFixed(4));
+  /* ★아이콘원형 이미지 편집 손잡이는 #canvas-scaler «안»에 살아서 «크기»뿐 아니라 «중심 보정»도
+     배율을 먹는다(js/image-handling.js enterCircleImageEditMode). 크기는 바로 위 --inv-zoom 이
+     CSS 로 고쳐 주지만 위치는 JS 가 잡는다 — 여기서 같이 다시 잡지 않으면 «배율 바꾸기 전» 값이
+     남아 중심이 어긋난다. 에셋 경로는 자기 rAF 루프가 있어 이 갈고리가 필요 없다. */
+  window._syncCircleImgHandles?.();
   // 섹션 라벨/툴바 카운터-스케일
   // - zoom ≥ 80%: 자연 스케일 (1.0) — 라벨이 섹션과 분리돼 보이지 않게
   // - zoom < 80%: 점진적으로 키워서 가독성 유지, 최대 1.6 cap (겹침 방지는 max-width+ellipsis가 담당)

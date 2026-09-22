@@ -1442,7 +1442,15 @@ function enterCircleImageEditMode(icb) {
     { id: 'lc', cursor: 'ew-resize',   cls: 'img-edge-handle'   },
   ];
   const handleEls = {};
-  const HS = 5;
+  /* ★손잡이 «절반»(중심 보정)은 «크기와 같은 축»이어야 한다.
+   *   이 경로의 손잡이는 icb 안 = #canvas-scaler «안»에 살고, 크기는 CSS 가 배율을 먹인다
+   *   (css/editor-blocks.css `.icon-circle-block .img-corner-handle` = calc(7px * var(--inv-zoom))).
+   *   그런데 절반만 5 로 굳어 있어서 두 축이 갈렸다 — 화면에서 중심이 배율마다 흔들린다.
+   *   실측(dpr2, 기준=에셋 손잡이 7px/1.5): 줌40 (+1.5,+1.5) · 줌100 (−1.5,−1.5) · 줌150 (−4.0,−4.0)
+   *   = (3.5 × invZoom − 5) × 줌/100. ⇒ 3.5 × invZoom 으로 같은 축에 태운다.
+   *   ⛔상수로 «한 번» 계산하지 마라 — 배율이 바뀌면 다시 읽어야 해서 syncHandles 안에서 부른다.
+   *   회귀: tests/dom/handle-center-icon-circle.dom.spec.js B7 */
+  const halfHandle = () => 3.5 * (100 / (window.currentZoom || 100));
   ICB_HANDLES.forEach(({ id, cursor, cls }) => {
     const h = document.createElement('div');
     h.className = cls;
@@ -1459,6 +1467,7 @@ function enterCircleImageEditMode(icb) {
   icb.appendChild(hint);
 
   function syncHandles() {
+    const HS = halfHandle();
     const cx = circle.offsetLeft;
     const cy = circle.offsetTop;
     const x  = parseFloat(img.style.left) || 0;
@@ -1564,7 +1573,14 @@ function enterCircleImageEditMode(icb) {
 
   renderCircleImgPanel();
 
+  /* ★배율이 바뀌어도 이 syncHandles 를 부르는 사람이 없다 — 에셋 경로는 `function _syncLoop`(:467) rAF 루프가
+   *   대신 불러 주지만 이 경로엔 루프가 없다. HS 를 배율에 태운 이상 «배율이 바뀌는 자리»에
+   *   묶지 않으면 «바꾸기 전» 절반이 남아 중심이 도로 어긋난다.
+   *   ⇒ applyZoom 이 --inv-zoom 을 갱신한 직후 여기를 부른다(js/editor.js applyZoom). */
+  window._syncCircleImgHandles = syncHandles;
+
   icb._imgEditCleanup = () => {
+    if (window._syncCircleImgHandles === syncHandles) window._syncCircleImgHandles = null;
     img.removeEventListener('mousedown', onImgDown);
     Object.values(handleEls).forEach(h => h.remove());
     hint.remove();
