@@ -639,7 +639,22 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
       `font-size:${size}px;font-weight:${weight};line-height:1.2;letter-spacing:${role.ls};${color ? `color:${color};` : ''}` +
       `padding:${padV}px ${padH}px;border-radius:${rad}px;white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</span></div>`;
   }
-  return `<div${addrAttr} class="grd-line grd-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${lh};letter-spacing:${ls};text-align:${align};${effColor ? `color:${effColor};` : ''}${ffCss}${italicCss}${strikeCss}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
+  /* ★안내문구 표식 (T-085, 2026-09-22 검수 실측).
+     무엇이 있었나 — 이 기본 문구가 «내보낸 PNG 에 그대로 찍혔다».
+       실측: rgb(85,85,85) 804픽셀 ＋ rgb(117,117,117) 66픽셀, 어두운 픽셀 1,626개가
+       y 526~544 한 군데(그 자리가 이 그리드 블럭 72,519,716×35).
+     까닭 — js/io/capture-safety.js hidePlaceholderTextForCapture 는 «표식이 붙은» 것만 숨기는데,
+       표식이 붙은 자리가 다섯(tb-h2·bn2-label·bn2-title·bn2-sub·tb-mdl-text)뿐이고 여기엔 없었다.
+     ⛔★«읽는 쪽»을 넓히지 않았다 — 「글자가 기본 문구와 같으면 숨겨라」로 고치면
+       사용자가 정말 그 문장을 쓴 경우에 그 글자를 숨긴다. 그건 T-039 가 낸 사고(진짜 본문을
+       가려 흰 페이지가 됨)와 «같은 방향»이다. ⇒ 쓰는 쪽에 표식을 단다.
+     ★표식을 달면 읽는 쪽 술어(isStillPlaceholderText)가 나머지를 알아서 한다 —
+       사용자가 «다른» 글자를 넣으면 그 술어가 「본문」으로 보고 안 숨긴다. 다른 블럭과 같은 규약이다.
+     ⛔`data-placeholder` 도 같이 단다 — 그 술어가 «무엇과 견줄지»를 그 값으로 안다.
+       없으면 「견줄 원문이 없다」로 보고 그냥 숨긴다(기존 동작). */
+  const _isPh = (line.text ?? '') === GRID_CELL_DEFAULT_TEXT;
+  const phAttr = _isPh ? ` data-is-placeholder="true" data-placeholder="${_esc(GRID_CELL_DEFAULT_TEXT)}"` : '';
+  return `<div${addrAttr}${phAttr} class="grd-line grd-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${lh};letter-spacing:${ls};text-align:${align};${effColor ? `color:${effColor};` : ''}${ffCss}${italicCss}${strikeCss}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
 }
 
 // ★2026-09-04 P1: flex → CSS grid(PLAN §3-A) — 행 축을 넣으려면 열끼리 «경계가 맞아야»
