@@ -335,8 +335,13 @@ const _grdKindSelectHtml = (line) => `
  *  ★image → body 로 바꿨는데 imgSrc 가 남으면 dataURL 수백 KB 가 저장본에 눌러앉는다.
  *    height/widthPct 도 같다 — 글자 줄은 안 읽는데 다음에 다시 image 로 바꾸면 되살아난다.
  *  ⛔undefined 로 «키를 없앤다» — _gridMergeLine 이 Object.assign 이라 JSON 에서 사라진다.
- *  ⛔여기 적는 이름은 GRID_LINE_FIELDS 안에 있어야 한다(아니면 updateGridBlock 이 통째로 거절한다). */
-const _GRD_KIND_SHED = { imgSrc: undefined, height: undefined, widthPct: undefined, text: undefined };
+ *  ⛔여기 적는 이름은 GRID_LINE_FIELDS 안에 있어야 한다(아니면 updateGridBlock 이 통째로 거절한다).
+ *  ⛔★`text` 를 여기 넣지 마라 — 역할끼리 바꾸는 길(h2→body)이 «같은 함수»를 지나므로
+ *    사용자가 쓴 글자가 통째로 지워진다. 실측으로 당했다(2026-09-23):
+ *      before {type:'h2', text:'소중한 제목'} → after {type:'body', text:''}
+ *    글자가 뜻이 없어지는 것은 «글자 아닌 줄»(gap/image)로 갈 때뿐이고, 그건 grid-block.js 의
+ *    _gridMergeLine 이 «렌더러가 안 읽는 키»로 알아서 턴다 — 여기서 손으로 겹쳐 세지 않는다. */
+const _GRD_KIND_SHED = { imgSrc: undefined, height: undefined, widthPct: undefined };
 
 /** 두 select 의 배선 — 추가는 «고르면 바로», 바꾸기는 «지금 줄»에만.
  *  @param {number|null} afterLi  null → 칸 끝에 붙인다(빈 칸) · 정수 → 그 줄 다음 */
@@ -373,7 +378,8 @@ function _grdWireKindSelects(block, r, c, afterLi) {
       });
       return;
     }
-    change(kindSel.value === 'gap' ? { height: 16 } : { text: '' });
+    /* ⛔역할끼리 바꿀 땐 아무것도 덮지 않는다 — 글자를 그대로 둬야 한다(위 ⛔ 참조). */
+    change(kindSel.value === 'gap' ? { height: 16 } : {});
   });
 }
 
