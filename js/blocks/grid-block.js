@@ -279,13 +279,26 @@ function _gridRejectLinesLength(lines, allowEmpty) {
      가지로 떨어진다. 그래서 `type:'text'` 를 글자 줄에 주면 «둔감»해 보인다(거짓 고발). */
 const _GRID_FIELD_PROBES = ['gdt', 'gdt-probe', 41.5, 3, true, false, null];
 
+/* ★계측기의 사각지대 (2026-09-23, 위 «이미지 줄 정렬»과 같은 패치).
+ *   아래 민감도 측정은 «칸의 정렬»(2번째 인자)을 늘 'left' 로 고정해 뒀다. 그런데 줄 정렬은
+ *   `line.align || colAlign` 이라, 「칸도 왼쪽·줄도 왼쪽」이라는 «한 문맥»에서는 그 키를 지우든
+ *   무엇으로 바꾸든 산출이 같다 — 실제로는 읽는 필드를 «안 읽는다»로 판정한다.
+ *   그 오판의 값은 비싸다: patchCell{lineIndex, align:'left'} «하나만» 보낸 호출이
+ *   「어느 것도 렌더러가 안 읽는다」로 ok:false 가 된다(멀쩡한 요청을 막는다).
+ *   ⇒ 문맥을 «둘» 돌린다 — 한 문맥에서라도 산출이 흔들리면 그 줄은 그 키를 읽는 것이다.
+ *   ⛔`_GRID_FIELD_PROBES`(값 탐침)는 안 건드린다 — 그건 «모든» 필드 판정에 걸리는 전역 처방이라
+ *     늘리면 비용이 필드 수만큼 곱해진다. 여기서 필요한 것은 «값»이 아니라 «문맥»이다. */
+const _GRID_FIELD_CONTEXTS = ['left', 'center'];
+
 function _gridLineFieldIsRead(line, key) {
   try {
-    const base = _gridLineHtml(line, 'left', 0, null, false);
-    const gone = { ...line };
-    delete gone[key];
-    if (_gridLineHtml(gone, 'left', 0, null, false) !== base) return true;
-    return _GRID_FIELD_PROBES.some(p => _gridLineHtml({ ...line, [key]: p }, 'left', 0, null, false) !== base);
+    return _GRID_FIELD_CONTEXTS.some((ctx) => {
+      const base = _gridLineHtml(line, ctx, 0, null, false);
+      const gone = { ...line };
+      delete gone[key];
+      if (_gridLineHtml(gone, ctx, 0, null, false) !== base) return true;
+      return _GRID_FIELD_PROBES.some(p => _gridLineHtml({ ...line, [key]: p }, ctx, 0, null, false) !== base);
+    });
   } catch (_) {
     return true;   // 못 쟀으면 «읽는다»로 둔다 — 멀쩡한 필드를 「안 됐다」고 하는 쪽이 더 나쁘다
   }
@@ -535,8 +548,16 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     // ⚠️<img style="display:block">엔 text-align 이 안 먹는다 — 폭을 100% 미만으로 줄이면
     //   margin-inline 없이는 항상 왼쪽에 붙는다. colAlign 은 이 줄이 속한 «셀의 유효 align»
     //   (renderGridBlock 의 pick('align') — 글자 줄과 같은 값)이라 그대로 재사용한다.
+    /* ★줄 단위 정렬 (2026-09-23) — «글자 줄과 같은 우선순위»를 그대로 베낀다:
+     *   줄(line.align) > 칸(colAlign) > 'left'  (아래 글자 가지의 `const align = line.align …` 이 본이다).
+     *   무엇이 있었나 — 이 가지만 colAlign 만 봤다. 그래서 「글자는 왼쪽, 이미지는 가운데」를
+     *   «한 칸 안에서» 못 만들었고, 줄에 align 을 줘도 ok:true 가 돌아오는데 화면은 그대로였다.
+     *   ⛔`wp < 100` 가드는 그대로 둔다 — 폭이 꽉 찬 이미지는 움직일 데가 없고, 여백을 붙이면
+     *     기존 저장본의 산출만 바뀐다(바이트 동일 유지). 빈 슬롯도 같은 alignCss 를 쓰므로
+     *     «같이» 적용되는 것이 의도다(발주 대기 카드가 왼쪽에 붙어 보이던 자리). */
+    const align = line.align || colAlign || 'left';
     const alignCss = wp < 100
-      ? (colAlign === 'center' ? 'margin-left:auto;margin-right:auto;' : colAlign === 'right' ? 'margin-left:auto;' : '')
+      ? (align === 'center' ? 'margin-left:auto;margin-right:auto;' : align === 'right' ? 'margin-left:auto;' : '')
       : '';
     if (!line.imgSrc) {
       // 빈 이미지 슬롯: 발주 대기 placeholder (기존 ''=투명 소실 → 카드가 깨져 보이던 문제)
