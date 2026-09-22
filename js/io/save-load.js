@@ -970,6 +970,21 @@ function rebindAll(opts = {}) {
       // 섹션 메모 버튼 복원 — sanitizeCanvasHtml이 on* 속성을 제거하므로 로드 후 onclick 재바인딩 필요
       // (없으면 버튼은 보이나 클릭 무반응 = 섹션 메모 패널 안 열림 회귀)
       if (window._ensureMemoButton) window._ensureMemoButton(sec);
+      /* ★🔒 도 «같은 까닭»으로 다시 걸어야 한다 (T-139 ③, 2026-09-22 검수 실측).
+         위 :not(.st-protected-btn) 은 단추가 «지워지지 않게»만 했다. 그런데 sanitizeCanvasHtml 은
+         on* 을 걷어내므로, 페이지를 한 번만 옮겨도 🔒 가 «보이는데 죽은 단추»가 된다.
+         실측(포트 9652): 새로고침 직후 onclick=YYnn → Page1 로 한 번 전환 → 모든 섹션이 Ynnn
+           (protected 만 소실). 1·3·6초 기다려도 안 돌아옴.
+           실클릭 짝대조 — 왕복한 섹션 🔒 팝오버 0개 / 같은 툴바 📝 는 열림 / 갓 만든 섹션 🔒 도 열림.
+         ⛔피해가 «표시»가 아니다 — 🔒·is-on·data-protected 가 그대로 보이는데 눌러도 안 열려서
+           **보호를 끌 방법이 없다**. 그리고 앱은 「🔒 버튼으로 보호 해제 후 삭제하세요」라고
+           바로 그 죽은 단추를 가리킨다.
+         ★2026-09-22 의 앞선 고침(5c15aa4)은 «만들 때»와 «hydrate»만 덮었다 —
+           rebindAll 을 지나는 길(페이지 전환·복원)이 빠져 있었다. 반만 선 고침이었다.
+         ⛔이 호출이 툴바 DOM 을 «더» 흔들지 않는다 — _ensureProtectionButton 은 자리가 이미
+           맞으면 안 옮기고(요소 기준 비교), 하는 일은 걷힌 onclick 을 «되돌려 놓는» 것뿐이다.
+           ⇒ 복원 뒤 DOM 이 복원 «전»에 더 가까워진다(T-136 을 키우지 않는다). */
+      if (window._ensureProtectionButton) window._ensureProtectionButton(sec);
     }
   });
   // row ID 복원 + paddingX 복원
