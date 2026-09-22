@@ -1025,6 +1025,76 @@ function _grdWireTypo(block, addr) {
        이미지·갭 줄도 줄바가 뜨므로 여기(텍스트 줄 전용 배선)에 두면 두 벌이 된다. */
 }
 
+/* ══ 뱃지(알약) 절 — 줄에 «배경»을 주면 렌더러가 알약 분기로 갈아탄다 ═══════════
+ * ★`line.bg` 가 있으면 _gridLineHtml 이 `if (bg)` 분기로 가 inline-block ＋ padding ＋
+ *   border-radius:999px 로 그린다 — 「글자 배경」이 아니라 «알약»이다.
+ * ⛔_typo-section 의 showHighlight 를 true 로 되돌리는 것은 «답이 아니다» —
+ *   형광펜(글자 배경)과 알약(line.bg)은 렌더러에서 «다른 분기»이고,
+ *   tests/unit/grid-line-typo.test.js U1-c 가 그 자리를 잠갔다. 알약은 자기 손잡이로 낸다.
+ * ★기본은 «꺼짐» — 값이 없으면 스와치가 체커보드(없음)이고 hex 칸은 빈 채다. 비우면 다시 꺼진다.
+ * ⛔절 마크업을 _typo-section 에서 «베끼지» 않는다 — 여긴 그 절이 아니라 그리드 «전용» 손잡이다
+ *   (그 절의 지문 id 꼬리 -color-chips/-style-group 등은 한 개도 쓰지 않는다). */
+function _grdBadgeSectionHtml(hit) {
+  if (!hit) return '';
+  const { line } = hit;
+  const raw = (typeof line.bg === 'string' && GRID_COLOR_RE.test(String(line.bg).trim()))
+    ? String(line.bg).trim() : '';
+  const hex = raw ? swatchHex(raw, '#eeeeee') : '#eeeeee';
+  return `
+    <div class="prop-section">
+      <div class="prop-section-title">Badge</div>
+      <div class="prop-row">
+        <span class="prop-label" title="배경을 주면 이 줄이 «알약»(둥근 인라인 배지)이 된다. 비우면 꺼진다.">알약 배경</span>
+        <div class="prop-color-swatch${raw ? '' : ' swatch-none'}"${raw ? ` style="background:${raw}"` : ''}>
+          <input type="color" id="grd-badge-color" value="${hex}">
+        </div>
+        <input type="text" class="prop-color-hex" id="grd-badge-hex" value="${raw ? hex.replace('#', '').toUpperCase() : ''}"
+               placeholder="없음" maxlength="7" aria-label="알약 배경색">
+      </div>
+    </div>`;
+}
+
+function _grdWireBadge(block, addr) {
+  const hit = _grdResolveAddr(block, addr);
+  if (!hit) return;
+  const { r, c, li } = hit;
+  const pick = document.getElementById('grd-badge-color');
+  const hexEl = document.getElementById('grd-badge-hex');
+  const swatch = pick?.closest('.prop-color-swatch');
+  const paint = (hex) => {
+    if (!swatch) return;
+    swatch.classList.toggle('swatch-none', !hex);
+    swatch.style.background = hex || '';
+  };
+  /* ⛔updateGridBlock 을 쓰지 않는다 — 그건 패널을 통째로 다시 그려 색을 고르는 동안
+     포커스가 끊기고 히스토리가 폭주한다. 되쓰기는 _grdWireTypo 와 «같은» gridPreviewLine. */
+  let _gesture = false;
+  const commit = (bg) => {
+    if (!_gesture) { _gesture = true; window.pushHistory?.(); }   // ★적용 «전»에 한 번
+    gridPreviewLine(block, r, c, li, { bg });
+    _grdSyncLineMark(block, { r, c, li });     // 재렌더가 마커를 지웠다 — 다시 붙인다
+  };
+  const end = () => { _gesture = false; window.scheduleAutoSave?.(); };
+
+  pick?.addEventListener('input', () => {
+    paint(pick.value);
+    if (hexEl) hexEl.value = pick.value.replace('#', '').toUpperCase();
+    commit(pick.value);
+  });
+  pick?.addEventListener('change', end);
+  wireHexText(hexEl, {
+    parse: (raw) => (String(raw ?? '').trim() === '' ? '' : parseHex6(raw)),
+    format: (v) => (v ? formatHex6(v) : ''),
+    getCurrent: () => {
+      const cur = _grdLine(block, { r, c, li }) || {};
+      return (typeof cur.bg === 'string' && GRID_COLOR_RE.test(cur.bg.trim())) ? swatchHex(cur.bg.trim(), '') : '';
+    },
+    onApply: (v) => { paint(v || ''); if (v && pick) pick.value = v; },
+    // 빈 칸 = 「알약 끄기」 — undefined 로 키를 없앤다(_gridMergeLine 이 Object.assign 이라 사라진다).
+    onCommit: (v) => { commit(v || undefined); end(); },
+  });
+}
+
 /** 요약 한 줄의 «직접 지정 N» 만 제자리에서 고친다 — 패널을 다시 그리지 않는다(포커스 보존). */
 function _grdRefreshSummary(block, addr) {
   const el = document.getElementById('grd-line-summary');
@@ -1120,6 +1190,7 @@ ${blockHeaderHTML({
     ${_grdCellSectionHtml(_anyHit, block)}
     ${_grdImageSectionHtml(_anyHit, block)}
     ${_grdTypoSectionsHtml(_hit, block)}
+    ${_grdBadgeSectionHtml(_hit)}
     <div class="prop-section">
       <div class="prop-row"><span class="prop-label" style="opacity:.6">글자는 «캔버스에서 줄을 더블클릭»해 고친다</span></div>
     </div>`;
@@ -1342,6 +1413,7 @@ ${blockHeaderHTML({
   _grdWireCellSection(block, _curAddr);
   _grdWireImageSection(block, _curAddr);
   if (_hit) _grdWireTypo(block, _curAddr);
+  if (_hit) _grdWireBadge(block, _curAddr);
 
   showGridGutters(block);
   // ★이미지 줄 코너 리사이즈 핸들(T-C) — 「지금 선택된 이미지 줄」에만 뜬다. 다른 줄이면
