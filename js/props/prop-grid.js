@@ -412,7 +412,7 @@ ${_grdAddKindSelectHtml()}
         <button id="grd-line-del-btn" class="prop-btn-sm" ${canDeleteLine ? '' : 'disabled'}
                 title="${canDeleteLine ? '이 줄을 삭제합니다' : '칸에 남은 마지막 줄은 지울 수 없습니다'}">줄 삭제</button>
         <button id="grd-line-reset" class="prop-btn-sm" ${isTextLine ? '' : 'disabled'}
-                title="${isTextLine ? '이 줄에 «손으로 준 값»을 전부 지우고 기본값으로 되돌립니다 (⌘Z 로 복원)' : '이미지·갭 줄엔 타이포 필드가 없습니다'}">↺ 기본값으로</button>
+                title="${isTextLine ? '이 줄에 «손으로 준 값»을 전부 지우고 기본값으로 되돌립니다 (⌘Z 로 복원)' : '이미지·갭 줄엔 타이포 필드가 없습니다'}">↺ 기본</button>
       </div>
     </div>`;
 }
@@ -597,7 +597,7 @@ function _grdCellSectionHtml(anyHit, block) {
   const wide = r === 0;
   const title = wide ? `칸 꾸미기 · ${c + 1}열 전체` : `칸 꾸미기 · ${r + 1}행 ${c + 1}열`;
   return `
-    <div class="prop-section">
+    <div class="prop-section"${open ? '' : ' style="padding-bottom:0;"'}>
       <div class="prop-section-title" id="grd-cell-toggle" role="button" tabindex="0"
            style="display:flex;align-items:center;gap:6px;cursor:pointer;"
            title="${open ? '접기' : '펼치기'}">
@@ -1040,10 +1040,11 @@ function _grdBadgeSectionHtml(hit) {
   const raw = (typeof line.bg === 'string' && GRID_COLOR_RE.test(String(line.bg).trim()))
     ? String(line.bg).trim() : '';
   const hex = raw ? swatchHex(raw, '#eeeeee') : '#eeeeee';
+  /* ★절 제목을 «안» 낸다 — Fill 절 바로 아래 한 줄로 붙인다. 제목 한 줄이 24px 이고,
+       이 절은 줄 하나뿐이라 제목이 절보다 커진다(순증 예산이 그만큼 줄어든다). */
   return `
     <div class="prop-section">
-      <div class="prop-section-title">Badge</div>
-      <div class="prop-row">
+      <div class="prop-row" style="margin-bottom:0;">
         <span class="prop-label" title="배경을 주면 이 줄이 «알약»(둥근 인라인 배지)이 된다. 비우면 꺼진다.">알약 배경</span>
         <div class="prop-color-swatch${raw ? '' : ' swatch-none'}"${raw ? ` style="background:${raw}"` : ''}>
           <input type="color" id="grd-badge-color" value="${hex}">
