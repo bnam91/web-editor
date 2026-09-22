@@ -105,17 +105,21 @@ async function _buildFigmaSectionList() {
         || sec.querySelector('.section-label')?.textContent?.trim()
         || `Section ${secIdx + 1}`;
       const isSynced = !!nodeMap[id]?.figmaId;
-      const pageLabel = state.pages.length > 1 ? ` <span style="color:#555;">[${pg.name || `P${pgIdx + 1}`}]</span>` : '';
+      const pageName = state.pages.length > 1 ? `[${pg.name || `P${pgIdx + 1}`}]` : null;
 
       const row = document.createElement('label');
       row.className = 'figma-sec-row';
       row.innerHTML = `
         <input type="checkbox" class="figma-sec-cb" data-sec-id="${id}" checked
           style="accent-color:var(--ui-accent-primary); cursor:pointer; flex-shrink:0;" />
-        <span style="font-size:11px; color:#ccc; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-          title="${name}">${name}${pageLabel}</span>
+        <span class="figma-sec-name" style="font-size:11px; color:#ccc; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><span class="figma-sec-name-text"></span>${pageName === null ? '' : ' <span class="figma-sec-page" style="color:#555;"></span>'}</span>
         <span class="figma-sec-badge ${isSynced ? 'synced' : 'new'}">${isSynced ? '✓ 업데이트' : '새 업로드'}</span>
       `;
+      /* ★섹션·페이지 이름은 틀에 안 넣는다 (T-049) — 사용자가 짓는 글자라 빈 칸 + 프로퍼티 쓰기. */
+      const nameEl = row.querySelector('.figma-sec-name');
+      nameEl.title = name;
+      nameEl.querySelector('.figma-sec-name-text').textContent = name;
+      if (pageName !== null) row.querySelector('.figma-sec-page').textContent = pageName;
       listEl.appendChild(row);
     });
   });

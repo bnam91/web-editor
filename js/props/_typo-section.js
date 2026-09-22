@@ -21,6 +21,7 @@
  *   안 그러면 다음 사람이 한쪽을 인라인 마크업으로 되돌려도 검사가 초록이다.
  */
 import { _fontDisplayName } from './prop-text-utils.js';
+import { escHtml } from './_helpers.js';
 
 /** mix 기본값 — 셋 다 «안 섞임». 호출부가 안 주면 이걸 쓴다. */
 const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeight: { mixed: false } };
@@ -75,7 +76,7 @@ export function buildTypographySectionHtml({
       <span class="prop-field-label">Font</span>
       <div class="font-picker" id="${p}-font-picker">
         <button class="font-picker-trigger" id="${p}-font-trigger" type="button">
-          <span class="font-picker-current" id="${p}-font-name">${font ? _fontDisplayName(font) : '기본 (시스템)'}</span>
+          <span class="font-picker-current" id="${p}-font-name">${font ? escHtml(_fontDisplayName(font)) : '기본 (시스템)'}</span>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
         </button>
         <div class="font-picker-dropdown" id="${p}-font-dropdown" style="display:none">

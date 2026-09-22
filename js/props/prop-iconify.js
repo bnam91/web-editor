@@ -28,7 +28,7 @@ ${blockHeaderHTML({
     <div class="prop-section">
       <div class="prop-section-title">Icon</div>
       <div class="prop-row" style="gap:4px;">
-        <span class="prop-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#888;" title="${iconName}">${iconName || '(없음)'}</span>
+        <span class="prop-label" id="icn-name-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#888;"></span>
         <button class="prop-btn" id="icn-replace-btn" title="Iconify에서 교체"
           style="width:auto;height:auto;padding:3px 8px;font-size:10px;">교체</button>
         <button class="prop-btn" id="icn-svg-file-btn" title="로컬 이미지 파일 불러오기 (SVG·PNG·JPG)"
@@ -115,6 +115,11 @@ ${blockHeaderHTML({
     </div>
   `;
 
+  /* ★아이콘 이름은 틀에 안 넣는다 (T-049) — 빈 칸 + 프로퍼티 쓰기. */
+  const iconLabel = propPanel.querySelector('#icn-name-label');
+  iconLabel.title = iconName;
+  iconLabel.textContent = iconName || '(없음)';
+
   // ── SVG 프리셋 라이브러리 ────────────────────────────────────────────
   const presetCatSelect = propPanel.querySelector('#icn-preset-cat');
   const presetGrid      = propPanel.querySelector('#icn-preset-grid');
@@ -197,9 +202,18 @@ ${blockHeaderHTML({
       return;
     }
     _presetCategories = res.categories || [];
-    presetCatSelect.innerHTML = _presetCategories.length
-      ? _presetCategories.map(c => `<option value="${c.name}">${c.name} (${c.items.length})</option>`).join('')
-      : '<option value="">(폴더 비어있음 — Application Support/GODITOR/svg-presets/ 에 폴더+SVG 추가)</option>';
+    /* ★카테고리 이름도 틀에 안 넣는다 (T-049) — option 을 노드로 만들고 value·글자는 프로퍼티로. */
+    presetCatSelect.innerHTML = '';
+    if (!_presetCategories.length) {
+      presetCatSelect.innerHTML = '<option value="">(폴더 비어있음 — Application Support/GODITOR/svg-presets/ 에 폴더+SVG 추가)</option>';
+    } else {
+      for (const c of _presetCategories) {
+        const o = document.createElement('option');
+        o.value = c.name;
+        o.textContent = `${c.name} (${c.items.length})`;
+        presetCatSelect.appendChild(o);
+      }
+    }
     if (_presetCategories.length > 0) {
       presetCatSelect.value = _presetCategories[0].name;
       renderPresetGrid(_presetCategories[0].name);

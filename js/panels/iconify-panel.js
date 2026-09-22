@@ -301,10 +301,10 @@ function _renderGrid(icons) {
     const [prefix, iconName] = name.split(':');
     const svgUrl = `${ICONIFY_API}/${prefix}/${iconName}.svg`;
     return `
-      <div class="iconify-icon-cell" data-icon-name="${name}"
+      <div class="iconify-icon-cell" data-icon-name="${_escAttr(name)}"
         style="aspect-ratio:1;background:#111;border:1px solid #222;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:border-color 0.1s,background 0.1s;"
-        title="${name}">
-        <img src="${svgUrl}" width="24" height="24" style="filter:invert(0.75);pointer-events:none;" loading="lazy" alt="${name}">
+        title="${_escAttr(name)}">
+        <img src="${_escAttr(svgUrl)}" width="24" height="24" style="filter:invert(0.75);pointer-events:none;" loading="lazy" alt="${_escAttr(name)}">
       </div>
     `;
   }).join('');

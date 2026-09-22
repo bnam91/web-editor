@@ -290,26 +290,43 @@ const VarPanelUI = (() => {
       body.innerHTML = `<div class="var-empty">변수 없음 — + 버튼으로 추가</div>`;
       return;
     }
+    /* ★변수 «이름»과 «값»은 틀에 안 넣는다 (T-049) — 사용자가 짓는 글자다.
+       틀은 «빈 칸»만 내고, 아래 채우는 칸이 프로퍼티 쓰기(textContent·value·dataset·style)로
+       채운다. 프로퍼티 쓰기는 마크업으로 안 읽힌다.
+       ⛔이름을 «검사»하지 마라 — 따옴표·꺾쇠가 든 멀쩡한 이름이 죽는다. */
     body.innerHTML = vars.map(v => `
-      <div class="var-item" data-var-name="${v.name}">
-        <span class="var-item-type var-type-${v.type}">${v.type[0].toUpperCase()}</span>
-        ${v.type === 'color'
-          ? `<span class="var-item-swatch" style="background:${v.value}"></span>`
-          : ''}
-        <span class="var-item-name" title="${v.name}">${v.name}</span>
-        <input class="var-item-value ${v.type === 'color' ? 'var-item-value-color' : ''}"
-          type="${v.type === 'color' ? 'color' : 'text'}"
-          value="${v.value}"
-          data-vname="${v.name}"
-          title="값 편집"
-        />
-        <button class="var-item-del" data-vname="${v.name}" title="삭제">
+      <div class="var-item">
+        <span class="var-item-type"></span>
+        ${v.type === 'color' ? '<span class="var-item-swatch"></span>' : ''}
+        <span class="var-item-name"></span>
+        <input class="var-item-value" title="값 편집" />
+        <button class="var-item-del" title="삭제">
           <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
             <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
           </svg>
         </button>
       </div>
     `).join('');
+
+    body.querySelectorAll('.var-item').forEach((row, i) => {
+      const v = vars[i];
+      if (!v) return;
+      row.dataset.varName = v.name;
+      const type = row.querySelector('.var-item-type');
+      type.className = `var-item-type var-type-${v.type}`;
+      type.textContent = String(v.type)[0].toUpperCase();
+      const sw = row.querySelector('.var-item-swatch');
+      if (sw) sw.style.background = v.value;          // CSSOM 이 막아 준다 — 무효값은 안 들어간다
+      const nm = row.querySelector('.var-item-name');
+      nm.title = v.name;
+      nm.textContent = v.name;
+      const inp = row.querySelector('.var-item-value');
+      inp.className = `var-item-value ${v.type === 'color' ? 'var-item-value-color' : ''}`;
+      inp.type = v.type === 'color' ? 'color' : 'text';
+      inp.value = v.value;
+      inp.dataset.vname = v.name;
+      row.querySelector('.var-item-del').dataset.vname = v.name;
+    });
 
     // 값 편집 이벤트
     body.querySelectorAll('.var-item-value').forEach(inp => {
@@ -347,10 +364,19 @@ const VarPanelUI = (() => {
     const currentColorBound = _currentBlock?.dataset.varColor || '';
     const currentTextBound  = _currentBlock?.dataset.varText  || '';
 
-    colorSel.innerHTML = `<option value="">— 없음 —</option>` +
-      colorVars.map(v => `<option value="${v.name}" ${v.name === currentColorBound ? 'selected' : ''}>${v.name}</option>`).join('');
-    textSel.innerHTML  = `<option value="">— 없음 —</option>` +
-      textVars.map(v => `<option value="${v.name}" ${v.name === currentTextBound ? 'selected' : ''}>${v.name}</option>`).join('');
+    /* ★고르개도 이름을 틀에 안 넣는다 (T-049) — option 은 노드로 만들고 value·글자는 프로퍼티로. */
+    const _fillSel = (sel, list, current) => {
+      sel.innerHTML = '<option value="">— 없음 —</option>';
+      for (const v of list) {
+        const o = document.createElement('option');
+        o.value = v.name;
+        o.textContent = v.name;
+        if (v.name === current) o.selected = true;
+        sel.appendChild(o);
+      }
+    };
+    _fillSel(colorSel, colorVars, currentColorBound);
+    _fillSel(textSel,  textVars,  currentTextBound);
   }
 
   /* 드로어 열기/닫기 토글 */

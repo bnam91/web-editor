@@ -105,9 +105,10 @@
     const pop = document.createElement('div');
     pop._anchor = sec;
     pop.className = 'section-memo-popover';
+    /* ★섹션 이름은 틀에 안 넣는다 (T-049) — 빈 칸을 내고 아래에서 textContent 로 채운다. */
     pop.innerHTML = `
       <div class="smp-head">
-        <span class="smp-title">📝 ${sec.dataset.name || sec.id}</span>
+        <span class="smp-title">📝 <span class="smp-title-name"></span></span>
         <button class="smp-close" type="button" title="닫기 (Esc)">✕</button>
       </div>
       <textarea class="smp-textarea" rows="12" maxlength="${MAX_MEMO_LEN}" placeholder="섹션 메모 (출처, 의도, 디자인 노트 등)..."></textarea>
@@ -116,6 +117,7 @@
         <span class="smp-status"></span>
       </div>
     `;
+    pop.querySelector('.smp-title-name').textContent = sec.dataset.name || sec.id;
     const ta = pop.querySelector('.smp-textarea');
     const count = pop.querySelector('.smp-count');
     const status = pop.querySelector('.smp-status');

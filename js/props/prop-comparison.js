@@ -1,10 +1,13 @@
 // prop-comparison.js — 비교 블록 우측 프로퍼티 패널 (N칼럼: 1:1, 1:1:1 …)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, CMP_PLACEHOLDER_TITLE, CMP_PLACEHOLDER_ROW } from '../blocks/comparison-block.js';
 
-const _esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+/* ★옛 사본은 «닫는 꺾쇠»와 홑따옴표를 안 덮었다 — 이 파일이 쓰는 세 자리에서는 무력한
+   글자들이라 새지는 않았지만, 다음 사람이 이 사본을 홑따옴표 속성 자리에 쓰면 그때 뚫린다.
+   ⛔사본을 고치는 대신 «지웠다» — 공용 한 벌(_helpers.js escHtml)이 다섯 글자를 다 덮는다. */
+const _esc = escHtml;
 const _rowHeights = d => { try { const a = JSON.parse(d.rowHeights || 'null'); return Array.isArray(a) ? a : []; } catch { return []; } };
 
 export function showComparisonProperties(block) {

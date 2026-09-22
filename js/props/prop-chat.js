@@ -44,12 +44,22 @@ export function showChatProperties(block) {
     window.triggerAutoSave?.();
   }
 
+  /* ★프로필 이름은 틀에 안 넣는다 (T-049) — 사용자가 짓는 글자다.
+     옛 판은 큰따옴표만 실체참조로 바꿨는데, 그건 «앰퍼샌드를 안 덮어» 멀쩡한 이름의 표시가
+     깨지는 쪽이기도 했다. value 프로퍼티로 넣으면 둘 다 없어진다.
+     ⛔이름을 «검사»하지 마라 — 따옴표 든 멀쩡한 이름이 죽는다. */
+  function fillProfileNames(root) {
+    root?.querySelectorAll('.chb-profile-name-input').forEach(inp => {
+      const m = messages[parseInt(inp.dataset.idx)];
+      inp.value = (m && m.profileName) || '';
+    });
+  }
+
   function msgListHtml() {
     return messages.map((m, i) => {
       const isLeft = m.align !== 'right';
       const showProfileFields = (block.dataset.showProfile === '1');
       const hideThisProfile = m.hideProfile === true;
-      const pName = (m.profileName || '').replace(/"/g, '&quot;');
       const pImg  = m.profileImg || '';
       const hasStars = (m.stars != null && m.stars !== '');
       const starsVal = hasStars ? Math.max(0, Math.min(5, parseInt(m.stars) || 0)) : 5;
@@ -67,7 +77,7 @@ export function showChatProperties(block) {
         <div class="chb-prop-profile-row" data-idx="${i}" style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px dashed #333;font-size:11px;white-space:nowrap">
           <div class="chb-profile-thumb" data-idx="${i}" title="클릭하여 프로필 이미지 업로드"
             style="width:28px;height:28px;border-radius:50%;background:${pImg ? `url('${pImg}') center/cover` : 'linear-gradient(135deg,#666,#888)'};border:1px solid #444;cursor:pointer;flex-shrink:0"></div>
-          <input type="text" class="chb-profile-name-input" data-idx="${i}" value="${pName}" placeholder="프로필 이름"
+          <input type="text" class="chb-profile-name-input" data-idx="${i}" placeholder="프로필 이름"
             style="flex:1;min-width:0;width:auto;max-width:none;min-height:24px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:3px;color:#ccc;font-size:11px;padding:2px 6px">
           <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:#aaa;flex-shrink:0;white-space:nowrap" title="이 메시지만 프로필 숨김(공간 유지 → 들여쓰기 효과)">
             <input type="checkbox" class="chb-hide-profile" data-idx="${i}" ${hideThisProfile ? 'checked' : ''}>
@@ -205,6 +215,7 @@ ${blockHeaderHTML({
       <button class="prop-btn-full" id="chb-add-msg" style="margin-top:6px">+ 대화 추가하기</button>
     </div>
   `;
+  fillProfileNames(propPanel);
 
   // ─── 프로필 토글 ───────────────────────────────────────────
   propPanel.querySelector('#chb-show-profile')?.addEventListener('change', e => {
@@ -372,6 +383,7 @@ ${blockHeaderHTML({
   function rebindMsgList() {
     const list = propPanel.querySelector('#chb-msg-list');
     list.innerHTML = msgListHtml();
+    fillProfileNames(list);
     bindMsgEvents();
   }
 

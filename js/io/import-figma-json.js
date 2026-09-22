@@ -256,7 +256,9 @@ function _escapeHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function _escapeAttr(str) {
-  return String(str).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  /* ★앰퍼샌드를 «맨 먼저» 덮는다 (T-049) — 빠지면 실체참조가 든 이름이 되돌려 읽힐 때
+     한 겹 풀려 나온다. 순서를 뒤로 미루면 이미 만든 &quot; 를 또 덮어 이중이 된다. */
+  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 /* ── window 노출 (inline onclick에서 접근) ── */
