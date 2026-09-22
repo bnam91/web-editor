@@ -634,6 +634,37 @@ function _grdWireCellSection(block, addr) {
   }
 }
 
+/* ══ 「통째로 건다」는 단추가 정말 통째로 걸리게 — 오버라이드를 걷는 두 부품 ═══════
+ * ★렌더러는 «가린다»: 줄 > 칸 > 열 > 블록 (`line.align || colAlign` · `pick(k)=cell[k]??col[k]`).
+ *   그래서 열/블록 단위 지시는 «아래 층의 값을 걷어야» 실제로 걸린다. 값을 박지 않고 «걷는» 쪽을
+ *   쓰는 이유: 폴백이 알아서 상위 값을 읽고, 저장본도 안 부푼다.
+ * ⛔두 벌 만들지 마라 — 가로(data-ha)·세로(data-va) 두 핸들러가 이 둘을 같이 쓴다. */
+function _grdStripLineAlign(lines) {
+  if (!Array.isArray(lines)) return;
+  lines.forEach(l => { if (l && typeof l === 'object') delete l.align; });
+}
+/** dataset.cells(행 1~)의 «칸 오버라이드» 한 필드를 전부 걷는다. 걷은 게 있으면 true.
+ *  ⛔행 0 은 여기 없다 — 행 0 은 cols[c] 자체라 호출부가 cols 쪽에서 따로 다룬다. */
+function _grdStripCellOverride(block, field) {
+  let cells;
+  try { cells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { return false; }
+  if (!Array.isArray(cells) || !cells.length) return false;
+  let hit = false;
+  cells.forEach(row => {
+    if (!Array.isArray(row)) return;
+    row.forEach(cell => {
+      if (!cell || typeof cell !== 'object') return;
+      if (cell[field] !== undefined) { delete cell[field]; hit = true; }
+      if (field === 'align' && Array.isArray(cell.lines)) {
+        if (cell.lines.some(l => l && typeof l === 'object' && l.align !== undefined)) hit = true;
+        _grdStripLineAlign(cell.lines);
+      }
+    });
+  });
+  if (hit) block.dataset.cells = JSON.stringify(cells);
+  return hit;
+}
+
 /* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
  * 렌더러(grid-block.js)는 이미 임의 비율을 지원한다 — 각 컬럼에 flex:(w/총합*100).
  * ★2026-09-04 P0: 슬라이더(2열 20~80 클램프 / 3열 칸별 슬라이더) → 테이블식 `1:1:1` 텍스트
@@ -1167,8 +1198,21 @@ ${blockHeaderHTML({
     }, { min: 0, max: GRID_GAP_MAX });
   }
 
+  /* 세로 정렬 — «블록 통째»(block.dataset.valign). 렌더러는 pick('valign') 가 있으면 그것을 먼저
+     쓰므로(_GRID_VALIGN[pick('valign')] || blockValign), 칸/열 오버라이드가 남아 있으면 이 단추가
+     그 칸에서만 «조용히 죽는다».
+     ★짝 검사 — 이 커밋이 칸 단위 세로정렬 손잡이(위 칸 꾸미기 절)를 새로 냈다. 그 손잡이가 만드는
+       오버라이드를 여기서 안 걷으면 «내가 방금 만든» 사각지대가 된다. 가로 정렬과 같은 대우. */
   propPanel.querySelectorAll('[data-va]').forEach(btn => btn.addEventListener('click', () => {
     block.dataset.valign = btn.dataset.va;
+    try {
+      const c = JSON.parse(block.dataset.cols || '[]');
+      if (Array.isArray(c) && c.length) {
+        c.forEach(col => { if (col && typeof col === 'object') delete col.valign; });
+        block.dataset.cols = JSON.stringify(c);
+      }
+    } catch (_) {}
+    _grdStripCellOverride(block, 'valign');
     window.renderGridBlock?.(block);
     window.pushHistory?.(); window.scheduleAutoSave?.();
     showGridProperties(block, _curAddr);        // ★줄 선택 유지 (D5)
@@ -1178,15 +1222,25 @@ ${blockHeaderHTML({
   // ★라인의 line.align 은 렌더러에서 col.align 을 «가린다»(_gridLineHtml: line.align || colAlign).
   //   실제 저장본 실측(147줄 중 17줄)에서 그 라인들만 안 움직여 «절반만 먹는» 정렬이 된다 →
   //   컬럼 레벨 일괄 지시일 때는 라인 오버라이드를 걷어내 컬럼을 단일 진실원으로 만든다(undo 가능).
+  // ★★2026-09-23 — 그 약속이 «행 축이 생기면서» 깨져 있었다. 이 핸들러는 dataset.cols(=행 0)만
+  //   읽고 dataset.cells(행 1~)를 «한 번도» 안 읽었다. 실클릭 실측(3×3, 1행 칸에 align:'center'):
+  //     after 00:right 01:right 02:right   ← 1행만
+  //           10:center 11:center 12:center ← 2~4행은 그대로
+  //   ⚠️피커로만 만든 그리드(칸에 align 키가 아예 없음)는 9칸이 다 먹어서 «안 보인다» —
+  //     칸/줄에 값이 «있을 때»만 갈라진다 ⇒ AI·MCP 가 만든 그리드를 사람이 패널로 고치는 길에서만
+  //     터진다. 이 제품이 실제로 도는 길이 그 길이다.
+  //   ⇒ 아래 행 칸의 오버라이드도 «걷어낸다»(값을 박지 않는다 — 렌더러 폴백 pick(cell??col)이
+  //     걷어내는 것만으로 컬럼을 단일 진실원으로 만든다. 저장본도 덜 부푼다).
   propPanel.querySelectorAll('[data-ha]').forEach(btn => btn.addEventListener('click', () => {
     try {
       const c = JSON.parse(block.dataset.cols || '[]');
       if (!Array.isArray(c) || !c.length) return;
       c.forEach(col => {
         col.align = btn.dataset.ha;
-        if (Array.isArray(col.lines)) col.lines.forEach(l => { if (l && typeof l === 'object') delete l.align; });
+        _grdStripLineAlign(col.lines);
       });
       block.dataset.cols = JSON.stringify(c);
+      if (_grdStripCellOverride(block, 'align')) { /* dataset.cells 갱신은 그 안에서 */ }
       window.renderGridBlock?.(block);
       window.pushHistory?.(); window.scheduleAutoSave?.();
       showGridProperties(block, _curAddr);      // ★줄 선택 유지 (D5)
