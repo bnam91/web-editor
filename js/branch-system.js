@@ -6,7 +6,7 @@
 function getBranchColor(name) {
   if (!name || name === 'main') return { dot: '#27ae60', text: '#4ecb7a' }; // 초록
   if (name.startsWith('dev'))  return { dot: '#e07b2a', text: '#f0a05a' }; // 주황
-  return                              { dot: '#2d6fe8', text: '#5a9af0' }; // 파랑 (feature/*)
+  return                              { dot: '#2d6fe8', text: '#5a9af0' }; // 파랑 (feature 계열)
 }
 
 // 프로젝트별 키 (탭 간 브랜치 상태 분리)

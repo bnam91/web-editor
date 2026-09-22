@@ -24,43 +24,43 @@
  */
 'use strict';
 
-/** 파일 하나를 줄 단위로 훑는 «상태를 든» 주석 거르개. 코드만 남긴 줄을 돌려준다. */
+/** 파일 하나를 줄 단위로 훑는 «상태를 든» 주석 거르개. 코드만 남긴 줄을 돌려준다.
+ *
+ * ★2026-09-22 (T-049 XS4) — 한 번에 왼쪽부터 훑는다. 전엔 «블록 주석을 먼저, 줄 주석을 나중»
+ *   두 번에 나눠 봤고, 그래서 **줄 주석 «안»의 `/` + `*` 를 블록 주석의 시작으로 읽었다**:
+ *     return { … };  // 파랑 (feature/<별>)      ← 이 한 줄이
+ *   그 뒤 74줄을 통째로 삼켰다(js/branch-system.js:9 실측, 선언만 28줄). 삼켜진 구간은
+ *   **어떤 소스 게이트에도 안 보인다** — 초록이 「괜찮다」가 아니라 「안 봤다」가 된다.
+ *   ⛔두 번 훑는 꼴로 되돌리지 마라. 어느 쪽을 먼저 보든 반대쪽이 눈먼다 —
+ *     순서 문제가 아니라 «한 줄 안에서 먼저 나온 표기가 이긴다»가 규칙이다.
+ *   ★이 결함을 재는 검사는 tests/unit/name-axes-to-markup.test.mjs 의 XS4 다.
+ */
 function makeStripper() {
   let inBlock = false;
   return function stripLine(line) {
-    let t = String(line);
-    if (inBlock) {
-      const e = t.indexOf('*/');
-      if (e < 0) return '';
-      inBlock = false; t = t.slice(e + 2);
-    }
-    for (;;) {
-      const b = t.indexOf('/*');
-      if (b < 0) break;
-      /* ★따옴표 «안»의 /* 는 주석이 아니다 — accept="image/*" 가 정확히 그 경우다.
-           여는 따옴표가 짝을 못 찾은 채 /* 를 만나면 그건 «문자열 안»이다. */
-      const before = t.slice(0, b);
-      const dq = (before.match(/"/g) || []).length;
-      const sq = (before.match(/'/g) || []).length;
-      if (dq % 2 === 1 || sq % 2 === 1) break;   // 문자열 안 — 주석 아님
-      const e = t.indexOf('*/', b + 2);
-      if (e < 0) { t = t.slice(0, b); inBlock = true; break; }
-      t = t.slice(0, b) + t.slice(e + 2);
-    }
-    /* ★줄 주석은 «따옴표 밖»의 // 부터 지운다.
-         ⛔줄 맨 앞만 보면 «꼬리 주석»(code;  // 설명)이 코드로 남는다.
-         ⛔반대로 무조건 지우면 문자열 안의 'http://www.w3.org/2000/svg' 를 잘라먹어
-           «코드가 사라진다» — 그게 이 레포에서 실제로 검사를 눈멀게 했던 형태다. */
+    const s = String(line);
+    let out = '';
+    /* 따옴표 상태는 «줄마다» 새로 센다 — 여러 줄 템플릿 리터럴은 아래 ⚠️한계 그대로다. */
     let dq = false, sq = false, bt = false;
-    for (let i = 0; i < t.length; i++) {
-      const c = t[i];
-      if (c === '\\') { i++; continue; }
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (inBlock) {
+        if (c === '*' && s[i + 1] === '/') { inBlock = false; i++; }
+        continue;
+      }
+      if (!dq && !sq && !bt) {
+        /* ★먼저 나온 표기가 이긴다. `//` 를 만나면 그 줄은 거기서 끝이고,
+             그 뒤에 무엇이 오든(`/*` 든 뭐든) 글자일 뿐이다. */
+        if (c === '/' && s[i + 1] === '/') return out;
+        if (c === '/' && s[i + 1] === '*') { inBlock = true; i++; continue; }
+      }
+      if (c === '\\') { out += c; if (i + 1 < s.length) out += s[++i]; continue; }
       if (!sq && !bt && c === '"') dq = !dq;
       else if (!dq && !bt && c === "'") sq = !sq;
       else if (!dq && !sq && c === '`') bt = !bt;
-      else if (!dq && !sq && !bt && c === '/' && t[i + 1] === '/') return t.slice(0, i);
+      out += c;
     }
-    return t;
+    return out;
   };
 }
 
