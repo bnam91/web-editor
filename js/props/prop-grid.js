@@ -580,7 +580,39 @@ function _grdWireImageSection(block, addr) {
  *   ⛔DOM 노드 참조·전역 Set 으로 들지 마라 — renderGridBlock 이 innerHTML 을 통째로 갈아끼워
  *     매 조작마다 죽는다(이 파일 머리글이 같은 말을 적어 뒀다).
  */
-const _grdCellOpen = new WeakMap();
+const _grdOpenSections = new WeakMap();
+const _grdSecOpen = (block, key) => (_grdOpenSections.get(block) || {})[key] === true;
+function _grdSecToggle(block, key) {
+  const cur = _grdOpenSections.get(block) || {};
+  const next = { ...cur, [key]: !cur[key] };
+  _grdOpenSections.set(block, next);
+  return next[key];
+}
+
+/** 접이식 절 머리글 — ⛔두 벌 만들지 마라. 칸 꾸미기·줄 꾸미기가 «이 부품 하나»를 쓴다. */
+const _grdDisclosureHtml = (id, title, open) => `
+      <div class="prop-section-title" id="${id}" role="button" tabindex="0"
+           style="display:flex;align-items:center;gap:6px;cursor:pointer;"
+           title="${open ? '접기' : '펼치기'}">
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
+             style="flex:0 0 auto;transform:rotate(${open ? 90 : 0}deg);transition:transform .12s;">
+          <polyline points="2,2 6,4 2,6"/>
+        </svg>
+        <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</span>
+      </div>`;
+
+/** 접이식 절의 배선 — 패널을 다시 그리지 않는다(재렌더는 곧 포커스 상실이다). */
+function _grdWireDisclosure(block, key, headId, bodyId) {
+  const head = document.getElementById(headId);
+  const body = document.getElementById(bodyId);
+  const arrow = head?.querySelector('svg');
+  head?.addEventListener('click', () => {
+    const open = _grdSecToggle(block, key);
+    if (body) body.style.display = open ? 'block' : 'none';
+    if (arrow) arrow.style.transform = `rotate(${open ? 90 : 0}deg)`;
+    head.title = open ? '접기' : '펼치기';
+  });
+}
 
 /** 칸 값을 «지우는» 빈 값. 행 0 은 cols[c] 자체라 undefined 가 _mergeCellIntoCol 에서
  *  «무시»된다(지워지지 않는다) ⇒ 행 0 은 ''/0 으로 명시적으로 덮고, 그 아래 행은
@@ -615,7 +647,7 @@ function _grdCellSectionHtml(anyHit, block) {
   const { r, c } = anyHit;
   let cell = {};
   try { cell = (getGridModel(block).cells?.[r] || [])[c] || {}; } catch (_) {}
-  const open = _grdCellOpen.get(block) === true;
+  const open = _grdSecOpen(block, 'cell');
   const bgRaw = (typeof cell.bg === 'string' && GRID_COLOR_RE.test(cell.bg.trim())) ? cell.bg.trim() : '';
   const bgHex = bgRaw ? swatchHex(bgRaw, '#ffffff') : '#ffffff';
   const pad = Number(cell.padding) || '';
@@ -625,15 +657,7 @@ function _grdCellSectionHtml(anyHit, block) {
   const title = wide ? `칸 꾸미기 · ${c + 1}열 전체` : `칸 꾸미기 · ${r + 1}행 ${c + 1}열`;
   return `
     <div class="prop-section"${open ? '' : ' style="padding-bottom:0;"'}>
-      <div class="prop-section-title" id="grd-cell-toggle" role="button" tabindex="0"
-           style="display:flex;align-items:center;gap:6px;cursor:pointer;"
-           title="${open ? '접기' : '펼치기'}">
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
-             style="flex:0 0 auto;transform:rotate(${open ? 90 : 0}deg);transition:transform .12s;">
-          <polyline points="2,2 6,4 2,6"/>
-        </svg>
-        <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</span>
-      </div>
+${_grdDisclosureHtml('grd-cell-toggle', title, open)}
       <div id="grd-cell-body" style="display:${open ? 'block' : 'none'};">
         <div class="prop-hint" style="text-align:left;padding:2px 0 6px;">${wide
           ? '★1행 칸은 «열 그 자체»다 — 여기 준 값은 이 열의 «아래 행 칸»에도 그대로 나타난다(그 칸들의 저장값은 빈 채로).'
@@ -650,7 +674,7 @@ function _grdCellSectionHtml(anyHit, block) {
           <input type="number" class="prop-number" id="grd-cell-padding" min="0" max="200" placeholder="0" value="${pad}">
         </div>
         <div class="prop-row">
-          <span class="prop-label">모서리</span>
+          <span class="prop-label" title="이 «칸»의 모서리. 그림 줄의 「모서리 반경」과 다른 축이다">칸 모서리</span>
           <input type="number" class="prop-number" id="grd-cell-radius" min="0" max="200" placeholder="0" value="${rad}">
         </div>
         <div class="prop-row">
@@ -670,17 +694,7 @@ function _grdWireCellSection(block, addr) {
   if (!hit) return;
   const { r, c } = hit;
 
-  /* 접기/펼치기 — 패널을 다시 그리지 않는다(재렌더는 곧 포커스 상실이다). */
-  const head = document.getElementById('grd-cell-toggle');
-  const body = document.getElementById('grd-cell-body');
-  const arrow = head?.querySelector('svg');
-  head?.addEventListener('click', () => {
-    const next = !(_grdCellOpen.get(block) === true);
-    _grdCellOpen.set(block, next);
-    if (body) body.style.display = next ? 'block' : 'none';
-    if (arrow) arrow.style.transform = `rotate(${next ? 90 : 0}deg)`;
-    head.title = next ? '접기' : '펼치기';
-  });
+  _grdWireDisclosure(block, 'cell', 'grd-cell-toggle', 'grd-cell-body');
 
   /* ── 배경색 — 커밋은 «change»(피커 닫힘·blur·Enter)에서만.
        ⛔input 마다 커밋하면 updateGridBlock 이 매 프레임 패널을 통째로 다시 그려
@@ -1051,39 +1065,75 @@ function _grdWireTypo(block, addr) {
        이미지·갭 줄도 줄바가 뜨므로 여기(텍스트 줄 전용 배선)에 두면 두 벌이 된다. */
 }
 
-/* ══ 뱃지(알약) 절 — 줄에 «배경»을 주면 렌더러가 알약 분기로 갈아탄다 ═══════════
- * ★`line.bg` 가 있으면 _gridLineHtml 이 `if (bg)` 분기로 가 inline-block ＋ padding ＋
- *   border-radius:999px 로 그린다 — 「글자 배경」이 아니라 «알약»이다.
- * ⛔_typo-section 의 showHighlight 를 true 로 되돌리는 것은 «답이 아니다» —
- *   형광펜(글자 배경)과 알약(line.bg)은 렌더러에서 «다른 분기»이고,
- *   tests/unit/grid-line-typo.test.js U1-c 가 그 자리를 잠갔다. 알약은 자기 손잡이로 낸다.
- * ★기본은 «꺼짐» — 값이 없으면 스와치가 체커보드(없음)이고 hex 칸은 빈 채다. 비우면 다시 꺼진다.
+/* ══ 「줄 꾸미기」 절 — «그 줄 하나»에만 걸리는 것들 (줄 정렬 · 알약 배경) ═══════
+ * ★줄 정렬 — 글자 줄 렌더러는 `line.align || colAlign || 'left'` 로 «줄 값이 열 값을 가린다».
+ *   모델도 렌더도 되는데 패널엔 «열 단위» 정렬 하나뿐이라, 한 줄만 가운데로 놓을 길이 없었다.
+ *   ⚠️★«이미지 줄»은 아직 안 낸다 — 렌더러의 이미지 분기는 line.align 을 «아예 안 읽는다»
+ *     (alignCss 가 colAlign 만 보고, 그나마 widthPct<100 일 때만). 지금 손잡이를 내면
+ *     「눌리는데 안 먹는」 칸이 된다. 렌더러 유닛이 그 자리를 고치는 중이고, 들어오면
+ *     _GRD_LINE_ALIGN_KINDS 에 'image' «한 낱말»을 더하면 된다. ⇒ 그때까지 E11-b 는 빨강이 정상.
+ *
+ * ★알약 — `line.bg` 가 있으면 _gridLineHtml 이 `if (bg)` 분기로 가 inline-block ＋ padding ＋
+ *   border-radius:999px 로 그린다. 「글자 배경」이 아니라 «알약»이다.
+ *   ⛔_typo-section 의 showHighlight 를 true 로 되돌리는 것은 «답이 아니다» —
+ *     형광펜(글자 배경)과 알약(line.bg)은 렌더러에서 «다른 분기»이고,
+ *     tests/unit/grid-line-typo.test.js U1-c 가 그 자리를 잠갔다. 알약은 자기 손잡이로 낸다.
+ *   ★기본은 «꺼짐» — 값이 없으면 스와치가 체커보드(없음)이고 hex 칸은 빈 채다. 비우면 다시 꺼진다.
  * ⛔절 마크업을 _typo-section 에서 «베끼지» 않는다 — 여긴 그 절이 아니라 그리드 «전용» 손잡이다
- *   (그 절의 지문 id 꼬리 -color-chips/-style-group 등은 한 개도 쓰지 않는다). */
-function _grdBadgeSectionHtml(hit) {
-  if (!hit) return '';
-  const { line } = hit;
+ *   (그 절의 지문 id 꼬리 -color-chips/-style-group 등은 한 개도 쓰지 않는다).
+ *
+ * ★접힘 기본 — 칸 꾸미기와 «같은 부품·같은 집»(_grdDisclosureHtml · _grdOpenSections).
+ *   ⛔절을 하나 더 «펼친 채로» 내면 순증 예산(Δ≤+60)을 그 자리에서 넘긴다(실측으로 확인). */
+const _GRD_LINE_ALIGN_KINDS = new Set(_GRD_ROLE_KINDS);
+
+function _grdLineSectionHtml(anyHit, block) {
+  if (!anyHit || anyHit.li === null || !anyHit.line) return '';
+  const { r, c, li, line } = anyHit;
+  const canAlign = _GRD_LINE_ALIGN_KINDS.has(line.type || 'body');
+  const isText = gridLineHasText(line);
+  if (!canAlign && !isText) return '';               // 갭 줄 — 줄 단위로 줄 것이 없다
+  const open = _grdSecOpen(block, 'line');
   const raw = (typeof line.bg === 'string' && GRID_COLOR_RE.test(String(line.bg).trim()))
     ? String(line.bg).trim() : '';
   const hex = raw ? swatchHex(raw, '#eeeeee') : '#eeeeee';
-  /* ★절 제목을 «안» 낸다 — Fill 절 바로 아래 한 줄로 붙인다. 제목 한 줄이 24px 이고,
-       이 절은 줄 하나뿐이라 제목이 절보다 커진다(순증 예산이 그만큼 줄어든다). */
+  void r; void c;
   return `
-    <div class="prop-section">
-      <div class="prop-row" style="margin-bottom:0;">
-        <span class="prop-label" title="배경을 주면 이 줄이 «알약»(둥근 인라인 배지)이 된다. 비우면 꺼진다.">알약 배경</span>
-        <div class="prop-color-swatch${raw ? '' : ' swatch-none'}"${raw ? ` style="background:${raw}"` : ''}>
-          <input type="color" id="grd-badge-color" value="${hex}">
-        </div>
-        <input type="text" class="prop-color-hex" id="grd-badge-hex" maxlength="7" placeholder="없음" aria-label="알약 배경색" value="${raw ? hex.replace('#', '').toUpperCase() : ''}">
+    <div class="prop-section"${open ? '' : ' style="padding-bottom:0;"'}>
+${_grdDisclosureHtml('grd-line-toggle', `줄 꾸미기 · ${li + 1}번째 줄`, open)}
+      <div id="grd-line-body" style="display:${open ? 'block' : 'none'};">
+        ${canAlign ? `<div class="prop-row">
+          <span class="prop-label" title="이 «줄»만 정렬한다(기본 = 열을 따른다). 열 정렬 단추는 그 열 전체다">줄 정렬</span>
+          <select class="prop-select" id="grd-line-align">${_grdOptsHtml(_GRD_CELL_ALIGNS, line.align)}</select>
+        </div>` : ''}
+        ${isText ? `<div class="prop-row" style="margin-bottom:0;">
+          <span class="prop-label" title="배경을 주면 이 줄이 «알약»(둥근 인라인 배지)이 된다. 비우면 꺼진다.">알약 배경</span>
+          <div class="prop-color-swatch${raw ? '' : ' swatch-none'}"${raw ? ` style="background:${raw}"` : ''}>
+            <input type="color" id="grd-badge-color" value="${hex}">
+          </div>
+          <input type="text" class="prop-color-hex" id="grd-badge-hex" maxlength="7" placeholder="없음" aria-label="알약 배경색" value="${raw ? hex.replace('#', '').toUpperCase() : ''}">
+        </div>` : ''}
       </div>
     </div>`;
 }
 
-function _grdWireBadge(block, addr) {
-  const hit = _grdResolveAddr(block, addr);
-  if (!hit) return;
+function _grdWireLineSection(block, addr) {
+  const hit = _grdResolveAnyAddr(block, addr);
+  if (!hit || hit.li === null || !hit.line) return;
   const { r, c, li } = hit;
+  _grdWireDisclosure(block, 'line', 'grd-line-toggle', 'grd-line-body');
+
+  /* ── 줄 정렬 — «이 줄»에만. ⛔updateGridBlock 을 쓰지 않는다: 이미지 줄에 align 을 주면
+       렌더러 민감도 검사(_gridUnreadLineFields)가 「아무것도 안 읽힌다」로 «거절»한다.
+       되쓰기는 _grdWireTypo·알약과 «같은» gridPreviewLine 한 길이다. */
+  const alignSel = document.getElementById('grd-line-align');
+  alignSel?.addEventListener('change', () => {
+    window.pushHistory?.();                    // ★적용 «전»에 한 번(제스처 1회 = 히스토리 1회)
+    gridPreviewLine(block, r, c, li, { align: alignSel.value || undefined });
+    _grdSyncLineMark(block, { r, c, li });     // 재렌더가 마커를 지웠다 — 다시 붙인다
+    window.scheduleAutoSave?.();
+  });
+
+  if (!gridLineHasText(hit.line)) return;      // 알약은 «글자 줄»만
   const pick = document.getElementById('grd-badge-color');
   const hexEl = document.getElementById('grd-badge-hex');
   const swatch = pick?.closest('.prop-color-swatch');
@@ -1216,7 +1266,7 @@ ${blockHeaderHTML({
     ${_grdCellSectionHtml(_anyHit, block)}
     ${_grdImageSectionHtml(_anyHit, block)}
     ${_grdTypoSectionsHtml(_hit, block)}
-    ${_grdBadgeSectionHtml(_hit)}
+    ${_grdLineSectionHtml(_anyHit, block)}
     <div class="prop-section">
       <div class="prop-row"><span class="prop-label" style="opacity:.6">글자는 «캔버스에서 줄을 더블클릭»해 고친다</span></div>
     </div>`;
@@ -1439,7 +1489,7 @@ ${blockHeaderHTML({
   _grdWireCellSection(block, _curAddr);
   _grdWireImageSection(block, _curAddr);
   if (_hit) _grdWireTypo(block, _curAddr);
-  if (_hit) _grdWireBadge(block, _curAddr);
+  _grdWireLineSection(block, _curAddr);
 
   showGridGutters(block);
   // ★이미지 줄 코너 리사이즈 핸들(T-C) — 「지금 선택된 이미지 줄」에만 뜬다. 다른 줄이면
