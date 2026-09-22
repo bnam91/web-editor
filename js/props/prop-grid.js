@@ -357,7 +357,7 @@ function _grdWireKindSelects(block, r, c, afterLi) {
     let cur = '';
     try { cur = (getGridModel(block).cells?.[r]?.[c]?.lines || [])[afterLi]?.type || 'body'; } catch (_) {}
     if (kindSel.value === cur) return;       // 같은 값 = 화면이 안 변한다(updateGridBlock 이 거절한다)
-    window.updateGridBlock?.(block.id, { patchCell: { r, c, lineIndex: afterLi, type: kindSel.value } });
+    _grdToastCellFail(window.updateGridBlock?.(block.id, { patchCell: { r, c, lineIndex: afterLi, type: kindSel.value } }));
   });
 }
 
@@ -576,11 +576,22 @@ const _GRD_CELL_VALIGNS = [['', '기본'], ['top', '위'], ['middle', '가운데
 const _grdOptsHtml = (list, cur) => list
   .map(([v, ko]) => `<option value="${v}"${String(cur ?? '') === v ? ' selected' : ''}>${ko}</option>`).join('');
 
+/** 커밋 실패를 «보이게» 한다.
+ *  ★조용한 ok:false 는 「됐다는데 화면은 그대로」가 된다 — 이 레포가 2026-09-20 에 실제로 당한
+ *    갈래이고 tests/unit/grid-callsite-ssot.test.mjs 가 그 자리를 소스로 못박는다.
+ *  ⛔grdToastImgFail 을 돌려쓰지 마라 — 그건 «이미지» 어휘다(「이미지 작업 실패」). 칸/줄 patch 가
+ *    그 문구를 띄우면 사용자가 엉뚱한 곳을 본다. */
+function _grdToastCellFail(res) {
+  if (!res || res.ok !== false) return false;
+  window.showToast?.('⚠️ 적용되지 않았습니다 — ' + (res.message || res.code || '알 수 없는 오류'));
+  return true;
+}
+
 /** 칸 patch «한 길» — 커밋·히스토리·재렌더·패널 재표시를 updateGridBlock 이 스스로 한다
  *  (줄 삭제·비율 입력과 같은 원칙). ⛔dataset 에 직접 쓰지 마라 — 행 0/그 아래의 저장 자리가
  *  다르고(_gridCellPatchDataset), 두 벌이 되면 조용히 갈라진다. */
 function _grdPatchCell(block, r, c, fields) {
-  return window.updateGridBlock?.(block.id, { patchCell: { r, c, ...fields } });
+  return _grdToastCellFail(window.updateGridBlock?.(block.id, { patchCell: { r, c, ...fields } }));
 }
 
 function _grdCellSectionHtml(anyHit, block) {
@@ -616,8 +627,7 @@ function _grdCellSectionHtml(anyHit, block) {
           <div class="prop-color-swatch${bgRaw ? '' : ' swatch-none'}"${bgRaw ? ` style="background:${bgRaw}"` : ''}>
             <input type="color" id="grd-cell-bg" value="${bgHex}">
           </div>
-          <input type="text" class="prop-color-hex" id="grd-cell-bg-hex" value="${bgRaw ? bgHex.replace('#', '').toUpperCase() : ''}"
-                 placeholder="없음" maxlength="7" aria-label="칸 배경색">
+          <input type="text" class="prop-color-hex" id="grd-cell-bg-hex" maxlength="7" placeholder="없음" aria-label="칸 배경색" value="${bgRaw ? bgHex.replace('#', '').toUpperCase() : ''}">
         </div>
         <div class="prop-row">
           <span class="prop-label">안쪽 여백</span>
@@ -1049,8 +1059,7 @@ function _grdBadgeSectionHtml(hit) {
         <div class="prop-color-swatch${raw ? '' : ' swatch-none'}"${raw ? ` style="background:${raw}"` : ''}>
           <input type="color" id="grd-badge-color" value="${hex}">
         </div>
-        <input type="text" class="prop-color-hex" id="grd-badge-hex" value="${raw ? hex.replace('#', '').toUpperCase() : ''}"
-               placeholder="없음" maxlength="7" aria-label="알약 배경색">
+        <input type="text" class="prop-color-hex" id="grd-badge-hex" maxlength="7" placeholder="없음" aria-label="알약 배경색" value="${raw ? hex.replace('#', '').toUpperCase() : ''}">
       </div>
     </div>`;
 }
