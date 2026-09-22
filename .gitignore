@@ -18,3 +18,7 @@ claude-talk-to-figma-mcp/
 # 배포판 운영자 허가(0919 adminsig) — 개인키·발급본은 커밋 금지
 *.allow
 goditor-operator-*.pem
+
+# playwright json 리포터 찌꺼기 — playwright.config.js 의 outputFile 이 «검사 폴더 안»에 쓴다.
+# ⛔추적되면 남의 실행 결과가 저장소에 들어가고, 대상을 git ls-files 로 고르는 게이트가 그걸 «소스»로 읽는다.
+tests/e2e/results.json
