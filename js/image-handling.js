@@ -599,6 +599,11 @@ function loadImageToAsset(ab, file) {
       hideAssetLoading(ab);
       setAssetImageFromSrc(ab, src);
     }
+    /* ★[R3 · 2026-09-22] «끝 표본» — loadVideoToAsset 과 같은 병, 같은 고침.
+       위 pushHistory() 는 FileReader 가 돌기 «전»에 찍히고 실제 반영은 여기(비동기)다.
+       ⛔둘 중 한 갈래에만 넣지 마라 — GIF 갈래와 일반 갈래 «둘 다» 반영이 끝난 뒤여야 한다.
+       그래서 if/else 밖, 두 갈래가 합류한 자리에 한 번만 둔다. */
+    pushHistory('이미지 업로드');
   };
   reader.onerror = () => hideAssetLoading(ab);
   reader.readAsDataURL(file);
@@ -617,6 +622,13 @@ function loadVideoToAsset(ab, file) {
   reader.onload = ev => {
     hideAssetLoading(ab);
     setAssetVideoFromSrc(ab, ev.target.result);
+    /* ★[R3 · 2026-09-22 · T-130 잔여] «끝 표본» — 위 pushHistory() 는 이 콜백이 돌기 «전»,
+       즉 파일을 읽기도 전에 찍힌다. 실제 반영은 여기(비동기)라, 앞 동작이 push-after 였으면
+       앞의 push-before 가 무변화 차단에 먹혀 「업로드의 결과」가 스택에 한 번도 안 남는다.
+       ⇒ 반영이 «끝난 이 자리»에서 한 번 더 찍는다(⛔옮기기가 아니라 더하기).
+       ★사이드카(미확정 영상 원본)는 pushHistory 가 스스로 «같은 동기 구간»에서 집어간다
+         (js/history.js 의 getLastVideoPendingSidecar 주석) — 여기서 따로 할 일이 없다. */
+    pushHistory('영상 업로드');
   };
   reader.onerror = () => hideAssetLoading(ab);
   reader.readAsDataURL(file);

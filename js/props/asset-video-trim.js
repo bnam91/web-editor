@@ -353,6 +353,15 @@ export function wireVideoTrim(ab) {
 
       window.pushHistory?.('영상 → GIF 적용');
       window.setAssetImageFromSrc?.(ab, stillDataUrl, gifDataUrl);
+      /* ★[R3 · 2026-09-22 · T-012 ①] «끝 표본» — 위 push-before 하나로는 모자라다.
+         위 호출은 «바꾸기 전» 캔버스를 찍는데, 직전 동작(트림 드래그 onUp)이 push-after 라
+         이미 «같은 상태»를 찍어 뒀다 ⇒ js/history.js 의 무변화 차단에 먹혀 칸이 안 생긴다.
+         그러면 「GIF 적용의 결과」는 스택에 한 번도 없다 — 적용 직후엔 undo 첫머리의
+         ensureHistoryCheckpoint 가 주워담아 «화면상 정상»으로 보이지만, 적용 뒤에 편집을
+         하나라도 더 하면 ⌘Z 한 번이 둘을 같이 먹는다.
+         ⛔위 push-before 를 «옮기지» 마라 — 더한다. 옮기면 이음매가 이사할 뿐이다.
+         ⛔이 자리는 update*Block 로스터 밖이라 js/model-update-history.js 가 못 덮는다. */
+      window.pushHistory?.('영상 → GIF 적용');
       window.scheduleAutoSave?.();
       window.showToast?.(`GIF로 적용 완료 (${plan.frameCount}프레임 · ${(blob.size / 1024).toFixed(0)}KB)`);
     } catch (err) {
