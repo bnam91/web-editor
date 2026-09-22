@@ -71,7 +71,9 @@ function _readLaurelCells(block) {
 }
 
 function _escLaurelText(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  /* ★큰따옴표도 덮는다 (T-049) — 지금 쓰이는 자리는 본문뿐이라 안 샜지만, 반쪽인 헬퍼는
+     다음 사람이 속성 자리에 그대로 쓰는 순간 뚫린다. 본문에서는 결과가 안 바뀐다. */
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // dataset.textEffect 읽기 (이스터에그 **text_ — text-block과 동일 key)

@@ -92,6 +92,9 @@ before(async () => {
     'js/props/prop-simple-card.js',
     [
       ["import { propPanel } from '../globals.js';", 'const propPanel = null;'],
+      /* ★T-049(2026-09-22) — `.prop-block-label` 헤더가 _helpers.js 의 blockHeaderHTML 한 자리로 모였다.
+         이 검사는 «카드 접기/인라인 편집»만 본다(패널 마크업을 안 잰다) → 빈 문자열 더블로 끊는다. */
+      ["import { blockHeaderHTML } from './_helpers.js';", 'const blockHeaderHTML = () => "";'],
       /* 2026-09-20 유닛 colorhex — 색 코드 칸의 배선이 color-picker.js 한 자리로 모였다.
          이 테스트는 «카드 접기/인라인 편집»만 본다(패널을 그리지 않는다) → 색 배선은 no-op 더블로 끊는다.
          ⛔여기에 진짜 파싱 규칙을 «베껴» 넣지 마라 — 그러면 검사가 자기 사본을 재게 된다.

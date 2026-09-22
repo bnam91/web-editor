@@ -1,6 +1,6 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
-import { overlayToggleBtnHTML } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
 
 export function buildTextPropsHtml(state) {
   const {
@@ -40,18 +40,15 @@ export function buildTextPropsHtml(state) {
 
   return `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <line x1="1" y1="3" x2="11" y2="3"/><line x1="1" y1="6" x2="11" y2="6"/><line x1="1" y1="9" x2="7" y2="9"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${tb.dataset.layerName || (isOverlayTb ? 'Overlay Text' : 'Text Block')}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(tb)}</span>
-        </div>
-        ${tb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${tb.id}')">${tb.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: tb.dataset.layerName,
+      defaultName: (isOverlayTb ? 'Overlay Text' : 'Text Block'),
+      crumb: window.getBlockBreadcrumb(tb),
+      id: tb.id,
+    })}
     </div>
 
     <div class="prop-section" id="type-section" style="display:${isLiner?'none':'block'}">

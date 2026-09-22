@@ -114,20 +114,28 @@ function renderBranchDropdown() {
   menu.innerHTML = sorted.map(name => {
     const isCurrent = name === store.current;
     const col = getBranchColor(name);
-    return `<div class="branch-dd-item ${isCurrent ? 'current' : ''}" onclick="selectBranchFromDropdown('${name}')">
+    return `<div class="branch-dd-item ${isCurrent ? 'current' : ''}" data-br-act="select">
       <span class="branch-dd-item-dot" style="background:${col.dot}"></span>
-      <span>${name}</span>
+      <span class="branch-dd-item-name"></span>
       ${isCurrent ? '<span style="margin-left:auto;font-size:9px;color:#666;font-weight:600;">NOW</span>' : ''}
     </div>`;
   }).join('') + `
   <div class="branch-dd-divider"></div>
-  <div class="branch-dd-manage" onclick="switchToTab('branch');closeBranchDropdown()">
+  <div class="branch-dd-manage" data-br-act="manage">
     <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
       <circle cx="3" cy="2.5" r="1.5"/><circle cx="3" cy="9.5" r="1.5"/><circle cx="9" cy="5" r="1.5"/>
       <path d="M3 4v4M3 4C3 6 9 4 9 5"/>
     </svg>
     브랜치 관리 →
   </div>`;
+
+  /* ★이름은 «틀»이 아니라 «글자»로 넣고, 누가 눌렸는지는 «속성 값»으로 들고 다닌다 (T-049).
+     dataset 쓰기와 textContent 는 둘 다 프로퍼티 쓰기라 마크업으로 안 읽힌다. */
+  menu.querySelectorAll('.branch-dd-item').forEach((el, i) => {
+    el.dataset.brName = sorted[i];
+    el.querySelector('.branch-dd-item-name').textContent = sorted[i];
+  });
+  _wireBranchActions();
 }
 
 function selectBranchFromDropdown(name) {
@@ -333,29 +341,29 @@ function renderBranchPanel() {
         // 스코프 섹션 태그
         const scopeHtml = hasScopeInfo ? `
           <div class="branch-scope-list">
-            ${scope.map(id => {
-              const el = document.getElementById(id);
-              const label = el ? (el.querySelector('.section-label')?.textContent?.trim() || id) : id;
-              return `<span class="branch-scope-tag">${label}${isCurrent
-                ? `<button class="branch-scope-remove" onclick="event.stopPropagation();removeSectionFromScope('${name}','${id}')">✕</button>`
+            ${scope.map(() => {
+              /* ★섹션 이름표는 틀에 안 넣는다 — 아래 «채우는 칸»이 textContent 로 넣는다 (T-049).
+                 그 이름은 캔버스 섹션의 .section-label 에서 오고, 그건 사용자가 짓는 이름이다. */
+              return `<span class="branch-scope-tag">${isCurrent
+                ? '<button class="branch-scope-remove" data-br-act="scope-remove">✕</button>'
                 : ''}</span>`;
             }).join('')}
-            ${isCurrent ? `<button class="branch-scope-add" onclick="promptAddSectionToScope('${name}')">+ 섹션</button>` : ''}
+            ${isCurrent ? '<button class="branch-scope-add" data-br-act="scope-add">+ 섹션</button>' : ''}
           </div>` : '';
 
         const col = getBranchColor(name);
         return `
-        <div class="branch-item ${isCurrent ? 'current' : ''}" data-branch="${name}">
+        <div class="branch-item ${isCurrent ? 'current' : ''}">
           <svg class="branch-item-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="${col.dot}" stroke-width="1.4">
             <circle cx="3" cy="2.5" r="1.5"/><circle cx="3" cy="9.5" r="1.5"/><circle cx="9" cy="5" r="1.5"/>
             <path d="M3 4v4M3 4C3 6 9 4 9 5"/>
           </svg>
-          <span class="branch-item-name">${name}</span>
+          <span class="branch-item-name"></span>
           ${isCurrent ? '<span class="branch-item-badge">현재</span>' : ''}
           <div class="branch-item-actions">
-            ${!isCurrent ? `<button class="branch-action-btn" onclick="switchBranch('${name}')">전환</button>` : ''}
-            ${!isCurrent ? `<button class="branch-action-btn merge" onclick="mergeBranch('${name}')">병합</button>` : ''}
-            ${name !== 'main' && name !== 'dev' ? `<button class="branch-action-btn danger" onclick="deleteBranch('${name}')">✕</button>` : ''}
+            ${!isCurrent ? '<button class="branch-action-btn" data-br-act="switch">전환</button>' : ''}
+            ${!isCurrent ? '<button class="branch-action-btn merge" data-br-act="merge">병합</button>' : ''}
+            ${name !== 'main' && name !== 'dev' ? '<button class="branch-action-btn danger" data-br-act="delete">✕</button>' : ''}
           </div>
         </div>
         ${scopeHtml}`;
@@ -365,11 +373,72 @@ function renderBranchPanel() {
     <div class="branch-section-title">새 브랜치</div>
     <div class="branch-new-form">
       <input class="branch-new-input" id="branch-new-input" placeholder="feature/이름" type="text">
-      <button class="branch-new-btn" onclick="createBranchFromInput()">만들기</button>
+      <button class="branch-new-btn" data-br-act="create">만들기</button>
     </div>`;
+
+  /* ★이름을 «채우는 칸» — 틀에는 안 넣는다 (T-049).
+     행 순서는 sorted 와 1:1 이다(틀이 sorted.map 으로 한 줄씩 냈다). 스코프 목록은
+     그 행 바로 «다음 형제»라 행에서 이름을, 그 목록에서 섹션 아이디를 되짚을 수 있다. */
+  panel.querySelectorAll('.branch-item').forEach((row, i) => {
+    const name = sorted[i];
+    row.dataset.brName = name;
+    row.querySelector('.branch-item-name').textContent = name;
+    const list = row.nextElementSibling;
+    if (!list || !list.classList.contains('branch-scope-list')) return;
+    const scope = store.branches[name]?.scope || [];
+    list.querySelectorAll('.branch-scope-tag').forEach((tag, k) => {
+      const id = scope[k];
+      if (id === undefined) return;
+      tag.dataset.sec = id;
+      const el = document.getElementById(id);
+      const label = el ? (el.querySelector('.section-label')?.textContent?.trim() || id) : id;
+      tag.insertBefore(document.createTextNode(label), tag.firstChild);
+    });
+  });
+  _wireBranchActions();
 
   const input = document.getElementById('branch-new-input');
   if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') createBranchFromInput(); });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   브랜치 패널·드롭다운의 «누름»을 한 자리에서 받는다 (위임). ★한 번만 건다.
+   ⛔전엔 인라인 on* 핸들러가 9벌이었고, 브랜치 이름이 그 속성값 «안의 JS 문자열»에
+     들어갔다. on* 속성값은 HTML 실체참조가 «먼저 풀린 뒤» JS 로 읽히므로,
+     이스케이프를 한 겹 더 씌워도 그 JS 문자열은 안 닫힌다.
+     ⇒ 이 축은 이스케이프로 못 닫는다. 문맥 자체를 없애는 것이 유일한 답이다.
+   ★그리고 이 축엔 «형식 게이트»가 없다 — createBranch(:190~) 는 다듬기와 중복 검사만
+     하고 이름 형식을 안 본다(프로젝트 아이디와 다른 점). 기댈 다리가 없다는 뜻이다.
+   ⛔이름을 «검사»하는 쪽으로 가지 않았다 — 따옴표 든 멀쩡한 이름이 죽는다.
+══════════════════════════════════════════════════════════════════════════ */
+let _brWired = false;
+function _wireBranchActions() {
+  if (_brWired || typeof document === 'undefined') return;
+  _brWired = true;
+  document.addEventListener('click', (e) => {
+    const btn = e.target?.closest?.('[data-br-act]');
+    if (!btn) return;
+    const act = btn.dataset.brAct;
+    if (act === 'manage') { window.switchToTab?.('branch'); closeBranchDropdown(); return; }
+    if (act === 'create') { createBranchFromInput(); return; }
+    const row = btn.closest('.branch-dd-item, .branch-item')
+             || btn.closest('.branch-scope-list')?.previousElementSibling;
+    const name = row?.dataset?.brName;
+    if (name === undefined) return;
+    switch (act) {
+      case 'select':       selectBranchFromDropdown(name); break;
+      case 'switch':       switchBranch(name); break;
+      case 'merge':        mergeBranch(name); break;
+      case 'delete':       deleteBranch(name); break;
+      case 'scope-add':    promptAddSectionToScope(name); break;
+      case 'scope-remove': {
+        e.stopPropagation();
+        const sec = btn.closest('.branch-scope-tag')?.dataset.sec;
+        if (sec !== undefined) removeSectionFromScope(name, sec);
+        break;
+      }
+    }
+  });
 }
 
 function createBranchFromInput() {
@@ -616,8 +685,10 @@ function applyMainLock(branchName) {
         <path d="M5 6V4a2 2 0 0 1 4 0v2"/>
       </svg>
       <span>main은 읽기 전용이에요 — dev에서 작업 후 병합하세요</span>
-      <button onclick="unlockMainBranch()">임시 잠금 해제</button>
+      <button class="main-lock-unlock">임시 잠금 해제</button>
     `;
+    // ★인라인 핸들러를 안 쓴다 (T-049) — 이 배너는 여기서 «한 번» 만들어지므로 직접 건다.
+    banner.querySelector('.main-lock-unlock').addEventListener('click', unlockMainBranch);
     // focus-mode-bar 바로 뒤에 삽입 (같은 레벨 상단 배너)
     const focusBar = document.getElementById('focus-mode-bar');
     if (focusBar) focusBar.insertAdjacentElement('afterend', banner);

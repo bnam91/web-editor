@@ -1,6 +1,6 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { alignBtn } from './_helpers.js';
+import { alignBtn, blockHeaderHTML } from './_helpers.js';
 
 function _stepToken(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -87,23 +87,20 @@ export function showStepProperties(block, activeIdxArg) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <circle cx="2.5" cy="2.5" r="1.5"/>
             <line x1="4.5" y1="2.5" x2="11" y2="2.5"/>
             <circle cx="2.5" cy="6" r="1.5"/>
             <line x1="4.5" y1="6" x2="11" y2="6"/>
             <circle cx="2.5" cy="9.5" r="1.5"/>
             <line x1="4.5" y1="9.5" x2="11" y2="9.5"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Step Block'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Step Block',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
 
     <div class="prop-section">

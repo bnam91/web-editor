@@ -1024,11 +1024,14 @@ function applyTableColHighlight(block) {
   });
 }
 
+/* ★표 칸 이스케이프 — 이 파일에 «두 벌»이 있었다(addTableBlock · updateTableBlock).
+   두 벌은 조용히 갈라진다. 한 벌만 남긴다 (T-049). */
+const _escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 function addTableBlock(opts = {}) {
   // 2026-06-08: opts.headers + opts.rows 데이터 직접 주입 지원 (MCP add_table_block)
   // 2026-07-03(U3): cols/rowCount 빈 그리드, textColor/lineColor/headerBg, highlightCol,
   //   다크 섹션 테마어웨어 기본색 추가.
-  const _escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const applyData = (block) => {
     if (opts.showHeader === false) {
       block.dataset.showHeader = 'false';
@@ -3088,9 +3091,6 @@ function updateTableBlock(blockId, partial = {}) {
   ];
   const _COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
   const _isColor = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64 && _COLOR_RE.test(v.trim());
-  const _escHtml = (s) => String(s ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
   // ── before 스냅샷 ──
   // logical col count 계산: 우선순위 (1) tbody 첫 row의 td 갯수 (가장 신뢰)
   // (2) thead 첫 row의 th 갯수 + colspan sum (병합 보정)

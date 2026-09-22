@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { parseRatio } from './_helpers.js';
+import { parseRatio, blockHeaderHTML } from './_helpers.js';
 
 function _tblTok(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -350,20 +350,17 @@ export function showTableProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="1" width="10" height="10" rx="1"/>
             <line x1="1" y1="4" x2="11" y2="4"/>
             <line x1="5" y1="4" x2="5" y2="11"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Table'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Table',
+      crumb: window.getBlockBreadcrumb(block),
+      id: block.id,
+    })}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Rows / Cols</div>

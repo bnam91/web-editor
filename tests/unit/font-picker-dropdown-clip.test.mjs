@@ -61,6 +61,10 @@ function fakeEl({ rect } = {}) {
 /** wireFontPicker 를 실제 소스로 실행할 수 있는 격리 컨텍스트를 만든다. */
 function loadFontPicker() {
   const utils = strip('js/props/prop-text-utils.js');
+  /* ★2026-09-22 (T-049) — 피커가 _helpers.js 의 escHtml 을 «실제로» 부른다(폰트 표시 이름은
+     설치 폰트에서 오는 글자다). 여기 안 올리면 ReferenceError 가 비동기로 새어
+     「다른 이유」로 빨개진다. 같은 결의 선례: typo-section-ssot.test.mjs. */
+  const helpers = strip('js/props/_helpers.js');
   const picker = strip('js/props/_font-picker.js');
   const store = new Map();
   const ctx = {
@@ -75,7 +79,7 @@ function loadFontPicker() {
   };
   vm.createContext(ctx);
   vm.runInContext(
-    `${utils}\n;${picker}\n;globalThis.__wireFontPicker = wireFontPicker;`,
+    `${utils}\n;${helpers}\n;${picker}\n;globalThis.__wireFontPicker = wireFontPicker;`,
     ctx, { filename: 'js/props/_font-picker.js' },
   );
   return { ctx, wireFontPicker: ctx.__wireFontPicker };

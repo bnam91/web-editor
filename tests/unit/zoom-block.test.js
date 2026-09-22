@@ -75,6 +75,7 @@ const RAW = {
   geom:   readSrc(ROOT, 'js', 'blocks', 'zoom-geometry.js'),
   block:  readSrc(ROOT, 'js', 'blocks', 'zoom-block.js'),
   prop:   readSrc(ROOT, 'js', 'props', 'prop-zoom.js'),
+  helpers: readSrc(ROOT, 'js', 'props', '_helpers.js'),
   editor: readSrc(ROOT, 'js', 'editor.js'),
   layer:  readSrc(ROOT, 'js', 'panels', 'layer-panel-items.js'),
   drag:   readSrc(ROOT, 'js', 'block-drag.js'),
@@ -888,11 +889,23 @@ test('ⓑ-2 [체크리스트②] layer-panel-items.js — 감지·type·labels·
 });
 
 test('ⓑ-3 [체크리스트③] js/props/prop-zoom.js 헤더가 «풀 구조»다', () => {
+  /* ★2026-09-22 (T-049) — 헤더 마크업이 이 파일에서 _helpers.js 의 blockHeaderHTML 로 «옮겨갔다».
+     옛 판은 prop-zoom.js «소스에» 클래스 이름이 박혀 있는지를 봤는데, 그 문장은 SSOT 로 걷은
+     순간 빨개지고 — 그 빨강은 「헤더가 사라졌다」가 아니라 「헤더가 한 자리로 모였다」는 뜻이다.
+     ⇒ 재는 곳을 둘로 나눈다: ⑴ 이 패널이 그 함수를 «실제로 부른다» ⑵ 그 함수가 풀 구조를 «낸다».
+     ⛔검사를 지우지 않았다 — 헤더를 빼면 ⑴이, 틀에서 칸을 지우면 ⑵가 빨개진다. */
   const s = SRC.prop;
-  for (const cls of ['prop-block-label', 'prop-block-icon', 'prop-block-info', 'prop-block-id']) {
-    assert.ok(s.includes(cls), `헤더 풀 구조 누락: ${cls}`);
+  assert.match(s, /import\s*\{[^}]*\bblockHeaderHTML\b[^}]*\}\s*from\s*['"]\.\/_helpers\.js['"]/,
+    'prop-zoom.js 가 헤더 SSOT(_helpers.js blockHeaderHTML)를 import 하지 않는다');
+  assert.match(s, /\$\{blockHeaderHTML\(\{/, 'prop-zoom.js 가 헤더 SSOT 를 부르지 않는다');
+  for (const key of ['icon:', 'name:', 'crumb:', 'id:']) {
+    assert.ok(s.includes(key), `헤더 호출에 ${key} 인자가 없다 — 그 칸이 안 그려진다`);
   }
-  assert.ok(s.includes('prop-block-name') && s.includes('prop-breadcrumb'), '블록명·위치 표기 누락');
+  const h = SRC.helpers;
+  for (const cls of ['prop-block-label', 'prop-block-icon', 'prop-block-info', 'prop-block-id']) {
+    assert.ok(h.includes(cls), `헤더 풀 구조 누락(_helpers.js blockHeaderHTML): ${cls}`);
+  }
+  assert.ok(h.includes('prop-block-name') && h.includes('prop-breadcrumb'), '블록명·위치 표기 누락');
   assert.ok(s.includes('window.showZoomProperties = showZoomProperties'), 'window 노출 없음');
 });
 

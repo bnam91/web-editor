@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 
 export function showJokerProperties(jb) {
   const isAbsolute = jb.style.position === 'absolute';
@@ -12,19 +13,16 @@ export function showJokerProperties(jb) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <circle cx="6" cy="6" r="4.5"/>
             <text x="6" y="9" font-size="7" text-anchor="middle" fill="#888" stroke="none">♠</text>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${jb.dataset.layerName || label}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(jb) || ''}</span>
-        </div>
-        ${jb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${jb.id}')">${jb.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: jb.dataset.layerName,
+      defaultName: label,
+      crumb: window.getBlockBreadcrumb?.(jb) || '',
+      id: jb.id,
+    })}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Position</div>

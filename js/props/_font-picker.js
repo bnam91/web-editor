@@ -17,6 +17,7 @@
  *   queryLocalFonts 는 퍼미션 프롬프트를 띄울 수 있어서 한 번만 부르는 게 맞다.
  */
 import { _pushRecentFont, _fontDisplayName, _fontKey, fontChain } from './prop-text-utils.js';
+import { escHtml } from './_helpers.js';
 
 let _systemFontsList = [];
 
@@ -71,9 +72,12 @@ export function wireFontPicker({ root, p, getCurrent, onPick }) {
   }
 
   function _fpItemHtml(f, isPinned, isSel) {
-    const v = f.value.replace(/"/g, '&quot;');
+    /* ★폰트 «표시 이름»은 설치된 폰트에서 오는 글자다 — 우리가 짓지 않았다 (T-049).
+       옛 판은 value 의 큰따옴표만 덮었다(앰퍼샌드 미포함 = 반쪽). 공용 한 벌로 다섯 글자를 다 덮는다.
+       ⇒ dataset 으로 되읽을 때 브라우저가 풀어 주므로 값은 그대로다. */
+    const v = escHtml(f.value);
     return `<div class="font-item${isSel ? ' selected' : ''}" data-value="${v}">
-      <span class="font-item-name">${f.label}</span>
+      <span class="font-item-name">${escHtml(f.label)}</span>
       <button class="font-item-pin${isPinned ? ' pinned' : ''}" data-pin-value="${v}" title="${isPinned ? '핀 제거' : '핀 고정'}">⭐</button>
     </div>`;
   }

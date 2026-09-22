@@ -1,6 +1,7 @@
 // prop-mockup.js — 디바이스 목업 블록 프로퍼티 패널
 
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C } from '../io/capture-safety.js';
 
 export function showMockupProperties(block) {
@@ -14,19 +15,16 @@ export function showMockupProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.5">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.5">
             <rect x="5" y="2" width="14" height="20" rx="2"/>
             <rect x="8" y="6" width="8" height="10" rx="0.5" fill="#888" stroke="none"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Mockup'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Mockup',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
 
     <!-- 디바이스 선택 -->

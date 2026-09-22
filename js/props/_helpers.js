@@ -308,3 +308,73 @@ export function overlayToggleBtnHTML({ id, active = false, title } = {}) {
           </svg>
         </button>`;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   블록 헤더 SSOT — `.prop-block-label` (아이콘 + 이름 + 브레드크럼 + id)
+   ───────────────────────────────────────────────────────────────────────────
+   ★2026-09-22 (T-049) — 이 틀이 js/props 안에 «33벌» 복붙돼 있었고, 그중 31벌이
+     레이어 이름을 «글자로» 넣지 않고 틀에 그대로 이어붙였다. 이름은 사람·블록 API·MCP·
+     템플릿·파일 수신 다섯 갈래로 들어오므로, 「그리는 자리」가 33곳이면 한 곳만 고쳐도
+     안 고친 것과 같다. ⇒ 그리는 자리를 여기 하나로 모으고, 이름은 이 함수 «안에서
+     한 번만» 글자로 만든다.
+   ⛔이름을 «검사»하지 않는다 — 거절하면 멀쩡한 이름(따옴표·꺾쇠 든 제품명)이 죽는다.
+     항상 통과시키되 항상 글자로 넣는다.
+   ⚠️산출 문자열은 골든 픽스처(tests/fixtures/text-props-golden*.html)가 바이트로 고정한다.
+     prop-text-template.js 의 «추출 직전» 바이트가 이 함수의 정본 모양이다 —
+     들여쓰기·줄바꿈까지 그대로다.
+
+   @param {string} [icon]        `.prop-block-icon` 안에 «그대로» 들어갈 원문(들여쓰기 포함).
+                                 없으면 아이콘 칸 자체를 안 그린다(비교·배너 패널).
+   @param {*}      [name]        사용자가 지은 이름. 비면 defaultName 으로 떨어진다.
+   @param {string} [defaultName] 이름이 없을 때 쓸 기본 표기.
+   @param {string} [crumb]       브레드크럼 문자열. ★undefined 면 칸 자체를 안 그린다
+                                 (행·프레임 패널이 원래 그랬다 — '' 와 구분해야 한다).
+   @param {string} [id]          블록 id(기계가 지은 값). 비면 id 칸을 안 그린다.
+   @param {string} [labelStyle]  `.prop-block-label` 에 붙일 style 속성값(멀티셀렉 전용).
+═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * HTML 특수문자 5종을 전부 덮는다. ★`>` 와 `'` 까지 덮는 것이 이 레포 사본 대부분과 다른 점이다
+ * — 홑따옴표 속성 자리에서 뚫리는 사본이 여럿 있었다(prop-comparison.js 의 옛 `_esc`).
+ * ⛔새 사본을 만들지 말고 이걸 import 해 써라.
+ */
+export function escHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* id 칸 클릭 → 복사. ★«한 번만» 문서에 건다.
+   ⛔전엔 인라인 on* 핸들러였고 값이 그 «속성 안의 JS 문자열»에 들었다 — 문맥이
+     셋(본문·속성·JS)이고, on* 속성값은 HTML 실체참조가 «먼저 풀린 뒤» JS 로 읽히므로
+     이스케이프를 한 겹 더 씌워도 그 JS 문자열은 안 닫힌다. 오늘 이 자리에 실리는 값은 기계가 지은
+     아이디뿐이라 지금 새지는 않지만, 헤더가 한 자리로 모인 김에 «문맥 자체»를 없앤다.
+   ★import 부작용으로 걸지 않는다 — _helpers.js 를 document 없는 vm 에 올려 재는 하네스가 여럿이다
+     (tests/unit/_text-template-harness.js). 첫 헤더를 그릴 때 게으르게 건다. */
+let _copyWired = false;
+function _wireBlockIdCopy() {
+  if (_copyWired || typeof document === 'undefined' || !document.addEventListener) return;
+  _copyWired = true;
+  document.addEventListener('click', (e) => {
+    const el = e.target?.closest?.('.prop-block-id[data-copy-id]');
+    if (el) window._copyToClipboard?.(el.dataset.copyId);
+  });
+}
+
+export function blockHeaderHTML({ icon, name, defaultName = '', crumb, id, labelStyle } = {}) {
+  const shown = (name === undefined || name === null || name === '') ? defaultName : name;
+  if (id) _wireBlockIdCopy();
+  return `      <div class="prop-block-label"${labelStyle ? ` style="${labelStyle}"` : ''}>
+${icon ? `        <div class="prop-block-icon">
+${icon}
+        </div>
+` : ''}        <div class="prop-block-info">
+          <span class="prop-block-name">${escHtml(shown)}</span>${crumb === undefined ? '' : `
+          <span class="prop-breadcrumb">${crumb}</span>`}
+        </div>
+        ${id ? `<span class="prop-block-id" title="클릭하여 복사" data-copy-id="${escHtml(id)}">${escHtml(id)}</span>` : ''}
+      </div>`;
+}
