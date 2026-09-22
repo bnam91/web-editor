@@ -320,6 +320,88 @@ test('XS3 ★싱크 대조군 — 초록이 부르는 esc 함수는 «진짜로�
     '★이름만 esc 이고 꺾쇠를 안 막는 함수가 있다 — 그 함수를 쓰는 자리는 «막힌 게 아니다»');
 });
 
+
+/* ═══════════════════════════════════════════════════════════════════════
+   X9 (G8) — ★esc 사본이 «새로» 나지 않는다
+   ──────────────────────────────────────────────────────────────────────
+   X6 은 「반쪽이냐·한 파일에 둘이냐」를 잰다. 그건 «있는 사본의 품질»이다.
+   여기서 재는 건 다른 양이다 — 「사본이 «늘었나»」. 새 파일에 31번째 사본이 나는 길은
+   X6 이 못 잡는다(그 파일엔 하나뿐이고 두껍게 쓰면 반쪽도 아니다).
+   ⛔«수»로 잠그지 않는다 — 수 하나는 늙는다. «명부»로 잠그되 그 명부는 손으로 적은 게 아니라
+     레포에서 «세어서» 뜬 것이고, 아래 둘이 양쪽에서 문다:
+       ⑴ 명부 «밖»의 정의가 생기면 빨강 — 새 사본이 난 것이다.
+       ⑵ 명부에 있는데 소스에 없으면 빨강 — 합쳤으면 그 줄을 «지워야» 한다.
+     ⇒ 줄 수가 줄기만 하는 래칫이다. 합칠수록 짧아지고, 새로 나면 즉시 빨개진다.
+   ★세는 것은 «이름이 esc 스러운 것»이 아니라 «HTML 실체참조를 만드는 것»이다 —
+     이 레포엔 «Escape 키» 뜻의 _escHandler/_escRaf 가 많아서, 이름으로 세면 그게 곧 오탐이다.
+     (그래서 이 명부는 36줄이다. 이름만으로 세면 84줄이 나온다 — 다른 양이다.)
+   기준: 브랜치 57063f6. 1972a80 대비 «증가 0»(prop-comparison 반쪽 하나 빠지고 _helpers SSOT 하나 남).
+   ═══════════════════════════════════════════════════════════════════════ */
+const ESC_DEFS = [
+  "js/badge-transform.js|escapeHtml",
+  "js/block-factory.js|_escHtml",
+  "js/block-factory.js|esc",
+  "js/blocks/grid-block.js|_esc",
+  "js/blocks/infocard-block.js|_esc",
+  "js/blocks/laurel-block.js|_escLaurelText",
+  "js/blocks/modal-block.js|_esc",
+  "js/blocks/qa-block.js|_escHtml",
+  "js/checklist-data.js|_escHtml",
+  "js/component-shelf.js|_escHtml",
+  "js/drag-utils.js|_escGraphHtml",
+  "js/io/font-substitute.js|_esc",
+  "js/io/import-figma-json.js|_escapeAttr",
+  "js/io/import-figma-json.js|_escapeHtml",
+  "js/market.js|_esc",
+  "js/panels/iconify-panel.js|_escAttr",
+  "js/panels/template-browser.js|_esc",
+  "js/panels/template-system.js|escHtml",
+  "js/props/_helpers.js|escHtml",
+  "js/props/prop-annotation.js|_escape",
+  "js/props/prop-banner02.js|_escAttr",
+  "js/props/prop-infocard.js|_esc",
+  "js/props/prop-innercard.js|_esc",
+  "js/props/prop-laurel.js|_esc",
+  "js/props/prop-qa.js|_esc",
+  "js/props/prop-simple-card.js|_escHtml",
+  "js/props/prop-sticker.js|_esc",
+  "js/props/prop-zoom.js|_esc",
+  "js/report-modal.js|esc",
+  "js/section-protection.js|_escapeHtml",
+  "js/settings/settings-admin.js|esc",
+  "js/settings/settings-modal.js|_escapeHtml",
+  "js/version-history-ui.js|_esc",
+  "js/version-history-ui.js|_escHandler",
+  "pages/projects.html|_escHtml",
+  "pages/projects.html|esc",
+];
+
+test('X9 ★esc 사본이 늘지도, 죽은 채 남지도 않는다', () => {
+  const found = [];
+  for (const f of sources()) {
+    const re = /\b(?:const|let|var|function)\s+([A-Za-z_$][\w$]*)\s*[=(]/g;
+    let m;
+    while ((m = re.exec(f.raw))) {
+      if (!/(?:^|_)(?:esc|escape|sanitiz|htmlsafe)/i.test(m[1])) continue;
+      if (!/&(?:amp|lt|gt|quot|#\d+|#x[0-9a-f]+);/i.test(f.raw.slice(m.index, m.index + 600))) continue;
+      found.push(`${f.rel}|${m[1]}`);
+    }
+  }
+  const now = new Set(found);
+  const known = new Set(ESC_DEFS);
+  const added = [...now].filter(k => !known.has(k)).sort();
+  const gone = [...known].filter(k => !now.has(k)).sort();
+
+  assert.deepEqual(added, [],
+    `★HTML 이스케이프 사본이 «새로» 났다 — ${added.length}벌. ` +
+    '⛔새로 만들지 말고 js/props/_helpers.js 의 escHtml 을 쓰거나, ' +
+    '이름을 «항상 글자»로 넣는 쪽(textContent/value/createTextNode)으로 가라. ' +
+    '정말 필요하면 ESC_DEFS 에 올리되 «왜 정본을 못 쓰는지»를 그 줄에 적어라:\n  ' + added.join('\n  '));
+  assert.deepEqual(gone, [],
+    `★합쳐서 없어진 사본이 명부에 남아 있다 — 그 줄을 지워라(남은 ${known.size - gone.length}벌). ` +
+    '안 지우면 다음에 같은 자리에 사본이 나도 조용히 통과한다:\n  ' + gone.join('\n  '));
+});
+
 /* ═══════════════════════════════════════════════════════════════════════
    XS4 — ★계측기가 «자기 눈»을 잰다
    ──────────────────────────────────────────────────────────────────────
@@ -343,9 +425,13 @@ test('XS4 ★주석 제거기가 «코드»를 먹는 자리가 없다', () => {
       bad.push(`${f.rel}:${i + 1}  줄 주석 안에 블록 주석 여는 표기가 있다`);
     });
   }
-  /* 실제로 코드가 지워졌는지까지 «같이» 보인다 — 표기만으로 겁주지 않으려고. */
+  /* 실제로 코드가 지워졌는지까지 «같이» 보인다 — 표기만으로 겁주지 않으려고.
+     ⛔«걸린 파일»에서만 센다. 전 파일에서 세면 «블록 주석 안의 예시 코드»까지
+       「가려졌다」로 읽혀 겁만 준다(실측: js/drag-history.js 의 머리 주석 속 예시 3줄).
+       가려진 결과는 위 bad 의 «증거»지 그 자체로 판정이 아니다. */
+  const suspects = new Set(bad.map(b => b.split(':')[0]));
   const eaten = [];
-  for (const f of sources()) {
+  for (const f of sources().filter(x => suspects.has(x.rel))) {
     const R = f.raw.split('\n'), C = stripComments(f.raw).split('\n');   // ★공용 제거기 그대로
     let n = 0;
     for (let i = 0; i < R.length; i++) {
