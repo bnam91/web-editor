@@ -293,6 +293,18 @@ async function _doSearch(query, prefix) {
   }
 }
 
+/* ★[2026-09-22] 미리보기를 «묶음»으로 받는다 — 낱개 <img> 는 서버가 막는다(429).
+   ⛔무엇이 있었나: 검색 한 번이 limit=80 이라, 옛 판은 `/{set}/{name}.svg` 를 «최대 80개 동시»로 쐈다.
+     api.iconify.design 이 속도 제한을 걸어 전부 429 로 떨어지고, 격자가 통째로 «깨진 그림»이 됐다.
+     실측(2026-09-22, 현빈 제보 「warn」): 낱개 svg = HTTP 429 `retry-after: 197`(3분 넘게 막힌다).
+     ⇒ ★검색(`/search`)은 200 이었다. 그래서 「검색은 되는데 그림만 안 나온다」로 보인다.
+   ⇒ 고침: 같은 «아이콘 세트»끼리 묶어 `/{set}.json?icons=a,b,c` 를 «세트당 한 번» 부른다.
+     실측으로 80요청 → 보통 5~10요청이 된다. 응답이 각 아이콘의 svg 몸통을 그대로 주므로
+     인라인 <svg> 로 그린다(요청 0회 · 즉시 표시).
+   ⛔낱개 <img> 폴백을 지우지 마라 — 묶음이 실패해도 «서버가 회복되면 저절로» 그려지는 길이다.
+     (같은 규율이 :384 의 삽입 경로에도 있다.) */
+const _ICONIFY_BODY = new Map();   // 'set:name' → { body, w, h } · 검색 사이에도 남는다(같은 걸 두 번 안 받는다)
+
 function _renderGrid(icons) {
   const grid = document.getElementById('iconify-grid');
   if (!icons.length) { _setGridMessage('검색 결과가 없습니다.'); return; }
@@ -300,14 +312,65 @@ function _renderGrid(icons) {
   grid.innerHTML = icons.map(name => {
     const [prefix, iconName] = name.split(':');
     const svgUrl = `${ICONIFY_API}/${prefix}/${iconName}.svg`;
+    const hit = _ICONIFY_BODY.get(name);
+    /* 이미 몸통을 아는 것은 인라인으로, 모르는 것은 <img> 로 두고 아래에서 채운다. */
+    const inner = hit
+      ? `<svg viewBox="0 0 ${hit.w} ${hit.h}" width="24" height="24" style="color:#bfbfbf;pointer-events:none;">${hit.body}</svg>`
+      : `<img src="${_escAttr(svgUrl)}" width="24" height="24" style="filter:invert(0.75);pointer-events:none;" loading="lazy" alt="${_escAttr(name)}">`;
     return `
       <div class="iconify-icon-cell" data-icon-name="${_escAttr(name)}"
         style="aspect-ratio:1;background:#111;border:1px solid #222;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:border-color 0.1s,background 0.1s;"
         title="${_escAttr(name)}">
-        <img src="${_escAttr(svgUrl)}" width="24" height="24" style="filter:invert(0.75);pointer-events:none;" loading="lazy" alt="${_escAttr(name)}">
+        ${inner}
       </div>
     `;
   }).join('');
+
+  _fillPreviews(icons, grid);
+}
+
+/** 세트별로 묶어 몸통을 받아 와 «인라인 svg» 로 갈아 끼운다. 실패하면 <img> 가 그대로 남는다. */
+async function _fillPreviews(icons, grid) {
+  const bySet = new Map();
+  for (const full of icons) {
+    if (_ICONIFY_BODY.has(full)) continue;
+    const i = full.indexOf(':');
+    if (i < 0) continue;
+    const set = full.slice(0, i), nm = full.slice(i + 1);
+    if (!bySet.has(set)) bySet.set(set, []);
+    bySet.get(set).push(nm);
+  }
+  if (!bySet.size) return;
+
+  await Promise.all([...bySet].map(async ([set, names]) => {
+    try {
+      /* ⚠️URL 이 너무 길면 서버가 거른다 — 세트당 100개씩 끊는다(검색 상한이 80이라 보통 한 덩이다). */
+      for (let i = 0; i < names.length; i += 100) {
+        const chunk = names.slice(i, i + 100);
+        const res = await fetch(`${ICONIFY_API}/${set}.json?icons=${chunk.map(encodeURIComponent).join(',')}`);
+        if (!res.ok) return;                       // 429 등 — <img> 폴백에 맡긴다
+        const d = await res.json();
+        const W = Number(d.width) || 24, H = Number(d.height) || 24;
+        for (const [nm, ic] of Object.entries(d.icons || {})) {
+          if (ic && ic.body) _ICONIFY_BODY.set(`${set}:${nm}`, { body: ic.body, w: Number(ic.width) || W, h: Number(ic.height) || H });
+        }
+        /* ★별칭(aliases) — 검색이 준 이름이 별칭이면 «부모»의 몸통을 그대로 쓴다.
+           안 하면 그 칸만 영영 깨진 그림으로 남는다. */
+        for (const [al, def] of Object.entries(d.aliases || {})) {
+          const parent = _ICONIFY_BODY.get(`${set}:${def && def.parent}`);
+          if (parent) _ICONIFY_BODY.set(`${set}:${al}`, parent);
+        }
+      }
+    } catch { /* 폴백 유지 */ }
+  }));
+
+  /* 받은 것만 갈아 끼운다 — 격자를 다시 그리지 않는다(선택 상태·스크롤이 날아간다). */
+  for (const cell of grid.querySelectorAll('.iconify-icon-cell')) {
+    const full = cell.dataset.iconName;
+    const hit = _ICONIFY_BODY.get(full);
+    if (!hit || cell.querySelector('svg')) continue;
+    cell.innerHTML = `<svg viewBox="0 0 ${hit.w} ${hit.h}" width="24" height="24" style="color:#bfbfbf;pointer-events:none;">${hit.body}</svg>`;
+  }
 }
 
 function _setGridMessage(msg) {
