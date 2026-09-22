@@ -1066,12 +1066,12 @@ function _grdWireTypo(block, addr) {
 }
 
 /* ══ 「줄 꾸미기」 절 — «그 줄 하나»에만 걸리는 것들 (줄 정렬 · 알약 배경) ═══════
- * ★줄 정렬 — 글자 줄 렌더러는 `line.align || colAlign || 'left'` 로 «줄 값이 열 값을 가린다».
- *   모델도 렌더도 되는데 패널엔 «열 단위» 정렬 하나뿐이라, 한 줄만 가운데로 놓을 길이 없었다.
- *   ⚠️★«이미지 줄»은 아직 안 낸다 — 렌더러의 이미지 분기는 line.align 을 «아예 안 읽는다»
- *     (alignCss 가 colAlign 만 보고, 그나마 widthPct<100 일 때만). 지금 손잡이를 내면
- *     「눌리는데 안 먹는」 칸이 된다. 렌더러 유닛이 그 자리를 고치는 중이고, 들어오면
- *     _GRD_LINE_ALIGN_KINDS 에 'image' «한 낱말»을 더하면 된다. ⇒ 그때까지 E11-b 는 빨강이 정상.
+ * ★줄 정렬 — 렌더러는 글자 줄도 그림 줄도 `line.align || colAlign || 'left'` 로 «줄 값이 열 값을
+ *   가린다». 모델도 렌더도 되는데 패널엔 «열 단위» 정렬 하나뿐이라, 한 줄만 가운데로 놓을 길이 없었다.
+ *   ⚠️★그림 줄에는 «폭이 꽉 차면 움직일 데가 없다» — 렌더러가 `widthPct < 100` 일 때만
+ *     margin-inline 을 건다(꽉 찬 그림에 여백을 붙이면 기존 저장본의 산출이 바뀐다 — 그쪽 그물이
+ *     폭 100% 여섯 칸을 「바이트 동일」로 잠가 뒀다). ⇒ 그 사실을 «손잡이 옆에 적는다».
+ *     ⛔안 적으면 사용자가 「눌리는데 안 먹는다」로 겪는다 — 이 카드가 정확히 그 말로 시작했다.
  *
  * ★알약 — `line.bg` 가 있으면 _gridLineHtml 이 `if (bg)` 분기로 가 inline-block ＋ padding ＋
  *   border-radius:999px 로 그린다. 「글자 배경」이 아니라 «알약»이다.
@@ -1084,12 +1084,15 @@ function _grdWireTypo(block, addr) {
  *
  * ★접힘 기본 — 칸 꾸미기와 «같은 부품·같은 집»(_grdDisclosureHtml · _grdOpenSections).
  *   ⛔절을 하나 더 «펼친 채로» 내면 순증 예산(Δ≤+60)을 그 자리에서 넘긴다(실측으로 확인). */
-const _GRD_LINE_ALIGN_KINDS = new Set(_GRD_ROLE_KINDS);
+const _GRD_LINE_ALIGN_KINDS = new Set([..._GRD_ROLE_KINDS, 'image']);
 
 function _grdLineSectionHtml(anyHit, block) {
   if (!anyHit || anyHit.li === null || !anyHit.line) return '';
   const { r, c, li, line } = anyHit;
   const canAlign = _GRD_LINE_ALIGN_KINDS.has(line.type || 'body');
+  /* ★그림 줄은 «폭이 꽉 차면» 정렬이 안 보인다 — 렌더러의 wp<100 가드가 «의도»다.
+     지금 그 줄이 실제로 꽉 차 있을 때만 말한다(늘 띄우면 잔소리가 되고 아무도 안 읽는다). */
+  const imgFull = (line.type === 'image') && !(Number(line.widthPct) < 100);
   const isText = gridLineHasText(line);
   if (!canAlign && !isText) return '';               // 갭 줄 — 줄 단위로 줄 것이 없다
   const open = _grdSecOpen(block, 'line');
@@ -1104,7 +1107,7 @@ ${_grdDisclosureHtml('grd-line-toggle', `줄 꾸미기 · ${li + 1}번째 줄`, 
         ${canAlign ? `<div class="prop-row">
           <span class="prop-label" title="이 «줄»만 정렬한다(기본 = 열을 따른다). 열 정렬 단추는 그 열 전체다">줄 정렬</span>
           <select class="prop-select" id="grd-line-align">${_grdOptsHtml(_GRD_CELL_ALIGNS, line.align)}</select>
-        </div>` : ''}
+        </div>${imgFull ? `<div class="prop-hint" style="text-align:left;padding:0 0 6px;">그림 폭이 100%라 정렬이 안 보인다 — 줄일 데가 없어서다. 코너를 끌어 폭을 줄이면 움직인다.</div>` : ''}` : ''}
         ${isText ? `<div class="prop-row" style="margin-bottom:0;">
           <span class="prop-label" title="배경을 주면 이 줄이 «알약»(둥근 인라인 배지)이 된다. 비우면 꺼진다.">알약 배경</span>
           <div class="prop-color-swatch${raw ? '' : ' swatch-none'}"${raw ? ` style="background:${raw}"` : ''}>
