@@ -326,8 +326,7 @@ const _grdAddKindSelectHtml = () => `
  *  ★명부는 ①추가와 «같은 _GRD_KINDS» 다 — 아이콘·여백으로도 바꿀 수 있어야 「추가로는 되는데
  *    바꾸기로는 안 되는 종류」가 안 생긴다(M7). */
 const _grdKindSelectHtml = (line) => `
-        <select class="prop-select" id="grd-line-kind" style="flex:0 1 82px;min-width:0;width:auto;"
-                title="이 줄의 종류를 바꾼다">
+        <select class="prop-select" id="grd-line-kind" title="이 줄의 종류를 바꾼다">
           ${_grdKindOptsHtml(_GRD_KINDS, line.type || 'body')}
         </select>`;
 
@@ -420,14 +419,17 @@ ${_grdAddKindSelectHtml()}
   let cellLineCount = 1;
   try { cellLineCount = (getGridModel(block).cells?.[r]?.[c]?.lines || []).length || 1; } catch (_) {}
   const canDeleteLine = cellLineCount > 1;
-  /* ★[종류 ▾] 는 «요약 줄»에 붙인다 — 단추 줄(206px)에 끼우면 240px 패널을 넘는다.
-     요약은 그만큼 좁아지므로 말줄임으로 흘린다(flex:1 1 0 + min-width:0 이 있어야 실제로 준다). */
+  /* ★[종류 ▾] 는 여기 «없다» — 아래 「줄 꾸미기」 절로 옮겼다(2026-09-23 실측).
+       ⛔단추 줄(206px)에 끼우면 240px 패널을 넘고, «요약 줄»에 붙이면 요약이 123px 로 잘리는 데다
+         줄바 절의 컨트롤이 두 줄에 걸쳐 G2 ⑸(「줄바 단추가 한 줄을 유지한다」)가 빨개진다.
+         ⇒ 「이 줄의 종류」는 「이 줄 꾸미기」에 산다 — 자리가 뜻과도 맞고, 접힌 절이라 0px 다.
+       ⇒ 요약은 폭을 되찾는다(123 → 211). 긴 글자는 그대로 말줄임으로 흘린다. */
+  void line;
   return `
     <div class="prop-section" style="padding-bottom:4px;">
       <div class="prop-row" style="align-items:center;gap:6px;">
         <span class="prop-hint" id="grd-line-summary" title="${summary}"
               style="flex:1 1 0;min-width:0;padding:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${summary}</span>
-${_grdKindSelectHtml(line)}
       </div>
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">
 ${_grdAddKindSelectHtml()}
@@ -1096,11 +1098,12 @@ function _grdLineSectionHtml(anyHit, block) {
   if (!anyHit || anyHit.li === null || !anyHit.line) return '';
   const { r, c, li, line } = anyHit;
   const canAlign = _GRD_LINE_ALIGN_KINDS.has(line.type || 'body');
+  void block;
   /* ★그림 줄은 «폭이 꽉 차면» 정렬이 안 보인다 — 렌더러의 wp<100 가드가 «의도»다.
      지금 그 줄이 실제로 꽉 차 있을 때만 말한다(늘 띄우면 잔소리가 되고 아무도 안 읽는다). */
   const imgFull = (line.type === 'image') && !(Number(line.widthPct) < 100);
   const isText = gridLineHasText(line);
-  if (!canAlign && !isText) return '';               // 갭 줄 — 줄 단위로 줄 것이 없다
+  /* ⛔여기서 일찍 빠지지 마라 — 갭 줄에도 «종류 바꾸기»는 있어야 한다(되돌아갈 길). */
   const open = _grdSecOpen(block, 'line');
   const raw = (typeof line.bg === 'string' && GRID_COLOR_RE.test(String(line.bg).trim()))
     ? String(line.bg).trim() : '';
@@ -1110,6 +1113,10 @@ function _grdLineSectionHtml(anyHit, block) {
     <div class="prop-section"${open ? '' : ' style="padding-bottom:0;"'}>
 ${_grdDisclosureHtml('grd-line-toggle', `줄 꾸미기 · ${li + 1}번째 줄`, open)}
       <div id="grd-line-body" style="display:${open ? 'block' : 'none'};">
+        <div class="prop-row">
+          <span class="prop-label" title="이 줄의 종류를 바꾼다(글자 역할 · 아이콘 · 여백)">줄 종류</span>
+${_grdKindSelectHtml(line)}
+        </div>
         ${canAlign ? `<div class="prop-row">
           <span class="prop-label" title="이 «줄»만 정렬한다(기본 = 열을 따른다). 열 정렬 단추는 그 열 전체다">줄 정렬</span>
           <select class="prop-select" id="grd-line-align">${_grdOptsHtml(_GRD_CELL_ALIGNS, line.align)}</select>
