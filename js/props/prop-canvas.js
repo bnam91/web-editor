@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { wireHexText, parseHex6OrTransparent, formatHex6OrTransparent } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 
 export function showCanvasProperties(block) {
@@ -21,7 +21,7 @@ export function showCanvasProperties(block) {
       return `
         <div class="cvb-layer-row" data-index="${i}">
           <span class="cvb-layer-icon">▬</span>
-          <span class="cvb-layer-name">${layer.label || 'Shape'}</span>
+          <span class="cvb-layer-name">${escHtml(layer.label || 'Shape')}</span>
           <div class="prop-color-swatch cvb-layer-swatch" style="background:${layer.color || '#ccc'}">
             <input type="color" class="cvb-color-pick" data-index="${i}" value="${layer.color || '#cccccc'}">
           </div>
@@ -31,7 +31,7 @@ export function showCanvasProperties(block) {
       return `
         <div class="cvb-layer-row" data-index="${i}">
           <span class="cvb-layer-icon">🖼</span>
-          <span class="cvb-layer-name">${layer.label || 'Image'}</span>
+          <span class="cvb-layer-name">${escHtml(layer.label || 'Image')}</span>
           <button class="cvb-img-upload-btn prop-btn" data-index="${i}" title="이미지 업로드">
             ${hasSrc ? '교체' : '추가'}
           </button>
@@ -41,7 +41,7 @@ export function showCanvasProperties(block) {
       return `
         <div class="cvb-layer-row" data-index="${i}">
           <span class="cvb-layer-icon">T</span>
-          <span class="cvb-layer-name">${(layer.content || '').slice(0, 12).replace(/\n/g, '↵') || 'Text'}</span>
+          <span class="cvb-layer-name">${escHtml((layer.content || '').slice(0, 12).replace(/\n/g, '↵') || 'Text')}</span>
           <div class="prop-color-swatch cvb-layer-swatch" style="background:${layer.color || '#000'}">
             <input type="color" class="cvb-color-pick" data-index="${i}" value="${layer.color || '#000000'}">
           </div>

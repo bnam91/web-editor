@@ -1,7 +1,7 @@
 // prop-annotation.js — 어노테이션 우측 속성 패널
 // 프리셋 / 선 / 시작점 / 라벨 (디자인 시스템 공용 컴포넌트 사용)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 // ── 프리셋 ───────────────────────────────────────────────────────────────
@@ -196,13 +196,13 @@ export function showAnnotationProperties(block) {
 
   // 프리셋: 공용 .prop-preset-grid + .prop-preset-btn + .prop-preset-swatches(3 dots)
   const presetBtns = ANNOTATION_PRESETS.map((p, i) => `
-    <button class="prop-preset-btn" data-preset-idx="${i}" title="${p.name}">
+    <button class="prop-preset-btn" data-preset-idx="${i}" title="${escHtml(p.name)}">
       <div class="prop-preset-swatches">
         <span class="prop-preset-dot" style="background:${p.strokeColor};"></span>
         <span class="prop-preset-dot" style="background:${p.labelBg};"></span>
         <span class="prop-preset-dot" style="background:${p.labelBorderColor};"></span>
       </div>
-      <span class="prop-preset-name">${p.name}</span>
+      <span class="prop-preset-name">${escHtml(p.name)}</span>
     </button>
   `).join('');
 

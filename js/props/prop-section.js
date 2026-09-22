@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
@@ -217,7 +217,7 @@ async function showSectionProperties(sec) {
   // section memo (P/G/E + Codex 리뷰) — dataset.memo ↔ textarea 양방향 바인딩.
   // 메모는 섹션 툴바 📝 버튼(section-memo.js popover)에서 편집·data-memo로 영속화됨 — prop 패널에는 없음.
   const presetSelectHTML = PRESETS.map(p =>
-    `<option value="${p.id}"${p.id === currentPreset ? ' selected' : ''}>${p.name}</option>`
+    `<option value="${escHtml(p.id)}"${p.id === currentPreset ? ' selected' : ''}>${escHtml(p.name)}</option>`
   ).join('');
 
   propPanel.innerHTML = `
