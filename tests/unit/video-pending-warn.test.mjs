@@ -203,3 +203,43 @@ test('S-11 «안 사라지는» 자리에는 알리지 않는다 — 페이지 �
   assert.ok(!/warnPendingVideoLoss/.test(sp),
     'switchPage 가 알림을 부른다 — 페이지 전환에선 영상이 안 사라진다(사이드카가 되살린다)');
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   S-12·S-13 — 「한 번만」 래치의 «거짓음성» (T-032, 2026-09-22 검수 실측)
+   ──────────────────────────────────────────────────────────────────────────
+   무엇이 있었나: ✕로 영상을 비운 뒤 «같은 파일»을 다시 넣으면 경고가 «0회»인데
+     저장하면 영상이 실제로 사라진다.
+     깨끗한 판 재현 — ①래치 풀고 ⌘S → 「⚠️ 영상이 아직 GIF로…」 ②✕로 비움 ③같은 파일 재삽입
+     ④⌘S → 「💾 저장됨」만, 경고 0회, 저장본 `data:video` 0건.
+   ★양성대조: ③에서 «다른» 영상을 넣으면 ④에서 경고가 다시 뜬다
+     ⇒ 원인은 «환경»이 아니라 «내용 신원 충돌»이다.
+   까닭 — 래치는 내용 신원(길이＋꼬리 32자)으로 걸리는데, ✕로 비우는 자리에서는
+     warnPendingVideoLossIf 가 «안 불려» 래치가 안 풀린다. 같은 파일은 신원이 같다.
+   ⛔★이것이 조용한 데이터 소실이다 — 경고가 «안 뜨는 것»이 「안전하다」로 읽힌다.
+     오늘 여러 번 나온 「실패가 정상처럼 생긴 것」의 한 꼴이고, 여기선 «아무것도 안 나오는 것»이
+     그 모습이다.
+   ⇒ 고침: 미확정 영상을 «없애는» 자리에서 래치를 푼다.
+     신원으로 거는 래치는 «없어졌다»를 스스로 못 보므로, 없애는 쪽이 알려 줘야 한다.
+═══════════════════════════════════════════════════════════════════════════ */
+test('S-12 ★비우는 자리가 래치를 «푼다» (같은 파일을 다시 넣어도 다시 알리게)', () => {
+  const ih = stripComments(readSrc(REPO, 'js', 'image-handling.js'));
+  const fn = sliceBlock(ih, 'function clearAssetImage(', '영상·이미지 비우기');
+  assert.match(fn, /resetPendingVideoWarnLatch\s*\?\.\(|resetPendingVideoWarnLatch\s*\(/,
+    '★비우는 자리가 래치를 안 푼다 — 같은 파일을 다시 넣으면 신원이 같아 「이미 알렸다」로 ' +
+    '넘어가고, 경고 0회인 채로 저장하면 영상이 사라진다(조용한 소실)');
+  /* ⛔순서 — 되돌리기를 찍기 «전»이든 뒤든 상관없지만, 비우기가 «끝난 뒤»면 안 된다
+     (그 사이에 다른 경로가 판정을 부르면 이미 늦다). 여기선 맨 앞인지만 못 박는다. */
+  const iReset = fn.indexOf('resetPendingVideoWarnLatch');
+  const iInner = fn.indexOf('delete ab.dataset.imgSrc');
+  assert.ok(iReset > -1 && iInner > -1 && iReset < iInner,
+    '★래치 해제가 «영상을 지운 뒤»에 있다 — 지우는 순간과 알리는 순간 사이가 벌어진다');
+});
+
+test('S-13 ★음성대조 — 그 호출만 들어내면 S-12 가 실제로 빨개진다', () => {
+  const ih = stripComments(readSrc(REPO, 'js', 'image-handling.js'));
+  const mutated = ih.replace(/window\.resetPendingVideoWarnLatch\?\.\(\)/g, 'void 0');
+  assert.notEqual(mutated, ih, '★변환이 늙었다 — 호출 꼴을 못 찾았다(S-12 를 먼저 봐라)');
+  const fn = sliceBlock(mutated, 'function clearAssetImage(', '영상·이미지 비우기');
+  assert.equal(/resetPendingVideoWarnLatch/.test(fn), false,
+    '★호출을 지웠는데도 S-12 가 찾아낸다 — S-12 의 초록은 «있어서»가 아니라 «못 봐서»다');
+});
