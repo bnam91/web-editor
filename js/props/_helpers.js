@@ -347,8 +347,26 @@ export function escHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
+/* id 칸 클릭 → 복사. ★«한 번만» 문서에 건다.
+   ⛔전엔 `onclick="_copyToClipboard('${id}')"` 였다 — 값이 «HTML 속성 안의 인라인 JS 문자열»이라
+     문맥이 셋(본문·속성·JS)이고, on* 속성값은 HTML 실체참조가 «먼저 풀린 뒤» JS 로 읽히므로
+     이스케이프를 한 겹 더 씌워도 그 JS 문자열은 안 닫힌다. 오늘 이 자리에 실리는 값은 기계가 지은
+     아이디뿐이라 지금 새지는 않지만, 헤더가 한 자리로 모인 김에 «문맥 자체»를 없앤다.
+   ★import 부작용으로 걸지 않는다 — _helpers.js 를 document 없는 vm 에 올려 재는 하네스가 여럿이다
+     (tests/unit/_text-template-harness.js). 첫 헤더를 그릴 때 게으르게 건다. */
+let _copyWired = false;
+function _wireBlockIdCopy() {
+  if (_copyWired || typeof document === 'undefined' || !document.addEventListener) return;
+  _copyWired = true;
+  document.addEventListener('click', (e) => {
+    const el = e.target?.closest?.('.prop-block-id[data-copy-id]');
+    if (el) window._copyToClipboard?.(el.dataset.copyId);
+  });
+}
+
 export function blockHeaderHTML({ icon, name, defaultName = '', crumb, id, labelStyle } = {}) {
   const shown = (name === undefined || name === null || name === '') ? defaultName : name;
+  if (id) _wireBlockIdCopy();
   return `      <div class="prop-block-label"${labelStyle ? ` style="${labelStyle}"` : ''}>
 ${icon ? `        <div class="prop-block-icon">
 ${icon}
@@ -357,6 +375,6 @@ ${icon}
           <span class="prop-block-name">${escHtml(shown)}</span>${crumb === undefined ? '' : `
           <span class="prop-breadcrumb">${crumb}</span>`}
         </div>
-        ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${id}')">${id}</span>` : ''}
+        ${id ? `<span class="prop-block-id" title="클릭하여 복사" data-copy-id="${escHtml(id)}">${escHtml(id)}</span>` : ''}
       </div>`;
 }
