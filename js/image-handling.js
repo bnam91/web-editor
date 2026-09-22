@@ -764,6 +764,11 @@ function toggleAssetGifPlayback(ab) {
 
 function clearAssetImage(ab) {
   exitImageEditMode(ab);
+  /* ★미확정 영상을 없애면 «한 번만 알린다» 래치를 푼다 (T-032 거짓음성, 2026-09-22 검수 실측).
+     래치는 내용 신원으로 걸린다 — ✕로 비우고 «같은 파일»을 다시 넣으면 신원이 같아서
+     「이미 알렸다」로 넘어가고, 경고 0회인 채로 저장하면 영상이 사라진다.
+     ⛔경고가 «안 뜨는 것»이 「안전하다」로 읽히는 자리다. 없애는 쪽이 알려 줘야 한다. */
+  window.resetPendingVideoWarnLatch?.();
   pushHistory();
   ab.classList.remove('has-image');
   delete ab.dataset.imgSrc;
