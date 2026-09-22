@@ -1,5 +1,6 @@
 // prop-comparison.js — 비교 블록 우측 프로퍼티 패널 (N칼럼: 1:1, 1:1:1 …)
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, CMP_PLACEHOLDER_TITLE, CMP_PLACEHOLDER_ROW } from '../blocks/comparison-block.js';
 
@@ -80,13 +81,12 @@ export function showComparisonProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-info">
-          <span class="prop-block-name">${_esc(d.layerName) || 'Comparison'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="복사" onclick="_copyToClipboard && _copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+${blockHeaderHTML({
+      name: d.layerName,
+      defaultName: 'Comparison',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">강조 칼럼 (떠보이는 쪽)</div>

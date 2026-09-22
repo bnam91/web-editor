@@ -3,7 +3,7 @@
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { bindSlider, alignBtn } from './_helpers.js';
+import { bindSlider, alignBtn, blockHeaderHTML } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 
@@ -37,15 +37,12 @@ function _headerHTML(el, mode) {
   const defaultName = isBanner ? 'Banner' : 'Frame';
   return `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          ${icon}
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${el.dataset.layerName || defaultName}</span>
-        </div>
-        ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${id}')">${id}</span>` : ''}
-      </div>
+${blockHeaderHTML({
+      icon: `          ${icon}`,
+      name: el.dataset.layerName,
+      defaultName: defaultName,
+      id: id,
+    })}
     </div>`;
 }
 

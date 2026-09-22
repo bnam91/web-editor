@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { wireHexText, parseHex6OrTransparent, formatHex6OrTransparent } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 
 export function showCanvasProperties(block) {
@@ -52,20 +53,17 @@ export function showCanvasProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="1" width="10" height="10" rx="2"/>
             <rect x="3" y="3" width="3" height="6" rx="0.5" fill="#888" stroke="none"/>
             <rect x="7" y="3" width="2" height="3" rx="0.5" fill="#888" stroke="none"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Canvas Block'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Canvas Block',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
 
     <div class="prop-section">

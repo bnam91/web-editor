@@ -11,7 +11,7 @@
 //   - 높이 슬라이더 (50~1500, 디폴트 300)
 
 import { propPanel } from '../globals.js';
-import { bindSlider } from './_helpers.js';
+import { bindSlider, blockHeaderHTML } from './_helpers.js';
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 
 const DIRS = [
@@ -42,9 +42,8 @@ export function showGradientProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+${blockHeaderHTML({
+      icon: `          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <defs>
               <linearGradient id="grad-ico" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%"   stop-color="#888" stop-opacity="1"/>
@@ -52,14 +51,12 @@ export function showGradientProperties(block) {
               </linearGradient>
             </defs>
             <rect x="1" y="1" width="12" height="12" fill="url(#grad-ico)" stroke="#888" stroke-width="0.6"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Gradient'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Gradient',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
 
     <div class="prop-section">

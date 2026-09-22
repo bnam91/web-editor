@@ -3,6 +3,7 @@
    항목 텍스트도 카드 폭에 눌려 읽기 힘들 수 있어(현빈 2026-09-16 지적, qa_ts0he_3hihtxr),
    패널에서는 줄바꿈 제한 없이 전체 텍스트를 보여준다. gap-block(prop-gap.js) 과 같은 얼개. */
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 
 /* qa-block.js 의 _escHtml 과 동일 — 모듈이 갈려 있어 import 대신 짧은 사본을 둔다(5종 이스케이프뿐). */
 function _esc(s) {
@@ -40,18 +41,15 @@ export function showQAProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V3.5a2 2 0 0 1 4 0v2"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'QA Block'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'QA Block',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">QA Ticket</div>

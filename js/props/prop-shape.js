@@ -1,7 +1,7 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { svgStopRemap } from './gradient-model.js';
-import { overlayToggleBtnHTML } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
@@ -112,14 +112,13 @@ export function showShapeProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">${iconSvg}</div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || shapeName}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${id}')">${id}</span>` : ''}
-      </div>
+${blockHeaderHTML({
+      icon: `          ${iconSvg}`,
+      name: block.dataset.layerName,
+      defaultName: shapeName,
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: id,
+    })}
     </div>
 
     ${canRedact ? `

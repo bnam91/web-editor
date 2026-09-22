@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
@@ -221,18 +222,15 @@ async function showSectionProperties(sec) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+${blockHeaderHTML({
+      icon: `          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path fill="#888" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${sec._name || sec.dataset.name || 'Section'}</span>
-          <span class="prop-breadcrumb">${getBlockBreadcrumb(sec)}</span>
-        </div>
-        ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="window._copyToClipboard?.('${sec.id}')">${sec.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: sec._name || sec.dataset.name,
+      defaultName: 'Section',
+      crumb: getBlockBreadcrumb(sec),
+      id: sec.id,
+    })}
       <div class="prop-row">
         <span class="prop-label">Preset</span>
         <select class="prop-select" id="sec-preset">${presetSelectHTML}</select>

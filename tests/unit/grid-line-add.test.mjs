@@ -113,7 +113,10 @@ before(async () => {
     // ★bindSlider — T-D(그리드 갭 슬라이더, 2026-09-16 병합)가 prop-grid.js에 추가한 import.
     //   grdAddLine 자체는 안 쓰지만 import 그래프에 걸려서 스텁이 있어야 로드된다.
     'export const parseRatio = () => [];\nexport const buildGridPicker = () => {};\n'
-    + 'export const alignBtn = () => "";\nexport const bindSlider = () => {};\n');
+    + 'export const alignBtn = () => "";\nexport const bindSlider = () => {};\n'
+    // ★blockHeaderHTML — T-049(2026-09-22)가 `.prop-block-label` 헤더를 _helpers.js 한 자리로 모았다.
+    //   grdAddLine 은 헤더를 안 보지만 import 그래프에 걸린다.
+    + 'export const blockHeaderHTML = () => "";\n');
   fs.writeFileSync(path.join(TMP, 'props', '_typo-section.js'),
     'export const buildTypographySectionHtml = () => "";\nexport const buildFillSectionHtml = () => "";\n');
   fs.writeFileSync(path.join(TMP, 'props', '_font-picker.js'), 'export const wireFontPicker = () => {};\n');

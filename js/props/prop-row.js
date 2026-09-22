@@ -3,6 +3,7 @@
 ═══════════════════════════════════ */
 
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 
 function showRowProperties(rowEl) {
   const layout = rowEl.dataset.layout || 'stack';
@@ -99,17 +100,14 @@ function showRowProperties(rowEl) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="1" width="4" height="10" rx="0.5"/><rect x="7" y="1" width="4" height="10" rx="0.5"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${rowEl.dataset.layerName || 'Grid'}</span>
-        </div>
-        ${rowEl.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${rowEl.id}')">${rowEl.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: rowEl.dataset.layerName,
+      defaultName: 'Grid',
+      id: rowEl.id,
+    })}
     </div>
     ${layout !== 'stack' ? `
     <div class="prop-section">

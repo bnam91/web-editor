@@ -1,4 +1,5 @@
 import { propPanel, state } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showIconCircleProperties(block) {
@@ -23,19 +24,16 @@ export function showIconCircleProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <circle cx="6" cy="6" r="5"/>
             <text x="3.5" y="9" font-size="6" fill="#888" stroke="none">★</text>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Asset-Circle'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Asset-Circle',
+      crumb: window.getBlockBreadcrumb(block),
+      id: block.id,
+    })}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Size</div>

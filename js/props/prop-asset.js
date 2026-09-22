@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { alignBtn, overlayToggleBtnHTML } from './_helpers.js';
+import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
 /* ★폭 하한은 «리터럴로 쓰지 않는다» — asset-width-limits.js 한 자리에서 온다.
@@ -136,20 +136,17 @@ export function showAssetProperties(ab) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="1" width="10" height="10" rx="1"/>
             <circle cx="4" cy="4" r="1"/>
             <polyline points="11 8 8 5 3 11"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${ab.dataset.layerName || 'Asset Block'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(ab)}</span>
-        </div>
-        ${ab.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${ab.id}')">${ab.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: ab.dataset.layerName,
+      defaultName: 'Asset Block',
+      crumb: window.getBlockBreadcrumb(ab),
+      id: ab.id,
+    })}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Preset</div>
