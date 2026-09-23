@@ -244,11 +244,22 @@ function insertAfterSelected(section, el) {
     if (sel) {
       const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
       ref.after(el);
-    } else if (ssInner.classList.contains('selected')) {
-      // 내부 자식 선택 없이 프레임 자체가 오브젝트로 선택된 상태 → 프레임 안이 아니라 뒤(형제)에 삽입
-      const ref = ssInner.closest('.row') || ssInner;
-      ref.after(el);
     } else {
+      /* ★2026-09-23 — 「프레임 «자체»가 오브젝트로 선택된 상태」도 프레임 «안»이다.
+       *   옛 판은 여기서 `ssInner.closest('.row').after(el)` 로 «뒤»에 붙였다. 그런데
+       *   ⛔프레임 속성 패널 맨 아랫줄이 이렇게 «약속»한다:
+       *     「Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.」
+       *   현빈 실기 제보(userlens): 「그리드 블럭이 프레임 블럭에 안 들어간다」. 실측 3/3 재현이었다.
+       *   ★그리고 이건 그리드만의 병이 «아니었다» — 텍스트·에셋·스티커는 자기 프레임 분기를
+       *     따로 갖고 있어 «안»에 들어가고(block-factory.js 등), 공용 경로를 타는
+       *     컴포넌트 블럭 15종(banner·banner02·canvas·chat·comparison·grid·iconify·infocard·
+       *     innercard·laurel·mockup·modal·qa·step·vector)만 «밖»으로 나갔다.
+       *   ⇒ 화면의 약속 · 텍스트 경로 · 공용 경로 «셋»이 서로 다른 말을 하고 있었다. 하나로 맞춘다.
+       *   ⛔15곳에 분기를 베끼지 «않는다» — 고칠 자리는 여기 한 곳이다.
+       *   ⛔도형 래퍼는 이 줄에 닿지 않는다: 위의 `selShape` 분기가 먼저 return 하고,
+       *     `resolveInsertFrame` 이 래퍼를 한 단계 위로 올린다(0918 A안 그대로 산다).
+       *   지키는 검사: tests/dom/frame-accepts-component-blocks.dom.spec.js F1(안에 들어간다)
+       *                ＋ F2·shape-frame-isolation I1~I3(도형 래퍼는 여전히 뒤 — 짝 검사) */
       ssInner.appendChild(el);
     }
     return;
@@ -256,11 +267,20 @@ function insertAfterSelected(section, el) {
 
   const inner = section.querySelector('.section-inner');
 
-  // 서브섹션 자체가 selected인 경우 → 서브섹션 row 뒤에 삽입
+  /* ★«두 자리»가 같은 술어를 봐야 한다 — insert-anchor-property G3c 가 잠근 규약이다.
+   *   한 곳만 고치면 「섹션에선 되는데 프레임 안에서만 안 된다」가 되고 훨씬 찾기 어렵다.
+   *   위(활성 프레임 분기)를 「안에 넣는다」로 바꿨으므로 여기도 같이 바꾼다.
+   *   ⛔단 도형 래퍼는 «여전히 뒤»다(0918 A안) — 그래서 isShapeFrame 가드를 «여기»에 둔다.
+   *     위 분기는 resolveInsertFrame 이 이미 걸러 주지만, 이 길은 _activeFrame 이 없을 때 오므로
+   *     걸러 주는 사람이 없다. */
   const selSS = document.querySelector('.frame-block.selected');
   if (selSS && selSS.closest('.section-block') === section) {
-    const ssRow = selSS.closest('.row') || selSS;
-    ssRow.after(el);
+    if (isShapeFrame(selSS) || selSS.dataset?.textFrame || selSS.dataset?.bannerPreset) {
+      const ssRow = selSS.closest('.row') || selSS;
+      ssRow.after(el);                 // 도형 래퍼·글자 래퍼·배너 외곽 = 최소 단위, 안에 안 넣는다
+    } else {
+      selSS.appendChild(el);           // 진짜 프레임 = 화면이 약속한 대로 «안»에
+    }
     return;
   }
 
