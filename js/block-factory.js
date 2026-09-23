@@ -4898,18 +4898,35 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       r = geo.r; c = geo.c;
     }
     if (!Number.isInteger(r) || !Number.isInteger(c)) return null;
+    /* ★표적은 «누른 줄»이다 (T-168, 2026-09-24 화면 실측).
+       무엇이 있었나 — 여기가 「누른 줄이 그림이면 그 줄, 아니면 «그 칸의 첫 그림 줄»」로 정했다.
+       그 «아니면» 가지가 «안 누른 줄»을 집어 왔다: 칸에 [글자, 그림]이 있을 때 글자 줄을 누르면
+       딱지가 「이미지 교체」로 뜨고, 고르면 아무 말 없이 «그 다른 그림»이 바뀌었다.
+       ⛔거절 안내(grid-block.js 「patchCell: none of … is read by the renderer」)는 이 길에서
+         «닿지 않는다» — li 가 늘 그림 줄을 가리키니 커밋이 통과한다. 붉은 안내는 안 뜬다.
+       ⇒ 가르는 축은 «칸에 그림 줄이 있나»가 아니라 «누른 줄이 그림이냐»다.
+         · 그림 줄을 눌렀다        → li = 그 줄        (「이미지 교체」 · 「이미지 삭제」)
+         · 그림 아닌 줄을 눌렀다   → li = null,
+                                    afterLi = 그 줄    (「이미지 추가」 · 그 줄 «다음»에 새 줄)
+         · 줄을 안 눌렀다(칸 여백·거터·기하 폴백) → 예전 그대로: 첫 그림 줄, 없으면 append.
+           ⛔이 마지막 가지는 «안 건드린다» — 아무 줄도 안 가리킨 클릭이라 「엉뚱한 줄」이 없다. */
     let li = null;
+    let afterLi = null;
     try {
       const lines = getGridModel(block).cells?.[r]?.[c]?.lines;
       if (Array.isArray(lines)) {
         const clickedLi = lineEl ? Number(lineEl.dataset.line) : NaN;
-        li = (Number.isInteger(clickedLi) && lines[clickedLi]?.type === 'image')
-          ? clickedLi
-          : lines.findIndex(l => l && l.type === 'image');
-        if (li < 0) li = null;
+        const onALine = Number.isInteger(clickedLi) && !!lines[clickedLi];
+        if (onALine) {
+          if (lines[clickedLi].type === 'image') li = clickedLi;
+          else afterLi = clickedLi;
+        } else {
+          li = lines.findIndex(l => l && l.type === 'image');
+          if (li < 0) li = null;
+        }
       }
     } catch (_) {}
-    return { r, c, li };
+    return { r, c, li, afterLi };
   }
 
   // 메뉴 열기
@@ -5077,8 +5094,10 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
             { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc } }, { trusted: true }));
           return;
         }
-        /* ★반환을 «받는다» — 예전엔 안 받아서 실패가 토스트 0건·콘솔 0건으로 사라졌다. */
-        grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, null,
+        /* ★반환을 «받는다» — 예전엔 안 받아서 실패가 토스트 0건·콘솔 0건으로 사라졌다.
+           ★afterLi — 글자 줄을 누른 경우 그 줄 «다음»에 넣는다(누른 자리에 들어간다).
+             null 이면 예전 그대로 칸 끝에 붙는다(칸 여백을 눌렀거나 빈 칸일 때). */
+        grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, addr.afterLi ?? null,
           { type: 'image', imgSrc, height: 0 }, { trusted: true }));
       };
       reader.readAsDataURL(file);
