@@ -63,6 +63,18 @@ const INSERT_HISTORY_N3 = (() => {
   return out;
 })();
 
+/* ── 음성대조본 ⑤ — rAF 가 «안 돌 때» 대신 태우는 마감만 뺀 모양 ────────────
+   M11 이 「rAF 가 굶어도 ⌘Z 는 한 번」을 잠그는데, 그게 «실제로 빨강이 될 수 있는지»를
+   여기서 증명한다. ⛔화석을 베끼지 않는다 — 지금 소스에서 그 한 줄만 걷는다(늙으면 «던진다»). */
+const INSERT_HISTORY_N5 = (() => {
+  const line = '      setTimeout(function () { if (!rafLanded) run(); }, RESTAMP_FALLBACK_MS);';
+  if (!INSERT_HISTORY_JS.includes(line)) throw new Error('N5 변환이 늙었다 — 마감 대비책 줄을 못 찾았다');
+  const out = INSERT_HISTORY_JS.replace(line, '      /* N5: 마감 대비책 없음(rAF 만 믿는다) */');
+  const code = out.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  if (code.includes('RESTAMP_FALLBACK_MS)')) throw new Error('N5 변환본에 마감 대비책이 남았다');
+  return out;
+})();
+
 /* ── 음성대조본 ② — window.pushHistory 를 «설치 시점에 캡처»한 모양 ────────
    js/ai-section-fill.js 의 «의도된 노옵»을 깨뜨리는 바로 그 실수다(규약 ①). */
 const INSERT_HISTORY_N2 = (() => {
@@ -161,6 +173,7 @@ async function boot(page, variant = 'fix') {
   const IH = variant === 'N1' ? INSERT_HISTORY_N1
            : variant === 'N2' ? INSERT_HISTORY_N2
            : variant === 'N3' ? INSERT_HISTORY_N3
+           : variant === 'N5' ? INSERT_HISTORY_N5
            : INSERT_HISTORY_JS;
   await page.route(`${ORIGIN}/**`, async (route) => {
     const u = new URL(route.request().url());
@@ -306,22 +319,65 @@ const SCENARIO = async (which) => {
     return { afterDel, undo1: { alive: alive('d1') } };
   }
 
+  /* ★★[2026-09-24 T-179] 「꼭대기 표본이 라이브를 따라잡을 때까지」 — «마감 있는 조건 대기».
+     ⛔고정 대기(20ms)로 재면 그 초록은 «프레임이 언제 오나»를 재는 것이지 제품을 재는 것이
+       아니다. 갱신은 rAF 두 번 «뒤»의 매크로태스크라 한가한 기계에서도 p90 17~27ms 였고
+       (실측 2026-09-24), 프레임이 길어지면 그대로 따라 늘어난다 ⇒ 20ms 는 동전 던지기였다.
+       실측: 이 자리가 스로틀 1배에서도 10번 중 3~5번 빨갰다.
+     ★조건이 «안» 채워지면 null 을 돌려준다 — 그때 ⌘Z 는 두 번이 되고 검사는 빨개진다.
+       (N3·N5 음성대조가 바로 그 길로 간다 — 이 대기가 «통과를 만들어 내지» 않는다는 증명.) */
+  const settleMs = async (deadline = 1000) => {
+    const t0 = performance.now();
+    let prev = null, stable = 0;
+    for (;;) {
+      /* ★«먼저» 한 틱 양보한다 — 안 그러면 지연 쓰기(setTimeout 0)가 닿기 «전»에
+         「꼭대기 == 라이브」가 참이 되어 0ms 로 빠져나간다(실측: 그 꼴로 음성대조 둘이 죽었다). */
+      await new Promise(r => setTimeout(r, 1));
+      const live = window.getSerializedCanvas();
+      stable = (live === prev) ? stable + 1 : 0;
+      prev = live;
+      const top = window.historyStack[window.historyPos];
+      /* 두 조건이 «같이» 서야 한다 — ⑴ 라이브가 더 안 움직인다(지연 쓰기가 끝났다)
+                                     ⑵ 꼭대기가 그 라이브를 담았다(갱신이 닿았다) */
+      if (stable >= 2 && top && top.canvas === live) return Math.round(performance.now() - t0);
+      if (performance.now() - t0 >= deadline) return null;
+    }
+  };
+
   if (which === 'M9') {
     /* ★규약 ④ 를 «깨는» 입구를 실제로 돌려, 「삽입만 하고 ⌘Z」가 두 번이 되는 것을 본다.
        = tests/unit/insert-seam-roster.test.mjs B3 이 왜 빨강이어야 하는지의 양성대조. */
     reset();
     window.addDeferBlock();
-    await new Promise(r => setTimeout(r, 20));   // 비동기 쓰기가 «정착»하게 둔다
+    const deferSettle = await settleMs();          // ⛔고정 대기가 아니다 — 위 주석
     const steps = [];
     for (let i = 0; i < 3 && alive('defer'); i++) { window.undo(); steps.push(alive('defer')); }
-    const defer = { undosToVanish: steps.length };
+    const defer = { undosToVanish: steps.length, settleMs: deferSettle };
     /* 대조 — 정착이 끝난 입구는 한 번이다 */
     reset();
     window.addFakeBlock('ok');
-    await new Promise(r => setTimeout(r, 20));
+    const okSettle = await settleMs();
     const s2 = [];
     for (let i = 0; i < 3 && alive('ok'); i++) { window.undo(); s2.push(alive('ok')); }
-    return { defer, settled: { undosToVanish: s2.length } };
+    return { defer, settled: { undosToVanish: s2.length, settleMs: okSettle } };
+  }
+
+  if (which === 'M11') {
+    /* ★★rAF 가 «굶을 때» — 프레임이 안 오면 갱신이 영영 안 닿고 ⌘Z 가 «항상» 두 번이 된다.
+       ⛔이건 「느린 기계」가 아니라 «프레임이 아예 없는» 축이다. 여기서는 rAF 를 노옵으로
+         갈아끼워 그 축을 «만들어» 잰다(실기로 그 상태를 만드는 길은 아직 못 찾았다 — 보고 참고). */
+    reset();
+    const realRaf = window.requestAnimationFrame;
+    window.requestAnimationFrame = function () { return 0; };   // 굶김
+    let out;
+    try {
+      window.addDeferBlock();
+      const ms = await settleMs();
+      const steps = [];
+      for (let i = 0; i < 3 && alive('defer'); i++) { window.undo(); steps.push(alive('defer')); }
+      out = { undosToVanish: steps.length, settleMs: ms };
+    } finally { window.requestAnimationFrame = realRaf; }
+    return out;
   }
 
   if (which === 'M10') {
@@ -500,9 +556,27 @@ test('M9 ★돌아온 뒤 DOM 을 더 바꾸는 입구도 ⌘Z 는 «한 번»�
   const r = await run(page, 'M9');
   expect(errs).toEqual([]);
   expect(r.settled.undosToVanish, '정착한 입구는 한 번').toBe(1);
+  expect(r.defer.settleMs,
+    '★갱신이 «마감(1s) 안에» 꼭대기에 닿아야 한다 — null 이면 아예 안 닿은 것이다').not.toBe(null);
   expect(r.defer.undosToVanish,
     '★지연 쓰기가 있어도 한 번이어야 한다 — 끝 표본을 «한 프레임 뒤 값»으로 다시 찍기 때문이다. ' +
     '두 번이 나오면 restampHistoryTop 이 안 도는 것이다(seq 불일치·타이밍·노출 누락을 봐라)').toBe(1);
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   M11 — ★rAF 가 «안 돌 때»도 ⌘Z 는 한 번이다 (T-179, 2026-09-24)
+   ──────────────────────────────────────────────────────────────────────────
+   갱신을 rAF «만»으로 태우면 「프레임이 오는가」가 그대로 「⌘Z 가 한 번인가」가 된다.
+   프레임이 아예 안 오는 상태(문서 숨김·창 가림)에서는 갱신이 «영영» 안 닿는다 — 실측으로
+   그때 ⌘Z 는 «항상» 두 번이었다. 그래서 마감 대비책(RESTAMP_FALLBACK_MS)을 두었고,
+   그것이 «실제로 일하는지»를 여기서 잰다. 빨개질 수 있다는 증명은 N5 에 있다.
+═══════════════════════════════════════════════════════════════════════════ */
+test('M11 ★rAF 가 굶어도 끝 표본 갱신이 닿는다 — ⌘Z 는 «한 번»', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await run(page, 'M11');
+  expect(errs).toEqual([]);
+  expect(r.settleMs, '★프레임이 없어도 마감 대비책이 갱신을 태운다').not.toBe(null);
+  expect(r.undosToVanish, '★rAF 가 안 돌아도 ⌘Z 한 번이면 사라진다').toBe(1);
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -557,6 +631,15 @@ test('N3 ★[음성대조] 끝 표본 «갱신»을 빼면 지연 쓰기 입구�
   expect(r.settled.undosToVanish, '정착한 입구는 갱신이 없어도 한 번').toBe(1);
   expect(r.defer.undosToVanish,
     '★갱신을 빼면 «먹통 한 칸»이 실제로 돌아온다 — M9 의 초록이 «검사처럼 생긴 문장»이 아님을 여기서 증명한다').toBe(2);
+});
+
+test('N5 ★[음성대조] 마감 대비책을 빼면 rAF 가 굶었을 때 ⌘Z 가 두 번이 된다', async ({ page }) => {
+  const errs = await boot(page, 'N5');
+  const r = await run(page, 'M11');
+  expect(errs).toEqual([]);
+  expect(r.settleMs, '★rAF 만 믿으면 프레임이 없을 때 갱신이 «영영» 안 닿는다').toBe(null);
+  expect(r.undosToVanish,
+    '★M11 의 초록이 «검사처럼 생긴 문장»이 아님을 여기서 증명한다 — 대비책을 빼면 두 번이다').toBe(2);
 });
 
 test('N4 ★[음성대조] 끝 표본을 뺀 모양이면 T-123 증상이 그대로 돌아온다 (M10 의 첫 ⌘Z)', async ({ page }) => {
