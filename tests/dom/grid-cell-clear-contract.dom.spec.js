@@ -47,6 +47,15 @@ const FIX3 = { cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }],
   rows: [{ height: 'auto' }, { height: 'auto' }, { height: 'auto' }],
   cells: [row('R0C0', 'R0C1'), row('R1C0', 'R1C1'), row('R2C0', 'R2C1')] };
 
+/* ★L 절 전용 — 대상 칸에 줄이 «둘». 1개짜리로는 「줄이 사라졌나」를 덜 민감하게 잰다
+   (1개 → 0개 와 2개 → 0개 를 같은 민감도로 보면 부분 손실을 놓친다). */
+const FIXL = { cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }],
+  rows: [{ height: 'auto' }, { height: 'auto' }],
+  cells: [
+    [{ lines: [{ type: 'body', text: 'R0C0-A' }, { type: 'body', text: 'R0C0-B' }] }, { lines: [{ type: 'body', text: 'R0C1' }] }],
+    [{ lines: [{ type: 'body', text: 'R1C0-A' }, { type: 'body', text: 'R1C0-B' }] }, { lines: [{ type: 'body', text: 'R1C1' }] }],
+  ] };
+
 /* 열 기본값과 칸 오버라이드 — 셋(열 기본 · 칸 오버라이드 · 하드 기본)이 «전부 달라야» 가른다. */
 const COL_DEFAULT = { bg: '#0a7d3b', padding: 12, radius: 6, align: 'right', valign: 'bottom' };
 /* ⛔valign 은 'middle' 이어야 한다 — 'top' 은 블록 기본값과 «같은» flex-start 라
@@ -68,8 +77,8 @@ async function boot(page) {
   page.on('pageerror', (e) => errs.push(String(e)));
   await page.goto(`${ORIGIN}/__harness.html`);
   await page.waitForFunction(() => window.__ready === true);
-  await page.evaluate(([f2, f3, cd, co]) => {
-    window.__F2 = f2; window.__F3 = f3; window.__CD = cd; window.__CO = co;
+  await page.evaluate(([f2, f3, cd, co, fl]) => {
+    window.__F2 = f2; window.__F3 = f3; window.__CD = cd; window.__CO = co; window.__FL = fl;
     window.__mount = (fix) => {
       const HOST = document.getElementById('host');
       HOST.innerHTML = '';
@@ -106,7 +115,24 @@ async function boot(page) {
       return out;
     };
     window.__put = (b, p) => { const x = window.updateGridBlock(b.id, p); return { ok: !!(x && x.ok), code: x && x.code, message: x && x.message }; };
-  }, [FIX2, FIX3, COL_DEFAULT, CELL_OVER]);
+    /** 칸의 «줄»을 본다 — 화면에 그려진 줄 개수와 글자, 그리고 모델. */
+    window.__lines = (b, r, c) => {
+      const el = b.querySelector(`.grd-cell[data-r="${r}"][data-c="${c}"]`);
+      let mdl = 'ERR';
+      try { mdl = JSON.stringify(((window.__model(b).cells[r] || [])[c] || {}).lines); } catch (_) {}
+      return { n: el ? el.querySelectorAll('[data-line]').length : -1,
+        text: el ? (el.innerText || '').trim().replace(/\s+/g, '|') : 'GONE', mdl };
+    };
+    /** lines 를 «페이지 안에서» 만들어 준다 — undefined 는 인자로 넘기면 직렬화가 떨군다. */
+    window.__putLines = (b, r, c, mode) => {
+      const p = { r, c };
+      if (mode === 'null') p.lines = null;
+      else if (mode === 'undef') p.lines = undefined;
+      else if (mode === 'empty') p.lines = [];
+      else if (mode === 'ok') p.lines = [{ type: 'body', text: 'NEWLINE' }];
+      return window.__put(b, { patchCell: p });
+    };
+  }, [FIX2, FIX3, COL_DEFAULT, CELL_OVER, FIXL]);
   return errs;
 }
 
@@ -316,4 +342,102 @@ test('O3 ★0 은 «지움»이 아니다 — falsy 를 통째로 지움으로 �
     '★숫자 0 이 「지움」으로 읽혔다. null 계약을 넣으면서 falsy 를 통째로 지움으로 다루면 이렇게 된다.\n' +
     '   ⇒ 「지움」은 «null 하나»(그리고 이미 되는 undefined)뿐이다.\n' +
     bad.map(s => '      ' + s).join('\n')).toEqual([]);
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+ * L — ★`lines` 는 이 계약의 «예외»인가. (팀리드 2026-09-23 요청)
+ *
+ *   이 레포엔 이미 «명시된 규칙»이 있다 — `patchCell{lines: []}` 는 거절된다:
+ *     EMPTY_CELL_LINES 「cell lines cannot be emptied — remove the row/column instead」
+ *   ⇒ 「patchCell 로 칸의 줄을 비우지 못한다」가 정해진 규칙이다.
+ *   ⇒ 그렇다면 «같은 결과»를 내는 다른 입력도 같은 대접을 받아야 한다. 안 그러면
+ *     가드가 한 입구에만 걸린 셈이고, 옆문은 `ok:true` 로 통과한다.
+ *
+ * ★실측(2026-09-23, 기준 f724dc1) — 옆문이 «둘» 열려 있다:
+ *     행 1 `lines: []`        → ok:false EMPTY_CELL_LINES · 내용 보존   ← 가드 작동
+ *     행 1 `lines: null`      → ok:true  · 줄 2개 → 0개 «내용 사라짐»   ⛔저장본 {"lines":null}
+ *     행 1 `lines: undefined` → ok:true  · 줄 2개 → 0개 «내용 사라짐»   ⛔저장본 {} (키 삭제)
+ *     행 0 `lines: null`      → ok:true  · 내용 «보존»(_mergeCellIntoCol 이 Array.isArray 로 거른다)
+ *   ⇒ `undefined` 쪽이 특히 나쁘다 — C5 가 잠근 「undefined = 지움」 통로가 `lines` 에도
+ *     그대로 걸려 칸 내용을 통째로 날린다. 키가 사라지면 `_gridExtraRows` 가 `lines: []` 로
+ *     정규화해서 «빈 칸»이 된다.
+ *
+ * ⛔새 계약(`null` = 그 키를 지운다)을 «모든 키»에 똑같이 걸면 `lines` 도 지워진다 —
+ *   그러면 이 옆문이 «설계»가 된다. 그래서 여기서 못 박는다: 꾸밈 5개와 `lines` 는 규칙이 다르다.
+ * ★L1·L2 는 「거절해라」도 「무시해라」도 강요하지 않는다 — «내용이 사라지지 않는다»만 잰다.
+ *   둘 중 어느 쪽으로 닫든 초록이 된다.
+ * ════════════════════════════════════════════════════════════════════ */
+
+test('L0 ★계측기 — 정상 lines 는 바뀌고, lines:[] 는 거절되며 내용이 남는다', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await page.evaluate(() => {
+    const b = window.__mount(window.__FL);
+    const before = window.__lines(b, 1, 0);
+    const okRes = window.__putLines(b, 1, 0, 'ok');
+    const afterOk = window.__lines(b, 1, 0);
+    const b2 = window.__mount(window.__FL);
+    const emptyRes = window.__putLines(b2, 1, 0, 'empty');
+    return { before, okRes, afterOk, emptyRes, afterEmpty: window.__lines(b2, 1, 0),
+      beforeEmpty: window.__lines(b2, 1, 0) };
+  });
+  expect(errs).toEqual([]);
+  expect(r.before.n, '★픽스처의 그 칸에 줄이 2개여야 한다 — 1개면 「줄이 사라졌나」를 덜 민감하게 잰다').toBe(2);
+  expect(r.okRes.ok, '★정상 lines 교체가 실패했다 — 이 절은 아무것도 못 잰다').toBe(true);
+  expect(r.afterOk.text, '★정상 교체가 화면에 안 왔다').toBe('NEWLINE');
+  expect(r.emptyRes.ok, '★lines:[] 가 거절되지 «않았다» — 이 절의 근거(명시된 규칙)가 사라졌다').toBe(false);
+  expect(r.emptyRes.code).toBe('EMPTY_CELL_LINES');
+  expect(r.afterEmpty.n, '★거절됐는데 내용이 사라졌다').toBe(2);
+});
+
+for (const [nick, mode, ko] of [['L1', 'null', 'null'], ['L2', 'undef', 'undefined']]) {
+  test(`${nick} ★행 1 칸에 lines:${ko} 를 줘도 «내용이 사라지지 않는다»`, async ({ page }) => {
+    const errs = await boot(page);
+    const r = await page.evaluate((mode) => {
+      const b = window.__mount(window.__FL);
+      const before = window.__lines(b, 1, 0);
+      const res = window.__putLines(b, 1, 0, mode);
+      return { before, res, after: window.__lines(b, 1, 0), raw: b.dataset.cells || '<없음>' };
+    }, mode);
+    expect(errs).toEqual([]);
+    expect(r.before.n, '★전제 — 시작할 때 줄이 2개여야 한다').toBe(2);
+    expect({ n: r.after.n, text: r.after.text },
+      `★lines:${ko} 가 칸의 줄을 «지웠다». ok=${r.res.ok} code=${r.res.code || '(없음)'}\n` +
+      `   전: ${r.before.n}줄 "${r.before.text}"\n   후: ${r.after.n}줄 "${r.after.text}"\n` +
+      `   저장본: ${r.raw}\n` +
+      '   ⛔이 레포는 `lines:[]` 를 EMPTY_CELL_LINES 로 «명시적으로 거절»한다 —\n' +
+      '     같은 결과를 내는 옆문이 ok:true 로 통과하면 그 가드는 한 입구에만 걸린 것이다.\n' +
+      '   ⇒ 닫는 길은 둘 중 아무거나: ⑴같은 코드로 «거절»하거나 ⑵배열이 아니면 «무시»하거나.\n' +
+      `   ⛔새 계약(null = 그 키를 지운다)을 모든 키에 똑같이 걸면 이 옆문이 «설계»가 된다.`)
+      .toEqual({ n: r.before.n, text: r.before.text });
+  });
+}
+
+test('L3 ★행 0 은 지금 «면역»이다 — 고치면서 이 면역을 잃지 마라', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await page.evaluate(() => {
+    const out = {};
+    for (const mode of ['null', 'undef']) {
+      const b = window.__mount(window.__FL);
+      const before = window.__lines(b, 0, 0);
+      const res = window.__putLines(b, 0, 0, mode);
+      out[mode] = { before, res, after: window.__lines(b, 0, 0) };
+    }
+    return out;
+  });
+  expect(errs).toEqual([]);
+  const bad = [];
+  for (const mode of ['null', 'undef']) {
+    const x = r[mode];
+    if (x.before.n !== 2) bad.push(`${mode}: 전제 깨짐 — 시작 줄 수 ${x.before.n}`);
+    if (x.after.n !== x.before.n || x.after.text !== x.before.text) {
+      bad.push(`${mode}: ${x.before.n}줄 "${x.before.text}" → ${x.after.n}줄 "${x.after.text}" (ok=${x.res.ok})`);
+    }
+  }
+  expect(bad,
+    '★행 0 의 줄이 lines:null/undefined 로 사라졌다.\n' +
+    '   기준 커밋에서 행 0 이 «안» 사라지는 까닭: 행 0 의 lines 는 `_mergeCellIntoCol` 을 지나고\n' +
+    '   거기서 `if (Array.isArray(cell.lines))` 가 배열 아닌 것을 «거른다».\n' +
+    '   ⛔T-178 이 행 0 을 `cells` 로 옮기면서 lines 까지 `Object.assign` 경로로 보내면\n' +
+    '     이 면역이 «조용히» 사라진다 — 행 0 의 줄 내용은 cols[c].lines 에 남아야 한다(T178-4a/4b).\n' +
+    bad.map(s2 => '      ' + s2).join('\n')).toEqual([]);
 });
