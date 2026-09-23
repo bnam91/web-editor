@@ -295,6 +295,31 @@ test('G6 회귀 — 텍스트프레임 2개 ⌘⌥G 는 기존대로(둘 다 새
   expect(errs).toEqual([]);
 });
 
+/* ── G6b ★T-080 의 «그 축» — ⌘G(그룹) 경로의 성공 안내 ──
+   ⛔G6 은 ⌘⌥G(프레임) 갈래다. 문구가 `asGroup ? '그룹으로' : '프레임으로'` 로 갈리므로
+     (js/block-factory.js — 토스트를 내는 두 자리 모두 같은 삼항), G6 의 단언은
+     «⌘G 로 묶었을 때 안내가 나오나»를 재지 못한다.
+   ★T-080 이 요구한 것은 «⌘G 로 묶었는데 안내가 0개면 빨강»이다. 그 축이 여기서 잠긴다.
+   ⛔이 단언을 「토스트가 하나 있다」로 느슨하게 만들지 마라 — 그러면 «프레임으로» 가 와도 통과해
+     갈래가 바뀐 것을 못 잡는다. 문구를 «그대로» 잠근다. */
+test('G6b ★⌘G(그룹) 경로도 «묶었다»고 말한다 — 문구가 «그룹으로» 다 (T-080)', async ({ page }) => {
+  const errs = await boot(page, `
+<div class="section-block selected" id="sec"><div class="section-inner" id="inner">
+  <div class="frame-block" id="tf_1" data-text-frame="true"><div class="text-block selected" id="tb_1">A</div></div>
+  <div class="frame-block" id="tf_2" data-text-frame="true"><div class="text-block selected" id="tb_2">B</div></div>
+</div></div>`);
+  const out = await page.evaluate(() => {
+    window.__wrap({ asGroup: true });
+    return { toasts: window.__toasts.slice(),
+             blocks: document.querySelectorAll('.text-block').length };
+  });
+  /* ⌘G = groupSelectedBlocks() = wrapSelectedBlocksInFrame({ asGroup: true }) (js/editor.js 의 groupBlocks 갈래) */
+  expect(out.toasts.filter((m) => m.includes('못 넣은')), '정상 경로엔 «못 넣었다» 경고가 없다').toEqual([]);
+  expect(out.toasts, '⌘G 로 묶어도 «묶었다»고 말한다 (T-080)').toEqual(['2개를 그룹으로 묶었어요']);
+  expect(out.blocks, '묶는다고 블럭이 줄지 않는다 (T-080 원래 증상)').toBe(2);
+  expect(errs).toEqual([]);
+});
+
 /* ── G7 회귀 — gap-block 은 «빈 칸 자체»가 내용이라 지워지지 않고 옮겨진다 ── */
 test('G7 회귀 — gap-block 은 단위째 옮겨지고 삭제되지 않는다', async ({ page }) => {
   const errs = await boot(page, `
