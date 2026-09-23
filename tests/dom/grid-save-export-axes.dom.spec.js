@@ -363,6 +363,121 @@ test('S3 ★세척이 그리드 상태를 한 글자도 안 깎는다 (data-cols
 });
 
 /* ══════════════════════════════════════════════════════════════════════
+ * S4~S6 — ★「cols/rows/cells/gap/valign 다섯 키가 바이트 동일」이 «못 보는» 자리.
+ *   그 다섯이 같아도 «화면»은 갈릴 수 있다. 갈리는 길이 셋 있다:
+ *     S4 글자가 «속성 왕복»을 못 견딘다 (dataset 은 HTML 속성 안의 JSON 이다)
+ *     S5 「값이 ''/0 이다」와 「키가 없다」가 왕복에서 뭉개진다 (뜻이 정반대다)
+ *     S6 배경이 «캔버스 밖»을 가리킨다 (var(--color-…)) — 다섯 키는 같은데 색이 갈린다
+ * ════════════════════════════════════════════════════════════════════ */
+
+/** 세척 왕복 한 번 — 「저장하고 다시 열었다」를 한 줄로. */
+const ROUNDTRIP = `
+  const canvas = document.getElementById('canvas');
+  const clone = canvas.cloneNode(true);
+  window.serializeCleanRoot(clone);
+  canvas.innerHTML = clone.innerHTML;
+  const re = canvas.querySelector('.grid-block');
+  window.__render(re);`;
+
+/* ⛔따옴표·꺾쇠·앰퍼샌드·백슬래시·닫는 주석·NBSP — dataset 은 HTML 속성 «안»의 JSON 이라
+   escape 가 한 겹이라도 새면 여기서 글자가 깨지거나 속성이 통째로 끊긴다. */
+const NASTY = '따옴표"큰\' 작은 <b>태그</b> & 앰퍼샌드 \\백슬래시 </div> -->  끝';
+
+test('S4 ★다섯 키 밖 ① — 따옴표·꺾쇠·앰퍼샌드가 든 글자가 저장 왕복을 견딘다', async ({ page }) => {
+  const errs = await boot(page);
+  const out = await page.evaluate(([roundtrip, nasty]) => {
+    const HOST = document.getElementById('host');
+    HOST.innerHTML = '';
+    const { row, block } = window.__mk({ cols: [{ width: 1 }, { width: 1 }] });
+    HOST.appendChild(row);
+    window.updateGridBlock(block.id, { cells: [[
+      { lines: [{ type: 'body', text: nasty }] },
+      { lines: [{ type: 'h2', text: nasty }] },
+    ]] });
+    const read = () => [...document.querySelectorAll('.grd-cell [data-line]')].map(e => e.textContent);
+    const before = read();
+    const dsBefore = document.querySelector('.grid-block').dataset.cols;
+    eval(roundtrip);
+    return { before, after: read(), dsBefore, dsAfter: document.querySelector('.grid-block').dataset.cols };
+  }, [ROUNDTRIP, NASTY]);
+  expect(errs).toEqual([]);
+  expect(out.before, '★심은 글자가 화면에 그대로 안 들어갔다 — 왕복을 재기 전에 이미 깨졌다')
+    .toEqual([NASTY, NASTY]);
+  expect(out.after, '★저장 왕복에서 글자가 깨졌다(속성 escape 가 샜다)').toEqual([NASTY, NASTY]);
+  expect(out.dsAfter, '★dataset.cols 가 왕복에서 달라졌다').toBe(out.dsBefore);
+});
+
+test("S5 ★다섯 키 밖 ② — 「''·0 = 이 칸만 끈다」와 「키 없음 = 열 기본값을 따른다」가 왕복에서 안 뒤집힌다", async ({ page }) => {
+  const errs = await boot(page);
+  const out = await page.evaluate((roundtrip) => {
+    const HOST = document.getElementById('host');
+    HOST.innerHTML = '';
+    const { row, block } = window.__mk({ cols: [{ width: 1 }, { width: 1 }] });
+    HOST.appendChild(row);
+    const ID = block.id;
+    /* 열 기본값을 «둘 다» 깔아 둔다 — 그래야 「끈다」와 「따른다」가 서로 다른 화면이 된다 */
+    window.updateGridBlock(ID, { patchCol: { index: 0, bg: '#123456', padding: 40, radius: 20 } });
+    window.updateGridBlock(ID, { patchCol: { index: 1, bg: '#123456', padding: 40, radius: 20 } });
+    window.updateGridBlock(ID, { rows: [{ height: 'auto' }, { height: 'auto' }] });
+    window.updateGridBlock(ID, { cells: [
+      [{ lines: [{ type: 'body', text: 'r0' }] }, { lines: [{ type: 'body', text: 'r0b' }] }],
+      /* 0열 = 끈다('' / 0) · 1열 = 따른다(키 없음) */
+      [{ bg: '', padding: 0, radius: 0, lines: [{ type: 'body', text: 'OFF' }] },
+       { lines: [{ type: 'body', text: 'INHERIT' }] }],
+    ] });
+    const read = () => {
+      const o = {};
+      for (const el of document.querySelectorAll('.grd-cell')) {
+        const cs = getComputedStyle(el);
+        o['c' + el.dataset.r + el.dataset.c] = cs.backgroundColor + '|' + cs.paddingTop + '|' + cs.borderTopLeftRadius;
+      }
+      return o;
+    };
+    const before = read();
+    eval(roundtrip);
+    return { before, after: read() };
+  }, ROUNDTRIP);
+  expect(errs).toEqual([]);
+  /* ★계측기 — 두 칸이 «애초에» 달라야 왕복이 뒤집혀도 잡힌다 */
+  expect(out.before.c10, '★계측기: 「끈 칸」이 열 기본값과 같아졌다 — 이 검사는 아무것도 못 가른다')
+    .not.toBe(out.before.c11);
+  expect(out.before.c10, '★「끈 칸」이 안 꺼졌다').toBe('rgba(0, 0, 0, 0)|0px|0px');
+  expect(out.before.c11, '★「따르는 칸」이 열 기본값을 안 받았다').toBe('rgb(18, 52, 86)|40px|20px');
+  expect(out.after, '★저장 왕복에서 「끈다」와 「따른다」가 뒤집혔다 — 다섯 키가 같아도 화면이 갈린다').toEqual(out.before);
+});
+
+test('S6 ★다섯 키 밖 ③ — var(--color-…)·transparent·rgba 배경이 왕복을 견딘다', async ({ page }) => {
+  const errs = await boot(page);
+  const out = await page.evaluate((roundtrip) => {
+    document.documentElement.style.setProperty('--color-t173brand', '#ff7700');
+    const HOST = document.getElementById('host');
+    HOST.innerHTML = '';
+    const { row, block } = window.__mk({ cols: [{ width: 1 }, { width: 1 }, { width: 1 }] });
+    HOST.appendChild(row);
+    window.updateGridBlock(block.id, { cells: [[
+      { bg: 'var(--color-t173brand, #ff0000)', lines: [{ type: 'body', text: 'VAR' }] },
+      { bg: 'transparent', lines: [{ type: 'body', text: 'TR' }] },
+      { bg: 'rgba(0,128,255,0.5)', lines: [{ type: 'body', text: 'HALF' }] },
+    ]] });
+    const read = () => [...document.querySelectorAll('.grd-cell')].map(e => getComputedStyle(e).backgroundColor);
+    const before = read();
+    eval(roundtrip);
+    const after = read();
+    /* ★변수를 «치우면» 폴백으로 떨어져야 한다 — 그래야 위 초록이 「변수를 읽었다」의 증거가 된다
+       (안 그러면 「그냥 빨강이 나왔다」와 구별이 안 된다). */
+    document.documentElement.style.removeProperty('--color-t173brand');
+    return { before, after, fallback: read() };
+  }, ROUNDTRIP);
+  expect(errs).toEqual([]);
+  expect(out.before, '★심은 배경이 화면에 안 들어갔다').toEqual(
+    ['rgb(255, 119, 0)', 'rgba(0, 0, 0, 0)', 'rgba(0, 128, 255, 0.5)']);
+  expect(out.after, '★저장 왕복 뒤 배경이 달라졌다').toEqual(out.before);
+  expect(out.fallback[0],
+    '★변수를 치웠는데도 같은 색이다 — 위 초록은 «변수를 읽은» 증거가 아니다(계측기가 둘을 못 가른다)')
+    .toBe('rgb(255, 0, 0)');
+});
+
+/* ══════════════════════════════════════════════════════════════════════
  * E — 내보낸 그림. ★제품의 캡처 파이프라인을 지난 «픽셀»을 센다.
  * ════════════════════════════════════════════════════════════════════ */
 
@@ -494,4 +609,99 @@ test('E3 ★음성대조 — 꾸밈을 «모델에서» 빼면 그 색이 그림
       '   자기 자신을 재고 있다는 뜻이다.\n' + `   전: ${JSON.stringify(full.px)}\n   후: ${JSON.stringify(stripped.px)}`).toBeLessThan(50);
   }
 
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+ * E4 — ★★«알려진 결함» 표시 (B8, 2026-09-24 이 카드에서 재확인).
+ *
+ *   칸 «안»의 내용이 칸을 넘치면 그대로 흘러 «남의 칸 자리»에 찍힌다.
+ *   ⛔섹션 «밖»으로 나간 것이 잘리는 것과는 다른 축이다 — 그건 정상이다(현빈 판정).
+ *     여기서 재는 것은 「칸 A 의 글자가 칸 C 의 사각형 «안»에 찍히는가」 하나뿐이다.
+ *
+ *   ★실측(실앱 860px PNG · 4열, 열 폭 161px):
+ *     '1234567890'              scrollWidth 388  → 칸 02 안에    384 화소
+ *     'https://example.com/a/b' scrollWidth 737  → 칸 02/03 안에 3,130 / 3,260 화소
+ *     '초고농축…올리브오일'      scrollWidth 1027 → 칸 02/03 안에 3,671 / 3,546 화소
+ *     '우리 제품은 정말 좋습니다…' (띄어쓰기 있음) → 줄바꿈돼 «남의 칸 0 화소»
+ *   ⇒ 방아쇠는 «안 끊기는 긴 토큰»이다(숫자·URL·영문·붙여쓴 한글). 띄어쓰기가 있으면 안 난다.
+ *
+ *   ★폭에 따라 달라진다 — 1080 으로 내보내면 열이 넓어져 글자가 옆 칸 배경에 «가려진다».
+ *     ⛔그건 고쳐진 게 아니라 «안 보이게 된» 것이다: 글자는 여전히 칸 밖에 있고,
+ *       가려 주는 것이 옆 칸의 배경색일 뿐이라 «옆 칸이 투명하면 그대로 드러난다».
+ *     제품 폭은 CANVAS_W = 860 고정이므로 860 이 진짜다.
+ *
+ *   ★뿌리 둘 — .grd-cell 이 overflow:visible 이고(renderGridBlock),
+ *     줄이 word-break:keep-all 이라(_gridLineHtml) 안 끊기는 토큰이 안 접힌다.
+ *   ⛔이 카드에서 «안» 고친다. 고치는 길이 둘인데 둘 다 «기존 저장본의 산출»을 바꾼다:
+ *       ⓐ 칸을 overflow:hidden → 사용자 글자를 «말없이» 자른다
+ *       ⓑ 줄을 overflow-wrap:anywhere → keep-all 로 잡아 둔 한글 줄바꿈 규칙이 바뀐다
+ *     어느 쪽인지는 발주(현빈 판정)가 필요하다. 임자 = B8 을 올린 유닛.
+ *
+ * ★test.fail() 로 둔다 — 「지금은 빨갛다」를 그냥 빨간 검사로 두면 «다음 빨강»을 가린다.
+ *   고쳐지는 날 이 표시가 «예상 밖 통과»로 빨개져서 알려 준다. 그때 test.fail() 을 떼라.
+ * ════════════════════════════════════════════════════════════════════ */
+test('E4 ★알려진 결함(B8) — 칸을 넘친 글자가 «남의 칸 안»에 찍힌다 (860)', async ({ page }) => {
+  test.fail(true, 'B8 — 아직 안 고쳤다. 고치면 이 표시가 빨개진다(그때 test.fail 을 떼라).');
+  const errs = await boot(page);
+  const r = await page.evaluate(async () => {
+    const HOST = document.getElementById('host');
+    HOST.innerHTML = '';
+    const { row, block } = window.__mk({ cols: [{ width: 1 }, { width: 1 }, { width: 1 }, { width: 1 }] });
+    HOST.appendChild(row);
+    window.updateGridBlock(block.id, { cells: [[
+      { lines: [{ type: 'h1', text: 'https://example.com/a/b', color: '#ff0000' }] },
+      { bg: '#00ff00', lines: [{ type: 'body', text: '옆칸' }] },
+      { lines: [{ type: 'body', text: 'C2' }] },
+      { lines: [{ type: 'body', text: 'C3' }] },
+    ]] });
+    document.getElementById('__t173clone')?.remove();
+    const sec = document.getElementById('sec1');
+    const clone = await window.__prepare(sec, 860, true);
+    window.__renderInClone(clone);
+    clone.id = '__t173clone';
+    clone.style.top = '0px'; clone.style.left = '0px'; clone.style.background = '#ffffff';
+    clone.getBoundingClientRect();
+    /* ★좌표는 «같은 호출 안»에서 읽는다 — 찍은 그림과 다른 판의 사각형을 쓰면 안 된다 */
+    const base = clone.getBoundingClientRect();
+    window.__rects = [...clone.querySelectorAll('.grd-cell')].map(e => {
+      const b = e.getBoundingClientRect();
+      return { rc: e.dataset.r + e.dataset.c, x0: Math.round(b.x - base.x), x1: Math.round(b.x + b.width - base.x),
+               sw: e.scrollWidth, cw: e.clientWidth };
+    });
+    window.__cloneH = Math.ceil(base.height);
+    return { rects: window.__rects };
+  });
+  const h = await page.evaluate(() => window.__cloneH);
+  await page.setViewportSize({ width: 1000, height: Math.min(4000, Math.max(200, h + 40)) });
+  const shot = await page.locator('#__t173clone').screenshot({ type: 'png' });
+  const px = await page.evaluate(async (b64) => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+    const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+    const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0);
+    const d = ctx.getImageData(0, 0, cv.width, cv.height).data;
+    const per = {}; window.__rects.forEach(c => per[c.rc] = 0);
+    let total = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] > 245 && d[i + 1] < 12 && d[i + 2] < 12) {
+        total++;
+        const p = i / 4, x = p % cv.width;
+        for (const c of window.__rects) if (x >= c.x0 && x < c.x1) { per[c.rc]++; break; }
+      }
+    }
+    return { total, per, w: img.width };
+  }, shot.toString('base64'));
+  expect(errs).toEqual([]);
+  const own = r.rects[0];
+  /* ★계측기 — 글자가 애초에 칸보다 넓어야 이 검사에 뜻이 있다 */
+  expect(own.sw, `★계측기: 글자가 칸을 안 넘친다(scrollWidth ${own.sw} ≤ clientWidth ${own.cw}) — 잴 것이 없다`)
+    .toBeGreaterThan(own.cw);
+  expect(px.total, '★계측기: 빨간 글자가 그림에 아예 없다').toBeGreaterThan(100);
+  const intruded = Object.entries(px.per).filter(([k, v]) => k !== '00' && v > 0);
+  expect(intruded,
+    '★칸을 넘친 글자가 «남의 칸 사각형 안»에 찍혔다(B8).\n' +
+    `   잰 법: 폭 860 클론을 브라우저가 직접 찍고, 빨간 화소의 x 를 칸 사각형과 대조.\n` +
+    `   칸 00 = x ${own.x0}~${own.x1} (scrollWidth ${own.sw} / clientWidth ${own.cw})\n` +
+    `   칸별 빨간 화소 ${JSON.stringify(px.per)} (전체 ${px.total})\n` +
+    '   ⚠️칸 01 이 0 인 것은 «안 넘쳤다»가 아니다 — 옆 칸 배경이 그 위에 칠해져 가린 것이다.')
+    .toEqual([]);
 });

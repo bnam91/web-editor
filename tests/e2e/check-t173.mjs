@@ -272,6 +272,67 @@ add('T-173/export-after-file-reopen',
   !pxAfter.error && missingCells2.length === 0 && missingParts2.length === 0,
   pxAfter.error || `${pxAfter.w}×${pxAfter.h} · 빠진 칸 ${JSON.stringify(missingCells2)} · 빠진 부품 ${JSON.stringify(missingParts2)}`);
 
+/* ══ ㉤ ★칸 배경이 «캔버스 밖»을 가리킬 때 — var(--color-…) ═══════════════
+   ★이 축은 DOM 그물이 «구조적으로» 못 본다. 색의 정본이 프로젝트 캔버스가 아니라
+     proj_meta.json 의 colorVars 에 있고, 여는 쪽은 DesignSystem.restoreColorVarsFromMeta 다.
+   ⇒ dataset 다섯 키가 «바이트 동일»인데도 색이 갈릴 수 있는 유일한 자리다.
+   ⛔변수를 손으로 :root 에 꽂고 재지 마라 — 제품이 등록한 적 없는 변수는 되살아날 «까닭»이
+     없어서, 폴백으로 떨어지는 것이 당연하다. 그걸 결함으로 적으면 자기 실수를 제품 탓으로
+     돌리는 것이다(2026-09-24 실제로 한 번 그렇게 적을 뻔했다). 반드시 setColorVar 로 만든다. */
+await freshProject(s);
+await s.sleep(3000);
+await addSection(s);
+await s.sleep(800);
+await insertFromMenu(s, '컴포넌트 블록 추가', 'Grid');
+await s.sleep(1200);
+const idsV = await s.eval(`const g=document.querySelector('.grid-block');return g?{grid:g.id, sec:g.closest('.section-block').id}:null;`);
+if (idsV) {
+  await s.eval(`
+    window.DesignSystem.setColorVar('t173brand', '#ff7700');   // ★칩이 부르는 바로 그 함수
+    const ID = ${JSON.stringify(idsV.grid)};
+    window.updateGridBlock(ID, { cols: [{width:1},{width:1}] });
+    return window.updateGridBlock(ID, { cells: [[
+      { bg:'var(--color-t173brand, #ff0000)', lines:[{type:'body', text:'VAR칸'}] },
+      { bg:'#303030', lines:[{type:'body', text:'보통칸', color:'var(--color-t173brand, #ff0000)'}] },
+    ]] }).ok;`);
+  await clickEmptyCanvas(s);
+  await s.sleep(400);
+  const readV = () => s.eval(`
+    const g=document.getElementById(${JSON.stringify(idsV.grid)});
+    if(!g) return {GONE:true};
+    const c=[...g.querySelectorAll('.grd-cell')];
+    return { bg: getComputedStyle(c[0]).backgroundColor,
+             txt: getComputedStyle(c[1].querySelector('[data-line]')).color,
+             cells: g.dataset.cells };`);
+  const vBefore = await readV();
+  const svV = await saveNow();
+  await s.sleep(1500);
+  /* ★프로젝트 사본 «과» 디자인시스템 로컬 사본을 «둘 다» 치운다 — 그래야 meta.json 이 유일한 원천이다
+     (프로젝트 키만 치우면 localStorage 의 we_color_vars_v1 이 답을 들고 있어 이 축을 안 지난다). */
+  const clearedV = await s.eval(`
+    const id = window.activeProjectId;
+    const keys = Object.keys(localStorage).filter(k => k.includes(id) || /design|color|token/i.test(k));
+    keys.forEach(k => localStorage.removeItem(k));
+    document.documentElement.style.removeProperty('--color-t173brand');
+    return keys;`);
+  await s.send('Page.reload', { ignoreCache: false });
+  await s.sleep(9000);
+  await s.wake();
+  const vAfter = await readV();
+  const meta = await s.eval(`
+    const m = await window.electronAPI.loadProjectMeta(window.activeProjectId);
+    return { hasColorVars: !!(m && m.colorVars), t173: m && m.colorVars && m.colorVars.t173brand };`);
+  add('T-173/colorvar-bg-survives',
+    '㉤ 칸 배경 var(--color-…) — 로컬 사본을 치우고 파일에서 열어도 «변수 값»으로 그려지는가(폴백 아님)',
+    { saveSignal: svV, clearedKeys: clearedV, before: vBefore, after: vAfter, meta },
+    vBefore.bg === 'rgb(255, 119, 0)' && vAfter.bg === 'rgb(255, 119, 0)'
+      && vAfter.txt === 'rgb(255, 119, 0)' && vBefore.cells === vAfter.cells && meta.hasColorVars,
+    `배경 ${vBefore.bg} → ${vAfter.bg} · 글자색 → ${vAfter.txt} · dataset 동일=${vBefore.cells === vAfter.cells} · meta.colorVars.t173brand=${meta.t173}`
+    + ' (#ff0000 이면 폴백으로 떨어진 것 = 결함)');
+} else {
+  add('T-173/colorvar-bg-survives', '㉤ 칸 배경 var(--color-…)', { error: 'Grid 블럭이 안 들어갔다' }, false, '못 쟀다');
+}
+
 /* ══ ㉣ 「줄이면 잘린다 — ⌘Z 복원」이 지키는 약속인가 ═══════════════════
    ★«진짜 피커»를 누른다 — updateGridBlock({cols:[…]}) 로 줄이면 열 배열을 통째로 갈아치우는
      것이라 행 0 줄까지 같이 날아간다. 그건 API 의 성질이지 사용자가 겪는 길이 아니다. */
