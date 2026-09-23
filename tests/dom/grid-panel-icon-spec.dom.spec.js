@@ -256,4 +256,40 @@ test.describe('그리드 패널 세 절 — 아이콘 한 규격', () => {
     const bad = svgs.filter(s => s.painters > 0 && Math.abs(s.ink - anchorInk) > 0.05);
     expect(bad.length, '비틀었는데도 A3 가 초록이다 — 그물이 그 축을 «안 재고» 있다').toBeGreaterThan(0);
   });
+
+  /* ══ A6 — 절 머리 쉐브론은 «네 곳»에 같은 마크업으로 산다 ═══════════════════
+   * ⚠️★이 하나만 «소스 읽기»다. 위 A2~A4 보다 «약한 자»다 — CSS 가 덮으면 못 본다.
+   *   그래도 두는 까닭: 같은 절 머리 부품이 prop-grid 말고 세 곳에 더 복붙돼 있고,
+   *   그 셋은 이 하네스가 «안 띄우는» 패널이라 DOM 으로 잴 자리가 없다.
+   *   ⇒ 「그리드는 실측으로, 나머지 셋은 소스로」 — 어디까지 쟀는지 여기 적어 둔다.
+   * ★모수를 이름으로 안 센다 — 「돌아가는 svg」라는 «생김새»로 찾는다
+   *   (절 머리 쉐브론만 transform:rotate 로 접힘/펼침을 표시한다). */
+  test('A6 (소스) 절 머리 쉐브론 네 곳이 전부 기준 마크업인가', () => {
+    const DIR = path.join(REPO, 'js/props');
+    const found = [];
+    for (const f of fs.readdirSync(DIR).filter(n => n.endsWith('.js'))) {
+      const src = fs.readFileSync(path.join(DIR, f), 'utf8');
+      for (const m of src.matchAll(/<svg\b[\s\S]*?<\/svg>/g)) {
+        if (!/transform:rotate\(/.test(m[0])) continue;   // 접힘 표시 쉐브론만
+        const s2 = m[0];
+        found.push({
+          file: f,
+          sw:  (s2.match(/stroke-width="([^"]+)"/) || [])[1] || null,
+          cap: (s2.match(/stroke-linecap="([^"]+)"/) || [])[1] || null,
+          d:   (s2.match(/\sd="([^"]+)"/) || [])[1] || null,
+          vb:  (s2.match(/viewBox="([^"]+)"/) || [])[1] || null,
+          wh:  ((s2.match(/width="([^"]+)"/) || [])[1] || '?') + 'x' + ((s2.match(/height="([^"]+)"/) || [])[1] || '?'),
+          stroke: (s2.match(/\sstroke="([^"]+)"/) || [])[1] || null,
+        });
+      }
+    }
+    expect(found.length, '접힘 쉐브론을 한 개도 못 찾았다 — 모수가 비면 전부 통과한다').toBeGreaterThan(0);
+    const shape = INLINE.d.replace(/^M\s*[-\d.]+[\s,]+[-\d.]+/, 'M');
+    const bad = found.filter(x =>
+      x.sw !== INLINE.sw || x.cap !== INLINE.cap || x.stroke !== 'currentColor' ||
+      !x.d || x.d.replace(/^M\s*[-\d.]+[\s,]+[-\d.]+/, 'M') !== shape ||
+      /* 잉크가 1.5px 로 그려지려면 viewBox 폭 = 화면 폭 이어야 한다. */
+      (x.vb || '').trim().split(/\s+/)[2] !== x.wh.split('x')[0]);
+    expect(bad, `기준 = d≡"${shape}" · sw ${INLINE.sw} · cap ${INLINE.cap} · currentColor · viewBox폭=화면폭\n어긋난 것: ${JSON.stringify(bad, null, 1)}`).toEqual([]);
+  });
 });
