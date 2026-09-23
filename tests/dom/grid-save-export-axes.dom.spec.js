@@ -138,6 +138,9 @@ const PLANT = () => {
        전부 auto 로 두면 그 칸을 한 번도 안 지난다. */
     window.updateGridBlock(ID, { rows: [{ height: 'auto' }, { height: 200 }, { height: 'auto' }] }),
     window.updateGridBlock(ID, { rowGap: 14, colGap: 18 }),
+    /* ★칸 테두리 세 키(T-172, 2026-09-24) — 블록 축 스칼라이고 «저장 포맷의 한 칸»이다.
+       ⛔width 0 이 「없음」이라 안 주면 이 축을 한 번도 안 지난다(옛 저장본과 바이트 동일). */
+    window.updateGridBlock(ID, { cellBorderWidth: 3, cellBorderColor: '#00ffee', cellBorderStyle: 'dashed' }),
     window.updateGridBlock(ID, { cells }),
   ].map(r => ({ ok: !!(r && r.ok), code: r && r.code, message: r && r.message }));
   return { ID, ops, imgLen: IMGSRC.length };
@@ -157,6 +160,11 @@ const INSTALL_MEASURE = () => {
       out[t + '.pad'] = cs.paddingTop + '/' + cs.paddingLeft;
       out[t + '.radius'] = cs.borderTopLeftRadius;
       out[t + '.justify'] = cs.justifyContent;
+      /* ★테두리(T-172) — 칸마다 «어느 변이 그려지나»가 다르다(안쪽 변만). 네 변을 따로 읽는다. */
+      out[t + '.bd.top'] = cs.borderTopWidth + ' ' + cs.borderTopStyle + ' ' + cs.borderTopColor;
+      out[t + '.bd.left'] = cs.borderLeftWidth + ' ' + cs.borderLeftStyle + ' ' + cs.borderLeftColor;
+      out[t + '.bd.right'] = cs.borderRightWidth + ' ' + cs.borderRightStyle + ' ' + cs.borderRightColor;
+      out[t + '.bd.bottom'] = cs.borderBottomWidth + ' ' + cs.borderBottomStyle + ' ' + cs.borderBottomColor;
       out[t + '.text'] = (el.innerText || '').trim();
       out[t + '.empty'] = el.classList.contains('grd-cell-empty') ? '1' : '0';
       const kids = el.querySelectorAll(':scope > *');
@@ -279,6 +287,15 @@ test('G0 ★계측기 — 판이 열두 칸·줄 종류 전수를 «화면»으�
       empty: g.querySelectorAll('.grd-cell-empty').length,
     };
   }, r.ID);
+  /* ★테두리(T-172)가 «실제로 그려졌나» — 안 그려졌으면 아래 S 축의 테두리 대조는
+     「빈 것끼리 견주기」라 공짜 초록이다. ⛔안쪽 변만 그려지는 것이 그 카드의 규약이라
+     「네 변 다 3px」이 아니라 «3px 인 변이 하나라도 있나»로 잰다. */
+  const bd = Object.entries(scr).filter(([k, v]) => /\.bd\./.test(k) && /^3px dashed/.test(String(v)));
+  expect(bd.length,
+    `★칸 테두리가 한 변도 안 그려졌다 — cellBorderWidth:3 이 화면에 안 닿았다(S 축이 못 잰다).\n` +
+    `   읽은 테두리 값: ${JSON.stringify(Object.fromEntries(Object.entries(scr).filter(([k]) => /\.bd\./.test(k)).slice(0, 6)))}`)
+    .toBeGreaterThan(0);
+  expect(String(bd[0][1]), '★테두리 색이 준 값이 아니다').toContain('rgb(0, 255, 238)');
   expect(kinds, '★줄 종류가 판에 다 안 섰다 — 안 선 종류는 아래 축이 «안 재는» 것이다')
     .toEqual({ img: 1, gap: 1, nested: 1, nestedCols: 2, graph: 1, graphItems: 2, badge: 1,
                roles: [1, 1, 1, 1, 6, 2], empty: 1 });
@@ -345,16 +362,17 @@ test('S3 ★세척이 그리드 상태를 한 글자도 안 깎는다 (data-cols
   const r = await plant(page);
   const out = await page.evaluate((id) => {
     const live = document.getElementById(id);
-    const mine = { cols: live.dataset.cols, rows: live.dataset.rows, cells: live.dataset.cells,
-                   gap: live.dataset.gap, rowGap: live.dataset.rowGap, colGap: live.dataset.colGap };
+    const KEYS = ['cols', 'rows', 'cells', 'gap', 'rowGap', 'colGap', 'valign',
+                  'cellBorderWidth', 'cellBorderColor', 'cellBorderStyle'];   // ★테두리 셋 = T-172 신설
+    const pluck = (el) => Object.fromEntries(KEYS.map(k => [k, el.dataset[k]]));
+    const mine = pluck(live);
     const canvas = document.getElementById('canvas');
     const clone = canvas.cloneNode(true);
     window.serializeCleanRoot(clone);
     const host = document.createElement('div');
     host.innerHTML = clone.innerHTML;
     const saved = host.querySelector('.grid-block');
-    const theirs = saved ? { cols: saved.dataset.cols, rows: saved.dataset.rows, cells: saved.dataset.cells,
-                             gap: saved.dataset.gap, rowGap: saved.dataset.rowGap, colGap: saved.dataset.colGap } : null;
+    const theirs = saved ? pluck(saved) : null;
     return { mine, theirs };
   }, r.ID);
   expect(errs).toEqual([]);
@@ -635,7 +653,9 @@ test('E3 ★음성대조 — 꾸밈을 «모델에서» 빼면 그 색이 그림
  *   ⛔이 카드에서 «안» 고친다. 고치는 길이 둘인데 둘 다 «기존 저장본의 산출»을 바꾼다:
  *       ⓐ 칸을 overflow:hidden → 사용자 글자를 «말없이» 자른다
  *       ⓑ 줄을 overflow-wrap:anywhere → keep-all 로 잡아 둔 한글 줄바꿈 규칙이 바뀐다
- *     어느 쪽인지는 발주(현빈 판정)가 필요하다. 임자 = B8 을 올린 유닛.
+ *     어느 쪽인지는 발주(현빈 판정)가 필요하다.
+ *   ★임자 = «지디». ⛔「B8 을 올린 유닛」으로 적었다가 고쳤다 — 그 유닛도 지금 «대기»이고,
+ *     담당을 「대기」로 닫으면 «없는 담당»이 된다. 지디가 현빈 판정을 매니저 경유로 올린다.
  *
  * ★test.fail() 로 둔다 — 「지금은 빨갛다」를 그냥 빨간 검사로 두면 «다음 빨강»을 가린다.
  *   고쳐지는 날 이 표시가 «예상 밖 통과»로 빨개져서 알려 준다. 그때 test.fail() 을 떼라.

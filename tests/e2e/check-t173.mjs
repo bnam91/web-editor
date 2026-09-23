@@ -50,6 +50,10 @@ window.__t173screen = (block) => {
     const t = 'c' + el.dataset.r + el.dataset.c, cs = getComputedStyle(el);
     out[t+'.bg']=cs.backgroundColor; out[t+'.pad']=cs.paddingTop+'/'+cs.paddingLeft;
     out[t+'.radius']=cs.borderTopLeftRadius; out[t+'.justify']=cs.justifyContent;
+    out[t+'.bd.top']=cs.borderTopWidth+' '+cs.borderTopStyle+' '+cs.borderTopColor;
+    out[t+'.bd.left']=cs.borderLeftWidth+' '+cs.borderLeftStyle+' '+cs.borderLeftColor;
+    out[t+'.bd.right']=cs.borderRightWidth+' '+cs.borderRightStyle+' '+cs.borderRightColor;
+    out[t+'.bd.bottom']=cs.borderBottomWidth+' '+cs.borderBottomStyle+' '+cs.borderBottomColor;
     out[t+'.text']=(el.innerText||'').trim();
     out[t+'.empty']=el.classList.contains('grd-cell-empty')?'1':'0';
     const kids = el.querySelectorAll(':scope > *');
@@ -161,6 +165,8 @@ const built = await s.eval(`
     /* ★행 높이는 'auto' «와» px 를 섞는다 — px 최소높이(minmax)도 저장 포맷의 한 칸이다. */
     window.updateGridBlock(ID, { rows: [{height:'auto'},{height:200},{height:'auto'}] }),
     window.updateGridBlock(ID, { rowGap: 14, colGap: 18 }),
+    /* ★칸 테두리 세 키(T-172) — width 0 이 「없음」이라 안 주면 이 축을 안 지난다 */
+    window.updateGridBlock(ID, { cellBorderWidth: 3, cellBorderColor: '#00ffee', cellBorderStyle: 'dashed' }),
     window.updateGridBlock(ID, { cells }),
   ].map(r => ({ ok: !!(r && r.ok), code: r && r.code, message: r && r.message }));
   return { ops, imgLen: IMGSRC.length };`);
@@ -220,8 +226,9 @@ add('T-173/export-has-everything',
 const dsOf = () => s.eval(`
   const g = document.getElementById(${JSON.stringify(ids.grid)});
   if (!g) return null;
-  return { cols: g.dataset.cols, rows: g.dataset.rows, cells: g.dataset.cells,
-           gap: g.dataset.gap, rowGap: g.dataset.rowGap, colGap: g.dataset.colGap };`);
+  const KEYS = ['cols','rows','cells','gap','rowGap','colGap','valign',
+                'cellBorderWidth','cellBorderColor','cellBorderStyle'];   // ★테두리 셋 = T-172 신설
+  return Object.fromEntries(KEYS.map(k => [k, g.dataset[k]]));`);
 const saveNow = () => s.eval(`
   const done = new Promise(res => window.addEventListener('gd:project-saved', () => res('event'), { once: true }));
   await window.saveProject();
