@@ -91,7 +91,14 @@ async function boot(page) {
     window.__stored = (b, r, c) => {
       let cells;
       try { cells = JSON.parse(b.dataset.cells || '[]'); } catch (_) { return { ERR: true }; }
-      const cell = (cells[r - 1] && cells[r - 1][c]) || {};   // dataset.cells 는 행 1부터
+      /* ~~[폐기 · T-178 2026-09-23] `cells[r - 1]` + 「dataset.cells 는 행 1부터」~~
+         까닭 — T-178 이 dataset.cells 를 «행 0 포함 전체 R×C»로 바꿨다. 옛 셈으로 읽으면
+           r=1 을 물었는데 «행 0»(꾸밈이 하나도 없는 칸)을 읽어, 저장본을 재는 단언이
+           전부 `<없음>` 으로 나온다. 실측: patchCell{r:1,c:0,padding:0} 뒤
+             dataset.cells = [[{},{}],[{"lines":[…],"padding":0,"radius":0},{"lines":[…]}]]
+           ⇒ 값은 «제대로 들어가 있는데» 이 계측기가 다른 칸을 보고 있었다(O1·O2·O3 가 그래서 울었다).
+         ⛔이 줄은 «계측기»다 — 재는 양을 바꾸지 않는다. 묻는 칸을 제자리로 돌릴 뿐이다. */
+      const cell = (cells[r] && cells[r][c]) || {};           // dataset.cells 는 «행 0 포함» 전체
       const out = {};
       for (const k of ['bg', 'padding', 'radius', 'align', 'valign']) {
         out[k] = Object.prototype.hasOwnProperty.call(cell, k) ? JSON.stringify(cell[k]) : '<없음>';
