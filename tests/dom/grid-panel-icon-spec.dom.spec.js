@@ -35,6 +35,8 @@ const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'tex
 
 /* ── 기준 뜨기 ─────────────────────────────────────────────────────────── */
 const SRC_TYPO = fs.readFileSync(path.join(REPO, 'js/props/_typo-section.js'), 'utf8');
+/** A8 이 «이름표 사전»을 소스에서 뜬다 — 검사 안에 한글을 손으로 베끼지 않는다. */
+const SRC_PANEL_KO = fs.readFileSync(path.join(REPO, 'js/props/prop-grid.js'), 'utf8');
 const SRC_CSS  = fs.readFileSync(path.join(REPO, 'css/editor-props.css'), 'utf8');
 
 /** 인라인 쉐브론 — _typo-section.js 의 `viewBox="0 0 10 6"` svg 한 개. */
@@ -74,9 +76,9 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <script src="/js/io/section-serialize.js"></script>
 <script>window.openIconifyModal=(cb)=>cb({svg:"<svg viewBox='0 0 24 24'><path d='M0 0h24v24H0z'/></svg>",size:64});</script>
 <script type="module">
-  import { makeGridBlock } from '/js/blocks/grid-block.js';
+  import { makeGridBlock, getGridModel } from '/js/blocks/grid-block.js';
   import { showGridProperties } from '/js/props/prop-grid.js';
-  window.__mk = makeGridBlock; window.__open = showGridProperties; window.__ready = true;
+  window.__mk = makeGridBlock; window.__model = getGridModel; window.__open = showGridProperties; window.__ready = true;
 </script></body></html>`;
 
 const FIXTURE = {
@@ -331,5 +333,84 @@ test.describe('그리드 패널 세 절 — 아이콘 한 규격', () => {
     expect(got.length, '정렬 드롭다운을 한 개도 못 찾았다 — 모수가 비면 전부 통과한다').toBe(3);
     const mute = got.filter(g => !g.title);
     expect(mute, `범위를 «안 말하는» 정렬 드롭다운: ${JSON.stringify(got, null, 1)}`).toEqual([]);
+  });
+
+  /* ══ A8 — 「줄 종류」 드롭다운이 «지금 줄의 진짜 종류»를 말하는가 ═══════════════
+   * ★왜 이 축인가 — 렌더러가 그리는 줄 종류가 패널 명부보다 «많다».
+   *   렌더러 `_gridLineHtml` 의 type 분기 전수 = gap · image · duo · graph ＋ GRID_ROLES 6개
+   *   패널 명부 `_GRD_KINDS`        = GRID_ROLES 6개 ＋ image ＋ gap   ⇒ duo·graph 가 «없다»
+   *   ⛔둘을 «같게 만드는» 것은 이 검사의 일이 아니다(duo·graph 를 손으로 만들게 할지는
+   *     현빈이 고르실 문제다 — 중첩·막대는 손잡이가 더 필요하다). 여기서 잠그는 것은 그보다 아래:
+   *     「명부에 없는 종류의 줄을 골랐을 때, 드롭다운이 «거짓말을 하지 않는가»」.
+   * ★실측(2026-09-24, 기준선 7780267) — duo 줄과 graph 줄을 고르면 드롭다운이 둘 다
+   *   selectedIndex 0 = value "label" = 보이는 글자 「작은제목」 이었다. 요약 줄은 «(duo)»·«(graph)»
+   *   라고 바르게 말하는데 드롭다운만 달랐다 — 한 절 안에서 두 문장이 어긋난다.
+   *   그리고 그 거짓을 보고 「본문」으로 바꾸면 중첩이 통째로 날아간다(실측: cols 가 모델에서 사라지고
+   *   캔버스의 .grd-nested 가 1 → 0). ⌘Z 로는 돌아온다.
+   * ★모수를 이름으로 안 센다 — «렌더러가 실제로 분기하는 type» 을 소스에서 떠서 돈다.
+   *   ⇒ 렌더러에 새 종류가 하나 붙으면 이 검사가 «저절로» 그것도 요구한다. */
+  test('A8 「줄 종류」가 «지금 줄의 진짜 종류»를 말한다 (명부에 없는 종류 포함)', async ({ page }) => {
+    /* 렌더러가 분기하는 비(非)역할 type 을 소스에서 뜬다 — `line.type === 'xxx'` 전수. */
+    const SRC_BLOCK = fs.readFileSync(path.join(REPO, 'js/blocks/grid-block.js'), 'utf8');
+    const rendered = [...new Set([...SRC_BLOCK.matchAll(/line\.type\s*===\s*'([a-z]+)'/g)].map(m => m[1]))];
+    expect(rendered.length, '렌더러의 type 분기를 한 개도 못 떴다 — 모수가 비면 전부 통과한다').toBeGreaterThan(0);
+
+    await boot(page);
+    const got = await page.evaluate(async (kinds) => {
+      const mkLine = (t) => (t === 'duo'
+        ? { type: 'duo', gap: 12, cols: [{ width: 1, lines: [{ type: 'body', text: '중첩속' }] }] }
+        : t === 'graph' ? { type: 'graph', items: [{ label: '만족도', value: 80 }] }
+        : t === 'image' ? { type: 'image', imgSrc: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', height: 40 }
+        : t === 'gap' ? { type: 'gap', height: 16 } : { type: t, text: 'X' });
+      const out = [];
+      for (const t of kinds) {
+        const FIX = {
+          cols: [{ width: 1, lines: [] }], rows: [{ height: 'auto' }, { height: 'auto' }],
+          cells: [[{ lines: [{ type: 'body', text: 'top' }] }], [{ lines: [{ type: 'body', text: 'C0' }, mkLine(t)] }]],
+        };
+        const H = document.getElementById('host'), P = document.querySelector('#panel-right .panel-body');
+        H.innerHTML = ''; P.innerHTML = '';
+        const { row, block } = window.__mk(JSON.parse(JSON.stringify(FIX)));
+        H.appendChild(row); block.classList.add('selected');
+        window.__open(block, { r: 1, c: 0, li: 1 });
+        document.getElementById('grd-line-toggle')?.click();
+        await new Promise(r => setTimeout(r, 20));
+        let real = null;
+        try { real = window.__model(block).cells[1][0].lines[1].type; } catch (_) {}
+        const sel = document.getElementById('grd-line-kind');
+        out.push({
+          심은type: t, 모델type: real,
+          고른값: sel ? sel.value : '(select 없음)',
+          보이는글자: sel ? ((sel.options[sel.selectedIndex] || {}).text || '') : '—',
+        });
+      }
+      return out;
+    }, rendered);
+
+    /* ★계측기 자가점검 — 모델이 내가 심은 종류를 실제로 들고 있나.
+       여기가 어긋나면 아래 판정은 «내 픽스처가 안 심긴 것»을 재는 것이다. */
+    const notPlanted = got.filter(g => g.모델type !== g.심은type);
+    expect(notPlanted, `픽스처가 안 심겼다 — 이 검사가 눈이 먼 상태다: ${JSON.stringify(notPlanted)}`).toEqual([]);
+
+    /* ★재는 «양» — 「값이 같은가」가 아니라 「거짓말을 하는가」다.
+       ⛔첫 판에 값 일치로 쟀더니, 사실을 말하도록 고친 뒤에도 빨갰다(머리 옵션은 value="" 가 맞다).
+         게이트가 «잘못된 양»을 재면 고치는 쪽이 엉뚱한 데를 고친다. 양을 둘로 갈라 다시 세운다.
+       ⑴ 고른 값이 «다른 실재 종류»이면 거짓말이다 (원래 결함: duo 줄인데 value="label")
+       ⑵ 보이는 글자가 그 종류를 «이름으로도 값으로도» 안 담으면 사용자는 무엇인지 모른다
+       ★둘 다 초록이 되는 길은 «둘»이고, 이 검사는 어느 쪽도 강요하지 않는다 —
+         명부에 넣어 고를 수 있게 하든(값 일치), 못 만든다고 말해 주든(머리 옵션) 다 통과다.
+         ⛔「duo 를 명부에 넣어라」를 이 검사가 «대신 정하지» 않는다. */
+    const KO = (() => {
+      const m = SRC_PANEL_KO.match(/_GRD_KIND_KO\s*=\s*\{([\s\S]*?)\n\};/);
+      const o = {};
+      if (m) for (const kv of m[1].matchAll(/([a-z]+)\s*:\s*'([^']+)'/g)) o[kv[1]] = kv[2];
+      return o;
+    })();
+    const lying = got.filter((g) => {
+      if (g.고른값 && g.고른값 !== g.모델type) return true;                    // ⑴
+      const names = [KO[g.모델type], g.모델type].filter(Boolean);
+      return !names.some(n => g.보이는글자.includes(n));                        // ⑵
+    });
+    expect(lying, `드롭다운이 «진짜 종류»를 말하지 않는다: ${JSON.stringify(got, null, 1)}`).toEqual([]);
   });
 });

@@ -303,6 +303,13 @@ if (typeof window !== 'undefined') window.grdAddIconToSelectedCell = grdAddIconT
 const _GRD_KIND_KO = {
   label: '작은제목', h1: '제목 1', h2: '제목 2', h3: '제목 3', body: '본문', caption: '캡션',
   image: '아이콘', gap: '여백',
+  /* ⛔여기에 «명부 밖 종류»(중첩·막대)의 이름표를 더하지 마라 — 2026-09-24 해 보고 되돌렸다.
+     tests/unit/grid-rename-residue.test.mjs S1 이 빨강을 냈다: 그 옛 이름은 2026-09-05 개명에서
+     «데이터 토큰»으로만 남기기로 한 것이고, ALLOW ⑷ 가 그 토큰을 grid-block.js 의 렌더 분기
+     «한 줄»로 묶어 뒀다. 여기 키로 적으면 그게 두 곳이 된다 — 그 규칙이 막는 바로 그것이다.
+     ⇒ 이름표 없이 간다. `_grdKindKo` 가 모르는 키엔 «그 종류 이름 그대로»를 돌려주고,
+       줄바 요약이 이미 `(body)`·`(h2)` 처럼 그대로 보여 주고 있어 새 꼴도 아니다.
+     ★사람이 읽을 이름을 줄지는 «현빈이 고르실 문제»다 — 주려면 ALLOW 를 넓히는 결정이 먼저다. */
 };
 const _grdKindKo = (k) => _GRD_KIND_KO[k] || k;
 /** 글자 줄 «역할» — GRID_ROLES 에서 뜬다(손으로 안 적는다). */
@@ -327,10 +334,42 @@ const _grdAddKindSelectHtml = () => `
 /** ②종류 바꾸기 — 이미 있는 줄의 종류를 바꾼다(지우고 다시 만들 필요 없이).
  *  ★명부는 ①추가와 «같은 _GRD_KINDS» 다 — 아이콘·여백으로도 바꿀 수 있어야 「추가로는 되는데
  *    바꾸기로는 안 되는 종류」가 안 생긴다(M7). */
-const _grdKindSelectHtml = (line) => `
-        <select class="prop-select" id="grd-line-kind" title="이 줄의 종류를 바꾼다">
-          ${_grdKindOptsHtml(_GRD_KINDS, line.type || 'body')}
+/* ★★명부에 «없는» 종류를 고른 경우 — 거짓말을 하지 않는다 (2026-09-24)
+ *   렌더러가 그리는 줄 종류가 이 명부보다 많다. 소스 실측:
+ *     렌더러 `_gridLineHtml` 의 type 분기 = gap · image · duo · graph  ＋ GRID_ROLES 6개
+ *     이 명부 `_GRD_KINDS`               = GRID_ROLES 6개 ＋ image ＋ gap   ⇒ duo · graph 가 빠졌다
+ *   ~~[폐기 · 2026-09-24] 그 둘이 빠진 채로도 select 는 «아무 말 없이» 첫 옵션을 골라 보였다~~
+ *   무엇이 있었나 (실측, 기준선 7780267) — duo 줄·graph 줄을 고르면 둘 다
+ *     selectedIndex 0 → value "label" → 보이는 글자 「작은제목」.
+ *     같은 절의 요약 줄은 «(duo)»·«(graph)» 라고 «바르게» 말하는데 드롭다운만 달랐다.
+ *     ⇒ 한 패널 안에서 두 문장이 어긋났고, 어긋난 쪽이 «누를 수 있는 쪽»이었다.
+ *   그리고 그 거짓을 믿고 「본문」으로 바꾸면 중첩이 통째로 날아간다(실측):
+ *     before lines[1] = {type:'duo', cols:[…중첩속…]} · 캔버스 .grd-nested 1개
+ *     after  lines[1] = {type:'body'}                · 캔버스 .grd-nested 0개, 글자 사라짐
+ *     (줄 자체가 지워지지는 «않는다» — 줄 수는 3 그대로고 cols 만 사라진다. ⌘Z 로 돌아온다.)
+ * ★고친 방식 — «만들 수 있는 것»은 한 개도 안 늘렸다
+ *   명부 밖 종류일 때만 `disabled` 인 머리 옵션을 하나 앞에 세워 그것을 selected 로 둔다.
+ *   ⇒ ⑴ 패널이 사실을 말한다 ⑵ 「+ 줄 추가」 목록은 그대로다(거긴 _GRD_KINDS 만 읽는다)
+ *     ⑶ 일부러 다른 종류를 고르는 길은 «그대로» 열려 있다(되돌아갈 문을 안 닫는다).
+ *   ⛔duo·graph 를 «만들 수 있게» 할지는 여기서 안 정한다 — 중첩·막대는 손잡이가 더 필요하고,
+ *     그건 현빈이 고르실 문제다. 이 커밋이 닫은 것은 «거짓말» 하나뿐이다.
+ *   ★선례 — 머리에 값 없는 옵션을 세우는 꼴은 이 파일이 이미 쓴다(_grdAddKindSelectHtml 의
+ *     `<option value="">+ 줄 추가…</option>`). 새 꼴을 만들지 않았다.
+ * 지키는 그물: tests/dom/grid-panel-icon-spec.dom.spec.js (A8) */
+const _grdKindSelectHtml = (line) => {
+  const cur = line.type || 'body';
+  const known = _GRD_KINDS.includes(cur);
+  const head = known ? '' :
+    `<option value="" disabled selected>${_grdKindKo(cur)} — 패널에서 못 만듦</option>`;
+  const title = known
+    ? '이 줄의 종류를 바꾼다'
+    : `이 줄은 «${_grdKindKo(cur)}»(${cur}) 다 — 이 패널에선 만들 수 없는 종류다. `
+      + '다른 종류를 고르면 바뀌지만, 그때 이 줄의 내용은 사라진다(⌘Z 로 복원).';
+  return `
+        <select class="prop-select" id="grd-line-kind" title="${title}">
+          ${head}${_grdKindOptsHtml(_GRD_KINDS, known ? cur : null)}
         </select>`;
+};
 
 /** 종류를 바꿀 때 «앞 종류의 짐»을 턴다(설계 M3).
  *  ★image → body 로 바꿨는데 imgSrc 가 남으면 dataURL 수백 KB 가 저장본에 눌러앉는다.
@@ -367,6 +406,10 @@ function _grdWireKindSelects(block, r, c, afterLi) {
   if (afterLi === null) return;              // 빈 칸엔 «바꿀 줄»이 아직 없다
   const kindSel = document.getElementById('grd-line-kind');
   kindSel?.addEventListener('change', () => {
+    /* ⛔머리 옵션(명부 밖 종류 표시, value="")은 «값이 아니다» — 고른 것으로 치지 않는다.
+       disabled 라 마우스로는 못 고르지만 키보드·스크립트 경로가 남아 있다. 위 ①추가 select 의
+       `if (!kind) return;` 과 «같은 가드»다(두 벌로 갈라 두지 않는다). */
+    if (!kindSel.value) return;
     let cur = '';
     try { cur = (getGridModel(block).cells?.[r]?.[c]?.lines || [])[afterLi]?.type || 'body'; } catch (_) {}
     if (kindSel.value === cur) return;       // 같은 값 = 화면이 안 변한다(updateGridBlock 이 거절한다)
