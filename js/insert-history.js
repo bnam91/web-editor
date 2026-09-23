@@ -118,6 +118,9 @@
        찍기는 동기, «값만» 뒤에 갱신한다.
      ⛔restampHistoryTop 이 안전조건을 스스로 본다(seq 불일치·되돌린 뒤·복원 중·무변화 → 무동작).
        여기서는 «그때의 seq»만 넘긴다 — 그 사이 다른 항목이 쌓이면 갱신이 저절로 취소된다. */
+  /** rAF 가 늦거나 «안 돌 때» 갱신을 대신 태우는 마감(ms) — 위 주석의 실측이 근거다. */
+  var RESTAMP_FALLBACK_MS = 120;
+
   function _scheduleRestamp() {
     var tip = (typeof window.getHistoryTip === 'function') ? window.getHistoryTip() : null;
     var seq = tip && !tip.empty ? tip.seq : null;
@@ -129,11 +132,30 @@
     /* ★rAF 두 번으로는 «모자란다» — ResizeObserver 콜백은 「렌더링 갱신」 단계에서
        rAF 콜백 «뒤»에 배달된다. 그래서 rAF2 에서 읽으면 옵저버가 쓰기 «전» 값을 본다.
        실측(2026-09-21, addBanner02Block): sync 4842 · rAF1 4842 · **rAF2 4889** ·
-       그 뒤로는 1.7초까지 안 변함 ⇒ rAF 두 번 «뒤의» 매크로태스크에서 읽으면 잡힌다. */
+       그 뒤로는 1.7초까지 안 변함 ⇒ rAF 두 번 «뒤의» 매크로태스크에서 읽으면 잡힌다.
+
+       ★★[2026-09-24 T-179] 그런데 rAF 경로«만» 두면 「프레임이 언제 오는가」가 그대로
+         「⌘Z 가 한 번인가 두 번인가」가 된다 — 프레임은 «기계 사정»이다. 실측(레포 js/ 세
+         파일만 크로미움에 얹어 잼, 앱 무접촉):
+           · 한가할 때            갱신까지 p50 13ms · p90 17~27ms · max 30ms
+           · 매 프레임 50ms 막힘   p50 100ms
+           · 매 프레임 150ms 막힘  p50 300ms
+           · 매 프레임 400ms 막힘  p50 800ms   ← 그 800ms 안에 ⌘Z 를 누르면 «먹통 한 칸»
+           · rAF 가 아예 안 돎     영영 안 닿음 ⇒ ⌘Z 가 «항상» 두 번
+         ⇒ 그래서 rAF 를 «정답»으로 두되, 그 정답이 늦거나 안 오면 매크로태스크가 먼저
+           한 번 찍게 한다. restampHistoryTop 은 스스로 안전조건을 보고(seq 불일치·되돌린
+           뒤·복원 중·무변화 → 무동작) «꼭대기의 canvas 만» 라이브로 되쓰므로 두 번 불려도
+           칸이 늘지 않는다 — 늦게 오는 rAF 쪽이 «더 정확한 값»으로 덮는다.
+         ⛔되돌리기 설정(retries)을 올려 검사만 초록으로 만드는 길로 가지 않는다 — 위 수가
+           말하는 것은 계측기 흔들림이 아니라 «사람도 밟는 창»이다. */
     if (typeof requestAnimationFrame === 'function') {
+      var rafLanded = false;
       requestAnimationFrame(function () {
-        requestAnimationFrame(function () { setTimeout(run, 0); });
+        requestAnimationFrame(function () { setTimeout(function () { rafLanded = true; run(); }, 0); });
       });
+      /* ★이 수가 하는 말 — 「한가한 기계의 p90(≈27ms)보다 넉넉히 뒤, 사람이 ⌘Z 를 누를 수
+         있는 때보다 앞」. ⚠️사람의 반응 시간은 «안 쟀다» — 고른 값이지 잰 값이 아니다. */
+      setTimeout(function () { if (!rafLanded) run(); }, RESTAMP_FALLBACK_MS);
     } else { run(); }
   }
 
