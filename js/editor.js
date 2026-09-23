@@ -1029,11 +1029,38 @@ function _restoreFreeLayoutFrameSelected(block) {
   }
 }
 
-/* freeLayout 멀티셀렉 패널 업데이트 트리거 */
+/* freeLayout 멀티셀렉 패널 업데이트 트리거
+   ★@returns {boolean} 패널을 «띄웠으면» true. 안 띄웠으면 호출부가 뒤를 잇는다
+     (2026-09-24 T-091 — 안 띄우고 조용히 돌아가면 직전 deselectAll 이 띄운 «Page» 가 남는다). */
 function _updateFreeLayoutMultiSelPanel() {
   if (window.hasFreeLayoutMultiSel?.()) {
     window.showFreeLayoutMultiSelPanel?.();
+    return true;
   }
+  return false;
+}
+
+/* ★2026-09-24 T-091 — 「선택은 «한 블럭»인데 우측 패널이 Page 로 남는다」의 마감.
+   ⇧클릭이 «범위»를 못 만들면(앵커와 같은 블럭 = 폭 1 / 앵커 없음 = 단일선택 폴백)
+   rangeSelectBlocks 는 deselectAll() 로 패널을 비우고 한 개만 다시 고른다. 그 뒤 여기 오는데
+   옛 판은 n<=1 에서 «아무 일도 안 했다» ⇒ 비워진 패널(Page)이 그대로 남았다.
+   실측(2026-09-24 포트 9342, 판 7780267): 글자·이미지·도형 전부 같은 증상, ⌘클릭으로 둘 → 하나로
+   줄여도 패널은 「2개 선택됨」으로 굳었다.
+
+   ⛔여기서 «타입별 표»를 새로 짓지 않는다 — 표는 js/panel-dispatch.js 한 자리(정본)다.
+     js/history.js 의 되돌리기 복원과 js/block-edit.js 의 selectBlock 이 «같은 표»를 쓴다.
+     ⇒ 새 블럭 타입이 생겨도 적을 자리가 여기엔 «0개»다.
+   ★표에 없는 타입이면 openPanelForBlock 이 false 를 주고 패널을 «안 건드린다»
+     (panel-dispatch.js 머리말의 폴백 규약). 즉 명부가 낡아도 최악이 «오늘 그대로»지,
+     엉뚱한 패널이 뜨는 쪽으로는 안 간다.
+   ★「한 블럭인가」는 hasPanelForBlock 으로 센다 — «같은 표»를 부작용 없이 읽는 판정이라
+     .section-block(항상 켜져 있다)·.frame-block(도형 래퍼·조상)은 저절로 빠진다.
+   @returns {boolean} 패널을 열었으면 true. */
+function _openSoleBlockPanel() {
+  const root = canvasEl || document;
+  const sole = [...root.querySelectorAll('.selected')].filter(el => window.hasPanelForBlock?.(el));
+  if (sole.length !== 1) return false;
+  return window.openPanelForBlock?.(sole[0]) === true;
 }
 
 /* 일반(플로우) 블록 멀티선택 카운트 패널 트리거 (A11)
@@ -1103,7 +1130,8 @@ function _countFlowMultiSel() {
 function _updateMultiSelPanel(block) {
   const _flowN = _countFlowMultiSel();
   if (_flowN <= 1 && _isInFreeLayout(block)) {
-    _updateFreeLayoutMultiSelPanel();
+    if (_updateFreeLayoutMultiSelPanel()) return;
+    _openSoleBlockPanel();   // ★T-091 — 자유배치도 「한 개 남았는데 Page」가 났다(도형 ⇧클릭)
     return;
   }
   const n = _flowN;
@@ -1111,7 +1139,11 @@ function _updateMultiSelPanel(block) {
     // B15: 카운트-온리 → 정렬/분배 패널 (prop-multisel.js)
     if (window.showFlowMultiSelPanel) window.showFlowMultiSelPanel();
     else propPanel.innerHTML = `<div class="prop-section"><div class="prop-block-label" style="padding:2px 0 4px;"><div class="prop-block-info"><span class="prop-block-name">${n}개 선택됨</span><span class="prop-breadcrumb">블록 멀티선택</span></div></div></div>`;
+    return;
   }
+  /* ★T-091 — 여기가 «범위를 못 만든» 끝자리다. 선택이 한 블럭이면 그 블럭의 패널로 잇는다.
+     ⛔호출부(rangeSelectBlocks 29곳)는 안 건드린다 — 고칠 자리는 «패널을 정하는 한 자리»다. */
+  _openSoleBlockPanel();
 }
 
 /* Cmd+클릭: 단일 블록 토글 */

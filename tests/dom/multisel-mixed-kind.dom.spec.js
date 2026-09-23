@@ -208,20 +208,22 @@ test('U5-neg 음성대조 — 옛 규칙(«.selected 아무거나»)으로 재�
 /* ⒠ 패널 «고르기» — 어느 멀티셀렉 패널을 띄우느냐. 원문을 떠서 돌린다. */
 const PANEL_FN = extractFn(EDITOR_SRC, '_updateMultiSelPanel');
 
-async function pickPanel(page, { flowUnits, inFree }) {
-  return page.evaluate(([src, n, free]) => {
+async function pickPanel(page, { flowUnits, inFree, freeOpened = true }) {
+  return page.evaluate(([src, n, free, freeOpened]) => {
     const calls = [];
     const scope = {
       _countFlowMultiSel: () => n,
       _isInFreeLayout: () => !!free,
-      _updateFreeLayoutMultiSelPanel: () => calls.push('free'),
+      /* ★2026-09-24 T-091 — «패널을 띄웠나»를 boolean 으로 돌려준다. 안 띄웠으면 호출부가 뒤를 잇는다. */
+      _updateFreeLayoutMultiSelPanel: () => { calls.push('free'); return !!freeOpened; },
+      _openSoleBlockPanel: () => { calls.push('sole'); return true; },
       propPanel: { innerHTML: '' },
     };
     window.showFlowMultiSelPanel = () => calls.push('flow');
     const names = Object.keys(scope);
     new Function(...names, src + '; return _updateMultiSelPanel;')(...names.map(k => scope[k]))({});
     return calls;
-  }, [PANEL_FN, flowUnits, inFree]);
+  }, [PANEL_FN, flowUnits, inFree, freeOpened]);
 }
 
 test('R1 ★흐름 단위가 둘 이상이면 «방금 누른 게 도형이어도» 흐름 패널이다', async ({ page }) => {
@@ -235,9 +237,25 @@ test('R2 회귀 — 순수 자유배치 선택(흐름 단위 0)은 종전대로 
   expect(await pickPanel(page, { flowUnits: 0, inFree: true })).toEqual(['free']);
 });
 
-test('R3 회귀 — 흐름 단위가 1 이하면 패널을 억지로 바꾸지 않는다(단일 선택)', async ({ page }) => {
+/* ★2026-09-24 T-091 — R3 의 규약을 «고쳐 적었다».
+   옛 판은 「흐름 단위가 1 이하면 아무것도 안 한다」를 못박았는데, 그게 바로 결함이었다 —
+   rangeSelectBlocks 는 deselectAll() 로 패널까지 비우고 오므로 「아무것도 안 한다」 =
+   «비워진 Page 가 남는다». 실측(2026-09-24 포트 9342 · 판 7780267): ⇧클릭이 같은 블럭이거나
+   앵커가 없으면 선택은 1개인데 패널이 「Page」였다(글자·이미지·도형 전부).
+   ⇒ 지킬 것은 「멀티선택 패널로 «가지 않는다»」이고, 빈자리는 그 한 블럭의 패널이 메운다. */
+test('R3 회귀 — 흐름 단위가 1 이하면 «멀티선택» 패널로 안 간다(대신 그 블럭 패널로 잇는다)', async ({ page }) => {
   await boot(page);
-  expect(await pickPanel(page, { flowUnits: 1, inFree: false })).toEqual([]);
+  const calls = await pickPanel(page, { flowUnits: 1, inFree: false });
+  expect(calls, '단일 선택인데 멀티선택 패널이 떴다').not.toContain('flow');
+  expect(calls, '단일 선택인데 패널을 «안 건드리고» 돌아갔다 — 직전 deselectAll 의 Page 가 남는다')
+    .toEqual(['sole']);
+});
+
+test('R4 ★자유배치 멀티가 «안» 떴으면 거기서 끝내지 않고 단일 블럭 패널로 잇는다', async ({ page }) => {
+  await boot(page);
+  /* 실측: 도형을 ⇧클릭하면 _isInFreeLayout=true · 흐름단위 1 인데 hasFreeLayoutMultiSel()=false
+     ⇒ 옛 판은 여기서 조용히 끝나 패널이 「Page」로 남았다. */
+  expect(await pickPanel(page, { flowUnits: 1, inFree: true, freeOpened: false })).toEqual(['free', 'sole']);
 });
 
 test('U4 회귀 — 텍스트프레임은 «그릇»이다(단위는 안의 text-block)', async ({ page }) => {
