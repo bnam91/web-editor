@@ -322,7 +322,21 @@ test('T178-2b ★patchCol 뒤 patchCell{r:0} — 칸 값은 «그 칸만» 덮�
     '   ⇒ 칸 꾸밈과 열 기본값은 «다른 자리»에 저장되어야 한다.').toBe('rgb(10, 125, 59)');
 });
 
-test('T178-2c ★patchCell{r:0} 뒤 patchCol — 칸 값은 살아남는다', async ({ page }) => {
+/* ★★이 검사는 «API `patchCol`» 하나만 말한다 — 낱말 뜻이 근거다.
+ *   `cols[c]` 의 꾸밈 5개는 이제 「열 «기본값»」이고, 기본값은 정의상 «자기 값이 없는 칸»만
+ *   따른다. 칸 값을 지우면 그건 기본값이 아니라 「일괄 덮어쓰기」다.
+ *
+ * ⛔이 앱엔 「일괄 덮어쓰기」가 «따로» 있다 — 헷갈리지 마라.
+ *   패널의 「가로 정렬」 단추(js/props/prop-grid.js 의 `[data-ha]` 핸들러)는 `patchCol` 을
+ *   «안 쓰고», `cols[*].align` 을 깔면서 칸·줄 오버라이드를 «일부러 걷어낸다»
+ *   (`_grdStripCellOverride` · `_grdStripLineAlign`). 세로 정렬 `[data-va]` 도 같다.
+ *   ⇒ 그쪽은 의도가 「통째로 건다」이므로 «지우는 것이 맞다». 여기와 «반대»다.
+ *   ⇒ 둘은 다른 연산이다. 이 검사를 「패널 정렬 단추도 안 지운다」로 읽지 마라.
+ *
+ * ⚠️고치는 쪽에 — `_grdStripCellOverride` 의 주석은 「⛔행 0 은 여기 없다」라고 적혀 있다.
+ *   포맷이 바뀌면 `dataset.cells` 가 행 0 도 담으므로 그 문장은 거짓이 된다(동작은 오히려
+ *   맞아진다 — 행 0 칸 오버라이드도 같이 걷히니까). 주석을 같이 고쳐라. */
+test('T178-2c ★API patchCol 은 칸 값을 «안 지운다» — patchCell{r:0} 뒤 patchCol', async ({ page }) => {
   const errs = await boot(page);
   const r = await run(page, [
     { patchCell: { r: 0, c: 0, bg: CELL_BG } },
@@ -332,9 +346,58 @@ test('T178-2c ★patchCell{r:0} 뒤 patchCol — 칸 값은 살아남는다', as
   expect(allOk(r), `조작이 실패했다 — ${why(r)}`).toBe(true);
   expect(r.after['css.10.bg'], '★열 기본값이 아래 행에 안 닿는다').toBe('rgb(10, 125, 59)');
   expect(r.after['css.00.bg'],
-    '★행 0 «칸»에 준 색이 뒤이은 열 기본값에 «지워졌다».\n' +
+    '★행 0 «칸»에 준 색이 뒤이은 «API patchCol» 에 지워졌다.\n' +
     `   0행 0열: ${r.after['css.00.bg']} (칸 값 ${CELL_BG} 이어야 한다 — 폴백은 cell[k] ?? col[k])\n` +
-    '   ⇒ 기준 커밋에선 둘이 «같은 자리»(cols[0].bg)라 나중 것이 앞 것을 지운다.').toBe('rgb(123, 47, 247)');
+    '   ⇒ 기준 커밋에선 둘이 «같은 자리»(cols[0].bg)라 나중 것이 앞 것을 지운다.\n' +
+    '   ⛔패널의 「가로/세로 정렬」 단추와 혼동하지 마라 — 그쪽은 일부러 걷어내는 «다른 연산»이다.').toBe('rgb(123, 47, 247)');
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+ * 1e·1f — ★남은 꾸밈 두 개(align·valign)도 «칸으로» 잰다.
+ *   ⛔이 둘이 더 위험하다 — 값이 없을 때 「없음」이 아니라 «다른 값»으로 떨어진다
+ *     (align→'left' 강제 · valign→블록값 강제. 실측: grid-cell-empty-value.dom.spec.js).
+ *     그래서 「샜다/안 샜다」가 배경색보다 눈에 덜 띈다.
+ * ════════════════════════════════════════════════════════════════════ */
+
+for (const [nick, patch, tag, axisKey, want] of [
+  ['1e', { align: 'right' }, 'align', 'textAlign', 'right'],
+  ['1f', { valign: 'bottom' }, 'valign', 'justify', 'flex-end'],
+]) {
+  test(`T178-${nick} ★행 0 칸의 ${tag} 도 «그 칸에만» 머문다`, async ({ page }) => {
+    const errs = await boot(page);
+    const r = await run(page, [{ patchCell: { r: 0, c: 0, ...patch } }]);
+    expect(errs).toEqual([]);
+    expect(allOk(r), `patchCell{r:0, ${tag}} 이 실패했다 — ${why(r)}`).toBe(true);
+    // 전제 — 준 칸은 실제로 변했다(안 변하면 아래 「안 변한다」들이 공짜로 초록이 된다).
+    expect(r.after[`css.00.${axisKey}`],
+      `★준 칸조차 안 변했다 — ${tag} 는 이 그물로 못 잰다`).toBe(want);
+    expect(r.before[`css.00.${axisKey}`],
+      `★시작값이 이미 '${want}' 다 — 두 답이 겹쳐 아무것도 못 가른다`).not.toBe(want);
+    // 본 단언 — 같은 열 아래 행 / 다른 열 / 같은 행 다른 열, 셋 다 안 변한다.
+    const leaked = [...dk(r.delta, 'css.10'), ...dk(r.delta, 'css.11'), ...dk(r.delta, 'css.01')];
+    expect(leaked,
+      `★행 0 0열에만 ${tag} 를 줬는데 다른 칸이 따라 변했다.\n` +
+      dump(r.delta, 'css.10') + '\n' + dump(r.delta, 'css.11') + '\n' + dump(r.delta, 'css.01') + '\n' +
+      `   ⛔${tag} 는 값이 없을 때 「없음」이 아니라 «다른 값»으로 떨어지는 축이라 ` +
+      '눈으로 덜 띈다 — 배경색만 고치고 여기를 놓치기 쉽다.').toEqual([]);
+    // 모델도 같이 — 아래 행은 근거 없이 변하면 안 된다.
+    expect(dk(r.delta, `model.10.${tag}`),
+      `★1행 0열의 «모델» ${tag} 까지 변했다\n` + dump(r.delta, 'model.10')).toEqual([]);
+  });
+}
+
+test('T178-2a-align ★열 기본값(align·valign)도 여전히 산다 — patchCol 은 그 열 모든 행에 닿는다', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await run(page, [{ patchCol: { index: 0, align: 'right', valign: 'bottom' } }]);
+  expect(errs).toEqual([]);
+  expect(allOk(r), `patchCol 이 실패했다 — ${why(r)}`).toBe(true);
+  expect(r.after['css.00.textAlign'], '★열 align 기본값이 행 0 에 안 닿는다').toBe('right');
+  expect(r.after['css.10.textAlign'],
+    '★★열 align 기본값이 «행 1» 에 안 닿는다 — 폴백을 없앴거나 행 0 만 고쳤다').toBe('right');
+  expect(r.after['css.00.justify'], '★열 valign 기본값이 행 0 에 안 닿는다').toBe('flex-end');
+  expect(r.after['css.10.justify'], '★★열 valign 기본값이 «행 1» 에 안 닿는다').toBe('flex-end');
+  expect([...dk(r.delta, 'css.01'), ...dk(r.delta, 'css.11')],
+    '★열 0 에 준 값이 열 1 까지 갔다\n' + dump(r.delta, 'css.01') + '\n' + dump(r.delta, 'css.11')).toEqual([]);
 });
 
 /* ══════════════════════════════════════════════════════════════════════
