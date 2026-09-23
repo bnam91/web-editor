@@ -134,7 +134,9 @@ const PLANT = () => {
   HOST.appendChild(row);
   const ID = block.id;
   const ops = [
-    window.updateGridBlock(ID, { rows: [{ height: 'auto' }, { height: 'auto' }, { height: 'auto' }] }),
+    /* ★행 높이는 'auto' «와» px 를 섞는다 — px 최소높이(minmax)도 저장 포맷의 한 칸이다.
+       전부 auto 로 두면 그 칸을 한 번도 안 지난다. */
+    window.updateGridBlock(ID, { rows: [{ height: 'auto' }, { height: 200 }, { height: 'auto' }] }),
     window.updateGridBlock(ID, { rowGap: 14, colGap: 18 }),
     window.updateGridBlock(ID, { cells }),
   ].map(r => ({ ok: !!(r && r.ok), code: r && r.code, message: r && r.message }));
