@@ -116,13 +116,19 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
   window.__ready = true;
 </script></body></html>`;
 
-async function boot(page) {
+/** @param {(src:string, pathname:string)=>string} [mutate]
+ *  ★두 번째 인자는 «양성대조 전용»이다 — 레포 파일을 서빙하기 «직전»에 한 군데만 비튼다.
+ *    안 주면 지금까지와 완전히 같다(레포 바이트 그대로). */
+async function boot(page, mutate) {
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/__harness.html') return route.fulfill({ contentType: 'text/html', body: HARNESS });
     const file = path.join(REPO, url.pathname);
     if (!file.startsWith(REPO) || !fs.existsSync(file)) return route.fulfill({ status: 404, body: '' });
-    return route.fulfill({ contentType: MIME[path.extname(file)] || 'text/plain', body: fs.readFileSync(file) });
+    const body = fs.readFileSync(file);
+    const ct = MIME[path.extname(file)] || 'text/plain';
+    if (mutate) return route.fulfill({ contentType: ct, body: mutate(body.toString('utf8'), url.pathname) });
+    return route.fulfill({ contentType: ct, body });
   });
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
@@ -241,6 +247,18 @@ const PROBE = async (page, addr) => page.evaluate(async ({ addr, fields }) => {
       }
       /* 글자/숫자 칸 — 갈래를 몇 개 넣어 본다(하나만 넣으면 그 칸이 거부하는 값일 수 있다). */
       for (const v of ['37', '7B2FF7', '#7b2ff7', '2:1']) { el.value = v; fire(el, 'input'); fire(el, 'change'); }
+      /* ★★<input type="number"> 는 «숫자가 아닌» 값을 넣으면 el.value 가 «''» 가 된다(브라우저 규약).
+         ⇒ 위 네 갈래 중 뒤 셋은 숫자 칸에서 전부 「비우기」다. 마지막이 비우기로 끝나면
+           「값을 줬다가 스스로 지운」 꼴이 되어, 손잡이가 «있어도» before===after 로 읽힌다.
+         실측(2026-09-23): 이 자리 때문에 padding·radius 가 「손잡이 없음」으로 나왔다 —
+           `after 37: {"padding":37}` 이었다가 `after 7B2FF7: {}` 로 되돌아갔다.
+         ⇒ 숫자 칸은 «유효한 숫자»로 끝낸다. 이 검사가 묻는 것은 「그 손잡이가 값을 쓰나」이지
+           「마지막에 무엇이 남나」가 아니다.
+         ⛔«합집합»(값마다 스냅샷을 떠 변화를 모으기)으로 재지 마라 — 그러면
+           「값을 줬다가 스스로 되돌리는 손잡이」를 못 잡게 되어 이 검사가 «약해진다».
+           유효값으로 끝내는 쪽은 안 약해진다(되돌리는 손잡이가 있으면 모델이 37 과 달라져 여전히 잡힌다).
+         ★짝 검사 = E0-e(사각지대가 실재함) · E0-f(손잡이를 없애면 실제로 빨개짐). */
+      if (type === 'number') { el.value = '37'; fire(el, 'input'); fire(el, 'change'); }
       return 'type';
     }
     el.click();
@@ -441,6 +459,75 @@ test('E0-d ★증인이 «값이 주어지면» 실제로 움직인다 — 「�
   }
   expect(blind, '★증인이 눈멀었다:\n   ' + blind.join('\n   ') + '\n' +
     '   이게 빨개지면 아래 빨강들은 「손잡이가 없다」가 아니라 「내 자가 못 잰다」는 뜻이다').toEqual([]);
+});
+
+/* ★E0-e / E0-f — 2026-09-23 T-178 에서 드러난 «탐침의 사각지대»와 그 짝.
+ *
+ * 무엇이 있었나 — E4·E1~E3 의 padding·radius 가 초록이던 까닭은 손잡이가 있어서가 «아니라»,
+ *   A_TEXT 가 «행 0 주소»여서 prop-grid.js 의 `_grdBlank(0, true) === 0` 이 마지막에 0 을
+ *   박아 줬기 때문이다. 행 1 주소로 같은 각본을 돌리면 «기준선 f724dc1 에서도 이미 빈 채»다(실측).
+ *   ⇒ 이 사각지대는 T-178 이 «만든» 것이 아니라 행 0 특례가 «가리고» 있던 것이다.
+ * ════════════════════════════════════════════════════════════════════════ */
+
+test('E0-e ★사각지대를 이름으로 잠근다 — 마지막 쓰기가 「비우기」면 손잡이가 «있어도» 안 보인다', async ({ page }) => {
+  const errs = await boot(page);
+  /* ⑴ 사각지대가 «실재»한다 — 유효값 뒤에 무효값(=비우기)을 넣으면 모델이 되돌아온다. */
+  const r = await page.evaluate(async (addr) => {
+    const HOST = document.getElementById('host');
+    const PANEL = document.querySelector('#panel-right .panel-body');
+    HOST.innerHTML = ''; PANEL.innerHTML = '';
+    const { row, block } = window.__mk(JSON.parse(JSON.stringify(window.__FIX)));
+    HOST.appendChild(row); block.classList.add('selected');
+    window.__block = block; window.__open(block, addr);
+    const pad = () => {
+      let cell = {};
+      try { cell = window.__model(block).cells[addr.r][addr.c] || {}; } catch (_) {}
+      return JSON.stringify(cell.padding === undefined ? null : cell.padding);
+    };
+    const el = document.getElementById('grd-cell-padding');
+    if (!el) return { found: false };
+    const put = (v) => {
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return pad();
+    };
+    return { found: true, isNumber: String(el.type).toLowerCase(), start: pad(),
+      after37: put('37'), afterJunk: put('7B2FF7'), valueAfterJunk: JSON.stringify(el.value) };
+  }, A_TEXT);
+  expect(errs).toEqual([]);
+  expect(r.found, '★패딩 칸을 못 찾았다 — 이 검사의 겨냥이 빗나갔다').toBe(true);
+  expect(r.isNumber, '★패딩 칸이 type=number 가 아니다 — 아래 설명이 더는 안 맞는다').toBe('number');
+  expect(r.after37, '★유효한 숫자를 넣었는데 모델이 안 움직였다 — 손잡이가 정말 없는 것이다').toBe('37');
+  expect(r.valueAfterJunk,
+    '★<input type=number> 에 숫자 아닌 값을 넣었는데 el.value 가 \'\' 가 «안» 됐다 — ' +
+    '브라우저 규약이 바뀌었거나 칸 종류가 바뀌었다. 그러면 drive() 의 마지막 보정도 뜻을 잃는다').toBe('""');
+  expect(r.afterJunk,
+    '★숫자 아닌 값(= 비우기)이 앞서 준 37 을 «안» 지웠다 — 사각지대 설명이 더는 안 맞는다.\n' +
+    '   그러면 drive() 의 마지막 유효값 보정은 불필요한 손질이다. 주석과 함께 걷어내라')
+    .not.toBe('37');
+});
+
+test('E0-f ★★양성대조 — 패딩 «손잡이를 없앤» 변형본에서는 이 축이 실제로 빨개진다', async ({ page }) => {
+  /* ⛔이게 없으면 위 drive() 손질은 「검사를 죽여서 초록을 산 것」과 구별되지 않는다.
+     ⇒ 배선 한 줄을 «지운» prop-grid.js 를 서빙하고, 패딩 축이 죽는지 본다.
+     ★다른 축(배경색)은 살아 있어야 한다 — 변이가 패널을 통째로 부순 게 아님을 같이 센다. */
+  const ANCHOR = "  numWire('grd-cell-padding', 'padding');\n";
+  const errs = await boot(page, (src, pathname) => {
+    if (!pathname.endsWith('/js/props/prop-grid.js')) return src;
+    const out = src.replace(ANCHOR, '');
+    if (out === src) throw new Error('★변이 닻이 빗나갔다 — numWire 패딩 배선을 못 찾았다');
+    return out;
+  });
+  const probe = await PROBE(page, A_TEXT);
+  expect(errs).toEqual([]);
+  expect(probe.n, '★패널이 안 떴다 — 변이가 모듈을 통째로 깨뜨렸다').toBeGreaterThan(40);
+  expect(movers(probe, ['cell.bg', 'css.backgroundColor']).length,
+    '★변이가 패널을 통째로 부쉈다 — 배경색 손잡이까지 사라졌다면 이 양성대조는 아무것도 안 가른다')
+    .toBeGreaterThan(0);
+  expect(movers(probe, ['cell.padding', 'css.paddingTop', 'css.paddingLeft']),
+    '★패딩 배선을 «지웠는데도» 누군가 패딩을 주고 있다 — E1~E3·E4 의 패딩 판정은 헛것이다')
+    .toEqual([]);
 });
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -660,6 +747,11 @@ const PROBE_CELLS = async (page, addr) => page.evaluate(async ({ addr, fields })
         el.value = String(Math.round(lo + (hi - lo) * 0.63)); fire(el, 'input'); fire(el, 'change'); return;
       }
       for (const v of ['37', '7B2FF7', '#7b2ff7', '2:1']) { el.value = v; fire(el, 'input'); fire(el, 'change'); }
+      /* ★숫자 칸은 «유효한 숫자»로 끝낸다 — 위 PROBE 의 drive() 와 «같은 까닭»이다
+         (<input type=number> 는 숫자 아닌 값에 el.value 가 '' 가 되어 마지막이 「비우기」가 된다).
+         ⚠️이 파일엔 drive() 가 «두 벌»이다(PROBE · PROBE_CELLS). 한쪽만 고치면 E4 는 초록인데
+           E9 만 빨간 꼴이 난다 — 실제로 2026-09-23 에 그렇게 났다. 고칠 땐 둘 다 봐라. */
+      if (ty === 'number') { el.value = '37'; fire(el, 'input'); fire(el, 'change'); }
       return;
     }
     el.click();
