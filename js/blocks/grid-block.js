@@ -581,12 +581,22 @@ function _gridDestructiveNotice(model, nextRowCount, nextColCount) {
   if (nextColCount < colsBefore) shrank.push(`cols ${colsBefore}→${nextColCount}`);
   if (!shrank.length) return null;
   const lost = _gridTruncated(model, nextRowCount, nextColCount);
+  /* ⛔★머리말을 «잃은 게 있을 때만» DESTRUCTIVE 로 쓴다 (2026-09-24, 지디 관측 회신).
+   *   무엇이 있었나 — 이 쪽지는 «줄이면 언제나» 난다(빈 칸만 잘려도 난다). 그런데 머리말이
+   *   늘 「DESTRUCTIVE REPLACE」였다. ⇒ 읽는 쪽에서 「경고가 떴다」와 「뭔가 사라졌다」가
+   *   한 낱말로 뭉개진다 — 늑대를 외치는 경고는 다음 진짜 경고를 가린다.
+   *   ★두 경우를 가르는 것은 여전히 `droppedCells` 다(빈 배열이면 잃은 것이 없다).
+   *     머리말은 그 «같은 사실»을 한눈에 보이게 할 뿐이다 — 새 신호를 만든 게 아니다.
+   *   ⛔쪽지 «자체»는 없애지 마라: 「줄였다」는 사실은 잃은 것이 없어도 알 값이 있고,
+   *     없애면 「경고 없음」이 「안 줄었다」와 「줄었는데 빈 칸이었다」 둘을 덮는다. */
   return {
     kind: 'truncate',
     shrank,
-    /* ⚠️«칸 수»지 «줄 수»가 아니다 — 무엇을 센 건지 이름에 적어 둔다. */
+    /* ⚠️«칸 수»지 «줄 수»가 아니다 — 무엇을 센 건지 이름에 적어 둔다.
+       ⚠️★주소는 «모델»(getGridModel) 기준이다 — 행 0 의 줄은 저장본에선 cols[c].lines 에
+         사는데(겸직) 이 주소는 cells[0][c] 로 가리킨다. 같은 칸이지 다른 칸이 아니다. */
     droppedCells: lost.map(x => `cells[${x.r}][${x.c}]`),
-    message: `DESTRUCTIVE REPLACE — ${shrank.join(', ')}. `
+    message: (lost.length ? 'DESTRUCTIVE REPLACE' : 'SHRINK (nothing lost)') + ` — ${shrank.join(', ')}. `
       + (lost.length
         ? `${lost.length} cell(s) fell outside the new grid and their contents were DISCARDED `
           + `(${lost.map(x => `cells[${x.r}][${x.c}]:${x.lines} line(s)`).join(', ')}). `
@@ -1391,25 +1401,74 @@ export function migrateGridIdentity(root) {
   return targets.length;   // 승격 «건수» — 안전망 warn 과 단위테스트가 이 값을 본다.
 }
 
-function makeGridBlock(opts = {}) {
+/* ═══ ★「만드는 문」이 «눌러 맞춘 것»을 말하게 한다 (2026-09-24, 지디 실기 관측) ══════════
+ *  ★무엇이 있었나 — 「고치는 문」과 「만드는 문」이 «같은 값»에 다른 답을 했다(실측):
+ *      cols 6개  → update: ok:false INVALID   /  add: ok:true · 조용히 4로 잘림
+ *      rows 6개  → update: ok:false INVALID   /  add: ok:true · 조용히 4로 잘림
+ *      valign:'중간' → update: ok:false        /  add: ok:true · 조용히 'top'
+ *      gap:999   → update: ok:false(0~200)     /  add: ok:true · ★999 가 «그대로 저장된다»
+ *      rowGap:999→ update: ok:false            /  add: 조용히 «안 써진다»(gap 으로 떨어짐)
+ *    ⇒ T-175 의 제목 그대로다 — 「무엇이 옳은 값인지 아무도 모른다」.
+ *  ⛔★동작은 «한 바이트도» 안 바꾼다 — 자르고 눌러 맞추는 것은 그대로다.
+ *    까닭 ⑴ T-180 이 이 모양의 처방을 «말을 시킨다»로 못박았다(막으라고 안 했다).
+ *         ⑵ T-176 선례 — 자르는 것이 «정해진 동작»이면 바꾸지 말고 적는다.
+ *         ⑶ 만들기를 «거절»로 바꾸면 오타 하나에 블록이 «안 생긴다». 지금 되던 자동화가
+ *            깨지는데, 그걸 시킨 카드가 없다. ⛔고치는 문과 달리 여기엔 «지킬 옛 값»이 없다.
+ *  ⚠️⛔`gap` 만은 «자르지도» 않는다 — 999 가 그대로 앉는다. 그러면 고치는 문(0~200)으로는
+ *    영영 못 되돌리는 값이 생긴다(「만들 수는 있는데 고칠 수는 없는 값」). 동작을 안 바꾸는
+ *    이 판에선 «말만» 하고 남긴다 — 자를지 말지는 따로 설 카드다.
+ *  @param {Array} [drops]  «안 닿은 것»을 담을 자리. 안 주면 예전과 완전히 같다(조용).
+ * ═══════════════════════════════════════════════════════════════════════════════════ */
+function makeGridBlock(opts = {}, drops = []) {
   const block = document.createElement('div');
   block.className = 'grid-block';
   block.id = genId('grd');
   block.dataset.type = 'grid';
   let cols = (Array.isArray(opts.cols) && opts.cols.length >= MIN_COLS) ? opts.cols.slice(0, MAX_COLS) : JSON.parse(JSON.stringify(GRID_DEFAULTS.cols));
+  if (Array.isArray(opts.cols) && opts.cols.length > MAX_COLS) {
+    drops.push({ path: `cols[${MAX_COLS}..${opts.cols.length - 1}]`,
+      why: `a grid holds ${MIN_COLS}~${MAX_COLS} columns — the rest were dropped (update_grid_block REFUSES the same value; this door clamps it)` });
+  } else if (opts.cols !== undefined && !(Array.isArray(opts.cols) && opts.cols.length >= MIN_COLS)) {
+    drops.push({ path: 'cols', why: `cols must be an array of ${MIN_COLS}~${MAX_COLS} columns — it was ignored and the default 2-column grid was built instead` });
+  }
+  if (opts.gap !== undefined && _gridValidateGap(opts.gap) === null) {
+    drops.push({ path: 'gap', why: `${JSON.stringify(opts.gap)} is outside 0~${GRID_GAP_MAX}. ⚠️It was STORED ANYWAY (behaviour unchanged), `
+      + 'but update_grid_block refuses that range — so this value cannot be edited back through that field' });
+  }
   block.dataset.gap = String(Number.isFinite(Number(opts.gap)) ? Number(opts.gap) : GRID_DEFAULTS.gap);
   // ★rowGap/colGap 은 «주어졌을 때만» dataset 에 쓴다 — 안 주면 옛 파일과 완전히 같은 모양(legacy gap 폴백).
-  if (opts.rowGap !== undefined) { const v = _gridValidateGap(opts.rowGap); if (v !== null) block.dataset.rowGap = String(v); }
-  if (opts.colGap !== undefined) { const v = _gridValidateGap(opts.colGap); if (v !== null) block.dataset.colGap = String(v); }
+  for (const k of ['rowGap', 'colGap']) {
+    if (opts[k] === undefined) continue;
+    const v = _gridValidateGap(opts[k]);
+    if (v !== null) block.dataset[k] = String(v);
+    else drops.push({ path: k, why: `${JSON.stringify(opts[k])} is outside 0~${GRID_GAP_MAX} — it was not written, so this axis falls back to gap` });
+  }
   /* ★T-172 칸 테두리도 «주어졌을 때만» 쓴다 — 안 주면 옛 파일과 dataset 이 완전히 같다. */
   if (opts.cellBorderWidth !== undefined) { const v = _gridValidateBorderWidth(opts.cellBorderWidth); if (v !== null) block.dataset.cellBorderWidth = String(v); }
   if (typeof opts.cellBorderColor === 'string' && _GRID_COLOR_RE.test(opts.cellBorderColor.trim())) block.dataset.cellBorderColor = opts.cellBorderColor.trim();
   if (GRID_BORDER_STYLES.includes(opts.cellBorderStyle)) block.dataset.cellBorderStyle = opts.cellBorderStyle;
+  if (opts.valign !== undefined && !GRID_VALIGN_VALUES.includes(opts.valign)) {
+    drops.push({ path: 'valign', why: `${JSON.stringify(opts.valign)} is not one of ${GRID_VALIGN_VALUES.join('|')} — `
+      + `the block fell back to '${GRID_DEFAULTS.valign}' without a word (update_grid_block REFUSES the same value)` });
+  }
   block.dataset.valign = GRID_VALIGN_VALUES.includes(opts.valign) ? opts.valign : GRID_DEFAULTS.valign;
 
   // ★P1: rows/cells(선택) — 안 주면 옛 duo 와 완전히 같은 1행 블록(dataset.rows/cells 아예 안 씀).
   //   cells 는 add_block API 경계 그대로 «행 0 포함 전체»를 받는다(§3-A) — 행 0 은 cols 로 흡수.
+  if (opts.rows !== undefined && !(Array.isArray(opts.rows) && opts.rows.length >= MIN_ROWS)) {
+    drops.push({ path: 'rows', why: `rows must be an array of ${MIN_ROWS}~${MAX_ROWS} — it was ignored and a 1-row grid was built` });
+  }
+  /* ⚠️★`cells` 는 «rows 가 성립할 때만» 읽힌다 — rows 를 안 주면 cells 가 통째로 조용히 버려진다.
+     지디 관측엔 없던 자리고, 「만들기」에서 제일 크게 잃는 갈래다(칸 내용 전부). */
+  if (Array.isArray(opts.cells) && opts.cells.length && !(Array.isArray(opts.rows) && opts.rows.length >= MIN_ROWS)) {
+    drops.push({ path: 'cells', why: 'cells is only read when rows is also given — pass rows in the SAME call, '
+      + 'otherwise every cell you sent is dropped (this door built a 1-row grid from cols alone)' });
+  }
   if (Array.isArray(opts.rows) && opts.rows.length >= MIN_ROWS) {
+    if (opts.rows.length > MAX_ROWS) {
+      drops.push({ path: `rows[${MAX_ROWS}..${opts.rows.length - 1}]`,
+        why: `a grid holds ${MIN_ROWS}~${MAX_ROWS} rows — the rest were dropped (update_grid_block REFUSES the same value; this door clamps it)` });
+    }
     const rows = opts.rows.slice(0, MAX_ROWS).map(r => {
       const h = r && typeof r === 'object' ? r.height : undefined;
       if (h === 'auto' || h == null || h === '') return { height: 'auto' };
@@ -1421,6 +1480,10 @@ function makeGridBlock(opts = {}) {
        이제 cells[0] «자리»에 살아야 한다(옛 코드는 그것을 cols 로 올려 «열 기본값»으로 삼았다).
        조건을 남기면 1행 그리드에 준 칸 꾸밈이 조용히 사라진다. */
     if (Array.isArray(opts.cells) && opts.cells.length) {
+      if (opts.cells.length > rows.length) {
+        drops.push({ path: `cells[${rows.length}..${opts.cells.length - 1}]`,
+          why: `the grid has ${rows.length} row(s) — the extra rows were dropped` });
+      }
       const { cols: mergedCols, cellRows } = _splitFullCells(opts.cells.slice(0, rows.length), cols);
       cols = mergedCols;
       if (cellRows.length) block.dataset.cells = _gridCellsToDataset(cellRows);
@@ -1445,20 +1508,28 @@ function addGridBlock(opts = {}) {
    *     makeGridBlock/addGridBlock 에는 부분 적용을 «보고할 칸»이 없다(돌려주는 것이 {row,block}이다).
    *     ⇒ 그건 add 쪽 반환 규약을 바꾸는 별건이다. 조용히 버리는 쪽으로 때우지 «않는다».
    *   ⛔ctx.block 은 null 이다 — 아직 블록이 없으니 「이미 있던 그림」이라는 예외가 성립 안 한다. */
+  /* ~~[2026-09-24 오전] 「모르는 값을 말해 준다 쪽은 여기 못 붙인다 — 보고할 칸이 없다」~~
+     ⛔그 문장은 «내가 안 만든 칸»을 「없는 칸」으로 적은 것이었다(지디 실기 관측이 그 자리를 밟았다).
+     ★칸은 만들면 된다 — 아래처럼 `notApplied` 를 «덧붙여» 돌려준다. 기존 부르는 쪽은
+       `{ row, block }` 을 구조분해로 받으므로 한 자도 안 깨진다(⛔반환 «교체»가 아니라 «추가»다). */
+  const _drops = [];
   const _intakeReject = _gridIntake({ cols: opts.cols, cells: opts.cells },
-    { trusted: opts.trusted === true, block: null }, []);
+    { trusted: opts.trusted === true, block: null }, _drops);
   if (_intakeReject) return _intakeReject;   // {ok:false, code, message} — main.js 가 그대로 올린다
   const sec = window.getSelectedSection?.();
   if (!sec) { window.showNoSelectionHint?.(); return null; }
   window.pushHistory();
-  const { row, block } = makeGridBlock(opts);
+  const { row, block } = makeGridBlock(opts, _drops);
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
   try { window.selectBlock?.(block.id); } catch (_) {}
   row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   window.triggerAutoSave?.();
-  return { row, block };
+  /* ★「안 닿은 것」을 «고치는 문과 같은 모양»으로 싣는다(ignoredProps + hint).
+     ⛔비었으면 키 자체를 안 만든다 — 아무 일 없던 호출의 답이 굵어지지 않게. */
+  const notApplied = _drops.length ? _gridAttachNotApplied({}, _drops) : null;
+  return notApplied ? { row, block, notApplied } : { row, block };
 }
 
 // updateStepBlock/updateInfoCardBlock 미러 — validate-then-commit + before 스냅샷.

@@ -6762,10 +6762,12 @@ async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, 
       if (!el) return { ok: false, code: 'NOT_CREATED', message: '그리드 블록이 만들어지지 않았습니다 (활성 섹션 확인).' };
       /* ★결과를 «읽어서» 돌려준다 — 인자를 되읊지 않는다 */
       const cells = el.querySelectorAll('.grd-cell');   // ★실측 클래스는 grd-cell 이다(grid-cell 아님)
-      return { ok: true, blockId: el.id, sectionId: (el.closest('.section-block') || {}).id || null,
+      /* ★「눌러 맞춘 것」을 고치는 문과 «같은 모양»으로 올린다 (2026-09-24, 지디 실기 관측).
+         ⛔없으면 cols 6개·valign 오타가 ok:true 로 돌아가고 부른 쪽은 4열·'top' 을 모른다. */
+      return Object.assign({ ok: true, blockId: el.id, sectionId: (el.closest('.section-block') || {}).id || null,
                gridBefore: before, gridAfter: document.querySelectorAll('.grid-block').length,
                cols: parseInt(el.dataset.gridCols || '0') || (JSON.parse(el.dataset.cols || '[]').length || null),
-               cellCount: cells.length };
+               cellCount: cells.length }, (r && r.notApplied) || {});
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
