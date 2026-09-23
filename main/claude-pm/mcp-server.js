@@ -3670,6 +3670,11 @@ function _registerDefaultTools() {
         + '★단 «줄 내용»(lines)만은 예외다 — 행 0 의 lines 는 언제나 cols[c].lines 한 군데에 저장된다. '
         + 'patchCell{r:0,c,lines} 는 그래서 dataset.cols 를 고친다(단일 진실원). '
         + '⚠️꾸밈과 lines 를 «한 호출에 섞어» 주면 저장은 두 자리로 갈린다 — 둘 다 정상 반영된다. '
+        /* ★T-178 C2 — 「지움」의 계약. JSON 은 undefined 를 못 실어서 MCP 에는 이 길이 «없었다». */
+        + '★★값이 null 이면 그 키를 «지운다»(= 열 기본값으로 되돌림), 예: patchCell{r:1,c:0,bg:null}. '
+        + '⛔0 과 "" 는 지움이 «아니다» — 값이다(0 = 여백/모서리를 0 으로 «강제», "" = 강제로 없앰: '
+        + 'bg:"" 배경 없음 · align:"" 왼쪽 강제 · valign:"" 블록값 강제). '
+        + '열 기본값이 12px 인 열에서 「이 칸만 0」을 주려면 0 을, 「열 기본값으로 되돌리려면」 null 을 써라. '
         + '⛔Unknown field names are REJECTED, not silently ignored — the renderer would never read them. '
         + 'Also: gap (sets both row/column gap, px 0~200), rowGap/colGap (per-axis override, px 0~200), valign. '
         + 'Returns {ok, cellCount, cellTexts} — ★cellTexts is READ BACK from the canvas '

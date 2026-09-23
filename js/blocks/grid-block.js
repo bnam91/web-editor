@@ -539,6 +539,28 @@ function _gridMergeLine(curLines, li, fields) {
   return next;
 }
 
+/** 칸에 «꾸밈 patch»를 얹는다. ★값이 `null`(또는 `undefined`)이면 그 키를 «지운다».
+ *
+ *  ★★왜 `null` 에 뜻을 주나 (2026-09-23 T-178 · 팀리드 확정)
+ *    `undefined` 는 «이미» 지움이었다 — `Object.assign` 이 키를 undefined 로 덮고
+ *    `JSON.stringify` 가 그 키를 통째로 떨군다. 다만 그 길은 «같은 프로세스의 JS»에서만 닿는다:
+ *    ⛔MCP·IPC·저장본은 JSON 이라 `undefined` 를 «실을 수 없다». `null` 이 그 구멍을 막는다.
+ *    ⇒ 「지울 길이 없어서」가 아니라 **「JSON 으로 닿는 길이 없어서」**다.
+ *    그리고 예전의 `null` 은 «함정»이었다 — 「값 있음」으로 저장되어 열 기본값이 아니라
+ *    «하드 기본»으로 떨어졌다(`align:'left'` · `valign:블록값` · `padding/radius:0`).
+ *    아무도 의미 있게 못 쓰던 값에 뜻을 준 것이라, 잃는 표현력이 없다.
+ *  ⛔0 과 '' 는 «지움이 아니다» — 값이다(`0`=여백 0 강제 · `''`=강제로 없앰).
+ *    falsy 를 통째로 지움으로 읽으면 「열 기본값 12px 인 열에서 이 칸만 0」을 표현할 길이 사라진다.
+ *  ⛔명부를 만들지 마라 — 「값이 null/undefined 인가」만 본다(새 칸 필드가 저절로 따라온다). */
+function _gridApplyCellDeco(cell, deco) {
+  const next = Object.assign({}, cell);
+  for (const k of Object.keys(deco)) {
+    if (deco[k] === null || deco[k] === undefined) delete next[k];
+    else next[k] = deco[k];
+  }
+  return next;
+}
+
 /** 셀 patch 를 «dataset 조각»으로.
  *  ★★가르는 기준은 「꾸밈 5개」가 «아니다» — 「`lines` 인가 아닌가」 «하나»다.
  *    `const { lines, ...deco } = cellPatch` — lines 만 이름으로 집고 나머지는 «흘린다».
@@ -557,12 +579,16 @@ function _gridCellPatchDataset(cols, cellRows, r, c, cellPatch) {
       out.cols = JSON.stringify(cols);
     }
     if (Object.keys(deco).length) {
-      cellRows[0][c] = Object.assign({}, cellRows[0][c], deco);
+      cellRows[0][c] = _gridApplyCellDeco(cellRows[0][c], deco);
       out.cells = _gridCellsToDataset(cellRows);
     }
     return out;
   }
-  cellRows[r][c] = Object.assign({}, cellRows[r][c], cellPatch);
+  /* ★lines 는 «종전 그대로» Object.assign 으로 얹는다 — 「지움」 규칙은 «꾸밈»의 것이다.
+     (`lines:null` 의 대우는 _gridInspectCells 가 이미 정해 뒀다: 「배열이 아니라 버림」) */
+  let next = cellRows[r][c];
+  if ('lines' in cellPatch) next = Object.assign({}, next, { lines });
+  cellRows[r][c] = _gridApplyCellDeco(next, deco);
   out.cells = _gridCellsToDataset(cellRows);
   return out;
 }
@@ -793,8 +819,27 @@ function renderGridBlock(block) {
     for (let c = 0; c < cols.length; c++) {
       const col = cols[c];
       const cell = (cells[r] && cells[r][c]) || {};
-      // 셀 속성 우선순위: cell > col > block(valign) — PLAN §3-A. 행 0 은 cell===col 이라
-      // pick()이 늘 col 값을 돌려주므로(값이 같다) 아래는 모든 행에 대해 «같은 코드»로 맞다.
+      /* 셀 속성 우선순위: cell > col > block(valign) — PLAN §3-A.
+         ~~[폐기 · T-178 2026-09-23] 「행 0 은 cell===col 이라 pick()이 늘 col 값을 돌려준다」~~
+           까닭 — 이제 행 0 칸도 cells[0][c] 라는 «자기 값»을 갖는다. 그래서 pick 이 «진짜로»
+           갈린다(칸 값 → 없으면 열 기본값). 코드는 그대로 모든 행에 «같은 코드»로 맞다.
+         ⛔이 표현식은 한 글자도 바꾸지 마라 — 이것이 곧 「열 기본값」기능이고,
+           grid-patchcell-reject.test.js P7 이 `pick('…')` 를 «파싱해» 명부와 대조한다.
+
+         ★★pick 위에서 «네 값»이 갈린다. 「열 기본값 UI」를 만들 사람이 다시 조사하지
+           않도록 여기 못박는다 (2026-09-23 실측 · tests/dom/grid-cell-clear-contract.dom.spec.js):
+             ⑴ 키 없음    → «열 기본값을 따른다»(폴백이 col[k] 를 돌려준다)
+                ★patchCell 에 `null` 또는 `undefined` 를 주면 키가 «지워져» 이 상태가 된다
+                  (_gridApplyCellDeco). `null` 이 JSON 으로 닿는 유일한 길이다.
+             ⑵ '' 또는 0  → 값은 «있다». 폴백이 안 걸리고, 아래에서 이렇게 갈린다:
+                  bg:''             → _GRID_COLOR_RE 불통과 → «배경 없음»(열 값 무시)
+                  padding/radius:'' → Number('')||0 → 0 («여백 없음» 강제)
+                  align:''          → text-align:'' 가 아니라 _gridLineHtml 의 `line.align || colAlign`
+                                       로 내려가 결국 'left' 강제
+                  valign:''         → _GRID_VALIGN[''] 가 undefined → blockValign 강제
+             ⑶ 실제 값     → 그 값
+           ⇒ 「이 칸만 열 기본값을 «끈다»」는 ⑵, 「열 기본값으로 되돌린다」는 ⑴이다.
+             패널의 「비우기」는 ⑴을 보낸다(js/props/prop-grid.js 의 _grdUnset = `null`). */
       const pick = (k) => (cell[k] !== undefined ? cell[k] : col[k]);
       const lines = Array.isArray(cell.lines) ? cell.lines : [];
       const align = pick('align');
@@ -971,7 +1016,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     }
     next.cols = JSON.stringify(partial.cols);
     applied.cols = partial.cols;
-    // 열 수가 바뀌면 추가행 셀도 새 열 수에 맞춰 pad/truncate(방어 — 다음 렌더에서도 어차피
+    // 열 수가 바뀌면 칸 행들도 새 열 수에 맞춰 pad/truncate(방어 — 다음 렌더에서도 어차피
     // _gridCellRows 가 같은 일을 하지만, dataset 자체를 깨끗하게 유지해 export/외부 판독을 돕는다).
     const trimmedRows = _gridCellRows(block, partial.cols, rowCountForValidation);
     next.cells = _gridCellsToDataset(trimmedRows);
@@ -1289,4 +1334,9 @@ export {
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, MAX_CELL_LINES,
   _gridGaps as gridGaps, _gridCellsToDataset as gridCellsToDataset,
+  /* ★GRID_CELL_FIELDS — 칸 필드의 «정본 명부». 패널(prop-grid.js)이 「이 열에 기본값이
+     걸려 있나」를 물을 때 이걸 쓴다. ⛔패널 쪽에 이름을 베끼면 두 벌이 되어 따로 늙는다
+     (T-172 테두리처럼 새 칸 필드가 생기면 한쪽만 모른다). 선언 줄은 «그대로»라
+     grid-patchcell-reject.test.js P7 의 소스 파싱은 영향받지 않는다. */
+  GRID_CELL_FIELDS,
 };

@@ -63,9 +63,16 @@ window.addGridBlock({ gap: 32, valign: 'middle', cols: [
 // ⑶ ⛔`imgSrc` 는 length ≤ GRID_IMG_MAX_CHARS 다. 큰 data: URI 는 3번째 인자 `{ trusted: true }` 가 필요하다.
 // 수정(기존, 계속 동작): updateGridBlock(id, { patchCol: { index: 1, lines: [...] } } | { cols } | { gap } | { valign })
 
-// ★2026-09-04 P1 — 행 축(R2 모델, PLAN-gridblock.md §3-A). cols[c] = «행 0» 콘텐츠(단일 진실원) +
-//   rows(px 최소높이, 'auto' 허용) + cells(행0 포함 전체 rows×cols — 행0은 cols로 흡수, 저장은
-//   dataset.cells에 «행0을 뺀» 나머지만). rows 를 안 주면 옛 1행 그리드와 byte-identical.
+// ★2026-09-04 P1 — 행 축(R2 모델, PLAN-gridblock.md §3-A).
+//   ~~[폐기 · T-178 2026-09-23] 「cols[c] = «행 0» 콘텐츠(단일 진실원)」 · 「저장은 dataset.cells에
+//     «행0을 뺀» 나머지만」~~  ⇒ 아래가 지금의 사실이다.
+//   · cols[c].lines            = «행 0 의 줄 내용»(단일 진실원 — 여기는 안 바뀌었다)
+//   · cols[c] 의 꾸밈 5개       = 그 «열의 기본값»(자기 값 없는 칸이 모든 행에서 따른다)
+//   · dataset.cells            = «행 0 포함 전체 rows×cols». cells[0][c] 는 「행 0 «그 칸»의 꾸밈」.
+//     ⛔cells[0][*] 에는 `lines` 키가 «절대» 없다(행 0 의 줄은 cols[c].lines 하나뿐).
+//   · rows(px 최소높이, 'auto' 허용). rows 를 안 주면 옛 1행 그리드와 byte-identical.
+//   ⚠️저장 포맷이 바뀌었다 — T-178 «이전» 저장본의 dataset.cells(행 1~)는 한 행 위로 읽힌다.
+//     마이그레이션은 범위 밖(현빈 승인).
 window.addGridBlock({
   cols: [{ width: 1 }, { width: 1 }],
   rows: [{ height: 'auto' }, { height: 200 }],           // 없으면 1행(옛 duo 파일과 동일)
@@ -75,7 +82,16 @@ window.addGridBlock({
   ],
 })
 // 수정: updateGridBlock(id, partial) — 구조 필드(cols|patchCol|cells|patchCell)는 «한 번에 하나만», rows/gap/valign은 자유 결합.
-//   patchCell({r,c,...}) — r===0 은 patchCol과 동치(행0=cols, 단일 진실원). r≥1 은 dataset.cells(추가행)에 merge.
+//   ~~[폐기 · T-178 2026-09-23] 「patchCell({r,c,...}) — r===0 은 patchCol과 동치(행0=cols, 단일 진실원).
+//     r≥1 은 dataset.cells(추가행)에 merge.」~~  그 «동치»가 T-178 의 병이었다(행 0 칸에 준 꾸밈이
+//     열 기본값이 되어 아래 행까지 칠했다). 지금은 이렇게 갈린다:
+//   patchCell({r,c,bg})   = 「그 «칸»만」          → dataset.cells[r][c]  (모든 행에서 같다)
+//   patchCol({index,bg})  = 그 열의 «기본값»       → dataset.cols[index]
+//   patchCell({r:0,c,lines}) = 행 0 의 «줄 내용»   → dataset.cols[c].lines (단일 진실원)
+//   ★한 호출에 꾸밈과 lines 를 섞어 주면 dataset «두 키»가 같이 나온다 — 둘 다 정상 반영된다.
+//   ★값이 null(또는 undefined)이면 그 «키를 지운다» = 열 기본값으로 되돌림.
+//     ⛔0 과 '' 는 지움이 «아니다» — 값이다(0 = 0 으로 강제 · '' = 강제로 없앰).
+//     JSON(MCP·IPC)은 undefined 를 못 실으므로 그 길에서는 null 을 써라.
 updateGridBlock(id, { rows: [{ height: 'auto' }, { height: 120 }, { height: 'auto' }] })  // 1행→3행으로 확장
 updateGridBlock(id, { patchCell: { r: 2, c: 0, lines: [{ type: 'body', text: '새 셀 내용' }] } })  // 셀 통째 교체
 updateGridBlock(id, { patchCell: { r: 0, c: 0, lineIndex: 1, text: '한 줄만' } })                    // ★한 줄만 patch(캔버스 인라인 편집도 이 경로)

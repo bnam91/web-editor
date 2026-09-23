@@ -765,8 +765,11 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *    ⛔지운 것은 «하나도» 없다. grid-p1.test.js 는 5개를 «다시 썼지만» 수는 그대로(56)다 —
  *      옛 저장 포맷을 정답으로 잠그고 있던 단언들을 새 포맷으로 옮긴 것이다.
  *    ⛔피커 축(새는 길 ④)은 패널 DOM 이라 여기 안 센다 —
- *      tests/dom/grid-picker-row0-lines.dom.spec.js 가 따로 잰다(이 래칫의 사각지대다). */
-const GRID_BASELINE_TESTS = 251;
+ *      tests/dom/grid-picker-row0-lines.dom.spec.js 가 따로 잰다(이 래칫의 사각지대다).
+ *  ★2026-09-23 T-178 C2: 251 → 256. 더한 것 = tests/unit/grid-cell-unset-contract.test.js 의 5개
+ *    (D1 null=지움 · D2 행0/행1+ 대칭 · D3 undefined 도 지움 · D4 ''·0 은 값 · D5 음성대조).
+ *    ⛔여기서도 지운 것은 «하나도» 없다. */
+const GRID_BASELINE_TESTS = 256;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {

@@ -5,7 +5,8 @@ import { parseRatio, buildGridPicker, alignBtn, bindSlider, blockHeaderHTML } fr
 import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★상한은 한 곳에서만 온다
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
-         gridGaps, GRID_GAP_MAX, GRID_IMG_MAX_BYTES, gridCellsToDataset } from '../blocks/grid-block.js';
+         gridGaps, GRID_GAP_MAX, GRID_IMG_MAX_BYTES, gridCellsToDataset,
+         GRID_CELL_FIELDS } from '../blocks/grid-block.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
@@ -574,15 +575,23 @@ function _grdWireImageSection(block, addr) {
  *   모델도 patchCell 로 «이미» 받는다. 없던 것은 «패널에 누를 데»뿐이라 여기서는 그
  *   손잡이만 낸다 — 데이터·렌더러는 한 글자도 안 건드린다.
  *
- * ★★행 0 은 «열 그 자체»다(row 0 = cols[].lines). 그래서 0행 칸에 준 값이 실제로 쓰이는
- *   자리는 cols[c] 이고, 렌더러 폴백 `pick = (k) => (cell[k] !== undefined ? cell[k] : col[k])`
- *   때문에 «자기 값이 없는 아래 행 칸»들이 그 값을 물려받는다 — 그 칸들의 저장값은 비어 있는데
- *   화면만 따라 칠해진다.
- *   ⇒ 이 레포가 이미 한 선택을 그대로 쓴다: «동작을 바꾸는 대신 사실을 적는다».
+ * ~~[폐기 · T-178 2026-09-23]~~ 아래 세 문단은 «2026-09-23 이전»에 참이었다. 지우지 않는다.
+ *   ~~★★행 0 은 «열 그 자체»다(row 0 = cols[].lines). 그래서 0행 칸에 준 값이 실제로 쓰이는
+ *     자리는 cols[c] 이고, 렌더러 폴백 `pick = (k) => (cell[k] !== undefined ? cell[k] : col[k])`
+ *     때문에 «자기 값이 없는 아래 행 칸»들이 그 값을 물려받는다 — 그 칸들의 저장값은 비어 있는데
+ *     화면만 따라 칠해진다.~~
+ *   ~~⇒ 이 레포가 이미 한 선택을 그대로 쓴다: «동작을 바꾸는 대신 사실을 적는다».
  *     바로 아래 그리드 피커의 「줄이면 잘린 칸 내용은 사라진다」가 «같은 꼴»이고, 그 주석이
  *     이유까지 적어 뒀다(적대검수 Q3). 상속을 끊는 것은 데이터 모델·저장·되돌리기에 파장이
- *     커서 «별건»이다 — 여기서 몰래 하지 않는다.
- *   ⇒ 0행 칸을 고르면 절 제목과 힌트가 «이 열 전체에 적용된다»고 말한다. 보인 대로 된다.
+ *     커서 «별건»이다 — 여기서 몰래 하지 않는다.~~
+ *   ~~⇒ 0행 칸을 고르면 절 제목과 힌트가 «이 열 전체에 적용된다»고 말한다. 보인 대로 된다.~~
+ *   까닭 — 그 «별건»이 T-178 로 발주되어 끝났다(2026-09-23). 「사실을 적는다」는
+ *     «고칠 수 없을 때»의 차선이었고, 이제 고쳐졌으므로 그 문구를 그대로 두면 «거짓»이 된다.
+ *   ★지금의 사실:
+ *     · 행 0 칸의 꾸밈은 dataset.cells[0][c] 에 «그 칸의 값»으로 저장된다 — 아래 행에 안 번진다.
+ *     · 열 전체 기본값은 «따로» 있다(cols[c] 의 꾸밈 = patchCol). 렌더러 폴백은 그대로다.
+ *     · 행 0 의 «줄 내용»만 여전히 cols[c].lines 하나다(단일 진실원 — 이건 안 바뀌었다).
+ *   ⇒ 그래서 절 제목·힌트가 이제 «모든 행에서 같은 말»을 한다(아래 _grdCellSectionHtml).
  *
  * ★접힘이 기본이다(패널이 이미 길다). 접힘 상태는 «블록별 WeakMap» — _grdActiveLine 과 같은 집.
  *   ⛔DOM 노드 참조·전역 Set 으로 들지 마라 — renderGridBlock 이 innerHTML 을 통째로 갈아끼워
@@ -622,10 +631,23 @@ function _grdWireDisclosure(block, key, headId, bodyId) {
   });
 }
 
-/** 칸 값을 «지우는» 빈 값. 행 0 은 cols[c] 자체라 undefined 가 _mergeCellIntoCol 에서
- *  «무시»된다(지워지지 않는다) ⇒ 행 0 은 ''/0 으로 명시적으로 덮고, 그 아래 행은
- *  undefined 로 키 자체를 없애 «열 기본값»으로 되돌린다. */
-const _grdBlank = (r, zero) => (r === 0 ? (zero ? 0 : '') : undefined);
+/** 칸 값을 «지운다» — `null` = 그 키를 없앤다 = 열 기본값으로 되돌림.
+ *  ~~[폐기 · T-178 2026-09-23] 이름 `_grdBlank(r, zero)` 와 그 주석
+ *    「행 0 은 cols[c] 자체라 undefined 가 `_mergeCellIntoCol` 에서 «무시»된다(지워지지 않는다)
+ *     ⇒ 행 0 은 ''/0 으로 «명시적으로 덮고», 그 아래 행은 undefined 로 키를 없앤다」~~
+ *  까닭 둘 —
+ *    ⑴ 행 0 칸이 이제 cells[0][c] 라는 «자기 자리»를 가져 행 0/행 1+ 특례가 없어졌다.
+ *       ★같은 「비우기」 단추가 행마다 다르게 동작하던 «비대칭»이, 저장 자리가 하나가 되며 사라졌다.
+ *    ⑵ 이름이 틀렸다 — 「blank(빈 값)」이 아니라 「unset(지움)」이다. 이 레포에서 `''` 는
+ *       «빈 값»이 아니라 «강제로 없앰»이라 뜻이 다르다(grid-cell-empty-value 가 그 수치다).
+ *  ★`undefined` 가 아니라 `null` 을 쓴다 — 둘 다 지우지만, JSON 을 타는 길(MCP·IPC·저장본)은
+ *    `undefined` 를 «실을 수 없다». 하나로 통일해 두면 그 길에서도 같은 코드가 돈다.
+ *  ⛔★이건 «기능이 하나 주는» 변경이다 — 예전엔 행 0 에서 배경색을 비우면 열 기본값을 «덮었다»
+ *    (강제로 배경 없음). 이제는 열 기본값이 «드러난다». 회귀가 아니라 «의도한 정책»이다.
+ *    「이 칸만 열 기본값을 강제로 끄기」는 `''`/0 으로 여전히 표현 가능하다 — 손잡이가 없을 뿐이고,
+ *    그건 별건 카드다(렌더러가 네 값을 이미 구별한다 — grid-block.js 의 pick 옆 주석 참조).
+ *  ⚠️인자는 안 받는다 — 행에도, 숫자/문자에도 안 갈린다. 그게 이 변경의 요점이다. */
+const _grdUnset = () => null;
 
 const _GRD_CELL_ALIGNS  = [['', '기본'], ['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']];
 const _GRD_CELL_VALIGNS = [['', '기본'], ['top', '위'], ['middle', '가운데'], ['bottom', '아래']];
@@ -644,8 +666,13 @@ function _grdToastCellFail(res) {
 }
 
 /** 칸 patch «한 길» — 커밋·히스토리·재렌더·패널 재표시를 updateGridBlock 이 스스로 한다
- *  (줄 삭제·비율 입력과 같은 원칙). ⛔dataset 에 직접 쓰지 마라 — 행 0/그 아래의 저장 자리가
- *  다르고(_gridCellPatchDataset), 두 벌이 되면 조용히 갈라진다. */
+ *  (줄 삭제·비율 입력과 같은 원칙).
+ *  ⛔dataset 에 직접 쓰지 마라 — 두 벌이 되면 조용히 갈라진다. 결론은 그대로인데
+ *    ~~[폐기 · T-178 2026-09-23] 까닭이 「행 0/그 아래의 저장 자리가 «다르다»」였다~~.
+ *    지금은 행 0 도 cells 를 쓴다. 갈리는 것은 «행»이 아니라 «무엇이냐»다:
+ *      줄 내용(lines) → dataset.cols[c].lines (행 0) · dataset.cells[r][c].lines (그 아래)
+ *      꾸밈           → dataset.cells[r][c]   (모든 행에서 같다)
+ *    한 호출에 둘을 섞어 주면 dataset «두 키»가 같이 나온다(_gridCellPatchDataset). */
 function _grdPatchCell(block, r, c, fields) {
   return _grdToastCellFail(window.updateGridBlock?.(block.id, { patchCell: { r, c, ...fields } }));
 }
@@ -660,16 +687,29 @@ function _grdCellSectionHtml(anyHit, block) {
   const bgHex = bgRaw ? swatchHex(bgRaw, '#ffffff') : '#ffffff';
   const pad = Number(cell.padding) || '';
   const rad = Number(cell.radius) || '';
-  /* ★0행 = «열 그 자체» — 제목이 먼저 말한다(펼치기 전에도 보인다). */
-  const wide = r === 0;
-  const title = wide ? `칸 꾸미기 · ${c + 1}열 전체` : `칸 꾸미기 · ${r + 1}행 ${c + 1}열`;
+  /* ~~[폐기 · T-178 2026-09-23] 「★0행 = «열 그 자체» — 제목이 먼저 말한다」 + `const wide = r === 0`~~
+     까닭 — 행 0 칸도 이제 «그냥 칸»이다(cells[0][c] 에 따로 저장된다). 제목이 「1열 전체」라고
+       말하면 «거짓»이 된다. 모든 행에서 같은 말을 한다.
+     ★대신 「이 열에 기본값이 걸려 있나」를 «읽기 전용 한 줄»로 알려 준다 — 비웠는데 색이 남으면
+       사용자는 「안 지워졌다」고 읽는다. 그게 왜 그런지 그 자리에서 말해 준다.
+     ⛔「열 기본값 손잡이」는 이번에 안 만든다(별건 카드) — 여기선 사실만 적는다. */
+  const title = `칸 꾸미기 · ${r + 1}행 ${c + 1}열`;
+  /* 이 열에 기본값(꾸밈)이 하나라도 걸려 있나 — ⛔필드 이름을 손으로 세지 않는다.
+     GRID_CELL_FIELDS(정본 명부)에서 내용(lines)과 열 전용(width)을 뺀 것이 곧 «칸 꾸밈»이다.
+     ⇒ T-172(테두리) 같은 새 칸 필드가 명부에 생기면 이 줄이 «자동으로» 그것도 본다. */
+  let colHasDefault = false;
+  try {
+    const col = (getGridModel(block).cols || [])[c] || {};
+    colHasDefault = [...GRID_CELL_FIELDS].some(k => k !== 'lines' && col[k] !== undefined && col[k] !== '');
+  } catch (_) { colHasDefault = false; }
   return `
     <div class="prop-section"${open ? '' : ' style="padding-bottom:0;"'}>
 ${_grdDisclosureHtml('grd-cell-toggle', title, open)}
       <div id="grd-cell-body" style="display:${open ? 'block' : 'none'};">
-        <div class="prop-hint" style="text-align:left;padding:2px 0 6px;">${wide
-          ? '★1행 칸은 «열 그 자체»다 — 여기 준 값은 이 열의 «아래 행 칸»에도 그대로 나타난다(그 칸들의 저장값은 빈 채로).'
-          : '이 칸에만 적용된다.'}</div>
+        <div class="prop-hint" style="text-align:left;padding:2px 0 6px;">이 칸에만 적용된다.</div>
+        ${colHasDefault
+          ? '<div class="prop-hint" style="text-align:left;padding:0 0 6px;">이 열에 기본값이 걸려 있다 — 비워 두면 그 값이 보인다.</div>'
+          : ''}
         <div class="prop-row">
           <span class="prop-label">배경색</span>
           <div class="prop-color-swatch${bgRaw ? '' : ' swatch-none'}"${bgRaw ? ` style="background:${bgRaw}"` : ''}>
@@ -730,14 +770,14 @@ function _grdWireCellSection(block, addr) {
       return (typeof cur.bg === 'string' && GRID_COLOR_RE.test(cur.bg.trim())) ? swatchHex(cur.bg.trim(), '') : '';
     },
     onApply: (v) => { paint(v || ''); if (v && bgPick) bgPick.value = v; },
-    onCommit: (v) => { _grdPatchCell(block, r, c, { bg: v || _grdBlank(r, false) }); },
+    onCommit: (v) => { _grdPatchCell(block, r, c, { bg: v || _grdUnset() }); },
   });
 
   /* ── 안쪽 여백 / 모서리 — change(blur·Enter)에서만. 비우면 «없음»으로 되돌린다. */
   const numWire = (id, field) => {
     document.getElementById(id)?.addEventListener('change', (e) => {
       const raw = String(e.target.value).trim();
-      const v = raw === '' ? _grdBlank(r, true) : Math.max(0, Math.min(200, parseInt(raw, 10) || 0));
+      const v = raw === '' ? _grdUnset() : Math.max(0, Math.min(200, parseInt(raw, 10) || 0));
       _grdPatchCell(block, r, c, { [field]: v });
     });
   };
@@ -748,7 +788,7 @@ function _grdWireCellSection(block, addr) {
   for (const [id, field] of [['grd-cell-align', 'align'], ['grd-cell-valign', 'valign']]) {
     const sel = document.getElementById(id);
     sel?.addEventListener('change', () => {
-      _grdPatchCell(block, r, c, { [field]: sel.value || _grdBlank(r, false) });
+      _grdPatchCell(block, r, c, { [field]: sel.value || _grdUnset() });
     });
   }
 }

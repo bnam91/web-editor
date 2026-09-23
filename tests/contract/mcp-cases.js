@@ -36,7 +36,12 @@ const CASES = {
   add_divider_block: { args: {}, sinks: ["addDividerBlock"] },
   add_frame_block: { args: {}, sinks: ["addFrameBlock"] },
   /* ★2026-09-07 신설 — 앱엔 있는데 MCP 에 «도구가 없던» 그리드 블록.
-     cols 는 «행 0»이고 각 칸의 글은 lines[].text 에 있다(실측으로 알아낸 규격). */
+     ~~[폐기 · T-178 2026-09-23] 「cols 는 «행 0»이고 각 칸의 글은 lines[].text 에 있다」~~
+     까닭 — 그 문장이 «반쪽»이 됐다. cols 가 행 0 인 것은 «줄 내용»뿐이다:
+       cols[c].lines = 행 0 의 줄 내용(단일 진실원 — 여기는 안 바뀌었다)
+       cols[c] 의 꾸밈(align/valign/bg/padding/radius) = 그 «열의 기본값»
+       cells[0][c] 의 꾸밈 = 「행 0 «그 칸»」의 값 (열 기본값을 덮는다)
+     ⇒ 아래 update_grid_block 케이스는 «내용» 경로라 그대로 유효하다(안 깨진다). */
   list_assets: { args: {}, sinks: ["assetsList"] },
   list_asset_tree: { args: {}, sinks: ["assetsTree"] },
   edit_asset_tree: { args: {"op":"createFolder"}, sinks: ["assetsMutate"] },

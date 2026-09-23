@@ -172,10 +172,27 @@ for (const { k, v, axis, ko } of TABLE) {
   });
 }
 
-/* ══ 2-b — `null` 도 같은가. 패널이 「비우기」를 null 로 보낼 수도 있다 ══════ */
+/* ══ 2-b — `null` 은 «지운다». ★★2026-09-23 T-178 C2 에서 «뒤집힌» 축이다 ══════
+ *
+ * ~~[폐기 · T-178 C2 2026-09-23] 「V2b-<k> ★<k>:null 도 열 기본값으로 «안» 돌아간다」
+ *   = `expect(r.after.target[axis]).toBe(hardVal)`~~
+ *   그 단언이 적어 둔 «자기 파기 조건»이 그대로 일어났다:
+ *     「pick() 이 null 을 「값 없음」으로 읽기 시작했다는 뜻이다. 표를 다시 쓰고 알려라.」
+ *   ⇒ 표를 다시 썼고, 알린다.
+ *
+ * ★무엇이 바뀌었나 — `patchCell` 의 값이 `null` 이면 그 «키를 지운다»(새 계약, 팀리드 확정).
+ *   ⛔`pick` 표현식은 한 글자도 안 바뀌었다 — 지워진 키는 pick 에 `undefined` 로 보이니
+ *     폴백(`cell[k] !== undefined ? cell[k] : col[k]`)이 그대로 돌아 열 기본값이 나온다.
+ *     즉 「pick 이 null 을 읽기 시작한」 것이 아니라 «null 이 pick 에 닿기 전에 지워진다».
+ * ★왜 뒤집었나 — 예전의 `null` 은 «함정»이었다. 「값 있음」으로 저장돼 열 기본값이 아니라
+ *   «하드 기본»으로 떨어져서 아무도 의미 있게 못 썼다. 그 자리에 뜻을 준 것이라 잃은 표현력이 없다.
+ *   그리고 `undefined` 는 «이미» 지움이었지만 JSON(MCP·IPC·저장본)이 그걸 못 싣는다 —
+ *   `null` 이 그 구멍을 막는다.
+ * ⛔`''` 는 «안» 바뀌었다(V2 가 그대로 초록이다) — 「강제로 없앰」은 여전히 살아 있다.
+ *   둘이 갈린다는 것을 grid-cell-clear-contract.dom.spec.js 의 C2 가 따로 잠근다. */
 
 for (const { k, axis, ko } of TABLE) {
-  test(`V2b-${k} ★${k}:null 도 열 기본값으로 «안» 돌아간다`, async ({ page }) => {
+  test(`V2b-${k} ★${k}:null 은 «지운다» — 열 기본값으로 돌아간다`, async ({ page }) => {
     const errs = await boot(page);
     const r = await probe(page, { withColDefault: true, patch: { [k]: null } });
     expect(errs).toEqual([]);
@@ -184,8 +201,11 @@ for (const { k, axis, ko } of TABLE) {
     const hardVal = r.after.control[axis];
     expect(colVal, `★전제가 안 선다 — 열 기본값과 하드 기본이 같다(${axis})`).not.toBe(hardVal);
     expect(r.after.target[axis],
-      `★${k}:null 이 «열 기본값으로 되돌아갔다» — 열 기본값='${colVal}' · 하드 기본='${hardVal}'.\n` +
-      '   pick() 이 null 을 「값 없음」으로 읽기 시작했다는 뜻이다. 표를 다시 쓰고 알려라.').toBe(hardVal);
+      `★${k}:null 이 «지우지» 않았다 — 열 기본값='${colVal}' · 하드 기본='${hardVal}' · ` +
+      `나온 값='${r.after.target[axis]}'.\n` +
+      '   null 은 「그 키를 지운다」여야 한다(= 열 기본값으로 되돌림).\n' +
+      `   ⛔'${hardVal}' 이 나왔다면 null 이 «값»으로 저장돼 폴백이 안 돈 것이다 — 옛 함정이 돌아왔다.`)
+      .toBe(colVal);
   });
 }
 

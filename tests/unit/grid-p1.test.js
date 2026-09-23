@@ -452,7 +452,10 @@ test('updateGridBlock — 기존 cols/patchCol API 는 그대로 동작한다(�
   assert.equal(JSON.parse(block.dataset.cols)[0].width, 5);
 });
 
-test('updateGridBlock — patchCell{r:0,...} 은 patchCol 과 «같은 결과»(행0=cols, 단일 진실원)', () => {
+/* ~~[폐기 · T-178 C2 2026-09-23] 제목 「patchCell{r:0,…} 은 patchCol 과 «같은 결과»(행0=cols)」~~
+   까닭 — 그 «같은 결과»가 T-178 의 병이었다(행 0 칸에 준 꾸밈이 열 기본값이 되어 아래 행까지 칠했다).
+     지금 «같은 결과»인 것은 «줄 내용»(lines)뿐이다 — 그건 여전히 cols[c].lines 하나다. */
+test('updateGridBlock — patchCell{r:0, lines} 는 «줄 내용»이라 cols 로 간다(단일 진실원 — 꾸밈은 안 그렇다)', () => {
   const block = freshBlock({ cols: [{ width: 1, lines: [{ type: 'h2', text: 'A' }] }, { width: 1, lines: [{ type: 'h2', text: 'B' }] }] });
   const r = updateGridBlock(block.id, { patchCell: { r: 0, c: 1, lines: [{ type: 'h2', text: 'B2' }] } });
   assert.equal(r.ok, true);
