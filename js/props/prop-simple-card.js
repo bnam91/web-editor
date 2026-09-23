@@ -210,9 +210,14 @@ function showSimpleCardProperties(block, expandCardArg) {
       <div class="prop-section-title cvb-card-text-toggle" data-card-text-toggle="${i}"
            style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:4px;"
            title="${fold.open ? '접기' : '펼치기'}">
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
-             style="flex:0 0 auto;transform:rotate(${fold.open ? 90 : 0}deg);transition:transform .12s;">
-          <polyline points="2,2 6,4 2,6"/>
+        <!-- ★쉐브론 규격 = js/props/_typo-section.js:80 · css/editor-props.css 의 .prop-select
+             (M1 1l4 4 4-4 · 잉크 1.5px · 선끝 round). ⛔여기서 «따로» 그리지 마라 — 이 절 머리는
+             prop-grid·prop-table·prop-banner02·prop-simple-card 네 곳에 같은 마크업으로 산다.
+             2026-09-24 네 곳을 같이 옮겼다. 지키는 그물: tests/dom/grid-panel-icon-spec.dom.spec.js -->
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round"
+             style="flex:0 0 auto;transform:rotate(${fold.open ? 0 : -90}deg);transition:transform .12s;">
+          <path d="M1 3l4 4 4-4"/>
         </svg>
         <span style="flex:0 0 auto;">텍스트</span>
         <span class="prop-hint" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escHtml(fold.preview)}</span>

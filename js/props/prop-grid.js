@@ -303,6 +303,13 @@ if (typeof window !== 'undefined') window.grdAddIconToSelectedCell = grdAddIconT
 const _GRD_KIND_KO = {
   label: '작은제목', h1: '제목 1', h2: '제목 2', h3: '제목 3', body: '본문', caption: '캡션',
   image: '아이콘', gap: '여백',
+  /* ⛔여기에 «명부 밖 종류»(중첩·막대)의 이름표를 더하지 마라 — 2026-09-24 해 보고 되돌렸다.
+     tests/unit/grid-rename-residue.test.mjs S1 이 빨강을 냈다: 그 옛 이름은 2026-09-05 개명에서
+     «데이터 토큰»으로만 남기기로 한 것이고, ALLOW ⑷ 가 그 토큰을 grid-block.js 의 렌더 분기
+     «한 줄»로 묶어 뒀다. 여기 키로 적으면 그게 두 곳이 된다 — 그 규칙이 막는 바로 그것이다.
+     ⇒ 이름표 없이 간다. `_grdKindKo` 가 모르는 키엔 «그 종류 이름 그대로»를 돌려주고,
+       줄바 요약이 이미 `(body)`·`(h2)` 처럼 그대로 보여 주고 있어 새 꼴도 아니다.
+     ★사람이 읽을 이름을 줄지는 «현빈이 고르실 문제»다 — 주려면 ALLOW 를 넓히는 결정이 먼저다. */
 };
 const _grdKindKo = (k) => _GRD_KIND_KO[k] || k;
 /** 글자 줄 «역할» — GRID_ROLES 에서 뜬다(손으로 안 적는다). */
@@ -327,10 +334,42 @@ const _grdAddKindSelectHtml = () => `
 /** ②종류 바꾸기 — 이미 있는 줄의 종류를 바꾼다(지우고 다시 만들 필요 없이).
  *  ★명부는 ①추가와 «같은 _GRD_KINDS» 다 — 아이콘·여백으로도 바꿀 수 있어야 「추가로는 되는데
  *    바꾸기로는 안 되는 종류」가 안 생긴다(M7). */
-const _grdKindSelectHtml = (line) => `
-        <select class="prop-select" id="grd-line-kind" title="이 줄의 종류를 바꾼다">
-          ${_grdKindOptsHtml(_GRD_KINDS, line.type || 'body')}
+/* ★★명부에 «없는» 종류를 고른 경우 — 거짓말을 하지 않는다 (2026-09-24)
+ *   렌더러가 그리는 줄 종류가 이 명부보다 많다. 소스 실측:
+ *     렌더러 `_gridLineHtml` 의 type 분기 = gap · image · duo · graph  ＋ GRID_ROLES 6개
+ *     이 명부 `_GRD_KINDS`               = GRID_ROLES 6개 ＋ image ＋ gap   ⇒ duo · graph 가 빠졌다
+ *   ~~[폐기 · 2026-09-24] 그 둘이 빠진 채로도 select 는 «아무 말 없이» 첫 옵션을 골라 보였다~~
+ *   무엇이 있었나 (실측, 기준선 7780267) — duo 줄·graph 줄을 고르면 둘 다
+ *     selectedIndex 0 → value "label" → 보이는 글자 「작은제목」.
+ *     같은 절의 요약 줄은 «(duo)»·«(graph)» 라고 «바르게» 말하는데 드롭다운만 달랐다.
+ *     ⇒ 한 패널 안에서 두 문장이 어긋났고, 어긋난 쪽이 «누를 수 있는 쪽»이었다.
+ *   그리고 그 거짓을 믿고 「본문」으로 바꾸면 중첩이 통째로 날아간다(실측):
+ *     before lines[1] = {type:'duo', cols:[…중첩속…]} · 캔버스 .grd-nested 1개
+ *     after  lines[1] = {type:'body'}                · 캔버스 .grd-nested 0개, 글자 사라짐
+ *     (줄 자체가 지워지지는 «않는다» — 줄 수는 3 그대로고 cols 만 사라진다. ⌘Z 로 돌아온다.)
+ * ★고친 방식 — «만들 수 있는 것»은 한 개도 안 늘렸다
+ *   명부 밖 종류일 때만 `disabled` 인 머리 옵션을 하나 앞에 세워 그것을 selected 로 둔다.
+ *   ⇒ ⑴ 패널이 사실을 말한다 ⑵ 「+ 줄 추가」 목록은 그대로다(거긴 _GRD_KINDS 만 읽는다)
+ *     ⑶ 일부러 다른 종류를 고르는 길은 «그대로» 열려 있다(되돌아갈 문을 안 닫는다).
+ *   ⛔duo·graph 를 «만들 수 있게» 할지는 여기서 안 정한다 — 중첩·막대는 손잡이가 더 필요하고,
+ *     그건 현빈이 고르실 문제다. 이 커밋이 닫은 것은 «거짓말» 하나뿐이다.
+ *   ★선례 — 머리에 값 없는 옵션을 세우는 꼴은 이 파일이 이미 쓴다(_grdAddKindSelectHtml 의
+ *     `<option value="">+ 줄 추가…</option>`). 새 꼴을 만들지 않았다.
+ * 지키는 그물: tests/dom/grid-panel-icon-spec.dom.spec.js (A8) */
+const _grdKindSelectHtml = (line) => {
+  const cur = line.type || 'body';
+  const known = _GRD_KINDS.includes(cur);
+  const head = known ? '' :
+    `<option value="" disabled selected>${_grdKindKo(cur)} — 패널에서 못 만듦</option>`;
+  const title = known
+    ? '이 줄의 종류를 바꾼다'
+    : `이 줄은 «${_grdKindKo(cur)}»(${cur}) 다 — 이 패널에선 만들 수 없는 종류다. `
+      + '다른 종류를 고르면 바뀌지만, 그때 이 줄의 내용은 사라진다(⌘Z 로 복원).';
+  return `
+        <select class="prop-select" id="grd-line-kind" title="${title}">
+          ${head}${_grdKindOptsHtml(_GRD_KINDS, known ? cur : null)}
         </select>`;
+};
 
 /** 종류를 바꿀 때 «앞 종류의 짐»을 턴다(설계 M3).
  *  ★image → body 로 바꿨는데 imgSrc 가 남으면 dataURL 수백 KB 가 저장본에 눌러앉는다.
@@ -367,6 +406,10 @@ function _grdWireKindSelects(block, r, c, afterLi) {
   if (afterLi === null) return;              // 빈 칸엔 «바꿀 줄»이 아직 없다
   const kindSel = document.getElementById('grd-line-kind');
   kindSel?.addEventListener('change', () => {
+    /* ⛔머리 옵션(명부 밖 종류 표시, value="")은 «값이 아니다» — 고른 것으로 치지 않는다.
+       disabled 라 마우스로는 못 고르지만 키보드·스크립트 경로가 남아 있다. 위 ①추가 select 의
+       `if (!kind) return;` 과 «같은 가드»다(두 벌로 갈라 두지 않는다). */
+    if (!kindSel.value) return;
     let cur = '';
     try { cur = (getGridModel(block).cells?.[r]?.[c]?.lines || [])[afterLi]?.type || 'body'; } catch (_) {}
     if (kindSel.value === cur) return;       // 같은 값 = 화면이 안 변한다(updateGridBlock 이 거절한다)
@@ -614,14 +657,42 @@ function _grdSecToggle(block, key) {
   return next[key];
 }
 
-/** 접이식 절 머리글 — ⛔두 벌 만들지 마라. 칸 꾸미기·줄 꾸미기가 «이 부품 하나»를 쓴다. */
+/** 접이식 절 머리글 — ⛔두 벌 만들지 마라. 칸 꾸미기·줄 꾸미기가 «이 부품 하나»를 쓴다.
+ *
+ * ★쉐브론은 «이 패널이 이미 쓰는 그림»이다 — 발명하지 않았다(2026-09-24).
+ *   출처 둘이 이미 같은 그림을 쓰고 있었다:
+ *     · js/props/_typo-section.js:80      — 인라인 쉐브론(같은 우측 패널, 바로 아래 절)
+ *     · css/editor-props.css `.prop-select` — 이 패널의 «모든» 드롭다운이 쓰는 화살표(data URI)
+ *   둘 다 `M1 1l4 4 4-4` · stroke-width 1.5 · stroke-linecap round 다.
+ *
+ * ~~[폐기 · 2026-09-24] 옛 그림 `<polyline points="2,2 6,4 2,6">` · 8x8 · stroke-width 1.8 · 선끝 없음~~
+ *   까닭 — 현빈 지적(「우측패널에 svg가 일관성도 없고 uiux상 직관적이지 않다」)의 실측 내용이 이것이다.
+ *   「칸 꾸미기」 절 하나 안에서 «열기/닫기»를 뜻하는 쉐브론이 두 벌 떴고, 서로 달랐다:
+ *     절 머리 쉐브론 — 2:1 완만한 V · 잉크 1.8px · 선끝 butt(각진 끝)
+ *     가로/세로 정렬 드롭다운 — 45° V · 잉크 1.5px · 선끝 round
+ *   둘 사이 거리는 세로로 약 16px 다. «같은 뜻인데 다른 그림»이 바로 붙어 있었다.
+ *
+ * ★바꾼 것과 «안» 바꾼 것
+ *   바꿈 — 그림(d)·잉크(1.8→1.5)·선끝(butt→round). 색은 원래도 currentColor 라 그대로다.
+ *   ⛔동작은 한 글자도 안 바꿨다 — 접힘=오른쪽, 펼침=아래. 옛 그림은 «오른쪽» 쉐브론을 열 때
+ *     +90° 돌렸고, 새 그림은 «아래» 쉐브론이라 접을 때 −90° 돌린다. 보이는 방향은 같다.
+ *   ★상자는 8x8 → 10x10 «정사각»이다. 두 까닭 —
+ *     ⑴ 잉크를 1.5px 로 맞추려면 viewBox 10 에 화면 폭도 10 이어야 한다(1.5 × 10/10 = 1.5).
+ *        폭을 8 로 두면 같은 `stroke-width="1.5"` 가 1.2px 로 «가늘게» 그려진다 — 선언값만 보는
+ *        검사는 그걸 못 잡는다. 그래서 그물(A3)은 «잉크»를 잰다.
+ *     ⑵ 정사각이라야 −90° 로 돌려도 «자리를 안 먹는다». 10x6 을 그대로 돌리면 6x10 이 되어
+ *        접었다 폈다 할 때마다 옆의 제목이 좌우로 흔들린다.
+ *   ⇒ 제목이 2px 오른쪽으로 간다. 그 값이 이 변경의 «전부»다.
+ *
+ * 지키는 그물: tests/dom/grid-panel-icon-spec.dom.spec.js (A2 선끝 · A3 잉크 · A3b 모양 · A4 색) */
 const _grdDisclosureHtml = (id, title, open) => `
       <div class="prop-section-title" id="${id}" role="button" tabindex="0"
            style="display:flex;align-items:center;gap:6px;cursor:pointer;"
            title="${open ? '접기' : '펼치기'}">
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
-             style="flex:0 0 auto;transform:rotate(${open ? 90 : 0}deg);transition:transform .12s;">
-          <polyline points="2,2 6,4 2,6"/>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round"
+             style="flex:0 0 auto;transform:rotate(${open ? 0 : -90}deg);transition:transform .12s;">
+          <path d="M1 3l4 4 4-4"/>
         </svg>
         <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</span>
       </div>`;
@@ -634,7 +705,9 @@ function _grdWireDisclosure(block, key, headId, bodyId) {
   head?.addEventListener('click', () => {
     const open = _grdSecToggle(block, key);
     if (body) body.style.display = open ? 'block' : 'none';
-    if (arrow) arrow.style.transform = `rotate(${open ? 90 : 0}deg)`;
+    /* ⛔각도 식은 _grdDisclosureHtml 과 «같은 값»이어야 한다 — 갈리면 첫 클릭에 그림이 튄다.
+       접힘 = −90°(오른쪽) · 펼침 = 0°(아래). 쉐브론이 «아래» 그림이라 부호가 옛 것과 반대다. */
+    if (arrow) arrow.style.transform = `rotate(${open ? 0 : -90}deg)`;
     head.title = open ? '접기' : '펼치기';
   });
 }
@@ -1237,7 +1310,7 @@ ${_grdKindSelectHtml(line)}
         </div>
         ${canAlign ? `<div class="prop-row">
           <span class="prop-label" title="이 «줄»만 정렬한다(기본 = 열을 따른다). 열 정렬 단추는 그 열 전체다">줄 정렬</span>
-          <select class="prop-select" id="grd-line-align">${_grdOptsHtml(_GRD_CELL_ALIGNS, line.align)}</select>
+          <select class="prop-select" id="grd-line-align" title="이 줄의 가로 정렬(기본 = 칸을 따른다)">${_grdOptsHtml(_GRD_CELL_ALIGNS, line.align)}</select>
         </div>${imgFull ? `<div class="prop-hint" style="text-align:left;padding:0 0 6px;">그림 폭이 100%라 정렬이 안 보인다 — 줄일 데가 없어서다. 코너를 끌어 폭을 줄이면 움직인다.</div>` : ''}` : ''}
         ${isText ? `<div class="prop-row" style="margin-bottom:0;">
           <span class="prop-label" title="배경을 주면 이 줄이 «알약»(둥근 인라인 배지)이 된다. 비우면 꺼진다.">알약 배경</span>
