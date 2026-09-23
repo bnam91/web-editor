@@ -3,6 +3,9 @@
  * 사용: node tools/mutation-sweep.js [필터문자열]
  * ★244 는 의미 없는 숫자다. 의미는 «가드를 지웠을 때 죽는 테스트»에 있다.
  * 변이는 tools/mutations.json 에 {name,file,find,replace} 로 적는다.
+ * ★짝 — 이 자는 「가드를 지우면 검사가 죽나」를 잰다. 「검사의 «단언»이 제자리에서
+ *   약해졌나」는 안 잰다(약해진 뒤에도 여기선 계속 «사망»으로 나온다).
+ *   그 축은 tools/assert-strength.mjs 가 본다(T-177).
  */
 'use strict';
 const fs = require('fs'), path = require('path'), cp = require('child_process');
