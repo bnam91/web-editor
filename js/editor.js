@@ -1029,11 +1029,38 @@ function _restoreFreeLayoutFrameSelected(block) {
   }
 }
 
-/* freeLayout 멀티셀렉 패널 업데이트 트리거 */
+/* freeLayout 멀티셀렉 패널 업데이트 트리거
+   ★@returns {boolean} 패널을 «띄웠으면» true. 안 띄웠으면 호출부가 뒤를 잇는다
+     (2026-09-24 T-091 — 안 띄우고 조용히 돌아가면 직전 deselectAll 이 띄운 «Page» 가 남는다). */
 function _updateFreeLayoutMultiSelPanel() {
   if (window.hasFreeLayoutMultiSel?.()) {
     window.showFreeLayoutMultiSelPanel?.();
+    return true;
   }
+  return false;
+}
+
+/* ★2026-09-24 T-091 — 「선택은 «한 블럭»인데 우측 패널이 Page 로 남는다」의 마감.
+   ⇧클릭이 «범위»를 못 만들면(앵커와 같은 블럭 = 폭 1 / 앵커 없음 = 단일선택 폴백)
+   rangeSelectBlocks 는 deselectAll() 로 패널을 비우고 한 개만 다시 고른다. 그 뒤 여기 오는데
+   옛 판은 n<=1 에서 «아무 일도 안 했다» ⇒ 비워진 패널(Page)이 그대로 남았다.
+   실측(2026-09-24 포트 9342, 판 7780267): 글자·이미지·도형 전부 같은 증상, ⌘클릭으로 둘 → 하나로
+   줄여도 패널은 「2개 선택됨」으로 굳었다.
+
+   ⛔여기서 «타입별 표»를 새로 짓지 않는다 — 표는 js/panel-dispatch.js 한 자리(정본)다.
+     js/history.js 의 되돌리기 복원과 js/block-edit.js 의 selectBlock 이 «같은 표»를 쓴다.
+     ⇒ 새 블럭 타입이 생겨도 적을 자리가 여기엔 «0개»다.
+   ★표에 없는 타입이면 openPanelForBlock 이 false 를 주고 패널을 «안 건드린다»
+     (panel-dispatch.js 머리말의 폴백 규약). 즉 명부가 낡아도 최악이 «오늘 그대로»지,
+     엉뚱한 패널이 뜨는 쪽으로는 안 간다.
+   ★「한 블럭인가」는 hasPanelForBlock 으로 센다 — «같은 표»를 부작용 없이 읽는 판정이라
+     .section-block(항상 켜져 있다)·.frame-block(도형 래퍼·조상)은 저절로 빠진다.
+   @returns {boolean} 패널을 열었으면 true. */
+function _openSoleBlockPanel() {
+  const root = canvasEl || document;
+  const sole = [...root.querySelectorAll('.selected')].filter(el => window.hasPanelForBlock?.(el));
+  if (sole.length !== 1) return false;
+  return window.openPanelForBlock?.(sole[0]) === true;
 }
 
 /* 일반(플로우) 블록 멀티선택 카운트 패널 트리거 (A11)
@@ -1103,7 +1130,8 @@ function _countFlowMultiSel() {
 function _updateMultiSelPanel(block) {
   const _flowN = _countFlowMultiSel();
   if (_flowN <= 1 && _isInFreeLayout(block)) {
-    _updateFreeLayoutMultiSelPanel();
+    if (_updateFreeLayoutMultiSelPanel()) return;
+    _openSoleBlockPanel();   // ★T-091 — 자유배치도 「한 개 남았는데 Page」가 났다(도형 ⇧클릭)
     return;
   }
   const n = _flowN;
@@ -1111,7 +1139,17 @@ function _updateMultiSelPanel(block) {
     // B15: 카운트-온리 → 정렬/분배 패널 (prop-multisel.js)
     if (window.showFlowMultiSelPanel) window.showFlowMultiSelPanel();
     else propPanel.innerHTML = `<div class="prop-section"><div class="prop-block-label" style="padding:2px 0 4px;"><div class="prop-block-info"><span class="prop-block-name">${n}개 선택됨</span><span class="prop-breadcrumb">블록 멀티선택</span></div></div></div>`;
+    return;
   }
+  /* ★T-091 — 여기가 «범위를 못 만든» 끝자리다. 선택이 한 블럭이면 그 블럭의 패널로 잇는다.
+     ⛔호출부가 아니라 «여기»서 고치는 근거는 «수»가 아니라 저장소의 «선언»이다 —
+       toggleBlockSelect 위 주석이 「패널 «선택»은 _updateMultiSelPanel «한 자리»에서」라고
+       못박아 뒀다(이 파일, _restoreFreeLayoutFrameSelected 를 부르는 줄 바로 위).
+       ⇒ 그 계약을 지키는 쪽이 정본 수리다. 수는 늙지만 선언은 안 늙는다.
+     ＋참고로 이 함수를 부르는 자리는 «넷»이고(아래 setTimeout 네 줄이 전부다. 이 함수는
+       window 에 안 붙어 있어 부를 수 있는 파일이 이 파일 하나뿐이다) 넷 다 여기로 내려온다.
+       ⛔이 «넷»은 rangeSelectBlocks 의 호출부 수(다른 함수의 수다)와 «다른 수»다. */
+  _openSoleBlockPanel();
 }
 
 /* Cmd+클릭: 단일 블록 토글 */
@@ -1212,7 +1250,8 @@ function rangeSelectBlocks(block, sec) {
       _lastClickedBlock = anchor;
       for (let i = lo; i <= hi; i++) _selectSibling(sibs[i]);
       if (sec) window.syncSection?.(sec);
-      // 멀티선택 후 패널 갱신 (A11) — n>1 가드로 단일선택엔 무동작
+      // 멀티선택 후 패널 갱신 (A11) — ★0924 T-091 로 「단일선택엔 무동작」이 «아니게» 됐다:
+      //   한 블럭이면 _updateMultiSelPanel 이 그 블럭 패널로 잇는다(빈 Page 가 남던 자리)
       setTimeout(() => _updateMultiSelPanel(block), 0);
       return;
     }
@@ -1225,7 +1264,8 @@ function rangeSelectBlocks(block, sec) {
   if (li) li.classList.add('active');
   _lastClickedBlock = block;
   if (sec) window.syncSection?.(sec);
-  // 단일선택 fallback — n>1 가드로 카운트 패널은 자연히 안 뜸 (A11)
+  // 단일선택 fallback — 카운트 패널은 n>1 가드로 안 뜬다. ★0924 T-091: 그렇다고 «무동작»도
+  //   아니다 — 여기로 떨어진 한 블럭의 패널을 _updateMultiSelPanel 이 연다(옛 판은 Page 가 남았다)
   setTimeout(() => _updateMultiSelPanel(block), 0);
 }
 
