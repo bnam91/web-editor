@@ -510,8 +510,11 @@ const OUT_OF_SCOPE = { todo: '범위 밖 — 따로 설 카드가 판정한다(�
  *   ⇒ 아래 셋은 더 이상 todo 가 «아니다» — 요구다. 셋 다 고치기 «전»에 빨갰다는 기록:
  *       기준 7780267 · `npm test` · todo 14 중 «열» 개가 이 셋이었다
  *       (X테두리명부-patchCol·cols 2 · X값-넷 4 · X정렬값-넷 4).
- *   ⛔남은 넷(X테두리-* ㈎ 「테두리가 그려지는가」)은 그대로 todo 다 — 그건 T-172 의 몫이고
- *     «새 칸 필드를 만드는» 일이라 이 판의 범위가 아니다. 조용히 빼지 않고 여기 적어 둔다.
+ *   ~~[2026-09-24 갱신] 「남은 넷(X테두리-* ㈎)은 그대로 todo 다 — T-172 의 몫이다」~~
+ *   ★그 T-172 가 2026-09-24 에 섰다(브랜치 fix/0924-u-border). ⇒ 남은 넷도 이제 todo 가 «아니다» —
+ *     다만 «요구하는 방향이 뒤집혔다»: 칸 축 축약 `border` 는 «안 만들기로 정했고», 테두리는
+ *     «블록 축»(dataset.cellBorderWidth/Color/Style)에 났다. 아래 B 절 머리에 까닭을 적었다.
+ *   ⇒ 이 파일의 todo 는 «0» 이 된다. 「범위 밖」으로 남은 X* 는 하나도 없다.
  *   ★갈린 잣대: 이 판은 「모르는 것을 «막거나 말한다»」이고, T-172 는 「새 것을 «그린다»」다. */
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -521,16 +524,56 @@ const OUT_OF_SCOPE = { todo: '범위 밖 — 따로 설 카드가 판정한다(�
    ★쓰기 경로 넷을 «전부» 묻는다. 한 길만 재면 나머지 셋에서 속는다.
    ═══════════════════════════════════════════════════════════════════════ */
 
+/* ★★2026-09-24 — T-172 가 이 넷에 «답했다». 더 이상 todo 가 아니다.
+ *   ⛔「아직 안 정했다」와 「안 잡기로 정했다」는 빈칸의 뜻이 다르다. 여기 있던 todo 는 앞엣것이었고
+ *     T-172 가 뒤엣것으로 바꿨다. ⇒ 지우지 «않고» 방향을 뒤집어 «요구»로 세운다.
+ *     (조용히 빼면 다음 사람이 「아무도 안 물었다」로 읽는다 — 이 파일 머리의 같은 규약.)
+ *
+ *   ★T-172 가 정한 것 둘 —
+ *     ⑴ 칸 필드 `border`(축약 문자열)는 «만들지 않는다». 까닭 둘:
+ *        ⓐ 칸 축에 두면 이 레포의 세 검사가 «동시에 참일 수 없다» — grid-cell-panel-handles E4
+ *          (명부의 «모든» 칸 필드에 패널 손잡이가 있어야 한다) · grid-patchcell-reject P7
+ *          (명부 == 렌더러가 pick 하는 것) · grid-row0-lines-invariant I5(명부 선언 리터럴 닻).
+ *          그게 T-172 카드가 「삼각 모순」이라 적고 멈춰 섰던 자리다.
+ *        ⓑ 축약 문자열은 «구분 부호 탈출»과 「파선·점선을 조용히 실선으로 떨구는 새 거짓 성공」
+ *          둘을 떠안는다(카드가 그 둘의 값을 못박았다).
+ *     ⑵ 테두리는 «블록 축»에 있다 — dataset.cellBorderWidth / cellBorderColor / cellBorderStyle.
+ *        그리고 «실제로 그려진다»(아래 X테두리-블록축이 그것을 여기서 잰다).
+ *   ⇒ ⑴만 두면 이 파일이 「테두리가 없다」고 읽힌다. ⑵를 «같은 자리»에 둬서 장부를 닫는다.
+ *   ⚠️「칸마다 다른 테두리」는 «못 하는 것»이 아니라 «안 잡기로 정한 것»이다. 되살리려면
+ *     위 ⓐ 의 세 검사를 같이 열어야 한다 — 그건 이 줄이 아니라 새 카드가 할 일이다. */
 for (const p of WRITE_PATHS) {
-  test(`X테두리-${p.key} ★㈎ 칸에 테두리를 주면 «그려지는가»`, OUT_OF_SCOPE, () => {
+  test(`X테두리-${p.key} ★㈎ 칸 «축약» 테두리는 안 만들기로 정했다 — 조용히 삼키지 않는다`, () => {
     const b = fixture();
     const res = p.send(G, b, { border: '2px solid #ff0000' });
+    assert.ok(rejectedOrReported(res, 'border'),
+      `★'${p.key}' 가 칸 축약 테두리를 «조용히» 받았다 — ok:${res.ok}, ignoredProps:${JSON.stringify(res.ignoredProps)}.\n`
+      + '  ⇒ 부르는 쪽은 됐다고 믿는데 화면은 그대로다. 안 만들기로 «정한» 것이면 그렇게 «말해야» 한다.');
     const tag = cellTagAt(b, 0, 0);
-    assert.match(tag, /border:/,
-      `★'${p.key}' 로 테두리를 줬는데 칸에 안 그려진다(ok:${res.ok}).\n`
-      + `  칸 태그: ${tag}\n  ⇒ 칸 필드 명부(${CELL_FIELDS.join(', ')})에 border 가 없고, 렌더러도 안 그린다`);
+    assert.doesNotMatch(tag, /border:/,
+      `★'${p.key}': 칸에 «축약» border 선언이 실렸다 — 구분 부호 탈출이 열린다.\n  칸 태그: ${tag}`);
+    assert.doesNotMatch(b.innerHTML, /#ff0000/,
+      `★'${p.key}': 거절해 놓고 그 값이 화면 어딘가에 남았다 — 진단이 반대다`);
   });
 }
+
+test('X테두리-블록축 ★㈎-2 그럼 테두리는 «어디에» 있나 — 블록 축 세 키를 주면 네 칸에 그려진다', () => {
+  const b = fixture();
+  /* ★간격을 양축 다 벌린 판에서 잰다 — 간격 0 이면 «겹침 규칙»이 안쪽 변을 일부러 죽인다
+     (그건 T-172 의 설계이지 결함이 아니다. 그 축은 grid-cell-border.test.js B5 가 따로 잰다). */
+  assert.equal(G.updateGridBlock(b.id, { rowGap: 10, colGap: 10 }).ok, true, '★판을 못 깔았다');
+  const res = G.updateGridBlock(b.id, {
+    cellBorderWidth: 2, cellBorderColor: '#ff0000', cellBorderStyle: 'dashed',
+  });
+  assert.equal(res.ok, true, `★블록 축 세 키를 거절했다 — ${res.code}: ${res.message}`);
+  const tag = cellTagAt(b, 0, 0);
+  for (const side of ['border-top', 'border-right', 'border-bottom', 'border-left']) {
+    assert.ok(tag.includes(`${side}:2px dashed #ff0000`),
+      `★칸 (0,0) 의 ${side} 에 선이 없다 — 「테두리가 없다」가 아직 참이라는 뜻이다.\n  칸 태그: ${tag}`);
+  }
+  /* ⛔축약 한 칸으로는 «절대» 안 찍힌다 — 위 ㈎ 가 막은 그 모양이 뒷문으로 돌아오지 않았나. */
+  assert.doesNotMatch(tag, /border:/, `★블록 축이 결국 «축약» 선언을 찍는다 — ㈎ 의 뜻이 사라진다.\n  칸 태그: ${tag}`);
+});
 
 for (const p of WRITE_PATHS) {
   test(`X테두리명부-${p.key} ★㈏ 모르는 «칸» 필드를 거절하거나, 최소한 «안 됐다»고 하는가`,
@@ -797,7 +840,12 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *    (U8~U8-d 「아는 이름 + 모르는 값」 — 렌더러가 안 받는 색·글꼴을 도구가 받아 «있던 값까지
  *     죽이던» 자리 · U9~U9-c 「한계를 넘긴 중첩」 — 자르되 잘랐다고 «말하게» ＋ 동작 불변 바이트대조).
  *    ⛔여기서도 지운 것은 «하나도» 없다. */
-const GRID_BASELINE_TESTS = 282;
+/*  ★2026-09-24 T-172(칸 테두리): 282 → 293. 더한 것 = tests/unit/grid-cell-border.test.js 의 11개
+ *    (B0 계측기 · B1 값 · B2 화면 · B3 거절+효과판정 · B4 선 꼴 보존 · B5 겹침 · B6 읽는 문 검증 ·
+ *     B7 롤백 · ★B8·B9·B10 양성대조 셋).
+ *    ⛔여기서도 지운 것은 «하나도» 없다. ⚠️저장복원·내보내기 축은 DOM 이라 여기 «안» 센다 —
+ *      tests/dom/grid-cell-border.dom.spec.js 가 잰다(이 래칫의 사각지대다, 위 피커 축과 같은 꼴). */
+const GRID_BASELINE_TESTS = 293;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
@@ -855,6 +903,9 @@ const POSITIVE_CONTROLS = [
   'grid-line-typo.test.js :: U1-c-전제 ★양성대조 — 이 소스 훑기가 «실제로» 파일을 읽고 있다',
   'grid-line-typo.test.js :: U2-a-전제 ★양성대조 — «같은 비교기»가 lineIndex:0 의 변화를 실제로 잡는다',
   'grid-line-typo.test.js :: U4-전제 ★양성대조 — 이 비교가 «다른 필드»는 실제로 갈라 낸다',
+  'grid-cell-border.test.js :: B10 ★양성대조 — 겹침 규칙을 걷으면 B5 가 빨개진다',
+  'grid-cell-border.test.js :: B8 ★양성대조 — 렌더러에서 테두리 CSS 를 빼면 B2 가 빨개진다',
+  'grid-cell-border.test.js :: B9 ★양성대조 — 선 꼴을 solid 로 강등시키면 B4 만 빨개진다(B2 는 초록인 채로)',
   'grid-patchcell-reject.test.js :: P4 ★양성대조 — 검증기를 «뺀» 사본은 ok:true 를 주고 화면은 그대로다',
   'grid-patchcell-reject.test.js :: P8 ★양성대조 — 렌더러가 «새 필드»를 읽기 시작하면 도출이 잡는가',
   /* ★2026-09-24 U-gate — 입구 계약(T-170/175/176/180)의 양성대조 넷. */

@@ -6,6 +6,7 @@ import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★상한은 한 곳에
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
          gridGaps, GRID_GAP_MAX, GRID_IMG_MAX_BYTES, gridCellsToDataset,
+         gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES,
          GRID_CELL_FIELDS } from '../blocks/grid-block.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
@@ -921,6 +922,63 @@ function _gapRowHtml(cols, rows, colGap, rowGap) {
   return html + `<div class="prop-hint">행/열 사이 간격(px)</div>`;
 }
 
+/* ── 칸 «테두리» UI — T-172 ────────────────────────────────────────────────
+ * ★★왜 「칸 꾸미기」 절이 아니라 여기(Layout)인가.
+ *   「칸 꾸미기」 절은 자기 입으로 «이 칸에만 적용된다»고 말한다(그 절의 힌트 원문).
+ *   이 손잡이는 «블록 통째»라, 거기에 넣으면 패널이 «거짓말»을 한다. 같은 축(블록 전체에
+ *   걸리는 배치 손잡이 — 비율·행 높이·간격·정렬)이 모여 있는 Layout 이 제 집이다.
+ * ★★굵기가 0 이면 «색·꼴 줄을 아예 안 낸다».
+ *   ⑴ 선이 없는데 색·꼴은 «죽은 컨트롤»이다 — 바로 위 _gapRowHtml 이 1열/1행에서 같은
+ *      판단을 이미 했다(「그 축 갭이 화면에 효과가 없어 죽은 컨트롤이 된다」). 같은 술어다.
+ *   ⑵ 그리고 패널이 이미 길다. 세 줄을 늘 내면 순증이 164px 였다(실측 2026-09-24,
+ *      tests/dom/grid-cell-panel-handles.dom.spec.js G2 합격선 +60). 접힘 절을 새로 만드는
+ *      대신 «필요할 때만 나오게» 한다 — 손잡이 수는 그대로고 기본 화면만 짧아진다.
+ *   ⚠️이 선택이 만든 사각지대 = 「켠 상태의 패널 폭」을 G2 가 «안 잰다»(늘 꺼진 픽스처를 쓴다).
+ *     그 자리를 tests/dom/grid-cell-border.dom.spec.js S7 이 «같은 패치에서» 따로 잰다.
+ * ★1칸(1×1)이어도 숨기지 않는다 — 간격과 술어가 다르다. 칸이 하나여도 테두리는 «보인다».
+ * ⛔새 아이콘을 만들지 않는다(U-SVG 가 규격을 통일 중) — 전부 글자 라벨과 기존 부품이다. */
+/** 「칸 테두리」 절 — ⛔Layout «안»이 아니라 줄바 «아래»에 산다.
+ *  ★★왜 옮겼나 (2026-09-24 실측). 이 손잡이를 Layout 절에 넣었더니
+ *    tests/dom/grid-cell-panel-handles.dom.spec.js G2 ⑵ 가 빨개졌다 —
+ *    「줄바(#grd-line-summary)가 기준선보다 아래로 밀리면 안 된다(Δ ≤ 0)」.
+ *    줄바는 이 패널에서 손이 제일 자주 가는 자리라 창 900px 에서 화면 밖으로 내려가면 안 된다
+ *    (같은 까닭으로 f724dc1 이 「줄 꾸미기」를 Typography «위»로 올렸다).
+ *  ⇒ 줄바 «위»에는 무엇도 새로 못 올린다. 그래서 바로 아래에 «자기 절»로 놓는다.
+ *  ★덤 — 칸/줄을 안 고른 «블록만 선택» 상태에서는 줄바·칸 꾸미기·줄 꾸미기가 전부 빈 문자열이라,
+ *    이 절이 Layout 바로 다음에 온다. 「표를 만들려고 블록을 고른」 사람이 보는 순서가 그거다. */
+function _borderSectionHtml(bd) {
+  return `
+    <div class="prop-section">
+${_borderRowHtml(bd)}
+    </div>`;
+}
+
+function _borderRowHtml(bd) {
+  const on = bd.width > 0;
+  const hex = swatchHex(bd.color, '#d0d0d0');
+  const widthRow = `
+      <div class="prop-row">
+        <span class="prop-label" title="모든 칸에 선을 두른다 — 표처럼 보이게. 0 = 없음. 간격을 0 으로 두면 선이 «한 겹»으로 붙어 표가 된다">칸 테두리</span>
+        <input type="range" class="prop-slider" id="grd-border-w-slider" min="0" max="${GRID_BORDER_W_MAX}" step="1" value="${bd.width}">
+        <input type="number" class="prop-number" id="grd-border-w-number" min="0" max="${GRID_BORDER_W_MAX}" value="${bd.width}">
+      </div>`;
+  if (!on) return widthRow;
+  const styleOpts = [['solid', '실선'], ['dashed', '파선'], ['dotted', '점선']]
+    .map(([v, ko]) => `<option value="${v}"${bd.style === v ? ' selected' : ''}>${ko}</option>`).join('');
+  return widthRow + `
+      <div class="prop-row">
+        <span class="prop-label">선 색</span>
+        <div class="prop-color-swatch" style="background:${bd.color}">
+          <input type="color" id="grd-border-color" value="${hex}">
+        </div>
+        <input type="text" class="prop-color-hex" id="grd-border-color-hex" maxlength="7" aria-label="칸 테두리 색" value="${hex.replace('#', '').toUpperCase()}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label" title="파선·점선은 «조용히 실선으로» 떨어지지 않는다 — 저장값 그대로 그려진다">선 꼴</span>
+        <select class="prop-select" id="grd-border-style" title="선 꼴">${styleOpts}</select>
+      </div>`;
+}
+
 /* ══ Typography·Fill 절 — 마크업은 «부품»이 낸다 ═══════════════════════════
  * ⛔여기에 절 마크업을 «베끼지» 마라 — _typo-section.js 한 곳에서만 온다.
  *   tests/unit/typo-section-ssot.test.mjs T2·T2-b 가 이 파일도 같은 루프로 검사한다.
@@ -1289,6 +1347,7 @@ export function showGridProperties(block, addrArg) {
    * (아래 _gapRowHtml). ⛔데이터와 렌더러는 그대로다 — `block.dataset.gap` 은 레거시 기준값 겸
    * 단축값으로 계속 산다(옛 프로젝트 호환), rowGap/colGap 없는 블록은 이 값으로 폴백한다. */
   const { row: _rowGap, col: _colGap } = gridGaps(block);
+  const _cellBorder = gridCellBorder(block);   // ★T-172 — 읽는 문은 grid-block.js 하나뿐이다
   const valign = block.dataset.valign || 'top';
   // 가로 정렬은 컬럼 모델(col.align)에 산다. 컬럼마다 다르면(혼합) 어느 버튼도 active 로 켜지 않는다.
   const _aligns = cols.map(c => c.align || 'left');
@@ -1339,6 +1398,7 @@ ${blockHeaderHTML({
       <div class="prop-hint" style="margin-top:2px;">세로 정렬은 컬럼 높이가 서로 다를 때만 움직인다</div>
     </div>
     ${_grdLineBarHtml(_anyHit, block)}
+    ${_borderSectionHtml(_cellBorder)}
     ${_grdCellSectionHtml(_anyHit, block)}
     ${_grdLineSectionHtml(_anyHit, block)}
     ${_grdImageSectionHtml(_anyHit, block)}
@@ -1506,6 +1566,65 @@ ${blockHeaderHTML({
       window._grdSyncLineMark?.(block, grdGetActiveLine(block));
     }, { min: 0, max: GRID_GAP_MAX });
   }
+
+  /* ── 칸 테두리 «셋» — T-172 ─────────────────────────────────────────────
+   * ★굵기는 갭 슬라이더와 «같은 길»이다: dataset 직접 쓰기 + renderGridBlock.
+   *   ⛔여기서 updateGridBlock 을 부르면 드래그 «매 프레임»마다 패널이 통째로 다시 그려져
+   *     잡고 있던 슬라이더 DOM 이 교체된다(바로 위 갭 주석이 같은 말을 적어 뒀다).
+   * ★색·꼴은 «한 번에 끝나는» 조작(change)이라 updateGridBlock 정본 길로 보낸다 —
+   *   검증(색 꼴·선 꼴 명부)과 히스토리·자동저장이 그 안에 다 있다.
+   * ⛔「굵기 0 이면 1px 로 켜 준다」는 «안» 넣는다 — 굵기 0 에서는 색·꼴 줄이 아예 없어서
+   *   그 길이 닿지 않는다. 닿지 않는 보정을 남겨 두면 다음 사람이 「그 경우는 처리돼 있다」로
+   *   읽는다(검사처럼 생긴 문장). 굵기 0 에서 켜는 손잡이는 «굵기» 하나다. */
+  const _bdCommit = (fields) => _grdToastCellFail(window.updateGridBlock?.(block.id, fields));
+
+  const bdSlider = document.getElementById('grd-border-w-slider');
+  const bdNumber = document.getElementById('grd-border-w-number');
+  if (bdSlider && bdNumber) {
+    /* ★0 을 «넘나들 때만» 패널을 다시 그린다 — 색·꼴 줄이 나오고 들어가야 하기 때문이다.
+       ⛔매 프레임 다시 그리지 않는다(드래그 중 슬라이더 DOM 이 교체돼 손이 끊긴다).
+         그래서 판정은 «드래그가 끝난 뒤»(change)에 한 번만 한다. */
+    const wasOn = gridCellBorder(block).width > 0;
+    bindSlider(bdSlider, bdNumber, (v) => {
+      block.dataset.cellBorderWidth = String(v);
+      window.renderGridBlock?.(block);
+      window._grdSyncLineMark?.(block, grdGetActiveLine(block));
+    }, { min: 0, max: GRID_BORDER_W_MAX });
+    const _reopenIfToggled = () => {
+      if ((gridCellBorder(block).width > 0) !== wasOn) showGridProperties(block, _curAddr);
+    };
+    bdSlider.addEventListener('change', _reopenIfToggled);
+    bdNumber.addEventListener('change', _reopenIfToggled);
+  }
+
+  const bdColorPick = document.getElementById('grd-border-color');
+  const bdColorHex  = document.getElementById('grd-border-color-hex');
+  const bdSwatch    = bdColorPick?.closest('.prop-color-swatch');
+  const bdPaint = (hex) => {
+    if (!bdSwatch) return;
+    bdSwatch.classList.toggle('swatch-none', !hex);
+    bdSwatch.style.background = hex || '';
+  };
+  bdColorPick?.addEventListener('input', () => bdPaint(bdColorPick.value));
+  bdColorPick?.addEventListener('change', () => {
+    if (bdColorHex) bdColorHex.value = bdColorPick.value.replace('#', '').toUpperCase();
+    _bdCommit({ cellBorderColor: bdColorPick.value });
+  });
+  /* ⛔빈 칸을 «지움»으로 읽지 않는다 — 테두리를 끄는 손잡이는 «굵기 0» 하나다.
+     두 자리에서 끌 수 있게 하면 「껐는데 안 꺼진다」가 생긴다(색만 비운 상태 = 기본색 선). */
+  wireHexText(bdColorHex, {
+    parse: (raw) => parseHex6(raw),
+    format: (v) => formatHex6(v),
+    getCurrent: () => swatchHex(gridCellBorder(block).color, '#d0d0d0'),
+    onApply: (v) => { bdPaint(v || ''); if (v && bdColorPick) bdColorPick.value = v; },
+    onCommit: (v) => { if (v) _bdCommit({ cellBorderColor: v }); },
+  });
+
+  const bdStyleSel = document.getElementById('grd-border-style');
+  bdStyleSel?.addEventListener('change', () => {
+    if (!GRID_BORDER_STYLES.includes(bdStyleSel.value)) return;   // ⛔모르는 꼴을 조용히 실선으로 떨구지 않는다
+    _bdCommit({ cellBorderStyle: bdStyleSel.value });
+  });
 
   /* 세로 정렬 — «블록 통째»(block.dataset.valign). 렌더러는 pick('valign') 가 있으면 그것을 먼저
      쓰므로(_GRID_VALIGN[pick('valign')] || blockValign), 칸/열 오버라이드가 남아 있으면 이 단추가
