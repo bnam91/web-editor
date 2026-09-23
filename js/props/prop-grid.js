@@ -690,7 +690,7 @@ const _grdDisclosureHtml = (id, title, open) => `
            style="display:flex;align-items:center;gap:6px;cursor:pointer;"
            title="${open ? '접기' : '펼치기'}">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round" stroke-linejoin="round"
+             stroke-linecap="round"
              style="flex:0 0 auto;transform:rotate(${open ? 0 : -90}deg);transition:transform .12s;">
           <path d="M1 3l4 4 4-4"/>
         </svg>

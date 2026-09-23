@@ -48,6 +48,7 @@ function anchorInline() {
     d:   (s.match(/\sd="([^"]+)"/) || [])[1] || null,
     sw:  (s.match(/stroke-width="([^"]+)"/) || [])[1] || null,
     cap: (s.match(/stroke-linecap="([^"]+)"/) || [])[1] || null,
+    join: (s.match(/stroke-linejoin="([^"]+)"/) || [])[1] || null,   // ★기준은 «미선언»(null)이다
   };
 }
 /** `.prop-select` 의 background-image data URI 화살표. */
@@ -173,7 +174,7 @@ const SURVEY = (page) => page.evaluate(async (addr) => {
   }
   /* ★기준도 «같은 자»로 잰다 — 소스 문자열에서 숫자를 베껴 오면 viewBox 배율을 못 본다.
      기준 쉐브론 마크업을 같은 패널에 잠깐 심어 잉크를 재고 걷는다(계측기 하나로 둘을 잰다). */
-  let anchorInk = null;
+  let anchorInk = null, anchorJoin = null;
   if (addr.__anchorSvg) {
     const box = document.createElement('div');
     box.style.cssText = 'position:absolute;left:-9999px;top:0;';
@@ -187,9 +188,10 @@ const SURVEY = (page) => page.evaluate(async (addr) => {
     if (avb.length === 4 && avb[2] > 0) {
       anchorInk = +(parseFloat(getComputedStyle(ap).strokeWidth) * (a.getBoundingClientRect().width / avb[2])).toFixed(3);
     }
+    anchorJoin = getComputedStyle(ap).strokeLinejoin;
     box.remove();
   }
-  return { secs: Object.fromEntries(Object.entries(secs).map(([k, v]) => [k, v.found])), svgs, anchorInk };
+  return { secs: Object.fromEntries(Object.entries(secs).map(([k, v]) => [k, v.found])), svgs, anchorInk, anchorJoin };
 }, { ...ADDR, __anchorSvg: ANCHOR_SVG });
 
 const INLINE = anchorInline();
@@ -282,6 +284,8 @@ test.describe('그리드 패널 세 절 — 아이콘 한 규격', () => {
           vb:  (s2.match(/viewBox="([^"]+)"/) || [])[1] || null,
           wh:  ((s2.match(/width="([^"]+)"/) || [])[1] || '?') + 'x' + ((s2.match(/height="([^"]+)"/) || [])[1] || '?'),
           stroke: (s2.match(/\sstroke="([^"]+)"/) || [])[1] || null,
+          /* ★선꺾임은 «선언이 없어야» 기준과 같다(기준 둘 다 미선언 = miter). A2b 의 소스 짝. */
+          join: (s2.match(/stroke-linejoin="([^"]+)"/) || [])[1] || null,
         });
       }
     }
@@ -289,6 +293,7 @@ test.describe('그리드 패널 세 절 — 아이콘 한 규격', () => {
     const shape = INLINE.d.replace(/^M\s*[-\d.]+[\s,]+[-\d.]+/, 'M');
     const bad = found.filter(x =>
       x.sw !== INLINE.sw || x.cap !== INLINE.cap || x.stroke !== 'currentColor' ||
+      x.join !== INLINE.join ||
       !x.d || x.d.replace(/^M\s*[-\d.]+[\s,]+[-\d.]+/, 'M') !== shape ||
       /* 잉크가 1.5px 로 그려지려면 viewBox 폭 = 화면 폭 이어야 한다. */
       (x.vb || '').trim().split(/\s+/)[2] !== x.wh.split('x')[0]);
@@ -412,5 +417,22 @@ test.describe('그리드 패널 세 절 — 아이콘 한 규격', () => {
       return !names.some(n => g.보이는글자.includes(n));                        // ⑵
     });
     expect(lying, `드롭다운이 «진짜 종류»를 말하지 않는다: ${JSON.stringify(got, null, 1)}`).toEqual([]);
+  });
+
+  /* ══ A2b — «선꺾임»도 기준을 따르는가 ═══════════════════════════════════════
+   * ⚠️★이 축은 2026-09-24 첫 판에 «내가 모으기만 하고 안 쟀던» 자리다. 그래서 새지 않았다 —
+   *   내가 고치면서 `stroke-linejoin="round"` 를 «기준에 없는데» 넣었고, 그물이 그 축을
+   *   안 재니 아무도 못 봤다. 「모았다」 ≠ 「쟀다」.
+   * ★쉐브론 `M1 1l4 4 4-4` 에는 꼭짓점이 «하나»고 눈이 정확히 거기 머문다.
+   *   기준 둘(_typo-section.js:80 · .prop-select 화살표)은 둘 다 linejoin 을 «선언하지 않는다»
+   *   = 기본값 miter(뾰족). 여기만 round 면 나란히 놓았을 때 apex 가 혼자 둥글다.
+   * ⛔기준을 「round 가 더 예쁘다」로 바꾸지 마라 — 그건 이 카드가 닫는 축(«이미 있는 것을
+   *   따른다»)을 뒤집는 결정이고, 그러면 `.prop-select` 쪽 전역도 같이 가야 한다. */
+  test('A2b 선꺾임 — 세 절의 모든 svg 가 기준 선꺾임을 따른다', async ({ page }) => {
+    await boot(page);
+    const { svgs, anchorJoin } = await SURVEY(page);
+    expect(anchorJoin, '기준 선꺾임을 못 쟀다 — 계측기가 눈이 멀었다').not.toBeNull();
+    const bad = svgs.filter(s => s.painters > 0 && s.join !== anchorJoin);
+    expect(bad, `기준 선꺾임 = "${anchorJoin}" · 어긋난 것: ${JSON.stringify(bad.map(b => ({ where: b.where, join: b.join })))}`).toEqual([]);
   });
 });

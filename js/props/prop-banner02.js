@@ -163,7 +163,7 @@ export function showBanner02Properties(block, activeIdxArg) {
              prop-grid·prop-table·prop-banner02·prop-simple-card 네 곳에 같은 마크업으로 산다.
              2026-09-24 네 곳을 같이 옮겼다. 지키는 그물: tests/dom/grid-panel-icon-spec.dom.spec.js -->
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round" stroke-linejoin="round"
+             stroke-linecap="round"
              style="flex:0 0 auto;transform:rotate(${_open ? 0 : -90}deg);transition:transform .12s;">
           <path d="M1 3l4 4 4-4"/>
         </svg>
