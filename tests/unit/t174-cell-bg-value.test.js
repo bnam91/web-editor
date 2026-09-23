@@ -1,28 +1,29 @@
-/* t174-cell-bg-value.test.js — 칸 배경의 «값»이 아무도 안 보는 자리. (T-174 조사 산출)
+/* t174-cell-bg-value.test.js — 칸 배경의 «값» 축. (T-174 조사 산출 · 2026-09-24)
  * 실행: node --test tests/unit/t174-cell-bg-value.test.js
  *
- * ⛔파일 이름이 «grid-» 로 안 시작하는 것은 실수가 아니다.
- *   grid-render-gaps.test.js 의 래칫이 `^grid-.*\.test\.(js|mjs)$` 를 전부 돌려
- *   `[total, pass]` 가 «둘 다» 기준수와 같기를 요구한다 ⇒ 그 명부 안에서는 `todo` 가 하나도 못 산다
- *   (todo 는 pass 에 안 들어간다). 이 카드의 G1 은 «아직 안 고친 것»이라 todo 여야 한다.
- *   ⇒ 래칫을 건드리는 대신 명부 «밖»에 세웠다. 옮기려면 래칫의 셈 규칙부터 정해야 한다.
+ * ★이 파일의 내력 — 두 판에 걸쳐 있다. 그 내력이 이 파일의 «뜻»이다.
+ *   ⑴ 기준 7780267 에서 내가 잰 것: `patchCell{bg:'linear-gradient(…)'}` 가 ok:true 를 주고
+ *      화면엔 배경이 «아예» 없었다. 게다가 그 칸이 이미 갖고 있던 멀쩡한 배경까지 사라졌다.
+ *      ⇒ 그때 이 파일의 G1 은 `{ todo }` 였다(「있어야 할 거절이 없다」).
+ *   ⑵ 59c6d63(T-170·175·176·180 「입구 계약」)이 그 자리를 닫았다. 그래서 이 파일이
+ *      «스스로» 빨개졌다 — todo 가 통과했고, 「두 자리가 같은 말을 하게 됐다」던 대조축이 깨졌다.
+ *      ★그것이 설계대로다. 검사가 「내 할 일이 끝났다」고 소리를 낸 것이지 오작동이 아니다.
+ *   ⇒ 지금 이 파일은 «고쳐진 자리를 지키는 자»로 다시 섰다. G6 이 그 증인이다.
  *
- * ★무엇을 쟀나 (2026-09-24, 격리 인스턴스 9348 · 실화면에서 먼저 밟고 여기로 옮겼다)
- *   `updateGridBlock(id, { patchCell: { r, c, bg: 'linear-gradient(90deg,#fff,#000)' } })` 가
- *   «ok:true» 를 주고 `applied.patchCell.bg` 에 보낸 값을 그대로 되돌려준다.
- *   그런데 렌더러는 `_GRID_COLOR_RE` 를 통과하는 값만 그린다 ⇒ 화면엔 «배경이 아예 없다».
- *   더 나쁜 것은 그 칸이 «이미 갖고 있던 멀쩡한 배경»까지 같이 사라진다는 것이다.
- *   ⇒ 부르는 쪽엔 「바꿨다」로, 화면엔 「지웠다」로 끝난다.
+ * ★★남은 비대칭 둘을 G3·G4 가 «사실»로 적는다 — 결함이라 부르지 않는다.
+ *   59c6d63 이 문을 둘로 갈랐다(그 파일의 「★계약 — 한 문장」):
+ *     patchCell/patchCol = «거절»(부르는 쪽이 그 필드를 직접 적었다)
+ *     cols/cells         = «말한다»(read→한 칸 고쳐→통째로 되쓰기가 정상 왕복이라 막으면 옛 저장본이 죽는다)
+ *   ⇒ `cells` 로 들어온 나쁜 값은 ok:true 이고 «저장본에 남는다». 그게 의도다.
+ *     ⛔이 파일은 그 의도를 «뒤집으려» 들지 않는다. 다만 다음 사람이 「왜 여기만 남지」 하고
+ *       되돌리려 할 때 부딪힐 자리에 말뚝을 박아 둔다.
  *
- * ★이름 검사(grid-patchcell-reject)는 이걸 «못 잡는다» — `bg` 는 명부에 «있는» 이름이다.
- *   화면대조 검사(grid-applied-matches-screen)도 못 잡는다 — 그건 「어느 «잎»이 화면에 닿나」를
- *   «줄 종류»축에서 재고, 칸 `bg` 의 «값»축은 안 잰다. ⇒ 두 자물쇠 «사이»에 난 구멍이다.
+ * ⛔파일 이름이 «grid-» 로 안 시작하는 것은 실수가 아니다 — grid-render-gaps.test.js 의 래칫이
+ *   `^grid-.*\.test\.(js|mjs)$` 를 전부 돌려 `[total, pass]` 등호를 요구한다. 옮기려면 그 수를
+ *   같이 올려야 하고, 그건 «남의 그물»이라 내 사정으로 건드리지 않는다.
  *
- * ★대조축 G5 — 같은 블록의 «줄 색»(line.color)은 이미 값 검증을 한다(ok:false).
- *   즉 「값을 안 본다」가 이 파일의 관례가 아니라, 이 «한 자리»만 갈라진 것이다.
- *
- * ⛔G1 은 «일부러 빨갛게» 두지 않는다 — `{ todo: … }` 로 둔다.
- *   빨간 검사는 다음 빨강을 가린다. 고쳐지면 node:test 가 「todo 가 통과했다」로 시끄러워진다.
+ * ★내가 «안» 잰 축 — 화면(실앱)에서의 재현은 기준 7780267 에서만 했다. 59c6d63 재측정은
+ *   이 미니 DOM(단위검사와 같은 표면)과 실앱 두 곳에서 했고, 저장 파일(proj.json)은 안 열었다.
  */
 'use strict';
 const { test, before } = require('node:test');
@@ -94,65 +95,84 @@ const GOOD = '#f5f7fa';
 
 /** 1행 2열 · 0행 0열 칸에 «멀쩡한 배경»과 글자 한 줄이 이미 있는 그리드. */
 function fixture(mod = G) {
-  const { block: b } = mod.makeGridBlock({ cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }] });
+  const { block: b } = mod.makeGridBlock({ cols: [{ width: 1 }, { width: 1 }] });
   assert.ok(b && b.id, '★블록이 안 만들어졌다 — 아래 단언은 전부 «다른 이유»로 초록이 된다');
   mod.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, lines: [{ type: 'h2', text: 'A' }] } });
   const r = mod.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, bg: GOOD } });
   assert.equal(r.ok, true, '★밑준비부터 실패했다');
   assert.match(b.innerHTML, new RegExp(`background:${GOOD}`),
-    '★멀쩡한 배경이 애초에 안 그려졌다 — 아래 «사라졌다» 단언이 거짓 양성이 된다');
+    '★멀쩡한 배경이 애초에 안 그려졌다 — 아래 «지켜졌다» 단언이 거짓 양성이 된다');
   return b;
 }
 
-/* ═══ G1 — 있어야 할 거절(지금은 «없다») ════════════════════════════════ */
+/* ═══ G1·G2 — 59c6d63 이 닫은 자리를 지킨다 ══════════════════════════════ */
 
-test('G1 ★칸 배경에 «색이 아닌 값»을 주면 거절되어야 한다',
-  { todo: '2026-09-24 T-174 실측 — 지금은 ok:true 다. 고쳐지면 node:test 가 「todo 통과」로 알린다.' },
-  () => {
-    const b = fixture();
-    const r = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, bg: BAD } });
-    assert.equal(r.ok, false, '★렌더러가 «못 그리는» 값이 ok:true 로 통과했다 — 거짓 성공이다');
+test('G1 ★칸 배경에 «색이 아닌 값»을 patchCell 로 주면 거절된다', () => {
+  const b = fixture();
+  const r = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, bg: BAD } });
+  assert.equal(r.ok, false, '★렌더러가 «못 그리는» 값이 ok:true 로 통과했다 — 거짓 성공이 되살아났다');
+  assert.equal(r.code, 'INVALID');
+  assert.match(r.message, /not a value the renderer accepts for 'bg'/,
+    '★거절은 하는데 «무엇이 틀렸나»를 안 말한다 — 부르는 쪽이 다음에 뭘 할지 모른다');
+});
+
+test('G2 ★★효과 판정 — 거절이 «옛 배경을 지켰다» (ok:false 는 증거가 아니다)', () => {
+  const b = fixture();
+  G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, bg: BAD } });
+  assert.match(b.innerHTML, new RegExp(`background:${GOOD}`),
+    '★거절했다고 «말만» 하고 값은 이미 덮었다 — 이게 이 카드가 처음 잡은 손실이다');
+  assert.equal(JSON.parse(b.dataset.cells)[0][0].bg, GOOD,
+    '★화면은 멀쩡한데 저장본이 오염됐다 — 다음에 열 때 사라진다');
+});
+
+/* ═══ G3·G4 — 남은 «비대칭»을 사실로 적는다(결함 아님 · 59c6d63 의 의도) ══ */
+
+test('G3 ★cells 통째 경로는 «막지 않고 말한다» — ignoredProps 가 그 자리를 이름으로 댄다', () => {
+  const b = fixture();
+  const r = G.updateGridBlock(b.id, {
+    cells: [[{ bg: BAD, lines: [{ type: 'h2', text: 'A' }] }, { bg: '#eeeeee' }]],
   });
-
-/* ═══ G2·G3 — 지금 «참»인 것을 못 박는다(고쳐지면 여기가 빨개진다) ══════ */
-
-test('G2 ★돌려준 값과 화면이 갈린다 — applied 엔 있고 화면엔 «배경이 없다»', () => {
-  const b = fixture();
-  const r = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, bg: BAD } });
-  if (r.ok !== true) return;                       // G1 이 고쳐졌다 — 이 자리는 더 잴 것이 없다
-  assert.equal(r.applied.patchCell.bg, BAD,
-    '★「적용했다」 목록이 보낸 값을 그대로 메아리친다는 것이 이 구멍의 표면이다');
-  assert.doesNotMatch(b.innerHTML, /background:linear-gradient/,
-    '★렌더러가 실제로 그렸다면 이 검사의 전제가 틀린 것이다 — 다시 재라');
+  assert.equal(r.ok, true, '★왕복(read→한 칸 고쳐→되쓰기) 경로를 막으면 옛 저장본이 통째로 죽는다');
+  assert.deepEqual(r.ignoredProps, ['cells[0][0].bg'],
+    '★조용한 ok:true 로 돌아갔다 — 부르는 쪽이 «안 먹었다»를 알 길이 없어진다');
+  assert.equal(r.applied.cells[0][0].bg, undefined,
+    '★「적용했다」 목록이 안 먹은 값을 메아리치면 그 자체가 거짓 성공이다');
 });
 
-test('G3 ★★멀쩡하던 배경이 «사라진다» — 「됐다」를 받고 잃는다', () => {
+test('G4 ★★그래도 «저장본엔 남는다» — 여기가 남은 단 하나의 비대칭이다', () => {
   const b = fixture();
-  const r = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, bg: BAD } });
-  if (r.ok !== true) return;                       // G1 이 고쳐졌으면 손실도 안 난다
-  assert.doesNotMatch(b.innerHTML, new RegExp(`background:${GOOD}`),
-    '★전제 확인 — 옛 배경이 남아 있다면 「사라진다」는 말이 거짓이다');
-  assert.doesNotMatch(b.innerHTML, /background:/,
-    '★칸에 «아무» 배경도 안 남는다는 것이 이 카드가 재는 손실이다');
+  G.updateGridBlock(b.id, {
+    cells: [[{ bg: BAD, lines: [{ type: 'h2', text: 'A' }] }, { bg: '#eeeeee' }]],
+  });
+  assert.equal(JSON.parse(b.dataset.cells)[0][0].bg, BAD,
+    '★이 값이 안 남게 됐다면 «왕복 보존»을 포기한 것이다 — 그건 별건 결정이다');
+  assert.doesNotMatch(b.innerHTML.split('data-c="1"')[0], /background:/,
+    '★저장본엔 있는데 화면엔 없다 — 그 갈림이 이 줄이 적는 사실이다');
 });
 
-/* ═══ G4 — 음성대조(전부 거절하면 초록이 되는 검사 방지) ═════════════════ */
+/* ═══ G5 — 음성대조(전부 거절하면 초록이 되는 검사 방지) ═════════════════ */
 
-test('G4 음성대조 — 멀쩡한 색은 통과하고 «실제로 그려진다»', () => {
+test('G5 음성대조 — 멀쩡한 색은 통과하고 «실제로 그려진다»', () => {
   const b = fixture();
   const r = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 1, bg: '#112233' } });
   assert.equal(r.ok, true, '★멀쩡한 색까지 막혔다 — 좁히다가 부쉈다');
   assert.match(b.innerHTML, /background:#112233/, '★ok:true 인데 화면엔 안 닿았다');
+  const v = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 1, bg: 'var(--color-brand, #ff0000)' } });
+  assert.equal(v.ok, true, '★컬러변수 칩이 넣는 꼴이 막혔다 — 칩이 「눌리는데 안 먹는」 상태가 된다');
 });
 
-/* ═══ G5 — 대조축: 같은 블록의 «줄 색»은 값을 «본다» ═════════════════════ */
+/* ═══ G6 — ★양성대조: 59c6d63 의 수리를 «깨뜨려» 댄다 ════════════════════ */
 
-test('G5 ★같은 블록의 «줄 색»은 이미 값 검증을 한다 — 갈라진 것은 «칸 배경» 한 자리다', () => {
-  const b = fixture();
-  const line = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, lineIndex: 0, color: '초록색' } });
-  assert.equal(line.ok, false,
-    '★줄 색도 값을 안 보게 됐다면 이 카드의 「한 자리만 갈라졌다」가 거짓이 된다 — 범위를 다시 적어라');
-  const cell = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, bg: '초록색' } });
-  assert.notEqual(cell.ok, line.ok,
-    '★두 자리가 같은 말을 하게 됐다 — 그럼 이 검사는 할 일이 끝났다(지우지 말고 G1 을 봐라)');
+test('G6 ★★양성대조 — 값 문지기를 «뺀» 사본은 ok:true 를 주고 옛 배경을 잃는다', async () => {
+  const mutated = RAW.replace(
+    'function _gridValueViolations(node, where) {\n  const out = [];',
+    'function _gridValueViolations(node, where) {\n  const out = []; return out;');
+  assert.notEqual(mutated, RAW, '★변이가 «주입되지 않았다» — 이 양성대조는 아무것도 안 쟀다');
+  const M = await loadGrid(mutated);
+  const b = fixture(M);
+  const r = M.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, bg: BAD } });
+  assert.equal(r.ok, true, '★문지기를 뺐는데도 거절한다 — 내가 «딴 것»을 뺀 것이다(변이가 안 먹었다)');
+  assert.doesNotMatch(b.innerHTML, new RegExp(`background:${GOOD}`),
+    '★구멍이 실재했다는 증거가 이 줄이다 — 옛 배경이 살아 있으면 G1·G2 는 «다른 이유»로 초록이다');
+  assert.equal(JSON.parse(b.dataset.cells)[0][0].bg, BAD, '★저장본까지 오염되는 것이 원래 병의 꼴이다');
 });
