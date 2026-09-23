@@ -3598,6 +3598,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.addGridBlock({
         sectionId: args.sectionId, cols: args.cols, rows: args.rows,
         cells: args.cells, gap: args.gap, rowGap: args.rowGap, colGap: args.colGap, valign: args.valign,
+        cellBorderWidth: args.cellBorderWidth, cellBorderColor: args.cellBorderColor, cellBorderStyle: args.cellBorderStyle,
       });
     },
     {
@@ -3605,6 +3606,9 @@ function _registerDefaultTools() {
         + 'cols = column widths (array, 1~4). rows = row heights ([{height:"auto"|number}]). '
         + 'cells = cell contents, row-major. gap = px between cells (both axes). rowGap/colGap = per-axis '
         + 'override (0~200px, optional — omit to use gap for both). valign = top|middle|bottom. '
+        + '★To make a TABLE (spec/compare/price): set cellBorderWidth (px) — every cell gets a line. '
+        + 'With gap/rowGap/colGap = 0 the lines COLLAPSE into a single set of grid rules (a real table); '
+        + 'with a gap > 0 each cell becomes its own boxed card. cellBorderColor/cellBorderStyle tune it. '
         + 'Returns {ok, blockId(grd_), cols, cellCount} — cellCount is READ BACK from the canvas, not echoed from the args. '
         + '★imgSrc inside cols/cells has a length cap here too (2026-09-24 T-170) — an over-cap image is '
         + 'rejected with TOO_LARGE and NO block is created. ⚠️This door reports resource limits only; '
@@ -3633,6 +3637,9 @@ function _registerDefaultTools() {
           rowGap: { type: 'number', description: 'row gap override (px, 0~200) — omit to use gap' },
           colGap: { type: 'number', description: 'column gap override (px, 0~200) — omit to use gap' },
           valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+          cellBorderWidth: { type: 'number', description: '★T-172 cell border width (px, 0~20). 0 = no border. Draws a line around EVERY cell — this is what makes a spec/compare table look like a table.' },
+          cellBorderColor: { type: 'string', description: "cell border color, e.g. '#d0d0d0' (default #d0d0d0)" },
+          cellBorderStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'], description: 'cell border style (default solid)' },
           expectedProject: { type: 'string', description: 'proj_xxx — refuse if a different project is open' },
         },
         additionalProperties: false,
@@ -3650,7 +3657,7 @@ function _registerDefaultTools() {
       }
       if (!Object.keys(partial).length) {
         return { ok: false, code: 'NOTHING_TO_DO',
-          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / rowGap / colGap / valign' };
+          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / rowGap / colGap / valign / cellBorderWidth / cellBorderColor / cellBorderStyle' };
       }
       return await _rendererInvoker.updateGridBlock({ blockId, partial });
     },
@@ -3705,6 +3712,10 @@ function _registerDefaultTools() {
         + '(Different prescription on purpose: an unusable value is something you never asked for, '
         + 'while truncation is the defined limit — blocking it would be a behaviour change.) '
         + 'Also: gap (sets both row/column gap, px 0~200), rowGap/colGap (per-axis override, px 0~200), valign. '
+        + '★★cellBorderWidth (px 0~20, 0 = off) / cellBorderColor / cellBorderStyle (solid|dashed|dotted) — '
+        + 'a line around EVERY cell, on the BLOCK axis (not per-cell). This is how you make a spec/compare table. '
+        + 'Set a gap of 0 on an axis and the lines collapse to one set of rules (a table); keep a gap and each cell is a card. '
+        + '⛔There is NO shorthand — pass the three separately. An unknown cellBorderStyle is REJECTED, never downgraded to solid. '
         + 'Returns {ok, cellCount, cellTexts} — ★cellTexts is READ BACK from the canvas '
         + 'after the write, so it tells you what actually landed (not what you asked for).',
       inputSchema: {
@@ -3717,6 +3728,9 @@ function _registerDefaultTools() {
           rowGap: { type: 'number', description: 'row gap only (px, 0~200)' },
           colGap: { type: 'number', description: 'column gap only (px, 0~200)' },
           valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+          cellBorderWidth: { type: 'number', description: 'cell border width (px, 0~20). 0 = no border' },
+          cellBorderColor: { type: 'string', description: "cell border color, e.g. '#d0d0d0'" },
+          cellBorderStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'] },
           expectedProject: { type: 'string' },
         },
         required: ['blockId'],

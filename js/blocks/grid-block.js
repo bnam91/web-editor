@@ -111,6 +111,64 @@ export const GRID_IMG_MAX_BYTES = 5 * 1024 * 1024;
 
 export const GRID_GAP_MAX = 200;
 
+/* ══ 칸 «테두리» — T-172 (2026-09-24) ═══════════════════════════════════════
+ * ★★어느 «축»에 두는가 — «블록 하나»다(gap·valign 과 같은 자리).
+ *   카드가 물은 것은 「표로 보이게」다. 표에 필요한 것은 «격자 선 한 벌»이지
+ *   «칸마다 다른 테두리»가 아니다 — 뒤쪽은 4×4 에서 사람이 눌러야 할 자리가 16배로 는다
+ *   (작업목록매니저 권고 원문: 「칸마다 네 변을 따로까지 가지 마라」).
+ *   ⇒ 칸 축(GRID_CELL_FIELDS)을 «한 글자도» 안 건드린다. 그래서 그 명부에 매인 세 검사
+ *     (grid-row0-lines-invariant I5 · grid-patchcell-reject P7 · grid-cell-panel-handles E4)와
+ *     원리적으로 부딪히지 않는다 — T-172 가 「삼각 모순」으로 멈춰 있던 자리가 이것이다.
+ * ★★왜 «축약값 한 칸»이 아니라 세 키인가.
+ *   `border:'1px dashed #ccc'` 로 받으면 카드가 못박은 두 값을 그대로 떠안는다:
+ *     ⑴ 구분 부호 탈출(색 이름에 공백이 들어가는 rgb(…) 꼴) ⑵ 파선·점선을 조용히
+ *        실선으로 떨구는 «새 거짓 성공».
+ *   셋으로 나누면 둘 다 «원리적으로» 없다 — 꼴은 명부(GRID_BORDER_STYLES)가, 색은
+ *   기존 _GRID_COLOR_RE 가 각각 «자기 축»에서 검증한다. 파싱이 아예 없다.
+ * ⛔0 = 「테두리 없음」이다. 그래서 이 세 키가 없는 옛 저장본은 «한 픽셀도» 안 바뀐다.
+ */
+export const GRID_BORDER_W_MAX = 20;
+export const GRID_BORDER_STYLES = ['solid', 'dashed', 'dotted'];
+const GRID_BORDER_DEFAULT_COLOR = '#d0d0d0';
+
+/** 블록의 칸 테두리 — {width, color, style}. 값이 없거나 못 읽으면 width:0(=없음).
+ *  ⛔`parseInt(x) || 0` 금지 — 여기선 0 이 유효값이라 gap 과 같은 함정을 진다. */
+function _gridCellBorder(block) {
+  const ds = (block && block.dataset) || {};
+  const wRaw = ds.cellBorderWidth;
+  const w = (wRaw != null && wRaw !== '' && Number.isFinite(+wRaw))
+    ? Math.max(0, Math.min(GRID_BORDER_W_MAX, Math.round(+wRaw)))
+    : 0;
+  const cRaw = typeof ds.cellBorderColor === 'string' ? ds.cellBorderColor.trim() : '';
+  const color = _GRID_COLOR_RE.test(cRaw) ? cRaw : GRID_BORDER_DEFAULT_COLOR;
+  const style = GRID_BORDER_STYLES.includes(ds.cellBorderStyle) ? ds.cellBorderStyle : 'solid';
+  return { width: w, color, style };
+}
+
+/** 한 칸의 테두리 CSS. width 0 이면 «빈 문자열»(= 옛 저장본과 바이트가 같다).
+ *  ★★겹침은 «그리는 쪽»에서 푼다 — 걷어낸 간격 손잡이를 되살리지 않는다(T-022 함정,
+ *    T-172 카드의 ⚠️함정 칸이 같은 말을 적어 뒀다).
+ *    간격이 0 이면 이웃한 두 칸의 선이 맞붙어 «두 배 굵기»로 보인다. 그래서 안쪽 선을
+ *    «한 벌»만 긋는다: 위/왼쪽은 첫 행/첫 열에서만, 오른쪽/아래는 언제나.
+ *    ⇒ 간격 0 = 표(선이 한 겹) · 간격 >0 = 카드(칸마다 상자). 손잡이는 늘지 않는다.
+ *  ⛔`cell.`/`pick('…')` 를 쓰지 않는다 — 이 값은 «칸»이 아니라 «블록»의 것이고,
+ *    grid-patchcell-reject.test.js P7 이 renderGridBlock 본문의 그 두 꼴을 파싱해
+ *    GRID_CELL_FIELDS 와 대조한다. 여기서 그 꼴을 쓰면 남의 명부를 오염시킨다. */
+function _gridCellBorderCss(bd, r, c, rowGapPx, colGapPx) {
+  if (!bd || !(bd.width > 0)) return '';
+  const line = `${bd.width}px ${bd.style} ${bd.color}`;
+  const top  = (rowGapPx > 0 || r === 0) ? line : '0';
+  const left = (colGapPx > 0 || c === 0) ? line : '0';
+  return `border-top:${top};border-left:${left};border-right:${line};border-bottom:${line};`;
+}
+
+/** 테두리 굵기 검증 — 0~GRID_BORDER_W_MAX. 통과면 정수, 아니면 null. */
+function _gridValidateBorderWidth(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > GRID_BORDER_W_MAX) return null;
+  return Math.round(n);
+}
+
 /* ★2026-09-16(T-D) — 우측패널 「행 간격/열 간격」 분리 슬라이더 재도입(09-05 제거된 「간격」 슬라이더와는
  *   다른 것 — 양축 동시 편의 슬라이더는 «재도입하지 않는다», 축별로만 조작한다).
  *   `dataset.gap` 은 레거시 기준값 겸 단축값으로 «그대로» 남는다(옛 프로젝트 호환).
@@ -1243,6 +1301,7 @@ function renderGridBlock(block) {
   const { cols, rows, cells } = getGridModel(block);
   const { row: rowGapPx, col: colGapPx } = _gridGaps(block);
   const blockValign = _gridEnum(_GRID_VALIGN, block.dataset.valign) || 'flex-start';
+  const cellBorder = _gridCellBorder(block);   // ★T-172 — «블록» 축. 칸 축(pick)과 섞지 않는다.
 
   block.style.width = '100%';
   block.style.boxSizing = 'border-box';
@@ -1293,7 +1352,7 @@ function renderGridBlock(block) {
       // ★grd-cell-empty(T-A) — 아직 줄이 하나도 없는 칸. CSS 안내문(+ 내용 추가)과 클릭 판정
       //   (block-drag.js _gridAddrAt)이 「진짜 빈 칸」을 이 표식으로 가른다.
       const emptyCls = lines.length === 0 ? ' grd-cell-empty' : '';
-      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}">
+      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}">
         ${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, true)).join('')}
       </div>`);
     }
@@ -1342,6 +1401,10 @@ function makeGridBlock(opts = {}) {
   // ★rowGap/colGap 은 «주어졌을 때만» dataset 에 쓴다 — 안 주면 옛 파일과 완전히 같은 모양(legacy gap 폴백).
   if (opts.rowGap !== undefined) { const v = _gridValidateGap(opts.rowGap); if (v !== null) block.dataset.rowGap = String(v); }
   if (opts.colGap !== undefined) { const v = _gridValidateGap(opts.colGap); if (v !== null) block.dataset.colGap = String(v); }
+  /* ★T-172 칸 테두리도 «주어졌을 때만» 쓴다 — 안 주면 옛 파일과 dataset 이 완전히 같다. */
+  if (opts.cellBorderWidth !== undefined) { const v = _gridValidateBorderWidth(opts.cellBorderWidth); if (v !== null) block.dataset.cellBorderWidth = String(v); }
+  if (typeof opts.cellBorderColor === 'string' && _GRID_COLOR_RE.test(opts.cellBorderColor.trim())) block.dataset.cellBorderColor = opts.cellBorderColor.trim();
+  if (GRID_BORDER_STYLES.includes(opts.cellBorderStyle)) block.dataset.cellBorderStyle = opts.cellBorderStyle;
   block.dataset.valign = GRID_VALIGN_VALUES.includes(opts.valign) ? opts.valign : GRID_DEFAULTS.valign;
 
   // ★P1: rows/cells(선택) — 안 주면 옛 duo 와 완전히 같은 1행 블록(dataset.rows/cells 아예 안 씀).
@@ -1614,6 +1677,29 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     next.colGap = String(v);
     applied.colGap = v;
   }
+  /* ── ★T-172 칸 테두리 «세 키». 축약값을 안 받는 이유는 선언부에 적혀 있다. ── */
+  if (partial.cellBorderWidth !== undefined) {
+    const v = _gridValidateBorderWidth(partial.cellBorderWidth);
+    if (v === null) return { ok: false, code: 'INVALID', message: `cellBorderWidth must be 0~${GRID_BORDER_W_MAX} (0 = no border)` };
+    next.cellBorderWidth = String(v);
+    applied.cellBorderWidth = v;
+  }
+  if (partial.cellBorderColor !== undefined) {
+    const raw = String(partial.cellBorderColor ?? '').trim();
+    if (!_GRID_COLOR_RE.test(raw)) {
+      return { ok: false, code: 'INVALID', message: "cellBorderColor must be a CSS color literal, e.g. '#d0d0d0' / 'rgba(0,0,0,.2)' / 'transparent'" };
+    }
+    next.cellBorderColor = raw;
+    applied.cellBorderColor = raw;
+  }
+  if (partial.cellBorderStyle !== undefined) {
+    /* ⛔모르는 꼴을 «조용히 실선으로» 떨구지 않는다 — 그게 카드가 못박은 「새 거짓 성공」이다. */
+    if (!GRID_BORDER_STYLES.includes(partial.cellBorderStyle)) {
+      return { ok: false, code: 'INVALID', message: `cellBorderStyle must be ${GRID_BORDER_STYLES.join('|')}` };
+    }
+    next.cellBorderStyle = partial.cellBorderStyle;
+    applied.cellBorderStyle = partial.cellBorderStyle;
+  }
   if (partial.valign !== undefined) {
     /* ★명부는 _GRID_VALIGN «하나»에서 온다 — 전엔 여기와 makeGridBlock 이 각자 리터럴을
        들고 있었다(MIN_COLS/MAX_COLS 사고와 같은 유형, T-175). 칸 축도 같은 명부를 본다. */
@@ -1624,16 +1710,22 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     applied.valign = partial.valign;
   }
   if (Object.keys(next).length === 0) {
-    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign' };
+    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/cellBorderWidth/cellBorderColor/cellBorderStyle' };
   }
 
+  /* ⛔되돌림 명부에 «새 키»를 같이 넣어라 — 빠지면 RENDER_ERROR 롤백이 테두리만 남겨
+     「그리기에 실패했는데 화면엔 선이 남는」 반쪽 상태를 만든다. */
   const before = {
     cols: block.dataset.cols, gap: block.dataset.gap, valign: block.dataset.valign,
     rows: block.dataset.rows, cells: block.dataset.cells,
     rowGap: block.dataset.rowGap, colGap: block.dataset.colGap,
+    cellBorderWidth: block.dataset.cellBorderWidth,
+    cellBorderColor: block.dataset.cellBorderColor,
+    cellBorderStyle: block.dataset.cellBorderStyle,
   };
   const restore = (snap) => {
-    ['cols', 'gap', 'valign', 'rows', 'cells', 'rowGap', 'colGap'].forEach(k => {
+    ['cols', 'gap', 'valign', 'rows', 'cells', 'rowGap', 'colGap',
+      'cellBorderWidth', 'cellBorderColor', 'cellBorderStyle'].forEach(k => {
       if (snap[k] === undefined) delete block.dataset[k]; else block.dataset[k] = snap[k];
     });
   };
@@ -1791,6 +1883,7 @@ export {
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, MAX_CELL_LINES,
   _gridGaps as gridGaps, _gridCellsToDataset as gridCellsToDataset,
+  _gridCellBorder as gridCellBorder,   /* ★T-172 — 패널이 «같은 읽는 문»을 쓴다(두 벌 금지) */
   /* ★GRID_CELL_FIELDS — 칸 필드의 «정본 명부». 패널(prop-grid.js)이 「이 열에 기본값이
      걸려 있나」를 물을 때 이걸 쓴다. ⛔패널 쪽에 이름을 베끼면 두 벌이 되어 따로 늙는다
      (T-172 테두리처럼 새 칸 필드가 생기면 한쪽만 모른다). 선언 줄은 «그대로»라

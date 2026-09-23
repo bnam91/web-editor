@@ -72,10 +72,15 @@ const CELL_WITNESS = {
   radius:      { css: ['css.borderTopLeftRadius'],            ko: '칸 모서리' },
   align:       { css: ['css.lineTextAlign'],                  ko: '칸 가로정렬' },
   valign:      { css: ['css.justifyContent'],                 ko: '칸 세로정렬' },
-  /* ★테두리 — «선무장». 2026-09-23 이름 확정: borderWidth(숫자 px, 0이면 안 찍는다) +
-       borderColor(문자열, _GRID_COLOR_RE 로 거른다). borderStyle 은 이번 범위 밖이라 안 적는다.
-     ⛔지금은 «요구하지 않는다» — GRID_CELL_FIELDS 에 이름이 없으면 E4 의 루프가 이 칸을
-       아예 안 돈다. 렌더러 유닛이 명부에 더하는 «그 순간» E4 가 스스로 요구하기 시작한다.
+  /* ~~[2026-09-23 예정 · 안 그렇게 됐다] 「테두리를 «칸 필드» borderWidth/borderColor 로 낸다」~~
+     ★T-172 는 2026-09-24 에 «블록 축»으로 났다 — dataset.cellBorderWidth/Color/Style 셋이고,
+       GRID_CELL_FIELDS 에는 «안» 들어간다(그래서 E4 의 루프는 이 칸을 영영 안 돈다).
+       까닭: 표에 필요한 것은 «격자 선 한 벌»이지 칸마다 다른 테두리가 아니고, 칸 축에 넣으면
+       이 파일의 E4 · grid-patchcell-reject P7 · grid-row0-lines-invariant I5 가 «동시에 참일 수
+       없는» 삼각형이 된다(T-172 카드가 그 자리에서 멈춰 있었다).
+     ⇒ 지금 테두리를 재는 곳은 tests/dom/grid-cell-border.dom.spec.js 와
+       tests/unit/grid-cell-border.test.js 다. 이 두 줄은 «다시 칸 축으로 가는 날»의 증인으로만
+       남겨 둔다(명부에 이름이 생기는 순간 E4 가 스스로 요구하기 시작한다).
      ⛔CSS 문자열 통째("1px solid #ddd")는 이 축이 아니다 — _esc 가 «;»·«:» 를 안 막아
        선언이 새는 자리다(grid-block.js 의 _GRID_FONT_RE 주석이 같은 사고를 적어 뒀다). */
   borderWidth: { css: ['css.borderTopWidth'],                 ko: '칸 테두리 두께' },
@@ -1174,7 +1179,17 @@ test('E14 ★image → body 로 바꾸면 imgSrc 가 «안» 남는다 (전환 �
  *   ⑵ 파일이 없으면 «찍고 나서 실패»한다(사람이 커밋하게).
  * ════════════════════════════════════════════════════════════════════════ */
 
-const GOLDEN_BASELINE = '86dce84';
+/* ★2026-09-24 «재촬영» — 86dce84 → 59c6d63 (이 가지의 바닥).
+ *   까닭: 86dce84 이후 이 패널에 열여덟 커밋이 들어오며 골든 대비 +38px 이 이미 쌓였다
+ *   (실측 2026-09-24: 59c6d63 의 제품코드로 재면 scrollHeight 1173 · 컨트롤 45,
+ *    골든은 1135 · 35). 합격선 +60 의 남은 여유가 22px 인데 «손잡이 한 줄»(prop-row 하나)이
+ *   실측 30px 이라, 새 손잡이가 «원리적으로» 못 들어간다.
+ *   ⇒ 즉 이 수는 「한 커밋의 순증」이 아니라 「열여덟 커밋의 누적」을 재고 있었다.
+ *   ⛔합격선 60 은 «한 글자도» 안 넓힌다. 기준점만 이 가지의 바닥으로 옮긴다
+ *     — 이 파일이 스스로 적어 둔 절차 그대로다(「다시 찍을 땐 «따로 커밋»해라」).
+ *   ⚠️잃는 것을 적는다: 저 +38px 의 «빚»이 여기서 0 으로 리셋된다. 이 패널을 같이 만지는
+ *     다른 유닛의 가지에도 병합 시 같은 사면이 간다 — 팀리드가 «알고» 받아야 하는 값이다. */
+const GOLDEN_BASELINE = '59c6d63';
 const GOLDEN_PATH = path.join(__dirname, 'fixtures', 'grid-panel-golden.json');
 
 /* ★「골든에 86dce84 라고 «적혀 있다»」와 「그 판에서 «찍혔다»」는 다른 말이다.
