@@ -614,14 +614,42 @@ function _grdSecToggle(block, key) {
   return next[key];
 }
 
-/** 접이식 절 머리글 — ⛔두 벌 만들지 마라. 칸 꾸미기·줄 꾸미기가 «이 부품 하나»를 쓴다. */
+/** 접이식 절 머리글 — ⛔두 벌 만들지 마라. 칸 꾸미기·줄 꾸미기가 «이 부품 하나»를 쓴다.
+ *
+ * ★쉐브론은 «이 패널이 이미 쓰는 그림»이다 — 발명하지 않았다(2026-09-24).
+ *   출처 둘이 이미 같은 그림을 쓰고 있었다:
+ *     · js/props/_typo-section.js:80      — 인라인 쉐브론(같은 우측 패널, 바로 아래 절)
+ *     · css/editor-props.css `.prop-select` — 이 패널의 «모든» 드롭다운이 쓰는 화살표(data URI)
+ *   둘 다 `M1 1l4 4 4-4` · stroke-width 1.5 · stroke-linecap round 다.
+ *
+ * ~~[폐기 · 2026-09-24] 옛 그림 `<polyline points="2,2 6,4 2,6">` · 8x8 · stroke-width 1.8 · 선끝 없음~~
+ *   까닭 — 현빈 지적(「우측패널에 svg가 일관성도 없고 uiux상 직관적이지 않다」)의 실측 내용이 이것이다.
+ *   「칸 꾸미기」 절 하나 안에서 «열기/닫기»를 뜻하는 쉐브론이 두 벌 떴고, 서로 달랐다:
+ *     절 머리 쉐브론 — 2:1 완만한 V · 잉크 1.8px · 선끝 butt(각진 끝)
+ *     가로/세로 정렬 드롭다운 — 45° V · 잉크 1.5px · 선끝 round
+ *   둘 사이 거리는 세로로 약 16px 다. «같은 뜻인데 다른 그림»이 바로 붙어 있었다.
+ *
+ * ★바꾼 것과 «안» 바꾼 것
+ *   바꿈 — 그림(d)·잉크(1.8→1.5)·선끝(butt→round). 색은 원래도 currentColor 라 그대로다.
+ *   ⛔동작은 한 글자도 안 바꿨다 — 접힘=오른쪽, 펼침=아래. 옛 그림은 «오른쪽» 쉐브론을 열 때
+ *     +90° 돌렸고, 새 그림은 «아래» 쉐브론이라 접을 때 −90° 돌린다. 보이는 방향은 같다.
+ *   ★상자는 8x8 → 10x10 «정사각»이다. 두 까닭 —
+ *     ⑴ 잉크를 1.5px 로 맞추려면 viewBox 10 에 화면 폭도 10 이어야 한다(1.5 × 10/10 = 1.5).
+ *        폭을 8 로 두면 같은 `stroke-width="1.5"` 가 1.2px 로 «가늘게» 그려진다 — 선언값만 보는
+ *        검사는 그걸 못 잡는다. 그래서 그물(A3)은 «잉크»를 잰다.
+ *     ⑵ 정사각이라야 −90° 로 돌려도 «자리를 안 먹는다». 10x6 을 그대로 돌리면 6x10 이 되어
+ *        접었다 폈다 할 때마다 옆의 제목이 좌우로 흔들린다.
+ *   ⇒ 제목이 2px 오른쪽으로 간다. 그 값이 이 변경의 «전부»다.
+ *
+ * 지키는 그물: tests/dom/grid-panel-icon-spec.dom.spec.js (A2 선끝 · A3 잉크 · A3b 모양 · A4 색) */
 const _grdDisclosureHtml = (id, title, open) => `
       <div class="prop-section-title" id="${id}" role="button" tabindex="0"
            style="display:flex;align-items:center;gap:6px;cursor:pointer;"
            title="${open ? '접기' : '펼치기'}">
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
-             style="flex:0 0 auto;transform:rotate(${open ? 90 : 0}deg);transition:transform .12s;">
-          <polyline points="2,2 6,4 2,6"/>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round"
+             style="flex:0 0 auto;transform:rotate(${open ? 0 : -90}deg);transition:transform .12s;">
+          <path d="M1 3l4 4 4-4"/>
         </svg>
         <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</span>
       </div>`;
@@ -634,7 +662,9 @@ function _grdWireDisclosure(block, key, headId, bodyId) {
   head?.addEventListener('click', () => {
     const open = _grdSecToggle(block, key);
     if (body) body.style.display = open ? 'block' : 'none';
-    if (arrow) arrow.style.transform = `rotate(${open ? 90 : 0}deg)`;
+    /* ⛔각도 식은 _grdDisclosureHtml 과 «같은 값»이어야 한다 — 갈리면 첫 클릭에 그림이 튄다.
+       접힘 = −90°(오른쪽) · 펼침 = 0°(아래). 쉐브론이 «아래» 그림이라 부호가 옛 것과 반대다. */
+    if (arrow) arrow.style.transform = `rotate(${open ? 0 : -90}deg)`;
     head.title = open ? '접기' : '펼치기';
   });
 }
