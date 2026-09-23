@@ -1142,7 +1142,13 @@ function _updateMultiSelPanel(block) {
     return;
   }
   /* ★T-091 — 여기가 «범위를 못 만든» 끝자리다. 선택이 한 블럭이면 그 블럭의 패널로 잇는다.
-     ⛔호출부(rangeSelectBlocks 29곳)는 안 건드린다 — 고칠 자리는 «패널을 정하는 한 자리»다. */
+     ⛔호출부가 아니라 «여기»서 고치는 근거는 «수»가 아니라 저장소의 «선언»이다 —
+       toggleBlockSelect 위 주석이 「패널 «선택»은 _updateMultiSelPanel «한 자리»에서」라고
+       못박아 뒀다(이 파일, _restoreFreeLayoutFrameSelected 를 부르는 줄 바로 위).
+       ⇒ 그 계약을 지키는 쪽이 정본 수리다. 수는 늙지만 선언은 안 늙는다.
+     ＋참고로 이 함수를 부르는 자리는 «넷»이고(아래 setTimeout 네 줄이 전부다. 이 함수는
+       window 에 안 붙어 있어 부를 수 있는 파일이 이 파일 하나뿐이다) 넷 다 여기로 내려온다.
+       ⛔이 «넷»은 rangeSelectBlocks 의 호출부 수(다른 함수의 수다)와 «다른 수»다. */
   _openSoleBlockPanel();
 }
 
@@ -1244,7 +1250,8 @@ function rangeSelectBlocks(block, sec) {
       _lastClickedBlock = anchor;
       for (let i = lo; i <= hi; i++) _selectSibling(sibs[i]);
       if (sec) window.syncSection?.(sec);
-      // 멀티선택 후 패널 갱신 (A11) — n>1 가드로 단일선택엔 무동작
+      // 멀티선택 후 패널 갱신 (A11) — ★0924 T-091 로 「단일선택엔 무동작」이 «아니게» 됐다:
+      //   한 블럭이면 _updateMultiSelPanel 이 그 블럭 패널로 잇는다(빈 Page 가 남던 자리)
       setTimeout(() => _updateMultiSelPanel(block), 0);
       return;
     }
@@ -1257,7 +1264,8 @@ function rangeSelectBlocks(block, sec) {
   if (li) li.classList.add('active');
   _lastClickedBlock = block;
   if (sec) window.syncSection?.(sec);
-  // 단일선택 fallback — n>1 가드로 카운트 패널은 자연히 안 뜸 (A11)
+  // 단일선택 fallback — 카운트 패널은 n>1 가드로 안 뜬다. ★0924 T-091: 그렇다고 «무동작»도
+  //   아니다 — 여기로 떨어진 한 블럭의 패널을 _updateMultiSelPanel 이 연다(옛 판은 Page 가 남았다)
   setTimeout(() => _updateMultiSelPanel(block), 0);
 }
 

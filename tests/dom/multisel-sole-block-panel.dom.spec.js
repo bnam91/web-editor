@@ -110,8 +110,11 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"></head><body>
         <div class="frame-block" data-free-layout="true" id="shpWrap">
           <div class="shape-block" id="shp1" style="position:absolute;left:0;top:0"></div>
         </div>
-        <!-- 표에 «없는» 타입의 대표 — 그룹 프레임(컨테이너). 일부러 표에 안 넣은 것이다. -->
-        <div class="frame-block" data-group="true" id="grp1"></div>
+        <!-- 표에 «없는» 타입의 대표 — 그룹 프레임(컨테이너). 일부러 표에 안 넣은 것이다.
+             ★안에 글자를 하나 둔다 — 「부모가 달라 Path 2 로 떨어지는」 갈래를 재려면 필요하다. -->
+        <div class="frame-block" data-group="true" id="grp1">
+          <div class="frame-block" data-text-frame="true" id="tfC"><div class="text-block" id="tbC">CCC</div></div>
+        </div>
       </div>
     </div>
   </div>
@@ -222,4 +225,28 @@ test('음성대조 — 정본 표(openPanelForBlock)를 «부수면» ② 가 �
   await page.evaluate((h) => h.setAnchor('tbA'), api);
   const r = await act(page, api, { op: 'range', a: 'tbA', b: 'sec1' });
   expect(r.calls, '표를 끊었는데도 패널이 열렸다 — 이 검사는 다른 것을 재고 있다').toEqual([]);
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ★2026-09-24 — _updateMultiSelPanel 을 부르는 자리는 «넷»이다(판 7780267 전수:
+     js/editor.js:1134 · :1187 · :1216 · :1229. 그 함수는 window 에 안 붙어 있어
+     부를 수 있는 파일이 js/editor.js 하나뿐이다).
+   위 검사들이 밟은 것은 셋 — :1134(⌘클릭 toggleBlockSelect) · :1187(Path 1 같은 부모) ·
+   :1229(끝 폴백, 앵커 없음). ⇒ 남은 :1216(Path 2 — 부모가 달라 «섹션 전수»로 떨어지는 갈래)을
+   여기서 «따로» 밟는다. 넷을 다 밟아야 「함수 안에 넣으면 네 자리 모두에 듣는다」가
+   읽기가 아니라 실측이 된다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test('Path2 ★부모가 달라 «섹션 전수» 갈래로 떨어져도, 한 블럭이면 그 블럭 패널이다', async ({ page }) => {
+  const { errs, api } = await boot(page);
+  /* 앵커 = 그룹 프레임(section-inner 의 자식) · 대상 = 그 «안»의 글자
+     ⇒ 대상의 단위(tfC)는 grp1 의 자식이고 앵커는 inner1 의 자식이라 Path 1 의
+        `anchor.parentElement === parent` 가 깨진다. */
+  await page.evaluate((h) => h.setAnchor('grp1'), api);
+  const r = await act(page, api, { op: 'range', a: 'tbC', b: 'sec1' });
+  expect(r.selected, 'Path 2 가 범위를 안 잡았다 — 이 검사가 그 갈래를 못 밟고 있다')
+    .toEqual(expect.arrayContaining(['grp1', 'tbC']));
+  /* 고른 «단위»는 둘로 보이지만 패널을 가진 블럭은 글자 하나뿐이다(그룹 프레임은 표에 없다). */
+  expect(r.calls, 'Path 2 갈래에서만 패널이 안 열린다 — 갈래마다 따로 고치면 이런 구멍이 남는다')
+    .toEqual(['showTextProperties#tbC']);
+  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });
