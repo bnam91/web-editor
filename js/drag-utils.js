@@ -323,7 +323,17 @@ function showNoSelectionHint() {
     fp.classList.add('fp-shake');
     setTimeout(() => fp.classList.remove('fp-shake'), 400);
   }
-  showToast('⚠️ 섹션 또는 블록을 먼저 선택하세요');
+  /* ★2026-09-23 — 「선택하세요」는 «선택할 것이 있을 때만» 말이 된다.
+     현빈 실기 제보(userlens): 새 「New Design」 프로젝트는 캔버스가 «텅 비어» 있다(섹션 0개).
+     거기서 블럭 추가를 누르면 「섹션 또는 블록을 먼저 선택하세요」가 떴는데
+     ⛔«선택할 섹션이 하나도 없었다» — 안내가 «할 수 없는 일»을 시키고 있었다.
+     그리고 그게 새 프로젝트의 «첫 화면»이다.
+     지키는 검사: tests/dom/no-selection-hint.dom.spec.js N1(갈라진다)·N2(빈 판은 추가를 가리킨다)
+                  ＋ N3 짝 검사(섹션이 있으면 여전히 「선택」을 가리킨다). */
+  const 섹션있나 = !!document.querySelector('.section-block');
+  showToast(섹션있나
+    ? '⚠️ 섹션 또는 블록을 먼저 선택하세요'
+    : '⚠️ 먼저 ＋ 새 섹션을 추가하세요');
 }
 
 function showToast(msg) {
