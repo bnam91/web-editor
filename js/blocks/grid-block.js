@@ -581,12 +581,22 @@ function _gridDestructiveNotice(model, nextRowCount, nextColCount) {
   if (nextColCount < colsBefore) shrank.push(`cols ${colsBefore}→${nextColCount}`);
   if (!shrank.length) return null;
   const lost = _gridTruncated(model, nextRowCount, nextColCount);
+  /* ⛔★머리말을 «잃은 게 있을 때만» DESTRUCTIVE 로 쓴다 (2026-09-24, 지디 관측 회신).
+   *   무엇이 있었나 — 이 쪽지는 «줄이면 언제나» 난다(빈 칸만 잘려도 난다). 그런데 머리말이
+   *   늘 「DESTRUCTIVE REPLACE」였다. ⇒ 읽는 쪽에서 「경고가 떴다」와 「뭔가 사라졌다」가
+   *   한 낱말로 뭉개진다 — 늑대를 외치는 경고는 다음 진짜 경고를 가린다.
+   *   ★두 경우를 가르는 것은 여전히 `droppedCells` 다(빈 배열이면 잃은 것이 없다).
+   *     머리말은 그 «같은 사실»을 한눈에 보이게 할 뿐이다 — 새 신호를 만든 게 아니다.
+   *   ⛔쪽지 «자체»는 없애지 마라: 「줄였다」는 사실은 잃은 것이 없어도 알 값이 있고,
+   *     없애면 「경고 없음」이 「안 줄었다」와 「줄었는데 빈 칸이었다」 둘을 덮는다. */
   return {
     kind: 'truncate',
     shrank,
-    /* ⚠️«칸 수»지 «줄 수»가 아니다 — 무엇을 센 건지 이름에 적어 둔다. */
+    /* ⚠️«칸 수»지 «줄 수»가 아니다 — 무엇을 센 건지 이름에 적어 둔다.
+       ⚠️★주소는 «모델»(getGridModel) 기준이다 — 행 0 의 줄은 저장본에선 cols[c].lines 에
+         사는데(겸직) 이 주소는 cells[0][c] 로 가리킨다. 같은 칸이지 다른 칸이 아니다. */
     droppedCells: lost.map(x => `cells[${x.r}][${x.c}]`),
-    message: `DESTRUCTIVE REPLACE — ${shrank.join(', ')}. `
+    message: (lost.length ? 'DESTRUCTIVE REPLACE' : 'SHRINK (nothing lost)') + ` — ${shrank.join(', ')}. `
       + (lost.length
         ? `${lost.length} cell(s) fell outside the new grid and their contents were DISCARDED `
           + `(${lost.map(x => `cells[${x.r}][${x.c}]:${x.lines} line(s)`).join(', ')}). `

@@ -664,3 +664,67 @@ test('U10-c ★★동작 불변 ＋ 양성대조 — 말을 «뗀» 사본과 da
   }
   assert.ok(sawQuiet, '★말을 뗀 사본이 여전히 말을 한다 — U10 이 재는 것은 «그 보고»가 아니다');
 });
+
+/* ═══════════════════════════════════════════════════════════════════════
+   U11 — ★「이 쪽지는 «언제» 나는가」를 못박는다 (2026-09-24, 지디가 조건을 못 좁힌 자리)
+   ★답: «줄면 «언제나» 난다». 잃은 것이 있느냐 없느냐는 `droppedCells` 가 가른다.
+     ⇒ 「경고 유무」는 «줄었나»의 신호고, 「무엇이 사라졌나」의 신호가 «아니다».
+   ⛔이 둘을 한 낱말로 뭉개면 늑대를 외치는 경고가 된다 — 머리말도 같이 갈랐다.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** c열 1행 그리드 — 어느 칸에 무엇을 심을지 고른다. */
+function grid1Row(nCols, seed) {
+  const { block } = G.makeGridBlock({ cols: Array.from({ length: nCols }, (_, i) => seed(i)) });
+  return block;
+}
+const shrinkTo = (b, n) => G.updateGridBlock(b.id, { cols: Array.from({ length: n }, () => ({ width: 1 })) });
+
+test('U11 ★줄이면 «언제나» 난다 — 잃은 것의 유무는 droppedCells 가 가른다', () => {
+  const W = (i) => ({ width: 1 });
+  const cases = [
+    ['세 칸 전부 줄 있음', (i) => ({ width: 1, lines: L() }), null, 1],
+    ['바깥 칸(c=2)만 줄 있음', (i) => (i === 2 ? { width: 1, lines: L() } : W(i)), null, 1],
+    ['★안쪽 칸만 줄 있음(바깥은 빈 칸)', (i) => (i === 2 ? W(i) : { width: 1, lines: L() }), null, 0],
+    ['바깥 칸에 꾸밈만(줄 없음)', W, (b) => G.updateGridBlock(b.id, { patchCell: { r: 0, c: 2, bg: '#00ff00' } }), 1],
+    ['전부 빈 칸', W, null, 0],
+  ];
+  for (const [name, seed, prep, wantLost] of cases) {
+    const b = grid1Row(3, seed);
+    if (prep) assert.equal(prep(b).ok, true, `★'${name}': 판이 안 깔린다`);
+    const res = shrinkTo(b, 2);
+    assert.equal(res.ok, true, `★'${name}': 줄이기가 거절됐다 — 동작을 바꾸면 안 된다`);
+    assert.ok(res.destructive, `★'${name}': ★줄였는데 쪽지가 «안» 났다 — 「경고 없음」이 「안 줄었다」와 뭉개진다`);
+    assert.deepEqual(res.destructive.shrank, ['cols 3→2'], `★'${name}': 무엇이 줄었는지 틀리게 적었다`);
+    assert.equal(res.destructive.droppedCells.length, wantLost,
+      `★'${name}': 잃은 칸 수가 ${res.destructive.droppedCells.length} 다(기대 ${wantLost}) — ${JSON.stringify(res.destructive.droppedCells)}`);
+    /* ★머리말이 «사실»과 같은 말을 하는가 — 잃은 게 없는데 DESTRUCTIVE 라고 하면 늑대다 */
+    assert.match(res.destructive.message, wantLost ? /^DESTRUCTIVE REPLACE/ : /^SHRINK \(nothing lost\)/,
+      `★'${name}': 머리말이 droppedCells(${wantLost}건)와 다른 말을 한다: ${res.destructive.message.slice(0, 60)}`);
+  }
+});
+
+test('U11-b ★「경고 없음」은 «안 줄었다»는 뜻이다 — 늘리기·같은 크기·꾸밈만', () => {
+  const grow = G.updateGridBlock(grid1Row(2, () => ({ width: 1, lines: L() })).id,
+    { cols: [1, 2, 3].map(() => ({ width: 1 })) });
+  assert.equal(grow.destructive, undefined, '★늘렸는데 쪽지가 났다');
+  const same = G.updateGridBlock(grid1Row(3, () => ({ width: 1, lines: L() })).id,
+    { cols: [1, 2, 3].map(() => ({ width: 2 })) });
+  assert.equal(same.destructive, undefined, '★열 수가 그대로인데 쪽지가 났다');
+});
+
+test('U11-c ★행 축도 말한다 ＋ 1행 이하 칸도 «센다»(0행만 보지 않는다)', () => {
+  const mk = () => G.makeGridBlock({
+    cols: [{ width: 1, lines: L() }, { width: 1, lines: L() }, { width: 1, lines: L() }],
+    rows: [{ height: 'auto' }, { height: 'auto' }],
+    cells: [[{ lines: L() }, { lines: L() }, { lines: L() }], [{ lines: L() }, { lines: L() }, { lines: L() }]],
+  }).block;
+
+  const byRow = G.updateGridBlock(mk().id, { rows: [{ height: 'auto' }] });
+  assert.deepEqual(byRow.destructive.shrank, ['rows 2→1'], '★행 축이 말을 안 한다');
+  assert.deepEqual(byRow.destructive.droppedCells, ['cells[1][0]', 'cells[1][1]', 'cells[1][2]'],
+    `★행을 줄일 때 잃은 칸을 틀리게 셌다: ${JSON.stringify(byRow.destructive.droppedCells)}`);
+
+  const byCol = shrinkTo(mk(), 2);
+  assert.deepEqual(byCol.destructive.droppedCells, ['cells[0][2]', 'cells[1][2]'],
+    `★★1행 이하 칸을 «안» 셌다 — 0행만 보는 자였다: ${JSON.stringify(byCol.destructive.droppedCells)}`);
+});

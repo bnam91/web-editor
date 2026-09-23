@@ -848,7 +848,11 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
 /*  ★2026-09-24 셋째 판(지디 실기 관측 회신): 293 → 296. 더한 것 = grid-intake-contract.test.js 의 3개
  *    (U10~U10-c 「만드는 문」이 눌러 맞춘 것을 말한다 ＋ 동작 불변 바이트대조).
  *    ⛔여기서도 지운 것은 «하나도» 없다. */
-const GRID_BASELINE_TESTS = 296;
+/*  ★2026-09-24 넷째 판: 296 → 299. 더한 것 = grid-intake-contract.test.js 의 3개
+ *    (U11 「이 쪽지는 «언제» 나는가」 — 줄면 «언제나» 난다, 잃은 것 유무는 droppedCells 가 가른다
+ *     · U11-b·U11-c 는 «오늘 되는 것»을 잠그는 자물쇠다(6738aad 에서 이미 초록 — 새 요구가 아니다)).
+ *    ⛔여기서도 지운 것은 «하나도» 없다. */
+const GRID_BASELINE_TESTS = 299;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
