@@ -292,4 +292,44 @@ test.describe('그리드 패널 세 절 — 아이콘 한 규격', () => {
       (x.vb || '').trim().split(/\s+/)[2] !== x.wh.split('x')[0]);
     expect(bad, `기준 = d≡"${shape}" · sw ${INLINE.sw} · cap ${INLINE.cap} · currentColor · viewBox폭=화면폭\n어긋난 것: ${JSON.stringify(bad, null, 1)}`).toEqual([]);
   });
+
+  /* ══ A7 — «직관성» 축 하나: 정렬 손잡이가 «무엇에 걸리는지» 말하는가 ═══════════
+   * 이 패널엔 「가로 정렬」이라는 «같은 말»이 두 번, 「세로 정렬」도 두 번 뜬다
+   *   Layout 절   — 열 전체(아이콘 단추 3개)
+   *   칸 꾸미기 절 — 이 칸 하나(드롭다운)
+   * 게다가 줄 꾸미기 절엔 「줄 정렬」이 또 있다. 보이는 라벨만으로는 «범위»를 못 가른다.
+   * ⛔위젯 종류(단추냐 드롭다운이냐)·라벨 문구는 «현빈이 고르실 문제»라 여기서 안 정한다.
+   *   여기서 잠그는 것은 그보다 아래 — 「세 드롭다운이 전부 범위를 말하는가」 하나다.
+   *   실측(2026-09-24, 기준선 7780267): 칸 가로·칸 세로는 말했고 «줄 정렬만 빈 채»였다. */
+  test('A7 직관성 — 세 절의 정렬 드롭다운이 전부 «무엇에 걸리는지» 말한다', async ({ page }) => {
+    await boot(page);
+    const got = await page.evaluate(async (addr) => {
+      const HOST = document.getElementById('host');
+      const PANEL = document.querySelector('#panel-right .panel-body');
+      HOST.innerHTML = ''; PANEL.innerHTML = '';
+      const { row, block } = window.__mk(JSON.parse(JSON.stringify(window.__FIX)));
+      HOST.appendChild(row); block.classList.add('selected');
+      window.__open(block, addr);
+      for (const id of ['grd-cell-toggle', 'grd-line-toggle']) document.getElementById(id)?.click();
+      await new Promise(r => setTimeout(r, 30));
+      /* ★이름을 짓지 않는다 — 세 절 안의 «정렬 뜻을 가진 드롭다운»을 옵션 명부로 찾는다.
+         (기본/왼쪽/가운데/오른쪽 또는 기본/위/가운데/아래 — _GRD_CELL_ALIGNS/VALIGNS 가 그 값이다) */
+      const out = [];
+      for (const id of ['grd-cell-body', 'grd-line-body', 'grd-line-add-kind']) {
+        const sec = document.getElementById(id)?.closest('.prop-section');
+        if (!sec) continue;
+        for (const sel of sec.querySelectorAll('select')) {
+          const opts = [...sel.options].map(o => o.text);
+          const isAlign = opts[0] === '기본' && opts.length === 4;
+          if (!isAlign) continue;
+          if (out.some(o => o.id === sel.id)) continue;
+          out.push({ id: sel.id, opts, title: (sel.getAttribute('title') || '').trim() });
+        }
+      }
+      return out;
+    }, ADDR);
+    expect(got.length, '정렬 드롭다운을 한 개도 못 찾았다 — 모수가 비면 전부 통과한다').toBe(3);
+    const mute = got.filter(g => !g.title);
+    expect(mute, `범위를 «안 말하는» 정렬 드롭다운: ${JSON.stringify(got, null, 1)}`).toEqual([]);
+  });
 });
