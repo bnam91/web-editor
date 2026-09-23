@@ -450,6 +450,17 @@ function _gridExtraRows(block, cols, rowCount) {
   return out;
 }
 
+/** dataset.cells 를 만드는 «유일한 길». (2026-09-23 T-178 C0)
+ *  ★왜 문을 깔았나 — 지금 dataset.cells 를 만드는 자리가 여섯이다(_gridCellPatchDataset ·
+ *    updateGridBlock 의 rows/cols/cells 세 분기 · makeGridBlock · prop-grid.js buildGridPicker).
+ *    「저장 모양」을 한 번 바꾸려면 여섯 곳을 같이 고쳐야 하고, 한 곳을 놓치면 행이 밀린
+ *    «화면은 멀쩡해 보이는 데이터 손상»이 난다(이 레포의 고질 — MIN_COLS 4열 사고가 본보기).
+ *  ⛔C0 은 «순수 통과»다 — 여기서 뜻을 바꾸지 않는다. 산출 바이트가 이전과 완전히 같아야
+ *    「경유만 시켰다」가 증명된다. 뜻은 다음 커밋(C1)이 «이 문 안에서» 바꾼다. */
+function _gridCellsToDataset(cellRows) {
+  return JSON.stringify(cellRows);
+}
+
 // col(열 기본값) 에 cell(행 0 이 아닌 개별 셀 오버라이드)을 merge — patchCol/patchCell{r:0} 공용.
 function _mergeCellIntoCol(col, cell) {
   if (!cell || typeof cell !== 'object') return col;
@@ -503,7 +514,7 @@ function _gridCellPatchDataset(cols, extra, r, c, cellPatch) {
     return { cols: JSON.stringify(cols) };
   }
   extra[r - 1][c] = Object.assign({}, extra[r - 1][c], cellPatch);
-  return { cells: JSON.stringify(extra) };
+  return { cells: _gridCellsToDataset(extra) };
 }
 
 // API 경계(add_block/update_block{cells})는 «행 0 포함 전체 R×C」를 받는다(PLAN §3-A 스키마 그대로) —
@@ -808,7 +819,7 @@ function makeGridBlock(opts = {}) {
     if (rows.length > 1 && Array.isArray(opts.cells) && opts.cells.length) {
       const { cols: mergedCols, extra } = _splitFullCells(opts.cells.slice(0, rows.length), cols);
       cols = mergedCols;
-      if (extra.length) block.dataset.cells = JSON.stringify(extra);
+      if (extra.length) block.dataset.cells = _gridCellsToDataset(extra);
     }
   }
   block.dataset.cols = JSON.stringify(cols);
@@ -886,7 +897,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     // ⛔줄어든 행의 셀 데이터는 dataset.cells 에서 잘려나간다 — «변경 전» pushHistory 로 undo 복원.
     const colsForTrim = _gridCols(block);
     const trimmedExtra = _gridExtraRows(block, colsForTrim, normRows.length);
-    next.cells = JSON.stringify(trimmedExtra);
+    next.cells = _gridCellsToDataset(trimmedExtra);
   }
   const rowCountForValidation = next.rows !== undefined ? JSON.parse(next.rows).length : _gridRows(block).length;
 
@@ -904,7 +915,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     // 열 수가 바뀌면 추가행 셀도 새 열 수에 맞춰 pad/truncate(방어 — 다음 렌더에서도 어차피
     // _gridExtraRows 가 같은 일을 하지만, dataset 자체를 깨끗하게 유지해 export/외부 판독을 돕는다).
     const trimmedExtra = _gridExtraRows(block, partial.cols, rowCountForValidation);
-    next.cells = JSON.stringify(trimmedExtra);
+    next.cells = _gridCellsToDataset(trimmedExtra);
   }
   if (partial.patchCol !== undefined) {
     const p = partial.patchCol;
@@ -937,7 +948,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     const baseCols = _gridCols(block);
     const { cols: mergedCols, extra } = _splitFullCells(partial.cells, baseCols);
     next.cols = JSON.stringify(mergedCols);
-    next.cells = JSON.stringify(extra);
+    next.cells = _gridCellsToDataset(extra);
     /* ★T-122 — `applied.cells = partial.cells` 는 «입력을 그대로 메아리»치는 것이라 거짓말이었다.
        행이 배열이 아니어도, 셀 키가 `_mergeCellIntoCol`(:307)·`_gridExtraRows`(:284) 에서
        통째로 버려져도, 보낸 것이 그대로 「적용됐다」로 돌아왔다.
@@ -1210,5 +1221,5 @@ export {
   _GRID_COLOR_RE as GRID_COLOR_RE, _GRID_FONT_RE as GRID_FONT_RE,
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, MAX_CELL_LINES,
-  _gridGaps as gridGaps,
+  _gridGaps as gridGaps, _gridCellsToDataset as gridCellsToDataset,
 };

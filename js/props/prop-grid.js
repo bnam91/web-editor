@@ -5,7 +5,7 @@ import { parseRatio, buildGridPicker, alignBtn, bindSlider, blockHeaderHTML } fr
 import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★상한은 한 곳에서만 온다
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
-         gridGaps, GRID_GAP_MAX, GRID_IMG_MAX_BYTES } from '../blocks/grid-block.js';
+         gridGaps, GRID_GAP_MAX, GRID_IMG_MAX_BYTES, gridCellsToDataset } from '../blocks/grid-block.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
@@ -1365,7 +1365,7 @@ ${blockHeaderHTML({
           }
           nextCells.push(outRow);
         }
-        if (nextCells.length) block.dataset.cells = JSON.stringify(nextCells);
+        if (nextCells.length) block.dataset.cells = gridCellsToDataset(nextCells);
         else delete block.dataset.cells;
       }
       window.renderGridBlock?.(block);
