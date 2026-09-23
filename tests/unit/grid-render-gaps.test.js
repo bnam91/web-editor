@@ -505,7 +505,14 @@ test('I3 ★전역 탐침(_GRID_FIELD_PROBES)이 그대로인가 — 넓은 처�
    ⇒ «지금 초록»인 X* 줄은 그대로 둔다 — 새 동작을 요구하는 게 아니라 오늘 되는 것을 잠그는 자물쇠다.
    ⇒ N* (중첩)도 같은 까닭으로 초록 잠금만 남긴다. */
 const OUT_OF_SCOPE = { todo: '범위 밖 — 따로 설 카드가 판정한다(측정값은 남겨 둔다)' };
-const SCOPED_OUT_PATHS = new Set(['patchCol', 'cols']);   // ㈏ 축에서 «지금 빨강»인 경로
+
+/* ★★2026-09-24 — «따로 설 카드»가 섰다. T-170·175·176·180 (단위 U-33, 브랜치 fix/0924-u-gate).
+ *   ⇒ 아래 셋은 더 이상 todo 가 «아니다» — 요구다. 셋 다 고치기 «전»에 빨갰다는 기록:
+ *       기준 7780267 · `npm test` · todo 14 중 «열» 개가 이 셋이었다
+ *       (X테두리명부-patchCol·cols 2 · X값-넷 4 · X정렬값-넷 4).
+ *   ⛔남은 넷(X테두리-* ㈎ 「테두리가 그려지는가」)은 그대로 todo 다 — 그건 T-172 의 몫이고
+ *     «새 칸 필드를 만드는» 일이라 이 판의 범위가 아니다. 조용히 빼지 않고 여기 적어 둔다.
+ *   ★갈린 잣대: 이 판은 「모르는 것을 «막거나 말한다»」이고, T-172 는 「새 것을 «그린다»」다. */
 
 /* ═══════════════════════════════════════════════════════════════════════
    B — ② 칸 `border`
@@ -527,7 +534,7 @@ for (const p of WRITE_PATHS) {
 
 for (const p of WRITE_PATHS) {
   test(`X테두리명부-${p.key} ★㈏ 모르는 «칸» 필드를 거절하거나, 최소한 «안 됐다»고 하는가`,
-    SCOPED_OUT_PATHS.has(p.key) ? OUT_OF_SCOPE : {}, () => {
+    () => {
     const b = fixture();
     const res = p.send(G, b, { gdtProbeCellField: 'gdt-probe-value' });
     assert.ok(rejectedOrReported(res, 'gdtProbeCellField'),
@@ -570,7 +577,7 @@ test('X줄축-대조 ★ — «줄» 축은 이미 제대로 거절한다(칸 �
    ═══════════════════════════════════════════════════════════════════════ */
 
 for (const p of WRITE_PATHS) {
-  test(`X값-${p.key} ★칸 세로정렬에 명부 밖 값('center')을 주면 «조용히» 위로 떨어진다`, OUT_OF_SCOPE, () => {
+  test(`X값-${p.key} ★칸 세로정렬에 명부 밖 값('center')을 주면 «조용히» 위로 떨어진다`, () => {
     assert.ok(!VALIGN_KEYS.includes('center'),
       `★'center' 가 세로정렬 명부에 들어왔다 — 이 검사의 전제가 바뀌었다(지금 명부: ${VALIGN_KEYS.join('|')})`);
     const b = fixture();
@@ -610,7 +617,7 @@ test('X값-블록축대조 ★ — «블록» 축의 같은 이름은 값을 제
 });
 
 for (const p of WRITE_PATHS) {
-  test(`X정렬값-${p.key} ★칸 가로정렬에 명부 밖 값('centre')을 주면 그대로 CSS 로 새 나간다`, OUT_OF_SCOPE, () => {
+  test(`X정렬값-${p.key} ★칸 가로정렬에 명부 밖 값('centre')을 주면 그대로 CSS 로 새 나간다`, () => {
     assert.ok(!ALIGN_KEYS.includes('centre'),
       `★'centre' 가 가로정렬 명부에 들어왔다 — 전제가 바뀌었다(지금 명부: ${ALIGN_KEYS.join('|')})`);
     const b = fixture();
@@ -645,11 +652,20 @@ test('X정렬값-음성대조 ★ — 명부 «안»의 가로정렬 값은 넷 
 
 /** 중첩 상한/깊이 가드도 «소스에서» 떠 온다. ⛔3·2 를 손으로 박지 마라. */
 function nestedCaps(src) {
-  const cap = src.match(/line\.cols\.slice\(0,\s*(\d+)\)/);
-  const depth = src.match(/if \(depth >= (\d+)\) return '';/);
+  /* ★2026-09-24 — 두 한계가 리터럴에서 «이름 있는 상수»로 옮겨졌다(입구가 「잘린다」를 말하려면
+     렌더러와 같은 값을 봐야 한다). ⇒ 리터럴이면 그대로 읽고, 이름이면 그 선언을 찾아 읽는다.
+     ⛔「이름이 있으니 안 잰다」로 물러서지 않는다 — 값이 바뀌면 여전히 이 도출이 따라와야 한다. */
+  const resolve = (tok, what) => {
+    if (/^\d+$/.test(tok)) return Number(tok);
+    const m = src.match(new RegExp(`const ${tok} = (\\d+);`));
+    assert.ok(m, `★${what} 가 '${tok}' 라는 이름을 쓰는데 그 선언을 못 찾았다 — 도출이 끊겼다`);
+    return Number(m[1]);
+  };
+  const cap = src.match(/line\.cols\.slice\(0,\s*([A-Za-z_$][\w$]*|\d+)\)/);
+  const depth = src.match(/if \(depth >= ([A-Za-z_$][\w$]*|\d+)\) return '';/);
   assert.ok(cap, '★중첩 열 상한(line.cols.slice)을 못 찾았다');
   assert.ok(depth, '★중첩 깊이 가드(depth >= N)를 못 찾았다');
-  return { colCap: Number(cap[1]), depthCap: Number(depth[1]) };
+  return { colCap: resolve(cap[1], '중첩 열 상한'), depthCap: resolve(depth[1], '중첩 깊이 가드') };
 }
 const NEST = nestedCaps(RAW);
 
@@ -771,7 +787,17 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *    ⛔여기서도 지운 것은 «하나도» 없다.
  *  ★2026-09-23 T-178 C3: 256 → 257. 더한 것 = grid-cell-unset-contract 의 D6
  *    (비우기 → 저장 → 다시 그리기 = 열 기본값만 걸린 모양과 바이트 동일). */
-const GRID_BASELINE_TESTS = 257;
+/*  ★2026-09-24 T-170/175/176/180 (U-gate): 257 → 272. 더한 것 = tests/unit/grid-intake-contract.test.js
+ *    의 18개(U0 자가점검 · U1~U1-d 이미지 상한 네 문 ＋ 새것/있던것 가르기 · U2~U2-d 파괴적 교체
+ *    안내와 «동작 불변» 바이트대조 · U3-align/valign/c/d 「받는 값 = 뜻이 있는 값」 · U4 applied
+ *    자기모순 · U5 「문 하나」를 행위로 · U6·U6-b 만드는 문의 자원 가드 · U7 줄 개수 상한 네 문).
+ *    ⛔여기서도 지운 것은 «하나도» 없다. 이 파일 안의 X* 열 개는 todo 에서 «요구»로 올라갔는데,
+ *      이 래칫은 이 파일(SELF)을 «안 세므로» 그 열 개는 이 수에 안 들어온다. */
+/*  ★2026-09-24 T-175 둘째 판: 275 → 282. 더한 것 = grid-intake-contract.test.js 의 7개
+ *    (U8~U8-d 「아는 이름 + 모르는 값」 — 렌더러가 안 받는 색·글꼴을 도구가 받아 «있던 값까지
+ *     죽이던» 자리 · U9~U9-c 「한계를 넘긴 중첩」 — 자르되 잘랐다고 «말하게» ＋ 동작 불변 바이트대조).
+ *    ⛔여기서도 지운 것은 «하나도» 없다. */
+const GRID_BASELINE_TESTS = 282;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
@@ -831,6 +857,12 @@ const POSITIVE_CONTROLS = [
   'grid-line-typo.test.js :: U4-전제 ★양성대조 — 이 비교가 «다른 필드»는 실제로 갈라 낸다',
   'grid-patchcell-reject.test.js :: P4 ★양성대조 — 검증기를 «뺀» 사본은 ok:true 를 주고 화면은 그대로다',
   'grid-patchcell-reject.test.js :: P8 ★양성대조 — 렌더러가 «새 필드»를 읽기 시작하면 도출이 잡는가',
+  /* ★2026-09-24 U-gate — 입구 계약(T-170/175/176/180)의 양성대조 넷. */
+  'grid-intake-contract.test.js :: U1-c ★양성대조 — 상한 검사를 «뺀» 사본은 cols 로 20만 자를 그대로 삼킨다',
+  'grid-intake-contract.test.js :: U2-c ★양성대조 — 쪽지를 «뗀» 사본은 같은 호출에서 아무 말 없이 지나간다',
+  'grid-intake-contract.test.js :: U3-c ★양성대조 — 정렬 명부를 «표 없이» 되돌린 사본에선 오타가 화면으로 새 나간다',
+  'grid-intake-contract.test.js :: U5 ★★양성대조 — 계약 함수 «하나»를 무력화하면 네 문이 «같이» 뚫린다',
+  'grid-intake-contract.test.js :: U8-d ★양성대조 — 값 잣대를 «뺀» 사본은 gradient 를 받고 옛 배경을 죽인다',
 ];
 
 function livePositiveControls() {

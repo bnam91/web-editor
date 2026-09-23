@@ -149,6 +149,30 @@ const _GRID_ROLES = {
   caption: { size: 14, weight: 400, lh: 1.5, ls: '0',       color: '#999999' },
 };
 const _GRID_VALIGN = { top: 'flex-start', middle: 'center', bottom: 'flex-end' };
+/* ★칸/줄의 «가로 정렬» 명부 — 지금까지 이 파일엔 «표가 없었다».
+   세로(_GRID_VALIGN)는 표를 거쳐 나가는데 가로는 `line.align || colAlign || 'left'` 가
+   값을 «그대로» style 속성에 실었다. 그래서 같은 자리의 두 축이 반대로 틀렸다:
+     세로 = 모르는 값이면 «조용히» 떨어진다(표에 없으니 undefined)        → T-180
+     가로 = 모르는 값이 «그대로 화면 CSS 로 나간다»(표가 없으니 거를 게 없다) → T-170 ㈑
+   ⛔값은 js/props/_helpers.js 의 ALIGN_ICONS['object-h'](패널이 실제로 주는 것)와 같아야 한다 —
+     지키는 검사: tests/unit/grid-render-gaps.test.js X정렬값-* (그 파일이 두 출처를 대조한다). */
+const _GRID_ALIGN = { left: 'left', center: 'center', right: 'right' };
+
+/** 표에서 «자기 키»로만 꺼낸다.
+ *  ⛔`map[v]` 로 바로 꺼내지 마라 — `'constructor'`·`'toString'` 같은 이름이 프로토타입에서
+ *    «참인 값»을 돌려줘 그대로 style 속성에 실린다(표를 둬도 새는 구멍이 하나 남는다). */
+const _gridEnum = (map, v) =>
+  (typeof v === 'string' && Object.prototype.hasOwnProperty.call(map, v)) ? map[v] : undefined;
+
+/** 줄의 «유효 가로정렬» — 줄 > 칸 > 'left'. ⛔명부 밖 값은 여기서 죽는다(속성으로 안 샌다).
+ *  ★브라우저는 이미 `text-align:centre` 를 무시하고 상속(=왼쪽)으로 떨어뜨린다 —
+ *    그러니 «보이는 것»은 그대로고, 바뀌는 것은 「선언이 나가느냐」뿐이다. */
+const _gridAlign = (lineAlign, colAlign) =>
+  _gridEnum(_GRID_ALIGN, lineAlign) || _gridEnum(_GRID_ALIGN, colAlign) || 'left';
+
+/** 세로정렬·가로정렬의 «허용 값 명부» — 검증하는 쪽이 이 하나를 본다(손으로 베끼지 마라). */
+const GRID_VALIGN_VALUES = Object.keys(_GRID_VALIGN);
+const GRID_ALIGN_VALUES  = Object.keys(_GRID_ALIGN);
 /* ★var(--color-…) 를 «받아야» 한다 — 컬러변수 칩(color-var-chips.js)이 넣는 값이
    `var(--color-brand, #ff0000)` 형태다. 거부하면 칩이 「눌리는데 안 먹는」 상태가 된다
    (modal-block.js:166 이 2026-09-08 «정확히 같은 것»에 물려 고친 자국 — 같은 대안절을 쓴다).
@@ -162,6 +186,19 @@ const _GRID_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(
    ⇒ 이 정규식이 유일한 문지기다. 지키는 검사: tests/unit/grid-color-re.test.mjs (U10 음성대조).
    (따옴표는 통과시키되 _esc 가 &quot; 로 바꾼다 — 속성 밖으로 못 나간다.) */
 const _GRID_FONT_RE = /^[\w\s,'"\-().가-힣]+$/;
+
+/* ★중첩 그리드(line.type==='duo')의 한계 — 전엔 `_gridLineHtml` 안에 리터럴 2건이었다.
+ *   입구가 「이건 잘린다」고 말하려면 렌더러와 «같은 값»을 봐야 한다(2026-09-24 T-175 ⑶).
+ *   ⛔값은 안 바꿨다: 열 3(중첩은 4x4 피커 대상이 아니다) · 깊이 2단.
+ *   지키는 검사: tests/unit/grid-render-gaps.test.js N3·N4(한계) · grid-intake-contract U9(보고). */
+const GRID_NESTED_MAX_COLS = 3;
+const GRID_NESTED_MAX_DEPTH = 2;
+/* ★중첩 줄의 «스키마 enum» — 데이터 토큰이라 개명 대상 밖(PLAN §6-⑤)이고, 그래서 이 레포는
+ *   이 이름이 «한 곳»에만 살기를 요구한다(tests/unit/grid-rename-residue.test.mjs S1).
+ *   전엔 그 한 곳이 `if (line.type === 'duo') {` 이었다. 입구가 「이 중첩은 잘린다」를 말하려면
+ *   같은 판정을 한 번 더 해야 해서, 리터럴을 둘로 늘리는 대신 «이름»으로 옮겼다.
+ *   ⇒ 리터럴 수는 그대로 하나다. S1 의 허용 목록 ⑷ 도 이 줄을 가리키게 같이 옮겼다. */
+const GRID_NESTED_LINE_TYPE = 'duo';
 /* ═══ patchCell 이 «실제로 그려지는 필드»만 받게 하는 명부 ═══════════════════
    ★왜 있나 — 2026-09-09. `update_block{patchCell}` 은 `rest` 의 «아무 키나» 받아
      `applied.patchCell` 에 그대로 되돌려줬다. 렌더러가 안 읽는 이름을 줘도 `ok:true` 다.
@@ -186,6 +223,39 @@ const GRID_LINE_FIELDS = new Set([
 /** `renderGridBlock` 이 셀에서 읽는 것(`cell.lines` + `pick(...)`) — patchCell 로 줄 수 있는 필드.
  *  ⚠️`width` 는 «열» 속성이라 여기 없다 — 셀로 주면 조용히 버려진다. 거절 메시지가 patchCol 로 보낸다. */
 const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', 'radius']);
+
+/** `cols[c]` 가 받는 것 — 칸 필드 «전부» ＋ `width`(열 전용). ⛔손으로 베끼지 않는다.
+ *  renderGridBlock 이 `pick(k)` 로 칸 값이 없을 때 `col[k]` 를 읽으므로, 열이 받는 꾸밈은
+ *  칸이 받는 것과 «같은 명부»다. 다른 것은 `width` 하나뿐이고 그건 열에만 있다
+ *  (거절 메시지가 「width 는 열 필드다」라고 돌려보내는 바로 그 자리). */
+const GRID_COL_FIELDS = new Set(['width', ...GRID_CELL_FIELDS]);
+
+/** 꾸밈 필드 중 «값이 명부로 묶인» 것 — 칸이든 열이든 같다. ⛔이름 말고 «표»로 묶는다. */
+const GRID_ENUM_FIELDS = { align: GRID_ALIGN_VALUES, valign: GRID_VALIGN_VALUES };
+
+/* ★★값이 «명부»가 아니라 «잣대»로 묶인 것 (2026-09-24 T-175 ⑵).
+ *  ⛔새 잣대를 만들지 않았다 — 렌더러가 «이미 쓰고 있는 바로 그 정규식»을 입구가 같이 본다.
+ *    그게 이 카드의 요구다: 「도구와 화면이 같은 답을 해야 한다」.
+ *
+ *  ★무엇이 있었나 (실측, 기준 7780267 · 행 0·행 1 둘 다):
+ *      patchCell{bg:'linear-gradient(90deg,#f00,#00f)'}
+ *        → ok:true · applied 에 그 값이 «그대로» 실려 돌아온다
+ *        → 화면은 «배경 없음» (_GRID_COLOR_RE 가 안 받는다)
+ *        → ⛔★그리고 그 칸에 «있던 멀쩡한 #00ff00 까지 사라진다» — 데이터 손실이다.
+ *      대조: 같은 블록에서 line.color:'초록색' 은 ok:false 로 «거절»된다.
+ *      ⇒ 같은 「모르는 값」인데 «칸 배경»은 받고 «줄 색»은 거절한다 — 방향이 반대였다.
+ *        (줄 쪽이 막힌 것은 값 검사 때문이 아니라 _gridUnreadLineFields 의 «민감도» 덕이다 —
+ *         우연히 막힌 쪽이라, 그걸 「설계된 가드」로 읽으면 안 된다.)
+ *      ＋ 같은 자리에서 하나 더 나왔다: line.fontFamily:'Noto; color:red' 도 ok:true 였다.
+ *  ⛔`''` 은 여기 안 온다 — 「강제로 없앰」이라는 뜻이 이미 있는 값이다(pick 계약 ⑵).
+ *  ⛔표를 손으로 늘리지 마라. 늘릴 일이 생기면 «렌더러가 그 필드를 어떤 잣대로 거르나»를
+ *    먼저 찾아라 — 잣대가 없는 필드(barColor 등 그래프 줄 색)는 렌더러가 «아무 값이나» 쓰므로
+ *    여기 넣으면 도구만 엄해진다(그게 바로 이 카드가 고치려는 비대칭의 거울상이다). */
+const GRID_VALUE_TESTS = {
+  bg: (v) => _GRID_COLOR_RE.test(String(v).trim()),
+  color: (v) => _GRID_COLOR_RE.test(String(v).trim()),
+  fontFamily: (v) => _GRID_FONT_RE.test(String(v).trim()),
+};
 
 /** 오타를 «되돌려» 준다 — 거절이 「틀렸다」로 끝나면 부르는 쪽은 다음에 뭘 할지 모른다. */
 function _gridNearestField(key, allowed) {
@@ -385,23 +455,87 @@ function _gridInspectCells(fullCells, colCount, rowCount) {
  *    `ignoredProps` 는 「안 됐다」고 하는데 `applied` 는 그 값을 들고 있는 «자기모순»이 된다.
  *  ⛔dataset(저장) 은 «안» 건드린다 — 거기서 지우면 read→고쳐→통째로 다시 쓰기(정상 MCP 왕복)가
  *    남의 칸 값을 조용히 지운다. 지우는 게 아니라 «보고에서 빼는» 것이 이 카드의 처방이다. */
+function _gridRenderedCell(cell, fields) {
+  const out = {};
+  /* ★명부 밖 «값»도 여기서 빠진다 (2026-09-24 T-170/180) — 렌더러가 그 값을 안 쓰기 때문이다.
+     안 빼면 같은 답 안에서 `ignoredProps` 는 「안 됐다」고 하는데 `applied` 는 그 값을 들고
+     있는 자기모순이 된다(T-122 가 «이름» 축에서 닫은 것과 «같은 모양»의 거짓말이다). */
+  const badValue = new Set(_gridValueViolations(cell, '').map(v => v.path.replace(/^\./, '')));
+  for (const k of Object.keys(cell)) {
+    if (!fields.has(k) || cell[k] === undefined || badValue.has(k)) continue;
+    if (k !== 'lines' || !Array.isArray(cell.lines)) { out[k] = cell[k]; continue; }
+    out.lines = cell.lines.map(ln => {
+      if (!ln || typeof ln !== 'object' || Array.isArray(ln)) return ln;
+      const unread = new Set(_gridUnreadLineFields(ln, Object.keys(ln)));
+      for (const v of _gridValueViolations(ln, '')) unread.add(v.path.replace(/^\./, ''));
+      const keep = {};
+      for (const lk of Object.keys(ln)) if (!unread.has(lk)) keep[lk] = ln[lk];
+      return keep;
+    });
+  }
+  return out;
+}
 function _gridRenderedCells(cells) {
   return cells.map(row => row.map(cell => {
-    const out = {};
-    for (const k of Object.keys(cell)) {
-      if (!GRID_CELL_FIELDS.has(k) || cell[k] === undefined) continue;
-      if (k !== 'lines' || !Array.isArray(cell.lines)) { out[k] = cell[k]; continue; }
-      out.lines = cell.lines.map(ln => {
-        if (!ln || typeof ln !== 'object' || Array.isArray(ln)) return ln;
-        const unread = new Set(_gridUnreadLineFields(ln, Object.keys(ln)));
-        const keep = {};
-        for (const lk of Object.keys(ln)) if (!unread.has(lk)) keep[lk] = ln[lk];
-        return keep;
-      });
-    }
+    const out = _gridRenderedCell(cell, GRID_CELL_FIELDS);
     if (!Array.isArray(out.lines)) out.lines = [];
     return out;
   }));
+}
+
+/** `applied.cols` 의 같은 체. ⛔`applied.cols = partial.cols` 는 «입력 메아리»라 거짓말이었다 —
+ *  T-122 가 `applied.cells` 에서 닫은 그 구멍이 열 축엔 그대로 남아 있었다(2026-09-24 T-170). */
+function _gridRenderedCols(cols) {
+  return cols.map(col => _gridRenderedCell(col, GRID_COL_FIELDS));
+}
+
+/* ═══ ★T-176 — 「이건 파괴적 교체다」를 «도구»도 말하게 한다 ═══════════════════════════
+ *  ⛔동작은 «한 글자도» 안 바꾼다 — 「줄여도 남긴다」로 만들자는 것이 아니다(적대검수 Q3 결정).
+ *  ★화면 쪽은 이미 말한다 — js/props/prop-grid.js 가 「줄이면 잘린 칸 내용은 사라진다 (⌘Z 복원)」
+ *    을 띄우고, 그 윗줄이 「동작을 바꾸는 대신 «사실을 적는다»로 정했다」고 적어 뒀다.
+ *    ⇒ 갈린 것은 «도구 경로»뿐이었다. 같은 한 마디를 여기 붙인다. 새 규칙이 아니다.
+ *  ⛔이것을 「데이터가 사라지는 결함」으로 되세우지 마라 — 정해진 동작이고 안내도 있다.
+ */
+
+/** 이번 교체로 «격자 밖»에 남는 칸 중 잃을 것이 있는 칸. ⛔세기만 한다 — 막지도 살리지도 않는다.
+ *  @param {object} model  «바꾸기 전» 모델(getGridModel) — dataset 은 아직 안 건드린 시점이어야 한다 */
+function _gridTruncated(model, nextRowCount, nextColCount) {
+  const out = [];
+  for (let r = 0; r < model.cells.length; r++) {
+    const row = model.cells[r] || [];
+    for (let c = 0; c < row.length; c++) {
+      if (r < nextRowCount && c < nextColCount) continue;
+      const cell = row[c] || {};
+      const lines = Array.isArray(cell.lines) ? cell.lines : [];
+      const deco = Object.keys(cell).filter(k => k !== 'lines');
+      if (!lines.length && !deco.length) continue;     // 빈 칸은 잃을 것이 없다
+      out.push({ r, c, lines: lines.length, deco: deco.length });
+    }
+  }
+  return out;
+}
+
+/** 「줄이는 교체」면 그 사실을 적은 쪽지, 아니면 null. */
+function _gridDestructiveNotice(model, nextRowCount, nextColCount) {
+  const rowsBefore = model.rows.length, colsBefore = model.cols.length;
+  const shrank = [];
+  if (nextRowCount < rowsBefore) shrank.push(`rows ${rowsBefore}→${nextRowCount}`);
+  if (nextColCount < colsBefore) shrank.push(`cols ${colsBefore}→${nextColCount}`);
+  if (!shrank.length) return null;
+  const lost = _gridTruncated(model, nextRowCount, nextColCount);
+  return {
+    kind: 'truncate',
+    shrank,
+    /* ⚠️«칸 수»지 «줄 수»가 아니다 — 무엇을 센 건지 이름에 적어 둔다. */
+    droppedCells: lost.map(x => `cells[${x.r}][${x.c}]`),
+    message: `DESTRUCTIVE REPLACE — ${shrank.join(', ')}. `
+      + (lost.length
+        ? `${lost.length} cell(s) fell outside the new grid and their contents were DISCARDED `
+          + `(${lost.map(x => `cells[${x.r}][${x.c}]:${x.lines} line(s)`).join(', ')}). `
+        : 'No cell outside the new grid had any content, so nothing was lost this time. ')
+      + 'This is the defined behaviour (the on-screen panel says the same); undo (⌘Z) restores it. '
+      + 'Read the grid first (get_canvas_state) if you need to keep those cells.',
+  };
 }
 
 /** 부분 적용 보고 — 기존 규약을 따른다(`main/claude-pm/mcp-block-tools.js:255` 의 `ignoredProps`/`hint`).
@@ -413,6 +547,306 @@ function _gridAttachNotApplied(res, drops) {
     + drops.map(d => `${d.path}: ${d.why}`).join('; ')
     + ". Nothing on screen changed for these; everything in 'applied' did render.";
   return res;
+}
+
+/* ═══ ★입구 계약 — 구조 입구 «넷»이 이 함수 하나를 지난다 (T-170·175·176·180) ═══════════
+ *
+ * ★왜 «하나»로 모으나 (2026-09-24)
+ *   그리드를 고치는 구조 입구는 넷이다 — `cols` · `patchCol` · `cells` · `patchCell`.
+ *   고치기 «전»에 넷이 서로 «다른 것»을 쟀다(실측, 아래 표는 이 파일에서 직접 읽은 것):
+ *     patchCell — 모르는 이름 거절 ○ · 이미지 상한 ○ · lines 계약 ○ · 값 명부 ✕
+ *     cells     — 모양/행수 ○ · lines 길이 ○ · 「안 그려질 것」보고 ○ · 이미지 상한 ✕ · 값 명부 ✕
+ *     cols      — «배열 길이만» ○ . 그 안은 아무거나 들어간다 · 이미지 상한 ✕
+ *     patchCol  — 검사 «0건». Object.assign 으로 그대로 얹힌다
+ *   그리고 patchCell 의 거절문이 「그건 patchCol 로 보내라」고 «안내»한다 —
+ *   안내가 가리키는 그 문에 문지기가 없었다(T-170 이 적어 둔 모순이 이것이다).
+ *   ⇒ ⛔「입구마다 검사를 하나씩 더 붙인다」로 닫지 않는다. 문이 하나 더 생기면 또 빠진다.
+ *     `structKeys` 가 「한 번에 하나」를 이미 강제하므로, 그 한 키를 이 함수가 «한 번» 훑는다.
+ *
+ * ★계약 — 한 문장
+ *   「이번 호출이 «이름을 대어» 준 값」이 명부 밖이면 «거절»하고,
+ *   「통째로 되쓰는 문서(cols/cells)」에 섞여 온 것이면 «말한다»(ignoredProps + hint).
+ *
+ *   ⑴ 왜 둘로 갈랐나 — `cols`/`cells` 는 read(getGridModel) → 한 칸만 고쳐 → 통째로 되쓰기가
+ *     «정상 왕복»이다. 거기서 거절하면 옛 저장본에 남아 있던 값 하나가 왕복 «전체»를 죽인다.
+ *     T-170·175·180 이 셋 다 함정으로 못박은 「새로 들어오는 값 / 이미 저장된 값」이 그 자리다.
+ *     `patchCell`·`patchCol` 은 부르는 쪽이 그 필드를 «직접 적은» 것이라 그 사정이 없다.
+ *     ★이 갈림은 내가 발명한 것이 아니다 — `cells` 문이 이미 그렇게 정해 뒀다
+ *       (_gridInspectCells 머리의 「⛔여기서 «막지» 않는다」). 그 규약을 넷으로 넓힌 것뿐이다.
+ *   ⑵ 「거절」이든 「말한다」든 «둘 다 말은 한다» — 조용한 `ok:true` 가 어느 문에도 안 남는다.
+ *     T-180 이 요구한 것이 정확히 그것이다(동작을 바꾸라는 게 아니다).
+ *   ⑶ ★자원 가드(이미지 상한 · lines 길이)만은 «네 문 모두 거절»이다 — 그건 값의 옳고 그름이
+ *     아니라 「이걸 받으면 프로젝트가 무거워져 안 열린다」라서 왕복 사정이 안 통한다(T-170 ⑶).
+ *
+ * ★«화면»도 같은 표를 본다 — 렌더러의 `_gridAlign`/`_GRID_VALIGN` 과 여기 명부가 한 곳이다.
+ *   그래서 「도구는 거절하는데 렌더러는 관용」(T-175)이 «값의 정의»에서는 더 안 갈린다.
+ *   ⛔다만 렌더러는 저장본을 그대로 그린다 — 읽는 길에서 막으면 데이터가 사라진 것처럼 보인다.
+ *     ⇒ 좁히는 것은 «입구»고, «그리는 쪽»은 안 좁힌다. 이게 남은 단 하나의 비대칭이고 의도다.
+ * ═══════════════════════════════════════════════════════════════════════════════════ */
+
+/** 꾸밈 한 덩이(칸·열·줄)의 «값»이 명부 안인가. 이름 검사와 달리 «값»을 본다.
+ *  ⛔`null`/`undefined`/`''` 는 «값이 아니다» — 앞의 둘은 「그 키를 지움」, `''` 는
+ *    「열 기본값을 강제로 끔」이라고 이 파일이 이미 계약해 뒀다(renderGridBlock 의 pick 주석 ⑴⑵). */
+function _gridValueViolations(node, where) {
+  const out = [];
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return out;
+  for (const k of Object.keys(GRID_VALUE_TESTS)) {
+    if (!(k in node)) continue;
+    const v = node[k];
+    if (v === null || v === undefined || v === '' || v === 0) continue;   // 위와 «같은» 넷
+    if (typeof v === 'string' && GRID_VALUE_TESTS[k](v)) continue;
+    out.push({
+      path: `${where}.${k}`,
+      why: `${JSON.stringify(v)} is not a value the renderer accepts for '${k}' — `
+        + (k === 'fontFamily'
+          ? 'a font family name (no ; : { })'
+          : 'a CSS color the grid accepts: #hex, rgb()/rgba()/hsl()/hsla(), transparent, or var(--token[, fallback])')
+        + '. It would have been stored and then DROPPED at render time, '
+        + `wiping whatever '${k}' the cell had before.`,
+    });
+  }
+  for (const k of Object.keys(GRID_ENUM_FIELDS)) {
+    if (!(k in node)) continue;
+    const v = node[k];
+    /* ⛔`null`·`undefined`·`''`·`0` «넷»은 명부로 재지 않는다 — 이 파일이 이미 뜻을 정해 둔
+       값들이다(renderGridBlock 의 pick 계약 ⑴⑵): 앞의 둘은 「그 키를 지움」, 뒤의 둘은
+       「열 기본값을 끄는 강제값」. 여기서 다시 재면 그 계약을 «한 축만» 뒤집는 셈이 된다
+       (지키는 검사: tests/unit/grid-cell-unset-contract.test.js D2 — 행 0/행 1+ 대칭). */
+    if (v === null || v === undefined || v === '' || v === 0) continue;
+    const allowed = GRID_ENUM_FIELDS[k];
+    if (typeof v === 'string' && allowed.includes(v)) continue;
+    out.push({
+      path: `${where}.${k}`,
+      why: `${JSON.stringify(v)} is not a ${k} value — use one of ${allowed.join('|')}`
+        + (k === 'valign'
+          ? ' (it would have fallen back to the block default without a word)'
+          : ' (it would have gone straight into the style attribute and the browser would have ignored it)'),
+    });
+  }
+  return out;
+}
+
+/* ★★한계를 넘겨 «잘릴» 중첩을 모은다 (2026-09-24 T-175 ⑶).
+ *  ⛔막지 «않는다» — 자르는 것이 «정해진 동작»이다. T-176(행·열 줄이기)과 «같은 갈래»고,
+ *    그래서 처방도 같다: 동작은 그대로 두고 «잘랐다»고 말한다.
+ *  ★왜 ⑵ 와 처방이 갈리나 — ⑵(모르는 값)는 「부른 쪽이 원한 적 없는 결과」라 되돌릴 근거가 있다.
+ *    ⑶(한계 초과)은 「한계가 원래 그렇다」라, 막으면 그건 «동작 변경»이고 발주 밖이다.
+ *  ★실측(기준 7780267): 중첩 3단계 → ok:true 인데 화면에 없음 · 중첩 4열 → ok:true 인데
+ *    .grd-nested-col 3개. 둘 다 ignoredProps 0건 · 토스트 0건이었다.
+ *  ⛔한계 값을 여기 리터럴로 적지 마라 — GRID_NESTED_MAX_* 가 렌더러와 «같은 자리»다. */
+function _gridInspectNested(line, where, depth, drops) {
+  if (!line || typeof line !== 'object' || _gridLineTypeOf(line) !== GRID_NESTED_LINE_TYPE) return;
+  if (depth >= GRID_NESTED_MAX_DEPTH) {
+    drops.push({ path: where, why: `a nested grid renders ${GRID_NESTED_MAX_DEPTH} level(s) deep at most — `
+      + `this one sits at level ${depth + 1} and renders as nothing (the guard returns an empty string)` });
+    return;
+  }
+  const cols = Array.isArray(line.cols) ? line.cols : [];
+  if (cols.length > GRID_NESTED_MAX_COLS) {
+    drops.push({ path: `${where}.cols[${GRID_NESTED_MAX_COLS}..${cols.length - 1}]`,
+      why: `a nested grid renders at most ${GRID_NESTED_MAX_COLS} columns — the rest are dropped (unchanged behaviour)` });
+  }
+  cols.slice(0, GRID_NESTED_MAX_COLS).forEach((col, c) => {
+    (Array.isArray(col && col.lines) ? col.lines : [])
+      .forEach((ln, i) => _gridInspectNested(ln, `${where}.cols[${c}].lines[${i}]`, depth + 1, drops));
+  });
+}
+
+/** 모르는 «열» 필드 거절 — 칸 쪽 `_gridRejectUnknownCellFields` 의 열 판. 같은 어투를 쓴다. */
+function _gridRejectUnknownColFields(rest) {
+  const bad = Object.keys(rest).filter(k => !GRID_COL_FIELDS.has(k));
+  if (!bad.length) return null;
+  const parts = bad.map(k => {
+    if (GRID_LINE_FIELDS.has(k)) {
+      return `'${k}' is a LINE field, not a column field — put it inside lines:[{${k}:…}]`;
+    }
+    const near = _gridNearestField(k, GRID_COL_FIELDS);
+    return near ? `'${k}' is not read by the renderer — did you mean '${near}'?`
+      : `'${k}' is not read by the renderer`;
+  });
+  return {
+    ok: false, code: 'INVALID',
+    message: `patchCol: unknown field(s) — ${parts.join('; ')}. `
+      + `This would have returned ok:true and changed nothing on screen. `
+      + `Allowed here: ${[...GRID_COL_FIELDS].sort().join(', ')}.`,
+  };
+}
+
+/** 구조 입구 «하나»의 통과. @returns {{reject?:object, drops:Array}}
+ *  @param {object} partial  updateGridBlock 이 받은 그대로 — 구조 키는 한 번에 하나다
+ *  @param {{trusted:boolean}} ctx */
+function _gridIntake(partial, ctx, drops) {
+  const trusted = !!(ctx && ctx.trusted === true);
+  const violations = [];
+  const oversize = [];
+
+  /* ★imgSrc 상한 — block-factory.js 의 다른 이미지 삽입 API들(add_asset_block 등)과 동일하게
+   *   GRID_IMG_MAX_CHARS 로 막는다. 없으면 dataset.cells JSON 이 그대로 커져 proj.json 이
+   *   무한정 부풀 수 있다(2026-09-15 a1-a3 QA 지적).
+   * ★2026-09-20 — «UI 입구»만 opts.trusted 로 면제한다. 이 캡의 명분은 IPC 문자열 비용인데,
+   *   사람이 파일 대화상자로 고른 이미지까지 같이 막혀서 「우클릭 이미지 삽입이 안 된다」가 됐다.
+   *   ⛔면제는 3번째 인자로만 — partial.trusted 는 «읽지 않는다»(MCP 가 JSON 으로 보낼 수 있다).
+   * ★★2026-09-24 T-170 — 이 캡이 «patchCell 한 문»에만 걸려 있었다. 실측: `cols` 로 보낸
+   *   20만 자 이미지가 그대로 들어갔다. 이제 네 문이 같은 자로 잰다(이 함수가 그 «한 자»다). */
+  const takeImg = (v, where, addr) => {
+    if (!trusted && typeof v === 'string' && v.length > GRID_IMG_MAX_CHARS) oversize.push({ where, v, addr });
+  };
+  const scanLines = (lines, where, addr) => {
+    if (!Array.isArray(lines)) return;
+    lines.forEach((ln, i) => {
+      if (!ln || typeof ln !== 'object' || Array.isArray(ln)) return;
+      takeImg(ln.imgSrc, `${where}.lines[${i}].imgSrc`, addr);
+      violations.push(..._gridValueViolations(ln, `${where}.lines[${i}]`));
+      _gridInspectNested(ln, `${where}.lines[${i}]`, 0, drops);   // ★⑶ 잘릴 중첩 — 막지 않고 말한다
+    });
+  };
+  /** 칸 또는 열 한 덩이 — 값 명부 ＋ 그 안의 줄들. */
+  const scanNode = (node, where, addr) => {
+    if (!node || typeof node !== 'object' || Array.isArray(node)) return;
+    violations.push(..._gridValueViolations(node, where));
+    scanLines(node.lines, where, addr);
+  };
+
+  /* ── 문 ①·② «이름을 대어 준» 쪽 — 모르는 이름·값은 거절한다 ───────────────── */
+  if (partial.patchCell !== undefined) {
+    const p = partial.patchCell;
+    if (p && typeof p === 'object' && !Array.isArray(p)) {
+      const { r: _r, c: _c, lineIndex, ...rest } = p;
+      const addr = { r: Number(p.r), c: Number(p.c) };
+      /* ★거짓 성공 봉쇄 — 렌더러가 «안 읽는» 이름은 여기서 막는다(2026-09-09, T-170 에서 이 문으로 옮김).
+         이 줄이 없으면 오타 하나가 ok:true 로 돌아오고 화면은 그대로다. */
+      const _reject = _gridRejectUnknownCellFields(rest, lineIndex !== undefined);
+      if (_reject) return _reject;
+      if (lineIndex !== undefined) {
+        takeImg(rest.imgSrc, 'patchCell.imgSrc', addr);
+        violations.push(..._gridValueViolations(rest, 'patchCell'));
+        _gridInspectNested(rest, 'patchCell', 0, drops);
+      } else {
+        /* ★★옆문 둘을 닫는다 (2026-09-23 T-178 C3) — `lines:null` · `lines:undefined`.
+         *  무엇이 있었나 — 이 레포는 `lines:[]` 를 EMPTY_CELL_LINES 로 «명시적으로 거절»해 놓고,
+         *    «같은 결과»(칸의 줄이 통째로 사라짐)를 내는 옆문 둘을 `ok:true` 로 열어 뒀다.
+         *    실측(기준 f724dc1, 행 1 칸 · 줄 2개):
+         *      lines: []        → ok:false EMPTY_CELL_LINES · 내용 보존   ← 가드가 걸린 «한» 입구
+         *      lines: null      → ok:true  · 2줄 → 0줄 «사라짐» · 저장본 {"lines":null}
+         *      lines: undefined → ok:true  · 2줄 → 0줄 «사라짐» · 저장본 {}
+         *    ⇒ 가드가 «한 입구»에만 걸려 있었다. 그리고 `lines:null` 은 MCP/JSON 으로 «지금 닿는»
+         *      길이라 실사용 데이터 손실 경로다.
+         *  ⛔「무시」가 아니라 «거절»로 닫는다 — 같은 결과를 내는 입력을 조용히 무시하면
+         *    정책이 둘로 갈린다(한쪽은 거절, 한쪽은 노옵).
+         *  ★★`lines` 는 「`null` = 그 키를 지운다」 계약의 «예외»다. 그 계약을 모든 키에 똑같이
+         *    걸면 이 옆문이 «설계»가 된다. 칸의 줄은 patchCell 로 비울 수 없다(위 규칙 그대로).
+         *  ⛔`=== null` 만 막지 마라 — 두 옆문은 «독립된 축»이다(평가자 음성대조: null 만 막은
+         *    시제품에서 L1 초록 · L2 빨강). 「배열이 아니면」으로 한 번에 닫는다.
+         *  ⛔`rest.lines === undefined` 로 보지 마라 — 「안 줬음」과 「undefined 를 줬음」이 안 갈린다.
+         *    `'lines' in rest` 가 그 둘을 가른다(rest 는 spread 라 값이 undefined 인 키도 남는다). */
+        if ('lines' in rest && !Array.isArray(rest.lines)) {
+          const t = rest.lines === null ? 'null' : typeof rest.lines;
+          return { ok: false, code: 'EMPTY_CELL_LINES',
+            message: `patchCell.lines must be an array (got ${t}) — cell lines cannot be emptied, `
+              + 'remove the row/column instead. To edit one line use patchCell{lineIndex, ...}.' };
+        }
+        const _linesReject = _gridRejectLinesLength(rest.lines);
+        if (_linesReject) return _linesReject;
+        takeImg(rest.imgSrc, 'patchCell.imgSrc', addr);
+        scanNode(rest, 'patchCell', addr);
+      }
+    }
+  }
+  if (partial.patchCol !== undefined) {
+    const p = partial.patchCol;
+    if (p && typeof p === 'object' && !Array.isArray(p)) {
+      const { index: _i, ...rest } = p;
+      const nameReject = _gridRejectUnknownColFields(rest);
+      if (nameReject) return nameReject;
+      const lenReject = _gridRejectLinesLength(rest.lines, /* allowEmpty */ true);
+      if (lenReject) return lenReject;
+      scanNode(rest, 'patchCol', { r: 0, c: Number(p.index) });   // ★열의 lines = 행 0 칸
+    }
+  }
+  if (violations.length) {
+    /* 이름을 대어 준 문 — 첫 어긋남 하나로 «전부» 거절한다(이름 검사와 같은 모양). */
+    return {
+      ok: false, code: 'INVALID',
+      message: `${violations.map(v => `${v.path}: ${v.why}`).join('; ')}. `
+        + 'This would have returned ok:true; nothing would have changed on screen for it.',
+    };
+  }
+
+  /* ── 문 ③·④ «통째로 되쓰는 문서» — 거절하지 않고 말한다 ───────────────────── */
+  let colsLinesReject = null;
+  if (partial.cols !== undefined && Array.isArray(partial.cols)) {
+    partial.cols.forEach((col, c) => {
+      const where = `cols[${c}]`;
+      if (!col || typeof col !== 'object' || Array.isArray(col)) {
+        drops.push({ path: where, why: `column is ${Array.isArray(col) ? 'an array' : col === null ? 'null' : typeof col}, not an object — it renders as a default 1fr column` });
+        return;
+      }
+      for (const k of Object.keys(col)) {
+        if (GRID_COL_FIELDS.has(k)) continue;
+        const near = _gridNearestField(k, GRID_COL_FIELDS);
+        drops.push({ path: `${where}.${k}`,
+          why: GRID_LINE_FIELDS.has(k) ? `'${k}' is a LINE field, not a column field — put it inside lines:[{${k}:...}]`
+            : near ? `not read by the renderer — did you mean '${near}'?` : 'not read by the renderer' });
+      }
+      /* ★자원 가드는 «통째 교체 문»에서도 거절이다(계약 ⑶) — 값 명부와 달리 왕복 사정이 안 통한다.
+         ⛔allowEmpty=true — 빈 열(`lines:[]`)은 정상이다(새 열의 의도된 초기상태). */
+      const _colLinesReject = _gridRejectLinesLength(col.lines, /* allowEmpty */ true);
+      if (_colLinesReject) { colsLinesReject = colsLinesReject || _colLinesReject; return; }
+      scanNode(col, where, { r: 0, c });
+      _gridInspectLines(col.lines, where, drops);
+    });
+  }
+  if (colsLinesReject) return colsLinesReject;
+  if (partial.cells !== undefined && Array.isArray(partial.cells)) {
+    for (const row of partial.cells) {
+      if (!Array.isArray(row)) continue;            // 행 «모양»은 _gridInspectCells 가 말한다
+      for (const cell of row) {
+        /* ~~[이사 · 2026-09-24] 이 가드는 updateGridBlock 의 cells 분기 안에 있었다~~
+           까닭 — 같은 자원 가드가 문마다 «다른 자리»에 있으면 다음 문에서 또 빠진다. */
+        const _reject = _gridRejectLinesLength(cell && cell.lines, /* allowEmpty */ true);
+        if (_reject) return _reject;
+      }
+    }
+    partial.cells.forEach((row, r) => {
+      if (!Array.isArray(row)) return;
+      row.forEach((cell, c) => scanNode(cell, `cells[${r}][${c}]`, { r, c }));
+    });
+  }
+  for (const v of violations) drops.push({ path: v.path, why: v.why });
+
+  /* ── 자원 가드 — 네 문 모두 «거절». 왕복 사정이 안 통하는 축이다 ────────────── */
+  /* ★★「새로 들어오는 것」과 「이미 있는 것」을 가른다 (T-170 함정, 2026-09-24).
+   *   ⛔상한을 «그냥» 네 문에 걸면 read → 한 칸만 고쳐 → 통째로 되쓰기(정상 왕복)가 죽는다.
+   *     사람이 파일 대화상자로 넣은 그림은 `opts.trusted` 로 캡을 건너뛰고 저장본에 앉는데,
+   *     그 칸을 «지나가기만» 하는 다음 호출은 trusted 가 아니다 — 자기 그림에 자기가 막힌다.
+   *     (그 병은 patchCell 문에 «이미» 있었다: prop-grid.js:478·block-factory.js:5099 가
+   *      기존 lines 를 통째로 다시 보내는 2-인자 호출이다. 넓히는 김에 그쪽도 같이 낫는다.)
+   *   ⇒ 재는 것은 「이 호출이 «들여오는» 바이트」다. «그 칸에 이미 있던» 문자열이면 안 센다.
+   *   ⛔「블록 어딘가에 있으면」으로 넓히지 마라 — 큰 그림을 한 칸에서 «다른 칸으로 베끼는»
+   *     호출까지 통과한다. 그건 IPC 문자열을 새로 싣는 것이라 캡의 명분에 그대로 걸린다
+   *     (지키는 검사: tests/unit/grid-line-add.test.mjs 의 「2인자(MCP) 통로는 여전히 막힌다」 —
+   *      그 시험이 «칸 (0,1) → 칸 (0,0) 베끼기»를 정확히 재고 있다. 한 번 그렇게 틀렸다).
+   *   ⚠️그래서 옛 저장본의 큰 그림은 고친 뒤에도 «그대로 열리고 그대로 저장된다» —
+   *     이 카드가 「읽을 때까지 막으면 데이터가 사라진 것처럼 보인다」고 못박은 자리다. */
+  const fresh = oversize.filter(o => !_gridCellImgSrcs(ctx && ctx.block, o.addr).has(o.v));
+  if (fresh.length) {
+    return { ok: false, code: 'TOO_LARGE',
+      message: `imgSrc too long (>${GRID_IMG_MAX_CHARS}) at ${fresh.map(o => o.where).join(', ')}` };
+  }
+  return null;
+}
+
+/** 「그 칸이 «이미» 들고 있는 imgSrc」. ⛔상한 후보가 있을 때만 불린다(모델을 한 번 뜬다). */
+function _gridCellImgSrcs(block, addr) {
+  const out = new Set();
+  if (!block || !addr || !Number.isFinite(addr.r) || !Number.isFinite(addr.c)) return out;
+  let model;
+  try { model = getGridModel(block); } catch (_) { return out; }
+  const cell = model.cells[addr.r] && model.cells[addr.r][addr.c];
+  for (const ln of (Array.isArray(cell && cell.lines) ? cell.lines : [])) {
+    if (ln && typeof ln.imgSrc === 'string') out.add(ln.imgSrc);
+  }
+  return out;
 }
 
 const _esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -678,7 +1112,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
      *   ⛔`wp < 100` 가드는 그대로 둔다 — 폭이 꽉 찬 이미지는 움직일 데가 없고, 여백을 붙이면
      *     기존 저장본의 산출만 바뀐다(바이트 동일 유지). 빈 슬롯도 같은 alignCss 를 쓰므로
      *     «같이» 적용되는 것이 의도다(발주 대기 카드가 왼쪽에 붙어 보이던 자리). */
-    const align = line.align || colAlign || 'left';
+    const align = _gridAlign(line.align, colAlign);   // ★명부 밖 값은 여기서 'left' 로 죽는다(T-170 ㈑)
     const alignCss = wp < 100
       ? (align === 'center' ? 'margin-left:auto;margin-right:auto;' : align === 'right' ? 'margin-left:auto;' : '')
       : '';
@@ -692,14 +1126,14 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     return `<img${addrAttr} class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;${widthCss}${sizeCss}${r > 0 ? `border-radius:${r}px;` : ''}${alignCss}${mtCss}">`;
   }
   // 중첩 duo: {type:'duo', gap, valign, cols:[{width, lines[]}]} — innercard 후기카드 등 (BL-SFB-01)
-  if (line.type === 'duo') {
-    if (depth >= 2) return '';                       // 무한 중첩 가드 (2단까지)
+  if (line.type === GRID_NESTED_LINE_TYPE) {
+    if (depth >= GRID_NESTED_MAX_DEPTH) return '';    // 무한 중첩 가드 (2단까지)
     // ⛔중첩 duo(라인 안의 duo)는 상한 3 «그대로» — 4x4 피커는 «블록» 대상이라
     //   중첩까지 넓히면 innercard 렌더 회귀 범위가 커진다(PLAN §P1 회귀위험).
-    const cols = Array.isArray(line.cols) ? line.cols.slice(0, 3) : [];
+    const cols = Array.isArray(line.cols) ? line.cols.slice(0, GRID_NESTED_MAX_COLS) : [];
     if (!cols.length) return '';
     const gap = Number(line.gap) || 24;
-    const valign = _GRID_VALIGN[line.valign] || 'flex-start';
+    const valign = _gridEnum(_GRID_VALIGN, line.valign) || 'flex-start';
     const colsHtml = cols.map(c => {
       const w = Number(c.width) || 1;
       const inner = (Array.isArray(c.lines) ? c.lines : [])
@@ -738,7 +1172,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
   const size = Number(line.fontSize) || role.size;
   const weight = line.weight !== undefined ? String(line.weight) : String(role.weight);
   const color = (typeof line.color === 'string' && _GRID_COLOR_RE.test(line.color.trim())) ? line.color.trim() : '';
-  const align = line.align || colAlign || 'left';
+  const align = _gridAlign(line.align, colAlign);   // ★명부 밖 값이 style 속성으로 새던 자리(T-170 ㈑)
   /* ★줄별 타이포 — 값이 «있을 때만» 역할값을 가린다(§0-⑷ 가 「role.* 만 먹는다」로 세어 둔 자리).
    *   ⛔안 준 줄의 산출은 «바이트 동일»이어야 한다 — 기존 저장 프로젝트가 로드만으로 흔들리면 안 된다
    *     (tests/unit/grid-line-typo.test.js U1-b 가 역할 폴백 생존을, U1-d 가 뱃지 분기 불변을 지킨다).
@@ -808,7 +1242,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
 function renderGridBlock(block) {
   const { cols, rows, cells } = getGridModel(block);
   const { row: rowGapPx, col: colGapPx } = _gridGaps(block);
-  const blockValign = _GRID_VALIGN[block.dataset.valign] || 'flex-start';
+  const blockValign = _gridEnum(_GRID_VALIGN, block.dataset.valign) || 'flex-start';
 
   block.style.width = '100%';
   block.style.boxSizing = 'border-box';
@@ -848,7 +1282,7 @@ function renderGridBlock(block) {
       const align = pick('align');
       // ★세로 정렬의 축 = «셀 박스»가 아니라 «셀 안의 내용» (2026-09-03 fix/duo-layout-align 계승).
       //   그리드 아이템은 기본 stretch(칸을 꽉 채움) + 셀 내부 justify-content 로 «내용»을 배치.
-      const cv = _GRID_VALIGN[pick('valign')] || blockValign;
+      const cv = _gridEnum(_GRID_VALIGN, pick('valign')) || blockValign;
       const bgRaw = pick('bg');
       const bg = (typeof bgRaw === 'string' && _GRID_COLOR_RE.test(bgRaw.trim())) ? bgRaw.trim() : '';
       const pad = Number(pick('padding')) || 0;
@@ -908,7 +1342,7 @@ function makeGridBlock(opts = {}) {
   // ★rowGap/colGap 은 «주어졌을 때만» dataset 에 쓴다 — 안 주면 옛 파일과 완전히 같은 모양(legacy gap 폴백).
   if (opts.rowGap !== undefined) { const v = _gridValidateGap(opts.rowGap); if (v !== null) block.dataset.rowGap = String(v); }
   if (opts.colGap !== undefined) { const v = _gridValidateGap(opts.colGap); if (v !== null) block.dataset.colGap = String(v); }
-  block.dataset.valign = ['top', 'middle', 'bottom'].includes(opts.valign) ? opts.valign : GRID_DEFAULTS.valign;
+  block.dataset.valign = GRID_VALIGN_VALUES.includes(opts.valign) ? opts.valign : GRID_DEFAULTS.valign;
 
   // ★P1: rows/cells(선택) — 안 주면 옛 duo 와 완전히 같은 1행 블록(dataset.rows/cells 아예 안 씀).
   //   cells 는 add_block API 경계 그대로 «행 0 포함 전체»를 받는다(§3-A) — 행 0 은 cols 로 흡수.
@@ -941,6 +1375,16 @@ function makeGridBlock(opts = {}) {
 }
 
 function addGridBlock(opts = {}) {
+  /* ★자원 가드는 «만드는 문»에도 건다 (2026-09-24 T-170).
+   *   ⛔고치는 문 넷만 막으면 `add_grid_block` 으로 20만 자를 «처음부터» 심을 수 있다 —
+   *     그 프로젝트는 무거워져 결국 사람 쪽으로 온다(이 카드가 「사람 쪽으로 온다」고 적은 자리).
+   *   ⚠️★여기서 닫히는 것은 «자원 가드 하나»뿐이다. 「모르는 값을 말해 준다」 쪽은 여기 못 붙인다 —
+   *     makeGridBlock/addGridBlock 에는 부분 적용을 «보고할 칸»이 없다(돌려주는 것이 {row,block}이다).
+   *     ⇒ 그건 add 쪽 반환 규약을 바꾸는 별건이다. 조용히 버리는 쪽으로 때우지 «않는다».
+   *   ⛔ctx.block 은 null 이다 — 아직 블록이 없으니 「이미 있던 그림」이라는 예외가 성립 안 한다. */
+  const _intakeReject = _gridIntake({ cols: opts.cols, cells: opts.cells },
+    { trusted: opts.trusted === true, block: null }, []);
+  if (_intakeReject) return _intakeReject;   // {ok:false, code, message} — main.js 가 그대로 올린다
   const sec = window.getSelectedSection?.();
   if (!sec) { window.showNoSelectionHint?.(); return null; }
   window.pushHistory();
@@ -974,6 +1418,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     return { ok: false, code: 'INVALID', message: 'partial is empty' };
   }
   let appliedCellsPending = false;   // ★T-122 — applied.cells 는 «커밋 뒤» 모델로 채운다(아래)
+  let appliedColsPending  = false;   // ★T-170 — applied.cols 도 같다(전엔 입력을 그대로 메아리쳤다)
   const structKeys = ['cols', 'patchCol', 'cells', 'patchCell'].filter(k => partial[k] !== undefined);
   if (structKeys.length > 1) {
     return { ok: false, code: 'INVALID', message: `${structKeys.join(', ')} 동시 지정 불가 — 구조 변경은 한 번에 하나만` };
@@ -1008,6 +1453,12 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   }
   const rowCountForValidation = next.rows !== undefined ? JSON.parse(next.rows).length : _gridRows(block).length;
 
+  /* ★★입구 계약 — 구조 입구 넷이 «여기 한 번»을 지난다 (T-170·175·176·180, _gridIntake 머리 참고).
+   *   ⛔아래 문들에 검사를 하나씩 더 붙이지 마라 — 문이 늘면 또 빠진다. 계약은 저 함수 안에 있다.
+   *   ⚠️`opts.trusted` 는 «3번째 인자»로만 온다(partial.trusted 는 여전히 안 읽는다 — 뒷문). */
+  const _intakeReject = _gridIntake(partial, { trusted: !!(opts && opts.trusted === true), block }, drops);
+  if (_intakeReject) return _intakeReject;
+
   if (partial.cols !== undefined) {
     /* ★상한 3 → 4 (2026-09-04): 우측 패널 4×4 피커가 최대 4열을 준다.
      * ~~[폐기] 「하한 2 는 유지한다 — 1열짜리 「그리드」는 그리드가 아니고, _gridCols 폴백이
@@ -1018,12 +1469,21 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
       return { ok: false, code: 'INVALID', message: `cols must be array of ${MIN_COLS}~${MAX_COLS} columns` };
     }
     next.cols = JSON.stringify(partial.cols);
-    applied.cols = partial.cols;
+    appliedColsPending = true;   // ★커밋 «뒤» 모델로 채운다(아래) — 메아리는 거짓말이다
     // 열 수가 바뀌면 칸 행들도 새 열 수에 맞춰 pad/truncate(방어 — 다음 렌더에서도 어차피
     // _gridCellRows 가 같은 일을 하지만, dataset 자체를 깨끗하게 유지해 export/외부 판독을 돕는다).
     const trimmedRows = _gridCellRows(block, partial.cols, rowCountForValidation);
     next.cells = _gridCellsToDataset(trimmedRows);
   }
+  /* ★T-176 — 줄이는 교체면 «도구»도 그 사실을 말한다. ⛔동작은 안 바꾼다(잘림은 그대로).
+   *   ⚠️dataset 은 아래 `Object.assign(block.dataset, next)` 에서야 바뀐다 — 그래서 «지금» 읽은
+   *     모델이 «바꾸기 전»이다. 이 줄이 그 아래로 내려가면 잃은 것을 «0» 으로 세게 된다. */
+  const _destructive = _gridDestructiveNotice(
+    getGridModel(block),
+    rowCountForValidation,
+    (partial.cols !== undefined && Array.isArray(partial.cols)) ? partial.cols.length : _gridCols(block).length,
+  );
+
   if (partial.patchCol !== undefined) {
     const p = partial.patchCol;
     if (!p || typeof p !== 'object' || !Number.isFinite(Number(p.index))) {
@@ -1045,13 +1505,8 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     if (partial.cells.length > rowCountForValidation) {
       return { ok: false, code: 'INVALID', message: `cells has ${partial.cells.length} rows but grid has ${rowCountForValidation} rows — pass rows in the same call to grow the grid first` };
     }
-    for (const row of partial.cells) {
-      if (!Array.isArray(row)) continue;
-      for (const cell of row) {
-        const _reject = _gridRejectLinesLength(cell && cell.lines, /* allowEmpty */ true);
-        if (_reject) return _reject;
-      }
-    }
+    /* ~~[이사 · 2026-09-24 T-170] 여기 있던 lines 길이 가드는 `_gridIntake` 로 갔다~~
+       ⛔되가져오지 마라 — 자원 가드가 문마다 흩어지면 다음 문에서 또 빠진다(이 카드의 본병). */
     const baseCols = _gridCols(block);
     const { cols: mergedCols, cellRows } = _splitFullCells(partial.cells, baseCols);
     next.cols = JSON.stringify(mergedCols);
@@ -1074,45 +1529,11 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     if (r < 0 || r >= rowCountForValidation) return { ok: false, code: 'INVALID', message: `patchCell.r out of range (0~${rowCountForValidation - 1})` };
     if (c < 0 || c >= cols.length) return { ok: false, code: 'INVALID', message: `patchCell.c out of range (0~${cols.length - 1})` };
     const { r: _r, c: _c, lineIndex, ...rest } = p;
-    /* ★거짓 성공 봉쇄 — 렌더러가 «안 읽는» 이름은 여기서 막는다(2026-09-09).
-       이 줄이 없으면 오타 하나가 ok:true 로 돌아오고 화면은 그대로다. */
-    const _reject = _gridRejectUnknownCellFields(rest, lineIndex !== undefined);
-    if (_reject) return _reject;
-    /* ★imgSrc 상한 — block-factory.js 의 다른 이미지 삽입 API들(add_asset_block 등)과
-       동일하게 GRID_IMG_MAX_CHARS 로 막는다. 없으면 dataset.cells JSON 이 그대로 커져 proj.json 이
-       무한정 부풀 수 있다(2026-09-15 a1-a3 QA 지적).
-       ★2026-09-20 — «UI 입구»만 opts.trusted 로 면제한다. 이 캡의 명분은 IPC 문자열 비용인데,
-         사람이 파일 대화상자로 고른 이미지까지 같이 막혀서 「우클릭 이미지 삽입이 안 된다」가 됐다.
-         ⛔면제는 3번째 인자로만 — partial.trusted 는 «읽지 않는다»(MCP 가 JSON 으로 보낼 수 있다). */
-    const _trusted = !!(opts && opts.trusted === true);
-    const _oversize = !_trusted && [rest.imgSrc, ...(Array.isArray(rest.lines) ? rest.lines.map(l => l && l.imgSrc) : [])]
-      .some(s => typeof s === 'string' && s.length > GRID_IMG_MAX_CHARS);
-    if (_oversize) return { ok: false, code: 'TOO_LARGE', message: `imgSrc too long (>${GRID_IMG_MAX_CHARS})` };
-    /* ★★옆문 둘을 닫는다 (2026-09-23 T-178 C3) — `lines:null` · `lines:undefined`.
-     *  무엇이 있었나 — 이 레포는 `lines:[]` 를 EMPTY_CELL_LINES 로 «명시적으로 거절»해 놓고,
-     *    «같은 결과»(칸의 줄이 통째로 사라짐)를 내는 옆문 둘을 `ok:true` 로 열어 뒀다.
-     *    실측(기준 f724dc1, 행 1 칸 · 줄 2개):
-     *      lines: []        → ok:false EMPTY_CELL_LINES · 내용 보존   ← 가드가 걸린 «한» 입구
-     *      lines: null      → ok:true  · 2줄 → 0줄 «사라짐» · 저장본 {"lines":null}
-     *      lines: undefined → ok:true  · 2줄 → 0줄 «사라짐» · 저장본 {}
-     *    ⇒ 가드가 «한 입구»에만 걸려 있었다. 그리고 `lines:null` 은 MCP/JSON 으로 «지금 닿는»
-     *      길이라 실사용 데이터 손실 경로다.
-     *  ⛔「무시」가 아니라 «거절»로 닫는다 — 같은 결과를 내는 입력을 조용히 무시하면
-     *    정책이 둘로 갈린다(한쪽은 거절, 한쪽은 노옵).
-     *  ★★`lines` 는 「`null` = 그 키를 지운다」 계약의 «예외»다. 그 계약을 모든 키에 똑같이
-     *    걸면 이 옆문이 «설계»가 된다. 칸의 줄은 patchCell 로 비울 수 없다(위 규칙 그대로).
-     *  ⛔`=== null` 만 막지 마라 — 두 옆문은 «독립된 축»이다(평가자 음성대조: null 만 막은
-     *    시제품에서 L1 초록 · L2 빨강). 「배열이 아니면」으로 한 번에 닫는다.
-     *  ⛔`rest.lines === undefined` 로 보지 마라 — 「안 줬음」과 「undefined 를 줬음」이 안 갈린다.
-     *    `'lines' in rest` 가 그 둘을 가른다(rest 는 spread 라 값이 undefined 인 키도 남는다). */
-    if ('lines' in rest && !Array.isArray(rest.lines)) {
-      const t = rest.lines === null ? 'null' : typeof rest.lines;
-      return { ok: false, code: 'EMPTY_CELL_LINES',
-        message: `patchCell.lines must be an array (got ${t}) — cell lines cannot be emptied, `
-          + 'remove the row/column instead. To edit one line use patchCell{lineIndex, ...}.' };
-    }
-    const _linesReject = _gridRejectLinesLength(rest.lines);
-    if (_linesReject) return _linesReject;
+    /* ~~[이사 · 2026-09-24 T-170] 「모르는 이름 거절 · imgSrc 상한 · lines 계약」이 여기 있었다~~
+       까닭 — 그 셋이 «이 문에만» 있어서 나머지 세 문(cols/patchCol/cells)이 그대로 뚫려 있었다.
+       지금은 `_gridIntake` 한 곳에 있고 네 문이 같이 지난다. ⛔여기로 되가져오지 마라.
+       (옛 주석은 그 함수로 같이 옮겼다 — 까닭을 잃지 않으려고 «글자 그대로» 들고 갔다.)
+       ⇒ 이 문에 남는 것은 «자리 계산»(범위·줄 병합·민감도)뿐이다. */
     /* ★행 0 도 이제 cells 에 «꾸밈 자리»가 있으므로 r 과 상관없이 전체 R×C 를 든다(T-178).
        ⛔여기서 r>0 만 만들면 행 0 꾸밈이 쓸 자리를 못 찾아 조용히 버려진다. */
     const cellRows = _gridCellRows(block, cols, rowCountForValidation);
@@ -1194,8 +1615,10 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     applied.colGap = v;
   }
   if (partial.valign !== undefined) {
-    if (!['top', 'middle', 'bottom'].includes(partial.valign)) {
-      return { ok: false, code: 'INVALID', message: 'valign must be top|middle|bottom' };
+    /* ★명부는 _GRID_VALIGN «하나»에서 온다 — 전엔 여기와 makeGridBlock 이 각자 리터럴을
+       들고 있었다(MIN_COLS/MAX_COLS 사고와 같은 유형, T-175). 칸 축도 같은 명부를 본다. */
+    if (!GRID_VALIGN_VALUES.includes(partial.valign)) {
+      return { ok: false, code: 'INVALID', message: `valign must be ${GRID_VALIGN_VALUES.join('|')}` };
     }
     next.valign = partial.valign;
     applied.valign = partial.valign;
@@ -1231,7 +1654,15 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   /* ★T-122 — `applied.cells` 는 «보낸 값»이 아니라 «커밋 뒤 모델»이다. getGridModel 이 돌려주는
      것이 곧 렌더러가 읽는 것이라, 이 값은 «화면과 같은 말»이 된다(메아리는 그렇지 않았다). */
   if (appliedCellsPending) applied.cells = _gridRenderedCells(getGridModel(block).cells);
-  return _gridAttachNotApplied({ ok: true, blockId, before, applied }, drops);
+  if (appliedColsPending) applied.cols = _gridRenderedCols(getGridModel(block).cols);
+  const res = _gridAttachNotApplied({ ok: true, blockId, before, applied }, drops);
+  /* ★T-176 — 「안 된 것」(ignoredProps/hint)과 «다른 칸»에 담는다. 잘림은 «된 것»이다 — 일부러
+     그렇게 정해진 동작이라 「적용 안 됨」으로 세면 거짓말이 된다. 말은 하되 뜻은 안 섞는다. */
+  if (_destructive) {
+    res.destructive = _destructive;
+    res.hint = [res.hint, _destructive.message].filter(Boolean).join(' ');
+  }
+  return res;
 }
 
 /** 이 줄이 «글자를 담는가» — 패널이 「Typography 절을 띄울 줄인가」를 이걸로 묻는다.

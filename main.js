@@ -6751,6 +6751,9 @@ async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, 
       const before = document.querySelectorAll('.grid-block').length;
       const r = window.addGridBlock(${safeOpts});
       const el = r && r.block;
+      /* ★입구 계약이 «만들기 전»에 거절했으면 그 까닭을 그대로 올린다 (2026-09-24 T-170).
+         ⛔없으면 「활성 섹션 확인」이라는 «엉뚱한» 까닭으로 덮인다 — 부르는 쪽이 영영 못 고친다. */
+      if (r && r.ok === false) return r;
       if (!el) return { ok: false, code: 'NOT_CREATED', message: '그리드 블록이 만들어지지 않았습니다 (활성 섹션 확인).' };
       /* ★결과를 «읽어서» 돌려준다 — 인자를 되읊지 않는다 */
       const cells = el.querySelectorAll('.grd-cell');   // ★실측 클래스는 grd-cell 이다(grid-cell 아님)

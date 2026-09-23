@@ -3606,6 +3606,9 @@ function _registerDefaultTools() {
         + 'cells = cell contents, row-major. gap = px between cells (both axes). rowGap/colGap = per-axis '
         + 'override (0~200px, optional — omit to use gap for both). valign = top|middle|bottom. '
         + 'Returns {ok, blockId(grd_), cols, cellCount} — cellCount is READ BACK from the canvas, not echoed from the args. '
+        + '★imgSrc inside cols/cells has a length cap here too (2026-09-24 T-170) — an over-cap image is '
+        + 'rejected with TOO_LARGE and NO block is created. ⚠️This door reports resource limits only; '
+        + 'unlike update_grid_block it has no channel for per-field "not applied" notes. '
         + '⚠️Legacy projects store the same block with a duo_ prefix (renamed); reading handles both.',
       inputSchema: {
         type: 'object',
@@ -3676,6 +3679,31 @@ function _registerDefaultTools() {
         + 'bg:"" 배경 없음 · align:"" 왼쪽 강제 · valign:"" 블록값 강제). '
         + '열 기본값이 12px 인 열에서 「이 칸만 0」을 주려면 0 을, 「열 기본값으로 되돌리려면」 null 을 써라. '
         + '⛔Unknown field names are REJECTED, not silently ignored — the renderer would never read them. '
+        /* ★2026-09-24 T-170/175/176/180 — 「입구 계약」. 앱(grid-block.js _gridIntake)이 정본이고
+           여기선 «그 계약을 알린다». ⛔여기서 다시 검증하지 않는다(위 머리 주석 규약 그대로). */
+        + '★★VALUES are checked too, not just names — align must be left|center|right and valign '
+        + 'top|middle|bottom (a typo used to be accepted and then silently ignored on screen). '
+        + 'The two TARGETED doors (patchCell, patchCol) REJECT an off-list value; the two WHOLE-REPLACE '
+        + 'doors (cols, cells) do NOT reject — they apply the rest and list the bad ones in ignoredProps/hint, '
+        + 'so that a read-modify-write round trip carrying an old stored value is not killed outright. '
+        + '⛔null / undefined / "" / 0 are NOT off-list values — they mean unset/force (see above). '
+        + '★★SHRINKING rows or cols is a DESTRUCTIVE REPLACE: cells outside the new grid lose their '
+        + 'contents (unchanged behaviour — the on-screen panel says the same). The reply now carries '
+        + '`destructive:{shrank, droppedCells, message}` saying exactly which cells were discarded; ⌘Z restores. '
+        + '★imgSrc has a length cap on ALL doors now (it used to bind on patchCell only, so cols/patchCol/cells '
+        + 'could smuggle a 200000-char image in). Re-sending an image the SAME cell already holds is allowed; '
+        + 'copying a too-large one into ANOTHER cell is rejected (TOO_LARGE). '
+        /* ★2026-09-24 둘째 판 — 「아는 이름인데 모르는 값」과 「한계를 넘긴 값」이 처방이 «다르다».
+           둘을 안 갈라 적으면 부르는 쪽이 「왜 이건 거절이고 저건 통과냐」를 못 읽는다. */
+        + '★★bg / color / fontFamily are checked against the SAME regex the renderer uses. An unusable '
+        + 'value (e.g. bg:"linear-gradient(...)" — the grid takes #hex, rgb()/hsl(), transparent, var(--t)) '
+        + 'used to return ok:true, be stored, silently fail to draw, AND WIPE whatever the cell had there. '
+        + 'It is now rejected on patchCell/patchCol and reported on cols/cells; the old value survives. '
+        + '★Over-limit NESTED grids (type:"duo") are NOT rejected — a nested grid renders at most 3 columns '
+        + 'and 2 levels deep, and the excess is truncated exactly as before. What changed is that the reply '
+        + 'now LISTS the truncated paths in ignoredProps/hint instead of staying silent. '
+        + '(Different prescription on purpose: an unusable value is something you never asked for, '
+        + 'while truncation is the defined limit — blocking it would be a behaviour change.) '
         + 'Also: gap (sets both row/column gap, px 0~200), rowGap/colGap (per-axis override, px 0~200), valign. '
         + 'Returns {ok, cellCount, cellTexts} — ★cellTexts is READ BACK from the canvas '
         + 'after the write, so it tells you what actually landed (not what you asked for).',
