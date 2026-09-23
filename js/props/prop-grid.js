@@ -1280,9 +1280,9 @@ ${blockHeaderHTML({
     </div>
     ${_grdLineBarHtml(_anyHit, block)}
     ${_grdCellSectionHtml(_anyHit, block)}
+    ${_grdLineSectionHtml(_anyHit, block)}
     ${_grdImageSectionHtml(_anyHit, block)}
     ${_grdTypoSectionsHtml(_hit, block)}
-    ${_grdLineSectionHtml(_anyHit, block)}
     <div class="prop-section">
       <div class="prop-row"><span class="prop-label" style="opacity:.6">글자는 «캔버스에서 줄을 더블클릭»해 고친다</span></div>
     </div>`;
