@@ -768,8 +768,10 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *      tests/dom/grid-picker-row0-lines.dom.spec.js 가 따로 잰다(이 래칫의 사각지대다).
  *  ★2026-09-23 T-178 C2: 251 → 256. 더한 것 = tests/unit/grid-cell-unset-contract.test.js 의 5개
  *    (D1 null=지움 · D2 행0/행1+ 대칭 · D3 undefined 도 지움 · D4 ''·0 은 값 · D5 음성대조).
- *    ⛔여기서도 지운 것은 «하나도» 없다. */
-const GRID_BASELINE_TESTS = 256;
+ *    ⛔여기서도 지운 것은 «하나도» 없다.
+ *  ★2026-09-23 T-178 C3: 256 → 257. 더한 것 = grid-cell-unset-contract 의 D6
+ *    (비우기 → 저장 → 다시 그리기 = 열 기본값만 걸린 모양과 바이트 동일). */
+const GRID_BASELINE_TESTS = 257;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {

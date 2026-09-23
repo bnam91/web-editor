@@ -232,3 +232,58 @@ test('D5 ★음성대조 — 「지움」 두 줄을 걷어내면 D1 이 빨개�
   assert.equal(leaked.every(s => s.endsWith('null')), true,
     `★변형본이 null 을 «값으로 저장»하지 않았다 — 음성대조가 다른 것을 재고 있다.\n  ${leaked.join('\n  ')}`);
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * D6 — 「비우기 → 저장 → 다시 그리기」. ★이 레포의 저장은 canvasEl.innerHTML 통째다.
+ *   ⇒ dataset 에 «글자»로 없는 것은 파일에 안 들어간다. 「세션 안에선 완벽한데 저장하면
+ *     되돌아가는」 고침(평가자 N4 가 잡은 갈래)을 이 축이 «모델·렌더»에서 받친다.
+ *   ⛔「내 코드가 dataset 에 썼나」가 아니라 «dataset 만 물려받아 다시 세운 블록»이 같은 HTML 을
+ *     내는가로 잰다 — 표시는 흉내낼 수 있고 정체는 못 한다.
+ *   ⚠️못 재는 것: 진짜 파일 왕복(save-load.js 의 innerHTML 파싱)은 DOM 이 필요하다.
+ *     그쪽 축은 tests/dom/grid-row0-save-undo.dom.spec.js 의 R1·R2-a·R2-b 가 «패치» 경우로 잰다.
+ *     여기는 그 짝인 «비우기» 경우다.
+ * ════════════════════════════════════════════════════════════════════════ */
+
+test('D6 ★비우기 → 저장 → 다시 그리기 = «열 기본값만» 걸린 모양과 바이트 동일', () => {
+  const { makeGridBlock, updateGridBlock, renderGridBlock } = MOD;
+  /** dataset «만» 물려받은 새 블록을 세워 다시 그린다(저장→로드 왕복의 모사). */
+  const reloadHtml = (src) => {
+    const fresh = globalThis.document.createElement('div');
+    fresh.className = 'grid-block';
+    for (const k of Object.keys(src.dataset)) fresh.dataset[k] = src.dataset[k];
+    renderGridBlock(fresh);
+    return fresh.innerHTML;
+  };
+  const bad = [];
+  for (const r of [0, 1]) {
+    // ㈎ 열 기본값«만» 걸린 기준 모양
+    const base = makeGridBlock(FIX()).block;
+    updateGridBlock(base.id, { patchCol: { index: 0, ...COL_DEFAULT } });
+    const want = reloadHtml(base);
+
+    // ㈏ 칸에 값을 준 뒤 다섯 필드를 «전부» 비운다
+    const b = makeGridBlock(FIX()).block;
+    updateGridBlock(b.id, { patchCol: { index: 0, ...COL_DEFAULT } });
+    updateGridBlock(b.id, { patchCell: { r, c: 0, ...OVER } });
+    if (reloadHtml(b) === want) { bad.push(`r=${r}: 전제가 깨졌다 — 칸에 값을 줬는데 화면이 안 바뀌었다`); continue; }
+    const clearPatch = { r, c: 0 };
+    for (const k of FIELDS) clearPatch[k] = null;
+    const res = updateGridBlock(b.id, { patchCell: clearPatch });
+    if (!res.ok) { bad.push(`r=${r}: 비우기가 거절됐다 — ${res.code}: ${res.message}`); continue; }
+
+    const got = reloadHtml(b);
+    if (got !== want) {
+      bad.push(`r=${r}: 비우고 다시 그렸더니 «열 기본값만» 걸린 모양과 다르다\n`
+        + `      기대: ${want.slice(0, 240)}\n      실제: ${got.slice(0, 240)}`);
+    }
+    // 저장본에도 그 칸의 꾸밈 키가 «하나도» 없어야 한다(글자로 남으면 파일에 실린다).
+    for (const k of FIELDS) {
+      const v = stored(b, r, 0, k);
+      if (v !== '<없음>') bad.push(`r=${r} ${k}: 비웠는데 저장본에 ${v} 가 남았다 — 파일에 실린다`);
+    }
+  }
+  assert.deepEqual(bad, [],
+    '★「비우기」가 저장·재렌더를 못 건넌다.\n'
+    + '  ⇒ 사용자는 파일을 열면 맞게 보다가 «블록을 건드리는 순간» 모양이 바뀌는 것을 본다(작업 손실).\n  '
+    + bad.join('\n  '));
+});

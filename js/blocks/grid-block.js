@@ -549,6 +549,9 @@ function _gridMergeLine(curLines, li, fields) {
  *    그리고 예전의 `null` 은 «함정»이었다 — 「값 있음」으로 저장되어 열 기본값이 아니라
  *    «하드 기본»으로 떨어졌다(`align:'left'` · `valign:블록값` · `padding/radius:0`).
  *    아무도 의미 있게 못 쓰던 값에 뜻을 준 것이라, 잃는 표현력이 없다.
+ *  ⛔★`lines` 는 이 계약의 «예외»다 — 애초에 여기 안 온다(`const { lines, ...deco }` 가 먼저
+ *    떼어 낸다). 칸의 줄은 patchCell 로 비울 수 없고, 배열이 아닌 lines 는 위쪽에서 거절된다.
+ *    이 계약을 «모든 키»에 똑같이 걸면 그 옆문이 «설계»가 된다.
  *  ⛔0 과 '' 는 «지움이 아니다» — 값이다(`0`=여백 0 강제 · `''`=강제로 없앰).
  *    falsy 를 통째로 지움으로 읽으면 「열 기본값 12px 인 열에서 이 칸만 0」을 표현할 길이 사라진다.
  *  ⛔명부를 만들지 마라 — 「값이 null/undefined 인가」만 본다(새 칸 필드가 저절로 따라온다). */
@@ -1085,6 +1088,29 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     const _oversize = !_trusted && [rest.imgSrc, ...(Array.isArray(rest.lines) ? rest.lines.map(l => l && l.imgSrc) : [])]
       .some(s => typeof s === 'string' && s.length > GRID_IMG_MAX_CHARS);
     if (_oversize) return { ok: false, code: 'TOO_LARGE', message: `imgSrc too long (>${GRID_IMG_MAX_CHARS})` };
+    /* ★★옆문 둘을 닫는다 (2026-09-23 T-178 C3) — `lines:null` · `lines:undefined`.
+     *  무엇이 있었나 — 이 레포는 `lines:[]` 를 EMPTY_CELL_LINES 로 «명시적으로 거절»해 놓고,
+     *    «같은 결과»(칸의 줄이 통째로 사라짐)를 내는 옆문 둘을 `ok:true` 로 열어 뒀다.
+     *    실측(기준 f724dc1, 행 1 칸 · 줄 2개):
+     *      lines: []        → ok:false EMPTY_CELL_LINES · 내용 보존   ← 가드가 걸린 «한» 입구
+     *      lines: null      → ok:true  · 2줄 → 0줄 «사라짐» · 저장본 {"lines":null}
+     *      lines: undefined → ok:true  · 2줄 → 0줄 «사라짐» · 저장본 {}
+     *    ⇒ 가드가 «한 입구»에만 걸려 있었다. 그리고 `lines:null` 은 MCP/JSON 으로 «지금 닿는»
+     *      길이라 실사용 데이터 손실 경로다.
+     *  ⛔「무시」가 아니라 «거절»로 닫는다 — 같은 결과를 내는 입력을 조용히 무시하면
+     *    정책이 둘로 갈린다(한쪽은 거절, 한쪽은 노옵).
+     *  ★★`lines` 는 「`null` = 그 키를 지운다」 계약의 «예외»다. 그 계약을 모든 키에 똑같이
+     *    걸면 이 옆문이 «설계»가 된다. 칸의 줄은 patchCell 로 비울 수 없다(위 규칙 그대로).
+     *  ⛔`=== null` 만 막지 마라 — 두 옆문은 «독립된 축»이다(평가자 음성대조: null 만 막은
+     *    시제품에서 L1 초록 · L2 빨강). 「배열이 아니면」으로 한 번에 닫는다.
+     *  ⛔`rest.lines === undefined` 로 보지 마라 — 「안 줬음」과 「undefined 를 줬음」이 안 갈린다.
+     *    `'lines' in rest` 가 그 둘을 가른다(rest 는 spread 라 값이 undefined 인 키도 남는다). */
+    if ('lines' in rest && !Array.isArray(rest.lines)) {
+      const t = rest.lines === null ? 'null' : typeof rest.lines;
+      return { ok: false, code: 'EMPTY_CELL_LINES',
+        message: `patchCell.lines must be an array (got ${t}) — cell lines cannot be emptied, `
+          + 'remove the row/column instead. To edit one line use patchCell{lineIndex, ...}.' };
+    }
     const _linesReject = _gridRejectLinesLength(rest.lines);
     if (_linesReject) return _linesReject;
     /* ★행 0 도 이제 cells 에 «꾸밈 자리»가 있으므로 r 과 상관없이 전체 R×C 를 든다(T-178).

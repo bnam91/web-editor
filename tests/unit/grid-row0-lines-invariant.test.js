@@ -106,12 +106,12 @@ const N1_DROP_WRITE_DELETE = (src) => {
   assert.notEqual(out, src, '★N1 닻이 빗나갔다 — 쓰는 문의 `delete c.lines` 줄을 못 찾았다');
   return out;
 };
+/* ⛔닻에 «주석»을 넣지 않는다 — 주석 한 줄만 손봐도 닻이 빗나가고, 그러면 변이 없는 사본이
+   돌아 음성대조가 조용히 초록이 된다(assert.notEqual 이 막긴 하지만 굳이 그 위험을 안 든다).
+   ★코드만으로 유일한지 확인하고 썼다(2026-09-23 실측: 원본 1회 · 주석 걷은 뒤 1회). */
 const N2_DROP_READ_STRIP = (src) => {
-  const out = src.replace(
-    "        const { lines: _drop, ...deco } = cell;   // ★행 0 = 꾸밈만. 줄은 cols[c].lines 가 갖는다.\n        row.push(deco);",
-    '        row.push(cell);'
-  );
-  assert.notEqual(out, src, '★N2 닻이 빗나갔다 — 읽는 문의 행 0 lines 떼기 두 줄을 못 찾았다');
+  const out = src.replace('const { lines: _drop, ...deco } = cell;', 'const deco = cell;');
+  assert.notEqual(out, src, '★N2 닻이 빗나갔다 — 읽는 문의 행 0 lines 떼기 줄을 못 찾았다');
   return out;
 };
 
