@@ -3693,6 +3693,17 @@ function _registerDefaultTools() {
         + '★imgSrc has a length cap on ALL doors now (it used to bind on patchCell only, so cols/patchCol/cells '
         + 'could smuggle a 200000-char image in). Re-sending an image the SAME cell already holds is allowed; '
         + 'copying a too-large one into ANOTHER cell is rejected (TOO_LARGE). '
+        /* ★2026-09-24 둘째 판 — 「아는 이름인데 모르는 값」과 「한계를 넘긴 값」이 처방이 «다르다».
+           둘을 안 갈라 적으면 부르는 쪽이 「왜 이건 거절이고 저건 통과냐」를 못 읽는다. */
+        + '★★bg / color / fontFamily are checked against the SAME regex the renderer uses. An unusable '
+        + 'value (e.g. bg:"linear-gradient(...)" — the grid takes #hex, rgb()/hsl(), transparent, var(--t)) '
+        + 'used to return ok:true, be stored, silently fail to draw, AND WIPE whatever the cell had there. '
+        + 'It is now rejected on patchCell/patchCol and reported on cols/cells; the old value survives. '
+        + '★Over-limit NESTED grids (type:"duo") are NOT rejected — a nested grid renders at most 3 columns '
+        + 'and 2 levels deep, and the excess is truncated exactly as before. What changed is that the reply '
+        + 'now LISTS the truncated paths in ignoredProps/hint instead of staying silent. '
+        + '(Different prescription on purpose: an unusable value is something you never asked for, '
+        + 'while truncation is the defined limit — blocking it would be a behaviour change.) '
         + 'Also: gap (sets both row/column gap, px 0~200), rowGap/colGap (per-axis override, px 0~200), valign. '
         + 'Returns {ok, cellCount, cellTexts} — ★cellTexts is READ BACK from the canvas '
         + 'after the write, so it tells you what actually landed (not what you asked for).',

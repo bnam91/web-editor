@@ -186,6 +186,19 @@ const _GRID_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(
    ⇒ 이 정규식이 유일한 문지기다. 지키는 검사: tests/unit/grid-color-re.test.mjs (U10 음성대조).
    (따옴표는 통과시키되 _esc 가 &quot; 로 바꾼다 — 속성 밖으로 못 나간다.) */
 const _GRID_FONT_RE = /^[\w\s,'"\-().가-힣]+$/;
+
+/* ★중첩 그리드(line.type==='duo')의 한계 — 전엔 `_gridLineHtml` 안에 리터럴 2건이었다.
+ *   입구가 「이건 잘린다」고 말하려면 렌더러와 «같은 값»을 봐야 한다(2026-09-24 T-175 ⑶).
+ *   ⛔값은 안 바꿨다: 열 3(중첩은 4x4 피커 대상이 아니다) · 깊이 2단.
+ *   지키는 검사: tests/unit/grid-render-gaps.test.js N3·N4(한계) · grid-intake-contract U9(보고). */
+const GRID_NESTED_MAX_COLS = 3;
+const GRID_NESTED_MAX_DEPTH = 2;
+/* ★중첩 줄의 «스키마 enum» — 데이터 토큰이라 개명 대상 밖(PLAN §6-⑤)이고, 그래서 이 레포는
+ *   이 이름이 «한 곳»에만 살기를 요구한다(tests/unit/grid-rename-residue.test.mjs S1).
+ *   전엔 그 한 곳이 `if (line.type === 'duo') {` 이었다. 입구가 「이 중첩은 잘린다」를 말하려면
+ *   같은 판정을 한 번 더 해야 해서, 리터럴을 둘로 늘리는 대신 «이름»으로 옮겼다.
+ *   ⇒ 리터럴 수는 그대로 하나다. S1 의 허용 목록 ⑷ 도 이 줄을 가리키게 같이 옮겼다. */
+const GRID_NESTED_LINE_TYPE = 'duo';
 /* ═══ patchCell 이 «실제로 그려지는 필드»만 받게 하는 명부 ═══════════════════
    ★왜 있나 — 2026-09-09. `update_block{patchCell}` 은 `rest` 의 «아무 키나» 받아
      `applied.patchCell` 에 그대로 되돌려줬다. 렌더러가 안 읽는 이름을 줘도 `ok:true` 다.
@@ -219,6 +232,30 @@ const GRID_COL_FIELDS = new Set(['width', ...GRID_CELL_FIELDS]);
 
 /** 꾸밈 필드 중 «값이 명부로 묶인» 것 — 칸이든 열이든 같다. ⛔이름 말고 «표»로 묶는다. */
 const GRID_ENUM_FIELDS = { align: GRID_ALIGN_VALUES, valign: GRID_VALIGN_VALUES };
+
+/* ★★값이 «명부»가 아니라 «잣대»로 묶인 것 (2026-09-24 T-175 ⑵).
+ *  ⛔새 잣대를 만들지 않았다 — 렌더러가 «이미 쓰고 있는 바로 그 정규식»을 입구가 같이 본다.
+ *    그게 이 카드의 요구다: 「도구와 화면이 같은 답을 해야 한다」.
+ *
+ *  ★무엇이 있었나 (실측, 기준 7780267 · 행 0·행 1 둘 다):
+ *      patchCell{bg:'linear-gradient(90deg,#f00,#00f)'}
+ *        → ok:true · applied 에 그 값이 «그대로» 실려 돌아온다
+ *        → 화면은 «배경 없음» (_GRID_COLOR_RE 가 안 받는다)
+ *        → ⛔★그리고 그 칸에 «있던 멀쩡한 #00ff00 까지 사라진다» — 데이터 손실이다.
+ *      대조: 같은 블록에서 line.color:'초록색' 은 ok:false 로 «거절»된다.
+ *      ⇒ 같은 「모르는 값」인데 «칸 배경»은 받고 «줄 색»은 거절한다 — 방향이 반대였다.
+ *        (줄 쪽이 막힌 것은 값 검사 때문이 아니라 _gridUnreadLineFields 의 «민감도» 덕이다 —
+ *         우연히 막힌 쪽이라, 그걸 「설계된 가드」로 읽으면 안 된다.)
+ *      ＋ 같은 자리에서 하나 더 나왔다: line.fontFamily:'Noto; color:red' 도 ok:true 였다.
+ *  ⛔`''` 은 여기 안 온다 — 「강제로 없앰」이라는 뜻이 이미 있는 값이다(pick 계약 ⑵).
+ *  ⛔표를 손으로 늘리지 마라. 늘릴 일이 생기면 «렌더러가 그 필드를 어떤 잣대로 거르나»를
+ *    먼저 찾아라 — 잣대가 없는 필드(barColor 등 그래프 줄 색)는 렌더러가 «아무 값이나» 쓰므로
+ *    여기 넣으면 도구만 엄해진다(그게 바로 이 카드가 고치려는 비대칭의 거울상이다). */
+const GRID_VALUE_TESTS = {
+  bg: (v) => _GRID_COLOR_RE.test(String(v).trim()),
+  color: (v) => _GRID_COLOR_RE.test(String(v).trim()),
+  fontFamily: (v) => _GRID_FONT_RE.test(String(v).trim()),
+};
 
 /** 오타를 «되돌려» 준다 — 거절이 「틀렸다」로 끝나면 부르는 쪽은 다음에 뭘 할지 모른다. */
 function _gridNearestField(key, allowed) {
@@ -423,14 +460,14 @@ function _gridRenderedCell(cell, fields) {
   /* ★명부 밖 «값»도 여기서 빠진다 (2026-09-24 T-170/180) — 렌더러가 그 값을 안 쓰기 때문이다.
      안 빼면 같은 답 안에서 `ignoredProps` 는 「안 됐다」고 하는데 `applied` 는 그 값을 들고
      있는 자기모순이 된다(T-122 가 «이름» 축에서 닫은 것과 «같은 모양»의 거짓말이다). */
-  const badValue = new Set(_gridEnumViolations(cell, '').map(v => v.path.replace(/^\./, '')));
+  const badValue = new Set(_gridValueViolations(cell, '').map(v => v.path.replace(/^\./, '')));
   for (const k of Object.keys(cell)) {
     if (!fields.has(k) || cell[k] === undefined || badValue.has(k)) continue;
     if (k !== 'lines' || !Array.isArray(cell.lines)) { out[k] = cell[k]; continue; }
     out.lines = cell.lines.map(ln => {
       if (!ln || typeof ln !== 'object' || Array.isArray(ln)) return ln;
       const unread = new Set(_gridUnreadLineFields(ln, Object.keys(ln)));
-      for (const v of _gridEnumViolations(ln, '')) unread.add(v.path.replace(/^\./, ''));
+      for (const v of _gridValueViolations(ln, '')) unread.add(v.path.replace(/^\./, ''));
       const keep = {};
       for (const lk of Object.keys(ln)) if (!unread.has(lk)) keep[lk] = ln[lk];
       return keep;
@@ -550,9 +587,24 @@ function _gridAttachNotApplied(res, drops) {
 /** 꾸밈 한 덩이(칸·열·줄)의 «값»이 명부 안인가. 이름 검사와 달리 «값»을 본다.
  *  ⛔`null`/`undefined`/`''` 는 «값이 아니다» — 앞의 둘은 「그 키를 지움」, `''` 는
  *    「열 기본값을 강제로 끔」이라고 이 파일이 이미 계약해 뒀다(renderGridBlock 의 pick 주석 ⑴⑵). */
-function _gridEnumViolations(node, where) {
+function _gridValueViolations(node, where) {
   const out = [];
   if (!node || typeof node !== 'object' || Array.isArray(node)) return out;
+  for (const k of Object.keys(GRID_VALUE_TESTS)) {
+    if (!(k in node)) continue;
+    const v = node[k];
+    if (v === null || v === undefined || v === '' || v === 0) continue;   // 위와 «같은» 넷
+    if (typeof v === 'string' && GRID_VALUE_TESTS[k](v)) continue;
+    out.push({
+      path: `${where}.${k}`,
+      why: `${JSON.stringify(v)} is not a value the renderer accepts for '${k}' — `
+        + (k === 'fontFamily'
+          ? 'a font family name (no ; : { })'
+          : 'a CSS color the grid accepts: #hex, rgb()/rgba()/hsl()/hsla(), transparent, or var(--token[, fallback])')
+        + '. It would have been stored and then DROPPED at render time, '
+        + `wiping whatever '${k}' the cell had before.`,
+    });
+  }
   for (const k of Object.keys(GRID_ENUM_FIELDS)) {
     if (!(k in node)) continue;
     const v = node[k];
@@ -572,6 +624,32 @@ function _gridEnumViolations(node, where) {
     });
   }
   return out;
+}
+
+/* ★★한계를 넘겨 «잘릴» 중첩을 모은다 (2026-09-24 T-175 ⑶).
+ *  ⛔막지 «않는다» — 자르는 것이 «정해진 동작»이다. T-176(행·열 줄이기)과 «같은 갈래»고,
+ *    그래서 처방도 같다: 동작은 그대로 두고 «잘랐다»고 말한다.
+ *  ★왜 ⑵ 와 처방이 갈리나 — ⑵(모르는 값)는 「부른 쪽이 원한 적 없는 결과」라 되돌릴 근거가 있다.
+ *    ⑶(한계 초과)은 「한계가 원래 그렇다」라, 막으면 그건 «동작 변경»이고 발주 밖이다.
+ *  ★실측(기준 7780267): 중첩 3단계 → ok:true 인데 화면에 없음 · 중첩 4열 → ok:true 인데
+ *    .grd-nested-col 3개. 둘 다 ignoredProps 0건 · 토스트 0건이었다.
+ *  ⛔한계 값을 여기 리터럴로 적지 마라 — GRID_NESTED_MAX_* 가 렌더러와 «같은 자리»다. */
+function _gridInspectNested(line, where, depth, drops) {
+  if (!line || typeof line !== 'object' || _gridLineTypeOf(line) !== GRID_NESTED_LINE_TYPE) return;
+  if (depth >= GRID_NESTED_MAX_DEPTH) {
+    drops.push({ path: where, why: `a nested grid renders ${GRID_NESTED_MAX_DEPTH} level(s) deep at most — `
+      + `this one sits at level ${depth + 1} and renders as nothing (the guard returns an empty string)` });
+    return;
+  }
+  const cols = Array.isArray(line.cols) ? line.cols : [];
+  if (cols.length > GRID_NESTED_MAX_COLS) {
+    drops.push({ path: `${where}.cols[${GRID_NESTED_MAX_COLS}..${cols.length - 1}]`,
+      why: `a nested grid renders at most ${GRID_NESTED_MAX_COLS} columns — the rest are dropped (unchanged behaviour)` });
+  }
+  cols.slice(0, GRID_NESTED_MAX_COLS).forEach((col, c) => {
+    (Array.isArray(col && col.lines) ? col.lines : [])
+      .forEach((ln, i) => _gridInspectNested(ln, `${where}.cols[${c}].lines[${i}]`, depth + 1, drops));
+  });
 }
 
 /** 모르는 «열» 필드 거절 — 칸 쪽 `_gridRejectUnknownCellFields` 의 열 판. 같은 어투를 쓴다. */
@@ -618,13 +696,14 @@ function _gridIntake(partial, ctx, drops) {
     lines.forEach((ln, i) => {
       if (!ln || typeof ln !== 'object' || Array.isArray(ln)) return;
       takeImg(ln.imgSrc, `${where}.lines[${i}].imgSrc`, addr);
-      violations.push(..._gridEnumViolations(ln, `${where}.lines[${i}]`));
+      violations.push(..._gridValueViolations(ln, `${where}.lines[${i}]`));
+      _gridInspectNested(ln, `${where}.lines[${i}]`, 0, drops);   // ★⑶ 잘릴 중첩 — 막지 않고 말한다
     });
   };
   /** 칸 또는 열 한 덩이 — 값 명부 ＋ 그 안의 줄들. */
   const scanNode = (node, where, addr) => {
     if (!node || typeof node !== 'object' || Array.isArray(node)) return;
-    violations.push(..._gridEnumViolations(node, where));
+    violations.push(..._gridValueViolations(node, where));
     scanLines(node.lines, where, addr);
   };
 
@@ -640,7 +719,8 @@ function _gridIntake(partial, ctx, drops) {
       if (_reject) return _reject;
       if (lineIndex !== undefined) {
         takeImg(rest.imgSrc, 'patchCell.imgSrc', addr);
-        violations.push(..._gridEnumViolations(rest, 'patchCell'));
+        violations.push(..._gridValueViolations(rest, 'patchCell'));
+        _gridInspectNested(rest, 'patchCell', 0, drops);
       } else {
         /* ★★옆문 둘을 닫는다 (2026-09-23 T-178 C3) — `lines:null` · `lines:undefined`.
          *  무엇이 있었나 — 이 레포는 `lines:[]` 를 EMPTY_CELL_LINES 로 «명시적으로 거절»해 놓고,
@@ -1046,11 +1126,11 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     return `<img${addrAttr} class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;${widthCss}${sizeCss}${r > 0 ? `border-radius:${r}px;` : ''}${alignCss}${mtCss}">`;
   }
   // 중첩 duo: {type:'duo', gap, valign, cols:[{width, lines[]}]} — innercard 후기카드 등 (BL-SFB-01)
-  if (line.type === 'duo') {
-    if (depth >= 2) return '';                       // 무한 중첩 가드 (2단까지)
+  if (line.type === GRID_NESTED_LINE_TYPE) {
+    if (depth >= GRID_NESTED_MAX_DEPTH) return '';    // 무한 중첩 가드 (2단까지)
     // ⛔중첩 duo(라인 안의 duo)는 상한 3 «그대로» — 4x4 피커는 «블록» 대상이라
     //   중첩까지 넓히면 innercard 렌더 회귀 범위가 커진다(PLAN §P1 회귀위험).
-    const cols = Array.isArray(line.cols) ? line.cols.slice(0, 3) : [];
+    const cols = Array.isArray(line.cols) ? line.cols.slice(0, GRID_NESTED_MAX_COLS) : [];
     if (!cols.length) return '';
     const gap = Number(line.gap) || 24;
     const valign = _gridEnum(_GRID_VALIGN, line.valign) || 'flex-start';

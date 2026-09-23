@@ -92,8 +92,12 @@ const ALLOW = [
   { file: 'js/blocks/grid-block.js', re: /^export const LEGACY_GRID_CLASS = 'duo-block';$/ },
   { file: 'js/blocks/grid-block.js', re: /^export const LEGACY_GRID_TYPE {2}= 'duo';$/ },
   { file: 'js/blocks/grid-block.js', re: /^export const GRID_ID_PREFIXES = \['grd_', 'duo_'\];$/ },
-  // ⑷ 중첩 «라인» 그리드의 스키마 enum — 데이터 토큰이라 개명 대상 밖(PLAN §6-⑤).
-  { file: 'js/blocks/grid-block.js', re: /^if \(line\.type === 'duo'\) \{$/ },
+  /* ⑷ 중첩 «라인» 그리드의 스키마 enum — 데이터 토큰이라 개명 대상 밖(PLAN §6-⑤).
+       ★2026-09-24 이사: 전엔 `if (line.type === 'duo') {` 이 그 «한 곳»이었다. 입구 계약(T-175 ⑶)이
+         「이 중첩은 잘린다」를 말하려고 같은 판정을 한 번 더 하게 되면서, 리터럴을 둘로 늘리는 대신
+         이름 있는 상수로 옮겼다. ⛔예외가 «는 것이 아니다» — 리터럴 수는 그대로 하나고, 이 규칙이
+         가리키는 «자리»만 옮겼다(S1 의 「죽은 규칙 금지」가 그 이사를 확인해 준다). */
+  { file: 'js/blocks/grid-block.js', re: /^const GRID_NESTED_LINE_TYPE = 'duo';$/ },
   // ⑸ 안전망 — 옛 정체성이 bindBlock 까지 닿았다면 «문을 놓쳤다»는 신호다(PLAN §3 안전망).
   { file: 'js/block-drag.js', re: /^if \(block\.classList\.contains\('duo-block'\)\) \{$/ },
   /* ⑹ ★읽기 표의 «옛 접두»(2026-09-07). MCP 가 «옛 프로젝트»의 그리드를 읽으려면 필요하다.

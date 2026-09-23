@@ -444,3 +444,126 @@ test('U7 ★줄 개수 상한도 네 문이 «같이» 잰다 — 자원 가드�
     assert.equal(r.ok, true, `★'${p.key}' 가 상한 «안»인 20줄을 막았다: ${r.message}`);
   }
 });
+
+/* ═══════════════════════════════════════════════════════════════════════
+   U8 — ★⑵ 아는 이름인데 모르는 «값». ⛔셋 중 제일 나쁘다: «옛 값까지 죽인다»
+   실측(기준 7780267, 행 0·행 1 둘 다): patchCell{bg:'linear-gradient(…)'} → ok:true ·
+     applied 에 그대로 실려 돌아오고 · 화면은 배경 없음 · ★있던 #00ff00 이 사라졌다.
+     대조로 line.color:'초록색' 은 ok:false 였다 — 같은 「모르는 값」인데 방향이 반대였다.
+   ★잣대는 «렌더러가 이미 쓰는 그 정규식»이다. 새로 만들지 않았다.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const BAD_BG = 'linear-gradient(90deg,#f00,#00f)';
+
+test('U8 ★모르는 «값»이 «있던 값을 죽이는» 것을 막는다 — 행 0·행 1 둘 다', () => {
+  for (const r of [0, 1]) {
+    const b = fixture();
+    assert.equal(G.updateGridBlock(b.id, { patchCell: { r, c: 0, bg: '#00ff00' } }).ok, true, '★전제가 안 깔린다');
+    const was = cssOf(cellTagAt(b, r, 0), 'background');
+    assert.equal(was, '#00ff00', '★멀쩡한 배경이 애초에 안 들어갔다 — 아래 단언은 헛것이다');
+
+    const res = G.updateGridBlock(b.id, { patchCell: { r, c: 0, bg: BAD_BG } });
+    assert.equal(res.ok, false, `★r=${r}: 렌더러가 «안 받는» 값을 도구가 받았다 — 화면엔 안 그려지는데 ok 다`);
+    assert.doesNotMatch(JSON.stringify(res.applied || {}), /linear-gradient/,
+      `★r=${r}: 안 그려질 값을 applied 에 실어 돌려줬다`);
+    assert.equal(cssOf(cellTagAt(b, r, 0), 'background'), was,
+      `★r=${r}: ★★있던 배경이 죽었다 — 이 카드에서 유일한 «데이터 손실» 갈래다`);
+  }
+});
+
+test('U8-b ★같은 잣대가 «줄» 축에도 같은 답을 한다 — 색·글꼴', () => {
+  const bad = [
+    ['color', '초록색'],
+    ['fontFamily', 'Noto; color:red'],   // ⛔세미콜론 — 렌더러 _GRID_FONT_RE 가 막는 자리
+    ['bg', BAD_BG],
+  ];
+  for (const [k, v] of bad) {
+    const res = G.updateGridBlock(fixture().id, { patchCell: { r: 0, c: 0, lineIndex: 0, [k]: v } });
+    assert.equal(res.ok, false, `★줄의 '${k}' 에 렌더러가 안 받는 값을 줬는데 통과했다`);
+  }
+});
+
+test('U8-c ★음성대조 — 렌더러가 «받는» 색·글꼴 꼴은 네 문 다 통과하고 실제로 그려진다', () => {
+  /* ⛔hex 만 재면 var() 칩(color-var-chips.js)이 막혀도 모른다 — 그 넷을 다 밟는다. */
+  for (const v of ['#123456', 'rgba(1,2,3,0.5)', 'transparent', 'var(--color-brand, #ff0000)']) {
+    for (const p of WRITE_PATHS) {
+      const b = fixture();
+      const res = p.send(G, b, { bg: v });
+      assert.equal(res.ok, true, `★'${p.key}' 가 멀쩡한 bg:'${v}' 를 막았다: ${res.message}`);
+      assert.ok(!(res.ignoredProps || []).some(x => x.endsWith('.bg')),
+        `★'${p.key}' 가 멀쩡한 bg:'${v}' 를 「안 됐다」고 했다`);
+      if (v !== 'transparent') {
+        assert.ok(String(cellTagAt(b, 0, 0)).includes(`background:${v}`),
+          `★'${p.key}': bg:'${v}' 를 통과시켰는데 «안 그려진다»`);
+      }
+    }
+  }
+  const ff = G.updateGridBlock(fixture().id, { patchCell: { r: 0, c: 0, lineIndex: 0, fontFamily: 'Noto Sans KR, 맑은 고딕' } });
+  assert.equal(ff.ok, true, `★멀쩡한 글꼴 이름을 막았다: ${ff.message}`);
+});
+
+test('U8-d ★양성대조 — 값 잣대를 «뺀» 사본은 gradient 를 받고 옛 배경을 죽인다', async () => {
+  const mutated = RAW.replace(/\n  for \(const k of Object\.keys\(GRID_VALUE_TESTS\)\) \{\n[\s\S]*?\n  \}\n/, '\n');
+  assert.notEqual(mutated, RAW, '★변이가 «주입되지 않았다» — 이 양성대조는 아무것도 안 쟀다');
+  const M = await loadGrid(mutated);
+  const b = fixture(M);
+  M.updateGridBlock(b.id, { patchCell: { r: 1, c: 0, bg: '#00ff00' } });
+  const res = M.updateGridBlock(b.id, { patchCell: { r: 1, c: 0, bg: BAD_BG } });
+  assert.equal(res.ok, true, '★잣대를 뺐는데도 거절된다 — U8 이 재는 것은 «그 잣대»가 아니다');
+  assert.equal(cssOf(cellTagAt(b, 1, 0), 'background'), null,
+    '★통과했는데 배경이 «안» 죽었다 — 그렇다면 데이터 손실의 모양이 내 진단과 다르다');
+});
+
+/* ═══════════════════════════════════════════════════════════════════════
+   U9 — ★⑶ 한계를 넘긴 값. ⛔막지 «않는다» — 자르되 «잘랐다»고 말한다
+   ★왜 ⑵ 와 처방이 다른가: ⑵는 「부른 쪽이 원한 적 없는 결과」라 되돌릴 근거가 있고,
+     ⑶은 「한계가 원래 그렇다」라 막으면 그건 «동작 변경»이다(T-176 과 같은 갈래).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const deepDuo = (n, leaf) => (n === 0 ? { type: 'body', text: leaf }
+  : { type: 'duo', cols: [{ width: 1, lines: [deepDuo(n - 1, leaf)] }] });
+
+test('U9 ★한계를 넘긴 중첩은 «그대로 잘리되» 도구가 잘랐다고 말한다', () => {
+  const b1 = fixture();
+  const r1 = G.updateGridBlock(b1.id, { patchCell: { r: 0, c: 0, lines: [deepDuo(3, '깊이3')] } });
+  assert.equal(r1.ok, true, '★거절했다 — 이 갈래는 «동작을 바꾸지 않는다»(자르는 것이 정해진 동작이다)');
+  assert.doesNotMatch(b1.innerHTML, /깊이3/, '★한계를 넘긴 중첩이 그려졌다 — 동작이 바뀌었다');
+  assert.ok((r1.ignoredProps || []).length > 0, '★조용히 사라졌다 — ok:true 인데 화면엔 없고 아무 말도 없다');
+  assert.match(r1.hint, /nested grid renders/, `★«무엇이» 잘렸는지 안 말한다: ${r1.hint}`);
+
+  const b2 = fixture();
+  const four = { type: 'duo', cols: [1, 2, 3, 4].map(i => ({ width: 1, lines: [{ type: 'body', text: '열' + i }] })) };
+  const r2 = G.updateGridBlock(b2.id, { patchCell: { r: 0, c: 0, lines: [four] } });
+  assert.equal(r2.ok, true, '★거절했다 — 동작을 바꾸면 안 된다');
+  assert.equal((b2.innerHTML.match(/grd-nested-col/g) || []).length, 3, '★그려진 중첩 열 수가 달라졌다 — 동작이 바뀌었다');
+  assert.ok((r2.ignoredProps || []).some(p => /cols\[3/.test(p)),
+    `★넷째 열이 «말없이» 잘렸다 — ignoredProps:${JSON.stringify(r2.ignoredProps)}`);
+});
+
+test('U9-b ★음성대조 — 한계 «안»의 중첩은 아무 말도 안 듣고 그려진다', () => {
+  const b = fixture();
+  const ok = { type: 'duo', cols: [1, 2, 3].map(i => ({ width: 1, lines: [{ type: 'body', text: '열' + i }] })) };
+  const res = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, lines: [deepDuo(2, '깊이2')] } });
+  assert.equal(res.ignoredProps, undefined, `★한계 «안»인 2단계를 「잘렸다」고 했다: ${res.hint}`);
+  assert.match(b.innerHTML, /깊이2/, '★한계 안인데 안 그려진다');
+  const r2 = G.updateGridBlock(fixture().id, { patchCell: { r: 0, c: 0, lines: [ok] } });
+  assert.equal(r2.ignoredProps, undefined, `★한계 «안»인 3열을 「잘렸다」고 했다: ${r2.hint}`);
+});
+
+test('U9-c ★★동작 불변 — 말을 붙여도 «잘린 결과»는 바이트 동일이다', async () => {
+  const mutated = RAW.replace(
+    /\n      _gridInspectNested\(ln, `\$\{where\}\.lines\[\$\{i\}\]`, 0, drops\);.*\n/,
+    '\n');
+  assert.notEqual(mutated, RAW, '★변이가 «주입되지 않았다» — 이 대조는 아무것도 안 쟀다');
+  const M = await loadGrid(mutated);
+  for (const payload of [deepDuo(3, '깊이3'),
+    { type: 'duo', cols: [1, 2, 3, 4].map(i => ({ width: 1, lines: [{ type: 'body', text: '열' + i }] })) }]) {
+    const a = fixture(G); G.updateGridBlock(a.id, { patchCell: { r: 0, c: 0, lines: [payload] } });
+    const c = fixture(M); M.updateGridBlock(c.id, { patchCell: { r: 0, c: 0, lines: [payload] } });
+    assert.equal(a.innerHTML, c.innerHTML, '★말을 붙이면서 «화면»이 달라졌다 — 이 갈래는 동작을 안 바꾼다');
+    assert.equal(snap(a), snap(c), '★말을 붙이면서 «저장본»이 달라졌다');
+  }
+  const res = M.updateGridBlock(fixture(M).id, { patchCell: { r: 0, c: 0, lines: [deepDuo(3, '깊이3')] } });
+  assert.ok(!(res.ignoredProps || []).some(p => /cols/.test(p)) || res.ok === true,
+    '★변이본이 여전히 그 말을 한다 — U9 가 재는 것은 «그 보고»가 아니다');
+});
