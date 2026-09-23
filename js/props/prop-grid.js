@@ -388,11 +388,18 @@ function _grdWireKindSelects(block, r, c, afterLi) {
  *   텍스트 줄만 인정해서, prop-grid.js 옛 _grdTypoSectionsHtml 안에 같이 있었다). 이미지·갭
  *   줄, «빈 셀»도 줄을 추가/삭제할 수 있어야 하므로 _grdResolveAnyAddr 로 판정한 anyHit 을 받는다.
  * ⛔[↺ 기본값으로]만 텍스트 줄 전용이다 — 이미지·갭엔 타이포 필드가 없다. */
+/* ★2026-09-23 — 아래 `!anyHit` 안내는 «블럭은 골랐는데 칸/줄은 아직 안 고른» 상태에서만 뜬다.
+ *   옛 문구는 「칸이나 줄을 «클릭»하면」이었는데, 사용자는 «이미 칸을 클릭했다» —
+ *   그 클릭이 «블럭»을 골랐고(2단 선택: 블럭 → 칸), 칸은 «한 번 더» 눌러야 잡힌다.
+ *   ⛔안내가 «이미 한 일»을 시키고 있었다. 실측(격리 인스턴스, 창 1440×900):
+ *     클릭 1회 → grid-block 선택됨, 칸 손잡이 «안 뜸» / 클릭 2회 → 뜸.
+ *   ⛔2단 선택 «자체»는 안 바꾼다 — 블럭 드래그·이동이 거기 매달려 있다. 말을 맞춘다.
+ *   ⚠️여기는 JSX 가 «아니다» — 템플릿 문자열이다. 중괄호 주석(JSX 식)을 넣으면 화면에 그대로 찍힌다. */
 function _grdLineBarHtml(anyHit, block) {
   if (!anyHit) {
     return `
     <div class="prop-section">
-      <div class="prop-hint">캔버스에서 «칸이나 줄을 클릭»하면 여기서 줄을 추가·삭제할 수 있다.</div>
+      <div class="prop-hint">블럭이 골라졌다. 칸이나 줄을 «한 번 더» 클릭하면 여기서 줄을 추가·삭제할 수 있다.</div>
     </div>`;
   }
   const { r, c, li, line } = anyHit;
