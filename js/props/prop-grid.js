@@ -762,8 +762,13 @@ function _grdStripLineAlign(lines) {
   if (!Array.isArray(lines)) return;
   lines.forEach(l => { if (l && typeof l === 'object') delete l.align; });
 }
-/** dataset.cells(행 1~)의 «칸 오버라이드» 한 필드를 전부 걷는다. 걷은 게 있으면 true.
- *  ⛔행 0 은 여기 없다 — 행 0 은 cols[c] 자체라 호출부가 cols 쪽에서 따로 다룬다. */
+/** dataset.cells 의 «칸 오버라이드» 한 필드를 전부 걷는다. 걷은 게 있으면 true.
+ *  ~~[폐기 · T-178 2026-09-23] 「dataset.cells(행 1~) … 행 0 은 여기 없다」~~
+ *  까닭 — dataset.cells 가 «행 0 포함 전체 R×C»가 됐다. 행 0 칸의 꾸밈도 여기 있으므로
+ *    이 루프가 그것까지 «같이» 걷는다. 그게 맞다: 「열 통째로 건다」 단추는 행 0 칸에 걸린
+ *    오버라이드도 걷어야 정말 통째로 걸린다.
+ *  ⛔행 0 의 «줄 정렬»(line.align)은 여기 없다 — 행 0 의 줄은 cols[c].lines 다. 호출부가
+ *    cols 쪽에서 _grdStripLineAlign 으로 따로 걷는다(그 자리는 안 바뀌었다). */
 function _grdStripCellOverride(block, field) {
   let cells;
   try { cells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { return false; }
@@ -780,7 +785,7 @@ function _grdStripCellOverride(block, field) {
       }
     });
   });
-  if (hit) block.dataset.cells = JSON.stringify(cells);
+  if (hit) block.dataset.cells = gridCellsToDataset(cells);
   return hit;
 }
 
@@ -1339,7 +1344,17 @@ ${blockHeaderHTML({
       if (nRows <= 1) {
         // 1행으로 돌아가면 옛 duo 파일과 «완전히 같은» 모양으로 되돌린다(dataset.rows/cells 제거).
         delete block.dataset.rows;
-        delete block.dataset.cells;
+        /* ★T-178 — 다만 «행 0 칸 꾸밈»은 행이 하나가 돼도 살아 있어야 한다(1행 그리드의 칸도 칸이다).
+           꾸밈이 하나도 없을 때만 dataset.cells 를 지워 옛 duo 모양을 그대로 돌려준다. */
+        let row0 = [];
+        try { const cur = JSON.parse(block.dataset.cells || '[]'); row0 = Array.isArray(cur[0]) ? cur[0] : []; } catch (_) { row0 = []; }
+        const keep = [];
+        for (let c = 0; c < nCols; c++) {
+          const cell = row0[c];
+          keep.push((cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : {});
+        }
+        if (keep.some(cell => Object.keys(cell).length)) block.dataset.cells = gridCellsToDataset([keep]);
+        else delete block.dataset.cells;
       } else {
         const nextRows = [];
         for (let i = 0; i < nRows; i++) nextRows.push(curRows[i] || { height: 'auto' });
@@ -1354,14 +1369,19 @@ ${blockHeaderHTML({
          *   내가 앞서 커밋 메시지에 「줄였다 늘려도 옛 내용이 살아 있다」고 썼는데 «거짓»이었다 —
          *   P1 의 「cells 를 그대로 둔다」 설계를 병합에서 모르고 뒤집었다.
          *   복원은 undo 로만 된다(그래서 pushHistory 를 변경 전에 부른다). */
+        /* ★T-178 — dataset.cells 가 «행 0 포함 전체»가 되면서 이 루프의 인덱스가 «한 칸» 움직였다.
+           ⛔읽는 문(_gridCellRows)과 이 자리를 따로 옮기면 행이 한 칸 밀려 «화면은 멀쩡해 보이는
+             데이터 손상»이 난다 — 그래서 같은 커밋에 있다.
+           ★행 0 에는 기본 줄을 «안» 넣는다: 행 0 의 줄은 cols[].lines 가 갖는다(위 nextCols 가 채운다).
+             행 0 칸은 «꾸밈만» 담으므로 없으면 빈 객체다. */
         let curCells = [];
         try { curCells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { curCells = []; }
         const nextCells = [];
-        for (let r = 1; r < nRows; r++) {          // index 0 = 1행은 cols[].lines 가 갖는다
-          const row = Array.isArray(curCells[r - 1]) ? curCells[r - 1] : [];
+        for (let r = 0; r < nRows; r++) {
+          const row = Array.isArray(curCells[r]) ? curCells[r] : [];
           const outRow = [];
           for (let c = 0; c < nCols; c++) {
-            outRow.push(row[c] || { lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] });
+            outRow.push(row[c] || (r === 0 ? {} : { lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] }));
           }
           nextCells.push(outRow);
         }

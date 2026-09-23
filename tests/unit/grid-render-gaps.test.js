@@ -758,8 +758,15 @@ test('N7 ★주소는 «최상위 줄»에만 찍힌다 — 중첩 속은 안 �
 const GRID_TESTS = fs.readdirSync(UNIT_DIR)
   .filter(f => /^grid-.*\.test\.(js|mjs)$/.test(f) && f !== SELF).sort();
 
-/** 기준선 86dce84 에서 이 파일을 «뺀» grid 검사 전부의 셈. 실측 245/245 초록. */
-const GRID_BASELINE_TESTS = 245;
+/** 기준선 86dce84 에서 이 파일을 «뺀» grid 검사 전부의 셈. 실측 245/245 초록.
+ *  ★2026-09-23 T-178: 245 → 251. «늘었다» — 이 게이트가 시키는 대로 손으로 올린다.
+ *    더한 것 = tests/unit/grid-row0-lines-invariant.test.js 의 6개
+ *      (I1 불변식 · I2 반대방향 · I3 음성대조 N1 · I4 · I4-b 음성대조 N2 · I5 명부 무지 증명).
+ *    ⛔지운 것은 «하나도» 없다. grid-p1.test.js 는 5개를 «다시 썼지만» 수는 그대로(56)다 —
+ *      옛 저장 포맷을 정답으로 잠그고 있던 단언들을 새 포맷으로 옮긴 것이다.
+ *    ⛔피커 축(새는 길 ④)은 패널 DOM 이라 여기 안 센다 —
+ *      tests/dom/grid-picker-row0-lines.dom.spec.js 가 따로 잰다(이 래칫의 사각지대다). */
+const GRID_BASELINE_TESTS = 251;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {

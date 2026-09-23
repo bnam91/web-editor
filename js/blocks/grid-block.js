@@ -13,11 +13,22 @@
 // ★2026-09-04 P1(행 축) — 데이터 모델 R2(PLAN-gridblock.md §3-A):
 //   cols  = [{ width:1, align, valign, bg, padding, radius, lines?[] }]   // 열 가중치(fr) + «행 0」 콘텐츠
 //   rows  = [{ height:'auto'|<px> }]                                     // 없으면 [{height:'auto'}] (=옛 1행 파일과 동일)
-//   cells = [[{align?,valign?,bg?,padding?,radius?,lines[]}, …], …]      // ★«행 1 이후만» 저장한다(행 0 은 없음)
-// ★단일 진실원 유지: 행 0 의 콘텐츠는 cols[c].lines 「하나」뿐이다 — cells 안에 행 0 을 따로
-//   복제해 두면(예: cells[0]) 두 값이 어긋나는 전형적 2-소스 버그가 생긴다(이 레포의 dataset
-//   단일 진실원 불변식 위반). getGridModel()가 cols 로부터 행 0 을 «항상 재구성»해서 돌려준다 —
+//   cells = [[{align?,valign?,bg?,padding?,radius?,lines?[]}, …], …]     // ★«행 0 포함 전체 R×C»
+// ~~[폐기 · T-178 2026-09-23] 「cells 는 «행 1 이후만» 저장한다(행 0 은 없음)」~~
+//   까닭 — 그러면 cols[c] 가 「열 기본값」과 「행 0 칸」을 «겸직»한다. 행 0 칸 하나에 준 배경색이
+//   그 열의 기본값이 되어, 렌더러 폴백(cell[k] ?? col[k]) 때문에 «아래 행 칸까지» 칠해졌다.
+//   더 고약한 쪽: 아래 칸의 «모델»은 null 인 채 «화면»만 칠해져 저장본을 봐도 까닭이 안 보였다.
+// ★T-178 이후의 자리 나눔 — 겸직을 푼다:
+//     cols[c].{align,valign,bg,padding,radius} = 그 «열의 기본값»(자기 값 없는 칸들이 따른다)
+//     cells[0][c].{…같은 5개}                  = 「행 0 «그 칸»」의 값(열 기본값을 덮는다)
+//     cols[c].lines                            = 행 0 «줄 내용»  ← 여기는 «안» 바뀐다
+// ★단일 진실원 유지: 행 0 의 «줄 내용»은 여전히 cols[c].lines 「하나」뿐이다 —
+//   ⛔cells[0][c] 에는 `lines` 키가 «절대» 없다(있으면 두 값이 어긋나는 2-소스 버그다).
+//   쓰는 문 _gridCellsToDataset 이 행 0 의 lines 를 떼고, 읽는 문 _gridCellRows 가 또 뗀다.
+//   getGridModel()가 cols 로부터 행 0 의 줄을 «항상 재구성»해서 돌려준다 —
 //   이게 곧 「cells 없는 옛 파일의 승격」이다(모든 블록이 항상 이 경로를 거친다).
+// ⚠️저장 포맷이 바뀌었다 — T-178 «이전»에 저장된 dataset.cells(행 1~)는 이제 «한 행 위로» 읽힌다.
+//   마이그레이션은 범위 밖이다(현빈 승인 — 기존 저장본 무시).
 // cols[].lines: [{ type:'label|h1|h2|h3|body|caption|image|gap',
 //                  text?, fontSize?, color?, weight?, align?, marginTop?,
 //                  imgSrc?, height?(image/gap), radius?(image) }]
@@ -427,22 +438,30 @@ function _gridRows(block) {
   });
 }
 
-// ★dataset.cells 는 «행 0 을 뺀 나머지 행」만 담는다(위 헤더 주석 참조 — 단일 진실원).
-//   rowCount(행 0 포함 전체 행 수) 만큼 나올 «추가 행» 배열을 cols.length 열에 맞춰 pad/truncate.
-function _gridExtraRows(block, cols, rowCount) {
-  let extra;
-  try { extra = JSON.parse(block.dataset.cells || '[]'); } catch (_) { extra = []; }
-  if (!Array.isArray(extra)) extra = [];
-  const need = Math.max(0, rowCount - 1);
+/** dataset.cells 를 «읽는» 문 — 쓰는 문 _gridCellsToDataset 의 짝. (개명: 옛 _gridExtraRows)
+ *  ★T-178 부터 dataset.cells 는 «행 0 포함 전체 R×C»다. rowCount×cols.length 로 pad/truncate.
+ *  ⛔행 0 은 `lines` 를 «떼고» 만든다 — 행 0 의 줄은 cols[c].lines 하나뿐이다(단일 진실원).
+ *    저장본에 어쩌다 행 0 lines 가 섞여 들어와도(손수정·옛 파일·MCP 되받아쓰기) 여기서 죽는다.
+ *  ⚠️옛 이름이 「Extra(추가 행)」였던 것은 행 0 이 «빠져» 있었기 때문이다. 이제 안 빠지므로
+ *    이름도 같이 바꾼다 — 이름이 옛 뜻을 들고 있으면 다음 사람이 인덱스를 한 칸 틀린다. */
+function _gridCellRows(block, cols, rowCount) {
+  let saved;
+  try { saved = JSON.parse(block.dataset.cells || '[]'); } catch (_) { saved = []; }
+  if (!Array.isArray(saved)) saved = [];
+  const need = Math.max(0, rowCount);
   const C = cols.length;
   const out = [];
   for (let i = 0; i < need; i++) {
-    const src = Array.isArray(extra[i]) ? extra[i] : [];
+    const src = Array.isArray(saved[i]) ? saved[i] : [];
     const row = [];
     for (let c = 0; c < C; c++) {
-      const cell = (src[c] && typeof src[c] === 'object') ? src[c] : {};
-      // ★lines 는 항상 배열로 정규화한다 — 행0 셀(cols 기반)이 늘 lines:[] 를 갖는 것과 «같은 모양»으로
-      //   맞춰야 getGridModel() 소비자가 r===0 이든 아니든 같은 코드로 cell.lines 를 다룰 수 있다.
+      const cell = (src[c] && typeof src[c] === 'object' && !Array.isArray(src[c])) ? src[c] : {};
+      if (i === 0) {
+        const { lines: _drop, ...deco } = cell;   // ★행 0 = 꾸밈만. 줄은 cols[c].lines 가 갖는다.
+        row.push(deco);
+        continue;
+      }
+      // ★lines 는 항상 배열로 정규화한다 — 소비자가 r 에 상관없이 같은 코드로 cell.lines 를 다루게.
       row.push(Array.isArray(cell.lines) ? cell : { ...cell, lines: [] });
     }
     out.push(row);
@@ -455,19 +474,33 @@ function _gridExtraRows(block, cols, rowCount) {
  *    updateGridBlock 의 rows/cols/cells 세 분기 · makeGridBlock · prop-grid.js buildGridPicker).
  *    「저장 모양」을 한 번 바꾸려면 여섯 곳을 같이 고쳐야 하고, 한 곳을 놓치면 행이 밀린
  *    «화면은 멀쩡해 보이는 데이터 손상»이 난다(이 레포의 고질 — MIN_COLS 4열 사고가 본보기).
- *  ⛔C0 은 «순수 통과»다 — 여기서 뜻을 바꾸지 않는다. 산출 바이트가 이전과 완전히 같아야
- *    「경유만 시켰다」가 증명된다. 뜻은 다음 커밋(C1)이 «이 문 안에서» 바꾼다. */
+ *  ⛔C0 은 «순수 통과»였다 — 산출 바이트가 이전과 완전히 같아야 「경유만 시켰다」가 증명된다.
+ *    C1(2026-09-23)이 «이 문 안에서» 뜻을 바꿨다: 행 0 의 `lines` 를 뗀다.
+ *  ★cellRows = «행 0 포함 전체 R×C». 행 0 칸은 «꾸밈만» 저장한다 —
+ *    ⛔`delete c.lines` 이 한 줄이 단일 진실원을 지키는 자리다. 지우면 행 0 줄 내용이
+ *      cols[c].lines 와 cells[0][c].lines 두 벌이 되어 조용히 갈라진다
+ *      (지키는 검사: tests/unit/grid-row0-lines-invariant.test.js · 음성대조 포함). */
 function _gridCellsToDataset(cellRows) {
-  return JSON.stringify(cellRows);
+  const out = (Array.isArray(cellRows) ? cellRows : []).map((row, r) => (Array.isArray(row)
+    ? row.map((cell) => {
+      const c = (cell && typeof cell === 'object' && !Array.isArray(cell)) ? { ...cell } : {};
+      if (r === 0) delete c.lines;
+      return c;
+    })
+    : []));
+  return JSON.stringify(out);
 }
 
-// col(열 기본값) 에 cell(행 0 이 아닌 개별 셀 오버라이드)을 merge — patchCol/patchCell{r:0} 공용.
-function _mergeCellIntoCol(col, cell) {
+/** 행 0 «줄 내용»을 cols[c] 에 얹는다 — 행 0 의 줄은 cols[c].lines 하나뿐이다(단일 진실원).
+ *  ~~[폐기 · T-178 2026-09-23] 「col(열 기본값)에 cell 오버라이드를 merge — 꾸밈 5개도 같이」~~
+ *  까닭 — 꾸밈까지 여기서 cols 로 올리면 「행 0 칸 값」과 「열 기본값」이 같은 자리에 겹쳐
+ *    앉는다(T-178 본체). 꾸밈은 이제 cells[0][c] 가 받는다.
+ *  ★그리고 여기 있던 `['align','valign','bg','padding','radius'].forEach` 손-명부가 사라졌다 —
+ *    GRID_CELL_FIELDS 와 «따로 늙는» 자리였다(T-172 테두리 같은 새 칸 필드가 생기면 조용히 빠진다). */
+function _mergeCellLinesIntoCol(col, cell) {
   if (!cell || typeof cell !== 'object') return col;
-  const next = { ...col };
-  if (Array.isArray(cell.lines)) next.lines = cell.lines;
-  ['align', 'valign', 'bg', 'padding', 'radius'].forEach(k => { if (cell[k] !== undefined) next[k] = cell[k]; });
-  return next;
+  if (!Array.isArray(cell.lines)) return col;
+  return { ...col, lines: cell.lines };
 }
 
 /** 셀의 lines 에서 «한 줄»에만 필드를 병합한 다음 배열. patchCell{lineIndex} 의 심장.
@@ -506,27 +539,46 @@ function _gridMergeLine(curLines, li, fields) {
   return next;
 }
 
-/** 셀 patch 를 «dataset 조각»으로. 행 0 은 cols[c] 자체(단일 진실원), 그 아래는 cells[r-1][c].
- *  ⚠️cols/extra 를 «제자리»에서 고친다 — 호출부가 넘긴 배열이 그대로 쓰인다(기존 동작 보존). */
-function _gridCellPatchDataset(cols, extra, r, c, cellPatch) {
+/** 셀 patch 를 «dataset 조각»으로.
+ *  ★★가르는 기준은 「꾸밈 5개」가 «아니다» — 「`lines` 인가 아닌가」 «하나»다.
+ *    `const { lines, ...deco } = cellPatch` — lines 만 이름으로 집고 나머지는 «흘린다».
+ *    ⛔새 필드 명부를 만들지 마라. 이렇게 두면 T-172(테두리) 같은 새 «칸» 필드가 생겨도
+ *      deco 에 자동으로 실린다(명부가 따로 늙지 않는다).
+ *    ⚠️행 0 의 «내용»만 준 patch 는 dataset.cells 를 «안» 건드리고, 꾸밈만 준 patch 는
+ *      dataset.cols 를 «안» 건드린다. 둘을 섞어 주면 두 키가 «둘 다» 나온다 —
+ *      부르는 쪽이 한쪽만 쓰면 조용히 «반만» 적용된다(grid-render-gaps.test.js:300 이 그 자리다).
+ *  ⚠️cols/cellRows 를 «제자리»에서 고친다 — 호출부가 넘긴 배열이 그대로 쓰인다(기존 동작 보존). */
+function _gridCellPatchDataset(cols, cellRows, r, c, cellPatch) {
+  const { lines, ...deco } = cellPatch;
+  const out = {};
   if (r === 0) {
-    cols[c] = _mergeCellIntoCol(cols[c], cellPatch);
-    return { cols: JSON.stringify(cols) };
+    if (lines !== undefined) {
+      cols[c] = _mergeCellLinesIntoCol(cols[c], { lines });
+      out.cols = JSON.stringify(cols);
+    }
+    if (Object.keys(deco).length) {
+      cellRows[0][c] = Object.assign({}, cellRows[0][c], deco);
+      out.cells = _gridCellsToDataset(cellRows);
+    }
+    return out;
   }
-  extra[r - 1][c] = Object.assign({}, extra[r - 1][c], cellPatch);
-  return { cells: _gridCellsToDataset(extra) };
+  cellRows[r][c] = Object.assign({}, cellRows[r][c], cellPatch);
+  out.cells = _gridCellsToDataset(cellRows);
+  return out;
 }
 
 // API 경계(add_block/update_block{cells})는 «행 0 포함 전체 R×C」를 받는다(PLAN §3-A 스키마 그대로) —
 // 내부 저장만 행 0 을 cols 로 흡수한다(단일 진실원). 여기서 그 경계를 나눈다.
 function _splitFullCells(fullCells, cols) {
-  if (!Array.isArray(fullCells) || !fullCells.length) return { cols, extra: [] };
+  if (!Array.isArray(fullCells) || !fullCells.length) return { cols, cellRows: [] };
   const row0 = Array.isArray(fullCells[0]) ? fullCells[0] : [];
-  const mergedCols = cols.map((col, c) => _mergeCellIntoCol(col, row0[c]));
-  const extra = fullCells.slice(1).map(row => (Array.isArray(row)
-    ? row.map(cell => (cell && typeof cell === 'object') ? cell : {})
+  // 행 0 의 «줄 내용»만 cols 로 흡수한다. 행 0 의 «꾸밈»은 cells[0] 에 그대로 남는다(T-178).
+  const mergedCols = cols.map((col, c) => _mergeCellLinesIntoCol(col, row0[c]));
+  const cellRows = fullCells.map(row => (Array.isArray(row)
+    ? row.map(cell => (cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : {})
     : []));
-  return { cols: mergedCols, extra };
+  // ⛔행 0 의 lines 를 여기서 안 떼도 된다 — 쓰는 문 _gridCellsToDataset 이 «한 자리»에서 뗀다.
+  return { cols: mergedCols, cellRows };
 }
 
 /** 블록의 dataset 에서 전체 그리드(cols/rows/cells)를 읽는다 — «옛 파일 승격」의 단일 진입점.
@@ -537,12 +589,16 @@ function _splitFullCells(fullCells, cols) {
 function getGridModel(block) {
   const cols = _gridCols(block);
   const rows = _gridRows(block);
-  const extra = _gridExtraRows(block, cols, rows.length);
-  const row0 = cols.map(c => ({
+  const cellRows = _gridCellRows(block, cols, rows.length);
+  /* ★행 0 = «cols 의 줄» + «cells[0] 의 꾸밈». ⛔col 의 꾸밈은 여기서 «안» 섞는다 —
+     합성(칸 값이 없으면 열 기본값)은 렌더러의 pick() «한 곳»이 한다. 여기서도 섞으면
+     두 벌이 되고, 라운드트립(read → 그대로 write)이 «열 값을 칸으로 승격»시키는 누수가 된다.
+     ★손-명부(align/valign/bg/…)가 여기서도 사라졌다 — 스프레드가 새 필드를 자동으로 싣는다. */
+  const row0 = cols.map((c, i) => ({
     lines: Array.isArray(c.lines) ? c.lines : [],
-    align: c.align, valign: c.valign, bg: c.bg, padding: c.padding, radius: c.radius,
+    ...cellRows[0][i],
   }));
-  return { cols, rows, cells: [row0, ...extra] };
+  return { cols, rows, cells: [row0, ...cellRows.slice(1)] };
 }
 
 // ★addr(4번째 인자, 신설) — 「캔버스 인라인 편집을 전제로」 셀 텍스트 주소를 렌더 시점에 심는다
@@ -816,10 +872,13 @@ function makeGridBlock(opts = {}) {
       return { height: (Number.isFinite(n) && n >= 0) ? n : 'auto' };
     });
     block.dataset.rows = JSON.stringify(rows);
-    if (rows.length > 1 && Array.isArray(opts.cells) && opts.cells.length) {
-      const { cols: mergedCols, extra } = _splitFullCells(opts.cells.slice(0, rows.length), cols);
+    /* ⚠️T-178 — `rows.length > 1` 조건을 걷었다. 행이 하나여도 행 0 칸의 «꾸밈»은
+       이제 cells[0] «자리»에 살아야 한다(옛 코드는 그것을 cols 로 올려 «열 기본값»으로 삼았다).
+       조건을 남기면 1행 그리드에 준 칸 꾸밈이 조용히 사라진다. */
+    if (Array.isArray(opts.cells) && opts.cells.length) {
+      const { cols: mergedCols, cellRows } = _splitFullCells(opts.cells.slice(0, rows.length), cols);
       cols = mergedCols;
-      if (extra.length) block.dataset.cells = _gridCellsToDataset(extra);
+      if (cellRows.length) block.dataset.cells = _gridCellsToDataset(cellRows);
     }
   }
   block.dataset.cols = JSON.stringify(cols);
@@ -896,8 +955,8 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     applied.rows = normRows;
     // ⛔줄어든 행의 셀 데이터는 dataset.cells 에서 잘려나간다 — «변경 전» pushHistory 로 undo 복원.
     const colsForTrim = _gridCols(block);
-    const trimmedExtra = _gridExtraRows(block, colsForTrim, normRows.length);
-    next.cells = _gridCellsToDataset(trimmedExtra);
+    const trimmedRows = _gridCellRows(block, colsForTrim, normRows.length);
+    next.cells = _gridCellsToDataset(trimmedRows);
   }
   const rowCountForValidation = next.rows !== undefined ? JSON.parse(next.rows).length : _gridRows(block).length;
 
@@ -913,9 +972,9 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     next.cols = JSON.stringify(partial.cols);
     applied.cols = partial.cols;
     // 열 수가 바뀌면 추가행 셀도 새 열 수에 맞춰 pad/truncate(방어 — 다음 렌더에서도 어차피
-    // _gridExtraRows 가 같은 일을 하지만, dataset 자체를 깨끗하게 유지해 export/외부 판독을 돕는다).
-    const trimmedExtra = _gridExtraRows(block, partial.cols, rowCountForValidation);
-    next.cells = _gridCellsToDataset(trimmedExtra);
+    // _gridCellRows 가 같은 일을 하지만, dataset 자체를 깨끗하게 유지해 export/외부 판독을 돕는다).
+    const trimmedRows = _gridCellRows(block, partial.cols, rowCountForValidation);
+    next.cells = _gridCellsToDataset(trimmedRows);
   }
   if (partial.patchCol !== undefined) {
     const p = partial.patchCol;
@@ -946,11 +1005,11 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
       }
     }
     const baseCols = _gridCols(block);
-    const { cols: mergedCols, extra } = _splitFullCells(partial.cells, baseCols);
+    const { cols: mergedCols, cellRows } = _splitFullCells(partial.cells, baseCols);
     next.cols = JSON.stringify(mergedCols);
-    next.cells = _gridCellsToDataset(extra);
+    next.cells = _gridCellsToDataset(cellRows);
     /* ★T-122 — `applied.cells = partial.cells` 는 «입력을 그대로 메아리»치는 것이라 거짓말이었다.
-       행이 배열이 아니어도, 셀 키가 `_mergeCellIntoCol`(:307)·`_gridExtraRows`(:284) 에서
+       행이 배열이 아니어도, 셀 키가 `_mergeCellLinesIntoCol`·`_gridCellRows` 에서
        통째로 버려져도, 보낸 것이 그대로 「적용됐다」로 돌아왔다.
        ⇒ ⑴버려진 것을 `drops` 로 모으고, ⑵`applied.cells` 는 «커밋 뒤 모델»(=화면이 읽는 것)로
          아래에서 다시 채운다. 여기서 채우면 또 «보낸 값»을 보는 셈이라 같은 거짓말이 된다. */
@@ -983,7 +1042,9 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     if (_oversize) return { ok: false, code: 'TOO_LARGE', message: `imgSrc too long (>${GRID_IMG_MAX_CHARS})` };
     const _linesReject = _gridRejectLinesLength(rest.lines);
     if (_linesReject) return _linesReject;
-    const extra = r > 0 ? _gridExtraRows(block, cols, rowCountForValidation) : null;
+    /* ★행 0 도 이제 cells 에 «꾸밈 자리»가 있으므로 r 과 상관없이 전체 R×C 를 든다(T-178).
+       ⛔여기서 r>0 만 만들면 행 0 꾸밈이 쓸 자리를 못 찾아 조용히 버려진다. */
+    const cellRows = _gridCellRows(block, cols, rowCountForValidation);
     let cellPatch = rest;   // 기본: 셀 전체(부분) patch — 기존 동작 그대로
     let unreadLine = [];    // ★T-122 — 이름은 맞는데 «줄 종류»가 안 맞아 안 그려질 키들
 
@@ -992,7 +1053,8 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
        * 셀 전체(lines 배열 통째)를 갈아치우지 않고 lines[lineIndex] «하나만» 병합한다 —
        * 인라인 편집이 blur 때 이 경로로 한 줄만 커밋해야 다른 줄이 안 날아가고 커서도 안 튄다. */
       const li = Number(lineIndex);
-      const curCell = r === 0 ? cols[c] : extra[r - 1][c];
+      // ★줄 내용은 r===0 이면 cols[c] 가, 그 아래는 cells[r][c] 가 갖는다(꾸밈과 자리가 다르다).
+      const curCell = r === 0 ? cols[c] : cellRows[r][c];
       const curLines = Array.isArray(curCell.lines) ? curCell.lines : [];
       if (!Number.isFinite(li) || li < 0 || li >= curLines.length) {
         return { ok: false, code: 'INVALID', message: `patchCell.lineIndex out of range (0~${curLines.length - 1})` };
@@ -1027,8 +1089,12 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
       _gridInspectLines(rest.lines, 'patchCell', drops);
     }
 
-    // 행 0 은 늘 cols[c] 자체다(단일 진실원) — patchCol 과 «같은 길」로 보낸다.
-    Object.assign(next, _gridCellPatchDataset(cols, extra, r, c, cellPatch));
+    /* ~~[폐기 · T-178] 「행 0 은 늘 cols[c] 자체다 — patchCol 과 «같은 길»로 보낸다」~~
+       까닭 — 그 «같은 길»이 바로 병이었다. 이제 갈린다:
+         patchCell{r:0, bg} = 그 «칸»만        → dataset.cells[0][c]
+         patchCol{index, bg} = 그 열의 «기본값» → dataset.cols[index]
+       행 0 의 «줄 내용»만 여전히 cols[c].lines 다(단일 진실원). */
+    Object.assign(next, _gridCellPatchDataset(cols, cellRows, r, c, cellPatch));
     /* ★T-122 — «안 그려진 것»은 applied 에서 뺀다. 담아 주면 부르는 쪽이 됐다고 믿고 넘어간다. */
     const shown = { ...rest };
     for (const k of unreadLine) delete shown[k];
@@ -1133,11 +1199,12 @@ export function gridPreviewLine(block, r, c, li, fields) {
   const rows = _gridRows(block);
   const R = Number(r), C = Number(c);
   if (!(R >= 0 && R < rows.length) || !(C >= 0 && C < cols.length)) return false;
-  const extra = R > 0 ? _gridExtraRows(block, cols, rows.length) : null;
-  const curCell = R === 0 ? cols[C] : extra[R - 1][C];
+  const cellRows = _gridCellRows(block, cols, rows.length);
+  // ★줄 내용의 자리 — 행 0 은 cols[C], 그 아래는 cells[R][C] (T-178 뒤에도 그대로다).
+  const curCell = R === 0 ? cols[C] : cellRows[R][C];
   const nextLines = _gridMergeLine(curCell && curCell.lines, li, fields);
   if (!nextLines) return false;
-  Object.assign(block.dataset, _gridCellPatchDataset(cols, extra, R, C, { lines: nextLines }));
+  Object.assign(block.dataset, _gridCellPatchDataset(cols, cellRows, R, C, { lines: nextLines }));
   renderGridBlock(block);
   return true;
 }

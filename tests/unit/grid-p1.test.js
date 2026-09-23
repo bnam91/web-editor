@@ -149,7 +149,18 @@ test('승격① — dataset.rows/cells 가 아예 없으면 1행 그리드로 �
   assert.equal(cells.length, 1, '승격된 그리드는 1행뿐');
   assert.deepEqual(cells[0][0].lines, oldCols[0].lines, '행0 셀0 콘텐츠 = cols[0].lines(단일 진실원)');
   assert.deepEqual(cells[0][1].lines, oldCols[1].lines, '행0 셀1 콘텐츠 = cols[1].lines');
-  assert.equal(cells[0][0].align, 'left', '열 속성(align)도 행0 셀에 그대로 승격');
+  /* ~~[폐기 · T-178 2026-09-23] `assert.equal(cells[0][0].align, 'left', '열 속성(align)도 행0 셀에 그대로 승격')`~~
+     까닭 — 그 «승격»이 T-178 본체였다. col 의 꾸밈을 모델의 행 0 칸에 섞어 넣으면
+       「열 기본값」과 「행 0 칸 값」을 구별할 수 없고, 라운드트립(read → 그대로 write)이
+       열 값을 칸으로 승격시키는 누수가 된다.
+     ⇒ 이제 col 의 꾸밈은 «모델에서» 안 섞인다. 합성은 렌더러의 pick() 한 곳이 한다.
+     ★「그래도 화면엔 왼쪽 정렬로 나오나」를 대신 잰다 — 기능이 사라진 게 아님을 그쪽이 지킨다. */
+  assert.equal(cells[0][0].align, undefined,
+    '열 기본값은 «모델의 칸»에 안 섞인다 — 칸 자기 값이 없으면 undefined 다(합성은 렌더러 pick)');
+  const painted = { dataset: block.dataset, style: {} };
+  renderGridBlock(painted);
+  assert.match(painted.innerHTML, /data-r="0" data-c="0"[\s\S]*?text-align:left;[\s\S]*?>왼쪽</,
+    '★열 기본값(align)이 화면에는 «여전히» 걸린다 — 모델에서 안 섞는 것이 기능 상실이면 안 된다');
 });
 
 /* ★2026-09-05(M40 · 정책 변경) 정정: 「2미만이면 기본 2열」은 이 테스트가 지키려던 «계약»이 아니라
@@ -193,19 +204,29 @@ test('승격③ — dataset.rows 만 있고 dataset.cells 가 없으면(2행 이
   assert.deepEqual(cells[1][1].lines, []);
 });
 
-test('승격④ — dataset.cells 가 있으면(row0 이후) 실제로 반영된다', () => {
+test('승격④ — dataset.cells(행 0 포함 전체)가 있으면 실제로 반영된다', () => {
+  /* ~~[폐기 · T-178 2026-09-23] 「dataset.cells 는 「행0을 뺀」 나머지만 담는다 — 여긴 행1 하나(2열)」~~
+     까닭 — 행 0 칸의 «꾸밈»이 저장될 자리가 없어서 cols(=열 기본값)로 새 나갔다(T-178 본체).
+     ⇒ 이제 dataset.cells 는 «행 0 포함 전체 R×C»다. 행 0 칸은 «꾸밈만» 담는다
+       (줄 내용은 여전히 cols[c].lines «하나»뿐 — 단일 진실원은 안 바뀌었다). */
   const block = {
     dataset: {
       cols: JSON.stringify([{ width: 1, lines: [{ type: 'h2', text: 'A' }] }, { width: 1, lines: [{ type: 'h2', text: 'B' }] }]),
       rows: JSON.stringify([{ height: 'auto' }, { height: 'auto' }]),
-      // ★dataset.cells 는 「행0을 뺀」나머지만 담는다 — 여긴 행1 하나(2열)
-      cells: JSON.stringify([[{ lines: [{ type: 'body', text: 'C' }] }, { lines: [{ type: 'body', text: 'D' }] }]]),
+      cells: JSON.stringify([
+        [{ bg: '#123456' }, {}],                                                   // 행 0 = 꾸밈만
+        [{ lines: [{ type: 'body', text: 'C' }] }, { lines: [{ type: 'body', text: 'D' }] }],
+      ]),
     },
   };
   const { cells } = getGridModel(block);
   assert.equal(cells.length, 2);
   assert.deepEqual(cells[1][0].lines, [{ type: 'body', text: 'C' }]);
   assert.deepEqual(cells[1][1].lines, [{ type: 'body', text: 'D' }]);
+  // 행 0 — 줄은 cols 에서, 꾸밈은 cells[0] 에서 온다.
+  assert.deepEqual(cells[0][0].lines, [{ type: 'h2', text: 'A' }], '행 0 줄은 cols[0].lines 가 준다');
+  assert.equal(cells[0][0].bg, '#123456', '행 0 꾸밈은 cells[0][0] 가 준다');
+  assert.equal(cells[0][1].bg, undefined, '값을 안 준 행 0 칸은 비어 있다(열 기본값은 렌더러가 합성)');
 });
 
 /* ═══ ② 클램프/폴백 — 열 2~4, 행 1~4 (플랜 P1 회귀위험: 「1열 폴백이 데이터를 지운다」) ═══ */
@@ -356,7 +377,8 @@ test('renderGridBlock — 각 라인에 data-r/data-c/data-line 좌표가 심긴
         { width: 1, lines: [{ type: 'body', text: 'C' }] },
       ]),
       rows: JSON.stringify([{ height: 'auto' }, { height: 'auto' }]),
-      cells: JSON.stringify([[{ lines: [{ type: 'body', text: 'D' }] }, { lines: [] }]]),
+      // ★T-178 — dataset.cells 는 «행 0 포함 전체». 행 0 칸은 꾸밈만(여기선 빈 객체).
+      cells: JSON.stringify([[{}, {}], [{ lines: [{ type: 'body', text: 'D' }] }, { lines: [] }]]),
     },
     style: {},
   };
@@ -383,9 +405,12 @@ test('makeGridBlock — rows 를 안 주면 옛 duo 와 완전히 같은 모양(
   assert.equal(block.dataset.cells, undefined);
 });
 
-test('makeGridBlock — rows+cells(행0 포함 전체)를 주면 행0 은 cols 로 흡수되고 나머지 행만 dataset.cells 에 남는다', () => {
+test('makeGridBlock — rows+cells(행0 포함 전체)를 주면 행0 «줄»만 cols 로 흡수되고 dataset.cells 는 전체 R×C 다', () => {
+  /* ~~[폐기 · T-178 2026-09-23] 제목 「…나머지 행만 dataset.cells 에 남는다」 + `extra.length === 1`~~
+     까닭 — 행 0 칸의 꾸밈이 갈 자리가 없어 cols(=열 기본값)로 샜다(T-178 본체).
+     ⇒ 이제 흡수되는 것은 «줄 내용»뿐이고, dataset.cells 는 행 0 을 포함한다. */
   const fullCells = [
-    [{ lines: [{ type: 'h2', text: 'R0C0' }] }, { lines: [{ type: 'h2', text: 'R0C1' }] }],
+    [{ lines: [{ type: 'h2', text: 'R0C0' }], bg: '#7b2ff7' }, { lines: [{ type: 'h2', text: 'R0C1' }] }],
     [{ lines: [{ type: 'body', text: 'R1C0' }] }, { lines: [{ type: 'body', text: 'R1C1' }] }],
   ];
   const { block } = makeGridBlock({
@@ -394,15 +419,20 @@ test('makeGridBlock — rows+cells(행0 포함 전체)를 주면 행0 은 cols �
     cells: fullCells,
   });
   const cols = JSON.parse(block.dataset.cols);
-  assert.deepEqual(cols[0].lines, [{ type: 'h2', text: 'R0C0' }], '행0 콘텐츠가 cols[0].lines 로 흡수됨');
+  assert.deepEqual(cols[0].lines, [{ type: 'h2', text: 'R0C0' }], '행0 «줄 내용»이 cols[0].lines 로 흡수됨');
   assert.deepEqual(cols[1].lines, [{ type: 'h2', text: 'R0C1' }]);
-  const extra = JSON.parse(block.dataset.cells);
-  assert.equal(extra.length, 1, 'dataset.cells 는 「행0 뺀」 1개 행만');
-  assert.deepEqual(extra[0][0].lines, [{ type: 'body', text: 'R1C0' }]);
+  assert.equal(cols[0].bg, undefined, '★행0 칸의 «꾸밈»은 cols 로 안 샌다(그게 T-178 본체였다)');
+  const saved = JSON.parse(block.dataset.cells);
+  assert.equal(saved.length, 2, 'dataset.cells 는 «행 0 포함» 전체 R×C');
+  assert.equal(saved[0][0].bg, '#7b2ff7', '행0 칸의 꾸밈은 cells[0][0] 가 받는다');
+  assert.equal(saved[0][0].lines, undefined, '★★행 0 칸에는 lines 키가 «절대» 없다(단일 진실원)');
+  assert.equal(saved[0][1].lines, undefined);
+  assert.deepEqual(saved[1][0].lines, [{ type: 'body', text: 'R1C0' }]);
 
   // getGridModel 로 다시 읽으면(승격 경로) 원래 fullCells 와 동치가 나와야 한다
   const grid = getGridModel(block);
   assert.deepEqual(grid.cells.map(row => row.map(c => c.lines)), fullCells.map(row => row.map(c => c.lines)));
+  assert.equal(grid.cells[0][0].bg, '#7b2ff7', '모델의 행0 칸도 그 꾸밈을 들고 있다');
 });
 
 /* ═══ ⑤ updateGridBlock — rows/cells/patchCell + 기존 cols/patchCol 호환 ═══ */
@@ -428,7 +458,11 @@ test('updateGridBlock — patchCell{r:0,...} 은 patchCol 과 «같은 결과»(
   assert.equal(r.ok, true);
   const cols = JSON.parse(block.dataset.cols);
   assert.deepEqual(cols[1].lines, [{ type: 'h2', text: 'B2' }]);
-  assert.equal(block.dataset.cells, undefined, 'r=0 패치는 cells 를 건드리지 않는다(행0은 늘 cols)');
+  /* ~~[폐기 · T-178 2026-09-23] 「r=0 패치는 cells 를 건드리지 않는다(행0은 늘 cols)」~~
+     까닭 — 이제 «꾸밈»을 주는 r=0 패치는 cells 를 건드린다(그게 이 카드가 고친 것이다).
+     ⇒ 문장을 «내용» 패치로 좁힌다. 단언 자체는 그대로 참이다(이 호출은 lines 만 줬다). */
+  assert.equal(block.dataset.cells, undefined,
+    '«내용»(lines) 패치는 cells 를 안 건드린다 — 행 0 의 줄은 늘 cols[c].lines 다(단일 진실원)');
 });
 
 test('updateGridBlock — rows 로 2행 이상 늘리고 patchCell{r:1,...}로 새 행 콘텐츠를 채운다', () => {
@@ -465,8 +499,14 @@ test('updateGridBlock — 행을 3→1로 줄이면 dataset.cells(추가행)가 
   assert.equal(r.ok, true);
   const grid = getGridModel(block);
   assert.equal(grid.rows.length, 1);
-  const extra = block.dataset.cells ? JSON.parse(block.dataset.cells) : [];
-  assert.equal(extra.length, 0, '1행으로 줄면 추가행 저장분은 0개');
+  const saved = block.dataset.cells ? JSON.parse(block.dataset.cells) : [];
+  /* ~~[폐기 · T-178 2026-09-23] `assert.equal(extra.length, 0, '1행으로 줄면 추가행 저장분은 0개')`~~
+     까닭 — dataset.cells 가 «행 0 포함 전체»가 됐다. 1행이면 «행 0 한 줄»이 남는 게 맞다.
+     ⇒ 재는 양을 「몇 행이 남나」가 아니라 「잘린 행의 내용이 실제로 사라졌나」로 바꾼다. */
+  assert.equal(saved.length, 1, '1행으로 줄면 저장분도 «행 0» 한 줄만');
+  assert.equal(JSON.stringify(saved).includes('stale'), false,
+    '★잘린 행(1행)의 내용이 저장본에 남아 있다 — 트리밍이 안 됐다');
+  assert.equal(saved[0][0].lines, undefined, '행 0 칸에는 lines 키가 없다(단일 진실원)');
 });
 
 test('updateGridBlock — cells(행0 포함 전체)로 한 번에 그리드 콘텐츠를 통째로 세팅할 수 있다', () => {

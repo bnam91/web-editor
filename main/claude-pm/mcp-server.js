@@ -3613,11 +3613,19 @@ function _registerDefaultTools() {
           sectionId: { type: 'string', description: 'sec_xxx to insert into (else uses selected section)' },
           cols: { type: 'array',
             description: 'columns — 1~4 entries, each {width:number, lines:[{type:"body"|"h1".., text:"..."}]}. '
-              + '★이것이 «행 0» 이다. 셀 글은 lines[].text 에 들어간다.' },
+              /* ★T-178(2026-09-23) — 「cols 가 곧 행 0」이 아니게 됐다. 갈림을 여기 적는다:
+                 안 적으면 예전 동작(행 0 칸에 준 꾸밈이 열 전체를 칠하던 것)이 MCP 회귀로 읽힌다. */
+              + '★cols[c].lines = «행 0 의 줄 내용»(단일 진실원 — 행 0 줄은 여기 하나뿐이다). '
+              + '★cols[c] 의 꾸밈(align/valign/bg/padding/radius) = 그 열의 «기본값»이다 — '
+              + '자기 값이 없는 칸들이 «모든 행에서» 이 값을 따른다. 「행 0 칸 하나만」 칠하려면 '
+              + 'cells[0][c] 또는 update_grid_block{patchCell:{r:0,c,bg}} 를 써라.' },
           rows: { type: 'array', description: 'row heights — [{height:"auto"|0~N}]' },
           cells: { type: 'array',
             description: '★2차원 배열 (행 × 열) — «행 0 포함». 평평한 배열을 주면 «행 N개»로 읽힌다(실측으로 데었다). '
-              + '각 칸은 {lines:[{type,text}]} 꼴. 행이 모자라면 rows 를 «같은 호출»에서 같이 줘야 한다.' },
+              + '각 칸은 {lines:[{type,text}], align?, valign?, bg?, padding?, radius?} 꼴. '
+              + '행이 모자라면 rows 를 «같은 호출»에서 같이 줘야 한다. '
+              + '★cells[0][c].lines 는 cols[c].lines 로 «흡수»된다(단일 진실원). '
+              + 'cells[0][c] 의 꾸밈은 «그 칸»의 값으로 남아 열 기본값을 덮는다.' },
           gap: { type: 'number', description: 'gap between cells, both axes (px, 0~200)' },
           rowGap: { type: 'number', description: 'row gap override (px, 0~200) — omit to use gap' },
           colGap: { type: 'number', description: 'column gap override (px, 0~200) — omit to use gap' },
@@ -3652,6 +3660,16 @@ function _registerDefaultTools() {
         + 'patchCell has TWO modes: with lineIndex → patches ONE line (text, type, fontSize, color, '
         + 'weight, align, bg, fontFamily, italic, strike, marginTop, ...); without lineIndex → patches '
         + 'the CELL (lines, align, valign, bg, padding, radius). Column width goes through patchCol. '
+        /* ★T-178(2026-09-23) — patchCell{r:0} 과 patchCol 의 갈림. 지금까지 «어디에도» 안 적혀 있었고,
+           예전엔 둘이 같은 자리에 썼다(행 0 칸에 준 색이 열 기본값이 되어 아래 행까지 칠했다).
+           ⛔이 문단을 지우지 마라 — 없으면 고쳐진 동작이 「MCP 회귀」로 읽힌다. */
+        + '★★patchCell{r:0,...} vs patchCol{index,...} — 둘은 «다른 자리»다: '
+        + 'patchCell{r:0,c,bg} = 「행 0 의 «그 칸»만」 칠한다(아래 행은 안 따라온다). '
+        + 'patchCol{index,bg} = 그 열의 «기본값» — 자기 값이 없는 칸들이 «모든 행에서» 따른다. '
+        + '둘 다 주면 칸 값이 이긴다(렌더러 우선순위: 줄 > 칸 > 열 > 블록). '
+        + '★단 «줄 내용»(lines)만은 예외다 — 행 0 의 lines 는 언제나 cols[c].lines 한 군데에 저장된다. '
+        + 'patchCell{r:0,c,lines} 는 그래서 dataset.cols 를 고친다(단일 진실원). '
+        + '⚠️꾸밈과 lines 를 «한 호출에 섞어» 주면 저장은 두 자리로 갈린다 — 둘 다 정상 반영된다. '
         + '⛔Unknown field names are REJECTED, not silently ignored — the renderer would never read them. '
         + 'Also: gap (sets both row/column gap, px 0~200), rowGap/colGap (per-axis override, px 0~200), valign. '
         + 'Returns {ok, cellCount, cellTexts} — ★cellTexts is READ BACK from the canvas '
