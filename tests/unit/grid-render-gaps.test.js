@@ -845,7 +845,10 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *     B7 롤백 · ★B8·B9·B10 양성대조 셋).
  *    ⛔여기서도 지운 것은 «하나도» 없다. ⚠️저장복원·내보내기 축은 DOM 이라 여기 «안» 센다 —
  *      tests/dom/grid-cell-border.dom.spec.js 가 잰다(이 래칫의 사각지대다, 위 피커 축과 같은 꼴). */
-const GRID_BASELINE_TESTS = 293;
+/*  ★2026-09-24 셋째 판(지디 실기 관측 회신): 293 → 296. 더한 것 = grid-intake-contract.test.js 의 3개
+ *    (U10~U10-c 「만드는 문」이 눌러 맞춘 것을 말한다 ＋ 동작 불변 바이트대조).
+ *    ⛔여기서도 지운 것은 «하나도» 없다. */
+const GRID_BASELINE_TESTS = 296;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
@@ -914,6 +917,8 @@ const POSITIVE_CONTROLS = [
   'grid-intake-contract.test.js :: U3-c ★양성대조 — 정렬 명부를 «표 없이» 되돌린 사본에선 오타가 화면으로 새 나간다',
   'grid-intake-contract.test.js :: U5 ★★양성대조 — 계약 함수 «하나»를 무력화하면 네 문이 «같이» 뚫린다',
   'grid-intake-contract.test.js :: U8-d ★양성대조 — 값 잣대를 «뺀» 사본은 gradient 를 받고 옛 배경을 죽인다',
+  /* ★2026-09-24 지디 실기 관측 회신 — 「만드는 문」 쪽 양성대조(동작 불변 대조를 겸한다). */
+  'grid-intake-contract.test.js :: U10-c ★★동작 불변 ＋ 양성대조 — 말을 «뗀» 사본과 dataset 이 바이트 동일이다',
 ];
 
 function livePositiveControls() {

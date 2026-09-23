@@ -567,3 +567,100 @@ test('U9-c ★★동작 불변 — 말을 붙여도 «잘린 결과»는 바이�
   assert.ok(!(res.ignoredProps || []).some(p => /cols/.test(p)) || res.ok === true,
     '★변이본이 여전히 그 말을 한다 — U9 가 재는 것은 «그 보고»가 아니다');
 });
+
+/* ═══════════════════════════════════════════════════════════════════════
+   U10 — ★「만드는 문」이 «눌러 맞춘 것»을 말한다 (2026-09-24, 지디 실기 관측)
+   고치기 전 실측 — 같은 값에 두 문이 «다른 답»을 했다:
+     cols 6개 / rows 6개 → update: ok:false INVALID · add: ok:true 조용히 4
+     valign:'중간'        → update: ok:false        · add: ok:true 조용히 'top'
+     gap:999             → update: ok:false(0~200)  · add: ok:true ★999 가 그대로 저장
+     rowGap:999          → update: ok:false        · add: 조용히 안 써짐
+   ⛔동작은 «한 바이트도» 안 바꾼다(U10-c 가 그걸 바이트로 못박는다) — 말만 시킨다.
+     까닭: T-180 이 이 모양의 처방을 「말을 시킨다」로 못박았고(막으라고 안 했다),
+     만들기를 거절로 바꾸면 오타 하나에 블록이 «안 생긴다» — 지킬 옛 값도 없는데.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** addGridBlock 이 «끝까지» 가게 창을 깐다. ⛔안 깔면 getSelectedSection 이 없어 null 로
+ *  조기반환하고, 그러면 아래 관측이 전부 «다른 이유»로 조용해진다(거짓 음성). */
+function withSection(fn) {
+  const saved = globalThis.window;
+  globalThis.window = {
+    getSelectedSection: () => ({ dummy: 1 }), pushHistory() {}, buildLayerPanel() {},
+    selectBlock() {}, triggerAutoSave() {}, showNoSelectionHint() {},
+  };
+  try { return fn(); } finally { globalThis.window = saved; }
+}
+const ignoredOf = (r) => ((r && r.notApplied) || {}).ignoredProps || [];
+const L = () => [{ type: 'body', text: 'X' }];
+
+test('U10 ★만드는 문이 «눌러 맞춘 것»을 전부 말한다 — 그리고 동작은 그대로다', () => {
+  withSection(() => {
+    const cases = [
+      ['cols 6개', { cols: [1, 2, 3, 4, 5, 6].map(() => ({ width: 1, lines: L() })) }, 'cols[4..5]',
+        (b) => assert.equal(JSON.parse(b.dataset.cols).length, 4, '★동작이 바뀌었다 — 여전히 4로 잘려야 한다')],
+      ['rows 6개', { cols: [{ width: 1, lines: L() }], rows: Array.from({ length: 6 }, () => ({ height: 'auto' })) }, 'rows[4..5]',
+        (b) => assert.equal(JSON.parse(b.dataset.rows).length, 4, '★동작이 바뀌었다 — 여전히 4로 잘려야 한다')],
+      ["valign:'중간'", { cols: [{ width: 1, lines: L() }], valign: '중간' }, 'valign',
+        (b) => assert.equal(b.dataset.valign, 'top', '★동작이 바뀌었다 — 여전히 기본값으로 떨어져야 한다')],
+      ['gap 999', { cols: [{ width: 1, lines: L() }], gap: 999 }, 'gap',
+        (b) => assert.equal(b.dataset.gap, '999', '★★동작이 바뀌었다 — 999 는 «그대로 저장»돼야 한다(자르는 건 별건)')],
+      ['rowGap 999', { cols: [{ width: 1, lines: L() }], rowGap: 999 }, 'rowGap',
+        (b) => assert.equal(b.dataset.rowGap, undefined, '★동작이 바뀌었다 — 여전히 안 써져야 한다')],
+      ['모르는 이름', { cols: [{ width: 1, lines: L(), gdtProbe: 'v' }] }, 'cols[0].gdtProbe', null],
+      ['모르는 값', { cols: [{ width: 1, lines: L(), bg: BAD_BG }] }, 'cols[0].bg', null],
+      /* ★지디 관측엔 없던 자리 — rows 없이 cells 만 주면 «칸 내용 전부»가 조용히 버려진다 */
+      ['rows 없는 cells', { cols: [{ width: 1, lines: L() }], cells: [[{ lines: L() }]] }, 'cells', null],
+    ];
+    for (const [name, opts, wantPath, checkBehaviour] of cases) {
+      const r = G.addGridBlock(opts);
+      assert.ok(r && r.block, `★'${name}': 블록이 안 만들어졌다 — 아래 단언이 «다른 이유»로 움직인다`);
+      assert.ok(ignoredOf(r).some(p => p === wantPath),
+        `★'${name}' 를 «조용히» 눌러 맞췄다 — ignoredProps:${JSON.stringify(ignoredOf(r))} (기대: ${wantPath})`);
+      assert.match(r.notApplied.hint, /NOT applied/, `★'${name}': 까닭을 안 적었다`);
+      if (checkBehaviour) checkBehaviour(r.block);
+    }
+  });
+});
+
+test('U10-b ★음성대조 — 멀쩡한 호출엔 notApplied 키 자체가 없다', () => {
+  withSection(() => {
+    const r = G.addGridBlock({
+      cols: [1, 2, 3].map(() => ({ width: 1, lines: L() })),
+      rows: [{ height: 'auto' }, { height: 40 }], valign: 'middle', gap: 32, rowGap: 8,
+      cells: [[{ lines: L() }, { lines: L() }, { lines: L() }], [{ lines: L() }, { lines: L() }, { lines: L() }]],
+    });
+    assert.ok(r && r.block, '★멀쩡한 호출인데 블록이 안 생겼다');
+    assert.equal(r.notApplied, undefined,
+      `★아무 일 없는 호출에 「안 됐다」를 달았다 — 그러면 이 쪽지는 아무 뜻이 없다: ${JSON.stringify(ignoredOf(r))}`);
+    assert.equal(JSON.parse(r.block.dataset.cols).length, 3, '★음성대조 판 자체가 안 깔렸다');
+    assert.equal(r.block.dataset.valign, 'middle');
+  });
+});
+
+test('U10-c ★★동작 불변 ＋ 양성대조 — 말을 «뗀» 사본과 dataset 이 바이트 동일이다', async () => {
+  /* 보고를 «버리는» 사본 — 부르는 쪽이 건넨 자리를 안 쓰고 제 것을 쓴다(고치기 전과 같은 꼴).
+     ⛔각 drops.push 를 정규식으로 «도려내지» 않는다 — 한 번 그렇게 했다가 블록 경계를 넘어
+       먹어서 「Illegal return statement」가 났다. 닻 «하나»로 통째를 무력화하는 쪽이 안전하다. */
+  const mutated = RAW.replace('function makeGridBlock(opts = {}, drops = []) {',
+    'function makeGridBlock(opts = {}, _thrownAway = []) { const drops = [];');
+  assert.notEqual(mutated, RAW, '★변이가 «주입되지 않았다» — 이 대조는 아무것도 안 쟀다');
+  const M = await loadGrid(mutated);
+
+  const OPTS = [
+    { cols: [1, 2, 3, 4, 5, 6].map(() => ({ width: 1, lines: L() })) },
+    { cols: [{ width: 1, lines: L() }], rows: Array.from({ length: 6 }, () => ({ height: 'auto' })) },
+    { cols: [{ width: 1, lines: L() }], valign: '중간', gap: 999, rowGap: 999 },
+    { cols: [{ width: 1, lines: L() }], cells: [[{ lines: L() }]] },
+  ];
+  let sawQuiet = false;
+  for (const opts of OPTS) {
+    const a = withSection(() => G.addGridBlock(opts));
+    const c = withSection(() => M.addGridBlock(opts));
+    const ds = (b) => JSON.stringify({ cols: b.dataset.cols, rows: b.dataset.rows, cells: b.dataset.cells,
+      gap: b.dataset.gap, rowGap: b.dataset.rowGap, colGap: b.dataset.colGap, valign: b.dataset.valign });
+    assert.equal(ds(a.block), ds(c.block), '★말을 붙이면서 «저장본»이 달라졌다 — 이 판은 동작을 안 바꾼다');
+    assert.equal(a.block.innerHTML, c.block.innerHTML, '★말을 붙이면서 «화면»이 달라졌다');
+    if (c.notApplied === undefined) sawQuiet = true;
+  }
+  assert.ok(sawQuiet, '★말을 뗀 사본이 여전히 말을 한다 — U10 이 재는 것은 «그 보고»가 아니다');
+});

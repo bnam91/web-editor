@@ -3611,8 +3611,15 @@ function _registerDefaultTools() {
         + 'with a gap > 0 each cell becomes its own boxed card. cellBorderColor/cellBorderStyle tune it. '
         + 'Returns {ok, blockId(grd_), cols, cellCount} — cellCount is READ BACK from the canvas, not echoed from the args. '
         + '★imgSrc inside cols/cells has a length cap here too (2026-09-24 T-170) — an over-cap image is '
-        + 'rejected with TOO_LARGE and NO block is created. ⚠️This door reports resource limits only; '
-        + 'unlike update_grid_block it has no channel for per-field "not applied" notes. '
+        + 'rejected with TOO_LARGE and NO block is created. '
+        /* ★2026-09-24 — 「보고할 칸이 없다」를 걷는다. 칸은 만들면 되는 것이었다(지디 실기 관측). */
+        + '★★This door CLAMPS instead of refusing, and now SAYS SO. Values update_grid_block would '
+        + 'reject are squeezed into range here exactly as before (cols/rows over 4 are truncated, an '
+        + 'off-list valign falls back, an out-of-range rowGap/colGap is not written, cells sent WITHOUT '
+        + 'rows are dropped entirely) — but the reply now carries ignoredProps/hint naming each one. '
+        + '⚠️gap is the one value that is neither clamped nor refused: it is stored as given, so a gap '
+        + 'outside 0~200 creates a grid that update_grid_block can no longer edit through that field; '
+        + 'the reply flags it. '
         + '⚠️Legacy projects store the same block with a duo_ prefix (renamed); reading handles both.',
       inputSchema: {
         type: 'object',
