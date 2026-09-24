@@ -2,7 +2,9 @@
    구조(컬럼/라인 추가·삭제)는 CDP/updateGridBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
 import { parseRatio, buildGridPicker, alignBtn, bindSlider, blockHeaderHTML } from './_helpers.js';
-import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★상한은 한 곳에서만 온다
+/* ★상·하한은 한 곳에서만 온다 — IMG_MIN_PCT 는 캔버스 코너 드래그(resizeGridImage)가 쓰는
+   «그» 하한이다. 패널의 폭(%) 칸이 같은 수를 쓰게 import 한다(손으로 5 를 적지 않는다). */
+import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
          gridGaps, GRID_GAP_MAX, GRID_IMG_MAX_BYTES, gridCellsToDataset,
@@ -427,6 +429,23 @@ function _grdWireKindSelects(block, r, c, afterLi) {
   });
 }
 
+/** 줄바 요약 한 줄 — ⛔두 벌 만들지 마라.
+ *  «처음 그릴 때»(_grdLineBarHtml)와 «제자리 갱신»(_grdRefreshSummary)이 이 함수 «하나»를 쓴다.
+ *  한 곳만 고치면 타이포를 한 번 만질 때마다 옛 문구가 돌아온다(2026-09-25 R4 가 본 자리).
+ *
+ *  ★2026-09-25 R4 — 이미지·갭 줄에서도 「직접 지정 0 · 역할 기본 8」이라 «타이포 수»를 셌다.
+ *    그 줄엔 타이포 필드가 뜻이 없다 — 옆 [↺ 기본] 단추가 그래서 disabled 다. 판정은
+ *    이미 있던 gridLineHasText 하나로 가른다(새 판정을 만들지 않는다). */
+function _grdSummaryText(r, c, li, line) {
+  const head = `${r + 1}행 ${c + 1}열 · ${li + 1}번째 줄`;
+  if (!gridLineHasText(line)) {
+    const kind = line.type === 'image' ? '그림 줄' : line.type === 'gap' ? '여백 줄' : `${line.type || 'body'} 줄`;
+    return `${head} — ${kind} · 타이포 없음`;
+  }
+  const nSet = _GRD_TYPO_FIELDS.filter(k => _grdHas(line, k)).length;
+  return `${head} (${line.type || 'body'}) — 직접 지정 ${nSet} · 역할 기본 ${_GRD_TYPO_FIELDS.length - nSet}`;
+}
+
 /* ══ 줄바(line bar) — 요약 + [종류▾] / [+ 줄 추가▾]·[줄 삭제]·[↺ 기본값으로] ══
  * ★Typography 절에서 분리됐다(2026-09-16) — 이전엔 «글자 줄»에서만 떴다(_grdResolveAddr 이
  *   텍스트 줄만 인정해서, prop-grid.js 옛 _grdTypoSectionsHtml 안에 같이 있었다). 이미지·갭
@@ -439,11 +458,21 @@ function _grdWireKindSelects(block, r, c, afterLi) {
  *     클릭 1회 → grid-block 선택됨, 칸 손잡이 «안 뜸» / 클릭 2회 → 뜸.
  *   ⛔2단 선택 «자체»는 안 바꾼다 — 블럭 드래그·이동이 거기 매달려 있다. 말을 맞춘다.
  *   ⚠️여기는 JSX 가 «아니다» — 템플릿 문자열이다. 중괄호 주석(JSX 식)을 넣으면 화면에 그대로 찍힌다. */
+/* ★2026-09-25 R5 — 「캔버스를 클릭하라」가 «세 조각»으로 흩어져 있었다:
+ *   ⑴ 여기(`!anyHit`) ⑵ _grdTypoSectionsHtml 의 `!hit` ⑶ 패널 맨 끝의 「글자는 …더블클릭해 고친다」.
+ *   셋이 서로를 모른 채 각각 한 줄씩 썼고, ⑶ 은 `.prop-label`(56px 고정·overflow:hidden)에
+ *   갇혀 «193px 중 56px»만 읽혔다(=R1).
+ * ⇒ «지시»는 여기 한 문장으로 모은다 — 두 단계(칸 고르기 → 글자 고치기)를 한 줄에 잇는다.
+ *   ⑶ 은 «지워지지 않고 이 문장에 흡수됐다»(R1 은 R5 에 흡수). ⑵ 는 지시를 버리고
+ *   «이 절의 상태»만 말하게 바꿨다(Typography 절은 그대로 뜬다 — 빈 절 숨기기는 별건 R10).
+ * ⛔이 문장을 «줄이 골라진» 갈래(아래)로 옮기지 마라 — 그 절은
+ *   tests/dom/grid-cell-panel-handles.dom.spec.js G2 ⑵ 의 «닻»이라, 한 줄만 더해도
+ *   「줄바가 기준선보다 아래로 밀렸다」가 빨개진다(Δ ≤ 0). */
 function _grdLineBarHtml(anyHit, block) {
   if (!anyHit) {
     return `
     <div class="prop-section">
-      <div class="prop-hint">블럭이 골라졌다. 칸이나 줄을 «한 번 더» 클릭하면 여기서 줄을 추가·삭제할 수 있다.</div>
+      <div class="prop-hint">칸을 한 번 더 누르면 줄 편집 · 두 번 누르면 글자 편집</div>
     </div>`;
   }
   const { r, c, li, line } = anyHit;
@@ -465,9 +494,7 @@ ${_grdAddKindSelectHtml()}
     </div>`;
   }
   const isTextLine = gridLineHasText(line);
-  const nSet = _GRD_TYPO_FIELDS.filter(k => _grdHas(line, k)).length;
-  const summary = `${r + 1}행 ${c + 1}열 · ${li + 1}번째 줄 (${line.type || 'body'}) — `
-    + `직접 지정 ${nSet} · 역할 기본 ${_GRD_TYPO_FIELDS.length - nSet}`;
+  const summary = _grdSummaryText(r, c, li, line);
   let cellLineCount = 1;
   try { cellLineCount = (getGridModel(block).cells?.[r]?.[c]?.lines || []).length || 1; } catch (_) {}
   const canDeleteLine = cellLineCount > 1;
@@ -542,6 +569,17 @@ function _grdImageSectionHtml(anyHit, block) {
   const { r, c, line } = anyHit;
   const h = Number(line.height) || '';
   const rad = Number(line.radius) || '';
+  /* ★2026-09-25 R6 — `widthPct` 는 «모델·렌더러가 이미 읽는» 이름인데 패널엔 그 값을 주는
+   *   손잡이가 «0개»였다. 명부(grid-block.js GRID_LINE_FIELDS)에 있고, `_gridLineHtml` 이
+   *   `Number(line.widthPct)` 를 읽고, 바로 아래 줄 꾸미기 절의 `imgFull` 판정도 그 값을 읽는다.
+   *   ⇒ «값은 사는데 손잡이가 없어» 캔버스 코너 드래그(js/grid-cell-resize.js)가 유일한 길이었다.
+   *     그래서 「그림이 칸 안에서 안 움직인다」가 풀리지 않았다 — 폭이 100%면 렌더러의
+   *     `wp < 100` 가드 때문에 정렬이 안 먹는데, 폭을 줄일 데가 패널에 없었다.
+   * ⛔저장 포맷은 «한 글자도» 안 바뀐다 — 이미 명부에 있는 이름이다. 새 필드가 아니다.
+   * ★빈 칸 = «폭 지정 없음» = 렌더러 기본 100%(grid-block.js `_gridLineHtml` 의 `: 100`).
+   *   그래서 placeholder 가 "100" 이다(장식이 아니라 «역할 기본값» — 숫자칸 규약 ⑶). */
+  const wpN = Number(line.widthPct);
+  const wp = Number.isFinite(wpN) ? wpN : '';
   /* ★「이미지 제거」= «줄 삭제»와 같은 동작(줄 자체를 지운다, imgSrc만 비우지 않는다) —
    *   T-009 버그A: imgSrc만 비우면 line.type==='image'가 그대로 남아 렌더러가 빈 이미지
    *   placeholder(회색 배경, grid-block.js:385)를 영구히 그린다. 「제거」가 곧 「줄 삭제」이므로
@@ -554,6 +592,10 @@ function _grdImageSectionHtml(anyHit, block) {
       <div class="prop-section-title">Image</div>
       <div class="prop-row">
         <button id="grd-img-pick-btn" class="prop-btn-full">${line.imgSrc ? '이미지 교체…' : '이미지 선택…'}</button>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label" title="칸 안에서 그림이 차지하는 가로 폭(%). 100 이면 정렬이 안 보인다 — 줄일 데가 없어서다. 비우면 100.">폭(%)</span>
+        <input type="number" class="prop-number" id="grd-img-width-pct" min="${IMG_MIN_PCT}" max="100" placeholder="100" value="${wp}">
       </div>
       <div class="prop-row">
         <span class="prop-label">높이(px)</span>
@@ -594,16 +636,22 @@ function _grdWireImageSection(block, addr) {
     input.click();
   });
 
-  const numWire = (id, field) => {
+  /* ★하한·상한은 «칸 자신의 min/max 속성»이 정본이다(js/props/prop-number-commit-guard.js 의
+     규약 — 가드가 그 속성으로 클램프하고 칸에 되쓴다). 여기 lo/hi 는 그 뒤에 오는 «두 번째 그물»이다.
+     ⛔두 수를 손으로 적지 마라 — 폭(%)의 5 는 js/grid-cell-resize.js 의 IMG_MIN_PCT 에서 온다
+       (캔버스 코너 드래그가 쓰는 바로 그 하한. 두 길이 같은 범위를 쓰게). */
+  const numWire = (id, field, lo = 0, hi = Infinity) => {
     document.getElementById(id)?.addEventListener('change', (e) => {
       const raw = String(e.target.value).trim();
-      const v = raw === '' ? undefined : Math.max(0, parseInt(raw, 10) || 0);
+      const v = raw === '' ? undefined : Math.max(lo, Math.min(hi, parseInt(raw, 10) || 0));
       window.pushHistory?.();
       gridPreviewLine(block, r, c, li, { [field]: v });
       _grdSyncLineMark(block, { r, c, li });   // 재렌더가 마커를 지웠다 — 다시 붙인다
       window.scheduleAutoSave?.();
+      window.showGridImageResizeHandle?.(block);   // ★폭/높이가 바뀌면 코너 핸들 자리도 따라가야 한다
     });
   };
+  numWire('grd-img-width-pct', 'widthPct', IMG_MIN_PCT, 100);
   numWire('grd-img-height', 'height');
   numWire('grd-img-radius', 'radius');
 
@@ -897,8 +945,13 @@ function _grdStripLineAlign(lines) {
  *    이 루프가 그것까지 «같이» 걷는다. 그게 맞다: 「열 통째로 건다」 단추는 행 0 칸에 걸린
  *    오버라이드도 걷어야 정말 통째로 걸린다.
  *  ⛔행 0 의 «줄 정렬»(line.align)은 여기 없다 — 행 0 의 줄은 cols[c].lines 다. 호출부가
- *    cols 쪽에서 _grdStripLineAlign 으로 따로 걷는다(그 자리는 안 바뀌었다). */
-function _grdStripCellOverride(block, field) {
+ *    cols 쪽에서 _grdStripLineAlign 으로 따로 걷는다(그 자리는 안 바뀌었다).
+ *  ★2026-09-25 R3 — `dryRun` 은 «묻기만» 한다(걷지 않고, dataset 에도 안 쓴다).
+ *    패널이 「지울 게 있을 때만」 예고 한 줄을 띄우려면 «판정»이 필요한데, 그 판정을
+ *    사본으로 만들면 걷는 쪽과 조용히 갈린다(예고는 뜨는데 실제론 안 지워지거나 그 반대).
+ *    ⇒ 같은 루프에 스위치 하나. ⛔예고용으로 «부작용 있는» 호출을 하지 마라 — 그리면서
+ *      데이터를 지우게 된다. */
+function _grdStripCellOverride(block, field, dryRun) {
   let cells;
   try { cells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { return false; }
   if (!Array.isArray(cells) || !cells.length) return false;
@@ -907,15 +960,31 @@ function _grdStripCellOverride(block, field) {
     if (!Array.isArray(row)) return;
     row.forEach(cell => {
       if (!cell || typeof cell !== 'object') return;
-      if (cell[field] !== undefined) { delete cell[field]; hit = true; }
+      if (cell[field] !== undefined) { if (!dryRun) delete cell[field]; hit = true; }
       if (field === 'align' && Array.isArray(cell.lines)) {
         if (cell.lines.some(l => l && typeof l === 'object' && l.align !== undefined)) hit = true;
-        _grdStripLineAlign(cell.lines);
+        if (!dryRun) _grdStripLineAlign(cell.lines);
       }
     });
   });
-  if (hit) block.dataset.cells = gridCellsToDataset(cells);
+  if (hit && !dryRun) block.dataset.cells = gridCellsToDataset(cells);
   return hit;
+}
+
+/** cols 쪽에 «걷힐» 정렬이 있나 — 묻기만 한다(R3 예고용).
+ *  ⛔왜 _grdStripCellOverride 로 못 묻나: 그건 dataset.cells 만 본다. cols 에도 걷히는 것이 둘 있다 —
+ *    ⑴ 행 0 의 «줄 정렬»(cols[c].lines[].align — 행 0 의 줄은 cells 가 아니라 cols 에 산다)
+ *    ⑵ 열 «세로정렬»(col.valign — [data-va] 핸들러가 지운다)
+ *  ⛔여기서 걷지 않는다. 걷는 자리는 아래 [data-ha]/[data-va] 핸들러 그대로 한 곳뿐이다. */
+function _grdColsHaveAlignOverride(block, field) {
+  let cols;
+  try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) { return false; }
+  if (!Array.isArray(cols)) return false;
+  return cols.some(col => {
+    if (!col || typeof col !== 'object') return false;
+    if (field === 'valign') return col.valign !== undefined;
+    return Array.isArray(col.lines) && col.lines.some(l => l && typeof l === 'object' && l.align !== undefined);
+  });
 }
 
 /* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
@@ -1019,9 +1088,17 @@ function _gapRowHtml(cols, rows, colGap, rowGap) {
  *  ⇒ 줄바 «위»에는 무엇도 새로 못 올린다. 그래서 바로 아래에 «자기 절»로 놓는다.
  *  ★덤 — 칸/줄을 안 고른 «블록만 선택» 상태에서는 줄바·칸 꾸미기·줄 꾸미기가 전부 빈 문자열이라,
  *    이 절이 Layout 바로 다음에 온다. 「표를 만들려고 블록을 고른」 사람이 보는 순서가 그거다. */
+/* ★2026-09-25 R2 — 이 절의 «범위»가 화면에 없었다.
+ *   슬라이더는 «블록의 모든 칸»에 걸리는데, 바로 25px 아래 「칸 꾸미기 · 1행 1열」 절은
+ *   「이 칸에만 적용된다」고 적혀 있다. 둘 다 「칸…」으로 시작해 같은 축으로 읽혔다.
+ * ⇒ 절 제목 한 줄로 범위를 «먼저» 말한다. 라벨을 「모든 칸 테두리」로 늘리는 길도 있었지만
+ *   `.prop-label` 은 56px 고정(overflow:hidden)이라 그 자리에서 잘린다 — R1 이 고치고 있는
+ *   바로 그 병이다. 제목은 다른 절(Grid·Layout·Image)과 «같은 부품»이라 새 관용구도 아니다.
+ * ⛔자리는 안 옮긴다 — 줄바 «바로 아래»는 G2 ⑵(줄바가 더 밀리면 안 된다) 때문에 정해진 자리다. */
 function _borderSectionHtml(bd) {
   return `
     <div class="prop-section">
+      <div class="prop-section-title" title="이 블록의 «모든 칸»에 걸린다 — 아래 「칸 꾸미기」 절(그 칸 하나)과 축이 다르다">모든 칸 테두리</div>
 ${_borderRowHtml(bd)}
     </div>`;
 }
@@ -1031,7 +1108,7 @@ function _borderRowHtml(bd) {
   const hex = swatchHex(bd.color, '#d0d0d0');
   const widthRow = `
       <div class="prop-row">
-        <span class="prop-label" title="모든 칸에 선을 두른다 — 표처럼 보이게. 0 = 없음. 간격을 0 으로 두면 선이 «한 겹»으로 붙어 표가 된다">칸 테두리</span>
+        <span class="prop-label" title="모든 칸에 선을 두른다 — 표처럼 보이게. 0 = 없음. 간격을 0 으로 두면 선이 «한 겹»으로 붙어 표가 된다">굵기</span>
         <input type="range" class="prop-slider" id="grd-border-w-slider" min="0" max="${GRID_BORDER_W_MAX}" step="1" value="${bd.width}">
         <input type="number" class="prop-number" id="grd-border-w-number" min="0" max="${GRID_BORDER_W_MAX}" value="${bd.width}">
       </div>`;
@@ -1071,7 +1148,10 @@ function _grdTypoSectionsHtml(hit, block) {
     return `
     <div class="prop-section">
       <div class="prop-section-title">Typography</div>
-      <div class="prop-hint">캔버스에서 «글자 줄을 클릭»하면 그 줄의 Typography·Fill 이 여기 뜬다.</div>
+      <!-- ★2026-09-25 R5 — 옛 문구는 「캔버스에서 «글자 줄을 클릭»하면 …」이라 줄바의 안내와
+           «같은 지시»를 두 번째로 했다. 지시는 줄바 한 자리에 모았고(_grdLineBarHtml),
+           여기는 «이 절의 상태»만 말한다. ⛔빈 절 자체를 숨기는 것은 별건(R10)이다. -->
+      <div class="prop-hint">글자 줄을 고르면 여기 뜬다</div>
     </div>`;
   }
   const { line } = hit;
@@ -1311,7 +1391,7 @@ ${_grdKindSelectHtml(line)}
         ${canAlign ? `<div class="prop-row">
           <span class="prop-label" title="이 «줄»만 정렬한다(기본 = 열을 따른다). 열 정렬 단추는 그 열 전체다">줄 정렬</span>
           <select class="prop-select" id="grd-line-align" title="이 줄의 가로 정렬(기본 = 칸을 따른다)">${_grdOptsHtml(_GRD_CELL_ALIGNS, line.align)}</select>
-        </div>${imgFull ? `<div class="prop-hint" style="text-align:left;padding:0 0 6px;">그림 폭이 100%라 정렬이 안 보인다 — 줄일 데가 없어서다. 코너를 끌어 폭을 줄이면 움직인다.</div>` : ''}` : ''}
+        </div>${imgFull ? `<div class="prop-hint" style="text-align:left;padding:0 0 6px;">그림 폭이 100%라 정렬이 안 보인다 — 줄일 데가 없어서다. 아래 Image 절의 「폭(%)」를 줄이거나 캔버스에서 코너를 끌면 움직인다.</div>` : ''}` : ''}
         ${isText ? `<div class="prop-row" style="margin-bottom:0;">
           <span class="prop-label" title="배경을 주면 이 줄이 «알약»(둥근 인라인 배지)이 된다. 비우면 꺼진다.">알약 배경</span>
           <div class="prop-color-swatch${raw ? '' : ' swatch-none'}"${raw ? ` style="background:${raw}"` : ''}>
@@ -1378,14 +1458,15 @@ function _grdWireLineSection(block, addr) {
   });
 }
 
-/** 요약 한 줄의 «직접 지정 N» 만 제자리에서 고친다 — 패널을 다시 그리지 않는다(포커스 보존). */
+/** 요약 한 줄의 «직접 지정 N» 만 제자리에서 고친다 — 패널을 다시 그리지 않는다(포커스 보존).
+ *  ⛔문구를 여기 «다시 적지» 마라 — _grdSummaryText 한 곳에서만 온다(R4). */
 function _grdRefreshSummary(block, addr) {
   const el = document.getElementById('grd-line-summary');
   const line = _grdLine(block, addr);
   if (!el || !line) return;
-  const n = _GRD_TYPO_FIELDS.filter(k => _grdHas(line, k)).length;
-  el.textContent = `${addr.r + 1}행 ${addr.c + 1}열 · ${addr.li + 1}번째 줄 (${line.type || 'body'}) — `
-    + `직접 지정 ${n} · 역할 기본 ${_GRD_TYPO_FIELDS.length - n}`;
+  const s = _grdSummaryText(addr.r, addr.c, addr.li, line);
+  el.textContent = s;
+  el.title = s;
 }
 
 /**
@@ -1425,6 +1506,17 @@ export function showGridProperties(block, addrArg) {
   // 가로 정렬은 컬럼 모델(col.align)에 산다. 컬럼마다 다르면(혼합) 어느 버튼도 active 로 켜지 않는다.
   const _aligns = cols.map(c => c.align || 'left');
   const halign = (_aligns.length && _aligns.every(a => a === _aligns[0])) ? _aligns[0] : '';
+  /* ★2026-09-25 R3 — 아래 정렬 단추는 «열을 단일 진실원으로» 만들려고 칸·줄에 따로 준 정렬을
+   *   전부 걷는다(그 설계는 그대로 둔다 — 아래 [data-ha]/[data-va] 주석이 까닭을 적어 뒀다).
+   *   그런데 같은 화면 안내문 아홉 줄 중 «이를 예고하는 문장이 0줄»이었다: 한 번 누르면
+   *   말없이 지워진다.
+   * ⇒ 「지울 게 있을 때만」 한 줄 예고한다 — 늘 띄우면 그게 또 소음이 되고, 피커가 이미
+   *   같은 꼴(「줄이면 잘린 칸 내용은 사라진다 (⌘Z 복원)」)로 파괴를 예고하고 있어서 꼴을 베꼈다.
+   * ⛔판정은 «걷는 그 루프»에 dryRun 으로 묻는다 — 사본을 만들면 예고와 실제가 갈린다. */
+  const _alignWipes = _grdStripCellOverride(block, 'align', true)
+                   || _grdStripCellOverride(block, 'valign', true)
+                   || _grdColsHaveAlignOverride(block, 'align')
+                   || _grdColsHaveAlignOverride(block, 'valign');
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -1468,6 +1560,7 @@ ${blockHeaderHTML({
           ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: valign === 'bottom', attrs: { 'data-va': 'bottom' } })}
         </div>
       </div>
+      ${_alignWipes ? '<div class="prop-hint" style="text-align:left;padding:2px 0 4px;">칸·줄에 따로 준 정렬은 지워진다 (⌘Z 복원)</div>' : ''}
       <div class="prop-hint" style="margin-top:2px;">세로 정렬은 컬럼 높이가 서로 다를 때만 움직인다</div>
     </div>
     ${_grdLineBarHtml(_anyHit, block)}
@@ -1475,10 +1568,20 @@ ${blockHeaderHTML({
     ${_grdCellSectionHtml(_anyHit, block)}
     ${_grdLineSectionHtml(_anyHit, block)}
     ${_grdImageSectionHtml(_anyHit, block)}
-    ${_grdTypoSectionsHtml(_hit, block)}
-    <div class="prop-section">
-      <div class="prop-row"><span class="prop-label" style="opacity:.6">글자는 «캔버스에서 줄을 더블클릭»해 고친다</span></div>
-    </div>`;
+    ${_grdTypoSectionsHtml(_hit, block)}`;
+  /* ★2026-09-25 R1＋R5 — 여기 있던 마지막 절
+       「글자는 «캔버스에서 줄을 더블클릭»해 고친다」
+     을 «지웠다». 두 가지가 한꺼번에 걸려 있었다:
+       R1 그 말이 `.prop-label`(56px 고정 · overflow:hidden)에 갇혀 실측 193px 중 56px,
+          즉 «약 29%»만 읽혔다. (`.prop-label--auto` 로 풀 수도 있었다 — css/editor-props.css 의
+          그 클래스 주석이 정확히 이 사고를 적어 뒀다.)
+       R5 그 말은 「캔버스를 클릭하라」를 말하는 «세 조각» 중 ⑶ 이었다.
+     ⇒ 폭을 넓혀 «세 번째 조각을 또렷하게» 만드는 대신, 줄바 한 문장
+       (「칸을 한 번 더 누르면 줄 편집 · 두 번 누르면 글자 편집」)에 흡수시켰다.
+       ★그래서 R1 은 «따로 남지 않는다» — R5 에 흡수됐다.
+     ⚠️거래 — 그 한 문장은 «칸/줄을 아직 안 고른» 상태에서만 뜬다. 줄을 고른 뒤에는
+       「더블클릭하면 글자를 고친다」가 화면에 없다. 줄바 절에 넣으면 G2 ⑵(줄바가 더 밀리면
+       안 된다)가 빨개져서 그 자리에는 못 둔다 — 자리가 필요하면 별건으로 발주해야 한다. */
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
