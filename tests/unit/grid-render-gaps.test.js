@@ -852,7 +852,11 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *    (U11 「이 쪽지는 «언제» 나는가」 — 줄면 «언제나» 난다, 잃은 것 유무는 droppedCells 가 가른다
  *     · U11-b·U11-c 는 «오늘 되는 것»을 잠그는 자물쇠다(6738aad 에서 이미 초록 — 새 요구가 아니다)).
  *    ⛔여기서도 지운 것은 «하나도» 없다. */
-const GRID_BASELINE_TESTS = 299;
+/*  ★2026-09-24 다섯째 판: 299 → 310. 더한 것 = tests/unit/grid-gap-clamp.test.js 의 11개
+ *    (「만드는 문」의 gap 도 «자르되 말한다» — G2·G2-b 가 ⛔「렌더러 무접촉」을 «바이트»로 잠그는
+ *     자물쇠고, G5 가 「GO 범위 밖(rowGap/colGap)은 안 건드렸다」를 잠근다).
+ *    ⛔여기서도 지운 것은 «하나도» 없다. */
+const GRID_BASELINE_TESTS = 310;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
@@ -923,6 +927,9 @@ const POSITIVE_CONTROLS = [
   'grid-intake-contract.test.js :: U8-d ★양성대조 — 값 잣대를 «뺀» 사본은 gradient 를 받고 옛 배경을 죽인다',
   /* ★2026-09-24 지디 실기 관측 회신 — 「만드는 문」 쪽 양성대조(동작 불변 대조를 겸한다). */
   'grid-intake-contract.test.js :: U10-c ★★동작 불변 ＋ 양성대조 — 말을 «뗀» 사본과 dataset 이 바이트 동일이다',
+  /* ★2026-09-24 gap 자르기(ⓑ 판정) — 렌더러 무접촉 자물쇠의 양성대조 ＋ 구멍이 실재했다는 대조. */
+  'grid-gap-clamp.test.js :: G2-b ★양성대조 — 렌더러를 «좁힌» 사본은 같은 저장본을 «다르게» 그린다',
+  'grid-gap-clamp.test.js :: G3 ★양성대조 — 기준판은 gap:999 를 «그대로 저장»한다(구멍이 실재했다)',
 ];
 
 function livePositiveControls() {
