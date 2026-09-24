@@ -325,4 +325,60 @@ test('R6-src ★폭(%)의 하한이 «캔버스 드래그와 같은 상수»에�
     '그러면 이건 «새 필드»이고 저장 포맷이 바뀐 것이다').toBe(true);
 });
 
+/* ── ㉡ G2 골든 픽스처의 «전제»를 기계로 못박는다 ───────────────────────────
+ * 팀리드 물음: R3 예고가 뜰 때 줄바가 +20px 밀리는데(실측 826 → 846), 골든 픽스처가 그
+ *   갈래를 «영영» 안 지나는가 «우연히» 안 지나는가.
+ * ⇒ 답은 «우연히»다. grid-cell-panel-handles.dom.spec.js 의 FIX_4x4 는 칸을
+ *   `{ lines: [...] }` 로만 짓고 align/valign 을 한 번도 안 준다 — 그래서 _alignWipes 가
+ *   false 이고 예고가 «안» 뜬다. 그걸 보장하는 못은 어디에도 없었다.
+ *   다음 사람이 그 픽스처에 align 을 «하나만» 더해도 G2 ⑵(Δ≤0)가 빨개진다.
+ * ⇒ 「우연」을 «재어진 사실»로 바꾼다. 픽스처가 그 전제를 깨면 여기가 «먼저» 빨개져서,
+ *   G2 가 「줄바가 밀렸다」로 엉뚱하게 지목당하는 일을 막는다.
+ * ⛔이 검사는 그 픽스처를 «고치지 말라»는 뜻이 아니다 — 고치려면 R3 예고가 같이 뜬다는 것을
+ *   알고 고치라는 뜻이다(그때는 골든 재촬영 판단이 필요하다). */
+test('R3-premise ★G2 골든 픽스처가 «정렬 오버라이드 0건»이라는 전제 — 깨지면 여기가 먼저 빨개진다', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'grid-cell-panel-handles.dom.spec.js'), 'utf8');
+  const i = src.indexOf('const FIX_4x4 = (() => {');
+  expect(i, '★FIX_4x4 를 못 찾았다 — 이름이 바뀌었으면 이 전제를 «다시 확인하고» 앵커를 고쳐라. ' +
+    '못 찾은 채 초록나면 아무것도 안 재는 문장이 된다').toBeGreaterThan(-1);
+  const j = src.indexOf('})();', i);
+  expect(j, '★FIX_4x4 의 끝을 못 찾았다').toBeGreaterThan(i);
+  const fixSrc = src.slice(i, j);
+  const hits = (fixSrc.match(/\balign\b|\bvalign\b/g) || []);
+  expect(hits, '★G2 골든 픽스처에 정렬 오버라이드가 생겼다 — 그러면 R3 예고 한 줄이 Layout 절에 ' +
+    '«같이» 떠서 줄바가 약 20px 아래로 밀리고(실측 826 → 846) G2 ⑵(Δ≤0)가 빨개진다. ' +
+    '픽스처를 그렇게 바꿀 거면 골든 재촬영 절차를 밟아라 — 합격선 무접촉 · 제품코드 0줄 별도 커밋').toEqual([]);
+});
+
+/* ── ㉢ R6 의 ⌘Z — 「동형이라 안 쟀다」를 «쟀다»로 바꾼다 ────────────────────
+ * 팀리드 물음: 폭(%) 한 번 바꾸고 ⌘Z 하면 «한 번에» 돌아오는가(둘을 같이 먹지 않는가).
+ * ★DOM 하네스엔 히스토리 스택이 없다(editor.js 를 안 싣는다). 그래서 재는 것은 ⌘Z 자체가
+ *   아니라 «⌘Z 가 한 단계로 돌아가기 위한 두 조건»이다 — 이 레포가 moveSection 에서 실제로
+ *   당한 버그(스냅샷을 «뒤»에 찍어 undo 가 두 단계를 한꺼번에 먹던)의 판정식 그대로다:
+ *     ⑴ 제스처 1회 = pushHistory «정확히 1회» (2회면 ⌘Z 를 두 번 눌러야 한다)
+ *     ⑵ 그 스냅샷이 «바뀌기 전» 상태다 (뒤에 찍으면 한 번 눌러도 안 돌아온다)
+ *   ⛔「⌘Z 를 눌러 봤다」고 적지 않는다 — 여기선 못 누른다. 무엇을 쟀는지 그대로 적는다. */
+test('R6-undo ★폭(%) 한 번 = 히스토리 한 단계, 그리고 스냅샷은 «바뀌기 전» 것이다', async ({ page }) => {
+  const errs = await boot(page);
+  const got = await page.evaluate(async (fx) => {
+    const b = window.__mount(fx, { r: 1, c: 0, li: 1 });
+    const read = () => { try { return JSON.parse(window.__b.dataset.cells)[1][0].lines[1].widthPct ?? null; } catch (_) { return null; } };
+    const snaps = [];
+    window.pushHistory = () => snaps.push(read());   // ★부를 때마다 «그 순간의» 값을 찍는다
+    const before = read();
+    const el = document.getElementById('grd-img-width-pct');
+    el.value = '40'; el.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 30));
+    const after = read();
+    void b;
+    return { before, after, pushes: snaps.length, snapshotValue: snaps[0] ?? null };
+  }, FIX);
+  expect(errs).toEqual([]);
+  expect(got.before, '★전제 — 폭을 안 준 그림은 저장본에 widthPct 가 없다').toBeNull();
+  expect(got.after, '★폭(%)이 저장본에 안 닿았다').toBe(40);
+  expect(got.pushes, `★제스처 한 번에 히스토리가 ${got.pushes}단계 쌓였다 — 1 이어야 ⌘Z 한 번에 돌아온다`).toBe(1);
+  expect(got.snapshotValue, '★★스냅샷을 «바뀐 뒤»에 찍었다 — ⌘Z 를 눌러도 40 인 상태로 돌아간다. ' +
+    '이 레포의 moveSection 에 실재하는 버그와 같은 꼴이다').toBe(got.before);
+});
+
 void A_TEXT; void A_IMG; void A_GAP;
