@@ -1431,9 +1431,33 @@ function makeGridBlock(opts = {}, drops = []) {
   } else if (opts.cols !== undefined && !(Array.isArray(opts.cols) && opts.cols.length >= MIN_COLS)) {
     drops.push({ path: 'cols', why: `cols must be an array of ${MIN_COLS}~${MAX_COLS} columns — it was ignored and the default 2-column grid was built instead` });
   }
-  if (opts.gap !== undefined && _gridValidateGap(opts.gap) === null) {
-    drops.push({ path: 'gap', why: `${JSON.stringify(opts.gap)} is outside 0~${GRID_GAP_MAX}. ⚠️It was STORED ANYWAY (behaviour unchanged), `
-      + 'but update_grid_block refuses that range — so this value cannot be edited back through that field' });
+  /* ═══ ★`gap` 도 «자르되 말한다» — 만드는 문의 규칙에 맞춘다 (2026-09-24, ⓑ 지디 권한 판정) ═══
+   *  ~~[폐기 · 2026-09-24] 「⚠️`gap` 만은 «자르지도» 않는다 — 999 가 그대로 앉는다 … 말만 하고 남긴다」~~
+   *    ★옛 문장을 «남겨 둔다» — 그때는 「동작을 안 바꾸는 판」이었고 그 판단은 그 판에서 옳았다.
+   *  ★왜 뒤집었나 — 만드는 문의 규칙은 이미 「자르되 말한다」인데(cols 6→4 · rows 6→4) `gap` «하나»만
+   *    「저장하고 말한다」로 예외였다. 그 예외에 근거가 없었고, 그 탓에 고치는 문(0~200)으로는
+   *    ★«영영 못 되돌리는 값»이 생겼다(만들 수는 있는데 고칠 수는 없는 값).
+   *    ⇒ 취향 결정이 아니라 «버그 수정»이다 — 정상 사용자는 패널 슬라이더(max=GRID_GAP_MAX)로
+   *      그 값을 만들 수조차 없다. API/잘못된 호출로만 생긴다.
+   *  ⛔★★그리고 «여기서만» 자른다 — 렌더러(`_gridGaps`)는 «절대» 안 건드린다.
+   *    까닭: 저장본에 200 넘는 gap 이 있으면 렌더러를 좁히는 순간 그 프로젝트의 «보이는 것»이
+   *    바뀐다(T-170 함정과 같은 자리). ⚠️★그리고 「그런 저장본이 있나」는 «잴 수 없다» —
+   *    현빈 계정은 그리드 블록이 0건이라 «표본이 0»이고(지디 실측), 배포판 사용자 저장본엔 손이
+   *    안 닿는다. ⛔「표본 0」은 «안전하다»가 아니라 «모른다»다. 모르는 것을 상대로는 «안 건드리는»
+   *    쪽만 안전하다. 지키는 검사: tests/unit/grid-gap-clamp.test.js G2(렌더러 바이트 동일).
+   *  ★두 갈래를 가른다 — «숫자인데 범위 밖»은 한계로 «자르고», «숫자가 아님»은 기본값으로 떨어진다.
+   *    (뒤엣것은 예전에도 그랬다 — 바뀐 것은 「말을 한다」뿐이다.) */
+  const _gapRaw = opts.gap;
+  if (_gapRaw !== undefined) {
+    const n = Number(_gapRaw);
+    if (!Number.isFinite(n)) {
+      drops.push({ path: 'gap', why: `${JSON.stringify(_gapRaw)} is not a number — the default ${GRID_DEFAULTS.gap}px was used instead` });
+    } else if (_gridValidateGap(n) === null) {
+      const clamped = Math.round(Math.max(0, Math.min(GRID_GAP_MAX, n)));
+      drops.push({ path: 'gap', why: `${JSON.stringify(_gapRaw)} is outside 0~${GRID_GAP_MAX} — it was CLAMPED to ${clamped}. `
+        + 'update_grid_block refuses that range outright, so an unclamped value could never be edited back through that field' });
+      opts = { ...opts, gap: clamped };   // ⛔부르는 쪽 객체를 제자리에서 안 고친다
+    }
   }
   block.dataset.gap = String(Number.isFinite(Number(opts.gap)) ? Number(opts.gap) : GRID_DEFAULTS.gap);
   // ★rowGap/colGap 은 «주어졌을 때만» dataset 에 쓴다 — 안 주면 옛 파일과 완전히 같은 모양(legacy gap 폴백).

@@ -602,8 +602,12 @@ test('U10 ★만드는 문이 «눌러 맞춘 것»을 전부 말한다 — 그�
         (b) => assert.equal(JSON.parse(b.dataset.rows).length, 4, '★동작이 바뀌었다 — 여전히 4로 잘려야 한다')],
       ["valign:'중간'", { cols: [{ width: 1, lines: L() }], valign: '중간' }, 'valign',
         (b) => assert.equal(b.dataset.valign, 'top', '★동작이 바뀌었다 — 여전히 기본값으로 떨어져야 한다')],
+      /* ~~[뒤집음 · 2026-09-24] 「999 는 «그대로 저장»돼야 한다(자르는 건 별건)」~~
+         ★옛 단언을 «지우지 않고» 남긴다 — 그때는 「동작을 안 바꾸는 판」이었고 그 판에선 옳았다.
+         그 뒤 server-manager 가 ⓑ(지디 권한)로 판정해 «자르기»에 GO 가 났다(2026-09-24).
+         ⇒ 이 줄은 이제 «자른 뒤의 값»을 잠근다. 자세한 것은 tests/unit/grid-gap-clamp.test.js. */
       ['gap 999', { cols: [{ width: 1, lines: L() }], gap: 999 }, 'gap',
-        (b) => assert.equal(b.dataset.gap, '999', '★★동작이 바뀌었다 — 999 는 «그대로 저장»돼야 한다(자르는 건 별건)')],
+        (b) => assert.equal(b.dataset.gap, '200', '★범위 밖 gap 이 한계로 «안 잘렸다» — grid-gap-clamp G1 도 같이 볼 것')],
       ['rowGap 999', { cols: [{ width: 1, lines: L() }], rowGap: 999 }, 'rowGap',
         (b) => assert.equal(b.dataset.rowGap, undefined, '★동작이 바뀌었다 — 여전히 안 써져야 한다')],
       ['모르는 이름', { cols: [{ width: 1, lines: L(), gdtProbe: 'v' }] }, 'cols[0].gdtProbe', null],

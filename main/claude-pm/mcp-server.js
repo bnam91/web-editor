@@ -3617,9 +3617,12 @@ function _registerDefaultTools() {
         + 'reject are squeezed into range here exactly as before (cols/rows over 4 are truncated, an '
         + 'off-list valign falls back, an out-of-range rowGap/colGap is not written, cells sent WITHOUT '
         + 'rows are dropped entirely) — but the reply now carries ignoredProps/hint naming each one. '
-        + '⚠️gap is the one value that is neither clamped nor refused: it is stored as given, so a gap '
-        + 'outside 0~200 creates a grid that update_grid_block can no longer edit through that field; '
-        + 'the reply flags it. '
+        /* ~~[폐기 · 2026-09-24] 「gap 만은 자르지도 거절하지도 않는다 … 그대로 저장된다」~~
+           ⓑ(지디 권한) 판정으로 gap 도 «자르되 말한다»가 됐다. ⛔이 문장이 남아 있으면 도구 설명이
+           «거짓»이 된다 — 부르는 쪽은 999 가 살아 있다고 믿는다. */
+        + '★gap is clamped too (0~200) and the clamp is reported; a non-numeric gap falls back to the '
+        + 'default and is reported as well. ⛔The CLAMP LIVES AT THE DOOR ONLY — the renderer still draws '
+        + 'whatever a saved project holds, so an existing grid with a larger gap keeps looking exactly the same. '
         + '⚠️Legacy projects store the same block with a duo_ prefix (renamed); reading handles both.',
       inputSchema: {
         type: 'object',
