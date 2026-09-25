@@ -1942,12 +1942,19 @@ const GRID_IMG_HANDLE_MIN_SCREEN_PX = 24;   // 낮은 배율 방어 — 거터�
 
 function _gridImgFindEl(block, addr) {
   if (!block || !addr || addr.li === null || addr.li === undefined) return null;
+  /* ★중첩 안 줄(np)이면 «안 찾는다» (T-200 커밋 ②). 아래 셀렉터는 data-line 으로 재는데
+     중첩 안 줄은 그 이름을 안 쓴다 ⇒ 그냥 두면 addr.li(=품은 duo 줄)로 조회하게 되고,
+     그 자리에 마침 바깥 이미지 줄이 있으면 «딴 그림»에 코너 핸들이 앉는다. */
+  if (addr.np) return null;
   return block.querySelector(`.grd-img-frame[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
 }
 
 function _gridImgActiveImageLine(block) {
   const addr = window.grdGetActiveLine ? window.grdGetActiveLine(block) : null;
   if (!addr || addr.li === null || addr.li === undefined) return null;
+  /* ★중첩 안 줄(np)이면 «이미지 줄로 안 친다» (T-200 커밋 ②) — 아래 모델 조회가
+     lines[addr.li] 를 보는데 그건 «품은 duo 줄»이다. 크기 손잡이는 쓰는 길이라 범위 밖. */
+  if (addr.np) return null;
   let line = null;
   try { line = getGridModel(block).cells[addr.r][addr.c].lines[addr.li]; } catch (_) { line = null; }
   if (!line || line.type !== 'image') return null;

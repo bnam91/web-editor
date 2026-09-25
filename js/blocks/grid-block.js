@@ -1191,17 +1191,36 @@ function _gridNestAddr(addr, naddr, ci, ni) {
 //   참이었고 지우지 않는다 — 대신 옆에 「무엇이 달라졌나」를 세운다.
 //
 // ★왜 «다른 이름»인가 — `data-line` 을 중첩 안 줄에도 찍으면 «뜻이 바뀐다», 산출만 느는 게 아니다.
-//   오늘 `[data-line]` 을 읽는 자가 다섯이고 넷이 `closest()`/`querySelector()` 로 «처음 하나»를
-//   집는다: js/block-drag.js `_gridEditable`(:115) · `_gridAddrAt`(:141) ·
-//   js/overlay-handles.js `:1765`(칸 안 줄 훑기) · `:1945`(이미지 프레임) ·
-//   js/image-handling.js `:1299` · js/props/prop-grid.js `:115`.
-//   중첩 안 줄이 `data-line` 을 갖는 순간 `closest('[data-line]')` 이 «바깥 .grd-nested» 대신
-//   «안쪽 줄»을 집는다 ⇒ 인라인 편집이 중첩 속으로 새고, `.grd-img-frame[data-line]` 은
-//   문서 순서상 «중첩 안 이미지»를 먼저 집어 코너 핸들이 딴 데 앉는다.
-//   ⇒ ★새 이름을 «더한다»: `data-nroot`(이 줄을 품은 «최상위 줄»의 index = 바깥 addr.li)
-//     ＋ `data-npath`(중첩 안에서의 길). `data-r`·`data-c` 는 «같은 축»이라 그대로 쓴다.
-//     오늘의 `[data-r][data-c]` 셀렉터는 전부 `.grd-cell` 이나 `[data-line]` 으로 한정돼 있어
-//     (위 목록 전수 확인) 중첩 안 줄을 집지 않는다.
+//
+//   ★★어떻게 셌나(다음 사람이 «그 자로 다시 셀 수 있게») — ⛔꼴이 «둘»이다. 둘 다 세야 한다:
+//       ⑴ 맨몸    `grep -rn "\[data-line\]"  js/`
+//       ⑵ 값 지정 `grep -rn "\[data-line="   js/`
+//     ⛔⑴만 세면 ⑵의 «셋»을 통째로 놓친다. 실제로 이 주석의 첫 판이 그렇게 「다섯」이라 적었고,
+//       그걸 받아 읽은 사람이 「여섯」으로 다시 틀렸다. 수가 두 번 갈린 자리다.
+//     ⛔`js/props/prop-laurel.js` 의 `.lrl-line-*[data-line="…"]` 둘은 «이 명부가 아니다» —
+//       월계관 «패널 입력칸»의 제 이름이라 이 렌더러의 줄 주소와 무관하다(그래서 아래 9 에 없다).
+//
+//   ★오늘 이 줄 주소를 읽는 자 = ★**아홉**이다. «집는 방식»으로 셋으로 갈린다:
+//     ㈎ `closest()` — «위로 올라가다 처음 만나는 하나» (다섯)
+//        js/block-drag.js `_gridEditable` · `_gridAddrAt` · 빈 이미지 슬롯 · 이미지 프레임
+//        js/block-factory.js 우클릭 줄 표적
+//     ㈏ ★`querySelectorAll()` — «그 칸의 전부» (하나)  ⇒ ★이 자리가 제일 위험했다
+//        js/overlay-handles.js `_rowContentEdge` — `cell.querySelectorAll('[data-line]')` 을
+//        받아 ★`lines[0]`(첫 줄) 과 `lines[lines.length-1]`(마지막 줄)을 집는다. 그 사각형이
+//        ★행 거터(행 경계 드래그 손잡이)의 y 가 된다(`showGridGutters` → `_rowContentEdge`).
+//        ⇒ 중첩 안 줄이 `data-line` 을 가지면 «맨 위/맨 아래»가 중첩 속 줄로 바뀌어
+//          ★행 경계 손잡이가 엉뚱한 높이에 앉는다. «처음 하나»의 문제가 아니다.
+//     ㈐ `querySelector('[data-line="<값>"]')` — «그 주소 하나» (셋)
+//        js/overlay-handles.js 이미지 프레임 · js/image-handling.js · js/props/prop-grid.js 마커
+//
+//   ⇒ 중첩 안 줄이 `data-line` 을 갖는 순간: ㈎ 는 `closest` 가 «바깥 .grd-nested» 대신
+//     «안쪽 줄»을 집어 인라인 편집이 중첩 속으로 새고, ㈏ 는 위처럼 행 경계가 틀어지고,
+//     ㈐ 는 문서 순서상 «중첩 안 이미지»를 먼저 집어 코너 핸들이 딴 데 앉는다.
+//   ⇒ ★그래서 중첩엔 `data-line` 을 «안» 찍는다. 새 이름을 «더한다»:
+//     `data-nroot`(이 줄을 품은 «최상위 줄»의 index = 바깥 addr.li) ＋ `data-npath`(중첩 안의 길).
+//     `data-r`·`data-c` 는 «같은 축»이라 그대로 쓴다 — 오늘의 `[data-r][data-c]` 셀렉터는
+//     `.grd-cell` 이나 `[data-line]` 으로 한정돼 있어 중첩 안 줄을 집지 않는다
+//     (⛔「전수」라고 «주장»하지 않는다 — 세는 자는 위 두 꼴 grep 이고, 그 자로 다시 세라).
 //
 // ★왜 «둘이 아니라 길»인가 — 팀장 제안은 `data-ncol`·`data-nline` 두 칸이었다. 그 꼴은 깊이 1
 //   까지만 말할 수 있다. 그런데 이 렌더러는 «깊이 2 에도 줄을 그린다»: 가드가
@@ -1210,7 +1229,7 @@ function _gridNestAddr(addr, naddr, ci, ni) {
 //   두 칸짜리 꼴로 깊이 2 를 적으면 「4칸을 더하거나」 「깊이 2 는 주소를 안 준다」 둘 중 하나가 된다.
 //   ⇒ `data-npath="<열>.<줄>"` 을 «단계마다 / 로 잇는다». 깊이 1 = `"0.2"` · 깊이 2 = `"0.2/1.0"`.
 //     ★칸 수가 상수를 «따라간다» — GRID_NESTED_MAX_DEPTH 를 손으로 어디에도 안 적는다.
-//   ⛔안 고른 길 셋: ⑴ `data-line` 재사용 → 위 다섯 소비자의 뜻이 바뀐다.
+//   ⛔안 고른 길 셋: ⑴ `data-line` 재사용 → 위 «아홉» 소비자의 뜻이 바뀐다.
 //     ⑵ 평평한 두 칸(ncol/nline) → 깊이 2 를 못 적는다. ⑶ JSON 한 덩어리(`data-naddr='{...}'`)
 //        → 속성값에 따옴표 이스케이프가 들어가 골든·문자열 검사가 읽기 나빠진다.
 //
@@ -2179,4 +2198,10 @@ export {
      (T-172 테두리처럼 새 칸 필드가 생기면 한쪽만 모른다). 선언 줄은 «그대로»라
      grid-patchcell-reject.test.js P7 의 소스 파싱은 영향받지 않는다. */
   GRID_CELL_FIELDS,
+  /* ★GRID_NESTED_LINE_TYPE — 중첩 줄의 «정본 이름». 패널(prop-grid.js)이 중첩 주소를
+     모델로 걸어 내려갈 때 「이 줄이 중첩인가」를 물으려고 쓴다. ⛔그 이름을 패널 쪽에
+     손으로 베끼면 두 벌이 되어 따로 늙는다(위 GRID_CELL_FIELDS 와 같은 까닭).
+     ★실제로 grid-rename-residue.test.mjs S1 이 「코드에 옛 이름을 손으로 적었나」를 재는데,
+       이 주석의 첫 판이 «그 이름을 예시로 적는» 바람에 그 그물에 걸렸다. 적지 않는다. */
+  GRID_NESTED_LINE_TYPE,
 };

@@ -138,6 +138,20 @@ function _gridEditable(node) {
  *     선택을 그대로 둔다»(showGridProperties 는 addrArg===undefined 면 grdGetActiveLine 을
  *     쓴다) — 선택이 안 튄다(D5 와 같은 보호). 「진짜 빈 셀」(lines.length===0)만 셀 모드로. */
 function _gridAddrAt(node, block) {
+  /* ★중첩 안 줄을 «먼저» 본다 (T-200 커밋 ②).
+     까닭 — 중첩 안 줄은 `.grd-nested` «안»에 있고 그 `.grd-nested` 는 data-line 을 가진다.
+     아래 [data-line] 셀렉터를 먼저 돌리면 closest 가 언제나 «바깥 중첩 셸»을 집어,
+     중첩 안 줄은 영영 못 고른다(2026-09-25 이전의 동작이 정확히 그것이었다).
+     ★돌려주는 주소에 `np` 가 실린다 = 「이건 중첩 안 줄이다」는 표식이고, 소비자 전수가
+       그걸 보고 «아무것도 안 한다»로 빠진다 — editor.js ⌫ · overlay-handles 이미지 핸들 둘 ·
+       prop-grid 의 리졸버 둘. ⛔li 는 «품은 duo 줄»이라 np 를 무시하면 엉뚱한 줄을 건드린다. */
+  const nestEl = node && node.closest ? node.closest('[data-r][data-c][data-nroot][data-npath]') : null;
+  if (nestEl && block.contains(nestEl)) {
+    const r = Number(nestEl.dataset.r), c = Number(nestEl.dataset.c), li = Number(nestEl.dataset.nroot);
+    const np = nestEl.dataset.npath;
+    if (!Number.isInteger(r) || !Number.isInteger(c) || !Number.isInteger(li) || !np) return undefined;
+    return { r, c, li, np };
+  }
   const lineEl = node && node.closest ? node.closest('[data-r][data-c][data-line]') : null;
   if (lineEl && block.contains(lineEl)) {
     const r = Number(lineEl.dataset.r), c = Number(lineEl.dataset.c), li = Number(lineEl.dataset.line);
