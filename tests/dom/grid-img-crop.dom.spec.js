@@ -518,50 +518,190 @@ test('C1-b ★★양성대조 — 되환산을 «빼면» 그림이 통째로 �
 });
 
 /* ══════════════════════════════════════════════════════════════════════
- * P — 우측 패널의 손잡이. ⛔슬라이더를 따로 두지 «않는다» — 편집기와 두 벌이 되면 따로 늙는다.
+ * C2 — 캔버스에서 끈 뒤 «패널이 같은 말을 하는가». (2026-09-25 실기 QA 가 잡은 건)
+ *
+ * ★무엇이 있었나 — overlay-handles.js 의 onMove 주석이 「이미지 절에는 폭 입력이 없어
+ *   높이만 동기화한다」고 적어 뒀는데, 그 전제가 74eb3c9(「폭(%)」 칸 신설)로 거짓이 됐다.
+ *   코드는 안 따라와서 실기 실측: 모델 widthPct=76 · 패널 칸 100 (높이는 159=159 로 맞음).
+ *   저장값은 옳고 «화면만» 거짓말한다 — 패널을 다시 그리면 맞는 수가 나온다.
+ *
+ * ⛔★그래서 이 검사는 «두 축을 같이» 잰다. 높이만 재면 바로 이 버그가 또 새 나간다
+ *   (지금까지 정확히 그 꼴이었다 — 높이 쪽은 처음부터 맞아서 아무도 안 걸렸다).
+ * ★재는 것은 «모델 ↔ 패널 칸»의 일치다. 어느 한쪽의 «절대값»이 아니다 — 절대값을 박으면
+ *   드래그 산식(grid-cell-resize.js)이 바뀔 때마다 이 검사가 남의 일로 빨개진다.
+ * ⛔패널을 다시 그리지 «않고» 잰다 — 다시 그리면 모델에서 값을 새로 읽어 와 «항상» 맞는다.
+ *   그게 바로 이 버그가 사람 눈에 안 띄던 까닭이다. 재렌더는 이 검사를 거짓 통과시킨다.
  * ════════════════════════════════════════════════════════════════════ */
 
-test('P1 ★패널에 크롭 손잡이가 있다 — 「맞추기」는 «같은 편집기»를 열고, 「초기화」는 cover 로 되돌린다', async ({ page }) => {
+test('C2 ★코너를 끌면 패널의 «폭»과 «높이»가 «둘 다» 모델과 같아진다 (재렌더 없이)', async ({ page }) => {
+  const errs = await boot(page);
+  await plant(page, PLAIN); await settle(page);
+  await page.evaluate(() => {
+    const b = document.getElementById(window.__ID);
+    window.__open(b, { r: 0, c: 0, li: 0 });       // ★끌기 «전»에 패널을 연다 — 칸이 있어야 갱신된다
+    window.grdSetActiveLine(b, { r: 0, c: 0, li: 0 });
+    window.__handles(b);
+  });
+  await page.waitForFunction(() => document.querySelectorAll('.grd-img-overlay-handle').length === 4, null, { timeout: 5000 });
+
+  const before = await page.evaluate(() => ({
+    w: document.getElementById('grd-img-width-pct')?.value,
+    h: document.getElementById('grd-img-height')?.value,
+  }));
+  expect(before.w, '★「폭(%)」 칸이 패널에 없다 — 이 검사가 잴 대상이 없다').not.toBeUndefined();
+
+  await dragCorner(page, 'se', -200, -60);
+  await settle(page);
+
+  const seen = await page.evaluate(() => {
+    const line = window.__model(document.getElementById(window.__ID)).cells[0][0].lines[0];
+    const wNum = document.getElementById('grd-img-width-pct');
+    const hNum = document.getElementById('grd-img-height');
+    return {
+      modelW: Number(line.widthPct), modelH: Number(line.height),
+      panelW: wNum ? Number(wNum.value) : null, panelH: hNum ? Number(hNum.value) : null,
+    };
+  });
+  expect(errs).toEqual([]);
+  /* ⑴ 자가점검 — 드래그가 «실제로» 폭을 줄였나. 안 줄었으면 아래 「같다」는 빈 것끼리 견주기다
+     (100 == 100 으로 공짜 통과한다). ⛔이 줄이 이 검사의 양성대조다. */
+  expect(seen.modelW, `★드래그가 모델 폭을 «안» 바꿨다(${before.w} → ${seen.modelW}) — ` +
+    '아래 일치 검사가 「둘 다 안 변함」으로 공짜 통과한다').toBeLessThan(100);
+  // ⑵ 두 축이 «둘 다» 모델과 같다.
+  expect(seen.panelW, `★패널 「폭(%)」이 모델과 어긋난다 — 모델 ${seen.modelW} · 패널 ${seen.panelW}. ` +
+    '저장값은 옳은데 화면만 거짓말한다(overlay-handles.js onMove 가 폭을 안 갱신).').toBe(seen.modelW);
+  expect(seen.panelH, `★패널 「높이(px)」가 모델과 어긋난다 — 모델 ${seen.modelH} · 패널 ${seen.panelH}`)
+    .toBe(seen.modelH);
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+ * P — 우측 패널의 손잡이. ⛔슬라이더를 따로 두지 «않는다» — 편집기와 두 벌이 되면 따로 늙는다.
+ *
+ * ★2026-09-25 «뒤집혔다» — 현빈 지시로 Image 절의 단추 «셋»을 없앴다
+ *   (「캔버스에서 다 직관적으로 조작이 가능한거잖아?」). 그래서 P1 의 물음이 뒤집힌다:
+ *     옛 P1 「패널에 크롭 손잡이가 «있다»」  →  새 P1 「패널에 그 셋이 «없다»」.
+ *   ⛔제목이 «조건»을 말하면 제목째 거짓이 될 수 있다 — 그래서 제목도 같이 뒤집었다.
+ *
+ * ★무엇이 이 검사를 대신하나 — 「맞추기」가 열던 편집기는 «W1»이 이미 «배선까지» 잰다
+ *   (더블클릭 → enterGridImageEditMode). 즉 이 파일은 손잡이를 잃었지 «기능»을 잃지 않았다.
+ *   W2·W3 가 음성대조까지 들고 있다. ⇒ 옛 P1 의 「맞추기」 몫은 «전부» W1 이 받는다.
+ *
+ * ⚠️★잃은 축을 정직하게 적는다 — 「크롭 초기화」는 «대체가 없다».
+ *   · UI: 크롭을 지우는 손잡이가 이제 어디에도 없다(캔버스에도 없었다 — 편집기는
+ *     image-handling.js beforeCommit 에서 세 값을 «항상 쓰기»만 한다). 되돌리기는 ⌘Z 뿐이다.
+ *   · ⇒ 옛 P1 이 재던 「초기화하면 cover 로 돌아간다」의 «화면» 축은 여기서 사라졌다.
+ *     남은 것은 «모델» 축이다: tests/unit/grid-img-crop.test.js 가 세 값을 지운 줄이
+ *     cover 로 읽히는지를 계속 잰다(그 파일 「패널 「크롭 초기화」와 같은 뜻」 주석).
+ *   · 되살릴 일이 생기면 현빈 조건대로 «편집모드 안»에 넣고, 이 검사를 다시 뒤집어라.
+ * ════════════════════════════════════════════════════════════════════ */
+
+test('P1 ★패널 Image 절에 단추가 «이미지 선택/교체» 하나뿐이다 — 셋은 캔버스로 갔다(2026-09-25 현빈)', async ({ page }) => {
+  const errs = await boot(page);
+  await plant(page, CROPPED); await settle(page);
+
+  const seen = await page.evaluate(() => {
+    window.__open(document.getElementById(window.__ID), { r: 0, c: 0, li: 0 });
+    const body = document.querySelector('#panel-right .panel-body');
+    const secs = [...body.querySelectorAll('.prop-section')];
+    const img = secs.find(s => (s.querySelector('.prop-section-title')?.textContent || '').trim() === 'Image');
+    return {
+      /* ★★「절이 통째로 안 떴다」와 「단추만 빠졌다」를 «갈라서» 잰다 —
+         아래 gone 셋이 0 인 것만으로는 그 둘이 구별되지 않는다(절이 없어도 0 이다). */
+      imgSectionThere: !!img,
+      btnIds: img ? [...img.querySelectorAll('button')].map(b => b.id) : null,
+      rowN: img ? img.querySelectorAll('.prop-row').length : -1,
+      /* ⛔«문서 전체»에서 없어야 하는 것은 이 둘뿐이다. 「크롭 초기화」는 제품에서 사라진 게
+         아니라 «편집모드 안»으로 옮겨 갔다(P2 가 그 자리를 잰다) — 그래서 여기 안 넣는다.
+         대신 아래 btnIds 가 「이 절엔 없다」를 정확히 잰다(절 기준이라 편집기와 안 섞인다). */
+      gone: ['grd-img-crop-btn', 'grd-img-remove-btn']
+        .filter(id => !!document.getElementById(id)),
+      // ★「크롭 초기화」가 «패널 이미지 절»로 되돌아오지 않았는지 — 현빈이 없애라 한 자리가 여기다.
+      resetBackInPanel: img ? !!img.querySelector('#grd-img-crop-reset') : null,
+      /* 남기기로 한 손잡이 셋 — 「지웠다」가 이웃까지 쓸어 가지 않았는지 */
+      kept: ['grd-img-pick-btn', 'grd-img-width-pct', 'grd-img-height', 'grd-img-radius']
+        .filter(id => !document.getElementById(id)),
+    };
+  });
+  expect(errs).toEqual([]);
+  expect(seen.imgSectionThere, '★Image 절이 «통째로» 안 떴다 — 단추를 지운 게 아니라 절을 깨뜨렸다').toBe(true);
+  expect(seen.gone, `★없앴어야 할 단추가 살아 있다: ${seen.gone.join(', ')} — 되살리기 전에 ` +
+    'prop-grid.js _grdImageSectionHtml 의 주석(어디로 갔는지)을 먼저 읽어라').toEqual([]);
+  expect(seen.resetBackInPanel, '★「크롭 초기화」가 «패널»로 되돌아왔다 — 되살린 자리는 ' +
+    '«편집모드 안»이다(현빈이 정한 갈래). 패널에서 없애라신 뜻은 그대로다').toBe(false);
+  expect(seen.kept, `★남겼어야 할 손잡이가 사라졌다: ${seen.kept.join(', ')} — 지우기가 이웃까지 쓸어 갔다`).toEqual([]);
+  expect(seen.btnIds, '★Image 절의 단추는 「이미지 선택/교체」 하나뿐이어야 한다').toEqual(['grd-img-pick-btn']);
+  expect(seen.rowN, '★Image 절의 줄 수가 4(선택·폭·높이·반경)가 아니다').toBe(4);
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+ * P2 — 「원래대로」(크롭 초기화). ★한 번 없앴다가 «되살린» 자리다.
+ *
+ * 무엇이 있었나 — e04d29f 에서 패널의 「크롭 초기화」를 없앴다. 그때 근거는 현빈의 조건문
+ *   (「에셋블록에도 같은 기능이 있으면 편집모드 안으로 옮기고, 아니면 없어도 될듯해」)＋
+ *   「어긋나면 ⌘Z 로 돌아간다」였다. ⛔그 둘째 근거를 실기가 «반증»했다:
+ *     크롭을 연달아 두 번 하면(115.607 → 138.226 → 160.77) ⌘Z 가 138.226 에서 «멈춘다».
+ *     두 번, 세 번 눌러도 안 움직인다 ⇒ 사용자가 «중간 값»에 갇혀 처음으로 못 돌아간다.
+ *   ⇒ 되돌릴 길이 정말로 없어서 되살렸다. 자리는 현빈이 정한 첫째 갈래 — «편집모드 안».
+ *
+ * ⛔이 검사는 「⌘Z 가 두 번째부터 안 먹는다」를 «박지 않는다» — 그건 지금 버그이고 고쳐질
+ *   것이다(별건 카드). 여기서 재는 것은 ★「원래대로가 크롭을 지우는가」 하나뿐이다.
+ *   ⇒ 그 버그가 고쳐져도 이 검사는 그대로 산다.
+ * ════════════════════════════════════════════════════════════════════ */
+
+test('P2 ★편집기의 「원래대로」가 크롭을 «지운다» — 모델에서 세 값이 사라지고 화면이 cover 로 돌아간다', async ({ page }) => {
   const errs = await boot(page);
   await plant(page, CROPPED); await settle(page);
   const before = await shotFrame(page);
 
-  const shown = await page.evaluate(() => {
-    window.__open(document.getElementById(window.__ID), { r: 0, c: 0, li: 0 });
-    const b1 = document.getElementById('grd-img-crop-btn');
-    const b2 = document.getElementById('grd-img-crop-reset');
-    return { has1: !!b1, has2: !!b2, dis1: b1 ? b1.disabled : null, dis2: b2 ? b2.disabled : null };
+  // 크롭이 «실제로» 걸려 있는 판에서 시작한다 — 안 걸려 있으면 「지웠다」가 빈 것끼리 견주기다.
+  const seeded = await page.evaluate(() => {
+    const line = window.__model(document.getElementById(window.__ID)).cells[0][0].lines[0];
+    return ['imgSizePct', 'imgPosX', 'imgPosY'].filter(k => line[k] !== undefined);
   });
-  expect(errs).toEqual([]);
-  expect(shown.has1, '★「프레임 안에서 맞추기…」 손잡이가 없다 — 더블클릭을 모르는 사람은 이 기능에 닿을 길이 없다').toBe(true);
-  expect(shown.has2, '★「크롭 초기화」 손잡이가 없다 — 되돌릴 길이 없으면 한 번 맞춘 뒤 갇힌다').toBe(true);
-  expect(shown.dis1, '★그림이 있는데 「맞추기」가 잠겨 있다').toBe(false);
-  expect(shown.dis2, '★크롭이 있는데 「초기화」가 잠겨 있다').toBe(false);
+  expect(seeded, '★픽스처에 크롭이 없다 — 이 검사가 지울 것이 없다').toEqual(['imgSizePct', 'imgPosX', 'imgPosY']);
 
-  // 「맞추기」 = 캔버스 더블클릭과 «같은 편집기»
-  await page.click('#grd-img-crop-btn');
-  await page.waitForFunction(() => document.querySelectorAll('.grd-img-edit-proxy').length === 1, null, { timeout: 5000 });
-  await page.keyboard.press('Escape');
-  await page.waitForFunction(() => document.querySelectorAll('.grd-img-edit-proxy').length === 0);
-  await settle(page);
-
-  // 「초기화」 = cover 로 되돌아간다
   await page.evaluate(() => window.__open(document.getElementById(window.__ID), { r: 0, c: 0, li: 0 }));
+  await page.evaluate(() => window.enterGridImageEditMode(document.getElementById(window.__ID), { r: 0, c: 0, li: 0 }));
+  await page.waitForFunction(() => document.querySelectorAll('.grd-img-edit-proxy').length === 1, null, { timeout: 5000 });
+
+  const hasBtn = await page.evaluate(() => !!document.getElementById('grd-img-crop-reset'));
+  expect(hasBtn, '★편집기 안에 「원래대로」가 없다 — 크롭을 지울 길이 어디에도 없다(⌘Z 는 대체가 못 된다)').toBe(true);
+
   await page.click('#grd-img-crop-reset');
+  await page.waitForFunction(() => document.querySelectorAll('.grd-img-edit-proxy').length === 0, null, { timeout: 5000 });
   await settle(page);
+
   const after = await page.evaluate(() => {
     const line = window.__model(document.getElementById(window.__ID)).cells[0][0].lines[0];
-    return { keys: ['imgSizePct', 'imgPosX', 'imgPosY'].filter(k => line[k] !== undefined),
-             inline: document.querySelector('#host img.grd-img').getAttribute('style'),
-             frame: document.querySelector('#host .grd-img-frame').getAttribute('style'),
-             resetDisabled: (document.getElementById('grd-img-crop-reset') || {}).disabled };
+    return {
+      keys: ['imgSizePct', 'imgPosX', 'imgPosY'].filter(k => line[k] !== undefined),
+      inline: document.querySelector('#host img.grd-img')?.getAttribute('style') || '',
+      frame: document.querySelector('#host .grd-img-frame')?.getAttribute('style') || '',
+      proxies: document.querySelectorAll('.grd-img-edit-proxy').length,
+    };
   });
-  expect(after.keys, `★초기화했는데 모델에 크롭이 남았다: ${after.keys.join(', ')}`).toEqual([]);
-  expect(after.inline, '★cover 로 안 돌아갔다').toContain('object-fit:cover');
+  expect(errs).toEqual([]);
+  expect(after.keys, `★「원래대로」를 눌렀는데 모델에 크롭이 남았다: ${after.keys.join(', ')} — ` +
+    '나가는 길의 beforeCommit 이 세 값을 «다시 썼을» 수 있다(깃발을 안 읽었나)').toEqual([]);
+  expect(after.inline, '★cover 로 안 돌아갔다 — 모델은 지워졌는데 화면이 안 따라왔다').toContain('object-fit:cover');
   expect(after.frame, '★크롭이 없는데 프레임이 계속 «자르는 그릇»이다').not.toContain('overflow:hidden');
-  expect(after.resetDisabled, '★크롭이 없는데 「초기화」가 계속 눌린다').toBe(true);
+  expect(after.proxies, '★편집기 임시 DOM 이 남았다').toBe(0);
+  // ★«화면»이 정말 달라졌나 — 모델만 보면 「지웠다」가 그림과 무관할 수 있다.
   const d = await diffPng(page, before, await shotFrame(page));
   expect(d.max, '★초기화했는데 «그림»은 크롭 그대로다').toBeGreaterThan(64);
+});
+
+test('P1-b ★양성대조 — 「맞추기」를 잃어도 «기능»은 산다: 더블클릭이 여전히 같은 편집기를 연다', async ({ page }) => {
+  const errs = await boot(page);
+  await plant(page, CROPPED); await settle(page);
+  await page.evaluate(() => window.__bind(document.getElementById(window.__ID)));
+  await dblAt(page, '#host .grd-img-frame');
+  await page.waitForFunction(() => document.querySelectorAll('.grd-img-edit-proxy').length === 1, null, { timeout: 5000 });
+  const n = await page.evaluate(() => document.querySelectorAll('.grd-img-edit-proxy').length);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.querySelectorAll('.grd-img-edit-proxy').length === 0);
+  expect(errs).toEqual([]);
+  expect(n, '★패널 단추를 지웠더니 크롭에 «닿을 길»이 하나도 안 남았다 — 그러면 지운 게 아니라 잃은 것이다').toBe(1);
 });
 
 /* ══════════════════════════════════════════════════════════════════════

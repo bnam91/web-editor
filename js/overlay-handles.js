@@ -2110,10 +2110,20 @@ function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
       innerImg.style.height = 'auto';
       innerImg.style.objectFit = '';
     }
-    // 우측 패널 「높이(px)」 입력만 직접 갱신 — 드래그 중 패널 재렌더 금지(gutter 와 같은 원칙,
-    // prop-grid.js 의 「이미지 절」에는 폭 입력이 없어(신작 UI 미추가) 높이만 동기화한다.
+    /* 우측 패널 입력을 «직접» 갱신 — 드래그 중 패널 재렌더 금지(gutter 와 같은 원칙).
+     * ★2026-09-25 — 여기 「이미지 절에는 폭 입력이 없어 높이만 동기화한다」고 적혀 있었다.
+     *   그 전제가 74eb3c9(R6, 「폭(%)」 칸 신설)로 «거짓»이 됐는데 코드는 안 따라왔다 ⇒ 실기에서
+     *   코너를 끌면 모델 widthPct=76 인데 패널 칸은 100 을 보여 줬다(높이는 맞았다). 저장값은
+     *   옳고 «화면만» 거짓말하던 꼴 — 패널을 다시 그리면 맞는 수가 나왔다.
+     * ⛔둘을 «같은 시점»에 넣는다 — 드래그 «중» 매 프레임(놓을 때만이 아니다). 높이가 원래
+     *   그랬고, 둘이 다른 시점이면 그 차이가 또 어긋남이 된다. 두 수 다 같은 `result` 에서
+     *   오고 둘 다 정수다(grid-cell-resize.js 가 Math.round 해서 준다) ⇒ 칸에 그대로 넣는다.
+     * ★폭이 100 이어도 «비우지» 않는다 — 놓는 순간 onUp 이 widthPct:100 을 모델에 «명시로»
+     *   쓰므로, 그 뒤 패널을 다시 그리면 칸에 100 이 찍힌다. 여기서 비우면 그 재렌더와 어긋난다. */
     const hNum = document.getElementById('grd-img-height');
     if (hNum) hNum.value = result.height;
+    const wNum = document.getElementById('grd-img-width-pct');
+    if (wNum) wNum.value = result.widthPct;
     window.scheduleAutoSave?.();
   }
   function onUp() {

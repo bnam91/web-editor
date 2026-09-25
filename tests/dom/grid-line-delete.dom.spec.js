@@ -1,9 +1,10 @@
 /* grid-line-delete.dom.spec.js — T-009 두 버그의 회귀 그물. (2026-09-16)
  *
- * ★버그A — 「이미지 제거」가 imgSrc만 비워 line.type==='image' 줄을 그대로 남기면
+ * ★버그A — 이미지 줄을 지울 때 imgSrc만 비워 line.type==='image' 줄을 그대로 남기면
  *   렌더러(grid-block.js:_gridLineHtml)가 빈 이미지 placeholder(회색 배경 grd-img-empty)를
- *   «영구히» 그린다. 「제거」는 줄바([줄 삭제])·우클릭(「이미지 삭제」)과 «같은 결과»(줄 자체가
- *   사라짐)여야 한다 — prop-grid.js 의 grd-img-remove-btn 핸들러가 그 대상.
+ *   «영구히» 그린다. 이미지 줄을 지우는 길은 «전부» 같은 결과(줄 자체가 사라짐)여야 한다 —
+ *   지금 그 길은 둘이다: 줄바 「줄 삭제」(prop-grid.js grd-line-del-btn ← 이 파일이 재는 대상)와
+ *   우클릭 「이미지 삭제」(block-factory.js bcm-grid-img-del). 아래 버그A 머리말에 까닭.
  *
  * ★버그B — 그리드 셀 안 «줄»을 캔버스에서 클릭해도 DOM 선택은 여전히 .grid-block «전체»다
  *   (줄 선택은 WeakMap(grdActiveLine)에만 산다, 클래스가 안 붙는다). 그 상태에서 Backspace를
@@ -106,9 +107,20 @@ async function mount(page, fixture) {
   }, fixture);
 }
 
-/* ══ 버그A — 「이미지 제거」= 줄 삭제(같은 결과), 회색 placeholder 를 남기지 않는다 ══ */
+/* ══ 버그A — 이미지 줄 지우기 = 줄 삭제(같은 결과), 회색 placeholder 를 남기지 않는다 ══
+ *
+ * ★2026-09-25 «대상이 옮겨졌다» — Image 절의 「이미지 제거」(grd-img-remove-btn)를 현빈
+ *   지시로 없앴다. ⛔그런데 버그A 는 «단추»의 버그가 아니라 «지우는 방식»의 버그다
+ *   (imgSrc만 비우면 type:'image' 줄이 남아 회색 placeholder 가 영구히 그려진다).
+ *   ⇒ 그물을 걷지 «않고» 살아남은 손잡이로 옮겨 단다:
+ *     · 줄바의 「줄 삭제」(grd-line-del-btn) — 같은 패널·같은 칸. 지운 핸들러와 «한 글자도
+ *       안 다른» 같은 코드였다(prop-grid.js _grdWireLineBar ↔ 옛 _grdWireImageSection).
+ *     · 우클릭 「이미지 삭제」(bcm-grid-img-del, block-factory.js) — 같은 patchCell{lines} 경로.
+ *       ⚠️그 길은 이 하네스가 «안» 띄운다(우클릭 메뉴는 index.html+block-factory 배선) —
+ *         못 잰 축으로 적어 둔다. 여기서 재는 것은 패널 쪽 한 벌이다.
+ *   ★즉 이 파일은 «대상»만 바꿨지 «묻는 것»은 그대로다. */
 
-test('버그A ★「이미지 제거」를 누르면 그 줄이 통째로 사라진다(imgSrc만 비우지 않는다)', async ({ page }) => {
+test('버그A ★이미지 줄을 「줄 삭제」로 지우면 그 줄이 통째로 사라진다(imgSrc만 비우지 않는다)', async ({ page }) => {
   const errs = await boot(page);
   await mount(page, FIXTURE_2LINES);
   await page.evaluate(() => window.__open(window.__block, { r: 0, c: 0, li: 1 }));   // 이미지 줄을 연다
@@ -117,13 +129,16 @@ test('버그A ★「이미지 제거」를 누르면 그 줄이 통째로 사라
   expect(before, '픽스처가 2줄이 아니다 — 이 검사가 아무것도 안 본다').toBe(2);
 
   const btnState = await page.evaluate(() => {
-    const b = document.getElementById('grd-img-remove-btn');
-    return b ? { disabled: b.disabled, text: b.textContent } : null;
+    const b = document.getElementById('grd-line-del-btn');
+    /* ⛔없앤 단추가 «되살아났는지»도 같은 자리에서 본다 — 되살아나면 한 기능에 손잡이가
+       두 벌이 되고, 그때부터 이 검사는 «남은 한 벌»만 재게 된다. */
+    return b ? { disabled: b.disabled, revived: !!document.getElementById('grd-img-remove-btn') } : null;
   });
-  expect(btnState, '「이미지 제거」 버튼이 안 떴다').not.toBeNull();
+  expect(btnState, '★줄바의 「줄 삭제」가 안 떴다 — 이미지 줄을 지울 손잡이가 패널에 하나도 없다').not.toBeNull();
+  expect(btnState.revived, '★없앤 「이미지 제거」가 되살아났다 — 지우는 손잡이가 두 벌이면 둘이 따로 늙는다').toBe(false);
   expect(btnState.disabled, '줄이 2개인데 버튼이 비활성 상태다').toBe(false);
 
-  await page.click('#grd-img-remove-btn');
+  await page.click('#grd-line-del-btn');
 
   const model = await page.evaluate(() => window.__model(window.__block));
   expect(model.cells[0][0].lines.length, '★줄이 안 지워졌다 — imgSrc만 비운 옛 버그가 재발했다').toBe(1);
@@ -135,19 +150,20 @@ test('버그A ★「이미지 제거」를 누르면 그 줄이 통째로 사라
   expect(errs).toEqual([]);
 });
 
-test('버그A-보호 ★칸에 남은 마지막 줄(이미지 1개뿐)은 「이미지 제거」가 비활성이고 지워지지 않는다', async ({ page }) => {
+test('버그A-보호 ★칸에 남은 마지막 줄(이미지 1개뿐)은 「줄 삭제」가 비활성이고 지워지지 않는다', async ({ page }) => {
   const errs = await boot(page);
   await mount(page, FIXTURE_1LINE);
   await page.evaluate(() => window.__open(window.__block, { r: 0, c: 0, li: 0 }));
 
   const btn = await page.evaluate(() => {
-    const b = document.getElementById('grd-img-remove-btn');
+    const b = document.getElementById('grd-line-del-btn');
     return b ? { disabled: b.disabled } : null;
   });
-  expect(btn.disabled, '★마지막 한 줄인데 「이미지 제거」가 활성 상태다 — EMPTY_CELL_LINES 보호가 없다').toBe(true);
+  expect(btn, '★줄바의 「줄 삭제」가 안 떴다').not.toBeNull();
+  expect(btn.disabled, '★마지막 한 줄인데 「줄 삭제」가 활성 상태다 — EMPTY_CELL_LINES 보호가 없다').toBe(true);
 
   // 비활성 버튼을 강제로 눌러도(방어적 클릭) 데이터가 안 바뀐다 — 핸들러 자체의 disabled 가드도 검증.
-  await page.evaluate(() => document.getElementById('grd-img-remove-btn').click());
+  await page.evaluate(() => document.getElementById('grd-line-del-btn').click());
   const model = await page.evaluate(() => window.__model(window.__block));
   expect(model.cells[0][0].lines.length, '비활성 버튼 클릭으로 마지막 줄이 지워졌다').toBe(1);
   expect(errs).toEqual([]);
