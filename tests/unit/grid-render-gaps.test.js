@@ -411,32 +411,44 @@ test('B-중첩 ★중첩(type:\'duo\') 안의 이미지도 같은 자리다', ()
  *      놓고 브라우저가 계산한 사각형과 «찍은 픽셀»을 견준다. 이 표가 못 하는 일을 그 자가 한다.
  *
  *  ★무엇을 «잃었나» — 이 12줄이 잠그던 「2026-09-25 이전 산출과의 바이트 동일」은 영영 끝났다.
- *    이 커밋 이후의 회귀만 잡는다. 구조를 되돌리려면 옛 12줄을 위 주석에서 되살려야 한다. */
+ *    이 커밋 이후의 회귀만 잡는다. 구조를 되돌리려면 옛 12줄을 위 주석에서 되살려야 한다.
+ *
+ *  ★★두 번째 이동 — 「빈 셀」 (2026-09-25, 현빈). 여섯 `empty` 줄에서 `background:#e8e8e8;` 이
+ *    빠졌다. `img` 여섯 줄은 «한 글자도» 안 건드렸다.
+ *    ⛔이것은 골든을 «느슨하게 푼» 것이 아니라 «의도한 산출 변경»이다 — 그 구분이 이 표의 전부다.
+ *      이 자가 지키던 것은 「안 준 줄의 산출이 «덩달아» 바뀌지 않는다」이고, 그 뜻은 그대로다.
+ *    까닭 — 현빈 「빈 슬롯이 들어갈 수 있어야지 … 처음에 체크패턴으로 둘 수 있을 것 같은데」.
+ *      회색 «단색»을 배너02 관용구(16px 체커)로 바꾸면서, 무늬를 «인라인에서 CSS 클래스»로 옮겼다
+ *      (인라인이면 저장본·단독 HTML 배송본에 편집용 무늬가 그대로 실린다 — .tbl-img-cell 선례).
+ *      ⇒ 그래서 산출에서 빠지는 것은 «무늬 한 선언»뿐이고, 상자(높이·모서리·폭)는 그대로다.
+ *    ★새 값이 «어디 있나»와 «배송본에 안 실리나»는 여기가 아니라 다음 둘이 잰다:
+ *      tests/unit/card-empty-export.test.mjs (값·자리·되돌아오는 문)
+ *      tests/dom/grid-cell-empty-slot.dom.spec.js (화면에 그려지나 · 네 내보내기 경로) */
 const D_GOLDEN = {
   'left|50|img':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:50%;">',
   'left|50|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;background:#e8e8e8;border-radius:8px;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;border-radius:8px;">',
   'left|100|img':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:100%;">',
   'left|100|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;background:#e8e8e8;border-radius:8px;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;border-radius:8px;">',
   'center|50|img':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:50%;margin-left:auto;margin-right:auto;">',
   'center|50|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;background:#e8e8e8;border-radius:8px;margin-left:auto;margin-right:auto;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;border-radius:8px;margin-left:auto;margin-right:auto;">',
   'center|100|img':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:100%;">',
   'center|100|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;background:#e8e8e8;border-radius:8px;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;border-radius:8px;">',
   'right|50|img':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:50%;margin-left:auto;">',
   'right|50|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;background:#e8e8e8;border-radius:8px;margin-left:auto;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;border-radius:8px;margin-left:auto;">',
   'right|100|img':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:100%;">',
   'right|100|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;background:#e8e8e8;border-radius:8px;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;border-radius:8px;">',
 };
 
 const dKey = ({ ca, wp, kind }) => `${ca}|${wp}|${kind}`;

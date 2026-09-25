@@ -2070,6 +2070,23 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
   background-image: repeating-conic-gradient(#e0e0e0 0% 25%, transparent 0% 50%);
   background-size: 16px 16px;
 }
+/* ★그리드 «빈 이미지 슬롯» 체커 — 현빈 2026-09-25 「빈 슬롯이 들어갈 수 있어야지 …
+   처음에 체크패턴으로 둘 수 있을 것 같은데」.
+   ★무엇이 바뀌었나 — 여기 오기 전 이 자리는 `background:#e8e8e8` «회색 단색»이었고,
+     그것도 js/blocks/grid-block.js 가 «인라인»으로 박고 있었다. 위 두 결함군(.bn2-img-empty ·
+     .tbl-img-cell)과 «정확히 같은 모양»이다 — 빈 칸 표시를 인라인으로 두면 저장본(.gdt)과
+     단독 HTML 배송본에 그대로 실린다. ⇒ 무늬를 CSS 로 옮기면서 값도 관용구에 맞춘다.
+   ★값은 «새로 발명하지 않는다» — .bn2-img-empty 와 «같은 값»(#e3e3e3/#efefef · 16px)을 쓴다.
+     72px 정본(.asset-block)이 아니라 16px 쪽을 베끼는 까닭은 배너 이미지칸과 같은 이유다:
+     그리드 칸은 «칸 하나»라 작다. 72px 타일은 한 칸에 한두 개만 들어가 무늬로 안 읽힌다.
+   ★«상자»는 여전히 인라인이다(높이·모서리·폭) — 빈 셀이 자리를 차지한다는 뜻 그 자체라
+     배송본에도 남아야 한다. 여기서 주는 것은 «무늬»뿐이고, 그 무늬만 배송본에서 빠진다.
+   ⚠️PNG 내보내기는 이 이동만으론 안 걷힌다 — 캡처 클론은 body 에 붙어 앱 CSS 를 그대로 받는다.
+     그 몫은 js/io/capture-safety.js neutralizeEmptyImageCheckerForCapture 가 진다
+     (.bn2-img-empty 주석과 같은 분업). 단독 HTML 은 js/io/export-css-collect.js 가 진다. */
+.grid-block .grd-img-empty {
+  background: repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 0 / 16px 16px;
+}
 .banner02-block .bn2-line-empty {
   /* 빈 줄에 «클릭할 자리»를 만든다 — 편집 전용이라 저장·내보내기에선 클래스째 제거된다.
      ⚠️인라인이 아니라 CSS 로만 주는 이유: 인라인이면 저장본에 실리고 높이 계산의 입력이 되어

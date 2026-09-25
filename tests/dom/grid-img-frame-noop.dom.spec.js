@@ -28,6 +28,13 @@
  *   N0-b  ★양성대조 — 내 비교기가 «차이를 잡기는» 하는가. 일부러 flex-shrink 를 뺀 사본을
  *         짧은 행에 세워 빨개지는지 본다(그 한 줄이 바로 min-height:auto 보정이다).
  *
+ * ★★한 갈래가 «갈라졌다» — 빈 슬롯의 칠 (2026-09-25, 같은 날 뒤 커밋)
+ *   현빈 「빈 슬롯이 들어갈 수 있어야지 … 처음에 체크패턴으로 둘 수 있을 것 같은데」로
+ *   빈 이미지 슬롯의 칠이 회색 단색 → 체크패턴이 됐다. ⇒ N2 에서 「그림도 같다」는 «거짓»이 됐다.
+ *   ⛔그렇다고 이 파일을 버리지 않는다 — N1(그림이 «든» 줄)의 no-op 증명은 그대로 살아 있고,
+ *     N2 도 «상자»는 여전히 재야 한다(빈 셀은 자리를 차지하는 게 존재 이유다).
+ *   ⇒ N2 만 「상자 동일 ＋ 칠은 일부러 다름」으로 갈랐다. 까닭은 N2 머리말에 적어 뒀다.
+ *
  * ⛔앱을 «안» 띄운다. 제품 변경 0.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js grid-img-frame-noop
  */
@@ -324,16 +331,38 @@ for (const c of CASES) {
   });
 }
 
-/* ══ N2 — 빈 슬롯. 클래스 이름만 바뀌었으므로 여기도 «같은 그림»이어야 한다 ══ */
+/* ══ N2 — 빈 슬롯. ★«상자»는 같고, «칠»은 일부러 다르다 ═══════════════════════════
+ *
+ * ★★제목이 바뀐 까닭 (2026-09-25, 현빈 「빈 셀 … 체크패턴으로」)
+ *   여기 있던 제목은 「클래스 이름만 바뀌었다(그림도 같다)」였고 `diff.max === 0` 을 요구했다.
+ *   그 말은 «프레임 리팩터 커밋»에선 참이었다. 지금은 «거짓»이다 — 빈 슬롯의 칠을
+ *   회색 단색(#e8e8e8) → 체크패턴으로 «일부러» 바꿨기 때문이다.
+ *   ⛔제목이 조건을 말하는데 그 조건이 깨졌으면, 문턱을 올려 빨강을 지우는 게 아니라
+ *     «제목부터» 고쳐야 한다. (이 파일 N1 의 「⛔이 수를 빨간 걸 지우려고 올리지 마라」와 같은 결.
+ *      문턱을 올리면 이 자는 그때부터 아무것도 안 잰다.)
+ *
+ * ★그래서 무엇을 «여전히» 재나 — 이 파일의 본래 몫인 «상자»다.
+ *   빈 셀은 «자리를 차지하는 것»이 존재 이유라, 칠이 바뀌어도 사각형이 움직이면 그건 결함이다.
+ *   ⇒ rects 동일은 «그대로 센 채로» 남긴다. 실측으로도 그 단언은 계속 초록이었다
+ *     (깨진 것은 픽셀 하나뿐이고, 상자는 한 톨도 안 움직였다).
+ * ★그리고 «칠이 정말 바뀌었나»를 역방향으로 못박는다 — 누가 체커를 조용히 회색으로
+ *   되돌리면 여기가 빨개진다. «무엇으로» 칠하는지(값·자리·배송본 유출)는 이 파일의 몫이 아니라
+ *   tests/dom/grid-cell-empty-slot.dom.spec.js ④·⑧ 과 tests/unit/card-empty-export.test.mjs 가 잰다. */
 for (const align of ['left', 'center', 'right']) {
-  test(`N2[${align}] ★빈 이미지 슬롯 — 클래스 이름만 바뀌었다(그림도 같다)`, async ({ page }) => {
+  test(`N2[${align}] ★빈 이미지 슬롯 — «상자»는 옛 화면과 같고, «칠»은 일부러 다르다`, async ({ page }) => {
     const errs = await boot(page);
     const o = OLD_IMAGE_LINE({ imgSrc: '', height: 120, widthPct: 50, align });
     const n = NEW_IMAGE_LINE(MOD, { type: 'image', widthPct: 50, align, height: 120 });
     expect(n, '★빈 슬롯이 프레임 클래스를 안 달았다').toContain('grd-img-frame grd-img-empty');
     const r = await stand(page, o, n, false);
     expect(errs).toEqual([]);
-    expect(r.rects.neu, `★빈 슬롯(${align}) 상자가 옛 화면과 다르다`).toEqual(r.rects.old);
-    expect(r.diff.max, `★빈 슬롯(${align}) 픽셀이 다르다 — 다른 점 ${r.diff.n}/${r.diff.total}`).toBe(0);
+    // ★이 줄이 이 파일의 본래 몫 — 칠이 바뀌어도 «자리»는 한 톨도 안 움직여야 한다.
+    expect(r.rects.neu, `★빈 슬롯(${align}) 상자가 옛 화면과 다르다 — 칠만 바꾼 커밋이 자리를 움직였다`)
+      .toEqual(r.rects.old);
+    expect(r.diff.sizeMismatch, `★빈 슬롯(${align}) 무대 크기 자체가 다르다`).toBeUndefined();
+    /* ★역방향 — 체커를 회색 단색으로 되돌리면 여기가 빨개진다(현빈 주문이 조용히 사라지는 문). */
+    expect(r.diff.n,
+      `★빈 슬롯(${align})의 칠이 옛 회색과 «같다» — 체크패턴이 사라졌다(현빈 2026-09-25 주문)`)
+      .toBeGreaterThan(0);
   });
 }

@@ -1,10 +1,21 @@
 /* grid-line-delete.dom.spec.js — T-009 두 버그의 회귀 그물. (2026-09-16)
  *
- * ★버그A — 이미지 줄을 지울 때 imgSrc만 비워 line.type==='image' 줄을 그대로 남기면
- *   렌더러(grid-block.js:_gridLineHtml)가 빈 이미지 placeholder(회색 배경 grd-img-empty)를
- *   «영구히» 그린다. 이미지 줄을 지우는 길은 «전부» 같은 결과(줄 자체가 사라짐)여야 한다 —
- *   지금 그 길은 둘이다: 줄바 「줄 삭제」(prop-grid.js grd-line-del-btn ← 이 파일이 재는 대상)와
- *   우클릭 「이미지 삭제」(block-factory.js bcm-grid-img-del). 아래 버그A 머리말에 까닭.
+ * ★버그A — 「줄 삭제」가 imgSrc만 비우고 line.type==='image' 줄을 그대로 남기면, 렌더러
+ *   (grid-block.js:_gridLineHtml)가 빈 이미지 슬롯(grd-img-empty)을 남긴 채 «줄이 안 지워진다».
+ *   ⇒ 「줄 삭제」라는 이름이 하는 일은 «줄이 사라지는 것»이어야 한다.
+ *
+ * ★★2026-09-25 «계약이 갈렸다» — 이 머리말이 원래 적고 있던 것은 「이미지 줄을 지우는 길은
+ *   «전부» 같은 결과(줄 자체가 사라짐)여야 한다」였고, 우클릭 「이미지 삭제」를 그 길에 넣었다.
+ *   현빈이 그 «전부»를 무르셨다(세 번 물으신 것):
+ *     「빈 슬롯이 들어갈 수 있어야지. … 칸의 마지막 줄은 그리고 왜 삭제가 안 되니?
+ *      빈 셀로도 두고 싶을 수도 있잖아?」
+ *   ⇒ 그때 «버그»로 본 빈 placeholder 가 지금은 주문받은 «기능»이다. 이제 손잡이 이름대로 갈린다:
+ *     · 줄바 「줄 삭제」(grd-line-del-btn) · Backspace  → 줄을 «뺀다»   ← ★이 파일이 재는 것
+ *     · 우클릭 「이미지 삭제」(bcm-grid-img-del)        → 그림만 «비운다». 줄(자리)은 남는다
+ *   ⛔아래 단언은 한 줄도 안 바꿨다 — 이 파일은 «줄바 쪽»만 재고, 그쪽 계약은 그대로다.
+ *     우클릭 쪽의 새 계약은 tests/dom/grid-cell-empty-slot.dom.spec.js 가 «따로» 맡는다.
+ *     (까닭을 여기 적어 두는 이유: 머리말과 제품이 따로 늙으면 다음 사람이 이 파일을 근거로
+ *      「우클릭도 줄을 빼야 한다」고 되돌린다.)
  *
  * ★버그B — 그리드 셀 안 «줄»을 캔버스에서 클릭해도 DOM 선택은 여전히 .grid-block «전체»다
  *   (줄 선택은 WeakMap(grdActiveLine)에만 산다, 클래스가 안 붙는다). 그 상태에서 Backspace를
@@ -115,9 +126,8 @@ async function mount(page, fixture) {
  *   ⇒ 그물을 걷지 «않고» 살아남은 손잡이로 옮겨 단다:
  *     · 줄바의 「줄 삭제」(grd-line-del-btn) — 같은 패널·같은 칸. 지운 핸들러와 «한 글자도
  *       안 다른» 같은 코드였다(prop-grid.js _grdWireLineBar ↔ 옛 _grdWireImageSection).
- *     · 우클릭 「이미지 삭제」(bcm-grid-img-del, block-factory.js) — 같은 patchCell{lines} 경로.
- *       ⚠️그 길은 이 하네스가 «안» 띄운다(우클릭 메뉴는 index.html+block-factory 배선) —
- *         못 잰 축으로 적어 둔다. 여기서 재는 것은 패널 쪽 한 벌이다.
+ *   ⛔우클릭 「이미지 삭제」는 2026-09-25 부터 «여기 안 든다» — 그 길은 줄을 빼지 않고
+ *     그림만 비운다(위 머리말의 계약 갈림). 그쪽은 grid-cell-empty-slot.dom.spec.js 가 잰다.
  *   ★즉 이 파일은 «대상»만 바꿨지 «묻는 것»은 그대로다. */
 
 test('버그A ★이미지 줄을 「줄 삭제」로 지우면 그 줄이 통째로 사라진다(imgSrc만 비우지 않는다)', async ({ page }) => {
