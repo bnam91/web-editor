@@ -86,6 +86,8 @@ export function bindSlider(slider, number, applyFn, opts = {}) {
  *     grid-block.js 의 `MIN_COLS=2` 폴백(_gridCols)이 만든 것이었고, 그 상수를 1 로 내리면서
  *     폴백 «조건 자체»가 사라졌다. ⛔이 파일(buildGridPicker)은 한 줄도 안 바뀌었다 —
  *     술어 `alive()` 가 처음부터 minCols 를 그대로 따랐다.
+ * @param {{cols:number, rows:number}} [opts.cur] ★«지금» 칸 수. 주면 그 칸을 처음부터 칠하고
+ *   마우스가 나가도 '—' 가 아니라 그 값으로 되돌아간다. 안 주면 옛 동작(빈 피커 · '—').
  */
 export function buildGridPicker(picker, label, onPick, opts = {}) {
   if (!picker) return;
@@ -116,22 +118,41 @@ export function buildGridPicker(picker, label, onPick, opts = {}) {
       picker.appendChild(cell);
     }
   }
-  const clear = () => {
-    picker.querySelectorAll('.grid-picker-cell').forEach(cl => cl.classList.remove('active'));
-    if (label) label.textContent = '—';
-  };
-  picker.addEventListener('mouseover', e => {
-    const cell = e.target.closest('.grid-picker-cell');
-    if (!cell || cell.classList.contains('grid-picker-cell--off')) return;
-    const r = +cell.dataset.r, c = +cell.dataset.c;
+  /* ★칠하기는 «한 곳»에서만 한다 — hover 미리보기와 «지금 값» 표시가 같은 그림이라
+   *   두 벌로 적으면 alive() 때처럼 한쪽이 반드시 뒤처진다(위 주석이 같은 말을 적어 뒀다). */
+  const paint = (c, r) => {
     picker.querySelectorAll('.grid-picker-cell').forEach(cl => {
       const cr = +cl.dataset.r, cc = +cl.dataset.c;
       // ★칠하는 조건도 «alive» 를 거친다 — 죽은 칸은 미리보기에도 안 들어간다.
       cl.classList.toggle('active', alive(cr, cc) && cr <= r && cc <= c);
     });
     if (label) label.textContent = `${c} × ${r}`;
+  };
+  /* ★«지금 몇 칸인가»를 피커가 스스로 말한다 (2026-09-25).
+   *   왜 — 이 절이 이제 «기본 접힘»이다(prop-grid.js 의 grd-size-toggle). 접힌 절을 펼친 사람이
+   *   맨 먼저 묻는 것은 「지금 어디인가」인데, 전엔 ★hover 하기 «전»까지 아무 칸도 안 칠해졌고
+   *   라벨도 '—' 였다 — 즉 마우스를 올려 보기 전엔 현재 값을 «피커로는» 알 수 없었다.
+   *   ⇒ opts.cur = { cols, rows } 를 받으면 그 칸을 처음부터 칠하고, 마우스가 나가면 «'—' 가
+   *     아니라» 그 값으로 되돌아간다.
+   *   ⛔opts.cur 를 «안» 주면 옛 동작 그대로다(아무것도 안 칠하고 '—'). 이 파일을 부르는 곳이
+   *     지금 prop-grid.js 하나뿐이라 당장은 한 길만 도는데, 기본값을 바꿔 «조용히» 다른
+   *     호출부의 그림을 갈아치우지 않으려고 기본을 옛 쪽에 뒀다. */
+  const curC = Number(opts.cur && opts.cur.cols) || 0;
+  const curR = Number(opts.cur && opts.cur.rows) || 0;
+  const hasCur = alive(curR, curC);
+  const clear = () => {
+    if (hasCur) { paint(curC, curR); return; }
+    picker.querySelectorAll('.grid-picker-cell').forEach(cl => cl.classList.remove('active'));
+    if (label) label.textContent = '—';
+  };
+  picker.addEventListener('mouseover', e => {
+    const cell = e.target.closest('.grid-picker-cell');
+    if (!cell || cell.classList.contains('grid-picker-cell--off')) return;
+    paint(+cell.dataset.c, +cell.dataset.r);
   });
   picker.addEventListener('mouseleave', clear);
+  // ★처음 그림 — 위 clear() 와 «같은 코드»를 쓴다(초기와 복귀가 갈리면 마우스 한 번에 그림이 튄다).
+  clear();
   picker.addEventListener('click', e => {
     const cell = e.target.closest('.grid-picker-cell');
     if (!cell) return;

@@ -1518,6 +1518,20 @@ export function showGridProperties(block, addrArg) {
                    || _grdColsHaveAlignOverride(block, 'align')
                    || _grdColsHaveAlignOverride(block, 'valign');
 
+  /* ★「Grid (N×M)」 절도 접이식이다 — 기본 접힘 (2026-09-25 · 현빈 발주 「위를 접는다」).
+   *   왜 — 이 절은 패널 «맨 위»에서 4×4 피커 격자만으로 세로를 크게 먹는데, «칸 수»는
+   *   블록을 만들 때 한 번 정하고 나면 거의 안 만지는 손잡이다. 그 아래 자주 쓰는 절들
+   *   (줄바·테두리·칸 꾸미기·줄 꾸미기·Typography)이 그만큼 화면 밖으로 밀려나 있었다.
+   *   ⇒ 접으면 그 절들이 «스크롤 없이» 보이는 자리로 올라온다.
+   *   ★접어도 «지금 몇 칸인지»는 제목이 말한다 — 제목에 (N×M) 이 이미 있었고, 여기에
+   *     「— 칸 수 바꾸기」를 붙여 «무엇을 여는 절인지»까지 접힌 채로 말하게 했다.
+   *   ⛔부품도 집도 «칸 꾸미기»·«줄 꾸미기»와 같은 것을 쓴다(_grdDisclosureHtml · _grdOpenSections).
+   *     열림 상태는 WeakMap(메모리)이라 ★저장본에 안 들어간다 — 저장 포맷 무변경.
+   *   ⛔이 절이 «DOM 에서 사라지는» 것이 아니다 — 몸(#grd-size-body)만 display:none 이고
+   *     피커 셀 16개와 힌트 두 줄은 그대로 있다. 그 사실을 기계로 재는 그물:
+   *     tests/dom/grid-panel-fold.dom.spec.js (F2 — 접힘 vs 펼침에서 DOM 수가 «같다»). */
+  const _sizeOpen = _grdSecOpen(block, 'size');
+
   propPanel.innerHTML = `
     <div class="prop-section">
 ${blockHeaderHTML({
@@ -1530,14 +1544,16 @@ ${blockHeaderHTML({
       id: block.id,
     })}
     </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Grid (${cols.length}×${rows.length})</div>
-      <div class="grid-picker" id="grd-grid-picker"></div>
-      <div class="grid-picker-label" id="grd-grid-picker-label">—</div>
-      <div class="prop-hint" style="margin-top:2px;">가로×세로 칸 수를 고른다</div>
-      <!-- ★적대검수 Q3: 「줄이면 보존」으로 동작을 바꾸는 대신 «사실을 적는다».
-           API 경로(grid-block.js)가 이미 «자르고 undo» 정책이라, 피커만 보존하면 정책이 둘로 갈라진다. -->
-      <div class="prop-hint" style="margin-top:2px;">줄이면 잘린 칸 내용은 사라진다 (⌘Z 복원)</div>
+    <div class="prop-section"${_sizeOpen ? '' : ' style="padding-bottom:0;"'}>
+${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) — 칸 수 바꾸기`, _sizeOpen)}
+      <div id="grd-size-body" style="display:${_sizeOpen ? 'block' : 'none'};">
+        <div class="grid-picker" id="grd-grid-picker"></div>
+        <div class="grid-picker-label" id="grd-grid-picker-label">—</div>
+        <div class="prop-hint" style="margin-top:2px;">가로×세로 칸 수를 고른다</div>
+        <!-- ★적대검수 Q3: 「줄이면 보존」으로 동작을 바꾸는 대신 «사실을 적는다».
+             API 경로(grid-block.js)가 이미 «자르고 undo» 정책이라, 피커만 보존하면 정책이 둘로 갈라진다. -->
+        <div class="prop-hint" style="margin-top:2px;">줄이면 잘린 칸 내용은 사라진다 (⌘Z 복원)</div>
+      </div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
@@ -1691,8 +1707,15 @@ ${blockHeaderHTML({
       showGridProperties(block, _curAddr);
       showGridGutters(block);                   // 패널 재생성(칸/행 수가 바뀌면 섹션도 바뀐다)
     },
-    { max: MAX_COLS, maxRows: MAX_ROWS, minCols: MIN_COLS, minRows: MIN_ROWS }
+    /* ★cur — 「지금 몇 칸인가」를 피커가 «펼치자마자» 그림으로 말하게 한다(2026-09-25).
+       절이 기본 접힘이 되면서, 펼친 사람이 맨 먼저 묻는 것이 이것이 됐다.
+       ⛔hover 하기 전엔 한 칸도 안 칠해지던 것이 옛 동작이다 — _helpers.js 가 까닭을 적어 뒀다. */
+    { max: MAX_COLS, maxRows: MAX_ROWS, minCols: MIN_COLS, minRows: MIN_ROWS,
+      cur: { cols: cols.length, rows: rows.length } }
   );
+  /* ⛔접이식 배선은 innerHTML 이 선 «뒤»라야 한다(getElementById 가 그때 산다).
+     칸 꾸미기·줄 꾸미기와 «같은 부품»이다 — 키만 'size' 로 다르다. */
+  _grdWireDisclosure(block, 'size', 'grd-size-toggle', 'grd-size-body');
 
   const ratioInput = document.getElementById('grd-col-ratio');
   const _applyRatioInput = (raw) => {
