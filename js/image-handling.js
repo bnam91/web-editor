@@ -1391,6 +1391,12 @@ function enterGridImageEditMode(block, addr) {
     proxy.dataset.imgX = x0;
     proxy.dataset.imgY = y0;
 
+    /* ★「원래대로」가 눌렸나 — 아래 beforeCommit 이 «쓸 것인가 지울 것인가»를 가르는 깃발.
+     * ⛔단추에서 모델을 직접 고치고 끝낼 수 «없다» — exitImageEditMode 는 «언제나»
+     *   beforeCommit 을 부르고, 그 자리가 세 값을 다시 «쓴다». 먼저 지워도 나가면서 되살아난다.
+     *   ⇒ 지우기는 «나가는 길 위»에 있어야 한다. 그래서 깃발이다. */
+    let cropResetWanted = false;
+
     enterImageEditMode(proxy, {
       noRotate: true,        // 크롭 모델에 회전 축이 없다 — 있는 척하면 돌려 놓고 저장이 안 된다
       noColorAdjust: true,   // 색보정은 에셋 <img> 전용 경로다(그리드 줄엔 그 필드가 없다)
@@ -1402,6 +1408,21 @@ function enterGridImageEditMode(block, addr) {
         const x = parseFloat(proxy.dataset.imgX) || 0;
         const y = parseFloat(proxy.dataset.imgY) || 0;
         _teardownGridImgEdit(block);          // ★patch/pushHistory «전»에 임시 DOM 을 0 으로
+        if (cropResetWanted) {
+          /* ★「원래대로」 — 세 값을 «지운다»(cover 로 복귀). `undefined` 가 「이 필드를 없앤다」는
+             뜻이다 — `''`(강제로 없앰)도 `0`(값)도 아니다(_gridMergeLine 의 pick 계약).
+             ⛔셋을 «한 번에» 지워야 렌더러가 cover 로 돌아간다. 하나라도 남으면 프레임이
+               계속 «자르는 그릇»(overflow:hidden)이다.
+             ★여기서 지우면 화면도 곧바로 따라온다 — updateGridBlock 이 다시 그리고, 이 함수는
+               이미 임시 DOM(프록시)을 걷어낸 뒤라 «진짜 그림»이 cover 로 보인다. */
+          window.updateGridBlock?.(block.id, {
+            patchCell: {
+              r: addr.r, c: addr.c, lineIndex: addr.li,
+              imgSizePct: undefined, imgPosX: undefined, imgPosY: undefined,
+            },
+          });
+          return;
+        }
         /* ★px → ％ 통역. 가로는 프레임 폭, 세로는 프레임 높이가 기준이다
            (렌더러가 left:…% / top:…% 를 그렇게 푼다 — CSS 의 기준과 같다). */
         window.updateGridBlock?.(block.id, {
@@ -1420,14 +1441,31 @@ function enterGridImageEditMode(block, addr) {
       },
     });
 
-    // 우측 패널이 «이미지 편집»으로 교체된 뒤 — 같은 자리에 종료 버튼(섹션 배경과 같은 꼴)
+    /* 우측 패널이 «이미지 편집»으로 교체된 뒤 — 같은 자리에 종료 버튼(섹션 배경과 같은 꼴)
+     * ★2026-09-25 「원래대로」를 «여기» 둔다 — 현빈이 정한 자리다(「크롭 초기화 …
+     *   에셋블록에도 같은 기능이 있으면 «편집모드 안으로 옮기고»…」).
+     *   한 번은 패널의 «크롭 초기화»를 통째로 없앴었다(e04d29f). 그때 판단은 「⌘Z 가
+     *   되돌려 준다」였는데, 실기가 그것을 «반증»했다 — 크롭을 연달아 두 번 하면 ⌘Z 가
+     *   한 칸만 물러나고 멈춰(실측 115.607→138.226→160.77, ⌘Z 뒤 138.226 에서 고착)
+     *   사용자가 «중간 값»에 갇힌다. ⇒ 되돌릴 길이 «정말로» 없어서 되살린다.
+     * ⛔패널(prop-grid.js 이미지 절)로는 되돌리지 «마라» — 거기서 없애라신 뜻은 그대로다.
+     * ⛔「⌘Z 가 두 번째부터 안 먹는다」는 이 단추가 고치는 것이 «아니다» — 그건 제품 전체의
+     *   되돌리기 문제이고 별건으로 섰다. 그 버그가 고쳐져도 이 단추는 계속 쓸모가 있다
+     *   (⌘Z 는 «한 칸 뒤»로 가고, 이 단추는 «크롭 없음»으로 간다 — 목적지가 다르다). */
     const pp = document.querySelector('#panel-right .panel-body');
     if (pp) {
       const box = document.createElement('div');
       box.className = 'prop-section';
-      box.innerHTML = '<button class="prop-action-btn secondary" id="grd-img-crop-done">크롭 완료</button>';
+      box.innerHTML =
+        '<button class="prop-action-btn secondary" id="grd-img-crop-done">크롭 완료</button>' +
+        '<button class="prop-action-btn" id="grd-img-crop-reset" style="margin-top:6px;"' +
+        ' title="맞춰 둔 크롭을 지우고 «프레임에 꽉 채우기»로 되돌립니다">원래대로</button>';
       pp.appendChild(box);
       box.querySelector('#grd-img-crop-done').addEventListener('click', () => exitImageEditMode(proxy));
+      box.querySelector('#grd-img-crop-reset').addEventListener('click', () => {
+        cropResetWanted = true;       // ★깃발을 먼저 — 나가는 길 위의 beforeCommit 이 이걸 읽는다
+        exitImageEditMode(proxy);
+      });
     }
   };
 
