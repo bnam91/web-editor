@@ -3004,6 +3004,17 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
       window.grdDropLineSelection?.(document.getElementById('canvas'));
       gridAddr = null;
     }
+    /* ★중첩 안 줄이 잡혀 있으면 «아무 줄도 안 지운다» (T-200 커밋 ②).
+       ⛔consumed = true 로 «먹고» 끝낸다 — false 로 흘리면 아래 블럭 삭제로 새어
+         중첩 줄 하나를 지우려던 ⌫ 가 «블럭 통째»를 지운다.
+       ⛔gridAddr.li 는 «품은 duo 줄»이다. np 를 안 보고 지우면 사용자가 고른 적 없는
+         중첩 그리드 통째가 사라진다 — 그래서 여기서 명시적으로 멈춘다.
+       ★지우는 길은 커밋 ② 범위 밖이다(patchCell{lineIndex} 가 중첩으로 못 내려간다). */
+    if (gridSel && gridAddr && gridAddr.np) {
+      consumed = true;
+      window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 지울 수 없습니다 — 바깥 줄을 고르세요');
+      return consumed;
+    }
     if (gridSel && gridAddr && gridAddr.li !== null && gridAddr.li !== undefined) {
       consumed = true;
       let lines;

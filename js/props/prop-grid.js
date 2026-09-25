@@ -9,7 +9,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
          gridGaps, GRID_GAP_MAX, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES,
-         GRID_CELL_FIELDS } from '../blocks/grid-block.js';
+         GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE } from '../blocks/grid-block.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
@@ -112,6 +112,16 @@ function _grdSyncLineMark(block, addr) {
     block.querySelector(`.grd-cell[data-r="${addr.r}"][data-c="${addr.c}"]`)?.classList.add('grd-cell-selected');
     return;
   }
+  /* ★중첩 안 줄 (T-200 커밋 ②) — 렌더러가 찍은 «다른 이름»으로 집는다.
+     ⛔data-line 으로 못 집는다 — 중첩 안 줄은 그 이름을 일부러 안 쓴다(grid-block.js 머리말).
+     ★마커 클래스는 «같은 것»을 쓴다: 사용자에게는 똑같이 「지금 고른 줄」이고,
+       「못 고친다」는 말은 우측 패널이 한다(_grdNestHintHtml). 여기서 색을 달리하면
+       CSS 한 벌이 더 생기고, 그 뜻을 아무도 안 적어 두게 된다. */
+  if (addr.np) {
+    block.querySelector(`[data-r="${addr.r}"][data-c="${addr.c}"][data-nroot="${addr.li}"][data-npath="${addr.np}"]`)
+      ?.classList.add('grd-line-selected');
+    return;
+  }
   block.querySelector(`[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`)
     ?.classList.add('grd-line-selected');
 }
@@ -125,6 +135,11 @@ function _grdResolveAddr(block, addr) {
   //   li:0 처럼 통과해 버릴 수 있다(그 사이 다른 경로가 그 칸에 줄을 채워 넣은 드문 동시성
   //   케이스). 글자 줄 전용 판정이니 셀 모드는 여기서 명시적으로 걸러낸다.
   if (addr.li === null) return null;
+  /* ★중첩 안 줄(np 있음)은 «여기서 끝낸다» — Typography/Fill 절을 안 내놓는다 (T-200 커밋 ②).
+     ⛔이 한 줄이 없으면 li(=품은 duo 줄의 index)가 그대로 흘러 패널이 «duo 줄»의 타이포를
+       고치려 든다. 손잡이는 움직이는데 화면은 그대로인 «거짓 성공»이 바로 그 꼴이다.
+       (쓰는 길 자체가 없다: patchCell 은 lineIndex 정수 하나뿐이라 중첩으로 못 내려간다.) */
+  if (addr.np) return null;
   const r = Number(addr.r), c = Number(addr.c), li = Number(addr.li);
   if (![r, c, li].every(Number.isInteger)) return null;
   let cells;
@@ -149,6 +164,22 @@ function _grdLine(block, addr) {
  *  addr.li === null → 셀 모드(빈 셀 클릭 포함). 정수 li → 그 줄이 실제로 있어야 한다. */
 function _grdResolveAnyAddr(block, addr) {
   if (!addr || !block) return null;
+  /* ★중첩 안 줄(np 있음)은 «여기서 끝낸다» (T-200 커밋 ②).
+     ★이 한 줄이 패널 «전체»의 바일아웃이다 — 줄바·칸 꾸미기·이미지 절·줄 꾸미기의 html 과
+       wire 여섯 자리가 전부 이 함수 하나로 주소를 푼다(_grdWireLineBar·_grdWireCellSection·
+       _grdWireImageSection·_grdWireLineSection). T/G/K 단축키
+       (grdAddLineToSelectedCell·grdAddIconToSelectedCell)도 같은 문으로 들어온다.
+     ⇒ 전부 「선택 없음」과 같은 상태가 된다 = 고치는 손잡이가 «안 나온다».
+     ★★⛔이 문은 «둘 중 하나»다 — showGridProperties 의 `_nestHit ? null : …` 가 «또 하나»다.
+       한쪽만 떼도 «증상이 안 바뀐다»(실측: 패널 문만 떼면 이 문이 혼자 막는다 —
+       tests/dom/grid-nested-line-select.dom.spec.js A3-양성2a·2b 가 그 둘을 갈라 잰다).
+       ⇒ 다음 사람이 한쪽만 고쳐 보고 「안 듣는다」고 닫지 마라. ★둘 다 봐야 한다.
+       ⛔이 레포는 «문이 둘인 것»이 버릇이다 — 쓰기 쪽(updateGridBlock 의 intake 두 자리)도
+         같은 꼴이다. 한쪽만 재면 양성대조가 «초록인데 아무것도 안 재는» 자가 된다
+         (그 일이 실제로 이 카드에서 한 번 났다).
+     ⛔대신 «그 줄이 무엇인지»는 말해야 한다 — showGridProperties 가 _grdResolveNestAddr 로
+       따로 풀어 안내 한 줄(_grdNestHintHtml)을 세운다. */
+  if (addr.np) return null;
   const r = Number(addr.r), c = Number(addr.c);
   if (!Number.isInteger(r) || !Number.isInteger(c)) return null;
   let model;
@@ -161,6 +192,29 @@ function _grdResolveAnyAddr(block, addr) {
   const line = Array.isArray(lines) ? lines[li] : undefined;
   if (!line || typeof line !== 'object') return null;
   return { r, c, li, line };
+}
+
+/** ★중첩 안 줄 «전용» 리졸버 (T-200 커밋 ②) — `np`(data-npath) 가 있는 주소만 받는다.
+ *  `_grdResolveAnyAddr` 이 np 를 거절하므로, 「그 줄이 무엇인지」는 이 문으로만 알 수 있다.
+ *  ⛔읽기 전용이다 — 돌려주는 line 은 «보여 주기» 위한 것이지 고치기 위한 것이 아니다.
+ *    (쓰는 길이 없다: patchCell{lineIndex} 는 cells[r][c].lines 로 가는 정수 하나뿐이다.)
+ *  ★길은 렌더러가 찍은 그 꼴을 그대로 되짚는다 — `"<열>.<줄>"` 을 `/` 로 이은 것
+ *    (grid-block.js `_gridNestAddr`). 마디 수 상한을 여기서 따로 안 적는다 — 모델을 실제로
+ *    걸어 내려가다 없으면 null 이 된다(렌더러의 깊이 가드와 «같은 답»에 닿는다). */
+function _grdResolveNestAddr(block, addr) {
+  if (!addr || !block || typeof addr.np !== 'string' || !addr.np) return null;
+  const r = Number(addr.r), c = Number(addr.c), li = Number(addr.li);
+  if (![r, c, li].every(Number.isInteger)) return null;
+  let model;
+  try { model = getGridModel(block); } catch (_) { return null; }
+  let cur = model.cells?.[r]?.[c]?.lines?.[li];
+  for (const seg of addr.np.split('/')) {
+    const m = /^(\d+)\.(\d+)$/.exec(seg);
+    if (!m || !cur || cur.type !== GRID_NESTED_LINE_TYPE) return null;
+    cur = cur.cols?.[Number(m[1])]?.lines?.[Number(m[2])];
+  }
+  if (!cur || typeof cur !== 'object') return null;
+  return { r, c, li, np: addr.np, line: cur };
 }
 
 const _grdRoleOf = (line) => GRID_ROLES[line && line.type] || GRID_ROLES.body;
@@ -468,6 +522,26 @@ function _grdSummaryText(r, c, li, line) {
  * ⛔이 문장을 «줄이 골라진» 갈래(아래)로 옮기지 마라 — 그 절은
  *   tests/dom/grid-cell-panel-handles.dom.spec.js G2 ⑵ 의 «닻»이라, 한 줄만 더해도
  *   「줄바가 기준선보다 아래로 밀렸다」가 빨개진다(Δ ≤ 0). */
+/** ★중첩 안 줄을 골랐을 때의 «한 절» (T-200 커밋 ②, 현빈 「보이게만」).
+ *  ⛔고치는 손잡이를 한 개도 안 내놓는다 — 그게 이 갈래를 고른 까닭 «전부»다.
+ *    (patchCell{lineIndex} 가 중첩으로 못 내려간다 ⇒ 손잡이를 내면 전부 헛돈다.)
+ *  ★문구는 `.prop-hint` 로 싣는다 — ⛔`.prop-label` 은 56px 고정이라 잘린다
+ *    (이 패널에 「29%만 읽히던」 전례가 있다). 같은 패널의 다른 안내문과 «같은 부품»이다.
+ *  ★주소를 «보여 준다» — 다음 사람이 무엇을 가리켜야 하는지 화면에서 바로 읽게. */
+function _grdNestHintHtml(nestHit) {
+  if (!nestHit) return '';
+  const kind = (nestHit.line && nestHit.line.type) || 'body';
+  const addr = `${nestHit.r},${nestHit.c} · ${nestHit.li} · ${nestHit.np}`;
+  return `
+    <div class="prop-section" id="grd-nest-hint">
+      <div class="prop-section-title">줄 (중첩 칸 안)</div>
+      <div class="prop-hint">이 줄입니다 — 중첩 칸 «안»의 ${_grdEsc(kind)} 줄</div>
+      <div class="prop-hint" style="margin-top:2px;">아직 «고치는» 건 안 됩니다 — 글자는 캔버스에서, 손잡이는 다음 판</div>
+      <div class="prop-hint" style="margin-top:2px;opacity:.7;">주소 ${_grdEsc(addr)}</div>
+    </div>`;
+}
+const _grdEsc = (v) => String(v).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+
 function _grdLineBarHtml(anyHit, block) {
   if (!anyHit) {
     return `
@@ -1495,8 +1569,17 @@ export function showGridProperties(block, addrArg) {
      ⛔1-인자(undefined) 재표시(updateGridBlock 되부름)에서는 절대 풀지 마라 — 그건 «선택을
        그대로 둔다»는 뜻이라 D5(줄 있는 칸 여백 클릭)와 줄 편집 중 재렌더가 조용히 깨진다. */
   if (addrArg === null) grdResetCanvasDrill();
-  const _anyHit = _grdResolveAnyAddr(block, _addrIn);
-  const _curAddr = _anyHit ? { r: _anyHit.r, c: _anyHit.c, li: _anyHit.li } : null;
+  /* ★중첩 안 줄 (T-200 커밋 ②) — «따로» 푼다. _grdResolveAnyAddr 은 np 를 거절하므로
+     (그 바일아웃이 패널 여섯 자리를 한 번에 닫는다) 여기서만 정체를 알 수 있다.
+     ⛔_curAddr 에 np 를 «싣는다» — 그래야 캔버스 마커가 그 줄에 붙고, ⌫·코너핸들이
+       「중첩이면 아무것도 안 한다」를 판정할 수 있다. 실으면서 li 도 같이 남기는데,
+       li 는 «품은 duo 줄»이라 np 를 안 보는 자가 있으면 엉뚱한 줄을 건드린다 ⇒ 소비자
+       전수(editor.js ⌫ · overlay-handles 둘 · 이 파일 리졸버 둘)에 바일아웃을 박았다. */
+  const _nestHit = _grdResolveNestAddr(block, _addrIn);
+  const _anyHit = _nestHit ? null : _grdResolveAnyAddr(block, _addrIn);
+  const _curAddr = _nestHit
+    ? { r: _nestHit.r, c: _nestHit.c, li: _nestHit.li, np: _nestHit.np }
+    : (_anyHit ? { r: _anyHit.r, c: _anyHit.c, li: _anyHit.li } : null);
   const _hit = _grdResolveAddr(block, _curAddr);
   grdSetActiveLine(block, _curAddr);
   let cols = [];
@@ -1585,6 +1668,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
       ${_alignWipes ? '<div class="prop-hint" style="text-align:left;padding:2px 0 4px;">칸·줄에 따로 준 정렬은 지워진다 (⌘Z 복원)</div>' : ''}
       <div class="prop-hint" style="margin-top:2px;">세로 정렬은 컬럼 높이가 서로 다를 때만 움직인다</div>
     </div>
+    ${_grdNestHintHtml(_nestHit)}
     ${_grdLineBarHtml(_anyHit, block)}
     ${_borderSectionHtml(_cellBorder)}
     ${_grdCellSectionHtml(_anyHit, block)}

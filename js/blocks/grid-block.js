@@ -1172,7 +1172,72 @@ function getGridModel(block) {
 //       useRoleColor 를 물려 주므로 «중첩 줄»이 정확히 이 조합이다.
 //   ⇒ 「무변화」의 조건은 이제 «addr=null» 이 아니라 «useRoleColor=false» 다.
 //   (지키는 검사: tests/unit/grid-line-typo.test.js U2-c — innercard 2-인자 호출은 color 를 안 찍는다)
-function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = false) {
+/** 중첩 안 줄 하나의 «주소»를 한 단 더 내려 잇는다 (T-200 커밋 ①).
+ *  @param addr  이 줄을 담은 «바깥 줄»의 주소 {r,c,li} — 중첩의 첫 단일 때만 있다
+ *  @param naddr 이 줄을 담은 «중첩 줄»의 주소 {r,c,root,path} — 둘째 단부터
+ *  @param ci    중첩 열 index · @param ni 그 열의 lines[] 안 index
+ *  @returns {r,c,root,path} | null  — 바깥에 주소가 «없으면» null 을 그대로 물려준다.
+ *  ★null 을 물려주는 것이 핵심이다 — innercard(gridLineHtml 2-인자)와 민감도 탐침
+ *    (_gridUnreadLineFields 의 addr=null 호출)이 그 길로 와서 산출이 예전과 같아야 한다. */
+function _gridNestAddr(addr, naddr, ci, ni) {
+  const seg = `${ci}.${ni}`;
+  if (naddr) return { r: naddr.r, c: naddr.c, root: naddr.root, path: `${naddr.path}/${seg}` };
+  if (addr)  return { r: addr.r,  c: addr.c,  root: addr.li,    path: seg };
+  return null;
+}
+
+// ★naddr(6번째 인자, 2026-09-25 — T-200 커밋 ①) — «중첩 안의 줄»에도 가리킬 이름을 준다.
+//   위 ⛔문단이 「중첩은 addr 없이 그대로 호출한다」고 적어 둔 그 자리다. 그 문장은 오늘까지
+//   참이었고 지우지 않는다 — 대신 옆에 「무엇이 달라졌나」를 세운다.
+//
+// ★왜 «다른 이름»인가 — `data-line` 을 중첩 안 줄에도 찍으면 «뜻이 바뀐다», 산출만 느는 게 아니다.
+//
+//   ★★어떻게 셌나(다음 사람이 «그 자로 다시 셀 수 있게») — ⛔꼴이 «둘»이다. 둘 다 세야 한다:
+//       ⑴ 맨몸    `grep -rn "\[data-line\]"  js/`
+//       ⑵ 값 지정 `grep -rn "\[data-line="   js/`
+//     ⛔⑴만 세면 ⑵의 «셋»을 통째로 놓친다. 실제로 이 주석의 첫 판이 그렇게 「다섯」이라 적었고,
+//       그걸 받아 읽은 사람이 「여섯」으로 다시 틀렸다. 수가 두 번 갈린 자리다.
+//     ⛔`js/props/prop-laurel.js` 의 `.lrl-line-*[data-line="…"]` 둘은 «이 명부가 아니다» —
+//       월계관 «패널 입력칸»의 제 이름이라 이 렌더러의 줄 주소와 무관하다(그래서 아래 9 에 없다).
+//
+//   ★오늘 이 줄 주소를 읽는 자 = ★**아홉**이다. «집는 방식»으로 셋으로 갈린다:
+//     ㈎ `closest()` — «위로 올라가다 처음 만나는 하나» (다섯)
+//        js/block-drag.js `_gridEditable` · `_gridAddrAt` · 빈 이미지 슬롯 · 이미지 프레임
+//        js/block-factory.js 우클릭 줄 표적
+//     ㈏ ★`querySelectorAll()` — «그 칸의 전부» (하나)  ⇒ ★이 자리가 제일 위험했다
+//        js/overlay-handles.js `_rowContentEdge` — `cell.querySelectorAll('[data-line]')` 을
+//        받아 ★`lines[0]`(첫 줄) 과 `lines[lines.length-1]`(마지막 줄)을 집는다. 그 사각형이
+//        ★행 거터(행 경계 드래그 손잡이)의 y 가 된다(`showGridGutters` → `_rowContentEdge`).
+//        ⇒ 중첩 안 줄이 `data-line` 을 가지면 «맨 위/맨 아래»가 중첩 속 줄로 바뀌어
+//          ★행 경계 손잡이가 엉뚱한 높이에 앉는다. «처음 하나»의 문제가 아니다.
+//     ㈐ `querySelector('[data-line="<값>"]')` — «그 주소 하나» (셋)
+//        js/overlay-handles.js 이미지 프레임 · js/image-handling.js · js/props/prop-grid.js 마커
+//
+//   ⇒ 중첩 안 줄이 `data-line` 을 갖는 순간: ㈎ 는 `closest` 가 «바깥 .grd-nested» 대신
+//     «안쪽 줄»을 집어 인라인 편집이 중첩 속으로 새고, ㈏ 는 위처럼 행 경계가 틀어지고,
+//     ㈐ 는 문서 순서상 «중첩 안 이미지»를 먼저 집어 코너 핸들이 딴 데 앉는다.
+//   ⇒ ★그래서 중첩엔 `data-line` 을 «안» 찍는다. 새 이름을 «더한다»:
+//     `data-nroot`(이 줄을 품은 «최상위 줄»의 index = 바깥 addr.li) ＋ `data-npath`(중첩 안의 길).
+//     `data-r`·`data-c` 는 «같은 축»이라 그대로 쓴다 — 오늘의 `[data-r][data-c]` 셀렉터는
+//     `.grd-cell` 이나 `[data-line]` 으로 한정돼 있어 중첩 안 줄을 집지 않는다
+//     (⛔「전수」라고 «주장»하지 않는다 — 세는 자는 위 두 꼴 grep 이고, 그 자로 다시 세라).
+//
+// ★왜 «둘이 아니라 길»인가 — 팀장 제안은 `data-ncol`·`data-nline` 두 칸이었다. 그 꼴은 깊이 1
+//   까지만 말할 수 있다. 그런데 이 렌더러는 «깊이 2 에도 줄을 그린다»: 가드가
+//   `depth >= GRID_NESTED_MAX_DEPTH` 라 depth 1 의 duo 는 통과하고 그 자식이 depth 2 로 그려진다
+//   (그 자리를 재는 자 = tests/unit/grid-render-gaps.test.js N3).
+//   두 칸짜리 꼴로 깊이 2 를 적으면 「4칸을 더하거나」 「깊이 2 는 주소를 안 준다」 둘 중 하나가 된다.
+//   ⇒ `data-npath="<열>.<줄>"` 을 «단계마다 / 로 잇는다». 깊이 1 = `"0.2"` · 깊이 2 = `"0.2/1.0"`.
+//     ★칸 수가 상수를 «따라간다» — GRID_NESTED_MAX_DEPTH 를 손으로 어디에도 안 적는다.
+//   ⛔안 고른 길 셋: ⑴ `data-line` 재사용 → 위 «아홉» 소비자의 뜻이 바뀐다.
+//     ⑵ 평평한 두 칸(ncol/nline) → 깊이 2 를 못 적는다. ⑶ JSON 한 덩어리(`data-naddr='{...}'`)
+//        → 속성값에 따옴표 이스케이프가 들어가 골든·문자열 검사가 읽기 나빠진다.
+//
+// ⛔저장 포맷은 «안» 바뀐다 — 주소는 렌더 산출의 속성이지 모델 필드가 아니다.
+//   GRID_LINE_FIELDS 에 아무 것도 안 넣었다(넣으면 patchCell 이 받아 dataset 에 실린다).
+// ★addr=null && naddr=null 이면 이 함수는 여전히 «예전과 같은 문자열»을 낸다 — innercard 경로
+//   (gridLineHtml 2-인자)와 민감도 탐침(_gridUnreadLineFields)이 정확히 그 조합이다.
+function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = false, naddr = null) {
   if (!line || typeof line !== 'object') return '';
   // ★필드 별칭 정규화 (2026-07-04 bench2 근본픽스): planner/generator는 텍스트블록 어휘(content)를
   // 라인에도 쓴다 — text만 읽으면 "그릇만 있고 내용 없음"(오렌지 바에 빈 텍스트, duo 통째 미렌더).
@@ -1180,7 +1245,9 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
   if (line.text === undefined && line.content !== undefined) line = { ...line, text: line.content };
   const mt = Number.isFinite(Number(line.marginTop)) ? Number(line.marginTop) : null;
   const mtCss = mt !== null ? `margin-top:${mt}px;` : '';
-  const addrAttr = addr ? ` data-r="${addr.r}" data-c="${addr.c}" data-line="${addr.li}"` : '';
+  const addrAttr = addr
+    ? ` data-r="${addr.r}" data-c="${addr.c}" data-line="${addr.li}"`
+    : (naddr ? ` data-r="${naddr.r}" data-c="${naddr.c}" data-nroot="${naddr.root}" data-npath="${naddr.path}"` : '');
   if (line.type === 'gap') {
     const h = Number(line.height) || 16;
     return `<div${addrAttr} class="grd-gap" style="height:${h}px;${mtCss}"></div>`;
@@ -1343,10 +1410,16 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     if (!cols.length) return '';
     const gap = Number(line.gap) || 24;
     const valign = _gridEnum(_GRID_VALIGN, line.valign) || 'flex-start';
-    const colsHtml = cols.map(c => {
+    const colsHtml = cols.map((c, ci) => {
       const w = Number(c.width) || 1;
+      /* ★중첩 안 줄에 «가리킬 이름»을 준다 (2026-09-25, T-200 커밋 ①).
+         ⛔addr 은 여전히 미전달이다 — 중첩 안 줄은 `data-line` 을 «안» 가진다(함수 머리말의
+           「왜 다른 이름인가」 참조). 대신 naddr 이 data-nroot/data-npath 를 싣는다.
+         ★이 줄이 바깥 줄이면(addr 있음) 길이 시작되고, 이미 중첩 안이면(naddr 있음) 길이 이어진다.
+           둘 다 없으면 null 이 내려가 산출이 예전과 «바이트 동일»이다(innercard 경로). */
       const inner = (Array.isArray(c.lines) ? c.lines : [])
-        .map(l => _gridLineHtml(l, c.align || colAlign, depth + 1, null, useRoleColor)).join('');   // ⛔addr 미전달(중첩은 아직 미주소화)
+        .map((l, ni) => _gridLineHtml(l, c.align || colAlign, depth + 1, null, useRoleColor,
+          _gridNestAddr(addr, naddr, ci, ni))).join('');
       // 바깥 duo 와 «같은» 정렬 축을 쓴다 — 컬럼은 stretch, 정렬은 컬럼 안 내용(justify-content).
       return `<div class="grd-nested-col" style="flex:${w};min-width:0;display:flex;flex-direction:column;justify-content:${valign};">${inner}</div>`;
     }).join('');
@@ -2125,4 +2198,10 @@ export {
      (T-172 테두리처럼 새 칸 필드가 생기면 한쪽만 모른다). 선언 줄은 «그대로»라
      grid-patchcell-reject.test.js P7 의 소스 파싱은 영향받지 않는다. */
   GRID_CELL_FIELDS,
+  /* ★GRID_NESTED_LINE_TYPE — 중첩 줄의 «정본 이름». 패널(prop-grid.js)이 중첩 주소를
+     모델로 걸어 내려갈 때 「이 줄이 중첩인가」를 물으려고 쓴다. ⛔그 이름을 패널 쪽에
+     손으로 베끼면 두 벌이 되어 따로 늙는다(위 GRID_CELL_FIELDS 와 같은 까닭).
+     ★실제로 grid-rename-residue.test.mjs S1 이 「코드에 옛 이름을 손으로 적었나」를 재는데,
+       이 주석의 첫 판이 «그 이름을 예시로 적는» 바람에 그 그물에 걸렸다. 적지 않는다. */
+  GRID_NESTED_LINE_TYPE,
 };
