@@ -130,13 +130,45 @@ export function neutralizeTextGradForH2C(root) {
    ★비율이 이미 같으면(자를 것이 없으면) 손대지 않는다 — 재인코딩으로 화질이 상하지 않게.
    ★실패는 «조용한 통과»가 아니라 «전과 같음»이다 — tainted canvas(CORS)·디코드 실패는
      원본 img 를 그대로 두므로 고치기 전과 똑같이 동작한다(퇴행 없음).
-   ★object-position 은 «center 고정»으로 계산한다 — 이 레포는 그 속성을 한 군데도 안 쓴다
-     (js·css 전수 0건). 쓰기 시작하면 여기도 같이 읽어야 한다.
+   ★~~[정정 · 2026-09-25]~~ 「object-position 은 «center 고정»으로 계산한다 — 이 레포는 그
+     속성을 한 군데도 안 쓴다(js·css 전수 0건). 쓰기 시작하면 여기도 같이 읽어야 한다.」
+     ⇒ ★그 문장은 «쓰여진 날에도» 틀렸다. 지우지 않고 무엇이 틀렸는지 적는다.
+       실측(js/ css/ 전수 grep, 2026-09-25): `objectPosition` 을 쓰는 자리가 «2건» 있다 —
+         js/image-handling.js:31   applyImageTransform  (dataset.imgPosition 복원)
+         js/image-handling.js:825  enterPosDragMode     (패널 「위치 조절」 드래그)
+       `git log -S objectPosition -- js/image-handling.js` → f08bf3d **2026-03-24**.
+       이 주석(f0b36a5)은 2026-09-21 이다. 즉 여섯 달 «먼저» 있던 것을 0건이라고 적었다.
+     ⇒ 결과: 에셋 블록에서 「위치 조절」로 맞춘 그림이 ★썸네일·목업·html2canvas 폴백에서만
+       가운데로 되돌아갔다(화면·네이티브 PNG 는 멀쩡하다 — 브라우저가 제대로 그린다).
+     ⇒ 그래서 아래가 computed `object-position` 을 «읽는다». 기본값(50% 50%)이면 셈은 전과 같다.
    ⛔<video> 는 건드리지 않는다 — html2canvas 는 애초에 비디오 프레임을 못 그린다(별개 축).
    부르는 곳(html2canvas 3경로): js/io/save-load.js captureThumbnail ·
      js/props/prop-mockup.js _captureAndApply · js/io/export-image.js 의 html2canvas 폴백.
    반환 = 실제로 갈아 끼운 그림 수(검사·디버깅용).
    ══════════════════════════════════════════════════════════════════════════ */
+/** computed `object-position` 한 축을 「남는 자리(free)」에 대한 px 여백으로 푼다.
+ *  ⛔키워드(left/center/…)는 computed 값에서 이미 ％로 내려오는 것이 보통이지만, 브라우저가
+ *    키워드를 그대로 줄 수도 있으므로 표로 받아 둔다(모르면 50% = 가운데). */
+function _objPosAxis(token, free) {
+  const KEY = { left: 0, top: 0, center: 50, right: 100, bottom: 100 };
+  const t = String(token || '').trim().toLowerCase();
+  if (KEY[t] !== undefined) return free * KEY[t] / 100;
+  const m = t.match(/^(-?[\d.]+)(px|%)$/);
+  if (!m) return free / 2;                       // 못 읽으면 «전과 같이» 가운데
+  const v = parseFloat(m[1]);
+  return m[2] === '%' ? free * v / 100 : v;
+}
+
+/** 두 축을 한꺼번에. 값이 하나뿐이면 세로는 가운데(CSS 기본 규약). */
+function _objectPositionOffsets(cs, freeX, freeY) {
+  const raw = String((cs && cs.objectPosition) || '').trim();
+  if (!raw) return { x: freeX / 2, y: freeY / 2 };
+  const parts = raw.split(/\s+/);
+  const xTok = parts[0];
+  const yTok = parts.length > 1 ? parts[1] : 'center';
+  return { x: _objPosAxis(xTok, freeX), y: _objPosAxis(yTok, freeY) };
+}
+
 export async function neutralizeObjectFitForH2C(root) {
   if (!root) return 0;
   const imgs = [
@@ -170,8 +202,12 @@ export async function neutralizeObjectFitForH2C(root) {
       const ctx = cvs.getContext('2d');
       if (!ctx) continue;
       ctx.imageSmoothingQuality = 'high';
-      // 가운데 정렬(object-position:50% 50%) — contain 이면 남는 자리는 «투명»으로 둔다.
-      ctx.drawImage(el, (cvs.width - dw) / 2, (cvs.height - dh) / 2, dw, dh);
+      /* ★object-position 을 «실제로» 읽는다(위 정정 참조). 기본값 `50% 50%` 면 옛 셈과 같다.
+         CSS 규약: ％는 「그림의 X％ 지점을 상자의 X％ 지점에 맞춘다」 ⇒ 남는 자리 × ％.
+                   길이(px)는 그 값 자체가 왼쪽/위 여백이다.
+         contain 이면 남는 자리는 «투명»으로 둔다(전과 같다). */
+      const pos = _objectPositionOffsets(cs, cvs.width - dw, cvs.height - dh);
+      ctx.drawImage(el, pos.x, pos.y, dw, dh);
       const url = cvs.toDataURL('image/png');   // tainted 면 여기서 던진다 ⇒ catch 로 «전과 같음»
       el.src = url;
       el.style.objectFit = 'fill';              // 이미 잘린 그림이다 — 두 번 자르지 않게

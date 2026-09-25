@@ -1265,6 +1265,183 @@ function exitSectionBgEditMode(sec) {
 
 window.enterSectionBgEditMode = enterSectionBgEditMode;
 window.exitSectionBgEditMode  = exitSectionBgEditMode;
+
+/* ══════════════════════════════════════════════════════════════════════════
+   그리드 칸 이미지 «프레임 안 크롭» — 에셋 더블클릭 편집기를 그대로 빌려 쓴다.
+   ───────────────────────────────────────────────────────────────────────────
+   현빈 2026-09-25: 「에셋블럭의 경우 프레임(컨테이너) 안에 콘텐츠(이미지)가 있잖아. …
+   에셋블럭과 구조가 같아야 된다고 보거든? 코너를 끌면 통째로 작아지면 안 되는 거지.」
+
+   ★선례를 그대로 베낀다 — 바로 위 enterSectionBgEditMode 다. 거기서 배운 것 셋:
+     ⑴ 편집기가 요구하는 건 «`.asset-img` 자식 하나»뿐이다(이 파일 1093행 주석).
+     ⑵ ⛔`.asset-block` 클래스는 «일부러» 안 붙인다 — editor.js 의 Delete 핸들러
+        (`.asset-block.img-editing` → clearAssetImage)·inspector·ai-image-gen 의 에셋
+        전수조사가 이 임시 DOM 을 «진짜 에셋»으로 오인한다.
+     ⑶ `opts.beforeCommit` 이 「px 기하를 «자기 표현»으로 옮기고 임시 DOM 을 치우는」 자리다
+        (pushHistory «이전»이라 스냅샷에 편집용 DOM 이 애초에 안 들어간다).
+
+   ★단위 — 편집기는 px 로 말하고 그리드 모델은 ％로 듣는다. 그 통역이 beforeCommit 이다.
+     칸 폭은 «열 가중치»로 정해져 늘었다 줄었다 하고 내보내기는 폭을 860→780 으로 바꾼다.
+     px 로 저장하면 그때마다 크롭이 어긋난다(grid-block.js GRID_IMG_SIZE_MIN 주석의 까닭).
+
+   ★높이가 auto 인 줄은 «프레임이 없다» — 그림 키를 그대로 따라가므로 잘릴 것이 없다.
+     그래서 편집을 열기 «전»에 지금 그려진 높이를 `height` 로 못박는다. 안 하면 렌더러가
+     크롭 세 값을 아예 안 읽고(ignoredProps), 사용자는 「맞췄는데 아무 일도 안 났다」를 본다.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ★소수 «세» 자리 — 그리드 렌더러의 _gridClampPct 와 «같은 자리수»여야 편집을 열었다 닫는
+ *   것만으로 그림이 미세하게 튀지 않는다(한 자리면 0.2px 이 어긋나고 경계선에서 드러난다). */
+const _r1g = (v) => Math.round(v * 1000) / 1000;
+
+function _grdImgFrameEl(block, addr) {
+  if (!block || !addr) return null;
+  const el = block.querySelector(
+    `.grd-img-frame[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
+  return (el && !el.classList.contains('grd-img-empty')) ? el : null;
+}
+
+function _grdImgLine(block, addr) {
+  try { return window.getGridModel(block).cells[addr.r][addr.c].lines[addr.li] || null; }
+  catch (_) { return null; }
+}
+
+/** 임시 DOM·상태를 «완전히» 되돌린다. 여러 번 불러도 안전(멱등). */
+function _teardownGridImgEdit(block) {
+  if (!block) return;
+  const st = block._grdImgEdit;
+  if (!st) return;
+  st.proxy?.remove();
+  if (st.realImg) st.realImg.style.opacity = st.realOpacity;
+  if (st.frame) {
+    if (st.hadPosition) st.frame.style.position = st.prevPosition;
+    else st.frame.style.removeProperty('position');
+  }
+  block._grdImgEdit = null;
+}
+
+function enterGridImageEditMode(block, addr) {
+  if (!block || !addr || block._grdImgEdit) return;
+  let line = _grdImgLine(block, addr);
+  if (!line || line.type !== 'image' || !line.imgSrc) return;
+
+  /* ★프레임이 없으면 «지금 보이는 높이»로 만들어 준다 — 그래야 잘릴 것이 생긴다.
+     ⛔몰래 하지 않는다: 이 한 번의 patch 는 되돌리기 한 칸을 차지하고 토스트로 알린다. */
+  if (!(Number(line.height) > 0)) {
+    const el0 = _grdImgFrameEl(block, addr);
+    if (!el0) return;
+    const scale = (window.currentZoom || 100) / 100;
+    const h0 = Math.max(24, Math.round(el0.getBoundingClientRect().height / (scale || 1)));
+    window.pushHistory?.('그리드 이미지 프레임 높이');
+    const res = window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, height: h0 } });
+    if (!res || res.ok !== true) return;
+    window.showToast?.(`프레임 높이를 ${h0}px 로 고정했습니다 · 이제 그림을 끌어 맞추세요`);
+    line = _grdImgLine(block, addr);
+  }
+
+  const frame = _grdImgFrameEl(block, addr);
+  if (!frame) return;
+  const realImg = frame.querySelector('img.grd-img');
+
+  const W = frame.offsetWidth, H = frame.offsetHeight;
+  if (!(W > 0) || !(H > 0)) return;
+
+  // 프레임을 «담는 그릇»으로 만든다(끝나면 되돌린다) — 프록시가 inset:0 으로 앉을 수 있게.
+  const hadPosition = !!frame.style.position;
+  const prevPosition = frame.style.position;
+  frame.style.position = 'relative';
+
+  const proxy = document.createElement('div');
+  proxy.className = 'grd-img-edit-proxy';
+  proxy.dataset.grdImgProxy = '1';
+  proxy.style.cssText = 'position:absolute;inset:0;border-radius:inherit;';
+  proxy.innerHTML = '<div class="asset-img-clip"><img class="asset-img" draggable="false"></div>';
+  const img = proxy.querySelector('.asset-img');
+  frame.appendChild(proxy);
+
+  block._grdImgEdit = {
+    proxy, frame, realImg,
+    realOpacity: realImg ? realImg.style.opacity : '',
+    hadPosition, prevPosition,
+  };
+  if (realImg) realImg.style.opacity = '0';   // 그리는 것은 프록시 쪽 한 장뿐
+
+  const start = () => {
+    if (!block._grdImgEdit || !proxy.isConnected) return;
+    const nw = img.naturalWidth || W, nh = img.naturalHeight || H;
+    const ratio = (nw && nh) ? nh / nw : 1;
+
+    /* 지금 상태를 px 로 «되돌려» 편집기에 넘긴다.
+       · 크롭이 이미 있으면 그 ％를 px 로
+       · 없으면 화면이 쓰고 있는 object-fit:cover 를 px 로 (k = max(W/nw, H/nh)) */
+    const hasCrop = [line.imgSizePct, line.imgPosX, line.imgPosY].some(v => Number.isFinite(Number(v)));
+    let dw, x0, y0;
+    if (hasCrop) {
+      const sz = Number.isFinite(Number(line.imgSizePct)) ? Number(line.imgSizePct) : 100;
+      dw = W * sz / 100;
+      x0 = W * (Number.isFinite(Number(line.imgPosX)) ? Number(line.imgPosX) : 0) / 100;
+      y0 = H * (Number.isFinite(Number(line.imgPosY)) ? Number(line.imgPosY) : 0) / 100;
+    } else {
+      const k = Math.max(W / nw, H / nh);
+      dw = nw * k;
+      x0 = (W - dw) / 2;
+      y0 = (H - dw * ratio) / 2;
+    }
+    // enterImageEditMode 는 dataset.imgW/X/Y 를 «정본»으로 읽는다 → 지금 화면과 픽셀 동일하게 주입
+    proxy.dataset.imgW = dw;
+    proxy.dataset.imgX = x0;
+    proxy.dataset.imgY = y0;
+
+    enterImageEditMode(proxy, {
+      noRotate: true,        // 크롭 모델에 회전 축이 없다 — 있는 척하면 돌려 놓고 저장이 안 된다
+      noColorAdjust: true,   // 색보정은 에셋 <img> 전용 경로다(그리드 줄엔 그 필드가 없다)
+      keepAliveSel: '#panel-right',
+      historyLabel: '그리드 이미지 크롭',
+      beforeCommit: () => {
+        // style.width 가 정본 (dataset.imgW 는 exitImageEditMode 가 offsetWidth 로 반올림해 둔 값)
+        const w = parseFloat(img.style.width) || parseFloat(proxy.dataset.imgW) || dw;
+        const x = parseFloat(proxy.dataset.imgX) || 0;
+        const y = parseFloat(proxy.dataset.imgY) || 0;
+        _teardownGridImgEdit(block);          // ★patch/pushHistory «전»에 임시 DOM 을 0 으로
+        /* ★px → ％ 통역. 가로는 프레임 폭, 세로는 프레임 높이가 기준이다
+           (렌더러가 left:…% / top:…% 를 그렇게 푼다 — CSS 의 기준과 같다). */
+        window.updateGridBlock?.(block.id, {
+          patchCell: {
+            r: addr.r, c: addr.c, lineIndex: addr.li,
+            imgSizePct: _r1g(w / W * 100),
+            imgPosX:    _r1g(x / W * 100),
+            imgPosY:    _r1g(y / H * 100),
+          },
+        });
+      },
+      afterExit: () => {
+        _teardownGridImgEdit(block);          // 멱등 — beforeCommit 이 실패해도 잔여 0
+        window.showGridProperties?.(block, addr);
+        window.showGridImageResizeHandle?.(block);
+      },
+    });
+
+    // 우측 패널이 «이미지 편집»으로 교체된 뒤 — 같은 자리에 종료 버튼(섹션 배경과 같은 꼴)
+    const pp = document.querySelector('#panel-right .panel-body');
+    if (pp) {
+      const box = document.createElement('div');
+      box.className = 'prop-section';
+      box.innerHTML = '<button class="prop-action-btn secondary" id="grd-img-crop-done">크롭 완료</button>';
+      pp.appendChild(box);
+      box.querySelector('#grd-img-crop-done').addEventListener('click', () => exitImageEditMode(proxy));
+    }
+  };
+
+  img.src = line.imgSrc;
+  if (img.complete && img.naturalWidth) start();
+  else img.addEventListener('load', start, { once: true });
+  img.addEventListener('error', () => {
+    console.warn('[grdImgCrop] 이미지 로드 실패');
+    _teardownGridImgEdit(block);
+  }, { once: true });
+}
+
+window.enterGridImageEditMode = enterGridImageEditMode;
+window.teardownGridImageEditMode = (block) => _teardownGridImgEdit(block);
 window.applyImageTransform = applyImageTransform;
 window.triggerAssetUpload = triggerAssetUpload;
 window.clearAssetImage    = clearAssetImage;

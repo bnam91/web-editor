@@ -587,6 +587,10 @@ function _grdImageSectionHtml(anyHit, block) {
   let cellLineCount = 1;
   try { cellLineCount = (getGridModel(block).cells?.[r]?.[c]?.lines || []).length || 1; } catch (_) {}
   const canRemove = !!line.imgSrc && cellLineCount > 1;
+  /* ★크롭 세 값(프레임 안 위치·배율) — 「맞추기」는 캔버스 더블클릭과 «같은 편집기»를 연다
+   *   (js/image-handling.js enterGridImageEditMode). 여기 슬라이더를 따로 두지 «않는» 까닭:
+   *   그러면 손잡이가 두 벌이 되고 둘이 따로 늙는다. 누를 데는 하나, 편집기도 하나다. */
+  const hasCrop = [line.imgSizePct, line.imgPosX, line.imgPosY].some(v => Number.isFinite(Number(v)));
   return `
     <div class="prop-section">
       <div class="prop-section-title">Image</div>
@@ -604,6 +608,14 @@ function _grdImageSectionHtml(anyHit, block) {
       <div class="prop-row">
         <span class="prop-label">모서리 반경(px)</span>
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="0" value="${rad}">
+      </div>
+      <div class="prop-row">
+        <button id="grd-img-crop-btn" class="prop-btn-full" ${line.imgSrc ? '' : 'disabled'}
+                title="${line.imgSrc ? '그림을 끌어 프레임 안에서 보일 자리를 맞춥니다 (캔버스에서 더블클릭해도 같습니다)' : '먼저 이미지를 넣으세요'}">프레임 안에서 맞추기…</button>
+      </div>
+      <div class="prop-row">
+        <button id="grd-img-crop-reset" class="prop-btn-full" ${hasCrop ? '' : 'disabled'}
+                title="${hasCrop ? '크롭을 지우고 «프레임에 꽉 채우기»로 되돌립니다' : '맞춰 둔 크롭이 없습니다'}">크롭 초기화</button>
       </div>
       <div class="prop-row">
         <button id="grd-img-remove-btn" class="prop-btn-full prop-btn-danger" ${canRemove ? '' : 'disabled'}
@@ -651,6 +663,29 @@ function _grdWireImageSection(block, addr) {
       window.showGridImageResizeHandle?.(block);   // ★폭/높이가 바뀌면 코너 핸들 자리도 따라가야 한다
     });
   };
+  document.getElementById('grd-img-crop-btn')?.addEventListener('click', (e) => {
+    if (e.currentTarget.disabled) return;
+    window.enterGridImageEditMode?.(block, { r, c, li });
+  });
+  document.getElementById('grd-img-crop-reset')?.addEventListener('click', (e) => {
+    if (e.currentTarget.disabled) return;
+    window.pushHistory?.();
+    /* ★`undefined` 가 「이 필드를 없앤다」는 뜻이다 — `''`(강제로 없앰)도 `0`(값)도 아니다
+       (_gridMergeLine 의 pick 계약). 셋을 한 번에 지워야 렌더러가 cover 로 되돌아간다. */
+    gridPreviewLine(block, r, c, li, { imgSizePct: undefined, imgPosX: undefined, imgPosY: undefined });
+    window.scheduleAutoSave?.();
+    showGridProperties(block, { r, c, li });
+  });
+  /* ⚠️★알고 남기는 비대칭 — 「폭(%)」·「높이(px)」 입력은 프레임만 바꾸고 «크롭은 안 되환산한다».
+   *   코너 핸들은 되환산한다(js/overlay-handles.js: 그림을 제자리에 두고 프레임만 바꾼다).
+   *   ⇒ 크롭을 맞춰 둔 줄에서 이 두 입력으로 상자를 바꾸면 그림이 «같이» 늘었다 줄었다 한다.
+   *   왜 안 맞췄나 — 이 입력들은 «연속 input» 경로(gridPreviewLine)라 드래그처럼 시작/끝이
+   *     없다. 되환산하려면 「어느 시점의 기하를 못으로 박을 것인가」를 먼저 정해야 하는데,
+   *     타자 한 글자마다 못을 박으면 값이 누적으로 떠내려간다(입력 «중»에 기준이 바뀐다).
+   *   ⇒ 이건 «별건»이다. 여기서 몰래 하지 않는다. 지금 할 수 있는 정직한 처방은 세 가지다:
+   *       ⑴ 사실을 적는다(이 주석) ⑵ 크롭 맞추기는 코너·더블클릭으로 안내한다(위 단추)
+   *       ⑶ 어긋나면 「크롭 초기화」로 되돌릴 길을 둔다(바로 아래 단추)
+   *   ⛔이 문단을 지우려면 «먼저 고치고» 지워라. */
   numWire('grd-img-width-pct', 'widthPct', IMG_MIN_PCT, 100);
   numWire('grd-img-height', 'height');
   numWire('grd-img-radius', 'radius');

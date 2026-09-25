@@ -1924,6 +1924,10 @@ window.hideGridGutters = hideGridGutters;
    ★대상은 «지금 선택된(포커스된) 이미지 줄» 하나뿐이다 — grdGetActiveLine(block) 로
      주소를 얻고, getGridModel(block) 으로 그 줄이 type==='image' 인지 확인한다.
      빈 이미지 슬롯(.grd-img-empty)도 같은 addr·같은 필드라 그대로 포함된다.
+   ★2026-09-25 — 대상이 «프레임»(.grd-img-frame)으로 옮겨갔다. 안쪽 <img class="grd-img">
+     는 프레임을 100%×100% 로 채우므로 «사각형»은 전과 같고(핸들 자리 무변화), 다만
+     style.width/height 를 쓰는 대상은 반드시 프레임이어야 한다 — 안쪽에 쓰면 % 의 기준이
+     «셀»이 아니라 «프레임»이 되어 폭이 제자리를 맴돈다.
    ★핸들은 자산(asset) 블록 코너 핸들(_onAssetResizeHandleMouseDown)의 수학을 형틀로 쓴다 —
      이미지도 「흐름 배치」라 확대블럭(플로팅)보다 이쪽이 정확한 선례다.
    ⛔클래스는 `.grd-img-overlay-handle` — `.asset-overlay-handle` 을 빌리면
@@ -1938,7 +1942,7 @@ const GRID_IMG_HANDLE_MIN_SCREEN_PX = 24;   // 낮은 배율 방어 — 거터�
 
 function _gridImgFindEl(block, addr) {
   if (!block || !addr || addr.li === null || addr.li === undefined) return null;
-  return block.querySelector(`.grd-img[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
+  return block.querySelector(`.grd-img-frame[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
 }
 
 function _gridImgActiveImageLine(block) {
@@ -2037,9 +2041,45 @@ function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
   const curPctN = line ? Number(line.widthPct) : NaN;
   const curPct = Number.isFinite(curPctN) && curPctN > 0 ? curPctN : 100;
   const cellW = startW / (curPct / 100);   // widthPct=100 일 때의 «셀 콘텐츠 폭»(px) 역산
-  const aspect = (el0.tagName === 'IMG' && el0.naturalWidth > 0 && el0.naturalHeight > 0)
-    ? el0.naturalWidth / el0.naturalHeight
+  /* ★비율의 출처 — 프레임은 <div> 라 naturalWidth 가 없다. 안쪽 <img> 에서 읽어야
+     Shift-드래그(비율 고정)가 «2026-09-25 이전과 같은 값»을 쓴다. 여기서 el0 만 보면
+     조용히 startW/startH(상자 비율)로 떨어져 cover 가 걸린 줄에서 답이 달라진다. */
+  const natImg = el0.tagName === 'IMG' ? el0 : el0.querySelector('img');
+  const aspect = (natImg && natImg.naturalWidth > 0 && natImg.naturalHeight > 0)
+    ? natImg.naturalWidth / natImg.naturalHeight
     : (startH > 0 ? startW / startH : 1);
+
+  /* ★★코너 핸들은 «프레임»만 바꾼다 — 그림은 제자리에 있고 더/덜 잘린다. (2026-09-25 커밋 ②)
+   *   현빈: 「코너 핸들로 정하는 그 상자가 맞겠어. … 코너를 끌면 통째로 작아지면 안 되는 거지.」
+   *
+   *   ⛔그냥 두면 안 된다 — 크롭 값은 «프레임 대비 ％»라(그래야 내보내기 860→780 에서 같은
+   *     그림이 된다), 프레임이 줄면 그림도 따라 줄어든다. 그게 바로 현빈이 「안 된다」고 한 것이다.
+   *   ⇒ 드래그 «시작 시점의 그림 기하»(px)를 찍어 두고, 놓을 때 «새 프레임 기준 ％»로 되환산한다.
+   *     그러면 두 축이 다 산다:
+   *       · 코너 드래그 = 프레임만 변함 ⇒ 그림은 화면에서 «한 톨도 안 움직인다»
+   *       · 내보내기 폭 축소 = 프레임이 통째로 작아짐 ⇒ ％가 그대로라 그림도 같이 줄어든다
+   *   ★크롭이 «없던» 줄도 이 드래그로 크롭이 «생긴다» — 그게 맞다. 그 전엔 cover 가 알아서
+   *     가운데를 잡고 있었고, 사용자가 상자를 바꾼 순간 「지금 보이던 그림」을 지켜 줘야 한다. */
+  /* ⚠️★«요소 상자»가 아니라 «그려지는 그림»을 찍어야 한다 — 이 둘은 다르다.
+   *   `object-fit:cover` 인 <img> 의 rect 는 «상자»(=프레임)다. 실제 그림은 그보다 크고
+   *   가운데로 밀려 있다. 상자를 못으로 박으면 코너를 끄는 순간 그림이 세로로 «튄다».
+   *   실측(400×250 그림, 프레임 796×200): 상자 796×200 · 그림 796×497.5(top −148.75).
+   *   ⇒ cover/contain 이면 산식으로 풀고, 이미 절대배치(크롭 있음)면 rect 가 곧 그림이다.
+   *   ★enterGridImageEditMode 가 편집을 열 때 쓰는 산식과 «같은 것»이다(k = max(W/nw, H/nh)). */
+  let imgPin = null;
+  if (natImg) {
+    const cs = (typeof getComputedStyle === 'function') ? getComputedStyle(natImg) : null;
+    const fit = (cs && cs.objectFit || '').trim();
+    const nw = natImg.naturalWidth, nh = natImg.naturalHeight;
+    if ((fit === 'cover' || fit === 'contain') && nw > 0 && nh > 0) {
+      const k = fit === 'cover' ? Math.max(startW / nw, startH / nh) : Math.min(startW / nw, startH / nh);
+      const dw = nw * k, dh = nh * k;
+      imgPin = { x: (startW - dw) / 2, y: (startH - dh) / 2, w: dw };
+    } else {
+      const ir = natImg.getBoundingClientRect();
+      imgPin = { x: (ir.left - rect0.left) / scale0, y: (ir.top - rect0.top) / scale0, w: ir.width / scale0 };
+    }
+  }
 
   const startX = e.clientX, startY = e.clientY;
   let moved = false;
@@ -2057,6 +2097,19 @@ function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
     lastResult = result;
     el.style.width = result.widthPct + '%';
     el.style.height = result.height + 'px';
+    /* ★미리보기 = 커밋 결과. 그림을 «시작 기하»에 px 로 못박고 프레임만 자라고 줄게 한다.
+       ⛔안 하면 드래그 중엔 그림이 같이 줄다가 놓는 순간 튄다 — 「보인 대로 된다」가 깨진다. */
+    const innerImg = el.querySelector('img');
+    if (innerImg && imgPin) {
+      el.style.position = 'relative';
+      el.style.overflow = 'hidden';
+      innerImg.style.position = 'absolute';
+      innerImg.style.left = imgPin.x + 'px';
+      innerImg.style.top = imgPin.y + 'px';
+      innerImg.style.width = imgPin.w + 'px';
+      innerImg.style.height = 'auto';
+      innerImg.style.objectFit = '';
+    }
     // 우측 패널 「높이(px)」 입력만 직접 갱신 — 드래그 중 패널 재렌더 금지(gutter 와 같은 원칙,
     // prop-grid.js 의 「이미지 절」에는 폭 입력이 없어(신작 UI 미추가) 높이만 동기화한다.
     const hNum = document.getElementById('grd-img-height');
@@ -2068,7 +2121,22 @@ function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
     document.removeEventListener('mouseup', onUp);
     restoreDrag();
     if (moved && lastResult) {
-      gridPreviewLine(block, r, c, li, { widthPct: lastResult.widthPct, height: lastResult.height });
+      /* ★px → ％ 되환산. 기준은 «새» 프레임이다(가로는 폭, 세로는 높이 — 렌더러가 left/top 을
+         그렇게 푼다). imgPin 이 없으면(그림을 못 잡았으면) 크롭은 «안» 건드린다. */
+      const patch = { widthPct: lastResult.widthPct, height: lastResult.height };
+      if (imgPin) {
+        const newW = cellW * lastResult.widthPct / 100;
+        const newH = lastResult.height;
+        /* ★소수 «세» 자리 — 한 자리면 795.8 vs 796.0 처럼 0.2px 이 어긋나고, 그 어긋남이
+           강한 경계선에서 눈에 보이는 재표본화 차이가 된다(grid-block.js _gridClampPct 주석). */
+        const r1 = (v) => Math.round(v * 1000) / 1000;
+        if (newW > 0 && newH > 0) {
+          patch.imgSizePct = r1(imgPin.w / newW * 100);
+          patch.imgPosX    = r1(imgPin.x / newW * 100);
+          patch.imgPosY    = r1(imgPin.y / newH * 100);
+        }
+      }
+      gridPreviewLine(block, r, c, li, patch);
       window._grdSyncLineMark?.(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
       /* ★끝 상태도 찍는다 — 시작만 찍으면 «다음»이 push-after 동작일 때 그 둘 사이의
          표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 무변화면 history.js 가 버린다. */

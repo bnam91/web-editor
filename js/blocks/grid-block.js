@@ -273,9 +273,10 @@ const GRID_NESTED_LINE_TYPE = 'duo';
 /** `_gridLineHtml` 이 읽는 `line.*` — patchCell{lineIndex} 로 줄 수 있는 필드. */
 const GRID_LINE_FIELDS = new Set([
   'align', 'barColor', 'bg', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
-  'gap', 'height', 'imgSrc', 'italic', 'items', 'labelColor', 'labelSize',
-  'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV', 'radius', 'strike',
-  'text', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize', 'weight', 'widthPct',
+  'gap', 'height', 'imgPosX', 'imgPosY', 'imgSizePct', 'imgSrc', 'italic', 'items',
+  'labelColor', 'labelSize', 'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV',
+  'radius', 'strike', 'text', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize',
+  'weight', 'widthPct',
 ]);
 
 /** `renderGridBlock` 이 셀에서 읽는 것(`cell.lines` + `pick(...)`) — patchCell 로 줄 수 있는 필드.
@@ -309,6 +310,31 @@ const GRID_ENUM_FIELDS = { align: GRID_ALIGN_VALUES, valign: GRID_VALIGN_VALUES 
  *  ⛔표를 손으로 늘리지 마라. 늘릴 일이 생기면 «렌더러가 그 필드를 어떤 잣대로 거르나»를
  *    먼저 찾아라 — 잣대가 없는 필드(barColor 등 그래프 줄 색)는 렌더러가 «아무 값이나» 쓰므로
  *    여기 넣으면 도구만 엄해진다(그게 바로 이 카드가 고치려는 비대칭의 거울상이다). */
+/* ★그리드 칸 이미지의 «프레임 안 크롭» — 셋 다 «％»다 (2026-09-25, 커밋 ②).
+ *   imgSizePct : 그림의 «폭»을 프레임 폭의 몇 % 로 그릴까 (100 = 프레임 폭에 딱)
+ *   imgPosX    : 그림의 왼쪽 끝을 프레임 «폭»의 몇 % 자리에 둘까 (음수 = 왼쪽으로 뺀다)
+ *   imgPosY    : 그림의 위쪽 끝을 프레임 «높이»의 몇 % 자리에 둘까
+ * ⛔px 가 아니라 % 인 까닭 — 칸 폭은 «열 가중치»로 정해져 늘었다 줄었다 하고, 내보내기는
+ *   폭을 860→780 으로 바꾼다(js/io/export-image.js syncImageBoxesToCaptureWidth). px 로 두면
+ *   그때마다 크롭이 어긋난다. 이 레포가 이미 같은 답을 두 번 골랐다:
+ *     · 코너 핸들도 px 로 끌고 «％로» 커밋한다 (js/grid-cell-resize.js resizeGridImage)
+ *     · 심플카드 확대도 imgScale(％)로 저장하고 내보내기가 그 ％를 재현한다
+ *   ＋ % 는 렌더러가 «혼자» 검사할 수 있다. px 는 naturalWidth 를 알아야 해서 못 잰다. */
+/* ★상한 값의 «수»를 고를 때 한 가지 덫이 있다 — tests/unit/grid-callsite-ssot.test.mjs 가
+ *   이 파일에서 리터럴 `4000`·`2000` 을 금지한다(행 높이 상한 ROW_H_MAX 의 SSOT 자물쇠).
+ *   그 둘은 «행 높이»의 수라 크롭과 아무 상관이 없지만, 자는 낱말이 아니라 «수»를 본다.
+ *   ⇒ 겹치지 않는 수를 고른다. 1000% = 10배 확대, ±900% = 그림을 아홉 프레임 밖까지 밀 수 있다 —
+ *     어느 쪽도 «실수로 넘길» 범위가 아니고, 넘기면 그림이 프레임에서 사라져 사용자가 바로 안다. */
+const GRID_IMG_SIZE_MIN = 5, GRID_IMG_SIZE_MAX = 1000;
+const GRID_IMG_POS_LIMIT = 900;
+const _gridNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+/* ★소수 «세» 자리로 자른다 — 두 자리면 모자란다(실측). 프레임 폭 597px 에 133.33% 를 주면
+ *   795.97px 가 되어 795.999 여야 할 자리에서 0.03px 이 어긋나고, 그 어긋남이 그림의 강한
+ *   경계선(검은 세로줄·흰 띠)에서 «눈에 보이는» 재표본화 차이로 커진다
+ *   (코너 드래그 뒤 겹치는 조각을 픽셀로 견주면 2665/83580 점 · 최대 세기 223 이 났다).
+ * ⛔더 늘릴 이유는 없다 — 세 자리면 860px 폭에서 0.009px 이라 반올림 바닥 아래다. */
+const _gridClampPct = (n, lo, hi) => Math.round(Math.max(lo, Math.min(hi, n)) * 1000) / 1000;
+
 const GRID_VALUE_TESTS = {
   bg: (v) => _GRID_COLOR_RE.test(String(v).trim()),
   color: (v) => _GRID_COLOR_RE.test(String(v).trim()),
@@ -1186,12 +1212,114 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
       : '';
     if (!line.imgSrc) {
       // 빈 이미지 슬롯: 발주 대기 placeholder (기존 ''=투명 소실 → 카드가 깨져 보이던 문제)
+      /* ★클래스만 `grd-img` → `grd-img-frame` 으로 바뀌었다(아래 ㈎ 참조). 나머지 바이트는 그대로다 —
+         빈 슬롯은 «담을 그림»이 없으므로 안쪽 <img> 도, overflow 도, flex-shrink 도 안 붙는다
+         (붙이면 min-height:auto 가 0 이 되던 «오늘의 동작»이 바뀐다 — 빈 div 는 원래 줄어든다). */
       const ph = h > 0 ? h : 180;
-      return `<div${addrAttr} class="grd-img grd-img-empty" style="${widthCss}height:${ph}px;background:#e8e8e8;` +
+      return `<div${addrAttr} class="grd-img-frame grd-img-empty" style="${widthCss}height:${ph}px;background:#e8e8e8;` +
         `border-radius:${r > 0 ? r : 8}px;${alignCss}${mtCss}"></div>`;
     }
-    const sizeCss = h > 0 ? `height:${h}px;object-fit:cover;` : 'height:auto;';
-    return `<img${addrAttr} class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;${widthCss}${sizeCss}${r > 0 ? `border-radius:${r}px;` : ''}${alignCss}${mtCss}">`;
+    /* ═══ ★프레임(컨테이너) + 콘텐츠(이미지) — 에셋 블록과 «같은 구조» (2026-09-25, 커밋 ①) ═══
+     *   현빈 2026-09-25: 「에셋블럭의 경우 프레임(컨테이너) 안에 콘텐츠(이미지)가 있잖아. …
+     *   코너 핸들로 정하는 그 상자가 맞겠어. 에셋블럭과 구조가 같아야 된다고 보거든?
+     *   코너를 끌면 통째로 작아지면 안 되는 거지.」
+     *
+     *   ⛔이 커밋은 «구조만» 바꾼다 — 화면 산출이 눈으로 같아야 한다. 크롭 값도, 더블클릭도,
+     *     코너 핸들의 «뜻»도 여기서는 한 글자도 안 바꾼다(그건 다음 커밋이다).
+     *
+     * ㈎ 왜 클래스가 «프레임»으로 갔나 — `.grd-img` 를 읽는 두 자리가 둘 다 «상자»를 원한다:
+     *     · js/overlay-handles.js `_gridImgFindEl` — 코너 핸들이 앉을 사각형
+     *     · js/io/export-image.js `_CAPTURE_IMG_BOX_SELECTORS` — 「상대폭 + 절대높이 + cover」인 상자
+     *   그 둘이 가리켜야 하는 것이 이제 프레임이다. ⇒ 프레임이 `.grd-img-frame`(＋주소 data-*),
+     *   안쪽 그림이 `.grd-img` 다. ★안쪽이 `.grd-img` 를 «그대로» 들고 있는 덕에
+     *   `img.grd-img` 로 그림을 세던 자들(tests/dom/grid-save-export-axes G0 등)은 안 바뀐다.
+     *
+     * ㈏ 왜 `overflow:hidden` 이 «인라인»인가 — CSS 파일에 두면 내보낸 HTML(js/io/export-html.js)
+     *   과 캡처 클론이 그 규칙을 못 들고 간다. 이 렌더러는 원래 전부 인라인이다. 같은 결로 둔다.
+     *
+     * ㈐ ★⛔이 커밋은 프레임에 `overflow:hidden` 을 «안» 붙인다 — 붙이고 싶은 마음이 크지만
+     *   붙이는 순간 «구조만 바꾼다»가 거짓이 된다. 실측으로 두 번 고쳐 세운 자리라 길게 적는다.
+     *
+     *   칸은 세로 flex 다(renderGridBlock 의 `.grd-cell`: display:flex;flex-direction:column).
+     *   그래서 «행 높이가 줄 높이보다 짧은» 칸에서 줄이 쪼그라드느냐가 문제가 된다.
+     *   ★옛 <img> 의 규칙 = 대체요소의 «자동 최소 크기» = min(지정 높이, 그 폭에서의 비율 높이).
+     *     ⇒ 같은 height:200px 이라도 «그림 비율에 따라» 답이 갈린다. 실측
+     *       (tests/dom/grid-img-frame-noop, 행 120px · 줄 height 200px · 그림 400×250):
+     *         폭 50%(=180px) → 비율 높이 112.5 < 200 ⇒ 최소가 112.5 ⇒ 120 으로 «줄었다»
+     *         폭 100%(=360px) → 비율 높이 225 > 200 ⇒ 최소가 200     ⇒ 200 «그대로»
+     *   ★그런데 `overflow:hidden` 을 붙이면 flex 항목의 `min-height:auto` 가 통째로 0 이 된다
+     *     ⇒ 비율과 무관하게 «늘 줄어든다». 그러면 폭 100% 칸이 200 → 120 으로 바뀐다.
+     *   ⛔내가 처음 세운 가정은 «정반대»였다: 「옛 img 는 안 줄었을 테니 flex-shrink:0 으로
+     *     막아야 한다」. 그 사본은 폭 50% 칸에서 120 이어야 할 것을 200 으로 만들었다.
+     *     두 번 다 화면으로 재고서야 알았다 — 소스만 읽었으면 두 번 다 틀린 채로 갔다.
+     *   ⇒ 안쪽 <img> 를 «흐름 안»에 두고 프레임 overflow 를 건드리지 않으면, 프레임의
+     *     content-based 최소 높이가 그 <img> 에서 그대로 와서 «옛 규칙»이 살아 있다(실측 초록).
+     *   ★클리핑(overflow:hidden)은 «크롭이 실제로 필요한» 다음 커밋에서 붙인다. 그때 이
+     *     쪼그라듦 규칙이 바뀌는 것은 «구조 전환의 부수효과»가 아니라 «그 카드가 고르는 동작»이다.
+     *
+     * ㈑ ★모서리 반경은 «둘 다»에 찍는다 — 프레임 «과» 안쪽 그림.
+     *   프레임에만 주면 아무 것도 안 잘린다(배경도 테두리도 없고 overflow 도 visible 이라
+     *   그 반경이 그리는 것이 없다). 실제로 그림 모서리를 깎던 것은 옛 <img> 자신의 반경이다.
+     *   실측 — 안쪽에 안 주면 반경 16 칸 24개가 전부 픽셀로 갈렸다(최대 세기 223).
+     *   ⇒ 안쪽 = «오늘 실제로 자르는 자» · 프레임 = «상자의 뜻»(다음 커밋의 overflow 가 쓴다).
+     *
+     * ㈑ 잃는 것(정직하게 적는다)
+     *   · tests/unit/grid-render-gaps.test.js 의 D_GOLDEN 12칸이 «재촬영»됐다. 옛 12줄이
+     *     지키던 「이미지 줄 산출 무변화」는 이 커밋 이후로는 «새 기준선»을 지킨다.
+     *     ⇒ 그래서 이 커밋에 tests/dom/grid-img-frame-noop.dom.spec.js 를 같이 세웠다 —
+     *       옛 마크업 문자열과 새 렌더 산출을 «같은 칸에 나란히 놓고 화면으로» 견준다.
+     *       골든이 증명을 덮는 자리를 그 자가 대신 막는다.
+     *   · 중첩(depth≥1) 이미지 줄의 정렬 증인이 «<img> 태그»에서 «프레임 태그»로 옮겨갔다
+     *     (alignCss 가 프레임에 실리므로). grid-render-gaps B4 가 그 자리다. */
+    const frameH  = h > 0 ? `height:${h}px;` : '';
+    const radiusCss = r > 0 ? `border-radius:${r}px;` : '';
+
+    /* ═══ ★프레임 «안»에서의 크롭 (2026-09-25, 커밋 ②) ═══════════════════════════
+     *   현빈: 「원하는 부분만 프레임 안에서 보여주고 싶은데 그게 안 된다」.
+     *
+     * ★언제 켜지나 — «프레임이 있을 때»만이다. 높이가 auto 면 프레임이 그림 키를 그대로
+     *   따라가므로 «잘릴 것»이 애초에 없다 ⇒ h > 0 이 아니면 세 값을 안 읽는다.
+     *   ⛔그래서 높이 없는 줄에 크롭만 주면 updateGridBlock 이 ignoredProps 로 되돌려준다
+     *     (_gridUnreadLineFields 의 민감도 탐침이 「이 줄에선 출력이 안 바뀐다」를 스스로 본다).
+     *     그게 «거짓 성공»을 막는 이 레포의 규약이다 — 편집기·패널은 크롭을 켤 때 높이를 같이 준다.
+     *
+     * ★켜지면 «에셋 블록과 같은 기전»으로 간다 — object-fit 을 버리고 그림을 절대배치한다.
+     *   에셋도 정확히 그렇게 한다: 손대기 전엔 object-fit:cover, dataset.imgW 가 생기면
+     *   position:absolute + width px + left/top px (js/image-handling.js applyImageTransform).
+     *   다른 것은 «단위»뿐이다 — 여기선 전부 ％다(위 GRID_IMG_SIZE_MIN 주석의 까닭).
+     *
+     * ⛔셋이 다 없으면 한 글자도 안 찍는다 — 커밋 ① 의 산출과 «바이트 동일»이다.
+     *   (그 자리를 지키는 자: tests/dom/grid-img-frame-noop.dom.spec.js) */
+    const cropSize = _gridNum(line.imgSizePct);
+    const cropX    = _gridNum(line.imgPosX);
+    const cropY    = _gridNum(line.imgPosY);
+    const cropped  = h > 0 && (cropSize !== null || cropX !== null || cropY !== null);
+
+    let innerCss;
+    if (cropped) {
+      const sz = _gridClampPct(cropSize === null ? 100 : cropSize, GRID_IMG_SIZE_MIN, GRID_IMG_SIZE_MAX);
+      const px = _gridClampPct(cropX === null ? 0 : cropX, -GRID_IMG_POS_LIMIT, GRID_IMG_POS_LIMIT);
+      const py = _gridClampPct(cropY === null ? 0 : cropY, -GRID_IMG_POS_LIMIT, GRID_IMG_POS_LIMIT);
+      innerCss = `position:absolute;left:${px}%;top:${py}%;width:${sz}%;height:auto;`;
+    } else {
+      innerCss = h > 0 ? 'width:100%;height:100%;object-fit:cover;' : 'width:100%;height:auto;';
+    }
+    /* ★`position:relative;overflow:hidden` 은 «크롭이 있을 때만» 붙인다.
+     *   까닭 — overflow 를 visible 밖으로 내보내면 flex 항목의 min-height:auto 가 0 이 되어
+     *   «행 높이가 짧은 칸»에서 프레임이 늘 쪼그라든다. 옛 <img> 는 그림 비율에 따라 줄기도
+     *   안 줄기도 했다(커밋 ① 의 ㈐ 실측). 크롭이 없는 줄까지 그 규칙을 바꿀 이유가 없다.
+     *   크롭이 있는 줄은 «자른다»는 것이 이미 그 줄의 뜻이라, 그 규칙 변화도 그 뜻의 일부다. */
+    const clipCss = cropped ? 'position:relative;overflow:hidden;' : '';
+    /* ★모서리 반경을 «어디에» 찍나 — 크롭 여부로 갈린다. 둘 다에 찍으면 틀린 자리가 생긴다.
+     *   · 크롭 없음 : 프레임에 overflow 가 없으니 «자르는 자»는 안쪽 그림 자신이다 ⇒ 안쪽에 찍는다
+     *                 (프레임 쪽은 다음 사람이 읽을 «상자의 뜻»으로 같이 남긴다 — 그리는 것은 없다).
+     *   · 크롭 있음 : 프레임이 overflow:hidden 으로 «자르는 그릇»이다 ⇒ 프레임만 찍는다.
+     *                 ⛔안쪽에도 찍으면 프레임보다 큰 그림의 «제 모서리»가 둥글어진다 —
+     *                   보이는 자리가 아닐 때가 많지만, 폭을 100% 아래로 줄이면 드러난다. */
+    const innerRadius = cropped ? '' : radiusCss;
+    return `<div${addrAttr} class="grd-img-frame" style="${widthCss}${frameH}${clipCss}${radiusCss}${alignCss}${mtCss}">`
+      + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;${innerCss}${innerRadius}">`
+      + `</div>`;
   }
   // 중첩 duo: {type:'duo', gap, valign, cols:[{width, lines[]}]} — innercard 후기카드 등 (BL-SFB-01)
   if (line.type === GRID_NESTED_LINE_TYPE) {

@@ -369,9 +369,17 @@ test('B-중첩 ★중첩(type:\'duo\') 안의 이미지도 같은 자리다', ()
       }],
     },
   });
-  const imgs = imgTagsIn(cellHtmlAt(b, 0, 0));
+  /* ★2026-09-25 — 증인이 «<img> 태그»에서 «프레임 태그»로 옮겨갔다. 까닭: alignCss(가운데로
+     미는 margin-inline)가 이제 프레임에 실린다. 안쪽 <img> 는 프레임을 100% 로 채우기만 하므로
+     거기서 margin 을 찾으면 «영영 없다» — 그러면 이 검사는 언제나 빨강이 되어, 재던 양
+     (「중첩 칸 안에서도 줄 단위 정렬이 사는가」)을 못 재게 된다.
+     ⛔그림이 «그려지기는 하는가»는 그대로 <img> 로 센다 — 두 물음은 다른 양이다. */
+  const cellHtml = cellHtmlAt(b, 0, 0);
+  const imgs = imgTagsIn(cellHtml);
   assert.equal(imgs.length, 1, '★중첩 안 이미지가 안 그려졌다 — 이 줄은 다른 것을 재고 있다');
-  assert.ok(isCentered(imgs[0]), `★중첩 칸 안에서도 이미지 줄 정렬이 무시된다.\n  실제 산출: ${imgs[0]}`);
+  const frames = cellHtml.match(/<div class="grd-img-frame[^>]*>/g) || [];
+  assert.equal(frames.length, 1, '★중첩 안 이미지의 «프레임»이 안 그려졌다 — 정렬을 실을 데가 없다');
+  assert.ok(isCentered(frames[0]), `★중첩 칸 안에서도 이미지 줄 정렬이 무시된다.\n  실제 산출: ${frames[0]}`);
 });
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -386,33 +394,49 @@ test('B-중첩 ★중첩(type:\'duo\') 안의 이미지도 같은 자리다', ()
        D0-b  내 비교기가 «변화를 잡기는» 하는가 (한 칸을 일부러 흔들면 빨개지는가)
    ═══════════════════════════════════════════════════════════════════════ */
 
-/** ★기준선 86dce84 실측. ⛔여기 수를 «손으로» 고치지 마라 — 고칠 일이 생겼다면
- *  그건 「line.align 없는 이미지 줄의 산출이 바뀌었다」는 뜻이고, 그게 이 골든이 막는 것이다. */
+/** ★기준선 «재촬영» — 2026-09-25 `ed74f65` 위, 프레임(컨테이너)+콘텐츠(이미지) 구조 전환.
+ *  ⛔여기 문자열을 «손으로» 고치지 마라 — 고칠 일이 생겼다면 그건 「line.align 없는 이미지 줄의
+ *    산출이 바뀌었다」는 뜻이고, 그게 이 골든이 막는 것이다.
+ *
+ *  ★~~[재촬영 · 2026-09-25]~~ 옛 12줄(기준선 86dce84)은 «img 자신이 상자»이던 시절의 산출이다.
+ *    지우지 않고 무엇이 바뀌었는지만 적는다 — 그 문장들은 그날까지 참이었다:
+ *      옛: `<img data-… class="grd-img" src=… style="display:block;width:N%;height:auto;…">`
+ *      새: `<div data-… class="grd-img-frame" style="width:N%;…">`
+ *          ＋ 그 안에 `<img class="grd-img" … style="display:block;width:100%;height:auto;">`
+ *    (빈 슬롯은 클래스 이름만 `grd-img` → `grd-img-frame` 으로 갔다. 나머지 바이트 동일.)
+ *
+ *  ⚠️★재촬영은 «증명»이 아니다 — 골든을 다시 뜨면 「안 바뀌었다」를 재던 자가 「내가 뜬 것과
+ *    같다」만 재게 된다. 그래서 «같은 커밋»에 화면으로 재는 자를 따로 세웠다:
+ *      tests/dom/grid-img-frame-noop.dom.spec.js — 옛 마크업과 새 마크업을 «같은 칸에 나란히»
+ *      놓고 브라우저가 계산한 사각형과 «찍은 픽셀»을 견준다. 이 표가 못 하는 일을 그 자가 한다.
+ *
+ *  ★무엇을 «잃었나» — 이 12줄이 잠그던 「2026-09-25 이전 산출과의 바이트 동일」은 영영 끝났다.
+ *    이 커밋 이후의 회귀만 잡는다. 구조를 되돌리려면 옛 12줄을 위 주석에서 되살려야 한다. */
 const D_GOLDEN = {
   'left|50|img':
-    '<img data-r="0" data-c="0" data-line="0" class="grd-img" src="https://example.com/gaps-probe.png" draggable="false" style="display:block;width:50%;height:auto;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:50%;">',
   'left|50|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img grd-img-empty" style="width:50%;height:120px;background:#e8e8e8;border-radius:8px;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;background:#e8e8e8;border-radius:8px;">',
   'left|100|img':
-    '<img data-r="0" data-c="0" data-line="0" class="grd-img" src="https://example.com/gaps-probe.png" draggable="false" style="display:block;width:100%;height:auto;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:100%;">',
   'left|100|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img grd-img-empty" style="width:100%;height:120px;background:#e8e8e8;border-radius:8px;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;background:#e8e8e8;border-radius:8px;">',
   'center|50|img':
-    '<img data-r="0" data-c="0" data-line="0" class="grd-img" src="https://example.com/gaps-probe.png" draggable="false" style="display:block;width:50%;height:auto;margin-left:auto;margin-right:auto;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:50%;margin-left:auto;margin-right:auto;">',
   'center|50|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img grd-img-empty" style="width:50%;height:120px;background:#e8e8e8;border-radius:8px;margin-left:auto;margin-right:auto;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;background:#e8e8e8;border-radius:8px;margin-left:auto;margin-right:auto;">',
   'center|100|img':
-    '<img data-r="0" data-c="0" data-line="0" class="grd-img" src="https://example.com/gaps-probe.png" draggable="false" style="display:block;width:100%;height:auto;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:100%;">',
   'center|100|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img grd-img-empty" style="width:100%;height:120px;background:#e8e8e8;border-radius:8px;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;background:#e8e8e8;border-radius:8px;">',
   'right|50|img':
-    '<img data-r="0" data-c="0" data-line="0" class="grd-img" src="https://example.com/gaps-probe.png" draggable="false" style="display:block;width:50%;height:auto;margin-left:auto;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:50%;margin-left:auto;">',
   'right|50|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img grd-img-empty" style="width:50%;height:120px;background:#e8e8e8;border-radius:8px;margin-left:auto;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;background:#e8e8e8;border-radius:8px;margin-left:auto;">',
   'right|100|img':
-    '<img data-r="0" data-c="0" data-line="0" class="grd-img" src="https://example.com/gaps-probe.png" draggable="false" style="display:block;width:100%;height:auto;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:100%;">',
   'right|100|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img grd-img-empty" style="width:100%;height:120px;background:#e8e8e8;border-radius:8px;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;background:#e8e8e8;border-radius:8px;">',
 };
 
 const dKey = ({ ca, wp, kind }) => `${ca}|${wp}|${kind}`;
@@ -856,7 +880,14 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *    (「만드는 문」의 gap 도 «자르되 말한다» — G2·G2-b 가 ⛔「렌더러 무접촉」을 «바이트»로 잠그는
  *     자물쇠고, G5 가 「GO 범위 밖(rowGap/colGap)은 안 건드렸다」를 잠근다).
  *    ⛔여기서도 지운 것은 «하나도» 없다. */
-const GRID_BASELINE_TESTS = 310;
+/*  ★2026-09-25 그리드 이미지 프레임 ②: 310 → 322. 더한 것 = tests/unit/grid-img-crop.test.js 의 12개
+ *    («프레임 안 크롭» 세 필드 imgSizePct/imgPosX/imgPosY — K0 명부 전제 · K1 받는가 ·
+ *     K2 ★효과(절대배치로 갈아탔나) · K3 ★무변화(크롭 없으면 커밋 ① 산출과 바이트 동일) ·
+ *     K4 ★프레임 없으면 거절(거짓 성공 봉쇄) · K5·K5-b 클램프 ·
+ *     K6[행0]·K6[행1] ★왕복(저장→다시 읽기→다시 그리기) · K7 지우기 ·
+ *     K8 ★양성대조(크롭 가지를 떼면 빨개진다) · K9 단위=％ 계약).
+ *    ⛔여기서도 지운 것은 «하나도» 없다. */
+const GRID_BASELINE_TESTS = 322;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
@@ -927,6 +958,8 @@ const POSITIVE_CONTROLS = [
   'grid-intake-contract.test.js :: U8-d ★양성대조 — 값 잣대를 «뺀» 사본은 gradient 를 받고 옛 배경을 죽인다',
   /* ★2026-09-24 지디 실기 관측 회신 — 「만드는 문」 쪽 양성대조(동작 불변 대조를 겸한다). */
   'grid-intake-contract.test.js :: U10-c ★★동작 불변 ＋ 양성대조 — 말을 «뗀» 사본과 dataset 이 바이트 동일이다',
+  /* ★2026-09-25 그리드 이미지 «프레임 안 크롭» — 크롭 가지가 실재했다는 대조. */
+  'grid-img-crop.test.js :: K8 ★양성대조 — 렌더러에서 크롭 가지를 떼면 K2 가 빨개진다(그 가지가 실재했다)',
   /* ★2026-09-24 gap 자르기(ⓑ 판정) — 렌더러 무접촉 자물쇠의 양성대조 ＋ 구멍이 실재했다는 대조. */
   'grid-gap-clamp.test.js :: G2-b ★양성대조 — 렌더러를 «좁힌» 사본은 같은 저장본을 «다르게» 그린다',
   'grid-gap-clamp.test.js :: G3 ★양성대조 — 기준판은 gap:999 를 «그대로 저장»한다(구멍이 실재했다)',
