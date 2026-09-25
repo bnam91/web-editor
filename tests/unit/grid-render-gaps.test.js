@@ -377,7 +377,14 @@ test('B-중첩 ★중첩(type:\'duo\') 안의 이미지도 같은 자리다', ()
   const cellHtml = cellHtmlAt(b, 0, 0);
   const imgs = imgTagsIn(cellHtml);
   assert.equal(imgs.length, 1, '★중첩 안 이미지가 안 그려졌다 — 이 줄은 다른 것을 재고 있다');
-  const frames = cellHtml.match(/<div class="grd-img-frame[^>]*>/g) || [];
+  /* ★2026-09-25 T-200 커밋 ① — 정규식을 «주소가 있어도 집게» 넓혔다.
+     까닭: 중첩 안 이미지 프레임의 여는 태그가 `<div class=…` 에서
+     `<div data-r=… data-c=… data-nroot=… data-npath=… class=…` 로 바뀌었다.
+     ⛔이 한 글자를 안 고치면 이 자는 «언제나» 0 을 세고, 재던 양(중첩 칸 안 줄 단위 정렬)을
+       못 재게 된다 — 빨강이라 눈엔 띄지만 「무엇이 깨졌나」를 틀리게 가리킨다.
+     ★잃는 것: 「`<div` 바로 뒤에 class 가 온다」는 «자리 고정»을 이 자는 더는 안 잰다.
+       그 몫은 D_GOLDEN 12줄이 «바깥 줄»에 대해 여전히 바이트로 진다. */
+  const frames = cellHtml.match(/<div [^>]*?class="grd-img-frame[^>]*>/g) || [];
   assert.equal(frames.length, 1, '★중첩 안 이미지의 «프레임»이 안 그려졌다 — 정렬을 실을 데가 없다');
   assert.ok(isCentered(frames[0]), `★중첩 칸 안에서도 이미지 줄 정렬이 무시된다.\n  실제 산출: ${frames[0]}`);
 });
@@ -832,7 +839,15 @@ test('N6 ★빈 중첩은 «아무것도» 안 그린다(빈 껍데기를 남기
   assert.doesNotMatch(cellHtmlAt(b, 0, 0), /grd-nested/, '★열이 0개인 중첩이 빈 껍데기를 남겼다');
 });
 
-test('N7 ★주소는 «최상위 줄»에만 찍힌다 — 중첩 속은 안 찍는다(기존 규약)', () => {
+/* ★~~[제목 갱신 · 2026-09-25, T-200 커밋 ①]~~ 옛 제목은 「주소는 최상위 줄에만 찍힌다 —
+ *   중첩 속은 안 찍는다(기존 규약)」이었다. 그 문장은 그날까지 참이었고 지우지 않는다.
+ *   ⛔그런데 «단언은 하나도 안 바뀌었다» — 이 자가 세던 것은 처음부터 「`data-line` 이 몇 개냐」였고,
+ *     중첩 안 줄은 `data-line` 을 «안» 쓴다(data-nroot/data-npath 를 쓴다). 그래서 여전히 초록이다.
+ *   ★그러면 제목만 거짓이 된다 — 「제목이 조건을 말하면 제목째 거짓이 될 수 있다」.
+ *     ⇒ 제목을 «이 자가 실제로 재는 것»으로 바꾼다. 무엇을 잃었나: «잃은 것 없다».
+ *        이 자가 지키던 뜻(바깥 `data-line` 의 소비자 다섯이 중첩 속을 안 집는다)은 그대로고,
+ *        오히려 그게 커밋 ① 의 핵심 안전장치다. */
+test('N7 ★`data-line` 은 «최상위 줄»에만 찍힌다 — 중첩 속은 그 이름을 «안» 쓴다', () => {
   const b = fixture();
   G.updateGridBlock(b.id, {
     patchCell: { r: 0, c: 0, lines: [{ type: 'duo', cols: [{ width: 1, lines: [{ type: 'body', text: 'INNER' }] }] }] },
@@ -840,7 +855,112 @@ test('N7 ★주소는 «최상위 줄»에만 찍힌다 — 중첩 속은 안 �
   const top = lineTagAt(b, 0, 0, 0);
   assert.match(top, /class="grd-nested"/, '★중첩 셸에 줄 주소가 안 찍혔다 — 인라인 편집이 이 줄을 못 찾는다');
   assert.equal((cellHtmlAt(b, 0, 0).match(/data-line="/g) || []).length, 1,
-    '★중첩 «속»에도 주소가 찍혔다 — 기존 규약(중첩은 미주소화)이 깨졌다');
+    '★중첩 «속»에도 `data-line` 이 찍혔다 — block-drag `closest(\'[data-line]\')` 이 바깥 대신 안쪽을 집게 된다');
+});
+
+/* ═══ ★T-200 커밋 ① — 「칸 안 줄에 주소를 준다」 (2026-09-25, 현빈 「A 방식」) ═══
+ *   ★재는 양 = «중첩 안 줄 가운데 주소를 가진 것의 수 / 중첩 안 줄 전체». 기준선 65c4456 에서 0/3.
+ *   ⛔「주소가 붙었다」를 이름(`data-npath`)으로만 세지 않는다 — 분모(중첩 안 줄이 몇 개인가)를
+ *     «모델에서» 떠서 같이 적는다. 이름으로만 세면 0 이 나와도 「없어서 0」인지 「이름이 틀려서 0」인지
+ *     못 가른다(이 파일 머리말 규율 ⑵ 와 같은 결). */
+
+/** 칸(0,0) = 글자 줄 하나 ＋ 중첩 duo 하나(2열, 안쪽 줄 2+1=3). 중첩 안 줄 «분모 3». */
+function nestFixture(mod = G) {
+  const b = fixture(mod);
+  const res = mod.updateGridBlock(b.id, {
+    patchCell: {
+      r: 0, c: 0,
+      lines: [
+        { type: 'body', text: 'TOPLINE' },
+        { type: 'duo', cols: [
+          { width: 1, lines: [{ type: 'body', text: 'IN-A' }, { type: 'body', text: 'IN-B' }] },
+          { width: 1, lines: [{ type: 'body', text: 'IN-C' }] },
+        ] },
+      ],
+    },
+  });
+  assert.equal(res.ok, true, `★픽스처를 거절했다: ${res.message}`);
+  return b;
+}
+/** 모델에서 «중첩 안 줄»을 센다 — 분모의 출처. ⛔DOM 에서 세면 분자와 같은 데서 온다. */
+function nestedLineCount(mod, b) {
+  const lines = mod.getGridModel(b).cells[0][0].lines;
+  let n = 0;
+  for (const l of lines) if (l && l.type === 'duo') for (const c of (l.cols || [])) n += (c.lines || []).length;
+  return n;
+}
+
+test('N8-a ★양성대조(먼저) — 분모가 «실제로» 3 이고 그 글자들이 화면에 있다', () => {
+  const b = nestFixture();
+  assert.equal(nestedLineCount(G, b), 3, '★중첩 안 줄이 3개가 아니다 — 아래 「3/3」은 다른 것을 재게 된다');
+  const cell = cellHtmlAt(b, 0, 0);
+  for (const t of ['IN-A', 'IN-B', 'IN-C']) assert.match(cell, new RegExp(t), `★중첩 안 줄 ${t} 가 안 그려졌다`);
+});
+
+test('N8 ★중첩 안 줄 «전부»에 주소가 찍힌다 — 3/3 (기준선 65c4456 에서는 0/3)', () => {
+  const b = nestFixture();
+  const cell = cellHtmlAt(b, 0, 0);
+  const got = (cell.match(/ data-npath="/g) || []).length;
+  assert.equal(got, nestedLineCount(G, b),
+    `★중첩 안 줄 ${nestedLineCount(G, b)} 개 가운데 ${got} 개만 주소를 가졌다 — 「가리킬 이름이 없는 줄」이 남았다`);
+  // 주소가 «맞는 자리»를 가리키나 — 열·줄 index 가 그대로 실린다.
+  assert.match(cell, / data-r="0" data-c="0" data-nroot="1" data-npath="0\.0"[^>]*>IN-A</, '★IN-A 의 주소가 틀리다');
+  assert.match(cell, / data-r="0" data-c="0" data-nroot="1" data-npath="0\.1"[^>]*>IN-B</, '★IN-B 의 주소가 틀리다');
+  assert.match(cell, / data-r="0" data-c="0" data-nroot="1" data-npath="1\.0"[^>]*>IN-C</, '★IN-C 의 주소가 틀리다');
+});
+
+test(`N9 ★길은 «단계마다» 이어진다 — 깊이 ${NEST.depthCap} 까지(상수를 따라간다)`, () => {
+  const deep = (n, leaf) => (n === 0 ? { type: 'body', text: leaf }
+    : { type: 'duo', cols: [{ width: 1, lines: [deep(n - 1, leaf)] }] });
+  const b = fixture();
+  G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, lines: [deep(NEST.depthCap, 'DEEPEST')] } });
+  const cell = cellHtmlAt(b, 0, 0);
+  assert.match(cell, /DEEPEST/, `★깊이 ${NEST.depthCap} 이 안 그려졌다 — N3 와 어긋난다`);
+  const want = Array.from({ length: NEST.depthCap }, () => '0.0').join('/');
+  assert.ok(cell.includes(` data-npath="${want}"`),
+    `★가장 깊은 줄의 길이 "${want}" 가 아니다 — 두 칸짜리 꼴로는 못 적는 그 자리다`);
+  // 길의 마디 수는 «상수»를 넘지 않는다 — 손으로 2 를 안 적는다.
+  for (const m of cell.matchAll(/ data-npath="([^"]+)"/g)) {
+    assert.ok(m[1].split('/').length <= NEST.depthCap,
+      `★길 "${m[1]}" 의 마디가 깊이 가드(${NEST.depthCap})를 넘었다`);
+  }
+});
+
+test('N10 ★양성대조 — 주소를 도로 떼면 이 자가 «빨개진다»', async () => {
+  const before = RAW;
+  /* ⛔닻은 «호출부»여야 한다 — `_gridNestAddr(addr, naddr, ci, ni)` 만 쓰면 String.replace 가
+     «함수 선언»을 먼저 집어 `function null {` 이 되고, 모듈이 SyntaxError 로 죽는다.
+     그러면 이 자는 「주소가 사라져서」가 아니라 「소스가 안 읽혀서」 빨개진다 — 다른 양이다. */
+  const src = RAW.replace("_gridNestAddr(addr, naddr, ci, ni))).join('')", "null)).join('')");
+  assert.notEqual(src, before, '★변이 닻(중첩 재귀의 _gridNestAddr «호출부»)을 못 찾았다 — 이 양성대조는 «안 재고» 있다');
+  const M = await loadGrid(src);
+  const b = nestFixture(M);
+  const got = (cellHtmlAt(b, 0, 0).match(/ data-npath="/g) || []).length;
+  assert.equal(got, 0, '★주소를 뗐는데도 data-npath 가 남았다 — 다른 데서 새로 찍고 있다');
+  assert.equal(nestedLineCount(M, b), 3, '★변이판에서 분모가 달라졌다 — 변이가 엉뚱한 데를 건드렸다');
+});
+
+const GRID_LINE_FIELDS_DECL = declaredSet(RAW, 'GRID_LINE_FIELDS');
+
+test('N11 ★저장 포맷은 «안» 바뀐다 — 주소는 렌더 산출의 속성이지 모델 필드가 아니다', () => {
+  const b = nestFixture();
+  const inner = G.getGridModel(b).cells[0][0].lines[1].cols[0].lines[0];
+  for (const k of ['nroot', 'npath', 'r', 'c']) {
+    assert.equal(Object.prototype.hasOwnProperty.call(inner, k), false,
+      `★중첩 안 줄의 모델에 '${k}' 가 실렸다 — 주소가 저장본으로 샜다`);
+  }
+  assert.equal(GRID_LINE_FIELDS_DECL.includes('npath') || GRID_LINE_FIELDS_DECL.includes('nroot'), false,
+    '★GRID_LINE_FIELDS 에 주소 이름이 들어갔다 — patchCell 이 그걸 받아 dataset 에 싣게 된다');
+});
+
+test('N12 ★중첩 «안»의 주소는 바깥 줄의 소비자를 안 건드린다(이름 겹침 0건)', () => {
+  const b = nestFixture();
+  const cell = cellHtmlAt(b, 0, 0);
+  // 바깥 줄 2개 = data-line 2개. 중첩 안 3줄이 늘어도 이 수는 그대로여야 한다.
+  assert.equal((cell.match(/ data-line="/g) || []).length, 2,
+    '★data-line 의 수가 바깥 줄 수와 다르다 — 중첩이 그 이름을 쓰기 시작했다');
+  // `.grd-img-frame[data-line]`(overlay-handles:1945 · image-handling:1299) 꼴이 중첩을 안 집는다.
+  assert.equal(/data-npath="[^"]*"[^>]*data-line="/.test(cell), false, '★한 태그에 두 이름이 같이 찍혔다');
 });
 
 /* ═══════════════════════════════════════════════════════════════════════
