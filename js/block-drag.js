@@ -2093,6 +2093,20 @@ function bindBlock(block) {
         input.click();
         return;
       }
+      /* ★그림이 «들어 있는» 프레임 더블클릭 → 프레임 안 크롭 편집(2026-09-25).
+         현빈: 「에셋블럭처럼 더블클릭하면 프레임 안에서 위치를 맞출 수 있어야 한다」.
+         ⛔`_gridEditable` 을 넓히지 «않는다» — 이 파일 위쪽(134~136행)이 「넓히면 이미지/갭
+           줄에 contenteditable 이 붙는 부작용이 생긴다」고 못 박아 뒀다. 바로 위 «빈 슬롯»
+           가지와 같은 꼴로, 먼저 집고 return 하는 형제 가지를 세운다. */
+      const imgFrame = node && node.closest
+        ? node.closest('.grd-img-frame[data-line]:not(.grd-img-empty)') : null;
+      if (imgFrame && block.contains(imgFrame)) {
+        e.stopPropagation();
+        const r = Number(imgFrame.dataset.r), c = Number(imgFrame.dataset.c), li = Number(imgFrame.dataset.line);
+        if (!Number.isInteger(r) || !Number.isInteger(c) || !Number.isInteger(li)) return;
+        window.enterGridImageEditMode?.(block, { r, c, li });
+        return;
+      }
       const hit = _gridEditable(atPoint) || _gridEditable(e.target);
       if (!hit || hit.block !== block) return;   // gap/image/중첩 줄 = 편집 대상 아님
       e.stopPropagation();
