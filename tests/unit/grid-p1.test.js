@@ -671,7 +671,9 @@ test('좌표 계약② — gap/image 줄에도 좌표는 찍히지만 «글자 �
     { width: 1, lines: [] },
   ] });
   assert.match(block.innerHTML, /<div data-r="0" data-c="0" data-line="0" class="grd-gap"/);
-  assert.match(block.innerHTML, /<div data-r="0" data-c="0" data-line="1" class="grd-img grd-img-empty"/);
+  /* ★2026-09-25 — 빈 이미지 슬롯의 클래스가 `grd-img` → `grd-img-frame` 으로 갔다.
+     이 검사가 재는 양(「주소는 찍히는데 «글자 담는 요소»가 없다」)은 그대로다. */
+  assert.match(block.innerHTML, /<div data-r="0" data-c="0" data-line="1" class="grd-img-frame grd-img-empty"/);
   // 인라인 편집은 «.grd-line 이거나 안쪽 .grd-badge» 만 host 로 삼는다 — 둘 다 없으면 편집이 안 열린다.
   assert.doesNotMatch(block.innerHTML, /class="grd-line/);
   assert.doesNotMatch(block.innerHTML, /grd-badge/);

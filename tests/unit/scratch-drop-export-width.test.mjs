@@ -102,7 +102,10 @@ test('S-5 ★내보내기 폭이 다르면 그림 상자의 «세로»도 따라
   const sels = stripComments(EXPORT_IMG).match(/_CAPTURE_IMG_BOX_SELECTORS\s*=\s*\[([^\]]*)\]/);
   assert.ok(sels, '★대상 명부(_CAPTURE_IMG_BOX_SELECTORS)가 사라졌다');
   assert.match(sels[1], /'\.asset-block'/, '★에셋 블록을 안 고른다');
-  assert.match(sels[1], /'\.grd-img'/, '★그리드 이미지 줄을 안 고른다 — 780 에서 그리드만 다른 그림이 된다');
+  /* ★2026-09-25 — 그 자리가 «프레임»(.grd-img-frame)으로 옮겨갔다. ⛔`.grd-img` 로 되돌리면
+     안쪽 그림(폭·높이가 프레임의 100%)을 집어 아무 일도 안 하게 된다 — 「고른다」는 초록인데
+     「상자를 다시 잠근다」는 거짓이 되는, 이 파일이 막으려는 바로 그 모양이다. */
+  assert.match(sels[1], /'\.grd-img-frame'/, '★그리드 이미지 «프레임»을 안 고른다 — 780 에서 그리드만 다른 그림이 된다');
 
   const fn = stripComments(bodyOf(EXPORT_IMG, 'function _syncOneGroup'));
   assert.match(fn, /style\.height\s*=/, '★세로를 다시 잠그는 대입이 없다');

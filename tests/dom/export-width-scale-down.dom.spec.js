@@ -76,12 +76,18 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
         </div>
       </div>
       <!-- ③ 그리드 블럭의 이미지 줄(js/blocks/grid-block.js _gridLineHtml): 상대폭(%) + 절대높이(px) + cover.
-           ⛔에셋과 달리 «상자»가 아니라 img 자신이 그 꼴이다 — 같은 기전, 다른 자리. -->
+           ★2026-09-25 — 에셋과 «같은 구조»가 됐다: 프레임(.grd-img-frame)이 그 꼴을 지고,
+             안쪽 <img class="grd-img"> 가 프레임을 100%×100% 로 채우며 cover 로 잘린다.
+           ⛔에셋과 다른 점 하나는 남아 있다 — 이 상자엔 «제품에선» id 가 없다(짝짓기는 자리번호).
+             여기 id 는 이 검사가 읽으려고 붙인 것이다. -->
       <div class="row" data-layout="stack">
         <div class="grid-block" id="gb_grid" data-type="grid" style="display:flex;gap:24px;">
           <div class="grd-col" style="flex:1;min-width:0;display:flex;flex-direction:column;">
-            <img class="grd-img" id="grd_img" src="${PX}" draggable="false" data-r="0" data-c="0" data-line="0"
-                 style="display:block;width:100%;height:300px;object-fit:cover;">
+            <div class="grd-img-frame" id="grd_img" data-r="0" data-c="0" data-line="0"
+                 style="width:100%;height:300px;">
+              <img class="grd-img" src="${PX}" draggable="false"
+                   style="display:block;width:100%;height:100%;object-fit:cover;">
+            </div>
           </div>
         </div>
       </div>

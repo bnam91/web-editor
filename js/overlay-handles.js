@@ -1924,6 +1924,10 @@ window.hideGridGutters = hideGridGutters;
    ★대상은 «지금 선택된(포커스된) 이미지 줄» 하나뿐이다 — grdGetActiveLine(block) 로
      주소를 얻고, getGridModel(block) 으로 그 줄이 type==='image' 인지 확인한다.
      빈 이미지 슬롯(.grd-img-empty)도 같은 addr·같은 필드라 그대로 포함된다.
+   ★2026-09-25 — 대상이 «프레임»(.grd-img-frame)으로 옮겨갔다. 안쪽 <img class="grd-img">
+     는 프레임을 100%×100% 로 채우므로 «사각형»은 전과 같고(핸들 자리 무변화), 다만
+     style.width/height 를 쓰는 대상은 반드시 프레임이어야 한다 — 안쪽에 쓰면 % 의 기준이
+     «셀»이 아니라 «프레임»이 되어 폭이 제자리를 맴돈다.
    ★핸들은 자산(asset) 블록 코너 핸들(_onAssetResizeHandleMouseDown)의 수학을 형틀로 쓴다 —
      이미지도 「흐름 배치」라 확대블럭(플로팅)보다 이쪽이 정확한 선례다.
    ⛔클래스는 `.grd-img-overlay-handle` — `.asset-overlay-handle` 을 빌리면
@@ -1938,7 +1942,7 @@ const GRID_IMG_HANDLE_MIN_SCREEN_PX = 24;   // 낮은 배율 방어 — 거터�
 
 function _gridImgFindEl(block, addr) {
   if (!block || !addr || addr.li === null || addr.li === undefined) return null;
-  return block.querySelector(`.grd-img[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
+  return block.querySelector(`.grd-img-frame[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
 }
 
 function _gridImgActiveImageLine(block) {
@@ -2037,8 +2041,12 @@ function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
   const curPctN = line ? Number(line.widthPct) : NaN;
   const curPct = Number.isFinite(curPctN) && curPctN > 0 ? curPctN : 100;
   const cellW = startW / (curPct / 100);   // widthPct=100 일 때의 «셀 콘텐츠 폭»(px) 역산
-  const aspect = (el0.tagName === 'IMG' && el0.naturalWidth > 0 && el0.naturalHeight > 0)
-    ? el0.naturalWidth / el0.naturalHeight
+  /* ★비율의 출처 — 프레임은 <div> 라 naturalWidth 가 없다. 안쪽 <img> 에서 읽어야
+     Shift-드래그(비율 고정)가 «2026-09-25 이전과 같은 값»을 쓴다. 여기서 el0 만 보면
+     조용히 startW/startH(상자 비율)로 떨어져 cover 가 걸린 줄에서 답이 달라진다. */
+  const natImg = el0.tagName === 'IMG' ? el0 : el0.querySelector('img');
+  const aspect = (natImg && natImg.naturalWidth > 0 && natImg.naturalHeight > 0)
+    ? natImg.naturalWidth / natImg.naturalHeight
     : (startH > 0 ? startW / startH : 1);
 
   const startX = e.clientX, startY = e.clientY;
@@ -2057,6 +2065,12 @@ function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
     lastResult = result;
     el.style.width = result.widthPct + '%';
     el.style.height = result.height + 'px';
+    /* ★안쪽 그림도 «프레임을 채우게» 한다 — 안 하면 height:auto 인 그림이 제 키를 고집해
+       프레임이 잘라 버린다. 2026-09-25 이전엔 <img> 자신에 높이를 줬으니 그림이 «늘어났다».
+       ⛔objectFit 은 «안» 건드린다 — 그래야 늘어나던 줄은 늘어나고(fill 기본값),
+         cover 이던 줄은 cover 그대로다. 곧 «옛 미리보기»가 바이트 그대로 재현된다. */
+    const innerImg = el.querySelector('img');
+    if (innerImg) innerImg.style.height = '100%';
     // 우측 패널 「높이(px)」 입력만 직접 갱신 — 드래그 중 패널 재렌더 금지(gutter 와 같은 원칙,
     // prop-grid.js 의 「이미지 절」에는 폭 입력이 없어(신작 UI 미추가) 높이만 동기화한다.
     const hNum = document.getElementById('grd-img-height');

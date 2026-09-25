@@ -315,14 +315,18 @@ export async function prepareCloneForCapture(sec, w, useNative) {
    ══════════════════════════════════════════════════════════════════════════ */
 /* ★대상 명부 — «상대폭 + 절대높이 + object-fit:cover» 라는 «한 기전»을 쓰는 자리 전부.
      ⑴ `.asset-block`  — 상자에 높이가 잠긴다(스크래치 드롭·패널 풀블리드). id 가 있다.
-     ⑵ `.grd-img`      — 그리드 블럭의 이미지 줄(js/blocks/grid-block.js _gridLineHtml)은
-        «상자»가 아니라 img 자신이 `width:N%` + `height:Npx` + cover 다. id 가 «없다».
-        (빈 슬롯 `.grd-img-empty` 도 같은 클래스·같은 꼴이라 함께 걸린다.)
+     ⑵ `.grd-img-frame` — 그리드 블럭의 이미지 줄(js/blocks/grid-block.js _gridLineHtml)의
+        «프레임». `width:N%` + `height:Npx` 가 여기 실리고 안쪽 <img class="grd-img"> 가
+        그 상자를 100%×100% 로 채우며 cover 로 잘린다. id 가 «없다»(짝짓기는 자리번호).
+        (빈 슬롯 `.grd-img-empty` 도 같은 프레임 클래스를 달아 함께 걸린다.)
+        ⚠️2026-09-25 이전엔 img 자신이 그 꼴이었고 클래스가 `.grd-img` 였다. 그때 이 줄을
+          `.grd-img` 로 두면 «안쪽 그림»(폭·높이가 100%)을 집어 아무 일도 안 하게 된다 —
+          상자가 아니라 내용물을 재는 셈이라 780 내보내기에서 다시 잘린다.
    ★여기에 줄을 더할 때의 기준 한 줄 = 「폭은 내보내기 폭을 따라 줄어드는데 높이는 px 로 잠겼나」.
      아니면(= 폭도 절대 px) 이 함수는 어차피 아무 일도 안 한다(등폭과 같은 계산 → 무변화).
    ⛔«아무 요소나 높이가 px 면 줄인다» 로 넓히지 마라 — 도형 래퍼·프레임처럼 높이가 «뜻»인
      상자까지 줄어들어 레이아웃이 무너진다(그 축은 현빈 결정 밖이다). */
-const _CAPTURE_IMG_BOX_SELECTORS = ['.asset-block', '.grd-img'];
+const _CAPTURE_IMG_BOX_SELECTORS = ['.asset-block', '.grd-img-frame'];
 
 export function syncImageBoxesToCaptureWidth(liveSec, clone) {
   if (!liveSec || !clone) return 0;
