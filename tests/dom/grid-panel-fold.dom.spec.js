@@ -265,3 +265,30 @@ test('F5 ★접고 펴는 것은 «저장본»을 한 글자도 안 건드린다
   expect(r.closed, '★절을 다시 접자 dataset 이 바뀌었다').toBe(r.before);
   expect(r.display, '★두 번 눌렀는데 안 닫혔다 — 토글이 한 방향으로만 돈다').toBe('none');
 });
+
+/* ── F6 ────────────────────────────────────────────────────────────────────
+ * ★왜 이것까지 재나 — 칸 수를 고르면 onPick 이 showGridProperties 를 다시 불러 패널을
+ *   ★통째로 다시 그린다. 그때 절이 «도로 접히면» 사용자는 한 번 고를 때마다 다시 펴야 한다
+ *   (그리고 방금 무엇을 골랐는지 그림으로 확인할 길도 같이 사라진다).
+ *   열림 상태가 블록별 WeakMap 이라 지금은 살아남는데, 그건 «설계»지 «잰 것»이 아니었다.
+ * 깨뜨리면 빨개지는 것: 열림 상태를 재렌더에 안 살아남는 자리(DOM 참조·지역 변수)로 옮기는 순간.
+ * ⛔이 검사는 커밋을 갈라 «따로» 들어왔다 — 앞 커밋(9d00ec1)이 골든의 기준선이라 그 sha 를
+ *   못 움직인다. 제품코드는 한 줄도 안 바뀐다. */
+test('F6 ★칸 수를 고른 «뒤»에도 절이 열려 있고, 제목·피커가 새 값을 말한다', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await page.evaluate((fx) => {
+    window.__mount(fx, null);
+    document.getElementById('grd-size-toggle').click();
+    const picker = document.getElementById('grd-grid-picker');
+    const c3r2 = [...picker.querySelectorAll('.grid-picker-cell')].find(c => c.dataset.c === '3' && c.dataset.r === '2');
+    c3r2.dispatchEvent(new MouseEvent('click', { bubbles: true }));   // 사람이 누르는 그 길
+    const p = window.__foldProbe();
+    return { p, cols: JSON.parse(window.__b.dataset.cols || '[]').length };
+  }, FIX_2x2);
+  expect(errs).toEqual([]);
+  expect(r.cols, '★피커 클릭이 모델에 안 닿았다 — 전제가 안 선다').toBe(3);
+  expect(r.p.bodyDisplay, '★고르자마자 절이 도로 접혔다 — 한 번 고를 때마다 다시 펴야 한다').toBe('block');
+  expect(r.p.headText, `★제목이 옛 값을 말한다 (지금 제목: "${r.p.headText}")`).toContain('3×2');
+  expect(r.p.activeN, `★새로 그린 피커가 «새 값»을 안 칠한다 (칠해진 칸 ${r.p.activeN}개, 6 이어야 한다)`).toBe(6);
+  expect(r.p.labelText, '★라벨이 새 값을 안 말한다').toBe('3 × 2');
+});
