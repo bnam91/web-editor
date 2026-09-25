@@ -2989,8 +2989,11 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
        T-009 버그B: 캔버스에서 줄을 클릭해도 DOM 선택은 여전히 .grid-block 전체다(줄은
        모델(WeakMap)에만 「선택」되고 클래스가 안 붙는다) — 아래 CANVAS_SEL_BLOCKS 가
        .grid-block.selected 를 그대로 주워가 «블록 전체»를 삭제하던 사고. 줄 삭제 로직은
-       prop-grid.js 의 grd-line-del-btn(줄바)·grd-img-remove-btn(이미지 제거)과 같은 경로
-       (patchCell{lines}) — 세 벌로 갈라지지 않게 여기서도 그 함수들을 그대로 부른다. */
+       prop-grid.js 의 grd-line-del-btn(줄바)·우클릭 「이미지 삭제」(block-factory.js
+       bcm-grid-img-del)와 같은 경로(patchCell{lines}) — 여러 벌로 갈라지지 않게 여기서도
+       그 함수들을 그대로 부른다.
+       ※2026-09-25 — 여기 같이 적혀 있던 `grd-img-remove-btn`(Image 절의 「이미지 제거」)은
+         현빈 지시로 없앴다. 줄바의 「줄 삭제」가 «한 글자도 안 다른» 같은 코드였다. */
     const gridSel = document.querySelector('.grid-block.selected');
     let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
     /* ★0918r2 T-058 — 줄 삭제는 «그 그리드 하나만» 선택됐을 때만. ⌘클릭 다중선택·붙여넣기 뒤

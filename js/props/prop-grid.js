@@ -580,17 +580,23 @@ function _grdImageSectionHtml(anyHit, block) {
    *   그래서 placeholder 가 "100" 이다(장식이 아니라 «역할 기본값» — 숫자칸 규약 ⑶). */
   const wpN = Number(line.widthPct);
   const wp = Number.isFinite(wpN) ? wpN : '';
-  /* ★「이미지 제거」= «줄 삭제»와 같은 동작(줄 자체를 지운다, imgSrc만 비우지 않는다) —
-   *   T-009 버그A: imgSrc만 비우면 line.type==='image'가 그대로 남아 렌더러가 빈 이미지
-   *   placeholder(회색 배경, grid-block.js:385)를 영구히 그린다. 「제거」가 곧 「줄 삭제」이므로
-   *   마지막 한 줄 보호도 줄바(_grdLineBarHtml)의 canDeleteLine과 «같은 조건»을 쓴다. */
-  let cellLineCount = 1;
-  try { cellLineCount = (getGridModel(block).cells?.[r]?.[c]?.lines || []).length || 1; } catch (_) {}
-  const canRemove = !!line.imgSrc && cellLineCount > 1;
-  /* ★크롭 세 값(프레임 안 위치·배율) — 「맞추기」는 캔버스 더블클릭과 «같은 편집기»를 연다
-   *   (js/image-handling.js enterGridImageEditMode). 여기 슬라이더를 따로 두지 «않는» 까닭:
-   *   그러면 손잡이가 두 벌이 되고 둘이 따로 늙는다. 누를 데는 하나, 편집기도 하나다. */
-  const hasCrop = [line.imgSizePct, line.imgPosX, line.imgPosY].some(v => Number.isFinite(Number(v)));
+  /* ★2026-09-25 현빈 — 이 절에 있던 단추 «셋»을 없앴다(「캔버스에서 다 직관적으로 조작이
+   *   가능한거잖아?」). ⛔되살리기 전에 «어디로 갔는지»부터 읽어라 — 기능이 죽은 게 아니라
+   *   손잡이가 «한 벌»로 합쳐진 것이다. 두 벌이 되면 둘이 따로 늙는다.
+   *     · 「프레임 안에서 맞추기…」 → 캔버스 «더블클릭»(js/block-drag.js:2107 →
+   *       image-handling.js enterGridImageEditMode). 지운 단추의 title 이 스스로
+   *       「캔버스에서 더블클릭해도 같습니다」라고 적고 있었다 — 같은 함수, 같은 편집기다.
+   *     · 「이미지 제거」 → ⑴ 바로 위 줄바의 «줄 삭제»(grd-line-del-btn — 같은 파일
+   *       _grdWireLineBar, 핸들러가 «한 글자도 안 다른» 같은 코드였다) ⑵ 우클릭 「이미지 삭제」
+   *       (index.html bcm-grid-img-del → block-factory.js). 셋 다 같은 patchCell{lines} 경로다.
+   *       ★T-009 버그A(imgSrc만 비우면 회색 placeholder 가 남는다)는 그 둘이 계속 막는다 —
+   *       둘 다 «줄 자체»를 지우지 imgSrc 를 비우지 않는다.
+   *     · ★「크롭 초기화」 → «대체가 없다». 현빈이 조건부로 없애라 하셨고(「에셋블록에도 같은
+   *       기능이 있으면 편집모드 안으로 옮기고, 아니면 없어도 될듯해」), 에셋 패널엔 없다
+   *       (prop-asset.js 의 asset-bg-clear 는 «배경색» 초기화지 크롭이 아니다). ⇒ 지웠다.
+   *       ⚠️그래서 크롭을 «지우는» 길은 지금 ⌘Z 뿐이다(편집기는 크롭을 쓰기만 하고 못 지운다
+   *         — image-handling.js beforeCommit 이 세 값을 «항상» 쓴다). 되살릴 일이 생기면
+   *         현빈 조건대로 «편집모드 안»에 넣어라. 이 절로 되돌리지 마라. */
   return `
     <div class="prop-section">
       <div class="prop-section-title">Image</div>
@@ -608,18 +614,6 @@ function _grdImageSectionHtml(anyHit, block) {
       <div class="prop-row">
         <span class="prop-label">모서리 반경(px)</span>
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="0" value="${rad}">
-      </div>
-      <div class="prop-row">
-        <button id="grd-img-crop-btn" class="prop-btn-full" ${line.imgSrc ? '' : 'disabled'}
-                title="${line.imgSrc ? '그림을 끌어 프레임 안에서 보일 자리를 맞춥니다 (캔버스에서 더블클릭해도 같습니다)' : '먼저 이미지를 넣으세요'}">프레임 안에서 맞추기…</button>
-      </div>
-      <div class="prop-row">
-        <button id="grd-img-crop-reset" class="prop-btn-full" ${hasCrop ? '' : 'disabled'}
-                title="${hasCrop ? '크롭을 지우고 «프레임에 꽉 채우기»로 되돌립니다' : '맞춰 둔 크롭이 없습니다'}">크롭 초기화</button>
-      </div>
-      <div class="prop-row">
-        <button id="grd-img-remove-btn" class="prop-btn-full prop-btn-danger" ${canRemove ? '' : 'disabled'}
-                title="${cellLineCount > 1 ? '이 이미지 줄을 삭제합니다' : '칸에 남은 마지막 줄은 지울 수 없습니다'}">이미지 제거</button>
       </div>
     </div>`;
 }
@@ -663,45 +657,22 @@ function _grdWireImageSection(block, addr) {
       window.showGridImageResizeHandle?.(block);   // ★폭/높이가 바뀌면 코너 핸들 자리도 따라가야 한다
     });
   };
-  document.getElementById('grd-img-crop-btn')?.addEventListener('click', (e) => {
-    if (e.currentTarget.disabled) return;
-    window.enterGridImageEditMode?.(block, { r, c, li });
-  });
-  document.getElementById('grd-img-crop-reset')?.addEventListener('click', (e) => {
-    if (e.currentTarget.disabled) return;
-    window.pushHistory?.();
-    /* ★`undefined` 가 「이 필드를 없앤다」는 뜻이다 — `''`(강제로 없앰)도 `0`(값)도 아니다
-       (_gridMergeLine 의 pick 계약). 셋을 한 번에 지워야 렌더러가 cover 로 되돌아간다. */
-    gridPreviewLine(block, r, c, li, { imgSizePct: undefined, imgPosX: undefined, imgPosY: undefined });
-    window.scheduleAutoSave?.();
-    showGridProperties(block, { r, c, li });
-  });
   /* ⚠️★알고 남기는 비대칭 — 「폭(%)」·「높이(px)」 입력은 프레임만 바꾸고 «크롭은 안 되환산한다».
    *   코너 핸들은 되환산한다(js/overlay-handles.js: 그림을 제자리에 두고 프레임만 바꾼다).
    *   ⇒ 크롭을 맞춰 둔 줄에서 이 두 입력으로 상자를 바꾸면 그림이 «같이» 늘었다 줄었다 한다.
    *   왜 안 맞췄나 — 이 입력들은 «연속 input» 경로(gridPreviewLine)라 드래그처럼 시작/끝이
    *     없다. 되환산하려면 「어느 시점의 기하를 못으로 박을 것인가」를 먼저 정해야 하는데,
    *     타자 한 글자마다 못을 박으면 값이 누적으로 떠내려간다(입력 «중»에 기준이 바뀐다).
-   *   ⇒ 이건 «별건»이다. 여기서 몰래 하지 않는다. 지금 할 수 있는 정직한 처방은 세 가지다:
-   *       ⑴ 사실을 적는다(이 주석) ⑵ 크롭 맞추기는 코너·더블클릭으로 안내한다(위 단추)
-   *       ⑶ 어긋나면 「크롭 초기화」로 되돌릴 길을 둔다(바로 아래 단추)
+   *   ⇒ 이건 «별건»이다. 여기서 몰래 하지 않는다. 지금 할 수 있는 정직한 처방은:
+   *       ⑴ 사실을 적는다(이 주석) ⑵ 크롭 맞추기는 «캔버스»로 한다 — 코너 핸들, 또는 더블클릭
+   *   ★2026-09-25 — ⑶ 이 «없어졌다». 예전엔 「어긋나면 「크롭 초기화」로 되돌릴 길을 둔다」였는데
+   *     그 단추를 현빈 지시로 지웠다(위 _grdImageSectionHtml 의 주석에 까닭). ⇒ 지금 어긋난 크롭을
+   *     «지우는» 길은 ⌘Z 뿐이다 — 편집기는 크롭을 쓰기만 하고 못 지운다. 비대칭이 남은 채로
+   *     되돌릴 길이 하나 줄었으니 ⑵ 로 가는 안내가 그만큼 더 중요해졌다.
    *   ⛔이 문단을 지우려면 «먼저 고치고» 지워라. */
   numWire('grd-img-width-pct', 'widthPct', IMG_MIN_PCT, 100);
   numWire('grd-img-height', 'height');
   numWire('grd-img-radius', 'radius');
-
-  document.getElementById('grd-img-remove-btn')?.addEventListener('click', (e) => {
-    if (e.currentTarget.disabled) return;
-    // ★줄 삭제(_grdWireLineBar의 grd-line-del-btn)와 «같은 경로» — imgSrc만 비우면
-    //   type:'image' 줄이 그대로 남아 빈 이미지 placeholder(회색 배경)가 영구히 남는다(T-009 버그A).
-    let curLines;
-    try { curLines = getGridModel(block).cells?.[r]?.[c]?.lines || []; } catch (_) { curLines = []; }
-    if (curLines.length <= 1) return;   // 마지막 한 줄은 지우지 않는다(버튼도 disabled)
-    const newLines = curLines.filter((_, i) => i !== li);
-    const newLi = Math.min(li, newLines.length - 1);
-    grdSetActiveLine(block, newLines.length ? { r, c, li: newLi } : null);
-    grdToastImgFail(window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } }));
-  });
 }
 
 /* ══ 칸 꾸미기 절 — 칸 배경색·안쪽 여백·모서리·«칸 단위» 정렬 ═══════════════
