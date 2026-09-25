@@ -10,6 +10,8 @@
  *
  * ★바일아웃은 «안 하는 일»이라 그물이 없으면 다음 사람이 조용히 되돌린다.
  *   그래서 소비자 넷을 «각각» 잠그고, 넷 다 ★양성대조(그 한 줄을 떼면 빨개지는가)를 세웠다:
+ *   ⛔여기 «넷»은 아래 열거한 «바일아웃 자리»의 수다 — grid-block.js 의 `[data-line]` 소비자
+ *     명부(★아홉)와 «다른 수»다. 옛 수를 훑을 때 이 넷을 같이 고치지 마라.
  *     editor.js deleteSelectedFromCanvas(⌫)  → B1 · B1-양성
  *     overlay-handles.js _gridImgFindEl        → B2 (소스 단언)
  *     overlay-handles.js _gridImgActiveImageLine → B2 (소스 단언)
@@ -171,7 +173,7 @@ test('A1 ★클릭 판정(_gridAddrAt)이 «중첩 안 줄»을 집는다 — �
   }, ADDR_AT_SRC);
   expect(got.addr, '★중첩 안 줄을 눌렀는데 주소를 못 냈다').toEqual({ r: 0, c: 0, li: 1, np: '0.1' });
   // ⛔바깥 줄 판정은 «한 글자도» 안 바뀌어야 한다 — np 가 붙으면 기존 소비자 전부가 흔들린다.
-  expect(got.outer, '★바깥 줄의 주소 꼴이 바뀌었다 — 기존 소비자 여섯이 이 꼴을 전제한다')
+  expect(got.outer, '★바깥 줄의 주소 꼴이 바뀌었다 — 기존 소비자 아홉(grid-block.js _gridNestAddr 위 명부)이 이 꼴을 전제한다')
     .toEqual({ r: 0, c: 0, li: 0 });
   expect(errs).toEqual([]);
 });
