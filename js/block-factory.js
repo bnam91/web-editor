@@ -5105,17 +5105,42 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     input.click();
   });
 
-  // 그리드 셀 이미지 삭제 — 그 줄을 lines 배열에서 제거(패치는 이미지 추가와 같은 patchCell{lines} 경로).
+  /* 그리드 셀 이미지 삭제 — 그 줄의 «그림만» 비운다. 줄은 남아서 빈 슬롯(grd-img-empty)이 된다.
+   *
+   * ★★왜 «줄 제거»에서 «비우기»로 바뀌었나 (2026-09-25, 현빈이 «세 번» 물으신 것)
+   *   현빈 「빈 슬롯이 들어갈 수 있어야지. … 칸의 마지막 줄은 그리고 왜 삭제가 안 되니?
+   *         빈 셀로도 두고 싶을 수도 있잖아?」
+   *   무엇이 막고 있었나 — 여기가 `lines.filter(i !== addr.li)` 로 «줄을 통째로» 뺐다.
+   *   칸에 줄이 하나뿐이면 `lines:[]` 가 되고 입구(grid-block.js _gridRejectLinesLength)가
+   *   EMPTY_CELL_LINES 로 거절한다 ⇒ 「마지막 줄은 이미지가 안 지워진다」.
+   *   ⛔그 가드를 «푸는» 쪽으로 가지 않는다 — 가드의 까닭이 여전히 옳다(줄이 0개가 되면
+   *     [data-line] 이 통째로 사라져 칸이 «주소»를 잃는다). 대신 «지울 일»을 없앤다:
+   *     줄 길이를 안 바꾸니 가드에 애초에 닿지 않는다. 실측 — lines:[] 는 EMPTY_CELL_LINES,
+   *     lineIndex+imgSrc:'' 는 ok:true (마지막 줄 픽스처에서 둘 다 재 봤다).
+   *
+   * ★「비우기」와 「줄 삭제」를 무엇으로 가르나 — «손잡이 이름»대로 가른다.
+   *     우클릭 「이미지 삭제」 → 그림을 지운다. 줄(자리)은 남는다.  ← 여기
+   *     줄바 「줄 삭제」(prop-grid.js grd-line-del-btn) · Backspace(editor.js) → 줄을 뺀다.
+   *   ⇒ 「줄을 아예 빼고 싶다」는 뜻은 여전히 갈 길이 있다. 그 둘은 «안 건드렸다»
+   *     (마지막 한 줄 보호도 그대로 — tests/dom/grid-line-delete.dom.spec.js 가 지킨다).
+   *
+   * ⚠️이것은 계약을 «일부러» 바꾼 것이다. grid-line-delete.dom.spec.js 머리말의 T-009 버그A 는
+   *   「이미지 줄을 지우는 길은 전부 같은 결과(줄 자체가 사라짐)여야 한다」였다. 그때 «버그»로
+   *   본 빈 placeholder 가 지금은 현빈이 주문한 «기능»이다. 그 그물은 줄바 쪽만 재므로
+   *   여전히 초록이고, 머리말도 이 갈림에 맞춰 같이 고쳐 뒀다(둘이 따로 늙지 않게).
+   *
+   * ★patchCell{lineIndex} 로 보내는 까닭 — 바로 위 「이미지 교체」가 «같은 모양»으로 보낸다
+   *   (addr.li != null 가지). 넣는 길과 비우는 길이 한 모양이라 따로 늙지 않는다.
+   *   ⛔crop(imgPosX/imgPosY/imgSizePct)은 «안» 턴다 — 「이미지 교체」도 안 턴다. 비우기만
+   *     따로 털면 같은 줄을 두고 두 길이 다르게 행동하게 된다. */
   document.getElementById('bcm-grid-img-del')?.addEventListener('click', e => {
     e.stopPropagation();
     const block = _targetBlock;
     const addr = _targetGridAddr;
     closeMenu();
     if (!block || !addr || addr.li == null) return;
-    const lines = getGridModel(block).cells?.[addr.r]?.[addr.c]?.lines;
-    if (!Array.isArray(lines)) return;
-    const nextLines = lines.filter((_, i) => i !== addr.li);
-    grdToastImgFail(window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lines: nextLines } }));
+    grdToastImgFail(window.updateGridBlock?.(block.id,
+      { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc: '' } }));
   });
 
   nameConfirm?.addEventListener('click', e => {

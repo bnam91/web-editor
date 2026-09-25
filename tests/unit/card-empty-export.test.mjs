@@ -223,6 +223,106 @@ test('★export 는 배너 체커도 «편집 전용»으로 다룬다', () => {
 });
 
 /* ══════════════════════════════════════════════════════════════════════════
+   그리드 «빈 셀» — 넷째 자리. (2026-09-25, 현빈 「빈 슬롯 … 체크패턴으로」)
+   ★이 자리는 앞의 셋과 «한 가지가 달랐다» — 무늬가 체커가 아니라 회색 «단색»
+     (`background:#e8e8e8`)이었고, 그래서 체커를 찾는 위 그물이 «있지도 않은 것»을 못 찾아
+     조용히 초록이었다. 혼자 관용구 밖에 있었던 것이지 예외로 허락된 게 아니었다.
+   ⇒ 값을 .bn2-img-empty 관용구로 맞추면서 «두는 자리»도 CSS 로 옮겼다. 아래가 그 그물이다.
+   ══════════════════════════════════════════════════════════════════════════ */
+test('★체커는 CSS 에 «있다» — 그리드 빈 셀도 값이 안 사라졌다', () => {
+  const i = CSS.indexOf('.grid-block .grd-img-empty {');
+  assert.ok(i !== -1, '.grd-img-empty 규칙이 없다 — 빈 셀이 체크패턴으로 아예 안 그려진다');
+  const body = CSS.slice(i, CSS.indexOf('}', i));
+  assert.match(body, /repeating-conic-gradient/, '그리드 빈 셀에 체커가 없다');
+});
+
+test('★관용구와 «같은 값» — 그리드 빈 셀 체커가 배너02 빈 이미지칸과 문자열이 일치한다', () => {
+  /* ★왜 .asset-block(72px) 이 아니라 .bn2-img-empty(16px) 인가 — 배너 주석에 적힌 그 까닭
+     그대로다: 칸이 작아서다. 72px 타일은 한 칸에 한두 개만 들어가 «무늬»로 안 읽힌다.
+     ⛔새 값을 발명하지 않는다 — 이 단언이 그 문을 닫는다. */
+  const grab = (needle) => {
+    const i = CSS.indexOf(needle);
+    assert.ok(i !== -1, `못 찾음: ${needle}`);
+    const m = CSS.slice(i, i + 400).match(/repeating-conic-gradient\([^)]*\)[^;]*/);
+    return m && m[0].replace(/\s+/g, ' ').trim();
+  };
+  assert.equal(grab('.grid-block .grd-img-empty {'), grab('.banner02-block .bn2-img-empty {'),
+    '그리드 빈 셀 체커가 배너02와 다른 값이다 — 관용구 밖으로 다시 나갔다');
+});
+
+test('★export 는 그리드 빈 셀도 «편집 전용»으로 다룬다', () => {
+  assert.match(EXPORT, /grd-img-empty/,
+    'export-html 이 이 클래스를 모른다 — 편집 전용 표시라는 «의도»가 코드에 없다');
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ★그물의 «둘째 모양» — innerHTML 템플릿의 style="…" 안에 박힌 체커. (2026-09-25)
+
+   ★왜 넓히나 — 위 inlineCheckerLines 는 `.style.background|backgroundImage|cssText = …`
+     «대입문»만 잡는다. 그 한계는 이 파일이 스스로 적어 뒀다(위 45줄). 그런데 그리드 렌더러
+     (js/blocks/grid-block.js _gridLineHtml)는 «대입문을 안 쓴다» — 템플릿 문자열로
+     `<div style="…">` 을 짠다. 즉 누가 거기 체커를 인라인으로 도로 박아도 옛 그물은 초록이다.
+     ⇒ 이번에 그 자리를 CSS 로 옮기면서, «되돌아오는 문»도 같이 닫는다.
+       (표·배너02 때 한 일과 같다: 고치면서 그 모양의 그물을 같이 넓힌다.)
+   ⚠️예외는 «파일+건수»로 적는다 — 파일만 적으면 허용된 파일에 한 줄 더 들어와도 조용히 통과한다.
+   ══════════════════════════════════════════════════════════════════════════ */
+const TEMPLATE_CHECKER_ALLOW = {
+  /* 주석 블럭은 캡처·배송 클론에서 «통째로 remove» 된다(export-html.js·capture-safety.js) —
+     결과물에 나갈 길이 없다. 위 45줄의 한계 주석이 이미 이 자리를 지목해 뒀다. */
+  'js/blocks/annotation-block.js': { n: 1, why: '주석 블럭 — 캡처·배송 클론에서 통째로 제거된다' },
+};
+
+/** 마크업 문자열(`style="…"`) «안»에 박힌 체커를 찾는다 — 대입문이 아닌 꼴. */
+function templateCheckerLines(src) {
+  return src.split('\n')
+    .map((l, i) => [i + 1, l])
+    .filter(([, l]) => /style\s*=\s*(["'])[^"']*repeating-conic-gradient/.test(l))
+    .map(([n, l]) => `${n}: ${l.trim().slice(0, 160)}`);
+}
+
+test('★조건①(둘째 모양) — 템플릿 style="…" 안에 빈 이미지 체커를 박지 않는다', () => {
+  const offenders = {};
+  const allowCount = {};
+  for (const rel of allJsFiles()) {
+    const bad = templateCheckerLines(strip(fs.readFileSync(path.join(ROOT, rel), 'utf8')));
+    if (!bad.length) continue;
+    if (TEMPLATE_CHECKER_ALLOW[rel]) { allowCount[rel] = bad.length; continue; }
+    offenders[rel] = bad;
+  }
+  assert.deepEqual(offenders, {},
+    '체커가 템플릿 인라인으로 박혀 있다 — 저장본(.gdt)·단독 HTML 배송본에 그대로 실린다. CSS 클래스로 뺄 것');
+  const expect_ = Object.fromEntries(Object.entries(TEMPLATE_CHECKER_ALLOW).map(([k, v]) => [k, v.n]));
+  assert.deepEqual(allowCount, expect_,
+    '예외 파일의 템플릿 체커 «건수»가 달라졌다 — 표(사유 포함)를 같이 고칠 것');
+});
+
+test('★자기검사(둘째 모양) — 그리드 렌더러에 체커를 인라인으로 박으면 빨강이어야 한다(음성대조)', () => {
+  /* ★이 문자열은 «고치기 전»이 아니라 «되돌아올 모양»이다 — 고치기 전 그 자리는
+     `background:#e8e8e8` 회색 단색이라 체커 그물엔 애초에 안 걸렸다(그게 문제였다).
+     ⛔그러니 여기서 재는 것은 「옛 소스를 잡나」가 아니라 「그 자리에 체커가 인라인으로
+       들어오면 잡나」다 — 이 그물이 닫으려는 문이 정확히 그것이다. */
+  const BACKSLID = '      return `<div${addrAttr} class="grd-img-frame grd-img-empty" '
+    + 'style="${widthCss}height:${ph}px;background:repeating-conic-gradient(#e3e3e3 0% 25%, '
+    + '#efefef 0% 50%) 0 0 / 16px 16px;"></div>`;';
+  assert.equal(templateCheckerLines(BACKSLID).length, 1,
+    '템플릿 안의 인라인 체커를 못 잡는다 — 넓힌 그물이 헛돈다');
+  // 그리고 «지금» 그리드 렌더러는 깨끗해야 한다(옮겼다는 주장의 근거).
+  assert.deepEqual(templateCheckerLines(strip(read('js/blocks/grid-block.js'))), []);
+});
+
+test('★그리고 그리드는 무늬를 «인라인으로 안 준다» — 회색 단색도 돌아오지 않았다', () => {
+  /* ⛔`background:#e8e8e8` 이 바로 옛 모양이다. 체커든 단색이든, 빈 칸 «표시»를 인라인으로
+     주면 저장본과 배송본에 실린다 — 값이 무엇이냐가 아니라 «두는 자리»가 규약이다. */
+  const GRID = strip(read('js/blocks/grid-block.js'));
+  const bad = GRID.split('\n')
+    .map((l, i) => [i + 1, l])
+    .filter(([, l]) => /grd-img-empty/.test(l) && /style\s*=\s*(["'])[^"']*background\s*:/.test(l))
+    .map(([n, l]) => `${n}: ${l.trim().slice(0, 160)}`);
+  assert.deepEqual(bad, [],
+    '빈 슬롯이 무늬를 인라인 style 로 다시 받고 있다 — .grid-block .grd-img-empty 클래스를 쓸 것');
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
    PNG 내보내기 쪽 — 「CSS 에 두면 자동으로 안 나간다」는 공식이 «안» 통하는 경로.
    캡처 클론은 document.body 에 붙어 앱 CSS 를 그대로 받는다 ⇒ 별도 걷기가 필요하다.
    ══════════════════════════════════════════════════════════════════════════ */

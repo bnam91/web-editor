@@ -1212,11 +1212,24 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
       : '';
     if (!line.imgSrc) {
       // 빈 이미지 슬롯: 발주 대기 placeholder (기존 ''=투명 소실 → 카드가 깨져 보이던 문제)
-      /* ★클래스만 `grd-img` → `grd-img-frame` 으로 바뀌었다(아래 ㈎ 참조). 나머지 바이트는 그대로다 —
+      /* ★클래스만 `grd-img` → `grd-img-frame` 으로 바뀌었다(아래 ㈎ 참조).
          빈 슬롯은 «담을 그림»이 없으므로 안쪽 <img> 도, overflow 도, flex-shrink 도 안 붙는다
-         (붙이면 min-height:auto 가 0 이 되던 «오늘의 동작»이 바뀐다 — 빈 div 는 원래 줄어든다). */
+         (붙이면 min-height:auto 가 0 이 되던 «오늘의 동작»이 바뀐다 — 빈 div 는 원래 줄어든다).
+         ⚠️여기 달려 있던 「나머지 바이트는 그대로다」는 아래 한 줄(배경) 때문에 «더는 참이 아니다» —
+           그 문장을 지웠다. 바이트 동일을 잠그던 골든도 같이 옮겼다
+           (tests/unit/grid-render-gaps.test.js D_GOLDEN 의 여섯 `empty` 줄). */
+      /* ★무늬는 «CSS 클래스»가 갖는다 — 여기서 `background:#e8e8e8` 을 뺐다 (2026-09-25, 현빈).
+         현빈 「빈 슬롯이 들어갈 수 있어야지 … 처음에 체크패턴으로 둘 수 있을 것 같은데」
+         ⇒ 회색 단색을 배너02 빈 이미지칸과 «같은 관용구»(16px 체커)로 바꾼다.
+         ⛔인라인으로 박지 «않는다» — .tbl-img-cell 주석이 그 함정을 적어 뒀다: 인라인이면
+           저장본(.gdt)과 단독 HTML 배송본에 그대로 실린다(편집용 무늬가 배송물이 된다).
+           ⇒ 값은 css/editor-blocks.css `.grid-block .grd-img-empty` 한 자리에 있고,
+             배송본에서 빼는 몫은 이미 있는 중화기가 진다(capture-safety.js ·
+             export-css-collect.js — 둘 다 /repeating-conic-gradient/ 같은 서명).
+         ★«상자»는 그대로 인라인이다 — 높이·모서리·폭은 빈 셀이 «자리를 차지한다»는 뜻
+           그 자체라 배송본에도 남아야 한다. 빠지는 것은 «무늬»뿐이다. */
       const ph = h > 0 ? h : 180;
-      return `<div${addrAttr} class="grd-img-frame grd-img-empty" style="${widthCss}height:${ph}px;background:#e8e8e8;` +
+      return `<div${addrAttr} class="grd-img-frame grd-img-empty" style="${widthCss}height:${ph}px;` +
         `border-radius:${r > 0 ? r : 8}px;${alignCss}${mtCss}"></div>`;
     }
     /* ═══ ★프레임(컨테이너) + 콘텐츠(이미지) — 에셋 블록과 «같은 구조» (2026-09-25, 커밋 ①) ═══
