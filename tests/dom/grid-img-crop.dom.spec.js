@@ -518,6 +518,63 @@ test('C1-b ★★양성대조 — 되환산을 «빼면» 그림이 통째로 �
 });
 
 /* ══════════════════════════════════════════════════════════════════════
+ * C2 — 캔버스에서 끈 뒤 «패널이 같은 말을 하는가». (2026-09-25 실기 QA 가 잡은 건)
+ *
+ * ★무엇이 있었나 — overlay-handles.js 의 onMove 주석이 「이미지 절에는 폭 입력이 없어
+ *   높이만 동기화한다」고 적어 뒀는데, 그 전제가 74eb3c9(「폭(%)」 칸 신설)로 거짓이 됐다.
+ *   코드는 안 따라와서 실기 실측: 모델 widthPct=76 · 패널 칸 100 (높이는 159=159 로 맞음).
+ *   저장값은 옳고 «화면만» 거짓말한다 — 패널을 다시 그리면 맞는 수가 나온다.
+ *
+ * ⛔★그래서 이 검사는 «두 축을 같이» 잰다. 높이만 재면 바로 이 버그가 또 새 나간다
+ *   (지금까지 정확히 그 꼴이었다 — 높이 쪽은 처음부터 맞아서 아무도 안 걸렸다).
+ * ★재는 것은 «모델 ↔ 패널 칸»의 일치다. 어느 한쪽의 «절대값»이 아니다 — 절대값을 박으면
+ *   드래그 산식(grid-cell-resize.js)이 바뀔 때마다 이 검사가 남의 일로 빨개진다.
+ * ⛔패널을 다시 그리지 «않고» 잰다 — 다시 그리면 모델에서 값을 새로 읽어 와 «항상» 맞는다.
+ *   그게 바로 이 버그가 사람 눈에 안 띄던 까닭이다. 재렌더는 이 검사를 거짓 통과시킨다.
+ * ════════════════════════════════════════════════════════════════════ */
+
+test('C2 ★코너를 끌면 패널의 «폭»과 «높이»가 «둘 다» 모델과 같아진다 (재렌더 없이)', async ({ page }) => {
+  const errs = await boot(page);
+  await plant(page, PLAIN); await settle(page);
+  await page.evaluate(() => {
+    const b = document.getElementById(window.__ID);
+    window.__open(b, { r: 0, c: 0, li: 0 });       // ★끌기 «전»에 패널을 연다 — 칸이 있어야 갱신된다
+    window.grdSetActiveLine(b, { r: 0, c: 0, li: 0 });
+    window.__handles(b);
+  });
+  await page.waitForFunction(() => document.querySelectorAll('.grd-img-overlay-handle').length === 4, null, { timeout: 5000 });
+
+  const before = await page.evaluate(() => ({
+    w: document.getElementById('grd-img-width-pct')?.value,
+    h: document.getElementById('grd-img-height')?.value,
+  }));
+  expect(before.w, '★「폭(%)」 칸이 패널에 없다 — 이 검사가 잴 대상이 없다').not.toBeUndefined();
+
+  await dragCorner(page, 'se', -200, -60);
+  await settle(page);
+
+  const seen = await page.evaluate(() => {
+    const line = window.__model(document.getElementById(window.__ID)).cells[0][0].lines[0];
+    const wNum = document.getElementById('grd-img-width-pct');
+    const hNum = document.getElementById('grd-img-height');
+    return {
+      modelW: Number(line.widthPct), modelH: Number(line.height),
+      panelW: wNum ? Number(wNum.value) : null, panelH: hNum ? Number(hNum.value) : null,
+    };
+  });
+  expect(errs).toEqual([]);
+  /* ⑴ 자가점검 — 드래그가 «실제로» 폭을 줄였나. 안 줄었으면 아래 「같다」는 빈 것끼리 견주기다
+     (100 == 100 으로 공짜 통과한다). ⛔이 줄이 이 검사의 양성대조다. */
+  expect(seen.modelW, `★드래그가 모델 폭을 «안» 바꿨다(${before.w} → ${seen.modelW}) — ` +
+    '아래 일치 검사가 「둘 다 안 변함」으로 공짜 통과한다').toBeLessThan(100);
+  // ⑵ 두 축이 «둘 다» 모델과 같다.
+  expect(seen.panelW, `★패널 「폭(%)」이 모델과 어긋난다 — 모델 ${seen.modelW} · 패널 ${seen.panelW}. ` +
+    '저장값은 옳은데 화면만 거짓말한다(overlay-handles.js onMove 가 폭을 안 갱신).').toBe(seen.modelW);
+  expect(seen.panelH, `★패널 「높이(px)」가 모델과 어긋난다 — 모델 ${seen.modelH} · 패널 ${seen.panelH}`)
+    .toBe(seen.modelH);
+});
+
+/* ══════════════════════════════════════════════════════════════════════
  * P — 우측 패널의 손잡이. ⛔슬라이더를 따로 두지 «않는다» — 편집기와 두 벌이 되면 따로 늙는다.
  *
  * ★2026-09-25 «뒤집혔다» — 현빈 지시로 Image 절의 단추 «셋»을 없앴다
