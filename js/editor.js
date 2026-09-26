@@ -2892,6 +2892,21 @@ document.addEventListener('keydown', e => {
     }
   }
 
+  /* ── 그리드 칸 «안의 줄»을 ⌘←/→ 로 «옆 칸»으로 옮긴다 (T-227, 0927) ──────────
+     ★키를 왜 ⌘←/→ 로 골랐나 — ⌘↑/↓ 는 이미 «같은 칸 안 위/아래»다(T-220 ⓐ). 칸은 옆으로
+       늘어서 있으니 ←/→ 가 그 뜻을 그대로 담는다. ★그리고 이 저장소에서 ⌘←/→ 는 «비어
+       있었다» — 전수로 쟀다: `git grep -nIE "ArrowLeft|ArrowRight" -- js/ main/ index.html` ⇒
+       js/editor.js 의 _ARROW 한 곳뿐이고, 그것은 `!e.metaKey` 일 때만 든다(오버레이 nudge).
+     ⛔줄이 안 골라졌으면 «아무 일도 안 한다» — false 로 흘려보내 예전처럼 둔다(⌘↑/↓ 와 달리
+       여기엔 이어받을 «블럭 이동»이 없다. 새 뜻을 지어내지 않는다).
+     ★놓을 «자리»는 묻지 않는다 — 도착 칸의 «끝»에 붙인다. 자리를 고르는 것은 드래그(T-228)
+       몫이다(그 카드에 「⌘방향키만으로는 부족할 수 있다」고 미리 적혀 있다). */
+  if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && (e.metaKey || e.ctrlKey)) {
+    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    if (moveGridLineAcrossCells({ dir: e.key === 'ArrowLeft' ? -1 : 1 })) { e.preventDefault(); return; }
+  }
+
   // ── 키보드 Nudge: 블록 이동 Cmd+방향키 (편집 중이거나 입력 포커스 시 무시) ──
   if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey)) {
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
@@ -3014,6 +3029,30 @@ function moveGridLineFromCanvas({ dir } = {}) {
      EDGE(칸의 끝)·INVALID(그 사이 데이터가 바뀜)는 조용히 소비만 한다. 여기서 false 를
      돌려주면 「맨 위 줄에서 ⌘↑」가 갑자기 «블럭 이동»으로 바뀐다 — 바로 그 혼동을 막는다. */
   window.grdMoveLine?.(got.block, { r: got.addr.r, c: got.addr.c }, got.addr.li, dir);
+  return true;
+}
+
+/* ══ 칸 «안»의 줄을 «옆 칸»으로 옮긴다 — ⌘←/→ (T-227, 0927) ═════════════════
+ * ★게이트는 ⌘↑/↓ 와 «같은 한 벌»이다(_gridActiveOuterLine) — 두 키의 판정이 갈리지 않게.
+ * ★쓰는 «한 벌»은 prop-grid.js grdMoveLineToCell — 넣기·지우기·옮기기와 같은 집이다.
+ * ⛔여기서 «열 수»를 세지 마라 — 칸이 없으면 그 함수가 INVALID 를 돌려준다(셈이 두 벌이 되면
+ *   조용히 갈라진다). 맨 왼쪽에서 ⌘← 는 그래서 «조용히 소비»된다 — grdMoveLine 의 EDGE 와
+ *   같은 뜻이다(사용자에게는 「아무 일도 안 일어난다」로 보이는 것이 맞다).
+ * ★행(r)은 안 바꾼다 — 「옆 칸」이다. 위·아래 «행»으로 넘기는 것은 이 카드 밖이다.
+ * @returns {boolean} 소비했으면 true. false 면 ⌘←/→ 는 예전처럼 «아무 일도 안 한다». */
+function moveGridLineAcrossCells({ dir } = {}) {
+  const got = _gridActiveOuterLine();
+  if (!got) return false;
+  /* ★중첩 안 줄은 먹고 멈춘다 — ⌘↑/↓ 와 «같은 말»을 한다(문구까지 같다. 두 키가 다른 말을
+     하면 사용자는 「어느 쪽이 되는 건가」를 새로 배워야 한다). */
+  if (got.nested) {
+    window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 옮길 수 없습니다 — 바깥 줄을 고르세요');
+    return true;
+  }
+  const step = dir < 0 ? -1 : 1;
+  window.grdMoveLineToCell?.(got.block,
+    { r: got.addr.r, c: got.addr.c }, got.addr.li,
+    { r: got.addr.r, c: got.addr.c + step }, null);
   return true;
 }
 

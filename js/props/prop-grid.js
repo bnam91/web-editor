@@ -331,6 +331,98 @@ export function grdMoveLine(block, pos, li, dir) {
 }
 if (typeof window !== 'undefined') window.grdMoveLine = grdMoveLine;
 
+/* ══ 줄을 «다른 칸»으로 옮긴다 — T-227 (0927) ═══════════════════════════════
+ * ★grdMoveLine(같은 칸 안)과 «같은 집»에 둔다 — 셋(넣기·지우기·옮기기)이 모두 patchCell 로
+ *   나가고 활성줄을 같이 옮겨야 한다. ⛔호출부에서 splice 를 복붙하지 마라(grdAddLine 규약).
+ *
+ * ★★왜 «두 문»인가 — updateGridBlock 의 구조 입구는 `cols`·`patchCol`·`cells`·`patchCell` 넷이고
+ *   「구조 필드는 한 번에 하나만」이라 patchCell 을 두 칸에 «같이» 보낼 수 없다. `cells`(통째 R×C)로
+ *   한 문에 보내는 길도 있으나 그쪽은 행 0 이 cols 로 흡수되는 경계(_splitFullCells)를 함께 지나야
+ *   해서, 줄 하나 옮기려고 열 정의까지 되쓰게 된다. ⇒ patchCell 두 문 + 히스토리 한 칸을 고른다.
+ *
+ * ★히스토리 — 첫 문만 쌓고 둘째 문은 `opts.noHistory` 로 끈다. pushHistory 가 «변경 전» 스냅샷을
+ *   쌓으므로 그 한 칸이 «둘 다 바뀌기 전»을 담는다 ⇒ ⌘Z 한 번이 두 칸을 함께 되돌린다.
+ *   (까닭 전문은 grid-block.js 의 그 pushHistory 자리 ⛔주석에 있다.)
+ * ⚠️둘째 문이 커밋 중에 깨지면(RENDER_ERROR) 첫 문이 쌓은 «헛도는» 히스토리 칸 하나가 남는다 —
+ *   grdAddLine·grdMoveLine 도 같은 성질이다(새로 생긴 병이 아니다). 그래서 «데이터»는 아래에서
+ *   되돌리고, 히스토리 칸은 그대로 둔다.
+ *
+ * ★상한을 «먼저» 본다 — grdAddLine 머리말의 그 규약이 여기선 더 무겁다. 나중에 보면 출발 칸에서
+ *   이미 줄을 뗀 뒤라, 거절되는 순간 ★줄이 사라진다(어느 칸에도 없다).
+ * ⛔중첩(duo) «안»의 줄은 이 함수로 못 옮긴다 — patchCell{lines} 는 바깥 lines[] 만 본다.
+ *   그 게이트는 부르는 쪽(editor.js moveGridLineAcrossCells)이 addr.np 로 «먼저» 막는다.
+ *
+ * @param {HTMLElement} block
+ * @param {{r:number,c:number}} fromPos  떼올 칸
+ * @param {number} fromLi                떼올 «바깥» 줄의 index
+ * @param {{r:number,c:number}} toPos    놓을 칸
+ * @param {number|null} [toLi]           놓을 자리. null/생략 → 도착 칸의 «끝»에 붙인다.
+ *   ★⌘←/→ 는 null 로 부른다(자리를 안 묻는다). 자리를 고르는 것은 드래그(T-228) 몫이다.
+ * @returns {{ok:true, li:number}|{ok:false, code:'INVALID'|'SAME_CELL'|'LIMIT'|string}}
+ *   SAME_CELL = 출발과 도착이 같은 칸(할 일이 없다 — 같은 칸은 grdMoveLine 이 한다). */
+export function grdMoveLineToCell(block, fromPos, fromLi, toPos, toLi = null) {
+  const { r: fr, c: fc } = fromPos || {};
+  const { r: tr, c: tc } = toPos || {};
+  let cells;
+  try { cells = getGridModel(block).cells; } catch (_) { cells = null; }
+  const srcLines = cells?.[fr]?.[fc]?.lines;
+  const dstLines = cells?.[tr]?.[tc]?.lines;
+  /* ⛔`fromLi === null` 은 «빈 칸»(셀 모드, T-A) 표식이다 — Number(null) === 0 이라 그냥 Number 로
+     받으면 첫 줄이 조용히 움직인다(grdMoveLine 이 같은 함정을 같은 말로 막는다). */
+  const from = fromLi === null ? NaN : Number(fromLi);
+  if (!Array.isArray(srcLines) || !Array.isArray(dstLines)
+      || !Number.isInteger(from) || from < 0 || from >= srcLines.length) {
+    return { ok: false, code: 'INVALID' };
+  }
+  if (fr === tr && fc === tc) return { ok: false, code: 'SAME_CELL' };
+  /* ★여기가 「먼저 본다」의 자리다 — 아래 두 문이 시작되기 «전»이어야 한다. */
+  if (dstLines.length >= MAX_CELL_LINES) {
+    window.showToast?.(`⚠️ 줄 옮기기 실패: 셀당 최대 ${MAX_CELL_LINES}줄`);
+    return { ok: false, code: 'LIMIT' };
+  }
+  const at = (toLi === null || toLi === undefined)
+    ? dstLines.length
+    : Math.max(0, Math.min(dstLines.length, Math.trunc(Number(toLi)) || 0));
+  /* ★줄 «객체를 그대로» 옮긴다 — 꾸밈(fontSize·color·align…)은 그 객체에 살아 있으므로
+     자동으로 따라온다. ⛔필드를 골라 베끼지 마라(그 순간 «안 베낀 새 필드»가 생긴다 —
+     getGridModel 의 row0 스프레드 주석이 같은 말을 한다). */
+  const moved = srcLines[from];
+  const nextSrc = srcLines.slice(); nextSrc.splice(from, 1);
+  const nextDst = dstLines.slice(); nextDst.splice(at, 0, moved);
+  const prevActive = grdGetActiveLine(block);
+  /* ★문1 «전»에 활성줄을 비운다 — updateGridBlock 은 커밋마다 스스로 showGridProperties 를
+     부른다. prevActive 를 그대로 두면 그 한 번이 «방금 사라진 li»를 가리켜 패널이 빈 줄을
+     띄운다(grdAddLine 의 「없는 li 를 가리키면」과 같은 병). null 은 «줄 선택 없음»이라
+     정상적으로 그려지는 상태다. */
+  grdSetActiveLine(block, null);
+  const res1 = window.updateGridBlock?.(block.id, { patchCell: { r: fr, c: fc, lines: nextSrc } });
+  if (res1 && res1.ok === false) {
+    grdSetActiveLine(block, prevActive);
+    return { ok: false, code: res1.code, message: res1.message };
+  }
+  /* ★문2 «전»에 도착 주소를 세운다 — 이 문이 끝나면 그 자리에 줄이 있으므로 주소가 유효하고,
+     updateGridBlock 이 그리는 패널·마커가 «옮겨진 줄»을 곧바로 가리킨다. */
+  grdSetActiveLine(block, { r: tr, c: tc, li: at });
+  const res2 = window.updateGridBlock?.(block.id, { patchCell: { r: tr, c: tc, lines: nextDst } },
+    { noHistory: true });
+  if (res2 && res2.ok === false) {
+    /* ★데이터를 되돌린다 — 여기서 안 되돌리면 줄이 ★어느 칸에도 없다. 되돌림도 noHistory 다
+       (⌘Z 가 「되돌림을 되돌리는」 칸을 만나면 사용자가 두 번 눌러야 한다).
+       ⛔반환을 «받는다» — 되돌림이 «또» 실패하면 줄이 정말 어느 칸에도 없고, 그때는 말을 해야
+         한다. 조용히 삼키면 사용자는 줄이 사라진 것을 한참 뒤에 발견한다(0920b-grid-image 의
+         「거짓 성공」이 바로 이 꼴이었다 — tests/unit/grid-callsite-ssot.test.mjs 가 문다). */
+    const back = window.updateGridBlock?.(block.id, { patchCell: { r: fr, c: fc, lines: srcLines } },
+      { noHistory: true });
+    if (back && back.ok === false) {
+      window.showToast?.('⚠️ 줄 옮기기가 실패하고 되돌리지도 못했습니다 — ⌘Z 를 눌러 주세요');
+    }
+    grdSetActiveLine(block, prevActive);
+    return { ok: false, code: res2.code, message: res2.message };
+  }
+  return { ok: true, li: at };
+}
+if (typeof window !== 'undefined') window.grdMoveLineToCell = grdMoveLineToCell;
+
 /* ══ 그리드 이미지 커밋 실패 토스트 — «한 벌»로 모은다 ═══════════════════════
  * ★같은 문구가 세 벌이었다(block-factory.js 우클릭 교체 · 이 파일 패널 [이미지 선택…] ·
  *   block-drag.js 빈 슬롯 더블클릭). 네 번째를 쓰지 말고 이걸 불러라.

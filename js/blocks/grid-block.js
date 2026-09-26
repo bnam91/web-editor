@@ -1932,7 +1932,9 @@ function addGridBlock(opts = {}) {
 // ★구조 필드(cols/patchCol/cells/patchCell)는 한 번에 하나만 — 부분 적용 혼란 방지(기존 cols/patchCol 규칙 확장).
 /* @param {object} [opts]  ★«3번째 인자». opts.trusted === true 일 때만 GRID_IMG_MAX_CHARS 를
  *   건너뛴다 — 사람이 파일 대화상자로 고른 UI 입구 전용이다(그쪽은 파일 «바이트»로 이미 걸렀다).
- *   MCP(main.js:7024)는 2인자로만 부르므로 이 통로는 IPC 에 노출되지 않는다(실측 확인). */
+ *   MCP(main.js:7024)는 2인자로만 부르므로 이 통로는 IPC 에 노출되지 않는다(실측 확인).
+ *   ★opts.noHistory === true 면 pushHistory 를 «안» 쌓는다 — 한 제스처가 두 문으로 나갈 때
+ *   «두 번째부터»만 쓴다(T-227 칸 사이 줄 이동). 까닭은 커밋 자리의 ⛔주석에 적어 뒀다. */
 function updateGridBlock(blockId, partial = {}, opts = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
   const block = document.getElementById(String(blockId));
@@ -2240,7 +2242,15 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
       if (snap[k] === undefined) delete block.dataset[k]; else block.dataset[k] = snap[k];
     });
   };
-  window.pushHistory?.();
+  /* ★opts.noHistory — «한 제스처가 두 문으로 나갈 때» 두 번째부터 끄는 자리다 (T-227).
+     ⛔첫 문에는 절대 쓰지 마라 — 위 pushHistory 는 `Object.assign(block.dataset, next)` «앞»이라
+       «변경 전» 스냅샷을 쌓는다. 그래서 첫 문만 쌓아 두면 그 한 칸이 «둘 다 바뀌기 전»을 담고,
+       ⌘Z 한 번이 두 칸을 함께 되돌린다. 두 문 다 쌓으면 ⌘Z 를 «두 번» 눌러야 하고, 한 번만
+       누른 사용자는 «줄이 두 칸에 다 있는» 반쪽 상태를 본다.
+     ⛔부르는 쪽이 «실패하면 되돌린다»를 같이 들어야 한다 — 이 플래그는 히스토리를 끄는 것일 뿐
+       되돌림을 주지 않는다(prop-grid.js grdMoveLineToCell 이 그 되돌림을 들고 있다).
+     ★낱말은 이 저장소에 이미 있는 것을 쓴다(js/spacing-normalize.js `plan.noHistory`). */
+  if (opts.noHistory !== true) window.pushHistory?.();
   Object.assign(block.dataset, next);
   try {
     renderGridBlock(block);
