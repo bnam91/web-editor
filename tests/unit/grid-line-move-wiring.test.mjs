@@ -72,18 +72,35 @@ test('★⌘↑/↓ 분기가 줄 이동을 «먼저» 묻는다 — 블럭 찾�
     '★참이어도 소진(preventDefault+return)을 안 한다 — 줄을 옮기고 «블럭도» 옮긴다');
 });
 
+/* ★★2026-09-27 (T-227) — 이 검사는 게이트 셋이 «한 함수 안»에 있는 것으로 잼으로써
+ *   그 «자리»를 잠그고 있었다. 손잡이가 둘이 되면서(⌘↑/↓ 같은 칸 · ⌘←/→ 다른 칸) 게이트가
+ *   `_gridActiveOuterLine` 한 벌로 빠졌고, 그때 이 검사가 빨개졌다. ★계약(무엇을 어느 순서로
+ *   묻는가)은 한 자도 안 바뀌었다 — 그래서 «자리»로 재던 것을 «흐름»으로 고쳐 다시 잠근다:
+ *     ⓐ 게이트 함수 안 : 단독선택 → 중첩(np)
+ *     ⓑ 손잡이 함수 안 : 게이트 호출 → 옮기기
+ *     ⓒ ★손잡이는 주소를 «직접» 묻지 않는다 — 그 한 줄이 복붙(두 벌 게이트)을 막는다.
+ *   ⛔ⓒ를 빼면 이 검사는 「게이트가 있다」만 잠그고, 손잡이가 제 손으로 다시 판정해도 초록이다. */
 test('★줄 이동 게이트 셋이 이 순서다 — 단독선택 → 중첩(np) 막기 → 바깥 줄 옮기기', () => {
-  const fn = extractFn(EDITOR, 'moveGridLineFromCanvas');
-  const iSole = fn.indexOf('grdIsSoleSelected');
-  const iNp   = fn.indexOf('gridAddr.np');
-  const iMove = fn.indexOf('grdMoveLine');
+  const gate = extractFn(EDITOR, '_gridActiveOuterLine');
+  const iSole = gate.indexOf('grdIsSoleSelected');
+  const iNp   = gate.indexOf('gridAddr.np');
   assert.ok(iSole >= 0, '★다중선택 게이트가 없다 — ⌘클릭 다중선택에서 첫 그리드의 줄이 조용히 옮겨진다');
   assert.ok(iNp >= 0, '★중첩(np) 게이트가 없다 — 사용자가 고른 적 없는 duo 줄이 통째로 옮겨진다');
-  assert.ok(iMove >= 0, '★옮기는 길(grdMoveLine)을 안 부른다');
   assert.ok(iSole < iNp, '★단독선택 판정이 np 게이트보다 뒤다');
-  assert.ok(iNp < iMove, '★np 게이트가 옮기기보다 뒤다 = 먼저 옮기고 나서 막는다');
-  assert.match(fn.slice(iNp, iNp + 260), /consumed = true;[\s\S]*showToast/,
+
+  const fn = extractFn(EDITOR, 'moveGridLineFromCanvas');
+  const iGate = fn.indexOf('_gridActiveOuterLine(');
+  const iNest = fn.indexOf('got.nested');
+  const iMove = fn.indexOf('grdMoveLine');
+  assert.ok(iGate >= 0, '★손잡이가 게이트 한 벌(_gridActiveOuterLine)을 안 부른다');
+  assert.ok(iNest >= 0, '★중첩(np) 판정을 손잡이가 안 받는다 — 게이트가 막아도 흘러간다');
+  assert.ok(iMove >= 0, '★옮기는 길(grdMoveLine)을 안 부른다');
+  assert.ok(iGate < iMove, '★게이트를 옮기기 «뒤»에 물었다 = 먼저 옮기고 나서 막는다');
+  assert.ok(iNest < iMove, '★np 게이트가 옮기기보다 뒤다 = 먼저 옮기고 나서 막는다');
+  assert.match(fn.slice(iNest, iNest + 320), /showToast[\s\S]*return true;/,
     '★중첩에서 «먹고 멈추»지 않는다 — false 로 흘리면 블럭 이동으로 샌다(말도 안 해준다)');
+  assert.ok(!/grdGetActiveLine/.test(fn),
+    '★손잡이가 주소를 «직접» 묻는다 — 게이트가 두 벌이 되어 ⌘↑ 와 ⌘← 의 판정이 갈린다');
   assert.ok(!/pushHistory/.test(fn),
     '★여기서 pushHistory 를 부른다 — 쓰기는 updateGridBlock 이 스스로 1회 쌓는다(두 칸이 된다)');
 });

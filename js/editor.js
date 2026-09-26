@@ -2969,8 +2969,17 @@ document.addEventListener('keydown', e => {
  *   ⛔판정을 여기서 새로 짜지 마라 — 두 벌이 갈리면 「⌫ 는 줄을 지우는데 ⌘↑ 는 블럭을 옮긴다」가 된다.
  * ★범위 ⓐ만 — «바깥 줄»을 «같은 칸 안»에서만 옮긴다. 칸 사이·행 사이 이동은 이 카드 밖이다.
  * @returns {boolean} 소비했으면 true(호출부가 preventDefault + return). false 면 «블럭 이동»으로 흐른다. */
-function moveGridLineFromCanvas({ dir } = {}) {
-  let consumed = false;
+/** ⌘방향키 손잡이들이 «같은 순서로» 묻는 게이트 한 벌 — 0927 T-227 에서 뽑았다.
+ *
+ * ★왜 뽑았나 — 손잡이가 «둘»이 됐다(⌘↑/↓ 같은 칸 안 · ⌘←/→ 다른 칸으로). 판정을 두 벌로 두면
+ *   「⌘↑ 는 줄을 옮기는데 ⌘← 는 블럭을 옮긴다」가 된다. ⛔복붙하지 마라 — grdAddLine 머리말의
+ *   그 규약(각자 splice 를 복붙하지 않는다)이 «게이트»에도 그대로다.
+ * ★묻는 순서는 ⌫(deleteSelectedFromCanvas)의 그 꼴을 «그대로» 따른다:
+ *   ⑴단독 선택인가(grdIsSoleSelected) ⑵중첩(np)인가 ⑶바깥 줄(li)인가.
+ * @returns {{block:HTMLElement, addr:object, nested:boolean}|null}
+ *   null = 쓸 줄이 없다(호출부는 false 로 흘려 «블럭 이동»이 되게 둔다).
+ *   nested:true = 중첩 «안»의 줄이다 — 호출부는 «소비만» 하고 아무것도 옮기지 않는다. */
+function _gridActiveOuterLine() {
   const gridSel = document.querySelector('.grid-block.selected');
   let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
   /* ★단독 선택일 때만 — ⌘클릭 다중선택·붙여넣기 뒤 [원본(활성줄)+사본] 은 사용자가 «블럭들»을
@@ -2980,28 +2989,32 @@ function moveGridLineFromCanvas({ dir } = {}) {
     window.grdDropLineSelection?.(document.getElementById('canvas'));
     gridAddr = null;
   }
+  if (!gridSel || !gridAddr) return null;
+  if (gridAddr.np) return { block: gridSel, addr: gridAddr, nested: true };
+  /* ⚠️addr.li === null 은 «빈 칸»(셀 모드, T-A)이다 — 옮길 줄이 없다. ⌫ 가 그때 블럭을 지우는
+     것과 같이, null 로 흘려 «블럭 이동»이 되게 둔다(두 키의 뜻이 갈리지 않게). */
+  if (gridAddr.li === null || gridAddr.li === undefined) return null;
+  return { block: gridSel, addr: gridAddr, nested: false };
+}
+
+function moveGridLineFromCanvas({ dir } = {}) {
+  const got = _gridActiveOuterLine();
+  if (!got) return false;
   /* ★중첩 안 줄이 잡혀 있으면 «아무것도 옮기지 않는다» — ⌫ 의 np 바일아웃과 같은 자리·같은 까닭.
      ⛔consumed = true 로 «먹고» 끝낸다. false 로 흘리면 아래 블럭 이동으로 새서, 중첩 줄 하나를
        옮기려던 ⌘↑ 가 «그리드 블럭 통째»를 섹션 안에서 옮긴다(그게 이 카드의 원래 증상이다).
      ⛔gridAddr.li 는 «품은 duo 줄»이다 — np 를 안 보고 옮기면 사용자가 고른 적 없는 중첩
        그리드가 통째로 자리를 옮긴다. 그래서 여기서 명시적으로 멈춘다.
      ★옮기는 길은 이번 범위 밖이다(patchCell{lines} 가 중첩 안으로 못 내려간다 — T-220 몫). */
-  if (gridSel && gridAddr && gridAddr.np) {
-    consumed = true;
+  if (got.nested) {
     window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 옮길 수 없습니다 — 바깥 줄을 고르세요');
-    return consumed;
+    return true;
   }
-  if (gridSel && gridAddr && gridAddr.li !== null && gridAddr.li !== undefined) {
-    consumed = true;
-    /* ★옮기는 «한 벌»은 prop-grid.js grdMoveLine — 줄을 넣는/지우는 길과 같은 집이다.
-       EDGE(칸의 끝)·INVALID(그 사이 데이터가 바뀜)는 조용히 소비만 한다. 여기서 false 를
-       돌려주면 「맨 위 줄에서 ⌘↑」가 갑자기 «블럭 이동»으로 바뀐다 — 바로 그 혼동을 막는다. */
-    window.grdMoveLine?.(gridSel, { r: gridAddr.r, c: gridAddr.c }, gridAddr.li, dir);
-    return consumed;
-  }
-  /* ⚠️addr.li === null 은 «빈 칸»(셀 모드, T-A)이다 — 옮길 줄이 없다. ⌫ 가 그때 블럭을 지우는
-     것과 같이, 여기서도 false 로 흘려 «블럭 이동»이 되게 둔다(두 키의 뜻이 갈리지 않게). */
-  return consumed;
+  /* ★옮기는 «한 벌»은 prop-grid.js grdMoveLine — 줄을 넣는/지우는 길과 같은 집이다.
+     EDGE(칸의 끝)·INVALID(그 사이 데이터가 바뀜)는 조용히 소비만 한다. 여기서 false 를
+     돌려주면 「맨 위 줄에서 ⌘↑」가 갑자기 «블럭 이동»으로 바뀐다 — 바로 그 혼동을 막는다. */
+  window.grdMoveLine?.(got.block, { r: got.addr.r, c: got.addr.c }, got.addr.li, dir);
+  return true;
 }
 
 /* [#16-DEL] 섹션 삭제의 «링크 처분» — ⛔묻지 않는다(현빈 2026-09-09 정정: 「그냥 같이 삭제」).

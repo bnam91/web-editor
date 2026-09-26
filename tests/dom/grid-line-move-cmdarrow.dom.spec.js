@@ -73,6 +73,12 @@ function extractCmdArrowBlock(src) {
 }
 const CMD_ARROW_SRC = extractCmdArrowBlock(EDITOR_SRC);
 const MOVE_SRC = extractFn(EDITOR_SRC, 'moveGridLineFromCanvas');
+/* ★★2026-09-27 (T-227) — 게이트 셋(단독선택·np·빈칸)이 손잡이 «밖»으로 빠졌다(손잡이가 둘이 됐다).
+   ⛔그날 이 하네스가 «조용히» 아니라 요란하게 죽었다 — `_gridActiveOuterLine is not defined` 로
+     M1~M6 아홉 개가 한꺼번에 빨개졌다. ★모듈 스코프의 이름을 «하나라도» 안 심으면 이 수법
+     (함수 소스를 떠서 new Function 으로 감싸기)은 이렇게 끊긴다. 새 이름을 부르기 시작하면
+     ★여기에 같이 심어라 — 그게 이 하네스의 값이다(T-220 에서 같은 병을 밟은 적이 있다). */
+const GATE_SRC = extractFn(EDITOR_SRC, '_gridActiveOuterLine');
 
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="/css/editor-base.css">
@@ -169,19 +175,19 @@ async function mount(page) {
 
 /** ⌘↑/↓ 분기를 «직접» 때린다. pushHistory 는 세는 가짜 — updateGridBlock 이 window.pushHistory 로
  *  스스로 쌓는 것과 분기가 부르는 것을 «라벨»로 가른다(분기는 '블록 이동', updateGridBlock 은 undefined). */
-async function pressCmdArrow(page, key, { moveSrc = MOVE_SRC, arrowSrc = CMD_ARROW_SRC } = {}) {
-  return page.evaluate(({ key, moveSrc, arrowSrc }) => {
+async function pressCmdArrow(page, key, { moveSrc = MOVE_SRC, arrowSrc = CMD_ARROW_SRC, gateSrc = GATE_SRC } = {}) {
+  return page.evaluate(({ key, moveSrc, arrowSrc, gateSrc }) => {
     window.__pushLog = [];
     window.__toasts = [];
     window.pushHistory = (label) => window.__pushLog.push(label === undefined ? '(updateGridBlock)' : label);
     window.showToast = (m) => window.__toasts.push(m);
     window.buildLayerPanel = () => {};
-    const fn = new Function('pushHistory', `${moveSrc};\nreturn function (e) { ${arrowSrc} };`)(window.pushHistory);
+    const fn = new Function('pushHistory', `${gateSrc};\n${moveSrc};\nreturn function (e) { ${arrowSrc} };`)(window.pushHistory);
     let pd = 0;
     fn({ key, metaKey: true, ctrlKey: false, altKey: false, shiftKey: false,
          target: document.body, preventDefault() { pd++; } });
     return { pd, pushLog: window.__pushLog, toasts: window.__toasts };
-  }, { key, moveSrc, arrowSrc });
+  }, { key, moveSrc, arrowSrc, gateSrc });
 }
 
 /** 지금 화면/모델 상태 — «칸의 줄 차례» · «행의 자리» · «중첩 줄 수» · «활성줄». */
@@ -283,9 +289,12 @@ test('M3-양성 ★바깥 줄 분기의 consumed 를 떼면 칸의 끝에서 «�
   await mount(page);
   await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 0 }));
 
-  const ANCHOR = "if (gridSel && gridAddr && gridAddr.li !== null && gridAddr.li !== undefined) {";
+  /* ★★0927 — 닻이 옮겨졌다. 옛 닻은 「바깥 줄인가」 판정문이었고 그것은 이제 게이트 안에 있다.
+     ★이 양성대조의 «뜻»은 그대로다 — 「옮기기는 하되 ★소비를 안 하면 칸의 끝에서 행이 움직인다」.
+       그 뜻을 가장 좁게 때리는 자리가 손잡이의 마지막 `return true;` 다. */
+  const ANCHOR = 'window.grdMoveLine?.(got.block, { r: got.addr.r, c: got.addr.c }, got.addr.li, dir);\n  return true;';
   expect(MOVE_SRC.includes(ANCHOR), '★변이 닻을 못 찾았다 — 이 양성대조는 «안 재고» 있다').toBe(true);
-  const mutated = MOVE_SRC.replace(ANCHOR, 'if (false) {');
+  const mutated = MOVE_SRC.replace(ANCHOR, ANCHOR.replace('return true;', 'return false;'));
   await pressCmdArrow(page, 'ArrowUp', { moveSrc: mutated });
   const s = await snap(page);
 
@@ -318,10 +327,12 @@ test('M4-양성 ★np 바일아웃을 떼면 «품은 duo 줄»이 통째로 옮
   await mount(page);
   await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 2, np: '0.0' }));
 
-  const ANCHOR = 'if (gridSel && gridAddr && gridAddr.np) {';
-  expect(MOVE_SRC.includes(ANCHOR), '★변이 닻을 못 찾았다 — 이 양성대조는 «안 재고» 있다').toBe(true);
-  const mutated = MOVE_SRC.replace(ANCHOR, 'if (false) {');
-  await pressCmdArrow(page, 'ArrowUp', { moveSrc: mutated });
+  /* ★★0927 — np 바일아웃은 이제 «게이트»(_gridActiveOuterLine)가 세운다. 그래서 변이 대상이
+     MOVE_SRC 가 아니라 GATE_SRC 다. ⛔MOVE_SRC 를 계속 때리면 닻이 없어 이 대조가 «안 재게» 된다. */
+  const ANCHOR = 'if (gridAddr.np) return { block: gridSel, addr: gridAddr, nested: true };';
+  expect(GATE_SRC.includes(ANCHOR), '★변이 닻을 못 찾았다 — 이 양성대조는 «안 재고» 있다').toBe(true);
+  const mutated = GATE_SRC.replace(ANCHOR, '');
+  await pressCmdArrow(page, 'ArrowUp', { gateSrc: mutated });
   const s = await snap(page);
 
   expect(s.order, '★바일아웃을 떼었는데도 차례가 그대로다 — 이 양성대조는 «안 재고» 있다')
