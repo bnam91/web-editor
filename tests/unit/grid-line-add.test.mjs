@@ -459,3 +459,127 @@ test('pickCellByRects — 후보가 없으면 null(조용한 오판보다 «못 
   assert.equal(GB.pickCellByRects([], 10, 10), null);
   assert.equal(GB.pickCellByRects(null, 10, 10), null);
 });
+
+/* ══ T-220 — 중첩 «안» 줄로 가는 «쓰기» 길 (2026-09-27) ═══════════════════════
+ * ★T-221 이 «만드는» 길을 냈고(우클릭 「나란히 두 칸으로 나누기」), 여기가 «고치는» 길이다.
+ *   현빈 순서 결정: 「만들기 먼저」(0926) — 만들 수 없는 것을 고치는 손잡이는 쓸 자리가 없다.
+ * ★주소는 렌더러가 찍는 꼴 그대로다 — `"<열>.<줄>"` 을 `/` 로 이은 `np`(`_gridNestAddr`).
+ *   읽는 쪽(prop-grid.js `_grdResolveNestAddr`)이 2026-09-25 부터 쓰던 그 꼴을 그대로 쓴다.
+ * ⛔이 절은 «모델 입구»만 잰다. 패널이 그 길을 쓰는지는 «다음 커밋»의 몫이다 —
+ *   한 커밋에 넣으면 「길이 났나」와 「손잡이가 붙었나」가 한 초록에 섞인다.
+ * ★일곱을 «갈라» 잰다: 되는 것 둘(W1·W2) · 안 되는 것 셋(W3~W5) · 옛 길 무변(W6) · 음성대조(W7).
+ * ⛔접두어가 `W`(write)인 까닭 — 이 레포엔 이미 «읽기·주소» 쪽 `N` 시리즈가 있다
+ *   (tests/dom/grid-nested-addr.dom.spec.js 의 N8 등). 같은 글자를 쓰면 「N1 이 빨갛다」가
+ *   어느 파일 얘기인지 갈리지 않는다.
+ *   ⛔되는 것만 두면 「언제나 통과한다」와 구별이 안 되고, 그건 거름망이 죽은 것이다. */
+
+/** 바깥 줄 하나 ＋ 중첩 줄(두 열, 각 한 줄) ＋ 옆 칸. */
+function fixtureNested() {
+  const { block } = GB.makeGridBlock({
+    cols: [
+      { width: 1, lines: [
+        { type: 'body', text: '바깥' },
+        { type: 'duo', gap: 24, cols: [
+          { width: 1, lines: [{ type: 'body', text: 'A' }] },
+          { width: 1, lines: [{ type: 'body', text: 'B' }] },
+        ] },
+      ] },
+      { width: 1, lines: [{ type: 'body', text: '옆' }] },
+    ],
+  });
+  assert.ok(block && block.id, '★블록이 안 만들어졌다 — 아래 단언은 전부 «다른 이유»로 초록이 된다');
+  return block;
+}
+/** 중첩 «안» 줄 하나를 모델에서 읽는다. */
+const nestedAt = (block, ci, ni) =>
+  GB.getGridModel(block).cells[0][0].lines[1].cols[ci].lines[ni];
+
+test('W1 ★중첩 «안» 줄을 고친다 — np 로 그 줄만 바뀐다', () => {
+  const block = fixtureNested();
+  const res = GB.updateGridBlock(block.id, { patchCell: { r: 0, c: 0, lineIndex: 1, np: '0.0', fontSize: 33 } });
+  assert.equal(res.ok, true, `★중첩 안 줄을 못 고친다 — 쓰기 길이 안 났다: ${res.code} ${res.message || ''}`);
+  assert.equal(nestedAt(block, 0, 0).fontSize, 33, '★ok:true 인데 값이 안 들어갔다');
+  assert.equal(nestedAt(block, 0, 0).text, 'A', '★같은 줄의 다른 값이 날아갔다(병합이 아니라 교체다)');
+  /* ★★옆 열이 «안» 바뀌는가 — 경로를 잘못 걸으면 여기가 같이 바뀐다. */
+  assert.equal(nestedAt(block, 1, 0).fontSize, undefined, '★옆 «열»까지 바뀌었다 — 경로가 열을 안 가른다');
+  assert.equal(GB.getGridModel(block).cells[0][0].lines[0].fontSize, undefined, '★바깥 줄까지 바뀌었다');
+});
+
+test('W2 ★둘째 열도 «따로» 고쳐진다 — 열을 실제로 가른다', () => {
+  const block = fixtureNested();
+  const res = GB.updateGridBlock(block.id, { patchCell: { r: 0, c: 0, lineIndex: 1, np: '1.0', text: '고쳤다' } });
+  assert.equal(res.ok, true, `★둘째 열을 못 고친다: ${res.code} ${res.message || ''}`);
+  assert.equal(nestedAt(block, 1, 0).text, '고쳤다');
+  assert.equal(nestedAt(block, 0, 0).text, 'A', '★첫 열이 같이 바뀌었다 — 열 번호를 안 보고 있다');
+});
+
+test('W3 ★없는 주소는 «거절»한다 — 지어내지 않는다', () => {
+  /* ⛔없는 자리에 줄을 만들면 「쓴 것 같은데 화면엔 없다」가 된다(이 레포의 고질). */
+  const block = fixtureNested();
+  const before = JSON.stringify(GB.getGridModel(block).cells);
+  const res = GB.updateGridBlock(block.id, { patchCell: { r: 0, c: 0, lineIndex: 1, np: '5.9', text: 'x' } });
+  assert.equal(res.ok, false, '★없는 주소인데 ok:true 다');
+  assert.equal(res.code, 'INVALID');
+  assert.match(res.message, /np/, '★메시지가 «어느 입력»이 문제인지 말하지 않는다');
+  assert.equal(JSON.stringify(GB.getGridModel(block).cells), before, '★거절했다면서 데이터는 이미 건드렸다');
+});
+
+test('W4 ★`np` 는 `lineIndex` 없이는 거절 — 조용히 무시하지 않는다', () => {
+  /* ★`np` 는 «그 줄 안»을 가리키는 주소다. 어느 줄인지 없으면 뜻이 없다.
+     ⛔무시하면 「보냈는데 아무 일도 안 났다」가 되고, 그건 ok:true 로 돌아오는 거짓 성공이다. */
+  const block = fixtureNested();
+  const res = GB.updateGridBlock(block.id, { patchCell: { r: 0, c: 0, np: '0.0', text: 'x' } });
+  assert.equal(res.ok, false, '★lineIndex 없는 np 가 통과했다');
+  assert.equal(res.code, 'INVALID');
+  assert.match(res.message, /lineIndex/, '★무엇을 더 줘야 하는지 말하지 않는다');
+});
+
+test('W5 ★꼴이 틀린 주소도 거절 — 그리고 «상한»을 손으로 안 적는다', () => {
+  const block = fixtureNested();
+  for (const bad of ['abc', '0', '0.', '.0', '0.0/', '0.0/1.0/2.0']) {
+    const res = GB.updateGridBlock(block.id, { patchCell: { r: 0, c: 0, lineIndex: 1, np: bad, text: 'x' } });
+    assert.equal(res.ok, false, `★꼴이 틀린 np(${JSON.stringify(bad)})가 통과했다`);
+    assert.equal(res.code, 'INVALID', `★거절 code 가 다르다(${bad})`);
+  }
+  /* ★마지막 것은 «깊이» 초과다 — 렌더러가 그 자리를 안 그리므로 쓰는 것이 조용한 실패가 된다.
+     ⛔상한 값을 검사에 베껴 적지 않는다: 위 목록의 세 마디가 상한(2)을 넘는다는 사실만 쓴다. */
+});
+
+test('W6 ★옛 길은 한 글자도 안 바뀐다 — np 없는 patchCell', () => {
+  const block = fixtureNested();
+  const res = GB.updateGridBlock(block.id, { patchCell: { r: 0, c: 0, lineIndex: 0, text: '바깥고침' } });
+  assert.equal(res.ok, true, '★바깥 줄 고치기가 깨졌다 — 새 길이 옛 길을 밟았다');
+  assert.equal(GB.getGridModel(block).cells[0][0].lines[0].text, '바깥고침');
+  assert.equal(nestedAt(block, 0, 0).text, 'A', '★중첩 안까지 건드렸다');
+});
+
+test('W7 ★음성대조 — 적용부에서 중첩 분기를 «떼면» N1 이 빨개진다', async () => {
+  /* ⛔「고쳤더니 초록」은 판정이 아니다. 내가 «세운» 분기라 방향은 «떼기»다. */
+  const RAW = fs.readFileSync(path.join(ROOT, 'js', 'blocks', 'grid-block.js'), 'utf8');
+  const ANCHOR = '        cellPatch = { lines: nextLines };';
+  assert.ok(RAW.includes(ANCHOR), '★앵커를 못 찾았다 — 이 대조는 아무것도 안 쟀다(적용부가 바뀌었나)');
+  const mutated = RAW.replace(ANCHOR, '        cellPatch = { lines: _gridMergeLine(curLines, li, rest) };');
+  assert.notEqual(mutated, RAW, '★변이가 주입되지 않았다');
+
+  const snap = snapshotGridWindow();
+  try {
+    const M = await loadGridBlockSrc(mutated);
+    const { block } = M.makeGridBlock({ cols: [
+      { width: 1, lines: [
+        { type: 'body', text: '바깥' },
+        { type: 'duo', cols: [{ width: 1, lines: [{ type: 'body', text: 'A' }] },
+                              { width: 1, lines: [{ type: 'body', text: 'B' }] }] },
+      ] },
+      { width: 1, lines: [{ type: 'body', text: '옆' }] },
+    ] });
+    const res = M.updateGridBlock(block.id, { patchCell: { r: 0, c: 0, lineIndex: 1, np: '0.0', fontSize: 33 } });
+    const inner = M.getGridModel(block).cells[0][0].lines[1].cols[0].lines[0];
+    /* ★분기를 떼면 «바깥 줄»(중첩 줄 자신)에 얹히거나 거절된다 — 어느 쪽이든 «안쪽»엔 안 닿아야 한다.
+       ⛔여기서 ok 값을 못박지 않는다: 민감도 탐침이 먼저 거절할 수도 있어 두 갈래가 다 정상이다.
+         재는 것은 «안쪽 줄이 안 바뀌었나» 하나다. */
+    assert.notEqual(inner.fontSize, 33,
+      `★분기를 뗐는데도 중첩 안 줄이 바뀌었다 — N1 이 재는 것은 «그 분기»가 아니다 (res=${JSON.stringify(res).slice(0, 120)})`);
+  } finally {
+    restoreGridWindow(snap);
+  }
+});

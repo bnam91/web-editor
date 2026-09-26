@@ -836,7 +836,23 @@ function _gridIntake(partial, ctx, drops) {
   if (partial.patchCell !== undefined) {
     const p = partial.patchCell;
     if (p && typeof p === 'object' && !Array.isArray(p)) {
-      const { r: _r, c: _c, lineIndex, ...rest } = p;
+      /* ★`np` — 중첩 «안» 줄의 주소(T-220, 2026-09-27). 여기서 «꺼내» 둬야 아래 이름 검사가
+         「모르는 칸 필드」로 거절하지 않는다. ⛔이 문과 적용부 둘 다 고쳐야 한다 — 한쪽만
+           고치면 거름망이 새 꼴을 막거나, 거름은 통과하는데 적용이 안 된다(카드가 미리 짚은 자리). */
+      const { r: _r, c: _c, lineIndex, np, ...rest } = p;
+      /* ★`np` 는 «줄 하나» 안을 가리키는 주소라 `lineIndex` 없이는 뜻이 없다. 먼저 거절한다 —
+         뒤에서 조용히 무시하면 「보냈는데 아무 일도 안 났다」가 된다(이 레포의 고질). */
+      if (np !== undefined && lineIndex === undefined) {
+        return { ok: false, code: 'INVALID',
+          message: 'patchCell.np (nested line path) needs lineIndex — it points inside the line at that index, '
+            + "e.g. patchCell:{r,c,lineIndex:1,np:'0.0',fontSize:20}" };
+      }
+      if (np !== undefined && !_gridNestPathSegs(np)) {
+        return { ok: false, code: 'INVALID',
+          message: `patchCell.np must be "<col>.<line>" segments joined by "/" `
+            + `(at most ${GRID_NESTED_MAX_DEPTH} — deeper than that the renderer draws nothing), `
+            + `got ${JSON.stringify(np)}` };
+      }
       const addr = { r: Number(p.r), c: Number(p.c) };
       /* ★거짓 성공 봉쇄 — 렌더러가 «안 읽는» 이름은 여기서 막는다(2026-09-09, T-170 에서 이 문으로 옮김).
          이 줄이 없으면 오타 하나가 ok:true 로 돌아오고 화면은 그대로다. */
@@ -1086,6 +1102,68 @@ function _mergeCellLinesIntoCol(col, cell) {
  *  범위 밖이면 null.
  *  ★커밋(updateGridBlock)과 패널의 «연속 input 미리보기»(gridPreviewLine)가 «같은 이 함수»를 쓴다 —
  *    두 벌이 되면 따로 늙는다. tests/unit/grid-line-typo.test.js U2-a·U4 가 그 동일성을 지킨다. */
+/** 중첩 «안» 줄의 주소 `np` 를 검산한다 — 꼴과 깊이만 본다(있는지는 걸어 봐야 안다).
+ *  ★꼴은 렌더러가 찍는 그대로다: `"<열>.<줄>"` 을 `/` 로 이은 것(`_gridNestAddr`).
+ *  ⛔깊이 상한을 손으로 적지 마라 — GRID_NESTED_MAX_DEPTH 가 렌더러와 «같은 자리»다.
+ *    렌더러는 `depth >= GRID_NESTED_MAX_DEPTH` 에서 `return ''` 하므로, 마디가 그보다 많은
+ *    주소는 «그려지지 않는 자리»다. 거기에 쓰는 것은 조용한 실패라 «거절»이 맞다.
+ *  @returns {null|string[]} 마디 배열, 또는 꼴이 틀리면 null */
+function _gridNestPathSegs(np) {
+  if (typeof np !== 'string' || !np) return null;
+  const segs = np.split('/');
+  if (!segs.length || segs.length > GRID_NESTED_MAX_DEPTH) return null;
+  return segs.every(sg => /^\d+\.\d+$/.test(sg)) ? segs : null;
+}
+
+/** `np` 를 따라 «중첩 안» 줄 하나에 `fields` 를 병합한다 — 경로 위 객체는 복사한다(불변).
+ *
+ * ★★맨 안쪽에서 `_gridMergeLine` 을 «그대로 부른다» — 병합 규칙(종류 바뀌면 옛 짐을 턴다 등)을
+ *   여기 베껴 적지 않는다. ⛔베끼면 두 자리가 «따로 늙는다»(2026-09-27 T-184 에서 실제로 그 병에
+ *   빠졌고 검사 D5 가 잡았다). ⇒ 규칙은 한 곳, 부르는 자리만 늘린다.
+ * ★못 찾으면 null 을 돌려준다 — 부르는 쪽이 「주소가 없다」로 «거절»한다. ⛔여기서 만들지 마라:
+ *   없는 자리에 줄을 지어내면 「쓴 것 같은데 화면에 없다」가 된다.
+ * @param {Array} curLines  칸의 «바깥» 줄 배열
+ * @param {number} li       그 배열에서 중첩 줄의 자리
+ * @param {string[]} segs   `_gridNestPathSegs` 가 검산한 마디들
+ * @param {object} fields   병합할 값들
+ * @returns {null|Array}    새 «바깥» 줄 배열 */
+function _gridMergeNestedLine(curLines, li, segs, fields) {
+  const walk = (lines, idx, rest) => {
+    if (!rest.length) return _gridMergeLine(lines, idx, fields);   // ★규칙은 여기 한 곳
+    const arr = Array.isArray(lines) ? lines : [];
+    const i = Number(idx);
+    if (!Number.isFinite(i) || i < 0 || i >= arr.length) return null;
+    const cur = arr[i];
+    if (!cur || _gridLineTypeOf(cur) !== GRID_NESTED_LINE_TYPE) return null;
+    const m = /^(\d+)\.(\d+)$/.exec(rest[0]);
+    if (!m) return null;
+    const ci = Number(m[1]);
+    const cols = Array.isArray(cur.cols) ? cur.cols : [];
+    if (ci < 0 || ci >= cols.length) return null;
+    const col = cols[ci];
+    const innerNext = walk(Array.isArray(col && col.lines) ? col.lines : [], Number(m[2]), rest.slice(1));
+    if (!innerNext) return null;
+    const nextCols = cols.slice();
+    nextCols[ci] = Object.assign({}, col, { lines: innerNext });
+    const next = arr.slice();
+    next[i] = Object.assign({}, cur, { cols: nextCols });
+    return next;
+  };
+  return walk(curLines, li, segs);
+}
+
+/** `np` 를 따라 «중첩 안» 줄 객체를 읽는다 — 민감도 탐침이 «그 줄»을 재야 하기 때문이다.
+ *  ⛔바깥 줄(`lines[li]`)을 재면 「duo 는 fontSize 를 안 읽는다」가 나와 멀쩡한 호출이 거절된다. */
+function _gridNestedLineAt(lines, li, segs) {
+  let cur = (Array.isArray(lines) ? lines : [])[Number(li)];
+  for (const sg of segs) {
+    const m = /^(\d+)\.(\d+)$/.exec(sg);
+    if (!m || !cur || _gridLineTypeOf(cur) !== GRID_NESTED_LINE_TYPE) return null;
+    cur = cur.cols?.[Number(m[1])]?.lines?.[Number(m[2])];
+  }
+  return (cur && typeof cur === 'object') ? cur : null;
+}
+
 function _gridMergeLine(curLines, li, fields) {
   const lines = Array.isArray(curLines) ? curLines : [];
   const i = Number(li);
@@ -1996,7 +2074,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     const r = Number(p.r), c = Number(p.c);
     if (r < 0 || r >= rowCountForValidation) return { ok: false, code: 'INVALID', message: `patchCell.r out of range (0~${rowCountForValidation - 1})` };
     if (c < 0 || c >= cols.length) return { ok: false, code: 'INVALID', message: `patchCell.c out of range (0~${cols.length - 1})` };
-    const { r: _r, c: _c, lineIndex, ...rest } = p;
+    const { r: _r, c: _c, lineIndex, np, ...rest } = p;
     /* ~~[이사 · 2026-09-24 T-170] 「모르는 이름 거절 · imgSrc 상한 · lines 계약」이 여기 있었다~~
        까닭 — 그 셋이 «이 문에만» 있어서 나머지 세 문(cols/patchCol/cells)이 그대로 뚫려 있었다.
        지금은 `_gridIntake` 한 곳에 있고 네 문이 같이 지난다. ⛔여기로 되가져오지 마라.
@@ -2019,11 +2097,39 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
       if (!Number.isFinite(li) || li < 0 || li >= curLines.length) {
         return { ok: false, code: 'INVALID', message: `patchCell.lineIndex out of range (0~${curLines.length - 1})` };
       }
-      cellPatch = { lines: _gridMergeLine(curLines, li, rest) };
+      /* ★★중첩 «안» 줄로 가는 길 (T-220, 2026-09-27) — 현빈 순서 결정의 뒷부분.
+       *   T-221 이 «만드는» 길을 냈고, 여기가 «고치는» 길이다.
+       *   ⛔`np` 가 없으면 한 글자도 안 바뀐다 — 바깥 줄 patch 는 옛 길 그대로다.
+       *   ★병합 규칙은 `_gridMergeLine` «한 곳»에 있다. 중첩판은 경로를 걸어 내려가
+       *     그 함수를 부를 뿐이다(규칙을 베끼지 않는다 — T-184 에서 배운 자리). */
+      const nestSegs = np === undefined ? null : _gridNestPathSegs(np);
+      if (np !== undefined && !nestSegs) {
+        /* 거름 문이 이미 잡지만, 이 문만 따로 불릴 수도 있어 같은 답을 여기서도 낸다. */
+        return { ok: false, code: 'INVALID', message: `patchCell.np is malformed: ${JSON.stringify(np)}` };
+      }
+      if (nestSegs) {
+        const nextLines = _gridMergeNestedLine(curLines, li, nestSegs, rest);
+        if (!nextLines) {
+          /* ★없는 자리를 «만들지» 않는다 — 지어내면 「쓴 것 같은데 화면엔 없다」가 된다.
+             ⛔여기서 무엇이 틀렸는지(열인가 줄인가 깊이인가)를 나누지 않는다: 모델을 걸어
+               내려가 봐야 아는 것이라, 「그 주소에 줄이 없다」 하나로 말하는 편이 정직하다. */
+          return { ok: false, code: 'INVALID',
+            message: `patchCell.np "${np}" does not point at a line — walk from cells[${r}][${c}].lines[${li}] `
+              + 'through cols[<col>].lines[<line>] and nothing is there '
+              + '(the path segment order is "<col>.<line>", and every hop but the last must be a nested line).' };
+        }
+        cellPatch = { lines: nextLines };
+      } else {
+        cellPatch = { lines: _gridMergeLine(curLines, li, rest) };
+      }
 
       /* ★T-122 — 이름 검사(_gridRejectUnknownCellFields)를 통과해도 «그 줄 종류»가 안 읽으면
-         화면은 그대로다(글자 줄에 imgSrc 가 그 자리다). 렌더러를 돌려서 «민감도»로 잰다. */
-      const mergedLine = cellPatch.lines[li];
+         화면은 그대로다(글자 줄에 imgSrc 가 그 자리다). 렌더러를 돌려서 «민감도»로 잰다.
+         ⛔★중첩일 때는 «그 안쪽 줄»을 재야 한다(T-220). 바깥 줄(lines[li], 곧 중첩 줄 자신)을
+           재면 「그 종류는 fontSize 를 안 읽는다」가 나와 «멀쩡한 호출»이 거절된다. */
+      const mergedLine = nestSegs
+        ? _gridNestedLineAt(cellPatch.lines, li, nestSegs)
+        : cellPatch.lines[li];
       const keys = Object.keys(rest);
       unreadLine = _gridUnreadLineFields(mergedLine, keys);
       if (keys.length && unreadLine.length === keys.length) {
