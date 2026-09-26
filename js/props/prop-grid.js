@@ -331,14 +331,12 @@ export function grdToastImgFail(res) {
     ? '⚠️ 이미지가 너무 큽니다 — 더 작은 파일로 다시 시도해 주세요'
     : res.code === 'LIMIT'
       ? `⚠️ 줄 추가 실패: 셀당 최대 ${MAX_CELL_LINES}줄`
-      /* ★2026-09-26 — `EMPTY_CELL_LINES` 는 «뜻이 바뀌어» 살아 있다.
-           ~~[폐기] 「마지막 줄은 지울 수 없습니다 — 칸을 통째로 지우려면 행/열을 삭제하세요」~~
-           새 뜻 = 「이 칸이 내용 있는 «마지막» 칸이다 ⇒ 비우면 블럭이 통째로 빈다」
-           (현빈 0926 「②칸 하나만」 · grid-block.js `_gridRejectAllCellsEmpty`).
-         ⛔문구에 「마지막 줄」이라 쓰지 마라 — 이제 마지막 «줄»은 지워진다. 막히는 것은
-           마지막 «칸»이다. 낱말 하나가 사용자를 엉뚱한 손잡이로 보낸다. */
-      : res.code === 'EMPTY_CELL_LINES'
-        ? '⚠️ 내용이 남은 마지막 칸입니다 — 비우면 블럭이 통째로 빕니다. 블럭을 지우려면 Esc 후 삭제하세요'
+      /* ~~[폐기 · 2026-09-27] `EMPTY_CELL_LINES` 분기 — 「내용이 남은 마지막 칸입니다」~~
+           ⇒ **그 code 자체가 없어졌다.** 현빈 지시 「t230 > 마지막 한칸도 비울 수 있게 해줘」로
+             grid-block.js 의 `_gridRejectAllCellsEmpty` 를 함수째 지웠다. 뜰 일이 없는 문구다.
+         ★역사 두 줄을 남긴다 — 이 자리 문구는 하루 사이 두 번 바뀌었다:
+           0925 「마지막 줄은 지울 수 없습니다」 → 0926 「내용이 남은 마지막 칸입니다」 → 0927 없음.
+           ⛔셋 다 «막는 문»을 설명하던 말이다. 다시 막을 일이 생기면 문구부터 새로 쓰라는 뜻이다. */
       : res.code === 'LINES_NOT_ARRAY'
         ? '⚠️ 줄 목록의 모양이 잘못됐습니다 — 칸을 비우려면 마지막 줄을 삭제하세요'
         : '❌ 이미지 작업 실패: ' + (res.message || res.code || '알 수 없는 오류');
@@ -684,8 +682,11 @@ function _grdWireLineBar(block, addr) {
     if (!curLines.length) return;      // 이미 빈 칸 — 지울 줄이 없다(방어)
     const newLines = curLines.filter((_, i) => i !== li);
     const newLi = Math.min(li, newLines.length - 1);
-    /* ★커밋 거절 시 활성줄 원복 — grdAddLine(0920b)과 «같은 관용구»다. 0926 부터 이 길도
-       거절될 수 있다(블럭의 마지막 내용 칸 → EMPTY_CELL_LINES). */
+    /* ★커밋 거절 시 활성줄 원복 — grdAddLine(0920b)과 «같은 관용구»다.
+       ~~0926 부터 이 길도 거절될 수 있다(블럭의 마지막 내용 칸 → EMPTY_CELL_LINES)~~
+       ⇒ [정정 2026-09-27] 그 거절은 없어졌다(T-230). ★그래도 원복은 «남긴다» —
+         상한(TOO_MANY_LINES)·모양(LINES_NOT_ARRAY)으로 여전히 거절될 수 있고,
+         「거절인데 활성줄만 움직였다」가 이 레포의 고질이라 방어를 걷지 않는다. */
     const prevActive = grdGetActiveLine(block);
     grdSetActiveLine(block, newLines.length ? { r, c, li: newLi } : null);
     const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } });

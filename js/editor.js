@@ -3089,10 +3089,13 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
            true 로 소비했고, 흐르는 것은 «다음 키 입력»이다(같은 입력이 아니다). */
       const newLines = lines.filter((_, i) => i !== li);
       const newLi = Math.min(li, newLines.length - 1);
-      /* ★커밋이 «거절될 수 있다» — 0926 부터 「블럭의 마지막 내용 칸」을 비우면 모델 입구가
-         EMPTY_CELL_LINES 로 막는다(현빈 「②칸 하나만」). 그러면 «활성줄을 원복»해야 한다:
+      /* ★커밋이 «거절될 수 있다» — 그러면 «활성줄을 원복»해야 한다:
          원복 없이 null 로 둔 채 막히면 다음 ⌫ 가 «블럭 삭제»로 흘러 「지울 수 없다고 했는데
-         한 번 더 누르니 블럭이 사라졌다」가 된다. ★선례 = prop-grid.js grdAddLine(0920b). */
+         한 번 더 누르니 블럭이 사라졌다」가 된다. ★선례 = prop-grid.js grdAddLine(0920b).
+         ~~0926 부터 「블럭의 마지막 내용 칸」을 비우면 EMPTY_CELL_LINES 로 막는다~~
+         ⇒ [정정 2026-09-27] 그 가드는 없앴다(현빈 T-230 「마지막 한칸도 비울 수 있게 해줘」).
+         ★그래도 이 원복은 «남긴다» — 상한·모양 거절이 남아 있고, 「거절인데 활성줄만 움직였다」는
+           이 레포가 여러 번 당한 갈래다. 문이 하나 줄었다고 방어를 걷지 않는다. */
       const prevActive = window.grdGetActiveLine?.(gridSel) || null;
       window.grdSetActiveLine?.(gridSel, newLines.length ? { r: gridAddr.r, c: gridAddr.c, li: newLi } : null);
       const delRes = window.updateGridBlock?.(gridSel.id, { patchCell: { r: gridAddr.r, c: gridAddr.c, lines: newLines } });

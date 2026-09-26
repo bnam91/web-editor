@@ -366,116 +366,84 @@ test('G ★비우기 허용이 «모양 계약»까지 풀지 않았다 — line
   expect(errs).toEqual([]);
 });
 
-/* ═══ H ★★범위 — 「모든 칸이 빈 블럭」은 막는다 (현빈 0926 「②칸 하나만」) ═══════
- * ★셋을 «갈라» 잰다. ⛔양성 하나만 두면 「언제나 막는다」와 구별이 안 되고, 그건 현빈 지시의
- *   «반쪽»(칸 하나조차 못 비움)이다 — A 가 초록인 채로 이 절이 초록이어야 뜻이 맞는다.
- *     H1 막힌다 ＋ 데이터·화면이 «안 변한다» ＋ 사용자에게 «말한다»
- *     H2 그 판정이 «옆 칸 내용»에 반응한다(옆을 채우면 같은 호출이 통과)
- *     H3 ⌫ 도 같은 자에 걸리고, ★거절 뒤 «활성줄이 원복»된다
- *        (원복이 없으면 「막혔다」 뒤 한 번 더 ⌫ 에 블럭이 사라진다 — 막은 것보다 나쁜 결과다) */
+/* ═══ H ★「블럭이 통째로 비는 것」도 된다 (현빈 0927 T-230) ══════════════════
+ * ~~[폐기 · 2026-09-27] H1 막힌다 / H2 옆 칸 내용에 반응한다 / H3 ⌫ 도 같은 자에 걸린다~~
+ *   ⇒ 그 셋이 잠근 계약이 «뒤집혔다». 막던 자(`_gridRejectAllCellsEmpty`)를 함수째 지웠다.
+ * ★왜 — 0926 에 내가 「풀면 깨진다」고 올렸고 현빈이 그 전제 위에서 「②칸 하나만」으로 범위를
+ *   좁히셨다. 그 전제가 틀렸다(11축 재니 0건). 다시 여쭈니 「t230 > 마지막 한칸도 비울 수 있게 해줘」.
+ * ★새로 잠그는 것 둘:
+ *     H  «마지막 내용 칸»도 비워지고, 화면·모델·⌫ 세 길이 같은 답을 준다
+ *     I  ⚠️그 상태의 «대가» — 모든 칸이 비면 내보낸 결과물에서 높이가 0 이라 안 보인다
+ *        ⛔이것은 결함이 아니라 «지금의 계약»이다. 바꾸려면 현빈 결정이 필요하다. */
 
-test('H1 ★내용이 남은 «마지막 칸»을 비우려 하면 막히고, 화면·데이터가 안 변한다', async ({ page }) => {
+test('H ★내용이 남은 «마지막 칸»도 비워진다 — 모델·화면 두 길 (⛔⌫ 는 여기서 «안» 잰다)', async ({ page }) => {
+  /* ⛔제목에 ⌫ 를 넣지 않는다 — 이 검사는 `__upd`(모델 입구)만 부른다. ⌫ 경로(editor.js
+     deleteSelectedFromCanvas)는 옛 H3 가 재던 자리인데, 그 가드가 없어져 «거절 뒤 원복»이라는
+     잴 거리 자체가 사라졌다. ⇒ 지금 ⌫ 를 지키는 것은 tests/dom/grid-line-delete.dom.spec.js 다. */
   const errs = await boot(page);
-  /* 칸 (0,1) 을 먼저 비워 «내용 있는 칸이 (0,0) 하나»인 블럭을 만든다 — A 와 같은 길로. */
+  /* 칸 (0,1) 을 먼저 비워 «내용 있는 칸이 (0,0) 하나»인 블럭을 만든다. */
   await mount(page, [{ type: 'body', text: '유일한 내용' }]);
-  const pre = await page.evaluate(() => window.__upd(window.__block.id, { patchCell: { r: 0, c: 1, lines: [] } }));
-  expect(pre.ok, '★전제 — 옆 칸 비우기가 막혔다(그러면 이 검사는 «다른 것»을 잰다)').toBe(true);
-  expect((await shotOf(page, 0, 0)).n, '전제 — (0,0) 에 내용이 남아 있어야 한다').toBe(1);
+  await page.evaluate(() => window.__upd(window.__block.id, { patchCell: { r: 0, c: 1, lines: [] } }));
 
   const r = await page.evaluate(() => {
-    const toasts = []; window.showToast = (m) => toasts.push(m);
     const res = window.__upd(window.__block.id, { patchCell: { r: 0, c: 0, lines: [] } });
-    window.grdToastImgFail?.(res);
-    return { ok: res.ok, code: res.code, toasts };
-  });
-  expect(r.ok, '★블럭이 통째로 비었다 — 현빈이 막으라 한 상태(「②칸 하나만」)').toBe(false);
-  expect(r.code).toBe('EMPTY_CELL_LINES');
-
-  const shot = await shotOf(page, 0, 0);
-  expect(shot.n, '★거절했다면서 데이터는 이미 건드렸다').toBe(1);
-  expect(shot.emptyCls, '★거절했는데 화면엔 «빈 칸»으로 그려졌다 — 모델과 화면이 갈렸다').toBe(false);
-  /* ★사용자에게 «말해야» 한다 — 조용히 막으면 「눌렀는데 아무 일도 안 난다」가 된다. */
-  expect(r.toasts.length, '★막고서 «아무 말도» 안 했다').toBe(1);
-  expect(r.toasts[0], '★문구가 「마지막 줄」이라고 말한다 — 이제 막히는 것은 마지막 «칸»이다')
-    .not.toMatch(/마지막 줄/);
-  expect(r.toasts[0], '★무엇이 막혔는지·무엇을 하라는지가 문구에 없다').toMatch(/마지막 칸|블럭/);
-  expect(errs).toEqual([]);
-});
-
-test('H2 ★그 판정은 «옆 칸 내용»에 반응한다 — 옆을 채우면 같은 호출이 통과한다', async ({ page }) => {
-  const errs = await boot(page);
-  await mount(page, [{ type: 'body', text: '유일한 내용' }]);
-  await page.evaluate(() => window.__upd(window.__block.id, { patchCell: { r: 0, c: 1, lines: [] } }));
-
-  const blocked = await page.evaluate(() => window.__upd(window.__block.id, { patchCell: { r: 0, c: 0, lines: [] } }));
-  expect(blocked.ok, '★전제 — 막혀야 하는 자리가 안 막힌다(H1 과 같은 상태가 아니다)').toBe(false);
-
-  // 옆 칸을 채운다 ⇒ (0,0) 은 더는 «마지막» 칸이 아니다.
-  const fill = await page.evaluate(() => window.__upd(window.__block.id,
-    { patchCell: { r: 0, c: 1, lines: [{ type: 'body', text: '되채움' }] } }));
-  expect(fill.ok, '★전제 — 옆 칸 채우기가 실패했다').toBe(true);
-
-  const now = await page.evaluate(() => window.__upd(window.__block.id, { patchCell: { r: 0, c: 0, lines: [] } }));
-  expect(now.ok,
-    '★옆 칸에 내용이 있는데도 막힌다 — 가드가 «블럭 전체»가 아니라 «칸 하나»를 재고 있다(옛 뜻의 부활)').toBe(true);
-  expect((await shotOf(page, 0, 0)).n, '★ok:true 인데 안 비었다').toBe(0);
-  expect(errs).toEqual([]);
-});
-
-test('H3 ★⌫ 도 같은 자에 걸린다 — 그리고 거절 뒤 «활성줄이 원복»된다', async ({ page }) => {
-  const errs = await boot(page);
-  await mount(page, [{ type: 'body', text: '유일한 내용' }]);
-  await page.evaluate(() => window.__upd(window.__block.id, { patchCell: { r: 0, c: 1, lines: [] } }));
-  await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 0 }));
-
-  const r = await page.evaluate((delSrc) => {
-    const calls = { showToast: [] };
-    window.showToast = (m) => calls.showToast.push(m);
-    const scope = {
-      clearAssetImage: () => {},
-      deselectAll: () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected')),
-      multiSel: { cols: new Set(), blocks: new Set(), sections: new Set() },
-      clearMultiSel: () => {}, showMultiSelPanel: () => {},
-    };
-    window.CANVAS_SEL_BLOCKS = '.grid-block.selected';
-    window.pushHistory = () => {}; window.buildLayerPanel = () => {};
-    window.ensureHistoryCheckpoint = () => {}; window.isSectionProtected = () => false;
-    const names = Object.keys(scope);
-    const fn = new Function(...names, `${delSrc}; return deleteSelectedFromCanvas;`)(...names.map(n => scope[n]));
-    const consumed1 = fn();
-    const after1 = {
-      n: (window.__model(window.__block).cells[0][0].lines || []).length,
-      active: JSON.stringify(window.__getActive(window.__block)),
+    const m = window.__model(window.__block);
+    const cell = window.__block.querySelector('.grd-cell[data-r="0"][data-c="0"]');
+    return {
+      ok: res && res.ok,
+      code: res && res.code,
+      n00: (m.cells?.[0]?.[0]?.lines || []).length,
+      n01: (m.cells?.[0]?.[1]?.lines || []).length,
+      emptyCls: !!cell && cell.classList.contains('grd-cell-empty'),
+      hint: cell ? getComputedStyle(cell, '::before').content : '(칸 없음)',
       alive: !!document.querySelector('.grid-block'),
-      /* ★토스트는 «첫 호출 직후»에 센다 — 끝에서 세면 둘째 ⌫ 의 토스트까지 섞여 2 가 된다
-         (2026-09-26 실측: 계측 «시점»이 틀렸던 것이지 제품이 두 번 말한 게 아니다). */
-      toasts: calls.showToast.length,
     };
-    /* ★★한 번 더 ⌫ — 활성줄이 원복되지 «않았다»면 여기서 블럭 삭제 분기로 흐른다. */
-    const consumed2 = fn();
-    return { consumed1, consumed2, calls, after1,
-      after2: { n: (window.__model(window.__block).cells?.[0]?.[0]?.lines || []).length,
-                alive: !!document.querySelector('.grid-block') } };
-  }, DEL_SRC);
+  });
 
-  /* ★단언 «순서»가 곧 계측이다 — 가장 «직접적인» 것부터 놓는다. Playwright 는 첫 실패에서
-     멈추므로, 파생 단언(토스트 수)을 앞에 두면 그것만 울리고 「원복이 됐나」는 실행조차 안 된다.
-     2026-09-26 양성대조에서 실제로 그 순서 때문에 「원복 단언이 아무것도 안 잰다」고 오독했다. */
-  expect(r.consumed1, '⌫ 를 아무도 소비하지 않았다').toBe(true);
-  expect(r.after1.n, '★⌫ 가 마지막 내용 칸을 비웠다 — 모델 입구를 안 지났거나 가드가 없다').toBe(1);
-  expect(r.after1.alive, '★거절인데 블럭이 사라졌다').toBe(true);
-  /* ⑴ 원복 «그 자체» — 이 축을 재는 가장 곧은 단언이다. */
-  expect(r.after1.active, '★거절 뒤 활성줄이 «원복되지 않았다» — 다음 ⌫ 가 블럭을 지운다')
-    .toBe(JSON.stringify({ r: 0, c: 0, li: 0 }));
-  /* ⑵ 막았으면 «말해야» 한다. */
-  expect(r.after1.toasts, '★막고서 «아무 말도» 안 했다 — 사용자는 먹통으로 느낀다').toBe(1);
-  /* ⑶ 원복이 «실제로 다음 입력을 살리는가» — ⑴의 결과를 «행동»으로 다시 잰다.
-     ⛔이 축이 vacuous 가 아님을 따로 확인했다(2026-09-26 탐사): 같은 하네스에서 활성줄 «없이»
-       ⌫ 를 부르면 블럭과 행이 실제로 지워진다(.grid-block 0개 · #host .row 0개).
-       ⇒ 아래 toBe(true) 는 «도달 가능한 반대편»을 가진 단언이다. */
-  expect(r.after2.alive,
-    '★한 번 더 ⌫ 를 눌렀더니 블럭이 사라졌다 — 「지울 수 없다」고 막은 다음 «더 나쁜 일»이 났다').toBe(true);
-  expect(r.after2.n, '★두 번째 ⌫ 에서 칸이 비었다').toBe(1);
-  expect(r.calls.showToast.length, '★두 번 눌렀는데 «한 번만» 말했다 — 둘째 ⌫ 가 조용히 먹혔다').toBe(2);
+  expect(r.ok, `★마지막 내용 칸이 아직 막힌다(code=${r.code}) — 현빈 0927 지시가 안 들어갔다`).toBe(true);
+  expect(r.n00, '★ok:true 인데 데이터가 안 비었다').toBe(0);
+  expect(r.n01, '★전제 — 옆 칸도 비어야 이 검사가 「통째로」를 잰다').toBe(0);
+  expect(r.emptyCls, '★비웠는데 `.grd-cell-empty` 가 안 찍혔다 — 안내문·클릭 판정이 이 표식에 기댄다').toBe(true);
+  expect(r.hint, '★빈 칸에 「+ 내용 추가」 안내문이 없다 — 되살릴 길이 손에 안 닿는다').toMatch(/내용 추가/);
+  expect(r.alive, '★블럭이 «사라졌다» — 비우기는 삭제가 아니다').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('I ★대가 — 모든 칸이 비면 «내보낸 결과물»에서 높이가 0 이다 (계약)', async ({ page }) => {
+  /* ⛔이것을 「고쳐야 할 버그」로 읽지 마라 — 2026-09-27 현재 «고르고 남긴» 계약이다.
+     ★여기 적어 두는 까닭: 다음 사람이 「빈 격자를 내보냈는데 아무것도 안 나온다」를 만났을 때
+       그것이 «알려진 것»인지 «새로 깨진 것»인지 한 번에 갈리게 하기 위해서다.
+     ★고치기로 하면 이 검사가 빨개진다. 그게 의도다 — 그때 이 머리말과 T-230 을 같이 고쳐라. */
+  const errs = await boot(page);
+  await page.evaluate(() => {
+    document.getElementById('host').innerHTML = '';
+    const { row, block } = window.__mk({ cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }] });
+    document.getElementById('host').appendChild(row);
+    window.__block = block;
+  });
+
+  const r = await page.evaluate(() => {
+    const h = (el) => Math.round(el.getBoundingClientRect().height);
+    const outsideH = (block) => {
+      const clone = block.cloneNode(true);
+      document.body.appendChild(clone);
+      const v = h(clone);
+      clone.remove();
+      return v;
+    };
+    const empty = { inCanvas: h(window.__block), outside: outsideH(window.__block) };
+    /* ★대조군 — 내용이 «하나라도» 있는 블럭은 내보내기에서 높이를 갖는다.
+       이게 갈리지 않으면 위 0 은 「계측기가 죽었다」와 구별되지 않는다. */
+    document.getElementById('host').innerHTML = '';
+    const { row, block } = window.__mk({ cols: [
+      { width: 1, lines: [{ type: 'body', text: '내용' }] }, { width: 1, lines: [] },
+    ] });
+    document.getElementById('host').appendChild(row);
+    return { empty, ctrlOutside: outsideH(block) };
+  });
+
+  expect(r.empty.inCanvas, '★캔버스에서도 높이가 0 이다 — 편집 중에도 손에 안 닿는다(다른 결함)').toBeGreaterThan(10);
+  expect(r.empty.outside, '★내보내기 높이가 0 이 «아니다» — 계약이 바뀌었다. 이 검사와 T-230 을 같이 고쳐라').toBe(0);
+  expect(r.ctrlOutside, '★대조군마저 0 이다 — 이 계측기는 아무것도 안 재고 있다').toBeGreaterThan(10);
   expect(errs).toEqual([]);
 });
