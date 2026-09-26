@@ -96,6 +96,16 @@ const N_DROP_DELETE = (src) => {
   return out;
 };
 
+/* ── 변이 ② — `cells` 입구가 «지움을 태우는» 그 한 줄만 되돌린다(T-184, 2026-09-27).
+     ★규칙은 ①(_gridApplyCellDeco)에 «한 곳»만 있다. 이 변이는 「그 규칙을 cells 입구에도
+       태우는가」를 겨눈다 — 규칙 자체가 아니라 «부르는 자리»다.
+     ⛔①과 한 변이로 묶지 마라 — 어느 쪽이 우는지 못 가르면 「한 입구만 고쳤다」가 또 지나간다. ── */
+const N_DROP_CELLS_DELETE = (src) => {
+  const out = src.replace('_gridCellsToDataset(cellRowsUnset)', '_gridCellsToDataset(cellRows)');
+  assert.notEqual(out, src, '★변이 닻이 빗나갔다 — cells 입구가 «지움을 태우는» 자리를 못 찾았다');
+  return out;
+};
+
 const FIELDS = ['bg', 'padding', 'radius', 'align', 'valign'];
 const OVER = { bg: '#7b2ff7', padding: 24, radius: 18, align: 'center', valign: 'middle' };
 const COL_DEFAULT = { bg: '#0a7d3b', padding: 12, radius: 6, align: 'right', valign: 'bottom' };
@@ -127,6 +137,22 @@ function unsetProbe(mod, r, k, value) {
   ops.push(updateGridBlock(block.id, { patchCell: { r, c: 0, [k]: value } }));
   return { ok: ops.every(o => o && o.ok), ops, over, after: stored(block, r, 0, k),
     cells: block.dataset.cells, cols: block.dataset.cols };
+}
+
+/** 같은 일을 «cells 통째»(MCP 가 오는 길)로 한다 — read → 고쳐 → 되쓰기 왕복.
+ *  ★unsetProbe 와 «같은 자리·같은 값»을 써야 두 입구의 답을 나란히 놓을 수 있다. */
+function unsetProbeCells(mod, r, k, value) {
+  const { makeGridBlock, updateGridBlock, getGridModel } = mod;
+  const { block } = makeGridBlock(FIX());
+  const ops = [];
+  ops.push(updateGridBlock(block.id, { patchCol: { index: 0, ...COL_DEFAULT } }));
+  ops.push(updateGridBlock(block.id, { patchCell: { r, c: 0, [k]: OVER[k] } }));
+  const over = stored(block, r, 0, k);
+  const cells = JSON.parse(JSON.stringify(getGridModel(block).cells));
+  cells[r][0][k] = value;
+  ops.push(updateGridBlock(block.id, { cells }));
+  return { ok: ops.every(o => o && o.ok), ops, over, after: stored(block, r, 0, k),
+    cells: block.dataset.cells };
 }
 
 let MOD;
@@ -286,4 +312,56 @@ test('D6 ★비우기 → 저장 → 다시 그리기 = «열 기본값만» 걸
     '★「비우기」가 저장·재렌더를 못 건넌다.\n'
     + '  ⇒ 사용자는 파일을 열면 맞게 보다가 «블록을 건드리는 순간» 모양이 바뀌는 것을 본다(작업 손실).\n  '
     + bad.join('\n  '));
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * D7 — ★★두 입구가 «같은 답»을 준다 (T-184, 2026-09-27 · 현빈 「찌꺼기는 남으면 안되지」)
+ *   위 D1~D6 은 `patchCell` 한 입구만 쟀다. 같은 일을 하는 «다른 입구»(cells 통째, MCP 가
+ *   오는 길)는 2026-09-27 까지 `null` 을 «값으로» 저장했다 — 실측:
+ *     patchCell{bg:null} → 키 없음 ✅   /   cells{…bg:null…} → "bg":null 남음 ⛔ (drops 0건)
+ *   ⇒ 같은 상태에 «두 표기»가 생기고, 화면은 열 기본값이 아니라 «하드 기본»으로 떨어진다.
+ *   ★이 카드(T-184)의 제목이 「두 입구의 계약을 하나로」인 까닭이 그것이다.
+ * ⛔「한 입구만 가드, 옆문은 ok:true」는 이 레포가 여러 번 당한 꼴이다 — 그래서 «답을 나란히
+ *   놓고» 잰다. 한쪽만 재면 다음에 또 갈린다.
+ * ════════════════════════════════════════════════════════════════════════ */
+
+test('D7 ★★두 입구가 «같은 답»을 준다 — patchCell 과 cells 통째', () => {
+  const diff = [];
+  for (const r of [0, 1]) {
+    for (const k of FIELDS) {
+      for (const v of [null, undefined, '', 0]) {
+        const a = unsetProbe(MOD, r, k, v);
+        const b = unsetProbeCells(MOD, r, k, v);
+        if (!a.ok || !b.ok) { diff.push(`r=${r} ${k} ${JSON.stringify(v)}: 조작 실패`); continue; }
+        if (a.after !== b.after) {
+          diff.push(`r=${r} ${k} ${JSON.stringify(v)}: patchCell=${a.after} / cells=${b.after}`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(diff, [],
+    '★두 입구가 «다른 답»을 준다 — 같은 일을 하는 길이 둘인데 결과가 갈린다.\n'
+    + '  ⇒ 같은 상태에 두 표기가 생기고, 저장본에 남은 null 이 「값 있음」으로 읽혀\n'
+    + '    열 기본값이 아니라 «하드 기본»으로 떨어진다.\n  ' + diff.join('\n  '));
+});
+
+test('D8 ★음성대조 — `cells` 쪽 「지움」을 걷어내면 D7 이 빨개진다', async () => {
+  /* ⛔D5 와 «다른 자리»를 겨눈다. 둘을 한 변이로 묶으면 「어느 입구가 고쳐졌나」를 못 가른다. */
+  const mod = await loadModule(N_DROP_CELLS_DELETE);
+  const leaked = [];
+  for (const r of [0, 1]) {
+    for (const k of FIELDS) {
+      const b = unsetProbeCells(mod, r, k, null);
+      if (b.after !== '<없음>') leaked.push(`r=${r} ${k}: ${b.after}`);
+    }
+  }
+  assert.ok(leaked.length > 0,
+    '★`cells` 쪽 「지움」을 걷어냈는데도 D7 이 초록이다 — D7 은 그 줄을 «안 재고 있다».');
+  assert.equal(leaked.every(s => s.endsWith('null')), true,
+    `★변형본이 null 을 «값으로 저장»하지 않았다 — 음성대조가 다른 것을 재고 있다.\n  ${leaked.join('\n  ')}`);
+  /* ★그리고 «patchCell 쪽은 멀쩡한지»도 같이 본다 — 변이가 두 입구를 같이 망가뜨렸다면
+     D8 의 빨강이 「cells 를 재고 있다」를 증명하지 못한다. */
+  const a = unsetProbe(mod, 1, 'bg', null);
+  assert.equal(a.after, '<없음>',
+    '★변이가 patchCell 쪽까지 망가뜨렸다 — 이 음성대조는 «cells 자리»를 겨누지 못했다');
 });

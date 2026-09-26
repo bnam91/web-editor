@@ -1952,7 +1952,25 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     const baseCols = _gridCols(block);
     const { cols: mergedCols, cellRows } = _splitFullCells(partial.cells, baseCols);
     next.cols = JSON.stringify(mergedCols);
-    next.cells = _gridCellsToDataset(cellRows);
+    /* ★「null = 그 키를 지운다」를 이 입구에도 건다 (T-184, 2026-09-27 · 현빈 「찌꺼기는 남으면 안되지」).
+     * ⛔없으면 `cells` 통째로 온 `bg:null` 이 저장본에 `"bg":null` 로 «남는다» — 같은 상태에
+     *   «두 표기»가 생기고, 화면은 열 기본값이 아니라 «하드 기본»으로 떨어진다.
+     *   실측(2026-09-27): patchCell{bg:null} → 키 없음 ✅ / cells{bg:null} → "bg":null 남음 ⛔.
+     * ★★`_gridApplyCellDeco` 를 «그대로 태운다» — 규칙을 베껴 적지 않는다.
+     *   ⛔처음엔 `_gridCellsToDataset` 안에 같은 for 문을 «새로 썼고», 그 순간 «지움 길이 둘»이
+     *     됐다. 검사 D5(「그 두 줄이 유일한 지움 길이다」)가 바로 빨개져서 잡았다.
+     *   ⇒ ★같은 뜻의 코드를 두 번 쓰면 «따로 늙는다». 부르는 쪽을 늘리고 규칙은 한 곳에 둔다.
+     * ⛔`lines` 는 이 계약 밖이다(그 함수 머리말과 같은 까닭) — 떼어 두었다가 그대로 되붙인다. */
+    const cellRowsUnset = (Array.isArray(cellRows) ? cellRows : []).map((row) => (Array.isArray(row)
+      ? row.map((cell) => {
+        if (!cell || typeof cell !== 'object' || Array.isArray(cell)) return cell;
+        const { lines, ...deco } = cell;
+        const cleaned = _gridApplyCellDeco({}, deco);
+        if (lines !== undefined) cleaned.lines = lines;
+        return cleaned;
+      })
+      : row));
+    next.cells = _gridCellsToDataset(cellRowsUnset);
     /* ★T-122 — `applied.cells = partial.cells` 는 «입력을 그대로 메아리»치는 것이라 거짓말이었다.
        행이 배열이 아니어도, 셀 키가 `_mergeCellLinesIntoCol`·`_gridCellRows` 에서
        통째로 버려져도, 보낸 것이 그대로 「적용됐다」로 돌아왔다.
