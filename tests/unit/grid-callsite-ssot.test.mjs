@@ -137,15 +137,35 @@ test('★opts.trusted 는 «3번째 인자»로만 — partial 안으로 새지 
   }
 });
 
-test('★UI 파일 입구 4곳은 «바이트 게이트 + trusted»를 «같이» 쓴다', () => {
-  // 게이트 없이 trusted 만 쓰면 상한이 통째로 사라지고, 게이트만 쓰면 여전히 200000자에 걸린다.
+test('★UI 파일 입구 3곳은 «바이트 게이트 + trusted»를 «같이» 쓴다', () => {
+  /* 게이트 없이 trusted 만 쓰면 상한이 통째로 사라지고, 게이트만 쓰면 여전히 200000자에 걸린다.
+   *
+   * ★센 자 — 아래 두 정규식이다(「전수」라고 «주장»하지 않는다. 이 세 파일 안에서 이 꼴만 센다).
+   *   ⑴ 파일 입구 = 사람이 «파일창»으로 고른 바이트가 지나는 자리:
+   *        우클릭 「이미지 교체」(block-factory.js) · 패널 [이미지 선택…](prop-grid.js) ·
+   *        빈 슬롯 더블클릭(block-drag.js)  ⇒ 셋.
+   *   ⑵ ★거짓양성 하나를 «뺀다» — `export function grdImageFileOk(file)` 정의부. 부르는 자리가
+   *      아니라 «만든 자리»다. 이걸 세면 게이트가 하나 더 있는 것처럼 보인다.
+   *
+   * ★★수가 4 → 3 으로 «줄어든 까닭» (2026-09-26, 현빈 ㈎안)
+   *   그날까지 우클릭 한 문이 «두 가지»(교체=patchCell · 추가=grdAddLine)를 다 커밋했고, 둘 다
+   *   trusted 였다 ⇒ trusted 4 · 게이트 3＋정의 1 = 4. 두 수가 «우연히» 같아서 이 단언이
+   *   초록이었다(=한쪽이 정의부인 것을 아무도 못 봤다).
+   *   이제 「이미지 추가」는 파일창을 «안 열고» 빈 이미지 줄만 넣는다 ⇒ 그 커밋은 파일 바이트를
+   *   안 지나므로 trusted 도, 게이트도 필요 없다(imgSrc:'' 다). ⇒ 셋·셋.
+   *   ⛔그러니 여기 3 은 「입구 하나가 죽었다」가 아니라 「입구가 아닌 것이 빠졌다」다.
+   *     그 자리의 계약은 tests/dom/grid-rclick-line-target.dom.spec.js ②③④(파일창 횟수)가 잰다. */
   const files = ['js/block-factory.js', 'js/props/prop-grid.js', 'js/block-drag.js'];
+  const UI_FILE_ENTRANCES = 3;
   let gates = 0, trusted = 0;
   for (const rel of files) {
     const src = stripComments(read(rel));
-    gates   += [...src.matchAll(/grdImageFileOk\s*\??\.?\(/g)].length;
+    gates += [...src.matchAll(/grdImageFileOk\s*\??\.?\(/g)]
+      .filter(m => !/function\s+$/.test(src.slice(Math.max(0, m.index - 24), m.index))).length;
     trusted += [...src.matchAll(/\{\s*trusted:\s*true\s*\}/g)].length;
   }
-  assert.equal(gates, 4, `파일 크기 게이트가 ${gates}곳이다 — 우클릭·패널·빈슬롯 더블클릭 4 입구 전부 걸어라`);
-  assert.equal(trusted, 4, `trusted 커밋이 ${trusted}곳이다 — 게이트와 «같은 수»여야 한다`);
+  assert.equal(gates, UI_FILE_ENTRANCES,
+    `파일 크기 게이트가 ${gates}곳이다 — 우클릭 교체·패널·빈슬롯 더블클릭 ${UI_FILE_ENTRANCES} 입구 전부 걸어라`);
+  assert.equal(trusted, UI_FILE_ENTRANCES,
+    `trusted 커밋이 ${trusted}곳이다 — 게이트와 «같은 수»여야 한다(파일 바이트를 지나는 커밋만 trusted)`);
 });
