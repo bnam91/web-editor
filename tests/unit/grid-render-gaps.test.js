@@ -1038,11 +1038,18 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *      이 래칫은 tests/unit/grid-*.test.{js,mjs} 만 본다(T-178 주석의 그 사각지대와 같다). */
 /* ★래칫 — 기존 grid 유닛 검사의 «수». ⛔하한이 아니라 등호다(G5 주석 참조).
    · 330 (기준선 86dce84)
-   · ★331 (2026-09-26, 「칸을 완전히 비운다」) — grid-line-add.test.mjs 에 «+1».
+   · 331 (2026-09-26 ①, 「칸을 완전히 비운다」) — grid-line-add.test.mjs 에 «+1».
      0줄 계약이 뒤집히며 옛 양성/음성대조 둘을 «갈았고»(수 변화 0), 그 위에 「배열 계약은
      남았다」(patchCell{lines:null} → LINES_NOT_ARRAY) 하나를 «더했다» ⇒ +1.
-     까닭: 「비우기 허용」이 「모양 계약까지 풀림」으로 조용히 번지는 것을 막는 자리다. */
-const GRID_BASELINE_TESTS = 331;
+     까닭: 「비우기 허용」이 「모양 계약까지 풀림」으로 조용히 번지는 것을 막는 자리다.
+   · ★333 (2026-09-26 ②, 현빈 범위 확정 「②칸 하나만」) — grid-line-add.test.mjs 에 «+2».
+     가드를 «걷는» 것에서 «옮기는» 것으로 바뀌었다(「칸 하나라도 비면 거절」 → 「블럭의 모든
+     칸이 비면 거절」, `_gridRejectAllCellsEmpty`). 그래서 더한 둘:
+       「★범위 — 내용이 남은 «마지막 칸»을 비우면 EMPTY_CELL_LINES 로 막힌다」
+       「★범위 — 그 판정은 «옆 칸 내용»에 반응한다(옆을 채우면 같은 호출이 통과한다)」
+     ⛔둘째가 없으면 「언제나 막는다」와 구별이 안 된다 — 그건 현빈 지시의 «반쪽»이다.
+     ★음성대조는 «수가 안 늘었다» — 방향만 「되붙인 사본」에서 「새 판정자를 «뗀» 사본」으로 갈았다. */
+const GRID_BASELINE_TESTS = 333;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
@@ -1097,7 +1104,7 @@ const POSITIVE_CONTROLS = [
   /* ~~[교체 · 2026-09-26] 'grid-line-add.test.mjs :: 0줄 가드 — 양성대조: 이미 줄이 있는 셀을
      patchCell{lines:[]} 로 비우면 거절된다'~~ — 그 계약이 뒤집혔다(현빈 지시로 «비우기» 허용).
      ⛔양성대조가 «사라진» 것이 아니라 «묻는 것이 반대로 돌아섰다» — 그래서 지우지 않고 갈았다. */
-  'grid-line-add.test.mjs :: ★0줄 — 양성대조: 이미 줄이 있는 셀을 patchCell{lines:[]} 로 «비울 수 있다»',
+  'grid-line-add.test.mjs :: ★0줄 — 양성대조: 이미 줄이 있는 셀을 patchCell{lines:[]} 로 «비울 수 있다»(옆 칸에 내용이 남을 때)',
   'grid-line-add.test.mjs :: grdAddLine — 양성대조: 작은 이미지(1KB)는 들어가고 줄 수가 +1 된다',
   'grid-line-add.test.mjs :: pickCellByRects — 칸 «안»은 그 칸을 준다(양성대조)',
   'grid-line-typo.test.js :: U1-c-전제 ★양성대조 — 이 소스 훑기가 «실제로» 파일을 읽고 있다',
