@@ -7,9 +7,16 @@
  * ★무엇이 막고 있었나 — 우클릭 「이미지 삭제」(block-factory.js bcm-grid-img-del)가
  *   `lines.filter(i !== addr.li)` 로 «줄을 통째로» 뺐다. 칸에 줄이 하나뿐이면 `lines:[]` 가 되고
  *   입구(grid-block.js _gridRejectLinesLength)가 EMPTY_CELL_LINES 로 거절한다.
- *   ⇒ 「마지막 줄은 이미지가 안 지워진다」. ②가 그 막는 자리를 «지금도 살아 있는 채로» 못박는다.
+ *   ⇒ 「마지막 줄은 이미지가 안 지워진다」.
  * ★어떻게 고쳤나 — 가드를 «푸는» 쪽이 아니라 «지울 일을 없애는» 쪽. 그림만 비우고 줄은 남긴다
  *   (patchCell{lineIndex, imgSrc:''}) ⇒ 줄 길이가 안 바뀌니 가드에 애초에 안 닿는다.
+ *
+ * ★★2026-09-26 — 현빈이 «네 번째»로 물으셨다: 「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은
+ *   삭제할 수 없다고 하네?」 ⇒ 어제의 «닿지 않게» 는 답이 아니었다(현빈은 «줄»을 지우고 싶어
+ *   하셨다). 그래서 가드를 걷었다 — 까닭 전부는 js/blocks/grid-block.js
+ *   `_gridRejectLinesLength` 머리말, 새 계약의 그물은 tests/dom/grid-cell-emptied.dom.spec.js.
+ *   ⇒ ②의 뜻이 뒤집힌다(아래 그 자리 주석). ⛔①③④⑤⑥⑦ 은 한 글자도 안 바꿨다 —
+ *     우클릭 「이미지 삭제」의 계약(그림만 비운다)은 그대로다.
  *
  * ★★이 파일은 «진짜 우클릭 메뉴»를 띄워 «진짜 핸들러»를 누른다 — 패치 모양을 손으로 베끼지
  *   않는다. (grid-rclick-line-target.dom.spec.js 가 세운 선례. 그 파일이 이 메뉴의 «표적»을
@@ -21,7 +28,8 @@
  *
  * 여기서 재는 것:
  *   ① ★핵심 — 칸에 «마지막 한 줄»(그림 하나)만 있어도 「이미지 삭제」가 «된다». 줄은 남는다.
- *   ② ★전제 — 옛 방식(lines:[])은 «지금도» EMPTY_CELL_LINES 로 막힌다(가드가 살아 있다).
+ *   ② ★~~전제 — 옛 방식(lines:[])은 «지금도» EMPTY_CELL_LINES 로 막힌다~~ [뒤집힘 · 2026-09-26]
+ *      → 이제 lines:[] 는 «비운다»(ok:true). ②는 그 대신 「①과 ②가 «다른 결과»를 낸다」를 잰다.
  *   ③ 줄이 둘일 때도 «비우기»다 — 줄 수가 안 준다(「줄 삭제」와 갈린다).
  *   ④ 빈 슬롯이 «체크패턴으로 그려진다» ＋ 그 무늬가 «인라인이 아니다»(배송 함정).
  *   ⑤ 저장·재열기 — 그림 없는 image 줄이 왕복 뒤에도 살아 있고 다시 그려진다.
@@ -151,8 +159,9 @@ test('① ★칸에 «마지막 한 줄»(그림 하나)만 있어도 「이미�
 
   await clickDelete(page);
 
-  /* ⛔고치기 «전»엔 ['image:'+RED] 그대로다 — lines:[] 가 EMPTY_CELL_LINES 로 막혀
-     «아무 일도 안 일어났다». 그게 현빈이 세 번 물으신 바로 그 증상이다. */
+  /* ⛔0925 고치기 «전»엔 ['image:'+RED] 그대로였다 — lines:[] 가 EMPTY_CELL_LINES 로 막혀
+     «아무 일도 안 일어났다». 그게 현빈이 세 번 물으신 바로 그 증상이다.
+     ★0926 로 가드는 걷혔지만 이 단언은 그대로다 — 이 손잡이는 «줄을 안 뺀다»(그림만 비운다). */
   expect(await linesOf(page, 0, 0), '★마지막 줄의 그림이 안 비워졌다 — 현빈 요구가 그대로 막혀 있다')
     .toEqual(['image:']);
 
@@ -166,18 +175,40 @@ test('① ★칸에 «마지막 한 줄»(그림 하나)만 있어도 「이미�
   expect(errs).toEqual([]);
 });
 
-/* ═══ ② ★전제 — 「줄을 빼는 길」은 «지금도» 막혀 있다 ═══════════════════════════ */
-test('② ★가드는 살아 있다 — 마지막 줄을 lines:[] 로 빼려 하면 EMPTY_CELL_LINES 로 막힌다', async ({ page }) => {
-  const errs = await boot(page);
-  await build(page, [{ type: 'image', imgSrc: RED, height: 40 }]);
+/* ═══ ② ★두 손잡이가 «다른 결과»를 낸다 (2026-09-26 뒤집힘) ═══════════════════ */
 
-  /* ★이 단언이 ①의 «까닭»이다 — 가드를 푼 게 아니라 «닿지 않게» 고쳤다는 증거.
-     이게 초록이 아니면 ①은 「가드가 사라져서」 통과한 것이고, 그건 옛 버그(칸이 주소를 잃음)의 부활이다. */
-  const r = await page.evaluate(() =>
+/* ~~[폐기 · 2026-09-26] 「② ★가드는 살아 있다 — 마지막 줄을 lines:[] 로 빼려 하면
+ *   EMPTY_CELL_LINES 로 막힌다」 / 「★이 단언이 ①의 «까닭»이다 — 가드를 푼 게 아니라 «닿지
+ *   않게» 고쳤다는 증거. 이게 초록이 아니면 ①은 「가드가 사라져서」 통과한 것이고, 그건 옛
+ *   버그(칸이 주소를 잃음)의 부활이다」~~
+ * ⛔옛 계약은 «그날까지 참이었다». 오늘 현빈 지시로 가드를 걷었으니 그 단언은 «반드시» 빨개진다.
+ * ★그런데 ①이 지키려던 «참뜻»은 여전히 지켜야 한다 — 「이 손잡이(우클릭 이미지 삭제)가 줄을
+ *   빼지 않는다」. 가드가 사라진 지금 그것을 증명하는 길은 「막혔다」가 아니라 «갈라 재기»다:
+ *     같은 픽스처에 ⑴ 우클릭 「이미지 삭제」 → 줄 «1개»(그림만 빈다)
+ *                  ⑵ patchCell{lines:[]}    → 줄 «0개»(칸이 비워진다)
+ *   ⇒ 둘이 같은 수를 내면 손잡이 하나가 남의 일을 하고 있다는 뜻이다. ★「같은 수」는 0 과 달리
+ *     경보처럼 안 생기므로 여기서 명시적으로 «갈린다»를 단언한다. */
+test('② ★두 길이 «갈린다» — 우클릭 「이미지 삭제」는 1줄로 남고, patchCell{lines:[]} 는 0줄로 비운다', async ({ page }) => {
+  const errs = await boot(page);
+
+  // ⑴ 우클릭 「이미지 삭제」 — ①과 같은 길
+  await build(page, [{ type: 'image', imgSrc: RED, height: 40 }]);
+  const m = await openMenuOnLine(page, 0, 0, 0);
+  expect(m.err, m.err || '').toBeUndefined();
+  await clickDelete(page);
+  const viaMenu = await linesOf(page, 0, 0);
+
+  // ⑵ patchCell{lines:[]} — «칸을 비우는» 길(2026-09-26 부터 허용)
+  await build(page, [{ type: 'image', imgSrc: RED, height: 40 }]);
+  const res = await page.evaluate(() =>
     window.updateGridBlock(window.__block.id, { patchCell: { r: 0, c: 0, lines: [] } }));
-  expect(r.ok, '★마지막 줄이 lines:[] 로 «빠졌다» — 칸이 주소를 잃는 옛 버그가 되살아났다').toBe(false);
-  expect(r.code).toBe('EMPTY_CELL_LINES');
-  expect(await linesOf(page, 0, 0), '거절했다면서 데이터는 이미 건드렸다').toEqual(['image:' + RED]);
+  const viaEmpty = await linesOf(page, 0, 0);
+
+  expect(viaMenu, '★우클릭 「이미지 삭제」가 줄을 «뺐다» — 이 손잡이는 그림만 비워야 한다').toEqual(['image:']);
+  expect(res.ok, '★patchCell{lines:[]} 로 칸을 비울 수 없다 — 현빈 0926 요구가 막혀 있다').toBe(true);
+  expect(viaEmpty, '★lines:[] 가 칸을 안 비웠다').toEqual([]);
+  expect(viaMenu.length === viaEmpty.length,
+    '★두 손잡이가 «같은 수»를 냈다 — 하나가 남의 일을 하고 있다(0 과 달리 경보처럼 안 생기는 실패다)').toBe(false);
   expect(errs).toEqual([]);
 });
 

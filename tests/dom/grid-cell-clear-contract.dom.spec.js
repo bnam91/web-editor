@@ -347,14 +347,23 @@ test('O3 ★0 은 «지움»이 아니다 — falsy 를 통째로 지움으로 �
 /* ══════════════════════════════════════════════════════════════════════
  * L — ★`lines` 는 이 계약의 «예외»인가. (팀리드 2026-09-23 요청)
  *
- *   이 레포엔 이미 «명시된 규칙»이 있다 — `patchCell{lines: []}` 는 거절된다:
- *     EMPTY_CELL_LINES 「cell lines cannot be emptied — remove the row/column instead」
- *   ⇒ 「patchCell 로 칸의 줄을 비우지 못한다」가 정해진 규칙이다.
- *   ⇒ 그렇다면 «같은 결과»를 내는 다른 입력도 같은 대접을 받아야 한다. 안 그러면
- *     가드가 한 입구에만 걸린 셈이고, 옆문은 `ok:true` 로 통과한다.
+ *   ~~[폐기 · 2026-09-26] 「이 레포엔 이미 «명시된 규칙»이 있다 — `patchCell{lines: []}` 는
+ *     거절된다: EMPTY_CELL_LINES 「cell lines cannot be emptied — remove the row/column
+ *     instead」. ⇒ 「patchCell 로 칸의 줄을 비우지 못한다」가 정해진 규칙이다」~~
+ *   ★★2026-09-26 현빈 지시로 «비우기가 허용»됐다 — 「여전히 빈칸으로 두고 싶은데 마지막 남은
+ *     줄은 삭제할 수 없다고 하네?」. 까닭 전부는 js/blocks/grid-block.js
+ *     `_gridRejectLinesLength` 머리말에 있다.
+ *   ★★그런데 ★이 절(L)의 «묻는 것»은 한 글자도 안 바뀐다.★ 이 절이 재는 것은 「비우기를
+ *     막느냐」가 아니라 «같은 결과를 내는 입력 셋이 «한 정책»으로 다뤄지느냐»다:
+ *       `lines:[]`   → 「비운다」  (허용 · 저장본 `{"lines":[]}`)
+ *       `lines:null` → «모양 위반» (거절 LINES_NOT_ARRAY · 저장본이 `{"lines":null}` 이 되면
+ *                       「비웠다」와 「모양이 깨졌다」가 한 글자도 안 갈린다)
+ *     ⇒ 정책이 여전히 하나다. 갈린 것은 «어느 쪽으로 닫나»뿐이다.
+ *   ⛔그래서 L1·L2 를 «걷지 않았다» — 걷으면 `lines:undefined` 로 칸을 날리는 옆문이 다시 열린다.
  *
  * ★실측(2026-09-23, 기준 f724dc1) — 옆문이 «둘» 열려 있다:
  *     행 1 `lines: []`        → ok:false EMPTY_CELL_LINES · 내용 보존   ← 가드 작동
+ *       ★2026-09-26 재측정 — 같은 입력이 이제 `ok:true` · 줄 0개(=「비운다」)다. 그것이 기능이다.
  *     행 1 `lines: null`      → ok:true  · 줄 2개 → 0개 «내용 사라짐»   ⛔저장본 {"lines":null}
  *     행 1 `lines: undefined` → ok:true  · 줄 2개 → 0개 «내용 사라짐»   ⛔저장본 {} (키 삭제)
  *     행 0 `lines: null`      → ok:true  · 내용 «보존»(_mergeCellIntoCol 이 Array.isArray 로 거른다)
@@ -368,7 +377,9 @@ test('O3 ★0 은 «지움»이 아니다 — falsy 를 통째로 지움으로 �
  *   둘 중 어느 쪽으로 닫든 초록이 된다.
  * ════════════════════════════════════════════════════════════════════ */
 
-test('L0 ★계측기 — 정상 lines 는 바뀌고, lines:[] 는 거절되며 내용이 남는다', async ({ page }) => {
+/* ★L0 계측기 — 제목이 «조건»을 말하고 있었다(「lines:[] 는 거절되며」). 계약이 뒤집히면
+   제목째 거짓이 되므로 제목도 같이 바꾼다(2026-09-26). */
+test('L0 ★계측기 — 정상 lines 는 바뀌고, lines:[] 는 «비우고», lines:null 은 거절된다', async ({ page }) => {
   const errs = await boot(page);
   const r = await page.evaluate(() => {
     const b = window.__mount(window.__FL);
@@ -377,16 +388,25 @@ test('L0 ★계측기 — 정상 lines 는 바뀌고, lines:[] 는 거절되며 
     const afterOk = window.__lines(b, 1, 0);
     const b2 = window.__mount(window.__FL);
     const emptyRes = window.__putLines(b2, 1, 0, 'empty');
-    return { before, okRes, afterOk, emptyRes, afterEmpty: window.__lines(b2, 1, 0),
-      beforeEmpty: window.__lines(b2, 1, 0) };
+    const afterEmpty = window.__lines(b2, 1, 0);
+    /* ★모양 계약 — «다른 블록»에서 잰다(위 b2 는 이미 비어 있어 「내용 보존」을 못 잰다). */
+    const b3 = window.__mount(window.__FL);
+    const nullRes = window.__putLines(b3, 1, 0, 'null');
+    return { before, okRes, afterOk, emptyRes, afterEmpty,
+      nullRes, afterNull: window.__lines(b3, 1, 0) };
   });
   expect(errs).toEqual([]);
   expect(r.before.n, '★픽스처의 그 칸에 줄이 2개여야 한다 — 1개면 「줄이 사라졌나」를 덜 민감하게 잰다').toBe(2);
   expect(r.okRes.ok, '★정상 lines 교체가 실패했다 — 이 절은 아무것도 못 잰다').toBe(true);
   expect(r.afterOk.text, '★정상 교체가 화면에 안 왔다').toBe('NEWLINE');
-  expect(r.emptyRes.ok, '★lines:[] 가 거절되지 «않았다» — 이 절의 근거(명시된 규칙)가 사라졌다').toBe(false);
-  expect(r.emptyRes.code).toBe('EMPTY_CELL_LINES');
-  expect(r.afterEmpty.n, '★거절됐는데 내용이 사라졌다').toBe(2);
+  /* ~~[폐기 · 2026-09-26] 「lines:[] 는 ok:false EMPTY_CELL_LINES 이고 내용이 2줄 그대로 남는다」~~
+     ★이제 «비운다»가 기능이다. ⇒ 이 절의 근거는 「비우기 금지」가 아니라 «모양 계약»으로
+       옮겨졌고, 그 자리는 바로 아래 `nullRes` 가 잰다(안 재면 L1·L2 가 근거 없는 절이 된다). */
+  expect(r.emptyRes.ok, '★lines:[] 로 «비우기»가 안 된다 — 현빈 요구가 막혀 있다').toBe(true);
+  expect(r.afterEmpty.n, '★ok:true 인데 줄이 안 비었다').toBe(0);
+  expect(r.nullRes.ok, '★lines:null 이 통과했다 — 「비웠다」와 「모양이 깨졌다」가 안 갈린다').toBe(false);
+  expect(r.nullRes.code).toBe('LINES_NOT_ARRAY');
+  expect(r.afterNull.n, '★거절됐는데 내용이 사라졌다').toBe(2);
 });
 
 for (const [nick, mode, ko] of [['L1', 'null', 'null'], ['L2', 'undef', 'undefined']]) {
@@ -404,8 +424,9 @@ for (const [nick, mode, ko] of [['L1', 'null', 'null'], ['L2', 'undef', 'undefin
       `★lines:${ko} 가 칸의 줄을 «지웠다». ok=${r.res.ok} code=${r.res.code || '(없음)'}\n` +
       `   전: ${r.before.n}줄 "${r.before.text}"\n   후: ${r.after.n}줄 "${r.after.text}"\n` +
       `   저장본: ${r.raw}\n` +
-      '   ⛔이 레포는 `lines:[]` 를 EMPTY_CELL_LINES 로 «명시적으로 거절»한다 —\n' +
-      '     같은 결과를 내는 옆문이 ok:true 로 통과하면 그 가드는 한 입구에만 걸린 것이다.\n' +
+      '   ⛔`lines:[]`(비우기)는 2026-09-26 부터 «허용»이고, `lines:null` 은 «모양 위반»이다 —\n' +
+      '     모양 위반이 ok:true 로 칸을 날리면 저장본이 {"lines":null} 이 되어\n' +
+      '     「비웠다」와 「모양이 깨졌다」가 한 글자도 안 갈린다.\n' +
       '   ⇒ 닫는 길은 둘 중 아무거나: ⑴같은 코드로 «거절»하거나 ⑵배열이 아니면 «무시»하거나.\n' +
       `   ⛔새 계약(null = 그 키를 지운다)을 모든 키에 똑같이 걸면 이 옆문이 «설계»가 된다.`)
       .toEqual({ n: r.before.n, text: r.before.text });

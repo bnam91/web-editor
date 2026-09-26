@@ -21,7 +21,8 @@
  *   (줄 선택은 WeakMap(grdActiveLine)에만 산다, 클래스가 안 붙는다). 그 상태에서 Backspace를
  *   누르면 editor.js 의 전역 삭제 핸들러(deleteSelectedFromCanvas)가 CANVAS_SEL_BLOCKS 로
  *   .grid-block.selected 를 주워가 «블록 통째로» 지웠다 — 데이터손실급. 고친 코드는 활성
- *   줄이 있으면 그 줄 하나만 지우고 블록은 건드리지 않는다(마지막 한 줄은 보호).
+ *   줄이 있으면 그 줄 하나만 지우고 블록은 건드리지 않는다.
+ *   ~~[폐기 · 2026-09-26] 「(마지막 한 줄은 보호)」~~ → 마지막 줄도 지운다(위 버그A-해제).
  *
  * ⛔앱을 «안» 띄운다. 실행: npx playwright test --config=tests/dom/playwright.dom.config.js grid-line-delete
  */
@@ -160,7 +161,15 @@ test('버그A ★이미지 줄을 「줄 삭제」로 지우면 그 줄이 통�
   expect(errs).toEqual([]);
 });
 
-test('버그A-보호 ★칸에 남은 마지막 줄(이미지 1개뿐)은 「줄 삭제」가 비활성이고 지워지지 않는다', async ({ page }) => {
+/* ~~[폐기 · 2026-09-26] 「버그A-보호 ★칸에 남은 마지막 줄(이미지 1개뿐)은 「줄 삭제」가
+ *   비활성이고 지워지지 않는다」 — `btn.disabled === true` ＋ 「강제 클릭해도 1줄 그대로」~~
+ * ⛔그 보호는 «그날까지 참이었다». 2026-09-26 현빈 지시로 걷었다:
+ *     「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은 삭제할 수 없다고 하네?」
+ *   까닭 전부는 js/blocks/grid-block.js `_gridRejectLinesLength` 머리말에 있다.
+ * ★그 자리를 «비워 두지 않는다» — 같은 픽스처로 «반대 방향»을 잰다. 그리고 옛 보호가 서 있던
+ *   자리가 «셋»이었음을 여기서 못박는다(버튼 disabled · 핸들러 안 `curLines.length<=1` ·
+ *   모델 입구). 하나만 풀면 「눌리는데 아무 일도 안 난다」가 된다 — 이 레포의 고질이다. */
+test('버그A-해제 ★칸에 남은 마지막 줄도 「줄 삭제」로 지워진다 — 칸이 «빈 칸»이 된다 (0926 현빈)', async ({ page }) => {
   const errs = await boot(page);
   await mount(page, FIXTURE_1LINE);
   await page.evaluate(() => window.__open(window.__block, { r: 0, c: 0, li: 0 }));
@@ -170,25 +179,49 @@ test('버그A-보호 ★칸에 남은 마지막 줄(이미지 1개뿐)은 「줄
     return b ? { disabled: b.disabled } : null;
   });
   expect(btn, '★줄바의 「줄 삭제」가 안 떴다').not.toBeNull();
-  expect(btn.disabled, '★마지막 한 줄인데 「줄 삭제」가 활성 상태다 — EMPTY_CELL_LINES 보호가 없다').toBe(true);
+  /* 문 ① — 버튼이 열렸나. ⛔이것만 초록이어도 아래가 빨갈 수 있다(문이 셋이다). */
+  expect(btn.disabled, '★마지막 한 줄이라고 「줄 삭제」가 아직 잠겨 있다 — 옛 보호가 남았다(문 ①)').toBe(false);
 
-  // 비활성 버튼을 강제로 눌러도(방어적 클릭) 데이터가 안 바뀐다 — 핸들러 자체의 disabled 가드도 검증.
-  await page.evaluate(() => document.getElementById('grd-line-del-btn').click());
-  const model = await page.evaluate(() => window.__model(window.__block));
-  expect(model.cells[0][0].lines.length, '비활성 버튼 클릭으로 마지막 줄이 지워졌다').toBe(1);
+  await page.click('#grd-line-del-btn');
+
+  /* 문 ②③ — 핸들러 안 가드와 모델 입구. 눌렸는데 수가 안 줄면 그 둘 중 하나가 남은 것이다. */
+  const after = await page.evaluate(() => ({
+    lines: window.__model(window.__block).cells[0][0].lines.length,
+    emptyCell: window.__block.querySelectorAll('.grd-cell-empty').length,
+    lineEls: window.__block.querySelectorAll('[data-r="0"][data-c="0"][data-line]').length,
+    active: JSON.stringify(window.__getActive(window.__block)),
+  }));
+  expect(after.lines, '★눌렸는데 줄이 안 지워졌다 — 핸들러 안 가드나 모델 입구가 남아 있다(문 ②③)').toBe(0);
+  expect(after.lineEls, '★모델은 비었는데 [data-line] 이 남아 있다 — 렌더가 안 따라왔다').toBe(0);
+  expect(after.emptyCell, '★빈 칸 표식(.grd-cell-empty)이 안 찍혔다 — 안내문·클릭 판정이 이 표식에 기댄다').toBe(1);
+  expect(after.active, '★지운 줄을 «아직 선택»하고 있다 — 없는 줄을 가리킨 채로 남으면 패널이 유령을 그린다').toBe('null');
   expect(errs).toEqual([]);
 });
 
 /* ══ 버그B — 그리드 셀 줄 선택 상태에서 Backspace가 «그 줄만» 지운다 ══ */
 
-/** deleteSelectedFromCanvas 를 «진짜 소스 그대로» 돌리되, editor.js 바깥 의존은 최소 스텁으로. */
+/** deleteSelectedFromCanvas 를 «진짜 소스 그대로» 돌리되, editor.js 바깥 의존은 최소 스텁으로.
+ *  ★2026-09-26 — 스텁을 «블럭 삭제 분기까지» 넓혔다. 까닭: 마지막 줄 보호가 걷힌 뒤로 ⌫ 는
+ *    「줄을 지운다 → (빈 칸) → 다음 ⌫ 가 블럭을 지운다」 두 걸음이 됐고, 옛 스텁(clearAssetImage
+ *    하나)은 둘째 걸음에서 `multiSel is not defined` 로 죽었다. ⛔그 죽음을 「보호가 살아 있다」로
+ *    읽으면 거짓 초록이 된다 — 스텁이 못 지나는 것과 제품이 막는 것은 «다른 일»이다.
+ *  ★스텁 목록은 grid-block-select-delete.dom.spec.js 의 runDeleteFull 과 같다(따로 늙지 않게). */
 async function runDelete(page) {
   return page.evaluate((delSrc) => {
     const calls = { showToast: [] };
     const scope = {
       clearAssetImage: () => {},
+      deselectAll: () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected')),
+      multiSel: { cols: new Set(), blocks: new Set(), sections: new Set() },
+      clearMultiSel: () => {},
+      showMultiSelPanel: () => {},
     };
     window.showToast = (msg) => calls.showToast.push(msg);
+    window.CANVAS_SEL_BLOCKS = '.grid-block.selected';
+    window.pushHistory = () => {};
+    window.buildLayerPanel = () => {};
+    window.ensureHistoryCheckpoint = () => {};
+    window.isSectionProtected = () => false;
     const names = Object.keys(scope);
     const fn = new Function(...names, `${delSrc}; return deleteSelectedFromCanvas;`)(...names.map(n => scope[n]));
     const consumed = fn();
@@ -213,20 +246,38 @@ test('버그B ★줄이 선택된 상태에서 Backspace(삭제) → 그 줄만 
   expect(errs).toEqual([]);
 });
 
-test('버그B-보호 ★칸에 남은 마지막 줄이 선택된 채 Backspace → 아무 것도 안 지워진다(블록도 안전)', async ({ page }) => {
+/* ~~[폐기 · 2026-09-26] 「버그B-보호 ★칸에 남은 마지막 줄이 선택된 채 Backspace → 아무 것도
+ *   안 지워진다(블록도 안전)」 — 토스트 ≥1 ＋ 줄 1개 유지~~
+ * ⛔그 보호는 «그날까지 참이었다». 0926 현빈 지시로 걷었다(위 버그A-해제와 같은 까닭).
+ * ★«블록이 안 지워진다»는 참뜻은 여기서 계속 지킨다 — 그것이 버그B 의 데이터손실 방어선이고
+ *   보호 해제와 «독립된 축»이다. ⛔둘을 한 단언에 묶지 마라: 옛 판은 「토스트가 떴다」로 그
+ *   방어선을 대신 재고 있었는데, 토스트가 사라지는 순간 방어선도 같이 안 재진다.
+ * ★그리고 ⌫ 를 «두 번 연달아» 누른다 — 한 번만 하면 「비운 뒤 다음 ⌫ 가 블럭을 지우는지」를
+ *   못 본다. 그게 옛 토스트가 안내하던 「블럭을 지우려면 Esc 후 삭제」의 대체 경로다. */
+test('버그B-해제 ★마지막 줄이 선택된 채 ⌫ → 칸이 비고 «블록은 남는다». 한 번 더 ⌫ 면 블록이 지워진다', async ({ page }) => {
   const errs = await boot(page);
   await mount(page, FIXTURE_1LINE);
   await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 0 }));
 
-  const r = await runDelete(page);
-  expect(r.consumed, '삭제 핸들러가 이 입력을 소비하지 않았다').toBe(true);
-  expect(r.calls.showToast.length, '마지막 줄 보호 토스트가 안 떴다').toBeGreaterThan(0);
+  const r1 = await runDelete(page);
+  expect(r1.consumed, '삭제 핸들러가 이 입력을 소비하지 않았다').toBe(true);
+  expect(r1.calls.showToast, '★옛 「마지막 줄은 지울 수 없습니다」 토스트가 아직 뜬다').toEqual([]);
 
-  const stillThere = await page.evaluate(() => document.body.contains(window.__block));
-  expect(stillThere, '★마지막 한 줄 보호 상태에서도 그리드 블록이 삭제됐다').toBe(true);
+  /* ★첫 ⌫ 는 «줄»을 지운다 — 블록은 남아야 한다(버그B 방어선). */
+  expect(await page.evaluate(() => document.body.contains(window.__block)),
+    '★줄 하나를 지우려는 ⌫ 가 «블록 통째»를 지웠다 — T-009 버그B 재발(데이터손실급)').toBe(true);
+  const m1 = await page.evaluate(() => ({
+    lines: window.__model(window.__block).cells[0][0].lines.length,
+    active: JSON.stringify(window.__getActive(window.__block)),
+  }));
+  expect(m1.lines, '★마지막 줄이 안 지워졌다 — 옛 보호가 남았다').toBe(0);
+  expect(m1.active, '★지운 줄을 아직 선택하고 있다 — 다음 ⌫ 가 «없는 줄»을 지우려 든다').toBe('null');
 
-  const model = await page.evaluate(() => window.__model(window.__block));
-  expect(model.cells[0][0].lines.length, '★마지막 줄이 지워졌다 — 보호가 안 걸렸다').toBe(1);
+  /* ★두 번째 ⌫ — 활성줄이 없으니 «블록 삭제»로 흐른다(옛 「Esc 후 삭제」의 대체 경로). */
+  const r2 = await runDelete(page);
+  expect(r2.consumed, '두 번째 ⌫ 를 아무도 소비하지 않았다 — 빈 칸에서 ⌫ 가 먹통이다').toBe(true);
+  expect(await page.evaluate(() => !!document.querySelector('.grid-block')),
+    '★칸을 비운 뒤 ⌫ 를 또 눌렀는데 블록이 안 지워진다 — 빈 칸이 «블록을 지울 수 없는 상태»가 됐다').toBe(false);
   expect(errs).toEqual([]);
 });
 

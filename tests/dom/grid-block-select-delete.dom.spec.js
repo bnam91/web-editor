@@ -124,8 +124,15 @@ test('버그C-음성대조 ★(고치기 전 상태 재현) 활성줄이 남은 
     window.__setActive(window.__block, { r: 0, c: 0, li: 0 });   // 줄 클릭
     window.__block.classList.add('selected');                     // 해제 없이 다시 «블럭으로» 선택
   });
+  /* ~~[폐기 · 2026-09-26] `expect(r.calls.showToast.length).toBe(1)` — 「마지막 줄 보호」 토스트로
+       버그 재현을 쟀다. 그 토스트가 0926 에 사라졌다(grid-block.js `_gridRejectLinesLength` 머리말).~~
+     ★이 대조가 «재현하는 버그»는 「블럭을 지우려는데 «줄 분기»로 샌다」다. 그 증거를 토스트가
+       아니라 «줄이 하나 지워졌다»로 잰다 — 토스트보다 곧고, 문구가 바뀌어도 안 늙는다. */
+  const before = await page.evaluate(() => window.__model(window.__block).cells[0][0].lines.length);
   const r = await runDeleteFull(page);
-  expect(r.calls.showToast.length, '이 대조가 버그를 재현하지 못한다 — 검사가 아무것도 안 본다').toBe(1);
+  expect(r.calls.showToast, '★옛 「마지막 줄」 토스트가 아직 뜬다').toEqual([]);
+  expect(await page.evaluate(() => window.__model(window.__block).cells[0][0].lines.length),
+    '★이 대조가 버그를 재현하지 못한다 — 줄 분기로 새지 않았다(검사가 아무것도 안 본다)').toBe(before - 1);
   expect(await page.evaluate(() => document.body.contains(window.__block))).toBe(true);
   expect(errs).toEqual([]);
 });
@@ -169,9 +176,16 @@ test('버그C-D5 보존 ★활성줄이 있는 블럭에 1-인자 showGridProper
   await page.evaluate(() => { window.__block.classList.add('selected'); window.__open(window.__block, { r: 0, c: 2, li: 0 }); });
   await page.evaluate(() => window.__open(window.__block));
   expect(await page.evaluate(() => window.__getActive(window.__block))).toEqual({ r: 0, c: 2, li: 0 });
-  // 줄이 선택된 채 삭제 = 줄 삭제 분기(마지막 줄 보호) — 블럭은 남는다(T-009 버그B 방어선 그대로)
+  /* 줄이 선택된 채 삭제 = 줄 삭제 분기 — 블럭은 남는다(T-009 버그B 방어선 그대로).
+     ~~[폐기 · 2026-09-26] `expect(r.calls.showToast.length).toBe(1)`(「마지막 줄 보호」 토스트)~~
+     ⛔그 토스트는 0926 에 사라졌다(js/blocks/grid-block.js `_gridRejectLinesLength` 머리말).
+     ★이 검사가 «재려던 것»은 토스트가 아니라 「주소가 유지돼 줄 분기로 갔다」다 — 그걸 토스트로
+       대신 재고 있었다. 이제 «줄이 실제로 줄었다»로 잰다(토스트보다 곧은 계측이다). */
+  const before = await page.evaluate(() => window.__model(window.__block).cells[0][2].lines.length);
   const r = await runDeleteFull(page);
-  expect(r.calls.showToast.length).toBe(1);
+  expect(r.calls.showToast, '★옛 「마지막 줄」 토스트가 아직 뜬다').toEqual([]);
+  expect(await page.evaluate(() => window.__model(window.__block).cells[0][2].lines.length),
+    '★주소가 유지되지 않아 «줄 분기»로 안 갔다 — 블럭 삭제로 샜거나 아무 일도 안 났다').toBe(before - 1);
   expect(await page.evaluate(() => document.body.contains(window.__block))).toBe(true);
   expect(errs).toEqual([]);
 });

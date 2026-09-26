@@ -3072,11 +3072,18 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
       if (!Array.isArray(lines) || !Number.isInteger(li) || li < 0 || li >= lines.length) {
         return consumed;   // 주소가 이미 무효(그 사이 데이터가 바뀜) — 블록 삭제로 새지 않는다.
       }
-      if (lines.length <= 1) {
-        // 칸에 남은 마지막 줄 — 줄바 [줄 삭제] 버튼과 같은 보호(disabled). 블록 전체 삭제로도 새지 않는다.
-        window.showToast?.('⚠️ 칸에 남은 마지막 줄은 지울 수 없습니다 — 블럭을 지우려면 Esc 후 삭제, 행/열은 우측 패널');
-        return consumed;
-      }
+      /* ★★★2026-09-26 «마지막 한 줄 보호를 걷었다» — 현빈 지시.
+         「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은 삭제할 수 없다고 하네?」
+         ~~[폐기 · 2026-09-26] `if (lines.length <= 1)` → 「⚠️ 칸에 남은 마지막 줄은 지울 수
+           없습니다 — 블럭을 지우려면 Esc 후 삭제, 행/열은 우측 패널」 토스트~~
+         ⛔그 보호는 «그날까지 참이었다» — 까닭과 무엇이 바뀌었는지는 모델 입구 한 자리에
+           모아 적어 뒀다(js/blocks/grid-block.js `_gridRejectLinesLength` 머리말).
+         ★이 파일에서 «따로» 확인해 둘 것: 아래 두 줄이 이미 0줄을 옳게 다룬다 —
+           `newLines.length ? {…} : null` 이 활성줄을 «놓고», 그래서 다음 ⌫ 는 이 위의
+           `gridAddr.li !== null` 을 안 지나 «블럭 삭제»로 흐른다. ⇒ 칸을 비운 뒤 한 번 더
+           ⌫ 를 누르면 블럭이 지워진다. 그게 옛 토스트가 안내하던 「Esc 후 삭제」를 대신한다.
+         ⛔블럭 삭제로 «새는» 것이 아니다 — 새려면 `consumed=false` 여야 하는데 여기선 이미
+           true 로 소비했고, 흐르는 것은 «다음 키 입력»이다(같은 입력이 아니다). */
       const newLines = lines.filter((_, i) => i !== li);
       const newLi = Math.min(li, newLines.length - 1);
       window.grdSetActiveLine?.(gridSel, newLines.length ? { r: gridAddr.r, c: gridAddr.c, li: newLi } : null);

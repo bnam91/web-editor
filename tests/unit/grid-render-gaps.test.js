@@ -1036,7 +1036,13 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *    ⛔여기서도 지운 것은 «하나도» 없다.
  *    ⛔DOM 축(tests/dom/grid-line-move-cmdarrow.dom.spec.js 11개)은 여기 «안» 센다 —
  *      이 래칫은 tests/unit/grid-*.test.{js,mjs} 만 본다(T-178 주석의 그 사각지대와 같다). */
-const GRID_BASELINE_TESTS = 330;
+/* ★래칫 — 기존 grid 유닛 검사의 «수». ⛔하한이 아니라 등호다(G5 주석 참조).
+   · 330 (기준선 86dce84)
+   · ★331 (2026-09-26, 「칸을 완전히 비운다」) — grid-line-add.test.mjs 에 «+1».
+     0줄 계약이 뒤집히며 옛 양성/음성대조 둘을 «갈았고»(수 변화 0), 그 위에 「배열 계약은
+     남았다」(patchCell{lines:null} → LINES_NOT_ARRAY) 하나를 «더했다» ⇒ +1.
+     까닭: 「비우기 허용」이 「모양 계약까지 풀림」으로 조용히 번지는 것을 막는 자리다. */
+const GRID_BASELINE_TESTS = 331;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
@@ -1088,7 +1094,10 @@ const POSITIVE_CONTROLS = [
   'grid-guide.test.js :: G0 ★양성대조 — 저장이 «DOM 을 직렬화»하는 게 맞나 (이 검사의 전제)',
   'grid-gutter-hitarea.test.mjs :: U-M64-2 [양성대조] «옛 규칙(±4 고정)»이면 같은 기하에서 실제로 막힌다',
   'grid-line-add.test.mjs :: grdAddLine — 양성대조: 상한 미만이면 통과한다',
-  'grid-line-add.test.mjs :: 0줄 가드 — 양성대조: 이미 줄이 있는 셀을 patchCell{lines:[]} 로 비우면 거절된다',
+  /* ~~[교체 · 2026-09-26] 'grid-line-add.test.mjs :: 0줄 가드 — 양성대조: 이미 줄이 있는 셀을
+     patchCell{lines:[]} 로 비우면 거절된다'~~ — 그 계약이 뒤집혔다(현빈 지시로 «비우기» 허용).
+     ⛔양성대조가 «사라진» 것이 아니라 «묻는 것이 반대로 돌아섰다» — 그래서 지우지 않고 갈았다. */
+  'grid-line-add.test.mjs :: ★0줄 — 양성대조: 이미 줄이 있는 셀을 patchCell{lines:[]} 로 «비울 수 있다»',
   'grid-line-add.test.mjs :: grdAddLine — 양성대조: 작은 이미지(1KB)는 들어가고 줄 수가 +1 된다',
   'grid-line-add.test.mjs :: pickCellByRects — 칸 «안»은 그 칸을 준다(양성대조)',
   'grid-line-typo.test.js :: U1-c-전제 ★양성대조 — 이 소스 훑기가 «실제로» 파일을 읽고 있다',
