@@ -1020,7 +1020,23 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *     K6[행0]·K6[행1] ★왕복(저장→다시 읽기→다시 그리기) · K7 지우기 ·
  *     K8 ★양성대조(크롭 가지를 떼면 빨개진다) · K9 단위=％ 계약).
  *    ⛔여기서도 지운 것은 «하나도» 없다. */
-const GRID_BASELINE_TESTS = 322;
+/*  ★2026-09-26 「칸 안의 줄을 ⌘↑/↓ 로 옮긴다」: 322 → 330.
+ *    ⑴수 = 8. 더한 것 = tests/unit/grid-line-move-wiring.test.mjs 의 8개
+ *      (배선·순서 2 — ⌘↑/↓ 분기가 줄 이동을 «블럭 찾기·pushHistory 보다 앞»에서 묻는가 ·
+ *        moveGridLineFromCanvas 의 게이트 셋 순서 ＋ ⛔여기서 pushHistory 를 부르지 않는가 ·
+ *       grdMoveLine 의 셈 6 — 아래로 · 위로 · 칸의 끝(EDGE, 안 쓴다) · 무효 주소(INVALID) ·
+ *        거절 시 활성줄 되돌리기 · 줄 «수» 불변).
+ *    ⑵세는 자 = `grep -c '^test(' tests/unit/grid-line-move-wiring.test.mjs` → 8.
+ *      ⚠️이 패턴은 «줄머리»의 test( 만 센다 — 중첩 test·`  test(` 는 못 센다. 이 파일엔 둘 다 없다.
+ *    ⑶★옛 수 322 로 저장소를 훑은 결과(`grep -rn '\b322\b' js/ tests/ docs/`) — 5건이 나왔고
+ *      «이 셈과 무관한» 거짓양성 넷을 뺐다: prop-multisel.js:412(다른 파일 줄번호 주석) ·
+ *      capture-safety.js:226 과 export-image-empty-checker.dom.spec.js:5(픽셀 수 322,080) ·
+ *      grid-gutter-hitarea.test.mjs:174-175(y 좌표 322). ⇒ «이 수가 사는 자리»는 이 파일의
+ *      상수 하나뿐이고, 단언 메시지는 그 상수를 끼워 넣으므로 같이 따라온다.
+ *    ⛔여기서도 지운 것은 «하나도» 없다.
+ *    ⛔DOM 축(tests/dom/grid-line-move-cmdarrow.dom.spec.js 11개)은 여기 «안» 센다 —
+ *      이 래칫은 tests/unit/grid-*.test.{js,mjs} 만 본다(T-178 주석의 그 사각지대와 같다). */
+const GRID_BASELINE_TESTS = 330;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {

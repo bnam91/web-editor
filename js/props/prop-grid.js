@@ -274,6 +274,53 @@ export function grdAddLine(block, pos, afterLi, lineSpec = { type: 'body', text:
   return { ok: true, li: insertAt };
 }
 
+/* ══ 칸 «안»에서 줄의 순서를 바꾼다 — 공용 함수 (0926 ⌘↑/↓) ═══════════════
+ * ★왜 여기 있나 — 줄을 «넣는» 길(grdAddLine)·«지우는» 길과 같은 집에 둔다. 셋 다
+ *   `patchCell{lines}` 한 문으로 나가고 활성줄(_grdActiveLine)을 같이 옮겨야 한다.
+ *   ⛔호출부마다 splice 를 복붙하지 마라 — grdAddLine 머리말의 그 규약이 여기도 그대로다.
+ * ★줄 «수»는 안 바뀐다 ⇒ MAX_CELL_LINES 확인이 필요 없다(넣는 길과 다른 점).
+ * ⛔중첩(duo) «안»의 줄은 이 함수로 못 옮긴다 — patchCell{lines} 는 바깥 lines[] 만 본다.
+ *   그 게이트는 부르는 쪽(editor.js moveGridLineFromCanvas)이 addr.np 로 «먼저» 막는다.
+ * @param {HTMLElement} block
+ * @param {{r:number,c:number}} pos
+ * @param {number} li   옮길 «바깥» 줄의 index
+ * @param {number} dir  -1 = 위로 · +1 = 아래로
+ * @returns {{ok:true, li:number}|{ok:false, code:'INVALID'|'EDGE'|string}}
+ *   EDGE = 칸의 끝이라 갈 자리가 없다(실패가 아니라 «할 일이 없다» — 토스트 안 띄운다). */
+export function grdMoveLine(block, pos, li, dir) {
+  const { r, c } = pos || {};
+  const step = dir < 0 ? -1 : 1;
+  let curLines;
+  try { curLines = getGridModel(block).cells?.[r]?.[c]?.lines; } catch (_) { curLines = null; }
+  /* ⛔`li === null` 은 «빈 칸»(셀 모드, T-A) 표식이다 — Number(null) === 0 이라 그냥 Number 로
+     받으면 «li:0 처럼» 통과해 첫 줄이 조용히 움직인다. _grdResolveAddr 이 같은 함정을 같은
+     말로 막고 있다(그 주석의 규약을 여기서도 지킨다). ★검사가 실제로 잡았다 —
+     tests/unit/grid-line-move-wiring.test.mjs 「무효한 주소는 INVALID」.
+     ⚠️문이 둘이다 — 부르는 쪽(editor.js moveGridLineFromCanvas)도 `li !== null` 을 본다.
+       한쪽만 떼면 증상이 안 바뀐다. 양성대조는 둘을 갈라 재라. */
+  const from = li === null ? NaN : Number(li);
+  if (!Array.isArray(curLines) || !Number.isInteger(from) || from < 0 || from >= curLines.length) {
+    return { ok: false, code: 'INVALID' };
+  }
+  const to = from + step;
+  if (to < 0 || to >= curLines.length) return { ok: false, code: 'EDGE' };
+  const newLines = curLines.slice();
+  newLines.splice(to, 0, newLines.splice(from, 1)[0]);
+  /* ★활성줄을 «먼저» 옮긴다 — updateGridBlock 이 스스로 재렌더 + showGridProperties 를 부르므로,
+   *   뒤에 옮기면 패널과 캔버스 마커가 «옛 자리»를 한 번 그린다(grdAddLine 의 순서 규약).
+   *   ⛔실패하면 되돌린다(같은 규약 — 없는 li 를 가리키면 패널이 빈 줄을 띄운다). */
+  const prevActive = grdGetActiveLine(block);
+  grdSetActiveLine(block, { r, c, li: to });
+  // updateGridBlock 이 pushHistory + 재렌더 + 패널 재표시를 스스로 한다(줄 추가·삭제와 같은 원칙).
+  const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } });
+  if (res && res.ok === false) {
+    grdSetActiveLine(block, prevActive);
+    return { ok: false, code: res.code, message: res.message };
+  }
+  return { ok: true, li: to };
+}
+if (typeof window !== 'undefined') window.grdMoveLine = grdMoveLine;
+
 /* ══ 그리드 이미지 커밋 실패 토스트 — «한 벌»로 모은다 ═══════════════════════
  * ★같은 문구가 세 벌이었다(block-factory.js 우클릭 교체 · 이 파일 패널 [이미지 선택…] ·
  *   block-drag.js 빈 슬롯 더블클릭). 네 번째를 쓰지 말고 이걸 불러라.
