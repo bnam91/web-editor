@@ -4,7 +4,16 @@
  *   (같은 물음의 «네 번째»다. 0925 에는 「그림만 비우고 줄은 남긴다」로 답했는데, 현빈이
  *    원한 것은 «줄 자체»가 사라진 칸이었다 — tests/dom/grid-cell-empty-slot.dom.spec.js 머리말.)
  *
- * ★무엇을 걷었나 — 막는 자리가 «다섯»이었다(문이 둘인 줄 알았는데 다섯이다):
+ * ★★범위 (현빈 2026-09-26 확정: 「②칸 하나만」)
+ *     ✅칸 «하나»를 완전히 비우는 것 — 이 파일의 A~G
+ *     ⛔「블럭의 «모든» 칸이 빈 상태」 — H 가 그것을 «막는다»
+ *   ⇒ 옛 가드는 «없어진» 게 아니라 «옮겨졌다»: 「칸 하나라도 비면 거절」 → 「모든 칸이 비면 거절」.
+ *     `EMPTY_CELL_LINES` 도 뜻만 바뀌어 살아 있다(`_gridRejectAllCellsEmpty`).
+ *   ★까닭 — 「줄 0개 칸이 안 깨지나」와 「블럭이 통째로 비어도 되나」는 «다른 축»이고, 후자는
+ *     저장·내보내기까지 번진다(F 가 재듯 내보낸 클론에선 빈 칸이 편집용 최소높이를 잃는다
+ *     ⇒ 모든 칸이 비면 «높이 0의 보이지 않는 블럭»이 나간다).
+ *
+ * ★무엇을 옮겼나 — 막는 자리가 «다섯»이었다(문이 둘인 줄 알았는데 다섯이다):
  *     ⑴ js/blocks/grid-block.js `_gridRejectLinesLength` — 모델 입구의 0개 거부(EMPTY_CELL_LINES)
  *     ⑵ js/editor.js ⌫ — `lines.length <= 1` 토스트
  *     ⑶ js/props/prop-grid.js — [줄 삭제] 버튼 `disabled`
@@ -27,6 +36,7 @@
  *     ★곁수확 — `min-height:48px`(T-A) 이 인라인 `min-height:0` 에 늘 져서 «죽어 있다»는
  *       것을 실측해 기록한다(고치지 않았다 — 그 자리 주석에 까닭).
  *   G ★배열 계약은 남았다 — `lines:null` 은 여전히 거절이다(비우기 허용이 모양까지 풀면 안 된다).
+ *   H ★★범위 — 「블럭의 «모든» 칸이 빈 상태」는 «막는다» ＋ 반응성 ＋ ⌫ 축(활성줄 원복).
  *
  * ⛔앱을 «안» 띄운다. 실행: npx playwright test --config=tests/dom/playwright.dom.config.js grid-cell-emptied
  */
@@ -53,6 +63,7 @@ function extractFn(src, name) {
    grid-gutter-hitarea(_rowContentEdge). ⛔손으로 베끼면 제품과 따로 늙는다. */
 const ADDR_AT_SRC = extractFn(fs.readFileSync(path.join(REPO, 'js/block-drag.js'), 'utf8'), '_gridAddrAt');
 const ROW_EDGE_SRC = extractFn(fs.readFileSync(path.join(REPO, 'js/overlay-handles.js'), 'utf8'), '_rowContentEdge');
+const DEL_SRC = extractFn(fs.readFileSync(path.join(REPO, 'js/editor.js'), 'utf8'), 'deleteSelectedFromCanvas');
 
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="/css/editor-base.css">
@@ -67,11 +78,14 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <script src="/js/design-system.js"></script>
 <script type="module">
   import { makeGridBlock, renderGridBlock, updateGridBlock, getGridModel } from '/js/blocks/grid-block.js';
-  import { showGridProperties, grdSetActiveLine, grdGetActiveLine, grdAddLine } from '/js/props/prop-grid.js';
+  import { showGridProperties, grdSetActiveLine, grdGetActiveLine, grdAddLine, grdToastImgFail } from '/js/props/prop-grid.js';
+  window.grdToastImgFail = grdToastImgFail;   // ★code→한국어는 «한 벌»이다(제품이 쓰는 그 함수)
   window.__mk = makeGridBlock; window.__render = renderGridBlock;
   window.__upd = updateGridBlock; window.__model = getGridModel;
   window.__open = showGridProperties; window.__setActive = grdSetActiveLine; window.__getActive = grdGetActiveLine;
   window.__addLine = grdAddLine;
+  window.grdSetActiveLine = grdSetActiveLine;   // ★editor.js 소스가 window 로 부른다
+  window.grdGetActiveLine = grdGetActiveLine;
   window.__ready = true;
 </script></body></html>`;
 
@@ -349,5 +363,119 @@ test('G ★비우기 허용이 «모양 계약»까지 풀지 않았다 — line
   expect(r.code).toBe('LINES_NOT_ARRAY');
   expect(r.n, '★거절했다면서 데이터는 이미 건드렸다').toBe(2);
   expect(Array.isArray(r.raw.lines), '★저장본의 lines 가 배열이 아니게 됐다').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+/* ═══ H ★★범위 — 「모든 칸이 빈 블럭」은 막는다 (현빈 0926 「②칸 하나만」) ═══════
+ * ★셋을 «갈라» 잰다. ⛔양성 하나만 두면 「언제나 막는다」와 구별이 안 되고, 그건 현빈 지시의
+ *   «반쪽»(칸 하나조차 못 비움)이다 — A 가 초록인 채로 이 절이 초록이어야 뜻이 맞는다.
+ *     H1 막힌다 ＋ 데이터·화면이 «안 변한다» ＋ 사용자에게 «말한다»
+ *     H2 그 판정이 «옆 칸 내용»에 반응한다(옆을 채우면 같은 호출이 통과)
+ *     H3 ⌫ 도 같은 자에 걸리고, ★거절 뒤 «활성줄이 원복»된다
+ *        (원복이 없으면 「막혔다」 뒤 한 번 더 ⌫ 에 블럭이 사라진다 — 막은 것보다 나쁜 결과다) */
+
+test('H1 ★내용이 남은 «마지막 칸»을 비우려 하면 막히고, 화면·데이터가 안 변한다', async ({ page }) => {
+  const errs = await boot(page);
+  /* 칸 (0,1) 을 먼저 비워 «내용 있는 칸이 (0,0) 하나»인 블럭을 만든다 — A 와 같은 길로. */
+  await mount(page, [{ type: 'body', text: '유일한 내용' }]);
+  const pre = await page.evaluate(() => window.__upd(window.__block.id, { patchCell: { r: 0, c: 1, lines: [] } }));
+  expect(pre.ok, '★전제 — 옆 칸 비우기가 막혔다(그러면 이 검사는 «다른 것»을 잰다)').toBe(true);
+  expect((await shotOf(page, 0, 0)).n, '전제 — (0,0) 에 내용이 남아 있어야 한다').toBe(1);
+
+  const r = await page.evaluate(() => {
+    const toasts = []; window.showToast = (m) => toasts.push(m);
+    const res = window.__upd(window.__block.id, { patchCell: { r: 0, c: 0, lines: [] } });
+    window.grdToastImgFail?.(res);
+    return { ok: res.ok, code: res.code, toasts };
+  });
+  expect(r.ok, '★블럭이 통째로 비었다 — 현빈이 막으라 한 상태(「②칸 하나만」)').toBe(false);
+  expect(r.code).toBe('EMPTY_CELL_LINES');
+
+  const shot = await shotOf(page, 0, 0);
+  expect(shot.n, '★거절했다면서 데이터는 이미 건드렸다').toBe(1);
+  expect(shot.emptyCls, '★거절했는데 화면엔 «빈 칸»으로 그려졌다 — 모델과 화면이 갈렸다').toBe(false);
+  /* ★사용자에게 «말해야» 한다 — 조용히 막으면 「눌렀는데 아무 일도 안 난다」가 된다. */
+  expect(r.toasts.length, '★막고서 «아무 말도» 안 했다').toBe(1);
+  expect(r.toasts[0], '★문구가 「마지막 줄」이라고 말한다 — 이제 막히는 것은 마지막 «칸»이다')
+    .not.toMatch(/마지막 줄/);
+  expect(r.toasts[0], '★무엇이 막혔는지·무엇을 하라는지가 문구에 없다').toMatch(/마지막 칸|블럭/);
+  expect(errs).toEqual([]);
+});
+
+test('H2 ★그 판정은 «옆 칸 내용»에 반응한다 — 옆을 채우면 같은 호출이 통과한다', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page, [{ type: 'body', text: '유일한 내용' }]);
+  await page.evaluate(() => window.__upd(window.__block.id, { patchCell: { r: 0, c: 1, lines: [] } }));
+
+  const blocked = await page.evaluate(() => window.__upd(window.__block.id, { patchCell: { r: 0, c: 0, lines: [] } }));
+  expect(blocked.ok, '★전제 — 막혀야 하는 자리가 안 막힌다(H1 과 같은 상태가 아니다)').toBe(false);
+
+  // 옆 칸을 채운다 ⇒ (0,0) 은 더는 «마지막» 칸이 아니다.
+  const fill = await page.evaluate(() => window.__upd(window.__block.id,
+    { patchCell: { r: 0, c: 1, lines: [{ type: 'body', text: '되채움' }] } }));
+  expect(fill.ok, '★전제 — 옆 칸 채우기가 실패했다').toBe(true);
+
+  const now = await page.evaluate(() => window.__upd(window.__block.id, { patchCell: { r: 0, c: 0, lines: [] } }));
+  expect(now.ok,
+    '★옆 칸에 내용이 있는데도 막힌다 — 가드가 «블럭 전체»가 아니라 «칸 하나»를 재고 있다(옛 뜻의 부활)').toBe(true);
+  expect((await shotOf(page, 0, 0)).n, '★ok:true 인데 안 비었다').toBe(0);
+  expect(errs).toEqual([]);
+});
+
+test('H3 ★⌫ 도 같은 자에 걸린다 — 그리고 거절 뒤 «활성줄이 원복»된다', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page, [{ type: 'body', text: '유일한 내용' }]);
+  await page.evaluate(() => window.__upd(window.__block.id, { patchCell: { r: 0, c: 1, lines: [] } }));
+  await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 0 }));
+
+  const r = await page.evaluate((delSrc) => {
+    const calls = { showToast: [] };
+    window.showToast = (m) => calls.showToast.push(m);
+    const scope = {
+      clearAssetImage: () => {},
+      deselectAll: () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected')),
+      multiSel: { cols: new Set(), blocks: new Set(), sections: new Set() },
+      clearMultiSel: () => {}, showMultiSelPanel: () => {},
+    };
+    window.CANVAS_SEL_BLOCKS = '.grid-block.selected';
+    window.pushHistory = () => {}; window.buildLayerPanel = () => {};
+    window.ensureHistoryCheckpoint = () => {}; window.isSectionProtected = () => false;
+    const names = Object.keys(scope);
+    const fn = new Function(...names, `${delSrc}; return deleteSelectedFromCanvas;`)(...names.map(n => scope[n]));
+    const consumed1 = fn();
+    const after1 = {
+      n: (window.__model(window.__block).cells[0][0].lines || []).length,
+      active: JSON.stringify(window.__getActive(window.__block)),
+      alive: !!document.querySelector('.grid-block'),
+      /* ★토스트는 «첫 호출 직후»에 센다 — 끝에서 세면 둘째 ⌫ 의 토스트까지 섞여 2 가 된다
+         (2026-09-26 실측: 계측 «시점»이 틀렸던 것이지 제품이 두 번 말한 게 아니다). */
+      toasts: calls.showToast.length,
+    };
+    /* ★★한 번 더 ⌫ — 활성줄이 원복되지 «않았다»면 여기서 블럭 삭제 분기로 흐른다. */
+    const consumed2 = fn();
+    return { consumed1, consumed2, calls, after1,
+      after2: { n: (window.__model(window.__block).cells?.[0]?.[0]?.lines || []).length,
+                alive: !!document.querySelector('.grid-block') } };
+  }, DEL_SRC);
+
+  /* ★단언 «순서»가 곧 계측이다 — 가장 «직접적인» 것부터 놓는다. Playwright 는 첫 실패에서
+     멈추므로, 파생 단언(토스트 수)을 앞에 두면 그것만 울리고 「원복이 됐나」는 실행조차 안 된다.
+     2026-09-26 양성대조에서 실제로 그 순서 때문에 「원복 단언이 아무것도 안 잰다」고 오독했다. */
+  expect(r.consumed1, '⌫ 를 아무도 소비하지 않았다').toBe(true);
+  expect(r.after1.n, '★⌫ 가 마지막 내용 칸을 비웠다 — 모델 입구를 안 지났거나 가드가 없다').toBe(1);
+  expect(r.after1.alive, '★거절인데 블럭이 사라졌다').toBe(true);
+  /* ⑴ 원복 «그 자체» — 이 축을 재는 가장 곧은 단언이다. */
+  expect(r.after1.active, '★거절 뒤 활성줄이 «원복되지 않았다» — 다음 ⌫ 가 블럭을 지운다')
+    .toBe(JSON.stringify({ r: 0, c: 0, li: 0 }));
+  /* ⑵ 막았으면 «말해야» 한다. */
+  expect(r.after1.toasts, '★막고서 «아무 말도» 안 했다 — 사용자는 먹통으로 느낀다').toBe(1);
+  /* ⑶ 원복이 «실제로 다음 입력을 살리는가» — ⑴의 결과를 «행동»으로 다시 잰다.
+     ⛔이 축이 vacuous 가 아님을 따로 확인했다(2026-09-26 탐사): 같은 하네스에서 활성줄 «없이»
+       ⌫ 를 부르면 블럭과 행이 실제로 지워진다(.grid-block 0개 · #host .row 0개).
+       ⇒ 아래 toBe(true) 는 «도달 가능한 반대편»을 가진 단언이다. */
+  expect(r.after2.alive,
+    '★한 번 더 ⌫ 를 눌렀더니 블럭이 사라졌다 — 「지울 수 없다」고 막은 다음 «더 나쁜 일»이 났다').toBe(true);
+  expect(r.after2.n, '★두 번째 ⌫ 에서 칸이 비었다').toBe(1);
+  expect(r.calls.showToast.length, '★두 번 눌렀는데 «한 번만» 말했다 — 둘째 ⌫ 가 조용히 먹혔다').toBe(2);
   expect(errs).toEqual([]);
 });

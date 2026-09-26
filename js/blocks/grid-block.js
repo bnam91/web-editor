@@ -405,8 +405,14 @@ function _gridRejectUnknownCellFields(rest, isLine) {
    같은 셀 모양을 쓰므로 같이 통과시킨다(2026-09-15 a1-a3 지적 — patchCell만 막으면 통째 경로가
    그대로 뚫려 있었다). 상한 20: "+ 줄 추가" 무한증식(banner02/laurel과 같은 값).
 
-   ★★★2026-09-26 «0개 거부(EMPTY_CELL_LINES)를 걷었다» — 현빈 지시.
-     「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은 삭제할 수 없다고 하네?」
+   ★★★2026-09-26 «0개 거부를 «걷은» 것이 아니라 «옮겼다»» — 현빈 지시 두 통.
+     ⑴ 「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은 삭제할 수 없다고 하네?」
+     ⑵ 범위 확정 — 「②칸 하나만」. ⇒ ★«칸 하나»를 비우는 건 된다. ⛔«모든 칸이 빈 블럭»은 막는다.
+     ⇒ 그래서 `EMPTY_CELL_LINES` 는 «살아 있다». 다만 재는 양이 바뀌었다:
+         옛 뜻 — 「칸 하나라도 비면 거절」(이 함수, 순수·lines 길이만 봤다)
+         새 뜻 — 「블럭의 «모든» 칸이 비게 되면 거절」(`_gridRejectAllCellsEmpty`, 모델 전체를 본다)
+     ⛔그러니 이 함수에서 0개 분기를 없앤 것이 «허용»을 뜻하지 않는다 — 판정이 «다른 자»로 옮겨
+       갔을 뿐이다. 그 자를 못 찾고 여기만 읽으면 「0개는 무조건 통과」로 오독한다.
    ~~[폐기 · 2026-09-26] 「0개: 우클릭 "이미지 삭제"가 마지막 줄까지 지워 [data-line]이 통째로
      사라지던 것」 ＋ 「allowEmpty — 0개 거부는 patchCell(기존 줄을 «지우는» 동작)에만 건다.
      cells 통째 경로는 정상 MCP 왕복이라 상한만 걸고 0개는 통과시킨다」~~
@@ -425,14 +431,61 @@ function _gridRejectUnknownCellFields(rest, isLine) {
         ⌫·저장왕복·내보내기에서 깨지는 것이 «0건»이고 pageerror 도 0건이다.
    ★그래서 `allowEmpty` 인자도 같이 없앴다 — 이제 모든 경로가 0개를 통과시키므로 «갈 길이 하나»다.
      ⛔인자를 남겨 두면 다음 사람이 「어느 경로는 아직 막힌다」고 읽는다.
-   ★그래도 «배열이어야 한다»는 계약은 그대로다 — `lines:null`·`undefined` 는 아래 문(:838)이
-     `LINES_NOT_ARRAY` 로 여전히 거절한다. 「비우기」의 정식 표현은 `lines:[]` 하나다. */
+   ★그래도 «배열이어야 한다»는 계약은 그대로다 — `lines:null`·`undefined` 는 아래 문이
+     `LINES_NOT_ARRAY` 로 여전히 거절한다. 「비우기」의 정식 표현은 `lines:[]` 하나다.
+     ★★code 를 갈라 둔 것이 여기서 값을 한다 — `EMPTY_CELL_LINES`(뜻: 블럭이 통째로 빈다) 와
+       `LINES_NOT_ARRAY`(뜻: 모양이 틀렸다)가 «다른 일»이라 사용자 문구도 갈린다. */
 function _gridRejectLinesLength(lines) {
   if (!Array.isArray(lines)) return null;
   if (lines.length > MAX_CELL_LINES) {
     return { ok: false, code: 'TOO_MANY_LINES', message: `patchCell.lines limit reached (${MAX_CELL_LINES}, got ${lines.length})` };
   }
   return null;
+}
+
+/* ★「블럭의 «모든» 칸이 비게 되는가」 — 현빈 2026-09-26 범위 확정(「②칸 하나만」).
+ *
+ * ★무엇을 재나 — 「이 칸을 비우면, 내용이 남은 칸이 블럭에 «하나도» 없게 되는가」.
+ *   ⇒ 세는 자는 «지금 비우려는 칸을 뺀 나머지 칸들»이다. ⛔그 칸을 같이 세면 언제나 0 이 아니라
+ *     「비우기 전 상태」를 세게 되어 판정이 한 걸음 늦는다.
+ * ★왜 이 축인가 — 「줄 0개 칸이 안 깨지나」와 「블럭이 통째로 비어도 되나」는 «다른 축»이다.
+ *   전자는 2026-09-26 실측으로 안 깨진다(tests/dom/grid-cell-emptied.dom.spec.js).
+ *   후자는 저장·내보내기까지 번진다 — 내보낸 결과물에서 빈 칸은 편집용 최소높이를 잃으므로
+ *   («#canvas» 스코프, 같은 파일 F 가 잰다) 모든 칸이 비면 «높이 0의 보이지 않는 블럭»이 나간다.
+ *   ⇒ 그건 「비우기」가 아니라 「블럭 삭제」로 할 일이다.
+ * ⚠️★이 가드가 «닿지 않는» 길을 정직하게 적어 둔다(고르고 남긴 것, 모른 게 아니다):
+ *     · `makeGridBlock({cols:[{lines:[]},…]})` — 만들 때부터 전부 빈 블럭.
+ *       tests/unit/grid-p1.test.js:268~277 이 그 상태를 «정상»으로 못박고 있다(4칸·3칸 전부 빈 칸).
+ *     · `cells` 통째 · `patchCol` — read→고쳐→되쓰기 왕복이 정상인 MCP 길이다. 거기에 이 자를
+ *       들이대면 «원래부터 전부 빈» 블럭에 대한 왕복이 그 칸과 무관하게 통째로 막힌다
+ *       (2026-09-15 allowEmpty 논쟁이 반례로 반박된 바로 그 모양).
+ *   ⇒ 그래서 가드는 «지우는 동작»(patchCell{lines:[]}) 한 자리에만 있다. 옛 가드가 서 있던
+ *     그 자리이고, 현빈이 걸린 자리이기도 하다. 넓힐지는 위(지디/현빈)의 판단이다.
+ * @param {HTMLElement} block  patchCell 이 향한 블록 (ctx.block)
+ * @param {{r:number,c:number}} addr
+ * @param {Array} nextLines    이 칸에 들어갈 새 lines
+ * @returns {null|{ok:false,code:'EMPTY_CELL_LINES',message:string}} */
+function _gridRejectAllCellsEmpty(block, addr, nextLines) {
+  if (!block || !Array.isArray(nextLines) || nextLines.length > 0) return null;   // 비우는 호출이 아니다
+  if (!addr || !Number.isInteger(addr.r) || !Number.isInteger(addr.c)) return null;  // 주소 판정은 남의 일
+  let rows;
+  try { rows = getGridModel(block).cells; } catch (_) { return null; }
+  if (!Array.isArray(rows)) return null;
+  let othersWithContent = 0;
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r];
+    if (!Array.isArray(row)) continue;
+    for (let c = 0; c < row.length; c++) {
+      if (r === addr.r && c === addr.c) continue;                 // ★비우려는 칸은 «안» 센다
+      const cell = row[c];
+      const n = (cell && Array.isArray(cell.lines)) ? cell.lines.length : 0;
+      if (n > 0) othersWithContent++;
+    }
+  }
+  if (othersWithContent > 0) return null;
+  return { ok: false, code: 'EMPTY_CELL_LINES',
+    message: 'this is the last cell with content — emptying it would leave the whole grid empty. '
+      + 'Delete the block instead (Esc, then Delete), or remove the row/column.' };
 }
 
 /* === ★「적용 목록」이 «안 그려진 것»까지 담아 돌려주던 것 (T-122, 2026-09-22) ==========
@@ -860,6 +913,12 @@ function _gridIntake(partial, ctx, drops) {
         }
         const _linesReject = _gridRejectLinesLength(rest.lines);
         if (_linesReject) return _linesReject;
+        /* ★옛 0개 가드가 서 있던 «그 자리» — 재는 양만 「칸 하나」에서 「블럭 전체」로 옮겼다
+           (현빈 0926 「②칸 하나만」). ⛔이 줄을 위 `_gridRejectLinesLength` 안으로 접어 넣지 마라:
+             그 함수는 순수(lines 길이만 본다)라 `cols`·`cells`·`patchCol` 문 셋이 같이 쓴다.
+             블럭 모델이 필요한 판정을 그 안에 넣으면 그 셋까지 같이 막힌다(위 머리말의 반례). */
+        const _allEmptyReject = _gridRejectAllCellsEmpty(ctx && ctx.block, addr, rest.lines);
+        if (_allEmptyReject) return _allEmptyReject;
         takeImg(rest.imgSrc, 'patchCell.imgSrc', addr);
         scanNode(rest, 'patchCell', addr);
       }
@@ -902,8 +961,11 @@ function _gridIntake(partial, ctx, drops) {
             : near ? `not read by the renderer — did you mean '${near}'?` : 'not read by the renderer' });
       }
       /* ★자원 가드는 «통째 교체 문»에서도 거절이다(계약 ⑶) — 값 명부와 달리 왕복 사정이 안 통한다.
-         ★빈 열(`lines:[]`)은 정상이다(새 열의 의도된 초기상태) — 2026-09-26 부터는 «모든 경로»가
-           그렇다(:415 에서 0개 거부 자체를 걷었다). 그래서 여기 있던 allowEmpty 인자가 사라졌다. */
+         ★빈 열(`lines:[]`)은 정상이다(새 열의 의도된 초기상태) — 2026-09-26 부터는 «이 함수»가
+           모든 경로에서 0개를 통과시킨다. 그래서 여기 있던 allowEmpty 인자가 사라졌다.
+           ⛔「그럼 아무도 안 막나」로 읽지 마라 — 「블럭이 통째로 빈다」는 축은 «다른 자»
+             (`_gridRejectAllCellsEmpty`)가 patchCell 문 한 곳에서 잰다. 이 문(cols)은 그 자가
+             안 닿는 길이고, 그건 «고르고 남긴» 것이다(그 함수 머리말에 반례와 까닭). */
       const _colLinesReject = _gridRejectLinesLength(col.lines);
       if (_colLinesReject) { colsLinesReject = colsLinesReject || _colLinesReject; return; }
       scanNode(col, where, { r: 0, c });

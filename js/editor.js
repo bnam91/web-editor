@@ -3072,8 +3072,11 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
       if (!Array.isArray(lines) || !Number.isInteger(li) || li < 0 || li >= lines.length) {
         return consumed;   // 주소가 이미 무효(그 사이 데이터가 바뀜) — 블록 삭제로 새지 않는다.
       }
-      /* ★★★2026-09-26 «마지막 한 줄 보호를 걷었다» — 현빈 지시.
-         「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은 삭제할 수 없다고 하네?」
+      /* ★★★2026-09-26 «마지막 한 줄 보호를 «옮겼다»» — 현빈 지시 두 통.
+         ⑴ 「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은 삭제할 수 없다고 하네?」
+         ⑵ 범위 확정 「②칸 하나만」 ⇒ ★«칸 하나»는 비워진다. ⛔«모든 칸이 빈 블럭»은 막힌다.
+         ⇒ 이 자리에서 «판정을 없앤» 것이 아니라 «판정자를 모델 입구 한 곳으로 모았다».
+           ⛔여기서 지역 판정을 다시 세우면 그 자와 둘이 따로 늙는다(오늘 문이 다섯이던 까닭).
          ~~[폐기 · 2026-09-26] `if (lines.length <= 1)` → 「⚠️ 칸에 남은 마지막 줄은 지울 수
            없습니다 — 블럭을 지우려면 Esc 후 삭제, 행/열은 우측 패널」 토스트~~
          ⛔그 보호는 «그날까지 참이었다» — 까닭과 무엇이 바뀌었는지는 모델 입구 한 자리에
@@ -3086,8 +3089,20 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
            true 로 소비했고, 흐르는 것은 «다음 키 입력»이다(같은 입력이 아니다). */
       const newLines = lines.filter((_, i) => i !== li);
       const newLi = Math.min(li, newLines.length - 1);
+      /* ★커밋이 «거절될 수 있다» — 0926 부터 「블럭의 마지막 내용 칸」을 비우면 모델 입구가
+         EMPTY_CELL_LINES 로 막는다(현빈 「②칸 하나만」). 그러면 «활성줄을 원복»해야 한다:
+         원복 없이 null 로 둔 채 막히면 다음 ⌫ 가 «블럭 삭제»로 흘러 「지울 수 없다고 했는데
+         한 번 더 누르니 블럭이 사라졌다」가 된다. ★선례 = prop-grid.js grdAddLine(0920b). */
+      const prevActive = window.grdGetActiveLine?.(gridSel) || null;
       window.grdSetActiveLine?.(gridSel, newLines.length ? { r: gridAddr.r, c: gridAddr.c, li: newLi } : null);
-      window.updateGridBlock?.(gridSel.id, { patchCell: { r: gridAddr.r, c: gridAddr.c, lines: newLines } });
+      const delRes = window.updateGridBlock?.(gridSel.id, { patchCell: { r: gridAddr.r, c: gridAddr.c, lines: newLines } });
+      if (delRes && delRes.ok === false) {
+        window.grdSetActiveLine?.(gridSel, prevActive);
+        /* ⛔여기서 문구를 «새로 적지 마라» — code→한국어는 prop-grid.js grdToastImgFail 한 벌이다.
+           옛 판은 이 자리에 토스트 문장을 직접 박아 두어(「칸에 남은 마지막 줄은…」) 패널 쪽과
+           둘이 따로 늙었다. 그게 오늘 문이 다섯이 된 까닭의 하나다. */
+        window.grdToastImgFail?.(delRes);
+      }
       return consumed;
     }
 

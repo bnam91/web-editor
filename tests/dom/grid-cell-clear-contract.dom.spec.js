@@ -350,9 +350,10 @@ test('O3 ★0 은 «지움»이 아니다 — falsy 를 통째로 지움으로 �
  *   ~~[폐기 · 2026-09-26] 「이 레포엔 이미 «명시된 규칙»이 있다 — `patchCell{lines: []}` 는
  *     거절된다: EMPTY_CELL_LINES 「cell lines cannot be emptied — remove the row/column
  *     instead」. ⇒ 「patchCell 로 칸의 줄을 비우지 못한다」가 정해진 규칙이다」~~
- *   ★★2026-09-26 현빈 지시로 «비우기가 허용»됐다 — 「여전히 빈칸으로 두고 싶은데 마지막 남은
- *     줄은 삭제할 수 없다고 하네?」. 까닭 전부는 js/blocks/grid-block.js
- *     `_gridRejectLinesLength` 머리말에 있다.
+ *   ★★2026-09-26 현빈 지시로 «칸 하나 비우기»가 허용됐다 — 「여전히 빈칸으로 두고 싶은데
+ *     마지막 남은 줄은 삭제할 수 없다고 하네?」 ＋ 범위 확정 「②칸 하나만」.
+ *     ⛔블럭의 «마지막 내용 칸»은 여전히 못 비운다(현빈 「②칸 하나만」) (`_gridRejectAllCellsEmpty`).
+ *     까닭 전부는 js/blocks/grid-block.js 의 그 두 머리말에 있다.
  *   ★★그런데 ★이 절(L)의 «묻는 것»은 한 글자도 안 바뀐다.★ 이 절이 재는 것은 「비우기를
  *     막느냐」가 아니라 «같은 결과를 내는 입력 셋이 «한 정책»으로 다뤄지느냐»다:
  *       `lines:[]`   → 「비운다」  (허용 · 저장본 `{"lines":[]}`)
@@ -424,7 +425,8 @@ for (const [nick, mode, ko] of [['L1', 'null', 'null'], ['L2', 'undef', 'undefin
       `★lines:${ko} 가 칸의 줄을 «지웠다». ok=${r.res.ok} code=${r.res.code || '(없음)'}\n` +
       `   전: ${r.before.n}줄 "${r.before.text}"\n   후: ${r.after.n}줄 "${r.after.text}"\n` +
       `   저장본: ${r.raw}\n` +
-      '   ⛔`lines:[]`(비우기)는 2026-09-26 부터 «허용»이고, `lines:null` 은 «모양 위반»이다 —\n' +
+      '   ⛔`lines:[]`(칸 하나 비우기)는 2026-09-26 부터 «허용»이고(단 블럭의 마지막 내용 칸은\n' +
+      '     여전히 거절), `lines:null` 은 «모양 위반»이다 —\n' +
       '     모양 위반이 ok:true 로 칸을 날리면 저장본이 {"lines":null} 이 되어\n' +
       '     「비웠다」와 「모양이 깨졌다」가 한 글자도 안 갈린다.\n' +
       '   ⇒ 닫는 길은 둘 중 아무거나: ⑴같은 코드로 «거절»하거나 ⑵배열이 아니면 «무시»하거나.\n' +
