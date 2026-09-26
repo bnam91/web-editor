@@ -313,7 +313,38 @@ export function grdMoveLine(block, pos, li, dir) {
     return { ok: false, code: 'INVALID' };
   }
   const to = from + step;
+  /* ★EDGE 는 «여기서만» 판정한다 — 「칸의 끝」을 아는 것은 dir(한 칸씩)을 받는 이쪽뿐이다.
+     자리를 «직접» 받는 grdMoveLineWithin 에는 「끝」이라는 뜻이 없다(범위 밖이면 INVALID 다). */
   if (to < 0 || to >= curLines.length) return { ok: false, code: 'EDGE' };
+  return grdMoveLineWithin(block, pos, from, to);
+}
+
+/* ══ 같은 칸 «안»에서 줄을 «지정한 자리»로 — T-228 이 쓸 문 (0927) ═════════
+ * ★왜 뽑았나 — 끄는 손(T-228)은 「한 칸 위/아래」가 아니라 «놓은 자리»를 안다. 그 자리로 옮기는
+ *   splice 를 손잡이 쪽에 쓰면 이 파일의 것과 «두 벌»이 되어 따로 늙는다(grdAddLine 머리말의
+ *   그 규약). ⇒ grdMoveLine(dir)은 이제 「끝인가」만 보고 이 함수를 «부른다».
+ * ★grdMoveLineToCell(다른 칸)과 무엇이 다른가 — 이쪽은 patchCell «한 문»이다. 그래서 이력도
+ *   한 칸이고 되돌림이 필요 없다. 그 함수의 두 문·noHistory·되돌림은 «칸이 둘»이라 생긴 것이다.
+ *   ⇒ 둘은 같은 일의 두 벌이 아니라 «다른 일»이다(한 문 / 두 문).
+ * @param {{r:number,c:number}} pos
+ * @param {number} fromLi 옮길 «바깥» 줄의 index · @param {number} toLi 놓을 자리(같은 칸)
+ * @returns {{ok:true, li:number}|{ok:false, code:'INVALID'|'SAME_SPOT'|string}}
+ *   SAME_SPOT = 제자리다(할 일이 없다 — 실패가 아니라서 토스트를 안 띄운다. 끌다가 같은 자리에
+ *   놓는 것은 «흔한 일»이고, 그때 아무 일도 안 일어나야 맞다). */
+export function grdMoveLineWithin(block, pos, fromLi, toLi) {
+  const { r, c } = pos || {};
+  let curLines;
+  try { curLines = getGridModel(block).cells?.[r]?.[c]?.lines; } catch (_) { curLines = null; }
+  /* ⛔null 을 Number 로 받지 않는다 — grdMoveLine·grdMoveLineToCell 이 같은 함정을 같은 말로
+     막는다(빈 칸 표식 null 이 0 으로 통과하면 첫 줄이 조용히 움직인다). */
+  const from = fromLi === null ? NaN : Number(fromLi);
+  const to = toLi === null ? NaN : Number(toLi);
+  if (!Array.isArray(curLines)
+      || !Number.isInteger(from) || from < 0 || from >= curLines.length
+      || !Number.isInteger(to) || to < 0 || to >= curLines.length) {
+    return { ok: false, code: 'INVALID' };
+  }
+  if (to === from) return { ok: false, code: 'SAME_SPOT' };
   const newLines = curLines.slice();
   newLines.splice(to, 0, newLines.splice(from, 1)[0]);
   /* ★활성줄을 «먼저» 옮긴다 — updateGridBlock 이 스스로 재렌더 + showGridProperties 를 부르므로,
@@ -329,6 +360,7 @@ export function grdMoveLine(block, pos, li, dir) {
   }
   return { ok: true, li: to };
 }
+if (typeof window !== 'undefined') window.grdMoveLineWithin = grdMoveLineWithin;
 if (typeof window !== 'undefined') window.grdMoveLine = grdMoveLine;
 
 /* ══ 줄을 «다른 칸»으로 옮긴다 — T-227 (0927) ═══════════════════════════════

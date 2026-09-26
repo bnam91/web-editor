@@ -107,6 +107,15 @@ test('★줄 이동 게이트 셋이 이 순서다 — 단독선택 → 중첩(n
 
 /* ═══ ⑵ 셈 — grdMoveLine 의 splice 산수 ═════════════════════════════════ */
 
+/* ★★2026-09-27 (T-228 ①) — grdMoveLine 은 이제 「끝인가」만 보고 splice 는 grdMoveLineWithin
+   이 한다(끄는 손이 «놓은 자리»를 주므로 자리 기반 문이 필요했다). ⛔그래서 «둘 다» 심는다 —
+   하나만 심으면 `grdMoveLineWithin is not defined` 로 이 절이 통째로 죽는다(같은 날 DOM 쪽에서
+   실제로 그렇게 아홉 개가 빨개졌다). ★새 이름을 부르기 시작하면 여기에 같이 심어라. */
+const MOVE_FNS = [
+  extractFn(PROP_GRID, 'grdMoveLineWithin'),
+  extractFn(PROP_GRID, 'grdMoveLine'),
+].join(';\n');
+
 /** 실물 grdMoveLine 을 가짜 이웃들로 돌린다. @returns {{call, calls}} */
 function makeMover(lines) {
   const calls = { patch: [], active: [] };
@@ -118,7 +127,7 @@ function makeMover(lines) {
     window: { updateGridBlock: (id, partial) => { calls.patch.push(partial); return { ok: true }; } },
   };
   const names = Object.keys(scope);
-  const fn = new Function(...names, `${extractFn(PROP_GRID, 'grdMoveLine')}; return grdMoveLine;`)(...names.map(n => scope[n]));
+  const fn = new Function(...names, `${MOVE_FNS}; return grdMoveLine;`)(...names.map(n => scope[n]));
   return { fn, calls, getActive: () => active, setActive: (a) => { active = a; } };
 }
 const texts = (partial) => partial.patchCell.lines.map(l => l.text);
@@ -166,7 +175,7 @@ test('★쓰기가 거절되면 활성줄을 «되돌린다» — 없는 li 를 
     window: { updateGridBlock: () => ({ ok: false, code: 'INVALID', message: 'nope' }) },
   };
   const names = Object.keys(scope);
-  const fn = new Function(...names, `${extractFn(PROP_GRID, 'grdMoveLine')}; return grdMoveLine;`)(...names.map(n => scope[n]));
+  const fn = new Function(...names, `${MOVE_FNS}; return grdMoveLine;`)(...names.map(n => scope[n]));
   const res = fn({}, { r: 0, c: 0 }, 1, 1);
   assert.equal(res.ok, false);
   assert.equal(res.code, 'INVALID');
