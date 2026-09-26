@@ -228,11 +228,50 @@ test('A3 ★★패널이 «그 줄»을 가리키되 «고치는 손잡이»는 
   expect(none.hint, '★줄 선택이 없는데 중첩 안내문이 떴다').toBe(false);
   expect(outer.hint, '★바깥 줄인데 중첩 안내문이 떴다').toBe(false);
 
-  // ⑵ ★본론 — 중첩은 «바닥값과 같아야» 한다. 한 개라도 늘면 그건 전부 헛도는 손잡이다.
+  /* ⑵ ★★본론이 «뒤집혔다» (T-220, 2026-09-27)
+     ~~[폐기] 「중첩은 바닥값과 «같아야» 한다 — 한 개라도 늘면 전부 헛도는 손잡이다」~~
+     ⇒ ★**쓰는 길이 났다**(patchCell{lineIndex, np} ＋ gridPreviewLine 6번째 인자).
+       그래서 이제 손잡이가 «나야» 한다. 안 나면 현빈이 만든 중첩 줄을 못 고친다.
+     ★그런데 «나기만» 하면 옛 결함(헛돎)이 그대로다 — 그래서 ⑶에서 «실제로 고쳐지는가»를 잰다.
+       ⛔둘 중 하나만 두지 마라: 손잡이 수만 재면 「났는데 안 먹는다」를 못 잡고,
+         고쳐지는 것만 재면 「API 로는 되는데 손이 닿을 데가 없다」를 못 잡는다. */
   expect(nested.handles - none.handles,
-    `★중첩 안 줄에서 손잡이가 ${nested.handles - none.handles}개 늘었다 — 쓰는 길이 없으니 전부 헛돈다(거짓 성공)`).toBe(0);
-  expect(nested.delBtn, '★「줄 삭제」가 나왔다 — 누르면 «품은 duo 줄»이 지워진다').toBe(false);
-  expect(nested.lineSection, '★「줄 꾸미기」 절이 나왔다').toBe(false);
+    '★중첩 안 줄에 손잡이가 «하나도» 안 난다 — 쓰는 길이 났는데 손이 닿을 데가 없다(T-220)')
+    .toBeGreaterThan(0);
+  /* ⛔「줄 꾸미기」 절(#grd-line-body)은 «아직» 안 난다 — 그 절은 `_grdResolveAnyAddr` 에 걸려 있고,
+       그 리졸버의 np 바일아웃은 ⌫·코너핸들 등 «여섯 소비자»가 같이 쓴다(그 함수 머리말).
+     ⇒ T-220 이 연 것은 «글자 꾸미기»(Typography) 한 길이다 — 카드가 현빈께 청한 걸음이
+       「그 줄의 글씨 크기나 정렬을 바꿔 보십니다」이기 때문이다.
+     ★나머지 다섯 소비자를 같이 여는 것은 «다른 카드»다. 여기서 그 사실을 못박아,
+       다음 사람이 「왜 어떤 절은 나고 어떤 절은 안 나나」를 다시 캐지 않게 한다. */
+  expect(nested.lineSection, '★「줄 꾸미기」 절이 났다 — 그 길(_grdResolveAnyAddr)은 아직 안 열었다').toBe(false);
+  /* ⛔「줄 삭제」는 «아직» 길이 없다 — 지우는 쪽은 `lines` 배열을 통째로 갈아치우는 경로라
+       li(=품은 중첩 줄의 자리)가 그대로 흘러 «그 중첩이 통째로» 지워진다.
+     ⇒ 고치는 길만 냈다. 이 단언이 「지우기도 됐다」로 바뀌려면 «그 길»부터 나야 한다. */
+  expect(nested.delBtn, '★「줄 삭제」가 나왔다 — 누르면 «품은 중첩 줄»이 통째로 지워진다(그 길은 아직 없다)').toBe(false);
+
+  /* ⑶ ★★핵심 — 난 손잡이가 «실제로 그 줄»을 고치는가. ⛔이게 없으면 ⑵는 「헛도는 손잡이가
+       늘었다」와 구별이 안 된다. 그것이 옛 A3 가 막으려던 바로 그 결함이다.
+     ★패널 위젯을 «사람처럼» 움직인다 — 글자 크기 칸에 값을 넣고 change 를 쏜다. */
+  const edited = await page.evaluate(() => {
+    window.__open(window.__block, { r: 0, c: 0, li: 1, np: '0.0' });
+    const el = document.getElementById('grd-typo-size-number');
+    if (!el) return { ok: false, why: '#grd-typo-size-number 가 없다' };
+    el.value = '37';
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    const m = window.__model(window.__block);
+    const nestedLine = m.cells?.[0]?.[0]?.lines?.[1]?.cols?.[0]?.lines?.[0];
+    const sibling    = m.cells?.[0]?.[0]?.lines?.[1]?.cols?.[1]?.lines?.[0];
+    const outerLine  = m.cells?.[0]?.[0]?.lines?.[0];
+    return { ok: true, nested: nestedLine, sibling, outer: outerLine };
+  });
+  expect(edited.ok, `★글자 크기 칸을 못 찾았다: ${edited.why || ''}`).toBe(true);
+  expect(edited.nested && edited.nested.fontSize,
+    '★손잡이를 움직였는데 «그 줄»이 안 바뀐다 — 손잡이만 나고 길이 안 닿는다(헛돎)').toBe(37);
+  expect(edited.sibling && edited.sibling.fontSize,
+    '★옆 «열»까지 바뀌었다 — 주소가 열을 안 가른다').toBeUndefined();
+  expect(edited.outer && edited.outer.fontSize,
+    '★바깥 줄까지 바뀌었다 — np 를 안 보고 li 로만 쓰고 있다').toBeUndefined();
 
   // ⑶ ★그런데 «말은» 해야 한다 — 잡혔다는 것과 아직 못 고친다는 것.
   expect(nested.hint, '★중첩 안 줄을 골랐는데 패널이 «아무 말도» 안 한다').toBe(true);
@@ -242,14 +281,13 @@ test('A3 ★★패널이 «그 줄»을 가리키되 «고치는 손잡이»는 
   expect(nested.usesLabel, '★안내문을 .prop-label 에 실었다 — 56px 고정이라 잘린다(전례 있음)').toBe(false);
   expect(nested.hintClipped, '★안내문이 가로로 잘린다 — 읽히지 않으면 없는 것과 같다').toBe(false);
 
-  // ⑷ ★세로 예산 — 안내문 세 줄이 «줄 절»보다 짧아야 한다(손잡이를 다 뺐으므로).
-  //   ⛔이 수는 «중첩 선택» 상태의 것이라 grid-cell-panel-handles G2(바깥 줄 선택)와 같은
-  //     저울이 아니다 — G2 가 재는 상태를 이 커밋은 한 글자도 안 바꿨다.
-  expect(nested.height,
-    `★중첩 안내 패널이 바깥 줄 패널보다 길다(${outer.height} → ${nested.height}) — 손잡이를 다 뺐는데 길어질 수 없다`)
-    .toBeLessThan(outer.height);
-  console.log(`[세로 예산] 선택없음 ${none.height} · 바깥 줄 ${outer.height} · 중첩 줄 ${nested.height} `
-    + `(중첩 − 선택없음 = ${nested.height - none.height}px ＝ 안내문 세 줄의 몫)`);
+  /* ⑷ ~~[폐기 · 2026-09-27 T-220] 「세로 예산 — 안내문 세 줄이 «줄 절»보다 짧아야 한다
+       (손잡이를 다 뺐으므로)」~~
+     ⇒ ★그 단언은 「손잡이를 뺐다」의 «방증»이었다. 이제 손잡이가 «나므로» 당연히 길어진다.
+       ⛔방증은 본론이 없을 때만 값이 있다 — 지금은 ⑵(손잡이가 난다)와 ⑶(실제로 고쳐진다)이
+         그 사실을 «직접» 재므로 이 대리 지표는 지운다.
+       ★수(730/773)를 조건으로 남겨 두면 안내문 한 줄만 늘어도 빨개지는 «늙는 자»가 된다. */
+  console.log(`[세로 예산·기록] 선택없음 ${none.height} · 바깥 줄 ${outer.height} · 중첩 줄 ${nested.height}`);
   expect(errs).toEqual([]);
 });
 
@@ -293,19 +331,28 @@ const grewHandles = (page) => page.evaluate((sel) => {
   return count() - none;
 }, HANDLE_SEL);
 
-test('A3-양성2a ★패널 문만 떼면 — 리졸버 문이 «혼자서» 막는다(겹쳐 막았다는 증거)', async ({ page }) => {
-  const errs = await boot(page, GATE_PANEL);
-  await mount(page);
-  expect(await grewHandles(page),
-    '★패널 문을 뗐더니 손잡이가 늘었다 — 리졸버 문이 «안 물고» 있다는 뜻이다').toBe(0);
-  expect(errs, '★변이 닻을 못 찾았다(MUTATION_ANCHOR_MISSING)').toEqual([]);
-});
+/* ~~[폐기 · 2026-09-27 T-220] A3-양성2a 「패널 문만 떼면 — 리졸버 문이 «혼자서» 막는다」
+     ＋ A3-양성2b 「두 문을 «다» 떼면 손잡이가 되살아난다」~~
+   ⇒ ★그 둘은 「문이 «겹쳐» 막는다」를 증명하던 짝이다. T-220 이 **리졸버 문(`_grdResolveAddr`)을
+     열었으므로** 「겹쳐 막는다」 자체가 더는 참이 아니다.
+   ★대신 «반대 방향»을 잠근다 — 아래 A3-양성2 가 「연 그 자리를 도로 막으면 손잡이가 사라지는가」를
+     잰다. ⛔방향만 뒤집은 것이 아니다: 옛 짝은 «두 문»을 재야 했고, 지금은 «한 문»이 정본이라
+     닻도 하나다. 닻이 둘이던 까닭(한쪽만 떼도 증상이 안 바뀐다)이 사라졌다. */
 
-test('A3-양성2b ★두 문을 «다» 떼면 «고치는 손잡이»가 되살아난다', async ({ page }) => {
-  const errs = await boot(page, [GATE_PANEL, GATE_RESOLVER]);
+/** 2026-09-27 이후의 정본 닻 — 리졸버가 중첩을 «받는» 그 분기. */
+const GATE_RESOLVER_NOW = {
+  path: '/js/props/prop-grid.js',
+  from: '  if (addr.np) {\n    const hit = _grdResolveNestAddr(block, addr);',
+  to:   '  if (addr.np) {\n    return null;\n    // eslint-disable-next-line no-unreachable\n    const hit = _grdResolveNestAddr(block, addr);',
+};
+
+test('A3-양성2 ★연 문을 도로 «막으면» 고치는 손잡이가 사라진다', async ({ page }) => {
+  /* ⛔「고쳤더니 초록」은 판정이 아니다. 내가 «연» 문이라 방향은 «도로 막기»다.
+     ★이것이 빨개지면(=막았는데도 손잡이가 난다) A3 의 초록은 «그 문»을 재고 있지 않다는 뜻이다. */
+  const errs = await boot(page, GATE_RESOLVER_NOW);
   await mount(page);
   expect(await grewHandles(page),
-    '★두 문을 다 떼었는데도 손잡이가 안 늘었다 — 이 양성대조는 «안 재고» 있다').toBeGreaterThan(0);
+    '★리졸버 문을 도로 막았는데도 손잡이가 늘었다 — A3 가 재는 것은 «그 문»이 아니다').toBe(0);
   expect(errs, '★변이 닻을 못 찾았다(MUTATION_ANCHOR_MISSING)').toEqual([]);
 });
 

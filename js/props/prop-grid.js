@@ -135,13 +135,23 @@ function _grdResolveAddr(block, addr) {
   //   li:0 처럼 통과해 버릴 수 있다(그 사이 다른 경로가 그 칸에 줄을 채워 넣은 드문 동시성
   //   케이스). 글자 줄 전용 판정이니 셀 모드는 여기서 명시적으로 걸러낸다.
   if (addr.li === null) return null;
-  /* ★중첩 안 줄(np 있음)은 «여기서 끝낸다» — Typography/Fill 절을 안 내놓는다 (T-200 커밋 ②).
-     ⛔이 한 줄이 없으면 li(=품은 duo 줄의 index)가 그대로 흘러 패널이 «duo 줄»의 타이포를
-       고치려 든다. 손잡이는 움직이는데 화면은 그대로인 «거짓 성공»이 바로 그 꼴이다.
-       (쓰는 길 자체가 없다: patchCell 은 lineIndex 정수 하나뿐이라 중첩으로 못 내려간다.) */
-  if (addr.np) return null;
+  /* ~~[폐기 · 2026-09-27 T-220] 「중첩 안 줄(np 있음)은 «여기서 끝낸다» — Typography/Fill 절을
+       안 내놓는다 (T-200 커밋 ②). 쓰는 길 자체가 없다: patchCell 은 lineIndex 정수 하나뿐이라
+       중첩으로 못 내려간다」~~
+     ⇒ ★**쓰는 길이 났다**(patchCell{lineIndex, np} ＋ gridPreviewLine 6번째 인자).
+       그래서 이 문을 «연다». 그때 막던 까닭(「손잡이는 움직이는데 화면은 그대로인 거짓 성공」)은
+       ★길이 없어서였지 중첩이라서가 아니었다 — 까닭이 사라졌으므로 문도 사라진다.
+     ⛔단 «주소를 실어서» 돌려줘야 한다 — li 는 «품은 중첩 줄»의 자리라, np 를 안 보는 자가
+       그대로 쓰면 엉뚱한 줄을 고친다. 아래 `np` 를 같이 싣는 까닭이 그것이다. */
   const r = Number(addr.r), c = Number(addr.c), li = Number(addr.li);
   if (![r, c, li].every(Number.isInteger)) return null;
+  if (addr.np) {
+    const hit = _grdResolveNestAddr(block, addr);
+    if (!hit) return null;
+    /* ★글자 줄만 손잡이를 연다 — 바깥 줄과 «같은 잣대»(gridLineHasText)를 쓴다(두 벌 금지). */
+    if (!gridLineHasText(hit.line)) return null;
+    return { r, c, li, np: addr.np, line: hit.line };
+  }
   let cells;
   try { cells = getGridModel(block).cells; } catch (_) { return null; }
   const line = cells?.[r]?.[c]?.lines?.[li];
@@ -709,7 +719,7 @@ function _grdWireLineBar(block, addr) {
       const cleared = {};
       _GRD_TYPO_FIELDS.forEach(k => { cleared[k] = undefined; });
       window.pushHistory?.();
-      gridPreviewLine(block, r, c, li, cleared);
+      gridPreviewLine(block, r, c, li, cleared, addr.np);   // ★np — 중첩 안 줄도 같은 길로(T-220)
       window.scheduleAutoSave?.();
       showGridProperties(block, { r, c, li });
     });
@@ -807,8 +817,8 @@ function _grdWireImageSection(block, addr) {
       const raw = String(e.target.value).trim();
       const v = raw === '' ? undefined : Math.max(lo, Math.min(hi, parseInt(raw, 10) || 0));
       window.pushHistory?.();
-      gridPreviewLine(block, r, c, li, { [field]: v });
-      _grdSyncLineMark(block, { r, c, li });   // 재렌더가 마커를 지웠다 — 다시 붙인다
+      gridPreviewLine(block, r, c, li, { [field]: v }, addr.np);
+      _grdSyncLineMark(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
       window.scheduleAutoSave?.();
       window.showGridImageResizeHandle?.(block);   // ★폭/높이가 바뀌면 코너 핸들 자리도 따라가야 한다
     });
@@ -1380,7 +1390,7 @@ function _grdWireTypo(block, addr) {
      ⛔updateGridBlock 을 직접 부르지 않는 이유: 그건 스스로 pushHistory 를 쌓고 패널을 통째로
        다시 그린다 — 색 피커를 드래그하는 동안 그러면 히스토리가 폭주하고 포커스가 끊긴다. */
   const setLine = (fields) => {
-    gridPreviewLine(block, addr.r, addr.c, addr.li, fields);
+    gridPreviewLine(block, addr.r, addr.c, addr.li, fields, addr.np);
     _grdSyncLineMark(block, addr);       // 재렌더가 마커를 지웠다 — 다시 붙인다
     _grdRefreshSummary(block, addr);
   };
@@ -1582,8 +1592,8 @@ function _grdWireLineSection(block, addr) {
   const alignSel = document.getElementById('grd-line-align');
   alignSel?.addEventListener('change', () => {
     window.pushHistory?.();                    // ★적용 «전»에 한 번(제스처 1회 = 히스토리 1회)
-    gridPreviewLine(block, r, c, li, { align: alignSel.value || undefined });
-    _grdSyncLineMark(block, { r, c, li });     // 재렌더가 마커를 지웠다 — 다시 붙인다
+    gridPreviewLine(block, r, c, li, { align: alignSel.value || undefined }, addr.np);
+    _grdSyncLineMark(block, addr);     // 재렌더가 마커를 지웠다 — 다시 붙인다
     window.scheduleAutoSave?.();
   });
 
@@ -1601,8 +1611,8 @@ function _grdWireLineSection(block, addr) {
   let _gesture = false;
   const commit = (bg) => {
     if (!_gesture) { _gesture = true; window.pushHistory?.(); }   // ★적용 «전»에 한 번
-    gridPreviewLine(block, r, c, li, { bg });
-    _grdSyncLineMark(block, { r, c, li });     // 재렌더가 마커를 지웠다 — 다시 붙인다
+    gridPreviewLine(block, r, c, li, { bg }, addr.np);
+    _grdSyncLineMark(block, addr);     // 재렌더가 마커를 지웠다 — 다시 붙인다
   };
   const end = () => { _gesture = false; window.scheduleAutoSave?.(); };
 

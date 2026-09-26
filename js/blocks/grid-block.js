@@ -2298,7 +2298,7 @@ export function gridLineHasText(line) {
  * ⛔pushHistory·autosave·패널 재생성은 «여기서 하지 않는다» — 그 정책은 제스처를 아는
  *   호출부(prop-grid.js)가 정한다(첫 input 에서 «적용 전» pushHistory 1회, change 에서 autosave).
  * 성공하면 true, 좌표가 범위 밖이면 false(화면·데이터가 갈라진 채 남지 않는다). */
-export function gridPreviewLine(block, r, c, li, fields) {
+export function gridPreviewLine(block, r, c, li, fields, np) {
   if (!block) return false;
   const cols = _gridCols(block);
   const rows = _gridRows(block);
@@ -2307,7 +2307,18 @@ export function gridPreviewLine(block, r, c, li, fields) {
   const cellRows = _gridCellRows(block, cols, rows.length);
   // ★줄 내용의 자리 — 행 0 은 cols[C], 그 아래는 cells[R][C] (T-178 뒤에도 그대로다).
   const curCell = R === 0 ? cols[C] : cellRows[R][C];
-  const nextLines = _gridMergeLine(curCell && curCell.lines, li, fields);
+  /* ★★6번째 인자 `np` — 중첩 «안» 줄까지 미리보기가 닿는다 (T-220 ②, 2026-09-27).
+   *   ⛔`updateGridBlock` 과 «같은 두 함수»를 쓴다(_gridMergeNestedLine → _gridMergeLine).
+   *     두 길이 갈리면 「패널로 고친 것」과 「API 로 고친 것」이 달라진다 — 이 파일 머리말의 규율.
+   *   ★안 주면 한 글자도 안 바뀐다(옛 길). 꼴이 틀리면 false 를 돌려 «조용한 성공»을 막는다. */
+  let nextLines;
+  if (np === undefined || np === null || np === '') {
+    nextLines = _gridMergeLine(curCell && curCell.lines, li, fields);
+  } else {
+    const segs = _gridNestPathSegs(np);
+    if (!segs) return false;
+    nextLines = _gridMergeNestedLine(curCell && curCell.lines, li, segs, fields);
+  }
   if (!nextLines) return false;
   Object.assign(block.dataset, _gridCellPatchDataset(cols, cellRows, R, C, { lines: nextLines }));
   renderGridBlock(block);
