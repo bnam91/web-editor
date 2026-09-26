@@ -441,6 +441,14 @@ test('I ★모든 칸이 비어도 «내보낸 결과물»에 자리가 남는�
       return v;
     };
     const empty = { inCanvas: h(window.__block), outside: outsideH(window.__block) };
+    /* ★«그 규칙이 없을 때»의 캔버스 높이 — 인라인 min-height 를 0 으로 덮어 재현한다.
+       ⛔소스를 비틀지 않고 «같은 페이지에서» 재는 까닭: 안내문·글꼴이 똑같은 조건이라야
+         「높이가 그 값을 따라가나」만 갈린다(다른 변수를 섞지 않는다). */
+    const cellsNow = [...window.__block.querySelectorAll('.grd-cell')];
+    const saved = cellsNow.map(c => c.style.minHeight);
+    cellsNow.forEach(c => { c.style.minHeight = '0'; });
+    const canvasWithoutMinH = h(window.__block);
+    cellsNow.forEach((c, i) => { c.style.minHeight = saved[i]; });
     /* ★대조군 — 내용이 «하나라도» 있는 블럭은 내보내기에서 높이를 갖는다.
        이게 갈리지 않으면 위 0 은 「계측기가 죽었다」와 구별되지 않는다. */
     document.getElementById('host').innerHTML = '';
@@ -448,15 +456,27 @@ test('I ★모든 칸이 비어도 «내보낸 결과물»에 자리가 남는�
       { width: 1, lines: [{ type: 'body', text: '내용' }] }, { width: 1, lines: [] },
     ] });
     document.getElementById('host').appendChild(row);
-    return { empty, ctrlOutside: outsideH(block) };
+    return { empty, canvasWithoutMinH, ctrlOutside: outsideH(block) };
   });
 
   expect(r.empty.inCanvas, '★캔버스에서도 높이가 0 이다 — 편집 중에도 손에 안 닿는다').toBeGreaterThan(10);
   /* ⑴ 현빈 ㈏ — 내보낸 결과물에 «자리»가 남는다. */
   expect(r.empty.outside, '★내보내기 높이가 0 이다 — 빈 격자가 결과물에서 통째로 사라진다(현빈 ㈏ 위반)').toBeGreaterThan(0);
-  /* ⑵ ★T-229 를 지킨다 — 캔버스 쪽이 «안» 바뀌어야 한다. 안내문이 만드는 19px 언저리다.
-     ⛔이 상한이 빨개지면 「빈 칸이 캔버스에서도 높아졌다」는 뜻이고, 그건 다른 결정을 뒤집은 것이다. */
-  expect(r.empty.inCanvas, '★캔버스 빈 칸이 «높아졌다» — T-229 결정(얇은 채로 둔다)을 뒤집었다').toBeLessThan(30);
+  /* ⑵ ★★T-229 를 지킨다 — 캔버스 쪽이 «안» 바뀌어야 한다.
+     ~~[정정 · 2026-09-27] 「19px 언저리다 ⇒ 30 미만인가」~~ ⛔«수»로 재면 늙는다.
+       안내문 글자·글꼴·줄높이가 바뀌면 그 수가 흔들리고, 그때 이 단언은 «제품이 멀쩡해도» 빨개진다.
+     ★재야 할 것은 «성질»이다 — `min-height` 는 «내용이 더 크면 내용이 이긴다».
+       캔버스에는 `::before` 안내문(「+ 내용 추가 (T/G/K)」)이 «내용»으로 들어가므로,
+       그 높이가 14px 이상인 한 캔버스 높이는 그 규칙과 «무관»하다.
+       배송본에는 그 안내문이 `#canvas` 스코프라 안 나가서 14px 이 드러난다.
+     ⇒ ★그래서 「그 규칙이 있을 때와 «없을 때» 캔버스 높이가 같은가」로 잰다.
+       ⛔이건 수를 안 쓴다 — 안내문이 바뀌어도, 14 를 12 나 16 으로 바꿔도 뜻이 안 늙는다.
+       ★빨개지는 경우 = 「캔버스 높이가 그 값을 따라가기 시작했다」 ＝ T-229 결정이 뒤집힌 것. */
+  expect(r.canvasWithoutMinH, '★계측기가 «규칙 없는» 캔버스 높이를 못 쟀다').toBeGreaterThan(0);
+  expect(r.empty.inCanvas,
+    `★캔버스 빈 칸 높이가 min-height 를 «따라간다»(규칙 있음 ${r.empty.inCanvas}px / 없음 ${r.canvasWithoutMinH}px) — `
+    + 'T-229 결정(빈 칸은 얇은 채로 둔다)을 뒤집었다. 안내문이 더 커서 이기던 구조가 깨졌다는 뜻이다.')
+    .toBe(r.canvasWithoutMinH);
   expect(r.ctrlOutside, '★대조군마저 0 이다 — 이 계측기는 아무것도 안 재고 있다').toBeGreaterThan(10);
   expect(errs).toEqual([]);
 });
