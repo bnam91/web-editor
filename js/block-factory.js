@@ -5065,15 +5065,43 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     window.unmergeCell?.(cell);
   });
 
-  // 그리드 셀 이미지 추가/교체 — 다른 블록의 「이미지 선택...」과 같은 방식(FileReader→dataURL)을
-  // 재사용한다(prop-simple-card.js cvb-card-img-btn · prop-zoom.js · prop-icon-circle.js 선례).
-  // ⛔goya-asset:// 외부화는 여기서 하지 않는다 — 그 셋도 안 한다(외부화는 저장 시점의 별도 관심사).
+  /* 그리드 셀 이미지 추가/교체 — 딱지 «두 갈래»가 여기 한 문에서 갈린다.
+   *   · addr.li == null  (딱지 「이미지 추가」) → «빈 이미지 줄»을 넣고 끝. 파일창을 안 연다.
+   *   · addr.li != null  (딱지 「이미지 교체」) → 예전 그대로 파일창(FileReader→dataURL).
+   * 교체 쪽은 다른 블록의 「이미지 선택...」과 같은 방식을 재사용한다
+   * (prop-simple-card.js cvb-card-img-btn · prop-zoom.js · prop-icon-circle.js 선례).
+   * ⛔goya-asset:// 외부화는 여기서 하지 않는다 — 그 셋도 안 한다(외부화는 저장 시점의 별도 관심사).
+   *
+   * ★★「이미지 추가」가 파일창을 안 여는 까닭 (2026-09-26, 현빈)
+   *   현빈 「그리드 블럭 우클릭 후 「이미지 추가」를 하면 바로 이미지 추가 UI(파일 선택창)가
+   *         뜨는 것이 아니라, 이미지 블럭(체크패턴 있는) 걸 넣어 주는 것이 어때?」
+   *   ⇒ 메뉴를 «늘리지 않고» 이 한 문의 동작만 가른다(새 항목 0개).
+   *   ★파일창이 «없어진» 게 아니라 «한 클릭 뒤»로 갔다 — 채우는 길은 이미 있다:
+   *     빈 슬롯 더블클릭 → 파일 선택(block-drag.js `.grd-img-empty[data-line]` 가지).
+   *     ⛔여기서 새 파일 입구를 또 만들지 않는다 — 파일 입구는 «셋»으로 굳었다(우클릭 교체 ·
+   *       패널 [이미지 선택…] · 빈 슬롯 더블클릭). 세는 자는 tests/unit/grid-callsite-ssot.test.mjs
+   *       「UI 파일 입구 3곳」이다.
+   *   ★자리 «높이»를 여기 안 적는다 — 빈 슬롯이 차지하는 높이는 렌더러 한 자리가 이미 정해 뒀다
+   *     (grid-block.js `_gridLineHtml` 의 `const ph = h > 0 ? h : 180`). 여기 숫자를 또 적으면
+   *     같은 값이 두 곳에 살고, 한쪽만 늙는다. 그래서 lineSpec 에 height 를 «안» 넣는다.
+   *   ⛔`opts.trusted` 를 안 넘긴다 — 그 면제가 건드리는 것은 imgSrc «문자열 길이» 캡 하나뿐인데
+   *     (grid-block.js `_gridIntake` takeImg) 여기 imgSrc 는 빈 문자열이다. 넘기면 「무엇을
+   *     면제받았나」가 거짓으로 적힌다. 줄 수 상한(MAX_CELL_LINES)은 trusted 와 무관하게
+   *     grdAddLine 이 커밋 «전»에 재고 LIMIT 토스트까지 띄운다 — 이 길도 그대로 걸린다.
+   *   ⛔`afterLi` 규약(T-168)은 안 건드린다 — 누른 줄 «다음»에 들어간다. 줄을 안 누른 클릭
+   *     (칸 여백·거터·기하 폴백)이면 null 이라 칸 끝에 붙는다.
+   */
   document.getElementById('bcm-grid-img')?.addEventListener('click', e => {
     e.stopPropagation();
     const block = _targetBlock;
     const addr = _targetGridAddr;
     closeMenu();
     if (!block || !addr) return;
+    if (addr.li == null) {
+      grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, addr.afterLi ?? null,
+        { type: 'image', imgSrc: '' }));
+      return;
+    }
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -5086,19 +5114,13 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       if (!grdImageFileOk(file)) return;
       const reader = new FileReader();
       reader.onload = ev => {
-        const imgSrc = ev.target.result;
-        // ★기존 이미지 줄 교체는 patchCell{lineIndex} — 새 줄 추가는 grdAddLine 공용 함수로
-        //   통합됐다(2026-09-16, 패널 [+ 줄 추가]·빈 셀 버튼·단축키와 같은 함수).
-        if (addr.li != null) {
-          grdToastImgFail(window.updateGridBlock?.(block.id,
-            { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc } }, { trusted: true }));
-          return;
-        }
-        /* ★반환을 «받는다» — 예전엔 안 받아서 실패가 토스트 0건·콘솔 0건으로 사라졌다.
-           ★afterLi — 글자 줄을 누른 경우 그 줄 «다음»에 넣는다(누른 자리에 들어간다).
-             null 이면 예전 그대로 칸 끝에 붙는다(칸 여백을 눌렀거나 빈 칸일 때). */
-        grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, addr.afterLi ?? null,
-          { type: 'image', imgSrc, height: 0 }, { trusted: true }));
+        /* ★기존 이미지 줄 «교체»는 patchCell{lineIndex} — 이 길만 파일창을 지난다.
+           ⛔여기 있던 「새 줄 추가(grdAddLine)」 가지는 위쪽 `addr.li == null` 로 «올라갔다»
+             (2026-09-26). 파일창을 열기 «전»에 갈려야 파일창이 안 뜨기 때문이다.
+           ★반환을 «받는다» — 예전엔 안 받아서 실패가 토스트 0건·콘솔 0건으로 사라졌다. */
+        grdToastImgFail(window.updateGridBlock?.(block.id,
+          { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc: ev.target.result } },
+          { trusted: true }));
       };
       reader.readAsDataURL(file);
     };

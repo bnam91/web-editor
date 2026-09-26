@@ -12,6 +12,20 @@
  *   첫 그림 줄»」로 표적을 정한다. 그 «아니면» 가지가 «안 누른 줄»을 집어 온다.
  *
  * ⛔T-069 가 이미 잰 갈래(그림 줄이 «없는» 칸)는 여기서 «그대로»여야 한다 — 아래 ③·④ 가 못박는다.
+ *
+ * ★★2026-09-26 — 「이미지 추가」의 «동작»이 일부러 바뀌었다(현빈 ㈎안). 표적 규약(위)은 그대로다.
+ *   현빈 「그리드 블럭 우클릭 후 「이미지 추가」를 하면 바로 이미지 추가 UI(파일 선택창)가
+ *         뜨는 것이 아니라, 이미지 블럭(체크패턴 있는) 걸 넣어 주는 것이 어때?」
+ *   ⇒ 이 파일의 ②·③ 이 재던 것이 바뀌었다:
+ *       옛 계약: 「이미지 추가」 → 파일창 → 고른 그림이 그 줄 «다음»에 들어간다.
+ *       새 계약: 「이미지 추가」 → 파일창을 «안 열고» «빈 이미지 줄»(imgSrc:'')이 그 줄 «다음»에.
+ *     ⛔「이미지 교체」(④)는 «안 바뀌었다» — 그대로 파일창이다. 그래서 ④ 가 그 축의 파수꾼이다.
+ *   ★그러니 이 파일은 이제 «파일창이 열린 횟수»도 센다(window.__fileDialogs) — 「빈 줄이 들어왔다」만
+ *     재면 「들어오고 파일창도 같이 떴다」를 못 가린다(현빈이 없애라 한 것이 바로 그 창이다).
+ *   ★채우는 길 — 빈 슬롯 «더블클릭» → 파일 선택(block-drag.js `.grd-img-empty[data-line]`).
+ *     그 배선은 여기서 «안» 잰다(이 하네스엔 bindBlock 이 없다) — tests/dom/grid-img-crop.dom.spec.js
+ *     W3 이 그 몫을 진다. 여기 ⑤ 는 그 가지가 «집을 수 있는 꼴»로 그려졌는지까지만 잰다.
+ *
  * ⛔앱을 «안» 띄운다. 실행: npx playwright test --config=tests/dom/playwright.dom.config.js grid-rclick-line-target
  */
 const { test, expect } = require('@playwright/test');
@@ -90,10 +104,14 @@ async function build(page, red) {
     ] } });
     window.__block = block;
     /* ★파일 고르개만 «막는다» — 메뉴 클릭부터 커밋까지의 길은 그대로 돈다.
-       (앱에서도 같은 방식으로 쟀다: OS 파일창은 안 열고 같은 onchange 에 진짜 File 을 넘긴다) */
+       (앱에서도 같은 방식으로 쟀다: OS 파일창은 안 열고 같은 onchange 에 진짜 File 을 넘긴다)
+       ★★그리고 «몇 번 열렸나»를 센다 — 2026-09-26 부터 「이미지 추가」는 0 이어야 한다.
+         ⛔「줄이 들어왔다」만 재면 «들어오고 창도 같이 떴다»가 초록으로 지나간다. */
+    window.__fileDialogs = 0;
     const orig = HTMLInputElement.prototype.click;
     HTMLInputElement.prototype.click = function () {
       if (this.type !== 'file') return orig.apply(this, arguments);
+      window.__fileDialogs++;
       const b64 = window.__pick.split(',')[1];
       const bin = atob(b64); const arr = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
@@ -124,13 +142,19 @@ async function openMenuOnLine(page, r, c, li) {
   }, { r, c, li });
 }
 
-/** 열린 메뉴의 「이미지 추가/교체」를 누르고, 고를 그림을 미리 정해 둔다. */
+/** 열린 메뉴의 「이미지 추가/교체」를 누른다. 파일창이 열리면 고를 그림은 `pick` 이다.
+ *  @returns {Promise<number>} 이 클릭이 «파일창을 연 횟수» — 「추가」는 0, 「교체」는 1 이어야 한다.
+ *  ★`input.click()` 은 핸들러 «안»에서 동기로 불린다 — 그래서 클릭 직후에 세도 안 놓친다.
+ *    (커밋은 교체 쪽만 FileReader 를 지나 비동기다 — 그래서 기다림은 그대로 둔다.) */
 async function pickImage(page, pick) {
-  await page.evaluate((pick) => {
+  const dialogs = await page.evaluate((pick) => {
     window.__pick = pick;
+    window.__fileDialogs = 0;
     document.getElementById('bcm-grid-img').click();
+    return window.__fileDialogs;
   }, pick);
   await page.waitForTimeout(150);
+  return dialogs;
 }
 
 const linesOf = (page, r, c) => page.evaluate(({ r, c }) => {
@@ -152,14 +176,18 @@ test.describe('T-168 — 우클릭 이미지의 표적은 «누른 줄»이다',
     expect(errs).toEqual([]);
   });
 
-  test('② 글자 줄 위 우클릭 → 고른 그림은 «그 줄 다음»에 들어가고, 칸의 다른 그림은 안 바뀐다', async ({ page }) => {
+  test('② ★글자 줄 위 우클릭 → «파일창 없이» 빈 이미지 줄이 그 줄 다음에 들어가고, 칸의 다른 그림은 안 바뀐다', async ({ page }) => {
     const errs = await boot(page);
     await build(page, RED);
     const m = await openMenuOnLine(page, 0, 0, 0);
     expect(m.err, m.err || '').toBeUndefined();
-    await pickImage(page, BLUE);
-    // ⛔고치기 «전»엔 ['body:글자 줄 A', 'image:'+BLUE] 다 — RED 가 «말없이» BLUE 로 덮인다.
-    expect(await linesOf(page, 0, 0)).toEqual(['body:글자 줄 A', 'image:' + BLUE, 'image:' + RED]);
+    const dialogs = await pickImage(page, BLUE);
+    /* ★현빈이 없애라 한 것이 «이 창»이다 — 줄보다 먼저 잰다. */
+    expect(dialogs, '★「이미지 추가」가 파일 선택창을 열었다 — 2026-09-26 계약은 «안 여는» 것이다').toBe(0);
+    /* ⛔T-168 전엔 ['body:글자 줄 A', 'image:'+BLUE] 였고(RED 가 말없이 덮였다),
+       2026-09-26 전엔 ['body:글자 줄 A', 'image:'+BLUE, 'image:'+RED] 였다(고른 그림이 들어갔다).
+       이제 새 줄은 «빈» 이미지 줄이다 — BLUE 는 아무 데도 없어야 한다(창을 안 열었으니까). */
+    expect(await linesOf(page, 0, 0)).toEqual(['body:글자 줄 A', 'image:', 'image:' + RED]);
     expect(errs).toEqual([]);
   });
 
@@ -170,8 +198,10 @@ test.describe('T-168 — 우클릭 이미지의 표적은 «누른 줄»이다',
     expect(m.err, m.err || '').toBeUndefined();
     expect(m.label).toBe('이미지 추가');
     expect(m.delShown).toBe(false);
-    await pickImage(page, BLUE);
-    expect(await linesOf(page, 0, 1)).toEqual(['body:내용을 입력하세요.', 'image:' + BLUE]);
+    const dialogs = await pickImage(page, BLUE);
+    expect(dialogs, '★그림 줄이 없는 칸에서도 파일창은 안 뜬다(같은 한 문이니 같은 답이어야 한다)').toBe(0);
+    // ⛔2026-09-26 전엔 'image:'+BLUE 였다 — 이제 «빈» 이미지 줄이다.
+    expect(await linesOf(page, 0, 1)).toEqual(['body:내용을 입력하세요.', 'image:']);
     expect(errs).toEqual([]);
   });
 
@@ -182,8 +212,67 @@ test.describe('T-168 — 우클릭 이미지의 표적은 «누른 줄»이다',
     expect(m.err, m.err || '').toBeUndefined();
     expect(m.label).toBe('이미지 교체');
     expect(m.delShown).toBe(true);
-    await pickImage(page, BLUE);
+    const dialogs = await pickImage(page, BLUE);
+    /* ★★이 한 줄이 2026-09-26 «반대 축»의 파수꾼이다 — 「추가」에서 창을 없애면서 「교체」의
+       창까지 같이 죽이는 것이 이 레포의 버릇(문이 둘)이다. 그러면 위 ②③ 은 초록인 채로
+       사람은 그림을 못 바꾼다. */
+    expect(dialogs, '★「이미지 교체」의 파일 선택창이 죽었다 — 그림을 바꿀 길이 없어졌다').toBe(1);
     expect(await linesOf(page, 0, 0)).toEqual(['body:글자 줄 A', 'image:' + BLUE]);
+    expect(errs).toEqual([]);
+  });
+
+  /* ⑤ ★«넣었는데 안 보이는» 거짓 성공을 막는다 — 모델에 줄이 늘어도 높이가 0 이면 화면엔 없다.
+   *   ★높이의 임자는 렌더러 한 자리다(grid-block.js `_gridLineHtml` 의 `ph = h > 0 ? h : 180`).
+   *     ⛔그 수(180)를 여기 적지 않는다 — 적으면 같은 값이 두 곳에 살고, 한쪽만 늙는다.
+   *       여기서 재는 것은 「자리를 «차지한다»」와 「무늬가 있다」다.
+   *   ★그리고 «채우는 가지가 집을 수 있는 꼴»인지까지 — 선택자는 block-drag.js 에서 떠 온다. */
+  test('⑤ ★넣은 빈 슬롯이 «보인다» — 자리를 차지하고, 체크패턴이 있고, 더블클릭 가지가 집을 꼴이다', async ({ page }) => {
+    const errs = await boot(page);
+    await build(page, RED);
+    const m = await openMenuOnLine(page, 0, 1, 0);   // 그림 줄이 «없는» 칸의 글자 줄
+    expect(m.err, m.err || '').toBeUndefined();
+    const dialogs = await pickImage(page, BLUE);
+    expect(dialogs).toBe(0);
+
+    const seen = await page.evaluate(() => {
+      /* ★block-drag.js 의 빈 슬롯 가지가 쓰는 «그 선택자»다 — 여기서 손으로 다른 걸 적으면
+         「집을 수 있다」를 재는 게 아니라 「내가 적은 걸 찾았다」를 재는 것이 된다. */
+      const el = window.__block.querySelector('.grd-img-empty[data-line]');
+      if (!el) return { found: false };
+      const cs = getComputedStyle(el);
+      return {
+        found: true,
+        h: Math.round(el.getBoundingClientRect().height),
+        w: Math.round(el.getBoundingClientRect().width),
+        bg: cs.backgroundImage || '',
+        addr: [el.dataset.r, el.dataset.c, el.dataset.line].join('/'),
+        /* ★대조 — 그림이 «있는» 줄은 이 선택자에 안 걸려야 한다(교체 축과 안 섞인다). */
+        empties: window.__block.querySelectorAll('.grd-img-empty[data-line]').length,
+      };
+    });
+    expect(seen.found, '★빈 슬롯이 아예 안 그려졌다 — 모델엔 줄이 있는데 화면엔 없다').toBe(true);
+    expect(seen.addr, '★새 줄의 주소가 «누른 줄 다음»(0/1/1)이 아니다').toBe('0/1/1');
+    expect(seen.h, '★높이가 0 이다 — 「넣었는데 안 보인다」(모델만 늘어난 거짓 성공)').toBeGreaterThan(20);
+    expect(seen.w, '★폭이 0 이다 — 자리를 차지하지 못했다').toBeGreaterThan(20);
+    expect(seen.bg, '★체크패턴이 없다 — 현빈이 말한 「체크패턴 있는 그것」이 아니다')
+      .toMatch(/gradient/);
+    expect(seen.empties, '★빈 슬롯이 «그 한 줄»이 아니다 — 다른 칸의 그림 줄까지 비워졌나').toBe(1);
+    expect(errs).toEqual([]);
+  });
+
+  /* ⑥ ★이력 «한 칸» — ⌘Z 한 번에 돌아오려면 이 한 번의 넣기가 스냅샷 하나여야 한다.
+   *   ★여기선 «호출 횟수»로 잰다(이 하네스엔 editor.js 의 undo 스택이 없다). 실제 ⌘Z 복원은
+   *     앱에서 따로 봤다(보고에 적었다) — 이 단언이 잠그는 것은 «칸 수»뿐이다.
+   *   ⛔0 이면 되돌릴 수 없고, 2 면 ⌘Z 를 두 번 눌러야 한다(중간 값에 갇히는 그 사고). */
+  test('⑥ ★빈 슬롯 넣기는 이력을 «한 칸»만 쌓는다 (⌘Z 한 번)', async ({ page }) => {
+    const errs = await boot(page);
+    await build(page, RED);
+    await page.evaluate(() => { window.__hist = 0; window.pushHistory = () => { window.__hist++; }; });
+    const m = await openMenuOnLine(page, 0, 1, 0);
+    expect(m.err, m.err || '').toBeUndefined();
+    await pickImage(page, BLUE);
+    const hist = await page.evaluate(() => window.__hist);
+    expect(hist, '★이력 칸 수가 1 이 아니다 — 0 이면 못 되돌리고, 2 면 ⌘Z 한 번이 중간 값에 멈춘다').toBe(1);
     expect(errs).toEqual([]);
   });
 });

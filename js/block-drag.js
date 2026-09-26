@@ -2094,7 +2094,13 @@ function bindBlock(block) {
         input.onchange = () => {
           const file = input.files[0];
           /* ★사람이 고른 파일 — 바이트로 거르고 trusted 로 커밋한다(2026-09-20, 0920b-grid-image).
-             네 입구(우클릭·패널·이 더블클릭·아이콘)가 «같은 게이트 + 같은 토스트»를 쓴다.
+             ★파일 입구 «셋»(우클릭 「이미지 교체」·패널 [이미지 선택…]·이 더블클릭)이 «같은 게이트
+               + 같은 토스트»를 쓴다. 세는 자 = tests/unit/grid-callsite-ssot.test.mjs 의
+               「UI 파일 입구 3곳」.
+             ⛔여기 적혀 있던 「네 입구(…·아이콘)」는 틀린 명부였다(2026-09-26 정정): 아이콘은
+               파일창이 아니라 Iconify 피커라 이 게이트를 안 지난다. 그리고 그날 우클릭
+               「이미지 추가」가 파일창을 아예 안 열게 되면서(빈 이미지 줄만 넣는다) 이 게이트를
+               지나는 자리는 셋으로 굳었다.
              ⛔이 파일은 prop-grid.js 를 import 하지 않는다 — window 다리는 기존 관례 그대로. */
           if (!window.grdImageFileOk?.(file)) return;
           const reader = new FileReader();
