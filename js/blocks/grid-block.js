@@ -401,22 +401,34 @@ function _gridRejectUnknownCellFields(rest, isLine) {
   };
 }
 
-/* ★셀 lines 배열 길이 가드 — patchCell{lines} 뿐 아니라 partial.cells(통째 R×C, MCP가 오는 길)도
+/* ★셀 lines 배열 «상한» 가드 — patchCell{lines} 뿐 아니라 partial.cells(통째 R×C, MCP가 오는 길)도
    같은 셀 모양을 쓰므로 같이 통과시킨다(2026-09-15 a1-a3 지적 — patchCell만 막으면 통째 경로가
-   그대로 뚫려 있었다). 0개: 우클릭 "이미지 삭제"가 마지막 줄까지 지워 [data-line]이 통째로
-   사라지던 것. 상한 20: "+ 줄 추가" 무한증식(banner02/laurel과 같은 값).
-   ★코드를 둘로 나눈다(EMPTY_CELL_LINES/TOO_MANY_LINES) — 호출부(block-factory.js)가 res.message를
-   그대로 토스트에 얹지 않고 code로 한국어 문구를 고르게 하기 위해서다.
-   ★allowEmpty(2026-09-15 a1-a3 2차 지적, 반례로 반박됨): 0개 거부는 patchCell(기존 줄을
-   «지우는» 동작)에만 건다. cells 통째 경로는 read(getGridModel) → 한 칸만 고쳐 → 통째로
-   다시 쓰기가 정상 MCP 왕복이라, 다른 칸이 «원래부터» 빈 채(새 행/열의 의도된 초기상태,
-   getGridModel이 lines:[]로 정규화해 돌려준다)로 껴 있으면 그 칸과 무관하게 호출 전체가
-   막힌다 — 상한(20)만 걸고 0개는 통과시킨다. */
-function _gridRejectLinesLength(lines, allowEmpty) {
+   그대로 뚫려 있었다). 상한 20: "+ 줄 추가" 무한증식(banner02/laurel과 같은 값).
+
+   ★★★2026-09-26 «0개 거부(EMPTY_CELL_LINES)를 걷었다» — 현빈 지시.
+     「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은 삭제할 수 없다고 하네?」
+   ~~[폐기 · 2026-09-26] 「0개: 우클릭 "이미지 삭제"가 마지막 줄까지 지워 [data-line]이 통째로
+     사라지던 것」 ＋ 「allowEmpty — 0개 거부는 patchCell(기존 줄을 «지우는» 동작)에만 건다.
+     cells 통째 경로는 정상 MCP 왕복이라 상한만 걸고 0개는 통과시킨다」~~
+   ⛔그 계약은 «그날까지 참이었다» — 지우지 말고 왜 바뀌었는지를 읽어라:
+     ⑴ 막은 까닭은 「줄 0개 칸이 [data-line] 을 잃어 «주소»가 없어진다」였다. 그 전제는
+        T-A(2026-09-16) 가 메웠다 — 렌더러가 `.grd-cell-empty` 를 찍고(:1578),
+        클릭 판정(block-drag.js `_gridAddrAt`)이 `{r,c,li:null}` 로 칸 자체를 주소로 돌려주며,
+        패널·CSS 안내문(「+ 내용 추가 (T/G/K)」)이 되살릴 길을 준다.
+     ⑵ 그리고 「줄 0개 칸」은 막던 동안에도 «이미 합법 상태»였다 — makeGridBlock({cols:[{lines:[]}]}),
+        새 행/열 추가(_gridCellRows 가 lines:[] 로 정규화), cells 통째 경로(allowEmpty=true).
+        tests/unit/grid-p1.test.js:269 가 「4칸 모두 grd-cell-empty」를 못박고 있다.
+        ⇒ 가드가 막던 것은 «상태»가 아니라 «그 상태로 가는 한 전이»뿐이었다. 즉 「만들 땐 되는데
+          지울 땐 안 된다」는 비대칭이 남아 있었고, 현빈이 걸린 자리가 정확히 그 비대칭이다.
+     ⑶ 2026-09-26 실측(tests/dom/grid-cell-emptied.dom.spec.js) — 그 전이를 허용해도
+        렌더·행거터(`_rowContentEdge` 는 줄 0개 칸을 `continue` 로 건너뛴다)·클릭주소·패널·
+        ⌫·저장왕복·내보내기에서 깨지는 것이 «0건»이고 pageerror 도 0건이다.
+   ★그래서 `allowEmpty` 인자도 같이 없앴다 — 이제 모든 경로가 0개를 통과시키므로 «갈 길이 하나»다.
+     ⛔인자를 남겨 두면 다음 사람이 「어느 경로는 아직 막힌다」고 읽는다.
+   ★그래도 «배열이어야 한다»는 계약은 그대로다 — `lines:null`·`undefined` 는 아래 문(:838)이
+     `LINES_NOT_ARRAY` 로 여전히 거절한다. 「비우기」의 정식 표현은 `lines:[]` 하나다. */
+function _gridRejectLinesLength(lines) {
   if (!Array.isArray(lines)) return null;
-  if (lines.length === 0 && !allowEmpty) {
-    return { ok: false, code: 'EMPTY_CELL_LINES', message: 'cell lines cannot be emptied — remove the row/column instead' };
-  }
   if (lines.length > MAX_CELL_LINES) {
     return { ok: false, code: 'TOO_MANY_LINES', message: `patchCell.lines limit reached (${MAX_CELL_LINES}, got ${lines.length})` };
   }
@@ -827,17 +839,24 @@ function _gridIntake(partial, ctx, drops) {
          *      길이라 실사용 데이터 손실 경로다.
          *  ⛔「무시」가 아니라 «거절»로 닫는다 — 같은 결과를 내는 입력을 조용히 무시하면
          *    정책이 둘로 갈린다(한쪽은 거절, 한쪽은 노옵).
-         *  ★★`lines` 는 「`null` = 그 키를 지운다」 계약의 «예외»다. 그 계약을 모든 키에 똑같이
-         *    걸면 이 옆문이 «설계»가 된다. 칸의 줄은 patchCell 로 비울 수 없다(위 규칙 그대로).
          *  ⛔`=== null` 만 막지 마라 — 두 옆문은 «독립된 축»이다(평가자 음성대조: null 만 막은
          *    시제품에서 L1 초록 · L2 빨강). 「배열이 아니면」으로 한 번에 닫는다.
          *  ⛔`rest.lines === undefined` 로 보지 마라 — 「안 줬음」과 「undefined 를 줬음」이 안 갈린다.
-         *    `'lines' in rest` 가 그 둘을 가른다(rest 는 spread 라 값이 undefined 인 키도 남는다). */
+         *    `'lines' in rest` 가 그 둘을 가른다(rest 는 spread 라 값이 undefined 인 키도 남는다).
+         *
+         *  ★★★2026-09-26 «이 문은 남지만 «까닭»이 바뀌었다» — code 를 EMPTY_CELL_LINES →
+         *    `LINES_NOT_ARRAY` 로 갈았다. 현빈 지시로 `lines:[]`(비우기)가 «허용»됐으므로
+         *    (:415 머리말) 「비울 수 없다」는 이름과 문구가 이 자리에서 곧 «거짓»이 된다.
+         *    ~~[폐기 · 2026-09-26] 「`lines` 는 「`null` = 그 키를 지운다」 계약의 예외다.
+         *      칸의 줄은 patchCell 로 비울 수 없다」~~ → 비울 수 있다. 단 «배열로» 비운다.
+         *  ⇒ 이제 이 문이 재는 것은 «비우기 금지»가 아니라 «모양(배열) 계약» 하나다.
+         *    `lines:null` 을 여전히 거절하는 까닭은 그대로다: 저장본이 `{"lines":null}` 로
+         *    남아 「비웠다」와 「모양이 깨졌다」가 한 글자도 안 갈리게 되기 때문이다. */
         if ('lines' in rest && !Array.isArray(rest.lines)) {
           const t = rest.lines === null ? 'null' : typeof rest.lines;
-          return { ok: false, code: 'EMPTY_CELL_LINES',
-            message: `patchCell.lines must be an array (got ${t}) — cell lines cannot be emptied, `
-              + 'remove the row/column instead. To edit one line use patchCell{lineIndex, ...}.' };
+          return { ok: false, code: 'LINES_NOT_ARRAY',
+            message: `patchCell.lines must be an array (got ${t}) — to empty the cell pass lines:[]. `
+              + 'To edit one line use patchCell{lineIndex, ...}.' };
         }
         const _linesReject = _gridRejectLinesLength(rest.lines);
         if (_linesReject) return _linesReject;
@@ -852,7 +871,7 @@ function _gridIntake(partial, ctx, drops) {
       const { index: _i, ...rest } = p;
       const nameReject = _gridRejectUnknownColFields(rest);
       if (nameReject) return nameReject;
-      const lenReject = _gridRejectLinesLength(rest.lines, /* allowEmpty */ true);
+      const lenReject = _gridRejectLinesLength(rest.lines);   // ★0개는 «모든 경로»가 통과시킨다(:415)
       if (lenReject) return lenReject;
       scanNode(rest, 'patchCol', { r: 0, c: Number(p.index) });   // ★열의 lines = 행 0 칸
     }
@@ -883,8 +902,9 @@ function _gridIntake(partial, ctx, drops) {
             : near ? `not read by the renderer — did you mean '${near}'?` : 'not read by the renderer' });
       }
       /* ★자원 가드는 «통째 교체 문»에서도 거절이다(계약 ⑶) — 값 명부와 달리 왕복 사정이 안 통한다.
-         ⛔allowEmpty=true — 빈 열(`lines:[]`)은 정상이다(새 열의 의도된 초기상태). */
-      const _colLinesReject = _gridRejectLinesLength(col.lines, /* allowEmpty */ true);
+         ★빈 열(`lines:[]`)은 정상이다(새 열의 의도된 초기상태) — 2026-09-26 부터는 «모든 경로»가
+           그렇다(:415 에서 0개 거부 자체를 걷었다). 그래서 여기 있던 allowEmpty 인자가 사라졌다. */
+      const _colLinesReject = _gridRejectLinesLength(col.lines);
       if (_colLinesReject) { colsLinesReject = colsLinesReject || _colLinesReject; return; }
       scanNode(col, where, { r: 0, c });
       _gridInspectLines(col.lines, where, drops);
@@ -897,7 +917,7 @@ function _gridIntake(partial, ctx, drops) {
       for (const cell of row) {
         /* ~~[이사 · 2026-09-24] 이 가드는 updateGridBlock 의 cells 분기 안에 있었다~~
            까닭 — 같은 자원 가드가 문마다 «다른 자리»에 있으면 다음 문에서 또 빠진다. */
-        const _reject = _gridRejectLinesLength(cell && cell.lines, /* allowEmpty */ true);
+        const _reject = _gridRejectLinesLength(cell && cell.lines);
         if (_reject) return _reject;
       }
     }

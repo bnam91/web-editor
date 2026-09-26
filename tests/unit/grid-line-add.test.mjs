@@ -11,9 +11,10 @@
  *   «최소 스텁」으로 채우고, grid-block.js·grid-cell-resize.js·prop-grid.js 는 «실물 그대로»
  *   같은 상대경로 모양의 임시 트리에 복사해 로드한다(경로를 손대지 않으니 import 재작성 0건).
  *
- * ★0줄 가드(EMPTY_CELL_LINES) 양성/음성대조 — 이 가드는 이 파일 이전엔 «어느 테스트도»
- *   재지 않았다(전수 grep 0건). 「초록 ≠ 가드가 지킨다」 원칙대로 가드를 지운 사본으로
- *   실제로 빨강(→통과)이 되는지 확인한다.
+ * ★0줄 계약 양성/음성대조 — 이 계약은 이 파일 이전엔 «어느 테스트도» 재지 않았다(전수 grep 0건).
+ *   「초록 ≠ 가드가 지킨다」 원칙대로 «변이 사본»으로 실제로 갈리는지 확인한다.
+ *   ★★2026-09-26 그 계약이 뒤집혔다(0개 거부 → 허용). 아래 그 자리 주석에 까닭이 있고,
+ *     음성대조의 방향도 「지운 사본」에서 「되붙인 사본」으로 바뀌었다.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -148,6 +149,17 @@ function fixture() {
   return block;
 }
 
+/** 칸 (r,c) 의 여는 태그를 «통째로» 떠낸다.
+ *  ⛔`innerHTML.match(/data-c="1"[^>]*>/)` 로 class 를 보려 하지 마라 — 렌더러는
+ *    `<div class="grd-cell…" data-r data-c style>` 순서로 찍으므로 data-c 부터 훑으면
+ *    class 가 «구조적으로» 안 들어온다. 그렇게 쓴 `doesNotMatch` 는 무엇을 넣어도 초록이다
+ *    (2026-09-26 에 이 파일에서 그런 단언 둘을 실제로 발견해 여기로 바꿨다). */
+function cellTag(block, r, c) {
+  const m = block.innerHTML.match(new RegExp('<div class="grd-cell[^"]*" data-r="' + r + '" data-c="' + c + '"'));
+  assert.ok(m, `★칸 (${r},${c}) 의 태그를 못 찾았다 — 아래 단언이 «다른 이유»로 초록이 된다`);
+  return m[0];
+}
+
 /* ═══ 주소 계산 ═══════════════════════════════════════════════════════════ */
 
 test('grdAddLine — afterLi=null 은 «빈 셀」의 첫 줄로 들어간다(셀 채우기)', () => {
@@ -228,7 +240,9 @@ test('renderGridBlock — 줄이 0개인 셀만 .grd-cell-empty 를 받는다', 
   assert.match(block.innerHTML, /class="grd-cell grd-cell-empty" data-r="0" data-c="0"/,
     '★빈 칸(col0)에 표식이 없다 — CSS 안내문(+ 내용 추가)도 클릭 판정도 이 표식에 기대지 않지만' +
     ' 최소한 렌더가 실제로 찍어야 한다');
-  assert.doesNotMatch(block.innerHTML.match(/data-c="1"[^>]*>/)[0], /grd-cell-empty/,
+  /* ⛔옛 판은 `block.innerHTML.match(/data-c="1"[^>]*>/)[0]` 을 봤다 — class 가 data-c «앞»에
+     오므로 그 조각엔 class 가 «절대» 안 들어온다. 무엇을 넣어도 초록인 단언이었다(2026-09-26). */
+  assert.doesNotMatch(cellTag(block, 0, 1), /grd-cell-empty/,
     '★줄이 있는 칸(col1)까지 「빈 칸」으로 오判되면 안내문이 글자 위에 겹쳐 뜬다');
 });
 
@@ -236,27 +250,44 @@ test('renderGridBlock — grdAddLine 으로 채운 뒤엔 .grd-cell-empty 가 �
   const block = fixture();
   PG.grdAddLine(block, { r: 0, c: 0 }, null, { type: 'body', text: 'filled' });
   GB.renderGridBlock(block);
-  assert.doesNotMatch(block.innerHTML.match(/data-c="0"[^>]*>/)[0], /grd-cell-empty/);
+  assert.doesNotMatch(cellTag(block, 0, 0), /grd-cell-empty/,   // ⛔옛 판은 아무것도 안 쟀다(위 cellTag 주석)
+    '★줄을 채웠는데 「빈 칸」 표식이 남아 있다 — 안내문이 글자 위에 겹쳐 뜬다');
 });
 
-/* ═══ 0줄 가드(EMPTY_CELL_LINES) — 양성/음성대조 ═════════════════════════════
- * ★이 가드는 patchCell{lines:[]} 로 «기존 줄을 지워 칸을 통째로 비우는」 시도를 막는다
- *   (grid-block.js _gridRejectLinesLength, allowEmpty=false 경로). grdAddLine 은 이 가드에
- *   안 걸린다(0→1 이라 length===0 조건에 안 든다) — 그래서 여기서 별도로 잰다. */
+/* ═══ 「칸을 «완전히» 비운다」 — 0줄 계약의 양성/음성대조 (2026-09-26 뒤집힘) ═════
+ * ★★계약이 갈렸다. ~~[폐기 · 2026-09-26] 「0줄 가드(EMPTY_CELL_LINES)는 patchCell{lines:[]}
+ *   로 «기존 줄을 지워 칸을 통째로 비우는» 시도를 막는다(allowEmpty=false 경로)」~~
+ *   ⛔옛 계약은 «그날까지 참이었다» — 위 두 테스트(빈 셀 렌더)가 그때도 초록이던 것이
+ *   그 증거다: 「줄 0개 칸」이라는 «상태»는 막힌 적이 없고, 막힌 것은 «그 상태로 가는 전이»
+ *   하나뿐이었다. 현빈이 2026-09-26 에 그 비대칭에 걸렸다 —
+ *     「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은 삭제할 수 없다고 하네?」
+ *   ⇒ 그래서 전이를 열었다(js/blocks/grid-block.js `_gridRejectLinesLength` 머리말에 까닭 전부).
+ *
+ * ★음성대조의 «방향»이 뒤집힌다 — 옛 판은 「가드를 «지운» 사본이 통과한다」였다. 이제 가드가
+ *   없으므로 지울 것이 없다. 대신 «되붙인» 사본이 거절하는지를 잰다. 그것이 「내가 고친 자리가
+ *   바로 거기였다」의 증명이다(고친 줄을 떼면 빨개지는 것과 같은 뜻, 방향만 반대).
+ * ⛔그리고 «배열 계약»은 남았다 — `lines:null` 은 여전히 거절이다(code 만 LINES_NOT_ARRAY 로
+ *   갈렸다). 셋째 테스트가 그 자리를 지킨다. 안 재면 「비우기 허용」이 「모양 계약까지 풀림」으로
+ *   조용히 번진다(2026-09-23 T-178 C3 가 막은 옆문이 그 길이다). */
 
-test('0줄 가드 — 양성대조: 이미 줄이 있는 셀을 patchCell{lines:[]} 로 비우면 거절된다', () => {
+test('★0줄 — 양성대조: 이미 줄이 있는 셀을 patchCell{lines:[]} 로 «비울 수 있다»', () => {
   const block = fixture();   // col1 lines=[X]
   const res = GB.updateGridBlock(block.id, { patchCell: { r: 0, c: 1, lines: [] } });
-  assert.equal(res.ok, false);
-  assert.equal(res.code, 'EMPTY_CELL_LINES');
-  assert.equal(GB.getGridModel(block).cells[0][1].lines.length, 1, '★거절 뒤 데이터가 «안 변했다»');
+  assert.equal(res.ok, true, '★현빈 요구가 그대로 막혀 있다 — 마지막 줄이 안 지워진다');
+  assert.equal(GB.getGridModel(block).cells[0][1].lines.length, 0, '★ok:true 인데 데이터는 안 비었다');
+  /* ★「비었다」를 «모델»로만 보지 않는다 — 화면에도 빈 칸 표식이 찍혀야 손에 닿는다. */
+  GB.renderGridBlock(block);
+  assert.match(cellTag(block, 0, 1), /grd-cell-empty/,
+    '★비웠는데 `.grd-cell-empty` 가 안 찍혔다 — 안내문도 클릭 판정도 이 표식에 기댄다');
 });
 
-test('0줄 가드 — 음성대조(변이): 가드를 지운 사본은 통과한다(가드가 «진짜 막고 있었다»는 증거)', async () => {
+test('★0줄 — 음성대조(변이): 0개 거부를 «되붙인» 사본은 거절한다(내가 고친 자리가 거기였다)', async () => {
   const RAW = fs.readFileSync(path.join(ROOT, 'js', 'blocks', 'grid-block.js'), 'utf8');
-  const mutated = RAW.replace(
-    /const _linesReject = _gridRejectLinesLength\(rest\.lines\);\n\s*if \(_linesReject\) return _linesReject;\n/,
-    '');
+  /* 되붙이기 — `_gridRejectLinesLength` 안의 상한 검사 «앞»에 옛 0개 거부를 다시 넣는다. */
+  const ANCHOR = 'function _gridRejectLinesLength(lines) {\n  if (!Array.isArray(lines)) return null;\n';
+  assert.ok(RAW.includes(ANCHOR), '★앵커를 못 찾았다 — 이 대조는 아무것도 안 쟀다(함수 모양이 바뀌었나)');
+  const mutated = RAW.replace(ANCHOR, ANCHOR +
+    "  if (lines.length === 0) return { ok: false, code: 'EMPTY_CELL_LINES', message: 'restored old guard' };\n");
   assert.notEqual(mutated, RAW, '★변이가 주입되지 않았다 — 이 대조는 아무것도 안 쟀다');
 
   const snap = snapshotGridWindow();   // ★변이 모듈 import 가 window.updateGridBlock 등을 덮어쓴다
@@ -264,10 +295,19 @@ test('0줄 가드 — 음성대조(변이): 가드를 지운 사본은 통과한
     const M = await loadGridBlockSrc(mutated);
     const { block } = M.makeGridBlock({ cols: [{ width: 1, lines: [{ type: 'body', text: 'A' }] }, { width: 1, lines: [] }] });
     const res = M.updateGridBlock(block.id, { patchCell: { r: 0, c: 0, lines: [] } });
-    assert.equal(res.ok, true, '★가드를 지웠는데도 거절된다 — 이 변이는 그 가드를 안 쟀다');
+    assert.equal(res.ok, false, '★옛 가드를 되붙였는데도 통과한다 — 내가 고친 자리는 «거기가 아니었다»');
+    assert.equal(res.code, 'EMPTY_CELL_LINES');
   } finally {
-    restoreGridWindow(snap);   // ★뒤 테스트(있다면)가 원본 grid-block.js 를 계속 쓰게 원복
+    restoreGridWindow(snap);   // ★뒤 테스트가 원본 grid-block.js 를 계속 쓰게 원복
   }
+});
+
+test('★배열 계약은 남았다 — patchCell{lines:null} 은 LINES_NOT_ARRAY 로 거절되고 데이터가 안 변한다', () => {
+  const block = fixture();   // col1 lines=[X]
+  const res = GB.updateGridBlock(block.id, { patchCell: { r: 0, c: 1, lines: null } });
+  assert.equal(res.ok, false, '★`lines:null` 이 통과했다 — 저장본에 {"lines":null} 이 남아 「비웠다」와 안 갈린다');
+  assert.equal(res.code, 'LINES_NOT_ARRAY');
+  assert.equal(GB.getGridModel(block).cells[0][1].lines.length, 1, '★거절했다면서 데이터는 이미 건드렸다');
 });
 
 /* ═══ 0920b-grid-image — «넣었는데 조용히 버려진다» ═════════════════════════

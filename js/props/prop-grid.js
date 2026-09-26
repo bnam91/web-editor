@@ -331,8 +331,11 @@ export function grdToastImgFail(res) {
     ? '⚠️ 이미지가 너무 큽니다 — 더 작은 파일로 다시 시도해 주세요'
     : res.code === 'LIMIT'
       ? `⚠️ 줄 추가 실패: 셀당 최대 ${MAX_CELL_LINES}줄`
-      : res.code === 'EMPTY_CELL_LINES'
-        ? '⚠️ 마지막 줄은 지울 수 없습니다 — 칸을 통째로 지우려면 행/열을 삭제하세요'
+      /* ★2026-09-26 — 옛 code `EMPTY_CELL_LINES`(「마지막 줄은 지울 수 없습니다 — 칸을 통째로
+         지우려면 행/열을 삭제하세요」)는 «사라졌다». 마지막 줄도 지울 수 있게 됐기 때문이다
+         (grid-block.js `_gridRejectLinesLength` 머리말). 남은 것은 «모양» 거절 하나다. */
+      : res.code === 'LINES_NOT_ARRAY'
+        ? '⚠️ 줄 목록의 모양이 잘못됐습니다 — 칸을 비우려면 마지막 줄을 삭제하세요'
         : '❌ 이미지 작업 실패: ' + (res.message || res.code || '알 수 없는 오류');
   window.showToast?.(msg);
   return true;
@@ -616,9 +619,16 @@ ${_grdAddKindSelectHtml()}
   }
   const isTextLine = gridLineHasText(line);
   const summary = _grdSummaryText(r, c, li, line);
-  let cellLineCount = 1;
-  try { cellLineCount = (getGridModel(block).cells?.[r]?.[c]?.lines || []).length || 1; } catch (_) {}
-  const canDeleteLine = cellLineCount > 1;
+  /* ★★★2026-09-26 «[줄 삭제] 는 이제 «언제나» 활성이다» — 현빈 지시.
+       「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은 삭제할 수 없다고 하네?」
+     ~~[폐기 · 2026-09-26] `cellLineCount`(칸의 줄 수)를 세어 `canDeleteLine = cellLineCount > 1`
+       로 마지막 한 줄에서 버튼을 `disabled` 로 잠갔다. title 도 「칸에 남은 마지막 줄은 지울
+       수 없습니다」였다.~~
+     ⛔그 잠금은 «그날까지 참이었다» — 까닭은 모델 입구에 모아 적어 뒀다
+       (js/blocks/grid-block.js `_gridRejectLinesLength` 머리말).
+     ★그래서 «칸의 줄 수를 세는 일 자체»가 이 자리에서 사라졌다 — 세어서 쓸 데가 없다.
+       ⛔되살리지 마라. 「마지막 줄이면 무언가 다르게」가 이 파일에 다시 들어오면 ⌫(editor.js)와
+         모델 입구(grid-block.js)와 셋이 갈린다 — 그 셋이 갈려 있던 것이 바로 오늘 고친 것이다. */
   /* ★[종류 ▾] 는 여기 «없다» — 아래 「줄 꾸미기」 절로 옮겼다(2026-09-23 실측).
        ⛔단추 줄(206px)에 끼우면 240px 패널을 넘고, «요약 줄»에 붙이면 요약이 123px 로 잘리는 데다
          줄바 절의 컨트롤이 두 줄에 걸쳐 G2 ⑸(「줄바 단추가 한 줄을 유지한다」)가 빨개진다.
@@ -633,8 +643,8 @@ ${_grdAddKindSelectHtml()}
       </div>
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">
 ${_grdAddKindSelectHtml()}
-        <button id="grd-line-del-btn" class="prop-btn-sm" ${canDeleteLine ? '' : 'disabled'}
-                title="${canDeleteLine ? '이 줄을 삭제합니다' : '칸에 남은 마지막 줄은 지울 수 없습니다'}">줄 삭제</button>
+        <button id="grd-line-del-btn" class="prop-btn-sm"
+                title="이 줄을 삭제합니다 — 마지막 줄까지 지우면 칸이 «빈 칸»이 됩니다">줄 삭제</button>
         <button id="grd-line-reset" class="prop-btn-sm" ${isTextLine ? '' : 'disabled'}
                 title="${isTextLine ? '이 줄에 «손으로 준 값»을 전부 지우고 기본값으로 되돌립니다 (⌘Z 로 복원)' : '이미지·갭 줄엔 타이포 필드가 없습니다'}">↺ 기본</button>
       </div>
@@ -663,7 +673,10 @@ function _grdWireLineBar(block, addr) {
     if (e.currentTarget.disabled) return;
     let curLines;
     try { curLines = getGridModel(block).cells?.[r]?.[c]?.lines || []; } catch (_) { curLines = []; }
-    if (curLines.length <= 1) return;   // 마지막 한 줄은 지우지 않는다(버튼도 disabled)
+    /* ~~[폐기 · 2026-09-26] `if (curLines.length <= 1) return;` — 마지막 한 줄은 지우지 않았다.~~
+       ★이 «둘째» 가드가 버튼 disabled 와 «따로» 앉아 있었다 — 즉 이 기능의 문은 둘이었다.
+         버튼만 열고 여기를 남기면 「눌리는데 아무 일도 안 난다」가 된다(이 레포의 고질). */
+    if (!curLines.length) return;      // 이미 빈 칸 — 지울 줄이 없다(방어)
     const newLines = curLines.filter((_, i) => i !== li);
     const newLi = Math.min(li, newLines.length - 1);
     grdSetActiveLine(block, newLines.length ? { r, c, li: newLi } : null);

@@ -179,7 +179,12 @@ test('T-058-3 ★두 번째 클릭(이미 선택된 그리드) = 줄 선택 → 
   expect(errs).toEqual([]);
 });
 
-test('T-058-4 한 줄 칸을 두 번 클릭 → ⌫ = 마지막 줄 보호 토스트, 블럭 유지', async ({ page }) => {
+/* ~~[폐기 · 2026-09-26] 「T-058-4 한 줄 칸을 두 번 클릭 → ⌫ = 마지막 줄 «보호 토스트», 블럭 유지」~~
+ * ⛔그 보호는 «그날까지 참이었다». 현빈 0926 지시로 걷었다 — 까닭 전부는
+ *   js/blocks/grid-block.js `_gridRejectLinesLength` 머리말.
+ * ★이 검사가 «재려던 것»은 보호가 아니라 「둘째 클릭이 «줄»로 내려갔다(＝⌫ 가 블럭을 안 지운다)」다.
+ *   그 증거를 토스트로 대신 재고 있었다. 이제 «칸이 비었고 블럭은 남았다»로 잰다 — 곧고 안 늙는다. */
+test('T-058-4 한 줄 칸을 두 번 클릭 → ⌫ = 그 «줄»이 지워져 칸이 비고, 블럭은 유지', async ({ page }) => {
   const errs = await boot(page);
   await mount(page, ONE_LINE);
   await lineLoc(page, 1, 0).click();
@@ -187,8 +192,11 @@ test('T-058-4 한 줄 칸을 두 번 클릭 → ⌫ = 마지막 줄 보호 토�
   await lineLoc(page, 1, 0).click();
   expect((await state(page)).active).toEqual({ r: 0, c: 1, li: 0 });
   const r = await runDelete(page);
-  expect(r.calls.showToast.length).toBe(1);
-  expect(await page.evaluate(() => document.body.contains(window.__block))).toBe(true);
+  expect(r.calls.showToast, '★옛 「마지막 줄」 보호 토스트가 아직 뜬다').toEqual([]);
+  expect(await page.evaluate(() => window.__model(window.__block).cells[0][1].lines.length),
+    '★줄이 안 지워졌다 — 옛 보호가 남았거나, ⌫ 가 «줄 분기»로 안 갔다').toBe(0);
+  expect(await page.evaluate(() => document.body.contains(window.__block)),
+    '★줄 하나를 지우려는 ⌫ 가 블럭을 지웠다 — T-058 이 막던 그 증상').toBe(true);
   expect(errs).toEqual([]);
 });
 
@@ -380,7 +388,9 @@ test('T-058-11 ★Esc 로 블럭까지 올라온 뒤 «다시 클릭»해도 줄
   expect(errs).toEqual([]);
 });
 
-test('T-058-12 ★음성대조 — 걸쇠를 «캔버스 클릭처럼» 다시 걸면 같은 클릭이 줄로 내려가고 ⌫ 가 막힌다(검사가 진짜로 본다)', async ({ page }) => {
+/* ★제목이 «조건»을 말하고 있었다 — 「⌫ 가 막힌다」. 0926 에 그 조건이 거짓이 됐으므로 제목도
+   같이 고친다(제목만 남으면 다음 사람이 「보호가 살아 있다」로 읽는다). */
+test('T-058-12 ★음성대조 — 걸쇠를 «캔버스 클릭처럼» 다시 걸면 같은 클릭이 줄로 내려가 ⌫ 가 «줄만» 지운다(검사가 진짜로 본다)', async ({ page }) => {
   const errs = await boot(page);
   await mount(page, ONE_LINE);
   await lineLoc(page, 0, 0).click(); await gap(page);
@@ -395,7 +405,12 @@ test('T-058-12 ★음성대조 — 걸쇠를 «캔버스 클릭처럼» 다시 �
   expect(await page.evaluate(() => window.__getActive(window.__block)),
     '이 음성대조가 버그를 재현하지 못한다 — 위 두 검사가 아무것도 안 본다').toEqual({ r: 0, c: 0, li: 0 });
   const r = await runDelete(page);
-  expect(r.calls.showToast.length).toBe(1);
+  /* ~~[폐기 · 2026-09-26] `expect(r.calls.showToast.length).toBe(1)` — 「마지막 줄」 보호 토스트~~
+     ★이 음성대조의 «본체»는 바로 위 `__getActive` 단언이다(클릭이 줄로 내려갔다). 여기서는
+       그 결과가 「블럭이 안 지워진다」로 이어지는지만 본다 — 토스트는 그 대리였을 뿐이다. */
+  expect(r.calls.showToast, '★옛 「마지막 줄」 보호 토스트가 아직 뜬다').toEqual([]);
+  expect(await page.evaluate(() => window.__model(window.__block).cells[0][0].lines.length),
+    '★줄 분기로 안 갔다 — 이 음성대조가 버그를 재현하지 못한다').toBe(0);
   expect(await state(page)).toMatchObject({ alive: true });
   expect(errs).toEqual([]);
 });
