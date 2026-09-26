@@ -64,6 +64,14 @@
   --ui-highlight: #ffeb3b; /* 형광펜(텍스트 배경칠) 정본 — prop-text의 기존 highlightColor 기본값과 동일 값 */
   --ui-accent-text:    #6fa3f7;  /* 다크배경 활성 텍스트 전용 액센트 (accent-primary는 텍스트로 쓰면 3.3:1 AA미달 → 6.8:1 가독판) */
 
+  /* ── 드롭다운(select) 화살표 정본 (T-196, 2026-09-27) ──
+     ⛔맥/윈도가 그려 주는 «기본» 화살표는 author 가 모양을 못 정한다 — appearance:auto 로 두면
+     같은 패널 안에서도 OS 것과 우리 것이 섞여 「절마다 달라 보인다」가 된다(현빈 0924 신고).
+     ⇒ 답을 한 곳에 둔다. 쓰는 쪽은 appearance:none ＋ background-image: var(--ui-select-caret).
+     ★editor-props.css 의 `#panel-right select` 와 `.prop-select` 가 둘 다 이 토큰을 본다 —
+       data URI 를 두 번 적으면 한쪽만 고쳐져 다시 갈린다. */
+  --ui-select-caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+
   /* ── 선택/AI 어포던스 보라 패밀리 토큰 (DS-10, 2026-06-14) — 일반 파랑선택(--sel-color)과 별개 패밀리. 비텍스트 장식이라 대비 무관 ── */
   --ui-sel-overlay:   #9966ff;   /* 스티커/그라데이션/체크리스트/핀 선택 오버레이·코너핸들 보라 */
   --ui-sel-ai:        #c084fc;   /* AI-Fill 패널/버튼 보라 어포던스 */

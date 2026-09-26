@@ -9,7 +9,10 @@
  *
  * ★기준을 «발명하지 않는다» — 레포에서 떠 온다
  *   ⑴ js/props/_typo-section.js 의 인라인 쉐브론(같은 우측 패널, 줄 꾸미기 바로 아래 절)
- *   ⑵ css/editor-props.css 의 `.prop-select` 화살표(data URI) — 이 패널의 «모든» select 가 쓴다
+ *   ⑵ css/editor-props.css 의 `.prop-select` 화살표 — 2026-09-27 부터 `--ui-select-caret` 토큰이다
+ *     ~~「이 패널의 «모든» select 가 쓴다」~~ ⛔[정정 2026-09-27] 거짓이었다. 그날 실측하니
+ *     패널 안 드롭다운 넷 중 «셋»이 맥 기본(appearance:auto)이었다 — 현빈이 그 틈을 짚었다.
+ *     ⇒ `#panel-right select` 로 «자리»에 걸어 덮었고, A9 가 그것을 지킨다.
  *   둘은 같은 그림(M1 1l4 4 4-4)·같은 굵기·같은 선끝이다. A0 이 그 «둘이 같음»을 먼저 잰다 —
  *   기준이 둘로 갈리면 아래를 «잴 수 없다»(계측기 자가점검).
  *   ⛔색은 A0 에서 «빼 둔다» — CSS 쪽은 #666 고정, 인라인 쪽은 currentColor 라 지금도 갈려 있다.
@@ -38,6 +41,8 @@ const SRC_TYPO = fs.readFileSync(path.join(REPO, 'js/props/_typo-section.js'), '
 /** A8 이 «이름표 사전»을 소스에서 뜬다 — 검사 안에 한글을 손으로 베끼지 않는다. */
 const SRC_PANEL_KO = fs.readFileSync(path.join(REPO, 'js/props/prop-grid.js'), 'utf8');
 const SRC_CSS  = fs.readFileSync(path.join(REPO, 'css/editor-props.css'), 'utf8');
+/** 화살표 토큰(--ui-select-caret) 정의처 — anchorCss 가 var() 를 따라갈 때 쓴다. */
+const SRC_BASE = fs.readFileSync(path.join(REPO, 'css/editor-base.css'), 'utf8');
 
 /** 인라인 쉐브론 — _typo-section.js 의 `viewBox="0 0 10 6"` svg 한 개. */
 function anchorInline() {
@@ -51,11 +56,32 @@ function anchorInline() {
     join: (s.match(/stroke-linejoin="([^"]+)"/) || [])[1] || null,   // ★기준은 «미선언»(null)이다
   };
 }
-/** `.prop-select` 의 background-image data URI 화살표. */
+/** `.prop-select` 의 background-image 화살표.
+ *  ★리터럴이든 `var(--ui-select-caret)` 이든 «따라간다» — 2026-09-27 토큰화로 리터럴이 사라졌고,
+ *    정규식이 url() 만 보던 탓에 이 계측기가 조용히 null 이 될 뻔했다 — A0 가 빨개져서 잡았다. */
 function anchorCss() {
-  const m = SRC_CSS.match(/\.prop-select\s*\{[\s\S]*?background-image:\s*url\("([^"]+)"\)/);
+  /* ⛔«줄 맨 앞»의 선언 블록만 문다 — 그냥 `.prop-select` 를 찾으면 «주석 안의 그 글자»가 먼저
+     잡히고, 뒤이어 나오는 «남의» background-image(체크무늬 linear-gradient)를 기준으로 떠 온다.
+     2026-09-27 에 실제로 그렇게 깨졌다 — 내가 주석 한 줄을 보탠 것만으로.
+   ★★그리고 `.prop-select` 선언은 이 파일에 «두 벌»이다(2026-09-27 실측: 148줄·655줄).
+     앞의 것엔 화살표가 «없고» 뒤의 것에만 있다 — 캐스케이드로 «뒤»가 이긴다.
+     ⇒ 첫 블록을 떠서는 안 된다. background-image 를 가진 «마지막» 블록이 실제로 그려지는 값이다.
+     ⛔그 중복 자체는 이 검사가 고치지 않는다 — 별건으로 올렸다. */
+  const blocks = [...SRC_CSS.matchAll(/^\.prop-select\s*\{([\s\S]*?)\}/gm)]
+    .map(b => b[1]).filter(b => /background-image:/.test(b));
+  if (!blocks.length) return null;
+  const m = blocks[blocks.length - 1].match(/background-image:\s*([^;]+);/);
   if (!m) return null;
-  const uri = decodeURIComponent(m[1]);
+  let raw = m[1].trim();
+  const v = raw.match(/^var\(\s*(--[a-z-]+)\s*\)$/);
+  if (v) {
+    const t = SRC_BASE.match(new RegExp(v[1] + ':\\s*url\\("([^"]+)"\\)'));
+    if (!t) return null;
+    raw = 'url("' + t[1] + '")';
+  }
+  const u = raw.match(/url\("([^"]+)"\)/);
+  if (!u) return null;
+  const uri = decodeURIComponent(u[1]);
   return {
     d:   (uri.match(/\sd='([^']+)'/) || [])[1] || null,
     sw:  (uri.match(/stroke-width='([^']+)'/) || [])[1] || null,
@@ -434,5 +460,60 @@ test.describe('그리드 패널 세 절 — 아이콘 한 규격', () => {
     expect(anchorJoin, '기준 선꺾임을 못 쟀다 — 계측기가 눈이 멀었다').not.toBeNull();
     const bad = svgs.filter(s => s.painters > 0 && s.join !== anchorJoin);
     expect(bad, `기준 선꺾임 = "${anchorJoin}" · 어긋난 것: ${JSON.stringify(bad.map(b => ({ where: b.where, join: b.join })))}`).toEqual([]);
+  });
+
+  /* ══ A9 — 우측 패널 드롭다운이 «클래스 없이도» 우리 화살표를 쓰는가 ════════════════
+   * (2026-09-27 · 현빈 「그냥 svg 비교하란거잖아 맞니?」 에서 나왔다)
+   * ★이 축이 없어서 샜다 — 위 A0~A8 은 «우리가 그린 svg 끼리» 같은가만 쟀다.
+   *   그런데 `appearance:auto` 인 select 는 «맥이» 화살표를 그린다. svg 가 «없어서»
+   *   비교 대상에 안 잡히고, 그래서 넷 중 셋이 달라 보이는데도 그물이 전부 초록이었다.
+   *   ⇒ ★★「비교할 것이 없다」와 「같다」를 가르지 못하면, 없는 쪽이 조용히 통과한다.
+   * ★재는 양 = «자리»다. 클래스가 아니라 `#panel-right` 안이면 받는가 —
+   *   패널에 새 드롭다운이 생겨도 저절로 들어와야 이 결함이 다시 안 난다.
+   * ⛔`[multiple]`·`[size]` 는 목록 상자라 화살표가 없다 — 받으면 «안» 된다(대조군). */
+  const PROBE = async (page) => page.evaluate(() => {
+    const panel = document.getElementById('panel-right');
+    const read = (el) => {
+      const cs = getComputedStyle(el);
+      return { appearance: cs.appearance, caret: cs.backgroundImage !== 'none', padR: cs.paddingRight };
+    };
+    const mk = (parent, attrs) => {
+      const el = document.createElement('select');
+      Object.entries(attrs || {}).forEach(([k, v]) => el.setAttribute(k, v));
+      el.innerHTML = '<option>a</option><option>b</option>';
+      parent.appendChild(el);
+      return el;
+    };
+    const nodes = {
+      '패널 안(클래스 없음)': mk(panel, {}),
+      '패널 밖(대조군)': mk(document.body, {}),
+      '패널 안 [multiple]': mk(panel, { multiple: 'multiple' }),
+      '패널 안 [size=3]': mk(panel, { size: '3' }),
+    };
+    const out = {};
+    Object.entries(nodes).forEach(([k, el]) => { out[k] = read(el); el.remove(); });
+    return out;
+  });
+
+  test('A9 드롭다운 — 우측 패널 안 select 는 «클래스가 없어도» 우리 화살표를 쓴다', async ({ page }) => {
+    await boot(page);
+    const got = await PROBE(page);
+    expect(got['패널 안(클래스 없음)'], '패널 안 select 가 맥 기본 화살표로 떨어진다').toMatchObject({ appearance: 'none', caret: true });
+    /* ★대조군 셋 — 이게 안 갈리면 위 초록은 «아무것도 안 잰» 초록이다. */
+    expect(got['패널 밖(대조군)'].appearance, '패널 «밖»까지 바뀌었다 — 자리로 안 걸렸다').toBe('auto');
+    expect(got['패널 안 [multiple]'].appearance, '목록 상자에까지 화살표가 붙었다').toBe('auto');
+    expect(got['패널 안 [size=3]'].appearance, '목록 상자에까지 화살표가 붙었다').toBe('auto');
+  });
+
+  test('A9b 양성대조 — 그 규칙을 떼면 A9 가 빨개진다', async ({ page }) => {
+    /* ⛔「고쳤더니 초록」은 판정이 아니다. 고친 줄을 떼서 «빨개지는지»까지 봐야 계측기가 증명된다. */
+    await boot(page, (src, pathname) => (
+      pathname === '/css/editor-props.css'
+        ? src.replace(/#panel-right select:not\(\[multiple\]\):not\(\[size\]\)\s*\{[^}]*\}/, '')
+        : src
+    ));
+    const got = await PROBE(page);
+    expect(got['패널 안(클래스 없음)'].appearance, '규칙을 뗐는데도 none 이다 — A9 가 그 규칙을 재고 있지 않다').toBe('auto');
+    expect(got['패널 안(클래스 없음)'].caret, '규칙을 뗐는데도 화살표가 남았다 — 딴 데서 오고 있다').toBe(false);
   });
 });

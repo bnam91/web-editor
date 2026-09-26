@@ -101,7 +101,7 @@
 .prop-text:focus { border-color: var(--ui-accent-primary); }
 .prop-text::placeholder { color: var(--ui-text-dim); }
 .prop-number-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: var(--ui-select-caret);
   background-repeat: no-repeat;
   background-position: right 6px center;
   padding-left: 8px;
@@ -627,6 +627,30 @@
 }
 .prop-full-btn:hover { background: var(--ui-bg-card); border-color: var(--ui-divider); }
 
+/* ── 우측 패널 드롭다운 화살표 정본 (T-196, 2026-09-27 · 현빈 0927 「응」) ──
+   ⛔`appearance:auto` 로 둔 select 는 «맥이» 화살표를 그린다 — author 가 모양을 못 정한다.
+   실측(2026-09-27, 9376 그리드 패널): 패널 안 드롭다운 넷 중 «셋»이 맥 기본이고
+   하나(`+ 줄 추가…`=.prop-select)만 우리 그림이었다. 같은 절 안에서 두 종류가 나란히 떴다.
+   ~~[정정] prop-grid.js 의 「.prop-select 는 이 패널의 «모든» 드롭다운이 쓰는 화살표」~~
+     ← 그 문장은 «세어 보지 않은» 말이었다. 셋이 빠져 있었다(.var-select 둘 ＋ var-type-select).
+   ★그래서 «클래스»가 아니라 «자리»로 건다 — 패널에 새 select 가 생겨도 저절로 들어온다.
+     (개별 클래스에 붙이면 반드시 한 곳이 빠진다 — design-tokens.css 머리말의 그 규율)
+   ⛔`[multiple]`·`[size]` 는 목록 상자라 화살표가 없다. 제외한다.
+   ⚠️이 규칙은 ID 를 물어 특이도가 (1,0,1) 이다 — `.prop-select`(0,1,0) 보다 «세다».
+     ⇒ 뒤에 오는 개별 클래스가 이기지 «않는다». padding-right 를 24px 로 맞춰 둔 까닭이 그것이다
+     (`.prop-select` 가 원래 쓰던 값 — 안 맞추면 그 드롭다운만 2px 좁아진다).
+     ★값을 바꿀 땐 «개별 클래스들이 무엇을 쓰고 있었나»부터 세라. 여기서 덮인다.
+   ★실측 대조군(2026-09-27, 9391 격리 앱): 패널 «밖» select ＝ appearance auto ✅ ·
+     `[multiple]` ＝ auto ✅ · `[size=3]` ＝ auto ✅ — 셋 다 갈려서 이 규칙이 «자리»로만 무는 것이 증명됐다. */
+#panel-right select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: var(--ui-select-caret);
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
 /* 폰트 셀렉터 */
 .prop-select {
   flex: 1; min-width: 0; width: 0; height: 24px;
@@ -635,7 +659,7 @@
   font-size: var(--ui-fs-base); padding: 0 6px;
   outline: none; cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: var(--ui-select-caret);
   background-repeat: no-repeat;
   background-position: right 8px center;
   padding-right: 24px;

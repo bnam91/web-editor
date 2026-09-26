@@ -860,7 +860,12 @@ function _grdSecToggle(block, key) {
  * ★쉐브론은 «이 패널이 이미 쓰는 그림»이다 — 발명하지 않았다(2026-09-24).
  *   출처 둘이 이미 같은 그림을 쓰고 있었다:
  *     · js/props/_typo-section.js:80      — 인라인 쉐브론(같은 우측 패널, 바로 아래 절)
- *     · css/editor-props.css `.prop-select` — 이 패널의 «모든» 드롭다운이 쓰는 화살표(data URI)
+ *     · css/editor-props.css `.prop-select` — 이 패널의 드롭다운이 쓰는 화살표(data URI)
+ *       ~~「이 패널의 «모든» 드롭다운이 쓴다」~~ ⛔[정정 2026-09-27] 세어 보지 않은 말이었다.
+ *       실측하니 패널 안 드롭다운 넷 중 «셋»이 `.prop-select` 가 아니라 appearance:auto —
+ *       맥이 그리는 기본 화살표였다(.var-select 둘 ＋ #var-type-select). 현빈이 그 틈을 짚었다.
+ *       ⇒ editor-props.css `#panel-right select` 로 «자리»에 걸어 덮었다(T-196, 0927).
+ *       ★교훈 — 「모두 X 를 쓴다」는 세고 나서만 적는다. 안 세면 다음 사람이 그 위에 쌓는다.
  *   둘 다 `M1 1l4 4 4-4` · stroke-width 1.5 · stroke-linecap round 다.
  *
  * ~~[폐기 · 2026-09-24] 옛 그림 `<polyline points="2,2 6,4 2,6">` · 8x8 · stroke-width 1.8 · 선끝 없음~~
