@@ -1488,6 +1488,16 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 }
 #canvas .grid-block .grd-cell-empty { min-height: 48px; }
 
+/* ★빈 «칸»의 «자리»는 CSS 가 아니라 «인라인»으로 준다 (T-230 후속, 현빈 0927 ㈏)
+ * ⛔여기에 `.grid-block .grd-cell-empty { min-height: … }` 를 쓰지 마라 — «안 먹는다».
+ *   렌더러가 칸마다 `style="…min-height:…"` 를 인라인으로 박으므로 인라인이 언제나 이긴다.
+ *   바로 위 `#canvas … { min-height: 48px }` 가 «죽어 있는» 까닭이 정확히 그것이다
+ *   (tests/dom/grid-cell-emptied.dom.spec.js 의 F 가 그 죽음을 `0px` 로 못박아 두었다).
+ *   ⇒ 2026-09-27 에 여기에 14px 를 한 번 넣어 봤고, 재 보니 그대로 0 이었다. 도로 뺐다.
+ * ★자리를 주는 곳 = js/blocks/grid-block.js 의 칸 인라인 스타일(`GRID_EMPTY_CELL_MIN_H`).
+ *   그 관례는 `.grd-img-empty`(:2087) 머리말이 먼저 적어 두었다 — 「★«상자»는 여전히 인라인이다
+ *   (높이·모서리·폭) — 빈 셀이 자리를 차지한다는 뜻 그 자체라 배송본에도 남아야 한다」. */
+
 /* ★빈 칸 «선택» 표시 — .grd-line-selected(:1171)와 같은 기법(inset box-shadow, 줌 불변).
  * ⛔.selected 재활용 금지(editor.js 의 범용 조회가 깨진다, 위 .grd-line-selected 주석과 같은 이유).
  * ⛔outline 금지 — [M51] 이 같은 자리에서 물렸다(그리드 안쪽 여백 0 이라 바깥 offset 이 블록 밖으로 샌다). */

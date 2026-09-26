@@ -83,6 +83,10 @@ const MIN_ROWS = 1, MAX_ROWS = 4;   // 1행 = 옛 duo 파일과 동일(행 축 �
  *   리터럴 20을 들고 있었다(하드코딩 2건 반복 — MIN_COLS/MAX_COLS 사고와 같은 유형).
  *   grdAddLine(prop-grid.js)이 이 값을 import 해서 사전 확인한다. */
 const MAX_CELL_LINES = 20;
+/** 빈 칸이 «배송본에서도» 차지하는 최소 높이(px). `.bn2-line-empty`(배너 빈 줄)와 같은 값.
+ *  ⛔0 으로 되돌리면 「모든 칸이 빈 블럭」이 내보내기에서 통째로 사라진다(현빈 0927 ㈏ 위반).
+ *  지키는 그물: tests/dom/grid-cell-emptied.dom.spec.js 의 I. */
+const GRID_EMPTY_CELL_MIN_H = 14;
 
 /* ★행/열 간격 상한 — 「클램프가 여러 곳에 흩어져 하나만 고쳐지는」 사고 반복 방지, 한 곳에 모은다.
  *   updateGridBlock 검증(gap/rowGap/colGap)·prop-grid.js 슬라이더 max 가 전부 이 값을 본다. */
@@ -1623,7 +1627,26 @@ function renderGridBlock(block) {
       // ★grd-cell-empty(T-A) — 아직 줄이 하나도 없는 칸. CSS 안내문(+ 내용 추가)과 클릭 판정
       //   (block-drag.js _gridAddrAt)이 「진짜 빈 칸」을 이 표식으로 가른다.
       const emptyCls = lines.length === 0 ? ' grd-cell-empty' : '';
-      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}">
+      /* ★빈 칸이 «자리»를 차지한다 (T-230 후속, 현빈 0927 ㈏ 「틀이 보이게 나가게」).
+       *   2026-09-27 부터 블럭의 «모든» 칸을 비울 수 있다. 그때 내보낸 결과물에서 그 블럭의
+       *   높이가 «0» 이 되어 통째로 안 보였다(실측: 캔버스 19px → 내보내기 클론 0px).
+       *   캔버스의 19px 는 안내문(`+ 내용 추가`)이 만든 것이고, 그 안내문은 `#canvas` 스코프라
+       *   배송본에 «일부러» 안 나간다 ⇒ 자리를 만들 것이 하나도 안 남는다.
+       * ⛔CSS 로는 못 준다 — 이 인라인이 언제나 이긴다(`#canvas … {min-height:48px}` 가
+       *   죽어 있는 까닭도 같다). 그래서 «여기서» 준다. 선례는 `.grd-img-empty` 다:
+       *   「★«상자»는 여전히 인라인이다 — 빈 셀이 자리를 차지한다는 뜻 그 자체라 배송본에도 남는다」.
+       * ★왜 14px 인가 — `.bn2-line-empty`(배너 빈 줄)와 같은 값·같은 뜻.
+       *   ⛔48px 이 아니다: 캔버스의 빈 칸까지 커져 현빈 T-229 결정(「얇은 채로 둔다」)을 뒤집는다.
+       *   ★14 < 19(안내문) 이라 «캔버스 화면은 한 픽셀도 안 바뀐다» — 드러나는 곳은 배송본뿐이다.
+       * ★내용이 있는 칸은 0 그대로다 — flex 아이템의 기본 min-height:auto 를 풀어 두는 관용구라
+       *   값을 바꾸면 «넘치는 내용»이 안 줄어든다. 빈 칸엔 줄일 내용이 없어 안전하다.
+       * ⛔단위를 «붙여서» 만들지 마라(`${n}px` 꼴) — 내용이 있는 칸까지 `min-height:0` 이
+       *   `0px` 로 바뀐다. 화면은 같지만 산출 «바이트»가 달라져 골든(G2)이 빨개진다.
+       *   2026-09-27 에 실제로 그랬고, 그때 내가 바로 윗줄에 「내용이 있는 칸은 0 그대로다」라고
+       *   «적어 두고도» 산출은 달랐다.
+       *   ⇒ ★바꾸려는 것보다 넓게 바뀌었는지는 «골든이» 말해 준다. 주석은 안 말해 준다. */
+      const cellMinH = lines.length === 0 ? `${GRID_EMPTY_CELL_MIN_H}px` : '0';
+      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}">
         ${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, true)).join('')}
       </div>`);
     }
