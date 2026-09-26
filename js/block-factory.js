@@ -20,7 +20,7 @@ import {
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame } from './frame-geometry.js';
-import { getGridModel } from './blocks/grid-block.js';
+import { getGridModel, GRID_NESTED_LINE_TYPE } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, topLevelBlocksOf, isEmptyShell } from './shape-frame.js';
 
@@ -4992,6 +4992,12 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     if (gridImgDelItem) {
       gridImgDelItem.style.display = (_targetGridAddr && _targetGridAddr.li != null) ? 'flex' : 'none';
     }
+    /* ★「나란히 두 칸으로 나누기」(T-221) — 그리드 칸에서만 보인다.
+       ★「이미지 추가」와 «같은 판정»을 쓴다(`_targetGridAddr` 하나) — 두 벌로 가르면 한쪽만 늙는다. */
+    const gridNestedItem = document.getElementById('bcm-grid-nested');
+    if (gridNestedItem) {
+      gridNestedItem.style.display = _targetGridAddr ? 'flex' : 'none';
+    }
 
     const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
     const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
@@ -5091,6 +5097,28 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
    *   ⛔`afterLi` 규약(T-168)은 안 건드린다 — 누른 줄 «다음»에 들어간다. 줄을 안 누른 클릭
    *     (칸 여백·거터·기하 폴백)이면 null 이라 칸 끝에 붙는다.
    */
+  /* ★칸 «안»을 열로 나눈다 (T-221, 2026-09-27) — 현빈 물음 「그리드 블럭에서 중첩이 가능하니?
+   *   ★내가 만들려면 어떻게?」의 답. 그리는 코드는 있었는데 «짓는 자리»가 제품에 0건이었다.
+   * ★`grdAddLine` 을 쓴다 — 「이미지 추가」와 «같은 길»이다. 상한·거절·토스트·되돌리기가 거기 한 곳에 있다.
+   *   ⛔`updateGridBlock` 을 직접 부르지 마라: 그러면 상한 확인과 활성줄 원복이 두 벌이 된다.
+   * ⛔빈 `cols` 로 만들지 마라 — 렌더러가 `if (!cols.length) return ''` 라 «아무것도 안 그린다».
+   *   두 열에 빈 글자 줄을 하나씩 넣어야 「본문을 입력하세요」가 떠서 만들어진 것이 눈에 보인다.
+   * ⚠️깊이·열 상한은 여기서 «안» 센다 — `_gridInspectNested` 가 모델 입구에서 잰다(두 벌 금지). */
+  document.getElementById('bcm-grid-nested')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    const addr = _targetGridAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    const res = window.grdAddLine?.(block, { r: addr.r, c: addr.c }, addr.li ?? null, {
+      type: GRID_NESTED_LINE_TYPE,   // ★상수를 «들여와» 쓴다 — 소스에 그 토큰 글자가 안 나타난다(S1)
+      gap: 24,
+      cols: [{ width: 1, lines: [{ type: 'body', text: '' }] },
+             { width: 1, lines: [{ type: 'body', text: '' }] }],
+    });
+    window.grdToastImgFail?.(res);
+  });
+
   document.getElementById('bcm-grid-img')?.addEventListener('click', e => {
     e.stopPropagation();
     const block = _targetBlock;

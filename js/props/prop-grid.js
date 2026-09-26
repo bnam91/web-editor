@@ -432,7 +432,18 @@ const _grdKindOptsHtml = (kinds, cur, prefix = '') => kinds
 
 /** ①줄 추가 — `[+ 줄 추가 ▾]` 한 자리. 고른 «그 순간» 그 종류로 줄이 생긴다.
  *  ⛔단추 줄에 select 를 «끼우지» 않는다 — 단추 셋(206px)＋select 면 240px 패널을 넘는다.
- *    그래서 [+ 줄 추가] 단추를 이 select 로 «갈음»했다(자리 수는 그대로). */
+ *    그래서 [+ 줄 추가] 단추를 이 select 로 «갈음»했다(자리 수는 그대로).
+ *
+ * ⛔★「중첩 줄(칸 안을 열로 나누기)」을 이 select 에 «넣지 마라» — T-221 에서 넣어 봤고 되돌렸다.
+ *   검사 «둘»이 막는다(tests/dom/grid-cell-panel-handles.dom.spec.js):
+ *     E12 「추가」와 「종류 바꾸기」가 내놓는 명부가 «같아야» 한다 — 두 벌이면 한쪽만 늙는다.
+ *         ⇒ 추가에만 넣으면 여기서 깨진다. 그렇다고 «바꾸기»에도 넣으면 글이 있는 줄을
+ *           중첩으로 바꿀 때 그 글이 통째로 사라진다(다른 결함을 만든다).
+ *     E13 «페이로드 없이 고르면 줄이 사라지는» 종류가 목록에 없어야 한다 — 중첩은 cols 가
+ *         없으면 렌더러가 `return ''` 한다. E13 머리말이 「종류 목록이 늘어나는 그 패치에서
+ *         문다」라고 «미리» 적어 두었고, 실제로 그 패치에서 물었다.
+ *   ⇒ ★그래서 손잡이를 «우클릭 메뉴»로 냈다(index.html `#bcm-grid-nested` ＋ block-factory.js).
+ *     지키는 그물: tests/dom/grid-nested-create.dom.spec.js */
 const _grdAddKindSelectHtml = () => `
         <select class="prop-select" id="grd-line-add-kind" style="flex:1 1 96px;min-width:0;width:auto;"
                 title="고른 종류로 새 줄을 만든다 (단축키 T=텍스트 · G=여백 · K=아이콘)">
