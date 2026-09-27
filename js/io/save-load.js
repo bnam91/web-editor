@@ -1,5 +1,6 @@
 import { canvasEl, state, PAGE_LABELS } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기만 쓴다(직접 대입 재유입 방지) */
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
+import { buildProjForSave } from './proj-merge.js';   /* ★저장 병합은 «한 벌»(T-232 ⓑ) */
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제는 «켠 쪽»이 닫는다
@@ -237,15 +238,9 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       const existing = await window.electronAPI.loadProject(targetId);
       // pages + pageSettings만 저장 — branches/commits/thumbnail은 _meta.json에서 관리
       // existing 먼저 spread 후 data로 덮어쓰기 — 레거시 필드는 data에 없으면 existing 유지
-      const { branches: _b, commits: _c, currentBranch: _cb, thumbnail: _t, ...dataWithoutMeta } = data;
-      const { branches: _eb, commits: _ec, currentBranch: _ecb, thumbnail: _et, _recovered: _er, ...existingWithoutMeta } = (existing || {});
-      const proj = {
-        ...existingWithoutMeta,
-        ...dataWithoutMeta,
-        id: targetId,
-        name: existing?.name || data.name || 'Untitled',
-        updatedAt: new Date().toISOString(),
-      };
+      /* ★[T-232 ⓑ] 병합은 «한 벌»이다 — js/io/proj-merge.js. ⛔여기에 스프레드를 다시 쓰지 마라:
+         이 코드가 commit-system.js 와 두 벌이었고 이미 갈라져 있었다(한쪽만 `_recovered` 를 뺐다). */
+      const proj = buildProjForSave(existing, data, targetId);
       // 이미지 외부화 (정책 게이팅): 기본 autosave는 new-only — 이번 세션 신규 base64만 분리하고
       // 로드 시점에 존재하던 기존 base64는 그대로 둔다(비파괴). 기존 대량변환은 optimizeProjectImages
       // (opts.externalizeAll) 또는 레거시 플래그(GOEDITOR_AUTO_EXTERNALIZE_LEGACY)로만 동작.

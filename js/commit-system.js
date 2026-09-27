@@ -3,6 +3,8 @@
    (extracted from save-load.js)
 ═══════════════════════════════════ */
 
+import { buildProjForSave } from './io/proj-merge.js';   /* ★저장 병합은 «한 벌»(T-232 ⓑ) — ⛔부수효과 0 인 순수 모듈이라 로드 순서에 영향 없다 */
+
 const LAST_COMMIT_KEY = 'goya-last-commit';
 const SAVE_KEY = 'web-editor-autosave';
 const MAX_COMMITS = 20; // 커밋 보존 최대 개수 — 초과 시 오래된 것부터 제거 (파일 비대화 방지)
@@ -307,15 +309,11 @@ async function saveProjectFile() {
       const targetId = window.activeProjectId;
       const existing = await window.electronAPI.loadProject(targetId);
       // branches/commits/thumbnail은 meta로 분리 — proj.json에서 제외
-      const { branches: _b, commits: _c, currentBranch: _cb, thumbnail: _t, ...dataWithoutMeta } = data;
-      const { branches: _eb, commits: _ec, currentBranch: _ecb, thumbnail: _et, ...existingWithoutMeta } = (existing || {});
-      const proj = {
-        ...existingWithoutMeta,
-        ...dataWithoutMeta,
-        id: targetId,
-        name: existing?.name || data.name || 'Untitled',
-        updatedAt: new Date().toISOString(),
-      };
+      /* ★[T-232 ⓑ] 병합은 «한 벌»이다 — js/io/proj-merge.js.
+         ★★이 자리가 save-load.js 와 «두 벌»이었고 ★이미 갈라져 있었다 — 저쪽은 `_recovered` 를
+         뺐고 여기는 안 뺐다. 그 마커는 「저장에 남기지 않음」이 명시된 런타임 표식이라, 커밋
+         경로로 저장하면 파일에 실렸다. 한 벌로 모으며 그 결함도 닫는다. */
+      const proj = buildProjForSave(existing, data, targetId);
       await window.electronAPI.saveProject(proj);
       // localStorage도 sync
       localStorage.setItem('project_' + targetId, snap);
