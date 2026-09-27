@@ -40,7 +40,13 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: 체크아웃 전 — 개행을 LF 로 고정
+        # ⛔CRLF — 윈도우 러너의 git 은 core.autocrlf=true 라 체크아웃이 CRLF 가 된다.
+        #   그러면 «소스를 문자열로 잘라 재는» 검사와 «변이 닻»이 어긋나 검사가 헛돈다
+        #   (0.9.4 실측: DOM 17건 빨강 — 대부분 양성대조의 닻이 안 맞은 것).
+        #   ⇒ 체크아웃 «전»에 LF 로 고정해 「양쪽이 같은 바이트를 본다」를 만든다.
+        run: git config --global core.autocrlf false
+      - name: Checkout (LF)
         uses: actions/checkout@v7
         with:
           # ★전체 히스토리 — 골든 검사가 «기준판»을 git 에서 뜬다

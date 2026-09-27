@@ -1257,7 +1257,10 @@ test('G3 ★모든 변이 자리가 «주입 실패»를 큰 소리로 말하는
 function runNodeTest(files, cwd = ROOT) {
   const env = { ...process.env, NODE_OPTIONS: '' };
   delete env.NODE_TEST_CONTEXT;
-  const res = spawnSync(process.execPath, ['--test', ...files], {
+  /* ⛔리포터를 «고정»한다 — node --test 는 TTY 면 spec(`ℹ tests N`), 아니면 TAP(`# tests N`)을
+     낸다. 아래 셈 정규식이 한 꼴만 보면 ★CI 에서 「셈을 못 읽었다」로 빨개진다
+     (0.9.4 실측: 내 맥은 초록, 맥 CI 는 빨강 — 같은 판이다). */
+  const res = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...files], {
     cwd, encoding: 'utf8', timeout: 180000, env,
   });
   return { code: res.status, out: `${res.stdout || ''}${res.stderr || ''}` };
@@ -1284,8 +1287,9 @@ test('G5 ★기존 grid 검사들이 «여전히 전부 통과하는가»(양성
        「남의 양성대조를 지우고 초록」이 그대로 지나간다.
      ★이 수와 안 맞으면 «고쳐진 것»이 아니라 «재는 양이 바뀐 것»이다 — 그때 고칠 것은
        이 수가 아니라, 왜 줄었는지(지웠나)·왜 늘었는지(더했나)를 먼저 적는 일이다. */
-  const total = Number((r.out.match(/^ℹ tests (\d+)$/m) || [])[1]);
-  const pass = Number((r.out.match(/^ℹ pass (\d+)$/m) || [])[1]);
+  /* ★두 꼴을 다 받는다 — 리포터를 위에서 고정했지만, 고정을 누가 떼도 여기서 살아남게. */
+  const total = Number((r.out.match(/^(?:ℹ|#) tests (\d+)$/m) || [])[1]);
+  const pass = Number((r.out.match(/^(?:ℹ|#) pass (\d+)$/m) || [])[1]);
   assert.ok(Number.isFinite(total) && Number.isFinite(pass), '★하위 프로세스의 셈을 못 읽었다 — 래칫이 헛돈다');
   assert.deepEqual([total, pass], [GRID_BASELINE_TESTS, GRID_BASELINE_TESTS],
     `★기존 grid 검사 수가 기준선(86dce84)의 ${GRID_BASELINE_TESTS}/${GRID_BASELINE_TESTS} 과 다르다 — 지금 ${pass}/${total}.\n`
