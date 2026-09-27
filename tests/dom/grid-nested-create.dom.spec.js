@@ -275,4 +275,55 @@ test.describe('T-221 — 칸 «안»을 열로 나누는 줄을 «사람 손»�
       .toBe('"본문을 입력하세요"');
     expect(errs).toEqual([]);
   });
+
+  /* ══ N7 — ★짝검사: 중첩 «안»에서 또 눌러도 «3단»이 생기지 않는다 ══════════
+   * ★왜 «지금» 세우나 — 작업목록매니저가 짚었다: 「그 안전은 «설계»가 아니라 «미완성»에
+   *   얹혀 있다」. 오늘까지 중첩 안 줄은 `data-line` 이 없어서 우클릭 주소 판정
+   *   (`_gridCellAddrAt`)이 그 줄을 못 집고 «바깥 칸»으로 떨어졌다 ⇒ 3단이 «안 만들어졌다».
+   * ⚠️★오늘 더블클릭 «편집» 길이 중첩까지 닿았다(형제 가지). 그 길이 넓어져 «우클릭 주소»까지
+   *   중첩을 물게 되는 날, 손잡이가 depth 1 에서 한 번 더 눌리면 3단이 된다.
+   *   ⇒ 그때 `_gridInspectNested` 가 깊이 초과를 «버리는데» drops 는 ★토스트가 없다
+   *     ⇒ ★★눌렀는데 «조용히 사라진다».
+   * ★그래서 지금 «초록인 채로» 못박는다 — E13 이 「종류 목록이 늘어나는 «그 패치»에서 문다」를
+   *   미리 적어 두고 정확히 그 패치에서 물었던 것과 «같은 부품»이다(판 fa308e76).
+   * ⇒ ★addr 을 중첩까지 잇는 «그 패치»에서 이 검사가 빨개진다. 그때 고칠 것은 이 검사가 아니라
+   *   «깊이 가드를 손잡이 쪽에도 세우거나 토스트를 띄우는 것»이다. */
+  test('N7 ★짝검사 — 중첩 «안»에서 손잡이를 눌러도 3단이 «생기지 않는다»', async ({ page }) => {
+    const errs = await boot(page);
+    await mount(page, ADDR);
+    const r = await page.evaluate(({ itemHtml, wireSrc, addr }) => {
+      // ① 먼저 중첩 하나를 만든다(depth 1)
+      const menu = document.getElementById('block-context-menu');
+      menu.innerHTML = itemHtml;
+      const run = (a) => {
+        const scope = { _targetBlock: window.__block, _targetGridAddr: a, closeMenu: () => {},
+                        GRID_NESTED_LINE_TYPE: window.__NESTED_TYPE };
+        const names = Object.keys(scope);
+        menu.innerHTML = itemHtml;
+        new Function(...names, wireSrc)(...names.map(n => scope[n]));
+        document.getElementById('bcm-grid-nested').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      };
+      run(addr);
+      const b = window.__block;
+      const depth1 = b.querySelectorAll('.grd-nested').length;
+
+      // ② ★중첩 «안» 줄의 주소로 한 번 더 부른다 — 이것이 「그 패치」가 열 길이다
+      const inner = b.querySelector('.grd-nested [data-nroot][data-npath]');
+      const innerAddr = inner
+        ? { r: Number(inner.dataset.r), c: Number(inner.dataset.c), li: Number(inner.dataset.nroot), np: inner.dataset.npath }
+        : null;
+      if (innerAddr) run(innerAddr);
+
+      // ③ 깊이를 «센다» — 중첩 안에 중첩이 있으면 3단이다
+      const nestedInNested = b.querySelectorAll('.grd-nested .grd-nested').length;
+      return { depth1, hasInner: !!inner, nestedInNested, 토스트: (window.__toasts || []).length };
+    }, { itemHtml: MENU_ITEM_HTML, wireSrc: WIRE_SRC, addr: ADDR });
+
+    expect(r.depth1, '★중첩이 한 단도 안 만들어졌다 — 이 짝검사는 «안 재고» 있다').toBeGreaterThan(0);
+    expect(r.hasInner, '★중첩 «안» 줄이 안 그려졌다 — ②를 부를 주소가 없어 이 검사가 헛돈다').toBe(true);
+    expect(r.nestedInNested,
+      '★★3단이 생겼다 — 깊이 상한을 넘은 중첩은 모델 입구에서 «버려지는데» 토스트가 없어, 사용자에겐 «눌렀는데 조용히 사라지는» 것이 된다. 손잡이 쪽에 깊이 가드나 알림을 세워라')
+      .toBe(0);
+    expect(errs).toEqual([]);
+  });
 });

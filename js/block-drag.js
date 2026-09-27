@@ -199,8 +199,13 @@ function _gridEndEdit(block, host, addr) {
      DOM 에 남은 채 찍히면 그 스냅샷이 「옛 dataset + 새 글자」로 어긋난다.
      되돌린 직후 updateGridBlock 이 renderGridBlock 으로 새 글자를 다시 그리므로 깜빡임은 없다. */
   host.textContent = before;
+  /* ★중첩 «안» 줄이면 `np` 를 같이 보낸다 — T-220 ① 이 낸 쓰기 길(patchCell{lineIndex, np}).
+     ⛔`np` 를 «항상» 싣지 마라: 바깥 줄 커밋의 뜻이 바뀌고, 모델 입구가 「np 는 lineIndex 와
+       같이 와야 한다」를 다른 자리에서 다시 재게 된다. 있을 때만 싣는다. */
   const res = window.updateGridBlock?.(block.id, {
-    patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, text },
+    patchCell: addr.np
+      ? { r: addr.r, c: addr.c, lineIndex: addr.li, np: addr.np, text }
+      : { r: addr.r, c: addr.c, lineIndex: addr.li, text },
   });
   // 실패(좌표가 범위 밖 등)면 화면은 이미 «편집 전»이라 화면·데이터가 갈라진 채 남지 않는다.
   if (res && res.ok === false) window.showToast?.(`줄 수정 실패: ${res.message || res.code}`);
@@ -235,19 +240,20 @@ function _modalEndEdit(block, host) {
 }
 
 function _gridBeginEdit(hit, e) {
-  const { block, host, r, c, li } = hit;
+  const { block, host, r, c, li, np } = hit;   // ★np = 중첩 «안» 줄의 주소(없으면 undefined)
   if (host.getAttribute('contenteditable') === 'true') return;
   /* ★편집에 들어가는 줄은 «선택된 줄»이기도 하다 — 우측 패널이 그 줄의 Typography·Fill 을 봐야 한다.
      ⛔focus() «전»에 부른다: 패널은 propPanel(캔버스 밖) 을 다시 그릴 뿐 이 host 를 안 건드리지만,
        순서를 뒤집으면 나중에 누가 패널에서 캔버스를 만지게 고칠 때 캐럿이 날아간다. */
-  window.showGridProperties?.(block, { r, c, li });
+  /* ★np 가 있으면 «중첩 안 줄»의 패널을 띄운다 — T-220 ②가 그 길을 열어 뒀다. */
+  window.showGridProperties?.(block, np ? { r, c, li, np } : { r, c, li });
   block.classList.add('editing');   // 공통 mousedown 드래그·dragstart·삭제키 가드가 이걸 본다
   host.setAttribute('contenteditable', 'true');
   // 부모 row 에 draggable="true" 가 걸려 있다 — 안 끄면 «글자 드래그 선택»이 블록 드래그가 된다
   // (텍스트 블록도 같은 이유로 contenteditable 요소에 draggable=false 를 박는다 — 이 파일의 dragTarget 배선).
   host.setAttribute('draggable', 'false');
   host._gridBefore = _gridReadText(host);
-  const addr = { r, c, li };
+  const addr = np ? { r, c, li, np } : { r, c, li };
   // 라인 요소는 렌더마다 새로 만들어진다 → 이 요소에 처음 한 번만 붙이면 된다(누수 없음).
   if (!host._gridEditBound) {
     host._gridEditBound = true;
@@ -2127,8 +2133,34 @@ function bindBlock(block) {
         window.enterGridImageEditMode?.(block, { r, c, li });
         return;
       }
+      /* ★★중첩(duo) «안»의 글자 줄 더블클릭 → 그 줄을 인라인 편집한다 (현빈 0927 실기 지적:
+           「나란히 두 칸으로 두기 줄은 추가가 되는데, 더블클릭 후 입력이 안 되네」).
+         ⛔`_gridEditable` 을 넓히지 «않는다» — 이 파일 위쪽(134~136행)의 그 경고 그대로다.
+           바로 위 «빈 슬롯»·«이미지 프레임» 가지와 «같은 꼴»로, 먼저 집고 return 하는 형제 가지다.
+         ★왜 `_gridEditable` 이 못 집었나 — 중첩 안 줄은 `data-line` 을 «안» 가진다
+           (속성은 data-r·data-c·data-nroot·data-npath 뿐이다. 실측: 판 a5478dd3).
+           그 술어는 `closest('[data-line]')` 로 찾으므로 «품은 duo 줄»을 집거나 null 이 된다.
+           ⛔중첩 안 줄에 `data-line` 을 찍어 푸는 길은 «안 간다» — grid-block.js 가 그 이름의
+             뜻이 바뀐다고 못 박아 뒀다(그 주석이 세는 자까지 적어 뒀다).
+         ★host 규약은 _gridEditable 과 «같다» — `.grd-line` 이면 자신, 아니면 안쪽 `.grd-badge`.
+           실측으로 확인했다: 중첩 안 줄의 class 는 `grd-line grd-body` 다. */
+      const nestEl = node && node.closest
+        ? node.closest('[data-r][data-c][data-nroot][data-npath]') : null;
+      if (nestEl && block.contains(nestEl)) {
+        const nr = Number(nestEl.dataset.r), nc = Number(nestEl.dataset.c);
+        const nli = Number(nestEl.dataset.nroot), np = nestEl.dataset.npath;
+        const nhost = nestEl.classList.contains('grd-line')
+          ? nestEl : nestEl.querySelector(':scope > .grd-badge');
+        /* ⛔글자를 «담는» 줄만 — 중첩 안 gap/image 줄은 host 가 없어 여기서 떨어진다
+           (그게 _gridEditable 이 바깥에서 하는 것과 같은 가름이다). */
+        if (nhost && Number.isInteger(nr) && Number.isInteger(nc) && Number.isInteger(nli) && np) {
+          e.stopPropagation();
+          _gridBeginEdit({ block, line: nestEl, host: nhost, r: nr, c: nc, li: nli, np }, e);
+          return;
+        }
+      }
       const hit = _gridEditable(atPoint) || _gridEditable(e.target);
-      if (!hit || hit.block !== block) return;   // gap/image/중첩 줄 = 편집 대상 아님
+      if (!hit || hit.block !== block) return;   // gap/image 줄 = 편집 대상 아님
       e.stopPropagation();
       _gridBeginEdit(hit, e);
     });

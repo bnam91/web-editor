@@ -1105,7 +1105,18 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
          있었다」를 적어 뒀다).
      ⛔여기서도 지운 것은 «하나도» 없다.
      ⛔DOM 축(tests/dom/grid-line-drag.dom.spec.js 9 → 12개)은 여기 «안» 센다. */
-const GRID_BASELINE_TESTS = 363;
+/*   · ★368 (2026-09-27 ⑥, 현빈 실기 「더블클릭 후 입력이 안 되네」) —
+ *     tests/unit/grid-nested-inline-edit.test.mjs 신설 «+5».
+ *     ⑴세는 자 = `grep -c '^test(' tests/unit/grid-nested-inline-edit.test.mjs` → 5.
+ *     ⑵더한 것 — C1 중첩 가지가 `_gridEditable` «앞» · C2 `_gridBeginEdit` 이 np 를 패널·주소에 싣는다 ·
+ *       ★C3 «실물 `_gridEndEdit` 을 돌려» np 가 «있을 때만» patchCell 에 실리는지(바깥 줄은 옛 꼴 그대로) ·
+ *       C4 ⛔`_gridEditable` 을 «안 넓혔다»(＋그 경고 «문장»까지 지킨다) · N1 음성대조.
+ *     ⑶★N1 이 「그 셀렉터가 «두 곳»이다」를 드러냈다 — 클릭 «선택» 판정과 더블클릭 «편집» 가지가
+ *       우연히 같은 주소를 본다. 첫 판은 `replace`(첫 하나)라 «떼었는데도 남아» 빨개졌다.
+ *     ⑷★U8(grid-line-typo)이 «꼴»로 잠가 뒀던 자리가 같이 빨개졌다 — 계약은 그대로이고 꼴만
+ *       갈라졌다(np 갈래). «두 갈래를 다 넘기는가»로 고쳤다(수 변화 0).
+ *     ⛔DOM 축(grid-nested-create N6·N7)은 여기 «안» 센다. */
+const GRID_BASELINE_TESTS = 368;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
