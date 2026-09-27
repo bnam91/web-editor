@@ -102,3 +102,49 @@ test('W2 ★★순수 모듈이다 — import 가 0개여야 로드 순서에 �
     '★★이 모듈이 다른 것을 import 한다 — 두 호출부의 부수효과 실행 순서가 다시 얽힌다(그걸 피해 제3의 모듈로 뽑았다)');
   assert.equal(/window\./.test(src), false, '★전역에 손댄다 — 순수 모듈이 아니다');
 });
+
+/* ═══ G — ⓑ② «객체가 아니면» 바탕을 비운다(둘째 방어선) ══════════════════
+ * ★★디스크에 실물이 있었다 — `undefined.json`(2026-07-14) 의 내용이
+ *   `{ ...<문자열 id>, ...<본문>, id:'undefined', … }` 였다. `Object.entries('proj_…')` 가
+ *   `[['0','p'],['1','r'],…]` 이기 때문이다.
+ * ★첫 방어선은 그 문자열이 «오는 길»을 끊은 것(main.js projects:load 의 isProjectShaped 가드,
+ *   같은 카드 ⓐ)이고, 이것은 다른 문(localStorage·다른 IPC)으로 들어올 때를 막는다.
+ * ⛔둘을 갈라 잰다 — 한 겹만 보고 「막혔다」로 읽으면 다른 문이 열린 것을 못 본다. */
+
+test('G1 ★★existing 이 «문자열»이면 «0,1,2…» 로 펼쳐지지 않는다 — 실물이 그 꼴이었다', () => {
+  const proj = buildProjForSave('proj_1775704460431', { pages: [1] }, 'proj_x', NOW);
+  assert.ok(!('0' in proj), '★★문자열이 펼쳐졌다 — 이것이 undefined.json 의 내용이었다');
+  assert.deepEqual(Object.keys(proj), ['pages', 'id', 'name', 'updatedAt']);
+  assert.deepEqual(proj.pages, [1], '★저장할 내용(data)이 사라졌다 — 그건 더 나쁜 결함이다');
+});
+
+test('G2 ★객체가 아닌 existing 넷 모두 바탕을 비운다 — 배열·null 도 «객체»로 새지 않는다', () => {
+  for (const v of ['x', ['a', 'b'], 0, true]) {
+    const proj = buildProjForSave(v, { keep: 1 }, 'p', NOW);
+    assert.deepEqual(Object.keys(proj), ['keep', 'id', 'name', 'updatedAt'], JSON.stringify(v));
+  }
+  /* ⛔`typeof x === 'object'` 만 보면 배열과 null 이 통과한다 — 그래서 배열을 따로 세운다. */
+  assert.deepEqual(Object.keys(buildProjForSave(null, { keep: 1 }, 'p', NOW)),
+    ['keep', 'id', 'name', 'updatedAt']);
+});
+
+test('G3 ⛔`data` 는 «비우지 않는다» — 조용히 비우면 «빈 프로젝트로 덮는» 손실이 된다', () => {
+  const warns = [];
+  const orig = console.warn;
+  console.warn = (...a) => warns.push(a.join(' '));
+  try {
+    const proj = buildProjForSave({ keep: 1 }, 'not-an-object', 'p', NOW);
+    /* ★바탕은 살아 있다 — data 를 못 읽었어도 existing 을 지우지 않는다. */
+    assert.equal(proj.keep, 1, '★★data 가 이상하다고 바탕까지 버렸다 — 그게 데이터 손실이다');
+    assert.ok(!('0' in proj), '★data 문자열이 펼쳐졌다');
+  } finally { console.warn = orig; }
+  assert.equal(warns.length, 1, '★★조용히 삼켰다 — 호출 계약 위반은 «드러내야» 고칠 곳을 안다');
+  assert.match(warns[0], /data 가 객체가 아니다/);
+});
+
+test('G4 ★정상 입력은 한 자도 안 바뀐다 — 가드가 «평상시»를 건드리지 않는다', () => {
+  const existing = { a: 1, name: 'E', _recovered: 'history' };
+  const data = { b: 2, branches: ['x'] };
+  assert.deepEqual(buildProjForSave(existing, data, 'p', NOW),
+    { a: 1, name: 'E', b: 2, id: 'p', updatedAt: NOW });
+});

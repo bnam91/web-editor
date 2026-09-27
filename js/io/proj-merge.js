@@ -27,16 +27,33 @@ export const PROJ_RUNTIME_KEYS = ['_recovered'];
  * @param {string} [nowIso]  ★인자로 받는다 — 시간을 함수 안에서 읽으면 검사가 못 잰다
  * @returns {object} 저장할 proj
  */
+/** «평범한 객체»인가 — 문자열·배열·null 을 가른다. ⛔`typeof x === 'object'` 만 보면 배열·null 이 통과한다. */
+function _isPlainObject(v) {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
 export function buildProjForSave(existing, data, targetId, nowIso) {
   const dropE = new Set([...PROJ_META_KEYS, ...PROJ_RUNTIME_KEYS]);
   const dropD = new Set(PROJ_META_KEYS);
   const proj = {};
-  for (const [k, v] of Object.entries(existing || {})) if (!dropE.has(k)) proj[k] = v;
-  for (const [k, v] of Object.entries(data || {})) if (!dropD.has(k)) proj[k] = v;
+  /* ★★[T-232 ⓑ②] `existing` 이 «객체가 아니면» 바탕을 비운다 — 둘째 방어선이다.
+     ⛔`Object.entries('proj_1775704460431')` 는 `[['0','p'],['1','r'],…]` 가 된다. 그렇게 펼쳐진
+       파일이 실제로 디스크에 있었다(`undefined.json`, 2026-07-14). 첫 방어선은 그 문자열이
+       «오는 길»을 끊은 것이고(main.js projects:load 의 isProjectShaped 가드), 이것은 그래도
+       다른 문(localStorage·다른 IPC)으로 들어올 때를 막는다.
+     ★`existing` 은 «덮여도 되는 바탕»이라 비워도 데이터가 안 사라진다 — `data` 가 그 위에 얹힌다. */
+  const base = _isPlainObject(existing) ? existing : {};
+  /* ⛔`data` 는 «비우지 않는다» — 그건 저장할 내용 자체라, 조용히 비우면 «빈 프로젝트로 덮는»
+     데이터 손실이 된다. 대신 «드러낸다»(조용한 실패 금지). 호출 계약 위반이므로 고칠 곳은 부르는 쪽이다. */
+  if (data != null && !_isPlainObject(data)) {
+    try { console.warn('[proj-merge] data 가 객체가 아니다 — 저장 내용이 비어 나갈 수 있다:', typeof data); } catch (_) {}
+  }
+  for (const [k, v] of Object.entries(base)) if (!dropE.has(k)) proj[k] = v;
+  for (const [k, v] of Object.entries(_isPlainObject(data) ? data : {})) if (!dropD.has(k)) proj[k] = v;
   proj.id = targetId;
-  /* ⛔`existing?.name` 을 그대로 옮긴다 — existing 이 객체가 아니면 undefined 가 되어 data 쪽으로
-     넘어간다(옛 코드와 같은 뜻). */
-  proj.name = (existing && existing.name) || (data && data.name) || 'Untitled';
+  /* ⛔옛 코드의 `existing?.name || data.name || 'Untitled'` 와 «같은 뜻»이다 — existing 이 객체가
+     아니면 `.name` 이 undefined 라 data 쪽으로 넘어간다(그래서 base 로 바꿔도 결과가 같다). */
+  proj.name = base.name || (_isPlainObject(data) && data.name) || 'Untitled';
   proj.updatedAt = nowIso || new Date().toISOString();
   return proj;
 }
