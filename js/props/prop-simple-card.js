@@ -1,7 +1,7 @@
 // prop-simple-card.js
 // prop-canvas.js에서 분리: 심플 카드 블록 프로퍼티 패널 (showSimpleCardProperties + _escHtml)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
 /* 색 코드 칸의 배선은 «한 자리»에서 온다 — 이 파일 안에만 손복사본이 여섯 벌 있었다
    (input/blur 가 아예 없어 무효값이 영원히 남던 사본 포함). 2026-09-20 유닛 colorhex. */
 import { wireHexText, parseHex6, formatHex6, parseHex6OrTransparent, formatHex6OrTransparent, isCssBackgroundValue } from './color-picker.js';
@@ -212,13 +212,15 @@ function showSimpleCardProperties(block, expandCardArg) {
            title="${fold.open ? '접기' : '펼치기'}">
         <!-- ★쉐브론 규격 = js/props/_typo-section.js:80 · css/editor-props.css 의 .prop-select
              (M1 1l4 4 4-4 · 잉크 1.5px · 선끝 round). ⛔여기서 «따로» 그리지 마라 — 이 절 머리는
-             prop-grid·prop-table·prop-banner02·prop-simple-card 네 곳에 같은 마크업으로 산다.
-             2026-09-24 네 곳을 같이 옮겼다. 지키는 그물: tests/dom/grid-panel-icon-spec.dom.spec.js -->
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round"
-             style="flex:0 0 auto;transform:rotate(${fold.open ? 0 : -90}deg);transition:transform .12s;">
-          <path d="M1 3l4 4 4-4"/>
-        </svg>
+             ~~prop-grid·prop-table·prop-banner02·prop-simple-card 네 곳에 같은 마크업으로 산다.~~
+             ★[T-234 · 2026-09-27] ★그 네 벌을 «한 벌»로 모았다 — js/props/_helpers.js 의
+             disclosureChevronHtml(open). ⛔여기에 다시 인라인으로 그리지 마라(그 말이 원래 이 자리에
+             적혀 있었고, 이제 «자리»가 생겼다). ★산출은 옛 마크업과 «바이트 동일»이다(272/274자).
+             ⛔★이 주석에 «백틱»을 쓰지 마라 — 여기는 HTML 주석이지만 «템플릿 리터럴 안»이라
+               백틱이 리터럴을 닫아 파일이 통째로 SyntaxError 가 된다(2026-09-27 실측: 검사 21개가
+               한꺼번에 빨강). 이 저장소엔 같은 전례가 있다(주석 블록 밖 「* …」로 11개 빨강).
+             지키는 그물: tests/unit/disclosure-chevron-ssot.test.mjs ＋ tests/dom/grid-panel-icon-spec.dom.spec.js -->
+        ${disclosureChevronHtml(fold.open)}
         <span style="flex:0 0 auto;">텍스트</span>
         <span class="prop-hint" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escHtml(fold.preview)}</span>
       </div>

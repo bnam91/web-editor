@@ -93,8 +93,14 @@ before(async () => {
     [
       ["import { propPanel } from '../globals.js';", 'const propPanel = null;'],
       /* ★T-049(2026-09-22) — `.prop-block-label` 헤더가 _helpers.js 의 blockHeaderHTML 한 자리로 모였다.
-         이 검사는 «카드 접기/인라인 편집»만 본다(패널 마크업을 안 잰다) → 빈 문자열 더블로 끊는다. */
-      ["import { blockHeaderHTML } from './_helpers.js';", 'const blockHeaderHTML = () => "";'],
+         이 검사는 «카드 접기/인라인 편집»만 본다(패널 마크업을 안 잰다) → 빈 문자열 더블로 끊는다.
+         ★★[2026-09-27 T-234] ⛔이름을 «손으로» 적었더니 `_helpers.js` 에 export 가 하나 늘자
+           (`disclosureChevronHtml`) 이 치환이 안 맞아 모듈 로드가 통째로 깨졌다 — 이 파일에서만
+           검사 스물한 개가 빨개졌다. ⇒ ★import 문을 «정규식»으로 잡아 «그 안의 이름 전부»를
+           더블로 만든다. 이제 export 가 늘어도 안 깨진다. */
+      [/import \{([^}]*)\} from '\.\/_helpers\.js';/,
+       (_m, names) => names.split(',').map(n => n.trim()).filter(Boolean)
+         .map(n => `const ${n} = () => "";`).join(' ')],
       /* 2026-09-20 유닛 colorhex — 색 코드 칸의 배선이 color-picker.js 한 자리로 모였다.
          이 테스트는 «카드 접기/인라인 편집»만 본다(패널을 그리지 않는다) → 색 배선은 no-op 더블로 끊는다.
          ⛔여기에 진짜 파싱 규칙을 «베껴» 넣지 마라 — 그러면 검사가 자기 사본을 재게 된다.

@@ -1,7 +1,7 @@
 /* ── Grid(다단) 블록 프로퍼티 패널 ──
    구조(컬럼/라인 추가·삭제)는 CDP/updateGridBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
-import { parseRatio, buildGridPicker, alignBtn, bindSlider, blockHeaderHTML } from './_helpers.js';
+import { parseRatio, buildGridPicker, alignBtn, bindSlider, blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
 /* ★상·하한은 한 곳에서만 온다 — IMG_MIN_PCT 는 캔버스 코너 드래그(resizeGridImage)가 쓰는
    «그» 하한이다. 패널의 폭(%) 칸이 같은 수를 쓰게 import 한다(손으로 5 를 적지 않는다). */
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
@@ -1013,6 +1013,12 @@ function _grdSecToggle(block, key) {
  *       ⇒ editor-props.css `#panel-right select` 로 «자리»에 걸어 덮었다(T-196, 0927).
  *       ★교훈 — 「모두 X 를 쓴다」는 세고 나서만 적는다. 안 세면 다음 사람이 그 위에 쌓는다.
  *   둘 다 `M1 1l4 4 4-4` · stroke-width 1.5 · stroke-linecap round 다.
+ *   ★[T-234 · 2026-09-27] ★이 절 머리가 쓰는 조각은 «한 벌»로 모였다 — js/props/_helpers.js
+ *     `disclosureChevronHtml(open)`. ⛔여기에 다시 인라인으로 그리지 마라.
+ *     ★그 조각은 `M1 3l4 4 4-4` (10×10 정사각)이고, 위 두 출처의 `M1 1l4 4 4-4` (10×6)와는
+ *     ★«상자»가 다르다 — 까닭은 아래 「상자는 8x8 → 10x10 정사각이다」 문단에 있다.
+ *     ⛔토큰(`--ui-select-caret`)으로 모을 수 없다: 그쪽은 CSS `background-image`, 이쪽은 인라인
+ *       `<svg>` 요소다(매체가 다르다). 억지로 모으면 «보이는 것»이 바뀐다.
  *
  * ~~[폐기 · 2026-09-24] 옛 그림 `<polyline points="2,2 6,4 2,6">` · 8x8 · stroke-width 1.8 · 선끝 없음~~
  *   까닭 — 현빈 지적(「우측패널에 svg가 일관성도 없고 uiux상 직관적이지 않다」)의 실측 내용이 이것이다.
@@ -1038,11 +1044,7 @@ const _grdDisclosureHtml = (id, title, open) => `
       <div class="prop-section-title" id="${id}" role="button" tabindex="0"
            style="display:flex;align-items:center;gap:6px;cursor:pointer;"
            title="${open ? '접기' : '펼치기'}">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round"
-             style="flex:0 0 auto;transform:rotate(${open ? 0 : -90}deg);transition:transform .12s;">
-          <path d="M1 3l4 4 4-4"/>
-        </svg>
+        ${disclosureChevronHtml(open)}
         <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</span>
       </div>`;
 

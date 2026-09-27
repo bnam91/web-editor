@@ -1,6 +1,6 @@
 // prop-banner02.js — banner02 블록 우측 프로퍼티 패널 (prop-canvas 패턴 미러링)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 
 // ⑧ 줄 선택 상태 — 배너 안 «어느 줄»을 보고 있는지. 블록별로 기억한다(패널 재생성에도 유지).
@@ -160,13 +160,15 @@ export function showBanner02Properties(block, activeIdxArg) {
            title="${_open ? '접기' : '펼치기'}">
         <!-- ★쉐브론 규격 = js/props/_typo-section.js:80 · css/editor-props.css 의 .prop-select
              (M1 1l4 4 4-4 · 잉크 1.5px · 선끝 round). ⛔여기서 «따로» 그리지 마라 — 이 절 머리는
-             prop-grid·prop-table·prop-banner02·prop-simple-card 네 곳에 같은 마크업으로 산다.
-             2026-09-24 네 곳을 같이 옮겼다. 지키는 그물: tests/dom/grid-panel-icon-spec.dom.spec.js -->
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round"
-             style="flex:0 0 auto;transform:rotate(${_open ? 0 : -90}deg);transition:transform .12s;">
-          <path d="M1 3l4 4 4-4"/>
-        </svg>
+             ~~prop-grid·prop-table·prop-banner02·prop-simple-card 네 곳에 같은 마크업으로 산다.~~
+             ★[T-234 · 2026-09-27] ★그 네 벌을 «한 벌»로 모았다 — js/props/_helpers.js 의
+             disclosureChevronHtml(open). ⛔여기에 다시 인라인으로 그리지 마라(그 말이 원래 이 자리에
+             적혀 있었고, 이제 «자리»가 생겼다). ★산출은 옛 마크업과 «바이트 동일»이다(272/274자).
+             ⛔★이 주석에 «백틱»을 쓰지 마라 — 여기는 HTML 주석이지만 «템플릿 리터럴 안»이라
+               백틱이 리터럴을 닫아 파일이 통째로 SyntaxError 가 된다(2026-09-27 실측: 검사 21개가
+               한꺼번에 빨강). 이 저장소엔 같은 전례가 있다(주석 블록 밖 「* …」로 11개 빨강).
+             지키는 그물: tests/unit/disclosure-chevron-ssot.test.mjs ＋ tests/dom/grid-panel-icon-spec.dom.spec.js -->
+        ${disclosureChevronHtml(_open)}
         <select class="prop-select" data-line-kind="${idx}" onclick="event.stopPropagation()"
                 style="flex:0 0 auto;width:auto;font-size:11px;padding:1px 4px;">
           ${KIND_OPTS.map(k => `<option value="${k}"${line.kind === k ? ' selected' : ''}>${KIND_LABELS[k] || k}</option>`).join('')}

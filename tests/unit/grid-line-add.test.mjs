@@ -111,14 +111,21 @@ before(async () => {
   fs.writeFileSync(path.join(TMP, 'drag-drop.js'), 'export const bindBlock = () => {};\n');
   fs.writeFileSync(path.join(TMP, 'overlay-handles.js'),
     'export const showGridGutters = () => {};\nexport const hideGridGutters = () => {};\n');
+  /* ★★[2026-09-27 T-234] 스텁 이름을 «실물 export 목록»에서 뽑는다.
+     ⛔손으로 적었더니 «세 번» 깨졌다 — `bindSlider`(T-D) · `blockHeaderHTML`(T-049) ·
+       `disclosureChevronHtml`(T-234). 앞의 둘은 주석으로 「이것도 스텁이 있어야 로드된다」를
+       적으며 손으로 더했고, 세 번째에서 이 검사 일곱 개가 한꺼번에 빨개졌다.
+     ★grdAddLine 은 이 헬퍼들을 «하나도» 쓰지 않는다 — import 그래프에만 걸린다. 그래서
+       «이름만» 있으면 되고, 반환형이 중요한 몇 개만 아래 표로 덮는다. */
+  const _HELPERS_SRC = fs.readFileSync(path.join(ROOT, "js/props/_helpers.js"), 'utf8');
+  const _HELPER_NAMES = [...new Set([..._HELPERS_SRC.matchAll(/^export (?:function|const)\s+(\w+)/gm)]
+    .map(m => m[1]))];
+  assert.ok(_HELPER_NAMES.length >= 5,
+    `★_helpers.js 의 export 를 ${_HELPER_NAMES.length} 개밖에 못 찾았다 — 스텁 생성기가 낡았다`);
+  /* ⛔반환형이 «쓰는 쪽»에 걸리는 것만 덮는다(빈 문자열이면 터지는 것들). */
+  const _HELPER_OVERRIDE = { parseRatio: '() => []', ALIGN_ICONS: '{}' };
   fs.writeFileSync(path.join(TMP, 'props', '_helpers.js'),
-    // ★bindSlider — T-D(그리드 갭 슬라이더, 2026-09-16 병합)가 prop-grid.js에 추가한 import.
-    //   grdAddLine 자체는 안 쓰지만 import 그래프에 걸려서 스텁이 있어야 로드된다.
-    'export const parseRatio = () => [];\nexport const buildGridPicker = () => {};\n'
-    + 'export const alignBtn = () => "";\nexport const bindSlider = () => {};\n'
-    // ★blockHeaderHTML — T-049(2026-09-22)가 `.prop-block-label` 헤더를 _helpers.js 한 자리로 모았다.
-    //   grdAddLine 은 헤더를 안 보지만 import 그래프에 걸린다.
-    + 'export const blockHeaderHTML = () => "";\n');
+    _HELPER_NAMES.map(n => `export const ${n} = ${_HELPER_OVERRIDE[n] || '() => ""'};\n`).join(''));
   fs.writeFileSync(path.join(TMP, 'props', '_typo-section.js'),
     'export const buildTypographySectionHtml = () => "";\nexport const buildFillSectionHtml = () => "";\n');
   fs.writeFileSync(path.join(TMP, 'props', '_font-picker.js'), 'export const wireFontPicker = () => {};\n');

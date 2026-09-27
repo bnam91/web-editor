@@ -359,6 +359,29 @@ export function overlayToggleBtnHTML({ id, active = false, title } = {}) {
  * — 홑따옴표 속성 자리에서 뚫리는 사본이 여럿 있었다(prop-comparison.js 의 옛 `_esc`).
  * ⛔새 사본을 만들지 말고 이걸 import 해 써라.
  */
+/* ══ 접이식 절 머리의 쉐브론 — «한 벌» (T-234, 2026-09-27) ═══════════════════
+ * ★네 곳(prop-grid · prop-banner02 · prop-simple-card · prop-table)이 «들여쓰기까지 똑같은»
+ *   SVG 를 각자 인라인으로 그리고 있었다. 다른 것은 «회전을 정하는 표현식» 하나뿐이었다.
+ *   그리고 네 곳 주석이 「★네 곳에 같은 마크업으로 산다 … ⛔여기서 «따로» 그리지 마라」라고
+ *   ★이미 적고 있었다 — 그 말대로 «따로 그리지 않게» 자리를 만든다.
+ *
+ * ⛔`--ui-select-caret` 토큰(10×6)으로는 못 모은다 — 그쪽은 CSS `background-image` 이고 이쪽은
+ *   인라인 `<svg>` 요소다(★매체가 다르다). 그리고 상자가 «정사각»인 것은 의도다:
+ *     ⑴ 잉크를 1.5px 로 맞추려면 viewBox 와 화면 폭이 같아야 한다(10×6 에 폭 10 이면 가늘어진다)
+ *     ⑵ ★정사각이라야 −90° 로 돌려도 자리를 안 먹는다(10×6 을 돌리면 6×10 이 되어 제목이 흔들린다)
+ *
+ * ⛔산출 문자열을 «한 자도» 바꾸지 마라 — 네 곳의 옛 산출과 바이트 동일이어야 한다. 들여쓰기·속성
+ *   순서·줄바꿈까지 옛 마크업 그대로다(그것을 tests/unit/disclosure-chevron-ssot.test.mjs 가 문다).
+ * @param {boolean} open 펼쳐져 있나 — 펼침 0° · 접힘 −90°
+ * @returns {string} `<svg>…</svg>` 한 조각 */
+export function disclosureChevronHtml(open) {
+  return `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round"
+             style="flex:0 0 auto;transform:rotate(${open ? 0 : -90}deg);transition:transform .12s;">
+          <path d="M1 3l4 4 4-4"/>
+        </svg>`;
+}
+
 export function escHtml(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
