@@ -22,6 +22,58 @@ app.name = 'GODITOR';
 const fs = require('fs');
 const os = require('os');
 
+/* ── ★「배포판인가」의 main.js 쪽 «한 벌» 답 (0920 4라운드 pkgguard, T-063) ──────────────
+   ⛔보안 게이트는 `app.isPackaged` 를 «직접» 읽지 않는다 — 그건 실행파일 «이름»만 보는 규칙이라,
+     스톡 Electron 으로 app.asar 를 띄우거나(`electron /x/app.asar admin`) 윈도우에서 GODITOR.exe 를
+     electron.exe 로 복사하면 false 가 된다 → CDP 차단·개발자 도구·운영자(admin)·공개키 주입이 전부 dev 로 열렸다.
+   ★답 = Electron 의 답 OR authService 의 런타임 판정(⒜ asar 안에서 로드됨 ⒝ 앱 바이너리 이름).
+     authService 는 electron 을 안 쓰는 순수 모듈이라 여기(가장 이른 IIFE)에서 불러도 된다.
+   ★함수 «선언»이라 호이스팅된다 — 아래 _blockDebugLaunchInPackaged IIFE 에서도 쓸 수 있다.
+   ★예외 = «막는 쪽»(true). ⛔env 는 근거로 쓰지 않는다(authService U-AB-7 규약).
+   ★허용목록(tests/unit/pkgguard-all-gates.test.js): 이 함수 본문, applyRuntime 에 넘기는 두 줄,
+     updater 두 곳(_updaterCacheDir·_autoUpdateEnabled — electron-updater 가 내부에서 app.isPackaged 로
+     다시 판정하므로 넓혀 봐야 무동작이고, 스톡 Electron 의 resourcesPath 엔 app-update.yml 도 없다).
+     그 밖의 자리에서 `app.isPackaged` 를 새로 읽으면 그 검사가 빨개진다. */
+function _isPackagedBuild() {
+  try {
+    if (app.isPackaged === true) return true;
+    return require('./services/authService').isPackaged() !== false;
+  } catch (_) { return true; }
+}
+
+/* ── 배포판: «띄울 때 여는» 디버깅 길 차단 (T-056, 이벨류에이터 지적 2026-09-19) ──
+   devtools-gate 의 devtools-opened 가드는 «창에서 여는» 길만 본다. 앱을
+   `--remote-debugging-port`/`--remote-debugging-pipe`(CDP) 나 `--inspect*`(메인 Node 디버거)로
+   띄우면 그 가드를 안 거치고 렌더러 전체를 조작할 수 있다 → 배포판이면 «뜨기 전에» 끈다.
+   ★예외 없음(0919 QA) — 운영자 admin(isAdminAuthorized)도 예외가 아니다. 옛 판정(인자 + GODITOR_ADMIN_TOKEN + admin.allow)은
+   셋 다 사용자 손이라 뺐고, 3라운드에 서명 operator.allow 로 바뀐 뒤에도 CDP·개발자 도구 예외는 되살리지 않는다.
+   ⛔관리자 이메일·관리자코드는 여기 예외가 아니다(띄우는 시점엔 아직 판정할 수 없고, 코드 해제는 «창 안»의 일이다).
+   ★자리: path·fs 선언 «뒤», 그 밖의 모든 초기화 «앞».
+   ★퓨즈(package.json build.electronFuses: runAsNode·nodeOptions·nodeCliInspect=false)가 첫 자물쇠, 이게 둘째다.
+   dev(!isPackaged)는 CDP 로 검증하므로 건드리지 않는다. */
+(function _blockDebugLaunchInPackaged() {
+  if (!_isPackagedBuild()) return;   // ★0920 pkgguard: 스톡 Electron + app.asar 도 배포판이다
+  const { debugLaunchViolations } = require('./main/devtools-gate');
+  const hits = debugLaunchViolations({
+    argv: process.argv,
+    execArgv: process.execArgv,
+    hasSwitch: (sw) => app.commandLine.hasSwitch(sw),
+    env: process.env,
+    inspectorUrl: () => { try { return require('inspector').url(); } catch (_) { return undefined; } },
+    /* ★0920 pkgguard: Electron 이 「포장 안 됨」이라 답하는데 여기 왔다 = 스톡 Electron 으로 asar 를 띄웠다 = 퓨즈 없음.
+       이때만 NODE_OPTIONS 의 코드 주입(--require 등)을 본다(허용목록: 판정이 아니라 «퓨즈 유무» 입력이다). */
+    nodeOptionsHonored: (() => { try { return app.isPackaged !== true; } catch (_) { return true; } })(),
+  });
+  if (!hits.length) return;
+  /* ⛔0919 QA(high): isAdminAuthorized() 예외를 뺐다 — 옛 판정('admin' 인자·GODITOR_ADMIN_TOKEN·admin.allow)은
+     셋 다 사용자 손에 있어 누구나 자가 발급으로 CDP 포트를 연 채 배포판을 띄울 수 있었다(렌더러 전체 조작).
+     3라운드(adminsig)에 운영자 판정이 서명 operator.allow 로 바뀌었어도 여기 예외로 되살리지 않는다.
+     배포판 CDP 검증(tools/qa/entitlement/app-runner.mjs)은 이제 못 돈다 — 현빈 결정 사항. */
+  console.error('[devtools-gate] 배포판에서 디버깅 실행 인자 감지 — 종료:', hits.join(','));
+  try { app.exit(1); } catch (_) {}
+  process.exit(1);
+})();
+
 // userData 폴더 마이그레이션: 구 이름('Goya Design Editor') → 'GODITOR'.
 // app.name이 userData 경로를 결정하므로, 앱이 새 경로에 처음 쓰기 전(top-level)에 rename.
 // 같은 볼륨 rename이라 원자적·즉시(6GB+ copy 아님). old만 있고 new 없을 때 1회만.
@@ -71,7 +123,9 @@ const _authService = require('./services/authService');
      main/notice «보다 먼저» 와야 한다 — 그들도 API_BASE 를 각자 구조분해로 붙잡는다.
    ★안 불러도 안전하다: authService 기본값이 이미 「막는 쪽」(패키징 가정)이다.
      이 줄이 하는 일은 「dev 다」를 «Electron 의 답으로» 확정해 주는 것뿐이다.
-   ★★그리고 «.env 로드보다 먼저» 와야 한다 — .env 게이트가 이 답을 본다. */
+   ★★그리고 «.env 로드보다 먼저» 와야 한다 — .env 게이트가 이 답을 본다.
+   ★0920 pkgguard: applyRuntime 은 «조이는 쪽으로만» 움직인다 — 여기서 false 를 줘도 authService 의
+     런타임 판정(asar 안에서 로드됨 등)이 패키징이면 패키징으로 남는다. */
 if (typeof _authService.applyRuntime === 'function') {
   let _pkg = true;
   try { _pkg = app.isPackaged; } catch (_) { _pkg = false; }
@@ -82,8 +136,8 @@ if (typeof _authService.applyRuntime === 'function') {
    ⑴ <앱>/.env  ⑵ ~/.config/secrets/.env — GEMINI_API_KEY 등. 외부 자격증명 저장소를
    ~/.config/secrets 로 일원화한 건 iCloud dataless(EDEADLK) 회피 때문이다.
    ★★배포본에선 «한 줄도 안 읽는다» — ⑵는 사용자 홈이라, 거기 한 줄 쓰는 것만으로
-     `GODITOR_LICENSE_API`·`GODITOR_ENTITLEMENT_PUBKEY`·`GODITOR_ADMIN_TOKEN` 게이트가
-     전부 열렸다(2026-09-06). 판정·읽기는 main/env-file.js 가 한다(거기 이유를 적어 뒀다).
+     `GODITOR_LICENSE_API`·`GODITOR_ENTITLEMENT_PUBKEY`·(당시)`GODITOR_ADMIN_TOKEN` 게이트가
+     전부 열렸다(2026-09-06). ★GODITOR_ADMIN_TOKEN 은 0919 3라운드부터 아무도 안 읽는다(서명 operator.allow). 판정·읽기는 main/env-file.js 가 한다(거기 이유를 적어 뒀다).
    ★사용자 자기 API 키는 이 경로와 무관하다 — settings.json → getApiKey() → payload.apiKey. */
 require('./main/env-file').loadDevEnvFiles({ appDir: __dirname });
 /* .env 가 dev 서버주소(GODITOR_LICENSE_API)를 담고 있을 수 있다 → «읽은 뒤» 다시 계산.
@@ -93,10 +147,18 @@ if (typeof _authService.applyRuntime === 'function') {
   try { _pkg2 = app.isPackaged; } catch (_) { _pkg2 = false; }
   _authService.applyRuntime({ isPackaged: _pkg2 });
 }
-const { login: authLogin, verifySession: authVerifySession, urlIsLive: authUrlIsLive, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL, API_BASE: AUTH_API_BASE } = _authService;
+const { login: authLogin, verifySession: authVerifySession, goditorUse: authGoditorUse, urlIsLive: authUrlIsLive, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL, API_BASE: AUTH_API_BASE } = _authService;
+/* ★로그인 성공 신호(fire-and-forget). ⛔await 하지 않는다 — 이 신호가 늦거나 실패해도
+     로그인은 이미 끝난 뒤라야 한다(2026-09-11 지디 발주). 두 로그인 경로(이메일·구글)의
+     «진짜 성공» 지점(= writeAuth 가 실제로 도는 자리)에서만 부른다 — next 대기·만료 분기는 제외. */
+function _notifyGoditorUse(sessionToken) {
+  try { authGoditorUse(sessionToken).catch(() => {}); } catch (_) {}
+}
 /* ★자격증명 판정의 SSOT. 이 파일에는 «판정 규칙»을 두지 않는다 — 규칙이 둘이 되면 갈라진다.
    여기가 하는 일은 「디스크·네트워크·화면을 그 답에 «배선»하는 것」뿐이다. */
 const entitlement = require('./services/entitlement');
+/* 배포판 운영자(admin) 판정 — 서명 operator.allow. ⛔entitlement 키(k1)와 «다른» 키(op1)다. */
+const _operatorAllow = require('./services/operator-allow');
 const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
@@ -255,7 +317,7 @@ let mainWindow;
 function watchFiles() {
   // 패키징(asar) 환경에선 fs.watch가 throw → whenReady 체인이 끊겨
   // setupAutoUpdater/MCP까지 죽는 사고(v0.5.0~0.6.0). 핫리로드는 dev 전용.
-  if (app.isPackaged) return;
+  if (_isPackagedBuild()) return;
   const watchTargets = [
     path.join(__dirname, 'index.html'),
     path.join(__dirname, 'js'),
@@ -290,6 +352,7 @@ function getGitBranch() {
   } catch { return null; }
 }
 
+let _t32Quitting = false;   /* ★T-032: 종료(before-quit) 중이면 «창 닫기» 알림을 걸지 않는다 — 아래 close 핸들러가 읽는다 */
 function createWindow() {
   const isMac = process.platform === 'darwin';
   const gitBranch = getGitBranch();
@@ -371,7 +434,7 @@ function createWindow() {
      * ⚠️그리고 이 줄은 «우연에 기대지 않겠다»는 뜻이다: 오늘 기준 배포본은 CDP 를 스스로 안 켜니
      *   argv 에도 없어서 어차피 null 이다. 하지만 「오늘 argv 에 없다」는 «안전장치»가 아니다.
      *   포장 여부를 직접 물어야 다음에 누가 CDP 를 켜도 이 창구는 닫혀 있다. */
-    if (app.isPackaged) return null;
+    if (_isPackagedBuild()) return null;
     if (getGitBranch() === 'main') return null;   // ★main = 배포 상태. 거기선 안 보인다
     const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
     return a ? a.split('=')[1] : null;
@@ -428,6 +491,34 @@ function createWindow() {
     mainWindow.setTitle(windowTitle);
   });
 
+  /* ★T-032 — 「아직 «GIF로 적용» 안 한 영상은 저장에서 빠진다」를 «창 닫을 때»도 알린다.
+     홈으로 나가기(save-load.js goHome)·블럭 선택 해제(editor.js)엔 이미 있었는데 여기만 없었다.
+     ⛔beforeunload 로는 못 한다 — 동기라 토스트를 띄워도 창과 함께 그 프레임에 사라진다.
+     ⇒ 닫기를 «한 번만» 가로채 렌더러의 «기존» 알림을 부르고(새 UI 창작 금지), 보일 시간을
+       준 뒤 진짜로 닫는다. 지연 900ms 는 goHome 과 같은 값이다.
+     ⚠️무한루프 금지선: 두 번째 close 는 무조건 통과한다(_t32CloseAsked).
+     ⚠️행 금지선: 렌더러가 안 답해도 600ms 뒤엔 그냥 닫는다 — 안 닫히는 앱이 더 나쁘다.
+     회귀: tests/unit/video-pending-warn.test.mjs (S-3) */
+  let _t32CloseAsked = false;
+  mainWindow.on('close', (event) => {
+    if (_t32CloseAsked || _t32Quitting) return;
+    const wc = mainWindow.webContents;
+    if (!wc || wc.isDestroyed()) return;
+    _t32CloseAsked = true;
+    event.preventDefault();
+    /* ★T-032(2026-09-22): 예전엔 `hasPendingVideo() && warnPendingVideoLoss()` 를 이어 붙였는데,
+       그러면 판정이 여기 «사본»으로 생기고 「한 번만」 래치를 건너뛴다(창을 닫으려다 물러도 또 뜬다).
+       ⇒ 판정·알림·래치가 한 덩어리인 warnPendingVideoLossIf 하나만 부른다. */
+    const asked = wc.executeJavaScript(
+      'window.warnPendingVideoLossIf?.() === true'
+    ).catch(() => false);
+    const bail = new Promise((r) => setTimeout(() => r(false), 600));
+    Promise.race([asked, bail])
+      .then((warned) => new Promise((r) => setTimeout(r, warned ? 900 : 0)))
+      .catch(() => {})
+      .then(() => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close(); });
+  });
+
   mainWindow.on('enter-full-screen', () => {
     mainWindow.webContents.send('fullscreen-change', true);
   });
@@ -448,18 +539,14 @@ function createWindow() {
     }
   });
 
-  // F12 → DevTools (dev 모드에서만)
-  if (process.argv.includes('--enable-logging')) {
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      if (input.key === 'F12') {
-        if (mainWindow.webContents.isDevToolsOpened()) {
-          mainWindow.webContents.closeDevTools();
-        } else {
-          mainWindow.webContents.openDevTools();
-        }
-      }
-    });
-  }
+  /* F12 → DevTools. ★판정은 «누른 순간» devtools-gate 에 묻는다(현빈 2026-09-19).
+     ⛔예전 조건 `--enable-logging` 은 «잠금»이 아니라 F12 를 «열어 주는» 조건이었다 —
+       배포판에선 ⌥⌘I(메뉴 role)로 누구나 열렸다. 이제 dev 는 자유, 배포판은 관리자 로그인·
+       관리자코드 해제일 때만. 다른 길로 열려도 devtools-gate 의 devtools-opened 가드가 닫는다. */
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key !== 'F12' || input.type !== 'keyDown') return;
+    _devtoolsGate.toggleFor(mainWindow.webContents);
+  });
 }
 
 /* ── 계정 로그인 상태 저장 (userData/auth.json) ──
@@ -575,12 +662,12 @@ function clearAuth() {
    ★이 아래 세 함수 말고 다른 곳에서 판정하지 마라 — 규칙이 둘이 되면 갈라진다. */
 
 /** 이 앱이 믿을 공개키. ★dev(!isPackaged)에서만 env 주입을 허용한다
- *  (`isAdminAuthorized` 와 «같은 규약» — 패키징에선 무시. 안 그러면 사용자가 자기 키를 넣고
- *   자기가 서명해서 서명 검증 전체가 장식이 된다). */
+ *  (패키징에선 무시 — 안 그러면 사용자가 자기 키를 넣고 자기가 서명해서 서명 검증 전체가 장식이 된다.
+ *   ★운영자 판정(isAdminAuthorized·operator.allow)은 env 키 주입이 «아예 없다» — dev 는 인자만으로 통과하니 필요 없다). */
 function entKeys() {
-  let packaged = true;
-  try { packaged = app.isPackaged; } catch (_) { packaged = false; }
-  return entitlement.resolveKeys({ isPackaged: packaged, env: process.env });
+  /* ★0920 pkgguard: 예전엔 app.isPackaged 를 직접 읽고 «예외면 false(dev)» 였다 — 스톡 Electron + asar 로
+     띄우면 GODITOR_ENTITLEMENT_PUBKEY 로 자기 키를 넣고 자기가 서명한 라이선스가 통과했다. */
+  return entitlement.resolveKeys({ isPackaged: _isPackagedBuild(), env: process.env });
 }
 
 /** resolveAuth 에 «주입»하는 verify. ⛔토큰은 이 함수 밖으로 안 나간다. */
@@ -609,36 +696,99 @@ function _noteServer(diagOrNull) {
 function persistApplied(prev, applied) {
   _noteServer(applied && applied.diag);
   if (!applied) return prev;
-  if (applied.clear) { if (prev) clearAuth(); return null; }
-  if (applied.changed && applied.record) { writeAuth(applied.record); return applied.record; }
+  /* ★기록이 바뀌면 개발자 도구 판정(관리자 이메일 = 서명본 payload.email)도 바뀔 수 있다 —
+     부팅 재검증·새로고침이 모두 여기를 지난다. 메뉴만 다시 짓는다(판정은 누를 때 다시 한다). */
+  if (applied.clear) { if (prev) clearAuth(); _devtoolsAuthChanged(); return null; }
+  if (applied.changed && applied.record) { writeAuth(applied.record); _devtoolsAuthChanged(); return applied.record; }
   return applied.record || prev;
 }
 
 /* ── admin 모드 인증 (GAP-008 심층: 라이선스/결제 우회 차단) ──
-   admin 모드 = 라이선스 검증 우회 + 라이선스 키 발급 권한. 이를 'admin' CLI 인자만으로
-   부여하면 배포 앱을 가진 누구나(인자명은 binary strings로 노출) 라이선스/결제를 우회하고
-   유료 키를 자가발급할 수 있다 → 매출 직결 보안구멍.
-   → 패키징(배포) 빌드에선 'admin' 인자 + 운영자 토큰 인증을 모두 요구한다.
+   admin 모드 = 라이선스 검증 우회 + PM·터미널 IPC(GAP-010). 'admin' 인자만으로 부여하면
+   배포 앱을 가진 누구나(인자명은 binary strings로 노출) 라이선스를 우회한다 → 매출·RCE 직결.
      · dev(미패키징, `electron .`): 인자만으로 허용 — 개발/검증 편의(lens 9335·지디 9334 포함).
-     · 패키징: env GODITOR_ADMIN_TOKEN 의 sha256(hex) == userData/admin.allow 파일 내용일 때만 admin.
-       admin.allow는 운영자가 관리자 머신에 로컬 배치(앱 번들·레포 미포함) → 일반 고객 빌드엔
-       부재하므로 'admin' 인자가 무력화된다(safe-by-default). */
+     · 패키징: 'admin' 인자 + userData/operator.allow 가 «운영자 개인키 서명»으로 검증되고,
+       기한 안이고, 이 기기(machine 해시)에 발급된 것일 때만. 판정 = services/operator-allow.js.
+   ⛔0919 3라운드(adminsig): 옛 방식(env GODITOR_ADMIN_TOKEN 의 sha256 == userData/admin.allow)은
+     «읽지도 않는다». 토큰도 파일도 사용자가 자기 PC 에서 정할 수 있어, 아무 문자열의 sha256 을
+     써 두면 누구나 운영자였다(대칭 비교는 «누가 발급했나»를 증명 못 한다).
+   ★운영자 공개키(OPERATOR_PUBLIC_KEYS)가 비어 있으면 배포판 운영자는 «항상 아님»(safe-by-default).
+     발급 = tools/operator-allow/issue.mjs (개인키는 레포·앱 밖 ~/.config/secrets). */
 function isAdminAuthorized() {
   if (!process.argv.includes('admin')) return false;
-  let packaged = true;
-  try { packaged = app.isPackaged; } catch (_) { packaged = false; }
-  if (!packaged) return true; // dev/검증 빌드
+  /* ★0920 pkgguard: 판정은 _isPackagedBuild() 하나 — 스톡 Electron 으로 app.asar 를 'admin' 인자와 띄워도 배포판이다. */
+  if (!_isPackagedBuild()) return true; // dev/검증 빌드
   try {
-    const token = process.env.GODITOR_ADMIN_TOKEN;
-    if (!token) return false;
-    const allowPath = path.join(app.getPath('userData'), 'admin.allow');
-    if (!fs.existsSync(allowPath)) return false;
-    const expected = String(fs.readFileSync(allowPath, 'utf8')).trim().toLowerCase();
-    if (!/^[0-9a-f]{64}$/.test(expected)) return false; // sha256 hex만 허용
-    const crypto = require('crypto');
-    const actual = crypto.createHash('sha256').update(token).digest('hex');
-    return crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
+    let fileText = '';
+    try { fileText = fs.readFileSync(path.join(app.getPath('userData'), 'operator.allow'), 'utf8'); }
+    catch (_) { fileText = ''; }
+    const r = _operatorAllow.checkOperatorAllow({
+      fileText,
+      keys: _operatorAllow.OPERATOR_PUBLIC_KEYS,
+      machineId: fileText ? _operatorMachineId() : null, // 파일 없으면 기기 UUID 도 안 읽는다
+      now: Date.now(),
+    });
+    if (!r.ok) _noteOperatorDenied(r.why);
+    return r.ok === true;
   } catch (_) { return false; }
+}
+
+/** 이 기기의 machine 해시(operator.allow 의 payload.machine 과 대조). «성공값»은 프로세스당 한 번만 읽는다
+ *  (execFileSync ≈ 30ms — 터미널·PM IPC·will-navigate 마다 부르면 안 된다). 못 읽으면 null = 운영자 아님.
+ *  ★실패(null)는 memo 에 굳히지 않는다 — 첫 호출이 일시적으로 실패(timeout 등)해도 재시작 없이 회복되게,
+ *    대신 재시도 간격(_OPERATOR_MID_RETRY_MS)을 둬 동기 exec 가 IPC 마다 메인을 막지 않게 한다.
+ *  ★이 경로는 배포판 + 'admin' 인자 + operator.allow 가 «있을 때만» 온다(고객 실행은 exec 0회).
+ *  ★tools/operator-allow/issue.mjs 의 machine-id 와 «같은» 원천·같은 해시(machineIdFrom)여야 한다. */
+const _OPERATOR_MID_RETRY_MS = 30 * 1000;
+let _operatorMachineIdMemo = null;
+let _operatorMachineIdFailedAt = 0;
+function _operatorMachineId() {
+  if (_operatorMachineIdMemo) return _operatorMachineIdMemo;
+  const t = Date.now();
+  if (_operatorMachineIdFailedAt && t - _operatorMachineIdFailedAt < _OPERATOR_MID_RETRY_MS) return null;
+  let raw = null;
+  try {
+    raw = _operatorAllow.rawMachineUuid({
+      platform: process.platform,
+      execFileSync: require('child_process').execFileSync,
+      readFileSync: fs.readFileSync,
+      existsSync: fs.existsSync,
+      env: process.env,
+    });
+  } catch (_) { raw = null; }
+  const id = _operatorAllow.machineIdFrom(raw);
+  if (id) { _operatorMachineIdMemo = id; _operatorMachineIdFailedAt = 0; }
+  else _operatorMachineIdFailedAt = t;
+  return id;
+}
+
+/** 거부 사유는 «한 번만» 알린다 — 로그 + 화면 안내(0919 T-063: 조용히 막지 말 것).
+ *  여기 오는 건 배포판을 'admin' 인자로 띄운 경우뿐(고객 기본 실행은 isAdminAuthorized 첫 줄에서 끝난다).
+ *  ⛔옛 흔적(admin.allow·GODITOR_ADMIN_TOKEN)은 «안내 문구»에만 쓴다. 판정에는 절대 안 쓴다(isAdminAuthorized 참조).
+ *  ⛔파일 내용·기기값·토큰 값은 안 남긴다(있다/없다만). */
+let _operatorDeniedLogged = false;
+function _noteOperatorDenied(why) {
+  if (_operatorDeniedLogged) return;
+  _operatorDeniedLogged = true;
+  let legacy = false;
+  try {
+    legacy = !!process.env.GODITOR_ADMIN_TOKEN
+      || fs.existsSync(path.join(app.getPath('userData'), 'admin.allow'));
+  } catch (_) {}
+  let keysConfigured = false;
+  try { keysConfigured = Object.keys(_operatorAllow.OPERATOR_PUBLIC_KEYS || {}).length > 0; } catch (_) {}
+  let n;
+  try { n = _operatorAllow.operatorDeniedNotice({ why, legacy, keysConfigured }); } catch (_) { return; }
+  try { console.warn(n.log); } catch (_) {}
+  /* 화면 안내 — GUI 로 띄운 배포판에선 console 이 안 보인다. 비모달·비차단(부팅 흐름은 그대로 고객 경로). */
+  const show = () => {
+    try {
+      const opts = { type: 'warning', title: 'GODITOR', message: n.title, detail: n.detail, buttons: ['확인'], noLink: true };
+      const win = (typeof mainWindow !== 'undefined' && mainWindow && !mainWindow.isDestroyed()) ? mainWindow : null;
+      (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts)).catch(() => {});
+    } catch (_) {}
+  };
+  try { if (app.isReady()) setImmediate(show); else app.once('ready', show); } catch (_) {}
 }
 
 // GAP-008: 에디터(라이선스 게이트 너머) 진입 허가 플래그. 인증된 경로(부팅 라이선스 통과·
@@ -788,6 +938,8 @@ ipcMain.handle('auth:login', async (_event, email, password) => {
     _noteServer(applied.diag);
     if (!applied.clear && applied.record) rec = applied.record;
     writeAuth(rec);
+    _notifyGoditorUse(rec.sessionToken);
+    _devtoolsAuthChanged();   // 관리자 계정이면 개발자 도구 메뉴가 생긴다
     // 세션토큰은 반환하지 않는다(렌더러 노출 최소화).
     return {
       ok: true, email: rec.email, plan: rec.plan,
@@ -1041,6 +1193,7 @@ ipcMain.handle('auth:google-login', async () => {
       try { shell.openExternal(AUTH_API_BASE + r.next); } catch (_) {}
     } else {
       writeAuth(grec);
+      _notifyGoditorUse(grec.sessionToken);   // ★가입 미완(next)에는 안 보낸다 — 아직 «로그인 성공»이 아니다
     }
     return {
       ok: true, email: grec.email, plan: grec.plan, next: r.next || '',
@@ -1049,12 +1202,19 @@ ipcMain.handle('auth:google-login', async () => {
     };
   })();
 
-  try { return await _googleLoginInFlight; }
+  try {
+    const res = await _googleLoginInFlight;
+    /* ★저장이 일어났을 수 있다(성공·만료) — 개발자 도구 메뉴를 새 판정으로. 저장 구간 «밖»에 둔다
+       (tests/unit/google-defer-writeauth 가 그 구간을 떠서 돌린다). */
+    _devtoolsAuthChanged();
+    return res;
+  }
   finally { _googleLoginInFlight = null; }
 });
 
 ipcMain.handle('auth:logout', () => {
   clearAuth();
+  _devtoolsAuthChanged();   // ★로그아웃 = 관리자 이메일 경로 소멸. 코드 해제 세션이 아니면 열린 개발자 도구도 닫는다
   return { ok: true };
 });
 
@@ -1094,6 +1254,13 @@ ipcMain.handle('auth:open-external', async (_event, url) => {
   return { ok: true };
 });
 
+// 폰트 피커의 「눈누에서 폰트 더 받기」 바로가기. 렌더러가 URL을 주지 않는다 —
+// 목적지가 고정이라 auth:open-external 같은 화이트리스트 검사 자체가 필요 없다.
+ipcMain.handle('external:open-noonnu', () => {
+  shell.openExternal('https://noonnu.cc');
+  return { ok: true };
+});
+
 ipcMain.handle('license:navigate-projects', () => {
   // GAP-008: 인증 검증 강제 — 인증 없이 navigate로 에디터에 진입하던 우회 차단.
   // (기존: 무조건 projects.html 로드 → license 화면 콘솔에서 navigateToProjects() 한 줄로 우회)
@@ -1113,19 +1280,52 @@ ipcMain.handle('license:navigate-projects', () => {
 const USER_DATA_DIR = app.getPath('userData');
 
 // 구 경로 → 신 경로 파일 마이그레이션 (없는 파일만 복사)
-function migrateFiles(oldDir, newDir) {
-  if (!fs.existsSync(oldDir)) return;
-  if (!fs.existsSync(newDir)) fs.mkdirSync(newDir, { recursive: true });
-  fs.readdirSync(oldDir).forEach(file => {
+/* ★T-065 — 「옮기는 도중 항목이 사라지면 부팅이 죽는다」를 막는 자리.
+     옛 판은 목록을 한 번 읽어 두고(readdirSync) 그 이름으로 다시 물었다(statSync/copyFileSync).
+     그 틈에 항목이 없어지면(다른 프로그램·클라우드 동기화) ENOENT 가 그대로 위로 올라간다.
+     ⛔부르는 자리 셋이 전부 «앱이 켜질 때 통째로 도는» 최상위다(projects·presets·templates)
+       ⇒ 예외 하나 = ★앱이 아예 안 켜짐. 파일 한 개 때문에 앱을 못 켜는 건 교환이 안 맞는다.
+
+   ★왜 «오류 종류 명부»(ENOENT 만 봐주기)를 안 만들었나
+     이 레포는 「손으로 적은 목록이 하나만 안 고쳐져 생긴 사고」가 반복됐다. 종류를 세는 대신
+     «성질»로 판정한다 — 마이그레이션은 best-effort 다. 못 옮긴 항목은 옛 자리에 그대로 남고
+     앱은 그것 없이도 켜진다. ⇒ 항목 단위 실패는 전부 «치명적이지 않다».
+   ⛔단 «조용히» 넘기지 않는다 — 삼킨 오류는 「위 판정 거짓말」이 된다.
+     ⑴ 건너뛴 것을 로그에 한 줄씩 남기고 ⑵ 보고(report.skipped)로 돌려준다.
+       그래야 나중에 「파일이 없어졌다」를 이 자리와 이을 수 있다.
+   ★고쳐도 지키는 것 둘
+     ⑴ 「이미 있으면 안 덮는다」 — 새 파일을 옛 파일로 덮어쓰지 않는다.
+     ⑵ 재귀(폴더)도 «같은 함수»가 돈다 — 한 곳만 고치면 안쪽에 구멍이 남으므로
+       try 를 함수 «안»에 둔다. 안쪽 건너뜀은 같은 report 에 모인다.
+   검사: tests/unit/migrate-files-vanish.test.js (진짜 fs 위에서 «진짜로» 지워 잰다) */
+function migrateFiles(oldDir, newDir, _report) {
+  const report = _report || { skipped: [] };
+  const note = (target, e) => {
+    const code = (e && e.code) || null;
+    report.skipped.push({ path: target, code, message: (e && e.message) || String(e) });
+    try { console.warn('[migrate] 건너뜀:', target, '—', code || '(코드없음)', (e && e.message) || String(e)); } catch (_) {}
+  };
+
+  let entries;
+  try {
+    if (!fs.existsSync(oldDir)) return report;
+    if (!fs.existsSync(newDir)) fs.mkdirSync(newDir, { recursive: true });
+    entries = fs.readdirSync(oldDir);   // ★여기까지가 «폴더 통째로»가 사라질 수 있는 구간
+  } catch (e) { note(oldDir, e); return report; }
+
+  for (const file of entries) {
     const src = path.join(oldDir, file);
     const dst = path.join(newDir, file);
-    if (fs.existsSync(dst)) return; // 이미 있으면 스킵
-    if (fs.statSync(src).isDirectory()) {
-      migrateFiles(src, dst);
-    } else {
-      fs.copyFileSync(src, dst);
-    }
-  });
+    try {
+      if (fs.existsSync(dst)) continue; // 이미 있으면 스킵 ⛔새 것을 옛 것으로 덮지 않는다
+      if (fs.statSync(src).isDirectory()) {
+        migrateFiles(src, dst, report);
+      } else {
+        fs.copyFileSync(src, dst);
+      }
+    } catch (e) { note(src, e); }      // ★항목 하나가 사라져도 «그 항목만» 버린다
+  }
+  return report;
 }
 
 /* ── IPC: Projects (파일 기반 저장소) ──────────────────────────────────────
@@ -1236,7 +1436,10 @@ function _adoptLegacyIfSoleAccount(key, dest, email) {
   const others = _existingAccountKeys().filter(k => k !== key);
   if (others.length) return { adopted: 0, skipped: 'other-accounts-exist', others: others.length };
   const entries = _legacyProjectEntries();
-  if (!entries.length) return { adopted: 0, skipped: 'legacy-empty' };
+  // [T-A] folders.json 은 proj_* 가 하나도 없어도 있을 수 있다(다 지우고 폴더만 남은 드문 경우) —
+  //   entries 만 보고 조기 종료하면 그 folders.json 은 영영 못 옮긴다.
+  const legacyFoldersExists = (() => { try { return fs.existsSync(path.join(PROJECTS_DIR_LEGACY, 'folders.json')); } catch (_) { return false; } })();
+  if (!entries.length && !legacyFoldersExists) return { adopted: 0, skipped: 'legacy-empty' };
   let moved = 0; const failed = [];
   for (const ent of entries) {
     const to = path.join(dest, ent.name);
@@ -1244,10 +1447,27 @@ function _adoptLegacyIfSoleAccount(key, dest, email) {
     try { fs.renameSync(path.join(PROJECTS_DIR_LEGACY, ent.name), to); moved++; }
     catch (e) { failed.push(`${ent.name} — ${(e && e.message) || e}`); }
   }
+  // [T-A] 비로그인 상태에서 만든 folders.json 도 «같이» 옮긴다 — 대상에 이미 있으면 건드리지 않는다
+  // (남의 폴더 이름을 지울 이유가 없다. 위 proj_* 이동과 같은 already-exists 규율).
+  // ★★리터럴 'folders.json' — main/folders.js 의 FOLDERS_FILE 과 «같은 값»이어야 한다.
+  //   이 함수는 tests/unit/account-projects-root.test.js 가 소스에서 «떼어내» 도는 블록 안에 있어
+  //   여기서 require('./main/folders') 를 쓰면 그 검사의 인젝션 계약(순수 require, 경로 리매핑 없음)이 깨진다.
+  // ★실패해도 던지지 않는다 — 폴더 «이름»만 잃고(자가치유로 미분류에 그대로 뜬다) 입양 자체는 계속돼야 한다.
+  let foldersCarried = false;
+  try {
+    const FOLDERS_FILE_NAME = 'folders.json';
+    const legacyFolders = path.join(PROJECTS_DIR_LEGACY, FOLDERS_FILE_NAME);
+    const destFolders = path.join(dest, FOLDERS_FILE_NAME);
+    if (fs.existsSync(legacyFolders) && !fs.existsSync(destFolders)) {
+      fs.renameSync(legacyFolders, destFolders);
+      moved++;
+      foldersCarried = true;
+    }
+  } catch (e) { failed.push(`folders.json — ${(e && e.message) || e}`); }
   try {
     fs.writeFileSync(path.join(ACCOUNTS_DIR, key, 'adopted.json'), JSON.stringify({
       at: new Date().toISOString(), account: key, email, from: PROJECTS_DIR_LEGACY, to: dest,
-      moved, failed,
+      moved, failed, foldersCarried,
       note: '업데이트 이전의 «소유자 미상» 프로젝트를 첫 로그인 계정이 물려받았다. 되돌리려면 to 안의 proj_* 를 from 으로 다시 옮기면 된다.',
     }, null, 2), 'utf8');
   } catch (e) {
@@ -1599,7 +1819,11 @@ function _SS() {
   return _ssMod || _SS_FALLBACK;
 }
 // 모듈이 없으면 «스냅샷을 안 만들고 폴백 후보도 안 준다» — 저장·로드 자체는 계속 되게(현행과 동일한 안전 성향).
-const _SS_FALLBACK = { writeSnapshot: () => ({ ok: false, skipped: 'module_missing' }), pruneVersions: () => ({ kept: 0, deleted: [] }), loadFallbackCandidates: () => [] };
+/* ⛔`isProjectShaped` 를 여기 «같이» 둔다 — 없으면 아래 projects:load 의 정상경로 가드가
+     모듈 부재 시 `_SS().isProjectShaped is not a function` 으로 죽는다(지금까지는 폴백 루프에서만
+     불렸고, 그 루프는 loadFallbackCandidates 가 [] 라 돌지 않아서 드러나지 않았다).
+   ★모르면 «통과»다 — 판정 모듈이 없을 때 로드를 막으면 프로젝트가 안 열린다(덜 하는 쪽이 안전). */
+const _SS_FALLBACK = { writeSnapshot: () => ({ ok: false, skipped: 'module_missing' }), pruneVersions: () => ({ kept: 0, deleted: [] }), loadFallbackCandidates: () => [], isProjectShaped: () => true };
 
 function _resolveProjectJsonPath(id) {
   id = _safeSeg(id); // GAP-009
@@ -1692,7 +1916,10 @@ function _listItemFor(id, projPath, metaFast) {
                    updatedAt: meta.updatedAt || null, thumbnail: meta.thumbnail || null, marketRef: meta.marketRef || null,
                    collabRef: meta.collabRef || null,
                    // ★즐겨찾기는 collabRef 와 같은 «이 설치의 상태» — proj.json(문서)이 아니라 meta 에 산다
-                   favorite: meta.favorite === true };
+                   favorite: meta.favorite === true,
+                   // [T-A] 폴더 소속도 collabRef·favorite 과 «같은 자리»(meta) — 두 반환 경로 «둘 다»에 추가한다.
+                   //   ★한쪽만 고치면 「일부 프로젝트만 폴더/검색에 안 걸리는」 재현 어려운 버그가 된다(favorite 이 겪은 실수와 같은 자리).
+                   folderId: meta.folderId || null };
         }
       }
     } catch (_) { /* stat/parse 실패 → 풀파싱 폴백 */ }
@@ -1705,17 +1932,19 @@ function _listItemFor(id, projPath, metaFast) {
   //   그래서 풀파싱 폴백 경로에서도 meta 를 읽어 와야 배지가 안 사라진다.
   let collabRef = null;
   let favorite = false;
+  let folderId = null;   // [T-A] 폴더 소속 — 빠른 경로와 «같은 곳»(meta)에서 읽는다(favorite 과 같은 규율)
   if (metaPath && fs.existsSync(metaPath)) {
     try {
       const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
       if (meta.thumbnail) thumbnail = meta.thumbnail;
       collabRef = meta.collabRef || null;
       favorite = meta.favorite === true;   // ★빠른 경로와 «같은 곳»에서 읽는다 — 갈리면 배지가 깜빡인다
+      folderId = meta.folderId || null;
     } catch {}
   }
   if (metaFast) { try { _refreshListMeta(data.id, data); } catch (_) {} }
   return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt,
-           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, collabRef, favorite };
+           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, collabRef, favorite, folderId };
 }
 
 /* ── IPC: AI Image Gen ──
@@ -1898,6 +2127,22 @@ ipcMain.handle('ai:deleteImage', (_e, { projectId, blobPath } = {}) => {
   }
 });
 
+/* ★[T-064] «목록이 실을 수 있는 프로젝트 id 모양» — 이 한 곳이 정본이다.
+ *   - proj_<숫자> : 편집 프로젝트(갤러리 「새 프로젝트」·_createProjectImpl·_duplicateProjectImpl)
+ *   - plan_<숫자> : 기획 프로젝트(pages/projects.html createPlanningProject — `'plan_' + Date.now()`)
+ *   왜 함수 하나인가: 예전엔 같은 규칙이 _listProjectsImpl 안에 «세 곳»(디렉터리명·flat 파일명·
+ *   파일 안 data.id) 손으로 적혀 있었다. 접두를 넓힐 때 한 곳만 고치면 「일부만 목록에 뜨는」
+ *   재현 어려운 상태가 된다 — 명부를 늘리지 말고 «판정하는 자리»를 하나로 둔다.
+ * ★★모양 강제는 «느슨하게 하지 않는다»(T-049 방어). 이 id 는 렌더러가
+ *   onclick="fn(event, '<id>')" 처럼 홑따옴표 JS 문자열 리터럴 안에 그대로 박는다 —
+ *   따옴표·백슬래시가 섞인 id 가 통과하면 HTML 이스케이프로도 못 막는 인라인 핸들러 탈출이 된다.
+ *   ⇒ «접두만» 넓히고 뒤는 여전히 숫자만 받는다. 절대 [A-Za-z0-9_-] 로 풀지 마라.
+ * ⛔폴더(main/folders.js isProjId)는 «일부러» proj_ 만 받는다 — 기획은 폴더에 못 들어간다(T-062).
+ *   여기를 넓혔다고 그쪽을 따라 넓히지 마라. */
+function _isListableProjectId(id) {
+  return typeof id === 'string' && /^(?:proj|plan)_\d+$/.test(id);
+}
+
 /* ── 목록 코어 ──────────────────────────────────────────────────────────────
    ipcMain.handle('projects:list')(렌더러)와 MCP list_projects(main)가 «공용»한다.
    (projects:save 가 _saveProjectImpl 을 공용하는 것과 같은 패턴.)
@@ -1918,7 +2163,7 @@ function _listProjectsImpl(opts) {
   // 1) 신 레이아웃 우선: proj_<id>/proj.json — [b8] 메타 우선(무거운 proj.json 풀파싱 회피)
   for (const ent of entries) {
     if (!ent.isDirectory()) continue;
-    if (!/^proj_\d+$/.test(ent.name)) continue;
+    if (!_isListableProjectId(ent.name)) continue;   // [T-064] proj_<숫자> · plan_<숫자>
     const projPath = path.join(PROJECTS_DIR, ent.name, 'proj.json');
     if (!fs.existsSync(projPath)) continue;
     const id = ent.name; // 신 레이아웃 불변식: 디렉터리명 = proj_<id>
@@ -1934,10 +2179,17 @@ function _listProjectsImpl(opts) {
   // 2) flat fallback: proj_<id>.json (마이그레이션 안 된 케이스). 같은 ID는 1)에서 이미 등록됐으면 skip.
   for (const ent of entries) {
     if (!ent.isFile()) continue;
-    if (!/^proj_\d+\.json$/.test(ent.name)) continue;
+    if (!ent.name.endsWith('.json') || !_isListableProjectId(ent.name.slice(0, -'.json'.length))) continue;
     try {
       const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, ent.name), 'utf8'));
-      if (!data.id || data.id === 'undefined' || seen.has(data.id)) continue;
+      // ★[XSS 근원차단] data.id 는 파일 내용(사용자가 손 댈 수 있는 JSON)이라 파일명과 다를 수 있다.
+      //   이 id 는 렌더러가 onclick="fn(event, '${proj.id}')" 처럼 «홑따옴표 JS 문자열 리터럴 안»에
+      //   그대로 박는다 — 형식이 어긋난 id(따옴표·백슬래시 등)가 들어오면 HTML 이스케이프로도
+      //   못 막는 인라인 핸들러 탈출이 가능하다(HTML 파서가 속성값을 먼저 디코드한 뒤 JS로 넘긴다).
+      //   신 레이아웃은 디렉터리명 검사(_isListableProjectId)가 이미 이 모양을 강제하므로, 여기(레거시
+      //   flat 폴백)도 «같은 함수»로 같은 모양만 받는다 — 형식이 다르면 조용히 목록에서 뺀다(자가치유 원칙과 동일).
+      //   ★[T-064] 접두가 plan_ 까지 넓어졌어도 «숫자만» 규칙은 그대로다 — 여기를 풀면 T-049 가 되살아난다.
+      if (!data.id || data.id === 'undefined' || seen.has(data.id) || !_isListableProjectId(data.id)) continue;
       let thumbnail = data.thumbnail || null;
       const metaPath = _resolveMetaJsonPath(data.id);
       if (metaPath && fs.existsSync(metaPath)) {
@@ -1947,7 +2199,9 @@ function _listProjectsImpl(opts) {
         } catch {}
       }
       seen.add(data.id);
-      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null });
+      // [T-A] flat 레거시 폴백 — folderId: null 고정(레거시 잔재는 폴더에 안 들어간다는 뜻이 아니라
+      //   여기까지 온 것은 아직 신 레이아웃으로 안 옮겨진 항목이라 meta 를 다시 안 뒤진다. 자가치유로 «미분류» 취급).
+      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, folderId: null });
     } catch {}
   }
 
@@ -1999,7 +2253,20 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   const filePath = _resolveProjectJsonPath(id);
   // 1) 정상 경로: proj.json
   if (filePath) {
-    try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); }
+    try {
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      /* ★★[T-232] 「★[A2 치명] «파싱되면 프로젝트»가 아니다」 — 그 규율이 아래 폴백 루프에만
+         걸려 있었다. 그 주석 자신이 「폴백 루프«만» 안 걸러서」라고 적고 폴백만 고쳤다.
+         ⇒ 정상 경로도 같은 자로 잰다.
+         ★실물이 증명한다 — `undefined.json`(2026-07-14) 의 내용이
+           `{ ...<문자열 id>, ...<본문>, id: 'undefined', … }` 였다. 즉 내용이 «문자열»인 파일을
+           이 자리가 그대로 돌려줬고, 부르는 쪽(js/io/save-load.js · js/commit-system.js 의
+           `{ ...existingWithoutMeta, … }`)이 그 문자열을 «0,1,2…» 로 펼쳐 저장했다.
+         ⛔거절이 아니라 «폴백으로 내려보낸다» — 백업·히스토리에 성한 판이 있으면 그것이 답이다
+           (손상 JSON 일 때 하는 것과 «같은 처분»으로 둔다. 새 뜻을 만들지 않는다). */
+      if (_SS().isProjectShaped(parsed)) return parsed;
+      console.warn(`[projects:load] proj.json 이 «프로젝트 형태»가 아니다(${id}, ${typeof parsed}) — 백업 폴백 시도`);
+    }
     catch (e) { console.warn(`[projects:load] proj.json 손상(${id}): ${e.message} — 백업 폴백 시도`); }
   }
   // 2) GAP-004 폴백 체인: proj_backup.json → proj_history 최신→오래된 순.
@@ -2288,6 +2555,7 @@ function _recordSyncSaveFailure(project, reason, error) {
  *   OS 휴지통을 거치면 되살릴 때 «새 프로젝트 가져오기»가 된다(.gdt 임포트가 §7-4 로 새 id 를 강제).
  * ⛔여기서 «영구삭제»는 없다. 만료분도 OS 휴지통으로 넘긴다 — 마지막 그물을 우리가 끊지 않는다. */
 const _trash = require('./main/trash');
+const _folders = require('./main/folders');
 /* ★★만료분을 «폴더가 아니라 우리 포맷(.gdt)으로» 싸서 버린다 (2026-09-08 현빈 지시).
      폴더로 보내면 맥 휴지통에서 `proj_1788…` 로 보여 무엇인지도 모르고 더블클릭해도 안 열린다.
      `<이름>.gdt` 면 이름이 보이고 더블클릭하면 고디터가 연다(fileAssociations 배선이 이미 있다).
@@ -2331,6 +2599,29 @@ ipcMain.handle('trash:purge', async (_e, id) => {
                                              trashItem: (p) => shell.trashItem(p),
                                              packageGdt: _packageProjectGdt }); }
   catch (e) { return { ok: false, code: 'io', error: e.message }; }
+});
+
+/* ── IPC: Folders (T-A, 2026-09-16) ── 폴더는 «가상» — main/folders.js 머리글 참조.
+   ★PROJECTS_DIR 을 호출마다 «다시» 읽는다(_projectsRoot()) — 계정 전환이 자동으로 따라오게. */
+ipcMain.handle('folders:list', () => {
+  try { return _folders.listFolders({ projectsDir: _projectsRoot() }); }
+  catch (e) { return { ok: false, error: e.message, folders: [] }; }
+});
+ipcMain.handle('folders:create', (_e, { name } = {}) => {
+  try { return _folders.createFolder({ projectsDir: _projectsRoot(), name }); }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('folders:rename', (_e, { id, name } = {}) => {
+  try { return _folders.renameFolder({ projectsDir: _projectsRoot(), id, name }); }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('folders:delete', (_e, { id } = {}) => {
+  try { return _folders.deleteFolder({ projectsDir: _projectsRoot(), id }); }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('folders:assign', (_e, { projectIds, folderId } = {}) => {
+  try { return _folders.assignFolder({ projectsDir: _projectsRoot(), projectIds, folderId: folderId || null }); }
+  catch (e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
@@ -3269,6 +3560,40 @@ require('./main/collab').init(ipcMain, {
      «환경설정에 공지 탭을 그릴까»를 정하는 힌트일 뿐이다. */
 require('./main/admin').init(ipcMain, { readAuth });
 
+/* ── 개발자 도구 잠금 (main/devtools-gate.js) ──
+   ★가드(web-contents-created)는 «createWindow 전»에 걸려야 한다 — 여기(모듈 최상위)는
+     app.whenReady 보다 먼저 돈다. ⛔whenReady 안으로 옮기지 마라(mainWindow 가 빠진다).
+   ⛔isAdminAuthorized 와 섞지 않는다 — 관리자 이메일/코드가 라이선스·터미널 권한까지 풀면 안 된다. */
+const _devtoolsGate = require('./main/devtools-gate').createDevToolsGate({
+  app,
+  isPackaged: _isPackagedBuild,   // ★0920 pkgguard — app.isPackaged(이름 규칙)만으로 풀리지 않게
+  readAuth,
+  authVerdict: (rec) => authVerdict(rec),
+  isAdminAuthorized,
+  getAllWebContents: () => { try { return require('electron').webContents.getAllWebContents(); } catch (_) { return []; } },
+  onChange: () => _rebuildAppMenu(),
+});
+_devtoolsGate.install(app);
+_devtoolsGate.registerIpc(ipcMain);
+
+/** 앱 메뉴를 «지금 판정»으로 다시 짓는다. 로그인·로그아웃·코드 해제 뒤에 부른다. */
+function _rebuildAppMenu() {
+  try {
+    if (typeof app.isReady !== 'function' || !app.isReady()) return;   // 메뉴는 ready 뒤에만
+    const { buildAppMenu } = require('./main/gdt/wire');
+    buildAppMenu({
+      isDevToolsAllowed: () => _devtoolsGate.isAllowed(),
+      toggleDevTools: (wc) => _devtoolsGate.toggleFor(wc),
+    });
+  } catch (e) { console.error('[gdt] 메뉴 재빌드 실패:', e); }
+}
+/** 계정이 바뀐 뒤 — 메뉴를 새로 짓고, 잠김이 됐으면 열린 개발자 도구를 닫는다. */
+function _devtoolsAuthChanged() {
+  /* ⛔이 부수효과가 로그인·저장 경로를 «넘어뜨리면» 안 된다 — 전부 삼킨다. */
+  try { _rebuildAppMenu(); } catch (_) {}
+  try { _devtoolsGate.enforce(); } catch (_) {}
+}
+
 /* ── IPC: 운영자 공지 ──
    구현은 main/notice/* 에 있다. 여기엔 «주입»만 둔다(collab 과 같은 규약).
    ⚠️ sessionToken 은 이 클로저 밖으로 안 나간다 — 공지 조회의 x-session-token 헤더는 main 에서만 붙는다. */
@@ -3672,6 +3997,12 @@ ipcMain.handle('templates:open-window', async (event, geom) => {
    (parent 지정만으로는 맥에서 부모 종료 시 자동으로 안 닫히는 경우가 있어 명시한다.) */
 app.on('before-quit', () => { if (_tplWin && !_tplWin.isDestroyed()) _tplWin.destroy(); });
 
+/* ★T-032 «창 닫기» 알림용 표식 — «닫기»와 «종료»를 가른다.
+   ⌘Q·app.quit() 은 before-quit 이 «먼저» 오고, 그 경로는 main/quit/save-guard.js 가
+   app.exit() 으로 끝낸다 ⇒ 거기서 창 close 를 가로채 봐야 지연이 먹지 않는다(오히려 종료를
+   망친다). 빨간 버튼·⌘W 만 close 가 «먼저» 온다 — 알림은 그 자리에서만 건다. */
+app.on('before-quit', () => { _t32Quitting = true; });   /* 선언은 createWindow 위 */
+
 /* ★팝아웃 창 → 편집기 창으로 가는 «통로는 하나»다(window.__tplEditorCommand).
    삽입도 복구도 결국 「편집기가 해야 하는 일」이라, 통로를 늘리지 않고 action 으로 가른다.
    ⛔통로를 명령마다 새로 만들면 어느 것이 살아 있는지 추적이 안 된다. */
@@ -3897,6 +4228,9 @@ function cleanSpentUpdaterPending() {
 
    ★게이트를 «부르는 자리»가 아니라 «함수 안»에 둔다: 부르는 자리에 조건을 두면 그 조건이
      검사 밖에 남는다(검사는 이 함수를 직접 부른다 — tests/unit/update-gate*.test.mjs). */
+/* ★0920 pkgguard: 이 판정은 «보안 게이트가 아니라» 의도적으로 _isPackagedBuild() 로 넓히지 않았다(허용목록 G12).
+   electron-updater 가 내부에서 app.isPackaged 로 다시 판정해 켜 봐야 무동작이고, 스톡 Electron 의
+   resourcesPath 엔 app-update.yml 이 없다. */
 function _autoUpdateEnabled() {
   try { return app.isPackaged === true; } catch (_) { return false; }
 }
@@ -3990,11 +4324,18 @@ app.whenReady().then(async () => {
       const result = await migrator.migrateAll(PROJECTS_DIR, {
         log: (lvl, msg) => console.log(`[migrator:${lvl}] ${msg}`),
       });
+      /* ★T-065 — itemsSkipped = 「옮기는 도중 그새 사라져 건너뛴 파일」.
+         ⛔0 건이어도 «찍는다» — 안 찍으면 「없음」과 「안 재봄」이 같은 화면이 된다. */
+      const _itemsSkipped = result?.itemsSkipped || [];
       console.log(
         `[migrator] migrated=${(result?.migrated || []).length},`,
         `skipped=${(result?.skipped || []).length},`,
-        `failed=${(result?.failed || []).length}`
+        `failed=${(result?.failed || []).length},`,
+        `itemsSkipped=${_itemsSkipped.length}`
       );
+      for (const rec of _itemsSkipped) {
+        console.warn(`[migrator] 건너뜀(${rec.kind}) ${rec.id}: ${rec.path} — ${rec.code || '(코드없음)'} ${rec.message}`);
+      }
     } else {
       console.log('[migrator] module not present — dual-read fallback active');
     }
@@ -4007,9 +4348,9 @@ app.whenReady().then(async () => {
   // ★메뉴는 이 앱에 원래 없어서 Electron 기본 메뉴가 ⌘C/⌘V를 대신하고 있었다.
   //   표준 role 템플릿 위에 「파일」을 얹는 방식이라 기본 편집 단축키가 유지된다.
   try {
-    const { registerGdtIpc, buildAppMenu } = require('./main/gdt/wire');
+    const { registerGdtIpc } = require('./main/gdt/wire');
     registerGdtIpc({ projectsDir: _projectsRoot, resolveProjectJsonPath: _resolveProjectJsonPath }); // ★값이 아니라 «게터» — 계정이 바뀌면 따라가야 한다
-    buildAppMenu();
+    _rebuildAppMenu();   // ★개발자 도구 항목은 devtools-gate 판정으로 보이고/숨는다
   } catch (e) {
     console.error('[gdt] 초기화 실패 — 메뉴 없이 계속:', e);
   }
@@ -4127,6 +4468,8 @@ app.whenReady().then(async () => {
       updateCanvasBlock: _invokeRendererUpdateCanvasBlock,
       addGridBlock: _invokeRendererAddGridBlock,
       updateGridBlock: _invokeRendererUpdateGridBlock,
+      addQABlock: _invokeRendererAddQABlock,
+      updateQABlock: _invokeRendererUpdateQABlock,
       readBlockState: _invokeRendererReadBlockState,   // ★「바꿨다」를 «되읽어» 대조하는 자리
       setActiveFrame: _invokeRendererSetActiveFrame,   // ★«이 프레임 안에» 넣기 위한 자리
       whereIsBlock: _invokeRendererWhereIsBlock,       // ★「정말 거기 들어갔나」를 화면에서 확인
@@ -6390,7 +6733,8 @@ async function _invokeRendererUpdateCanvasBlock({ blockId, partial } = {}) {
    ⇒ 사용자가 「그리드에 글 넣어줘」 하면 클로드가 «그런 기능 없습니다»라고 답한다.
    ⇒ 앱이 이미 검증(cols 1~4·rows·cells·gap·valign)을 하므로 여기선 «넘겨주고 결과를 읽어» 돌려준다.
    ⛔`applied` 를 인자에서 만들지 않는다 — 오늘 그 병으로 네 자리가 거짓 성공했다. */
-async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, valign } = {}) {
+async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, rowGap, colGap, valign,
+  cellBorderWidth, cellBorderColor, cellBorderStyle } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
   const opts = {};
@@ -6398,7 +6742,13 @@ async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, 
   if (Array.isArray(rows)) opts.rows = rows;
   if (Array.isArray(cells)) opts.cells = cells;
   if (gap != null) opts.gap = Number(gap);
+  if (rowGap != null) opts.rowGap = Number(rowGap);
+  if (colGap != null) opts.colGap = Number(colGap);
   if (valign != null) opts.valign = String(valign);
+  /* ★T-172 칸 테두리 — 세 키를 «따로» 넘긴다(축약값 없음). 검증은 앱이 정본이다. */
+  if (cellBorderWidth != null) opts.cellBorderWidth = Number(cellBorderWidth);
+  if (cellBorderColor != null) opts.cellBorderColor = String(cellBorderColor);
+  if (cellBorderStyle != null) opts.cellBorderStyle = String(cellBorderStyle);
   const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
   const safeOpts = JSON.stringify(opts);
   const atomicJs = `(() => {
@@ -6423,13 +6773,18 @@ async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, 
       const before = document.querySelectorAll('.grid-block').length;
       const r = window.addGridBlock(${safeOpts});
       const el = r && r.block;
+      /* ★입구 계약이 «만들기 전»에 거절했으면 그 까닭을 그대로 올린다 (2026-09-24 T-170).
+         ⛔없으면 「활성 섹션 확인」이라는 «엉뚱한» 까닭으로 덮인다 — 부르는 쪽이 영영 못 고친다. */
+      if (r && r.ok === false) return r;
       if (!el) return { ok: false, code: 'NOT_CREATED', message: '그리드 블록이 만들어지지 않았습니다 (활성 섹션 확인).' };
       /* ★결과를 «읽어서» 돌려준다 — 인자를 되읊지 않는다 */
       const cells = el.querySelectorAll('.grd-cell');   // ★실측 클래스는 grd-cell 이다(grid-cell 아님)
-      return { ok: true, blockId: el.id, sectionId: (el.closest('.section-block') || {}).id || null,
+      /* ★「눌러 맞춘 것」을 고치는 문과 «같은 모양»으로 올린다 (2026-09-24, 지디 실기 관측).
+         ⛔없으면 cols 6개·valign 오타가 ok:true 로 돌아가고 부른 쪽은 4열·'top' 을 모른다. */
+      return Object.assign({ ok: true, blockId: el.id, sectionId: (el.closest('.section-block') || {}).id || null,
                gridBefore: before, gridAfter: document.querySelectorAll('.grid-block').length,
                cols: parseInt(el.dataset.gridCols || '0') || (JSON.parse(el.dataset.cols || '[]').length || null),
-               cellCount: cells.length };
+               cellCount: cells.length }, (r && r.notApplied) || {});
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
@@ -6796,6 +7151,82 @@ async function _invokeRendererUpdateGridBlock({ blockId, partial } = {}) {
   })()`;
   try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
   catch (e) { throw new Error('updateGridBlock call failed: ' + e.message); }
+}
+
+/* ─── qa-block(qa_) — admin 전용 QA 체크리스트 (2026-09-16 신설) ────────────
+   ⛔UI 블록 추가 팔레트에 노출하지 않는다 — 생성 경로는 이 MCP 도구 하나뿐이다.
+   ⛔여기서 items/feedback/collapsed 를 다시 검증하지 않는다 — 앱(window.addQABlock/
+     updateQABlock)이 정본이다. 두 곳에서 검증하면 둘이 어긋나는 날이 온다. */
+async function _invokeRendererAddQABlock({ sectionId, ticket, title, items } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const opts = {};
+  if (ticket != null) opts.ticket = String(ticket);
+  if (title != null) opts.title = String(title);
+  if (Array.isArray(items)) opts.items = items;
+  const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const safeOpts = JSON.stringify(opts);
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+        && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      if (userEditing || (Date.now() - (window._lastUserKeydown || 0)) < 1500) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.addQABlock !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.addQABlock not found' };
+      const sid = ${safeSid};
+      if (sid) {
+        const _sec = document.getElementById(sid);
+        if (!_sec || !_sec.classList.contains('section-block')) {
+          return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        }
+        if (typeof window.selectSection === 'function') window.selectSection(_sec);
+      }
+      const before = document.querySelectorAll('.qa-block').length;
+      const r = window.addQABlock(${safeOpts});
+      const el = r && r.block;
+      if (!el) return { ok: false, code: 'NOT_CREATED', message: 'QA 블록이 만들어지지 않았습니다 (활성 섹션 확인).' };
+      const itemsN = (() => { try { return JSON.parse(el.dataset.items || '[]').length; } catch (_) { return 0; } })();
+      return { ok: true, blockId: el.id, sectionId: (el.closest('.section-block') || {}).id || null,
+               qaBefore: before, qaAfter: document.querySelectorAll('.qa-block').length, itemCount: itemsN };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
+  catch (e) { throw new Error('addQABlock call failed: ' + e.message); }
+}
+
+async function _invokeRendererUpdateQABlock({ blockId, partial } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const safeId = JSON.stringify(String(blockId || ''));
+  const safeP = JSON.stringify(partial || {});
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+        && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      if (userEditing || (Date.now() - (window._lastUserKeydown || 0)) < 1500) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.updateQABlock !== 'function') return { ok: false, code: 'API_MISSING', message: 'window.updateQABlock not found' };
+      const el = document.getElementById(${safeId});
+      if (!el || !el.classList.contains('qa-block')) {
+        return { ok: false, code: 'NOT_FOUND', message: 'qa block not found: ' + ${safeId} };
+      }
+      const r = window.updateQABlock(${safeId}, ${safeP});
+      if (r && r.ok === false) return r;
+      /* ★바뀐 뒤의 «화면»을 읽어 돌려준다 */
+      const after = document.getElementById(${safeId});
+      let items = [];
+      try { items = JSON.parse((after && after.dataset.items) || '[]'); } catch (_) {}
+      return Object.assign({}, r, { ok: true, blockId: ${safeId}, items,
+        feedback: (after && after.dataset.feedback) || '', collapsed: (after && after.dataset.collapsed) === 'true',
+        verdict: (after && after.dataset.verdict) || 'none' });
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try { return await mainWindow.webContents.executeJavaScript(atomicJs, true); }
+  catch (e) { throw new Error('updateQABlock call failed: ' + e.message); }
 }
 
 // ─── [APIMCP P1] add_frame_block — frame-block(ss_) 컨테이너 추가 ─────────────

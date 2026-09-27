@@ -232,8 +232,16 @@ test('★조건① 재발방지 — 오버레이가 border-radius 를 «읽는�
   /* ★이 줄이 «검사가 대상을 실제로 보는지»를 지킨다.
    *   기하 단위검사는 반경을 «주입해서» 산술만 본다 — _geomOf 가 _radiiOf 를 안 부르게 바꿔도
    *   그쪽은 초록이었다(양성대조로 확인). 그 구멍을 여기서 막는다. */
-  assert.ok(/const rawR = _radiiOf\(el/.test(JS_CODE),
-    '_geomOf 가 _radiiOf 를 «호출»해야 한다 — 안 부르면 반경을 읽고도 안 쓰는 셈이다');
+  assert.ok(/const rawR = SEL_FOLLOW_RADIUS \? _radiiOf\(el/.test(JS_CODE),
+    '_geomOf 가 _radiiOf 를 «스위치 뒤에서» 호출해야 한다 — 스위치를 켜면 옛 동작이 그대로 돌아와야 한다');
   assert.ok(/_clampRadii/.test(JS_CODE) && /_insetRadii/.test(JS_CODE),
     '반경은 «변 길이로 클램프»하고 «선 안쪽 거리만큼 축소»해야 한다(CSS 규약 + 안쪽 선)');
+});
+
+test('★2026-09-15 현빈 결정 — 선택 테두리는 모든 블럭에서 «네모»(반경을 따라가지 않는다)', () => {
+  /* 원문: 「icd_y4b32_vgfems7, bn2_y4b32_s7hu2yc 이배너 아웃라인이 다른건 일반 사각형인데 라디우스가 들어가있어」
+   * ⛔되돌리면 빨개진다: SEL_FOLLOW_RADIUS 를 true 로 바꾸면 이 검사가 죽는다. */
+  const m = JS_CODE.match(/export const SEL_FOLLOW_RADIUS = (true|false);/);
+  assert.ok(m, 'SEL_FOLLOW_RADIUS 스위치를 못 찾았다');
+  assert.equal(m[1], 'false', '선택 테두리가 다시 반경을 따라간다 — 현빈이 «네모로 통일»을 정했다');
 });

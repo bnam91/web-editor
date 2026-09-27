@@ -20,6 +20,9 @@ import {
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame } from './frame-geometry.js';
+import { getGridModel, GRID_NESTED_LINE_TYPE } from './blocks/grid-block.js';
+import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
+import { isShapeFrame, shapeFrameOf, resolveInsertFrame, topLevelBlocksOf, isEmptyShell } from './shape-frame.js';
 
 /* ═══════════════════════════════════
    BLOCK FACTORY — make* / add* / addSection
@@ -376,6 +379,7 @@ function applyTextOpts(block, frame, opts, type) {
     if (type === 'label') block.style.textAlign = opts.align;
     else if (contentEl) contentEl.style.textAlign = opts.align;
   }
+  // textgrad-ok: 방금 만든 새 블럭 — 그라데이션이 있을 수 없다
   if (opts.color && contentEl) contentEl.style.color = opts.color;
   if (opts.fontSize && contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
   _applyTextExtras(contentEl, opts);
@@ -411,6 +415,7 @@ function addTextBlock(type, opts = {}) {
     }
     if (opts.color) {
       const contentEl = block.querySelector('[class^="tb-"]');
+      // textgrad-ok: 방금 만든 새 블럭 — 그라데이션이 있을 수 없다
       if (contentEl) contentEl.style.color = opts.color;
     }
     if (opts.fontSize) {
@@ -420,7 +425,15 @@ function addTextBlock(type, opts = {}) {
     _applyTextExtras(block.querySelector('[class^="tb-"]'), opts);
     // overlay 내 row wrapper (overlay 구조 유지용)
     const overlayRow = document.createElement('div');
-    overlayRow.className = 'row'; overlayRow.dataset.layout = 'stack';
+    /* ★[F2 넷째 자리 · 2026-09-22] row 에 «만들 때» id 를 준다 — ⛔지우지 마라.
+       안 주면 js/io/save-load.js rebindAll 의 「row ID 복원」이 `'row_' + Math.random()` 을 박는데,
+       그 줄은 restoreSnapshot(⌘Z)·switchPage 가 «둘 다» 지난다 ⇒ 복원할 때마다 «다른 id» 다.
+       그러면 「복원 직후 라이브 ≠ 방금 복원한 스냅샷」이 항상 참이 되고(F2),
+       undo 첫머리의 ensureHistoryCheckpoint 가 «매번» 한 칸을 쌓았다가 곧바로 pos-- 하므로
+       ★순증이 0 이다 — ⌘Z 를 눌러도 pos 가 제자리, 되돌리기가 «전면 무동작»이 된다.
+       실측(2026-09-22, E-undo 제보 → 재현): 스텝 3동작 뒤 ⌘Z 6번 전부 pos 1→1.
+       (id 를 주면 같은 걸음이 2번에 pos 0 에 닿는다.) 다른 row 팩토리 15자리는 원래 id 를 준다. */
+    overlayRow.className = 'row'; overlayRow.id = genId('row'); overlayRow.dataset.layout = 'stack';
     if (opts.paddingX !== undefined) {
       overlayRow.style.paddingLeft  = opts.paddingX + 'px';
       overlayRow.style.paddingRight = opts.paddingX + 'px';
@@ -435,7 +448,8 @@ function addTextBlock(type, opts = {}) {
 
   // 활성 프레임(frame-block) 분기 — freeLayout / fullWidth 모두 처리
   // banner-preset 외곽은 컴포넌트 단위 — 직접 자식 받지 않음. drill-in한 inner만 활성 대상.
-  const activeSS = window._activeFrame;
+  // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
+  const activeSS = resolveInsertFrame(window._activeFrame);
   if (activeSS && !activeSS.dataset.bannerPreset) {
     window.pushHistory();
     const { block } = makeTextBlock(type);
@@ -538,7 +552,15 @@ function addBlankTextBlock(type = 'body', opts = {}) {
       else if (contentEl) contentEl.style.textAlign = overlayAlign;
     }
     const overlayRow = document.createElement('div');
-    overlayRow.className = 'row'; overlayRow.dataset.layout = 'stack';
+    /* ★[F2 넷째 자리 · 2026-09-22] row 에 «만들 때» id 를 준다 — ⛔지우지 마라.
+       안 주면 js/io/save-load.js rebindAll 의 「row ID 복원」이 `'row_' + Math.random()` 을 박는데,
+       그 줄은 restoreSnapshot(⌘Z)·switchPage 가 «둘 다» 지난다 ⇒ 복원할 때마다 «다른 id» 다.
+       그러면 「복원 직후 라이브 ≠ 방금 복원한 스냅샷」이 항상 참이 되고(F2),
+       undo 첫머리의 ensureHistoryCheckpoint 가 «매번» 한 칸을 쌓았다가 곧바로 pos-- 하므로
+       ★순증이 0 이다 — ⌘Z 를 눌러도 pos 가 제자리, 되돌리기가 «전면 무동작»이 된다.
+       실측(2026-09-22, E-undo 제보 → 재현): 스텝 3동작 뒤 ⌘Z 6번 전부 pos 1→1.
+       (id 를 주면 같은 걸음이 2번에 pos 0 에 닿는다.) 다른 row 팩토리 15자리는 원래 id 를 준다. */
+    overlayRow.className = 'row'; overlayRow.id = genId('row'); overlayRow.dataset.layout = 'stack';
     overlayRow.appendChild(block);
     insertIntoOverlay(overlay, overlayRow);
     bindBlock(block);
@@ -548,7 +570,8 @@ function addBlankTextBlock(type = 'body', opts = {}) {
   }
 
   // 활성 프레임(frame-block) 분기
-  const activeSS = window._activeFrame;
+  // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
+  const activeSS = resolveInsertFrame(window._activeFrame);
   if (activeSS && !activeSS.dataset.bannerPreset) {
     window.pushHistory();
     const { block } = makeTextBlock(type, { blank: true });
@@ -902,7 +925,7 @@ function addGapBlock(height) {
     return;
   }
   // fullWidth 플로우 프레임에만 추가 — 자유배치(freeLayout) 프레임은 스킵 후 섹션 레벨로
-  if (window._activeFrame?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
+  if (resolveInsertFrame(window._activeFrame)?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
     const gb = makeGapBlock();
     if (height) gb.style.height = height + 'px';
     gb.dataset.h = height || 40;
@@ -1017,11 +1040,14 @@ function applyTableColHighlight(block) {
   });
 }
 
+/* ★표 칸 이스케이프 — 이 파일에 «두 벌»이 있었다(addTableBlock · updateTableBlock).
+   두 벌은 조용히 갈라진다. 한 벌만 남긴다 (T-049). */
+const _escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 function addTableBlock(opts = {}) {
   // 2026-06-08: opts.headers + opts.rows 데이터 직접 주입 지원 (MCP add_table_block)
   // 2026-07-03(U3): cols/rowCount 빈 그리드, textColor/lineColor/headerBg, highlightCol,
   //   다크 섹션 테마어웨어 기본색 추가.
-  const _escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const applyData = (block) => {
     if (opts.showHeader === false) {
       block.dataset.showHeader = 'false';
@@ -1074,13 +1100,24 @@ function addTableBlock(opts = {}) {
       applyTableColHighlight(block);
     }
   };
+  /* ★T-131: 테마 판정을 «다음 틱»이 아니라 _insertToFlowFrame 이 돌아온 «직후» 동기로 한다.
+     지연의 원래 이유(「삽입 후 섹션 컨텍스트 확정」)는 여기서 이미 풀려 있다 — 돌아온 시점엔
+     블럭이 프레임에 붙어 있어 _applyTableThemeDefaults 의 closest('.section-block') 이 성립한다.
+     ⛔setTimeout 으로 되돌리지 마라: _applyTableThemeDefaults 는 dataset+인라인 CSS 변수를
+       «쓴다» ⇒ 직렬화 문자열이 바뀐다. 삽입 «끝 표본»(js/insert-history.js 규약 ④) 뒤에
+       그게 일어나면 ensureHistoryCheckpoint 가 top≠live 를 보고 한 칸을 더 만들어,
+       「어두운 섹션 + 프레임 안 표 삽입 → ⌘Z」 가 한 번에서 두 번으로 늘어난다(먹통 한 칸).
+     게이트: tests/unit/insert-seam-roster.test.mjs (B3 — 로스터 입구의 지연 DOM 쓰기 금지). */
+  let _tblBlock = null;
   if (_insertToFlowFrame(() => {
     const { row, block } = makeTableBlock();
     applyData(block);
-    // flow-frame 경로는 삽입 후 섹션 컨텍스트 확정 — 다음 틱에 테마 판정
-    setTimeout(() => { try { _applyTableThemeDefaults(block, opts); } catch (_) {} }, 0);
+    _tblBlock = block;
     return { row, block };
-  })) return;
+  })) {
+    if (_tblBlock) { try { _applyTableThemeDefaults(_tblBlock, opts); } catch (_) {} }
+    return;
+  }
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
@@ -1452,7 +1489,7 @@ function addSection(opts = {}) {
     window.selectSectionWithModifier(sec, e);
     const row = e.target.closest('.row');
     // row 빈 여백 클릭은 row-active 제외 — 섹션 선택만 (fix(section-select), 판정=editor.js isRowMarginClick)
-    if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block')) {
+    if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .qa-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -1465,9 +1502,19 @@ function addSection(opts = {}) {
   // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .qa-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
+  /* ★🔓 보호 단추를 «만들 때» 심는다 (T-094 ⒜⒝ · 2026-09-22 실앱 실측).
+     왜 — 심는 곳이 _hydrateAllSectionsForProtection(로드 때 ＋ +1500ms) «둘뿐»이라,
+     그 뒤에 만든 섹션은 단추가 «아예 없었다». ⌘Z(rebindAll)가 지나가도 안 생겼다.
+     실측(포트 9626): 이 판에서 만든 섹션 4개 전부 st-protected-btn 0개 ·
+       손으로 hydrate 를 부르니 그제야 생김 ⇒ 「없다」가 아니라 «부르는 데가 없다».
+     ⛔그런데 앱은 「🔒 버튼으로 보호 해제 후 삭제하세요」(js/editor.js)라고
+       «없는 단추»를 가리킨다 — 안내문이 가리키는 자리를 실제로 있게 만든다.
+     ★자리는 _ensureProtectionButton 이 스스로 정한다(📝 다음). ab 는 「🔒 없으면 📝」
+       다음에 붙으므로 이 줄이 «앞이든 뒤든» 정착 차례는 [📝,🔓,A/B,✨] 로 같다(T-140). */
+  if (window._ensureProtectionButton) window._ensureProtectionButton(sec);
 
   // GAP-003: 전체 레이어패널 재구성(O(n)) 대신 신규 섹션 행만 증분 추가(O(1)). 미지원 시 폴백.
   if (window.appendLayerSection) window.appendLayerSection(sec);
@@ -1517,8 +1564,9 @@ function addJokerBlock(opts = {}) {
   // 이스터에그 토글 off 시 조커 블록 생성 차단 (콘솔/Figma 호출 무관)
   if (window.isEasterEggEnabled && !window.isEasterEggEnabled('jokerBlock')) return;
   // 서브섹션 활성화 상태: absolute 위치로 직접 삽입 (Figma 좌표 재현)
-  if (window._activeFrame) {
-    const ss = window._activeFrame;
+  const _jokerSS = resolveInsertFrame(window._activeFrame);
+  if (_jokerSS) {
+    const ss = _jokerSS;
     const { block } = makeJokerBlock(opts);
     block.style.position = 'absolute';
     block.style.left = `${opts.x || 0}px`;
@@ -1687,7 +1735,8 @@ function _calcFreeLayoutStackY(inner) {
 
 /* sub-section이 활성화된 경우 블록 삽입 — freeLayout(B모드) / fullWidth(플로우) 분기 */
 function _insertToFlowFrame(makeBlockFn, opts = {}) {
-  const ss = window._activeFrame;
+  // ★도형 래퍼가 활성이어도 그 «안»에 넣지 않는다 — 한 단계 위 실제 프레임(없으면 섹션 레벨 폴백)
+  const ss = resolveInsertFrame(window._activeFrame);
   if (!ss) return false;
 
   /* banner-preset 외곽은 컴포넌트 단위로 취급 — 직접 자식 추가 받지 않음.
@@ -1758,17 +1807,12 @@ function addFrameBlock(opts = {}) {
   const ss = makeFrameBlock(opts);
 
   // 활성 프레임 안에 삽입 (중첩 프레임) — fullWidth 모드 및 shape frame 제외
-  const activeFrame = !opts.fullWidth && window._activeFrame;
-  const isShapeFrame = activeFrame && !!activeFrame.querySelector(':scope > .shape-block');
-  if (activeFrame && !isShapeFrame && activeFrame.closest('.section-block') === sec) {
+  // ★도형 래퍼 판정·넣을 자리는 shape-frame.js SSOT — insertAfterSelected 도 같은 해석을 쓴다
+  const activeFrame = !opts.fullWidth && resolveInsertFrame(window._activeFrame);
+  if (activeFrame && activeFrame.closest('.section-block') === sec) {
     activeFrame.appendChild(ss);
   } else {
-    // shape frame이 활성화된 상태면 _activeFrame을 임시 해제
-    // insertAfterSelected가 내부적으로 _activeFrame을 참조해 shape wrapper 안에 삽입하는 것을 방지
-    const _prev = window._activeFrame;
-    if (isShapeFrame) window._activeFrame = null;
     insertAfterSelected(sec, ss);
-    if (isShapeFrame) window._activeFrame = _prev;
   }
 
   if (!opts.fullWidth) window.bindFrameDropZone?.(ss);
@@ -1799,12 +1843,16 @@ function _nextGroupName() {
 function wrapSelectedBlocksInFrame(opts = {}) {
   const asGroup = opts.asGroup === true;
   // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .zoom-block, .step-block, .frame-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .zoom-block, .step-block, .frame-block, .qa-block';
   let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
   // text-frame 래퍼는 그룹 대상이 아님 (안의 text-block이 실제 선택 단위)
   selected = selected.filter(el => el.dataset?.textFrame !== 'true');
+  // ★도형은 «래퍼째» 한 단위다(0918 A안, T-057) — shape-block 을 그 도형 래퍼로 바꿔 묶는다.
+  //   안 바꾸면 ① freeLayout 분기에서 closest 가 도형 래퍼 자신을 잡아 새 그룹/프레임이 래퍼 «안»에 생기고
+  //   ② flow 분기에서 row 단위가 shape-block 이 돼 새 프레임이 래퍼 안에 들어가고 도형이 삭제됐다.
+  selected = [...new Set(selected.map(el => shapeFrameOf(el) || el))];
   // 다른 선택 항목을 포함하는 컨테이너(드릴인된 부모 프레임/그룹)는 제외 — 리프 선택만 그룹화
   selected = selected.filter(el => !selected.some(o => o !== el && el.contains(o)));
   if (selected.length < 1) {
@@ -1824,16 +1872,19 @@ function wrapSelectedBlocksInFrame(opts = {}) {
 
   // ── freeLayout 내부 묶기: X/Y 좌표 유지 ──────────────────────────────────
   // 선택된 블록들이 동일한 freeLayout 프레임 안에 있으면 절대좌표 기반으로 처리
-  const parentFreeFrame = selected[0].closest('.frame-block[data-free-layout]');
+  // ★«부모» 자유배치 프레임 — parentElement 에서 찾는다(선택 항목 자신이 자유배치 프레임/도형 래퍼면
+  //   b.closest 가 자기 자신을 잡아 새 프레임을 자기 안에 만든다).
+  const _parentFree = b => b.parentElement?.closest('.frame-block[data-free-layout]') || null;
+  const parentFreeFrame = _parentFree(selected[0]);
   const allInSameFreeFrame = parentFreeFrame &&
-    selected.every(b => b.closest('.frame-block[data-free-layout]') === parentFreeFrame);
+    selected.every(b => _parentFree(b) === parentFreeFrame);
 
   if (allInSameFreeFrame) {
     // 각 블록의 absolute wrapper(text-frame 또는 블록 자체) 수집
     const wrappers = [];
     selected.forEach(b => {
       const w = b.closest('.frame-block[data-text-frame]') ||
-                b.closest('.frame-block[data-shape-frame]') ||
+                shapeFrameOf(b) ||
                 (b.style.position === 'absolute' ? b : null);
       if (w && !wrappers.includes(w)) wrappers.push(w);
     });
@@ -1860,6 +1911,9 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       `width:${frameW}px;height:${frameH}px;` +
       `background:transparent;padding:0;`;
     ss.dataset.bg = 'transparent';
+    // ★makeFrameBlock 기본값(860×520)이 dataset 에 남으면 undo/redo·재로드 때 dataset 기준으로 복원돼 부푼다
+    ss.dataset.width = String(frameW);
+    ss.dataset.height = String(frameH);
     ss.dataset.offsetX = String(minX);
     ss.dataset.offsetY = String(minY);
     if (asGroup) { ss.dataset.group = 'true'; ss.dataset.name = _nextGroupName(); }
@@ -1890,18 +1944,46 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     window.showFrameHandles?.(ss);
     window.buildLayerPanel();
     window.scheduleAutoSave?.();
+    /* ★묶기가 «됐다»고 말해 준다 (T-080, 2026-09-22 실측 포트 9533)
+       실패 경로엔 말이 있었는데(위 「…먼저 선택하세요.」·「같은 섹션 안의 블록만…」) 성공 경로엔
+       한마디도 없었다 — 그룹 0→1 · 글자블럭 3→3 으로 «성공했는데» 떠 있는 안내 0개.
+       블록이 프레임 안으로 빨려 들어가 캔버스 모양이 확 바뀌는 순간이라, 그게 «내가 한 일»인지
+       «사고»인지 가를 단서가 없다.
+       ⛔여기서 «최상위 도우미 함수»를 부르지 마라 — DOM 하네스(tests/dom/*.dom.spec.js)는 이
+         함수 «하나»만 잘라 넣어서 돌린다. 실제로 그렇게 짰다가 27건이 `ReferenceError:
+         _noticeGrouped is not defined` 로 빨개졌다(2026-09-22). window.* 는 하네스에도 있다. */
+    if (window.showToast && wrappers.length > 0) {
+      window.showToast(`${wrappers.length}개를 ${asGroup ? '그룹으로' : '프레임으로'} 묶었어요`);
+    }
     return;
   }
 
   // ── 섹션 레벨(flow) 블록 묶기: 기존 stack 방식 ───────────────────────────
-  const sectionInner = sec.querySelector('.section-inner');
-  const childrenInOrder = [...sectionInner.children];
+  // ★단위 해석 — 「껍데기」와 「알맹이」를 «여기서» 가른다.
+  //   예전엔 `… || b` 폴백으로 «블록 자신»이 단위가 될 수 있었는데, 아래에서 그 단위를 껍데기로 보고
+  //   자손 명부로 퍼낸 뒤(빈 배열) `row.remove()` 로 «선택된 블록 자신»을 지웠다 — 조용한 데이터 손실.
+  //   (재현: 섹션 텍스트 ⌘D 는 copySelected 가 텍스트프레임 래퍼를 잃어 «맨몸 text-block» 을 만든다
+  //    → 그 복제본은 tf 도 row 도 없어 단위가 자기 자신이 됐다.)
+  //   이제 껍데기(shell)가 «실제로 있을 때만» 껍데기로 다룬다. shell 이 없으면 단위 = 알맹이 자신.
   const rows = [];
+  const shells = new Set();
   selected.forEach(b => {
-    const row = b.classList.contains('gap-block') ? b : (b.closest('.frame-block[data-text-frame]') || b.closest('.row') || b);
-    if (row && !rows.includes(row)) rows.push(row);
+    // gap-block 은 «빈 칸 자체»가 내용이라 껍데기가 없다. 도형 래퍼는 closest 가 아무것도 못 잡아
+    // 자연히 shell=null 이 된다(래퍼째 한 단위 = 0918 A안 T-057) — 특례를 따로 적지 않아도 같은 답.
+    const shell = b.classList.contains('gap-block')
+      ? null
+      : (b.closest('.frame-block[data-text-frame]') || b.closest('.row'));
+    const unit = shell || b;
+    if (shell) shells.add(shell);
+    if (unit && !rows.includes(unit)) rows.push(unit);
   });
-  rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
+  // 문서 순서 정렬 — section-inner 직속이 아닌 단위(merged-part 등)도 -1 로 맨 앞에 끼지 않게
+  rows.sort((a, b) => (a === b ? 0 : (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)));
+  // row 안에서 옮길 블록 — 도형 래퍼 «안»의 shape-block 은 래퍼째 옮기므로 따로 뽑지 않는다
+  const _insideShapeFrame = (x, row) => {
+    for (let p = x.parentElement; p && p !== row; p = p.parentElement) if (isShapeFrame(p)) return true;
+    return false;
+  };
 
   // 선택 블록들의 총 높이 계산 (프레임 높이 결정)
   const GAP = 0;
@@ -1914,22 +1996,59 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   ss.style.cssText = `background:transparent;padding:0;width:100%;height:${frameH}px;min-height:${frameH}px;`;
   ss.dataset.bg = 'transparent';
   ss.dataset.width = '100%';
+  // ★style 높이와 dataset 높이를 같게 — makeFrameBlock 기본값 '520' 이 남으면 redo·저장→재로드에서 520px 로 부푼다
+  ss.dataset.height = String(frameH);
   ss.dataset.padY = '0';
   if (asGroup) { ss.dataset.group = 'true'; ss.dataset.name = _nextGroupName(); }
 
   // 첫 번째 row 자리에 프레임 삽입
   rows[0].before(ss);
 
+  // 도형 래퍼의 보이는 가로 위치 — 래퍼째 옮길 때 left 로 보존.
+  // ★기준 = 새 프레임 ss 의 «패딩 상자»(absolute 자식의 원점). ss 를 넣은 «뒤», 블록을 옮기기 «전»에 잰다.
+  //   section-inner 테두리 상자 기준으로 재면 섹션 좌우여백(인라인 padding, 예: 72px)·합쳐진 파트 패딩만큼
+  //   한 번 더 밀린다(T-057 2라운드). ss 삽입으로 스크롤바가 생겨 가로 위치가 바뀌는 경우도 이 순서로 흡수.
+  const _ssRect = ss.getBoundingClientRect();
+  const _scale = ss.offsetWidth ? (_ssRect.width / ss.offsetWidth) || 1 : 1;
+  const _originX = _ssRect.left + ss.clientLeft * _scale;
+  const _shapeLeft = new Map();
+  rows.forEach(row => {
+    const sfs = isShapeFrame(row) ? [row] : [...row.querySelectorAll('.frame-block')].filter(isShapeFrame);
+    sfs.forEach(w => {
+      const r = w.getBoundingClientRect();
+      _shapeLeft.set(w, Math.round((r.left - _originX) / _scale));
+    });
+  });
+
   // 각 블록을 absolute 배치로 ss에 직접 이동
   let stackY = 0;
+  let leftBehind = false;
   rows.forEach(row => {
     const rowH = row.offsetHeight || 60;
-    const isGapRow = row.classList.contains('gap-block');
-    const blocks = isGapRow ? [row] : [...row.querySelectorAll(BLOCK_SEL)];
+    const isShell = shells.has(row);
+    // ★알맹이 퍼내기 — 명부(BLOCK_SEL)가 아니라 «성질»로 집는다(shape-frame.js topLevelBlocksOf).
+    //   ⑴ 명부에 없던 타입(modal·gradient·speech-bubble·sticker)이 껍데기와 같이 삭제되던 게 닫힌다.
+    //   ⑵ 자손 전수(querySelectorAll)가 아니라 최상위 한 겹이라, row 안의 텍스트프레임과 그 안의
+    //      text-block 을 둘 다 잡아 «빈 프레임»을 남기던 중복 수확도 같이 닫힌다.
+    const blocks = isShell
+      ? topLevelBlocksOf(row).filter(x => !_insideShapeFrame(x, row))
+      : [row];
     blocks.forEach(block => {
       block.style.position = 'absolute';
-      block.style.left = '0px';
       block.style.top = stackY + 'px';
+      if (isShapeFrame(block)) {
+        // 도형 래퍼 — 크기 유지, 보이는 가로 위치 유지(width:100% 로 늘리지 않는다)
+        const l = _shapeLeft.get(block) || 0;
+        block.style.left = l + 'px';
+        block.style.margin = '0';
+        block.dataset.offsetX = String(l);
+        block.dataset.offsetY = String(stackY);
+        block.style.transform = '';
+        block.classList.remove('selected');
+        ss.appendChild(block);
+        return;
+      }
+      block.style.left = '0px';
       block.style.width = '100%';
       block.style.transform = '';
       block.classList.remove('selected');
@@ -1937,8 +2056,21 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       ss.appendChild(block);
     });
     stackY += rowH + GAP;
-    if (!isGapRow) row.remove();
+    // ★「껍데기만 지운다」 — 알맹이가 남아 있으면 절대 지우지 않는다(조용한 소실 금지의 최종 안전망).
+    //   여기까지 왔는데 남은 게 있다 = 우리가 모르는 무언가가 있다는 뜻이니, 제자리에 두고 «알린다».
+    if (isShell) {
+      if (isEmptyShell(row)) row.remove();
+      else leftBehind = true;
+    }
   });
+  if (leftBehind && window.showToast) {
+    window.showToast('그룹에 못 넣은 블록이 있어 원래 자리에 남겼어요.');
+  } else if (window.showToast && rows.length > 0) {
+    /* 성공했다고 말해 준다 — 근거는 위 자유배치 갈래의 머리말.
+       ⚠️못 넣고 남긴 블록이 있는 갈래는 그쪽 말이 더 중요하다 ⇒ «덮지 않는다».
+         #editor-toast 는 재사용 노드라 나중 말이 앞말을 지운다(js/drag-utils.js showToast). */
+    window.showToast(`${rows.length}개를 ${asGroup ? '그룹으로' : '프레임으로'} 묶었어요`);
+  }
 
   window.bindFrameDropZone?.(ss);
 
@@ -2022,6 +2154,55 @@ function _shapeInnerSVG(type, strokeWidth) {
 window._shapeInnerSVG = _shapeInnerSVG;
 
 // 블록의 inner SVG geometry를 현재 strokeWidth에 맞춰 다시 그림 (rectangle/ellipse만 동적)
+/* ★도형 그라데이션 «짝» 다시 잇기(0919 QA, 치명① 저장→로드 변형).
+   그라데이션 def id 와 fill URL 은 block.id 에서 만든다(grad-<id>). 그런데 붙여넣기는 사본 안의 [id] 를
+   전부 새로 짓고(def → grad-shp_<새>), ⌘D·재로드는 block.id 만 바뀌는 경우가 있어 fill 이 원본 def 를 빌리거나
+   (원본이 지워지면) 빈 도형이 됐다. 이 함수가 «도형 안의 그라데이션 def 1개 = grad-<지금 block.id>» 로 맞추고
+   fill URL 을 전부 그 id 로 다시 건다. 멱등. 반환 = 바꾼 게 있으면 true. */
+function relinkShapeGradient(block) {
+  if (!block || !block.classList?.contains('shape-block')) return false;
+  const svg = block.querySelector('svg');
+  if (!svg) return false;
+  const defsGrads = [...svg.querySelectorAll('linearGradient, radialGradient')];
+  const fills = [...svg.querySelectorAll('[fill^="url(#"]')];
+  if (!defsGrads.length && !fills.length) return false;
+  const want = `grad-${block.id || 'shp_anon'}`;
+  let changed = false;
+  if (defsGrads.length) {
+    // 정본 def = 이미 want 인 것 > 지금 fill 이 가리키는 것 > 첫 번째
+    const ref = (fills[0]?.getAttribute('fill') || '').match(/^url\(#([^)]+)\)/)?.[1];
+    const keep = defsGrads.find(g => g.id === want) || defsGrads.find(g => g.id === ref) || defsGrads[0];
+    if (keep.id !== want) { keep.id = want; changed = true; }
+    defsGrads.forEach(g => { if (g !== keep && g.id === want) { g.remove(); changed = true; } });
+    fills.forEach(el => {
+      if (el.getAttribute('fill') !== `url(#${want})`) { el.setAttribute('fill', `url(#${want})`); changed = true; }
+    });
+  } else if (!block.dataset.shapeGradient) {
+    // def 가 없는데 fill 만 URL — 그라데이션 메타도 없으면 끊긴 참조 → 단색으로 되돌린다(빈 도형 방지)
+    fills.forEach(el => { el.setAttribute('fill', 'currentColor'); changed = true; });
+  }
+  return changed;
+}
+window.relinkShapeGradient = relinkShapeGradient;
+
+/* ★[F2 · 2026-09-22] 도형 inner SVG 의 «DOM 직렬화꼴» — 아래 가드의 자.
+   왜 필요한가: `<ellipse …/>` 를 innerHTML 로 «넣으면» 읽을 땐 `<ellipse …></ellipse>` 로 나온다
+   (실측, 크로미움). 그래서 _shapeInnerSVG() 의 생문자열로 「지금 값과 같은가」를 재면
+   ★영영 같지 않다 ⇒ 가드가 한 번도 안 걸린다. 같은 표현끼리 재려고 한 번 «넣었다 읽어»
+   canon 을 만든다(type|strokeWidth 당 한 번, 캐시). */
+const _shapeInnerCanonCache = new Map();
+function _shapeInnerSVGCanon(type, strokeWidth) {
+  const key = `${type}|${strokeWidth}`;
+  let v = _shapeInnerCanonCache.get(key);
+  if (v === undefined) {
+    const probe = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    probe.innerHTML = _shapeInnerSVG(type, strokeWidth);
+    v = probe.innerHTML;
+    _shapeInnerCanonCache.set(key, v);
+  }
+  return v;
+}
+
 function refreshShapeInnerSVG(block) {
   if (!block) return;
   const type = block.dataset.shapeType || 'rectangle';
@@ -2035,7 +2216,16 @@ function refreshShapeInnerSVG(block) {
   const defsHTML = defs ? defs.outerHTML : '';
   // shape에 gradient가 적용 중이면 inner에 fill="url(#..)" 다시 부여
   const gradMeta = block.dataset.shapeGradient;
-  svg.innerHTML = defsHTML + _shapeInnerSVG(type, sw);
+  /* ★[F2 · 2026-09-22] «복원한 결과 = 복원의 입력» 을 지키는 자리.
+     rebindAll(js/io/save-load.js) 은 restoreSnapshot(⌘Z) 과 switchPage 가 «둘 다» 지나는 길인데,
+     여기서 무조건 다시 쓰면 태그 사이 공백 텍스트노드가 사라져 «복원 직후 라이브 ≠ 방금 복원한
+     스냅샷» 이 된다(실측 diff = 공백 8바이트, 7949B→7941B). 그러면 다음 표본이 «다르다»고
+     판정돼 칸이 하나 더 쌓이고, 그 칸의 ⌘Z 는 아무 일도 안 한다 = 먹통 칸(T-131 ⑧ · T-136).
+     ⇒ 쓸 값이 지금 값과 같으면 «안» 쓴다. 이 함수를 멱등으로 만든다.
+     ⚠️그라데이션이 걸린 도형은 아래에서 fill 을 url(#…) 로 다시 칠하므로 가드에 안 걸려
+       계속 다시 쓰지만, 다시 쓴 «결과»가 매번 같으므로(공백이 원래 없다) 멱등은 유지된다. */
+  const _next = defsHTML + _shapeInnerSVGCanon(type, sw);
+  if (svg.innerHTML !== _next) svg.innerHTML = _next;
   if (gradMeta) {
     const id = `grad-${block.id || 'shp_anon'}`;
     svg.querySelectorAll('rect,ellipse,circle,polygon,path').forEach(el => {
@@ -2043,6 +2233,7 @@ function refreshShapeInnerSVG(block) {
       el.setAttribute('fill', `url(#${id})`);
     });
   }
+  relinkShapeGradient(block);   // def id 도 grad-<지금 id> 로(붙여넣기로 id 가 바뀐 사본·저장본 치유)
 }
 window.refreshShapeInnerSVG = refreshShapeInnerSVG;
 
@@ -2053,13 +2244,18 @@ function makeShapeBlock(type = 'rectangle') {
   block.dataset.type = 'shape';
   block.dataset.shapeType = type;
   block.dataset.shapeColor = '#cccccc';
-  block.dataset.shapeStrokeWidth = '3';
+  // ★기본 테두리 0(현빈 0918) — 채움 도형만. line/arrow 는 선 자체가 stroke 라 0이면 «안 보이는 선» → 3 유지.
+  //   기존 도형은 dataset 을 그대로 읽으므로 불변(신규만).
+  const sw = def.fill ? 0 : 3;
+  block.dataset.shapeStrokeWidth = String(sw);
   block.id = genId('shp');
-  const innerSVG = def.dynamic ? _shapeInnerSVG(type, 3) : def.inner;
+  const innerSVG = def.dynamic ? _shapeInnerSVG(type, sw) : def.inner;
+  /* ★[F2 · 2026-09-22] ⛔`${innerSVG}` 앞뒤에 줄바꿈·들여쓰기를 넣지 마라 — 그 공백이 DOM 에
+     «텍스트노드»로 살아서 삽입 시점 스냅샷에 들어가는데, refreshShapeInnerSVG 가 나중에
+     그걸 지운다 ⇒ 복원 직후 라이브 ≠ 스냅샷 ⇒ 먹통 칸(T-131 ⑧ · T-136).
+     (여는 태그 «안»의 줄바꿈은 속성 사이라 텍스트노드를 안 만든다 — 그건 그대로 둬도 된다.) */
   block.innerHTML = `<svg class="shape-svg" viewBox="${def.vb}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"
-    style="color:#cccccc;stroke-width:3;fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">
-    ${innerSVG}
-  </svg>`;
+    style="color:#cccccc;stroke-width:${sw};fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">${innerSVG}</svg>`;
   return { block };
 }
 
@@ -2098,10 +2294,10 @@ function addShapeBlock(type = 'rectangle') {
   bindBlock(block);
 
   // 삽입 대상 결정: 활성 프레임 → 선택된 프레임 → 섹션 레벨
-  const activeFrame = window._activeFrame;
-  const isActiveShapeFrame = activeFrame && !!activeFrame.querySelector(':scope > .shape-block');
+  // ★도형 래퍼 안에 도형을 넣지 않는다 — 활성이 도형 래퍼면 한 단계 위 실제 프레임(SSOT)
+  const activeFrame = resolveInsertFrame(window._activeFrame);
 
-  if (activeFrame && !isActiveShapeFrame && activeFrame.closest('.section-block') === sec) {
+  if (activeFrame && activeFrame.closest('.section-block') === sec) {
     // 활성 프레임 안에 삽입
     if (activeFrame.dataset.freeLayout === 'true') {
       const stackY = _calcFreeLayoutStackY(activeFrame);
@@ -2112,8 +2308,8 @@ function addShapeBlock(type = 'rectangle') {
     activeFrame.appendChild(ss);
   } else {
     const selSS = document.querySelector('.frame-block.selected');
-    const isSelShapeFrame = selSS && !!selSS.querySelector(':scope > .shape-block');
-    if (selSS && !isSelShapeFrame && selSS.closest('.section-block') === sec) {
+    const isSelShapeFrame = isShapeFrame(selSS);
+    if (selSS && !isSelShapeFrame && !selSS.dataset.textFrame && selSS.closest('.section-block') === sec) {
       // 선택된 프레임 안에 삽입
       if (selSS.dataset.freeLayout === 'true') {
         const stackY = _calcFreeLayoutStackY(selSS);
@@ -2124,6 +2320,8 @@ function addShapeBlock(type = 'rectangle') {
       selSS.appendChild(ss);
     } else {
       // 섹션 레벨에 삽입 (shape frame은 다른 ss 중첩 금지)
+      // insertAfterSelected 가 _activeFrame 을 resolveInsertFrame 으로 해석하므로 도형 래퍼 안엔 안 들어간다.
+      // 단 «일반 프레임»이 활성이면서 섹션 레벨로 온 경우(다른 섹션 등)는 기존처럼 활성 해제 후 삽입.
       const prevActiveSS = window._activeFrame;
       window._activeFrame = null;
       insertAfterSelected(sec, ss);
@@ -2135,8 +2333,10 @@ function addShapeBlock(type = 'rectangle') {
 
   window.bindFrameDropZone?.(ss);
   window.buildLayerPanel();
-  window._activeFrame = ss;
-  window.showFrameProperties?.(ss);
+  // ★0919 QA: 새 도형을 «선택»한다 — 예전엔 _activeFrame=래퍼 + 래퍼 프레임 속성만 열고 .selected 는 직전 블럭에
+  //   남겨 둬서, 삽입 직후 ⌫ 가 새 도형 대신 직전 블럭(텍스트 등)을 지웠다.
+  if (typeof window.selectShapeBlock === 'function') window.selectShapeBlock(block);
+  else { window._activeFrame = ss; window.showFrameProperties?.(ss); }
 }
 
 // ── setSectionBg: 섹션 단위 배경색 설정 ──
@@ -2582,9 +2782,17 @@ function updateAssetBlock(blockId, partial = {}) {
   }
 
   // ── 7) bgColor (placeholder 배경; "" = reset) ──
+  /* ★T-011 곁가지(2026-09-22): 배경은 «그라데이션»일 수도 있다 — 그건 backgroundColor 가 아니라
+     background-image 에 실린다(패널의 onGradient 가 ab.style.background 에 쓴다).
+     backgroundColor 만 만지면 reset 도 솔리드 덮어쓰기도 화면을 한 픽셀도 못 바꾸면서
+     ok:true 를 돌려준다 = 도구가 거짓말을 한다. ⇒ 두 가지에서 먼저 단축을 비워 그라데이션을 걷어낸다.
+     패널 쪽 onApply 가 이미 같은 순서다(prop-asset.js · prop-frame.js ss-bg 와 같은 패턴).
+     ⚠️style.background(단축)를 «읽어» 판정하지 마라 — backgroundColor 만 지운 상태에서는 단축이
+       직렬화되지 못해 ''로 읽히는데 background-image 는 살아 있다(실측). 쓰기로만 쓴다. */
   if (partial.bgColor !== undefined && partial.bgColor !== null) {
     if (partial.bgColor === '') {
       delete block.dataset.bgColor;
+      block.style.background = '';
       block.style.backgroundColor = '';
       applied.bgColor = '';
     } else {
@@ -2593,6 +2801,7 @@ function updateAssetBlock(blockId, partial = {}) {
       }
       const c = String(partial.bgColor).trim();
       block.dataset.bgColor = c;
+      block.style.background = '';
       block.style.backgroundColor = c;
       applied.bgColor = c;
     }
@@ -2914,9 +3123,6 @@ function updateTableBlock(blockId, partial = {}) {
   ];
   const _COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
   const _isColor = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64 && _COLOR_RE.test(v.trim());
-  const _escHtml = (s) => String(s ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
   // ── before 스냅샷 ──
   // logical col count 계산: 우선순위 (1) tbody 첫 row의 td 갯수 (가장 신뢰)
   // (2) thead 첫 row의 th 갯수 + colspan sum (병합 보정)
@@ -3947,7 +4153,13 @@ function updateSpeechBubbleBlock(blockId, partial = {}) {
   }
 
   if (block.classList.contains('selected')) {
-    try { window.showSpeechBubbleProperties?.(block); } catch (_) {}
+    /* ★2026-09-21 픽스 라운드 — 여기는 `window.showSpeechBubbleProperties?.(block)` 이었다.
+       그 함수는 이 레포 «어디에도 정의가 없다»(전수 grep = 이 한 줄뿐) ⇒ 옵셔널 체이닝이라
+       예외도 경고도 없이 영영 no-op 이었다. 즉 MCP 로 말풍선 글을 바꿔도 «열려 있던 우측
+       패널은 옛 값 그대로» 남았다. 정본 표 한 자리로 보낸다 — 말풍선은 .text-block 을 겸하므로
+       클릭 경로(js/block-drag.js 의 text-block 핸들러)와 «같은» 텍스트 패널이 뜬다.
+       죽은 패널 호출이 다시 생기면 U-DISPATCH-4 가 잡는다. */
+    try { window.openPanelForBlock?.(block); } catch (_) {}
   }
   try { window.buildLayerPanel?.(); } catch (_) {}
 
@@ -4170,6 +4382,14 @@ function updateLabelGroupBlock(blockId, partial = {}) {
   return { ok: true, blockId, before, applied, warnings };
 }
 
+// 모자이크 가림막 상태 무효화 — redact-mosaic.js invalidateMosaic 단일 창구(캐시·캡처표시·캔버스·
+// 진행 중 캡처 세대). 모듈이 아직 안 올라왔으면 캔버스만 떼는 옛 동작으로 폴백.
+function _invalidateRedactMosaic(block) {
+  if (typeof window.invalidateMosaic === 'function') { try { window.invalidateMosaic(block); return; } catch (_) {} }
+  delete block.dataset.mosaicCaptured;
+  block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
+}
+
 // ── updateShapeBlock: shape 블록 부분 수정 ────────────────────────────────
 function updateShapeBlock(blockId, partial = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
@@ -4184,6 +4404,22 @@ function updateShapeBlock(blockId, partial = {}) {
     return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
   }
 
+  /* ★모자이크 임시 차단(2026-09-20 «0920b-mosaic-off» T-070, js/feature-flags.js REDACT_MOSAIC_ENABLED).
+     스위치가 꺼져 있는데 'mosaic' 요청이 오면 «조용히 blur 로 바꿔 ok:true 를 돌려주지 않는다» —
+     호출자(MCP update_shape_block 등)는 모자이크가 걸린 줄 알고 넘어간다(「오류 삼키는 코드 = 위 판정 거짓말」).
+     ⛔shapeRedact 를 끄는(false) 요청은 막지 않는다 — 끄는 건 언제나 안전한 방향이다.
+     ★자리는 «맨 앞»이다(2026-09-20 픽스 라운드, 이벨류에이터 지적 low) — 속성 적용 «중간»에 두면
+       {shapeColor, shapeRotation, shapeRedactMode:'mosaic'} 같은 배치 요청에서 앞쪽 색·회전만 DOM 에
+       남은 채 ok:false 가 돌아간다. 호출자는 「아무것도 안 됐다」로 읽는데 실제로는 절반이 적용된 상태다.
+       같은 함수의 INVALID 들은 «입력이 틀렸다»라 호출자가 고치면 되지만, DISABLED 는 정상 입력인데
+       기능이 꺼진 것이라 «일상적으로 밟는» 경로다 ⇒ 한 글자도 안 바뀐 상태에서 거절한다.
+     되살리는 조건은 feature-flags.js 주석과 카드 T-071 «0920b-mosaic-cause» 참고. */
+  if (window.REDACT_MOSAIC_ENABLED === false
+      && partial.shapeRedactMode === 'mosaic'
+      && !(partial.shapeRedact !== undefined && partial.shapeRedact !== null && !partial.shapeRedact)) {
+    return { ok: false, code: 'DISABLED', message: '모자이크 모드는 일시 차단 상태입니다(블러만 사용) — 카드 T-071 «0920b-mosaic-cause»' };
+  }
+
   const svg = block.querySelector('svg.shape-svg');
   if (!svg) return { ok: false, code: 'INVALID', message: 'shape svg missing (corrupted block)' };
 
@@ -4195,6 +4431,8 @@ function updateShapeBlock(blockId, partial = {}) {
     shapeStrokeColor: block.dataset.shapeStrokeColor,
     shapeStrokeWidth: block.dataset.shapeStrokeWidth,
     shapeRotation:    block.dataset.shapeRotation,
+    shapeRedact:      block.dataset.shapeRedact === 'true',
+    shapeRedactBlur:  block.dataset.shapeRedactBlur,
     width:  frame ? (frame.dataset.width  || (parseInt(frame.style.width)  || null)) : null,
     height: frame ? (frame.dataset.height || (parseInt(frame.style.height) || null)) : null,
   };
@@ -4228,7 +4466,14 @@ function updateShapeBlock(blockId, partial = {}) {
     const SHAPE_DEFS_REF = (typeof window !== 'undefined' && window.SHAPE_DEFS) ? window.SHAPE_DEFS : null;
     if (SHAPE_DEFS_REF && SHAPE_DEFS_REF[partial.shapeType]) {
       const def = SHAPE_DEFS_REF[partial.shapeType];
-      const sw  = Number(block.dataset.shapeStrokeWidth ?? 3) || 0;
+      let sw  = Number(block.dataset.shapeStrokeWidth ?? 3) || 0;
+      // ★채움 도형 기본 테두리가 0이 됐다(0918) — line/arrow(선 자체가 stroke)로 바꿀 때 0이면
+      //   «안 보이는 선»이 된다 → 3으로 올린다(명시 strokeWidth 가 같이 오면 아래에서 덮어씀).
+      if (!def.fill && sw <= 0) {
+        sw = 3;
+        block.dataset.shapeStrokeWidth = '3';
+        svg.style.strokeWidth = '3';
+      }
       if (block.dataset.shapeGradient && typeof window._clearShapeGradient === 'function') {
         try { window._clearShapeGradient(block); } catch (_) {}
       }
@@ -4259,6 +4504,25 @@ function updateShapeBlock(blockId, partial = {}) {
     }
     block.dataset.shapeType = partial.shapeType;
     applied.shapeType = partial.shapeType;
+    // 이미지(에셋) 채우기 모드(0918 picker) — 면 없는 타입(선·화살표)이면 해제, 면 있으면 모양 clip 을 새 타입으로
+    if (block.dataset.shapeFill) {
+      if (!['rectangle', 'ellipse', 'polygon', 'star'].includes(partial.shapeType)) {
+        try { window._clearShapeImage?.(block); } catch (_) {}
+      } else {
+        if (block.dataset.shapeImage) svg.style.fill = 'transparent';
+        try { window._syncShapeImageClip?.(block); } catch (_) {}
+      }
+    }
+    // 가림막(redact)은 rectangle/ellipse 전용 — 다른 타입으로 바뀌면 걸어둔 상태로
+    // 남아 "안 보이는 블러 도형"이 될 수 있으므로 함께 해제
+    if (block.dataset.shapeRedact === 'true' && partial.shapeType !== 'rectangle' && partial.shapeType !== 'ellipse') {
+      delete block.dataset.shapeRedact;
+      delete block.dataset.shapeRedactMode;
+      block.classList.remove('shape-redact');
+      block.style.removeProperty('--redact-blur');
+      _invalidateRedactMosaic(block);
+      applied.shapeRedact = false;
+    }
   }
 
   if (partial.shapeColor !== undefined && partial.shapeColor !== null) {
@@ -4268,6 +4532,12 @@ function updateShapeBlock(blockId, partial = {}) {
     const c = String(partial.shapeColor).trim();
     if (block.dataset.shapeGradient && typeof window._clearShapeGradient === 'function') {
       try { window._clearShapeGradient(block); } catch (_) {}
+    }
+    // 이미지(에셋)/바둑판 모드 해제 — 안 하면 «색을 바꿨는데 바둑판이 그대로»(0918 picker)
+    if (block.dataset.shapeFill) {
+      try { window._clearShapeImage?.(block); } catch (_) {}
+      delete block.dataset.shapeFill;
+      delete block.dataset.shapeImage;
     }
     block.dataset.shapeColor = c;
     svg.style.color = c;
@@ -4315,6 +4585,78 @@ function updateShapeBlock(blockId, partial = {}) {
       block.style.transformOrigin = 'center center';
     }
     applied.shapeRotation = deg;
+  }
+
+  if (partial.shapeRedact !== undefined && partial.shapeRedact !== null) {
+    const curType = block.dataset.shapeType || 'rectangle';
+    const on = !!partial.shapeRedact;
+    if (on && curType !== 'rectangle' && curType !== 'ellipse') {
+      return { ok: false, code: 'INVALID', message: `shapeRedact only supported for rectangle/ellipse (current: ${curType})` };
+    }
+    block.classList.toggle('shape-redact', on);
+    if (on) {
+      block.dataset.shapeRedact = 'true';
+      const bp = Number.isFinite(Number(partial.shapeRedactBlur)) ? Number(partial.shapeRedactBlur) : (Number(block.dataset.shapeRedactBlur) || 8);
+      // ★최소 2px — 0이면 사실상 안 가려지는데 토글만 켜진 채 남는다(적대적 QA 발견).
+      const clamped = Math.max(2, Math.min(20, Math.round(bp)));
+      block.dataset.shapeRedactBlur = String(clamped);
+      const wasMosaic = block.dataset.shapeRedactMode === 'mosaic';
+      const mode = partial.shapeRedactMode !== undefined
+        ? (partial.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur')
+        : (block.dataset.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur');
+      block.dataset.shapeRedactMode = mode;
+      if (mode === 'blur') {
+        block.style.setProperty('--redact-blur', `${clamped}px`);
+        if (wasMosaic) _invalidateRedactMosaic(block);
+      } else {
+        block.style.removeProperty('--redact-blur');
+        try { window.captureMosaicSnapshot?.(block); } catch (_) {}
+      }
+      applied.shapeRedactBlur = clamped;
+      applied.shapeRedactMode = mode;
+    } else {
+      delete block.dataset.shapeRedact;
+      delete block.dataset.shapeRedactMode;
+      block.style.removeProperty('--redact-blur');
+      _invalidateRedactMosaic(block);
+    }
+    applied.shapeRedact = on;
+  } else if (partial.shapeRedactMode !== undefined && partial.shapeRedactMode !== null && block.dataset.shapeRedact === 'true') {
+    const mode = partial.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur';
+    const wasMosaic = block.dataset.shapeRedactMode === 'mosaic';
+    block.dataset.shapeRedactMode = mode;
+    if (mode === 'blur') {
+      const bp = Number(block.dataset.shapeRedactBlur) || 8;
+      block.style.setProperty('--redact-blur', `${bp}px`);
+      if (wasMosaic) _invalidateRedactMosaic(block);
+    } else {
+      block.style.removeProperty('--redact-blur');
+      try { window.captureMosaicSnapshot?.(block); } catch (_) {}
+    }
+    applied.shapeRedactMode = mode;
+  } else if (partial.shapeRedactBlur !== undefined && partial.shapeRedactBlur !== null) {
+    // ★최소 2px — 0이면 사실상 안 가려지는데 토글만 켜진 채 남는다(적대적 QA 발견).
+    const bp = _setInt('shapeRedactBlur', partial.shapeRedactBlur, 2, 20);
+    if (bp === null) return { ok: false, code: 'INVALID', message: 'shapeRedactBlur must be finite number' };
+    block.dataset.shapeRedactBlur = String(bp);
+    if (block.dataset.shapeRedact === 'true') {
+      if (block.dataset.shapeRedactMode === 'mosaic') {
+        /* ★모자이크 차단 중(T-070)에는 «보이는 것»이 블러다 — 인라인 --redact-blur 도 같이
+           올려야 한다. 안 그러면 옛 인라인(패널을 한 번 열기만 해도 박히고 저장 HTML 에
+           구워진다, prop-shape.js:302)이 새 CSS 규칙(editor-blocks.css 의
+           data-shape-redact-blur → --redact-blur)을 «이겨», API 는 ok:true·dataset 은 새 값인데
+           화면·내보내기는 옛 강도 그대로인 «조용한 거짓 성공»이 된다(0920b 이벨류에이터 medium).
+           ⛔`=== false` 비교 — 플래그를 안 얹는 하네스(undefined)는 «켜짐»이다(U5 와 같은 규약).
+           ⚠️스위치를 되살리면(T-071) 이 갈래는 저절로 옛 동작(캡처만)으로 돌아간다. */
+        if (window.REDACT_MOSAIC_ENABLED === false) {
+          block.style.setProperty('--redact-blur', `${bp}px`);
+        }
+        try { window.captureMosaicSnapshot?.(block, { reuseFullRes: true }); } catch (_) {}
+      } else {
+        block.style.setProperty('--redact-blur', `${bp}px`);
+      }
+    }
+    applied.shapeRedactBlur = bp;
   }
 
   if (partial.width !== undefined && partial.width !== null) {
@@ -4511,12 +4853,80 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
 
   let _targetBlock = null;
   let _targetCell = null; // #5-b: 우클릭한 테이블 바디셀 (병합/해제 대상)
+  let _targetGridAddr = null; // 그리드 블록: 우클릭한 셀 {r,c,li} — li는 «기존 이미지 줄»이 있을 때만 숫자
 
   // 메뉴 닫기
   function closeMenu() {
     menu.style.display = 'none';
     _targetBlock = null;
     _targetCell = null;
+    _targetGridAddr = null;
+  }
+
+  /* 그리드 블록 우클릭 → 「어느 셀인가」(및 그 셀에 이미 이미지 줄이 있는가).
+     ⛔DOM 순서 역산 금지 — renderGridBlock 이 심은 data-r/data-c/data-line 이 정본이다
+       (grid-block.js _gridEditable/block-drag.js 와 같은 규약). */
+  function _gridCellAddrAt(e, block) {
+    if (!block.classList.contains('grid-block')) return null;
+    /* ★elementFromPoint(단수) → elementsFromPoint(복수) — 선택된 그리드 위엔 «블록 바깥» 요소가
+       pointer-events:auto 로 덮여 있다(거터 .grd-gutter z-index:97 · 이미지 코너핸들
+       .grd-img-overlay-handle — 둘 다 #ss-handles-overlay 소속). 단수는 그걸 집어 오고
+       block.contains 가 false 라 e.target 으로 폴백했는데, 거터 위 우클릭은 e.target 도
+       블록이 아니다 ⇒ 칸을 못 찾고 「이미지 추가」 항목이 조용히 사라졌다(2026-09-20). */
+    let node = null;
+    if (typeof document.elementsFromPoint === 'function') {
+      const stack = document.elementsFromPoint(e.clientX, e.clientY) || [];
+      for (const el of stack) { if (block.contains(el)) { node = el; break; } }
+    }
+    if (!node) {
+      const atPoint = document.elementFromPoint(e.clientX, e.clientY);
+      node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+    }
+    const lineEl = node && node.closest ? node.closest('[data-line]') : null;
+    const cellEl = node && node.closest ? node.closest('.grd-cell') : null;
+    let r, c;
+    if (lineEl && block.contains(lineEl)) {
+      r = Number(lineEl.dataset.r); c = Number(lineEl.dataset.c);
+    } else if (cellEl && block.contains(cellEl)) {
+      r = Number(cellEl.dataset.r); c = Number(cellEl.dataset.c);
+    } else {
+      /* ★기하 폴백 — 칸 «밖»(블록 padding·gap)이거나, 선택 안 된 프레임 안의 그리드처럼
+         pointer-events:none 이라 elementsFromPoint 가 자식을 «반환조차 안 하는» 경우.
+         ⛔선택 상태는 안 건드린다(T-058 첫클릭=블럭 규약). 근거는 grid-block.js pickCellByRects. */
+      const geo = window.gridPickCellByPoint?.(block, e.clientX, e.clientY);
+      if (!geo) return null;
+      r = geo.r; c = geo.c;
+    }
+    if (!Number.isInteger(r) || !Number.isInteger(c)) return null;
+    /* ★표적은 «누른 줄»이다 (T-168, 2026-09-24 화면 실측).
+       무엇이 있었나 — 여기가 「누른 줄이 그림이면 그 줄, 아니면 «그 칸의 첫 그림 줄»」로 정했다.
+       그 «아니면» 가지가 «안 누른 줄»을 집어 왔다: 칸에 [글자, 그림]이 있을 때 글자 줄을 누르면
+       딱지가 「이미지 교체」로 뜨고, 고르면 아무 말 없이 «그 다른 그림»이 바뀌었다.
+       ⛔거절 안내(grid-block.js 「patchCell: none of … is read by the renderer」)는 이 길에서
+         «닿지 않는다» — li 가 늘 그림 줄을 가리키니 커밋이 통과한다. 붉은 안내는 안 뜬다.
+       ⇒ 가르는 축은 «칸에 그림 줄이 있나»가 아니라 «누른 줄이 그림이냐»다.
+         · 그림 줄을 눌렀다        → li = 그 줄        (「이미지 교체」 · 「이미지 삭제」)
+         · 그림 아닌 줄을 눌렀다   → li = null,
+                                    afterLi = 그 줄    (「이미지 추가」 · 그 줄 «다음»에 새 줄)
+         · 줄을 안 눌렀다(칸 여백·거터·기하 폴백) → 예전 그대로: 첫 그림 줄, 없으면 append.
+           ⛔이 마지막 가지는 «안 건드린다» — 아무 줄도 안 가리킨 클릭이라 「엉뚱한 줄」이 없다. */
+    let li = null;
+    let afterLi = null;
+    try {
+      const lines = getGridModel(block).cells?.[r]?.[c]?.lines;
+      if (Array.isArray(lines)) {
+        const clickedLi = lineEl ? Number(lineEl.dataset.line) : NaN;
+        const onALine = Number.isInteger(clickedLi) && !!lines[clickedLi];
+        if (onALine) {
+          if (lines[clickedLi].type === 'image') li = clickedLi;
+          else afterLi = clickedLi;
+        } else {
+          li = lines.findIndex(l => l && l.type === 'image');
+          if (li < 0) li = null;
+        }
+      }
+    } catch (_) {}
+    return { r, c, li, afterLi };
   }
 
   // 메뉴 열기
@@ -4566,6 +4976,27 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
         (parseInt(_targetCell.getAttribute('colspan') || '1', 10) || 1) > 1
       );
       cellUnmergeItem.style.display = merged ? 'flex' : 'none';
+    }
+
+    // 그리드 블록 셀 우클릭 → "이미지 추가/교체" (현빈 2026-09-15 요청: 그리드 셀 이미지 지원)
+    const gridImgItem = document.getElementById('bcm-grid-img');
+    const gridImgLabel = document.getElementById('bcm-grid-img-label');
+    const gridImgDelItem = document.getElementById('bcm-grid-img-del');
+    _targetGridAddr = block.classList.contains('grid-block') ? _gridCellAddrAt(e, block) : null;
+    if (gridImgItem) {
+      gridImgItem.style.display = _targetGridAddr ? 'flex' : 'none';
+      if (_targetGridAddr && gridImgLabel) {
+        gridImgLabel.textContent = _targetGridAddr.li != null ? '이미지 교체' : '이미지 추가';
+      }
+    }
+    if (gridImgDelItem) {
+      gridImgDelItem.style.display = (_targetGridAddr && _targetGridAddr.li != null) ? 'flex' : 'none';
+    }
+    /* ★「나란히 두 칸으로 나누기」(T-221) — 그리드 칸에서만 보인다.
+       ★「이미지 추가」와 «같은 판정»을 쓴다(`_targetGridAddr` 하나) — 두 벌로 가르면 한쪽만 늙는다. */
+    const gridNestedItem = document.getElementById('bcm-grid-nested');
+    if (gridNestedItem) {
+      gridNestedItem.style.display = _targetGridAddr ? 'flex' : 'none';
     }
 
     const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
@@ -4638,6 +5069,146 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     const cell = _targetCell;
     closeMenu();
     window.unmergeCell?.(cell);
+  });
+
+  /* 그리드 셀 이미지 추가/교체 — 딱지 «두 갈래»가 여기 한 문에서 갈린다.
+   *   · addr.li == null  (딱지 「이미지 추가」) → «빈 이미지 줄»을 넣고 끝. 파일창을 안 연다.
+   *   · addr.li != null  (딱지 「이미지 교체」) → 예전 그대로 파일창(FileReader→dataURL).
+   * 교체 쪽은 다른 블록의 「이미지 선택...」과 같은 방식을 재사용한다
+   * (prop-simple-card.js cvb-card-img-btn · prop-zoom.js · prop-icon-circle.js 선례).
+   * ⛔goya-asset:// 외부화는 여기서 하지 않는다 — 그 셋도 안 한다(외부화는 저장 시점의 별도 관심사).
+   *
+   * ★★「이미지 추가」가 파일창을 안 여는 까닭 (2026-09-26, 현빈)
+   *   현빈 「그리드 블럭 우클릭 후 「이미지 추가」를 하면 바로 이미지 추가 UI(파일 선택창)가
+   *         뜨는 것이 아니라, 이미지 블럭(체크패턴 있는) 걸 넣어 주는 것이 어때?」
+   *   ⇒ 메뉴를 «늘리지 않고» 이 한 문의 동작만 가른다(새 항목 0개).
+   *   ★파일창이 «없어진» 게 아니라 «한 클릭 뒤»로 갔다 — 채우는 길은 이미 있다:
+   *     빈 슬롯 더블클릭 → 파일 선택(block-drag.js `.grd-img-empty[data-line]` 가지).
+   *     ⛔여기서 새 파일 입구를 또 만들지 않는다 — 파일 입구는 «셋»으로 굳었다(우클릭 교체 ·
+   *       패널 [이미지 선택…] · 빈 슬롯 더블클릭). 세는 자는 tests/unit/grid-callsite-ssot.test.mjs
+   *       「UI 파일 입구 3곳」이다.
+   *   ★자리 «높이»를 여기 안 적는다 — 빈 슬롯이 차지하는 높이는 렌더러 한 자리가 이미 정해 뒀다
+   *     (grid-block.js `_gridLineHtml` 의 `const ph = h > 0 ? h : 180`). 여기 숫자를 또 적으면
+   *     같은 값이 두 곳에 살고, 한쪽만 늙는다. 그래서 lineSpec 에 height 를 «안» 넣는다.
+   *   ⛔`opts.trusted` 를 안 넘긴다 — 그 면제가 건드리는 것은 imgSrc «문자열 길이» 캡 하나뿐인데
+   *     (grid-block.js `_gridIntake` takeImg) 여기 imgSrc 는 빈 문자열이다. 넘기면 「무엇을
+   *     면제받았나」가 거짓으로 적힌다. 줄 수 상한(MAX_CELL_LINES)은 trusted 와 무관하게
+   *     grdAddLine 이 커밋 «전»에 재고 LIMIT 토스트까지 띄운다 — 이 길도 그대로 걸린다.
+   *   ⛔`afterLi` 규약(T-168)은 안 건드린다 — 누른 줄 «다음»에 들어간다. 줄을 안 누른 클릭
+   *     (칸 여백·거터·기하 폴백)이면 null 이라 칸 끝에 붙는다.
+   */
+  /* ★칸 «안»을 열로 나눈다 (T-221, 2026-09-27) — 현빈 물음 「그리드 블럭에서 중첩이 가능하니?
+   *   ★내가 만들려면 어떻게?」의 답. 그리는 코드는 있었는데 «짓는 자리»가 제품에 0건이었다.
+   * ★`grdAddLine` 을 쓴다 — 「이미지 추가」와 «같은 길»이다. 상한·거절·토스트·되돌리기가 거기 한 곳에 있다.
+   *   ⛔`updateGridBlock` 을 직접 부르지 마라: 그러면 상한 확인과 활성줄 원복이 두 벌이 된다.
+   * ⛔빈 `cols` 로 만들지 마라 — 렌더러가 `if (!cols.length) return ''` 라 «아무것도 안 그린다».
+   *   두 열에 빈 글자 줄을 하나씩 넣어야 「본문을 입력하세요」가 떠서 만들어진 것이 눈에 보인다.
+   * ⚠️깊이·열 상한은 여기서 «안» 센다 — `_gridInspectNested` 가 모델 입구에서 잰다(두 벌 금지). */
+  document.getElementById('bcm-grid-nested')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    const addr = _targetGridAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    const res = window.grdAddLine?.(block, { r: addr.r, c: addr.c }, addr.li ?? null, {
+      type: GRID_NESTED_LINE_TYPE,   // ★상수를 «들여와» 쓴다 — 소스에 그 토큰 글자가 안 나타난다(S1)
+      /* ~~gap: 24~~ ⇒ ★8 (현빈 0927 「깨져 보인다」). 24 는 내가 T-221 에서 «바깥 기본값을 보고»
+         박은 수인데, 중첩은 칸을 «반»으로 나누므로 같은 24 가 훨씬 크게 먹는다.
+         ★실측: 칸 149px 에서 gap 24 ⇒ 각 열 67px · gap 8 ⇒ 각 열 70.5px.
+         ⚠️정직하게 — 이 고침만으로는 «거의 안 낫는다»(3.5px). 진짜 고침은 css/editor-blocks.css 의
+           «중첩 안 짧은 안내문»이다. 여기서는 공간을 돌려줄 뿐이다. */
+      gap: 8,
+      cols: [{ width: 1, lines: [{ type: 'body', text: '' }] },
+             { width: 1, lines: [{ type: 'body', text: '' }] }],
+    });
+    window.grdToastImgFail?.(res);
+  });
+
+  document.getElementById('bcm-grid-img')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    const addr = _targetGridAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    if (addr.li == null) {
+      grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, addr.afterLi ?? null,
+        { type: 'image', imgSrc: '' }));
+      return;
+    }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = () => {
+      const file = input.files[0];
+      /* ★사람이 고른 파일 = «신뢰 입구». 바이트로 거르고(grdImageFileOk = GRID_IMG_MAX_BYTES),
+         커밋은 opts.trusted 로 보내 MCP/IPC 용 문자열 캡(200000자 ≈ 146KB)을 건너뛴다.
+         ⛔그 캡을 그대로 두면 스크린샷·사진은 거의 전부 거절된다 — 현빈이 본
+           「그리드 우클릭 이미지 삽입이 안 된다」의 실제 원인이다(2026-09-20 실측). */
+      if (!grdImageFileOk(file)) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        /* ★기존 이미지 줄 «교체»는 patchCell{lineIndex} — 이 길만 파일창을 지난다.
+           ⛔여기 있던 「새 줄 추가(grdAddLine)」 가지는 위쪽 `addr.li == null` 로 «올라갔다»
+             (2026-09-26). 파일창을 열기 «전»에 갈려야 파일창이 안 뜨기 때문이다.
+           ★반환을 «받는다» — 예전엔 안 받아서 실패가 토스트 0건·콘솔 0건으로 사라졌다. */
+        grdToastImgFail(window.updateGridBlock?.(block.id,
+          { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc: ev.target.result } },
+          { trusted: true }));
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  });
+
+  /* 그리드 셀 이미지 삭제 — 그 줄의 «그림만» 비운다. 줄은 남아서 빈 슬롯(grd-img-empty)이 된다.
+   *
+   * ★★왜 «줄 제거»에서 «비우기»로 바뀌었나 (2026-09-25, 현빈이 «세 번» 물으신 것)
+   *   현빈 「빈 슬롯이 들어갈 수 있어야지. … 칸의 마지막 줄은 그리고 왜 삭제가 안 되니?
+   *         빈 셀로도 두고 싶을 수도 있잖아?」
+   *   무엇이 막고 있었나 — 여기가 `lines.filter(i !== addr.li)` 로 «줄을 통째로» 뺐다.
+   *   칸에 줄이 하나뿐이면 `lines:[]` 가 되고 입구(grid-block.js _gridRejectLinesLength)가
+   *   EMPTY_CELL_LINES 로 거절한다 ⇒ 「마지막 줄은 이미지가 안 지워진다」.
+   *   ~~[폐기 · 2026-09-26] 「⛔그 가드를 «푸는» 쪽으로 가지 않는다 — 가드의 까닭이 여전히
+   *     옳다(줄이 0개가 되면 [data-line] 이 통째로 사라져 칸이 «주소»를 잃는다)」~~
+   *   ★★그 «까닭»이 틀렸다(2026-09-26 실측). T-A(2026-09-16)가 줄 0개 칸에 주소를 이미 줬다 —
+   *     `.grd-cell-empty` ＋ `_gridAddrAt` 의 `{r,c,li:null}`. 그리고 줄 0개 칸은 막던 동안에도
+   *     이미 합법 상태였다(새 그리드·새 행/열). ⇒ 가드는 «상태»가 아니라 «전이 하나»만 막고
+   *     있었고, 현빈이 걸린 자리가 그 비대칭이다. 2026-09-26 에 그 가드를 «옮겼다»
+   *     (js/blocks/grid-block.js `_gridRejectLinesLength` ＋ `_gridRejectAllCellsEmpty` 머리말).
+   *     ~~⛔「걷었다」가 아니다 — 현빈 범위 확정(「②칸 하나만」)으로 블럭의 «마지막 내용 칸»은
+   *       여전히 못 비운다~~ ⇒ ★[정정 2026-09-27] **이제 걷었다.** 현빈 「t230 > 마지막 한칸도
+   *       비울 수 있게 해줘」로 `_gridRejectAllCellsEmpty` 를 함수째 지웠다. 막는 문은 0개다.
+   *       ⚠️물려 둔 사실 — 모든 칸이 비면 내보낸 결과물에서 높이가 0 이라 그 블럭이 안 보인다
+   *         (2026-09-27 실측, grid-cell-emptied.dom.spec.js 의 I).
+   *   ★그래도 «이 손잡이»(우클릭 「이미지 삭제」)는 한 글자도 안 바꿨다 — 아래 «손잡이 이름대로
+   *     가른다»가 여전히 옳기 때문이다. 이제 두 길이 «둘 다» 되는데 결과가 다를 뿐이다:
+   *       「이미지 삭제」 → 그림만 비운다(자리=빈 슬롯 남음) · 「줄 삭제」/⌫ → 줄이 사라진다(0줄까지)
+   *   ⚠️옛 실측값도 남긴다 — lines:[] 는 «0925 그때» EMPTY_CELL_LINES 였고(지금은 그 code 가 없다),
+   *     lineIndex+imgSrc:'' 는 ok:true 였다(마지막 줄 픽스처에서 둘 다 재 봤다).
+   *
+   * ★「비우기」와 「줄 삭제」를 무엇으로 가르나 — «손잡이 이름»대로 가른다.
+   *     우클릭 「이미지 삭제」 → 그림을 지운다. 줄(자리)은 남는다.  ← 여기
+   *     줄바 「줄 삭제」(prop-grid.js grd-line-del-btn) · Backspace(editor.js) → 줄을 뺀다.
+   *   ⇒ 「줄을 아예 빼고 싶다」는 뜻은 여전히 갈 길이 있다. 그 둘은 «안 건드렸다»
+   *     (마지막 한 줄 보호도 그대로 — tests/dom/grid-line-delete.dom.spec.js 가 지킨다).
+   *
+   * ⚠️이것은 계약을 «일부러» 바꾼 것이다. grid-line-delete.dom.spec.js 머리말의 T-009 버그A 는
+   *   「이미지 줄을 지우는 길은 전부 같은 결과(줄 자체가 사라짐)여야 한다」였다. 그때 «버그»로
+   *   본 빈 placeholder 가 지금은 현빈이 주문한 «기능»이다. 그 그물은 줄바 쪽만 재므로
+   *   여전히 초록이고, 머리말도 이 갈림에 맞춰 같이 고쳐 뒀다(둘이 따로 늙지 않게).
+   *
+   * ★patchCell{lineIndex} 로 보내는 까닭 — 바로 위 「이미지 교체」가 «같은 모양»으로 보낸다
+   *   (addr.li != null 가지). 넣는 길과 비우는 길이 한 모양이라 따로 늙지 않는다.
+   *   ⛔crop(imgPosX/imgPosY/imgSizePct)은 «안» 턴다 — 「이미지 교체」도 안 턴다. 비우기만
+   *     따로 털면 같은 줄을 두고 두 길이 다르게 행동하게 된다. */
+  document.getElementById('bcm-grid-img-del')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    const addr = _targetGridAddr;
+    closeMenu();
+    if (!block || !addr || addr.li == null) return;
+    grdToastImgFail(window.updateGridBlock?.(block.id,
+      { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc: '' } }));
   });
 
   nameConfirm?.addEventListener('click', e => {

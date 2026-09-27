@@ -148,7 +148,7 @@ function renderStepBlock(block) {
     if (orient === 'horizontal') {
       block.innerHTML = `<div style="display:flex;flex-direction:row;align-items:stretch;gap:${gap}px;width:100%;${pxStyle}">${
         steps.map((s, i) => `
-          <div style="flex:1;min-width:0;background:${cardBg};border-radius:12px;padding:16px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;">
+          <div data-step-idx="${i}" style="flex:1;min-width:0;background:${cardBg};border-radius:12px;padding:16px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;">
             <div style="${badgeStyle()}">${badgeLabel(i)}</div>
             <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title||''}</div>
             ${s.desc?`<div class="stb-desc" style="font-size:${descSz}px;color:${descColor}">${s.desc}</div>`:''}</div>`).join('')
@@ -161,7 +161,7 @@ function renderStepBlock(block) {
       const _contPadTop = _diff < 0 ? Math.round(-_diff) : 0;
       block.innerHTML = `<div style="${pxStyle}">${steps.map((s, i) => {
         return `
-          <div style="background:${cardBg};border-radius:12px;padding:16px 20px;box-sizing:border-box;${i>0?`margin-top:${gap}px`:''}">
+          <div data-step-idx="${i}" style="background:${cardBg};border-radius:12px;padding:16px 20px;box-sizing:border-box;${i>0?`margin-top:${gap}px`:''}">
             <div style="width:fit-content;margin:0 auto;display:flex;align-items:flex-start;gap:${badgeGap}px">
               <div style="${badgeStyle()}margin-top:${_leftPadTop}px;">${badgeLabel(i)}</div>
               <div style="margin-top:${_contPadTop}px">
@@ -185,7 +185,7 @@ function renderStepBlock(block) {
       const contentAlign = isCardStack ? 'center' : isCardRight ? 'right' : 'left';
       const badgeTop     = isCardStack ? 0 : cardBadgeTop;
       block.innerHTML = `<div style="${pxStyle}">${steps.map((s, i) => `
-        <div style="background:${cardBg};border-radius:12px;padding:16px 20px;box-sizing:border-box;display:flex;${itemFlex};${i>0?`margin-top:${gap}px`:''}">
+        <div data-step-idx="${i}" style="background:${cardBg};border-radius:12px;padding:16px 20px;box-sizing:border-box;display:flex;${itemFlex};${i>0?`margin-top:${gap}px`:''}">
           <div style="${badgeStyle()}margin-top:${badgeTop}px;">${badgeLabel(i)}</div>
           <div style="${isCardStack?'':`flex:1;min-width:0;`}text-align:${contentAlign}">
             <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title||''}</div>
@@ -214,7 +214,7 @@ function renderStepBlock(block) {
         const lineL = connector && !useHArrow ? `<div style="flex:1;height:2px;${i===0?'visibility:hidden;':`background:${numBg};opacity:0.25;`}"></div>` : `<div style="flex:1;visibility:hidden"></div>`;
         const lineR = connector && !useHArrow ? `<div style="flex:1;height:2px;${isLast?'visibility:hidden;':`background:${numBg};opacity:0.25;`}"></div>` : `<div style="flex:1;visibility:hidden"></div>`;
         return `
-          <div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;">
+          <div data-step-idx="${i}" style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;">
             <div style="display:flex;align-items:center;width:100%;">
               ${lineL}
               <div style="width:${circleSize}px;height:${circleSize}px;border-radius:50%;background:${numBg};display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;gap:2px;padding:8px;box-sizing:border-box;">
@@ -235,7 +235,7 @@ function renderStepBlock(block) {
     const bigNum = Math.round(numSize * 1.8);
     block.innerHTML = `<div style="display:flex;flex-direction:row;align-items:flex-start;width:100%;gap:${gap}px;${pxStyle}">${
       steps.map((s, i) => `
-        <div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;text-align:center;">
+        <div data-step-idx="${i}" style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;text-align:center;">
           <div style="font-size:${bigNum}px;font-weight:800;color:${numBg};line-height:1;margin-bottom:${Math.round(gap*0.4)}px">${badgeLabel(i)}</div>
           <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4;font-weight:600">${s.title||''}</div>
           ${s.desc?`<div class="stb-desc" style="font-size:${descSz}px;color:${descColor};margin-top:4px">${s.desc}</div>`:''}</div>`).join('')
@@ -251,7 +251,7 @@ function renderStepBlock(block) {
         const lineL = connector && !useHArrow ? connectorH(i === 0, 'left') : `<div style="flex:1;visibility:hidden"></div>`;
         const lineR = connector && !useHArrow ? connectorH(isLast, 'right') : `<div style="flex:1;visibility:hidden"></div>`;
         return `
-          <div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;">
+          <div data-step-idx="${i}" style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;">
             <div style="display:flex;align-items:center;width:100%;">
               ${lineL}
               <div style="${badgeStyle()}">${badgeLabel(i)}</div>
@@ -284,7 +284,7 @@ function renderStepBlock(block) {
     block.innerHTML = `<div style="${pxStyle}">${steps.map((s, i) => {
       const isLast = i === steps.length - 1;
       return `
-        <div class="stb-item" style="flex-direction:${flexDir};gap:${badgeGap}px;${isStackAlign ? 'align-items:center;' : 'align-items:flex-start;'}">
+        <div class="stb-item" data-step-idx="${i}" style="flex-direction:${flexDir};gap:${badgeGap}px;${isStackAlign ? 'align-items:center;' : 'align-items:flex-start;'}">
           <div class="stb-left" style="padding-top:${isStackAlign ? 0 : leftPadTop}px;align-items:center;">
             <div style="${badgeStyle()}">${badgeLabel(i)}</div>
             ${connector && !isLast && isStackAlign && !isDividerCA ? connectorV() : ''}
@@ -305,7 +305,7 @@ function renderStepBlock(block) {
     block.innerHTML = `<div style="width:fit-content;margin:0 auto;${pxStyle}">${steps.map((s, i) => {
       const isLast = i === steps.length - 1;
       return `
-        <div class="stb-item" style="gap:${badgeGap}px">
+        <div class="stb-item" data-step-idx="${i}" style="gap:${badgeGap}px">
           <div class="stb-left" style="padding-top:${leftPadTop}px">
             <div style="${badgeStyle()}">${badgeLabel(i)}</div>
             ${connector && !isLast && !isDivider ? connectorV() : ''}
@@ -325,7 +325,7 @@ function renderStepBlock(block) {
   block.innerHTML = `<div style="${pxStyle}">${steps.map((s, i) => {
     const isLast = i === steps.length - 1;
     return `
-      <div class="stb-item" style="gap:${badgeGap}px">
+      <div class="stb-item" data-step-idx="${i}" style="gap:${badgeGap}px">
         <div class="stb-left" style="padding-top:${leftPadTop}px">
           <div style="${badgeStyle()}">${badgeLabel(i)}</div>
           ${connector && !isLast && !isDivider ? connectorV() : ''}
@@ -367,7 +367,16 @@ function makeStepBlock(opts = {}) {
   renderStepBlock(block);
 
   const row = document.createElement('div');
+  /* ★[F2 넷째 자리 · 2026-09-22] row 에 «만들 때» id 를 준다 — ⛔지우지 마라.
+     안 주면 js/io/save-load.js rebindAll 의 「row ID 복원」이 `'row_' + Math.random()` 을 박는데,
+     그 줄은 restoreSnapshot(⌘Z)·switchPage 가 «둘 다» 지난다 ⇒ 복원할 때마다 «다른 id» 다.
+     그러면 「복원 직후 라이브 ≠ 방금 복원한 스냅샷」이 항상 참이 되고(F2),
+     undo 첫머리의 ensureHistoryCheckpoint 가 «매번» 한 칸을 쌓았다가 곧바로 pos-- 하므로
+     ★순증이 0 이다 — ⌘Z 를 눌러도 pos 가 제자리, 되돌리기가 «전면 무동작»이 된다.
+     실측(2026-09-22, E-undo 제보 → 재현): 스텝 3동작 뒤 ⌘Z 6번 전부 pos 1→1.
+     (id 를 주면 같은 걸음이 2번에 pos 0 에 닿는다.) 다른 row 팩토리 15자리는 원래 id 를 준다. */
   row.className = 'row';
+  row.id = 'row_' + Math.random().toString(36).slice(2, 8);
   row.dataset.layout = 'stack';
   row.appendChild(block);
   return { row, block };

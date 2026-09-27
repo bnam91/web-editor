@@ -690,7 +690,8 @@ function withTimeout(promise, ms, setT, clearT) {
 }
 
 /* ── dev 전용 키 주입 ────────────────────────────────────────────────────────
- * `isAdminAuthorized`(main.js:439) 와 «같은 규약»: 미패키징에서만 허용, 패키징에선 «무시».
+ * 미패키징에서만 허용, 패키징에선 «무시». (운영자 판정 `isAdminAuthorized` 는 0919 3라운드부터 env 주입이
+ * «아예 없는» 서명 operator.allow — services/operator-allow.js. 그쪽 키는 이 PUBLIC_KEYS 와 «분리»다.)
  * ⛔패키징에서 살려 두면 사용자가 자기 공개키를 넣고 자기가 서명한다 = 이 파일 전체가 장식.
  */
 function resolveKeys(opts) {

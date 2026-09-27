@@ -45,6 +45,7 @@
     '.shape-block',
     '.joker-block',
     '.annotation-block',
+    '.qa-block',
   ].join(', ');
 
   // U12: 섹션 자체도 드릴 대상. 섹션은 큰 컨테이너라 스택 «최하단»(자식 블록 다음)에 오게 정렬한다.

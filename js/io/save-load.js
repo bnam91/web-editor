@@ -1,11 +1,16 @@
 import { canvasEl, state, PAGE_LABELS } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기만 쓴다(직접 대입 재유입 방지) */
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
+import { buildProjForSave } from './proj-merge.js';   /* ★저장 병합은 «한 벌»(T-232 ⓑ) */
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제는 «켠 쪽»이 닫는다
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 import { applyFrameTransform } from '../frame-geometry.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture } from './capture-safety.js';
+import { prepareGoyaAssetsForClone } from './goya-asset-inline.js';   /* 썸네일 클론에서 goya-asset 을 data: 로 (T-149) */
+import { ejectShapeFrameIntruders } from '../shape-frame.js';
+import { warnPendingVideoLossIf } from './pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원 */
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
 /* ══════════════════════════════════════
@@ -78,23 +83,57 @@ async function captureThumbnail() {
     if (!firstSec || typeof html2canvas === 'undefined') return null;
 
     const clone = firstSec.cloneNode(true);
-    clone.querySelector?.('.section-label')?.remove();
-    clone.querySelector?.('.section-toolbar')?.remove();
-    clone.classList.remove('selected');
+    /* ★내보내기 클론과 «같은 명부»로 걷는다 — js/io/capture-safety.js stripEditorOnlyForCapture.
+       예전엔 여기서 ⑴.section-label ⑵.section-toolbar ⑶루트의 .selected «셋»만 걷었다.
+       그래서 저장할 때 편집 중이던 것이 프로젝트 목록 썸네일에 그대로 박혔다 — 펜 어노테이션,
+       admin QA 블록, 편집 전용 임시 DOM(.sec-bg-proxy/.img-edit-hint/.img-boundary),
+       「내용을 입력하세요」 안내문구, 자식 블록의 .selected/.img-editing/.row-active 테두리.
+       (2026-09-21 최종통합 QA medium, 실측 EXPORT-D: 주석 200px·편집전용프록시 100px 이 찍힘) */
+    stripEditorOnlyForCapture(clone);
     clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;';
     document.body.appendChild(clone);
+    neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
+    neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
+    await neutralizeObjectFitForH2C(clone); // html2canvas는 object-fit 미지원 → 상자에 «늘려» 그린다. 상자 크기대로 미리 잘라 끼운다(썸네일이 화면과 다른 그림이 되던 자리)
+    /* 빈 이미지 칸의 체크무늬는 «편집용 무늬»다 — 프로젝트 목록 썸네일에 박히면 내보내기와 똑같이 새는 것.
+       ★여기엔 컴포넌트 재렌더(renderComponentsInClone)가 «없다» — banner02/canvas-block 을 다시
+         안 그리므로 이 자리(append 뒤)에서 한 번 부르면 충분하다. */
+    neutralizeEmptyImageCheckerForCapture(clone);
+    // 모자이크 redact(js/effects/redact-mosaic.js)는 cloneNode에 캔버스 비트맵이 안 딸려오므로
+    // clone에 라이브 캔버스를 구워 넣는다 — 실패 시 함수 내부에서 불투명 회색 안전실패.
+    if (window.finalizeMosaicForClone) { try { await window.finalizeMosaicForClone(firstSec, clone); } catch (_) {} }
+
+    /* ★goya-asset 을 «클론에서만» data: 로 푼다 (T-149, 2026-09-22).
+       까닭 — html2canvas 1.4.1 은 이미지를 «자기가 다시» 로드한다(vendor CacheStorage.loadImage).
+         useCORS:true  → crossOrigin="anonymous" 를 달아 로드 → goya-asset:// 는 CORS 헤더가 없어 onerror
+         useCORS:false → 로드 조건이 전부 거짓 → 읽지도 않는다
+       ⇒ 그 에셋으로 만든 섹션은 카드 그림에서 «통째로» 빠진다.
+       ⛔★그런데 빠져도 섹션 배경색이 «불투명»하게 찍혀서, 아래 «빈 그림» 판정(길이)에
+         «안 걸린다» ⇒ 실패가 «성공»으로 보고된다. T-087 이 고친 병과 «다른 병»이고
+         그 검사로는 이 축이 안 잡힌다 — 판정이 「비었는가」가 아니라 «밑그림 색이 있는가»여야 한다.
+       ★뿌리는 T-071 이 모자이크에서 찾은 것과 같다. 부품도 그때 만든 것을 그대로 쓴다.
+       ⛔라이브 DOM 은 안 건드린다(clone 에만 적용) — 저장본이 base64 로 부풀면 안 된다.
+       ⛔실패해도 캡처를 멈추지 않는다 — 여기서 던지면 «그림이 아예 없는» 쪽이 되고,
+         그건 지금보다 나쁘다. 못 푼 자리만 빠지고 나머지는 그대로 찍힌다. */
+    try {
+      const _goya = await prepareGoyaAssetsForClone(clone);
+      if (_goya.unresolved.length) {
+        console.warn('[thumb] goya-asset 을 못 읽어 카드 그림에서 빠진다:', _goya.unresolved);
+      }
+      _goya.apply(clone);
+    } catch (e) { console.warn('[thumb] goya-asset 클론 준비 실패:', e); }
 
     const bgColor = firstSec.style.background || firstSec.style.backgroundColor || '#ffffff';
     const canvas = await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false });
     document.body.removeChild(clone);
 
-    // 200px 너비로 축소
-    const thumb = document.createElement('canvas');
-    const ratio = 200 / canvas.width;
-    thumb.width = 200;
-    thumb.height = Math.round(canvas.height * ratio);
-    thumb.getContext('2d').drawImage(canvas, 0, 0, thumb.width, thumb.height);
-    return thumb.toDataURL('image/jpeg', 0.7);
+    /* 200px 너비로 축소 — ★«빈 그림»이면 null 이다. 그럴듯한 6자를 돌려주지 않는다 (T-87).
+       toDataURL 은 높이 0 캔버스에서 «예외를 안 던지고» "data:,"(6자)를 돌려주고, 그 truthy 한
+       6자가 _meta.json 에 «썸네일이 있다»로 박혀 카드를 빈 칸으로 만들었다(try/catch 로는 안 보인다).
+       줄이기와 판정은 js/io/image-data-url.js «한 곳»에서 한다 — 카드를 그리는 쪽과 같은 함수다.
+       (index.html 이 그 classic script 를 이 모듈보다 «먼저» 싣는다 —
+        tests/unit/image-data-url.test.mjs 가 그 배선까지 잠근다.) */
+    return window.makeThumbDataUrl(canvas);
   } catch { return null; }
 }
 
@@ -199,15 +238,9 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       const existing = await window.electronAPI.loadProject(targetId);
       // pages + pageSettings만 저장 — branches/commits/thumbnail은 _meta.json에서 관리
       // existing 먼저 spread 후 data로 덮어쓰기 — 레거시 필드는 data에 없으면 existing 유지
-      const { branches: _b, commits: _c, currentBranch: _cb, thumbnail: _t, ...dataWithoutMeta } = data;
-      const { branches: _eb, commits: _ec, currentBranch: _ecb, thumbnail: _et, _recovered: _er, ...existingWithoutMeta } = (existing || {});
-      const proj = {
-        ...existingWithoutMeta,
-        ...dataWithoutMeta,
-        id: targetId,
-        name: existing?.name || data.name || 'Untitled',
-        updatedAt: new Date().toISOString(),
-      };
+      /* ★[T-232 ⓑ] 병합은 «한 벌»이다 — js/io/proj-merge.js. ⛔여기에 스프레드를 다시 쓰지 마라:
+         이 코드가 commit-system.js 와 두 벌이었고 이미 갈라져 있었다(한쪽만 `_recovered` 를 뺐다). */
+      const proj = buildProjForSave(existing, data, targetId);
       // 이미지 외부화 (정책 게이팅): 기본 autosave는 new-only — 이번 세션 신규 base64만 분리하고
       // 로드 시점에 존재하던 기존 base64는 그대로 둔다(비파괴). 기존 대량변환은 optimizeProjectImages
       // (opts.externalizeAll) 또는 레거시 플래그(GOEDITOR_AUTO_EXTERNALIZE_LEGACY)로만 동작.
@@ -302,8 +335,14 @@ async function setProjectName(name) {
 async function goHome() {
   const curTab = openTabs.find(t => t.id === activeProjectId);
   if (curTab) curTab._cache = serializeProject();
+  // ★T-012: video-pending(트림 확정 전) 상태로 저장·홈이동하면 원본 영상이 저장에서 빠진다
+  // (section-serialize.js — 원본을 영구저장하는 쪽보다 안전하다는 게 결정 사항). 막지는
+  // 않되, 사라진다는 사실은 알려준다 — 토스트가 실제로 보이도록 이동을 살짝 늦춘다.
+  // ★T-032: 판정·문구는 js/io/pending-video-warn.js 한 곳에서만 온다(사본 금지).
+  const warnedPendingVideo = warnPendingVideoLossIf(canvasEl);
   await saveProjectToFile(serializeProject()); // 홈으로 나갈 때 썸네일 캡처
   window.saveTabState();
+  if (warnedPendingVideo) await new Promise(r => setTimeout(r, 900));
   window.location.href = 'pages/projects.html';
 }
 
@@ -312,10 +351,26 @@ function getCurrentPage() {
   return state.pages.find(p => p.id === state.currentPageId) || state.pages[0];
 }
 
+/* ★T-031 3차수정(2026-09-15, a1-a3 지적 — 치명): 2차수정은 page.videoPendingSidecar를
+ * «page 객체 자신»에 붙였는데, serializeProject()가 JSON.stringify({pages: state.pages})로
+ * «그 객체를 그대로» 저장한다 — 원본 영상 dataURL이 매 저장마다 proj.json에 통째로 영구
+ * 저장되는, T-012가 막으려던 바로 그 사고가 재발했다(자동저장·탭캐시·커밋/브랜치 스냅샷
+ * 전부 포함). page.canvas는 serializeCleanRoot를 거친 "세척된 문자열"이라 안전했지만,
+ * videoPendingSidecar는 세척 «밖»의 원본 그 자체라 같은 객체에 둘 수 없다.
+ * ⇒ state.pages(저장 대상)에는 «전혀» 안 붙인다. pageId → sidecar 런타임 전용 Map(모듈
+ * 스코프, JSON.stringify 대상 밖)에 따로 둔다 — js/history.js가 스냅샷 객체 자신에 붙이는
+ * 것과 원리는 같되(그쪽은애초에 historyStack 자체가 메모리 전용이라 안전했다), 여긴
+ * page 객체가 저장 대상이라 아예 분리해야 한다. */
+const _pageVideoPendingSidecars = new Map(); // pageId -> sidecar. ⛔ state.pages 에 절대 붙이지 않는다.
+
 function flushCurrentPage() {
   const page = getCurrentPage();
   if (!page) return;
   page.canvas = getSerializedCanvas();
+  // ★떠나는 이 페이지의 video-pending 원본을 «런타임 전용 Map»에 남긴다(같은 동기 구간에서
+  // 읽어야 한다 — section-serialize.js 참고). 돌아왔을 때(switchPage/deletePage)
+  // rebindAll({videoPendingSidecar: _pageVideoPendingSidecars.get(page.id)})로만 되살린다.
+  _pageVideoPendingSidecars.set(page.id, window.getLastVideoPendingSidecar?.());
   page.pageSettings = { ...state.pageSettings };
 }
 
@@ -353,7 +408,10 @@ async function switchPage(pageId) {
     // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
     const propPanel = document.querySelector('#panel-right .panel-body');
     if (propPanel) propPanel.innerHTML = '';
-    rebindAll();
+    // ★T-031 3차: page 객체가 아니라 런타임 전용 _pageVideoPendingSidecars Map에서 읽는다
+    //   (flushCurrentPage가 이 페이지를 떠날 때 거기 남겨둔 것 — page 객체 자신엔 절대
+    //   안 붙인다, 위 정의부 주석 참고 — proj.json에 원본이 실리는 사고 재발 방지).
+    rebindAll({ videoPendingSidecar: _pageVideoPendingSidecars.get(page.id) });
     refreshLazyObservation(); // 새 페이지의 section-block을 lazy 관찰 등록 (innerHTML 교체 후)
     applyPageSettings();
     window.deselectAll();
@@ -391,6 +449,7 @@ function deletePage(pageId) {
   state.pages.splice(idx, 1);
   // D1: 삭제된 페이지의 히스토리 stash 정리 (메모리 누수 방지)
   window.dropHistoryFor?.(pageId);
+  _pageVideoPendingSidecars.delete(pageId); // 같은 이유로 sidecar도 같이 정리
   if (wasActive) {
     const next = state.pages[Math.min(idx, state.pages.length - 1)];
     /* ★[H6] 억제는 «구조»로 연다 — 아래 rebindAll·applyPageSettings·showPageProperties 중
@@ -402,7 +461,8 @@ function deletePage(pageId) {
       if (next.pageSettings) Object.assign(state.pageSettings, next.pageSettings);
       canvasEl.innerHTML = sanitizeCanvasHtml(next.canvas || '');
       canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
-      rebindAll();
+      // ★T-031 3차: next 페이지 자신의 sidecar만 쓴다(_pageVideoPendingSidecars Map, 위 switchPage와 같은 이유).
+      rebindAll({ videoPendingSidecar: _pageVideoPendingSidecars.get(next.id) });
       applyPageSettings();
       window.deselectAll();
       window.showPageProperties();
@@ -572,6 +632,12 @@ function applyProjectData(data) {
     // D1: 페이지간 히스토리(stash Map)도 전부 비워 프로젝트 격리 (프로젝트 B 로드 시 A stash 오염 방지)
     window.resetAllPageHistory?.();
     window.clearHistory?.();
+    /* ★T-031 3차 — 같은 이유로 _pageVideoPendingSidecars(pageId 키)도 비운다(a1-a3 지적,
+     * 2026-09-15). pageId는 프로젝트마다 고유하지 않다(기본 첫 페이지가 전부 'page_1' —
+     * globals.js) — 비우지 않으면 "1페이지에 미확정 영상 남긴 채 2페이지로 이동(Map에
+     * 저장) → 탭/브랜치 전환(같은 id를 쓰는 다른 프로젝트 데이터가 얹힘, 그 블록은 빈
+     * 상태) → 1페이지로 복귀"에서 전환 전 영상이 엉뚱하게 되살아날 수 있다. */
+    _pageVideoPendingSidecars.clear();
     /* ★문서를 «열 때» 없는 글꼴을 알린다(일러스트·피그마와 같은 시점).
        여기가 최초 로드·탭 전환·브랜치 전환이 모두 지나가는 자리다.
        한가할 때 세고(requestIdleCallback) 읽기만 하므로 이 저장 억제 구간과 부딪치지 않는다. */
@@ -658,8 +724,25 @@ function _bgRgba(ps) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
+/* ★T-054(2026-09-16, 작업목록매니저 코드감사 발견) — ps.bgGradient(JSON {type,angle,stops},
+   prop-page.js goya-cp:gradient 핸들러가 씀)는 저장 파일엔 그대로 남는데, 페이지를 다시 열면
+   여기(_bgRgba)만 불려 항상 «솔리드»로 칠해졌다. 그라데이션이 있으면 그걸 우선한다 —
+   window.GradientModel.toCss(model)가 gradient-model.js(ES 모듈, 이 시점엔 이미 로드완료)의
+   같은 직렬화 규약을 쓴다(prop-page.js가 goya-cp:gradient 로 받는 것과 동일 포맷). */
+function _bgCss(ps) {
+  if (ps.bgGradient) {
+    try {
+      const model = JSON.parse(ps.bgGradient);
+      const css = window.GradientModel?.toCss?.(model);
+      if (css) return css;
+    } catch (_) { /* 깨진 JSON — 솔리드로 폴백 */ }
+  }
+  return _bgRgba(ps);
+}
+
 function applyPageSettings() {
-  applyCanvasBackground(_bgRgba(state.pageSettings));
+  applyCanvasBackground(_bgCss(state.pageSettings));
+  window.seedPageBgGradientPicker?.();   // T-054 후속 — 재오픈 씨앗도 캔버스 칠과 같은 타이밍에 갱신
   canvasEl.style.gap = state.pageSettings.gap + 'px';
   canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
   // padX: 섹션 물리적 padding 방식으로 적용 (섹션 개별 override 제외)
@@ -758,6 +841,12 @@ function migrateColsFromDOM(canvasEl) {
     tb.before(tf);
     tf.appendChild(tb);
   });
+
+  // ★도형 래퍼 안에 들어간 블록을 «래퍼 바로 뒤(같은 부모)»로 꺼낸다(현빈 확정 0918 A안).
+  //   반드시 맨 끝 — .frame-inner 해체·text-frame 래핑이 끝나 «이동 단위»가 완성된 뒤여야 한다.
+  //   멱등(오염 없으면 DOM 무변이) — rebindAll 이 로드·undo/redo 양쪽에서 불러도 dirty 를 만들지 않는다.
+  //   강제 저장은 안 한다(다음 자연 저장에 반영, 그 전엔 매 로드 같은 결과).
+  ejectShapeFrameIntruders(canvasEl);
 }
 
 function rebindAll(opts = {}) {
@@ -800,6 +889,19 @@ function rebindAll(opts = {}) {
     overlay.removeAttribute('contenteditable');
     [...overlay.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).forEach(n => n.remove());
   });
+  /* ★T-031: video-pending(트림 확정 전 영상)은 js/io/section-serialize.js 의 T-012 안전장치가
+   *   세척된 문자열(undo 스냅샷·페이지 canvas)에서 "빈 업로드대기"로 되돌린다. rebindAll 은
+   *   undo/redo 복원(history.js) · 페이지 전환(switchPage/deletePage) · 프로젝트 로드
+   *   (applyProjectData) · 협업 패치 적용까지 «canvasEl.innerHTML 을 새로 앉힌 뒤» 공통으로
+   *   거치는 단일 지점이다 — 여기 한 곳에서 부르면 그 모든 복원 경로가 한 번에 커버된다
+   *   (경로마다 따로 심으면 하나를 빠뜨리는 날 그 경로만 샌다, 2026-09-15 지적).
+   *   ★2차수정(a1-a3 지적): opts.videoPendingSidecar «없이» 부르면(협업 패치·프로젝트 로드처럼
+   *   「이 복원이 어느 스냅샷/페이지인지」모르거나 진짜 파일 리로드인 호출) 아무것도 되살리지
+   *   않는다 — «실패 시 안전»(fail-closed) 쪽으로 기본값을 바꿨다. 예전 전역 캐시는 누가 부르든
+   *   "id 가 한 번이라도 video-pending 이었으면" 되살려 협업 중 남의 화면·프로젝트 재로드에서도
+   *   부활할 수 있었다. undo/redo·페이지전환처럼 「이 시점에 실제로 video-pending 이었나」를
+   *   아는 호출자만 자기 스냅샷/페이지의 sidecar를 opts로 넘겨 명시적으로 되살린다. */
+  window.reattachVideoPendingBlocks?.(canvasEl, opts.videoPendingSidecar);
 
   canvasEl.querySelectorAll('.section-block').forEach(sec => {
     if (!sec.id) sec.id = 'sec_' + Math.random().toString(36).slice(2, 9);
@@ -867,13 +969,38 @@ function rebindAll(opts = {}) {
     // ⎇ 버튼 없으면 추가, 있으면 onclick 재바인딩 (직렬화 시 프로퍼티가 유실되므로 항상 재설정)
     const toolbar = sec.querySelector('.section-toolbar');
     if (toolbar) {
-      // C21: 구버전 ↑↓✕ + 데드 ⎇(st-branch-btn) 일괄 제거 — 살릴 버튼만 보존(AB/memo/AI-fill)
-      toolbar.querySelectorAll('.st-btn:not(.st-ab-btn):not(.st-memo-btn):not(.st-ai-fill-btn)').forEach(el => el.remove());
+      /* C21: 구버전 ↑↓✕ + 데드 ⎇(st-branch-btn) 일괄 제거 — 살릴 버튼만 보존
+         (AB/memo/AI-fill ＋ ★🔒 보호).
+         ★🔒 를 명부에 더한 까닭(2026-09-22 실측) — 이 줄이 st-protected-btn 까지 지웠다.
+           rebindAll 은 restoreSnapshot(js/history.js:225)도 부르므로 «⌘Z 한 번»에 🔒 가
+           사라졌고, 다시 심는 곳이 _hydrateAllSectionsForProtection(init ＋ +1500ms) 뿐이라
+           «페이지를 다시 열기 전까지» 안 돌아왔다.
+         ⛔보호 자체는 안 풀린다(dataset.protected 에 산다) — 사라지는 건 «표시»와
+           «보호를 끄는 유일한 입구»다. 그래서 «안전한 방향»으로 틀리지만, 앱이
+           「🔒 버튼으로 보호 해제 후 삭제하세요」(js/editor.js:3085)라고 «없는 버튼»을 가리킨다.
+         ★«지웠다가 다시 심기»가 아니라 «안 지우기»를 골랐다 — 다시 심으면 툴바 DOM 이
+           복원 때마다 또 바뀌어 T-136(섹션 툴바가 «내용»으로 읽히는 건)을 키운다. */
+      toolbar.querySelectorAll('.st-btn:not(.st-ab-btn):not(.st-memo-btn):not(.st-ai-fill-btn):not(.st-protected-btn)').forEach(el => el.remove());
       // variation 툴바 버튼 복원
       if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
       // 섹션 메모 버튼 복원 — sanitizeCanvasHtml이 on* 속성을 제거하므로 로드 후 onclick 재바인딩 필요
       // (없으면 버튼은 보이나 클릭 무반응 = 섹션 메모 패널 안 열림 회귀)
       if (window._ensureMemoButton) window._ensureMemoButton(sec);
+      /* ★🔒 도 «같은 까닭»으로 다시 걸어야 한다 (T-139 ③, 2026-09-22 검수 실측).
+         위 :not(.st-protected-btn) 은 단추가 «지워지지 않게»만 했다. 그런데 sanitizeCanvasHtml 은
+         on* 을 걷어내므로, 페이지를 한 번만 옮겨도 🔒 가 «보이는데 죽은 단추»가 된다.
+         실측(포트 9652): 새로고침 직후 onclick=YYnn → Page1 로 한 번 전환 → 모든 섹션이 Ynnn
+           (protected 만 소실). 1·3·6초 기다려도 안 돌아옴.
+           실클릭 짝대조 — 왕복한 섹션 🔒 팝오버 0개 / 같은 툴바 📝 는 열림 / 갓 만든 섹션 🔒 도 열림.
+         ⛔피해가 «표시»가 아니다 — 🔒·is-on·data-protected 가 그대로 보이는데 눌러도 안 열려서
+           **보호를 끌 방법이 없다**. 그리고 앱은 「🔒 버튼으로 보호 해제 후 삭제하세요」라고
+           바로 그 죽은 단추를 가리킨다.
+         ★2026-09-22 의 앞선 고침(5c15aa4)은 «만들 때»와 «hydrate»만 덮었다 —
+           rebindAll 을 지나는 길(페이지 전환·복원)이 빠져 있었다. 반만 선 고침이었다.
+         ⛔이 호출이 툴바 DOM 을 «더» 흔들지 않는다 — _ensureProtectionButton 은 자리가 이미
+           맞으면 안 옮기고(요소 기준 비교), 하는 일은 걷힌 onclick 을 «되돌려 놓는» 것뿐이다.
+           ⇒ 복원 뒤 DOM 이 복원 «전»에 더 가까워진다(T-136 을 키우지 않는다). */
+      if (window._ensureProtectionButton) window._ensureProtectionButton(sec);
     }
   });
   // row ID 복원 + paddingX 복원
@@ -921,6 +1048,25 @@ function rebindAll(opts = {}) {
         sb.style.setProperty('--bubble-bg', oldVar);
         bubbleEl.style.removeProperty('--bubble-bg');
       }
+    }
+  });
+
+  /* ★아이콘+텍스트 — 바로 아래 `.text-block` 갈래가 이 블럭을 «못 잡는다».
+     .icon-text-block 은 .text-block 이 아니고, 본문 칸도 `.itb-text`(접두사 itb-)라
+     그 inner 목록에 없다. 스냅샷은 contenteditable 을 «전부» 떼므로
+     (js/io/section-serialize.js «편집 상태 속성 제거») 이 블럭만 되붙임을 못 받고,
+     그 칸을 읽는 쪽이 조용히 포기한다 — js/props/prop-text.js showTextProperties 는
+     `[contenteditable]` 이 없으면 console.warn 뒤 return 한다.
+     실측(2026-09-20 실앱 9505·줌 40%): 아이콘+텍스트를 넣고 ⌘Z 한 번 →
+       .itb-text 의 contenteditable = null, 다시 클릭해도 우측 패널이 «안 열린다»
+       (오버레이를 켠 뒤였다면 토글을 못 찾아 끄지도 못한다).
+     ⚠️placeholder·bullet·blank 보정은 tb-* 전용 규약이라 여기로 «안» 베낀다
+       (.itb-text 는 평문 한 칸이다). 여기서 되살리는 건 편집가능 표식 하나뿐이다.
+     ⚠️이 되붙임을 지우면 tests/unit/icon-text-contenteditable-restore.test.mjs 가 잡는다. */
+  canvasEl.querySelectorAll('.icon-text-block').forEach(itb => {
+    const inner = itb.querySelector(':scope > .itb-text');
+    if (inner && !inner.hasAttribute('contenteditable')) {
+      inner.setAttribute('contenteditable', 'false');
     }
   });
 
@@ -983,6 +1129,24 @@ function rebindAll(opts = {}) {
     const parentFrame = b.closest('.frame-block');
     if (parentFrame) parentFrame.style.height = parentFrame.dataset.height ? `${parentFrame.dataset.height}px` : '';
   });
+
+  // ★프라이버시(2026-09-15): 모자이크 redact는 "캡처된 적 있는 이 런타임 인스턴스"만
+  // 안전하다(isMosaicCaptured, WeakSet 기반 — 저장 HTML엔 비트맵이 안 담긴다). 즉 프로젝트를
+  // 새로 열면(undo/redo 복원, 협업 수신 포함) 모든 모자이크 캔버스가 "한 번도 캡처 안 된"
+  // 상태로 시작한다 — CSS 안전배경(#4a4a4a)이 1차 방어선이지만, 사용자가 실제 모자이크를
+  // 보려면 어차피 첫 캡처가 필요하므로 그 노출/대기 창을 최소화하도록 여기서 즉시(사용자
+  // 행동 없이) 일괄 캡처한다. captureMosaicSnapshot은 실패해도 조용히 무시 — 안전배경이
+  // 계속 바닥을 지킨다.
+  // ★0919 QA: 즉시 한 번으로 끝내지 않는다 — 이미지가 뜬 뒤 시도 + 실패 시 몇 번 물러나며 재시도(redact-mosaic.js).
+  if (typeof window.captureMosaicsAfterLoad === 'function') {
+    try { window.captureMosaicsAfterLoad(canvasEl); } catch (_) {}
+  } else {
+    canvasEl.querySelectorAll('.shape-block.shape-redact[data-shape-redact-mode="mosaic"]').forEach(b => {
+      if (!window.isMosaicCaptured?.(b)) {
+        try { window.captureMosaicSnapshot?.(b); } catch (_) {}
+      }
+    });
+  }
 
   // ── annotation-block 복원 (펜툴 Phase 2: 폴리라인 + 스타일 props) ──
   canvasEl.querySelectorAll('.annotation-block').forEach(block => {
@@ -1066,7 +1230,7 @@ function rebindAll(opts = {}) {
     window.bindGradientSelect?.(block);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .qa-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -1089,7 +1253,8 @@ function rebindAll(opts = {}) {
         : b.classList.contains('bridge-block') ? 'brg'
         : b.classList.contains('grid-block') ? 'grd'   /* ★'grid' 아니다 — GRID_ID_PREFIXES=['grd_','duo_'] 와 같은 토큰이어야 한다(적대검수 C1) */
         : b.classList.contains('infocard-block') ? 'ifc'
-        : b.classList.contains('innercard-block') ? 'icd' : 'tbl';
+        : b.classList.contains('innercard-block') ? 'icd'
+        : b.classList.contains('qa-block') ? 'qa' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
     if (b.classList.contains('laurel-block')) window.renderLaurelBlock?.(b);
@@ -1112,6 +1277,9 @@ function rebindAll(opts = {}) {
     // canvas-block(cvb): 저장본 innerHTML은 정적이라 더블클릭 인라인 편집 핸들러(_bindCvbDblEdit)가
     // 없음 → renderCanvas로 재렌더해 위임 바인딩 (chat/banner02와 동일 패턴, 누락돼 있던 것)
     if (b.classList.contains('canvas-block')) window.renderCanvas?.(b);
+    // qa-block(admin QA): dataset이 진실 — 저장본 innerHTML은 스냅샷일 뿐이고,
+    // 재렌더가 체크박스/피드백/접기 클릭 위임(bindQABlockEvents)도 되살린다.
+    if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
     window.bindBlock(b);
   });
 
@@ -1175,8 +1343,25 @@ function rebindAll(opts = {}) {
     if (ss.dataset.radius) ss.style.borderRadius = ss.dataset.radius + 'px';
     // explicit height 복원 — justify-content 정렬 작동을 위해 필요
     // dataset.height 없으면 minHeight 폴백 (레거시 요소 대응)
+    // ★0919 QA: ⌘G(wrapSelectedBlocksInFrame)가 style 높이만 쓰고 makeFrameBlock 기본값 dataset.height='520' 을
+    //   남기던 저장본 치유 — 기본값 '520' 인데 저장된 style 높이가 다르면 style 이 진짜(다른 크기 변경 경로는 둘 다 쓴다).
+    if (ss.dataset.height === '520') {
+      const _styleH = parseInt(ss.style.height);
+      if (_styleH > 0 && _styleH !== 520 && /px$/.test(ss.style.height)) ss.dataset.height = String(_styleH);
+    }
     const _ssH = parseInt(ss.dataset.height) || parseInt(ss.style.minHeight) || 0;
     if (_ssH) ss.style.height = _ssH + 'px';
+    /* ★도형 프레임은 minHeight 도 «세트로» 복원한다 (2026-09-21 최종통합 QA medium ③ 후속)
+       .frame-block 엔 CSS 바닥이 있다 — css/editor-blocks.css `.frame-block { min-height: 60px }`.
+       위 줄은 height 만 되돌려서, 60 아래로 줄여 둔 도형을 다시 열면 style.height 는 30 인데
+       화면은 60 이 된다(패널 H 칸 = 30, 실제 = 60). 새로 고친 회전 경로가 다시 그런 저장본을
+       만들지는 않지만, ⛔이미 저장된 프로젝트는 그 상태 그대로 남아 있다 — 여는 순간 치유한다.
+       사정거리 = «도형을 품은 프레임»만. 보통 프레임(하위 섹션)의 60px 바닥은 그대로 둔다
+       (거긴 addShapeBlock 의 min-height 계약이 없고, 바닥이 의도다).
+       같은 «세트 규약»의 다른 자리 — js/block-drag.js _onShapeHandleMouseDown ·
+       js/overlay-handles.js _onFrameHandleMouseDown · js/props/prop-shape.js applySize·_relockFrameMinHeight.
+       회귀: tests/dom/shape-rotate-minheight.dom.spec.js L* */
+    if (_ssH && ss.querySelector(':scope > .shape-block')) ss.style.minHeight = _ssH + 'px';
     // 자식 정렬 복원 (frame-block 직속)
     if (ss.dataset.alignItems)     ss.style.alignItems     = ss.dataset.alignItems;
     if (ss.dataset.justifyContent) ss.style.justifyContent = ss.dataset.justifyContent;
@@ -1250,7 +1435,7 @@ function rebindAll(opts = {}) {
     if (imgSrc) {
       const screen = block.querySelector('.mkp-screen');
       if (screen) {
-        screen.style.background = `url('${imgSrc}') top center / 100% auto no-repeat, repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px`;
+        screen.style.background = `url('${imgSrc}') top center / cover no-repeat, repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px`;
         screen.innerHTML = '';
       }
     }
@@ -1649,7 +1834,7 @@ function initApp() {
     const revertBtn = document.getElementById('revert-btn');
     if (revertBtn) revertBtn.classList.add('has-commit');
   }
-  applyCanvasBackground(_bgRgba(state.pageSettings));
+  applyCanvasBackground(_bgCss(state.pageSettings));
   canvasEl.style.gap = state.pageSettings.gap + 'px';
   canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
   // padX: 섹션 물리적 padding 방식으로 적용

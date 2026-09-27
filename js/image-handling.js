@@ -3,6 +3,7 @@
 ══════════════════════════════════════ */
 import { propPanel } from './globals.js';
 import { alignBtn } from './props/_helpers.js';
+import { decodeGifFrames } from './io/export-image.js';
 
 /* ── 이미지 업로드 로딩 오버레이 헬퍼 ── */
 export function showAssetLoading(block) {
@@ -524,42 +525,201 @@ function exitImageEditMode(ab) {
   try { opts.afterExit?.(ab); } catch (err) { console.warn('[imgEdit] afterExit 실패', err); }
 }
 
+// T-012: 최종 저장 형태는 항상 이미지(정지) 또는 GIF(애니메이션) — video는 트림 미리보기 단계에서만
+// 존재하는 임시 상태(assetType='video-pending')다. 업로드 용량 상한은 네이버 스마트스토어 상세설명
+// 이미지 등록 기준(장당 최대 20MB, JPG/PNG/GIF)을 따른다 — photio.io/1minutesangse.com 등 실무 가이드
+// 다수가 동일 수치(20MB)로 교차 확인됨(공식 페이지 직접 인용은 접근 제한으로 미확보).
+const ASSET_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
+// 영상 원본은 트림 단계에서만 메모리에 올라가는 임시 입력이라 Naver 기준(최종 이미지/GIF 용량) 대상이
+// 아니다 — FileReader data URL 변환 시 base64 팽창(약 1.33배)만 고려해 실무적으로 넉넉히 잡는다.
+const ASSET_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
+
+function captureDetachedFirstFrame(gifSrc) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = img.naturalWidth || 1;
+        cv.height = img.naturalHeight || 1;
+        cv.getContext('2d').drawImage(img, 0, 0);
+        resolve(cv.toDataURL('image/png'));
+      } catch (err) { reject(err); }
+    };
+    img.onerror = reject;
+    img.src = gifSrc;
+  });
+}
+
 function triggerAssetUpload(ab) {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = 'image/*';
+  input.accept = 'image/*,video/mp4,video/webm,video/quicktime';
   input.onchange = e => {
     const file = e.target.files[0];
-    if (file) loadImageToAsset(ab, file);
+    if (!file) return;
+    if (file.type.startsWith('video/')) loadVideoToAsset(ab, file);
+    else loadImageToAsset(ab, file);
   };
   input.click();
 }
 
 function loadImageToAsset(ab, file) {
   if (!file || !file.type.startsWith('image/')) return;
-  if (file.size > 10 * 1024 * 1024) { alert('이미지 파일은 10MB 이하만 업로드할 수 있습니다.'); return; }
+  if (file.size > ASSET_IMAGE_MAX_BYTES) {
+    alert(`이미지 파일은 ${Math.round(ASSET_IMAGE_MAX_BYTES / (1024 * 1024))}MB 이하만 업로드할 수 있습니다.`);
+    return;
+  }
+  exitImageEditMode(ab);
+  pushHistory();
+  showAssetLoading(ab);
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    const src = ev.target.result;
+    const isGif = file.type === 'image/gif' || /^data:image\/gif[;,]/i.test(src);
+    if (isGif) {
+      // 애니메이션 GIF 직접 업로드 — 기본 표시는 정지 프레임(첫 프레임), 재생은 토글로.
+      // 1차: export-image.js의 decodeGifFrames(ImageDecoder 기반, 있으면 정확).
+      // 2차 폴백: 화면에 붙이지 않은 <img>는 애니메이션이 진행되지 않는다(실측 확인) —
+      // 그 상태로 캔버스에 한 번 그리면 항상 프레임0이 나온다. ImageDecoder 미지원 런타임(실측:
+      // 이 Electron 빌드가 그렇다) 대비 안전망.
+      let stillSrc = src;
+      try {
+        const frames = await decodeGifFrames(src, { maxFrames: 1 });
+        if (frames?.[0]?.dataURL) stillSrc = frames[0].dataURL;
+        else stillSrc = await captureDetachedFirstFrame(src);
+      } catch (err) {
+        console.warn('[gif] 정지 프레임 추출 실패(1차) — 폴백 시도', err);
+        try { stillSrc = await captureDetachedFirstFrame(src); }
+        catch (err2) { console.warn('[gif] 정지 프레임 추출 실패(2차) — 원본을 그대로 사용', err2); }
+      }
+      hideAssetLoading(ab);
+      setAssetImageFromSrc(ab, stillSrc, src);
+    } else {
+      hideAssetLoading(ab);
+      setAssetImageFromSrc(ab, src);
+    }
+    /* ★[R3 · 2026-09-22] «끝 표본» — loadVideoToAsset 과 같은 병, 같은 고침.
+       위 pushHistory() 는 FileReader 가 돌기 «전»에 찍히고 실제 반영은 여기(비동기)다.
+       ⛔둘 중 한 갈래에만 넣지 마라 — GIF 갈래와 일반 갈래 «둘 다» 반영이 끝난 뒤여야 한다.
+       그래서 if/else 밖, 두 갈래가 합류한 자리에 한 번만 둔다. */
+    pushHistory('이미지 업로드');
+  };
+  reader.onerror = () => hideAssetLoading(ab);
+  reader.readAsDataURL(file);
+}
+
+function loadVideoToAsset(ab, file) {
+  if (!file || !file.type.startsWith('video/')) return;
+  if (file.size > ASSET_VIDEO_MAX_BYTES) {
+    alert(`영상 파일은 ${Math.round(ASSET_VIDEO_MAX_BYTES / (1024 * 1024))}MB 이하만 업로드할 수 있습니다.`);
+    return;
+  }
   exitImageEditMode(ab);
   pushHistory();
   showAssetLoading(ab);
   const reader = new FileReader();
   reader.onload = ev => {
     hideAssetLoading(ab);
-    setAssetImageFromSrc(ab, ev.target.result);
+    setAssetVideoFromSrc(ab, ev.target.result);
+    /* ★[R3 · 2026-09-22 · T-130 잔여] «끝 표본» — 위 pushHistory() 는 이 콜백이 돌기 «전»,
+       즉 파일을 읽기도 전에 찍힌다. 실제 반영은 여기(비동기)라, 앞 동작이 push-after 였으면
+       앞의 push-before 가 무변화 차단에 먹혀 「업로드의 결과」가 스택에 한 번도 안 남는다.
+       ⇒ 반영이 «끝난 이 자리»에서 한 번 더 찍는다(⛔옮기기가 아니라 더하기).
+       ★사이드카(미확정 영상 원본)는 pushHistory 가 스스로 «같은 동기 구간»에서 집어간다
+         (js/history.js 의 getLastVideoPendingSidecar 주석) — 여기서 따로 할 일이 없다. */
+    pushHistory('영상 업로드');
   };
   reader.onerror = () => hideAssetLoading(ab);
   reader.readAsDataURL(file);
 }
 
-/* 스크래치 → 에셋 블록 이미지 적용 (loadImageToAsset의 FileReader.onload 본문 재사용)
-   ⚠️ pushHistory / showAssetProperties 호출은 caller에서 결정 (직접 적용용 헬퍼) */
-function setAssetImageFromSrc(ab, src) {
+/* ★그레인(.asset-grain) 보존 공용 헬퍼 — setAssetImageFromSrc·setAssetVideoFromSrc 둘 다
+   innerHTML을 통째로 갈아엎기 «전에» 캡처해서 «후에» 재삽입해야 한다(안 그러면 이미지 교체·
+   영상 업로드 때 그레인 층이 조용히 사라진다, 적대적 QA 지적 2026-09-15). 두 함수가 각자
+   복붙하면 세 번째 사본이 생겨 드리프트가 나므로 여기 한 곳으로 뽑는다. */
+function captureAssetGrain(ab) {
+  const el = ab.querySelector('.asset-grain');
+  if (!el) return null;
+  return { style: el.getAttribute('style') || '', intensity: el.dataset.grainIntensity || '' };
+}
+function restoreAssetGrain(ab, snap) {
+  if (!snap) return;
+  const grainEl = document.createElement('div');
+  grainEl.className = 'asset-grain';
+  if (snap.style) grainEl.setAttribute('style', snap.style);
+  if (snap.intensity) grainEl.dataset.grainIntensity = snap.intensity;
+  ab.appendChild(grainEl);
+}
+
+/* 영상 에셋 «미리보기» 단계 — 최종 저장물이 아니다. 트림 패널에서 "GIF로 적용"을 눌러야
+   setAssetImageFromSrc(정지프레임 + GIF)로 확정된다(js/props/asset-video-trim.js applyVideoTrimAsGif 참고).
+   assetType='video-pending'인 동안에는 일반 이미지 파이프라인(위치조절/드래그리사이즈 등) 대상에서 제외된다. */
+function setAssetVideoFromSrc(ab, src) {
   if (!ab || !src) return;
   ab.classList.add('has-image');
   ab.dataset.imgSrc = src;
-  // U10(BL-BOL-01/016): 애니메이션 GIF 감지 마커 — <img>는 원래 GIF를 그대로 재생하므로
-  // 파이프라인 변경 없이 에디터 인지용 배지(css [data-motion])와 워커 판별에만 쓰인다.
-  if (/^data:image\/gif[;,]/i.test(src) || /\.gif([?#]|$)/i.test(src)) ab.dataset.motion = 'gif';
-  else delete ab.dataset.motion;
+  ab.dataset.assetType = 'video-pending';
+  delete ab.dataset.motion;
+  delete ab.dataset.gifSrc;
+  delete ab.dataset.gifPlaying;
+  delete ab.dataset.trimIn;
+  delete ab.dataset.trimOut;
+  delete ab.dataset.playbackRate;
+  if (!ab.dataset.fit) ab.dataset.fit = 'cover';
+  delete ab.dataset.imgW;
+  delete ab.dataset.imgX;
+  delete ab.dataset.imgY;
+  delete ab.dataset.imgPosition;
+  const prevOverlayEl = ab.querySelector('.asset-overlay');
+  const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
+  const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
+  const prevGrainSnap = captureAssetGrain(ab);
+  ab.innerHTML = `
+    <div class="asset-img-clip"><video class="asset-img asset-video" src="${src}" style="object-fit:${ab.dataset.fit}" muted loop playsinline></video></div>
+    <button class="asset-overlay-clear" title="영상 제거">✕</button>
+    <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
+  restoreAssetGrain(ab, prevGrainSnap);
+  ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
+    e.stopPropagation();
+    clearAssetImage(ab);
+  });
+  ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
+  const video = ab.querySelector('.asset-video');
+  video.addEventListener('loadedmetadata', () => {
+    ab.dataset.trimIn = '0';
+    ab.dataset.trimOut = String(video.duration || 0);
+    video.play().catch(() => {});
+    if (ab.classList.contains('selected')) showAssetProperties(ab);
+  }, { once: true });
+  showAssetProperties(ab);
+}
+
+/* 스크래치 → 에셋 블록 이미지 적용 (loadImageToAsset의 FileReader.onload 본문 재사용)
+   ⚠️ pushHistory / showAssetProperties 호출은 caller에서 결정 (직접 적용용 헬퍼)
+   motionSrc: 있으면 GIF 애니메이션 소스(src는 그 정지 프레임/썸네일) — T-012 통합 모션 자산 모델.
+   video 업로드(트림→GIF 적용)와 .gif 직접 업로드 두 경로 모두 이 함수로 수렴한다. */
+function setAssetImageFromSrc(ab, src, motionSrc) {
+  if (!ab || !src) return;
+  ab.classList.add('has-image');
+  ab.dataset.imgSrc = src;
+  // 영상 미리보기 → 정지 이미지/GIF 확정 전환 경로 대비 — video 전용 트림 필드 잔존 방지
+  delete ab.dataset.assetType;
+  delete ab.dataset.trimIn;
+  delete ab.dataset.trimOut;
+  delete ab.dataset.playbackRate;
+  // U10(BL-BOL-01/016) 확장: motionSrc가 명시되면 그걸 애니메이션 소스로, 아니면 src 자체가
+  // .gif면(레거시 경로 호환) 정지프레임 분리 없이 그대로 애니메이션 소스로 쓴다.
+  const isGif = !!motionSrc || /^data:image\/gif[;,]/i.test(src) || /\.gif([?#]|$)/i.test(src);
+  if (isGif) {
+    ab.dataset.motion = 'gif';
+    ab.dataset.gifSrc = motionSrc || src;
+    ab.dataset.gifPlaying = 'false';
+  } else {
+    delete ab.dataset.motion;
+    delete ab.dataset.gifSrc;
+    delete ab.dataset.gifPlaying;
+  }
   if (!ab.dataset.fit) ab.dataset.fit = 'cover';
   // 기존 위치/크기/포지션 초기화
   delete ab.dataset.imgW;
@@ -570,21 +730,57 @@ function setAssetImageFromSrc(ab, src) {
   const prevOverlayEl = ab.querySelector('.asset-overlay');
   const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
   const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
+  // ★그레인도 같은 방식으로 보존 — 안 그러면 이미지 교체·영상 프레임 썸네일 고정(이 함수를
+  //   그 경로도 재사용) 때 그레인 층이 조용히 사라진다(적대적 QA a1-a3 지적, T-001 폭 잔존과
+  //   같은 유형의 결함). captureAssetGrain/restoreAssetGrain 공용 헬퍼(위)를 쓴다.
+  const prevGrainSnap = captureAssetGrain(ab);
   ab.innerHTML = `
     <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'"></div>
     <button class="asset-overlay-clear" title="이미지 제거">✕</button>
+    ${isGif ? '<button class="asset-gif-toggle" title="GIF 재생">▶ GIF 재생</button>' : ''}
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
+  restoreAssetGrain(ab, prevGrainSnap);
   ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
     e.stopPropagation();
     clearAssetImage(ab);
+  });
+  ab.querySelector('.asset-gif-toggle')?.addEventListener('click', e => {
+    e.stopPropagation();
+    toggleAssetGifPlayback(ab);
   });
   // overlay-tb 블록 재바인딩
   ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
   showAssetProperties(ab);
 }
 
+/* GIF 재생/정지 토글 — img.src만 스와핑한다(썸네일 유튜브 호버재생과 동일 감각).
+   저장 시 SSOT는 항상 dataset.imgSrc(정지)이며, 로드/undo 복원 시 항상 정지 상태로 되돌린다
+   (js/block-drag.js 참고) — "재생 중" 상태 자체는 저장 대상이 아니다. */
+function toggleAssetGifPlayback(ab) {
+  const img = ab?.querySelector('.asset-img');
+  const btn = ab?.querySelector('.asset-gif-toggle');
+  if (!img || !btn || !ab.dataset.gifSrc) return;
+  const playing = ab.dataset.gifPlaying === 'true';
+  if (playing) {
+    img.src = ab.dataset.imgSrc;
+    ab.dataset.gifPlaying = 'false';
+    btn.textContent = '▶ GIF 재생';
+    btn.classList.remove('active');
+  } else {
+    img.src = ab.dataset.gifSrc;
+    ab.dataset.gifPlaying = 'true';
+    btn.textContent = '■ 정지';
+    btn.classList.add('active');
+  }
+}
+
 function clearAssetImage(ab) {
   exitImageEditMode(ab);
+  /* ★미확정 영상을 없애면 «한 번만 알린다» 래치를 푼다 (T-032 거짓음성, 2026-09-22 검수 실측).
+     래치는 내용 신원으로 걸린다 — ✕로 비우고 «같은 파일»을 다시 넣으면 신원이 같아서
+     「이미 알렸다」로 넘어가고, 경고 0회인 채로 저장하면 영상이 사라진다.
+     ⛔경고가 «안 뜨는 것»이 「안전하다」로 읽히는 자리다. 없애는 쪽이 알려 줘야 한다. */
+  window.resetPendingVideoWarnLatch?.();
   pushHistory();
   ab.classList.remove('has-image');
   delete ab.dataset.imgSrc;
@@ -592,6 +788,13 @@ function clearAssetImage(ab) {
   delete ab.dataset.imgW;
   delete ab.dataset.imgX;
   delete ab.dataset.imgY;
+  delete ab.dataset.assetType;
+  delete ab.dataset.trimIn;
+  delete ab.dataset.trimOut;
+  delete ab.dataset.playbackRate;
+  delete ab.dataset.motion;
+  delete ab.dataset.gifSrc;
+  delete ab.dataset.gifPlaying;
   const prevOverlayEl2 = ab.querySelector('.asset-overlay');
   const prevOverlayHTML2 = prevOverlayEl2 ? prevOverlayEl2.innerHTML : '';
   const prevOverlayStyle2 = prevOverlayEl2 ? prevOverlayEl2.getAttribute('style') || '' : '';
@@ -630,12 +833,15 @@ function enterPosDragMode(ab) {
   ab.appendChild(hint);
 
   let isDragging = false;
+  let _hist = null;
   let startX, startY, startPosX, startPosY;
 
   function onMouseDown(e) {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     isDragging = true;
+    /* ★제스처마다 «새로» 연다 — 하나를 재사용하면 두 번째 드래그가 시작 상태를 안 찍는다. */
+    _hist = window.beginDragHistory?.('이미지 위치 조절');
     startX = e.clientX; startY = e.clientY;
     startPosX = posX;   startPosY = posY;
   }
@@ -646,6 +852,9 @@ function enterPosDragMode(ab) {
     const fh = ab.offsetHeight;
     const dx = (e.clientX - startX) / zs;
     const dy = (e.clientY - startY) / zs;
+    /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+       다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+    _hist?.arm(dx, dy);
     posX = Math.max(0, Math.min(100, startPosX - (dx / fw * 100)));
     posY = Math.max(0, Math.min(100, startPosY - (dy / fh * 100)));
     applyPos();
@@ -721,12 +930,15 @@ function enterBgPosDragMode(el) {
   el.appendChild(hint);
 
   let isDragging = false;
+  let _hist = null;
   let startX, startY, startPosX, startPosY;
 
   function onMouseDown(e) {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     isDragging = true;
+    /* ★제스처마다 «새로» 연다 — 하나를 재사용하면 두 번째 드래그가 시작 상태를 안 찍는다. */
+    _hist = window.beginDragHistory?.('배경 위치 조절');
     startX = e.clientX; startY = e.clientY;
     startPosX = posX;   startPosY = posY;
   }
@@ -737,6 +949,9 @@ function enterBgPosDragMode(el) {
     const fh = el.offsetHeight;
     const dx = (e.clientX - startX) / zs;
     const dy = (e.clientY - startY) / zs;
+    /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+       다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+    _hist?.arm(dx, dy);
     posX = Math.max(0, Math.min(100, startPosX - (dx / fw * 100)));
     posY = Math.max(0, Math.min(100, startPosY - (dy / fh * 100)));
     applyPos();
@@ -1050,11 +1265,229 @@ function exitSectionBgEditMode(sec) {
 
 window.enterSectionBgEditMode = enterSectionBgEditMode;
 window.exitSectionBgEditMode  = exitSectionBgEditMode;
+
+/* ══════════════════════════════════════════════════════════════════════════
+   그리드 칸 이미지 «프레임 안 크롭» — 에셋 더블클릭 편집기를 그대로 빌려 쓴다.
+   ───────────────────────────────────────────────────────────────────────────
+   현빈 2026-09-25: 「에셋블럭의 경우 프레임(컨테이너) 안에 콘텐츠(이미지)가 있잖아. …
+   에셋블럭과 구조가 같아야 된다고 보거든? 코너를 끌면 통째로 작아지면 안 되는 거지.」
+
+   ★선례를 그대로 베낀다 — 바로 위 enterSectionBgEditMode 다. 거기서 배운 것 셋:
+     ⑴ 편집기가 요구하는 건 «`.asset-img` 자식 하나»뿐이다(이 파일 1093행 주석).
+     ⑵ ⛔`.asset-block` 클래스는 «일부러» 안 붙인다 — editor.js 의 Delete 핸들러
+        (`.asset-block.img-editing` → clearAssetImage)·inspector·ai-image-gen 의 에셋
+        전수조사가 이 임시 DOM 을 «진짜 에셋»으로 오인한다.
+     ⑶ `opts.beforeCommit` 이 「px 기하를 «자기 표현»으로 옮기고 임시 DOM 을 치우는」 자리다
+        (pushHistory «이전»이라 스냅샷에 편집용 DOM 이 애초에 안 들어간다).
+
+   ★단위 — 편집기는 px 로 말하고 그리드 모델은 ％로 듣는다. 그 통역이 beforeCommit 이다.
+     칸 폭은 «열 가중치»로 정해져 늘었다 줄었다 하고 내보내기는 폭을 860→780 으로 바꾼다.
+     px 로 저장하면 그때마다 크롭이 어긋난다(grid-block.js GRID_IMG_SIZE_MIN 주석의 까닭).
+
+   ★높이가 auto 인 줄은 «프레임이 없다» — 그림 키를 그대로 따라가므로 잘릴 것이 없다.
+     그래서 편집을 열기 «전»에 지금 그려진 높이를 `height` 로 못박는다. 안 하면 렌더러가
+     크롭 세 값을 아예 안 읽고(ignoredProps), 사용자는 「맞췄는데 아무 일도 안 났다」를 본다.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ★소수 «세» 자리 — 그리드 렌더러의 _gridClampPct 와 «같은 자리수»여야 편집을 열었다 닫는
+ *   것만으로 그림이 미세하게 튀지 않는다(한 자리면 0.2px 이 어긋나고 경계선에서 드러난다). */
+const _r1g = (v) => Math.round(v * 1000) / 1000;
+
+function _grdImgFrameEl(block, addr) {
+  if (!block || !addr) return null;
+  const el = block.querySelector(
+    `.grd-img-frame[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
+  return (el && !el.classList.contains('grd-img-empty')) ? el : null;
+}
+
+function _grdImgLine(block, addr) {
+  try { return window.getGridModel(block).cells[addr.r][addr.c].lines[addr.li] || null; }
+  catch (_) { return null; }
+}
+
+/** 임시 DOM·상태를 «완전히» 되돌린다. 여러 번 불러도 안전(멱등). */
+function _teardownGridImgEdit(block) {
+  if (!block) return;
+  const st = block._grdImgEdit;
+  if (!st) return;
+  st.proxy?.remove();
+  if (st.realImg) st.realImg.style.opacity = st.realOpacity;
+  if (st.frame) {
+    if (st.hadPosition) st.frame.style.position = st.prevPosition;
+    else st.frame.style.removeProperty('position');
+  }
+  block._grdImgEdit = null;
+}
+
+function enterGridImageEditMode(block, addr) {
+  if (!block || !addr || block._grdImgEdit) return;
+  let line = _grdImgLine(block, addr);
+  if (!line || line.type !== 'image' || !line.imgSrc) return;
+
+  /* ★프레임이 없으면 «지금 보이는 높이»로 만들어 준다 — 그래야 잘릴 것이 생긴다.
+     ⛔몰래 하지 않는다: 이 한 번의 patch 는 되돌리기 한 칸을 차지하고 토스트로 알린다. */
+  if (!(Number(line.height) > 0)) {
+    const el0 = _grdImgFrameEl(block, addr);
+    if (!el0) return;
+    const scale = (window.currentZoom || 100) / 100;
+    const h0 = Math.max(24, Math.round(el0.getBoundingClientRect().height / (scale || 1)));
+    window.pushHistory?.('그리드 이미지 프레임 높이');
+    const res = window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, height: h0 } });
+    if (!res || res.ok !== true) return;
+    window.showToast?.(`프레임 높이를 ${h0}px 로 고정했습니다 · 이제 그림을 끌어 맞추세요`);
+    line = _grdImgLine(block, addr);
+  }
+
+  const frame = _grdImgFrameEl(block, addr);
+  if (!frame) return;
+  const realImg = frame.querySelector('img.grd-img');
+
+  const W = frame.offsetWidth, H = frame.offsetHeight;
+  if (!(W > 0) || !(H > 0)) return;
+
+  // 프레임을 «담는 그릇»으로 만든다(끝나면 되돌린다) — 프록시가 inset:0 으로 앉을 수 있게.
+  const hadPosition = !!frame.style.position;
+  const prevPosition = frame.style.position;
+  frame.style.position = 'relative';
+
+  const proxy = document.createElement('div');
+  proxy.className = 'grd-img-edit-proxy';
+  proxy.dataset.grdImgProxy = '1';
+  proxy.style.cssText = 'position:absolute;inset:0;border-radius:inherit;';
+  proxy.innerHTML = '<div class="asset-img-clip"><img class="asset-img" draggable="false"></div>';
+  const img = proxy.querySelector('.asset-img');
+  frame.appendChild(proxy);
+
+  block._grdImgEdit = {
+    proxy, frame, realImg,
+    realOpacity: realImg ? realImg.style.opacity : '',
+    hadPosition, prevPosition,
+  };
+  if (realImg) realImg.style.opacity = '0';   // 그리는 것은 프록시 쪽 한 장뿐
+
+  const start = () => {
+    if (!block._grdImgEdit || !proxy.isConnected) return;
+    const nw = img.naturalWidth || W, nh = img.naturalHeight || H;
+    const ratio = (nw && nh) ? nh / nw : 1;
+
+    /* 지금 상태를 px 로 «되돌려» 편집기에 넘긴다.
+       · 크롭이 이미 있으면 그 ％를 px 로
+       · 없으면 화면이 쓰고 있는 object-fit:cover 를 px 로 (k = max(W/nw, H/nh)) */
+    const hasCrop = [line.imgSizePct, line.imgPosX, line.imgPosY].some(v => Number.isFinite(Number(v)));
+    let dw, x0, y0;
+    if (hasCrop) {
+      const sz = Number.isFinite(Number(line.imgSizePct)) ? Number(line.imgSizePct) : 100;
+      dw = W * sz / 100;
+      x0 = W * (Number.isFinite(Number(line.imgPosX)) ? Number(line.imgPosX) : 0) / 100;
+      y0 = H * (Number.isFinite(Number(line.imgPosY)) ? Number(line.imgPosY) : 0) / 100;
+    } else {
+      const k = Math.max(W / nw, H / nh);
+      dw = nw * k;
+      x0 = (W - dw) / 2;
+      y0 = (H - dw * ratio) / 2;
+    }
+    // enterImageEditMode 는 dataset.imgW/X/Y 를 «정본»으로 읽는다 → 지금 화면과 픽셀 동일하게 주입
+    proxy.dataset.imgW = dw;
+    proxy.dataset.imgX = x0;
+    proxy.dataset.imgY = y0;
+
+    /* ★「원래대로」가 눌렸나 — 아래 beforeCommit 이 «쓸 것인가 지울 것인가»를 가르는 깃발.
+     * ⛔단추에서 모델을 직접 고치고 끝낼 수 «없다» — exitImageEditMode 는 «언제나»
+     *   beforeCommit 을 부르고, 그 자리가 세 값을 다시 «쓴다». 먼저 지워도 나가면서 되살아난다.
+     *   ⇒ 지우기는 «나가는 길 위»에 있어야 한다. 그래서 깃발이다. */
+    let cropResetWanted = false;
+
+    enterImageEditMode(proxy, {
+      noRotate: true,        // 크롭 모델에 회전 축이 없다 — 있는 척하면 돌려 놓고 저장이 안 된다
+      noColorAdjust: true,   // 색보정은 에셋 <img> 전용 경로다(그리드 줄엔 그 필드가 없다)
+      keepAliveSel: '#panel-right',
+      historyLabel: '그리드 이미지 크롭',
+      beforeCommit: () => {
+        // style.width 가 정본 (dataset.imgW 는 exitImageEditMode 가 offsetWidth 로 반올림해 둔 값)
+        const w = parseFloat(img.style.width) || parseFloat(proxy.dataset.imgW) || dw;
+        const x = parseFloat(proxy.dataset.imgX) || 0;
+        const y = parseFloat(proxy.dataset.imgY) || 0;
+        _teardownGridImgEdit(block);          // ★patch/pushHistory «전»에 임시 DOM 을 0 으로
+        if (cropResetWanted) {
+          /* ★「원래대로」 — 세 값을 «지운다»(cover 로 복귀). `undefined` 가 「이 필드를 없앤다」는
+             뜻이다 — `''`(강제로 없앰)도 `0`(값)도 아니다(_gridMergeLine 의 pick 계약).
+             ⛔셋을 «한 번에» 지워야 렌더러가 cover 로 돌아간다. 하나라도 남으면 프레임이
+               계속 «자르는 그릇»(overflow:hidden)이다.
+             ★여기서 지우면 화면도 곧바로 따라온다 — updateGridBlock 이 다시 그리고, 이 함수는
+               이미 임시 DOM(프록시)을 걷어낸 뒤라 «진짜 그림»이 cover 로 보인다. */
+          window.updateGridBlock?.(block.id, {
+            patchCell: {
+              r: addr.r, c: addr.c, lineIndex: addr.li,
+              imgSizePct: undefined, imgPosX: undefined, imgPosY: undefined,
+            },
+          });
+          return;
+        }
+        /* ★px → ％ 통역. 가로는 프레임 폭, 세로는 프레임 높이가 기준이다
+           (렌더러가 left:…% / top:…% 를 그렇게 푼다 — CSS 의 기준과 같다). */
+        window.updateGridBlock?.(block.id, {
+          patchCell: {
+            r: addr.r, c: addr.c, lineIndex: addr.li,
+            imgSizePct: _r1g(w / W * 100),
+            imgPosX:    _r1g(x / W * 100),
+            imgPosY:    _r1g(y / H * 100),
+          },
+        });
+      },
+      afterExit: () => {
+        _teardownGridImgEdit(block);          // 멱등 — beforeCommit 이 실패해도 잔여 0
+        window.showGridProperties?.(block, addr);
+        window.showGridImageResizeHandle?.(block);
+      },
+    });
+
+    /* 우측 패널이 «이미지 편집»으로 교체된 뒤 — 같은 자리에 종료 버튼(섹션 배경과 같은 꼴)
+     * ★2026-09-25 「원래대로」를 «여기» 둔다 — 현빈이 정한 자리다(「크롭 초기화 …
+     *   에셋블록에도 같은 기능이 있으면 «편집모드 안으로 옮기고»…」).
+     *   한 번은 패널의 «크롭 초기화»를 통째로 없앴었다(e04d29f). 그때 판단은 「⌘Z 가
+     *   되돌려 준다」였는데, 실기가 그것을 «반증»했다 — 크롭을 연달아 두 번 하면 ⌘Z 가
+     *   한 칸만 물러나고 멈춰(실측 115.607→138.226→160.77, ⌘Z 뒤 138.226 에서 고착)
+     *   사용자가 «중간 값»에 갇힌다. ⇒ 되돌릴 길이 «정말로» 없어서 되살린다.
+     * ⛔패널(prop-grid.js 이미지 절)로는 되돌리지 «마라» — 거기서 없애라신 뜻은 그대로다.
+     * ⛔「⌘Z 가 두 번째부터 안 먹는다」는 이 단추가 고치는 것이 «아니다» — 그건 제품 전체의
+     *   되돌리기 문제이고 별건으로 섰다. 그 버그가 고쳐져도 이 단추는 계속 쓸모가 있다
+     *   (⌘Z 는 «한 칸 뒤»로 가고, 이 단추는 «크롭 없음»으로 간다 — 목적지가 다르다). */
+    const pp = document.querySelector('#panel-right .panel-body');
+    if (pp) {
+      const box = document.createElement('div');
+      box.className = 'prop-section';
+      box.innerHTML =
+        '<button class="prop-action-btn secondary" id="grd-img-crop-done">크롭 완료</button>' +
+        '<button class="prop-action-btn" id="grd-img-crop-reset" style="margin-top:6px;"' +
+        ' title="맞춰 둔 크롭을 지우고 «프레임에 꽉 채우기»로 되돌립니다">원래대로</button>';
+      pp.appendChild(box);
+      box.querySelector('#grd-img-crop-done').addEventListener('click', () => exitImageEditMode(proxy));
+      box.querySelector('#grd-img-crop-reset').addEventListener('click', () => {
+        cropResetWanted = true;       // ★깃발을 먼저 — 나가는 길 위의 beforeCommit 이 이걸 읽는다
+        exitImageEditMode(proxy);
+      });
+    }
+  };
+
+  img.src = line.imgSrc;
+  if (img.complete && img.naturalWidth) start();
+  else img.addEventListener('load', start, { once: true });
+  img.addEventListener('error', () => {
+    console.warn('[grdImgCrop] 이미지 로드 실패');
+    _teardownGridImgEdit(block);
+  }, { once: true });
+}
+
+window.enterGridImageEditMode = enterGridImageEditMode;
+window.teardownGridImageEditMode = (block) => _teardownGridImgEdit(block);
 window.applyImageTransform = applyImageTransform;
 window.triggerAssetUpload = triggerAssetUpload;
 window.clearAssetImage    = clearAssetImage;
 window.loadImageToAsset   = loadImageToAsset;
 window.setAssetImageFromSrc = setAssetImageFromSrc;
+window.loadVideoToAsset     = loadVideoToAsset;
+window.setAssetVideoFromSrc = setAssetVideoFromSrc;
+window.toggleAssetGifPlayback = toggleAssetGifPlayback;
 
 window.triggerCircleUpload        = triggerCircleUpload;
 window.loadImageToCircle          = loadImageToCircle;
@@ -1236,7 +1669,15 @@ function enterCircleImageEditMode(icb) {
     { id: 'lc', cursor: 'ew-resize',   cls: 'img-edge-handle'   },
   ];
   const handleEls = {};
-  const HS = 5;
+  /* ★손잡이 «절반»(중심 보정)은 «크기와 같은 축»이어야 한다.
+   *   이 경로의 손잡이는 icb 안 = #canvas-scaler «안»에 살고, 크기는 CSS 가 배율을 먹인다
+   *   (css/editor-blocks.css `.icon-circle-block .img-corner-handle` = calc(7px * var(--inv-zoom))).
+   *   그런데 절반만 5 로 굳어 있어서 두 축이 갈렸다 — 화면에서 중심이 배율마다 흔들린다.
+   *   실측(dpr2, 기준=에셋 손잡이 7px/1.5): 줌40 (+1.5,+1.5) · 줌100 (−1.5,−1.5) · 줌150 (−4.0,−4.0)
+   *   = (3.5 × invZoom − 5) × 줌/100. ⇒ 3.5 × invZoom 으로 같은 축에 태운다.
+   *   ⛔상수로 «한 번» 계산하지 마라 — 배율이 바뀌면 다시 읽어야 해서 syncHandles 안에서 부른다.
+   *   회귀: tests/dom/handle-center-icon-circle.dom.spec.js B7 */
+  const halfHandle = () => 3.5 * (100 / (window.currentZoom || 100));
   ICB_HANDLES.forEach(({ id, cursor, cls }) => {
     const h = document.createElement('div');
     h.className = cls;
@@ -1253,6 +1694,7 @@ function enterCircleImageEditMode(icb) {
   icb.appendChild(hint);
 
   function syncHandles() {
+    const HS = halfHandle();
     const cx = circle.offsetLeft;
     const cy = circle.offsetTop;
     const x  = parseFloat(img.style.left) || 0;
@@ -1358,7 +1800,14 @@ function enterCircleImageEditMode(icb) {
 
   renderCircleImgPanel();
 
+  /* ★배율이 바뀌어도 이 syncHandles 를 부르는 사람이 없다 — 에셋 경로는 `function _syncLoop`(:467) rAF 루프가
+   *   대신 불러 주지만 이 경로엔 루프가 없다. HS 를 배율에 태운 이상 «배율이 바뀌는 자리»에
+   *   묶지 않으면 «바꾸기 전» 절반이 남아 중심이 도로 어긋난다.
+   *   ⇒ applyZoom 이 --inv-zoom 을 갱신한 직후 여기를 부른다(js/editor.js applyZoom). */
+  window._syncCircleImgHandles = syncHandles;
+
   icb._imgEditCleanup = () => {
+    if (window._syncCircleImgHandles === syncHandles) window._syncCircleImgHandles = null;
     img.removeEventListener('mousedown', onImgDown);
     Object.values(handleEls).forEach(h => h.remove());
     hint.remove();

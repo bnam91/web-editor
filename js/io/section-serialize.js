@@ -26,11 +26,128 @@
        ⇒ 늘어날 수 있다. 늘릴 땐 «여기 한 곳만» 고친다 — market-merge·version-diff 도 이걸 읽는다.
      ⚠️'tiny'(스티커)·'lazy-unloaded'(가상화)는 여기 안 넣는다 — 조건부(특정 블록에서만)라
        전역 sweep 대상이 아니다. 아래 serializeCleanRoot 안에서 따로 걷는다. */
+  /* ══ T-031 video-pending 스냅샷 스코프 사이드카 ═══════════════════════════════
+     문제: 아래 serializeCleanRoot 의 T-012 안전장치(video-pending → "업로드대기" 빈
+     상태로 세척)는 pushHistory 가 쓰는 getSerializedCanvas 스냅샷도 «그대로» 거친다.
+     그래서 트림 핸들을 드래그할 때마다(js/props/asset-video-trim.js pushHistory) 찍히는
+     undo 스냅샷도 전부 "빈 에셋"으로 찍혀, ⌘Z 한 번에 트림이 아니라 «영상 자체»가
+     사라지는 데이터손실 회귀가 난다(2026-09-15, T-012 직후 예측·실측 재현).
+     ⇒ 원본(dataURL/파일)은 직렬화되는 문자열 «밖»에 따로 보관하고, undo/redo·페이지전환
+       으로 스냅샷을 되돌릴 때 (js/history.js restoreSnapshot/restoreSnapshotScoped,
+       js/io/save-load.js switchPage/deletePage, rebindAll 직후) 원본을 찾아 다시
+       연결한다.
+     ★2026-09-15 2차 수정(a1-a3 코드리뷰 지적): 최초 구현은 block.id → 마지막 값 «하나»만
+       덮어쓰는 전역 Map 이었다 — 그러면 (1) 지운 영상 → 무관한 편집 → ⌘Z 한 번 만으로도
+       "무관한 편집"이 아니라 «지운 영상»이 되살아나고(그 스냅샷은 삭제 후 상태인데도
+       전역 캐시엔 삭제 전 값이 여전히 남아있어서), (2) 트림을 여러 번 고친 뒤 되돌려도
+       구간이 «그 시점 값»이 아니라 «최신 값»으로 붙었다(전역 슬롯이 하나뿐이라 되돌릴
+       스냅샷마다 다른 값을 못 가짐), (3) 세션 내내 모든 video-pending 블록의 원본
+       dataURL(블록당 최대 ~66MB)이 한 번 캐시되면 안 비워졌다.
+       ⇒ 캐시를 전역 Map 이 아니라 «각 스냅샷/페이지 객체가 직접 들고 다니는 사이드카
+       객체»로 바꾼다 — getLastVideoPendingSidecar() 가 «바로 직전» serializeCleanRoot
+       호출(=이 스냅샷을 만든 그 호출) 하나가 발견한 것만 돌려주므로, 호출자(history.js
+       pushHistory/init, save-load.js flushCurrentPage)가 그 스냅샷/페이지 객체에
+       videoPendingSidecar 로 붙여 «그 시점 전용»으로 들고 다닌다. reattachVideoPendingBlocks
+       는 복원하는 «그 스냅샷의» 사이드카만 받아쓰므로, 무관한 스냅샷을 복원할 땐 그
+       스냅샷의 사이드카가 비어 있어(또는 다른 값이라) 잘못 되살아나지 않는다. 메모리도
+       history MAX_HISTORY(50)·페이지 수만큼만 살아있는 만큼만 쥔다(전역 누적 없음).
+       js/effects/redact-mosaic.js 의 _fullResCache(WeakMap, DOM 노드 자신이 키)와 원리는
+       같다(무거운 데이터를 직렬화 밖에 둔다) — 다만 여긴 undo/redo 가 캔버스 innerHTML 을
+       통째로 교체해 DOM 인스턴스 자체가 갈리므로(같은 id, 다른 노드) 노드가 아니라
+       block.id 문자열을 키로 쓰는 «그때그때의» 일반 객체다.
+     ⛔진짜 파일 리로드(앱 재시작 후 프로젝트 다시 열기)에는 안 쓰인다 — 로드된 데이터에
+       videoPendingSidecar 필드 자체가 없어(저장 파일엔 안 실린다) 자연히 T-031 의도된
+       "빈 업로드대기" 로 떨어진다. */
+  let _lastSweepSidecar = null;
+
+  /** 지우기 «직전»에 원본을 «이번 sweep 전용» 사이드카에 남긴다(serializeCleanRoot 가
+   *  호출 때마다 새로 연다 — 전역이 아니다). ab 는 (라이브가 아니라) 클론일 수 있지만
+   *  cloneNode(true) 가 dataset 을 그대로 복사하므로 값은 동일하다. */
+  function captureVideoPendingState(ab) {
+    if (!_lastSweepSidecar || !ab || !ab.id) return;
+    const imgSrc = ab.dataset.imgSrc;
+    if (!imgSrc) return; // 아직 업로드 전(진짜 빈 상태) — 캐시할 게 없다
+    _lastSweepSidecar[ab.id] = {
+      imgSrc,
+      fit: ab.dataset.fit || 'cover',
+      trimIn: ab.dataset.trimIn,
+      trimOut: ab.dataset.trimOut,
+      playbackRate: ab.dataset.playbackRate,
+    };
+  }
+
+  /** «바로 직전» serializeCleanRoot 호출(=getSerializedCanvas 로 방금 만든 그 스냅샷)이
+   *  발견한 video-pending 원본들. 호출자는 getSerializedCanvas() 직후 «같은 동기 구간»
+   *  에서 이걸 읽어 자기 스냅샷/페이지 객체에 videoPendingSidecar 로 붙여야 한다 — 다음
+   *  serializeCleanRoot 호출(다른 스냅샷·템플릿저장·섹션복사 등 무엇이든)이 오면 갱신돼
+   *  버린다. */
+  function getLastVideoPendingSidecar() {
+    return _lastSweepSidecar || {};
+  }
+
+  /** undo/redo·페이지전환으로 캔버스가 통째로(또는 부분) 갈린 뒤 호출 — «빈 업로드대기»로
+   *  찍힌 video-pending 블록 중 «지금 복원하는 이 스냅샷/페이지 자신의» sidecar 에 원본이
+   *  있으면 다시 붙인다. root 는 보통 #canvas. sidecar 는 복원 대상 스냅샷/페이지 객체가
+   *  들고 있던 videoPendingSidecar(js/history.js·js/io/save-load.js 가 rebindAll(opts)로
+   *  넘긴다) — 없으면(진짜 파일 리로드 등) 아무것도 되살리지 않는다. */
+  function reattachVideoPendingBlocks(root, sidecar) {
+    if (!root || !root.querySelectorAll || !sidecar) return;
+    /* ⛔[data-asset-type="video-pending"] 로는 못 고른다 — 지우기 자체가 assetType 도
+       delete 목록에 넣는다(위 T-012 목록: 'assetType' 포함), 그래서 스냅샷 문자열엔 이
+       마커가 «이미 없다». id 가 sidecar 에 있는지만으로 판정한다 — sidecar 는 애초에
+       «이 스냅샷을 만들 때» video-pending 이었던 블록만 담는다. */
+    root.querySelectorAll('.asset-block').forEach(ab => {
+      if (ab.dataset.imgSrc) return; // 이미 원본이 있다 — 손대지 않는다
+      const cached = ab.id ? sidecar[ab.id] : null;
+      if (!cached) return; // 이 스냅샷의 sidecar 엔 없음 — 의도된 "빈 업로드대기" 그대로 둔다(T-031)
+      ab.classList.add('has-image');
+      ab.dataset.assetType = 'video-pending';
+      ab.dataset.imgSrc = cached.imgSrc;
+      ab.dataset.fit = cached.fit;
+      if (cached.trimIn  != null) ab.dataset.trimIn  = cached.trimIn;
+      if (cached.trimOut != null) ab.dataset.trimOut = cached.trimOut;
+      if (cached.playbackRate != null) ab.dataset.playbackRate = cached.playbackRate;
+      const overlayEl = ab.querySelector('.asset-overlay');
+      const overlayHTML  = overlayEl ? overlayEl.innerHTML : '';
+      const overlayStyle = overlayEl ? overlayEl.getAttribute('style') || '' : '';
+      const grainEl = ab.querySelector('.asset-grain');
+      const grainStyle = grainEl ? grainEl.getAttribute('style') || '' : '';
+      const grainIntensity = grainEl ? grainEl.dataset.grainIntensity || '' : '';
+      ab.innerHTML = `
+        <div class="asset-img-clip"><video class="asset-img asset-video" src="${cached.imgSrc}" style="object-fit:${ab.dataset.fit}" muted loop playsinline></video></div>
+        <button class="asset-overlay-clear" title="영상 제거">✕</button>
+        <div class="asset-overlay" ${overlayStyle ? `style="${overlayStyle}"` : ''}>${overlayHTML}</div>`;
+      if (grainEl) {
+        const doc = ab.ownerDocument || document;
+        const newGrain = doc.createElement('div');
+        newGrain.className = 'asset-grain';
+        if (grainStyle) newGrain.setAttribute('style', grainStyle);
+        if (grainIntensity) newGrain.dataset.grainIntensity = grainIntensity;
+        ab.appendChild(newGrain);
+      }
+      const clearBtn = ab.querySelector('.asset-overlay-clear');
+      if (clearBtn) clearBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        window.clearAssetImage?.(ab);
+      });
+      ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; window.bindBlock?.(b); });
+      /* ★최초 업로드 경로(image-handling.js setAssetVideoFromSrc)와 같은 재생 동작 — 되살린
+       * <video> 도 loadedmetadata 뒤 재생을 건다(a1-a3 지적, 2026-09-15: 안 걸면 undo/redo·
+       * 페이지전환 뒤 되살아난 미리보기가 첫 프레임에 멈춰 있다). ⛔trimIn/trimOut 은 거기와
+       * 달리 «리셋하지 않는다» — 여긴 새 업로드가 아니라 복원이라 캐시된 트림값을 그대로 쓴다. */
+      const _video = ab.querySelector('.asset-video');
+      if (_video) {
+        _video.addEventListener('loadedmetadata', () => { _video.play().catch(() => {}); }, { once: true });
+      }
+    });
+  }
+
   const RUNTIME_MARKER_RE  = /(?:^|-)line-selected$/;
   const RUNTIME_MARKER_CLS = [
     'selected', 'cell-selected', 'ci-selected', 'ci-active', 'row-active',
     'bn2-line-selected', 'grd-line-selected',   // ★RE 가 이미 잡는다. 「현재 무엇이 있나」를 사람이 읽으라고 남긴다
     'bn2-line-empty',                            // 빈 줄 플레이스홀더 (편집 전용)
+    'stb-step-selected',                         // 스텝 마커의 «옛 이름» — 규칙 밖 이름이라 저장본에 샜다(2026-09-15). 새 이름 stb-line-selected 는 RE 가 잡는다
     'editing', 'img-editing', 'sec-bg-editing', 'group-selected', 'group-editing',
     'dragging', 'ss-drag-over', 'drag-over', 'hovered',
   ];
@@ -52,6 +169,8 @@
    * clone 생성 이후 return 직전까지의 연산을 «그대로»(순서 포함) 옮긴 것. root 를 반환한다. */
   function serializeCleanRoot(root) {
     if (!root) return root;
+    // ★이 호출 전용 sidecar 를 새로 연다(전역 아님) — captureVideoPendingState 가 여기 채운다.
+    _lastSweepSidecar = {};
     // LAZY: 뷰포트 가상화로 언로드된 섹션은 라이브 style.backgroundImage 가 'none' 이고
     // 원본은 data-lazy-bg 에 보관돼 있다 — 클론에서 원복해 저장 HTML 에 배경이 정확히 들어가게.
     root.querySelectorAll('[data-lazy-bg]').forEach(el => {
@@ -59,6 +178,40 @@
       el.removeAttribute('data-lazy-bg');
     });
     root.querySelectorAll('.section-block.lazy-unloaded').forEach(el => el.classList.remove('lazy-unloaded'));
+    /* T-012 안전장치: video-pending(트림 확정 «전» 임시 상태, js/image-handling.js
+       setAssetVideoFromSrc 참고)은 저장 대상이 아니다 — "GIF로 적용"을 안 누른 채 저장하면
+       원본 영상 data URL(최대 ~50MB×1.33 팽창)이 proj.json «과» 모든 undo 스냅샷(트림 핸들
+       드래그마다 최대 50개)에 통째로 영구 저장된다(2026-09-15 적대적 QA 실측). T-012 의 원칙
+       "확정된 PNG/GIF 만 저장된다"를 이 임시 상태가 깨고 있었다 — clearAssetImage 와 같은
+       delete 목록으로 되돌려 «업로드 대기» 빈 상태로 저장한다(트림 진행은 잃지만 원본 영구
+       저장 방지가 우선; 스크래치패드가 이미 같은 이유로 스냅샷 밖에 있다). */
+    root.querySelectorAll('.asset-block[data-asset-type="video-pending"]').forEach(ab => {
+      // ★지우기 전에 원본을 이번 sweep 전용 sidecar 에 남긴다(undo/redo·페이지전환 복원용 —
+      //   위 _lastSweepSidecar 정의부 참고). 저장되는 문자열엔 영향 없다.
+      captureVideoPendingState(ab);
+      ab.classList.remove('has-image');
+      ['imgSrc', 'fit', 'imgW', 'imgX', 'imgY', 'imgPosition', 'assetType', 'trimIn', 'trimOut', 'playbackRate', 'motion', 'gifSrc', 'gifPlaying']
+        .forEach(k => delete ab.dataset[k]);
+      const overlayEl = ab.querySelector('.asset-overlay');
+      const overlayHTML  = overlayEl ? overlayEl.innerHTML : '';
+      const overlayStyle = overlayEl ? overlayEl.getAttribute('style') || '' : '';
+      // ★그레인 보존 — image-handling.js setAssetVideoFromSrc/setAssetImageFromSrc 와 같은
+      //   패턴(적대적 QA 지적, 2026-09-15): innerHTML 을 통째로 갈아엎으면 형제 .asset-grain
+      //   이 같이 사라진다 — video-pending 세척만 이 규칙에서 예외일 이유가 없다(섹션
+      //   복사/템플릿 저장 경로에서 그레인이 조용히 빠지는 부수피해였다).
+      const grainEl = ab.querySelector('.asset-grain');
+      const grainStyle = grainEl ? grainEl.getAttribute('style') || '' : '';
+      const grainIntensity = grainEl ? grainEl.dataset.grainIntensity || '' : '';
+      ab.innerHTML = `<div class="asset-overlay" ${overlayStyle ? `style="${overlayStyle}"` : ''}>${overlayHTML}</div>`;
+      if (grainEl) {
+        const doc = ab.ownerDocument || document;
+        const newGrain = doc.createElement('div');
+        newGrain.className = 'asset-grain';
+        if (grainStyle) newGrain.setAttribute('style', grainStyle);
+        if (grainIntensity) newGrain.dataset.grainIntensity = grainIntensity;
+        ab.appendChild(newGrain);
+      }
+    });
     // ghost 섹션은 저장에서 제외
     root.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
     root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy').forEach(el => el.remove());
@@ -75,6 +228,21 @@
        (고스트 .sec-bg-ghost 는 #canvas 밖 오버레이라 애초에 클론에 없다) */
     // 편집 상태 속성 제거 — contenteditable 상태가 저장되지 않도록
     root.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+    /* ★T-131: 편집 «진입»이 인라인으로 켜는 보조 스타일도 같은 이유로 걷는다.
+       js/sticker-select.js _enterStickerEdit 가 .sticker-text 에 user-select·cursor 를 쓰는데
+       finish() 는 contenteditable 만 지운다 ⇒ 그 둘이 영영 남는다. 두 가지가 걸린다:
+         ⑴ 저장본·템플릿·export 에 편집 흔적이 굳는다(원래 있던 조용한 누수).
+         ⑵ addStickerBlock 은 삽입 뒤 rAF 로 편집에 들어간다. 삽입 «끝 표본»
+            (js/insert-history.js 규약 ④) 은 동기로 찍히므로, 그 rAF 가 직렬화 문자열을
+            바꾸면 ⌘Z 가 «현재 상태» 한 칸을 더 만들어 먹통 한 칸이 된다.
+       ⇒ 직렬화에서 세척하면 rAF 가 «직렬화 문자열 불변»이 되어 ④ 가 성립한다.
+       ⚠️무손실이다 — renderStickerBlock 이 span 에 쓰는 style 에는 이 둘이 없다
+         (user-select:none·cursor:move 는 «블럭» 쪽 style 이고 여기서 안 건드린다).
+       ⛔라이브 DOM 이 아니라 «클론»에만 쓴다 — 이 함수의 계약이 그렇다. */
+    root.querySelectorAll('.sticker-text').forEach(el => {
+      el.style.removeProperty('user-select');
+      el.style.removeProperty('cursor');
+    });
     root.querySelectorAll('.drop-indicator').forEach(el => el.remove());
     /* ★패딩 힌트(편집 보조)의 인라인 변수 — 「만지는 동안」만 사는 것이라 저장에 실리면 안 된다.
        ⚠️prop-section.js 가 400ms 뒤 «거두지만», 슬라이더를 «놓지 않고 계속 끄는 동안»엔
@@ -137,6 +305,8 @@
   window.serializeCleanRoot = serializeCleanRoot;
   window.serializeCleanSelf = serializeCleanSelf;
   window.serializeSectionClone = serializeSectionClone;
+  window.reattachVideoPendingBlocks = reattachVideoPendingBlocks;
+  window.getLastVideoPendingSidecar = getLastVideoPendingSidecar;
   /* ★비교 채널(js/market-merge.js · js/version-diff.js)이 «같은 자»를 쓰게 내준다.
      그쪽은 결과물이 아니라 «비교 키»를 만들지만, 마커가 남으면 「줄을 골랐을 뿐인데 변경됨」
      오탐이 난다. 목록이 두 벌이면 한쪽만 고쳐지는 날이 온다 — 그래서 여기가 유일한 원본이다. */

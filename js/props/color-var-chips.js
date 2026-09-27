@@ -1,3 +1,4 @@
+import { escHtml } from './_helpers.js';
 /* ═══════════════════════════════════
    COLOR VARIABLE CHIPS  (Team C — L3 소비 레이어)
    - 우측 인스펙터 색 지정 UI 옆에 "정의된 컬러 변수" 칩을 노출
@@ -42,14 +43,18 @@ export function buildColorVarRef(name, fallbackHex) {
 }
 
 function _chipHtml(name, hex, isActive) {
+  /* ★변수 «이름»은 사용자가 짓는다 — 라벨 사전에 없으면 이름이 그대로 라벨이 된다.
+     그래서 이름·라벨 둘 다 글자로 넣는다 (T-049). hex 는 위에서 형식으로 걸러 안전하다.
+     ⛔이름을 «검사»하지 마라 — 걸러 내면 멀쩡한 변수가 칩에서 사라진다. */
   const label = VAR_LABELS[name] || name;
   const safeHex = (hex && /^#[0-9a-f]{3,8}$/i.test(hex)) ? hex : '#888888';
+  const eName = escHtml(name), eLabel = escHtml(label);
   return `<button type="button" class="cv-chip${isActive ? ' active' : ''}"
-    data-cv-name="${name}" data-cv-hex="${safeHex}"
-    title="${label} · ${safeHex} (클릭 시 변수 바인딩)"
-    aria-label="${label} ${safeHex}" aria-pressed="${isActive ? 'true' : 'false'}">
+    data-cv-name="${eName}" data-cv-hex="${safeHex}"
+    title="${eLabel} · ${safeHex} (클릭 시 변수 바인딩)"
+    aria-label="${eLabel} ${safeHex}" aria-pressed="${isActive ? 'true' : 'false'}">
     <span class="cv-chip-dot" style="background:${safeHex}"></span>
-    <span class="cv-chip-label">${label}</span>
+    <span class="cv-chip-label">${eLabel}</span>
   </button>`;
 }
 

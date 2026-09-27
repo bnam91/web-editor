@@ -1,6 +1,6 @@
 // ── Zoom Block 기하 (확대블럭) ────────────────────────────────────────────────
 // ★이 파일은 «순수 함수만» 둔다 — window·DOM 을 만지지 않는다.
-//   이유: 이 레포는 package.json 이 "type":"commonjs" 라 js/**.js 를 node 가 못 읽고,
+//   이유: 이 레포는 package.json 이 "type":"commonjs" 라 js 아래 .js 를 node 가 못 읽고,
 //   검사는 tmp `.mjs` 사본을 동적 import 해서 «진짜 실행»으로 잰다
 //   (tests/unit/aifill-goya-asset.test.js 의 수법). 모듈 최상단에 window 접근이 하나라도
 //   있으면 그 import 가 ReferenceError 로 죽어서 «기하를 잴 수 없다».

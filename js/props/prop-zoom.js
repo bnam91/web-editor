@@ -2,6 +2,7 @@
 // 헤더는 신규 블록 체크리스트가 요구하는 풀 구조:
 //   prop-block-label > prop-block-icon + prop-block-info + prop-block-id
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 const D = () => (window.ZOOM_DEFAULTS || {});
@@ -91,19 +92,16 @@ export function showZoomProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="3.5" width="5" height="5" rx="0.6"/>
             <path d="M6 4.6 L11 6 L6 7.4" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${_esc(block.dataset.layerName || 'Zoom')}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Zoom',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
 
     <div class="prop-section">
@@ -396,6 +394,17 @@ ${bdrRow}
       window.pushHistory?.('확대블럭 이미지');
       block.dataset.imgSrc = ev.target.result;
       rerender();
+      /* ★[R1-업로드 · 2026-09-22] «끝 표본» — 바로 위 pushHistory 는 push-before 다(찍고 «나서» 바꾼다).
+           ⚠️정정(2026-09-22): 이 자리를 한때 「찍고 → 비동기로 반영」(js/image-handling.js 꼴)으로
+             분류했는데 «틀렸다» — 그 pushHistory 는 FileReader.onload «안»에 있어서 적용과 같은
+             동기 구간이다. 곧 평범한 push-before 고, 고쳐야 하는 까닭도 평범한 그것이다:
+           앞 동작이 push-after 였으면 이 push-before 가 꼭대기와 «같은 상태»를 찍어
+           js/history.js 의 무변화 차단에 먹힌다 ⇒ 「업로드의 결과」가 스택에 한 번도 안 남는다.
+           그러면 업로드 뒤에 편집이 하나만 더 와도 ⌘Z 한 번이 둘을 같이 먹는다.
+           ⇒ 반영이 «끝난» 여기서 한 번 더 찍는다. ⛔옮기기가 아니라 더하기다.
+         ★같은 «규칙»의 선례: js/image-handling.js · js/props/asset-video-trim.js (③).
+           (규칙은 같다 — 「모든 동작이 끝 표본을 남긴다」. 기전이 같다는 뜻은 아니다.) */
+      window.pushHistory?.('확대블럭 이미지 적용');
       window.triggerAutoSave?.();
       showZoomProperties(block);   // 썸네일 + 제거 버튼
     };

@@ -71,7 +71,9 @@ function _readLaurelCells(block) {
 }
 
 function _escLaurelText(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  /* ★큰따옴표도 덮는다 (T-049) — 지금 쓰이는 자리는 본문뿐이라 안 샜지만, 반쪽인 헬퍼는
+     다음 사람이 속성 자리에 그대로 쓰는 순간 뚫린다. 본문에서는 결과가 안 바뀐다. */
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // dataset.textEffect 읽기 (이스터에그 **text_ — text-block과 동일 key)
@@ -305,7 +307,16 @@ function makeLaurelBlock(opts = {}) {
   renderLaurelBlock(block);
 
   const row = document.createElement('div');
+  /* ★[F2 넷째 자리 · 2026-09-22] row 에 «만들 때» id 를 준다 — ⛔지우지 마라.
+     안 주면 js/io/save-load.js rebindAll 의 「row ID 복원」이 `'row_' + Math.random()` 을 박는데,
+     그 줄은 restoreSnapshot(⌘Z)·switchPage 가 «둘 다» 지난다 ⇒ 복원할 때마다 «다른 id» 다.
+     그러면 「복원 직후 라이브 ≠ 방금 복원한 스냅샷」이 항상 참이 되고(F2),
+     undo 첫머리의 ensureHistoryCheckpoint 가 «매번» 한 칸을 쌓았다가 곧바로 pos-- 하므로
+     ★순증이 0 이다 — ⌘Z 를 눌러도 pos 가 제자리, 되돌리기가 «전면 무동작»이 된다.
+     실측(2026-09-22, E-undo 제보 → 재현): 스텝 3동작 뒤 ⌘Z 6번 전부 pos 1→1.
+     (id 를 주면 같은 걸음이 2번에 pos 0 에 닿는다.) 다른 row 팩토리 15자리는 원래 id 를 준다. */
   row.className = 'row';
+  row.id = 'row_' + Math.random().toString(36).slice(2, 8);
   row.dataset.layout = 'stack';
   row.appendChild(block);
   return { row, block };

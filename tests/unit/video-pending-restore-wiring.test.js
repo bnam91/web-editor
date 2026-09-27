@@ -1,0 +1,180 @@
+/* video-pending-restore-wiring.test.js — T-031 범위확장 «원문 게이트» (2026-09-15)
+ *
+ * ★배경
+ *   video-pending(트림 확정 전 영상)이 undo 뿐 아니라 «캔버스를 통째로 갈아 앉히는 모든
+ *   복원 경로»(페이지 전환 switchPage · 페이지 삭제 후 남은 페이지 deletePage · 탭전환/
+ *   프로젝트로드/브랜치전환이 공유하는 applyProjectData)에서 같은 이유로 샌다는 지적을
+ *   받았다(js/io/section-serialize.js 의 T-012 세척이 그 경로들이 쓰는 page.canvas 문자열도
+ *   거치기 때문). 낱개로 각 지점에 reattachVideoPendingBlocks 를 심으면 «하나 빠뜨리는 날
+ *   그 경로만 샌다»(팀리드 지적) — 그래서 그 모든 경로가 공통으로 거치는 rebindAll(js/io/
+ *   save-load.js) «한 곳»에만 심었다(js/history.js 의 restoreSnapshot/restoreSnapshotScoped
+ *   가 중복으로 부르던 것도 제거해 단일 진실원으로 좁혔다).
+ *
+ * ★이 파일이 재는 것 — «문장이 있나»(원문 게이트). 렌더 결과는 tests/dom/
+ *   video-pending-undo-reattach.dom.spec.js 가 section-serialize.js 자체 로직을 실물로
+ *   잰다. save-load.js/editor.js 는 에디터 전역(state·electronAPI·DOM 부트스트랩)이 통째로
+ *   필요해 이 레포의 다른 unit 테스트들과 같은 이유로 실행 하네스에 못 얹는다 — 그래서 여기는
+ *   «배선이 끊기지 않았나»만 지킨다(scratch-paste-dup.test.js 와 같은 한계).
+ *
+ * ⛔주석 거르기는 tests/unit/_strip-comments.js 의 makeStripper «만» 쓴다.
+ * ⛔고정 창(slice) 금지 — 함수 몸통은 중괄호를 세어 떼어낸다(template-marker-leak.dom.spec.js
+ *   의 extractFn 과 같은 방식, 이 파일 것은 async 함수도 받게 정규식만 넓혔다).
+ */
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const { makeStripper } = require('./_strip-comments');
+
+const ROOT = path.join(__dirname, '..', '..');
+const readSrc = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
+
+/** 함수 «몸통»을 중괄호 균형으로 떠낸다 — function/async function 둘 다 받는다. */
+function extractFn(src, name) {
+  const m = new RegExp('(?:async\\s+)?function\\s+' + name + '\\s*\\(').exec(src);
+  if (!m) throw new Error('함수를 못 찾았다: ' + name);
+  const start = m.index;
+  let i = m.index + m[0].length - 1, d = 0;
+  for (; i < src.length; i++) {
+    if (src[i] === '(') d++;
+    else if (src[i] === ')') { d--; if (d === 0) { i++; break; } }
+  }
+  while (i < src.length && src[i] !== '{') i++;
+  let b = 0;
+  for (; i < src.length; i++) {
+    if (src[i] === '{') b++;
+    else if (src[i] === '}') { b--; if (b === 0) { i++; break; } }
+  }
+  return src.slice(start, i);
+}
+
+/** 함수 몸통에서 주석을 걷어낸 «코드만»을 한 문자열로 돌려준다 — includes 가 주석 속
+ *  문구에 «속아 초록나는» 걸 막는다(이 레포의 house rule). */
+function codeOnly(fnSrc) {
+  const strip = makeStripper();
+  return fnSrc.split('\n').map(strip).join('\n');
+}
+
+const SAVE_LOAD_SRC = readSrc('js', 'io', 'save-load.js');
+const HISTORY_SRC   = readSrc('js', 'history.js');
+const EDITOR_SRC     = readSrc('js', 'editor.js');
+
+const REBIND_ALL_BODY        = codeOnly(extractFn(SAVE_LOAD_SRC, 'rebindAll'));
+const SWITCH_PAGE_BODY       = codeOnly(extractFn(SAVE_LOAD_SRC, 'switchPage'));
+const DELETE_PAGE_BODY       = codeOnly(extractFn(SAVE_LOAD_SRC, 'deletePage'));
+const APPLY_PROJECT_DATA_BODY = codeOnly(extractFn(SAVE_LOAD_SRC, 'applyProjectData'));
+const RESTORE_SNAPSHOT_BODY  = codeOnly(extractFn(HISTORY_SRC, 'restoreSnapshot'));
+const RESTORE_SCOPED_BODY    = codeOnly(extractFn(HISTORY_SRC, 'restoreSnapshotScoped'));
+
+test('W0 ★뗀 몸통들이 비어 있지 않다 (아래 초록이 빈 함수의 초록이 아니다)', () => {
+  for (const [name, body] of [
+    ['rebindAll', REBIND_ALL_BODY], ['switchPage', SWITCH_PAGE_BODY],
+    ['deletePage', DELETE_PAGE_BODY], ['applyProjectData', APPLY_PROJECT_DATA_BODY],
+    ['restoreSnapshot', RESTORE_SNAPSHOT_BODY], ['restoreSnapshotScoped', RESTORE_SCOPED_BODY],
+  ]) {
+    assert.ok(body.length > 80, `${name} 을 못 뗐다`);
+  }
+});
+
+test('W1 ★rebindAll 이 reattachVideoPendingBlocks 를 부른다 — 단일 진실원', () => {
+  assert.match(REBIND_ALL_BODY, /window\.reattachVideoPendingBlocks\??\.\(/,
+    '★rebindAll 이 video-pending 재연결을 안 부른다 — 이 함수를 거치는 모든 복원 경로가 샌다');
+});
+
+test('W2 ★페이지 전환(switchPage)이 rebindAll 을 거친다 — 런타임 전용 Map에서 자기 page의 sidecar를 읽는다', () => {
+  assert.match(SWITCH_PAGE_BODY, /\brebindAll\(\s*\{\s*videoPendingSidecar:\s*_pageVideoPendingSidecars\.get\(\s*page\.id\s*\)\s*\}\s*\)/,
+    '★switchPage 가 rebindAll 에 _pageVideoPendingSidecars.get(page.id) 를 안 넘긴다');
+});
+
+test('W3 ★페이지 삭제 후 남은 페이지 복원(deletePage)도 rebindAll 을 거친다 — 런타임 전용 Map에서 next의 sidecar를 읽는다', () => {
+  assert.match(DELETE_PAGE_BODY, /\brebindAll\(\s*\{\s*videoPendingSidecar:\s*_pageVideoPendingSidecars\.get\(\s*next\.id\s*\)\s*\}\s*\)/,
+    '★deletePage 의 활성페이지 복원 분기가 rebindAll 에 _pageVideoPendingSidecars.get(next.id) 를 안 넘긴다');
+});
+
+test('W11 ★치명 회귀 게이트 — switchPage/deletePage 가 page.videoPendingSidecar(page 객체 프로퍼티)를 «절대» 읽지 않는다', () => {
+  // ★2026-09-15 a1-a3 지적: page 객체 «자신»에 sidecar를 붙이면(2차수정) serializeProject가
+  //   JSON.stringify({pages: state.pages})로 그 원본을 proj.json에 그대로 영구 저장한다 —
+  //   T-012가 막으려던 사고가 재발한다. 3차수정(런타임 전용 Map)이 다시 이 프로퍼티 접근
+  //   패턴으로 되돌아가지 않는지 이 테스트가 지킨다.
+  assert.doesNotMatch(SWITCH_PAGE_BODY, /\bpage\.videoPendingSidecar\b/,
+    '★switchPage 가 page.videoPendingSidecar(page 객체 프로퍼티)를 읽는다 — proj.json 유출 회귀');
+  assert.doesNotMatch(DELETE_PAGE_BODY, /\bnext\.videoPendingSidecar\b/,
+    '★deletePage 가 next.videoPendingSidecar(page 객체 프로퍼티)를 읽는다 — proj.json 유출 회귀');
+});
+
+test('W4 ★applyProjectData(탭전환·프로젝트로드·브랜치전환 공유 지점)가 rebindAll 을 거친다 — sidecar 없이(진짜 파일 로드는 되살릴 원본이 없다)', () => {
+  assert.match(APPLY_PROJECT_DATA_BODY, /\brebindAll\(\)/,
+    '★applyProjectData 가 rebindAll 을 안 부른다 — 탭전환/프로젝트로드/브랜치전환 전부가 새는 경로가 된다');
+});
+
+test('W5 ★undo(restoreSnapshot)도 rebindAll 을 거친다 — 자기 snap의 sidecar만 쓰고, 중복 재연결 호출을 직접 들고 있지 않다', () => {
+  assert.match(RESTORE_SNAPSHOT_BODY, /\brebindAll\(\s*\{\s*videoPendingSidecar:\s*snap\.videoPendingSidecar\s*\}\s*\)/,
+    'restoreSnapshot 이 rebindAll 에 snap.videoPendingSidecar 를 안 넘긴다');
+  assert.doesNotMatch(RESTORE_SNAPSHOT_BODY, /reattachVideoPendingBlocks/,
+    '★restoreSnapshot 이 reattachVideoPendingBlocks 를 «직접» 부른다 — rebindAll 과 중복이다(단일 진실원 원칙 위반, drift 위험)');
+});
+
+test('W6 ★스코프 undo(restoreSnapshotScoped)도 rebindAll 을 거친다 — toSnap의 sidecar만 쓰고, 중복 호출 없음', () => {
+  assert.match(RESTORE_SCOPED_BODY, /\brebindAll\(\s*\{\s*videoPendingSidecar:\s*toSnap\.videoPendingSidecar\s*\}\s*\)/,
+    'restoreSnapshotScoped 가 rebindAll 에 toSnap.videoPendingSidecar 를 안 넘긴다');
+  assert.doesNotMatch(RESTORE_SCOPED_BODY, /reattachVideoPendingBlocks/,
+    '★restoreSnapshotScoped 가 reattachVideoPendingBlocks 를 «직접» 부른다 — rebindAll 과 중복이다');
+});
+
+test('W8 ★rebindAll 자신은 opts.videoPendingSidecar 없이 부르면 아무것도 되살리지 않는다(fail-closed) — 협업 패치·프로젝트로드가 자동으로 안전해지는 근거', () => {
+  assert.match(REBIND_ALL_BODY, /reattachVideoPendingBlocks\??\.\(\s*canvasEl\s*,\s*opts\.videoPendingSidecar\s*\)/,
+    '★rebindAll 이 opts.videoPendingSidecar 를 그대로 넘기지 않는다 — sidecar 없는 호출자(협업·프로젝트로드)가 되살릴 위험이 생긴다');
+});
+
+test('W10 ★flushCurrentPage 가 런타임 전용 Map(_pageVideoPendingSidecars)에 sidecar를 남긴다 — page 객체엔 절대 안 붙인다', () => {
+  const FLUSH_BODY = codeOnly(extractFn(SAVE_LOAD_SRC, 'flushCurrentPage'));
+  assert.match(FLUSH_BODY, /_pageVideoPendingSidecars\.set\(\s*page\.id\s*,\s*window\.getLastVideoPendingSidecar/,
+    '★flushCurrentPage 가 _pageVideoPendingSidecars.set(page.id, …) 를 안 부른다 — switchPage/deletePage 로 돌아왔을 때 되살릴 것이 없다');
+  assert.doesNotMatch(FLUSH_BODY, /\bpage\.videoPendingSidecar\s*=/,
+    '★치명 회귀 — flushCurrentPage 가 page.videoPendingSidecar 를 page 객체(저장 대상)에 직접 붙인다. ' +
+    'serializeProject 가 JSON.stringify({pages: state.pages}) 로 그대로 저장하므로 원본 영상 dataURL 이 proj.json 에 영구 저장된다(T-012 재붕괴).');
+});
+
+test('W12 ★_pageVideoPendingSidecars 는 모듈 스코프 변수다 — state.pages(저장 대상) 소속이 아니다', () => {
+  assert.match(SAVE_LOAD_SRC, /const\s+_pageVideoPendingSidecars\s*=\s*new\s+Map\(\)/,
+    '★_pageVideoPendingSidecars 선언을 못 찾았다 — 런타임 전용 Map 설계 자체가 없어졌다');
+});
+
+test('W13 ★applyProjectData(탭전환·브랜치전환·프로젝트로드 공유 지점)가 _pageVideoPendingSidecars 를 비운다 — pageId 는 프로젝트마다 고유하지 않다', () => {
+  // ★2026-09-15 a1-a3 지적: 기본 첫 페이지 id('page_1', globals.js)를 모든 프로젝트가
+  //   공유한다 — 안 비우면 프로젝트 A의 sidecar가 같은 id를 쓰는 프로젝트 B 탭으로 넘어가
+  //   엉뚱한 영상이 되살아날 수 있다(resetAllPageHistory가 이미 같은 이유로 스택을 비우는
+  //   것과 같은 자리에 있어야 한다).
+  assert.match(APPLY_PROJECT_DATA_BODY, /_pageVideoPendingSidecars\.clear\(\)/,
+    '★applyProjectData 가 _pageVideoPendingSidecars.clear() 를 안 부른다 — 프로젝트 격리가 깨진다');
+});
+
+test('W9 ★pushHistory/초기스냅샷/ensureHistoryCheckpoint 가 스냅샷 자신에 videoPendingSidecar 를 붙인다(전역 캐시 아님)', () => {
+  const PUSH_HISTORY_BODY = codeOnly(extractFn(HISTORY_SRC, 'pushHistory'));
+  const CLEAR_HISTORY_BODY = codeOnly(extractFn(HISTORY_SRC, 'clearHistory'));
+  const ENSURE_CHECKPOINT_BODY = codeOnly(extractFn(HISTORY_SRC, 'ensureHistoryCheckpoint'));
+  assert.match(PUSH_HISTORY_BODY, /getLastVideoPendingSidecar/,
+    '★pushHistory 가 getLastVideoPendingSidecar 를 안 읽는다 — 이 스냅샷 전용 sidecar 를 못 붙인다');
+  assert.match(PUSH_HISTORY_BODY, /videoPendingSidecar\s*:/,
+    '★pushHistory 가 만드는 스냅샷 객체에 videoPendingSidecar 필드가 없다');
+  assert.match(CLEAR_HISTORY_BODY, /getLastVideoPendingSidecar/,
+    '★clearHistory(초기 스냅샷)도 같은 sidecar 배선이 있어야 한다');
+  // ★2026-09-15 a1-a3 지적: ensureHistoryCheckpoint(undo 첫 스텝이 «현재 상태»를 선적재하는
+  //   경로)가 sidecar 없이 쌓이면, 그 체크포인트로 ⌘⇧Z(redo)해 돌아왔을 때 video-pending이
+  //   되살아나지 않고 사라진다(재현: 영상 넣기 → 다른 블록 비우기 → ⌘Z → ⌘⇧Z).
+  assert.match(ENSURE_CHECKPOINT_BODY, /getLastVideoPendingSidecar/,
+    '★ensureHistoryCheckpoint 가 getLastVideoPendingSidecar 를 안 읽는다 — ⌘Z→⌘⇧Z 에서 video-pending 소실 회귀');
+  assert.match(ENSURE_CHECKPOINT_BODY, /videoPendingSidecar\s*:/,
+    '★ensureHistoryCheckpoint 가 만드는 체크포인트 객체에 videoPendingSidecar 필드가 없다');
+});
+
+test('W7 ★섹션 복사(editor.js)가 raw outerHTML 대신 세척된 clone 을 clipboard 에 담는다', () => {
+  const m = /clipboard\s*=\s*\{\s*type:\s*'section'\s*,\s*html:\s*([^}]+)\}/.exec(EDITOR_SRC);
+  assert.ok(m, '★섹션 복사 대입문을 못 찾았다 — editor.js 구조가 바뀌었다(이 검사를 다시 겨냥해야 한다)');
+  const rhs = m[1].trim();
+  assert.match(rhs, /serializeSectionClone\(/,
+    `★섹션 복사가 여전히 raw outerHTML 이다("${rhs}") — video-pending 원본이 세척 없이 클립보드로 한 벌 더 샌다`);
+  assert.doesNotMatch(rhs, /\.outerHTML\s*$/,
+    `★섹션 복사 대입식이 outerHTML 로 끝난다("${rhs}") — 클론 세척을 거치지 않는 옛 경로로 보인다`);
+});

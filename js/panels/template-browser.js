@@ -878,6 +878,12 @@ function initTemplateBrowser() {
             const vw = canvas.clientWidth  || 280;
             const vh = canvas.clientHeight || 200;
             const sh = section.scrollHeight || 400;
+            /* [U-26/fitzoom · 2026-09-21] 두 축의 min — 공식의 정본은 js/fit-scale.js 다.
+               ⛔이 파일만 «import 를 안 쓴다» — tests/unit/tpl-popout-geometry.test.mjs G4-c 가
+                 이 소스 «전체»를 new Function 에 넣어 돌리기 때문이다(import 가 한 줄이라도 있으면
+                 「Cannot use import statement outside a module」로 그 검사가 죽는다). 그래서 여기만
+                 인라인으로 남긴다 — 값은 fitScale(CANVAS_W, sh, vw, vh) 와 «같다».
+                 (js/editor.js·js/panels/template-system.js 는 정본을 import 해서 쓴다) */
             const scale = Math.min(vw / CANVAS_W, vh / sh);
             section.style.transform  = `scale(${scale})`;
             section.style.left       = Math.round((vw - CANVAS_W * scale) / 2) + 'px';

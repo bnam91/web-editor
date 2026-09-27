@@ -1,23 +1,21 @@
 import { propPanel, state } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 
 export function showGapProperties(gb) {
   const currentH = gb.offsetHeight;
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <line x1="1" y1="4" x2="11" y2="4" stroke-dasharray="2,1"/>
             <line x1="1" y1="8" x2="11" y2="8" stroke-dasharray="2,1"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${gb.dataset.layerName || 'Gap Block'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(gb)}</span>
-        </div>
-        ${gb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${gb.id}')">${gb.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: gb.dataset.layerName,
+      defaultName: 'Gap Block',
+      crumb: window.getBlockBreadcrumb(gb),
+      id: gb.id,
+    })}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Size</div>

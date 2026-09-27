@@ -14,6 +14,7 @@ import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import os from 'os';
+import { cssGradientToFigmaPaint } from './gradient-paint.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -99,8 +100,12 @@ function parseTextShadowToEffects(ts) {
     const nums = (p.replace(colMatch[0], '').match(/-?\d*\.?\d+px/g) || []).map(n => parseFloat(n));
     const c = hex(colMatch[0]);
     if (!c) continue;
+    // showShadowBehindNode:false — 글자 «모양» 안쪽엔 그림자를 안 비춘다(0919r3 textshadow: 0% 쪽 글자 안이 그림자색으로 메워지던 증상 방지).
+    // ⚠️캔버스와 «같은 뜻» 아님(미실측): 캔버스 drop-shadow/SVG 필터는 칠해진 알파 기준이라 0% 쪽에선 그림자도 사라지고
+    //   반투명 글자 안쪽으로 그림자가 비친다. 피그마 DROP_SHADOW 는 노드 모양 기준(채움 불투명도 무관)으로 알려져 있어
+    //   0% 쪽에도 안 보이는 글자 윤곽을 따라 그림자가 원래 세기로 남을 수 있다 — 피그마 실측 전까지 «불일치 가능»으로 둔다.
     effects.push({ type: 'DROP_SHADOW', color: c, offset: { x: nums[0] || 0, y: nums[1] || 0 },
-      radius: nums[2] || 0, spread: 0, visible: true, blendMode: 'NORMAL' });
+      radius: nums[2] || 0, spread: 0, visible: true, blendMode: 'NORMAL', showShadowBehindNode: false });
   }
   return effects.slice(0, 8);
 }
@@ -221,9 +226,17 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const bgc = (block.bg || '').trim();
     // 프레임 배경: #hex 뿐 아니라 rgb()/rgba()도 파싱(예: 카드 rgba(255,255,255,.55) — 이전엔 미파싱→투명 드롭으로 카드 사라짐).
     let _fc = null;
-    if (bgc.startsWith('#')) _fc = hex(bgc);
+    // ★0919 QA: 그라데이션 배경 — «처음 나오는 rgba()» 를 단색으로 칠하면 안 된다(가운데 스탑 색 한 가지가 됐다).
+    const _isGradBg = /gradient\s*\(/i.test(bgc);
+    const _gPaint = _isGradBg ? cssGradientToFigmaPaint(block.bgGradient, fw, fh) : null;
+    if (_isGradBg) _fc = null;
+    else if (bgc.startsWith('#')) _fc = hex(bgc);
     else { const _m = bgc.match(/rgba?\(([^)]+)\)/); if (_m) { const _p = _m[1].split(',').map(s => parseFloat(s)); _fc = { r: (_p[0] || 0) / 255, g: (_p[1] || 0) / 255, b: (_p[2] || 0) / 255, a: _p[3] !== undefined ? _p[3] : 1 }; } }
     run('set_fill_color', { nodeId: frame.id, color: _fc || { r: 1, g: 1, b: 1, a: 0 } });
+    if (_gPaint) {
+      const _gr = run('set_gradient', { nodeId: frame.id, ..._gPaint });
+      if (!_gr) console.log(`      ⚠️ frame gradient 실패 → 투명 폴백 ${block.id}`);
+    }
     if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
     if (block.free) {
       for (const ch of (block.children || [])) {
@@ -522,6 +535,16 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       //    goditor 행간(예 body 1.6)과 일치한다.
       const textBoxH = Math.max(1, totalH - (p.top || 0) - (p.bottom || 0));
       run('resize_node', { nodeId: node.id, width: textWrapW, height: textBoxH });
+
+      // 0918r2 textgrad: 글자 그라데이션 — 텍스트 노드 fills 를 그라데이션으로(실패하면 fontColor 단색 그대로).
+      //   박스 = 텍스트 노드(textWrapW × textBoxH). CSS 는 contentEl 박스 기준이라 여유폭만큼 스탑이 약간 어긋날 수 있다.
+      if (s.fill && s.fill.kind === 'gradient') {
+        const _paint = cssGradientToFigmaPaint(s.fill, textWrapW, textBoxH);
+        if (_paint) {
+          const _gr = run('set_gradient', { nodeId: node.id, ..._paint });
+          if (!_gr) console.log(`      ⚠️ text gradient 실패 → 단색 폴백 ${block.id}`);
+        }
+      }
 
       // text-effect(네온 등) 글로우 — CSS text-shadow를 Figma DROP_SHADOW effect로 적용(회차12 chart 크림글로우 fix)
       const _fx = parseTextShadowToEffects(s.textShadow);
@@ -976,7 +999,8 @@ function renderBlock(block, parentId, x, y, availableWidth) {
   if (block.type === 'shape') {
     const w = Math.max(1, block.width || 75), h = Math.max(1, block.height || 75);
     const type = block.shapeType || 'rectangle';
-    const color = block.color || '#cccccc';
+    // 옛 JSON 은 그라데이션 CSS 문자열이 color 에 실려 온다 — paint 로 무효(검정)라 회색 폴백.
+    const color = (block.color && !/gradient\s*\(/i.test(block.color)) ? block.color : '#cccccc';
     const sw = Number(block.strokeWidth) || 0;        // viewBox user-space 단위 (goditor와 동일)
     const rot = Number(block.rotation) || 0;          // deg, transform-origin center
     const half = sw / 2;
@@ -993,10 +1017,15 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const def = DEFS[type] || DEFS.rectangle;
     const [vbW, vbH] = def.vb.split(/\s+/).slice(2).map(Number);
     const cxv = vbW / 2, cyv = vbH / 2;
-    const styleAttr = `color:${color};stroke-width:${sw};fill:${def.fill ? color : 'none'};stroke:${color};`;
+    // ★0919 QA: 그라데이션 = export 가 실어 준 캔버스 SVG def(id="g")를 그대로 — CSS 문자열을 fill 에 넣으면 무효 paint → 검정.
+    //   color 는 단색 폴백(선·외곽선). def 가 없거나 면 없는 도형이면 기존 단색.
+    const gradDef = (def.fill && typeof block.gradientDef === 'string' && /^<(linear|radial)Gradient[\s>]/.test(block.gradientDef)) ? block.gradientDef : '';
+    const faceFill = def.fill ? (gradDef ? 'url(#g)' : color) : 'none';
+    const styleAttr = `color:${color};stroke-width:${sw};fill:${faceFill};stroke:${color};`;
     const gOpen = rot ? `<g transform="rotate(${rot} ${cxv} ${cyv})">` : '';
     const gClose = rot ? `</g>` : '';
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${def.vb}" preserveAspectRatio="none" style="${styleAttr}">${gOpen}${def.inner}${gClose}</svg>`;
+    const defsTag = gradDef ? `<defs>${gradDef}</defs>` : '';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${def.vb}" preserveAspectRatio="none" style="${styleAttr}">${defsTag}${gOpen}${def.inner}${gClose}</svg>`;
     const wrap = run('create_frame', { x, y, width: w, height: h, name: `shape_${block.id || ''}`, parentId });
     if (wrap) {
       run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });

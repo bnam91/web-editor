@@ -110,11 +110,16 @@ function buildSection(name, arg) {
   const vm = _req('node:vm');
   const utils = readSrc(ROOT, 'js/props/prop-text-utils.js')
     .replace(/^import[^\n]*\n/gm, '').replace(/^export\s+/gm, '');
+  /* ★2026-09-22 (T-049) — 절이 _helpers.js 의 escHtml 을 «실제로» 부른다(폰트 표시 이름은
+     OS·설치 폰트에서 오는 글자다). 여기 안 올리면 ReferenceError 로 죽어 이 검사가
+     «다른 이유»로 빨개진다. loadTextTemplate 하네스가 같은 이유로 이미 그렇게 한다. */
+  const helpers = readSrc(ROOT, 'js/props/_helpers.js')
+    .replace(/^import[^\n]*\n/gm, '').replace(/^export\s+/gm, '');
   const body = readSrc(ROOT, 'js/props/_typo-section.js')
     .replace(/^import[^\n]*\n/gm, '').replace(/^export\s+/gm, '');
   const ctx = { window: {}, console };
   vm.createContext(ctx);
-  vm.runInContext(`${utils}\n;${body}\n;globalThis.__F = { buildTypographySectionHtml, buildFillSectionHtml };`,
+  vm.runInContext(`${utils}\n;${helpers}\n;${body}\n;globalThis.__F = { buildTypographySectionHtml, buildFillSectionHtml };`,
     ctx, { filename: 'js/props/_typo-section.js' });
   return ctx.__F[name](arg);
 }

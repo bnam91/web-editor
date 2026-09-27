@@ -8,13 +8,14 @@ import { alignBtn } from './_helpers.js';
 
 /**
  * freeLayout 내 선택된 블록들의 text-frame(래퍼) 수집
- * frame-block[data-text-frame] 또는 frame-block[data-shape-frame]을 우선,
- * 없으면 절대 배치된 블록 자체를 위치/크기 기준으로 사용
+ * frame-block[data-text-frame]을 우선, 없으면 절대 배치된 블록 자체를 위치/크기 기준으로 사용.
+ * (T-057: 옛 «도형프레임 속성» 셀렉터는 그 속성을 찍는 코드가 이력 전체에 0건인 죽은 조건이라 뺐다 —
+ *  동작 무변화. 도형 래퍼를 제대로 다루려면 shapeFrameOf + parentElement?.closest 로, 별도 카드에서.)
  */
 function _getSelectedFrameWrappers() {
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .qa-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected, ' +
     // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel
     '.iconify-block.selected, .chat-block.selected, .gradient-block.selected, ' +
@@ -24,7 +25,7 @@ function _getSelectedFrameWrappers() {
   const blocks = [...document.querySelectorAll(BLOCK_SEL)];
   const wrappers = new Set();
   blocks.forEach(b => {
-    const wrapper = b.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+    const wrapper = b.closest('.frame-block[data-text-frame]') ||
       (b.style.position === 'absolute' ? b : null);
     if (wrapper) wrappers.add(wrapper);
   });
@@ -336,25 +337,64 @@ function _flowSel() {
   return (typeof window !== 'undefined' && window.FLOW_BLOCK_SEL_SELECTED) || null;
 }
 
-// editor.js _isInFreeLayout 역미러: freeLayout 래퍼 밖(=플로우)만 true
-function _isFlowBlock(b) {
-  const wrapper = b.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
-    (b.style.position === 'absolute' ? b : null);
-  return !(wrapper && wrapper.closest('.frame-block[data-free-layout]'));
+/* ★거르개도 정본은 «한 자리» — js/editor.js 의 _isFlowMultiSelUnit (window.isFlowMultiSelUnit).
+   ⛔예전엔 여기 `_isFlowBlock` 이 그것의 «역미러»였다. 목록 사본이 갈려서 난 사고(ⓑ-20)와
+     똑같은 모양이라, 2026-09-21 T-091 에서 프레임 판정이 붙을 때 미러를 없앴다.
+     (프레임은 «조상»으로도 .selected 가 켜지므로 거르개 없이 목록만 늘리면 오검이 된다) */
+function _unitPred() {
+  return (typeof window !== 'undefined' && window.isFlowMultiSelUnit) || null;
 }
 
 function _getSelectedFlowBlocks() {
   const sel = _flowSel();
   if (!sel) return [];   // editor.js 가 아직 안 올라왔다 — 던지지 않는다
-  return [...document.querySelectorAll(sel)].filter(_isFlowBlock); // DOM 순서 보존
+  const pred = _unitPred();
+  if (!pred) return [];  // 거르개도 같은 파일에서 온다 — 없으면 패널만 안 뜬다(던지지 않는다)
+  return [...document.querySelectorAll(sel)].filter(pred); // DOM 순서 보존
 }
 
 export function hasFlowMultiSel() {
   return _getSelectedFlowBlocks().length >= 2;
 }
 
-// 블록 타입별 수평 정렬 (기존 단일패널 핸들러 미러)
-function _alignFlowBlock(b, dir) {
+/* ★[T-095 2라운드 / T-091 ⑥] 「꽉 찬 자유배치 래퍼」를 옮기는 «한 자리».
+   그룹(⌘G)은 섹션 레벨에서 «width:100%» 로 만들어진다(js/block-factory.js wrapSelectedBlocksInFrame
+   — flow 갈래는 `width:100%` 를 못 박는다). 폭에 여유가 0 이면 align-self 는 «아무 일도 안 한다» —
+   실측(2026-09-22 포트 9634): 섹션 오른쪽/왼쪽 정렬을 눌러도 그룹 속 도형이 L=308·R=308 «불변»,
+   글자만 움직였다. = T-095 신고문(「글자만 움직이고 이미지·도형은 제자리」)이 «그룹 안에서» 그대로 산다.
+   ★진짜 움직일 것은 그 «안»의 자유배치 자식들이고, 그 좌표의 원점이 바로 이 래퍼의 패딩 상자다.
+   ⇒ 「여유가 있나」를 한 칸 안쪽 «좌표축»에서 한 번 더 묻는다(bulk-align-targets.js 와 같은 규칙).
+     묶음은 «통째로» 민다 — 서로의 상대 위치는 그룹의 뜻이라 건드리지 않는다.
+   ⛔이름(data-group)을 묻지 않는다 — 이 레포는 손목록이 하나 빠져서 난 사고가 반복됐다.
+   ↩︎여유가 없으면(자식이 래퍼를 꽉 채움 — 도형 전용 래퍼가 그렇다) false 를 돌려주고 종전 경로로 보낸다. */
+function _alignFreeLayoutContents(b, dir) {
+  const kids = [...b.children].filter(c => c.nodeType === 1 && getComputedStyle(c).position === 'absolute');
+  if (!kids.length) return false;
+  const cs = getComputedStyle(b);
+  const avail = b.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  const lefts = kids.map(k => parseFloat(k.style.left) || 0);
+  const minX = Math.min(...lefts);
+  const maxX = Math.max(...kids.map((k, i) => lefts[i] + k.offsetWidth));
+  const span = maxX - minX;
+  if (!(span < avail - 0.5)) return false;           // 여유 0 — 여기서도 옮길 자리가 없다
+  const target = dir === 'left' ? 0
+    : dir === 'right' ? avail - span
+    : Math.round((avail - span) / 2);
+  const delta = Math.round(target - minX);
+  if (delta) kids.forEach((k, i) => {
+    const nl = Math.round(lefts[i]) + delta;
+    k.style.left = nl + 'px';
+    // ★저장·재로드는 dataset.offsetX 를 본다(wrapSelectedBlocksInFrame 이 같이 적는다) — 같이 옮긴다
+    if (k.dataset) k.dataset.offsetX = String(nl);
+  });
+  return true;
+}
+
+/* 블록 타입별 수평 정렬 (기존 단일패널 핸들러 미러)
+   ★[T-095] 섹션 «Bulk Align» 도 이 함수를 쓴다(js/props/prop-section.js).
+     그 자리엔 원래 `.text-block` 만 도는 사본이 있어서 글자만 움직이고 이미지·도형은
+     제자리였다. 타입별 분기는 «여기 한 벌»만 둔다 — 사본이 둘이면 다음 블록에서 또 갈린다. */
+export function alignFlowBlock(b, dir) {
   const selfMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
   const jcMap   = { left: 'flex-start', center: 'center', right: 'flex-end' };
   if (b.classList.contains('text-block')) {
@@ -372,12 +412,13 @@ function _alignFlowBlock(b, dir) {
     b.dataset.align = dir;                           // prop-asset.js:322
     b.style.alignSelf = selfMap[dir];
   } else {
+    if (_alignFreeLayoutContents(b, dir)) return;    // 꽉 찬 자유배치 래퍼(그룹) — 안쪽 묶음을 민다
     b.style.alignSelf = selfMap[dir];                // 범용 fallback (무해)
   }
 }
 
 function _applyFlowAlign(blocks, dir) {
-  blocks.forEach(b => _alignFlowBlock(b, dir));
+  blocks.forEach(b => alignFlowBlock(b, dir));
   window.pushHistory?.('블록 정렬');
   showFlowMultiSelPanel();
 }
@@ -471,7 +512,7 @@ export function showFlowMultiSelPanel() {
     <div class="prop-section" style="${textCount > 0 ? '' : 'display:none;'}">
       <div class="prop-section-title">폰트 크기 (텍스트 ${textCount}개)</div>
       <div class="prop-row" style="gap:3px;">
-        <input type="number" class="prop-number msp-fontsize-input" id="msp-font-size" min="1" max="800" placeholder="px" style="flex:1;">
+        <input type="number" class="prop-number msp-fontsize-input" id="msp-font-size" min="1" max="800" placeholder="px" data-empty="invalid" style="flex:1;">
         <button class="prop-btn-sm msp-fontsize-btn" id="msp-font-size-apply" title="선택한 텍스트 블록에 일괄 적용">적용</button>
       </div>
     </div>

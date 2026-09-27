@@ -82,31 +82,56 @@ function _pathsForId(projectsDir, safeId) {
   };
 }
 
+/* ★T-065 — 「건너뜀」을 적는 «유일한» 자리.
+   ⛔삼키지 않는다: 부르는 쪽이 돌려받는 배열과 migration-log.json 둘 다에 남는다.
+     삼킨 오류는 「위 판정 거짓말」이 되어 실패보다 나쁘다. */
+function _note(skipped, target, e, kind) {
+  const rec = {
+    path: target,
+    kind: kind || 'copy',
+    code: (e && e.code) || null,
+    message: (e && e.message) || String(e),
+  };
+  if (Array.isArray(skipped)) skipped.push(rec);
+  return rec;
+}
+
 // 안전한 statSync (없으면 null).
 function _safeStat(p) {
   try { return fs.statSync(p); } catch (_) { return null; }
 }
 
-// 디렉터리 재귀 복사 (덮어쓰기 허용 — 마이그레이션 partial cleanup 후 재실행 케이스 위해).
-async function _copyDirRecursive(src, dst) {
+/* 디렉터리 재귀 복사 (덮어쓰기 허용 — 마이그레이션 partial cleanup 후 재실행 케이스 위해).
+   ★T-065 — 목록을 한 번 읽어 두고(readdir) 그 이름으로 다시 연다(copyFile). 그 틈에
+     항목이 없어지면(다른 프로그램·클라우드 동기화) 옛 판은 ENOENT 를 위로 던졌고,
+     그러면 «history 파일 한 개» 때문에 그 프로젝트 전체가 failed 로 주저앉았다(실측).
+   ⇒ 항목 단위로 감싸 «그 항목만» 버린다. ⛔조용히는 아니다 — skipped 에 한 줄씩 적는다.
+   ★그래도 느슨해지지 않는 근거: 여기서 버린 것은 _verifyDirCopy 가 다시 잡는다.
+     「지금도 src 에 남아 있는데 dst 에 없는 것」이 하나라도 있으면 검증이 깨진다.
+     사라진 항목은 src 에도 없으니 자연히 빠지고, EACCES 처럼 «있는데 못 읽은» 것은 걸린다. */
+async function _copyDirRecursive(src, dst, skipped) {
   await fsp.mkdir(dst, { recursive: true });
-  const entries = await fsp.readdir(src, { withFileTypes: true });
+  let entries;
+  try {
+    entries = await fsp.readdir(src, { withFileTypes: true });
+  } catch (e) {
+    _note(skipped, src, e);   // ★폴더가 통째로 사라진 구간
+    return;
+  }
   for (const ent of entries) {
     const s = path.join(src, ent.name);
     const d = path.join(dst, ent.name);
-    if (ent.isDirectory()) {
-      await _copyDirRecursive(s, d);
-    } else if (ent.isFile()) {
-      await fsp.copyFile(s, d);
+    try {
+      if (ent.isDirectory()) {
+        await _copyDirRecursive(s, d, skipped);
+      } else if (ent.isFile()) {
+        await fsp.copyFile(s, d);
+      }
+      // symlink/소켓 등은 무시 (Goditor 데이터에는 없음).
+    } catch (e) {
+      _note(skipped, s, e);   // ★항목 하나가 사라져도 «그 항목만» 버린다
     }
-    // symlink/소켓 등은 무시 (Goditor 데이터에는 없음).
   }
-}
-
-// 디렉터리의 직속 entries 수 (재귀 X). 크기 비교 대신 quick verify용.
-function _countEntries(dir) {
-  try { return fs.readdirSync(dir).length; }
-  catch (_) { return -1; }
 }
 
 // JSON 파일 검증: 존재 + 크기 일치 + JSON 파싱 OK.
@@ -124,15 +149,23 @@ function _verifyJsonCopy(srcPath, dstPath) {
   return { ok: true };
 }
 
-// 디렉터리 entries 개수 비교 (quick verify).
+/* 디렉터리 복사 검증 (직속 entries, 재귀 X — 옛 판과 같은 깊이).
+   ★T-065 로 «개수 비교»를 버렸다. 개수는 양쪽으로 다 틀린다:
+     ⑴ 복사 «전»에 사라지면 src 도 dst 도 없어 개수가 맞는다 — 통과해야 맞는데 옛 판은 맞았다.
+     ⑵ 복사 «뒤»에 사라지면 src=n-1, dst=n 이라 개수가 어긋난다 — 멀쩡히 옮겨 놓고 실패로 샜다.
+   ⇒ 세지 말고 «묻는다»: 지금도 src 에 있는 것이 dst 에 다 있나.
+     사라진 것은 src 에서도 빠져 자연히 면제되고(그건 skipped 에 이미 적혀 있다),
+     EACCES 처럼 «있는데 못 옮긴» 것은 여기서 반드시 걸린다. */
 function _verifyDirCopy(srcDir, dstDir) {
   const sStat = _safeStat(srcDir);
   if (!sStat || !sStat.isDirectory()) return { ok: false, reason: `source dir missing: ${srcDir}` };
   const dStat = _safeStat(dstDir);
   if (!dStat || !dStat.isDirectory()) return { ok: false, reason: `dest dir missing: ${dstDir}` };
-  const sc = _countEntries(srcDir);
-  const dc = _countEntries(dstDir);
-  if (sc < 0 || dc < 0 || sc !== dc) return { ok: false, reason: `entries mismatch (${sc} != ${dc}) for ${dstDir}` };
+  let names;
+  try { names = fs.readdirSync(srcDir); }
+  catch (e) { return { ok: false, reason: `source dir unreadable: ${srcDir}: ${e.message}` }; }
+  const missing = names.filter(n => !fs.existsSync(path.join(dstDir, n)));
+  if (missing.length) return { ok: false, reason: `missing in dest (${missing.length}): ${missing.join(', ')} under ${dstDir}` };
   return { ok: true };
 }
 
@@ -172,8 +205,16 @@ function _appendLog(logPath, entry) {
   try { _atomicWriteJson(logPath, arr); } catch (_) { /* best-effort */ }
 }
 
-// flat 5개를 quarantine으로 이동. flatHistory는 디렉터리.
-function _quarantineFlat(paths, quarantineDir) {
+/* flat 5개를 quarantine으로 이동. flatHistory는 디렉터리.
+   ★T-065 — 여기도 「있나 묻고(existsSync) 그 이름으로 다시 연다(rename)」 구조라
+     그 틈에 사라지면 옛 판은 throw 했고, 부르는 쪽 catch 가 _cleanupPartialNew 로
+     ★검증까지 끝난 신 위치 사본을 지웠다. flat 은 이미 quarantine 으로 옮겨진 뒤라
+     그 프로젝트는 앱에서 «통째로 사라졌다»(실측 V-d: newProj=false, flatProj=false).
+   ⇒ 오류 «종류»를 세지 않고 성질로 판정한다 — 실패한 뒤 src 가 지금도 있으면
+     「진짜 이동 실패」라 그대로 던지고, 없으면 「옮길 것이 없어진 것」이라 목적은
+     이미 달성됐으므로 기록만 하고 넘어간다. ⛔조용히 아님: vanished 로 돌려준다.
+*/
+function _quarantineFlat(paths, quarantineDir, skipped) {
   const moved = [];
   fs.mkdirSync(quarantineDir, { recursive: true });
   const map = [
@@ -200,6 +241,11 @@ function _quarantineFlat(paths, quarantineDir) {
         }
         moved.push(path.basename(src));
       } catch (e2) {
+        // ★그새 사라졌나? — 지금도 있으면 진짜 이동 실패, 없으면 옮길 것이 없어진 것.
+        if (!fs.existsSync(src)) {
+          _note(skipped, src, e2, 'quarantine-vanished');
+          continue;
+        }
         throw new Error(`quarantine move failed for ${src}: ${e2.message}`);
       }
     }
@@ -313,6 +359,8 @@ function _isMigrated(paths) {
 // 단일 프로젝트 마이그레이션.
 async function _migrateOne(projectsDir, safeId, runStartIso, options) {
   const dryRun = !!(options && options.dryRun);
+  const skipped = [];          // ★T-065 — 그새 사라져 건너뛴 항목들. 조용히 버리지 않는다.
+  let quarantineStarted = false;
   const paths = _pathsForId(projectsDir, safeId);
   const quarantineDir = path.join(projectsDir, QUARANTINE_DIRNAME, runStartIso);
 
@@ -385,7 +433,7 @@ async function _migrateOne(projectsDir, safeId, runStartIso, options) {
 
     const copiedHistory = fs.existsSync(paths.flatHistory)
       && (_safeStat(paths.flatHistory)?.isDirectory() ?? false);
-    if (copiedHistory) await _copyDirRecursive(paths.flatHistory, paths.newHistory);
+    if (copiedHistory) await _copyDirRecursive(paths.flatHistory, paths.newHistory, skipped);
 
     // [c] 검증
     const checks = [_verifyJsonCopy(paths.flatProj, paths.newProj)];
@@ -401,7 +449,10 @@ async function _migrateOne(projectsDir, safeId, runStartIso, options) {
     }
 
     // [d] flat → quarantine 이동
-    const moved = _quarantineFlat(paths, quarantineDir);
+    /* ⛔이 줄부터는 flat 이 «옛 자리에서 없어지기 시작»한다 ⇒ 신 위치가 유일한 사본이 된다.
+       아래 catch 가 _cleanupPartialNew 를 못 하게 막는 표식이다(T-065 V-d). */
+    quarantineStarted = true;
+    const moved = _quarantineFlat(paths, quarantineDir, skipped);
 
     // [e] 마커 작성 (atomic)
     _atomicWriteJson(paths.marker, {
@@ -410,15 +461,29 @@ async function _migrateOne(projectsDir, safeId, runStartIso, options) {
       schemaVersion: SCHEMA_VERSION,
       quarantinePath: quarantineDir,
       moved,
+      skipped,               // ★건너뛴 것은 마커에도 남는다 — 나중에 이 자리와 이을 수 있게.
     });
 
-    _log(options, 'info', `migrated: ${safeId}`, { quarantineDir, moved });
-    return { status: 'migrated', id: safeId, quarantinePath: quarantineDir, moved };
+    for (const rec of skipped) {
+      _log(options, 'warn', `건너뜀(${rec.kind}): ${rec.path} — ${rec.code || '(코드없음)'} ${rec.message}`);
+    }
+    _log(options, 'info', `migrated: ${safeId}`, { quarantineDir, moved, skipped: skipped.length });
+    return { status: 'migrated', id: safeId, quarantinePath: quarantineDir, moved, skipped };
   } catch (err) {
     _log(options, 'error', `migrate failed: ${safeId}: ${err.message}`);
-    // best-effort: 신 위치 partial cleanup. flat 원본은 그대로 보존.
-    try { _cleanupPartialNew(paths); } catch (_) {}
-    return { status: 'failed', id: safeId, reason: err.message };
+    /* ★T-065 — quarantine 이 시작된 «뒤»에는 신 위치를 지우지 않는다.
+       flat 이 이미 옮겨졌을 수 있어, 지우면 «유일하게 남은 사본»을 지우는 것이 된다.
+       마커를 안 남기므로 다음 기동이 이어서 판정한다(flat 없으면 신 레이아웃 그대로 살아난다). */
+    if (quarantineStarted) {
+      _log(options, 'error', `quarantine 도중 실패 — 신 위치를 «보존»한다(지우면 유일본 소실): ${safeId}`);
+    } else {
+      // best-effort: 신 위치 partial cleanup. flat 원본은 그대로 보존.
+      try { _cleanupPartialNew(paths); } catch (_) {}
+    }
+    for (const rec of skipped) {
+      _log(options, 'warn', `건너뜀(${rec.kind}): ${rec.path} — ${rec.code || '(코드없음)'} ${rec.message}`);
+    }
+    return { status: 'failed', id: safeId, reason: err.message, skipped, keptNewLayout: quarantineStarted };
   }
 }
 
@@ -427,7 +492,9 @@ async function migrateAll(projectsDir, options = {}) {
   const runStartIso = new Date().toISOString().replace(/[:.]/g, '-');
   const logPath = path.resolve(path.join(projectsDir, '..', 'migration-log.json'));
 
-  const result = { migrated: [], skipped: [], failed: [], logPath };
+  /* ⛔`skipped` 는 «프로젝트 단위 건너뜀»(이미 마이그레이션됨 등)이라 옛 뜻 그대로 둔다.
+     ★T-065 가 더하는 `itemsSkipped` 는 «그새 사라져 버린 파일 단위» 기록이다. 다른 축이다. */
+  const result = { migrated: [], skipped: [], failed: [], itemsSkipped: [], logPath };
 
   if (!projectsDir || typeof projectsDir !== 'string') {
     result.failed.push({ id: null, reason: 'projectsDir not provided' });
@@ -449,6 +516,7 @@ async function migrateAll(projectsDir, options = {}) {
     } catch (e) {
       one = { status: 'failed', id, reason: e.message };
     }
+    for (const rec of (one.skipped || [])) result.itemsSkipped.push({ id: one.id, ...rec });
     if (one.status === 'migrated') result.migrated.push(one.id);
     else if (one.status === 'skipped') result.skipped.push(one.id);
     else result.failed.push({ id: one.id, reason: one.reason });
@@ -462,9 +530,10 @@ async function migrateAll(projectsDir, options = {}) {
       migrated: result.migrated,
       skipped: result.skipped,
       failed: result.failed,
+      itemsSkipped: result.itemsSkipped,   // ★T-065 — 그새 사라져 건너뛴 파일들
     });
   } else {
-    _log(options, 'info', `dry-run summary`, { migrated: result.migrated.length, skipped: result.skipped.length, failed: result.failed.length });
+    _log(options, 'info', `dry-run summary`, { migrated: result.migrated.length, skipped: result.skipped.length, failed: result.failed.length, itemsSkipped: result.itemsSkipped.length });
   }
 
   return result;

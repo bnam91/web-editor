@@ -21,6 +21,7 @@
  *   안 그러면 다음 사람이 한쪽을 인라인 마크업으로 되돌려도 검사가 초록이다.
  */
 import { _fontDisplayName } from './prop-text-utils.js';
+import { escHtml } from './_helpers.js';
 
 /** mix 기본값 — 셋 다 «안 섞임». 호출부가 안 주면 이걸 쓴다. */
 const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeight: { mixed: false } };
@@ -59,6 +60,11 @@ export function buildTypographySectionHtml({
   const _mix = mix || _NO_MIX;
   const _sizeVal = _mix.fontSize.mixed ? '' : size;
   const _sizePh  = _mix.fontSize.mixed ? 'Mix' : (sizePh ?? '');
+  /* ★「빈 값의 뜻」 선언 (prop-number-commit-guard.js 세 번째 축) —
+     기본은 «비지 않은 placeholder = 비우면 역할 기본으로 돌아간다»이다. 그런데 Mix 의 'Mix' 는
+     역할 기본값이 아니라 «값이 여럿이라 못 보여준다»는 표시다. 비우고 Enter 했다고 고른 블럭을
+     전부 하한(8px)으로 깎으면 안 된다 ⇒ 그 상태에서만 명시로 덮어 「빈 값 = 무효」로 되돌린다. */
+  const _sizeEmptyAttr = _mix.fontSize.mixed ? ' data-empty="invalid"' : '';
   /* ★placeholder 속성은 «값이 있을 때만» 찍는다 — 안 그러면 기본 호출의 산출이 한 글자 늘어
      T1 골든이 빨개진다. 이 절의 규약: 기본 인자에서는 «바이트 동일». */
   const _ph = (v) => (v === undefined || v === null || v === '') ? '' : ` placeholder="${v}"`;
@@ -70,12 +76,13 @@ export function buildTypographySectionHtml({
       <span class="prop-field-label">Font</span>
       <div class="font-picker" id="${p}-font-picker">
         <button class="font-picker-trigger" id="${p}-font-trigger" type="button">
-          <span class="font-picker-current" id="${p}-font-name">${font ? _fontDisplayName(font) : '기본 (시스템)'}</span>
+          <span class="font-picker-current" id="${p}-font-name">${font ? escHtml(_fontDisplayName(font)) : '기본 (시스템)'}</span>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
         </button>
         <div class="font-picker-dropdown" id="${p}-font-dropdown" style="display:none">
           <input class="font-picker-search" id="${p}-font-search" type="text" placeholder="폰트 검색..." autocomplete="off" spellcheck="false">
           <div class="font-picker-list" id="${p}-font-list"></div>
+          <button class="font-picker-noonnu" id="${p}-font-noonnu" type="button">🔗 눈누에서 폰트 더 받기</button>
         </div>
       </div>
 
@@ -92,7 +99,7 @@ export function buildTypographySectionHtml({
           <option value="800" ${!_weightMixed && weight==='800'?'selected':''}>ExtraBold 800</option>
           <option value="900" ${!_weightMixed && weight==='900'?'selected':''}>Black 900</option>
         </select>
-        <input type="number" class="prop-number prop-number-select" id="${p}-size-number" min="${sizeMin}" max="${sizeMax}" value="${_sizeVal}" placeholder="${_sizePh}" style="flex:1;min-width:0;display:${showSize?'block':'none'}">
+        <input type="number" class="prop-number prop-number-select" id="${p}-size-number" min="${sizeMin}" max="${sizeMax}" value="${_sizeVal}" placeholder="${_sizePh}"${_sizeEmptyAttr} style="flex:1;min-width:0;display:${showSize?'block':'none'}">
       </div>
 
       <div class="prop-style-group" id="${p}-style-group" style="margin-top:6px;display:${showStyleGroup?'flex':'none'}">
@@ -151,7 +158,7 @@ export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHex
           <div class="prop-color-swatch${_swatchExtraClass}" style="background:${_colorSwatchBg}" title="${_mix.color.mixed?'Mix — 일부 선택 후 색상 변경':''}">
             <input type="color" id="${p}-color" value="${colorHex}">
           </div>
-          <input type="text" class="prop-color-hex" id="${p}-color-hex" value="${_colorHexVal}" placeholder="${_colorHexPh}" maxlength="6" aria-label="Color">
+          <input type="text" class="prop-color-hex" id="${p}-color-hex" value="${_colorHexVal}" placeholder="${_colorHexPh}" maxlength="7" aria-label="Color">
           <label class="prop-color-alpha" title="Opacity">
             <input type="text" class="prop-color-alpha-input" id="${p}-color-alpha" value="${alpha}" aria-label="Opacity">
             <span class="prop-color-alpha-suffix">%</span>

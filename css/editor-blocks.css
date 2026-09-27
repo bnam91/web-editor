@@ -16,6 +16,84 @@
 .frame-block[data-text-frame] {
   min-height: unset;
 }
+/* ★오버레이(플로팅) 텍스트 z-index(2026-09-16, 현빈 실측 — "오버레이 텍스트를 클릭하려고
+   해도 쉽게 잘 안 된다"). position:absolute만 있고 z-index가 없어(기본 auto) 섹션 본문
+   흐름 콘텐츠(.tb-body 등)와 겹치면 DOM 순서에 따라 오버레이가 «아래로» 깔릴 수 있었다 —
+   실측: elementFromPoint가 오버레이 자기 중심 좌표에서도 밑에 깔린 .tb-body를 돌려줌.
+   섹션 콘텐츠 위 계층(--z 관례 80, .sec-bg-proxy와 같은 자리 — 선택 아웃라인 90·
+   리사이즈핸들 9990대보다는 아래)으로 고정해 항상 클릭 가능하게 한다. */
+/* ★2026-09-20(0920b-overlay-extend) — 선택자를 «타입 비의존»으로 넓혔다. 도형 래퍼
+   (.frame-block[data-free-layout])·에셋(.asset-block)도 같은 규약으로 뜨는데 위 선택자는
+   텍스트프레임만 잡아 그 둘은 z-index:auto 로 남는다 = 위에서 적은 「클릭이 안 된다」가
+   그대로 재발한다. 이 속성을 달 수 있는 건 오버레이뿐이라 속성만으로 집는다. */
+/* ⚠️★선택자가 «선택 규칙보다 구체적»이어야 한다(2026-09-20 라이브 실측, 포트 9503):
+   에셋 오버레이는 posEl 이 .asset-block «자신»이라, 이 블록을 고르는 순간 아래
+   `.asset-block.selected { z-index: 2 }`(특이도 0,2,0)가 속성 하나짜리(0,1,0)를 이겨
+   computed z-index 가 80 → 2 로 떨어졌다 = 본문 밑으로 다시 깔린다. 텍스트는 posEl 이
+   «래퍼»라 이 충돌을 안 겪어서 여태 안 보였다.
+   ⇒ 「오버레이는 섹션 직속 자식」이라는 «구조»를 선택자에 넣어 특이도를 올린다(.selected
+     변형까지 같이 적어 0,3,0 — 선택 여부와 무관하게 항상 같은 층). */
+.section-block > [data-overlay-block="true"] {
+  /* ★!important 인 이유(2026-09-20 라이브 실측, 포트 9503 · 줌 40%) — «선택 상태» 규칙들이
+     이 규칙보다 구체적이다:
+       .asset-block.selected                                         (0,2,0) → z-index:2
+       .frame-block[data-text-frame="true"]:has(.text-block.selected) (0,4,0) → z-index:2
+     그 규칙들의 뜻은 「고른 블록을 이웃보다 위로」인데, 오버레이는 «이미 그 위 층(80)»이라
+     그 값을 받으면 오히려 «내려간다» — 고르는 순간 본문 밑으로 깔리는 모순이 된다
+     (실측: 에셋 80→2 · 텍스트프레임 80→2. 텍스트 쪽은 이 유닛 이전부터 있던 잠복 결함이다).
+     특이도를 더 올려 이기는 길은 선택자를 계속 불리는 군비경쟁이라 여기서 끊는다 —
+     선례: 같은 파일 `.shape-block.shape-redact { z-index: 3 !important }` (「층이 선택 여부에
+     흔들리면 안 된다」는 같은 이유). 「섹션 직속」이라는 구조는 선택자에 그대로 남겨 둔다
+     (오버레이의 불변식이 그것이다 — sec.appendChild, js/overlay-float.js enterFloat). */
+  z-index: 80 !important;
+}
+/* ★프라이버시 — «가림막 오버레이»는 다른 오버레이보다 한 층 위다 (2026-09-20, int/0920b QA 반영).
+   위 규칙이 «오버레이 전부»를 80 한 층에 모아 놓아서, 같은 층 안에서는 «나중에 띄운 것»
+   (=섹션 직속 마지막 자식)이 무조건 이긴다. T-052 로 가림막 도형도 띄울 수 있게 되면서
+   「가림막을 띄워 글자를 덮어 놓고, 그 글자도 띄우면 가림이 풀린다」가 실사용 경로가 됐다
+   (실측 2026-09-20 포트 9513: 가려진 영역 std 41.1 → 72.6, 무가림 기준값 74.8 = 사실상 해제).
+   사용자에게 층을 바꿀 수단이 «없으므로»(오버레이 토글 순서가 유일한 제어) 순서 경합에
+   맡기지 않고 규칙으로 못박는다 — 같은 파일 `.shape-block.shape-redact{z-index:3}` 가
+   「층이 선택 여부에 흔들리면 안 된다」로 정한 것과 같은 이유다.
+   ⚠️81 인 이유: 선택 아웃라인(90)·리사이즈 핸들(9990대) «아래»를 지킨다(편집은 계속 가능).
+   ⚠️가림막이 «흐름»에 있고 덮을 글자가 «오버레이»인 경우는 여기서 안 푼다 — 그건 z:3 쪽과
+     transform-조상 규칙까지 같이 올려야 해서 사정거리가 다르다(0920b 보고서에 별건으로 올렸다). */
+.section-block > .shape-block.shape-redact[data-overlay-block="true"],
+.section-block > [data-overlay-block="true"]:has(.shape-block.shape-redact) {
+  z-index: 81 !important;
+}
+/* ★프라이버시(2026-09-15, a1-a3 지적 — e0ba9c7 의 export-only 수정을 «라이브 화면»까지
+ * 넓힌다): .shape-block.shape-redact 는 선택 여부와 무관하게 z-index:3 을 받지만(위쪽
+ * 규칙), transform 이 걸린 조상은 «새 스태킹 컨텍스트»를 만든다. 그 안의 redact 도형의
+ * z-index:3 은 조상 «안»에서만 유효하고, 조상 자신은 z-index:auto 라 조상 밖의 형제
+ * (.text-block 등, z-index:2)에 «조상 전체»가 진다 — 편집 화면에서 «선택 안 된» 가림막이
+ * transform 조상 안에 있고 가릴 글자가 조상 밖에 있으면, 그 글자가 가림막 위에 그대로
+ * 그려진다(화면공유·스크린샷에 그대로 노출).
+ * ★2차수정(2026-09-15, fix-mosaic-precapture-exposure 실측): 처음엔 `.frame-block:has(...)`
+ * 로 좁혀 썼는데, frame-geometry.js 의 프레임 말고도 canvas-block(카드모드)·banner02 등
+ * «자기 자신에 인라인 transform:scale() 을 쓰는» 다른 컨테이너 타입도 redact 도형을 품을
+ * 수 있어서(실측: 2중 중첩 — 바깥 canvas-block류 transform 컨테이너 + 안쪽 frame, 목업
+ * 캡처 경로에서 threshold 없이 육안으로 원문이 바로 보임) 클래스명 나열로는 못 따라간다.
+ * ⇒ 클래스 대신 «인라인 transform 을 가진 조상 전부»를 속성선택자로 잡는다 — 새 컨테이너
+ * 타입이 생겨도(inline transform 패턴만 같으면) 이름을 안 적어도 자동으로 커버된다.
+ * JS 훅이 전혀 필요 없다 — 브라우저(html2canvas 포함, 실측 확인됨)가 DOM 변화마다 자동
+ * 재평가하므로 라이브 화면·모든 export/썸네일/목업 클론 경로에 한 번에 적용된다. */
+/* ★3차수정(2026-09-15, a1-a3 지적 — 진짜 UI 회귀): #canvas-scaler(캔버스 줌 뷰포트 래퍼,
+ * editor-canvas.css)도 줌 때문에 인라인 transform:scale() 을 들고 있다(block-drag.js:428
+ * 등). 프로젝트 어디든 redact 도형이 하나라도 있으면 :has() 의 후손 매칭(깊이 무관)이
+ * #canvas-scaler «자신»까지 걸려 z-index:3 !important 를 받는다 — 눈금자·섹션 라벨·툴바·
+ * 드롭 표시 같은 캔버스 형제 UI(보통 z-index 1~2 대)가 캔버스 아래로 깔릴 수 있다(redact
+ * 켜기/끄기로 UI 가 사라졌다 나타나는 회귀). #canvas-scaler 는 «콘텐츠 컨테이너»가 아니라
+ * 앱 뷰포트 래퍼라 이 규칙의 대상이 아니다 — 명시적으로 제외한다.
+ * ★.row/.col-active(2026-09-15 a1-a3 지적): editor-blocks.css 다른 규칙이 .row.row-active/
+ * .col.col-active 에 z-index:1 을 준다(활성 줄/칸 강조) — transform 이 아니라 클래스 기반
+ * z-index 라 위 속성선택자로는 안 잡힌다. .row/.col 은 그 자체로 스태킹 컨텍스트가 되므로
+ * (position:relative + z-index) 같은 조건(redact 를 품음)이면 따로 명시해 같이 끌어올린다. */
+[style*="transform"]:has(.shape-block.shape-redact):not(#canvas-scaler),
+.row:has(.shape-block.shape-redact),
+.col:has(.shape-block.shape-redact) {
+  z-index: 3 !important;
+}
 .frame-block.selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));
@@ -80,6 +158,10 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
+  /* ★이 9990 은 «#canvas-area 안»의 값이다 (css/editor-canvas.css #canvas-area{isolation:isolate}).
+     즉 뜻은 «캔버스 내용보다 위»일 뿐, 플로팅 패널/모달과 겨루는 숫자가 아니다.
+     ⛔이 숫자를 올려도 패널 위로 못 올라간다 — 격리 밖 서열은 #canvas-area 가 결정한다.
+     격리를 지우면 이 층이 다시 앱 전체와 경쟁해 패널을 덮는다(0920b-zorder 회귀). */
   z-index: 9990;
 }
 
@@ -156,7 +238,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   width:  7px;
   height: 7px;
   background: #fff;
-  border: var(--ui-handle-border-w, 1px) solid var(--sel-color);
+  border: var(--ui-handle-border-w, 1.5px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 1;
   pointer-events: auto;
@@ -221,7 +303,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   width:  7px;
   height: 7px;
   background: #fff;
-  border: var(--ui-handle-border-w, 1px) solid var(--sel-color);
+  border: var(--ui-handle-border-w, 1.5px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 100;
   pointer-events: auto;
@@ -250,12 +332,18 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * ⚠️이 목록은 앞으로도 «늘어난다». 그래서 검사는 목록의 «길이»를 못박지 않고
  *   「셋이 그 규칙을 함께 쓰나」로 잰다(tests/unit/zoom-block.test.js ⓑ-26, 2026-09-08 지디 수정). */
 .zm-overlay-handle,
-.mdl-overlay-handle {
+.mdl-overlay-handle,
+/* ★`.grd-img-overlay-handle`(그리드 이미지/아이콘 줄, T-C)도 같은 규칙에 얹는다 — 네 번째다.
+ * ⛔`.asset-overlay-handle` 을 빌리지 않는다 — hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
+/* ★`.tfo-overlay-handle`(오버레이 텍스트, 0920b)도 같은 규칙에 얹는다 — 다섯 번째다.
+ * ⛔`.asset-overlay-handle` 을 빌리지 않는다 — hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
+.tfo-overlay-handle,
+.grd-img-overlay-handle {
   position: absolute;
   width:  7px;
   height: 7px;
   background: #fff;
-  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
+  border: var(--ui-handle-border-w, 1.5px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 9992;
   pointer-events: auto;
@@ -272,6 +360,38 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .zm-overlay-handle[data-zoom-resize-dir] {
   border-color: var(--ui-sel-overlay, #9966ff);
 }
+/* ★오버레이 텍스트의 모서리 핸들도 «보라» — 아웃라인(selVariant='sticker')과 한 색이어야 한다.
+   확대블럭과 «같은 관용구»: 계열 한정자는 overlay-handles.js 가 붙이는 data-tf-resize-dir. */
+.tfo-overlay-handle[data-tf-resize-dir] {
+  border-color: var(--ui-sel-overlay, #9966ff);
+}
+/* ★★오버레이(플로팅) 손잡이 «전부» 보라 — 한 규칙 (현빈 2026-09-21
+     「오버레이 하면 아웃라인이 보라인데 모서리 핸들은 파랑이다. 스티커는 보라 핸들까지 되어 있으니 색을 맞춰줘」)
+   ───────────────────────────────────────────────────────────────────────────
+   ⛔위 두 규칙처럼 «계열 한정자»(data-zoom-resize-dir / data-tf-resize-dir)로 하나씩 적으면
+     블럭이 늘 때마다 빠진다 — 확대블럭·오버레이텍스트를 각각 따로 적은 게 이미 그 증거다.
+     그래서 여기서는 «오버레이 여부» 자체를 한정자로 쓴다: js/overlay-float.js 가 블럭에 찍는
+     data-sel-variant 를 js/overlay-handles.js syncHandleSelVariant 가 손잡이에 옮겨 찍는다.
+     선(선택 오버레이)이 보라를 고르는 표식과 «같은 표식»이라 둘이 갈라질 수 없다.
+   ★손잡이는 이 고정층 «안»이라 블럭의 자손이 아니다 — #ss-handles-overlay 로 한정해도
+     블럭 쪽 규칙과 안 부딪힌다. 특이성 (1,1,0) 이라 계열 규칙(0,1,0)을 이긴다.
+   ⛔평상시(비오버레이) 파랑은 그대로다 — 표식이 없으면 이 규칙이 아예 안 걸린다. */
+#ss-handles-overlay [data-sel-variant="sticker"] {
+  border-color: var(--ui-sel-overlay, #9966ff);
+}
+/* 반경 손잡이는 hover 에 «채움»이 파랑으로 들어온다(.asset-radius-handle:hover) — 그 한 순간만
+   파랑으로 돌아가면 같은 병이다. 채움도 같은 토큰으로 맞춘다.
+   ⛔`[data-sel-variant]:hover` 로 넓게 걸지 않는다 — 리사이즈 손잡이는 hover 채움이 «없어서»
+     흰 채움이 정상인데, 넓게 걸면 없던 hover 색이 새로 생긴다. hover 채움을 가진 계열
+     (반경 = data-asset-radius-dir)에만 얹는다. */
+#ss-handles-overlay [data-sel-variant="sticker"][data-asset-radius-dir]:hover {
+  background: var(--ui-sel-overlay, #9966ff);
+}
+/* ★도형의 모서리 핸들(.shape-handle)은 블럭의 «자식»이라(js/block-drag.js _addShapeHandles)
+   위 규칙이 안 닿는다 — 같은 표식을 자손 선택자로 읽는다. 색 값은 여전히 한 토큰이다. */
+.shape-block[data-sel-variant="sticker"] .shape-handle {
+  border-color: var(--ui-sel-overlay, #9966ff);
+}
 /* ★모서리 라운드 핸들도 «같이» 보라 — 안 맞추면 한 블록에 파랑·보라가 섞인다.
    그게 현빈이 2026-09-08 에 지적한 바로 그 자리다(「왜 핸들 모서리는 파란색이야」).
    ★한정자는 리사이즈와 같은 관용구 = overlay-handles.js 가 붙이는 data-zoom-radius-dir. */
@@ -282,10 +402,10 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
      (2026-09-09 현빈 실측: 「모달블럭 > 모서리 핸들 마우스 커서 모양 안 바뀜」).
    ⚠️모양 규칙(:253)엔 얹혀 있는데 «커서만» 안 얹혀서, 손잡이는 보이는데 커서가 화살표 그대로였다.
    ⇒ ★다음에 오버레이 손잡이를 가진 블록을 만들면 «여기도» 더해라. 검사가 이 짝을 못박는다. */
-.asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw, .mdl-overlay-handle.nw { cursor: nw-resize; }
-.asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne { cursor: ne-resize; }
-.asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw { cursor: sw-resize; }
-.asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se { cursor: se-resize; }
+.asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw, .mdl-overlay-handle.nw, .grd-img-overlay-handle.nw, .tfo-overlay-handle.nw { cursor: nw-resize; }
+.asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne, .grd-img-overlay-handle.ne, .tfo-overlay-handle.ne { cursor: ne-resize; }
+.asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw, .grd-img-overlay-handle.sw, .tfo-overlay-handle.sw { cursor: sw-resize; }
+.asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se, .grd-img-overlay-handle.se, .tfo-overlay-handle.se { cursor: se-resize; }
 
 /* ── Canvas Block overlay resize handles ── */
 .canvas-overlay-handle {
@@ -293,7 +413,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   width: 7px;
   height: 7px;
   background: #fff;
-  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
+  border: var(--ui-handle-border-w, 1.5px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 9992;
   pointer-events: auto;
@@ -310,7 +430,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   width: 7px;
   height: 7px;
   background: #fff;
-  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
+  border: var(--ui-handle-border-w, 1.5px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 9992;
   pointer-events: auto;
@@ -387,13 +507,44 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   width: 7px;
   height: 7px;
   background: #fff;
-  border: var(--ui-handle-border-w, 1px) solid var(--sel-color);
+  border: var(--ui-handle-border-w, 1.5px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 9992;
   box-sizing: border-box;
   pointer-events: auto;
 }
 .img-corner-handle:hover { background: var(--sel-color); }
+
+/* ★★2026-09-21 — 이미지 편집 손잡이는 «사는 층이 둘»이다. 통일 라운드의 적대적 검증(HIGH①)이 잡았다.
+ *   ⑴ js/image-handling.js `function enterImageEditMode`(:56)       → `#ss-handles-overlay`
+ *                                                            (고정층, 배율 안 먹음)
+ *   ⑵ js/image-handling.js `function enterCircleImageEditMode`(:1333) → `icb.appendChild(h)`
+ *                                                            = 아이콘원형 블럭 «안»
+ *                                                            (= #canvas-scaler 안, 배율을 먹는다)
+ *   위 기본 규칙은 `7px` 고정이라 ⑵ 경로에선 화면에서 줌배율만큼 커지고 작아진다 —
+ *   실측(dpr2): 줌40 에서 2.8px/테두리 0.6 · 줌150 에서 10.5px/2.25 (기준은 7/1.5).
+ *   ⛔이 규칙에 --inv-zoom 을 «직접» 넣으면 안 된다 — --inv-zoom 은 documentElement 에 걸려 고정층까지
+ *     상속되므로(js/editor.js applyZoom 의 `setProperty('--inv-zoom'`, :306)
+ *     ⑴ 경로가 거꾸로 부푼다. 그래서 «캔버스 안일 때만» 덧씌운다.
+ *   ★⑵ 경로는 «크기»만 배율에 태우면 절반이 남는다 — 중심 보정(HS)도 같은 축이어야 한다.
+ *     2026-09-22(T-110): HS 가 5 로 굳어 있어 중심이 줌40 +1.5 · 줌100 −1.5 · 줌150 −4.0 씩 어긋났다.
+ *     ⇒ halfHandle() = 3.5 × invZoom + applyZoom 갈고리(window._syncCircleImgHandles).
+ *   회귀: tests/unit/handle-token-parity.test.mjs H6 (소스 «글자» 축)
+ *       · tests/dom/handle-size-parity.dom.spec.js B1~B6 (고정층 손잡이의 크기·두께)
+ *       · tests/dom/handle-center-icon-circle.dom.spec.js B7·B8·B9
+ *         (⑵ 경로를 «진짜 더블클릭»으로 열어 중심을 잰다 — bindBlock 의 click·dblclick 리스너를
+ *          그대로 지나고, 첫 클릭이 붙이는 형제 `.icb-overlay-handle` 4개까지 센다)
+ *   ⛔앞의 두 검사는 ⑵ 자리를 «안» 잰다 — H6 은 렌더가 없고, handle-size-parity 하네스에는
+ *     icon-circle-block 이 0건이라 아래 오버라이드가 한 번도 매칭되지 않는다. 그래서 B7 이 따로 있다. */
+.icon-circle-block .img-corner-handle,
+.icon-circle-block .img-edge-handle {
+  width:  calc(7px * var(--inv-zoom, 1));
+  height: calc(7px * var(--inv-zoom, 1));
+  border-width: calc(var(--ui-handle-border-w, 1.5px) * var(--inv-zoom, 1));
+}
+/* ★.img-edge-handle 의 «흰 1px» 은 현빈 확인 전까지 값을 안 바꾼다(2026-09-21 경계) —
+   여기서는 «축»만 맞춘다. 굵기 기준값은 그대로 1px 이다. */
+.icon-circle-block .img-edge-handle { border-width: calc(1px * var(--inv-zoom, 1)); }
 .img-edge-handle {
   position: absolute;
   width: 7px;
@@ -523,6 +674,33 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .asset-block.has-image:hover .asset-overlay-clear,
 .asset-block.has-image.selected .asset-overlay-clear { opacity: 1; }
 .asset-block.drag-over { outline: 2px dashed var(--sel-color) !important; outline-offset: -3px; }
+
+/* T-012: GIF 재생/정지 토글 — .asset-overlay-clear와 같은 비주얼 어휘(반투명 검정 필+흰 글자),
+   충돌 방지를 위해 좌하단에 배치(우상단은 제거버튼+GIF 배지가 이미 씀). */
+.asset-gif-toggle {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  height: 28px;
+  padding: 0 12px;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+  z-index: 6;
+}
+.asset-block.has-image:hover .asset-gif-toggle,
+.asset-block.has-image.selected .asset-gif-toggle { opacity: 1; }
+.asset-gif-toggle.active { background: var(--ui-accent-primary); }
 
 /* U10: 애니메이션 GIF 인지 배지 — 에디터 전용(#canvas 스코프라 export 오프스크린 클론엔 미적용).
    비주얼은 section-label 계열(--ui-bg-input/--ui-text-muted), --inv-zoom 카운터스케일로 줌 불변 크기. */
@@ -1059,6 +1237,153 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .modal-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 
+/* ═══════════════════════════════════
+   QA BLOCK — admin 전용 체크리스트 (2026-09-16)
+   ★캔버스 콘텐츠 톤(흰 배경·어두운 글자)을 쓴다 — 앱 다크 크롬(--ui-*) 이 아니다.
+     이 카드는 캔버스 «위에 얹히는» 콘텐츠라서다(MCP로만 생성, UI 팔레트 미노출).
+═══════════════════════════════════ */
+/* ★2026-09-16c 현빈 재지시 — 「16은 너무 작네, 24로 폰트 올리자」. item-text 기준을
+   16→24(×1.5)로 다시 올리고, «그걸 기준으로 나머지도 맞춰라」는 기존 원칙 그대로 전부
+   같은 1.5배로 재조정했다(폰트뿐 아니라 히트타깃·아이콘·패딩·라운드·여백도 동반 확대 —
+   16px 히트타깃이 줌 축소 시 안 눌리던 실기버그의 재발 방지 원칙과 같은 이유).
+   ⛔절대 px 를 감으로 고치지 않는다 — item-text(24) : title(30) : ticket/status(20) :
+   badge/id-chip(20) : feedback-label(20) 비율을 2026-09-16b 척도(16:20:13:13:13)에서
+   그대로 ×1.5 했다. */
+.qa-block {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  background: #ffffff;
+  border: 2px dashed #2d6fe8;
+  border-radius: 20px;
+  padding: 27px 30px 30px;
+  color: #1c1c1e;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.qa-block:hover::after { content:''; position:absolute; inset:0; border-radius:20px; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+.qa-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+.qa-block.qa-verdict-pass { border-color: #4ade80; }
+.qa-block.qa-verdict-fail { border-color: var(--ui-danger-border); }
+.qa-block.qa-verdict-revise { border-color: #f59e0b; }
+
+.qa-block .qa-badge {
+  position: absolute; top: -21px; left: 21px;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #2d6fe8; color: #ffffff;
+  font-size: 20px; font-weight: 700; letter-spacing: 0.03em;
+  padding: 6px 15px; border-radius: 999px;
+  z-index: 1;
+}
+.qa-block .qa-badge svg { flex: 0 0 auto; }
+
+/* ★verdict(현빈 pass/fail 판정, 2026-09-16d) — qa-badge 와 대칭으로 반대쪽 모서리에 띄운다.
+   qa-status(체크 진행률 자동계산)와는 별개 축이라 자리도 분리했다 — 접힌 상태에서도 항상
+   보여야 스크롤하며 훑어보다 바로 판정을 누를 수 있다(qa-badge/qa-header 와 같은 티어). */
+.qa-block .qa-verdict {
+  position: absolute; top: -21px; right: 21px;
+  display: inline-flex; gap: 6px; z-index: 1;
+}
+.qa-block .qa-verdict-btn {
+  font: inherit; font-size: 18px; font-weight: 700; letter-spacing: 0.03em;
+  padding: 6px 15px; border-radius: 999px; cursor: pointer;
+  background: #ffffff; border: 2px solid rgba(0,0,0,0.14); color: #8a8a90;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.qa-block .qa-verdict-btn:hover { border-color: rgba(0,0,0,0.28); color: #1c1c1e; }
+.qa-block .qa-verdict-btn--pass.qa-verdict-btn--active {
+  background: rgba(74, 222, 128, 0.18); border-color: #4ade80; color: #1c8a4a;
+}
+.qa-block .qa-verdict-btn--fail.qa-verdict-btn--active {
+  background: var(--ui-danger-bg); border-color: var(--ui-danger-border); color: var(--ui-danger);
+}
+/* REVISE — 이 블록 안에서 이미 "피드백있음" 상태(qa-status--feedback)에 쓰는 앰버를 그대로 재사용 */
+.qa-block .qa-verdict-btn--revise.qa-verdict-btn--active {
+  background: rgba(245, 158, 11, 0.14); border-color: #f59e0b; color: #b4720a;
+}
+
+.qa-block .qa-header {
+  display: flex; align-items: center; gap: 15px;
+  position: relative; z-index: 1;
+  margin-top: 8px;
+}
+.qa-block .qa-ticket {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 21px; font-weight: 700; color: #2d6fe8;
+  background: rgba(45, 111, 232, 0.1);
+  padding: 5px 14px; border-radius: 9px; flex: 0 0 auto;
+}
+.qa-block .qa-title { font-size: 30px; font-weight: 700; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-block .qa-status {
+  flex: 0 0 auto; font-size: 20px; font-weight: 600; padding: 6px 15px; border-radius: 999px;
+}
+.qa-block .qa-status--wait     { background: rgba(45, 111, 232, 0.12); color: #2d6fe8; }
+.qa-block .qa-status--feedback { background: rgba(245, 158, 11, 0.14); color: #b4720a; }
+.qa-block .qa-status--pass     { background: rgba(74, 222, 128, 0.18); color: #1c8a4a; }
+.qa-block .qa-chevron { flex: 0 0 auto; width: 24px; height: 24px; color: #8a8a90; transition: transform 0.15s ease; }
+.qa-block.qa-collapsed .qa-chevron { transform: rotate(-90deg); }
+
+.qa-block .qa-progress { position: relative; z-index: 1; margin-top: 20px; height: 8px; border-radius: 999px; background: rgba(0,0,0,0.08); overflow: hidden; }
+.qa-block .qa-progress-fill { height: 100%; background: #2d6fe8; border-radius: 999px; transition: width 0.2s ease; }
+.qa-block .qa-progress-fill--done { background: #4ade80; }
+
+.qa-block .qa-body { position: relative; z-index: 1; margin-top: 23px; }
+.qa-block .qa-checklist { display: flex; flex-direction: column; gap: 6px; }
+.qa-block .qa-item-wrap + .qa-item-wrap { margin-top: 6px; }
+/* ★항목 행 — tabindex 로 포커스 가능(코멘트 아코디언용, 현빈 2026-09-16b).
+   체크박스 히트타깃(옛 22→33px)이 곧 그 실기버그의 수정: 옛 16px 는 줌 축소 시 실사용
+   클릭이 거의 안 됐다 — 2026-09-16c 로 폰트와 같이 한 번 더 키웠다. */
+.qa-block .qa-item {
+  display: flex; align-items: flex-start; gap: 14px;
+  border-radius: 9px; padding: 6px 9px; margin: 0 -9px;
+  outline: none; cursor: pointer;
+}
+.qa-block .qa-item:focus,
+.qa-block .qa-item-wrap:focus-within .qa-item {
+  background: rgba(45, 111, 232, 0.08);
+  box-shadow: inset 5px 0 0 #2d6fe8;
+}
+.qa-block .qa-check {
+  flex: 0 0 auto; width: 33px; height: 33px; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; padding: 0; cursor: pointer; color: #8a8a90;
+}
+.qa-block .qa-item--done .qa-check { color: #4ade80; }
+.qa-block .qa-item-num { font-size: 24px; color: #8a8a90; flex: 0 0 auto; padding-top: 2px; }
+.qa-block .qa-item-text { font-size: 24px; line-height: 1.5; padding-top: 2px; }
+.qa-block .qa-item--done .qa-item-text { color: #a0a0a6; text-decoration: line-through; }
+.qa-block .qa-comment-badge { flex: 0 0 auto; margin-top: 6px; color: #f59e0b; }
+
+/* ── 항목별 코멘트 아코디언(현빈 2026-09-16b 지시) — Enter 로 펼침/접힘. ── */
+.qa-block .qa-item-comment { padding: 3px 9px 9px 56px; }
+.qa-block .qa-item-comment-input {
+  width: 100%; min-height: 66px; resize: vertical; box-sizing: border-box;
+  border: 1px solid rgba(45, 111, 232, 0.35); border-radius: 9px;
+  background: rgba(45, 111, 232, 0.05);
+  font: inherit; font-size: 21px; padding: 12px 15px; color: #1c1c1e;
+}
+.qa-block .qa-item-comment-input:focus { outline: none; border-color: #2d6fe8; background: rgba(45, 111, 232, 0.08); }
+
+.qa-block .qa-divider { height: 1px; background: rgba(0,0,0,0.08); margin: 23px 0; }
+
+.qa-block .qa-feedback-label { font-size: 20px; font-weight: 700; color: #8a8a90; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 9px; }
+.qa-block .qa-feedback-input {
+  width: 100%; min-height: 98px; resize: vertical; box-sizing: border-box;
+  border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 11px;
+  background: rgba(245, 158, 11, 0.06);
+  font: inherit; font-size: 23px; padding: 14px 18px; color: #1c1c1e;
+}
+.qa-block .qa-feedback-input:focus { outline: none; border-color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
+
+.qa-block .qa-footer { display: flex; justify-content: flex-end; margin-top: 20px; }
+.qa-block .qa-id-chip {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 20px; color: #8a8a90; cursor: pointer; padding: 5px 12px;
+  border-radius: 8px; background: rgba(0,0,0,0.04);
+}
+.qa-block .qa-id-chip:hover { background: rgba(0,0,0,0.08); color: #1c1c1e; }
+
 /* ── MODAL BLOCK — 변형 6종 (현빈 발주 2026-09-08) ──
    ★스타일 «값»은 여기 두지 않는다 — bg/radius/padding/border 는 dataset 이 진실이고
      renderModalBlock 이 인라인으로 쓴다. 여기엔 «구조»만 둔다(레이아웃·슬롯). */
@@ -1150,8 +1475,46 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 #canvas .grid-block .grd-h2:empty::before      { content: '소제목을 입력하세요'; }
 #canvas .grid-block .grd-h3:empty::before      { content: '소항목을 입력하세요'; }
 #canvas .grid-block .grd-body:empty::before    { content: '본문을 입력하세요'; }
+
+/* ★★중첩(duo) «안»은 칸이 반이라 긴 안내문이 3줄로 쪼개져 «깨져 보인다» — 현빈 0927 실기 지적.
+   ★실측(그 블럭 grd_ts0he_sl8p0hv): 칸 149px · 중첩 gap 24px ⇒ 각 열 **67px** 인데 글자가 22px 이라
+     ★3글자면 꽉 찬다. 거기에 「본문을 입력하세요」(9자)가 들어가 세 줄로 무너졌다.
+   ⇒ 중첩 안에서만 «짧은 말»로 덮는다. ⛔바깥 문구는 그대로 둔다 — 넓은 칸에선 긴 쪽이 친절하다.
+   ⚠️이것은 «안내문»이고 내용이 아니다 — 현빈이 본 것은 «깨진 글자»가 아니라 안 맞는 안내문이었다.
+   ★특이도: `.grd-nested` 한 단이 더 있어 (1,0,3) > 위 (1,0,2) 라 이긴다. */
+#canvas .grid-block .grd-nested .grd-h1:empty::before   { content: '제목'; }
+#canvas .grid-block .grd-nested .grd-h2:empty::before   { content: '소제목'; }
+#canvas .grid-block .grd-nested .grd-h3:empty::before   { content: '소항목'; }
+#canvas .grid-block .grd-nested .grd-body:empty::before { content: '내용'; }
 #canvas .grid-block .grd-caption:empty::before { content: '캡션을 입력하세요'; }
 #canvas .grid-block .grd-label:empty::before   { content: 'Label'; }
+
+/* ★빈 «칸»(줄이 하나도 없다)도 손에 닿게 한다(T-A, 2026-09-16) — 위 :empty::before 와
+ * «같은 관용구»(#ccc, pointer-events:none), 대상만 줄이 아니라 칸이다.
+ * ⛔#canvas 스코프 필수 — export 클론엔 안내문이 안 새게(위 규칙과 같은 이유). */
+#canvas .grid-block .grd-cell-empty::before {
+  content: '+ 내용 추가 (T/G/K)';
+  color: #ccc;
+  pointer-events: none;
+}
+#canvas .grid-block .grd-cell-empty { min-height: 48px; }
+
+/* ★빈 «칸»의 «자리»는 CSS 가 아니라 «인라인»으로 준다 (T-230 후속, 현빈 0927 ㈏)
+ * ⛔여기에 `.grid-block .grd-cell-empty { min-height: … }` 를 쓰지 마라 — «안 먹는다».
+ *   렌더러가 칸마다 `style="…min-height:…"` 를 인라인으로 박으므로 인라인이 언제나 이긴다.
+ *   바로 위 `#canvas … { min-height: 48px }` 가 «죽어 있는» 까닭이 정확히 그것이다
+ *   (tests/dom/grid-cell-emptied.dom.spec.js 의 F 가 그 죽음을 `0px` 로 못박아 두었다).
+ *   ⇒ 2026-09-27 에 여기에 14px 를 한 번 넣어 봤고, 재 보니 그대로 0 이었다. 도로 뺐다.
+ * ★자리를 주는 곳 = js/blocks/grid-block.js 의 칸 인라인 스타일(`GRID_EMPTY_CELL_MIN_H`).
+ *   그 관례는 `.grd-img-empty`(:2087) 머리말이 먼저 적어 두었다 — 「★«상자»는 여전히 인라인이다
+ *   (높이·모서리·폭) — 빈 셀이 자리를 차지한다는 뜻 그 자체라 배송본에도 남아야 한다」. */
+
+/* ★빈 칸 «선택» 표시 — .grd-line-selected(:1171)와 같은 기법(inset box-shadow, 줌 불변).
+ * ⛔.selected 재활용 금지(editor.js 의 범용 조회가 깨진다, 위 .grd-line-selected 주석과 같은 이유).
+ * ⛔outline 금지 — [M51] 이 같은 자리에서 물렸다(그리드 안쪽 여백 0 이라 바깥 offset 이 블록 밖으로 샌다). */
+#canvas .grid-block .grd-cell-selected {
+  box-shadow: inset 0 0 0 calc(2px * var(--inv-zoom, 1)) var(--sel-color);
+}
 
 /* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
 .row:has(.text-block.selected),
@@ -1293,12 +1656,182 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   outline-offset: calc(-1 * var(--sel-outline-w));
   z-index: 2;
 }
+/* ★원 도형의 선택 표시 = «아이콘 서클과 같은 길» (현빈 2026-09-21:
+     「icb_k7kbb_msmevtj 는 문제없지 않니? 같은 원모양인데 아웃라인 이것처럼 하면 될 것 같은데」)
+   ───────────────────────────────────────────────────────────────────────────
+   ★앞의 답(T-072, 2026-09-20)은 «선을 상자 바로 밖으로 밀기»였다. 그 답은 대가를 두 개 남겼다:
+     ⑴ 맞닿은 이웃이 있는 변은 다시 안으로 되돌려야 해서(selection-overlay.js _blockedEdges)
+        현빈 화면처럼 «세로로 쌓인» 배치에서는 위·아래가 여전히 물렸다
+        (실측 9506·줌 40%·120px 원: 윗선 y158 / 상자 윗변 157.119 ⇒ 0.88px 파고듦, 아랫선도 같다).
+     ⑵ 이웃이 없는 변에서는 선이 상자 밖으로 나가 남의 상자 1px 을 덮을 위험이 남았다.
+   ★아이콘 서클(.icon-circle-block.selected::before)은 그 둘을 «동시에» 피한다 —
+     선은 다른 블럭과 똑같이 상자 «안»에 두고(네모 유지), 원의 둘레는 ::before 링이 «따로» 그린다.
+     그래서 접점이 선에 덮여도 그 자리에 «원을 따르는 선»이 있어 잘린 게 아니라 «둘린» 것으로 읽힌다.
+   ⇒ 원 도형도 같은 길로 간다: 아래 ::before 링 하나만 더하고, 상자 선은 «원래대로» 안쪽이다.
+   ★사정거리 = «원처럼 생긴 것»뿐이다. 사각형·다각형·별·선·화살표·텍스트는 손대지 않는다
+     (2026-09-15 T-028 «선택선 네모 통일» 결정 불변 — 여기서 바뀌는 건 «선의 모양»이 아니라
+      원 둘레에 «링이 하나 더 생기는» 것이다. 네모 선은 그대로 네 변 다 있다).
+   ⛔SEL_FOLLOW_RADIUS(둥근 모서리 추종) 전역 스위치는 여전히 끈 채다 — 그 계산은 CSS 모서리만
+     읽어 SVG ellipse 를 모른다(앞 라운드 실측). */
+.shape-block.selected[data-shape-type="ellipse"]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: var(--sel-outline-w) solid var(--sel-color);
+  box-sizing: border-box;
+  pointer-events: none;   /* 클릭 판정은 도형이 그대로 받는다 */
+  z-index: 3;             /* .shape-svg(z-index:1) «위» — 이게 「자손이 선을 덮는」 자리를 푼다 */
+}
+/* ★오버레이(플로팅)면 링도 «보라» — 테두리와 핸들이 보라인데 링만 파랑이면 한 블록에 두 색이다
+   (현빈 2026-09-21 「오버레이 하면 아웃라인이 보라인데 모서리 핸들은 파랑이다」와 같은 병).
+   한정자는 js/overlay-float.js 가 찍는 data-sel-variant — 선택 오버레이가 색을 고르는 바로 그 표식이다. */
+.shape-block.selected[data-shape-type="ellipse"][data-sel-variant="sticker"]::before {
+  border-color: var(--ui-sel-overlay, #9966ff);
+}
 .shape-block .shape-svg {
   display: block;
   width: 100%;
   height: 100%;
   position: relative;
   z-index: 1;
+}
+
+/* ── 이미지(에셋) 채우기 «넣기 전» = 바둑판 (0918 picker, js/props/prop-shape.js) ──
+   색상 피커의 이미지 탭을 누르면 data-shape-fill="image" 가 붙고, 이미지를 아직 안 넣었으면
+   (data-shape-image 없음) 도형 면을 바둑판 패턴(#goya-shape-checker, body 에 1번 주입)으로 칠한다.
+   ★«CSS 자리»에 두는 이유 = .asset-block·.cvb-img-empty 와 같다: 편집 전용 표시라 저장값·내보내기에
+     실리면 안 된다(export-html 은 앱 CSS 를 안 싣고, export-image 는 clone 에서 data-shape-fill 을 뗀다).
+   ★CSS 가 presentation 속성(fill="currentColor"/상속)을 이긴다. :not(.shape-redact) — 가림막이 켜지면
+     가림막 규칙(fill:none)이 이겨야 한다(체커 !important 가 특이도로 가림막을 이기지 않게 아예 빠진다).
+   ★#canvas 로 한정 — 미리보기(#preview-overlay, page.canvas 를 innerHTML 로 복사)는 «내보냈을 때 모습»이라
+     바둑판 대신 마지막 단색(currentColor)이 보여야 한다(PNG 내보내기와 같은 결과). */
+#canvas .shape-block[data-shape-fill="image"]:not([data-shape-image]):not(.shape-redact) svg.shape-svg :is(rect, ellipse, circle, polygon, path):not([fill="none"]) {
+  fill: url(#goya-shape-checker) !important;
+}
+/* 실제 이미지(div.shape-img-fill, 인라인 스타일)는 SVG(z-index:1) 밑에 깔린다. 가림막이면 숨긴다 — 가림막은 칠을 무시한다. */
+.shape-block.shape-redact > .shape-img-fill { display: none !important; }
+
+/* ── Redact(가림막) 모드 — rectangle/ellipse 전용 ──
+   dataset.shapeColor/shapeGradient는 그대로 둔 채, 이 클래스가 fill을
+   CSS 우선순위로 덮어써서(presentation attribute보다 스타일시트가 항상 이긴다)
+   투명하게 만들고 대신 backdrop-filter로 «밑에 깔린 콘텐츠»를 흐린다.
+   →재오프 시 클래스만 떼면 원래 색/그라데이션이 그대로 복원된다(파괴적 변경 없음).
+   ellipse는 border-radius로 원형 클립을 맞춰야 backdrop-filter가 사각형으로 안 샌다. */
+.shape-block.shape-redact {
+  background: rgba(255,255,255,0.001); /* Safari: backdrop-filter가 완전투명 배경에선 씹히는 경우 방지 */
+  backdrop-filter: blur(var(--redact-blur, 8px));
+  -webkit-backdrop-filter: blur(var(--redact-blur, 8px));
+  /* ★프라이버시(2026-09-15, fix-mosaic-precapture-exposure 실측+근본원인 확정) — 진짜 원인은
+     캡처/굽기 버그가 아니라 순수 z-index 충돌이었다: .text-block(editor-layout.css)은
+     «무조건» z-index:2인데 .shape-block은 «선택돼 있을 때만»(.shape-block.selected) 2를
+     받는다. 라이브 에디터에서 방금 만든/만지는 redact 도형은 보통 selected 상태라 동률→DOM
+     순서로 이겨서 위에 그려져 "안전해 보였다". export의 prepareCloneForCapture가 clone에서
+     .selected를 (정당하게) 벗겨내면 redact 도형이 z-index:auto로 떨어져 텍스트블록의 «무조건»
+     2가 이기고 — 실측: 텍스트블록 위에 얹은 redact를 export하면 주민등록번호 전체가 단순
+     threshold(레벨조정) 처리만으로 복원됨(픽셀 히스토그램에 원문 색 ~26% 혼합 확인).
+     blur/mosaic 두 모드 다(이 규칙은 공용 .shape-redact 베이스) 선택 여부와 무관하게
+     텍스트블록보다 항상 위여야 한다 — !important는 다른 z-index 규칙에 밀리면 안 되는
+     프라이버시 요구라 아래 fill:none !important와 같은 이유로 붙인다. */
+  z-index: 3 !important;
+}
+.shape-block.shape-redact[data-shape-type="ellipse"] {
+  border-radius: 50%;
+}
+.shape-block.shape-redact .shape-svg,
+.shape-block.shape-redact .shape-svg * {
+  fill: none !important;
+}
+
+/* ── Redact 모자이크(픽셀화) 모드 ── backdrop-filter 대신 캡처해둔 스냅샷을
+   image-rendering:pixelated로 확대해서 보여준다(js/effects/redact-mosaic.js).
+   실시간 추적이 아니라 이벤트 시점 스냅샷이라 backdrop-filter를 끈다.
+   ★프라이버시 안전기본값(2026-09-15): 첫 캡처 전 canvas는 투명하다(기본 300×150 빈
+   비트맵). base .shape-redact 규칙의 배경(rgba(255,255,255,0.001), 사실상 투명)이
+   그대로 남으면 캡처 전까지 «가려야 할 원본이 맨눈으로 그대로» 보인다. 그래서 이
+   모드에선 background를 캔버스와 같은 안전실패색(js: MOSAIC_FAIL_SAFE_FILL)으로
+   불투명하게 깔아 "실패 시 항상 회색이 바닥"을 보장한다 — 캔버스가 실제 비트맵을
+   그리면(캡처 완료) 자식 요소라 부모 배경 위에 그려져 회색을 덮는다. */
+.shape-block.shape-redact[data-shape-redact-mode="mosaic"] {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: #4a4a4a;
+}
+.shape-block.shape-redact canvas.redact-mosaic-canvas {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+}
+.shape-block.shape-redact[data-shape-redact-mode="mosaic"] canvas.redact-mosaic-canvas {
+  display: block;
+}
+.shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-type="ellipse"] canvas.redact-mosaic-canvas {
+  border-radius: 50%;
+}
+
+/* ── ★모자이크 임시 차단(2026-09-20 «0920b-mosaic-off» T-070) — «이미 모자이크로 저장된» 블록을
+   회색 덩어리 대신 «블러»로 보여준다.
+   body.redact-mosaic-off 는 js/effects/redact-mosaic.js 가 킬스위치
+   (js/feature-flags.js REDACT_MOSAIC_ENABLED === false)에서 «스스로» 붙인다.
+
+   ★왜 데이터를 안 고치고 CSS 로 덮는가
+     dataset.shapeRedactMode="mosaic" 를 blur 로 «굳혀 버리면» 나중에 원인을 고쳐도 사용자의
+     선택이 이미 사라져 있다. 되돌리기는 플래그 한 줄이어야 한다 — 그래서 저장 데이터는 그대로
+     두고 «보이는 것»만 바꾼다.
+
+   ★★강도는 «사용자가 저장한 값»으로 — JS 없이(2026-09-20 픽스 라운드, 이벨류에이터 지적 high)
+     처음 구현은 `var(--redact-blur, 8px)` 하나였는데, 인라인 --redact-blur 는 «속성패널을 열었을
+     때만» 채워진다(prop-shape.js). 프로젝트를 열기만 한 사용자는 패널을 안 열므로 강도 19 로
+     저장한 가림막이 8px 로 그려졌다 — 실측: 밑에 24px 줄무늬를 깔면 크롭 통계 std 72.4(패턴 판독
+     가능). 그래서 저장값이 «그대로» 들어가는 data-shape-redact-blur 로 --redact-blur 를 CSS 가
+     직접 채운다(2~20, prop-shape.js·block-factory.js 가 같은 범위로 clamp 한다).
+     ⇒ JS 가 한 줄도 안 돌아도 저장 강도가 나온다. 인라인 값이 있으면 인라인이 이긴다(같은 값).
+     ⚠️clamp 범위를 바꾸면 이 목록도 같이 바꿔야 한다(tests/unit/redact-mosaic-killswitch.test.js U7 이 잡는다).
+
+   ★프라이버시 등급 — «앱의 블러 모드와 같다»가 정확한 표현이다(같은 backdrop-filter, 같은 저장 강도).
+     ⛔단, dev 의 모자이크 규칙은 background:#4a4a4a 불투명이라 backdrop-filter 지원 여부와 «무관»하게
+       가려졌다. 근투명으로 내리면 backdrop-filter 를 못 쓰는 렌더러에서 사실상 투명이 된다 —
+       그래서 아래 @supports not 으로 «못 쓰면 회색 그대로»를 남긴다(실패 방향을 안전 쪽으로 되돌림).
+     html2canvas 캡처 경로는 js/io/capture-safety.js 의 neutralizeRedactForH2C 가 클론에 «인라인»
+     으로 불투명 #4a4a4a 를 덮으므로(인라인이 이 규칙을 이긴다) 영향 없다. */
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"] {
+  backdrop-filter: blur(var(--redact-blur, 8px));
+  -webkit-backdrop-filter: blur(var(--redact-blur, 8px));
+  background: rgba(255,255,255,0.001);
+}
+/* 저장 강도(2~20px) → --redact-blur. ★JS 미실행에서도 사용자가 고른 강도가 나온다. */
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="2"] { --redact-blur: 2px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="3"] { --redact-blur: 3px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="4"] { --redact-blur: 4px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="5"] { --redact-blur: 5px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="6"] { --redact-blur: 6px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="7"] { --redact-blur: 7px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="8"] { --redact-blur: 8px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="9"] { --redact-blur: 9px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="10"] { --redact-blur: 10px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="11"] { --redact-blur: 11px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="12"] { --redact-blur: 12px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="13"] { --redact-blur: 13px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="14"] { --redact-blur: 14px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="15"] { --redact-blur: 15px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="16"] { --redact-blur: 16px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="17"] { --redact-blur: 17px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="18"] { --redact-blur: 18px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="19"] { --redact-blur: 19px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"][data-shape-redact-blur="20"] { --redact-blur: 20px; }
+body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"] canvas.redact-mosaic-canvas {
+  display: none;
+}
+/* ★backdrop-filter 를 못 쓰는 렌더러 = 블러가 아예 안 걸린다 ⇒ 가림을 맡길 곳이 없다.
+   그 축에서는 dev 의 «불투명 회색»을 그대로 남긴다(안 가려지는 것보다 회색 덩어리가 낫다). */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"] {
+    background: #4a4a4a;
+  }
 }
 
 /* shape 선택 시 부모 overflow 해제 — shape-handle이 잘리지 않도록 */
@@ -1328,6 +1861,18 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   overflow: visible;
 }
 
+/* 0918 canvasgrad — 캔버스 그라데이션 바(.grad-line-overlay)가 떠 있는 동안 overflow 해제.
+   CSS 그라데이션 선(banner02/comparison)은 길이 |w·sinA|+|h·cosA| 라 박스 밖으로 나가고,
+   스탑 칩은 선 옆에 뜬다 — 잘리면 손잡이를 못 잡는다. shape 선택 시 해제와 같은 정책
+   (대가: 선택 중엔 border-radius 클리핑이 풀린다). banner02 는 renderBanner02 가 인라인
+   overflow:hidden 을 넣으므로 !important 로만 이긴다 — 오버레이가 있을 때(=선택 중)만. */
+.frame-block:has(.grad-line-overlay) {
+  overflow: visible;
+}
+.banner02-block:has(> .grad-line-overlay) {
+  overflow: visible !important;
+}
+
 /* speech-bubble 포함 시 overflow 해제 — 말꼬리 SVG 클리핑 방지 */
 .frame-block:has(.speech-bubble-block) {
   overflow: visible;
@@ -1346,7 +1891,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   width:  calc(7px * var(--inv-zoom, 1));
   height: calc(7px * var(--inv-zoom, 1));
   background: #fff;
-  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
+  border: calc(var(--ui-handle-border-w, 1.5px) * var(--inv-zoom, 1)) solid var(--sel-color);
   border-radius: 1px;
   z-index: 10;
   display: none;
@@ -1357,6 +1902,33 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .shape-handle.ne { top:    calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
 .shape-handle.sw { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
 .shape-handle.se { bottom: calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
+
+/* ★«탈출한» 손잡이 — js/overlay-handles.js 의 손잡이 탈출층이 도형·그라데이션의 모서리 손잡이를
+   #ss-handles-overlay 로 옮겨 둔 상태다(2026-09-21, 「보이는데 안 눌린다」의 답).
+   ⑴ 이 층은 #canvas-scaler «밖»이라 줌이 곱해지지 않는다 ⇒ --inv-zoom 보정 없이 화면 7px 고정.
+   ⑵ 자리는 JS(rAF, _cornerScreen)가 좇으므로 블럭 기준 모서리 오프셋(top/left/right/bottom)을
+      무효로 돌린다 — 안 지우면 right/bottom 이 남아 좌표가 두 곳에서 정해진다.
+   ⑶ display 는 «.shape-block.selected .shape-handle» 자손 규칙이 못 닿으므로 여기서 켠다
+      (탈출은 «선택됐을 때만» 일어나므로 이 층에 있다는 것 자체가 선택 상태다).
+   ⛔z-index 를 새로 주지 않는다 — 이 층(9990)은 #canvas-area isolation «안»이라
+     모달·플로팅 패널 «아래»다(2026-09-20 규약). 커서·색 규칙은 계열 선택자 그대로 산다. */
+#ss-handles-overlay > .shape-handle,
+#ss-handles-overlay > .gradient-corner-handle {
+  position: fixed;
+  display: block;
+  width:  7px;
+  height: 7px;
+  /* ★테두리도 «줌 밖»으로 되돌린다 — --inv-zoom 은 :root 에 걸려(js/editor.js:256) 이 고정층까지
+     상속되므로, 캔버스 안 규칙의 calc(… * --inv-zoom) 이 여기서는 «거꾸로» 부푼다.
+     실측(줌 40, 이 줄을 빼고 잰 값): 그라데이션 손잡이 테두리 1.5px → 3.75px.
+     width 를 7px 로 되돌리는 것과 «같은 이유·같은 자리»다. */
+  border-width: var(--ui-handle-border-w, 1.5px);
+  top: auto; left: auto; right: auto; bottom: auto;
+  /* ★이 층은 pointer-events:none 이다(#ss-handles-overlay) — 블럭 «안»에서는 필요 없던 선언이
+     여기서는 필수다. 안 켜면 손잡이가 보이는데 «아예» 안 잡힌다(실측: elementFromPoint 가
+     손잡이를 한 번도 안 돌려줬다 — 고치려던 증상이 더 나빠진다). 형제 손잡이들도 전부 켠다. */
+  pointer-events: auto;
+}
 
 /* Suppress child block hover outlines & fill overlays inside unselected frames */
 .frame-block:not(.selected) .text-block:hover,
@@ -1372,7 +1944,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .frame-block:not(.selected) .infocard-block:hover,
 .frame-block:not(.selected) .innercard-block:hover,
 .frame-block:not(.selected) .icon-text-block:hover,
-.frame-block:not(.selected) .shape-block:hover {
+.frame-block:not(.selected) .shape-block:hover,
+.frame-block:not(.selected) .qa-block:hover {
   outline: none !important;
 }
 .frame-block:not(.selected) .gap-block:hover::after,
@@ -1402,7 +1975,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .frame-block:not(.selected) .comparison-block:hover::after,
 .frame-block:not(.selected) .mockup-block:hover::after,
 .frame-block:not(.selected) .vector-block:hover::after,
-.frame-block:not(.selected) .chat-block:hover::after {
+.frame-block:not(.selected) .chat-block:hover::after,
+.frame-block:not(.selected) .qa-block:hover::after {
   display: none !important;
 }
 /* speech-bubble-block은 fit-content 폭 → text-block:hover::after (editor-layout.css)와
@@ -1494,6 +2068,46 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .banner02-block { display:block; position:relative; margin:0 auto; cursor:pointer; box-sizing:border-box; user-select:none; }
 /* ⑧ 배너 안에서 «지금 우측 패널이 보고 있는 줄» 표시 — 선택 토큰 재사용(신규 색·룩 없음) */
 /* ⑸ 빈 줄 — 캔버스에서 «클릭할 자리»가 있음을 보여주는 편집 전용 표시(저장·내보내기에선 제거) */
+/* ★빈 이미지 칸 체커 — «편집 전용» 표시. 정본은 .asset-block(editor-layout.css) ·
+   .cvb-img-empty(위 [M38-b]) 와 같은 «두는 자리»(CSS) 다. banner02 만 이 값을 renderBanner02 가
+   «인라인»으로 박고 있었다(2026-09-21 사용자관점훑기 exportvisual) — 인라인은 저장본·.gdt·
+   단독 HTML 내보내기에 그대로 실리고, export-html.js 의 클래스 제거 목록(.cvb-img-empty 옆)에
+   «걸릴 대상 자체가 없었다».
+   ★무늬 값(#e3e3e3/#efefef · 16px)은 «그대로» 옮긴다 — 자리만 바꾸는 수정이라 화면 그림이
+     달라지면 안 된다. (다른 블록의 72px 정본과 다른 건 배너 이미지칸이 250px 로 작아서다.)
+   ⚠️PNG 내보내기는 이 이동만으론 안 고쳐진다 — 캡처 클론은 body 에 붙어 앱 CSS 를 그대로
+     받는다. 그 몫은 js/io/capture-safety.js neutralizeEmptyImageCheckerForCapture 가 진다. */
+.banner02-block .bn2-img-empty {
+  background: repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 0 / 16px 16px;
+}
+/* ★표 «이미지 row» 빈 칸 체커 — 위 .bn2-img-empty 와 같은 결함군이었다(EVAL low, 2026-09-21).
+   js/props/prop-table.js _makeImgCellPlaceholder 가 style.cssText 로 «인라인» 체커를 박고 있었다.
+   인라인이면 저장본(.gdt)과 단독 HTML 배송본에 그대로 실린다 — 편집용 무늬가 배송물이 된다.
+   ⚠️이 자리는 js/blocks 디렉터리 «밖»이라 tests/unit/card-empty-export.test.mjs 의 옛 그물
+     (js/blocks/*.js 전수)에도 안 걸렸다. 그래서 스캔 범위를 js/ 전수로 넓히면서 같이 옮긴다.
+   ★이미지를 넣으면 prop-table.js 가 인라인 background-image:url(...) 로 덮는다 — 인라인이
+     클래스를 이기므로 순서 다툼이 없다(.asset-block/.has-image 와 같은 모양). */
+.table-block .tbl-img-cell {
+  background-image: repeating-conic-gradient(#e0e0e0 0% 25%, transparent 0% 50%);
+  background-size: 16px 16px;
+}
+/* ★그리드 «빈 이미지 슬롯» 체커 — 현빈 2026-09-25 「빈 슬롯이 들어갈 수 있어야지 …
+   처음에 체크패턴으로 둘 수 있을 것 같은데」.
+   ★무엇이 바뀌었나 — 여기 오기 전 이 자리는 `background:#e8e8e8` «회색 단색»이었고,
+     그것도 js/blocks/grid-block.js 가 «인라인»으로 박고 있었다. 위 두 결함군(.bn2-img-empty ·
+     .tbl-img-cell)과 «정확히 같은 모양»이다 — 빈 칸 표시를 인라인으로 두면 저장본(.gdt)과
+     단독 HTML 배송본에 그대로 실린다. ⇒ 무늬를 CSS 로 옮기면서 값도 관용구에 맞춘다.
+   ★값은 «새로 발명하지 않는다» — .bn2-img-empty 와 «같은 값»(#e3e3e3/#efefef · 16px)을 쓴다.
+     72px 정본(.asset-block)이 아니라 16px 쪽을 베끼는 까닭은 배너 이미지칸과 같은 이유다:
+     그리드 칸은 «칸 하나»라 작다. 72px 타일은 한 칸에 한두 개만 들어가 무늬로 안 읽힌다.
+   ★«상자»는 여전히 인라인이다(높이·모서리·폭) — 빈 셀이 자리를 차지한다는 뜻 그 자체라
+     배송본에도 남아야 한다. 여기서 주는 것은 «무늬»뿐이고, 그 무늬만 배송본에서 빠진다.
+   ⚠️PNG 내보내기는 이 이동만으론 안 걷힌다 — 캡처 클론은 body 에 붙어 앱 CSS 를 그대로 받는다.
+     그 몫은 js/io/capture-safety.js neutralizeEmptyImageCheckerForCapture 가 진다
+     (.bn2-img-empty 주석과 같은 분업). 단독 HTML 은 js/io/export-css-collect.js 가 진다. */
+.grid-block .grd-img-empty {
+  background: repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 0 / 16px 16px;
+}
 .banner02-block .bn2-line-empty {
   /* 빈 줄에 «클릭할 자리»를 만든다 — 편집 전용이라 저장·내보내기에선 클래스째 제거된다.
      ⚠️인라인이 아니라 CSS 로만 주는 이유: 인라인이면 저장본에 실리고 높이 계산의 입력이 되어
@@ -1777,6 +2391,12 @@ textarea.cvb-card-input {
   outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .step-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+/* ⑨ 캔버스에서 «지금 우측 패널이 보고 있는 스텝» 표시 — 선택 토큰 재사용(bn2-line-selected 선례와 동일) */
+.step-block .stb-line-selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  /* ★안쪽으로 — 스텝 줄은 블럭 폭을 꽉 채워서 바깥 2px 이면 블럭 선택 테두리 «밖»으로 삐져나왔다(현빈 «안맞으며», 2026-09-15). */
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
 
 /* ── Chat Block ─────────────────────────────────────────────────────────────── */
 .chat-block {
@@ -2711,6 +3331,22 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
     calc(-1px * var(--tfx-intensity)) 0 calc(1px * var(--tfx-intensity)) rgba(255,0,128,0.6);
 }
 
+/* 0919r3 textshadow: 글자 그라데이션 + 그림자/네온 — 그림자를 글자 «뒤»로.
+   text-shadow 는 배경(=그라데이션) 위에 칠해져 페이드를 덮는다 → 같은 목록을 filter 로 옮긴다
+   (한 겹 = drop-shadow, 여러 겹 = 겹이 누적되지 않는 SVG 필터 url(#tgs-f-…)).
+   클래스·변수는 js/props/text-block-color.js syncTextGradShadow 만 붙이고 뗀다(원본 그림자 값은 그대로 보존). */
+.tgs {
+  text-shadow: none !important;
+  filter: var(--tgs-filter) !important;
+}
+/* 편집 중 «펼친 선택»이 있는 동안: filter 가 선택 하이라이트 사각형까지 흐려 번지므로 잠시 원래 text-shadow 로
+   (html.tgs-selecting 은 text-block-color.js 의 selectionchange 가 단다 — 캔버스 저장본에 안 실림). */
+html.tgs-selecting .tgs:focus,
+html.tgs-selecting .tgs:focus-within {
+  filter: none !important;
+  text-shadow: var(--tgs-src) !important;
+}
+
 /* 2. Metallic — silver/gold linear-gradient + 입체감 */
 .text-effect.tfx-metallic {
   background: linear-gradient(180deg,
@@ -2871,6 +3507,13 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   clip-path: none;
 }
 
+/* ★오버레이(js/overlay-float.js, dataset.overlayBlock="true")는 이 명부에 «일부러» 없다.
+   현빈 결정(2026-09-20): 「오버레이는 크기조절로 섹션 폭 밖까지 나가도 된다」(5c6888d) +
+   「섹션 밖으로 나간 부분은 PNG 내보내기에 «안 담는다» — 화면에서만 나가고 PNG 에서는
+   섹션 상자 기준으로 잘리는 지금 동작이 정상」.
+   ⇒ 여기에 오버레이 셀렉터를 넣으면 «캔버스가» 잘려 앞 결정을 되돌리는 것이다. ⛔넣지 마라.
+   이 경계는 tests/unit/export-floating-crop-roster.test.mjs P6 이 지킨다(SEC_CLIP_OVERLAY_EXCLUDED). */
+
 /* ──────────────────────────────────────────────
    Sticker 선택 표시 — 일반 블록과 동일 규칙, 색만 보라색
    (icon-circle/table/graph/card/divider와 일관성)
@@ -2922,13 +3565,15 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
    .shape-handle / .gradient-corner-handle과 동일하게 --inv-zoom calc()로
    캔버스 배율 무관하게 화면상 7px 고정 — 색만 보라색
    highlightB(선)는 이 핸들 대신 .hlb-handle 사용
+   ★테두리도 «같은 축»에 태운다 — calc(--ui-handle-border-w * --inv-zoom).
+     토큰만 쓰고 --inv-zoom 을 빼면 «테두리만» 줌에 비례한다(고치기 전 실측: 줌40 0.4px · 줌150 1.5px).
 ────────────────────────────────────────────── */
 .sticker-corner-handle {
   position: absolute;
   width:  calc(7px * var(--inv-zoom, 1));
   height: calc(7px * var(--inv-zoom, 1));
   background: #fff;
-  border: 1px solid var(--ui-sel-overlay, #9966ff);
+  border: calc(var(--ui-handle-border-w, 1.5px) * var(--inv-zoom, 1)) solid var(--ui-sel-overlay, #9966ff);
   border-radius: 1px;
   pointer-events: auto;
   z-index: 100;
@@ -2948,13 +3593,15 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
    Gradient 4모서리 리사이즈 핸들 (JS에서 .gradient-corner-handle 추가)
    프레임(.ss-resize-handle)·shape-handle과 동일하게 --inv-zoom calc()로
    캔버스 배율 무관하게 화면상 7px 고정 — 색만 보라색
+   ★테두리도 «같은 축»에 태운다 — calc(--ui-handle-border-w * --inv-zoom).
+     토큰만 쓰고 --inv-zoom 을 빼면 «테두리만» 줌에 비례한다(고치기 전 실측: 줌40 0.4px · 줌150 1.5px).
 ────────────────────────────────────────────── */
 .gradient-corner-handle {
   position: absolute;
   width:  calc(7px * var(--inv-zoom, 1));
   height: calc(7px * var(--inv-zoom, 1));
   background: #fff;
-  border: 1px solid var(--ui-sel-overlay, #9966ff);
+  border: calc(var(--ui-handle-border-w, 1.5px) * var(--inv-zoom, 1)) solid var(--ui-sel-overlay, #9966ff);
   border-radius: 1px;
   pointer-events: auto;
   z-index: 100;
@@ -2981,3 +3628,18 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 /* 그리드 피커 — 아직 못 만드는 조합(행 축 도입 전 2행 이상)은 «죽은 칸»으로 보인다.
    눌러도 아무 일 없는 것보다, 안 눌린다는 게 보이는 편이 정직하다. */
 .grid-picker-cell--off { opacity: .28; cursor: default; }
+
+/* ── 글자 그라데이션 (0918r2 textgrad · T-059 확장) ──
+   저장소 = contentEl 인라인 스타일(background-clip:text + -webkit-text-fill-color:transparent).
+   클래스 대신 속성 선택자 — 인라인 단일 저장소 원칙을 지킨다.
+   ① 편집 중 선택 영역: 채움색이 transparent 라 선택하면 글자가 사라진다 → 선택 영역에서만 시스템 선택색으로.
+   ② 부분 형광펜 span: span 배경이 부모의 «글자 모양 그라데이션»을 덮어 글자가 안 보인다 → 그 span 만 글자색으로 채운다. */
+[style*="background-clip: text"]::selection,
+[style*="background-clip: text"] *::selection {
+  background-color: Highlight;
+  color: HighlightText;
+  -webkit-text-fill-color: HighlightText;
+}
+[style*="background-clip: text"] span[style*="background-color"] {
+  -webkit-text-fill-color: currentColor;
+}

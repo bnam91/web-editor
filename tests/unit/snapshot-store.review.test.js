@@ -548,8 +548,18 @@ test('M5 ★시계가 한 번 앞선 스냅샷이 있어도 이후 저장이 «�
   const root = mkRoot();
   const mk = () => ({ id: 'p', name: 'T', version: 2, pages: [{ id: 'page_1', canvas: sec('sec_a', 'A') }] });
   writeProjFile(root, 'p', mk());
-  // 미래 ts 는 실제로 생긴다: NTP 보정 · 드라이브 동기화로 넘어온 폴더 · 백업 복원
-  SS.writeSnapshot(root, 'p', mk(), { now: NOW + 30 * 86400000, force: true });
+  /* 미래 ts 는 실제로 생긴다: NTP 보정 · 드라이브 동기화로 넘어온 폴더 · 백업 복원
+     ★★2026-09-25 실측 — 이 «한 줄»만 실제 시계를 쓴다. ⛔고정 NOW 를 쓰면 안 된다.
+       까닭: 아래 futureCount 를 만드는 제품 코드(main/project-store/snapshot-store.js:775)가
+       `e.ts > Date.now() + 60000` 으로 «실제 시계»를 본다. 그런데 이 파일의 NOW 는
+       2026-08-26 «고정»이라 NOW+30일 = 2026-09-25 08:20 이 그날 오전 실제 시계에 따라잡혔고,
+       그 시각부터 이 검사가 «코드 변경과 무관하게» 영원히 빨개졌다
+       (실측: 4e85266 · 59c6d63 같은 옛 판에서도 똑같이 fail 1 — 제품 결함이 아니다).
+     ⛔처방을 「고정 날짜를 뒤로 미루기」로 하지 마라 — 그건 «언제 터지나»만 늦춘다.
+       «실제 시계 기준 상대값»이라야 다시는 안 터진다.
+     ⛔그리고 이 줄을 「그 단언을 지우기」로 고치지 마라 — 그러면 «미래 ts 를 알려 주지 않는»
+       진짜 회귀를 영영 못 잡는다(그게 이 검사가 막는 것이다). */
+  SS.writeSnapshot(root, 'p', mk(), { now: Date.now() + 30 * 86400000, force: true });
   let ok = 0;
   for (let i = 1; i <= 12; i++) if (SS.writeSnapshot(root, 'p', mk(), { now: NOW + i * 20 * MIN }).ok) ok++;
   assert.equal(ok, 12,

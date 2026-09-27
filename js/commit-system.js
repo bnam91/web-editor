@@ -3,6 +3,8 @@
    (extracted from save-load.js)
 ═══════════════════════════════════ */
 
+import { buildProjForSave } from './io/proj-merge.js';   /* ★저장 병합은 «한 벌»(T-232 ⓑ) — ⛔부수효과 0 인 순수 모듈이라 로드 순서에 영향 없다 */
+
 const LAST_COMMIT_KEY = 'goya-last-commit';
 const SAVE_KEY = 'web-editor-autosave';
 const MAX_COMMITS = 20; // 커밋 보존 최대 개수 — 초과 시 오래된 것부터 제거 (파일 비대화 방지)
@@ -31,7 +33,7 @@ function showFilenameModal(defaultName, onConfirm) {
   overlay.innerHTML = `
     <div style="background:#1e1e1e;border:1px solid #3a3a3a;border-radius:10px;padding:20px 24px;min-width:320px;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
       <div style="font-size:13px;color:#ccc;margin-bottom:10px;">파일명을 입력하세요</div>
-      <input id="filename-modal-input" type="text" value="${defaultName}"
+      <input id="filename-modal-input" type="text"
         style="width:100%;box-sizing:border-box;background:#2a2a2a;border:1px solid #555;border-radius:6px;color:#eee;font-size:13px;padding:7px 10px;outline:none;">
       <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
         <button id="filename-modal-cancel" style="padding:6px 14px;border-radius:6px;border:1px solid #444;background:#333;color:#aaa;cursor:pointer;font-size:12px;">취소</button>
@@ -41,6 +43,15 @@ function showFilenameModal(defaultName, onConfirm) {
 
   document.body.appendChild(overlay);
   const input = document.getElementById('filename-modal-input');
+  /* ★[T-049 후속] 기본 파일명을 «틀 안에 끼우지 않고» 값으로 넣는다.
+     전엔 value="${defaultName}" 로 innerHTML 안에 끼웠는데, 그 값의 출처가
+     window.currentFileName || window.getProjectName?.() (아래 defaultName 계산)이라
+     «사용자가 정한 글자»가 HTML 속성 자리로 흘러들었다.
+     ⛔이스케이프 헬퍼를 새로 만들지 않는다 — 이 파일은 이미 같은 병을 «빈 칸 + 값 대입»으로
+       고쳤다(:147 <span class="cm-project"></span> + :172 .textContent = projectName).
+       같은 자리에서 두 가지 방식을 쓰면 다음 사람이 어느 쪽이 정본인지 모른다.
+     ★.value 는 프로퍼티라 HTML 로 해석되지 않는다 — 글자는 늘 글자로 남는다. */
+  input.value = defaultName == null ? '' : String(defaultName);
   input.select();
 
   const close = () => overlay.remove();
@@ -144,7 +155,7 @@ async function openCommitModal() {
     <div id="commit-modal">
       <div class="cm-header">
         <span class="cm-title">Commit</span>
-        <span class="cm-project">${projectName}</span>
+        <span class="cm-project"></span>
         <button class="cm-close" onclick="document.getElementById('commit-modal-overlay').remove()">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
             <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
@@ -166,6 +177,10 @@ async function openCommitModal() {
         <div class="cm-history" data-commits='${JSON.stringify(commits.map(c => ({ id: c.id, message: c.message, branch: c.branch, timestamp: c.timestamp })))}'>${historyHTML}</div>
       </div>
     </div>`;
+
+  // ★[T-049 후속] 프로젝트 «이름»은 사용자가 적는 값이다 — 템플릿으로 이어붙이면 마크업이 된다.
+  //   내는 자리에서 «항상 문자»로 넣는다(이름을 검사하지 않는다).
+  overlay.querySelector('.cm-project').textContent = projectName;
 
   document.body.appendChild(overlay);
   document.getElementById('cm-msg-input').focus();
@@ -294,15 +309,11 @@ async function saveProjectFile() {
       const targetId = window.activeProjectId;
       const existing = await window.electronAPI.loadProject(targetId);
       // branches/commits/thumbnail은 meta로 분리 — proj.json에서 제외
-      const { branches: _b, commits: _c, currentBranch: _cb, thumbnail: _t, ...dataWithoutMeta } = data;
-      const { branches: _eb, commits: _ec, currentBranch: _ecb, thumbnail: _et, ...existingWithoutMeta } = (existing || {});
-      const proj = {
-        ...existingWithoutMeta,
-        ...dataWithoutMeta,
-        id: targetId,
-        name: existing?.name || data.name || 'Untitled',
-        updatedAt: new Date().toISOString(),
-      };
+      /* ★[T-232 ⓑ] 병합은 «한 벌»이다 — js/io/proj-merge.js.
+         ★★이 자리가 save-load.js 와 «두 벌»이었고 ★이미 갈라져 있었다 — 저쪽은 `_recovered` 를
+         뺐고 여기는 안 뺐다. 그 마커는 「저장에 남기지 않음」이 명시된 런타임 표식이라, 커밋
+         경로로 저장하면 파일에 실렸다. 한 벌로 모으며 그 결함도 닫는다. */
+      const proj = buildProjForSave(existing, data, targetId);
       await window.electronAPI.saveProject(proj);
       // localStorage도 sync
       localStorage.setItem('project_' + targetId, snap);

@@ -1,8 +1,56 @@
 import { canvasEl, state } from '../globals.js';
 import { inlineGoyaAssetsInJSON, makeElectronAssetReader } from './goya-asset-inline.js';
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';
+import { getTextGradient, hasPaintingTextEffect, textShadowSource } from '../props/text-block-color.js';
+import { parseGradient } from '../props/gradient-model.js';
 
 const CANVAS_W = 860;
+
+/* ── SHAPE → Figma JSON (0919 QA) ────────────────────────────────────────────
+ * ⑴ 크기: 도형 크기는 «래퍼 프레임»(dataset.width/height, 캔버스 실측)에 있고 .shape-block 자체엔 style.width 가 없다
+ *    → 예전엔 늘 75×75 로 나갔다(200×200 가림막이 Figma 에선 14% 만 덮어 밑 콘텐츠 노출). 실측 폭 > 래퍼 dataset > style.
+ * ⑵ 그라데이션: shapeColor 에 CSS 그라데이션 문자열이 그대로 실려 렌더러가 SVG color/fill 에 넣고 → 검은 사각형.
+ *    color = 마지막 단색(폴백), gradientDef = 캔버스가 그리는 «바로 그» SVG <linearGradient|radialGradient>(끝점이 도형
+ *    밖인 스탑 재매핑 포함) — 렌더러가 도형 SVG 에 그대로 넣는다(캔버스와 같은 수식).
+ * ⑶ 가림막: redact 표시 + 불투명 덮개 색. ⛔반투명·원본 노출 금지(프라이버시). */
+const _REDACT_COVER = '#4a4a4a';   // 모자이크 안전실패 색과 같은 회색(캔버스 폴백과 같다)
+function _shapeFigmaBlock(el) {
+  const live = (el.id && document.getElementById(el.id)) || el;
+  const frame = live.parentElement && live.parentElement.classList?.contains('frame-block') ? live.parentElement : null;
+  const pick = (...vals) => { for (const v of vals) { const n = parseFloat(v); if (Number.isFinite(n) && n > 0) return n; } return 75; };
+  const width  = Math.round(pick(live.offsetWidth,  frame && frame.dataset.width,  frame && frame.style.width,  el.style.width));
+  const height = Math.round(pick(live.offsetHeight, frame && frame.dataset.height, frame && frame.style.height, el.style.height));
+  const raw = el.dataset.shapeColor || '#cccccc';
+  const isGrad = /gradient\s*\(/i.test(raw);
+  const svg = el.querySelector('svg.shape-svg') || el.querySelector('svg');
+  const lastSolid = (svg && svg.style && svg.style.color && !/currentcolor/i.test(svg.style.color)) ? svg.style.color : '';
+  let color = isGrad ? (lastSolid || '#cccccc') : raw;
+  let gradientDef = '';
+  if (isGrad && svg) {
+    const def = svg.querySelector('linearGradient, radialGradient');
+    if (def) {
+      const c = def.cloneNode(true);
+      c.setAttribute('id', 'g');
+      gradientDef = new XMLSerializer().serializeToString(c).replace(/ xmlns="[^"]*"/g, '');
+    }
+  }
+  const redact = el.dataset.shapeRedact === 'true';
+  const out = {
+    type: 'shape', id: el.id || '',
+    shapeType: el.dataset.shapeType || 'rect',
+    color,
+    // ★0 보존(0918 기본 테두리 0) — `|| 1` 이면 0이 1이 돼 피그마에 1px 테두리가 생긴다. 누락/NaN 만 1.
+    strokeWidth: (() => { const n = parseInt(el.dataset.shapeStrokeWidth); return Number.isFinite(n) ? n : 1; })(),
+    rotation: parseInt(el.dataset.shapeRotation) || 0,
+    width, height,
+  };
+  if (gradientDef && !redact) out.gradientDef = gradientDef;
+  if (redact) {
+    out.redact = { mode: el.dataset.shapeRedactMode || 'blur' };
+    out.color = _REDACT_COVER;   // 불투명 덮개 — 흐림/모자이크 비트맵은 Figma 로 못 옮긴다(가리기가 우선)
+  }
+  return out;
+}
 
 async function exportFigmaJSON() {
   // 현재 페이지를 pages 배열에 반영
@@ -236,7 +284,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     let textShadow = '';
     try {
       const _li = (el.id && document.getElementById(el.id)?.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label')) || inner;
-      const ts = window.getComputedStyle(_li).textShadow;
+      // 0919r3 textshadow: 그라데이션 글자는 .tgs 가 computed text-shadow 를 none 으로 가리고 drop-shadow 로 그린다
+      //   → 원본 목록(--tgs-src)을 보낸다(안 그러면 Figma 에서 그림자가 사라진다).
+      const ts = textShadowSource(_li);
       if (ts && ts !== 'none') textShadow = ts;
     } catch {}
 
@@ -301,6 +351,20 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           left:   parseFloat(el.style.paddingLeft)   || padX,
         },
       };
+
+      // 0918r2 textgrad: 글자 그라데이션 — style.fill 에 모델을 싣는다(sangpe_to_figma 가 set_gradient 로 칠함).
+      //   style.color 는 첫 스탑 단색 그대로 둔다(하위 호환 · 그라데이션 실패 시 폴백).
+      //   ★인라인 color 는 «마지막 단색» 저장소라 폴백 style.color 는 첫 스탑으로 덮는다(캔버스에 보이는 색에 가깝게).
+      //   ★칠하는 글자 효과(메탈릭 등)가 걸려 있으면 캔버스에선 효과가 이긴다 → 그라데이션을 싣지 않는다(캔버스=Figma).
+      if (variant !== 'label' && !hasPaintingTextEffect(inner)) {
+        const _tg = getTextGradient(inner);
+        if (_tg) {
+          block.style.fill = { kind: 'gradient', type: _tg.type, angle: _tg.angle, stops: _tg.stops };
+          const _fh = [..._tg.stops].sort((a, b) => a.offset - b.offset)[0]?.color || '';
+          const _m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(_fh);
+          if (_m) block.style.color = `rgb(${parseInt(_m[1], 16)}, ${parseInt(_m[2], 16)}, ${parseInt(_m[3], 16)})`;
+        }
+      }
 
       // label: 배경 박스 정보 추가
       if (variant === 'label') {
@@ -609,15 +673,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     }
     // ── SHAPE (shape-block) : 도형(선/사각/원) ──
     if (el.classList.contains('shape-block')) {
-      return {
-        type: 'shape', id: el.id || '',
-        shapeType: el.dataset.shapeType || 'rect',
-        color: el.dataset.shapeColor || '#cccccc',
-        strokeWidth: parseInt(el.dataset.shapeStrokeWidth) || 1,
-        rotation: parseInt(el.dataset.shapeRotation) || 0,
-        width: parseFloat(el.style.width) || 75,
-        height: parseFloat(el.style.height) || 75,
-      };
+      return _shapeFigmaBlock(el);
     }
     // ── STEP (step-block) : 번호badge + 제목/설명 카드 ──
     if (el.classList.contains('step-block')) {
@@ -848,6 +904,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
        와 «같은 줄»에서 .annotation-block 을 지운다. 즉 이 레포는 이미 이걸 «내용이 아님»
        으로 판정하고 있다. 그 판정을 여기서도 따른다. */
     'annotation-block': '편집 주석 — market-merge normSection 이 이미 «내용 아님»으로 지운다',
+    'qa-block': 'admin QA 전용 체크리스트 — 콘텐츠가 아니라 작업 메타데이터다(export-image.js 와 같은 원칙)',
   };
 
   /** 핸들러(_block GENERIC 폴백)와 «같은» 판정 + 이유 붙은 제외. */
@@ -912,7 +969,14 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     }
     // free-layout 프레임: 절대배치 구조 보존(높이·배경·자식 위치) → 렌더 충실도↑.
     function _frameBlock(fb) {
-      const w = parseInt(fb.dataset.width) || null;
+      // ★0919 QA: 폭 = 캔버스에서 «보이는» 폭. dataset.width(860)인데 max-width:100% 로 716 에 눌린 프레임이
+      //   Figma 에선 860 으로 나갔다. 지금 페이지의 살아 있는 요소가 있으면 그 layout 폭(줌 transform 무관)이 더 좁을 때 그걸 쓴다.
+      const _liveFb = fb.id ? document.getElementById(fb.id) : null;
+      const _liveW = _liveFb && _liveFb.offsetWidth ? _liveFb.offsetWidth : 0;
+      // dataset.width 가 '100%'(⌘G 섹션레벨 그룹)면 parseInt 가 100(px)으로 읽혀 Figma 에서 100px 폭이 됐다 → 실폭(없으면 null=가용폭)
+      const _dsPct = /%\s*$/.test(String(fb.dataset.width || ''));
+      const _dsW = _dsPct ? null : (parseInt(fb.dataset.width) || null);
+      const w = _dsPct ? (_liveW || null) : ((_dsW && _liveW && _liveW < _dsW) ? _liveW : _dsW);
       const h = parseInt(fb.dataset.height) || parseFloat(fb.style.height) || 0;
       const free = fb.dataset.freeLayout === 'true';
       const children = [];
@@ -927,8 +991,16 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           children.push({ x, y, w: cw, block: innerB });
         }
       });
-      return { type: 'frame', id: fb.id || '', width: w, height: h,
-               bg: fb.dataset.bg || '', radius: parseInt(fb.dataset.radius) || 0, free, children };
+      const _bg = fb.dataset.bg || '';
+      const out = { type: 'frame', id: fb.id || '', width: w, height: h,
+               bg: _bg, radius: parseInt(fb.dataset.radius) || 0, free, children };
+      // ★0919 QA: 배경 그라데이션 → 모델(렌더러가 set_gradient 로 칠함). 예전엔 렌더러가 CSS 문자열에서 «처음 나오는 rgba()»
+      //   를 단색으로 칠해 가운데 스탑 색 한 가지가 됐다.
+      if (/gradient\s*\(/i.test(_bg)) {
+        const g = parseGradient(_bg);
+        if (g && Array.isArray(g.stops) && g.stops.length >= 2) out.bgGradient = { type: g.type, angle: g.angle, stops: g.stops };
+      }
+      return out;
     }
     /* ★.section-merged-part(합쳐 넣은 아래 섹션의 몸)는 «투명하게» 통과한다.
        이 화이트리스트에 안 걸리면 자식을 내려가 보지도 않고 버려서, 합친 섹션을
@@ -973,7 +1045,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
        ⚠️FIGMA_ENABLED=false 이던 시절(globals.js:50 · index.html 킬스위치)에 이 부류가
          통째로 빠져 있었다. 다음 런칭에 「한 글자」로 켜질 때 바로 맞아야 한다. */
     [...secEl.children]
-      .filter(c => c !== inner && _isContentBlock(c))
+      // ⛔오버레이(플로팅)는 아래 «전용 분기»가 좌표규약(offsetX/offsetY)까지 맞춰 집는다 —
+      //   여기서도 집으면 에셋 오버레이가 두 번 실린다(.asset-block 은 콘텐츠 블록이다).
+      .filter(c => c !== inner && c.dataset?.overlayBlock !== 'true' && _isContentBlock(c))
       .forEach(fc => {
         const parsed = _block(fc, psEx);
         if (!parsed) return;
@@ -986,6 +1060,43 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         parsed.floating = true;
         parsed.x = (dx !== undefined && dx !== '') ? (parseFloat(dx) || 0) : (parseFloat(fc.style.left) || 0);
         parsed.y = (dy !== undefined && dy !== '') ? (parseFloat(dy) || 0) : (parseFloat(fc.style.top)  || 0);
+        blocks.push(parsed);
+      });
+
+    /* ★오버레이(플로팅) 텍스트 — js/props/prop-text-wireup-overlay.js 의 _enterOverlay 가
+       `sec.appendChild(posEl)` 로 심는 posEl 은 .text-block 이 아니라 그 «래퍼»
+       .frame-block[data-text-frame="true"] 다(텍스트는 항상 이 래퍼에 담겨 만들어진다 —
+       block-factory.js:1389). 위 순회는 frame-block 을 통째로 제외한다(_TRAVERSE_SKIP —
+       「전용 분기(_processFrameBlock/_frameBlock)가 자식까지 내려간다」는 이유인데, 그 전용
+       분기는 «inner.children 을 도는 _walkSectionChild»에서만 불린다. 이 래퍼는 inner 의
+       형제(섹션 직속)라 그 순회를 타지 않는다 ⇒ 어느 쪽에도 안 걸려 통째로 드롭됐다
+       (2026-09-15 실측: 오버레이로 전환만 해도 내보내기에서 사라진다 — 프레임 드롭과 무관).
+       ★위치 출처는 dataset.x/y 가 아니라 dataset.offsetX/offsetY 다(다른 키 — _enterOverlay
+       가 이 키에 쓴다, prop-text-wireup-overlay.js:73-74). style.left/top 은 항상 최신이므로
+       폴백으로 쓴다. */
+    [...secEl.children]
+      /* ★2026-09-20(0920b-overlay-extend) — 판정을 «타입 비의존»으로 넓혔다. 도형 오버레이의
+         posEl 은 자유배치 «래퍼 프레임»이라 _TRAVERSE_SKIP['frame-block'] 에 걸려 위 순회에서도
+         빠진다 ⇒ 안 넓히면 도형을 오버레이로 띄우는 순간 Figma 내보내기에서 «조용히» 사라진다
+         (화면엔 멀쩡해 가장 늦게 발견되는 부류). 에셋 오버레이는 위 순회에 걸리긴 하지만
+         좌표를 dataset.x/y 에서 찾아 offsetX/offsetY 를 못 읽는다 — 여기로 모은다.
+         ⚠️data-text-frame 조건은 «or» 로 남긴다: 옛 프로젝트에 overlayBlock 없이 섹션 직속으로
+           남은 텍스트프레임이 있어도 예전처럼 실린다(회귀 0). */
+      .filter(c => c !== inner && (
+        c.dataset?.overlayBlock === 'true'
+        || (c.classList.contains('frame-block') && c.dataset.textFrame === 'true')))
+      .forEach(tf => {
+        // 래퍼면 안쪽 콘텐츠 블록, 아니면(에셋 등) 자기 자신. 이름 목록이 아니라 구조로 집는다.
+        const tb = tf.classList.contains('frame-block')
+          ? (tf.querySelector('.text-block') || tf.querySelector('.shape-block'))
+          : tf;
+        if (!tb) return;
+        const parsed = _block(tb, psEx);
+        if (!parsed) return;
+        const dx = tf.dataset.offsetX, dy = tf.dataset.offsetY;
+        parsed.floating = true;
+        parsed.x = (dx !== undefined && dx !== '') ? (parseFloat(dx) || 0) : (parseFloat(tf.style.left) || 0);
+        parsed.y = (dy !== undefined && dy !== '') ? (parseFloat(dy) || 0) : (parseFloat(tf.style.top)  || 0);
         blocks.push(parsed);
       });
 

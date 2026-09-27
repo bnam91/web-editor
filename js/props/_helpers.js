@@ -86,6 +86,8 @@ export function bindSlider(slider, number, applyFn, opts = {}) {
  *     grid-block.js 의 `MIN_COLS=2` 폴백(_gridCols)이 만든 것이었고, 그 상수를 1 로 내리면서
  *     폴백 «조건 자체»가 사라졌다. ⛔이 파일(buildGridPicker)은 한 줄도 안 바뀌었다 —
  *     술어 `alive()` 가 처음부터 minCols 를 그대로 따랐다.
+ * @param {{cols:number, rows:number}} [opts.cur] ★«지금» 칸 수. 주면 그 칸을 처음부터 칠하고
+ *   마우스가 나가도 '—' 가 아니라 그 값으로 되돌아간다. 안 주면 옛 동작(빈 피커 · '—').
  */
 export function buildGridPicker(picker, label, onPick, opts = {}) {
   if (!picker) return;
@@ -116,22 +118,41 @@ export function buildGridPicker(picker, label, onPick, opts = {}) {
       picker.appendChild(cell);
     }
   }
-  const clear = () => {
-    picker.querySelectorAll('.grid-picker-cell').forEach(cl => cl.classList.remove('active'));
-    if (label) label.textContent = '—';
-  };
-  picker.addEventListener('mouseover', e => {
-    const cell = e.target.closest('.grid-picker-cell');
-    if (!cell || cell.classList.contains('grid-picker-cell--off')) return;
-    const r = +cell.dataset.r, c = +cell.dataset.c;
+  /* ★칠하기는 «한 곳»에서만 한다 — hover 미리보기와 «지금 값» 표시가 같은 그림이라
+   *   두 벌로 적으면 alive() 때처럼 한쪽이 반드시 뒤처진다(위 주석이 같은 말을 적어 뒀다). */
+  const paint = (c, r) => {
     picker.querySelectorAll('.grid-picker-cell').forEach(cl => {
       const cr = +cl.dataset.r, cc = +cl.dataset.c;
       // ★칠하는 조건도 «alive» 를 거친다 — 죽은 칸은 미리보기에도 안 들어간다.
       cl.classList.toggle('active', alive(cr, cc) && cr <= r && cc <= c);
     });
     if (label) label.textContent = `${c} × ${r}`;
+  };
+  /* ★«지금 몇 칸인가»를 피커가 스스로 말한다 (2026-09-25).
+   *   왜 — 이 절이 이제 «기본 접힘»이다(prop-grid.js 의 grd-size-toggle). 접힌 절을 펼친 사람이
+   *   맨 먼저 묻는 것은 「지금 어디인가」인데, 전엔 ★hover 하기 «전»까지 아무 칸도 안 칠해졌고
+   *   라벨도 '—' 였다 — 즉 마우스를 올려 보기 전엔 현재 값을 «피커로는» 알 수 없었다.
+   *   ⇒ opts.cur = { cols, rows } 를 받으면 그 칸을 처음부터 칠하고, 마우스가 나가면 «'—' 가
+   *     아니라» 그 값으로 되돌아간다.
+   *   ⛔opts.cur 를 «안» 주면 옛 동작 그대로다(아무것도 안 칠하고 '—'). 이 파일을 부르는 곳이
+   *     지금 prop-grid.js 하나뿐이라 당장은 한 길만 도는데, 기본값을 바꿔 «조용히» 다른
+   *     호출부의 그림을 갈아치우지 않으려고 기본을 옛 쪽에 뒀다. */
+  const curC = Number(opts.cur && opts.cur.cols) || 0;
+  const curR = Number(opts.cur && opts.cur.rows) || 0;
+  const hasCur = alive(curR, curC);
+  const clear = () => {
+    if (hasCur) { paint(curC, curR); return; }
+    picker.querySelectorAll('.grid-picker-cell').forEach(cl => cl.classList.remove('active'));
+    if (label) label.textContent = '—';
+  };
+  picker.addEventListener('mouseover', e => {
+    const cell = e.target.closest('.grid-picker-cell');
+    if (!cell || cell.classList.contains('grid-picker-cell--off')) return;
+    paint(+cell.dataset.c, +cell.dataset.r);
   });
   picker.addEventListener('mouseleave', clear);
+  // ★처음 그림 — 위 clear() 와 «같은 코드»를 쓴다(초기와 복귀가 갈리면 마우스 한 번에 그림이 튄다).
+  clear();
   picker.addEventListener('click', e => {
     const cell = e.target.closest('.grid-picker-cell');
     if (!cell) return;
@@ -280,4 +301,124 @@ export function alignBtn(family, key, o = {}) {
   if (style) out += ` style="${style}"`;
   if (title) out += ` title="${title}"`;
   return out + ` aria-label="${label}">${icon}</button>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   오버레이(플로팅) 토글 버튼 — 텍스트·도형·에셋 «세 패널이 같은 버튼»을 쓴다.
+   ───────────────────────────────────────────────────────────────────────────
+   ★2026-09-20 (0920b-overlay-extend / T-052) — 현빈 원문 3번 「도형 블럭과 에셋 블럭에도
+     오버레이 버튼·기능」. 버튼은 원래 prop-text-template.js 안에 인라인으로 박혀 있었고,
+     그걸 두 패널에 «베끼면» 아이콘·툴팁·aria 가 조용히 갈라진다(이 레포 고질 — alignBtn /
+     grid-callsite 가 같은 이유로 SSOT 함수가 됐고 *-ssot.test.mjs 가 그걸 지킨다).
+   ⛔id 는 패널마다 다르다. 특히 에셋은 `asset-overlay-toggle` 을 쓰면 «안 된다» —
+     그 id 는 이미 「Text Overlay(이미지 위 어두운 막+텍스트)」 체크박스가 갖고 있다
+     (prop-asset.js · .guard/FEATURE_REGISTRY.md 계약). 새 id 는 `asset-float-toggle`.
+   ★동작(진입·이탈·드래그)의 SSOT 는 js/overlay-float.js 다 — 이 함수는 «겉모습»만 낸다.
+   ⚠️산출 문자열은 골든 픽스처(tests/fixtures/text-props-golden*.html)가 바이트로 고정한다 —
+     들여쓰기·줄바꿈까지 그대로 유지할 것(호출부는 8칸 들여쓰기 자리에 놓는다).
+═══════════════════════════════════════════════════════════════════════════ */
+export function overlayToggleBtnHTML({ id, active = false, title } = {}) {
+  const t = title || '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.';
+  return `
+        <button type="button" class="prop-chain-btn prop-chain-btn--overlay${active ? ' active' : ''}" id="${id}"
+          aria-pressed="${active ? 'true' : 'false'}"
+          title="${t}">
+          <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2">
+            <rect x="1" y="4" width="6" height="6" rx="1"/>
+            <rect x="5" y="1" width="6" height="6" rx="1" fill="var(--ui-bg-card)"/>
+          </svg>
+        </button>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   블록 헤더 SSOT — `.prop-block-label` (아이콘 + 이름 + 브레드크럼 + id)
+   ───────────────────────────────────────────────────────────────────────────
+   ★2026-09-22 (T-049) — 이 틀이 js/props 안에 «33벌» 복붙돼 있었고, 그중 31벌이
+     레이어 이름을 «글자로» 넣지 않고 틀에 그대로 이어붙였다. 이름은 사람·블록 API·MCP·
+     템플릿·파일 수신 다섯 갈래로 들어오므로, 「그리는 자리」가 33곳이면 한 곳만 고쳐도
+     안 고친 것과 같다. ⇒ 그리는 자리를 여기 하나로 모으고, 이름은 이 함수 «안에서
+     한 번만» 글자로 만든다.
+   ⛔이름을 «검사»하지 않는다 — 거절하면 멀쩡한 이름(따옴표·꺾쇠 든 제품명)이 죽는다.
+     항상 통과시키되 항상 글자로 넣는다.
+   ⚠️산출 문자열은 골든 픽스처(tests/fixtures/text-props-golden*.html)가 바이트로 고정한다.
+     prop-text-template.js 의 «추출 직전» 바이트가 이 함수의 정본 모양이다 —
+     들여쓰기·줄바꿈까지 그대로다.
+
+   @param {string} [icon]        `.prop-block-icon` 안에 «그대로» 들어갈 원문(들여쓰기 포함).
+                                 없으면 아이콘 칸 자체를 안 그린다(비교·배너 패널).
+   @param {*}      [name]        사용자가 지은 이름. 비면 defaultName 으로 떨어진다.
+   @param {string} [defaultName] 이름이 없을 때 쓸 기본 표기.
+   @param {string} [crumb]       브레드크럼 문자열. ★undefined 면 칸 자체를 안 그린다
+                                 (행·프레임 패널이 원래 그랬다 — '' 와 구분해야 한다).
+   @param {string} [id]          블록 id(기계가 지은 값). 비면 id 칸을 안 그린다.
+   @param {string} [labelStyle]  `.prop-block-label` 에 붙일 style 속성값(멀티셀렉 전용).
+═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * HTML 특수문자 5종을 전부 덮는다. ★`>` 와 `'` 까지 덮는 것이 이 레포 사본 대부분과 다른 점이다
+ * — 홑따옴표 속성 자리에서 뚫리는 사본이 여럿 있었다(prop-comparison.js 의 옛 `_esc`).
+ * ⛔새 사본을 만들지 말고 이걸 import 해 써라.
+ */
+/* ══ 접이식 절 머리의 쉐브론 — «한 벌» (T-234, 2026-09-27) ═══════════════════
+ * ★네 곳(prop-grid · prop-banner02 · prop-simple-card · prop-table)이 «들여쓰기까지 똑같은»
+ *   SVG 를 각자 인라인으로 그리고 있었다. 다른 것은 «회전을 정하는 표현식» 하나뿐이었다.
+ *   그리고 네 곳 주석이 「★네 곳에 같은 마크업으로 산다 … ⛔여기서 «따로» 그리지 마라」라고
+ *   ★이미 적고 있었다 — 그 말대로 «따로 그리지 않게» 자리를 만든다.
+ *
+ * ⛔`--ui-select-caret` 토큰(10×6)으로는 못 모은다 — 그쪽은 CSS `background-image` 이고 이쪽은
+ *   인라인 `<svg>` 요소다(★매체가 다르다). 그리고 상자가 «정사각»인 것은 의도다:
+ *     ⑴ 잉크를 1.5px 로 맞추려면 viewBox 와 화면 폭이 같아야 한다(10×6 에 폭 10 이면 가늘어진다)
+ *     ⑵ ★정사각이라야 −90° 로 돌려도 자리를 안 먹는다(10×6 을 돌리면 6×10 이 되어 제목이 흔들린다)
+ *
+ * ⛔산출 문자열을 «한 자도» 바꾸지 마라 — 네 곳의 옛 산출과 바이트 동일이어야 한다. 들여쓰기·속성
+ *   순서·줄바꿈까지 옛 마크업 그대로다(그것을 tests/unit/disclosure-chevron-ssot.test.mjs 가 문다).
+ * @param {boolean} open 펼쳐져 있나 — 펼침 0° · 접힘 −90°
+ * @returns {string} `<svg>…</svg>` 한 조각 */
+export function disclosureChevronHtml(open) {
+  return `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round"
+             style="flex:0 0 auto;transform:rotate(${open ? 0 : -90}deg);transition:transform .12s;">
+          <path d="M1 3l4 4 4-4"/>
+        </svg>`;
+}
+
+export function escHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* id 칸 클릭 → 복사. ★«한 번만» 문서에 건다.
+   ⛔전엔 인라인 on* 핸들러였고 값이 그 «속성 안의 JS 문자열»에 들었다 — 문맥이
+     셋(본문·속성·JS)이고, on* 속성값은 HTML 실체참조가 «먼저 풀린 뒤» JS 로 읽히므로
+     이스케이프를 한 겹 더 씌워도 그 JS 문자열은 안 닫힌다. 오늘 이 자리에 실리는 값은 기계가 지은
+     아이디뿐이라 지금 새지는 않지만, 헤더가 한 자리로 모인 김에 «문맥 자체»를 없앤다.
+   ★import 부작용으로 걸지 않는다 — _helpers.js 를 document 없는 vm 에 올려 재는 하네스가 여럿이다
+     (tests/unit/_text-template-harness.js). 첫 헤더를 그릴 때 게으르게 건다. */
+let _copyWired = false;
+function _wireBlockIdCopy() {
+  if (_copyWired || typeof document === 'undefined' || !document.addEventListener) return;
+  _copyWired = true;
+  document.addEventListener('click', (e) => {
+    const el = e.target?.closest?.('.prop-block-id[data-copy-id]');
+    if (el) window._copyToClipboard?.(el.dataset.copyId);
+  });
+}
+
+export function blockHeaderHTML({ icon, name, defaultName = '', crumb, id, labelStyle } = {}) {
+  const shown = (name === undefined || name === null || name === '') ? defaultName : name;
+  if (id) _wireBlockIdCopy();
+  return `      <div class="prop-block-label"${labelStyle ? ` style="${labelStyle}"` : ''}>
+${icon ? `        <div class="prop-block-icon">
+${icon}
+        </div>
+` : ''}        <div class="prop-block-info">
+          <span class="prop-block-name">${escHtml(shown)}</span>${crumb === undefined ? '' : `
+          <span class="prop-breadcrumb">${crumb}</span>`}
+        </div>
+        ${id ? `<span class="prop-block-id" title="클릭하여 복사" data-copy-id="${escHtml(id)}">${escHtml(id)}</span>` : ''}
+      </div>`;
 }

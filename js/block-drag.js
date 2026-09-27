@@ -6,14 +6,17 @@
 ═══════════════════════════════════ */
 
 import { state, BLOCK_DELEGATE_SEL } from './globals.js';
+import { isShapeFrame as _isShapeFrameEl, toFlowUnit } from './shape-frame.js';
+import { posElOf as _floatPosElOf, bindFloatMoveDrag as _bindFloatMoveDrag } from './overlay-float.js';
 import {
   clearDropIndicators,
   makeLabelItem,
   applyDividerStyle,
   showToast,
+  selectAllEditableContents,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
-import { frameAlignOffset, frameVisibleSize } from './frame-geometry.js';
+import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame } from './frame-geometry.js';
 import {
   dragState,
   _suppressDragSave,
@@ -43,6 +46,25 @@ import {
 
 function _getParentFrame(block) {
   return block.closest('.frame-block');
+}
+/* ★0918r2 grid(T-058) — «이 블럭 하나만» 선택돼 있었는가(피그마식 드릴다운 판정).
+   판정 본체는 prop-grid.js grdIsSoleSelected «한 곳» — editor.js 줄 삭제 게이트도 같은 걸 부른다.
+   (조상 프레임·섹션/자손 selected 는 무시, 그 밖에 하나라도 selected 면 다중선택 → false)
+   부재 시 false = «블럭 선택» 쪽으로 안전하게 떨어진다(⌫ 가 줄로 새지 않는다). */
+function _isSoleSelectedBlock(block) {
+  return typeof window.grdIsSoleSelected === 'function' ? !!window.grdIsSoleSelected(block) : false;
+}
+/* ★0919 QA — «캔버스 클릭으로» 선택된 그리드만 드릴다운 대상이다. 삽입 직후(addGridBlock 이 selectBlock 으로
+   골라 둠)의 «첫» 클릭은 사용자에겐 첫 클릭이라 블럭 선택이어야 한다 — 안 그러면 넣자마자 누르고 ⌫ 하면
+   «마지막 줄은 지울 수 없습니다» 토스트만 떴다(현빈 원 증상의 가장 흔한 흐름). 요소 참조라 undo 로 DOM 이
+   바뀌면 자동으로 무효.
+   ★0922 T-058 — 걸쇠 자체는 prop-grid.js «한 곳»에 산다(grdMarkCanvasDrill/grdWasCanvasDrilled).
+     여기 모듈 전역으로 들고 있던 동안에는 «캔버스 클릭이 아닌» 선택(Esc 상위 이동·레이어 패널)이
+     걸쇠를 풀 길이 없어, 그 뒤 첫 캔버스 클릭이 곧장 줄로 내려가 ⌫ 가 줄 보호에 걸렸다(실측 재현).
+     ⛔사본을 여기 다시 두지 마라 — 푸는 자리와 거는 자리가 갈리면 같은 결함이 그대로 돌아온다.
+     «단독 선택인가»는 여전히 여기서 곱한다(_isSoleSelectedBlock) — 헬퍼가 없으면 false = 블럭 선택. */
+function _gridWasCanvasSelected(block) {
+  return !!window.grdWasCanvasDrilled?.(block) && _isSoleSelectedBlock(block);
 }
 function _isInsideUnselectedFrame(block) {
   const ss = _getParentFrame(block);
@@ -108,6 +130,46 @@ function _gridEditable(node) {
   return { block, line, host, r, c, li };
 }
 
+/* ★클릭 «선택» 주소 통합(T-A, 2026-09-16) — 줄(글자/이미지/갭 «전부»)과 «진짜 빈 셀»을
+ *   하나의 술어로 뽑는다. ⛔_gridEditable 은 그대로 둔다(인라인 편집 판정 전용 — 넓히면
+ *   이미지/갭 줄에 contenteditable 이 붙는 부작용이 생긴다).
+ *   ★[data-line] 범용 셀렉터라 이미지·갭 줄도 잡는다(_gridEditable 은 글자 담는 줄만 인정).
+ *   ★줄이 «있는» 셀의 여백을 클릭하면 undefined 를 돌려준다 — 호출부가 그걸 보고 «기존
+ *     선택을 그대로 둔다»(showGridProperties 는 addrArg===undefined 면 grdGetActiveLine 을
+ *     쓴다) — 선택이 안 튄다(D5 와 같은 보호). 「진짜 빈 셀」(lines.length===0)만 셀 모드로. */
+function _gridAddrAt(node, block) {
+  /* ★중첩 안 줄을 «먼저» 본다 (T-200 커밋 ②).
+     까닭 — 중첩 안 줄은 `.grd-nested` «안»에 있고 그 `.grd-nested` 는 data-line 을 가진다.
+     아래 [data-line] 셀렉터를 먼저 돌리면 closest 가 언제나 «바깥 중첩 셸»을 집어,
+     중첩 안 줄은 영영 못 고른다(2026-09-25 이전의 동작이 정확히 그것이었다).
+     ★돌려주는 주소에 `np` 가 실린다 = 「이건 중첩 안 줄이다」는 표식이고, 소비자 전수가
+       그걸 보고 «아무것도 안 한다»로 빠진다 — editor.js ⌫ · overlay-handles 이미지 핸들 둘 ·
+       prop-grid 의 리졸버 둘. ⛔li 는 «품은 duo 줄»이라 np 를 무시하면 엉뚱한 줄을 건드린다. */
+  const nestEl = node && node.closest ? node.closest('[data-r][data-c][data-nroot][data-npath]') : null;
+  if (nestEl && block.contains(nestEl)) {
+    const r = Number(nestEl.dataset.r), c = Number(nestEl.dataset.c), li = Number(nestEl.dataset.nroot);
+    const np = nestEl.dataset.npath;
+    if (!Number.isInteger(r) || !Number.isInteger(c) || !Number.isInteger(li) || !np) return undefined;
+    return { r, c, li, np };
+  }
+  const lineEl = node && node.closest ? node.closest('[data-r][data-c][data-line]') : null;
+  if (lineEl && block.contains(lineEl)) {
+    const r = Number(lineEl.dataset.r), c = Number(lineEl.dataset.c), li = Number(lineEl.dataset.line);
+    if (!Number.isInteger(r) || !Number.isInteger(c) || !Number.isInteger(li)) return undefined;
+    return { r, c, li };
+  }
+  const cellEl = node && node.closest ? node.closest('.grd-cell[data-r][data-c]') : null;
+  if (cellEl && block.contains(cellEl)) {
+    const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
+    if (!Number.isInteger(r) || !Number.isInteger(c)) return undefined;
+    let lines;
+    try { lines = window.getGridModel?.(block)?.cells?.[r]?.[c]?.lines; } catch (_) { lines = null; }
+    if (Array.isArray(lines) && lines.length === 0) return { r, c, li: null };
+    return undefined;   // 줄이 있는 셀의 여백 — 기존 선택 유지
+  }
+  return undefined;
+}
+
 /* 화면 글자 → 데이터 문자열. 렌더러가 white-space:pre-wrap 이라 줄바꿈이 그대로 살아난다
    → textContent(줄바꿈 소실) 가 아니라 innerText 를 쓴다. */
 function _gridReadText(host) {
@@ -137,8 +199,13 @@ function _gridEndEdit(block, host, addr) {
      DOM 에 남은 채 찍히면 그 스냅샷이 「옛 dataset + 새 글자」로 어긋난다.
      되돌린 직후 updateGridBlock 이 renderGridBlock 으로 새 글자를 다시 그리므로 깜빡임은 없다. */
   host.textContent = before;
+  /* ★중첩 «안» 줄이면 `np` 를 같이 보낸다 — T-220 ① 이 낸 쓰기 길(patchCell{lineIndex, np}).
+     ⛔`np` 를 «항상» 싣지 마라: 바깥 줄 커밋의 뜻이 바뀌고, 모델 입구가 「np 는 lineIndex 와
+       같이 와야 한다」를 다른 자리에서 다시 재게 된다. 있을 때만 싣는다. */
   const res = window.updateGridBlock?.(block.id, {
-    patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, text },
+    patchCell: addr.np
+      ? { r: addr.r, c: addr.c, lineIndex: addr.li, np: addr.np, text }
+      : { r: addr.r, c: addr.c, lineIndex: addr.li, text },
   });
   // 실패(좌표가 범위 밖 등)면 화면은 이미 «편집 전»이라 화면·데이터가 갈라진 채 남지 않는다.
   if (res && res.ok === false) window.showToast?.(`줄 수정 실패: ${res.message || res.code}`);
@@ -173,19 +240,20 @@ function _modalEndEdit(block, host) {
 }
 
 function _gridBeginEdit(hit, e) {
-  const { block, host, r, c, li } = hit;
+  const { block, host, r, c, li, np } = hit;   // ★np = 중첩 «안» 줄의 주소(없으면 undefined)
   if (host.getAttribute('contenteditable') === 'true') return;
   /* ★편집에 들어가는 줄은 «선택된 줄»이기도 하다 — 우측 패널이 그 줄의 Typography·Fill 을 봐야 한다.
      ⛔focus() «전»에 부른다: 패널은 propPanel(캔버스 밖) 을 다시 그릴 뿐 이 host 를 안 건드리지만,
        순서를 뒤집으면 나중에 누가 패널에서 캔버스를 만지게 고칠 때 캐럿이 날아간다. */
-  window.showGridProperties?.(block, { r, c, li });
+  /* ★np 가 있으면 «중첩 안 줄»의 패널을 띄운다 — T-220 ②가 그 길을 열어 뒀다. */
+  window.showGridProperties?.(block, np ? { r, c, li, np } : { r, c, li });
   block.classList.add('editing');   // 공통 mousedown 드래그·dragstart·삭제키 가드가 이걸 본다
   host.setAttribute('contenteditable', 'true');
   // 부모 row 에 draggable="true" 가 걸려 있다 — 안 끄면 «글자 드래그 선택»이 블록 드래그가 된다
   // (텍스트 블록도 같은 이유로 contenteditable 요소에 draggable=false 를 박는다 — 이 파일의 dragTarget 배선).
   host.setAttribute('draggable', 'false');
   host._gridBefore = _gridReadText(host);
-  const addr = { r, c, li };
+  const addr = np ? { r, c, li, np } : { r, c, li };
   // 라인 요소는 렌더마다 새로 만들어진다 → 이 요소에 처음 한 번만 붙이면 된다(누수 없음).
   if (!host._gridEditBound) {
     host._gridEditBound = true;
@@ -199,6 +267,19 @@ function _gridBeginEdit(hit, e) {
     });
   }
   host.focus();
+  /* ★안내문구(기본문구) 그대로인 칸이면 «전체선택» — 캐럿만 꽂으면 바로 친 글자가 기본문구에
+     이어붙는다(사용자 관점 훑기 0920 U-26: 「내용을 입력하세요.강아지 간식」).
+     ⚠️GRID_CELL_DEFAULT_TEXT 를 './blocks/grid-block.js' 에서 정적 import 하면 «순환»이다
+       (grid-block.js → drag-drop.js → `export * from './block-drag.js'`). 이 파일이 _gridEndEdit 에서
+       window.updateGridBlock 을 쓰는 것과 같은 window 브리지 관례를 따른다.
+     ⛔폴백 리터럴을 두지 «않는다» — 초판엔 `|| '내용을 입력하세요.'` 가 있었는데, 그건 정본이 바뀌면
+       혼자 낡아 «조용히» 전체선택을 멈추는 그림자 복제였다(검사로도 안 잡히는 축).
+       그리드 셀이 화면에 있다는 것은 grid-block.js 가 이미 돌았다는 뜻이라 브리지는 그때 서 있다
+       (그 전제는 tests/dom/placeholder-selectall-banner-grid.dom.spec.js 가 직접 잰다).
+       혹시 없으면 «아무 판정도 안 하고» 아래 기존 caret 분기로 떨어진다 — 옛 동작이라 새 손상은 없다.
+     ⚠️개행·공백 차이 오탐 방지로 양쪽 trim. 안내문구가 아니면 «아래 기존 caretRangeFromPoint 분기 그대로». */
+  const _gridPh = window.GRID_CELL_DEFAULT_TEXT;
+  if (_gridPh != null && _gridReadText(host).trim() === String(_gridPh).trim()) { selectAllEditableContents(host); return; }
   // 클릭한 위치에 캐럿 — 텍스트 블록 더블클릭과 같은 방식(caretRangeFromPoint).
   const range = e && document.caretRangeFromPoint
     ? document.caretRangeFromPoint(e.clientX, e.clientY)
@@ -281,6 +362,97 @@ function bindPlacementDrag(unitEl, block) {
   });
 }
 
+/* 도형 블록(.shape-block) 4코너 리사이즈 핸들 — 현빈 2026-09-20 ⌘Z 제보의 «그» 경로.
+   ★히스토리는 «바꾸기 전»에 1회(js/CLAUDE.md 「히스토리 규약」). onUp 에서 찍으면
+     「막 삽입된 상태」 스냅샷이 스택에 없어 첫 ⌘Z 가 리사이즈와 «삽입»을 한꺼번에 먹는다. */
+function _onShapeHandleMouseDown(e, block, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const ss  = block.closest('.frame-block');
+  const ssRect = ss?.getBoundingClientRect();
+  const scaler0 = document.getElementById('canvas-scaler');
+  const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+  const startW = ssRect ? Math.round(ssRect.width / scale0) : (parseInt(ss?.style.width || ss?.dataset.width) || 100);
+  const startH = ssRect ? Math.round(ssRect.height / scale0) : (parseInt(ss?.style.height || ss?.dataset.height) || 100);
+  const _hist = window.beginDragHistory?.('도형 크기');
+  let _moved = false;   // ★아래 onUp 의 «합성 click 삼키기» 판정용 — 진짜로 끌었을 때만 삼킨다
+
+  function onMove(ev) {
+    const scaler = document.getElementById('canvas-scaler');
+    const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
+    if (dx || dy) _moved = true;
+
+    // frame(ss)만 리사이즈 — block/svg는 CSS 100%로 자동 추종
+    let newW = startW, newH = startH;
+    if (dir.includes('e')) newW = Math.max(20, startW + dx);
+    if (dir.includes('w')) newW = Math.max(20, startW - dx);
+    if (dir.includes('s')) newH = Math.max(20, startH + dy);
+    if (dir.includes('n')) newH = Math.max(20, startH - dy);
+    newW = Math.round(newW); newH = Math.round(newH);
+
+    // Shift: 비율 고정 (더 많이 변한 축이 기준)
+    if (ev.shiftKey && startW > 0 && startH > 0) {
+      const ratio = startW / startH;
+      const dW = Math.abs(newW - startW);
+      const dH = Math.abs(newH - startH);
+      if (dW >= dH) newH = Math.max(20, Math.round(newW / ratio));
+      else          newW = Math.max(20, Math.round(newH * ratio));
+    }
+
+    if (ss) {
+      ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
+      /* ★minHeight 도 «세트로» — addShapeBlock(js/block-factory.js:2172)이 심어 둔
+         min-height:100px 가 남아 있으면 H 를 100 아래로 내려도 화면은 100 에 바닥치고
+         style/dataset/패널 H 만 작아진다(«패널 값 ≠ 실제 크기», 최대 40px 거짓).
+         같은 일을 하는 다른 두 자리는 이미 세트로 처리한다 —
+         js/props/prop-shape.js applySize · js/overlay-handles.js _onFrameHandleMouseDown.
+         (2026-09-21 최종통합 QA medium: 「핸들로 높이를 줄일 수 없다」) */
+      ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
+    }
+    // 우측 패널 슬라이더 동기화
+    const wNum = document.getElementById('shape-w-num');
+    const wSl  = document.getElementById('shape-w-slider');
+    const hNum = document.getElementById('shape-h-num');
+    const hSl  = document.getElementById('shape-h-slider');
+    if (wNum) { wNum.value = newW; if (wSl) wSl.value = newW; }
+    if (hNum) { hNum.value = newH; if (hSl) hSl.value = newH; }
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
+    /* ★끌고 난 «뒤»의 합성 click 을 삼킨다 (2026-09-21 최종통합 QA medium)
+       .shape-handle 은 블럭의 «자식»이라(아래 _addShapeHandles) press 와 release 의
+       공통 조상이 «섹션»이 된다 ⇒ 브라우저가 섹션에서 click 을 합성하고,
+       js/editor.js 의 sec.addEventListener('click') → selectSectionWithModifier(sec) 가
+       deselectAll 한다. 그래서 «손잡이로 크기를 바꾼 바로 그 순간» 선택이 풀리고 우측
+       패널이 「Section 01」로 돌아가, 방금 바꾼 W/H 를 확인할 수도 이어서 조정할 수도 없었다
+       (mousedown 의 stopPropagation 은 소용없다 — click 은 공통 조상에서 «새로» 난다).
+       ⛔에셋/프레임 손잡이엔 이 증상이 없다 — 그쪽 손잡이는 overlay 레이어에 있어
+         공통 조상이 섹션이 아니다. 여기만 구조가 다르다.
+       꼴은 레포 선례 그대로 — js/blocks/mockup-block.js onUp 의 killClick(capture + 120ms).
+       ⚠️«끈 적이 없으면»(제자리 클릭) 삼키지 않는다 — 손잡이를 그냥 누르는 건 선택 동작이다. */
+    if (_moved) {
+      const killClick = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+      document.addEventListener('click', killClick, true);
+      setTimeout(() => document.removeEventListener('click', killClick, true), 120);
+    }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 function bindBlock(block) {
   if (block._blockBound) return;
   block._blockBound = true;
@@ -301,6 +473,7 @@ function bindBlock(block) {
   const isDivider     = block.classList.contains('divider-block');
   const isBridge      = block.classList.contains('bridge-block');
   const isGrid         = block.classList.contains('grid-block');
+  const isQA           = block.classList.contains('qa-block');
   const isInfoCard    = block.classList.contains('infocard-block');
   const isInnerCard   = block.classList.contains('innercard-block');
   const isModal       = block.classList.contains('modal-block');
@@ -312,6 +485,7 @@ function bindBlock(block) {
   const isIconify    = block.classList.contains('icon-block');
   const isMockup     = block.classList.contains('mockup-block');
   if (isMockup) window.initMockupCrop?.(block);  // ⌘드래그 오프셋+섹션 밖 크롭 초기화(로드/생성 보편)
+  if (isQA) window.bindQABlockEvents?.(block);   // 체크박스/헤더접기/피드백/ID복사 — admin QA 전용 인터랙션
   const isVector     = block.classList.contains('vector-block');
   const isStep       = block.classList.contains('step-block');
   const isChat       = block.classList.contains('chat-block');
@@ -323,6 +497,14 @@ function bindBlock(block) {
   block.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (block.classList.contains('editing')) return;
+    /* ★오버레이(플로팅) 블록은 이 일반 드래그를 «타입과 무관하게» 비켜간다 — 섹션 경계
+       탄성클램프·크로스섹션 재부모가 필요해 전용 드래그(js/overlay-float.js
+       bindFloatMoveDrag)가 맡는다. 일반 드래그는 「자기 free-layout 프레임 안에서만
+       움직인다」를 전제해서(parentFrame 이 없으면 clamp 도 재부모도 «안 한다») 델타가
+       그대로 style.left/top 에 꽂혀 다음 섹션 배경 밑에 깔린다 — 텍스트가 2026-09-15 에
+       겪은 P0 그대로다. 도형·에셋으로 넓히면서 그 가드도 «대칭»으로 올린다(2026-09-20).
+       ⛔stopPropagation «전»에 return 해야 posEl 에 걸린 전용 리스너까지 버블된다. */
+    if (_floatPosElOf(block)?.dataset.overlayBlock === 'true') return;
     if (_getParentFrame(block) && !block.classList.contains('selected')) {
       // text-block 특례: text-frame 부모가 있고 실제 freeLayout frame이 selected면 드래그 허용
       if (isText) {
@@ -349,6 +531,13 @@ function bindBlock(block) {
       dragEl = ss;
     } else if (isText) {
       const tf = block.closest('.frame-block[data-text-frame="true"]');
+      /* ★오버레이(플로팅) 텍스트는 이 일반 드래그(자기 free-layout 프레임 안에서만 움직이는 것)를
+         안 쓴다 — 섹션 경계 clamp·크로스섹션 재부모가 필요해서 전용 드래그
+         (prop-text-wireup-overlay.js _bindOverlayMoveDrag, tf 에 바인딩)로 넘긴다.
+         ⛔stopPropagation 전에 return 해야 그 전용 리스너까지 이벤트가 버블된다 —
+           확대블럭이 :383 `if (isZoom) return`로 이 일반 드래그를 비켜가는 것과 같은 패턴
+           (2026-09-15, 오버레이를 다른 섹션으로 끌면 배경 밑에 깔리던 버그의 근본 수정). */
+      if (tf?.dataset.overlayBlock === 'true') return;
       if (tf && tf.style.position === 'absolute') {
         // TF가 절대배치 B 안에 있는 경우: B가 selected이면 B drag handler에 위임
         // (Fix3로 C가 selected된 상태에서 드래그 → TF가 아닌 B가 움직여야 함)
@@ -400,7 +589,7 @@ function bindBlock(block) {
           '.icon-block.selected,' +
           '.gap-block.selected,.icon-circle-block.selected,.table-block.selected,' +
           '.label-group-block.selected,.graph-block.selected,.canvas-block.selected, .banner02-block.selected, .comparison-block.selected,' +
-          '.divider-block.selected, .bridge-block.selected,.grid-block.selected,.infocard-block.selected,.innercard-block.selected,.mockup-block.selected,.vector-block.selected,.step-block.selected'
+          '.divider-block.selected, .bridge-block.selected,.grid-block.selected,.infocard-block.selected,.innercard-block.selected,.mockup-block.selected,.vector-block.selected,.step-block.selected,.qa-block.selected'
         );
         if (hasSelected) {
           multiPeers.push({
@@ -420,12 +609,16 @@ function bindBlock(block) {
     let draggedOutside = false;    // 프레임 밖 드래그 상태 플래그
     let _dropInsertBefore = null;  // 삽입 기준 element (null=끝에 추가)
     let _shiftAxis = null;         // Shift 수직/수평 잠금 축
+    const _hist = window.beginDragHistory?.('블록 이동');
     function onMove(ev) {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
       if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
       moved = true;
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm(dx / scale, dy / scale);
 
       // Shift 수직/수평 이동 제한
       if (!ev.shiftKey) { _shiftAxis = null; }
@@ -477,6 +670,37 @@ function bindBlock(block) {
         newTop  = snapped.top;
       }
 
+      /* ★T-088(2026-09-22) — 「프레임 안에서만 움직인다」를 «실제로» 지킨다.
+         이 드래그의 전제는 바로 위 「오버레이(플로팅) 블록은 이 일반 드래그를 비켜간다」
+         주석이 이미 적어 뒀다 — 「일반 드래그는 자기 free-layout 프레임 «안»에서만
+         움직인다(parentFrame 이 없으면 clamp 도 재부모도 안 한다)」.
+         그런데 «있을 때»의 clamp 가 코드에 없었다. .frame-block 은 overflow:hidden
+         (css/editor-blocks.css:11) 이고, 프레임은 자식을 옮겨도 커지지 않는다
+         (_resizeFrameToFitChildren = 의도된 no-op) ⇒ 자식을 밑변 너머로 끌면 그 블록은
+         «화면에서 사라진다». 끌어내기(drag-out)는 중심이 프레임 밖 DRAGOUT_MARGIN(60px)을
+         넘어야 발동하므로, 그 사이에 «사라지기만 하고 빠져나오지도 않는» 띠가 생긴다.
+         실측(2026-09-22 · 포트 9635 · 줌 100% · 진짜 입력 주입):
+           그룹(314px) 안 제목(166px)을 한 칸 끌어내림 → style.top 148→288 ·
+           rect 472~638 (그룹 밑변 498 을 140px, 섹션 밑변 598 까지 넘음) ·
+           가운데 elementFromPoint = gap-block(= 안 잡힌다) · innerText 는 그대로 남음
+           = DOM 소실(⑴)도 좌표만의 탈출(⑶)도 아니고 «프레임이 잘라 먹은 것»(⑵).
+         ⚠️clamp 는 반드시 «끌어내기 판정 뒤»다 — 먼저 죄면 중심이 프레임을 못 넘어
+           drag-out 이 영영 안 난다(= 그룹에서 빼낼 길이 사라진다).
+         ★기준 부모는 «부모부터» 찾는다 — dragEl 자신이 free-layout 프레임일 수 있어서다
+           (도형 래퍼는 makeFrameBlock 기본값이라 data-free-layout 을 갖는다).
+           위 parentFrame 은 closest 라 그 경우 «자기 자신»이 잡혀 maxL/maxT=0 → 도형이
+           (0,0) 에 못 박힌다. 형제 경로(bindFrameDropZone 의 「absolute 셀 프레임 mousemove
+           드래그」, `const parentFreeFrame = ss.parentElement?.closest(…)`)도 parentElement
+           부터 찾고 거기서 clamp 한다 — 같은 식으로 맞춘다. */
+      const _clampParent = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;
+      if (_clampParent) {
+        const _c = clampChildIntoFrame(
+          newLeft, newTop, dragEl.offsetWidth, dragEl.offsetHeight,
+          _clampParent.offsetWidth, _clampParent.offsetHeight);
+        newLeft = _c.left;
+        newTop  = _c.top;
+      }
+
       dragEl.style.left = `${newLeft}px`;
       dragEl.style.top  = `${newTop}px`;
 
@@ -511,7 +735,10 @@ function bindBlock(block) {
 
       // 드래그아웃: freeLayout 프레임 밖에서 마우스업 → 섹션 레벨로 추출
       if (moved && draggedOutside && _dragOutParentFrame && _dragOutParentSection) {
-        window.pushHistory?.();
+        /* ⛔여기서 또 찍지 «않는다» — onMove 첫 틱이 이미 이 제스처의 «시작»을 찍었다.
+           (예전엔 이 줄이 추출 «전»을 찍는 유일한 표본이라 필요했다. 지금 다시 찍으면
+            한 제스처가 항목 둘이 되어 ⌘Z 를 두 번 눌러야 원위치가 된다.)
+           끝 표본은 아래 재바인딩이 끝난 뒤 한 번 찍는다. */
         const inner = _dragOutParentSection.querySelector('.section-inner');
         clearDropIndicators();
 
@@ -549,16 +776,13 @@ function bindBlock(block) {
           // 맨몸 절대배치 블록(에셋·아이콘·표 등): 정상 플로우 블록과 동일하게
           // .row[data-layout=stack]로 감싼다(makeAssetBlock 등 삽입 함수와 동일 구조,
           // block-factory.js:111 관례) — 그래야 ⌘[/⌘] 이동 단위(closest('.row'))도 맞는다.
-          const row = document.createElement('div');
-          row.className = 'row';
-          row.id = (typeof window.genId === 'function' ? window.genId('row') : 'row_' + Math.random().toString(36).slice(2, 9));
-          row.dataset.layout = 'stack';
-          dragEl.replaceWith(row);
-          row.appendChild(dragEl);
+          // ★DOM 변환은 shape-frame.js toFlowUnit(SSOT) — 로드 정규화(도형 래퍼 침입 블록 꺼내기)와 같은 규칙.
+          const row = toFlowUnit(dragEl);
           bindPlacementDrag(row, dragEl);
         }
 
         window.buildLayerPanel?.();
+        window.pushHistory?.();   // ★끝 상태(추출 완료) — 시작 상태는 onMove 첫 틱이 찍었다
         return;
       }
 
@@ -574,6 +798,8 @@ function bindBlock(block) {
   });
 
   if (isShape) {
+    // 붙여넣기·⌘D·재로드로 id 가 바뀐 사본의 그라데이션 짝을 다시 잇는다(0919 QA)
+    try { window.relinkShapeGradient?.(block); } catch (_) {}
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
@@ -582,22 +808,15 @@ function bindBlock(block) {
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       // shape-block은 프레임 선택 단계를 건너뛰고 직접 선택 (핸들 즉시 표시)
-      window.deselectAll?.();
-      if (ss) {
-        const parentSec = ss.closest('.section-block');
-        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
-        ss.classList.add('selected');
-        window._activeFrame = ss;
-      }
-      block.classList.add('selected');
-      window.syncSection?.(sec);
-      window.highlightBlock?.(block, layerItem);
-      window.setBlockAnchor?.(block);
-      window.showShapeProperties?.(block);
+      selectShapeBlock(block);
     });
 
-    // 4코너 리사이즈 핸들 생성 (중복 방지)
-    if (!block.querySelector('.shape-handle')) {
+    /* 4코너 리사이즈 핸들 생성 (중복 방지)
+       ★2026-09-21 — 「자식이 없다」만으로는 모자란다. 선택 중이면 손잡이가 고정층으로 «탈출»해
+         있어(js/overlay-handles.js 손잡이 탈출층) 이 자리에서는 안 보인다 ⇒ 이 블럭을 다시
+         bind 하면 두 번째 벌이 생기고, 선택이 풀릴 때 탈출분이 집으로 돌아와 8개가 된다.
+         표식은 DOM 속성이 아니라 JS 속성이다 — 저장·복제·직렬화에 안 실린다(복제본은 정상 생성). */
+    if (!block.querySelector('.shape-handle') && !block.__handlesEscaped) {
       ['nw', 'ne', 'sw', 'se'].forEach(dir => {
         const h = document.createElement('div');
         h.className = `shape-handle ${dir}`;
@@ -607,65 +826,11 @@ function bindBlock(block) {
     }
 
     // 핸들 mousedown → 리사이즈
+    /* ★익명 화살표로 두지 «않는다» — tests/unit/_slice-block.js 가 최상위 이름으로만 구간을
+       떠낼 수 있어서, 인라인이면 행동 테스트가 아예 «안 붙는다». 형제들(_onHandleMouseDown 등)과
+       같은 꼴로 올린다. 캡처하는 것은 block 하나뿐이라 기계적 이동이다. */
     block.querySelectorAll('.shape-handle').forEach(handle => {
-      handle.addEventListener('mousedown', e => {
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        e.preventDefault();
-        const dir    = handle.dataset.dir;
-        const startX = e.clientX;
-        const startY = e.clientY;
-        const ss  = block.closest('.frame-block');
-        const ssRect = ss?.getBoundingClientRect();
-        const scaler0 = document.getElementById('canvas-scaler');
-        const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-        const startW = ssRect ? Math.round(ssRect.width / scale0) : (parseInt(ss?.style.width || ss?.dataset.width) || 100);
-        const startH = ssRect ? Math.round(ssRect.height / scale0) : (parseInt(ss?.style.height || ss?.dataset.height) || 100);
-
-        function onMove(ev) {
-          const scaler = document.getElementById('canvas-scaler');
-          const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-          const dx = (ev.clientX - startX) / scale;
-          const dy = (ev.clientY - startY) / scale;
-
-          // frame(ss)만 리사이즈 — block/svg는 CSS 100%로 자동 추종
-          let newW = startW, newH = startH;
-          if (dir.includes('e')) newW = Math.max(20, startW + dx);
-          if (dir.includes('w')) newW = Math.max(20, startW - dx);
-          if (dir.includes('s')) newH = Math.max(20, startH + dy);
-          if (dir.includes('n')) newH = Math.max(20, startH - dy);
-          newW = Math.round(newW); newH = Math.round(newH);
-
-          // Shift: 비율 고정 (더 많이 변한 축이 기준)
-          if (ev.shiftKey && startW > 0 && startH > 0) {
-            const ratio = startW / startH;
-            const dW = Math.abs(newW - startW);
-            const dH = Math.abs(newH - startH);
-            if (dW >= dH) newH = Math.max(20, Math.round(newW / ratio));
-            else          newW = Math.max(20, Math.round(newH * ratio));
-          }
-
-          if (ss) {
-            ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
-            ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
-          }
-          // 우측 패널 슬라이더 동기화
-          const wNum = document.getElementById('shape-w-num');
-          const wSl  = document.getElementById('shape-w-slider');
-          const hNum = document.getElementById('shape-h-num');
-          const hSl  = document.getElementById('shape-h-slider');
-          if (wNum) { wNum.value = newW; if (wSl) wSl.value = newW; }
-          if (hNum) { hNum.value = newH; if (hSl) hSl.value = newH; }
-          window.scheduleAutoSave?.();
-        }
-        function onUp() {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-          window.pushHistory?.();
-        }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      });
+      handle.addEventListener('mousedown', e => _onShapeHandleMouseDown(e, block, handle.dataset.dir));
     });
 
     // HTML5 drag fall-through → 일반 블록과 동일한 DnD 파이프라인 사용
@@ -694,6 +859,7 @@ function bindBlock(block) {
       const startTop  = parseInt(block.style.top  || '0');
       let moved = false;
       let _shiftAxis2 = null;
+      const _hist = window.beginDragHistory?.('블록 이동');
 
       function onMove(ev) {
         const dx = ev.clientX - startX;
@@ -703,6 +869,9 @@ function bindBlock(block) {
         // 캔버스 스케일 보정
         const scaler = document.getElementById('canvas-scaler');
         const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+        /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+           다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+        _hist?.arm(dx / scale, dy / scale);
         // Shift 수직/수평 이동 제한
         if (!ev.shiftKey) { _shiftAxis2 = null; }
         if (ev.shiftKey && !_shiftAxis2 && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
@@ -826,6 +995,31 @@ function bindBlock(block) {
     });
   }
 
+  /* ★오버레이(플로팅) 전용 크로스섹션 이동 드래그 — «타입으로 가르지 않는다».
+     여기서(=bindBlock, 블록당 1회) 거는 이유: 패널 토글은 enterFloat 이 자기 마지막 줄에서
+     직접 걸어주지만(js/overlay-float.js), «프로젝트를 다시 연» 경로에는 enterFloat 이 안 돈다.
+     그 경로에 배선이 닿는 자리는 bindBlock 하나뿐이다.
+     ★2026-09-21(마지막 라운드 최종반영 QA medium) — 옛 판은 `if (isShape || isAsset)` 과
+       `if (isText)`(그것도 .frame-block[data-text-frame] 래퍼를 찾아서) 두 갈래뿐이었다.
+       .icon-text-block 은 .text-block 이 «아니고» 그 래퍼도 없어(posElOf 가 블럭 자신을
+       돌려준다) 어느 갈래에도 안 걸렸다 — 실앱 실측(9515, 줌 40%): 토글 직후엔 움직이는데
+       저장→다시 열면 _overlayMoveBound=false 라 «0px 도 안 움직이고» 선택까지 통째로 풀렸다
+       (끈 뒤의 합성 click 을 삼키는 가드도 이 onUp 안에 살기 때문이다).
+       같은 함수 안의 «일반 드래그 비켜가기» 가드(:469)는 이미 타입과 무관하게
+       `_floatPosElOf(block)?.dataset.overlayBlock === 'true'` 로 판정한다 — 비켜가기는 전 타입인데
+       받아줄 전용 드래그만 세 타입이라 아이콘텍스트가 두 드래그 «사이»로 샜다.
+     ⇒ 가드와 «같은 술어»로 대칭을 맞춘다: posElOf 가 자리를 주면 건다. 타입 해석은
+       js/overlay-float.js posElOf 한 곳뿐이고(도형=자유배치 래퍼 · 텍스트=text-frame 래퍼 ·
+       에셋/아이콘텍스트=자신), bindFloatMoveDrag 는 ⑴같은 posEl 에 두 번 안 걸리고
+       (_overlayMoveBound) ⑵매 mousedown 마다 dataset.overlayBlock 을 live 로 재확인해
+       오버레이가 아니면 조용히 빠진다 ⇒ 오버레이가 못 되는 타입에 걸어둬도 무해하다.
+     회귀: tests/dom/overlay-load-path-move-drag.dom.spec.js(타입 전수 L1·L2) ·
+           tests/unit/overlay-icon-text-handles.test.mjs 문④. */
+  {
+    const _posForFloat = _floatPosElOf(block);
+    if (_posForFloat) _bindFloatMoveDrag(_posForFloat);
+  }
+
   if (isText) {
     block.addEventListener('click', e => {
       e.stopPropagation();
@@ -854,6 +1048,10 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showTextProperties(block);
+      /* ★모서리 리사이즈 핸들 — 이 경로엔 호출이 «아예 없었다»(zoom 은 1551행, modal 은
+         1912행에 같은 입구가 있다). 그래서 오버레이를 켜도 테두리만 보이고 «모서리 점»이
+         안 나왔다. showHandlesFor 가 오버레이 여부를 스스로 가른다 ⇒ 흐름 텍스트는 no-op. */
+      window.showHandlesFor?.(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
@@ -973,6 +1171,8 @@ function bindBlock(block) {
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
+      // 영상 트림 미리보기 단계는 pan/zoom 편집 미지원(프로퍼티 패널 트림 UI로 조작) — enterImageEditMode 미스매치 방지
+      if (block.dataset.assetType === 'video-pending') return;
       if (block.classList.contains('has-image')) {
         window.enterImageEditMode(block);
       } else {
@@ -996,9 +1196,13 @@ function bindBlock(block) {
       e.stopPropagation();
       block.classList.remove('drag-over');
       const file = e.dataTransfer.files[0];
-      // TODO-QA: 비이미지 파일 드롭 시 사용자 피드백 없음 (무시됨). 토스트 안내 추가 검토
-      if (file && !file.type.startsWith('image/')) { window.showToast?.('이미지 파일만 업로드할 수 있습니다.'); return; }
-      if (file) window.loadImageToAsset(block, file);
+      // TODO-QA: 비이미지/영상 파일 드롭 시 사용자 피드백 없음(무시됨). 토스트 안내 추가 검토
+      if (file && !file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+        window.showToast?.('이미지 또는 영상 파일만 업로드할 수 있습니다.');
+        return;
+      }
+      if (file && file.type.startsWith('video/')) window.loadVideoToAsset(block, file);
+      else if (file) window.loadImageToAsset(block, file);
     });
     // 로드/undo 후 has-image 상태 복원
     if (block.classList.contains('has-image')) {
@@ -1007,12 +1211,29 @@ function bindBlock(block) {
         e.stopPropagation();
         window.clearAssetImage(block);
       });
-      // 수동 편집된 위치/크기 복원 (imgW가 있으면 절대 위치 모드)
-      window.applyImageTransform(block);
-      // 수동 편집 없으면 object-fit 적용
-      if (!block.dataset.imgW) {
-        const img = block.querySelector('.asset-img');
-        if (img) img.style.objectFit = block.dataset.fit || 'cover';
+      if (block.dataset.assetType === 'video-pending') {
+        window.attachAssetVideoTrimLoop?.(block);
+      } else {
+        // 수동 편집된 위치/크기 복원 (imgW가 있으면 절대 위치 모드)
+        window.applyImageTransform(block);
+        // 수동 편집 없으면 object-fit 적용
+        if (!block.dataset.imgW) {
+          const img = block.querySelector('.asset-img');
+          if (img) img.style.objectFit = block.dataset.fit || 'cover';
+        }
+        // GIF 토글 버튼 재바인딩 + 항상 정지 상태로 복원(재생 중 상태는 저장 대상이 아님)
+        const gifBtn = block.querySelector('.asset-gif-toggle');
+        if (gifBtn && block.dataset.gifSrc) {
+          block.dataset.gifPlaying = 'false';
+          gifBtn.textContent = '▶ GIF 재생';
+          gifBtn.classList.remove('active');
+          const img = block.querySelector('.asset-img');
+          if (img && block.dataset.imgSrc) img.src = block.dataset.imgSrc;
+          gifBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            window.toggleAssetGifPlayback(block);
+          });
+        }
       }
     }
   }
@@ -1392,7 +1613,10 @@ function bindBlock(block) {
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
-      window.showStepProperties?.(block);
+      // ⑨ 「눌린 스텝」을 우측 패널에 같이 넘긴다 — 그 스텝만 펼친다(bn2의 [data-line-idx] 선례와 동일 모양).
+      const _stbItem = e.target.closest?.('[data-step-idx]');
+      const _stbIdx = (_stbItem && block.contains(_stbItem)) ? parseInt(_stbItem.dataset.stepIdx, 10) : undefined;
+      window.showStepProperties?.(block, Number.isFinite(_stbIdx) ? _stbIdx : undefined);
     });
   }
 
@@ -1660,6 +1884,11 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showTextProperties(block);
+      /* ★모서리 리사이즈 핸들 — 이 경로에도 호출이 «아예 없었다»(흐름 텍스트는 947행,
+         zoom 은 1598행, modal 은 1959행에 같은 입구가 있다). 그래서 아이콘+텍스트는
+         오버레이를 켜도 테두리만 보이고 모서리 점이 0개였다(2026-09-20 QA 실측).
+         showHandlesFor 가 오버레이 여부를 스스로 가른다 ⇒ 흐름 아이콘텍스트는 no-op. */
+      window.showHandlesFor?.(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
@@ -1773,7 +2002,7 @@ function bindBlock(block) {
   }
 
   // grid/infocard: bridge와 동일한 클릭-선택 (dataset 모델 정적 블록)
-  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties']]) {
+  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties']]) {
     if (!flag) continue;
     block.addEventListener('click', e => {
       e.stopPropagation();
@@ -1801,6 +2030,13 @@ function bindBlock(block) {
         window.showFrameProperties?.(ss);
         return;
       }
+      /* ★0918 grid: deselectAll 이 활성줄을 지운다(블럭 떠남 = 줄 선택 해제) — D5(줄 있는 칸의
+         여백 클릭 시 선택 유지)를 위해 «지우기 전» 값을 잡아 둔다. ⛔순서 뒤집으면 조용히 깨진다. */
+      const _grdPrevAddr = showFn === 'showGridProperties' ? (window.grdGetActiveLine?.(block) || null) : null;
+      /* ★0918r2 grid(T-058, 피그마식) — 첫 클릭 = 블럭 선택, «이미 이 블럭만 선택된» 상태의 클릭 = 줄 선택.
+         이 판정도 deselectAll «전»이어야 한다(뒤에서 재면 selected 가 방금 지워져 늘 false →
+         줄 선택이 영영 불가능). ⛔순서 뒤집기 금지 — 유닛 소스 가드가 지킨다. */
+      const _grdWasSelected = showFn === 'showGridProperties' ? _gridWasCanvasSelected(block) : false;
       window.deselectAll();
       _restoreParentFrameSelected(block);
       block.classList.add('selected');
@@ -1815,10 +2051,22 @@ function bindBlock(block) {
          ★2번째 인자는 «선택적»이다 — 다른 셋(infocard/innercard/modal)은 그냥 무시한다. */
       let _grdAddr;
       if (showFn === 'showGridProperties') {
-        const _h = _gridEditable(e.target);
-        if (_h && _h.block === block) _grdAddr = { r: _h.r, c: _h.c, li: _h.li };
+        /* ★_gridAddrAt — 줄(글자/이미지/갭)과 «진짜 빈 셀」을 모두 잡는다(위 정의).
+           undefined 면 «기존 선택 유지」다(줄이 있는 셀의 여백 클릭 — D5 와 같은 보호). */
+        const _at = _gridAddrAt(e.target, block);
+        /* ★0918 grid: undefined 를 넘기지 않는다(= 옛 줄 되살리기). 칸 밖(테두리·패딩·gap)은
+           null = 블럭 전체 선택, 줄 있는 칸의 여백은 직전 줄 유지(D5). 판정은 prop-grid.js 한 곳. */
+        const _cellEl = e.target && e.target.closest ? e.target.closest('.grd-cell') : null;
+        const _insideCell = !!(_cellEl && _cellEl.closest('.grid-block') === block);
+        _grdAddr = window.grdResolveClickAddr
+          ? window.grdResolveClickAddr({ at: _at, prevAddr: _grdPrevAddr, insideCell: _insideCell, wasSelected: _grdWasSelected })
+          : (!_grdWasSelected ? null : (_at !== undefined ? _at : (_insideCell ? _grdPrevAddr : null)));
       }
       window[showFn]?.(block, _grdAddr);
+      /* ★0922 T-058 — 걸쇠는 showGridProperties «뒤»에 건다. 그 호출이 _grdAddr===null 일 때
+         걸쇠를 푸는데(블럭 단위 선택 신호), 여기서 다시 걸어야 «칸 밖(gap/테두리)을 눌러
+         블럭에 머문 뒤 줄을 누르면 내려간다»는 드릴다운이 살아 있다. ⛔앞으로 옮기지 마라. */
+      if (showFn === 'showGridProperties') window.grdMarkCanvasDrill?.(block);
       /* ★핸들도 «여기서» 띄운다 — 이 루프엔 호출이 아예 없어서 모달을 클릭하면
          선택 테두리(오버레이)는 그려지는데 «모서리 점»만 안 나왔다(실측 handleCount 0).
          showHandlesFor 는 블록 종류를 스스로 가른다 ⇒ 분기가 없는 grid/infocard/innercard 는
@@ -1836,9 +2084,83 @@ function bindBlock(block) {
          앞선 줄의 커밋이 innerHTML 을 갈아끼웠으면 첫 클릭의 타깃이 이미 detach 돼
          dblclick 타깃이 .grid-block 까지 올라온다(그러면 closest 가 null → 편집이 안 열린다).
          텍스트 블록의 dblclick 도 같은 이유로 elementFromPoint 로 대상을 고른다(이 파일 isText 분기). */
-      const hit = _gridEditable(document.elementFromPoint(e.clientX, e.clientY))
-               || _gridEditable(e.target);
-      if (!hit || hit.block !== block) return;   // gap/image/중첩 줄 = 편집 대상 아님
+      const atPoint = document.elementFromPoint(e.clientX, e.clientY);
+      const node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+      /* ★빈 이미지 슬롯 더블클릭 → 파일 선택(T-B, prop-table.js `_bindTableRowImg` 의
+         더블클릭 관용구 재사용). 우클릭 메뉴·프로퍼티 패널 [이미지 선택…]과 같은
+         FileReader→dataURL→patchCell{lineIndex,imgSrc} 경로다. */
+      const emptyImg = node && node.closest ? node.closest('.grd-img-empty[data-line]') : null;
+      if (emptyImg && block.contains(emptyImg)) {
+        e.stopPropagation();
+        const r = Number(emptyImg.dataset.r), c = Number(emptyImg.dataset.c), li = Number(emptyImg.dataset.line);
+        if (!Number.isInteger(r) || !Number.isInteger(c) || !Number.isInteger(li)) return;
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = () => {
+          const file = input.files[0];
+          /* ★사람이 고른 파일 — 바이트로 거르고 trusted 로 커밋한다(2026-09-20, 0920b-grid-image).
+             ★파일 입구 «셋»(우클릭 「이미지 교체」·패널 [이미지 선택…]·이 더블클릭)이 «같은 게이트
+               + 같은 토스트»를 쓴다. 세는 자 = tests/unit/grid-callsite-ssot.test.mjs 의
+               「UI 파일 입구 3곳」.
+             ⛔여기 적혀 있던 「네 입구(…·아이콘)」는 틀린 명부였다(2026-09-26 정정): 아이콘은
+               파일창이 아니라 Iconify 피커라 이 게이트를 안 지난다. 그리고 그날 우클릭
+               「이미지 추가」가 파일창을 아예 안 열게 되면서(빈 이미지 줄만 넣는다) 이 게이트를
+               지나는 자리는 셋으로 굳었다.
+             ⛔이 파일은 prop-grid.js 를 import 하지 않는다 — window 다리는 기존 관례 그대로. */
+          if (!window.grdImageFileOk?.(file)) return;
+          const reader = new FileReader();
+          reader.onload = ev => {
+            window.grdToastImgFail?.(window.updateGridBlock?.(block.id,
+              { patchCell: { r, c, lineIndex: li, imgSrc: ev.target.result } }, { trusted: true }));
+          };
+          reader.readAsDataURL(file);
+        };
+        input.click();
+        return;
+      }
+      /* ★그림이 «들어 있는» 프레임 더블클릭 → 프레임 안 크롭 편집(2026-09-25).
+         현빈: 「에셋블럭처럼 더블클릭하면 프레임 안에서 위치를 맞출 수 있어야 한다」.
+         ⛔`_gridEditable` 을 넓히지 «않는다» — 이 파일 위쪽(134~136행)이 「넓히면 이미지/갭
+           줄에 contenteditable 이 붙는 부작용이 생긴다」고 못 박아 뒀다. 바로 위 «빈 슬롯»
+           가지와 같은 꼴로, 먼저 집고 return 하는 형제 가지를 세운다. */
+      const imgFrame = node && node.closest
+        ? node.closest('.grd-img-frame[data-line]:not(.grd-img-empty)') : null;
+      if (imgFrame && block.contains(imgFrame)) {
+        e.stopPropagation();
+        const r = Number(imgFrame.dataset.r), c = Number(imgFrame.dataset.c), li = Number(imgFrame.dataset.line);
+        if (!Number.isInteger(r) || !Number.isInteger(c) || !Number.isInteger(li)) return;
+        window.enterGridImageEditMode?.(block, { r, c, li });
+        return;
+      }
+      /* ★★중첩(duo) «안»의 글자 줄 더블클릭 → 그 줄을 인라인 편집한다 (현빈 0927 실기 지적:
+           「나란히 두 칸으로 두기 줄은 추가가 되는데, 더블클릭 후 입력이 안 되네」).
+         ⛔`_gridEditable` 을 넓히지 «않는다» — 이 파일 위쪽(134~136행)의 그 경고 그대로다.
+           바로 위 «빈 슬롯»·«이미지 프레임» 가지와 «같은 꼴»로, 먼저 집고 return 하는 형제 가지다.
+         ★왜 `_gridEditable` 이 못 집었나 — 중첩 안 줄은 `data-line` 을 «안» 가진다
+           (속성은 data-r·data-c·data-nroot·data-npath 뿐이다. 실측: 판 a5478dd3).
+           그 술어는 `closest('[data-line]')` 로 찾으므로 «품은 duo 줄»을 집거나 null 이 된다.
+           ⛔중첩 안 줄에 `data-line` 을 찍어 푸는 길은 «안 간다» — grid-block.js 가 그 이름의
+             뜻이 바뀐다고 못 박아 뒀다(그 주석이 세는 자까지 적어 뒀다).
+         ★host 규약은 _gridEditable 과 «같다» — `.grd-line` 이면 자신, 아니면 안쪽 `.grd-badge`.
+           실측으로 확인했다: 중첩 안 줄의 class 는 `grd-line grd-body` 다. */
+      const nestEl = node && node.closest
+        ? node.closest('[data-r][data-c][data-nroot][data-npath]') : null;
+      if (nestEl && block.contains(nestEl)) {
+        const nr = Number(nestEl.dataset.r), nc = Number(nestEl.dataset.c);
+        const nli = Number(nestEl.dataset.nroot), np = nestEl.dataset.npath;
+        const nhost = nestEl.classList.contains('grd-line')
+          ? nestEl : nestEl.querySelector(':scope > .grd-badge');
+        /* ⛔글자를 «담는» 줄만 — 중첩 안 gap/image 줄은 host 가 없어 여기서 떨어진다
+           (그게 _gridEditable 이 바깥에서 하는 것과 같은 가름이다). */
+        if (nhost && Number.isInteger(nr) && Number.isInteger(nc) && Number.isInteger(nli) && np) {
+          e.stopPropagation();
+          _gridBeginEdit({ block, line: nestEl, host: nhost, r: nr, c: nc, li: nli, np }, e);
+          return;
+        }
+      }
+      const hit = _gridEditable(atPoint) || _gridEditable(e.target);
+      if (!hit || hit.block !== block) return;   // gap/image 줄 = 편집 대상 아님
       e.stopPropagation();
       _gridBeginEdit(hit, e);
     });
@@ -1990,7 +2312,9 @@ function bindFrameDropZone(ss) {
   if (ss.dataset.textFrame === 'true') return;
 
   // shape frame은 drop 수신 불가 — shape-block 전용 컨테이너
-  const isShapeFrame = !!ss.querySelector('.shape-block');
+  // ★판정은 «이벤트 시점»·«직속» (shape-frame.js SSOT). 예전엔 바인딩 시점 1회 + 자손 검색이라
+  //   «도형을 품은 일반 프레임»까지 도형 프레임으로 오판(드롭 차단·핸들 숨김)했다(0918).
+  const isShapeFrame = () => _isShapeFrameEl(ss);
 
   const inner = ss;  // frame-inner 제거 — frame-block 자체가 content container
   let _rafId = null;
@@ -2021,7 +2345,7 @@ function bindFrameDropZone(ss) {
     window.highlightBlock?.(ss, ss._layerItem);
     window.setBlockAnchor?.(ss);
     window.showFrameProperties?.(ss);
-    if (!isShapeFrame) showFrameHandles(ss);
+    if (!isShapeFrame()) showFrameHandles(ss);
   });
 
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
@@ -2038,6 +2362,21 @@ function bindFrameDropZone(ss) {
 
     ss.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
+      /* ★떠 있는(오버레이) 프레임은 이 «절대배치 프레임 전용» 드래그를 비켜간다 — 위 bindBlock
+         의 가드(:444)와 «대칭»이고 같은 이유다. 2026-09-20 통합(int/0920b) 에서 붙였다.
+         왜 필요한가: 도형 오버레이의 posEl 은 바로 이 .frame-block 이고(overlay-float.js
+         posElOf), 저장본에는 position:absolute 가 그대로 담긴다 ⇒ 재로드하면 이 갈래가 참이
+         되어 «같은 요소»에 드래그 핸들러가 둘 붙는다. 이쪽은 부모(=섹션)로 «하드» 클램프한
+         뒤 style.left/top + dataset.offsetX/offsetY 를 쓰는데, 그건 bindFloatMoveDrag 가 쓰는
+         바로 그 키다 — 결과는 ⑴현빈 2026-09-20 결정 「오버레이는 섹션 폭 밖까지 나가도 된다」
+         가 재로드 뒤 도형에서 깨지고 ⑵이미 밖에 있던 도형이 첫 드래그에 경계로 끌려오고
+         ⑶드래그 중 두 값이 번갈아 쓰여 떨린다.
+         ★텍스트는 위 :2151 에서 data-text-frame 을 조기 return 으로 빼 두어 이 충돌이 없었다.
+         ⛔stopPropagation «전»에 return 해야 같은 요소에 걸린 전용 리스너가 제 일을 한다
+           (같은 요소의 리스너는 stopPropagation 으로 못 막는다 — 그래서 «둘 다» 돌았다).
+         ⚠️판정은 «바인딩 시점»이 아니라 매 mousedown 의 live 값으로 한다 — 토글로 켜고 끄는
+           값이라 바인딩 시점에 재면 토글 뒤부터 다시 틀린다. */
+      if (ss.dataset.overlayBlock === 'true') return;
       if (e.target.closest('.resize-handle, [contenteditable]')) return;
       // shift/cmd 모디파이어는 drag 시작 안 함 — click 핸들러가 다중선택 처리
       if (e.shiftKey || e.metaKey || e.ctrlKey) return;
@@ -2104,12 +2443,16 @@ function bindFrameDropZone(ss) {
       const origTop  = (_ssRect.top  - _parentRect.top)  / scale;
       let moved = false;
       let _shiftAxisF = null;
+      const _hist = window.beginDragHistory?.('블록 이동');
 
       const onMove = ev => {
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
         if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
         moved = true;
+        /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+           다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+        _hist?.arm(dx / scale, dy / scale);
         // Shift 수직/수평 이동 제한
         if (!ev.shiftKey) { _shiftAxisF = null; }
         if (ev.shiftKey && !_shiftAxisF && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
@@ -2166,7 +2509,7 @@ function bindFrameDropZone(ss) {
   // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
   inner.addEventListener('dragover', e => {
     if (!dragState.dragSrc) return;
-    if (isShapeFrame) return; // shape frame은 외부 블록 수신 차단
+    if (isShapeFrame()) return; // shape frame은 외부 블록 수신 차단
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
@@ -2199,7 +2542,7 @@ function bindFrameDropZone(ss) {
     if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
     ss.classList.remove('ss-drag-over');
     if (!dragState.dragSrc) return;
-    if (isShapeFrame) return; // shape frame drop 차단
+    if (isShapeFrame()) return; // shape frame drop 차단
     window.pushHistory();
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
@@ -2331,6 +2674,16 @@ function bindFrameDropZone(ss) {
         }
         _stackY += (b.offsetHeight || 60) + 16;
       });
+
+      /* ★T-088(2026-09-21) — 쌓고 나면 «프레임이 그만큼 커져야» 한다.
+         .frame-block 은 overflow:hidden 이라, 위 루프가 마지막 블록을 프레임 밑변 너머에
+         놓으면 그 블록은 «화면에서 사라진다»(값은 남는다 — 실측: 저장·재로드해도 그대로
+         붙어 있었다). 현빈 보고 원문 「제목을 한 칸 아래로 끌어내렸더니 사라지고 선택
+         테두리만 섹션 밖에 둥둥」이 바로 이 자리다.
+         ⚠️프레임 «안에서» 자식을 옮기는 경우(_resizeFrameToFitChildren)는 종전대로 no-op —
+           그건 사용자가 핸들로 정한 크기를 지켜야 하는 다른 축이다. 여기는 «밖에서 들고
+           들어온» 경로이고, 넓히기만 한다(줄이지 않는다). */
+      growFrameToFitChildren(inner);
     }
 
     // dragging 클래스 고착 방지
@@ -2352,6 +2705,15 @@ function bindFrameDropZone(ss) {
       document.addEventListener('pointerup', () => ss.setAttribute('draggable', 'true'), { once: true });
       return;
     }
+    /* ★보조키(⇧/⌘/^)는 «다중선택» 제스처다 — pointerdown 이 손대면 안 된다 (2026-09-21 T-091).
+       아래 갈래가 보조키를 «안 보고» deselectAll() 을 불렀다. deselectAll 은 앵커를 지운다
+       (js/editor.js `_lastClickedBlock = null`) ⇒ 곧이어 뜨는 click 의 rangeSelectBlocks(:2232)
+       가 앵커를 잃고 «단일 선택» 폴백으로 떨어진다.
+       = 글자를 고른 뒤 프레임(그룹)을 ⇧클릭하면 «먼저 고른 것이 풀리고» 패널이 Page 가 됐다.
+       ⚠️같은 요소의 mousedown 갈래(:2278)는 이미 같은 가드를 갖고 있다 — 대칭을 맞춘다.
+       ⚠️자리는 «자식 블록» 갈래 «뒤»다 — 자식 위 ⇧드래그에서 프레임 draggable 을 끄는 일은
+         종전대로 해야 한다(그건 선택과 무관한 드래그 억제다). */
+    if (e.shiftKey || e.metaKey || e.ctrlKey) return;
     // 빈 영역 pointerdown → dragstart 전에 selected 상태 즉시 적용
     if (!ss.classList.contains('selected')) {
       window.deselectAll?.();
@@ -2380,6 +2742,32 @@ function bindFrameDropZone(ss) {
 // Backward compat
 window.bindBlock          = bindBlock;
 window.bindFrameDropZone  = bindFrameDropZone;
+
+/* ★도형 «선택» SSOT(0919 QA) — 캔버스 클릭·삽입 직후·레이어 패널 줄 클릭이 모두 여기로 온다.
+   도형은 «그냥 도형»(A안): 래퍼(frame-block) 속성 패널(Layout·Border·Child Align…)이 아니라
+   shape-block 자체를 선택하고 도형 속성을 연다. 예전엔 삽입 직후·레이어 패널 경로가 래퍼 프레임
+   속성만 열고 .selected 는 직전 블럭에 남겨 둬서 ⌫ 가 엉뚱한 블럭을 지웠다. */
+export function selectShapeBlock(block) {
+  if (!block || !block.classList?.contains('shape-block')) return false;
+  const sec = block.closest('.section-block');
+  const ss = block.closest('.frame-block');
+  const layerItem = ss?._layerItem || block._layerItem;
+  window.deselectAll?.();
+  if (ss) {
+    const parentSec = ss.closest('.section-block');
+    if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+    ss.classList.add('selected');
+    window._activeFrame = ss;
+  }
+  block.classList.add('selected');
+  window.syncSection?.(sec);
+  window.highlightBlock?.(block, layerItem);
+  window.setBlockAnchor?.(block);
+  window.showShapeProperties?.(block);
+  return true;
+}
+if (typeof window !== 'undefined') window.selectShapeBlock = selectShapeBlock;
+
 
 export {
   bindBlock,

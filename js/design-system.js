@@ -205,6 +205,11 @@ const DesignSystem = (() => {
     return v || '#000000';
   }
 
+  /* 색 코드 칸 표기 = «# 없는 대문자 6자» — 에디터 전체의 정본 표기(2026-09-20 유닛 colorhex).
+     ⚠️이 파일은 모듈이 아니라서 공용 함수를 window 로 받는다. color-picker.js 는 module(defer)이라
+       DOMContentLoaded(init) 시점엔 «이미» 실려 있다 — 그래도 없을 때를 대비해 같은 규칙을 적어 둔다. */
+  const _hexBox = (v) => (window.formatHex6 ? window.formatHex6(v) : String(v ?? '').replace('#', '').toUpperCase());
+
   function syncPanelUI(tokens) {
     const set = (id, varName) => {
       const el = document.getElementById(id);
@@ -212,7 +217,7 @@ const DesignSystem = (() => {
       const val = tokens[varName] || _hex(varName);
       el.value = val;
       const hex = document.getElementById(id + '-hex');
-      if (hex) hex.value = val;
+      if (hex) hex.value = _hexBox(val);
     };
     set('ds-h1-color',    '--preset-h1-color');
     set('ds-body-color',  '--preset-body-color');
@@ -540,16 +545,24 @@ const DesignSystem = (() => {
     // 시맨틱 컬러 변수 :root 적용 (applyTokens 호출 지점 미러)
     applyColorVars();
 
-    // color picker ↔ hex 양방향 동기화
+    /* color picker ↔ hex 양방향 동기화 — 배선은 color-picker.js 의 wireHexText 한 자리.
+       ★손사본이던 때는 무효값이 «말없이» 무시되고 blur 복원도 없었다(다른 40여 칸과 같은 병).
+         표기도 이 다섯 칸만 `#111111` 이라 바로 옆 「바탕색」 칸(`ACACAC`)과 규칙이 달랐다 —
+         한 패널 안에서 두 규칙을 외우게 만들던 자리다(신고 원문). */
     ['ds-h1-color', 'ds-body-color', 'ds-caption-color', 'ds-label-bg', 'ds-label-color'].forEach(id => {
       const picker = document.getElementById(id);
       const hex    = document.getElementById(id + '-hex');
-      if (picker && hex) {
-        picker.addEventListener('input', () => { hex.value = picker.value; });
-        hex.addEventListener('input', () => {
-          if (/^#[0-9a-fA-F]{6}$/.test(hex.value)) picker.value = hex.value;
-        });
-      }
+      if (!picker || !hex) return;
+      picker.addEventListener('input', () => { hex.value = _hexBox(picker.value); });
+      /* ⛔여기서 「없으면 대충이라도」 손배선을 하지 않는다 — 그 한 줄이 다시 사본의 시작이 된다.
+         color-picker.js 는 `type="module"`(defer) 이라 init(DOMContentLoaded)보다 «먼저» 실린다. */
+      if (!window.wireHexText) return;
+      window.wireHexText(hex, {
+        parse: window.parseHex6,
+        format: window.formatHex6,
+        getCurrent: () => picker.value || '#000000',
+        onApply: (v) => { picker.value = v; },
+      });
     });
 
     // radius 슬라이더

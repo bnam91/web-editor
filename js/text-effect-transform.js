@@ -11,6 +11,10 @@ const TEXT_EFFECT_PRESETS = [
   { value: 'cinematic', label: 'Cinematic (시네마틱)' }
 ];
 
+/* 색 코드 칸 표기 = «# 없는 대문자 6자» — 에디터 전체의 정본 표기(유닛 colorhex).
+   ⚠️window.formatHex6 은 color-picker.js(module)가 싣는다 — 아직 없으면 같은 규칙을 그대로 쓴다. */
+const _tfxHexBox = (v) => (window.formatHex6 ? window.formatHex6(v) : String(v ?? '').replace('#', '').toUpperCase());
+
 const TEXT_EFFECT_DEFAULTS = {
   preset:    'grunge',     // 영화 포스터 distress 컨셉 — Grunge가 hero
   color:     '#ffffff',    // 단색 (영화 포스터 NEW WORLD/탈출 처럼 흰색)
@@ -78,6 +82,8 @@ function clearTextEffect(textEl) {
   textEl.style.removeProperty('--tfx-intensity');
   textEl.style.removeProperty('--tfx-grain');
   textEl.style.removeProperty('filter');
+  // 0919r3 textshadow: 네온이 빠졌으면 그라데이션 글자의 drop-shadow 파생값도 맞춘다(.tgs 는 인라인 filter 가 아니라 안 지워진다)
+  window.syncTextGradShadow?.(textEl);
 }
 
 function applyTextEffect(tb, opts) {
@@ -93,6 +99,14 @@ function applyTextEffect(tb, opts) {
   textEl.style.setProperty('--tfx-glow-color', cfg.glowColor || cfg.color);
   textEl.style.setProperty('--tfx-intensity', String(cfg.intensity / 100));
   textEl.style.setProperty('--tfx-grain', String(cfg.grain / 100));
+  // 0918r2 textgrad: 글자를 «자기 배경»으로 칠하는 효과(metallic/grunge/vintage/cinematic)는 CSS !important 로
+  //   사용자 글자 그라데이션을 캔버스에서 이긴다 — 둘은 함께 못 쓴다. 효과를 걸면 그라데이션을 푼다(마지막 동작이 이김).
+  //   (반대 방향 — 효과가 있는 동안 그라데이션 탭은 이유 툴팁과 함께 막힌다: text-block-color.js textGradientAllowed)
+  if (['metallic', 'grunge', 'vintage', 'cinematic'].includes(cfg.preset)) {
+    window.clearTextGradient?.(textEl);
+  }
+  try { document.getElementById('txt-color')?.__textGradRegate?.(); } catch (_) {}
+
   // grunge에서만 texture 변형 클래스 적용
   if (cfg.preset === 'grunge' && cfg.texture) {
     textEl.classList.add('tfx-tex-' + cfg.texture);
@@ -117,6 +131,8 @@ function applyTextEffect(tb, opts) {
 
   // dataset에 영구 저장 (autoSave가 outerHTML 직렬화하므로 data-* 보존)
   tb.dataset.textEffect = JSON.stringify(cfg);
+  // 0919r3 textshadow: 네온 글로우 + 글자 그라데이션 → 글로우를 글자 «뒤»(drop-shadow 체인)로
+  window.syncTextGradShadow?.(textEl);
 }
 
 // 저장/로드 사이클에서 dataset.textEffect 만 남고 클래스가 빠진 경우 복구
@@ -178,14 +194,14 @@ function enhanceTextEffectPropPanel(tb, opts = {}) {
         <span style="flex:1;font-size:11px;color:#999;">메인 컬러</span>
         <input type="color" id="tfx-color" value="${cfg.color}"
                style="width:32px;height:24px;border:none;padding:0;cursor:pointer;background:transparent;">
-        <input type="text" id="tfx-color-hex" value="${cfg.color}" maxlength="7"
+        <input type="text" id="tfx-color-hex" class="prop-color-hex" value="${_tfxHexBox(cfg.color)}" maxlength="7" aria-label="메인 컬러"
                style="flex:1;padding:3px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
       </div>
       <div id="tfx-glow-color-row" style="display:${showGlowColor ? 'flex' : 'none'};align-items:center;gap:8px;margin-top:6px;">
         <span style="flex:1;font-size:11px;color:#999;">네온색</span>
         <input type="color" id="tfx-glow-color" value="${cfg.glowColor || cfg.color}"
                style="width:32px;height:24px;border:none;padding:0;cursor:pointer;background:transparent;">
-        <input type="text" id="tfx-glow-color-hex" value="${cfg.glowColor || cfg.color}" maxlength="7"
+        <input type="text" id="tfx-glow-color-hex" class="prop-color-hex" value="${_tfxHexBox(cfg.glowColor || cfg.color)}" maxlength="7" aria-label="네온색"
                style="flex:1;padding:3px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
       </div>
       <div id="tfx-intensity-row" style="display:${showIntensity ? 'flex' : 'none'};align-items:center;gap:8px;margin-top:6px;">
@@ -234,31 +250,35 @@ function enhanceTextEffectPropPanel(tb, opts = {}) {
   propPanel.querySelector('#tfx-preset')?.addEventListener('change', () => { read(); window.pushHistory?.('텍스트 효과 프리셋'); window.scheduleAutoSave?.(); });
   propPanel.querySelector('#tfx-texture')?.addEventListener('change', () => { read(); window.pushHistory?.('텍스트 효과 텍스처'); window.scheduleAutoSave?.(); });
   propPanel.querySelector('#tfx-color')?.addEventListener('input', e => {
-    propPanel.querySelector('#tfx-color-hex').value = e.target.value;
+    propPanel.querySelector('#tfx-color-hex').value = _tfxHexBox(e.target.value);
     read();
   });
   propPanel.querySelector('#tfx-color')?.addEventListener('change', () => { window.pushHistory?.('텍스트 효과 컬러'); window.scheduleAutoSave?.(); });
-  propPanel.querySelector('#tfx-color-hex')?.addEventListener('change', e => {
-    const v = (e.target.value || '').trim();
-    if (/^#[0-9a-f]{6}$/i.test(v)) {
-      propPanel.querySelector('#tfx-color').value = v;
-      read();
-      window.pushHistory?.('텍스트 효과 컬러'); window.scheduleAutoSave?.();
-    }
-  });
+  /* 색 코드 칸 — 배선은 color-picker.js 의 wireHexText 한 자리(2026-09-21 픽스 라운드).
+     ★손사본이던 때는 `change` «하나뿐»이었다: 타이핑 중 미리보기도, blur 복원도, 무효 표시도 없었다.
+       표기도 이 두 칸만 `#00FF00` 이라 패널의 다른 색칸(`00FF00`)과 규칙이 달랐다.
+     ⚠️이 파일은 모듈이 아니다(classic script) — 공용 배선은 window 로 받는다.
+       color-picker.js 는 `type="module"`(defer)이라 이 패널이 열리는 시점엔 «이미» 실려 있다. */
+  _tfxWireHex('#tfx-color-hex', '#tfx-color', '텍스트 효과 컬러');
   propPanel.querySelector('#tfx-glow-color')?.addEventListener('input', e => {
-    propPanel.querySelector('#tfx-glow-color-hex').value = e.target.value;
+    propPanel.querySelector('#tfx-glow-color-hex').value = _tfxHexBox(e.target.value);
     read();
   });
   propPanel.querySelector('#tfx-glow-color')?.addEventListener('change', () => { window.pushHistory?.('텍스트 효과 네온색'); window.scheduleAutoSave?.(); });
-  propPanel.querySelector('#tfx-glow-color-hex')?.addEventListener('change', e => {
-    const v = (e.target.value || '').trim();
-    if (/^#[0-9a-f]{6}$/i.test(v)) {
-      propPanel.querySelector('#tfx-glow-color').value = v;
-      read();
-      window.pushHistory?.('텍스트 효과 네온색'); window.scheduleAutoSave?.();
-    }
-  });
+  _tfxWireHex('#tfx-glow-color-hex', '#tfx-glow-color', '텍스트 효과 네온색');
+
+  function _tfxWireHex(hexSel, pickSel, label) {
+    const hexEl  = propPanel.querySelector(hexSel);
+    const pickEl = propPanel.querySelector(pickSel);
+    if (!hexEl || !pickEl || !window.wireHexText) return;
+    window.wireHexText(hexEl, {
+      parse: window.parseHex6,
+      format: window.formatHex6,
+      getCurrent: () => pickEl.value || '#000000',
+      onApply: (v) => { pickEl.value = v; read(); },
+      onCommit: () => { window.pushHistory?.(label); window.scheduleAutoSave?.(); },
+    });
+  }
   propPanel.querySelector('#tfx-intensity')?.addEventListener('input', e => {
     propPanel.querySelector('#tfx-intensity-val').textContent = e.target.value + '%';
     read();
@@ -271,6 +291,7 @@ function enhanceTextEffectPropPanel(tb, opts = {}) {
   propPanel.querySelector('#tfx-grain')?.addEventListener('change', () => { window.pushHistory?.('텍스트 효과 그레인'); window.scheduleAutoSave?.(); });
   propPanel.querySelector('#tfx-remove')?.addEventListener('click', () => {
     _remove(tb);
+    try { document.getElementById('txt-color')?.__textGradRegate?.(); } catch (_) {}  // 0918r2 textgrad: 효과 해제 → 그라데이션 탭 다시 열림
     propPanel.querySelector('#text-effect-controls-section')?.remove();
     window.pushHistory?.('텍스트 효과 제거'); window.scheduleAutoSave?.();
   });

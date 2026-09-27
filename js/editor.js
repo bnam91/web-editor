@@ -1,5 +1,9 @@
 import { canvasEl, propPanel, state, BLOCK_DELEGATE_SEL } from './globals.js';
 import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './history.js';
+import { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
+import { fitScale } from './fit-scale.js';
+import { setTextTypeClass, afterTextTypeChange } from './props/text-type-class.js';
+import { warnPendingVideoLossIf } from './io/pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원(「한 번만」 래치 포함) */
 
 /* ═══════════════════════════════════
    SSOT: 캔버스에서 "선택된 블록" 셀렉터 목록
@@ -15,7 +19,7 @@ const CANVAS_SEL_BLOCKS =
   '.mockup-block.selected, .icon-block.selected, .vector-block.selected, ' +
   '.step-block.selected, .laurel-block.selected, .zoom-block.selected, .gradient-block.selected, ' +
   '.sticker-block.selected, .joker-block.selected, .chat-block.selected, ' +
-  '.speech-bubble-block.selected';  // 버블(sb_): 복수선택/복사/삭제/⌘X 대상 편입 (#7)
+  '.speech-bubble-block.selected, .qa-block.selected';  // 버블(sb_): 복수선택/복사/삭제/⌘X 대상 편입 (#7)
 // shape-block은 ss/row 단위 별도 삭제 경로(allSelShapes)라 위 목록에 포함하지 않음.
 // 단, "캔버스에 무언가 선택됨" 판정/섹션 매핑엔 shape도 포함해야 함.
 const CANVAS_SEL_BLOCKS_AND_SHAPE = CANVAS_SEL_BLOCKS + ', .shape-block.selected';
@@ -23,6 +27,54 @@ if (typeof window !== 'undefined') {
   window.CANVAS_SEL_BLOCKS = CANVAS_SEL_BLOCKS;
   window.CANVAS_SEL_BLOCKS_AND_SHAPE = CANVAS_SEL_BLOCKS_AND_SHAPE;
 }
+
+/* ═══════════════════════════════════
+   SSOT: 「섹션 안에서 고를 수 있는 블록」 타입 셀렉터 (★.selected 접미사 없음)
+   ⇒ ⇧클릭 범위선택(SIBLING_MULTI_SEL)과 ⌘A 전체선택(editor.js 의 `e.key === 'a'` 분기)이
+     이 «한 자리»를 같이 본다. 새 블록 타입이 생기면 여기 한 줄만 고친다.
+
+   ★왜 한 자리로 모았나 — 2026-09-20 «사용자 관점 훑기» T-085 실측
+     ⌘A 쪽에만 목록이 손으로 한 벌 더 적혀 있었고, 그게 뒤처져 있었다:
+     shape / speech-bubble / mockup / step / joker / icon / chat / gradient / sticker /
+     laurel / zoom 이 빠진 채였다. 그래서 「⌘A 로 전체선택하고 Delete 했는데 도형이 안 지워진다」.
+     실측(고치기 전, 포트 9527): 텍스트2+도형1 이 든 섹션에서 ⌘A 선택집합 =
+     [gap, text, text, gap] — shape 0개. Delete 뒤에도 .shape-block 이 1개 남았다.
+
+   ⚠️`.frame-block` 은 «일부러» 뺐다 — 프레임은 «그릇»이지 고를 잎이 아니다.
+     ⇧클릭 경로는 _toSibling 으로 텍스트프레임을 형제 단위로 쓰므로 SIBLING_MULTI_SEL 에만 더한다.
+     ⌘A 가 프레임까지 고르면 deleteSelectedFromCanvas 의 `selSS`(프레임 단독 삭제) 갈래가
+     먼저 걸려 «그 프레임 줄 하나»만 지우고 return 한다 — 지금은 프레임이 안 골라지므로 안 걸린다.
+
+   ⚠️삭제 목록(CANVAS_SEL_BLOCKS)은 모양이 다르다(shape 는 ss/row 단위 별도 경로라 거기서 빠져 있다).
+     그래서 한쪽에서 다른 쪽을 파생시키지 않는다. 대신
+     tests/unit/select-all-list-drift.test.mjs 가 「지울 수 있는 타입은 ⌘A 로 반드시 골라진다」를
+     기계로 지킨다 — 손으로 적은 목록이 또 어긋나면 테스트가 빨개진다.
+
+   ★`.icon-block` — 2026-06-09 「누락 블록 추가」가 «만들어지지도 않는» 클래스명(iconify- 접두)으로
+     적혀 죽은 셀렉터였다(2026-06-11 리뷰 BR-06). 아이콘 블록의 진짜 클래스는
+     `.icon-block` 이다 — js/blocks/iconify-block.js:16 이 className='icon-block' 으로 만든다.
+═══════════════════════════════════ */
+const SECTION_BLOCK_TYPE_SEL = [
+  '.text-block', '.asset-block', '.gap-block',
+  '.icon-circle-block', '.icon-text-block', '.icon-block',
+  '.table-block', '.label-group-block', '.graph-block', '.divider-block',
+  '.bridge-block', '.grid-block', '.infocard-block', '.innercard-block', '.modal-block',
+  '.shape-block', '.speech-bubble-block', '.banner02-block', '.comparison-block',
+  '.mockup-block', '.vector-block', '.step-block', '.joker-block', '.canvas-block',
+  '.chat-block', '.gradient-block', '.sticker-block', '.laurel-block', '.zoom-block',
+  '.qa-block',
+].join(', ');
+if (typeof window !== 'undefined') window.SECTION_BLOCK_TYPE_SEL = SECTION_BLOCK_TYPE_SEL;
+
+/* 같은 목록의 «.selected» 판(파생 — 손으로 한 벌 더 적지 않는다).
+   ⇒ deleteSelectedFromCanvas 가 「이 프레임 «안»에 골라진 자식이 있나」·「프레임 «밖»에
+     골라진 것이 또 있나」를 잴 때 쓴다.
+   ★왜 파생인가 (2026-09-21 이벨류에이터 지적 low④): 그 두 자리도 손으로 적힌 목록이었고,
+     joker/chat/gradient/sticker/laurel/zoom 이 빠져 있었다 — 프레임 안 자식이 «그 여섯뿐»이면
+     「자식 없음」으로 잘못 판정돼 프레임이 줄째 먼저 지워졌다. */
+const SECTION_BLOCK_TYPE_SEL_SELECTED =
+  SECTION_BLOCK_TYPE_SEL.split(', ').map(c => c + '.selected').join(', ');
+if (typeof window !== 'undefined') window.SECTION_BLOCK_TYPE_SEL_SELECTED = SECTION_BLOCK_TYPE_SEL_SELECTED;
 
 /* ═══════════════════════════════════
    포커스 시 전체 선택 (Figma 스타일)
@@ -169,6 +221,23 @@ const PINCH_DELTA_PER_NOTCH = 10;
 /* 한 스로틀 틱(16ms)에 몰린 입력의 상한. 옛 판의 ±30%p 클램프가 하던 «폭주 방지»를 잇는다
    (상한에 걸려도 ×1.728 — 옛 판이 40% 에서 한 노치에 내던 ×1.75 를 넘지 않는다). */
 const ZOOM_MAX_NOTCHES_PER_TICK = 3;
+/* [T-007] 스크래치패드 버튼 전용 역-스케일 상한.
+   ★2026-09-16f 정정(작업목록매니저 내용게이트 지적) — 처음엔 이 상한을 «전역» --inv-zoom
+   자체에 걸었는데, 그 토큰은 선택 아웃라인(--sel-outline-w, editor-base.css:9)·도형 리사이즈
+   핸들(.shape-handle, editor-blocks.css:1633)·에셋 회전 핫존(asset-rotate.js:47) 등 «화면상
+   진짜 고정 크기»가 필요한 곳도 같이 참조하는 공유 토큰이었다 — 거기에 상한을 걸면 10% 줌에서
+   그 요소들이 «진짜 10배»가 아니라 2.5배로만 커져, 핸들이 손가락보다 작아지고 선택 아웃라인이
+   가늘어지는 회귀가 났다(현빈이 아직 보고하기 전에 코드게이트가 잡음). ⇒ 전역 --inv-zoom 은
+   그대로 두고(아래 원래 계산식 복원), 스크래치패드 전용 --scratch-inv-zoom 을 별도로 만들어
+   그 값에만 상한을 건다.
+   캔버스를 최소 배율(10%)까지 축소하면 역-스케일이 10배까지 커져 스크래치 버튼(닫기·자르기·
+   연결·접기)이 이미지보다 훨씬 크게 보인다(현빈 QA FAIL, T-007).
+   ★상한 2.5 근거(실측 2026-09-16, 격리 인스턴스 9511): 스크래치 버튼 기본 20px 기준
+   ×2.5=50px는 40% 줌(이 앱 기본 배율)에서 보이는 크기와 같다 — 10%까지 더 축소해도
+   버튼이 «40% 줌 때 크기»보다 커지지 않게 고정한다. 그 아래로는 화면상 이미지 자체가
+   버튼보다 작아지는 지점이라 더 얹어도 가독성 이득이 없다(직전 줄 --ui-scale 이
+   1.6 cap 을 쓰는 것과 같은 이유 — 여기는 버튼이 라벨보다 절대크기가 커서 배수를 더 준다). */
+const SCRATCH_INV_ZOOM_CAP = 2.5;
 let currentZoom = 40;
 const scaler = document.getElementById('canvas-scaler');
 const zoomDisplay = document.getElementById('zoom-display');
@@ -235,6 +304,12 @@ function applyZoom(z, opts) {
   _applyScalerTransformAndSync();
   zoomDisplay.textContent = Math.round(currentZoom) + '%';   // [M67] 표시는 정수 — 내부 배율만 소수를 갖는다
   document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
+  document.documentElement.style.setProperty('--scratch-inv-zoom', Math.min(SCRATCH_INV_ZOOM_CAP, 100 / currentZoom).toFixed(4));
+  /* ★아이콘원형 이미지 편집 손잡이는 #canvas-scaler «안»에 살아서 «크기»뿐 아니라 «중심 보정»도
+     배율을 먹는다(js/image-handling.js enterCircleImageEditMode). 크기는 바로 위 --inv-zoom 이
+     CSS 로 고쳐 주지만 위치는 JS 가 잡는다 — 여기서 같이 다시 잡지 않으면 «배율 바꾸기 전» 값이
+     남아 중심이 어긋난다. 에셋 경로는 자기 rAF 루프가 있어 이 갈고리가 필요 없다. */
+  window._syncCircleImgHandles?.();
   // 섹션 라벨/툴바 카운터-스케일
   // - zoom ≥ 80%: 자연 스케일 (1.0) — 라벨이 섹션과 분리돼 보이지 않게
   // - zoom < 80%: 점진적으로 키워서 가독성 유지, 최대 1.6 cap (겹침 방지는 max-width+ellipsis가 담당)
@@ -699,7 +774,7 @@ function zoomStep(delta) {
   const selectedBlock = delta > 0 && document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .qa-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected, .speech-bubble-block.selected'
   );
   let targetEl = selectedBlock ? (selectedBlock.closest('.section-block') || selectedBlock) : null;
@@ -794,9 +869,67 @@ function zoomByRatio(ratio) {
   zoomStep(currentZoom * (ratio - 1));
 }
 
+/* ★[U-26/fitzoom · 2026-09-21] 「Fit」은 «폭 맞춤»이 아니라 «화면 맞춤»이다.
+   옛 식은 `(wrap.clientWidth - 80) / CANVAS_W` — 분자·분모가 «둘 다 가로»라 세로를 아예 안 봤다.
+   이 앱의 정상 모양은 섹션 여러 개짜리 «세로로 긴» 랜딩페이지라 콘텐츠 총높이가 항상 폭보다 크다
+   ⇒ 폭만 맞춘 배율은 «정의상» 전체가 들어오는 배율보다 크다 ⇒ Fit 을 눌렀는데 확대된다.
+     [실측 2026-09-20 훑기 / .userlens A32] 「Fit 눌렀더니 123% 로 확대되고 스크롤만 길어진다」.
+     [실측 2026-09-21 tests/dom/fit-zoom-page] wrap 800×600·콘텐츠 2080px → 옛 식 83% =
+       화면에 1726px 을 그리려 한다(가용 520px). 첫·마지막 섹션이 화면 밖으로 나가는 것도 같은 뿌리다.
+   ⇒ 두 축의 min 으로 바꾼다. ★새 공식이 아니다 — 같은 레포의 template-browser.js·template-system.js
+     가 미리보기에서 이미 쓰던 공식이고, 캔버스 줌만 그 패턴에서 빠져 있었다(js/fit-scale.js 로 합쳤다).
+   ⛔`-80` 은 #canvas-wrap{padding:40px} «사방 동일»에서 나온 값이라 세로에도 같은 수를 쓴다
+     (새 매직넘버가 아니다 — css/editor-canvas.css:71~78).
+   ⛔높이는 #canvas 의 scrollHeight «자연(미축소)» 값을 쓴다: transform:scale 은 레이아웃 박스를
+     안 바꾸므로 현재 배율에 안 흔들린다(_syncScalerHeight 의 reflow-reset 트릭이 필요 없다).
+     scaler 가 아니라 #canvas 를 재는 이유는 스크래치(절대배치 자식)를 빼기 위해서다 — Fit 은
+     «섹션 콘텐츠»에 맞춘다(_syncScalerHeight:604 가 세워 둔 「스크래치는 별도」 규약 그대로).
+   ⚠️섹션이 0개면 naturalH 가 0 이다 — 그때는 옛 폭기준으로 «폴백»한다. 0섹션의 처우는 이 수정의
+     범위가 아니다(건드리면 조용히 다른 것이 바뀐다). */
 function zoomFit() {
   const wrap = document.getElementById('canvas-wrap');
-  applyZoom(Math.floor(((wrap.clientWidth - 80) / CANVAS_W) * 100), { keepViewportCenter: true });  // [M62]
+  const canvasElForFit = document.getElementById('canvas');
+  const availW = wrap.clientWidth - 80;
+  const availH = wrap.clientHeight - 80;
+  const naturalH = canvasElForFit ? canvasElForFit.scrollHeight : 0;
+  const scale = naturalH > 0
+    ? fitScale(CANVAS_W, naturalH, availW, availH)
+    : availW / CANVAS_W;
+  applyZoom(Math.floor(scale * 100), { keepViewportCenter: true });  // [M62]
+
+  /* ★배율만 맞추고 «어디를 보고 있는지»를 안 고치면 아직 Fit 이 아니다.
+     applyZoom 의 keepViewportCenter(:198~)는 「배율 전 화면 «중앙»에 있던 캔버스 지점을 배율 후에도
+     중앙에 둔다」는 앵커 보존이다 — ⌘0·휠줌엔 맞는 뜻이지만, Fit 에서는 「전체가 들어오게」와 다르다.
+     [실측 2026-09-21 앱 9526, 섹션 5개 natH 1814, wrap 954×856, 40% → Fit]
+       배율은 42% 로 맞게 나왔는데(1814×0.42 = 762 ≤ 가용 776) 첫 섹션 top 이 −290
+       (wrap top 44) 으로 «화면 위로 잘려» 있었고 아래엔 428px 빈 회색이 남았다.
+       앵커 u 가 0.9 언저리였기 때문이다 — 콘텐츠가 뷰포트보다 «작아지면» 어떤 u 를 중앙에
+       두든 위아래 한쪽이 반드시 밀려난다. 훑기의 「첫·마지막 섹션이 화면 밖」이 바로 이 자리다.
+     ⇒ 전부 들어가는 배율이 됐으면 «가운데 놓는다». 안 들어가면(0섹션 폴백 등) 손대지 않는다.
+     ⛔applyZoom 쪽을 고치지 않는다 — 거기는 ⌘0·탭복원·zoomStep 이 같이 지나는 자리다.
+       「전체를 보이게」는 Fit «만»의 뜻이라 Fit 에서 한다.
+     ★transition 주의: keepViewportCenter 경로는 scaler 의 transform 전이를 끄고 rAF 에서 되돌린다
+       (:203·:311). 그래서 여기서 재는 rect 는 «보간 중» 값이 아니다 — 지금 재는 게 맞다. */
+  const cr = canvasElForFit ? canvasElForFit.getBoundingClientRect() : null;
+  if (cr && cr.height > 0) {
+    const wr = wrap.getBoundingClientRect();
+    if (cr.height <= wrap.clientHeight) {
+      wrap.scrollTop += cr.top - (wr.top + (wrap.clientHeight - cr.height) / 2);
+    }
+    /* ★가로도 같이 가운데로 — 「어떤 때는 캔버스가 텅 빈다」의 «진짜» 자리다.
+       [실측 2026-09-21 앱 9526] 가로 팬 여지가 상시 있다(scrollWidth 2860 vs clientWidth 954 —
+       S2 팬 여지). 그래서 사용자가 옆으로 밀어 두면 캔버스가 «가로로» 화면 밖으로 완전히 나간다
+       (세로 교집합 856 인데 가로 교집합 ★0 = 회색만 보인다). 그 상태에서 Fit 을 눌러도
+       옛 코드는 scrollLeft 를 «한 번도» 안 건드렸다 ⇒ 배율만 바뀌고 화면은 여전히 텅 비었다
+       (실측: Fit 후 가로 교집합 0 그대로). applyZoom 의 keepViewportCenter 도 «세로 전용»이라
+       구해 주지 못한다(:216 앵커는 세로 정규화 좌표 하나뿐).
+       ⇒ 후보 H1(섹션 0개라 앵커가 안 선다)·H2(scrollTop clamp)가 아니라 «가로축 미복원»이었다.
+       ⛔노치(:3452)가 가로를 되돌리는 «유일한» 길이었는데, 캔버스가 안 보이면 노치를 찾을 생각을
+         못 한다 — 사용자가 스스로 못 빠져나오는 상태였다(M62 주석이 세로에 대해 적어 둔 그 사정). */
+    if (cr.width > 0 && cr.width <= wrap.clientWidth) {
+      wrap.scrollLeft += cr.left - (wr.left + (wrap.clientWidth - cr.width) / 2);
+    }
+  }
 }
 
 
@@ -854,7 +987,7 @@ let clipboard = null;
 ═══════════════════════════════════ */
 const BLOCK_MULTI_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
   '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, ' +
-  '.icon-text-block, .shape-block';
+  '.icon-text-block, .shape-block, .qa-block';
 
 let _lastClickedBlock = null;
 
@@ -868,7 +1001,7 @@ function _getBlockLayerItem(block) {
 
 /* freeLayout 내 블록인지 확인 */
 function _isInFreeLayout(block) {
-  const wrapper = block.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+  const wrapper = block.closest('.frame-block[data-text-frame]') ||
     (block.style.position === 'absolute' ? block : null);
   return !!(wrapper && wrapper.closest('.frame-block[data-free-layout]'));
 }
@@ -880,7 +1013,7 @@ function _restoreFreeLayoutFrameSelected(block) {
   let el = block;
   let deepestFrame = null;
   while (el) {
-    const textOrShape = el.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]');
+    const textOrShape = el.closest('.frame-block[data-text-frame]');
     const searchFrom = textOrShape || el;
     const frame = searchFrom.closest('.frame-block[data-free-layout]');
     if (!frame) break;
@@ -896,11 +1029,38 @@ function _restoreFreeLayoutFrameSelected(block) {
   }
 }
 
-/* freeLayout 멀티셀렉 패널 업데이트 트리거 */
+/* freeLayout 멀티셀렉 패널 업데이트 트리거
+   ★@returns {boolean} 패널을 «띄웠으면» true. 안 띄웠으면 호출부가 뒤를 잇는다
+     (2026-09-24 T-091 — 안 띄우고 조용히 돌아가면 직전 deselectAll 이 띄운 «Page» 가 남는다). */
 function _updateFreeLayoutMultiSelPanel() {
   if (window.hasFreeLayoutMultiSel?.()) {
     window.showFreeLayoutMultiSelPanel?.();
+    return true;
   }
+  return false;
+}
+
+/* ★2026-09-24 T-091 — 「선택은 «한 블럭»인데 우측 패널이 Page 로 남는다」의 마감.
+   ⇧클릭이 «범위»를 못 만들면(앵커와 같은 블럭 = 폭 1 / 앵커 없음 = 단일선택 폴백)
+   rangeSelectBlocks 는 deselectAll() 로 패널을 비우고 한 개만 다시 고른다. 그 뒤 여기 오는데
+   옛 판은 n<=1 에서 «아무 일도 안 했다» ⇒ 비워진 패널(Page)이 그대로 남았다.
+   실측(2026-09-24 포트 9342, 판 7780267): 글자·이미지·도형 전부 같은 증상, ⌘클릭으로 둘 → 하나로
+   줄여도 패널은 「2개 선택됨」으로 굳었다.
+
+   ⛔여기서 «타입별 표»를 새로 짓지 않는다 — 표는 js/panel-dispatch.js 한 자리(정본)다.
+     js/history.js 의 되돌리기 복원과 js/block-edit.js 의 selectBlock 이 «같은 표»를 쓴다.
+     ⇒ 새 블럭 타입이 생겨도 적을 자리가 여기엔 «0개»다.
+   ★표에 없는 타입이면 openPanelForBlock 이 false 를 주고 패널을 «안 건드린다»
+     (panel-dispatch.js 머리말의 폴백 규약). 즉 명부가 낡아도 최악이 «오늘 그대로»지,
+     엉뚱한 패널이 뜨는 쪽으로는 안 간다.
+   ★「한 블럭인가」는 hasPanelForBlock 으로 센다 — «같은 표»를 부작용 없이 읽는 판정이라
+     .section-block(항상 켜져 있다)·.frame-block(도형 래퍼·조상)은 저절로 빠진다.
+   @returns {boolean} 패널을 열었으면 true. */
+function _openSoleBlockPanel() {
+  const root = canvasEl || document;
+  const sole = [...root.querySelectorAll('.selected')].filter(el => window.hasPanelForBlock?.(el));
+  if (sole.length !== 1) return false;
+  return window.openPanelForBlock?.(sole[0]) === true;
 }
 
 /* 일반(플로우) 블록 멀티선택 카운트 패널 트리거 (A11)
@@ -917,7 +1077,15 @@ function _updateFreeLayoutMultiSelPanel() {
  *     (sticker=0 을 보고 gradient 도 0 이라 단정) 결론을 세웠다. gradient 는 1 이었다.
  *     ⇒ 형제 패턴으로 훑되 «전수로 세고» 판정은 한 건씩. (검사 ⓑ-20b 가 이걸 못박는다)
  * 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT */
-const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .zoom-block.selected, .chat-block.selected, .speech-bubble-block.selected';
+/* ★2026-09-21 T-091 — «.frame-block.selected» 가 들어온 이유.
+   ⇧클릭의 «단위»는 SIBLING_MULTI_SEL(:1106) 이 정하는데 거긴 '.frame-block' 이 «있다».
+   그래서 「글자 1 + 프레임(그룹) 1」은 실제로 둘 다 골라지는데, 세는 목록엔 프레임이 없어
+   n=1 이 되어 멀티선택 패널이 안 뜨고 직전 deselectAll 이 띄운 «Page» 가 그대로 남았다.
+   = 「둘 다 잡혀도 우측 패널이 Page 라 정렬을 못 쓴다」의 실체. 두 목록이 갈린 것이었다.
+   ⚠️프레임은 «조상»으로도 .selected 가 켜진다(restoreFrameSelectionFor ·
+     _restoreFreeLayoutFrameSelected · selectShapeBlock). 그래서 목록이 아니라 «성질»로 거른다
+     — 아래 _isFlowMultiSelUnit. */
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .zoom-block.selected, .chat-block.selected, .speech-bubble-block.selected, .qa-block.selected, .frame-block.selected';
 
 /* ★사본 금지 — js/props/prop-multisel.js 가 «이 상수»를 읽는다(옛날엔 리터럴을 한 벌 더 갖고
  *   있었고, 둘 다 주석에 「SSOT」라 적혀 있었다. 확대블럭이 한쪽에만 들어가 «2개 선택하면
@@ -927,25 +1095,68 @@ const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .g
  *     그래서 저쪽은 모듈 최상단이 아니라 «호출 시점»에 읽는다(패널은 사용자 조작 뒤에 뜬다). */
 if (typeof window !== 'undefined') window.FLOW_BLOCK_SEL_SELECTED = FLOW_BLOCK_SEL_SELECTED;
 
+/* ★「이 .selected 가 «여러 개 골랐을 때»의 한 «단위»인가」를 답하는 «한 자리».
+   ⛔여기서 손목록을 늘리지 마라 — 프레임은 성질로 가른다:
+     · 텍스트프레임은 «그릇»이다. 단위는 그 안의 text-block 이다(_selectSibling 규약과 같다).
+     · 안에 «또 다른 단위»가 골라진 프레임은 «조상»으로 켜진 것이지 사람이 «고른 것»이 아니다.
+   ★사본 금지 — js/props/prop-multisel.js 가 «이 함수»를 읽는다(옛 `_isFlowBlock` 미러는 없앴다).
+     로드 순서상 저쪽이 먼저 올라오므로 저쪽은 «호출 시점»에 window 에서 꺼낸다.
+   ★2026-09-22 T-091 ⑥ — 조상 판정을 «.selected 아무거나»가 아니라 «세는 목록»으로 묻는다.
+     도형은 selectShapeBlock 이 «래퍼 + shape-block» 을 «한 몸으로» 켠다(js/block-drag.js:2652~2658).
+     그런데 shape-block 은 세는 목록(FLOW_BLOCK_SEL_SELECTED)에 «없는» 알맹이다. 그걸 보고
+     래퍼를 「조상」으로 쳐서 버리면 «도형이 단위 0개»가 된다 — 글자와 같이 골라도 도형만 빠진다.
+     ⇒ 「안에 골라진 «단위»가 있나」로 묻는다. 목록은 여기 한 자리(SSOT)를 그대로 쓴다. */
+function _isFlowMultiSelUnit(el) {
+  if (!el || _isInFreeLayout(el)) return false;
+  if (el.classList.contains('frame-block')) {
+    if (el.dataset.textFrame === 'true') return false;
+    if (el.querySelector(FLOW_BLOCK_SEL_SELECTED)) return false;
+  }
+  return true;
+}
+if (typeof window !== 'undefined') window.isFlowMultiSelUnit = _isFlowMultiSelUnit;
+
 function _countFlowMultiSel() {
-  return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(b => !_isInFreeLayout(b)).length;
+  return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(_isFlowMultiSelUnit).length;
 }
 
+/* ★2026-09-22 T-091 ⑥ — «어느 패널을 띄울지»를 «방금 누른 한 블록»으로 정하면 안 된다.
+   도형은 자기 전용 래퍼가 data-free-layout 이라 _isInFreeLayout(도형)=true 가 «항상» 참이다.
+   그래서 「글자 + 도형」을 같이 골라도 자유배치 패널이 떴고, 그 패널의 정렬은 style.left/top 을
+   쓴다 ⇒ 흐름에 있는 글자는 꿈쩍 않고(정적 배치라 left 가 안 먹는다), 도형은 «자기 래퍼 밖»으로
+   날아갔다(실측 2026-09-22 포트 9634: shape L=308 → 924, 섹션 오른끝을 308px 넘어감).
+   ⇒ 판정은 «선택 전체»로 한다. 흐름 단위가 둘 이상이면 그건 흐름 멀티선택이다.
+     (순수 자유배치 선택은 _isFlowMultiSelUnit 이 전부 걸러내 n=0 이라 종전대로 자유배치 패널) */
 function _updateMultiSelPanel(block) {
-  if (_isInFreeLayout(block)) {
-    _updateFreeLayoutMultiSelPanel();
+  const _flowN = _countFlowMultiSel();
+  if (_flowN <= 1 && _isInFreeLayout(block)) {
+    if (_updateFreeLayoutMultiSelPanel()) return;
+    _openSoleBlockPanel();   // ★T-091 — 자유배치도 「한 개 남았는데 Page」가 났다(도형 ⇧클릭)
     return;
   }
-  const n = _countFlowMultiSel();
+  const n = _flowN;
   if (n > 1 && propPanel) {
     // B15: 카운트-온리 → 정렬/분배 패널 (prop-multisel.js)
     if (window.showFlowMultiSelPanel) window.showFlowMultiSelPanel();
     else propPanel.innerHTML = `<div class="prop-section"><div class="prop-block-label" style="padding:2px 0 4px;"><div class="prop-block-info"><span class="prop-block-name">${n}개 선택됨</span><span class="prop-breadcrumb">블록 멀티선택</span></div></div></div>`;
+    return;
   }
+  /* ★T-091 — 여기가 «범위를 못 만든» 끝자리다. 선택이 한 블럭이면 그 블럭의 패널로 잇는다.
+     ⛔호출부가 아니라 «여기»서 고치는 근거는 «수»가 아니라 저장소의 «선언»이다 —
+       toggleBlockSelect 위 주석이 「패널 «선택»은 _updateMultiSelPanel «한 자리»에서」라고
+       못박아 뒀다(이 파일, _restoreFreeLayoutFrameSelected 를 부르는 줄 바로 위).
+       ⇒ 그 계약을 지키는 쪽이 정본 수리다. 수는 늙지만 선언은 안 늙는다.
+     ＋참고로 이 함수를 부르는 자리는 «넷»이고(아래 setTimeout 네 줄이 전부다. 이 함수는
+       window 에 안 붙어 있어 부를 수 있는 파일이 이 파일 하나뿐이다) 넷 다 여기로 내려온다.
+       ⛔이 «넷»은 rangeSelectBlocks 의 호출부 수(다른 함수의 수다)와 «다른 수»다. */
+  _openSoleBlockPanel();
 }
 
 /* Cmd+클릭: 단일 블록 토글 */
 function toggleBlockSelect(block, sec) {
+  /* ★0918r2 T-058 — ⌘클릭은 «블럭 단위» 선택이다. 그리드 줄 선택(활성줄)을 남겨 두면 다중선택
+     상태에서 ⌫/⌘X 가 그 줄 하나로 샜다. Shift 범위선택(deselectAll 경유)과 똑같이 끝낸다. */
+  window.grdDropLineSelection?.(canvasEl);
   const layerItem = _getBlockLayerItem(block);
   if (block.classList.contains('selected')) {
     block.classList.remove('selected');
@@ -956,14 +1167,9 @@ function toggleBlockSelect(block, sec) {
   }
   if (sec) window.syncSection?.(sec);
   _lastClickedBlock = block;
-  // freeLayout 내 블록이면 부모 프레임 selected 복원 + 멀티셀렉 패널 업데이트
-  if (_isInFreeLayout(block)) {
-    _restoreFreeLayoutFrameSelected(block);
-    setTimeout(_updateFreeLayoutMultiSelPanel, 0);
-  } else {
-    // 일반(플로우) 블록 — 멀티선택 시 카운트 패널 트리거 (A11)
-    setTimeout(() => _updateMultiSelPanel(block), 0);
-  }
+  // freeLayout 내 블록이면 부모 프레임 selected 복원 — 패널 «선택»은 _updateMultiSelPanel 한 자리에서
+  if (_isInFreeLayout(block)) _restoreFreeLayoutFrameSelected(block);
+  setTimeout(() => _updateMultiSelPanel(block), 0);
 }
 
 /* Shift+클릭: 마지막 클릭 블록 ~ 현재 블록 범위 선택
@@ -971,15 +1177,9 @@ function toggleBlockSelect(block, sec) {
  * — 텍스트프레임(투명 wrapper)은 자기 안의 text-block을 selected
  * — 프레임/일반 블록은 자기 자신을 selected
  */
-const SIBLING_MULTI_SEL =
-  '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
-  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, ' +
-  '.icon-text-block, .shape-block, .frame-block, ' +
-  // 누락 블록 추가 (#14): divider + 카드/말풍선/배너02/비교/목업/벡터/스텝/조커/캔버스 다중선택 지원
-  '.speech-bubble-block, .banner02-block, .comparison-block, ' +
-  '.mockup-block, .vector-block, .step-block, .joker-block, .canvas-block, ' +
-  // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel — 다중선택 지원
-  '.iconify-block, .chat-block, .gradient-block, .sticker-block, .laurel-block, .zoom-block';
+// ★목록은 SECTION_BLOCK_TYPE_SEL(파일 상단 SSOT) 한 자리에 있다 — 여기선 «그릇»인 프레임만 더한다.
+//   (_toSibling 이 text-block 을 제 텍스트프레임으로 올려 형제 단위를 맞추므로 ⇧클릭엔 프레임이 필요하다)
+const SIBLING_MULTI_SEL = SECTION_BLOCK_TYPE_SEL + ', .frame-block';
 
 function _toSibling(el) {
   if (!el) return null;
@@ -1020,13 +1220,9 @@ function rangeSelectBlocks(block, sec) {
       _lastClickedBlock = anchor;
       for (let i = lo; i <= hi; i++) _selectSibling(siblings[i]);
       if (sec) window.syncSection?.(sec);
-      if (_isInFreeLayout(block)) {
-        _restoreFreeLayoutFrameSelected(block);
-        setTimeout(_updateFreeLayoutMultiSelPanel, 0);
-      } else {
-        // 일반(플로우) 블록 범위선택 후 카운트 패널 갱신 (A11)
-        setTimeout(() => _updateMultiSelPanel(block), 0);
-      }
+      // 범위선택 후 패널 갱신 (A11) — 어느 패널인지는 _updateMultiSelPanel 이 «선택 전체»를 보고 정한다
+      if (_isInFreeLayout(block)) _restoreFreeLayoutFrameSelected(block);
+      setTimeout(() => _updateMultiSelPanel(block), 0);
       return;
     }
   }
@@ -1054,7 +1250,8 @@ function rangeSelectBlocks(block, sec) {
       _lastClickedBlock = anchor;
       for (let i = lo; i <= hi; i++) _selectSibling(sibs[i]);
       if (sec) window.syncSection?.(sec);
-      // 멀티선택 후 패널 갱신 (A11) — n>1 가드로 단일선택엔 무동작
+      // 멀티선택 후 패널 갱신 (A11) — ★0924 T-091 로 「단일선택엔 무동작」이 «아니게» 됐다:
+      //   한 블럭이면 _updateMultiSelPanel 이 그 블럭 패널로 잇는다(빈 Page 가 남던 자리)
       setTimeout(() => _updateMultiSelPanel(block), 0);
       return;
     }
@@ -1067,7 +1264,8 @@ function rangeSelectBlocks(block, sec) {
   if (li) li.classList.add('active');
   _lastClickedBlock = block;
   if (sec) window.syncSection?.(sec);
-  // 단일선택 fallback — n>1 가드로 카운트 패널은 자연히 안 뜸 (A11)
+  // 단일선택 fallback — 카운트 패널은 n>1 가드로 안 뜬다. ★0924 T-091: 그렇다고 «무동작»도
+  //   아니다 — 여기로 떨어진 한 블럭의 패널을 _updateMultiSelPanel 이 연다(옛 판은 Page 가 남았다)
   setTimeout(() => _updateMultiSelPanel(block), 0);
 }
 
@@ -1204,7 +1402,7 @@ function duplicateSelected() {
   // freeLayout 프레임 내 블록 복제 (absolute 배치)
   const selBlock = document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-    '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, ' +
+    '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .qa-block.selected, ' +
     '.graph-block.selected, .table-block.selected, ' +
     '.label-group-block.selected, .icon-text-block.selected, .icon-block.selected, ' +
     /* ★.zoom-block — 없으면 freeLayout 안의 줌 블록이 이 «정상 경로»를 못 타고
@@ -1220,9 +1418,14 @@ function duplicateSelected() {
 
   // freeLayout 내 절대 배치 블록: text-frame 또는 shape-frame 래퍼 복제
   if (selBlock) {
-    const absWrapper = selBlock.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+    // ★도형은 «래퍼째» 복제 단위다(0918 A안). shape-block 자체는 래퍼 안에서 absolute 라
+    //   예전엔 absWrapper=shape-block, parentFrame=도형 래퍼 → 같은 래퍼 안에 도형 2개(«렉탱글 안 렉탱글»).
+    //   ⚠️parentFrame 은 반드시 parentElement 부터 찾는다 — 래퍼 자신도 data-free-layout 이라 자기에 매칭된다.
+    const _shpWrap = shapeFrameOf(selBlock);
+    const absWrapper = _shpWrap ||
+                       selBlock.closest('.frame-block[data-text-frame]') ||
                        (selBlock.style.position === 'absolute' ? selBlock : null);
-    const parentFrame = absWrapper?.closest('.frame-block[data-free-layout]');
+    const parentFrame = resolveInsertFrame(absWrapper?.parentElement?.closest('.frame-block[data-free-layout]') || null);
     if (absWrapper && parentFrame) {
       window.pushHistory('복제');
       const clone = absWrapper.cloneNode(true);
@@ -1248,7 +1451,7 @@ function duplicateSelected() {
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
       // 이벤트 재바인딩
-      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block';
       clone.querySelectorAll(_ALL_BLOCK_SEL).forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
@@ -1299,13 +1502,21 @@ function duplicateSelected() {
 }
 
 /* 다중선택 «판정» 셀렉터 — copySelected 와 pasteClipboard 가 «같은 집합»을 봐야 한다.
- * 붙여넣기 기준점을 copy 와 다른 목록으로 고르면 순서가 어긋난다. */
+ * 붙여넣기 기준점을 copy 와 다른 목록으로 고르면 순서가 어긋난다.
+ *
+ * ★2026-09-21 (이벨류에이터 지적 low③) — 여기도 «손으로 적은 목록»이고 SSOT 대비
+ *   .mockup-block · .vector-block · .gradient-block 세 종이 빠져 있었다. ⌘A 가 그 셋을
+ *   고르게 된 뒤로 「전체선택→⌘C→⌘V」에서 «조용히 빠지는» 타입이 되었다
+ *   (실측: 텍스트2+도형1+그라데이션1 ⌘A→⌘C→⌘V ⇒ text 2→4 shape 1→2 gradient 1→1, 경고 없음).
+ *   ⇒ 세 종을 더한다. 어긋남은 tests/unit/select-all-list-drift.test.mjs T9 가 이제 기계로 잰다.
+ *   ⚠️.frame-block 은 여기 없다 — 복사 단위가 «프레임 안의 블록»이라 그대로 둔다. */
 const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
   '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-  '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, ' +
+  '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .qa-block.selected, ' +
   '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
-  '.laurel-block.selected, .zoom-block.selected, .joker-block.selected, .speech-bubble-block.selected';
+  '.laurel-block.selected, .zoom-block.selected, .joker-block.selected, .speech-bubble-block.selected, ' +
+  '.mockup-block.selected, .vector-block.selected, .gradient-block.selected';
 
 /* 같은 타입 목록이되 «.selected 여부 무관» — 한 행 안의 블록이 «전부» 선택됐는지 판정할 때 쓴다. */
 const ALL_TYPES_SEL = MULTI_SEL.replace(/\.selected\b/g, '');
@@ -1370,9 +1581,9 @@ function copySelected() {
     const banner = rowEl.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: rowEl.outerHTML, sourceBannerId: banner?.id || null };
   } else if (selNormal) {
-    // free-layout 프레임 내 블록: absolute 래퍼(text-frame/shape-frame) 또는 자신(absolute)을 복사해
+    // free-layout 프레임 내 블록: absolute 래퍼(text-frame) 또는 자신(absolute)을 복사해
     // 좌표·절대배치를 보존(안 그러면 붙여넣기 시 일반 플로우로 들어가 스택됨).
-    const _flWrapper = selNormal.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]')
+    const _flWrapper = selNormal.closest('.frame-block[data-text-frame]')
       || (selNormal.style.position === 'absolute' ? selNormal : null);
     const _flFrame = _flWrapper?.closest('.frame-block[data-free-layout]');
     if (_flWrapper && _flFrame) {
@@ -1385,12 +1596,22 @@ function copySelected() {
       || selNormal.classList.contains('chat-block')
       || selNormal.classList.contains('laurel-block')
       || selNormal.classList.contains('joker-block');
+    /* ★오버레이(플로팅) — 위치를 쥔 요소를 section-block에 직접 붙이는 방식이라 위
+     * _flWrapper/_flFrame 판정(data-free-layout 필요)에 안 걸린다. 여기서 안 잡으면 아래
+     * 일반 경로로 떨어져 절대배치·아웃라인이 통째로 소실된다(2026-09-15 적대적 QA
+     * qa-adversarial-overlay 발견).
+     * ★2026-09-20 — 「.frame-block[data-text-frame] 이면서 overlayBlock」이라는 «타입 한정»
+     *   판정을 data-overlay-block 단독으로 넓혔다. 도형 래퍼·에셋도 같은 속성으로 뜬다 —
+     *   안 넓히면 그 둘만 옛 버그(절대배치 소실)를 그대로 다시 겪는다(0920b-overlay-extend). */
+    const _overlayWrapper = selNormal.closest('[data-overlay-block="true"]');
+    const isOverlayFloating = !!_overlayWrapper;
     /* ★단일 선택도 «부분 선택»일 수 있다 — 한 행에 블록이 여럿인데 하나만 고른 경우다.
      * 이전엔 개수와 무관하게 행 전체를 담아, 고르지 않은 형제까지 복사됐다(실기 재현 2→4).
      * 「행이 통째로 선택됐을 때만 행을 담는다」는 판정은 멀티 분기와 «같은 헬퍼»를 쓴다 —
      * 두 분기가 다른 기준을 쓰면 개수에 따라 동작이 갈린다(그게 이 버그였다). */
     const _row1 = selNormal.closest('.row');
-    const target = (isGapSel || isFloating) ? selNormal
+    const target = isOverlayFloating ? _overlayWrapper
+      : (isGapSel || isFloating) ? selNormal
       : ((_row1 && _isRowFullySelected(_row1, ALL_TYPES_SEL)) ? _row1 : selNormal);
     const banner = target.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: target.outerHTML, sourceBannerId: banner?.id || null };
@@ -1401,7 +1622,15 @@ function copySelected() {
   } else if (selRow) {
     clipboard = { type: 'block', html: selRow.outerHTML };
   } else if (selSection) {
-    clipboard = { type: 'section', html: selSection.outerHTML };
+    /* ★T-031 — 원본 outerHTML 을 그대로 복사하면 video-pending(트림 확정 전 영상)의
+     *   원본 data URL 이 세척 없이 클립보드 객체에 «한 벌 더» 남는다(T-012 는 저장·undo
+     *   스냅샷 경로만 세척했지 이 경로는 걸러지지 않았다 — 반대방향 누수, 2026-09-15 지적).
+     *   serializeSectionClone 은 라이브를 안 건드리고 클론만 세척해 문자열을 낸다(section-
+     *   serialize.js 단일 진실원과 같은 경로) — 붙여넣기 결과는 "빈 업로드대기"가 되지만
+     *   그건 이미 저장·새 탭 로드가 똑같이 보이는 T-031 의도된 모습이다.
+     *   ⛔블록/행/멀티선택 복사(위 target.outerHTML 등)는 같은 계열이지만 이번 지시 범위 밖 —
+     *     범위를 넓히려면 그쪽도 같은 clone-세척 패턴으로 바꿔야 한다. */
+    clipboard = { type: 'section', html: window.serializeSectionClone(selSection) };
   }
 }
 
@@ -1411,7 +1640,7 @@ function _bindPastedEl(el) {
   //   ⛔아래 id 재생성보다 «먼저» 부르지만, 승격은 id 를 건드리지 않으므로 순서 무관하다.
   window.migrateGridIdentity?.(el);
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -1449,6 +1678,8 @@ function _bindPastedEl(el) {
     if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
     if (b.classList.contains('infocard-block')) window.renderInfoCardBlock?.(b);
     if (b.classList.contains('innercard-block')) window.renderInnerCardBlock?.(b);
+    // qa-block: 위에서 id 를 재발급했다 — 풋터 ID칩(.qa-id-chip)이 옛 id 를 그대로 보여주지 않게 재렌더.
+    if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
   });
 }
 
@@ -1522,6 +1753,35 @@ function _viewportCenterInContainerLocal(containerEl) {
   };
 }
 
+/* ★붙여넣은 «오버레이(플로팅)» 사본을 섹션 «안 보이는 자리»에 놓는다 (2026-09-20 QA 반영).
+   ───────────────────────────────────────────────────────────────────────────
+   옛 판은 _viewportCenterInContainerLocal(sec) 값을 그대로 썼다. 그건 «뷰포트 중앙»을
+   섹션-로컬 좌표로 바꾼 값이라, 섹션이 짧고 화면 위쪽에 있으면 섹션 높이를 한참 넘는 y 가
+   나온다 — 사본이 섹션 «밖 빈 공간»에 떨어져 화면에서 못 찾는다(실측: 섹션 clientHeight 383
+   인데 offsetY 1140). 게다가 두 번 연속 ⌘V 가 «같은 좌표»라 사본 둘이 픽셀 단위로 겹쳐
+   「한 장만 붙은 줄」 안다.
+   ⇒ ⑴섹션 상자 안으로 클램프하고 ⑵이미 같은 자리에 오버레이가 있으면 계단식으로 비킨다.
+   ⛔드래그의 «탄성 클램프»(overlay-float.js)와 섞지 마라 — 저건 손맛이고 이건 «사본을
+     사용자가 찾을 수 있는 자리에 둔다»는 다른 규칙이다. 붙인 뒤에 얼마든지 밖으로 끌 수 있다. */
+function _placePastedOverlay(sec, el, nx, ny) {
+  const w = el.offsetWidth || 0, h = el.offsetHeight || 0;
+  const maxX = Math.max(0, (sec.clientWidth  || 0) - w);
+  const maxY = Math.max(0, (sec.clientHeight || 0) - h);
+  let x = Math.min(Math.max(0, Math.round(nx) || 0), maxX);
+  let y = Math.min(Math.max(0, Math.round(ny) || 0), maxY);
+  const STEP = 20;
+  const taken = (cx, cy) => [...sec.children].some(c =>
+    c !== el && c.nodeType === 1 && c.dataset && c.dataset.overlayBlock === 'true'
+    && Math.abs((parseInt(c.dataset.offsetX) || 0) - cx) < 2
+    && Math.abs((parseInt(c.dataset.offsetY) || 0) - cy) < 2);
+  for (let i = 0; i < 20 && taken(x, y); i++) {
+    if (x >= maxX && y >= maxY) break;   // 더 비킬 곳이 없다 — 겹쳐도 어쩔 수 없다
+    x = Math.min(x + STEP, maxX);
+    y = Math.min(y + STEP, maxY);
+  }
+  return { x, y };
+}
+
 // banner-preset 안에서 복사한 자식이라면 같은 banner 안에 복제 —
 // banner가 지금 화면에 보이면 뷰포트 중앙(banner-local)에, 안 보이면 기존처럼 원본 위치 +20px.
 // banner가 더 이상 없으면 null 반환 → 호출부에서 일반 paste 경로로 fallback.
@@ -1542,8 +1802,31 @@ function _pasteIntoSourceBanner(el, sourceBannerId) {
   return banner;
 }
 
+/* ★0919 QA — 붙여넣기·⌘D 뒤 선택은 «사본만»(피그마 기준). 사본은 선택된 원본을 직렬화한 것이라
+   .selected 를 달고 들어오고, 원본의 .selected 는 그대로 남아 ⌫ 한 번에 원본까지 지워졌다.
+   섹션(.section-block)의 selected 는 «어느 섹션에서 작업 중인가» 표시라 건드리지 않는다.
+   사본 안에 선택 표시가 하나도 없으면 사본 루트(블럭이면)를 선택한다. */
+function _keepOnlyPastedSelected(roots) {
+  const list = (roots || []).filter(r => r && r.isConnected);
+  if (!list.length) return;
+  const inPasted = (el) => list.some(r => r === el || r.contains(el));
+  canvasEl.querySelectorAll('.selected').forEach(el => {
+    if (el.classList.contains('section-block')) return;
+    if (!inPasted(el)) el.classList.remove('selected');
+  });
+  list.forEach(r => {
+    if (r.classList.contains('selected') || r.querySelector('.selected')) return;
+    if ([...r.classList].some(c => c.endsWith('-block'))) r.classList.add('selected');
+  });
+  list[0].closest('.section-block')?.classList.add('selected');
+  window._activeFrame = null;
+}
+
 function pasteClipboard() {
   if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
+  /* ★0918r2 T-058 — 붙여넣으면 선택이 «블럭 단위»로 바뀐다(사본이 selected 로 들어와 원본과 함께 잡힌다).
+     그리드 줄 선택(활성줄+마커)을 남기면 [원본(줄)+사본] 상태의 ⌫ 가 원본의 줄로 샜다. */
+  window.grdDropLineSelection?.(canvasEl);
   // 현재 DOM 상태가 마지막 히스토리와 다르면 체크포인트 저장
   // (block-factory.js가 push-before라서 최신 N개 블록 상태가 히스토리에 없는 경우 대비)
   window.ensureHistoryCheckpoint?.('붙여넣기 전');
@@ -1568,10 +1851,13 @@ function pasteClipboard() {
           ? last
           : (last.closest('.frame-block[data-text-frame]')
              || ((_lastRow && _isRowFullySelected(_lastRow, ALL_TYPES_SEL)) ? _lastRow : last));
+        // ★마지막 선택이 도형이면 앵커는 그 «래퍼(또는 row)» — shape-block.after() 는 래퍼 «안»이다(0918 A안)
+        anchor = anchorUnitOf(anchor);
         if (!anchor.parentElement) anchor = null;   // 떨어져 나간 노드면 폴백
       }
     }
     let lastEl = null;
+    const _pastedRoots = [];
     clipboard.items.forEach(item => {
       const temp = document.createElement('div');
       temp.innerHTML = item.html;
@@ -1582,8 +1868,10 @@ function pasteClipboard() {
       if (banner) {
         _bindPastedEl(el);
         lastEl = el;
+        _pastedRoots.push(el);
         return;
       }
+      _pastedRoots.push(el);
       if (lastEl) {
         lastEl.after(el);
       } else {
@@ -1597,6 +1885,7 @@ function pasteClipboard() {
       _normalizePastedAbsolute(el);
       lastEl = el;
     });
+    _keepOnlyPastedSelected(_pastedRoots);
     window.buildLayerPanel();
     pushHistory('붙여넣기');
     return;
@@ -1639,9 +1928,11 @@ function pasteClipboard() {
   } else if (clipboard.freeLayout) {
     // free-layout 프레임 내 블록 붙여넣기 — 원본(또는 선택된) free-layout 프레임에 +20px 오프셋 절대배치.
     // duplicateSelected의 freeLayout 분기 미러.
-    const frame = (clipboard.sourceFrameId && document.getElementById(clipboard.sourceFrameId))
-      || document.querySelector('.frame-block[data-free-layout].selected')
-      || (window._activeFrame?.dataset?.freeLayout ? window._activeFrame : null);
+    // ★세 후보 모두 resolveInsertFrame 을 통과 — 도형 래퍼(역시 data-free-layout)는 대상이 아니다(0918 A안)
+    const _flFrame = (f) => { const r = resolveInsertFrame(f || null); return r?.dataset?.freeLayout ? r : null; };
+    const frame = _flFrame(clipboard.sourceFrameId && document.getElementById(clipboard.sourceFrameId))
+      || _flFrame([...document.querySelectorAll('.frame-block[data-free-layout].selected')].find(f => !isShapeFrame(f)))
+      || _flFrame(window._activeFrame);
     if (!frame) {
       // 대상 프레임 못 찾음 → 일반 경로 폴백(섹션 끝에 삽입)
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
@@ -1664,7 +1955,7 @@ function pasteClipboard() {
       el.style.left = nx + 'px'; el.style.top = ny + 'px';
       el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
       frame.appendChild(el);
-      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block';
       el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
       if (el.matches?.(_ALL)) { delete el._blockBound; window.bindBlock?.(el); }
       el._dragBound = false; el._subSecBound = false;
@@ -1698,6 +1989,33 @@ function pasteClipboard() {
       el.dataset.y = String(vp ? Math.round(vp.y) : curY + 20);
       window.renderStickerBlock?.(el);
       window.bindStickerSelect?.(el);
+    } else if (el.dataset.overlayBlock === 'true') {
+      /* ★오버레이(플로팅) — 스티커와 같은 취급: section 밑에 absolute로 직접 붙인다.
+       * 아래 일반 경로(_normalizePastedAbsolute)를 태우면 absolute가 통째로 벗겨진다
+       * (2026-09-15 적대적 QA 발견 → 이 분기 신설).
+       * ★2026-09-20 — textFrame 하드코딩을 뺐다(도형 래퍼·에셋도 같은 속성으로 뜬다). */
+      const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
+      if (!sec) { window.showNoSelectionHint?.(); return; }
+      const curX = parseInt(el.style.left) || 0;
+      const curY = parseInt(el.style.top) || 0;
+      const vp = _viewportCenterInContainerLocal(sec);
+      const rawX = vp ? Math.round(vp.x) : curX + 20;
+      const rawY = vp ? Math.round(vp.y) : curY + 20;
+      sec.appendChild(el);
+      _bindPastedEl(el);
+      // ★자리 계산은 «붙인 뒤» — 사본의 실제 크기와 섹션 상자를 재야 한다(_placePastedOverlay).
+      const { x: nx, y: ny } = _placePastedOverlay(sec, el, rawX, rawY);
+      el.style.left = nx + 'px'; el.style.top = ny + 'px';
+      el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
+      // 복귀정보는 원본 것을 그대로 물려받으면 안 된다(원본 부모에 잘못 꽂힌다) —
+      // 지워서 exitOverlay의 기존 폴백(섹션 맨 앞)을 타게 한다.
+      delete el.dataset.overlayReturnParent;
+      delete el.dataset.overlayReturnAfter;
+      deselectAll();
+      // 선택 대상 = 안쪽 콘텐츠 블록(텍스트/도형) 또는 자기 자신(에셋). 이름 목록이 아니라
+      // 「래퍼면 안쪽 블록」이라는 구조로 집는다.
+      (el.querySelector('.text-block, .shape-block') || el).classList.add('selected');
+      sec.classList.add('selected');
     } else {
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
       if (!sec) { window.showNoSelectionHint?.(); return; }
@@ -1708,6 +2026,7 @@ function pasteClipboard() {
       if (pasteHasSS) window._activeFrame = savedActiveSS;
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
+      _keepOnlyPastedSelected([el]);
     }
   }
   window.buildLayerPanel();
@@ -1749,8 +2068,9 @@ function alignSelectedToParent(dir) {
   const map = { left: 'flex-start', center: 'center', right: 'flex-end' };
   const val = map[dir];
   if (!val) return;
-  // 선택 집합 규약: FLOW_BLOCK_SEL_SELECTED(SSOT) + shape/frame. 각 블록은 부모 섹션이 있어야 대상.
-  const ALIGN_SEL = FLOW_BLOCK_SEL_SELECTED + ', .shape-block.selected, .frame-block.selected';
+  // 선택 집합 규약: FLOW_BLOCK_SEL_SELECTED(SSOT — 프레임 포함) + shape. 각 블록은 부모 섹션이 있어야 대상.
+  // ★.frame-block.selected 는 2026-09-21(T-091)부터 SSOT 안에 있다 — 여기서 또 적으면 사본이다.
+  const ALIGN_SEL = FLOW_BLOCK_SEL_SELECTED + ', .shape-block.selected';
   const blocks = [...document.querySelectorAll(ALIGN_SEL)].filter(b => b.closest('.section-block'));
   if (!blocks.length) return; // 섹션만 선택/무선택 등 대상 없으면 no-op
   blocks.forEach(b => { b.style.alignSelf = val; }); // 선택 상태(.selected)는 그대로 유지
@@ -1857,6 +2177,40 @@ function mergeSelectedGaps() {
   if (firstKept) firstKept.classList.add('selected');
 }
 
+/* ★T-102 — «고른 것» 찾기는 성질로. 조상(섹션·프레임)도 .selected 표식을 달기 때문에
+   «가장 깊은 .selected» 이 실제로 고른 것이다. */
+function _deepestCanvasSelection() {
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return null;
+  let best = null, depth = -1;
+  canvas.querySelectorAll('.selected').forEach(el => {
+    let d = 0; for (let p = el; p; p = p.parentElement) d++;
+    if (d > depth) { depth = d; best = el; }
+  });
+  return best;
+}
+/** el 자신부터 올라가며 «free-layout 프레임의 직속 자식 + absolute» 를 찾는다 = left/top 을 가진 사람. */
+function _freePositionedAncestor(el) {
+  const canvas = document.getElementById('canvas');
+  for (let n = el; n && n !== canvas; n = n.parentElement) {
+    if (n.parentElement?.matches?.('.frame-block[data-free-layout]')
+        && getComputedStyle(n).position === 'absolute') return n;
+  }
+  return null;
+}
+/** 단일·다중선택 모두 커버. 중첩 프레임에서 «조상과 자식이 둘 다» 잡힐 때는 조상을 버린다(이중 이동 방지). */
+function _freeNudgeTargets() {
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return [];
+  const set = new Set();
+  canvas.querySelectorAll('.selected, .multi-selected').forEach(el => {
+    const m = _freePositionedAncestor(el);
+    if (m) set.add(m);
+  });
+  const all = [...set];
+  return all.filter(a => !all.some(b => b !== a && a.contains(b)));
+}
+
 document.addEventListener('keydown', e => {
   // contenteditable 편집 중: 에디터 전역 단축키 차단
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
@@ -1947,7 +2301,11 @@ document.addEventListener('keydown', e => {
     if (e.key === 's' && !e.shiftKey)   {
       e.preventDefault();
       window.triggerAutoSave?.();
-      window.showToast?.('💾 저장됨');
+      /* ★T-032: ⌘S 는 «저장»이다 — 미확정 영상이 있으면 그 저장에서 원본이 빠진다.
+         토스트는 #editor-toast 한 칸을 «덮어쓰는» 구조라(js/drag-utils.js showToast)
+         '저장됨' 뒤에 경고를 얹으면 경고가 1프레임 만에 지워진다 ⇒ 둘 중 «더 중요한 쪽»만
+         띄운다. 경고는 「저장됐다」를 이미 전제한 문장이라 정보가 줄지 않는다. */
+      if (!warnPendingVideoLossIf(canvasEl)) window.showToast?.('💾 저장됨');
       return;
     }
     if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
@@ -2092,10 +2450,9 @@ document.addEventListener('keydown', e => {
       // 현재 선택된 섹션 내 모든 블록 선택
       const activeSec = document.querySelector('.section-block.selected') || document.querySelector('.section-block');
       if (activeSec) {
-        const allBlocks = activeSec.querySelectorAll(
-          '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, ' +
-          '.label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block'
-        );
+        // ★손으로 한 벌 더 적지 않는다 — 파일 상단 SSOT(SECTION_BLOCK_TYPE_SEL)를 그대로 쓴다.
+        //   (T-085: 여기 목록만 뒤처져 ⌘A 가 도형을 안 골랐고, 그래서 Delete 가 도형을 남겼다)
+        const allBlocks = activeSec.querySelectorAll(SECTION_BLOCK_TYPE_SEL);
         allBlocks.forEach(b => b.classList.add('selected'));
       }
       return;
@@ -2127,8 +2484,10 @@ document.addEventListener('keydown', e => {
             // ★changed로 조건화 — 동일색 재추출(전건 스킵)에 빈 undo 스텝이 쌓이던 것 방지(고디터QA LOW).
             let changed = 0;
             shapeTargets.forEach(sb => {
-              if (sb.dataset.shapeColor === hex && !sb.dataset.shapeGradient) return;
+              if (sb.dataset.shapeColor === hex && !sb.dataset.shapeGradient && !sb.dataset.shapeFill) return;
               sb.dataset.shapeColor = hex;
+              // 이미지(에셋)/바둑판 모드 해제(0918 picker) — 스포이드로 색을 찍으면 단색이다
+              if (sb.dataset.shapeFill) window._clearShapeImage?.(sb);
               const svg = sb.querySelector('svg');
               if (svg) {
                 if (sb.dataset.shapeGradient) window._clearShapeGradient?.(sb);
@@ -2248,6 +2607,10 @@ document.addEventListener('keydown', e => {
 
   if (e.key === 'Escape') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    /* ★T-102 — Esc 순서: «떠 있는 메뉴»가 제일 위다. 메뉴가 열려 있으면
+       메뉴만 닫고 소진된다 — 선택 풀기·상위로 올라가기(T-058)는 그다음 Esc 몫이다.
+       (메뉴가 안 열려 있으면 closeFpMenus() 가 0 을 돌려 기존 흐름이 그대로 간다.) */
+    if (closeFpMenus() > 0) return;
     // vectorPen 그리기/편집 모드는 자체 capture 핸들러가 ESC를 먼저 소비함.
     // 안전망: 모드가 살아있으면 종료만 하고 선택 해제는 건너뜀.
     if (document.body.classList.contains('vpen-mode')) { window.exitVectorPenMode?.(); return; }
@@ -2256,6 +2619,13 @@ document.addEventListener('keydown', e => {
     const editingGroup = document.querySelector('.group-block.group-editing');
     if (editingGroup) {
       editingGroup.classList.remove('group-editing');
+      return;
+    }
+    /* ★0918 grid «상위 선택»(피그마식): 그리드의 줄/칸이 선택돼 있으면 첫 Esc 는 줄 선택만 풀고
+       블럭 선택은 유지한다(이 상태의 Backspace = 블럭 삭제). 한 번 더 Esc 면 전체 해제. */
+    const _gridSelEsc = document.querySelector('.grid-block.selected');
+    if (_gridSelEsc && window.grdGetActiveLine?.(_gridSelEsc)) {
+      window.showGridProperties?.(_gridSelEsc, null);
       return;
     }
     deselectAll();
@@ -2268,7 +2638,7 @@ document.addEventListener('keydown', e => {
     const sel = document.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, ' +
+      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .qa-block.selected, ' +
       '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
       '.icon-block.selected, .vector-block.selected, .step-block.selected, .shape-block.selected'
     );
@@ -2298,6 +2668,50 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  /* ★T-102 — 화살표키는 «고른 블럭» 것이다. 예전엔 이 자리가 비어 있어서
+     브라우저 기본동작이 #canvas-wrap 을 밀었다 — 방금 고른 것이 화면 밖으로 나갔다.
+     ⛔블럭 «종류 명부»를 새로 적지 않는다 — 성질로 고른다:
+       free-layout 프레임의 «직속 자식»이면서 absolute 로 떠 있는 것만 left/top 을 갖는다
+       (block-drag.js 의 드래그가 쓰는 바로 그 성질 — dataset.offsetX/Y 와 짝).
+     되돌리기: 한 «연타»가 ⌘Z 한 번이다(드래그 한 제스처와 같은 결).
+     흐름(stack) 블럭은 밀 곳이 없으니 «아무 일도 안 한다» — 단, 스크롤도 안 한다. */
+  {
+    const _ARROW = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    const _dir = (!e.metaKey && !e.ctrlKey && !e.altKey && !e.isComposing) ? _ARROW[e.key] : null;
+    if (_dir) {
+      const _t = e.target;
+      if (_t && (_t.tagName === 'INPUT' || _t.tagName === 'TEXTAREA' || _t.tagName === 'SELECT' || _t.isContentEditable)) return;
+      if (document.querySelector('.text-block.editing, .label-group-block.editing, .modal-block.editing')) return;
+      const _sel = _deepestCanvasSelection();
+      // 섹션«만» 고른 상태는 예전처럼 캔버스 스크롤로 둔다(좁은 대상이 먼저다).
+      if (_sel && !_sel.classList.contains('section-block')) {
+        e.preventDefault();
+        const _movers = _freeNudgeTargets();
+        if (_movers.length) {
+          const _step = e.shiftKey ? 10 : 1;
+          const _now = Date.now();
+          if (_now - (window._nudgeBurstAt || 0) >= 700) pushHistory('블럭 이동');
+          window._nudgeBurstAt = _now;
+          _movers.forEach(m => {
+            const nx = Math.round(parseFloat(m.style.left) || 0) + _dir[0] * _step;
+            const ny = Math.round(parseFloat(m.style.top)  || 0) + _dir[1] * _step;
+            m.style.left = nx + 'px';
+            m.style.top  = ny + 'px';
+            m.dataset.offsetX = String(nx);
+            m.dataset.offsetY = String(ny);
+          });
+          const _m0 = _movers[0];
+          const _xNum = document.getElementById('txt-x-number') || document.getElementById('lg-x-number');
+          const _yNum = document.getElementById('txt-y-number') || document.getElementById('lg-y-number');
+          if (_xNum) _xNum.value = Math.round(parseFloat(_m0.style.left) || 0);
+          if (_yNum) _yNum.value = Math.round(parseFloat(_m0.style.top)  || 0);
+          window.scheduleAutoSave?.();
+        }
+        return;
+      }
+    }
+  }
+
   // 블록 추가 단축키: addGap/addText/addAsset (사용자 설정 가능, 기본 G/T/A — IME 안전: e.code 사용)
   if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
@@ -2316,9 +2730,24 @@ document.addEventListener('keydown', e => {
     const _isAddGap   = _ms ? _ms(e, 'addGap')   : (e.code === 'KeyG');
     const _isAddText  = _ms ? _ms(e, 'addText')  : (e.code === 'KeyT');
     const _isAddAsset = _ms ? _ms(e, 'addAsset') : (e.code === 'KeyA');
-    if (_isAddGap)   { e.preventDefault(); window.addGapBlock?.(); return; }
-    if (_isAddText)  { e.preventDefault(); window.addTextBlock?.('body'); return; }
+    /* ★그리드 우선처리(T-A, 2026-09-16) — 그리드 셀/줄이 선택돼 있으면 T/G 가 «그 칸에
+       줄을 추가»하고 소진된다(전역 텍스트/갭 블록 추가로 안 흘러간다). isComposing 가드는
+       한글 조합 중 keydown 이 «두 번」 튀는 사고(korean-ime-enter-double-commit 계열)를 막는다. */
+    if (_isAddGap && !e.isComposing) {
+      e.preventDefault();
+      if (window.grdAddLineToSelectedCell?.('gap')) return;
+      window.addGapBlock?.(); return;
+    }
+    if (_isAddText && !e.isComposing) {
+      e.preventDefault();
+      if (window.grdAddLineToSelectedCell?.('body')) return;
+      window.addTextBlock?.('body'); return;
+    }
     if (_isAddAsset) { e.preventDefault(); window.toggleFpDropdown?.('fp-asset-dropdown'); return; }
+    // ★아이콘 새 줄(K) — 그리드 전용, 하드코딩(설정 리매핑 레지스트리는 이번 범위 밖).
+    if (e.code === 'KeyK' && !e.isComposing) {
+      if (window.grdAddIconToSelectedCell?.()) { e.preventDefault(); return; }
+    }
 
     // Enter → 선택된 텍스트 블록 편집 모드 진입
     if (e.code === 'Enter') {
@@ -2360,6 +2789,8 @@ document.addEventListener('keydown', e => {
       if (document.querySelector('.text-block.editing')) return; // 편집 중 차단
       const tb = document.querySelector('.text-block.selected');
       if (!tb) return;
+      // 0920r4 texttype: 라이너는 타입이 없다(패널도 Type 토글 숨김, prop-text.js M2) — 미러 .tb-liner 를 건드리지 않는다
+      if (tb.classList.contains('liner-block')) return;
       e.preventDefault();
       const typeMap = { 'Digit1': ['tb-h1','heading'], 'Digit2': ['tb-h2','heading'], 'Digit3': ['tb-h3','heading'], 'Digit4': ['tb-body','body'] };
       const phMap = { 'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요', 'tb-body':'본문 내용을 입력하세요.' };
@@ -2367,7 +2798,7 @@ document.addEventListener('keydown', e => {
       const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet');
       if (!contentEl) return;
       window.pushHistory?.();
-      contentEl.className = cls;
+      setTextTypeClass(contentEl, cls);   // 0920r4 texttype: className 통째 대입 금지(.tgs·.tfx-* 유실 → 그림자가 글자 위로)
       tb.dataset.type = dtype;
       // 유형 변경 = 스타일 프리셋 적용. inline fontSize 제거 → CSS 유형 표준크기 적용
       // (tb-h1 104 / tb-h2 72 / tb-h3 52 / tb-body 36). 이후 +/-로 미세조정 가능.
@@ -2393,6 +2824,7 @@ document.addEventListener('keydown', e => {
         const nameSpan = tb._layerItem?.querySelector('.layer-item-name');
         if (nameSpan) nameSpan.textContent = (dtype === 'heading') ? 'Heading' : 'Body';
       }
+      afterTextTypeChange(contentEl);   // 0920r4 texttype: 새 타입 기준으로 그라데이션 글자 그림자 파생값 재계산
       window.showTextProperties?.(tb);
       return;
     }
@@ -2460,10 +2892,33 @@ document.addEventListener('keydown', e => {
     }
   }
 
+  /* ── 그리드 칸 «안의 줄»을 ⌘←/→ 로 «옆 칸»으로 옮긴다 (T-227, 0927) ──────────
+     ★키를 왜 ⌘←/→ 로 골랐나 — ⌘↑/↓ 는 이미 «같은 칸 안 위/아래»다(T-220 ⓐ). 칸은 옆으로
+       늘어서 있으니 ←/→ 가 그 뜻을 그대로 담는다. ★그리고 이 저장소에서 ⌘←/→ 는 «비어
+       있었다» — 전수로 쟀다: `git grep -nIE "ArrowLeft|ArrowRight" -- js/ main/ index.html` ⇒
+       js/editor.js 의 _ARROW 한 곳뿐이고, 그것은 `!e.metaKey` 일 때만 든다(오버레이 nudge).
+     ⛔줄이 안 골라졌으면 «아무 일도 안 한다» — false 로 흘려보내 예전처럼 둔다(⌘↑/↓ 와 달리
+       여기엔 이어받을 «블럭 이동»이 없다. 새 뜻을 지어내지 않는다).
+     ★놓을 «자리»는 묻지 않는다 — 도착 칸의 «끝»에 붙인다. 자리를 고르는 것은 드래그(T-228)
+       몫이다(그 카드에 「⌘방향키만으로는 부족할 수 있다」고 미리 적혀 있다). */
+  if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && (e.metaKey || e.ctrlKey)) {
+    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    if (moveGridLineAcrossCells({ dir: e.key === 'ArrowLeft' ? -1 : 1 })) { e.preventDefault(); return; }
+  }
+
   // ── 키보드 Nudge: 블록 이동 Cmd+방향키 (편집 중이거나 입력 포커스 시 무시) ──
   if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey)) {
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    /* ★그리드 칸 «안의 줄»이 골라져 있으면 ⌘↑/↓ 는 «그 줄»을 칸 안에서 옮긴다 (0926).
+       ⛔블럭 이동보다 «먼저» 묻는다 — 아래 selBlock 조회는 `.selected` 만 보는데, 줄을
+         골라도 .grid-block 에는 여전히 .selected 가 붙어 있다(줄은 모델(WeakMap)에만
+         선택된다 — grd-line-selected 는 «마커»일 뿐이다). 그래서 뒤에 두면 줄을 옮기려던
+         키가 `closest('.row')` 를 집어 «그리드 블럭 통째»를 옮긴다 — 현빈 2026-09-26 실측.
+       ★pushHistory 보다 앞이다: 막는 쪽(중첩)은 아무것도 안 쓰고 돌아가고, 옮기는 쪽은
+         updateGridBlock 이 «쓰기 직전에» 스스로 1회 쌓는다. */
+    if (moveGridLineFromCanvas({ dir: e.key === 'ArrowUp' ? -1 : 1 })) { e.preventDefault(); return; }
     // 섹션 외 모든 selected 요소를 블록으로 취급 (iconify/shape/sticker/laurel 등 누락 방지)
     const selBlock = [...document.querySelectorAll('.selected')]
       .find(el => el !== document.body
@@ -2523,6 +2978,84 @@ document.addEventListener('keydown', e => {
   }
 });
 
+/* ══ 그리드 칸 «안의 줄»을 ⌘↑/↓ 로 옮긴다 — 0926 ═══════════════════════════
+ * ★게이트는 deleteSelectedFromCanvas(⌫)의 그 꼴을 «그대로» 따른다 — 같은 주소(grdGetActiveLine)를
+ *   같은 순서로 묻는다: ⑴단독 선택인가(grdIsSoleSelected) ⑵중첩(np)인가 ⑶바깥 줄(li)인가.
+ *   ⛔판정을 여기서 새로 짜지 마라 — 두 벌이 갈리면 「⌫ 는 줄을 지우는데 ⌘↑ 는 블럭을 옮긴다」가 된다.
+ * ★범위 ⓐ만 — «바깥 줄»을 «같은 칸 안»에서만 옮긴다. 칸 사이·행 사이 이동은 이 카드 밖이다.
+ * @returns {boolean} 소비했으면 true(호출부가 preventDefault + return). false 면 «블럭 이동»으로 흐른다. */
+/** ⌘방향키 손잡이들이 «같은 순서로» 묻는 게이트 한 벌 — 0927 T-227 에서 뽑았다.
+ *
+ * ★왜 뽑았나 — 손잡이가 «둘»이 됐다(⌘↑/↓ 같은 칸 안 · ⌘←/→ 다른 칸으로). 판정을 두 벌로 두면
+ *   「⌘↑ 는 줄을 옮기는데 ⌘← 는 블럭을 옮긴다」가 된다. ⛔복붙하지 마라 — grdAddLine 머리말의
+ *   그 규약(각자 splice 를 복붙하지 않는다)이 «게이트»에도 그대로다.
+ * ★묻는 순서는 ⌫(deleteSelectedFromCanvas)의 그 꼴을 «그대로» 따른다:
+ *   ⑴단독 선택인가(grdIsSoleSelected) ⑵중첩(np)인가 ⑶바깥 줄(li)인가.
+ * @returns {{block:HTMLElement, addr:object, nested:boolean}|null}
+ *   null = 쓸 줄이 없다(호출부는 false 로 흘려 «블럭 이동»이 되게 둔다).
+ *   nested:true = 중첩 «안»의 줄이다 — 호출부는 «소비만» 하고 아무것도 옮기지 않는다. */
+function _gridActiveOuterLine() {
+  const gridSel = document.querySelector('.grid-block.selected');
+  let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
+  /* ★단독 선택일 때만 — ⌘클릭 다중선택·붙여넣기 뒤 [원본(활성줄)+사본] 은 사용자가 «블럭들»을
+     보고 있다. 거기서 첫 그리드의 활성줄만 보고 줄을 옮기면 블럭은 그대로인데 줄만 조용히 바뀐다
+     (⌫ 쪽에서 실제로 났던 누수 — 0918r2 T-058). 그땐 줄 선택을 끝내고 블럭 이동으로 흘려보낸다. */
+  if (gridAddr && typeof window.grdIsSoleSelected === 'function' && !window.grdIsSoleSelected(gridSel)) {
+    window.grdDropLineSelection?.(document.getElementById('canvas'));
+    gridAddr = null;
+  }
+  if (!gridSel || !gridAddr) return null;
+  if (gridAddr.np) return { block: gridSel, addr: gridAddr, nested: true };
+  /* ⚠️addr.li === null 은 «빈 칸»(셀 모드, T-A)이다 — 옮길 줄이 없다. ⌫ 가 그때 블럭을 지우는
+     것과 같이, null 로 흘려 «블럭 이동»이 되게 둔다(두 키의 뜻이 갈리지 않게). */
+  if (gridAddr.li === null || gridAddr.li === undefined) return null;
+  return { block: gridSel, addr: gridAddr, nested: false };
+}
+
+function moveGridLineFromCanvas({ dir } = {}) {
+  const got = _gridActiveOuterLine();
+  if (!got) return false;
+  /* ★중첩 안 줄이 잡혀 있으면 «아무것도 옮기지 않는다» — ⌫ 의 np 바일아웃과 같은 자리·같은 까닭.
+     ⛔consumed = true 로 «먹고» 끝낸다. false 로 흘리면 아래 블럭 이동으로 새서, 중첩 줄 하나를
+       옮기려던 ⌘↑ 가 «그리드 블럭 통째»를 섹션 안에서 옮긴다(그게 이 카드의 원래 증상이다).
+     ⛔gridAddr.li 는 «품은 duo 줄»이다 — np 를 안 보고 옮기면 사용자가 고른 적 없는 중첩
+       그리드가 통째로 자리를 옮긴다. 그래서 여기서 명시적으로 멈춘다.
+     ★옮기는 길은 이번 범위 밖이다(patchCell{lines} 가 중첩 안으로 못 내려간다 — T-220 몫). */
+  if (got.nested) {
+    window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 옮길 수 없습니다 — 바깥 줄을 고르세요');
+    return true;
+  }
+  /* ★옮기는 «한 벌»은 prop-grid.js grdMoveLine — 줄을 넣는/지우는 길과 같은 집이다.
+     EDGE(칸의 끝)·INVALID(그 사이 데이터가 바뀜)는 조용히 소비만 한다. 여기서 false 를
+     돌려주면 「맨 위 줄에서 ⌘↑」가 갑자기 «블럭 이동»으로 바뀐다 — 바로 그 혼동을 막는다. */
+  window.grdMoveLine?.(got.block, { r: got.addr.r, c: got.addr.c }, got.addr.li, dir);
+  return true;
+}
+
+/* ══ 칸 «안»의 줄을 «옆 칸»으로 옮긴다 — ⌘←/→ (T-227, 0927) ═════════════════
+ * ★게이트는 ⌘↑/↓ 와 «같은 한 벌»이다(_gridActiveOuterLine) — 두 키의 판정이 갈리지 않게.
+ * ★쓰는 «한 벌»은 prop-grid.js grdMoveLineToCell — 넣기·지우기·옮기기와 같은 집이다.
+ * ⛔여기서 «열 수»를 세지 마라 — 칸이 없으면 그 함수가 INVALID 를 돌려준다(셈이 두 벌이 되면
+ *   조용히 갈라진다). 맨 왼쪽에서 ⌘← 는 그래서 «조용히 소비»된다 — grdMoveLine 의 EDGE 와
+ *   같은 뜻이다(사용자에게는 「아무 일도 안 일어난다」로 보이는 것이 맞다).
+ * ★행(r)은 안 바꾼다 — 「옆 칸」이다. 위·아래 «행»으로 넘기는 것은 이 카드 밖이다.
+ * @returns {boolean} 소비했으면 true. false 면 ⌘←/→ 는 예전처럼 «아무 일도 안 한다». */
+function moveGridLineAcrossCells({ dir } = {}) {
+  const got = _gridActiveOuterLine();
+  if (!got) return false;
+  /* ★중첩 안 줄은 먹고 멈춘다 — ⌘↑/↓ 와 «같은 말»을 한다(문구까지 같다. 두 키가 다른 말을
+     하면 사용자는 「어느 쪽이 되는 건가」를 새로 배워야 한다). */
+  if (got.nested) {
+    window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 옮길 수 없습니다 — 바깥 줄을 고르세요');
+    return true;
+  }
+  const step = dir < 0 ? -1 : 1;
+  window.grdMoveLineToCell?.(got.block,
+    { r: got.addr.r, c: got.addr.c }, got.addr.li,
+    { r: got.addr.r, c: got.addr.c + step }, null);
+  return true;
+}
+
 /* [#16-DEL] 섹션 삭제의 «링크 처분» — ⛔묻지 않는다(현빈 2026-09-09 정정: 「그냥 같이 삭제」).
  *   _splReleaseSections(secs) : ★①링크를 끊고 ②«고아»(아무 섹션도 안 쓰는) 이미지만 지운다.
  *     그다음 호출자가 ③remove(). 반환한 sideEffects 를 «변경 뒤» pushHistory 에 실어야
@@ -2549,6 +3082,82 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
     if (imgEditBlock) {
       consumed = true;
       clearAssetImage(imgEditBlock);
+      return consumed;
+    }
+
+    /* ★그리드 셀 안 «줄»이 선택돼 있으면(우측 패널이 그 줄의 줄바/Image/Typography 절을
+       띄운 상태 — grdGetActiveLine) 백스페이스/⌘X 는 «그 줄 하나»만 지운다.
+       T-009 버그B: 캔버스에서 줄을 클릭해도 DOM 선택은 여전히 .grid-block 전체다(줄은
+       모델(WeakMap)에만 「선택」되고 클래스가 안 붙는다) — 아래 CANVAS_SEL_BLOCKS 가
+       .grid-block.selected 를 그대로 주워가 «블록 전체»를 삭제하던 사고. 줄 삭제 로직은
+       prop-grid.js 의 grd-line-del-btn(줄바)·우클릭 「이미지 삭제」(block-factory.js
+       bcm-grid-img-del)와 같은 경로(patchCell{lines}) — 여러 벌로 갈라지지 않게 여기서도
+       그 함수들을 그대로 부른다.
+       ※2026-09-25 — 여기 같이 적혀 있던 `grd-img-remove-btn`(Image 절의 「이미지 제거」)은
+         현빈 지시로 없앴다. 줄바의 「줄 삭제」가 «한 글자도 안 다른» 같은 코드였다. */
+    const gridSel = document.querySelector('.grid-block.selected');
+    let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
+    /* ★0918r2 T-058 — 줄 삭제는 «그 그리드 하나만» 선택됐을 때만. ⌘클릭 다중선택·붙여넣기 뒤
+       [원본(활성줄)+사본] 처럼 블럭이 여럿 골라진 상태는 사용자가 «블럭들»을 보고 있다 —
+       여기서 첫 그리드의 활성줄만 보고 줄 하나를 지우면 블럭은 다 남고 줄만 조용히 사라졌다
+       (DOM 순서에 따라 결과까지 갈렸다). 그땐 줄 선택을 끝내고 아래 블럭 삭제로 흘려보낸다. */
+    if (gridAddr && typeof window.grdIsSoleSelected === 'function' && !window.grdIsSoleSelected(gridSel)) {
+      window.grdDropLineSelection?.(document.getElementById('canvas'));
+      gridAddr = null;
+    }
+    /* ★중첩 안 줄이 잡혀 있으면 «아무 줄도 안 지운다» (T-200 커밋 ②).
+       ⛔consumed = true 로 «먹고» 끝낸다 — false 로 흘리면 아래 블럭 삭제로 새어
+         중첩 줄 하나를 지우려던 ⌫ 가 «블럭 통째»를 지운다.
+       ⛔gridAddr.li 는 «품은 duo 줄»이다. np 를 안 보고 지우면 사용자가 고른 적 없는
+         중첩 그리드 통째가 사라진다 — 그래서 여기서 명시적으로 멈춘다.
+       ★지우는 길은 커밋 ② 범위 밖이다(patchCell{lineIndex} 가 중첩으로 못 내려간다). */
+    if (gridSel && gridAddr && gridAddr.np) {
+      consumed = true;
+      window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 지울 수 없습니다 — 바깥 줄을 고르세요');
+      return consumed;
+    }
+    if (gridSel && gridAddr && gridAddr.li !== null && gridAddr.li !== undefined) {
+      consumed = true;
+      let lines;
+      try { lines = window.getGridModel?.(gridSel).cells?.[gridAddr.r]?.[gridAddr.c]?.lines; } catch (_) { lines = null; }
+      const li = Number(gridAddr.li);
+      if (!Array.isArray(lines) || !Number.isInteger(li) || li < 0 || li >= lines.length) {
+        return consumed;   // 주소가 이미 무효(그 사이 데이터가 바뀜) — 블록 삭제로 새지 않는다.
+      }
+      /* ★★★2026-09-26 «마지막 한 줄 보호를 «옮겼다»» — 현빈 지시 두 통.
+         ⑴ 「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은 삭제할 수 없다고 하네?」
+         ⑵ 범위 확정 「②칸 하나만」 ⇒ ★«칸 하나»는 비워진다. ⛔«모든 칸이 빈 블럭»은 막힌다.
+         ⇒ 이 자리에서 «판정을 없앤» 것이 아니라 «판정자를 모델 입구 한 곳으로 모았다».
+           ⛔여기서 지역 판정을 다시 세우면 그 자와 둘이 따로 늙는다(오늘 문이 다섯이던 까닭).
+         ~~[폐기 · 2026-09-26] `if (lines.length <= 1)` → 「⚠️ 칸에 남은 마지막 줄은 지울 수
+           없습니다 — 블럭을 지우려면 Esc 후 삭제, 행/열은 우측 패널」 토스트~~
+         ⛔그 보호는 «그날까지 참이었다» — 까닭과 무엇이 바뀌었는지는 모델 입구 한 자리에
+           모아 적어 뒀다(js/blocks/grid-block.js `_gridRejectLinesLength` 머리말).
+         ★이 파일에서 «따로» 확인해 둘 것: 아래 두 줄이 이미 0줄을 옳게 다룬다 —
+           `newLines.length ? {…} : null` 이 활성줄을 «놓고», 그래서 다음 ⌫ 는 이 위의
+           `gridAddr.li !== null` 을 안 지나 «블럭 삭제»로 흐른다. ⇒ 칸을 비운 뒤 한 번 더
+           ⌫ 를 누르면 블럭이 지워진다. 그게 옛 토스트가 안내하던 「Esc 후 삭제」를 대신한다.
+         ⛔블럭 삭제로 «새는» 것이 아니다 — 새려면 `consumed=false` 여야 하는데 여기선 이미
+           true 로 소비했고, 흐르는 것은 «다음 키 입력»이다(같은 입력이 아니다). */
+      const newLines = lines.filter((_, i) => i !== li);
+      const newLi = Math.min(li, newLines.length - 1);
+      /* ★커밋이 «거절될 수 있다» — 그러면 «활성줄을 원복»해야 한다:
+         원복 없이 null 로 둔 채 막히면 다음 ⌫ 가 «블럭 삭제»로 흘러 「지울 수 없다고 했는데
+         한 번 더 누르니 블럭이 사라졌다」가 된다. ★선례 = prop-grid.js grdAddLine(0920b).
+         ~~0926 부터 「블럭의 마지막 내용 칸」을 비우면 EMPTY_CELL_LINES 로 막는다~~
+         ⇒ [정정 2026-09-27] 그 가드는 없앴다(현빈 T-230 「마지막 한칸도 비울 수 있게 해줘」).
+         ★그래도 이 원복은 «남긴다» — 상한·모양 거절이 남아 있고, 「거절인데 활성줄만 움직였다」는
+           이 레포가 여러 번 당한 갈래다. 문이 하나 줄었다고 방어를 걷지 않는다. */
+      const prevActive = window.grdGetActiveLine?.(gridSel) || null;
+      window.grdSetActiveLine?.(gridSel, newLines.length ? { r: gridAddr.r, c: gridAddr.c, li: newLi } : null);
+      const delRes = window.updateGridBlock?.(gridSel.id, { patchCell: { r: gridAddr.r, c: gridAddr.c, lines: newLines } });
+      if (delRes && delRes.ok === false) {
+        window.grdSetActiveLine?.(gridSel, prevActive);
+        /* ⛔여기서 문구를 «새로 적지 마라» — code→한국어는 prop-grid.js grdToastImgFail 한 벌이다.
+           옛 판은 이 자리에 토스트 문장을 직접 박아 두어(「칸에 남은 마지막 줄은…」) 패널 쪽과
+           둘이 따로 늙었다. 그게 오늘 문이 다섯이 된 까닭의 하나다. */
+        window.grdToastImgFail?.(delRes);
+      }
       return consumed;
     }
 
@@ -2610,12 +3219,26 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
     // 단, 자식 블록이 선택된 경우 자식 블록 삭제로 처리 (프레임은 유지)
     const selSS = document.querySelector('.frame-block.selected');
     if (selSS) {
-      const ssHasSelectedChild = selSS.querySelector(
-        '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-        '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-        '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected'
-      );
-      if (!ssHasSelectedChild) {
+      /* ★`.shape-block.selected` 가 빠져 있었다(2026-09-20 QA 실측) — 도형은 자기 래퍼
+         프레임과 «같이» 선택되므로, 도형이 끼면 이 갈래가 먼저 걸려 «그 프레임 줄만» 지우고
+         return 했다. 그래서 「텍스트+도형」 다중선택 ⌫ 가 도형만 지우고 텍스트를 남겼다
+         (히스토리 라벨도 「서브섹션 삭제」). 아래 «도형+일반블록 혼합 일괄 삭제»로 흘려보낸다.
+         ⚠️프레임 «자체»만 고른 경우(자식 미선택)는 그대로 프레임 줄째 삭제다 — 회귀 M3. */
+      // ★손으로 적지 않는다 — SSOT 파생(SECTION_BLOCK_TYPE_SEL_SELECTED). 예전 손목록엔
+      //   joker/chat/gradient/sticker/laurel/zoom 이 빠져 있었다(2026-09-21 이벨류에이터 low④).
+      const ssHasSelectedChild = selSS.querySelector(SECTION_BLOCK_TYPE_SEL_SELECTED);
+      /* ★«프레임 밖»에 골라진 것이 또 있으면 이 갈래를 타면 안 된다 — 이 갈래는 지우고 «return» 한다.
+         ⌘A 는 기존 선택을 풀지 않고 «더하기»만 하므로(이 파일 `e.key === 'a'` 분기), 프레임을
+         다른 경로로 골라 둔 상태(예: Free 프레임 삽입 직후 — 삽입이 그 프레임을 selected 로 둔다)에서
+         ⌘A→Delete 를 누르면 «고른 여덟 중 프레임 한 줄»만 사라지고 나머지가 전부 남았다.
+         [실측 2026-09-21, 포트 9527/40%, fix/ul-selectdelete@4cf864c]
+           ⌘A 직후 sel=8 [section, gap, text, text, gap, gap, frame(Free), gap]
+           Delete 직후 frame 3→2 · text 2→2(남음) · gap 4→4(남음)
+         ⇒ 프레임이 «혼자» 골라졌을 때만(=M3 회귀 보존) 이 갈래를 타고, 섞였으면 아래
+           일괄 삭제로 흘려보낸다(거기서 이 프레임도 «같이» 지워진다). */
+      const _selOutsideSS = [...canvasEl.querySelectorAll(SECTION_BLOCK_TYPE_SEL_SELECTED + ', .frame-block.selected')]
+        .some(el => el !== selSS && !selSS.contains(el));
+      if (!ssHasSelectedChild && !_selOutsideSS) {
         consumed = true;
         const ssRow = selSS.closest('.row') || selSS;
         ssRow.remove();
@@ -2625,25 +3248,46 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
         pushHistory('서브섹션 삭제');
         return consumed;
       }
-      // 자식 블록이 선택된 경우 → 아래 allSelBlocks 삭제 로직으로 fall-through
+      // 자식 블록이 선택된 경우(또는 프레임 밖에 다른 선택이 있는 경우) → 아래 allSelBlocks 삭제 로직으로 fall-through
     }
 
     // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
     const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
     const allSelBlocks = [...document.querySelectorAll(CANVAS_SEL_BLOCKS)];
-    if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
+    /* ★«다른 선택과 섞여» 골라진 프레임 — 위 selSS 갈래는 프레임이 «혼자»일 때만 타므로
+       여기까지 온 프레임은 여기서 같이 지운다. 안 그러면 ⌘A→Delete 가 프레임만 남긴다.
+       ⚠️«자식이 골라진» 프레임은 뺀다 — 그건 「프레임은 두고 안의 블록만 지운다」는 기존 규약이고
+         도형 래퍼 프레임도 그 꼴이다(래퍼는 allSelShapes 경로가 이미 줄째 지운다). */
+    const allSelFrames = [...document.querySelectorAll('.frame-block.selected')]
+      .filter(f => !f.querySelector(SECTION_BLOCK_TYPE_SEL_SELECTED));
+    if (allSelShapes.length > 0 || allSelBlocks.length > 0 || allSelFrames.length > 0) {
       consumed = true;
       // A13: 보호섹션(메모 '삭제하지말것' 등) 내부 블록/도형 삭제 우회 차단.
       //       선택 중 하나라도 보호섹션에 속하면 전체 차단(부분삭제 모호성 회피).
       const _isProt = window.isSectionProtected || (() => false);
       const _protShape = allSelShapes.some(s => { const sec = s.closest('.section-block'); return sec && _isProt(sec); });
       const _protBlock = allSelBlocks.some(b => { const sec = b.closest('.section-block'); return sec && _isProt(sec); });
-      if (_protShape || _protBlock) {
+      const _protFrame = allSelFrames.some(f => { const sec = f.closest('.section-block'); return sec && _isProt(sec); });
+      if (_protShape || _protBlock || _protFrame) {
         if (typeof window.showToast === 'function') window.showToast('🔒 보호된 섹션의 블록은 삭제할 수 없습니다 — 🔒 버튼으로 보호 해제 후 삭제하세요');
         deselectAll();
         return consumed;
       }
       window.ensureHistoryCheckpoint?.('삭제 전');
+      /* ★이 삭제가 «비운» 프레임을 뒤에서 같이 걷는다 (T-099, 2026-09-22 실측 포트 9533)
+         ⌘A 는 프레임을 «일부러» 안 고른다(파일 상단 SECTION_BLOCK_TYPE_SEL 머리말) — 그래서
+         안의 블록만 지워지고 «그릇»이 남았다. 실측(dev b2a1f37, 섹션+글자3+Frame(안에 글자1)):
+         ⌘A 선택 6개(gap 2 + text 4, 프레임 0) → Delete 뒤 빈 글자래퍼 4개(높이 0)와
+         «눈에 보이는» 빈 Frame 1개(286×208)가 남았다.
+         ⚠️「빈 프레임을 전부 지운다」가 아니다 — «이 삭제가 비운» 프레임만 후보에 넣는다.
+           사용자가 일부러 비워 둔 프레임(내용을 넣기 전의 새 Frame 등)은 후보에 없어 그대로 산다.
+         ★지금 잡아 둬야 한다 — 지운 «뒤»엔 부모를 거슬러 올라갈 수 없다. */
+      const _emptiedFrameCands = new Set();
+      [...allSelShapes, ...allSelBlocks, ...allSelFrames].forEach(el => {
+        for (let p = el.parentElement; p; p = p.parentElement) {
+          if (p.classList?.contains('frame-block')) _emptiedFrameCands.add(p);
+        }
+      });
       // shape: 부모 ss/row 단위로 삭제
       const ssRowsToRemove = new Set();
       allSelShapes.forEach(shape => {
@@ -2651,6 +3295,8 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
         const ssRow = ss?.closest('.row') || ss;
         if (ssRow) ssRowsToRemove.add(ssRow); else shape.remove();
       });
+      // 섞여서 골라진 프레임도 «줄째» — 도형 래퍼와 같은 단위다(ssRowsToRemove 가 중복을 흡수한다)
+      allSelFrames.forEach(f => { const r = f.closest('.row') || f; ssRowsToRemove.add(r); });
       ssRowsToRemove.forEach(r => r.remove());
       // 일반 블록 삭제
       const rowsToRemove = new Set();
@@ -2671,6 +3317,17 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
         }
       });
       rowsToRemove.forEach(r => r.remove());
+      /* 비워진 그릇 걷기 — 위에서 잡아 둔 후보 중 «이제 알맹이가 하나도 없는» 것만.
+         ★중첩도 한 번에 닫힌다: 바깥 자유배치 프레임도 후보에 있고, 그 안에 남은 것이
+           빈 텍스트래퍼뿐이면 SECTION_BLOCK_TYPE_SEL 이 아무것도 못 찾아 줄째 사라진다.
+         ⚠️`.row` 는 «그 줄에 남은 알맹이가 없을 때만» 단위로 쓴다 — 한 줄에 다른 블록이
+           같이 있으면 그 줄을 지우는 것이 곧 «조용한 소실»이다. */
+      _emptiedFrameCands.forEach(f => {
+        if (!f.isConnected) return;
+        if (f.querySelector(SECTION_BLOCK_TYPE_SEL)) return;
+        const row = f.closest('.row');
+        ((row && !row.querySelector(SECTION_BLOCK_TYPE_SEL)) ? row : f).remove();
+      });
       window._activeFrame = null;
       deselectAll();
       window.buildLayerPanel();
@@ -2775,7 +3432,7 @@ function rgbToHex(rgb) {
 
 /* ── Design Presets ── */
 // Electron에서는 preload를 통해 JSON 파일 로드, 브라우저 fallback은 하드코딩
-// FIX-PR-01: PRESET_FALLBACK을 presets/*.json 내용과 동기화 (폰트·dots 불일치 수정)
+// FIX-PR-01: PRESET_FALLBACK을 presets 폴더의 .json 내용과 동기화 (폰트·dots 불일치 수정)
 // Electron은 readPresets() 성공 시 덮어쓰므로 fallback은 브라우저/race condition 시만 사용됨
 const PRESET_FALLBACK = [
   {
@@ -2908,17 +3565,22 @@ function _setAttrIfChanged(el, name, value) {
   if (el.getAttribute(name) !== value) el.setAttribute(name, value);
 }
 
-function deselectAll() {
-  clearMultiSel();
-  _lastClickedBlock = null;
-  // 텍스트 편집 중인 블록이 있으면 편집 종료 전 현재 상태 히스토리에 저장
-  // (입력한 텍스트가 undo 복원 대상이 되도록)
-  if (!window._historyPaused) {
-    const editingBlock = canvasEl?.querySelector('.text-block.editing, .icon-text-block.editing, .label-group-block.editing, .modal-block.editing');
-    if (editingBlock) pushHistory('텍스트 편집');
-  }
-  // perf(qa-perf): canvas/layerPanel 범위 한정으로 document 전체 탐색 제거
-  const canvas = canvasEl;
+/* ═══ 선택 표시 «비우기» — 정본 한 자리 (2026-09-21 T-084) ═══════════════
+ * 캔버스의 「무엇이 선택됐나」 표시는 «한 벌이 아니다» — 블록의 `.selected` 말고도
+ * 배너 줄(.bn2-line-selected) · 그리드 줄/칸 · 스텝 · 라벨 항목(.item-selected) ·
+ * 표 셀(.cell-selected) · .row-active · 좌측 레이어 패널의 .active 가 «같이» 움직여야 한다.
+ * 예전엔 deselectAll 만 이 전부를 알고 있었고, 삽입·MCP·점검점프가 쓰는
+ * js/block-edit.js 의 selectBlock 은 `.selected` «한 클래스»만 벗겼다.
+ * ⇒ 배너 «줄»을 고른 채 도구막대로 블럭을 넣으면 새 블럭에도 파란 선이 붙고
+ *   옛 배너 줄의 파란 선이 «그대로 남아» 파란 상자가 둘이 됐다(T-084, 9542 실측).
+ * ⛔마커 목록을 다른 파일에 «또» 적지 마라 — 목록이 둘이 되는 순간 한쪽이 낡는다.
+ *   새 마커가 생기면 이 함수 한 곳에만 보탠다.
+ * ★맨 끝의 `.selected` 일괄 제거가 «성질로 판정하는 자리»다: 위의 타입 열거는
+ *   «추가 정리»(contenteditable 되돌리기·핸들 제거 등)가 필요한 타입일 뿐이고,
+ *   「선택됨」 자체는 클래스 하나다. 새 블록 타입이 생겨도 여기서 조용히 빠지지 않는다. */
+function clearSelectionMarks(root) {
+  const canvas = root || canvasEl;
+  if (!canvas) return;
   const layerPanel = document.getElementById('layer-panel-body');
 
   // canvas 내 블록 선택 해제 (단일 querySelectorAll 순회)
@@ -2930,10 +3592,17 @@ function deselectAll() {
     t.querySelectorAll('[contenteditable]').forEach(el => _setAttrIfChanged(el, 'contenteditable', 'false'));
   });
   canvas.querySelectorAll('.asset-block').forEach(a => {
+    // ★T-012: video-pending(트림 확정 전) 상태로 이 블록의 패널을 벗어나면 저장 시
+    // 원본 영상이 사라진다(section-serialize.js 참고) — 막지는 않되 알려는 준다.
+    if (a.classList.contains('selected') && a.dataset.assetType === 'video-pending') {
+      // ★T-032(2026-09-22): warnPendingVideoLoss() 를 직접 부르면 «선택했다 풀 때마다» 뜬다
+      // (실측 5회 해제 = 5회 알림). 「한 번만」 래치를 탄 warnPendingVideoLossIf 로 부른다.
+      warnPendingVideoLossIf(canvas);   // ★문구·판정·래치는 js/io/pending-video-warn.js 한 곳에서만
+    }
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .annotation-block, .sticker-block').forEach(b => {
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .annotation-block, .sticker-block, .qa-block').forEach(b => {
     b.classList.remove('selected');
     // 어노테이션은 핸들도 함께 정리
     if (b.classList.contains('annotation-block')) b.querySelectorAll('.annot-handle').forEach(h => h.remove());
@@ -2958,6 +3627,13 @@ function deselectAll() {
   canvas.querySelectorAll('.bn2-line-selected').forEach(el => el.classList.remove('bn2-line-selected'));
   // 그리드 «줄 선택» 마커도 같은 자리에서 해제 (prop-grid.js 의 _grdSyncLineMark 와 짝)
   canvas.querySelectorAll('.grd-line-selected').forEach(el => el.classList.remove('grd-line-selected'));
+  // 그리드 «빈 셀 선택» 마커도 같은 자리에서 해제 (T-A, _grdSyncLineMark 의 셀 모드 짝)
+  canvas.querySelectorAll('.grd-cell-selected').forEach(el => el.classList.remove('grd-cell-selected'));
+  // ★0918 grid: 마커만 지우고 «모델»(활성줄 WeakMap)을 두면, 블럭으로 다시 골랐을 때 옛 줄이 살아나
+  //   Backspace 가 줄 삭제 분기로 새서 블럭이 안 지워졌다. 블럭을 떠나면 줄 선택도 해제한다.
+  window.grdClearAllActiveLines?.(canvas);
+  // 스텝 «지금 보는 스텝» 마커도 같은 자리에서 (prop-step.js 의 _stbSyncMark 와 짝 · 옛 이름 포함)
+  canvas.querySelectorAll('.stb-line-selected, .stb-step-selected').forEach(el => el.classList.remove('stb-line-selected', 'stb-step-selected'));
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
 
   // 레이어 패널 선택 해제
@@ -2966,6 +3642,23 @@ function deselectAll() {
     layerPanel.querySelectorAll('.layer-item').forEach(i => { i.classList.remove('active'); i.style.background = ''; });
     layerPanel.querySelectorAll('.layer-row-header').forEach(h => h.classList.remove('active'));
   }
+  /* ★성질 판정 — 위 열거에 «없는» 타입(.gradient-block · .frame-block · .section-block 등)까지
+     한 번에 쓸어낸다. 열거는 추가 정리용이지 「선택됨」의 정본 목록이 아니다. */
+  canvas.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+}
+window.clearSelectionMarks = clearSelectionMarks;
+
+function deselectAll() {
+  clearMultiSel();
+  _lastClickedBlock = null;
+  // 텍스트 편집 중인 블록이 있으면 편집 종료 전 현재 상태 히스토리에 저장
+  // (입력한 텍스트가 undo 복원 대상이 되도록)
+  if (!window._historyPaused) {
+    const editingBlock = canvasEl?.querySelector('.text-block.editing, .icon-text-block.editing, .label-group-block.editing, .modal-block.editing');
+    if (editingBlock) pushHistory('텍스트 편집');
+  }
+  // ★선택 표시 비우기는 «정본 한 자리»(clearSelectionMarks) — selectBlock 도 같은 함수를 쓴다.
+  clearSelectionMarks(canvasEl);
 
   if (window.setRpIdBadge) window.setRpIdBadge(null);
   window._activeFrame = null;
@@ -2989,9 +3682,15 @@ function deselectAll() {
   window.hideCanvasResizeHandles?.();
   window.hideVectorResizeHandles?.();
   window.hideGridGutters?.(); // 그리드(듀오) 블록 열 경계 드래그 거터 (P2)
+  window.hideGridImageResizeHandle?.(); // 그리드 이미지/아이콘 줄 코너 리사이즈 핸들 (T-C)
+  window.hideGridLineGrip?.(); // 그리드 «줄» 끄는 손잡이 (T-228) — 줄 선택이 풀리면 같이 사라진다
+  /* ★오버레이(플로팅) 텍스트의 모서리 핸들 (0920b). 빠지면 모듈 변수 _tfoResizeEl 이
+     «해제된 블록»을 계속 가리킨 채 남아, 같은 블록을 다시 클릭하면 동일블록 가드에 걸려
+     no-op 이 된다(아이콘원형이 실제로 밟은 사고 — 바로 위 주석 참고). */
+  window.hideTextOverlayResizeHandles?.();
   window._deselectAllGradients?.(); // gradient 블록 선택 해제 + 4모서리 핸들 제거 (deselectAll 셀렉터에 없어 누락됐던 정리)
   window.hideGradientLine?.(); // banner02/comparison 배경 그라데이션 온캔버스 라인 숨김
-  canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
+  // (.frame-block 의 .selected 는 clearSelectionMarks 의 일괄 제거가 이미 벗긴다)
   window.showPageProperties();
 }
 
@@ -3039,7 +3738,7 @@ function moveSelectedBlocks(direction) {
 
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .qa-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected';
 
   const selBlocks = [...document.querySelectorAll(BLOCK_SEL)];
@@ -3170,7 +3869,7 @@ document.querySelectorAll('.section-block').forEach(sec => {
     selectSectionWithModifier(sec, e);
     // deselectAll() 이후 row-active 복원 (빈 여백 클릭은 제외 — 섹션 선택만)
     const row = e.target.closest('.row');
-    if (row && !isRowMarginClick(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) {
+    if (row && !isRowMarginClick(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .qa-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -3233,7 +3932,7 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block').forEach(b => window.bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .qa-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가
@@ -3353,6 +4052,9 @@ window.moveSection = moveSection;
    beforeId/afterId도 같은 규칙으로 승격해 기준을 잡는다. */
 function _resolveBlockMoveUnit(el) {
   if (!el) return null;
+  // ★도형(shp_)은 «래퍼째»가 단위 — shape-block 만 옮기면 래퍼에서 뜯겨 나가고,
+  //   shp_ 를 기준(after)으로 주면 래퍼 «안»에 들어간다(0918 A안).
+  if (shapeFrameOf(el)) return anchorUnitOf(el);
   const row = el.closest?.('.row');
   if (row) return row;
   if (el.classList?.contains('text-block')) {
@@ -3391,7 +4093,7 @@ function insertGapAfterBlock(blockId, height) {
   if (!block) return null;
   const gb = window.makeGapBlock?.() || (() => { const d = document.createElement('div'); d.className = 'gap-block'; d.dataset.type = 'gap'; d.id = 'gb_' + Math.random().toString(36).slice(2,8); return d; })();
   if (height) gb.style.height = height + 'px';
-  block.after(gb);
+  anchorUnitOf(block).after(gb);   // shp_ 기준이면 래퍼 뒤(래퍼 안 ✗)
   if (typeof window.bindBlock === 'function') { try { window.bindBlock(gb); } catch (_) {} }
   pushHistory('갭 삽입 전');
   window.buildLayerPanel?.();
@@ -3421,23 +4123,44 @@ function toggleFpDropdown(id) {
   document.querySelectorAll('.fp-dropdown').forEach(d => d.classList.remove('open'));
   if (!wasOpen) target.classList.add('open');
 }
-document.addEventListener('click', e => {
-  if (!e.target.closest('.fp-dropdown')) {
-    document.querySelectorAll('.fp-dropdown').forEach(d => d.classList.remove('open'));
+
+/* ★T-102 — 떠 있는 메뉴의 «명부는 한 벌»이다.
+   예전엔 «바깥을 눌렀을 때 닫는 목록»만 있고 Esc 는 그 목록을 안 봤다
+   — 그래서 삽입 메뉴를 열고 Esc 를 눌러도 메뉴가 안 닫혔다.
+   여기 한 자리만 고치면 둘 다 따라온다(명부를 두 벌 두지 않는다).
+   self = «그 메뉴 자기 영역» — 거기를 눌렀으면 안 닫는다(바깥클릭 규칙 보존). */
+const FP_FLOATING_MENUS = [
+  { open: '.fp-dropdown.open', self: '.fp-dropdown',
+    close: el => el.classList.remove('open') },
+  { open: '#fp-plugin-panel', self: '#fp-plugin-panel, #fp-plugin-btn',
+    isOpen: _fpVisible,
+    close: el => { el.style.display = 'none'; document.getElementById('fp-plugin-btn')?.classList.remove('active'); } },
+  { open: '#branch-dropdown-wrap.open', self: '#branch-dropdown-wrap',
+    close: el => el.classList.remove('open') },
+  { open: '.col-add-menu', self: '.col-add-btn, .col-add-menu',
+    isOpen: _fpVisible,
+    close: el => { el.style.display = 'none'; } },
+];
+/** @param {EventTarget|null} [evTarget] 클릭 대상(주면 그 메뉴 자기 영역은 열어둔다). 반환 = 닫은 개수 */
+/* «열려 있나»는 인라인 style 하나로 재지 않는다 — 인라인이 없고 CSS 로만 숨은 요소를
+   «열림»으로 읽으면 Esc 가 늘 메뉴 닫기로 소진돼 선택 풀기가 죽는다.
+   싼 인라인 검사로 걸러내고, 애매할 때만 계산된 값을 본다. */
+function _fpVisible(el) {
+  return el.style.display !== 'none' && getComputedStyle(el).display !== 'none';
+}
+function closeFpMenus(evTarget) {
+  let closed = 0;
+  for (const m of FP_FLOATING_MENUS) {
+    if (evTarget && evTarget.closest?.(m.self)) continue;
+    document.querySelectorAll(m.open).forEach(el => {
+      if (m.isOpen && !m.isOpen(el)) return;
+      m.close(el); closed++;
+    });
   }
-  // plugin panel 외부 클릭 시 닫기
-  const fpPlugin = document.getElementById('fp-plugin-panel');
-  if (fpPlugin && fpPlugin.style.display !== 'none' &&
-      !e.target.closest('#fp-plugin-panel') && !e.target.closest('#fp-plugin-btn')) {
-    fpPlugin.style.display = 'none';
-    document.getElementById('fp-plugin-btn')?.classList.remove('active');
-  }
-  const bdw = document.getElementById('branch-dropdown-wrap');
-  if (bdw && !bdw.contains(e.target)) bdw.classList.remove('open');
-  if (!e.target.closest('.col-add-btn') && !e.target.closest('.col-add-menu')) {
-    document.querySelectorAll('.col-add-menu').forEach(m => m.style.display = 'none');
-  }
-});
+  return closed;
+}
+window.closeFpMenus = closeFpMenus;
+document.addEventListener('click', e => { closeFpMenus(e.target); });
 
 
 /* ═══════════════════════════════════

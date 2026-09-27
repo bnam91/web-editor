@@ -18,6 +18,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   duplicateProject: ({ sourceProjectId, newName }) =>
     ipcRenderer.invoke('projects:duplicate', { sourceProjectId, newName }),
 
+  /* ── 프로젝트 폴더 (T-A, 2026-09-16) ── main/folders.js 머리글 참조.
+     ★폴더는 «가상» — 여기서 디스크 디렉터리를 옮기지 않는다, meta 의 folderId 필드만 바꾼다. */
+  folders: {
+    list:   ()                            => ipcRenderer.invoke('folders:list'),
+    create: ({ name })                    => ipcRenderer.invoke('folders:create', { name }),
+    rename: ({ id, name })                => ipcRenderer.invoke('folders:rename', { id, name }),
+    delete: ({ id })                      => ipcRenderer.invoke('folders:delete', { id }),
+    assign: ({ projectIds, folderId })    => ipcRenderer.invoke('folders:assign', { projectIds, folderId }),
+  },
+
   /* ★입양 고지 — 「이 기계에 있던 N개를 이 계정으로 옮겼습니다」를 «화면»까지 올린다.
      ⛔preload 는 화이트리스트다. 여기 안 적으면 main 에 핸들러가 있어도 렌더러가 «못 부른다»
        = adopted.json 과 똑같이 사용자에게 안 닿는다. 그게 이 고지를 만든 이유였다.
@@ -109,6 +119,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reportImage:   (payload) => ipcRenderer.invoke('admin:report-image',  payload),
   },
 
+  // 개발자 도구 잠금 (main/devtools-gate.js) — 톱니바퀴 「디버깅」 탭이 쓴다.
+  // ★판정·해제·열기 모두 main 이 한다. 여기 state 는 «화면 표시»용 힌트다.
+  devtools: {
+    state:  ()     => ipcRenderer.invoke('devtools:state'),
+    unlock: (code) => ipcRenderer.invoke('devtools:unlock', String(code == null ? '' : code)),
+    open:   ()     => ipcRenderer.invoke('devtools:open'),
+    lock:   ()     => ipcRenderer.invoke('devtools:lock'),
+  },
+
   // 운영자 공지 (main/notice/*). ★읽음 기록은 «파일»이라 main 에만 있다 —
   // localStorage 로 두면 앱을 두 개 띄웠을 때 창마다 따로라 같은 공지가 두 번 뜬다.
   notice: {
@@ -133,6 +152,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   authLogout:         ()                   => ipcRenderer.invoke('auth:logout'),
   openExternalUrl:    (url)                => ipcRenderer.invoke('auth:open-external', url),
   navigateToProjects: ()                   => ipcRenderer.invoke('license:navigate-projects'),
+
+  // 폰트 피커 → 눈누(noonnu.cc) 바로가기. 인자 없음 — 고정 목적지 하나만 연다.
+  openNoonnu: () => ipcRenderer.invoke('external:open-noonnu'),
 
   // AI section text fill (Gemini)
   aiFillSectionTexts: (payload) => ipcRenderer.invoke('ai:fillSectionTexts', payload),

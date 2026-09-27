@@ -26,6 +26,10 @@ const ROOT = path.join(__dirname, '../..');
 const TEMPLATE_REL = 'js/props/prop-text-template.js';
 const UTILS_REL = 'js/props/prop-text-utils.js';
 const TYPO_REL = 'js/props/_typo-section.js';
+/* ★2026-09-20 — 오버레이 토글 버튼 마크업이 _helpers.js overlayToggleBtnHTML 로 빠졌다
+   (세 패널 공용, 0920b-overlay-extend). 템플릿이 그 함수를 «실제로» 부르므로 같은 vm 에 올린다.
+   ⛔여기 안 올리면 buildTextPropsHtml 이 ReferenceError 로 죽어 T1 골든이 통째로 빨강이 된다. */
+const HELPERS_REL = 'js/props/_helpers.js';
 
 /** ESM 문법만 벗긴다(import 줄 · export 키워드). 본문은 그대로. */
 function stripEsm(src, what) {
@@ -45,7 +49,7 @@ function stripEsm(src, what) {
  */
 function loadTextTemplate() {
   const fs = require('node:fs');
-  const parts = [stripEsm(readSrc(ROOT, UTILS_REL), UTILS_REL)];
+  const parts = [stripEsm(readSrc(ROOT, UTILS_REL), UTILS_REL), stripEsm(readSrc(ROOT, HELPERS_REL), HELPERS_REL)];
 
   // _typo-section.js 는 «추출 후»에만 존재한다 — 있으면 올리고, 없으면 (추출 전) 그냥 넘어간다.
   const typoPath = path.join(ROOT, TYPO_REL);

@@ -33,6 +33,24 @@ export function rotatedAABB(w, h, deg) {
   return { w: W * c + H * s, h: W * s + H * c };
 }
 
+/* 블록이 «어떤 규약으로» 회전값을 갖든(프레임 rotateDeg / 에셋·텍스트 rotation /
+   도형 shapeRotation) 화면상 회전각(deg)을 돌려준다. 없으면 0.
+   ★2026-09-20(0920b-overlay-extend) — 원래 overlay-handles.js 안에만 있던 함수를 여기로
+     옮겼다. 오버레이(플로팅) 공용 모듈(js/overlay-float.js)이 «같은 판정»을 써야 하는데,
+     overlay-handles.js 는 grid-block/modal-block 까지 끌고 오는 무거운 모듈이라
+     import 하면 DOM 하네스가 그 그래프를 통째로 서빙해야 한다. 이 파일은 «다른 모듈을
+     import 하지 않는 순수 계산 + 얇은 DOM 어댑터»라 두 쪽 다 가볍게 쓸 수 있다.
+     ⛔베끼지 마라 — 규약이 셋이라 한 곳만 고치면 도형(shapeRotation)만 조용히 빠진다. */
+export function blockRotationDeg(el) {
+  if (!el || el.nodeType !== 1 || !el.dataset) return 0;
+  const d = el.dataset;
+  let v = d.rotateDeg;
+  if (v == null || v === '') v = d.rotation;
+  if (v == null || v === '') v = d.shapeRotation;
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /* 회전으로 «위·아래로» 삐져나오는 양을 한쪽당 몇 px 로 메워야 하는가.
    프레임은 회전축이 중심이므로 위/아래가 같다 → ceil((h' - h) / 2).
    회전 0(또는 180의 배수)·비정상 입력이면 0. */
@@ -134,6 +152,48 @@ export function clampLeftIntoFrame(left, frameW, elW) {
   return Math.min(Number(left) || 0, maxL);
 }
 
+/* ══ ④-2 «끌고 다니는» 자식이 프레임 밖으로 못 나가게 죈다 (T-088, 2026-09-22) ══
+   ④(아래 growFrameToFitChildren)가 «밖에서 들고 들어오는» 축이라면, 이쪽은 «이미 안에 있는
+   자식을 끌어 옮기는» 축이다. 그 축에선 프레임을 키우지 않는다 — 크기는 사용자가 핸들로
+   정한다(js/block-drag.js `_resizeFrameToFitChildren` 는 의도된 no-op). 대신 자식이
+   overflow:hidden 너머로 못 가게 죈다. 안 그러면 자식이 «화면에서 사라진다».
+   ⚠️위아래 «둘 다» 죈다 — 0 아래로도 못 간다(위로 밀어 넣어도 똑같이 잘린다).
+   ⚠️자식이 프레임보다 «크면» max 가 음수가 된다 — 그땐 0(왼쪽·위 맞춤)이다.
+     그래야 적어도 머리는 보인다. 음수를 그대로 쓰면 반대쪽으로 잘린다. */
+export function clampChildIntoFrame(left, top, elW, elH, frameW, frameH) {
+  const one = (v, extent, size) => {
+    const max = Math.max(0, (Number(extent) || 0) - (Number(size) || 0));
+    return Math.max(0, Math.min(max, Number(v) || 0));
+  };
+  return { left: one(left, frameW, elW), top: one(top, frameH, elH) };
+}
+
+/* ══ ④ 프레임이 «자식을 잘라 먹지» 않는 최소 높이 (T-088, 2026-09-21) ══
+   .frame-block 은 `overflow:hidden`(css/editor-blocks.css:11) 이다. 자유배치 프레임은
+   높이가 «고정값»이라, 밖에서 블록을 끌어 넣으면 드롭 경로가 그 블록을 맨 아래로 쌓아
+   놓고도 프레임은 그대로 둔다 ⇒ 쌓인 자리가 프레임 밑변을 넘으면 «화면에서 사라진다».
+   (실측 2026-09-21: 그룹 height 120px, 끌어 넣은 제목이 top:148px → 보이지 않고
+    선택 테두리만 섹션 밖에 떴다. 값은 저장본에 그대로 남아 있었다 — 소실은 아니다.)
+   ★이름표로 판정하지 않는다 — 「그룹이냐/배너냐/카드냐」를 세지 않고, «절대배치 자식의
+     아래끝»이라는 성질 하나로만 잰다. */
+
+/* 절대배치 자식들이 차지하는 세로 끝(px). boxes = [{top, height}, …]. 없으면 0. */
+export function absChildrenBottom(boxes) {
+  return (Array.isArray(boxes) ? boxes : []).reduce(
+    (m, b) => Math.max(m, (Number(b && b.top) || 0) + (Number(b && b.height) || 0)), 0);
+}
+
+/* 프레임의 «잘라 먹지 않는» 높이.
+   chrome = 패딩+테두리(= offsetHeight − clientHeight). 절대배치 자식의 top 은 패딩박스
+   기준이므로 그만큼 더해야 한다.
+   ⚠️절대 «줄이지» 않는다 — 사용자가 핸들로 키워 둔 프레임을 드롭이 몰래 줄이면
+     그건 또 다른 소실이다. 그래서 현재 높이와의 max 다. */
+export function frameFitHeight(currentH, childrenBottom, chrome) {
+  const cur  = Math.max(0, Number(currentH) || 0);
+  const need = Math.max(0, Number(childrenBottom) || 0) + Math.max(0, Number(chrome) || 0);
+  return Math.max(cur, Math.ceil(need));
+}
+
 /* ── 얇은 DOM 어댑터 ─────────────────────────────────────────────── */
 
 /* 회전 보정 마진을 적용/해제한다.
@@ -197,4 +257,37 @@ export function applyFrameTransform(ss, opts) {
   else if (identity === 'clear') ss.style.removeProperty('transform');
   else if (identity === 'write') ss.style.transform = 'translate(0px,0px) rotate(0deg) scale(1,1)';
   applyFrameRotationMargin(ss, opts && opts.sizeHint);
+}
+
+/* ④의 DOM 어댑터 — 자유배치 프레임이 절대배치 자식을 자르지 않도록 높이를 «넓힌다».
+   반환: 실제로 넓힌 프레임 수(0 = 손댄 것 없음).
+   ★조상까지 올라간다 — 그룹 안의 그룹이면 안쪽을 넓히는 순간 바깥이 자르기 시작한다.
+     같은 성질 판정을 한 번 더 적용하는 것뿐이라 명부가 아니다.
+   ★쓰는 세 값은 이 레포의 기존 프레임 리사이즈 규약 그대로다
+     (block-drag.js 리사이즈 핸들·overlay-handles.js 와 같은 줄):
+       style.height · style.minHeight · dataset.height
+     dataset.height 를 빼면 undo/redo·재로드가 옛 높이로 되돌려 증상이 되살아난다. */
+export function growFrameToFitChildren(frameEl) {
+  let grown = 0;
+  let el = frameEl;
+  while (el && el.nodeType === 1 && el.dataset && el.dataset.freeLayout === 'true') {
+    const boxes = [...el.children]
+      .filter(c => c.nodeType === 1 && c.style && c.style.position === 'absolute')
+      .map(c => ({ top: parseFloat(c.style.top) || 0, height: c.offsetHeight || 0 }));
+    if (boxes.length) {
+      const curH   = el.offsetHeight || 0;
+      const chrome = Math.max(0, curH - (el.clientHeight || 0));
+      const newH   = frameFitHeight(curH, absChildrenBottom(boxes), chrome);
+      if (newH > curH) {
+        el.style.height    = `${newH}px`;
+        el.style.minHeight = `${newH}px`;
+        el.dataset.height  = String(newH);
+        grown++;
+      }
+    }
+    el = el.parentElement && el.parentElement.closest
+      ? el.parentElement.closest('.frame-block[data-free-layout]')
+      : null;
+  }
+  return grown;
 }

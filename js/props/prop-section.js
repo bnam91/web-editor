@@ -1,5 +1,10 @@
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML, escHtml } from './_helpers.js';
+import { forgetLabelAutoColor } from './label-auto-color.js';
+import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
+import { alignFlowBlock } from './prop-multisel.js';
+import { collectBulkAlignTargets } from './bulk-align-targets.js';
 
 /* ═══════════════════════════════════
    SECTION PROPERTIES PANEL
@@ -122,8 +127,21 @@ function setRpIdBadge(id) {
 }
 
 async function showSectionProperties(sec) {
+  /* ★«기다리는 사이 선택이 옮겨갔나»를 먼저 기억한다 (2026-09-22 T-084).
+     이 함수는 async 다 — 아래 await 한 줄이 패널 쓰기를 «다음 마이크로태스크»로 미룬다.
+     그래서 js/editor.js selectSection 이 이걸 부르고 «동기로» 돌아간 뒤 호출자가
+     곧바로 블럭을 고르면, 늦게 도착한 섹션 패널이 «더 최신인 블럭 패널»을 덮었다.
+       실측(9639, 2026-09-22): addDeviceMockupBlock('iphone') / addPresetRow('img2') 에서
+       동기 시점 패널 = 새 블럭(mkp_…) → +50ms = 섹션(sec_…). 새 블럭엔 파란 테두리가
+       붙어 있는데 우측 패널만 섹션이라 「지금 뭘 고치는 중인지」가 또 어긋났다(카드 ⑤).
+     ⛔«선택 안 된 섹션은 안 그린다»로 만들지 마라 — 선택과 무관하게 패널을 새로 그리는
+       호출자가 있다(js/image-handling.js · 이 파일의 재렌더 3자리). 그래서 「부를 때는
+       선택돼 있었는데 기다리는 사이 아니게 된 경우」만 접는다. */
+  const _wasSelected = !!sec?.classList?.contains('selected');
   // race condition 방지: Electron readPresets() IPC가 완료될 때까지 대기 후 PRESETS 사용
   await _presetsReady;
+  if (!sec || !sec.isConnected) return;
+  if (_wasSelected && !sec.classList.contains('selected')) return;   // 더 최신 선택이 패널 주인이다
   // dataset.bg(헬퍼가 기록한 색)를 우선, 없으면 인라인 스타일에서 추출
   const rawBg = sec.dataset.bg || sec.style.backgroundColor || sec.style.background || '';
   const hexBg = rawBg
@@ -191,7 +209,7 @@ async function showSectionProperties(sec) {
         <div class="prop-color-swatch" style="background:${c}">
           <input type="color" id="sec-txt-${t}" value="${c}">
         </div>
-        <input type="text" class="prop-color-hex" id="sec-txt-${t}-hex" value="${c}" maxlength="7">
+        <input type="text" class="prop-color-hex" id="sec-txt-${t}-hex" value="${c.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
       </div>`;
   }).join('');
 
@@ -199,23 +217,20 @@ async function showSectionProperties(sec) {
   // section memo (P/G/E + Codex 리뷰) — dataset.memo ↔ textarea 양방향 바인딩.
   // 메모는 섹션 툴바 📝 버튼(section-memo.js popover)에서 편집·data-memo로 영속화됨 — prop 패널에는 없음.
   const presetSelectHTML = PRESETS.map(p =>
-    `<option value="${p.id}"${p.id === currentPreset ? ' selected' : ''}>${p.name}</option>`
+    `<option value="${escHtml(p.id)}"${p.id === currentPreset ? ' selected' : ''}>${escHtml(p.name)}</option>`
   ).join('');
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+${blockHeaderHTML({
+      icon: `          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path fill="#888" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${sec._name || sec.dataset.name || 'Section'}</span>
-          <span class="prop-breadcrumb">${getBlockBreadcrumb(sec)}</span>
-        </div>
-        ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="window._copyToClipboard?.('${sec.id}')">${sec.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: sec._name || sec.dataset.name,
+      defaultName: 'Section',
+      crumb: getBlockBreadcrumb(sec),
+      id: sec.id,
+    })}
       <div class="prop-row">
         <span class="prop-label">Preset</span>
         <select class="prop-select" id="sec-preset">${presetSelectHTML}</select>
@@ -229,7 +244,7 @@ async function showSectionProperties(sec) {
           <div class="prop-color-swatch" style="background:${hexBg}">
             <input type="color" id="sec-bg-color" value="${hexBg}">
           </div>
-          <input type="text" class="prop-color-hex" id="sec-bg-hex" value="${hexBg.replace('#','').toUpperCase()}" maxlength="6" aria-label="Color">
+          <input type="text" class="prop-color-hex" id="sec-bg-hex" value="${hexBg.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
           <label class="prop-color-alpha" title="Opacity">
             <input type="text" class="prop-color-alpha-input" id="sec-bg-alpha" value="${secBgAlpha}" aria-label="Opacity">
             <span class="prop-color-alpha-suffix">%</span>
@@ -414,19 +429,14 @@ async function showSectionProperties(sec) {
     _applySecBg();
   });
   picker.addEventListener('change', () => pushHistory());
-  hex.addEventListener('input', () => {
-    const v = hex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      picker.value = '#' + v.toLowerCase();
-      _applySecBg();
-    }
-  });
-  hex.addEventListener('blur', () => {
-    hex.value = (picker.value || '#000000').replace('#','').toUpperCase();
-  });
-  hex.addEventListener('change', () => {
-    const v = hex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) pushHistory();
+  /* 배경색 hex — 배선은 color-picker.js 의 wireHexText 한 자리에서 온다(손복사 금지).
+     이 세 줄이 예전엔 wireColorField 와 「거의 같지만 조금 다른」 사본이었다. */
+  wireHexText(hex, {
+    parse: parseHex6,
+    format: formatHex6,
+    getCurrent: () => picker.value || '#000000',
+    onApply: (v) => { picker.value = v; _applySecBg(); },
+    onCommit: () => pushHistory(),
   });
   alphaInp.addEventListener('input', () => {
     const m = alphaInp.value.match(/(\d+)/);
@@ -462,6 +472,17 @@ async function showSectionProperties(sec) {
         sec.dataset.bgImg = dataUrl;
         sec.dataset.bgSize = 'cover';
         _applySectionBg(sec);
+        /* ★[R1-업로드 · 2026-09-22] «끝 표본» — 바로 위 pushHistory 는 push-before 다(찍고 «나서» 바꾼다).
+           ⚠️정정(2026-09-22): 이 자리를 한때 「찍고 → 비동기로 반영」(js/image-handling.js 꼴)으로
+             분류했는데 «틀렸다» — 그 pushHistory 는 FileReader.onload «안»에 있어서 적용과 같은
+             동기 구간이다. 곧 평범한 push-before 고, 고쳐야 하는 까닭도 평범한 그것이다:
+           앞 동작이 push-after 였으면 이 push-before 가 꼭대기와 «같은 상태»를 찍어
+           js/history.js 의 무변화 차단에 먹힌다 ⇒ 「업로드의 결과」가 스택에 한 번도 안 남는다.
+           그러면 업로드 뒤에 편집이 하나만 더 와도 ⌘Z 한 번이 둘을 같이 먹는다.
+           ⇒ 반영이 «끝난» 여기서 한 번 더 찍는다. ⛔옮기기가 아니라 더하기다.
+           ★같은 «규칙»의 선례: js/image-handling.js · js/props/asset-video-trim.js (③).
+             (규칙은 같다 — 「모든 동작이 끝 표본을 남긴다」. 기전이 같다는 뜻은 아니다.) */
+        window.pushHistory?.('섹션 배경 이미지 적용');
         window.scheduleAutoSave?.();
         showSectionProperties(sec);
       };
@@ -505,38 +526,41 @@ async function showSectionProperties(sec) {
     const applyColor = (val) => {
       blocks.forEach(tb => {
         const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
+        // 0918r2 textgrad: 섹션 일괄 글자색 = 단색 — 글자 그라데이션 해제
+        window.clearTextGradient?.(contentEl);
         contentEl.style.color = val;
+        forgetLabelAutoColor(contentEl);   // 0920r6 labeltext: 사용자가 고른 색 — 라벨 표식 폐기(타입 전환 때 안 걷어내게)
       });
     };
     const p = document.getElementById(`sec-txt-${t}`);
     const h = document.getElementById(`sec-txt-${t}-hex`);
     const sw = p.closest('.prop-color-swatch');
-    p.addEventListener('input', () => { applyColor(p.value); h.value = p.value; sw.style.background = p.value; });
-    h.addEventListener('input', () => {
-      if (/^#[0-9a-f]{6}$/i.test(h.value)) { applyColor(h.value); p.value = h.value; sw.style.background = h.value; }
+    p.addEventListener('input', () => { applyColor(p.value); h.value = formatHex6(p.value); sw.style.background = p.value; });
+    /* ★여긴 blur 핸들러가 «아예 없던» 자리다 — 무효값을 넣으면 영원히 칸에 남아
+       「초록 화면 · 안 바뀐 값」이 됐다(2026-09-20 신고의 그 Heading 칸).
+       값 포맷도 `#00FF00`(7자) → `00FF00`(다수결)으로 맞춘다. 배선은 공용 한 자리. */
+    wireHexText(h, {
+      parse: parseHex6,
+      format: formatHex6,
+      getCurrent: () => p.value || '#000000',
+      onApply: (v) => { applyColor(v); p.value = v; sw.style.background = v; },
+      onCommit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); },
     });
     // 커밋(change) 시 undo·autosave 반영 (input엔 미적용 — 드래그당 1히스토리)
     p.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
-    h.addEventListener('change', () => { if (/^#[0-9a-f]{6}$/i.test(h.value)) { window.pushHistory?.(); window.scheduleAutoSave?.(); } });
   });
 
   // 일괄 정렬
-  const allTextBlocks = [...sec.querySelectorAll('.text-block')];
   ['left','center','right'].forEach(align => {
     const btn = document.getElementById(`sec-align-${align}`);
     if (!btn) return;
     btn.addEventListener('click', () => {
-      allTextBlocks.forEach(tb => {
-        const isLabel = tb.querySelector('.tb-label');
-        if (isLabel) { tb.style.textAlign = align; }
-        else {
-          const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
-          if (contentEl) contentEl.style.textAlign = align;
-        }
-      });
+      /* ★대상은 «누를 때» 다시 센다. 예전엔 패널을 그릴 때 한 번 모아 뒀는데,
+         패널을 연 뒤 블록을 더 넣으면 그 블록은 영영 안 움직였다(낡은 목록). */
+      collectBulkAlignTargets(sec).forEach(el => alignFlowBlock(el, align));
       propPanel.querySelectorAll('#sec-align-left,#sec-align-center,#sec-align-right')
         .forEach(b => b.classList.toggle('active', b === btn));
-      window.pushHistory?.();
+      window.pushHistory?.('섹션 일괄 정렬');   // 한 번만 — ⌘Z 한 방에 되돌아간다
       window.scheduleAutoSave?.();
     });
   });

@@ -13,6 +13,7 @@ function _escGraphHtml(v) {
    DRAG UTILITIES — pure helpers, no drag state
 ═══════════════════════════════════ */
 import { state } from './globals.js';
+import { isShapeFrame, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 
 /* ── actorId — «누가 만든 블록인가» ────────────────────────────────────────
  * 원격 동시협업에서는 두 사람의 앱이 «같은 문서»에 블록을 만든다. 기존 ID 는
@@ -222,15 +223,18 @@ function findFlowAnchorSelected(root, scoped) {
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
   // 활성 서브섹션이 있으면 그 안에 삽입 (selected 여부 관계없이)
-  const activeSS = window._activeFrame;
+  // ★도형 래퍼는 그냥 도형 — 활성이어도 그 «안»은 삽입 대상이 아니다(0918 A안, shape-frame.js SSOT).
+  //   도형 래퍼면 한 단계 위 실제 프레임으로, 없으면 null → 아래 섹션 레벨 분기.
+  const activeSS = resolveInsertFrame(window._activeFrame);
   // text-frame은 단순 wrapper — 삽입 대상이 아님 (_restoreParentFrameSelected 안전망)
   // banner-preset 외곽은 컴포넌트 단위 — 안에 직접 자식 추가 받지 않음 (drill-in으로 inner 활성화 시에만)
   if (activeSS && !activeSS.dataset?.textFrame && !activeSS.dataset?.bannerPreset && activeSS.closest('.section-block') === section) {
     // shape-block이 선택된 경우: shape frame은 최소 단위 — 내부 삽입 금지, frame 뒤에 삽입
-    const selShape = activeSS.querySelector('.shape-block.selected');
+    const selShape = activeSS.querySelector('.shape-block.selected')
+      || [...activeSS.querySelectorAll('.frame-block.selected')].find(isShapeFrame);
     if (selShape) {
-      const ref = activeSS.closest('.row') || activeSS;
-      ref.after(el);
+      // 선택 도형의 «래퍼(또는 row)» 바로 뒤 — 활성 프레임 밖으로 튀지 않는다
+      anchorUnitOf(selShape).after(el);
       return;
     }
 
@@ -240,11 +244,22 @@ function insertAfterSelected(section, el) {
     if (sel) {
       const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
       ref.after(el);
-    } else if (ssInner.classList.contains('selected')) {
-      // 내부 자식 선택 없이 프레임 자체가 오브젝트로 선택된 상태 → 프레임 안이 아니라 뒤(형제)에 삽입
-      const ref = ssInner.closest('.row') || ssInner;
-      ref.after(el);
     } else {
+      /* ★2026-09-23 — 「프레임 «자체»가 오브젝트로 선택된 상태」도 프레임 «안»이다.
+       *   옛 판은 여기서 `ssInner.closest('.row').after(el)` 로 «뒤»에 붙였다. 그런데
+       *   ⛔프레임 속성 패널 맨 아랫줄이 이렇게 «약속»한다:
+       *     「Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.」
+       *   현빈 실기 제보(userlens): 「그리드 블럭이 프레임 블럭에 안 들어간다」. 실측 3/3 재현이었다.
+       *   ★그리고 이건 그리드만의 병이 «아니었다» — 텍스트·에셋·스티커는 자기 프레임 분기를
+       *     따로 갖고 있어 «안»에 들어가고(block-factory.js 등), 공용 경로를 타는
+       *     컴포넌트 블럭 15종(banner·banner02·canvas·chat·comparison·grid·iconify·infocard·
+       *     innercard·laurel·mockup·modal·qa·step·vector)만 «밖»으로 나갔다.
+       *   ⇒ 화면의 약속 · 텍스트 경로 · 공용 경로 «셋»이 서로 다른 말을 하고 있었다. 하나로 맞춘다.
+       *   ⛔15곳에 분기를 베끼지 «않는다» — 고칠 자리는 여기 한 곳이다.
+       *   ⛔도형 래퍼는 이 줄에 닿지 않는다: 위의 `selShape` 분기가 먼저 return 하고,
+       *     `resolveInsertFrame` 이 래퍼를 한 단계 위로 올린다(0918 A안 그대로 산다).
+       *   지키는 검사: tests/dom/frame-accepts-component-blocks.dom.spec.js F1(안에 들어간다)
+       *                ＋ F2·shape-frame-isolation I1~I3(도형 래퍼는 여전히 뒤 — 짝 검사) */
       ssInner.appendChild(el);
     }
     return;
@@ -252,11 +267,20 @@ function insertAfterSelected(section, el) {
 
   const inner = section.querySelector('.section-inner');
 
-  // 서브섹션 자체가 selected인 경우 → 서브섹션 row 뒤에 삽입
+  /* ★«두 자리»가 같은 술어를 봐야 한다 — insert-anchor-property G3c 가 잠근 규약이다.
+   *   한 곳만 고치면 「섹션에선 되는데 프레임 안에서만 안 된다」가 되고 훨씬 찾기 어렵다.
+   *   위(활성 프레임 분기)를 「안에 넣는다」로 바꿨으므로 여기도 같이 바꾼다.
+   *   ⛔단 도형 래퍼는 «여전히 뒤»다(0918 A안) — 그래서 isShapeFrame 가드를 «여기»에 둔다.
+   *     위 분기는 resolveInsertFrame 이 이미 걸러 주지만, 이 길은 _activeFrame 이 없을 때 오므로
+   *     걸러 주는 사람이 없다. */
   const selSS = document.querySelector('.frame-block.selected');
   if (selSS && selSS.closest('.section-block') === section) {
-    const ssRow = selSS.closest('.row') || selSS;
-    ssRow.after(el);
+    if (isShapeFrame(selSS) || selSS.dataset?.textFrame || selSS.dataset?.bannerPreset) {
+      const ssRow = selSS.closest('.row') || selSS;
+      ssRow.after(el);                 // 도형 래퍼·글자 래퍼·배너 외곽 = 최소 단위, 안에 안 넣는다
+    } else {
+      selSS.appendChild(el);           // 진짜 프레임 = 화면이 약속한 대로 «안»에
+    }
     return;
   }
 
@@ -270,9 +294,7 @@ function insertAfterSelected(section, el) {
   // shape-block은 최소 단위 — 내부 삽입 금지, 감싼 frame 뒤에 삽입
   const selShape = document.querySelector('.shape-block.selected');
   if (selShape && selShape.closest('.section-block') === section) {
-    const frame = selShape.closest('.frame-block');
-    const ref = (frame && (frame.closest('.row') || frame)) || selShape;
-    ref.after(el);
+    anchorUnitOf(selShape).after(el);
     return;
   }
 
@@ -289,11 +311,29 @@ function insertAfterSelected(section, el) {
   }
 }
 
+/* 섹션·블록을 안 고른 채 «블럭 추가»를 눌렀을 때의 «한 벌» 경고.
+   ★흔들림(fp-shake)은 «곁들이»고 토스트가 «본문»이다 — 순서를 뒤집지 마라.
+     옛 판은 #floating-panel 을 가드 없이 역참조해서, 그 요소가 없는 화면(미리보기로
+     감춘 게 아니라 아예 없는 경우·초기화 도중)에서는 여기서 TypeError 가 나
+     showToast 까지 «못 가고» 경고가 통째로 사라졌다 = 「경고 없이 아무 일도 안 한다」.
+     흔들 게 없으면 흔들지 않고 «말은 한다». (2026-09-21 수리공 유닛 ①) */
 function showNoSelectionHint() {
   const fp = document.getElementById('floating-panel');
-  fp.classList.add('fp-shake');
-  setTimeout(() => fp.classList.remove('fp-shake'), 400);
-  showToast('⚠️ 섹션 또는 블록을 먼저 선택하세요');
+  if (fp) {
+    fp.classList.add('fp-shake');
+    setTimeout(() => fp.classList.remove('fp-shake'), 400);
+  }
+  /* ★2026-09-23 — 「선택하세요」는 «선택할 것이 있을 때만» 말이 된다.
+     현빈 실기 제보(userlens): 새 「New Design」 프로젝트는 캔버스가 «텅 비어» 있다(섹션 0개).
+     거기서 블럭 추가를 누르면 「섹션 또는 블록을 먼저 선택하세요」가 떴는데
+     ⛔«선택할 섹션이 하나도 없었다» — 안내가 «할 수 없는 일»을 시키고 있었다.
+     그리고 그게 새 프로젝트의 «첫 화면»이다.
+     지키는 검사: tests/dom/no-selection-hint.dom.spec.js N1(갈라진다)·N2(빈 판은 추가를 가리킨다)
+                  ＋ N3 짝 검사(섹션이 있으면 여전히 「선택」을 가리킨다). */
+  const 섹션있나 = !!document.querySelector('.section-block');
+  showToast(섹션있나
+    ? '⚠️ 섹션 또는 블록을 먼저 선택하세요'
+    : '⚠️ 먼저 ＋ 새 섹션을 추가하세요');
 }
 
 function showToast(msg) {
@@ -677,6 +717,29 @@ function suppressAncestorDrag(block) {
   return restore;
 }
 
+// focus 된 contenteditable 요소의 내용 «전체»를 선택한다.
+// ★원래 block-drag.js(텍스트·Enter진입·표 셀·모달)와 comparison-block.js 가 각자 5~8줄짜리
+//   removeAllRanges→createRange→selectNodeContents→addRange 를 «손으로 복붙»해 쓰던 스니펫이다
+//   (comparison-block.js 주석: "block-drag.js:617-624 미러"). 새 블록타입이 생길 때마다 또 베껴야 해서
+//   배너(banner02)·그리드가 «빠진» 채로 나갔다 — 안내문구 위에 캐럿만 찍혀 타이핑이 이어붙었다
+//   (사용자 관점 훑기 0920 U-26: 「강아지 간식제목을 입력합니다.」). 실행 메커니즘만 한 벌로 모은다.
+// ⚠️«이 텍스트가 안내문구인가»의 «판정»은 여기 없다 — 블록마다 데이터모델이 달라서
+//   (text-block = data-is-placeholder 마커 / banner02·grid·comparison = 기본문구 값-비교)
+//   하나로 못 모은다. 판정은 각 호출자에 남기고 여기는 «전체선택 실행»만 한다.
+// ⚠️focus() 직후 «동기»로 불러야 한다 — 비동기면 브라우저 기본 캐럿이 선택을 덮는다.
+function selectAllEditableContents(el) {
+  if (!el) return false;
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    if (!sel) return false;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  } catch (_) { return false; }
+}
+
 export {
   genId,
   getActorId,
@@ -702,6 +765,7 @@ export {
   colorLuminance,
   blockContextLuminance,
   suppressAncestorDrag,
+  selectAllEditableContents,
 };
 
 window.genId                      = genId;
@@ -726,3 +790,4 @@ window.renderGraph                = renderGraph;
 window.applyDividerStyle          = applyDividerStyle;
 window.ASSET_PRESETS              = ASSET_PRESETS;
 window.suppressAncestorDrag       = suppressAncestorDrag;
+window.selectAllEditableContents  = selectAllEditableContents;

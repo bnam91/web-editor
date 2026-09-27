@@ -196,6 +196,40 @@ function _pinShortEdge(block, a, b, L) {
   else   { delete block.dataset.lx; delete block.dataset.ly; }
 }
 
+/* ★[T-131 ⒜⑶] 「값은 같은데 «표기»가 다시 쓰인다」를 여기서 끝낸다 (2026-09-21 실측).
+ *
+ * 무슨 일이 있었나 — 확대 블럭을 «섹션 경계를 넘게» 삽입하면 ⌘Z 가 «두 번»이 됐다(정상 1번).
+ *   되돌리기 스택 꼭대기(삽입 직후 동기 스냅샷)와 «정착 뒤» 라이브 문자열이 어긋나서,
+ *   undo 첫 스텝의 ensureHistoryCheckpoint 가 «현재 상태» 한 칸을 더 만들었기 때문이다.
+ *   ⇒ 어긋난 내용은 값이 «아니라» 표기였다:
+ *        앞: style="left:-14.00px;top:-14.00px;width:288.00px;height:168.00px;"
+ *        뒤: style="left: -14px; top: -14px; width: 288px; height: 168px;"
+ *
+ * 왜 그런가 — buildZoomInner(js/blocks/zoom-geometry.js:744·:795)가 style 을 «생 HTML 문자열»로
+ *   만든다(.toFixed(2) → "-14.00px"). 그 뒤 _updateStickerSecClip 이 style.removeProperty 를
+ *   부르는 «순간» 브라우저가 style 속성을 CSSOM 표기로 다시 쓴다.
+ *   ⛔removeProperty 가 «없는» 속성을 지워도 그렇다. 값을 "-14px" 로 고쳐 써도 «띄어쓰기»가
+ *     여전히 달라진다(left:-14px; → left: -14px; ) — 문자열로 쓰는 한 정규화와 늘 겨룬다.
+ *
+ * 그래서 «만든 직후 한 번» CSSOM 으로 재워 둔다. 그 뒤의 CSSOM 접촉은 항등이 된다.
+ *   ★선례는 같은 파일에 있다 — renderZoomBlock 은 «블록 자신»의 style 을 block.style.cssText 로
+ *     쓴다(그래서 블록 style 은 원래 안 흔들렸다). 여기서 «안쪽 층»도 같은 규약으로 맞춘다.
+ * ⛔값을 바꾸지 않는다 — 표기만 정규화한다(cssText 를 읽어 그대로 되쓴다).
+ * ⚠️늘릴 때: 대상은 «buildZoomInner 가 생 문자열 style 로 만드는 자리»뿐이다. 지금 둘이다 —
+ *   .zoom-clip(zoom-geometry.js:795~796) · .zoom-bg(:744~746, transform 포함).
+ *   SVG presentation 속성(width=·viewBox= 등 11줄)은 이 병이 «아니다»(CSSOM 이 다시 안 쓴다). */
+function _normalizeInlineStyles(block) {
+  /* ⚠️단위검사 하네스는 «가짜 블록»(querySelectorAll 없음)을 넘긴다 — 그 자리는 조용히 건너뛴다.
+     같은 파일 updateZoomSecClip 도 block.querySelector?.() 로 같은 규약을 쓴다.
+     ⛔try/catch 로 삼키지 «않는다» — 없는 것만 건너뛰고, 있는데 던지면 그대로 올린다. */
+  if (typeof block.querySelectorAll !== 'function') return;
+  const els = block.querySelectorAll('.zoom-clip, .zoom-bg');
+  for (let i = 0; i < els.length; i++) {
+    const el = els[i];
+    if (el.getAttribute('style')) el.style.cssText = el.style.cssText;
+  }
+}
+
 function renderZoomBlock(block) {
   const st = readZoomState(block);
   const box = blockBoxSpec(st);
@@ -215,6 +249,7 @@ function renderZoomBlock(block) {
 
   // ★그림은 «순수 모듈»이 만든다(zoom-geometry.js) — 검사가 실제로 나가는 마크업을 그대로 잰다.
   block.innerHTML = buildZoomInner(st, readPinnedShortEdge(block), block._zoomPicked || null);
+  _normalizeInlineStyles(block);   // ★[T-131 ⒜⑶] 아래 주석 — «생 문자열 style» 을 한 번 CSSOM 으로 재운다
   _bindZoomHandleDrag(block);
   _bindZoomMoveDrag(block);
   /* ★섹션 밖 크롭 — 스티커 계열의 규약(css/editor-blocks.css 「섹션 밖 크롭」)을 같이 지킨다.

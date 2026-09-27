@@ -359,6 +359,13 @@ const realBgToRgba = (pageSettings) =>
   new Function('state', fnBody(SRC.propPage, 'const _bgToRgba = () =>', '_bgToRgba'))({ pageSettings });
 const realBgRgba = (ps) =>
   new Function('ps', fnBody(SRC.saveLoad, 'function _bgRgba(ps)', '_bgRgba'))(ps);
+/* ★T-054(2026-09-16) — applyPageSettings/initApp 이 이제 _bgRgba 가 아니라 _bgCss 를 부른다
+   (bgGradient 가 있으면 그라데이션, 없으면 기존 _bgRgba 로 폴백). C4/C5 는 solid 케이스만
+   태우므로(ps 에 bgGradient 를 안 준다) _bgRgba 로 곧장 떨어져야 한다 — window.GradientModel
+   은 그 경로에서 안 쓰이지만, 스텁을 넣어 소스가 실수로라도 만지면 죽어서 그 사실이 드러나게 한다. */
+const realBgCss = (ps) =>
+  new Function('ps', '_bgRgba', 'window',
+    fnBody(SRC.saveLoad, 'function _bgCss(ps)', '_bgCss'))(ps, realBgRgba, { GradientModel: undefined });
 
 /** 몸통을 «통째로» 태울 때 — 짧고 자족적인 갈래(prop-page)용. 깔때기 호출이 정확히 1개인지 같이 단언한다.
     ⛔호출문만 떼면 앞줄의 `const rgba = _bgToRgba();` 가 빠져 ReferenceError 로 «엉뚱한 이유»로 빨개진다
@@ -417,7 +424,7 @@ test('C3 갈래[그라데이션] — «솔리드 기준 색»이 아니라 «최
 /* ── C4 로드 갈래 (save-load `applyPageSettings`) ──────────────────── */
 test('C4 갈래[로드] — applyPageSettings 문이 state.pageSettings 를 «실제로» 읽는다', async () => {
   const stmt = callExprIn(fnBody(SRC.saveLoad, 'function applyPageSettings()', 'applyPageSettings'), 'applyPageSettings');
-  const run = (ps) => burn(stmt, { _bgRgba: realBgRgba, state: { pageSettings: ps } });
+  const run = (ps) => burn(stmt, { _bgCss: realBgCss, state: { pageSettings: ps } });
   const light = run({ bg: '#ffffff', bgAlpha: 100 }), dark = run({ bg: '#000000', bgAlpha: 100 });
   assert.strictEqual(light.length, 1, '★깔때기가 «한 번» 안 불렸다');
   assert.notStrictEqual(light[0], undefined, '★인자 없이 불렀다 — 로드 갈래는 «못 잰다»로 떨어진다');
@@ -429,7 +436,7 @@ test('C4 갈래[로드] — applyPageSettings 문이 state.pageSettings 를 «�
 /* ── C5 ★부팅 갈래 (save-load `initApp`) — X9 가 여기서 운다 ───────── */
 test('C5 갈래[부팅] — initApp 문이 «인자 없이» 부르지 않는다 (X9)', async () => {
   const stmt = callExprIn(fnBody(SRC.saveLoad, 'function initApp()', 'initApp'), 'initApp');
-  const run = (ps) => burn(stmt, { _bgRgba: realBgRgba, state: { pageSettings: ps } });
+  const run = (ps) => burn(stmt, { _bgCss: realBgCss, state: { pageSettings: ps } });
   const got = run({ bg: '#828282', bgAlpha: 100 });
   assert.strictEqual(got.length, 1, '★깔때기가 «한 번» 안 불렸다');
   assert.notStrictEqual(got[0], undefined,

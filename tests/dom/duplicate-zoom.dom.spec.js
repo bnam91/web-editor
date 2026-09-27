@@ -43,6 +43,10 @@ function extractFn(src, name) {
   return src.slice(m.index, i);
 }
 const DUP_SRC = extractFn(EDITOR_SRC, 'duplicateSelected');
+/* 0918 shape A안: duplicateSelected 가 shape-frame.js 의 shapeFrameOf/resolveInsertFrame 을 import 로 쓴다.
+   스텁으로 흉내 내지 않고 «진짜 소스»를 export 만 벗겨 페이지에 올린다(window.ShapeFrame). */
+const SHAPE_FRAME_CLASSIC = fs.readFileSync(path.join(REPO, 'js/shape-frame.js'), 'utf8')
+  .replace(/^export /gm, '');
 
 /* 줌 블록 픽스처 — 상태 키를 «전부» 채운다. 몇 개만 채우면 「안 따라온 키」를 못 본다. */
 const ZOOM_ATTRS = {
@@ -69,6 +73,7 @@ async function boot(page) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
   await page.goto(`${ORIGIN}/__harness.html`);
+  await page.addScriptTag({ content: SHAPE_FRAME_CLASSIC });
   return errs;
 }
 
@@ -83,6 +88,8 @@ async function runDuplicate(page) {
       deselectAll: () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected')),
       multiSel: { cols: new Set(), blocks: new Set() },
       showMultiSelPanel: () => {}, clearMultiSel: () => {},
+      shapeFrameOf: window.ShapeFrame.shapeFrameOf,
+      resolveInsertFrame: window.ShapeFrame.resolveInsertFrame,
     };
     window.pushHistory = (t) => calls.pushHistory.push(t);
     window.genId = (p) => p + '_' + Math.random().toString(36).slice(2, 9);

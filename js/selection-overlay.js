@@ -99,6 +99,28 @@ function _variantOf(host) {
   return '';
 }
 
+/* ★선을 상자 «바로 바깥»에 놓을 대상 — 선언형 탈출구 하나뿐이다.
+ *   기본 규약은 「선을 제 상자 «안»으로 민다」(_snapLo/_snapHi, M63 재발방지)이고, 지금은
+ *   «어떤 블럭 타입도» 그 규약에서 벗어나지 않는다.
+ *
+ * ★여기 있던 «원(ellipse) 옵트인»을 걷어냈다 (2026-09-21, 현빈 지시 8번).
+ *   전 판(T-072 ㉮, 2026-09-20)은 원이 제 상자 네 변에 «접»한다는 이유로 원의 선만 상자 밖에 뒀다.
+ *   그 답은 대가를 둘 남겼다 — ⑴상자 밖 선이 맞닿은 이웃의 1px 을 덮어서(§4-3) «맞닿은 변만 안으로
+ *   되돌리는» 보정(_blockedEdges)이 필요했고, ⑵그 보정 때문에 세로로 쌓인 실제 화면에서는 위·아래가
+ *   여전히 물렸다(실측 9506·줌40%·120px 원: 윗선 y158 vs 상자 윗변 157.119 ⇒ 0.88px).
+ *   ⇒ 현빈: 「icb(아이콘 서클)는 문제없지 않니? 같은 원모양인데 아웃라인 이것처럼 하면 될 것 같은데」.
+ *     아이콘 서클은 선을 «안»에 그대로 두고 원 둘레를 ::before 링으로 «따로» 두른다
+ *     (css/editor-blocks.css `.icon-circle-block.selected::before`). 접점이 선에 덮여도 그 자리에
+ *     원을 따르는 선이 있어 «잘린» 게 아니라 «둘린» 것으로 읽힌다 — 현빈이 문제없다고 한 그 모양이다.
+ *   ⇒ 원 도형도 같은 길로 보냈다: css/editor-blocks.css
+ *     `.shape-block.selected[data-shape-type="ellipse"]::before`. 이 파일은 «선의 자리»를 다시
+ *     모든 블럭에서 똑같이(상자 안) 되돌리고, 그래서 이웃 불가침도 공짜로 돌아온다.
+ *   ⛔되살리고 싶으면 dataset.selOutset='on' 으로 «그 블럭만» 켜라. 타입 목록을 여기 다시
+ *     적지 마라 — 그게 앞 판이 밟은 자리다(맞닿음 보정이 딸려 오고, 그 보정이 증상을 되살린다). */
+function _selOutsetOf(host) {
+  return host.dataset?.selOutset === 'on';   // 선언형 탈출구(_variantOf 와 같은 꼴)
+}
+
 function _collect() {
   const canvas = document.getElementById('canvas');
   if (!canvas) return [];
@@ -111,7 +133,10 @@ function _collect() {
     if (!host || seen.has(host)) continue;
     if (!canvas.contains(host)) continue;   // closest 가 캔버스 밖으로 나갔으면 버린다
     seen.add(host);
-    out.push({ el: host, variant: _variantOf(host) });
+      /* ★outset 판정은 여기서 «한 번»만 한다 — _build 는 매 rAF 라 dataset 읽기를 거기서
+       부르지 않는다. (_collect 는 _dirty 일 때만 돈다.) */
+    const variant = _variantOf(host);
+    out.push({ el: host, variant, outset: _selOutsetOf(host) });
   }
   return out;
 }
@@ -144,6 +169,12 @@ function _collect() {
 const _rowEdge = (v, k) => Math.ceil(v * k - 0.5) / k;
 const _snapLo = (v, k, h) => Math.ceil(v * k) / k + h;    // 좌·상 — 상자 «안쪽»으로
 const _snapHi = (v, k, h) => Math.floor(v * k) / k - h;   // 우·하 — 상자 «안쪽»으로
+/* ★상자 «바깥» 스냅(_selOutsetOf 대상 전용) — 안쪽 스냅의 거울상이다.
+ *   띠 = [중심−h, 중심+h] 이므로 _snapLoOut 의 띠 안쪽 끝 = floor(v·k)/k ≤ v ⇒ «상자를 한 점도 안 덮는다».
+ *   밖으로 나가는 몫은 굵기 sw + 격자 몫(< 1/dpr) 로 «상수 상한»이다(줌과 무관 — M63 의 「배율에 비례해 번진다」와 다르다).
+ *   격자쪽 끝(띠의 안쪽 끝)이 디바이스 정수라 «완전히 칠해진 행»도 그대로 하나 생긴다(M65 불변). */
+const _snapLoOut = (v, k, h) => Math.floor(v * k) / k - h;   // 좌·상 — 상자 «바깥»으로
+const _snapHiOut = (v, k, h) => Math.ceil(v * k) / k + h;    // 우·하 — 상자 «바깥»으로
 /* ★코너 편차의 «상한 유도» — 핸들(_cornerScreen(el,dir,0))과 이 꼭지점의 축별 거리는
  *     h  (= 굵기의 절반 — «안쪽 선»이면 반드시 붙는다)
  *   + snapGap ∈ [0, 1/dpr)   (위 두 스냅이 디바이스 격자로 미는 몫)
@@ -168,6 +199,8 @@ const _strokeOf = v => STROKE_W[v] || 1;
  *   ⚠️네 모서리가 «각각 다를 수 있다»(M39 의 코너 반경 핸들이 모서리별로 조절한다).
  *   ⚠️각 모서리는 타원(rx, ry)일 수 있고, %는 상자 크기 기준이다.
  *   ⚠️합이 변 길이를 넘으면 CSS 규약대로 «전부 같은 비율로» 줄인다. */
+/** 선택 테두리가 블럭 반경을 따라 둥글게 그려지는가 — 현빈 결정(2026-09-15)으로 false(네모). */
+export const SEL_FOLLOW_RADIUS = false;
 const _RAD_PROPS = { nw: 'borderTopLeftRadius', ne: 'borderTopRightRadius',
                      se: 'borderBottomRightRadius', sw: 'borderBottomLeftRadius' };
 function _radiiOf(el, scale) {
@@ -212,13 +245,26 @@ function _insetRadii(r, dl, dt, dr, db) {
 const _ZERO_R = { nw: [0, 0], ne: [0, 0], se: [0, 0], sw: [0, 0] };
 
 /** 상자 하나의 기하. 좌표는 «핸들과 같은 함수»(_cornerScreen)에서만 나온다. */
-function _geomOf(el, variant, scale) {
+function _geomOf(el, variant, scale, outset = false) {
+  /* ★outset 은 «참/거짓» 또는 «변마다 따로»({l,t,r,b}) 둘 다 받는다.
+       참/거짓 판은 한 글자도 안 바뀐다 — 옛 호출부·단위검사가 그대로 돈다.
+       ⚠️2026-09-21 현재 «변마다 따로»를 만들어 넣는 호출부는 없다(원 옵트인을 걷으면서 같이
+         걷혔다 — _selOutsetOf 머리말). 산술은 남긴다: dataset.selOutset 으로 켜는 블럭이
+         생기면 「맞닿은 변만 안쪽」이 다시 필요해지고, 그때 여기가 아니라 «호출부»만 만들면 된다. */
+  const osOf = (side) => (outset && typeof outset === 'object') ? !!outset[side] : !!outset;
+  /* ⚠️이름에 밑줄을 «안» 붙인다 — 이 레포에서 `_이름` 은 «모듈 최상위 사유물»이라는 표식이고,
+     단위검사 하네스(U-M63-0·U-CIRCLE-0)가 그 표식을 보고 「잘라 넣어야 할 선언」을 센다.
+     함수 «안»의 지역 이름에 붙이면 하네스가 없는 최상위 선언을 찾다가 거짓 빨강이 난다. */
   const sw = _strokeOf(variant), h = sw / 2;
   // inset 0 = «상자 자신»의 네 꼭지점. 맞닿음 판정도 이 생값으로 한다.
   const [nw, ne, sw_, se] = CORNER_DIRS.map(d => _cornerScreen(el, d, 0));
   const axis = Math.abs(nw.y - ne.y) < 0.02 && Math.abs(sw_.y - se.y) < 0.02
             && Math.abs(nw.x - sw_.x) < 0.02 && Math.abs(ne.x - se.x) < 0.02;
-  const rawR = _radiiOf(el, scale);
+  /* ★2026-09-15 현빈: 선택 테두리는 «모든 블럭에서 네모»다 — 반경을 따라 둥글게 그리지 않는다.
+   *   원문 「icd…, bn2… 이배너 아웃라인이 다른건 일반 사각형인데 라디우스가 들어가있어」.
+   *   ⇒ 조건①(반경 따라가기)을 «뒤집었다». 반경 0 인 블럭이 대부분이라 둥근 블럭만 튀었다.
+   *   _radiiOf 이하 산술은 남긴다(SEL_FOLLOW_RADIUS 를 켜면 옛 동작 — 단위검사가 그 산술을 계속 지킨다). */
+  const rawR = SEL_FOLLOW_RADIUS ? _radiiOf(el, scale) : null;
 
   if (!axis) {
     // 회전 — 로컬 축(u,v)으로 반굵기만큼 «안쪽»으로 민다. 스냅은 하지 않는다(격자가 기울어 있다).
@@ -228,26 +274,41 @@ function _geomOf(el, variant, scale) {
     const v = { x: (sw_.x - nw.x) / lv, y: (sw_.y - nw.y) / lv };
     const P = (p, a, b) => ({ x: p.x + u.x * a + v.x * b, y: p.y + u.y * a + v.y * b });
     let r = rawR ? _clampRadii(rawR, lu, lv) : _ZERO_R;
-    r = _insetRadii(r, h, h, h, h);
-    return { rot: true, sw, h, r, u, v, W: lu - sw, H: lv - sw,
+    /* ★outset(원) — 회전판에도 «같은 방향»으로 적용한다. 안 하면 회전한 원만 종전대로 물린다
+       (스냅이 없는 판이라 어긋남은 정확히 반굵기 h = 0.5px, 그래도 R=20 에서 현 8.9px 이 덮인다). */
+    /* ⚠️회전판은 «전부 아니면 전무»다 — 기울어진 축에서 변마다 다른 방향으로 밀면 네 귀가 안 맞물려
+       구멍이 생긴다(축정렬판은 스냅으로 맞물린다). 한 변이라도 막히면 통째로 안쪽으로 둔다. */
+    const q = (osOf('l') && osOf('t') && osOf('r') && osOf('b')) ? -h : h;
+    if (rawR) r = _insetRadii(r, q, q, q, q);   // ⛔반경이 없으면 태우지 않는다(음수 인셋이 0 을 0.5 로 «키운다»)
+    return { rot: true, sw, h, r, u, v, W: lu - sw, H: lv - sw, outset: q < 0,
              deg: Math.atan2(u.y, u.x) * 180 / Math.PI,
-             o: { nw: P(nw, h, h), ne: P(ne, -h, h), se: P(se, -h, -h), sw: P(sw_, h, -h) },
-             pts: [P(nw, h, h), P(ne, -h, h), P(se, -h, -h), P(sw_, h, -h)] };
+             o: { nw: P(nw, q, q), ne: P(ne, -q, q), se: P(se, -q, -q), sw: P(sw_, q, -q) },
+             pts: [P(nw, q, q), P(ne, -q, q), P(se, -q, -q), P(sw_, q, -q)] };
   }
 
   const raw = { l: nw.x, t: nw.y, r: se.x, b: se.y };
   const k = _dpr();
-  let L = _snapLo(raw.l, k, h), T = _snapLo(raw.t, k, h),
-      R = _snapHi(raw.r, k, h), B = _snapHi(raw.b, k, h);
+  let L = (osOf('l') ? _snapLoOut : _snapLo)(raw.l, k, h),
+      T = (osOf('t') ? _snapLoOut : _snapLo)(raw.t, k, h),
+      R = (osOf('r') ? _snapHiOut : _snapHi)(raw.r, k, h),
+      B = (osOf('b') ? _snapHiOut : _snapHi)(raw.b, k, h);
   // ⚠️굵기의 2배보다 «납작한» 상자에서는 위 스냅이 뒤집힌다 → 그때만 상자 «중심»에 한 줄.
+  //   (바깥 스냅에서는 상자가 커지는 쪽이라 뒤집히지 않는다 — 그래도 판은 그대로 둔다.)
   if (R < L) L = R = (raw.l + raw.r) / 2;
   if (B < T) T = B = (raw.t + raw.b) / 2;
   let r = rawR ? _clampRadii(rawR, raw.r - raw.l, raw.b - raw.t) : _ZERO_R;
-  r = _insetRadii(r, L - raw.l, T - raw.t, raw.r - R, raw.b - B);
-  // 연장 끝점 = «중심이 이 상자 안인 디바이스 행»의 경계(_rowLo/_rowHi). 생 변이 아니다 — 조건④ 참조.
+  /* ⛔반경이 «없을» 때는 inset 을 아예 안 태운다 — 바깥 스냅은 인셋이 «음수»라
+     _insetRadii 가 0 을 0.5 로 «키워» 없던 호가 생긴다(선이 둥글어져 결정 ㉮ 위반). */
+  if (rawR) r = _insetRadii(r, L - raw.l, T - raw.t, raw.r - R, raw.b - B);
+  /* 연장 끝점 = «중심이 이 상자 안인 디바이스 행»의 경계(_rowLo/_rowHi). 생 변이 아니다 — 조건④ 참조.
+     ★바깥 스냅에서는 이미 상자 밖이라 그 규칙이 뜻을 잃는다 ⇒ 네 모퉁이를 «맞물리게» 바깥 꼭지까지 늘린다
+       (그러지 않으면 xlo 가 선의 모퉁이보다 안쪽이라 네 귀에 1~1.5px 구멍이 난다). */
   return { rot: false, raw, L, T, R, B, sw, h, r, round: !!rawR,
-           xlo: _rowEdge(raw.l, k), xhi: _rowEdge(raw.r, k),
-           ylo: _rowEdge(raw.t, k), yhi: _rowEdge(raw.b, k) };
+           /* ★dedupe 제외 판정용 — «한 변이라도» 밖으로 나갔으면 옛 판과 같은 이유로 뺀다
+              (바깥 선은 이웃의 안쪽 선과 떨어져 있는데 dedupe 는 «상자 변»으로 맞닿음을 본다). */
+           outset: osOf('l') || osOf('t') || osOf('r') || osOf('b'),
+           xlo: osOf('l') ? L - h : _rowEdge(raw.l, k), xhi: osOf('r') ? R + h : _rowEdge(raw.r, k),
+           ylo: osOf('t') ? T - h : _rowEdge(raw.t, k), yhi: osOf('b') ? B + h : _rowEdge(raw.b, k) };
 }
 
 /** ★위험1 감지 — 회전한 «조상» 안의 자식은 _cornerScreen 이 AABB 를 준다.
@@ -442,10 +503,13 @@ function _build() {
     // ★매 프레임 isConnected — undo/redo·협업 sync 가 outerHTML 을 통째로 갈아끼운다.
     //   죽은 노드를 들고 있으면 «유령 상자»가 화면에 남는다(핸들 루프와 같은 방어).
     if (!t.el.isConnected) return null;
-    const g = _geomOf(t.el, t.variant, scale);
+    const g = _geomOf(t.el, t.variant, scale, t.outset);
     if (!g.rot && (g.raw.r - g.raw.l < 0.5 || g.raw.b - g.raw.t < 0.5)) continue; // 접힌/숨은 상자
     const it = { el: t.el, variant: t.variant, g, edges: g.rot ? null : _edgesOf(g) };
-    it.dedupable = !g.rot && !_isNestedRotated(t.el, g, scale);
+    /* ⛔바깥 선은 dedupe 에 참여시키지 않는다(회전 상자와 같은 이유 — 틀린 폴리곤으로 남의 변을 지우면 두 배로 나쁘다).
+       바깥 선은 이웃의 «상자 안» 선과 1~2px 떨어져 있는데 dedupe 는 «상자 변»이 맞닿았다고 보고 이웃 변을
+       통째로 지운다 → 이웃 선이 사라지고 그 자리는 비어 보인다. 안 지우면 최악이 「선이 두 줄」이다. */
+    it.dedupable = !g.rot && !g.outset && !_isNestedRotated(t.el, g, scale);
     items.push(it);
   }
   if (items.length > 1) _dedupe(items);

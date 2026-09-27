@@ -12,6 +12,35 @@
  */
 
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
+import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
+import { forgetLabelAutoColor } from './label-auto-color.js';
+import {
+  applyTextGradient, clearTextGradient, getTextGradient, hasTextGradient,
+  textGradientBlockedReason,
+} from './text-block-color.js';
+
+/* ── 0920b textgrad-bar: 캔버스 그라데이션 바 → 패널 ────────────────────────────
+ * 캔버스에서 바(끈 끝·칩)를 끌면 gradient-model.js 의 text-block 어댑터 set() 이 «이미»
+ * applyTextGradient 로 글자를 다시 칠한다. 그래서 여기서는 «다시 칠하지 않는다» — 열려 있는
+ * 패널의 스와치 미리보기만 맞춘다.
+ * ⚠️반드시 두 가지로 좁힌다 — detail.source==='canvas' 이고 대상이 .text-block 인 것만.
+ *   도형·에셋 «안»의 오버레이 텍스트(.overlay-tb)는 .text-block 이면서 조상이 도형일 수 있어
+ *   좁히지 않으면 도형 리스너와 서로의 이벤트를 먹는다.
+ * ★루프 걱정은 «없다»(0920b 이벨류 실측·코드 실독). 캔버스→패널은 color-picker.js 의
+ *   syncPickerGradient → 'goya-cp:sync-gradient' → _seedGradientUI({emit:false}) 로만 흐르고
+ *   'goya-cp:gradient' 를 되쏘지 않는다 ⇒ 아래 _onGrad 가 캔버스 드래그로는 애초에 안 불린다
+ *   (실측: 피커가 열린 채 칩 드래그 → pushHistory 1회, 중복 0). prop-shape.js 는 같은 자리에
+ *   _applyingExternalShapeGrad 플래그를 두지만 그 플래그가 막을 일이 일어나지 않는 «죽은 가드»라
+ *   여기선 따라 베끼지 않는다 — 안심을 주는 문장이 경고 부재보다 나쁘다.
+ *   (prop-shape.js 의 죽은 플래그 정리는 이 유닛 범위 밖: 도형 담당 브랜치와 충돌한다.)
+ */
+document.addEventListener('gradient-line:change', (e) => {
+  if (e.detail?.source !== 'canvas') return;
+  const block = e.target?.closest?.('.text-block');
+  if (!block || !e.detail?.css) return;
+  const sw = document.getElementById('txt-color')?.closest('.prop-color-swatch');
+  if (sw) sw.style.background = e.detail.css;
+});
 
 /* ─────────────────────────────────────────────────────────────
  * 전역 색상 적용 헬퍼 (text-block content + 테이블 셀 공용)
@@ -43,6 +72,8 @@ function _flattenAncestorWithPropIn(newSpan, prop, host) {
 // 선택 없음: host(contentEl or 셀) 전체에 색 일괄 — 내부 color span 정리 후 host.style.color
 function _applyColorWholeEditable(color, host) {
   if (!host) return;
+  // 0918r2 textgrad: 단색 전체 적용 = 글자 그라데이션 해제(안 풀면 그라데이션이 새 단색을 가린다)
+  clearTextGradient(host);
   host.querySelectorAll('span[style*="color"]').forEach(s => {
     s.style.color = '';
     const styleStr = s.getAttribute('style') || '';
@@ -53,6 +84,7 @@ function _applyColorWholeEditable(color, host) {
     }
   });
   host.style.color = color;
+  forgetLabelAutoColor(host);   // 0920r5 polish2: 사용자가 고른 색 — 라벨 표식 폐기(타입 전환 때 안 걷어내게)
 }
 
 // 선택 있음: savedRange 영역을 color span 으로 감싼다.
@@ -60,8 +92,12 @@ function _applyColorWholeEditable(color, host) {
 // 반환 { span, range } — 호출측이 다음 input 시퀀스를 위해 보존.
 function _applyColorSpanToRange(color, host, savedRange, prevSpan) {
   if (!host || !savedRange) return { span: null, range: savedRange || null };
+  // 0918r2 textgrad: 그라데이션 글자(host 가 text-fill:transparent) 안의 부분 단색은
+  //   채움색도 같이 줘야 보인다 — 안 주면 상속된 transparent 때문에 글자가 사라진다.
+  const _gradHost = hasTextGradient(host);
   if (prevSpan && prevSpan.isConnected) {
     prevSpan.style.color = color;
+    if (_gradHost) prevSpan.style.setProperty('-webkit-text-fill-color', color);
     return { span: prevSpan, range: savedRange };
   }
   const r = savedRange.cloneRange();
@@ -70,6 +106,7 @@ function _applyColorSpanToRange(color, host, savedRange, prevSpan) {
   frag.querySelectorAll('span').forEach(s => {
     if (s.style && s.style.color) {
       s.style.color = '';
+      s.style.removeProperty('-webkit-text-fill-color');
       const styleStr = s.getAttribute('style') || '';
       if (!styleStr.replace(/;|\s/g, '')) {
         const parent = s.parentNode;
@@ -80,6 +117,7 @@ function _applyColorSpanToRange(color, host, savedRange, prevSpan) {
   });
   const span = document.createElement('span');
   span.style.color = color;
+  if (_gradHost) span.style.setProperty('-webkit-text-fill-color', color);
   span.appendChild(frag);
   r.insertNode(span);
   _flattenAncestorWithPropIn(span, 'color', host);
@@ -125,7 +163,7 @@ if (typeof window !== 'undefined' && !window.__cellSelCacheInstalled) {
   });
 }
 
-export function wireTextEditSection({ ctx, currentColorAlpha }) {
+export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   let _savedColorSel = null;
   let _colorSpan = null; // 색상 적용 시 생성한 span (input 반복 호출에 재사용)
 
@@ -249,6 +287,9 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
   const colorAlpha  = document.getElementById('txt-color-alpha');
   const colorSwatch = colorPicker.closest('.prop-color-swatch');
   let _txtAlpha = currentColorAlpha;
+  /* 「마지막 유효값」 — hex 칸의 blur 복원 기준. ''=아무도 안 정했다(Mix·미지정 갈래).
+     ⚠️선언은 «여기»다 — _syncGradUi 가 배선보다 «먼저» 불릴 수 있어 TDZ 를 피한다. */
+  let _txtLastHex = parseHex6(colorHex.value || '') || '';
 
   const saveColorSel = () => {
     if (hasSel()) { _savedColorSel = _lastSelRange.cloneRange(); _colorSpan = null; }
@@ -277,7 +318,10 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
     if (!_savedColorSel) {
       // selection 없으면 전체 contentEl에 일괄 적용
       // mix 상태(내부 span별 부분 색)를 풀어줘야 contentEl.style.color가 우선됨
+      // 0918r2 textgrad: 단색 전체 = 그라데이션 해제 + 재오픈 시드 폐기(다음에 솔리드 탭으로 열린다)
       _applyColorWholeEditable(color, ctx.contentEl);
+      delete colorPicker.dataset.cpGradient;
+      _syncGradUi();
       return;
     }
     // 부분 선택 — 전역 primitive 로 위임(연속 input 은 _colorSpan 재사용).
@@ -290,20 +334,93 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
     const c = _buildColor();
     applyColorToSel(c);
     colorHex.value = colorPicker.value.replace('#','').toUpperCase();
+    _txtLastHex = colorPicker.value;      // 피커로 고른 색도 「마지막 유효값」(blur 복원 기준)
     colorSwatch.style.background = c;
   });
   colorPicker.addEventListener('change', () => { _savedColorSel = null; _colorSpan = null; window.pushHistory?.(); });
-  colorHex.addEventListener('input', () => {
-    const v = colorHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      colorPicker.value = '#' + v.toLowerCase();
+
+  /* ── 글자 그라데이션 (0918r2 textgrad · T-059 확장, 현빈 결정 = 피그마 기준) ──
+     탭 능력: 제목·본문·캡션 = 단색+그라데이션, 라벨·불릿·곡선·말풍선 = 단색만(이유 툴팁).
+     그라데이션 탭 한 번 = color-picker _activateTab → goya-cp:gradient(+commit) 동기 1회 = 되돌리기 1단위.
+     ★colorPicker.value 는 건드리지 않는다 — 솔리드 탭으로 돌아가면 그 값(=마지막 단색)이 다시 칠해진다. */
+  function _syncGradUi() {
+    const el = ctx.contentEl;
+    const g = getTextGradient(el);
+    if (g) {
+      colorSwatch.style.background = g.css;
+      if (g.stops[0]) { colorHex.value = g.stops[0].color.replace('#', '').toUpperCase(); _txtLastHex = g.stops[0].color; }
+    }
+    // 형광펜은 그라데이션과 함께 못 쓴다(블럭 형광펜은 글자 모양으로 잘려 «글자 속 색»이 된다)
+    const hl = document.getElementById('txt-highlight-btn');
+    if (hl) {
+      hl.disabled = !!g;
+      hl.title = g ? '그라데이션 글자엔 형광펜을 쓸 수 없어요 (단색으로 바꾸면 켜져요)' : '형광펜 (선택 영역 배경칠)';
+    }
+  }
+  function _gateTextModes() {
+    const why = textGradientBlockedReason(ctx.contentEl);   // 라벨·불릿 등 / 칠하는 글자 효과(메탈릭 등)
+    const ok = !why;
+    colorPicker.dataset.cpModes = ok ? 'solid,gradient' : 'solid';
+    colorPicker.dataset.cpModesNote = ok ? '글자색은 이미지 채우기를 지원하지 않아요' : why;
+    // 재오픈 시드 = 블럭의 «실제» 그라데이션(기본값으로 덮어쓰지 않게) — 저장소(인라인 스타일)에서 매번 되읽는다.
+    const g = ok ? getTextGradient(ctx.contentEl) : null;
+    if (g) colorPicker.dataset.cpGradient = JSON.stringify({ type: g.type, angle: g.angle, stops: g.stops });
+    else delete colorPicker.dataset.cpGradient;
+  }
+  _gateTextModes();
+  _syncGradUi();
+  // 타입 전환(본문→라벨 등)이 게이트를 다시 계산하게 노출
+  colorPicker.__textGradRegate = () => { _gateTextModes(); _syncGradUi(); };
+
+  // ★스와치 mousedown 은 color-picker 의 document(capture) 델리게이션이 «먼저» 받아 피커를 연다 —
+  //   그보다 앞(window capture)에서 시드를 고쳐 둔다: 부분 선택이 있으면 솔리드로(부분 단색),
+  //   없으면 블럭 실제 그라데이션으로.
+  const _preOpen = (e) => {
+    if (!colorSwatch.isConnected) { window.removeEventListener('mousedown', _preOpen, true); return; }
+    if (!colorSwatch.contains(e.target)) return;
+    _gateTextModes();
+    if (hasSel()) delete colorPicker.dataset.cpGradient;
+  };
+  if (window.__textGradPreOpen) window.removeEventListener('mousedown', window.__textGradPreOpen, true);
+  window.__textGradPreOpen = _preOpen;
+  window.addEventListener('mousedown', _preOpen, true);
+
+  const _onGrad = (e, commit) => {
+    const d = e.detail;
+    if (!d || !d.css) return;
+    if (!applyTextGradient(ctx.contentEl, d, { commit })) return;
+    _savedColorSel = null; _colorSpan = null;   // 그라데이션은 블럭 전체 — 이후 솔리드 복귀도 전체
+    try {
+      colorPicker.dataset.cpGradient = JSON.stringify({ type: d.type, angle: d.angle, stops: d.stops });
+    } catch (_) {}
+    _syncGradUi();
+    // 팝업에서 각도·스탑을 바꾸면 캔버스 바도 따라 재배치(도형·배너와 같은 패턴).
+    // 이 핸들러는 «팝업 조작»('goya-cp:gradient')에서만 불린다 — 캔버스 드래그는 sync 경로라 안 온다.
+    window.showGradientLine?.(tb);
+  };
+  colorPicker.addEventListener('goya-cp:gradient', (e) => _onGrad(e, false));
+  colorPicker.addEventListener('goya-cp:gradient-commit', (e) => _onGrad(e, true));
+  /* ── 0920b textgrad-bar: 캔버스 그라데이션 바 ──
+   * 블럭을 고르는 순간 켠다 — 그라데이션이 «안» 걸린 글자면 getGradientTarget 이 null 이라 no-op.
+   * bindGradientLinePicker 는 재오픈 시드(dataset.cpGradient)와 «선택 스탑» 양방향 동기를 붙인다. */
+  window.showGradientLine?.(tb);
+  window.bindGradientLinePicker?.(tb, colorPicker);
+  /* 글자색 hex — 배선은 color-picker.js 의 wireHexText 한 자리(2026-09-21 픽스 라운드).
+     손사본이던 때는 무효값이 «말없이» 무시됐고(빨간 표시 없음) 커밋(change→pushHistory)도 없었다.
+     ★빈 값 = 「안 정했다」(Mix 포함 placeholder 갈래) — 값으로 굳히지 않는다. */
+  wireHexText(colorHex, {
+    parse: (raw) => (String(raw ?? '').trim() === '' ? '' : parseHex6(raw)),
+    format: (v) => (v ? formatHex6(v) : ''),
+    getCurrent: () => _txtLastHex,
+    onApply: (v) => {
+      if (!v) return;                       // 빈 칸 = 미지정 — 옛 동작(no-op)과 같다
+      _txtLastHex = v;
+      colorPicker.value = v;
       const c = _buildColor();
       applyColorToSel(c);
       colorSwatch.style.background = c;
-    }
-  });
-  colorHex.addEventListener('blur', () => {
-    colorHex.value = (colorPicker.value || '#000000').replace('#','').toUpperCase();
+    },
+    onCommit: (v) => { if (v) { _savedColorSel = null; _colorSpan = null; window.pushHistory?.(); } },
   });
   colorAlpha.addEventListener('input', () => {
     const m = colorAlpha.value.match(/(\d+)/);
@@ -488,6 +605,7 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
         if (fbHex && /^#[0-9a-fA-F]{6}$/.test(fbHex)) {
           colorPicker.value = fbHex;
           colorHex.value = fbHex.replace('#', '').toUpperCase();
+          _txtLastHex = fbHex;
         }
         // var 바인딩 시 불투명도는 100으로 — 칩 색이 안 보이는 일 방지
         _txtAlpha = 100;

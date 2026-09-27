@@ -281,34 +281,91 @@ test('M12 ★주입이 «끊기면» 조용히 공용 폴더로 가지 않는다
   } finally { restore(); }
 });
 
+/* ★M13 전용 적재기 — 모듈을 «임시 레포 레이아웃»에 복사해서 적재한다. (2026-09-20 6라운드 flaky)
+   ⛔왜 «레포 안»에 심으면 안 되나:
+     «두 번째 뿌리»는 모듈 기준 `path.join(__dirname,'..','..','projects')` 라 원래 «레포 트리 안»이다.
+     거기에 양성대조를 심었다 지우는 «그 사이»에, 같은 npm test 실행의 다른 테스트가 휘말린다 —
+     main.js 는 적재되는 순간 `migrateFiles(path.join(__dirname,'projects'), …)`(main.js:1302) 로
+     그 폴더를 통째로 훑는다. readdirSync 가 이름을 집은 뒤 statSync 전에 지워지면 ENOENT 로 터지고,
+     main.js 적재 «자체»가 죽어서 main.js 를 적재하는 18 개 파일(crash-wiring 등)이 무작위로 빨강이 된다.
+   ⇒ 소스는 그대로 두고 __dirname 만 임시 폴더로 옮긴다. 두 번째 뿌리도 <tmp>/projects 가 되고,
+     ★양성대조의 «세기»는 한 톨도 안 준다 — 같은 파일·같은 표현식·같은 폴백 조건이고,
+     아래에서 「플래그를 켜면 실제로 읽힌다」로 «조준이 안 빗나갔다»까지 같이 잰다. */
+function loadMcpServerInTmpRepo(env = {}) {
+  const repo = fs.mkdtempSync(path.join(os2.tmpdir(), 'gdt-repo-'));
+  const dst = path.join(repo, 'main', 'claude-pm');
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  fs.cpSync(path.join(__dirname, '..', '..', 'main', 'claude-pm'), dst, { recursive: true });
+  const p = path.join(dst, 'mcp-server.js');
+  delete require.cache[p];
+  const saved = {};
+  for (const k of Object.keys(env)) { saved[k] = process.env[k]; if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k]; }
+  const undo = () => {
+    for (const k of Object.keys(saved)) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
+    delete require.cache[p];
+    fs.rmSync(repo, { recursive: true, force: true });
+  };
+  try { return { mod: require(p), sharedRoot: path.join(repo, 'projects'), restore: undo }; }
+  catch (e) { undo(); throw e; }
+}
+
 test('M13 ★두 번째 뿌리에 «남의 프로젝트»를 심어도 안 읽힌다 (양성대조)', () => {
-  const shared = path.join(__dirname, '..', '..', 'projects');     // 코드가 뒤지던 두 번째 뿌리
+  const { mod, sharedRoot, restore } = loadMcpServerInTmpRepo({ GODITOR_MCP_ALLOW_SHARED_ROOT: undefined });
   const victim = 'proj_9999001';
   const mine = fs.mkdtempSync(path.join(os2.tmpdir(), 'gdt-mine-'));
-  const planted = path.join(shared, victim);
-  const preexisting = fs.existsSync(shared);
-  fs.mkdirSync(planted, { recursive: true });
-  fs.writeFileSync(path.join(planted, 'proj.json'), JSON.stringify({ id: victim, name: '★남의것-비밀' }));
+  const planted = path.join(sharedRoot, victim);                    // 코드가 뒤지던 두 번째 뿌리
   try {
-    const { mod, restore } = loadMcpServer({ GODITOR_MCP_ALLOW_SHARED_ROOT: undefined });
+    /* ★심는 자리가 «레포 트리 밖»이어야 한다 — 안이면 위 주석의 교차오염 경합이 되살아난다. */
+    const repoRoot = path.resolve(__dirname, '..', '..');
+    assert.ok(planted !== repoRoot && !planted.startsWith(repoRoot + path.sep),
+      `★양성대조를 «레포 트리 안»에 심으면 main.js 를 적재하는 18 개 테스트가 무작위로 깨진다: ${planted}`);
+    fs.mkdirSync(planted, { recursive: true });
+    fs.writeFileSync(path.join(planted, 'proj.json'), JSON.stringify({ id: victim, name: '★남의것-비밀' }));
+
+    mod.setProjectsRoot(() => mine);                              // 내 계정 뿌리(비어 있음)
+    const read = mod.__test_readProjectFile;
+    assert.strictEqual(typeof read, 'function', '★검사할 함수를 못 꺼냈다');
+    // ★심어둔 것이 «진짜 거기 있다»는 것부터 보인다 — 「0건」이 «안 심어져서»면 검사가 무의미하다
+    assert.ok(fs.existsSync(path.join(planted, 'proj.json')), '★양성대조 자체가 안 깔렸다');
+    /* ★★조준 확인 — 심은 자리가 «코드가 말하는 두 번째 뿌리»가 맞나.
+       ⛔이게 없으면 임시 레포로 옮긴 뒤 「못 찾았다」가 «엉뚱한 데 심어서»일 수 있다
+         (계측기가 대상을 놓친 채 초록). 폴백 플래그를 켜면 «읽혀야» 한다. */
+    process.env.GODITOR_MCP_ALLOW_SHARED_ROOT = '1';
     try {
-      mod.setProjectsRoot(() => mine);                              // 내 계정 뿌리(비어 있음)
-      const read = mod.__test_readProjectFile;
-      assert.strictEqual(typeof read, 'function', '★검사할 함수를 못 꺼냈다');
-      // ★심어둔 것이 «진짜 거기 있다»는 것부터 보인다 — 「0건」이 «안 심어져서»면 검사가 무의미하다
-      assert.ok(fs.existsSync(path.join(planted, 'proj.json')), '★양성대조 자체가 안 깔렸다');
-      assert.throws(() => read(victim), /project not found/,
-        '★두 번째 뿌리(앱/레포의 공용 projects)를 뒤지면 «계정을 넘어» 읽힌다');
-      // 내 계정 것은 «읽혀야» 한다 — 반대방향 오탐 방지
-      fs.mkdirSync(path.join(mine, 'proj_9999002'), { recursive: true });
-      fs.writeFileSync(path.join(mine, 'proj_9999002', 'proj.json'), JSON.stringify({ id: 'proj_9999002', name: '내것' }));
-      assert.strictEqual(read('proj_9999002').name, '내것');
-    } finally { restore(); }
+      assert.strictEqual(read(victim).name, '★남의것-비밀',
+        '★두 번째 뿌리를 «조준»하지 못했다 — 아래 「not found」는 막은 증거가 아니다');
+    } finally { delete process.env.GODITOR_MCP_ALLOW_SHARED_ROOT; }
+
+    assert.throws(() => read(victim), /project not found/,
+      '★두 번째 뿌리(앱/레포의 공용 projects)를 뒤지면 «계정을 넘어» 읽힌다');
+    // 내 계정 것은 «읽혀야» 한다 — 반대방향 오탐 방지
+    fs.mkdirSync(path.join(mine, 'proj_9999002'), { recursive: true });
+    fs.writeFileSync(path.join(mine, 'proj_9999002', 'proj.json'), JSON.stringify({ id: 'proj_9999002', name: '내것' }));
+    assert.strictEqual(read('proj_9999002').name, '내것');
   } finally {
-    fs.rmSync(planted, { recursive: true, force: true });
-    if (!preexisting) { try { fs.rmdirSync(shared); } catch (_) {} }
+    restore();
     fs.rmSync(mine, { recursive: true, force: true });
   }
+});
+
+/* ★M13-G — 재발 방지(2026-09-20). 단위검사가 «레포 트리 안 projects»를 뿌리로 삼으면
+   main.js 적재(migrateFiles)와 부딪혀 «같은 HEAD 인데 가끔 빨강»이 된다. 자리 자체를 막는다. */
+test('M13-G ★단위검사 중 «레포 안 projects» 를 뿌리로 잡는 자리가 없다 (교차오염 재발 방지)', () => {
+  const RE = /__dirname.*\.\..*\.\..*['"]projects['"]/;
+  /* ★자(尺)부터 잰다 — 옛 모양을 «실제로» 잡는지. (⛔표본을 한 줄에 그대로 적으면
+     이 줄 자신이 걸린다 — 그래서 조각으로 만든다.) */
+  const DOTS = '.' + '.';
+  const SAMPLE = `const shared = path.join(__dirname, '${DOTS}', '${DOTS}', ${JSON.stringify('projects')});`;
+  assert.ok(RE.test(SAMPLE), '★자가 옛 모양을 못 잡는다 — 검사가 대상을 놓쳤다(통과가 아니다)');
+
+  const offenders = [];
+  for (const f of fs.readdirSync(__dirname)) {
+    if (!/\.(js|mjs|cjs)$/.test(f)) continue;
+    const lines = stripComments(fs.readFileSync(path.join(__dirname, f), 'utf8')).split('\n');
+    lines.forEach((l, i) => { if (RE.test(l)) offenders.push(`${f}:${i + 1}: ${l.trim()}`); });
+  }
+  assert.deepStrictEqual(offenders, [],
+    `★레포 안 projects 를 쓰면 main.js 적재와 경합해 무작위 빨강이 된다:\n  ${offenders.join('\n  ')}`);
 });
 
 test('M14 ★뿌리 주입이 «서버가 듣기 전»에 걸린다 (그 사이 요청이 주입 없이 처리되지 않게)', () => {
@@ -680,6 +737,72 @@ test('M26 ★게이트를 «여는 자리»와 «닫는 자리»의 수가 맞�
   const grants = (SRC.match(/_editorAccessGranted = true/g) || []).length;
   const revokes = (SRC.match(/_editorAccessGranted = false/g) || []).length;
   assert.ok(revokes >= 1, `★여는 자리 ${grants} / 닫는 자리 ${revokes} — 닫는 자리가 없다`);
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+   T-A(2026-09-16) — 비로그인 상태에서 만든 folders.json 도 legacy 입양 때 같이 옮긴다.
+   ★같은 「단독 계정일 때만·이미 있으면 안 건드림」 규율을 proj_* 뿐 아니라 folders.json 에도
+     지켜야 한다 — 안 옮기면 폴더 «이름»만 조용히 사라진다(프로젝트 자체는 자가치유로 미분류에 뜬다).
+   ──────────────────────────────────────────────────────────────────────────── */
+
+test('T-A1 ★첫 로그인 입양 때 legacy folders.json 도 같이 옮긴다', () => {
+  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const legacy = path.join(ud, 'projects');
+  mkproj(legacy, 'proj_7001');
+  fs.writeFileSync(path.join(legacy, 'folders.json'),
+    JSON.stringify({ version: 1, folders: [{ id: 'fold_x', name: '여름신상', parentId: null, order: 1000 }] }));
+
+  const h = load({ email: 'chulsoo@example.com', userData: ud });
+  const dest = h.api.PROJECTS_DIR;
+  assert.ok(fs.existsSync(path.join(dest, 'folders.json')), '★folders.json 이 계정 폴더로 안 옮겨졌다');
+  assert.ok(!fs.existsSync(path.join(legacy, 'folders.json')), 'legacy 자리에 그대로 남아 있다(옮긴 게 아니라 복사?)');
+  const carried = JSON.parse(fs.readFileSync(path.join(dest, 'folders.json'), 'utf8'));
+  assert.equal(carried.folders[0].name, '여름신상', '내용이 달라졌다');
+
+  const adopted = JSON.parse(fs.readFileSync(path.join(ud, 'accounts', h.api._accountKeyFor('chulsoo@example.com'), 'adopted.json'), 'utf8'));
+  assert.equal(adopted.foldersCarried, true, '★adopted.json 에 foldersCarried:true 가 안 적혔다');
+});
+
+test('T-A2 대상에 이미 folders.json 이 있으면 «덮지 않는다»', () => {
+  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const legacy = path.join(ud, 'projects');
+  mkproj(legacy, 'proj_7002');
+  fs.writeFileSync(path.join(legacy, 'folders.json'), JSON.stringify({ version: 1, folders: [{ id: 'fold_legacy', name: '레거시폴더' }] }));
+
+  // 대상 계정 폴더를 미리 만들어 두고 자기 folders.json 을 심어둔다(먼저 로그인해 만든 자기 것)
+  // ★키 산식을 여기서 다시 구현하지 않는다 — load() 로 한 번 «비파괴» 접근해 실제 키를 얻는다.
+  const probe = load({ email: 'chulsoo@example.com', userData: fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-probe-')) });
+  const realKey = probe.api._accountKeyFor('chulsoo@example.com');
+  const destDir = path.join(ud, 'accounts', realKey, 'projects');
+  fs.mkdirSync(destDir, { recursive: true });
+  fs.writeFileSync(path.join(destDir, 'folders.json'), JSON.stringify({ version: 1, folders: [{ id: 'fold_own', name: '내폴더' }] }));
+
+  load({ email: 'chulsoo@example.com', userData: ud });
+  const kept = JSON.parse(fs.readFileSync(path.join(destDir, 'folders.json'), 'utf8'));
+  assert.equal(kept.folders[0].name, '내폴더', '★대상에 이미 있는 folders.json 을 legacy 로 덮어썼다');
+});
+
+test('T-A3 ⛔folders.json 이동이 실패해도 입양(proj_*) 자체는 막지 않는다', () => {
+  /* ★던지지 않는다 — 실패하면 폴더 «이름»만 잃고 프로젝트는 자가치유(미분류)로 그대로 뜨면 된다. */
+  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const legacy = path.join(ud, 'projects');
+  mkproj(legacy, 'proj_7003');
+  fs.writeFileSync(path.join(legacy, 'folders.json'), '{}');
+
+  const realRename = fs.renameSync;
+  fs.renameSync = (a, b) => {
+    if (String(a).endsWith('folders.json')) throw new Error('디스크 가득');
+    return realRename(a, b);
+  };
+  try {
+    const h = load({ email: 'chulsoo@example.com', userData: ud });
+    assert.ok(fs.existsSync(path.join(h.api.PROJECTS_DIR, 'proj_7003')),
+      '★folders.json 이동 실패가 proj_* 입양까지 막았다');
+    const adopted = JSON.parse(fs.readFileSync(
+      path.join(ud, 'accounts', h.api._accountKeyFor('chulsoo@example.com'), 'adopted.json'), 'utf8'));
+    assert.equal(adopted.foldersCarried, false, 'foldersCarried 가 실패인데 true 로 적혔다');
+    assert.ok(adopted.failed.some(f => /folders\.json/.test(f)), '실패 사실을 어디에도 안 적었다');
+  } finally { fs.renameSync = realRename; }
 });
 
 test('W1 ★섹션 이름의 «정본»은 sec._name 이다 — dataset 만 쓰면 저장 직전에 되돌아간다', () => {

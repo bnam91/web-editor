@@ -202,7 +202,7 @@ test('T9 ★★전달자 목록을 «다시 재서» 대조한다 — 손으로 
   console.error(`\n  ■ 노출 ${vis.length}개 · 흘려보냄 ${flows.length} · 판정불가 ${undecidable.length}`);
   console.error(`     흘려보냄: ${flows.join(' ')}`);
   console.error(`     ⛔판정불가(렌더러를 안 부름 — 「0」이 아니라 「안 쟀다」): ${undecidable.join(' ')}\n`);
-  assert.deepStrictEqual(flows.sort(), ['add_block', 'update_block'],
+  assert.deepStrictEqual(flows.sort(), ['add_block', 'update_block', 'update_qa_block'],
     '★«인자를 아래로 흘려보내는» 도구 집합이 달라졌다 — mcp-server.js 의 _ARG_FORWARDERS 를 같이 고쳐라. '
     + '늘었는데 안 고치면 그 도구가 «거짓 경고»를 내기 시작한다.');
 });

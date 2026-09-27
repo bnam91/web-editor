@@ -36,12 +36,226 @@ function _drainRemoteKeys() {
   return s;
 }
 
+/* ★[0920b-resize-undo] 「편집으로서 같은가」 — 무변화 중복 차단의 비교자.
+   ⛔저장되는 문자열을 바꾸지 «않는다». 비교할 때만 «편집이 아닌 것»을 한 겹 더 벗긴다.
+   왜 필요한가(실측 2026-09-20, 포트 9387 · 실프로젝트 3섹션/216요소):
+     도형 리사이즈(끝 표본) 직후 회전(시작 표본)을 찍으면 두 스냅샷이 «단 한 글자» 달랐다 —
+     `draggable="true"` ↔ `draggable="false"`. 이건 drag-utils.js suppressAncestorDrag 가
+     «드래그하는 동안만» 뒤집는 상호작용 플래그지 사용자의 편집이 아니다. 그 한 글자 때문에
+     차단이 빗나가 「⌘Z 를 눌렀는데 화면이 그대로인 한 칸」이 남았다(이벨류에이터 ②).
+   ⚠️늘릴 때 규칙 — «serializeCleanRoot 가 이미 지우는 것»은 여기 넣을 필요가 없다.
+     여기 넣는 건 «저장본에는 남지만 편집은 아닌» 것뿐이고, 넣는 만큼 「그 값만 다른 편집」의
+     undo 한 칸이 사라진다. 넣기 전에 실제 스냅샷 diff 로 근거를 잡아라(위처럼). */
+/* ★[T-131 ⒜⑵ · 2026-09-21] `--sec-clip` 을 같이 벗긴다.
+     근거(실측, 포트 9579·9581 · 스냅샷 diff):
+       ⑴ 이 값은 «파생»이다 — 입력이 offsetLeft/Top/Width/Height 와 sec.clientWidth/Height 뿐이고
+          (js/blocks/sticker-block.js:400~420 · mockup-block.js:118~130), 그 넷이 전부 인라인
+          style 로 직렬화된다. 복원·로드 때 bindBlock 이 다시 계산한다(js/block-drag.js:463).
+       ⑵ 「그 값만 다른 편집」을 찾아봤다 — 스티커를 섹션 «밖»으로 밀어내기(left/top 이 같이 변함)와
+          섹션 높이 줄이기(섹션 style 이 같이 변함) 두 경로 모두 «홀로» 안 바뀌었다.
+          ⇒ 위 ⚠️가 요구한 «실제 스냅샷 diff 근거»가 이것이다.
+       ⑶ 안 벗기면: 목업을 섹션 경계 넘게 삽입 → rAF 가 --sec-clip 을 늦게 박음 → 꼭대기와
+          라이브가 어긋남 → ⌘Z 가 «두 번»(대조: 섹션 안쪽 삽입은 한 번). 실측값이다.
+     ⛔못 잰 축: 목업·확대는 스티커와 입력이 달라 ⑵를 따로 안 쟀다. 이미지·폰트가 늦게 로드돼
+       내재 크기가 바뀌는 경우도 안 쟀다.
+     ⛔직렬화에서 지우지 «않는다» — 저장본에 남는 것은 설계다(js/blocks/sticker-block.js:398
+       「저장 HTML·미리보기·Export 클론에 그대로 복제 → 세 화면이 한 소스로 잘림」). 비교만 벗긴다. */
+const _NON_EDIT_ATTR_RE = / draggable="(?:true|false)"|\s*--sec-clip:\s*[^;"]*;?/g;
+/* ★[2026-09-21] «섹션 툴바»는 콘텐츠가 아니라 «UI 크롬»이다 — 비교에서 통째로 벗긴다.
+ *
+ * 실측 근거(위 ⚠️가 요구하는 «실제 스냅샷 diff»):
+ *   ⑴ 페이지 A 에서 삽입 → 페이지 B 로 갔다가 A 로 «복귀» 하면 꼭대기와 라이브가 어긋난다.
+ *      길이는 둘 다 1895 로 «같은데» 내용이 달랐고, 첫 차이는 255번째 글자, .section-toolbar 안이었다:
+ *        꼭대기 : <button class="st-btn st-ab-btn" title="A/B 베리에이션 생성">
+ *        라이브 : <button class="st-btn st-memo-btn" onclick="window.toggleSectionMemoPopover(this)" …>
+ *      복귀 때 rebindAll·옵저버가 «툴바 버튼 순서와 onclick 을 다시 쓴다».
+ *   ⑵ 같은 병이 undo/redo 뒤에도 난다(전환 없이 재현) — redo 직후 top 3819 / live 3790, 차이는 역시 툴바뿐.
+ *   ⇒ 그 차이를 «편집»으로 읽어 ensureHistoryCheckpoint 가 칸을 하나 더 만들고,
+ *      사용자는 «⌘Z 를 눌렀는데 화면이 그대로인 한 칸»을 본다(먹통 한 칸).
+ *
+ * ★왜 «벗겨도» 되나 — 이 레포는 이미 툴바를 «내용 아님»으로 다룬다. 세 자리가 같은 일을 한다:
+ *     js/market-merge.js:29 · js/version-diff.js:50 · js/io/export-html.js(제거 한 벌)
+ *   비교에서만 벗기는 히스토리가 오히려 «혼자» 툴바를 내용으로 보고 있었다.
+ * ⛔저장되는 문자열은 «안» 바꾼다 — 벗기는 건 오직 «비교할 때»다(위 규약 그대로).
+ * ⚠️늘릴 때 규칙은 위와 같다 — 넣는 만큼 「그 부분만 다른 편집」의 undo 한 칸이 사라진다.
+ *   툴바 안에는 사용자가 «편집하는» 것이 없다(전부 버튼이다). 그래서 잃을 편집이 없다.
+ * ⛔툴바 안에 <div> 가 생기면 이 정규식이 «첫 </div>» 에서 끊긴다 — 그때는 여기부터 고쳐라.
+ *   tests/unit/history-chrome-noise.test.mjs 가 그 모양을 잠근다. */
+const _CHROME_RE = /<div class="section-toolbar">[\s\S]*?<\/div>/g;
+function _stripNonEdit(s) {
+  return s.replace(_NON_EDIT_ATTR_RE, '').replace(_CHROME_RE, '');
+}
+function _sameEdit(a, b) {
+  if (a === b) return true;
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  return _stripNonEdit(a) === _stripNonEdit(b);
+}
+
+/* ★[T-130 · 2026-09-22] «미확정 영상»의 상태는 스냅샷 «문자열 밖»에 산다 —
+   무변화 중복 차단이 그 몫도 같이 재야 한다.
+
+   ══ 왜 필요한가(실측 2026-09-22, 포트 9636 · 기준 dev 12865a1) ══════════════
+   T-012/T-031 이 «GIF로 적용» 전 영상(video-pending)을 저장 대상에서 뺐다 —
+   js/io/section-serialize.js serializeCleanRoot 가 그 블럭을 «빈 업로드대기»로 세척하고,
+   원본·트림·속도는 문자열이 아니라 «그 sweep 전용 사이드카»에 담는다(같은 파일
+   getLastVideoPendingSidecar). ⇒ 미확정 영상에 한 편집은 **스냅샷 문자열을 한 글자도 안 바꾼다**.
+   그래서 위 _sameEdit 이 「무변화」로 읽고 pushHistory 의 무변화 차단이 그대로 돌아나갔다
+   (아래 `if (!sideEffects && _top && …)` — ⛔줄번호로 가리키지 않는다. 주석 한 줄만 늘어도 썩는다).
+   실측(진짜 앱·진짜 드래그) — 영상 업로드 + 트림 드래그 2회 동안 꼭대기가
+   {pos:2, len:3, seq:5} 에서 **한 칸도 안 늘었고**, ⌘Z 한 번에 에셋 블럭이 통째로 사라졌다
+   (⌘⇧Z 로 블럭은 와도 영상은 «안» 왔다 — 되살릴 표본이 아예 없어서).
+   ⇒ 한 줄에서 둘이 같이 난다: «편집이 안 쌓인다» + «원본이 그 항목에 안 실린다».
+
+   ══ 무엇을 하나 ══════════════════════════════════════════════════════════════
+   항목의 «정체»를 (canvas 문자열, 사이드카) «쌍»으로 본다. 문자열이 같아도 사이드카가
+   다르면 «다른 편집»이다. 이 레포엔 이미 같은 모양의 선례가 있다 — pushHistory 의
+   `!sideEffects` 예외(그 차단 첫 조건 · 「캔버스는 그대로여도 되돌릴 것이 있다」)가 그것이다.
+   ⛔_stripNonEdit(문자열 비교자)은 «한 글자도» 안 건드린다 — 거기에 공백 정리를 얹으면
+     T-035 의 「✕ 로 비운 직후 ⌘Z 되살리기」가 조용히 죽는다(기전은 T-035 ⚠️ E).
+
+   ══ 왜 «값 전체»가 아니라 digest 인가 ═══════════════════════════════════════
+   imgSrc 는 영상 원본 data URL 이다(블럭당 최대 ~66MB). pushHistory 는 편집마다 도는
+   자리라 그 길이의 문자열 비교를 매번 끼울 수 없다. ⇒ 길이 + 양끝 64자 + 트림/속도/fit 로
+   고정 길이 열쇠를 만든다. 블럭당 O(1) 이고, 사람이 바꾸는 값(트림·속도·fit·블럭 유무)은
+   «전부» 정확히 들어간다.
+   ⛔못 가리는 한 가지(알고 남긴다): «길이가 같고 앞뒤 64자가 모두 같은 서로 다른 영상»으로
+     교체하는 경우. base64 로 그 셋이 동시에 맞는 두 파일은 현실에서 안 만나고, 그 경우에도
+     잃는 것은 «교체» 한 칸뿐이다(그 뒤 트림/속도 편집은 여전히 쌓인다).
+   ★없음·{}·undefined 는 «같다»로 읽는다 — 영상이 없는 대다수 편집에서 회귀 0 이 되는 근거.
+   tests/dom/video-pending-edit-undo.dom.spec.js · tests/unit/video-pending-dedupe.test.mjs 가 잠근다. */
+const _VP_FIELDS = ['fit', 'trimIn', 'trimOut', 'playbackRate'];
+/* 칸막이 — 값 안에 절대 안 나오는 제어문자다(id 는 [A-Za-z0-9_], 원본은 data URL,
+   나머지는 숫자·'cover' 류). ⛔소스에 «날 제어문자»를 박지 마라(diff·grep 이 깨진다) —
+   그래서 코드포인트로 만든다. */
+const _VP_SEP = String.fromCharCode(1);
+const _VP_END = String.fromCharCode(2);
+function _videoPendingKey(sc) {
+  if (!sc || typeof sc !== 'object') return '';
+  let ids;
+  try { ids = Object.keys(sc); } catch (_) { return ''; }
+  if (!ids.length) return '';
+  ids.sort();
+  let out = '';
+  for (let i = 0; i < ids.length; i++) {
+    const v = sc[ids[i]] || {};
+    const src = typeof v.imgSrc === 'string' ? v.imgSrc : '';
+    out += ids[i] + _VP_SEP + src.length + _VP_SEP + src.slice(0, 64) + _VP_SEP + src.slice(-64);
+    for (let k = 0; k < _VP_FIELDS.length; k++) {
+      const f = v[_VP_FIELDS[k]];
+      out += _VP_SEP + (f == null ? '' : f);
+    }
+    out += _VP_END;
+  }
+  return out;
+}
+
+/* ── ★0920b «grad-alpha» C: undo 복원 시 «선택 상태» 복원 ─────────────────────────────
+ * 현빈 원문: 「블럭을 삭제하고 ⌘Z 로 되살리면 보라색 아웃라인이 안 보여, 살아난 건지 확인하려면
+ * 클릭해봐야 안다」. 원인은 셋이 겹친다 —
+ *   ① 스냅샷이 UI 상태 클래스를 «일부러» 세척한다(js/io/section-serialize.js RUNTIME_MARKER_CLS
+ *      의 'selected' + .gradient-corner-handle 제거) → 복원 HTML 에 선택 흔적이 없다.
+ *   ② restoreSnapshot/restoreSnapshotScoped 가 deselectAll() 을 «두 번» 부른다.
+ *   ③ 히스토리 항목에 선택 정보를 담는 필드가 «아예» 없었다.
+ * ⇒ 항목을 만들 때(pushHistory·ensureHistoryCheckpoint «양쪽») 선택 «id» 를 같이 적고,
+ *   복원의 «마지막 deselectAll 뒤»에 타입별 진입점으로 다시 고른다.
+ *   ★순서가 중요하다 — 앞에 두면 deselectAll 이 도로 지우고 showPageProperties() 가 패널을 덮는다.
+ * ⛔1차 범위(좁게): «단일 블럭»만. 다중선택·섹션/프레임·contenteditable(.editing) 은 복원하지
+ *   않는다(전역 동작 변경이라 넓히면 다른 undo 유닛과 충돌한다). 없는 id 는 조용히 무시. */
+function _captureSelection() {
+  try {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.getElementById('canvas');
+    const sel = (typeof window !== 'undefined' && window.CANVAS_SEL_BLOCKS_AND_SHAPE) || '';
+    if (!canvas || !sel) return null;
+    if (canvas.querySelector('.editing')) return null;       // 편집 중 캐럿 상태는 복원 대상 아님
+    const els = canvas.querySelectorAll(sel);
+    if (els.length !== 1) return null;                        // 1차 범위 = 단일 블럭
+    const id = els[0].id;
+    if (!id) return null;
+    if (canvas.querySelector('.multi-selected')) return null; // 다중선택은 2차
+    return { blockIds: [id] };
+  } catch (_) { return null; }
+}
+
+/* ★0920b grad-alpha C(픽스 라운드) — «클릭 경로와 같은 한 벌»로 다시 고른다.
+ * ⚠️1차 구현은 일반 타입을 window.selectBlock(js/block-edit.js) 으로 흘렸는데 거기서 «조용히» 둘이 샜다:
+ *   ① getBlockById 가 `!!el.dataset?.type` 를 요구한다 — asset-block·icon-text-block·
+ *      label-group-block 등은 data-type 속성이 «없다»(실측: asset 의 속성 = class,id,data-align,
+ *      data-overlay,style) ⇒ selectBlock 이 false 로 빠져 아무 일도 안 일어났다.
+ *      = 현빈 원문의 「살아났는지 클릭해봐야 안다」가 이미지 블럭에서 그대로 남는다.
+ *   ② selectBlock 의 패널 분기(9종)가 실제 클릭 경로(js/block-drag.js)보다 좁아
+ *      mockup·step·chat·zoom·laurel·vector·canvas·joker·icon-circle·gap 은 showTextProperties 로
+ *      떨어져 «Page» 패널이 뜨거나 console.warn 을 남겼고, modal 은 «Text Block» 을 열었다.
+ * ⇒ 여기서는 클릭 경로의 분기를 그대로 베낀 표를 쓰고, 핸들은 클릭 경로와 «같은 입구»
+ *   window.showHandlesFor(js/overlay-handles.js) 로 붙인다. 표에 없는 타입은 패널을
+ *   «건드리지 않는다» — 엉뚱한 패널을 여는 것보다 안 여는 쪽이 덜 틀린다.
+ *
+ * ★2026-09-21 (T-079) — 그 표(_PANEL_BY_CLASS)는 여기 있으면 안 되는 물건이었다.
+ *   js/block-edit.js 의 selectBlock 이 «자기 사본»(9종·폴백 showTextProperties)을 따로 들고
+ *   있었고, 배너를 넣은 그 순간 텍스트 패널이 떠서 글자크기가 인라인으로 찍혔다가
+ *   저장/로드의 renderBanner02 에 폐기됐다(조용한 데이터 손실).
+ *   ⇒ 표를 js/panel-dispatch.js 로 «이사»하고(플레인 스크립트 — DOM 검사 하네스와
+ *     selectBlock 이 모듈 그래프 없이 얹을 수 있어야 한다) 양쪽이 «같은» window.openPanelForBlock
+ *     을 쓴다. 여기 동작은 그대로다: 그라데이션·스티커 먼저 → 표 → showHandlesFor.
+ *   ⚠️핸들은 여전히 «이 자리»에서 붙인다 — selectBlock 은 예전에도 핸들을 안 붙였고,
+ *     공용 진입점으로 끌어오면 zoom·asset·canvas 등에서 2회 호출이 되는데 그 멱등성을 아직 안 쟀다.
+ */
+function _restoreSelection(snapSel) {
+  try {
+    const ids = snapSel && Array.isArray(snapSel.blockIds) ? snapSel.blockIds : null;
+    if (!ids || ids.length !== 1) return;
+    const canvas = document.getElementById('canvas');
+    const el = document.getElementById(ids[0]);
+    if (!el || !canvas || !canvas.contains(el)) return;       // 복원된 캔버스에 실제로 있을 때만
+    /* «선택+핸들+패널»을 자기가 한 벌로 처리하는 타입은 그 진입점에 통째로 맡긴다.
+       (그라데이션 4모서리 핸들·스티커 핸들은 showHandlesFor 가 모르는 자기 것이다) */
+    if (el.classList.contains('gradient-block') && window._selectGradient) { window._selectGradient(el); return; }
+    if (el.classList.contains('sticker-block')  && window._selectSticker)  { window._selectSticker(el);  return; }
+    el.classList.add('selected');
+    window.syncSection?.(el.closest('.section-block'));
+    window.highlightBlock?.(el, el._layerItem);
+    window.setBlockAnchor?.(el);
+    window.openPanelForBlock?.(el);   // 정본 표 = js/panel-dispatch.js (selectBlock 과 «같은» 표)
+    window.showHandlesFor?.(el);   // 모서리 핸들 — 레이어패널/클릭 경로와 «같은» 입구
+  } catch (e) { console.warn('[history] 선택 복원 실패:', e); }
+}
+
 function pushHistory(action = '작업', sideEffects = null) {
   if (_historyPaused) return;
-  historyStack = historyStack.slice(0, historyPos + 1);
   // sideEffects: { onUndo?: fn, onRedo?: fn } — DOM 외 상태(예: 스크래치패드 IDB) 복원용
   // remoteKeys: 직전 체크포인트 이후 적용된 원격 섹션 키 셋(스코프 undo 가 제외에 사용)
-  historyStack.push({ canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), seq: ++_seq });
+  const _canvas = window.getSerializedCanvas();
+  /* ★[0920b-resize-undo] 무변화 중복 차단 — «꼭대기와 글자 하나 안 다른» 항목은 안 쌓는다.
+     왜 필요한가: 이 레포의 pushHistory 호출 규약은 «두 벌»이다(js/CLAUDE.md 「히스토리 규약」).
+       · push-before — 바꾸기 «전»에 찍는다(block-factory 삽입류)
+       · push-after  — 바꾼 «뒤»에 찍는다(우측 패널 대다수·드래그 onUp)
+     둘 다 «지금 살아있는 캔버스»를 찍는 같은 함수다. 차이는 «언제» 부르느냐뿐이라,
+     push-after 동작 «뒤»에 push-before 동작이 오면 두 호출이 «같은 상태»를 두 번 찍는다.
+     그러면 ⌘Z 한 번이 화면을 하나도 안 바꾸는 «먹통 한 칸»이 된다(실측: 회전 뒤 리사이즈
+     → ⌘Z 3연타 중 2번째가 무변화). 여기서 그 한 칸을 안 만든다.
+     ⚠️sideEffects 가 있으면 «캔버스는 그대로여도» 되돌릴 것이 있다(js/scratch-pad.js:719
+       스크래치 리사이즈 — onUndo/onRedo 로 역동작을 명시한다) → 그 자리는 그대로 쌓는다.
+     ⚠️설정(pageSettings)만 바뀌는 편집도 있다 → 캔버스만 보면 안 된다. 같이 본다.
+     ⚠️건너뛸 땐 slice(redo 꼬리 자르기)도 «안» 한다 — 아무것도 안 바꾼 호출이 redo 를
+       죽이면 안 된다(맨클릭이 ⌘⇧Z 를 죽이던 부수결함이 여기서 같이 사라진다). */
+  const _top = historyStack[historyPos];
+  // ★T-031 2차: getSerializedCanvas() 가 «방금» 발견한 video-pending 원본을 이 스냅샷
+  //   «자신»에 붙인다(같은 동기 구간에서 읽어야 한다 — js/io/section-serialize.js
+  //   getLastVideoPendingSidecar 주석 참고). 전역 캐시가 아니라 이 스냅샷 전용이라,
+  //   나중에 이 스냅샷이 아닌 다른 스냅샷을 복원할 땐 여기 안 실린다.
+  // ★T-130(2026-09-22): 이 읽기가 «차단 위»로 올라왔다 — 아래 차단이 사이드카도 같이 재기
+  //   때문이다. ⛔다시 차단 «아래»로 내리지 마라: 그러면 「원본이 안 실린다」가 되살아난다.
+  //   (순수 읽기다 — _lastSweepSidecar 를 그대로 돌려줄 뿐 sweep 을 새로 돌리지 않는다.)
+  const _videoPendingSidecar = window.getLastVideoPendingSidecar?.();
+  if (!sideEffects && _top && _top.pageId === state.currentPageId
+      && _sameEdit(_top.canvas, _canvas)
+      // ★T-130: 미확정 영상은 스냅샷 «문자열 밖»에 산다 — 문자열이 같아도 이게 다르면 다른 편집이다.
+      && _videoPendingKey(_top.videoPendingSidecar) === _videoPendingKey(_videoPendingSidecar)
+      && JSON.stringify(_top.settings) === JSON.stringify(state.pageSettings)) {
+    return;
+  }
+  historyStack = historyStack.slice(0, historyPos + 1);
+  historyStack.push({ canvas: _canvas, videoPendingSidecar: _videoPendingSidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
   if (historyStack.length > MAX_HISTORY) {
     historyStack.shift(); // 가장 오래된 항목 제거
     historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -91,11 +305,16 @@ function restoreSnapshot(snap) {
     Object.assign(state.pageSettings, snap.settings);
     const canvasEl = document.getElementById('canvas');
     canvasEl.innerHTML = snap.canvas;
-    window.rebindAll();
+    // ★T-031: video-pending(트림 확정 전 영상)은 스냅샷에 "빈 업로드대기"로 찍힌다
+    //   (js/io/section-serialize.js T-012 안전장치) — rebindAll 이 «이 snap 자신의»
+    //   videoPendingSidecar(pushHistory 가 이 스냅샷을 만들 때 같이 붙여둔 것, 2차수정
+    //   스냅샷 스코프)로 원본을 다시 붙인다. 다른 스냅샷·다른 섹션 것은 안 섞인다.
+    window.rebindAll({ videoPendingSidecar: snap.videoPendingSidecar });
     window.deselectAll();
     window.applyPageSettings();
     if (window.buildLayerPanel) window.buildLayerPanel();
     window.deselectAll();
+    _restoreSelection(snap.selection);   // ★마지막 deselectAll «뒤» — 순서가 처방의 절반이다
   } finally {
     // ★가드 해제를 UI 갱신보다 «먼저» — 아래 _updateUndoRedoBtns/gdtFontPaintBadge가
     // 던져도 두 플래그는 이미 안전하게 풀린 상태가 되도록.
@@ -218,11 +437,15 @@ function restoreSnapshotScoped(fromSnap, toSnap, laterSnap) {
   try {
     Object.assign(state.pageSettings, toSnap.settings || {});
     skipped = _applyScopedDiff(fromSnap, toSnap, laterSnap);
-    window.rebindAll();
+    // ★T-031: toSnap 자신의 videoPendingSidecar만 쓴다 — 스코프 diff가 손 안 댄 다른 섹션의
+    //   블록은 sidecar에 없어(그 블록은 toSnap 생성 시 video-pending이 아니었을 것이므로)
+    //   자연히 안 건드려진다.
+    window.rebindAll({ videoPendingSidecar: toSnap.videoPendingSidecar });
     window.deselectAll();
     window.applyPageSettings();
     if (window.buildLayerPanel) window.buildLayerPanel();
     window.deselectAll();
+    _restoreSelection(toSnap.selection);  // ★W5/W6 교훈 — 두 복원 경로는 «대칭»이어야 한다
   } finally {
     _historyPaused = false;
     // ★스코프 수술의 mutation 은 suppress 구간에 흡수된다 → 저장을 «명시 예약»해야 결과가
@@ -238,12 +461,32 @@ function restoreSnapshotScoped(fromSnap, toSnap, laterSnap) {
 }
 
 function undo() {
-  // 스택 끝에서 undo 시작 시 라이브 상태(tip)가 스택에 없으면 먼저 적재 —
-  // 없으면 첫 undo가 마지막 액션 이후 상태를 폐기해 redo로도 복원 불가 (DEF-01)
-  if (historyPos === historyStack.length - 1) {
-    ensureHistoryCheckpoint('현재 상태');
-  }
+  /* 라이브 상태(tip)가 스택에 없으면 먼저 적재 — 없으면 첫 undo 가 마지막 액션 이후
+     상태를 폐기해 redo 로도 복원 불가 (DEF-01).
+
+     ★[R2 · 2026-09-22] 여기 있던 `if (historyPos === historyStack.length - 1)` 를 걷었다.
+     그 조건은 «꼭대기일 때만» 구제했다 — 즉 ⌘Z 를 한 번이라도 눌러 redo 꼬리가 생기면
+     구제가 꺼졌다. 그런데 꺼져야 할 이유가 없고, 꺼진 자리에서 ⌘Z 한 번이 «두 걸음»을 먹었다:
+       ⌘Z 직후엔 historyStack[pos] === 라이브다. 다음 편집이 push-before 규약이면
+       pushHistory 가 «바꾸기 전»(=꼭대기와 같은) 캔버스를 찍으니 :250 무변화 차단에 먹혀
+       칸이 안 생기고, 차단은 slice 도 안 하므로 redo 꼬리가 그대로 산다. 그 상태에서 다음
+       ⌘Z 가 오면 pos !== len-1 이라 이 구제가 안 돌고, 방금 한 편집의 결과가 스택에 한 번도
+       안 찍힌 채로 한 칸 앞으로 간다 ⇒ 화면은 두 걸음 뒤로 간다 (T-009 ⑨ · T-005 ④㉡).
+     ⇒ 조건 없이 «항상» 돌린다. 「모든 동작이 끝 표본을 남긴다」를 undo 첫머리에서 보장한다.
+
+     ⛔이 한 줄은 «복원이 멱등»이라야 안전하다 — 자세히:
+       ensureHistoryCheckpoint 는 칸을 «만들 때» :583 에서 redo 꼬리를 slice 한다.
+       ⌘Z 직후 라이브가 방금 복원한 스냅샷과 «같으면» 그 함수는 :594 else 로 떨어져
+       칸을 안 만들고 slice 도 안 한다 ⇒ ⌘⇧Z 가 산다.
+       그런데 복원이 비멱등이면(rebindAll 이 복원 직후 DOM 을 또 고치면) 그 «같다»가
+       도형 페이지에서 «항상 거짓»이 돼 ⌘Z 를 누를 때마다 ⌘⇧Z 가 죽는다.
+       그래서 이 변경 «앞»에 F2(복원 멱등, block-factory/annotation-block)가 먼저 들어갔다.
+       ⛔F2 를 되돌리면 여기가 T-035 ① · T-059 ⑤ · T-073 ⌘⇧Z 축을 한꺼번에 깬다. */
+  ensureHistoryCheckpoint('현재 상태');
   if (historyPos <= 0) return;
+  // ★0919 QA: 열린 색 피커는 «떨어져 나갈» 블럭 DOM 을 붙잡고 있다 — 복원 전에 닫는다.
+  //   (안 닫으면 undo 뒤 탭 클릭이 떨어진 노드에 적용되고 기록만 하나 쌓여 redo 스택이 잘렸다)
+  try { window.closeGoyaColorPicker?.(); } catch (_) {}
   // 떠나는 snap의 onUndo (예: 스크래치 복원) — 캔버스 복원 *후* 실행해서 DOM 안정 상태에서 처리
   const leavingSnap = historyStack[historyPos];
   historyPos--;
@@ -262,6 +505,7 @@ function undo() {
 
 function redo() {
   if (historyPos >= historyStack.length - 1) return;
+  try { window.closeGoyaColorPicker?.(); } catch (_) {}   // undo 와 같은 이유(0919 QA)
   const currentSnap = historyStack[historyPos];
   historyPos++;
   const newSnap = historyStack[historyPos];
@@ -282,7 +526,8 @@ function clearHistory() {
   // 초기 상태를 스냅샷으로 저장해 첫 번째 액션도 Undo 가능하게 함
   // 프로젝트 격리: 이전 프로젝트에서 누적된 원격 키 잔량을 버린다(빈 셋으로 초기화).
   _remoteSinceCheckpoint = new Set();
-  const init = { canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set(), seq: ++_seq };
+  const _initCanvas = window.getSerializedCanvas();
+  const init = { canvas: _initCanvas, videoPendingSidecar: window.getLastVideoPendingSidecar?.(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set(), selection: _captureSelection(), seq: ++_seq };
   historyStack = [init];
   historyPos   = 0;
   state._canvasDirty = false;
@@ -329,12 +574,33 @@ function resetAllPageHistory() {
 function ensureHistoryCheckpoint(action = 'checkpoint') {
   if (_historyPaused) return;
   const current = window.getSerializedCanvas?.();
+  // ★T-031 3차(a1-a3 지적 — 치명): pushHistory/clearHistory와 «같은 동기 구간»에서
+  //   sidecar를 같이 잡아야 한다. 이게 없으면 ensure가 선적재하는 항목엔 sidecar가
+  //   없어(undefined) — ⌘Z(undo, 이 checkpoint로 되돌아옴)까지는 괜찮아도 ⌘⇧Z(redo, 다시
+  //   이 checkpoint로 돌아옴)에서 video-pending이 되살아나지 않고 사라진다(재현: 영상 넣기
+  //   → 다른 블록 비우기 → ⌘Z → ⌘⇧Z).
+  const _sidecar = window.getLastVideoPendingSidecar?.();
   if (!current) return;
-  if (historyStack[historyPos]?.canvas !== current) {
+  /* ★[T-131 ⒜ · 2026-09-21] 비교자를 pushHistory 와 «같게» 맞춘다.
+     전에는 여기만 «생문자열 !==»(엄격)이고 pushHistory 는 _sameEdit(느슨)이라 방향이 반대였다.
+     그래서 «편집이 아닌 것»(draggable·--sec-clip)만 다른 상태에서, pushHistory 는 안 쌓는데
+     여기는 쌓아 ⌘Z 가 한 칸 늘었다. 두 차단이 같은 잣대를 써야 그 칸이 안 생긴다.
+     ⚠️느슨해지는 만큼 «그 둘만 다른» 라이브 상태는 선적재가 «안» 된다 — 둘 다 복원·로드 때
+       다시 계산되는 값이라 잃는 것이 없다고 «보지만», paste/copy 선적재(위 설명)와 undo 첫
+       스텝 양쪽에서 재 보고 적을 것. */
+  /* ★[T-130 · 2026-09-22] 차단은 «두 벌»이다 — pushHistory 와 여기. 한쪽만 고치면
+     그쪽 경로에서만 고쳐진다. 그래서 «같은 잣대»를 여기에도 건다(_videoPendingKey 주석).
+     이 자리가 실제로 하는 일: 썸네일 고정처럼 «미확정 영상 상태»가 꼭대기인 채로 ⌘Z 를
+     누르면, undo 첫머리의 이 함수가 라이브(=이미 이미지로 바뀐 상태)를 선적재해야
+     redo 가 산다(DEF-01). 문자열만 보면 그 선적재가 빗나가는 자리는 없지만, 반대로
+     «문자열은 같고 영상만 다른» 라이브를 선적재해야 하는 자리가 있다 — 영상을 넣고
+     바로 ⌘Z 하는 경우다(그 칸이 없으면 ⌘⇧Z 로도 영상이 안 돌아온다. 실측 2026-09-22). */
+  if (!_sameEdit(historyStack[historyPos]?.canvas, current)
+      || _videoPendingKey(historyStack[historyPos]?.videoPendingSidecar) !== _videoPendingKey(_sidecar)) {
     historyStack = historyStack.slice(0, historyPos + 1);
     // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
     //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
-    historyStack.push({ canvas: current, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), seq: ++_seq });
+    historyStack.push({ canvas: current, videoPendingSidecar: _sidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
     if (historyStack.length > MAX_HISTORY) {
       historyStack.shift(); // 가장 오래된 항목 제거
       historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -342,6 +608,16 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
       historyPos++;
     }
     _updateUndoRedoBtns();
+  } else if (historyStack[historyPos]) {
+    /* ★0920b grad-alpha C — «캔버스는 그대로인데 선택만 바뀐» 경우.
+       삭제 경로는 ensureHistoryCheckpoint('삭제 전') → remove → deselectAll → pushHistory 라,
+       체크포인트를 찍는 «그 순간»에만 블럭이 아직 선택돼 있다. 그런데 선택은 직렬화에서
+       세척되므로(section-serialize.js RUNTIME_MARKER_CLS) canvas 문자열이 «안 변해» 여기로
+       떨어져 새 항목이 안 생긴다 — 그러면 선택을 적을 자리가 없다.
+       맨 위 항목은 «지금 이 캔버스 상태»를 가리키는 항목이고 undo 가 되돌아올 자리이므로,
+       그 항목의 선택만 최신으로 갱신한다. (null 이면 덮지 않는다 — 지우는 쪽으로는 안 움직인다) */
+    const _sel = _captureSelection();
+    if (_sel) historyStack[historyPos].selection = _sel;
   }
 }
 
@@ -359,6 +635,43 @@ function getHistoryTip() {
   if (!e) return { ...base, empty: true };
   return { ...base, empty: false, seq: (e.seq == null ? null : e.seq), action: e.action || null };
 }
+/* ★[T-131 ⒜ 회귀 · 2026-09-21] «끝 표본»을 정착 뒤 값으로 «다시 찍는다»(새 칸을 만들지 않는다).
+ *
+ * 왜 필요한가 — 삽입 입구는 «동기로» 돌아오지만, 그 뒤 한 프레임 안에 레이아웃에서 나오는 값이
+ *   더 써진다. 실측(2026-09-21, 실앱 전수 스윕)으로 다섯 자리가 나왔다:
+ *     · ResizeObserver 가 scale·height 를 쓴다 — banner02(:375) · canvas(:620·:848) · comparison
+ *     · MutationObserver 가 ✨버튼을 옮기고 onclick 을 지운다 — ai-section-fill.js:952~961
+ *     · CSSOM 한 번 쓰면 style 문자열이 «공백 넣어» 재직렬화된다 — sticker-text
+ *   ⇒ 꼭대기(삽입 직후)와 라이브(정착 뒤)가 어긋나고, undo 첫 스텝의 ensureHistoryCheckpoint 가
+ *     「현재 상태」 한 칸을 더 만든다 ⇒ 삽입만 하고 ⌘Z 가 «두 번»(첫 번째는 화면 무변화 = 먹통 한 칸).
+ *
+ * ⛔왜 «자리마다» 안 고치나 — 그 값들은 레이아웃이 끝나야 나온다. 삽입 시점엔 «알 수 없다».
+ *   자리마다 고치면 16개 미측정 입구와 앞으로 생길 입구가 같은 병을 다시 갖고 들어온다.
+ * ⛔왜 «끝 표본을 비동기로» 안 찍나 — js/ai-section-fill.js:425~426 이 pushHistory 를 노옵으로
+ *   갈아끼우고 :439 에서 되돌린다. 한 프레임 뒤에 찍으면 그 «의도된 묶음 롤백»을 깨뜨린다.
+ *   ⇒ 찍기는 «동기로» 두고, 값만 한 프레임 뒤에 갱신한다.
+ *
+ * ★안전장치 — 아래 네 조건 중 하나라도 틀리면 «아무것도 안 한다»(조용히 false).
+ *   ⑴ 그 사이 다른 항목이 쌓였다(seq 불일치) ⑵ 되돌리기가 진행돼 꼭대기가 아니다
+ *   ⑶ 복원 중(_historyPaused) ⑷ 직렬화가 같다(할 일 없음)
+ *   ⛔sidecar 는 «안» 건드린다 — 여전히 그렇다. 까닭이 T-130(2026-09-22) 뒤에 «분명해졌다»:
+ *     ⑴ 미확정 영상 블럭은 세척돼 문자열이 «안 변한다» ⇒ 그 블럭 때문에 여기 ⑷(무변화)를
+ *        통과할 일이 없다. 갱신이 실제로 도는 건 «다른 것»이 한 프레임 뒤에 바뀐 때뿐이고,
+ *        그 한 프레임 사이에 사이드카가 바뀌는 경로는 없다(바꾸려면 사용자 조작이 필요하다).
+ *     ⑵ ★단 이 함수의 getSerializedCanvas() 는 sweep 을 새로 돌려 «_lastSweepSidecar 를
+ *        덮는다». 그래서 getLastVideoPendingSidecar() 는 «직전 직렬화 직후»에만 읽어야 한다 —
+ *        pushHistory·ensureHistoryCheckpoint·clearHistory 셋 다 그 규약을 지킨다. */
+function restampHistoryTop(seq) {
+  if (_historyPaused) return false;
+  if (historyPos !== historyStack.length - 1) return false;   // 되돌린 뒤엔 안 건드린다
+  const top = historyStack[historyPos];
+  if (!top || seq == null || top.seq !== seq) return false;   // 그 사이 다른 일이 끼었다
+  const cur = window.getSerializedCanvas?.();
+  if (!cur || cur === top.canvas) return false;
+  top.canvas = cur;
+  return true;
+}
+
 /** 그 seq 가 «아직 스택에 있는가» — 없으면 MAX_HISTORY 로 밀려난 것. */
 function historyHasSeq(seq) { return historyStack.some(x => x && x.seq === seq); }
 
@@ -368,6 +681,7 @@ window.undo         = undo;
 window.redo         = redo;
 window.clearHistory = clearHistory;
 window.getHistoryTip = getHistoryTip;
+window.restampHistoryTop = restampHistoryTop;
 window.historyHasSeq = historyHasSeq;
 window.restoreSnapshot = restoreSnapshot;
 // D1: 페이지별 히스토리 헬퍼 노출 (save-load.js는 window.* 로만 호출)

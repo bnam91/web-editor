@@ -1,5 +1,6 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
+import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
 
 export function buildTextPropsHtml(state) {
   const {
@@ -18,6 +19,7 @@ export function buildTextPropsHtml(state) {
     isBold,
     isItalic,
     isHighlight,
+    isOverlayBlock,
   } = state;
 
   // Shadow defaults (prop-text-wireup-shadow.js SHADOW_DEFAULTS와 동기화)
@@ -38,18 +40,15 @@ export function buildTextPropsHtml(state) {
 
   return `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <line x1="1" y1="3" x2="11" y2="3"/><line x1="1" y1="6" x2="11" y2="6"/><line x1="1" y1="9" x2="7" y2="9"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${tb.dataset.layerName || (isOverlayTb ? 'Overlay Text' : 'Text Block')}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(tb)}</span>
-        </div>
-        ${tb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${tb.id}')">${tb.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: tb.dataset.layerName,
+      defaultName: (isOverlayTb ? 'Overlay Text' : 'Text Block'),
+      crumb: window.getBlockBreadcrumb(tb),
+      id: tb.id,
+    })}
     </div>
 
     <div class="prop-section" id="type-section" style="display:${isLiner?'none':'block'}">
@@ -66,7 +65,13 @@ export function buildTextPropsHtml(state) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">Position</div>
+      <!-- ★2026-09-16g 현빈 정정(T-001) — Ignore Auto Layout 토글은 Alignment 줄이 아니라
+           "Position" «섹션 제목과 같은 줄», 오른쪽 끝이었다(Figma 레퍼런스 스크린샷 재확인).
+           id·클릭 배선(prop-text-wireup-overlay.js wireOverlaySection)은 그대로 — 자리만 옮긴다. -->
+      <div class="prop-section-title prop-ph-header" style="margin-bottom:0">
+        <span>Position</span>
+        ${isOverlayTb ? '' : overlayToggleBtnHTML({ id: 'txt-overlay-toggle', active: isOverlayBlock })}
+      </div>
       <span class="prop-field-label">Alignment</span>
       <div class="prop-align-group" style="margin-bottom:6px">
           <button class="prop-align-btn ${currentAlign==='left'||currentAlign===''?'active':''}" data-align="left">
@@ -153,7 +158,7 @@ export function buildTextPropsHtml(state) {
             <div class="prop-color-swatch" style="background:${_shSwatchBg}">
               <input type="color" id="txt-shadow-color" value="${_shHexLow}">
             </div>
-            <input type="text" class="prop-color-hex" id="txt-shadow-color-hex" value="${_shHex}" maxlength="6" aria-label="Shadow color">
+            <input type="text" class="prop-color-hex" id="txt-shadow-color-hex" value="${_shHex}" maxlength="7" aria-label="Shadow color">
             <label class="prop-color-alpha" title="Opacity">
               <input type="text" class="prop-color-alpha-input" id="txt-shadow-color-alpha" value="${_sh.alpha}" aria-label="Shadow opacity">
               <span class="prop-color-alpha-suffix">%</span>
@@ -221,7 +226,7 @@ export function buildTextPropsHtml(state) {
           <div class="prop-color-swatch${currentBgColor==='transparent'?' swatch-none':''}" style="background:${currentBgColor==='transparent'?'transparent':currentBgColor}">
             <input type="color" id="label-bg-color" value="${currentBgColor==='transparent'?'#111111':currentBgColor}">
           </div>
-          <input type="text" class="prop-color-hex" id="label-bg-hex" value="${currentBgColor==='transparent'?'':currentBgColor}" maxlength="7" placeholder="없음">
+          <input type="text" class="prop-color-hex" id="label-bg-hex" value="${currentBgColor==='transparent'?'':currentBgColor.replace('#','').toUpperCase()}" maxlength="7" placeholder="없음" aria-label="Color">
           <label class="prop-none-check"><input type="checkbox" id="label-bg-none" ${currentBgColor==='transparent'?'checked':''}>없음</label>
         </div>
         <div class="prop-row">
@@ -261,7 +266,7 @@ export function buildTextPropsHtml(state) {
           <div class="prop-color-swatch" style="background:${bubbleBgHex}">
             <input type="color" id="bubble-bg-color" value="${bubbleBgHex}">
           </div>
-          <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="${bubbleBgHex}" maxlength="7">
+          <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="${bubbleBgHex.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
         </div>
         <div class="prop-row">
           <span class="prop-label">발신자 이름</span>

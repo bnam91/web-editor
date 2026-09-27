@@ -1,5 +1,22 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { svgStopRemap } from './gradient-model.js';
+import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
+import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
+
+// 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
+// 모달이 열려 있을 때 스와치 미리보기만 동기화한다. bg 쓰기/재렌더는 이미
+// gradient-model.js의 shape-block set()이 처리하므로 여기서 중복 적용하지 않는다(루프 방지).
+let _applyingExternalShapeGrad = false;
+document.addEventListener('gradient-line:change', (e) => {
+  if (e.detail?.source !== 'canvas') return;
+  const block = e.target?.closest?.('.shape-block');
+  if (!block || !e.detail?.css) return;
+  _applyingExternalShapeGrad = true;
+  const sw = document.getElementById('shape-color-color')?.closest('.prop-color-swatch');
+  if (sw) sw.style.background = e.detail.css; // 모달이 열려 있으면 스와치 미리보기 갱신
+  _applyingExternalShapeGrad = false;
+});
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#cccccc';
@@ -22,6 +39,17 @@ const SHAPE_NAMES = {
   line: 'Line', arrow: 'Arrow', polygon: 'Polygon',
 };
 
+/** 도형 크기 한 축을 «쓰는 곳과 같은 객체»(래퍼 frame)에서 읽는다 — style → dataset → 실제 레이아웃.
+ *  offsetWidth/Height 는 CSS transform(캔버스 줌)에 안 흔들리는 layout 값이라 줌 40/150% 에서도 같다. */
+function _shapeFrameSize(el, axis) {
+  if (!el) return 100;
+  const styleV = parseInt(axis === 'w' ? el.style.width : el.style.height);
+  if (styleV) return styleV;
+  const dataV = parseInt(axis === 'w' ? el.dataset.width : el.dataset.height);
+  if (dataV) return dataV;
+  return Math.round(axis === 'w' ? el.offsetWidth : el.offsetHeight) || 100;
+}
+
 export function showShapeProperties(block) {
   if (!block) return;
 
@@ -33,38 +61,119 @@ export function showShapeProperties(block) {
   const isGradient  = !!gradientMeta || /gradient/.test(rawColor);
   const gradientCss = isGradient ? rawColor : '';
   // picker/hex 표시용 hex — 그라데이션이면 첫 stop, 아니면 그대로
+  // ★shapeColor 에 그라데이션 CSS 가 남았는데 메타가 없으면(이미지 모드 등) 첫 스톱을 모른다 →
+  //   회색 기본값 대신 svg 의 마지막 단색으로(0918 picker: 이미지→솔리드 = 마지막 단색)
   const color       = isGradient
-    ? (gradientMeta?.stops?.[0]?.color || '#cccccc')
+    ? (gradientMeta?.stops?.[0]?.color || _lastSolidOf(block) || '#cccccc')
     : rawColor;
   const colorAlpha  = parseAlphaFromColor(color);
   const strokeWidth = parseInt(block.dataset.shapeStrokeWidth || '3');
   const strokeColor = block.dataset.shapeStrokeColor || color;
   const strokeColorAlpha = parseAlphaFromColor(strokeColor);
-  const w           = parseInt(block.style.width)  || 100;
-  const h           = parseInt(block.style.height) || 100;
+  // ★크기는 «래퍼 frame»에 있다 — shape-block 자신은 인라인 width/height 를 안 쓰고
+  //   CSS 100% 로 frame 을 따른다(js/block-factory.js addShapeBlock, css/editor-blocks.css .shape-block).
+  //   여기서 block.style 을 읽던 탓에 언제나 NaN→100 이라 패널이 실제 크기와 무관한 거짓값(100/100)을
+  //   보였고, 쓰는 쪽 applySize 는 frame 에 써서 «읽는 곳과 쓰는 곳이 다른 객체»였다.
+  //   폴백 꼴은 레포 선례를 따른다(prop-mockup.js Width: style→dataset,
+  //   prop-label-group.js: style→offsetWidth, overlay-handles.js _onMockupHandleMouseDown).
+  const ss          = block.closest('.frame-block');
+  const w           = _shapeFrameSize(ss || block, 'w');
+  const h           = _shapeFrameSize(ss || block, 'h');
   const iconSvg     = SHAPE_ICONS[shapeType] || SHAPE_ICONS.rectangle;
   const shapeName   = SHAPE_NAMES[shapeType] || shapeType;
   const id          = block.id || '';
+  // 가림막(redact) — 얼굴/주민번호 등 밑에 깔린 콘텐츠를 backdrop-filter로 흐리는 모드.
+  // rect/ellipse만 지원: backdrop-filter는 요소의 border-box(+border-radius)로만 클립되어
+  // polygon/star/line/arrow처럼 실제 윤곽이 사각형이 아닌 도형엔 시각적으로 안 맞는다.
+  const canRedact   = shapeType === 'rectangle' || shapeType === 'ellipse';
+  const isRedact    = canRedact && block.dataset.shapeRedact === 'true';
+  const redactBlur  = parseInt(block.dataset.shapeRedactBlur || '8');
+  // 모드: 'blur'(기본, backdrop-filter 실시간) | 'mosaic'(스냅샷 픽셀화, js/effects/redact-mosaic.js)
+  // ★모자이크 임시 차단(2026-09-20 «0920b-mosaic-off» T-070, js/feature-flags.js REDACT_MOSAIC_ENABLED):
+  //   스위치가 꺼져 있으면 «패널도 캔버스와 같은 말»을 해야 한다 — 화면은 블러로 보이는데(CSS
+  //   body.redact-mosaic-off) 패널만 「모자이크 active」면 사용자가 뭘 보고 있는지 알 수 없다.
+  //   ⇒ 레거시 mosaic 블록도 패널에선 blur 로 읽는다. ⛔dataset 은 안 고친다(데이터 보존).
+  //   ⛔`=== false` 비교 — 플래그를 안 얹는 하네스(undefined)는 «켜짐»이다.
+  const mosaicOK    = window.REDACT_MOSAIC_ENABLED !== false;
+  const redactMode  = (mosaicOK && block.dataset.shapeRedactMode === 'mosaic') ? 'mosaic' : 'blur';
+  // ★차단 중 «저장값은 아직 모자이크»인 레거시 블록(현빈이 신고한 그 블록들, 2026-09-21).
+  //   위 :98 이 패널을 blur 로 «읽는» 덕에 화면과 패널은 같은 말을 하지만, 그것만 두면 패널이
+  //   「이건 블러다」라고 «거짓 상태»를 말한다 — 저장값은 mosaic 이라 T-071 로 스위치를 되살리면
+  //   그 블록만 조용히 모자이크로 돌아간다. 게다가 「블러」 버튼은 이미 active 라 사용자가 누를
+  //   이유가 없어 «전환 길»이 사실상 닫혀 있다(코드상 D10 으로 열려 있어도 눈에 안 보인다).
+  //   ⇒ ⑴그 사실을 글로 고지하고 ⑵「블러로 바꾸기」를 «보이는 버튼»으로 준다. seg 상태는 불변.
+  const legacyMosaic = isRedact && !mosaicOK && block.dataset.shapeRedactMode === 'mosaic';
+  /* 오버레이(플로팅) — Figma 의 Ignore Auto Layout. 도형은 «위치를 쥔 요소»가 .shape-block 이
+     아니라 자유배치 래퍼 프레임이다(shape-frame.js shapeFrameOf = 판정 SSOT). 동작은
+     js/overlay-float.js 가 텍스트와 «같은 코드»로 돈다 — 여기선 상태만 읽어 버튼을 그린다.
+     (2026-09-20 현빈 원문 3번 「도형 블럭과 에셋 블럭에도 오버레이 버튼·기능」 / T-052) */
+  const floatPosEl     = posElOf(block);
+  const isFloatOverlay = floatPosEl?.dataset.overlayBlock === 'true';
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">${iconSvg}</div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || shapeName}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${id}')">${id}</span>` : ''}
-      </div>
+${blockHeaderHTML({
+      icon: `          ${iconSvg}`,
+      name: block.dataset.layerName,
+      defaultName: shapeName,
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: id,
+    })}
     </div>
+
+    ${canRedact ? `
+    <div class="prop-section">
+      <div class="prop-section-title">가림막 (Redact)</div>
+      <div class="prop-row">
+        <!-- ★prop-label--auto: 「블러로 가리기」는 전역 .prop-label(56px)에 안 들어가 말줄임으로 잘렸다
+             (2026-09-20 실측 sw60/cw56, 실물 앱은 더 잘림). 이 줄은 «라벨 하나 + 남는 폭을 쓰는 컨트롤»
+             이라 앱 관례인 내용폭 라벨을 쓴다(css/editor-props.css:32, prop-page.js 「그리드 가이드」 선례).
+             ⛔전역 .prop-label 의 56px 은 내리지도 올리지도 마라 — 패널 세로 정렬의 출처다. -->
+        <span class="prop-label prop-label--auto">블러로 가리기</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="shape-redact-toggle" ${isRedact ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div id="shape-redact-controls" style="${isRedact ? '' : 'display:none'}">
+        <div class="prop-row" style="margin-top:8px;">
+          <span class="prop-label">방식</span>
+          <div class="prop-align-group" id="shape-redact-mode-seg">
+            <button type="button" class="prop-align-btn${redactMode === 'blur' ? ' active' : ''}" data-mode="blur" aria-pressed="${redactMode === 'blur'}" title="블러 — 밑 콘텐츠를 실시간으로 흐림">블러</button>
+            <!-- ⚠️class 속성은 «템플릿 표현식 하나»를 유지한다 — tests/unit/redact-mode-seg-markup.test.js:38 이
+                 class="prop-align-btn" + 표현식 하나 형태를 고정한다(정적 클래스를 더하면 그 초록이 깨진다).
+                 비활성 표시는 class «밖»(disabled / aria-disabled / title)으로 낸다.
+                 ⛔버튼을 «지우지» 않는다 — 현빈 표현이 「모자이크 버튼의 기능은 막아둘 것」이고,
+                    같은 테스트 :35 가 data-mode 버튼 2개(blur·mosaic)를 요구한다.
+                 ⛔이 주석 안에 달러+중괄호를 쓰지 마라 — 템플릿 리터럴 «안»이라 JS 로 평가된다(2026-09-20 실측: SyntaxError). -->
+            <button type="button" class="prop-align-btn${redactMode === 'mosaic' ? ' active' : ''}" data-mode="mosaic" aria-pressed="${redactMode === 'mosaic'}"${mosaicOK ? '' : ' disabled aria-disabled="true"'} title="${mosaicOK ? '모자이크 — 밑 화면을 찍어 픽셀화(이동·편집이 끝날 때 다시 찍음)' : '모자이크는 일시적으로 꺼져 있습니다(블러만 사용) — 캡처가 사진을 못 실어 회색/단색으로 나오는 문제 수정 중'}">모자이크</button>
+          </div>
+        </div>
+        ${legacyMosaic ? `
+        <div class="prop-hint" id="shape-redact-legacy-note" style="margin-top:6px;">이 도형은 <b>모자이크</b>로 저장돼 있습니다. 모자이크가 일시 중지돼 지금은 <b>블러로 보여 주는 중</b>이고, 모자이크가 되살아나면 다시 모자이크로 돌아갑니다.</div>
+        <button type="button" class="prop-btn" id="shape-redact-to-blur" style="margin-top:6px;width:100%;">블러로 바꾸기 (저장값도 블러로)</button>
+        ` : ''}
+        <div class="prop-row" style="margin-top:8px;">
+          <span class="prop-label">강도</span>
+          <input type="range" class="prop-slider" id="shape-redact-blur-slider" min="2" max="20" step="1" value="${redactBlur}">
+          <input type="number" class="prop-number" id="shape-redact-blur-num" min="2" max="20" value="${redactBlur}">
+        </div>
+        ${redactMode === 'mosaic' ? `
+        <button type="button" class="prop-btn" id="shape-redact-mosaic-refresh" style="margin-top:8px;width:100%;">${window.isMosaicPending?.(block) ? '캡처 중…' : '지금 스냅샷 새로고침'}</button>
+        <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 그 순간 밑 콘텐츠를 캡처해 픽셀 모자이크로 가립니다. 실시간 추적이 아니라 도형을 옮기거나(이동/리사이즈 종료) 편집을 마칠 때(mouseup) 자동으로 다시 찍습니다 — 안 맞으면 위 버튼으로 즉시 새로고침하세요. 채우기 색상은 무시됩니다.</div>
+        ` : `
+        <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 밑에 깔린 콘텐츠가 실시간으로 흐려집니다. 채우기 색상은 무시됩니다.</div>
+        `}
+      </div>
+    </div>` : ''}
 
     <div class="prop-section">
       <div class="prop-section-title">Color</div>
-      <div class="prop-color-row">
+      <div class="prop-color-row" id="shape-fill-row" style="${isRedact ? 'display:none' : ''}">
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha, gradientCss })}
       </div>
-      <div class="prop-color-row" style="margin-top:8px;">
+      <div class="prop-color-row" style="margin-top:${isRedact ? '0' : '8px'};">
         <span class="prop-label">외곽선</span>
         ${colorFieldHTML({ idPrefix: 'shape-stroke-color', hex: strokeColor, alpha: strokeColorAlpha })}
       </div>
@@ -76,7 +185,10 @@ export function showShapeProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">Size</div>
+      <div class="prop-section-title prop-ph-header">
+        <span>Size</span>
+        ${overlayToggleBtnHTML({ id: 'shape-overlay-toggle', active: isFloatOverlay })}
+      </div>
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="range" class="prop-slider" id="shape-w-slider" min="10" max="860" step="1" value="${w}">
@@ -87,6 +199,7 @@ export function showShapeProperties(block) {
         <input type="range" class="prop-slider" id="shape-h-slider" min="10" max="860" step="1" value="${h}">
         <input type="number" class="prop-number" id="shape-h-num" min="10" max="860" value="${h}">
       </div>
+      ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
     </div>
 
     <div class="prop-section">
@@ -101,8 +214,7 @@ export function showShapeProperties(block) {
   if (window.setRpIdBadge) window.setRpIdBadge(id || null);
 
   const svg = block.querySelector('svg');
-  // 부모 sub-section (shape frame)
-  const ss = block.closest('.frame-block');
+  // 부모 sub-section (shape frame) — 위 Size 표시와 «같은 객체»를 쓴다(ss 는 크기 읽기와 공용).
 
   // shape는 section padding을 무시하고 section 전체 폭(최대 860)까지 확장 가능 ───
   // wrap frame의 max-width 제한을 풀고, width가 inner를 넘으면 좌우 균등 음수 margin으로 padding 침범
@@ -131,13 +243,176 @@ export function showShapeProperties(block) {
   }
   _extendShapeFrameToSection();
 
+  // ── 가림막(Redact) ── dataset.shapeColor/shapeGradient는 건드리지 않는다 —
+  // 시각효과는 CSS 클래스(.shape-redact)가 fill을 덮어쓰는 방식이라 꺼도 원래 색/그라데이션이
+  // 그대로 복원된다(editor-blocks.css 참고).
+  // mode: 'blur'(backdrop-filter 실시간) | 'mosaic'(js/effects/redact-mosaic.js 스냅샷 픽셀화)
+  function applyRedact(on, blurPx, mode, opts) {
+    // ★모자이크 임시 차단 안전망 — 키보드·외부 호출·재진입으로 이 함수에 'mosaic' 이 들어와도
+    //   블러로 내린다(위 버튼의 disabled 만으로는 «우회 경로»가 막히지 않는다).
+    if (mode === 'mosaic' && !mosaicOK) mode = 'blur';
+    // ★★차단 중 «모드를 고르지 않는» 조작(강도 슬라이더·숫자칸)은 저장된 mosaic 을 건드리지 않는다.
+    //   (2026-09-20 픽스 라운드, 이벨류에이터 지적 medium) 패널이 mosaic 을 blur 로 «읽기만» 하므로
+    //   슬라이더 핸들러가 그 읽은 값을 도로 넘겨 dataset 을 blur 로 «굳혀» 버렸다 — 스위치를 되살려도
+    //   그 블록은 이미 blur 라, 이 유닛의 「데이터 보존 = 되돌리기 한 줄」이 평범한 조작 한 번에 깨졌다.
+    //   ⇒ 모드를 «실제로 고른» 호출(방식 버튼)만 opts.explicitMode 를 달고 오고, 나머지는 보존한다.
+    //   ⛔가림막을 껐다 켜는 건 보존 대상이 아니다 — 끌 때 dataset.shapeRedactMode 자체가 지워진다.
+    if (!mosaicOK && on && mode === 'blur' && !opts?.explicitMode
+        && block.dataset.shapeRedact === 'true' && block.dataset.shapeRedactMode === 'mosaic') {
+      mode = 'mosaic';
+    }
+    // 모드가 «바뀌는» 순간인지(강도 슬라이더처럼 같은 모드 안의 변경과 구분) — 바뀌면 옛 캡처를
+    // 다시 쓰면 안 된다(2026-09-19: 모자이크→블러→이동→모자이크 에서 옛 위치 모자이크가 뜨던 버그).
+    const wasMosaic = block.dataset.shapeRedact === 'true' && block.dataset.shapeRedactMode === 'mosaic';
+    block.classList.toggle('shape-redact', !!on);
+    if (on) {
+      block.dataset.shapeRedact = 'true';
+      // ★최소 2px — 0(무의미한 흐림)인데 토글만 켜진 채 남는 "가려진 줄 착각" 방지
+      //   (적대적 QA 발견, 2026-09-15). 이 함수가 UI 두 컨트롤의 단일 창구다.
+      const bp = Math.max(2, Math.min(20, parseInt(blurPx) || 2));
+      block.dataset.shapeRedactBlur = String(bp);
+      const m = mode === 'mosaic' ? 'mosaic' : 'blur';
+      block.dataset.shapeRedactMode = m;
+      if (m === 'mosaic' && !mosaicOK) {
+        // ★차단 중 보존된 레거시 모자이크 — dataset 은 그대로 두고 «보이는 것»만 블러로 따라간다.
+        //   CSS(body.redact-mosaic-off + data-shape-redact-blur)가 이미 저장값을 읽지만,
+        //   인라인도 같이 채워 «열어 본 블록/안 열어 본 블록»의 계산값이 한 글자도 안 갈리게 한다.
+        //   ⛔캡처는 부르지 않는다(입구에서 어차피 false 지만, 헛도는 호출을 남기지 않는다).
+        block.style.setProperty('--redact-blur', `${bp}px`);
+      } else if (m === 'blur') {
+        block.style.setProperty('--redact-blur', `${bp}px`);
+        if (wasMosaic) _invalidateMosaic();
+      } else {
+        block.style.removeProperty('--redact-blur');
+        // 같은 모자이크 안의 강도 변경만 캐시 재사용, 모드 전환·새로 켬은 항상 새로 찍는다.
+        _trackMosaicCapture(window.captureMosaicSnapshot?.(block, wasMosaic ? { reuseFullRes: true } : undefined));
+      }
+    } else {
+      delete block.dataset.shapeRedact;
+      delete block.dataset.shapeRedactMode;
+      block.style.removeProperty('--redact-blur');
+      _invalidateMosaic();
+    }
+    window.scheduleAutoSave?.();
+  }
+  function _invalidateMosaic() {
+    if (window.invalidateMosaic) window.invalidateMosaic(block);
+    else {
+      delete block.dataset.mosaicCaptured;
+      block.querySelector(':scope > canvas.redact-mosaic-canvas')?.remove();
+    }
+  }
+  // 캡처가 도는 동안 새로고침 버튼에 「캡처 중…」 — 상태는 redact-mosaic.js 의 WeakMap(런타임
+  // 전용)에서 읽는다. ⛔dataset 에 pending 플래그를 두지 않는다(저장 HTML 누수).
+  // ★캡처가 실패하면(결과 false 인데 블록은 여전히 모자이크·미캡처) 조용히 원래 라벨로 돌아가지
+  //   않고 「캡처 실패 — 다시 시도」로 알린다(0918 픽스 라운드: 회색만 남고 이유를 알 수 없던 문제).
+  //   실패는 안전 쪽(회색 #4a4a4a)이라 원본은 안 보인다 — 그 사실도 title 로 알려준다.
+  function _trackMosaicCapture(p) {
+    const setLabel = (result) => {
+      const btn = document.getElementById('shape-redact-mosaic-refresh');
+      if (!btn) return;
+      const pending = !!window.isMosaicPending?.(block);
+      const failed = !pending && result === false
+        && block.dataset.shapeRedactMode === 'mosaic'
+        && !window.isMosaicCaptured?.(block);
+      btn.textContent = pending ? '캡처 중…' : (failed ? '캡처 실패 — 다시 시도' : '지금 스냅샷 새로고침');
+      if (failed) btn.title = '밑 화면을 찍지 못해 회색으로 가려 둔 상태입니다(원본은 안 보임). 눌러서 다시 찍으세요.';
+      else btn.removeAttribute('title');
+    };
+    setLabel(undefined);
+    if (p && typeof p.then === 'function') p.then(setLabel, () => setLabel(false));
+  }
+  // 저장된 프로젝트 로드 등으로 dataset과 클래스가 어긋났을 때 방어적으로 동기화
+  if (canRedact) {
+    block.classList.toggle('shape-redact', isRedact);
+    if (isRedact) {
+      if (redactMode === 'blur') block.style.setProperty('--redact-blur', `${redactBlur}px`);
+      else if (!window.isMosaicCaptured?.(block)) _trackMosaicCapture(window.captureMosaicSnapshot?.(block, { join: true }));
+    }
+  }
+
+  const redactToggleEl = document.getElementById('shape-redact-toggle');
+  if (redactToggleEl) {
+    redactToggleEl.addEventListener('change', () => {
+      const on = redactToggleEl.checked;
+      applyRedact(on, redactBlur, redactMode);
+      const fillRow = document.getElementById('shape-fill-row');
+      if (fillRow) fillRow.style.display = on ? 'none' : '';
+      const controls = document.getElementById('shape-redact-controls');
+      if (controls) controls.style.display = on ? '' : 'none';
+      window.pushHistory?.();
+    });
+  }
+  const redactModeSeg = document.getElementById('shape-redact-mode-seg');
+  if (redactModeSeg) {
+    redactModeSeg.querySelectorAll('.prop-align-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return; // 비활성 버튼(모자이크 임시 차단) — 브라우저가 이미 막지만 명시한다
+        const m = btn.dataset.mode;
+        /* ★«패널이 그린 값»과 «저장된 값»이 다를 수 있다 (2026-09-21 최종통합 QA, high).
+           차단 중(mosaicOK=false) 레거시 mosaic 블록은 패널에선 redactMode='blur' 로 읽힌다(:98).
+           그 읽은 값만 보고 early-return 하면 사용자가 「블러」를 «명시적으로» 골라도 호출이
+           아예 안 나가고 — :250 의 보존 가드는 explicitMode 가 «올 때만» 비켜서므로 —
+           dataset 은 영영 mosaic 으로 남는다. ⇒ ⑴패널이 거짓말을 하고(그림=블러, 데이터=모자이크)
+           ⑵T-071 로 스위치를 되살리면 사용자의 선택을 무시하고 조용히 모자이크로 돌아간다.
+           ⇒ «화면에 그려진 모드»와 «저장된 모드»가 «둘 다» 같을 때만 할 일이 없다. */
+        const storedMode = block.dataset.shapeRedactMode === 'mosaic' ? 'mosaic' : 'blur';
+        if (m === redactMode && m === storedMode) return;
+        applyRedact(true, redactBlurSliderValue(), m, { explicitMode: true }); // 모드를 «실제로 고른» 호출
+        window.pushHistory?.();
+        showShapeProperties(block); // 강도 힌트/새로고침 버튼 등 모드별 UI 다시 그림
+      });
+    });
+  }
+  function redactBlurSliderValue() {
+    const el = document.getElementById('shape-redact-blur-slider');
+    return el ? el.value : redactBlur;
+  }
+  const redactBlurSlider = document.getElementById('shape-redact-blur-slider');
+  const redactBlurNum    = document.getElementById('shape-redact-blur-num');
+  if (redactBlurSlider && redactBlurNum) {
+    redactBlurSlider.addEventListener('input', () => {
+      redactBlurNum.value = redactBlurSlider.value;
+      applyRedact(true, redactBlurSlider.value, redactMode);
+    });
+    redactBlurSlider.addEventListener('change', () => window.pushHistory?.());
+    redactBlurNum.addEventListener('input', () => {
+      // ★최소 2px — 0(사실상 안 가려짐)인데 토글은 "켜짐"으로 남는 걸 막는다
+      //   (적대적 QA 발견: 강도 0에서도 토글이 켜져 있어 사용자가 가려졌다고 착각할 위험).
+      const v = Math.min(20, Math.max(2, parseInt(redactBlurNum.value) || 2));
+      redactBlurSlider.value = v;
+      applyRedact(true, v, redactMode);
+    });
+    redactBlurNum.addEventListener('change', () => window.pushHistory?.());
+  }
+  // ★레거시 모자이크 → 블러 «전환» 버튼. 방식 seg 의 「블러」와 같은 길(explicitMode)을 쓴다 —
+  //   차이는 «보이느냐» 뿐이다(seg 의 블러는 이미 active 라 눌러야 할 이유가 안 보인다).
+  const redactToBlurBtn = document.getElementById('shape-redact-to-blur');
+  if (redactToBlurBtn) {
+    redactToBlurBtn.addEventListener('click', () => {
+      applyRedact(true, redactBlurSliderValue(), 'blur', { explicitMode: true });
+      window.pushHistory?.();
+      showShapeProperties(block); // 고지·버튼이 사라져 패널과 데이터가 같아진다
+    });
+  }
+  const redactMosaicRefreshBtn = document.getElementById('shape-redact-mosaic-refresh');
+  if (redactMosaicRefreshBtn) {
+    redactMosaicRefreshBtn.addEventListener('click', () => { _trackMosaicCapture(window.captureMosaicSnapshot?.(block)); });
+  }
+
   function applyColor(hex) {
     // perf: 동일 색이면 데이터·DOM 변경 자체를 스킵 → MutationObserver autosave 트리거 회피
-    if (block.dataset.shapeColor === hex && !block.dataset.shapeGradient) return;
+    // ★이미지(체커) 모드면 같은 색이라도 빠져나와야 한다(0918 picker: 이미지→솔리드 탭 = 마지막 단색 복귀)
+    if (block.dataset.shapeColor === hex && !block.dataset.shapeGradient && !block.dataset.shapeFill) return;
+    if (block.dataset.shapeFill) {
+      _clearShapeImage(block);
+      const inp = document.getElementById('shape-color-color');
+      if (inp) delete inp.dataset.cpFill;
+    }
     block.dataset.shapeColor = hex;
     if (svg) {
       // 그라데이션이 적용돼 있을 때만 clear 수행 (대부분의 솔리드 드래그에선 no-op이라 skip)
-      if (block.dataset.shapeGradient) _clearShapeGradient(block);
+      if (block.dataset.shapeGradient) { _clearShapeGradient(block); window.hideGradientLine?.(block); }
       // svg.style.color 도 값이 같으면 스킵 (실제로 같을 일은 드물지만 안전망)
       if (svg.style.color !== hex) svg.style.color = hex;
     }
@@ -146,6 +421,11 @@ export function showShapeProperties(block) {
 
   function applyGradient(detail) {
     if (!svg || !detail) return;
+    if (block.dataset.shapeFill) {
+      _clearShapeImage(block);
+      const inp = document.getElementById('shape-color-color');
+      if (inp) delete inp.dataset.cpFill;
+    }
     _applyShapeGradient(block, svg, detail);
     block.dataset.shapeColor = detail.css || '';
     block.dataset.shapeGradient = JSON.stringify({
@@ -168,11 +448,18 @@ export function showShapeProperties(block) {
     window.scheduleAutoSave?.();
   }
 
+  // 한 축만 넘기고 다른 축은 null 로 둔다 = «안 건드린다». 예전엔 두 축을 늘 같이 써서
+  // W 칸만 입력해도 (거짓값이던) H 슬라이더 값 100 이 그대로 프레임에 박혀 H 가 파괴됐다.
   function applySize(newW, newH) {
     // frame(ss)만 리사이즈 — block/svg는 CSS 100%로 자동 추종
     if (ss) {
-      ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
-      ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
+      if (newW != null) { ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW); }
+      // minHeight 도 같이 — addShapeBlock 이 심어 둔 min-height:100px 가 남아 있으면 H 를 100 아래로
+      // 내려도 화면은 100 인 채 style/dataset 만 작아져 «패널 값 ≠ 실제 크기»가 다시 생긴다.
+      // 꼴은 핸들 리사이즈 선례 그대로(js/overlay-handles.js _onFrameHandleMouseDown onMove).
+      if (newH != null) {
+        ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
+      }
     }
     // 폭이 inner를 넘으면 padding 침범 자동 적용
     _extendShapeFrameToSection();
@@ -185,6 +472,18 @@ export function showShapeProperties(block) {
   }
 
   // ── 색상 피커 ──
+  // 탭 능력 선언 + 재오픈 시드(0918 picker). ★wireColorField 보다 «먼저» — 거기선 비어 있으면 'solid' 로 채운다.
+  //   이미지 채우기는 면이 있는 도형만(선·화살표는 fill 이 없어 바둑판을 칠할 면이 없다).
+  {
+    const inp = document.getElementById('shape-color-color');
+    if (inp) {
+      const hasFace = !!SHAPE_FACE_TYPES[shapeType];
+      inp.dataset.cpModes = hasFace ? 'solid,gradient,image' : 'solid,gradient';
+      // 패널을 다시 그리면 native input 이 새로 만들어져 시드가 사라진다 → 블럭 dataset 에서 다시 채운다
+      if (block.dataset.shapeGradient) inp.dataset.cpGradient = block.dataset.shapeGradient;
+      if (hasFace && block.dataset.shapeFill === 'image') inp.dataset.cpFill = 'image';
+    }
+  }
   wireColorField('shape-color', {
     initialAlpha: colorAlpha,
     onApply: (c) => applyColor(c),
@@ -212,13 +511,59 @@ export function showShapeProperties(block) {
     shapeColorInput._gradWired = true;
     shapeColorInput.addEventListener('goya-cp:gradient', (e) => {
       applyGradient(e.detail);
-      // detail.commit 플래그가 있을 때만 history 발행 — 평소엔 라이브 미리보기.
-      if (e.detail && e.detail.commit) window.pushHistory?.();
+      // ★재오픈 시드 — color-picker.js openPicker가 이 dataset을 보고 gradient 탭/스톱을
+      //   복원한다(wireColorField의 onGradient 경로는 안 타서 여기서 직접 채워야 한다).
+      //   적대적 QA(qa-adversarial-gradient) 발견: 없으면 재오픈마다 solid+기본 2스톱으로 리셋.
+      if (e.detail) {
+        try {
+          shapeColorInput.dataset.cpGradient = JSON.stringify({
+            type: e.detail.type, angle: e.detail.angle, stops: e.detail.stops,
+          });
+        } catch (_) {}
+      }
+      // ★기록은 여기서 하지 않는다 — commit 이면 바로 뒤에 goya-cp:gradient-commit 이 «또» 온다.
+      //   전엔 둘 다 pushHistory 해서 커밋 1번에 기록 2개(되돌리기 1번에 아무 변화 없음) — 0918 picker 에서 제거.
+      // 팝업 편집 → 캔버스 핸들 각도 재배치 (banner02/comparison과 동일 패턴)
+      if (!_applyingExternalShapeGrad) window.showGradientLine?.(block);
     });
     shapeColorInput.addEventListener('goya-cp:gradient-commit', () => {
       window.pushHistory?.();
     });
+    // ── 이미지(에셋) 탭 수신 — 0918 picker ──
+    //   src 없음(탭만 누름) = 바둑판(체커) 표시 «이미지 넣기 전» 상태. src 있음(업로드) = 이미지 채우기.
+    shapeColorInput.addEventListener('goya-cp:image', (e) => {
+      const d = e.detail || {};
+      if (!svg || !SHAPE_FACE_TYPES[block.dataset.shapeType || 'rectangle']) return;
+      // ★그라데이션을 거쳐 왔으면 shapeColor 에 그라데이션 CSS 가 남는다 → «마지막 단색»으로 되돌려 둔다.
+      //   안 그러면 패널 재그리기 때 회색(#cccccc)으로 시드돼 솔리드 복귀가 회색이 되고, 피그마 내보내기엔
+      //   color 로 'linear-gradient(...)' 문자열이 실린다(이벨류에이터 0918 지적).
+      if (/gradient/.test(block.dataset.shapeColor || '')) {
+        let meta = null; try { meta = JSON.parse(block.dataset.shapeGradient || 'null'); } catch (_) {}
+        block.dataset.shapeColor = _lastSolidOf(block) || meta?.stops?.[0]?.color || '#cccccc';
+      }
+      if (block.dataset.shapeGradient) { _clearShapeGradient(block); window.hideGradientLine?.(block); }
+      delete shapeColorInput.dataset.cpGradient;
+      if (d.src) _applyShapeImage(block, d.src, d.fit);
+      else _enterShapeChecker(block);
+      shapeColorInput.dataset.cpFill = 'image';
+      const sw = shapeColorInput.closest('.prop-color-swatch');
+      if (sw) sw.style.background = d.src ? `center / cover no-repeat url("${d.src}")` : CHECKER_SWATCH_BG;
+      window.scheduleAutoSave?.();
+      if (d.commit) window.pushHistory?.();
+    });
   }
+  // 이미지(체커) 모드 도형은 스와치도 바둑판/사진으로 — 패널을 다시 그려도 «지금 뭐가 칠해졌나»가 보이게
+  if (block.dataset.shapeFill === 'image') {
+    const sw = document.getElementById('shape-color-color')?.closest('.prop-color-swatch');
+    const img = block.querySelector(':scope > .shape-img-fill');
+    const src = img ? (img.style.backgroundImage || '') : '';
+    if (sw) sw.style.background = src ? `center / cover no-repeat ${src}` : CHECKER_SWATCH_BG;
+  }
+
+  // 선택 시 채우기가 그라데이션이면 캔버스 위 그라데이션 라인 표시 (아니면 overlay가 no-op)
+  window.showGradientLine?.(block);
+  // 0918 canvasgrad: 캔버스 바 ↔ 피커 스탑 양방향 배선 + 재오픈 시드(dataset.cpGradient)
+  window.bindGradientLinePicker?.(block, shapeColorInput);
 
   // ── 스트로크 두께 ──
   const strokeSlider = document.getElementById('shape-stroke-slider');
@@ -234,22 +579,22 @@ export function showShapeProperties(block) {
   // ── 크기 W ──
   const wSlider = document.getElementById('shape-w-slider');
   const wNum    = document.getElementById('shape-w-num');
-  wSlider.addEventListener('input',  () => { wNum.value = wSlider.value; applySize(parseInt(wSlider.value), parseInt(hSlider.value)); });
+  wSlider.addEventListener('input',  () => { wNum.value = wSlider.value; applySize(parseInt(wSlider.value), null); });
   wSlider.addEventListener('change', () => window.pushHistory?.());
   wNum.addEventListener('input', () => {
     const v = Math.min(860, Math.max(10, parseInt(wNum.value) || 10));
-    wSlider.value = v; applySize(v, parseInt(hSlider.value));
+    wSlider.value = v; wNum.value = v; applySize(v, null);
   });
   wNum.addEventListener('change', () => window.pushHistory?.());
 
   // ── 크기 H ──
   const hSlider = document.getElementById('shape-h-slider');
   const hNum    = document.getElementById('shape-h-num');
-  hSlider.addEventListener('input',  () => { hNum.value = hSlider.value; applySize(parseInt(wSlider.value), parseInt(hSlider.value)); });
+  hSlider.addEventListener('input',  () => { hNum.value = hSlider.value; applySize(null, parseInt(hSlider.value)); });
   hSlider.addEventListener('change', () => window.pushHistory?.());
   hNum.addEventListener('input', () => {
     const v = Math.min(860, Math.max(10, parseInt(hNum.value) || 10));
-    hSlider.value = v; applySize(parseInt(wSlider.value), v);
+    hSlider.value = v; hNum.value = v; applySize(null, v);
   });
   hNum.addEventListener('change', () => window.pushHistory?.());
 
@@ -264,6 +609,7 @@ export function showShapeProperties(block) {
     // 이전 버전이 남긴 보정값 정리
     if (frame.style.minHeight) frame.style.removeProperty('min-height');
     if (frame.style.minWidth)  frame.style.removeProperty('min-width');
+    _relockFrameMinHeight(frame);
   }
   // 회전 적용은 공유 함수(applyShapeRotation)로 위임 — 프로퍼티 슬라이더와
   // 코너 회전 핸들(asset-rotate.js)이 동일한 경로를 쓰도록 통일한다.
@@ -282,9 +628,36 @@ export function showShapeProperties(block) {
     });
     rotNum.addEventListener('change', () => window.pushHistory?.());
   }
+
+  /* 오버레이(플로팅) 토글 — 텍스트 패널과 «같은 함수»를 부른다(js/overlay-float.js).
+     ⛔여기서 enter/exit 을 다시 짜지 마라: 그 코드는 11개의 후속 P0 수정을 받은 자리다. */
+  wireFloatToggle({
+    block,
+    buttonId: 'shape-overlay-toggle',
+    rerender: () => showShapeProperties(block),
+  });
+  /* 떠 있을 때만 나오는 X/Y 두 칸 — 텍스트 Position 절과 «같은 규약»(overlay-float.js). */
+  wireFloatPosition({ block, xId: 'shape-x-number', yId: 'shape-y-number' });
 }
 
 window.showShapeProperties = showShapeProperties;
+
+/* ★청소한 뒤 «자기 높이»로 다시 잠근다 (2026-09-21 최종통합 QA medium ③ 후속)
+ *   위 두 자리는 구버전이 남긴 «부푼» min-width/height 보정값을 걷어내는 자리다(회전해도 크기 불변).
+ *   그런데 «청소»와 «바닥 해제»가 한 동작이었다 — 걷어내면 CSS 바닥이 되살아난다:
+ *       css/editor-blocks.css `.frame-block { min-height: 60px }`
+ *   ⇒ 손잡이·패널로 60 아래로 내려 둔 도형을 돌리면 style.height 는 40 인데 화면은 60 이 된다.
+ *   실측(실앱 9504 · 격리 프로필 · 줌 40%): 40 으로 줄인 사각형을 10° 돌리니 offsetHeight 60
+ *   (패널 H 칸은 40 — 20px 거짓). 회전된 채로는 패널에 30 을 넣어도 화면이 60 에 바닥쳤다(30px 거짓).
+ *   그래서 걷어낸 «다음» 자기 높이로 다시 잠근다 — 부푼 값은 안 살아나고(청소 의도 유지),
+ *   바닥도 안 되살아난다(패널 값 = 실제 크기). 높이를 «안 적은» 프레임(자동 높이)은 건드리지 않는다.
+ *   같은 «세트 규약»의 다른 자리 — js/block-drag.js _onShapeHandleMouseDown ·
+ *   js/overlay-handles.js _onFrameHandleMouseDown · 이 파일의 applySize.
+ *   회귀: tests/dom/shape-rotate-minheight.dom.spec.js */
+function _relockFrameMinHeight(frame) {
+  if (!frame || !frame.style.height) return;
+  frame.style.minHeight = frame.style.height;
+}
 
 /* ── 공유 회전 적용/동기화 ──
  * 프로퍼티 패널 슬라이더와 코너 회전 핸들(asset-rotate.js의 shape-rotate-zone)이
@@ -314,6 +687,7 @@ export function applyShapeRotation(block, deg) {
   if (frame) {
     if (frame.style.minHeight) frame.style.removeProperty('min-height');
     if (frame.style.minWidth)  frame.style.removeProperty('min-width');
+    _relockFrameMinHeight(frame);
   }
   window.scheduleAutoSave?.();
 }
@@ -364,6 +738,20 @@ function _clearShapeGradient(block) {
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const FILLABLE_SEL = 'rect,ellipse,circle,polygon,path';
 
+/** 그라데이션 스탑 → SVG <stop> 의 {col(알파 없는 색), op(0..1 문자열)} — 알파 이중 적용 방지(0919 QA). */
+export function shapeStopPaint(s) {
+  const raw = String((s && s.color) || '#000000').trim();
+  let col = raw, colA = 1;
+  const m = raw.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
+  if (m) {
+    col = `rgb(${Math.round(+m[1])},${Math.round(+m[2])},${Math.round(+m[3])})`;
+    colA = m[4] == null ? 1 : Math.max(0, Math.min(1, +m[4]));
+  }
+  const o = (s && s.opacity != null && Number.isFinite(+s.opacity)) ? Math.max(0, Math.min(1, +s.opacity)) : null;
+  const a = (o == null || o >= 1) ? (o == null ? colA : (colA < 1 ? colA : 1)) : o;
+  return { col, op: String(Math.round(a * 1000) / 1000) };
+}
+
 function _applyShapeGradient(block, svg, detail) {
   const id = _gradIdFor(block);
   const targetType = detail.type === 'radial' ? 'radialGradient' : 'linearGradient';
@@ -396,10 +784,15 @@ function _applyShapeGradient(block, svg, detail) {
     gradNode.setAttribute('r', '50%');
   } else {
     const a = ((detail.angle ?? 90) - 90) * Math.PI / 180;
-    const x1 = 0.5 - Math.cos(a) * 0.5;
-    const y1 = 0.5 - Math.sin(a) * 0.5;
-    const x2 = 0.5 + Math.cos(a) * 0.5;
-    const y2 = 0.5 + Math.sin(a) * 0.5;
+    let x1 = 0.5 - Math.cos(a) * 0.5;
+    let y1 = 0.5 - Math.sin(a) * 0.5;
+    let x2 = 0.5 + Math.cos(a) * 0.5;
+    let y2 = 0.5 + Math.sin(a) * 0.5;
+    // 0918 canvasgrad(T-060): 캔버스 바 끝점을 도형 밖으로 끌면 스탑이 0% 미만·100% 초과가 된다.
+    // SVG <stop offset> 은 0~1 로 잘리므로 선을 스탑 범위까지 늘리고 offset 을 재매핑(저장값은 그대로).
+    const _r = svgStopRemap({ x1, y1, x2, y2 }, stops.map(s => s.offset ?? 0));
+    x1 = _r.x1; y1 = _r.y1; x2 = _r.x2; y2 = _r.y2;
+    gradNode._offRemap = _r.remap;
     gradNode.setAttribute('x1', x1.toFixed(4));
     gradNode.setAttribute('y1', y1.toFixed(4));
     gradNode.setAttribute('x2', x2.toFixed(4));
@@ -410,9 +803,14 @@ function _applyShapeGradient(block, svg, detail) {
   const stopNodes = gradNode.children;
   for (let i = 0; i < stops.length; i++) {
     const s = stops[i];
-    const off = Math.round((s.offset ?? 0) * 100) + '%';
-    const col = s.color;
-    const op = (s.opacity == null) ? '1' : String(Math.max(0, Math.min(1, +s.opacity)));
+    const _rm = gradNode._offRemap;
+    const off = _rm
+      ? (Math.round((((s.offset ?? 0) - _rm.lo) / _rm.span) * 10000) / 100) + '%'
+      : Math.round((s.offset ?? 0) * 100) + '%';
+    // ★0919 QA: 알파를 «한 번만» — 색이 rgba(…,a) 로 오고 opacity 에도 같은 a 가 실려 오면(CSS 모델 재파싱 경로)
+    //   stop-color 알파 × stop-opacity 로 두 번 곱해져 50% 가 25% 로 그려졌다. stop-color 는 알파 없는 rgb,
+    //   알파는 stop-opacity 한 곳(피커 CSS 모델과 같은 규약: opacity 가 정본, opacity 가 1/없음이면 색 알파).
+    const { col, op } = shapeStopPaint(s);
     const n = stopNodes[i];
     if (n.getAttribute('offset') !== off) n.setAttribute('offset', off);
     if (n.getAttribute('stop-color') !== col) n.setAttribute('stop-color', col);
@@ -434,3 +832,99 @@ function _applyShapeGradient(block, svg, detail) {
 
 window._applyShapeGradient = _applyShapeGradient;
 window._clearShapeGradient = _clearShapeGradient;
+
+/* ── 이미지(에셋) 채우기 — 0918 picker ──────────────────────────────────────
+ * 상태는 dataset 두 개로만 말한다(클래스 X — section-serialize RUNTIME_MARKER 규약과 안 부딪히고 저장·로드 뒤에도 남는다):
+ *   data-shape-fill="image"            이미지 모드(= 칠이 색이 아니라 이미지)
+ *   data-shape-image="1"                실제 이미지가 들어 있음(없으면 «넣기 전» = 바둑판)
+ * ★바둑판은 «CSS 자리»에 둔다(정본 선례 .asset-block / .cvb-img-empty — editor-blocks.css 주석):
+ *   CSS 규칙이 SVG 면을 url(#goya-shape-checker) 로 칠한다. 패턴 정의는 #canvas 밖(body)에 1번만 주입 →
+ *   직렬화·내보내기에 안 실린다. export-image 는 clone 에서 data-shape-fill 을 떼서 마지막 단색으로 낸다.
+ * ★실제 이미지는 «인라인»(저장·HTML 내보내기에 실려야 하므로): 블럭 직속 div.shape-img-fill 에
+ *   background:cover + 도형 모양 clip-path. SVG 면은 inline fill:transparent 로 비워 밑의 사진이 보이게 한다.
+ *   (SVG <pattern><image> 는 도형 svg 가 preserveAspectRatio="none" 이라 사진이 늘어나 버려서 쓰지 않는다.)
+ * ★svg.style.color(마지막 단색)는 건드리지 않는다 → 외곽선(currentColor)은 그대로, 솔리드 복귀 = 그 색. */
+const SHAPE_FACE_TYPES = { rectangle: true, ellipse: true, polygon: true, star: true };
+const CHECKER_SWATCH_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 10px 10px';
+// SHAPE_DEFS(block-factory.js) 좌표를 %로 옮긴 것 — polygon: viewBox 200×180, star: 200×190.
+const SHAPE_IMG_CLIP = {
+  rectangle: '',
+  ellipse: 'ellipse(50% 50% at 50% 50%)',
+  polygon: 'polygon(50% 4.44%, 97% 95.56%, 3% 95.56%)',
+  star: 'polygon(50% 4.21%, 61% 36.84%, 94% 36.84%, 67.5% 57.89%, 77.5% 90.53%, 50% 69.47%, 22.5% 90.53%, 32.5% 57.89%, 6% 36.84%, 39% 36.84%)',
+};
+
+/* 도형의 «마지막 단색» — svg.style.color(applyColor 가 쓰고, 그라데이션·이미지 모드는 안 건드림)를
+   shapeColor 저장 형식(#rrggbb 또는 rgba(r,g,b,a))으로. 없으면 ''. */
+function _lastSolidOf(block) {
+  const svg = block && (block.querySelector('svg.shape-svg') || block.querySelector('svg'));
+  const v = svg ? (svg.style.color || '') : '';
+  if (!v || v === 'currentcolor' || v === 'currentColor') return '';
+  if (/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
+  const m = v.match(/rgba?\(([^)]+)\)/i);
+  if (!m) return '';
+  const p = m[1].split(',').map(x => x.trim());
+  const to = (n) => Math.max(0, Math.min(255, parseInt(n, 10) | 0)).toString(16).padStart(2, '0');
+  if (p.length === 4 && parseFloat(p[3]) < 1) return `rgba(${parseInt(p[0], 10)},${parseInt(p[1], 10)},${parseInt(p[2], 10)},${parseFloat(p[3])})`;
+  return '#' + to(p[0]) + to(p[1]) + to(p[2]);
+}
+
+function _ensureShapeCheckerDefs() {
+  if (typeof document === 'undefined' || document.getElementById('goya-shape-checker-defs')) return;
+  const holder = document.createElementNS(SVG_NS, 'svg');
+  holder.setAttribute('id', 'goya-shape-checker-defs');
+  holder.setAttribute('width', '0');
+  holder.setAttribute('height', '0');
+  holder.setAttribute('aria-hidden', 'true');
+  holder.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;';
+  // 8×8 칸 바둑판 — objectBoundingBox 라 도형 크기와 무관하게 칸 수가 같다. 색 = 앱 체커 토큰(#d8d8d8/#f0f0f0).
+  holder.innerHTML = `<defs><pattern id="goya-shape-checker" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width="0.25" height="0.25">
+    <rect x="0" y="0" width="0.25" height="0.25" fill="#f0f0f0"/>
+    <rect x="0" y="0" width="0.125" height="0.125" fill="#d8d8d8"/>
+    <rect x="0.125" y="0.125" width="0.125" height="0.125" fill="#d8d8d8"/>
+  </pattern></defs>`;
+  (document.body || document.documentElement).appendChild(holder);
+}
+
+function _syncShapeImageClip(block) {
+  const img = block && block.querySelector(':scope > .shape-img-fill');
+  if (!img) return;
+  const clip = SHAPE_IMG_CLIP[block.dataset.shapeType || 'rectangle'] || '';
+  if (clip) img.style.clipPath = clip; else img.style.removeProperty('clip-path');
+}
+
+function _clearShapeImage(block) {
+  if (!block) return;
+  block.querySelector(':scope > .shape-img-fill')?.remove();
+  const svg = block.querySelector('svg.shape-svg') || block.querySelector('svg');
+  if (svg && svg.style.fill === 'transparent') svg.style.fill = 'currentColor';
+  delete block.dataset.shapeFill;
+  delete block.dataset.shapeImage;
+}
+
+function _enterShapeChecker(block) {
+  _ensureShapeCheckerDefs();
+  _clearShapeImage(block);
+  block.dataset.shapeFill = 'image';
+}
+
+function _applyShapeImage(block, src, fit) {
+  if (!block || !src) return;
+  _clearShapeImage(block);
+  const img = document.createElement('div');
+  img.className = 'shape-img-fill';
+  img.setAttribute('aria-hidden', 'true');
+  const size = fit === 'fit' ? 'contain' : fit === 'tile' ? 'auto' : 'cover';
+  const repeat = fit === 'tile' ? 'repeat' : 'no-repeat';
+  img.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:0;background-image:url("${src}");background-size:${size};background-position:center;background-repeat:${repeat};`;
+  block.insertBefore(img, block.firstChild);
+  _syncShapeImageClip(block);
+  const svg = block.querySelector('svg.shape-svg') || block.querySelector('svg');
+  if (svg) svg.style.fill = 'transparent';
+  block.dataset.shapeFill = 'image';
+  block.dataset.shapeImage = '1';
+}
+
+_ensureShapeCheckerDefs();
+window._clearShapeImage = _clearShapeImage;
+window._syncShapeImageClip = _syncShapeImageClip;
