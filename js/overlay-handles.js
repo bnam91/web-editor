@@ -2301,7 +2301,13 @@ function _updateGridLineGripPosition() {
   if (!g) return;
   const rect = el.getBoundingClientRect();
   if (rect.height < GRD_GRIP_MIN_SCREEN_PX) { g.style.display = 'none'; return; }
-  g.style.display = '';
+  /* ⛔★`= ''` 로 되돌리지 마라 — 그건 inline display 를 «지운다». 이 손잡이는 display 를
+     «인라인으로만» 받으므로(위 cssText 의 `display:flex`) 지우면 기본값 block 이 되고,
+     그 순간 align-items·justify-content 가 «아무 일도 안 해» ⠿ 가 상자 안에서 가운데로 안 온다.
+     ★2026-09-27 현빈이 그것을 「깨져 보인다」로 짚었다 — 실측: inline display «없음» · computed `block`.
+     ⚠️다른 손잡이들(`.grd-img-overlay-handle` 등)이 `= ''` 를 쓰는 것은 그쪽은 display 를
+       «CSS 클래스»로 받기 때문이다. 같은 줄이라고 베끼면 이 병이 되돌아온다. */
+  g.style.display = 'flex';
   /* ★줄의 «왼쪽 밖»에 둔다 — 줄 위에 얹으면 글자를 가리고, 인라인 편집 클릭까지 먹는다. */
   g.style.left = (rect.left - GRD_GRIP_W - 2) + 'px';
   g.style.top = (rect.top + rect.height / 2 - GRD_GRIP_H / 2) + 'px';

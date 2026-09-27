@@ -457,3 +457,33 @@ test('P2b ★«셀렉터»만 남기면 자리가 안 밀린다 — 둘째 겹�
   expect(await indicatorCount(page), '★놓은 뒤에도 표시선이 남았다').toBe(0);
   expect(errs).toEqual([]);
 });
+
+/* ═══ D9 — ★손잡이가 «가운데 정렬»을 잃지 않는다 (현빈 0927 지적) ══════════
+ * ★현빈: 「이거 css 맘에 안 든다 … 깨져 보인다」 ⇒ 재 보니 ★inline `display` 가 «없고»
+ *   computed 가 `block` 이었다. 소스에는 `display:flex` 가 분명히 있었는데도.
+ * ★★원인 — 위치 갱신이 `g.style.display = ''` 로 «되돌렸다». 그건 inline display 를 ★지운다.
+ *   이 손잡이는 display 를 «인라인으로만» 받으므로 지우는 순간 기본값 block 이 되고,
+ *   그때 `align-items`·`justify-content` 가 ★아무 일도 안 해 ⠿ 가 상자 안에서 가운데로 안 온다.
+ * ⚠️다른 손잡이들이 `= ''` 를 쓰는 것은 그쪽이 display 를 «CSS 클래스»로 받기 때문이다 —
+ *   같은 줄이라고 베끼면 이 병이 되돌아온다. 그래서 «갱신을 한 번 돌린 뒤»를 잰다. */
+test('D9 ★위치 갱신을 거쳐도 손잡이가 «flex» 로 남는다 — ⠿ 가 가운데 온다', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page);
+  const r = await page.evaluate(() => {
+    const b = window.__block;
+    window.__setActive(b, { r: 0, c: 0, li: 0 });
+    window.__grip(b);
+    const g = document.querySelector('#ss-handles-overlay .grd-line-grip');
+    const before = getComputedStyle(g).display;
+    /* ★rAF 를 기다리지 않고 «위치 갱신을 직접» 한 번 더 태운다 — 그 경로가 display 를 만진다. */
+    window.__grip(b);
+    const cs = getComputedStyle(g);
+    return { before, after: cs.display, inline: g.style.display, align: cs.alignItems, justify: cs.justifyContent };
+  });
+  expect(r.before, '★처음부터 flex 가 아니다 — 이 검사는 «안 재고» 있다').toBe('flex');
+  expect(r.after, '★★위치 갱신이 display 를 지웠다 — ⠿ 가 상자 위쪽에 붙어 «깨져 보인다»').toBe('flex');
+  expect(r.inline, '★inline display 가 비었다 — 지우는 방식(= "")으로 되돌아갔다').toBe('flex');
+  expect(r.align, '★세로 가운데가 아니다').toBe('center');
+  expect(r.justify, '★가로 가운데가 아니다').toBe('center');
+  expect(errs).toEqual([]);
+});
