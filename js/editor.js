@@ -3683,6 +3683,7 @@ function deselectAll() {
   window.hideVectorResizeHandles?.();
   window.hideGridGutters?.(); // 그리드(듀오) 블록 열 경계 드래그 거터 (P2)
   window.hideGridImageResizeHandle?.(); // 그리드 이미지/아이콘 줄 코너 리사이즈 핸들 (T-C)
+  window.hideGridLineGrip?.(); // 그리드 «줄» 끄는 손잡이 (T-228) — 줄 선택이 풀리면 같이 사라진다
   /* ★오버레이(플로팅) 텍스트의 모서리 핸들 (0920b). 빠지면 모듈 변수 _tfoResizeEl 이
      «해제된 블록»을 계속 가리킨 채 남아, 같은 블록을 다시 클릭하면 동일블록 가드에 걸려
      no-op 이 된다(아이콘원형이 실제로 밟은 사고 — 바로 위 주석 참고). */

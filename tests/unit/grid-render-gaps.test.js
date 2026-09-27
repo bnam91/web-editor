@@ -1088,8 +1088,24 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
        하나뿐이고, 단언 메시지는 그 상수를 끼워 넣으므로 같이 따라온다.
      ⛔여기서도 지운 것은 «하나도» 없다 — ⑴의 8 중 하나(게이트 순서)는 «자리»에서 «흐름»으로
        고쳐졌고(게이트가 손잡이 밖으로 빠졌다), 수는 그대로다.
-     ⛔DOM 축(tests/dom/grid-line-move-across-cells.dom.spec.js 10개)은 여기 «안» 센다. */
-const GRID_BASELINE_TESTS = 353;
+     ⛔DOM 축(tests/dom/grid-line-move-across-cells.dom.spec.js 10개)은 여기 «안» 센다.
+   · ★363 (2026-09-27 ⑤, T-228 「드래그로」＋T-235 「알 길이 0건」) — grid-line-move-wiring.test.mjs 에 «+10».
+     ⑴세는 자 = `grep -c '^test(' tests/unit/grid-line-move-wiring.test.mjs` → 19 에서 29.
+     ⑵더한 것 — 배선 5 ＋ 셈 4 ＋ 문구 1:
+       배선 ★손잡이는 «오버레이»에 붙는다(그래서 내보내기 산출이 안 바뀐다 — 골든의 그 자리) ·
+            손잡이는 «고른 바깥 줄»에만 뜬다(np·빈 칸 제외) · 쓰는 길을 부른다(같은 칸 한 문 /
+            다른 칸 두 문) · ★표시선을 «새로 만들지 않는다» · 패널에서 뜨고 deselectAll 에서 진다
+       셈  ★★「떼고 넣는다」 보정 16조합을 ★splice 를 실제로 돌려 결과로 확인 · 다른 칸은 보정 0 ·
+            삽입 자리는 «줄의 절반»으로 갈린다 · 빈 칸은 0
+       문구 ★★T-235 — 손잡이 title 이 «세 길»(끌기·⌘↑/↓·⌘←/→)을 다 말한다
+     ⑶★이 절을 넣다가 «내 주석이 내 단언을 깨뜨렸다» — 「⛔여기서 pushHistory 를 부르지 않는다」
+       라고 주석에 적자 「pushHistory 를 안 부른다」 단언이 그 낱말에 걸려 빨개졌다.
+       ⇒ «안 부른다» 쪽은 전부 공용 부품(tests/unit/_strip-comments.js)으로 주석을 걷어낸 뒤 잰다.
+       ⛔이 파일에 stripComments 를 새로 만들지 마라(그 부품 머리말이 「11벌 중 9벌이 부서져
+         있었다」를 적어 뒀다).
+     ⛔여기서도 지운 것은 «하나도» 없다.
+     ⛔DOM 축(tests/dom/grid-line-drag.dom.spec.js 9개)은 여기 «안» 센다. */
+const GRID_BASELINE_TESTS = 363;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {

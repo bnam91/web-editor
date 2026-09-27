@@ -40,6 +40,13 @@ function extractFn(src, name) {
 
 const EDITOR = read('js/editor.js');
 const PROP_GRID = read('js/props/prop-grid.js');
+const OVERLAY = read('js/overlay-handles.js');
+/* ★주석 걷어내기는 «공용 부품» 하나만 쓴다 — tests/unit/_strip-comments.js
+   ⛔여기서 새로 만들지 마라(그 파일 머리말이 「11벌 중 9벌이 같은 형태로 부서져 있었다」를 적어 뒀다).
+   ★★왜 필요해졌나(0927 실측) — 「⛔여기서 pushHistory 를 부르지 않는다」라고 ★주석에 적은
+     순간, 「pushHistory 를 안 부른다」를 재던 내 단언이 그 ★주석의 낱말에 걸려 빨개졌다.
+     ⇒ «안 부른다»를 재는 자는 반드시 주석을 걷어낸 소스로 재야 한다. */
+import { stripComments } from './_strip-comments.js';
 
 /** ⌘↑/↓ 분기의 «몸통» — 글자수 창이 아니라 중괄호 균형으로 떠낸다. */
 const CMD_ARROW_ANCHOR = "if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey)) {";
@@ -99,10 +106,13 @@ test('★줄 이동 게이트 셋이 이 순서다 — 단독선택 → 중첩(n
   assert.ok(iNest < iMove, '★np 게이트가 옮기기보다 뒤다 = 먼저 옮기고 나서 막는다');
   assert.match(fn.slice(iNest, iNest + 320), /showToast[\s\S]*return true;/,
     '★중첩에서 «먹고 멈추»지 않는다 — false 로 흘리면 블럭 이동으로 샌다(말도 안 해준다)');
-  assert.ok(!/grdGetActiveLine/.test(fn),
+  /* ★«안 부른다» 둘은 ★주석을 걷어낸 뒤 잰다 — 이 파일 위쪽 import 머리말의 그 까닭이다
+     (주석에 그 낱말을 적는 순간 단언이 거짓으로 빨개진다). */
+  const code = stripComments(fn);
+  assert.ok(!/grdGetActiveLine/.test(code),
     '★손잡이가 주소를 «직접» 묻는다 — 게이트가 두 벌이 되어 ⌘↑ 와 ⌘← 의 판정이 갈린다');
-  assert.ok(!/pushHistory/.test(fn),
-    '★여기서 pushHistory 를 부른다 — 쓰기는 updateGridBlock 이 스스로 1회 쌓는다(두 칸이 된다)');
+  assert.ok(!/pushHistory/.test(code),
+    '★여기서 이력을 쌓는다 — 쓰기는 updateGridBlock 이 스스로 1회 쌓는다(두 칸이 된다)');
 });
 
 /* ═══ ⑵ 셈 — grdMoveLine 의 splice 산수 ═════════════════════════════════ */
@@ -229,9 +239,10 @@ test('★「옆 칸으로」 손잡이도 게이트 한 벌을 쓴다 — 행은
   assert.match(fn, /r: got\.addr\.r[\s\S]*r: got\.addr\.r/,
     '★도착의 행(r)이 출발과 다르다 — 「옆 칸」은 같은 행이다');
   assert.match(fn, /c: got\.addr\.c \+ step/, '★도착 열이 «한 칸 옆»이 아니다');
-  assert.ok(!/grdGetActiveLine/.test(fn), '★주소를 «직접» 묻는다 — 게이트가 두 벌이 된다');
+  const code = stripComments(fn);
+  assert.ok(!/grdGetActiveLine/.test(code), '★주소를 «직접» 묻는다 — 게이트가 두 벌이 된다');
   /* ★열 수를 여기서 세면 셈이 두 벌이 된다(쓰는 함수가 이미 INVALID 로 막는다). */
-  assert.ok(!/cols/.test(fn), '★여기서 열 수를 센다 — 그 셈은 grdMoveLineToCell 한 곳에만 있어야 한다');
+  assert.ok(!/cols/.test(code), '★여기서 열 수를 센다 — 그 셈은 grdMoveLineToCell 한 곳에만 있어야 한다');
 });
 
 /** 실물 grdMoveLineToCell 을 가짜 이웃들로 돌린다.
@@ -339,4 +350,143 @@ test('★toLi 를 주면 그 자리에 끼운다 — 드래그(T-228)가 쓸 문
   const m2 = makeCrosser([[cell('A'), cell('X', 'Y')]]);
   assert.deepEqual(m2.fn({}, { r: 0, c: 0 }, 0, { r: 0, c: 1 }, 99), { ok: true, li: 2 },
     '★범위 밖 toLi 를 «끝»으로 오려내지 않는다');
+});
+
+/* ═══ ⑷ 끄는 손 — 배선과 «셈» (T-228, 0927) ══════════════════════════════
+ * ★DOM 검사(tests/dom/grid-line-drag.dom.spec.js)가 «진짜 마우스»로 행동을 잰다. 여기선
+ *   ⑴손잡이가 어디에 붙는가(=내보내기에 새지 않는 근거) ⑵쓰는 길을 부르는가
+ *   ⑶★「떼고 넣는다」 보정 셈 — 셋만 본다.
+ * ★왜 ⑶을 «따로» 잼 — 이 카드에서 제일 틀리기 쉬운 자리다. DOM 쪽 양성대조(P1)가 한 조합을
+ *   잡아 주지만, 표를 돌리는 것은 여기가 싸다(16조합을 한 번에 본다). */
+
+test('★손잡이는 «오버레이»에 붙는다 — 그래서 저장본·내보내기에 안 샌다', () => {
+  const fn = stripComments(extractFn(OVERLAY, 'showGridLineGrip'));
+  assert.match(fn, /_getOverlay\(\)/, '★손잡이를 오버레이가 아닌 곳에 붙인다');
+  assert.match(fn, /overlay\.appendChild\(g\)/, '★오버레이에 안 넣는다');
+  /* ⛔블록 «안»에 붙이면 renderGridBlock 이 innerHTML 을 갈아끼울 때 사라지고, 그 전에
+     저장·내보내기가 돌면 산출에 실린다(골든 G2 가 그 자리를 잠그고 있다). */
+  assert.ok(!/block\.appendChild|block\.innerHTML/.test(fn),
+    '★★손잡이를 블록 안에 붙인다 — 내보내기 산출이 바뀌어 골든이 빨개질 자리다');
+  assert.match(fn, /grd-line-grip/, '★클래스 이름이 없다 — hide 의 일괄 remove 가 못 찾는다');
+});
+
+test('★손잡이는 «고른 바깥 줄»에만 뜬다 — 중첩(np)·빈 칸엔 안 뜬다', () => {
+  const act = extractFn(OVERLAY, '_grdGripActiveAddr');
+  assert.match(act, /addr\.li === null \|\| addr\.li === undefined \|\| addr\.np/,
+    '★셋(li null·undefined·np) 중 하나라도 안 본다 — np 를 놓치면 «품은 duo 줄»을 끌게 된다');
+  const find = extractFn(OVERLAY, '_grdGripFindEl');
+  assert.match(find, /addr\.np/, '★DOM 조회가 np 를 안 본다 — 엉뚱한 줄에 손잡이가 앉는다');
+});
+
+test('★끄는 손은 «쓰는 길»을 부른다 — 같은 칸은 한 문, 다른 칸은 두 문', () => {
+  /* ★«안 부른다» 쪽은 ★주석을 걷어낸 소스로 잰다(위 import 머리말의 그 까닭 — 내 주석의
+     낱말이 내 단언을 깨뜨렸다). 있는 것을 재는 쪽은 원본으로 봐도 같다. */
+  const fn = stripComments(extractFn(OVERLAY, '_onGridLineGripMouseDown'));
+  assert.match(fn, /grdMoveLineWithin/, '★같은 칸 길(grdMoveLineWithin)을 안 부른다');
+  assert.match(fn, /grdMoveLineToCell/, '★다른 칸 길(grdMoveLineToCell)을 안 부른다');
+  assert.match(fn, /const sameCell = /, '★같은 칸인지 안 센다');
+  assert.match(fn, /if \(sameCell\) window\.grdMoveLineWithin/, '★같은 칸/다른 칸을 안 가른다');
+  assert.match(fn, /_grdGripDropTarget\(addr\.li, dropInsertAt, sameCell\)/,
+    '★★삽입 자리를 «보정 없이» 그대로 넘긴다 — 같은 칸에서 한 칸 더 간다');
+  /* ⛔DOM 을 옮기지 않는다 — renderGridBlock 이 innerHTML 을 통째로 갈아끼우므로 다음 렌더에
+     사라진다(카드 T-227 measured 가 미리 적어 둔 경고). */
+  assert.ok(!/insertBefore\(dragEl|appendChild\(dragEl/.test(fn), '★DOM 을 직접 옮긴다');
+  /* ⛔여기서 pushHistory 를 부르면 이력이 두 칸이 된다(쓰는 길이 스스로 1회 쌓는다). */
+  assert.ok(!/pushHistory/.test(fn), '★★끄는 손이 이력을 쌓는다 — updateGridBlock 과 겹쳐 두 칸이 된다');
+  assert.match(fn, /clearDropIndicators/, '★놓은 뒤 표시선을 안 지운다');
+  assert.match(fn, /armed/, '★임계 없이 바로 끈다 — 손잡이 «클릭»이 이동이 된다');
+});
+
+test('★표시선은 «새로 만들지 않는다» — 기존 .drop-indicator 를 칸 안에 끼운다', () => {
+  const fn = extractFn(OVERLAY, '_onGridLineGripMouseDown');
+  assert.match(fn, /className = 'drop-indicator'/,
+    '★★새 표시선 클래스를 만들었다 — 카드가 「새로 만들지 말고 그것을 쓰라」고 적어 뒀고, 세척도 그 이름에만 걸려 있다');
+});
+
+test('★패널이 뜨는 자리에서 손잡이도 같이 뜨고, 선택이 풀리면 같이 사라진다', () => {
+  assert.match(PROP_GRID, /window\.showGridLineGrip\?\.\(block\)/,
+    '★패널 자리에서 손잡이를 안 띄운다 — 줄을 골라도 끌 수 없다');
+  assert.match(EDITOR, /window\.hideGridLineGrip\?\.\(\)/,
+    '★★deselectAll 에서 손잡이를 안 지운다 — 블록을 떠나도 손잡이가 화면에 남는다');
+});
+
+/** 실물 _grdGripDropTarget 을 돌린다(스코프 의존 0 — 순수 셈이다). */
+function makeDropTarget() {
+  return new Function(`${extractFn(OVERLAY, '_grdGripDropTarget')}; return _grdGripDropTarget;`)();
+}
+
+test('★★「떼고 넣는다」 보정 — 같은 칸에서 «아래로» 갈 때만 1 을 뺀다', () => {
+  const f = makeDropTarget();
+  /* ★기준: [A,B,C] 에서 splice(from,1) 로 «먼저 떼고» splice(to,0,…) 로 넣는다.
+     삽입 자리(insertAt)는 «떼기 전» 기준이므로 from 보다 뒤면 하나 당겨진다. */
+  const N = 3;
+  for (let from = 0; from < N; from++) {
+    for (let at = 0; at <= N; at++) {
+      const to = f(from, at, true);
+      // 실제로 splice 두 번을 돌려 「본 자리에 놓였나」를 «결과»로 확인한다 — 수식을 안 믿는다.
+      const arr = ['A', 'B', 'C'];
+      const want = arr.slice();
+      want.splice(at, 0, '*');            // «떼기 전» 자리에 표식을 꽂아 본 자리를 잡는다
+      const got = arr.slice();
+      const moved = got.splice(from, 1)[0];
+      got.splice(to, 0, moved);
+      /* 표식 기준 기대 = 표식 자리에 moved 가 오고, 원래 from 은 빠진 배열 */
+      const expect2 = want.filter(x => x !== arr[from] || x === '*').map(x => (x === '*' ? arr[from] : x));
+      assert.deepEqual(got, expect2, `from=${from} at=${at} → to=${to}`);
+    }
+  }
+});
+
+test('★다른 칸에는 보정을 «하지 않는다» — 떼는 일이 다른 배열에서 일어난다', () => {
+  const f = makeDropTarget();
+  for (let from = 0; from < 3; from++) {
+    for (let at = 0; at <= 3; at++) {
+      assert.equal(f(from, at, false), at, `from=${from} at=${at} — 다른 칸인데 보정했다`);
+    }
+  }
+});
+
+/** 실물 _grdGripInsertAt 을 «가짜 칸»으로 돌린다 — rect 만 쓰므로 DOM 없이 잴 수 있다. */
+function makeInsertAt(tops) {
+  const kids = tops.map(([top, h]) => ({ getBoundingClientRect: () => ({ top, height: h }) }));
+  const cellEl = { querySelectorAll: () => kids };
+  const src = `${extractFn(OVERLAY, '_grdGripCellLines')}; ${extractFn(OVERLAY, '_grdGripInsertAt')}; return _grdGripInsertAt;`;
+  return { fn: new Function(src)(), cellEl };
+}
+
+test('★삽입 자리는 «줄의 절반»으로 갈린다 — 위쪽 절반이면 그 앞, 아래쪽이면 그 뒤', () => {
+  // 줄 셋: [0,20) [20,40) [40,60)
+  const { fn, cellEl } = makeInsertAt([[0, 20], [20, 20], [40, 20]]);
+  assert.equal(fn(cellEl, 1), 0, '★첫 줄 위쪽인데 0 이 아니다');
+  assert.equal(fn(cellEl, 9), 0);
+  assert.equal(fn(cellEl, 11), 1, '★첫 줄 «아래쪽 절반»인데 그 뒤(1)가 아니다');
+  assert.equal(fn(cellEl, 29), 1);
+  assert.equal(fn(cellEl, 31), 2);
+  assert.equal(fn(cellEl, 59), 3, '★마지막 줄 아래쪽인데 «끝»(3)이 아니다');
+  assert.equal(fn(cellEl, 999), 3, '★칸 밖(아래)인데 끝이 아니다');
+});
+
+test('★빈 칸에 놓으면 0 — 끝에 붙이기와 같은 값이다(줄이 0개니까)', () => {
+  const { fn, cellEl } = makeInsertAt([]);
+  assert.equal(fn(cellEl, 0), 0);
+  assert.equal(fn(cellEl, 500), 0);
+});
+
+/* ═══ ⑸ ★손잡이가 «말도 한다» — T-235 를 이 자리에서 갚는다 (0927) ════════
+ * ★무엇이 없었나 — ⌘↑/↓(0926)·⌘←/→(T-227)를 «사람이 알 길»이 0건이었다. 작업목록매니저가
+ *   판 bf98adf1 로 전수해 19곳이 전부 주석/문서블록이고 화면에 나가는 문자열은 0건임을 쟀다.
+ * ★★그리고 «양성대조»까지 같이 왔다 — 이 앱은 단축키를 `title=` 로 말해 주고 있다(8곳:
+ *   index.html ⌘, ⌘\ ⌘⌥\ ⌘K · _typo-section.js ⌘B ⌘I ⌘⇧X · prop-grid.js ⌘Z).
+ *   ⇒ 「0건」은 이 앱의 «관행»이 아니라 ★빠진 것이었다. 그래서 관행대로 title 로 갚는다.
+ * ⛔이 단언을 지우지 마라 — 지우면 「보이는 손잡이가 생겼으니 갚았다」가 아무 근거 없이 남는다.
+ *   손잡이 문구가 이 앱에서 세 길을 말하는 ★유일한 자리다. */
+
+test('★★손잡이 문구가 «세 길»을 다 말한다 — 끌기 · ⌘↑/↓ · ⌘←/→ (T-235)', () => {
+  const fn = extractFn(OVERLAY, 'showGridLineGrip');
+  const m = /g\.title = '([^']+)'/.exec(fn);
+  assert.ok(m, '★손잡이에 title 이 없다 — 사람이 ⌘방향키를 알 길이 다시 0건이 된다');
+  const t = m[1];
+  assert.match(t, /끌/, '★«끌어서 옮긴다»를 안 말한다');
+  assert.match(t, /⌘↑\/↓/, '★★같은 칸 위·아래(⌘↑/↓)를 안 말한다 — 이 앱에서 그것을 말하는 곳이 0이 된다');
+  assert.match(t, /⌘←\/→/, '★★옆 칸으로(⌘←/→)를 안 말한다 — T-227 을 쓸 수 있는 사람이 없다');
 });

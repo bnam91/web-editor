@@ -2216,6 +2216,10 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
   //   내부에서 스스로 hideGridImageResizeHandle() 로 정리한다(showHandlesFor 맵에 없는 이유는
   //   블록 전체가 아니라 «줄 주소» 단위 상태라 그리드 전용 경로에서만 결정할 수 있어서다).
   window.showGridImageResizeHandle?.(block);
+  /* ★끄는 손잡이(T-228) — 「지금 고른 줄」에만 뜬다. 이미지 코너 핸들과 «같은 성질»이라
+     같은 자리에서 부른다(블록 전체가 아니라 «줄 주소» 단위 상태다). 해제는 editor.js
+     deselectAll() 의 hideGridLineGrip 으로 일괄. */
+  window.showGridLineGrip?.(block);
   /* ★마커는 «맨 끝»에 다시 붙인다 — 이 함수가 불리는 모든 경로(클릭·레이어패널·MCP·
      updateGridBlock 후 재표시)에서 재렌더가 innerHTML 을 갈아끼웠을 수 있다(bn2 :22~26 과 동형). */
   _grdSyncLineMark(block, _curAddr);

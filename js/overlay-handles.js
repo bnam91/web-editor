@@ -2169,6 +2169,232 @@ function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
 window.showGridImageResizeHandle = showGridImageResizeHandle;
 window.hideGridImageResizeHandle = hideGridImageResizeHandle;
 
+/* ═══════════════════════════════════
+   GRID LINE DRAG GRIP — 칸 «안»의 줄을 끌어 옮긴다 (T-228, 2026-09-27 현빈 발주)
+   ────────────────────────────────────────────────────────────────────────
+   ★왜 여기인가 — 끄는 «손잡이»를 줄 HTML 에 넣으면 내보내기 산출 «바이트»가 바뀌어 골든
+     (tests/unit/grid-gap-clamp.test.js, 기준판 55f3a1a 대조)이 빨개진다. #ss-handles-overlay 는
+     #canvas-scaler «바깥»이라(위 거터 절의 그 까닭) 저장본·export 에 애초에 없다.
+     ⇒ 손잡이를 여기에 얹으면 ★렌더 산출을 한 자도 안 바꾸고 손을 붙일 수 있다.
+   ★대상은 «지금 고른 줄» 하나다 — 칸마다 20줄까지 되므로 전부에 손잡이를 띄우면 rAF 가
+     수십 개 rect 를 매 프레임 재는 일이 된다(거터는 경계 몇 개뿐이라 사정이 달랐다).
+     ⇒ 「고르고 끈다」. ⌘←/→(T-227)도 「고른 뒤」라 두 길의 말이 같아진다.
+   ★표시선은 ★새로 만들지 않는다 — `.drop-indicator` 를 «칸 안»에 끼운다(카드 T-228 measured
+     가 「새로 만들지 말고 그것을 쓰십시오」라 적어 둔 그 자리). 칸이 flex-direction:column 이라
+     줄 사이에 끼우면 그대로 가로 띠가 된다. ★세척도 이미 있다 — section-serialize.js 가
+     `.drop-indicator` 를 지운다(드래그 중 autosave 가 돌아도 저장본에 안 샌다).
+   ★모델을 고쳐 «다시 그린다» — ⛔DOM 을 insertBefore 로 옮기지 않는다. renderGridBlock 이
+     block.innerHTML 을 통째로 갈아끼우므로 DOM 이동은 다음 렌더에 사라진다(카드 measured 의
+     경고 그대로). 쓰는 길은 prop-grid.js 의 두 함수다 — 같은 칸이면 grdMoveLineWithin(한 문),
+     다른 칸이면 grdMoveLineToCell(두 문 + 이력 한 칸).
+   ⛔중첩(duo) «안»의 줄은 집지도, 놓지도 않는다 — 쓰는 길이 거기로 안 내려간다(T-220 몫).
+═══════════════════════════════════ */
+let _grdGripBlock = null;
+let _grdGripAddr = null;          // {r,c,li} — 중첩(np)은 여기 오지 않는다
+let _grdGripRafId = null;
+const GRD_GRIP_MIN_SCREEN_PX = 10;   // 낮은 배율 방어 — 거터·이미지 핸들과 같은 원칙
+const GRD_GRIP_DRAG_THRESHOLD_PX = 3;
+const GRD_GRIP_W = 12;
+const GRD_GRIP_H = 18;
+
+/** 그 주소의 «바깥 줄» DOM. ⛔중첩 안 줄(np)은 null — data-line 을 안 쓰므로 addr.li 로
+ *  조회하면 «품은 duo 줄»을 집는다(_gridImgFindEl 이 같은 함정을 같은 말로 막는다). */
+function _grdGripFindEl(block, addr) {
+  if (!block || !addr || addr.li === null || addr.li === undefined || addr.np) return null;
+  return block.querySelector(`[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
+}
+
+/** 지금 고른 «바깥 줄» 주소 — 없으면 null. */
+function _grdGripActiveAddr(block) {
+  const addr = window.grdGetActiveLine ? window.grdGetActiveLine(block) : null;
+  if (!addr || addr.li === null || addr.li === undefined || addr.np) return null;
+  return addr;
+}
+
+/** 이 칸의 «바깥 줄» DOM 들 — 직속 자식만. ★중첩 «안»의 줄은 `.grd-nested` 안이라 안 걸린다
+ *  (그 `.grd-nested` 자신은 바깥 줄이므로 걸리는 게 맞다). */
+function _grdGripCellLines(cellEl) {
+  return [...cellEl.querySelectorAll(':scope > [data-line]')];
+}
+
+/** 포인터 y 가 이 칸의 «몇 번째 자리»인가 — 0..N (N = 줄 수 = 끝에 붙이기). */
+function _grdGripInsertAt(cellEl, clientY) {
+  const kids = _grdGripCellLines(cellEl);
+  for (let i = 0; i < kids.length; i++) {
+    const rc = kids[i].getBoundingClientRect();
+    if (clientY < rc.top + rc.height / 2) return i;
+  }
+  return kids.length;
+}
+
+/** «삽입 자리»(0..N)를 «옮길 대상 index»로 바꾼다.
+ *
+ * ★★여기가 이 카드에서 제일 틀리기 쉬운 셈이다. 쓰는 함수들은 `splice(from,1)` 로 «먼저 떼고»
+ *   `splice(to,0,…)` 로 넣는다. 그래서 «같은 칸»에서 아래로 옮길 때는 떼는 순간 뒤쪽 index 가
+ *   하나씩 당겨진다 ⇒ 삽입 자리에서 1 을 빼야 «본 자리»에 놓인다.
+ *     [A,B,C] 에서 A 를 B·C 사이(삽입 자리 2)로 → 떼면 [B,C] ⇒ to=1 ⇒ [B,A,C] ✅
+ *     같은 것을 to=2 로 보내면 [B,C,A] 가 된다(한 칸 더 갔다).
+ * ⛔«다른 칸»에는 이 보정을 하지 마라 — 떼는 일이 «다른 배열»에서 일어나므로 도착 칸의 index 는
+ *   당겨지지 않는다. 보정하면 한 칸 앞에 놓인다.
+ * @param {number} fromLi · @param {number} insertAt · @param {boolean} sameCell */
+function _grdGripDropTarget(fromLi, insertAt, sameCell) {
+  if (!sameCell) return insertAt;
+  return insertAt > fromLi ? insertAt - 1 : insertAt;
+}
+
+function showGridLineGrip(block) {
+  const addr = _grdGripActiveAddr(block);
+  if (!addr) { hideGridLineGrip(); return; }
+  const el = _grdGripFindEl(block, addr);
+  if (!el) { hideGridLineGrip(); return; }
+  const same = _grdGripBlock === block && _grdGripAddr
+    && _grdGripAddr.r === addr.r && _grdGripAddr.c === addr.c && _grdGripAddr.li === addr.li;
+  const overlay0 = _getOverlay();
+  if (same && overlay0 && overlay0.querySelector('.grd-line-grip')) {
+    _updateGridLineGripPosition();
+    return;
+  }
+  hideGridLineGrip();
+  _grdGripBlock = block;
+  _grdGripAddr = { r: addr.r, c: addr.c, li: addr.li };
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  const g = document.createElement('div');
+  g.className = 'grd-line-grip';
+  /* ★position:absolute — #ss-handles-overlay 자체가 position:fixed;inset:0 이라 자식은
+     absolute 로 둬도 좌표계가 뷰포트와 같다(거터·이미지 핸들과 같은 관례). */
+  g.style.cssText = `position:absolute;width:${GRD_GRIP_W}px;height:${GRD_GRIP_H}px;`
+    + 'cursor:grab;z-index:98;pointer-events:auto;border-radius:3px;'
+    + 'background:var(--ui-accent-primary);opacity:.85;'
+    + 'display:flex;align-items:center;justify-content:center;'
+    + 'color:#fff;font-size:10px;line-height:1;user-select:none;';
+  g.textContent = '⠿';
+  /* ★손잡이가 «말도 한다» — ⌘↑/↓(0926)·⌘←/→(T-227)는 그때까지 화면 안내가 0건이었다.
+     T-220 에서 현빈이 「중첩줄을 내가 만들려면 어떻게 해야되나?」를 물으신 그 병이다.
+     ⇒ 보이는 손잡이가 생긴 이 자리에서 세 길을 «한 번에» 말한다. */
+  g.title = '끌어서 줄 옮기기 · ⌘↑/↓ 같은 칸 위·아래 · ⌘←/→ 옆 칸으로';
+  overlay.appendChild(g);
+  g.addEventListener('mousedown', e => _onGridLineGripMouseDown(e, block, _grdGripAddr));
+  /* ★거터와 같은 규약 — 손잡이 위 우클릭도 «블록의» 컨텍스트 메뉴로 보낸다(손잡이는
+     오버레이 자식 = 블록 «바깥»이라 그냥 두면 메뉴가 아예 안 뜬다). */
+  g.addEventListener('contextmenu', e => {
+    if (window._openBlockContextMenu) window._openBlockContextMenu(e, block);
+  });
+  _updateGridLineGripPosition();
+  _startGridLineGripRaf();
+}
+
+function hideGridLineGrip() {
+  if (_grdGripRafId) { cancelAnimationFrame(_grdGripRafId); _grdGripRafId = null; }
+  _grdGripBlock = null;
+  _grdGripAddr = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.grd-line-grip').forEach(g => g.remove());
+}
+
+function _updateGridLineGripPosition() {
+  const overlay = _getOverlay();
+  if (!overlay || !_grdGripBlock || !_grdGripAddr) return;
+  const el = _grdGripFindEl(_grdGripBlock, _grdGripAddr);
+  if (!el) { hideGridLineGrip(); return; }
+  const g = overlay.querySelector('.grd-line-grip');
+  if (!g) return;
+  const rect = el.getBoundingClientRect();
+  if (rect.height < GRD_GRIP_MIN_SCREEN_PX) { g.style.display = 'none'; return; }
+  g.style.display = '';
+  /* ★줄의 «왼쪽 밖»에 둔다 — 줄 위에 얹으면 글자를 가리고, 인라인 편집 클릭까지 먹는다. */
+  g.style.left = (rect.left - GRD_GRIP_W - 2) + 'px';
+  g.style.top = (rect.top + rect.height / 2 - GRD_GRIP_H / 2) + 'px';
+}
+
+function _startGridLineGripRaf() {
+  function loop() {
+    if (!_grdGripBlock) return;
+    /* 블록이 사라졌거나 선택이 풀렸거나 그 줄이 없어졌으면 정리 — 거터·이미지 핸들과 같은 꼴. */
+    if (!_grdGripBlock.isConnected || !_grdGripBlock.classList.contains('selected')
+        || !_grdGripFindEl(_grdGripBlock, _grdGripAddr)) {
+      hideGridLineGrip();
+      return;
+    }
+    _updateGridLineGripPosition();
+    _grdGripRafId = requestAnimationFrame(loop);
+  }
+  _grdGripRafId = requestAnimationFrame(loop);
+}
+
+function _onGridLineGripMouseDown(e, block, addr) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+  const x0 = e.clientX, y0 = e.clientY;
+  const prevCursor = document.body.style.cursor;
+  const grip = _getOverlay()?.querySelector('.grd-line-grip') || null;
+  let armed = false;
+  /* ★«놓을 자리»를 closure 에 든다 — ⛔onUp 에서 DOM 으로 다시 찾지 않는다(js/CLAUDE.md 의
+     「indicator.nextSibling 을 onUp 에서 저장하지 마라」와 같은 까닭: 그때는 이미 지워져 있다). */
+  let dropRC = null;        // {r,c}
+  let dropInsertAt = null;  // 0..N
+
+  function onMove(ev) {
+    if (!armed) {
+      if (Math.abs(ev.clientX - x0) < GRD_GRIP_DRAG_THRESHOLD_PX
+          && Math.abs(ev.clientY - y0) < GRD_GRIP_DRAG_THRESHOLD_PX) return;
+      armed = true;
+      document.body.style.cursor = 'grabbing';
+      /* ★손잡이를 포인터에 «투명»하게 만든다 — 아니면 elementFromPoint 가 손잡이를 집어
+         「어느 칸 위인가」를 영영 못 읽는다(손잡이는 pointer-events:auto 다). */
+      if (grip) grip.style.pointerEvents = 'none';
+    }
+    window.clearDropIndicators?.();
+    dropRC = null; dropInsertAt = null;
+    const t = document.elementFromPoint(ev.clientX, ev.clientY);
+    const cellEl = t && t.closest ? t.closest('.grd-cell[data-r][data-c]') : null;
+    if (!cellEl || !block.contains(cellEl)) return;
+    /* ★★중첩(duo) «안»은 따로 막지 않는다 — ⛔처음엔 `cellEl.closest('.grd-nested')` 가드를
+       넣었는데 그것은 ★아무것도 안 재는 문이었다. 실측: 중첩의 열은 `.grd-nested-col` 이고
+       중첩 «안»에는 `.grd-cell` 이 아예 없다(grid-block.js 의 중첩 렌더 두 줄). ⇒ 중첩 위에
+       포인터를 두면 closest 가 «바깥 칸»을 집는다.
+       ★그리고 그것이 «맞는 동작»이다 — 중첩 줄(`.grd-nested`)은 바깥 칸의 «한 줄»로서
+       data-r/data-c/data-line 을 가지므로, 아래 _grdGripCellLines 가 그것을 한 줄로 세고
+       위쪽 절반이면 «그 줄 앞», 아래쪽이면 «그 줄 뒤»가 된다. 사용자가 보는 것과 같다.
+       ⛔중첩 «안»으로 줄을 밀어 넣는 것은 여전히 못 한다 — 쓰는 길이 거기로 안 내려간다
+         (T-220 몫). 그건 여기서 «막을» 일이 아니라 애초에 «갈 수 없는» 자리다. */
+    const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
+    if (!Number.isInteger(r) || !Number.isInteger(c)) return;
+    dropRC = { r, c };
+    dropInsertAt = _grdGripInsertAt(cellEl, ev.clientY);
+    const ind = document.createElement('div');
+    ind.className = 'drop-indicator';
+    const kids = _grdGripCellLines(cellEl);
+    if (dropInsertAt >= kids.length) cellEl.appendChild(ind);
+    else cellEl.insertBefore(ind, kids[dropInsertAt]);
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = prevCursor;
+    if (grip) grip.style.pointerEvents = 'auto';
+    window.clearDropIndicators?.();
+    restoreDrag();
+    /* ⛔안 끌었으면(임계 미달) «아무 일도 안 한다» — 손잡이를 그냥 누른 것은 클릭이다. */
+    if (!armed || !dropRC || dropInsertAt === null) return;
+    const sameCell = dropRC.r === addr.r && dropRC.c === addr.c;
+    const to = _grdGripDropTarget(addr.li, dropInsertAt, sameCell);
+    /* ★쓰는 길은 «부른다» — 이력·되돌림·활성줄 옮기기는 그쪽이 들고 있다(여기서 pushHistory 를
+       부르지 않는다. updateGridBlock 이 쓰기 직전에 스스로 1회 쌓는다). */
+    if (sameCell) window.grdMoveLineWithin?.(block, { r: addr.r, c: addr.c }, addr.li, to);
+    else window.grdMoveLineToCell?.(block, { r: addr.r, c: addr.c }, addr.li, { r: dropRC.r, c: dropRC.c }, to);
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showGridLineGrip = showGridLineGrip;
+window.hideGridLineGrip = hideGridLineGrip;
+
 // fix(frame-p0#5): 캔버스 클릭 핸들러 6곳(block-drag.js asset·icon-circle·canvas·vector·
 // iconify·mockup)이 저마다 손으로 부르던 핸들 호출을 타입→핸들 맵 하나로 모은다.
 // 진입점(레이어패널 등)이 늘어도 여기 한 곳만 맞으면 된다 — SSOT.
@@ -3136,6 +3362,8 @@ export {
   hideGridGutters,
   showGridImageResizeHandle,
   hideGridImageResizeHandle,
+  showGridLineGrip,
+  hideGridLineGrip,
   showTextOverlayResizeHandles,
   hideTextOverlayResizeHandles,
 
