@@ -1819,7 +1819,11 @@ function _SS() {
   return _ssMod || _SS_FALLBACK;
 }
 // 모듈이 없으면 «스냅샷을 안 만들고 폴백 후보도 안 준다» — 저장·로드 자체는 계속 되게(현행과 동일한 안전 성향).
-const _SS_FALLBACK = { writeSnapshot: () => ({ ok: false, skipped: 'module_missing' }), pruneVersions: () => ({ kept: 0, deleted: [] }), loadFallbackCandidates: () => [] };
+/* ⛔`isProjectShaped` 를 여기 «같이» 둔다 — 없으면 아래 projects:load 의 정상경로 가드가
+     모듈 부재 시 `_SS().isProjectShaped is not a function` 으로 죽는다(지금까지는 폴백 루프에서만
+     불렸고, 그 루프는 loadFallbackCandidates 가 [] 라 돌지 않아서 드러나지 않았다).
+   ★모르면 «통과»다 — 판정 모듈이 없을 때 로드를 막으면 프로젝트가 안 열린다(덜 하는 쪽이 안전). */
+const _SS_FALLBACK = { writeSnapshot: () => ({ ok: false, skipped: 'module_missing' }), pruneVersions: () => ({ kept: 0, deleted: [] }), loadFallbackCandidates: () => [], isProjectShaped: () => true };
 
 function _resolveProjectJsonPath(id) {
   id = _safeSeg(id); // GAP-009
@@ -2249,7 +2253,20 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   const filePath = _resolveProjectJsonPath(id);
   // 1) 정상 경로: proj.json
   if (filePath) {
-    try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); }
+    try {
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      /* ★★[T-232] 「★[A2 치명] «파싱되면 프로젝트»가 아니다」 — 그 규율이 아래 폴백 루프에만
+         걸려 있었다. 그 주석 자신이 「폴백 루프«만» 안 걸러서」라고 적고 폴백만 고쳤다.
+         ⇒ 정상 경로도 같은 자로 잰다.
+         ★실물이 증명한다 — `undefined.json`(2026-07-14) 의 내용이
+           `{ ...<문자열 id>, ...<본문>, id: 'undefined', … }` 였다. 즉 내용이 «문자열»인 파일을
+           이 자리가 그대로 돌려줬고, 부르는 쪽(js/io/save-load.js · js/commit-system.js 의
+           `{ ...existingWithoutMeta, … }`)이 그 문자열을 «0,1,2…» 로 펼쳐 저장했다.
+         ⛔거절이 아니라 «폴백으로 내려보낸다» — 백업·히스토리에 성한 판이 있으면 그것이 답이다
+           (손상 JSON 일 때 하는 것과 «같은 처분»으로 둔다. 새 뜻을 만들지 않는다). */
+      if (_SS().isProjectShaped(parsed)) return parsed;
+      console.warn(`[projects:load] proj.json 이 «프로젝트 형태»가 아니다(${id}, ${typeof parsed}) — 백업 폴백 시도`);
+    }
     catch (e) { console.warn(`[projects:load] proj.json 손상(${id}): ${e.message} — 백업 폴백 시도`); }
   }
   // 2) GAP-004 폴백 체인: proj_backup.json → proj_history 최신→오래된 순.
