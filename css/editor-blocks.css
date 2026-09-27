@@ -1475,6 +1475,17 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 #canvas .grid-block .grd-h2:empty::before      { content: '소제목을 입력하세요'; }
 #canvas .grid-block .grd-h3:empty::before      { content: '소항목을 입력하세요'; }
 #canvas .grid-block .grd-body:empty::before    { content: '본문을 입력하세요'; }
+
+/* ★★중첩(duo) «안»은 칸이 반이라 긴 안내문이 3줄로 쪼개져 «깨져 보인다» — 현빈 0927 실기 지적.
+   ★실측(그 블럭 grd_ts0he_sl8p0hv): 칸 149px · 중첩 gap 24px ⇒ 각 열 **67px** 인데 글자가 22px 이라
+     ★3글자면 꽉 찬다. 거기에 「본문을 입력하세요」(9자)가 들어가 세 줄로 무너졌다.
+   ⇒ 중첩 안에서만 «짧은 말»로 덮는다. ⛔바깥 문구는 그대로 둔다 — 넓은 칸에선 긴 쪽이 친절하다.
+   ⚠️이것은 «안내문»이고 내용이 아니다 — 현빈이 본 것은 «깨진 글자»가 아니라 안 맞는 안내문이었다.
+   ★특이도: `.grd-nested` 한 단이 더 있어 (1,0,3) > 위 (1,0,2) 라 이긴다. */
+#canvas .grid-block .grd-nested .grd-h1:empty::before   { content: '제목'; }
+#canvas .grid-block .grd-nested .grd-h2:empty::before   { content: '소제목'; }
+#canvas .grid-block .grd-nested .grd-h3:empty::before   { content: '소항목'; }
+#canvas .grid-block .grd-nested .grd-body:empty::before { content: '내용'; }
 #canvas .grid-block .grd-caption:empty::before { content: '캡션을 입력하세요'; }
 #canvas .grid-block .grd-label:empty::before   { content: 'Label'; }
 

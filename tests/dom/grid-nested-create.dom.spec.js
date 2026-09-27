@@ -242,4 +242,37 @@ test.describe('T-221 — 칸 «안»을 열로 나누는 줄을 «사람 손»�
     expect(r.nestedEls, '★cols 를 뺐는데도 화면에 중첩이 그려졌다 — 렌더러 가드가 안 물거나 변이가 빗나갔다').toBe(0);
     expect(errs).toEqual([]);
   });
+
+  /* ══ N6 — ★중첩 «안»의 빈 줄 안내문은 «짧다» (현빈 0927 실기 지적) ═══════
+   * ★무엇이 있었나 — 현빈이 「나란히 두 칸으로 두기」를 눌러 보고 「깨져 보인다」 하셨다.
+   *   실측(그 블럭 grd_ts0he_sl8p0hv): 칸 149px · 중첩 gap 24px ⇒ 각 열 **67px** 인데 글자가
+   *   22px 이라 ★3글자면 꽉 찬다. 거기에 「본문을 입력하세요」(9자)가 들어가 세 줄로 무너졌다.
+   * ★★그리고 그 칸들은 «비어 있었다» — 깨진 것은 «내용»이 아니라 CSS `:empty::before` 안내문이다.
+   * ⇒ 중첩 안에서만 짧은 말로 덮었다(css/editor-blocks.css). ⛔바깥 문구는 그대로다 — 넓은
+   *   칸에선 긴 쪽이 친절하다. 그 «가름»을 여기서 잠근다(한쪽만 보면 둘이 같아져도 모른다). */
+  test('N6 ★중첩 «안» 안내문은 짧고, «바깥»은 길다 — 둘을 갈라 잰다', async ({ page }) => {
+    const errs = await boot(page);
+    await mount(page, ADDR);
+    const r = await page.evaluate(() => {
+      const b = window.__block;
+      /* 중첩 하나 ＋ 바깥 빈 줄 하나를 «모델로» 만든다 — 이 검사는 «CSS 가름»만 본다
+         (짓는 길은 N1~N5 가 잰다). ⛔하네스 브리지 이름은 `__upd` 다(`__update` 아니다). */
+      window.__upd(b.id, { patchCell: { r: 0, c: 0, lines: [
+        { type: 'body', text: '' },
+        { type: 'duo', gap: 8, cols: [
+          { width: 1, lines: [{ type: 'body', text: '' }] },
+          { width: 1, lines: [{ type: 'body', text: '' }] },
+        ] },
+      ] } });
+      const inner = b.querySelector('.grd-nested .grd-body');
+      const outer = [...b.querySelectorAll('.grd-body')].find(e => !e.closest('.grd-nested'));
+      const txt = (el) => el ? getComputedStyle(el, '::before').content : '(요소없음)';
+      return { inner: txt(inner), outer: txt(outer), innerEmpty: inner ? inner.textContent === '' : null };
+    });
+    expect(r.innerEmpty, '★중첩 안 줄이 비어 있지 않다 — :empty::before 가 애초에 안 걸린다(이 검사는 «안 재고» 있다)').toBe(true);
+    expect(r.inner, '★★중첩 «안» 안내문이 짧지 않다 — 67px 칸에서 세 줄로 무너진다').toBe('"내용"');
+    expect(r.outer, '★«바깥» 안내문까지 짧아졌다 — 넓은 칸에서는 긴 쪽이 친절하다(가름이 무너졌다)')
+      .toBe('"본문을 입력하세요"');
+    expect(errs).toEqual([]);
+  });
 });

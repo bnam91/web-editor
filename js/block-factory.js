@@ -5112,7 +5112,12 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     if (!block || !addr) return;
     const res = window.grdAddLine?.(block, { r: addr.r, c: addr.c }, addr.li ?? null, {
       type: GRID_NESTED_LINE_TYPE,   // ★상수를 «들여와» 쓴다 — 소스에 그 토큰 글자가 안 나타난다(S1)
-      gap: 24,
+      /* ~~gap: 24~~ ⇒ ★8 (현빈 0927 「깨져 보인다」). 24 는 내가 T-221 에서 «바깥 기본값을 보고»
+         박은 수인데, 중첩은 칸을 «반»으로 나누므로 같은 24 가 훨씬 크게 먹는다.
+         ★실측: 칸 149px 에서 gap 24 ⇒ 각 열 67px · gap 8 ⇒ 각 열 70.5px.
+         ⚠️정직하게 — 이 고침만으로는 «거의 안 낫는다»(3.5px). 진짜 고침은 css/editor-blocks.css 의
+           «중첩 안 짧은 안내문»이다. 여기서는 공간을 돌려줄 뿐이다. */
+      gap: 8,
       cols: [{ width: 1, lines: [{ type: 'body', text: '' }] },
              { width: 1, lines: [{ type: 'body', text: '' }] }],
     });
