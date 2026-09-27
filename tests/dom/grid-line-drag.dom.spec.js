@@ -367,3 +367,93 @@ test('P1 ★★양성대조 — 보정(insertAt-1)을 떼면 같은 칸에서 «
     .toEqual(['B', 'C', 'A', 'DUO']);
   expect(errs).toEqual([]);
 });
+
+/* ═══ D8·P2 — ★표시선 자신이 «눈금»이 되어서는 안 된다 ════════════════════
+ * ★어디서 왔나 — 작업목록매니저가 `tests/unit/overlay-flow-drop-index.test.mjs:164` 의 `T13`
+ *   「드래그가 잠깐 심는 껍데기(.drop-indicator)는 기준이 아니다」를 알려 줬다. 그것은 섹션
+ *   «흐름»에서 블럭 자리를 세는 `flowDropIndex` 의 계약이고, ★T-228 은 같은 껍데기를 «칸 안»에
+ *   심으므로 같은 병에 걸릴 자리가 있다.
+ * ★실측 — 내 쪽은 안 걸린다. `_grdGripCellLines` 가 `:scope > [data-line]` 만 세고 표시선엔
+ *   `data-line` 이 없다(＋매 move 에서 clearDropIndicators 를 «먼저» 부른다 — 이중 방어).
+ * ⇒ 그 «안 걸림»을 여기서 못박는다. 셀렉터가 `*` 로 넓어지는 순간 표시선이 눈금이 되어
+ *   자리가 한 칸씩 밀린다 — P2 가 그것을 보여 준다.
+ * ⛔「지금 안 걸린다」로 넘기면 안 된다 — 이 저장소에서 같은 병이 «흐름» 쪽에 실재했다. */
+
+test('D8 ★표시선이 떠 있어도 놓을 자리가 안 흔들린다 — 표시선은 «눈금»이 아니다', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page);
+  const g = await selectLineAndGrip(page, { r: 0, c: 0, li: 0 });
+  const c = await lineRect(page, 0, 0, 2);
+
+  await page.mouse.move(g.x, g.y);
+  await page.mouse.down();
+  await page.mouse.move(g.x + 8, g.y);
+  await page.mouse.move(c.x, c.bottom - 2);     // ①표시선이 생긴다
+  expect(await indicatorCount(page), '★첫 움직임에 표시선이 안 떴다 — 이 검사는 «안 재고» 있다').toBe(1);
+  await page.mouse.move(c.x, c.bottom - 2);     // ②표시선이 떠 있는 채로 «같은 자리»를 다시 잰다
+  expect(await indicatorCount(page), '★표시선이 쌓였다 — 매 움직임에 지우지 않는다').toBe(1);
+  await page.mouse.up();
+
+  expect((await cellTexts(page)).c0, '★★표시선이 눈금으로 세어져 자리가 밀렸다').toEqual(['B', 'C', 'A', 'DUO']);
+  expect(errs).toEqual([]);
+});
+
+/* ★★0927 — P2 의 첫 판은 셀렉터만 넓혀 재려 했고 «안 재고» 있었다(결과가 같았다).
+ *   까닭을 그 빨강이 가르쳐 줬다 — ★진짜 «첫» 방어선은 셀렉터가 아니라 «순서»다:
+ *   매 움직임의 머리에서 clearDropIndicators 를 «먼저» 부르므로, 자리를 잴 때 표시선은
+ *   애초에 DOM 에 없다. `[data-line]` 셀렉터는 «둘째 겹»이다.
+ * ⇒ T-227 의 P2/P2b 와 같은 꼴로 «갈라» 잰다 — 둘 다 떼면 밀리고, 둘째 겹만 남기면 안 밀린다.
+ * ⛔한 겹만 떼서 「안 밀린다」를 보고 「그 겹은 필요 없다」로 읽지 마라 — 옆 겹이 가린 것이다. */
+
+test('P2 ★★양성대조 — «순서»와 «셀렉터»를 둘 다 떼면 표시선이 눈금이 되어 자리가 밀린다', async ({ page }) => {
+  const errs = await boot(page, [
+    { path: '/js/overlay-handles.js',
+      from: "    window.clearDropIndicators?.();\n    dropRC = null; dropInsertAt = null;",
+      to: "    dropRC = null; dropInsertAt = null;" },
+    { path: '/js/overlay-handles.js',
+      from: "return [...cellEl.querySelectorAll(':scope > [data-line]')];",
+      to: "return [...cellEl.querySelectorAll(':scope > *')];" },
+  ]);
+  await mount(page);
+  const g = await selectLineAndGrip(page, { r: 0, c: 0, li: 0 });
+  const c = await lineRect(page, 0, 0, 2);
+
+  await page.mouse.move(g.x, g.y);
+  await page.mouse.down();
+  await page.mouse.move(g.x + 8, g.y);
+  await page.mouse.move(c.x, c.bottom - 2);
+  await page.mouse.move(c.x, c.bottom - 2);     // ★두 번째 잴 때 «남은» 표시선이 세어진다
+  await page.mouse.up();
+
+  /* ★바른 판은 ['B','C','A','DUO'] 였다(D1·D8). ⛔무엇으로 달라지는가는 표시선이 끼인 자리에
+     달렸으므로 값을 못박지 않고 «달라짐»만 잰다(값을 박으면 구현 세부에 묶인다). */
+  expect((await cellTexts(page)).c0, '★두 겹을 다 떼었는데 결과가 같다 — 이 양성대조는 «안 재고» 있다')
+    .not.toEqual(['B', 'C', 'A', 'DUO']);
+  expect(errs).toEqual([]);
+});
+
+test('P2b ★«셀렉터»만 남기면 자리가 안 밀린다 — 둘째 겹이 혼자서도 막는다', async ({ page }) => {
+  const errs = await boot(page, {
+    path: '/js/overlay-handles.js',
+    from: "    window.clearDropIndicators?.();\n    dropRC = null; dropInsertAt = null;",
+    to: "    dropRC = null; dropInsertAt = null;",
+  });
+  await mount(page);
+  const g = await selectLineAndGrip(page, { r: 0, c: 0, li: 0 });
+  const c = await lineRect(page, 0, 0, 2);
+
+  await page.mouse.move(g.x, g.y);
+  await page.mouse.down();
+  await page.mouse.move(g.x + 8, g.y);
+  await page.mouse.move(c.x, c.bottom - 2);
+  await page.mouse.move(c.x, c.bottom - 2);
+  const piled = await indicatorCount(page);
+  await page.mouse.up();
+
+  expect(piled, '★순서를 떼었는데 표시선이 «안 쌓였다» — 이 대조는 그 겹을 안 떼고 있다').toBeGreaterThan(1);
+  expect((await cellTexts(page)).c0, '★★셀렉터가 혼자서는 못 막았다 — 그러면 둘째 겹이 없는 것과 같다')
+    .toEqual(['B', 'C', 'A', 'DUO']);
+  /* ★그리고 놓을 때는 결국 다 지워진다 — onUp 의 정리가 살아 있다는 뜻이다. */
+  expect(await indicatorCount(page), '★놓은 뒤에도 표시선이 남았다').toBe(0);
+  expect(errs).toEqual([]);
+});

@@ -1104,7 +1104,7 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
        ⛔이 파일에 stripComments 를 새로 만들지 마라(그 부품 머리말이 「11벌 중 9벌이 부서져
          있었다」를 적어 뒀다).
      ⛔여기서도 지운 것은 «하나도» 없다.
-     ⛔DOM 축(tests/dom/grid-line-drag.dom.spec.js 9개)은 여기 «안» 센다. */
+     ⛔DOM 축(tests/dom/grid-line-drag.dom.spec.js 9 → 12개)은 여기 «안» 센다. */
 const GRID_BASELINE_TESTS = 363;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
