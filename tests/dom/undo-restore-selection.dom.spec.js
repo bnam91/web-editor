@@ -20,7 +20,12 @@ const path = require('path');
 
 const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://undosel.dom.test';
-const EDITOR_JS = fs.readFileSync(path.join(REPO, 'js/editor.js'), 'utf8');
+/* ⛔CRLF — readFileSync 로 직접 읽으면 윈도우 체크아웃(core.autocrlf)에서 아래 정규식의
+   `;\n` 이 «어디에도 안 맞아» SEL_SRC 가 null 이 되고 이 파일이 통째로 안 돈다
+   (0.9.4 실측: 윈도우 CI 에서 「CANVAS_SEL_BLOCKS 를 못 찾음」으로 DOM 검사 전체가 죽었다).
+   ⇒ 소스를 «문자열로 잘라 재는» 검사의 단 하나의 문 = tests/unit/_srcread.js */
+const { readSrc } = require('../unit/_srcread.js');
+const EDITOR_JS = readSrc(path.join(REPO, 'js/editor.js'));
 // 실앱의 «캔버스 선택 블럭» 셀렉터 원문 — 하네스가 자기 복사본으로 거짓 그린을 내지 않게
 const SEL_SRC = (EDITOR_JS.match(/const CANVAS_SEL_BLOCKS\s*=\s*([\s\S]*?);\n/) || [])[1];
 if (!SEL_SRC || !/gradient-block\.selected/.test(SEL_SRC)) throw new Error('editor.js CANVAS_SEL_BLOCKS 를 못 찾음');

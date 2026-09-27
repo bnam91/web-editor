@@ -42,6 +42,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # ★전체 히스토리 — 골든 검사가 «기준판»을 git 에서 뜬다
+          #   (tests/unit/grid-gap-clamp.test.js: git show 55f3a1a:js/blocks/grid-block.js).
+          #   기본값 depth:1 이면 그 커밋이 없어 골든 11건이 전부 빨강이 된다(0.9.4 실측).
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v7
