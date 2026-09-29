@@ -47,6 +47,15 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
     window._findSectionAt = () => null;
   </script>
   <script type="module">
+    /* ★[2026-09-30] drag-utils.js 를 «먼저» 먹인다 — 0929 통합(969f0340) 이후 prop-page.js 의
+       assetFullBleedWidth 가 뺄 padX 를 공용 함수(window.effectiveSectionPadX, js/drag-utils.js)
+       에서 받는다. 실제 앱은 그 모듈을 늘 싣지만 이 하네스는 안 실어서, 함수가 undefined 인 채
+       널 병합(?? 0)으로 떨어져 폭이 «조용히 빈 문자열»이 됐다(실측: calc(100% + 144px) → '').
+       ⛔이 주석에 백틱을 쓰지 마라 — 이 HTML 은 템플릿 리터럴 «안»이라, 백틱 하나가 문자열을
+         조용히 끊는다. 증상은 구문 오류가 아니라 「하네스가 안 뜬다」(window.__ready 영영 false).
+       ⛔검사를 고쳐 «맞춘» 것이 아니다 — 앱이 싣는 것을 하네스도 싣게 한 것이다.
+       ⚠️이 부류의 실패는 화면에 «안 보인다»(0·빈 문자열로 샌다) — 그래서 여기 적어 둔다. */
+    import '/js/drag-utils.js';
     import '/js/props/prop-page.js';
     import { enterFloat, exitFloat } from '/js/overlay-float.js';
     window.__OF = { enterFloat, exitFloat };
