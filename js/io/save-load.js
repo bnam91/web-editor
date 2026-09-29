@@ -348,21 +348,45 @@ async function setProjectName(name) {
      skipThumbnail 이라, goHome 이 «유일하게» 찍는 자리였다. 끄면 목록 그림이 영영 안 는다.
      그래서 끄는 대신 이 스케줄러가 그 책임을 넘겨받는다.
    ════════════════════════════════════════════════════════════════ */
-const THUMB_IDLE_MS = 2000;
+/* ★[0929 실측 정정] 초판은 「편집 멈추고 2초」였다 — 그게 «새 렉»을 만들었다.
+     현빈 보고 「9374 계속 좀 느린데」. CPU 프로파일로 갈랐다(같은 앱·같은 프로젝트·10초 관측):
+       편집 없음                    «일한» 432ms
+       편집 ＋ html2canvas 있음      «일한» 11,968ms   ← 상위가 getPropertyValue/setProperty/adoptNode
+       편집 ＋ html2canvas 없음      «일한» 211ms
+     ⇒ 홈 버튼에서 «없앤» 비용이 아니라 «옮긴» 비용이었고, 옮긴 자리에서 훨씬 자주 돌았다.
+       홈은 나갈 때 한 번이지만 편집은 잠깐 멈출 때마다다.
+   ★그래서 «드물게» 만든다 — 세 가지로 막는다:
+     ⑴ 유휴 문턱을 8초로(편집 흐름을 덜 끊는다)
+     ⑵ 마지막 캡처로부터 최소 3분(가장 큰 몫이다)
+     ⑶ 편집이 «있었을 때»만(_thumbDirty)
+   ⛔최소 간격에 걸리면 «버리지» 않고 남은 시간 뒤에 다시 본다 — 버리면 편집을 계속하는 동안
+     그림이 영영 안 갱신된다(이 기능이 존재하는 까닭이 사라진다). */
+const THUMB_IDLE_MS = 8000;
+const THUMB_MIN_GAP_MS = 180000;
 let _thumbTimer = null;
+let _thumbDirty = false;
+let _lastThumbAt = 0;
 
 /** 편집이 멈추면 썸네일을 한 장 찍어 _meta.json 에 넣는다. 편집이 이어지면 계속 미뤄진다. */
 function scheduleIdleThumbnail() {
   if (!IS_ELECTRON) return;
+  _thumbDirty = true;
   clearTimeout(_thumbTimer);
-  _thumbTimer = setTimeout(() => {
+  const fire = () => {
     _thumbTimer = null;
-    /* ★requestIdleCallback 으로 시작한다 — 이 캡처는 2~7초 CPU 를 먹어서, 사용자가 다시
+    if (!_thumbDirty) return;                       // ⑶ 편집이 없었으면 찍을 것이 없다
+    const since = Date.now() - _lastThumbAt;
+    if (since < THUMB_MIN_GAP_MS) {                 // ⑵ 아직 이르다 — 버리지 않고 미룬다
+      _thumbTimer = setTimeout(fire, THUMB_MIN_GAP_MS - since);
+      return;
+    }
+    /* ★requestIdleCallback 으로 시작한다 — 이 캡처는 수 초 CPU 를 먹어서, 사용자가 다시
        입력을 시작한 순간에 걸치면 그대로 버벅임이 된다. 유휴를 못 잡으면 3초 뒤 강행. */
     const go = () => { _runIdleThumbnail().catch(() => {}); };
     if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 3000 });
     else go();
-  }, THUMB_IDLE_MS);
+  };
+  _thumbTimer = setTimeout(fire, THUMB_IDLE_MS);     // ⑴
 }
 
 async function _runIdleThumbnail() {
@@ -376,6 +400,9 @@ async function _runIdleThumbnail() {
   await window.electronAPI.saveProjectMeta(targetId, {
     ...(existingMeta || {}), thumbnail, updatedAt: new Date().toISOString(),
   });
+  /* ★찍은 «뒤»에 기록한다 — 앞에 두면 실패했는데도 3분을 쉬어 그림이 영영 안 는다. */
+  _lastThumbAt = Date.now();
+  _thumbDirty = false;
 }
 window.scheduleIdleThumbnail = scheduleIdleThumbnail;
 
