@@ -1982,6 +1982,119 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     return;
   }
 
+  /* ── 오버레이(플로팅) 묶기: 겹침을 «그대로» 지킨다 ───────────────────────
+   * ★현빈 2026-09-30 — 「원형 쉐이프블럭 오버레이 + 그 위에 텍스트 오버레이를 얹어서
+   *   그룹으로 묶고 싶다」. 이 갈래가 없으면 «아래 flow 갈래»로 떨어지는데, 그쪽은
+   *   `stackY += rowH` 로 블록을 «세로로 쌓는다» — 사용자가 일부러 만든 겹침이
+   *   ⌘G 한 번에 위아래로 풀어진다(그 갈래의 설계 의도가 원래 그것이다).
+   * ★자유배치(allInSameFreeFrame) 갈래와 «같은 산식»이다 — 다른 것은 부모가
+   *   자유배치 프레임이 아니라 «섹션 자신»이라는 점 하나뿐이다(오버레이는
+   *   js/overlay-float.js enterFloat 가 `sec.appendChild` 로 섹션 직속에 둔다).
+   * ★그래서 만든 그룹 «자신»도 오버레이가 된다 — 안 그러면 섹션 직속의 absolute 인데
+   *   표식이 없어, 드래그(overlayBlock 판정)도 내보내기(export-figma-json 의 같은 판정)도
+   *   이 그룹을 «흐름 블록»으로 오인한다.
+   * ⛔여기서 window.OverlayFloat 을 부르지 않는다 — DOM 하네스(tests/dom/ul-groupdup)는 이
+   *   함수 «하나»만 잘라 넣어 돌리므로, 모듈 심볼을 끌어오면 그 자리에서 죽는다.
+   *   대신 «표식을 다는 일»만 여기서 하고, 동작(드래그)은 window.* 로 물어본다. */
+  const _floatWrapperOf = (b) => {
+    const w = b.closest('.frame-block[data-text-frame]') || shapeFrameOf(b) || b;
+    return w?.dataset?.overlayBlock === 'true' ? w : null;
+  };
+  const floatEls = [];
+  let allFloatInSec = true;
+  selected.forEach(b => {
+    const w = _floatWrapperOf(b);
+    if (!w || w.parentElement !== sec) { allFloatInSec = false; return; }
+    if (!floatEls.includes(w)) floatEls.push(w);
+  });
+
+  if (allFloatInSec && floatEls.length > 0) {
+    /* ★자리는 dataset.offsetX/offsetY 가 정본이다(overlay-float.js _applyOverlayPos 규약).
+       style 은 그걸 되읽어 쓴 것이라 «둘 다» 비어 있을 때만 0 으로 떨어진다.
+       ⛔`parseInt(a) || parseInt(b)` 금지 — 0 이 유효값이라 왼쪽 끝 블록이 조용히 오른쪽 값을 먹는다. */
+    const _coord = (el, dsKey, styleKey) => {
+      const d = parseInt(el.dataset?.[dsKey], 10);
+      if (Number.isFinite(d)) return d;
+      const v = parseInt(el.style?.[styleKey], 10);
+      return Number.isFinite(v) ? v : 0;
+    };
+    const lefts = floatEls.map(w => _coord(w, 'offsetX', 'left'));
+    const tops  = floatEls.map(w => _coord(w, 'offsetY', 'top'));
+    const minX = Math.min(...lefts);
+    const minY = Math.min(...tops);
+    const maxX = Math.max(...floatEls.map((w, i) => lefts[i] + (w.offsetWidth  || 0)));
+    const maxY = Math.max(...floatEls.map((w, i) => tops[i]  + (w.offsetHeight || 0)));
+    const frameW = Math.max(maxX - minX, 60);
+    const frameH = Math.max(maxY - minY, 60);
+
+    const ss = makeFrameBlock();
+    ss.setAttribute('data-free-layout', 'true');
+    ss.style.cssText =
+      `position:absolute;left:${minX}px;top:${minY}px;` +
+      `width:${frameW}px;height:${frameH}px;` +
+      `background:transparent;padding:0;`;
+    ss.dataset.bg = 'transparent';
+    // ★makeFrameBlock 기본값(860×520)이 dataset 에 남으면 재로드 때 그 값으로 부푼다(위 갈래와 같은 까닭)
+    ss.dataset.width = String(frameW);
+    ss.dataset.height = String(frameH);
+    ss.dataset.offsetX = String(minX);
+    ss.dataset.offsetY = String(minY);
+    if (asGroup) { ss.dataset.group = 'true'; ss.dataset.name = _nextGroupName(); }
+    /* ★그룹 자신을 오버레이로 표식한다 — enterFloat 이 다는 것과 «같은 네 칸».
+       복귀 자리(overlayReturnParent)는 섹션 본문이다: 이 그룹은 흐름에서 «빠져나온» 적이
+       없어 되돌아갈 원래 자리가 없으므로, 오버레이를 풀면 본문 맨 앞으로 간다
+       (exitFloat 의 fallback 과 같은 자리 — 그 쪽 규약을 그대로 쓴다). */
+    const _inner = sec.querySelector(':scope > .section-inner');
+    if (_inner && !_inner.id) {
+      _inner.id = (typeof window.genId === 'function')
+        ? window.genId('anchor')
+        : ('anchor_' + Math.random().toString(36).slice(2, 9));
+    }
+    ss.dataset.overlayBlock = 'true';
+    ss.dataset.overlayReturnParent = _inner ? _inner.id : '';
+    ss.dataset.overlayReturnAfter = '';
+    ss.dataset.selVariant = 'sticker';
+    sec.appendChild(ss);
+
+    /* 자식은 «그룹 기준»의 상대좌표로 바꾸고, 오버레이 표식을 «내려놓는다».
+       ⛔표식을 남기면 드래그가 섹션 좌표로 클램프해(overlay-float.js bindFloatMoveDrag)
+         그룹 안에서 한 번만 끌어도 좌표가 튄다 — 표식과 실제 부모가 어긋나기 때문이다. */
+    floatEls.forEach((w, i) => {
+      const relLeft = lefts[i] - minX;
+      const relTop  = tops[i]  - minY;
+      w.style.left = relLeft + 'px';
+      w.style.top  = relTop  + 'px';
+      w.dataset.offsetX = String(relLeft);
+      w.dataset.offsetY = String(relTop);
+      delete w.dataset.overlayBlock;
+      delete w.dataset.overlayReturnParent;
+      delete w.dataset.overlayReturnAfter;
+      // 보라 아웃라인 표식 — exitFloat 의 _selHostsOf 와 «같은 두 자리»(래퍼 + 직계 도형)
+      delete w.dataset.selVariant;
+      const _innerShape = w.querySelector?.(':scope > .shape-block');
+      if (_innerShape) delete _innerShape.dataset.selVariant;
+      w.classList.remove('selected');
+      ss.appendChild(w);
+    });
+
+    window.bindFrameDropZone?.(ss);
+    window._bindOverlayMoveDrag?.(ss);   // 그룹째 끌 수 있게 — 섹션 직속 오버레이의 이동 경로
+
+    window.deselectAll?.();
+    sec.classList.add('selected');
+    window.syncLayerActive?.(sec);
+    ss.classList.add('selected');
+    window._activeFrame = ss;
+    window.showFrameProperties?.(ss);
+    window.showFrameHandles?.(ss);
+    window.buildLayerPanel();
+    window.scheduleAutoSave?.();
+    if (window.showToast) {
+      window.showToast(`${floatEls.length}개를 ${asGroup ? '그룹으로' : '프레임으로'} 묶었어요`);
+    }
+    return;
+  }
+
   // ── 섹션 레벨(flow) 블록 묶기: 기존 stack 방식 ───────────────────────────
   // ★단위 해석 — 「껍데기」와 「알맹이」를 «여기서» 가른다.
   //   예전엔 `… || b` 폴백으로 «블록 자신»이 단위가 될 수 있었는데, 아래에서 그 단위를 껍데기로 보고

@@ -476,9 +476,15 @@ test('D14 ⛔전수 래칫 — editor.js 의 `.remove()` 문 수 + 섹션 제거
      문이 하나 늘었다 — `((row && …) ? row : f).remove()`. 섹션을 지우는 문이 «아니다»(대상은
      .frame-block 또는 그 줄) ⇒ 링크 처분을 지날 일이 없고, 아래 SECT 의 얼굴·순서와
      D9·D10·D11 의 기대 수(3)는 그대로다. */
+  /* 22 → 23 (2026-09-30, 오버레이 레이어 순서): moveSelectedBlocks 의 «오버레이» 갈래가
+     삽입 자리를 잡는 «주석 마커»를 지우는 문 하나 — `marker.remove()`. 바로 아래 흐름
+     갈래가 2026-06 부터 쓰던 것과 «같은 관용구»이고(그쪽도 같은 이름의 마커를 쓴다),
+     지우는 대상은 document.createComment 로 방금 만든 «주석 노드»다.
+     ⇒ 섹션은커녕 요소도 아니다 — 링크 처분과 무관하고, SECT 의 얼굴·순서와
+       D9·D10·D11 의 기대 수(3)도 그대로다. */
   const ALL = [...SRC.editor.matchAll(/\.remove\(\)/g)];
-  assert.strictEqual(ALL.length, 22,
-    `★editor.js 의 .remove() 가 ${ALL.length}개다(박아 둔 값 22) — 삭제 문이 늘거나 줄었다. `
+  assert.strictEqual(ALL.length, 23,
+    `★editor.js 의 .remove() 가 ${ALL.length}개다(박아 둔 값 23) — 삭제 문이 늘거나 줄었다. `
     + '새 문이 «섹션»을 지운다면 링크 처분을 먼저 지나게 하고, D9·D10·D11 의 기대 수(3)도 같이 갱신해라.');
   const SECT = [...SRC.editor.matchAll(/(selSection\.remove\(\)|sec\.remove\(\)|toDelete\.forEach\(s => s\.remove\(\)\))/g)]
     .map((m) => m[1]);

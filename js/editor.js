@@ -3706,6 +3706,65 @@ function deselectAll() {
    이동 단위: section-inner 또는 frame-block 직속 .row / .gap-block
 ═══════════════════════════════════ */
 function moveSelectedBlocks(direction) {
+  /* ★오버레이(플로팅) «레이어 순서» — 현빈 2026-09-30 「겹친 요소 간 레이어 순서 변경(⌘[ , ⌘])」.
+   * ══ 왜 여기가 «맨 앞»인가 ════════════════════════════════════════════════
+   *   오버레이 블록은 흐름에서 빠져 섹션 «직속»으로 간다(js/overlay-float.js enterFloat 의
+   *   sec.appendChild). 그래서 아래 두 갈래가 둘 다 조용히 아무 일도 안 했다:
+   *     · 프레임 갈래  — closest('.section-inner') 가 null 이라 첫 줄에서 return
+   *     · 블록 갈래    — getUnit 이 closest('.row') 라 unitSet 이 비고 return
+   *   ⛔「먹통」이 아니라 «해당 없음»이었다는 뜻이다 — 그 둘을 고치는 게 아니라 갈래를 «더한다».
+   * ══ 어느 방향이 위인가 ═══════════════════════════════════════════════════
+   *   절대배치 형제는 z-index 없이 «DOM 순서»로 겹친다(뒤에 있는 것이 위에 그려진다 —
+   *   enterFloat 주석 「DOM 뒤 = 맨 위」). 흐름 갈래의 방향 규약을 그대로 쓴다:
+   *     'up'   = 형제 중 «앞»으로  ⇒ 뒤로 보내기(⌘[)
+   *     'down' = 형제 중 «뒤»로    ⇒ 앞으로 가져오기(⌘])
+   *   ⇒ 피그마의 ⌘[ / ⌘] 와 같은 손맛이고, 레이어 패널의 위아래와도 어긋나지 않는다.
+   * ★대상 해석은 «조상으로 거슬러» 한다 — 선택되는 것은 알맹이(.text-block · .shape-block)
+   *   인데 떠 있는 것은 그 래퍼다. 표식(data-overlay-block)을 가진 조상 하나로 모은다.
+   *   ⛔타입 명부를 여기서 다시 적지 않는다 — 표식은 타입과 무관하게 «떠 있는 것»에만 붙는다. */
+  const _floatUnits = [];
+  document.querySelectorAll('.selected').forEach(el => {
+    const f = el.closest?.('[data-overlay-block="true"]');
+    if (f && !_floatUnits.includes(f)) _floatUnits.push(f);
+  });
+  if (_floatUnits.length > 0) {
+    const fContainer = _floatUnits[0].parentElement;
+    // 섞여 있으면(다른 섹션 · 그룹 안팎) 아무것도 하지 않는다 — 흐름 갈래와 같은 규칙
+    if (!fContainer || !_floatUnits.every(u => u.parentElement === fContainer)) return;
+    const fSibs = [...fContainer.children].filter(c => c.dataset?.overlayBlock === 'true');
+    if (fSibs.length < 2) return;                    // 혼자면 겹칠 상대가 없다
+    _floatUnits.sort((a, b) => fSibs.indexOf(a) - fSibs.indexOf(b));
+    const fIds = _floatUnits.map(u => u.id).filter(Boolean);
+    if (direction === 'up') {
+      const firstIdx = fSibs.indexOf(_floatUnits[0]);
+      if (firstIdx <= 0) return;                     // 이미 맨 뒤(가장 아래)
+      window.ensureHistoryCheckpoint?.('이동 전');
+      fSibs[firstIdx - 1].before(..._floatUnits);
+    } else {
+      const lastIdx = fSibs.indexOf(_floatUnits[_floatUnits.length - 1]);
+      if (lastIdx >= fSibs.length - 1) return;       // 이미 맨 앞(가장 위)
+      window.ensureHistoryCheckpoint?.('이동 전');
+      const marker = document.createComment('mv-float');
+      fSibs[lastIdx + 1].after(marker);
+      _floatUnits.forEach(u => marker.before(u));
+      marker.remove();
+    }
+    pushHistory(direction === 'up' ? '오버레이 뒤로 보내기' : '오버레이 앞으로 가져오기');
+    window.buildLayerPanel?.();
+    // buildLayerPanel 이 패널을 다시 그린다 — 선택을 되살린다(흐름 갈래와 같은 뒷정리)
+    fIds.forEach(id => {
+      const b = document.getElementById(id);
+      if (!b) return;
+      b.classList.add('selected');
+      if (b._layerItem) {
+        b._layerItem.classList.add('active');
+        b._layerItem.style.background = 'var(--ui-bg-card)';
+      }
+    });
+    window.scheduleAutoSave?.();
+    return;
+  }
+
   // 프레임(frame-block)이 선택된 경우 별도 처리
   const selFrame = window._activeFrame;
   if (selFrame && selFrame.classList.contains('selected')) {
