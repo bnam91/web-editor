@@ -1135,6 +1135,45 @@ test('E13 ★«페이로드 없이 고르면 줄이 사라지는» 종류가 패
  *     직접 재 둔다 — 손잡이를 만들 때 이 자리를 같이 정해야 한다.
  * ════════════════════════════════════════════════════════════════════════ */
 
+test('E15 ★[↺ 기본]이 «줄 꾸미기» 절로 옮겨도 그대로 돈다 — 단추와 배선이 갈라지지 않았다', async ({ page }) => {
+  /* ★2026-09-30 — 줄바(211px)에 단추 넷이 안 들어가 두 줄로 갈라졌다(티켓 ④ [줄 복사] 때문).
+   *   그래서 [↺ 기본]을 「줄 꾸미기」 절로 옮겼고, 배선도 같이 옮겼다.
+   *   ⛔여기서 재는 것은 «자리»가 아니라 «여전히 도나»다 — 단추만 옮기고 배선을 두고 오면
+   *     G2 는 더 초록이 되는데(단추가 한 줄로 돌아오니까) 기능은 죽는다. 그 조합을 문다.
+   *   ⚠️절이 «접혀» 있어도 눌리는지까지 잰다 — 접힌 절의 단추는 클릭이 안 먹는 일이 있다. */
+  const errs = await boot(page);
+  const got = await page.evaluate(({ addr, fields }) => {
+    const HOST = document.getElementById('host');
+    HOST.innerHTML = '';
+    document.querySelector('#panel-right .panel-body').innerHTML = '';
+    const { row, block } = window.__mk(JSON.parse(JSON.stringify(window.__FIX)));
+    HOST.appendChild(row); block.classList.add('selected');
+    /* 이 줄에 «손으로 준» 타이포 값을 심는다 — 지워질 것이 있어야 지워짐을 잰다. */
+    window.updateGridBlock(block.id, { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, fontSize: 44, weight: 700 } });
+    window.__open(block, addr);
+    const btn = document.getElementById('grd-line-reset');
+    const sec = btn?.closest('.prop-section');
+    const before = (() => { const l = window.getGridModel(block).cells[addr.r][addr.c].lines[addr.li]; return { fontSize: l.fontSize, weight: l.weight }; })();
+    btn?.click();
+    const after = (() => { const l = window.getGridModel(block).cells[addr.r][addr.c].lines[addr.li]; return fields.map(k => l[k]).filter(v => v !== undefined).length; })();
+    return {
+      found: !!btn,
+      /* 단추가 사는 절의 «머리 글자» — 「줄 꾸미기」 절인지 사람이 읽는 말로 확인한다 */
+      secHead: sec?.querySelector('.prop-disclosure, .prop-section-title, [id$="-toggle"]')?.textContent?.trim().slice(0, 12) || null,
+      /* 줄바 절에는 «없다» — 있으면 두 벌이다 */
+      inBar: !!document.getElementById('grd-line-summary')?.closest('.prop-section')?.querySelector('#grd-line-reset'),
+      before, leftovers: after,
+    };
+  }, { addr: A_TEXT, fields: TYPO_FIELDS });
+  expect(errs).toEqual([]);
+  expect(got.found, '★[↺ 기본] 단추가 «어디에도» 없다 — 되돌리기 손잡이가 사라졌다').toBe(true);
+  expect(got.inBar, '★줄바에도 [↺ 기본]이 남아 있다 — 같은 단추가 두 벌이면 한쪽만 늙는다').toBe(false);
+  expect(got.secHead, '★[↺ 기본]이 「줄 꾸미기」 절에 없다 — 자리를 옮겼다면 이 단언도 같이 갱신해라').toContain('줄 꾸미기');
+  // 전제 — 지울 것이 실제로 있었다(없으면 아래 「0개」는 「안 재고 있다」다)
+  expect(got.before, '★타이포 값을 심지 못했다 — 이 검사의 전제가 무너졌다').toEqual({ fontSize: 44, weight: 700 });
+  expect(got.leftovers, '★[↺ 기본]을 눌렀는데 «손으로 준 값»이 남았다 — 단추는 옮겼고 배선은 안 따라왔다').toBe(0);
+});
+
 test('E14 ★image → body 로 바꾸면 imgSrc 가 «안» 남는다 (전환 경로 = 손잡이가 탈 길)', async ({ page }) => {
   const errs = await boot(page);
   const r = await page.evaluate(async ({ addr }) => {

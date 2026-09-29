@@ -938,7 +938,6 @@ ${_grdAddKindSelectHtml()}
       </div>
     </div>`;
   }
-  const isTextLine = gridLineHasText(line);
   const summary = _grdSummaryText(r, c, li, line);
   /* ★★★2026-09-26 «[줄 삭제] 는 이제 «언제나» 활성이다» — 현빈 지시.
        「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은 삭제할 수 없다고 하네?」
@@ -950,7 +949,21 @@ ${_grdAddKindSelectHtml()}
      ★그래서 «칸의 줄 수를 세는 일 자체»가 이 자리에서 사라졌다 — 세어서 쓸 데가 없다.
        ⛔되살리지 마라. 「마지막 줄이면 무언가 다르게」가 이 파일에 다시 들어오면 ⌫(editor.js)와
          모델 입구(grid-block.js)와 셋이 갈린다 — 그 셋이 갈려 있던 것이 바로 오늘 고친 것이다. */
-  /* ★[종류 ▾] 는 여기 «없다» — 아래 「줄 꾸미기」 절로 옮겼다(2026-09-23 실측).
+  /* ★★[↺ 기본] 도 여기 «없다» — 아래 「줄 꾸미기」 절로 옮겼다(2026-09-30).
+       ⛔까닭은 «취향»이 아니라 실측이다: 이 줄의 폭은 211px 이고 [+ 줄 추가…▾]=100 ·
+         [줄 복사]=50 · [줄 삭제]=50 · [↺ 기본]=47 ＋ 간격 18 = 265px 다. 넷은 «들어가지 않는다».
+         2026-09-29 에 [줄 복사](티켓 ④)를 넣으면서 넷이 됐고, 그래서 단추가 두 줄로 갈라져
+         G2 가 세 축에서 빨개졌다 — ⑴순증 +65(합격선 60) ⑵줄바 밀림 +30(합격선 0) ⑸단추 2줄.
+         ⛔셋은 «다른 결함 셋»이 아니라 한 뿌리다: 이 줄의 줄바꿈. 그래서 고칠 곳도 여기 하나다.
+       ★왜 [↺ 기본] 이 나가고 [줄 복사] 가 남나 — 되돌리기는 «드물게 쓰는 탈출구»이고 복사는
+         «자주 쓰는 편집»이다. 그리고 자리가 뜻과 맞는다: 「줄 꾸미기」 절이 바로
+         「이 줄에 손으로 준 값」을 다루는 절이고, 되돌리기는 그 값을 «전부 지우는» 일이다
+         ([종류 ▾]가 같은 까닭으로 먼저 그리로 갔다 — 바로 아래 주석).
+       ⚠️★이것이 「손잡이를 접이식 절에 숨겨 G2 를 0원으로 지나가는」 것인가 — 아니라고 본다.
+         그 금지는 «새로 들인 손잡이»를 두고 한 말이고(G2 머리말), 이번에 새로 들인
+         [줄 복사]는 «펴 둔 채»로 값을 치렀다(순증 +35 를 정직하게 낸다). 옮긴 것은 원래
+         있던 드문 손잡이다. ⛔그래도 판단이니 적어 둔다 — 다르게 보면 되돌려라.
+     ★[종류 ▾] 는 여기 «없다» — 아래 「줄 꾸미기」 절로 옮겼다(2026-09-23 실측).
        ⛔단추 줄(206px)에 끼우면 240px 패널을 넘고, «요약 줄»에 붙이면 요약이 123px 로 잘리는 데다
          줄바 절의 컨트롤이 두 줄에 걸쳐 G2 ⑸(「줄바 단추가 한 줄을 유지한다」)가 빨개진다.
          ⇒ 「이 줄의 종류」는 「이 줄 꾸미기」에 산다 — 자리가 뜻과도 맞고, 접힌 절이라 0px 다.
@@ -968,8 +981,6 @@ ${_grdAddKindSelectHtml()}
                 title="이 줄을 그대로 한 벌 더 만들어 «바로 아래»에 넣습니다 (⌘Z 로 복원)">줄 복사</button>
         <button id="grd-line-del-btn" class="prop-btn-sm"
                 title="이 줄을 삭제합니다 — 마지막 줄까지 지우면 칸이 «빈 칸»이 됩니다 (단, 내용이 남은 마지막 칸은 비울 수 없습니다)">줄 삭제</button>
-        <button id="grd-line-reset" class="prop-btn-sm" ${isTextLine ? '' : 'disabled'}
-                title="${isTextLine ? '이 줄에 «손으로 준 값»을 전부 지우고 기본값으로 되돌립니다 (⌘Z 로 복원)' : '이미지·갭 줄엔 타이포 필드가 없습니다'}">↺ 기본</button>
       </div>
     </div>`;
 }
@@ -1047,16 +1058,9 @@ function _grdWireLineBar(block, addr) {
     if (res && res.ok === false) grdSetActiveLine(block, prevActive);
     grdToastImgFail(res);
   });
-  if (gridLineHasText(line)) {
-    document.getElementById('grd-line-reset')?.addEventListener('click', () => {
-      const cleared = {};
-      _GRD_TYPO_FIELDS.forEach(k => { cleared[k] = undefined; });
-      window.pushHistory?.();
-      gridPreviewLine(block, r, c, li, cleared, addr.np);   // ★np — 중첩 안 줄도 같은 길로(T-220)
-      window.scheduleAutoSave?.();
-      showGridProperties(block, { r, c, li });
-    });
-  }
+  /* ★[↺ 기본]의 배선은 여기 «없다» — 단추가 「줄 꾸미기」 절로 갔으니 배선도 같이 갔다
+     (_grdWireLineSection). 두 함수가 다 돌아서 여기 둬도 «돌기는» 하지만, 단추와 배선이
+     다른 절에 갈라져 있으면 다음 사람이 한쪽만 고친다 — 이 파일이 여러 번 물린 자리다. */
 }
 
 /* ══ 이미지 절 — anyHit.line.type === 'image' 일 때만 뜬다 ══════════════════
@@ -2093,13 +2097,17 @@ ${_grdKindSelectHtml(line)}
           <span class="prop-label" title="이 «줄»만 정렬한다(기본 = 열을 따른다). 열 정렬 단추는 그 열 전체다">줄 정렬</span>
           <select class="prop-select" id="grd-line-align" title="이 줄의 가로 정렬(기본 = 칸을 따른다)">${_grdOptsHtml(_GRD_CELL_ALIGNS, line.align)}</select>
         </div>${imgFull ? `<div class="prop-hint" style="text-align:left;padding:0 0 6px;">그림 폭이 100%라 정렬이 안 보인다 — 줄일 데가 없어서다. 아래 Image 절의 「폭(%)」를 줄이거나 캔버스에서 코너를 끌면 움직인다.</div>` : ''}` : ''}
-        ${isText ? `<div class="prop-row" style="margin-bottom:0;">
+        ${isText ? `<div class="prop-row">
           <span class="prop-label" title="배경을 주면 이 줄이 «알약»(둥근 인라인 배지)이 된다. 비우면 꺼진다.">알약 배경</span>
           <div class="prop-color-swatch${raw ? '' : ' swatch-none'}"${raw ? ` style="background:${raw}"` : ''}>
             <input type="color" id="grd-badge-color" value="${hex}">
           </div>
           <input type="text" class="prop-color-hex" id="grd-badge-hex" maxlength="7" placeholder="없음" aria-label="알약 배경색" value="${raw ? hex.replace('#', '').toUpperCase() : ''}">
         </div>` : ''}
+        <div class="prop-row" style="margin-bottom:0;justify-content:flex-end;">
+          <button id="grd-line-reset" class="prop-btn-sm" ${isText ? '' : 'disabled'}
+                  title="${isText ? '이 줄에 «손으로 준 값»을 전부 지우고 기본값으로 되돌립니다 (⌘Z 로 복원)' : '이미지·갭 줄엔 타이포 필드가 없습니다'}">↺ 기본</button>
+        </div>
       </div>
     </div>`;
 }
@@ -2191,7 +2199,21 @@ function _grdWireLineSection(block, addr) {
     });
   }
 
-  if (!gridLineHasText(hit.line)) return;      // 알약은 «글자 줄»만
+  if (!gridLineHasText(hit.line)) return;      // 알약·되돌리기는 «글자 줄»만
+
+  /* ── ③ [↺ 기본] — 이 줄에 «손으로 준» 타이포 값을 전부 지운다.
+   *   ★2026-09-30 에 줄바에서 이 절로 옮겨 왔다(까닭은 _grdLineBarHtml 머리말 — 줄바 211px 에
+   *     단추 넷이 안 들어가 두 줄로 갈라졌고 G2 가 세 축에서 빨개졌다).
+   *   ⛔동작은 «한 글자도» 안 바꿨다 — 옮긴 것은 자리뿐이다. */
+  document.getElementById('grd-line-reset')?.addEventListener('click', () => {
+    const cleared = {};
+    _GRD_TYPO_FIELDS.forEach(k => { cleared[k] = undefined; });
+    window.pushHistory?.();
+    gridPreviewLine(block, r, c, li, cleared, addr.np);   // ★np — 중첩 안 줄도 같은 길로(T-220)
+    window.scheduleAutoSave?.();
+    showGridProperties(block, { r, c, li });
+  });
+
   const pick = document.getElementById('grd-badge-color');
   const hexEl = document.getElementById('grd-badge-hex');
   const swatch = pick?.closest('.prop-color-swatch');
