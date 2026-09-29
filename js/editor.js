@@ -3706,50 +3706,66 @@ function deselectAll() {
    이동 단위: section-inner 또는 frame-block 직속 .row / .gap-block
 ═══════════════════════════════════ */
 function moveSelectedBlocks(direction) {
-  /* ★오버레이(플로팅) «레이어 순서» — 현빈 2026-09-30 「겹친 요소 간 레이어 순서 변경(⌘[ , ⌘])」.
+  /* ★«겹친 것들»의 레이어 순서 — 현빈 2026-09-30 「겹친 요소 간 레이어 순서 변경(⌘[ , ⌘])」.
    * ══ 왜 여기가 «맨 앞»인가 ════════════════════════════════════════════════
-   *   오버레이 블록은 흐름에서 빠져 섹션 «직속»으로 간다(js/overlay-float.js enterFloat 의
-   *   sec.appendChild). 그래서 아래 두 갈래가 둘 다 조용히 아무 일도 안 했다:
+   *   겹치는 블록은 흐름에 없다. 둘 중 하나다 —
+   *     ㈎ 오버레이(플로팅)  : 섹션 «직속»  (js/overlay-float.js enterFloat 의 sec.appendChild)
+   *     ㈏ 자유배치 프레임 안 : ⌘G 그룹의 자식이 바로 이것이다
+   *   아래 두 갈래는 둘 다 조용히 아무 일도 안 했다:
    *     · 프레임 갈래  — closest('.section-inner') 가 null 이라 첫 줄에서 return
    *     · 블록 갈래    — getUnit 이 closest('.row') 라 unitSet 이 비고 return
-   *   ⛔「먹통」이 아니라 «해당 없음»이었다는 뜻이다 — 그 둘을 고치는 게 아니라 갈래를 «더한다».
+   *   ⛔「먹통」이 아니라 «해당 없음»이었다 — 그 둘을 고치는 게 아니라 갈래를 «더한다».
    * ══ 어느 방향이 위인가 ═══════════════════════════════════════════════════
    *   절대배치 형제는 z-index 없이 «DOM 순서»로 겹친다(뒤에 있는 것이 위에 그려진다 —
    *   enterFloat 주석 「DOM 뒤 = 맨 위」). 흐름 갈래의 방향 규약을 그대로 쓴다:
    *     'up'   = 형제 중 «앞»으로  ⇒ 뒤로 보내기(⌘[)
    *     'down' = 형제 중 «뒤»로    ⇒ 앞으로 가져오기(⌘])
    *   ⇒ 피그마의 ⌘[ / ⌘] 와 같은 손맛이고, 레이어 패널의 위아래와도 어긋나지 않는다.
-   * ★대상 해석은 «조상으로 거슬러» 한다 — 선택되는 것은 알맹이(.text-block · .shape-block)
-   *   인데 떠 있는 것은 그 래퍼다. 표식(data-overlay-block)을 가진 조상 하나로 모은다.
-   *   ⛔타입 명부를 여기서 다시 적지 않는다 — 표식은 타입과 무관하게 «떠 있는 것»에만 붙는다. */
-  const _floatUnits = [];
+   * ★«단위» 해석은 ⌘G 와 «같은 술어»다 — 텍스트는 text-frame 래퍼, 도형은 도형 래퍼
+   *   (shapeFrameOf · SSOT), 그 밖은 자기 자신(js/block-factory.js wrapSelectedBlocksInFrame).
+   *   ⛔형제 명부는 손으로 적지 않는다 — SIBLING_MULTI_SEL(⇧클릭이 쓰는 그 명부)을 그대로 쓴다.
+   *     그래야 손잡이(.frame-resize-handle 등 절대배치 껍데기)가 «형제로 세어지지» 않는다. */
+  const _stackUnitOf = (el) => {
+    const w = el?.closest?.('.frame-block[data-text-frame]') || shapeFrameOf(el) || el;
+    if (!w || w.nodeType !== 1 || !w.matches?.(SIBLING_MULTI_SEL)) return null;
+    const p = w.parentElement;
+    if (!p || !p.classList) return null;
+    if (p.classList.contains('section-block')) {
+      return w.dataset?.overlayBlock === 'true' ? w : null;      // ㈎ 표식 없는 섹션 직속은 대상 아님
+    }
+    if (p.classList.contains('frame-block') && p.dataset?.freeLayout === 'true') {
+      return getComputedStyle(w).position === 'absolute' ? w : null;   // ㈏ 흐름 자식은 대상 아님
+    }
+    return null;
+  };
+  const _stackUnits = [];
   document.querySelectorAll('.selected').forEach(el => {
-    const f = el.closest?.('[data-overlay-block="true"]');
-    if (f && !_floatUnits.includes(f)) _floatUnits.push(f);
+    const u = _stackUnitOf(el);
+    if (u && !_stackUnits.includes(u)) _stackUnits.push(u);
   });
-  if (_floatUnits.length > 0) {
-    const fContainer = _floatUnits[0].parentElement;
+  if (_stackUnits.length > 0) {
+    const fContainer = _stackUnits[0].parentElement;
     // 섞여 있으면(다른 섹션 · 그룹 안팎) 아무것도 하지 않는다 — 흐름 갈래와 같은 규칙
-    if (!fContainer || !_floatUnits.every(u => u.parentElement === fContainer)) return;
-    const fSibs = [...fContainer.children].filter(c => c.dataset?.overlayBlock === 'true');
+    if (!fContainer || !_stackUnits.every(u => u.parentElement === fContainer)) return;
+    const fSibs = [...fContainer.children].filter(c => !!_stackUnitOf(c));
     if (fSibs.length < 2) return;                    // 혼자면 겹칠 상대가 없다
-    _floatUnits.sort((a, b) => fSibs.indexOf(a) - fSibs.indexOf(b));
-    const fIds = _floatUnits.map(u => u.id).filter(Boolean);
+    _stackUnits.sort((a, b) => fSibs.indexOf(a) - fSibs.indexOf(b));
+    const fIds = _stackUnits.map(u => u.id).filter(Boolean);
     if (direction === 'up') {
-      const firstIdx = fSibs.indexOf(_floatUnits[0]);
+      const firstIdx = fSibs.indexOf(_stackUnits[0]);
       if (firstIdx <= 0) return;                     // 이미 맨 뒤(가장 아래)
       window.ensureHistoryCheckpoint?.('이동 전');
-      fSibs[firstIdx - 1].before(..._floatUnits);
+      fSibs[firstIdx - 1].before(..._stackUnits);
     } else {
-      const lastIdx = fSibs.indexOf(_floatUnits[_floatUnits.length - 1]);
-      if (lastIdx >= fSibs.length - 1) return;       // 이미 맨 앞(가장 위)
+      const lastIdx = fSibs.indexOf(_stackUnits[_stackUnits.length - 1]);
+      if (lastIdx >= fSibs.length - 1) return;        // 이미 맨 앞(가장 위)
       window.ensureHistoryCheckpoint?.('이동 전');
-      const marker = document.createComment('mv-float');
+      const marker = document.createComment('mv-stack');
       fSibs[lastIdx + 1].after(marker);
-      _floatUnits.forEach(u => marker.before(u));
+      _stackUnits.forEach(u => marker.before(u));
       marker.remove();
     }
-    pushHistory(direction === 'up' ? '오버레이 뒤로 보내기' : '오버레이 앞으로 가져오기');
+    pushHistory(direction === 'up' ? '뒤로 보내기' : '앞으로 가져오기');
     window.buildLayerPanel?.();
     // buildLayerPanel 이 패널을 다시 그린다 — 선택을 되살린다(흐름 갈래와 같은 뒷정리)
     fIds.forEach(id => {

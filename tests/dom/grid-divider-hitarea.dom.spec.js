@@ -14,9 +14,12 @@
  *   ⛔둘을 한 파일에 몰지 않는다: 이쪽은 브라우저가 필요하고 저쪽은 아니다.
  *
  * ★양성대조 — 고치기 «전» css 를 가리키면 H1 이 빨개져야 한다:
- *     mkdir -p /tmp/dv-before && git archive HEAD css | tar -x -C /tmp/dv-before
+ *     mkdir -p /tmp/dv-before && git archive 969f0340 css | tar -x -C /tmp/dv-before
  *     DIVIDER_HIT_CSS=/tmp/dv-before/css/editor-blocks.css npx playwright test \
  *       --config=tests/dom/playwright.dom.config.js grid-divider-hitarea
+ *   ⛔판을 «HEAD» 로 쓰지 마라 — 고친 뒤엔 HEAD 가 곧 고친 판이라 대조가 초록이 되고,
+ *     그 초록을 「증상을 잡는다」로 읽게 된다. 그래서 «작업 직전 판»을 못박는다: 969f0340.
+ *   ★실측(969f0340 기준) — H1 빨강(±5px 이 안 잡힌다) / H2·H3 초록.
  *
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js grid-divider-hitarea
  */

@@ -46,12 +46,19 @@ test('W2 ★⌘G 가 groupSelectedBlocks → wrapSelectedBlocksInFrame({asGroup:
 test('W3 ⛔오버레이 갈래가 «맨 앞»이다 — 뒤에 두면 앞 갈래가 먼저 삼킨다', () => {
   /* moveSelectedBlocks: 프레임 갈래는 closest('.section-inner') 가 null 이라 그 자리에서
      return 한다 ⇒ 오버레이 갈래가 그 뒤에 있으면 «영영 안 돈다». */
-  const iFloat = MOVE.indexOf("closest?.('[data-overlay-block=\"true\"]')");
+  const iFloat = MOVE.indexOf('const _stackUnitOf =');
   const iFrame = MOVE.indexOf('const selFrame = window._activeFrame;');
   const iRow = MOVE.indexOf("const BLOCK_SEL =");
   assert.ok(iFloat > 0 && iFrame > 0 && iRow > 0, '★세 갈래 중 하나를 못 찾았다 — 이 단언이 낡았다');
   assert.ok(iFloat < iFrame && iFloat < iRow,
-    `★moveSelectedBlocks 의 오버레이 갈래가 맨 앞이 아니다(float ${iFloat} / frame ${iFrame} / row ${iRow})`);
+    `★moveSelectedBlocks 의 «겹침» 갈래가 맨 앞이 아니다(stack ${iFloat} / frame ${iFrame} / row ${iRow})`);
+  /* ★형제 명부를 손으로 적지 않는다 — ⇧클릭이 쓰는 SIBLING_MULTI_SEL 을 그대로 쓴다.
+     손으로 적으면 절대배치 «손잡이»(.frame-resize-handle 등)가 형제로 세어져 맨 앞/맨 뒤가 틀어진다. */
+  assert.match(MOVE, /w\.matches\?\.\(SIBLING_MULTI_SEL\)/,
+    '★겹침 갈래가 SIBLING_MULTI_SEL 을 안 쓴다 — 명부가 두 벌이 되고 손잡이가 형제로 세어진다');
+  /* ★두 컨테이너를 «둘 다» 본다 — 오버레이(섹션 직속)와 자유배치 프레임 안(⌘G 그룹의 자식). */
+  assert.match(MOVE, /contains\('section-block'\)/, '★섹션 직속(오버레이) 갈래가 없다');
+  assert.match(MOVE, /dataset\?\.freeLayout === 'true'/, '★자유배치 프레임 안(그룹 자식) 갈래가 없다');
 
   /* wrapSelectedBlocksInFrame: 흐름 갈래는 stackY 로 «세로로 쌓는다» ⇒ 오버레이가 거기로
      떨어지면 사용자가 만든 겹침이 풀린다. 반드시 그 앞에서 가로채야 한다. */

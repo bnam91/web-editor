@@ -29,8 +29,12 @@ const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 /* ★양성대조 — 고치기 «전»의 js 디렉터리를 가리키면 이 다섯이 «빨개져야» 한다.
  *   그래야 이 검사가 증상을 실제로 잡는다는 증거가 된다(안 그러면 「안 재고 있다」와 구분 안 됨).
- *     mkdir -p /tmp/gz-before && git archive HEAD js | tar -x -C /tmp/gz-before
+ *     mkdir -p /tmp/gz-before && git archive 969f0340 js | tar -x -C /tmp/gz-before
  *     OVERLAY_GZ_JS=/tmp/gz-before/js npx playwright test --config=tests/dom/playwright.dom.config.js overlay-group-zorder
+ *   ⛔판을 «HEAD» 로 쓰지 마라 — 고친 뒤엔 HEAD 가 곧 «고친 판»이라 대조가 전부 초록이 되고,
+ *     그 초록을 「증상을 잡는다」로 읽게 된다(2026-09-30 에 실제로 한 번 그렇게 읽었다).
+ *     그래서 «작업 직전 판»을 못박는다: 969f0340.
+ *   ★실측(969f0340 기준) — O1·O2·O3·O6 빨강 / O4·O5·O7 초록(그 셋은 «그물»이다, 아래 참조).
  *   ⚠️CI/기본 실행에선 절대 설정하지 말 것 — 설정되면 아래 배너가 찍힌다. */
 const JS_DIR = process.env.OVERLAY_GZ_JS || path.join(REPO, 'js');
 if (process.env.OVERLAY_GZ_JS) console.warn(`[overlay-group-zorder] ★양성대조 모드 — js 원본을 ${JS_DIR} 에서 읽는다`);
@@ -43,6 +47,14 @@ const SD = fs.readFileSync(path.join(JS_DIR, 'section-drag.js'), 'utf8');
 const WRAP_SRC = sliceBlock(BF, 'function wrapSelectedBlocksInFrame(');
 const NEXT_GROUP_SRC = sliceBlock(BF, 'function _nextGroupName(');
 const MOVE_SRC = sliceBlock(ED, 'function moveSelectedBlocks(');
+/* ★moveSelectedBlocks 의 «겹침» 갈래는 형제 명부를 SIBLING_MULTI_SEL 에서 받는다(손잡이를
+   형제로 세지 않기 위해). 그 상수는 함수 «밖»에 있으니 여기서도 «떠서» 싣는다 —
+   ⛔손으로 베끼지 않는다: 베끼면 명부가 갈려 이 검사가 앱과 다른 것을 잰다. */
+const SECTION_SEL_SRC = (ED.match(/^const SECTION_BLOCK_TYPE_SEL = \[[\s\S]*?\]\.join\(', '\);$/m) || [])[0];
+const SIBLING_SEL_SRC = (ED.match(/^const SIBLING_MULTI_SEL = .*;$/m) || [])[0];
+if (!SECTION_SEL_SRC || !SIBLING_SEL_SRC) {
+  throw new Error('★editor.js 의 형제 명부 상수를 못 떴다 — 이름이 바뀌었나? 이 하네스는 앱과 다른 것을 재게 된다');
+}
 const UNGROUP_SRC = sliceBlock(SD, 'function ungroupBlock(');
 
 const HARNESS_JS = `
@@ -69,6 +81,8 @@ window.genId = (p) => p + '_' + (++__n);
 window.deselectAll = () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected'));
 window.__toasts = [];
 window.showToast = (m) => window.__toasts.push(m);
+${SECTION_SEL_SRC}
+${SIBLING_SEL_SRC}
 ${NEXT_GROUP_SRC}
 ${WRAP_SRC}
 ${MOVE_SRC}
@@ -296,6 +310,59 @@ test('O4 ★맨 끝에서는 «아무 일도 안 한다» — 히스토리도 �
   expect(r.a.hist).toBe(0);
   expect(r.b.order).toEqual(['inner1', 'ov_shape', 'ov_text']);
   expect(r.b.hist).toBe(0);
+});
+
+test('O6 ★⌘G 로 묶은 «그룹 안»에서도 앞뒤가 바뀐다 (겹침은 그룹 안에서 더 자주 쓴다)', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await page.evaluate(() => {
+    document.getElementById('sh1').classList.add('selected');
+    document.getElementById('tb1').classList.add('selected');
+    window.__wrap({ asGroup: true });
+    const grp = document.querySelector('.frame-block[data-group="true"]');
+    const topAt = () => {
+      const g = grp.getBoundingClientRect();
+      // 그룹-로컬 (120,90) = 두 자식이 겹치는 자리(픽스처 머리말)
+      const el = document.elementFromPoint(g.left + 120 - 0, g.top + 90 - 0);
+      return el?.closest('#ov_shape, #ov_text')?.id || null;
+    };
+    const before = topAt();
+    document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected'));
+    document.getElementById('sh1').classList.add('selected');
+    window.__move('down');                       // ⌘] — 도형을 앞으로
+    const after = topAt();
+    return {
+      before, after,
+      kids: [...grp.children].map(c => c.id),
+      hist: window.__hist(),
+    };
+  });
+  expect(errs).toEqual([]);
+  expect(r.before).toBe('ov_text');
+  expect(r.after).toBe('ov_shape');
+  expect(r.kids).toEqual(['ov_text', 'ov_shape']);
+  expect(r.hist.length).toBe(2);   // ⌘G 1 + ⌘] 1
+});
+
+test('O7 ⛔손잡이는 «형제로 세지 않는다» — 절대배치 껍데기가 맨 앞/맨 뒤 판정을 틀어뜨리지 않는다', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await page.evaluate(() => {
+    /* 앱은 자유배치 프레임·오버레이 위에 절대배치 «손잡이»를 심는다(.frame-resize-handle 등).
+       그것이 형제로 세어지면 「이미 맨 앞이다」가 거짓이 되어 ⌘] 가 먹통이 된다. */
+    const sec = document.getElementById('sec1');
+    const h = document.createElement('div');
+    h.className = 'frame-resize-handle';
+    h.style.cssText = 'position:absolute;left:0;top:0;width:8px;height:8px;';
+    sec.appendChild(h);                          // 글자 오버레이 «뒤»에 붙는다
+    document.getElementById('tb1').classList.add('selected');
+    window.__move('down');                       // 글자는 이미 맨 앞 — 할 일이 없어야 한다
+    return {
+      order: [...sec.children].map(c => c.id || c.className),
+      hist: window.__hist().length,
+    };
+  });
+  expect(errs).toEqual([]);
+  expect(r.hist).toBe(0);
+  expect(r.order).toEqual(['inner1', 'ov_shape', 'ov_text', 'frame-resize-handle']);
 });
 
 test('O5 ★흐름 블럭은 «영향 없음» — 오버레이 갈래가 남의 ⌘[ 를 가로채지 않는다', async ({ page }) => {
