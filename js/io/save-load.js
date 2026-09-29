@@ -332,6 +332,53 @@ async function setProjectName(name) {
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   유휴 썸네일 — 「홈 버튼이 8초 걸린다」(현빈 2026-09-28 보고)의 처방
+   ──────────────────────────────────────────────────────────────────
+   무엇이 느렸나 (격리 인스턴스 실측, 같은 스냅샷·같은 경로·`skipThumbnail` 하나만 다름):
+       저장 «썸네일 없이» :   141 / 16 / 10 ms
+       저장 «썸네일 포함» : 7443 / 3782 / 2566 ms
+     ⇒ 비용의 99% 가 썸네일이다. 썸네일은 «첫 섹션 하나»만 그리므로 프로젝트 크기와
+       무관하다 — 1MB 짜리도 8초였다는 보고와 맞는다.
+   ⛔«작게 그리기»는 효과가 없다(실측으로 기각):
+       scale 1.0(860x1425) 4524/3757ms · 0.5(430x712) 6022/6559ms · 0.2325(199x331) 4726/3839ms
+     픽셀 수가 병목이 아니라 html2canvas 가 DOM 을 훑어 스타일을 복제하는 단계가 비용이다.
+   ★그래서 «언제» 찍는지를 옮겼다 — 나가는 길목이 아니라 «편집이 멈춘 뒤» 찍는다.
+   ⛔썸네일을 그냥 끄면 안 된다: 자동저장(scheduleAutoSave)·탭전환(tab-system.js)은 이미
+     skipThumbnail 이라, goHome 이 «유일하게» 찍는 자리였다. 끄면 목록 그림이 영영 안 는다.
+     그래서 끄는 대신 이 스케줄러가 그 책임을 넘겨받는다.
+   ════════════════════════════════════════════════════════════════ */
+const THUMB_IDLE_MS = 2000;
+let _thumbTimer = null;
+
+/** 편집이 멈추면 썸네일을 한 장 찍어 _meta.json 에 넣는다. 편집이 이어지면 계속 미뤄진다. */
+function scheduleIdleThumbnail() {
+  if (!IS_ELECTRON) return;
+  clearTimeout(_thumbTimer);
+  _thumbTimer = setTimeout(() => {
+    _thumbTimer = null;
+    /* ★requestIdleCallback 으로 시작한다 — 이 캡처는 2~7초 CPU 를 먹어서, 사용자가 다시
+       입력을 시작한 순간에 걸치면 그대로 버벅임이 된다. 유휴를 못 잡으면 3초 뒤 강행. */
+    const go = () => { _runIdleThumbnail().catch(() => {}); };
+    if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 3000 });
+    else go();
+  }, THUMB_IDLE_MS);
+}
+
+async function _runIdleThumbnail() {
+  const targetId = activeProjectId;
+  if (!targetId) return;
+  const thumbnail = await captureThumbnail();
+  /* ⛔캡처는 «몇 초» 걸린다 — 그 사이 탭이 바뀌었으면 남의 프로젝트 카드에 내 그림을 박게
+     된다. 자동저장이 _saveTargetId 로 같은 사고를 막는 것과 «같은 자»다. */
+  if (!thumbnail || activeProjectId !== targetId) return;
+  const existingMeta = await window.electronAPI.loadProjectMeta(targetId);
+  await window.electronAPI.saveProjectMeta(targetId, {
+    ...(existingMeta || {}), thumbnail, updatedAt: new Date().toISOString(),
+  });
+}
+window.scheduleIdleThumbnail = scheduleIdleThumbnail;
+
 async function goHome() {
   const curTab = openTabs.find(t => t.id === activeProjectId);
   if (curTab) curTab._cache = serializeProject();
@@ -340,7 +387,10 @@ async function goHome() {
   // 않되, 사라진다는 사실은 알려준다 — 토스트가 실제로 보이도록 이동을 살짝 늦춘다.
   // ★T-032: 판정·문구는 js/io/pending-video-warn.js 한 곳에서만 온다(사본 금지).
   const warnedPendingVideo = warnPendingVideoLossIf(canvasEl);
-  await saveProjectToFile(serializeProject()); // 홈으로 나갈 때 썸네일 캡처
+  /* ★썸네일을 «기다리지 않는다» — 그 한 줄이 홈 이동의 8초였다(위 스케줄러 주석에 실측).
+     그림은 scheduleIdleThumbnail 이 편집 멈춘 뒤 미리 찍어 둔다. 편집 직후 2초 안에 홈을
+     누르면 카드 그림이 한 판 낡을 수 있지만, 다음에 열었다 나올 때 갱신된다. */
+  await saveProjectToFile(serializeProject(), { skipThumbnail: true });
   window.saveTabState();
   if (warnedPendingVideo) await new Promise(r => setTimeout(r, 900));
   window.location.href = 'pages/projects.html';
@@ -938,6 +988,11 @@ function rebindAll(opts = {}) {
         });
       }
     }
+    /* ★체크 배경(빈 이미지 자리) 복원 — 현빈 2026-09-28.
+       ⛔«클래스가 살아 돌아온다»에 기대지 않는다. 저장본을 거쳐 오는 길에 클래스를 걷는
+         자리가 여럿이고(클린 클론·배송본), 그러면 새로고침 한 번에 조용히 꺼진다.
+       ⇒ 정본은 dataset 이고, 클래스는 «여기서 다시 세운다». 무늬 값은 CSS 한 자리(.sec-bg-empty). */
+    sec.classList.toggle('sec-bg-empty', sec.dataset.bgImgEmpty === '1' && !sec.dataset.bgImg);
     // 배경 이미지 복원
     if (sec.dataset.bgImg && !sec.style.backgroundImage) {
       sec.style.backgroundImage = `url(${sec.dataset.bgImg})`;
@@ -1612,6 +1667,7 @@ function scheduleAutoSave() {
   _dirtySinceSave = true;
   clearTimeout(autoSaveTimer);
   _setAutosaveIndicator('saving');
+  scheduleIdleThumbnail();   // ★편집이 멈춘 뒤 썸네일 — 홈 나갈 때 찍지 않으려면 여기서 찍어둬야 한다
   // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
   const _saveTargetId = activeProjectId; // H1: 발화 시점에 탭이 바뀌었는지 비교할 대상 캡처
   autoSaveTimer = setTimeout(() => {
