@@ -1789,6 +1789,70 @@ window._scratchGroupAndAlign = () => {
   return { ok: true, count: items.length, groupId };
 };
 
+/* ══ 한 아이템을 «지정한 자리»로 스르륵 옮긴다 (현빈 2026-09-30, 연결선 더블클릭 당기기) ══
+ * ★왜 이 파일에 있나 — 자리·저장·되돌리기는 «스크래치의 것»이다. 부르는 쪽
+ *   (js/scratchpad-link.js 의 연결선 더블클릭)은 «어디로»만 정한다.
+ *   ⛔사본을 그쪽에 만들지 마라: _scratchGeomSnapshot 규약이 두 벌이 되고, 그 헬퍼 머리말이
+ *     적어 둔 «undo 가 linkDy 를 놓쳐 다음 섹션 이동에 엉뚱한 자리로 튀던» 버그가 그쪽에서
+ *     되살아난다. 되돌리기 규약은 이 집에 «하나»만 있다.
+ * ★연결선은 따로 안 그린다 — SPLink 의 rAF 루프가 매 프레임 다시 그리므로, 이미지가 움직이면
+ *   선이 «같이 짧아지는» 것은 공짜다.
+ * ★이미 그 자리면 «아무 일도 안 한다» — 히스토리도 안 쌓는다(현빈 「또 더블클릭하면 아무 일 없음」).
+ * ⚠️트윈 중에 ⌘Z 가 오면 트윈이 복원값을 덮어쓴다 ⇒ onUndo/onRedo 가 먼저 트윈을 «세운다».
+ * @param {string} id 아이템 id
+ * @param {number} x scaler-local px · @param {number} y scaler-local px
+ * @param {{label?:string, linkDy?:number, ms?:number}} [opts] linkDy = 옮긴 뒤 섹션 추종 기준
+ * @returns {{ok:boolean, moved?:boolean, reason?:string}}
+ */
+window._scratchAnimateItemTo = (id, x, y, opts = {}) => {
+  const it = _scratchItems.find(i => i.id === id);
+  if (!it || !it.el) return { ok: false, reason: 'NOT_FOUND' };
+  /* ⛔`it.x || parseFloat(...)` 금지 — x=0 은 «유효한 자리»다(왼쪽 끝). ?? 로 가른다. */
+  const x0 = it.x ?? (parseFloat(it.el.style.left) || 0);
+  const y0 = it.y ?? (parseFloat(it.el.style.top) || 0);
+  const nx = Math.round(x), ny = Math.round(y);
+  if (Math.abs(nx - x0) < 1 && Math.abs(ny - y0) < 1) return { ok: true, moved: false };
+
+  const before = _scratchGeomSnapshot([it]);
+  const stop = () => { if (it._tweenRAF) { cancelAnimationFrame(it._tweenRAF); it._tweenRAF = null; } };
+  stop();                                  // 연달아 부르면 «마지막 목표»로 간다
+  const ms = Number.isFinite(opts.ms) ? Math.max(0, opts.ms) : 220;
+  const t0 = performance.now();
+  const ease = (p) => 1 - Math.pow(1 - p, 3);          // ease-out cubic
+  const settle = () => {
+    it.x = nx; it.y = ny;
+    it.el.style.left = nx + 'px'; it.el.style.top = ny + 'px';
+    if (Number.isFinite(opts.linkDy)) it.linkDy = opts.linkDy;
+    _saveScratch();
+    // #16 follow — 추종루프가 이 이동을 «사용자 드래그»로 오인해 재앵커하지 않게 기준선을 맞춘다
+    try { window.SPLink && window.SPLink.resyncFollow && window.SPLink.resyncFollow(); } catch (_) {}
+  };
+  const step = () => {
+    const p = ms === 0 ? 1 : Math.min(1, (performance.now() - t0) / ms);
+    const k = ease(p);
+    it.x = Math.round(x0 + (nx - x0) * k);
+    it.y = Math.round(y0 + (ny - y0) * k);
+    it.el.style.left = it.x + 'px'; it.el.style.top = it.y + 'px';
+    if (p < 1) { it._tweenRAF = requestAnimationFrame(step); return; }
+    it._tweenRAF = null;
+    settle();
+  };
+  if (ms === 0) settle(); else step();
+
+  /* 히스토리는 «목표값»으로 찍는다 — 트윈 중간값이 아니다(중간에 ⌘Z 해도 목표로 redo 된다). */
+  const after = _scratchGeomSnapshot([it]).map(sn => ({
+    ...sn, x: nx, y: ny,
+    ...(Number.isFinite(opts.linkDy) ? { linkDy: opts.linkDy } : {}),
+  }));
+  try {
+    window.pushHistory?.(opts.label || '스크래치 이동', {
+      onUndo: () => { stop(); _applyScratchGeomSnapshot(before); },
+      onRedo: () => { stop(); _applyScratchGeomSnapshot(after); },
+    });
+  } catch (_) {}
+  return { ok: true, moved: true };
+};
+
 // 선택 중 그룹(g) 달린 아이템 존재 여부 — Cmd+Shift+G 라우팅용 (editor.js ungroup 분기)
 window._scratchHasGroupSelection = () =>
   [..._selectedItems].some(it => it.g || it.el?.dataset?.scratchGroup);
