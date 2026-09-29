@@ -3,6 +3,7 @@
 ═══════════════════════════════════ */
 import { canvasEl } from '../globals.js';
 import { fitScale } from '../fit-scale.js';
+import { TPL_ROLES, TPL_ROLE_KEYS, tplRoleKo, tplRoleTags, tplRoleOf } from './template-roles.js';
 
 const TEMPLATE_KEY = 'sangpe-templates'; // localStorage fallback key
 /* ★1회성 이관 마커 — 「이미 옮겼나」를 «캐시 건수»가 아니라 이걸로 판정한다.
@@ -786,17 +787,19 @@ function renderTemplatePanel() {
     });
   }
 
-  // 카테고리별 그룹핑
+  /* ★역할별 그룹핑 — head / body / foot / etc (현빈 2026-09-28).
+   * ⛔저장된 category 를 «고쳐 쓰지 않는다». 보여줄 때만 tplRoleOf 로 읽는다 —
+   *   안 그러면 이미 저장된 템플릿(Hero·Main·Feature…)이 패널에서 통째로 사라진다. */
   const groups = {};
+  TPL_ROLE_KEYS.forEach(k => { groups[k] = []; });      // ★차례를 고정한다(head→body→foot→etc)
   filtered.forEach(tpl => {
-    const cat = tpl.category || '기타';
-    if (!groups[cat]) groups[cat] = [];
-    groups[cat].push(tpl);
+    const role = tplRoleOf(tpl.category);
+    (groups[role] = groups[role] || []).push(tpl);
   });
 
   const folderState = loadFolderState();
 
-  const listHtml = Object.entries(groups).map(([cat, tpls]) => {
+  const listHtml = Object.entries(groups).filter(([, tpls]) => tpls.length).map(([cat, tpls]) => {
     const isOpen = folderState[cat] === true;
     return `
       <div class="tpl-folder" data-folder-cat="${escHtml(cat)}">
@@ -804,7 +807,7 @@ function renderTemplatePanel() {
           <svg class="tpl-folder-arrow" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
             <polyline points="2,2 6,4 2,6"/>
           </svg>
-          <span class="tpl-folder-cat-name">${escHtml(cat)}</span>
+          <span class="tpl-folder-cat-name">${escHtml(tplRoleKo(cat))}</span>
           <span class="tpl-folder-count">${tpls.length}</span>
         </div>
         <div class="tpl-folder-body" style="display:${isOpen ? 'block' : 'none'}">
@@ -1022,6 +1025,12 @@ window.loadTemplates        = loadTemplates;
 window.loadTemplatesPublic  = loadTemplates;
 window.saveTemplatesPublic  = saveTemplates;
 window.saveAsTemplate       = saveAsTemplate;
+/* ★역할 명부를 전역에 올린다 — 저장 UI(prop-section.js)가 읽는다.
+   ⛔거기에 태그를 «또» 적지 않으려고 통로를 낸다(명부는 template-roles.js 하나). */
+window.TPL_ROLES   = TPL_ROLES;
+window.tplRoleKo   = tplRoleKo;
+window.tplRoleTags = tplRoleTags;
+window.tplRoleOf   = tplRoleOf;
 window.saveBlockAsTemplate  = saveBlockAsTemplate;
 window.deleteTemplate       = deleteTemplate;
 window.insertTemplate       = insertTemplate;

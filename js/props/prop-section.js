@@ -57,6 +57,10 @@ function _showPadXHint(inner, v) {
  * 색은 sec.dataset.bg, 이미지는 sec.dataset.bgImg, 사이즈는 sec.dataset.bgSize에서 읽는다.
  */
 function _applySectionBg(sec) {
+  /* ★체크 배경(빈 이미지 자리) — 무늬는 CSS 한 자리(.sec-bg-empty)가 준다.
+     ⛔인라인으로 박지 마라: 저장본(.gdt)·배송 HTML 에 무늬가 그대로 실린다
+     (css/editor-blocks.css 의 .grd-img-empty 머리말이 그 사고를 이미 적어 뒀다). */
+  sec.classList.toggle('sec-bg-empty', sec.dataset.bgImgEmpty === '1' && !sec.dataset.bgImg);
   const color = sec.dataset.bg || '';
   const img   = sec.dataset.bgImg || '';
   const size  = sec.dataset.bgSize || 'cover';
@@ -162,6 +166,7 @@ async function showSectionProperties(sec) {
   const secPadXAsset   = inner?.dataset.padXExcludesAsset || '';
   // 「위치 편집」으로 잡은 크기는 px 값이라 3개 키워드 어디에도 안 맞는다 —
   // 옵션을 안 넣으면 select 가 «Cover» 로 보이는 거짓말을 한다.
+  const _bgEmpty = sec.dataset.bgImgEmpty === '1';
   const _bgSizeCustom = /px/.test(bgSize);
   const bgImgHTML = hasBgImg ? `
     <div class="prop-row">
@@ -178,6 +183,11 @@ async function showSectionProperties(sec) {
   ` : `
     <button class="prop-action-btn secondary" id="sec-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
     <input type="file" id="sec-bg-img-input" accept="image/*" style="display:none">
+    <!-- ★체크 배경 — 현빈 2026-09-28 「이미지 없이 체크배경으로 깔아둘 수 있게」.
+         ⛔새 무늬를 만들지 않는다: .asset-block 의 72px 정본을 그대로 쓴다(css 한 자리). -->
+    <button class="prop-action-btn ${_bgEmpty ? 'primary' : 'secondary'}" id="sec-bg-img-empty" style="margin-top:4px;"
+      title="이미지를 넣기 «전»에 자리만 잡아 둔다. 내보내기엔 무늬가 안 나간다">
+      ${_bgEmpty ? '체크 배경 끄기' : '체크 배경으로 두기'}</button>
   `;
 
   // 섹션 내 텍스트 블록 타입별 수집
@@ -327,19 +337,16 @@ ${blockHeaderHTML({
               '<option value="__new__">새 폴더...</option>';
           })()}
         </select>
-        <select class="prop-select" id="sec-tpl-cat" style="flex:1;min-width:0;">
-          <option value="Hero">Hero</option>
-          <option value="Main">Main</option>
-          <option value="Feature">Feature</option>
-          <option value="Detail">Detail</option>
-          <option value="CTA">CTA</option>
-          <option value="Event">Event</option>
-          <option value="기타">기타</option>
+        <select class="prop-select" id="sec-tpl-cat" style="flex:1;min-width:0;" title="이 섹션의 «역할». 고르면 아래에 그 역할의 추천 태그가 뜬다">
+          ${window.TPL_ROLES ? window.TPL_ROLES.map(r => `<option value="${r.key}">${r.ko}</option>`).join('')
+            : '<option value="head">머리 (head)</option><option value="body">본문 (body)</option><option value="foot">꼬리 (foot)</option><option value="etc">기타 (etc)</option>'}
         </select>
       </div>
       <input type="text" id="sec-tpl-folder-new" class="tpl-name-input" placeholder="새 폴더 이름" style="display:none;margin-bottom:4px;">
       <input type="text" id="sec-tpl-name" class="tpl-name-input" placeholder="템플릿 이름" style="margin-bottom:4px;">
       <input type="text" id="sec-tpl-tags" class="tpl-name-input" placeholder="태그 (쉼표 구분)" style="margin-bottom:4px;">
+      <!-- ★추천 태그 — 역할을 고르면 여기가 바뀐다. ⛔«가둠»이 아니다: 위 입력칸에 직접 쳐도 된다. -->
+      <div id="sec-tpl-tag-recos" class="tpl-tag-recos" style="margin-bottom:4px;"></div>
       <button class="prop-action-btn primary" id="sec-tpl-save-btn">템플릿으로 저장</button>
     </div>`;
 
@@ -471,6 +478,7 @@ ${blockHeaderHTML({
         window.pushHistory?.('섹션 배경 이미지');
         sec.dataset.bgImg = dataUrl;
         sec.dataset.bgSize = 'cover';
+        delete sec.dataset.bgImgEmpty;   // ★진짜 그림이 오면 «자리표시»는 물러난다
         _applySectionBg(sec);
         /* ★[R1-업로드 · 2026-09-22] «끝 표본» — 바로 위 pushHistory 는 push-before 다(찍고 «나서» 바꾼다).
            ⚠️정정(2026-09-22): 이 자리를 한때 「찍고 → 비동기로 반영」(js/image-handling.js 꼴)으로
@@ -487,6 +495,17 @@ ${blockHeaderHTML({
         showSectionProperties(sec);
       };
       reader.readAsDataURL(file);
+    });
+  }
+  const bgImgEmptyBtn = document.getElementById('sec-bg-img-empty');
+  if (bgImgEmptyBtn) {
+    bgImgEmptyBtn.addEventListener('click', () => {
+      const on = sec.dataset.bgImgEmpty === '1';
+      window.pushHistory?.(on ? '섹션 체크 배경 끄기' : '섹션 체크 배경');
+      if (on) delete sec.dataset.bgImgEmpty; else sec.dataset.bgImgEmpty = '1';
+      _applySectionBg(sec);
+      window.scheduleAutoSave?.();
+      showSectionProperties(sec);
     });
   }
   if (bgSizeEl) {
@@ -603,6 +622,44 @@ function _bindSectionExport(sec) {
 }
 
 /* 섹션 템플릿 저장 이벤트 바인딩 — showSectionProperties에서 분리 */
+/* ★역할별 «추천 태그» 칩 — 현빈 2026-09-28.
+ *   「지금처럼 타이핑 할수도 있지만 어떤걸 선택하느냐에 따라서 밑에 태그추천이 뜨게」
+ * ⛔칩은 «보조»다: 입력칸은 자유 그대로고, 칩에 없는 태그도 그대로 저장된다.
+ * ★명부는 js/panels/template-roles.js 하나다 — 여기에 태그를 «또» 적지 않는다. */
+function _tplRenderTagRecos() {
+  const box = document.getElementById('sec-tpl-tag-recos');
+  const sel = document.getElementById('sec-tpl-cat');
+  const inp = document.getElementById('sec-tpl-tags');
+  if (!box || !sel) return;
+  const tags = (window.tplRoleTags ? window.tplRoleTags(sel.value) : []) || [];
+  if (!tags.length) { box.innerHTML = ''; return; }
+  /* 이미 넣은 태그는 «눌린 꼴»로 — 두 번 더해지는 걸 눈으로 막는다. */
+  const have = new Set(String(inp?.value || '').split(',').map(t => t.trim()).filter(Boolean));
+  box.innerHTML = '<div class="tpl-reco-label">추천 태그</div>'
+    + tags.map(t => `<button type="button" class="tpl-reco-chip${have.has(t) ? ' on' : ''}" data-tag="${t}">${t}</button>`).join('');
+}
+function _tplBindTagRecos() {
+  const box = document.getElementById('sec-tpl-tag-recos');
+  const sel = document.getElementById('sec-tpl-cat');
+  const inp = document.getElementById('sec-tpl-tags');
+  if (!box || !sel || !inp) return;
+  sel.addEventListener('change', _tplRenderTagRecos);
+  inp.addEventListener('input', _tplRenderTagRecos);
+  box.addEventListener('click', (e) => {
+    const chip = e.target.closest('.tpl-reco-chip');
+    if (!chip) return;
+    e.preventDefault();
+    const tag = chip.dataset.tag;
+    const cur = String(inp.value || '').split(',').map(t => t.trim()).filter(Boolean);
+    const at = cur.indexOf(tag);
+    if (at >= 0) cur.splice(at, 1);      // 한 번 더 누르면 뺀다(토글)
+    else cur.push(tag);
+    inp.value = cur.join(', ');
+    _tplRenderTagRecos();
+  });
+  _tplRenderTagRecos();                   // 첫 그림
+}
+
 function _bindSectionTemplate(sec) {
   const tplFolderSel = document.getElementById('sec-tpl-folder');
   const tplFolderNew = document.getElementById('sec-tpl-folder-new');
@@ -611,6 +668,8 @@ function _bindSectionTemplate(sec) {
       tplFolderNew.style.display = tplFolderSel.value === '__new__' ? 'block' : 'none';
     });
   }
+
+  _tplBindTagRecos();
 
   const tplSaveBtn = document.getElementById('sec-tpl-save-btn');
   if (!tplSaveBtn) return;

@@ -2208,6 +2208,53 @@ function _listProjectsImpl(opts) {
   items.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   return (opts && opts.withDiag) ? { items, dirError } : items;
 }
+/* ── 백업 사본 목록 — 현빈 2026-09-28 「백업본도 볼 수 있게」 ────────────────
+ * ★왜 «별도 창구»인가 — 기존 목록의 문지기(_isListableProjectId, `^proj_\d+$`)를 «넓히지 않는다».
+ *   그 모양 강제는 T-049(id 가 인라인 핸들러에 박혀 난 XSS) 방어다. 위 주석이
+ *   「여기를 풀면 T-049 가 되살아난다」고 못박아 뒀다. ⇒ 문을 넓히는 대신 문을 «하나 더» 낸다.
+ * ★이 창구가 주는 id 는 «열 수 없다» — open_project·duplicate 는 여전히 ^proj_\d+$ 만 받는다.
+ *   그래서 화면은 이것을 «읽기 전용 정보»로만 쓴다(보이기·크기·원본 짝).
+ * ⛔이름을 «틀»에 박지 마라 — 렌더러는 textContent 로 넣는다(T-049 와 같은 규율).
+ */
+function _listProjectBackupsImpl() {
+  let entries = [];
+  try { entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true }); } catch (_) { return { ok: true, items: [] }; }
+  const isReal = (n) => /^(?:proj|plan)_\d+$/.test(n);
+  const out = [];
+  for (const ent of entries) {
+    if (!ent.isDirectory()) continue;
+    const n = ent.name;
+    if (isReal(n)) continue;                       // 진짜 프로젝트는 기존 목록이 맡는다
+    if (!/^(?:proj|plan)_/.test(n)) continue;      // proj_/plan_ 로 시작하는 것만 본다
+    const dir = path.join(PROJECTS_DIR, n);
+    if (!fs.existsSync(path.join(dir, 'proj.json'))) continue;
+    /* 원본 짝 — `proj_123.bak_xxx` → `proj_123`. 원본이 살아 있는지도 같이 준다
+       (「고아 백업인가」를 화면이 스스로 판정하지 않게, 사실을 여기서 준다). */
+    const base = String(n).split('.')[0];
+    const originAlive = isReal(base) && fs.existsSync(path.join(PROJECTS_DIR, base, 'proj.json'));
+    let name = null, updatedAt = null;
+    try {
+      const m = JSON.parse(fs.readFileSync(path.join(dir, 'proj_meta.json'), 'utf8'));
+      name = m && m.name != null ? String(m.name) : null;
+      updatedAt = (m && m.updatedAt) || null;
+    } catch (_) {}
+    let bytes = 0;
+    try { bytes = fs.statSync(path.join(dir, 'proj.json')).size; } catch (_) {}
+    out.push({ folder: n, name, updatedAt, bytes, origin: base, originAlive,
+               suffix: n.slice(base.length + 1) || null });
+  }
+  out.sort((a, b) => String(a.folder).localeCompare(String(b.folder)));
+  return { ok: true, items: out };
+}
+ipcMain.handle('projects:list-backups', () => {
+  /* ⛔관리자만 — 현빈 2026-09-28 「백업사본보기는 관리자만 볼 수 있게」.
+   * ★«값 자체»를 안 준다. 화면의 표시 조건으로만 막으면 화면을 손대는 사람이 조용히 연다 —
+   *   바로 위 `app:debug-port` 가 같은 까닭으로 같은 꼴을 쓴다(그 주석이 이유를 적어 뒀다).
+   * ⇒ 비관리자에겐 빈 목록이 아니라 «권한 없음»을 준다: 「백업이 0개」와 「못 본다」를 가른다. */
+  if (!isAdminAuthorized()) return { ok: false, code: 'not_admin', items: [] };
+  return _listProjectBackupsImpl();
+});
+
 ipcMain.handle('projects:list', () => _listProjectsImpl());
 
 

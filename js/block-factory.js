@@ -19,7 +19,8 @@ import {
   bindSectionDropZone,
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
-         newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame } from './frame-geometry.js';
+         newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame,
+         growFrameToFitChildren } from './frame-geometry.js';
 import { getGridModel, GRID_NESTED_LINE_TYPE } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, topLevelBlocksOf, isEmptyShell } from './shape-frame.js';
@@ -1811,6 +1812,29 @@ function addFrameBlock(opts = {}) {
   const activeFrame = !opts.fullWidth && resolveInsertFrame(window._activeFrame);
   if (activeFrame && activeFrame.closest('.section-block') === sec) {
     activeFrame.appendChild(ss);
+    /* ★자유배치 프레임의 자식은 «좌표»로 산다 — 안 주면 흐름 자식이 되어, 이미 들어와 있던
+       absolute 형제와 «둘 다 y=0» 에 포개진다(absolute 형제는 흐름을 차지하지 않으므로
+       흐름 자식이 그 아래로 밀려나지 않는다). 새 프레임 배경은 불투명이라 먼저 있던 블록을
+       덮고, 그 블록은 「선택했을 때만 보이는」 것처럼 된다.
+       ⇒ 실측 2026-09-28(현빈 보고): 자유배치 프레임 ss_ts0he_p1o0qt2 안에서 그리드
+         grd_ts0he_t961d3f 가 뒤에 추가된 흰 프레임 ss_ts0he_z74j7lm 에 덮였다. 덮은 쪽은
+         좌표가 없어 드래그로 치울 수도 없었다(style.position/left/top 이 통째로 없음).
+       ★쌓는 규약·grow 는 자유배치 드롭 경로(js/block-drag.js)와 «같은 것»을 쓴다 — 16px 간격,
+         growFrameToFitChildren. .frame-block 은 overflow:hidden 이라 안 키우면 새 프레임이
+         밑변 너머에서 잘려 «값은 있는데 안 보이는» 쪽이 된다(T-088 과 같은 자리). */
+    if (activeFrame.dataset.freeLayout === 'true' && ss.style.position !== 'absolute') {
+      const _bottom = [...activeFrame.children].reduce((maxY, c) => {
+        if (c === ss || !c.style || c.style.position !== 'absolute') return maxY;
+        return Math.max(maxY, (parseInt(c.style.top) || 0) + (c.offsetHeight || 0));
+      }, 0);
+      const _top = _bottom > 0 ? _bottom + 16 : 0;
+      ss.style.position = 'absolute';
+      ss.style.left = '0px';
+      ss.style.top  = _top + 'px';
+      ss.dataset.offsetX = '0';
+      ss.dataset.offsetY = String(_top);
+      growFrameToFitChildren(activeFrame);
+    }
   } else {
     insertAfterSelected(sec, ss);
   }

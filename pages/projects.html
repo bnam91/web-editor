@@ -859,6 +859,17 @@ body {
   <div class="fz-label" id="loose-label" style="display:none"><span class="fz-label-text">폴더 밖 프로젝트</span> <span class="fz-count"></span></div>
   <div id="search-folder-hits"></div>
   <div id="project-grid"></div>
+  <!-- ★백업 사본 보기 — 현빈 2026-09-28 「백업본도 볼 수 있게」.
+       ⛔이건 «프로젝트 목록»이 아니다 — 열 수 없는 «읽기 전용 사본»이라 따로 둔다.
+         (앱은 proj_<숫자> 만 프로젝트로 읽는다. 그 문지기는 T-049 XSS 방어라 안 넓힌다.) -->
+  <div id="backup-zone" style="margin-top:18px;">
+    <label id="backup-toggle-row" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#888;cursor:pointer;user-select:none;">
+      <input type="checkbox" id="show-backups" style="margin:0;cursor:pointer;">
+      <span>백업 사본 보기</span>
+      <span id="backup-count" style="color:#666;"></span>
+    </label>
+    <div id="backup-list" style="display:none;margin-top:8px;"></div>
+  </div>
   <div id="trash-list" style="display:none"></div>
   <div id="empty-state">
     <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#888" stroke-width="1.2">
@@ -1680,6 +1691,84 @@ async function renderGrid() {
   _renderGridFromCache();
 }
 
+/* ── 백업 사본 목록 — 현빈 2026-09-28 ────────────────────────────────────
+ * ★«열 수 없는» 것들이다: 이름이 proj_<숫자> 가 아니라 앱이 프로젝트로 안 읽는다.
+ *   그래서 카드가 아니라 «줄»로, 단추 없이 사실만 보인다(이름·크기·원본 짝).
+ * ⛔이름을 «틀»에 박지 않는다 — textContent 로 넣는다(T-049 와 같은 규율).
+ * ★상태는 localStorage 한 칸 — 껐다 켜도 기억한다.
+ */
+const BACKUP_SHOW_KEY = 'goditor.projects.showBackups';
+let _backupCache = null;
+
+function _fmtBytes(n) {
+  n = Number(n) || 0;
+  if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + 'MB';
+  if (n >= 1024) return Math.round(n / 1024) + 'KB';
+  return n + 'B';
+}
+
+async function renderBackups() {
+  const box = document.getElementById('backup-list');
+  const cnt = document.getElementById('backup-count');
+  const cb  = document.getElementById('show-backups');
+  if (!box || !cb) return;
+  if (!IS_ELECTRON || !window.electronAPI?.listProjectBackups) {
+    document.getElementById('backup-zone')?.style.setProperty('display', 'none');
+    return;
+  }
+  if (_backupCache === null) {
+    /* ⛔관리자만 본다 — main 이 «값 자체»를 안 준다(code:'not_admin').
+       여기서는 그 답을 읽고 «자리까지» 감춘다: 비관리자에겐 체크박스도 안 보인다. */
+    try {
+      const r = await window.electronAPI.listProjectBackups();
+      if (r && r.ok === false) { document.getElementById('backup-zone')?.style.setProperty('display', 'none'); _backupCache = []; return; }
+      _backupCache = r?.items || [];
+    } catch (_) { _backupCache = []; }
+  }
+  const items = _backupCache;
+  if (cnt) cnt.textContent = items.length ? `(${items.length}개 · ${_fmtBytes(items.reduce((a, b) => a + (b.bytes || 0), 0))})` : '(없음)';
+  if (!cb.checked) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = '';
+  if (!items.length) {
+    const p = document.createElement('div');
+    p.style.cssText = 'font-size:12px;color:#666;padding:6px 0;';
+    p.textContent = '백업 사본이 없습니다.';
+    box.appendChild(p);
+    return;
+  }
+  for (const it of items) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 8px;font-size:12px;color:#aaa;border-bottom:1px solid #2a2a2a;';
+    const nm = document.createElement('span');
+    nm.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    nm.textContent = (it.name || '(이름 없음)') + (it.suffix ? '  · ' + it.suffix : '');   // ★textContent
+    const sz = document.createElement('span');
+    sz.style.cssText = 'color:#777;flex-shrink:0;';
+    sz.textContent = _fmtBytes(it.bytes);
+    const og = document.createElement('span');
+    og.style.cssText = 'flex-shrink:0;font-size:11px;' + (it.originAlive ? 'color:#4a8;' : 'color:#c66;');
+    og.textContent = it.originAlive ? '원본 있음' : '⚠원본 없음';
+    row.appendChild(nm); row.appendChild(sz); row.appendChild(og);
+    box.appendChild(row);
+  }
+  const hint = document.createElement('div');
+  hint.style.cssText = 'font-size:11px;color:#666;padding:6px 2px;';
+  hint.textContent = '이 사본들은 열 수 없습니다 — 예전 작업 전에 떠 둔 것이라 목록에는 안 나옵니다.';
+  box.appendChild(hint);
+}
+
+function initBackupToggle() {
+  const cb = document.getElementById('show-backups');
+  if (!cb) return;
+  try { cb.checked = localStorage.getItem(BACKUP_SHOW_KEY) === '1'; } catch (_) {}
+  cb.addEventListener('change', () => {
+    try { localStorage.setItem(BACKUP_SHOW_KEY, cb.checked ? '1' : '0'); } catch (_) {}
+    renderBackups();
+  });
+  renderBackups();
+}
+
 /* ── 카드의 「없는 글꼴」 배지 ──────────────────────────────────────────
  * ★그리드를 다시 그리지 «않고» 배지만 칠한다. 이유: 이 인라인 스크립트가
  *   font-substitute.js보다 먼저 실행돼서, 첫 renderGrid() 때는 window.gdtFontReport가
@@ -1708,6 +1797,9 @@ function paintFontBadges() {
   });
 }
 window.addEventListener('load', paintFontBadges);
+/* ★백업 보기 토글 — 목록과 «따로» 산다. renderGrid 와 엮지 않는다:
+     목록이 다시 그려질 때마다 백업까지 다시 읽으면 느려지고, 백업은 자주 안 바뀐다. */
+window.addEventListener('load', initBackupToggle);
 
 /** 폴더 «안»에서 새로 생긴 프로젝트(새로 만들기·가져오기·복제)를 «지금 보고 있는» 폴더 소속으로 — 한 벌.
  *  ★루트·검색 중·휴지통에선 아무것도 안 한다(_viewMode() === 'inside' 일 때만). 실패해도 흐름은 막지 않는다(경고만).

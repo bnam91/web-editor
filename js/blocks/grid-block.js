@@ -1381,6 +1381,23 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     const h = Number(line.height) || 16;
     return `<div${addrAttr} class="grd-gap" style="height:${h}px;${mtCss}"></div>`;
   }
+  /* ★구분선 줄 (그리드 티켓 ② · 2026-09-28) — 칸 «안»에 가로선을 긋는다.
+     ★여백 줄(gap) 바로 옆에 둔다: 둘 다 «글자가 없는 줄»이라 아래 글자 가지(role·font)를
+       타면 안 되고, 주소 속성(addrAttr)은 똑같이 달아야 줄 선택·삭제·이동이 그대로 먹는다.
+     굵기(height)·색(color) «둘만» 갖는다 — 값이 없으면 1px·#e0e0e0.
+     ⛔위아래 여백에 새 필드를 만들지 않는다: 이 레포는 여백을 «여백 줄(gap)»로 다루고,
+        렌더러가 읽는 필드는 GRID_LINE_FIELDS 명부에 올라야 한다(P6 검사가 그걸 잠근다).
+        필드를 하나 늘리는 대신 숨쉴 틈만 고정으로 주고, 더 벌리고 싶으면 앞뒤에 여백 줄을
+        넣는다 — 굵기·색과 달리 «다른 줄로 표현되는» 값이라 필드로 가질 이유가 없다.
+     ⛔margin 단축을 쓰면 mtCss(marginTop)가 뒤에서 덮어써 «위 여백만» 사라진다. 그래서
+        세로 여백은 margin-block 으로 쓰고 mtCss 는 종전대로 맨 뒤에 둔다.
+     ⛔CSS 클래스에 여백을 두지 않는다 — 내보내기(PNG·단독 HTML)는 에디터 CSS 를 안 싣는
+        경로가 있어 «화면과 다른 그림»이 된다. 인라인이면 어느 경로로도 같이 간다. */
+  if (line.type === 'divider') {
+    const th = Math.max(1, Math.min(40, Number(line.height) || 1));
+    const col = _esc(line.color || '#e0e0e0');
+    return `<div${addrAttr} class="grd-divider" style="height:${th}px;background:${col};margin-block:8px;${mtCss}"></div>`;
+  }
   if (line.type === 'image') {
     const h = Number(line.height) || 0;
     const r = Number(line.radius) || 0;

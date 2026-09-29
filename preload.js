@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   // Projects (파일 기반)
   listProjects:   ()        => ipcRenderer.invoke('projects:list'),
+  /* ★백업 사본 목록 — 읽기 전용. 기존 listProjects 의 문지기는 안 건드린다(T-049 방어). */
+  listProjectBackups: () => ipcRenderer.invoke('projects:list-backups').catch(() => ({ ok: false, items: [] })),
   // opts.open=true → «프로젝트를 연다»는 로드(열 때 외부화 정책이 여기서만 돈다). 저장 경로의 병합용 로드는 opts 없이.
   loadProject:    (id, opts) => ipcRenderer.invoke('projects:load', id, opts),
   saveProject:    (project) => ipcRenderer.invoke('projects:save', project),

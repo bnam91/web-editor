@@ -100,6 +100,11 @@ before(async () => {
   // ★실물 그대로 복사 — 트리 모양이 레포와 같아서 import 상대경로를 한 글자도 안 고친다.
   fs.copyFileSync(path.join(ROOT, 'js', 'props', 'prop-grid.js'), path.join(TMP, 'props', 'prop-grid.js'));
   fs.copyFileSync(path.join(ROOT, 'js', 'blocks', 'grid-block.js'), path.join(TMP, 'blocks', 'grid-block.js'));
+  /* ★gap-limits.js 가 넷째다 (2026-09-28) — prop-grid.js 가 «갭 줄 높이»의 상·하한을
+     거기서 import 하기 시작했다(현빈 ① 「갭 블럭 높이 조절이 안됨」).
+     ⛔안 복사하면 ERR_MODULE_NOT_FOUND 로 이 파일의 검사 «전부»가 빨개진다 —
+       한 줄 빠진 것이 28건 실패로 보여서 「남의 그물을 끊었다」로 오독하기 딱 좋다. */
+  fs.copyFileSync(path.join(ROOT, 'js', 'blocks', 'gap-limits.js'), path.join(TMP, 'blocks', 'gap-limits.js'));
   fs.copyFileSync(path.join(ROOT, 'js', 'grid-cell-resize.js'), path.join(TMP, 'grid-cell-resize.js'));
 
   // ★UI 전용 의존 — grdAddLine 이 안 쓰는 것들만 최소 스텁.

@@ -2061,6 +2061,10 @@ function bindBlock(block) {
         _grdAddr = window.grdResolveClickAddr
           ? window.grdResolveClickAddr({ at: _at, prevAddr: _grdPrevAddr, insideCell: _insideCell, wasSelected: _grdWasSelected })
           : (!_grdWasSelected ? null : (_at !== undefined ? _at : (_insideCell ? _grdPrevAddr : null)));
+        /* ★줄 «복수선택» (티켓 ⑤) — ⇧=범위 · ⌘/Ctrl=토글. 판정·규칙은 prop-grid.js 한 곳에 있고
+           여기서는 «어떤 키가 눌렸나»만 넘긴다(두 벌로 갈라 두지 않는다).
+           ⛔이 줄이 _grdAddr 을 바꾸지는 «않는다» — 패널이 보는 줄은 종전대로 마지막에 누른 줄이다. */
+        window.grdApplyLineSelClick?.(block, _grdAddr, { shift: e.shiftKey, meta: e.metaKey || e.ctrlKey });
       }
       window[showFn]?.(block, _grdAddr);
       /* ★0922 T-058 — 걸쇠는 showGridProperties «뒤»에 건다. 그 호출이 _grdAddr===null 일 때
@@ -2641,13 +2645,32 @@ function bindFrameDropZone(ss) {
         const indicator = inner.querySelector('.drop-indicator');
         if (indicator) inner.insertBefore(dragState.dragSrc, indicator);
         else inner.appendChild(dragState.dragSrc);
-        if (dragState.dragSrc.matches?.(BLOCK_SEL) && dragState.dragSrc.style.position !== 'absolute') {
+        /* ★프레임을 자유배치 프레임에 떨구면 «좌표를 못 받던» 자리 (현빈 2026-09-28 보고).
+           BLOCK_SEL 에는 .frame-block 이 «없다». 그래서 프레임만 makeAbsolute 를 안 타고
+           흐름 자식으로 남았고, 두 가지가 같이 깨졌다 —
+             ⓐ style.position/left/top 이 통째로 없어 드래그로 옮길 자리가 없다.
+             ⓑ 아래 «술어 밖 루프»는 absolute 인 자식만 top 을 다시 매기는데, 흐름 자식은
+                앞선 absolute 형제가 흐름을 차지하지 않아 «자기도 y=0» 에서 그려진다.
+                ⇒ 먼저 놓인 블록과 정확히 포개지고, 프레임 배경이 불투명이면 그 블록을 덮는다.
+                (실측 2026-09-28: grd_ts0he_t961d3f 가 흰 프레임 ss_ts0he_z74j7lm 에 덮여
+                 「편집할 때만 보이고 포커스를 풀면 사라지는」 것으로 보였다.)
+           ⛔BLOCK_SEL 상수에 넣지 «않는다» — 그 상수는 querySelectorAll 로도 쓰여서
+             row 추출 경로가 «중첩된 프레임까지» 통째로 긁어낸다. 판정에만 더한다. */
+        const _isFrameDrop = dragState.dragSrc.classList.contains('frame-block');
+        if ((dragState.dragSrc.matches?.(BLOCK_SEL) || _isFrameDrop) && dragState.dragSrc.style.position !== 'absolute') {
           const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)].filter(b => b !== dragState.dragSrc);
           const nextY = existingBlocks.reduce((maxY, b) => {
             const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
             return Math.max(maxY, by);
           }, 0);
           makeAbsolute(dragState.dragSrc, 0, nextY > 0 ? nextY + 16 : 0);
+          /* ★makeAbsolute 가 draggable="false" 를 남긴다 — 그대로 두면 다음 드래그에서
+             .dragging 이 고착해 연회색이 된다(js/CLAUDE.md 「draggable 잔류 버그」, text-frame
+             경로가 이미 같은 처방을 쓴다). 프레임도 «대칭»으로 걷고 재바인딩을 연다. */
+          if (_isFrameDrop) {
+            dragState.dragSrc.removeAttribute('draggable');
+            dragState.dragSrc._dragBound = false;
+          }
         }
       }
 

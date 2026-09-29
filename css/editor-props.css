@@ -1077,3 +1077,15 @@
   transform: translateY(-50%) scale(1.2);
   z-index: 3;
 }
+
+/* ── 템플릿 저장: 역할별 «추천 태그» 칩 (현빈 2026-09-28) ──────────────────
+   ★칩은 «보조»다 — 위 입력칸에 직접 쳐도 되고, 칩에 없는 태그도 저장된다.
+   ⛔.prop-label(56px 고정·overflow:hidden)에 넣지 않는다 — 글자가 잘린다(이 파일 그 클래스 주석 참고). */
+.tpl-tag-recos { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.tpl-reco-label { width: 100%; font-size: 10px; color: #777; margin: 2px 0 1px; }
+.tpl-reco-chip {
+  font-size: 10px; line-height: 1.6; padding: 1px 7px; border-radius: 99px;
+  background: #2a2a2a; color: #bbb; border: 1px solid #3a3a3a; cursor: pointer;
+}
+.tpl-reco-chip:hover { border-color: #555; color: #ddd; }
+.tpl-reco-chip.on { background: var(--ui-accent-primary, #3a6ea5); border-color: transparent; color: #fff; }

@@ -2344,12 +2344,18 @@ document.addEventListener('keydown', e => {
     if (e.key === 'c') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      /* ★그리드 «줄» 복사 (티켓 ⑤) — 그리드 블럭 하나만 골라져 있고 그 안에 줄 선택이 있을
+         때만 참을 돌려준다. 그 밖엔 거짓이라 아래 블록 복사가 종전대로 돈다(판정은 prop-grid.js). */
+      if (window.grdCopySelectedLines?.()) return;
       copySelected();
       return;
     }
     if (e.key === 'v') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      /* ★그리드 «줄» 붙여넣기 (티켓 ⑤) — 줄 클립보드가 비어 있거나 대상이 아니면 거짓이라
+         아래 섹션/스크래치 붙여넣기가 종전대로 돈다. */
+      if (window.grdPasteLines?.()) return;
       // 우선순위: 가장 최근 Cmd+C 액션이 내부(섹션) vs 외부(스크래치 이미지) 중 어느 것인지로 분기
       // 동률(둘 다 0 또는 같은 시각) 시 scratch 우선 — 외부 이미지 paste를 막지 않기 위함
       const internalT = window._internalClipboardTime || 0;
