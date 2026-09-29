@@ -1116,7 +1116,18 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *     ⑷★U8(grid-line-typo)이 «꼴»로 잠가 뒀던 자리가 같이 빨개졌다 — 계약은 그대로이고 꼴만
  *       갈라졌다(np 갈래). «두 갈래를 다 넘기는가»로 고쳤다(수 변화 0).
  *     ⛔DOM 축(grid-nested-create N6·N7)은 여기 «안» 센다. */
-const GRID_BASELINE_TESTS = 368;
+/*   · ★375 (2026-09-30, 현빈 「구분선 줄이 선택이 안 돼서 너비 수정을 할 수가 없다」) —
+ *     tests/unit/grid-divider-handle.test.mjs 신설 «+7».
+ *     ⑴세는 자 = `grep -c '^test(' tests/unit/grid-divider-handle.test.mjs` → 7.
+ *     ⑵더한 것 — D1 ★DOM 픽스처를 «렌더러 산출»에 묶는다(그쪽이 낡아도 초록이 되는 것을 막는다) ·
+ *       D2 굵기·색 한계가 상수 한 벌에서 온다 · D3 그 한계가 실제로 자른다 ·
+ *       D4 패널 칸이 구분선 줄에만 난다 · D5 배선이 «글자 줄 가드» 앞이다 ·
+ *       D6 ⛔새 필드 0(height·color 는 이미 GRID_LINE_FIELDS 에 있다) ·
+ *       D7 «잡을 데»가 #canvas 안에만 있다(내보내기 산출물 불변).
+ *     ⑶고친 것은 «규칙»이 아니라 «면적»이다 — 구분선은 1px 이라 손이 안 닿았다.
+ *       그 효과는 여기서 못 잰다 ⇒ tests/dom/grid-divider-hitarea.dom.spec.js(H1~H3, 양성대조 딸림).
+ *     ⛔DOM 축(H1·H2·H3)은 여기 «안» 센다. */
+const GRID_BASELINE_TESTS = 375;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {

@@ -9,6 +9,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
          gridGaps, GRID_GAP_MAX, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES,
+         GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
@@ -2057,6 +2058,13 @@ function _grdLineSectionHtml(anyHit, block) {
   const raw = (typeof line.bg === 'string' && GRID_COLOR_RE.test(String(line.bg).trim()))
     ? String(line.bg).trim() : '';
   const hex = raw ? swatchHex(raw, '#eeeeee') : '#eeeeee';
+  /* ★구분선 줄(현빈 2026-09-30) — 렌더러는 height·color 를 «이미» 읽는다(grid-block.js 의
+     divider 가지). 없던 것은 갭 줄과 똑같이 «패널에 누를 데»뿐이라, 바로 위 갭 칸과 같은
+     모양·같은 길(gridPreviewLine)로 낸다. ⛔새 필드를 만들지 않는다. */
+  const isDivider = (line.type || 'body') === 'divider';
+  const dvRaw = (typeof line.color === 'string' && GRID_COLOR_RE.test(String(line.color).trim()))
+    ? String(line.color).trim() : '';
+  const dvHex = dvRaw ? swatchHex(dvRaw, GRID_DIVIDER_DEFAULT_COLOR) : GRID_DIVIDER_DEFAULT_COLOR;
   void r; void c;
   return `
     <div class="prop-section"${open ? '' : ' style="padding-bottom:0;"'}>
@@ -2069,6 +2077,17 @@ ${_grdKindSelectHtml(line)}
         ${(line.type || 'body') === 'gap' ? `<div class="prop-row">
           <span class="prop-label" title="이 여백 줄의 높이(px). 비우면 기본 16">높이(px)</span>
           <input type="number" class="prop-number" id="grd-line-gap-h" min="${GAP_MIN}" max="${GAP_MAX}" placeholder="16" value="${Number(line.height) || ''}">
+        </div>` : ''}
+        ${isDivider ? `<div class="prop-row">
+          <span class="prop-label" title="구분선의 굵기(px). 비우면 기본 ${GRID_DIVIDER_H_MIN}">굵기(px)</span>
+          <input type="number" class="prop-number" id="grd-divider-h" min="${GRID_DIVIDER_H_MIN}" max="${GRID_DIVIDER_H_MAX}" placeholder="${GRID_DIVIDER_H_MIN}" value="${Number(line.height) || ''}">
+        </div>
+        <div class="prop-row" style="margin-bottom:0;">
+          <span class="prop-label" title="구분선의 색. 비우면 기본 ${GRID_DIVIDER_DEFAULT_COLOR}">선 색</span>
+          <div class="prop-color-swatch${dvRaw ? '' : ' swatch-none'}"${dvRaw ? ` style="background:${dvRaw}"` : ''}>
+            <input type="color" id="grd-divider-color" value="${dvHex}">
+          </div>
+          <input type="text" class="prop-color-hex" id="grd-divider-hex" maxlength="7" placeholder="기본" aria-label="구분선 색" value="${dvRaw ? dvHex.replace('#', '').toUpperCase() : ''}">
         </div>` : ''}
         ${canAlign ? `<div class="prop-row">
           <span class="prop-label" title="이 «줄»만 정렬한다(기본 = 열을 따른다). 열 정렬 단추는 그 열 전체다">줄 정렬</span>
@@ -2119,6 +2138,58 @@ function _grdWireLineSection(block, addr) {
     _grdSyncLineMark(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
     window.scheduleAutoSave?.();
   });
+
+  /* ── ② 구분선 줄 «굵기·색» — 현빈 2026-09-30 「구분선 너비 수정을 할 수가 없다」.
+   *   ★갭 높이(①)와 «같은 자리·같은 길»이다. 이 가드(`!gridLineHasText`)보다 «앞»에 둬야
+   *     한다 — 구분선도 글자 줄이 아니라, 아래로 내려가면 영영 배선되지 않는다.
+   *   ★빈 칸 = 「기본으로 되돌림」 — undefined 를 주면 _gridMergeLine(Object.assign)이 키를
+   *     지우고 렌더러가 다시 1px·#e0e0e0 으로 그린다(갭 높이의 빈 칸과 같은 규약). */
+  const dvH = document.getElementById('grd-divider-h');
+  dvH?.addEventListener('change', (e) => {
+    const rawV = String(e.target.value).trim();
+    const v = rawV === '' ? undefined
+      : Math.max(GRID_DIVIDER_H_MIN, Math.min(GRID_DIVIDER_H_MAX, parseInt(rawV, 10) || GRID_DIVIDER_H_MIN));
+    window.pushHistory?.();
+    gridPreviewLine(block, r, c, li, { height: v }, addr.np);
+    _grdSyncLineMark(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
+    window.scheduleAutoSave?.();
+  });
+
+  const dvPick = document.getElementById('grd-divider-color');
+  const dvHexEl = document.getElementById('grd-divider-hex');
+  if (dvPick || dvHexEl) {
+    const dvSwatch = dvPick?.closest('.prop-color-swatch');
+    const dvPaint = (h) => {
+      if (!dvSwatch) return;
+      dvSwatch.classList.toggle('swatch-none', !h);
+      dvSwatch.style.background = h || '';
+    };
+    /* ⛔updateGridBlock 금지 — 알약 색과 같은 까닭(패널 재생성 → 포커스 끊김·히스토리 폭주). */
+    let _dvGesture = false;
+    const dvCommit = (color) => {
+      if (!_dvGesture) { _dvGesture = true; window.pushHistory?.(); }   // ★적용 «전»에 한 번
+      gridPreviewLine(block, r, c, li, { color }, addr.np);
+      _grdSyncLineMark(block, addr);
+    };
+    const dvEnd = () => { _dvGesture = false; window.scheduleAutoSave?.(); };
+    dvPick?.addEventListener('input', () => {
+      dvPaint(dvPick.value);
+      if (dvHexEl) dvHexEl.value = dvPick.value.replace('#', '').toUpperCase();
+      dvCommit(dvPick.value);
+    });
+    dvPick?.addEventListener('change', dvEnd);
+    wireHexText(dvHexEl, {
+      parse: (rawV) => (String(rawV ?? '').trim() === '' ? '' : parseHex6(rawV)),
+      format: (v) => (v ? formatHex6(v) : ''),
+      getCurrent: () => {
+        const cur = _grdLine(block, { r, c, li }) || {};
+        return (typeof cur.color === 'string' && GRID_COLOR_RE.test(cur.color.trim()))
+          ? swatchHex(cur.color.trim(), '') : '';
+      },
+      onApply: (v) => { dvPaint(v || ''); if (v && dvPick) dvPick.value = v; },
+      onCommit: (v) => { dvCommit(v || undefined); dvEnd(); },
+    });
+  }
 
   if (!gridLineHasText(hit.line)) return;      // 알약은 «글자 줄»만
   const pick = document.getElementById('grd-badge-color');

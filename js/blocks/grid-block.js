@@ -115,6 +115,15 @@ export const GRID_IMG_MAX_BYTES = 5 * 1024 * 1024;
 
 export const GRID_GAP_MAX = 200;
 
+/* ══ 구분선 줄의 «굵기·색» 한계 — T-? (2026-09-30, 현빈 grd_owr55_gql6n0n) ════════
+ * ★값은 원래 아래 `line.type === 'divider'` 가지 안에 손으로 박혀 있었다(1·40·#e0e0e0).
+ *   패널에도 같은 손잡이를 내면서 그 수를 «두 번째로» 적게 되는 자리라 이름을 준다 —
+ *   이 레포가 IMG_MIN_PCT·GAP_MIN/MAX 를 그렇게 다루는 것과 같은 규약(prop-grid.js 머리말).
+ * ⛔새 «필드»가 아니다. height·color 는 이미 GRID_LINE_FIELDS 에 있다(이 파일 :278). */
+export const GRID_DIVIDER_H_MIN = 1;
+export const GRID_DIVIDER_H_MAX = 40;
+export const GRID_DIVIDER_DEFAULT_COLOR = '#e0e0e0';
+
 /* ══ 칸 «테두리» — T-172 (2026-09-24) ═══════════════════════════════════════
  * ★★어느 «축»에 두는가 — «블록 하나»다(gap·valign 과 같은 자리).
  *   카드가 물은 것은 「표로 보이게」다. 표에 필요한 것은 «격자 선 한 벌»이지
@@ -1394,8 +1403,9 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
      ⛔CSS 클래스에 여백을 두지 않는다 — 내보내기(PNG·단독 HTML)는 에디터 CSS 를 안 싣는
         경로가 있어 «화면과 다른 그림»이 된다. 인라인이면 어느 경로로도 같이 간다. */
   if (line.type === 'divider') {
-    const th = Math.max(1, Math.min(40, Number(line.height) || 1));
-    const col = _esc(line.color || '#e0e0e0');
+    const th = Math.max(GRID_DIVIDER_H_MIN,
+                        Math.min(GRID_DIVIDER_H_MAX, Number(line.height) || GRID_DIVIDER_H_MIN));
+    const col = _esc(line.color || GRID_DIVIDER_DEFAULT_COLOR);
     return `<div${addrAttr} class="grd-divider" style="height:${th}px;background:${col};margin-block:8px;${mtCss}"></div>`;
   }
   if (line.type === 'image') {
