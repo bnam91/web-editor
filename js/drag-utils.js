@@ -131,9 +131,22 @@ function insertBeforeBottomGap(section, el) {
 function effectiveSectionPadX(el) {
   const parent = el?.parentElement;
   if (!parent) return 0;
-  /* ⛔프레임 «안»은 못 뚫는다 — `.frame-block{overflow:hidden}` 이라 넘친 폭이 잘리기만 한다.
-     (자유배치 프레임은 절대배치라 애초에 무의미.) assetFullBleedWidth 의 가드와 같은 뜻. */
-  if (parent.closest?.('.frame-block')) return 0;
+  /* ★프레임 «안»에서 뚫을 수 있나 — 그 프레임이 «실제로 자르는지»로 가른다.
+     ~~[2026-09-10] `if (parent.closest('.frame-block')) return 0;` — 무조건 못 뚫었다.~~
+     까닭은 「.frame-block{overflow:hidden} 이라 넘친 폭이 잘리기만 한다」였는데,
+     ★2026-09-28 현빈 지시로 그 overflow 를 visible 로 풀었다(css/editor-blocks.css).
+       ⇒ 막아둔 «까닭»이 죽었는데 «문»만 남아 있었다. 그래서 까닭을 코드가 확인하게 바꾼다.
+     ★지금 자르는 것은 «모서리를 둥글린 프레임»뿐이다 — 같은 CSS 파일의
+       `.frame-block[data-radius]:not([data-radius="0"]) { overflow: hidden }` 한 줄이 정본이고,
+       아래 판정은 그 선택자를 «그대로» 옮긴 것이다(두 곳이 갈리면 여기부터 의심하라).
+     ⛔computed 스타일로 재지 않는다 — 이 함수는 검사에서 «가짜 DOM»으로도 불린다
+       (tests/unit/block-full-bleed.test.mjs 의 makeEl). dataset 은 거기서도 산다. */
+  const _fr = parent.closest?.('.frame-block');
+  if (_fr) {
+    const _r = _fr.dataset?.radius;
+    const _clips = _r !== undefined && _r !== '' && String(_r) !== '0';
+    if (_clips) return 0;
+  }
   /* ⚠️row 의 패딩 키가 «두 가지»다: 생성 경로는 `paddingX`, 패널 슬라이더는 `padX`.
      하나만 보면 조용히 글로벌로 샌다 — assetFullBleedWidth 와 같은 함정. */
   if (parent.classList?.contains('row')) {

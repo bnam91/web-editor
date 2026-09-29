@@ -91,10 +91,10 @@ function makeEl({ cls = [], dataset = {}, style = {}, parent = null } = {}) {
 }
 
 /** section-inner > (row?) > block 사슬을 만든다. */
-function scene({ innerPadX, rowPadX, rowPaddingX, blockDataset = {}, blockStyle = {}, wrapFrame = false } = {}) {
+function scene({ innerPadX, rowPadX, rowPaddingX, blockDataset = {}, blockStyle = {}, wrapFrame = false, frameRadius } = {}) {
   const inner = makeEl({ cls: ['section-inner'], dataset: innerPadX === undefined ? {} : { paddingX: String(innerPadX) } });
   let parent = inner;
-  if (wrapFrame) parent = makeEl({ cls: ['frame-block'], parent });
+  if (wrapFrame) parent = makeEl({ cls: ['frame-block'], parent, dataset: frameRadius === undefined ? {} : { radius: String(frameRadius) } });
   if (rowPadX !== undefined || rowPaddingX !== undefined) {
     const d = {};
     if (rowPadX !== undefined) d.padX = String(rowPadX);
@@ -154,11 +154,28 @@ test('P1c padX 가 0 이면 «뚫을 게 없다» — 켜져 있어도 아무것
   ctx.state.pageSettings.padX = 32;
 });
 
-test('P1d ⛔프레임 «안»은 못 뚫는다 — .frame-block{overflow:hidden} 이라 잘리기만 한다', () => {
-  const { block } = scene({ innerPadX: 40, wrapFrame: true, blockDataset: { fullBleed: 'true' } });
+/* ★[2026-09-28] 이 검사의 «제목이 거짓»이 됐던 자리다.
+     옛 제목: 「⛔프레임 «안»은 못 뚫는다 — .frame-block{overflow:hidden} 이라 잘리기만 한다」
+     그 까닭이던 overflow:hidden 을 현빈 지시로 visible 로 풀었다(css/editor-blocks.css).
+     ⇒ 이제 자르는 것은 «모서리를 둥글린 프레임»뿐이고, 판정도 그것으로 옮겼다.
+     ⛔제목이 «조건»을 말하면 조건이 바뀔 때 제목째 거짓이 된다 — 그래서 조건을 제목에 적고
+       그 조건을 «양쪽으로» 잰다(둥글면 0, 안 둥글면 뚫린다). */
+test('P1d ⛔«둥근» 프레임 안은 못 뚫는다 — data-radius 가 있으면 overflow:hidden 이라 잘린다', () => {
+  const { block } = scene({ innerPadX: 40, wrapFrame: true, frameRadius: 12, blockDataset: { fullBleed: 'true' } });
   assert.equal(effectiveSectionPadX(block), 0);
   assert.equal(applyBlockFullBleed(block), 0);
   assert.deepEqual(block._writes, []);
+});
+
+test('P1d-2 ★반대쪽 — 둥글지 «않은» 프레임 안에서는 뚫린다 (0928 overflow 해제의 귀결)', () => {
+  const { block } = scene({ innerPadX: 40, wrapFrame: true, blockDataset: { fullBleed: 'true' } });
+  assert.equal(effectiveSectionPadX(block), 40, '평범한 프레임은 이제 안 자른다');
+  assert.equal(applyBlockFullBleed(block), 40);
+});
+
+test('P1d-3 ★radius 0 은 «둥글지 않다» — 0 을 넣어 끈 것도 뚫려야 한다', () => {
+  const { block } = scene({ innerPadX: 40, wrapFrame: true, frameRadius: 0, blockDataset: { fullBleed: 'true' } });
+  assert.equal(effectiveSectionPadX(block), 40);
 });
 
 test('P1e section-inner 밖(플로팅/떠 있는 자리)이면 0', () => {
@@ -201,7 +218,7 @@ test('F6 사용자가 직접 준 px 폭은 «보존»한다 (calc 만 지운다)
 });
 
 /* ── ★fullBleed 를 쓰는 자리를 «기계로» 센다 ────────────────────────────
- * 이 규약을 쓰는 곳이 넷이 됐다(canvas·chat·frame·banner02). 다섯이 되는 순간
+ * 이 규약을 쓰는 곳이 다섯이 됐다(canvas·chat·frame·banner02·grid). 여섯이 되는 순간
  * 「손으로 적은 목록」이 또 생길 자리다 — 그래서 «분모»를 기계가 세게 둔다.
  *
  * ⚠️이건 «동작을 가르는 명부»가 아니다(그건 ⛔). 새 식구가 늘면 «빨개져서 검토를 강제하는» 인구조사다.
@@ -234,6 +251,7 @@ test('C1 ★fullBleed 식구를 «기계로» 센다 — 다섯째가 오면 빨
     'js/props/prop-banner02.js',     // 배너2 패널 (2026-09-10 신규)
     'js/props/prop-chat.js',         // 채팅 패널
     'js/props/prop-frame.js',        // 프레임 — 패널이 «직접» 적용(렌더 함수가 없다) (2026-09-10 신규)
+    'js/props/prop-grid.js',         // 그리드 — 티켓 ⑥ (2026-09-28 신규 · 0929 에 자체 구현에서 이 한 벌로 합쳤다)
     'js/props/prop-page.js',         // padX 일괄 적용 — 표식 쓸이
     'js/props/prop-simple-card.js',  // 카드 패널
   ];

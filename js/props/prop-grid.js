@@ -1739,7 +1739,7 @@ ${_borderRowHtml(bd)}
 
 /* ══ 좌우 패딩 «제외»(전폭) — 그리드 티켓 ⑥ (2026-09-28) ═══════════════════
  * ★뜻: 섹션의 좌우 패딩을 «넘어» 이 그리드만 전폭으로 펴진다. 에셋 블록의 「에셋블록 제외」와
- *   같은 동작이고, 값도 «같은 이름»(dataset.usePadx)에 담는다 — 규약을 둘로 만들지 않는다.
+ *   같은 동작이고, 표식도 적용도 «공용 한 벌»(dataset.fullBleed ＋ drag-utils)을 쓴다 — 규약을 둘로 만들지 않는다.
  *   거는 쪽은 js/props/prop-page.js applyPadXToSection 한 곳이다(여기서 margin 을 직접 안 박는다).
  * ⛔자리를 「Layout」 절에 넣지 «마라» — 그러면 줄바(#grd-line-summary)가 한 줄만큼 아래로 밀려
  *   G2 ⑵(「줄바가 기준선보다 아래로 밀리면 안 된다」)가 빨개진다. 그래서 줄바 «아래»에 둔다.
@@ -1748,10 +1748,11 @@ ${_borderRowHtml(bd)}
  *   안 난다」가 된다(이 레포의 고질). 못 거는 곳에서는 «아예 안 보여준다». */
 function _grdPadExcludeSectionHtml(block) {
   /* ⛔「섹션 직속일 때만」으로 막지 «않는다» — 그리드는 기본적으로 row «안»에 생겨서
-     (실측 2026-09-28) 그 조건을 걸면 스위치가 거의 늘 사라진다. 대신 적용 쪽이 조상 체인의
-     좌우 패딩을 «합해» 빼므로 row 안에서도 제대로 전폭이 된다. */
+     (실측 2026-09-28) 그 조건을 걸면 스위치가 거의 늘 사라진다.
+     ★뺄 값은 공용 부품(drag-utils.effectiveSectionPadX)이 정한다 — row 의 패딩 키가 두 가지인
+       함정도 거기서 한 번에 다룬다. */
   if (!block.closest('.section-block')) return '';   // 섹션 밖(미리보기 등)에서는 뺄 패딩이 없다
-  const on = block.dataset.usePadx === 'true';
+  const on = block.dataset.fullBleed === 'true';
   return `
     <div class="prop-section">
       <div class="prop-row" style="align-items:center;gap:6px;">
@@ -1769,19 +1770,12 @@ function _grdWirePadExclude(block) {
   const cb = document.getElementById('grd-use-padx');
   if (!cb) return;
   cb.addEventListener('change', () => {
-    block.dataset.usePadx = cb.checked ? 'true' : 'false';
-    /* ★그 자리에서 반영한다 — 뺄 값은 조상 체인의 좌우 패딩 «합»(window.gridEffectivePadX).
-       ⛔섹션 padX 하나만 빼면 row 안 그리드가 row 패딩만큼 덜 나간다. */
-    const px = window.gridEffectivePadX?.(block) || 0;
-    if (block.dataset.usePadx === 'true' && px > 0) {
-      block.style.marginLeft  = -px + 'px';
-      block.style.marginRight = -px + 'px';
-      block.style.width = `calc(100% + ${px * 2}px)`;
-    } else {
-      block.style.marginLeft  = '';
-      block.style.marginRight = '';
-      if (!block.style.width || block.style.width.includes('calc')) block.style.width = '';
-    }
+    /* ★표식도 적용도 «공용 한 벌»을 쓴다 — drag-utils 의 fullBleed 규약(에셋·카드·채팅·배너2·프레임).
+       ⛔0928 초판은 dataset.usePadx ＋ 자체 계산이었다. 같은 일을 하는 것이 둘이면 계산 규칙이
+         바뀔 때 한쪽만 고쳐진다 — 그래서 0929 에 이 한 벌로 합쳤다. */
+    block.dataset.fullBleed = cb.checked ? 'true' : 'false';
+    if (cb.checked) window.applyBlockFullBleed?.(block);
+    else window.clearBlockFullBleed?.(block);
     window.pushHistory?.();              // ★적용 먼저, 찍기 나중 (js/props 는 push-after 규약)
     window.scheduleAutoSave?.();
   });

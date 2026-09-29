@@ -125,23 +125,6 @@ function applyAssetWidth(ab, px) {
 window.applyAssetWidth = applyAssetWidth;
 
 /* ── 헬퍼: section-inner 하나에 padX 적용 ── */
-/* 블록이 «몇 px 안으로 밀려 있나» — 섹션 안쪽에서 그 블록까지의 좌우 패딩을 더한다.
-   ★섹션 padX 하나로는 모자란다: row 도 dataset.paddingX 로 자기 패딩을 갖고, 그 둘이 겹친다.
-   ★computed 로 읽는다 — dataset 은 «의도»고 실제로 밀린 양은 계산된 스타일이다(둘이 갈릴 수 있다).
-   ⛔.section-block 에서 멈춘다 — 그 위(캔버스)의 여백은 이 블록이 넘을 것이 아니다. */
-function gridEffectivePadX(block) {
-  let px = 0;
-  const stop = block.closest('.section-block');
-  let n = block.parentElement;
-  while (n && n !== stop && n.nodeType === 1) {
-    const cs = getComputedStyle(n);
-    px += (parseFloat(cs.paddingLeft) || 0);
-    n = n.parentElement;
-  }
-  return Math.round(px);
-}
-if (typeof window !== 'undefined') window.gridEffectivePadX = gridEffectivePadX;
-
 function applyPadXToSection(inner, padX) {
   inner.style.paddingLeft  = padX ? padX + 'px' : '';
   inner.style.paddingRight = padX ? padX + 'px' : '';
@@ -160,28 +143,16 @@ function applyPadXToSection(inner, padX) {
       if (!ab.style.width || ab.style.width.includes('calc')) ab.style.width = '';
     }
   });
-  /* ★그리드 블록 — «좌우 패딩 제외»(전폭) (그리드 티켓 ⑥ · 2026-09-28)
-     ⛔에셋처럼 `:scope >` 로 «섹션 직속»만 걸면 안 된다 — 그리드는 기본적으로 row «안»에
-       생긴다(실측 2026-09-28: addGridBlock 직후 부모가 .row). 직속만 걸면 스위치가 거의
-       항상 안 먹는 자리에 놓인다.
-     ★그래서 «자손 전부»를 걸고, 뺄 값은 각 블록의 «조상 체인 좌우 패딩 합»으로 각자 구한다
-       — row 도 자기 dataset.paddingX 를 갖기 때문에 섹션 padX 하나만 빼면 모자란다.
-     ⛔전역 기본값(padXExcludesAsset)은 따르지 않는다 — 그걸 따르면 «이미 있는 모든 그리드»가
-       갑자기 전폭이 된다. 명시로 켠 것(=== 'true')만 본다. */
+  /* ★그리드 블록 — «좌우 패딩 제외»(전폭) (그리드 티켓 ⑥ · 2026-09-28 · 0929 통합)
+     ~~[0928 초판] dataset.usePadx ＋ 이 파일의 gridEffectivePadX 로 «따로» 구현했다.~~
+     ⇒ [0929] 같은 일을 하는 부품이 이미 있었다(drag-utils 의 fullBleed 한 벌 — 에셋·카드·채팅·
+       배너2·프레임). 두 벌이면 계산 규칙이 바뀔 때 한쪽만 고쳐진다. 그래서 그 한 벌로 옮겼다.
+     ⛔자손 전부를 건다 — 그리드는 기본적으로 row «안»에 생긴다(실측). `:scope >` 로 좁히면
+       스위치가 거의 늘 안 먹는다. */
   inner.querySelectorAll('.grid-block').forEach(gd => {
-    if (gd.dataset.usePadx === 'true') {
-      const px = gridEffectivePadX(gd);
-      if (px > 0) {
-        gd.style.marginLeft  = -px + 'px';
-        gd.style.marginRight = -px + 'px';
-        gd.style.width = `calc(100% + ${px * 2}px)`;
-        return;
-      }
-    }
-    gd.style.marginLeft  = '';
-    gd.style.marginRight = '';
-    // calc() 는 전폭 모드가 넣은 값 → 걷는다. px 는 사용자가 준 폭 → 남긴다(에셋과 같은 규약).
-    if (!gd.style.width || gd.style.width.includes('calc')) gd.style.width = '';
+    /* ★window 경유 — 이 파일의 기존 관행이다(아래 189줄 canvas-block 도 같은 꼴). */
+    if (gd.dataset.fullBleed === 'true') window.applyBlockFullBleed?.(gd);
+    else window.clearBlockFullBleed?.(gd);
   });
   // gradient-block은 항상 패딩 제외 (usePadx='true' 고정) — 섹션/row 내부 모두 처리
   inner.querySelectorAll('.gradient-block').forEach(gb => {
