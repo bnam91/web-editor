@@ -50,32 +50,17 @@ window.savePadHintOn = savePadHintOn;
    padX 출처 규약은 applyPadXToSection(아래)·prop-row.applyPadX·block-factory.applyExcludePadX와 동일. */
 function assetFullBleedWidth(ab) {
   if (!ab || !getEffectiveUsePadx(ab)) return '';
-  // ★프레임 «전체» 안의 에셋은 full-bleed 대상이 아니다.
-  //   ⑴free-layout 프레임 = 절대배치라 무의미(applyExcludePadX 가드 미러)
-  //   ⑵flow 프레임도 마찬가지 — `.frame-block{overflow:hidden}`(css/editor-blocks.css:10)이라
-  //     프레임 밖으로 나가는 폭은 «어떤 계산으로도 안 보이고 잘리기만» 한다. 헬퍼는 프레임이 아니라
-  //     «섹션» padX 로 계산하므로 좌우 padX 만큼 클립됐다(2026-08-27 goditor-qa BUG-2, 4b5c812 유래).
-  //     도달경로 = banner-block.js:54 가 배너 프리셋 stack-inner 를 fullWidth 프레임으로 만든다.
-  if (ab.closest('.frame-block')) return '';
-  // preset 고정폭(logo·a4 등)은 그 사이즈를 지켜야 한다 — applyExcludePadX와 같은 가드.
-  // ⚠️ ②width 분기의 `preset !== 'logo'` 만으론 a4가 안 걸린다(08-27 태양 지적).
+  /* ★preset 고정폭(logo·a4 등)은 그 사이즈를 지켜야 한다 — 에셋 «전용» 가드라 여기 남는다.
+     ⚠️`preset !== 'logo'` 만으론 a4 가 안 걸린다(2026-08-27 태양 지적). */
   if (window.ASSET_PRESETS?.[ab.dataset.preset]?.width) return '';
-  const row = ab.parentElement;
-  let padX;
-  // ⚠️ row의 패딩 키가 «두 가지»다: 생성 경로(block-factory.applyRowPaddingX)는 `paddingX`,
-  //    패널 슬라이더(prop-row.applyPadX)는 `padX`. 둘 다 읽어야 한다 — 하나만 보면 조용히 글로벌로 샌다.
-  const rowPadX = row && row.classList.contains('row')
-    ? (row.dataset.padX !== undefined && row.dataset.padX !== '' ? row.dataset.padX
-       : (row.dataset.paddingX !== undefined && row.dataset.paddingX !== '' ? row.dataset.paddingX : undefined))
-    : undefined;
-  if (rowPadX !== undefined) {
-    padX = parseInt(rowPadX);                   // row 직속 ab는 row의 패딩이 지배
-  } else {
-    const inner = ab.closest('.section-inner');
-    const hasOverride = inner && inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
-    padX = inner && hasOverride ? parseInt(inner.dataset.paddingX) : state.pageSettings.padX;
-  }
-  padX = parseInt(padX) || 0;
+  /* ★[0929 통합] 뺄 padX 는 «공용 한 곳»에서 온다 — js/drag-utils.js effectiveSectionPadX.
+     ~~예전엔 여기에 같은 계산이 한 벌 더 있었다~~(row 의 패딩 키가 두 가지인 함정까지 똑같이 적어서).
+     ⇒ 실제로 갈렸다: 0928 에 공용 쪽 프레임 가드를 「둥근 프레임만 자른다」로 고쳤는데
+       이쪽은 「프레임이면 무조건 0」으로 남아 있었다. 두 벌의 해악이 그대로 난 자리다.
+     ★프레임 가드를 여기서 «뺀다» — 공용 함수가 그 판정을 갖고, 지금 자르는 것은 둥근 프레임뿐이다
+       (0928 현빈 지시로 .frame-block 의 overflow 를 visible 로 풀었다).
+       옛 주석의 까닭 「프레임 밖으로 나가는 폭은 어떤 계산으로도 안 보이고 잘리기만」은 죽었다. */
+  const padX = window.effectiveSectionPadX?.(ab) ?? 0;
   return padX > 0 ? `calc(100% + ${padX * 2}px)` : '';
 }
 window.assetFullBleedWidth = assetFullBleedWidth;

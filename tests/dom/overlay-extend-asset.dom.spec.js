@@ -22,6 +22,12 @@ const ORIGIN = 'http://goditor.dom.test';
 const OVERLAY_FLOAT_JS = fs.readFileSync(path.join(REPO, 'js/overlay-float.js'), 'utf8');
 const FRAME_GEOMETRY_JS = fs.readFileSync(path.join(REPO, 'js/frame-geometry.js'), 'utf8');
 const SHAPE_FRAME_JS = fs.readFileSync(path.join(REPO, 'js/shape-frame.js'), 'utf8');
+/* ★[0929] drag-utils.js 를 «진짜로» 먹인다 — prop-page.js 의 assetFullBleedWidth 가
+   그 안의 effectiveSectionPadX 로 padX 를 구한다(0929 에 계산을 한 곳으로 합쳤다).
+   ⛔안 실으면 window.effectiveSectionPadX 가 undefined 라 폭이 «조용히 빈 문자열»이 되고,
+     A4-b·A7 이 「옛 패딩이 되살아났다」로 빨개진다(실측 2026-09-29 — 이 주석이 그 사고다).
+   의존은 globals·shape-frame 뿐이고 둘 다 이 하네스에 이미 있다. */
+const DRAG_UTILS_JS = fs.readFileSync(path.join(REPO, 'js/drag-utils.js'), 'utf8');
 const LAYOUT_CSS = fs.readFileSync(path.join(REPO, 'css/editor-layout.css'), 'utf8');
 /* z-index 판정(A5)은 «실제 규칙끼리의 특이도 싸움»을 재는 것이라 editor-blocks.css 가 필요하다. */
 const BLOCKS_CSS = fs.readFileSync(path.join(REPO, 'css/editor-blocks.css'), 'utf8');
@@ -105,6 +111,7 @@ function harness({ oldZIndex = false } = {}) {
       window.genId = (p) => p + '_' + Math.random().toString(36).slice(2, 8);
     </script>
     <script type="module" src="/overlay-float.js"></script>
+    <script type="module" src="/drag-utils.js"></script>
     <script type="module" src="/props/prop-page.js"></script>
     </body></html>`;
 }
@@ -118,6 +125,7 @@ async function boot(page, opts = {}) {
     if (url.pathname === '/overlay-float.js') return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_FLOAT_JS });
     if (url.pathname === '/frame-geometry.js') return route.fulfill({ contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
     if (url.pathname === '/shape-frame.js') return route.fulfill({ contentType: 'application/javascript', body: SHAPE_FRAME_JS });
+    if (url.pathname === '/drag-utils.js') return route.fulfill({ contentType: 'application/javascript', body: DRAG_UTILS_JS });
     if (url.pathname === '/props/prop-page.js') return route.fulfill({ contentType: 'application/javascript', body: PROP_PAGE_JS });
     if (url.pathname === '/globals.js') return route.fulfill({ contentType: 'application/javascript', body: GLOBALS_STUB });
     if (url.pathname === '/canvas-contrast.js') return route.fulfill({ contentType: 'application/javascript', body: CANVAS_CONTRAST_STUB });

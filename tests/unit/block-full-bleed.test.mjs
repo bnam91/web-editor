@@ -242,6 +242,21 @@ function harvestFullBleedUsers() {
   return hit.sort();
 }
 
+/* ★[0929] 에셋도 «공용 계산»으로 합쳤다 — 그 전으로 되돌아가면 여기서 빨개진다.
+   무엇이 있었나: assetFullBleedWidth 가 padX 계산을 «한 벌 더» 갖고 있었다(row 의 패딩 키가
+   두 가지인 함정까지 똑같이 적어서). 그래서 실제로 갈렸다 — 0928 에 공용 쪽 프레임 가드를
+   「둥근 프레임만 자른다」로 고쳤는데 에셋 쪽은 「프레임이면 무조건 0」으로 남았다.
+   ⇒ 계산은 drag-utils.effectiveSectionPadX «한 곳»이고, 에셋은 자기 전용 가드(preset 고정폭)만 갖는다. */
+test('C2 ★에셋도 공용 계산을 쓴다 — assetFullBleedWidth 가 padX 를 «다시» 읽지 않는다', () => {
+  const page = strip(readSrc(ROOT, 'js/props/prop-page.js'));
+  const i = page.indexOf('function assetFullBleedWidth(');
+  assert.ok(i >= 0, 'assetFullBleedWidth 가 없다');
+  const fn = page.slice(i, page.indexOf('\nwindow.assetFullBleedWidth', i));
+  assert.match(fn, /effectiveSectionPadX/, '공용 계산(effectiveSectionPadX)을 불러야 한다');
+  assert.ok(!/dataset\.paddingX|pageSettings\.padX|dataset\.padX/.test(fn),
+    '패딩을 «직접» 다시 읽고 있다 — 계산이 또 두 벌이 된다(0929 통합 이전으로 되돌아간 것)');
+});
+
 test('C1 ★fullBleed 식구를 «기계로» 센다 — 다섯째가 오면 빨개진다', () => {
   const users = harvestFullBleedUsers();
   const expected = [
