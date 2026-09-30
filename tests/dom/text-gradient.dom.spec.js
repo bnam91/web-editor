@@ -960,8 +960,10 @@ test('G31-pre ★음성대조 — «인라인만» 고르던 옛 꼴은 이 배�
   const inlineOnly = src.slice(0, i) + src.slice(j);
   await page.addScriptTag({
     type: 'module',
-    content: inlineOnly.replace("import { parseGradient } from '../props/gradient-model.js';",
-                                "import { parseGradient } from '/js/props/gradient-model.js';")
+    /* ★상대 import «전부»를 절대경로로 — 인라인 모듈은 기준 URL 이 하네스 페이지라 '../' 가 안 풀린다.
+       옛 판은 gradient-model 한 줄만 바꿨는데, capture-safety 가 import 를 하나 더 들이자
+       (2026-09-30 image-memo.js) 모듈이 조용히 못 실려 30초 대기로 죽었다. 줄 단위로 적지 않는다. */
+    content: inlineOnly.replace(/from '\.\.\//g, "from '/js/")
            + '\nwindow.__h2cInlineOnly = neutralizeTextGradForH2C;\nwindow.__inlineReady = true;\n',
   });
   await page.waitForFunction(() => window.__inlineReady === true);

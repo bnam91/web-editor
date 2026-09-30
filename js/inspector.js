@@ -2,6 +2,8 @@
    INSPECTOR PANEL
 ═══════════════════════════════════ */
 import { isJumpTarget } from './variation-visibility.js';
+import { escHtml } from './props/_helpers.js';
+import { IMAGE_MEMO_HOST_SEL, GRID_EMPTY_SLOT_SEL, isImageMemoHost, getImageMemo } from './image-memo.js';
 
 // FIX: buildLayerPanel() 마지막에 Inspector 탭 활성 시 자동 갱신 추가 (layer-panel.js)
 // FIX: step-block, canvas-block, shape-block 카운트 추가
@@ -134,6 +136,99 @@ if (typeof document !== 'undefined' && !window.__inspJumpWired) {
   });
 }
 
+/* ── 「준비할 이미지」 — 지금 고른 섹션의 «비어 있는» 이미지 칸 (2026-09-30, 현빈) ──────────
+ * 무엇을 세나 = 아래 prepImageSlotsOf. 선택자는 js/image-memo.js 한 곳(⛔여기 베껴 적지 마라).
+ * ★숫자 = 줄 수 — 메모 없는 칸도 줄을 남긴다. 그래야 「빠진 것」이 눈에 띈다.
+ * ★줄은 «두 가지»로 갈라 적는다(지디 2026-09-30):
+ *   에셋 칸 메모 없음 → 「메모 없음」(적어야 할 것) · 그리드 칸 → 「그리드 칸 — 메모는 아직」(적을 수 없는 것).
+ *   ⛔둘을 같은 말로 합치지 마라 — 섞이면 그 목록을 못 믿는다.
+ * ★점프는 인스펙터의 기존 길(.insp-jump · _jumpTargets · jumpToElement)을 그대로 탄다.
+ * ★접힘 상태는 모듈 변수 — 패널이 innerHTML 로 다시 그려져도 사용자가 접은 채로 남는다. */
+/* 섹션 안 «비어 있는» 이미지 칸 — [{ el, kind: 'asset'|'grid', memo, jumpEl }] (문서 순서).
+ *   · asset : 이미지가 안 들어간 에셋 블럭(.has-image 없음). 메모를 적을 수 있다.
+ *   · grid  : 그리드 빈 슬롯(.grd-img-empty). ★메모를 «아직» 못 적는다(자리 = image-memo.js 머리말).
+ *   ★셀 것 = 갈 곳 — isJumpTarget(지워졌거나 숨은 시안 안이면 둘 다 아니다)으로 거른다. */
+export function prepImageSlotsOf(sec) {
+  if (!sec || typeof sec.querySelectorAll !== 'function') return [];
+  const out = [];
+  sec.querySelectorAll(`${IMAGE_MEMO_HOST_SEL}, ${GRID_EMPTY_SLOT_SEL}`).forEach(el => {
+    if (!isJumpTarget(el)) return;
+    if (isImageMemoHost(el)) {
+      if (el.classList.contains('has-image')) return;   // 이미지 든 칸은 «준비할 것»이 아니다
+      out.push({ el, kind: 'asset', memo: getImageMemo(el), jumpEl: el });
+    } else {
+      // 슬롯엔 id 가 없어 선택을 못 건다 — 점프·선택은 그 그리드 블럭으로 간다.
+      out.push({ el, kind: 'grid', memo: '', jumpEl: el.closest('.grid-block') || el });
+    }
+  });
+  return out;
+}
+
+let _prepOpen = true;
+if (typeof document !== 'undefined' && !window.__inspPrepFoldWired) {
+  window.__inspPrepFoldWired = true;
+  document.addEventListener('toggle', (e) => {
+    if (e.target?.classList?.contains('insp-prep')) _prepOpen = e.target.open;
+  }, true);
+}
+
+export const PREP_LABEL_NO_MEMO = '메모 없음';
+export const PREP_LABEL_GRID    = '그리드 칸 — 메모는 아직';
+
+/** 섹션을 안 골랐으면 '' (절 자체가 안 뜬다). 부르는 쪽이 _jumpTargets 를 먼저 비워 둔다. */
+function renderPrepImagesSection(sec) {
+  if (!sec || !isJumpTarget(sec)) return '';
+  const slots = prepImageSlotsOf(sec);
+  const rows = slots.map((s, i) => {
+    const key = 'prep:' + i;
+    _jumpTargets[key] = [s.jumpEl];
+    const cls = s.memo ? '' : (s.kind === 'grid' ? ' is-grid' : ' is-empty');
+    const text = s.memo ? escHtml(s.memo) : (s.kind === 'grid' ? PREP_LABEL_GRID : PREP_LABEL_NO_MEMO);
+    return `<div class="insp-prep-row insp-jump${cls}" data-jump="${key}" data-prep-kind="${s.kind}" title="클릭하면 그 칸으로 이동">`
+         + `<span class="insp-prep-idx">${i + 1}</span><span class="insp-prep-text">${text}</span></div>`;
+  }).join('');
+  return `
+    <details class="insp-section insp-prep"${_prepOpen ? ' open' : ''}>
+      <summary class="insp-section-title">준비할 이미지 <span class="insp-badge" data-prep-count>${slots.length}</span></summary>
+      ${rows || '<span class="insp-empty">빈 이미지 칸 없음</span>'}
+    </details>`;
+}
+
+/* ★선택이 바뀌면 절이 따라가야 한다 — 그런데 선택 변경엔 인스펙터를 다시 그리는 신호가 없다
+ *   (buildLayerPanel 은 구조 변경 때만 돈다). 그래서 캔버스의 class·data-memo 변화를 rAF 로 모아
+ *   «이 절의 서명»(고른 섹션 id + 칸 종류·메모)이 바뀐 때만 다시 그린다. 드래그 중 class 가
+ *   요동쳐도 서명이 같으면 아무것도 안 한다. 인스펙터 탭이 닫혀 있으면 서명도 안 잰다. */
+let _prepSig = null;
+function _prepSignature() {
+  const sec = window.getSelectedSection?.();
+  if (!sec || !isJumpTarget(sec)) return '';
+  return (sec.id || '?') + '|' + prepImageSlotsOf(sec).map(x => x.kind + ':' + x.memo).join('\u0001');
+}
+/* ⚠️탭 단추는 `.panel-tab` 이다(index.html · editor.js switchToTab). layer-panel.js 의 옛 판정은
+   `.tab-btn` 을 봐서 «늘 거짓»이다 — 그 자리는 이번 범위 밖이라 안 고쳤다(보고에 적음). */
+function _inspectorOpen() {
+  return !!document.querySelector('.panel-tab[data-tab="inspector"]')?.classList.contains('active');
+}
+if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined' && !window.__inspPrepObsWired) {
+  window.__inspPrepObsWired = true;
+  let raf = 0;
+  const kick = () => {
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      if (!_inspectorOpen()) return;
+      if (_prepSignature() !== _prepSig) renderInspectorPanel();
+    });
+  };
+  const wire = () => {
+    const c = document.getElementById('canvas');
+    if (!c) return false;
+    new MutationObserver(kick).observe(c, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'data-memo'] });
+    return true;
+  };
+  if (!wire()) document.addEventListener('DOMContentLoaded', wire, { once: true });
+}
+
 export function logoBlocksOf(assetBlocks) {
   return [...assetBlocks].filter(ab => ab.dataset.preset === 'logo' || _isLogoSized(ab));
 }
@@ -141,6 +236,7 @@ export function logoBlocksOf(assetBlocks) {
 function renderInspectorPanel() {
   const panel = document.getElementById('inspector-stats-body');
   if (!panel) return;
+  _prepSig = _prepSignature();
 
   // ── 데이터 수집 ──
   /* ★분모는 «화면에 있는 것» — 숨은 A/B 시안(data-variation-active="0") 안의 블록은 세지 않는다.
@@ -331,6 +427,8 @@ function renderInspectorPanel() {
       </div>
       ${extraBlockRows}
     </div>
+
+    ${renderPrepImagesSection(window.getSelectedSection?.())}
 
     <div class="insp-section">
       <div class="insp-section-title">텍스트 구성</div>

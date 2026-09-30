@@ -23,6 +23,7 @@ import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          growFrameToFitChildren } from './frame-geometry.js';
 import { getGridModel, GRID_NESTED_LINE_TYPE } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
+import { isImageMemoHost, getImageMemo, setImageMemo, openImageMemoEditor } from './image-memo.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, topLevelBlocksOf, isEmptyShell } from './shape-frame.js';
 
 /* ═══════════════════════════════════
@@ -5076,7 +5077,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     const folderSel = document.getElementById('bcm-folder-select');
     if (folderSel) {
       const templates = window.loadTemplatesPublic?.() || [];
-      const folders = [...new Set(templates.map(t => t.folder || '블록').filter(Boolean))];
+      const folders = window.listTemplateFolders?.(templates, '블록') || [];
       if (!folders.includes('블록')) folders.unshift('블록');
       folderSel.innerHTML = folders.map(f => `<option value="${f}">${f}</option>`).join('') + '<option value="__new__">새 폴더...</option>';
     }
@@ -5114,6 +5115,18 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       );
       cellUnmergeItem.style.display = merged ? 'flex' : 'none';
     }
+
+    // 이미지 메모(2026-09-30) — 에셋 블럭에서만. 메모가 있으면 「고치기」 + 「지우기」.
+    const memoItem = document.getElementById('bcm-img-memo');
+    const memoDelItem = document.getElementById('bcm-img-memo-del');
+    const isMemoHost = isImageMemoHost(block);
+    const hasMemo = isMemoHost && !!getImageMemo(block);
+    if (memoItem) {
+      memoItem.style.display = isMemoHost ? 'flex' : 'none';
+      const lbl = document.getElementById('bcm-img-memo-label');
+      if (lbl) lbl.textContent = hasMemo ? '메모 고치기' : '이미지 메모 적기';
+    }
+    if (memoDelItem) memoDelItem.style.display = hasMemo ? 'flex' : 'none';
 
     // 그리드 블록 셀 우클릭 → "이미지 추가/교체" (현빈 2026-09-15 요청: 그리드 셀 이미지 지원)
     const gridImgItem = document.getElementById('bcm-grid-img');
@@ -5193,6 +5206,20 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     try { window.selectBlock?.(block.id); } catch (_) {}
     window.addStickerBlock?.({ shape: 'icon', iconName, svg, size, iconColor });
     window.showToast?.('스티커로 변환됨');
+  });
+
+  // 이미지 메모 — 메뉴를 «먼저» 닫고 연다(메뉴 닫기 click 이 입력칸 blur 를 부르지 않게).
+  document.getElementById('bcm-img-memo')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    closeMenu();
+    if (block) openImageMemoEditor(block);
+  });
+  document.getElementById('bcm-img-memo-del')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    closeMenu();
+    if (block) setImageMemo(block, '');
   });
 
   // #5-b: 셀 병합 / 병합 해제

@@ -182,6 +182,78 @@ function saveTemplates(arr) {
   }
 }
 
+/* ── 템플릿 «폴더 명부» (2026-09-30, 현빈 — 트리 우클릭 「새 폴더」) ─────────────────────
+ * ★문제: 폴더는 따로 저장된 적이 없다 — 트리·드롭다운 «일곱 곳»이 매번 템플릿들의 folder 값에서
+ *   계산했다. 그러면 «빈 폴더»는 다음 렌더에 사라진다.
+ * ★확정(현빈): 빈 폴더를 허용한다 — 폴더 명부를 따로 저장한다. 이름 바꾸기·지우기도 같이.
+ * ★명부는 «개인 쪽» — 이 렌더러의 localStorage(tpl-starred·tpl-folder-state 와 같은 자리).
+ *   ⛔공용(_scope==='shared') 풀은 읽기전용 — 공용 템플릿의 folder 는 절대 안 바꾼다.
+ * ★폴더 «목록»은 listTemplateFolders 한 곳에서만 만든다 = 「템플릿들의 folder」 ∪ 「명부」.
+ *   ⛔부르는 쪽에서 `new Set(templates.map(t => t.folder …))` 를 다시 적지 마라 — 그게 빈 폴더를
+ *     잃던 자리다(tests/unit/template-folders.test.mjs 가 그 꼴을 센다).
+ * ★지우기 = «빈 폴더만». 템플릿이 하나라도 남아 있으면 못 지우고 까닭을 돌려준다
+ *   (안전한 쪽 — 템플릿을 조용히 «기타»로 옮기거나 같이 지우지 않는다).
+ * ★이름 바꾸기 = 개인 템플릿의 folder 를 같이 옮긴다. 공용 템플릿이 든 폴더는 못 바꾼다
+ *   (공용 쪽 folder 를 못 바꾸니, 바꾸면 폴더가 둘로 갈라진다). */
+const TPL_FOLDERS_KEY = 'tpl-folders';
+const TPL_FOLDER_RESERVED = ['전체'];   // 트리의 「전체」 항목과 같은 이름은 못 쓴다
+const _folderOf = (t, dflt) => (t && t.folder) || dflt;
+
+function loadFolderRegistry() {
+  try {
+    const v = JSON.parse(localStorage.getItem(TPL_FOLDERS_KEY) || '[]');
+    return Array.isArray(v) ? v.filter(x => typeof x === 'string' && x.trim()) : [];
+  } catch { return []; }
+}
+function saveFolderRegistry(arr) {
+  try { localStorage.setItem(TPL_FOLDERS_KEY, JSON.stringify([...new Set(arr)])); } catch {}
+}
+
+/** 폴더 목록 «한 곳». 템플릿이 쓰는 폴더(문서 순) 뒤에 명부의 빈 폴더가 붙는다. */
+function listTemplateFolders(templates = loadTemplates(), dflt = '기타') {
+  return [...new Set([...(templates || []).map(t => _folderOf(t, dflt)), ...loadFolderRegistry()])];
+}
+
+function _checkFolderName(name, { except } = {}) {
+  const n = String(name ?? '').trim();
+  if (!n) return { ok: false, reason: '폴더 이름을 적어 주세요.' };
+  if (TPL_FOLDER_RESERVED.includes(n)) return { ok: false, reason: `'${n}' 은(는) 폴더 이름으로 쓸 수 없습니다.` };
+  if (n !== except && listTemplateFolders().includes(n)) return { ok: false, reason: `'${n}' 폴더가 이미 있습니다.` };
+  return { ok: true, name: n };
+}
+
+function createTemplateFolder(name) {
+  const c = _checkFolderName(name);
+  if (!c.ok) return c;
+  saveFolderRegistry([...loadFolderRegistry(), c.name]);
+  return { ok: true, name: c.name };
+}
+
+function renameTemplateFolder(from, to) {
+  const c = _checkFolderName(to, { except: from });
+  if (!c.ok) return c;
+  if (c.name === from) return { ok: true, name: from, moved: 0 };
+  const all = loadTemplates();
+  const inFolder = all.filter(t => _folderOf(t, '기타') === from);
+  if (inFolder.some(t => t && t._scope === 'shared')) {
+    return { ok: false, reason: `'${from}' 에는 공용 템플릿이 들어 있어 이름을 바꿀 수 없습니다(공용은 읽기전용).` };
+  }
+  if (inFolder.length) {
+    saveTemplates(all.map(t => (_folderOf(t, '기타') === from ? Object.assign({}, t, { folder: c.name }) : t)));
+  }
+  const reg = loadFolderRegistry().filter(f => f !== from);
+  saveFolderRegistry([...reg, c.name]);
+  return { ok: true, name: c.name, moved: inFolder.length };
+}
+
+function deleteTemplateFolder(name) {
+  const n = inUse => `'${name}' 에 템플릿 ${inUse}개가 들어 있어 지울 수 없습니다 — 먼저 옮기거나 지워 주세요.`;
+  const cnt = loadTemplates().filter(t => _folderOf(t, '기타') === name).length;
+  if (cnt > 0) return { ok: false, reason: n(cnt) };
+  saveFolderRegistry(loadFolderRegistry().filter(f => f !== name));
+  return { ok: true };
+}
+
 // canvas HTML 로드 (파일 or localStorage fallback)
 async function _loadCanvas(id) {
   if (window.electronAPI?.loadTemplateCanvas) {
@@ -652,7 +724,7 @@ function startEditTemplate(id) {
   card.classList.add('editing-mode');
 
   const allTemplates = loadTemplates();
-  const existingFolders = [...new Set(allTemplates.map(t => t.folder || '기타'))];
+  const existingFolders = listTemplateFolders(allTemplates);
   const currentFolder = tpl.folder || '기타';
   const folderOptions = existingFolders.map(f =>
     `<option value="${escHtml(f)}" ${f === currentFolder ? 'selected' : ''}>${escHtml(f)}</option>`
@@ -746,7 +818,7 @@ function renderTemplatePanel() {
   const templates = loadTemplates();
 
   // 전체 폴더 목록 (기존 데이터 호환: folder 없으면 "기타")
-  const allFolders = [...new Set(templates.map(t => t.folder || '기타'))];
+  const allFolders = listTemplateFolders(templates);
 
   // 폴더 필터가 더 이상 유효하지 않으면 "전체"로 리셋
   if (_activeFolderFilter !== '전체' && !allFolders.includes(_activeFolderFilter)) {
@@ -1024,6 +1096,10 @@ async function findTemplateNode(tplId, path) {
 window.loadTemplates        = loadTemplates;
 window.loadTemplatesPublic  = loadTemplates;
 window.saveTemplatesPublic  = saveTemplates;
+window.listTemplateFolders  = listTemplateFolders;
+window.createTemplateFolder = createTemplateFolder;
+window.renameTemplateFolder = renameTemplateFolder;
+window.deleteTemplateFolder = deleteTemplateFolder;
 window.saveAsTemplate       = saveAsTemplate;
 /* ★역할 명부를 전역에 올린다 — 저장 UI(prop-section.js)가 읽는다.
    ⛔거기에 태그를 «또» 적지 않으려고 통로를 낸다(명부는 template-roles.js 하나). */

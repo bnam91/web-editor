@@ -2147,6 +2147,60 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 .grid-block .grd-img-empty {
   background: repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 0 / 16px 16px;
 }
+/* ★이미지 메모 쪽지 (2026-09-30, 현빈 — js/image-memo.js 머리말이 정본)
+   ★DOM 요소가 아니라 «가상요소»다 — 값(data-memo)만 블럭에 있고 그림은 여기서 그린다.
+     그래서 저장본에 편집용 요소가 새어 나갈 자리가 없고, 캡처 클론은 속성만 떼면 된다
+     (js/io/capture-safety.js stripEditorOnlyForCapture → stripImageMemoForCapture).
+   ★`:not(.has-image)` — 이미지가 들어오면 «그냥 숨는다»(표시 없음). 값은 남아 있다가
+     이미지를 비우면(.has-image 가 빠지면) 같은 글자로 다시 나온다.
+   ★#canvas 로 가둔다 — 캡처 클론은 body 에 붙으므로 속성을 못 떼는 길이 생겨도 여기 안 걸린다.
+   ★체커는 «새로 안 그린다» — 쪽지만 얹는다(칸의 체커는 .asset-block 정본 그대로).
+   ★크기는 --inv-zoom 을 곱해 «화면에서» 일정하게(줌 40% 에서도 읽힌다). 칸을 넘지 않게
+     max-width/max-height 로 가두고, 세 줄 뒤는 말줄임. */
+#canvas .asset-block[data-memo]:not([data-memo=""]):not(.has-image)::before {
+  content: attr(data-memo);
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  box-sizing: border-box;
+  max-width: calc(100% - 32px);
+  max-height: calc(100% - 32px);
+  padding: calc(11px * var(--inv-zoom, 1)) calc(14px * var(--inv-zoom, 1))
+           calc(11px * var(--inv-zoom, 1)) calc(35px * var(--inv-zoom, 1));
+  background: rgba(255,255,255,0.94)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%238F4222' stroke-width='1.4'%3E%3Cpath d='M2.5 1.5h6l3.5 3.5v7.5h-9.5z'/%3E%3Cpath d='M8.5 1.5V5h3.5'/%3E%3Cline x1='4.5' y1='7.5' x2='9.5' y2='7.5'/%3E%3Cline x1='4.5' y1='9.8' x2='8' y2='9.8'/%3E%3C/svg%3E")
+    no-repeat calc(14px * var(--inv-zoom, 1)) calc(13px * var(--inv-zoom, 1)) / calc(13px * var(--inv-zoom, 1)) calc(13px * var(--inv-zoom, 1));
+  border: calc(1px * var(--inv-zoom, 1)) dashed #A7A196;
+  border-radius: calc(7px * var(--inv-zoom, 1));
+  color: #2C2A26;
+  font-size: calc(13px * var(--inv-zoom, 1));
+  font-weight: 400;
+  line-height: 1.55;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* 그 자리 입력 — body 에 fixed 로 뜬다(블럭 안에 안 넣는다: 자동저장이 찍으면 박힌다). */
+.img-memo-editor {
+  position: fixed; z-index: 10000;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  background: #fff;
+  border: 1.5px solid var(--sel-color);
+  border-radius: 7px;
+  box-shadow: var(--ui-shadow-lg);
+}
+.img-memo-editor textarea {
+  display: block; width: 100%; box-sizing: border-box;
+  border: none; outline: none; resize: none; background: transparent;
+  font-family: inherit; font-size: 13px; line-height: 1.55;
+  color: #2C2A26;
+}
 .banner02-block .bn2-line-empty {
   /* 빈 줄에 «클릭할 자리»를 만든다 — 편집 전용이라 저장·내보내기에선 클래스째 제거된다.
      ⚠️인라인이 아니라 CSS 로만 주는 이유: 인라인이면 저장본에 실리고 높이 계산의 입력이 되어
