@@ -2155,6 +2155,20 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 .grid-block .grd-img-empty {
   background: repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 0 / 16px 16px;
 }
+/* ★섹션 «체크 배경»(2026-09-28 기능, 2026-09-30 현빈 「눌렀는데 체크배경으로 안 된다」).
+   JS(prop-section.js _applySectionBg · save-load.js 복원)는 .sec-bg-empty 를 켜 왔는데 ★이 규칙이
+   «한 번도» 없었다(git 전 브랜치 이력 0건) ⇒ 단추가 아무것도 안 그렸다.
+   값은 새로 안 만든다 — 단추 주석대로 .asset-block 72px 정본(editor-layout.css)을 쓴다.
+   ★!important 인 까닭: 섹션에 색(data-bg)이 있으면 _applySectionBg 가 인라인 background-image:none 을
+     박고, 저장본 HTML 에도 그대로 실린다 — 인라인은 클래스를 이긴다. 체크를 켠 것은 사용자의 명시라 이겨야 한다.
+   ⚠️그래서 캡처 클론의 «인라인으로 지우기»(neutralizeEmptyImageCheckerForCapture)는 이걸 못 이긴다 —
+     클론에서 «클래스를 뗀다»(capture-safety.js stripEditorOnlyForCapture · export-html.js 는 원래 뗀다). */
+.section-block.sec-bg-empty {
+  background-image: repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) !important;
+  background-size: 72px 72px !important;
+  background-position: 0 0 !important;
+  background-repeat: repeat !important;
+}
 /* ★이미지 메모 쪽지 (2026-09-30, 현빈 — js/image-memo.js 머리말이 정본)
    ★DOM 요소가 아니라 «가상요소»다 — 값(data-memo)만 블럭에 있고 그림은 여기서 그린다.
      그래서 저장본에 편집용 요소가 새어 나갈 자리가 없고, 캡처 클론은 속성만 떼면 된다

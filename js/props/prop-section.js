@@ -451,6 +451,10 @@ ${blockHeaderHTML({
     _secAlpha = Math.max(0, Math.min(100, parseInt(m[1])));
     _applySecBg();
   });
+  /* ★Enter = 확정하고 포커스를 뺀다 (현빈 2026-09-30 「투명으로 했는데 ⌘Z 가 안 된다」).
+     포커스가 이 칸에 남으면 editor.js 단축키가 INPUT 포커스에서 ⌘Z 를 «돌려보내» 편집기 undo 가 안 돈다.
+     blur 가 change(=onCommit·pushHistory)를 낸다 — Enter 에 change 가 이미 났으면 값이 같아 다시 안 난다. */
+  alphaInp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); alphaInp.blur(); } });
   alphaInp.addEventListener('blur', () => { alphaInp.value = String(_secAlpha); });
   alphaInp.addEventListener('change', () => pushHistory());
 
