@@ -33,6 +33,7 @@ export function showZoomProperties(block) {
   const fillHex   = isChecker ? '#cfd6e0' : st.fill;
   const fillAlpha = parseAlphaFromColor(fillHex);
   const bdcAlpha  = parseAlphaFromColor(st.bdc);
+  const shcAlpha  = parseAlphaFromColor(st.shc);
   const shadowOn  = st.shadow !== 'off';
   const bdOn      = st.bd === 'on';
   const hasImg    = !!st.imgSrc;
@@ -182,6 +183,10 @@ ${blockHeaderHTML({
       <div id="zm-shadow-fields" style="${dim(shadowOn)}">
 ${angleRow}${lengthRow}
       ${_pairRow('zm-spread', '벌림', spreadShown, 0, 800, 1)}
+      <div class="prop-color-row">
+        <span class="prop-label">색</span>
+        ${colorFieldHTML({ idPrefix: 'zm-shc', hex: st.shc, alpha: shcAlpha })}
+      </div>
       ${_pairRow('zm-maxop', '최대 농도%', st.maxop, 0, 100, 1)}
       ${_pairRow('zm-curve', '농도 곡선', st.curve, 10, 400, 1)}
 ${narrowRow}
@@ -375,6 +380,13 @@ ${bdrRow}
     initialAlpha: fillAlpha,
     onApply: (c) => { block.dataset.fill = c; rerender(); },
     onCommit: () => { window.pushHistory?.('확대블럭 색'); window.triggerAutoSave?.(); },
+  });
+
+  // 줌 이펙트(광원) 색 — 테두리 색과 같은 길. 값은 dataset.shc, 칠하기는 zoom-geometry strips().
+  wireColorField('zm-shc', {
+    initialAlpha: shcAlpha,
+    onApply: (c) => { block.dataset.shc = c; rerender(); },
+    onCommit: () => { window.pushHistory?.('확대블럭 줌 이펙트 색'); window.triggerAutoSave?.(); },
   });
 
   wireColorField('zm-bdc', {

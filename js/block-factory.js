@@ -2103,6 +2103,76 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   //   (재현: 섹션 텍스트 ⌘D 는 copySelected 가 텍스트프레임 래퍼를 잃어 «맨몸 text-block» 을 만든다
   //    → 그 복제본은 tf 도 row 도 없어 단위가 자기 자신이 됐다.)
   //   이제 껍데기(shell)가 «실제로 있을 때만» 껍데기로 다룬다. shell 이 없으면 단위 = 알맹이 자신.
+  /* ── 흐름 «자유배치 프레임» + 섹션에 «떠 있는» 블럭: 떠 있는 것을 프레임 «안»으로 ──────────
+   * ★현빈 2026-09-30 — 흐름 프레임(ss_…)과 섹션 직속 줌블럭(zmb_…)을 ⌘G 로 묶었더니 기대대로
+   *   안 됐다. 원인: 위 오버레이 갈래는 «전부 오버레이»일 때만 타고, 섞이면 아래 flow 갈래로
+   *   떨어져 `stackY` 로 «세로로 쌓였다» ⇒ 겹쳐 둔 자리가 풀린다.
+   * ★확정 규칙(현빈 승인): 「둘 다 지금 자리 그대로 한 묶음으로, 같이 움직인다」
+   *   ⇒ 떠 있는 블럭을 그 자유배치 프레임의 «자식»으로 옮기고, 화면 자리가 안 변하게
+   *     좌표를 프레임 기준으로 바꾼다. 프레임을 끌면 같이 간다. 새 래퍼는 안 만든다.
+   * ⛔조건이 안 맞는 «섞인» 선택은 쌓지 않고 까닭을 말하고 멈춘다(쌓으면 자리를 잃는다).
+   *   · 흐름 쪽이 «자유배치 프레임 하나»가 아니면 → 어디에 넣을지 없다.
+   *   · 떠 있는 쪽이 프레임 안에서 제대로 끌리는 종류가 아니면 → 넣으면 끌 때 튄다.
+   *     지금 되는 종류 = 오버레이 블럭(표식 내려놓으면 일반 자유배치 자식) · 줌블럭(끌기가 부모 프레임 기준).
+   * ⛔최상위 도우미 금지(이 함수만 잘라 도는 DOM 하네스) — 전부 이 안에서, 바깥은 window.* 로. */
+  {
+    const _sticky = b => b.closest('.frame-block[data-text-frame]') || shapeFrameOf(b) || b;
+    const units = [...new Set(selected.map(_sticky))];
+    const floaters = units.filter(u => u.parentElement === sec);
+    const hosts    = units.filter(u => u.parentElement !== sec);
+    if (floaters.length && hosts.length) {
+      const host = (hosts.length === 1 && hosts[0].matches?.('.frame-block[data-free-layout]')
+                    && hosts[0].dataset.textFrame !== 'true') ? hosts[0] : null;
+      const _canNest = u => u.classList.contains('zoom-block') || u.dataset.overlayBlock === 'true';
+      if (!host) {
+        window.showToast?.('떠 있는 블럭은 «자유배치 프레임 하나»와만 묶을 수 있어요 — 그 프레임 안으로 들어갑니다.');
+        return;
+      }
+      const bad = floaters.filter(u => !_canNest(u));
+      if (bad.length) {
+        window.showToast?.('이 떠 있는 블럭은 아직 프레임 안에 넣을 수 없어요 (넣으면 끌 때 자리가 튑니다).');
+        return;
+      }
+      const hr = host.getBoundingClientRect();
+      const scale = host.offsetWidth ? (hr.width / host.offsetWidth) || 1 : 1;   // 캔버스 줌
+      floaters.forEach(u => {
+        const r = u.getBoundingClientRect();
+        const x = Math.round((r.left - hr.left) / scale - (host.clientLeft || 0));
+        const y = Math.round((r.top  - hr.top)  / scale - (host.clientTop  || 0));
+        host.appendChild(u);
+        if (u.classList.contains('zoom-block')) {
+          // 줌블럭 위치는 dataset.x/y 가 정본(zoom-block.js _applyZoomPos) — 같은 두 칸에 쓴다.
+          u.dataset.x = String(x); u.dataset.y = String(y);
+          u.style.left = x + 'px'; u.style.top = y + 'px';
+          window.renderZoomBlock?.(u);
+        } else {
+          // 오버레이 블럭 — 위 오버레이 갈래와 «같은» 표식 내려놓기(남기면 섹션 좌표로 클램프해 튄다).
+          u.style.position = 'absolute';
+          u.style.left = x + 'px'; u.style.top = y + 'px';
+          delete u.dataset.overlayBlock;
+          delete u.dataset.overlayReturnParent;
+          delete u.dataset.overlayReturnAfter;
+          delete u.dataset.selVariant;
+          const _innerShape = u.querySelector?.(':scope > .shape-block');
+          if (_innerShape) delete _innerShape.dataset.selVariant;
+        }
+        u.classList.remove('selected');
+      });
+      window.bindFrameDropZone?.(host);
+      window.deselectAll?.();
+      sec.classList.add('selected');
+      window.syncLayerActive?.(sec);
+      host.classList.add('selected');
+      window._activeFrame = host;
+      window.showFrameProperties?.(host);
+      window.showFrameHandles?.(host);
+      window.buildLayerPanel();
+      window.scheduleAutoSave?.();
+      window.showToast?.(`${floaters.length}개를 프레임 안으로 묶었어요 (자리 그대로)`);
+      return;
+    }
+  }
+
   const rows = [];
   const shells = new Set();
   selected.forEach(b => {

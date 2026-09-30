@@ -30,6 +30,14 @@
 .frame-block[data-text-frame] {
   min-height: unset;
 }
+/* ★「내용 자르기」 켬(현빈 2026-09-30, 피그마 Clip content). 사용자가 «그 프레임에» 명시로 켠
+   것이라 아래의 «풀어 주는» 예외들(도형 선택 중·회전 자식·말풍선·그라데이션 바)보다 이겨야 한다
+   — 그래서 !important.
+   ⚠️대가: 도형 손잡이처럼 프레임 «안»에 그려지는 손잡이는 프레임 밖으로 나간 만큼 잘린다
+     (아래 「도형 선택 시 overflow 해제」가 풀어 주던 것을 이 켬이 다시 막는다). 켠 사람이 고른 것이다. */
+.frame-block[data-clip-content="true"] {
+  overflow: hidden !important;
+}
 /* ★오버레이(플로팅) 텍스트 z-index(2026-09-16, 현빈 실측 — "오버레이 텍스트를 클릭하려고
    해도 쉽게 잘 안 된다"). position:absolute만 있고 z-index가 없어(기본 auto) 섹션 본문
    흐름 콘텐츠(.tb-body 등)와 겹치면 DOM 순서에 따라 오버레이가 «아래로» 깔릴 수 있었다 —

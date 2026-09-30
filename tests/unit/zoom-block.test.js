@@ -884,8 +884,14 @@ test('ⓑ-2 [체크리스트②] layer-panel-items.js — 감지·type·labels·
   assert.ok(typeLine   && /zoom:\s*'Zoom'/.test(typeLine),   "typeLbls 등록 없음(‘Component’ 로 뭉뚱그리지 않는다)");
   assert.ok(/\bzoom:\s*`<svg class="layer-item-icon"/.test(s), 'layerIcons 항목 없음');
   assert.ok(s.includes('window.showZoomProperties?.(block)'), '레이어 클릭 → 프로퍼티 연결 없음');
-  assert.ok(s.includes("'zoom-block']") || s.includes("'zoom-block',"),
-    '프레임 자식 블록 목록 배열에 zoom-block 이 없다 = 프레임 안에 넣으면 레이어에서 사라진다');
+  /* ★프레임 자식 판정은 2026-09-30 부터 손 명부가 아니라 정본 표(js/panel-dispatch.js _PANEL_BY_CLASS)
+     파생이다(그 손 명부가 mockup 등 7종을 빠뜨렸다). 뜻은 그대로 — 「프레임 안 줌이 레이어에서 안 사라진다」
+     = ⑴ 프레임 자식 루프가 hasPanelForBlock 을 묻고 ⑵ 정본 표에 zoom-block 이 있다. */
+  assert.ok(/else if \(window\.hasPanelForBlock\?\.\(child\)\)/.test(s),
+    '프레임 자식 루프가 정본 표(hasPanelForBlock)를 안 묻는다 = 명부가 다시 두 벌이 됐다');
+  const dispatch = fs.readFileSync(path.join(ROOT, 'js/panel-dispatch.js'), 'utf8');
+  assert.ok(/\['zoom-block',/.test(dispatch),
+    '정본 표에 zoom-block 이 없다 = 프레임 안에 넣으면 레이어에서 사라진다');
 });
 
 /** `blockHeaderHTML({ … })` 호출의 «인자 본문»만 잘라 낸다 — 중괄호 짝을 센다.

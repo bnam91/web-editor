@@ -350,6 +350,15 @@ function _renderAutoPanel(ss) {
         </label>
       </div>
       ` : ''}
+      <!-- ★내용 자르기(현빈 2026-09-30 「피그마처럼 프레임마다 켬/끔, 기본은 끔」).
+           기본이 «안 자름»인 까닭은 css/editor-blocks.css 맨 위 .frame-block 주석(09-28 지시). -->
+      <div class="prop-row">
+        <span class="prop-label">내용 자르기</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="ss-clip-toggle" ${ss.dataset.clipContent === 'true' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Position</div>
@@ -832,6 +841,15 @@ function _renderAutoPanel(ss) {
       window.scheduleAutoSave?.();
     });
   }
+
+  // 내용 자르기 — 값은 data-clip-content 한 칸, 그리기는 CSS 한 줄(css/editor-blocks.css).
+  //   저장·복사·내보내기(PNG 클론·HTML CSS 수집)가 모두 이 속성을 그대로 따라간다. push-after.
+  document.getElementById('ss-clip-toggle')?.addEventListener('change', e => {
+    if (e.target.checked) ss.dataset.clipContent = 'true';
+    else delete ss.dataset.clipContent;
+    window.pushHistory?.('프레임 내용 자르기');
+    window.scheduleAutoSave?.();
+  });
 
   // 패딩
   const padYSlider = document.getElementById('ss-pady-slider');
