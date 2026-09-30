@@ -440,6 +440,10 @@ export function stripEditorOnlyForCapture(clone) {
   clone.querySelectorAll('.shape-block[data-shape-fill="image"]:not([data-shape-image])').forEach(el => {
     el.removeAttribute('data-shape-fill');
   });
+  /* 섹션 «체크 배경»(.sec-bg-empty)은 편집 전용 자리표시다. CSS 가 !important 라 인라인 지우기로는
+     못 이긴다 — 클래스째 뗀다(루트·자손 둘 다). export-html.js 도 같은 클래스를 뗀다. */
+  clone.classList?.remove('sec-bg-empty');
+  clone.querySelectorAll?.('.sec-bg-empty').forEach(el => el.classList.remove('sec-bg-empty'));
   clone.classList?.remove('selected', 'sec-bg-editing');
   // 캔버스 전체 클론에서는 «루트»가 아니라 자식 섹션이 sec-bg-editing 을 달고 있다.
   clone.querySelectorAll?.('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
