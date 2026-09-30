@@ -144,6 +144,94 @@ export const GRID_BORDER_W_MAX = 20;
 export const GRID_BORDER_STYLES = ['solid', 'dashed', 'dotted'];
 const GRID_BORDER_DEFAULT_COLOR = '#d0d0d0';
 
+/* ══ 칸 «사이»의 괘선 — 현빈 2026-09-30 ═══════════════════════════════════════
+ * 원문: 「2*1인 셀이 있으면 각 칼럼 중간에 줄」 ＋ 「칼럼 간격외에도 로우 간격에도
+ *   가로줄」 ＋ 「모든칸 일괄적용할수도 있지만 특정 경계에만 지정해서 넣거나 뺄수 있게도」.
+ *
+ * ★★어느 «축»에 두는가 — 칸 테두리(GRID_BORDER_*)와 같은 «블럭 축»이다. 다만 켬/끔만은
+ *   «경계마다»다. ⛔전체 스위치 하나에 예외를 매달지 않았다: 그 꼴은 스위치와 예외가
+ *   어긋난 상태를 반드시 만든다(전체 선언 플래그로 개별 예외를 못 만든다 — 이 팀이 물린 자리).
+ *   ⇒ 정본은 «경계 목록» 하나(`colRuleOn="1,0,1"`)고, 「일괄」은 그 목록을 한 번에 채우는
+ *     패널 «단추»일 뿐이다. 모델에 「전체」라는 상태가 없으므로 어긋날 것이 없다.
+ *
+ * ★★왜 테두리(border)로 안 그리나 — 현빈이 말한 자리는 «간격의 가운데»다. border 는 칸
+ *   상자에 붙어 간격 안으로 못 나간다. 그래서 칸 «안»에 절대배치 div 를 넣고 간격 쪽으로
+ *   내민다. 그러면 경계의 좌표를 «계산하지 않는다» — grid 가 칸 자리를 이미 잡아 준다.
+ *   ⛔CSS 파일에 두면 안 된다: 이 줄은 «보여야 하는 것»이라 내보내기(PNG·단독 HTML)에도
+ *     실려야 한다. 어제 구분선의 «잡을 데»가 정반대(에디터 전용 CSS)였던 것과 짝이다.
+ *   ★막는 것이 없음을 확인했다 — .grd-cell·.grd-inner 에 overflow:hidden 이 없다.
+ *     생기면 내민 줄이 «잘려» 이 방법 자체가 죽는다(그 사실을 검사가 문다).
+ *
+ * ★굵기가 간격보다 커도 «그대로 넘친다»(현빈 확정 2026-09-30) — 자르지 않는다.
+ * ★들여쓰기 0 = 칸 높이 전체. 그래서 「전체 높이」와 「위아래 들여서」가 손잡이 «하나»다.
+ * ⚠️들여쓰기 > 0 이면 `span:'through'`(통짜)는 «뜻이 없다» — 끊김으로 본다(양쪽이 반대말이다).
+ * ⛔GRID_LINE_FIELDS·GRID_CELL_FIELDS 를 한 글자도 건드리지 않았다 — 이건 칸·줄 값이 아니다.
+ * ★끄면(경계 목록이 비면) div 가 «아예 안 생긴다» ⇒ 옛 저장본의 산출은 한 픽셀도 안 바뀐다. */
+export const GRID_RULE_W_MAX = 40;
+export const GRID_RULE_INSET_MAX = 200;
+export const GRID_RULE_SPANS = ['cell', 'through'];
+export const GRID_RULE_DEFAULT_COLOR = '#e0e0e0';
+export const GRID_RULE_AXES = ['col', 'row'];
+
+/** 한 축의 괘선 설정. `n` = 그 축의 «경계 수»(열 축이면 cols-1).
+ *  ⛔`parseInt(x) || d` 금지 — 들여쓰기 0 이 «유효값»(전체 높이)이다. */
+function _gridAxisRule(ds, ax, n) {
+  const raw = String(ds[ax + 'RuleOn'] ?? '');
+  const parts = raw === '' ? [] : raw.split(',');
+  const on = [];
+  for (let i = 0; i < n; i++) on.push(parts[i] !== undefined && String(parts[i]).trim() === '1');
+  const wRaw = Number(ds[ax + 'RuleWidth']);
+  const iRaw = Number(ds[ax + 'RuleInset']);
+  const colRaw = String(ds[ax + 'RuleColor'] ?? '').trim();
+  const spanRaw = String(ds[ax + 'RuleSpan'] ?? '');
+  return {
+    on,
+    width: Number.isFinite(wRaw) && wRaw > 0 ? Math.min(GRID_RULE_W_MAX, Math.round(wRaw)) : 1,
+    color: _GRID_COLOR_RE.test(colRaw) ? colRaw : GRID_RULE_DEFAULT_COLOR,
+    inset: Number.isFinite(iRaw) && iRaw > 0 ? Math.min(GRID_RULE_INSET_MAX, Math.round(iRaw)) : 0,
+    span: GRID_RULE_SPANS.includes(spanRaw) ? spanRaw : 'cell',
+  };
+}
+
+/** 블럭의 괘선 설정 — {col, row}. 각 축에 {on[], width, color, inset, span}.
+ *  ★패널(js/props/prop-grid.js)과 렌더러가 «같은 이 함수»를 본다 — 두 벌 금지. */
+function _gridRules(block, colsN, rowsN) {
+  const ds = (block && block.dataset) || {};
+  return {
+    col: _gridAxisRule(ds, 'col', Math.max(0, colsN - 1)),
+    row: _gridAxisRule(ds, 'row', Math.max(0, rowsN - 1)),
+  };
+}
+export function gridRules(block) {
+  const { cols, rows } = getGridModel(block);
+  return _gridRules(block, cols.length, rows.length);
+}
+
+/** 한 칸이 내놓을 괘선 div 들. 오른쪽 경계(세로) · 아래 경계(가로) 각각 최대 한 개.
+ *  ★내미는 거리 = 간격/2 ＋ 굵기/2 ⇒ 줄의 «가운데»가 간격의 «가운데»에 온다.
+ *  ★통짜(span:'through')는 위아래(가로줄이면 좌우)를 «반대 축 간격»의 절반만큼 늘려 그 틈을
+ *    덮는다. 블럭 «바깥»으로는 안 늘린다(첫·마지막 줄 쪽은 그대로) — 안 그러면 블럭 밖으로 삐친다. */
+function _gridCellRuleHtml(rules, r, c, colsN, rowsN, rowGapPx, colGapPx) {
+  let out = '';
+  const v = rules.col;
+  if (c < colsN - 1 && v.on[c]) {
+    const off = colGapPx / 2 + v.width / 2;
+    const thru = v.inset === 0 && v.span === 'through';
+    const top = thru && r > 0 ? -(rowGapPx / 2) : v.inset;
+    const bot = thru && r < rowsN - 1 ? -(rowGapPx / 2) : v.inset;
+    out += `<div class="grd-crule" aria-hidden="true" style="position:absolute;right:${-off}px;top:${top}px;bottom:${bot}px;width:${v.width}px;background:${_esc(v.color)};pointer-events:none;"></div>`;
+  }
+  const h = rules.row;
+  if (r < rowsN - 1 && h.on[r]) {
+    const off = rowGapPx / 2 + h.width / 2;
+    const thru = h.inset === 0 && h.span === 'through';
+    const left = thru && c > 0 ? -(colGapPx / 2) : h.inset;
+    const right = thru && c < colsN - 1 ? -(colGapPx / 2) : h.inset;
+    out += `<div class="grd-rrule" aria-hidden="true" style="position:absolute;bottom:${-off}px;left:${left}px;right:${right}px;height:${h.width}px;background:${_esc(h.color)};pointer-events:none;"></div>`;
+  }
+  return out;
+}
+
 /** 블록의 칸 테두리 — {width, color, style}. 값이 없거나 못 읽으면 width:0(=없음).
  *  ⛔`parseInt(x) || 0` 금지 — 여기선 0 이 유효값이라 gap 과 같은 함정을 진다. */
 function _gridCellBorder(block) {
@@ -173,6 +261,17 @@ function _gridCellBorderCss(bd, r, c, rowGapPx, colGapPx) {
   const top  = (rowGapPx > 0 || r === 0) ? line : '0';
   const left = (colGapPx > 0 || c === 0) ? line : '0';
   return `border-top:${top};border-left:${left};border-right:${line};border-bottom:${line};`;
+}
+
+/** 경계 목록을 «경계 수»에 맞춘다 — 넘치면 자르고 모자라면 0 으로 채운다.
+ *  경계가 없으면(1열·1행) 빈 문자열 = 켠 것이 하나도 없다.
+ *  ⛔새 잣대를 만들지 않는다 — 읽는 자(_gridAxisRule)와 «같은 꼴»('1'/'0' 콤마)을 낸다. */
+function _gridTrimRuleOn(raw, n) {
+  if (!(n > 0)) return '';
+  const parts = String(raw ?? '') === '' ? [] : String(raw).split(',');
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(parts[i] !== undefined && String(parts[i]).trim() === '1' ? '1' : '0');
+  return out.includes('1') ? out.join(',') : '';   // 전부 꺼졌으면 «빈 값»으로 — dataset 을 깨끗하게
 }
 
 /** 테두리 굵기 검증 — 0~GRID_BORDER_W_MAX. 통과면 정수, 아니면 null. */
@@ -1687,6 +1786,8 @@ function renderGridBlock(block) {
   block.style.boxSizing = 'border-box';
 
   const colTemplate = cols.map(c => `${Number(c.width) > 0 ? Number(c.width) : 1}fr`).join(' ');
+  /* 칸 사이 괘선 — 루프 «밖»에서 한 번 읽는다(칸마다 dataset 을 다시 파싱하지 않는다). */
+  const rules = _gridRules(block, cols.length, rows.length);
   // ★행 높이는 «가중치»가 아니라 px 최소높이(minmax) — 3-A U5a 의미론. 'auto' 행은 내용 높이 그대로.
   const rowTemplate = rows.map(r => r.height === 'auto' ? 'auto' : `minmax(${r.height}px, auto)`).join(' ');
 
@@ -1759,8 +1860,13 @@ function renderGridBlock(block) {
        *   «적어 두고도» 산출은 달랐다.
        *   ⇒ ★바꾸려는 것보다 넓게 바뀌었는지는 «골든이» 말해 준다. 주석은 안 말해 준다. */
       const cellMinH = lines.length === 0 ? `${GRID_EMPTY_CELL_MIN_H}px` : '0';
-      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}">
-        ${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, true)).join('')}
+      /* ★칸 «사이» 괘선(현빈 0930) — 끄면 «빈 문자열»이라 옛 산출과 바이트 동일하다.
+         `position:relative` 도 줄이 있을 때만 붙는다(있으면 절대배치 자식의 기준이 된다).
+         ⛔줄 div 는 «줄(line)들보다 앞»에 둔다 — 흐름에 안 끼는 absolute 라 자리는 안 먹고,
+           먼저 그려져 내용 뒤에 깔린다(내용이 줄 위로 온다). */
+      const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, rowGapPx, colGapPx);
+      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}">
+        ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, true)).join('')}
       </div>`);
     }
   }
@@ -2007,6 +2113,10 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     const colsForTrim = _gridCols(block);
     const trimmedRows = _gridCellRows(block, colsForTrim, normRows.length);
     next.cells = _gridCellsToDataset(trimmedRows);
+    /* ★행 경계 괘선의 켬/끔도 «같이» 자른다 — 안 자르면 주인 없는 값이 dataset 에 남고,
+       행을 다시 늘렸을 때 «옛 켬»이 되살아나 사용자가 안 켠 줄이 나타난다.
+       ⛔칸 내용이 잘리는 것과 «같은 규약»이다(변경 전 pushHistory 로 ⌘Z 복원). */
+    next.rowRuleOn = _gridTrimRuleOn(block.dataset.rowRuleOn, normRows.length - 1);
   }
   const rowCountForValidation = next.rows !== undefined ? JSON.parse(next.rows).length : _gridRows(block).length;
 
@@ -2031,6 +2141,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     // _gridCellRows 가 같은 일을 하지만, dataset 자체를 깨끗하게 유지해 export/외부 판독을 돕는다).
     const trimmedRows = _gridCellRows(block, partial.cols, rowCountForValidation);
     next.cells = _gridCellsToDataset(trimmedRows);
+    next.colRuleOn = _gridTrimRuleOn(block.dataset.colRuleOn, partial.cols.length - 1);   // 위 rows 와 같은 까닭
   }
   /* ★T-176 — 줄이는 교체면 «도구»도 그 사실을 말한다. ⛔동작은 안 바꾼다(잘림은 그대로).
    *   ⚠️dataset 은 아래 `Object.assign(block.dataset, next)` 에서야 바뀐다 — 그래서 «지금» 읽은
@@ -2240,6 +2351,58 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     next.cellBorderStyle = partial.cellBorderStyle;
     applied.cellBorderStyle = partial.cellBorderStyle;
   }
+  /* ── ★칸 «사이» 괘선 (현빈 2026-09-30) — 축 둘 × 다섯 키. 선언부(GRID_RULE_*)에 «왜»가 있다.
+   *   ⛔열거를 손으로 열 번 적지 않는다: 축·키를 표로 돌린다. 그래야 축을 하나 더 늘릴 때
+   *     「한 축만 고쳐진」 상태가 안 생긴다(이 레포의 고질). 거절 메시지는 키 이름을 담는다. */
+  for (const ax of GRID_RULE_AXES) {
+    const kOn = ax + 'RuleOn', kW = ax + 'RuleWidth', kC = ax + 'RuleColor';
+    const kI = ax + 'RuleInset', kS = ax + 'RuleSpan';
+    if (partial[kOn] !== undefined) {
+      /* 경계 목록 — "1,0,1" 꼴. 경계 수는 «지금 모델»이 정한다(구조 변경과 같은 문에서 오면
+         위 cols/rows 가지가 이미 next 에 넣었으므로 그쪽이 이긴다 — 여기선 길이만 맞춘다). */
+      const raw = String(partial[kOn] ?? '').trim();
+      if (raw !== '' && !/^[01](,[01])*$/.test(raw)) {
+        return { ok: false, code: 'INVALID', message: `${kOn} must be a comma list of 0/1, e.g. '1,0,1' (empty = all off)` };
+      }
+      const nB = (ax === 'col')
+        ? (next.cols !== undefined ? JSON.parse(next.cols).length : _gridCols(block).length) - 1
+        : (next.rows !== undefined ? JSON.parse(next.rows).length : _gridRows(block).length) - 1;
+      next[kOn] = _gridTrimRuleOn(raw, nB);
+      applied[kOn] = next[kOn];
+    }
+    if (partial[kW] !== undefined) {
+      const n = Number(partial[kW]);
+      if (!Number.isFinite(n) || n < 1 || n > GRID_RULE_W_MAX) {
+        return { ok: false, code: 'INVALID', message: `${kW} must be 1~${GRID_RULE_W_MAX}` };
+      }
+      next[kW] = String(Math.round(n));
+      applied[kW] = Math.round(n);
+    }
+    if (partial[kC] !== undefined) {
+      const raw = String(partial[kC] ?? '').trim();
+      if (!_GRID_COLOR_RE.test(raw)) {
+        return { ok: false, code: 'INVALID', message: `${kC} must be a CSS color literal, e.g. '#e0e0e0'` };
+      }
+      next[kC] = raw;
+      applied[kC] = raw;
+    }
+    if (partial[kI] !== undefined) {
+      /* ⛔0 이 «유효값»이다 — 「칸 높이 전체」가 곧 0 이다. `|| 기본값` 으로 삼키지 않는다. */
+      const n = Number(partial[kI]);
+      if (!Number.isFinite(n) || n < 0 || n > GRID_RULE_INSET_MAX) {
+        return { ok: false, code: 'INVALID', message: `${kI} must be 0~${GRID_RULE_INSET_MAX} (0 = full cell height)` };
+      }
+      next[kI] = String(Math.round(n));
+      applied[kI] = Math.round(n);
+    }
+    if (partial[kS] !== undefined) {
+      if (!GRID_RULE_SPANS.includes(partial[kS])) {
+        return { ok: false, code: 'INVALID', message: `${kS} must be ${GRID_RULE_SPANS.join('|')}` };
+      }
+      next[kS] = partial[kS];
+      applied[kS] = partial[kS];
+    }
+  }
   if (partial.valign !== undefined) {
     /* ★명부는 _GRID_VALIGN «하나»에서 온다 — 전엔 여기와 makeGridBlock 이 각자 리터럴을
        들고 있었다(MIN_COLS/MAX_COLS 사고와 같은 유형, T-175). 칸 축도 같은 명부를 본다. */
@@ -2250,7 +2413,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     applied.valign = partial.valign;
   }
   if (Object.keys(next).length === 0) {
-    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/cellBorderWidth/cellBorderColor/cellBorderStyle' };
+    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/cellBorderWidth/cellBorderColor/cellBorderStyle/{col,row}Rule{On,Width,Color,Inset,Span}' };
   }
 
   /* ⛔되돌림 명부에 «새 키»를 같이 넣어라 — 빠지면 RENDER_ERROR 롤백이 테두리만 남겨
@@ -2262,6 +2425,18 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     cellBorderWidth: block.dataset.cellBorderWidth,
     cellBorderColor: block.dataset.cellBorderColor,
     cellBorderStyle: block.dataset.cellBorderStyle,
+    /* ⛔괘선 열 키도 여기 있어야 한다 — 빠지면 RENDER_ERROR 롤백이 줄만 남겨
+       「그리기에 실패했는데 화면엔 줄이 남는」 반쪽 상태를 만든다(바로 위 ⛔와 같은 까닭). */
+    colRuleOn: block.dataset.colRuleOn,
+    colRuleWidth: block.dataset.colRuleWidth,
+    colRuleColor: block.dataset.colRuleColor,
+    colRuleInset: block.dataset.colRuleInset,
+    colRuleSpan: block.dataset.colRuleSpan,
+    rowRuleOn: block.dataset.rowRuleOn,
+    rowRuleWidth: block.dataset.rowRuleWidth,
+    rowRuleColor: block.dataset.rowRuleColor,
+    rowRuleInset: block.dataset.rowRuleInset,
+    rowRuleSpan: block.dataset.rowRuleSpan,
   };
   const restore = (snap) => {
     ['cols', 'gap', 'valign', 'rows', 'cells', 'rowGap', 'colGap',

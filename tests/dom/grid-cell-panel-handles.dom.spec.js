@@ -1174,6 +1174,52 @@ test('E15 ★[↺ 기본]이 «줄 꾸미기» 절로 옮겨도 그대로 돈다
   expect(got.leftovers, '★[↺ 기본]을 눌렀는데 «손으로 준 값»이 남았다 — 단추는 옮겼고 배선은 안 따라왔다').toBe(0);
 });
 
+test('E16 ★「칸 사이 줄」을 «펼쳐도» 패널이 가로로 안 넘친다 + 경계 수만큼 칩이 난다', async ({ page }) => {
+  /* ★2026-09-30 신설 — 이 절은 접혀 있어서 G2(순증·가로 잘림)가 «닫힌 상태»만 잰다.
+   *   펼친 상태는 아무도 안 재는 사각지대가 된다 ⇒ 여기서 «펴서» 잰다.
+   *   ⛔가로로 넘치면 사용자에겐 «잘려서 없는 것»으로 보인다(패널 껍데기가 overflow:hidden). */
+  const errs = await boot(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const got = await page.evaluate(({ fx, addr }) => {
+    const HOST = document.getElementById('host');
+    HOST.innerHTML = '';
+    document.querySelector('#panel-right .panel-body').innerHTML = '';
+    const { row, block } = window.__mk(JSON.parse(JSON.stringify(fx)));
+    HOST.appendChild(row); block.classList.add('selected');
+    window.__open(block, addr);
+    const head = document.getElementById('grd-rule-toggle');
+    if (head) head.click();                       // 펼친다(접힘 상태를 이 블럭에 기억한다)
+    window.__open(block, addr);                   // 다시 그려도 «펼친 채»여야 한다
+    const body = document.getElementById('grd-rule-body');
+    const panelBody = document.querySelector('#panel-right .panel-body');
+    const model = window.__model(block);
+    return {
+      headFound: !!head,
+      open: body ? getComputedStyle(body).display : null,
+      // 축마다 손잡이 넷
+      ids: ['col', 'row'].map(ax => ['w', 'inset', 'span', 'color', 'hex', 'all']
+        .filter(k => !!document.getElementById(`grd-${ax}rule-${k}`)).join(',')),
+      chips: ['col', 'row'].map(ax => document.querySelectorAll(`[data-rule-ax="${ax}"][data-rule-i]`).length),
+      bounds: [model.cols.length - 1, model.rows.length - 1],
+      overflowX: panelBody.scrollWidth - panelBody.clientWidth,
+      outside: [...panelBody.querySelectorAll('#grd-rule-body *')].filter(el => {
+        const r = el.getBoundingClientRect(); const pb = panelBody.getBoundingClientRect();
+        return (r.width || r.height) && r.right > pb.right + 0.5;
+      }).length,
+    };
+  }, { fx: FIX_4x4, addr: A_4x4 });
+  expect(errs).toEqual([]);
+  expect(got.headFound, '★「칸 사이 줄」 절 머리가 없다 — 4×4 면 두 축 다 경계가 있어야 한다').toBe(true);
+  expect(got.open, '★펼친 상태가 «다시 그린 뒤»에도 유지되지 않는다 — 접힘 기억이 안 걸렸다').toBe('block');
+  for (const set of got.ids) {
+    expect(set, '★축 하나의 손잡이가 빠졌다(굵기·들임·이어짐·색·헥스·모두)').toBe('w,inset,span,color,hex,all');
+  }
+  // 칩은 «경계 수»만큼 — 열 수가 아니다(4열이면 경계 3개)
+  expect(got.chips).toEqual(got.bounds);
+  expect(got.overflowX, `★패널 본문이 가로로 ${got.overflowX}px 넘친다 — 잘려서 안 보인다`).toBeLessThanOrEqual(0);
+  expect(got.outside, '★펼친 절의 요소가 패널 오른쪽 밖으로 나갔다').toBe(0);
+});
+
 test('E14 ★image → body 로 바꾸면 imgSrc 가 «안» 남는다 (전환 경로 = 손잡이가 탈 길)', async ({ page }) => {
   const errs = await boot(page);
   const r = await page.evaluate(async ({ addr }) => {

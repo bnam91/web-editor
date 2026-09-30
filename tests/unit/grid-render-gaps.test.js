@@ -1127,7 +1127,17 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *     ⑶고친 것은 «규칙»이 아니라 «면적»이다 — 구분선은 1px 이라 손이 안 닿았다.
  *       그 효과는 여기서 못 잰다 ⇒ tests/dom/grid-divider-hitarea.dom.spec.js(H1~H3, 양성대조 딸림).
  *     ⛔DOM 축(H1·H2·H3)은 여기 «안» 센다. */
-const GRID_BASELINE_TESTS = 375;
+/*   · ★389 (2026-09-30, 현빈 「각 칼럼 중간에 줄 ＋ 로우 간격에도 가로줄 ＋ 특정 경계만」) —
+ *     tests/unit/grid-cell-rules.test.mjs 신설 «+14».
+ *     ⑴세는 자 = `grep -c '^test(' tests/unit/grid-cell-rules.test.mjs` → 14.
+ *     ⑵더한 것 — ★R0 «끄면 산출이 바이트 동일»(이 기능의 최대 위험 = 남의 그림을 바꾸는 것) ·
+ *       R1 켠 경계에만 · R2 줄 가운데가 간격 가운데에 · R3 굵기가 간격보다 커도 안 깎는다(현빈 확정) ·
+ *       R4 들여쓰기 0 을 «없는 값»으로 안 읽는다 · R5 통짜가 블럭 밖으로 안 삐친다 ·
+ *       R6 들여쓰기>0 이면 통짜는 뜻 없음 · R7·R7-b 경계 수가 줄면 켬/끔도 잘린다(주인 없는 값 금지) ·
+ *       R8·R8-b 잘못된 값 거절/빈 목록 허용 · ★R9 칸·줄 명부 무접촉 · R10 가로줄 · R11 두 축 동시.
+ *     ⑶★모델의 정본은 «경계 목록» 하나다 — 전체 스위치 + 예외 꼴을 안 만들었다(어긋날 상태가 없다).
+ *     ⛔DOM 축(tests/dom/grid-cell-rules.dom.spec.js)은 여기 «안» 센다. */
+const GRID_BASELINE_TESTS = 389;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {

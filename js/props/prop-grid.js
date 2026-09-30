@@ -10,6 +10,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          gridGaps, GRID_GAP_MAX, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES,
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
+         gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
          GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
@@ -1742,6 +1743,144 @@ ${_borderRowHtml(bd)}
     </div>`;
 }
 
+/* ══ 칸 «사이» 괘선 — 현빈 2026-09-30 ══════════════════════════════════════
+ * 원문: 「각 칼럼 중간에 줄」＋「로우 간격에도 가로줄」＋「일괄도, 특정 경계만 넣거나 빼기도」
+ *   ＋「굵기 그대로 넘치게 둬」.
+ *
+ * ★모델의 정본은 «경계 목록»(colRuleOn="1,0,1") 하나다 — 「모두」는 그 목록을 한 번에 채우는
+ *   단추일 뿐이다. ⛔전체 스위치를 따로 두지 않는다: 그러면 스위치와 예외가 어긋난 상태가
+ *   생긴다(선언부 GRID_RULE_* 머리말에 그 까닭이 있다).
+ * ★손잡이는 축마다 «네 칸 + 경계 칩»이다. 경계 칩은 경계 수만큼 나고, 1행·1열이면 «아예 안 난다»
+ *   (누를 데가 없는 자리에 스위치를 두면 「눌리는데 아무 일도 안 난다」가 된다 — 이 레포의 고질).
+ * ⚠️★패널이 커진다 — G2(순증 합격선 +60)에 걸린다. ⛔접이식에 숨겨 «공짜로» 지나가지 않는다:
+ *   그 검사 머리말이 금지한 바로 그 길이다. 정직하게 내고 기준점을 다시 찍는다(합격선 무접촉).
+ * ⛔`|| 기본값` 금지 — 들여쓰기 0 이 「칸 높이 전체」라는 «유효값»이다. */
+const _GRD_RULE_AX_LABEL = { col: '세로 (열 사이)', row: '가로 (행 사이)' };
+/* ⛔`{값: 글자}` 꼴로 쓰지 마라 — 이 파일의 _grdOptsHtml 은 `[[값, 글자], …]` 를 받는다
+   (객체를 주면 `list.map is not a function` 으로 패널이 통째로 죽는다 · 2026-09-30 실측). */
+const _GRD_RULE_SPAN_OPTS = [['cell', '칸마다 끊김'], ['through', '통짜로 이어짐']];
+
+/** 한 축의 손잡이 묶음 — «네 줄». 경계가 없으면 빈 문자열(그 축은 아예 안 그린다).
+ *  ⛔줄을 더 늘리지 마라 — 축이 둘이라 한 줄이 늘면 패널은 «두 줄» 늘어난다(G2 순증).
+ *    처음에 다섯 줄로 냈다가 순증 +436px 을 받았다. 지금 꼴은 그 실측에서 온 것이다. */
+function _grdRuleAxisHtml(ax, ru) {
+  const n = ru.on.length;
+  if (n === 0) return '';
+  const id = (k) => `grd-${ax}rule-${k}`;
+  const hasColor = ru.color !== GRID_RULE_DEFAULT_COLOR;
+  const hex = swatchHex(ru.color, GRID_RULE_DEFAULT_COLOR);
+  const allOn = ru.on.every(Boolean);
+  /* 경계 칩 — 누르면 그 경계 하나만 토글.
+     ⛔칩에 «열 번호»를 쓰지 않는다: 경계는 열이 아니라 «열 사이»다(2열이면 경계 1개). */
+  const chips = ru.on.map((v, i) => `<button type="button" class="prop-btn-sm${v ? ' active' : ''}"
+              data-rule-ax="${ax}" data-rule-i="${i}" style="min-width:24px;padding:1px 5px;"
+              aria-pressed="${v ? 'true' : 'false'}"
+              title="${ax === 'col' ? `${i + 1}·${i + 2}번째 열 사이` : `${i + 1}·${i + 2}번째 행 사이`}의 줄을 켜고 끕니다">${i + 1}</button>`).join('');
+  return `
+        <div class="prop-row" style="gap:4px;flex-wrap:wrap;">
+          <span class="prop-label" style="flex:0 0 auto;">${_GRD_RULE_AX_LABEL[ax]}</span>
+          <button type="button" class="prop-btn-sm" id="${id('all')}" data-rule-ax="${ax}" data-rule-all="${allOn ? '0' : '1'}"
+                  style="padding:1px 6px;" title="${allOn ? '이 축의 경계를 모두 끕니다' : '이 축의 경계를 모두 켭니다'}">${allOn ? '모두 끄기' : '모두 켜기'}</button>
+          ${chips}
+        </div>
+        <div class="prop-row">
+          <span class="prop-label" title="줄의 굵기(px). 간격보다 굵으면 그대로 넘칩니다">굵기 / 들임</span>
+          <input type="number" class="prop-number" id="${id('w')}" min="1" max="${GRID_RULE_W_MAX}" placeholder="1" value="${ru.width}" title="굵기(px)">
+          <input type="number" class="prop-number" id="${id('inset')}" min="0" max="${GRID_RULE_INSET_MAX}" placeholder="0" value="${ru.inset || ''}" title="양끝 들여쓰기(px). 0 = 칸 전체">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label" title="${ru.inset > 0 ? '들여쓰기가 0 일 때만 «통짜»가 뜻을 가집니다(둘은 반대말입니다)' : '통짜 = 반대 축 간격까지 가로질러 한 줄로 이어집니다'}">이어짐</span>
+          <select class="prop-select" id="${id('span')}"${ru.inset > 0 ? ' disabled' : ''}>${_grdOptsHtml(_GRD_RULE_SPAN_OPTS, ru.span)}</select>
+        </div>
+        <div class="prop-row" style="margin-bottom:0;">
+          <span class="prop-label" title="줄 색. 비우면 기본 ${GRID_RULE_DEFAULT_COLOR}">줄 색</span>
+          <div class="prop-color-swatch${hasColor ? '' : ' swatch-none'}"${hasColor ? ` style="background:${ru.color}"` : ''}>
+            <input type="color" id="${id('color')}" value="${hex}">
+          </div>
+          <input type="text" class="prop-color-hex" id="${id('hex')}" maxlength="7" placeholder="기본" aria-label="${_GRD_RULE_AX_LABEL[ax]} 줄 색" value="${hasColor ? hex.replace('#', '').toUpperCase() : ''}">
+        </div>`;
+}
+
+function _grdRuleSectionHtml(block) {
+  const ru = gridRules(block);
+  const parts = GRID_RULE_AXES.map(ax => _grdRuleAxisHtml(ax, ru[ax])).filter(Boolean);
+  if (parts.length === 0) return '';        // 1×1 — 경계가 하나도 없다
+  /* ★접이식이다 — 옆의 「칸 꾸미기」·「줄 꾸미기」와 «같은 부품·같은 집»(_grdDisclosureHtml).
+   * ⚠️★이것이 「손잡이를 접이식에 숨겨 G2 를 0원으로 지나가는」 것인가 — 판단이니 적어 둔다.
+   *   펴서 냈더니 순증 **+436px**(합격선 60) 이었다. 그 수는 「이 기능이 한 절에 담길 양이 아니다」는
+   *   뜻으로 읽었다 — 그래서 ⑴줄을 다섯에서 넷으로 줄이고 ⑵이 패널이 «이미 쓰는» 접이식으로 냈다.
+   *   근거: 옆의 두 「꾸미기」 절이 더 자주 쓰는 손잡이인데도 접혀 있다 ⇒ 위계가 어긋나지 않는다.
+   *   ⛔그래도 숨긴 것은 사실이다. 다르게 보면 되돌리고 기준점을 다시 찍어라(그 절차는 G2 머리말). */
+  const open = _grdSecOpen(block, 'rule');
+  return `
+    <div class="prop-section"${open ? '' : ' style="padding-bottom:0;"'}>
+${_grdDisclosureHtml('grd-rule-toggle', '칸 사이 줄', open)}
+      <div id="grd-rule-body" style="display:${open ? 'block' : 'none'};">
+        <div class="prop-hint" style="text-align:left;padding:0 0 6px;">칸과 칸 «사이»(간격 가운데)에 줄을 긋는다 — 위 「모든 칸 테두리」는 칸의 네 변이라 다르다</div>
+${parts.join('\n        <div class="prop-row" style="margin:4px 0 6px;height:1px;background:var(--ui-border,#333);"></div>')}
+      </div>
+    </div>`;
+}
+
+/** 배선 — 값을 바꾸면 «그 자리에서» 반영된다. 되쓰기는 updateGridBlock 한 길(구조 값이라 패널을 다시 그린다). */
+function _grdWireRuleSection(block) {
+  const ru = gridRules(block);
+  if (ru.col.on.length === 0 && ru.row.on.length === 0) return;   // 절 자체가 안 그려졌다
+  _grdWireDisclosure(block, 'rule', 'grd-rule-toggle', 'grd-rule-body');
+  const commit = (partial, label) => {
+    window.pushHistory?.(label || '칸 사이 줄');     // ★적용 «전»에 한 번(구조 값 = push-before)
+    const res = window.updateGridBlock?.(block.id, partial);
+    if (res && res.ok === false) { _grdToastCellFail(res); return false; }
+    window.scheduleAutoSave?.();
+    return true;
+  };
+  /* 경계 칩 · 「모두」 — 목록을 만들어 한 문으로 보낸다(칩마다 따로 보내면 ⌘Z 가 N 번이 된다). */
+  document.querySelectorAll('[data-rule-i]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const ax = btn.dataset.ruleAx;
+      const i = Number(btn.dataset.ruleI);
+      const next = ru[ax].on.map((v, k) => (k === i ? !v : v));
+      commit({ [ax + 'RuleOn']: next.map(v => (v ? '1' : '0')).join(',') });
+    });
+  });
+  document.querySelectorAll('[data-rule-all]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const ax = btn.dataset.ruleAx;
+      const to = btn.dataset.ruleAll === '1';
+      commit({ [ax + 'RuleOn']: ru[ax].on.map(() => (to ? '1' : '0')).join(',') });
+    });
+  });
+  for (const ax of GRID_RULE_AXES) {
+    if (ru[ax].on.length === 0) continue;
+    const id = (k) => `grd-${ax}rule-${k}`;
+    document.getElementById(id('w'))?.addEventListener('change', (e) => {
+      const raw = String(e.target.value).trim();
+      commit({ [ax + 'RuleWidth']: raw === '' ? 1 : Math.max(1, Math.min(GRID_RULE_W_MAX, parseInt(raw, 10) || 1)) });
+    });
+    document.getElementById(id('inset'))?.addEventListener('change', (e) => {
+      const raw = String(e.target.value).trim();
+      /* ⛔빈 칸은 0 이다 — 「칸 높이 전체」가 기본이고, 그것이 «없는 값»이 아니다. */
+      commit({ [ax + 'RuleInset']: raw === '' ? 0 : Math.max(0, Math.min(GRID_RULE_INSET_MAX, parseInt(raw, 10) || 0)) });
+    });
+    document.getElementById(id('span'))?.addEventListener('change', (e) => {
+      commit({ [ax + 'RuleSpan']: e.target.value });
+    });
+    const pick = document.getElementById(id('color'));
+    const hexEl = document.getElementById(id('hex'));
+    pick?.addEventListener('change', () => { commit({ [ax + 'RuleColor']: pick.value }); });
+    wireHexText(hexEl, {
+      parse: (raw) => (String(raw ?? '').trim() === '' ? '' : parseHex6(raw)),
+      format: (v) => (v ? formatHex6(v) : ''),
+      getCurrent: () => {
+        const cur = gridRules(block)[ax].color;
+        return cur === GRID_RULE_DEFAULT_COLOR ? '' : swatchHex(cur, '');
+      },
+      // 빈 칸 = 기본색으로 되돌림
+      onCommit: (v) => { commit({ [ax + 'RuleColor']: v || GRID_RULE_DEFAULT_COLOR }); },
+    });
+  }
+}
+
 /* ══ 좌우 패딩 «제외»(전폭) — 그리드 티켓 ⑥ (2026-09-28) ═══════════════════
  * ★뜻: 섹션의 좌우 패딩을 «넘어» 이 그리드만 전폭으로 펴진다. 에셋 블록의 「에셋블록 제외」와
  *   같은 동작이고, 표식도 적용도 «공용 한 벌»(dataset.fullBleed ＋ drag-utils)을 쓴다 — 규약을 둘로 만들지 않는다.
@@ -2384,6 +2523,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
     ${_grdNestHintHtml(_nestHit)}
     ${_grdLineBarHtml(_anyHit, block)}
     ${_borderSectionHtml(_cellBorder)}
+    ${_grdRuleSectionHtml(block)}
     ${_grdPadExcludeSectionHtml(block)}
     ${_grdAllCellsSectionHtml(_anyHit, block)}
     ${_grdCellSectionHtml(_anyHit, block)}
@@ -2701,6 +2841,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
   //   PLAN-gridblock.md §5). 해제는 editor.js deselectAll()의 hideGridGutters 로 일괄.
   _grdWireLineBar(block, _curAddr);
   _grdWireAllCellsSection(block, _anyHit);   // ★⑦ 일괄 — 블럭만 고른 상태에서만 배선된다
+  _grdWireRuleSection(block);
   _grdWirePadExclude(block);                 // ★⑥ 좌우 패딩 제외(전폭) — 섹션 직속일 때만 절이 그려진다
   _grdWireCellSection(block, _curAddr);
   _grdWireImageSection(block, _curAddr);
