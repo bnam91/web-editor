@@ -331,7 +331,7 @@ ${blockHeaderHTML({
         <select class="prop-select" id="sec-tpl-folder" style="flex:1;min-width:0;">
           ${(()=>{
             const tpls = window.loadTemplates ? window.loadTemplates() : [];
-            const folders = [...new Set(tpls.map(t => t.folder || '기타'))];
+            const folders = window.listTemplateFolders?.(tpls) || [];
             if (!folders.length) folders.push('내 템플릿');
             return folders.map(f => `<option value="${f.replace(/"/g,'&quot;')}">${f.replace(/</g,'&lt;')}</option>`).join('') +
               '<option value="__new__">새 폴더...</option>';

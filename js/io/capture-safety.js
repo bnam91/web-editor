@@ -9,6 +9,7 @@
 // 그대로 스크린샷하므로 backdrop-filter가 정상 렌더링된다 — 이 함수는 «html2canvas
 // 경로에서만» 호출해야 한다. 네이티브 경로의 clone에 걸면 정상 블러까지 망가진다.
 import { parseGradient } from '../props/gradient-model.js';
+import { stripImageMemoForCapture } from '../image-memo.js';
 
 const REDACT_OPAQUE_FILL = '#4a4a4a';
 
@@ -427,6 +428,10 @@ export function stripEditorOnlyForCapture(clone) {
     if (row) row.remove(); else el.remove();
   });
   hidePlaceholderTextForCapture(clone);
+  /* 이미지 메모(data-memo, 2026-09-30) — 빈 칸의 «제작 지시» 쪽지. 위 [data-is-placeholder] 와 같은
+     성격(편집 화면에서만 보이는 안내)이다. 쪽지는 CSS 가상요소라 속성만 떼면 그림에서 사라진다.
+     ★저장 경로(serializeCleanRoot)엔 이 명부가 안 쓰인다 — 메모는 프로젝트에 «남아야» 한다. */
+  stripImageMemoForCapture(clone);
   // 편집 전용 임시 DOM — 캡처 클론에 새어 나가면 그림에 박힌다.
   clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary').forEach(el => el.remove());
   // 도형 «이미지 넣기 전» 바둑판(0918 picker) — 편집 전용 표시다. CSS 규칙이 data-shape-fill="image"

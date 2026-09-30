@@ -393,7 +393,7 @@ function _renderAutoPanel(ss) {
       <div class="prop-section-title">Component</div>
       ${(() => {
         const allTemplates = window.loadTemplates?.() || [];
-        const folders = [...new Set(allTemplates.map(t => t.folder || '기타'))];
+        const folders = window.listTemplateFolders?.(allTemplates) || [];
         const folderOptions = folders.map(f => `<option value="${f}">${f}</option>`).join('');
         const catOptions = ['Hero','Main','Feature','Detail','CTA','Event','기타'].map(c =>
           `<option value="${c}">${c}</option>`

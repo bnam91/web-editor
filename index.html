@@ -1570,6 +1570,23 @@
     </svg>
     스티커로 변환
   </div>
+  <!-- ★이미지 메모 (2026-09-30) — 에셋 블럭에서만 보인다. 누르면 «그 자리»에서 적는다(창·모달 없음).
+       메모가 있으면 「메모 고치기」 + 「메모 지우기」. 정본 = js/image-memo.js 머리말. -->
+  <div class="bcm-item" id="bcm-img-memo" style="display:none;">
+    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+      <path d="M2.5 1.5h6l3.5 3.5v7.5h-9.5z"/>
+      <path d="M8.5 1.5V5h3.5"/>
+      <line x1="4.5" y1="7.5" x2="9.5" y2="7.5"/>
+      <line x1="4.5" y1="9.8" x2="8" y2="9.8"/>
+    </svg>
+    <span id="bcm-img-memo-label">이미지 메모 적기</span>
+  </div>
+  <div class="bcm-item" id="bcm-img-memo-del" style="display:none;">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+      <path d="M2.5 3.5h7M4.5 3.5v-1a1 1 0 011-1h1a1 1 0 011 1v1M3.5 3.5l.5 6.5a1 1 0 001 1h2a1 1 0 001-1l.5-6.5"/>
+    </svg>
+    메모 지우기
+  </div>
   <div class="bcm-item" id="bcm-grid-img" style="display:none;">
     <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
       <rect x="1.5" y="2.5" width="11" height="9" rx="1.3"/>
