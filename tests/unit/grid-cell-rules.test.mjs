@@ -24,9 +24,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..', '..');
+/* ⛔구간의 «끝»을 꼬리 문자열(`indexOf('\n};')` 등)로 찾지 않는다 — 공용 부품이 균형괄호로 센다.
+   그 규율을 tests/unit/slice-block-shared.test.js SB-16 이 레포 전체에서 문다(내가 거기 걸렸다). */
+const { sliceBlock } = createRequire(import.meta.url)('./_slice-block.js');
 const SRC_PATH = path.join(ROOT, 'js', 'blocks', 'grid-block.js');
 const RAW = fs.readFileSync(SRC_PATH, 'utf8');
 
@@ -251,6 +255,64 @@ test('R9 ⛔칸·줄 명부를 한 글자도 안 건드렸다 (이건 칸 값도
   const b = fixture(2, 1);
   const r = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, colRuleOn: '1' } });
   assert.equal(r.ok, false, '★칸에 괘선 키를 줬는데 받았다');
+});
+
+/* ══ RENDER_ERROR 롤백 — ★코덱스 적대 리뷰가 잡은 자리(2026-09-30) ═══════════════════
+ * 무엇이 났나: `before` 스냅샷엔 괘선 10키를 넣었는데 `restore` 의 «손으로 적은 명부»엔 안 넣었다.
+ *   ⇒ 렌더가 던지면 cols·cells 는 되돌아가고 괘선 10키는 «방금 실패한 새 값»으로 남았다.
+ *   바로 위 주석이 「새 키를 같이 넣어라」라고 경고하던 그 자리다 — 읽을 수 있는 자리에 두고도 어겼다.
+ * ★고친 것은 «빠진 10개»가 아니라 «명부가 둘인 것»이다: restore 가 Object.keys(snap) 로 뽑는다.
+ * ⇒ 그래서 여기서 재는 것도 «10개가 있나»가 아니라 **명부가 하나인가**다. 그러면 다음에 키를
+ *   늘리는 사람이 이 검사를 볼 필요조차 없다(구조가 지킨다).
+ * ⚠️왜 «소스»로 재나 — RENDER_ERROR 를 데이터로 일으킬 길이 없다(입구가 다 검증한다).
+ *   그 사실도 적어 둔다: 「행위로 못 재는 자리라 구조로 잠갔다」. */
+test('R12 ★★되돌림 명부가 «하나»다 — restore 가 스냅샷에서 키를 뽑는다(손으로 안 적는다)', () => {
+  const body = sliceBlock(RAW, 'const restore = (snap) =>');
+  assert.ok(body && body.length > 20, '★restore 를 못 떴다 — 이 단언이 낡았다');
+  assert.match(body, /Object\.keys\(snap\)/,
+    '★restore 가 스냅샷에서 키를 안 뽑는다 — 명부가 둘이 되어 «한쪽만 고쳐지는» 사고가 되살아난다');
+  /* ⛔손으로 적은 명부(문자열 배열 리터럴)가 되돌아왔나 — 그 꼴이면 위 Object.keys 와 «둘»이 된다. */
+  assert.ok(!/\[\s*'cols'/.test(body),
+    `★restore 안에 손으로 적은 키 명부가 있다 — 2026-09-30 에 그것 때문에 10키가 안 되돌아갔다. 본 것: ${body}`);
+});
+
+test('R13 ★★`next` 에 쓰는 «모든» dataset 키가 `before` 스냅샷에도 있다', () => {
+  /* ★이것이 오늘 난 사고를 «다음에» 잡는 자다. 롤백 명부는 이제 하나지만, `before` 에 키를
+     안 넣으면 여전히 안 되돌아간다 — 그 자리를 «세어서» 막는다.
+     ⛔수를 박지 않는다: 양쪽을 소스에서 뽑아 견준다(키가 늘면 자동으로 따라온다). */
+  const bBody = sliceBlock(RAW, 'const before = {');
+  assert.ok(bBody && bBody.length > 40, '★before 스냅샷을 못 떴다');
+  /* ⛔줄머리로 뜨지 마라 — 한 줄에 키가 여럿 있다(`cols: …, gap: …, valign: …`).
+     처음에 `/^\s{4}(\w+):/m` 로 떠서 gap·valign·cells·colGap 넷을 «없다»고 읽었다.
+     ⇒ 값의 «꼴»(block.dataset.X)로 뜬다. 자리와 무관하다. */
+  const snapKeys = new Set([...bBody.matchAll(/(\w+):\s*block\.dataset\./g)].map(m => m[1]));
+  assert.ok(snapKeys.size >= 10, `★스냅샷 키를 못 떴다(${snapKeys.size}개) — 이 단언이 헛돈다`);
+
+  /* 쓰는 쪽 — `next.NAME =` (손으로 적은 이름) ＋ `next[kX] =` (축 루프의 계산된 이름). */
+  /* ⛔`export function` 으로 찾지 마라 — 이 파일은 `function …` 로 선언하고 아래에서 export { } 로
+     내보낸다(그래서 처음에 못 찾았고, 자가점검이 그걸 잡았다). 선언 꼴 그대로 찾는다. */
+  const fnAt = RAW.indexOf('function updateGridBlock(blockId');
+  assert.ok(fnAt > 0, '★updateGridBlock 선언을 못 찾았다 — 이 단언이 낡았다');
+  // 입구(값을 next 에 쓰는 구간)는 restore 선언 «앞»에 다 있다 — 그 사이만 본다.
+  const fn = RAW.slice(fnAt, RAW.indexOf('const restore = (snap)', fnAt));
+  const written = new Set([...fn.matchAll(/\bnext\.(\w+)\s*=/g)].map(m => m[1]));
+  // 계산된 이름: `const kOn = ax + 'RuleOn'` 꼴 → 축마다 한 벌
+  const axes = (() => {
+    const m = RAW.match(/export const GRID_RULE_AXES = \[([^\]]*)\]/);
+    assert.ok(m, '★GRID_RULE_AXES 를 못 찾았다');
+    return [...m[1].matchAll(/'(\w+)'/g)].map(x => x[1]);
+  })();
+  /* ⛔`const` 를 닻으로 쓰지 마라 — 한 `const` 문에 여러 이름이 콤마로 붙어 있어 첫 하나만 잡힌다
+     (처음에 그렇게 써서 «0개»가 나왔고, 자가점검이 그걸 잡았다). 할당 꼴만 본다. */
+  const suffixes = [...fn.matchAll(/\bk\w+ = ax \+ '(\w+)'/g)].map(m => m[1]);
+  assert.ok(suffixes.length >= 5, `★축 루프의 계산된 키를 못 떴다(${suffixes.length}개) — 이 단언이 헛돈다`);
+  for (const ax of axes) for (const suf of suffixes) written.add(ax + suf);
+
+  const missing = [...written].filter(k => !snapKeys.has(k));
+  assert.deepEqual(missing, [],
+    `★\`next\` 에 쓰는데 \`before\` 에 «없는» 키가 있다: ${missing.join(', ')}\n`
+    + '  ⇒ RENDER_ERROR 롤백이 그 키를 «방금 실패한 새 값»으로 남긴다'
+    + '(그리기에 실패했는데 화면엔 남는 반쪽 상태). before 에 그 키를 더해라.');
 });
 
 test('R10 ★가로줄도 같은 자리에 선다 — 행 간격 가운데', () => {

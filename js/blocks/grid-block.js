@@ -2438,9 +2438,20 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     rowRuleInset: block.dataset.rowRuleInset,
     rowRuleSpan: block.dataset.rowRuleSpan,
   };
+  /* ★★★2026-09-30 — 되돌림 명부를 «스냅샷에서 뽑는다». 손으로 적지 않는다.
+   *   ⛔무엇이 났나: 바로 위 ⛔주석이 「새 키를 같이 넣어라」라고 경고하는데, 나는 `before` 에는
+   *     괘선 10키를 넣고 이 `restore` 의 «손으로 적은 명부»에는 넣지 않았다. 그래서 RENDER_ERROR
+   *     롤백이 cols·cells 는 되돌리고 «괘선 10키는 방금 실패한 새 값 그대로» 남겼다 —
+   *     주석이 예고한 「그리기에 실패했는데 화면엔 줄이 남는」 반쪽 상태 그 자체다.
+   *     (코덱스 적대 리뷰가 잡았다. 검사는 RENDER_ERROR 경로를 안 태워서 못 잡았다.)
+   *   ★★고칠 것은 «빠진 10개»가 아니라 «명부가 둘인 것»이었다. 한쪽만 고치는 사고는 이 레포가
+   *     반복해 물린 자리고(MIN_COLS 2건 · align 명부 · valign 명부 …), 주석으로는 못 막힌다 —
+   *     오늘 내가 그 주석을 «읽을 수 있는 자리에 두고도» 어겼다는 것이 증거다.
+   *   ⇒ `Object.keys(snap)` 로 뽑으면 명부가 «하나»가 되어 «어긋날 수가 없다».
+   *     (`{a: undefined}` 도 Object.keys 에 'a' 가 남는다 — 안 쓰던 키의 `delete` 도 그대로 돈다.)
+   *   ⛔여기에 명부를 다시 적지 마라. 새 키는 `before` 에만 더하면 된다. */
   const restore = (snap) => {
-    ['cols', 'gap', 'valign', 'rows', 'cells', 'rowGap', 'colGap',
-      'cellBorderWidth', 'cellBorderColor', 'cellBorderStyle'].forEach(k => {
+    Object.keys(snap).forEach(k => {
       if (snap[k] === undefined) delete block.dataset[k]; else block.dataset[k] = snap[k];
     });
   };

@@ -1137,7 +1137,16 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *       R8·R8-b 잘못된 값 거절/빈 목록 허용 · ★R9 칸·줄 명부 무접촉 · R10 가로줄 · R11 두 축 동시.
  *     ⑶★모델의 정본은 «경계 목록» 하나다 — 전체 스위치 + 예외 꼴을 안 만들었다(어긋날 상태가 없다).
  *     ⛔DOM 축(tests/dom/grid-cell-rules.dom.spec.js)은 여기 «안» 센다. */
-const GRID_BASELINE_TESTS = 389;
+/*   · ★391 (2026-09-30, ★코덱스 적대 리뷰가 잡은 HIGH 1건) — grid-cell-rules.test.mjs «+2».
+ *     결함 = `updateGridBlock` 의 RENDER_ERROR 롤백이 괘선 10키를 «안 되돌렸다». `before` 엔 넣고
+ *     `restore` 의 «손으로 적은 명부»엔 안 넣었다 — 바로 위 ⛔주석이 경고하던 그 자리다.
+ *     ⑵더한 것 — R12 restore 가 스냅샷에서 키를 뽑는다(명부가 «하나») · R13 `next` 에 쓰는 모든
+ *       키가 `before` 에도 있다(다음에 키를 늘리는 사람을 잡는다).
+ *     ⑶★고친 것은 «빠진 10개»가 아니라 «명부가 둘인 것»이다 — 음성대조 둘로 확인했다:
+ *       손으로 적은 명부를 되살리면 R12 빨강 · `before` 에서 키 하나를 빼면 R13 빨강.
+ *     ⚠️RENDER_ERROR 는 «데이터로 못 일으킨다»(입구가 다 검증한다) ⇒ 행위로 못 재는 자리를
+ *       구조로 잠갔다. 그 사실도 그 파일에 적었다. */
+const GRID_BASELINE_TESTS = 391;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
