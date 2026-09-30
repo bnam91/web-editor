@@ -83,6 +83,9 @@ const ZOOM_DEFAULTS = {
   bd:     'off',
   bdw:    6,        // 두께(px)
   bdc:    '#ffffff',// 색
+  /* ★줌 이펙트(광원) 색 — 현빈 2026-09-30 「뒷 배경이 어두우면 그림자가 안 보인다, 색을 따로 되게」.
+     예전엔 zoom-geometry.js strips() 가 검정을 박았다. 기본은 그 검정 그대로(옛 프로젝트 그림 불변). */
+  shc:    '#000000',
   /* ★㉒ 이미지 — 도형 «안»에 담긴다(현빈: 「에셋블럭처럼 도형이라는 프레임 안에서 나오니
      도형이랑 같은 거 아닌가?」). 바깥 윤곽은 여전히 도형이라 기하는 «한 줄도» 안 바뀐다.
      ⛔체크패턴과 «같은 층»(.zoom-bg)이다 — 이미지가 들어오면 체크를 끈다(Export PNG 함정). */
@@ -142,6 +145,7 @@ function readZoomState(block) {
     bd:     _onOff(d.bd,     ZOOM_DEFAULTS.bd),
     bdw:    _num(d.bdw, ZOOM_DEFAULTS.bdw),
     bdc:    d.bdc || ZOOM_DEFAULTS.bdc,
+    shc:    d.shc || ZOOM_DEFAULTS.shc,
     bdr:    _num(d.bdr, ZOOM_DEFAULTS.bdr),
   };
 }
@@ -300,6 +304,10 @@ function _bindZoomMoveDrag(block) {
     if (block._zoomPicked) { block._zoomPicked = null; renderZoomBlock(block); }
     let sec = block.closest('.section-block');
     if (!sec) return;
+    /* ★프레임 안(⌘G 로 묶인 줌)에서는 조상 흐름 프레임이 draggable 이라, 누른 채 움직이면 브라우저가
+       «그 프레임»의 네이티브 드래그를 시작해 mousemove 가 첫 틱 뒤로 끊긴다(실측: 화면 40px 끌기 →
+       섹션 직속 +100 / 프레임 안 +10). 프레임 안일 때만 네이티브 드래그 시작을 막는다 — 섹션 직속은 옛 그대로. */
+    if (block.parentElement?.matches?.('.frame-block[data-free-layout]')) e.preventDefault();
     const zoom = _canvasScaleNow() || 1;
     const r = block.getBoundingClientRect();
     const grabX = (e.clientX - r.left) / zoom;
@@ -311,6 +319,18 @@ function _bindZoomMoveDrag(block) {
         if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 2) return;
         moved = true;
         window.pushHistory?.('확대블럭 이동');
+      }
+      /* ★부모가 자유배치 프레임이면 «프레임 기준»으로 옮긴다(현빈 2026-09-30 ⌘G 로 프레임에 묶인 줌).
+         style.left/top 은 offsetParent(=그 프레임) 상대라, 섹션 기준으로 재면 프레임 위치만큼 튄다.
+         이때는 섹션 경계 clamp·섹션 사이 옮겨 붙이기를 안 한다 — 묶음에서 빠져나가면 안 된다. */
+      const hostFrame = block.parentElement?.matches?.('.frame-block[data-free-layout]') ? block.parentElement : null;
+      if (hostFrame) {
+        const fr = hostFrame.getBoundingClientRect();
+        _applyZoomPos(block,
+          (ev.clientX - fr.left) / zoom - grabX - (hostFrame.clientLeft || 0),
+          (ev.clientY - fr.top)  / zoom - grabY - (hostFrame.clientTop  || 0));
+        updateZoomSecClip(block);
+        return;
       }
       // ⌘ 드래그 = 자유 이동(섹션 경계 clamp 없이). 스티커와 같은 어휘.
       const free = ev.metaKey;
@@ -424,6 +444,7 @@ function makeZoomBlock(opts = {}) {
   block.dataset.bd     = _onOff(opts.bd,     ZOOM_DEFAULTS.bd);
   block.dataset.bdw    = String(opts.bdw    ?? ZOOM_DEFAULTS.bdw);
   block.dataset.bdc    = String(opts.bdc    ?? ZOOM_DEFAULTS.bdc);
+  if (opts.shc != null) block.dataset.shc = String(opts.shc);
   block.dataset.bdr    = String(opts.bdr    ?? ZOOM_DEFAULTS.bdr);
   block.dataset.x      = String(opts.x      ?? ZOOM_DEFAULTS.x);
   block.dataset.y      = String(opts.y      ?? ZOOM_DEFAULTS.y);

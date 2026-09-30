@@ -766,9 +766,11 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
         }
       } else if (child.classList.contains('row')) {
         appendRowFn(child, ssChildren, depth + 1);
-      } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
-                'table-block','graph-block','divider-block','bridge-block','grid-block','infocard-block','innercard-block','modal-block','label-group-block','shape-block','canvas-block','banner02-block','comparison-block','step-block','chat-block','zoom-block']
-                .some(c => child.classList.contains(c))) {
+      } else if (window.hasPanelForBlock?.(child)) {
+        /* ★「이 자식이 블럭인가」는 정본 표(js/panel-dispatch.js _PANEL_BY_CLASS) 한 곳이 답한다.
+           예전엔 여기 손으로 적은 21종 목록이 있었고, 정본 28종 중 7종(mockup·vector·icon·laurel·
+           qa·icon-text·annotation)이 빠져 있었다 ⇒ 프레임 안에 목업만 두면 자식 0개로 읽혀
+           쉐브론(토글)이 안 생겼다(현빈 2026-09-30, proj_1790568699549 ss_ts0he_hluhyl6). */
         ssChildren.appendChild(makeLayerBlockItem(child, child, sec, depth + 1));
       }
     });
