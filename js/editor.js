@@ -1128,6 +1128,9 @@ function _countFlowMultiSel() {
    ⇒ 판정은 «선택 전체»로 한다. 흐름 단위가 둘 이상이면 그건 흐름 멀티선택이다.
      (순수 자유배치 선택은 _isFlowMultiSelUnit 이 전부 걸러내 n=0 이라 종전대로 자유배치 패널) */
 function _updateMultiSelPanel(block) {
+  /* ★A2(2026-10-01) — 고른 것이 «전부» 섹션에 떠 있는 블럭이면 «서로 맞춤» 패널. 흐름·자유배치 갈래보다 먼저 잡는다
+     (안 그러면 오버레이 글자가 흐름 패널로 가서 정렬이 text-align 만 바꿨다). 판정·패널 = prop-multisel.js. */
+  if (window.showOverlayMultiSelPanel?.(window.getSelectedOverlayUnits?.())) return;
   const _flowN = _countFlowMultiSel();
   if (_flowN <= 1 && _isInFreeLayout(block)) {
     if (_updateFreeLayoutMultiSelPanel()) return;
@@ -1529,9 +1532,43 @@ function _isRowFullySelected(row, allTypesSel) {
   return occupants.every(b => b.classList.contains('selected'));
 }
 
+/* ★OS 클립보드 = «가장 최근 복사»의 정답 (현빈 2026-10-01 「카톡·캡처·인터넷 이미지 복사 뒤 붙여넣기가 안 된다 — 피그마처럼」)
+   예전엔 ⌘V 가 «고디터 안 복사 시각» vs «스크래치 이미지 복사 시각»만 견줬다. 바깥 앱 복사는 시각을 안 남겨서,
+   그날 고디터에서 ⌘C 를 한 번이라도 했으면 바깥 이미지는 조용히 버려지고 «예전 블럭»이 붙었다(하네스 재현).
+   ⇒ 피그마처럼 고디터 안 ⌘C 도 OS 클립보드에 «글자»를 쓰고 그 글자를 기억한다. ⌘V 때 OS 클립보드 글자가
+     «내가 쓴 그대로»면 고디터 안 복사가 최신, 다르면(바깥에서 뭔가 복사했다) 바깥이 최신이다.
+   ⚠️렌더러의 navigator.clipboard 는 main.js 권한 처리기가 거절한다 — 기존 다리(electronAPI.clipboardWriteText)를 쓴다.
+     쓰기에 실패하면 _internalClipboardOnOS=false 로 두고 «옛 규칙(시각 비교)»으로 떨어진다(더 나빠지지 않는다). */
+function _internalClipboardTextOf() {
+  const sel = [...document.querySelectorAll('#canvas .selected')];
+  const tops = sel.filter(el => !sel.some(o => o !== el && o.contains(el)));
+  const txt = tops.map(el => (el.innerText || '').trim()).filter(Boolean).join('\n\n').slice(0, 5000);
+  return txt || `고디터 블럭 ${Math.max(1, tops.length)}개`;
+}
+function _writeInternalClipboardToOS() {
+  const text = _internalClipboardTextOf();
+  window._internalClipboardText = text;
+  window._internalClipboardOnOS = false;
+  Promise.resolve(window.electronAPI?.clipboardWriteText?.(text))
+    .then(res => { window._internalClipboardOnOS = !!res?.ok && window._internalClipboardText === text; })
+    .catch(() => { window._internalClipboardOnOS = false; });
+}
+/** ⌘V 의 paste 이벤트에서 «고디터 안 복사»가 이겨야 하나. (scratch-pad 의 paste 처리기가 부른다) */
+function clipboardPrefersInternal(e) {
+  const internalT = window._internalClipboardTime || 0;
+  if (!internalT) return false;
+  if (window._internalClipboardOnOS) {
+    const cur = e?.clipboardData?.getData?.('text/plain');
+    return cur === window._internalClipboardText;      // 내가 쓴 그대로 = 그 뒤에 바깥 복사가 없었다
+  }
+  return internalT > (window._scratchClipboardTime || 0); // OS 에 못 썼으면 옛 규칙
+}
+window.clipboardPrefersInternal = clipboardPrefersInternal;
+
 function copySelected() {
-  // 내부 클립보드(섹션/블록) 복사 timestamp — Cmd+V 시 외부 클립보드(스크래치 이미지)와 우선순위 비교용
+  // 내부 클립보드(섹션/블록) 복사 timestamp — OS 클립보드에 못 썼을 때의 옛 규칙(시각 비교)용
   window._internalClipboardTime = Date.now();
+  _writeInternalClipboardToOS();
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
@@ -2267,7 +2304,25 @@ document.addEventListener('keydown', e => {
     } else if (_sectionOnlySelection()) {
       /* 섹션 합치기 (section-merge.js) — 「바로 위 섹션과 하나로」 */
       window.mergeSelectedSectionUp?.();
+    } else if (document.querySelector('#canvas .section-block.multi-selected')) {
+      /* ★A1(2026-10-01) — 선택상자로 섹션과 블럭이 «같이» 잡히면 위 갈래가 «해당 없음»이라 아무 일도 안 났다(먹통처럼 보인다).
+         갈래는 안 고치고 «왜 안 되는지»를 말한다. (섹션을 «여러 개» 고른 표식 multi-selected 로 가른다 — 블럭 하나만
+         고른 평소 상태는 부모 섹션도 .selected 라, 그걸로 가르면 엉뚱한 때 토스트가 뜬다.) */
+      window.showToast?.('섹션과 블럭이 같이 골라져 있어 합칠 수 없어요 — 섹션만 골라 주세요');
     }
+    return;
+  }
+  /* ★⌘⇧M = 섹션 분리(D1, 2026-10-01) — 고른 블럭이 «합쳐 넣은 상자» 안이면 그 상자를 다시 섹션으로.
+     가드는 ⌘M 과 같다(편집 중·미리보기·입력칸이면 안 먹는다). */
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyM' && e.shiftKey && !e.altKey) {
+    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
+    if (document.body.classList.contains('preview-mode')) return;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
+    e.preventDefault();
+    const sel = [...document.querySelectorAll('#canvas .selected')].find(el => el.closest('.section-merged-part'));
+    if (sel) window.splitMergedPart?.(sel.closest('.section-merged-part'));
+    else window.showToast?.('합쳐진 섹션 안의 블럭을 골라 주세요');
     return;
   }
 
@@ -2356,20 +2411,13 @@ document.addEventListener('keydown', e => {
       /* ★그리드 «줄» 붙여넣기 (티켓 ⑤) — 줄 클립보드가 비어 있거나 대상이 아니면 거짓이라
          아래 섹션/스크래치 붙여넣기가 종전대로 돈다. */
       if (window.grdPasteLines?.()) return;
-      // 우선순위: 가장 최근 Cmd+C 액션이 내부(섹션) vs 외부(스크래치 이미지) 중 어느 것인지로 분기
-      // 동률(둘 다 0 또는 같은 시각) 시 scratch 우선 — 외부 이미지 paste를 막지 않기 위함
-      const internalT = window._internalClipboardTime || 0;
-      const scratchT  = window._scratchClipboardTime  || 0;
-      if (internalT > scratchT) {
-        // 섹션/블록이 더 최근 → 즉시 섹션 paste, scratch-pad는 양보
+      /* ★누가 최신인지는 여기(keydown)서 못 정한다 — OS 클립보드 «내용»은 뒤따르는 paste 이벤트에만 실려 온다.
+         그래서 언제나 paste 이벤트에 양보하고(scratch-pad 가 clipboardPrefersInternal 로 가른다),
+         그쪽이 이미지를 안 받았을 때만 고디터 안 붙여넣기를 한다. (옛 판: 시각만 보고 여기서 바로 붙였다) */
+      setTimeout(() => {
+        if (window._scratchJustHandledPaste) { window._scratchJustHandledPaste = false; return; }
         pasteClipboard();
-      } else {
-        // scratch 이미지가 더 최근 또는 동률 → paste 이벤트 양보, 처리 안 됐을 때만 fallback
-        setTimeout(() => {
-          if (window._scratchJustHandledPaste) { window._scratchJustHandledPaste = false; return; }
-          pasteClipboard();
-        }, 30);
-      }
+      }, 30);
       return;
     }
     if (e.key === 'x' && !e.shiftKey) {

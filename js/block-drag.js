@@ -343,6 +343,9 @@ function bindPlacementDrag(unitEl, block) {
     dragState.dragSrc = unitEl;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
+    /* C1(2026-10-01) — 에셋이면 «에셋 블럭이다» 표식 타입을 싣는다. 섹션 밖(스크래치 바닥)에 놓으면 스크래치패드가
+       이 타입으로 알아보고 «이동»을 받는다(scratch-pad.js). dragover 에선 값은 못 읽고 «타입»만 보인다 — 그래서 타입으로 싣는다. */
+    if (block.classList.contains('asset-block') && block.id) e.dataTransfer.setData('application/x-goditor-asset-block', block.id);
     // ghost 이미지 투명 처리 (zoom 왜곡 방지)
     const ghost = document.createElement('div');
     ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
@@ -525,6 +528,14 @@ function bindBlock(block) {
     // text-block: text-frame(래퍼)이 absolute인 경우 text-frame을 이동 대상으로
     // shape/text가 아닌 블록: block 자체가 absolute여야 함
     let dragEl = block;
+    // B2 — 프레임 안 흐름 row(옛 꼴)를 처음 끌 때 그 자리 그대로 세운다. 까닭: drag-utils.js settleRowInFreeFrame 머리말.
+    const _settleOldFlowUnit = () => {
+      const _row = block.closest('.row');
+      const unit = (_row && _row.parentElement?.dataset?.freeLayout === 'true') ? _row
+                 : (block.parentElement?.dataset?.freeLayout === 'true' ? block : null);
+      if (unit && unit.style.position !== 'absolute') window.settleRowInFreeFrame?.(unit.parentElement, unit, 'inplace');
+      return (unit && unit.style.position === 'absolute') ? unit : null;
+    };
     if (isShape) {
       const ss = block.closest('.frame-block');
       if (!ss || ss.style.position !== 'absolute') return;
@@ -555,7 +566,9 @@ function bindBlock(block) {
       if (parentRow && parentRow.style.position === 'absolute') {
         dragEl = parentRow;
       } else if (block.style.position !== 'absolute') {
-        return;
+        const _unit = _settleOldFlowUnit();   // B2 — 옛 꼴(흐름 row)이면 그 자리 그대로 세운다
+        if (!_unit) return;
+        dragEl = _unit;
       }
     } else {
       /* ★확대블럭은 «자기» 이동 드래그를 갖는다(js/blocks/zoom-block.js _bindZoomMoveDrag) —
@@ -570,7 +583,9 @@ function bindBlock(block) {
          ⛔스티커는 bindBlock 을 아예 안 탄다(bindStickerSelect 전용)라 이 병이 없었다.
            확대블럭은 클릭·선택 때문에 bindBlock 을 타므로 «여기서» 비켜줘야 한다. */
       if (isZoom) return;
-      if (block.style.position !== 'absolute') return;
+      const _settled = block.style.position !== 'absolute' ? _settleOldFlowUnit() : null;   // B2
+      if (_settled) dragEl = _settled;
+      else if (block.style.position !== 'absolute') return;
     }
 
     e.stopPropagation();

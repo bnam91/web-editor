@@ -7,7 +7,7 @@ import { parseRatio, buildGridPicker, alignBtn, bindSlider, blockHeaderHTML, dis
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
-         gridGaps, GRID_GAP_MAX, GRID_IMG_MAX_BYTES, gridCellsToDataset,
+         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES,
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
@@ -1696,8 +1696,8 @@ function _gapRowHtml(cols, rows, colGap, rowGap) {
     html += `
       <div class="prop-row">
         <span class="prop-label">행 간격</span>
-        <input type="range" class="prop-slider" id="grd-row-gap-slider" min="0" max="${GRID_GAP_MAX}" step="2" value="${rowGap}">
-        <input type="number" class="prop-number" id="grd-row-gap-number" min="0" max="${GRID_GAP_MAX}" value="${rowGap}">
+        <input type="range" class="prop-slider" id="grd-row-gap-slider" min="${GRID_ROW_GAP_MIN}" max="${GRID_GAP_MAX}" step="2" value="${rowGap}">
+        <input type="number" class="prop-number" id="grd-row-gap-number" min="${GRID_ROW_GAP_MIN}" max="${GRID_GAP_MAX}" value="${rowGap}">
       </div>`;
   }
   if (!html) return '';
@@ -2708,7 +2708,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
       block.dataset.rowGap = String(v);
       window.renderGridBlock?.(block);
       window._grdSyncLineMark?.(block, grdGetActiveLine(block));
-    }, { min: 0, max: GRID_GAP_MAX });
+    }, { min: GRID_ROW_GAP_MIN, max: GRID_GAP_MAX });   // ★행만 음수(겹치기) — GRID_ROW_GAP_MIN 주석(grid-block.js)
   }
 
   /* ── 칸 테두리 «셋» — T-172 ─────────────────────────────────────────────

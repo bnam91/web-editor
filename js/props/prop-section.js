@@ -56,6 +56,17 @@ function _showPadXHint(inner, v) {
  *
  * 색은 sec.dataset.bg, 이미지는 sec.dataset.bgImg, 사이즈는 sec.dataset.bgSize에서 읽는다.
  */
+/* ★섹션 색이 «불투명»인가 — 불투명이면 _applySectionBg 규약상 색 층이 그림 위라 배경 이미지를 덮는다.
+   판정은 여기 한 곳(패널 상시 한 줄 · 에셋→배경 토스트가 같이 쓴다, 2026-10-01 C2). */
+export function isOpaqueSectionColor(color) {
+  const c = String(color || '').trim().toLowerCase();
+  if (!c || c === 'transparent') return false;
+  const m = c.match(/^rgba\(([^)]+)\)$/);
+  if (m) { const a = parseFloat(m[1].split(',')[3]); return !(a < 1); }
+  return true;
+}
+window.isOpaqueSectionColor = isOpaqueSectionColor;
+
 function _applySectionBg(sec) {
   /* ★체크 배경(빈 이미지 자리) — 무늬는 CSS 한 자리(.sec-bg-empty)가 준다.
      ⛔인라인으로 박지 마라: 저장본(.gdt)·배송 HTML 에 무늬가 그대로 실린다
@@ -179,6 +190,10 @@ async function showSectionProperties(sec) {
       </select>
     </div>
     <button class="prop-action-btn secondary" id="sec-bg-pos-btn" style="margin-top:6px;">${sec._secBgEditing ? '위치 편집 완료' : '위치 편집'}</button>
+    ${isOpaqueSectionColor(sec.dataset.bg) ? `<!-- ★상시 한 줄(지디 2026-10-01) — 토스트는 «방금 한 일»의 답, 이 줄은 «지금 상태»의 답. 증상이 아니라 «까닭»을 말한다. -->
+    <div class="prop-hint" style="font-size:11px;color:#888;margin-top:6px;">배경색이 불투명해서 이 이미지를 덮고 있습니다 — 배경색 투명도를 낮추면 보입니다.</div>` : ''}
+    <!-- C2 역방향(2026-10-01) — 배경 이미지를 스크래치패드로 «복사». 배경은 그대로 남는다. -->
+    <button class="prop-action-btn secondary" id="sec-bg-to-scratch" style="margin-top:4px;">스크래치로 보내기</button>
     <button class="prop-action-btn danger" id="sec-bg-img-remove" style="margin-top:4px;">이미지 제거</button>
   ` : `
     <button class="prop-action-btn secondary" id="sec-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
@@ -463,6 +478,18 @@ ${blockHeaderHTML({
   const bgImgInput  = document.getElementById('sec-bg-img-input');
   const bgSizeEl    = document.getElementById('sec-bg-size');
   const bgImgRemove = document.getElementById('sec-bg-img-remove');
+  /* C2 역방향 — ⛔style.backgroundImage 로 읽지 마라: lazy 로 내려간 섹션은 'none' 이다(io/lazy-sections.js).
+     정본 dataset.bgImg 를 보낸다. 스크래치는 캔버스 히스토리 밖이라 기록 없음(우클릭 「스크래치로 보내기」와 같다). */
+  document.getElementById('sec-bg-to-scratch')?.addEventListener('click', async () => {
+    const src = sec.dataset.bgImg;
+    if (!src) { window.showToast?.('⚠️ 배경 이미지가 없습니다'); return; }
+    try {
+      await window._scratchAddAndSave?.(src, 40, 40, 400);
+      window.showToast?.('📋 배경 이미지를 스크래치로 보냈어요 (배경은 그대로)');
+    } catch (err) {
+      window.showToast?.('❌ 실패: ' + (err?.message || err));
+    }
+  });
   const bgPosBtnEl  = document.getElementById('sec-bg-pos-btn');
   // 「위치 편집」 = 에셋 더블클릭 편집기를 섹션 배경에 붙인 모드(토글).
   // 예전 enterBgPosDragMode(%-기반 위치만 드래그)는 프레임(.frame-block) 쪽에 그대로 남아 있다.

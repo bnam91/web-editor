@@ -1465,6 +1465,11 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   transform: scale(var(--ui-scale, 1));
   transform-origin: left bottom;
 }
+/* ★캔버스의 섹션 머리(hitzone)에는 태그 칩을 «안» 보인다 (현빈 2026-10-01 D2 — 「템플릿 태그가 캔버스에 라벨로 뜬다」).
+   insertTemplate 이 sec.dataset.tags 를 쓰고 renderSectionTags 가 이 자리에 칩을 그린다 — ★데이터(dataset.tags)는
+   그대로 둔다: 템플릿 패널 검색·배지가 쓴다. 숨기는 것은 «캔버스 표시»만이다.
+   ⛔.section-tag-chip 단독으로 숨기지 마라 — 템플릿 브라우저 카드(template-browser.js)가 같은 클래스를 쓴다. */
+.section-hitzone > .section-tags { display: none; }
 .section-tag-chip {
   flex: 0 0 auto;
   max-width: 120px;

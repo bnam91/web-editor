@@ -452,7 +452,9 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
     applyScratchWidth(block);   // ★스크래치 표시폭(옵트인) — 반드시 applyAspectSync 앞
     applyAspectSync(block);
     window.bindBlock?.(block);
-    window.setAssetImageFromSrc?.(block, src);
+    /* C1 — 스크래치 항목이 «효과»(fx)를 들고 왔으면(에셋을 밖으로 빼서 만든 항목) 효과째 되얹는다. */
+    if (opts.fx && window.setAssetImageWithFx) window.setAssetImageWithFx(block, src, opts.fx);
+    else window.setAssetImageFromSrc?.(block, src);
     window.buildLayerPanel?.();
   } else if (decision.kind === 'sectionbg') {
     if (decision.locked || decision.sec?._secBgEditing) {
@@ -490,7 +492,8 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
              calc(100% + 2·padX) + 음수마진을 «이미» 박아 둔다 ⇒ 그 뒤에 와야 덮인다. */
         applyScratchWidth(ab);   // ★반드시 applyAspectSync 앞
         applyAspectSync(ab);
-        window.setAssetImageFromSrc?.(ab, src);
+        if (opts.fx && window.setAssetImageWithFx) window.setAssetImageWithFx(ab, src, opts.fx);   // C1
+        else window.setAssetImageFromSrc?.(ab, src);
       }
     }
     window.buildLayerPanel?.();

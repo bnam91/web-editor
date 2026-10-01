@@ -114,6 +114,10 @@ export const GRID_IMG_MAX_CHARS = 200000;
 export const GRID_IMG_MAX_BYTES = 5 * 1024 * 1024;
 
 export const GRID_GAP_MAX = 200;
+/* ★행 간격만 «음수»를 받는다 — 줄끼리 겹치게(현빈 2026-10-01 「로우 사이 간격 0~200 인데 -50 정도까지」).
+ *   CSS row-gap 은 음수를 «무효»로 버리므로 그리기에선 row-gap:0 + 둘째 줄부터 칸마다 margin-top:<음수> 로 당긴다.
+ *   ⛔열 간격·옛 통합 gap 은 그대로 0~ — 열이 겹치는 요청은 없었다. */
+export const GRID_ROW_GAP_MIN = -50;
 
 /* ══ 구분선 줄의 «굵기·색» 한계 — T-? (2026-09-30, 현빈 grd_owr55_gql6n0n) ════════
  * ★값은 원래 아래 `line.type === 'divider'` 가지 안에 손으로 박혀 있었다(1·40·#e0e0e0).
@@ -293,10 +297,10 @@ function _gridGaps(block) {
   return { row, col };
 }
 
-/** gap/rowGap/colGap 공용 검증 — 0~GRID_GAP_MAX. 통과면 정수, 아니면 null. */
-function _gridValidateGap(v) {
+/** gap/rowGap/colGap 공용 검증 — min~GRID_GAP_MAX(min 기본 0, rowGap 만 GRID_ROW_GAP_MIN). 통과면 정수, 아니면 null. */
+function _gridValidateGap(v, min = 0) {
   const n = Number(v);
-  if (!Number.isFinite(n) || n < 0 || n > GRID_GAP_MAX) return null;
+  if (!Number.isFinite(n) || n < min || n > GRID_GAP_MAX) return null;
   return Math.round(n);
 }
 
@@ -1784,6 +1788,10 @@ function renderGridBlock(block) {
 
   block.style.width = '100%';
   block.style.boxSizing = 'border-box';
+  /* ★「좌우 패딩 제외」가 켜져 있으면 폭을 다시 건다 — 위 한 줄이 폭만 100% 로 되돌리고 음수 마진은 남겨서
+     다시 그릴 때마다(열 간격 끌기 등) «왼쪽은 붙고 오른쪽만 패딩»이 됐다(현빈 2026-10-01, grd_ts0he_lvy913j).
+     꺼져 있으면 이 함수는 아무것도 안 만진다(drag-utils 규약). */
+  window.applyBlockFullBleed?.(block);
 
   const colTemplate = cols.map(c => `${Number(c.width) > 0 ? Number(c.width) : 1}fr`).join(' ');
   /* 칸 사이 괘선 — 루프 «밖»에서 한 번 읽는다(칸마다 dataset 을 다시 파싱하지 않는다). */
@@ -1864,14 +1872,15 @@ function renderGridBlock(block) {
          `position:relative` 도 줄이 있을 때만 붙는다(있으면 절대배치 자식의 기준이 된다).
          ⛔줄 div 는 «줄(line)들보다 앞»에 둔다 — 흐름에 안 끼는 absolute 라 자리는 안 먹고,
            먼저 그려져 내용 뒤에 깔린다(내용이 줄 위로 온다). */
-      const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, rowGapPx, colGapPx);
-      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}">
+      const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), colGapPx);
+      const pullUp = rowGapPx < 0 && r > 0 ? `margin-top:${rowGapPx}px;` : '';   // 음수 행 간격 = 위 줄로 당긴다(GRID_ROW_GAP_MIN 주석)
+      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}">
         ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, true)).join('')}
       </div>`);
     }
   }
 
-  block.innerHTML = `<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${rowGapPx}px;column-gap:${colGapPx}px;width:100%;">
+  block.innerHTML = `<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${Math.max(0, rowGapPx)}px;column-gap:${colGapPx}px;width:100%;">
     ${cellsHtml.join('')}
   </div>`;
 }
@@ -1966,9 +1975,10 @@ function makeGridBlock(opts = {}, drops = []) {
   // ★rowGap/colGap 은 «주어졌을 때만» dataset 에 쓴다 — 안 주면 옛 파일과 완전히 같은 모양(legacy gap 폴백).
   for (const k of ['rowGap', 'colGap']) {
     if (opts[k] === undefined) continue;
-    const v = _gridValidateGap(opts[k]);
+    const lo = k === 'rowGap' ? GRID_ROW_GAP_MIN : 0;
+    const v = _gridValidateGap(opts[k], lo);
     if (v !== null) block.dataset[k] = String(v);
-    else drops.push({ path: k, why: `${JSON.stringify(opts[k])} is outside 0~${GRID_GAP_MAX} — it was not written, so this axis falls back to gap` });
+    else drops.push({ path: k, why: `${JSON.stringify(opts[k])} is outside ${lo}~${GRID_GAP_MAX} — it was not written, so this axis falls back to gap` });
   }
   /* ★T-172 칸 테두리도 «주어졌을 때만» 쓴다 — 안 주면 옛 파일과 dataset 이 완전히 같다. */
   if (opts.cellBorderWidth !== undefined) { const v = _gridValidateBorderWidth(opts.cellBorderWidth); if (v !== null) block.dataset.cellBorderWidth = String(v); }
@@ -2317,8 +2327,8 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     applied.gap = v;
   }
   if (partial.rowGap !== undefined) {
-    const v = _gridValidateGap(partial.rowGap);
-    if (v === null) return { ok: false, code: 'INVALID', message: `rowGap must be 0~${GRID_GAP_MAX}` };
+    const v = _gridValidateGap(partial.rowGap, GRID_ROW_GAP_MIN);
+    if (v === null) return { ok: false, code: 'INVALID', message: `rowGap must be ${GRID_ROW_GAP_MIN}~${GRID_GAP_MAX}` };
     next.rowGap = String(v);
     applied.rowGap = v;
   }

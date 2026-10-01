@@ -12,6 +12,9 @@ export function showDividerProperties(block) {
   const lineDir    = block.dataset.lineDir    || 'horizontal';
   const lineLength = parseInt(block.dataset.lineLength) || 80;
   const isVertical = lineDir === 'vertical';
+  /* 가로 «너비» 슬라이더의 끝 = 지금 선이 펼 수 있는 전폭(블록 폭 − 좌우 패딩). 끝까지 올리면 «전폭»(값 없음)으로 돌아간다. */
+  const fullW = Math.max(40, Math.round((block.clientWidth || 860) - padH * 2));
+  const lineWidth = Math.min(fullW, parseInt(block.dataset.lineWidth) || fullW);
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -58,6 +61,11 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="dvd-weight-slider" min="1" max="24" step="1" value="${lineWeight}">
         <input type="number" class="prop-number" id="dvd-weight-number" min="1" max="24" value="${lineWeight}">
       </div>
+      <div class="prop-row" id="dvd-width-row" style="display:${isVertical?'none':'flex'}">
+        <span class="prop-label" title="가로 선의 너비 — 끝까지 올리면 전폭">너비</span>
+        <input type="range" class="prop-slider" id="dvd-width-slider" min="20" max="${fullW}" step="4" value="${lineWidth}">
+        <input type="number" class="prop-number" id="dvd-width-number" min="20" max="${fullW}" value="${lineWidth}">
+      </div>
       <div class="prop-row" id="dvd-length-row" style="display:${isVertical?'flex':'none'}">
         <span class="prop-label">길이</span>
         <input type="range" class="prop-slider" id="dvd-length-slider" min="20" max="400" step="4" value="${lineLength}">
@@ -89,6 +97,7 @@ ${blockHeaderHTML({
     propPanel.querySelectorAll('#dvd-dir-group .prop-align-btn').forEach(b =>
       b.classList.toggle('active', b.dataset.dir === btn.dataset.dir));
     propPanel.querySelector('#dvd-length-row').style.display = isVert ? 'flex' : 'none';
+    propPanel.querySelector('#dvd-width-row').style.display = isVert ? 'none' : 'flex';
     window.applyDividerStyle(block);
     window.pushHistory();
   });
@@ -105,6 +114,19 @@ ${blockHeaderHTML({
   lenSlider.addEventListener('input',  () => applyLength(parseInt(lenSlider.value)));
   lenNumber.addEventListener('change', () => { applyLength(parseInt(lenNumber.value)); window.pushHistory(); });
   lenSlider.addEventListener('change', () => window.pushHistory());
+
+  // 너비 슬라이더 (가로 전용) — 끝(전폭)이면 값을 지운다: «전폭»은 숫자가 아니라 «없음»이다(섹션 폭이 바뀌어도 따라간다)
+  const wdSlider = propPanel.querySelector('#dvd-width-slider');
+  const wdNumber = propPanel.querySelector('#dvd-width-number');
+  const applyWidth = v => {
+    v = Math.min(fullW, Math.max(20, Number.isFinite(v) ? v : fullW));
+    if (v >= fullW) delete block.dataset.lineWidth; else block.dataset.lineWidth = v;
+    window.applyDividerStyle(block);
+    wdSlider.value = v; wdNumber.value = v;
+  };
+  wdSlider.addEventListener('input',  () => applyWidth(parseInt(wdSlider.value)));
+  wdNumber.addEventListener('change', () => { applyWidth(parseInt(wdNumber.value)); window.pushHistory(); });
+  wdSlider.addEventListener('change', () => window.pushHistory());
 
   const applyAll = () => window.applyDividerStyle(block);
   wireColorField('dvd', {

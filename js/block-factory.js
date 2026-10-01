@@ -2119,7 +2119,16 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     const _sticky = b => b.closest('.frame-block[data-text-frame]') || shapeFrameOf(b) || b;
     const units = [...new Set(selected.map(_sticky))];
     const floaters = units.filter(u => u.parentElement === sec);
-    const hosts    = units.filter(u => u.parentElement !== sec);
+    /* ★B1(현빈 2026-10-01, 재현 sec_2kril19) — ⇧클릭 범위선택은 프레임 «안의 자식»(예: 가운데 목업)까지 끌어온다
+       (실측: 선택 = [프레임, 목업, 줌]). 그러면 위의 「다른 선택을 품은 컨테이너는 뺀다」가 프레임을 빼서
+       host 가 목업이 되고 거절 토스트만 떴다. ⌘클릭은 됐다(실측) — 갈림은 «선택 방법»이었다.
+       ⇒ host 후보가 흐름 자유배치 프레임의 자식이면 «그 프레임»으로 올려 잡는다. ⇧ 범위선택 자체는 안 건드린다. */
+    const _liftToFrame = u => {
+      if (u.matches?.('.frame-block[data-free-layout]')) return u;
+      const f = u.parentElement?.closest?.('.frame-block[data-free-layout]');
+      return (f && f.dataset.textFrame !== 'true' && f.closest('.section-block') === sec) ? f : u;
+    };
+    const hosts    = [...new Set(units.filter(u => u.parentElement !== sec).map(_liftToFrame))];
     if (floaters.length && hosts.length) {
       const host = (hosts.length === 1 && hosts[0].matches?.('.frame-block[data-free-layout]')
                     && hosts[0].dataset.textFrame !== 'true') ? hosts[0] : null;
@@ -5160,6 +5169,14 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       sendItem.style.display = (isAsset && hasImg) ? 'flex' : 'none';
     }
 
+    // C2 — 이미지가 든 에셋(영상 대기 제외)이 섹션 안에 있을 때만 「이 섹션 배경으로」
+    const toBgItem = document.getElementById('bcm-asset-to-secbg');
+    if (toBgItem) {
+      const isAsset = block.classList.contains('asset-block');
+      const hasImg = !!(block.dataset?.imgSrc || block.querySelector('.asset-img')?.src);
+      toBgItem.style.display = (isAsset && hasImg && block.dataset.assetType !== 'video-pending' && block.closest('.section-block')) ? 'flex' : 'none';
+    }
+
     // STICKERUX(3): 아이콘 블록(.icon-block)일 때만 "스티커로 변환" 노출
     const iconStickerItem = document.getElementById('bcm-icon-to-sticker');
     if (iconStickerItem) {
@@ -5197,6 +5214,10 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       if (lbl) lbl.textContent = hasMemo ? '메모 고치기' : '이미지 메모 적기';
     }
     if (memoDelItem) memoDelItem.style.display = hasMemo ? 'flex' : 'none';
+
+    // 섹션 분리(D1) — 누른 블럭이 합쳐 넣은 상자 안일 때만
+    const splitItem = document.getElementById('bcm-section-split');
+    if (splitItem) splitItem.style.display = block.closest('.section-merged-part') ? 'flex' : 'none';
 
     // 그리드 블록 셀 우클릭 → "이미지 추가/교체" (현빈 2026-09-15 요청: 그리드 셀 이미지 지원)
     const gridImgItem = document.getElementById('bcm-grid-img');
@@ -5260,6 +5281,33 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     }
   });
 
+  /* C2 — 에셋 이미지를 «그 섹션의 배경»으로 «복사»한다(현빈 2026-10-01: 스크래치 → 에셋 → 배경 경유).
+     ★정본은 dataset.bgImg/bgSize/bgPos 이고 칠하기는 applySectionBg(prop-section) 한 곳 — setSectionBgImage 는
+       인라인만 쓰고 기록을 안 남겨 안 쓴다. ★배경은 «크기·위치»만 가진다 — 크롭·색보정·그레인 같은 이미지 효과는
+       배경에 실리지 않는다(그건 소실이 아니라 배경이라는 그릇의 모양이다 — 토스트로 그 까닭을 말한다). push-after. */
+  document.getElementById('bcm-asset-to-secbg')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    closeMenu();
+    const sec = block?.closest('.section-block');
+    const src = block?.dataset?.imgSrc || block?.querySelector('.asset-img')?.src;
+    if (!sec || !src) { window.showToast?.('⚠️ 넣을 이미지가 없습니다'); return; }
+    window.exitSectionBgEditMode?.(sec);
+    sec.dataset.bgImg = src;
+    delete sec.dataset.bgImgEmpty;
+    delete sec.dataset.bgPos;                       // 새 그림 — 이전 그림 기준의 위치는 의미가 없다
+    if (!sec.dataset.bgSize) sec.dataset.bgSize = 'cover';
+    window.applySectionBg?.(sec);
+    window.pushHistory?.('에셋 → 섹션 배경');
+    window.scheduleAutoSave?.();
+    /* ★섹션 «색»은 안 건드린다 — applySectionBg 규약상 색 층이 그림 «위»라 불투명 색이면 그림이 가려진다
+       (업로드 길과 같은 «의도된 동작», prop-section.js _applySectionBg 머리말). 그대로 두면 「눌렀는데 안 된다」로
+       읽히므로 «왜 안 보이는지와 푸는 법»을 같이 말한다(2026-10-01 실측: data-bg #ffffff 섹션에서 그림이 안 보였다). */
+    const _opaque = !!window.isOpaqueSectionColor?.(sec.dataset.bg);   // 판정은 prop-section.js 한 곳
+    window.showToast?.('섹션 배경으로 넣었어요 — 블럭은 그대로 남습니다. 배경은 크기·위치만 가져서 크롭·색보정 같은 이미지 효과는 배경에 실리지 않아요.'
+      + (_opaque ? ' ⚠️지금 섹션 배경색이 불투명해서 그림을 덮고 있어요 — 배경색 투명도를 낮추면 보입니다.' : ''));
+  });
+
   // STICKERUX(3): 아이콘 블록 → 스티커 변환(복제 — 원본 .icon-block 유지)
   document.getElementById('bcm-icon-to-sticker')?.addEventListener('click', e => {
     e.stopPropagation();
@@ -5290,6 +5338,13 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     const block = _targetBlock;
     closeMenu();
     if (block) setImageMemo(block, '');
+  });
+
+  document.getElementById('bcm-section-split')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const part = _targetBlock?.closest('.section-merged-part');
+    closeMenu();
+    if (part) window.splitMergedPart?.(part);
   });
 
   // #5-b: 셀 병합 / 병합 해제

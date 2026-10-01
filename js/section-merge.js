@@ -100,6 +100,10 @@ function mergeSectionInto(target, source) {
     if (k === 'name' || k === 'variation' || k === 'variationGroup') continue;  // 섹션 «신원»은 안 옮긴다
     part.dataset[k] = v;
   }
+  /* ★분리(splitMergedPart)용 «기록»만 더한다 — 합치기 동작은 그대로(D1, 2026-10-01).
+     위 루프가 버리는 섹션 이름을 따로 적어 둔다. 이 칸이 «있다»는 것 자체가 「새 합치기라 왕복 기록이 있다」는 표시다
+     (그래서 이름이 없어도 빈 문자열로 «적는다»). */
+  part.dataset.mergedName = source.dataset.name || '';
   // 아래쪽 여백은 섹션이 이고 있던 것 — 상자가 이어받아야 밑 공간이 안 사라진다
   if (source.style.paddingBottom) part.style.paddingBottom = source.style.paddingBottom;
 
@@ -146,7 +150,10 @@ function mergeSectionInto(target, source) {
   };
   const tailGap = _lastGap(tIn);
   const headGap = sIn.firstElementChild;
+  /* ★지우는 꼬리 갭의 높이를 «기록»한다(분리 때 되살린다). 안 지웠으면 0. */
+  part.dataset.mergedTailGapH = '0';
   if (tailGap && headGap?.classList.contains('gap-block')) {
+    part.dataset.mergedTailGapH = String(_gapH(tailGap));
     tailGap.remove();
   }
 
@@ -165,6 +172,7 @@ function mergeSectionInto(target, source) {
   const KEEP_OUT = ['section-hitzone', 'section-toolbar', 'section-inner', 'sec-bg-proxy'];
   [...source.children].forEach((el) => {
     if (KEEP_OUT.some(c => el.classList.contains(c))) return;
+    el.dataset.mergedOuter = '1';   // ★분리용 기록 — 섹션 «직속»이었다(분리 때 섹션 바로 아래로 돌려보낸다)
     part.appendChild(el);
   });
   syncMergedPartMargins(target);   // 붙인 뒤 한 번 더(상자가 이제 DOM 에 있다)
@@ -248,6 +256,112 @@ function mergeSelectedSectionUp() {
   return mergeSectionInto(prev, sel);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   SECTION SPLIT — 합쳐 넣은 상자(.section-merged-part)를 다시 섹션으로 (D1, 현빈 2026-10-01)
+   ═══════════════════════════════════════════════════════════════════════
+   ★합치기가 남긴 발판을 그대로 쓴다: 상자는 원래 섹션의 인라인 스타일·dataset 을 이어받았고
+     (mergeSectionInto ⑴), position:relative 라 좌표 기준이다. ⇒ 분리 = 상자를 섹션으로 다시 세우기.
+   ★순서 보존: 상자 P «와 그 뒤 형제들»을 새 섹션으로 옮긴다. P 만 빼면 P 뒤에 있던 것(나중에 합친 상자 등)이
+     원 섹션에 남아 화면 순서가 뒤집힌다.
+   ★왕복 기록(합치기 쪽, 2026-10-01 부터): mergedName(이름) · mergedTailGapH(지운 이음매 갭 높이) · 섹션 직속이었던
+     자식의 data-merged-outer. ⛔그 전에 합친 «옛 상자»엔 기록이 없다 ⇒ 이름 없음 · 갭 100px · 섹션 직속 판정은
+     «absolute 직계»로 어림 — 그렇게 했다고 토스트로 알린다.
+   ★묶기는 rebindAll 한 번 — 섹션 바인딩 목록을 여기 베끼지 않는다(addSection·insertTemplate 과 두 벌이 된다).
+   ★히스토리: 합치기와 같은 규약(변경 «전»에 찍는다) ⇒ ⌘Z 한 번에 원복. */
+const _SPLIT_RECORD_KEYS = ['mergedFrom', 'padX', 'mergedName', 'mergedTailGapH'];
+const _SPLIT_DEFAULT_GAP = 100;
+
+function splitMergedPart(part) {
+  if (!part?.classList?.contains('section-merged-part')) { window.showToast?.('합쳐진 섹션 안을 골라 주세요'); return false; }
+  const hostSec = part.closest('.section-block');
+  const container = part.parentElement;
+  if (!hostSec || !container) return false;
+  if (hostSec.classList.contains('lazy-unloaded')) window.materializeAllSections?.();
+  window.exitSectionBgEditMode?.(hostSec);
+
+  window.pushHistory?.('섹션 분리');
+
+  const legacy = !('mergedTailGapH' in part.dataset);
+  const following = [];
+  for (let n = part.nextElementSibling; n; n = n.nextElementSibling) following.push(n);
+
+  const sec = document.createElement('div');
+  sec.className = 'section-block';
+  const want = part.dataset.mergedFrom;
+  sec.id = (want && !document.getElementById(want)) ? want
+         : (typeof window.genId === 'function' ? window.genId('sec') : 'sec_' + Math.random().toString(36).slice(2, 9));
+  for (const k of part.style) {
+    if (/^(padding-left|padding-right|margin-left|margin-right)$/.test(k)) continue;   // 상자용으로 덧씌운 것
+    sec.style.setProperty(k, part.style.getPropertyValue(k), part.style.getPropertyPriority(k));
+  }
+  for (const [k, v] of Object.entries(part.dataset)) if (!_SPLIT_RECORD_KEYS.includes(k)) sec.dataset[k] = v;
+
+  // 껍데기 — 머리(hitzone)·툴바는 원 섹션 것을 본떠 기본 단추만 남긴다(상태 단추는 rebind 가 다시 심는다)
+  const hz = document.createElement('div');
+  hz.className = 'section-hitzone';
+  hz.innerHTML = '<span class="section-label"></span>';
+  const tb = hostSec.querySelector(':scope > .section-toolbar')?.cloneNode(true) || document.createElement('div');
+  tb.className = 'section-toolbar';
+  [...tb.children].forEach(b => { if (!b.matches?.('.st-ai-fill-btn, .st-memo-btn')) b.remove(); });
+
+  const inner = document.createElement('div');
+  inner.className = 'section-inner';
+  const padX = parseFloat(part.dataset.padX) || 0;
+  inner.style.paddingLeft = padX + 'px';
+  inner.style.paddingRight = padX + 'px';
+  inner.dataset.paddingX = String(padX);
+
+  const outer = [];
+  [...part.children].forEach(el => {
+    const wasOuter = el.dataset.mergedOuter === '1' || (legacy && el.style.position === 'absolute');
+    if (wasOuter) { delete el.dataset.mergedOuter; outer.push(el); }
+    else inner.appendChild(el);
+  });
+  following.forEach(el => inner.appendChild(el));   // 순서 보존 — P 뒤 형제들도 새 섹션으로
+
+  // 이음매 갭 되살리기 — 원 섹션 내용의 끝에
+  const gapH = legacy ? _SPLIT_DEFAULT_GAP : (parseFloat(part.dataset.mergedTailGapH) || 0);
+  if (gapH > 0) {
+    const g = document.createElement('div');
+    g.className = 'gap-block';
+    g.dataset.type = 'gap';
+    g.dataset.gapAuto = '1';
+    g.style.height = gapH + 'px';
+    g.id = typeof window.genId === 'function' ? window.genId('gb') : 'gb_' + Math.random().toString(36).slice(2, 9);
+    container.appendChild(g);
+  }
+
+  sec.append(hz, tb, inner, ...outer);
+  part.remove();
+  hostSec.after(sec);
+
+  // 번호·이름
+  const all = [...hostSec.parentElement.querySelectorAll(':scope > .section-block')];
+  all.forEach((s, i) => { s.dataset.section = i + 1; });
+  const name = (!legacy && part.dataset.mergedName) || `Section ${String(all.indexOf(sec) + 1).padStart(2, '0')}`;
+  sec.dataset.name = name;
+  sec._name = name;
+  hz.querySelector('.section-label').textContent = name;
+
+  syncMergedPartMargins(hostSec);
+  syncMergedPartMargins(sec);
+  /* ⛔rebindAll() 을 옵션 없이 부르면 «히스토리를 통째로 비운다»(save-load.js — 로드·페이지전환용).
+     실측: 분리 직후 len 1(초기 상태)·⌘Z 불가 — 사용자 되돌리기 기록이 사라졌다. 협업 수신과 같은 가드를 쓴다. */
+  window.rebindAll?.({ preserveHistory: true });
+  window._ensureProtectionButton?.(sec);
+  window.bindVariationToolbarBtn?.(sec);
+
+  document.querySelectorAll('.section-block.selected').forEach(s => s.classList.remove('selected'));
+  sec.classList.add('selected');
+  window.buildLayerPanel?.();
+  window.scheduleAutoSave?.();
+  window.showToast?.(legacy
+    ? '섹션을 분리했습니다 — 예전에 합친 섹션이라 이름·이음매 여백(100px)을 기본값으로 되돌렸어요 (⌘Z 되돌리기)'
+    : '섹션을 분리했습니다 (⌘Z 되돌리기)');
+  return sec;
+}
+
+window.splitMergedPart       = splitMergedPart;
 window.mergeSectionInto      = mergeSectionInto;
 window.mergeSelectedSectionUp = mergeSelectedSectionUp;
 window.canMergeSections      = canMergeSections;
@@ -256,6 +370,7 @@ window.syncMergedPartMargins    = syncMergedPartMargins;
 window.syncAllMergedPartMargins = syncAllMergedPartMargins;
 
 export {
+  splitMergedPart,
   mergeSectionInto,
   mergeSelectedSectionUp,
   canMergeSections,
