@@ -702,7 +702,10 @@ function applyDividerStyle(block) {
     block.style.display = 'flex';
     block.style.justifyContent = 'center';
   } else {
-    hr.style.cssText = `border-top:${weight}px ${style} ${color};`;
+    /* ★가로 «너비»(현빈 2026-10-01) — dataset.lineWidth(px)가 있을 때만 가운데로 줄인다. 없으면 지금처럼 전폭(옛 블록 무변화).
+       ⛔lineLength 를 쓰지 않는다 — 옛 가로 디바이더에도 기본값 80 이 박혀 있어 그걸 너비로 읽으면 전부 줄어든다. */
+    const lineW = parseInt(block.dataset.lineWidth) || 0;
+    hr.style.cssText = `border-top:${weight}px ${style} ${color};` + (lineW > 0 ? `width:${lineW}px;max-width:100%;margin-left:auto;margin-right:auto;` : '');
     block.style.padding = `${padV}px ${padH}px`;
     block.style.display = '';
   }
