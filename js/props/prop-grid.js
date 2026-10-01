@@ -7,7 +7,7 @@ import { parseRatio, buildGridPicker, alignBtn, bindSlider, blockHeaderHTML, dis
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
-         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_MAX_BYTES, gridCellsToDataset,
+         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES,
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
@@ -1084,6 +1084,12 @@ function _grdImageSectionHtml(anyHit, block) {
    *   그래서 placeholder 가 "100" 이다(장식이 아니라 «역할 기본값» — 숫자칸 규약 ⑶). */
   const wpN = Number(line.widthPct);
   const wp = Number.isFinite(wpN) ? wpN : '';
+  /* ★원형(현빈 2026-10-01) — imgShape:'circle' 이면 렌더러가 폭(%)·모서리 반경을 «안 읽는다»(지름 = 높이).
+   *   안 읽는 칸을 그대로 두면 「눌리는데 아무 일도 안 난다」가 된다(이 파일 머리말의 고질) ⇒ 숨기고, 높이는 «지름»으로 부른다.
+   * ⛔사각↔원 «바꾸기» 단추를 이 절에 두지 않는다 — 2026-09-25 현빈 「캔버스에서 다 직관적으로 조작이 가능한거잖아?」로
+   *   이 절의 단추를 «이미지 선택/교체» 하나로 줄였다(grid-img-crop P1 이 잠금). 바꾸기는 캔버스 우클릭
+   *   (#bcm-grid-img-circle — 이미지 줄 위에선 「원형으로/사각으로 바꾸기」)에 있다. 숨긴 칸도 «줄은 남는다»(P1 의 줄 수 4). */
+  const circle = line.imgShape === 'circle';
   /* ★2026-09-25 현빈 — 이 절에 있던 단추 «셋»을 없앴다(「캔버스에서 다 직관적으로 조작이
    *   가능한거잖아?」). ⛔되살리기 전에 «어디로 갔는지»부터 읽어라 — 기능이 죽은 게 아니라
    *   손잡이가 «한 벌»로 합쳐진 것이다. 두 벌이 되면 둘이 따로 늙는다.
@@ -1107,15 +1113,15 @@ function _grdImageSectionHtml(anyHit, block) {
       <div class="prop-row">
         <button id="grd-img-pick-btn" class="prop-btn-full">${line.imgSrc ? '이미지 교체…' : '이미지 선택…'}</button>
       </div>
-      <div class="prop-row">
+      <div class="prop-row"${circle ? ' style="display:none"' : ''}>
         <span class="prop-label" title="칸 안에서 그림이 차지하는 가로 폭(%). 100 이면 정렬이 안 보인다 — 줄일 데가 없어서다. 비우면 100.">폭(%)</span>
         <input type="number" class="prop-number" id="grd-img-width-pct" min="${IMG_MIN_PCT}" max="100" placeholder="100" value="${wp}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">높이(px)</span>
-        <input type="number" class="prop-number" id="grd-img-height" min="0" placeholder="auto" value="${h}">
+        <span class="prop-label">${circle ? '지름(px)' : '높이(px)'}</span>
+        <input type="number" class="prop-number" id="grd-img-height" min="0" placeholder="${circle ? GRID_IMG_CIRCLE_D : 'auto'}" value="${h}">
       </div>
-      <div class="prop-row">
+      <div class="prop-row"${circle ? ' style="display:none"' : ''}>
         <span class="prop-label">모서리 반경(px)</span>
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="0" value="${rad}">
       </div>
@@ -1177,6 +1183,7 @@ function _grdWireImageSection(block, addr) {
   numWire('grd-img-width-pct', 'widthPct', IMG_MIN_PCT, 100);
   numWire('grd-img-height', 'height');
   numWire('grd-img-radius', 'radius');
+
 }
 
 /* ══ 칸 꾸미기 절 — 칸 배경색·안쪽 여백·모서리·«칸 단위» 정렬 ═══════════════

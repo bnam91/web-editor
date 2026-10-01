@@ -118,6 +118,8 @@ export const GRID_GAP_MAX = 200;
  *   CSS row-gap 은 음수를 «무효»로 버리므로 그리기에선 row-gap:0 + 둘째 줄부터 칸마다 margin-top:<음수> 로 당긴다.
  *   ⛔열 간격·옛 통합 gap 은 그대로 0~ — 열이 겹치는 요청은 없었다. */
 export const GRID_ROW_GAP_MIN = -50;
+/* 원형 이미지 줄의 기본 지름(px) — height 가 없을 때. 우클릭 「원형 이미지 추가」도 이 값으로 넣는다. */
+export const GRID_IMG_CIRCLE_D = 120;
 
 /* ══ 구분선 줄의 «굵기·색» 한계 — T-? (2026-09-30, 현빈 grd_owr55_gql6n0n) ════════
  * ★값은 원래 아래 `line.type === 'divider'` 가지 안에 손으로 박혀 있었다(1·40·#e0e0e0).
@@ -389,7 +391,7 @@ const GRID_NESTED_LINE_TYPE = 'duo';
 /** `_gridLineHtml` 이 읽는 `line.*` — patchCell{lineIndex} 로 줄 수 있는 필드. */
 const GRID_LINE_FIELDS = new Set([
   'align', 'barColor', 'bg', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
-  'gap', 'height', 'imgPosX', 'imgPosY', 'imgSizePct', 'imgSrc', 'italic', 'items',
+  'gap', 'height', 'imgPosX', 'imgPosY', 'imgShape', 'imgSizePct', 'imgSrc', 'italic', 'items',
   'labelColor', 'labelSize', 'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV',
   'radius', 'strike', 'text', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize',
   'weight', 'widthPct',
@@ -1514,6 +1516,22 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
   if (line.type === 'image') {
     const h = Number(line.height) || 0;
     const r = Number(line.radius) || 0;
+    /* ★원형 이미지 줄 (현빈 2026-10-01 「그리드 우클릭으로 이미지 넣잖아 — 원형도. 지금은 사각형인데 정원도 필요」)
+     *   기존 필드로는 정원이 «안» 나온다 — 폭은 칸 대비 %(widthPct), 높이는 px 라 칸 폭이 바뀌면 타원이 된다.
+     *   ⇒ 줄 필드 imgShape:'circle' 하나. 지름 = height(px, 없으면 GRID_IMG_CIRCLE_D), 칸이 좁으면 max-width 로
+     *     줄되 aspect-ratio 1/1 이라 «늘 정원». ⛔widthPct·크롭(imgSizePct/imgPosX/imgPosY)은 원에선 안 읽는다
+     *     (_gridUnreadLineFields 가 ignoredProps 로 되돌려준다 — 거짓 성공 없음).
+     *   ⛔imgShape 가 없으면 이 갈래를 안 탄다 — 아래 사각 산출은 한 글자도 안 바뀐다(grid-img-frame-noop · 골든). */
+    if (line.imgShape === 'circle') {
+      const d = h > 0 ? h : GRID_IMG_CIRCLE_D;
+      const cAlign = _gridAlign(line.align, colAlign);
+      const cAlignCss = cAlign === 'center' ? 'margin-left:auto;margin-right:auto;' : cAlign === 'right' ? 'margin-left:auto;' : '';
+      const box = `width:${d}px;max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${mtCss}`;
+      if (!line.imgSrc) return `<div${addrAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}"></div>`;
+      return `<div${addrAttr} class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;">`
+        + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`
+        + `</div>`;
+    }
     // ★widthPct(T-C, 코너 리사이즈 핸들) — 없으면 100(기존과 바이트 동일).
     const wpRaw = Number(line.widthPct);
     const wp = Number.isFinite(wpRaw) ? Math.max(5, Math.min(100, wpRaw)) : 100;

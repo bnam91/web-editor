@@ -49,7 +49,8 @@ window.addGridBlock({ gap: 32, valign: 'middle', cols: [
   { width: 3, align: 'center', lines: [{ type: 'h1', text: '01', color: '#2d6fe8' }, { type: 'caption', text: 'REASON' }] },
   { width: 7, lines: [{ type: 'h2', text: '헤드라인' }, { type: 'gap', height: 8 }, { type: 'body', text: '본문…' }] },
 ] })
-// 라인 타입: label|h1|h2|h3|body|caption|image({imgSrc,height?,radius?,widthPct?,align?})|gap({height})
+// 라인 타입: label|h1|h2|h3|body|caption|image({imgSrc,height?,radius?,widthPct?,align?,imgShape?})|gap({height})
+// ★image 의 imgShape:'circle'(2026-10-01) = 정원 — 지름=height(없으면 120), widthPct·radius·크롭은 원에선 안 읽는다(ignoredProps 로 돌아온다).
 //
 // ★★그림 줄(type:'image')의 함정 셋 — 2026-09-23 실기에서 내가 다 밟았다.
 // ⑴ ⛔필드 이름은 «imgSrc» 다. `src` 로 주면 ★«ok:true 가 돌아오는데» 화면엔 회색 자리지킴
