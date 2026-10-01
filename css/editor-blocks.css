@@ -30,6 +30,11 @@
 .frame-block[data-text-frame] {
   min-height: unset;
 }
+/* ★A1 선택상자가 «지금 잡고 있는» 섹션·블럭 — 끄는 동안만 붙고 놓으면 걷힌다(js/scratch-pad.js). 선택 토큰 재사용. */
+#canvas .marquee-hit {
+  outline: calc(1px * var(--inv-zoom, 1)) dashed var(--sel-color) !important;
+  outline-offset: calc(-1px * var(--inv-zoom, 1));
+}
 /* ★「내용 자르기」 켬(현빈 2026-09-30, 피그마 Clip content). 사용자가 «그 프레임에» 명시로 켠
    것이라 아래의 «풀어 주는» 예외들(도형 선택 중·회전 자식·말풍선·그라데이션 바)보다 이겨야 한다
    — 그래서 !important.

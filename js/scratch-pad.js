@@ -1203,6 +1203,11 @@ async function initScratchPad(projectId, pageId) {
   // canvas-wrap 빈 영역: 클릭 = 전체 선택 해제(기존 동작), 드래그 = 마퀴 다중 선택.
   // panMode(Space)는 editor.js capture 핸들러가 stopPropagation하므로 자연 배제.
   const MARQUEE_THRESHOLD = 4; // client px — 미만이면 단순 클릭으로 간주
+  /* ★A1(현빈 2026-10-01 「이걸로 스크래치 패드만 되는데 섹션 및 블럭도 선택되게」) — 섹션·블럭은 «상자가 그 요소 면적의
+     이 비율 이상을 덮으면» 잡는다(스크래치 항목은 지금 그대로 «걸치면»). 면적비라 크기에 따라 저절로 갈린다:
+     작은 블럭은 조금만 들어와도 넘고(교차처럼), 전폭 row·섹션은 거의 다 덮어야 넘는다(완전포함처럼).
+     ⚠️미측정·잠정 · 2026-10-01 · 섹션 높이 분포를 안 쟀다 — 재면 그 수와 분모를 여기 적어 넣어라. */
+  const MARQUEE_COVER_RATIO = 0.5;
   wrap.addEventListener('mousedown', e => {
     if (e.target.closest('.scratch-item')) return;
 
@@ -1222,8 +1227,15 @@ async function initScratchPad(projectId, pageId) {
 
     // shift = 기존 선택 보존(additive), 아니면 기존 동작대로 즉시 해제
     const baseSel = e.shiftKey ? new Set(_selectedItems) : new Set();
-    if (!e.shiftKey) _clearSelection();
-    if (_scratchItems.length === 0) return; // 선택 대상 없음 — 마퀴 불필요
+    /* ⇧ 더하기의 «이미 골라진 섹션» — 섹션 1개 선택은 multiSel 이 아니라 단일 .selected 라 따로 챙긴다.
+       단 블럭을 고르면 syncSection 이 부모 섹션에도 .selected 를 붙이므로, «안에 골라진 블럭이 없는» 섹션만 센다. */
+    const baseSecs = e.shiftKey ? [...document.querySelectorAll('#canvas .section-block.selected')].filter(s => !s.querySelector('.selected')) : [];
+    if (!e.shiftKey) {
+      _clearSelection();
+      window.deselectAll?.();   // ★A1 ④ — 이제 섹션·블럭도 이 상자의 대상이라 «셋 다» 푼다(빈 바닥 단순 클릭 포함)
+    }
+    /* ⛔[A1] 옛 판엔 여기 `if (_scratchItems.length === 0) return;` 이 있었다 — 스크래치가 비면 상자 «자체»가 안 떴다
+       (실측: 같은 자리·같은 끌기에서 항목 0개 = 상자 0 / 1개 = 상자 1). 섹션·블럭도 대상이 된 지금은 지운다. */
 
     e.preventDefault();
     // 포커스 잔류로 인한 단축키 가드 오작동 예방 — 입력 요소 blur
@@ -1238,6 +1250,13 @@ async function initScratchPad(projectId, pageId) {
     const startClientY = e.clientY;
     const startX = (startClientX - scalerRect.left) / scale;
     const startY = (startClientY - scalerRect.top)  / scale;
+
+    // ★A1 — 섹션·블럭 대상도 «시작 때 1회» 캐시(스크래치와 같은 방식). lazy 섹션도 높이는 유지된다(io/lazy-sections.js).
+    const _toModel = (r) => ({ left: (r.left - scalerRect.left) / scale, top: (r.top - scalerRect.top) / scale,
+                               right: (r.right - scalerRect.left) / scale, bottom: (r.bottom - scalerRect.top) / scale });
+    const canvasBoxes = _marqueeCanvasTargets().map(t => ({ ...t, ..._toModel(t.box.getBoundingClientRect()) }))
+      .filter(b => b.right > b.left && b.bottom > b.top);   // 면적 0 = 안 보이는 것(숨은 시안 등) — 고르지 않는다
+    let _hitEls = new Set();
 
     // 아이템 AABB 캐시 (model 좌표)
     const boxes = _scratchItems.map(s => ({
@@ -1269,6 +1288,21 @@ async function initScratchPad(projectId, pageId) {
         if (b.left < x2 && b.right > x1 && b.top < y2 && b.bottom > y1) hits.add(b.item);
       }
       _applyMarqueeSelection(baseSel, hits);
+      // ★A1 — 섹션·블럭: 면적비(MARQUEE_COVER_RATIO). 상자 중엔 «임시 표시»만, 실제 선택은 mouseup 한 번.
+      const cover = (b) => {
+        const w = Math.max(0, Math.min(x2, b.right) - Math.max(x1, b.left));
+        const h = Math.max(0, Math.min(y2, b.bottom) - Math.max(y1, b.top));
+        const area = Math.max(1, (b.right - b.left) * (b.bottom - b.top));
+        return (w * h) / area;
+      };
+      const secHit = new Set(canvasBoxes.filter(b => b.kind === 'section' && cover(b) >= MARQUEE_COVER_RATIO).map(b => b.sec));
+      const next = new Set();
+      canvasBoxes.forEach(b => {
+        if (b.kind === 'section' ? secHit.has(b.sec) : (!secHit.has(b.sec) && cover(b) >= MARQUEE_COVER_RATIO)) next.add(b);
+      });
+      _hitEls.forEach(b => { if (!next.has(b)) b.box.classList.remove('marquee-hit'); });
+      next.forEach(b => b.box.classList.add('marquee-hit'));
+      _hitEls = next;
     };
 
     const onMove = mv => {
@@ -1289,6 +1323,36 @@ async function initScratchPad(projectId, pageId) {
       if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; _update(); }
       marqueeEl?.remove();
       marqueeEl = null;
+      // ★A1 — 섹션·블럭 선택을 «한 번» 반영한다. 섹션 = ⌘클릭과 같은 다중선택 길, 블럭 = ⌘클릭 길(toggleBlockSelect).
+      //   ⇧ 로 시작했으면 이미 골라진 것은 다시 토글하지 않는다(더하기만).
+      const hitList = [..._hitEls];
+      hitList.forEach(b => b.box.classList.remove('marquee-hit'));
+      _hitEls = new Set();
+      if (active) {
+        /* ⛔mouseup 바로 뒤에 오는 «빈 바닥 click» 을 편집기가 받아 전부 해제한다(실측: 상자는 두 섹션을 잡았는데 놓으면
+           선택 0). 상자를 «실제로 끌었을 때만» 그 click 하나를 삼킨다 — 단순 클릭(임계 미만)은 지금처럼 해제로 간다. */
+        const _eatClick = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+        document.addEventListener('click', _eatClick, { capture: true, once: true });
+        setTimeout(() => document.removeEventListener('click', _eatClick, { capture: true }), 0);
+        const secHits = hitList.filter(b => b.kind === 'section').map(b => b.sec);
+        hitList.filter(b => b.kind === 'block').forEach(b => {
+          if (!b.el.classList.contains('selected')) window.toggleBlockSelect?.(b.el, b.sec);
+        });
+        /* 블럭이 하나라도 골라져 있으면 «섞임» — ⌘클릭 길은 섹션 1개면 단일선택으로 접히며 블럭을 풀고(selectSection),
+           toggleBlockSelect 의 syncSection 은 섹션 .selected 를 전부 지운다(실측: 섹션 B + 블럭 → 블럭만 남음).
+           ⇒ 섞임일 때만 섹션을 multiSel 모델에 직접 올린다(⌘클릭 «합류» 갈래와 같은 두 클래스 + multiSel.sections). */
+        const mixed = !!document.querySelector('#canvas .section-block .selected');
+        const ms = window.multiSel;
+        if (mixed && ms) {
+          [...ms.sections, ...baseSecs, ...secHits].forEach(sec => {
+            sec.classList.add('selected', 'multi-selected'); ms.sections.add(sec); ms.lastSection = sec;
+          });
+        } else {
+          secHits.forEach(sec => {
+            if (!sec.classList.contains('multi-selected')) window.selectSectionWithModifier?.(sec, { metaKey: true });
+          });
+        }
+      }
       // 임계 미만 = 단순 클릭: 위에서 이미 기존 동작(선택 해제) 수행됨
     };
 
@@ -1628,6 +1692,33 @@ window.clearScratchPad   = async () => {
 // ⚠️ Promise를 반환함 — 호출 시 반드시 await 사용: await window._scratchAddAndSave(...)
 // id(선택): 삭제 undo 등 '복원' 경로에서 원본 id 유지용 (Codex 리뷰 — id가 바뀌면
 //           이동/리사이즈 history의 지오메트리 스냅샷이 아이템을 못 찾아 undo 체인이 끊김)
+/* ★A1 — 선택상자의 캔버스 대상: 섹션 + 섹션 안 «최상위» 블럭 + 섹션에 떠 있는 블럭.
+   el = 고를 것(toggleBlockSelect 가 받는 것) · box = 잴 상자(글자는 래퍼가 보이는 상자다). 갭은 뺀다(보이지 않는 여백).
+   숨은 것(숨은 시안 = display:none 포함)은 «렌더 면적 0» 으로 시작 캐시에서 거른다 — 숨김 술어를 베끼지 않는다
+   (⛔variant-ship-leak V4: 술어를 아는 파일 명부는 «배송·표시» 셋뿐이어야 한다).
+   ⚠️합쳐 넣은 상자(.section-merged-part) «안»의 블럭은 이번 판에선 대상이 아니다(상자째 섹션의 몸이라 — 보고에 적음). */
+function _marqueeCanvasTargets() {
+  const out = [];
+  const live = (el) => !!el && el.isConnected !== false;
+  document.querySelectorAll('#canvas > .section-block').forEach(sec => {
+    if (!live(sec)) return;
+    out.push({ kind: 'section', el: sec, sec, box: sec });
+    const add = (el, box) => { if (el && live(el) && !el.classList.contains('gap-block')) out.push({ kind: 'block', el, sec, box: box || el }); };
+    const inner = sec.querySelector(':scope > .section-inner');
+    [...(inner?.children || [])].forEach(ch => {
+      if (ch.classList.contains('row')) {
+        ch.querySelectorAll(':scope > *, :scope > .col > *').forEach(b => { if (window.hasPanelForBlock?.(b)) add(b); });
+      } else if (ch.matches?.('.frame-block[data-text-frame="true"]')) add(ch.querySelector(':scope > .text-block'), ch);
+      else if (ch.classList.contains('frame-block') || window.hasPanelForBlock?.(ch)) add(ch);
+    });
+    [...sec.children].forEach(ch => {      // 섹션에 떠 있는 것(오버레이·줌)
+      if (ch.matches?.('[data-overlay-block="true"][data-text-frame="true"]')) add(ch.querySelector(':scope > .text-block'), ch);
+      else if (ch.matches?.('[data-overlay-block="true"], .zoom-block')) add(ch);
+    });
+  });
+  return out;
+}
+
 /* C1 — 에셋 블럭을 스크래치로 «이동»(위 drop 이 부른다). 성공하면 새 항목, 아니면 null. */
 function _moveAssetToScratch(ab, clientX, clientY) {
   if (ab.dataset.assetType === 'video-pending') { window.showToast?.('⚠️ 영상 확정 전 에셋은 옮길 수 없어요'); return null; }

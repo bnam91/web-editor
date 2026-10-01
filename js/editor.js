@@ -2270,6 +2270,11 @@ document.addEventListener('keydown', e => {
     } else if (_sectionOnlySelection()) {
       /* 섹션 합치기 (section-merge.js) — 「바로 위 섹션과 하나로」 */
       window.mergeSelectedSectionUp?.();
+    } else if (document.querySelector('#canvas .section-block.multi-selected')) {
+      /* ★A1(2026-10-01) — 선택상자로 섹션과 블럭이 «같이» 잡히면 위 갈래가 «해당 없음»이라 아무 일도 안 났다(먹통처럼 보인다).
+         갈래는 안 고치고 «왜 안 되는지»를 말한다. (섹션을 «여러 개» 고른 표식 multi-selected 로 가른다 — 블럭 하나만
+         고른 평소 상태는 부모 섹션도 .selected 라, 그걸로 가르면 엉뚱한 때 토스트가 뜬다.) */
+      window.showToast?.('섹션과 블럭이 같이 골라져 있어 합칠 수 없어요 — 섹션만 골라 주세요');
     }
     return;
   }
