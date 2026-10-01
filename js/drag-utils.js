@@ -234,6 +234,47 @@ function findFlowAnchorSelected(root, scoped) {
 }
 
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
+/* ★자유배치 프레임 «안»의 흐름 row 를 좌표 단위로 세운다 (B2, 현빈 2026-10-01 「프레임 안에서는 되어야 되지 않나?」).
+ * 무엇이 문제였나: 패널로 넣은 컴포넌트(그리드·로렐·카드·스텝 등 공용 삽입 경로 15종)는 insertAfterSelected 가
+ *   자유배치 프레임에 «absolute 아닌 .row» 째 붙였다. 드래그 문(block-drag.js 「프레임 자유배치」 갈래)은
+ *   position!=='absolute' 이면 빠지므로 좌표 이동이 «아예» 안 됐다. (끌어다 넣은 것은 드롭이 absolute 로 바꿔서 됐다.)
+ * 무엇을 하나: row «째» absolute 로 세운다 — 목업이 이미 쓰는 꼴(absolute row = 드래그 대상, block-drag.js isMockup 갈래)이다.
+ *   ⛔블럭을 row 에서 꺼내지 않는다: 삽입 입구들이 돌려받은 {row, block} 의 row 를 뒤에서 쓰기 때문이다.
+ *   ⛔draggable 을 끈다 — 남으면 HTML5 드래그가 mousemove 를 가로챈다(09-30 줌 실측: 첫 틱 뒤 끊김).
+ * mode: 'stack' = 있는 absolute 자식들 밑으로 쌓는다(새로 넣을 때, 끌어넣기와 같은 규칙: x 0 · 바닥+16)
+ *       'inplace' = 지금 화면 자리 그대로(이미 흐름으로 들어가 있던 옛 것을 처음 끌 때). 부르는 곳 둘이 이 한 함수를 쓴다. */
+function settleRowInFreeFrame(frame, row, mode = 'stack') {
+  if (!frame || !row || row.style.position === 'absolute') return false;
+  if (frame.dataset?.freeLayout !== 'true' || row.parentElement !== frame) return false;
+  // 받는 것 = .row 또는 정본 표(panel-dispatch hasPanelForBlock)의 블럭. 글자 래퍼·도형 래퍼는 제 갈래가 따로 세운다.
+  if (!(row.classList?.contains('row') || window.hasPanelForBlock?.(row))) return false;
+  const fr = frame.getBoundingClientRect();
+  const k = frame.offsetWidth ? (fr.width / frame.offsetWidth) || 1 : 1;   // 캔버스 줌
+  /* ★폭·x 는 row 상자가 아니라 «안의 내용» 기준. row 는 블록 요소라 프레임 폭을 다 먹는다 —
+     그 폭 그대로 세우면 좌우로 움직일 자리가 0 이 된다(실측: 860 프레임에서 x 이동 0). */
+  const kids = row.classList.contains('row') ? [...row.children].filter(c => !c.classList.contains('drop-indicator')) : [];
+  const rr = row.getBoundingClientRect();
+  const box = kids.length
+    ? kids.map(c => c.getBoundingClientRect()).reduce((a, r) => ({ l: Math.min(a.l, r.left), r: Math.max(a.r, r.right) }), { l: Infinity, r: -Infinity })
+    : { l: rr.left, r: rr.right };
+  const w = Math.round((box.r - box.l) / k);
+  let left = 0, top = 0;
+  if (mode === 'inplace') {
+    left = Math.round((box.l - fr.left) / k - (frame.clientLeft || 0));
+    top  = Math.round((rr.top - fr.top) / k - (frame.clientTop  || 0));
+  } else {
+    const bottom = [...frame.children].filter(c => c !== row && c.style.position === 'absolute')
+      .reduce((m, c) => Math.max(m, (parseInt(c.style.top, 10) || 0) + (c.offsetHeight || 0)), 0);
+    top = bottom > 0 ? bottom + 16 : 0;
+  }
+  row.style.position = 'absolute';
+  row.style.left = left + 'px';
+  row.style.top  = top + 'px';
+  if (w && (!row.style.width || row.style.width === '100%')) row.style.width = w + 'px';
+  row.setAttribute('draggable', 'false');
+  return true;
+}
+
 function insertAfterSelected(section, el) {
   // 활성 서브섹션이 있으면 그 안에 삽입 (selected 여부 관계없이)
   // ★도형 래퍼는 그냥 도형 — 활성이어도 그 «안»은 삽입 대상이 아니다(0918 A안, shape-frame.js SSOT).
@@ -257,6 +298,7 @@ function insertAfterSelected(section, el) {
     if (sel) {
       const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
       ref.after(el);
+      window.settleRowInFreeFrame?.(ssInner, el, 'stack');   // B2 — 자유배치 프레임이면 좌표 단위로
     } else {
       /* ★2026-09-23 — 「프레임 «자체»가 오브젝트로 선택된 상태」도 프레임 «안»이다.
        *   옛 판은 여기서 `ssInner.closest('.row').after(el)` 로 «뒤»에 붙였다. 그런데
@@ -274,6 +316,7 @@ function insertAfterSelected(section, el) {
        *   지키는 검사: tests/dom/frame-accepts-component-blocks.dom.spec.js F1(안에 들어간다)
        *                ＋ F2·shape-frame-isolation I1~I3(도형 래퍼는 여전히 뒤 — 짝 검사) */
       ssInner.appendChild(el);
+      window.settleRowInFreeFrame?.(ssInner, el, 'stack');   // B2
     }
     return;
   }
@@ -293,6 +336,7 @@ function insertAfterSelected(section, el) {
       ssRow.after(el);                 // 도형 래퍼·글자 래퍼·배너 외곽 = 최소 단위, 안에 안 넣는다
     } else {
       selSS.appendChild(el);           // 진짜 프레임 = 화면이 약속한 대로 «안»에
+      window.settleRowInFreeFrame?.(selSS, el, 'stack');     // B2
     }
     return;
   }
@@ -763,6 +807,7 @@ export {
   makeLabelItem,
   insertBeforeBottomGap,
   insertAfterSelected,
+  settleRowInFreeFrame,
   effectiveSectionPadX,
   applyBlockFullBleed,
   clearBlockFullBleed,
@@ -790,6 +835,7 @@ window.clearLayerSectionIndicators= clearLayerSectionIndicators;
 window.makeLabelItem              = makeLabelItem;
 window.insertBeforeBottomGap      = insertBeforeBottomGap;
 window.insertAfterSelected        = insertAfterSelected;
+window.settleRowInFreeFrame       = settleRowInFreeFrame;
 window.effectiveSectionPadX       = effectiveSectionPadX;
 window.applyBlockFullBleed        = applyBlockFullBleed;
 window.clearBlockFullBleed        = clearBlockFullBleed;
