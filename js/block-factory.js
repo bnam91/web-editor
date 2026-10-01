@@ -2119,7 +2119,16 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     const _sticky = b => b.closest('.frame-block[data-text-frame]') || shapeFrameOf(b) || b;
     const units = [...new Set(selected.map(_sticky))];
     const floaters = units.filter(u => u.parentElement === sec);
-    const hosts    = units.filter(u => u.parentElement !== sec);
+    /* ★B1(현빈 2026-10-01, 재현 sec_2kril19) — ⇧클릭 범위선택은 프레임 «안의 자식»(예: 가운데 목업)까지 끌어온다
+       (실측: 선택 = [프레임, 목업, 줌]). 그러면 위의 「다른 선택을 품은 컨테이너는 뺀다」가 프레임을 빼서
+       host 가 목업이 되고 거절 토스트만 떴다. ⌘클릭은 됐다(실측) — 갈림은 «선택 방법»이었다.
+       ⇒ host 후보가 흐름 자유배치 프레임의 자식이면 «그 프레임»으로 올려 잡는다. ⇧ 범위선택 자체는 안 건드린다. */
+    const _liftToFrame = u => {
+      if (u.matches?.('.frame-block[data-free-layout]')) return u;
+      const f = u.parentElement?.closest?.('.frame-block[data-free-layout]');
+      return (f && f.dataset.textFrame !== 'true' && f.closest('.section-block') === sec) ? f : u;
+    };
+    const hosts    = [...new Set(units.filter(u => u.parentElement !== sec).map(_liftToFrame))];
     if (floaters.length && hosts.length) {
       const host = (hosts.length === 1 && hosts[0].matches?.('.frame-block[data-free-layout]')
                     && hosts[0].dataset.textFrame !== 'true') ? hosts[0] : null;
