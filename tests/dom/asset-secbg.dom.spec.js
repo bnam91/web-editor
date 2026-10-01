@@ -85,3 +85,14 @@ test('C2-5 ★섹션 색이 불투명이면 색은 안 건드리고(업로드 �
   expect(r.img).toBe(true);
   expect(r.t).toContain('덮고 있어요');
 });
+
+test('C2-6 ★섹션 패널 «상시 한 줄» — 배경색이 불투명하면 «덮고 있다(까닭)»가 보이고, 투명하면 없다', async ({ page }) => {
+  await setup(page);
+  const hint = (bg) => page.evaluate(async ([bg, px]) => {
+    const s = document.getElementById('sG'); s.dataset.bg = bg; s.dataset.bgImg = px; window.applySectionBg?.(s);
+    window.deselectAll?.(); window.selectSection?.(s); await new Promise(r => setTimeout(r, 400));
+    return [...document.querySelectorAll('#panel-right .prop-hint')].map(e => e.textContent).find(t => t.includes('덮고 있습니다')) || null;
+  }, [bg, PX]);
+  expect(await hint('#ffffff')).toContain('배경색이 불투명해서');
+  expect(await hint('rgba(255,255,255,0.5)')).toBeNull();
+});

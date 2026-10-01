@@ -56,6 +56,17 @@ function _showPadXHint(inner, v) {
  *
  * 색은 sec.dataset.bg, 이미지는 sec.dataset.bgImg, 사이즈는 sec.dataset.bgSize에서 읽는다.
  */
+/* ★섹션 색이 «불투명»인가 — 불투명이면 _applySectionBg 규약상 색 층이 그림 위라 배경 이미지를 덮는다.
+   판정은 여기 한 곳(패널 상시 한 줄 · 에셋→배경 토스트가 같이 쓴다, 2026-10-01 C2). */
+export function isOpaqueSectionColor(color) {
+  const c = String(color || '').trim().toLowerCase();
+  if (!c || c === 'transparent') return false;
+  const m = c.match(/^rgba\(([^)]+)\)$/);
+  if (m) { const a = parseFloat(m[1].split(',')[3]); return !(a < 1); }
+  return true;
+}
+window.isOpaqueSectionColor = isOpaqueSectionColor;
+
 function _applySectionBg(sec) {
   /* ★체크 배경(빈 이미지 자리) — 무늬는 CSS 한 자리(.sec-bg-empty)가 준다.
      ⛔인라인으로 박지 마라: 저장본(.gdt)·배송 HTML 에 무늬가 그대로 실린다
@@ -179,6 +190,8 @@ async function showSectionProperties(sec) {
       </select>
     </div>
     <button class="prop-action-btn secondary" id="sec-bg-pos-btn" style="margin-top:6px;">${sec._secBgEditing ? '위치 편집 완료' : '위치 편집'}</button>
+    ${isOpaqueSectionColor(sec.dataset.bg) ? `<!-- ★상시 한 줄(지디 2026-10-01) — 토스트는 «방금 한 일»의 답, 이 줄은 «지금 상태»의 답. 증상이 아니라 «까닭»을 말한다. -->
+    <div class="prop-hint" style="font-size:11px;color:#888;margin-top:6px;">배경색이 불투명해서 이 이미지를 덮고 있습니다 — 배경색 투명도를 낮추면 보입니다.</div>` : ''}
     <!-- C2 역방향(2026-10-01) — 배경 이미지를 스크래치패드로 «복사». 배경은 그대로 남는다. -->
     <button class="prop-action-btn secondary" id="sec-bg-to-scratch" style="margin-top:4px;">스크래치로 보내기</button>
     <button class="prop-action-btn danger" id="sec-bg-img-remove" style="margin-top:4px;">이미지 제거</button>

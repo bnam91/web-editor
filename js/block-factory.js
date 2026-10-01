@@ -5303,9 +5303,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     /* ★섹션 «색»은 안 건드린다 — applySectionBg 규약상 색 층이 그림 «위»라 불투명 색이면 그림이 가려진다
        (업로드 길과 같은 «의도된 동작», prop-section.js _applySectionBg 머리말). 그대로 두면 「눌렀는데 안 된다」로
        읽히므로 «왜 안 보이는지와 푸는 법»을 같이 말한다(2026-10-01 실측: data-bg #ffffff 섹션에서 그림이 안 보였다). */
-    const _c = String(sec.dataset.bg || '').trim().toLowerCase();
-    const _rgba = _c.match(/^rgba\(([^)]+)\)$/);
-    const _opaque = !!_c && _c !== 'transparent' && !(_rgba && parseFloat(_rgba[1].split(',')[3]) < 1);
+    const _opaque = !!window.isOpaqueSectionColor?.(sec.dataset.bg);   // 판정은 prop-section.js 한 곳
     window.showToast?.('섹션 배경으로 넣었어요 — 블럭은 그대로 남습니다. 배경은 크기·위치만 가져서 크롭·색보정 같은 이미지 효과는 배경에 실리지 않아요.'
       + (_opaque ? ' ⚠️지금 섹션 배경색이 불투명해서 그림을 덮고 있어요 — 배경색 투명도를 낮추면 보입니다.' : ''));
   });
