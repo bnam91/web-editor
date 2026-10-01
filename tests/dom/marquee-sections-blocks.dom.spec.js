@@ -27,6 +27,12 @@ async function setup(page, { zoom } = {}) {
     if (zoom) window.applyZoom?.(zoom);
     document.getElementById('qA').scrollIntoView({ block: 'start' }); }, [SECS, zoom || 0]);
   await page.waitForTimeout(300);
+  /* ★가로도 맞춘다 — 200% 면 캔버스(1720)가 보이는 영역(1220)보다 넓어 «캔버스 왼쪽 바닥»이 화면 밖이다(실측: 시작점 -142).
+     사람도 가로 스크롤로 바닥을 보이게 한 뒤 끈다 ⇒ 캔버스 왼끝을 보이는 영역 왼쪽 200px 안쪽에 둔다.
+     ⛔배율을 건 «직후»에 맞추면 applyZoom 의 비동기 가운데 맞추기가 덮어쓴다(실측) — 기다린 «뒤»에 맞춘다. */
+  await page.evaluate(() => { const wrap = document.getElementById('canvas-wrap');
+    wrap.scrollLeft += document.getElementById('canvas').getBoundingClientRect().left - (wrap.getBoundingClientRect().left + 200); });
+  await page.waitForTimeout(150);
 }
 /* model(캔버스) 좌표 → 화면 좌표. 상자를 «캔버스 기준»으로 적어 줌이 바뀌어도 같은 상자를 그린다. */
 const toScreen = (page, mx, my) => page.evaluate(([mx, my]) => {
@@ -145,9 +151,12 @@ test('Q9 숨은 시안(data-variation-active="0" = display:none)은 상자가 �
   expect(await page.evaluate(() => document.getElementById('qB').classList.contains('selected'))).toBe(false);
 });
 
-for (const z of [0.5, 2]) {
-  test(`Q7${z === 0.5 ? 'a' : 'b'} ★줌 ${z * 100}% 에서도 «캔버스 기준 같은 상자»가 같은 것을 고른다(Q2 와 같은 결과)`, async ({ page }) => {
+/* ⚠️정정(2026-10-02 태양) — 옛 판은 [0.5, 2] 를 넘겼는데 applyZoom 은 «퍼센트»(10~400)를 받는다 ⇒ 둘 다 하한 10% 로 잘려
+ *   «50%·200% 를 잰다»는 제목이 거짓이었다(실제론 10% 두 번). 퍼센트로 고치고, 걸린 배율을 단언으로 박는다. */
+for (const z of [50, 200]) {
+  test(`Q7${z === 50 ? 'a' : 'b'} ★줌 ${z}% 에서도 «캔버스 기준 같은 상자»가 같은 것을 고른다(Q2 와 같은 결과)`, async ({ page }) => {
     await setup(page, { zoom: z });
+    expect(await page.evaluate(() => window.currentZoom), '전제 — 그 배율이 «정말» 걸렸다(옛 판은 10% 로 잘렸다)').toBe(z);
     const d = await marquee(page, 80, 560, 200);
     expect(d.hit).toEqual(['abQ']);
     expect((await sel(page)).blocks).toEqual(['abQ']);
