@@ -343,6 +343,9 @@ function bindPlacementDrag(unitEl, block) {
     dragState.dragSrc = unitEl;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
+    /* C1(2026-10-01) — 에셋이면 «에셋 블럭이다» 표식 타입을 싣는다. 섹션 밖(스크래치 바닥)에 놓으면 스크래치패드가
+       이 타입으로 알아보고 «이동»을 받는다(scratch-pad.js). dragover 에선 값은 못 읽고 «타입»만 보인다 — 그래서 타입으로 싣는다. */
+    if (block.classList.contains('asset-block') && block.id) e.dataTransfer.setData('application/x-goditor-asset-block', block.id);
     // ghost 이미지 투명 처리 (zoom 왜곡 방지)
     const ghost = document.createElement('div');
     ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';

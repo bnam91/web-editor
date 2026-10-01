@@ -9,6 +9,18 @@ import { parseGoyaAssetUrl, makeElectronAssetReader } from './io/goya-asset-inli
 
 const SCRATCH_DB_NAME = 'ScratchPadDB';
 const SCRATCH_STORE   = 'scratch';
+/* ★스크래치 항목이 «저장·옮겨 다니는» 칸 — 이 목록 «하나»에서 파생시킨다(2026-10-01 C1).
+ *   무엇이 문제였나: 같은 칸 목록이 «일곱 자리»(저장·전환·매니페스트 쓰기·읽기·불러오기·가져오기·삭제 복원)에
+ *   손으로 따로 적혀 있었다. 칸 하나(효과 fx)를 더하려면 일곱 곳을 다 고쳐야 했고, 하나라도 빠지면
+ *   «그 길로만» 효과가 조용히 사라진다(명부가 둘이면 한쪽이 조용히 늙는다 — 경고 주석으로는 못 막는다).
+ *   ⇒ 칸을 늘릴 땐 여기만 고친다. 일부러 «빼는» 자리는 _pickScratch 의 omit 으로 «그 자리에서» 까닭과 함께 적는다.
+ *   fx = 에셋에서 빼 온 이미지 효과(image-handling.js captureAssetFx). 없으면 undefined. */
+const SCRATCH_ITEM_KEYS = ['src', 'x', 'y', 'w', 'id', 'g', 'linkDy', 'fx'];
+function _pickScratch(o, omit = []) {
+  const out = {};
+  for (const k of SCRATCH_ITEM_KEYS) if (!omit.includes(k)) out[k] = o ? o[k] : undefined;
+  return out;
+}
 let _db = null;
 let _currentProjectId = null;
 let _currentPageId = null;
@@ -82,7 +94,7 @@ async function _saveScratch() {
   if (!key) return; // projectId 없으면 저장 스킵
   const db   = await _openDB();
   // 스냅샷을 await 전에 미리 찍어서 비동기 구간 중 배열 변경 영향 차단
-  const data = _scratchItems.map(({ src, x, y, w, id, g, linkDy }) => ({ src, x, y, w, id, g, linkDy }));
+  const data = _scratchItems.map(s => _pickScratch(s));
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
     tx.objectStore(SCRATCH_STORE).put(data, key);
@@ -140,7 +152,7 @@ async function externalizeScratchpad(proj, projectId) {
         }
         if (url) { src = url; changed = true; }
       }
-      manifest.push({ id: it.id, src, x: it.x, y: it.y, w: it.w, g: it.g, linkDy: it.linkDy });
+      manifest.push({ ..._pickScratch(it), src });
     }
     page.scratchpad = manifest; // URL+좌표 경량(base64 인라인 아님)
     if (changed) {
@@ -164,7 +176,7 @@ async function flushScratchForSwitch() {
   const wasLoaded = _scratchLoaded;
   const key  = _getScratchKey(_currentProjectId, _currentPageId);
   // ★스냅샷은 배열 클리어 '전에' 동기 확보 — 안 그러면 빈 배열이 저장돼 데이터 유실
-  const data = _scratchItems.map(({ src, x, y, w, id, g, linkDy }) => ({ src, x, y, w, id, g, linkDy }));
+  const data = _scratchItems.map(s => _pickScratch(s));
   _clearSelection();
   _scratchItems.forEach(s => s.el.remove()); // 동기 제거 — 캔버스 클리어와 같은 턴에 잔상 소멸
   _scratchItems = [];
@@ -249,7 +261,8 @@ function _removeItem(item) {
 function _deleteScratchItemsWithHistory(items) {
   if (!items || items.length === 0) return;
   // 삭제 전 정보 캡쳐 (복원용) — src/x/y/w/id/g 보존
-  const snapshots = items.map(s => ({ src: s.src, x: s.x, y: s.y, w: s.w, id: s.id, g: s.g }));
+  // ⚠️linkDy 는 빼 왔다(옛 동작 그대로). fx 는 담는다 — 지운 항목을 ⌘Z 로 되살릴 때 효과도 돌아와야 한다.
+  const snapshots = items.map(s => _pickScratch(s, ['linkDy']));
 
   // 실제 삭제
   items.forEach(s => {
@@ -267,7 +280,7 @@ function _deleteScratchItemsWithHistory(items) {
     window.pushHistory?.('스크래치 삭제', {
       onUndo: async () => {
         for (const s of snapshots) {
-          try { await window._scratchAddAndSave?.(s.src, s.x, s.y, s.w, s.g, s.id); } catch (_) {}
+          try { await window._scratchAddAndSaveFx?.(s.src, s.x, s.y, s.w, s.g, s.id, s.fx); } catch (_) {}
         }
       },
       onRedo: async () => {
@@ -368,7 +381,7 @@ async function _sliceItem(item, ratio, vert) {
   const dispH = item.w * (natH / natW);
   const GAP = 6; // 분리 간격 (px, 캔버스 좌표계)
 
-  const restoreInfo = { src: item.src, x: item.x, y: item.y, w: item.w, id: item.id };
+  const restoreInfo = _pickScratch(item, ['g', 'linkDy']);   // 옛 동작대로 g·linkDy 는 빼고, fx 는 담는다(되살리면 효과도)
 
   // 조각 배치 계산 — 가로컷: 같은 폭으로 위/아래, 세로컷: 폭을 비율대로 나눠 좌/우
   let pieces;
@@ -406,7 +419,7 @@ async function _sliceItem(item, ratio, vert) {
         // 두 조각 제거 + 원본 복원 (원본 id 유지)
         if (topId) { try { await window._scratchRemoveById?.(topId); } catch (_) {} }
         if (botId) { try { await window._scratchRemoveById?.(botId); } catch (_) {} }
-        try { await window._scratchAddAndSave?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, undefined, restoreInfo.id); } catch (_) {}
+        try { await window._scratchAddAndSaveFx?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, undefined, restoreInfo.id, restoreInfo.fx); } catch (_) {}
       },
       onRedo: async () => {
         // 복원된 원본 제거 + 두 조각 재생성 (조각 id도 최초 슬라이스 때 id 유지, 가로/세로 배치 동일 재현)
@@ -570,7 +583,7 @@ async function _srcToPngDataUrl(src) {
   });
 }
 
-function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg) {
+function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
   const scaler = document.getElementById('canvas-scaler');
   if (!scaler) return null;
 
@@ -1038,7 +1051,7 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg) {
       // (pointer-events:none을 commit 전까지 유지해야 elementFromPoint가 underneath 캔버스를 잡음)
       let committed = false;
       // Undo 복원용 — 변환 전에 캡쳐 (id 포함 — 복원 시 원본 id 유지해야 이동 undo 체인 안 끊김)
-      const restoreInfo = { src: item.src, x: item.x, y: item.y, w: item.w, id: item.id };
+      const restoreInfo = _pickScratch(item, ['g', 'linkDy']);   // 옛 동작대로 g·linkDy 는 빼고, fx 는 담는다(되살리면 효과도)
       // 이미지 자연 비율 (insert/append 케이스용)
       const imgEl = item.el.querySelector('img');
       const natW = imgEl?.naturalWidth || 0;
@@ -1047,6 +1060,7 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg) {
       if (isSingleDrag && hasMoved) {
         try {
           committed = commitScratchDropAt(lastClientX, lastClientY, item.src, {
+            fx: item.fx,   // C1 — 에셋에서 빼 온 항목이면 효과째 되돌아간다
             naturalWidth: natW,
             naturalHeight: natH,
             /* ★「스크래치패드에서 보이던 폭」 (현빈 신고 2026-09-20, 0920b-scratch-modal)
@@ -1077,7 +1091,7 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg) {
         try {
           window.pushHistory?.('스크래치→섹션 변환', {
             onUndo: async () => {
-              try { await window._scratchAddAndSave?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, undefined, restoreInfo.id); } catch (_) {}
+              try { await window._scratchAddAndSaveFx?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, undefined, restoreInfo.id, restoreInfo.fx); } catch (_) {}
             },
             onRedo: async () => {
               try { await window._scratchRemoveById?.(restoreInfo.id); } catch (_) {}
@@ -1120,7 +1134,8 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg) {
   // #16 follow — linkDy = 연결된 섹션 top(scaler-local) 기준 y 오프셋. 미연결/미앵커면 undefined.
   //   (refLinks dataset 포맷은 «건드리지 않는다» — 오프셋은 스크래치 아이템 레코드에만 둔다.)
   const item = { el, src, x, y, w, id, g: gArg || undefined,
-                 linkDy: (typeof linkDyArg === 'number' && isFinite(linkDyArg)) ? linkDyArg : undefined };
+                 linkDy: (typeof linkDyArg === 'number' && isFinite(linkDyArg)) ? linkDyArg : undefined,
+                 fx: (fxArg && typeof fxArg === 'object') ? fxArg : undefined };
   _scratchItems.push(item);
 
   // native HTML5 DnD 사용 안 함 — mousedown/move/up 흐름 안에서 모두 처리 (canvas-scratch-drop.js의 export API 호출)
@@ -1158,14 +1173,14 @@ async function _loadScratch(projectId, pageId) {
       const pg = (window.state && Array.isArray(window.state.pages)) ? window.state.pages.find(p => p.id === pageId) : null;
       const manifest = pg && Array.isArray(pg.scratchpad) ? pg.scratchpad : null;
       if (manifest && manifest.length) {
-        items = manifest.map(m => ({ src: m.src, x: m.x, y: m.y, w: m.w, id: m.id, g: m.g, linkDy: m.linkDy }));
+        items = manifest.map(m => _pickScratch(m));
         hydrated = true;
       }
     }
     let migrated = false;
-    items.forEach(({ src, x, y, w, id, g, linkDy }) => {
+    items.forEach(({ src, x, y, w, id, g, linkDy, fx }) => {
       if (!id) migrated = true; // 구 데이터엔 id 없음 — 자동 생성 후 재저장 트리거
-      _createItem(src, x, y, w, id, g, linkDy);
+      _createItem(src, x, y, w, id, g, linkDy, fx);
     });
     _scratchLoaded = true; // migrated 재저장 전에 완료 마킹 (_saveScratch가 가드하므로)
     if (migrated || hydrated) _saveScratch(); // 하이드레이션분을 로컬 IndexedDB에 영속
@@ -1334,6 +1349,31 @@ async function initScratchPad(projectId, pageId) {
       console.error('[ScratchPad] copy failed:', err);
       window.showToast?.('❌ 이미지 복사 실패: ' + err.message);
     }
+  });
+
+  /* ── C1(현빈 2026-10-01): 에셋을 «섹션 밖»(스크래치 바닥)에 놓으면 스크래치패드로 «이동» ─────────────
+     · 우클릭 「스크래치로 보내기」는 «복사»(블럭이 남는다). 이건 «이동» — 블럭은 섹션에서 빠지고 스크래치로 돌아간다.
+     · ★이미지 효과(크롭·맞춤·회전·모서리·오버레이·그레인·색보정·GIF)를 항목에 fx 로 담아 간다
+       (image-handling.js captureAssetFx). 다시 캔버스로 끌어 넣으면 setAssetImageWithFx 가 효과째 되얹는다.
+     · 알아보는 법: 끄는 쪽(block-drag.js dragstart)이 'application/x-goditor-asset-block' 타입을 싣는다.
+       섹션 «안»이면 손대지 않는다(섹션의 기존 드롭이 받는다).
+     · ⌘Z 한 번 = 이동 한 번 — 캔버스는 push-after 스냅샷, 스크래치 쪽은 sideEffects 로 짝(「스크래치 삭제」와 같은 꼴). */
+  const ASSET_DRAG_TYPE = 'application/x-goditor-asset-block';
+  const _onScratchFloor = (t) => !!t?.closest?.('#canvas-wrap') && !t.closest('.section-block');
+  wrap.addEventListener('dragover', e => {
+    if (!e.dataTransfer.types.includes(ASSET_DRAG_TYPE) || !_onScratchFloor(e.target)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    wrap.classList.add('scratch-drag-over');
+  });
+  wrap.addEventListener('drop', e => {
+    if (!e.dataTransfer.types.includes(ASSET_DRAG_TYPE)) return;
+    wrap.classList.remove('scratch-drag-over');
+    if (!_onScratchFloor(e.target)) return;
+    const ab = document.getElementById(e.dataTransfer.getData(ASSET_DRAG_TYPE) || '');
+    if (!ab?.classList.contains('asset-block')) return;
+    e.preventDefault(); e.stopPropagation();
+    _moveAssetToScratch(ab, e.clientX, e.clientY);
   });
 
   wrap.addEventListener('dragover', e => {
@@ -1588,6 +1628,49 @@ window.clearScratchPad   = async () => {
 // ⚠️ Promise를 반환함 — 호출 시 반드시 await 사용: await window._scratchAddAndSave(...)
 // id(선택): 삭제 undo 등 '복원' 경로에서 원본 id 유지용 (Codex 리뷰 — id가 바뀌면
 //           이동/리사이즈 history의 지오메트리 스냅샷이 아이템을 못 찾아 undo 체인이 끊김)
+/* C1 — 에셋 블럭을 스크래치로 «이동»(위 drop 이 부른다). 성공하면 새 항목, 아니면 null. */
+function _moveAssetToScratch(ab, clientX, clientY) {
+  if (ab.dataset.assetType === 'video-pending') { window.showToast?.('⚠️ 영상 확정 전 에셋은 옮길 수 없어요'); return null; }
+  const src = ab.dataset.imgSrc || ab.querySelector('.asset-img')?.getAttribute('src');
+  if (!src) { window.showToast?.('⚠️ 이미지가 없는 에셋은 스크래치로 옮길 수 없어요'); return null; }
+  const fx = window.captureAssetFx?.(ab) || undefined;
+  const scalerEl = document.getElementById('canvas-scaler');
+  if (!scalerEl) return null;
+  const scale = _getScale();
+  const r = scalerEl.getBoundingClientRect();
+  /* 폭은 우클릭 「스크래치로 보내기」(block-factory.js — 400)와 같은 상한. 에셋 폭(전폭 860)을 그대로 쓰면 스크래치 항목이
+     캔버스를 덮어 다시 집기 어렵다(실측: 되살린 항목 가운데를 누르면 섹션이 눌렸다). 두 길이 다른 크기를 내지 않게 맞춘다. */
+  const w = Math.min(400, Math.round(ab.offsetWidth) || 220);
+  const x = Math.round((clientX - r.left) / scale - w / 2);
+  const y = Math.round((clientY - r.top) / scale - 20);
+  const item = _createItem(src, x, y, w, undefined, undefined, undefined, fx);
+  if (!item) return null;
+  // 캔버스에서 뺀다 — 그 블럭만 든 row 면 row 째(빈 row 를 남기지 않는다)
+  const row = ab.closest('.row');
+  const unit = (row && [...row.querySelectorAll('*')].filter(el => window.hasPanelForBlock?.(el)).length === 1) ? row : ab;
+  unit.remove();
+  _saveScratch();
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+  const id = item.id;
+  try {
+    window.pushHistory?.('에셋 → 스크래치로 이동', {
+      onUndo: async () => { try { await window._scratchRemoveById?.(id); } catch (_) {} },
+      onRedo: async () => { try { await window._scratchAddAndSaveFx?.(src, x, y, w, undefined, id, fx); } catch (_) {} },
+    });
+  } catch (_) {}
+  window.showToast?.('📋 스크래치로 옮겼어요 — 이미지 효과도 같이 갑니다 (⌘Z 되돌리기)');
+  return item;
+}
+window._moveAssetToScratch = _moveAssetToScratch;
+
+/* C1 — 효과(fx)째 되살리는 저장 입구. ⛔_scratchAddAndSave(아래)는 «동결»이다(tests/unit/scratch-paste-dup T-U1-3b ·
+   그 함수의 linkDy 누락은 별건 BL-SPL-01). 그래서 인자를 늘리지 않고 이 입구를 따로 둔다 — fx 를 실어야 하는 복원만 이걸 쓴다. */
+window._scratchAddAndSaveFx = async (src, x, y, w, g, id, fx) => {
+  _createItem(src, x, y, w, id, g, undefined, fx);
+  await _saveScratch();
+};
+
 window._scratchAddAndSave = async (src, x, y, w, g, id) => {
   _createItem(src, x, y, w, id, g);
   await _saveScratch();
@@ -1684,7 +1767,8 @@ window._scratchImportAll = async (newProjectId, scratchBlock) => {
     const store = tx.objectStore(SCRATCH_STORE);
     for (const { pageId, items } of scratchBlock) {
       if (!pageId || !Array.isArray(items) || !items.length) continue;
-      const clean = items.map(({ src, x, y, w, id, g }) => ({ src, x, y, w, id, g }));
+      // ⚠️linkDy 는 빼 왔다(옛 동작 그대로 — 가져온 새 프로젝트엔 그 섹션 연결이 없다는 판단으로 보인다, 까닭 기록 없음)
+      const clean = items.map(it => _pickScratch(it, ['linkDy']));
       store.put(clean, `scratch-pad-${newProjectId}-${pageId}`);
       n++;
     }

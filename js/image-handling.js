@@ -1485,6 +1485,59 @@ window.triggerAssetUpload = triggerAssetUpload;
 window.clearAssetImage    = clearAssetImage;
 window.loadImageToAsset   = loadImageToAsset;
 window.setAssetImageFromSrc = setAssetImageFromSrc;
+
+/* ═══ 에셋 «이미지 효과» 담기·되얹기 (C1, 현빈 2026-10-01 「밖으로 빼서 스크래치로 되돌릴 때 효과는 그대로」) ═══
+ * ★효과 = 블럭에 «얹힌» 것 중 그림과 같이 다녀야 하는 것. 크기·자리(width/height/left/top)는 «넣는 쪽»이 정한다(스크래치 표시폭).
+ *   ① 블럭 dataset — 아래 ASSET_FX_DS_KEYS(실측 전수: image-handling·prop-asset·asset-rotate 가 읽고 쓰는 키)
+ *   ② 모서리(style.borderRadius) ③ 그림 요소의 style(크롭·맞춤이 그려진 결과) + 색보정 값(img.dataset.adj*)
+ *   ④ 오버레이 글자(.asset-overlay 의 style·내용) ⑤ 그레인(.asset-grain)
+ * ★되얹는 순서가 중요하다 — setAssetImageFromSrc 는 ⓐ오버레이·그레인은 «앞서 있던 것»을 보존하고 ⓑ크롭 키(imgW/X/Y/
+ *   imgPosition)는 «지우고» ⓒ그림 요소를 새로 만든다. ⇒ ④⑤는 «넣기 전»에, ①②③은 «넣은 뒤»에 얹는다.
+ *   (HTML 을 통째로 갈아 끼우면 이 함수가 단 지우기·GIF 단추 리스너가 사라져서 그 길은 안 쓴다.) */
+const ASSET_FX_DS_KEYS = ['fit', 'imgX', 'imgY', 'imgW', 'imgPosition', 'imgRotate', 'rotation', 'overlay', 'motion', 'gifSrc'];
+function captureAssetFx(ab) {
+  if (!ab?.classList?.contains('asset-block')) return null;
+  const ds = {};
+  ASSET_FX_DS_KEYS.forEach(k => { if (ab.dataset[k] != null && ab.dataset[k] !== '') ds[k] = ab.dataset[k]; });
+  const img = ab.querySelector('.asset-img');
+  const imgDs = {};
+  if (img) for (const [k, v] of Object.entries(img.dataset)) if (k.startsWith('adj')) imgDs[k] = v;
+  const ov = ab.querySelector(':scope > .asset-overlay');
+  return {
+    v: 1,
+    ds,
+    radius: ab.style.borderRadius || '',
+    img: img ? { style: img.getAttribute('style') || '', ds: imgDs } : null,
+    overlay: (ov && (ov.innerHTML.trim() || ov.getAttribute('style'))) ? { style: ov.getAttribute('style') || '', html: ov.innerHTML } : null,
+    grain: captureAssetGrain(ab),
+  };
+}
+function setAssetImageWithFx(ab, src, fx) {
+  if (!ab || !src) return;
+  if (!fx || typeof fx !== 'object') { setAssetImageFromSrc(ab, src); return; }
+  // ④⑤ 넣기 «전» — setAssetImageFromSrc 가 보존해 준다
+  if (fx.overlay) {
+    let ov = ab.querySelector(':scope > .asset-overlay');
+    if (!ov) { ov = document.createElement('div'); ov.className = 'asset-overlay'; ab.appendChild(ov); }
+    if (fx.overlay.style) ov.setAttribute('style', fx.overlay.style);
+    ov.innerHTML = fx.overlay.html || '';
+  }
+  if (fx.grain && !ab.querySelector('.asset-grain')) restoreAssetGrain(ab, fx.grain);
+  setAssetImageFromSrc(ab, src, fx.ds?.motion === 'gif' ? fx.ds.gifSrc : undefined);
+  // ①②③ 넣은 «뒤»
+  const ds = fx.ds || {};
+  for (const k of ASSET_FX_DS_KEYS) if (ds[k] != null && k !== 'rotation') ab.dataset[k] = ds[k];
+  if (ds.rotation != null) window.applyRotationDeg?.(ab, ds.rotation);
+  if (fx.radius) ab.style.borderRadius = fx.radius;
+  const img = ab.querySelector('.asset-img');
+  if (img && fx.img) {
+    if (fx.img.style) img.setAttribute('style', fx.img.style);
+    Object.assign(img.dataset, fx.img.ds || {});
+    window.restoreImgColorAdjust?.(img);
+  }
+}
+window.captureAssetFx = captureAssetFx;
+window.setAssetImageWithFx = setAssetImageWithFx;
 window.loadVideoToAsset     = loadVideoToAsset;
 window.setAssetVideoFromSrc = setAssetVideoFromSrc;
 window.toggleAssetGifPlayback = toggleAssetGifPlayback;
