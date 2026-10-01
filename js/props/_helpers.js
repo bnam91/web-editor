@@ -422,3 +422,6 @@ ${icon}
         ${id ? `<span class="prop-block-id" title="클릭하여 복사" data-copy-id="${escHtml(id)}">${escHtml(id)}</span>` : ''}
       </div>`;
 }
+
+/* ★window 로도 낸다 — prop-grid.js(그리드 오버레이)가 정적 import 없이 부른다(unit 하네스 대역에 이 이름이 없다). */
+if (typeof window !== 'undefined') window.overlayToggleBtnHTML = overlayToggleBtnHTML;   // Node unit 시험엔 window 가 없다

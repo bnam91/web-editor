@@ -7,7 +7,7 @@ import { parseRatio, buildGridPicker, alignBtn, bindSlider, blockHeaderHTML, dis
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
-         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_MAX_BYTES, gridCellsToDataset,
+         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES,
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
@@ -1084,6 +1084,12 @@ function _grdImageSectionHtml(anyHit, block) {
    *   그래서 placeholder 가 "100" 이다(장식이 아니라 «역할 기본값» — 숫자칸 규약 ⑶). */
   const wpN = Number(line.widthPct);
   const wp = Number.isFinite(wpN) ? wpN : '';
+  /* ★원형(현빈 2026-10-01) — imgShape:'circle' 이면 렌더러가 폭(%)·모서리 반경을 «안 읽는다»(지름 = 높이).
+   *   안 읽는 칸을 그대로 두면 「눌리는데 아무 일도 안 난다」가 된다(이 파일 머리말의 고질) ⇒ 숨기고, 높이는 «지름»으로 부른다.
+   * ⛔사각↔원 «바꾸기» 단추를 이 절에 두지 않는다 — 2026-09-25 현빈 「캔버스에서 다 직관적으로 조작이 가능한거잖아?」로
+   *   이 절의 단추를 «이미지 선택/교체» 하나로 줄였다(grid-img-crop P1 이 잠금). 바꾸기는 캔버스 우클릭
+   *   (#bcm-grid-img-circle — 이미지 줄 위에선 「원형으로/사각으로 바꾸기」)에 있다. 숨긴 칸도 «줄은 남는다»(P1 의 줄 수 4). */
+  const circle = line.imgShape === 'circle';
   /* ★2026-09-25 현빈 — 이 절에 있던 단추 «셋»을 없앴다(「캔버스에서 다 직관적으로 조작이
    *   가능한거잖아?」). ⛔되살리기 전에 «어디로 갔는지»부터 읽어라 — 기능이 죽은 게 아니라
    *   손잡이가 «한 벌»로 합쳐진 것이다. 두 벌이 되면 둘이 따로 늙는다.
@@ -1107,15 +1113,15 @@ function _grdImageSectionHtml(anyHit, block) {
       <div class="prop-row">
         <button id="grd-img-pick-btn" class="prop-btn-full">${line.imgSrc ? '이미지 교체…' : '이미지 선택…'}</button>
       </div>
-      <div class="prop-row">
+      <div class="prop-row"${circle ? ' style="display:none"' : ''}>
         <span class="prop-label" title="칸 안에서 그림이 차지하는 가로 폭(%). 100 이면 정렬이 안 보인다 — 줄일 데가 없어서다. 비우면 100.">폭(%)</span>
         <input type="number" class="prop-number" id="grd-img-width-pct" min="${IMG_MIN_PCT}" max="100" placeholder="100" value="${wp}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">높이(px)</span>
-        <input type="number" class="prop-number" id="grd-img-height" min="0" placeholder="auto" value="${h}">
+        <span class="prop-label">${circle ? '지름(px)' : '높이(px)'}</span>
+        <input type="number" class="prop-number" id="grd-img-height" min="0" placeholder="${circle ? GRID_IMG_CIRCLE_D : 'auto'}" value="${h}">
       </div>
-      <div class="prop-row">
+      <div class="prop-row"${circle ? ' style="display:none"' : ''}>
         <span class="prop-label">모서리 반경(px)</span>
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="0" value="${rad}">
       </div>
@@ -1177,6 +1183,7 @@ function _grdWireImageSection(block, addr) {
   numWire('grd-img-width-pct', 'widthPct', IMG_MIN_PCT, 100);
   numWire('grd-img-height', 'height');
   numWire('grd-img-radius', 'radius');
+
 }
 
 /* ══ 칸 꾸미기 절 — 칸 배경색·안쪽 여백·모서리·«칸 단위» 정렬 ═══════════════
@@ -1897,20 +1904,38 @@ function _grdPadExcludeSectionHtml(block) {
        함정도 거기서 한 번에 다룬다. */
   if (!block.closest('.section-block')) return '';   // 섹션 밖(미리보기 등)에서는 뺄 패딩이 없다
   const on = block.dataset.fullBleed === 'true';
+  /* ★오버레이(플로팅) — 현빈 2026-10-01 「그리드 블럭도 오버레이되는 기능이 필요하다」.
+   *   텍스트·도형·에셋과 «같은 함수»(js/overlay-float.js — 그리드는 posElOf 가 «자기 자신»을 돌려준다).
+   *   토글은 «이 줄 오른쪽 끝»에 둔다(펼친 채 — 숨기지 않는다). ⛔처음엔 에셋처럼 «절 제목줄»을 새로 냈는데 그 한 줄이
+   *     grid-cell-panel-handles G2(패널 순증 합격선 +60)를 +102 로 넘겼다(실측) — 새 줄 대신 있는 줄에 붙여 순증을 0 으로.
+   *     떠 있을 때만 X/Y 줄이 생긴다(에셋과 같은 공용 floatPositionRowHTML). 이 절은 줄바 «아래»라 줄바 밀림과도 무관.
+   *   ⛔떠 있는 동안엔 「좌우 패딩 제외」 줄을 숨긴다 — 떠 있으면 렌더가 그것을 안 건다(grid-block.js renderGridBlock).
+   *     못 거는 자리에 스위치를 두면 「눌리는데 아무 일도 안 난다」(이 파일 머리말 규약).
+   *   ⛔오버레이 함수는 «정적 import 하지 않는다» — window 로 부른다. unit 하네스 여럿(grid-line-add 등)이 이 파일을
+   *     임시 폴더에 «필요한 것만» 복사·대역으로 불러서, import 를 늘리면 모듈 로드가 통째로 실패한다(실측 2026-10-01: 29건).
+   *     그리드는 posElOf 가 «자기 자신»이라 떠 있는지는 dataset 으로 바로 본다. */
+  const floating = block.dataset.overlayBlock === 'true';
   return `
     <div class="prop-section">
       <div class="prop-row" style="align-items:center;gap:6px;">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;${floating ? 'display:none;' : ''}">
           <input type="checkbox" id="grd-use-padx"${on ? ' checked' : ''}>
           <span class="prop-label prop-label--auto"
                 title="섹션 좌우 패딩을 «넘어» 이 그리드만 전폭으로 폅니다 (에셋 블록의 「에셋블록 제외」와 같은 동작)">좌우 패딩 제외 (전폭)</span>
         </label>
+        ${floating ? '<span class="prop-label prop-label--auto">섹션 위에 떠 있음</span>' : ''}
+        <span style="margin-left:auto;"></span>
+        ${window.overlayToggleBtnHTML?.({ id: 'grd-float-toggle', active: floating, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.' }) || ''}
       </div>
+      ${window.floatPositionRowHTML?.({ prefix: 'grd', posEl: block }) || ''}
     </div>`;
 }
 
 /** 배선 — 체크하면 «그 자리에서» 반영된다(저장만 하고 화면이 안 변하면 안 눌린 것처럼 보인다). */
 function _grdWirePadExclude(block) {
+  /* 오버레이 토글·X/Y — 공용 배선(에셋 패널과 같은 함수). 토글 뒤엔 패널을 다시 그린다(패딩 제외 줄 숨김/보임). */
+  window.wireFloatToggle?.({ block, buttonId: 'grd-float-toggle', rerender: () => showGridProperties(block) });
+  window.wireFloatPosition?.({ block, xId: 'grd-x-number', yId: 'grd-y-number' });
   const cb = document.getElementById('grd-use-padx');
   if (!cb) return;
   cb.addEventListener('change', () => {

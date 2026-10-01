@@ -118,6 +118,8 @@ export const GRID_GAP_MAX = 200;
  *   CSS row-gap 은 음수를 «무효»로 버리므로 그리기에선 row-gap:0 + 둘째 줄부터 칸마다 margin-top:<음수> 로 당긴다.
  *   ⛔열 간격·옛 통합 gap 은 그대로 0~ — 열이 겹치는 요청은 없었다. */
 export const GRID_ROW_GAP_MIN = -50;
+/* 원형 이미지 줄의 기본 지름(px) — height 가 없을 때. 우클릭 「원형 이미지 추가」도 이 값으로 넣는다. */
+export const GRID_IMG_CIRCLE_D = 120;
 
 /* ══ 구분선 줄의 «굵기·색» 한계 — T-? (2026-09-30, 현빈 grd_owr55_gql6n0n) ════════
  * ★값은 원래 아래 `line.type === 'divider'` 가지 안에 손으로 박혀 있었다(1·40·#e0e0e0).
@@ -389,7 +391,7 @@ const GRID_NESTED_LINE_TYPE = 'duo';
 /** `_gridLineHtml` 이 읽는 `line.*` — patchCell{lineIndex} 로 줄 수 있는 필드. */
 const GRID_LINE_FIELDS = new Set([
   'align', 'barColor', 'bg', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
-  'gap', 'height', 'imgPosX', 'imgPosY', 'imgSizePct', 'imgSrc', 'italic', 'items',
+  'gap', 'height', 'imgPosX', 'imgPosY', 'imgShape', 'imgSizePct', 'imgSrc', 'italic', 'items',
   'labelColor', 'labelSize', 'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV',
   'radius', 'strike', 'text', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize',
   'weight', 'widthPct',
@@ -1514,6 +1516,22 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
   if (line.type === 'image') {
     const h = Number(line.height) || 0;
     const r = Number(line.radius) || 0;
+    /* ★원형 이미지 줄 (현빈 2026-10-01 「그리드 우클릭으로 이미지 넣잖아 — 원형도. 지금은 사각형인데 정원도 필요」)
+     *   기존 필드로는 정원이 «안» 나온다 — 폭은 칸 대비 %(widthPct), 높이는 px 라 칸 폭이 바뀌면 타원이 된다.
+     *   ⇒ 줄 필드 imgShape:'circle' 하나. 지름 = height(px, 없으면 GRID_IMG_CIRCLE_D), 칸이 좁으면 max-width 로
+     *     줄되 aspect-ratio 1/1 이라 «늘 정원». ⛔widthPct·크롭(imgSizePct/imgPosX/imgPosY)은 원에선 안 읽는다
+     *     (_gridUnreadLineFields 가 ignoredProps 로 되돌려준다 — 거짓 성공 없음).
+     *   ⛔imgShape 가 없으면 이 갈래를 안 탄다 — 아래 사각 산출은 한 글자도 안 바뀐다(grid-img-frame-noop · 골든). */
+    if (line.imgShape === 'circle') {
+      const d = h > 0 ? h : GRID_IMG_CIRCLE_D;
+      const cAlign = _gridAlign(line.align, colAlign);
+      const cAlignCss = cAlign === 'center' ? 'margin-left:auto;margin-right:auto;' : cAlign === 'right' ? 'margin-left:auto;' : '';
+      const box = `width:${d}px;max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${mtCss}`;
+      if (!line.imgSrc) return `<div${addrAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}"></div>`;
+      return `<div${addrAttr} class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;">`
+        + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`
+        + `</div>`;
+    }
     // ★widthPct(T-C, 코너 리사이즈 핸들) — 없으면 100(기존과 바이트 동일).
     const wpRaw = Number(line.widthPct);
     const wp = Number.isFinite(wpRaw) ? Math.max(5, Math.min(100, wpRaw)) : 100;
@@ -1786,12 +1804,18 @@ function renderGridBlock(block) {
   const blockValign = _gridEnum(_GRID_VALIGN, block.dataset.valign) || 'flex-start';
   const cellBorder = _gridCellBorder(block);   // ★T-172 — «블록» 축. 칸 축(pick)과 섞지 않는다.
 
-  block.style.width = '100%';
+  /* ★오버레이(떠 있음)면 폭을 «굳힌 px» 그대로 둔다 — 띄울 때 overlay-float.js _freezeWidth 가 px 로 굳히는데,
+     아래 100% 를 그대로 박으면 다음 렌더(열 간격 등)가 그 폭을 «섹션 전폭»으로 펴 버린다(현빈 2026-10-01 그리드 오버레이).
+     그리고 떠 있는 동안엔 「좌우 패딩 제외」를 안 건다 — 띄울 때 음수 마진을 걷어 두는데(_freezeMargins) 다시 걸면
+     자리가 패딩만큼 밀린다. ⇒ 이 줄의 조건은 «둘»이다(떠 있음 · 패딩 제외). 둘 다 참일 때 = 떠 있음이 이긴다. */
+  const floating = block.dataset.overlayBlock === 'true';
+  if (!floating) block.style.width = '100%';
+  else if (block.dataset.overlayFrozenWidth) block.style.width = block.dataset.overlayFrozenWidth;
   block.style.boxSizing = 'border-box';
   /* ★「좌우 패딩 제외」가 켜져 있으면 폭을 다시 건다 — 위 한 줄이 폭만 100% 로 되돌리고 음수 마진은 남겨서
      다시 그릴 때마다(열 간격 끌기 등) «왼쪽은 붙고 오른쪽만 패딩»이 됐다(현빈 2026-10-01, grd_ts0he_lvy913j).
      꺼져 있으면 이 함수는 아무것도 안 만진다(drag-utils 규약). */
-  window.applyBlockFullBleed?.(block);
+  if (!floating) window.applyBlockFullBleed?.(block);
 
   const colTemplate = cols.map(c => `${Number(c.width) > 0 ? Number(c.width) : 1}fr`).join(' ');
   /* 칸 사이 괘선 — 루프 «밖»에서 한 번 읽는다(칸마다 dataset 을 다시 파싱하지 않는다). */

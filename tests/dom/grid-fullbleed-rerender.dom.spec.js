@@ -18,8 +18,11 @@ async function setup(page, fullBleed) {
     if (fb) { g.dataset.fullBleed = 'true'; window.applyBlockFullBleed(g); }
   }, fullBleed);
 }
-const edges = (page) => page.evaluate(() => { const s = document.getElementById('gS').getBoundingClientRect(), b = document.getElementById('gG').getBoundingClientRect();
-  return { l: Math.round(b.left - s.left), r: Math.round(s.right - b.right) }; });
+/* ★모델 px 로 잰다(화면 px ÷ 배율). 화면 px 로 재면 «기동 뒤 줌 맞추기»가 전·후 측정 사이에 끼는 순간(부하에서만)
+   같은 그리드가 다른 수로 재져 R3 가 흔들렸다(실측 2026-10-01: --repeat-each=8 에서 32 중 2 빨강). */
+const edges = (page) => page.evaluate(() => { const sec = document.getElementById('gS'); const s = sec.getBoundingClientRect(), b = document.getElementById('gG').getBoundingClientRect();
+  const k = s.width / sec.offsetWidth;
+  return { l: Math.round((b.left - s.left) / k), r: Math.round((s.right - b.right) / k) }; });
 
 test('R0 전제 — 「패딩 제외」를 켠 직후엔 좌우가 섹션 끝에 붙는다', async ({ page }) => {
   await setup(page, true);

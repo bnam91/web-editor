@@ -11,6 +11,14 @@
  *   «최소 스텁」으로 채우고, grid-block.js·grid-cell-resize.js·prop-grid.js 는 «실물 그대로»
  *   같은 상대경로 모양의 임시 트리에 복사해 로드한다(경로를 손대지 않으니 import 재작성 0건).
  *
+ * ⚠️★이 하네스는 «실물의 축소 복사»다 — prop-grid.js 가 import 를 «하나» 늘리면(그 파일이 여기 복사·스텁 목록에 없으면)
+ *   모듈 로드가 통째로 실패해 이 파일의 시험 «전부»가 빨개진다(ERR_MODULE_NOT_FOUND / 없는 이름 import).
+ *   실측 2026-10-01: prop-grid.js → '../overlay-float.js'·_helpers.js overlayToggleBtnHTML 를 import 하자 이 파일 28건 «전부» 빨강(+ 이 계열 검사를 하위 프로세스로 도는 grid G5 1건 = unit 전수 29건).
+ *   그때 피한 방법 = 소스 쪽에서 overlay-float.js·_helpers.js 가 window 로도 내보내고(`typeof window` Node 가드),
+ *     prop-grid.js 는 window.xxx?.() 로 부른다(js/props/prop-grid.js _grdPadExcludeSectionHtml 머리말).
+ *   ⛔이 우회가 쌓이면 하네스와 실물이 멀어진다 — 하네스가 재는 prop-grid 와 앱의 prop-grid 가 «다른 그래프»가 된다.
+ *     ★세 번째 우회가 필요해지면 그때는 우회하지 말고 이 하네스(복사·스텁 목록)를 고쳐라. (지금까지 1번 · 태양 · 2026-10-01)
+ *
  * ★0줄 계약 양성/음성대조 — 이 계약은 이 파일 이전엔 «어느 테스트도» 재지 않았다(전수 grep 0건).
  *   「초록 ≠ 가드가 지킨다」 원칙대로 «변이 사본»으로 실제로 갈리는지 확인한다.
  *   ★★2026-09-26 그 계약이 «옮겨졌다» — 「칸 하나라도 비면 거절」 → 「블럭의 모든 칸이 비면 거절」

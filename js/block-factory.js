@@ -21,7 +21,7 @@ import {
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame,
          growFrameToFitChildren } from './frame-geometry.js';
-import { getGridModel, GRID_NESTED_LINE_TYPE } from './blocks/grid-block.js';
+import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
 import { isImageMemoHost, getImageMemo, setImageMemo, openImageMemoEditor } from './image-memo.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, topLevelBlocksOf, isEmptyShell } from './shape-frame.js';
@@ -5239,6 +5239,15 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     if (gridNestedItem) {
       gridNestedItem.style.display = _targetGridAddr ? 'flex' : 'none';
     }
+    /* 원형 이미지 — 같은 판정. 누른 자리가 «이미지 줄»이면 그 줄의 모양을 바꾸는 손잡이가 된다(패널엔 두지 않는다 —
+       prop-grid.js _grdImageSectionHtml 의 ⛔주석: 2026-09-25 현빈 결정으로 그 절의 단추는 하나뿐). */
+    const gridImgCircleItem = document.getElementById('bcm-grid-img-circle');
+    if (gridImgCircleItem) {
+      gridImgCircleItem.style.display = _targetGridAddr ? 'flex' : 'none';
+      const lbl = document.getElementById('bcm-grid-img-circle-label');
+      const ln = _targetGridAddr ? _gridLineAt(block, _targetGridAddr) : null;
+      if (lbl) lbl.textContent = ln?.type === 'image' ? (ln.imgShape === 'circle' ? '사각으로 바꾸기' : '원형으로 바꾸기') : '원형 이미지 추가';
+    }
 
     const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
     const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
@@ -5412,6 +5421,41 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     });
     window.grdToastImgFail?.(res);
   });
+
+  /* ★「원형 이미지 추가」(현빈 2026-10-01) — 늘 «새 줄»: 누른 줄 뒤(줄 위에서 눌렀으면 그 뒤, 빈 칸이면 «이미지 추가»와 같은 자리).
+     빈 원 슬롯으로 넣는다(「이미지 추가」의 새 줄 갈래와 같다 — 파일창은 패널 「이미지 선택…」/교체에서). */
+  document.getElementById('bcm-grid-img-circle')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    const addr = _targetGridAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    const ln = _gridLineAt(block, addr);
+    if (ln?.type === 'image' && addr.li != null) {
+      /* 이미지 줄 위 = 모양 바꾸기.
+         · 원으로 = updateGridBlock(검증 길). 높이가 없으면 기본 지름을 같이 준다(높이 auto 인 사각 줄은 지름이 없다).
+         · 사각으로 = imgShape 키를 «지운다». ⛔updateGridBlock 에 null 을 주면 «화면이 안 바뀌는 패치»로 거절된다(실측) —
+           키 삭제는 패널 숫자칸과 같은 길(gridPreviewLine 에 undefined → 저장 때 키가 빠져 옛 산출과 바이트 동일).
+           기록은 updateGridBlock 과 같은 «바꾸기 전» 순서. */
+      if (ln.imgShape !== 'circle') {
+        const patch = { r: addr.r, c: addr.c, lineIndex: addr.li, imgShape: 'circle' };
+        if (!(Number(ln.height) > 0)) patch.height = GRID_IMG_CIRCLE_D;
+        grdToastImgFail(window.updateGridBlock?.(block.id, { patchCell: patch }));
+      } else {
+        window.pushHistory?.();
+        gridPreviewLine(block, addr.r, addr.c, addr.li, { imgShape: undefined });
+        window.scheduleAutoSave?.();
+      }
+      return;
+    }
+    const after = addr.li != null ? addr.li : (addr.afterLi ?? null);
+    grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, after,
+      { type: 'image', imgSrc: '', imgShape: 'circle', height: GRID_IMG_CIRCLE_D }));
+  });
+  /* 그리드 주소 → 그 줄(모델). 없으면 null. (중첩 np 는 이 메뉴가 다루지 않는다 — 바깥 줄만) */
+  function _gridLineAt(block, addr) {
+    try { return getGridModel(block).cells?.[addr.r]?.[addr.c]?.lines?.[addr.li] || null; } catch (_) { return null; }
+  }
 
   document.getElementById('bcm-grid-img')?.addEventListener('click', e => {
     e.stopPropagation();
