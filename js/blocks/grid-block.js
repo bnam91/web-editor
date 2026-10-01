@@ -1804,12 +1804,18 @@ function renderGridBlock(block) {
   const blockValign = _gridEnum(_GRID_VALIGN, block.dataset.valign) || 'flex-start';
   const cellBorder = _gridCellBorder(block);   // ★T-172 — «블록» 축. 칸 축(pick)과 섞지 않는다.
 
-  block.style.width = '100%';
+  /* ★오버레이(떠 있음)면 폭을 «굳힌 px» 그대로 둔다 — 띄울 때 overlay-float.js _freezeWidth 가 px 로 굳히는데,
+     아래 100% 를 그대로 박으면 다음 렌더(열 간격 등)가 그 폭을 «섹션 전폭»으로 펴 버린다(현빈 2026-10-01 그리드 오버레이).
+     그리고 떠 있는 동안엔 「좌우 패딩 제외」를 안 건다 — 띄울 때 음수 마진을 걷어 두는데(_freezeMargins) 다시 걸면
+     자리가 패딩만큼 밀린다. ⇒ 이 줄의 조건은 «둘»이다(떠 있음 · 패딩 제외). 둘 다 참일 때 = 떠 있음이 이긴다. */
+  const floating = block.dataset.overlayBlock === 'true';
+  if (!floating) block.style.width = '100%';
+  else if (block.dataset.overlayFrozenWidth) block.style.width = block.dataset.overlayFrozenWidth;
   block.style.boxSizing = 'border-box';
   /* ★「좌우 패딩 제외」가 켜져 있으면 폭을 다시 건다 — 위 한 줄이 폭만 100% 로 되돌리고 음수 마진은 남겨서
      다시 그릴 때마다(열 간격 끌기 등) «왼쪽은 붙고 오른쪽만 패딩»이 됐다(현빈 2026-10-01, grd_ts0he_lvy913j).
      꺼져 있으면 이 함수는 아무것도 안 만진다(drag-utils 규약). */
-  window.applyBlockFullBleed?.(block);
+  if (!floating) window.applyBlockFullBleed?.(block);
 
   const colTemplate = cols.map(c => `${Number(c.width) > 0 ? Number(c.width) : 1}fr`).join(' ');
   /* 칸 사이 괘선 — 루프 «밖»에서 한 번 읽는다(칸마다 dataset 을 다시 파싱하지 않는다). */

@@ -1904,20 +1904,38 @@ function _grdPadExcludeSectionHtml(block) {
        함정도 거기서 한 번에 다룬다. */
   if (!block.closest('.section-block')) return '';   // 섹션 밖(미리보기 등)에서는 뺄 패딩이 없다
   const on = block.dataset.fullBleed === 'true';
+  /* ★오버레이(플로팅) — 현빈 2026-10-01 「그리드 블럭도 오버레이되는 기능이 필요하다」.
+   *   텍스트·도형·에셋과 «같은 함수»(js/overlay-float.js — 그리드는 posElOf 가 «자기 자신»을 돌려준다).
+   *   토글은 «이 줄 오른쪽 끝»에 둔다(펼친 채 — 숨기지 않는다). ⛔처음엔 에셋처럼 «절 제목줄»을 새로 냈는데 그 한 줄이
+   *     grid-cell-panel-handles G2(패널 순증 합격선 +60)를 +102 로 넘겼다(실측) — 새 줄 대신 있는 줄에 붙여 순증을 0 으로.
+   *     떠 있을 때만 X/Y 줄이 생긴다(에셋과 같은 공용 floatPositionRowHTML). 이 절은 줄바 «아래»라 줄바 밀림과도 무관.
+   *   ⛔떠 있는 동안엔 「좌우 패딩 제외」 줄을 숨긴다 — 떠 있으면 렌더가 그것을 안 건다(grid-block.js renderGridBlock).
+   *     못 거는 자리에 스위치를 두면 「눌리는데 아무 일도 안 난다」(이 파일 머리말 규약).
+   *   ⛔오버레이 함수는 «정적 import 하지 않는다» — window 로 부른다. unit 하네스 여럿(grid-line-add 등)이 이 파일을
+   *     임시 폴더에 «필요한 것만» 복사·대역으로 불러서, import 를 늘리면 모듈 로드가 통째로 실패한다(실측 2026-10-01: 29건).
+   *     그리드는 posElOf 가 «자기 자신»이라 떠 있는지는 dataset 으로 바로 본다. */
+  const floating = block.dataset.overlayBlock === 'true';
   return `
     <div class="prop-section">
       <div class="prop-row" style="align-items:center;gap:6px;">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;${floating ? 'display:none;' : ''}">
           <input type="checkbox" id="grd-use-padx"${on ? ' checked' : ''}>
           <span class="prop-label prop-label--auto"
                 title="섹션 좌우 패딩을 «넘어» 이 그리드만 전폭으로 폅니다 (에셋 블록의 「에셋블록 제외」와 같은 동작)">좌우 패딩 제외 (전폭)</span>
         </label>
+        ${floating ? '<span class="prop-label prop-label--auto">섹션 위에 떠 있음</span>' : ''}
+        <span style="margin-left:auto;"></span>
+        ${window.overlayToggleBtnHTML?.({ id: 'grd-float-toggle', active: floating, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.' }) || ''}
       </div>
+      ${window.floatPositionRowHTML?.({ prefix: 'grd', posEl: block }) || ''}
     </div>`;
 }
 
 /** 배선 — 체크하면 «그 자리에서» 반영된다(저장만 하고 화면이 안 변하면 안 눌린 것처럼 보인다). */
 function _grdWirePadExclude(block) {
+  /* 오버레이 토글·X/Y — 공용 배선(에셋 패널과 같은 함수). 토글 뒤엔 패널을 다시 그린다(패딩 제외 줄 숨김/보임). */
+  window.wireFloatToggle?.({ block, buttonId: 'grd-float-toggle', rerender: () => showGridProperties(block) });
+  window.wireFloatPosition?.({ block, xId: 'grd-x-number', yId: 'grd-y-number' });
   const cb = document.getElementById('grd-use-padx');
   if (!cb) return;
   cb.addEventListener('change', () => {

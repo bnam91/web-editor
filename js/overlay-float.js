@@ -787,3 +787,10 @@ if (typeof window !== 'undefined') {
   window._bindOverlayMoveDrag = bindFloatMoveDrag;
   window.OverlayFloat = { posElOf, isFloat, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, floatPositionRowHTML };
 }
+
+/* ★window 로도 낸다 — 정적 import 를 늘리면 unit 하네스(축소판 복사)가 깨지는 자리(prop-grid.js 그리드 오버레이)가 부른다. */
+if (typeof window !== 'undefined') {   // Node 에서 직접 불러오는 unit 시험엔 window 가 없다
+  window.wireFloatToggle = wireFloatToggle;
+  window.wireFloatPosition = wireFloatPosition;
+  window.floatPositionRowHTML = floatPositionRowHTML;
+}
