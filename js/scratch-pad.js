@@ -1483,10 +1483,12 @@ async function initScratchPad(projectId, pageId) {
     const items = [...(e.clipboardData?.items || [])].filter(it => it.type.startsWith('image/'));
     if (!items.length) return;
 
-    // 내부 클립보드(섹션)가 더 최근에 복사됐다면 paste 양보 — editor가 섹션 paste 처리
-    const internalT = window._internalClipboardTime || 0;
-    const scratchT  = window._scratchClipboardTime  || 0;
-    if (internalT > scratchT) return;
+    // 고디터 안 복사(섹션·블럭)가 «OS 클립보드 기준으로» 최신이면 양보 — editor 의 ⌘V 가 붙인다.
+    //   판정은 editor.js clipboardPrefersInternal 한 곳(OS 클립보드 글자 대조, 못 쓰면 옛 시각 비교).
+    const prefersInternal = window.clipboardPrefersInternal
+      ? window.clipboardPrefersInternal(e)
+      : (window._internalClipboardTime || 0) > (window._scratchClipboardTime || 0);
+    if (prefersInternal) return;
 
     e.preventDefault();
     // editor.js의 Cmd+V 섹션 paste 핸들러 중복 차단 플래그

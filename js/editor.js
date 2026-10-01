@@ -1532,9 +1532,43 @@ function _isRowFullySelected(row, allTypesSel) {
   return occupants.every(b => b.classList.contains('selected'));
 }
 
+/* ★OS 클립보드 = «가장 최근 복사»의 정답 (현빈 2026-10-01 「카톡·캡처·인터넷 이미지 복사 뒤 붙여넣기가 안 된다 — 피그마처럼」)
+   예전엔 ⌘V 가 «고디터 안 복사 시각» vs «스크래치 이미지 복사 시각»만 견줬다. 바깥 앱 복사는 시각을 안 남겨서,
+   그날 고디터에서 ⌘C 를 한 번이라도 했으면 바깥 이미지는 조용히 버려지고 «예전 블럭»이 붙었다(하네스 재현).
+   ⇒ 피그마처럼 고디터 안 ⌘C 도 OS 클립보드에 «글자»를 쓰고 그 글자를 기억한다. ⌘V 때 OS 클립보드 글자가
+     «내가 쓴 그대로»면 고디터 안 복사가 최신, 다르면(바깥에서 뭔가 복사했다) 바깥이 최신이다.
+   ⚠️렌더러의 navigator.clipboard 는 main.js 권한 처리기가 거절한다 — 기존 다리(electronAPI.clipboardWriteText)를 쓴다.
+     쓰기에 실패하면 _internalClipboardOnOS=false 로 두고 «옛 규칙(시각 비교)»으로 떨어진다(더 나빠지지 않는다). */
+function _internalClipboardTextOf() {
+  const sel = [...document.querySelectorAll('#canvas .selected')];
+  const tops = sel.filter(el => !sel.some(o => o !== el && o.contains(el)));
+  const txt = tops.map(el => (el.innerText || '').trim()).filter(Boolean).join('\n\n').slice(0, 5000);
+  return txt || `고디터 블럭 ${Math.max(1, tops.length)}개`;
+}
+function _writeInternalClipboardToOS() {
+  const text = _internalClipboardTextOf();
+  window._internalClipboardText = text;
+  window._internalClipboardOnOS = false;
+  Promise.resolve(window.electronAPI?.clipboardWriteText?.(text))
+    .then(res => { window._internalClipboardOnOS = !!res?.ok && window._internalClipboardText === text; })
+    .catch(() => { window._internalClipboardOnOS = false; });
+}
+/** ⌘V 의 paste 이벤트에서 «고디터 안 복사»가 이겨야 하나. (scratch-pad 의 paste 처리기가 부른다) */
+function clipboardPrefersInternal(e) {
+  const internalT = window._internalClipboardTime || 0;
+  if (!internalT) return false;
+  if (window._internalClipboardOnOS) {
+    const cur = e?.clipboardData?.getData?.('text/plain');
+    return cur === window._internalClipboardText;      // 내가 쓴 그대로 = 그 뒤에 바깥 복사가 없었다
+  }
+  return internalT > (window._scratchClipboardTime || 0); // OS 에 못 썼으면 옛 규칙
+}
+window.clipboardPrefersInternal = clipboardPrefersInternal;
+
 function copySelected() {
-  // 내부 클립보드(섹션/블록) 복사 timestamp — Cmd+V 시 외부 클립보드(스크래치 이미지)와 우선순위 비교용
+  // 내부 클립보드(섹션/블록) 복사 timestamp — OS 클립보드에 못 썼을 때의 옛 규칙(시각 비교)용
   window._internalClipboardTime = Date.now();
+  _writeInternalClipboardToOS();
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
@@ -2377,20 +2411,13 @@ document.addEventListener('keydown', e => {
       /* ★그리드 «줄» 붙여넣기 (티켓 ⑤) — 줄 클립보드가 비어 있거나 대상이 아니면 거짓이라
          아래 섹션/스크래치 붙여넣기가 종전대로 돈다. */
       if (window.grdPasteLines?.()) return;
-      // 우선순위: 가장 최근 Cmd+C 액션이 내부(섹션) vs 외부(스크래치 이미지) 중 어느 것인지로 분기
-      // 동률(둘 다 0 또는 같은 시각) 시 scratch 우선 — 외부 이미지 paste를 막지 않기 위함
-      const internalT = window._internalClipboardTime || 0;
-      const scratchT  = window._scratchClipboardTime  || 0;
-      if (internalT > scratchT) {
-        // 섹션/블록이 더 최근 → 즉시 섹션 paste, scratch-pad는 양보
+      /* ★누가 최신인지는 여기(keydown)서 못 정한다 — OS 클립보드 «내용»은 뒤따르는 paste 이벤트에만 실려 온다.
+         그래서 언제나 paste 이벤트에 양보하고(scratch-pad 가 clipboardPrefersInternal 로 가른다),
+         그쪽이 이미지를 안 받았을 때만 고디터 안 붙여넣기를 한다. (옛 판: 시각만 보고 여기서 바로 붙였다) */
+      setTimeout(() => {
+        if (window._scratchJustHandledPaste) { window._scratchJustHandledPaste = false; return; }
         pasteClipboard();
-      } else {
-        // scratch 이미지가 더 최근 또는 동률 → paste 이벤트 양보, 처리 안 됐을 때만 fallback
-        setTimeout(() => {
-          if (window._scratchJustHandledPaste) { window._scratchJustHandledPaste = false; return; }
-          pasteClipboard();
-        }, 30);
-      }
+      }, 30);
       return;
     }
     if (e.key === 'x' && !e.shiftKey) {
