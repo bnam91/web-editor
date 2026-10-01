@@ -263,6 +263,7 @@ test('C1 ★fullBleed 식구를 «기계로» 센다 — 다섯째가 오면 빨
     'js/blocks/banner02-block.js',   // 배너2 — 렌더 안에서 적용 (2026-09-10 신규)
     'js/blocks/canvas-block.js',     // 카드  — renderCanvas 가 통합 처리
     'js/blocks/chat-block.js',       // 채팅  — renderChatBlock 안에서 적용
+    'js/blocks/grid-block.js',       // 그리드 — renderGridBlock 안에서 적용 (2026-10-01 — 렌더가 width=100% 를 다시 박아 배너2 와 같은 병이 났다, grd_ts0he_lvy913j)
     'js/props/prop-banner02.js',     // 배너2 패널 (2026-09-10 신규)
     'js/props/prop-chat.js',         // 채팅 패널
     'js/props/prop-frame.js',        // 프레임 — 패널이 «직접» 적용(렌더 함수가 없다) (2026-09-10 신규)
