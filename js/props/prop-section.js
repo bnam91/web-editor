@@ -179,6 +179,8 @@ async function showSectionProperties(sec) {
       </select>
     </div>
     <button class="prop-action-btn secondary" id="sec-bg-pos-btn" style="margin-top:6px;">${sec._secBgEditing ? '위치 편집 완료' : '위치 편집'}</button>
+    <!-- C2 역방향(2026-10-01) — 배경 이미지를 스크래치패드로 «복사». 배경은 그대로 남는다. -->
+    <button class="prop-action-btn secondary" id="sec-bg-to-scratch" style="margin-top:4px;">스크래치로 보내기</button>
     <button class="prop-action-btn danger" id="sec-bg-img-remove" style="margin-top:4px;">이미지 제거</button>
   ` : `
     <button class="prop-action-btn secondary" id="sec-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
@@ -463,6 +465,18 @@ ${blockHeaderHTML({
   const bgImgInput  = document.getElementById('sec-bg-img-input');
   const bgSizeEl    = document.getElementById('sec-bg-size');
   const bgImgRemove = document.getElementById('sec-bg-img-remove');
+  /* C2 역방향 — ⛔style.backgroundImage 로 읽지 마라: lazy 로 내려간 섹션은 'none' 이다(io/lazy-sections.js).
+     정본 dataset.bgImg 를 보낸다. 스크래치는 캔버스 히스토리 밖이라 기록 없음(우클릭 「스크래치로 보내기」와 같다). */
+  document.getElementById('sec-bg-to-scratch')?.addEventListener('click', async () => {
+    const src = sec.dataset.bgImg;
+    if (!src) { window.showToast?.('⚠️ 배경 이미지가 없습니다'); return; }
+    try {
+      await window._scratchAddAndSave?.(src, 40, 40, 400);
+      window.showToast?.('📋 배경 이미지를 스크래치로 보냈어요 (배경은 그대로)');
+    } catch (err) {
+      window.showToast?.('❌ 실패: ' + (err?.message || err));
+    }
+  });
   const bgPosBtnEl  = document.getElementById('sec-bg-pos-btn');
   // 「위치 편집」 = 에셋 더블클릭 편집기를 섹션 배경에 붙인 모드(토글).
   // 예전 enterBgPosDragMode(%-기반 위치만 드래그)는 프레임(.frame-block) 쪽에 그대로 남아 있다.
