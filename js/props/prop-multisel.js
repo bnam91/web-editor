@@ -119,35 +119,46 @@ function _getBoundingBox(geoms) {
 /**
  * 정렬 적용
  */
+/* ★정렬 «계산»은 여기 한 곳 — 자유배치 패널(_applyAlign)과 오버레이 패널(_applyOverlayAlign)이 같이 쓴다.
+   좌표를 «어디에 쓰나»만 종류마다 다르다(자유배치 = style+offsetX/Y · 오버레이 = offsetX/Y · 줌 = x/y). */
+export function alignPositions(geoms, type) {
+  const bb = _getBoundingBox(geoms);
+  return geoms.map(g => {
+    let x = g.x, y = g.y;
+    switch (type) {
+      case 'left':    x = bb.minLeft; break;
+      case 'hcenter': x = Math.round((bb.minLeft + bb.maxRight) / 2 - g.w / 2); break;
+      case 'right':   x = bb.maxRight - g.w; break;
+      case 'top':     y = bb.minTop; break;
+      case 'vcenter': y = Math.round((bb.minTop + bb.maxBottom) / 2 - g.h / 2); break;
+      case 'bottom':  y = bb.maxBottom - g.h; break;
+    }
+    return { x, y };
+  });
+}
+
+/* 균등분배 — 축 위 순서대로 놓고 «양 끝은 제자리», 사이 간격(모서리~모서리)을 똑같이. 셋 미만이면 할 일이 없다. */
+export function distributePositions(geoms, axis) {
+  const out = geoms.map(g => ({ x: g.x, y: g.y }));
+  if (geoms.length < 3) return out;
+  const P = axis === 'h' ? 'x' : 'y', S = axis === 'h' ? 'w' : 'h';
+  const order = geoms.map((g, i) => i).sort((a, b) => geoms[a][P] - geoms[b][P]);
+  const first = geoms[order[0]], last = geoms[order[order.length - 1]];
+  const span = (last[P] + last[S]) - first[P];
+  const total = order.reduce((s, i) => s + geoms[i][S], 0);
+  const gap = (span - total) / (order.length - 1);
+  let cur = first[P];
+  order.forEach(i => { out[i][P] = Math.round(cur); cur += geoms[i][S] + gap; });
+  return out;
+}
+
 function _applyAlign(wrappers, type) {
   const geoms = wrappers.map(_getGeometry);
-  const bb = _getBoundingBox(geoms);
+  const pos = alignPositions(geoms, type);
 
   wrappers.forEach((wrapper, i) => {
-    const g = geoms[i];
-    let newLeft = parseInt(wrapper.style.left) || 0;
-    let newTop  = parseInt(wrapper.style.top)  || 0;
-
-    switch (type) {
-      case 'left':
-        newLeft = bb.minLeft;
-        break;
-      case 'hcenter':
-        newLeft = Math.round((bb.minLeft + bb.maxRight) / 2 - g.w / 2);
-        break;
-      case 'right':
-        newLeft = bb.maxRight - g.w;
-        break;
-      case 'top':
-        newTop = bb.minTop;
-        break;
-      case 'vcenter':
-        newTop = Math.round((bb.minTop + bb.maxBottom) / 2 - g.h / 2);
-        break;
-      case 'bottom':
-        newTop = bb.maxBottom - g.h;
-        break;
-    }
+    const newLeft = pos[i].x;
+    const newTop  = pos[i].y;
 
     wrapper.style.left = newLeft + 'px';
     wrapper.style.top  = newTop  + 'px';
@@ -321,6 +332,93 @@ export function hasFreeLayoutMultiSel() {
 
 window.showFreeLayoutMultiSelPanel = showFreeLayoutMultiSelPanel;
 window.hasFreeLayoutMultiSel = hasFreeLayoutMultiSel;
+
+/* ═══════════════════════════════════
+   OVERLAY(떠 있는 블럭) MULTI-SELECT — «서로» 맞춤 (A2, 현빈 2026-10-01)
+═══════════════════════════════════
+ * 섹션에 떠 있는 블럭(오버레이 래퍼 · 섹션 직속 줌)을 둘 이상 고르면, 캔버스·섹션이 아니라 «고른 것끼리» 맞춘다.
+ * 표준 8개: 좌/가로중앙/우 · 상/세로중앙/하 · 가로 균등 · 세로 균등. 계산은 alignPositions/distributePositions 한 곳.
+ * ⚠️이 갈래가 없을 때: 오버레이 글자는 «흐름 패널»로 가서 정렬이 text-align 만 바꿨다(editor.js _isFlowMultiSelUnit).
+ * 좌표 정본: 오버레이 = dataset.offsetX/Y(overlay-float.js _applyOverlayPos 와 같은 두 칸 + style) · 줌 = dataset.x/y(zoom-block.js _applyZoomPos). */
+const _isSectionHost = (el) => !!el && (el.classList?.contains('section-block') || el.classList?.contains('section-merged-part'));
+function _overlayUnitOf(el) {
+  const w = el.closest?.('[data-overlay-block="true"]');
+  if (w && _isSectionHost(w.parentElement)) return w;
+  if (el.classList?.contains('zoom-block') && _isSectionHost(el.parentElement)) return el;
+  return null;
+}
+/** 고른 것이 «전부» 같은 섹션에 떠 있는 블럭이면 그 단위들(2개 이상), 아니면 null. */
+export function getSelectedOverlayUnits() {
+  const sel = [...document.querySelectorAll('#canvas .selected')]
+    .filter(el => !el.classList.contains('section-block') && !el.classList.contains('section-merged-part'));
+  if (sel.length < 2) return null;
+  const units = [];
+  for (const el of sel) {
+    const u = _overlayUnitOf(el);
+    if (!u) return null;                       // 흐름·프레임 안 블럭이 하나라도 섞이면 이 갈래가 아니다
+    if (!units.includes(u)) units.push(u);
+  }
+  if (units.length < 2) return null;
+  const host = units[0].parentElement;
+  return units.every(u => u.parentElement === host) ? units : null;   // 섹션이 다르면 좌표계가 다르다
+}
+const _isZoomUnit = (u) => u.classList.contains('zoom-block');
+function _overlayGeom(u) {
+  const num = (a, b) => { const v = parseFloat(a); return Number.isFinite(v) ? v : (parseFloat(b) || 0); };
+  return _isZoomUnit(u)
+    ? { x: num(u.dataset.x, u.style.left), y: num(u.dataset.y, u.style.top), w: u.offsetWidth, h: u.offsetHeight }
+    : { x: num(u.dataset.offsetX, u.style.left), y: num(u.dataset.offsetY, u.style.top), w: u.offsetWidth, h: u.offsetHeight };
+}
+function _setOverlayPos(u, x, y) {
+  if (_isZoomUnit(u)) {
+    u.dataset.x = String(Math.round(x)); u.dataset.y = String(Math.round(y));
+    u.style.left = u.dataset.x + 'px';  u.style.top = u.dataset.y + 'px';
+    window.renderZoomBlock?.(u);
+  } else {
+    u.dataset.offsetX = String(Math.round(x)); u.dataset.offsetY = String(Math.round(y));
+    u.style.left = u.dataset.offsetX + 'px';  u.style.top = u.dataset.offsetY + 'px';
+  }
+}
+function _applyOverlay(units, pos, label) {
+  units.forEach((u, i) => _setOverlayPos(u, pos[i].x, pos[i].y));
+  showOverlayMultiSelPanel(units);             // 패널만 다시 그린다(캔버스 불변) — 기록보다 «먼저»(prop-push-after PA-1)
+  window.pushHistory?.(label);                 // push-after (js/CLAUDE.md 히스토리 규약)
+}
+export function showOverlayMultiSelPanel(units = getSelectedOverlayUnits()) {
+  if (!propPanel || !units || units.length < 2) return false;
+  propPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label" style="padding:2px 0 4px;">
+        <div class="prop-block-info">
+          <span class="prop-block-name">${units.length}개 선택됨</span>
+          <span class="prop-breadcrumb">떠 있는 블럭 — 서로 맞춤</span>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Align</div>
+      <div class="prop-row" style="gap:3px;justify-content:space-between;">
+        ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { 'data-ov-align': 'left' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { 'data-ov-align': 'hcenter' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', attrs: { 'data-ov-align': 'right' }, base: 'msp-align-btn' })}
+        <div style="width:1px;background:var(--ui-border);height:20px;flex-shrink:0;"></div>
+        ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', attrs: { 'data-ov-align': 'top' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', attrs: { 'data-ov-align': 'vcenter' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', attrs: { 'data-ov-align': 'bottom' }, base: 'msp-align-btn' })}
+      </div>
+      <div class="prop-row" style="gap:4px;">
+        <button class="prop-btn-sm" data-ov-dist="h" title="가로 간격 균등 (셋 이상)" style="flex:1;"${units.length < 3 ? ' disabled' : ''}>가로 균등</button>
+        <button class="prop-btn-sm" data-ov-dist="v" title="세로 간격 균등 (셋 이상)" style="flex:1;"${units.length < 3 ? ' disabled' : ''}>세로 균등</button>
+      </div>
+    </div>`;
+  propPanel.querySelectorAll('[data-ov-align]').forEach(b => b.addEventListener('click', () =>
+    _applyOverlay(units, alignPositions(units.map(_overlayGeom), b.dataset.ovAlign), '떠 있는 블럭 정렬')));
+  propPanel.querySelectorAll('[data-ov-dist]').forEach(b => b.addEventListener('click', () =>
+    _applyOverlay(units, distributePositions(units.map(_overlayGeom), b.dataset.ovDist), '떠 있는 블럭 균등분배')));
+  return true;
+}
+window.getSelectedOverlayUnits = getSelectedOverlayUnits;
+window.showOverlayMultiSelPanel = showOverlayMultiSelPanel;
 
 /* ═══════════════════════════════════
    FLOW(세로 스택) MULTI-SELECT PANEL  (B15/B18)

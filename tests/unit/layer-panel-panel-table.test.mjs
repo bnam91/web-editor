@@ -217,6 +217,7 @@ const DISPATCH_WHITELIST = {
   showModalIconProperties:     'modal-block «안의 아이콘»을 고른 하위 선택 패널이다. 블럭 단위가 아니라 블럭 «내부» 선택이라 표의 축이 아니다.',
   showFlowMultiSelPanel:       '여러 블럭을 «동시에» 고른 상태의 패널. 단일 블럭 표의 축이 아니다.',
   showFreeLayoutMultiSelPanel: '위와 같음(자유배치 프레임 안의 다중선택).',
+  showOverlayMultiSelPanel:    '위와 같음(섹션에 떠 있는 블럭끼리의 다중선택 — 2026-10-01 A2).',
   showDuoProperties:           'js/props/prop-grid.js 의 showGridProperties «별칭»이다(별도 패널이 아니다). duo 는 로드 때 grid 로 승격된다(js/io/save-load.js) ⇒ grid-block 항목이 이미 덮는다.',
 };
 

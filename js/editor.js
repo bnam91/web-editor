@@ -1128,6 +1128,9 @@ function _countFlowMultiSel() {
    ⇒ 판정은 «선택 전체»로 한다. 흐름 단위가 둘 이상이면 그건 흐름 멀티선택이다.
      (순수 자유배치 선택은 _isFlowMultiSelUnit 이 전부 걸러내 n=0 이라 종전대로 자유배치 패널) */
 function _updateMultiSelPanel(block) {
+  /* ★A2(2026-10-01) — 고른 것이 «전부» 섹션에 떠 있는 블럭이면 «서로 맞춤» 패널. 흐름·자유배치 갈래보다 먼저 잡는다
+     (안 그러면 오버레이 글자가 흐름 패널로 가서 정렬이 text-align 만 바꿨다). 판정·패널 = prop-multisel.js. */
+  if (window.showOverlayMultiSelPanel?.(window.getSelectedOverlayUnits?.())) return;
   const _flowN = _countFlowMultiSel();
   if (_flowN <= 1 && _isInFreeLayout(block)) {
     if (_updateFreeLayoutMultiSelPanel()) return;
