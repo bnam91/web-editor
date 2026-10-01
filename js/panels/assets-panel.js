@@ -468,6 +468,51 @@ async function assetsImportFromGallery(galleryIds, parentId = null) {
   return ids;
 }
 
+/* ── 크게 보기 (C3, 현빈 2026-10-01) ─────────────────────────────────────
+ * 전엔 이미지 카드 더블클릭 = 바로 캔버스에 넣기였고, 섹션을 안 골랐으면 「섹션을 먼저 선택해주세요」 토스트만 떴다.
+ * ⇒ 더블클릭은 «크게 보기». 넣는 일은 «없앤 게 아니라 옮겼다» — 창의 「섹션에 넣기」 단추 = 옛 더블클릭(assetsSendToCanvas).
+ *   드래그 삽입(previewScratchDropAt/commitScratchDropAt)은 그대로다.
+ * ★모양은 새로 안 만든다 — 템플릿 미리보기 창(template-system.js · editor-panels.css .tpl-preview-*)의 클래스를 그대로 쓴다.
+ * ⛔네이티브 모달이 아니다(앱을 멈추지 않는다). Esc · 바깥 클릭 · ✕ 로 닫힌다.
+ * ★노트패널 폴더만이 아니라 에셋 패널의 이미지 카드 «전부»가 같은 줄을 쓴다(같은 카드가 폴더에 따라 다르게 굴지 않게). */
+function _closeAssetPreview() {
+  document.querySelectorAll('.tpl-preview-backdrop.asset-preview').forEach(el => { el._onKey && document.removeEventListener('keydown', el._onKey, true); el.remove(); });
+}
+async function assetsOpenPreview(id) {
+  const f = assetsFindNode(id);
+  if (!f || f.node.type !== 'image') return false;
+  const dataUrl = await assetsGetDataUrl(id);
+  if (!dataUrl) { window.showToast?.('❌ 이미지 로드 실패'); return false; }
+  _closeAssetPreview();
+  const name = String(f.node.name || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const bd = document.createElement('div');
+  bd.className = 'tpl-preview-backdrop asset-preview';
+  bd.innerHTML = `
+    <div class="tpl-preview-modal" role="dialog" aria-label="이미지 크게 보기" style="max-width:min(900px,92vw);">
+      <div class="tpl-preview-header">
+        <div class="tpl-preview-header-info"><span class="tpl-preview-title">${name}</span></div>
+        <button class="tpl-preview-close" title="닫기" aria-label="닫기">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/></svg>
+        </button>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;padding:12px;min-height:120px;">
+        <img class="asset-preview-img" alt="${name}" style="max-width:100%;max-height:70vh;object-fit:contain;display:block;">
+      </div>
+      <div class="tpl-preview-footer">
+        <button class="tpl-preview-insert-btn" data-asset-insert>+ 섹션에 넣기</button>
+      </div>
+    </div>`;
+  bd.querySelector('.asset-preview-img').src = dataUrl;
+  bd.addEventListener('mousedown', e => { if (e.target === bd) _closeAssetPreview(); });
+  bd.querySelector('.tpl-preview-close').addEventListener('click', _closeAssetPreview);
+  bd.querySelector('[data-asset-insert]').addEventListener('click', async () => { _closeAssetPreview(); await assetsSendToCanvas(id); });
+  bd._onKey = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); _closeAssetPreview(); } };
+  document.addEventListener('keydown', bd._onKey, true);
+  document.body.appendChild(bd);
+  return true;
+}
+window.assetsOpenPreview = assetsOpenPreview;
+
 /* ── 캔버스로 보내기 (선택 섹션 끝에) ── */
 async function assetsSendToCanvas(id) {
   const f = assetsFindNode(id);
@@ -1240,7 +1285,7 @@ function _buildGridCard(node) {
       e.dataTransfer.effectAllowed = 'copyMove';
     });
   } else if (node.type === 'image') {
-    card.addEventListener('dblclick', () => assetsSendToCanvas(node.id));
+    card.addEventListener('dblclick', () => assetsOpenPreview(node.id));   // C3 — 바로 넣지 않고 «크게 보기»
     // Assets → Scratch (canvas) + Assets → 다른 폴더(이동) 둘 다 같은 MIME
     card.draggable = true;
     card.addEventListener('dragstart', e => {
