@@ -114,6 +114,8 @@ const CHANNELS = [
     why: '섹션 변형 «복제» — 라이브 캔버스로 들어간다(deselectAll 이 마커를 걷는다)' },
   { file: 'js/tab-system.js', kind: 'transient', axes: ['marker'], strips: null,
     why: '탭 드래그 «고스트» — 드롭과 함께 사라진다' },
+  { file: 'js/section-merge.js', kind: 'transient', axes: ['marker'], strips: null,
+    why: '섹션 분리(D1, 2026-10-01) — 원 섹션의 «툴바» 단추를 본떠 새 섹션 껍데기에 단다. 라이브 캔버스로 들어가는 편집 UI 이고, 내용 클론이 아니다' },
 
   // ── 순회 분모(globTraverseFiles)가 끌어오는 나머지 — «블록 단위»가 아니라
   //    «섹션 outerHTML 통째»를 다룬다. 그래서 빠짐 축이 구조적으로 해당 없다. ────

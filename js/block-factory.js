@@ -5207,6 +5207,10 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     }
     if (memoDelItem) memoDelItem.style.display = hasMemo ? 'flex' : 'none';
 
+    // 섹션 분리(D1) — 누른 블럭이 합쳐 넣은 상자 안일 때만
+    const splitItem = document.getElementById('bcm-section-split');
+    if (splitItem) splitItem.style.display = block.closest('.section-merged-part') ? 'flex' : 'none';
+
     // 그리드 블록 셀 우클릭 → "이미지 추가/교체" (현빈 2026-09-15 요청: 그리드 셀 이미지 지원)
     const gridImgItem = document.getElementById('bcm-grid-img');
     const gridImgLabel = document.getElementById('bcm-grid-img-label');
@@ -5299,6 +5303,13 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     const block = _targetBlock;
     closeMenu();
     if (block) setImageMemo(block, '');
+  });
+
+  document.getElementById('bcm-section-split')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const part = _targetBlock?.closest('.section-merged-part');
+    closeMenu();
+    if (part) window.splitMergedPart?.(part);
   });
 
   // #5-b: 셀 병합 / 병합 해제

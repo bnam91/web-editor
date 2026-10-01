@@ -2273,6 +2273,19 @@ document.addEventListener('keydown', e => {
     }
     return;
   }
+  /* ★⌘⇧M = 섹션 분리(D1, 2026-10-01) — 고른 블럭이 «합쳐 넣은 상자» 안이면 그 상자를 다시 섹션으로.
+     가드는 ⌘M 과 같다(편집 중·미리보기·입력칸이면 안 먹는다). */
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyM' && e.shiftKey && !e.altKey) {
+    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
+    if (document.body.classList.contains('preview-mode')) return;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
+    e.preventDefault();
+    const sel = [...document.querySelectorAll('#canvas .selected')].find(el => el.closest('.section-merged-part'));
+    if (sel) window.splitMergedPart?.(sel.closest('.section-merged-part'));
+    else window.showToast?.('합쳐진 섹션 안의 블럭을 골라 주세요');
+    return;
+  }
 
   if (e.metaKey || e.ctrlKey) {
     if (e.key === '=' || e.key === '+') {
