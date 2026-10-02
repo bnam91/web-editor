@@ -256,8 +256,10 @@ async function doCommit() {
     ]);
     const prevCommits = existingMeta?.commits || proj?.commits || [];
     const newCommits = [...prevCommits, commit].slice(-MAX_COMMITS);
-    const meta = { ...(existingMeta || {}), commits: newCommits, updatedAt: new Date().toISOString() };
-    await window.electronAPI.saveProjectMeta(window.activeProjectId, meta);
+    /* ★«자기 필드만» 보낸다(2026-10-02 meta 경합 d) — 합치기는 main 핸들러가 받는 순간 { ...cur, ...metaData } 로 한다.
+       옛 판은 위에서 읽은 meta «전체»를 같이 보내 그사이 바뀐 다른 필드(썸네일·컬러 변수…)를 «옛 값»으로 되돌렸다.
+       읽기는 «덧붙일 commits» 를 알려고만 쓴다. ⚠️이 함수(doCommit)는 지금 닿지 않는다 — 영향 0, 같은 꼴 정리. */
+    await window.electronAPI.saveProjectMeta(window.activeProjectId, { commits: newCommits, updatedAt: new Date().toISOString() });
   }
 
   document.getElementById('commit-modal-overlay')?.remove();
