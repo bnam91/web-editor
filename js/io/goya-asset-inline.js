@@ -135,8 +135,10 @@ function _eachGoyaHost(scope, visit) {
  * ★클론 굽기 전 준비 — scope 안의 goya-asset 참조를 «미리» data URI 로 풀어 둔다.
  * @param {Element|Document} scope  라이브 DOM 범위(읽기만 한다 — 절대 안 고친다)
  * @param {((projectId:string, filename:string)=>Promise<string|null>)|null} [reader]
- * @returns {Promise<{ total:number, unresolved:string[], apply:(cloneRoot:Element|Document)=>number }>}
+ * @returns {Promise<{ total:number, unresolved:string[], apply:(cloneRoot:Element|Document)=>number,
+ *                     applyAndSettle:(cloneRoot:Element|Document, timeoutMs?:number)=>Promise<number> }>}
  *   apply(cloneRoot) 는 클론에서 «풀린 것만» 갈아끼우고 바꾼 자리 수를 돌려준다(동기).
+ *   ★바로 html2canvas 로 찍을 거면 applyAndSettle — apply 만 하면 느린 기계에서 옛 주소를 찍는다(아래 주석).
  */
 async function prepareGoyaAssetsForClone(scope, reader) {
   const urls = new Set();
@@ -167,6 +169,22 @@ async function prepareGoyaAssetsForClone(scope, reader) {
         const after = before.split(url).join(data);
         if (after !== before) { el.style.backgroundImage = after; n++; }
       });
+      return n;
+    },
+    /* ★apply 하고 «갈아끼운 그림이 실제로 들어설 때까지» 기다린다(2026-10-02 v0.9.5 맥 CI H3 빨강).
+       까닭 — src 를 바꾼 직후엔 img.currentSrc 가 아직 «옛 goya-asset://» 이다(새 그림 로드가 끝나야 바뀐다).
+         html2canvas 1.4.1 은 클론할 때 currentSrc 를 src 로 옮기고(currentSrc!==src 면) 이미지를 currentSrc||src 로 다시 읽는다
+         ⇒ 그 틈에 찍으면 옛 goya-asset 을 읽다 실패해 밑그림이 «통째로» 빠진다. 느린 기계(CI·부하)에서만 난다:
+         CPU 4~40배 늦춤 25판 중 9판 빠짐 — 빠진 9판은 전부 currentSrc=옛 주소, 산 16판은 전부 아님(실측).
+       ⛔영원히 기다리지 않는다 — 한 장이라도 안 풀리면 timeoutMs 뒤 그냥 간다(못 푼 자리만 빠지는 지금과 같은 쪽). */
+    async applyAndSettle(cloneRoot, timeoutMs = 3000) {
+      const imgs = [];
+      _eachGoyaHost(cloneRoot, (el, kind, url) => { if (kind === 'src' && map.has(url)) imgs.push(el); });
+      const n = this.apply(cloneRoot);
+      if (imgs.length) {
+        const wait = Promise.allSettled(imgs.map((el) => (typeof el.decode === 'function' ? el.decode() : Promise.resolve())));
+        await Promise.race([wait, new Promise((r) => setTimeout(r, timeoutMs))]);
+      }
       return n;
     },
   };
