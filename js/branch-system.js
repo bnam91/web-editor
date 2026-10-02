@@ -27,9 +27,11 @@ async function _persistBranchesToFile(store) {
   if (!activeProjectId || !IS_ELECTRON) return;
   try {
     // branches/currentBranch는 _meta.json에만 저장 (proj.json 경량화)
-    const existingMeta = await window.electronAPI.loadProjectMeta(activeProjectId);
+    /* ★«자기 필드만» 보낸다(2026-10-02 meta 경합 b) — 미리 읽지 않는다. 합치기는 main 핸들러({ ...cur, ...metaData }).
+       옛 판은 읽은 meta «전체»를 같이 보내 그사이 바뀐 컬러 변수·썸네일을 «옛 값»으로 되돌렸다.
+       ⚠️지금 닿는 길 = 프로젝트를 열 때 meta 에 브랜치가 없으면 initBranchStore 가 기본 저장소를 만들어 1회 쓰는 것뿐
+         (그 밖 브랜치 동작은 숨은 헤더 버튼·지워진 패널에서만 불린다). */
     const meta = {
-      ...(existingMeta || {}),
       branches: store.branches,
       currentBranch: store.current,
       updatedAt: new Date().toISOString(),
