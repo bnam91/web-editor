@@ -261,8 +261,10 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       }
       // thumbnail은 _meta.json에 저장
       if (thumbnail) {
-        const existingMeta = await window.electronAPI.loadProjectMeta(targetId);
-        await window.electronAPI.saveProjectMeta(targetId, { ...(existingMeta || {}), thumbnail, updatedAt: new Date().toISOString() });
+        /* ★«자기 필드만» 보낸다(2026-10-02 meta 경합 f) — 미리 읽지 않는다. 합치기는 main 핸들러({ ...cur, ...metaData }).
+           옛 판은 읽은 meta «전체»를 같이 보내 그사이 바뀐 컬러 변수·최근 색 등을 «옛 값»으로 되돌렸다.
+           ⛔위 proj.json 저장(saveProject) 줄은 이 변경과 무관하다 — 이 아래 썸네일 meta 줄만. */
+        await window.electronAPI.saveProjectMeta(targetId, { thumbnail, updatedAt: new Date().toISOString() });
       }
       return { ok: true }; // GAP-005: 디스크 영속 성공 시에만 ok:true
     } catch (e) {
