@@ -1381,8 +1381,9 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
     format: formatHex6,
     getCurrent: () => picker.value || '#000000',
     onApply: (v) => { picker.value = v; _bumpAlphaIfHidden(); apply(); },
-    /* ❓컬러 히스토리 — hex 칸에 «쳐서» 확정한 색은 지금 «안 쌓는다»(현빈 결정 ③ 글자: 「색 팝업에서 확정했을 때만」, 2026-10-02).
-       지디는 「쌓는다」 쪽이라 현빈께 물음 — 쌓기로 정해지면 아래 줄 끝에 `; window.DesignSystem?.pushColorHistory?.(picker.value)` 한 줄. */
+    /* ❓컬러 히스토리 — hex 칸에 «쳐서» 확정한 색은 지금 «꺼 둠»(안 쌓는다) · 2026-10-02.
+       까닭: 현빈 결정 ③의 글자는 «색 팝업에서 확정»이다. hex 직접 입력은 지디가 「쌓는 게 맞다」(사용자에겐 둘 다 «색을 정한 것»)고
+       보지만 «현빈 확인 전»이라 꺼 둔다. 켜기로 정해지면 아래 줄 끝에 `; window.DesignSystem?.pushColorHistory?.(picker.value)` 한 줄. */
     onCommit: () => onCommit?.(),
   });
   alpha.addEventListener('input', () => {

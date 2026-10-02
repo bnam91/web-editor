@@ -95,7 +95,11 @@ const DesignSystem = (() => {
   /* ★meta.json «합쳐쓰기»는 이 줄 «하나»로만 한다(2026-10-02 컬러 히스토리와 함께).
      읽고(loadProjectMeta) → 합쳐 → 쓰는(saveProjectMeta) 일이 «따로» 둘 돌면 같은 옛 meta 를 읽어 뒤에 쓴 쪽이 앞을 지운다
      (예: 변수 추가 직후 색 확정 → colorVars 또는 colorHistory 가 사라짐). ⇒ promise 사슬로 «차례대로».
-     ⛔meta 에 무엇을 더 쓰는 셋째가 생기면 새 읽고쓰기를 만들지 말고 이 함수를 불러라. */
+     ★지금 이 줄을 타는 둘 = ⑴_syncColorVarsToMeta(컬러 변수 — setColorVar·removeColorVar 가 부름)
+       ⑵_setColorHistory(최근 쓴 색 — pushColorHistory 가 부름; 열 때 복원은 «안» 쓴다). 둘이 서로 경합하던 상대다.
+     ⛔meta 에 무엇을 더 쓰는 셋째가 생기면 새 읽고쓰기를 만들지 말고 이 함수를 불러라.
+       ⚠️이 파일 «밖»에도 meta 를 쓰는 자리가 7곳 있고 이 줄을 «안» 탄다(2026-10-02 셈): save-load.js 265·400(저장·썸네일)·2063(옛 필드 이전) ·
+         branch-system.js 37 · commit-system.js 260·401 · collab/accept.js 104. 그쪽과 colorVars·colorHistory 사이 경합은 남아 있다(안 고침·보고). */
   let _metaChain = Promise.resolve();
   function _mergeProjectMeta(patch) {
     const pid = window.activeProjectId;

@@ -7,7 +7,7 @@
  *   변이 사본: 상수 8 → H5 빨강 · meta 합쳐쓰기 줄을 «따로 읽고쓰기»로 되돌린 사본 → H8 빨강(커밋 본문에 결과).
  * ★양성대조 판 7699ea33: 기능이 없어 전제에서 지는 «약한» 빨강. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 /* 프로젝트 meta 를 메모리에 두는 가짜 electronAPI — loadProjectMeta 를 일부러 «늦게» 돌려 경합을 드러낸다(H8). */
 const FAKE_META = () => {
@@ -32,15 +32,10 @@ async function setup(page, { meta = false } = {}) {
     window.rebindAll?.();
     document.dispatchEvent(new CustomEvent('colorhistory-changed'));
   }, [meta, `(${FAKE_META.toString()})()`]);
-  /* ⚠️클릭 «전에» 자리가 멈출 때까지 기다린다 — 부하에선 기동 뒤 배율 맞추기가 늦게 끝나 잰 좌표와 누르는 순간 사이에
-     글 블럭이 움직여 클릭이 빗나갔다(실측: 칩 상자를 10초 기다려도 안 생김 · R3 와 같은 병). 150ms 간격 두 번 같으면 멈춘 것. */
-  let r = null;
-  for (let i = 0; i < 40; i++) {
-    const a = await page.evaluate(() => { const b = document.getElementById('tT').getBoundingClientRect(); return [Math.round(b.left + 10), Math.round(b.top + b.height / 2)]; });
-    if (r && a[0] === r[0] && a[1] === r[1]) break;
-    r = a; await page.waitForTimeout(150);
-  }
-  await page.mouse.click(r[0], r[1]);
+  /* ⚠️클릭 «전에» 자리가 멈출 때까지 — 부하에선 기동 뒤 배율 맞추기가 늦게 끝나 잰 좌표와 누르는 순간 사이에 글 블럭이 움직여
+     빗나갔다(실측). 공용 도우미 waitStableRect(_root-harness.js)로 — 같은 병을 세 번 고쳐 묶은 것. */
+  const st = await waitStableRect(page, '#tT');
+  await page.mouse.click(st.left + 10, st.cy);
   /* ⚠️고정 대기(300ms)로 두면 부하에서 패널이 그려지기 «전»에 재서 흔들렸다(실측: --repeat-each=8 에서 72 중 14 빨강 — 전부
      칩 상자·최근 줄이 «아직 없음»). ⇒ 칩 상자가 붙을 때까지 기다린다(기능 탓 아님 — 시험 준비의 타이밍). */
   await page.waitForSelector('#txt-color-chips + .cv-recent-row', { state: 'attached', timeout: 10000 });
