@@ -563,6 +563,12 @@
   flex-shrink: 0;
 }
 .cv-chip-label { white-space: nowrap; }
+/* ── 최근 쓴 색 줄 (현빈 2026-10-02 B안) — 점만, 글자 없음. 기존 .cv-chip-dot(변수 칩)은 무접촉. ──
+   ★점 테두리를 밝게: 최근 칩은 알약 테두리 없이 점뿐이라 어두운 색(#1b1b1b 등)이 어두운 패널에 묻힌다(시안에서 눈으로 찾음).
+   ⚠️칩 폭(20)·사이(4)를 바꾸면 한 줄 개수가 바뀐다 — design-system.js COLOR_HISTORY_MAX 를 같은 법으로 다시 재라. */
+.cv-recent-row { margin-top: 4px; }
+.cv-chip.recent { padding: 0; width: 20px; justify-content: center; }
+.cv-chip.recent .cv-chip-dot { width: 13px; height: 13px; border-color: rgba(255,255,255,0.38); }
 
 /* 공통 버튼 */
 .prop-btn {

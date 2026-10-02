@@ -57,9 +57,23 @@ let _targetInput = null;  // native <input type="color"> being proxied
 let _outsideHandler = null;
 let _els      = null;  // cached [data-el="*"] refs (rebuilt once with popover)
 let _isDragging = false;  // true while user is mid-drag on solid spectrum/hue/alpha
+/* ★컬러 히스토리(최근 쓴 색, 현빈 2026-10-02) — 이번 «열림» 동안 마지막으로 확정(commit)된 «단색» hex.
+   팝업은 끌다가 손을 뗄 때마다 change(commit)를 쏜다(아래 _emitToTarget) — 거기서 바로 쌓으면 더듬는 중간값이 다 쌓인다
+   (결정 ③ 「드래그로 더듬는 중엔 안 쌓는다」). ⇒ 기억만 해 두고 팝업을 «닫을 때» 하나만 쌓는다(_closePicker).
+   그라데이션·이미지 탭 확정은 기억하지 않는다(단색만). 이 팝업은 모든 wireColorField 가 함께 쓰는 한 벌 ⇒ 목록도 하나(결정 ④). */
+let _sessionCommitHex = null;
+let _sessionStartHex = null;   // 열 때의 색 — 닫을 때 hex 가 «그대로»면(투명도만 바꿈 · 열고 안 바꿈) 안 쌓는다
+function _flushColorHistory() {
+  const hex = _sessionCommitHex, start = _sessionStartHex;
+  _sessionCommitHex = null; _sessionStartHex = null;
+  if (hex && String(hex).toLowerCase() !== String(start || '').toLowerCase()) {
+    try { window.DesignSystem?.pushColorHistory?.(hex); } catch (_) {}
+  }
+}
 
 function _closePicker() {
   if (!_pop) return;
+  _flushColorHistory();
   _pop.hidden = true;
   if (_outsideHandler) {
     document.removeEventListener('mousedown', _outsideHandler, true);
@@ -287,6 +301,7 @@ function _emitToTarget(hex, opts) {
   _targetInput.dispatchEvent(new Event('input', { bubbles: true }));
   // commit 이벤트는 명시적 요청 시(마우스업·키보드 confirm)만 발행
   if (opts && opts.commit) {
+    if (!_state || !_state.mode || _state.mode === 'solid') _sessionCommitHex = hex;   // 컬러 히스토리 — 닫을 때 쌓는다
     _targetInput.dispatchEvent(new Event('change', { bubbles: true }));
   }
 }
@@ -928,8 +943,10 @@ function openPicker(swatch) {
   const nativeInp = swatch.querySelector('input[type="color"]');
   if (!nativeInp) return;
 
+  _flushColorHistory();   // 다른 스와치로 «바로» 넘어가며 열린 경우 — 앞 열림의 확정을 잃지 않게
   _targetInput = nativeInp;
   const currentHex = nativeInp.value || '#000000';
+  _sessionStartHex = currentHex;
   const { r, g, b } = hexToRgb(currentHex);
   const { h, s, v } = rgbToHsv(r, g, b);
   // D6: grad 서브상태를 매 open마다 비운다(null) → 스와치 간 스톱 누수 방지.
@@ -1364,6 +1381,8 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
     format: formatHex6,
     getCurrent: () => picker.value || '#000000',
     onApply: (v) => { picker.value = v; _bumpAlphaIfHidden(); apply(); },
+    /* ❓컬러 히스토리 — hex 칸에 «쳐서» 확정한 색은 지금 «안 쌓는다»(현빈 결정 ③ 글자: 「색 팝업에서 확정했을 때만」, 2026-10-02).
+       지디는 「쌓는다」 쪽이라 현빈께 물음 — 쌓기로 정해지면 아래 줄 끝에 `; window.DesignSystem?.pushColorHistory?.(picker.value)` 한 줄. */
     onCommit: () => onCommit?.(),
   });
   alpha.addEventListener('input', () => {
