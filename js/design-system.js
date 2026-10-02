@@ -242,11 +242,56 @@ const DesignSystem = (() => {
     if (baseSelect) baseSelect.value = _currentBase();
   }
 
+  /* ── 이름 받는 «인라인 폼» — prompt() 대체 (현빈 2026-10-02 「컬러변수 추가가 아예 안 된다」) ─────────────
+   *   ⛔Electron 렌더러는 prompt() 를 지원하지 않는다 — 부르는 순간 `Error: prompt() is not supported.` 로 던져
+   *     단추가 통째로 죽었다(실앱 스택 design-system.js:521). 이 파일의 prompt 2곳(아래 saveNewPreset · addColorVarFromPanel)이 이 폼을 쓴다.
+   *   ★새 모달을 만들지 않는다 — 이 레포에 이미 있는 꼴(variable-binding.js 서랍의 + → 이름칸·저장·취소, 클래스 var-add-form ·
+   *     var-input · var-form-actions · var-btn)을 그대로 쓴다. 단추가 있는 줄 «바로 아래»에 열린다.
+   *   onSubmit(name) 이 true 를 돌려주면 닫고, false 면 연 채로 둔다(고쳐 칠 수 있게 — 까닭은 onSubmit 이 토스트로 말한다).
+   *   Enter = 확인 · Esc/취소 = 닫기(아무것도 안 함). 이미 열려 있으면 다시 열지 않고 칸에 포커스만 준다. */
+  function _openInlineNameForm(anchorRow, { id, placeholder, submitLabel = '추가', onSubmit }) {
+    if (!anchorRow) return null;
+    const exist = document.getElementById(id + '-form');
+    if (exist) { exist.querySelector('input')?.focus(); return exist; }
+    const form = document.createElement('div');
+    form.id = id + '-form';
+    form.className = 'var-add-form';
+    form.innerHTML = `<input id="${id}-input" class="var-input" placeholder="${placeholder}" />
+      <div class="var-form-actions">
+        <button type="button" class="var-btn var-btn-primary" data-act="ok">${submitLabel}</button>
+        <button type="button" class="var-btn var-btn-ghost" data-act="cancel">취소</button>
+      </div>`;
+    anchorRow.insertAdjacentElement('afterend', form);
+    const input = form.querySelector('input');
+    const close = () => form.remove();
+    const submit = async () => { if (await onSubmit(input.value)) close(); else input.focus(); };
+    form.querySelector('[data-act="ok"]').addEventListener('click', submit);
+    form.querySelector('[data-act="cancel"]').addEventListener('click', close);
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();                       // 편집기 단축키(⌫·⌘Z 등)로 새지 않게
+      if (e.isComposing) return;                 // 한글 조합 중 Enter 는 확정이지 제출이 아니다
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      else if (e.key === 'Escape') { e.preventDefault(); close(); }
+    });
+    input.focus();
+    return form;
+  }
+
   // ── C15: 신규 디자인시스템 저장 ──────────────────────
 
-  async function saveNewPreset() {
-    const name = prompt('새 디자인시스템 이름을 입력하세요:');
-    if (!name || !name.trim()) return;
+  function saveNewPreset() {
+    const btn = document.querySelector('[onclick*="saveNewPreset"]') || document.getElementById('ds-new-preset-btn');
+    _openInlineNameForm(btn?.closest('.ds-base-row') || btn?.parentElement, {
+      id: 'ds-preset-name', placeholder: '새 디자인시스템 이름', submitLabel: '저장',
+      onSubmit: async (raw) => {
+        if (!raw || !raw.trim()) { window.showToast?.('이름을 입력하세요'); return false; }
+        await _saveNewPresetNamed(raw);
+        return true;
+      },
+    });
+  }
+
+  async function _saveNewPresetNamed(name) {
     const trimmedName = name.trim();
     const id = trimmedName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
@@ -518,16 +563,19 @@ const DesignSystem = (() => {
   }
 
   function addColorVarFromPanel() {
-    const raw = prompt('새 컬러 변수 이름을 입력하세요 (예: primary, accent):');
-    if (raw == null) return;                 // 취소
-    const name = raw.trim();
-    if (!name) { alert('변수명을 입력하세요.'); return; }
-    const existing = _cvGet();
-    if (Object.prototype.hasOwnProperty.call(existing, name)) {
-      alert(`'${name}' 변수가 이미 존재합니다.`);
-      return;
-    }
-    _cvSet(name, '#3b82f6');                  // 기본색 — 이후 colorvars-changed가 재렌더 트리거
+    const btn = document.getElementById('ds-colorvar-add-btn');
+    _openInlineNameForm(btn?.closest('.ds-base-row') || btn?.parentElement, {
+      id: 'ds-colorvar-name', placeholder: '새 컬러 변수 이름 (예: primary, accent)',
+      onSubmit: (raw) => {
+        const name = (raw || '').trim();
+        /* ⚠️여기 있던 alert 2개(빈 이름·중복)는 토스트로 바꿨다 — alert 는 Electron 에서 «동작»하지만 앱을 막는 대화창이라
+             방금 연 입력칸의 포커스를 빼앗는다. 폼은 연 채로 두고(false) 고쳐 칠 수 있게 한다. */
+        if (!name) { window.showToast?.('변수명을 입력하세요'); return false; }
+        if (Object.prototype.hasOwnProperty.call(_cvGet(), name)) { window.showToast?.(`'${name}' 변수가 이미 있어요`); return false; }
+        _cvSet(name, '#3b82f6');              // 기본색 — 이후 colorvars-changed가 재렌더 트리거
+        return true;
+      },
+    });
   }
 
   function _initColorVars() {
