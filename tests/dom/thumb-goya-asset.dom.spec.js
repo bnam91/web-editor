@@ -65,7 +65,7 @@ async function boot(page) {
 }
 
 /** captureThumbnail 과 «같은 걸음»으로 찍고, 픽셀로 잰다. `prep` 이 참이면 부품을 쓴다. */
-const shoot = (page, usePrep) => page.evaluate(async (withPrep) => {
+const shoot = (page, usePrep) => page.evaluate(async (withPrep) => {   // ⚠️아래 H3b 가 같은 걸음을 «여러 번» 부른다
   const sec = document.getElementById('sec1');
   const clone = sec.cloneNode(true);                       // captureThumbnail 과 같다
   clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;';
@@ -74,7 +74,7 @@ const shoot = (page, usePrep) => page.evaluate(async (withPrep) => {
   if (withPrep) {
     const m = await import('/js/io/goya-asset-inline.js');
     const p = await m.prepareGoyaAssetsForClone(sec);
-    prepared = p.apply(clone);
+    prepared = await p.applyAndSettle(clone);   // captureThumbnail 과 같다(2026-10-02 — apply 만이면 느린 기계에서 빠진다)
   }
   const canvas = await window.html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: '#ffffff', logging: false });
   document.body.removeChild(clone);
@@ -125,6 +125,27 @@ test('✅H3 부품을 쓰면 밑그림이 «실제 픽셀»로 실린다', async
   expect(r.prepared, '★부품이 한 자리도 못 바꿨다 — 읽기 스텁이나 선택자가 늙었다').toBeGreaterThan(0);
   expect(r.red, '★빨강이 안 실렸다').toBeGreaterThan(100);
   expect(r.blue, '★파랑이 안 실렸다').toBeGreaterThan(100);
+});
+
+/* ★H3b — 느린 기계에서도 실린다 (2026-10-02 v0.9.5 맥 CI 에서 H3 빨강 · 로컬 단독 50/50 초록)
+   까닭: src 를 바꾼 직후 img.currentSrc 는 아직 옛 goya-asset:// 이고, html2canvas 는 그걸 읽는다.
+   로컬에선 그 틈이 거의 안 생겨 H3 가 «한 환경에서만» 초록이었다. CPU 를 늦춰 그 틈을 «일부러» 만든다.
+   양성대조(고치기 전 apply 만, 같은 늦춤): 이 시험 꼴로 잼 — 결과는 커밋 본문. */
+test('★H3b 느린 기계(CPU 10배 늦춤)에서도 새 페이지 8번 다 밑그림이 실린다 — currentSrc 틈', async ({ context }) => {
+  /* ⚠️«새 페이지»여야 한다 — 같은 페이지에서 두 번째부터는 그 data: 그림이 이미 캐시에 있어 currentSrc 가 «즉시» 바뀐다
+     (첫 판은 한 페이지에서 5번 찍었고, 고치기 전 꼴에서도 빠짐이 «첫 장에만» 나 대조가 약했다 — 2026-10-02 실측). */
+  test.setTimeout(90000);
+  const got = [];
+  for (let i = 0; i < 8; i++) {
+    const page = await context.newPage();
+    await boot(page);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 10 });
+    const r = await shoot(page, true);
+    got.push(`${r.prepared}/${r.red}/${r.blue}`);
+    await page.close();
+  }
+  expect(got.filter((g) => !/^1\/[1-9]\d{2,}\/[1-9]\d{2,}$/.test(g)), `prepared/red/blue × 8: ${got.join(' · ')}`).toEqual([]);
 });
 
 /* ⛔여기는 «부르는가»를 재야 한다 — 「이름이 파일에 있나」를 재면 안 된다.
