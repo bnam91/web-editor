@@ -396,10 +396,9 @@ async function _runIdleThumbnail() {
   /* ⛔캡처는 «몇 초» 걸린다 — 그 사이 탭이 바뀌었으면 남의 프로젝트 카드에 내 그림을 박게
      된다. 자동저장이 _saveTargetId 로 같은 사고를 막는 것과 «같은 자»다. */
   if (!thumbnail || activeProjectId !== targetId) return;
-  const existingMeta = await window.electronAPI.loadProjectMeta(targetId);
-  await window.electronAPI.saveProjectMeta(targetId, {
-    ...(existingMeta || {}), thumbnail, updatedAt: new Date().toISOString(),
-  });
+  /* ★«자기 필드만» 보낸다(2026-10-02 meta 경합 e) — 미리 읽지 않는다. 합치기는 main 핸들러({ ...cur, ...metaData }).
+     옛 판은 읽은 meta «전체»를 같이 보냈다 — 캡처가 «수 초» 걸리는 사이 바뀐 컬러 변수·최근 색이 «옛 값»으로 되돌아갔다. */
+  await window.electronAPI.saveProjectMeta(targetId, { thumbnail, updatedAt: new Date().toISOString() });
   /* ★찍은 «뒤»에 기록한다 — 앞에 두면 실패했는데도 3분을 쉬어 그림이 영영 안 는다. */
   _lastThumbAt = Date.now();
   _thumbDirty = false;
