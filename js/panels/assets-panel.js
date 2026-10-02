@@ -1181,35 +1181,10 @@ function _assetsBeginRowDrag(id, mouseEvent) {
     if (mode === 'canvas') {
       if (ghostEl) ghostEl.remove();
       try {
-        // 1) 기존 섹션/블록 위면 commitScratchDropAt이 처리
-        const ok = window.commitScratchDropAt?.(ev.clientX, ev.clientY, dataUrl, { naturalWidth: natW, naturalHeight: natH });
-        if (ok) {
-          dropOk = true;
-          window.showToast?.('✨ 캔버스에 삽입됨');
-        } else {
-          // 2) 빈 캔버스 영역인지 확인 — #canvas-scaler 안인지 검사
-          const hit = document.elementFromPoint(ev.clientX, ev.clientY);
-          const inScaler = hit && hit.closest && hit.closest('#canvas-scaler');
-          if (inScaler && dataUrl) {
-            // 새 섹션 생성 + 그 안에 asset-block + 이미지 src
-            const beforeCount = document.querySelectorAll('#canvas .section-block').length;
-            window.addSection?.({ skipDefaultBlock: true });
-            const sections = document.querySelectorAll('#canvas .section-block');
-            const sec = sections[sections.length - 1];
-            if (sec) {
-              window.selectSection?.(sec);
-              window.addAssetBlock?.();
-              const blocks = sec.querySelectorAll('.asset-block');
-              const ab = blocks[blocks.length - 1];
-              if (ab) {
-                window.setAssetImageFromSrc?.(ab, dataUrl);
-                dropOk = true;
-                window.showToast?.('✨ 새 섹션에 삽입됨');
-              }
-            }
-            window.triggerAutoSave?.();
-          }
-        }
+        /* ★판정은 scratch-pad.js dropAssetImageAt «한 곳»(현빈 2026-10-02 결정 ⓒ) — 섹션 안 = 그 자리 삽입, 밖 = 스크래치 그 자리.
+           ⛔옛 판은 섹션 밖이면 커서 좌표를 안 쓰고 addSection() → «맨 끝 새 섹션»에 넣었다 — 그 갈래를 지웠다(섹션은 ＋단추로). */
+        const kind = await window.dropAssetImageAt?.(ev.clientX, ev.clientY, dataUrl, { naturalWidth: natW, naturalHeight: natH });
+        if (kind) dropOk = true;
       } catch (e) {
         console.warn('[assets-panel] canvas drop 실패:', e);
       }

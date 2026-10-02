@@ -198,7 +198,10 @@ function _renderGuide(decision) {
     _clearGuides();
     const ind = document.createElement('div');
     ind.className = 'sp2c-insert-indicator';
-    if (decision.after) decision.inner.insertBefore(ind, decision.after);
+    /* ★커밋(아래 commitScratchDropAt)과 «같은 가드» — after 가 inner 의 «직속 자식»일 때만 그 앞에.
+       옛 판은 안내선만 이 가드가 없어 섹션 맨 아래(마지막 갭 끝)에서 insertBefore 가 던졌다(실측 2026-10-02 — 7699ea33 부터 있던 것).
+       커밋은 가드가 있어 끝에 붙었으니, 안내선도 «끝»을 가리키는 게 맞다(보이는 자리 = 들어갈 자리). */
+    if (decision.after && decision.after.parentNode === decision.inner) decision.inner.insertBefore(ind, decision.after);
     else decision.inner.appendChild(ind);
     _activeIndicator = ind;
     return;
