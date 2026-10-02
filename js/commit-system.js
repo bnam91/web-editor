@@ -392,9 +392,9 @@ function loadProjectFile(e) {
       // Electron: 커밋/브랜치 정보가 있으면 _meta.json에 복원
       if (window.IS_ELECTRON && window.activeProjectId) {
         if (data.commits?.length || data.branches || data.currentBranch) {
-          const existingMeta = await window.electronAPI.loadProjectMeta(window.activeProjectId);
+          /* ★«자기 필드만» 보낸다(2026-10-02 meta 경합 c) — 미리 읽지 않는다. 합치기는 main 핸들러({ ...cur, ...metaData }).
+             옛 판은 읽은 meta «전체»를 같이 보내 그사이 바뀐 썸네일·컬러 변수를 «옛 값»으로 되돌렸다. */
           const meta = {
-            ...(existingMeta || {}),
             ...(data.commits?.length ? { commits: data.commits }           : {}),
             ...(data.branches        ? { branches: data.branches }          : {}),
             ...(data.currentBranch   ? { currentBranch: data.currentBranch }: {}),

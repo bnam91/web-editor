@@ -10,7 +10,7 @@
  * ★«아직 안 고친» 짝은 KNOWN_RACE 에 이름이 있다 → test.fail(알려진 결함, 레포의 E4 와 같은 꼴). 고치는 커밋에서 그 이름을 «뺀다»
  *   ⇒ 빨강→초록이 커밋 단위로 남고, 실수로 미리 고쳐지면(test.fail 이 통과하면) 그것도 빨강으로 드러난다.
  *   핀 7699ea33·고치기 전 HEAD 실측: Ma Mb Mc Md Me Mf 전부 빨강(경합 재현). */
-const KNOWN_RACE = new Set(['Mb', 'Mc', 'Me', 'Mf']);   // Ma·Md 고침 — patch-only
+const KNOWN_RACE = new Set(['Mb', 'Me', 'Mf']);   // Ma·Md·Mc 고침 — patch-only
 const raceTest = (id, title, fn) => test(`${id} ${title}`, async ({ page }, info) => {
   if (KNOWN_RACE.has(id)) test.fail(true, `${id} — 아직 안 고친 경합(알려진 결함). 고치는 커밋에서 KNOWN_RACE 에서 뺀다`);
   await fn({ page }, info);
