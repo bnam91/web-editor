@@ -92,23 +92,22 @@ const DesignSystem = (() => {
     _syncColorVarsToMeta(colorVars);
   }
 
-  /* ★meta.json «합쳐쓰기»는 이 줄 «하나»로만 한다(2026-10-02 컬러 히스토리와 함께).
-     읽고(loadProjectMeta) → 합쳐 → 쓰는(saveProjectMeta) 일이 «따로» 둘 돌면 같은 옛 meta 를 읽어 뒤에 쓴 쪽이 앞을 지운다
-     (예: 변수 추가 직후 색 확정 → colorVars 또는 colorHistory 가 사라짐). ⇒ promise 사슬로 «차례대로».
-     ★지금 이 줄을 타는 둘 = ⑴_syncColorVarsToMeta(컬러 변수 — setColorVar·removeColorVar 가 부름)
-       ⑵_setColorHistory(최근 쓴 색 — pushColorHistory 가 부름; 열 때 복원은 «안» 쓴다). 둘이 서로 경합하던 상대다.
-     ⛔meta 에 무엇을 더 쓰는 셋째가 생기면 새 읽고쓰기를 만들지 말고 이 함수를 불러라.
-       ⚠️이 파일 «밖»에도 meta 를 쓰는 자리가 7곳 있고 이 줄을 «안» 탄다(2026-10-02 셈): save-load.js 265·400(저장·썸네일)·2063(옛 필드 이전) ·
-         branch-system.js 37 · commit-system.js 260·401 · collab/accept.js 104. 그쪽과 colorVars·colorHistory 사이 경합은 남아 있다(안 고침·보고). */
-  let _metaChain = Promise.resolve();
+  /* ★meta.json 쓰기 = «자기 필드만»(patch) 보낸다 — main 이 받는 순간 파일과 원자적으로 합친다(2026-10-02 정정).
+     main.js ipcMain.handle('projects:save-meta') 가 동기로 `{ ...cur, ...metaData }` 를 쓴다(132c2b75 · 「H2 다중 writer」).
+     ⇒ «한 줄»은 main 의 그 핸들러다. 렌더러가 미리 읽은 meta «전체»를 보내면 main 이 그 «옛 사본»의 다른 필드로
+       그사이 갱신된 값을 되돌린다(tests/dom/meta-race Ma — 썸네일이 옛 값으로). 그래서 읽지 않고 patch 만 보낸다.
+     ~~[정정 2026-10-02] 「promise 사슬 한 줄로 모은다」 — 렌더러 «안» 차례만 맞출 뿐 다른 writer(썸네일·브랜치·커밋)와의
+       경합은 못 막았다. 사슬을 걷었다.~~
+     ★지금 이것을 부르는 둘 = ⑴_syncColorVarsToMeta(컬러 변수) ⑵_setColorHistory(최근 쓴 색).
+     ⛔meta 에 무엇을 더 쓰는 셋째가 생기면 «미리 읽어 합쳐 보내지» 말고 자기 필드만 보내라(이 함수를 불러도 된다).
+       ✔2026-10-02 이 파일 «밖» meta 쓰기도 같은 꼴(patch-only)로 바꿨다: save-load.js 265(저장 썸네일)·400(쉴 때 썸네일) ·
+       branch-system.js 37 · commit-system.js 260·401. 원래부터 자기 필드만 보내던 둘 = save-load.js 2063 · collab/accept.js 104.
+       경합 시험 = tests/dom/meta-race(Ma~Mf). */
   function _mergeProjectMeta(patch) {
     const pid = window.activeProjectId;
     if (!pid || !window.electronAPI?.saveProjectMeta) return Promise.resolve(); // 브라우저/프로젝트 미오픈 시 skip
-    _metaChain = _metaChain.then(async () => {
-      const existing = await window.electronAPI.loadProjectMeta(pid).catch(() => null);
-      await window.electronAPI.saveProjectMeta(pid, { ...(existing || {}), ...patch, updatedAt: new Date().toISOString() });
-    }).catch(e => console.warn('[DesignSystem] meta 합쳐쓰기 실패:', e));
-    return _metaChain;
+    return Promise.resolve(window.electronAPI.saveProjectMeta(pid, { ...patch, updatedAt: new Date().toISOString() }))
+      .catch(e => console.warn('[DesignSystem] meta 쓰기 실패:', e));
   }
 
   /** Electron 프로젝트 meta.json에 colorVars 동기화 (기존 필드 보존 merge) — 합쳐쓰기 줄 하나(_mergeProjectMeta)를 탄다 */
