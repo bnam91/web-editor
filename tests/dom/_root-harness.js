@@ -58,3 +58,24 @@ async function bootApp(page) {
   return errs;
 }
 module.exports.bootApp = bootApp;
+
+/* ★자리가 «멈춘 뒤»의 화면 좌표 — 같은 병을 세 번 고쳐서 묶었다(2026-10-02, 지디 「네 번째가 온다」).
+ *   bootApp 뒤엔 배율 맞추기(applyZoom 의 비동기 가운데 맞추기 등)가 늦게 끝나, 좌표를 «먼저» 재고 누르면 그 사이 요소가 움직여 빗나간다.
+ *   부하에서만 드러난다(단독 통과≠안 흔들림). 앞선 셋: grid-fullbleed-rerender R3(화면 px 로 잼) · A1 Q7b(배율 직후 스크롤) ·
+ *   color-history 준비(클릭 빗나감 — 72 중 14 빨강의 한 원인).
+ *   ⇒ 그 요소의 화면 사각형이 interval 간격 «두 번 연속 같을 때»까지 기다렸다가 돌려준다. 끝내 안 멈추면 «던진다»(조용히 옛 값을 주지 않는다).
+ *   돌려주는 것: { left, top, width, height, cx, cy } (반올림한 화면 px). */
+async function waitStableRect(page, selector, { interval = 150, tries = 40 } = {}) {
+  let prev = null;
+  for (let i = 0; i < tries; i++) {
+    const r = await page.evaluate((sel) => { const e = document.querySelector(sel); if (!e) return null; const b = e.getBoundingClientRect();
+      return { left: Math.round(b.left), top: Math.round(b.top), width: Math.round(b.width), height: Math.round(b.height) }; }, selector);
+    if (r && prev && r.left === prev.left && r.top === prev.top && r.width === prev.width && r.height === prev.height) {
+      return { ...r, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+    }
+    prev = r;
+    await page.waitForTimeout(interval);
+  }
+  throw new Error(`waitStableRect: ${selector} 가 ${tries * interval}ms 안에 멈추지 않았다(또는 없다) — 옛 좌표로 누르지 않는다`);
+}
+module.exports.waitStableRect = waitStableRect;

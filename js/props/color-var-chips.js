@@ -58,6 +58,26 @@ function _chipHtml(name, hex, isActive) {
   </button>`;
 }
 
+/* ══ 최근 쓴 색 줄 (현빈 2026-10-02 B안 — 「VAR 줄 아래 최근 줄, 컬러코드 글자 없이 점만」) ═══════════
+ *   ★누르면 하는 일이 VAR 과 «다르다»: VAR = var(--color-x, #hex) 바인딩 / 최근 = «고정 hex» 그대로(따라 바뀌지 않는다).
+ *     두 줄로 가른 것이 그 차이를 드러낸다 — 한 줄에 섞지 마라.
+ *   목록 = window.DesignSystem.getColorHistory()(프로젝트별, 색 팝업 «닫을 때» 쌓임). 0개면 줄을 «안 그린다». */
+function _recentChipHtml(hex) {
+  const h = /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#888888';
+  return `<button type="button" class="cv-chip recent" data-cv-recent="${h}" title="${h} (클릭 = 이 색 고정 · 우클릭 = 변수로 만들기)" aria-label="최근 색 ${h}">
+    <span class="cv-chip-dot" style="background:${h}"></span>
+  </button>`;
+}
+export function renderRecentColorChips(row) {
+  if (!row) return;
+  let list = [];
+  try { list = window.DesignSystem?.getColorHistory?.() || []; } catch { list = []; }
+  if (!list.length) { row.innerHTML = ''; row.hidden = true; return; }
+  row.hidden = false;
+  row.innerHTML = `<span class="cv-chips-label cv-recent-label" title="최근 쓴 색 — 클릭하면 그 색을 «고정»으로 넣는다(변수 바인딩 아님)">최근</span>` +
+    list.map(_recentChipHtml).join('');
+}
+
 /** 컨테이너 안에 현재 컬러 변수 칩들을 렌더. activeName이면 해당 칩 active. */
 export function renderColorVarChips(container, { activeName = null } = {}) {
   if (!container) return;
@@ -87,10 +107,46 @@ export function renderColorVarChips(container, { activeName = null } = {}) {
 export function wireColorVarChips({ container, getActiveName, onPick, getFallbackHex } = {}) {
   if (!container) return null;
 
+  /* 최근 줄 = 컨테이너 «바로 아래 형제». VAR 줄(container)이 변수 0개로 숨어도 이 줄은 따로 보인다(결정 ⑥). */
+  let recentRow = container.nextElementSibling;
+  if (!recentRow || !recentRow.classList.contains('cv-recent-row')) {
+    recentRow = document.createElement('div');
+    recentRow.className = 'cv-chips cv-recent-row';
+    recentRow.hidden = true;
+    container.insertAdjacentElement('afterend', recentRow);
+  }
   const refresh = () => {
     const active = (() => { try { return getActiveName?.() ?? null; } catch { return null; } })();
     renderColorVarChips(container, { activeName: active });
+    renderRecentColorChips(recentRow);
   };
+  // 최근 칩 클릭 → «고정 hex» 그대로(이름 없이). 소비자 onPick 은 첫 인자를 그대로 색으로 쓴다(var() 이든 #hex 든).
+  recentRow.addEventListener('click', (e) => {
+    const chip = e.target.closest('.cv-chip.recent');
+    if (!chip) return;
+    e.preventDefault();
+    const hex = chip.dataset.cvRecent;
+    try { onPick?.(hex, null, hex); } catch (err) { console.warn('[cv-chips] recent onPick failed', err); }
+    refresh();
+  });
+  // 우클릭 → 「변수로 만들기」 — 디자인시스템 탭과 «같은» 인라인 이름 폼(var-add-form) 재사용. 새 UI 없음.
+  recentRow.addEventListener('contextmenu', (e) => {
+    const chip = e.target.closest('.cv-chip.recent');
+    if (!chip) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const hex = chip.dataset.cvRecent;
+    window.DesignSystem?.openInlineNameForm?.(recentRow, {
+      id: 'cv-recent-var', placeholder: `변수 이름 (${hex})`, submitLabel: '변수로',
+      onSubmit: (raw) => {
+        const name = (raw || '').trim();
+        if (!name) { window.showToast?.('변수명을 입력하세요'); return false; }
+        if (Object.prototype.hasOwnProperty.call(getColorVars(), name)) { window.showToast?.(`'${name}' 변수가 이미 있어요`); return false; }
+        window.DesignSystem?.setColorVar?.(name, hex);   // → colorvars-changed → VAR 줄 다시 그림
+        return true;
+      },
+    });
+  });
 
   // 칩 클릭 → var() 바인딩 요청
   container.addEventListener('click', (e) => {
@@ -117,11 +173,13 @@ export function wireColorVarChips({ container, getActiveName, onPick, getFallbac
   // showXxxProperties 재호출 시 새 container/새 wire가 생기므로 단일 슬롯로 정리.
   if (window.__cvChipsChanged) {
     document.removeEventListener('colorvars-changed', window.__cvChipsChanged);
+    document.removeEventListener('colorhistory-changed', window.__cvChipsChanged);
   }
   window.__cvChipsChanged = _onChanged;
+  document.addEventListener('colorhistory-changed', _onChanged);   // 최근 색이 쌓이면 최근 줄 갱신(같은 단일 슬롯)
 
   refresh();
   return { refresh };
 }
 
-window.GoyaColorVarChips = { getColorVars, parseColorVarName, buildColorVarRef, renderColorVarChips, wireColorVarChips };
+window.GoyaColorVarChips = { getColorVars, parseColorVarName, buildColorVarRef, renderColorVarChips, renderRecentColorChips, wireColorVarChips };

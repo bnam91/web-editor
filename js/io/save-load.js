@@ -2042,6 +2042,7 @@ function initApp() {
         const meta = await window.electronAPI.loadProjectMeta(activeProjectId).catch(() => null);
         // 시맨틱 컬러 변수 복원 (meta.colorVars → localStorage + :root). 비차단.
         window.DesignSystem?.restoreColorVarsFromMeta?.(activeProjectId);
+        window.DesignSystem?.restoreColorHistoryFromMeta?.(activeProjectId);   // 최근 쓴 색 — 프로젝트별(meta 에 없으면 빈 목록)
         if (proj) {
           // GAP-004: proj.json 손상으로 백업/히스토리에서 복구된 경우 사용자에게 정직하게 통지.
           if (proj._recovered) {

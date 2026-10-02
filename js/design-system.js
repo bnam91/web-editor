@@ -12,6 +12,12 @@ const DesignSystem = (() => {
   const STORAGE_KEY        = 'we_design_system_v1';
   const STORAGE_BASE_KEY   = 'we_design_system_base_v1';
   const STORAGE_COLORS_KEY = 'we_color_vars_v1';
+  const STORAGE_HISTORY_KEY = 'we_color_history_v1';   // 컬러 히스토리(최근 쓴 색) 작업 캐시 — 정본은 meta.colorHistory
+  /* ★최근 쓴 색의 «개수» — 한 줄을 넘기지 않는 수.
+     우측 인스펙터 폭 240(css/editor-panels.css --panel-right-w · 폭 조절 UI 없음) 에서 .cv-chips 줄 폭 203
+     (margin-left 8 + padding-left 8 + 선 2 를 먹는다) — 칩(20)+사이(4)를 하나씩 더해 «둘째 줄 직전까지» 실측 = 7 · 2026-10-02 태양.
+     ⚠️시안의 8 은 패널 여백을 흉내 낸 판에서 잰 수다(실제 패널이 아님). 폭·칩 크기가 바뀌면 같은 법으로 다시 재서 바꿔라. */
+  const COLOR_HISTORY_MAX = 7;
 
   // 시맨틱 컬러 변수 기본값 (피그마 Variables 유사 — 메인/보조/강조)
   // --preset-* 계열과 충돌하지 않도록 별도 네임스페이스(--color-*) 사용.
@@ -86,17 +92,29 @@ const DesignSystem = (() => {
     _syncColorVarsToMeta(colorVars);
   }
 
-  /** Electron 프로젝트 meta.json에 colorVars 동기화 (기존 필드 보존 merge) */
+  /* ★meta.json «합쳐쓰기»는 이 줄 «하나»로만 한다(2026-10-02 컬러 히스토리와 함께).
+     읽고(loadProjectMeta) → 합쳐 → 쓰는(saveProjectMeta) 일이 «따로» 둘 돌면 같은 옛 meta 를 읽어 뒤에 쓴 쪽이 앞을 지운다
+     (예: 변수 추가 직후 색 확정 → colorVars 또는 colorHistory 가 사라짐). ⇒ promise 사슬로 «차례대로».
+     ★지금 이 줄을 타는 둘 = ⑴_syncColorVarsToMeta(컬러 변수 — setColorVar·removeColorVar 가 부름)
+       ⑵_setColorHistory(최근 쓴 색 — pushColorHistory 가 부름; 열 때 복원은 «안» 쓴다). 둘이 서로 경합하던 상대다.
+     ⛔meta 에 무엇을 더 쓰는 셋째가 생기면 새 읽고쓰기를 만들지 말고 이 함수를 불러라.
+       ⚠️이 파일 «밖»에도 meta 를 쓰는 자리가 7곳 있고 이 줄을 «안» 탄다(2026-10-02 셈): save-load.js 265·400(저장·썸네일)·2063(옛 필드 이전) ·
+         branch-system.js 37 · commit-system.js 260·401 · collab/accept.js 104. 그쪽과 colorVars·colorHistory 사이 경합은 남아 있다(안 고침·보고). */
+  let _metaChain = Promise.resolve();
+  function _mergeProjectMeta(patch) {
+    const pid = window.activeProjectId;
+    if (!pid || !window.electronAPI?.saveProjectMeta) return Promise.resolve(); // 브라우저/프로젝트 미오픈 시 skip
+    _metaChain = _metaChain.then(async () => {
+      const existing = await window.electronAPI.loadProjectMeta(pid).catch(() => null);
+      await window.electronAPI.saveProjectMeta(pid, { ...(existing || {}), ...patch, updatedAt: new Date().toISOString() });
+    }).catch(e => console.warn('[DesignSystem] meta 합쳐쓰기 실패:', e));
+    return _metaChain;
+  }
+
+  /** Electron 프로젝트 meta.json에 colorVars 동기화 (기존 필드 보존 merge) — 합쳐쓰기 줄 하나(_mergeProjectMeta)를 탄다 */
   async function _syncColorVarsToMeta(colorVars) {
     try {
-      const pid = window.activeProjectId;
-      if (!pid || !window.electronAPI?.saveProjectMeta) return; // 브라우저/프로젝트 미오픈 시 skip
-      const existing = await window.electronAPI.loadProjectMeta(pid).catch(() => null);
-      await window.electronAPI.saveProjectMeta(pid, {
-        ...(existing || {}),
-        colorVars,
-        updatedAt: new Date().toISOString(),
-      });
+      await _mergeProjectMeta({ colorVars });
     } catch (e) {
       console.warn('[DesignSystem] colorVars meta 동기화 실패:', e);
     }
@@ -475,6 +493,50 @@ const DesignSystem = (() => {
    * 프로젝트 로드 직후 호출(branch-system.initBranchStore 패턴과 동일하게 meta 우선).
    * meta에 colorVars가 없으면 localStorage 값(기존 동작)을 유지.
    */
+  // ── 컬러 히스토리(최근 쓴 색, 현빈 2026-10-02 B안) ───────────────────────────
+  //   정본 = meta.colorHistory(프로젝트별) · 작업 캐시 = localStorage(STORAGE_HISTORY_KEY). 컬러 변수와 같은 자리·같은 길.
+  //   쌓는 자리는 색 팝업 «닫을 때» 한 곳(color-picker.js _flushColorHistory) — 여기는 «받아 저장»만.
+  function _normHex(h) {
+    const m = String(h || '').trim().match(/^#?([0-9a-f]{6})$/i);
+    return m ? '#' + m[1].toLowerCase() : null;
+  }
+  function getColorHistory() {
+    try {
+      const a = JSON.parse(localStorage.getItem(STORAGE_HISTORY_KEY) || '[]');
+      return Array.isArray(a) ? a.map(_normHex).filter(Boolean).slice(0, COLOR_HISTORY_MAX) : [];
+    } catch { return []; }
+  }
+  function _setColorHistory(list, { persist = true } = {}) {
+    try { localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(list)); } catch {}
+    if (persist) _mergeProjectMeta({ colorHistory: list });
+    document.dispatchEvent(new CustomEvent('colorhistory-changed', { detail: { list } }));
+  }
+  /** 같은 색은 맨 앞으로(중복 제거) · COLOR_HISTORY_MAX 넘으면 뒤에서 버린다. */
+  function pushColorHistory(hex) {
+    const h = _normHex(hex);
+    if (!h) return getColorHistory();
+    const prev = getColorHistory();
+    if (prev[0] === h) return prev;                                   // 이미 맨 앞 — 쓰기 없음
+    const next = [h, ...prev.filter(x => x !== h)].slice(0, COLOR_HISTORY_MAX);
+    _setColorHistory(next);
+    return next;
+  }
+  /* ⚠️컬러 변수 복원(아래)과 «한 점» 다르다: meta 에 colorHistory 가 «없으면» 빈 목록으로 둔다.
+     변수 쪽은 meta 에 없으면 캐시를 그대로 둬서 «직전 프로젝트 것»이 남는다(기존 결함 — 코드 읽기·미실측, 범위 밖이라 안 고침·보고함).
+     최근 색은 그 병을 물려받지 않는다. */
+  async function restoreColorHistoryFromMeta(projectId) {
+    const pid = projectId || window.activeProjectId;
+    let list = [];
+    try {
+      if (pid && window.electronAPI?.loadProjectMeta) {
+        const meta = await window.electronAPI.loadProjectMeta(pid).catch(() => null);
+        if (Array.isArray(meta?.colorHistory)) list = meta.colorHistory.map(_normHex).filter(Boolean).slice(0, COLOR_HISTORY_MAX);
+      }
+    } catch (e) { console.warn('[DesignSystem] restoreColorHistoryFromMeta 실패:', e); }
+    _setColorHistory(list, { persist: false });                       // 열 때 읽기만 — 다시 쓰지 않는다
+    return list;
+  }
+
   async function restoreColorVarsFromMeta(projectId) {
     const pid = projectId || window.activeProjectId;
     try {
@@ -640,6 +702,9 @@ const DesignSystem = (() => {
     applyBase, applyFromPanel, resetTokens, togglePanel, syncPanelUI, saveNewPreset, makeSectionsCollapsible,
     // 시맨틱 컬러 변수 — 데이터(팀A) + 패널 UI(팀B)
     getColorVars, setColorVar, removeColorVar, applyColorVars, restoreColorVarsFromMeta,
+    // 컬러 히스토리(최근 쓴 색) — color-picker 가 쌓고, color-var-chips 가 그린다. 인라인 이름 폼은 「변수로 만들기」가 재사용.
+    getColorHistory, pushColorHistory, restoreColorHistoryFromMeta, COLOR_HISTORY_MAX,
+    openInlineNameForm: (...a) => _openInlineNameForm(...a),
     addColorVarFromPanel, renderColorVars,
   };
 })();
