@@ -120,7 +120,7 @@ async function captureThumbnail() {
       if (_goya.unresolved.length) {
         console.warn('[thumb] goya-asset 을 못 읽어 카드 그림에서 빠진다:', _goya.unresolved);
       }
-      _goya.apply(clone);
+      await _goya.applyAndSettle(clone);   /* ★apply 만 하면 느린 기계에서 옛 goya-asset 을 찍는다 — goya-asset-inline.js applyAndSettle 주석 (2026-10-02) */
     } catch (e) { console.warn('[thumb] goya-asset 클론 준비 실패:', e); }
 
     const bgColor = firstSec.style.background || firstSec.style.backgroundColor || '#ffffff';
