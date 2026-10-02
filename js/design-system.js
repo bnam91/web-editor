@@ -100,8 +100,9 @@ const DesignSystem = (() => {
        경합은 못 막았다. 사슬을 걷었다.~~
      ★지금 이것을 부르는 둘 = ⑴_syncColorVarsToMeta(컬러 변수) ⑵_setColorHistory(최근 쓴 색).
      ⛔meta 에 무엇을 더 쓰는 셋째가 생기면 «미리 읽어 합쳐 보내지» 말고 자기 필드만 보내라(이 함수를 불러도 된다).
-       ⚠️이 파일 «밖» meta 쓰기 7곳(save-load.js 265·400·2063 · branch-system.js 37 · commit-system.js 260·401 · collab/accept.js 104)은
-       하나씩 같은 꼴(patch-only)로 바꾸는 중 — 순서·까닭은 notes/PLAN-20261002-meta-race-qa-hidden.md. */
+       ✔2026-10-02 이 파일 «밖» meta 쓰기도 같은 꼴(patch-only)로 바꿨다: save-load.js 265(저장 썸네일)·400(쉴 때 썸네일) ·
+       branch-system.js 37 · commit-system.js 260·401. 원래부터 자기 필드만 보내던 둘 = save-load.js 2063 · collab/accept.js 104.
+       경합 시험 = tests/dom/meta-race(Ma~Mf). */
   function _mergeProjectMeta(patch) {
     const pid = window.activeProjectId;
     if (!pid || !window.electronAPI?.saveProjectMeta) return Promise.resolve(); // 브라우저/프로젝트 미오픈 시 skip
