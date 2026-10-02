@@ -134,8 +134,12 @@ test('S-3 ★순서 계약: 폭 확정이 «높이 계산보다 앞»이다', ()
 test('S-4 ★음성대조: 자산패널→캔버스 드롭은 width 를 «안» 넘긴다', () => {
   /* 자산패널에는 넘길 «표시폭»이 없다(패널 썸네일은 캔버스 px 가 아니다).
      이 경로의 풀폭 동작이 «안 바뀌는 게» 계약이다. width 를 넘기는 순간 빨강. */
-  const calls = callArgs(SRC.assets);
-  assert.ok(calls.length >= 1, '자산패널의 commitScratchDropAt 호출을 못 찾았다 — 이 검사부터 고쳐라');
+  /* ★2026-10-02 자리 이동 — 자산패널 드롭의 판정이 scratch-pad.js dropAssetImageAt «한 곳»으로 모였다(현빈 결정 ⓒ,
+       자산패널 mousedown 길과 네이티브 끌기 길이 둘 다 그것만 부른다). 계약(width 안 넘김)은 그대로 — 재는 «자리»만 옮겼다.
+       자산패널 소스엔 이제 commitScratchDropAt 호출이 «없어야» 한다(판정이 두 벌이 되면 안 된다). */
+  assert.deepEqual(callArgs(SRC.assets), [], '★자산패널이 commitScratchDropAt 을 «직접» 다시 부른다 — 판정이 두 벌이 됐다(dropAssetImageAt 로 모아라)');
+  const calls = callArgs(fnBodyByName(SRC.pad, 'dropAssetImageAt', 'dropAssetImageAt'));
+  assert.ok(calls.length >= 1, '자산패널 드롭(dropAssetImageAt)의 commitScratchDropAt 호출을 못 찾았다 — 이 검사부터 고쳐라');
   for (const a of calls) {
     assert.doesNotMatch(a, /\bwidth\s*:/,
       '★자산패널 드롭이 width 를 넘긴다 — 옵트인 계약이 깨졌다(이 경로는 풀폭이 정답)');

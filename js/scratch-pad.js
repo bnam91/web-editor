@@ -2283,15 +2283,61 @@ function _scratchShowSendMenu(item, x, y) {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// Assets → Scratch — 자산 패널에서 끌어 온 이미지를 스크래치 카드로 추가
-//   캔버스 어디든 (scaler 안 섹션, scaler 밖 wrap 회색 영역 모두) 받음
+// Assets → 캔버스 — 노트패널(자산 패널)에서 끌어 온 이미지를 «놓은 자리»에 (현빈 2026-10-02 결정 ⓒ)
+//   섹션 안에 놓으면 → 섹션에 그 자리(스크래치→캔버스와 같은 commitScratchDropAt)
+//   섹션 밖(섹션 사이 바닥·scaler 여백·wrap 회색·스크래치 항목 위)에 놓으면 → 스크래치패드 «그 자리»
+// ★옛 판의 병 «둘»(실측 2026-10-02 — 40%: 바닥 +48,−4 · 섹션 −103,−107 / 100%: 0,+50):
+//   ⑴ 화면 px 를 그대로 스크래치 좌표(모델 px)에 넣었다 — ÷배율이 없었다 ⇒ 배율이 낮을수록 크게 어긋남
+//   ⑵ 세로 중심 보정이 −60 이었다 — 220 그림의 절반은 110 ⇒ 100% 에서도 +50. ⑴만 고치면 이게 남는다.
+//   그리고 capture 로 다 가로채서 섹션에 놓아도 스크래치로 갔다(섹션에 넣는 길에 안 닿았다).
+// ⛔판정은 «이 함수 한 곳» — 네이티브 끌기(아래 _drop)와 자산 패널 mousedown 끌기(assets-panel.js onUp) 둘 다 이것만 부른다.
 // ════════════════════════════════════════════════════════════════════════
+const _SECTION_DROP_KINDS = new Set(['insert', 'replace', 'sectionbg', 'cvbcard']);   // commitScratchDropAt 의 «섹션 쪽» 판정
+function _imgNatSize(src) {
+  return new Promise(res => { const im = new Image(); im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight }); im.onerror = () => res({ w: 0, h: 0 }); im.src = src; });
+}
+/** 놓은 점(화면 좌표)에 이미지를 둔다. 돌려주는 것: 'section' | 'scratch' | null(캔버스 밖 — 아무것도 안 함). */
+async function dropAssetImageAt(clientX, clientY, dataUrl, nat = {}) {
+  if (!dataUrl) return null;
+  const hit = document.elementFromPoint(clientX, clientY);
+  if (!hit || !hit.closest('#canvas-wrap')) return null;              // 캔버스 밖(패널 위 등) — 지금처럼 무동작
+  let natW = nat.naturalWidth || 0, natH = nat.naturalHeight || 0;
+  if (!(natW > 0 && natH > 0)) { const z = await _imgNatSize(dataUrl); natW = z.w; natH = z.h; }
+  if (hit.closest('#canvas .section-block') && !hit.closest('.scratch-item')) {
+    // 섹션 안 — 판정 종류를 먼저 본다. ⛔'newsection'(섹션 밖 판정)은 «새 섹션»을 만들므로 여기선 안 탄다(결정 ⓒ: 섹션은 ＋단추로).
+    const kind = previewScratchDropAt(clientX, clientY);
+    if (_SECTION_DROP_KINDS.has(kind) && commitScratchDropAt(clientX, clientY, dataUrl, { naturalWidth: natW, naturalHeight: natH })) {
+      window.pushHistory?.('노트패널→섹션');   // push-after — 스크래치→섹션 변환과 같은 규약(호출자 책임, canvas-scratch-drop.js 주석)
+      window.scheduleAutoSave?.();
+      return 'section';
+    }
+    clearScratchDropGuides();
+    // ⛔조용히 끝내지 않는다 — 넣을 자리가 아니면 그 자리 스크래치로 받고 말한다.
+    window.showToast?.('섹션에 넣을 자리가 아니라 스크래치패드에 두었어요');
+  }
+  const scaler = document.getElementById('canvas-scaler');
+  if (!scaler) return null;
+  const rect = scaler.getBoundingClientRect();
+  const scale = _getScale();
+  const w = 220;                                                        // 스크래치 기본 표시폭(모델 px)
+  const h = natW > 0 && natH > 0 ? w * natH / natW : w;
+  const x = Math.round((clientX - rect.left) / scale - w / 2);          // ★÷배율 · 중심 = 놓은 점
+  const y = Math.round((clientY - rect.top) / scale - h / 2);
+  await window._scratchAddAndSave?.(dataUrl, x, y, w);
+  return 'scratch';
+}
+window.dropAssetImageAt = dropAssetImageAt;
+
 function _bindAssetToScratchDrop() {
   const _hasAssetMIME = dt => dt && Array.from(dt.types || []).includes('application/x-goditor-asset');
   const _dragover = e => {
     if (!_hasAssetMIME(e.dataTransfer)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
+    // 놓기 «전»에 어디로 가는지 보이게 — 섹션 위면 삽입 안내선, 밖이면 지운다
+    const hit = document.elementFromPoint(e.clientX, e.clientY);
+    if (hit?.closest('#canvas .section-block') && !hit.closest('.scratch-item')) previewScratchDropAt(e.clientX, e.clientY);
+    else clearScratchDropGuides();
   };
   const _drop = async e => {
     if (!_hasAssetMIME(e.dataTransfer)) return;
@@ -2299,15 +2345,11 @@ function _bindAssetToScratchDrop() {
     e.stopImmediatePropagation(); // Codex #6 — 같은 target 다른 listener 차단
     let payload;
     try { payload = JSON.parse(e.dataTransfer.getData('application/x-goditor-asset') || '{}'); } catch (_) { payload = null; }
-    if (!payload?.assetId) return;
+    if (!payload?.assetId) { clearScratchDropGuides(); return; }
+    const cx = e.clientX, cy = e.clientY;
     const dataUrl = await window.assetsGetDataUrl?.(payload.assetId);
-    if (!dataUrl) return;
-    const scaler = document.getElementById('canvas-scaler');
-    if (!scaler) return;
-    const rect = scaler.getBoundingClientRect();
-    const x = Math.round((e.clientX - rect.left) - 110); // width 220 가운데 정렬
-    const y = Math.round((e.clientY - rect.top) - 60);
-    await window._scratchAddAndSave?.(dataUrl, x, y, 220);
+    if (!dataUrl) { clearScratchDropGuides(); return; }
+    await dropAssetImageAt(cx, cy, dataUrl);
   };
 
   // scaler (캔버스 내부 — 섹션·블록 영역) + wrap (scaler 외 회색 배경) 둘 다 등록
