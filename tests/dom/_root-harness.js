@@ -41,6 +41,12 @@ async function bootApp(page) {
   const errs = [];
   page.on('pageerror', e => errs.push(String(e)));
   await page.addInitScript(() => { window.electronAPI = new Proxy({}, { get: () => (() => Promise.resolve(null)) }); });
+  /* ★Electron 렌더러처럼 prompt() 가 «던진다» (2026-10-02, 현빈 「디자인시스템 컬러변수 추가가 아예 안 된다」 —
+     실앱 스택: `Uncaught Error: prompt() is not supported.`). 헤드리스 Chromium 은 prompt 를 대화창으로 띄우고
+     Playwright 가 자동으로 닫아 null 을 돌려줘서, prompt 를 쓰는 기능이 이 하네스에선 «안 죽고» 지나갔다
+     ⇒ 「한 환경에서만 참인 검사」. 실앱과 같은 꼴로 던지게 해 그 거짓 초록을 없앤다.
+     (alert·confirm 은 Electron 에서도 동기 대화창으로 «동작»하므로 그대로 둔다 — Playwright 가 alert=확인·confirm=취소로 닫는다.) */
+  await page.addInitScript(() => { window.prompt = () => { throw new Error('prompt() is not supported.'); }; });
   await page.route(`${ORIGIN}/**`, async (r) => {
     const u = new URL(r.request().url());
     const f = path.join(ROOT, decodeURIComponent(u.pathname));
