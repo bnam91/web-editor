@@ -9,18 +9,10 @@
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 
-/* 프로젝트 meta 를 메모리에 두는 가짜 electronAPI — loadProjectMeta 를 일부러 «늦게» 돌려 경합을 드러낸다(H8). */
-const FAKE_META = () => {
-  window.__meta = {};
-  const real = window.electronAPI;
-  window.electronAPI = new Proxy({}, { get: (_t, k) => {
-    /* ★«부른 순간»에 찍어 두고 늦게 돌려준다 — 실제 IPC 처럼(요청 시점의 파일). 첫 판은 «돌려줄 때» 읽어서
-       먼저 쓴 결과를 늘 봐 경합이 안 생겼다(변이 사본으로 H8 이 초록이라 찾음 — 계측기가 경합을 못 봤다). */
-    if (k === 'loadProjectMeta') return (pid) => { const snap = window.__meta[pid] ? JSON.parse(JSON.stringify(window.__meta[pid])) : null; return new Promise(r => setTimeout(() => r(snap), 30)); };
-    if (k === 'saveProjectMeta') return (pid, m) => { window.__meta[pid] = JSON.parse(JSON.stringify(m)); return Promise.resolve({ ok: true }); };
-    return real[k];
-  } });
-};
+/* 프로젝트 meta 가짜 = 공용 tests/dom/_fake-meta.js(main 과 같은 { ...cur, ...metaData } 합치기 · load 는 부른 순간 찍음).
+   ⚠️첫 판은 여기 따로 둔 가짜가 save 를 «통째 교체»로 흉내 냈다(main 과 다른 의미) — writer 를 patch-only 로 고치자 H8 이 거짓 빨강.
+   가짜는 한 벌만 둔다(의미는 unit meta-fake-semantics 가 main.js 와 대조해 잠금). */
+const { INSTALL_FAKE_META_SRC } = require('./_fake-meta.js');
 async function setup(page, { meta = false } = {}) {
   await page.setViewportSize({ width: 1600, height: 1000 });
   await bootApp(page);
@@ -31,7 +23,7 @@ async function setup(page, { meta = false } = {}) {
     c.insertAdjacentHTML('beforeend', `<div class="section-block" id="sA" data-section="1"><div class="section-inner"><div class="gap-block" data-type="gap" style="height:60px"></div><div class="row" id="rT"><div class="text-block" data-type="body" id="tT"><div class="tb-body">글자</div></div></div><div class="gap-block" data-type="gap" style="height:200px"></div></div></div>`);
     window.rebindAll?.();
     document.dispatchEvent(new CustomEvent('colorhistory-changed'));
-  }, [meta, `(${FAKE_META.toString()})()`]);
+  }, [meta, INSTALL_FAKE_META_SRC]);
   /* ⚠️클릭 «전에» 자리가 멈출 때까지 — 부하에선 기동 뒤 배율 맞추기가 늦게 끝나 잰 좌표와 누르는 순간 사이에 글 블럭이 움직여
      빗나갔다(실측). 공용 도우미 waitStableRect(_root-harness.js)로 — 같은 병을 세 번 고쳐 묶은 것. */
   const st = await waitStableRect(page, '#tT');
