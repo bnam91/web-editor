@@ -3,8 +3,11 @@
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { bindSlider, alignBtn } from './_helpers.js';
+import { bindSlider, alignBtn, blockHeaderHTML } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset } from '../frame-geometry.js';
+import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
+/* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
+import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed } from '../drag-utils.js';
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#ffffff';
@@ -36,15 +39,12 @@ function _headerHTML(el, mode) {
   const defaultName = isBanner ? 'Banner' : 'Frame';
   return `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          ${icon}
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${el.dataset.layerName || defaultName}</span>
-        </div>
-        ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${id}')">${id}</span>` : ''}
-      </div>
+${blockHeaderHTML({
+      icon: `          ${icon}`,
+      name: el.dataset.layerName,
+      defaultName: defaultName,
+      id: id,
+    })}
     </div>`;
 }
 
@@ -200,11 +200,14 @@ function _convertFreeLayoutToStack(ss) {
 window.__convertFreeLayoutToStack = _convertFreeLayoutToStack;
 
 function _renderAutoPanel(ss) {
-  const isShapeFrame = !!ss.querySelector('.shape-block');
+  const isShapeFrame = _isShapeFrameEl(ss);   // ★직속 판정 SSOT(자손 검색 ✗, 0918)
   const isFreeLayout = ss.dataset.freeLayout === 'true';
   const rawBg  = ss.style.backgroundColor || ss.dataset.bg || '#f5f5f5';
-  const hexBg  = rgbToHex(rawBg);
-  const bgAlpha = parseAlphaFromColor(rawBg);
+  // T-059 2라운드: 그라데이션 배경이면 rawBg 는 'initial'/그라데이션 문자열 → rgbToHex 가 #ffffff·쓰레기 hex 를 냈다.
+  //   그 값은 스와치(단색 표시)·Solid 복귀 색이 됐다 → 그라데이션 CSS 를 따로 잡아 wireColorField(gradientValue)로 넘긴다.
+  const bgGradCss = [ss.dataset.bg, ss.style.backgroundImage].find(v => /gradient\s*\(/i.test(v || '')) || '';
+  const hexBg  = bgGradCss ? '#ffffff' : rgbToHex(rawBg);   // 그라데이션이면 wireColorField 가 첫 스탑 색으로 덮는다
+  const bgAlpha = bgGradCss ? 100 : parseAlphaFromColor(rawBg);
   const padY   = parseInt(ss.dataset.padY)   || 0;
   const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
@@ -223,6 +226,15 @@ function _renderAutoPanel(ss) {
   const bgOpacity = ss.dataset.bgOpacity !== undefined
     ? Math.round(_bgOpa * 100)
     : 100;
+
+  /* ── 「패딩 제외(full-bleed)」 — 에셋블럭 패턴 미러 (2026-09-10 현빈 지시) ──
+     ★기본 «끔»: dataset.fullBleed 가 없으면 지금 동작 그대로다(옛 프레임 무변화).
+     ⛔뚫을 수 없는 자리에서는 «토글 자체를 안 보여준다» — 켜도 아무 일이 안 일어나는
+       스위치는 「고장」으로 읽힌다. 판정은 공용 부품(effectiveSectionPadX)에 맡긴다:
+         · 프레임 «안»의 프레임 = `.frame-block{overflow:hidden}` 이라 잘리기만 한다
+         · 섹션 밖(자유배치 등) = 기준이 없다  ⇒ 둘 다 0 을 돌려준다. */
+  const isFullBleed  = ss.dataset.fullBleed === 'true';
+  const canFullBleed = isFullBleed || effectiveSectionPadX(ss) > 0;
 
   const bannerPreset = ss.dataset.bannerPreset || '';
   const isBanner = !!bannerPreset;
@@ -270,7 +282,7 @@ function _renderAutoPanel(ss) {
       <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
         <span class="prop-label">${bgAlpha === 0 ? '배경색 (투명)' : '배경색'}</span>
-        ${colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha })}
+        ${colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha, gradientCss: bgGradCss })}
       </div>
       <div class="prop-row">
         <span class="prop-label">배경 투명도</span>
@@ -329,6 +341,24 @@ function _renderAutoPanel(ss) {
         <input type="range" class="prop-slider" id="ss-pady-slider" min="0" max="200" step="4" value="${padY}">
         <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
       </div>
+      ${canFullBleed ? `
+      <div class="prop-row">
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="ss-fullbleed-toggle" ${isFullBleed ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      ` : ''}
+      <!-- ★내용 자르기(현빈 2026-09-30 「피그마처럼 프레임마다 켬/끔, 기본은 끔」).
+           기본이 «안 자름»인 까닭은 css/editor-blocks.css 맨 위 .frame-block 주석(09-28 지시). -->
+      <div class="prop-row">
+        <span class="prop-label">내용 자르기</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="ss-clip-toggle" ${ss.dataset.clipContent === 'true' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Position</div>
@@ -372,7 +402,7 @@ function _renderAutoPanel(ss) {
       <div class="prop-section-title">Component</div>
       ${(() => {
         const allTemplates = window.loadTemplates?.() || [];
-        const folders = [...new Set(allTemplates.map(t => t.folder || '기타'))];
+        const folders = window.listTemplateFolders?.(allTemplates) || [];
         const folderOptions = folders.map(f => `<option value="${f}">${f}</option>`).join('');
         const catOptions = ['Hero','Main','Feature','Detail','CTA','Event','기타'].map(c =>
           `<option value="${c}">${c}</option>`
@@ -658,6 +688,7 @@ function _renderAutoPanel(ss) {
   // 배경색 (solid + gradient)
   wireColorField('ss-bg', {
     initialAlpha: bgAlpha,
+    gradientValue: bgGradCss,   // T-059 2라운드: 재선택 후에도 그라데이션 탭·스탑으로 열린다
     onApply: (c) => {
       // 이전 그라데이션 제거 후 솔리드 적용
       ss.style.backgroundImage = '';
@@ -787,8 +818,38 @@ function _renderAutoPanel(ss) {
     }
     ss.dataset.width = newW; ss.style.width = newW + 'px';
     ss.style.margin = '0 auto'; ss.style.alignSelf = 'center';
+    /* ★규약: «제 폭을 먼저 정하고» 마지막에 패딩제외를 덮는다.
+       ⚠️이 한 줄이 없으면 「폭을 만지면 패딩제외가 조용히 풀린다」 — 에셋에서 실제로 났던 병
+       (현빈 08-27 「리사이즈하면 패딩제외가 풀린다」)과 같은 뿌리다. 꺼져 있으면 no-op. */
+    applyBlockFullBleed(ss);
   };
   bindSlider(widthSlider, widthNum, applyWidth, { min: minWidth, max: 860 });
+
+  // 패딩 제외 (full-bleed) — 기본 «끔». 끄면 흔적만 지우고 제 폭을 되살린다.
+  const fbToggle = document.getElementById('ss-fullbleed-toggle');
+  if (fbToggle) {
+    fbToggle.addEventListener('change', e => {
+      window.pushHistory?.('프레임 패딩 제외');
+      if (e.target.checked) {
+        ss.dataset.fullBleed = 'true';
+        applyBlockFullBleed(ss);
+      } else {
+        delete ss.dataset.fullBleed;
+        clearBlockFullBleed(ss);
+        applyWidth(parseInt(ss.dataset.width) || width);   // 자연 폭 복원은 호출부 몫
+      }
+      window.scheduleAutoSave?.();
+    });
+  }
+
+  // 내용 자르기 — 값은 data-clip-content 한 칸, 그리기는 CSS 한 줄(css/editor-blocks.css).
+  //   저장·복사·내보내기(PNG 클론·HTML CSS 수집)가 모두 이 속성을 그대로 따라간다. push-after.
+  document.getElementById('ss-clip-toggle')?.addEventListener('change', e => {
+    if (e.target.checked) ss.dataset.clipContent = 'true';
+    else delete ss.dataset.clipContent;
+    window.pushHistory?.('프레임 내용 자르기');
+    window.scheduleAutoSave?.();
+  });
 
   // 패딩
   const padYSlider = document.getElementById('ss-pady-slider');

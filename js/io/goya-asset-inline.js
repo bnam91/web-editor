@@ -81,6 +81,97 @@ async function goyaAssetToDrawableSrc(src, reader) {
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   ★클론을 «캔버스로 굽는» 경로 전용 — goya-asset 을 미리 풀어 두고 클론에서 갈아끼운다.
+   ──────────────────────────────────────────────────────────────────────────
+   왜 필요한가 (2026-09-22 실측, 카드 T-071 «0920b-mosaic-cause»):
+     html2canvas 1.4.1 은 이미지를 «자기가 다시 로드»한다. 그 로드 규칙이(vendor 소스
+     CacheStorage.loadImage) 이렇다 —
+       e = isSameOrigin(src)                                  // goya-asset:// vs file:// → false
+       r = !data: && options.useCORS===true && !e             // ⇒ crossOrigin="anonymous" 로 로드
+       if (e || allowTaint!==false || data: || blob: || proxy || r) 로드 ; else «아예 안 읽는다»
+     ⇒ useCORS:true  → crossOrigin="anonymous" 가 붙고, goya-asset 응답엔 CORS 헤더가 없어
+                       «로드 자체»가 실패한다(실측: crossOrigin 없이는 naturalWidth 64 로
+                       멀쩡히 뜨는 같은 URL 이 anonymous 를 달면 onerror).
+       useCORS:false → 위 조건이 전부 거짓이라 html2canvas 가 그 이미지를 «읽지도 않는다».
+     ⇒ 두 축 다 «사진이 빠진 그림»이 나온다. 그런데 사진 자리가 섹션 흰 배경으로 채워지므로
+       결과는 «불투명»하다 — 빈 그림 감지(_isSuspiciouslyBlank, 불투명 5% 미만)에 안 걸린다.
+       실측(2026-09-22, 실앱 9646·줌 40%): 밑에 깔린 체커보드가 red 2048·blue 2048 인데
+       모자이크 캔버스 4×4 = 16픽셀 «전부 255,255,255», 그런데도 captureMosaicSnapshot 은
+       true 를 돌려주고 isMosaicCaptured 도 true 였다 ⇒ 사용자 화면엔 «단색 네모».
+       («회색 #4a4a4a 안전실패»가 아니다 — 그래서 패널의 「캡처 실패」 표시도 안 떴다.)
+
+   ⇒ 답: html2canvas 가 못 읽는 스킴을 «그에게 주지 않는다». 클론에서만 data: 로 갈아끼운다.
+     ⛔라이브 DOM 은 건드리지 않는다 — goya-asset 은 화면에는 «잘 그려진다»(main.js 의
+       registerSchemesAsPrivileged). 살아있는 화면을 base64 로 바꾸면 메모리만 먹는다.
+   ★실패는 «말하게» 한다 — unresolved>0 을 호출부가 읽고 캡처를 실패로 끝내야 한다.
+     조용히 넘기면 위에 적은 «흰 네모가 성공으로 보고되는» 그 결함이 그대로 돌아온다.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// 인라인 style 의 background-image 안에 든 goya-asset URL 들.
+function _bgGoyaUrls(el) {
+  const raw = (el && el.style && el.style.backgroundImage) || '';
+  if (raw.indexOf(GOYA_ASSET_PREFIX) === -1) return [];
+  return raw.match(GOYA_ASSET_RE) || [];
+}
+
+// scope(엘리먼트 또는 Document) 안에서 goya-asset 을 참조하는 자리들을 훑는다.
+function _eachGoyaHost(scope, visit) {
+  if (!scope) return;
+  const els = [];
+  if (scope.nodeType === 1) els.push(scope);
+  if (scope.querySelectorAll) els.push(...scope.querySelectorAll('img, video, [style*="background-image"]'));
+  for (const el of els) {
+    const tag = el.tagName;
+    if (tag === 'IMG' || tag === 'VIDEO') {
+      const src = el.getAttribute('src') || '';
+      if (isGoyaAssetUrl(src)) visit(el, 'src', src);
+    }
+    for (const u of _bgGoyaUrls(el)) visit(el, 'bg', u);
+  }
+}
+
+/**
+ * ★클론 굽기 전 준비 — scope 안의 goya-asset 참조를 «미리» data URI 로 풀어 둔다.
+ * @param {Element|Document} scope  라이브 DOM 범위(읽기만 한다 — 절대 안 고친다)
+ * @param {((projectId:string, filename:string)=>Promise<string|null>)|null} [reader]
+ * @returns {Promise<{ total:number, unresolved:string[], apply:(cloneRoot:Element|Document)=>number }>}
+ *   apply(cloneRoot) 는 클론에서 «풀린 것만» 갈아끼우고 바꾼 자리 수를 돌려준다(동기).
+ */
+async function prepareGoyaAssetsForClone(scope, reader) {
+  const urls = new Set();
+  _eachGoyaHost(scope, (_el, _kind, url) => urls.add(url));
+  const map = new Map();
+  const read = (typeof reader === 'function') ? reader : makeElectronAssetReader();
+  await Promise.all([...urls].map(async (url) => {
+    let data = null;
+    const parsed = parseGoyaAssetUrl(url);
+    if (parsed && read) {
+      try { data = await read(parsed.projectId, parsed.filename); }
+      catch (err) { console.warn('[goya-asset-inline] 클론용 읽기 실패:', url, err); }
+    }
+    if (typeof data === 'string' && data.startsWith('data:')) map.set(url, data);
+  }));
+  const unresolved = [...urls].filter((u) => !map.has(u));
+  return {
+    total: urls.size,
+    unresolved,
+    apply(cloneRoot) {
+      let n = 0;
+      _eachGoyaHost(cloneRoot, (el, kind, url) => {
+        const data = map.get(url);
+        if (!data) return;
+        if (kind === 'src') { el.setAttribute('src', data); n++; return; }
+        // background-image — 같은 선언 안의 다른 레이어(그라데이션 등)는 그대로 둔다.
+        const before = el.style.backgroundImage;
+        const after = before.split(url).join(data);
+        if (after !== before) { el.style.backgroundImage = after; n++; }
+      });
+      return n;
+    },
+  };
+}
+
 // JSON 트리의 문자열 값을 방문 — 객체/배열 재귀. visit(str) 반환값으로 치환.
 function _walkStrings(node, visit) {
   if (Array.isArray(node)) {
@@ -151,4 +242,7 @@ export {
   makeElectronAssetReader,
   goyaAssetToDrawableSrc,
   inlineGoyaAssetsInJSON,
+  /* ⚠️이 이름은 «goyaAssetToDrawableSrc 와 inlineGoyaAssetsInJSON 사이»에 끼우지 마라 —
+     tests/unit/goya-asset-family.test.js ⓑ-5 가 둘의 «인접»을 정규식으로 잰다. */
+  prepareGoyaAssetsForClone,
 };

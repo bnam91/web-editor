@@ -10,6 +10,7 @@
    - window.ungroupBlock, window.pushHistory, window.state
    - window.show*Properties, window.layerDragSrc, window.layerMultiDragTargets
 ══════════════════════════════════════ */
+import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 
 /* ═══════════════════════════════════
    LAYER PANEL
@@ -60,6 +61,7 @@ const layerIcons = {
   chat:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 2a1 1 0 011-1h8a1 1 0 011 1v6a1 1 0 01-1 1H7l-2 2V9H2a1 1 0 01-1-1V2z"/></svg>`,
   zoom:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3.5" width="4.5" height="5" rx="0.6"/><path d="M5.5 4.6 L11 6 L5.5 7.4" stroke-linejoin="round"/></svg>`,
   step:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="2.5" cy="2.5" r="1.5"/><line x1="4.5" y1="2.5" x2="11" y2="2.5"/><circle cx="2.5" cy="6" r="1.5"/><line x1="4.5" y1="6" x2="11" y2="6"/><circle cx="2.5" cy="9.5" r="1.5"/><line x1="4.5" y1="9.5" x2="11" y2="9.5"/></svg>`,
+  qa:                `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V3.5a2 2 0 0 1 4 0v2"/></svg>`,
 };
 
 /* 레이어 아이템 이름 더블클릭 인라인 편집 헬퍼 */
@@ -174,9 +176,10 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isInfoCard   = block.classList.contains('infocard-block');
   const isInnerCard  = block.classList.contains('innercard-block');
   const isModal      = block.classList.contains('modal-block');
+  const isQA         = block.classList.contains('qa-block');
   const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
-  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isGrid ? 'grid' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isModal ? 'modal' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isZoom ? 'zoom' : isGradient ? 'gradient' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', grid:'Grid', infocard:'Info Card', innercard:'Inner Card', modal:'Modal', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', zoom:'Zoom', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
+  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isGrid ? 'grid' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isModal ? 'modal' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isZoom ? 'zoom' : isGradient ? 'gradient' : isQA ? 'qa' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', grid:'Grid', infocard:'Info Card', innercard:'Inner Card', modal:'Modal', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', zoom:'Zoom', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star', qa:'QA Check' };
   /* ★[M55] grid 의 타입 라벨을 'Component' → 'Grid'. 현빈 2026-09-05:
        「여기에 컴퍼넌트라고 영어로 되어있는데 그리드라고 되어야되지 않겠니?」
      ★이 칸의 값어치는 «이름을 바꾼 뒤»에 나온다 — 레이어 이름은 「가격표」처럼 바꿀 수 있고,
@@ -189,13 +192,19 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
        현빈이 볼 화면을 통째로 바꾸는 일이라 별도 항목으로 올린다.
      ★안전 확인: 이 문자열을 «판정»에 쓰는 코드는 0건이다. 읽는 두 자리
        (layer-panel.js:614·:749)는 aria-label 문구를 조립하는 데만 쓴다 — 기능이 안 깨진다. */
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', grid:'Grid', infocard:'Component', innercard:'Component', modal:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', zoom:'Zoom', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', grid:'Grid', infocard:'Component', innercard:'Component', modal:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', zoom:'Zoom', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape', qa:'Component' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
   item.dataset.layerType = type;
   const displayName = block.dataset.layerName || labels[type] || type;
-  item.innerHTML = `${layerIcons[type] || layerIcons.body}<span class="layer-item-name">${displayName}</span><span class="layer-item-type">${typeLbls[type] || 'Text'}</span>`;
+  item.innerHTML = `${layerIcons[type] || layerIcons.body}<span class="layer-item-name"></span><span class="layer-item-type">${typeLbls[type] || 'Text'}</span>`;
+  /* ★이름은 «틀»이 아니라 «글자»로 넣는다 (T-049) — 행 껍데기는 innerHTML 로 둔다
+     (SVG 네임스페이스 때문에 필요하다 — 아래 «innerHTML로 파싱해야 SVG 네임스페이스가» 주석).
+     이름 칸만 비워 두고 textContent 로 채운다. addLayerRename 이 그 span 을
+     querySelector 로 잡으므로 자리는 안 바뀐다.
+     ⛔이름을 «검사»하지 마라 — 따옴표·꺾쇠가 든 멀쩡한 이름이 죽는다. */
+  item.querySelector('.layer-item-name').textContent = displayName;
   item.prepend(makeIndents(depth));
   // a11y(N8): 키보드 포커스/활성화 — tabindex 없는 div라 :focus-visible 규칙이 dead였음
   item.tabIndex = 0;
@@ -241,6 +250,25 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
         _wrap.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
       }
     }
+    /* ★그라데이션·스티커는 «선택+핸들+패널»을 자기 진입점이 한 벌로 처리한다 — 아래 타입
+       분기에 갈래가 없어 최종 else 의 showAssetProperties 로 떨어지고 있었다(2026-09-20 QA
+       실측: 레이어에서 Gradient 행을 누르면 우측에 «에셋 패널»이 뜨고, 거기 「너비」가 실제로
+       먹어 style.width 와 dataset.gradWidth 가 어긋났다. 그라데이션 전용 UI 에는 이 경로로
+       아예 못 간다). 판정·진입점은 js/history.js _restoreSelection 과 «같은 한 벌»을 쓴다.
+       ⛔여기서 패널 함수를 새로 고르지 마라 — 그 두 타입의 정본은 gradient-select.js·
+         sticker-select.js 다(핸들 부착까지 그 안에서 한다). */
+    if (isGradient && window._selectGradient) {
+      window._selectGradient(block);
+      window.highlightBlock?.(block, item);
+      window.setBlockAnchor?.(block);
+      return;
+    }
+    if (block.classList.contains('sticker-block') && window._selectSticker) {
+      window._selectSticker(block);
+      window.highlightBlock?.(block, item);
+      window.setBlockAnchor?.(block);
+      return;
+    }
     if (isShape) window.showShapeProperties?.(block);
     else if (isText || isIconText) window.showTextProperties(block);
     else if (isGap) window.showGapProperties(block);
@@ -255,16 +283,32 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isMockup) window.showMockupProperties?.(block);
     else if (isDivider) window.showDividerProperties?.(block);
     else if (isBridge) window.showBridgeProperties?.(block);
-    else if (isGrid) window.showGridProperties?.(block);
+    else if (isGrid) window.showGridProperties?.(block, null);   // ★0918: 블럭으로 선택 = 줄 선택 해제
     else if (isInfoCard) window.showInfoCardProperties?.(block);
     else if (isInnerCard) window.showInnerCardProperties?.(block);
     else if (isModal) window.showModalProperties?.(block);
+    else if (isQA) window.showQAProperties?.(block);
     else if (isLabelGroup) window.showLabelGroupProperties?.(block);
     else if (isJoker) window.showJokerProperties?.(block);
     else if (isChat) window.showChatProperties?.(block);
     else if (isLaurel) window.showLaurelProperties?.(block);
     else if (isZoom) window.showZoomProperties?.(block);
-    else window.showAssetProperties(block);
+    /* ★vector·step — 2026-09-20 최종 통합 라운드에서 «같은 꼴»로 더 샌 자리.
+       위 gradient/sticker 와 뿌리가 같다: 최종 else 가 «목록에 없는 전부»를 에셋 패널로 보냈다.
+       증거가 이 파일 안에 있었다 — isVector·isStep 은 «선언만» 돼 있고(위 :163·:164)
+       행 이름표(type)를 고를 때만 쓰였을 뿐 패널 분기엔 한 번도 안 나왔다.
+       ⇒ 레이어에서 Vector/Step 행을 누르면 우측에 에셋 패널이 뜨고, 거기 「너비/높이」가
+         실제로 그 블럭에 먹는다(gradient 에서 실측된 손상과 같은 길). */
+    else if (isVector) window.showVectorProperties?.(block);
+    else if (isStep) window.showStepProperties?.(block);
+    /* ★최종 갈래를 «에셋일 때만» 으로 좁힌다 (정본 표 js/panel-dispatch.js 머리말과 같은 원칙:
+       ★2026-09-21 T-079: 그 표는 js/history.js 에 있었다 — 거기서 «이사»했다. 옛 자리 아니다.
+         「표에 없는 타입은 패널을 건드리지 않는다 — 엉뚱한 패널을 여는 것보다 안 여는 쪽이 덜 틀린다」).
+       옛 무조건 else 가 이 결함의 «구조»였다: 갈래를 하나 빠뜨리면 조용히 에셋 패널이 떴고,
+       그 패널의 폭/높이가 남의 블럭에 먹어 저장값과 화면이 갈라졌다.
+       ⛔새 블럭 타입이 생겨도 여기 갈래를 안 넣으면 «아무 패널도 안 뜬다» — 그게 신호다.
+         갈래가 빠졌는지는 tests/unit/layer-panel-panel-table.test.mjs 가 기계로 센다. */
+    else if (block.classList.contains('asset-block')) window.showAssetProperties(block);
     // fix(frame-p0#5): 캔버스 클릭 경로 6곳(asset/icon-circle/canvas/vector/iconify/mockup)이
     // 각자 부르던 코너·리사이즈 핸들 호출이 레이어패널 클릭엔 아예 없어 모서리 핸들 없는
     // "다른 아웃라인"만 뜨는 원인이었다 — 타입→핸들 맵(showHandlesFor)으로 동일하게 맞춘다.
@@ -325,7 +369,7 @@ function makeLayerGroupItem(groupEl, sec, appendRowFn) {
       <rect x="1" y="1" width="10" height="10" rx="1.5"/>
       <line x1="3" y1="4" x2="9" y2="4"/><line x1="3" y1="6.5" x2="7" y2="6.5"/><line x1="3" y1="9" x2="8" y2="9"/>
     </svg>
-    <span class="layer-item-name">${name}</span>
+    <span class="layer-item-name"></span>
     <span class="layer-item-type">Group</span>
     <button class="layer-ungroup-btn" title="그룹 해제">
       <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -343,6 +387,7 @@ function makeLayerGroupItem(groupEl, sec, appendRowFn) {
   header.addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.click(); }
   });
+  header.querySelector('.layer-item-name').textContent = name;   // ★이름은 글자로 (T-049)
   addLayerRename(header.querySelector('.layer-item-name'), groupEl, 'Group', 'name');
 
   header.addEventListener('click', e => {
@@ -397,9 +442,10 @@ function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
   header.innerHTML = `
     <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
     ${layerIcons.asset}
-    <span class="layer-item-name">${block.dataset.layerName || 'Asset'}</span>
+    <span class="layer-item-name"></span>
     <span class="layer-item-type">Image + Overlay</span>`;
   header.prepend(makeIndents(depth));
+  header.querySelector('.layer-item-name').textContent = block.dataset.layerName || 'Asset';   // ★이름은 글자로 (T-049)
   addLayerRename(header.querySelector('.layer-item-name'), block, 'Asset');
 
   header.addEventListener('click', e => {
@@ -516,7 +562,19 @@ function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
       // text-frame 드래그 시: block을 row wrapper에 넣어 overlay에 삽입
       const container = dragEl.classList.contains('row') ? dragEl : (() => {
         const r = document.createElement('div');
-        r.className = 'row'; r.dataset.layout = 'stack';
+        /* ★[2026-09-22] row 에 «만들 때» id 를 준다 — 형제 자리들과 같은 꼴이다. ⛔지우지 마라.
+           안 주면 js/io/save-load.js rebindAll 의 「row ID 복원」이 `'row_' + Math.random()` 을 박는데,
+           그 줄은 restoreSnapshot(⌘Z)·switchPage 가 «둘 다» 지난다 ⇒ 복원할 때마다 «다른 id» 다.
+           그러면 「복원 직후 라이브 ≠ 방금 복원한 스냅샷」이 항상 참이 되어 ⌘Z 가 제자리를 맴돈다
+           (2026-09-22 의 «되돌리기 전면 무동작»이 그 모양이었다 — step·laurel·overlayRow 넷이 그랬다).
+           ⛔런타임에 «들어가는 문»에서 메우는 우회로로 고치지 마라 — 앞으로 id 없이 만드는 새 자리가
+             생겨도 조용히 메워져 아무도 모른다(새 사각지대). 자리마다 «만들 때» 주고 명부로 잠근다.
+           명부 게이트: tests/unit/row-id-at-creation.test.mjs
+           ⚠️이 파일은 머리말대로 외부 의존성을 window.* 로만 잡는다 — genId 도 그렇게 잡고,
+             없을 때의 폴백은 js/shape-frame.js _genRowId 와 같은 꼴이다. */
+        r.className = 'row';
+        r.id = window.genId ? window.genId('row') : 'row_' + Math.random().toString(36).slice(2, 9);
+        r.dataset.layout = 'stack';
         r.appendChild(block);
         return r;
       })();
@@ -634,7 +692,8 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   const defaultName = isGroup ? (ssEl.dataset.name || 'Group') : (isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
   const name = ssEl.dataset.layerName || defaultName;
 
-  wrapper.innerHTML = `${iconHtml}<span class="layer-item-name">${name}</span><span class="layer-item-type">${typeLabel}</span>`;
+  wrapper.innerHTML = `${iconHtml}<span class="layer-item-name"></span><span class="layer-item-type">${typeLabel}</span>`;
+  wrapper.querySelector('.layer-item-name').textContent = name;   // ★이름은 글자로 (T-049)
   wrapper.prepend(makeIndents(depth));
   addLayerRename(wrapper.querySelector('.layer-item-name'), ssEl, defaultName, 'layerName');
 
@@ -648,6 +707,22 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   wrapper.setAttribute('draggable', 'true');
   wrapper.addEventListener('click', e => {
     if (e.target.classList.contains('editing')) return;
+    /* ★보조키는 «다중선택» — 블록 줄(makeLayerBlockItem)과 같은 자리로 보낸다 (2026-09-21 T-091).
+       예전엔 프레임 줄만 ⇧/⌘ 를 «안 보고» deselectAll 로 시작해서, 레이어패널에서
+       글자를 고른 뒤 그룹 줄을 ⇧클릭하면 먼저 고른 것이 풀렸다(실측).
+       ⇒ 판정은 캔버스와 같은 rangeSelectBlocks/toggleBlockSelect 가 한다. */
+    if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(ssEl, sec); return; }
+    if (e.shiftKey)             { window.rangeSelectBlocks?.(ssEl, sec); return; }
+    // ★0919 QA(A안): 도형 줄 = 도형 선택 → 도형 속성. 래퍼 프레임 속성(Border·Layout…)을 열면
+    //   Border 슬라이더가 도형 선과 별개로 래퍼에 테두리를 만들었다(«프레임처럼» 편집되는 마지막 경로).
+    if (_isShapeFrameEl(ssEl) && typeof window.selectShapeBlock === 'function') {
+      const sb = ssEl.querySelector(':scope > .shape-block');
+      if (sb && window.selectShapeBlock(sb)) {
+        document.querySelectorAll('.layer-item.active').forEach(g => g.classList.remove('active'));
+        wrapper.classList.add('active');
+        return;
+      }
+    }
     window.deselectAll?.();
     const parentSec = ssEl.closest('.section-block');
     if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
@@ -657,7 +732,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
     wrapper.classList.add('active');
     window.highlightBlock?.(ssEl, wrapper);
     window.showFrameProperties?.(ssEl);
-    const isShapeFrame = !!ssEl.querySelector(':scope > .shape-block');
+    const isShapeFrame = _isShapeFrameEl(ssEl);
     if (!isShapeFrame) window.showFrameHandles?.(ssEl);
   });
   wrapper.addEventListener('dragstart', e => {
@@ -691,18 +766,20 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
         }
       } else if (child.classList.contains('row')) {
         appendRowFn(child, ssChildren, depth + 1);
-      } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
-                'table-block','graph-block','divider-block','bridge-block','grid-block','infocard-block','innercard-block','modal-block','label-group-block','shape-block','canvas-block','banner02-block','comparison-block','step-block','chat-block','zoom-block']
-                .some(c => child.classList.contains(c))) {
+      } else if (window.hasPanelForBlock?.(child)) {
+        /* ★「이 자식이 블럭인가」는 정본 표(js/panel-dispatch.js _PANEL_BY_CLASS) 한 곳이 답한다.
+           예전엔 여기 손으로 적은 21종 목록이 있었고, 정본 28종 중 7종(mockup·vector·icon·laurel·
+           qa·icon-text·annotation)이 빠져 있었다 ⇒ 프레임 안에 목업만 두면 자식 0개로 읽혀
+           쉐브론(토글)이 안 생겼다(현빈 2026-09-30, proj_1790568699549 ss_ts0he_hluhyl6). */
         ssChildren.appendChild(makeLayerBlockItem(child, child, sec, depth + 1));
       }
     });
   }
 
   // shape-only frame이 아니고 자식이 있으면 chevron + group 구조로 반환
-  const isShapeOnly = !!ssEl.querySelector('.shape-block') &&
-                      ssInner?.children.length === 1 &&
-                      ssInner?.firstElementChild?.classList.contains('shape-block');
+  // ★도형 래퍼는 «그냥 도형» — 자식 수와 무관하게 쉐브론 없는 단일 행(0918 A안, SSOT 직속 판정).
+  //   (로드 정규화가 래퍼 안 침입 블록을 꺼내므로 여기서 숨겨지는 실제 자식은 없다)
+  const isShapeOnly = _isShapeFrameEl(ssEl);
 
   if (!isShapeOnly && ssChildren.children.length > 0) {
     const group = document.createElement('div');
@@ -717,8 +794,9 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
     header.innerHTML = `
       <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
       ${iconHtml}
-      <span class="layer-item-name">${name}</span>
+      <span class="layer-item-name"></span>
       <span class="layer-item-type">${typeLabel}</span>`;
+    header.querySelector('.layer-item-name').textContent = name;   // ★이름은 글자로 (T-049)
     header.prepend(makeIndents(depth));
     addLayerRename(header.querySelector('.layer-item-name'), ssEl, defaultName, 'layerName');
     header.querySelector('.layer-chevron').addEventListener('click', e => {
@@ -729,6 +807,10 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
     header.addEventListener('click', e => {
       if (e.target.closest('.layer-chevron')) return;
       if (e.target.classList.contains('editing')) return;
+      /* ★보조키 = 다중선택 (2026-09-21 T-091) — 위 wrapper 갈래와 같은 이유·같은 자리.
+         자식이 있는 프레임은 이 header 가 그 프레임의 줄이다(ssEl._layerItem = header). */
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(ssEl, sec); return; }
+      if (e.shiftKey)             { window.rangeSelectBlocks?.(ssEl, sec); return; }
       window.deselectAll?.();
       const parentSec = ssEl.closest('.section-block');
       if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
@@ -738,7 +820,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
       header.classList.add('active');
       window.highlightBlock?.(ssEl, header);
       window.showFrameProperties?.(ssEl);
-      const _isShapeFrame = !!ssEl.querySelector(':scope > .shape-block');
+      const _isShapeFrame = _isShapeFrameEl(ssEl);
       if (!_isShapeFrame) window.showFrameHandles?.(ssEl);
     });
     header.addEventListener('dragstart', e => {

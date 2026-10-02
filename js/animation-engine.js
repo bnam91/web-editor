@@ -49,13 +49,17 @@ function closeAnimModal() {
 
 function _buildAnimList() {
   const list = document.getElementById('anim-list');
+  /* ★이름·설명은 틀에 안 넣는다 (T-049) — 지금은 이 파일의 고정 목록이지만, 「목록이
+     고정이다」는 옆 파일이 바뀌면 끝나는 전제다. 어차피 아래에서 한 줄씩 훑으므로 비용이 0. */
   list.innerHTML = ANIM_LIST.map(a => `
     <div class="anim-item${a.id === _animType ? ' active' : ''}" data-id="${a.id}">
-      <div class="anim-item-name">${a.label}</div>
-      <div class="anim-item-desc">${a.desc}</div>
+      <div class="anim-item-name"></div>
+      <div class="anim-item-desc"></div>
     </div>
   `).join('');
-  list.querySelectorAll('.anim-item').forEach(el => {
+  list.querySelectorAll('.anim-item').forEach((el, i) => {
+    el.querySelector('.anim-item-name').textContent = ANIM_LIST[i].label;
+    el.querySelector('.anim-item-desc').textContent = ANIM_LIST[i].desc;
     el.addEventListener('click', () => _selectAnim(el.dataset.id));
   });
 }

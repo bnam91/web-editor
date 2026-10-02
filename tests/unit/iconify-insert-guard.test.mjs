@@ -21,9 +21,21 @@ const SRC  = fs.readFileSync(path.join(ROOT, REL), 'utf8');
 /** 주석을 걷는다 — 주석에 적힌 `res.ok` 를 «코드»로 세면 안 된다. */
 const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 
-/** 삽입 경로(_doInsert)의 fetch 구간만 떠낸다. */
+/** 삽입 경로(_doInsert)의 fetch 구간만 떠낸다.
+ *  ★[2026-09-22] 앵커를 «함수»로 못박았다. 옛 판은 `'const res = await fetch('` 라는 «글자»로
+ *    파일 첫 자리를 잡았는데, 그건 «띄어쓰기»에 기대는 앵커였다 — 검색 경로의
+ *    `const res  = await fetch(url)`(두 칸)는 우연히 안 걸리고 있었을 뿐이다.
+ *    ⇒ 미리보기를 «묶음»으로 받는 고침이 들어오며 같은 꼴(한 칸)이 «앞에» 생기자
+ *      이 하네스가 엉뚱한 구간을 떴고, I4 가 「나는 아무것도 안 지킨다」고 빨개졌다.
+ *      ★검사가 «스스로» 알려 준 것이다 — 변이 단언이 없었으면 조용히 헛돌았다.
+ *    ⇒ 이제 `_doInsert` 안쪽에서만 찾는다. 이름이 바뀌면 I0 가 먼저 빨개진다(그게 맞다). */
+const INSERT_FN = 'async function _doInsert';
+function insertStart(src) {
+  const f = src.indexOf(INSERT_FN);
+  return f < 0 ? -1 : src.indexOf('await fetch(', f);
+}
 function insertBlock(src) {
-  const i = src.indexOf('const res = await fetch(');
+  const i = insertStart(src);
   if (i < 0) return '';
   const j = src.indexOf('closeIconifyModal()', i);
   return j < 0 ? '' : src.slice(i, j);
@@ -57,7 +69,11 @@ test('I3 ★막았으면 «폴백»으로 보낸다 — 삽입만 막고 끝내�
 });
 
 test('I4 [변이] 가드를 빼면 이 검사가 «실제로» 빨개진다', () => {
-  const mutated = CODE.replace(/if\s*\(!res\.ok\)[^\n]*\n/, '');
+  /* ⛔«파일 첫 자리»를 지우면 안 된다 — 다른 경로(미리보기 묶음받기)에도 같은 가드가 있고,
+     그걸 지우면 이 검사가 재려는 «삽입 경로»의 가드는 멀쩡히 남는다. 구간 «안»에서만 지운다. */
+  const _s = insertStart(CODE);
+  assert.ok(_s > 0, '★하네스가 부서졌다 — 삽입 경로를 못 찾았다');
+  const mutated = CODE.slice(0, _s) + CODE.slice(_s).replace(/if\s*\(!res\.ok\)[^\n]*\n/, '');
   assert.notEqual(mutated, CODE, '★하네스가 부서졌다 — 앵커를 못 찾았다');
   const blk = insertBlock(mutated);
   assert.ok(blk.length > 40, '변이판에서 구간을 못 떠냈다');

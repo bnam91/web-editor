@@ -63,7 +63,7 @@ function _resolveStops(block) {
   ];
 }
 
-function renderGradientBlock(block) {
+function renderGradientBlock(block, hint) {
   const style       = block.dataset.gradStyle      || GRADIENT_DEFAULTS.style;
   const direction   = block.dataset.gradDirection  || GRADIENT_DEFAULTS.direction;
   const startColor  = block.dataset.gradStart      || GRADIENT_DEFAULTS.startColor;
@@ -106,10 +106,12 @@ function renderGradientBlock(block) {
   gradFill.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:0;background:${bg};`;
 
   // 섹션 박스를 기준으로 fill 클리핑 (선택 outline + 코너 핸들은 블록 요소에 있어 영향 없음)
+  // hint.secW/secH: 드래그 중 호출자가 캐싱해둔 값. 없으면 즉시 읽는다(레이아웃 강제 재계산 —
+  // 드래그가 아닌 1회성 호출에서만 감내: 프로퍼티 패널 슬라이더, MCP 갱신 등).
   const sec = block.closest('.section-block');
   if (sec) {
-    const secW = sec.offsetWidth;
-    const secH = sec.offsetHeight;
+    const secW = hint?.secW ?? sec.offsetWidth;
+    const secH = hint?.secH ?? sec.offsetHeight;
     const clipTop    = Math.max(0, -y);
     const clipRight  = Math.max(0, (x + width)  - secW);
     const clipBottom = Math.max(0, (y + height) - secH);
@@ -142,8 +144,15 @@ function makeGradientBlock(opts = {}) {
 }
 
 function addGradientBlock(opts = {}) {
-  // B12: 섹션 미선택이어도 먹통처럼 보이지 않게 — 마지막 섹션으로 폴백(텍스트 추가 동작과 일관). 섹션 0개일 때만 중단.
-  const sec = window.getSelectedSection?.() || [...document.querySelectorAll('.section-block')].pop();
+  /* 섹션 미선택 = «다른 추가 입구 40곳과 똑같이» 막는다 — 경고만, 아무것도 안 만든다.
+     ★이력: B12 는 「먹통처럼 보이지 않게」 마지막 섹션 폴백을 뒀었다. 2026-09-21 무선택
+       전수 실측(41입구)에서 «이 입구만» delta=1 이었고, 화면 아래쪽 섹션에 생기니 오히려
+       「아무 일도 안 일어났다」로 읽혔다. 현빈 결정(2026-09-21): 한 벌로 맞춘다.
+       sticker 가 먼저 같은 이유로 폴백을 걷어낸 선례다(sticker-block.js U6(b)).
+     ⛔마지막-섹션 폴백을 되살리지 마라. 회귀: tests/unit/block-add-noselection-hint.test.mjs T3.
+     ※getSelectedSection 은 «블럭만 고른» 경우도 그 블럭의 섹션을 돌려준다(editor.js:3464)
+       — 그래서 토스트 문구(「섹션 또는 블록을 먼저 선택하세요」)와 동작이 어긋나지 않는다. */
+  const sec = window.getSelectedSection?.();
   if (!sec) { window.showNoSelectionHint?.(); return; }
   window.pushHistory?.('그라데이션 추가');
   const block = makeGradientBlock(opts);

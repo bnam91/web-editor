@@ -1,6 +1,6 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { alignBtn } from './_helpers.js';
+import { alignBtn, blockHeaderHTML } from './_helpers.js';
 
 function _stepToken(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -8,11 +8,48 @@ function _stepToken(name, fallback) {
   return v || fallback;
 }
 
-export function showStepProperties(block) {
+// ⑨ 캔버스에서 선택된 스텝 — 우측 패널이 그 스텝만 펼친다(prop-banner02.js의 activeLine 선례와 동일 메커니즘).
+//   activeIdx = null 이면 «전체 보기»(옛 동작: 모든 스텝을 한꺼번에 펼침) — 무손실 원칙상 그대로 남긴다.
+const _stbActiveStep = new WeakMap();
+export function stbSetActiveStep(block, idx) { _stbActiveStep.set(block, idx); }
+export function stbGetActiveStep(block) { return _stbActiveStep.has(block) ? _stbActiveStep.get(block) : 0; }
+if (typeof window !== 'undefined') {
+  window.stbSetActiveStep = stbSetActiveStep;
+  window.stbGetActiveStep = stbGetActiveStep;
+}
+
+// 캔버스에서 «지금 패널이 보고 있는 스텝»에 아웃라인 — 기존 선택 토큰만 쓴다(bn2SyncLineMark 미러).
+function _stbSyncMark(block, activeIdx) {
+  /* ★이름은 «-line-selected» 로 끝나야 한다(2026-09-15 현빈 제보: 선택 해제해도 테두리가 안 사라짐).
+   *   옛 이름 stb-step-selected 는 이 레포의 규칙(section-serialize.js RUNTIME_MARKER_RE)에 안 걸려
+   *   선택 해제 sweep·저장·PNG 어디서도 안 걷혔다. 옛 이름도 같이 걷는다(이미 저장된 프로젝트). */
+  block.querySelectorAll('.stb-line-selected, .stb-step-selected').forEach(el => el.classList.remove('stb-line-selected', 'stb-step-selected'));
+  if (activeIdx == null) return;
+  block.querySelector(`[data-step-idx="${activeIdx}"]`)?.classList.add('stb-line-selected');
+}
+if (typeof window !== 'undefined') window._stbSyncMark = _stbSyncMark;
+
+export function showStepProperties(block, activeIdxArg) {
   const steps = JSON.parse(block.dataset.steps || '[]');
 
+  // ⑨ 어느 스텝을 펼칠지 — 인자 > 기억값 > 0번. 스텝이 삭제돼 범위를 벗어나면 보정한다.
+  let activeIdx = (activeIdxArg !== undefined) ? activeIdxArg : stbGetActiveStep(block);
+  if (activeIdx != null) {
+    if (!steps.length) activeIdx = null;
+    else if (activeIdx < 0 || activeIdx >= steps.length) activeIdx = steps.length - 1;
+  }
+  stbSetActiveStep(block, activeIdx);
+  _stbSyncMark(block, activeIdx);
+
+  // 스텝 선택 칩 — 기존 정렬 세그먼트(.prop-align-group/.prop-align-btn)를 그대로 쓴다(신규 룩 없음).
+  const chipStrip = steps.length ? `
+    <div class="prop-align-group" id="stb-step-chips" style="flex-wrap:wrap;margin-bottom:6px;">
+      ${steps.map((s, i) => `<button class="prop-align-btn${activeIdx === i ? ' active' : ''}" data-step-chip="${i}" style="flex:0 1 auto;min-width:0;font-size:11px;padding:2px 8px;white-space:nowrap;" title="${(s.title || '').replace(/"/g, '&quot;').slice(0, 40) || '(빈 스텝)'}">스텝 ${i + 1}</button>`).join('')}
+      <button class="prop-align-btn${activeIdx === null ? ' active' : ''}" data-step-chip="all" style="flex:0 1 auto;min-width:0;font-size:11px;padding:2px 8px;white-space:nowrap;" title="모든 스텝을 한꺼번에 펼칩니다">전체</button>
+    </div>` : '';
+
   function stepsHtml() {
-    return steps.map((s, i) => `
+    return steps.map((s, i) => (activeIdx === null || activeIdx === i) ? `
       <div class="stb-prop-item" data-idx="${i}">
         <div class="prop-row" style="align-items:center">
           <span class="prop-label" style="font-weight:600">스텝 ${i + 1}</span>
@@ -26,7 +63,7 @@ export function showStepProperties(block) {
           <span class="prop-label">설명</span>
           <input type="text" class="prop-input stb-desc-input" data-idx="${i}" value="${(s.desc || '').replace(/"/g, '&quot;')}" style="flex:1;min-width:0">
         </div>
-      </div>`).join('');
+      </div>` : '').join('');
   }
 
   const numBg      = block.dataset.numBg      || _stepToken('--preset-step-num-bg', '#222222');
@@ -50,23 +87,20 @@ export function showStepProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <circle cx="2.5" cy="2.5" r="1.5"/>
             <line x1="4.5" y1="2.5" x2="11" y2="2.5"/>
             <circle cx="2.5" cy="6" r="1.5"/>
             <line x1="4.5" y1="6" x2="11" y2="6"/>
             <circle cx="2.5" cy="9.5" r="1.5"/>
             <line x1="4.5" y1="9.5" x2="11" y2="9.5"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Step Block'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Step Block',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
 
     <div class="prop-section">
@@ -201,12 +235,16 @@ export function showStepProperties(block) {
         <span class="prop-section-title" style="margin-bottom:0;flex:1">Steps</span>
         <button class="prop-btn" id="stb-add-step" style="padding:3px 6px;line-height:0" title="스텝 추가"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/></svg></button>
       </div>
+      ${chipStrip}
       <div id="stb-steps-list">${stepsHtml()}</div>
     </div>
   `;
 
+  // ⚠️renderStepBlock은 innerHTML을 통째로 갈아끼운다 → 선택 스텝 아웃라인 마커도 같이 날아간다.
+  //   모든 재렌더 경로가 이 헬퍼를 통과하므로 여기서 한 번만 복구한다(bn2 rerender와 동일 규약).
   function rerender() {
     window.renderStepBlock?.(block);
+    _stbSyncMark(block, activeIdx);
     window.scheduleAutoSave?.();
   }
 
@@ -361,12 +399,25 @@ export function showStepProperties(block) {
     if (!list) return;
     list.innerHTML = stepsHtml();
 
+    /* ★[R1 · 2026-09-22 · T-005 ④ · T-030 ⑤] 이 두 칸은 `input` 하나뿐이라 히스토리에
+       칸을 «한 번도» 안 만들었다. 그래서 제목·설명을 고친 뒤 ⌘Z 를 누르면 그 편집이 아니라
+       «그 앞 동작»이 풀렸다(스텝 추가 10→9 와 설명 되돌림이 «동시에»).
+       고침 = 같은 파일 #stb-start-number(위 :372~:380)와 «같은 꼴»로 맞춘다 —
+         `input` = 적용(타자마다) · `change` = 히스토리 한 칸(포커스 떠날 때 한 번).
+       ⛔`input` 쪽에 pushHistory 를 달지 마라 — 글자 하나마다 칸이 생긴다.
+       ⛔updateStepBlock 을 타게 바꾸지도 마라 — 그러면 js/model-update-history.js 가
+         끝 표본을 찍어 주므로 여기서 또 찍는 꼴이 된다(중복은 무변화 차단이 삼키지만
+         라벨이 엉킨다). rerender() 는 renderStepBlock 이라 그 통로를 안 탄다. */
     propPanel.querySelectorAll('.stb-title-input').forEach(el => {
       el.addEventListener('input', () => {
         const i = parseInt(el.dataset.idx);
         steps[i].title = el.value;
         block.dataset.steps = JSON.stringify(steps);
         rerender();
+      });
+      el.addEventListener('change', () => {
+        window.pushHistory?.('스텝 제목');
+        window.scheduleAutoSave?.();
       });
     });
 
@@ -376,6 +427,10 @@ export function showStepProperties(block) {
         steps[i].desc = el.value;
         block.dataset.steps = JSON.stringify(steps);
         rerender();
+      });
+      el.addEventListener('change', () => {
+        window.pushHistory?.('스텝 설명');
+        window.scheduleAutoSave?.();
       });
     });
 
@@ -387,19 +442,45 @@ export function showStepProperties(block) {
         steps.splice(i, 1);
         block.dataset.steps = JSON.stringify(steps);
         rerender();
-        rebindStepsList();
+        // 삭제된 스텝이 보고 있던 스텝이면 한 칸 앞으로(bn2 삭제 핸들러와 동일 규약) — 칩도 같이 갱신되니 전체 재렌더.
+        showStepProperties(block, activeIdx === null ? null : Math.max(0, i - 1));
+        /* ★[R1 · 2026-09-22] «끝 표본» — 위 :444 push-before 와 짝. 「스텝 추가」와 같은 병이라
+           같이 닫는다(지운 «뒤» 상태가 스택에 없으면 다음 편집과 함께 풀린다). */
+        window.pushHistory?.('스텝 삭제');
       });
     });
   }
 
   rebindStepsList();
 
+  // ⑨ 스텝 선택 칩 — 클릭한 스텝만 펼친다("전체"는 옛 동작인 일괄 펼침으로 복귀)
+  propPanel.querySelectorAll('#stb-step-chips [data-step-chip]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const v = chip.dataset.stepChip;
+      showStepProperties(block, v === 'all' ? null : parseInt(v, 10));
+    });
+  });
+
   propPanel.querySelector('#stb-add-step').addEventListener('click', () => {
+    // ★UI도 API(updateStepBlock, step-block.js:419)와 같은 상한(10) — QA 실측(적대적 QA)
+    //   에서 UI만 무제한이라 36개까지 만들어져 상태 불일치가 났다(2026-09-15).
+    if (steps.length >= 10) { window.showToast?.('스텝은 최대 10개까지입니다'); return; }
     window.pushHistory?.();
-    steps.push({ title: `${steps.length + 1}단계`, desc: '' });
+    /* ★기본 설명도 넣는다 — 캔버스는 설명이 비면 설명 칸 자체를 안 그려(step-block.js 변형 9곳)
+     *   캔버스에서 설명을 넣을 자리가 없었다(2026-09-15 현빈 제보: 4단계 추가 시 설명 없음).
+     *   기본 3단계(step-block.js:15~17)와 같은 말투. 상한 10(위) 까지만 필요하다. */
+    const _ORD = ['첫', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열'];
+    const _n = steps.length;
+    steps.push({ title: `${_n + 1}단계`, desc: `${_ORD[_n] || (_n + 1)} 번째 단계 설명` });
     block.dataset.steps = JSON.stringify(steps);
     rerender();
-    rebindStepsList();
+    // 새로 추가한 스텝을 바로 펼쳐준다(전체 보기 중이면 전체 유지) — bn2-line-add와 동일 규약.
+    showStepProperties(block, activeIdx === null ? null : steps.length - 1);
+    /* ★[R1 · 2026-09-22 · T-030 ⑤] «끝 표본» — 위 :468 push-before 하나로는 그 카드가 안 닫힌다.
+       push-before 는 «9개» 상태를 찍는다. 그러면 「10개인데 설명은 기본값」 표본이 한 번도 없어서,
+       설명을 고치고 ⌘Z 하면 «10→9 와 설명 되돌림»이 한꺼번에 일어난다(현빈 제보 그대로).
+       ⇒ 늘리고 «난 뒤»에 한 번 더 찍는다(⛔옮기기가 아니라 더하기). */
+    window.pushHistory?.('스텝 추가');
   });
 }
 

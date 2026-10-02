@@ -58,7 +58,7 @@ node tools/perf/launch-goditor.mjs --port=9390 --ud=<격리경로> --flags=on \
 ## 알려진 함정
 - **라이선스 게이트** — 격리 `user-data-dir` 에는 `auth.json` 이 없어 `pages/license.html` 이 뜬다.
   `launch-goditor.mjs` 는 package.json 의 dev 스크립트와 «같은» `admin` 인자를 붙여 통과한다
-  (개발 체크아웃 한정. 패키지 빌드는 `admin.allow` + 토큰이 필요하다).
+  (개발 체크아웃 한정. 패키지 빌드는 서명된 `operator.allow` 가 필요하다 — tools/operator-allow/README.md).
 - **창 이동** — 이 앱의 CDP 에는 **Browser 도메인이 없다**(`Browser.getWindowForTarget` → -32601).
   `move-window.mjs` 는 CDP 를 먼저 시도하고 실패하면 OS 창 관리자로 내려간다
   (맥 = `osascript`/System Events, 윈도우 = `user32.MoveWindow`). 반환값의 `offscreen` 을 **반드시** 확인할 것.

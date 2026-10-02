@@ -101,7 +101,7 @@
 .prop-text:focus { border-color: var(--ui-accent-primary); }
 .prop-text::placeholder { color: var(--ui-text-dim); }
 .prop-number-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: var(--ui-select-caret);
   background-repeat: no-repeat;
   background-position: right 6px center;
   padding-left: 8px;
@@ -134,17 +134,26 @@
 }
 .prop-chain-btn:hover { border-color: #888; color: var(--ui-text-sub); }
 .prop-chain-btn.active { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); background: rgba(45,111,232,0.12); }
-
-.prop-select {
-  flex: 1; min-width: 0; width: 0; height: 24px;
-  background: var(--ui-bg-input); border: 1px solid transparent;
-  border-radius: 4px; color: var(--ui-text);
-  font-size: var(--ui-fs-base); padding: 0 6px; outline: none; cursor: pointer;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  transition: border-color 0.1s;
+/* ★텍스트블록 오버레이(플로팅) 토글 — 2026-09-16g 재배치(T-001, 현빈 정정): Figma의
+   "Ignore Auto Layout" 아이콘은 Alignment 줄이 아니라 "Position" «섹션 제목과 같은 줄»
+   오른쪽 끝에 있었다(스크린샷 재확인). .prop-ph-header(제목 행 space-between) +
+   .prop-chain-btn(22×22 아이콘 버튼, 기존 컴포넌트) 그대로 재사용 — ON 색만 이 블록
+   전용 보라(--ui-sel-overlay, 스티커/확대블럭과 같은 토큰, 새 색 아님)로 바꾼다. */
+.prop-chain-btn--overlay.active {
+  border-color: var(--ui-sel-overlay, #9966ff); color: var(--ui-sel-overlay, #9966ff);
+  background: rgba(153,102,255,0.14);
 }
-.prop-select:hover { border-color: var(--ui-border-mid); }
-.prop-select:focus { border-color: var(--ui-accent-primary); }
+.prop-chain-btn--overlay.active:hover { background: rgba(153,102,255,0.22); }
+
+/* ~~[T-233 · 2026-09-27] 여기에 `.prop-select` 선언이 «한 벌 더» 있었다.~~ ⇒ ★지웠다.
+   ★까닭 — 아래(「폰트 셀렉터」 절)에 같은 선택자가 다시 선언돼 있고, 그쪽이 이 블록의 «모든»
+     선언을 같은 값으로 갖고 있으며 ＋`appearance:none`·화살표·`padding-right:24px` 를 더 든다.
+     같은 특이도면 «나중»이 이기므로 ★이 블록은 통째로 죽어 있었다(계산값 0바이트 차이 — 실측).
+   ★★그 중복이 «계측기 하나를 눈멀게» 했다 — 검사(tests/dom/grid-panel-icon-spec.dom.spec.js)의
+     `anchorCss()` 가 첫 블록을 떠서 «화살표가 없다»로 읽었고, 그래서 «마지막» 블록을 뜨게
+     고쳐야 했다. ⇒ 두 벌은 «보이는 버그»를 안 내고도 판정을 틀리게 만든다.
+   ⛔`.prop-select` 를 여기에 다시 쓰지 마라 — 정본은 아래 한 곳이다.
+     그 «한 벌»은 tests/unit/prop-select-single-rule.test.mjs 가 잠근다. */
 
 .prop-layout-input {
   flex: 1; height: 24px;
@@ -282,6 +291,24 @@
   white-space: nowrap;
   gap: 0;
 }
+
+/* ★「지금 값」 표시의 «배경»이 바로 위 규칙에 덮여 죽어 있었다 (T-101 ③, 2026-09-22)
+     실측(실앱 9644, 이미지블록 → 속성패널): prop-asset.js 가 active 를 «제대로» 붙이는데도
+       computed 가 active·idle 둘 다 background rgb(42,42,42) 로 «같았다».
+       아래 .prop-preset-btn.active(643) 의 background:#1a2a3a 는 한 번도 안 그려졌다.
+     ⇒ 명시도다 — 바로 위 `.prop-type-group:has(.prop-preset-btn) .prop-preset-btn.prop-type-btn`
+       가 (0,5,0) 으로 background 를 못 박는데, active 규칙은 `.prop-preset-btn.active`(0,2,0) ·
+       `.prop-type-btn.active`(0,2,0) 라 둘 다 진다. 살아남은 건 border-color 뿐인데
+       그건 위 규칙이 border-width/radius 만 건드려 «우연히» 남은 것이다.
+       ⇒ 6개가 3칸 두 줄로 놓이는 이 그룹에서 1px 테두리 색 하나만 남는다.
+     ⛔위 규칙에서 background 를 «빼지» 않는다 — 그 선언은 idle 모양을 잡는 몫이고,
+       빼면 .prop-preset-btn(635, bg-app) 과 .prop-type-btn(295, bg-input) 중 어느 쪽이
+       이기는지에 idle 색이 딸려간다(이 그룹 밖 버튼까지 같이 움직인다).
+     ⇒ «같은 자리에 같은 무게로» active 갈래를 하나 더 둔다(0,6,0). 색은 새로 짓지 않고
+       643 이 원래 선언해 둔 값을 그대로 쓴다 — 되살리는 것이지 바꾸는 것이 아니다. */
+.prop-type-group:has(.prop-preset-btn) .prop-preset-btn.prop-type-btn.active {
+  background: #1a2a3a;
+}
 .prop-type-btn {
   flex: 1; min-width: max-content; height: 24px;
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-mid);
@@ -310,6 +337,12 @@
 }
 .prop-align-btn:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); background: var(--ui-bg-elevated); }
 .prop-align-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
+/* ★:disabled 표시가 «없었다» — .prop-btn:disabled(535)·.prop-type-btn:disabled(553) 관례 그대로 붙인다.
+   없으면 「비활성인데 눌릴 것처럼」 보인다(hover 가 그대로 살아 테두리·글자색이 밝아진다).
+   첫 사용처 = 가림막 「방식」의 모자이크 버튼 임시 차단(2026-09-20 «0920b-mosaic-off» T-070). */
+.prop-align-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.prop-align-btn:disabled:hover { border-color: var(--ui-border-mid); color: var(--ui-text-dim); background: var(--ui-bg-input); }
+
 
 /* 그라데이션 프리셋 버튼 (배경만 인라인, 나머지 공통) */
 .cvb-grad-preset { flex: 1; color: #fff; text-shadow: 0 0 2px #000; }
@@ -383,6 +416,15 @@
 }
 .prop-color-hex:hover { border-color: var(--ui-border-mid); }
 .prop-color-hex:focus { border-color: var(--ui-accent-primary); }
+/* ★무효한 색 코드 — 「말없이 무시」 대신 «보이게» 한다 (2026-09-20 유닛 colorhex).
+   토글은 js/props/color-picker.js 의 wireHexText 한 곳에서만 한다. aria-invalid 도 같이 붙어
+   읽어주는 도구에도 전달된다. 값은 blur 하면 마지막 유효값으로 되돌아간다. */
+.prop-color-hex--invalid,
+.prop-color-field .prop-color-hex--invalid {
+  color: var(--ui-danger, #e5484d);
+  box-shadow: inset 0 0 0 1px var(--ui-danger, #e5484d);
+  border-radius: 3px;
+}
 .prop-color-swatch.swatch-none {
   background: transparent !important;
   background-image: linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%),
@@ -394,7 +436,12 @@
 /* Figma-style grouped color field: swatch + hex + opacity% */
 .prop-color-field {
   flex: 1;
-  min-width: 0;
+  /* ★바닥값 — 3번째 형제(보조 버튼)가 같은 줄에 붙으면 이 필드«만» 줄어들어
+     hex 칸이 0 으로 수렴한다(T-100: 에셋 배경색 칸 실측 16px).
+     스와치 26 + hex 6자 ~48 + alpha 54 ≈ 128 이 「값이 읽히는」 하한이다.
+     ⛔이건 보험이지 해법이 아니다 — 해법은 보조 버튼을 그 줄에서 빼는 것(.prop-color-row--aux).
+       줄이 모자라면 .prop-color-row 의 overflow:hidden 이 «버튼»을 자른다(값이 아니라). */
+  min-width: 128px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 54px;
   align-items: center;
@@ -406,6 +453,12 @@
   overflow: hidden;
 }
 .prop-color-field:focus-within { box-shadow: inset 0 0 0 1px var(--ui-accent-primary); }
+/* 색 줄에 딸린 보조 버튼(초기화·투명·✕)의 «자기 줄» — 라벨 자리만큼 들여쓰고 오른쪽에 붙인다.
+   같은 줄에 두면 색 필드가 눌려 값이 안 보인다(T-100). */
+.prop-color-row--aux {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 6px; margin: -2px 0 6px; min-height: 20px;
+}
 .prop-color-field .prop-color-swatch {
   width: 16px; height: 16px;
   margin: 0 6px 0 4px;
@@ -510,6 +563,12 @@
   flex-shrink: 0;
 }
 .cv-chip-label { white-space: nowrap; }
+/* ── 최근 쓴 색 줄 (현빈 2026-10-02 B안) — 점만, 글자 없음. 기존 .cv-chip-dot(변수 칩)은 무접촉. ──
+   ★점 테두리를 밝게: 최근 칩은 알약 테두리 없이 점뿐이라 어두운 색(#1b1b1b 등)이 어두운 패널에 묻힌다(시안에서 눈으로 찾음).
+   ⚠️칩 폭(20)·사이(4)를 바꾸면 한 줄 개수가 바뀐다 — design-system.js COLOR_HISTORY_MAX 를 같은 법으로 다시 재라. */
+.cv-recent-row { margin-top: 4px; }
+.cv-chip.recent { padding: 0; width: 20px; justify-content: center; }
+.cv-chip.recent .cv-chip-dot { width: 13px; height: 13px; border-color: rgba(255,255,255,0.38); }
 
 /* 공통 버튼 */
 .prop-btn {
@@ -553,9 +612,14 @@
   background: var(--ui-bg-app); border: 1px solid var(--ui-border-strong);
   border-radius: 4px; color: #ccc;
   font-size: var(--ui-fs-base); cursor: pointer;
+  white-space: nowrap; flex-shrink: 0;
   transition: background 0.15s, border-color 0.15s;
 }
 .prop-btn-sm:hover { background: var(--ui-bg-card); border-color: var(--ui-divider); }
+/* ★:disabled 가 없으면 「비활성인데 눌릴 것처럼」 보인다 — .prop-btn:disabled(524) 관례 그대로.
+   그리드 줄바(prop-grid.js _grdLineBarHtml)의 [줄 삭제]·[↺ 기본값으로]가 이 상태를 쓴다. */
+.prop-btn-sm:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.prop-btn-sm:disabled:hover { background: var(--ui-bg-app); border-color: var(--ui-border-strong); }
 .prop-btn-danger { background: var(--ui-danger-bg); border-color: var(--ui-danger-border); color: var(--ui-danger); }
 .prop-btn-danger:hover { background: var(--ui-danger-bg); border-color: var(--ui-danger-hover); color: var(--ui-danger-hover); }
 /* deprecated: use .prop-btn-full */
@@ -568,6 +632,30 @@
 }
 .prop-full-btn:hover { background: var(--ui-bg-card); border-color: var(--ui-divider); }
 
+/* ── 우측 패널 드롭다운 화살표 정본 (T-196, 2026-09-27 · 현빈 0927 「응」) ──
+   ⛔`appearance:auto` 로 둔 select 는 «맥이» 화살표를 그린다 — author 가 모양을 못 정한다.
+   실측(2026-09-27, 9376 그리드 패널): 패널 안 드롭다운 넷 중 «셋»이 맥 기본이고
+   하나(`+ 줄 추가…`=.prop-select)만 우리 그림이었다. 같은 절 안에서 두 종류가 나란히 떴다.
+   ~~[정정] prop-grid.js 의 「.prop-select 는 이 패널의 «모든» 드롭다운이 쓰는 화살표」~~
+     ← 그 문장은 «세어 보지 않은» 말이었다. 셋이 빠져 있었다(.var-select 둘 ＋ var-type-select).
+   ★그래서 «클래스»가 아니라 «자리»로 건다 — 패널에 새 select 가 생겨도 저절로 들어온다.
+     (개별 클래스에 붙이면 반드시 한 곳이 빠진다 — design-tokens.css 머리말의 그 규율)
+   ⛔`[multiple]`·`[size]` 는 목록 상자라 화살표가 없다. 제외한다.
+   ⚠️이 규칙은 ID 를 물어 특이도가 (1,0,1) 이다 — `.prop-select`(0,1,0) 보다 «세다».
+     ⇒ 뒤에 오는 개별 클래스가 이기지 «않는다». padding-right 를 24px 로 맞춰 둔 까닭이 그것이다
+     (`.prop-select` 가 원래 쓰던 값 — 안 맞추면 그 드롭다운만 2px 좁아진다).
+     ★값을 바꿀 땐 «개별 클래스들이 무엇을 쓰고 있었나»부터 세라. 여기서 덮인다.
+   ★실측 대조군(2026-09-27, 9391 격리 앱): 패널 «밖» select ＝ appearance auto ✅ ·
+     `[multiple]` ＝ auto ✅ · `[size=3]` ＝ auto ✅ — 셋 다 갈려서 이 규칙이 «자리»로만 무는 것이 증명됐다. */
+#panel-right select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: var(--ui-select-caret);
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
 /* 폰트 셀렉터 */
 .prop-select {
   flex: 1; min-width: 0; width: 0; height: 24px;
@@ -576,7 +664,7 @@
   font-size: var(--ui-fs-base); padding: 0 6px;
   outline: none; cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: var(--ui-select-caret);
   background-repeat: no-repeat;
   background-position: right 8px center;
   padding-right: 24px;
@@ -744,6 +832,15 @@
 .font-picker-list { max-height: 200px; overflow-y: auto; }
 .font-picker-list::-webkit-scrollbar { width: 4px; }
 .font-picker-list::-webkit-scrollbar-thumb { background: var(--ui-border-strong); border-radius: 2px; }
+.font-picker-noonnu {
+  width: 100%; height: 26px; box-sizing: border-box;
+  background: transparent; border: none;
+  border-top: 1px solid var(--ui-border, #2a2a2a);
+  color: var(--ui-text-dim); font-size: var(--ui-fs-10);
+  cursor: pointer; text-align: center;
+  transition: background 0.1s, color 0.1s;
+}
+.font-picker-noonnu:hover { background: var(--ui-bg-input); color: var(--ui-accent-primary); }
 .font-group-label {
   font-size: var(--ui-fs-9); font-weight: var(--ui-fw-bold); letter-spacing: 0.08em;
   color: var(--ui-text-dim, #555); text-transform: uppercase;
@@ -921,3 +1018,80 @@
 }
 .prop-radio input[type="radio"] { accent-color: var(--sel-color); margin: 0; cursor: pointer; }
 .prop-radio:has(input[type="radio"]:checked) { color: var(--ui-text, #e6e6e6); }
+
+/* ── 영상 트림 트랙 (asset-video-trim.js, feature/video-trim-controls 프로토타입) ──
+   ★패널 공용 토큰만 사용 — 새 색 도입 금지(디자인 일관성 게이트). */
+.vtrim-track-wrap { position: relative; height: 30px; margin: 6px 2px 10px; }
+.vtrim-track {
+  position: absolute; top: 12px; left: 0; right: 0; height: 6px;
+  background: var(--ui-bg-input); border: 1px solid var(--ui-border); border-radius: 3px;
+}
+.vtrim-range {
+  position: absolute; top: 12px; height: 6px;
+  background: var(--ui-accent-primary); border-radius: 3px; pointer-events: none;
+}
+.vtrim-handle {
+  position: absolute; top: 2px; width: 12px; height: 26px; border-radius: 4px;
+  background: var(--ui-bg-app); border: 2px solid var(--ui-accent-primary);
+  cursor: ew-resize; transform: translateX(-50%); touch-action: none;
+}
+.vtrim-playhead {
+  position: absolute; top: 0; width: 2px; height: 30px;
+  background: var(--ui-danger); transform: translateX(-50%); pointer-events: none;
+}
+.vtrim-playhead::before {
+  content: ''; position: absolute; top: -3px; left: 50%; width: 7px; height: 7px;
+  background: var(--ui-danger); border-radius: 50%; transform: translateX(-50%);
+}
+
+/* ── 그라데이션 스탑 핸들 (prop-gradient.js, 전용 Gradient 블록 패널) ──────────
+   기존엔 각진 사각 손잡이(10×30 슬랩)라 범용 <input type=range> 같은 인상이었다.
+   ★새 모양을 발명하지 않는다(디자인 일관성 게이트) — 팝업 컬러피커 그라데이션 탭
+   (color-picker.css .goya-cp-grad-thumb, T-011)이 이미 일러스트/피그마식 원형 퍽으로
+   재설계돼 있으므로 그 패턴을 그대로 재사용한다. 몸통 색만 스탑 고유색
+   (--stop-color, JS가 채움)이라 예외. */
+.grad-stops-bar {
+  position: relative;
+  height: 24px;
+  margin: 10px 0 8px;
+  border-radius: 4px;
+  border: 1px solid var(--ui-border);
+  cursor: copy;
+  background: var(--ui-bg-input);
+}
+.grad-stop-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: var(--stop-color, #000);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 1px 4px rgba(0,0,0,.5);
+  cursor: grab;
+  z-index: 2;
+  transition: box-shadow .1s, transform .05s;
+}
+.grad-stop-thumb:hover {
+  box-shadow: 0 0 0 1px var(--ui-accent-primary), 0 1px 4px rgba(0,0,0,.5);
+}
+.grad-stop-thumb.dragging {
+  cursor: grabbing;
+  border-color: var(--ui-accent-primary);
+  transform: translateY(-50%) scale(1.2);
+  z-index: 3;
+}
+
+/* ── 템플릿 저장: 역할별 «추천 태그» 칩 (현빈 2026-09-28) ──────────────────
+   ★칩은 «보조»다 — 위 입력칸에 직접 쳐도 되고, 칩에 없는 태그도 저장된다.
+   ⛔.prop-label(56px 고정·overflow:hidden)에 넣지 않는다 — 글자가 잘린다(이 파일 그 클래스 주석 참고). */
+.tpl-tag-recos { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.tpl-reco-label { width: 100%; font-size: 10px; color: #777; margin: 2px 0 1px; }
+.tpl-reco-chip {
+  font-size: 10px; line-height: 1.6; padding: 1px 7px; border-radius: 99px;
+  background: #2a2a2a; color: #bbb; border: 1px solid #3a3a3a; cursor: pointer;
+}
+.tpl-reco-chip:hover { border-color: #555; color: #ddd; }
+.tpl-reco-chip.on { background: var(--ui-accent-primary, #3a6ea5); border-color: transparent; color: #fff; }

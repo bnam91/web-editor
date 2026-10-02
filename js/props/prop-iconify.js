@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showIconifyProperties(block) {
@@ -11,26 +12,23 @@ export function showIconifyProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.5">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.5">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
             <circle cx="8.5" cy="8.5" r="1.5"/>
             <polyline points="21 15 16 10 5 21"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Icon'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Icon',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
 
     <div class="prop-section">
       <div class="prop-section-title">Icon</div>
       <div class="prop-row" style="gap:4px;">
-        <span class="prop-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#888;" title="${iconName}">${iconName || '(없음)'}</span>
+        <span class="prop-label" id="icn-name-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#888;"></span>
         <button class="prop-btn" id="icn-replace-btn" title="Iconify에서 교체"
           style="width:auto;height:auto;padding:3px 8px;font-size:10px;">교체</button>
         <button class="prop-btn" id="icn-svg-file-btn" title="로컬 이미지 파일 불러오기 (SVG·PNG·JPG)"
@@ -117,6 +115,11 @@ export function showIconifyProperties(block) {
     </div>
   `;
 
+  /* ★아이콘 이름은 틀에 안 넣는다 (T-049) — 빈 칸 + 프로퍼티 쓰기. */
+  const iconLabel = propPanel.querySelector('#icn-name-label');
+  iconLabel.title = iconName;
+  iconLabel.textContent = iconName || '(없음)';
+
   // ── SVG 프리셋 라이브러리 ────────────────────────────────────────────
   const presetCatSelect = propPanel.querySelector('#icn-preset-cat');
   const presetGrid      = propPanel.querySelector('#icn-preset-grid');
@@ -199,9 +202,18 @@ export function showIconifyProperties(block) {
       return;
     }
     _presetCategories = res.categories || [];
-    presetCatSelect.innerHTML = _presetCategories.length
-      ? _presetCategories.map(c => `<option value="${c.name}">${c.name} (${c.items.length})</option>`).join('')
-      : '<option value="">(폴더 비어있음 — Application Support/GODITOR/svg-presets/ 에 폴더+SVG 추가)</option>';
+    /* ★카테고리 이름도 틀에 안 넣는다 (T-049) — option 을 노드로 만들고 value·글자는 프로퍼티로. */
+    presetCatSelect.innerHTML = '';
+    if (!_presetCategories.length) {
+      presetCatSelect.innerHTML = '<option value="">(폴더 비어있음 — Application Support/GODITOR/svg-presets/ 에 폴더+SVG 추가)</option>';
+    } else {
+      for (const c of _presetCategories) {
+        const o = document.createElement('option');
+        o.value = c.name;
+        o.textContent = `${c.name} (${c.items.length})`;
+        presetCatSelect.appendChild(o);
+      }
+    }
     if (_presetCategories.length > 0) {
       presetCatSelect.value = _presetCategories[0].name;
       renderPresetGrid(_presetCategories[0].name);
@@ -310,7 +322,9 @@ export function showIconifyProperties(block) {
   };
   sSlider.addEventListener('mousedown', () => window.pushHistory?.());
   sSlider.addEventListener('input',  () => applySize(parseInt(sSlider.value)));
-  sNumber.addEventListener('change', () => { window.pushHistory?.(); applySize(parseInt(sNumber.value)); });
+  /* ★[2026-09-21] 순서를 뒤집었다 — prop-mockup.js 의 폭 숫자칸과 «같은 결함»이었다(실측 A).
+     이웃(:311 mousedown · :312 input · :314 change)은 맞다 — 숫자칸 하나만 뒤집혀 있었다. */
+  sNumber.addEventListener('change', () => { applySize(parseInt(sNumber.value)); window.pushHistory?.(); });
   sSlider.addEventListener('change', () => window.pushHistory?.());
 
   // 색상 (SVG currentColor 활용) — 래스터(PNG/JPG)는 색 UI 자체가 렌더되지 않으므로 wire 생략

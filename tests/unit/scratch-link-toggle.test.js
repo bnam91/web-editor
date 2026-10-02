@@ -103,7 +103,8 @@ test('B① 환경설정에 「연결선 표시」 체크박스가 있고, 그게
     '★저장해도 «지금 화면»에 반영되지 않는다 — setShowEdges 호출이 없다');
   // ⛔새 탭 금지 — 탭 목록이 늘지 않았다
   const tabs = [...SRC.modal.matchAll(/class="settings-tab[^"]*" data-tab="([a-z]+)"/g)].map(m => m[1]);
-  assert.deepEqual(tabs.sort(), ['api', 'collab', 'dev', 'easter', 'market', 'perf', 'shortcuts', 'version'],
+  // (★'debug' 는 2026-09-19 현빈 요청 「톱니바퀴 패널에 디버깅 탭 추가」로 «의도해서» 늘었다 — #16 과 무관)
+  assert.deepEqual(tabs.sort(), ['api', 'collab', 'debug', 'dev', 'easter', 'market', 'perf', 'shortcuts', 'version'],
     '★탭이 늘거나 줄었다 — 새 탭을 만들지 않기로 했다');
 });
 
@@ -216,14 +217,31 @@ test('C 입구가 «있다» — 툴바 메뉴에서 그 함수를 부른다', (
 });
 
 test('C 숨긴 동안 연결선이 «허공에» 남지 않는다 — 원문의 가드 줄을 그대로 돌린다', () => {
-  const draw = bodyAfter(SRC.link, 'function _drawEdges', '_drawEdges');
-  const line = draw.split('\n').find(l => !isCommentLine(l) && l.includes('continue') && l.includes('ir.width'));
+  /* ★2026-09-30 자리 이동 — 가드는 _drawEdges 안에 있었는데 «끝점 계산»(_edgeEnds)으로 옮겨졌다.
+   *   까닭: 연결선 더블클릭(당기기)이 같은 판정을 써야 한다. 「보이는 선」과 「눌리는 선」이
+   *   갈리면 사용자에겐 「선을 눌렀는데 안 먹는다」로 보인다.
+   *   ⇒ 자를 «그 자리»로 옮기고, 세기는 늘렸다 — 가드가 «있나»(아래 ㈎)에 더해
+   *     _drawEdges 가 그 답을 «지키나»(㈏)까지 본다. 가드만 있고 무시하면 증상이 그대로다. */
+  const ends = bodyAfter(SRC.link, 'function _edgeEnds', '_edgeEnds');
+  const line = ends.split('\n').find(l => !isCommentLine(l) && l.includes('return null') && l.includes('ir.width'));
   assert.ok(line, '★0×0 가드가 없다 — display:none 인 스크래치로 선이 (0,0) 까지 뻗는다');
-  const guard = new Function('ir', 'sr', `let hit = false; ${line.replace('continue', 'hit = true')}; return hit;`);
+  const guard = new Function('ir', 'sr', `let hit = false; ${line.replace('return null', 'hit = true')}; return hit;`);
   const R = (w, h) => ({ width: w, height: h, left: 0, top: 0, right: w, bottom: h });
   assert.strictEqual(guard(R(0, 0), R(300, 500)), true,  '★숨겨진 스크래치인데 선을 계속 긋는다');
   assert.strictEqual(guard(R(220, 140), R(0, 0)), true,  '★숨겨진 섹션인데 선을 계속 긋는다');
   assert.strictEqual(guard(R(220, 140), R(300, 500)), false, '★멀쩡한 쌍의 선까지 지운다(과잉 차단)');
+
+  // ㈏ 그리는 자가 그 답을 «지킨다» — null 을 받으면 그 선을 건너뛴다
+  const draw = bodyAfter(SRC.link, 'function _drawEdges', '_drawEdges');
+  assert.match(draw, /_edgeEnds\(sec, item\)/,
+    '★_drawEdges 가 _edgeEnds 를 안 쓴다 — 끝점 계산이 두 벌로 갈렸다(그러면 위 가드는 그리기와 무관하다)');
+  assert.match(draw, /if \(!_e\)\s*continue;/,
+    '★_drawEdges 가 «안 그려진 쌍»(null)을 건너뛰지 않는다 — 가드가 있어도 허공 선이 그대로 난다');
+
+  // ㈐ 맞추는 자(더블클릭 판정)도 «같은 문»을 지난다 — 보이는 선과 눌리는 선이 갈리지 않게
+  const at = bodyAfter(SRC.link, 'function _linkAtPoint', '_linkAtPoint');
+  assert.match(at, /_edgeEnds\(sec, item\)/, '★더블클릭 판정이 끝점을 «따로» 계산한다 — 두 벌이다');
+  assert.match(at, /if \(!e\)\s*continue;/, '★안 그려진 선을 «눌릴 수 있는 선»으로 센다');
 });
 
 test('C 상태는 «세션 한정»이다 — 저장 경로를 타지 않는다 (껐다 켜면 다시 보인다)', () => {

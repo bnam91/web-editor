@@ -13,6 +13,7 @@ function _escGraphHtml(v) {
    DRAG UTILITIES — pure helpers, no drag state
 ═══════════════════════════════════ */
 import { state } from './globals.js';
+import { isShapeFrame, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 
 /* ── actorId — «누가 만든 블록인가» ────────────────────────────────────────
  * 원격 동시협업에서는 두 사람의 앱이 «같은 문서»에 블록을 만든다. 기존 ID 는
@@ -130,9 +131,22 @@ function insertBeforeBottomGap(section, el) {
 function effectiveSectionPadX(el) {
   const parent = el?.parentElement;
   if (!parent) return 0;
-  /* ⛔프레임 «안»은 못 뚫는다 — `.frame-block{overflow:hidden}` 이라 넘친 폭이 잘리기만 한다.
-     (자유배치 프레임은 절대배치라 애초에 무의미.) assetFullBleedWidth 의 가드와 같은 뜻. */
-  if (parent.closest?.('.frame-block')) return 0;
+  /* ★프레임 «안»에서 뚫을 수 있나 — 그 프레임이 «실제로 자르는지»로 가른다.
+     ~~[2026-09-10] `if (parent.closest('.frame-block')) return 0;` — 무조건 못 뚫었다.~~
+     까닭은 「.frame-block{overflow:hidden} 이라 넘친 폭이 잘리기만 한다」였는데,
+     ★2026-09-28 현빈 지시로 그 overflow 를 visible 로 풀었다(css/editor-blocks.css).
+       ⇒ 막아둔 «까닭»이 죽었는데 «문»만 남아 있었다. 그래서 까닭을 코드가 확인하게 바꾼다.
+     ★지금 자르는 것은 «모서리를 둥글린 프레임»뿐이다 — 같은 CSS 파일의
+       `.frame-block[data-radius]:not([data-radius="0"]) { overflow: hidden }` 한 줄이 정본이고,
+       아래 판정은 그 선택자를 «그대로» 옮긴 것이다(두 곳이 갈리면 여기부터 의심하라).
+     ⛔computed 스타일로 재지 않는다 — 이 함수는 검사에서 «가짜 DOM»으로도 불린다
+       (tests/unit/block-full-bleed.test.mjs 의 makeEl). dataset 은 거기서도 산다. */
+  const _fr = parent.closest?.('.frame-block');
+  if (_fr) {
+    const _r = _fr.dataset?.radius;
+    const _clips = _r !== undefined && _r !== '' && String(_r) !== '0';
+    if (_clips) return 0;
+  }
   /* ⚠️row 의 패딩 키가 «두 가지»다: 생성 경로는 `paddingX`, 패널 슬라이더는 `padX`.
      하나만 보면 조용히 글로벌로 샌다 — assetFullBleedWidth 와 같은 함정. */
   if (parent.classList?.contains('row')) {
@@ -220,17 +234,61 @@ function findFlowAnchorSelected(root, scoped) {
 }
 
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
+/* ★자유배치 프레임 «안»의 흐름 row 를 좌표 단위로 세운다 (B2, 현빈 2026-10-01 「프레임 안에서는 되어야 되지 않나?」).
+ * 무엇이 문제였나: 패널로 넣은 컴포넌트(그리드·로렐·카드·스텝 등 공용 삽입 경로 15종)는 insertAfterSelected 가
+ *   자유배치 프레임에 «absolute 아닌 .row» 째 붙였다. 드래그 문(block-drag.js 「프레임 자유배치」 갈래)은
+ *   position!=='absolute' 이면 빠지므로 좌표 이동이 «아예» 안 됐다. (끌어다 넣은 것은 드롭이 absolute 로 바꿔서 됐다.)
+ * 무엇을 하나: row «째» absolute 로 세운다 — 목업이 이미 쓰는 꼴(absolute row = 드래그 대상, block-drag.js isMockup 갈래)이다.
+ *   ⛔블럭을 row 에서 꺼내지 않는다: 삽입 입구들이 돌려받은 {row, block} 의 row 를 뒤에서 쓰기 때문이다.
+ *   ⛔draggable 을 끈다 — 남으면 HTML5 드래그가 mousemove 를 가로챈다(09-30 줌 실측: 첫 틱 뒤 끊김).
+ * mode: 'stack' = 있는 absolute 자식들 밑으로 쌓는다(새로 넣을 때, 끌어넣기와 같은 규칙: x 0 · 바닥+16)
+ *       'inplace' = 지금 화면 자리 그대로(이미 흐름으로 들어가 있던 옛 것을 처음 끌 때). 부르는 곳 둘이 이 한 함수를 쓴다. */
+function settleRowInFreeFrame(frame, row, mode = 'stack') {
+  if (!frame || !row || row.style.position === 'absolute') return false;
+  if (frame.dataset?.freeLayout !== 'true' || row.parentElement !== frame) return false;
+  // 받는 것 = .row 또는 정본 표(panel-dispatch hasPanelForBlock)의 블럭. 글자 래퍼·도형 래퍼는 제 갈래가 따로 세운다.
+  if (!(row.classList?.contains('row') || window.hasPanelForBlock?.(row))) return false;
+  const fr = frame.getBoundingClientRect();
+  const k = frame.offsetWidth ? (fr.width / frame.offsetWidth) || 1 : 1;   // 캔버스 줌
+  /* ★폭·x 는 row 상자가 아니라 «안의 내용» 기준. row 는 블록 요소라 프레임 폭을 다 먹는다 —
+     그 폭 그대로 세우면 좌우로 움직일 자리가 0 이 된다(실측: 860 프레임에서 x 이동 0). */
+  const kids = row.classList.contains('row') ? [...row.children].filter(c => !c.classList.contains('drop-indicator')) : [];
+  const rr = row.getBoundingClientRect();
+  const box = kids.length
+    ? kids.map(c => c.getBoundingClientRect()).reduce((a, r) => ({ l: Math.min(a.l, r.left), r: Math.max(a.r, r.right) }), { l: Infinity, r: -Infinity })
+    : { l: rr.left, r: rr.right };
+  const w = Math.round((box.r - box.l) / k);
+  let left = 0, top = 0;
+  if (mode === 'inplace') {
+    left = Math.round((box.l - fr.left) / k - (frame.clientLeft || 0));
+    top  = Math.round((rr.top - fr.top) / k - (frame.clientTop  || 0));
+  } else {
+    const bottom = [...frame.children].filter(c => c !== row && c.style.position === 'absolute')
+      .reduce((m, c) => Math.max(m, (parseInt(c.style.top, 10) || 0) + (c.offsetHeight || 0)), 0);
+    top = bottom > 0 ? bottom + 16 : 0;
+  }
+  row.style.position = 'absolute';
+  row.style.left = left + 'px';
+  row.style.top  = top + 'px';
+  if (w && (!row.style.width || row.style.width === '100%')) row.style.width = w + 'px';
+  row.setAttribute('draggable', 'false');
+  return true;
+}
+
 function insertAfterSelected(section, el) {
   // 활성 서브섹션이 있으면 그 안에 삽입 (selected 여부 관계없이)
-  const activeSS = window._activeFrame;
+  // ★도형 래퍼는 그냥 도형 — 활성이어도 그 «안»은 삽입 대상이 아니다(0918 A안, shape-frame.js SSOT).
+  //   도형 래퍼면 한 단계 위 실제 프레임으로, 없으면 null → 아래 섹션 레벨 분기.
+  const activeSS = resolveInsertFrame(window._activeFrame);
   // text-frame은 단순 wrapper — 삽입 대상이 아님 (_restoreParentFrameSelected 안전망)
   // banner-preset 외곽은 컴포넌트 단위 — 안에 직접 자식 추가 받지 않음 (drill-in으로 inner 활성화 시에만)
   if (activeSS && !activeSS.dataset?.textFrame && !activeSS.dataset?.bannerPreset && activeSS.closest('.section-block') === section) {
     // shape-block이 선택된 경우: shape frame은 최소 단위 — 내부 삽입 금지, frame 뒤에 삽입
-    const selShape = activeSS.querySelector('.shape-block.selected');
+    const selShape = activeSS.querySelector('.shape-block.selected')
+      || [...activeSS.querySelectorAll('.frame-block.selected')].find(isShapeFrame);
     if (selShape) {
-      const ref = activeSS.closest('.row') || activeSS;
-      ref.after(el);
+      // 선택 도형의 «래퍼(또는 row)» 바로 뒤 — 활성 프레임 밖으로 튀지 않는다
+      anchorUnitOf(selShape).after(el);
       return;
     }
 
@@ -240,23 +298,46 @@ function insertAfterSelected(section, el) {
     if (sel) {
       const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
       ref.after(el);
-    } else if (ssInner.classList.contains('selected')) {
-      // 내부 자식 선택 없이 프레임 자체가 오브젝트로 선택된 상태 → 프레임 안이 아니라 뒤(형제)에 삽입
-      const ref = ssInner.closest('.row') || ssInner;
-      ref.after(el);
+      window.settleRowInFreeFrame?.(ssInner, el, 'stack');   // B2 — 자유배치 프레임이면 좌표 단위로
     } else {
+      /* ★2026-09-23 — 「프레임 «자체»가 오브젝트로 선택된 상태」도 프레임 «안»이다.
+       *   옛 판은 여기서 `ssInner.closest('.row').after(el)` 로 «뒤»에 붙였다. 그런데
+       *   ⛔프레임 속성 패널 맨 아랫줄이 이렇게 «약속»한다:
+       *     「Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.」
+       *   현빈 실기 제보(userlens): 「그리드 블럭이 프레임 블럭에 안 들어간다」. 실측 3/3 재현이었다.
+       *   ★그리고 이건 그리드만의 병이 «아니었다» — 텍스트·에셋·스티커는 자기 프레임 분기를
+       *     따로 갖고 있어 «안»에 들어가고(block-factory.js 등), 공용 경로를 타는
+       *     컴포넌트 블럭 15종(banner·banner02·canvas·chat·comparison·grid·iconify·infocard·
+       *     innercard·laurel·mockup·modal·qa·step·vector)만 «밖»으로 나갔다.
+       *   ⇒ 화면의 약속 · 텍스트 경로 · 공용 경로 «셋»이 서로 다른 말을 하고 있었다. 하나로 맞춘다.
+       *   ⛔15곳에 분기를 베끼지 «않는다» — 고칠 자리는 여기 한 곳이다.
+       *   ⛔도형 래퍼는 이 줄에 닿지 않는다: 위의 `selShape` 분기가 먼저 return 하고,
+       *     `resolveInsertFrame` 이 래퍼를 한 단계 위로 올린다(0918 A안 그대로 산다).
+       *   지키는 검사: tests/dom/frame-accepts-component-blocks.dom.spec.js F1(안에 들어간다)
+       *                ＋ F2·shape-frame-isolation I1~I3(도형 래퍼는 여전히 뒤 — 짝 검사) */
       ssInner.appendChild(el);
+      window.settleRowInFreeFrame?.(ssInner, el, 'stack');   // B2
     }
     return;
   }
 
   const inner = section.querySelector('.section-inner');
 
-  // 서브섹션 자체가 selected인 경우 → 서브섹션 row 뒤에 삽입
+  /* ★«두 자리»가 같은 술어를 봐야 한다 — insert-anchor-property G3c 가 잠근 규약이다.
+   *   한 곳만 고치면 「섹션에선 되는데 프레임 안에서만 안 된다」가 되고 훨씬 찾기 어렵다.
+   *   위(활성 프레임 분기)를 「안에 넣는다」로 바꿨으므로 여기도 같이 바꾼다.
+   *   ⛔단 도형 래퍼는 «여전히 뒤»다(0918 A안) — 그래서 isShapeFrame 가드를 «여기»에 둔다.
+   *     위 분기는 resolveInsertFrame 이 이미 걸러 주지만, 이 길은 _activeFrame 이 없을 때 오므로
+   *     걸러 주는 사람이 없다. */
   const selSS = document.querySelector('.frame-block.selected');
   if (selSS && selSS.closest('.section-block') === section) {
-    const ssRow = selSS.closest('.row') || selSS;
-    ssRow.after(el);
+    if (isShapeFrame(selSS) || selSS.dataset?.textFrame || selSS.dataset?.bannerPreset) {
+      const ssRow = selSS.closest('.row') || selSS;
+      ssRow.after(el);                 // 도형 래퍼·글자 래퍼·배너 외곽 = 최소 단위, 안에 안 넣는다
+    } else {
+      selSS.appendChild(el);           // 진짜 프레임 = 화면이 약속한 대로 «안»에
+      window.settleRowInFreeFrame?.(selSS, el, 'stack');     // B2
+    }
     return;
   }
 
@@ -270,9 +351,7 @@ function insertAfterSelected(section, el) {
   // shape-block은 최소 단위 — 내부 삽입 금지, 감싼 frame 뒤에 삽입
   const selShape = document.querySelector('.shape-block.selected');
   if (selShape && selShape.closest('.section-block') === section) {
-    const frame = selShape.closest('.frame-block');
-    const ref = (frame && (frame.closest('.row') || frame)) || selShape;
-    ref.after(el);
+    anchorUnitOf(selShape).after(el);
     return;
   }
 
@@ -289,11 +368,29 @@ function insertAfterSelected(section, el) {
   }
 }
 
+/* 섹션·블록을 안 고른 채 «블럭 추가»를 눌렀을 때의 «한 벌» 경고.
+   ★흔들림(fp-shake)은 «곁들이»고 토스트가 «본문»이다 — 순서를 뒤집지 마라.
+     옛 판은 #floating-panel 을 가드 없이 역참조해서, 그 요소가 없는 화면(미리보기로
+     감춘 게 아니라 아예 없는 경우·초기화 도중)에서는 여기서 TypeError 가 나
+     showToast 까지 «못 가고» 경고가 통째로 사라졌다 = 「경고 없이 아무 일도 안 한다」.
+     흔들 게 없으면 흔들지 않고 «말은 한다». (2026-09-21 수리공 유닛 ①) */
 function showNoSelectionHint() {
   const fp = document.getElementById('floating-panel');
-  fp.classList.add('fp-shake');
-  setTimeout(() => fp.classList.remove('fp-shake'), 400);
-  showToast('⚠️ 섹션 또는 블록을 먼저 선택하세요');
+  if (fp) {
+    fp.classList.add('fp-shake');
+    setTimeout(() => fp.classList.remove('fp-shake'), 400);
+  }
+  /* ★2026-09-23 — 「선택하세요」는 «선택할 것이 있을 때만» 말이 된다.
+     현빈 실기 제보(userlens): 새 「New Design」 프로젝트는 캔버스가 «텅 비어» 있다(섹션 0개).
+     거기서 블럭 추가를 누르면 「섹션 또는 블록을 먼저 선택하세요」가 떴는데
+     ⛔«선택할 섹션이 하나도 없었다» — 안내가 «할 수 없는 일»을 시키고 있었다.
+     그리고 그게 새 프로젝트의 «첫 화면»이다.
+     지키는 검사: tests/dom/no-selection-hint.dom.spec.js N1(갈라진다)·N2(빈 판은 추가를 가리킨다)
+                  ＋ N3 짝 검사(섹션이 있으면 여전히 「선택」을 가리킨다). */
+  const 섹션있나 = !!document.querySelector('.section-block');
+  showToast(섹션있나
+    ? '⚠️ 섹션 또는 블록을 먼저 선택하세요'
+    : '⚠️ 먼저 ＋ 새 섹션을 추가하세요');
 }
 
 function showToast(msg) {
@@ -605,7 +702,10 @@ function applyDividerStyle(block) {
     block.style.display = 'flex';
     block.style.justifyContent = 'center';
   } else {
-    hr.style.cssText = `border-top:${weight}px ${style} ${color};`;
+    /* ★가로 «너비»(현빈 2026-10-01) — dataset.lineWidth(px)가 있을 때만 가운데로 줄인다. 없으면 지금처럼 전폭(옛 블록 무변화).
+       ⛔lineLength 를 쓰지 않는다 — 옛 가로 디바이더에도 기본값 80 이 박혀 있어 그걸 너비로 읽으면 전부 줄어든다. */
+    const lineW = parseInt(block.dataset.lineWidth) || 0;
+    hr.style.cssText = `border-top:${weight}px ${style} ${color};` + (lineW > 0 ? `width:${lineW}px;max-width:100%;margin-left:auto;margin-right:auto;` : '');
     block.style.padding = `${padV}px ${padH}px`;
     block.style.display = '';
   }
@@ -677,6 +777,29 @@ function suppressAncestorDrag(block) {
   return restore;
 }
 
+// focus 된 contenteditable 요소의 내용 «전체»를 선택한다.
+// ★원래 block-drag.js(텍스트·Enter진입·표 셀·모달)와 comparison-block.js 가 각자 5~8줄짜리
+//   removeAllRanges→createRange→selectNodeContents→addRange 를 «손으로 복붙»해 쓰던 스니펫이다
+//   (comparison-block.js 주석: "block-drag.js:617-624 미러"). 새 블록타입이 생길 때마다 또 베껴야 해서
+//   배너(banner02)·그리드가 «빠진» 채로 나갔다 — 안내문구 위에 캐럿만 찍혀 타이핑이 이어붙었다
+//   (사용자 관점 훑기 0920 U-26: 「강아지 간식제목을 입력합니다.」). 실행 메커니즘만 한 벌로 모은다.
+// ⚠️«이 텍스트가 안내문구인가»의 «판정»은 여기 없다 — 블록마다 데이터모델이 달라서
+//   (text-block = data-is-placeholder 마커 / banner02·grid·comparison = 기본문구 값-비교)
+//   하나로 못 모은다. 판정은 각 호출자에 남기고 여기는 «전체선택 실행»만 한다.
+// ⚠️focus() 직후 «동기»로 불러야 한다 — 비동기면 브라우저 기본 캐럿이 선택을 덮는다.
+function selectAllEditableContents(el) {
+  if (!el) return false;
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    if (!sel) return false;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  } catch (_) { return false; }
+}
+
 export {
   genId,
   getActorId,
@@ -687,6 +810,7 @@ export {
   makeLabelItem,
   insertBeforeBottomGap,
   insertAfterSelected,
+  settleRowInFreeFrame,
   effectiveSectionPadX,
   applyBlockFullBleed,
   clearBlockFullBleed,
@@ -702,6 +826,7 @@ export {
   colorLuminance,
   blockContextLuminance,
   suppressAncestorDrag,
+  selectAllEditableContents,
 };
 
 window.genId                      = genId;
@@ -713,6 +838,7 @@ window.clearLayerSectionIndicators= clearLayerSectionIndicators;
 window.makeLabelItem              = makeLabelItem;
 window.insertBeforeBottomGap      = insertBeforeBottomGap;
 window.insertAfterSelected        = insertAfterSelected;
+window.settleRowInFreeFrame       = settleRowInFreeFrame;
 window.effectiveSectionPadX       = effectiveSectionPadX;
 window.applyBlockFullBleed        = applyBlockFullBleed;
 window.clearBlockFullBleed        = clearBlockFullBleed;
@@ -726,3 +852,4 @@ window.renderGraph                = renderGraph;
 window.applyDividerStyle          = applyDividerStyle;
 window.ASSET_PRESETS              = ASSET_PRESETS;
 window.suppressAncestorDrag       = suppressAncestorDrag;
+window.selectAllEditableContents  = selectAllEditableContents;

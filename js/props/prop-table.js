@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { parseRatio } from './_helpers.js';
+import { parseRatio, blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
 
 function _tblTok(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -128,7 +128,11 @@ function _makeImgCellPlaceholder(tr) {
   const ph = document.createElement('div');
   ph.className = 'tbl-img-cell';
   const sizeRule = h > 0 ? `height:${h}px` : 'aspect-ratio:1/1';
-  ph.style.cssText = `${sizeRule};width:100%;background-image:repeating-conic-gradient(#e0e0e0 0% 25%, transparent 0% 50%);background-size:16px 16px;cursor:pointer;position:relative;`;
+  /* ★체커는 «CSS 클래스»에 둔다(.table-block .tbl-img-cell — css/editor-blocks.css).
+     인라인이면 직렬화돼 저장본(.gdt)·단독 HTML 배송본에 그대로 실린다 — 편집용 무늬는 배송물이
+     아니다. 정본은 .asset-block / .cvb-img-empty / .bn2-img-empty 이고 여기만 안 따르고 있었다
+     (EVAL low, 2026-09-21). 크기 규칙은 row 마다 달라 인라인으로 남는다. */
+  ph.style.cssText = `${sizeRule};width:100%;cursor:pointer;position:relative;`;
   return ph;
 }
 
@@ -297,10 +301,17 @@ export function showTableProperties(block) {
                  aria-expanded="${_open ? 'true' : 'false'}"
                  style="display:flex;align-items:center;gap:6px;cursor:pointer;"
                  title="${_open ? '접기' : '펼치기'}">
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
-             style="flex:0 0 auto;transform:rotate(${_open ? 90 : 0}deg);transition:transform .12s;">
-          <polyline points="2,2 6,4 2,6"/>
-        </svg>
+        <!-- ★쉐브론 규격 = js/props/_typo-section.js:80 · css/editor-props.css 의 .prop-select
+             (M1 1l4 4 4-4 · 잉크 1.5px · 선끝 round). ⛔여기서 «따로» 그리지 마라 — 이 절 머리는
+             ~~prop-grid·prop-table·prop-banner02·prop-simple-card 네 곳에 같은 마크업으로 산다.~~
+             ★[T-234 · 2026-09-27] ★그 네 벌을 «한 벌»로 모았다 — js/props/_helpers.js 의
+             disclosureChevronHtml(open). ⛔여기에 다시 인라인으로 그리지 마라(그 말이 원래 이 자리에
+             적혀 있었고, 이제 «자리»가 생겼다). ★산출은 옛 마크업과 «바이트 동일»이다(272/274자).
+             ⛔★이 주석에 «백틱»을 쓰지 마라 — 여기는 HTML 주석이지만 «템플릿 리터럴 안»이라
+               백틱이 리터럴을 닫아 파일이 통째로 SyntaxError 가 된다(2026-09-27 실측: 검사 21개가
+               한꺼번에 빨강). 이 저장소엔 같은 전례가 있다(주석 블록 밖 「* …」로 11개 빨강).
+             지키는 그물: tests/unit/disclosure-chevron-ssot.test.mjs ＋ tests/dom/grid-panel-icon-spec.dom.spec.js -->
+        ${disclosureChevronHtml(_open)}
         <span style="flex:1 1 auto;">행별 높이</span>
         <span class="prop-hint" style="flex:0 0 auto;">${rows.length}행</span>
       </div>
@@ -346,20 +357,17 @@ export function showTableProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="1" width="10" height="10" rx="1"/>
             <line x1="1" y1="4" x2="11" y2="4"/>
             <line x1="5" y1="4" x2="5" y2="11"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Table'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Table',
+      crumb: window.getBlockBreadcrumb(block),
+      id: block.id,
+    })}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Rows / Cols</div>
@@ -861,7 +869,9 @@ export function showTableProperties(block) {
       _rowhToggle.setAttribute('aria-expanded', String(next));
       _rowhToggle.title = next ? '접기' : '펼치기';
       const sv = _rowhToggle.querySelector('svg');
-      if (sv) sv.style.transform = `rotate(${next ? 90 : 0}deg)`;
+      /* ⛔각도 식은 위 절 머리 마크업과 «같은 값»이어야 한다 — 갈리면 첫 클릭에 그림이 튄다.
+         쉐브론이 «아래» 그림이라 접힘 = -90°(오른쪽) · 펼침 = 0°(아래). */
+      if (sv) sv.style.transform = `rotate(${next ? 0 : -90}deg)`;
       _tblRowHOpen.set(block, next);   // 행 추가/삭제로 패널이 재생성돼도 유지
     };
     _rowhToggle.addEventListener('click', _flip);

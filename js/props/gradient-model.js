@@ -87,6 +87,42 @@ function parseGradient(css) {
   return { type, angle, stops };
 }
 
+// T-059 2라운드 (이벨류 high): «피커가 그대로 다시 쓸 수 있는» 그라데이션만 모델로 돌려준다.
+//   parseGradient 는 관대해서 'to right'·'ellipse at top left'·3자리 hex·이름색·turn 단위를
+//   조용히 잘못 읽는다(방향 키워드가 색 스탑이 되고, 도형·위치는 circle 로 바뀜). 그런 모델로
+//   피커를 시드하면 스탑 하나만 건드려도 사용자 그라데이션이 엉뚱한 값으로 다시 쓰인다.
+//   → 피커 문법(각도 deg 0~360 | 없음, radial 은 'circle' 만, 스탑 색 = #rrggbb | rgb()/rgba(),
+//     위치 % — 위치 없는 스탑은 2스탑일 때만)이 아니면 null. null = 시드 안 함(Solid 탭으로 열림).
+const _STRICT_STOP = /^(#[0-9a-f]{6}|rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(?:,\s*[\d.]+\s*)?\))(\s+-?[\d.]+%)?$/i;
+function parseGradientStrict(css) {
+  const g = parseGradient(css);
+  if (!g) return null;
+  const inner = /^(?:linear|radial)-gradient\((.*)\)$/is.exec(String(css).trim())[1];
+  const tokens = _splitTopLevel(inner);
+  let idx = 0;
+  const first = tokens[0];
+  if (g.type === 'linear') {
+    if (/^-?\d+(\.\d+)?deg$/i.test(first)) {
+      const a = parseFloat(first);
+      if (!(a >= 0 && a <= 360)) return null;
+      idx = 1;
+    }
+  } else {
+    if (!/^circle$/i.test(first)) return null;   // 도형/위치 지정·생략(ellipse 기본) = 피커가 못 지킴
+    idx = 1;
+  }
+  const stopTokens = tokens.slice(idx);
+  if (stopTokens.length < 2 || stopTokens.length !== g.stops.length) return null;
+  let bare = 0;
+  for (const tk of stopTokens) {
+    const m = _STRICT_STOP.exec(tk);
+    if (!m) return null;
+    if (!m[2]) bare++;
+  }
+  if (bare && !(bare === stopTokens.length && stopTokens.length === 2)) return null;
+  return g;
+}
+
 /* ------------------------------------------------------------------ *
  * 2) serialize  (byte-identical to color-picker.js)
  * ------------------------------------------------------------------ */
@@ -156,6 +192,146 @@ function projectOffset(p0, p1, P) {
 }
 
 /* ------------------------------------------------------------------ *
+ * 3b) canvas bar geometry (0918 canvasgrad — 피그마식 캔버스 그라데이션 바)
+ *
+ * 두 좌표 공간이 있다 — 어댑터(registerGradientTarget)의 space 필드로 고른다.
+ *   · 'css'  : CSS background gradient(banner02/comparison). 색 선 길이
+ *              L = |w·sinA| + |h·cosA| (px) — 박스 밖으로 나갈 수 있다 → «클램프 금지».
+ *              각도·투영은 px 공간에서 한다(비정사각형에서 정규화 공간 각도 ≠ 렌더 각도).
+ *   · 'bbox' : SVG objectBoundingBox(shape). prop-shape.js _applyShapeGradient 의
+ *              x1,y1,x2,y2 = 0.5 ∓ 0.5·(sinA, −cosA) 와 «같은» 선. 각도·투영은 정규화 공간.
+ * 점은 전부 정규화(0-1 = 타겟 박스) 좌표로 돌려준다. px 로 바꾸는 건 호출자(×w, ×h).
+ * ------------------------------------------------------------------ */
+
+// model → { p0, p1, radial } (정규화). radial: p0=중심, p1=오른쪽 반경 끝.
+function gradientLine(model, { space = 'bbox', w = 1, h = 1 } = {}) {
+  const W = w || 1, H = h || 1;
+  if (model && model.type === 'radial') {
+    if (space === 'css') {
+      // radial-gradient(circle, …) 기본 크기 = farthest-corner → 반경 = 중심→모서리 거리(px)
+      const r = Math.hypot(W / 2, H / 2);
+      return { p0: { x: 0.5, y: 0.5 }, p1: { x: 0.5 + r / W, y: 0.5 }, radial: true };
+    }
+    return { p0: { x: 0.5, y: 0.5 }, p1: { x: 1, y: 0.5 }, radial: true }; // SVG r=50% bbox
+  }
+  const deg = (model && model.angle != null) ? Number(model.angle) : 180;
+  const rad = deg * Math.PI / 180;
+  const ux = Math.sin(rad), uy = -Math.cos(rad);
+  if (space === 'css') {
+    const L = Math.abs(W * ux) + Math.abs(H * uy);
+    const hx = (ux * L / 2) / W, hy = (uy * L / 2) / H;
+    return { p0: { x: 0.5 - hx, y: 0.5 - hy }, p1: { x: 0.5 + hx, y: 0.5 + hy }, radial: false };
+  }
+  return { p0: { x: 0.5 - 0.5 * ux, y: 0.5 - 0.5 * uy }, p1: { x: 0.5 + 0.5 * ux, y: 0.5 + 0.5 * uy }, radial: false };
+}
+
+// 중심→커서 방향으로 CSS 각도(0=위, 시계방향, 0~360). center/cursor 는 정규화.
+function angleFromDrag(center, cursor, { space = 'bbox', w = 1, h = 1 } = {}) {
+  const sx = space === 'css' ? (w || 1) : 1;
+  const sy = space === 'css' ? (h || 1) : 1;
+  return handlesToAngle({ x: center.x * sx, y: center.y * sy }, { x: cursor.x * sx, y: cursor.y * sy });
+}
+
+// 정규화 점 P 가 선 위 어느 offset(0~1)에 해당하나 — 공간에 맞게 투영.
+function offsetOnLine(line, P, { space = 'bbox', w = 1, h = 1 } = {}) {
+  const sx = space === 'css' ? (w || 1) : 1;
+  const sy = space === 'css' ? (h || 1) : 1;
+  const m = (p) => ({ x: p.x * sx, y: p.y * sy });
+  return projectOffset(m(line.p0), m(line.p1), m(P));
+}
+
+// px 선(p0px→p1px) 위 offset 점에서 법선 n=(sinθ, −cosθ) 방향으로 d 만큼 띄운 칩 중심 + 회전각.
+// θ = 선의 화면 각도(atan2(dy,dx)). θ=0(오른쪽으로 뻗은 선)이면 칩은 선 «위쪽»에 뜬다.
+function chipPlacement(p0px, p1px, offset, dPx) {
+  const dx = p1px.x - p0px.x, dy = p1px.y - p0px.y;
+  const th = Math.atan2(dy, dx);
+  const t = Math.max(0, Math.min(1, offset || 0));
+  const px = p0px.x + dx * t, py = p0px.y + dy * t;
+  return {
+    x: px + Math.sin(th) * dPx,
+    y: py - Math.cos(th) * dPx,
+    rotDeg: th * 180 / Math.PI,
+    onLine: { x: px, y: py },
+  };
+}
+
+// ── 자유 끝점(0918 canvasgrad 픽스 — 현빈 «추가 2») ──────────────────────────
+// 화면에 그리는 바(= view: 사용자가 끈 두 끝점, 정규화 좌표, 박스 밖 허용)와
+// 실제 렌더 규칙이 정하는 선(= canon: gradientLine)은 다를 수 있다. 저장 스키마(각도+스탑 %)는
+// 그대로 두고, 스탑 위치를 canon 기준으로 «다시 계산»해 표현한다(0% 미만·100% 초과 허용).
+//   canon offset t' = a + b·t   (t = view 위 상대 위치 0~1)
+// 두 선이 평행(각도가 view 방향에서 나옴)이라 투영 한 번으로 정확하다.
+
+// 클램프 없는 스칼라 투영(공간 metric 반영).
+function projectT(line, P, { space = 'bbox', w = 1, h = 1 } = {}) {
+  const sx = space === 'css' ? (w || 1) : 1;
+  const sy = space === 'css' ? (h || 1) : 1;
+  const vx = (line.p1.x - line.p0.x) * sx, vy = (line.p1.y - line.p0.y) * sy;
+  const len2 = vx * vx + vy * vy;
+  if (len2 <= 1e-12) return 0;
+  return ((P.x - line.p0.x) * sx * vx + (P.y - line.p0.y) * sy * vy) / len2;
+}
+
+// view → canon 선형 사상 계수 {a, b}.
+function viewMap(model, view, opts = {}) {
+  const canon = gradientLine(model, opts);
+  const a = projectT(canon, view.p0, opts);
+  const b = projectT(canon, view.p1, opts) - a;
+  return { a, b: Math.abs(b) < 1e-9 ? 1 : b, canon };
+}
+
+// 저장값만 있을 때(재선택·외부 변경) 화면 바: canon 선을 스탑 범위까지 늘린 것.
+// 스탑이 전부 0~1 이면 canon 그대로(기존 동작과 동일).
+function defaultView(model, opts = {}) {
+  const canon = gradientLine(model, opts);
+  if (!model || model.type === 'radial' || !Array.isArray(model.stops) || !model.stops.length) return { p0: canon.p0, p1: canon.p1 };
+  const offs = model.stops.map(s => Number(s.offset) || 0);
+  const lo = Math.min(0, ...offs), hi = Math.max(1, ...offs);
+  const at = (t) => ({ x: canon.p0.x + (canon.p1.x - canon.p0.x) * t, y: canon.p0.y + (canon.p1.y - canon.p0.y) * t });
+  return { p0: at(lo), p1: at(hi) };
+}
+
+const round2 = (v) => Math.round(v * 100) / 100; // 저장 CSS 가 정수 % 라 모델도 1% 단위로
+
+// 끝점을 옮긴 view + 각 스탑의 view 상대 위치(rel) → 새 {angle, offsets}. 각도는 정수로(저장 규칙).
+function applyView(view, rel, opts = {}) {
+  const angle = Math.round(angleFromDrag(view.p0, view.p1, opts)) % 360;
+  const model = { type: 'linear', angle };
+  const { a, b } = viewMap(model, view, opts);
+  return { angle, offsets: rel.map(t => round2(a + b * t)) };
+}
+
+// SVG 용 — <stop offset> 은 0~1 로 잘린다. 스탑이 범위 밖이면 선(x1..x2, bbox 정규화)을 스탑 범위까지
+// 늘리고 offset 을 그 안으로 재매핑한다(CSS 와 같은 그림). 범위 안이면 입력 그대로(remap=null).
+function svgStopRemap(line, offsets) {
+  const offs = offsets.map(o => Number(o) || 0);
+  const lo = Math.min(0, ...offs), hi = Math.max(1, ...offs);
+  if (lo >= 0 && hi <= 1) return { ...line, offsets: offs, remap: null };
+  const dx = line.x2 - line.x1, dy = line.y2 - line.y1, span = hi - lo;
+  return {
+    x1: line.x1 + dx * lo, y1: line.y1 + dy * lo,
+    x2: line.x1 + dx * hi, y2: line.y1 + dy * hi,
+    offsets: offs.map(o => (o - lo) / span),
+    remap: { lo, span },
+  };
+}
+
+// 칩 드래그 후 정렬 — 배열을 offset 오름차순으로 «제자리» 정렬하고, 선택돼 있던 스탑 «객체»의
+// 새 인덱스를 돌려준다(드래그 중엔 순서를 고정하므로 mouseup 에서 한 번만 부른다).
+function sortStopsKeepSelection(stops, selectedIdx) {
+  const sel = stops[selectedIdx];
+  stops.sort((a, b) => (a.offset || 0) - (b.offset || 0));
+  const i = stops.indexOf(sel);
+  return i < 0 ? 0 : i;
+}
+
+// 정렬 «사본»과, 원본 인덱스 idx 가 정렬 사본에서 몇 번째인지(피커 _sortedStops 관례와 같은 안정 정렬).
+function sortedIndexOf(stops, idx) {
+  const order = stops.map((s, i) => ({ o: s.offset || 0, i })).sort((a, b) => a.o - b.o);
+  return order.findIndex(e => e.i === idx);
+}
+
+/* ------------------------------------------------------------------ *
  * 4) getGradientTarget — block-agnostic adapter registry
  * ------------------------------------------------------------------ */
 
@@ -168,6 +344,7 @@ function registerGradientTarget(entry) { _registry.push(entry); }
 registerGradientTarget({
   match: (el) => el.classList.contains('banner02-block'),
   make: (block) => ({
+    space: 'css',
     rect: () => {
       const inner = block.querySelector('.bn2-inner');
       // The visible background is painted on `block` itself; .bn2-inner is a 0-origin scaled
@@ -202,6 +379,7 @@ registerGradientTarget({
           || block;
     };
     return {
+      space: 'css',
       rect: () => colEl().getBoundingClientRect(),
       get: () => {
         const cols = window.getComparisonCols?.(block.dataset) || [];
@@ -217,6 +395,111 @@ registerGradientTarget({
         window.scheduleAutoSave?.();
         if (commit) window.pushHistory?.();
       },
+    };
+  },
+});
+
+// shape-block: fill is painted via SVG <linearGradient>/<radialGradient> defs (not CSS
+// background), but block.dataset.shapeColor still stores the CSS gradient string for
+// display/round-trip (byte-identical to prop-shape.js applyGradient()). set() replays the
+// same write path prop-shape.js uses (window._applyShapeGradient + dataset + autosave/history)
+// so on-canvas drags stay indistinguishable from popup edits.
+//
+// ★rect(): unlike banner02/comparison (never rotated), shape-block carries its own CSS
+// transform:rotate(deg) (prop-shape.js _updateFrameForRotation). getBoundingClientRect() on a
+// rotated element returns the axis-aligned bounding box, which is INFLATED vs the shape's true
+// local size for any non-90°-multiple angle (×√2 at 45°) — using that directly as the overlay's
+// box size makes the handle line render oversized/detached from the visible shape. Position
+// (left/top) still comes from getBoundingClientRect() since blockEl's own rect is computed the
+// same (equally inflated) way in gradient-line-overlay.js's _computeBox, so the (cr-br) offset
+// still cancels out; only width/height must come from the untransformed layout box.
+registerGradientTarget({
+  match: (el) => el.classList.contains('shape-block'),
+  make: (block) => {
+    const svg = () => block.querySelector('svg');
+    return {
+      space: 'bbox',
+      rotation: () => parseFloat(block.dataset.shapeRotation) || 0,
+      rect: () => {
+        const el = svg() || block;
+        const r = el.getBoundingClientRect();
+        // ★block.offsetWidth/Height, not el's — el may be the <svg>, and SVGElement doesn't
+        // implement offsetWidth/offsetHeight (undefined, not 0) so `el.offsetWidth || r.width`
+        // silently falls through to the inflated rotated rect every time. block is always a
+        // plain HTMLElement (the .shape-block div) and its offsetWidth/Height are unaffected by
+        // the CSS rotate() transform regardless of which element (svg or block) painted `r`.
+        // ★단위 맞춤(0918 리뷰 high): offsetWidth/Height 는 «줌 적용 전» 캔버스 px 인데 left/top 은
+        //   화면 px 이고, _computeBox 는 rect() 전체를 «화면 px»로 보고 ÷zoom 한다. 그래서 줌 40%
+        //   에서 오버레이가 도형의 2.5배로 그려졌다(100% 에서만 우연히 맞음). → 화면 px 로 되돌려 준다.
+        //   배율은 getGradientTarget 쪽 전역 줌(window.currentZoom)과 같은 값.
+        const z = (Number(window.currentZoom) > 0 ? Number(window.currentZoom) : 100) / 100;
+        const w = block.offsetWidth ? block.offsetWidth * z : r.width;
+        const h = block.offsetHeight ? block.offsetHeight * z : r.height;
+        return { left: r.left, top: r.top, width: w, height: h, right: r.left + w, bottom: r.top + h };
+      },
+      get: () => block.dataset.shapeColor || '',
+      set: (css, commit) => {
+        const s = svg();
+        const g = parseGradient(css);
+        if (!s || !g) return;
+        // 이미지(에셋)/바둑판 모드였다면 해제 — 그라데이션이 칠해지는 순간 이미지 모드가 아니다(0918 picker)
+        if (block.dataset.shapeFill) {
+          window._clearShapeImage?.(block);
+          delete block.dataset.shapeFill;
+          delete block.dataset.shapeImage;
+        }
+        window._applyShapeGradient?.(block, s, { css, type: g.type, angle: g.angle, stops: g.stops });
+        block.dataset.shapeColor = css;
+        block.dataset.shapeGradient = JSON.stringify({ type: g.type, angle: g.angle, stops: g.stops });
+        window.scheduleAutoSave?.();
+        if (commit) window.pushHistory?.();
+      },
+    };
+  },
+});
+
+// text-block: 글자 그라데이션. 저장소는 «contentEl 인라인 스타일 하나»다(text-block-color.js 헤더) —
+// background-image:<grad> + (-webkit-)background-clip:text + -webkit-text-fill-color:transparent.
+// data 속성 사본이 없으므로 get/set 도 그 인라인을 그대로 본다.
+//
+// ★space:'css' — 저장 문자열이 linear-gradient(Ndeg, …) CSS 각도다(banner02/comparison 과 같은 부류).
+//   'bbox'(도형 전용)로 두면 gradientLine 이 정규화 좌표계로 각도를 다시 풀어 선 길이·방향이 어긋난다.
+// ★rect() 는 «블럭»이 아니라 contentEl — 그라데이션이 칠해지는 배경 영역이 contentEl 이고,
+//   텍스트 패딩은 tb(블럭) 쪽에 붙으므로(prop-text-wireup-padding.js) 둘의 박스가 다르다.
+//   _computeBox 가 (contentEl rect − block rect) 로 블럭 기준 오프셋을 빼 주므로 안쪽이어도 정합이다.
+// ⛔shape 처럼 offsetWidth×zoom 보정을 넣으면 안 된다 — 그 보정은 space:'bbox' + 회전 AABB 팽창 때문이고,
+//   'css' 는 _computeBox 가 cr.width/zoom 을 쓴다(넣으면 줌에서 두 번 곱해진다).
+// ⚠️한계①: 저장소가 인라인 스타일이라 «되읽으면» 브라우저가 #hex 를 rgb() 로 정규화한다(도형은 dataset
+//   문자열이라 원문 그대로였다). 값·파싱엔 영향이 없지만(parseGradient 가 둘 다 받고 getTextGradient 가
+//   hex 로 되돌린다), gradient-line-overlay.js 의 «끈 끝점 기억»(_rememberView/_recalledView)은 쓴 문자열과
+//   읽은 문자열을 글자로 견주므로 텍스트에선 항상 어긋나 기억이 안 남는다 ⇒ 블럭을 다시 고르면 바가
+//   각도에서 유도한 «기본 길이»로 그려진다(값은 그대로, 선 길이만 표준형). CSS linear-gradient 는 끝점
+//   길이를 저장하지 못하므로 «보이는 값»은 어차피 같다. 고치려면 overlay 의 기억 키를 바꿔야 해서 범위 밖.
+// ⚠️한계②: 회전 host 가 조상 .frame-block[data-text-frame] 인 자유배치 텍스트는 rotation()=0 이다
+//   (asset-rotate.js _textFrameHost). 포털(_syncPortal)도 블럭 «자신»의 transform 만 흉내 내므로
+//   둘이 같은 기준이라 포털 안에서는 어긋나지 않는다. 프레임 회전 대응은 이번 범위 밖.
+registerGradientTarget({
+  match: (el) => el.classList.contains('text-block'),
+  make: (block) => {
+    // 타입 전환(본문→라벨 등)이 contentEl 노드를 «교체»하므로 매번 다시 고른다(캐시 금지).
+    const contentEl = () => window.resolveTextContentEl?.(block) || null;
+    return {
+      space: 'css',
+      rotation: () => parseFloat(block.dataset.rotation) || 0,
+      rect: () => (contentEl() || block).getBoundingClientRect(),
+      // 그라데이션이 «걸려 있을 때만» 문자열을 준다 → getGradientTarget 의 parseGradient 검사와 합쳐져
+      // 단색 글자엔 바가 안 뜬다.
+      // ★게이트는 패널과 «같은» 함수(textGradientAllowed) — 라벨·불릿·말풍선·메탈릭 효과 글자는
+      //   applyTextGradient 가 칠을 막으므로, 바만 뜨면 «끌 수는 있는데 글자는 안 바뀌는 거짓 컨트롤»이 된다.
+      get: () => {
+        const el = contentEl();
+        if (!el || window.textGradientAllowed?.(el) === false) return '';
+        return window.getTextGradient?.(el)?.css || '';
+      },
+      // ★팝업 편집과 «완전히 같은» 쓰기 경로 — span 색 해제·형광펜 해제·caret-color·그림자 동기·
+      //   autosave·commit 때만 pushHistory 가 전부 따라온다. 경량 경로를 따로 두면 캔버스 드래그로
+      //   칠한 글자만 다른 상태가 된다(쓰기 경로 이원화 금지).
+      set: (css, commit) => { window.applyTextGradient?.(contentEl(), { css }, { commit }); },
     };
   },
 });
@@ -243,10 +526,22 @@ function getGradientTarget(blockEl) {
 
 const GradientModel = {
   parseGradient,
+  parseGradientStrict,
   toCss,
   handlesToAngle,
   angleToHandles,
   projectOffset,
+  gradientLine,
+  angleFromDrag,
+  offsetOnLine,
+  chipPlacement,
+  sortStopsKeepSelection,
+  sortedIndexOf,
+  projectT,
+  svgStopRemap,
+  viewMap,
+  defaultView,
+  applyView,
   getGradientTarget,
   registerGradientTarget,
 };
@@ -258,10 +553,22 @@ if (typeof window !== 'undefined') {
 
 export {
   parseGradient,
+  parseGradientStrict,
   toCss,
   handlesToAngle,
   angleToHandles,
   projectOffset,
+  gradientLine,
+  angleFromDrag,
+  offsetOnLine,
+  chipPlacement,
+  sortStopsKeepSelection,
+  sortedIndexOf,
+  projectT,
+  svgStopRemap,
+  viewMap,
+  defaultView,
+  applyView,
   getGradientTarget,
   registerGradientTarget,
   GradientModel,

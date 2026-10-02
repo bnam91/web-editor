@@ -1,4 +1,6 @@
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML, escHtml } from './_helpers.js';
+import { wireHexText, parseHex6OrTransparent, formatHex6OrTransparent } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 
 export function showCanvasProperties(block) {
   if (block.dataset.cardMode === 'simple') {
@@ -19,7 +21,7 @@ export function showCanvasProperties(block) {
       return `
         <div class="cvb-layer-row" data-index="${i}">
           <span class="cvb-layer-icon">▬</span>
-          <span class="cvb-layer-name">${layer.label || 'Shape'}</span>
+          <span class="cvb-layer-name">${escHtml(layer.label || 'Shape')}</span>
           <div class="prop-color-swatch cvb-layer-swatch" style="background:${layer.color || '#ccc'}">
             <input type="color" class="cvb-color-pick" data-index="${i}" value="${layer.color || '#cccccc'}">
           </div>
@@ -29,7 +31,7 @@ export function showCanvasProperties(block) {
       return `
         <div class="cvb-layer-row" data-index="${i}">
           <span class="cvb-layer-icon">🖼</span>
-          <span class="cvb-layer-name">${layer.label || 'Image'}</span>
+          <span class="cvb-layer-name">${escHtml(layer.label || 'Image')}</span>
           <button class="cvb-img-upload-btn prop-btn" data-index="${i}" title="이미지 업로드">
             ${hasSrc ? '교체' : '추가'}
           </button>
@@ -39,7 +41,7 @@ export function showCanvasProperties(block) {
       return `
         <div class="cvb-layer-row" data-index="${i}">
           <span class="cvb-layer-icon">T</span>
-          <span class="cvb-layer-name">${(layer.content || '').slice(0, 12).replace(/\n/g, '↵') || 'Text'}</span>
+          <span class="cvb-layer-name">${escHtml((layer.content || '').slice(0, 12).replace(/\n/g, '↵') || 'Text')}</span>
           <div class="prop-color-swatch cvb-layer-swatch" style="background:${layer.color || '#000'}">
             <input type="color" class="cvb-color-pick" data-index="${i}" value="${layer.color || '#000000'}">
           </div>
@@ -51,20 +53,17 @@ export function showCanvasProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="1" width="10" height="10" rx="2"/>
             <rect x="3" y="3" width="3" height="6" rx="0.5" fill="#888" stroke="none"/>
             <rect x="7" y="3" width="2" height="3" rx="0.5" fill="#888" stroke="none"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Canvas Block'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Canvas Block',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
 
     <div class="prop-section">
@@ -94,7 +93,7 @@ export function showCanvasProperties(block) {
         <div class="prop-color-swatch" style="background:${bg === 'transparent' ? '#fff' : bg}">
           <input type="color" id="cvb-bg-pick" value="${bg === 'transparent' ? '#ffffff' : bg}">
         </div>
-        <input type="text" class="prop-color-hex" id="cvb-bg-hex" value="${bg}" maxlength="20">
+        <input type="text" class="prop-color-hex" id="cvb-bg-hex" value="${formatHex6OrTransparent(bg)}" maxlength="11" aria-label="Color">
       </div>
       <div class="prop-row">
         <span class="prop-label">반경</span>
@@ -214,18 +213,26 @@ export function showCanvasProperties(block) {
   const bgPick = document.getElementById('cvb-bg-pick');
   const bgHex  = document.getElementById('cvb-bg-hex');
   const bgSwatch = bgPick.closest('.prop-color-swatch');
-  const applyBg = v => {
+  const applyBg = (v, { keepHexText = false } = {}) => {
     block.dataset.bg = v;
     window.renderCanvas(block);
     bgPick.value = (v === 'transparent' ? '#ffffff' : v);
-    bgHex.value  = v;
+    if (!keepHexText) bgHex.value = formatHex6OrTransparent(v);
     if (bgSwatch) bgSwatch.style.background = (v === 'transparent' ? '#fff' : v);
   };
   bgPick.addEventListener('input',  () => applyBg(bgPick.value));
   bgPick.addEventListener('change', () => window.pushHistory?.());
-  bgHex.addEventListener('change', () => {
-    const v = bgHex.value.trim();
-    if (/^#[0-9a-fA-F]{6}$/.test(v) || v === 'transparent') { applyBg(v); window.pushHistory?.(); }
+  /* 배경색 hex — 배선은 color-picker.js 의 wireHexText 한 자리(2026-09-21 픽스 라운드).
+     ★손사본이던 때는 `change` «하나뿐»이었다 — 타이핑 중 미리보기도, blur 복원도, 무효 표시도 없었다.
+       표기도 이 칸만 `#00FF00`(maxlength 20)이라 옆 칸들(`00FF00`)과 규칙이 달랐다 —
+       「자리마다 # 규칙이 다르다」는 신고 원문 그대로. 이제 심플카드 배경칸과 «같은 문법»이다
+       (6자리 hex 또는 `transparent`, 표기는 # 없는 대문자). */
+  wireHexText(bgHex, {
+    parse: parseHex6OrTransparent,
+    format: formatHex6OrTransparent,
+    getCurrent: () => block.dataset.bg || bgPick.value || '#ffffff',
+    onApply: (v) => applyBg(v, { keepHexText: true }),   // 타이핑 중인 글자를 덮어쓰지 않는다
+    onCommit: () => window.pushHistory?.(),
   });
 
   // ── 반경 ──────────────────────────────────────────────────────────────────

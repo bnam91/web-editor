@@ -1,6 +1,7 @@
 /* ── InnerCard 블록 프로퍼티 패널 — 카드 컨테이너(bg/radius/padding/그림자) + 라인 텍스트 ──
    라인 구조 변경(추가/삭제/이미지)은 updateInnerCardBlock API 영역. */
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showInnerCardProperties(block) {
@@ -14,18 +15,15 @@ export function showInnerCardProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1.5" y="1.5" width="9" height="9" rx="2"/><path d="M4 5 H8 M4 7 H6.5"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Inner Card'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Inner Card',
+      crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
+      id: block.id,
+    })}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Card</div>

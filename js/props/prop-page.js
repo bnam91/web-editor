@@ -3,6 +3,7 @@
 ═══════════════════════════════════ */
 import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기(applyCanvasBackground)만 쓰므로 «바인딩 자체»를 없앤다(직접 대입 재유입 방지) */
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
+import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»에서만 온다(유닛 colorhex) */
 
 /* ── 헬퍼: ab의 effective usePadx 결정 ──
    'true' / 'false' 명시 → 그 값 (개별 오버라이드)
@@ -49,32 +50,17 @@ window.savePadHintOn = savePadHintOn;
    padX 출처 규약은 applyPadXToSection(아래)·prop-row.applyPadX·block-factory.applyExcludePadX와 동일. */
 function assetFullBleedWidth(ab) {
   if (!ab || !getEffectiveUsePadx(ab)) return '';
-  // ★프레임 «전체» 안의 에셋은 full-bleed 대상이 아니다.
-  //   ⑴free-layout 프레임 = 절대배치라 무의미(applyExcludePadX 가드 미러)
-  //   ⑵flow 프레임도 마찬가지 — `.frame-block{overflow:hidden}`(css/editor-blocks.css:10)이라
-  //     프레임 밖으로 나가는 폭은 «어떤 계산으로도 안 보이고 잘리기만» 한다. 헬퍼는 프레임이 아니라
-  //     «섹션» padX 로 계산하므로 좌우 padX 만큼 클립됐다(2026-08-27 goditor-qa BUG-2, 4b5c812 유래).
-  //     도달경로 = banner-block.js:54 가 배너 프리셋 stack-inner 를 fullWidth 프레임으로 만든다.
-  if (ab.closest('.frame-block')) return '';
-  // preset 고정폭(logo·a4 등)은 그 사이즈를 지켜야 한다 — applyExcludePadX와 같은 가드.
-  // ⚠️ ②width 분기의 `preset !== 'logo'` 만으론 a4가 안 걸린다(08-27 태양 지적).
+  /* ★preset 고정폭(logo·a4 등)은 그 사이즈를 지켜야 한다 — 에셋 «전용» 가드라 여기 남는다.
+     ⚠️`preset !== 'logo'` 만으론 a4 가 안 걸린다(2026-08-27 태양 지적). */
   if (window.ASSET_PRESETS?.[ab.dataset.preset]?.width) return '';
-  const row = ab.parentElement;
-  let padX;
-  // ⚠️ row의 패딩 키가 «두 가지»다: 생성 경로(block-factory.applyRowPaddingX)는 `paddingX`,
-  //    패널 슬라이더(prop-row.applyPadX)는 `padX`. 둘 다 읽어야 한다 — 하나만 보면 조용히 글로벌로 샌다.
-  const rowPadX = row && row.classList.contains('row')
-    ? (row.dataset.padX !== undefined && row.dataset.padX !== '' ? row.dataset.padX
-       : (row.dataset.paddingX !== undefined && row.dataset.paddingX !== '' ? row.dataset.paddingX : undefined))
-    : undefined;
-  if (rowPadX !== undefined) {
-    padX = parseInt(rowPadX);                   // row 직속 ab는 row의 패딩이 지배
-  } else {
-    const inner = ab.closest('.section-inner');
-    const hasOverride = inner && inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
-    padX = inner && hasOverride ? parseInt(inner.dataset.paddingX) : state.pageSettings.padX;
-  }
-  padX = parseInt(padX) || 0;
+  /* ★[0929 통합] 뺄 padX 는 «공용 한 곳»에서 온다 — js/drag-utils.js effectiveSectionPadX.
+     ~~예전엔 여기에 같은 계산이 한 벌 더 있었다~~(row 의 패딩 키가 두 가지인 함정까지 똑같이 적어서).
+     ⇒ 실제로 갈렸다: 0928 에 공용 쪽 프레임 가드를 「둥근 프레임만 자른다」로 고쳤는데
+       이쪽은 「프레임이면 무조건 0」으로 남아 있었다. 두 벌의 해악이 그대로 난 자리다.
+     ★프레임 가드를 여기서 «뺀다» — 공용 함수가 그 판정을 갖고, 지금 자르는 것은 둥근 프레임뿐이다
+       (0928 현빈 지시로 .frame-block 의 overflow 를 visible 로 풀었다).
+       옛 주석의 까닭 「프레임 밖으로 나가는 폭은 어떤 계산으로도 안 보이고 잘리기만」은 죽었다. */
+  const padX = window.effectiveSectionPadX?.(ab) ?? 0;
   return padX > 0 ? `calc(100% + ${padX * 2}px)` : '';
 }
 window.assetFullBleedWidth = assetFullBleedWidth;
@@ -99,6 +85,30 @@ function applyAssetFullBleed(ab) {
 }
 window.applyAssetFullBleed = applyAssetFullBleed;
 
+/* ── 헬퍼: 에셋 폭을 «세트 규약대로» 정한다 (2026-09-20, int/0920b QA 반영) ──────────────
+   ⚠️위 applyAssetFullBleed 는 「폭을 «최대»로 되돌릴 때」의 세트만 지켰다. 반대쪽 —
+     «최대 미만으로 줄일 때» — 은 호출부 두 곳이 각자 `style.width = px` «단독»으로 썼고
+     (prop-asset.js 슬라이더/숫자칸 · overlay-handles.js 에셋 리사이즈) 풀블리드가 심어 둔
+     음수마진(-padX)을 «안 걷어냈다». 그래서 풀블리드 에셋을 400px 로 줄이면
+     width=400px + margin -72px 라는 «반쪽 세트»가 DOM·저장본에 굳는다 —
+     실측(줌 40%): align=left 면 좌로 72 로컬px, align=right 면 우로 +72 어긋나고
+     center 만 상쇄돼 0. PNG·Figma·HTML 산출물에 그대로 실린다.
+   ⇒ 「폭과 마진은 언제나 세트」를 «양방향»으로 한 곳에서 지킨다. 호출부는 이 함수만 부른다.
+   ⛔`ab.style.width = v + 'px'` 를 새로 쓰지 마라 — 그게 이 함수가 없앤 결함이다. */
+function applyAssetWidth(ab, px) {
+  if (!ab) return '';
+  const max = 860;
+  if (!(px < max)) return applyAssetFullBleed(ab);   // 최대폭 = 풀블리드 세트(폭+음수마진) 복원
+  ab.style.width = px + 'px';
+  /* 풀블리드가 넣어 둔 음수마진을 «같이» 거둔다. 빈 문자열로 지워 CSS 기본값으로 돌린다
+     (0px 를 «명시»하면 오버레이 이탈의 _unfreezeMargins 가 「우리가 넣은 0px 이 그대로다」로
+      오인해 옛 풀블리드 마진을 되살린다 — js/overlay-float.js 그 함수의 판정과 한 벌이다). */
+  ab.style.marginLeft = '';
+  ab.style.marginRight = '';
+  return ab.style.width;
+}
+window.applyAssetWidth = applyAssetWidth;
+
 /* ── 헬퍼: section-inner 하나에 padX 적용 ── */
 function applyPadXToSection(inner, padX) {
   inner.style.paddingLeft  = padX ? padX + 'px' : '';
@@ -117,6 +127,17 @@ function applyPadXToSection(inner, padX) {
       // px 값은 사용자가 직접 지정한 너비 → 보존
       if (!ab.style.width || ab.style.width.includes('calc')) ab.style.width = '';
     }
+  });
+  /* ★그리드 블록 — «좌우 패딩 제외»(전폭) (그리드 티켓 ⑥ · 2026-09-28 · 0929 통합)
+     ~~[0928 초판] dataset.usePadx ＋ 이 파일의 gridEffectivePadX 로 «따로» 구현했다.~~
+     ⇒ [0929] 같은 일을 하는 부품이 이미 있었다(drag-utils 의 fullBleed 한 벌 — 에셋·카드·채팅·
+       배너2·프레임). 두 벌이면 계산 규칙이 바뀔 때 한쪽만 고쳐진다. 그래서 그 한 벌로 옮겼다.
+     ⛔자손 전부를 건다 — 그리드는 기본적으로 row «안»에 생긴다(실측). `:scope >` 로 좁히면
+       스위치가 거의 늘 안 먹는다. */
+  inner.querySelectorAll('.grid-block').forEach(gd => {
+    /* ★window 경유 — 이 파일의 기존 관행이다(아래 189줄 canvas-block 도 같은 꼴). */
+    if (gd.dataset.fullBleed === 'true') window.applyBlockFullBleed?.(gd);
+    else window.clearBlockFullBleed?.(gd);
   });
   // gradient-block은 항상 패딩 제외 (usePadx='true' 고정) — 섹션/row 내부 모두 처리
   inner.querySelectorAll('.gradient-block').forEach(gb => {
@@ -146,6 +167,12 @@ function applyPadXToSection(inner, padX) {
   // (renderCanvas가 effective 섹션 padX를 읽어 calc 확장폭/음수마진을 통합 계산).
   inner.querySelectorAll('.canvas-block[data-full-bleed="true"]').forEach(cvb => {
     window.renderCanvas?.(cvb);
+  });
+  /* ★그 밖의 「패딩 제외」 블록 — ⛔여기에 «블록 이름 명부»를 만들지 마라.
+     `data-full-bleed="true"` 라는 «표식» 하나로 성질 판정한다(2026-09-10). 새 블록이
+     그 표식을 쓰면 padX 를 바꿔도 저절로 따라온다. 위 canvas 는 제 렌더에 위임하므로 뺀다. */
+  inner.querySelectorAll('[data-full-bleed="true"]:not(.canvas-block)').forEach(el => {
+    window.applyBlockFullBleed?.(el);
   });
 }
 
@@ -181,6 +208,8 @@ function _radioPairOn(onEl, offEl, evt, fn) {
 
 export function showPageProperties() {
   if (window.setRpIdBadge) window.setRpIdBadge(null);
+  // T-059 4라운드: 페이지 «재선택»(빈 곳 클릭) = 도형 패널 재구성과 같은 시점 — DS 바탕색 칸을 state 로 다시 맞춘다
+  seedPageBgGradientPicker();
   const { bg, gap, padX, padY, padXExcludesAsset } = state.pageSettings;
   const bgAlpha = state.pageSettings.bgAlpha ?? 100;
   const bgHexUp = (bg || '#000000').replace('#','').toUpperCase();
@@ -624,14 +653,51 @@ export function showPageProperties() {
     expWSel  .addEventListener('change', _saveExportPref);
   }
 
-  // 전체 내보내기
+  /* ── 전체 내보내기 ───────────────────────────────────────────────────────
+     ★2026-09-21 사용자관점훑기 exportvisual — 「섹션이 0개인데 버튼이 파랗게 활성이고
+       『전체 0개 섹션을 내보냅니다』를 묻는다」(실측: New Design 직후 disabled=false,
+       background rgb(45,111,232), title='' · confirm 문구 그대로 발화).
+       버튼 마크업에 disabled 도 상태 바인딩도 «처음부터» 없었다 — 아래 secCount 는 confirm
+       문구에만 쓰였고 렌더 시점엔 계산조차 안 됐다.
+     ★선례를 그대로 쓴다 — 같은 파일 위쪽 _splSync(「연결된 참고 이미지」 버튼): 개수를 다시
+       세서 disabled+title 을 걸고, 패널이 열려 있는 동안도 이벤트로 따라가며,
+       window.__gdt*Hook 으로 이전 리스너를 떼어 누수를 막는다.
+     ⛔섹션이 늘고 주는 «경로»를 손으로 나열하지 않는다(추가·삭제·붙여넣기·undo/redo·템플릿
+       삽입·복제…). 그런 목록은 반드시 늙는다. 대신 캔버스의 DOM 변화를 MutationObserver 로
+       본다 — js/io/save-load.js 의 autosave 가 이미 쓰는 그 방식이다. */
   const pageExportBtn = document.getElementById('page-export-all-btn');
   if (pageExportBtn) {
+    const _secCount = () => canvasEl.querySelectorAll('.section-block:not([data-ghost])').length;
+    /* ★내보내는 «동안»은 동기화를 멈춘다 — export 경로가 캔버스를 만진다
+       (materializeAllSections 가 lazy 언로드 섹션을 라이브 DOM 에 되살린다) ⇒ 옵저버가 깨어나
+       「섹션이 있으니 활성」으로 되돌려 버튼이 «내보내는 중»에 다시 눌린다. */
+    let _exporting = false;
+    const _exportSync = () => {
+      if (_exporting) return;
+      const n = _secCount();
+      pageExportBtn.disabled = n === 0;
+      pageExportBtn.title = n === 0 ? '내보낼 섹션이 없습니다' : `전체 ${n}개 섹션을 내보냅니다`;
+    };
+    /* ★패널은 innerHTML 로 통째로 다시 그려진다 — 옵저버가 쌓이면 그것도 결함이다.
+       ⑴이전 패널이 걸어둔 것을 먼저 끊고 ⑵버튼 노드가 패널에서 떨어지면 스스로 끊는다
+         (_splOnChange 의 isConnected 가드와 같은 꼴). */
+    if (window.__gdtPageExportObs) { try { window.__gdtPageExportObs.disconnect(); } catch (_) {} }
+    const _obs = new MutationObserver(() => {
+      if (!pageExportBtn.isConnected) { _obs.disconnect(); if (window.__gdtPageExportObs === _obs) window.__gdtPageExportObs = null; return; }
+      _exportSync();
+    });
+    try { _obs.observe(canvasEl, { childList: true, subtree: true }); window.__gdtPageExportObs = _obs; } catch (_) {}
+    _exportSync();
+
     pageExportBtn.addEventListener('click', async () => {
       const fmt = document.getElementById('page-export-format').value;
       const w   = parseInt(document.getElementById('page-export-width').value) || 860;
-      const secCount = canvasEl.querySelectorAll('.section-block').length;
+      const secCount = _secCount();
+      /* ★이중 안전장치 — 버튼이 어떤 이유로든 낡은 채 활성으로 남아도 «0개를 내보냅니다»를
+         묻지는 않는다. 조용히 끝내지 않고 이유를 말한다. */
+      if (secCount === 0) { _exportSync(); window.showToast?.('내보낼 섹션이 없습니다'); return; }
       if (!confirm(`전체 ${secCount}개 섹션을 내보냅니다. 계속할까요?`)) return;
+      _exporting = true;
       pageExportBtn.disabled = true;
       pageExportBtn.textContent = '내보내는 중...';
       try {
@@ -645,8 +711,9 @@ export function showPageProperties() {
         console.error('[export] 전체 내보내기 실패:', err);
         window.showToast?.('⚠️ 내보내기 실패: ' + (err?.message || err));
       } finally {
-        pageExportBtn.disabled = false;
         pageExportBtn.textContent = '전체 섹션 내보내기';
+        _exporting = false;
+        _exportSync();   // ★«무조건 false» 로 되돌리지 않는다 — 내보내는 사이 섹션이 다 지워졌을 수 있다
       }
     });
   }
@@ -659,6 +726,67 @@ export function showPageProperties() {
    ★마크업(id·.prop-color-swatch 구조)은 «그대로» 옮겼다 — 커스텀 컬러피커의 그라데이션 탭이
      그 구조에 붙기 때문에(color-picker.js openPicker), 모양을 바꾸면 그 기능이 조용히 사라진다.
    ★요소가 DS 패널에 «상주»하므로 패널을 열 때마다 다시 걸 필요가 없다 — 중복 배선 가드. */
+/* ★T-054 후속 — 저장된 그라데이션이 있으면 스와치·재오픈 씨앗(dataset.cpGradient)을 채운다.
+   goya-cp:gradient가 최소 한 번 발화하기 전까지 이 값이 비어 있으면 첫 재오픈이 «솔리드+
+   기본 2스톱»으로 리셋된다(save-load.js _bgCss가 읽는 값과 같은 state.pageSettings.bgGradient
+   — 같은 JSON을 그대로 시드로 쓴다).
+   ★applyPageSettings()가 매번 이 함수를 부른다(save-load.js) — wireCanvasBgControl() 한 번만
+   불러선 부족했다: 실측(2026-09-16)으로 부팅 직후 첫 호출 시점엔 state.pageSettings 가 아직
+   프로젝트 파일에서 채워지기 전이라(레이스) 시드가 비어버렸다. applyPageSettings()는 그 뒤
+   실제 프로젝트가 열릴 때(switchPage 등)도 항상 다시 불리므로 거기 얹으면 레이스가 없다. */
+/* ★T-059 4라운드 QA(페이지 바탕 Solid 복귀 색) — 칸(picker/hex/alpha)을 «state 에서» 다시 채운다.
+   index.html 의 칸 초기값(#ACACAC)은 실제 바탕(state.pageSettings.bg = PAGE_BG_DEFAULT #777777)과 따로 놀았고,
+   0918 «탭 = 즉시 적용» 이후엔 그 어긋남이 데이터 변경이 됐다: 그라데이션 탭 = #acacac 100%→0%, Solid = bg '#acacac'.
+   피커는 열 때 native input 의 value 를 «지금 색»으로 읽으므로(color-picker.js openPicker) 이 칸이 곧 진실이어야 한다.
+     · 단색 페이지 → 칸 = state.bg / bgAlpha
+     · 그라데이션 페이지 → 칸 = «보이는» 첫 스탑(재선택 후 Solid 복귀 = 첫 스탑 — 도형 wireColorField 와 같은 규칙 ③)
+   ⛔여기선 state 를 쓰지 않는다(열기·재선택만으로 문서 불변). */
+export function seedPageBgGradientPicker() {
+  // ⚠️헬퍼는 «안쪽»에 둔다 — 유닛 테스트(page-bg-gradient-reload)가 이 함수 본문만 잘라 vm 에서 돈다.
+  function _pageBgFirstVisibleStop(model) {
+    if (!model || !Array.isArray(model.stops) || !model.stops.length) return null;
+    const _op = s => Math.max(0, Math.min(1, s.opacity == null ? 1 : Number(s.opacity)));
+    const sorted = model.stops.slice().sort((a, b) => (Number(a.offset) || 0) - (Number(b.offset) || 0));
+    const first = sorted.find(s => _op(s) > 0) || sorted[0];
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(first.color || '').trim());
+    return m ? '#' + m[1].toLowerCase() : null;
+  }
+  function _syncPageBgFields(bgPicker, colorHex) {
+    const bgHex = document.getElementById('page-bg-hex');
+    const bgAlphaInp = document.getElementById('page-bg-alpha-input');
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(colorHex || '').trim());
+    if (!m) return;
+    const h = '#' + m[1].toLowerCase();
+    bgPicker.value = h;
+    if (bgHex && document.activeElement !== bgHex) bgHex.value = m[1].toUpperCase();
+    if (bgAlphaInp && document.activeElement !== bgAlphaInp) bgAlphaInp.value = String(state.pageSettings.bgAlpha ?? 100);
+  }
+  const bgPicker = document.getElementById('page-bg-color');
+  if (!bgPicker) return;   // 아직 DOM 미구성(초초기 부팅) — 다음 applyPageSettings에서 다시 시도된다
+  const bgSwatch = bgPicker.closest('.prop-color-swatch');
+  if (!bgSwatch) return;
+  const _solid = () => {
+    delete bgPicker.dataset.cpGradient;   // 솔리드로 복귀한 프로젝트에 옛 그라데이션 씨앗이 안 남게
+    _syncPageBgFields(bgPicker, state.pageSettings.bg);
+    const h = (state.pageSettings.bg || '').replace('#', '');
+    if (/^[0-9a-f]{6}$/i.test(h)) {
+      const a = Math.max(0, Math.min(1, (state.pageSettings.bgAlpha ?? 100) / 100));
+      bgSwatch.style.background = `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`;
+    }
+  };
+  if (!state.pageSettings.bgGradient) { _solid(); return; }
+  try {
+    const model = JSON.parse(state.pageSettings.bgGradient);
+    const css = window.GradientModel?.toCss?.(model);
+    if (css) {
+      bgPicker.dataset.cpGradient = state.pageSettings.bgGradient;
+      bgSwatch.style.background = css;
+      _syncPageBgFields(bgPicker, _pageBgFirstVisibleStop(model) || state.pageSettings.bg);
+    } else _solid();
+  } catch (_) { _solid(); /* 깨진 JSON — 캔버스도 솔리드로 칠한다(save-load _bgCss 폴백과 같게) */ }
+}
+window.seedPageBgGradientPicker = seedPageBgGradientPicker;
+
 export function wireCanvasBgControl() {
   const _probe = document.getElementById('page-bg-color');
   if (!_probe || _probe._canvasBgWired) return;
@@ -667,6 +795,10 @@ export function wireCanvasBgControl() {
   const bgHex      = document.getElementById('page-bg-hex');
   const bgAlphaInp = document.getElementById('page-bg-alpha-input');
   const bgSwatch   = bgPicker.closest('.prop-color-swatch');
+  // 탭 능력 선언(0918 picker) — 페이지 바탕은 단색·그라데이션만 받는다(이미지 탭은 막힘)
+  bgPicker.dataset.cpModes = 'solid,gradient';
+
+  seedPageBgGradientPicker();
 
   const _bgToRgba = () => {
     const h = (state.pageSettings.bg || '#000000').replace('#','');
@@ -687,29 +819,28 @@ export function wireCanvasBgControl() {
     bgHex.value = bgPicker.value.replace('#','').toUpperCase();
     // 솔리드 색 선택 시 그라데이션 해제(잔상 방지) — 솔리드로 복귀
     delete state.pageSettings.bgGradient;
+    // 재오픈 시드도 같이 — 안 지우면 솔리드로 돌아간 뒤 다시 열 때 그라데이션 탭이 뜬다(0918 picker)
+    delete bgPicker.dataset.cpGradient;
     _applyBg();
   });
   bgPicker.addEventListener('change', () => {
     window.pushHistory?.();
     window.scheduleAutoSave?.();
   });
-  bgHex.addEventListener('input', () => {
-    const v = bgHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      state.pageSettings.bg = '#' + v.toLowerCase();
-      bgPicker.value = state.pageSettings.bg;
+  /* 바탕색 hex — 배선은 color-picker.js 의 wireHexText 한 자리(2026-09-21 픽스 라운드).
+     ★여기만 손사본으로 남아 있었다: maxlength=6 이라 `#00FF00` 을 붙여 넣으면 «7번째 글자가 잘려»
+       `#00FF0` 이 되고, 그 무효값은 말없이 무시됐다(다른 40여 칸은 maxlength=7 로 # 을 받는다).
+       = 신고 원문(「자리마다 # 규칙이 다르다 + 틀리면 말없이 무시」)이 이 칸에 그대로 남아 있던 것. */
+  wireHexText(bgHex, {
+    parse: parseHex6,
+    format: formatHex6,
+    getCurrent: () => state.pageSettings.bg || '#000000',
+    onApply: (v) => {
+      state.pageSettings.bg = v;
+      bgPicker.value = v;
       _applyBg();
-    }
-  });
-  bgHex.addEventListener('change', () => {
-    const v = bgHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) {
-      window.pushHistory?.();
-      window.scheduleAutoSave?.();
-    }
-  });
-  bgHex.addEventListener('blur', () => {
-    bgHex.value = (state.pageSettings.bg || '#000000').replace('#','').toUpperCase();
+    },
+    onCommit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); },
   });
   bgAlphaInp.addEventListener('input', () => {
     const m = bgAlphaInp.value.match(/(\d+)/);
@@ -743,8 +874,12 @@ export function wireCanvasBgControl() {
         angle: e.detail.angle,
         stops: e.detail.stops,
       });
+      // ★재오픈 시드 — color-picker.js openPicker가 이 dataset을 보고 gradient 탭/스톱을
+      //   복원한다. 적대적 QA(qa-adversarial-gradient) 발견: 없으면 재오픈마다 solid+기본
+      //   2스톱으로 리셋(값은 state.pageSettings.bgGradient에 이미 맞게 저장돼 있었음).
+      bgPicker.dataset.cpGradient = state.pageSettings.bgGradient;
       _applyBgGradient(e.detail.css);
-      if (e.detail.commit) window.pushHistory?.();
+      // ★기록은 gradient-commit 한 곳에서만 — 여기서도 하면 커밋 1번에 기록 2개(0918 picker)
       window.scheduleAutoSave?.();
     });
     bgPicker.addEventListener('goya-cp:gradient-commit', () => {

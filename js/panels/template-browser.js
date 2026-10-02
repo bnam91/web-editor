@@ -84,7 +84,10 @@ function _renderBrowserTree() {
   const templates = loadTemplates();
 
   // 폴더 → 카테고리 계층 구조 계산
+  /* ★폴더 «목록»은 listTemplateFolders(template-system.js) 한 곳 — 빈 폴더(명부)도 여기서 온다.
+     개수만 템플릿에서 센다. 순서도 그 목록을 따른다. */
   const folderMap = {};
+  (window.listTemplateFolders?.(templates) || []).forEach(f => { folderMap[f] = {}; });
   templates.forEach(t => {
     const f = t.folder || '기타';
     const c = t.category || '기타';
@@ -149,6 +152,7 @@ function _renderBrowserTree() {
   });
 
   tree.innerHTML = html;
+  _wireTreeContextMenu(tree);
 
   // 즐겨찾기 항목 클릭
   tree.querySelector('.tb-tree-starred')?.addEventListener('click', e => {
@@ -190,6 +194,110 @@ function _renderBrowserTree() {
       tree.querySelectorAll('.tb-tree-all, .tb-tree-folder-header, .tb-tree-cat').forEach(el => el.classList.remove('active'));
       header.classList.add('active');
     });
+  });
+}
+
+/* ── 트리 우클릭: 새 폴더 · 이름 바꾸기 · 폴더 지우기 (2026-09-30, 현빈) ────────────────
+ * 규칙(만들기·바꾸기·지우기 가능 여부와 까닭)은 template-system.js 폴더 명부 절이 «정본»이다.
+ * 여기는 손잡이만: 메뉴는 블럭 우클릭 메뉴와 같은 모습(.bcm-item), 이름은 «그 자리»에서 적는다
+ * (⛔prompt()/네이티브 모달 금지 — 앱이 멈춘다). Enter 확정 · Esc 취소. */
+let _treeMenu = null;
+function _closeTreeMenu() { if (_treeMenu) _treeMenu.style.display = 'none'; }
+function _treeMenuEl() {
+  if (_treeMenu) return _treeMenu;
+  const m = document.createElement('div');
+  m.id = 'tb-tree-ctx';
+  m.style.cssText = 'display:none;position:fixed;z-index:10001;min-width:140px;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:4px 0;box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+  document.body.appendChild(m);
+  document.addEventListener('click', _closeTreeMenu);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') _closeTreeMenu(); });
+  _treeMenu = m;
+  return m;
+}
+
+function _treeInlineInput(host, initial, onCommit) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'tb-tree-input';
+  input.value = initial || '';
+  input.placeholder = '폴더 이름';
+  host.replaceChildren(input);
+  let done = false;
+  const finish = (commit) => {
+    if (done) return;
+    done = true;
+    const v = input.value.trim();
+    if (commit && v && v !== (initial || '')) {
+      const r = onCommit(v);
+      if (r && !r.ok) window.showToast?.('⚠️ ' + r.reason);
+    }
+    _renderBrowserTree();
+    _renderBrowserCards();
+  };
+  input.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  input.addEventListener('blur', () => finish(true));
+  ['click', 'mousedown', 'contextmenu'].forEach(t => input.addEventListener(t, e => e.stopPropagation()));
+  input.focus();
+  input.select();
+}
+
+function _startNewFolder(tree) {
+  const row = document.createElement('div');
+  row.className = 'tb-tree-folder-header tb-tree-editing';
+  tree.appendChild(row);
+  _treeInlineInput(row, '', name => window.createTemplateFolder?.(name));
+}
+
+function _startRenameFolder(header) {
+  const from = header.dataset.folder;
+  const label = header.querySelector('.tb-tree-label');
+  if (!label) return;
+  header.classList.add('tb-tree-editing');
+  _treeInlineInput(label, from, to => {
+    const r = window.renameTemplateFolder?.(from, to);
+    if (r?.ok && _browserFilter.folder === from) _browserFilter = { ..._browserFilter, folder: r.name };
+    return r;
+  });
+}
+
+function _deleteFolder(name) {
+  const r = window.deleteTemplateFolder?.(name);
+  if (r && !r.ok) { window.showToast?.('⚠️ ' + r.reason); return; }
+  if (_browserFilter.folder === name) _browserFilter = { folder: '전체', category: '전체', tag: null, starred: false };
+  _renderBrowserTree();
+  _renderBrowserCards();
+}
+
+function _wireTreeContextMenu(tree) {
+  if (tree._ctxWired) return;
+  tree._ctxWired = true;
+  tree.addEventListener('contextmenu', e => {
+    if (e.target.closest?.('.tb-tree-input')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const header = e.target.closest?.('.tb-tree-folder-header');
+    const folder = header?.dataset.folder;
+    const m = _treeMenuEl();
+    const item = (act, label) => `<div class="bcm-item" data-tree-act="${act}">${label}</div>`;
+    m.innerHTML = item('new', '새 폴더')
+      + (folder ? item('rename', '이름 바꾸기') + item('delete', '폴더 지우기') : '');
+    m.onclick = ev => {
+      const act = ev.target.closest?.('[data-tree-act]')?.dataset.treeAct;
+      if (!act) return;
+      ev.stopPropagation();
+      _closeTreeMenu();
+      if (act === 'new') _startNewFolder(tree);
+      else if (act === 'rename' && header) _startRenameFolder(header);
+      else if (act === 'delete' && folder) _deleteFolder(folder);
+    };
+    m.style.display = 'block';
+    m.style.left = Math.min(e.clientX, window.innerWidth - m.offsetWidth - 8) + 'px';
+    m.style.top = Math.min(e.clientY, window.innerHeight - m.offsetHeight - 8) + 'px';
   });
 }
 
@@ -578,7 +686,7 @@ function _startInlineEdit(id) {
   const card = document.querySelector(`.tb-card[data-tpl-id="${CSS.escape(id)}"]`);
   if (!card) return;
 
-  const folders = [...new Set(templates.map(t => t.folder || '기타').filter(Boolean))];
+  const folders = window.listTemplateFolders?.(templates) || [];
   const currentTags = (tpl.tags || []).join(', ');
 
   const form = document.createElement('div');
@@ -878,6 +986,12 @@ function initTemplateBrowser() {
             const vw = canvas.clientWidth  || 280;
             const vh = canvas.clientHeight || 200;
             const sh = section.scrollHeight || 400;
+            /* [U-26/fitzoom · 2026-09-21] 두 축의 min — 공식의 정본은 js/fit-scale.js 다.
+               ⛔이 파일만 «import 를 안 쓴다» — tests/unit/tpl-popout-geometry.test.mjs G4-c 가
+                 이 소스 «전체»를 new Function 에 넣어 돌리기 때문이다(import 가 한 줄이라도 있으면
+                 「Cannot use import statement outside a module」로 그 검사가 죽는다). 그래서 여기만
+                 인라인으로 남긴다 — 값은 fitScale(CANVAS_W, sh, vw, vh) 와 «같다».
+                 (js/editor.js·js/panels/template-system.js 는 정본을 import 해서 쓴다) */
             const scale = Math.min(vw / CANVAS_W, vh / sh);
             section.style.transform  = `scale(${scale})`;
             section.style.left       = Math.round((vw - CANVAS_W * scale) / 2) + 'px';

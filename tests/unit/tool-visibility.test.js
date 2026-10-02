@@ -27,7 +27,12 @@ const BT = readSrc(ROOT, 'main', 'claude-pm', 'mcp-block-tools.js');
 /* 40 → 41 (2026-09-08): edit_variation 하나를 늘렸다. «결정»으로 적는다.
      왜: A/B 베리에이션을 «읽기»만 되고 만들지·바꾸지·확정하지 못했다(현빈 지시로 쓰기까지).
      ⛔다섯 도구로 쪼개지 않고 op 하나로 모았다 — 쪼갰으면 고정비가 5칸 늘었다. */
-const EXPECTED_VISIBLE = 41;
+/* 41 → 43 (2026-09-16): add_qa_block/update_qa_block 두 개를 늘렸다. «결정»으로 적는다.
+     왜: admin 전용 QA 체크리스트 블록(qa_) — 지디(웹에디터 팀장)가 캔버스에 티켓별 체크리스트를
+     심고 현빈이 직접 체크/피드백하는 워크플로우 전용. UI 팔레트엔 노출 안 함 — 생성 경로가
+     이 두 MCP 도구뿐이라 「일반 사용자용 통합 add_block」(mcp-block-tools.js BLOCK_TYPES)에도
+     일부러 안 실었다 — 통합도구를 타면 아무나 만들 수 있게 돼 admin 전용 원칙이 깨진다. */
+const EXPECTED_VISIBLE = 43;
 
 test('T1 ★노출 도구 수가 늘지 않았다 — 늘리려면 «여기서 한 번 멈춰라»', () => {
   const v = CONTRACT.counts.visible;

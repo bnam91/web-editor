@@ -327,10 +327,14 @@
       let startMouseSecX = (startX - startSecRect.left) / _zoom();
       let startMouseSecY = (startY - startSecRect.top)  / _zoom();
 
+      const _hist = window.beginDragHistory?.('어노테이션 이동');
       const onMove = (ev) => {
         if (!dragging) {
           if (Math.abs(ev.clientX - startX) < 3 && Math.abs(ev.clientY - startY) < 3) return;
           dragging = true;
+          /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+             다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+          _hist?.arm((ev.clientX - startX) / _zoom(), (ev.clientY - startY) / _zoom());
         }
         if (lastOnly) {
           // Cmd 드래그: 마지막 점만 이동 → 선 끝점만 이동, anchor 고정, 라벨 따라옴.
@@ -415,12 +419,16 @@
         const startPoint = [points[idx][0], points[idx][1]];
         let dragging = false;
 
+        const _hist = window.beginDragHistory?.('어노테이션 핸들 이동');
         const onMove = (ev) => {
           const dx = (ev.clientX - startX) / _zoom();
           const dy = (ev.clientY - startY) / _zoom();
           if (!dragging) {
             if (Math.abs(ev.clientX - startX) < 2 && Math.abs(ev.clientY - startY) < 2) return;
             dragging = true;
+            /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+               다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+            _hist?.arm(dx, dy);
           }
           points[idx] = [startPoint[0] + dx, startPoint[1] + dy];
           _updateBlockGeometry(block, points);

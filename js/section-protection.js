@@ -81,8 +81,18 @@
       delete sec.dataset.protected;
       delete sec.dataset.protectedReason;
     }
-    // toolbar 버튼 상태 동기화
-    _refreshProtectionButton(sec);
+    /* toolbar 버튼 상태 동기화 — ★«없으면 만들고» 나서 맞춘다(2026-09-22 실측).
+       ⛔_refreshProtectionButton 은 `if (!btn) return;` 으로 시작한다. 그래서 단추가 아직
+         없는 섹션에서는 이 줄이 «아무 일도 안 했다». 단추를 심는 _hydrateAllSectionsForProtection
+         은 init 과 +1500ms «두 번»뿐이고 그 뒤 재부착 경로가 없다 ⇒ 그 창이 지난 뒤
+         «작업 중에 만든 섹션»은 보호를 켜도 화면에 표시가 하나도 안 떴다(실측: 툴바
+         [ab, memo, ai-fill] 그대로, 단추 0개. 저장→재열기해야 붙었다).
+       ★보호 자체는 dataset 에 살아 멀쩡했다(삭제 가드 js/editor.js:2995·3078·3131 이
+         window.isSectionProtected 로 그 dataset 을 읽는다 — 실측으로 «안 지워짐» 확인).
+         사라지는 건 «표시»와 «끄는 입구»다: 보호를 끄는 UI 는 이 단추의 onclick 하나뿐이고,
+         차단 토스트(editor.js:3085)는 「🔒 버튼으로 보호 해제 후 삭제하세요」라고 «없는 버튼»을
+         가리킨다. */
+    _ensureProtectionButton(sec);
     if (typeof window.scheduleAutoSave === 'function') {
       window.scheduleAutoSave();
     } else if (typeof window.triggerAutoSave === 'function') {
@@ -195,16 +205,30 @@
       btn.type = 'button';
       btn.textContent = '🔓';
       btn.title = '섹션 보호 (잠금)';
-      btn.setAttribute('onclick', 'window.toggleSectionProtectionPopover(this)');
     }
+    /* ★★onclick 은 «있든 없든 매번» 다시 건다 (T-094 ⒞ · 2026-09-22 실앱 실측).
+       왜 — 저장할 때 sanitizeCanvasHtml 이 on* 속성을 걷어낸다. 그래서 파일을 다시 열면
+       단추는 «그대로 보이는데» onclick 이 null 이라 눌러도 아무 일도 안 난다.
+       예전엔 이 줄이 위 `if (!btn)` 안에 있어서, 단추가 «이미 있으면» 다시 안 걸었다
+       ⇒ 다시 연 판에서 보호를 켜고 끄는 «유일한 입구»가 죽어 있었다.
+       실측(포트 9626): 다시 연 뒤 4섹션 전부 onclick=null · 진짜 클릭 주입 → 팝오버 안 열림.
+         양성대조 — 그 자리에 onclick 만 손으로 되돌리고 같은 자리를 누르니 팝오버가 열렸다
+         ⇒ 「클릭이 안 닿은 것」이 아니라 «핸들러가 없는 것»이 맞다.
+       ⛔같은 병이 📝 쪽에도 있어 js/io/save-load.js 가 rebindAll 에서 _ensureMemoButton 을
+         다시 부른다 — 여긴 그 호출조차 없었다. 그래서 «자기 안에서» 매번 걸게 한다. */
+    btn.setAttribute('onclick', 'window.toggleSectionProtectionPopover(this)');
     // 위치: 📝 메모 버튼 다음 (두 번째 자리). memo가 없으면 첫 자리.
     const memoBtn = tb.querySelector(':scope > .st-memo-btn');
     if (memoBtn) {
-      if (memoBtn.nextSibling !== btn) {
-        tb.insertBefore(btn, memoBtn.nextSibling);
+      /* ★«요소» 기준 — 이유는 js/section-memo.js 의 같은 자리 주석 참조(T-140 둘째 축).
+         ⛔nextSibling 은 공백 텍스트노드일 수 있어, 그대로 두면 부를 때마다 공백이 밀린다.
+         ⚠️이 자리는 «모양이 같아서» 같이 고친 것이다 — 🔒 가 실제로 그 잡음을 냈다는
+           실측은 «없다»(그 판에서 보호를 안 켰다). 원인이 측정된 자리는 memo 쪽뿐이다. */
+      if (memoBtn.nextElementSibling !== btn) {
+        tb.insertBefore(btn, memoBtn.nextElementSibling);
       }
     } else {
-      if (tb.firstChild !== btn) tb.insertBefore(btn, tb.firstChild);
+      if (tb.firstElementChild !== btn) tb.insertBefore(btn, tb.firstElementChild);
     }
     _refreshProtectionButton(sec);
   }

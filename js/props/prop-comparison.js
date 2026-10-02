@@ -1,9 +1,13 @@
 // prop-comparison.js — 비교 블록 우측 프로퍼티 패널 (N칼럼: 1:1, 1:1:1 …)
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, CMP_PLACEHOLDER_TITLE, CMP_PLACEHOLDER_ROW } from '../blocks/comparison-block.js';
 
-const _esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+/* ★옛 사본은 «닫는 꺾쇠»와 홑따옴표를 안 덮었다 — 이 파일이 쓰는 세 자리에서는 무력한
+   글자들이라 새지는 않았지만, 다음 사람이 이 사본을 홑따옴표 속성 자리에 쓰면 그때 뚫린다.
+   ⛔사본을 고치는 대신 «지웠다» — 공용 한 벌(_helpers.js escHtml)이 다섯 글자를 다 덮는다. */
+const _esc = escHtml;
 const _rowHeights = d => { try { const a = JSON.parse(d.rowHeights || 'null'); return Array.isArray(a) ? a : []; } catch { return []; } };
 
 export function showComparisonProperties(block) {
@@ -80,13 +84,12 @@ export function showComparisonProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-info">
-          <span class="prop-block-name">${_esc(d.layerName) || 'Comparison'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="복사" onclick="_copyToClipboard && _copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+${blockHeaderHTML({
+      name: d.layerName,
+      defaultName: 'Comparison',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">강조 칼럼 (떠보이는 쪽)</div>
@@ -180,6 +183,7 @@ export function showComparisonProperties(block) {
     ta?.addEventListener('input', () => { const c = getCols(); if (c[idx]) { c[idx].title = ta.value; saveCols(c); rerender(); } });
     ta?.addEventListener('change', commit);
     wireColorField('cmp-c' + idx + 'Bg', {
+      gradientValue: col.bg,   // T-059 2라운드: featured 아닌 칼럼도 재오픈 시드(전엔 featured 한 칸만 부수효과로 받았다)
       onApply: v => { const c = getCols(); if (c[idx]) { c[idx].bg = v; saveCols(c); rerender(); } },
       onGradient: (css, isCommit) => {
         const c = getCols(); if (c[idx]) { c[idx].bg = css; saveCols(c); rerender(); if (isCommit) commit(); }
@@ -278,6 +282,12 @@ export function showComparisonProperties(block) {
 
   // 선택 시 활성 칼럼 배경이 그라데이션이면 캔버스 위 그라데이션 라인 표시 (아니면 overlay가 no-op)
   window.showGradientLine?.(block);
+  // 0918 canvasgrad: 캔버스 바 ↔ 피커 스탑 양방향 배선 + 재오픈 시드(활성 칼럼 = 오버레이가 그리는 칼럼)
+  {
+    const _n = (window.getComparisonCols?.(block.dataset) || []).length || 1;
+    const _fi = window.getComparisonFeaturedIdx?.(block.dataset, _n) ?? (_n - 1);
+    window.bindGradientLinePicker?.(block, document.getElementById('cmp-c' + _fi + 'Bg-color'));
+  }
 }
 
 // 캔버스에서 그라데이션 라인을 드래그하면(source==='canvas') 활성 칼럼 스와치만 동기화.

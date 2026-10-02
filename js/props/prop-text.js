@@ -12,13 +12,25 @@ import { wireSpacingSection }  from './prop-text-wireup-spacing.js';
 import { wirePositionSection } from './prop-text-wireup-position.js';
 import { wirePaddingSection }  from './prop-text-wireup-padding.js';
 import { wireShadowSection, readShadowState } from './prop-text-wireup-shadow.js';
+import { wireOverlaySection }  from './prop-text-wireup-overlay.js';
 
 export function showTextProperties(tb) {
   const isOverlayTb = tb.classList.contains('overlay-tb');
   // contenteditable 속성이 없는 경우(저장 후 복원 시 속성 누락) fallback으로 내부 첫 자식 div를 사용
   let contentEl = tb.querySelector('[contenteditable]');
   if (!contentEl) {
-    contentEl = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner');
+    /* ★`.itb-text` 를 «같이» 세는 이유 — 아이콘+텍스트 블럭의 본문 칸은 접두사가 itb- 라
+       이 tb-* 목록에 «없었다». 그런데 복원 스냅샷은 contenteditable 을 «전부» 떼고
+       (js/io/section-serialize.js), 되붙이는 자리는 `.text-block` 만 돈다
+       (js/io/save-load.js rebindAll) ⇒ .icon-text-block 만 두 그물을 다 빠져나가
+       여기서 contentEl=null 로 떨어지고, 아래 console.warn 뒤 조용히 return 한다.
+       증상은 «⌘Z 한 번이면 그 블럭의 우측 패널이 영영 안 열린다»였다 — 오버레이를 켠
+       상태였다면 토글조차 못 찾아 끌 수도 없다(2026-09-20 실앱 9505·줌 40% 실측:
+       ⌘Z 직후 contenteditable=null · 다시 클릭해도 패널 토글 0개).
+       ⚠️이 fallback 은 «두 번째 방어선»이다. 첫 번째(복원 시 속성 되붙이기)는
+         js/io/save-load.js 쪽에서 같은 날 같이 고쳤다 — 한쪽만 고치면 이 칸을 읽는
+         다른 자리(editor.js·text-effect-transform.js 등)는 그대로 못 본다. */
+    contentEl = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner,.itb-text');
     if (contentEl) contentEl.setAttribute('contenteditable', 'false');
   }
   if (!contentEl) {
@@ -129,6 +141,10 @@ export function showTextProperties(tb) {
   const _tf         = tb.closest('.frame-block[data-text-frame="true"]');
   const _posEl      = _tf || tb;  // freeLayout 안: text-frame, 그 외: tb
   const isAbsolute  = _posEl.style.position === 'absolute';
+  // 오버레이(플로팅) 토글 — Figma "오버레이"와 같은 개념. isAbsolute(freeLayout 절대배치)와
+  // 갈래를 나눠 dataset 플래그로 판정한다: freeLayout 섹션에 새로 추가된 절대배치 블록은
+  // 이 플래그가 없어 "오버레이 아님"으로 남는다(별개 기존 기능, 이번 범위 아님).
+  const isOverlayBlock = _posEl.dataset.overlayBlock === 'true';
   const currentX    = parseInt(_posEl.style.left  || _posEl.dataset.offsetX || '0');
   const currentY    = parseInt(_posEl.style.top   || _posEl.dataset.offsetY || '0');
   const currentRotation = parseFloat(_posEl.dataset.rotation || '0') || 0;
@@ -157,6 +173,7 @@ export function showTextProperties(tb) {
     isBold,
     isItalic,
     isHighlight,
+    isOverlayBlock,
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(tb.id || null);
@@ -171,11 +188,12 @@ export function showTextProperties(tb) {
   if (!isLiner) wireTypeSection({ tb, propPanel, ctx });
   wireLabelSection({ ctx });
   wireAlignSection({ tb, ctx, propPanel, isIconText });
-  wireTextEditSection({ ctx, currentColorAlpha });
+  wireTextEditSection({ tb, ctx, currentColorAlpha });   // tb: 0920b textgrad-bar — 캔버스 그라데이션 바 대상 블럭
   wireSpacingSection({ ctx, isLiner }); // M6b: 라이너는 자간 바인딩 스킵(우리 슬라이더 단일소스)
   wireShadowSection({ ctx, initial: shadow });
   if (!isOverlayTb) wirePositionSection({ tb });
   if (!isOverlayTb) wirePaddingSection({ tb, phLinked });
+  if (!isOverlayTb) wireOverlaySection({ tb });
 
   /* 애니메이션 GIF 버튼 */
   // BUG-FIX: 텍스트블록 선택마다 이 함수가 실행되므로 리스너 중복 방지

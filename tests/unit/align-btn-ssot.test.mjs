@@ -38,7 +38,7 @@ const HELPERS = 'js/props/_helpers.js';
 /* ★이관 진행도 래칫 — 이관 커밋과 «같은 커밋»에서 올린다. 안 올리면 빨강이 뜬다.
  *   ⛔하한(≥)이 아니라 «등호»다. 하한은 까먹어도 초록이고, 등호는 까먹으면 빨강이다.
  *     그게 의도다 — 이 숫자를 고치는 손이 「내가 몇 개를 옮겼는지」를 한 번은 세게 만든다. */
-const RATCHET = { calls: 40, files: 7 };   // ← 모달 텍스트정렬 3곳 추가 직후 값
+const RATCHET = { calls: 46, files: 7 };   // ← 46: 2026-10-01 A2 오버레이 «서로 맞춤» 패널 6곳(prop-multisel.js showOverlayMultiSelPanel) · 40: 모달 텍스트정렬 3곳 추가 직후 값
 /* ★합계가 146 → 149 로 «늘어난다». 이건 이관이 아니라 «새로 편입»이다 —
    모달 정렬 3개는 원래 class="prop-type-btn" 이라 LITERAL_BTN(align-btn) 정규식에
    «애초에 안 걸려 있었다». 즉 146 인구조사에 든 적이 없다. 리터럴이 줄지 않고 호출만
@@ -267,14 +267,14 @@ test('T4 ★text 와 object-h 는 같은 「left」라도 «다른 그림»이�
  *         이름은 「수직 수평 넣어서」로 확정.
  * ══════════════════════════════════════════════════════════════════════════ */
 
-/* ★객체정렬이 사는 4파일. 27곳 = frame 6 + asset 6 + grid 6 + multisel 9 */
+/* ★객체정렬이 사는 4파일. 33곳 = frame 6 + asset 6 + grid 6 + multisel 15(자유배치 6 · 흐름 3 · 2026-10-01 오버레이 6) */
 const OBJ_FILES = [
   'js/props/prop-frame.js',
   'js/props/prop-asset.js',
   'js/props/prop-grid.js',
   'js/props/prop-multisel.js',
 ];
-const OBJ_CALLS = 27;
+const OBJ_CALLS = 33;   // 33 = 27 + 2026-10-01 A2 오버레이 «서로 맞춤» 패널 6곳(multisel). 이름은 정본 6개 그대로
 
 /* ★이름 «여섯». 이 벌을 고른 이유는 다수결이 아니라 «애매함이 없어서»다 —
  *   전에는 「중앙 정렬」이 파일마다 가로/세로로 갈렸다. (수평)·(수직)이 그걸 없앤다. */
@@ -293,7 +293,7 @@ test('C1 ★객체정렬 27곳이 «전부» 헬퍼를 쓴다 (그 4파일에 �
   for (const f of OBJ_FILES) assert.ok(SRC.has(f), `${f} 를 못 읽었다 — 파일이 옮겨졌나. 이 검사는 지금 아무것도 안 보고 있다`);
   const calls = OBJ_FILES.reduce((n, f) => n + count(SRC.get(f), CALL), 0);
   assert.equal(calls, OBJ_CALLS,
-    `객체정렬 4파일의 alignBtn 호출이 ${calls}개다 — 27이어야 한다. 한 곳이라도 리터럴로 되돌아갔거나 새로 생겼다.`);
+    `객체정렬 4파일의 alignBtn 호출이 ${calls}개다 — ${OBJ_CALLS}이어야 한다. 한 곳이라도 리터럴로 되돌아갔거나 새로 생겼다.`);
 
   for (const f of OBJ_FILES) {
     for (const m of SRC.get(f).matchAll(LITERAL_BTN_FULL)) {
@@ -330,8 +330,8 @@ test('C3 ★이름이 «정확히» 그 6개다 — 집합 완전 일치 (여분
     for (const m of SRC.get(f).matchAll(/alignBtn\('object-[hv]',[^\n]*?title:\s*'([^']*)'/g)) titles.push(m[1]);
     for (const m of SRC.get(f).matchAll(/alignBtn\('object-[hv]',[^\n]*?label:\s*'([^']*)'/g)) labels.push(m[1]);
   }
-  assert.equal(titles.length, OBJ_CALLS, `title 을 ${titles.length}개 찾았다 — 27이어야 한다. 입력이 죽었거나 호출 모양이 바뀌었다`);
-  assert.equal(labels.length, OBJ_CALLS, `label(aria-label) 을 ${labels.length}개 찾았다 — 27이어야 한다`);
+  assert.equal(titles.length, OBJ_CALLS, `title 을 ${titles.length}개 찾았다 — ${OBJ_CALLS}이어야 한다. 입력이 죽었거나 호출 모양이 바뀌었다`);
+  assert.equal(labels.length, OBJ_CALLS, `label(aria-label) 을 ${labels.length}개 찾았다 — ${OBJ_CALLS}이어야 한다`);
 
   const got = new Set(titles), want = new Set(OBJ_NAMES);
   /* ★«완전 일치»다. 「6개가 들어 있다」로 재면 일곱 번째가 섞여도 통과한다. */

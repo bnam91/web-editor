@@ -3,9 +3,9 @@
    Resize / radius handles for frames, mockups, icons, assets, canvas, vectors
    Extracted from drag-drop.js (lines ~13–988)
 ═══════════════════════════════════ */
-import { applyFrameTransform, applyFrameRotationMargin } from './frame-geometry.js';
+import { applyFrameTransform, applyFrameRotationMargin, blockRotationDeg } from './frame-geometry.js';
 
-import { resizeColBoundary, resizeRowHeight } from './grid-cell-resize.js';
+import { resizeColBoundary, resizeRowHeight, resizeGridImage } from './grid-cell-resize.js';
 // ★grid-block.js → drag-drop.js → overlay-handles.js(이 파일) 로 이미 순환 임포트가 있다
 //   (grid-block.js 가 drag-drop.js 의 bindBlock 을 쓰고, drag-drop.js 는 `export * from
 //   './overlay-handles.js'`). 여기서 grid-block.js 를 다시 임포트해도 사이클이 «닫힐» 뿐
@@ -14,11 +14,21 @@ import { resizeColBoundary, resizeRowHeight } from './grid-cell-resize.js';
 //   그래프가 이미 링크된 뒤) 쓰인다 — 이 셋(gridCols/gridRows/getGridModel)이 «단일 진실원»
 //   이라 여기서 dataset.cols/rows 를 직접 재파싱하면 클램프/폴백 로직이 두 곳에 흩어진다
 //   (이 레포의 고질 — P1 IMPL 보고서·P0 EVAL 둘 다 지적한 패턴). 재사용이 맞다.
-import { getGridModel, gridCols, gridRows } from './blocks/grid-block.js';
+import { getGridModel, gridCols, gridRows, gridPreviewLine } from './blocks/grid-block.js';
 /* ★모달 핸들의 클램프는 «패널과 같은 표»를 본다 — 리터럴을 여기 다시 쓰면 갈라진다.
    (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
     모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
 import { MODAL_LIMITS, clampModal, setModalSizeMode } from './blocks/modal-block.js';
+/* ★오버레이(플로팅)의 «위치 규약·탄성 곡선»은 거기 한 벌뿐이다 — 5번째 사본을 만들지 않는다.
+   2026-09-20 통합(int/0920b): T-052 가 알맹이를 prop-text-wireup-overlay.js → overlay-float.js
+   로 옮겼으므로 import 자리도 그 SSOT 를 직접 가리킨다(얇은 배선 파일을 거치지 않는다).
+   posElOf 는 옛 이름 _posElOf 로 받는다 — 아래 호출부 이름을 흔들지 않기 위해서다. */
+import { _applyOverlayPos, posElOf as _posElOf, _elasticAxis, OVERLAY_RESIST_ZONE_SCREEN_PX }
+  from './overlay-float.js';
+/* ★에셋 폭 하한도 «패널과 같은 수»를 본다 — 여기 100 을 다시 적으면 패널만 60 으로 내려가고
+   핸들은 100 에서 막아, 60px 블럭을 1px 만 끌어도 다시 100 으로 올라앉는다(T-075 ㉠).
+   asset-width-limits.js 는 import 가 없는 «잎» 모듈이라 순환 걱정도 없다. */
+import { ASSET_W_MIN } from './blocks/asset-width-limits.js';
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -57,6 +67,29 @@ export function circumferenceOffset(R) {
 }
 
 /* ═══════════════════════════════════
+   손잡이 색 갈래 — «테두리와 한 색»으로 (현빈 2026-09-21)
+   ───────────────────────────────────────────────────────────────────────────
+   현빈 원문: 「오버레이 하면 아웃라인이 보라인데 모서리 핸들은 파랑이다. 스티커는 보라 핸들까지
+   되어 있으니 색을 맞춰줘」. 같은 병을 이 파일은 이미 한 번 고쳤다 — 확대블럭(2026-09-08,
+   css/editor-blocks.css 「앵커만 파랑이면 한 블록에 핸들 색이 둘이 된다」).
+   ★판정은 «이름 목록»이 아니라 선택 오버레이가 색을 고를 때 쓰는 바로 그 표식을 본다:
+     js/overlay-float.js 가 enterFloat 에서 찍고(dataset.selVariant='sticker'),
+     js/selection-overlay.js _variantOf 가 읽어 선을 보라로 그린다. 손잡이도 «같은 표식»을 탄다
+     ⇒ 오버레이가 아닌 블럭은 표식이 없어 종전 파랑 그대로다(비오버레이 회귀 0).
+   ⛔손잡이는 #ss-handles-overlay(고정층) 안이라 블럭의 «자손»이 아니다 — CSS 자손 선택자로는
+     못 닿는다. 그래서 표식을 손잡이에 «옮겨 찍고» 색 규칙은 CSS 한 곳(editor-blocks.css)에만 둔다.
+   ★«매번 다시 재는 술어»다(_tfoEditing 과 같은 꼴) — 위치 갱신 루프에서 부르므로 오버레이를
+     켜고 끄면 손잡이 색이 스스로 따라온다. 값이 같으면 안 쓴다(쓸데없는 스타일 무효화 방지).
+═══════════════════════════════════ */
+export function syncHandleSelVariant(handle, block) {
+  const host = block?.closest?.('[data-sel-variant]') || block;
+  const v = (host && host.dataset && host.dataset.selVariant) || '';
+  if ((handle.dataset.selVariant || '') === v) return;
+  if (v) handle.dataset.selVariant = v;
+  else delete handle.dataset.selVariant;
+}
+
+/* ═══════════════════════════════════
    회전 인식 좌표 헬퍼 (U14 — 회전 후 리사이즈 핸들 좌표 보정)
    블록이 transform:rotate 된 상태에서 getBoundingClientRect()는 «회전된 요소의
    축정렬 바운딩박스(AABB)»를 돌려주므로, 코너 핸들을 rect 모서리에 두면
@@ -71,15 +104,9 @@ export function _canvasScaleNow() {
 }
 // 블록이 어떤 규약으로 회전값을 갖든(프레임 rotateDeg / asset rotation / shape shapeRotation)
 // 화면상 회전각(deg)을 반환. 없으면 0.
-function _blockRotationDeg(el) {
-  if (!(el instanceof HTMLElement)) return 0;
-  const d = el.dataset;
-  let v = d.rotateDeg;
-  if (v == null || v === '') v = d.rotation;
-  if (v == null || v === '') v = d.shapeRotation;
-  const n = parseFloat(v);
-  return Number.isFinite(n) ? n : 0;
-}
+// ★2026-09-20 — 본체는 js/frame-geometry.js blockRotationDeg 로 옮겼다(오버레이 공용 모듈이
+//   같은 판정을 써야 하는데 이 파일은 무거워 import 할 수 없다). 여기선 이름만 유지한다.
+const _blockRotationDeg = blockRotationDeg;
 // 코너 dir('nw'|'ne'|'sw'|'se')의 스크린 좌표.
 // inset>0 이면 코너에서 안쪽으로(코너반경 핸들), inset<0 이면 바깥쪽으로(회전 핫존).
 /** ★export — 선택 오버레이가 테두리 꼭지점을 «이 함수로» 얻는다(핸들과 같은 좌표).
@@ -191,7 +218,15 @@ function _onFrameRotateMouseDown(e, ss) {
   const cy = br.top  + br.height / 2;
   const init   = parseFloat(ss.dataset.rotateDeg) || 0;
   const startA = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+  const startX = e.clientX, startY = e.clientY;
+  const _hist = window.beginDragHistory?.('프레임 회전');
   function onMove(ev) {
+    const _sc = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / _sc;
+    const dy = (ev.clientY - startY) / _sc;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
     let deg = init + (a - startA);
     deg = window._snapRotate(deg, ev.shiftKey); // Shift = 45° 스냅(공유)
@@ -207,6 +242,8 @@ function _onFrameRotateMouseDown(e, ss) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
     window.pushHistory?.('프레임 회전');
   }
   document.addEventListener('mousemove', onMove);
@@ -309,6 +346,7 @@ function _onHandleMouseDown(e, ss, dir) {
     };
     collect(ss);
   }
+  const _hist = window.beginDragHistory?.('프레임 크기');
 
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
@@ -317,6 +355,9 @@ function _onHandleMouseDown(e, ss, dir) {
     const _rd = _unrotateDelta(ss, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dx = _rd.dx;
     const dy = _rd.dy;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     let newW = startW, newH = startH;
     if (dir.includes('e')) newW = Math.min(maxW, Math.max(60, startW + dx));
     if (dir.includes('w')) newW = Math.min(maxW, Math.max(60, startW - dx));
@@ -359,6 +400,8 @@ function _onHandleMouseDown(e, ss, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
     window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
@@ -378,11 +421,15 @@ function _onRadiusHandleMouseDown(e, ss, dir) {
 
   // 코너 방향에 따른 드래그 방향 (안쪽으로 드래그 = 반경 증가)
   // nw: +x+y → 증가 / ne: -x+y → 증가 / sw: +x-y → 증가 / se: -x-y → 증가
+  const _hist = window.beginDragHistory?.('프레임 모서리');
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     // 드래그 거리 → 반경 변화 (대각선 방향 평균)
     const delta = dir === 'nw' ? (dx + dy) / 2
                 : dir === 'ne' ? (-dx + dy) / 2
@@ -401,6 +448,8 @@ function _onRadiusHandleMouseDown(e, ss, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
     window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
@@ -473,11 +522,16 @@ function _onMockupHandleMouseDown(e, block, dir) {
   const scale0  = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
   const startW  = parseInt(block.dataset.width) || parseInt(block.style.width) || 280;
 
+  const _hist = window.beginDragHistory?.('목업 크기');
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale  = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로) 후 width축(dx) 사용
-    const dx = _unrotateDelta(block, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale).dx;
+    const _ud = _unrotateDelta(block, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
+    const dx = _ud.dx, dy = _ud.dy;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     let newW = dir.includes('e') ? startW + dx : startW - dx;
     newW = Math.round(Math.min(860, Math.max(100, newW)));
     block.dataset.width = String(newW);
@@ -493,6 +547,8 @@ function _onMockupHandleMouseDown(e, block, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
     window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
@@ -566,6 +622,7 @@ function _onIconHandleMouseDown(e, block, dir) {
   const scale0  = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
   const startSize = parseInt(block.dataset.size) || parseInt(block.style.width) || 64;
 
+  const _hist = window.beginDragHistory?.('아이콘 크기');
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale  = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
@@ -573,6 +630,9 @@ function _onIconHandleMouseDown(e, block, dir) {
     // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로) 후 판정
     const _ud = _unrotateDelta(block, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dx = _ud.dx, dy = _ud.dy;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     const delta = (Math.abs(dx) > Math.abs(dy) ? dx : dy);
     let newSize = Math.round(Math.min(512, Math.max(16,
       dir === 'nw' || dir === 'sw' ? startSize - delta : startSize + delta
@@ -594,6 +654,8 @@ function _onIconHandleMouseDown(e, block, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
     window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
@@ -646,6 +708,7 @@ function _updateAssetRadiusHandlePositions() {
     const c = _cornerScreen(_assetRadiusBlock, h.dataset.assetRadiusDir, INSET);
     h.style.top  = (c.y - HALF) + 'px';
     h.style.left = (c.x - HALF) + 'px';
+    syncHandleSelVariant(h, _assetRadiusBlock);   // 오버레이면 보라 — 테두리와 한 색
   });
 }
 
@@ -672,11 +735,15 @@ function _onAssetRadiusHandleMouseDown(e, ab, dir) {
   const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
   const startRadius = parseInt(ab.style.borderRadius) || 0;
 
+  const _hist = window.beginDragHistory?.('에셋 모서리');
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     const delta = dir === 'nw' ? (dx + dy) / 2
                 : dir === 'ne' ? (-dx + dy) / 2
                 : dir === 'sw' ? (dx - dy) / 2
@@ -693,6 +760,8 @@ function _onAssetRadiusHandleMouseDown(e, ab, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
     window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
@@ -744,6 +813,7 @@ function _updateAssetResizeHandlePositions() {
     const left = c.x - HALF;
     h.style.top  = top  + 'px';
     h.style.left = left + 'px';
+    syncHandleSelVariant(h, _assetResizeBlock);   // 오버레이면 보라 — 테두리와 한 색
   });
 }
 
@@ -776,6 +846,7 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
 
   const aspectRatio = startW / startH;
 
+  const _hist = window.beginDragHistory?.('에셋 크기');
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
@@ -783,6 +854,9 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
     const _rd = _unrotateDelta(ab, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dx = _rd.dx;
     const dy = _rd.dy;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     let newW = startW, newH = startH;
 
     if (ev.shiftKey) {
@@ -790,22 +864,25 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
       const dw = dir.includes('e') ? dx : dir.includes('w') ? -dx : 0;
       const dh = dir.includes('s') ? dy : dir.includes('n') ? -dy : 0;
       if (Math.abs(dw) >= Math.abs(dh)) {
-        newW = Math.min(860, Math.max(100, startW + dw));
+        newW = Math.min(860, Math.max(ASSET_W_MIN, startW + dw));
         newH = Math.max(40, Math.round(newW / aspectRatio));
       } else {
         newH = Math.max(40, startH + dh);
-        newW = Math.min(860, Math.max(100, Math.round(newH * aspectRatio)));
+        newW = Math.min(860, Math.max(ASSET_W_MIN, Math.round(newH * aspectRatio)));
       }
     } else {
-      if (dir.includes('e')) newW = Math.min(860, Math.max(100, startW + dx));
-      if (dir.includes('w')) newW = Math.min(860, Math.max(100, startW - dx));
+      if (dir.includes('e')) newW = Math.min(860, Math.max(ASSET_W_MIN, startW + dx));
+      if (dir.includes('w')) newW = Math.min(860, Math.max(ASSET_W_MIN, startW - dx));
       if (dir.includes('s')) newH = Math.max(40, startH + dy);
       if (dir.includes('n')) newH = Math.max(40, startH - dy);
     }
     newW = Math.round(newW); newH = Math.round(newH);
     // 최대폭 복귀 시 ''로 지우면 패딩제외(full-bleed)의 calc()가 사라진다 → 공유 헬퍼로 복원 (08-27)
-    if (newW >= 860) window.applyAssetFullBleed?.(ab);   // 폭+음수마진 «세트»로 (width 단독이면 우측이 잘린다)
-    else ab.style.width = newW + 'px';
+    /* 폭+음수마진 «세트»로 — 양방향 다(prop-page.js applyAssetWidth). width 단독이면
+       최대폭 쪽은 우측이 잘리고, 줄이는 쪽은 풀블리드 음수마진이 남는다(2026-09-20 QA). */
+    if (window.applyAssetWidth) window.applyAssetWidth(ab, newW);
+    else if (newW >= 860) window.applyAssetFullBleed?.(ab);
+    else { ab.style.width = newW + 'px'; ab.style.marginLeft = ''; ab.style.marginRight = ''; }
     ab.style.height = newH + 'px';
     // 우측 패널 슬라이더 동기화
     const wNum = document.getElementById('asset-w-number');
@@ -819,6 +896,8 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
     window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
@@ -911,12 +990,15 @@ function _onModalRadiusHandleMouseDown(e, block, dir) {
   const startR = clampModal(block.dataset.radius, MODAL_LIMITS.radius);
   let moved = false;
 
+  const _hist = window.beginDragHistory?.('모달 모서리');
   function onMove(ev) {
     const scale = _canvasScaleNow();
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
     if (!moved) {
-      if (Math.hypot(dx, dy) < 1) return;
+      if (Math.hypot(dx, dy) < 1) return;   // ★기존 임계 — 여기 걸리면 이 틱은 «쓰기»도 안 한다(원래 그랬다)
+      // ★«시작 상태»를 1회 찍는다(끝 상태는 onUp). 임계를 넘은 첫 틱이라 쓰기 직전이 맞다.
+      _hist?.arm(dx, dy);
       moved = true;
     }
     // 모서리에서 «안쪽»으로 끌면 커진다 — 네 모서리의 부호는 에셋 라디우스와 같은 규약
@@ -938,9 +1020,11 @@ function _onModalRadiusHandleMouseDown(e, block, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
     if (!moved) return;
     window.renderModalBlock?.(block);   // ★dataset 을 «그림»으로 굳힌다
-    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -1012,13 +1096,16 @@ function _onModalResizeHandleMouseDown(e, block, dir) {
   const sx = dir.includes('e') ? 1 : -1;
   const sy = dir.includes('s') ? 1 : -1;
   let moved = false;
+  const _hist = window.beginDragHistory?.('모달 크기');
 
   function onMove(ev) {
     const scale = _canvasScaleNow();
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
     if (!moved) {
-      if (Math.hypot(dx, dy) < 1) return;
+      if (Math.hypot(dx, dy) < 1) return;   // ★기존 임계 — 여기 걸리면 이 틱은 «쓰기»도 안 한다(원래 그랬다)
+      /* ★«시작 상태»를 1회 찍는다(끝 상태는 onUp). 바로 아래 setModalSizeMode 가 이 제스처의 «첫 변형»이다. */
+      _hist?.arm(dx, dy);
       moved = true;
       /* ★크기를 «고정»으로 돌리는 것도, 재렌더도 여기 «한 번»뿐이다.
          full → fixed 는 margin-left/right:auto 를 같이 주므로(가운데 정렬) 상자의 기하가
@@ -1056,10 +1143,12 @@ function _onModalResizeHandleMouseDown(e, block, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    window.pushHistory?.();
     if (!moved) return;
     window.renderModalBlock?.(block);       // ★dataset 을 «그림»으로 굳힌다
     window.showModalProperties?.(block);    // 풀폭/고정 버튼·비활성 상태가 실제와 맞게
-    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -1102,6 +1191,7 @@ function showIconCircleResizeHandle(block) {
     const startSize = parseInt(block.dataset.size) || 240;
     const { sx, sy } = cornerSign(dir);
 
+    const _hist = window.beginDragHistory?.('아이콘서클 크기');
     function onMove(ev) {
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
@@ -1109,6 +1199,8 @@ function showIconCircleResizeHandle(block) {
       const _ud = _unrotateDelta(block, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
       // 바깥으로 끌면 커진다 — 모서리마다 «바깥»의 부호가 달라 위 표로 뒤집는다.
       const dx = _ud.dx * sx, dy = _ud.dy * sy;
+      /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라. */
+      _hist?.arm(dx, dy);
       const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
       const newSize = Math.min(860, Math.max(40, Math.round(startSize + delta)));
       const circle = block.querySelector('.icb-circle');
@@ -1124,6 +1216,8 @@ function showIconCircleResizeHandle(block) {
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+         드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
       window.pushHistory?.();
     }
     document.addEventListener('mousemove', onMove);
@@ -1249,11 +1343,15 @@ function _onCanvasRadiusHandleMouseDown(e, cb, dir = 'nw') {
   const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
   const startRadius = parseInt(cb.dataset.radius) || 0;
 
+  const _hist = window.beginDragHistory?.('카드 모서리');
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     /* ★[M39] 현빈 2026-09-05: 「드래그하면 에셋블럭의 모서리 코너핸들과 라디우스 적용되는게
        반대인데 카드블럭을 고쳐줘」 — 정본은 «에셋»이라고 현빈이 지정했다.
        ⑴ 부호가 뒤집혀 있었다: 에셋은 `startRadius + delta`, 카드만 `- delta` 였다.
@@ -1277,6 +1375,8 @@ function _onCanvasRadiusHandleMouseDown(e, cb, dir = 'nw') {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
     window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
@@ -1363,12 +1463,16 @@ function _onCanvasResizeHandleMouseDown(e, cb, dir) {
   const _maxWcalc = Math.round(_innerW - _padH);
   const maxW = (_innerW > 0 && _maxWcalc > 0) ? _maxWcalc : 860;
 
+  const _hist = window.beginDragHistory?.('카드 크기');
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로)
     const _ud = _unrotateDelta(cb, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dx = _ud.dx, dy = _ud.dy;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     let newW = startW, newH = startH;
     if (dir.includes('e')) newW = Math.min(maxW, Math.max(100, startW + dx));
     if (dir.includes('w')) newW = Math.min(maxW, Math.max(100, startW - dx));
@@ -1387,6 +1491,8 @@ function _onCanvasResizeHandleMouseDown(e, cb, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
     window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
@@ -1460,12 +1566,16 @@ function _onVectorResizeHandleMouseDown(e, vb, dir) {
   const startW = parseInt(vb.dataset.w) || 120;
   const startH = parseInt(vb.dataset.h) || 120;
 
+  const _hist = window.beginDragHistory?.('벡터 크기');
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     // #14b 회전 인식: 스크린 델타를 블록 로컬축으로 역회전(회전0=그대로)
     const _ud = _unrotateDelta(vb, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dx = _ud.dx, dy = _ud.dy;
+    /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
+       — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
+    _hist?.arm(dx, dy);
     let newW = startW, newH = startH;
     if (dir.includes('e')) newW = Math.max(20, startW + dx);
     if (dir.includes('w')) newW = Math.max(20, startW - dx);
@@ -1480,6 +1590,8 @@ function _onVectorResizeHandleMouseDown(e, vb, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
+       드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
     window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
@@ -1544,6 +1656,7 @@ function showGridGutters(block) {
     g.style.cssText = 'position:absolute;width:8px;cursor:col-resize;z-index:97;pointer-events:auto;';
     overlay.appendChild(g);
     g.addEventListener('mousedown', e => _onGridColMouseDown(e, block, i));
+    _wireGutterContextMenu(g, block);
   }
   for (let i = 0; i < rows.length - 1; i++) {
     const g = document.createElement('div');
@@ -1553,9 +1666,21 @@ function showGridGutters(block) {
     g.style.cssText = 'position:absolute;height:8px;cursor:row-resize;z-index:97;pointer-events:auto;';
     overlay.appendChild(g);
     g.addEventListener('mousedown', e => _onGridRowMouseDown(e, block, i));
+    _wireGutterContextMenu(g, block);
   }
   _updateGridGutterPositions();
   _startGridGutterRaf();
+}
+
+/* ★거터 위 우클릭도 «블록의» 컨텍스트 메뉴로 보낸다 (2026-09-20, 0920b-grid-image).
+ *   거터는 #ss-handles-overlay 의 자식 = «블록 바깥» 요소다. 그래서 여기서 우클릭하면
+ *   block-drag.js 가 블록에 건 contextmenu 리스너가 «아예 안 불리고» 메뉴 자체가 안 떴다
+ *   (8px 띠지만 40% 줌에선 칸 경계 대부분이 이 띠 아래로 들어온다).
+ *   ⛔거터를 pointer-events:none 으로 바꾸는 식으로 풀지 마라 — 열/행 리사이즈가 죽는다. */
+function _wireGutterContextMenu(g, block) {
+  g.addEventListener('contextmenu', e => {
+    if (window._openBlockContextMenu) window._openBlockContextMenu(e, block);
+  });
 }
 
 function hideGridGutters() {
@@ -1737,6 +1862,10 @@ function _onGridColMouseDown(e, block, i) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     restoreDrag();
+    /* ★끝 상태도 찍는다 — 시작(mousedown)만 찍으면 «다음»이 push-after 동작일 때 그 사이의
+       표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 안 움직였으면 캔버스가
+       그대로라 history.js 의 무변화 차단이 버린다 = 맨클릭 중복 항목도 같이 사라진다. */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -1777,6 +1906,10 @@ function _onGridRowMouseDown(e, block, i) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     restoreDrag();
+    /* ★끝 상태도 찍는다 — 시작(mousedown)만 찍으면 «다음»이 push-after 동작일 때 그 사이의
+       표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 안 움직였으면 캔버스가
+       그대로라 history.js 의 무변화 차단이 버린다 = 맨클릭 중복 항목도 같이 사라진다. */
+    window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -1784,6 +1917,489 @@ function _onGridRowMouseDown(e, block, i) {
 
 window.showGridGutters = showGridGutters;
 window.hideGridGutters = hideGridGutters;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GRID 이미지/아이콘 줄 — 코너 리사이즈 핸들 (T-C, 2026-09-16)
+   ───────────────────────────────────────────────────────────────────────────
+   ★대상은 «지금 선택된(포커스된) 이미지 줄» 하나뿐이다 — grdGetActiveLine(block) 로
+     주소를 얻고, getGridModel(block) 으로 그 줄이 type==='image' 인지 확인한다.
+     빈 이미지 슬롯(.grd-img-empty)도 같은 addr·같은 필드라 그대로 포함된다.
+   ★2026-09-25 — 대상이 «프레임»(.grd-img-frame)으로 옮겨갔다. 안쪽 <img class="grd-img">
+     는 프레임을 100%×100% 로 채우므로 «사각형»은 전과 같고(핸들 자리 무변화), 다만
+     style.width/height 를 쓰는 대상은 반드시 프레임이어야 한다 — 안쪽에 쓰면 % 의 기준이
+     «셀»이 아니라 «프레임»이 되어 폭이 제자리를 맴돈다.
+   ★핸들은 자산(asset) 블록 코너 핸들(_onAssetResizeHandleMouseDown)의 수학을 형틀로 쓴다 —
+     이미지도 「흐름 배치」라 확대블럭(플로팅)보다 이쪽이 정확한 선례다.
+   ⛔클래스는 `.grd-img-overlay-handle` — `.asset-overlay-handle` 을 빌리면
+     hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다(이 파일 위쪽 주석들이 같은 함정을
+     이미 두 번 적어 뒀다: 아이콘원형·확대블럭).
+   ★DOM 은 addr(data-r/data-c/data-line)로 매 프레임 재조회한다 — 재렌더로 <img> 가
+     통째로 교체될 수 있어 DOM 참조를 들고 있으면 죽은 참조가 된다. */
+let _gridImgResizeBlock = null;
+let _gridImgResizeAddr = null;   // {r,c,li}
+let _gridImgResizeRafId = null;
+const GRID_IMG_HANDLE_MIN_SCREEN_PX = 24;   // 낮은 배율 방어 — 거터의 M64 대책과 같은 원칙
+
+function _gridImgFindEl(block, addr) {
+  if (!block || !addr || addr.li === null || addr.li === undefined) return null;
+  /* ★중첩 안 줄(np)이면 «안 찾는다» (T-200 커밋 ②). 아래 셀렉터는 data-line 으로 재는데
+     중첩 안 줄은 그 이름을 안 쓴다 ⇒ 그냥 두면 addr.li(=품은 duo 줄)로 조회하게 되고,
+     그 자리에 마침 바깥 이미지 줄이 있으면 «딴 그림»에 코너 핸들이 앉는다. */
+  if (addr.np) return null;
+  return block.querySelector(`.grd-img-frame[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
+}
+
+function _gridImgActiveImageLine(block) {
+  const addr = window.grdGetActiveLine ? window.grdGetActiveLine(block) : null;
+  if (!addr || addr.li === null || addr.li === undefined) return null;
+  /* ★중첩 안 줄(np)이면 «이미지 줄로 안 친다» (T-200 커밋 ②) — 아래 모델 조회가
+     lines[addr.li] 를 보는데 그건 «품은 duo 줄»이다. 크기 손잡이는 쓰는 길이라 범위 밖. */
+  if (addr.np) return null;
+  let line = null;
+  try { line = getGridModel(block).cells[addr.r][addr.c].lines[addr.li]; } catch (_) { line = null; }
+  if (!line || line.type !== 'image') return null;
+  return { addr, line };
+}
+
+function showGridImageResizeHandle(block) {
+  const hit = _gridImgActiveImageLine(block);
+  if (!hit) { hideGridImageResizeHandle(); return; }
+  const el = _gridImgFindEl(block, hit.addr);
+  if (!el) { hideGridImageResizeHandle(); return; }
+
+  const same = _gridImgResizeBlock === block && _gridImgResizeAddr
+    && _gridImgResizeAddr.r === hit.addr.r && _gridImgResizeAddr.c === hit.addr.c && _gridImgResizeAddr.li === hit.addr.li;
+  const overlay0 = _getOverlay();
+  if (same && overlay0 && overlay0.querySelector('.grd-img-overlay-handle')) {
+    _updateGridImgResizeHandlePositions();
+    return;
+  }
+  hideGridImageResizeHandle();
+  _gridImgResizeBlock = block;
+  _gridImgResizeAddr = hit.addr;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `grd-img-overlay-handle ${dir}`;
+    h.dataset.gridImgResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onGridImageResizeHandleMouseDown(e, block, hit.addr, dir));
+  });
+  _updateGridImgResizeHandlePositions();
+  _startGridImgResizeRaf();
+}
+
+function hideGridImageResizeHandle() {
+  if (_gridImgResizeRafId) { cancelAnimationFrame(_gridImgResizeRafId); _gridImgResizeRafId = null; }
+  _gridImgResizeBlock = null;
+  _gridImgResizeAddr = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.grd-img-overlay-handle').forEach(h => h.remove());
+}
+
+function _updateGridImgResizeHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_gridImgResizeBlock || !_gridImgResizeAddr) return;
+  const el = _gridImgFindEl(_gridImgResizeBlock, _gridImgResizeAddr);
+  if (!el) { hideGridImageResizeHandle(); return; }
+  const rect = el.getBoundingClientRect();
+  const handles = overlay.querySelectorAll('.grd-img-overlay-handle');
+  if (rect.width < GRID_IMG_HANDLE_MIN_SCREEN_PX || rect.height < GRID_IMG_HANDLE_MIN_SCREEN_PX) {
+    handles.forEach(h => { h.style.display = 'none'; });
+    return;
+  }
+  const HALF = 3.5;
+  handles.forEach(h => {
+    h.style.display = '';
+    const c = _cornerScreen(el, h.dataset.gridImgResizeDir);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+  });
+}
+
+function _startGridImgResizeRaf() {
+  function loop() {
+    if (!_gridImgResizeBlock) return;
+    const el = _gridImgFindEl(_gridImgResizeBlock, _gridImgResizeAddr);
+    if (!_gridImgResizeBlock.isConnected || !el) { hideGridImageResizeHandle(); return; }
+    _updateGridImgResizeHandlePositions();
+    _gridImgResizeRafId = requestAnimationFrame(loop);
+  }
+  _gridImgResizeRafId = requestAnimationFrame(loop);
+}
+
+function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const { r, c, li } = addr;
+  const el0 = _gridImgFindEl(block, addr);
+  if (!el0) return;
+
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+  const scale0 = _canvasScaleNow();
+  const rect0 = el0.getBoundingClientRect();
+  const startW = rect0.width / scale0;
+  const startH = rect0.height / scale0;
+
+  let line = null;
+  try { line = getGridModel(block).cells[r][c].lines[li]; } catch (_) { line = null; }
+  const curPctN = line ? Number(line.widthPct) : NaN;
+  const curPct = Number.isFinite(curPctN) && curPctN > 0 ? curPctN : 100;
+  const cellW = startW / (curPct / 100);   // widthPct=100 일 때의 «셀 콘텐츠 폭»(px) 역산
+  /* ★비율의 출처 — 프레임은 <div> 라 naturalWidth 가 없다. 안쪽 <img> 에서 읽어야
+     Shift-드래그(비율 고정)가 «2026-09-25 이전과 같은 값»을 쓴다. 여기서 el0 만 보면
+     조용히 startW/startH(상자 비율)로 떨어져 cover 가 걸린 줄에서 답이 달라진다. */
+  const natImg = el0.tagName === 'IMG' ? el0 : el0.querySelector('img');
+  const aspect = (natImg && natImg.naturalWidth > 0 && natImg.naturalHeight > 0)
+    ? natImg.naturalWidth / natImg.naturalHeight
+    : (startH > 0 ? startW / startH : 1);
+
+  /* ★★코너 핸들은 «프레임»만 바꾼다 — 그림은 제자리에 있고 더/덜 잘린다. (2026-09-25 커밋 ②)
+   *   현빈: 「코너 핸들로 정하는 그 상자가 맞겠어. … 코너를 끌면 통째로 작아지면 안 되는 거지.」
+   *
+   *   ⛔그냥 두면 안 된다 — 크롭 값은 «프레임 대비 ％»라(그래야 내보내기 860→780 에서 같은
+   *     그림이 된다), 프레임이 줄면 그림도 따라 줄어든다. 그게 바로 현빈이 「안 된다」고 한 것이다.
+   *   ⇒ 드래그 «시작 시점의 그림 기하»(px)를 찍어 두고, 놓을 때 «새 프레임 기준 ％»로 되환산한다.
+   *     그러면 두 축이 다 산다:
+   *       · 코너 드래그 = 프레임만 변함 ⇒ 그림은 화면에서 «한 톨도 안 움직인다»
+   *       · 내보내기 폭 축소 = 프레임이 통째로 작아짐 ⇒ ％가 그대로라 그림도 같이 줄어든다
+   *   ★크롭이 «없던» 줄도 이 드래그로 크롭이 «생긴다» — 그게 맞다. 그 전엔 cover 가 알아서
+   *     가운데를 잡고 있었고, 사용자가 상자를 바꾼 순간 「지금 보이던 그림」을 지켜 줘야 한다. */
+  /* ⚠️★«요소 상자»가 아니라 «그려지는 그림»을 찍어야 한다 — 이 둘은 다르다.
+   *   `object-fit:cover` 인 <img> 의 rect 는 «상자»(=프레임)다. 실제 그림은 그보다 크고
+   *   가운데로 밀려 있다. 상자를 못으로 박으면 코너를 끄는 순간 그림이 세로로 «튄다».
+   *   실측(400×250 그림, 프레임 796×200): 상자 796×200 · 그림 796×497.5(top −148.75).
+   *   ⇒ cover/contain 이면 산식으로 풀고, 이미 절대배치(크롭 있음)면 rect 가 곧 그림이다.
+   *   ★enterGridImageEditMode 가 편집을 열 때 쓰는 산식과 «같은 것»이다(k = max(W/nw, H/nh)). */
+  let imgPin = null;
+  if (natImg) {
+    const cs = (typeof getComputedStyle === 'function') ? getComputedStyle(natImg) : null;
+    const fit = (cs && cs.objectFit || '').trim();
+    const nw = natImg.naturalWidth, nh = natImg.naturalHeight;
+    if ((fit === 'cover' || fit === 'contain') && nw > 0 && nh > 0) {
+      const k = fit === 'cover' ? Math.max(startW / nw, startH / nh) : Math.min(startW / nw, startH / nh);
+      const dw = nw * k, dh = nh * k;
+      imgPin = { x: (startW - dw) / 2, y: (startH - dh) / 2, w: dw };
+    } else {
+      const ir = natImg.getBoundingClientRect();
+      imgPin = { x: (ir.left - rect0.left) / scale0, y: (ir.top - rect0.top) / scale0, w: ir.width / scale0 };
+    }
+  }
+
+  const startX = e.clientX, startY = e.clientY;
+  let moved = false;
+  let lastResult = null;
+
+  function onMove(ev) {
+    const el = _gridImgFindEl(block, addr);   // 매 프레임 addr 로 재조회(재렌더로 교체될 수 있음)
+    if (!el) return;
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    if (!moved && Math.hypot(dx, dy) < 1) return;
+    if (!moved) { moved = true; window.pushHistory?.('그리드 이미지 크기'); }
+    const result = resizeGridImage({ startW, startH, dir, dx, dy, cellW, aspect, lockAspect: ev.shiftKey });
+    lastResult = result;
+    el.style.width = result.widthPct + '%';
+    el.style.height = result.height + 'px';
+    /* ★미리보기 = 커밋 결과. 그림을 «시작 기하»에 px 로 못박고 프레임만 자라고 줄게 한다.
+       ⛔안 하면 드래그 중엔 그림이 같이 줄다가 놓는 순간 튄다 — 「보인 대로 된다」가 깨진다. */
+    const innerImg = el.querySelector('img');
+    if (innerImg && imgPin) {
+      el.style.position = 'relative';
+      el.style.overflow = 'hidden';
+      innerImg.style.position = 'absolute';
+      innerImg.style.left = imgPin.x + 'px';
+      innerImg.style.top = imgPin.y + 'px';
+      innerImg.style.width = imgPin.w + 'px';
+      innerImg.style.height = 'auto';
+      innerImg.style.objectFit = '';
+    }
+    /* 우측 패널 입력을 «직접» 갱신 — 드래그 중 패널 재렌더 금지(gutter 와 같은 원칙).
+     * ★2026-09-25 — 여기 「이미지 절에는 폭 입력이 없어 높이만 동기화한다」고 적혀 있었다.
+     *   그 전제가 74eb3c9(R6, 「폭(%)」 칸 신설)로 «거짓»이 됐는데 코드는 안 따라왔다 ⇒ 실기에서
+     *   코너를 끌면 모델 widthPct=76 인데 패널 칸은 100 을 보여 줬다(높이는 맞았다). 저장값은
+     *   옳고 «화면만» 거짓말하던 꼴 — 패널을 다시 그리면 맞는 수가 나왔다.
+     * ⛔둘을 «같은 시점»에 넣는다 — 드래그 «중» 매 프레임(놓을 때만이 아니다). 높이가 원래
+     *   그랬고, 둘이 다른 시점이면 그 차이가 또 어긋남이 된다. 두 수 다 같은 `result` 에서
+     *   오고 둘 다 정수다(grid-cell-resize.js 가 Math.round 해서 준다) ⇒ 칸에 그대로 넣는다.
+     * ★폭이 100 이어도 «비우지» 않는다 — 놓는 순간 onUp 이 widthPct:100 을 모델에 «명시로»
+     *   쓰므로, 그 뒤 패널을 다시 그리면 칸에 100 이 찍힌다. 여기서 비우면 그 재렌더와 어긋난다. */
+    const hNum = document.getElementById('grd-img-height');
+    if (hNum) hNum.value = result.height;
+    const wNum = document.getElementById('grd-img-width-pct');
+    if (wNum) wNum.value = result.widthPct;
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+    if (moved && lastResult) {
+      /* ★px → ％ 되환산. 기준은 «새» 프레임이다(가로는 폭, 세로는 높이 — 렌더러가 left/top 을
+         그렇게 푼다). imgPin 이 없으면(그림을 못 잡았으면) 크롭은 «안» 건드린다. */
+      const patch = { widthPct: lastResult.widthPct, height: lastResult.height };
+      if (imgPin) {
+        const newW = cellW * lastResult.widthPct / 100;
+        const newH = lastResult.height;
+        /* ★소수 «세» 자리 — 한 자리면 795.8 vs 796.0 처럼 0.2px 이 어긋나고, 그 어긋남이
+           강한 경계선에서 눈에 보이는 재표본화 차이가 된다(grid-block.js _gridClampPct 주석). */
+        const r1 = (v) => Math.round(v * 1000) / 1000;
+        if (newW > 0 && newH > 0) {
+          patch.imgSizePct = r1(imgPin.w / newW * 100);
+          patch.imgPosX    = r1(imgPin.x / newW * 100);
+          patch.imgPosY    = r1(imgPin.y / newH * 100);
+        }
+      }
+      gridPreviewLine(block, r, c, li, patch);
+      window._grdSyncLineMark?.(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
+      /* ★끝 상태도 찍는다 — 시작만 찍으면 «다음»이 push-after 동작일 때 그 둘 사이의
+         표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 무변화면 history.js 가 버린다. */
+      window.pushHistory?.('그리드 이미지 크기');
+      window.scheduleAutoSave?.();
+      showGridImageResizeHandle(block);         // 재렌더로 교체된 새 <img> 에 핸들을 다시 붙인다
+    }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showGridImageResizeHandle = showGridImageResizeHandle;
+window.hideGridImageResizeHandle = hideGridImageResizeHandle;
+
+/* ═══════════════════════════════════
+   GRID LINE DRAG GRIP — 칸 «안»의 줄을 끌어 옮긴다 (T-228, 2026-09-27 현빈 발주)
+   ────────────────────────────────────────────────────────────────────────
+   ★왜 여기인가 — 끄는 «손잡이»를 줄 HTML 에 넣으면 내보내기 산출 «바이트»가 바뀌어 골든
+     (tests/unit/grid-gap-clamp.test.js, 기준판 55f3a1a 대조)이 빨개진다. #ss-handles-overlay 는
+     #canvas-scaler «바깥»이라(위 거터 절의 그 까닭) 저장본·export 에 애초에 없다.
+     ⇒ 손잡이를 여기에 얹으면 ★렌더 산출을 한 자도 안 바꾸고 손을 붙일 수 있다.
+   ★대상은 «지금 고른 줄» 하나다 — 칸마다 20줄까지 되므로 전부에 손잡이를 띄우면 rAF 가
+     수십 개 rect 를 매 프레임 재는 일이 된다(거터는 경계 몇 개뿐이라 사정이 달랐다).
+     ⇒ 「고르고 끈다」. ⌘←/→(T-227)도 「고른 뒤」라 두 길의 말이 같아진다.
+   ★표시선은 ★새로 만들지 않는다 — `.drop-indicator` 를 «칸 안»에 끼운다(카드 T-228 measured
+     가 「새로 만들지 말고 그것을 쓰십시오」라 적어 둔 그 자리). 칸이 flex-direction:column 이라
+     줄 사이에 끼우면 그대로 가로 띠가 된다. ★세척도 이미 있다 — section-serialize.js 가
+     `.drop-indicator` 를 지운다(드래그 중 autosave 가 돌아도 저장본에 안 샌다).
+   ★모델을 고쳐 «다시 그린다» — ⛔DOM 을 insertBefore 로 옮기지 않는다. renderGridBlock 이
+     block.innerHTML 을 통째로 갈아끼우므로 DOM 이동은 다음 렌더에 사라진다(카드 measured 의
+     경고 그대로). 쓰는 길은 prop-grid.js 의 두 함수다 — 같은 칸이면 grdMoveLineWithin(한 문),
+     다른 칸이면 grdMoveLineToCell(두 문 + 이력 한 칸).
+   ⛔중첩(duo) «안»의 줄은 집지도, 놓지도 않는다 — 쓰는 길이 거기로 안 내려간다(T-220 몫).
+═══════════════════════════════════ */
+let _grdGripBlock = null;
+let _grdGripAddr = null;          // {r,c,li} — 중첩(np)은 여기 오지 않는다
+let _grdGripRafId = null;
+const GRD_GRIP_MIN_SCREEN_PX = 10;   // 낮은 배율 방어 — 거터·이미지 핸들과 같은 원칙
+const GRD_GRIP_DRAG_THRESHOLD_PX = 3;
+const GRD_GRIP_W = 12;
+const GRD_GRIP_H = 18;
+
+/** 그 주소의 «바깥 줄» DOM. ⛔중첩 안 줄(np)은 null — data-line 을 안 쓰므로 addr.li 로
+ *  조회하면 «품은 duo 줄»을 집는다(_gridImgFindEl 이 같은 함정을 같은 말로 막는다). */
+function _grdGripFindEl(block, addr) {
+  if (!block || !addr || addr.li === null || addr.li === undefined || addr.np) return null;
+  return block.querySelector(`[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
+}
+
+/** 지금 고른 «바깥 줄» 주소 — 없으면 null. */
+function _grdGripActiveAddr(block) {
+  const addr = window.grdGetActiveLine ? window.grdGetActiveLine(block) : null;
+  if (!addr || addr.li === null || addr.li === undefined || addr.np) return null;
+  return addr;
+}
+
+/** 이 칸의 «바깥 줄» DOM 들 — 직속 자식만. ★중첩 «안»의 줄은 `.grd-nested` 안이라 안 걸린다
+ *  (그 `.grd-nested` 자신은 바깥 줄이므로 걸리는 게 맞다). */
+function _grdGripCellLines(cellEl) {
+  return [...cellEl.querySelectorAll(':scope > [data-line]')];
+}
+
+/** 포인터 y 가 이 칸의 «몇 번째 자리»인가 — 0..N (N = 줄 수 = 끝에 붙이기). */
+function _grdGripInsertAt(cellEl, clientY) {
+  const kids = _grdGripCellLines(cellEl);
+  for (let i = 0; i < kids.length; i++) {
+    const rc = kids[i].getBoundingClientRect();
+    if (clientY < rc.top + rc.height / 2) return i;
+  }
+  return kids.length;
+}
+
+/** «삽입 자리»(0..N)를 «옮길 대상 index»로 바꾼다.
+ *
+ * ★★여기가 이 카드에서 제일 틀리기 쉬운 셈이다. 쓰는 함수들은 `splice(from,1)` 로 «먼저 떼고»
+ *   `splice(to,0,…)` 로 넣는다. 그래서 «같은 칸»에서 아래로 옮길 때는 떼는 순간 뒤쪽 index 가
+ *   하나씩 당겨진다 ⇒ 삽입 자리에서 1 을 빼야 «본 자리»에 놓인다.
+ *     [A,B,C] 에서 A 를 B·C 사이(삽입 자리 2)로 → 떼면 [B,C] ⇒ to=1 ⇒ [B,A,C] ✅
+ *     같은 것을 to=2 로 보내면 [B,C,A] 가 된다(한 칸 더 갔다).
+ * ⛔«다른 칸»에는 이 보정을 하지 마라 — 떼는 일이 «다른 배열»에서 일어나므로 도착 칸의 index 는
+ *   당겨지지 않는다. 보정하면 한 칸 앞에 놓인다.
+ * @param {number} fromLi · @param {number} insertAt · @param {boolean} sameCell */
+function _grdGripDropTarget(fromLi, insertAt, sameCell) {
+  if (!sameCell) return insertAt;
+  return insertAt > fromLi ? insertAt - 1 : insertAt;
+}
+
+function showGridLineGrip(block) {
+  const addr = _grdGripActiveAddr(block);
+  if (!addr) { hideGridLineGrip(); return; }
+  const el = _grdGripFindEl(block, addr);
+  if (!el) { hideGridLineGrip(); return; }
+  const same = _grdGripBlock === block && _grdGripAddr
+    && _grdGripAddr.r === addr.r && _grdGripAddr.c === addr.c && _grdGripAddr.li === addr.li;
+  const overlay0 = _getOverlay();
+  if (same && overlay0 && overlay0.querySelector('.grd-line-grip')) {
+    _updateGridLineGripPosition();
+    return;
+  }
+  hideGridLineGrip();
+  _grdGripBlock = block;
+  _grdGripAddr = { r: addr.r, c: addr.c, li: addr.li };
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  const g = document.createElement('div');
+  g.className = 'grd-line-grip';
+  /* ★position:absolute — #ss-handles-overlay 자체가 position:fixed;inset:0 이라 자식은
+     absolute 로 둬도 좌표계가 뷰포트와 같다(거터·이미지 핸들과 같은 관례). */
+  g.style.cssText = `position:absolute;width:${GRD_GRIP_W}px;height:${GRD_GRIP_H}px;`
+    + 'cursor:grab;z-index:98;pointer-events:auto;border-radius:3px;'
+    + 'background:var(--ui-accent-primary);opacity:.85;'
+    + 'display:flex;align-items:center;justify-content:center;'
+    + 'color:#fff;font-size:10px;line-height:1;user-select:none;';
+  g.textContent = '⠿';
+  /* ★손잡이가 «말도 한다» — ⌘↑/↓(0926)·⌘←/→(T-227)는 그때까지 화면 안내가 0건이었다.
+     T-220 에서 현빈이 「중첩줄을 내가 만들려면 어떻게 해야되나?」를 물으신 그 병이다.
+     ⇒ 보이는 손잡이가 생긴 이 자리에서 세 길을 «한 번에» 말한다. */
+  g.title = '끌어서 줄 옮기기 · ⌘↑/↓ 같은 칸 위·아래 · ⌘←/→ 옆 칸으로';
+  overlay.appendChild(g);
+  g.addEventListener('mousedown', e => _onGridLineGripMouseDown(e, block, _grdGripAddr));
+  /* ★거터와 같은 규약 — 손잡이 위 우클릭도 «블록의» 컨텍스트 메뉴로 보낸다(손잡이는
+     오버레이 자식 = 블록 «바깥»이라 그냥 두면 메뉴가 아예 안 뜬다). */
+  g.addEventListener('contextmenu', e => {
+    if (window._openBlockContextMenu) window._openBlockContextMenu(e, block);
+  });
+  _updateGridLineGripPosition();
+  _startGridLineGripRaf();
+}
+
+function hideGridLineGrip() {
+  if (_grdGripRafId) { cancelAnimationFrame(_grdGripRafId); _grdGripRafId = null; }
+  _grdGripBlock = null;
+  _grdGripAddr = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.grd-line-grip').forEach(g => g.remove());
+}
+
+function _updateGridLineGripPosition() {
+  const overlay = _getOverlay();
+  if (!overlay || !_grdGripBlock || !_grdGripAddr) return;
+  const el = _grdGripFindEl(_grdGripBlock, _grdGripAddr);
+  if (!el) { hideGridLineGrip(); return; }
+  const g = overlay.querySelector('.grd-line-grip');
+  if (!g) return;
+  const rect = el.getBoundingClientRect();
+  if (rect.height < GRD_GRIP_MIN_SCREEN_PX) { g.style.display = 'none'; return; }
+  /* ⛔★`= ''` 로 되돌리지 마라 — 그건 inline display 를 «지운다». 이 손잡이는 display 를
+     «인라인으로만» 받으므로(위 cssText 의 `display:flex`) 지우면 기본값 block 이 되고,
+     그 순간 align-items·justify-content 가 «아무 일도 안 해» ⠿ 가 상자 안에서 가운데로 안 온다.
+     ★2026-09-27 현빈이 그것을 「깨져 보인다」로 짚었다 — 실측: inline display «없음» · computed `block`.
+     ⚠️다른 손잡이들(`.grd-img-overlay-handle` 등)이 `= ''` 를 쓰는 것은 그쪽은 display 를
+       «CSS 클래스»로 받기 때문이다. 같은 줄이라고 베끼면 이 병이 되돌아온다. */
+  g.style.display = 'flex';
+  /* ★줄의 «왼쪽 밖»에 둔다 — 줄 위에 얹으면 글자를 가리고, 인라인 편집 클릭까지 먹는다. */
+  g.style.left = (rect.left - GRD_GRIP_W - 2) + 'px';
+  g.style.top = (rect.top + rect.height / 2 - GRD_GRIP_H / 2) + 'px';
+}
+
+function _startGridLineGripRaf() {
+  function loop() {
+    if (!_grdGripBlock) return;
+    /* 블록이 사라졌거나 선택이 풀렸거나 그 줄이 없어졌으면 정리 — 거터·이미지 핸들과 같은 꼴. */
+    if (!_grdGripBlock.isConnected || !_grdGripBlock.classList.contains('selected')
+        || !_grdGripFindEl(_grdGripBlock, _grdGripAddr)) {
+      hideGridLineGrip();
+      return;
+    }
+    _updateGridLineGripPosition();
+    _grdGripRafId = requestAnimationFrame(loop);
+  }
+  _grdGripRafId = requestAnimationFrame(loop);
+}
+
+function _onGridLineGripMouseDown(e, block, addr) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+  const x0 = e.clientX, y0 = e.clientY;
+  const prevCursor = document.body.style.cursor;
+  const grip = _getOverlay()?.querySelector('.grd-line-grip') || null;
+  let armed = false;
+  /* ★«놓을 자리»를 closure 에 든다 — ⛔onUp 에서 DOM 으로 다시 찾지 않는다(js/CLAUDE.md 의
+     「indicator.nextSibling 을 onUp 에서 저장하지 마라」와 같은 까닭: 그때는 이미 지워져 있다). */
+  let dropRC = null;        // {r,c}
+  let dropInsertAt = null;  // 0..N
+
+  function onMove(ev) {
+    if (!armed) {
+      if (Math.abs(ev.clientX - x0) < GRD_GRIP_DRAG_THRESHOLD_PX
+          && Math.abs(ev.clientY - y0) < GRD_GRIP_DRAG_THRESHOLD_PX) return;
+      armed = true;
+      document.body.style.cursor = 'grabbing';
+      /* ★손잡이를 포인터에 «투명»하게 만든다 — 아니면 elementFromPoint 가 손잡이를 집어
+         「어느 칸 위인가」를 영영 못 읽는다(손잡이는 pointer-events:auto 다). */
+      if (grip) grip.style.pointerEvents = 'none';
+    }
+    window.clearDropIndicators?.();
+    dropRC = null; dropInsertAt = null;
+    const t = document.elementFromPoint(ev.clientX, ev.clientY);
+    const cellEl = t && t.closest ? t.closest('.grd-cell[data-r][data-c]') : null;
+    if (!cellEl || !block.contains(cellEl)) return;
+    /* ★★중첩(duo) «안»은 따로 막지 않는다 — ⛔처음엔 `cellEl.closest('.grd-nested')` 가드를
+       넣었는데 그것은 ★아무것도 안 재는 문이었다. 실측: 중첩의 열은 `.grd-nested-col` 이고
+       중첩 «안»에는 `.grd-cell` 이 아예 없다(grid-block.js 의 중첩 렌더 두 줄). ⇒ 중첩 위에
+       포인터를 두면 closest 가 «바깥 칸»을 집는다.
+       ★그리고 그것이 «맞는 동작»이다 — 중첩 줄(`.grd-nested`)은 바깥 칸의 «한 줄»로서
+       data-r/data-c/data-line 을 가지므로, 아래 _grdGripCellLines 가 그것을 한 줄로 세고
+       위쪽 절반이면 «그 줄 앞», 아래쪽이면 «그 줄 뒤»가 된다. 사용자가 보는 것과 같다.
+       ⛔중첩 «안»으로 줄을 밀어 넣는 것은 여전히 못 한다 — 쓰는 길이 거기로 안 내려간다
+         (T-220 몫). 그건 여기서 «막을» 일이 아니라 애초에 «갈 수 없는» 자리다. */
+    const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
+    if (!Number.isInteger(r) || !Number.isInteger(c)) return;
+    dropRC = { r, c };
+    dropInsertAt = _grdGripInsertAt(cellEl, ev.clientY);
+    const ind = document.createElement('div');
+    ind.className = 'drop-indicator';
+    const kids = _grdGripCellLines(cellEl);
+    if (dropInsertAt >= kids.length) cellEl.appendChild(ind);
+    else cellEl.insertBefore(ind, kids[dropInsertAt]);
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = prevCursor;
+    if (grip) grip.style.pointerEvents = 'auto';
+    window.clearDropIndicators?.();
+    restoreDrag();
+    /* ⛔안 끌었으면(임계 미달) «아무 일도 안 한다» — 손잡이를 그냥 누른 것은 클릭이다. */
+    if (!armed || !dropRC || dropInsertAt === null) return;
+    const sameCell = dropRC.r === addr.r && dropRC.c === addr.c;
+    const to = _grdGripDropTarget(addr.li, dropInsertAt, sameCell);
+    /* ★쓰는 길은 «부른다» — 이력·되돌림·활성줄 옮기기는 그쪽이 들고 있다(여기서 pushHistory 를
+       부르지 않는다. updateGridBlock 이 쓰기 직전에 스스로 1회 쌓는다). */
+    if (sameCell) window.grdMoveLineWithin?.(block, { r: addr.r, c: addr.c }, addr.li, to);
+    else window.grdMoveLineToCell?.(block, { r: addr.r, c: addr.c }, addr.li, { r: dropRC.r, c: dropRC.c }, to);
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showGridLineGrip = showGridLineGrip;
+window.hideGridLineGrip = hideGridLineGrip;
 
 // fix(frame-p0#5): 캔버스 클릭 핸들러 6곳(block-drag.js asset·icon-circle·canvas·vector·
 // iconify·mockup)이 저마다 손으로 부르던 핸들 호출을 타입→핸들 맵 하나로 모은다.
@@ -1928,7 +2544,9 @@ function _onZoomResizeMouseDown(e, zb, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
-    if (moved) { window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
+    /* ★끝 상태도 찍는다(시작은 onMove 의 첫 틱). 한쪽만 찍으면 이웃 규약에 따라
+       ⌘Z 가 두 동작을 같이 먹거나(before→after) 한 번 먹통이 된다(after→before). */
+    if (moved) { window.pushHistory?.('확대블럭 크기'); window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -2082,7 +2700,9 @@ function _onZoomRadiusMouseDown(e, zb, dir) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
-    if (moved) { window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
+    /* ★끝 상태도 찍는다(시작은 onMove 의 첫 틱). 한쪽만 찍으면 이웃 규약에 따라
+       ⌘Z 가 두 동작을 같이 먹거나(before→after) 한 번 먹통이 된다(after→before). */
+    if (moved) { window.pushHistory?.('확대블럭 모서리'); window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -2218,11 +2838,465 @@ function _onZoomRotateMouseDown(e, zb) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
-    if (moved) { window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
+    /* ★끝 상태도 찍는다(시작은 onMove 의 첫 틱). 한쪽만 찍으면 이웃 규약에 따라
+       ⌘Z 가 두 동작을 같이 먹거나(before→after) 한 번 먹통이 된다(after→before). */
+    if (moved) { window.pushHistory?.('확대블럭 회전'); window.showZoomProperties?.(zb); window.triggerAutoSave?.(); }
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   오버레이(플로팅) 텍스트 — 모서리 리사이즈 핸들 (.tfo-overlay-handle)
+   현빈 2026-09-20 「오버레이 버튼 활성화 시키면 오버레이된 텍스트 블럭에 모서리 핸들이 필요하다」
+   ───────────────────────────────────────────────────────────────────────────
+   ★증상의 자리는 CSS 가 아니라 «호출이 없다» 였다 — showHandlesFor 에 텍스트 갈래가 없었고
+     (아래 마지막 갈래로 신설), block-drag.js 의 isText 클릭 핸들러도 showHandlesFor 를
+     아예 안 불렀다(zoom 은 1551행, modal 은 1912행에 있다). 선택 «테두리»만 보인 이유는
+     selection-overlay.js 가 .text-block → tf 로 올려 그리기 때문이다 = 테두리는 tf 에,
+     손잡이는 «아무 데도» 없었다.
+   ★형틀은 «같은 파일의» _onZoomResizeMouseDown 이다 — 절대배치 플로팅 · 보라 아웃라인 ·
+     네 모서리 · 회전 인식 · 맞은편 코너 고정 · pushHistory 를 첫 변경 «전»에.
+   ⛔showFrameHandles(프레임 핸들) 재사용은 세 자리가 막힌다:
+     ① rAF 가드가 `_overlayFrame.classList.contains('selected')` 인데 오버레이 텍스트는
+        tf 가 아니라 «안의 .text-block» 이 .selected 다 ⇒ 첫 프레임에 스스로 사라진다.
+     ② _onHandleMouseDown 은 left/top 을 안 건드린다 ⇒ 절대배치에서 nw/ne/sw 를 끌면
+        끄는 코너가 손끝을 안 따라온다(확대블럭이 ④ 주석으로 이미 고친 병).
+     ③ .ss-radius-handle 이 같이 붙는데 tf 는 배경 투명 ⇒ 눌러도 아무 일 없는 손잡이가 생긴다.
+   ★리사이즈의 «뜻» = 폭 + 폰트 비례확대. 높이는 «쓰지 않고 잰다».
+     ⓐ css/editor-blocks.css `.frame-block{overflow:hidden}` + text-frame 은 min-height:unset —
+       tf 에 height 를 쓰면 줄이는 순간 글자가 «조용히» 잘린다(늘리면 빈 상자만 커진다).
+     ⓑ 이 파일의 그룹 리사이즈(_onHandleMouseDown 의 groupSnap)가 이미 text-frame 자식을
+       «width 만 스케일 + contentEl.style.fontSize *= fsScale» 로 다룬다 — 「텍스트 프레임을
+       리사이즈하면 무슨 일이 나는가」의 답이 이미 한 벌 있다. 두 벌로 갈지 않는다.
+     ★단, 그룹 경로는 contentEl «하나»만 키워서 Mix 텍스트(부분 span[style*="font-size"])는
+       부분만 안 커지는 미비가 있다 — 여기선 그 미비를 답습하지 않는다(스냅샷에 span 포함).
+   ⛔클래스 이름은 `.tfo-overlay-handle` — `.asset-overlay-handle` 을 «빌리면»
+     hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다(아이콘원형·확대블럭이 두 번 밟은 함정).
+     ★이름이 `-overlay-handle` 로 «끝나야» tests/unit/overlay-handle-cursor.test.mjs 의 전수
+       그물에 자동 등록된다(커서 누락을 기계가 잡는다) — 작명에 이유가 있다.
+   ★z-index 를 새로 만들지 않는다 — 손잡이는 #ss-handles-overlay(z 9990) «안»에 들어간다.
+     그 층이 모달 아래로 내려가면(0920b zorder) 이 손잡이도 자동으로 따라간다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const TFO_MIN_W = 60;
+let _tfoResizeEl = null;      // 핸들이 붙은 posEl(text-frame, 없으면 tb 자신)
+let _tfoResizeRafId = null;
+
+/** 오버레이 텍스트의 «선택된 아이»(= .text-block / .speech-bubble-block).
+ *  ⛔tf 자신엔 .selected 가 «안» 붙는다 — rAF 가드를 tf 로 재면 첫 프레임에 사라진다. */
+function _tfoSelectedChild(posEl) {
+  return posEl.querySelector(':scope > .selected')
+      || (posEl.classList.contains('selected') ? posEl : null);
+}
+
+function showTextOverlayResizeHandles(posEl) {
+  const overlay = _getOverlay();
+  /* 빗장은 «지워진 상태»를 알아채야 한다 — 확대블럭 주석(1980행 부근)과 같은 이유. */
+  if (_tfoResizeEl === posEl && overlay && overlay.querySelector('[data-tf-resize-dir]')) return;
+  hideTextOverlayResizeHandles();
+  _tfoResizeEl = posEl;
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `tfo-overlay-handle ${dir}`;
+    h.dataset.tfResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onTextOverlayResizeMouseDown(e, posEl, dir));
+  });
+  _updateTextOverlayHandlePositions();
+  _startTextOverlayResizeRaf();
+}
+
+function hideTextOverlayResizeHandles() {
+  if (_tfoResizeRafId) { cancelAnimationFrame(_tfoResizeRafId); _tfoResizeRafId = null; }
+  _tfoResizeEl = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('[data-tf-resize-dir]').forEach(h => h.remove());
+}
+
+function _updateTextOverlayHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_tfoResizeEl) return;
+  const HALF = 3.5;
+  overlay.querySelectorAll('[data-tf-resize-dir]').forEach(h => {
+    const c = _cornerScreen(_tfoResizeEl, h.dataset.tfResizeDir);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+  });
+}
+
+/** 지금 이 오버레이 텍스트를 «글자 편집 중»인가.
+ *  ⛔`.selected` 에 기대지 않는다 — 편집 진입 경로에 따라 선택 표식이 잠깐 빠질 수 있다.
+ *  ★«매번 다시 재는 술어»다(asset-rotate.js:303 「편집중 핫존 숨김」과 같은 꼴) — 그래서
+ *    편집이 끝나면 저절로 false 가 되고 손잡이가 «스스로» 돌아온다. */
+function _tfoEditing(posEl) {
+  return !!(posEl.querySelector(':scope > .editing')
+         || posEl.classList.contains('editing')
+         || posEl.querySelector('[contenteditable="true"]'));
+}
+
+function _startTextOverlayResizeRaf() {
+  function loop() {
+    const posEl = _tfoResizeEl;
+    if (!posEl) return;
+    /* ★편집 중엔 «숨기기만» 한다 — 글자 선택과 손잡이가 겹치니 안 보여야 하지만,
+       여기서 hide…() 로 «파괴»하면 rAF 가 멈추고 _tfoResizeEl 이 null 이 되어
+       편집을 끝내도 손잡이가 영영 안 돌아온다(블럭은 여전히 .selected 인데 모서리 점만
+       없는 상태 — 2026-09-20 이벨류에이터 실측). 파괴는 «진짜로 사라진» 경우만. */
+    const editing = _tfoEditing(posEl);
+    const sel = _tfoSelectedChild(posEl);
+    /* ★오버레이를 «끄면» dataset.overlayBlock 이 사라진다 ⇒ 여기서 자동으로 걷힌다. */
+    if (!posEl.isConnected || posEl.dataset.overlayBlock !== 'true' || (!sel && !editing)) {
+      hideTextOverlayResizeHandles();
+      return;
+    }
+    const overlay = _getOverlay();
+    if (overlay) {
+      overlay.querySelectorAll('[data-tf-resize-dir]')
+        .forEach(h => { h.style.display = editing ? 'none' : ''; });
+    }
+    if (!editing) _updateTextOverlayHandlePositions();
+    _tfoResizeRafId = requestAnimationFrame(loop);
+  }
+  _tfoResizeRafId = requestAnimationFrame(loop);
+}
+
+/** 폰트 스냅샷 — «글자를 담은 칸 전부» + 인라인 font-size 를 가진 자손까지 담는다.
+ *  ⛔`querySelector('[class^="tb-"]')`(단수) ⛔ — 말풍선 프레임에서는 «첫 번째» tb- 요소가
+ *    본문 `.tb-bubble`(28px)이 아니라 이름표 `.tb-sender-name`(16px)이다. 그걸 집으면
+ *    「상자와 이름표만 커지고 말풍선 글자는 그대로」가 된다(2026-09-20 이벨류에이터 실측).
+ *    본문은 인라인 font-size 가 없어 `[style*="font-size"]` 그물에도 안 걸린다 ⇒ 복수로 전수.
+ *  ★`.itb-text` 를 «같이» 세는 이유 — 아이콘+텍스트 블럭의 본문 칸은 접두사가 `itb-` 라
+ *    `[class^="tb-"]` 그물에 «안» 걸린다(그 선택자는 «tb-» 로 시작하는 class 만 본다).
+ *    빠지면 그 블럭만 「상자는 커지는데 글자는 그대로」가 되어 현빈 결정 A안
+ *    (「글자도 같이 커지는 게 맞아」)을 어긴다 — 2026-09-20 통합 라운드에서 실측·추가.
+ *  ⚠️아이콘 칸(.itb-icon)은 여기 «안» 들어간다 — 그건 font-size 가 아니라 width/height 라
+ *    별도 스냅샷(_tfoIconSnapshot)이 «같은 k» 로 따로 태운다. 한 그물에 섞으면 아이콘에
+ *    font-size 를 쓰게 되어 아무 일도 안 일어난다(2026-09-21 현빈 결정 「같이커져야지」).
+ *  ⚠️SVG(말풍선 꼬리 `.tb-bubble-tail`)는 뺀다 — font-size 를 써도 뜻이 없다.
+ *  ⚠️매 프레임 «누적 곱»을 하면 표류한다 ⇒ 마우스다운 때의 값에 매번 k 를 곱한다.
+ *    (부모·자식이 둘 다 들어와도 각자 «절대 px» 로 쓰므로 배율이 겹쳐 곱해지지 않는다.) */
+function _tfoFontSnapshot(posEl) {
+  const els = new Set();
+  posEl.querySelectorAll('[class^="tb-"]').forEach(el => {
+    if (el.namespaceURI === 'http://www.w3.org/2000/svg') return;
+    els.add(el);
+  });
+  /* ★아이콘+텍스트의 본문 칸은 «한 줄 더» 잡는다 — 위 그물에 «합치지» 않는다.
+     `[class^="tb-"], .itb-text` 로 합치면 tests/unit/text-overlay-resize U11 이 지키는
+     「tb- 칸을 전수로 담는다」 계약의 «모양»이 달라져 그 검사가 못 읽는다(실측 red).
+     한 줄을 더 두면 두 계약이 각각 읽힌다. */
+  posEl.querySelectorAll('.itb-text').forEach(el => els.add(el));
+  posEl.querySelectorAll('[style*="font-size"]').forEach(el => els.add(el));
+  return [...els]
+    .map(el => ({ el, fs: parseFloat(getComputedStyle(el).fontSize) || 0 }))
+    .filter(s => s.fs > 0);
+}
+
+/** 아이콘 칸 스냅샷 — 「아이콘+텍스트를 키우면 아이콘도 같이 커진다」(현빈 2026-09-21).
+ *  ★왜 폰트 스냅샷과 «따로»인가 — .itb-icon 의 크기는 font-size 가 아니라 width/height 다
+ *    (css/editor-extra.css:1706~ 에서 40×40 + aspect-ratio:1/1 + flex-shrink:0 으로 못박혀
+ *     있다). 같은 그물에 담아 fontSize 를 쓰면 «조용히» 아무 일도 안 일어난다.
+ *  ★두 벌을 잰다 — ⑴칸 자체(.itb-icon) ⑵칸 «안»의 placeholder SVG.
+ *    안쪽 그림까지 안 태우면 80px 상자에 18px 좁쌀이 남는다(그림 넣은 칸은 `.itb-icon img`
+ *    가 이미 width/height:100% 라 저절로 따라온다 — 그래서 img 는 여기서 안 센다).
+ *  ⚠️매 프레임 «누적 곱»은 표류한다 ⇒ 폰트 쪽과 똑같이 «마우스다운 때의 절대 px» 에
+ *    매번 k 를 곱한다.
+ *  ⚠️getBoundingClientRect 는 캔버스 줌(transform: scale)이 곱해진 «화면 px» 라 여기 쓰면
+ *    줌 40% 에서 아이콘이 첫 프레임에 16px 로 쪼그라든다 ⇒ 레이아웃 px 인 offsetWidth 로 잰다.
+ *    SVG 요소는 offsetWidth 가 없으므로(HTMLElement 전용) 그쪽만 getBBox 대신 «속성/계산값»을
+ *    쓴다 — placeholder 는 width/height 속성(18)을 갖고 있고, 없으면 계산값으로 떨어진다. */
+function _tfoIconSnapshot(posEl) {
+  const out = [];
+  posEl.querySelectorAll('.itb-icon').forEach(el => {
+    const w = el.offsetWidth, h = el.offsetHeight;
+    if (w > 0 && h > 0) out.push({ el, w, h });
+    el.querySelectorAll('svg').forEach(sv => {
+      const sw = parseFloat(sv.getAttribute('width')) || parseFloat(getComputedStyle(sv).width) || 0;
+      const sh = parseFloat(sv.getAttribute('height')) || parseFloat(getComputedStyle(sv).height) || 0;
+      if (sw > 0 && sh > 0) out.push({ el: sv, w: sw, h: sh });
+    });
+  });
+  return out;
+}
+
+function _onTextOverlayResizeMouseDown(e, posEl, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startW = Math.max(1, Math.round(posEl.offsetWidth));
+  const startH = Math.max(1, Math.round(posEl.offsetHeight));
+  const startX = e.clientX, startY = e.clientY;
+  const sec = posEl.closest('.section-block');
+  const snap = _tfoFontSnapshot(posEl);
+  const iconSnap = _tfoIconSnapshot(posEl);
+  /* ★맞은편 코너 고정 — 확대블럭 _onZoomResizeMouseDown ④ 의 식을 그대로 옮겨 적는다.
+     ⛔공통 헬퍼로 «추출» 금지 — tests/unit/zoom-block.test.js 가 그 함수 «안에서»
+       `const dHW …` / `dataset.x = ` 를 정규식으로 꺼내 실행한다. 빼내면 그 검사가 약해진다.
+     대신 tests/unit/text-overlay-resize.test.mjs 가 두 구현이 «같은 답»을 내는지 못박는다. */
+  const sx = dir.includes('e') ? 1 : -1;
+  const sy = dir.includes('s') ? 1 : -1;
+  const th = _blockRotationDeg(posEl) * Math.PI / 180;
+  const cosT = Math.cos(th), sinT = Math.sin(th);
+  /* 위치 SSOT = dataset.offsetX/offsetY (prop-text-wireup-overlay _applyOverlayPos). */
+  const startPosX = Number(posEl.dataset.offsetX ?? parseFloat(posEl.style.left)) || 0;
+  const startPosY = Number(posEl.dataset.offsetY ?? parseFloat(posEl.style.top))  || 0;
+  /* ★경계(bound) = «섹션 안에 남는 폭». 넘어서면 «막지 않고» 이동 쪽과 같은 탄성을 태운다.
+     ───────────────────────────────────────────────────────────────────────────
+     현빈 2026-09-20 결정 — 「오버레이 텍스트의 크기조절도 섹션 폭 밖까지 나갈 수 있어야 한다」
+     (이동은 2026-09-16k~m 에 이미 탄성 클램프 + 마그네틱 캐치로 나갈 수 있다).
+     ⇒ 옛 하드 상한 `Math.min(secW, room)` 을 지우고, 경계를 «넘은 만큼»에만
+       prop-text-wireup-overlay.js 의 _elasticAxis «그 함수»를 태운다(사본 금지 — 사본을
+       두면 이동과 크기조절의 손맛이 갈라진다). 곡선은 한 벌이다:
+         0~10화면px  : 마그네틱 캐치(경계에 딱 붙어 안 움직임 — 「턱」)
+         10~40화면px : 0.35배 저항(무겁게)
+         40화면px 초과: 1:1 자유(턱을 뚫고 나간다)
+     ★경계가 «어느 폭»인가 — 맞은편 코너가 고정이므로 끄는 방향으로 갈린다.
+       e 쪽(se/ne): 왼쪽이 고정 ⇒ 경계폭 = 섹션폭 − left
+       w 쪽(sw/nw): 오른쪽이 고정 ⇒ 경계폭 = left + 현재폭 (왼쪽 끝이 0 에 닿는 폭)
+     ★`Math.max(…, startW)` 가 붙는 이유 — 이동으로 «이미» 섹션 밖에 나가 있는 블럭이면
+       room < startW 라, 경계를 그대로 쓰면 마우스를 움직이기도 전에 폭이 경계로 «툭»
+       줄어든다(맞은편 코너 고정이 첫 프레임에 깨져 보인다). 이미 넘어선 블럭에겐 턱이
+       «뒤에» 있는 것이므로 지금 폭을 경계로 삼는다.
+     ⚠️회전한 블럭에서는 근사다 — 회전 AABB 가 아니라 «회전 전 상자»로 잰다(이동 드래그의
+       탄성 클램프도 같은 근사를 쓴다).
+     ★하한(TFO_MIN_W)은 «그대로 하드»다 — 현빈: 「최소 폭·높이 하한은 그대로 둔다」. */
+  const secW = sec ? sec.clientWidth : 860;
+  const room = sx > 0 ? (secW - startPosX) : (startPosX + startW);
+  const boundW = Math.max(TFO_MIN_W, room, startW);
+  let moved = false;
+  /* ★드래그는 «양쪽 끝»을 찍는다 — 시작 표본은 여기(첫 실제 이동), 끝 표본은 onUp 의
+     pushHistory. 형제 유닛 T-073 이 만든 규약이고 부품은 js/drag-history.js 한 곳이다.
+     (2026-09-20 통합 int/0920b: T-068 은 «시작 표본만» 찍는 옛 push-before 꼴이었다. 그
+      꼴이면 이 드래그 «뒤»에 push-after 동작(우측 패널 대다수)이 오는 순간 둘 사이의 표본이
+      없어 ⌘Z 한 번이 그 동작과 «크기까지» 같이 먹는다 — drag-history.js 머리말 ⑴ 그대로다.) */
+  const _hist = window.beginDragHistory?.('오버레이 텍스트 크기');
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const d = _unrotateDelta(posEl, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
+    const dw = sx * d.dx, dh = sy * d.dy;
+    if (!moved && Math.hypot(dw, dh) < 1) return;
+    moved = true;
+    /* ★«시작 상태»를 첫 DOM 변경 «앞»에 한 번 — 뒤에 두면 ⌘Z 가 크기가 아니라 «블록 삽입»을
+       되돌린다(형제 유닛 0920b-resize-undo 가 잡은 바로 그 병).
+       ⛔arm() 의 반환값으로 쓰기를 막지 마라(drag-history.js 규약 ⑵) — 줌 150% 의 1화면px
+         드래그가 통째로 죽는다. 인자는 «캔버스 좌표» 델타다(규약 ⑴ — 위 d 는 이미 ÷scale). */
+    _hist?.arm(d.dx, d.dy);
+    /* 폭과 글자가 «같은 비율»로 간다 ⇒ 배율 k 하나를 두 축 델타에서 뽑아야 한다.
+       ★k = 1 + (dw·W + dh·H)/(W² + H²)  — 마우스 델타를 «상자 대각선»에 투영한 값
+         (비율 고정 리사이즈의 표준 최소제곱해).
+       ⛔`max(1+dw/W, 1+dh/H)` 로 두 축 중 «큰 쪽»을 쓰면 얇고 넓은 상자에서 터진다 —
+         실측: 600×30 텍스트에서 세로로 60px 만 내려도 k=3 이 되어 글자가 세 배로 뛴다
+         (텍스트는 폭≫높이가 기본이라 «항상» 이 모양이다). 투영은 그 폭발이 없고,
+         가로로만 끌 때는 1+dw/W 와 사실상 같은 값을 준다(W≫H 에서 오차 <0.1%). */
+    const kRaw = 1 + (dw * startW + dh * startH) / (startW * startW + startH * startH);
+    /* ★저항의 «손맛»은 화면px 기준이어야 한다 — zone 을 로컬 상수로 고정하면 줌 40% 에서
+       화면 16px 로 쪼그라들어 사실상 없는 것과 같아진다(이동 쪽이 2026-09-16l 에 실제로
+       밟은 병). 그 파일과 «같은 환산»을 쓴다: zone = 화면px / 그 순간 배율. */
+    const zone = OVERLAY_RESIST_ZONE_SCREEN_PX / (scale || 1);
+    const rawW = startW * kRaw;
+    /* 경계를 넘은 만큼(over)에만 곡선을 태운다 — _elasticAxis 의 «위쪽 가지»를 그대로
+       쓴다(boundMax=0 으로 부르면 입력이 곧 over 다). ⛔곡선을 손으로 다시 적지 않는다. */
+    const over = rawW - boundW;
+    const elasticW = over > 0 ? boundW + _elasticAxis(over, 0, zone) : rawW;
+    const newW = Math.max(TFO_MIN_W, Math.round(elasticW));
+    const k = newW / startW;   // ★«클램프된» 폭으로 다시 구한다 — 상자와 글자가 갈라지지 않게
+    posEl.style.width = newW + 'px';
+    posEl.dataset.width = String(newW);
+    /* ★폭의 «주인»이 사용자가 된다 — 이 도장을 안 떼면 오버레이를 해제하는 순간
+       _exitOverlay 가 style.width·dataset.width 를 지워 방금 정한 폭이 증발한다. */
+    delete posEl.dataset.overlayIntroducedWidth;
+    /* ★같은 이유로 _enterOverlay 가 심은 maxWidth:100%(=섹션 폭 캡)도 푼다 — 안 풀면
+       style.width 만 커지고 «화면은 섹션에서 잘린다»(「손잡이는 가는데 상자는 안 커진다」).
+       되돌리는 자리 = _exitOverlay 의 overlayFreeWidth 갈래. 도장을 따로 두는 이유는
+       바로 위에서 overlayIntroducedWidth 를 «떼고» 가기 때문이다(폭은 남겨야 하니까). */
+    posEl.style.maxWidth = 'none';
+    posEl.dataset.overlayFreeWidth = 'true';
+    snap.forEach(s => { s.el.style.fontSize = (s.fs * k).toFixed(1) + 'px'; });
+    /* ★아이콘 칸도 «같은 k» — 현빈 2026-09-21 결정. 글자와 한 줄 차이로 붙여 두는 이유는
+       배율이 갈라지지 않게 하기 위해서다(회귀: 글자·아이콘 배율 오차 <1%).
+       ⚠️하한 — k 가 아주 작아도 0px 이나 음수가 되면 칸이 사라진다(줄이기 드래그).
+       ⚠️flex-shrink:0 이라 좁은 상자에서도 안 찌그러진다. width/height 를 «둘 다» 써야
+         aspect-ratio 만 믿다 생기는 반올림 어긋남이 없다. */
+    iconSnap.forEach(s => {
+      s.el.style.width  = Math.max(1, s.w * k).toFixed(1) + 'px';
+      s.el.style.height = Math.max(1, s.h * k).toFixed(1) + 'px';
+    });
+    /* 높이는 «글자가 정한다» — 쓰지 않고 «잰다». 맞은편 코너 고정도 그 실측 높이로. */
+    const newH = Math.max(1, posEl.offsetHeight);
+    const dHW = (newW - startW) / 2, dHH = (newH - startH) / 2;
+    const nx = startPosX + (cosT * sx * dHW - sinT * sy * dHH) - dHW;
+    const ny = startPosY + (sinT * sx * dHW + cosT * sy * dHH) - dHH;
+    _applyOverlayPos(posEl, nx, ny);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (moved) {
+      /* ★«끝 상태» — 시작 표본(_hist.arm)과 짝이다. 둘 다 있어야 앞뒤 어느 이웃(push-before
+         삽입 · push-after 패널)을 만나도 표본이 빈 칸 없이 이어진다(js/drag-history.js). */
+      window.pushHistory?.('오버레이 텍스트 크기');
+      /* ★패널이 «손잡이로 바뀐 폭»을 알게 한다.
+         ⛔옛 조건 `tb !== posEl` ⛔ — 그건 「래퍼(text-frame)가 있는 타입」만 통과시킨다.
+           .icon-text-block 은 래퍼가 없어 posElOf() 가 블럭 «자신»을 돌려주므로 tb === posEl 이
+           되어 패널이 영영 안 새로 그려졌다. 실측(2026-09-20 통합 라운드): se 를 150px 끌어
+           블럭이 600→733 이 돼도 너비칸은 600 그대로였고, 그 뒤 슬라이더를 «한 칸» 미는
+           순간 패널이 쥔 600 이 적용돼 폭이 601 로 도로 줄었다(래퍼 있는 텍스트는 733/733).
+         ⇒ 조건을 «텍스트 패널을 쓰는 블럭인가»로 바꾼다 — showHandlesFor 의 텍스트 갈래와
+           «같은 집합»이다. 프레임이 들어오는 길은 이 matches 가 애초에 막는다(옛 조건이
+           막으려던 것도 그거다 — 뜻은 그대로 두고 대상만 정확히 적는다). */
+      const tb = _tfoSelectedChild(posEl);
+      if (tb?.matches?.('.text-block, .speech-bubble-block, .icon-text-block')) {
+        window.showTextProperties?.(tb);
+      }
+      window.triggerAutoSave?.();
+    }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+window.showTextOverlayResizeHandles = showTextOverlayResizeHandles;
+window.hideTextOverlayResizeHandles = hideTextOverlayResizeHandles;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   손잡이 «탈출층» — 블럭의 자식으로 남은 손잡이를 고정층으로 옮긴다 (2026-09-21)
+   ───────────────────────────────────────────────────────────────────────────
+   ★증상(현빈): 도형의 «아래쪽» 모서리 손잡이가 «보이는데 안 눌린다».
+     실측(9515·줌 40/100 양쪽, 전수표): se 손잡이 7×7 중 위 2행만 잡히고(10/25) 아래는
+     다음 블럭(.tb-h2)이 가져간다. 한가운데를 끌면 100×100 그대로, «2px 위»를 끌면 138×138.
+   ★뿌리는 «손잡이의 z-index 가 낮아서»가 «아니다». 손잡이는 z-index:10 인데도 진다 —
+     부모가 쌓임맥락을 만들어 그 10 이 부모 «안»에 갇히기 때문이다:
+       .shape-block.selected { z-index:2 }  ·  .gradient-block(인라인 z-index:2)
+     그래서 «부모의 2» 대 «이웃 블럭의 2»가 되고, 같은 값이면 DOM 뒤가 이긴다.
+     손잡이는 상자 밖으로 3.5px 삐져나오는데 그 반쪽이 이웃 상자 «안»이라 거기서 진다.
+   ★답 = 다른 모든 블럭 타입이 «이미» 쓰는 자리로 옮긴다(#ss-handles-overlay).
+     에셋·아이콘서클·캔버스·벡터·목업·모달·확대·프레임·아이콘·오버레이텍스트는 전부 거기 있고,
+     전수표에서 «덮어도» 0건이었다. 도형·그라데이션만 블럭의 자식으로 남아 있었다.
+   ⛔새 z 층을 만들지 «않는다» — #ss-handles-overlay 는 #canvas-area 의 isolation «안»이라
+     모달·플로팅 패널 «아래»다(2026-09-20 규약). 캔버스 안에서만 해결한다.
+   ★선택 변경 «이벤트가 없다»(.selected 를 바꾸는 자리 116곳) ⇒ js/selection-overlay.js 와
+     «같은 길»: MutationObserver 로 «집합이 바뀌었다»만 받고 자리는 rAF 가 좇는다.
+     좌표는 _cornerScreen 을 쓴다 — 회전(도형 shapeRotation)까지 같은 함수가 안다.
+   ★되돌리기 정책이 계열마다 다르다(수명이 다르기 때문):
+     · 도형   = 손잡이가 bindBlock 에서 «한 번» 만들어지고 CSS 가 display 를 가른다
+               ⇒ 선택이 풀리면 «집으로 돌려보낸다»(다음 선택 때 다시 탈출).
+     · 그라데 = _selectGradient 가 «선택할 때마다» 새로 만들고 지운다(js/gradient-select.js)
+               ⇒ 선택이 풀리면 «지운다». 돌려보내면 비선택 블럭에 손잡이가 남아 보인다.
+═══════════════════════════════════════════════════════════════════════════ */
+const HANDLE_ESCAPE_SPECS = [
+  { block: '.shape-block',    handle: '.shape-handle',
+    dirOf: h => h.dataset.dir || '', recreate: false },
+  { block: '.gradient-block', handle: '.gradient-corner-handle',
+    dirOf: h => ({ tl: 'nw', tr: 'ne', bl: 'sw', br: 'se' })[h.dataset.corner] || '', recreate: true },
+];
+const _escaped = new Map();   // handleEl → { owner, dir, recreate }
+let _escRaf = null;
+let _escMo = null;
+const _ESC_HALF = 3.5;        // 손잡이 7px 의 절반 — 고정층은 줌 밖이라 화면 px 그대로다
+
+/** 지금 «선택된» 블럭의 자식 손잡이를 고정층으로 옮기고, 풀린 것은 되돌린다(멱등). */
+function _escapeScan() {
+  const canvas = document.getElementById('canvas');
+  const overlay = _getOverlay();
+  if (!canvas || !overlay) return;
+  for (const spec of HANDLE_ESCAPE_SPECS) {
+    canvas.querySelectorAll(spec.block + '.selected').forEach(block => {
+      block.querySelectorAll(':scope > ' + spec.handle).forEach(h => {
+        if (_escaped.has(h)) return;
+        _escaped.set(h, { owner: block, dir: spec.dirOf(h), recreate: spec.recreate });
+        block.__handlesEscaped = true;   // ⚠️DOM 속성이 아니다 — 저장/복제에 안 실린다
+        overlay.appendChild(h);
+      });
+    });
+  }
+  for (const [h, st] of [..._escaped]) {
+    const alive = st.owner.isConnected && st.owner.classList.contains('selected');
+    if (alive) continue;
+    _escReturn(h, st);
+  }
+  /* recreate 계열 = 선택할 때마다 새로 만들어지는 손잡이(그라데이션). 선택이 아닌 블럭에
+     남아 있으면 «비선택인데 손잡이가 보인다» ⇒ 원래 주인(_removeGradientCornerHandles)과
+     같은 뜻으로 치운다. 탈출 중인 것은 건드리지 않는다. */
+  for (const spec of HANDLE_ESCAPE_SPECS) {
+    if (!spec.recreate) continue;
+    canvas.querySelectorAll(spec.block + ':not(.selected)').forEach(block => {
+      block.querySelectorAll(':scope > ' + spec.handle).forEach(h => { if (!_escaped.has(h)) h.remove(); });
+    });
+  }
+  /* ★자리는 «여기서 한 번» 동기로 잡는다 — 형제들(_updateVectorResizeHandlePositions 등)과 같은 꼴.
+     rAF 첫 프레임을 기다리면 손잡이가 한 틱 동안 (0,0) 에 찍히고, 무엇보다 rAF 가 멈춘 창
+     (백그라운드 렌더러 스로틀링)에서는 «영영» 안 움직인다 — 검증 인스턴스에서 실제로 물렸다. */
+  _escPositions();
+}
+
+function _escReturn(h, st) {
+  _escaped.delete(h);
+  h.style.removeProperty('left');
+  h.style.removeProperty('top');
+  /* ★«지우지» 않고 주인에게 돌려준다 — 주인이 DOM 에서 잠깐 떨어지는 순간(재렌더·재부모)에
+     지워 버리면 주인이 돌아와도 손잡이가 «영영» 없다. 실제로 한 번 물렸다(도형은 살아 있는데
+     손잡이 0개 — bindBlock 은 이미 돈 뒤라 다시 안 만든다). 주인이 정말 죽었으면 손잡이도
+     주인과 «함께» 버려진다 — 따로 지울 이유가 없다.
+     ⚠️recreate 계열(그라데이션)은 선택이 풀린 뒤 집에 남아 있으면 «보인다» ⇒ 아래
+        _escapeScan 끝의 정리가 치운다(js/gradient-select.js _removeGradientCornerHandles 와 같은 뜻). */
+  st.owner.appendChild(h);
+  // 같은 주인의 손잡이가 하나도 안 남았을 때만 표식을 지운다
+  let still = false;
+  for (const s of _escaped.values()) if (s.owner === st.owner) { still = true; break; }
+  if (!still) delete st.owner.__handlesEscaped;
+}
+
+function _escPositions() {
+  for (const [h, st] of _escaped) {
+    const c = _cornerScreen(st.owner, st.dir);
+    h.style.left = (c.x - _ESC_HALF) + 'px';
+    h.style.top  = (c.y - _ESC_HALF) + 'px';
+    syncHandleSelVariant(h, st.owner);   // 오버레이면 보라 — 테두리와 «한 색»(2026-09-21)
+  }
+}
+
+function _escFrame() {
+  _escRaf = null;
+  if (!_escaped.size) return;            // 집합이 비면 멈춘다(MO 가 다시 깨운다)
+  for (const [h, st] of [..._escaped]) {
+    if (!st.owner.isConnected || !st.owner.classList.contains('selected')) _escReturn(h, st);
+  }
+  _escPositions();
+  if (_escaped.size) _escRaf = requestAnimationFrame(_escFrame);
+}
+
+function _escKick() {
+  if (_escRaf == null && _escaped.size) _escRaf = requestAnimationFrame(_escFrame);
+}
+
+export function initHandleEscape() {
+  if (_escMo) return true;
+  const canvas = document.getElementById('canvas');
+  if (!canvas || !_getOverlay()) return false;
+  _escMo = new MutationObserver(() => { _escapeScan(); _escKick(); });
+  _escMo.observe(canvas, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
+  _escapeScan(); _escKick();
+  return true;
+}
+
+export function stopHandleEscape() {
+  if (_escMo) { _escMo.disconnect(); _escMo = null; }
+  if (_escRaf != null) { cancelAnimationFrame(_escRaf); _escRaf = null; }
+  for (const [h, st] of [..._escaped]) _escReturn(h, st);
+}
+
+if (typeof document !== 'undefined') {
+  if (!initHandleEscape()) document.addEventListener('DOMContentLoaded', initHandleEscape, { once: true });
+  // 계측·QA 진입점(창 밖에서 CDP 로 «재는» 자리). 제품 코드는 이걸 안 쓴다.
+  window.__handleEscape = {
+    init: initHandleEscape, stop: stopHandleEscape,
+    get size() { return _escaped.size; },
+    owners: () => [..._escaped.values()].map(s => s.owner.id || s.owner.className),
+  };
+}
+
 
 function showHandlesFor(block) {
   if (!block || !block.classList) return;
@@ -2249,6 +3323,20 @@ function showHandlesFor(block) {
   } else if (block.classList.contains('modal-block')) {
     showModalRadiusHandles(block);
     showModalResizeHandles(block);
+  } else if (block.classList.contains('text-block')
+          || block.classList.contains('speech-bubble-block')
+          || block.classList.contains('icon-text-block')) {
+    /* ★오버레이(플로팅)로 «켠» 텍스트에만 모서리 손잡이를 준다 — 흐름(오토레이아웃) 텍스트는
+       폭·높이를 부모가 정하므로 손잡이의 뜻이 없다(비오버레이 회귀 0: 아래 hide 로 떨어진다).
+       판정은 클래스가 아니라 posEl 의 dataset.overlayBlock 이다(prop-text.js 와 «같은 술어»).
+       ⚠️★2026-09-20 통합 라운드 — 이 줄의 옛 주석은 「말풍선·아이콘텍스트도 «자동으로»
+         함께 걸린다」고 적혀 있었지만 사실이 아니었다. .icon-text-block 은 .text-block 이
+         «아니라» 어느 갈래에도 안 걸려 손잡이가 0개였다(QA 실측). 패널은 같은
+         showTextProperties 를 쓰는데(block-drag.js isIconText) 손잡이만 빠져 있었다.
+         ⇒ 「같은 패널을 쓰면 같은 손잡이」로 클래스를 명시한다. 술어는 그대로 dataset 이다. */
+    const posEl = _posElOf(block);
+    if (posEl.dataset.overlayBlock === 'true') showTextOverlayResizeHandles(posEl);
+    else hideTextOverlayResizeHandles();
   }
 }
 window.showHandlesFor = showHandlesFor;
@@ -2278,6 +3366,12 @@ export {
   hideVectorResizeHandles,
   showGridGutters,
   hideGridGutters,
+  showGridImageResizeHandle,
+  hideGridImageResizeHandle,
+  showGridLineGrip,
+  hideGridLineGrip,
+  showTextOverlayResizeHandles,
+  hideTextOverlayResizeHandles,
 
   showHandlesFor,
 };

@@ -120,9 +120,13 @@ function _bindHlbHandleDrag(handle, block, endpoint) {
     const initY = parseFloat(block.dataset['y' + (endpoint === 'start' ? '1' : '2')]) || 0;
     const otherX = parseFloat(block.dataset['x' + (endpoint === 'start' ? '2' : '1')]) || 0;
     const otherY = parseFloat(block.dataset['y' + (endpoint === 'start' ? '2' : '1')]) || 0;
+    const _hist = window.beginDragHistory?.('형광펜 선 끝점 이동');
     const onMove = (ev) => {
       let nx = initX + (ev.clientX - startCX) / zoom;
       let ny = initY + (ev.clientY - startCY) / zoom;
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm((ev.clientX - startCX) / zoom, (ev.clientY - startCY) / zoom);
       // Shift+드래그 — 다른 endpoint 기준 수평/수직 snap
       if (ev.shiftKey) {
         const dx = nx - otherX;
@@ -203,7 +207,13 @@ function _bindRotateDrag(zone, block) {
     const cy = br.top  + br.height / 2;
     const init   = parseFloat(block.dataset.rotation) || 0;
     const startA = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    const _zoomR = (window.currentZoom || 40) / 100;
+    const _startRX = e.clientX, _startRY = e.clientY;
+    const _hist = window.beginDragHistory?.('스티커 회전');
     const onMove = (ev) => {
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm((ev.clientX - _startRX) / _zoomR, (ev.clientY - _startRY) / _zoomR);
       const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
       let deg = window._snapRotate(init + (a - startA), ev.shiftKey); // Shift = 45° 스냅(공유·기존 스티커엔 스냅 없었음)
       deg = ((deg % 360) + 360) % 360;
@@ -256,10 +266,14 @@ function _bindCornerHandleDrag(handle, block, corner) {
     const initFs = parseInt(block.dataset.fontSize) || 14;
     const startCX = e.clientX, startCY = e.clientY;
     const MIN = 10;
+    const _hist = window.beginDragHistory?.('스티커 크기 조절');
 
     const onMove = (ev) => {
       const dx = (ev.clientX - startCX) / zoom;
       const dy = (ev.clientY - startCY) / zoom;
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm(dx, dy);
       const altCenter = ev.altKey; // 중심 anchor 모드
       // corner별 W/H 변화량 (기본 anchor는 반대편 모서리)
       let dW = 0, dH = 0;
@@ -377,9 +391,13 @@ function bindStickerSelect(block) {
       const maxY = Math.max(oy1, oy2);
       const secW = sec.offsetWidth  || 860;
       const secH = sec.offsetHeight || 0;
+      const _histB = window.beginDragHistory?.('선 형광펜 이동');
       const onMoveB = (ev) => {
         let dx = (ev.clientX - startX) / zoom;
         let dy = (ev.clientY - startY) / zoom;
+        /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+           다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+        _histB?.arm(dx, dy);
         // 두 점 모두 [0, secW] × [0, secH] 안에 머물도록 dx/dy clamp
         dx = Math.max(-minX, Math.min(secW - maxX, dx));
         dy = Math.max(-minY, Math.min(secH - maxY, dy));
@@ -406,8 +424,12 @@ function bindStickerSelect(block) {
     const blockRect = block.getBoundingClientRect();
     const grabOffX = (startX - blockRect.left) / zoom;
     const grabOffY = (startY - blockRect.top)  / zoom;
+    const _hist = window.beginDragHistory?.('스티커 이동');
 
     const onMove = (ev) => {
+      /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
+         다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm((ev.clientX - startX) / zoom, (ev.clientY - startY) / zoom);
       const blockW = block.offsetWidth  || 0;
       const blockH = block.offsetHeight || 0;
       // ⌘ 드래그 = 자유 이동: 섹션 경계 clamp·부모 섹션 변경 없이 밖으로 나갈 수 있다.
@@ -469,9 +491,20 @@ function bindStickerSelect(block) {
   });
 }
 
+// 스티커의 «안내문구»(= 아직 아무도 안 쓴 기본 텍스트). 생성 시 dataset.text 기본값과 같은 식이다
+// (sticker-block.js: shape 'text' → 'Text', 그 밖 → STICKER_DEFAULTS.text = 'NEW').
+// ★이 파일 안에서 같은 식을 두 번(편집진입·커밋 fallback) 쓰므로 한 자리로 모은다.
+function _stickerPlaceholderText(block) {
+  return block && block.dataset && block.dataset.shape === 'text' ? 'Text' : 'NEW';
+}
+
 // A26: dblclick 인라인 편집 로직을 재사용 가능한 함수로 추출 — 생성 직후 프로그램적 편집 진입에도 사용.
 // ev(마우스 이벤트)가 오면 더블클릭 지점에 collapsed 캐럿을 배치("커서가 안 생김" 해소),
 // 없거나 좌표 판정 실패 시 기존 전체선택 폴백(A26 신규 스티커 'Text' 치환 타이핑 플로우 보존).
+// ★사용자 관점 훑기(0920) U-26 — «안내문구 그대로»인 스티커는 좌표가 있어도 캐럿만 꽂혀서,
+//   'Text' 가운데를 더블클릭하고 바로 치면 「Te강아지xt」가 됐다(실측). 배너·그리드와 같은 뿌리다.
+//   A26 의 불만은 «사용자가 쓴 글»을 고칠 때 커서가 안 보인다는 것이었고, A26 자신도 신규 스티커
+//   'Text' 치환 플로우는 전체선택으로 남겨뒀다 — 그 전체선택을 «안내문구일 때만» 되살린다(A26 무회귀).
 function _enterStickerEdit(block, ev) {
   if (!block) return;
   const textEl = block.querySelector('.sticker-text');
@@ -483,7 +516,10 @@ function _enterStickerEdit(block, ev) {
   const sel = window.getSelection();
   sel.removeAllRanges();
   let caretPlaced = false;
-  if (ev && Number.isFinite(ev.clientX) && document.caretRangeFromPoint) {
+  // 안내문구면 캐럿 배치를 «건너뛴다» → 아래 기존 폴백(selectNodeContents)이 그대로 전체선택한다.
+  //   ⛔새 선택 코드를 따로 쓰지 않는다 — A26 이 이미 가진 폴백을 그대로 쓰는 게 최소 diff 다.
+  const _stkIsPh = (textEl.textContent || '').trim() === _stickerPlaceholderText(block);
+  if (!_stkIsPh && ev && Number.isFinite(ev.clientX) && document.caretRangeFromPoint) {
     try {
       const r = document.caretRangeFromPoint(ev.clientX, ev.clientY);
       if (r && textEl.contains(r.startContainer)) {
@@ -507,7 +543,7 @@ function _enterStickerEdit(block, ev) {
     const t = (textEl.innerText || textEl.textContent || '')
       .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
       .trim();
-    const fallback = block.dataset.shape === 'text' ? 'Text' : 'NEW';
+    const fallback = _stickerPlaceholderText(block);
     block.dataset.text = t || fallback;
     // U6b: 부분 서식 보존 — innerHTML을 sanitize해 실제 인라인 서식이 있으면 dataset.textHtml에 저장,
     //   서식이 없으면(=평문 동치) textHtml 제거해 옛 평문 렌더 경로 유지(무회귀).
@@ -584,7 +620,29 @@ document.addEventListener('keydown', (e) => {
   if (!sel) return;
   // contenteditable 텍스트 편집 중이면 default 동작 (글자 삭제) 유지
   if (sel.querySelector('[contenteditable="true"]')) return;
+  /* ★«스티커 혼자» 골라졌을 때만 여기서 지운다 — 섞여 있으면 editor.js 의 공통 삭제
+     (deleteSelectedFromCanvas)가 스티커까지 «한 번에» 지운다(CANVAS_SEL_BLOCKS 에 스티커 포함).
+     왜: 두 핸들러가 같은 Delete 한 번에 «따로» 지우면 히스토리가 두 칸이 되어, ⌘Z 한 번에
+     「스티커만 안 돌아온 것처럼」 보인다 — 2026-09-21 실측(⌘A→Delete→⌘Z: 텍스트5·도형3·
+     그라데이션2 는 돌아오는데 스티커만 0, ⌘Z 를 한 번 더 눌러야 1). 소실은 아니지만
+     사용자 눈에는 같은 증상이라 한 칸으로 모은다. */
+  const _selNow = window.CANVAS_SEL_BLOCKS_AND_SHAPE
+    ? document.querySelectorAll(window.CANVAS_SEL_BLOCKS_AND_SHAPE + ', .frame-block.selected')
+    : null;
+  if (_selNow && _selNow.length > 1) return;   // 공통 경로에 맡긴다(preventDefault 도 그쪽이 한다)
   e.preventDefault();
+  /* ★삭제 «전» 체크포인트 — 없으면 스티커가 ⌘Z 로 안 돌아온다(되돌릴 수 없는 소실).
+     왜 필요한가 (2026-09-21 실측, 포트 9527):
+       · 스티커 «추가»는 push-before 다 — makeStickerBlock 이 appendChild «앞»에서
+         pushHistory('스티커 추가') 를 부른다(js/blocks/sticker-block.js:561/563).
+         ⇒ 꼭대기 스냅샷 = 「스티커 없는」 캔버스.
+       · 스티커 «삭제»는 여기서 push-after 였다 — remove() «뒤»에 pushHistory.
+         ⇒ 찍히는 캔버스도 「스티커 없는」 캔버스라 pushHistory 의 무변화 중복차단
+           (js/history.js `_sameEdit`)에 걸려 «아무것도 안 쌓인다».
+       ⇒ 스택 어디에도 「스티커가 있던 캔버스」가 없다 ⇒ ⌘Z 로 못 돌아온다.
+     실측: 스티커 1개 선택 → Delete → 1→0, ⌘Z → 0 (히스토리 tip 이 pos/len/seq 까지 그대로였다).
+     고침 = 삭제 경로 공통 규약(js/editor.js deleteSelectedFromCanvas)과 같이 «삭제 전»을 먼저 찍는다. */
+  window.ensureHistoryCheckpoint?.('삭제 전');
   sel.remove();
   window.pushHistory?.('스티커 삭제');
   window.scheduleAutoSave?.();

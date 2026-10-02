@@ -3,14 +3,25 @@
  * add_text_block(block-factory.js) 패턴을 미러링: pushHistory(undo) + scheduleAutoSave + applyTextOpts 정렬 규칙.
  */
 
-// id로 블록 element 반환 (블록 컨테이너 아니면 null)
-// '-block'으로 끝나는 클래스 + dataset.type 동시 충족만 블록으로 인정.
-// (row/section/col 등 비블록 컨테이너는 dataset.type 없어 차단)
+/* id로 블록 element 반환 (블록 컨테이너 아니면 null)
+   「블럭인가」 = '-block' 으로 끝나는 클래스 + «선택 단위임을 말해 주는 성질» 하나.
+     ⑴ dataset.type 이 있거나,
+     ⑵ 우측 패널 정본 표(js/panel-dispatch.js)가 이 클래스를 안다.
+   ★⑵ 가 2026-09-22(T-084 후속)에 붙었다. 예전엔 ⑴ 만 봤는데, dataset.type 을 «안 다는»
+     블럭이 셋 있었다 — .asset-block · .icon-text-block · .label-group-block(실측 9639,
+     캔버스 전수: -block 클래스 31종 중 type 없는 것은 이 셋 + 컨테이너 둘뿐).
+     셋 다 클릭하면 선택되고 제 패널이 뜨는 진짜 블럭인데(실측: 이미지 블럭 클릭 →
+     .selected + 「Asset Block」), selectBlock 은 false 만 돌려줬다 ⇒ 도구막대로 넣어도
+     파란 표시가 «영영 안 붙고», js/inspector.js 점검 점프·MCP 진입점도 조용히 안 먹었다.
+   ⛔«막을 목록»(row/col/section/frame/group)을 여기 적지 마라 — 그것들은 패널 표에 없어서
+     저절로 빠진다. 열거로 막기 시작하면 그 열거가 낡는다(T-079 가 정확히 그 병이었다).
+   ⚠️panel-dispatch 없이 block-edit.js 만 얹는 하네스가 있어 ⑵ 는 «있으면 쓴다» 꼴이다. */
 function getBlockById(id) {
   if (!id) return null;
   const el = document.getElementById(String(id));
   if (!el || !el.classList) return null;
-  const isBlockEl = [...el.classList].some((c) => c.endsWith('-block')) && !!el.dataset?.type;
+  const looksBlock = [...el.classList].some((c) => c.endsWith('-block'));
+  const isBlockEl = looksBlock && (!!el.dataset?.type || window.hasPanelForBlock?.(el) === true);
   return isBlockEl ? el : null;
 }
 
@@ -18,24 +29,35 @@ function getBlockById(id) {
 function selectBlock(id) {
   const block = getBlockById(id);
   if (!block) return false;
-  // 기존 선택 해제
-  document.querySelectorAll('.selected').forEach((el) => {
-    if (el !== block) el.classList.remove('selected');
-  });
+  /* 기존 선택 해제 = «정본 한 자리»(js/editor.js clearSelectionMarks).
+     ★2026-09-21 T-084: 예전엔 여기서 `.selected` «한 클래스»만 벗겼다. 그런데 캔버스의
+       선택 표시는 두 벌 이상이다 — 배너 줄(.bn2-line-selected) · 그리드 줄/칸 · 스텝 ·
+       라벨 항목(.item-selected) · 표 셀(.cell-selected) · .row-active · 레이어 패널 .active.
+       ⇒ 배너 «줄»을 고른 채 도구막대로 블럭을 넣으면 새 블럭에도 파란 선이 붙고
+         옛 배너 줄의 파란 선이 «그대로 남아» 파란 상자가 둘이 됐다(9542 실측).
+     ⛔여기에 마커 목록을 «또» 적지 마라 — 목록이 둘이 되는 순간 한쪽이 낡는다.
+     ⚠️editor.js 없이 block-edit.js 만 얹는 하네스(tests/dom 일부)가 있어 폴백을 둔다. */
+  window.clearMultiSel?.();
+  if (typeof window.clearSelectionMarks === 'function') {
+    window.clearSelectionMarks();
+  } else {
+    document.querySelectorAll('.selected').forEach((el) => {
+      if (el !== block) el.classList.remove('selected');
+    });
+  }
   block.classList.add('selected');
-  // 블록 타입별 우측 패널 디스패치 (layer-panel-items.js 분기 미러)
-  try {
-    const cl = block.classList;
-    if (cl.contains('shape-block')) window.showShapeProperties?.(block);
-    else if (cl.contains('table-block')) window.showTableProperties?.(block);
-    else if (cl.contains('graph-block')) window.showGraphProperties?.(block);
-    else if (cl.contains('divider-block')) window.showDividerProperties?.(block);
-    else if (cl.contains('bridge-block')) window.showBridgeProperties?.(block);
-    else if (cl.contains('grid-block')) window.showGridProperties?.(block);
-    else if (cl.contains('infocard-block')) window.showInfoCardProperties?.(block);
-    else if (cl.contains('innercard-block')) window.showInnerCardProperties?.(block);
-    else window.showTextProperties?.(block);
-  } catch (_) {}
+  /* 우측 패널 = «정본 표 한 자리»(js/panel-dispatch.js).
+     ★2026-09-21 T-079: 여기에 9종짜리 «사본»이 있었고 폴백이 `else showTextProperties` 였다.
+       배너를 넣은 그 순간 텍스트 패널이 떠서 글자크기가 .bn2-label 의 인라인에 찍혔고,
+       banner02 의 정본은 dataset.lines 이라 저장/로드의 renderBanner02 가 그걸 폐기했다
+       = 「저장했는데 다시 열면 원래 크기」. 표에 없는 타입은 이제 «안 연다»(엉뚱한 패널보다 덜 틀리다).
+     ⚠️여기서 핸들은 붙이지 않는다 — 예전 동작 그대로(붙이는 자리는 클릭·레이어·복원 경로다). */
+  window.openPanelForBlock?.(block);
+  /* 좌측 레이어 패널의 «지금 이것» 표시도 같은 자리에서 — 클릭 경로(js/block-drag.js)와 «같은» 호출.
+     ★블록 이름 목록이 필요 없다: 연결은 buildLayerPanel 이 심어 둔 block._layerItem «성질»이다.
+       빠져 있으면 도구막대로 넣은 블럭이 레이어 목록에서 강조되지 않아
+       「지금 무엇을 고치는 중인지」가 왼쪽에서도 안 보였다(T-084 실측). */
+  window.highlightBlock?.(block, block._layerItem);
   return true;
 }
 
@@ -82,7 +104,10 @@ function editTextBlock(blockId, opts = {}) {
     applied.content = text;
   }
   if (opts.color !== undefined && opts.color !== null) {
+    // 0918r2 textgrad: 단색 지정 = 글자 그라데이션 해제(안 풀면 그라데이션이 단색을 가린다)
+    window.clearTextGradient?.(contentEl);
     contentEl.style.color = opts.color;
+    window.forgetLabelAutoColor?.(contentEl);   // 0920r6 labeltext: MCP/PM 이 정한 색 — 라벨 표식 폐기(타입 전환 때 안 걷어내게)
     applied.color = opts.color;
   }
   if (opts.fontSize !== undefined && opts.fontSize !== null) {

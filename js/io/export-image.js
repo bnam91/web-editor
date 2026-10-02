@@ -1,6 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished } from './capture-safety.js';
 
 const CANVAS_W = 860;
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
@@ -21,7 +22,7 @@ async function _fetchAsArrayBuffer(url) {
   return await res.arrayBuffer();
 }
 
-async function decodeGifFrames(url, opts = {}) {
+export async function decodeGifFrames(url, opts = {}) {
   // ImageDecoder가 없으면 single-frame fallback
   if (typeof ImageDecoder !== 'function') {
     return [{ url, delay: 100, single: true }];
@@ -106,7 +107,7 @@ function _gifBgUrl(bgValue) {
   return m ? m[1] : null;
 }
 
-async function canvasToGifBlob(canvases, delays, opts = {}) {
+export async function canvasToGifBlob(canvases, delays, opts = {}) {
   // canvases: HTMLCanvasElement[] (다중) — 모두 같은 width/height
   // delays:   number[] (ms) — canvases.length 와 동일
   if (typeof GIF !== 'function') {
@@ -233,34 +234,13 @@ async function _waitImagesReady(root, timeoutMs = 8000) {
    ══════════════════════════════════════════════════════════════════════════ */
 export async function prepareCloneForCapture(sec, w, useNative) {
   const clone = sec.cloneNode(true);
-  const cloneLabel   = clone.querySelector('.section-label');
-  const cloneToolbar = clone.querySelector('.section-toolbar');
-  if (cloneLabel)   cloneLabel.remove();
-  if (cloneToolbar) cloneToolbar.remove();
-  clone.querySelectorAll('.variation-badge').forEach(el => el.remove());
-  // C18: 펜툴 어노테이션(리뷰용 주석)과 진행중 미리보기는 리뷰 표시일 뿐 — export 산출 이미지에 박히면 안 됨.
-  // (대조: todo-pin은 #todo-pin-overlay로 섹션 밖이라 애초에 export 클론에 안 들어감)
-  clone.querySelectorAll('.annotation-block, .annot-preview').forEach(el => el.remove());
-  // 미입력 placeholder 안내문구는 export 결과에 박히면 안 됨.
-  // data-is-placeholder="true"는 실제 글자가 들어가면 즉시 삭제되므로,
-  // 클론에 true로 남은 요소는 미입력 placeholder가 확정 → 안내문구 가시성만
-  // 숨겨 자식 DOM(<li>/<span> 등)과 점유 높이는 그대로 두고 글자만 렌더에서 사라지게 함.
-  // (textContent='' 는 tb-bullet의 <li> 등 자식 DOM을 통째로 제거해 height가
-  //  collapse되므로 금지. visibility:hidden은 자식·list marker까지 함께 숨기되 박스 높이 유지.)
-  clone.querySelectorAll('[data-is-placeholder="true"]').forEach(el => {
-    el.style.visibility = 'hidden';
-  });
-  // 편집 전용 임시 DOM — 내보내기 클론에 새어 나가면 PNG 에 박힌다.
-  clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary').forEach(el => el.remove());
-  clone.classList.remove('selected', 'sec-bg-editing');
-  // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 내보내기 오염 방지)
-  clone.querySelectorAll(
-    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected, .bn2-line-selected, .bn2-line-empty, .grd-line-selected'
-  ).forEach(el => {
-    el.classList.remove('selected', 'img-editing', 'editing', 'dragging',
-      'group-selected', 'group-editing', 'ss-drag-over', 'drag-over', 'item-selected', 'bn2-line-selected', 'bn2-line-empty',
-      'grd-line-selected');
-  });
+  /* ★편집 전용 DOM·상태 걷기는 «한 벌»이다 — js/io/capture-safety.js stripEditorOnlyForCapture.
+     썸네일 경로(js/io/save-load.js captureThumbnail)와 같은 명부를 쓴다. 두 벌로 두었더니
+     썸네일 쪽이 셋(.section-label/.section-toolbar/루트 .selected)에서 멈춘 채 늙어 있었다
+     (2026-09-21 최종통합 QA medium). ⛔경로마다 다른 것(아래 클론 위치·isolation·inset 변환·
+     컴포넌트 재렌더)은 여기 남는다. */
+  stripEditorOnlyForCapture(clone);
+
   // CDP captureBeyondViewport로 off-screen 좌표도 캡쳐 가능 — clone을 화면 밖에 두어
   // export 중 사용자 화면에 큰 박스가 튀어나오는 "ghosting" 현상 제거
   clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + w + 'px;margin:0;outline:none;';
@@ -301,7 +281,85 @@ export async function prepareCloneForCapture(sec, w, useNative) {
 
   // 레이아웃 강제 확정 (offsetWidth/Height 정확도)
   clone.getBoundingClientRect();
+  // ★내보내기 폭이 화면 폭과 다르면 그림은 «자르지 말고 줄인다» — 바로 아래 함수 머리말 참조
+  syncImageBoxesToCaptureWidth(sec, clone);
+  clone.getBoundingClientRect();
   return clone;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ①-b 내보내기 폭 ≠ 화면 폭일 때 «그림 상자»의 세로 — export 와 truth 가 «같이» 쓴다.
+
+   ★현빈 결정 2026-09-21: 「780되게끔 줄이는 걸로」 = 큰 그림을 «잘라내지 말고» 폭에 맞춰
+     축소해 전부 보이게. 세로도 비율대로 따라간다.
+
+   ★고치기 전 기전 (실측 근거: tests/dom/export-width-scale-down.dom.spec.js 음성대조)
+     내보내기는 섹션을 복제하고 «클론의 폭만» 바꾼다(위 prepareCloneForCapture). 그래서
+     폭이 상대값인 블록은 780 으로 따라 줄지만 «높이»는 절대 px 로 잠겨 있다
+     (스크래치 = canvas-scratch-drop.js applyAspectSync · 패널 = props/prop-asset.js).
+     상자가 «폭만» 좁아지면 비율이 그림보다 좁아져 `.asset-img{object-fit:cover}` 가
+     좌우를 깎는다 — 860→780 이면 (860−780)/2 = 40px 씩. 신고문의 그 40px 이다.
+   ⇒ 클론에서 그림 상자의 «비율»을 화면과 같게 다시 잠근다. 비율이 같으면 cover 가 깎는
+     비율도 같으니 결과는 「화면과 같은 그림, 크기만 작게」가 된다.
+     · 폭이 상대값인 블록(풀블리드 등) = 폭이 줄어든 만큼 세로도 줄어든다.
+     · 폭이 절대 px 인 블록(220px 그림 등) = 폭이 안 변하니 세로도 «안» 변한다(음성대조 E4).
+     · 등폭(860) 내보내기 = 계산값이 원래 값과 같아 한 톨도 안 바뀐다(E1).
+
+   ★왜 여기(공용 ①)인가 — 이건 «export 전용 변환»이 아니다. 게이트의 truth 도
+     prepareCloneForCapture 로 같은 클론을 만든다(js/io/export-gate.js). 한쪽에만 넣으면
+     export 와 truth 의 세로가 갈려 «멀쩡한 산출물»이 차이로 잡힌다.
+   ⛔라이브 DOM 은 건드리지 않는다 — 화면에서 보이던 크기는 그대로다.
+   ★줌(캔버스 scale(0.4))에 안 속는다 — 라이브 쪽에서 쓰는 건 rect 의 «비율»뿐이라 배율이
+     약분된다. (offsetWidth 는 정수로 반올림돼 큰 상자에서 오차가 생기므로 쓰지 않는다.)
+   반환 = 손댄 블록 수(검사·디버깅용).
+   ══════════════════════════════════════════════════════════════════════════ */
+/* ★대상 명부 — «상대폭 + 절대높이 + object-fit:cover» 라는 «한 기전»을 쓰는 자리 전부.
+     ⑴ `.asset-block`  — 상자에 높이가 잠긴다(스크래치 드롭·패널 풀블리드). id 가 있다.
+     ⑵ `.grd-img-frame` — 그리드 블럭의 이미지 줄(js/blocks/grid-block.js _gridLineHtml)의
+        «프레임». `width:N%` + `height:Npx` 가 여기 실리고 안쪽 <img class="grd-img"> 가
+        그 상자를 100%×100% 로 채우며 cover 로 잘린다. id 가 «없다»(짝짓기는 자리번호).
+        (빈 슬롯 `.grd-img-empty` 도 같은 프레임 클래스를 달아 함께 걸린다.)
+        ⚠️2026-09-25 이전엔 img 자신이 그 꼴이었고 클래스가 `.grd-img` 였다. 그때 이 줄을
+          `.grd-img` 로 두면 «안쪽 그림»(폭·높이가 100%)을 집어 아무 일도 안 하게 된다 —
+          상자가 아니라 내용물을 재는 셈이라 780 내보내기에서 다시 잘린다.
+   ★여기에 줄을 더할 때의 기준 한 줄 = 「폭은 내보내기 폭을 따라 줄어드는데 높이는 px 로 잠겼나」.
+     아니면(= 폭도 절대 px) 이 함수는 어차피 아무 일도 안 한다(등폭과 같은 계산 → 무변화).
+   ⛔«아무 요소나 높이가 px 면 줄인다» 로 넓히지 마라 — 도형 래퍼·프레임처럼 높이가 «뜻»인
+     상자까지 줄어들어 레이아웃이 무너진다(그 축은 현빈 결정 밖이다). */
+const _CAPTURE_IMG_BOX_SELECTORS = ['.asset-block', '.grd-img-frame'];
+
+export function syncImageBoxesToCaptureWidth(liveSec, clone) {
+  if (!liveSec || !clone) return 0;
+  let n = 0;
+  for (const sel of _CAPTURE_IMG_BOX_SELECTORS) n += _syncOneGroup(liveSec, clone, sel);
+  return n;
+}
+
+/* 한 명부(selector)만 맞춘다 — 명부끼리 «수»가 갈려도 서로를 죽이지 않게 갈라 둔다
+   (한 벌로 묶어 세면 그리드 한 줄이 스트립에 빠질 때 에셋까지 통째로 손을 놓는다). */
+function _syncOneGroup(liveSec, clone, selector) {
+  const lives  = Array.from(liveSec.querySelectorAll(selector));
+  const clones = Array.from(clone.querySelectorAll(selector));
+  // 짝짓기: id 우선, 없으면 «수가 같을 때만» 자리번호로(스트립이 블록을 지운 경우 손대지 않는다)
+  const sameCount = lives.length === clones.length;
+  let n = 0;
+  clones.forEach((cb, i) => {
+    const h = (cb.style.height || '').trim();
+    if (!/^[0-9.]+px$/.test(h)) return;          // 절대 px 로 «잠긴» 상자만 — auto 는 이미 따라 흐른다
+    let live = null;
+    if (cb.id) { try { live = liveSec.querySelector('#' + CSS.escape(cb.id)); } catch (_) { live = null; } }
+    if (!live && sameCount) live = lives[i];
+    if (!live) return;
+    const lr = live.getBoundingClientRect();
+    if (!(lr.width > 0) || !(lr.height > 0)) return;
+    const cw = cb.getBoundingClientRect().width;
+    if (!(cw > 0)) return;
+    const want = cw * (lr.height / lr.width);
+    if (!(want > 0) || Math.abs(want - parseFloat(h)) < 0.5) return;  // 등폭 내보내기는 무변화
+    cb.style.height = want + 'px';
+    n++;
+  });
+  return n;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -333,8 +391,18 @@ export function renderComponentsInClone(clone) {
       if (_cmp._cmpRO) { _cmp._cmpRO.disconnect(); _cmp._cmpRO = null; }
     }
   }
-  clone.querySelectorAll('.bn2-line-selected, .bn2-line-empty, .grd-line-selected').forEach(_el =>
-    _el.classList.remove('bn2-line-selected', 'bn2-line-empty', 'grd-line-selected'));
+  clone.querySelectorAll('.bn2-line-selected, .bn2-line-empty, .grd-line-selected, .stb-line-selected, .stb-step-selected').forEach(_el =>
+    _el.classList.remove('bn2-line-selected', 'bn2-line-empty', 'grd-line-selected', 'stb-line-selected', 'stb-step-selected'));
+  /* ★빈 이미지 칸 «체커보드» 걷기도 «여기»다 — 위 마커 걷기와 같은 이유(재렌더가 되붙인다)에
+     더해 «붙은 뒤라야 computed 를 읽는다»는 조건까지 여기서만 둘 다 참이다.
+     ①prepareCloneForCapture 에 넣으면 append «전»이라 클래스 기반 체커를 못 보고 조용히 no-op 된다.
+     ★export 와 truth 가 «이 한 함수»를 같이 부르므로 두 그림이 갈릴 수 없다 — 사본을 두면
+       그 어긋남이 게이트에서 «검출»로 둔갑한다(이 파일 머리말의 원칙 그대로). */
+  neutralizeEmptyImageCheckerForCapture(clone);
+  /* ★미입력 안내문구 숨기기도 «여기서 한 번 더» — ①에서 건 visibility 를 위 재렌더가 지웠다.
+     (실측 2026-09-21: 배너에 data-is-placeholder 를 붙인 뒤에도 PNG 에 안내문구가 그대로
+      나왔다. 표시는 맞았고 타이밍이 틀렸던 자리다.) 멱등이라 두 번 돌아도 결과가 같다. */
+  hidePlaceholderTextForCapture(clone);
   clone.getBoundingClientRect();
 }
 
@@ -350,7 +418,13 @@ export function isNativeCapture(opts) {
    반환 { canvas, imgTimedOut, native } — imgTimedOut 이 true 면 export 도 truth 도
    «빈 그림»일 수 있어 둘이 같아도 PASS 라고 말하면 안 된다(판정에서 unmeasured 로 간다).
    ══════════════════════════════════════════════════════════════════════════ */
-export async function captureCloneToCanvas(clone, w, bgColor, useNative) {
+export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec) {
+    // 모자이크 redact(js/effects/redact-mosaic.js)는 cloneNode에 캔버스 비트맵이 안 딸려온다.
+    // native(CDP)든 html2canvas든 «둘 다» clone을 찍으므로, 어느 경로든 타기 전에 라이브
+    // 캔버스를 clone에 구워 넣는다 — 실패 시 함수 내부에서 불투명 회색 안전실패(원본 미노출).
+    if (window.finalizeMosaicForClone) {
+      try { await window.finalizeMosaicForClone(liveSec || null, clone); } catch (_) {}
+    }
     if (useNative) {
       // ⚠️ 'background' 단축속성으로 폴백색을 넣으면 안 됨: data-URL 이미지배경은
       // background shorthand getter가 ''를 반환해서 `clone.style.background || bgColor`가
@@ -398,6 +472,11 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative) {
       return { canvas: outCanvas, imgTimedOut: _to, native: true };
     }
     // html2canvas 폴백 — CDP 가 없는 빌드(웹). 검사는 여기서 «안» 돈다(isGateSupported=false).
+    // ⚠️ 이 분기에서만 neutralize한다 — 위 native 분기는 clone을 그대로 CDP로 스크린샷하므로
+    //   backdrop-filter가 정상 렌더링된다(건드리면 정상 블러가 망가진다).
+    neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
+    neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
+    await neutralizeObjectFitForH2C(clone); // html2canvas는 object-fit 미지원 → 상자에 «늘려» 그린다. 상자 크기대로 미리 잘라 끼운다(썸네일이 화면과 다른 그림이 되던 자리)
     const _to2 = await _waitImagesReady(clone);
     const _h2c = await html2canvas(clone, {
       scale: 1,
@@ -490,6 +569,10 @@ async function _exportSectionInner(sec, format, width, opts) {
   const clone = await prepareCloneForCapture(sec, w, useNative);
   // ②컴포넌트 자기 렌더를 «먼저 전부» 돌린다(truth 와 같은 순서). 그 뒤가 ③export 전용 변환.
   renderComponentsInClone(clone);
+  /* ★진단 한 줄 — 「내보냈더니 흰 페이지」를 그 자리에서 가른다(T-039). 말만 하고 지나간다.
+     ⑵재렌더·안내문구 숨김이 «끝난 뒤»라야 실제로 그려질 글자를 잰다 — ①에 두면 아직 이르다.
+     ⛔truth 클론(js/io/export-gate.js)에는 안 건다 — 같은 섹션에 두 줄이 찍힌다. */
+  warnIfCaptureTextVanished(clone, { sectionId: sec.id });
 
   // cvb(canvas-block): renderCanvas로 scale 재계산 후 transform 평탄화
   // html2canvas가 transform:scale() 내부 background-image를 잘못 렌더링하므로
@@ -720,7 +803,7 @@ async function _exportSectionInner(sec, format, width, opts) {
   //   마지막 캡처의 상태를 들고 있다가 검사(⑥)에 넘긴다 — 애니메이션 GIF 는 frame 마다 부른다.
   let _lastCap = null;
   const capture = async () => {
-    _lastCap = await captureCloneToCanvas(clone, w, bgColor, useNative);
+    _lastCap = await captureCloneToCanvas(clone, w, bgColor, useNative, sec);
     return _lastCap.canvas;
   };
 

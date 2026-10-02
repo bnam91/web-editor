@@ -433,6 +433,36 @@ body.preview-mode #preview-navigator { display: flex; }
 .insp-empty {
   font-size: var(--ui-fs-base); color: var(--ui-border-strong); font-style: italic;
 }
+/* 「준비할 이미지」(2026-09-30) — js/inspector.js renderPrepImagesSection. 접이식(<details>).
+   ★기존 토큰만 쓴다 — 줄은 .insp-stat-row 와 같은 글자 크기, 점프 표시는 기존 .insp-jump 길. */
+details.insp-prep > summary { cursor: pointer; list-style: none; }
+details.insp-prep > summary::-webkit-details-marker { display: none; }
+details.insp-prep > summary::before {
+  content: '▸'; display: inline-block; width: 8px; color: var(--ui-text-dim);
+  transition: transform 0.1s;
+}
+details.insp-prep[open] > summary::before { transform: rotate(90deg); }
+.insp-prep-row {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 5px 8px; margin-bottom: 3px;
+  background: var(--ui-bg-input); border-radius: var(--ui-radius-sm);
+  border-left: 2px solid var(--ui-accent);
+  cursor: pointer;
+}
+.insp-prep-row:hover { background: var(--ui-bg-card); }
+.insp-prep-row.is-empty, .insp-prep-row.is-grid { border-left-color: var(--ui-border-mid); }
+.insp-prep-idx {
+  font-size: var(--ui-fs-9); color: var(--ui-text-dim); flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.insp-prep-text {
+  flex: 1; min-width: 0;
+  font-size: var(--ui-fs-base); color: var(--ui-text-sub); line-height: 1.45;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.insp-prep-row.is-empty .insp-prep-text,
+.insp-prep-row.is-grid .insp-prep-text { color: var(--ui-text-dim); font-style: italic; }
 
 /* ═══════════════════════════════════
    PREVIEW — SIDE BY SIDE
@@ -811,6 +841,13 @@ body.preview-mode #preview-navigator { display: flex; }
   color: var(--ui-accent);
 }
 .tb-tree-label { flex: 1; }
+/* 폴더 이름 «그 자리» 입력(2026-09-30) — 블럭 메뉴의 템플릿 이름 입력(#bcm-name-input)과 같은 모습 */
+.tb-tree-input {
+  flex: 1; min-width: 0; box-sizing: border-box;
+  background: #2a2a2a; border: 1px solid #444; border-radius: 4px;
+  color: #ccc; font-size: 11px; padding: 3px 6px; outline: none;
+}
+.tb-tree-input:focus { border-color: var(--sel-color); }
 .tb-tree-count {
   font-size: var(--ui-fs-10);
   color: var(--ui-text-dim);
@@ -1428,6 +1465,11 @@ body.preview-mode #preview-navigator { display: flex; }
   transform: scale(var(--ui-scale, 1));
   transform-origin: left bottom;
 }
+/* ★캔버스의 섹션 머리(hitzone)에는 태그 칩을 «안» 보인다 (현빈 2026-10-01 D2 — 「템플릿 태그가 캔버스에 라벨로 뜬다」).
+   insertTemplate 이 sec.dataset.tags 를 쓰고 renderSectionTags 가 이 자리에 칩을 그린다 — ★데이터(dataset.tags)는
+   그대로 둔다: 템플릿 패널 검색·배지가 쓴다. 숨기는 것은 «캔버스 표시»만이다.
+   ⛔.section-tag-chip 단독으로 숨기지 마라 — 템플릿 브라우저 카드(template-browser.js)가 같은 클래스를 쓴다. */
+.section-hitzone > .section-tags { display: none; }
 .section-tag-chip {
   flex: 0 0 auto;
   max-width: 120px;
@@ -1691,7 +1733,19 @@ body.preview-mode #preview-navigator { display: flex; }
   padding: 12px 0;
   cursor: pointer;
   outline: 2px solid transparent;
-  
+  /* ★흐름(오토레이아웃)에서는 «제 행»을 못 넘는다 — 2026-09-21 최종통합 QA medium.
+     오버레이 모서리 핸들(js/overlay-handles.js _onTextOverlayResizeMouseDown)은 블럭에
+     인라인 width 를 박는다(현빈 2026-09-20 결정: 오버레이 중에는 섹션 폭 밖까지 나가도 된다).
+     그 상태로 오버레이를 «끄면» 그 인라인 폭이 그대로 남는데, 일반 텍스트는 래퍼
+     `.frame-block{max-width:100%}`(editor-blocks.css:8)가 깎아 주는 반면 아이콘+텍스트는
+     래퍼가 «없어» 행을 76px, 섹션 본문을 4px 넘어 글자가 경계에서 잘렸다(실측 792 vs 행 716).
+     ⇒ 같은 결로 여기서 깎는다. style.width 는 그대로 남으므로 「사용자가 정한 폭은 남는다」
+       (현빈 2026-09-20 · tests/dom/text-overlay-resize D7)는 깨지지 않는다 — «그리는 폭»만
+       행에 맞춘다. 이건 일반 텍스트가 이미 하고 있던 동작이다.
+     ⛔오버레이 «중»에는 안 걸린다 — 그때는 핸들이 style.maxWidth='none' 을 심는다(인라인 승).
+     회귀: tests/dom/overlay-icon-text-exit-width.dom.spec.js */
+  max-width: 100%;
+
   position: relative;
 }
 .icon-text-block:hover::after {
@@ -1885,11 +1939,12 @@ body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed);
    #16 재설계(현빈) — 참고이미지 «제자리», 연결은 «선»만. 사이드카 폐기.
    스크래치 아이템 버튼그룹(가위 옆)·접힘·연결선 dot.
 ═══════════════════════════════════════════════ */
-/* 버튼그룹: 기존 close(+4)·slice(+26) 클러스터 왼쪽(가위 옆). inv-zoom로 화면크기 고정. */
+/* 버튼그룹: 기존 close(+4)·slice(+26) 클러스터 왼쪽(가위 옆). --scratch-inv-zoom(상한 있음,
+   T-007)으로 화면크기 고정 — 전역 --inv-zoom 이 아니다(2026-09-16f, editor.js 주석 참고). */
 .scratch-item > .spl-btns {
   position: absolute; top: 4px;
-  right: calc(4px + 44px * var(--inv-zoom, 1));
-  transform: scale(var(--inv-zoom, 1)); transform-origin: top right;
+  right: calc(4px + 48px * var(--scratch-inv-zoom, 1)); /* close(20)+gap(4)+slice(20)+gap(4) = 48, ai-btn 클러스터 오프셋과 동일 보정 */
+  transform: scale(var(--scratch-inv-zoom, 1)); transform-origin: top right;
   display: flex; gap: 4px; z-index: 10; opacity: 0; transition: opacity .15s;
 }
 /* ★가시성은 ✕✨✂ 클러스터와 «완전 동일»하게 hover 전용(현빈 2026-08-25 지시).
@@ -1898,10 +1953,10 @@ body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed);
    그대로 hover 대상이라 버튼 도달성이 안 죽는다. */
 .scratch-item:hover > .spl-btns { opacity: 1; }
 .spl-btn {
-  width: 18px; height: 18px; padding: 0; line-height: 1;
+  width: 20px; height: 20px; padding: 0; line-height: 1;
   background: rgba(28,28,28,0.88); color: #fff;
   border: 1.5px solid rgba(255,255,255,0.18); border-radius: 50%;
-  font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 .spl-btn-link:hover, .spl-btn-fold:hover { background: var(--ui-accent, #4f6bed); border-color: var(--ui-accent, #4f6bed); }
 .spl-btn-cut:hover  { background: var(--ui-danger-hover, #d9463e); border-color: var(--ui-danger-hover, #d9463e); }

@@ -8,13 +8,14 @@ import { alignBtn } from './_helpers.js';
 
 /**
  * freeLayout 내 선택된 블록들의 text-frame(래퍼) 수집
- * frame-block[data-text-frame] 또는 frame-block[data-shape-frame]을 우선,
- * 없으면 절대 배치된 블록 자체를 위치/크기 기준으로 사용
+ * frame-block[data-text-frame]을 우선, 없으면 절대 배치된 블록 자체를 위치/크기 기준으로 사용.
+ * (T-057: 옛 «도형프레임 속성» 셀렉터는 그 속성을 찍는 코드가 이력 전체에 0건인 죽은 조건이라 뺐다 —
+ *  동작 무변화. 도형 래퍼를 제대로 다루려면 shapeFrameOf + parentElement?.closest 로, 별도 카드에서.)
  */
 function _getSelectedFrameWrappers() {
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .qa-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected, ' +
     // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel
     '.iconify-block.selected, .chat-block.selected, .gradient-block.selected, ' +
@@ -24,7 +25,7 @@ function _getSelectedFrameWrappers() {
   const blocks = [...document.querySelectorAll(BLOCK_SEL)];
   const wrappers = new Set();
   blocks.forEach(b => {
-    const wrapper = b.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+    const wrapper = b.closest('.frame-block[data-text-frame]') ||
       (b.style.position === 'absolute' ? b : null);
     if (wrapper) wrappers.add(wrapper);
   });
@@ -118,35 +119,46 @@ function _getBoundingBox(geoms) {
 /**
  * 정렬 적용
  */
+/* ★정렬 «계산»은 여기 한 곳 — 자유배치 패널(_applyAlign)과 오버레이 패널(_applyOverlayAlign)이 같이 쓴다.
+   좌표를 «어디에 쓰나»만 종류마다 다르다(자유배치 = style+offsetX/Y · 오버레이 = offsetX/Y · 줌 = x/y). */
+export function alignPositions(geoms, type) {
+  const bb = _getBoundingBox(geoms);
+  return geoms.map(g => {
+    let x = g.x, y = g.y;
+    switch (type) {
+      case 'left':    x = bb.minLeft; break;
+      case 'hcenter': x = Math.round((bb.minLeft + bb.maxRight) / 2 - g.w / 2); break;
+      case 'right':   x = bb.maxRight - g.w; break;
+      case 'top':     y = bb.minTop; break;
+      case 'vcenter': y = Math.round((bb.minTop + bb.maxBottom) / 2 - g.h / 2); break;
+      case 'bottom':  y = bb.maxBottom - g.h; break;
+    }
+    return { x, y };
+  });
+}
+
+/* 균등분배 — 축 위 순서대로 놓고 «양 끝은 제자리», 사이 간격(모서리~모서리)을 똑같이. 셋 미만이면 할 일이 없다. */
+export function distributePositions(geoms, axis) {
+  const out = geoms.map(g => ({ x: g.x, y: g.y }));
+  if (geoms.length < 3) return out;
+  const P = axis === 'h' ? 'x' : 'y', S = axis === 'h' ? 'w' : 'h';
+  const order = geoms.map((g, i) => i).sort((a, b) => geoms[a][P] - geoms[b][P]);
+  const first = geoms[order[0]], last = geoms[order[order.length - 1]];
+  const span = (last[P] + last[S]) - first[P];
+  const total = order.reduce((s, i) => s + geoms[i][S], 0);
+  const gap = (span - total) / (order.length - 1);
+  let cur = first[P];
+  order.forEach(i => { out[i][P] = Math.round(cur); cur += geoms[i][S] + gap; });
+  return out;
+}
+
 function _applyAlign(wrappers, type) {
   const geoms = wrappers.map(_getGeometry);
-  const bb = _getBoundingBox(geoms);
+  const pos = alignPositions(geoms, type);
 
   wrappers.forEach((wrapper, i) => {
-    const g = geoms[i];
-    let newLeft = parseInt(wrapper.style.left) || 0;
-    let newTop  = parseInt(wrapper.style.top)  || 0;
-
-    switch (type) {
-      case 'left':
-        newLeft = bb.minLeft;
-        break;
-      case 'hcenter':
-        newLeft = Math.round((bb.minLeft + bb.maxRight) / 2 - g.w / 2);
-        break;
-      case 'right':
-        newLeft = bb.maxRight - g.w;
-        break;
-      case 'top':
-        newTop = bb.minTop;
-        break;
-      case 'vcenter':
-        newTop = Math.round((bb.minTop + bb.maxBottom) / 2 - g.h / 2);
-        break;
-      case 'bottom':
-        newTop = bb.maxBottom - g.h;
-        break;
-    }
+    const newLeft = pos[i].x;
+    const newTop  = pos[i].y;
 
     wrapper.style.left = newLeft + 'px';
     wrapper.style.top  = newTop  + 'px';
@@ -322,6 +334,93 @@ window.showFreeLayoutMultiSelPanel = showFreeLayoutMultiSelPanel;
 window.hasFreeLayoutMultiSel = hasFreeLayoutMultiSel;
 
 /* ═══════════════════════════════════
+   OVERLAY(떠 있는 블럭) MULTI-SELECT — «서로» 맞춤 (A2, 현빈 2026-10-01)
+═══════════════════════════════════
+ * 섹션에 떠 있는 블럭(오버레이 래퍼 · 섹션 직속 줌)을 둘 이상 고르면, 캔버스·섹션이 아니라 «고른 것끼리» 맞춘다.
+ * 표준 8개: 좌/가로중앙/우 · 상/세로중앙/하 · 가로 균등 · 세로 균등. 계산은 alignPositions/distributePositions 한 곳.
+ * ⚠️이 갈래가 없을 때: 오버레이 글자는 «흐름 패널»로 가서 정렬이 text-align 만 바꿨다(editor.js _isFlowMultiSelUnit).
+ * 좌표 정본: 오버레이 = dataset.offsetX/Y(overlay-float.js _applyOverlayPos 와 같은 두 칸 + style) · 줌 = dataset.x/y(zoom-block.js _applyZoomPos). */
+const _isSectionHost = (el) => !!el && (el.classList?.contains('section-block') || el.classList?.contains('section-merged-part'));
+function _overlayUnitOf(el) {
+  const w = el.closest?.('[data-overlay-block="true"]');
+  if (w && _isSectionHost(w.parentElement)) return w;
+  if (el.classList?.contains('zoom-block') && _isSectionHost(el.parentElement)) return el;
+  return null;
+}
+/** 고른 것이 «전부» 같은 섹션에 떠 있는 블럭이면 그 단위들(2개 이상), 아니면 null. */
+export function getSelectedOverlayUnits() {
+  const sel = [...document.querySelectorAll('#canvas .selected')]
+    .filter(el => !el.classList.contains('section-block') && !el.classList.contains('section-merged-part'));
+  if (sel.length < 2) return null;
+  const units = [];
+  for (const el of sel) {
+    const u = _overlayUnitOf(el);
+    if (!u) return null;                       // 흐름·프레임 안 블럭이 하나라도 섞이면 이 갈래가 아니다
+    if (!units.includes(u)) units.push(u);
+  }
+  if (units.length < 2) return null;
+  const host = units[0].parentElement;
+  return units.every(u => u.parentElement === host) ? units : null;   // 섹션이 다르면 좌표계가 다르다
+}
+const _isZoomUnit = (u) => u.classList.contains('zoom-block');
+function _overlayGeom(u) {
+  const num = (a, b) => { const v = parseFloat(a); return Number.isFinite(v) ? v : (parseFloat(b) || 0); };
+  return _isZoomUnit(u)
+    ? { x: num(u.dataset.x, u.style.left), y: num(u.dataset.y, u.style.top), w: u.offsetWidth, h: u.offsetHeight }
+    : { x: num(u.dataset.offsetX, u.style.left), y: num(u.dataset.offsetY, u.style.top), w: u.offsetWidth, h: u.offsetHeight };
+}
+function _setOverlayPos(u, x, y) {
+  if (_isZoomUnit(u)) {
+    u.dataset.x = String(Math.round(x)); u.dataset.y = String(Math.round(y));
+    u.style.left = u.dataset.x + 'px';  u.style.top = u.dataset.y + 'px';
+    window.renderZoomBlock?.(u);
+  } else {
+    u.dataset.offsetX = String(Math.round(x)); u.dataset.offsetY = String(Math.round(y));
+    u.style.left = u.dataset.offsetX + 'px';  u.style.top = u.dataset.offsetY + 'px';
+  }
+}
+function _applyOverlay(units, pos, label) {
+  units.forEach((u, i) => _setOverlayPos(u, pos[i].x, pos[i].y));
+  showOverlayMultiSelPanel(units);             // 패널만 다시 그린다(캔버스 불변) — 기록보다 «먼저»(prop-push-after PA-1)
+  window.pushHistory?.(label);                 // push-after (js/CLAUDE.md 히스토리 규약)
+}
+export function showOverlayMultiSelPanel(units = getSelectedOverlayUnits()) {
+  if (!propPanel || !units || units.length < 2) return false;
+  propPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label" style="padding:2px 0 4px;">
+        <div class="prop-block-info">
+          <span class="prop-block-name">${units.length}개 선택됨</span>
+          <span class="prop-breadcrumb">떠 있는 블럭 — 서로 맞춤</span>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Align</div>
+      <div class="prop-row" style="gap:3px;justify-content:space-between;">
+        ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { 'data-ov-align': 'left' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { 'data-ov-align': 'hcenter' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', attrs: { 'data-ov-align': 'right' }, base: 'msp-align-btn' })}
+        <div style="width:1px;background:var(--ui-border);height:20px;flex-shrink:0;"></div>
+        ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', attrs: { 'data-ov-align': 'top' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', attrs: { 'data-ov-align': 'vcenter' }, base: 'msp-align-btn' })}
+        ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', attrs: { 'data-ov-align': 'bottom' }, base: 'msp-align-btn' })}
+      </div>
+      <div class="prop-row" style="gap:4px;">
+        <button class="prop-btn-sm" data-ov-dist="h" title="가로 간격 균등 (셋 이상)" style="flex:1;"${units.length < 3 ? ' disabled' : ''}>가로 균등</button>
+        <button class="prop-btn-sm" data-ov-dist="v" title="세로 간격 균등 (셋 이상)" style="flex:1;"${units.length < 3 ? ' disabled' : ''}>세로 균등</button>
+      </div>
+    </div>`;
+  propPanel.querySelectorAll('[data-ov-align]').forEach(b => b.addEventListener('click', () =>
+    _applyOverlay(units, alignPositions(units.map(_overlayGeom), b.dataset.ovAlign), '떠 있는 블럭 정렬')));
+  propPanel.querySelectorAll('[data-ov-dist]').forEach(b => b.addEventListener('click', () =>
+    _applyOverlay(units, distributePositions(units.map(_overlayGeom), b.dataset.ovDist), '떠 있는 블럭 균등분배')));
+  return true;
+}
+window.getSelectedOverlayUnits = getSelectedOverlayUnits;
+window.showOverlayMultiSelPanel = showOverlayMultiSelPanel;
+
+/* ═══════════════════════════════════
    FLOW(세로 스택) MULTI-SELECT PANEL  (B15/B18)
 ═══════════════════════════════════ */
 
@@ -336,25 +435,64 @@ function _flowSel() {
   return (typeof window !== 'undefined' && window.FLOW_BLOCK_SEL_SELECTED) || null;
 }
 
-// editor.js _isInFreeLayout 역미러: freeLayout 래퍼 밖(=플로우)만 true
-function _isFlowBlock(b) {
-  const wrapper = b.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
-    (b.style.position === 'absolute' ? b : null);
-  return !(wrapper && wrapper.closest('.frame-block[data-free-layout]'));
+/* ★거르개도 정본은 «한 자리» — js/editor.js 의 _isFlowMultiSelUnit (window.isFlowMultiSelUnit).
+   ⛔예전엔 여기 `_isFlowBlock` 이 그것의 «역미러»였다. 목록 사본이 갈려서 난 사고(ⓑ-20)와
+     똑같은 모양이라, 2026-09-21 T-091 에서 프레임 판정이 붙을 때 미러를 없앴다.
+     (프레임은 «조상»으로도 .selected 가 켜지므로 거르개 없이 목록만 늘리면 오검이 된다) */
+function _unitPred() {
+  return (typeof window !== 'undefined' && window.isFlowMultiSelUnit) || null;
 }
 
 function _getSelectedFlowBlocks() {
   const sel = _flowSel();
   if (!sel) return [];   // editor.js 가 아직 안 올라왔다 — 던지지 않는다
-  return [...document.querySelectorAll(sel)].filter(_isFlowBlock); // DOM 순서 보존
+  const pred = _unitPred();
+  if (!pred) return [];  // 거르개도 같은 파일에서 온다 — 없으면 패널만 안 뜬다(던지지 않는다)
+  return [...document.querySelectorAll(sel)].filter(pred); // DOM 순서 보존
 }
 
 export function hasFlowMultiSel() {
   return _getSelectedFlowBlocks().length >= 2;
 }
 
-// 블록 타입별 수평 정렬 (기존 단일패널 핸들러 미러)
-function _alignFlowBlock(b, dir) {
+/* ★[T-095 2라운드 / T-091 ⑥] 「꽉 찬 자유배치 래퍼」를 옮기는 «한 자리».
+   그룹(⌘G)은 섹션 레벨에서 «width:100%» 로 만들어진다(js/block-factory.js wrapSelectedBlocksInFrame
+   — flow 갈래는 `width:100%` 를 못 박는다). 폭에 여유가 0 이면 align-self 는 «아무 일도 안 한다» —
+   실측(2026-09-22 포트 9634): 섹션 오른쪽/왼쪽 정렬을 눌러도 그룹 속 도형이 L=308·R=308 «불변»,
+   글자만 움직였다. = T-095 신고문(「글자만 움직이고 이미지·도형은 제자리」)이 «그룹 안에서» 그대로 산다.
+   ★진짜 움직일 것은 그 «안»의 자유배치 자식들이고, 그 좌표의 원점이 바로 이 래퍼의 패딩 상자다.
+   ⇒ 「여유가 있나」를 한 칸 안쪽 «좌표축»에서 한 번 더 묻는다(bulk-align-targets.js 와 같은 규칙).
+     묶음은 «통째로» 민다 — 서로의 상대 위치는 그룹의 뜻이라 건드리지 않는다.
+   ⛔이름(data-group)을 묻지 않는다 — 이 레포는 손목록이 하나 빠져서 난 사고가 반복됐다.
+   ↩︎여유가 없으면(자식이 래퍼를 꽉 채움 — 도형 전용 래퍼가 그렇다) false 를 돌려주고 종전 경로로 보낸다. */
+function _alignFreeLayoutContents(b, dir) {
+  const kids = [...b.children].filter(c => c.nodeType === 1 && getComputedStyle(c).position === 'absolute');
+  if (!kids.length) return false;
+  const cs = getComputedStyle(b);
+  const avail = b.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  const lefts = kids.map(k => parseFloat(k.style.left) || 0);
+  const minX = Math.min(...lefts);
+  const maxX = Math.max(...kids.map((k, i) => lefts[i] + k.offsetWidth));
+  const span = maxX - minX;
+  if (!(span < avail - 0.5)) return false;           // 여유 0 — 여기서도 옮길 자리가 없다
+  const target = dir === 'left' ? 0
+    : dir === 'right' ? avail - span
+    : Math.round((avail - span) / 2);
+  const delta = Math.round(target - minX);
+  if (delta) kids.forEach((k, i) => {
+    const nl = Math.round(lefts[i]) + delta;
+    k.style.left = nl + 'px';
+    // ★저장·재로드는 dataset.offsetX 를 본다(wrapSelectedBlocksInFrame 이 같이 적는다) — 같이 옮긴다
+    if (k.dataset) k.dataset.offsetX = String(nl);
+  });
+  return true;
+}
+
+/* 블록 타입별 수평 정렬 (기존 단일패널 핸들러 미러)
+   ★[T-095] 섹션 «Bulk Align» 도 이 함수를 쓴다(js/props/prop-section.js).
+     그 자리엔 원래 `.text-block` 만 도는 사본이 있어서 글자만 움직이고 이미지·도형은
+     제자리였다. 타입별 분기는 «여기 한 벌»만 둔다 — 사본이 둘이면 다음 블록에서 또 갈린다. */
+export function alignFlowBlock(b, dir) {
   const selfMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
   const jcMap   = { left: 'flex-start', center: 'center', right: 'flex-end' };
   if (b.classList.contains('text-block')) {
@@ -372,12 +510,13 @@ function _alignFlowBlock(b, dir) {
     b.dataset.align = dir;                           // prop-asset.js:322
     b.style.alignSelf = selfMap[dir];
   } else {
+    if (_alignFreeLayoutContents(b, dir)) return;    // 꽉 찬 자유배치 래퍼(그룹) — 안쪽 묶음을 민다
     b.style.alignSelf = selfMap[dir];                // 범용 fallback (무해)
   }
 }
 
 function _applyFlowAlign(blocks, dir) {
-  blocks.forEach(b => _alignFlowBlock(b, dir));
+  blocks.forEach(b => alignFlowBlock(b, dir));
   window.pushHistory?.('블록 정렬');
   showFlowMultiSelPanel();
 }
@@ -471,7 +610,7 @@ export function showFlowMultiSelPanel() {
     <div class="prop-section" style="${textCount > 0 ? '' : 'display:none;'}">
       <div class="prop-section-title">폰트 크기 (텍스트 ${textCount}개)</div>
       <div class="prop-row" style="gap:3px;">
-        <input type="number" class="prop-number msp-fontsize-input" id="msp-font-size" min="1" max="800" placeholder="px" style="flex:1;">
+        <input type="number" class="prop-number msp-fontsize-input" id="msp-font-size" min="1" max="800" placeholder="px" data-empty="invalid" style="flex:1;">
         <button class="prop-btn-sm msp-fontsize-btn" id="msp-font-size-apply" title="선택한 텍스트 블록에 일괄 적용">적용</button>
       </div>
     </div>

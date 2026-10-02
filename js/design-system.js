@@ -12,6 +12,12 @@ const DesignSystem = (() => {
   const STORAGE_KEY        = 'we_design_system_v1';
   const STORAGE_BASE_KEY   = 'we_design_system_base_v1';
   const STORAGE_COLORS_KEY = 'we_color_vars_v1';
+  const STORAGE_HISTORY_KEY = 'we_color_history_v1';   // 컬러 히스토리(최근 쓴 색) 작업 캐시 — 정본은 meta.colorHistory
+  /* ★최근 쓴 색의 «개수» — 한 줄을 넘기지 않는 수.
+     우측 인스펙터 폭 240(css/editor-panels.css --panel-right-w · 폭 조절 UI 없음) 에서 .cv-chips 줄 폭 203
+     (margin-left 8 + padding-left 8 + 선 2 를 먹는다) — 칩(20)+사이(4)를 하나씩 더해 «둘째 줄 직전까지» 실측 = 7 · 2026-10-02 태양.
+     ⚠️시안의 8 은 패널 여백을 흉내 낸 판에서 잰 수다(실제 패널이 아님). 폭·칩 크기가 바뀌면 같은 법으로 다시 재서 바꿔라. */
+  const COLOR_HISTORY_MAX = 7;
 
   // 시맨틱 컬러 변수 기본값 (피그마 Variables 유사 — 메인/보조/강조)
   // --preset-* 계열과 충돌하지 않도록 별도 네임스페이스(--color-*) 사용.
@@ -86,17 +92,28 @@ const DesignSystem = (() => {
     _syncColorVarsToMeta(colorVars);
   }
 
-  /** Electron 프로젝트 meta.json에 colorVars 동기화 (기존 필드 보존 merge) */
+  /* ★meta.json 쓰기 = «자기 필드만»(patch) 보낸다 — main 이 받는 순간 파일과 원자적으로 합친다(2026-10-02 정정).
+     main.js ipcMain.handle('projects:save-meta') 가 동기로 `{ ...cur, ...metaData }` 를 쓴다(132c2b75 · 「H2 다중 writer」).
+     ⇒ «한 줄»은 main 의 그 핸들러다. 렌더러가 미리 읽은 meta «전체»를 보내면 main 이 그 «옛 사본»의 다른 필드로
+       그사이 갱신된 값을 되돌린다(tests/dom/meta-race Ma — 썸네일이 옛 값으로). 그래서 읽지 않고 patch 만 보낸다.
+     ~~[정정 2026-10-02] 「promise 사슬 한 줄로 모은다」 — 렌더러 «안» 차례만 맞출 뿐 다른 writer(썸네일·브랜치·커밋)와의
+       경합은 못 막았다. 사슬을 걷었다.~~
+     ★지금 이것을 부르는 둘 = ⑴_syncColorVarsToMeta(컬러 변수) ⑵_setColorHistory(최근 쓴 색).
+     ⛔meta 에 무엇을 더 쓰는 셋째가 생기면 «미리 읽어 합쳐 보내지» 말고 자기 필드만 보내라(이 함수를 불러도 된다).
+       ✔2026-10-02 이 파일 «밖» meta 쓰기도 같은 꼴(patch-only)로 바꿨다: save-load.js 265(저장 썸네일)·400(쉴 때 썸네일) ·
+       branch-system.js 37 · commit-system.js 260·401. 원래부터 자기 필드만 보내던 둘 = save-load.js 2063 · collab/accept.js 104.
+       경합 시험 = tests/dom/meta-race(Ma~Mf). */
+  function _mergeProjectMeta(patch) {
+    const pid = window.activeProjectId;
+    if (!pid || !window.electronAPI?.saveProjectMeta) return Promise.resolve(); // 브라우저/프로젝트 미오픈 시 skip
+    return Promise.resolve(window.electronAPI.saveProjectMeta(pid, { ...patch, updatedAt: new Date().toISOString() }))
+      .catch(e => console.warn('[DesignSystem] meta 쓰기 실패:', e));
+  }
+
+  /** Electron 프로젝트 meta.json에 colorVars 동기화 (기존 필드 보존 merge) — 합쳐쓰기 줄 하나(_mergeProjectMeta)를 탄다 */
   async function _syncColorVarsToMeta(colorVars) {
     try {
-      const pid = window.activeProjectId;
-      if (!pid || !window.electronAPI?.saveProjectMeta) return; // 브라우저/프로젝트 미오픈 시 skip
-      const existing = await window.electronAPI.loadProjectMeta(pid).catch(() => null);
-      await window.electronAPI.saveProjectMeta(pid, {
-        ...(existing || {}),
-        colorVars,
-        updatedAt: new Date().toISOString(),
-      });
+      await _mergeProjectMeta({ colorVars });
     } catch (e) {
       console.warn('[DesignSystem] colorVars meta 동기화 실패:', e);
     }
@@ -205,6 +222,11 @@ const DesignSystem = (() => {
     return v || '#000000';
   }
 
+  /* 색 코드 칸 표기 = «# 없는 대문자 6자» — 에디터 전체의 정본 표기(2026-09-20 유닛 colorhex).
+     ⚠️이 파일은 모듈이 아니라서 공용 함수를 window 로 받는다. color-picker.js 는 module(defer)이라
+       DOMContentLoaded(init) 시점엔 «이미» 실려 있다 — 그래도 없을 때를 대비해 같은 규칙을 적어 둔다. */
+  const _hexBox = (v) => (window.formatHex6 ? window.formatHex6(v) : String(v ?? '').replace('#', '').toUpperCase());
+
   function syncPanelUI(tokens) {
     const set = (id, varName) => {
       const el = document.getElementById(id);
@@ -212,7 +234,7 @@ const DesignSystem = (() => {
       const val = tokens[varName] || _hex(varName);
       el.value = val;
       const hex = document.getElementById(id + '-hex');
-      if (hex) hex.value = val;
+      if (hex) hex.value = _hexBox(val);
     };
     set('ds-h1-color',    '--preset-h1-color');
     set('ds-body-color',  '--preset-body-color');
@@ -237,11 +259,56 @@ const DesignSystem = (() => {
     if (baseSelect) baseSelect.value = _currentBase();
   }
 
+  /* ── 이름 받는 «인라인 폼» — prompt() 대체 (현빈 2026-10-02 「컬러변수 추가가 아예 안 된다」) ─────────────
+   *   ⛔Electron 렌더러는 prompt() 를 지원하지 않는다 — 부르는 순간 `Error: prompt() is not supported.` 로 던져
+   *     단추가 통째로 죽었다(실앱 스택 design-system.js:521). 이 파일의 prompt 2곳(아래 saveNewPreset · addColorVarFromPanel)이 이 폼을 쓴다.
+   *   ★새 모달을 만들지 않는다 — 이 레포에 이미 있는 꼴(variable-binding.js 서랍의 + → 이름칸·저장·취소, 클래스 var-add-form ·
+   *     var-input · var-form-actions · var-btn)을 그대로 쓴다. 단추가 있는 줄 «바로 아래»에 열린다.
+   *   onSubmit(name) 이 true 를 돌려주면 닫고, false 면 연 채로 둔다(고쳐 칠 수 있게 — 까닭은 onSubmit 이 토스트로 말한다).
+   *   Enter = 확인 · Esc/취소 = 닫기(아무것도 안 함). 이미 열려 있으면 다시 열지 않고 칸에 포커스만 준다. */
+  function _openInlineNameForm(anchorRow, { id, placeholder, submitLabel = '추가', onSubmit }) {
+    if (!anchorRow) return null;
+    const exist = document.getElementById(id + '-form');
+    if (exist) { exist.querySelector('input')?.focus(); return exist; }
+    const form = document.createElement('div');
+    form.id = id + '-form';
+    form.className = 'var-add-form';
+    form.innerHTML = `<input id="${id}-input" class="var-input" placeholder="${placeholder}" />
+      <div class="var-form-actions">
+        <button type="button" class="var-btn var-btn-primary" data-act="ok">${submitLabel}</button>
+        <button type="button" class="var-btn var-btn-ghost" data-act="cancel">취소</button>
+      </div>`;
+    anchorRow.insertAdjacentElement('afterend', form);
+    const input = form.querySelector('input');
+    const close = () => form.remove();
+    const submit = async () => { if (await onSubmit(input.value)) close(); else input.focus(); };
+    form.querySelector('[data-act="ok"]').addEventListener('click', submit);
+    form.querySelector('[data-act="cancel"]').addEventListener('click', close);
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();                       // 편집기 단축키(⌫·⌘Z 등)로 새지 않게
+      if (e.isComposing) return;                 // 한글 조합 중 Enter 는 확정이지 제출이 아니다
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      else if (e.key === 'Escape') { e.preventDefault(); close(); }
+    });
+    input.focus();
+    return form;
+  }
+
   // ── C15: 신규 디자인시스템 저장 ──────────────────────
 
-  async function saveNewPreset() {
-    const name = prompt('새 디자인시스템 이름을 입력하세요:');
-    if (!name || !name.trim()) return;
+  function saveNewPreset() {
+    const btn = document.querySelector('[onclick*="saveNewPreset"]') || document.getElementById('ds-new-preset-btn');
+    _openInlineNameForm(btn?.closest('.ds-base-row') || btn?.parentElement, {
+      id: 'ds-preset-name', placeholder: '새 디자인시스템 이름', submitLabel: '저장',
+      onSubmit: async (raw) => {
+        if (!raw || !raw.trim()) { window.showToast?.('이름을 입력하세요'); return false; }
+        await _saveNewPresetNamed(raw);
+        return true;
+      },
+    });
+  }
+
+  async function _saveNewPresetNamed(name) {
     const trimmedName = name.trim();
     const id = trimmedName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
@@ -425,6 +492,50 @@ const DesignSystem = (() => {
    * 프로젝트 로드 직후 호출(branch-system.initBranchStore 패턴과 동일하게 meta 우선).
    * meta에 colorVars가 없으면 localStorage 값(기존 동작)을 유지.
    */
+  // ── 컬러 히스토리(최근 쓴 색, 현빈 2026-10-02 B안) ───────────────────────────
+  //   정본 = meta.colorHistory(프로젝트별) · 작업 캐시 = localStorage(STORAGE_HISTORY_KEY). 컬러 변수와 같은 자리·같은 길.
+  //   쌓는 자리는 색 팝업 «닫을 때» 한 곳(color-picker.js _flushColorHistory) — 여기는 «받아 저장»만.
+  function _normHex(h) {
+    const m = String(h || '').trim().match(/^#?([0-9a-f]{6})$/i);
+    return m ? '#' + m[1].toLowerCase() : null;
+  }
+  function getColorHistory() {
+    try {
+      const a = JSON.parse(localStorage.getItem(STORAGE_HISTORY_KEY) || '[]');
+      return Array.isArray(a) ? a.map(_normHex).filter(Boolean).slice(0, COLOR_HISTORY_MAX) : [];
+    } catch { return []; }
+  }
+  function _setColorHistory(list, { persist = true } = {}) {
+    try { localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(list)); } catch {}
+    if (persist) _mergeProjectMeta({ colorHistory: list });
+    document.dispatchEvent(new CustomEvent('colorhistory-changed', { detail: { list } }));
+  }
+  /** 같은 색은 맨 앞으로(중복 제거) · COLOR_HISTORY_MAX 넘으면 뒤에서 버린다. */
+  function pushColorHistory(hex) {
+    const h = _normHex(hex);
+    if (!h) return getColorHistory();
+    const prev = getColorHistory();
+    if (prev[0] === h) return prev;                                   // 이미 맨 앞 — 쓰기 없음
+    const next = [h, ...prev.filter(x => x !== h)].slice(0, COLOR_HISTORY_MAX);
+    _setColorHistory(next);
+    return next;
+  }
+  /* ⚠️컬러 변수 복원(아래)과 «한 점» 다르다: meta 에 colorHistory 가 «없으면» 빈 목록으로 둔다.
+     변수 쪽은 meta 에 없으면 캐시를 그대로 둬서 «직전 프로젝트 것»이 남는다(기존 결함 — 코드 읽기·미실측, 범위 밖이라 안 고침·보고함).
+     최근 색은 그 병을 물려받지 않는다. */
+  async function restoreColorHistoryFromMeta(projectId) {
+    const pid = projectId || window.activeProjectId;
+    let list = [];
+    try {
+      if (pid && window.electronAPI?.loadProjectMeta) {
+        const meta = await window.electronAPI.loadProjectMeta(pid).catch(() => null);
+        if (Array.isArray(meta?.colorHistory)) list = meta.colorHistory.map(_normHex).filter(Boolean).slice(0, COLOR_HISTORY_MAX);
+      }
+    } catch (e) { console.warn('[DesignSystem] restoreColorHistoryFromMeta 실패:', e); }
+    _setColorHistory(list, { persist: false });                       // 열 때 읽기만 — 다시 쓰지 않는다
+    return list;
+  }
+
   async function restoreColorVarsFromMeta(projectId) {
     const pid = projectId || window.activeProjectId;
     try {
@@ -513,16 +624,19 @@ const DesignSystem = (() => {
   }
 
   function addColorVarFromPanel() {
-    const raw = prompt('새 컬러 변수 이름을 입력하세요 (예: primary, accent):');
-    if (raw == null) return;                 // 취소
-    const name = raw.trim();
-    if (!name) { alert('변수명을 입력하세요.'); return; }
-    const existing = _cvGet();
-    if (Object.prototype.hasOwnProperty.call(existing, name)) {
-      alert(`'${name}' 변수가 이미 존재합니다.`);
-      return;
-    }
-    _cvSet(name, '#3b82f6');                  // 기본색 — 이후 colorvars-changed가 재렌더 트리거
+    const btn = document.getElementById('ds-colorvar-add-btn');
+    _openInlineNameForm(btn?.closest('.ds-base-row') || btn?.parentElement, {
+      id: 'ds-colorvar-name', placeholder: '새 컬러 변수 이름 (예: primary, accent)',
+      onSubmit: (raw) => {
+        const name = (raw || '').trim();
+        /* ⚠️여기 있던 alert 2개(빈 이름·중복)는 토스트로 바꿨다 — alert 는 Electron 에서 «동작»하지만 앱을 막는 대화창이라
+             방금 연 입력칸의 포커스를 빼앗는다. 폼은 연 채로 두고(false) 고쳐 칠 수 있게 한다. */
+        if (!name) { window.showToast?.('변수명을 입력하세요'); return false; }
+        if (Object.prototype.hasOwnProperty.call(_cvGet(), name)) { window.showToast?.(`'${name}' 변수가 이미 있어요`); return false; }
+        _cvSet(name, '#3b82f6');              // 기본색 — 이후 colorvars-changed가 재렌더 트리거
+        return true;
+      },
+    });
   }
 
   function _initColorVars() {
@@ -540,16 +654,24 @@ const DesignSystem = (() => {
     // 시맨틱 컬러 변수 :root 적용 (applyTokens 호출 지점 미러)
     applyColorVars();
 
-    // color picker ↔ hex 양방향 동기화
+    /* color picker ↔ hex 양방향 동기화 — 배선은 color-picker.js 의 wireHexText 한 자리.
+       ★손사본이던 때는 무효값이 «말없이» 무시되고 blur 복원도 없었다(다른 40여 칸과 같은 병).
+         표기도 이 다섯 칸만 `#111111` 이라 바로 옆 「바탕색」 칸(`ACACAC`)과 규칙이 달랐다 —
+         한 패널 안에서 두 규칙을 외우게 만들던 자리다(신고 원문). */
     ['ds-h1-color', 'ds-body-color', 'ds-caption-color', 'ds-label-bg', 'ds-label-color'].forEach(id => {
       const picker = document.getElementById(id);
       const hex    = document.getElementById(id + '-hex');
-      if (picker && hex) {
-        picker.addEventListener('input', () => { hex.value = picker.value; });
-        hex.addEventListener('input', () => {
-          if (/^#[0-9a-fA-F]{6}$/.test(hex.value)) picker.value = hex.value;
-        });
-      }
+      if (!picker || !hex) return;
+      picker.addEventListener('input', () => { hex.value = _hexBox(picker.value); });
+      /* ⛔여기서 「없으면 대충이라도」 손배선을 하지 않는다 — 그 한 줄이 다시 사본의 시작이 된다.
+         color-picker.js 는 `type="module"`(defer) 이라 init(DOMContentLoaded)보다 «먼저» 실린다. */
+      if (!window.wireHexText) return;
+      window.wireHexText(hex, {
+        parse: window.parseHex6,
+        format: window.formatHex6,
+        getCurrent: () => picker.value || '#000000',
+        onApply: (v) => { picker.value = v; },
+      });
     });
 
     // radius 슬라이더
@@ -579,6 +701,9 @@ const DesignSystem = (() => {
     applyBase, applyFromPanel, resetTokens, togglePanel, syncPanelUI, saveNewPreset, makeSectionsCollapsible,
     // 시맨틱 컬러 변수 — 데이터(팀A) + 패널 UI(팀B)
     getColorVars, setColorVar, removeColorVar, applyColorVars, restoreColorVarsFromMeta,
+    // 컬러 히스토리(최근 쓴 색) — color-picker 가 쌓고, color-var-chips 가 그린다. 인라인 이름 폼은 「변수로 만들기」가 재사용.
+    getColorHistory, pushColorHistory, restoreColorHistoryFromMeta, COLOR_HISTORY_MAX,
+    openInlineNameForm: (...a) => _openInlineNameForm(...a),
     addColorVarFromPanel, renderColorVars,
   };
 })();

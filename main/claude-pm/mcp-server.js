@@ -157,8 +157,13 @@ function _appendAudit(rec) {
   try {
     const dir = _stateDir();
     fs.mkdirSync(dir, { recursive: true });
+    /* ★`caller` 를 «여기 한 곳»에서 더한다(2026-09-22) — 예전엔 원장에 부른 쪽 칸이 «없어서»,
+       확정 없이 들어온 쓰기가 정상 쓰기와 «글자 하나 다르지 않게» 남았다.
+       ⇒ 일이 나도 원장만 봐서는 «일어난 줄 몰랐다». 「0건이다」라고 말할 수 없는 축이었다.
+       ⛔원장을 쓰는 자리가 «둘»이다 — 여기와 도구 호출부의 `_audit`. 둘 다 넣어야 한다.
+         (여기만 고쳤다가 도구 원장에 caller 가 안 남는 것을 실측으로 잡았다. 2026-09-22) */
     fs.appendFileSync(path.join(dir, 'tool-audit.jsonl'),
-      JSON.stringify({ at: new Date().toISOString(), ...rec }) + '\n');
+      JSON.stringify({ at: new Date().toISOString(), caller: _callerId(), ...rec }) + '\n');
   } catch (_) { /* 원장 실패가 동작을 막지 않는다 */ }
 }
 function getTokenFilePath() { return _tokenFilePath; }
@@ -279,7 +284,11 @@ const _strictArgs = () => String(process.env.GODITOR_MCP_STRICT_ARGS || '') === 
  *     흘려보냄 2 (아래 둘) · 버림 27 · 판정불가 4(렌더러를 안 부르는 도구)
  * ⇒ 이 둘은 «침묵»한다. 대신 하위 층의 `warnUnknown`(ignoredProps/hint)이 «해소한 뒤» 판정한다.
  * ⛔이 목록을 손으로 늘리지 마라 — `mcp-unknown-args.test.js` 가 «다시 재서» 어긋나면 빨강을 낸다. */
-const _ARG_FORWARDERS = new Set(['add_block', 'update_block']);
+const _ARG_FORWARDERS = new Set(['add_block', 'update_block', 'update_qa_block']);
+/* ★update_qa_block 은 2026-09-16 추가 — { blockId, expectedProject, ...partial } 로 나머지 전부를
+ * 렌더러에 «그대로» 넘긴다(grid-block류 update_* 와 같은 얼개). mcp-unknown-args.test.js T9 이
+ * 실측으로 이걸 잡아 여기 등록을 요구했다 — 등록 안 하면 실제로는 렌더러까지 닿는 인자를
+ * 「무시됐다」고 거짓 경고하게 된다. */
 
 /** 이 도구 스키마가 «선언한» 인자 이름들. 스키마가 없으면 판정하지 않는다(빈 배열이 아니라 null). */
 function _declaredArgKeys(name) {
@@ -3588,14 +3597,32 @@ function _registerDefaultTools() {
       if (!_rendererInvoker?.addGridBlock) throw new Error('renderer bridge not ready');
       return await _rendererInvoker.addGridBlock({
         sectionId: args.sectionId, cols: args.cols, rows: args.rows,
-        cells: args.cells, gap: args.gap, valign: args.valign,
+        cells: args.cells, gap: args.gap, rowGap: args.rowGap, colGap: args.colGap, valign: args.valign,
+        cellBorderWidth: args.cellBorderWidth, cellBorderColor: args.cellBorderColor, cellBorderStyle: args.cellBorderStyle,
       });
     },
     {
       description: 'Add a grid block (grd_xxx) — a column grid (1~4 columns × rows) where each cell holds text. '
         + 'cols = column widths (array, 1~4). rows = row heights ([{height:"auto"|number}]). '
-        + 'cells = cell contents, row-major. gap = px between cells. valign = top|middle|bottom. '
+        + 'cells = cell contents, row-major. gap = px between cells (both axes). rowGap/colGap = per-axis '
+        + 'override (0~200px, optional — omit to use gap for both). valign = top|middle|bottom. '
+        + '★To make a TABLE (spec/compare/price): set cellBorderWidth (px) — every cell gets a line. '
+        + 'With gap/rowGap/colGap = 0 the lines COLLAPSE into a single set of grid rules (a real table); '
+        + 'with a gap > 0 each cell becomes its own boxed card. cellBorderColor/cellBorderStyle tune it. '
         + 'Returns {ok, blockId(grd_), cols, cellCount} — cellCount is READ BACK from the canvas, not echoed from the args. '
+        + '★imgSrc inside cols/cells has a length cap here too (2026-09-24 T-170) — an over-cap image is '
+        + 'rejected with TOO_LARGE and NO block is created. '
+        /* ★2026-09-24 — 「보고할 칸이 없다」를 걷는다. 칸은 만들면 되는 것이었다(지디 실기 관측). */
+        + '★★This door CLAMPS instead of refusing, and now SAYS SO. Values update_grid_block would '
+        + 'reject are squeezed into range here exactly as before (cols/rows over 4 are truncated, an '
+        + 'off-list valign falls back, an out-of-range rowGap/colGap is not written, cells sent WITHOUT '
+        + 'rows are dropped entirely) — but the reply now carries ignoredProps/hint naming each one. '
+        /* ~~[폐기 · 2026-09-24] 「gap 만은 자르지도 거절하지도 않는다 … 그대로 저장된다」~~
+           ⓑ(지디 권한) 판정으로 gap 도 «자르되 말한다»가 됐다. ⛔이 문장이 남아 있으면 도구 설명이
+           «거짓»이 된다 — 부르는 쪽은 999 가 살아 있다고 믿는다. */
+        + '★gap is clamped too (0~200) and the clamp is reported; a non-numeric gap falls back to the '
+        + 'default and is reported as well. ⛔The CLAMP LIVES AT THE DOOR ONLY — the renderer still draws '
+        + 'whatever a saved project holds, so an existing grid with a larger gap keeps looking exactly the same. '
         + '⚠️Legacy projects store the same block with a duo_ prefix (renamed); reading handles both.',
       inputSchema: {
         type: 'object',
@@ -3603,13 +3630,26 @@ function _registerDefaultTools() {
           sectionId: { type: 'string', description: 'sec_xxx to insert into (else uses selected section)' },
           cols: { type: 'array',
             description: 'columns — 1~4 entries, each {width:number, lines:[{type:"body"|"h1".., text:"..."}]}. '
-              + '★이것이 «행 0» 이다. 셀 글은 lines[].text 에 들어간다.' },
+              /* ★T-178(2026-09-23) — 「cols 가 곧 행 0」이 아니게 됐다. 갈림을 여기 적는다:
+                 안 적으면 예전 동작(행 0 칸에 준 꾸밈이 열 전체를 칠하던 것)이 MCP 회귀로 읽힌다. */
+              + '★cols[c].lines = «행 0 의 줄 내용»(단일 진실원 — 행 0 줄은 여기 하나뿐이다). '
+              + '★cols[c] 의 꾸밈(align/valign/bg/padding/radius) = 그 열의 «기본값»이다 — '
+              + '자기 값이 없는 칸들이 «모든 행에서» 이 값을 따른다. 「행 0 칸 하나만」 칠하려면 '
+              + 'cells[0][c] 또는 update_grid_block{patchCell:{r:0,c,bg}} 를 써라.' },
           rows: { type: 'array', description: 'row heights — [{height:"auto"|0~N}]' },
           cells: { type: 'array',
             description: '★2차원 배열 (행 × 열) — «행 0 포함». 평평한 배열을 주면 «행 N개»로 읽힌다(실측으로 데었다). '
-              + '각 칸은 {lines:[{type,text}]} 꼴. 행이 모자라면 rows 를 «같은 호출»에서 같이 줘야 한다.' },
-          gap: { type: 'number', description: 'gap between cells (px)' },
+              + '각 칸은 {lines:[{type,text}], align?, valign?, bg?, padding?, radius?} 꼴. '
+              + '행이 모자라면 rows 를 «같은 호출»에서 같이 줘야 한다. '
+              + '★cells[0][c].lines 는 cols[c].lines 로 «흡수»된다(단일 진실원). '
+              + 'cells[0][c] 의 꾸밈은 «그 칸»의 값으로 남아 열 기본값을 덮는다.' },
+          gap: { type: 'number', description: 'gap between cells, both axes (px, 0~200)' },
+          rowGap: { type: 'number', description: 'row gap override (px, 0~200) — omit to use gap' },
+          colGap: { type: 'number', description: 'column gap override (px, 0~200) — omit to use gap' },
           valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+          cellBorderWidth: { type: 'number', description: '★T-172 cell border width (px, 0~20). 0 = no border. Draws a line around EVERY cell — this is what makes a spec/compare table look like a table.' },
+          cellBorderColor: { type: 'string', description: "cell border color, e.g. '#d0d0d0' (default #d0d0d0)" },
+          cellBorderStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'], description: 'cell border style (default solid)' },
           expectedProject: { type: 'string', description: 'proj_xxx — refuse if a different project is open' },
         },
         additionalProperties: false,
@@ -3627,7 +3667,7 @@ function _registerDefaultTools() {
       }
       if (!Object.keys(partial).length) {
         return { ok: false, code: 'NOTHING_TO_DO',
-          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / valign' };
+          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / rowGap / colGap / valign / cellBorderWidth / cellBorderColor / cellBorderStyle' };
       }
       return await _rendererInvoker.updateGridBlock({ blockId, partial });
     },
@@ -3640,8 +3680,53 @@ function _registerDefaultTools() {
         + 'patchCell has TWO modes: with lineIndex → patches ONE line (text, type, fontSize, color, '
         + 'weight, align, bg, fontFamily, italic, strike, marginTop, ...); without lineIndex → patches '
         + 'the CELL (lines, align, valign, bg, padding, radius). Column width goes through patchCol. '
+        /* ★T-178(2026-09-23) — patchCell{r:0} 과 patchCol 의 갈림. 지금까지 «어디에도» 안 적혀 있었고,
+           예전엔 둘이 같은 자리에 썼다(행 0 칸에 준 색이 열 기본값이 되어 아래 행까지 칠했다).
+           ⛔이 문단을 지우지 마라 — 없으면 고쳐진 동작이 「MCP 회귀」로 읽힌다. */
+        + '★★patchCell{r:0,...} vs patchCol{index,...} — 둘은 «다른 자리»다: '
+        + 'patchCell{r:0,c,bg} = 「행 0 의 «그 칸»만」 칠한다(아래 행은 안 따라온다). '
+        + 'patchCol{index,bg} = 그 열의 «기본값» — 자기 값이 없는 칸들이 «모든 행에서» 따른다. '
+        + '둘 다 주면 칸 값이 이긴다(렌더러 우선순위: 줄 > 칸 > 열 > 블록). '
+        + '★단 «줄 내용»(lines)만은 예외다 — 행 0 의 lines 는 언제나 cols[c].lines 한 군데에 저장된다. '
+        + 'patchCell{r:0,c,lines} 는 그래서 dataset.cols 를 고친다(단일 진실원). '
+        + '⚠️꾸밈과 lines 를 «한 호출에 섞어» 주면 저장은 두 자리로 갈린다 — 둘 다 정상 반영된다. '
+        /* ★T-178 C2 — 「지움」의 계약. JSON 은 undefined 를 못 실어서 MCP 에는 이 길이 «없었다». */
+        + '★★값이 null 이면 그 키를 «지운다»(= 열 기본값으로 되돌림), 예: patchCell{r:1,c:0,bg:null}. '
+        + '⛔0 과 "" 는 지움이 «아니다» — 값이다(0 = 여백/모서리를 0 으로 «강제», "" = 강제로 없앰: '
+        + 'bg:"" 배경 없음 · align:"" 왼쪽 강제 · valign:"" 블록값 강제). '
+        + '열 기본값이 12px 인 열에서 「이 칸만 0」을 주려면 0 을, 「열 기본값으로 되돌리려면」 null 을 써라. '
         + '⛔Unknown field names are REJECTED, not silently ignored — the renderer would never read them. '
-        + 'Also: gap, valign. Returns {ok, cellCount, cellTexts} — ★cellTexts is READ BACK from the canvas '
+        /* ★2026-09-24 T-170/175/176/180 — 「입구 계약」. 앱(grid-block.js _gridIntake)이 정본이고
+           여기선 «그 계약을 알린다». ⛔여기서 다시 검증하지 않는다(위 머리 주석 규약 그대로). */
+        + '★★VALUES are checked too, not just names — align must be left|center|right and valign '
+        + 'top|middle|bottom (a typo used to be accepted and then silently ignored on screen). '
+        + 'The two TARGETED doors (patchCell, patchCol) REJECT an off-list value; the two WHOLE-REPLACE '
+        + 'doors (cols, cells) do NOT reject — they apply the rest and list the bad ones in ignoredProps/hint, '
+        + 'so that a read-modify-write round trip carrying an old stored value is not killed outright. '
+        + '⛔null / undefined / "" / 0 are NOT off-list values — they mean unset/force (see above). '
+        + '★★SHRINKING rows or cols is a DESTRUCTIVE REPLACE: cells outside the new grid lose their '
+        + 'contents (unchanged behaviour — the on-screen panel says the same). The reply now carries '
+        + '`destructive:{shrank, droppedCells, message}` saying exactly which cells were discarded; ⌘Z restores. '
+        + '★imgSrc has a length cap on ALL doors now (it used to bind on patchCell only, so cols/patchCol/cells '
+        + 'could smuggle a 200000-char image in). Re-sending an image the SAME cell already holds is allowed; '
+        + 'copying a too-large one into ANOTHER cell is rejected (TOO_LARGE). '
+        /* ★2026-09-24 둘째 판 — 「아는 이름인데 모르는 값」과 「한계를 넘긴 값」이 처방이 «다르다».
+           둘을 안 갈라 적으면 부르는 쪽이 「왜 이건 거절이고 저건 통과냐」를 못 읽는다. */
+        + '★★bg / color / fontFamily are checked against the SAME regex the renderer uses. An unusable '
+        + 'value (e.g. bg:"linear-gradient(...)" — the grid takes #hex, rgb()/hsl(), transparent, var(--t)) '
+        + 'used to return ok:true, be stored, silently fail to draw, AND WIPE whatever the cell had there. '
+        + 'It is now rejected on patchCell/patchCol and reported on cols/cells; the old value survives. '
+        + '★Over-limit NESTED grids (type:"duo") are NOT rejected — a nested grid renders at most 3 columns '
+        + 'and 2 levels deep, and the excess is truncated exactly as before. What changed is that the reply '
+        + 'now LISTS the truncated paths in ignoredProps/hint instead of staying silent. '
+        + '(Different prescription on purpose: an unusable value is something you never asked for, '
+        + 'while truncation is the defined limit — blocking it would be a behaviour change.) '
+        + 'Also: gap (sets both row/column gap, px 0~200), rowGap/colGap (per-axis override, px 0~200), valign. '
+        + '★★cellBorderWidth (px 0~20, 0 = off) / cellBorderColor / cellBorderStyle (solid|dashed|dotted) — '
+        + 'a line around EVERY cell, on the BLOCK axis (not per-cell). This is how you make a spec/compare table. '
+        + 'Set a gap of 0 on an axis and the lines collapse to one set of rules (a table); keep a gap and each cell is a card. '
+        + '⛔There is NO shorthand — pass the three separately. An unknown cellBorderStyle is REJECTED, never downgraded to solid. '
+        + 'Returns {ok, cellCount, cellTexts} — ★cellTexts is READ BACK from the canvas '
         + 'after the write, so it tells you what actually landed (not what you asked for).',
       inputSchema: {
         type: 'object',
@@ -3649,7 +3734,88 @@ function _registerDefaultTools() {
           blockId: { type: 'string', description: 'grd_xxx (or legacy duo_xxx)' },
           cols: { type: 'array' }, patchCol: { type: 'object' },
           rows: { type: 'array' }, cells: { type: 'array' }, patchCell: { type: 'object' },
-          gap: { type: 'number' }, valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+          gap: { type: 'number', description: 'sets both row/column gap (px, 0~200)' },
+          rowGap: { type: 'number', description: 'row gap only (px, 0~200)' },
+          colGap: { type: 'number', description: 'column gap only (px, 0~200)' },
+          valign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+          cellBorderWidth: { type: 'number', description: 'cell border width (px, 0~20). 0 = no border' },
+          cellBorderColor: { type: 'string', description: "cell border color, e.g. '#d0d0d0'" },
+          cellBorderStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'] },
+          expectedProject: { type: 'string' },
+        },
+        required: ['blockId'],
+        additionalProperties: false,
+      },
+    }
+  );
+
+  /* ─── qa-block ★2026-09-16 신설 — admin/QA 전용 체크리스트 ───────────────
+     ⚠️이 도구가 이 블록의 유일한 생성/조작 경로다 — UI 블록 추가 메뉴에는 절대 노출하지 않는다.
+     지디(팀장) QA 워크플로우 전용: 티켓별 체크리스트를 캔버스에 심어 현빈이 직접 체크/피드백. */
+  registerTool(
+    'add_qa_block',
+    async (args = {}) => {
+      if (!_rendererInvoker?.addQABlock) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.addQABlock({
+        sectionId: args.sectionId, ticket: args.ticket, title: args.title, items: args.items,
+      });
+    },
+    {
+      description: '⚠️admin/QA 전용 — 실제 고객 프로젝트에는 절대 추가하지 말 것. 지디(웹에디터 팀장) '
+        + 'QA 워크플로우 전용 블록(qa_xxx)이다. 캔버스에 접이식 체크리스트 카드를 만든다 — 티켓ID·제목·'
+        + '체크리스트 항목(문자열 배열, done은 항상 false로 시작)을 받는다. 사람(현빈)이 캔버스에서 직접 '
+        + '체크박스를 클릭하고 피드백을 입력한다. PNG/Figma/HTML 어느 내보내기에도 나가지 않는다. '
+        + 'Returns {ok, blockId(qa_), sectionId, itemCount}.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx to insert into (else uses selected section)' },
+          ticket: { type: 'string', description: '티켓 ID, 예: "T-020"' },
+          title: { type: 'string', description: '체크리스트 제목' },
+          items: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+            description: '체크리스트 항목 — [{text:"..."}]. done 은 항상 false 로 시작한다.' },
+          expectedProject: { type: 'string', description: 'proj_xxx — refuse if a different project is open' },
+        },
+        additionalProperties: false,
+      },
+    }
+  );
+
+  registerTool(
+    'update_qa_block',
+    async (args = {}) => {
+      if (!_rendererInvoker?.updateQABlock) throw new Error('renderer bridge not ready');
+      const { blockId, expectedProject, ...partial } = args || {};
+      if (!blockId || typeof blockId !== 'string') {
+        return { ok: false, code: 'INVALID', message: 'blockId (qa_xxx) is required' };
+      }
+      if (!Object.keys(partial).length) {
+        return { ok: false, code: 'NOTHING_TO_DO', message: 'no fields to update — pass items / feedback / collapsed / verdict' };
+      }
+      return await _rendererInvoker.updateQABlock({ blockId, partial });
+    },
+    {
+      description: '⚠️admin/QA 전용. 기존 QA 체크리스트 블록(qa_xxx)을 갱신한다 — partial update. '
+        + 'items: 체크상태·항목별 코멘트 포함 전체 배열([{text,done,comment?}, ...])로 교체(부분 아님, '
+        + 'comment 생략 시 빈 문자열). feedback: 블록 전체 피드백 문자열(항목별 comment 와는 별개). '
+        + 'collapsed: 접힘 여부(boolean). verdict: 현빈의 최종 판정("none"|"pass"|"fail"|"revise") — '
+        + '체크리스트 진행률(qa-status)과는 별개 축이다. fail=원래 스펙대로 안 됨(버그), '
+        + 'revise=스펙대로는 됐지만 개선하고 싶다/방향을 바꾸고 싶다(버그 아님) — 처리 흐름은 둘 다 '
+        + '같은 티켓에서 계속 이어간다는 점에서 동일하다. 이 값을 클로드가 임의로 pass 로 세팅하지 말 것 — '
+        + '현빈이 캔버스에서 직접 누른 값을 읽는 용도가 기본이고, fail/revise 를 고쳐서 재검수를 요청할 때 '
+        + '"none"으로 되돌리는 정도만 클로드가 써도 된다. 여러 필드를 한 번에 줄 수 있다. '
+        + 'Returns {ok, blockId, items, feedback, collapsed, verdict} — 쓴 뒤 화면에서 다시 읽어 돌려준다.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId: { type: 'string', description: 'qa_xxx' },
+          items: { type: 'array', items: { type: 'object',
+            properties: { text: { type: 'string' }, done: { type: 'boolean' },
+              comment: { type: 'string', description: '이 항목 전용 코멘트(캔버스에서 Enter로 펼치는 아코디언). 생략 시 빈 문자열.' } },
+            required: ['text', 'done'] } },
+          feedback: { type: 'string' },
+          collapsed: { type: 'boolean' },
+          verdict: { type: 'string', enum: ['none', 'pass', 'fail', 'revise'], description: '현빈의 최종 판정. 기본은 클로드가 "none"으로 재설정하는 용도로만.' },
           expectedProject: { type: 'string' },
         },
         required: ['blockId'],
@@ -8382,7 +8548,12 @@ async function _handleRpc(msg) {
           fs.mkdirSync(dir, { recursive: true });
           const a = args || {};
           fs.appendFileSync(path.join(dir, 'tool-audit.jsonl'), JSON.stringify({
-            at: new Date().toISOString(), tool: name, outcome,
+            at: new Date().toISOString(), caller: _callerId(), tool: name, outcome,
+            /* ★`caller` (2026-09-22) — 예전엔 이 칸이 «없어서», 확정 없이 들어온 쓰기가
+               정상 쓰기와 «글자 하나 다르지 않게» 남았다. 원장이 「유일한 사후 근거」인데
+               정작 「누가」가 빠져 있었다 ⇒ 일이 나도 «일어난 줄 몰랐다».
+               ⛔이 자리와 _appendAudit 둘 다에 있어야 한다 — 원장을 쓰는 자리가 «둘»이다.
+                 (한 곳만 고쳤다가 이 자리가 빠져 caller 가 안 남는 것을 실측으로 잡았다.) */
             argKeys: Object.keys(a).sort(),                       // ⛔이름만. 값은 «안» 적는다
             argBytes: (() => { try { return JSON.stringify(a).length; } catch (_) { return null; } })(),
             target: a.projectId || a.sectionId || a.blockId || a.id || null,  // 대상 id 는 «추적»에 필요하다
@@ -8688,6 +8859,9 @@ function _createServer() {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Mcp-Session-Id');
+    /* ⛔Allow 만 있고 Expose 가 없으면 «보내는 것»은 되고 «받아 읽는 것»이 안 된다 —
+       서버가 세션 id 를 발급해도 브라우저 클라이언트는 못 읽어 되돌려 보낼 수 없다(2026-09-22). */
+    res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -8772,9 +8946,27 @@ function _createServer() {
           const msg = body ? JSON.parse(body) : {};
           /* ★호출자 식별 — 예전엔 Mcp-Session-Id 가 CORS 허용 목록에만 있고 «읽는 코드가 0건»이었다.
              그래서 확정(sticky)이 호출자를 못 가르고 프로세스 전체가 한 칸을 썼다. */
-          const _cid = String(req.headers['mcp-session-id'] || '').slice(0, 128) || 'anon';
+          let _cid = String(req.headers['mcp-session-id'] || '').slice(0, 128) || 'anon';
+          /* ★★세션 id 를 «서버가 발급»한다 (2026-09-22 실측으로 열린 구멍).
+             무엇이 있었나 — 위 _confirmedByCaller 의 근거 ⑶ 은 「브리지가 반드시 보내게(이미 그렇다)」였다.
+             그 전제가 깨졌다: 브리지를 «안 거치고» 이 서버에 바로 붙는 길이 실제로 쓰인다.
+             그런데 서버는 initialize 응답에 Mcp-Session-Id 를 «한 번도 안 실었다».
+             규약상 클라이언트는 «서버가 준» 세션 id 만 되돌려 보내므로
+             ⇒ ★규약을 지키는 클라이언트일수록 헤더를 «안 보내고» 전부 'anon' 한 칸에 뭉쳤다.
+               그 한 칸은 공유라, 남이 세운 확정으로 쓰기가 그냥 통과했다.
+             ⇒ 발급만 하면 규약 준수 클라이언트는 다음 요청부터 «제 칸»을 받는다.
+             ⛔헤더 없는 호출자를 «거절하지 않는다» — 근거 ⑴(직접 HTTP 로 부르는 도구·검사가
+               통째로 죽는다)은 지금도 참이다. 그들은 예전처럼 'anon' 을 공유한다.
+               이 고침은 «막는 것»이 아니라 «갈라 주는 것»이다. */
+          let _issued = null;
+          if (msg && msg.method === 'initialize') {
+            _issued = _cid !== 'anon' ? _cid : ('s-' + crypto.randomBytes(16).toString('hex'));
+            _cid = _issued;
+          }
           const result = await _callerCtx.run(_cid, () => _handleRpc(msg));
-          res.writeHead(200, { 'Content-Type': 'application/json' });
+          const _hdrs = { 'Content-Type': 'application/json' };
+          if (_issued) _hdrs['Mcp-Session-Id'] = _issued;
+          res.writeHead(200, _hdrs);
           // notification은 null → 빈 객체로 반환
           res.end(JSON.stringify(result === null ? {} : result));
         } catch (e) {

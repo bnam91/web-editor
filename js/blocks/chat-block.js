@@ -103,7 +103,8 @@ function renderChatBlock(block) {
     if (showName && (msg.profileName || '').trim()) {
       const hidden = msg.hideProfile === true;
       const nameColor = isLeft ? colorLeft : colorRight;
-      nameHtml = `<div class="chb-profile-name" style="font-size:${Math.max(11, Math.round(fontSize * 0.55))}px;color:${nameColor};text-align:${isLeft ? 'left' : 'right'};${hidden ? 'visibility:hidden;' : ''}">${msg.profileName}</div>`;
+      /* ★이름은 틀에 안 넣는다 (T-049) — 빈 칸을 내고 아래에서 textContent 로 채운다. */
+      nameHtml = `<div class="chb-profile-name" data-name-idx="${idx}" style="font-size:${Math.max(11, Math.round(fontSize * 0.55))}px;color:${nameColor};text-align:${isLeft ? 'left' : 'right'};${hidden ? 'visibility:hidden;' : ''}"></div>`;
     }
 
     // 별점(★) — msg.stars(0~5) 설정 시에만 말풍선 상단에 표시. 채운 별=주황, 빈 별=회색.
@@ -125,6 +126,10 @@ function renderChatBlock(block) {
     const inner = isLeft ? `${profileHtml}${wrapHtml}` : `${wrapHtml}${profileHtml}`;
     return `<div class="chb-msg chb-${dir}" style="margin-bottom:${gap}px;gap:${profileGap}px">${inner}</div>`;
   }).join('');
+
+  block.querySelectorAll('.chb-profile-name[data-name-idx]').forEach(el => {
+    el.textContent = messages[parseInt(el.dataset.nameIdx)]?.profileName || '';
+  });
 
   // 패딩 제외(full-bleed): 섹션 좌우패딩 무시 — 음수마진 + calc 확장폭으로 섹션 가장자리까지 확장.
   // 에셋블럭 패턴 미러. 매 렌더 재적용(idempotent), off면 인라인 스타일 클리어(무회귀).

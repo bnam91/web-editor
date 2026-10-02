@@ -48,8 +48,11 @@ const DEP_FILES = ['js/banner-presets.js', 'js/panels/mockup-devices.js'];
  *   2026-09-09 오후: «비었다». 한때 zoom·sticker·gradient 셋이 여기 있었다 —
  *   .section-block 직속(플로팅·absolute)이라 순회 뿌리(inner.children) «밖»이었다.
  *   순회의 뿌리를 넓혀 셋 다 닫혔다(모드 B). ⇒ 이제 빠지는 종은 0이어야 한다.
- *   ⛔여기 «한 줄이라도 늘면» 빨개진다 — 조용히 못 자란다. */
-const KNOWN_DROPPED = [];
+ *   ⛔여기 «한 줄이라도 늘면» 빨개진다 — 조용히 못 자란다.
+ *   ★2026-09-16 addQABlock 추가 — 이건 «못 고친» 버그가 아니라 «고치면 안 되는» 의도된 제외다.
+ *     qa-block은 admin QA 체크리스트(작업 메타데이터)지 콘텐츠가 아니다. annotation-block과
+ *     같은 이유로 _TRAVERSE_SKIP에 올라 있다(export-figma-json.js). 여기 늘어난 게 맞다. */
+const KNOWN_DROPPED = ['addQABlock'];
 
 function harness() {
   const imports = [...DEP_FILES, ...ADD_FILES]
@@ -153,7 +156,10 @@ async function sweep(page, FNS) {
        실측(2026-09-09): 블록을 row 직속에만 놓고 재면 «col 자식» 자리를 옛 손 명부로
        되돌리는 변이가 «초록»으로 지나간다. ⇒ 같은 블록을 세 자리에 각각 놓고 잰다.
          native = add fn 이 «스스로» 놓은 자리   col = row > col > 블록   frame = frame-block > 블록 */
-    const SKIP = new Set(['frame-block', 'group-block', 'section-block']);
+    /* ★qa-block(2026-09-16) 추가 — _TRAVERSE_SKIP 과 같은 이유(콘텐츠가 아니라 admin QA
+       메타데이터)로 «어느 자리에 놓아도 항상» 빠지는 게 설계 의도다. 여기 넣어야 leafOf 가
+       그걸 「옮겨서 재볼 콘텐츠」로 잘못 고르지 않는다(frame/group/section-block과 같은 대우). */
+    const SKIP = new Set(['frame-block', 'group-block', 'section-block', 'qa-block']);
     const leafOf = (secEl) => [...secEl.querySelectorAll('*')]
       .find(el => [...el.classList].some(c => c.endsWith('-block')) &&
                   ![...el.classList].some(c => SKIP.has(c)));
@@ -268,9 +274,11 @@ test('FX-2 ★본 단언 — add*Block 전수가 Figma 업로드에서 «빈 껍
   const { rows, arranged, noLeaf } = await sweep(page, ADD_FNS);
 
   /* ★자리를 옮길 «콘텐츠 블록»이 없는 add fn — 빈 컨테이너만 만든다.
-     ⛔여기 이름이 늘면 그 종은 아래 자리별 검사를 «안 받고» 지나간다는 뜻이라 빨개진다. */
+     ⛔여기 이름이 늘면 그 종은 아래 자리별 검사를 «안 받고» 지나간다는 뜻이라 빨개진다.
+     ★addQABlock(2026-09-16) — SKIP에 qa-block을 넣어서(위 leafOf) 여기로 온다. 컨테이너가
+       비어서가 아니라 «콘텐츠로 옮겨볼 대상이 아니다»(admin 메타데이터)라 같은 결과. */
   expect(noLeaf, '★컨테이너만 만드는 add fn 목록이 바뀌었다 — 자리별 검사에서 빠지는 종이 생겼다')
-    .toEqual(['addFrameBlock']);
+    .toEqual(['addFrameBlock', 'addQABlock']);
 
   const made = rows.filter(r => r.made);
   expect(made.length, '★앞끝이 무너졌다 — FX-1 을 먼저 봐라').toBe(ADD_FNS.length);
@@ -305,8 +313,13 @@ test('FX-2 ★본 단언 — add*Block 전수가 Figma 업로드에서 «빈 껍
   }
 
   /* 알려진 셋이 «왜» 빠지는지도 잰다 — 이유가 바뀌면(흐름 안으로 들어왔는데도 빠지면)
-     그건 다른 결함이므로 KNOWN_DROPPED 로 덮으면 안 된다. */
+     그건 다른 결함이므로 KNOWN_DROPPED 로 덮으면 안 된다.
+     ★이 가정(inFlow:false = «자리»가 문제)은 옛 zoom/sticker/gradient 급 전용이다.
+       addQABlock(2026-09-16)은 «흐름 안»에 정상 배치되지만 _TRAVERSE_SKIP(클래스 기반 영구
+       제외)이 이유라 이 가정과 안 맞는다 — 성질이 다른 KNOWN_DROPPED 항목이라 여기서 뺀다. */
+  const STRUCTURALLY_EXCLUDED_FNS = new Set(['addQABlock']);
   for (const fn of KNOWN_DROPPED) {
+    if (STRUCTURALLY_EXCLUDED_FNS.has(fn)) continue;
     const r = rows.find(x => x.fn === fn);
     expect(r.inFlow, `★${fn} 이 이제 section-inner «흐름 안»에 있다 — 기제가 바뀌었다. ` +
       `명부 문제가 되었으니 KNOWN_DROPPED 로 덮지 말고 순회를 고쳐라`).toBe(false);
@@ -344,11 +357,13 @@ test('FX-3 ★순회가 «성질»로 잡는다 — 손 명부로 되돌리는 �
     '★_TRAVERSE_SKIP(제외 목록)이 바뀌었다.',
     '  ⛔제외에 콘텐츠 블록을 넣으면 그 종은 내보내기에서 «조용히» 사라진다.',
     '  늘리려면: 왜 _block() 에 넘기면 «안 되는지» 한 줄로 적고, 이 기대도 같이 고쳐라.',
-  ].join('\n')).toEqual(['annotation-block', 'frame-block', 'group-block', 'section-block']);
+  ].join('\n')).toEqual(['annotation-block', 'frame-block', 'group-block', 'qa-block', 'section-block']);
   /* annotation-block 은 «뿌리를 섹션 직속까지 넓히면서» 새로 필요해진 제외다.
      ⛔짐작이 아니다 — market-merge.js 의 normSection 이 .section-label·.variation-badge 와
        «같은 줄»에서 .annotation-block 을 지운다. 이 레포가 이미 「내용 아님」으로 판정한 것이다.
-     그 근거가 사라지면 제외의 정당성도 사라지므로 여기서 같이 지킨다. */
+     그 근거가 사라지면 제외의 정당성도 사라지므로 여기서 같이 지킨다.
+     ★qa-block(2026-09-16)은 admin QA 체크리스트 — annotation-block과 같은 이유(콘텐츠가 아니라
+       작업 메타데이터)로 제외한다. export-image.js/export-html.js도 같은 원칙으로 clone에서 제거한다. */
   const mm = fs.readFileSync(path.join(REPO, 'js', 'market-merge.js'), 'utf8');
   expect(mm, '★market-merge normSection 이 annotation-block 을 더는 «내용 아님»으로 안 지운다 — ' +
     '그러면 순회에서 제외할 근거가 사라진다. 제외를 다시 판단해라').toContain('.annotation-block');
@@ -395,4 +410,121 @@ test('FX-4 ★플로팅 블록(섹션 직속 absolute)이 좌표와 «함께» �
         .toEqual({ x: wx, y: wy });
     }
   }
+});
+
+/* ── FX-5 (0918r2 textgrad · T-059 확장): 글자 그라데이션이 Figma 업로드 JSON 에 «실린다» ──
+ * 진짜 addTextBlock 으로 만든 본문 블럭에 진짜 applyTextGradient 를 걸고, 진짜 buildFigmaExportJSON 을 부른다.
+ * style.fill = {kind:'gradient', type, angle, stops} · style.color = 첫 스탑 단색(하위 호환 폴백).
+ * ★음성대조: 같은 실행의 «그라데이션 안 건» 블럭엔 fill 이 없어야 한다(무조건 싣는 변이를 잡는다). */
+test('FX-5 ★글자 그라데이션 블럭은 style.fill(gradient) 과 함께 나간다 — 단색 블럭엔 fill 없음', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    for (const k of ['pushHistory', 'markDirty', 'scheduleAutoSave', 'updateLayerPanel', 'buildLayerPanel', 'showToast', 'deselectAll'])
+      if (typeof window[k] !== 'function') window[k] = () => {};
+    await import('/js/props/text-block-color.js');
+    const canvas = document.getElementById('canvas');
+    const sec = document.createElement('div'); sec.className = 'section-block'; sec.id = 'sec_tg';
+    const inner = document.createElement('div'); inner.className = 'section-inner'; inner.style.width = '860px';
+    sec.appendChild(inner); canvas.appendChild(sec);
+    window.getSelectedSection = () => sec; window._activeFrame = null;
+    await window.addTextBlock('body');
+    await window.addTextBlock('body');
+    const tbs = [...sec.querySelectorAll('.text-block')];
+    if (tbs.length < 2) return { made: tbs.length };
+    const ok = window.applyTextGradient(tbs[0], { css: 'linear-gradient(45deg, #cc2244 0%, rgba(34,68,204,0.500) 100%)' });
+    const ps = { bg: '#eeeeee', padX: 0 };
+    window.__state.pages = [{ canvas: canvas.innerHTML, pageSettings: ps }];
+    window.__state.pageSettings = ps;
+    const json = window.buildFigmaExportJSON(null);
+    const all = [];
+    const walk = (bs) => (bs || []).forEach(b => { if (b && b.type === 'text') all.push(b); if (b && b.columns) b.columns.forEach(c => walk(c.blocks)); if (b && b.children) walk(b.children); if (b && b.blocks) walk(b.blocks); });
+    (json.sections || []).filter(s => s.id === 'sec_tg').forEach(s => walk(s.blocks));
+    const byId = (id) => all.find(b => b.id === id);
+    return { made: tbs.length, ok, g: byId(tbs[0].id), plain: byId(tbs[1].id) };
+  });
+  expect(r.made, '★양성대조: 텍스트 블럭을 못 만들었다').toBe(2);
+  expect(r.ok).toBe(true);
+  expect(r.g, '그라데이션 블럭이 JSON 에 없다').toBeTruthy();
+  expect(r.g.style.fill).toEqual({ kind: 'gradient', type: 'linear', angle: 45, stops: [
+    { color: '#cc2244', offset: 0, opacity: 1 }, { color: '#2244cc', offset: 1, opacity: 0.5 }] });
+  expect(r.g.style.color).toBe('rgb(204, 34, 68)');
+  expect(r.plain, '단색 블럭이 JSON 에 없다').toBeTruthy();
+  expect(r.plain.style.fill, '그라데이션 안 건 블럭에 fill 이 실렸다').toBeUndefined();
+});
+
+/* ── FX-6 (0918r2 textgrad 픽스): 칠하는 글자 효과(메탈릭 등)가 걸린 블럭은 캔버스에서 효과가 이긴다 →
+ * Figma 에도 사용자 그라데이션을 싣지 않는다(캔버스=Figma). 효과와 그라데이션이 «이미 공존»하는 옛 DOM(클래스 강제)도 같은 판정.
+ * 그라데이션만 건 블럭의 style.color 는 첫 스탑(인라인 color 는 «마지막 단색» 자리라 다를 수 있다). */
+test('FX-6 ★메탈릭 효과 블럭엔 style.fill 없음 · 그라데이션 블럭 style.color = 첫 스탑(인라인 마지막 단색 아님)', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    for (const k of ['pushHistory', 'markDirty', 'scheduleAutoSave', 'updateLayerPanel', 'buildLayerPanel', 'showToast', 'deselectAll'])
+      if (typeof window[k] !== 'function') window[k] = () => {};
+    await import('/js/props/text-block-color.js');
+    const canvas = document.getElementById('canvas');
+    const sec = document.createElement('div'); sec.className = 'section-block'; sec.id = 'sec_tg6';
+    const inner = document.createElement('div'); inner.className = 'section-inner'; inner.style.width = '860px';
+    sec.appendChild(inner); canvas.appendChild(sec);
+    window.getSelectedSection = () => sec; window._activeFrame = null;
+    await window.addTextBlock('body');
+    await window.addTextBlock('body');
+    const tbs = [...sec.querySelectorAll('.text-block')];
+    if (tbs.length < 2) return { made: tbs.length };
+    const css = 'linear-gradient(90deg, #11aa33 0%, #2244cc 100%)';
+    tbs.forEach(tb => { tb.querySelector('.tb-body').style.color = '#cc2244'; window.applyTextGradient(tb, { css }); });
+    tbs[1].querySelector('.tb-body').classList.add('text-effect', 'tfx-metallic');   // 옛 DOM 공존 상태
+    const ps = { bg: '#eeeeee', padX: 0 };
+    window.__state.pages = [{ canvas: canvas.innerHTML, pageSettings: ps }];
+    window.__state.pageSettings = ps;
+    const json = window.buildFigmaExportJSON(null);
+    const all = [];
+    const walk = (bs) => (bs || []).forEach(b => { if (b && b.type === 'text') all.push(b); if (b && b.columns) b.columns.forEach(c => walk(c.blocks)); if (b && b.children) walk(b.children); if (b && b.blocks) walk(b.blocks); });
+    (json.sections || []).filter(s => s.id === 'sec_tg6').forEach(s => walk(s.blocks));
+    const byId = (id) => all.find(b => b.id === id);
+    return { made: tbs.length, g: byId(tbs[0].id), fx: byId(tbs[1].id) };
+  });
+  expect(r.made, '★양성대조: 텍스트 블럭을 못 만들었다').toBe(2);
+  expect(r.g.style.fill && r.g.style.fill.kind).toBe('gradient');
+  expect(r.g.style.color, '폴백 색이 인라인 마지막 단색(#cc2244)이다').toBe('rgb(17, 170, 51)');
+  expect(r.fx.style.fill, '캔버스는 메탈릭인데 Figma 엔 사용자 그라데이션이 실린다').toBeUndefined();
+});
+
+/* ── FX-7 (0919r3 textshadow): 그라데이션 글자의 그림자는 캔버스에선 .tgs(drop-shadow)로 그리고 computed text-shadow 는 none 이다.
+ * Figma 업로드 JSON 의 style.textShadow 는 그래도 «원본 목록»이어야 한다(안 그러면 Figma 에서 그림자가 사라진다).
+ * ★음성대조: 같은 그림자를 건 «단색» 블럭은 원래대로 computed text-shadow 가 실린다. */
+test('FX-7 ★그라데이션 + 그림자 블럭의 style.textShadow = 원본 목록(비지 않음) · 단색 블럭과 같은 값', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    for (const k of ['pushHistory', 'markDirty', 'scheduleAutoSave', 'updateLayerPanel', 'buildLayerPanel', 'showToast', 'deselectAll'])
+      if (typeof window[k] !== 'function') window[k] = () => {};
+    await import('/js/props/text-block-color.js');
+    const canvas = document.getElementById('canvas');
+    const sec = document.createElement('div'); sec.className = 'section-block'; sec.id = 'sec_tg7';
+    const inner = document.createElement('div'); inner.className = 'section-inner'; inner.style.width = '860px';
+    sec.appendChild(inner); canvas.appendChild(sec);
+    window.getSelectedSection = () => sec; window._activeFrame = null;
+    await window.addTextBlock('body');
+    await window.addTextBlock('body');
+    const tbs = [...sec.querySelectorAll('.text-block')];
+    if (tbs.length < 2) return { made: tbs.length };
+    tbs.forEach(tb => { tb.querySelector('.tb-body').style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)'; });
+    window.applyTextGradient(tbs[0], { css: 'linear-gradient(90deg, #cc2244 0%, rgba(204,34,68,0) 100%)' });
+    const el0 = tbs[0].querySelector('.tb-body');
+    const computed = getComputedStyle(el0).textShadow;
+    const ps = { bg: '#eeeeee', padX: 0 };
+    window.__state.pages = [{ canvas: canvas.innerHTML, pageSettings: ps }];
+    window.__state.pageSettings = ps;
+    const json = window.buildFigmaExportJSON(null);
+    const all = [];
+    const walk = (bs) => (bs || []).forEach(b => { if (b && b.type === 'text') all.push(b); if (b && b.columns) b.columns.forEach(c => walk(c.blocks)); if (b && b.children) walk(b.children); if (b && b.blocks) walk(b.blocks); });
+    (json.sections || []).filter(s => s.id === 'sec_tg7').forEach(s => walk(s.blocks));
+    const byId = (id) => all.find(b => b.id === id);
+    return { made: tbs.length, tgs: el0.classList.contains('tgs'), computed, g: byId(tbs[0].id), plain: byId(tbs[1].id) };
+  });
+  expect(r.made, '★양성대조: 텍스트 블럭을 못 만들었다').toBe(2);
+  expect(r.tgs, '★전제: 그라데이션 + 그림자인데 .tgs 가 안 붙었다').toBe(true);
+  expect(r.computed, '★전제: 캔버스 computed text-shadow 가 none 이 아니다').toBe('none');
+  expect(r.plain.style.textShadow, '★음성대조: 단색 블럭 그림자가 안 실렸다').toBe('rgba(0, 0, 0, 0.5) 2px 2px 4px');
+  expect(r.g.style.textShadow, '그라데이션 글자의 그림자가 Figma JSON 에서 사라졌다').toBe(r.plain.style.textShadow);
+  expect(r.g.style.fill && r.g.style.fill.kind).toBe('gradient');
 });

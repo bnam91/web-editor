@@ -209,7 +209,11 @@ test('P7 ★도출 — GRID_CELL_FIELDS 가 «renderGridBlock 이 셀에서 읽�
 });
 
 test('P8 ★양성대조 — 렌더러가 «새 필드»를 읽기 시작하면 도출이 잡는가', () => {
-  const mutated = RAW.replace('const align = line.align', 'const zz = line.brandNewThing; const align = line.align');
+  /* ★닻 이사 (2026-09-24 T-170) — 옛 닻은 `const align = line.align || colAlign || 'left'` 였다.
+     그 줄이 `_gridAlign(...)` 을 지나게 바뀌면서(명부 밖 정렬값이 style 속성으로 새던 자리)
+     닻만 옮긴다. ⛔이 시험이 «재는 것»은 그대로다 — 「렌더러가 새 `line.*` 를 읽기 시작하면
+     P6 의 도출이 그것을 뽑아내는가」. 꽂는 자리만 바뀌었다. */
+  const mutated = RAW.replace('const align = _gridAlign(line.align', 'const zz = line.brandNewThing; const align = _gridAlign(line.align');
   assert.notEqual(mutated, RAW, '★변이가 주입되지 않았다');
   const read = uniq([...fnBody(mutated, '_gridLineHtml').matchAll(/\bline\.([A-Za-z_]\w*)/g)].map(m => m[1]));
   assert.ok(read.includes('brandNewThing'),

@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 const FONT_WEIGHTS = [
@@ -168,18 +169,15 @@ export function showLaurelProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <path d="M3 10c0-3 0-6 3-8M9 10c0-3 0-6-3-8" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Laurel'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Laurel',
+      crumb: window.getBlockBreadcrumb(block),
+      id: block.id,
+    })}
     </div>
 
     <div class="prop-section">
@@ -289,10 +287,10 @@ export function showLaurelProperties(block) {
     if (!cell) return;
     const newCols = parseInt(cell.dataset.c);
     const newRows = parseInt(cell.dataset.r);
-    window.pushHistory?.('Laurel 그리드');
     block.dataset.gridCols = String(newCols);
     block.dataset.gridRows = String(newRows);
     rerender();              // cells push/pop은 renderLaurelBlock이 처리
+    window.pushHistory?.('Laurel 그리드');   // ★쓰기 «뒤»에 — prop-text-wireup-align.js 의 같은 까닭
     showLaurelProperties(block);
     window.scheduleAutoSave?.();
   });
@@ -370,11 +368,11 @@ export function showLaurelProperties(block) {
   propPanel.querySelectorAll('.lrl-line-fw').forEach(sel => {
     const ci = parseInt(sel.dataset.cell), li = parseInt(sel.dataset.line);
     sel.addEventListener('change', () => {
-      window.pushHistory?.('줄 굵기');
       const cur = _readCells(block);
       cur[ci].lines[li].fontWeight = parseInt(sel.value);
       _writeCells(block, cur);
       rerender();
+      window.pushHistory?.('줄 굵기');   // ★쓰기 «뒤»에 찍는다 — 위 prop-text-wireup-align.js 의 같은 까닭
     });
   });
 
@@ -442,10 +440,10 @@ export function showLaurelProperties(block) {
       const ci = parseInt(btn.dataset.cell), li = parseInt(btn.dataset.line);
       const cur = _readCells(block);
       if (!cur[ci]?.lines || cur[ci].lines.length <= 1) return;
-      window.pushHistory?.('줄 삭제');
       cur[ci].lines.splice(li, 1);
       _writeCells(block, cur);
       rerender();
+      window.pushHistory?.('줄 삭제');   // ★쓰기 «뒤»에 찍는다 — 위 prop-text-wireup-align.js 의 같은 까닭
       showLaurelProperties(block);
     });
   });
@@ -456,12 +454,12 @@ export function showLaurelProperties(block) {
       const ci = parseInt(btn.dataset.cell);
       const cur = _readCells(block);
       if (!cur[ci]) return;
-      window.pushHistory?.('줄 추가');
       const lastColor = cur[ci].lines?.[cur[ci].lines.length - 1]?.color || '#1a1a1a';
       cur[ci].lines = cur[ci].lines || [];
       cur[ci].lines.push({ text: '텍스트', fontSize: 28, fontWeight: 500, color: lastColor });
       _writeCells(block, cur);
       rerender();
+      window.pushHistory?.('줄 추가');   // ★쓰기 «뒤»에 찍는다 — 위 prop-text-wireup-align.js 의 같은 까닭
       showLaurelProperties(block);
     });
   });
@@ -475,7 +473,6 @@ export function showLaurelProperties(block) {
       const cur = _readCells(block);
       const lines = cur[ci]?.lines;
       if (!Array.isArray(lines) || lines.length < 2) return;
-      window.pushHistory?.('줄 순서 변경');
       if (li === 0) {
         // 맨 위 → 맨 아래로 (배열 회전)
         const first = lines.shift();
@@ -486,6 +483,7 @@ export function showLaurelProperties(block) {
       }
       _writeCells(block, cur);
       rerender();
+      window.pushHistory?.('줄 순서 변경');   // ★쓰기 «뒤»에 찍는다 — 위 prop-text-wireup-align.js 의 같은 까닭
       showLaurelProperties(block);
     });
   });
@@ -594,12 +592,12 @@ export function showLaurelProperties(block) {
   propPanel.querySelectorAll('.lrl-cell-fill').forEach(sel => {
     const ci = parseInt(sel.dataset.cell);
     sel.addEventListener('change', () => {
-      window.pushHistory?.('월계수 채움');
       const cur = _readCells(block);
-      if (!cur[ci]) return;
+      if (!cur[ci]) return;   // ★찍기 «전»에 빠져나간다 — 옛 판은 찍은 뒤라 「아무 일도 없었다」가 한 칸이 됐다
       cur[ci].leafFill = sel.value;
       _writeCells(block, cur);
       rerender();
+      window.pushHistory?.('월계수 채움');   // ★쓰기 «뒤»에 찍는다 — 위 prop-text-wireup-align.js 의 같은 까닭
       showLaurelProperties(block); // 색상 picker 활성/비활성 갱신
     });
   });

@@ -8,7 +8,6 @@ export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       if (!btn.dataset.align) return; // 말꼬리 방향 버튼은 data-align 없으므로 무시
-      window.pushHistory?.();
       // label(inline-block)은 부모 tb에 text-align 적용해야 블록 자체가 정렬됨
       if (ctx.contentEl.classList.contains('tb-label')) {
         tb.style.textAlign = btn.dataset.align;
@@ -34,6 +33,16 @@ export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
           window.scheduleAutoSave?.();
         }
       }
+      /* ★[2026-09-22 · T-135 의 빠진 넷째] 순서를 뒤집었다 — 2026-09-21 에 형제 셋
+         (js/props/prop-asset.js · prop-mockup.js · prop-iconify.js)을 뒤집은 그 결정의 남은 하나다.
+         까닭은 prop-asset.js 의 그 주석 그대로: 직전 편집이 push-after 인 순간(⌘Z «직후»도 같다)
+         이 클릭의 push-before 가 꼭대기와 «같은 상태»를 찍어 무변화 중복 차단에 버려진다
+         ⇒ 칸이 +0 이고, 차단은 redo 꼬리도 «안» 자르므로 ⌘⇧Z 한 번이 방금 한 정렬을
+         «스택에 한 번도 안 찍힌 채» 덮어쓴다. 단추가 «한 클릭 = 한 걸음»인 성질은 안 깨진다.
+         ⛔js/CLAUDE.md 의 「onUp 의 pushHistory 를 옮기지 마라」와 다른 꼴이다 — 그건 드래그
+           제스처의 «두 끝» 얘기고, 여기는 클릭 핸들러 «한 걸음» 안의 순서다.
+         게이트: tests/e2e/13-undo-family.spec.js U1 의 T-009 형제(editSlot). */
+      window.pushHistory?.();
       propPanel.querySelectorAll('.prop-align-btn[data-align]').forEach(b => b.classList.toggle('active', b===btn));
     });
   });

@@ -13,6 +13,42 @@
 ══════════════════════════════════════ */
 
 /* ────────────────────────────────────
+   COLOR SCHEME — 앱 문서의 «색 체계» 선언 (토큰이 아니다)
+   ★왜 여기냐 = 이 파일을 «CSS 를 쓰는 앱 창이 전부» 읽는다.
+     editor-base.css 가 @import 하고(→ index.html·projects.html·template-browser.html),
+     pages/license.html 은 직접 링크한다. 외부 CSS 를 하나도 안 읽는
+     pages/planning.html 만 자기 :root 에 같은 줄을 따로 갖는다.
+     (위 DEPRECATED 안내는 «UI 토큰»에 대한 것이다 — 색 체계는 토큰이 아니라 문서 선언이라
+      --ui-* 자리에 둘 수 없다.)
+
+   ★무엇을 고치는가 (현빈 신고 2026-09-20:
+     「우측패널에 나타나는 라디오버튼의 css가 흰색인거는 css 적용이안된거니?」)
+     아니다 — CSS 는 먹었다. 색 체계가 없었다.
+     라디오·체크박스는 «면 전체»를 브라우저가 칠한다 — author 의 background-color 가 애초에
+     안 닿는 부품이다. 색 체계가 normal 이면 그 칠이 «밝은 테마»라, 다크 패널 위에서
+     «체크 안 된» 라디오·체크박스가 흰 동그라미로 떴다.
+     (체크된 것만 accent-color 로 파랗게 보여 「일부만 적용됐다」처럼 읽혔다.)
+
+   ★어디까지 달라지나 — 9397 격리 실기 실측(2026-09-20, 컨트롤 69개 · 색 체계만 토글):
+     · «화면이» 바뀌는 것 = 체크 안 된 checkbox·radio, 그리고 앱이 배경을 «안 준»
+       bare input[type=text]·input[type=file] 버튼·input[type=color] 테두리.
+     · «안» 바뀌는 것 = author 가 background 를 준 select·text·number·textarea 와
+       appearance:none 인 .prop-slider/.prop-select. select 는 appearance:auto 여도
+       author background 를 그대로 칠한다(rgb(42,42,42) 전후 동일 — 추측이 아니라 픽셀 실측).
+     · 캔버스(사용자 작업물)는 네이티브 컨트롤이 «0개»라 그대로다 — 에디터 창 전체
+       픽셀 대조에서 바뀐 덩어리는 «체크 안 된 라디오 3개»뿐이었다.
+     · 못 잰 것 = select 드롭다운 «팝업»(OS 가 그려 CDP 스크린샷에 안 잡힌다).
+
+   ★답을 «한 곳»에 둔 이유 = editor-base.css:412~419(스크롤바 코너)와 같은 규율 —
+     「34곳에 따로 붙이지 않는다. 개별로 붙이면 반드시 한 곳이 빠진다.」
+   ★accent-color 는 여기서 «건드리지 않는다» — css/release-note.css:83~94 가 같은 증상을 겪고
+     남긴 결론(「accent-color 는 지정하지 않는다, color-scheme: dark 한 줄만 남긴다」)을 그대로 따른다.
+   ★라이트 테마는 이 앱에 «없다»(data-theme·prefers-color-scheme 분기 0건, 2026-09-20 전수).
+     생기면 이 줄을 `light dark` 로 바꾸고 테마 분기에서 정하게 해야 한다.
+──────────────────────────────────── */
+:root { color-scheme: dark; }
+
+/* ────────────────────────────────────
    PRIMITIVE TOKENS
    raw values — no meaning attached
    (LIVE 세트만 유지 — 보존 semantic이 참조하는 primitive)

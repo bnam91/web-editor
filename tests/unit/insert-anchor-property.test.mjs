@@ -187,7 +187,8 @@ test('G3c ★«두 자리»가 같은 술어를 본다 — 한 곳만 고치면 
   assert.ok(FIND_SRC.includes('isFlowAnchorBlock('),
     '탐색기가 성질 술어를 안 쓴다 — 두 자리가 같아도 판정이 다르면 소용없다');
   // 양성대조: 두 분기가 실재하는지(ssInner 분기 / 섹션 레벨 분기)
-  assert.ok(/const activeSS = window\._activeFrame/.test(INSERT_SRC), '전제: 프레임 안 분기가 실재한다');
+  // 0918 shape A안: 활성 프레임은 resolveInsertFrame(도형 래퍼 제외) 을 거쳐 읽는다
+  assert.ok(/const activeSS = resolveInsertFrame\(window\._activeFrame\)/.test(INSERT_SRC), '전제: 프레임 안 분기가 실재한다');
 });
 
 test('S1 첫 후보를 고르는 순서·범위가 그대로다 (문서순 · .section-inner 안)', () => {

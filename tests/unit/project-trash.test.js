@@ -11,6 +11,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const T = require('../../main/trash');
+const F = require('../../main/folders');
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -153,6 +154,35 @@ test('T12 ⛔경로 탈출을 막는다', () => {
     const r = T.moveToTrash({ projectsDir: dir, projectId: bad });
     assert.equal(r.ok, false, `${bad} 를 통과시켰다`);
     assert.equal(r.code, 'invalid_id');
+  }
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * T24 — ★[T-064] 기획(plan_*) 프로젝트도 버리고 되살릴 수 있다.
+ *   목록(_isListableProjectId)이 기획 카드를 «싣기 시작»한 뒤, 여기가 proj_ 만 받으면
+ *   「보이는데 못 지우는 카드」가 된다 — 실측(2026-09-21, 격리 9547 실앱):
+ *   projects:delete → {ok:false, reason:'trash_failed', code:'invalid_id'} 로 거절당하고
+ *   목록엔 그대로 남았다. 사용자에겐 «지워지지 않는 카드»다.
+ * ══════════════════════════════════════════════════════════════════════════ */
+test('T24 ★기획(plan_*)도 휴지통에 가고 되살아난다 — 「보이는데 못 지우는 카드」 봉쇄', () => {
+  const dir = makeProjectsDir(['plan_1789980680078']);
+  const r = T.moveToTrash({ projectsDir: dir, projectId: 'plan_1789980680078' });
+  assert.ok(r.ok, `★기획을 못 버린다: ${JSON.stringify(r)}`);
+  assert.ok(!fs.existsSync(path.join(dir, 'plan_1789980680078')), '원래 자리에 남았다');
+  const l = T.listTrash({ projectsDir: dir });
+  assert.equal(l.items.length, 1, '★휴지통 목록이 기획을 안 보여준다 — 되살릴 길이 없다');
+  assert.equal(l.items[0].projectId, 'plan_1789980680078');
+  const re = T.restoreFromTrash({ projectsDir: dir, projectId: 'plan_1789980680078' });
+  assert.ok(re.ok, `★기획을 못 되살린다: ${JSON.stringify(re)}`);
+  assert.ok(fs.existsSync(path.join(dir, 'plan_1789980680078', 'proj.json')), '되살아나지 않았다');
+});
+
+test('T25 ⛔넓힌 것은 «접두뿐» — plan_ 을 붙여도 경로 탈출은 여전히 막힌다', () => {
+  const dir = makeProjectsDir();
+  for (const bad of ['plan_../x', '../plan_1', 'plan_', 'planx_1000']) {
+    const r = T.moveToTrash({ projectsDir: dir, projectId: bad });
+    assert.equal(r.ok, false, `${bad} 를 통과시켰다`);
+    assert.equal(r.code, 'invalid_id', `${bad} 가 invalid_id 가 아니다`);
   }
 });
 
@@ -330,4 +360,30 @@ test('T14 깨진 메타 하나가 목록 «전체»를 죽이지 않는다', () 
   const l = T.listTrash({ projectsDir: dir });
   assert.equal(l.items.length, 1, '멀쩡한 것까지 안 보인다');
   assert.equal(l.items[0].projectId, 'proj_2000');
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * T-A × 휴지통(2026-09-16, 인수시험 3) — 폴더에 넣은 프로젝트를 휴지통→되살리기 하면
+ *   폴더 소속(folderId)이 복원돼야 한다.
+ * ★코드 변경 없이 성립해야 «맞는» 설계다 — moveToTrash/restoreFromTrash 는 proj_<id> 폴더
+ *   «통째로»(proj_meta.json 포함) 옮기므로, folderId 는 애초에 그 파일 안에 실려 같이 간다.
+ *   이 검사는 그 전제를 실측으로 못박는다(회귀가 나면 즉시 빨강이 되어야 한다).
+ * ══════════════════════════════════════════════════════════════════════════ */
+test('TF1 ★폴더에 넣은 프로젝트를 휴지통→되살리기 하면 folderId 가 복원된다', () => {
+  const dir = makeProjectsDir(['proj_8000']);
+  const f = F.createFolder({ projectsDir: dir, name: '여름신상' }).folder;
+  F.assignFolder({ projectsDir: dir, projectIds: ['proj_8000'], folderId: f.id });
+
+  const before = JSON.parse(fs.readFileSync(path.join(dir, 'proj_8000', 'proj_meta.json'), 'utf8'));
+  assert.equal(before.folderId, f.id, '전제: 배정이 실제로 됐어야 한다');
+
+  const tr = T.moveToTrash({ projectsDir: dir, projectId: 'proj_8000' });
+  assert.ok(tr.ok, JSON.stringify(tr));
+  const rs = T.restoreFromTrash({ projectsDir: dir, projectId: 'proj_8000' });
+  assert.ok(rs.ok, JSON.stringify(rs));
+
+  const after = JSON.parse(fs.readFileSync(path.join(dir, 'proj_8000', 'proj_meta.json'), 'utf8'));
+  assert.equal(after.folderId, f.id, '★휴지통 왕복 후 폴더 소속을 잃었다');
+  // 폴더 레코드 자체도 안 건드려졌어야 한다(휴지통이 folders.json 을 열 이유가 없다)
+  assert.equal(F.listFolders({ projectsDir: dir }).folders.length, 1);
 });

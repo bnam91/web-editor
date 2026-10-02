@@ -60,6 +60,7 @@ const CONSTS = [
   line(/const _rowEdge = [^\n;]+;/),
   line(/const _snapLo = [^\n;]+;/),
   line(/const _snapHi = [^\n;]+;/),
+  line(/export const SEL_FOLLOW_RADIUS = [^\n;]+;/).replace(/^export\s+/, '').replace('false', 'true'),   // 하네스는 반경 산술을 계속 잰다
   line(/const _RAD_PROPS = \{[\s\S]*?\};/),
   line(/const _ZERO_R = \{[^\n]*\};/),
   line(/export const STROKE_W = \{[^\n]*\};/).replace(/^export\s+/, ''),

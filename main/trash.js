@@ -11,7 +11,8 @@
  *   <projectsDir>/.trash/<projectId>/legacy/<이름> ← 구 flat 잔재(<id>.json, <id>_history …)
  *   <projectsDir>/.trash/<projectId>.json          ← 메타(무엇을 어디서 옮겼나·언제)
  *   ★메타를 «프로젝트 폴더 안»에 두지 않는다 — 복원한 프로젝트에 남의 파일이 남는다.
- *   ★`.trash` 는 점으로 시작해 `_listProjectsImpl` 의 /^proj_\d+$/ 필터에 «자동으로» 안 걸린다.
+ *   ★`.trash` 는 점으로 시작해 `_listProjectsImpl` 의 id 모양 검사(_isListableProjectId —
+ *     `/^(?:proj|plan)_\d+$/`)에 «자동으로» 안 걸린다.
  *
  * ⛔여기서 «영구 삭제»를 하지 않는다. 만료분도 OS 휴지통으로 넘긴다(trashItem 주입).
  *   마지막 그물을 우리가 끊으면 되돌릴 길이 없어진다.
@@ -29,7 +30,12 @@ const LEGACY_SUFFIXES = ['.json', '_meta.json', '_backup.json', '_history'];
 const trashDir  = (projectsDir) => path.join(projectsDir, TRASH_DIRNAME);
 const entryDir  = (projectsDir, id) => path.join(trashDir(projectsDir), id);
 const metaPath  = (projectsDir, id) => path.join(trashDir(projectsDir), `${id}.json`);
-const isProjId  = (id) => typeof id === 'string' && /^proj_[A-Za-z0-9_-]+$/.test(id);
+/* ★[T-064] 기획(plan_*)도 받는다 — 목록(_isListableProjectId)이 기획 카드를 «싣기 시작»했으므로
+     여기가 proj_ 만 받으면 「보이는데 못 지우는 카드」가 된다(실측 2026-09-21 9547:
+     projects:delete → {ok:false, code:'invalid_id'} 로 거절, 목록엔 그대로 남았다).
+   ⛔경로 세그먼트로 쓰이므로 «모양»은 그대로 강제한다 — [A-Za-z0-9_-] 밖은 여전히 거절(traversal 가드).
+   ⛔폴더(main/folders.js isProjId)는 «일부러» 안 넓힌다 — 기획은 폴더에 못 들어가는 게 지금의 의도(T-062). */
+const isProjId  = (id) => typeof id === 'string' && /^(?:proj|plan)_[A-Za-z0-9_-]+$/.test(id);
 
 /* ★★«비었을 때만» 지운다 (2026-09-08 지디 지적).
      rmSync(recursive, force) 는 «영구 삭제»라, 안에 무엇이 남아 있으면 그걸 그대로 없앤다.

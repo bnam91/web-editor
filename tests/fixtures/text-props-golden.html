@@ -10,7 +10,7 @@
           <span class="prop-block-name">Golden Text</span>
           <span class="prop-breadcrumb">Section 1 / Row 1</span>
         </div>
-        <span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('tb_golden')">tb_golden</span>
+        <span class="prop-block-id" title="클릭하여 복사" data-copy-id="tb_golden">tb_golden</span>
       </div>
     </div>
 
@@ -28,7 +28,21 @@
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">Position</div>
+      <!-- ★2026-09-16g 현빈 정정(T-001) — Ignore Auto Layout 토글은 Alignment 줄이 아니라
+           "Position" «섹션 제목과 같은 줄», 오른쪽 끝이었다(Figma 레퍼런스 스크린샷 재확인).
+           id·클릭 배선(prop-text-wireup-overlay.js wireOverlaySection)은 그대로 — 자리만 옮긴다. -->
+      <div class="prop-section-title prop-ph-header" style="margin-bottom:0">
+        <span>Position</span>
+        
+        <button type="button" class="prop-chain-btn prop-chain-btn--overlay" id="txt-overlay-toggle"
+          aria-pressed="false"
+          title="오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.">
+          <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2">
+            <rect x="1" y="4" width="6" height="6" rx="1"/>
+            <rect x="5" y="1" width="6" height="6" rx="1" fill="var(--ui-bg-card)"/>
+          </svg>
+        </button>
+      </div>
       <span class="prop-field-label">Alignment</span>
       <div class="prop-align-group" style="margin-bottom:6px">
           <button class="prop-align-btn " data-align="left">
@@ -85,6 +99,7 @@
         <div class="font-picker-dropdown" id="txt-font-dropdown" style="display:none">
           <input class="font-picker-search" id="txt-font-search" type="text" placeholder="폰트 검색..." autocomplete="off" spellcheck="false">
           <div class="font-picker-list" id="txt-font-list"></div>
+          <button class="font-picker-noonnu" id="txt-font-noonnu" type="button">🔗 눈누에서 폰트 더 받기</button>
         </div>
       </div>
 
@@ -138,7 +153,7 @@
           <div class="prop-color-swatch" style="background:#ff3366" title="">
             <input type="color" id="txt-color" value="#ff3366">
           </div>
-          <input type="text" class="prop-color-hex" id="txt-color-hex" value="FF3366" placeholder="" maxlength="6" aria-label="Color">
+          <input type="text" class="prop-color-hex" id="txt-color-hex" value="FF3366" placeholder="" maxlength="7" aria-label="Color">
           <label class="prop-color-alpha" title="Opacity">
             <input type="text" class="prop-color-alpha-input" id="txt-color-alpha" value="80" aria-label="Opacity">
             <span class="prop-color-alpha-suffix">%</span>
@@ -178,7 +193,7 @@
             <div class="prop-color-swatch" style="background:rgba(17,34,51,0.4)">
               <input type="color" id="txt-shadow-color" value="#112233">
             </div>
-            <input type="text" class="prop-color-hex" id="txt-shadow-color-hex" value="112233" maxlength="6" aria-label="Shadow color">
+            <input type="text" class="prop-color-hex" id="txt-shadow-color-hex" value="112233" maxlength="7" aria-label="Shadow color">
             <label class="prop-color-alpha" title="Opacity">
               <input type="text" class="prop-color-alpha-input" id="txt-shadow-color-alpha" value="40" aria-label="Shadow opacity">
               <span class="prop-color-alpha-suffix">%</span>
@@ -246,7 +261,7 @@
           <div class="prop-color-swatch" style="background:#ffffff">
             <input type="color" id="label-bg-color" value="#ffffff">
           </div>
-          <input type="text" class="prop-color-hex" id="label-bg-hex" value="#ffffff" maxlength="7" placeholder="없음">
+          <input type="text" class="prop-color-hex" id="label-bg-hex" value="FFFFFF" maxlength="7" placeholder="없음" aria-label="Color">
           <label class="prop-none-check"><input type="checkbox" id="label-bg-none" >없음</label>
         </div>
         <div class="prop-row">
@@ -286,7 +301,7 @@
           <div class="prop-color-swatch" style="background:#ffffff">
             <input type="color" id="bubble-bg-color" value="#ffffff">
           </div>
-          <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="#ffffff" maxlength="7">
+          <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="FFFFFF" maxlength="7" aria-label="Color">
         </div>
         <div class="prop-row">
           <span class="prop-label">발신자 이름</span>

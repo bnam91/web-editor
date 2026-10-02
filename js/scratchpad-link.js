@@ -569,6 +569,29 @@
 
   let _lastEdgePath = null; // diff-skip 캐시(좌표 불변 시 DOM 미변경)
 
+  /* ══ 연결선의 «두 끝» — 화면(client) 좌표. ★그리는 자와 «맞추는 자»가 같은 수를 봐야 한다.
+   *   ⛔여기서 한 벌, 더블클릭 판정에서 한 벌 적으면 「보이는 선」과 「눌리는 선」이 갈린다 —
+   *     사용자에겐 「선을 눌렀는데 안 먹는다」로 보이고, 그건 이 레포의 고질이다.
+   *   돌려주는 값: 이미지 «중심» → 섹션의 가까운 세로변 «중앙». attachRight = 이미지가 오른쪽인가.
+   *   null = 한쪽이 «안 그려졌다»(0×0 — 숨김/접힘). 그 경우 선도 안 긋고 판정도 안 한다. */
+  function _edgeEnds(sec, item) {
+    const ir = item.getBoundingClientRect(), sr = sec.getBoundingClientRect();
+    if ((ir.width === 0 && ir.height === 0) || (sr.width === 0 && sr.height === 0)) return null;
+    const icx = ir.left + ir.width / 2, icy = ir.top + ir.height / 2;
+    const attachRight = icx > (sr.left + sr.width / 2);
+    return { ix: icx, iy: icy, sx: attachRight ? sr.right : sr.left, sy: sr.top + sr.height / 2, attachRight };
+  }
+
+  /* 점 → 선분 거리. ⛔직선(무한) 거리로 재지 마라 — 선분 «밖»의 먼 점이 가깝다고 나온다. */
+  function _distToSeg(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 === 0 ? 0 : ((px - x1) * dx + (py - y1) * dy) / len2;
+    t = t < 0 ? 0 : (t > 1 ? 1 : t);
+    const qx = x1 + t * dx, qy = y1 + t * dy;
+    return Math.hypot(px - qx, py - qy);
+  }
+
   // 연결선(scaler-local 좌표): 스크래치 아이템 중심 → 섹션 가까운 세로변 중앙. SVG가 scaler 안이라
   //   좌표는 (elRect - scalerRect)/scale (줌 전). 줌/팬은 scaler transform이 SVG째 적용→자동 추종.
   function _drawEdges() {
@@ -585,17 +608,17 @@
         const sec = document.getElementById(sectionId);
         const item = _scEl(scratchId);
         if (!sec || !item) continue;
-        const ir = item.getBoundingClientRect(), sr = sec.getBoundingClientRect();
         /* [#16-C] 안 그려진 쪽으로는 선을 긋지 않는다 — display:none 인 요소의 rect 는 «전부 0» 이라
          *   그대로 두면 선이 캔버스 좌상단(0,0)으로 뻗는 «허공 선»이 된다.
          *   ★스크래치 일괄 숨기기(window.toggleScratchHideAll)가 바로 이 상태를 만든다.
          *   ★특정 기능이 아니라 «rect 로» 판정한다 — 숨김 경로가 늘어도 이 문 하나로 닫힌다
          *     (클래스명으로 판정하면 다음 숨김 경로에서 같은 버그가 다시 난다).
-         *   ⚠️0×0 은 「없다」가 아니라 「안 보인다」다 — 데이터·연결은 그대로 살아 있다. */
-        if ((ir.width === 0 && ir.height === 0) || (sr.width === 0 && sr.height === 0)) continue;
-        const ix = toLocalX(ir.left + ir.width / 2), iy = toLocalY(ir.top + ir.height / 2); // 스크래치 중심
-        const attachRight = (ir.left + ir.width / 2) > (sr.left + sr.width / 2);
-        const sx = toLocalX(attachRight ? sr.right : sr.left), sy = toLocalY(sr.top + sr.height / 2);
+         *   ⚠️0×0 은 「없다」가 아니라 「안 보인다」다 — 데이터·연결은 그대로 살아 있다.
+         *   ★그 판정은 이제 _edgeEnds 안에 있다(null = 안 그려졌다) — 맞추는 자도 같은 문을 쓴다. */
+        const _e = _edgeEnds(sec, item);
+        if (!_e) continue;
+        const ix = toLocalX(_e.ix), iy = toLocalY(_e.iy);   // 스크래치 중심
+        const sx = toLocalX(_e.sx), sy = toLocalY(_e.sy);
         s += '<line x1="' + ix.toFixed(1) + '" y1="' + iy.toFixed(1) + '" x2="' + sx.toFixed(1) + '" y2="' + sy.toFixed(1) + '"/>' +
              '<circle cx="' + ix.toFixed(1) + '" cy="' + iy.toFixed(1) + '" r="3.5" class="spl-edge-dot"/>';
       }
@@ -684,6 +707,120 @@
       return r;
     };
     window.__splSectionHook = true;
+    return true;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // [P4 = 당기기]  연결선 «더블클릭» → 그 참고이미지 한 장을 섹션 옆 «빈 자리»로 당긴다.
+  //   현빈 2026-09-30: 「점선을 더블클릭하면 하나씩 당겨지는걸로 · 동적으로」
+  //   ＋「여러장인 경우 가져올때 겹치지 않게끔. 세로로 스택되면 밑에 다른거랑 또 겹칠 수
+  //      있으니 동적으로 계산해서」
+  //
+  // ★확정된 동작 — 누른 «그 선»의 한 장만 온다(나머지는 제자리) · 거리는 한 번에 끝 ·
+  //   이미 와 있으면 아무 일도 안 한다 · 되돌리기는 ⌘Z 한 번.
+  //
+  // ⛔★선에 pointer-events 를 «켜지 않는다». 실측(2026-09-30): 이 SVG 는 z-index 90 으로
+  //   «섹션보다 앞»이다(css/editor-extra.css 의 .spl-edges — 그 줄 주석이 「섹션 앞 + 스크래치
+  //   뒤」라고 못박아 뒀다). 선에 히트영역을 주면 섹션 위를 지나는 구간이 블록 더블클릭
+  //   (글자 인라인 편집)을 훔친다 — 얻는 것보다 잃는 것이 크다.
+  //   ⇒ 대신 «바깥틀에서 듣고 기하로 잰다». 선은 끝까지 pointer-events:none 이라
+  //     남의 클릭을 훔칠 길이 «원리적으로» 없다.
+  // ★잡는 폭은 «화면 px» 로 잰다 — 선은 2px 이고 편집 배율 40%면 화면상 0.8px 이다.
+  //   오늘 구분선에서 겪은 것과 같은 함정이라, 보이는 굵기가 아니라 손에 닿는 굵기로 잰다.
+  // ⛔펜·주석 도구가 켜져 있으면 여기 오지 않는다 — 그쪽이 capture 단계에서 stopPropagation
+  //   한다(js/pen-tool.js · js/annotation-tool.js). 그래서 도구 판정을 «여기서 또» 하지 않는다.
+  // ═══════════════════════════════════════════════════════════════════
+  const DBL_HIT_PX = 8;     // 선에서 이만큼(화면 px) 안이면 「선을 눌렀다」
+  const PULL_GAP   = 24;    // 섹션 세로변에서 바깥으로 띄울 거리(scaler-local px)
+
+  /** 화면 한 점에 «가장 가까운» 연결선. 없으면 null. */
+  function _linkAtPoint(cx, cy) {
+    let best = null;
+    for (const link of allLinks()) {
+      const sec = document.getElementById(link.sectionId);
+      const item = _scEl(link.scratchId);
+      if (!sec || !item) continue;
+      const e = _edgeEnds(sec, item);
+      if (!e) continue;                                  // 안 그려진 선은 «없는 선»이다
+      const d = _distToSeg(cx, cy, e.ix, e.iy, e.sx, e.sy);
+      if (d <= DBL_HIT_PX && (!best || d < best.d)) best = { d, link, sec, item, ends: e };
+    }
+    return best;
+  }
+
+  /* ★당겨 놓을 자리 — 가로는 섹션 변 바깥 PULL_GAP, 세로는 «빈 자리를 찾아서».
+   *   ⛔「세로로 한 칸씩 쌓기」로 하지 않는다 — 현빈 지적대로 그러면 «밑에 있던 다른 것»과
+   *     또 겹친다. 그래서 매번 «지금 화면에 있는 모든» 스크래치 아이템을 보고 계산한다
+   *     (그 섹션 것이든 남의 섹션 것이든 연결 안 된 것이든 전부).
+   *   방식 = 스카이라인 한 줄: 세로로 겹칠 수 있는 것들(가로가 겹치는 것)을 위에서부터
+   *     훑어 내려가며 y 를 «밀어 내린다». y 는 단조 증가라 한 번 지난 것과 다시 겹치지 않는다.
+   *   ⛔가로가 안 겹치면 세로가 겹쳐도 상관없다 — 나란히 놓이는 것은 겹침이 아니다.
+   *   ⚠️0×0(숨김·접힘) 아이템은 «피하지 못한다» — 높이를 «잴 수가 없어서»다(저장본에 폭만
+   *     있고 높이는 그림 비율에서 나온다). 숨긴 것을 다시 켜면 겹칠 수 있고, 그때는 다시
+   *     당기면 된다. ★모르는 값을 지어내 자리를 비우지 않는다.
+   *   ★섹션은 막는 것에 안 넣는다 — 놓는 x 는 «모든 섹션의 가로 범위 밖»이다(같은 칼럼).
+   *   @returns {{x:number,y:number}} scaler-local px */
+  function _pullDest(sec, item, attachRight) {
+    const scaler = _scaler();
+    const scale = (window.currentZoom || 100) / 100 || 1;
+    const scRect = scaler.getBoundingClientRect();
+    const sr = sec.getBoundingClientRect();
+    const toLX = (v) => (v - scRect.left) / scale;
+    const toLY = (v) => (v - scRect.top) / scale;
+    const w = item.offsetWidth || 0, h = item.offsetHeight || 0;
+    const x = attachRight ? toLX(sr.right) + PULL_GAP : toLX(sr.left) - PULL_GAP - w;
+    let y = toLY(sr.top);
+    const blockers = [...document.querySelectorAll('.scratch-item')]
+      .filter(el => el !== item)
+      .map(el => ({
+        x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0,
+        w: el.offsetWidth || 0, h: el.offsetHeight || 0,
+      }))
+      .filter(b => b.w > 0 && b.h > 0)                         // 숨김은 잴 수 없다(위 ⚠️)
+      .filter(b => x < b.x + b.w && b.x < x + w)               // 가로가 겹치는 것만 «막는다»
+      .sort((a, b) => a.y - b.y);
+    for (const b of blockers) {
+      if (y < b.y + b.h + STACK_GAP && y + h > b.y) y = b.y + b.h + STACK_GAP;
+    }
+    return { x: Math.round(x), y: Math.round(y) };
+  }
+
+  /** 연결 하나를 당긴다. 자리·저장·되돌리기는 스크래치가 맡는다(window._scratchAnimateItemTo).
+   *  @returns {{ok:boolean, moved?:boolean, reason?:string}} */
+  function pullLink(scratchId) {
+    const link = allLinks().find(l => l.scratchId === scratchId);
+    if (!link) return { ok: false, reason: 'NO_LINK' };
+    const sec = document.getElementById(link.sectionId);
+    const item = _scEl(scratchId);
+    if (!sec || !item) return { ok: false, reason: 'NO_EL' };
+    const e = _edgeEnds(sec, item);
+    if (!e) return { ok: false, reason: 'HIDDEN' };
+    const dest = _pullDest(sec, item, e.attachRight);
+    /* 섹션 기준 세로 간격을 «목표 자리»로 다시 잡아 준다 — 안 하면 추종루프가 다음 프레임에
+       옛 linkDy 로 되돌려 당긴 것이 «튕겨» 나간다. */
+    const scale = (window.currentZoom || 100) / 100 || 1;
+    const scRect = _scaler().getBoundingClientRect();
+    const secTop = (sec.getBoundingClientRect().top - scRect.top) / scale;
+    if (typeof window._scratchAnimateItemTo !== 'function') return { ok: false, reason: 'NO_API' };
+    return window._scratchAnimateItemTo(scratchId, dest.x, dest.y,
+      { label: '참고이미지 당기기', linkDy: dest.y - secTop });
+  }
+
+  /* 더블클릭 — «바깥틀»에서 듣는다. ⛔블록·섹션·스크래치 아이템 위에서는 손을 떼라:
+     그쪽에 이미 더블클릭의 뜻이 있다(글자 인라인 편집 등). 선은 섹션 변에서 이미지까지
+     «둘의 밖»을 지나므로, 그 구간만으로도 잡을 데는 넉넉하다(실측으로 확인할 자리). */
+  function _installPullDblClick() {
+    const wrap = _wrap();
+    if (!wrap || wrap.__splPullDbl) return true;
+    wrap.__splPullDbl = true;
+    wrap.addEventListener('dblclick', (e) => {
+      if (!_showEdges) return;                       // 선이 안 보이면 당길 손잡이도 없다
+      if (e.target.closest('.section-block, .scratch-item, [contenteditable="true"]')) return;
+      const hit = _linkAtPoint(e.clientX, e.clientY);
+      if (!hit) return;
+      e.preventDefault(); e.stopPropagation();
+      pullLink(hit.link.scratchId);
+    });
     return true;
   }
 
@@ -779,6 +916,7 @@
     _applySavedShowEdges();   // [#16-B] 이벤트가 «이미» 지나갔을 경우의 두 번째 문
     _installFollow();
     _installLinkUX();
+    _installPullDblClick();   // [P4] 연결선 더블클릭 = 당기기
     if (!_installSectionHook()) setTimeout(_installSectionHook, 300);
     __spLinkRerender();
   }
@@ -798,7 +936,8 @@
     rerender: __spLinkRerender,
     resyncFollow,          // undo/redo 좌표복원 직후 추종 기준선 재동기화(scratch-pad.js 호출)
     _applyFollow,          // 테스트/강제 1회 적용
-    // 내부 유틸(P2 렌더/테스트용)
-    _parse, _write,
+    pullLink,              // [P4] 연결선 더블클릭 = 이 함수(프로그램 호출·검사용)
+    // 내부 유틸(P2 렌더/테스트용 · P4 판정)
+    _parse, _write, _edgeEnds, _distToSeg, _linkAtPoint, _pullDest,
   };
 })();

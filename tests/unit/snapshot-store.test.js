@@ -393,9 +393,16 @@ test('PR1 최근 20개는 남는다 — 구정책 5슬롯에서 늘어난 것이
 test('PR2 하루 1개 × 14일 — 「어제 그거」가 살아남는다', () => {
   const root = mkRoot();
   const DAY = 86400000;
+  /* ⛔TZ — 이 검사는 «로컬 날짜 버킷»(dayKey)을 세므로 기준 시각이 자정에서 멀어야 한다.
+     NOW(1787700000000)는 ★UTC 2026-08-25 23:20 이다 ⇒ UTC 기계에서는 +90분(k=2)이
+     ★날짜를 넘어가 버킷이 12 대신 13 이 된다(0.9.4 실측: 맥 CI 는 UTC, 내 맥은 KST 라
+     같은 판이 한쪽에서만 빨갰다). ⇒ «로컬 정오»로 옮겨 어느 시간대에서도 90분 창이
+     날짜를 안 넘게 한다. ⛔TZ 를 CI 에서 고정해 막지 않는다 — 그러면 검사가 한 시간대에만 참이다. */
+  const _noon = new Date(NOW); _noon.setHours(12, 0, 0, 0);
+  const NOW_LOCAL_NOON = _noon.getTime();
   // 12일치, 하루 3개씩 = 36개. 최근 20개는 최근 ~7일이라, 8~12일 전은 «날짜 버킷»만이 살린다.
   const tsList = [];
-  for (let d = 11; d >= 0; d--) for (let k = 0; k < 3; k++) tsList.push(NOW - d * DAY + k * 30 * MIN);
+  for (let d = 11; d >= 0; d--) for (let k = 0; k < 3; k++) tsList.push(NOW_LOCAL_NOON - d * DAY + k * 30 * MIN);
   seed(root, 'p', tsList);
   const now = tsList[tsList.length - 1];
   SS.pruneVersions(root, 'p', { now });
@@ -404,7 +411,7 @@ test('PR2 하루 1개 × 14일 — 「어제 그거」가 살아남는다', () =
   assert.equal(days.size, 12, `12일 전부에 최소 1개가 남아야 한다 (남은 날=${days.size})`);
   // 각 날짜에서 «마지막» 것이 살아남았는지
   for (let d = 11; d >= 0; d--) {
-    const last = NOW - d * DAY + 2 * 30 * MIN;
+    const last = NOW_LOCAL_NOON - d * DAY + 2 * 30 * MIN;
     assert.ok(kept.includes(last), `${SS._internal.dayKey(last)} 의 마지막 스냅샷이 사라졌다`);
   }
 });

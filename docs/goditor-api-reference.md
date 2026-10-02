@@ -29,6 +29,13 @@ sleep 7 && curl -s http://127.0.0.1:93XX/json/version   # Chrome/... 뜨면 OK
 - **신규 프로젝트는 padX 72 기본**(2026-07-03부터, 끌리젠 규격). 텍스트는 72px 인셋, asset-block은 자동 풀블리드(음수마진). 구 프로젝트를 열면 저장된 값이 유지된다.
 - 저장: `window.triggerAutoSave()` 후 2초 이상 대기(디바운스 1.5s). 빌드 완료본은 `/tmp/goditor_93XX/projects/<id>/`에서 메인 저장소(`~/Library/Application Support/Goya Design Editor/projects/`)로 복사해 이관.
 - ⚠️ 하나의 인스턴스에서 여러 프로젝트를 오갈 때는 eval 진입 시 `window.activeProjectId`가 대상 프로젝트인지 가드하고, 빌드+직렬화+저장을 단일 동기 eval로 묶을 것(로드 중 전환 레이스 방지).
+- ★⛔**`pages/projects.html` 에서는 에디터 API 가 전부 `undefined` 다**(`addGridBlock`·`updateGridBlock`·`getSelectedSection` …).
+  ★「함수가 없다」를 「그 기능이 없다」로 읽지 마라 — **화면을 안 옮긴 것**이다. `index.html` 로 들어가야 생긴다
+  (`Page.navigate`, 또는 `New Design` 단추를 진짜 클릭). **먼저 `typeof window.addGridBlock === 'function'` 으로 가드해라.**
+- ★⛔**섹션 DOM 클래스는 `.section-block` 이다** — `.ss-section` 이 아니다.
+  ★`addSection()` 은 멀쩡히 도는데 셀렉터가 0을 세면 **「안 만들어졌다」로 오독한다**(2026-09-23 실제로 밟음).
+  ⇒ 섹션이 섰는지는 **DOM 을 세지 말고 `window.getSelectedSection()` 이 «무엇을 돌려주나»로** 판정해라.
+  (모든 `add*` 는 선택된 섹션이 없으면 toast 만 띄우고 `null` 을 돌려준다 — 위 규칙과 같은 자리다.)
 
 ### 신규 블록 (2026-07-03, 행 축 2026-09-04 P1) — grid · infocard · innercard
 
@@ -42,12 +49,31 @@ window.addGridBlock({ gap: 32, valign: 'middle', cols: [
   { width: 3, align: 'center', lines: [{ type: 'h1', text: '01', color: '#2d6fe8' }, { type: 'caption', text: 'REASON' }] },
   { width: 7, lines: [{ type: 'h2', text: '헤드라인' }, { type: 'gap', height: 8 }, { type: 'body', text: '본문…' }] },
 ] })
-// 라인 타입: label|h1|h2|h3|body|caption|image({imgSrc,height?,radius?})|gap({height})
+// 라인 타입: label|h1|h2|h3|body|caption|image({imgSrc,height?,radius?,widthPct?,align?,imgShape?})|gap({height})
+// ★image 의 imgShape:'circle'(2026-10-01) = 정원 — 지름=height(없으면 120), widthPct·radius·크롭은 원에선 안 읽는다(ignoredProps 로 돌아온다).
+//
+// ★★그림 줄(type:'image')의 함정 셋 — 2026-09-23 실기에서 내가 다 밟았다.
+// ⑴ ⛔필드 이름은 «imgSrc» 다. `src` 로 주면 ★«ok:true 가 돌아오는데» 화면엔 회색 자리지킴
+//    (.grd-img.grd-img-empty)이 뜬다 — «조용히» 틀린다. ⇒ ⛔`ok:true` 를 「들어갔다」로 읽지 마라.
+//    판정은 «렌더된 요소의 태그»로 해라: IMG 면 들어간 것, DIV.grd-img-empty 면 src 가 안 먹은 것.
+// ⑵ ★`align`('left'|'center'|'right')은 «줄 단위» 정렬이다. 우선순위는 «줄 > 칸 > 왼쪽».
+//    ⛔단, `widthPct` 가 100(기본)이면 «반드시» 안 움직인다 — 꽉 찬 그림은 움직일 데가 없다(의도).
+//    ⇒ 정렬을 시험하려면 «먼저 widthPct 를 100 미만»으로 줘라. 안 그러면 멀쩡한 것을 고장으로 읽는다.
+//    실측(2026-09-23, 칸 폭 138.4px · widthPct 40): 없음 41.5/41.5 · left 0/83 · center 41.5/41.5 ·
+//    right 83/0 · widthPct 100+right 0/0(제자리).
+// ⑶ ⛔`imgSrc` 는 length ≤ GRID_IMG_MAX_CHARS 다. 큰 data: URI 는 3번째 인자 `{ trusted: true }` 가 필요하다.
 // 수정(기존, 계속 동작): updateGridBlock(id, { patchCol: { index: 1, lines: [...] } } | { cols } | { gap } | { valign })
 
-// ★2026-09-04 P1 — 행 축(R2 모델, PLAN-gridblock.md §3-A). cols[c] = «행 0» 콘텐츠(단일 진실원) +
-//   rows(px 최소높이, 'auto' 허용) + cells(행0 포함 전체 rows×cols — 행0은 cols로 흡수, 저장은
-//   dataset.cells에 «행0을 뺀» 나머지만). rows 를 안 주면 옛 1행 그리드와 byte-identical.
+// ★2026-09-04 P1 — 행 축(R2 모델, PLAN-gridblock.md §3-A).
+//   ~~[폐기 · T-178 2026-09-23] 「cols[c] = «행 0» 콘텐츠(단일 진실원)」 · 「저장은 dataset.cells에
+//     «행0을 뺀» 나머지만」~~  ⇒ 아래가 지금의 사실이다.
+//   · cols[c].lines            = «행 0 의 줄 내용»(단일 진실원 — 여기는 안 바뀌었다)
+//   · cols[c] 의 꾸밈 5개       = 그 «열의 기본값»(자기 값 없는 칸이 모든 행에서 따른다)
+//   · dataset.cells            = «행 0 포함 전체 rows×cols». cells[0][c] 는 「행 0 «그 칸»의 꾸밈」.
+//     ⛔cells[0][*] 에는 `lines` 키가 «절대» 없다(행 0 의 줄은 cols[c].lines 하나뿐).
+//   · rows(px 최소높이, 'auto' 허용). rows 를 안 주면 옛 1행 그리드와 byte-identical.
+//   ⚠️저장 포맷이 바뀌었다 — T-178 «이전» 저장본의 dataset.cells(행 1~)는 한 행 위로 읽힌다.
+//     마이그레이션은 범위 밖(현빈 승인).
 window.addGridBlock({
   cols: [{ width: 1 }, { width: 1 }],
   rows: [{ height: 'auto' }, { height: 200 }],           // 없으면 1행(옛 duo 파일과 동일)
@@ -57,7 +83,16 @@ window.addGridBlock({
   ],
 })
 // 수정: updateGridBlock(id, partial) — 구조 필드(cols|patchCol|cells|patchCell)는 «한 번에 하나만», rows/gap/valign은 자유 결합.
-//   patchCell({r,c,...}) — r===0 은 patchCol과 동치(행0=cols, 단일 진실원). r≥1 은 dataset.cells(추가행)에 merge.
+//   ~~[폐기 · T-178 2026-09-23] 「patchCell({r,c,...}) — r===0 은 patchCol과 동치(행0=cols, 단일 진실원).
+//     r≥1 은 dataset.cells(추가행)에 merge.」~~  그 «동치»가 T-178 의 병이었다(행 0 칸에 준 꾸밈이
+//     열 기본값이 되어 아래 행까지 칠했다). 지금은 이렇게 갈린다:
+//   patchCell({r,c,bg})   = 「그 «칸»만」          → dataset.cells[r][c]  (모든 행에서 같다)
+//   patchCol({index,bg})  = 그 열의 «기본값»       → dataset.cols[index]
+//   patchCell({r:0,c,lines}) = 행 0 의 «줄 내용»   → dataset.cols[c].lines (단일 진실원)
+//   ★한 호출에 꾸밈과 lines 를 섞어 주면 dataset «두 키»가 같이 나온다 — 둘 다 정상 반영된다.
+//   ★값이 null(또는 undefined)이면 그 «키를 지운다» = 열 기본값으로 되돌림.
+//     ⛔0 과 '' 는 지움이 «아니다» — 값이다(0 = 0 으로 강제 · '' = 강제로 없앰).
+//     JSON(MCP·IPC)은 undefined 를 못 실으므로 그 길에서는 null 을 써라.
 updateGridBlock(id, { rows: [{ height: 'auto' }, { height: 120 }, { height: 'auto' }] })  // 1행→3행으로 확장
 updateGridBlock(id, { patchCell: { r: 2, c: 0, lines: [{ type: 'body', text: '새 셀 내용' }] } })  // 셀 통째 교체
 updateGridBlock(id, { patchCell: { r: 0, c: 0, lineIndex: 1, text: '한 줄만' } })                    // ★한 줄만 patch(캔버스 인라인 편집도 이 경로)
@@ -68,7 +103,9 @@ updateGridBlock(id, { patchCell: { r: 0, c: 0, lineIndex: 1, text: '한 줄만' 
 //   등 각 «최상위 라인» 요소에 data-r/data-c/data-line 이 심겨 있다(중첩 그리드/graph 내부는 아직 미주소화).
 //   ⛔하위 클래스는 «스냅샷»이다 — 저장본에 옛 duo-line/duo-col 이 남아 있어도 열 때 renderGridBlock 이 다시 그린다.
 //   이 좌표로 patchCell({r,c,lineIndex,...})를 호출하면 그 줄 하나만 바뀐다(셀의 다른 줄·다른 필드는 보존).
-// ⛔열은 가중치(fr, width — px 아님) · 행만 px 최소높이(minmax(px,auto))다. 열 하한은 2 그대로(1열 「그리드」는 없음).
+// ⛔열은 가중치(fr, width — px 아님) · 행만 px 최소높이(minmax(px,auto))다.
+// ★열 하한은 «1» 이다 — `MIN_COLS = 1, MAX_COLS = 4`(grid-block.js). 2026-09-05 현빈 지시로 2→1 로 뒤집혔다.
+//   ⛔이 줄은 그 전까지 「열 하한은 2 그대로(1열 그리드는 없음)」라고 적혀 있었다 — 2026-09-23 실측으로 정정.
 // ⛔MCP 등록(add_grid_block/update_grid_block, BLOCK_TYPES) = 현빈 지시로 «보류»(2026-09-04). window.* 함수만
 //   존재한다 — main/claude-pm/ 아래는 이번 P1에서 건드리지 않았다(홈페이지 개발자문서 격차 정리가 먼저).
 //   ★등록이 풀리는 날 BLOCK_TYPES 에 «2행» 이 필요하다: {type:'grid',pfx:'grd_'} + {type:'grid',pfx:'duo_'}.

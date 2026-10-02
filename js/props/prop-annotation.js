@@ -1,6 +1,7 @@
 // prop-annotation.js — 어노테이션 우측 속성 패널
 // 프리셋 / 선 / 시작점 / 라벨 (디자인 시스템 공용 컴포넌트 사용)
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 // ── 프리셋 ───────────────────────────────────────────────────────────────
@@ -195,13 +196,13 @@ export function showAnnotationProperties(block) {
 
   // 프리셋: 공용 .prop-preset-grid + .prop-preset-btn + .prop-preset-swatches(3 dots)
   const presetBtns = ANNOTATION_PRESETS.map((p, i) => `
-    <button class="prop-preset-btn" data-preset-idx="${i}" title="${p.name}">
+    <button class="prop-preset-btn" data-preset-idx="${i}" title="${escHtml(p.name)}">
       <div class="prop-preset-swatches">
         <span class="prop-preset-dot" style="background:${p.strokeColor};"></span>
         <span class="prop-preset-dot" style="background:${p.labelBg};"></span>
         <span class="prop-preset-dot" style="background:${p.labelBorderColor};"></span>
       </div>
-      <span class="prop-preset-name">${p.name}</span>
+      <span class="prop-preset-name">${escHtml(p.name)}</span>
     </button>
   `).join('');
 
@@ -221,20 +222,17 @@ export function showAnnotationProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section" data-prop-panel="annotation">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3" stroke-linecap="round">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3" stroke-linecap="round">
             <circle cx="3" cy="9" r="1.5" fill="#888" stroke="none"/>
             <line x1="4" y1="8" x2="9.5" y2="2.5"/>
             <path d="M8 1.5 L10.5 4 L9.5 2.5 Z" fill="#888" stroke="none"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Annotation'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard?.('${id}')">${id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Annotation',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: id,
+    })}
     </div>
 
     <div class="prop-section">

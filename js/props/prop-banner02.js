@@ -1,6 +1,9 @@
 // prop-banner02.js — banner02 블록 우측 프로퍼티 패널 (prop-canvas 패턴 미러링)
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
+/* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
+import { effectiveSectionPadX, clearBlockFullBleed } from '../drag-utils.js';
 
 // ⑧ 줄 선택 상태 — 배너 안 «어느 줄»을 보고 있는지. 블록별로 기억한다(패널 재생성에도 유지).
 //   activeIdx = null 이면 «전체 보기»(옛 동작: 모든 줄을 한꺼번에 펼침).
@@ -26,9 +29,85 @@ function _bn2SyncLineMark(block, activeIdx) {
 }
 if (typeof window !== 'undefined') window._bn2SyncLineMark = _bn2SyncLineMark;
 
+/* ⑸ 조건부 힌트 — 평소 0줄, «문제가 있을 때만» 한 줄. 넘침이 겹침보다 급하므로 넘침 우선.
+   (겹침은 풀블리드 이미지 위 글씨처럼 «정상 상태로 계속 참»일 수 있어 항상 떠 있을 수 있다.)
+
+   ★이 함수는 «패널 안»이 아니라 모듈 바깥에 있다 — renderBanner02 가 끝날 때마다 불리기 때문이다.
+     예전엔 showBanner02Properties 안의 클로저라 ⑴W 칸 change ⑵패널 최초 구성 두 자리에서만 불렸고,
+     글자크기 슬라이더·글자 입력·변형 전환·이미지 교체는 rerender 만 하고 힌트를 안 건드렸다
+     ⇒ 넘치기 «시작하는 순간»에 아무 말이 없고(=조용히 잘림), 한 번 뜬 힌트는 숫자가 썩었다.
+   ⇒ 지금은 «변경 후 항상 지나가는» 한 자리(renderBanner02 끝)에서만 불린다. */
+let _bn2HintBlock = null;          // 지금 패널이 보고 있는 배너 — 남의 배너가 그려질 때 반응하지 않게
+function _bn2RefreshHint(block) {
+  if (!block || block !== _bn2HintBlock) return;
+  const row = propPanel?.querySelector('#bn2-hint-row');
+  const out = propPanel?.querySelector('#bn2-hint');
+  if (!row || !out) return;                       // 패널이 다른 블록을 보고 있다
+  const over = window.bn2OverflowInfo?.(block);
+  const tX = parseInt(block.dataset.textX) || 0, tW = parseInt(block.dataset.textW) || 0;
+  const iX = parseInt(block.dataset.imgX) || 0;
+  const iW = parseInt(block.dataset.imgW) || 0;
+  if (over && over.overflow) {
+    out.textContent = `내용이 넘칩니다 (${over.need}px 필요)`;
+    row.style.display = '';
+    let b = row.querySelector('#bn2-fit-h');
+    if (!b) {
+      b = document.createElement('button');
+      b.className = 'prop-btn'; b.id = 'bn2-fit-h'; b.textContent = '맞추기';
+      row.appendChild(b);
+    }
+    /* ⚠️핸들러가 «만들 때의» need 를 들고 있으면, 글자를 줄인 뒤 누를 때 옛 높이가 박힌다.
+       → 누르는 «그 순간» 다시 잰다. 힌트 문구와 버튼이 같은 수를 쓰게 되는 유일한 방법이다. */
+    b.onclick = () => {
+      const now = window.bn2OverflowInfo?.(block);
+      if (!now) return;
+      delete block.dataset.autoHeight;      // 자동으로 되돌리면 렌더가 알아서 키운다
+      block.dataset.bannerH = String(now.need);
+      window.renderBanner02?.(block);
+      window.pushHistory?.(); window.scheduleAutoSave?.();
+      showBanner02Properties(block);
+    };
+  } else if (tW && iW && !(tX + tW <= iX || iX + iW <= tX)) {
+    // ⚠️imgSrc 유무로 가르지 않는다 — 이미지가 비어도 «슬롯»(체커보드)은 그대로 그려지므로
+    //   겹치면 시각적으로 똑같이 틀어진다. 실측에서 이 가드 때문에 경고가 안 떴다.
+    // ★«구간» 겹침으로 판정한다 — tX+tW > iX 만 보면 「이미지가 항상 오른쪽」을 가정하는 것이라
+    //   swap 으로 좌우가 뒤집힌 뒤엔 «항상 참»이 돼 정상 배치에도 경고가 상주한다(QA BUG-3).
+    out.textContent = '텍스트가 이미지와 겹칩니다';
+    row.style.display = '';
+    row.querySelector('#bn2-fit-h')?.remove();
+  } else {
+    row.style.display = 'none';
+    row.querySelector('#bn2-fit-h')?.remove();
+  }
+}
+if (typeof window !== 'undefined') window.refreshBanner02Hint = _bn2RefreshHint;
+
+/* ★패널을 통째로 다시 만들면 포커스가 날아간다 — 숫자칸에서 ↑ 를 «연타»하려면 그게 치명적이다
+   (한 번 누를 때마다 change → 패널 재생성 → 포커스 상실 ⇒ 220번 눌러 +1 이 된 실측 보고).
+   ⇒ 재생성을 감싸 «같은 id 의 칸»으로 포커스와 캐럿을 되돌린다.
+   ⚠️type=number 는 setSelectionRange 가 던진다(InvalidStateError) — 포커스만 살리고 삼킨다. */
+function _bn2KeepFocus(rebuild) {
+  const ae = document.activeElement;
+  const id = ae && ae.id ? ae.id : null;
+  let ss = null, se = null;
+  if (id) { try { ss = ae.selectionStart; se = ae.selectionEnd; } catch (_) {} }
+  rebuild();
+  if (!id) return;
+  const next = document.getElementById(id);
+  if (!next || next === ae) return;
+  try { next.focus({ preventScroll: true }); } catch (_) {}
+  if (ss != null) { try { next.setSelectionRange(ss, se); } catch (_) {} }
+}
+
 export function showBanner02Properties(block, activeIdxArg) {
   const d = block.dataset;
   const bgIsGrad = /gradient\(/.test(d.bg || '');
+  /* ── 「패딩 제외(full-bleed)」 — 프레임(prop-frame.js)과 «같은 규약». (2026-09-10 현빈 지시)
+     ★기본 «끔»: dataset.fullBleed 가 없으면 지금 동작 그대로다(옛 배너 무변화).
+     ⛔뚫을 수 없는 자리(프레임 «안» = overflow:hidden · 섹션 밖)에서는 토글을 «안 보여준다» —
+       켜도 아무 일이 안 일어나는 스위치는 「고장」으로 읽힌다. 판정은 공용 부품에 맡긴다. */
+  const _bn2IsFullBleed  = d.fullBleed === 'true';
+  const _bn2CanFullBleed = _bn2IsFullBleed || effectiveSectionPadX(block) > 0;
   const variants = window.BANNER02_VARIANTS || { frame_8: {}, wide_4x1: {} };
   const variantBtns = Object.keys(variants).map(k =>
     `<button class="prop-align-btn${d.variant === k ? ' active' : ''}" data-variant="${k}" style="flex:1;font-size:11px;">${variants[k].label || k}</button>`
@@ -87,10 +166,17 @@ export function showBanner02Properties(block, activeIdxArg) {
       <div class="prop-section-title" data-line-toggle="${idx}"
            style="display:flex;align-items:center;gap:6px;cursor:pointer;"
            title="${_open ? '접기' : '펼치기'}">
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"
-             style="flex:0 0 auto;transform:rotate(${_open ? 90 : 0}deg);transition:transform .12s;">
-          <polyline points="2,2 6,4 2,6"/>
-        </svg>
+        <!-- ★쉐브론 규격 = js/props/_typo-section.js:80 · css/editor-props.css 의 .prop-select
+             (M1 1l4 4 4-4 · 잉크 1.5px · 선끝 round). ⛔여기서 «따로» 그리지 마라 — 이 절 머리는
+             ~~prop-grid·prop-table·prop-banner02·prop-simple-card 네 곳에 같은 마크업으로 산다.~~
+             ★[T-234 · 2026-09-27] ★그 네 벌을 «한 벌»로 모았다 — js/props/_helpers.js 의
+             disclosureChevronHtml(open). ⛔여기에 다시 인라인으로 그리지 마라(그 말이 원래 이 자리에
+             적혀 있었고, 이제 «자리»가 생겼다). ★산출은 옛 마크업과 «바이트 동일»이다(272/274자).
+             ⛔★이 주석에 «백틱»을 쓰지 마라 — 여기는 HTML 주석이지만 «템플릿 리터럴 안»이라
+               백틱이 리터럴을 닫아 파일이 통째로 SyntaxError 가 된다(2026-09-27 실측: 검사 21개가
+               한꺼번에 빨강). 이 저장소엔 같은 전례가 있다(주석 블록 밖 「* …」로 11개 빨강).
+             지키는 그물: tests/unit/disclosure-chevron-ssot.test.mjs ＋ tests/dom/grid-panel-icon-spec.dom.spec.js -->
+        ${disclosureChevronHtml(_open)}
         <select class="prop-select" data-line-kind="${idx}" onclick="event.stopPropagation()"
                 style="flex:0 0 auto;width:auto;font-size:11px;padding:1px 4px;">
           ${KIND_OPTS.map(k => `<option value="${k}"${line.kind === k ? ' selected' : ''}>${KIND_LABELS[k] || k}</option>`).join('')}
@@ -178,13 +264,12 @@ export function showBanner02Properties(block, activeIdxArg) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-info">
-          <span class="prop-block-name">${d.layerName || 'Banner'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard && _copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+${blockHeaderHTML({
+      name: d.layerName,
+      defaultName: 'Banner',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
 
     <div class="prop-section">
@@ -217,6 +302,15 @@ export function showBanner02Properties(block, activeIdxArg) {
         <span class="prop-label">텍스트 Y</span>
         <input type="number" class="prop-number" id="bn2-ty" value="${d.textYTuned === '1' ? (parseInt(d.textY) || 0) : ''}" placeholder="${parseInt(d.textY) || 0}" min="0" max="1200" title="비우면 프리셋 기본값">
       </div>
+      ${_bn2CanFullBleed ? `
+      <div class="prop-row">
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="bn2-fullbleed-toggle" ${_bn2IsFullBleed ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      ` : ''}
       <div class="prop-row" id="bn2-hint-row" style="display:none">
         <span class="prop-hint" id="bn2-hint"></span>
       </div>
@@ -279,6 +373,19 @@ export function showBanner02Properties(block, activeIdxArg) {
   const rerender = () => { window.renderBanner02?.(block); _bn2SyncLineMark(block, activeIdx); };
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
 
+  /* 패딩 제외 (full-bleed) — 프레임과 «같은 규약». 기본 «끔».
+     ★켜기는 renderBanner02 안의 applyBlockFullBleed 가 «매 렌더» 다시 씌운다 ⇒ 여기선 표식만 세우고 재렌더.
+     ★끄기는 «흔적 지우기»가 먼저다 — 그러지 않으면 calc 폭과 음수마진이 남아 배너가 삐져나간 채 굳는다
+       (프레임에서 실제로 났던 회귀. 검사 F4 가 그 왕복을 문다). 자연 폭 복원은 rerender 몫. */
+  const fbToggle = propPanel.querySelector('#bn2-fullbleed-toggle');
+  fbToggle?.addEventListener('change', e => {
+    window.pushHistory?.('배너2 패딩 제외');
+    if (e.target.checked) block.dataset.fullBleed = 'true';
+    else { delete block.dataset.fullBleed; clearBlockFullBleed(block); }
+    rerender();
+    window.scheduleAutoSave?.();
+  });
+
   // Variant
   propPanel.querySelectorAll('#bn2-variant-group [data-variant]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -302,9 +409,11 @@ export function showBanner02Properties(block, activeIdxArg) {
   });
 
   // Size
+  // ⚠️힌트 갱신을 여기 따로 부르지 않는다 — rerender → renderBanner02 끝에서 «항상» 지나간다.
+  //   (render:false 로 바인딩하는 칸이 생기면 그 칸은 렌더를 안 지나므로 그때 따로 봐야 한다.)
   const bindNum = (id, dk, render = true) => {
     const el = propPanel.querySelector('#' + id);
-    el?.addEventListener('change', () => { block.dataset[dk] = el.value; if (render) rerender(); commit(); refreshHint(); });
+    el?.addEventListener('change', () => { block.dataset[dk] = el.value; if (render) rerender(); commit(); });
   };
   bindNum('bn2-w', 'bannerW');
 
@@ -328,7 +437,10 @@ export function showBanner02Properties(block, activeIdxArg) {
         block.dataset[dk] = String(v);
         block.dataset[flagKey] = flagOnValue;   // 수동 고정
       }
-      rerender(); commit(); showBanner02Properties(block);
+      rerender(); commit();
+      /* ★패널 재생성이 포커스를 삼키면 숫자칸에서 ↑ 연타가 «한 번»으로 끝난다
+         (H 칸 실측: 220번 눌러 +1). 재생성은 그대로 두고 포커스·캐럿만 되돌린다. */
+      _bn2KeepFocus(() => showBanner02Properties(block));
     });
   };
   bindAutoNum('bn2-h',  'bannerH', 'autoHeight', 'false');
@@ -338,46 +450,14 @@ export function showBanner02Properties(block, activeIdxArg) {
   bindAutoNum('bn2-ty', 'textY',   'textYTuned', '1', 'textY');
   bindAutoNum('bn2-tw', 'textW',   'textWTuned', '1', 'textW');
 
-  /* 조건부 힌트 — 평소 0줄, «문제가 있을 때만» 한 줄. 넘침이 겹침보다 급하므로 넘침 우선.
-     (겹침은 풀블리드 이미지 위 글씨처럼 «정상 상태로 계속 참»일 수 있어 항상 떠 있을 수 있다.) */
-  function refreshHint() {
-    const row = propPanel.querySelector('#bn2-hint-row');
-    const out = propPanel.querySelector('#bn2-hint');
-    if (!row || !out) return;
-    const over = window.bn2OverflowInfo?.(block);
-    const tX = parseInt(block.dataset.textX) || 0, tW = parseInt(block.dataset.textW) || 0;
-    const iX = parseInt(block.dataset.imgX) || 0;
-    const iW = parseInt(block.dataset.imgW) || 0;
-    if (over && over.overflow) {
-      out.textContent = `내용이 넘칩니다 (${over.need}px 필요)`;
-      row.style.display = '';
-      if (!row.querySelector('#bn2-fit-h')) {
-        const b = document.createElement('button');
-        b.className = 'prop-btn'; b.id = 'bn2-fit-h'; b.textContent = '맞추기';
-        b.addEventListener('click', () => {
-          delete block.dataset.autoHeight;      // 자동으로 되돌리면 렌더가 알아서 키운다
-          block.dataset.bannerH = String(over.need);
-          rerender(); commit(); showBanner02Properties(block);
-        });
-        row.appendChild(b);
-      }
-    } else if (tW && iW && !(tX + tW <= iX || iX + iW <= tX)) {
-      // ⚠️imgSrc 유무로 가르지 않는다 — 이미지가 비어도 «슬롯»(체커보드)은 그대로 그려지므로
-      //   겹치면 시각적으로 똑같이 틀어진다. 실측에서 이 가드 때문에 경고가 안 떴다.
-      // ★«구간» 겹침으로 판정한다 — tX+tW > iX 만 보면 「이미지가 항상 오른쪽」을 가정하는 것이라
-      //   swap 으로 좌우가 뒤집힌 뒤엔 «항상 참»이 돼 정상 배치에도 경고가 상주한다(QA BUG-3).
-      out.textContent = '텍스트가 이미지와 겹칩니다';
-      row.style.display = '';
-      row.querySelector('#bn2-fit-h')?.remove();
-    } else {
-      row.style.display = 'none';
-      row.querySelector('#bn2-fit-h')?.remove();
-    }
-  }
-  refreshHint();
+  /* ⑸ 힌트는 «패널을 여는 지금»도 한 번 재야 한다 — 저장본을 다시 열었을 때처럼
+     렌더를 거치지 않고 패널만 다시 그리는 길이 있다. (재계산 본체는 모듈 위 _bn2RefreshHint) */
+  _bn2HintBlock = block;
+  _bn2RefreshHint(block);
 
   // Background color/gradient
   wireColorField('bn2-bg', {
+    gradientValue: block.dataset.bg,   // T-059 2라운드: 재오픈 시드를 부수효과(bindGradientLinePicker)에 기대지 않는다 + Solid 복귀 = 첫 스탑
     onApply: (c) => { block.dataset.bg = c; rerender(); window.scheduleAutoSave?.(); },
     onGradient: (css, c) => {
       block.dataset.bg = css; rerender(); window.scheduleAutoSave?.(); if (c) commit();
@@ -491,7 +571,20 @@ export function showBanner02Properties(block, activeIdxArg) {
   // 줄 추가 버튼
   propPanel.querySelector('#bn2-line-add')?.addEventListener('click', () => {
     const v = window.BANNER02_VARIANTS?.[block.dataset.variant] || window.BANNER02_VARIANTS?.frame_8 || {};
-    mutLines(arr => arr.push(window._bn2Lines.normalize({ kind: 'sub', text: '새 줄', size: v.subSize || 16, color: '#000000', gapTop: v.gap2 || 10 })));
+    /* ★두 라운드가 «같은 줄»을 서로 다른 이유로 고쳤다 — 둘 다 필요해서 합쳤다(2026-09-21 합치기).
+       ⑴ ul-placeholder: 기본문구를 «여기서 짓지 않는다» — banner02-block.js 의 정본
+          (BANNER02_NEW_LINE_TEXT → window._bn2Lines.newLineText)을 읽어 쓴다. 리터럴을 두면
+          banner02-block.js 의 「이게 안내문구인가」 판정이 그 줄을 못 알아봐서, 추가한 줄만
+          더블클릭해도 전체선택이 안 되고 「강아지 간식새 줄」로 이어붙는다(실측 버그).
+       ⑵ ul-exportvisual: 그 줄에 placeholder:true 표시를 «단다» — 표시가 없으면 줄만 추가하고
+          안 쓴 배너의 내보낸 PNG 에 안내문구가 그대로 찍힌다(EVAL low).
+       ⇒ 한쪽만 취하면 다른 쪽 결함이 되살아난다. 정본 글자 + 표시를 «같이» 준다.
+       ★_normLine 은 placeholder 를 «만들지 않고 받기만» 한다(banner02-block.js) — 그래서 여기서
+         줘야 한다. 글자를 실제로 쓰면 그때 표시가 떨어진다(input/blur 규약). */
+    mutLines(arr => arr.push(window._bn2Lines.normalize({
+      kind: 'sub', text: window._bn2Lines.newLineText, size: v.subSize || 16,
+      color: '#000000', gapTop: v.gap2 || 10, placeholder: true,
+    })));
     commit();
     // 새로 추가한 줄을 바로 펼쳐준다(전체 보기 중이면 전체 유지).
     showBanner02Properties(block, activeIdx === null ? null : (window._bn2Lines.read(block).length - 1));
@@ -533,6 +626,8 @@ export function showBanner02Properties(block, activeIdxArg) {
 
   // 선택 시 배경이 그라데이션이면 캔버스 위 그라데이션 라인 표시 (gradient가 아니면 overlay가 no-op)
   window.showGradientLine?.(block);
+  // 0918 canvasgrad: 캔버스 바 ↔ 피커 스탑 양방향 배선 + 재오픈 시드(dataset.cpGradient)
+  window.bindGradientLinePicker?.(block, document.getElementById('bn2-bg-color'));
 }
 
 // 캔버스에서 그라데이션 라인을 드래그하면(source==='canvas') 모달 피커 스와치만 동기화.

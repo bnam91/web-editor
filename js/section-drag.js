@@ -144,6 +144,28 @@ function ungroupBlock(groupEl) {
         c.style.transformOrigin = 'center center';
       }
       groupEl.before(c);
+      /* ★오버레이 그룹을 풀면 자식은 «다시 섹션 직속 오버레이»가 된다 (현빈 2026-09-30).
+       * 부모가 섹션 «자신»이라는 것이 곧 그 뜻이다 — 흐름 블록은 .section-inner 안에 산다.
+       * ⛔표식을 안 되살리면 좌표(left/top)는 맞는데 «떠 있다는 사실»만 사라져,
+       *   드래그(js/overlay-float.js bindFloatMoveDrag 의 첫 가드)도 내보내기 판정
+       *   (js/io/export-figma-json.js 의 같은 술어)도 이 블록을 흐름 블록으로 오인한다.
+       * ★다는 칸은 enterFloat 이 다는 것과 같다. 복귀 자리는 섹션 본문 맨 앞
+       *   (exitFloat 의 fallback 과 같은 자리) — 그룹 안에 있던 동안의 «원래 자리»는 없다. */
+      if (parent && parent.classList?.contains('section-block')) {
+        const _inner = parent.querySelector(':scope > .section-inner');
+        if (_inner && !_inner.id) {
+          _inner.id = (typeof window.genId === 'function')
+            ? window.genId('anchor')
+            : ('anchor_' + Math.random().toString(36).slice(2, 9));
+        }
+        c.dataset.overlayBlock = 'true';
+        c.dataset.overlayReturnParent = _inner ? _inner.id : '';
+        c.dataset.overlayReturnAfter = '';
+        c.dataset.selVariant = 'sticker';
+        const _inShape = c.querySelector?.(':scope > .shape-block');
+        if (_inShape) _inShape.dataset.selVariant = 'sticker';
+        window._bindOverlayMoveDrag?.(c);
+      }
     });
     groupEl.remove();
     window.deselectAll?.();

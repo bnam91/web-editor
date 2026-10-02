@@ -17,6 +17,7 @@
  *   queryLocalFonts 는 퍼미션 프롬프트를 띄울 수 있어서 한 번만 부르는 게 맞다.
  */
 import { _pushRecentFont, _fontDisplayName, _fontKey, fontChain } from './prop-text-utils.js';
+import { escHtml } from './_helpers.js';
 
 let _systemFontsList = [];
 
@@ -45,6 +46,7 @@ export function wireFontPicker({ root, p, getCurrent, onPick }) {
   const _fpSearch   = root.querySelector(`#${p}-font-search`);
   const _fpList     = root.querySelector(`#${p}-font-list`);
   const _fpNameEl   = root.querySelector(`#${p}-font-name`);
+  const _fpNoonnu   = root.querySelector(`#${p}-font-noonnu`);
 
   // ★체인은 fontChain()이 만든다 — 번들 Pretendard를 generic 앞에 끼워 «폰트 없는 기기»에서
   //   OS 기본 글꼴로 떨어지는 걸 막는다. serif 2종(Noto Serif KR·Playfair)은 제외(sans로 뒤집히니까).
@@ -70,9 +72,12 @@ export function wireFontPicker({ root, p, getCurrent, onPick }) {
   }
 
   function _fpItemHtml(f, isPinned, isSel) {
-    const v = f.value.replace(/"/g, '&quot;');
+    /* ★폰트 «표시 이름»은 설치된 폰트에서 오는 글자다 — 우리가 짓지 않았다 (T-049).
+       옛 판은 value 의 큰따옴표만 덮었다(앰퍼샌드 미포함 = 반쪽). 공용 한 벌로 다섯 글자를 다 덮는다.
+       ⇒ dataset 으로 되읽을 때 브라우저가 풀어 주므로 값은 그대로다. */
+    const v = escHtml(f.value);
     return `<div class="font-item${isSel ? ' selected' : ''}" data-value="${v}">
-      <span class="font-item-name">${f.label}</span>
+      <span class="font-item-name">${escHtml(f.label)}</span>
       <button class="font-item-pin${isPinned ? ' pinned' : ''}" data-pin-value="${v}" title="${isPinned ? '핀 제거' : '핀 고정'}">⭐</button>
     </div>`;
   }
@@ -143,6 +148,16 @@ export function wireFontPicker({ root, p, getCurrent, onPick }) {
     _fpTrigger.classList.add('open');
     _fpSearch.value = '';
     _fpBuildList('');
+    // ★모달 패널처럼 트리거가 절 아래쪽(Variant/Size/Padding/…뒤)에 있으면 r.bottom 기준
+    //   배치만으론 목록이 창 하단 밖으로 나가 «보이지만 잘려서» 뜬다(색피커 _position()과
+    //   같은 문제 — color-picker.js:753 하단 잘림 클램프 선례). 실제 렌더 높이로 재측정해
+    //   아래 공간이 모자라면 트리거 위로 뒤집는다.
+    const gap = 6;
+    const dh = _fpDropdown.getBoundingClientRect().height;
+    if (r.bottom + 2 + dh + gap > window.innerHeight) {
+      const above = r.top - dh - 2;
+      _fpDropdown.style.top = Math.max(gap, above) + 'px';
+    }
     setTimeout(() => _fpSearch.focus(), 10);
 
     const outside = (e) => {
@@ -180,6 +195,12 @@ export function wireFontPicker({ root, p, getCurrent, onPick }) {
       _fpClose();
     }
   });
+
+  // ★고정 목적지 하나만 연다 — 렌더러가 임의 URL을 주는 통로가 아니다(main.js의
+  //   auth:open-external 이 이미 「임의 URL 오픈 금지」로 막아둔 원칙과 동일하게,
+  //   여기도 인자 없는 전용 핸들러로 간다).
+  _fpNoonnu?.addEventListener('mousedown', e => e.preventDefault());
+  _fpNoonnu?.addEventListener('click', () => { window.electronAPI?.openNoonnu?.(); _fpClose(); });
 
   /* 시스템 폰트 비동기 로드 */
   _loadSystemFonts().then(() => {

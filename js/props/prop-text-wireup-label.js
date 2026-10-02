@@ -5,6 +5,8 @@
  * - pill 높이 (상하 패딩으로 조절)
  * - 5개 shape preset (pill / box / outline / circle / text)
  */
+import { markLabelAutoColor, forgetLabelAutoColor } from './label-auto-color.js';
+import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 
 export function wireLabelSection({ ctx }) {
   /* 태그 배경색 */
@@ -20,22 +22,34 @@ export function wireLabelSection({ ctx }) {
       ctx.contentEl.style.borderRadius = isNone ? '0' : (ctx.contentEl.style.borderRadius || '');
       labelBgSwatch.style.background = isNone ? 'transparent' : val;
       labelBgSwatch.classList.toggle('swatch-none', isNone);
-      if (!isNone) { labelBgHex.value = val; labelBgPicker.value = val; }
+      if (!isNone) { labelBgHex.value = formatHex6(val); labelBgPicker.value = val; }
     };
     labelBgPicker.addEventListener('input', () => {
       if (labelBgNone.checked) return;
       setLabelBg(labelBgPicker.value);
-      labelBgHex.value = labelBgPicker.value;
+      labelBgHex.value = formatHex6(labelBgPicker.value);
     });
-    labelBgHex.addEventListener('input', () => {
-      if (/^#[0-9a-f]{6}$/i.test(labelBgHex.value)) { setLabelBg(labelBgHex.value); labelBgNone.checked = false; }
+    /* 색 코드 칸 — 배선은 color-picker.js 의 wireHexText 한 자리(2026-09-20 유닛 colorhex).
+       이 칸의 «문법»은 「빈 값 = 없음(transparent)」 + 6자리 hex 다 — 체크박스와 같은 상태를 글자로도 쓸 수 있다.
+       예전엔 무효값이 말없이 무시되고 blur 복원도 없었다. */
+    wireHexText(labelBgHex, {
+      parse: (raw) => (String(raw ?? '').trim() === '' ? '' : parseHex6(raw)),
+      format: (v) => (v ? formatHex6(v) : ''),
+      getCurrent: () => (labelBgNone.checked ? '' : (labelBgPicker.value || '#111111')),
+      onApply: (v) => {
+        if (v === '') { setLabelBg('transparent'); labelBgNone.checked = true; return; }
+        const keep = labelBgHex.value;
+        setLabelBg(v); labelBgNone.checked = false;
+        labelBgHex.value = keep;          // 타이핑 중인 글자를 덮어쓰지 않는다
+      },
+      onCommit: () => window.pushHistory?.(),
     });
     labelBgNone.addEventListener('change', () => {
       if (labelBgNone.checked) { setLabelBg('transparent'); labelBgHex.value = ''; }
       else {
         ctx.contentEl.style.padding = '';
         const v = labelBgPicker.value || '#111111';
-        setLabelBg(v); labelBgHex.value = v;
+        setLabelBg(v); labelBgHex.value = formatHex6(v);
       }
     });
   }
@@ -104,8 +118,10 @@ export function wireLabelSection({ ctx }) {
   // 모든 프리셋은 디폴트 .tb-label(padding:11px 36px, font:26px/700, radius:8px) 기준 + 서로 토글 시 안전 복원
   // 공통 reset 헬퍼 — 인라인 background/color/border/size 제거 → CSS 디폴트 복귀
   const _resetLabelInline = () => {
+    window.clearTextGradient?.(ctx.contentEl);   // 0918r2 textgrad: 라벨은 단색만
     ctx.contentEl.style.backgroundColor = '';
     ctx.contentEl.style.color = '';
+    forgetLabelAutoColor(ctx.contentEl);   // 0920r6 labeltext: 색을 걷어냈으니 표식도 폐기(다음 프리셋이 제 색만 표식하게)
     ctx.contentEl.style.border = '';
     ctx.contentEl.style.width  = '';
     ctx.contentEl.style.height = '';
@@ -173,7 +189,9 @@ export function wireLabelSection({ ctx }) {
     window.pushHistory?.();
     _resetLabelInline();
     ctx.contentEl.style.backgroundColor = 'transparent';
+    // textgrad-ok: 바로 위 _resetLabelInline 이 clearTextGradient 를 불렀다
     ctx.contentEl.style.color = '#111111';
+    markLabelAutoColor(ctx.contentEl);   // 0920r6 labeltext: 프리셋이 넣은 색도 «라벨이 넣은 색» — 라벨을 벗어나면 이 색만 걷어낸다
     ctx.contentEl.style.borderRadius = '0';
     ctx.contentEl.style.padding = '0';
     const rSlider2 = document.getElementById('label-radius-slider');

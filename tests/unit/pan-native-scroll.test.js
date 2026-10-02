@@ -316,7 +316,13 @@ test('★R5 핀: scrollTop 을 «자기 목적»으로 쓰는 곳은 «상대» 
 /* ══ H. P-A1 — 쓸데없는 속성 쓰기 제거(자동저장 방아쇠 줄이기) ═══════════ */
 
 test('★P-A1 계약: deselectAll 이 «값이 같으면» contenteditable 을 안 쓴다', () => {
-  const body = stripComments(extractFn(SRC, 'deselectAll'));
+  /* ★2026-09-21(T-084): contenteditable 되돌리기는 deselectAll 이 «부르는» 정본 한 자리
+     clearSelectionMarks 로 옮겼다(js/block-edit.js 의 selectBlock 도 같은 함수를 쓴다).
+     ⇒ 재는 대상은 「deselectAll 이 도달하는 코드」다 — 둘을 «붙여서» 본다.
+       한쪽만 보면 옮기는 순간 조용히 거짓 초록/거짓 빨강이 된다. */
+  const body = stripComments(extractFn(SRC, 'deselectAll') + '\n' + extractFn(SRC, 'clearSelectionMarks'));
+  assert.ok(/clearSelectionMarks\(/.test(stripComments(extractFn(SRC, 'deselectAll'))),
+    'deselectAll 이 정본(clearSelectionMarks)을 안 부른다 — 이 검사의 전제가 사라졌다');
   assert.ok(!/setAttribute\('contenteditable'/.test(body),
     "직접 setAttribute 하면 값이 같아도 mutation 이 나고, autoSaveObserver 가 그걸 «편집»으로 센다");
   assert.ok(/_setAttrIfChanged\(/.test(body), '변화가 있을 때만 쓰는 헬퍼를 써야 한다');

@@ -75,6 +75,7 @@ const RAW = {
   geom:   readSrc(ROOT, 'js', 'blocks', 'zoom-geometry.js'),
   block:  readSrc(ROOT, 'js', 'blocks', 'zoom-block.js'),
   prop:   readSrc(ROOT, 'js', 'props', 'prop-zoom.js'),
+  helpers: readSrc(ROOT, 'js', 'props', '_helpers.js'),
   editor: readSrc(ROOT, 'js', 'editor.js'),
   layer:  readSrc(ROOT, 'js', 'panels', 'layer-panel-items.js'),
   drag:   readSrc(ROOT, 'js', 'block-drag.js'),
@@ -91,6 +92,10 @@ const RAW = {
   gradientSel: readSrc(ROOT, 'js', 'gradient-select.js'),
   layout:  readSrc(ROOT, 'css', 'editor-layout.css'),
   extra:   readSrc(ROOT, 'css', 'editor-extra.css'),
+  /* ★2026-09-20 — _blockRotationDeg 의 «본체»가 js/frame-geometry.js 로 옮겨졌다
+     (0920b-overlay-extend: 오버레이 공용 모듈도 같은 판정을 써야 하는데 overlay-handles.js 는
+      무거워 import 할 수 없다). ⓑ-ROT-5 가 그 사슬을 새 자리에서 잰다. */
+  frameGeom: readSrc(ROOT, 'js', 'frame-geometry.js'),
 };
 const SRC = Object.fromEntries(Object.entries(RAW).map(([k, v]) => [k, stripComments(v)]));
 // 「확대블럭엔 전용 선택 모듈이 없다」는 «전제»도 재서 쓴다(있으면 위 판정 기준이 달라진다)
@@ -853,7 +858,13 @@ test('ⓐ-27 ★㉒이미지 URL 을 «걸러서» 넣는다 (속성을 깨고 �
    되고(ad39400 이 실물로 겪었다), 반대로 「이 구간엔 X 가 없다」가 남의 X 로 거짓 빨강이 된다. */
 
 test('ⓑ-1 [체크리스트①] js/editor.js deselectAll() 이 .zoom-block 의 .selected 를 푼다', () => {
-  const body = sliceBlock(SRC.editor, 'function deselectAll()');
+  /* ★2026-09-21(T-084): 마커 해제 본문은 deselectAll 이 «부르는» 정본 한 자리
+     clearSelectionMarks 로 옮겼다(selectBlock 도 같은 함수를 쓴다) — 재는 대상은
+     「deselectAll 이 도달하는 코드」이므로 둘을 붙여서 본다. */
+  const des = sliceBlock(SRC.editor, 'function deselectAll()');
+  assert.ok(/clearSelectionMarks\(/.test(des),
+    'deselectAll 이 정본(clearSelectionMarks)을 안 부른다 — 이 검사의 전제가 사라졌다');
+  const body = des + '\n' + sliceBlock(SRC.editor, 'function clearSelectionMarks(');
   assert.ok(body.includes('.zoom-block'), 'deselectAll 안에 .zoom-block 이 없다 = 아웃라인이 안 풀린다');
 });
 
@@ -873,16 +884,55 @@ test('ⓑ-2 [체크리스트②] layer-panel-items.js — 감지·type·labels·
   assert.ok(typeLine   && /zoom:\s*'Zoom'/.test(typeLine),   "typeLbls 등록 없음(‘Component’ 로 뭉뚱그리지 않는다)");
   assert.ok(/\bzoom:\s*`<svg class="layer-item-icon"/.test(s), 'layerIcons 항목 없음');
   assert.ok(s.includes('window.showZoomProperties?.(block)'), '레이어 클릭 → 프로퍼티 연결 없음');
-  assert.ok(s.includes("'zoom-block']") || s.includes("'zoom-block',"),
-    '프레임 자식 블록 목록 배열에 zoom-block 이 없다 = 프레임 안에 넣으면 레이어에서 사라진다');
+  /* ★프레임 자식 판정은 2026-09-30 부터 손 명부가 아니라 정본 표(js/panel-dispatch.js _PANEL_BY_CLASS)
+     파생이다(그 손 명부가 mockup 등 7종을 빠뜨렸다). 뜻은 그대로 — 「프레임 안 줌이 레이어에서 안 사라진다」
+     = ⑴ 프레임 자식 루프가 hasPanelForBlock 을 묻고 ⑵ 정본 표에 zoom-block 이 있다. */
+  assert.ok(/else if \(window\.hasPanelForBlock\?\.\(child\)\)/.test(s),
+    '프레임 자식 루프가 정본 표(hasPanelForBlock)를 안 묻는다 = 명부가 다시 두 벌이 됐다');
+  const dispatch = fs.readFileSync(path.join(ROOT, 'js/panel-dispatch.js'), 'utf8');
+  assert.ok(/\['zoom-block',/.test(dispatch),
+    '정본 표에 zoom-block 이 없다 = 프레임 안에 넣으면 레이어에서 사라진다');
 });
 
-test('ⓑ-3 [체크리스트③] js/props/prop-zoom.js 헤더가 «풀 구조»다', () => {
-  const s = SRC.prop;
-  for (const cls of ['prop-block-label', 'prop-block-icon', 'prop-block-info', 'prop-block-id']) {
-    assert.ok(s.includes(cls), `헤더 풀 구조 누락: ${cls}`);
+/** `blockHeaderHTML({ … })` 호출의 «인자 본문»만 잘라 낸다 — 중괄호 짝을 센다.
+ *  못 찾으면 null 을 준다(호출자가 «못 잘랐다»를 먼저 빨갛게 낸다). */
+function headerCallArgs(src) {
+  const at = src.indexOf('blockHeaderHTML({');
+  if (at < 0) return null;
+  const open = src.indexOf('{', at);
+  let depth = 0;
+  for (let j = open; j < src.length; j++) {
+    const c = src[j];
+    if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) return src.slice(open + 1, j);
   }
-  assert.ok(s.includes('prop-block-name') && s.includes('prop-breadcrumb'), '블록명·위치 표기 누락');
+  return null;
+}
+
+test('ⓑ-3 [체크리스트③] js/props/prop-zoom.js 헤더가 «풀 구조»다', () => {
+  /* ★2026-09-22 (T-049) — 헤더 마크업이 이 파일에서 _helpers.js 의 blockHeaderHTML 로 «옮겨갔다».
+     옛 판은 prop-zoom.js «소스에» 클래스 이름이 박혀 있는지를 봤는데, 그 문장은 SSOT 로 걷은
+     순간 빨개지고 — 그 빨강은 「헤더가 사라졌다」가 아니라 「헤더가 한 자리로 모였다」는 뜻이다.
+     ⇒ 재는 곳을 둘로 나눈다: ⑴ 이 패널이 그 함수를 «실제로 부른다» ⑵ 그 함수가 풀 구조를 «낸다».
+     ⛔검사를 지우지 않았다 — 헤더를 빼면 ⑴이, 틀에서 칸을 지우면 ⑵가 빨개진다. */
+  const s = SRC.prop;
+  assert.match(s, /import\s*\{[^}]*\bblockHeaderHTML\b[^}]*\}\s*from\s*['"]\.\/_helpers\.js['"]/,
+    'prop-zoom.js 가 헤더 SSOT(_helpers.js blockHeaderHTML)를 import 하지 않는다');
+  assert.match(s, /\$\{blockHeaderHTML\(\{/, 'prop-zoom.js 가 헤더 SSOT 를 부르지 않는다');
+  /* ★인자는 «호출 본문 안»에서만 찾는다 (2026-09-22, 검사자 지적).
+     전엔 파일 전체에 `s.includes('name:')` 이었다 — 그건 «검사처럼 생긴 문장»이다.
+     파일 아무 데나 그 글자가 있으면 통과하므로, 호출에서 이름 칸을 «빼도» 초록이 된다.
+     지금 우연히 맞는 이유는 그 넷이 이 파일에선 헤더 호출에만 있기 때문이지 검사의 힘이 아니다. */
+  const args = headerCallArgs(s);
+  assert.ok(args, 'blockHeaderHTML({ … }) 호출 본문을 못 잘라 냈다 — 아래 단언이 «허공»을 잰다');
+  for (const key of ['icon:', 'name:', 'crumb:', 'id:']) {
+    assert.ok(args.includes(key), `헤더 «호출»에 ${key} 인자가 없다 — 그 칸이 안 그려진다`);
+  }
+  const h = SRC.helpers;
+  for (const cls of ['prop-block-label', 'prop-block-icon', 'prop-block-info', 'prop-block-id']) {
+    assert.ok(h.includes(cls), `헤더 풀 구조 누락(_helpers.js blockHeaderHTML): ${cls}`);
+  }
+  assert.ok(h.includes('prop-block-name') && h.includes('prop-breadcrumb'), '블록명·위치 표기 누락');
   assert.ok(s.includes('window.showZoomProperties = showZoomProperties'), 'window 노출 없음');
 });
 
@@ -1048,7 +1098,9 @@ test('ⓑ-16 ★선택 오버레이 — 변경 표면이 «_variantOf 세 줄»�
   const hostOf = sliceBlock(s, 'function _hostOf(el)');
   assert.equal(/sel-box|SEL_BOX|selVariant|zoom/.test(hostOf), false,
     '_hostOf 에 확대블럭 전용 가지가 남아 있다 — 플로팅이면 필요 없다');
-  const geom = sliceBlock(s, 'function _geomOf(el, variant, scale)');
+  /* ★머리는 «앞부분만» 적는다(sliceBlock 계약) — T-072 가 인자 하나(outset)를 더해 «)» 로 닫힌 머리가
+     더는 원문과 같지 않다. 이 검사가 재는 것은 «머리 모양»이 아니라 아래 네 낱말의 부재다. */
+  const geom = sliceBlock(s, 'function _geomOf(el, variant, scale');
   for (const w of ['zoom', 'sel-box', 'selVariant', 'selBox']) {
     assert.equal(geom.includes(w), false, `_geomOf 에 ${w} 가 들어갔다 — 공용 함수를 건드렸다`);
   }
@@ -1597,8 +1649,12 @@ test('ⓑ-ROT-5 회전 뒤 리사이즈가 «안 깨진다» — dataset.rotatio
      ⇒ 이 사슬 중 하나만 끊겨도 회전된 블록에서 핸들이 엉뚱한 데 앉는다. 사슬을 통째로 잰다. */
   assert.ok(/block\.dataset\.rotation = String\(box\.rot\)/.test(SRC.block),
     'renderZoomBlock 이 rot → dataset.rotation 미러를 안 한다');
-  const deg = sliceBlock(SRC.handles, 'function _blockRotationDeg(el)');
-  assert.ok(/d\.rotation/.test(deg), '_blockRotationDeg 가 dataset.rotation 을 안 읽는다');
+  /* ★본체는 js/frame-geometry.js 의 blockRotationDeg 다(2026-09-20 이관). overlay-handles.js
+     는 그 이름을 import 해서 쓴다 — 사슬이 «둘 다» 살아 있어야 회전 보정이 돈다. */
+  const deg = sliceBlock(SRC.frameGeom, 'export function blockRotationDeg(el)');
+  assert.ok(/d\.rotation/.test(deg), 'blockRotationDeg 가 dataset.rotation 을 안 읽는다');
+  assert.ok(/import \{[^}]*blockRotationDeg[^}]*\} from '\.\/frame-geometry\.js'/.test(SRC.handles),
+    'overlay-handles.js 가 회전각 SSOT 를 import 하지 않는다 — 사슬이 끊겼다');
   const rs = sliceBlock(SRC.handles, 'function _onZoomResizeMouseDown(e, zb, dir)');
   assert.ok(/_unrotateDelta\(box,/.test(rs), '회전된 블록에서 끄는 방향 보정이 없다');
   const up = sliceBlock(SRC.handles, 'function _updateZoomHandlePositions()');

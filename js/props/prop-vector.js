@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { pushHistory } from '../editor.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
@@ -20,21 +21,18 @@ export function showVectorProperties(block) {
 
   propPanel.innerHTML = `
     <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+${blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <path d="M6 1L11 4.5L9 11H3L1 4.5Z" stroke-linejoin="round"/>
             <line x1="1" y1="4.5" x2="11" y2="4.5"/>
             <line x1="6" y1="1" x2="3" y2="4.5"/>
             <line x1="6" y1="1" x2="9" y2="4.5"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">${block.dataset.layerName || 'Vector'}</span>
-          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
-        </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
-      </div>
+          </svg>`,
+      name: block.dataset.layerName,
+      defaultName: 'Vector',
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    })}
     </div>
 
     <div class="prop-section">
