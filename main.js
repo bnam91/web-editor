@@ -1,4 +1,16 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net: electronNet, screen: electronScreen } = require('electron');
+// ▼QA_HIDDEN (2026-10-02 현빈 승인) — GODITOR_QA_HIDDEN=1 일 때만: 창을 숨기고(show:false) 렌더러가 서지 않게 플래그 셋.
+//   ★목적 = QA 창이 «현빈 화면 포커스를 안 뺏는다»(2026-10-02 격리앱을 open -g 로 띄워도 뺏은 사고).
+//   ⛔이 환경변수가 없으면 이 파일은 dev(22d94bf0)판과 «한 바이트도» 다르지 않아야 한다 — ▼▲ 표식 안만 다르다
+//     tests/unit/main-qa-hidden.test.mjs 가 «구조»로 잠근다: 숨김 관련 줄은 전부 ▼▲ 블록 안 · 블록 안 코드는 전부 _QA_HIDDEN 조건 아래.
+//     ⚠️행위가 아니라 소스 대조다(Electron 을 띄워 재지 않음). git 판 대조는 넣은 커밋에서 한 번만 했다(시험이 main.js 를 얼리지 않게).
+const _QA_HIDDEN = process.env.GODITOR_QA_HIDDEN === '1';
+if (_QA_HIDDEN) {
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+  app.commandLine.appendSwitch('disable-renderer-backgrounding');
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+}
+// ▲QA_HIDDEN
 
 // ── 캔버스 이미지 외부화: 커스텀 프로토콜 goya-asset://<projectId>/<filename> ──
 // 캔버스 HTML에 박히던 인라인 base64를 proj_<id>/assets/<contenthash>.<ext>로 분리하고,
@@ -357,7 +369,13 @@ function createWindow() {
   const isMac = process.platform === 'darwin';
   const gitBranch = getGitBranch();
   const windowTitle = gitBranch ? `GODITOR [${gitBranch}]` : 'GODITOR';
+  // ▼QA_HIDDEN — 맥: 독 아이콘 없는 «부속 앱» = 스스로 앞에 나오지 않는다(show:false 만으론 실행 직후 활성화가 남을 수 있다). 지키는지는 «재서» 판정.
+  if (_QA_HIDDEN && isMac && typeof app.setActivationPolicy === 'function') app.setActivationPolicy('accessory');
+  // ▲QA_HIDDEN
   mainWindow = new BrowserWindow({
+    // ▼QA_HIDDEN
+    ...(_QA_HIDDEN ? { show: false } : {}),
+    // ▲QA_HIDDEN
     width: 1440,
     height: 900,
     minWidth: 1024,
