@@ -211,13 +211,11 @@ test('P3 ⛔남의 더블클릭을 훔치지 않는다 — 선에서 먼 곳·�
   expect(onBlock, '★블록 위 더블클릭이 당기기로 샜다 — 글자 편집이 죽는다').toBe(0);
 });
 
-/* ⚠️알려진 흔들림 · 2026-10-01 (태양, 지디 지시로 명부에 올림) — 처음엔 「순서 의존」으로 봤으나 ★혼자 돌려도 흔들린다.
- *   실측(2026-10-01): test:dom 전수 4번 중 2번 빨강 · 이 시험 «단독» 3번 중 1번 빨강. 고치기 전 판 7699ea33 에서도 전수에서 빨강.
- *   ⛔이 빨강을 보면 「원래 그런 것」으로 넘기지 말고 단독으로 «여러 번» 돌려 비율을 보라 — 늘 빨강이면 진짜 회귀다.
- *   ★부하 실측(2026-10-01, 이 시험만 --repeat-each=12): 12 중 1 빨강. 실패 꼴 = `expect(mid2).not.toBeNull()` —
- *     첫 더블클릭으로 당긴 «뒤» 다시 누를 선 s1 을 «못 찾았다»(midOf → null).
- *   ⇒ R3(grid-fullbleed-rerender, 화면 px vs 모델 px)와 «다른 병»이다 — 좌표 단위가 아니라 «선이 다시 그려지기 전에 찾는» 쪽.
- *     원인 확정은 아니다(가장 그럴듯한 것). 고치지 않았다 — 지디 지시: 수부터 적고 고치는 건 그다음. */
+/* ✔흔들림 고침 · 2026-10-02 (v0.9.5 맥 CI 빨강으로 이름표 → 고침, 지디 지시 「skip 으로 덮지 마라」).
+ *   옛 이름표: 2026-10-01 전수 4번 중 2 빨강 · 단독 3번 중 1 · --repeat-each=12 중 1 · 꼴 = 당긴 뒤 midOf(s1) null.
+ *   원인(진단 실측 2026-10-02, ×40 중 1 빨강을 잡아 찍음): 실패 순간 선은 옛 자리, 몇 ms 뒤엔 새 자리(524,162 = 상자 중심)에 있었다
+ *     ⇒ 선이 rAF 로 «다시 그려지기 전에» 찾았다. 제품 결함이 아니라 시험이 산출물을 안 기다린 것. ⚠️CPU 늦춤(4·10배)으론 재현 안 됐다.
+ *   고침 = 선이 새 자리에 그려질 때까지 expect.poll(3초). 고친 뒤 수는 커밋 본문. */
 test('P4 ★이미 와 있으면 «아무 일도 안 한다» (현빈 「또 더블클릭하면 아무 일 없음」)', async ({ page }) => {
   const errs = await boot(page);
   const mid = await page.evaluate(midOf, 's1');
@@ -225,8 +223,11 @@ test('P4 ★이미 와 있으면 «아무 일도 안 한다» (현빈 「또 더
   const firstN = await page.evaluate(() => window.__moves.length);
   const restAt = await page.evaluate(rects);
   // 온 자리에서 «다시» 그 선을 더블클릭
+  /* ★선이 «새 자리로 다시 그려진 뒤»에 찾는다(2026-10-02 고침). 선은 scratchpad-link.js 가 rAF 로 다시 그린다 —
+     옮긴 «바로 다음» 읽으면 선이 아직 옛 자리라 midOf 가 null 이었다(진단 실측: 실패 순간 null, 몇 ms 뒤 같은 선이 새 자리 524,162 에 있었다).
+     ⛔고정 대기 아님 — 다시 그려진 «산출물»을 기다린다. 3초 안에 안 그려지면 그건 진짜 빨강이다. */
+  await expect.poll(() => page.evaluate(midOf, 's1'), { timeout: 3000, message: '★당긴 뒤 선이 새 자리로 다시 안 그려졌다' }).not.toBeNull();
   const mid2 = await page.evaluate(midOf, 's1');
-  expect(mid2).not.toBeNull();
   await page.mouse.dblclick(mid2.x, mid2.y);
   const secondN = await page.evaluate(() => window.__moves.length);
   const stillAt = await page.evaluate(rects);
