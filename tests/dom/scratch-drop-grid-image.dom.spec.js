@@ -130,25 +130,31 @@ test('G4 ★⌘Z 한 걸음 — 칸 이미지가 되돌아오고 스크래치 �
 const svgN = (n) => 'data:image/svg+xml;base64,' + Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120"><rect width="200" height="120" fill="#${(n * 1234567 % 0xffffff).toString(16).padStart(6, '0')}"/><text x="10" y="60">img${n}</text></svg>`).toString('base64');
 
 test('G5 ★서로 다른 그림 10장을 같은 칸에 10번 — 매번 먹고(간헐 0), ⌘Z 10번이 한 걸음씩 거꾸로 간다', async ({ page }) => {
+  /* 고정 대기(300·350ms ×10)를 «상태 조건 대기»로 바꿨다 — 이 시험은 기본 30s 예산에 22.7s 를 써서(고정 대기만 6.5s) 부하가 오르면 예산째 넘어갔다.
+   * 조건 = 칸0 모델의 imgSrc(정본)·스크래치 항목 수. ⌘Z 는 «눌렀더니 imgSrc 가 바뀔 때까지» 기다린 뒤 «정확히 seq[k]» 를 단언한다 → 두 걸음 가면 빨강, 안 가면 5s 뒤 빨강.
+   * 놓기의 dwell(700ms, ARM_DELAY)과 mouseup 뒤 400ms 는 제품 시간·공용 도우미 몫이라 그대로 둔다. */
   await setup(page);
   const cell0 = async () => (await model(page))[0][0][0].imgSrc;
+  const scratchN = async () => (await state(page)).scratch;
   const seq = [PX];
   for (let n = 1; n <= 10; n++) {
     const u = svgN(n);
+    const n0 = await scratchN();
     await page.evaluate((u) => window._scratchAddAndSaveFx(u, 20, 20, 200), u);
-    await page.waitForTimeout(300);
+    await expect.poll(scratchN, { message: `넣기 ${n}번째 전제 — 새 스크래치 항목이 생겼어야 끌 수 있다`, timeout: 5000 }).toBe(n0 + 1);
     // 방금 넣은 항목이 «마지막» — 이전 항목은 이미 소비됐다
     const before = await state(page);
     await dragScratchTo(page, '#sG .grid-block .grd-img-frame[data-c="0"]');
-    const after = await state(page);
-    expect(await cell0(), `넣기 ${n}번째 — 칸 이미지가 그 그림이어야`).toBe(u);
-    expect(after.scratch, `넣기 ${n}번째 — 스크래치 소비`).toBe(before.scratch - 1);
+    await expect.poll(cell0, { message: `넣기 ${n}번째 — 칸 이미지가 그 그림이어야`, timeout: 5000 }).toBe(u);
+    await expect.poll(scratchN, { message: `넣기 ${n}번째 — 스크래치 소비`, timeout: 5000 }).toBe(before.scratch - 1);
     seq.push(u);
   }
+  expect(await cell0(), '전제 — ⌘Z 를 재기 전, 칸은 마지막 그림이어야').toBe(seq[10]);
   for (let k = 9; k >= 0; k--) {
+    const was = await cell0();
     await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); });
     await page.keyboard.press('Meta+z');
-    await page.waitForTimeout(350);
-    expect(await cell0(), `⌘Z ${10 - k}번째 — 한 걸음 거꾸로`).toBe(seq[k]);
+    await expect.poll(cell0, { message: `⌘Z ${10 - k}번째 — 칸 이미지가 «바뀌어야»(안 먹으면 여기서 빨강)`, timeout: 5000 }).not.toBe(was);
+    expect(await cell0(), `⌘Z ${10 - k}번째 — 정확히 한 걸음 거꾸로`).toBe(seq[k]);
   }
 });
