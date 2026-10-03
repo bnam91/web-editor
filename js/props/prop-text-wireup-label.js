@@ -121,6 +121,8 @@ export function wireLabelSection({ ctx }) {
   const pxNumber = document.getElementById('txt-label-padx-number');
   const syncPadX = () => {
     if (!pxSlider) return;
+    // 원형에서 줄을 숨기는 «까닭»: css/editor-layout.css 의 `.text-block .tb-label[data-shape="circle"]`(:357 근처)가
+    //   `padding: 0 !important` 라 인라인 padding 으로도 못 덮는다 — 보여 줘도 안 먹어서 숨긴다. 「원형엔 칸 없음 = 버그」가 아니다.
     if (pxWrap) pxWrap.style.display = _isCircle() ? 'none' : 'block';
     const v = Math.round(parseFloat(getComputedStyle(ctx.contentEl).paddingLeft) || 0);
     pxSlider.value = v; pxNumber.value = v;
