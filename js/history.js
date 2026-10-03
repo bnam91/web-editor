@@ -499,8 +499,40 @@ function undo() {
   } else {
     _collabScopedUndoStats.fullCalls++;
     restoreSnapshot(targetSnap);
+    _restampRestored();   // ★R1(2026-10-03) — 위 _restampRestored 주석
   }
   try { leavingSnap?.sideEffects?.onUndo?.(); } catch (e) { console.warn('[history] onUndo err:', e); }
+}
+
+/* ★[R1 · 2026-10-03] 복원한 칸을 «복원된 라이브»로 다시 찍는다 — ⌘Z 깊이가 1 에 갇히던 것.
+   ══ 실측(현빈 실제 프로젝트 proj_1786077501267 을 하네스에 «읽기만» 얹어 블럭 10개 지움 → ⌘Z 10번) ══
+     v0.9.3·v0.9.1 = 10개 다 돌아옴 / v0.9.4·v0.9.5·dev = «1개만», 그 뒤 ⌘Z 는 제자리.
+     이분 탐색(v0.9.3..v0.9.4, 642커밋): 첫 나쁜 커밋 = 3d49aae2(09-22, undo 첫머리 구제를 «항상» 돌림).
+   ══ 기전 ══ 복원은 «멱등이 아니다» — 복원 때 rebindAll 이 다시 그리는 블럭이 직렬화를 바꾼다
+     (이 프로젝트: 채팅말풍선 style `background:#fdfdfd;…` ↔ 스냅샷 `background: rgb(253, 253, 253); …` ·
+      손으로 만든 섹션: section-inner 에 padding-left/right 가 붙음). 그러면 다음 ⌘Z 첫머리의
+     ensureHistoryCheckpoint 가 «라이브 ≠ 그 칸»으로 읽고 새 칸을 만들며 redo 꼬리를 자른 뒤 한 칸 내려가
+     «같은 자리»로 돌아온다 ⇒ 깊이 1 에 갇힌다. 3d49aae2 본문이 이 위험을 적어 뒀고 도형만 멱등으로 고쳤다(1deee27c).
+   ══ 처방(지디 확정 ㉠) ══ 원천을 하나씩 멱등으로 만들지 않는다(끝이 없다 — 원천이 여럿) — 복원을 끝낸 «그 칸»의
+     canvas 를 라이브 직렬화로 갈아끼운다(지금 화면 = 그 칸). 한 번은 «동기로»(rebindAll 안의 쓰기),
+     한 번은 «한 프레임 뒤»(ResizeObserver 류 늦은 쓰기 — restampHistoryTop 주석의 다섯 자리와 같은 병).
+   ⛔3d49aae2 를 되돌리지 않는다 — 그 구제가 막는 T-009⑨·T-005④㉡ 가 되살아난다(tests/dom/undo-depth-r1 R1-d·R1-e).
+   ★안전장치 — 아래 하나라도 틀리면 «안 찍는다»: ⑴복원 중(_historyPaused) ⑵그 사이 다른 칸이 생겼거나 위치가 바뀜
+     (pos·len·seq 불일치 = 사용자가 그 프레임에 편집했다 — 그 편집을 이 칸에 섞으면 안 된다) ⑶직렬화가 같다.
+   ⛔협업 «스코프» 복원 경로엔 안 건다 — 그 라이브엔 원격분이 섞여 있고 그 칸들의 차이(remoteKeys)로 되돌린다.
+   ⛔sidecar 는 안 건드린다(restampHistoryTop 과 같은 까닭 — 그 주석). */
+function _restampRestored() {
+  const pos = historyPos, len = historyStack.length, e = historyStack[pos];
+  if (!e) return;
+  const seq = e.seq;
+  const stamp = () => {
+    if (_historyPaused) return;
+    if (historyPos !== pos || historyStack.length !== len || historyStack[pos] !== e || e.seq !== seq) return;
+    const cur = window.getSerializedCanvas?.();
+    if (cur && cur !== e.canvas) e.canvas = cur;
+  };
+  stamp();
+  requestAnimationFrame(() => requestAnimationFrame(stamp));
 }
 
 function redo() {
@@ -519,6 +551,7 @@ function redo() {
   }
   _collabScopedUndoStats.fullCalls++;
   restoreSnapshot(newSnap);
+  _restampRestored();   // ★R1(2026-10-03) — undo 와 같은 까닭
   try { newSnap?.sideEffects?.onRedo?.(); } catch (e) { console.warn('[history] onRedo err:', e); }
 }
 
