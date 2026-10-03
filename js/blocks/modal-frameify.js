@@ -134,6 +134,13 @@ export function frameifyModalDom(block) {
 
   const frame = window.makeFrameBlock(radius > 0 ? { fullWidth: true, bg, radius } : { fullWidth: true, bg });
   const st = frame.style;
+  /* ★일부러 클립 유지 — AA 62px 차이(실앱 현빈 모달 0px) · 이 한 줄을 바꾸면 뒤집힌다.
+       클립을 거는 자리는 둘이다: ⑴ 바로 위 makeFrameBlock(block-factory.js) — radius 를 주면 인라인 `overflow:hidden`
+       ⑵ css/editor-blocks.css `.frame-block[data-radius]:not([data-radius="0"]) { overflow: hidden; }`.
+       «이 한 줄» = 바로 아래 주석 처리된 `st.overflow = 'visible'` — 풀면 인라인이 ⑴⑵ 를 둘 다 이겨 icon-stack+모서리의
+       아이콘 안티앨리어싱 62px(tests/dom/modal-frameify-pixel ALLOW ⑴)가 0 이 되는 대신, «모달에서 온 둥근 프레임»만
+       나중에 넣는 이미지 줄을 모서리에서 안 자른다(다른 모든 둥근 프레임과 달라진다). 뒤집으면 ALLOW ⑴ 도 같이 0 으로. */
+  // if (radius > 0) st.overflow = 'visible';
   // ── 안쪽 여백 — titled 는 루트 0(칸이 자기 여백을 갖는다 — renderModalBlock rootPad) ──
   const fp = v === 'titled' ? { x: 0, y: 0 } : { x: padX, y: padY };
   frame.dataset.padX = String(fp.x); frame.dataset.padY = String(fp.y);
